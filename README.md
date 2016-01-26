@@ -1,1 +1,1 @@
-Placeholder to allow user of the issue tracker.
+Placeholder to allow use of the issue tracker.
