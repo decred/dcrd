@@ -18,7 +18,7 @@
 5. [Developer Resources](#DeveloperResources)
     1. [Code Contribution Guidelines](#ContributionGuidelines)
     2. [JSON-RPC Reference](#JSONRPCReference)
-    3. [The btcsuite Decred-related Go Packages](#GoPackages)
+    3. [The Decred-related Go Packages](#GoPackages)
 
 <a name="About" />
 ### 1. About
@@ -180,7 +180,7 @@ information.
 * [JSON-RPC Reference](https://github.com/decred/dcrd/tree/master/docs/json_rpc_api.md)
     * [RPC Examples](https://github.com/decred/dcrd/tree/master/docs/json_rpc_api.md#ExampleCode)
 <a name="GoPackages" />
-* The decred Decred-related Go Packages:
+* The Decred-related Go Packages:
     * [btcrpcclient](https://github.com/decred/dcrrpcclient) - Implements a
 	  robust and easy to use Websocket-enabled Decred JSON-RPC client
     * [wire](https://github.com/decred/dcrd/tree/master/wire) - Implements the
