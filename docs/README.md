@@ -154,7 +154,7 @@ configuration necessary, however, there is an optional method to use a
 **3.1 Wallet**<br />
 
 dcrd was intentionally developed without an integrated wallet for security
-reasons.  Please see [btcwallet](https://github.com/decred/btcwallet) for more
+reasons.  Please see [dcrwallet](https://github.com/decred/dcrwallet) for more
 information.
 
 <a name="Contact" />
@@ -181,7 +181,7 @@ information.
     * [RPC Examples](https://github.com/decred/dcrd/tree/master/docs/json_rpc_api.md#ExampleCode)
 <a name="GoPackages" />
 * The Decred-related Go Packages:
-    * [btcrpcclient](https://github.com/decred/dcrrpcclient) - Implements a
+    * [dcrrpcclient](https://github.com/decred/dcrrpcclient) - Implements a
 	  robust and easy to use Websocket-enabled Decred JSON-RPC client
     * [wire](https://github.com/decred/dcrd/tree/master/wire) - Implements the
 	  Decred wire protocol
@@ -189,10 +189,10 @@ information.
 	  Implements Decred block handling and chain selection rules
     * [txscript](https://github.com/decred/dcrd/tree/master/txscript) -
 	  Implements the Decred transaction scripting language
-    * [btcec](https://github.com/decred/dcrd/tree/master/dcrec) - Implements
+    * [dcrec](https://github.com/decred/dcrd/tree/master/dcrec) - Implements
 	  support for the elliptic curve cryptographic functions needed for the
 	  Decred scripts
     * [database](https://github.com/decred/dcrd/tree/master/database) -
 	  Provides a database interface for the Decred block chain
-    * [btcutil](https://github.com/decred/dcrutil) - Provides Decred-specific
+    * [dcrutil](https://github.com/decred/dcrutil) - Provides Decred-specific
 	  convenience functions and types
