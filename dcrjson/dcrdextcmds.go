@@ -151,6 +151,28 @@ func NewTicketsForAddressCmd(addr string) *TicketsForAddressCmd {
 	return &TicketsForAddressCmd{addr}
 }
 
+// GetMempoolFeeCmd defines the getmempoolfee JSON-RPC command.
+type GetMempoolFeeCmd struct{}
+
+// NewGetMempoolFeeCmd returns a new instance which can be used to issue a
+// JSON-RPC get mempool fee command
+func NewGetMempoolFeeCmd() *GetMempoolFeeCmd {
+	return &GetMempoolFeeCmd{}
+}
+
+// SetMempoolFeeCmd defines the setmempoolfee JSON-RPC command.
+type SetMempoolFeeCmd struct {
+	RelayFee     int64
+	MinFee       int64
+	SkipFeeLocal bool
+}
+
+// NewSetMempoolFeeCmd returns a new instance which can be used to issue a
+// JSON-RPC set mempool fee command
+func NewrSetMempoolFeeCmd(relayFee, minFee int64, skipFeeLocal bool) *SetMempoolFeeCmd {
+	return &SetMempoolFeeCmd{relayFee, minFee, skipFeeLocal}
+}
+
 func init() {
 	// No special flags for commands in this file.
 	flags := UsageFlag(0)
@@ -168,4 +190,6 @@ func init() {
 	MustRegisterCmd("rebroadcastmissed", (*RebroadcastMissedCmd)(nil), flags)
 	MustRegisterCmd("rebroadcastwinners", (*RebroadcastWinnersCmd)(nil), flags)
 	MustRegisterCmd("ticketsforaddress", (*TicketsForAddressCmd)(nil), flags)
+	MustRegisterCmd("getmempoolfee", (*GetMempoolFeeCmd)(nil), flags)
+	MustRegisterCmd("setmempoolfee", (*SetMempoolFeeCmd)(nil), flags)
 }
