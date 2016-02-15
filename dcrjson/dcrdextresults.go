@@ -28,3 +28,11 @@ type Ticket struct {
 type TicketsForAddressResult struct {
 	Tickets []string `json:"tickets"`
 }
+
+// GetMempoolFeeResult models the data returned from getmempoolfee
+// command
+type GetMempoolFeeResult struct {
+	RelayFee     int64 `json:"relayfee"`
+	MinFee       int64 `json:"minfee"`
+	SkipFeeLocal bool  `json:"skipfeelocal"`
+}
