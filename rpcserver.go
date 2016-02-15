@@ -178,6 +178,7 @@ var rpcHandlersBeforeInit = map[string]commandHandler{
 	"getgenerate":           handleGetGenerate,
 	"gethashespersec":       handleGetHashesPerSec,
 	"getinfo":               handleGetInfo,
+	"getmempoolfee":         handleGetMempoolFee,
 	"getmininginfo":         handleGetMiningInfo,
 	"getnettotals":          handleGetNetTotals,
 	"getnetworkhashps":      handleGetNetworkHashPS,
@@ -198,6 +199,7 @@ var rpcHandlersBeforeInit = map[string]commandHandler{
 	"searchrawtransactions": handleSearchRawTransactions,
 	"sendrawtransaction":    handleSendRawTransaction,
 	"setgenerate":           handleSetGenerate,
+	"setmempoolfee":         handleSetMempoolFee,
 	"stop":                  handleStop,
 	"submitblock":           handleSubmitBlock,
 	"ticketsforaddress":     handleTicketsForAddress,
@@ -3224,6 +3226,17 @@ func handleGetInfo(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) (in
 	return ret, nil
 }
 
+// handleGetMempoolFee implements the getmempoolfee command. We will return
+// RelayFee, MinFee and whether bool to skip fee locally is set (for miners)
+func handleGetMempoolFee(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) (interface{}, error) {
+	result := dcrjson.GetMempoolFeeResult{
+		RelayFee:     0,
+		MinFee:       0,
+		SkipFeeLocal: false,
+	}
+	return &result, nil
+}
+
 // handleGetMiningInfo implements the getmininginfo command. We only return the
 // fields that are not related to wallet functionality.
 func handleGetMiningInfo(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) (interface{}, error) {
@@ -4504,6 +4517,14 @@ func handleSetGenerate(s *rpcServer, cmd interface{}, closeChan <-chan struct{})
 		s.server.cpuMiner.SetNumWorkers(int32(genProcLimit))
 		s.server.cpuMiner.Start()
 	}
+	return nil, nil
+}
+
+// handleGetMempoolFee implements the getmempoolfee command. We will return
+// RelayFee, MinFee and whether bool to skip fee locally is set (for miners)
+func handleSetMempoolFee(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) (interface{}, error) {
+	c := cmd.(*dcrjson.SetMempoolFeeCmd)
+	fmt.Println("set mempool fee", c.RelayFee, c.MinFee, c.SkipFeeLocal)
 	return nil, nil
 }
 
