@@ -1482,7 +1482,7 @@ func detectTxType(tx *dcrutil.Tx) stake.TxType {
 // This should probably be done at the bottom using "IsSStx" etc functions.
 // It should also set the dcrutil tree type for the tx as well.
 func (mp *txMemPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew,
-	rateLimit, allowHighFees bool) ([]*chainhash.Hash, error) {
+	rateLimit, allowHighFees, skipsFeeLocal bool) ([]*chainhash.Hash, error) {
 	txHash := tx.Sha()
 
 	// Don't accept the transaction if it already exists in the pool.  This
@@ -1874,7 +1874,7 @@ func (mp *txMemPool) MaybeAcceptTransaction(tx *dcrutil.Tx, isNew,
 	mp.Lock()
 	defer mp.Unlock()
 
-	return mp.maybeAcceptTransaction(tx, isNew, rateLimit, true)
+	return mp.maybeAcceptTransaction(tx, isNew, rateLimit, true, false)
 }
 
 // processOrphans is the internal function which implements the public
@@ -1923,7 +1923,7 @@ func (mp *txMemPool) processOrphans(hash *chainhash.Hash) {
 
 			// Potentially accept the transaction into the
 			// transaction pool.
-			missingParents, err := mp.maybeAcceptTransaction(tx, true, true, true)
+			missingParents, err := mp.maybeAcceptTransaction(tx, true, true, true, false)
 			if err != nil {
 				// TODO: Remove orphans that depend on this
 				// failed transaction.
@@ -2045,7 +2045,7 @@ func (mp *txMemPool) ProcessTransaction(tx *dcrutil.Tx, allowOrphan,
 	txmpLog.Tracef("Processing transaction %v", tx.Sha())
 
 	// Potentially accept the transaction to the memory pool.
-	missingParents, err := mp.maybeAcceptTransaction(tx, true, rateLimit, allowHighFees)
+	missingParents, err := mp.maybeAcceptTransaction(tx, true, rateLimit, allowHighFees, skipsFeeLocal)
 	if err != nil {
 		return err
 	}
