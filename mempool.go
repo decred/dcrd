@@ -2037,7 +2037,7 @@ func (mp *txMemPool) ProcessOrphans(hash *chainhash.Hash) {
 //
 // This function is safe for concurrent access.
 func (mp *txMemPool) ProcessTransaction(tx *dcrutil.Tx, allowOrphan,
-	rateLimit, allowHighFees bool) error {
+	rateLimit, allowHighFees, skipsFeeLocal bool) error {
 	// Protect concurrent access.
 	mp.Lock()
 	defer mp.Unlock()
