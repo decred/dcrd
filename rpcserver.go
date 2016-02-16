@@ -3229,10 +3229,14 @@ func handleGetInfo(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) (in
 // handleGetMempoolFee implements the getmempoolfee command. We will return
 // RelayFee, MinFee and whether bool to skip fee locally is set (for miners)
 func handleGetMempoolFee(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) (interface{}, error) {
+
+	relayFee := s.server.txMemPool.RelayFee()
+	minFee := s.server.txMemPool.MinFee()
+	skipFeeLocal := s.server.txMemPool.SkipFeeLocal()
 	result := dcrjson.GetMempoolFeeResult{
-		RelayFee:     0,
-		MinFee:       0,
-		SkipFeeLocal: false,
+		RelayFee:     relayFee,
+		MinFee:       minFee,
+		SkipFeeLocal: skipFeeLocal,
 	}
 	return &result, nil
 }
@@ -4524,8 +4528,34 @@ func handleSetGenerate(s *rpcServer, cmd interface{}, closeChan <-chan struct{})
 // RelayFee, MinFee and whether bool to skip fee locally is set (for miners)
 func handleSetMempoolFee(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) (interface{}, error) {
 	c := cmd.(*dcrjson.SetMempoolFeeCmd)
-	fmt.Println("set mempool fee", c.RelayFee, c.MinFee, c.SkipFeeLocal)
-	return nil, nil
+
+	relayFee := s.server.txMemPool.RelayFee()
+	minFee := s.server.txMemPool.MinFee()
+	skipFeeLocal := s.server.txMemPool.SkipFeeLocal()
+
+	resultStr := ""
+
+	if relayFee != c.RelayFee {
+		s.server.txMemPool.SetRelayFee(c.RelayFee)
+		resultStr += fmt.Sprintf("Set RelayFee from: %v to: %v.", relayFee, c.RelayFee)
+	}
+
+	if minFee != c.MinFee {
+		s.server.txMemPool.SetMinFee(c.MinFee)
+		resultStr += fmt.Sprintf("Set MinFee from: %v to: %v.", minFee, c.MinFee)
+	}
+
+	if skipFeeLocal != c.SkipFeeLocal {
+		s.server.txMemPool.SetSkipFeeLocal(c.SkipFeeLocal)
+		resultStr += fmt.Sprintf("Set SkipFeeLocal from: %v to: %v.", skipFeeLocal, c.SkipFeeLocal)
+	}
+
+	if resultStr == "" {
+		resultStr += "No changes made to MemPoolFees\n"
+	} else {
+		resultStr += "\n"
+	}
+	return resultStr, nil
 }
 
 // handleStop implements the stop command.
