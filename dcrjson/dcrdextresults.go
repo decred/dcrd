@@ -11,6 +11,14 @@ type LiveTicketsResult struct {
 	Tickets []string `json:"tickets"`
 }
 
+// GetMempoolFeeResult models the data returned from getmempoolfee
+// command
+type GetMempoolFeeResult struct {
+	RelayFee     int64 `json:"relayfee"`
+	MinFee       int64 `json:"minfee"`
+	SkipFeeLocal bool  `json:"skipfeelocal"`
+}
+
 // MissedTicketsResult models the data returned from the missedtickets
 // command.
 type MissedTicketsResult struct {
@@ -27,12 +35,4 @@ type Ticket struct {
 // command.
 type TicketsForAddressResult struct {
 	Tickets []string `json:"tickets"`
-}
-
-// GetMempoolFeeResult models the data returned from getmempoolfee
-// command
-type GetMempoolFeeResult struct {
-	RelayFee     int64 `json:"relayfee"`
-	MinFee       int64 `json:"minfee"`
-	SkipFeeLocal bool  `json:"skipfeelocal"`
 }
