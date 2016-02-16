@@ -671,6 +671,19 @@ var helpDescsEnUS = map[string]string{
 	// GetCoinSupply help
 	"getcoinsupply--synopsis": "Returns current total coin supply in atoms",
 	"getcoinsupply--result0":  "Current coin supply in atoms",
+
+	// GetMempoolFee help
+	"getmempoolfee--synopsis":          "Returns current mempool fee rules",
+	"getmempoolfeeresult-relayfee":     "Current RelayFee",
+	"getmempoolfeeresult-minfee":       "Current MinFee",
+	"getmempoolfeeresult-skipfeelocal": "Current bool for whether to check local tx for miners",
+
+	// SetMempoolFee help
+	"setmempoolfee--synopsis":    "Sets the current mempool fee rules",
+	"setmempoolfee-relayfee":     "Sets the relay fee to this value",
+	"setmempoolfee-minfee":       "Sets the minfee to this value",
+	"setmempoolfee-skipfeelocal": "Sets the skip fee local check for miners",
+	"setmempoolfee--result0":     "String to signify success/failure of new settings",
 }
 
 // rpcResultTypes specifies the result types that each RPC command can return.
@@ -706,6 +719,7 @@ var rpcResultTypes = map[string][]interface{}{
 	"getgenerate":           []interface{}{(*bool)(nil)},
 	"gethashespersec":       []interface{}{(*float64)(nil)},
 	"getinfo":               []interface{}{(*dcrjson.InfoChainResult)(nil)},
+	"getmempoolfee":         []interface{}{(*dcrjson.GetMempoolFeeResult)(nil)},
 	"getmininginfo":         []interface{}{(*dcrjson.GetMiningInfoResult)(nil)},
 	"getnettotals":          []interface{}{(*dcrjson.GetNetTotalsResult)(nil)},
 	"getnetworkhashps":      []interface{}{(*int64)(nil)},
@@ -726,6 +740,7 @@ var rpcResultTypes = map[string][]interface{}{
 	"searchrawtransactions": []interface{}{(*string)(nil), (*[]dcrjson.TxRawResult)(nil)},
 	"sendrawtransaction":    []interface{}{(*string)(nil)},
 	"setgenerate":           nil,
+	"setmempoolfee":         []interface{}{(*string)(nil)},
 	"stop":                  []interface{}{(*string)(nil)},
 	"submitblock":           []interface{}{nil, (*string)(nil)},
 	"ticketsforaddress":     []interface{}{(*dcrjson.TicketsForAddressResult)(nil)},
