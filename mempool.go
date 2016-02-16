@@ -1703,6 +1703,67 @@ func (mp *txMemPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew,
 		return nil, txRuleError(wire.RejectNonstandard, str)
 	}
 
+	// if skipsFeeLocal flag is true, then skip checkTransactionFee for currenttx
+	if !skipsFeeLocal {
+		_, err = mp.checkTransactionFee(tx, txType, isNew, rateLimit, allowHighFees,
+			txHash, txFee, curHeight, nextBlockHeight, txStore)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// Verify crypto signatures for each input and reject the transaction if
+	// any don't verify.
+	err = blockchain.ValidateTransactionScripts(tx, txStore,
+		txscript.StandardVerifyFlags)
+	if err != nil {
+		if cerr, ok := err.(blockchain.RuleError); ok {
+			return nil, chainRuleError(cerr)
+		}
+		return nil, err
+	}
+
+	// Add to transaction pool.
+	mp.addTransaction(tx, txType, curHeight, txFee)
+
+	// If it's an SSGen (vote), insert it into the list of
+	// votes.
+	if txType == stake.TxTypeSSGen {
+		err := mp.InsertVote(tx)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// Insert the address into the mempool address index.
+	for _, txOut := range tx.MsgTx().TxOut {
+		// This function returns an error, but we don't really care
+		// if the script was non-standard or otherwise malformed.
+		mp.indexScriptAddressToTx(txOut.Version, txOut.PkScript, tx, txType)
+	}
+
+	txmpLog.Debugf("Accepted transaction %v (pool size: %v)", txHash,
+		len(mp.pool))
+
+	if mp.server.rpcServer != nil {
+		// Notify websocket clients about mempool transactions.
+		mp.server.rpcServer.ntfnMgr.NotifyMempoolTx(tx, isNew)
+
+		// Potentially notify any getblocktemplate long poll clients
+		// about stale block templates due to the new transaction.
+		mp.server.rpcServer.gbtWorkState.NotifyMempoolTx(mp.lastUpdated)
+	}
+
+	return nil, nil
+}
+
+// checkTransactionFee is a helper function for maybeAcceptTransaction that
+// contains all the checks to see whether the current tx satisfies current fee
+// rules.
+func (mp *txMemPool) checkTransactionFee(tx *dcrutil.Tx, txType stake.TxType,
+	isNew, rateLimit, allowHighFees bool, txHash *chainhash.Hash,
+	txFee, curHeight, nextBlockHeight int64,
+	txStore blockchain.TxStore) ([]*chainhash.Hash, error) {
 	var minRelayTxFee dcrutil.Amount
 	switch {
 	case mp.server.chainParams == &chaincfg.MainNetParams:
@@ -1727,7 +1788,7 @@ func (mp *txMemPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew,
 	serializedSize := int64(tx.MsgTx().SerializeSize())
 	minFee := calcMinRequiredTxRelayFee(serializedSize, int64(minRelayTxFee))
 	if txType == stake.TxTypeRegular { // Non-stake only
-		if serializedSize >= (defaultBlockPrioritySize-1000) && (txFee < minFee && !mp.SkipFeeLocal()) {
+		if serializedSize >= (defaultBlockPrioritySize-1000) && (txFee < minFee) {
 			str := fmt.Sprintf("transaction %v has %v fees which is under "+
 				"the required amount of %v", txHash, txFee,
 				minFee)
@@ -1764,7 +1825,7 @@ func (mp *txMemPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew,
 	if !allowHighFees {
 		maxFee := calcMinRequiredTxRelayFee(serializedSize*100, int64(minRelayTxFee))
 		if txFee > maxFee {
-			err = fmt.Errorf("transaction %v has %v fee which is above the "+
+			err := fmt.Errorf("transaction %v has %v fee which is above the "+
 				"allowHighFee check threshold amount of %v", txHash,
 				txFee, maxFee)
 			return nil, err
@@ -1813,48 +1874,6 @@ func (mp *txMemPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew,
 		txmpLog.Tracef("rate limit: curTotal %v, nextTotal: %v, "+
 			"limit %v", oldTotal, mp.pennyTotal,
 			cfg.FreeTxRelayLimit*10*1000)
-	}
-
-	// Verify crypto signatures for each input and reject the transaction if
-	// any don't verify.
-	err = blockchain.ValidateTransactionScripts(tx, txStore,
-		txscript.StandardVerifyFlags)
-	if err != nil {
-		if cerr, ok := err.(blockchain.RuleError); ok {
-			return nil, chainRuleError(cerr)
-		}
-		return nil, err
-	}
-
-	// Add to transaction pool.
-	mp.addTransaction(tx, txType, curHeight, txFee)
-
-	// If it's an SSGen (vote), insert it into the list of
-	// votes.
-	if txType == stake.TxTypeSSGen {
-		err := mp.InsertVote(tx)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	// Insert the address into the mempool address index.
-	for _, txOut := range tx.MsgTx().TxOut {
-		// This function returns an error, but we don't really care
-		// if the script was non-standard or otherwise malformed.
-		mp.indexScriptAddressToTx(txOut.Version, txOut.PkScript, tx, txType)
-	}
-
-	txmpLog.Debugf("Accepted transaction %v (pool size: %v)", txHash,
-		len(mp.pool))
-
-	if mp.server.rpcServer != nil {
-		// Notify websocket clients about mempool transactions.
-		mp.server.rpcServer.ntfnMgr.NotifyMempoolTx(tx, isNew)
-
-		// Potentially notify any getblocktemplate long poll clients
-		// about stale block templates due to the new transaction.
-		mp.server.rpcServer.gbtWorkState.NotifyMempoolTx(mp.lastUpdated)
 	}
 
 	return nil, nil
