@@ -153,6 +153,11 @@ type txMemPool struct {
 	lastUpdated   time.Time // last time pool was updated.
 	pennyTotal    float64   // exponentially decaying total for penny spends.
 	lastPennyUnix int64     // unix time of last ``penny spend''
+
+	// tx fee rules
+	relayFee     int64
+	minFee       int64
+	skipFeeLocal bool
 }
 
 // insertVote inserts a vote into the map of block votes.
@@ -2191,4 +2196,55 @@ func newTxMemPool(server *server) *txMemPool {
 		memPool.addrindex = make(map[string]map[chainhash.Hash]struct{})
 	}
 	return memPool
+}
+
+// RelayFee gets the currently set relay fee
+func (mp *txMemPool) RelayFee() int64 {
+	mp.RWMutex.Lock()
+	relayFee := mp.relayFee
+	mp.RWMutex.Unlock()
+
+	return relayFee
+}
+
+// SetRelayFee sets the mempool relay fee
+func (mp *txMemPool) SetRelayFee(relayFee int64) {
+	mp.RWMutex.Lock()
+	mp.relayFee = relayFee
+	mp.RWMutex.Unlock()
+}
+
+// MinFee gets the currently set min fee
+func (mp *txMemPool) MinFee() int64 {
+	mp.RWMutex.Lock()
+	minFee := mp.minFee
+	mp.RWMutex.Unlock()
+
+	return minFee
+}
+
+// SetMinFee sets the mempool min fee for tx
+func (mp *txMemPool) SetMinFee(minFee int64) int64 {
+	mp.RWMutex.Lock()
+	mp.minFee = minFee
+	mp.RWMutex.Unlock()
+
+	return minFee
+}
+
+// SkipFeeLocal gets the currently set skip fee local bool
+func (mp *txMemPool) SkipFeeLocal() bool {
+	mp.RWMutex.Lock()
+	skipFeeLocal := mp.skipFeeLocal
+	mp.RWMutex.Unlock()
+
+	return skipFeeLocal
+}
+
+//SetSkipFeeLocal sets the bool that decides whether to locally
+// allow local tx that have no fees (for PoW miners)
+func (mp *txMemPool) SetSkipFeeLocal(skipFeeLocal bool) {
+	mp.RWMutex.Lock()
+	mp.skipFeeLocal = skipFeeLocal
+	mp.RWMutex.Unlock()
 }
