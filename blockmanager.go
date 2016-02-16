@@ -2710,7 +2710,7 @@ func (b *blockManager) ProcessBlock(block *dcrutil.Block,
 // a block chain.  It is funneled through the block manager since blockchain is
 // not safe for concurrent access.
 func (b *blockManager) ProcessTransaction(tx *dcrutil.Tx, allowOrphans bool,
-	rateLimit bool, allowHighFees bool) error {
+	rateLimit bool, allowHighFees bool, skipsFeeLocal bool) error {
 	reply := make(chan processTransactionResponse, 1)
 	b.msgChan <- processTransactionMsg{tx, allowOrphans, rateLimit, allowHighFees, reply}
 	response := <-reply

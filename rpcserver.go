@@ -4457,9 +4457,10 @@ func handleSendRawTransaction(s *rpcServer, cmd interface{}, closeChan <-chan st
 			Message: "TX decode failed: " + err.Error(),
 		}
 	}
+	skipFeeLocal := s.server.txMemPool.SkipFeeLocal()
 
 	tx := dcrutil.NewTx(msgtx)
-	err = s.server.blockManager.ProcessTransaction(tx, false, false, allowHighFees)
+	err = s.server.blockManager.ProcessTransaction(tx, false, false, allowHighFees, skipFeeLocal)
 	if err != nil {
 		// When the error is a rule error, it means the transaction was
 		// simply rejected as opposed to something actually going wrong,
