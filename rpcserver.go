@@ -4524,8 +4524,8 @@ func handleSetGenerate(s *rpcServer, cmd interface{}, closeChan <-chan struct{})
 	return nil, nil
 }
 
-// handleGetMempoolFee implements the getmempoolfee command. We will return
-// RelayFee, MinFee and whether bool to skip fee locally is set (for miners)
+// handleSetMempoolFee implements the setmempoolfee command. Allows users to change
+// mempool fee rules
 func handleSetMempoolFee(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) (interface{}, error) {
 	c := cmd.(*dcrjson.SetMempoolFeeCmd)
 
@@ -4547,7 +4547,8 @@ func handleSetMempoolFee(s *rpcServer, cmd interface{}, closeChan <-chan struct{
 
 	if skipFeeLocal != c.SkipFeeLocal {
 		s.server.txMemPool.SetSkipFeeLocal(c.SkipFeeLocal)
-		resultStr += fmt.Sprintf("Set SkipFeeLocal from: %v to: %v.", skipFeeLocal, c.SkipFeeLocal)
+		resultStr += fmt.Sprintf("Set SkipFeeLocal from: %v to: %v.",
+			skipFeeLocal, c.SkipFeeLocal)
 	}
 
 	if resultStr == "" {
