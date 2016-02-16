@@ -81,6 +81,15 @@ func NewGetCoinSupplyCmd() *GetCoinSupplyCmd {
 	return &GetCoinSupplyCmd{}
 }
 
+// GetMempoolFeeCmd defines the getmempoolfee JSON-RPC command.
+type GetMempoolFeeCmd struct{}
+
+// NewGetMempoolFeeCmd returns a new instance which can be used to issue a
+// JSON-RPC get mempool fee command
+func NewGetMempoolFeeCmd() *GetMempoolFeeCmd {
+	return &GetMempoolFeeCmd{}
+}
+
 // GetStakeDifficultyCmd is a type handling custom marshaling and
 // unmarshaling of getstakedifficulty JSON RPC commands.
 type GetStakeDifficultyCmd struct{}
@@ -140,26 +149,6 @@ func NewRebroadcastWinnersCmd() *RebroadcastWinnersCmd {
 	return &RebroadcastWinnersCmd{}
 }
 
-// TicketsForAddressCmd defines the ticketsforbucket JSON-RPC command.
-type TicketsForAddressCmd struct {
-	Address string
-}
-
-// NewTicketsForAddressCmd returns a new instance which can be used to issue a
-// JSON-RPC tickets for bucket command.
-func NewTicketsForAddressCmd(addr string) *TicketsForAddressCmd {
-	return &TicketsForAddressCmd{addr}
-}
-
-// GetMempoolFeeCmd defines the getmempoolfee JSON-RPC command.
-type GetMempoolFeeCmd struct{}
-
-// NewGetMempoolFeeCmd returns a new instance which can be used to issue a
-// JSON-RPC get mempool fee command
-func NewGetMempoolFeeCmd() *GetMempoolFeeCmd {
-	return &GetMempoolFeeCmd{}
-}
-
 // SetMempoolFeeCmd defines the setmempoolfee JSON-RPC command.
 type SetMempoolFeeCmd struct {
 	RelayFee     int64
@@ -173,6 +162,17 @@ func NewrSetMempoolFeeCmd(relayFee, minFee int64, skipFeeLocal bool) *SetMempool
 	return &SetMempoolFeeCmd{relayFee, minFee, skipFeeLocal}
 }
 
+// TicketsForAddressCmd defines the ticketsforbucket JSON-RPC command.
+type TicketsForAddressCmd struct {
+	Address string
+}
+
+// NewTicketsForAddressCmd returns a new instance which can be used to issue a
+// JSON-RPC tickets for bucket command.
+func NewTicketsForAddressCmd(addr string) *TicketsForAddressCmd {
+	return &TicketsForAddressCmd{addr}
+}
+
 func init() {
 	// No special flags for commands in this file.
 	flags := UsageFlag(0)
@@ -183,13 +183,13 @@ func init() {
 	MustRegisterCmd("existslivetickets", (*ExistsLiveTicketsCmd)(nil), flags)
 	MustRegisterCmd("existsmempooltxs", (*ExistsMempoolTxsCmd)(nil), flags)
 	MustRegisterCmd("getcoinsupply", (*GetCoinSupplyCmd)(nil), flags)
+	MustRegisterCmd("getmempoolfee", (*GetMempoolFeeCmd)(nil), flags)
 	MustRegisterCmd("getstakedifficulty", (*GetStakeDifficultyCmd)(nil), flags)
 	MustRegisterCmd("getticketpoolvalue", (*GetTicketPoolValueCmd)(nil), flags)
 	MustRegisterCmd("livetickets", (*LiveTicketsCmd)(nil), flags)
 	MustRegisterCmd("missedtickets", (*MissedTicketsCmd)(nil), flags)
 	MustRegisterCmd("rebroadcastmissed", (*RebroadcastMissedCmd)(nil), flags)
 	MustRegisterCmd("rebroadcastwinners", (*RebroadcastWinnersCmd)(nil), flags)
-	MustRegisterCmd("ticketsforaddress", (*TicketsForAddressCmd)(nil), flags)
-	MustRegisterCmd("getmempoolfee", (*GetMempoolFeeCmd)(nil), flags)
 	MustRegisterCmd("setmempoolfee", (*SetMempoolFeeCmd)(nil), flags)
+	MustRegisterCmd("ticketsforaddress", (*TicketsForAddressCmd)(nil), flags)
 }
