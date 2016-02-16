@@ -1727,7 +1727,7 @@ func (mp *txMemPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew,
 	serializedSize := int64(tx.MsgTx().SerializeSize())
 	minFee := calcMinRequiredTxRelayFee(serializedSize, int64(minRelayTxFee))
 	if txType == stake.TxTypeRegular { // Non-stake only
-		if serializedSize >= (defaultBlockPrioritySize-1000) && txFee < minFee {
+		if serializedSize >= (defaultBlockPrioritySize-1000) && (txFee < minFee && !mp.SkipFeeLocal()) {
 			str := fmt.Sprintf("transaction %v has %v fees which is under "+
 				"the required amount of %v", txHash, txFee,
 				minFee)
