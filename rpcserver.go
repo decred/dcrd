@@ -4534,30 +4534,19 @@ func handleSetMempoolFee(s *rpcServer, cmd interface{}, closeChan <-chan struct{
 	minFee := s.server.txMemPool.MinFee()
 	skipFeeLocal := s.server.txMemPool.SkipFeeLocal()
 
-	resultStr := ""
-
 	if relayFee != c.RelayFee {
 		s.server.txMemPool.SetRelayFee(c.RelayFee)
-		resultStr += fmt.Sprintf("Set RelayFee from: %v to: %v.", relayFee, c.RelayFee)
 	}
 
 	if minFee != c.MinFee {
 		s.server.txMemPool.SetMinFee(c.MinFee)
-		resultStr += fmt.Sprintf("Set MinFee from: %v to: %v.", minFee, c.MinFee)
 	}
 
 	if skipFeeLocal != c.SkipFeeLocal {
 		s.server.txMemPool.SetSkipFeeLocal(c.SkipFeeLocal)
-		resultStr += fmt.Sprintf("Set SkipFeeLocal from: %v to: %v.",
-			skipFeeLocal, c.SkipFeeLocal)
 	}
 
-	if resultStr == "" {
-		resultStr += "No changes made to MemPoolFees\n"
-	} else {
-		resultStr += "\n"
-	}
-	return resultStr, nil
+	return nil, nil
 }
 
 // handleStop implements the stop command.
