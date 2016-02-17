@@ -1549,7 +1549,8 @@ mempoolLoop:
 		// minimum block size, except for stake transactions.
 		if sortedByFee && (prioItem.feePerKB < float64(minTxRelayFee)) &&
 			(tx.Tree() != dcrutil.TxTreeStake) &&
-			(blockPlusTxSize >= cfg.BlockMinSize) {
+			(blockPlusTxSize >= cfg.BlockMinSize) &&
+			!mempool.SkipFeeLocal() {
 
 			minrLog.Tracef("Skipping tx %s with feePerKB %.2f "+
 				"< minTxRelayFee %d and block size %d >= "+
