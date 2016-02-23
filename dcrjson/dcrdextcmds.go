@@ -158,7 +158,7 @@ type SetMempoolFeeCmd struct {
 
 // NewSetMempoolFeeCmd returns a new instance which can be used to issue a
 // JSON-RPC set mempool fee command
-func NewrSetMempoolFeeCmd(relayFee, minFee int64, skipFeeLocal bool) *SetMempoolFeeCmd {
+func NewSetMempoolFeeCmd(relayFee, minFee int64, skipFeeLocal bool) *SetMempoolFeeCmd {
 	return &SetMempoolFeeCmd{relayFee, minFee, skipFeeLocal}
 }
 
