@@ -117,7 +117,7 @@ type TxDesc struct {
 	Tx               *dcrutil.Tx  // Transaction.
 	Type             stake.TxType // Transcation type.
 	Added            time.Time    // Time when added to pool.
-	Height           int64        // Blockheight when added to pool.
+	Height           int32        // Blockheight when added to pool.
 	Fee              int64        // Transaction fees.
 	startingPriority float64      // Priority when added to the pool.
 }
@@ -398,6 +398,11 @@ func (mp *txMemPool) SortParentsByVotes(currentTopBlock chainhash.Hash,
 // relay fee.  In particular, if the cost to the network to spend coins is more
 // than 1/3 of the minimum transaction relay fee, it is considered dust.
 func isDust(txOut *wire.TxOut, params *chaincfg.Params) bool {
+	// Unspendable outputs are considered dust.
+	if txscript.IsUnspendable(txOut.PkScript) {
+		return true
+	}
+
 	// The total serialized size consists of the output and the associated
 	// input script to redeem it.  Since there is no input script
 	// to redeem it yet, use the minimum size of a typical input script.
@@ -539,7 +544,7 @@ func checkPkScriptStandard(version uint16, pkScript []byte,
 // of recognized forms, and not containing "dust" outputs (those that are
 // so small it costs more to process them than they are worth).
 func (mp *txMemPool) checkTransactionStandard(tx *dcrutil.Tx, txType stake.TxType,
-	height int64) error {
+	height int32) error {
 	msgTx := tx.MsgTx()
 
 	// The transaction must be a currently supported version.
@@ -1005,7 +1010,7 @@ func (mp *txMemPool) RemoveDoubleSpends(tx *dcrutil.Tx) {
 func (mp *txMemPool) addTransaction(
 	tx *dcrutil.Tx,
 	txType stake.TxType,
-	height,
+	height int32,
 	fee int64) {
 	// Add the transaction to the pool and mark the referenced outpoints
 	// as spent by the pool.
@@ -1147,7 +1152,7 @@ func (mp *txMemPool) FindTxForAddr(addr dcrutil.Address) []*dcrutil.Tx {
 // which are currently in the mempool and hence not mined into a block yet,
 // contribute no additional input age to the transaction.
 func calcInputValueAge(txDesc *TxDesc, txStore blockchain.TxStore,
-	nextBlockHeight int64) float64 {
+	nextBlockHeight int32) float64 {
 	var totalInputAge float64
 	for _, txIn := range txDesc.Tx.MsgTx().TxIn {
 		originHash := &txIn.PreviousOutPoint.Hash
@@ -1160,7 +1165,7 @@ func calcInputValueAge(txDesc *TxDesc, txStore blockchain.TxStore,
 			// have their block height set to a special constant.
 			// Their input age should computed as zero since their
 			// parent hasn't made it into a block yet.
-			var inputAge int64
+			var inputAge int32
 			if txData.BlockHeight == mempoolHeight {
 				inputAge = 0
 			} else {
@@ -1170,7 +1175,7 @@ func calcInputValueAge(txDesc *TxDesc, txStore blockchain.TxStore,
 			// Sum the input value times age.
 			originTxOut := txData.Tx.MsgTx().TxOut[originIndex]
 			inputValue := originTxOut.Value
-			totalInputAge += float64(inputValue * inputAge)
+			totalInputAge += float64(inputValue * int64(inputAge))
 		}
 	}
 
@@ -1244,7 +1249,7 @@ func (td *TxDesc) StartingPriority(txStore blockchain.TxStore) float64 {
 // CurrentPriority calculates the current priority of this tx descriptor's
 // underlying transaction relative to the next block height.
 func (td *TxDesc) CurrentPriority(txStore blockchain.TxStore,
-	nextBlockHeight int64) float64 {
+	nextBlockHeight int32) float64 {
 	inputAge := calcInputValueAge(td, txStore, nextBlockHeight)
 	return calcPriority(td.Tx, inputAge)
 }

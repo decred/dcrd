@@ -169,7 +169,7 @@ type BlockTemplate struct {
 	block           *wire.MsgBlock
 	fees            []int64
 	sigOpCounts     []int64
-	height          int64
+	height          int32
 	validPayAddress bool
 }
 
@@ -285,7 +285,7 @@ func getCoinbaseExtranonces(msgBlock *wire.MsgBlock) []uint64 {
 // block by regenerating the coinbase script with the passed value and block
 // height.  It also recalculates and updates the new merkle root that results
 // from changing the coinbase script.
-func UpdateExtraNonce(msgBlock *wire.MsgBlock, blockHeight int64,
+func UpdateExtraNonce(msgBlock *wire.MsgBlock, blockHeight int32,
 	extraNonces []uint64) error {
 	// First block has no extranonce.
 	if blockHeight == 1 {
@@ -321,7 +321,7 @@ func UpdateExtraNonce(msgBlock *wire.MsgBlock, blockHeight int64,
 // address handling is useful.
 func createCoinbaseTx(coinbaseScript []byte,
 	opReturnPkScript []byte,
-	nextBlockHeight int64,
+	nextBlockHeight int32,
 	addr dcrutil.Address,
 	voters uint16,
 	params *chaincfg.Params) (*dcrutil.Tx, error) {
@@ -442,7 +442,7 @@ func createCoinbaseTx(coinbaseScript []byte,
 // to the passed transaction as spent.  It also adds the passed transaction to
 // the store at the provided height.
 func spendTransaction(txStore blockchain.TxStore, tx *dcrutil.Tx,
-	height int64) error {
+	height int32) error {
 	for _, txIn := range tx.MsgTx().TxIn {
 		originHash := &txIn.PreviousOutPoint.Hash
 		originIndex := txIn.PreviousOutPoint.Index
@@ -2027,5 +2027,33 @@ func UpdateBlockTime(msgBlock *wire.MsgBlock, bManager *blockManager) error {
 		msgBlock.Header.Bits = difficulty
 	}
 
+	return nil
+}
+
+// UpdateExtraNonce updates the extra nonce in the coinbase script of the passed
+// block by regenerating the coinbase script with the passed value and block
+// height.  It also recalculates and updates the new merkle root that results
+// from changing the coinbase script.
+func UpdateExtraNonce(msgBlock *wire.MsgBlock, blockHeight int32, extraNonce uint64) error {
+	coinbaseScript, err := standardCoinbaseScript(blockHeight, extraNonce)
+	if err != nil {
+		return err
+	}
+	if len(coinbaseScript) > blockchain.MaxCoinbaseScriptLen {
+		return fmt.Errorf("coinbase transaction script length "+
+			"of %d is out of range (min: %d, max: %d)",
+			len(coinbaseScript), blockchain.MinCoinbaseScriptLen,
+			blockchain.MaxCoinbaseScriptLen)
+	}
+	msgBlock.Transactions[0].TxIn[0].SignatureScript = coinbaseScript
+
+	// TODO(davec): A dcrutil.Block should use saved in the state to avoid
+	// recalculating all of the other transaction hashes.
+	// block.Transactions[0].InvalidateCache()
+
+	// Recalculate the merkle root with the updated extra nonce.
+	block := dcrutil.NewBlock(msgBlock)
+	merkles := blockchain.BuildMerkleTreeStore(block.Transactions())
+	msgBlock.Header.MerkleRoot = *merkles[len(merkles)-1]
 	return nil
 }
