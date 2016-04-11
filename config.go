@@ -384,7 +384,6 @@ func loadConfig() (*config, []string, error) {
 		cfg.RPCKey         = filepath.Join(cfg.DcrdHomeDir, "rpc.key")
 		cfg.RPCCert        = filepath.Join(cfg.DcrdHomeDir, "rpc.cert")
 		cfg.LogDir         = filepath.Join(cfg.DcrdHomeDir, defaultLogDirname)
-		fmt.Println("Using Home Directory: ", cfg.DcrdHomeDir)
 	}
 
 
