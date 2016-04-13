@@ -68,7 +68,7 @@ var runServiceCommand func(string) error
 //
 // See loadConfig for details on the configuration load process.
 type config struct {
-	DcrdHomeDir        string        `short:"D" long:"dcrdhomedir" description:"Path to dcrd home directory"`
+	DcrdHomeDir        string        `short:"A" long:"appdata" description:"Path to dcrd home directory"`
 	ShowVersion        bool          `short:"V" long:"version" description:"Display version information and exit"`
 	ConfigFile         string        `short:"C" long:"configfile" description:"Path to configuration file"`
 	DataDir            string        `short:"b" long:"datadir" description:"Directory to store data"`
