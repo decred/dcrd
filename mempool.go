@@ -2026,9 +2026,13 @@ func (mp *txMemPool) ProcessTransaction(tx *dcrutil.Tx, allowOrphan,
 
 	// Potentially accept the transaction to the memory pool.
 	var isOrphan bool
-	_, err := mp.maybeAcceptTransaction(tx, true, rateLimit)
+	missingParents, err := mp.maybeAcceptTransaction(tx, true, rateLimit)
 	if err != nil {
 		return err
+	}
+
+	if missingParents != nil {
+		isOrphan = true
 	}
 
 	if !isOrphan {
