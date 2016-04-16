@@ -2031,9 +2031,7 @@ func (mp *txMemPool) ProcessTransaction(tx *dcrutil.Tx, allowOrphan,
 		return err
 	}
 
-	if missingParents != nil {
-		isOrphan = true
-	}
+	isOrphan = len(missingParents) != 0
 
 	if !isOrphan {
 		// Generate the inventory vector and relay it.
