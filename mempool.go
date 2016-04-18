@@ -2025,15 +2025,13 @@ func (mp *txMemPool) ProcessTransaction(tx *dcrutil.Tx, allowOrphan,
 	txmpLog.Tracef("Processing transaction %v", tx.Sha())
 
 	// Potentially accept the transaction to the memory pool.
-	var isOrphan bool
 	missingParents, err := mp.maybeAcceptTransaction(tx, true, rateLimit)
 	if err != nil {
 		return err
 	}
 
-	isOrphan = len(missingParents) != 0
-
-	if !isOrphan {
+	// If len(missingParents) == 0 then we know the tx is NOT an orphan
+	if len(missingParents) == 0 {
 		// Generate the inventory vector and relay it.
 		iv := wire.NewInvVect(wire.InvTypeTx, tx.Sha())
 		mp.server.RelayInventory(iv, tx)
