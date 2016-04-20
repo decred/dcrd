@@ -153,6 +153,11 @@ type txMemPool struct {
 	lastUpdated   time.Time // last time pool was updated.
 	pennyTotal    float64   // exponentially decaying total for penny spends.
 	lastPennyUnix int64     // unix time of last ``penny spend''
+
+	// tx fee rules
+	relayFee     int64
+	minFee       int64
+	skipFeeLocal bool
 }
 
 // insertVote inserts a vote into the map of block votes.
@@ -1477,7 +1482,7 @@ func detectTxType(tx *dcrutil.Tx) stake.TxType {
 // This should probably be done at the bottom using "IsSStx" etc functions.
 // It should also set the dcrutil tree type for the tx as well.
 func (mp *txMemPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew,
-	rateLimit, allowHighFees bool) ([]*chainhash.Hash, error) {
+	rateLimit, allowHighFees, skipsFeeLocal bool) ([]*chainhash.Hash, error) {
 	txHash := tx.Sha()
 
 	// Don't accept the transaction if it already exists in the pool.  This
@@ -1698,6 +1703,67 @@ func (mp *txMemPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew,
 		return nil, txRuleError(wire.RejectNonstandard, str)
 	}
 
+	// if skipsFeeLocal flag is true, then skip checkTransactionFee for currenttx
+	if !skipsFeeLocal {
+		_, err = mp.checkTransactionFee(tx, txType, isNew, rateLimit, allowHighFees,
+			txHash, txFee, curHeight, nextBlockHeight, txStore)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// Verify crypto signatures for each input and reject the transaction if
+	// any don't verify.
+	err = blockchain.ValidateTransactionScripts(tx, txStore,
+		txscript.StandardVerifyFlags)
+	if err != nil {
+		if cerr, ok := err.(blockchain.RuleError); ok {
+			return nil, chainRuleError(cerr)
+		}
+		return nil, err
+	}
+
+	// Add to transaction pool.
+	mp.addTransaction(tx, txType, curHeight, txFee)
+
+	// If it's an SSGen (vote), insert it into the list of
+	// votes.
+	if txType == stake.TxTypeSSGen {
+		err := mp.InsertVote(tx)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// Insert the address into the mempool address index.
+	for _, txOut := range tx.MsgTx().TxOut {
+		// This function returns an error, but we don't really care
+		// if the script was non-standard or otherwise malformed.
+		mp.indexScriptAddressToTx(txOut.Version, txOut.PkScript, tx, txType)
+	}
+
+	txmpLog.Debugf("Accepted transaction %v (pool size: %v)", txHash,
+		len(mp.pool))
+
+	if mp.server.rpcServer != nil {
+		// Notify websocket clients about mempool transactions.
+		mp.server.rpcServer.ntfnMgr.NotifyMempoolTx(tx, isNew)
+
+		// Potentially notify any getblocktemplate long poll clients
+		// about stale block templates due to the new transaction.
+		mp.server.rpcServer.gbtWorkState.NotifyMempoolTx(mp.lastUpdated)
+	}
+
+	return nil, nil
+}
+
+// checkTransactionFee is a helper function for maybeAcceptTransaction that
+// contains all the checks to see whether the current tx satisfies current fee
+// rules.
+func (mp *txMemPool) checkTransactionFee(tx *dcrutil.Tx, txType stake.TxType,
+	isNew, rateLimit, allowHighFees bool, txHash *chainhash.Hash,
+	txFee, curHeight, nextBlockHeight int64,
+	txStore blockchain.TxStore) ([]*chainhash.Hash, error) {
 	var minRelayTxFee dcrutil.Amount
 	switch {
 	case mp.server.chainParams == &chaincfg.MainNetParams:
@@ -1722,7 +1788,7 @@ func (mp *txMemPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew,
 	serializedSize := int64(tx.MsgTx().SerializeSize())
 	minFee := calcMinRequiredTxRelayFee(serializedSize, int64(minRelayTxFee))
 	if txType == stake.TxTypeRegular { // Non-stake only
-		if serializedSize >= (defaultBlockPrioritySize-1000) && txFee < minFee {
+		if serializedSize >= (defaultBlockPrioritySize-1000) && (txFee < minFee) {
 			str := fmt.Sprintf("transaction %v has %v fees which is under "+
 				"the required amount of %v", txHash, txFee,
 				minFee)
@@ -1759,7 +1825,7 @@ func (mp *txMemPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew,
 	if !allowHighFees {
 		maxFee := calcMinRequiredTxRelayFee(serializedSize*100, int64(minRelayTxFee))
 		if txFee > maxFee {
-			err = fmt.Errorf("transaction %v has %v fee which is above the "+
+			err := fmt.Errorf("transaction %v has %v fee which is above the "+
 				"allowHighFee check threshold amount of %v", txHash,
 				txFee, maxFee)
 			return nil, err
@@ -1810,48 +1876,6 @@ func (mp *txMemPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew,
 			cfg.FreeTxRelayLimit*10*1000)
 	}
 
-	// Verify crypto signatures for each input and reject the transaction if
-	// any don't verify.
-	err = blockchain.ValidateTransactionScripts(tx, txStore,
-		txscript.StandardVerifyFlags)
-	if err != nil {
-		if cerr, ok := err.(blockchain.RuleError); ok {
-			return nil, chainRuleError(cerr)
-		}
-		return nil, err
-	}
-
-	// Add to transaction pool.
-	mp.addTransaction(tx, txType, curHeight, txFee)
-
-	// If it's an SSGen (vote), insert it into the list of
-	// votes.
-	if txType == stake.TxTypeSSGen {
-		err := mp.InsertVote(tx)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	// Insert the address into the mempool address index.
-	for _, txOut := range tx.MsgTx().TxOut {
-		// This function returns an error, but we don't really care
-		// if the script was non-standard or otherwise malformed.
-		mp.indexScriptAddressToTx(txOut.Version, txOut.PkScript, tx, txType)
-	}
-
-	txmpLog.Debugf("Accepted transaction %v (pool size: %v)", txHash,
-		len(mp.pool))
-
-	if mp.server.rpcServer != nil {
-		// Notify websocket clients about mempool transactions.
-		mp.server.rpcServer.ntfnMgr.NotifyMempoolTx(tx, isNew)
-
-		// Potentially notify any getblocktemplate long poll clients
-		// about stale block templates due to the new transaction.
-		mp.server.rpcServer.gbtWorkState.NotifyMempoolTx(mp.lastUpdated)
-	}
-
 	return nil, nil
 }
 
@@ -1869,7 +1893,7 @@ func (mp *txMemPool) MaybeAcceptTransaction(tx *dcrutil.Tx, isNew,
 	mp.Lock()
 	defer mp.Unlock()
 
-	return mp.maybeAcceptTransaction(tx, isNew, rateLimit, true)
+	return mp.maybeAcceptTransaction(tx, isNew, rateLimit, true, false)
 }
 
 // processOrphans is the internal function which implements the public
@@ -1918,7 +1942,7 @@ func (mp *txMemPool) processOrphans(hash *chainhash.Hash) {
 
 			// Potentially accept the transaction into the
 			// transaction pool.
-			missingParents, err := mp.maybeAcceptTransaction(tx, true, true, true)
+			missingParents, err := mp.maybeAcceptTransaction(tx, true, true, true, false)
 			if err != nil {
 				// TODO: Remove orphans that depend on this
 				// failed transaction.
@@ -2032,7 +2056,7 @@ func (mp *txMemPool) ProcessOrphans(hash *chainhash.Hash) {
 //
 // This function is safe for concurrent access.
 func (mp *txMemPool) ProcessTransaction(tx *dcrutil.Tx, allowOrphan,
-	rateLimit, allowHighFees bool) error {
+	rateLimit, allowHighFees, skipsFeeLocal bool) error {
 	// Protect concurrent access.
 	mp.Lock()
 	defer mp.Unlock()
@@ -2040,7 +2064,7 @@ func (mp *txMemPool) ProcessTransaction(tx *dcrutil.Tx, allowOrphan,
 	txmpLog.Tracef("Processing transaction %v", tx.Sha())
 
 	// Potentially accept the transaction to the memory pool.
-	missingParents, err := mp.maybeAcceptTransaction(tx, true, rateLimit, allowHighFees)
+	missingParents, err := mp.maybeAcceptTransaction(tx, true, rateLimit, allowHighFees, skipsFeeLocal)
 	if err != nil {
 		return err
 	}
@@ -2191,4 +2215,55 @@ func newTxMemPool(server *server) *txMemPool {
 		memPool.addrindex = make(map[string]map[chainhash.Hash]struct{})
 	}
 	return memPool
+}
+
+// RelayFee gets the currently set relay fee
+func (mp *txMemPool) RelayFee() int64 {
+	mp.RWMutex.Lock()
+	relayFee := mp.relayFee
+	mp.RWMutex.Unlock()
+
+	return relayFee
+}
+
+// SetRelayFee sets the mempool relay fee
+func (mp *txMemPool) SetRelayFee(relayFee int64) {
+	mp.RWMutex.Lock()
+	mp.relayFee = relayFee
+	mp.RWMutex.Unlock()
+}
+
+// MinFee gets the currently set min fee
+func (mp *txMemPool) MinFee() int64 {
+	mp.RWMutex.Lock()
+	minFee := mp.minFee
+	mp.RWMutex.Unlock()
+
+	return minFee
+}
+
+// SetMinFee sets the mempool min fee for tx
+func (mp *txMemPool) SetMinFee(minFee int64) int64 {
+	mp.RWMutex.Lock()
+	mp.minFee = minFee
+	mp.RWMutex.Unlock()
+
+	return minFee
+}
+
+// SkipFeeLocal gets the currently set skip fee local bool
+func (mp *txMemPool) SkipFeeLocal() bool {
+	mp.RWMutex.Lock()
+	skipFeeLocal := mp.skipFeeLocal
+	mp.RWMutex.Unlock()
+
+	return skipFeeLocal
+}
+
+//SetSkipFeeLocal sets the bool that decides whether to locally
+// allow local tx that have no fees (for PoW miners)
+func (mp *txMemPool) SetSkipFeeLocal(skipFeeLocal bool) {
+	mp.RWMutex.Lock()
+	mp.skipFeeLocal = skipFeeLocal
+	mp.RWMutex.Unlock()
 }

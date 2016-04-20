@@ -277,6 +277,7 @@ type processTransactionMsg struct {
 	allowOrphans  bool
 	rateLimit     bool
 	allowHighFees bool
+	skipsFeeLocal bool
 	reply         chan processTransactionResponse
 }
 
@@ -893,7 +894,7 @@ func (b *blockManager) handleTxMsg(tmsg *txMsg) {
 	// memory pool, orphan handling, etc.
 	allowOrphans := cfg.MaxOrphanTxs > 0
 	err := tmsg.peer.server.txMemPool.ProcessTransaction(tmsg.tx,
-		allowOrphans, true, true)
+		allowOrphans, true, true, false)
 
 	// Remove transaction from request maps. Either the mempool/chain
 	// already knows about it and as such we shouldn't have any more
@@ -2047,7 +2048,7 @@ out:
 
 			case processTransactionMsg:
 				err := b.server.txMemPool.ProcessTransaction(msg.tx,
-					msg.allowOrphans, msg.rateLimit, msg.allowHighFees)
+					msg.allowOrphans, msg.rateLimit, msg.allowHighFees, msg.skipsFeeLocal)
 				msg.reply <- processTransactionResponse{
 					err: err,
 				}
@@ -2710,9 +2711,9 @@ func (b *blockManager) ProcessBlock(block *dcrutil.Block,
 // a block chain.  It is funneled through the block manager since blockchain is
 // not safe for concurrent access.
 func (b *blockManager) ProcessTransaction(tx *dcrutil.Tx, allowOrphans bool,
-	rateLimit bool, allowHighFees bool) error {
+	rateLimit bool, allowHighFees bool, skipsFeeLocal bool) error {
 	reply := make(chan processTransactionResponse, 1)
-	b.msgChan <- processTransactionMsg{tx, allowOrphans, rateLimit, allowHighFees, reply}
+	b.msgChan <- processTransactionMsg{tx, allowOrphans, rateLimit, allowHighFees, skipsFeeLocal, reply}
 	response := <-reply
 	return response.err
 }

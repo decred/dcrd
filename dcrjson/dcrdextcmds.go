@@ -81,6 +81,15 @@ func NewGetCoinSupplyCmd() *GetCoinSupplyCmd {
 	return &GetCoinSupplyCmd{}
 }
 
+// GetMempoolFeeCmd defines the getmempoolfee JSON-RPC command.
+type GetMempoolFeeCmd struct{}
+
+// NewGetMempoolFeeCmd returns a new instance which can be used to issue a
+// JSON-RPC get mempool fee command
+func NewGetMempoolFeeCmd() *GetMempoolFeeCmd {
+	return &GetMempoolFeeCmd{}
+}
+
 // GetStakeDifficultyCmd is a type handling custom marshaling and
 // unmarshaling of getstakedifficulty JSON RPC commands.
 type GetStakeDifficultyCmd struct{}
@@ -140,6 +149,19 @@ func NewRebroadcastWinnersCmd() *RebroadcastWinnersCmd {
 	return &RebroadcastWinnersCmd{}
 }
 
+// SetMempoolFeeCmd defines the setmempoolfee JSON-RPC command.
+type SetMempoolFeeCmd struct {
+	RelayFee     int64
+	MinFee       int64
+	SkipFeeLocal bool
+}
+
+// NewSetMempoolFeeCmd returns a new instance which can be used to issue a
+// JSON-RPC set mempool fee command
+func NewSetMempoolFeeCmd(relayFee, minFee int64, skipFeeLocal bool) *SetMempoolFeeCmd {
+	return &SetMempoolFeeCmd{relayFee, minFee, skipFeeLocal}
+}
+
 // TicketsForAddressCmd defines the ticketsforbucket JSON-RPC command.
 type TicketsForAddressCmd struct {
 	Address string
@@ -161,11 +183,13 @@ func init() {
 	MustRegisterCmd("existslivetickets", (*ExistsLiveTicketsCmd)(nil), flags)
 	MustRegisterCmd("existsmempooltxs", (*ExistsMempoolTxsCmd)(nil), flags)
 	MustRegisterCmd("getcoinsupply", (*GetCoinSupplyCmd)(nil), flags)
+	MustRegisterCmd("getmempoolfee", (*GetMempoolFeeCmd)(nil), flags)
 	MustRegisterCmd("getstakedifficulty", (*GetStakeDifficultyCmd)(nil), flags)
 	MustRegisterCmd("getticketpoolvalue", (*GetTicketPoolValueCmd)(nil), flags)
 	MustRegisterCmd("livetickets", (*LiveTicketsCmd)(nil), flags)
 	MustRegisterCmd("missedtickets", (*MissedTicketsCmd)(nil), flags)
 	MustRegisterCmd("rebroadcastmissed", (*RebroadcastMissedCmd)(nil), flags)
 	MustRegisterCmd("rebroadcastwinners", (*RebroadcastWinnersCmd)(nil), flags)
+	MustRegisterCmd("setmempoolfee", (*SetMempoolFeeCmd)(nil), flags)
 	MustRegisterCmd("ticketsforaddress", (*TicketsForAddressCmd)(nil), flags)
 }

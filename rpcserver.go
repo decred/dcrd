@@ -178,6 +178,7 @@ var rpcHandlersBeforeInit = map[string]commandHandler{
 	"getgenerate":           handleGetGenerate,
 	"gethashespersec":       handleGetHashesPerSec,
 	"getinfo":               handleGetInfo,
+	"getmempoolfee":         handleGetMempoolFee,
 	"getmininginfo":         handleGetMiningInfo,
 	"getnettotals":          handleGetNetTotals,
 	"getnetworkhashps":      handleGetNetworkHashPS,
@@ -198,6 +199,7 @@ var rpcHandlersBeforeInit = map[string]commandHandler{
 	"searchrawtransactions": handleSearchRawTransactions,
 	"sendrawtransaction":    handleSendRawTransaction,
 	"setgenerate":           handleSetGenerate,
+	"setmempoolfee":         handleSetMempoolFee,
 	"stop":                  handleStop,
 	"submitblock":           handleSubmitBlock,
 	"ticketsforaddress":     handleTicketsForAddress,
@@ -3224,6 +3226,21 @@ func handleGetInfo(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) (in
 	return ret, nil
 }
 
+// handleGetMempoolFee implements the getmempoolfee command. We will return
+// RelayFee, MinFee and whether bool to skip fee locally is set (for miners)
+func handleGetMempoolFee(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) (interface{}, error) {
+
+	relayFee := s.server.txMemPool.RelayFee()
+	minFee := s.server.txMemPool.MinFee()
+	skipFeeLocal := s.server.txMemPool.SkipFeeLocal()
+	result := dcrjson.GetMempoolFeeResult{
+		RelayFee:     relayFee,
+		MinFee:       minFee,
+		SkipFeeLocal: skipFeeLocal,
+	}
+	return &result, nil
+}
+
 // handleGetMiningInfo implements the getmininginfo command. We only return the
 // fields that are not related to wallet functionality.
 func handleGetMiningInfo(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) (interface{}, error) {
@@ -4440,9 +4457,10 @@ func handleSendRawTransaction(s *rpcServer, cmd interface{}, closeChan <-chan st
 			Message: "TX decode failed: " + err.Error(),
 		}
 	}
+	skipFeeLocal := s.server.txMemPool.SkipFeeLocal()
 
 	tx := dcrutil.NewTx(msgtx)
-	err = s.server.blockManager.ProcessTransaction(tx, false, false, allowHighFees)
+	err = s.server.blockManager.ProcessTransaction(tx, false, false, allowHighFees, skipFeeLocal)
 	if err != nil {
 		// When the error is a rule error, it means the transaction was
 		// simply rejected as opposed to something actually going wrong,
@@ -4504,6 +4522,30 @@ func handleSetGenerate(s *rpcServer, cmd interface{}, closeChan <-chan struct{})
 		s.server.cpuMiner.SetNumWorkers(int32(genProcLimit))
 		s.server.cpuMiner.Start()
 	}
+	return nil, nil
+}
+
+// handleSetMempoolFee implements the setmempoolfee command. Allows users to change
+// mempool fee rules
+func handleSetMempoolFee(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) (interface{}, error) {
+	c := cmd.(*dcrjson.SetMempoolFeeCmd)
+
+	relayFee := s.server.txMemPool.RelayFee()
+	minFee := s.server.txMemPool.MinFee()
+	skipFeeLocal := s.server.txMemPool.SkipFeeLocal()
+
+	if relayFee != c.RelayFee {
+		s.server.txMemPool.SetRelayFee(c.RelayFee)
+	}
+
+	if minFee != c.MinFee {
+		s.server.txMemPool.SetMinFee(c.MinFee)
+	}
+
+	if skipFeeLocal != c.SkipFeeLocal {
+		s.server.txMemPool.SetSkipFeeLocal(c.SkipFeeLocal)
+	}
+
 	return nil, nil
 }
 
