@@ -4588,7 +4588,7 @@ func mean(s []dcrutil.Amount) dcrutil.Amount {
 	return sum / dcrutil.Amount(len(s))
 }
 
-// mean gets the median amount from a slice of amounts.
+// median gets the median amount from a slice of amounts.
 func median(s []dcrutil.Amount) dcrutil.Amount {
 	if len(s) == 0 {
 		return 0
