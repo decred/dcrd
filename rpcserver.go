@@ -4625,7 +4625,9 @@ func ticketFeeInfoForMempool(s *rpcServer) *dcrjson.TicketFeeInfoMempool {
 	ticketFees := make([]dcrutil.Amount, 0, len(txDs))
 	for _, txD := range txDs {
 		if txD.Type == stake.TxTypeSStx {
-			ticketFees = append(ticketFees, dcrutil.Amount(txD.Fee))
+			feePerKb := (dcrutil.Amount(txD.Fee)) * 1000 /
+				dcrutil.Amount(txD.Tx.MsgTx().SerializeSize())
+			ticketFees = append(ticketFees, feePerKb)
 		}
 	}
 
