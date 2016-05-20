@@ -1534,13 +1534,13 @@ mempoolLoop:
 		if sortedByFee &&
 			(prioItem.feePerKB < float64(cfg.minRelayTxFee)) &&
 			(tx.Tree() != dcrutil.TxTreeStake) &&
-			(blockPlusTxSize >= cfg.BlockMinSize) {
+			(blockPlusTxSize >= cfg.BlockPrioritySize) {
 
 			minrLog.Tracef("Skipping tx %s with feePerKB %.2f "+
-				"< minTxRelayFee %d and block size %d >= "+
-				"minBlockSize %d", tx.Sha(), prioItem.feePerKB,
+				"< minTxRelayFee %v and block size %d >= "+
+				"BlockPrioritySize %v", tx.Sha(), prioItem.feePerKB,
 				cfg.minRelayTxFee, blockPlusTxSize,
-				cfg.BlockMinSize)
+				cfg.BlockPrioritySize)
 			logSkippedDeps(tx, deps)
 			continue
 		}
