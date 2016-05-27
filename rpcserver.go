@@ -1338,7 +1338,7 @@ func createVinList(mtx *wire.MsgTx) []dcrjson.Vin {
 		vinEntry := &vinList[0]
 		vinEntry.Coinbase = hex.EncodeToString(txIn.SignatureScript)
 		vinEntry.Sequence = txIn.Sequence
-		vinEntry.AmountIn = txIn.ValueIn
+		vinEntry.AmountIn = dcrutil.Amount(txIn.ValueIn).ToCoin()
 		vinEntry.BlockHeight = txIn.BlockHeight
 		vinEntry.BlockIndex = txIn.BlockIndex
 		return vinList
@@ -1355,7 +1355,7 @@ func createVinList(mtx *wire.MsgTx) []dcrjson.Vin {
 		vinEntry.Vout = txIn.PreviousOutPoint.Index
 		vinEntry.Tree = txIn.PreviousOutPoint.Tree
 		vinEntry.Sequence = txIn.Sequence
-		vinEntry.AmountIn = txIn.ValueIn
+		vinEntry.AmountIn = dcrutil.Amount(txIn.ValueIn).ToCoin()
 		vinEntry.BlockHeight = txIn.BlockHeight
 		vinEntry.BlockIndex = txIn.BlockIndex
 		vinEntry.ScriptSig = &dcrjson.ScriptSig{
