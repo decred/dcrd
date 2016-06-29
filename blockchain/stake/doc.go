@@ -12,7 +12,7 @@ At the heart of the PoS system are tickets, votes and revocations.
 These 3 pieces work together to determine if previous blocks are
 valid and their txs should be confirmed.
 
-Important Parts include in stake package:
+Important Parts included in stake package:
 
 - Processing SSTx (tickets), SSGen (votes), SSRtx (revocations)
 - TicketDB

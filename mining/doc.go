@@ -8,7 +8,7 @@ house all mining code in the future.
 
 Overview
 
-This package contains currenty the following 3 struct types
+This package currently contains the 3 struct types
 for mining and policy.  In the future it will contain all of the
 pieces of code pertaining to block template creation, CPU mining
 and other various mining code.
