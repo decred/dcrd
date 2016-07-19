@@ -16,5 +16,5 @@ install:
   - go get -v github.com/davecgh/go-spew/spew
 script:
   - export PATH=$PATH:$HOME/gopath/bin
+  - go install $(glide novendor)
   - ./goclean.sh
-
