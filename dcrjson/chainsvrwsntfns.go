@@ -21,6 +21,29 @@ const (
 	// block chain is in the process of a reorganization.
 	ReorganizationNtfnMethod = "reorganization"
 
+	// NewVoteNtfnMethod is the method used for notifcations that a new vote
+	// has been received by the chain server
+	NewVoteNtfnMethod = "newvote"
+
+	// RecvTxNtfnMethod is the method used for notifications from the chain
+	// server that a transaction which pays to a registered address has been
+	// processed.
+	RecvTxNtfnMethod = "recvtx"
+
+	// RedeemingTxNtfnMethod is the method used for notifications from the
+	// chain server that a transaction which spends a registered outpoint
+	// has been processed.
+	RedeemingTxNtfnMethod = "redeemingtx"
+
+	// RescanFinishedNtfnMethod is the method used for notifications from
+	// the chain server that a rescan operation has finished.
+	RescanFinishedNtfnMethod = "rescanfinished"
+
+	// RescanProgressNtfnMethod is the method used for notifications from
+	// the chain server that a rescan operation this is underway has made
+	// progress.
+	RescanProgressNtfnMethod = "rescanprogress"
+
 	// TxAcceptedNtfnMethod is the method used for notifications from the
 	// chain server that a transaction has been accepted into the mempool.
 	TxAcceptedNtfnMethod = "txaccepted"
@@ -82,6 +105,97 @@ func NewReorganizationNtfn(oldHash string, oldHeight int32, newHash string,
 		OldHeight: oldHeight,
 		NewHash:   newHash,
 		NewHeight: newHeight,
+	}
+}
+
+// NewVoteNtfn defines the newvote JSON-RPC notification.
+type NewVoteNtfn struct {
+	VoteHash  string
+	BlockHash string
+	Vote      bool
+}
+
+// NewVoteNtfn retuns a new instance which can be used to issue a newvote
+// JSON-RPC notification.
+func NewNewVoteNtfn(voteHash, blockHash string, vote bool) *NewVoteNtfn {
+	return &NewVoteNftn{
+		VoteHash:  voteHash,
+		BlockHash: blockHash,
+		Vote:      vote,
+	}
+}
+
+// BlockDetails describes details of a tx in a block.
+type BlockDetails struct {
+	Height   int32  `json:"height"`
+	Tree     int8   `json:"tree"`
+	Hash     string `json:"hash"`
+	Index    int    `json:"index"`
+	Time     int64  `json:"time"`
+	VoteBits uint16 `json:"votebits"`
+}
+
+// RecvTxNtfn defines the recvtx JSON-RPC notification.
+type RecvTxNtfn struct {
+	HexTx string
+	Block *BlockDetails
+}
+
+// NewRecvTxNtfn returns a new instance which can be used to issue a recvtx
+// JSON-RPC notification.
+func NewRecvTxNtfn(hexTx string, block *BlockDetails) *RecvTxNtfn {
+	return &RecvTxNtfn{
+		HexTx: hexTx,
+		Block: block,
+	}
+}
+
+// RedeemingTxNtfn defines the redeemingtx JSON-RPC notification.
+type RedeemingTxNtfn struct {
+	HexTx string
+	Block *BlockDetails
+}
+
+// NewRedeemingTxNtfn returns a new instance which can be used to issue a
+// redeemingtx JSON-RPC notification.
+func NewRedeemingTxNtfn(hexTx string, block *BlockDetails) *RedeemingTxNtfn {
+	return &RedeemingTxNtfn{
+		HexTx: hexTx,
+		Block: block,
+	}
+}
+
+// RescanFinishedNtfn defines the rescanfinished JSON-RPC notification.
+type RescanFinishedNtfn struct {
+	Hash   string
+	Height int32
+	Time   int64
+}
+
+// NewRescanFinishedNtfn returns a new instance which can be used to issue a
+// rescanfinished JSON-RPC notification.
+func NewRescanFinishedNtfn(hash string, height int32, time int64) *RescanFinishedNtfn {
+	return &RescanFinishedNtfn{
+		Hash:   hash,
+		Height: height,
+		Time:   time,
+	}
+}
+
+// RescanProgressNtfn defines the rescanprogress JSON-RPC notification.
+type RescanProgressNtfn struct {
+	Hash   string
+	Height int32
+	Time   int64
+}
+
+// NewRescanProgressNtfn returns a new instance which can be used to issue a
+// rescanprogress JSON-RPC notification.
+func NewRescanProgressNtfn(hash string, height int32, time int64) *RescanProgressNtfn {
+	return &RescanProgressNtfn{
+		Hash:   hash,
+		Height: height,
+		Time:   time,
 	}
 }
 
