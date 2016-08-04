@@ -56,6 +56,7 @@ var wsHandlers map[string]wsCommandHandler
 var wsHandlersBeforeInit = map[string]wsCommandHandler{
 	"loadtxfilter":                handleLoadTxFilter,
 	"notifyblocks":                handleNotifyBlocks,
+	"notifyvotes":                 handleNotifyVotes,
 	"notifywinningtickets":        handleWinningTickets,
 	"notifyspentandmissedtickets": handleSpentAndMissedTickets,
 	"notifynewtickets":            handleNewTickets,
@@ -65,6 +66,7 @@ var wsHandlersBeforeInit = map[string]wsCommandHandler{
 	"help":                        handleWebsocketHelp,
 	"rescan":                      handleRescan,
 	"stopnotifyblocks":            handleStopNotifyBlocks,
+	"stopnotifyvotes":             handleStopNotifyVotes,
 	"stopnotifynewtransactions":   handleStopNotifyNewTransactions,
 }
 
@@ -220,6 +222,20 @@ func (m *wsNotificationManager) NotifyBlockDisconnected(block *dcrutil.Block) {
 	// server has begun shutting down.
 	select {
 	case m.queueNotification <- (*notificationBlockDisconnected)(block):
+	case <-m.quit:
+	}
+}
+
+// NotifyVotes passes a block newly-connected to the best chain
+// to the notification manager for block and transaction notification
+// processing.
+func (m *wsNotificationManager) NotifyBlockConnected(block *dcrutil.Block) {
+	// As NotifyBlockConnected will be called by the block manager
+	// and the RPC server may no longer be running, use a select
+	// statement to unblock enqueuing the notification once the RPC
+	// server has begun shutting down.
+	select {
+	case m.queueNotification <- (*notificationBlockConnected)(block):
 	case <-m.quit:
 	}
 }
