@@ -67,6 +67,24 @@ func NewStopNotifyBlocksCmd() *StopNotifyBlocksCmd {
 	return &StopNotifyBlocksCmd{}
 }
 
+// NotifyVotesCmd defines the notifyvotes JSON-RPC command.
+type NotifyVotesCmd struct{}
+
+// NewNotifyVotesCmd returns a new instance which can be used to issue a
+// notifyvotes JSON-RPC command.
+func NewNotifyVotesCmd() *NotifyVotesCmd {
+	return &NotifyVotesCmd{}
+}
+
+// StopNotifyVotesCmd defines the stopnotifyvotes JSON-RPC command.
+type StopNotifyVotesCmd struct{}
+
+// NewStopNotifyVotesCmd returns a new instance which can be used to issue a
+// stopnotifyvotes JSON-RPC command.
+func NewStopNotifyVotesCmd() *StopNotifyVotesCmd {
+	return &StopNotifyVotesCmd{}
+}
+
 // NotifyNewTransactionsCmd defines the notifynewtransactions JSON-RPC command.
 type NotifyNewTransactionsCmd struct {
 	Verbose *bool `jsonrpcdefault:"false"`
@@ -124,9 +142,11 @@ func init() {
 	MustRegisterCmd("authenticate", (*AuthenticateCmd)(nil), flags)
 	MustRegisterCmd("loadtxfilter", (*LoadTxFilterCmd)(nil), flags)
 	MustRegisterCmd("notifyblocks", (*NotifyBlocksCmd)(nil), flags)
+	MustRegisterCmd("notifyvotes", (*NotifyVotesCmd)(nil), flags)
 	MustRegisterCmd("notifynewtransactions", (*NotifyNewTransactionsCmd)(nil), flags)
 	MustRegisterCmd("session", (*SessionCmd)(nil), flags)
 	MustRegisterCmd("stopnotifyblocks", (*StopNotifyBlocksCmd)(nil), flags)
+	MustRegisterCmd("stopnotifyvotes", (*StopNotifyVotesCmd)(nil), flags)
 	MustRegisterCmd("stopnotifynewtransactions", (*StopNotifyNewTransactionsCmd)(nil), flags)
 	MustRegisterCmd("rescan", (*RescanCmd)(nil), flags)
 }
