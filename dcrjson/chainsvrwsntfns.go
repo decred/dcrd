@@ -118,7 +118,7 @@ type NewVoteNtfn struct {
 // NewVoteNtfn retuns a new instance which can be used to issue a newvote
 // JSON-RPC notification.
 func NewNewVoteNtfn(voteHash, blockHash string, vote bool) *NewVoteNtfn {
-	return &NewVoteNftn{
+	return &NewVoteNtfn{
 		VoteHash:  voteHash,
 		BlockHash: blockHash,
 		Vote:      vote,
