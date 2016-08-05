@@ -2629,6 +2629,12 @@ func newServer(listenAddrs []string, database database.Db, tmdb *stake.TicketDB,
 		if err != nil {
 			return nil, err
 		}
+
+		// Signal process shutdown when the RPC server requests it.
+		go func() {
+			<-s.rpcServer.RequestedProcessShutdown()
+			shutdownRequestChannel <- struct{}{}
+		}()
 	}
 
 	return &s, nil
