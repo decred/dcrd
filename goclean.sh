@@ -10,11 +10,11 @@
 set -ex
 
 # Automatic checks
-test -z "$(gofmt -l -w $(glide novendor) | tee /dev/stderr)"
-test -z "$(goimports -l -w $(glide novendor) | tee /dev/stderr)"
-test -z "$(golint $(glide novendor) | grep -v 'ALL_CAPS\|OP_\|NewFieldVal\|RpcCommand\|RpcRawCommand\|RpcSend\|Dns' | tee /dev/stderr)"
-test -z "$(go tool vet . 2>&1 | grep -v 'Example\|newestSha' | tee /dev/stderr)"
-env GORACE="halt_on_error=1" go test -v -race ./...
+test -z "$(go fmt $(glide novendor) | tee /dev/stderr)"
+###test -z "$(goimports -l -w $(glide novendor) | tee /dev/stderr)"
+test -z "$(for package in $(glide novendor); do golint $package; done | grep -v 'ALL_CAPS\|OP_\|NewFieldVal\|RpcCommand\|RpcRawCommand\|RpcSend\|Dns' | tee /dev/stderr)"
+test -z "$(go vet $(glide novendor) 2>&1 | grep -v 'Example\|newestSha' | tee /dev/stderr)"
+env GORACE="halt_on_error=1" go test -v -race $(glide novendor)
 
 # Run test coverage on each subdirectories and merge the coverage profile.
 
