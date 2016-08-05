@@ -29,6 +29,14 @@ var (
 	}
 )
 
+// Implementation-defined server errors
+var (
+	ErrRPCNotReady = &RPCError{
+		Code:    -32000,
+		Message: "Server is not ready to handle the request",
+	}
+)
+
 // General application defined JSON errors.
 const (
 	ErrRPCMisc                RPCErrorCode = -1

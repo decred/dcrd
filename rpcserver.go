@@ -5033,7 +5033,10 @@ func handleSetGenerate(s *rpcServer, cmd interface{}, closeChan <-chan struct{})
 
 // handleStop implements the stop command.
 func handleStop(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) (interface{}, error) {
-	s.server.Stop()
+	select {
+	case s.requestProcessShutdown <- struct{}{}:
+	default:
+	}
 	return "dcrd stopping.", nil
 }
 
@@ -5713,23 +5716,25 @@ func handleVerifyMessage(s *rpcServer, cmd interface{}, closeChan <-chan struct{
 // rpcServer holds the items the rpc server may need to access (config,
 // shutdown, main server, etc.)
 type rpcServer struct {
-	started      int32
-	shutdown     int32
-	policy       *mining.Policy
-	server       *server
-	authsha      [fastsha256.Size]byte
-	limitauthsha [fastsha256.Size]byte
-	ntfnMgr      *wsNotificationManager
-	numClients   int32
-	statusLines  map[int]string
-	statusLock   sync.RWMutex
-	wg           sync.WaitGroup
-	listeners    []net.Listener
-	workState    *workState
-	gbtWorkState *gbtWorkState
-	templatePool map[[merkleRootPairSize]byte]*workStateBlockInfo
-	helpCacher   *helpCacher
-	quit         chan int
+	started                int32
+	enabled                int32
+	shutdown               int32
+	policy                 *mining.Policy
+	server                 *server
+	authsha                [fastsha256.Size]byte
+	limitauthsha           [fastsha256.Size]byte
+	ntfnMgr                *wsNotificationManager
+	numClients             int32
+	statusLines            map[int]string
+	statusLock             sync.RWMutex
+	wg                     sync.WaitGroup
+	listeners              []net.Listener
+	workState              *workState
+	gbtWorkState           *gbtWorkState
+	templatePool           map[[merkleRootPairSize]byte]*workStateBlockInfo
+	helpCacher             *helpCacher
+	requestProcessShutdown chan struct{}
+	quit                   chan int
 
 	// coin supply caching values
 	coinSupplyMtx    sync.Mutex
@@ -5816,6 +5821,13 @@ func (s *rpcServer) Stop() error {
 	s.wg.Wait()
 	rpcsLog.Infof("RPC server shutdown complete")
 	return nil
+}
+
+// RequestedProcessShutdown returns a channel that is sent to when an authorized
+// RPC client requests the process to shutdown.  If the request can not be read
+// immediately, it is dropped.
+func (s *rpcServer) RequestedProcessShutdown() <-chan struct{} {
+	return s.requestProcessShutdown
 }
 
 // limitConnections responds with a 503 service unavailable and returns true if
@@ -5927,6 +5939,10 @@ func (s *rpcServer) standardCmdResult(cmd *parsedRPCCmd, closeChan <-chan struct
 	}
 	return nil, dcrjson.ErrRPCMethodNotFound
 handled:
+
+	if atomic.LoadInt32(&s.enabled) != 1 {
+		return nil, dcrjson.ErrRPCNotReady
+	}
 
 	return handler(s, cmd.cmd, closeChan)
 }
@@ -6174,6 +6190,16 @@ func (s *rpcServer) Start() {
 	s.ntfnMgr.Start()
 }
 
+// EnableRequests marks the server ready for requests.
+//
+// This should be called after all other subsystems have finished loading.
+// Failing to call this will result in the server responding with "not ready"
+// messages for every request.  Marking the rpc server as ready before every
+// subsystem has started can result in panics.
+func (s *rpcServer) EnableRequests() {
+	atomic.StoreInt32(&s.enabled, 1)
+}
+
 // genCertPair generates a key/cert pair to the paths provided.
 func genCertPair(certFile, keyFile string) error {
 	rpcsLog.Infof("Generating TLS certificates...")
@@ -6199,16 +6225,15 @@ func genCertPair(certFile, keyFile string) error {
 }
 
 // newRPCServer returns a new instance of the rpcServer struct.
-func newRPCServer(listenAddrs []string, policy *mining.Policy, s *server) (*rpcServer, error) {
+func newRPCServer(listenAddrs []string, policy *mining.Policy) (*rpcServer, error) {
 	rpc := rpcServer{
-		policy:       policy,
-		server:       s,
-		statusLines:  make(map[int]string),
-		workState:    newWorkState(),
-		templatePool: make(map[[merkleRootPairSize]byte]*workStateBlockInfo),
-		gbtWorkState: newGbtWorkState(s.timeSource),
-		helpCacher:   newHelpCacher(),
-		quit:         make(chan int),
+		policy:                 policy,
+		statusLines:            make(map[int]string),
+		workState:              newWorkState(),
+		templatePool:           make(map[[merkleRootPairSize]byte]*workStateBlockInfo),
+		helpCacher:             newHelpCacher(),
+		requestProcessShutdown: make(chan struct{}),
+		quit: make(chan int),
 	}
 	if cfg.RPCUser != "" && cfg.RPCPass != "" {
 		login := cfg.RPCUser + ":" + cfg.RPCPass
@@ -6281,6 +6306,11 @@ func newRPCServer(listenAddrs []string, policy *mining.Policy, s *server) (*rpcS
 	rpc.listeners = listeners
 
 	return &rpc, nil
+}
+
+func (s *rpcServer) associateServer(svr *server) {
+	s.server = svr
+	s.gbtWorkState = newGbtWorkState(svr.timeSource)
 }
 
 func init() {

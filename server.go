@@ -2199,6 +2199,13 @@ func (s *server) Start() {
 		go s.listenHandler(listener)
 	}
 
+	if !cfg.DisableRPC {
+		// Start the rebroadcastHandler, which ensures user tx received by
+		// the RPC server are rebroadcast until being included in a block.
+		s.wg.Add(1)
+		go s.rebroadcastHandler()
+	}
+
 	// Start the peer handler which in turn starts the address and block
 	// managers.
 	s.wg.Add(1)
@@ -2207,16 +2214,6 @@ func (s *server) Start() {
 	if s.nat != nil {
 		s.wg.Add(1)
 		go s.upnpUpdateThread()
-	}
-
-	if !cfg.DisableRPC {
-		s.wg.Add(1)
-
-		// Start the rebroadcastHandler, which ensures user tx received by
-		// the RPC server are rebroadcast until being included in a block.
-		go s.rebroadcastHandler()
-
-		s.rpcServer.Start()
 	}
 
 	// Start the CPU miner if generation is enabled.
@@ -2251,11 +2248,6 @@ func (s *server) Stop() error {
 
 	// Stop the CPU miner if needed
 	s.cpuMiner.Stop()
-
-	// Shutdown the RPC server if it's not disabled.
-	if !cfg.DisableRPC {
-		s.rpcServer.Stop()
-	}
 
 	// Signal the remaining goroutines to quit.
 	close(s.quit)
@@ -2625,14 +2617,11 @@ func newServer(listenAddrs []string, database database.Db, tmdb *stake.TicketDB,
 		s.addrIndexer = ai
 	}
 
-	if !cfg.DisableRPC {
-		s.rpcServer, err = newRPCServer(cfg.RPCListeners, &policy, &s)
-		if err != nil {
-			return nil, err
-		}
-	}
-
 	return &s, nil
+}
+
+func (s *server) associateRPCServer(r *rpcServer) {
+	s.rpcServer = r
 }
 
 // dynamicTickDuration is a convenience function used to dynamically choose a
