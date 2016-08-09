@@ -251,6 +251,7 @@ func dcrdMain(serverChan chan<- *server) error {
 	// After the server was started, the RPC server is ready to make requests.
 	if rpcServer != nil {
 		rpcServer.EnableRequests()
+		defer rpcServer.DisableRequests()
 	}
 
 	lifetimeNotifier.notifyStartupComplete()

@@ -5716,9 +5716,11 @@ func handleVerifyMessage(s *rpcServer, cmd interface{}, closeChan <-chan struct{
 // rpcServer holds the items the rpc server may need to access (config,
 // shutdown, main server, etc.)
 type rpcServer struct {
-	started                int32
-	enabled                int32
-	shutdown               int32
+	// Atomically accessed
+	started    int32
+	readyState int32 // 0: not ready, 1: accepting requests, 2: requests disabled
+	shutdown   int32
+
 	policy                 *mining.Policy
 	server                 *server
 	authsha                [fastsha256.Size]byte
@@ -5940,8 +5942,12 @@ func (s *rpcServer) standardCmdResult(cmd *parsedRPCCmd, closeChan <-chan struct
 	return nil, dcrjson.ErrRPCMethodNotFound
 handled:
 
-	if atomic.LoadInt32(&s.enabled) != 1 {
+	readyState := atomic.LoadInt32(&s.readyState)
+	if readyState == 0 {
 		return nil, dcrjson.ErrRPCNotReady
+	}
+	if readyState == 2 {
+		return nil, dcrjson.ErrRPCShuttingDown
 	}
 
 	return handler(s, cmd.cmd, closeChan)
@@ -6197,7 +6203,14 @@ func (s *rpcServer) Start() {
 // messages for every request.  Marking the rpc server as ready before every
 // subsystem has started can result in panics.
 func (s *rpcServer) EnableRequests() {
-	atomic.StoreInt32(&s.enabled, 1)
+	atomic.CompareAndSwapInt32(&s.readyState, 0, 1)
+}
+
+// DisableRequests marks the server as not ready for any new requests.
+//
+// This should be called just before other subsystems are about to shutdown.
+func (s *rpcServer) DisableRequests() {
+	atomic.CompareAndSwapInt32(&s.readyState, 1, 2)
 }
 
 // genCertPair generates a key/cert pair to the paths provided.

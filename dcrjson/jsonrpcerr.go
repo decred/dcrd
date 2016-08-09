@@ -35,6 +35,10 @@ var (
 		Code:    -32000,
 		Message: "Server is not ready to handle the request",
 	}
+	ErrRPCShuttingDown = &RPCError{
+		Code:    -32001,
+		Message: "Server is shutting down and not handling new requests",
+	}
 )
 
 // General application defined JSON errors.
