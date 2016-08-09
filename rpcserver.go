@@ -3556,6 +3556,15 @@ func handleGetCoinSupply(s *rpcServer, cmd interface{}, closeChan <-chan struct{
 			int64(bh.Voters)
 		tax := blockchain.CalcBlockTaxSubsidy(i, bh.Voters,
 			params)
+
+		// If we're at the tip, the tx tree regular has not
+		// yet been validated. Do not add this amount and
+		// break.
+		if i == tipHeight {
+			supply = supply + stake
+			break
+		}
+
 		supply = supply + work + tax + stake
 		prevBlockRegSubsidy = work + tax
 	}
