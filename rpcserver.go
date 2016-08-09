@@ -3511,7 +3511,7 @@ func handleGetCoinSupply(s *rpcServer, cmd interface{}, closeChan <-chan struct{
 
 	var supply int64
 	prevBlockRegSubsidy := int64(0)
-	for i := int64(1); i < tipHeight; i++ {
+	for i := int64(1); i <= tipHeight; i++ {
 		if i == 1 {
 			supply += params.BlockOneSubsidy()
 			continue
