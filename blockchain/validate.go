@@ -1834,7 +1834,9 @@ func CheckTransactionInputs(tx *dcrutil.Tx, txHeight int64, txStore TxStore,
 				originTxIndex, txInHash, txHash)
 			return 0, ruleError(ErrBadTxInput, str)
 		}
-		if originTx.Spent[originTxIndex] && !(isSSGen || isSSRtx) {
+		originTxIn, exists := txStore[txIn.PreviousOutPoint.Hash]
+		isTxInSSGen, _ := stake.IsSSGen(originTxIn.Tx)
+		if originTx.Spent[originTxIndex] && !(isSSGen || isSSRtx) && !isTxInSSGen {
 			str := fmt.Sprintf("transaction %v tried to double "+
 				"spend coins from transaction %v", txHash,
 				txInHash)
