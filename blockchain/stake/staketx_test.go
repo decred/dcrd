@@ -734,7 +734,7 @@ func TestIsSSRtxErrors(t *testing.T) {
 
 // --------------------------------------------------------------------------------
 // Minor function testing
-func TestGetSSGenBlockVotedOn(t *testing.T) {
+func TestSSGenBlockVotedOn(t *testing.T) {
 	var ssgen = dcrutil.NewTx(ssgenMsgTx)
 	ssgen.SetTree(dcrutil.TxTreeStake)
 	ssgen.SetIndex(0)
@@ -756,21 +756,21 @@ func TestGetSSGenBlockVotedOn(t *testing.T) {
 	correctheight := uint32(0x2123e300)
 
 	if err != nil {
-		t.Errorf("Error thrown on TestGetSSGenBlockVotedOn: %v", err)
+		t.Errorf("Error thrown on TestSSGenBlockVotedOn: %v", err)
 	}
 
 	if !reflect.DeepEqual(blocksha, *correctblocksha) {
-		t.Errorf("Error thrown on TestGetSSGenBlockVotedOn: Looking for "+
+		t.Errorf("Error thrown on TestSSGenBlockVotedOn: Looking for "+
 			"hash %v, got hash %v: %v", *correctblocksha, blocksha, err)
 	}
 
 	if height != correctheight {
-		t.Errorf("Error thrown on TestGetSSGenBlockVotedOn: Looking for "+
+		t.Errorf("Error thrown on TestSSGenBlockVotedOn: Looking for "+
 			"height %v, got height %v: %v", correctheight, height, err)
 	}
 }
 
-func TestGetSStxStakeOutputInfo(t *testing.T) {
+func TestTxSStxStakeOutputInfo(t *testing.T) {
 	var sstx = dcrutil.NewTx(sstxMsgTx)
 	sstx.SetTree(dcrutil.TxTreeStake)
 	sstx.SetIndex(0)
@@ -796,37 +796,37 @@ func TestGetSStxStakeOutputInfo(t *testing.T) {
 		stake.TxSStxStakeOutputInfo(sstx)
 
 	if typs[2] != correctTyp {
-		t.Errorf("Error thrown on TestGetSStxStakeOutputInfo: Looking for "+
+		t.Errorf("Error thrown on TestTxSStxStakeOutputInfo: Looking for "+
 			"type %v, got type %v", correctTyp, typs[1])
 	}
 
 	if !reflect.DeepEqual(pkhs[1], correctPkh) {
-		t.Errorf("Error thrown on TestGetSStxStakeOutputInfo: Looking for "+
+		t.Errorf("Error thrown on TestTxSStxStakeOutputInfo: Looking for "+
 			"pkh %v, got pkh %v", correctPkh, pkhs[1])
 	}
 
 	if amts[1] != correctAmt {
-		t.Errorf("Error thrown on TestGetSStxStakeOutputInfo: Looking for "+
+		t.Errorf("Error thrown on TestTxSStxStakeOutputInfo: Looking for "+
 			"amount %v, got amount %v", correctAmt, amts[1])
 	}
 
 	if changeAmts[1] != correctChange {
-		t.Errorf("Error thrown on TestGetSStxStakeOutputInfo: Looking for "+
+		t.Errorf("Error thrown on TestTxSStxStakeOutputInfo: Looking for "+
 			"amount %v, got amount %v", correctChange, changeAmts[1])
 	}
 
 	if rules[1][0] != correctRule {
-		t.Errorf("Error thrown on TestGetSStxStakeOutputInfo: Looking for "+
+		t.Errorf("Error thrown on TestTxSStxStakeOutputInfo: Looking for "+
 			"rule %v, got rule %v", correctRule, rules[1][0])
 	}
 
 	if limits[1][0] != correctLimit {
-		t.Errorf("Error thrown on TestGetSStxStakeOutputInfo: Looking for "+
+		t.Errorf("Error thrown on TestTxSStxStakeOutputInfo: Looking for "+
 			"limit %v, got limit %v", correctLimit, rules[1][0])
 	}
 }
 
-func TestGetSSGenStakeOutputInfo(t *testing.T) {
+func TestTxSSGenStakeOutputInfo(t *testing.T) {
 	var ssgen = dcrutil.NewTx(ssgenMsgTx)
 	ssgen.SetTree(dcrutil.TxTreeStake)
 	ssgen.SetIndex(0)
@@ -849,22 +849,22 @@ func TestGetSSGenStakeOutputInfo(t *testing.T) {
 	}
 
 	if typs[0] != correctTyp {
-		t.Errorf("Error thrown on TestGetSSGenStakeOutputInfo: Looking for "+
+		t.Errorf("Error thrown on TestTxSSGenStakeOutputInfo: Looking for "+
 			"type %v, got type %v", correctamt, amts[0])
 	}
 
 	if !reflect.DeepEqual(pkhs[0], correctpkh) {
-		t.Errorf("Error thrown on TestGetSSGenStakeOutputInfo: Looking for "+
+		t.Errorf("Error thrown on TestTxSSGenStakeOutputInfo: Looking for "+
 			"pkh %v, got pkh %v", correctpkh, pkhs[0])
 	}
 
 	if amts[0] != correctamt {
-		t.Errorf("Error thrown on TestGetSSGenStakeOutputInfo: Looking for "+
+		t.Errorf("Error thrown on TestTxSSGenStakeOutputInfo: Looking for "+
 			"amount %v, got amount %v", correctamt, amts[0])
 	}
 }
 
-func TestGetSSGenVoteBits(t *testing.T) {
+func TestSSGenVoteBits(t *testing.T) {
 	var ssgen = dcrutil.NewTx(ssgenMsgTx)
 	ssgen.SetTree(dcrutil.TxTreeStake)
 	ssgen.SetIndex(0)
@@ -874,12 +874,12 @@ func TestGetSSGenVoteBits(t *testing.T) {
 	votebits := stake.SSGenVoteBits(ssgen)
 
 	if correctvbs != votebits {
-		t.Errorf("Error thrown on TestGetSSGenVoteBits: Looking for "+
+		t.Errorf("Error thrown on TestSSGenVoteBits: Looking for "+
 			"amount % x, got amount % x", correctvbs, votebits)
 	}
 }
 
-func TestGetSSRtxStakeOutputInfo(t *testing.T) {
+func TestTxSSRtxStakeOutputInfo(t *testing.T) {
 	var ssrtx = dcrutil.NewTx(ssrtxMsgTx)
 	ssrtx.SetTree(dcrutil.TxTreeStake)
 	ssrtx.SetIndex(0)
@@ -902,22 +902,22 @@ func TestGetSSRtxStakeOutputInfo(t *testing.T) {
 	}
 
 	if typs[0] != correctTyp {
-		t.Errorf("Error thrown on TestGetSStxStakeOutputInfo: Looking for "+
+		t.Errorf("Error thrown on TestTxSSRtxStakeOutputInfo: Looking for "+
 			"type %v, got type %v", correctTyp, typs[0])
 	}
 
 	if !reflect.DeepEqual(pkhs[0], correctPkh) {
-		t.Errorf("Error thrown on TestGetSStxStakeOutputInfo: Looking for "+
+		t.Errorf("Error thrown on TestTxSSRtxStakeOutputInfo: Looking for "+
 			"pkh %v, got pkh %v", correctPkh, pkhs[0])
 	}
 
 	if amts[0] != correctAmt {
-		t.Errorf("Error thrown on TestGetSStxStakeOutputInfo: Looking for "+
+		t.Errorf("Error thrown on TestTxSSRtxStakeOutputInfo: Looking for "+
 			"amount %v, got amount %v", correctAmt, amts[0])
 	}
 }
 
-func TestGetSStxNullOutputAmounts(t *testing.T) {
+func TestSStxNullOutputAmounts(t *testing.T) {
 	commitAmts := []int64{int64(0x2122e300),
 		int64(0x12000000),
 		int64(0x12300000)}
@@ -938,7 +938,7 @@ func TestGetSStxNullOutputAmounts(t *testing.T) {
 	lenErrStr := "amounts was not equal in length " +
 		"to change amounts!"
 	if err == nil || err.Error() != lenErrStr {
-		t.Errorf("TestGetSStxNullOutputAmounts unexpected error: %v", err)
+		t.Errorf("TestSStxNullOutputAmounts unexpected error: %v", err)
 	}
 
 	// too small amount to commit
@@ -948,7 +948,7 @@ func TestGetSStxNullOutputAmounts(t *testing.T) {
 		int64(0x00000000))
 	tooSmallErrStr := "committed amount was too small!"
 	if err == nil || err.Error() != tooSmallErrStr {
-		t.Errorf("TestGetSStxNullOutputAmounts unexpected error: %v", err)
+		t.Errorf("TestSStxNullOutputAmounts unexpected error: %v", err)
 	}
 
 	// overspending error
@@ -962,7 +962,7 @@ func TestGetSStxNullOutputAmounts(t *testing.T) {
 		int64(0x00000020))
 	if err == nil || err.(stake.RuleError).GetCode() !=
 		stake.ErrSStxBadChangeAmts {
-		t.Errorf("TestGetSStxNullOutputAmounts unexpected error: %v", err)
+		t.Errorf("TestSStxNullOutputAmounts unexpected error: %v", err)
 	}
 
 	fees, amts, err := stake.SStxNullOutputAmounts(commitAmts,
@@ -970,13 +970,13 @@ func TestGetSStxNullOutputAmounts(t *testing.T) {
 		amtTicket)
 
 	if err != nil {
-		t.Errorf("TestGetSStxNullOutputAmounts unexpected error: %v", err)
+		t.Errorf("TestSStxNullOutputAmounts unexpected error: %v", err)
 	}
 
 	expectedFees := int64(-1361240832)
 
 	if expectedFees != fees {
-		t.Errorf("TestGetSStxNullOutputAmounts error, wanted %v, "+
+		t.Errorf("TestSStxNullOutputAmounts error, wanted %v, "+
 			"but got %v", expectedFees, fees)
 	}
 
@@ -986,12 +986,12 @@ func TestGetSStxNullOutputAmounts(t *testing.T) {
 	}
 
 	if !reflect.DeepEqual(expectedAmts, amts) {
-		t.Errorf("TestGetSStxNullOutputAmounts error, wanted %v, "+
+		t.Errorf("TestSStxNullOutputAmounts error, wanted %v, "+
 			"but got %v", expectedAmts, amts)
 	}
 }
 
-func TestGetStakeRewards(t *testing.T) {
+func TestCalculateRewards(t *testing.T) {
 	// SSGen example with >0 subsidy
 	amounts := []int64{int64(21000000),
 		int64(11000000),
@@ -1009,7 +1009,7 @@ func TestGetStakeRewards(t *testing.T) {
 	}
 
 	if !reflect.DeepEqual(expectedAmts, outAmts) {
-		t.Errorf("TestGetStakeRewards error, wanted %v, "+
+		t.Errorf("TestCalculateRewards error, wanted %v, "+
 			"but got %v", expectedAmts, outAmts)
 	}
 }
