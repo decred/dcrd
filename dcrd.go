@@ -187,7 +187,7 @@ func dcrdMain(serverChan chan<- *server) error {
 	case r := <-ticketDBResultChan:
 		if r.err != nil {
 			dcrdLog.Errorf("%v", r.err)
-			return err
+			return r.err
 		}
 		tmdb = r.ticketDB
 	}
