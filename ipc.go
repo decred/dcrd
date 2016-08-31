@@ -14,7 +14,7 @@ import (
 
 // Messages sent over a pipe are encoded using a simple binary message format:
 //
-//   - Protocol version (1 byte, currently 0)
+//   - Protocol version (1 byte, currently 1)
 //   - Message type length (1 byte)
 //   - Message type string (encoded as UTF8, no longer than 255 bytes)
 //   - Message payload length (4 bytes, little endian)
@@ -76,7 +76,7 @@ func serviceControlPipeTx(fd uintptr) {
 	headerBuffer := make([]byte, 0, 1+1+255+4) // capped to max header size
 	var err error
 	for m := range outgoingPipeMessages {
-		const protocolVersion byte = 0
+		const protocolVersion byte = 1
 
 		mtype := m.Type()
 		psize := m.PayloadSize()
