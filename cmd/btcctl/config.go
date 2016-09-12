@@ -320,13 +320,15 @@ func createDefaultConfigFile(destinationPath string) error {
 	}
 
 	// Create the destination file and write the rpcuser and rpcpass to it
-	dest, err := os.OpenFile(destinationPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0700)
+	dest, err := os.OpenFile(destinationPath,
+		os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
 	if err != nil {
 		return err
 	}
 	defer dest.Close()
 
-	dest.WriteString(fmt.Sprintf("rpcuser=%s\nrpcpass=%s", string(userSubmatches[1]), string(passSubmatches[1])))
+	dest.WriteString(fmt.Sprintf("rpcuser=%s\nrpcpass=%s",
+		string(userSubmatches[1]), string(passSubmatches[1])))
 
 	return nil
 }
