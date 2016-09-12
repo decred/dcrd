@@ -178,20 +178,13 @@ func loadConfig() (*config, []string, error) {
 		RPCCert:    defaultRPCCertFile,
 	}
 
-	// Create the home directory if it doesn't already exist.
-	err := os.MkdirAll(dcrdHomeDir, 0700)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "%v\n", err)
-		os.Exit(-1)
-	}
-
 	// Pre-parse the command line options to see if an alternative config
 	// file, the version flag, or the list commands flag was specified.  Any
 	// errors aside from the help message error can be ignored here since
 	// they will be caught by the final parse below.
 	preCfg := cfg
 	preParser := flags.NewParser(&preCfg, flags.HelpFlag)
-	_, err = preParser.Parse()
+	_, err := preParser.Parse()
 	if err != nil {
 		if e, ok := err.(*flags.Error); ok && e.Type == flags.ErrHelp {
 			fmt.Fprintln(os.Stderr, err)
@@ -285,12 +278,6 @@ func loadConfig() (*config, []string, error) {
 // For this it tries to read the dcrd config file at its default path, and extract
 // the RPC user and password from it.
 func createDefaultConfigFile(destinationPath string) error {
-	// Create the destination directory if it does not exists
-	err := os.MkdirAll(filepath.Dir(destinationPath), 0700)
-	if err != nil {
-		return err
-	}
-
 	// Read dcrd.conf from its default path
 	dcrdConfigPath := filepath.Join(dcrdHomeDir, "dcrd.conf")
 	dcrdConfigFile, err := os.Open(dcrdConfigPath)
@@ -323,6 +310,12 @@ func createDefaultConfigFile(destinationPath string) error {
 	if passSubmatches == nil {
 		// No password found, nothing to do
 		return nil
+	}
+
+	// Create the destination directory if it does not exists
+	err = os.MkdirAll(filepath.Dir(destinationPath), 0700)
+	if err != nil {
+		return err
 	}
 
 	// Create the destination file and write the rpcuser and rpcpass to it
