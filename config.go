@@ -417,20 +417,40 @@ func loadConfig() (*config, []string, error) {
 	// Update the home directory for dcrd if specified. Since the home
 	// directory is updated, other variables need to be updated to
 	// reflect the new changes.
-	if len(preCfg.HomeDir) > 0 {
+	if preCfg.HomeDir != "" {
 		cfg.HomeDir, _ = filepath.Abs(preCfg.HomeDir)
-		cfg.ConfigFile = filepath.Join(cfg.HomeDir, defaultConfigFilename)
-		cfg.DataDir = filepath.Join(cfg.HomeDir, defaultDataDirname)
-		cfg.RPCKey = filepath.Join(cfg.HomeDir, "rpc.key")
-		cfg.RPCCert = filepath.Join(cfg.HomeDir, "rpc.cert")
-		cfg.LogDir = filepath.Join(cfg.HomeDir, defaultLogDirname)
+
+		if preCfg.ConfigFile == defaultConfigFile {
+			cfg.ConfigFile = filepath.Join(cfg.HomeDir, defaultConfigFilename)
+		} else {
+			cfg.ConfigFile = preCfg.ConfigFile
+		}
+		if preCfg.DataDir == defaultDataDir {
+			cfg.DataDir = filepath.Join(cfg.HomeDir, defaultDataDirname)
+		} else {
+			cfg.DataDir = preCfg.DataDir
+		}
+		if preCfg.RPCKey == defaultRPCKeyFile {
+			cfg.RPCKey = filepath.Join(cfg.HomeDir, "rpc.key")
+		} else {
+			cfg.RPCKey = preCfg.RPCKey
+		}
+		if preCfg.RPCCert == defaultRPCCertFile {
+			cfg.RPCCert = filepath.Join(cfg.HomeDir, "rpc.cert")
+		} else {
+			cfg.RPCCert = preCfg.RPCCert
+		}
+		if preCfg.LogDir == defaultLogDir {
+			cfg.LogDir = filepath.Join(cfg.HomeDir, defaultLogDirname)
+		} else {
+			cfg.LogDir = preCfg.LogDir
+		}
 	}
 
 	// Load additional config from file.
 	var configFileError error
 	parser := newConfigParser(&cfg, &serviceOpts, flags.Default)
-	if !(preCfg.SimNet) || preCfg.ConfigFile !=
-		defaultConfigFile {
+	if !(preCfg.SimNet) || cfg.ConfigFile != defaultConfigFile {
 
 		if _, err := os.Stat(cfg.ConfigFile); os.IsNotExist(err) {
 			err := createDefaultConfigFile(cfg.ConfigFile)
