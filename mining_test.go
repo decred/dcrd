@@ -1,4 +1,4 @@
-// Copyright (c) 2015-2016 The Decred Developers
+// Copyright (c) 2016 The btcsuite developers
 // Copyright (c) 2015-2016 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
@@ -11,12 +11,104 @@ import (
 	"testing"
 
 	"github.com/decred/dcrd/blockchain/stake"
+	"github.com/decred/dcrutil"
 )
 
-// TestTxFeePrioHeap tests the priority heaps including the stake types for both
-// transaction fees per KB and transaction priority. It ensures that the primary
-// sorting is first by stake type, and then by the latter chosen priority type.
+// TestTxFeePrioHeap ensures the priority queue for transaction fees and
+// priorities works as expected. It doesn't set anything for the stake
+// priority, so this test only tests sorting by fee and then priority.
 func TestTxFeePrioHeap(t *testing.T) {
+	// Create some fake priority items that exercise the expected sort
+	// edge conditions.
+	testItems := []*txPrioItem{
+		{feePerKB: 5678, priority: 1},
+		{feePerKB: 5678, priority: 1}, // Duplicate fee and prio
+		{feePerKB: 5678, priority: 5},
+		{feePerKB: 5678, priority: 2},
+		{feePerKB: 1234, priority: 3},
+		{feePerKB: 1234, priority: 1},
+		{feePerKB: 1234, priority: 5},
+		{feePerKB: 1234, priority: 5}, // Duplicate fee and prio
+		{feePerKB: 1234, priority: 2},
+		{feePerKB: 10000, priority: 0}, // Higher fee, smaller prio
+		{feePerKB: 0, priority: 10000}, // Higher prio, lower fee
+	}
+	numItems := len(testItems)
+
+	// Add random data in addition to the edge conditions already manually
+	// specified.
+	randSeed := rand.Int63()
+	defer func() {
+		if t.Failed() {
+			t.Logf("Random numbers using seed: %v", randSeed)
+		}
+	}()
+	prng := rand.New(rand.NewSource(randSeed))
+	for i := 0; i < 1000; i++ {
+		testItems = append(testItems, &txPrioItem{
+			feePerKB: prng.Float64() * dcrutil.AtomsPerCoin,
+			priority: prng.Float64() * 100,
+		})
+	}
+
+	// Test sorting by fee per KB then priority.
+	var highest *txPrioItem
+	priorityQueue := newTxPriorityQueue(len(testItems),
+		txPQByStakeAndFeeAndThenPriority)
+	for i := 0; i < len(testItems); i++ {
+		prioItem := testItems[i]
+		if highest == nil {
+			highest = prioItem
+		}
+		if prioItem.feePerKB >= highest.feePerKB &&
+			prioItem.priority > highest.priority {
+			highest = prioItem
+		}
+		heap.Push(priorityQueue, prioItem)
+	}
+
+	for i := 0; i < len(testItems); i++ {
+		prioItem := heap.Pop(priorityQueue).(*txPrioItem)
+		if prioItem.feePerKB >= highest.feePerKB &&
+			prioItem.priority > highest.priority {
+
+			t.Fatalf("fee sort: item (fee per KB: %v, "+
+				"priority: %v) higher than than prev "+
+				"(fee per KB: %v, priority %v)",
+				prioItem.feePerKB, prioItem.priority,
+				highest.feePerKB, highest.priority)
+		}
+		highest = prioItem
+	}
+
+	// Test sorting by priority then fee per KB.
+	priorityQueue = newTxPriorityQueue(numItems, txPQByStakeAndFeeAndThenPriority)
+	for i := 0; i < len(testItems); i++ {
+		prioItem := testItems[i]
+		if highest == nil {
+			highest = prioItem
+		}
+		if prioItem.priority >= highest.priority &&
+			prioItem.feePerKB > highest.feePerKB {
+			highest = prioItem
+		}
+		heap.Push(priorityQueue, prioItem)
+	}
+
+	for i := 0; i < len(testItems); i++ {
+		prioItem := heap.Pop(priorityQueue).(*txPrioItem)
+		if prioItem.priority >= highest.priority &&
+			prioItem.feePerKB > highest.feePerKB {
+
+		}
+	}
+}
+
+// TestStakeTxFeePrioHeap tests the priority heaps including the stake types for
+// both transaction fees per KB and transaction priority. It ensures that the
+// primary sorting is first by stake type, and then by the latter chosen priority
+// type.
+func TestStakeTxFeePrioHeap(t *testing.T) {
 	numElements := 1000
 	ph := newTxPriorityQueue(numElements, txPQByStakeAndFee)
 
@@ -51,8 +143,6 @@ func TestTxFeePrioHeap(t *testing.T) {
 					txpi.feePerKB, last.feePerKB, txpi.txType, last.txType)
 			}
 			last = txpi
-		} else {
-			t.Fatalf("casting failure")
 		}
 	}
 
@@ -88,8 +178,6 @@ func TestTxFeePrioHeap(t *testing.T) {
 					txpi.feePerKB, last.feePerKB, txpi.txType, last.txType)
 			}
 			last = txpi
-		} else {
-			t.Fatalf("casting failure")
 		}
 	}
 
@@ -139,8 +227,6 @@ func TestTxFeePrioHeap(t *testing.T) {
 				}
 			}
 			last = txpi
-		} else {
-			t.Fatalf("casting failure")
 		}
 	}
 }
