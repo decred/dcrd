@@ -1541,7 +1541,7 @@ mempoolLoop:
 			(tx.Tree() != dcrutil.TxTreeStake) &&
 			(blockPlusTxSize >= policy.BlockMinSize) {
 
-			minrLog.Tracef("Skipping tx %s with feePerKB %.2f "+
+			minrLog.Tracef("Skipping tx %s with feePerKB %v "+
 				"< TxMinFreeFee %d and block size %d >= "+
 				"minBlockSize %d", tx.Sha(), prioItem.feePerKB,
 				policy.TxMinFreeFee, blockPlusTxSize,
@@ -1632,7 +1632,7 @@ mempoolLoop:
 		txFeesMap[*tx.Sha()] = prioItem.fee
 		txSigOpCountsMap[*tx.Sha()] = numSigOps
 
-		minrLog.Tracef("Adding tx %s (priority %.2f, feePerKB %.2f)",
+		minrLog.Tracef("Adding tx %s (priority %.2f, feePerKB %v)",
 			prioItem.tx.Sha(), prioItem.priority, prioItem.feePerKB)
 
 		// Add transactions which depend on this one (and also do not

@@ -7,7 +7,9 @@ package wire
 
 import (
 	"bytes"
+	"fmt"
 	"io/ioutil"
+	"net"
 	"testing"
 	"time"
 
@@ -153,8 +155,10 @@ func BenchmarkWriteVarInt9(b *testing.B) {
 // a single byte variable length integer.
 func BenchmarkReadVarInt1(b *testing.B) {
 	buf := []byte{0x01}
+	r := bytes.NewReader(buf)
 	for i := 0; i < b.N; i++ {
-		ReadVarInt(bytes.NewReader(buf), 0)
+		r.Seek(0, 0)
+		ReadVarInt(r, 0)
 	}
 }
 
@@ -162,8 +166,10 @@ func BenchmarkReadVarInt1(b *testing.B) {
 // a three byte variable length integer.
 func BenchmarkReadVarInt3(b *testing.B) {
 	buf := []byte{0x0fd, 0xff, 0xff}
+	r := bytes.NewReader(buf)
 	for i := 0; i < b.N; i++ {
-		ReadVarInt(bytes.NewReader(buf), 0)
+		r.Seek(0, 0)
+		ReadVarInt(r, 0)
 	}
 }
 
@@ -171,8 +177,10 @@ func BenchmarkReadVarInt3(b *testing.B) {
 // a five byte variable length integer.
 func BenchmarkReadVarInt5(b *testing.B) {
 	buf := []byte{0xfe, 0xff, 0xff, 0xff, 0xff}
+	r := bytes.NewReader(buf)
 	for i := 0; i < b.N; i++ {
-		ReadVarInt(bytes.NewReader(buf), 0)
+		r.Seek(0, 0)
+		ReadVarInt(r, 0)
 	}
 }
 
@@ -180,8 +188,10 @@ func BenchmarkReadVarInt5(b *testing.B) {
 // a nine byte variable length integer.
 func BenchmarkReadVarInt9(b *testing.B) {
 	buf := []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff}
+	r := bytes.NewReader(buf)
 	for i := 0; i < b.N; i++ {
-		ReadVarInt(bytes.NewReader(buf), 0)
+		r.Seek(0, 0)
+		ReadVarInt(r, 0)
 	}
 }
 
@@ -189,8 +199,10 @@ func BenchmarkReadVarInt9(b *testing.B) {
 // four byte variable length string.
 func BenchmarkReadVarStr4(b *testing.B) {
 	buf := []byte{0x04, 't', 'e', 's', 't'}
+	r := bytes.NewReader(buf)
 	for i := 0; i < b.N; i++ {
-		ReadVarString(bytes.NewReader(buf), 0)
+		r.Seek(0, 0)
+		ReadVarString(r, 0)
 	}
 }
 
@@ -198,8 +210,10 @@ func BenchmarkReadVarStr4(b *testing.B) {
 // ten byte variable length string.
 func BenchmarkReadVarStr10(b *testing.B) {
 	buf := []byte{0x0a, 't', 'e', 's', 't', '0', '1', '2', '3', '4', '5'}
+	r := bytes.NewReader(buf)
 	for i := 0; i < b.N; i++ {
-		ReadVarString(bytes.NewReader(buf), 0)
+		r.Seek(0, 0)
+		ReadVarString(r, 0)
 	}
 }
 
@@ -229,9 +243,11 @@ func BenchmarkReadOutPoint(b *testing.B) {
 		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // Previous output hash
 		0xff, 0xff, 0xff, 0xff, // Previous output index
 	}
+	r := bytes.NewReader(buf)
 	var op OutPoint
 	for i := 0; i < b.N; i++ {
-		ReadOutPoint(bytes.NewReader(buf), 0, 0, &op)
+		r.Seek(0, 0)
+		ReadOutPoint(r, 0, 0, &op)
 	}
 }
 
@@ -265,9 +281,12 @@ func BenchmarkReadTxOut(b *testing.B) {
 		0xee, // 65-byte signature
 		0xac, // OP_CHECKSIG
 	}
+	r := bytes.NewReader(buf)
 	var txOut TxOut
 	for i := 0; i < b.N; i++ {
-		readTxOut(bytes.NewReader(buf), 0, 0, &txOut)
+		r.Seek(0, 0)
+		readTxOut(r, 0, 0, &txOut)
+		scriptPool.Return(txOut.PkScript)
 	}
 }
 
@@ -293,9 +312,12 @@ func BenchmarkReadTxIn(b *testing.B) {
 		0x04, 0xff, 0xff, 0x00, 0x1d, 0x01, 0x04, // Signature script
 		0xff, 0xff, 0xff, 0xff, // Sequence
 	}
+	r := bytes.NewReader(buf)
 	var txIn TxIn
 	for i := 0; i < b.N; i++ {
-		readTxInPrefix(bytes.NewReader(buf), 0, 0, &txIn)
+		r.Seek(0, 0)
+		readTxInPrefix(r, 0, 0, &txIn)
+		scriptPool.Return(txIn.SignatureScript)
 	}
 }
 
@@ -309,8 +331,8 @@ func BenchmarkWriteTxIn(b *testing.B) {
 }
 
 // BenchmarkDeserializeTx performs a benchmark on how long it takes to
-// deserialize a transaction.
-func BenchmarkDeserializeTx(b *testing.B) {
+// deserialize a small transaction.
+func BenchmarkDeserializeTxSmall(b *testing.B) {
 	buf := []byte{
 		0x01, 0x00, 0x00, 0x00, // Version
 		0x01, // Varint for number of input transactions
@@ -338,10 +360,44 @@ func BenchmarkDeserializeTx(b *testing.B) {
 		0xac,                   // OP_CHECKSIG
 		0x00, 0x00, 0x00, 0x00, // Lock time
 	}
+
+	r := bytes.NewReader(buf)
 	var tx MsgTx
 	for i := 0; i < b.N; i++ {
-		tx.Deserialize(bytes.NewReader(buf))
+		r.Seek(0, 0)
+		tx.Deserialize(r)
+	}
+}
 
+// BenchmarkDeserializeTxLarge performs a benchmark on how long it takes to
+// deserialize a very large transaction.
+func BenchmarkDeserializeTxLarge(b *testing.B) {
+	bigTx := new(MsgTx)
+	bigTx.Version = DefaultMsgTxVersion()
+	inputsLen := 1000
+	outputsLen := 2000
+	bigTx.TxIn = make([]*TxIn, inputsLen)
+	bigTx.TxOut = make([]*TxOut, outputsLen)
+	for i := 0; i < inputsLen; i++ {
+		bigTx.TxIn[i] = &TxIn{
+			SignatureScript: bytes.Repeat([]byte{0x12}, 120),
+		}
+	}
+	for i := 0; i < outputsLen; i++ {
+		bigTx.TxOut[i] = &TxOut{
+			PkScript: bytes.Repeat([]byte{0x34}, 30),
+		}
+	}
+	bigTxB, err := bigTx.Bytes()
+	if err != nil {
+		b.Fatalf("%v", err.Error())
+	}
+
+	r := bytes.NewReader(bigTxB)
+	var tx MsgTx
+	for i := 0; i < b.N; i++ {
+		r.Seek(0, 0)
+		tx.Deserialize(r)
 	}
 }
 
@@ -373,9 +429,11 @@ func BenchmarkReadBlockHeader(b *testing.B) {
 		0xf3, 0xe0, 0x01, 0x00, // Nonce
 		0x00, // TxnCount Varint
 	}
+	r := bytes.NewReader(buf)
 	var header BlockHeader
 	for i := 0; i < b.N; i++ {
-		readBlockHeader(bytes.NewReader(buf), 0, &header)
+		r.Seek(0, 0)
+		readBlockHeader(r, 0, &header)
 	}
 }
 
@@ -385,6 +443,224 @@ func BenchmarkWriteBlockHeader(b *testing.B) {
 	header := blockOne.Header
 	for i := 0; i < b.N; i++ {
 		writeBlockHeader(ioutil.Discard, 0, &header)
+	}
+}
+
+// BenchmarkDecodeGetHeaders performs a benchmark on how long it takes to
+// decode a getheaders message with the maximum number of block locator hashes.
+func BenchmarkDecodeGetHeaders(b *testing.B) {
+	// Create a message with the maximum number of block locators.
+	pver := ProtocolVersion
+	var m MsgGetHeaders
+	for i := 0; i < MaxBlockLocatorsPerMsg; i++ {
+		hash, err := chainhash.NewHashFromStr(fmt.Sprintf("%x", i))
+		if err != nil {
+			b.Fatalf("chainhash.NewHashFromStr: unexpected error: %v", err)
+		}
+		m.AddBlockLocatorHash(hash)
+	}
+
+	// Serialize it so the bytes are available to test the decode below.
+	var bb bytes.Buffer
+	if err := m.BtcEncode(&bb, pver); err != nil {
+		b.Fatalf("MsgGetHeaders.BtcEncode: unexpected error: %v", err)
+	}
+	buf := bb.Bytes()
+
+	r := bytes.NewReader(buf)
+	var msg MsgGetHeaders
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		r.Seek(0, 0)
+		msg.BtcDecode(r, pver)
+	}
+}
+
+// BenchmarkDecodeHeaders performs a benchmark on how long it takes to
+// decode a headers message with the maximum number of headers.
+func BenchmarkDecodeHeaders(b *testing.B) {
+	// Create a message with the maximum number of headers.
+	pver := ProtocolVersion
+	var m MsgHeaders
+	for i := 0; i < MaxBlockHeadersPerMsg; i++ {
+		hash, err := chainhash.NewHashFromStr(fmt.Sprintf("%x", i))
+		if err != nil {
+			b.Fatalf("chainhash.NewHashFromStr: unexpected error: %v", err)
+		}
+		m.AddBlockHeader(NewBlockHeader(1, hash, hash, hash, 0, [6]byte{}, 0, 0,
+			0, 0, 0, 0, 0, 0, uint32(i), [36]byte{}))
+	}
+
+	// Serialize it so the bytes are available to test the decode below.
+	var bb bytes.Buffer
+	if err := m.BtcEncode(&bb, pver); err != nil {
+		b.Fatalf("MsgHeaders.BtcEncode: unexpected error: %v", err)
+	}
+	buf := bb.Bytes()
+
+	r := bytes.NewReader(buf)
+	var msg MsgHeaders
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		r.Seek(0, 0)
+		msg.BtcDecode(r, pver)
+	}
+}
+
+// BenchmarkDecodeGetBlocks performs a benchmark on how long it takes to
+// decode a getblocks message with the maximum number of block locator hashes.
+func BenchmarkDecodeGetBlocks(b *testing.B) {
+	// Create a message with the maximum number of block locators.
+	pver := ProtocolVersion
+	var m MsgGetBlocks
+	for i := 0; i < MaxBlockLocatorsPerMsg; i++ {
+		hash, err := chainhash.NewHashFromStr(fmt.Sprintf("%x", i))
+		if err != nil {
+			b.Fatalf("chainhash.NewHashFromStr: unexpected error: %v", err)
+		}
+		m.AddBlockLocatorHash(hash)
+	}
+
+	// Serialize it so the bytes are available to test the decode below.
+	var bb bytes.Buffer
+	if err := m.BtcEncode(&bb, pver); err != nil {
+		b.Fatalf("MsgGetBlocks.BtcEncode: unexpected error: %v", err)
+	}
+	buf := bb.Bytes()
+
+	r := bytes.NewReader(buf)
+	var msg MsgGetBlocks
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		r.Seek(0, 0)
+		msg.BtcDecode(r, pver)
+	}
+}
+
+// BenchmarkDecodeAddr performs a benchmark on how long it takes to decode an
+// addr message with the maximum number of addresses.
+func BenchmarkDecodeAddr(b *testing.B) {
+	// Create a message with the maximum number of addresses.
+	pver := ProtocolVersion
+	ip := net.ParseIP("127.0.0.1")
+	ma := NewMsgAddr()
+	for port := uint16(0); port < MaxAddrPerMsg; port++ {
+		ma.AddAddress(NewNetAddressIPPort(ip, port, SFNodeNetwork))
+	}
+
+	// Serialize it so the bytes are available to test the decode below.
+	var bb bytes.Buffer
+	if err := ma.BtcEncode(&bb, pver); err != nil {
+		b.Fatalf("MsgAddr.BtcEncode: unexpected error: %v", err)
+	}
+	buf := bb.Bytes()
+
+	r := bytes.NewReader(buf)
+	var msg MsgAddr
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		r.Seek(0, 0)
+		msg.BtcDecode(r, pver)
+	}
+}
+
+// BenchmarkDecodeInv performs a benchmark on how long it takes to decode an inv
+// message with the maximum number of entries.
+func BenchmarkDecodeInv(b *testing.B) {
+	// Create a message with the maximum number of entries.
+	pver := ProtocolVersion
+	var m MsgInv
+	for i := 0; i < MaxInvPerMsg; i++ {
+		hash, err := chainhash.NewHashFromStr(fmt.Sprintf("%x", i))
+		if err != nil {
+			b.Fatalf("chainhash.NewHashFromStr: unexpected error: %v", err)
+		}
+		m.AddInvVect(NewInvVect(InvTypeBlock, hash))
+	}
+
+	// Serialize it so the bytes are available to test the decode below.
+	var bb bytes.Buffer
+	if err := m.BtcEncode(&bb, pver); err != nil {
+		b.Fatalf("MsgInv.BtcEncode: unexpected error: %v", err)
+	}
+	buf := bb.Bytes()
+
+	r := bytes.NewReader(buf)
+	var msg MsgInv
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		r.Seek(0, 0)
+		msg.BtcDecode(r, pver)
+	}
+}
+
+// BenchmarkDecodeNotFound performs a benchmark on how long it takes to decode
+// a notfound message with the maximum number of entries.
+func BenchmarkDecodeNotFound(b *testing.B) {
+	// Create a message with the maximum number of entries.
+	pver := ProtocolVersion
+	var m MsgNotFound
+	for i := 0; i < MaxInvPerMsg; i++ {
+		hash, err := chainhash.NewHashFromStr(fmt.Sprintf("%x", i))
+		if err != nil {
+			b.Fatalf("chainhash.NewHashFromStr: unexpected error: %v", err)
+		}
+		m.AddInvVect(NewInvVect(InvTypeBlock, hash))
+	}
+
+	// Serialize it so the bytes are available to test the decode below.
+	var bb bytes.Buffer
+	if err := m.BtcEncode(&bb, pver); err != nil {
+		b.Fatalf("MsgNotFound.BtcEncode: unexpected error: %v", err)
+	}
+	buf := bb.Bytes()
+
+	r := bytes.NewReader(buf)
+	var msg MsgNotFound
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		r.Seek(0, 0)
+		msg.BtcDecode(r, pver)
+	}
+}
+
+// BenchmarkDecodeMerkleBlock performs a benchmark on how long it takes to
+// decode a reasonably sized merkleblock message.
+func BenchmarkDecodeMerkleBlock(b *testing.B) {
+	// Create a message with random data.
+	pver := ProtocolVersion
+	var m MsgMerkleBlock
+	hash, err := chainhash.NewHashFromStr(fmt.Sprintf("%x", 10000))
+	if err != nil {
+		b.Fatalf("chainhash.NewHashFromStr: unexpected error: %v", err)
+	}
+	m.Header = *NewBlockHeader(1, hash, hash, hash, 0,
+		[6]byte{}, 0, 0, 0, 0, 0, 0, 0, 0, uint32(10000), [36]byte{})
+	for i := 0; i < 105; i++ {
+		hash, err := chainhash.NewHashFromStr(fmt.Sprintf("%x", i))
+		if err != nil {
+			b.Fatalf("chainhash.NewHashFromStr: unexpected error: %v", err)
+		}
+		m.AddTxHash(hash)
+		m.AddSTxHash(hash)
+		if i%8 == 0 {
+			m.Flags = append(m.Flags, uint8(i))
+		}
+	}
+
+	// Serialize it so the bytes are available to test the decode below.
+	var bb bytes.Buffer
+	if err := m.BtcEncode(&bb, pver); err != nil {
+		b.Fatalf("MsgMerkleBlock.BtcEncode: unexpected error: %v", err)
+	}
+	buf := bb.Bytes()
+
+	r := bytes.NewReader(buf)
+	var msg MsgMerkleBlock
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		r.Seek(0, 0)
+		msg.BtcDecode(r, pver)
 	}
 }
 
@@ -399,15 +675,14 @@ func BenchmarkTxSha(b *testing.B) {
 // BenchmarkHashFuncB performs a benchmark on how long it takes to perform a
 // hash returning a byte slice.
 func BenchmarkHashFuncB(b *testing.B) {
-	b.StopTimer()
 	var buf bytes.Buffer
 	if err := genesisCoinbaseTx.Serialize(&buf); err != nil {
 		b.Errorf("Serialize: unexpected error: %v", err)
 		return
 	}
 	txBytes := buf.Bytes()
-	b.StartTimer()
 
+	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		_ = chainhash.HashFuncB(txBytes)
 	}
@@ -416,15 +691,14 @@ func BenchmarkHashFuncB(b *testing.B) {
 // BenchmarkHashFuncH performs a benchmark on how long it takes to perform
 // a hash returning a Hash.
 func BenchmarkHashFuncH(b *testing.B) {
-	b.StopTimer()
 	var buf bytes.Buffer
 	if err := genesisCoinbaseTx.Serialize(&buf); err != nil {
 		b.Errorf("Serialize: unexpected error: %v", err)
 		return
 	}
 	txBytes := buf.Bytes()
-	b.StartTimer()
 
+	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		_ = chainhash.HashFuncH(txBytes)
 	}
