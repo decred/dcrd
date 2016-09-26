@@ -956,12 +956,12 @@ func createDefaultConfigFile(destinationPath string) error {
 		return err
 	}
 
-	// We get the sample config file path, which is in the same directory as this file.
+	// We assume sample config file path is same as binary
 	path, err := filepath.Abs(filepath.Dir(os.Args[0]))
 	if err != nil {
 		return err
 	}
-	sampleConfigPath := filepath.Join(path, "sample-dcrd.conf")
+	sampleConfigPath := filepath.Join(path, sampleConfigFilename)
 
 	// We generate a random user and password
 	randomBytes := make([]byte, 20)
