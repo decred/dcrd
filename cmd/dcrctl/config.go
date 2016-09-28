@@ -187,13 +187,13 @@ func loadConfig() (*config, []string, error) {
 	_, err := preParser.Parse()
 	if err != nil {
 		if e, ok := err.(*flags.Error); ok && e.Type == flags.ErrHelp {
-			fmt.Fprintln(os.Stderr, err)
-			fmt.Fprintln(os.Stderr, "")
-			fmt.Fprintln(os.Stderr, "The special parameter `-` "+
+			fmt.Fprintln(os.Stdout, err)
+			fmt.Fprintln(os.Stdout, "")
+			fmt.Fprintln(os.Stdout, "The special parameter `-` "+
 				"indicates that a parameter should be read "+
 				"from the\nnext unread line from standard "+
 				"input.")
-			return nil, nil, err
+			os.Exit(0)
 		}
 	}
 

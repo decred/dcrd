@@ -389,8 +389,8 @@ func loadConfig() (*config, []string, error) {
 	_, err := preParser.Parse()
 	if err != nil {
 		if e, ok := err.(*flags.Error); ok && e.Type == flags.ErrHelp {
-			fmt.Fprintln(os.Stderr, err)
-			return nil, nil, err
+			fmt.Fprintln(os.Stdout, err)
+			os.Exit(0)
 		}
 	}
 
