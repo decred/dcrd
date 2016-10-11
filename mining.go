@@ -46,6 +46,7 @@ const (
 type txPrioItem struct {
 	tx       *dcrutil.Tx
 	txType   stake.TxType
+	txSize   int
 	fee      int64
 	priority float64
 	feePerKB float64
@@ -250,6 +251,80 @@ func txPQByStakeAndFeeAndThenPriority(pq *txPriorityQueue, i, j int) bool {
 
 	return pq.items[i].priority > pq.items[j].priority
 }
+
+// txPQByStakeSizeAndFeeAndThenPriority sorts a txPriorityQueue by transaction
+// type (stake priority), followed by absolute fees if the transactions are small,
+// then fees per kilobyte, and if the transaction type is regular or a revocation
+// it sorts it by priority then fees per kB.  It differs from the
+// txPQByStakeAndFeeAndThenPriority function in that when there are two similarly
+// sized tickets less than a certain small size, it will pick the higher absolute
+// fee instead of relative fee (fee per KB).
+//
+// There are consquences to such a policy.  Although it might pick the highest
+// absolute fees for the block, it also increases the block's chance of being
+// orphaned.  Proof of work miners will have to determine whether the risk is
+// acceptable or not based on the amount of extra subsidy they might obtain.
+func txPQByStakeSizeAndFeeAndThenPriority(pq *txPriorityQueue, i, j int) bool {
+	// Sort by stake priority, continue if they're the same stake priority.
+	cmp := compareStakePriority(pq.items[i], pq.items[j])
+	if cmp == 1 {
+		return true
+	}
+	if cmp == -1 {
+		return false
+	}
+
+	bothAreLowStakePriority :=
+		txStakePriority(pq.items[i].txType) == regOrRevocPriority &&
+			txStakePriority(pq.items[j].txType) == regOrRevocPriority
+
+	// Use fees to determine locations of high stake priority transactions.
+	if !bothAreLowStakePriority {
+		// If both of these are tickets below the small ticket size threshold,
+		// only compare based on the absolute fees.
+		bothAreTickets := txStakePriority(pq.items[i].txType) == ticketPriority &&
+			txStakePriority(pq.items[j].txType) == ticketPriority
+		bothAreSmall := pq.items[i].txSize < configSetTicketPrioSize &&
+			pq.items[j].txSize < configSetTicketPrioSize
+		if bothAreTickets && bothAreSmall {
+			return pq.items[i].fee > pq.items[j].fee
+		}
+
+		// If one or both is not small or one or both is not tickets, just
+		// base it on fees per kilobyte.
+		return pq.items[i].feePerKB > pq.items[j].feePerKB
+	}
+
+	// Both transactions are of low stake importance. Use > here so that
+	// pop gives the highest priority item as opposed to the lowest.
+	// Sort by priority first, then fee.
+	if pq.items[i].priority == pq.items[j].priority {
+		return pq.items[i].feePerKB > pq.items[j].feePerKB
+	}
+
+	return pq.items[i].priority > pq.items[j].priority
+}
+
+// configSortingFuncMap is a map of strings to sorting functions, so that they
+// may be user selected in the configuration.
+var configSortingFuncMap = map[string]func(pq *txPriorityQueue, i, j int) bool{
+	"stakethenfeethenpriority": txPQByStakeAndFeeAndThenPriority,
+	"stakethenpriority":        txPQByStakeAndPriority,
+	"stakethenfee":             txPQByStakeAndFee,
+	"smallticketpriority":      txPQByStakeSizeAndFeeAndThenPriority,
+}
+
+// configSetTicketPrioSize is the size above which tickets are
+// considered by their fees per kilobyte rather than their absolute
+// fee.  Large tickets are considered a burden to the network
+// because of their relative consumption of the amount of space
+// in blocks and the large size of the votes they produce.  Smaller
+// tickets are thus encouraged by setting this priority size.
+var configSetTicketPrioSize int
+
+// configSetSortingFunc is the global sorting function as set by the
+// configuration from the user.
+var configSetSortingFunc func(pq *txPriorityQueue, i, j int) bool
 
 // newTxPriorityQueue returns a new transaction priority queue that reserves the
 // passed amount of space for the elements.  The new priority queue uses the
@@ -1247,7 +1322,7 @@ func NewBlockTemplate(policy *mining.Policy, server *server,
 	// or not there is an area allocated for high-priority transactions.
 	sourceTxns := txSource.MiningDescs()
 	sortedByFee := policy.BlockPrioritySize == 0
-	lessFunc := txPQByStakeAndFeeAndThenPriority
+	lessFunc := configSetSortingFunc
 	if sortedByFee {
 		lessFunc = txPQByStakeAndFee
 	}
@@ -1332,7 +1407,8 @@ mempoolLoop:
 		// Setup dependencies for any transactions which reference
 		// other transactions in the mempool so they can be properly
 		// ordered below.
-		prioItem := &txPrioItem{tx: txDesc.Tx, txType: txDesc.Type}
+		prioItem := &txPrioItem{tx: txDesc.Tx, txType: txDesc.Type,
+			txSize: txDesc.Tx.MsgTx().SerializeSize()}
 		for i, txIn := range tx.MsgTx().TxIn {
 			// Evaluate if this is a stakebase input or not. If it is, continue
 			// without evaluation of the input.

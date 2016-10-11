@@ -48,6 +48,8 @@ const (
 	blockMaxSizeMin              = 1000
 	blockMaxSizeMax              = wire.MaxBlockPayload - 1000
 	defaultBlockPrioritySize     = 20000
+	defaultMaxPrioTicketSize     = 1500
+	defaultMiningSortingAlgo     = "stakethenfeethenpriority"
 	defaultAddrIndex             = false
 	defaultGenerate              = false
 	defaultNonAggressive         = false
@@ -142,6 +144,8 @@ type config struct {
 	BlockMinSize        uint32        `long:"blockminsize" description:"Mininum block size in bytes to be used when creating a block"`
 	BlockMaxSize        uint32        `long:"blockmaxsize" description:"Maximum block size in bytes to be used when creating a block"`
 	BlockPrioritySize   uint32        `long:"blockprioritysize" description:"Size in bytes for high-priority/low-fee transactions when creating a block"`
+	MaxPrioTicketSize   uint32        `long:"maxprioticketsize" description:"Cutoff in bytes for tickets to be measured in absolute fees instead of fees per KB when creating a block"`
+	MiningSortingAlgo   string        `long:"miningsortingalgo" description:"The mining sorting algorithm to use when creating blocks (options: stakethenfeethenpriority, stakethenpriority, stakethenfee, smallticketpriority)"`
 	GetWorkKeys         []string      `long:"getworkkey" description:"DEPRECATED -- Use the --miningaddr option instead"`
 	NoPeerBloomFilters  bool          `long:"nopeerbloomfilters" description:"Disable bloom filtering support"`
 	SigCacheMaxSize     uint          `long:"sigcachemaxsize" description:"The maximum number of entries in the signature verification cache"`
@@ -367,6 +371,8 @@ func loadConfig() (*config, []string, error) {
 		BlockMinSize:      defaultBlockMinSize,
 		BlockMaxSize:      defaultBlockMaxSize,
 		BlockPrioritySize: defaultBlockPrioritySize,
+		MaxPrioTicketSize: defaultMaxPrioTicketSize,
+		MiningSortingAlgo: defaultMiningSortingAlgo,
 		MaxOrphanTxs:      defaultMaxOrphanTransactions,
 		SigCacheMaxSize:   defaultSigCacheMaxSize,
 		Generate:          defaultGenerate,
@@ -788,6 +794,30 @@ func loadConfig() (*config, []string, error) {
 		fmt.Fprintln(os.Stderr, usageMessage)
 		return nil, nil, err
 	}
+
+	// This value must also be smaller than the largest int on 32-bit
+	// systems.
+	if cfg.MaxPrioTicketSize > 0x7FFFFFFF {
+		str := "%s: maxprioticketsize set too large (must be less than " +
+			"2147483647)"
+		err := fmt.Errorf(str, funcName)
+		fmt.Fprintln(os.Stderr, err)
+		fmt.Fprintln(os.Stderr, usageMessage)
+		return nil, nil, err
+	} else {
+		configSetTicketPrioSize = int(cfg.MaxPrioTicketSize)
+	}
+
+	// Check and set the mining sorting algorithm.
+	algo, exists := configSortingFuncMap[cfg.MiningSortingAlgo]
+	if !exists {
+		str := "%s: unknown mining sorting algorithm %s given "
+		err := fmt.Errorf(str, funcName, cfg.MiningSortingAlgo)
+		fmt.Fprintln(os.Stderr, err)
+		fmt.Fprintln(os.Stderr, usageMessage)
+		return nil, nil, err
+	}
+	configSetSortingFunc = algo
 
 	// Add default port to all listener addresses if needed and remove
 	// duplicate addresses.

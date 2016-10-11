@@ -152,6 +152,125 @@ func TestTxFeePrioHeap(t *testing.T) {
 	}
 }
 
+// TestTxStakeSortingWithSizeHeap ensures the priority queue for stake
+// transactions, sorting by stake priority, ticket relative absolute
+// fee for small tickets, relative fee per ticket size, then lower
+// stake priority by relative fee per transaction size works as expected.
+func TestTxStakeSortingWithSizeHeap(t *testing.T) {
+	maxPriorityTicketSize := 2500
+	configSetTicketPrioSize = 2500
+
+	// Create some fake priority items that exercise the expected sort
+	// edge conditions.
+	testItems := []*txPrioItem{
+		{feePerKB: 5678, priority: 5, txType: stake.TxTypeSStx, txSize: 100},
+		{feePerKB: 2840, priority: 2, txType: stake.TxTypeSStx, txSize: 200}, // Higher absolute fees despite relative fees
+		{feePerKB: 1234, priority: 3, txType: stake.TxTypeSStx, txSize: 3000},
+		{feePerKB: 1235, priority: 1, txType: stake.TxTypeSStx, txSize: 3000}, // Too big size, higher fee per KB
+		{feePerKB: 5678, priority: 1, txType: stake.TxTypeSSGen, txSize: 100}, // Votes go first
+		{feePerKB: 5678, priority: 1, txType: stake.TxTypeSSGen, txSize: 200},
+		{feePerKB: 1234, priority: 2, txType: stake.TxTypeRegular, txSize: 100},
+		{feePerKB: 1234, priority: 5, txType: stake.TxTypeRegular, txSize: 100},  // Higher priority ticket all else accounted for
+		{feePerKB: 10000, priority: 0, txType: stake.TxTypeRegular, txSize: 100}, // Higher fee, smaller prio
+		{feePerKB: 0, priority: 10000, txType: stake.TxTypeRegular, txSize: 100}, // Higher prio, lower fee
+	}
+
+	// Add random data in addition to the edge conditions already manually
+	// specified.
+	randSeed := rand.Int63()
+	defer func() {
+		if t.Failed() {
+			t.Logf("Random numbers using seed: %v", randSeed)
+		}
+	}()
+	prng := rand.New(rand.NewSource(randSeed))
+	for i := 0; i < 1000; i++ {
+		testItems = append(testItems, &txPrioItem{
+			feePerKB: prng.Float64() * dcrutil.AtomsPerCoin,
+			priority: prng.Float64() * 100,
+			txSize:   prng.Intn(6000),
+		})
+	}
+	for i := range testItems {
+		// This should be scaled for kilobyte, but ignore that here for
+		// the tests.
+		testItems[i].fee = int64(testItems[i].feePerKB) *
+			int64(testItems[i].txSize)
+	}
+
+	// Make a queue and then pop items off it, checking to see if
+	// the highest item we get is also highest priority in a
+	// refactor of the actual code.
+	priorityQueue := newTxPriorityQueue(len(testItems),
+		txPQByStakeSizeAndFeeAndThenPriority)
+	for i := 0; i < len(testItems); i++ {
+		heap.Push(priorityQueue, testItems[i])
+	}
+
+	fatalError := func(where string, i, j *txPrioItem) {
+		t.Fatalf("priority sort at %s: item (fee per KB: %v, "+
+			"priority: %v, txType %v, txSize %v, fee %v) "+
+			"higher than than prev (fee per KB: %v, "+
+			"priority %v, txType %v, txSize %v, fee %v)",
+			where,
+			i.feePerKB, i.priority, i.txType,
+			i.txSize, i.fee,
+			j.feePerKB, j.priority, j.txType,
+			j.txSize, j.fee)
+	}
+
+	var highest *txPrioItem
+	for i := 0; i < len(testItems); i++ {
+		prioItem := heap.Pop(priorityQueue).(*txPrioItem)
+		if highest == nil {
+			highest = prioItem
+			continue
+		}
+
+		txTypeEqual := false
+		switch {
+		case compareStakePriority(prioItem, highest) == 1:
+			fatalError("compareStakePriority", prioItem, highest)
+		case compareStakePriority(prioItem, highest) == 0:
+			txTypeEqual = true
+		default:
+		}
+
+		txFeesEqual := false
+		if txTypeEqual {
+			bothAreLowStakePriority :=
+				txStakePriority(prioItem.txType) == regOrRevocPriority &&
+					txStakePriority(highest.txType) == regOrRevocPriority
+			bothAreTickets := txStakePriority(prioItem.txType) == ticketPriority &&
+				txStakePriority(highest.txType) == ticketPriority
+			bothAreSmall := prioItem.txSize < maxPriorityTicketSize &&
+				highest.txSize < maxPriorityTicketSize
+
+			switch {
+			case (!bothAreLowStakePriority && bothAreTickets && bothAreSmall):
+				if prioItem.fee > highest.fee {
+					fatalError("both small tickets", prioItem, highest)
+				}
+			case !bothAreLowStakePriority:
+				if prioItem.feePerKB > highest.feePerKB {
+					fatalError("not both small tickets", prioItem, highest)
+				}
+			case prioItem.feePerKB == highest.feePerKB:
+				txFeesEqual = true
+			default:
+			}
+		}
+
+		if txFeesEqual {
+			if prioItem.priority > highest.priority {
+				fatalError("priority", prioItem, highest)
+			}
+		}
+
+		highest = prioItem
+	}
+}
+
 // TestStakeTxFeePrioHeap tests the priority heaps including the stake types for
 // both transaction fees per KB and transaction priority. It ensures that the
 // primary sorting is first by stake type, and then by the latter chosen priority
