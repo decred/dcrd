@@ -237,7 +237,7 @@ func init() {
 	MustRegisterCmd("estimatestakediff", (*EstimateStakeDiffCmd)(nil), flags)
 	MustRegisterCmd("existsaddress", (*ExistsAddressCmd)(nil), flags)
 	MustRegisterCmd("existsaddresses", (*ExistsAddressesCmd)(nil), flags)
-	MustRegisterCmd("existsexpiredticket", (*ExistsExpiredTicketsCmd)(nil), flags)
+	MustRegisterCmd("existsexpiredtickets", (*ExistsExpiredTicketsCmd)(nil), flags)
 	MustRegisterCmd("existsliveticket", (*ExistsLiveTicketCmd)(nil), flags)
 	MustRegisterCmd("existslivetickets", (*ExistsLiveTicketsCmd)(nil), flags)
 	MustRegisterCmd("existsmempooltxs", (*ExistsMempoolTxsCmd)(nil), flags)
