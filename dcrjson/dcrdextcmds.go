@@ -45,6 +45,19 @@ func NewExistsAddressesCmd(addresses []string) *ExistsAddressesCmd {
 	}
 }
 
+// ExistsExpiredTicketsCmd defines the existslivetickets JSON-RPC command.
+type ExistsExpiredTicketsCmd struct {
+	TxHashBlob string
+}
+
+// NewExistsExpiredTicketsCmd returns a new instance which can be used to issue an
+// existsexpiredtickets JSON-RPC command.
+func NewExistsExpiredTicketsCmd(txHashBlob string) *ExistsExpiredTicketsCmd {
+	return &ExistsExpiredTicketsCmd{
+		TxHashBlob: txHashBlob,
+	}
+}
+
 // ExistsLiveTicketCmd defines the existsliveticket JSON-RPC command.
 type ExistsLiveTicketCmd struct {
 	TxHash string
