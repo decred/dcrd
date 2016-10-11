@@ -795,22 +795,17 @@ func loadConfig() (*config, []string, error) {
 		return nil, nil, err
 	}
 
-	// MaxPrioTicketSize is the size above which tickets are considered
-	// by their fees per kilobyte rather than their absolute fee.  Large
-	// tickets are considered a burden to the network because of their
-	// relatively consumption of the amount of space in blocks and the
-	// large size of the votes they produce.  Smaller tickets are thus
-	// encouraged by setting this priority size.
-	//
 	// This value must also be smaller than the largest int on 32-bit
 	// systems.
 	if cfg.MaxPrioTicketSize > 0x7FFFFFFF {
 		str := "%s: maxprioticketsize set too large (must be less than " +
-			"2147483647"
+			"2147483647)"
 		err := fmt.Errorf(str, funcName)
 		fmt.Fprintln(os.Stderr, err)
 		fmt.Fprintln(os.Stderr, usageMessage)
 		return nil, nil, err
+	} else {
+		configSetTicketPrioSize = int(cfg.MaxPrioTicketSize)
 	}
 
 	// Check and set the mining sorting algorithm.

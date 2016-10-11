@@ -252,12 +252,14 @@ func txPQByStakeAndFeeAndThenPriority(pq *txPriorityQueue, i, j int) bool {
 	return pq.items[i].priority > pq.items[j].priority
 }
 
-// txPQByStakeSizeAndFeeAndThenPriority sorts a txPriorityQueue by stake priority,
-// followed by fees per kilobyte, and then if the transaction type is regular
-// or a revocation it sorts it by priority.  It differs from the
+// txPQByStakeSizeAndFeeAndThenPriority sorts a txPriorityQueue by transaction
+// type (stake priority), followed by absolute fees if the transactions are small,
+// then fees per kilobyte, and if the transaction type is regular or a revocation
+// it sorts it by priority then fees per kB.  It differs from the
 // txPQByStakeAndFeeAndThenPriority function in that when there are two similarly
-// sized tickets less than a certain size, it will pick the higher absolute
-// fee instead of relative fee.
+// sized tickets less than a certain small size, it will pick the higher absolute
+// fee instead of relative fee (fee per KB).
+//
 // There are consquences to such a policy.  Although it might pick the highest
 // absolute fees for the block, it also increases the block's chance of being
 // orphaned.  Proof of work miners will have to determine whether the risk is
@@ -282,8 +284,8 @@ func txPQByStakeSizeAndFeeAndThenPriority(pq *txPriorityQueue, i, j int) bool {
 		// only compare based on the absolute fees.
 		bothAreTickets := txStakePriority(pq.items[i].txType) == ticketPriority &&
 			txStakePriority(pq.items[j].txType) == ticketPriority
-		bothAreSmall := pq.items[i].txSize < int(cfg.MaxPrioTicketSize) &&
-			pq.items[j].txSize < int(cfg.MaxPrioTicketSize)
+		bothAreSmall := pq.items[i].txSize < configSetTicketPrioSize &&
+			pq.items[j].txSize < configSetTicketPrioSize
 		if bothAreTickets && bothAreSmall {
 			return pq.items[i].fee > pq.items[j].fee
 		}
@@ -311,6 +313,14 @@ var configSortingFuncMap = map[string]func(pq *txPriorityQueue, i, j int) bool{
 	"stakethenfee":             txPQByStakeAndFee,
 	"smallticketpriority":      txPQByStakeSizeAndFeeAndThenPriority,
 }
+
+// configSetTicketPrioSize is the size above which tickets are
+// considered by their fees per kilobyte rather than their absolute
+// fee.  Large tickets are considered a burden to the network
+// because of their relative consumption of the amount of space
+// in blocks and the large size of the votes they produce.  Smaller
+// tickets are thus encouraged by setting this priority size.
+var configSetTicketPrioSize int
 
 // configSetSortingFunc is the global sorting function as set by the
 // configuration from the user.

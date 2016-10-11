@@ -157,17 +157,20 @@ func TestTxFeePrioHeap(t *testing.T) {
 // fee for small tickets, relative fee per ticket size, then lower
 // stake priority by relative fee per transaction size works as expected.
 func TestTxStakeSortingWithSizeHeap(t *testing.T) {
+	maxPriorityTicketSize := 2500
+	configSetTicketPrioSize = 2500
+
 	// Create some fake priority items that exercise the expected sort
 	// edge conditions.
 	testItems := []*txPrioItem{
 		{feePerKB: 5678, priority: 5, txType: stake.TxTypeSStx, txSize: 100},
-		{feePerKB: 2840, priority: 2, txType: stake.TxTypeSStx, txSize: 200}, // Higher absolute fees despite size
+		{feePerKB: 2840, priority: 2, txType: stake.TxTypeSStx, txSize: 200}, // Higher absolute fees despite relative fees
 		{feePerKB: 1234, priority: 3, txType: stake.TxTypeSStx, txSize: 3000},
 		{feePerKB: 1235, priority: 1, txType: stake.TxTypeSStx, txSize: 3000}, // Too big size, higher fee per KB
 		{feePerKB: 5678, priority: 1, txType: stake.TxTypeSSGen, txSize: 100}, // Votes go first
 		{feePerKB: 5678, priority: 1, txType: stake.TxTypeSSGen, txSize: 200},
-		{feePerKB: 1234, priority: 2, txType: stake.TxTypeSStx, txSize: 100},
-		{feePerKB: 1234, priority: 5, txType: stake.TxTypeSStx, txSize: 100},     // Higher priority ticket all else accounted for
+		{feePerKB: 1234, priority: 2, txType: stake.TxTypeRegular, txSize: 100},
+		{feePerKB: 1234, priority: 5, txType: stake.TxTypeRegular, txSize: 100},  // Higher priority ticket all else accounted for
 		{feePerKB: 10000, priority: 0, txType: stake.TxTypeRegular, txSize: 100}, // Higher fee, smaller prio
 		{feePerKB: 0, priority: 10000, txType: stake.TxTypeRegular, txSize: 100}, // Higher prio, lower fee
 	}
