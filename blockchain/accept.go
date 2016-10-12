@@ -178,8 +178,9 @@ func (b *BlockChain) checkBlockContext(block *dcrutil.Block, prevNode *blockNode
 func ticketsSpentInBlock(bl *dcrutil.Block) []chainhash.Hash {
 	var tickets []chainhash.Hash
 	for _, stx := range bl.STransactions() {
-		if stake.DetermineTxType(stx) == stake.TxTypeSSGen {
-			tickets = append(tickets, stx.MsgTx().TxIn[1].PreviousOutPoint.Hash)
+		mstx := stx.MsgTx()
+		if stake.DetermineTxType(mstx) == stake.TxTypeSSGen {
+			tickets = append(tickets, mstx.TxIn[1].PreviousOutPoint.Hash)
 		}
 	}
 
@@ -191,8 +192,9 @@ func ticketsSpentInBlock(bl *dcrutil.Block) []chainhash.Hash {
 func ticketsRevokedInBlock(bl *dcrutil.Block) []chainhash.Hash {
 	var tickets []chainhash.Hash
 	for _, stx := range bl.STransactions() {
-		if stake.DetermineTxType(stx) == stake.TxTypeSSRtx {
-			tickets = append(tickets, stx.MsgTx().TxIn[0].PreviousOutPoint.Hash)
+		mstx := stx.MsgTx()
+		if stake.DetermineTxType(mstx) == stake.TxTypeSSRtx {
+			tickets = append(tickets, mstx.TxIn[0].PreviousOutPoint.Hash)
 		}
 	}
 

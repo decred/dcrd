@@ -1418,12 +1418,13 @@ func countSpentOutputs(block *dcrutil.Block, parent *dcrutil.Block) int {
 		}
 	}
 	for _, stx := range block.STransactions() {
-		txType := stake.DetermineTxType(stx)
+		mstx := stx.MsgTx()
+		txType := stake.DetermineTxType(mstx)
 		if txType == stake.TxTypeSSGen || txType == stake.TxTypeSSRtx {
 			numSpent++
 			continue
 		}
-		numSpent += len(stx.MsgTx().TxIn)
+		numSpent += len(mstx.TxIn)
 	}
 
 	return numSpent
