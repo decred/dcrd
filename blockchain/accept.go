@@ -177,10 +177,9 @@ func (b *BlockChain) checkBlockContext(block *dcrutil.Block, prevNode *blockNode
 // block.
 func ticketsSpentInBlock(bl *dcrutil.Block) []chainhash.Hash {
 	var tickets []chainhash.Hash
-	for _, stx := range bl.STransactions() {
-		mstx := stx.MsgTx()
-		if stake.DetermineTxType(mstx) == stake.TxTypeSSGen {
-			tickets = append(tickets, mstx.TxIn[1].PreviousOutPoint.Hash)
+	for _, stx := range bl.MsgBlock().STransactions {
+		if stake.DetermineTxType(stx) == stake.TxTypeSSGen {
+			tickets = append(tickets, stx.TxIn[1].PreviousOutPoint.Hash)
 		}
 	}
 
