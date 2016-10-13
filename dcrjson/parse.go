@@ -7,10 +7,15 @@ import (
 )
 
 // DecodeConcatenatedHashes return a slice of contiguous chainhash.Hash objects
-// created by decoding a single string of concatenated hex-encoded hashes.  The
-// length of the string must be evenly divisible by twice the hash size in order
-// for the parameter to be valid.  This function assumes the input is from a
-// JSON-RPC request and any errors will be of type *RPCError with an
+// created by decoding a single string of concatenated hex-encoded hashes.
+//
+// These hashes must NOT be the byte reversed string encoding that is typically
+// used for block and transaction hashes, or each resulting hash will also be
+// reversed.
+//
+// The length of the string must be evenly divisible by twice the hash size in
+// order for the parameter to be valid.  This function assumes the input is from
+// a JSON-RPC request and any errors will be of type *RPCError with an
 // ErrRPCInvalidParameter or ErrRPCDecodedHexString error code.
 func DecodeConcatenatedHashes(hashes string) ([]chainhash.Hash, error) {
 	numHashes := len(hashes) / (2 * chainhash.HashSize)
