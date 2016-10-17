@@ -443,7 +443,7 @@ var helpDescsEnUS = map[string]string{
 	"getheaders--synopsis":     "Returns block headers starting with the first known block hash from the request",
 	"getheaders-blocklocators": "Concatenated hashes of blocks.  Headers are returned starting from the first known hash in this list",
 	"getheaders-hashstop":      "Optional block hash to stop including block headers for",
-	"getheadersresult-headers": "Serialized block headers of all located blocks, limited to 2000 at a time",
+	"getheadersresult-headers": "Serialized block headers of all located blocks, limited to some arbitrary maximum number of hashes (currently 2000, which matches the wire protocol headers message, but this is not guaranteed)",
 
 	// GetInfoCmd help.
 	"getinfo--synopsis": "Returns a JSON object containing various state info.",
