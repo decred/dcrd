@@ -814,7 +814,7 @@ func (sp *serverPeer) OnGetBlocks(p *peer.Peer, msg *wire.MsgGetBlocks) {
 // algorithm used by getheaders.
 //
 // TODO: For efficiency this should take a []Hash, not []*Hash.  This requires
-// changing the representation of the wire.MsgGetHeaders to use a []Hash array
+// changing the representation of the wire.MsgGetHeaders to use a []Hash slice
 // for the block locators.
 func (s *server) locateBlocks(locators []*chainhash.Hash, hashStop *chainhash.Hash) ([]chainhash.Hash, error) {
 	// Attempt to look up the height of the provided stop hash.
