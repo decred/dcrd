@@ -441,7 +441,7 @@ var helpDescsEnUS = map[string]string{
 
 	// GetHeadersCmd help.
 	"getheaders--synopsis":     "Returns block headers starting with the first known block hash from the request",
-	"getheaders-blocklocators": "Concatenated hashes of blocks.  Headers are returned starting from the first known hash in thsi list",
+	"getheaders-blocklocators": "Concatenated hashes of blocks.  Headers are returned starting from the first known hash in this list",
 	"getheaders-hashstop":      "Optional block hash to stop including block headers for",
 	"getheadersresult-headers": "Serialized block headers of all located blocks, limited to 2000 at a time",
 
