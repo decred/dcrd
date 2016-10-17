@@ -3344,13 +3344,13 @@ func handleGetHeaders(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) 
 
 	hexBlockHeaders := make([]string, len(blockHeaders))
 	var buf bytes.Buffer
-	for _, h := range blockHeaders {
+	for i, h := range blockHeaders {
 		err := h.Serialize(&buf)
 		if err != nil {
 			return nil, internalRPCError(err.Error(),
 				"Failed to serialize block header")
 		}
-		hexBlockHeaders = append(hexBlockHeaders, hex.EncodeToString(buf.Bytes()))
+		hexBlockHeaders[i] = hex.EncodeToString(buf.Bytes())
 	}
 	return &dcrjson.GetHeadersResult{Headers: hexBlockHeaders}, nil
 }
