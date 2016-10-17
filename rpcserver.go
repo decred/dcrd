@@ -3319,8 +3319,8 @@ func handleGetHeaders(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) 
 	}
 	// Until wire.MsgGetHeaders uses []Hash instead of the []*Hash, this
 	// conversion is necessary.  The wire protocol getheaders is (probably)
-	// called much more often than this RPC, so optimize for that and give
-	// this one the performance penality.
+	// called much more often than this RPC, so server.locateBlocks is
+	// optimized for that and this is given the performance penality.
 	pBlockLocators := make([]*chainhash.Hash, len(blockLocators))
 	for i := range blockLocators {
 		pBlockLocators[i] = &blockLocators[i]
