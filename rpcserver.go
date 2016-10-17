@@ -3317,7 +3317,7 @@ func handleGetHeaders(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) 
 			}
 		}
 	}
-	// Until wire.MsgGetHeaders uses []*Hash rather than []Hash, this
+	// Until wire.MsgGetHeaders uses []Hash instead of the []*Hash, this
 	// conversion is necessary.  The wire protocol getheaders is (probably)
 	// called much more often than this RPC, so optimize for that and give
 	// this one the performance penality.
