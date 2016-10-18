@@ -12,13 +12,15 @@ var (
 	// fields for storage in the database.
 	ByteOrder = binary.LittleEndian
 
+	// Tickets
+
 	// StakeDbInfoBucketName is the name of the database bucket used to
 	// house a single k->v that stores global versioning and date information for
-	// the stake database.
+	// the stake ticket database.
 	StakeDbInfoBucketName = []byte("stakedbinfo")
 
 	// StakeChainStateKeyName is the name of the db key used to store the best
-	// chain state from the perspective of the stake database.
+	// chain state from the perspective of the stake ticket database.
 	StakeChainStateKeyName = []byte("stakechainstate")
 
 	// LiveTicketsBucketName is the name of the db bucket used to house the
@@ -43,4 +45,19 @@ var (
 	// list of tickets in a block added to the mainchain, so that it can be
 	// looked up later to insert new tickets into the live ticket database.
 	TicketsInBlockBucketName = []byte("ticketsinblock")
+
+	// Voting
+
+	// VotingDbInfoBucketName is the name of the database bucket used to
+	// house a single k->v that stores global versioning and date information for
+	// the stake voting database.
+	VotingDbInfoBucketName = []byte("votingdbinfo")
+
+	// VotingChainStateKeyName is the name of the db key used to store the best
+	// chain state from the perspective of the stake voting database.
+	VotingChainStateKeyName = []byte("votingstakechainstate")
+
+	// IntervalBlockTallyBucket is the name of the db bucket used to house the
+	// rolling vote tallies for interval blocks in the tallying system.
+	IntervalBlockTallyBucketName = []byte("intervalblktally")
 )

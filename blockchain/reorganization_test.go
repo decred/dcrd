@@ -22,7 +22,7 @@ import (
 func reorgTestLong(t *testing.T) {
 	// Create a new database and chain instance to run tests against.
 	chain, teardownFunc, err := chainSetup("reorgunittest",
-		simNetParams)
+		blockchain.TestSimNetParams)
 	if err != nil {
 		t.Errorf("Failed to setup chain instance: %v", err)
 		return
@@ -31,7 +31,7 @@ func reorgTestLong(t *testing.T) {
 
 	// The genesis block should fail to connect since it's already
 	// inserted.
-	genesisBlock := simNetParams.GenesisBlock
+	genesisBlock := blockchain.TestSimNetParams.GenesisBlock
 	err = chain.CheckConnectBlock(dcrutil.NewBlock(genesisBlock))
 	if err == nil {
 		t.Errorf("CheckConnectBlock: Did not receive expected error")
@@ -133,7 +133,7 @@ func reorgTestLong(t *testing.T) {
 func reorgTestShort(t *testing.T) {
 	// Create a new database and chain instance to run tests against.
 	chain, teardownFunc, err := chainSetup("reorgunittest",
-		simNetParams)
+		blockchain.TestSimNetParams)
 	if err != nil {
 		t.Errorf("Failed to setup chain instance: %v", err)
 		return
@@ -142,7 +142,7 @@ func reorgTestShort(t *testing.T) {
 
 	// The genesis block should fail to connect since it's already
 	// inserted.
-	genesisBlock := simNetParams.GenesisBlock
+	genesisBlock := blockchain.TestSimNetParams.GenesisBlock
 	err = chain.CheckConnectBlock(dcrutil.NewBlock(genesisBlock))
 	if err == nil {
 		t.Errorf("CheckConnectBlock: Did not receive expected error")
@@ -249,7 +249,7 @@ func reorgTestShort(t *testing.T) {
 func reorgTestForced(t *testing.T) {
 	// Create a new database and chain instance to run tests against.
 	chain, teardownFunc, err := chainSetup("reorgunittest",
-		simNetParams)
+		blockchain.TestSimNetParams)
 	if err != nil {
 		t.Errorf("Failed to setup chain instance: %v", err)
 		return
@@ -258,7 +258,7 @@ func reorgTestForced(t *testing.T) {
 
 	// The genesis block should fail to connect since it's already
 	// inserted.
-	genesisBlock := simNetParams.GenesisBlock
+	genesisBlock := blockchain.TestSimNetParams.GenesisBlock
 	err = chain.CheckConnectBlock(dcrutil.NewBlock(genesisBlock))
 	if err == nil {
 		t.Errorf("CheckConnectBlock: Did not receive expected error")

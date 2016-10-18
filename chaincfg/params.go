@@ -295,6 +295,58 @@ type Params struct {
 	StakeMajorityMultiplier int32
 	StakeMajorityDivisor    int32
 
+	// VotingIntervals is the number of stake difficulty windows to use
+	// when calculating the verdict for some voted on issue.
+	VotingIntervals int
+
+	// VotingIssueMultiplier and VotingIssueDivisor are the terms used for
+	// selecting if a voted on issue has met the standards of an arbitrarily
+	// defined "majority" or not.  For any given voting interval the width
+	// of StakeDiffWindowSize, votes are tallied for 'yes', 'no', or
+	// 'abstain'.  In order for the verdict to be 'yes' or 'no' for
+	// this interval, the number of 'yes' and 'no' votes are added to get
+	// a vote total, then multiplied by the multiplier and divided by the
+	// divisor to determine the amount required to determine a majority
+	// verdict one way or the other.
+	//
+	// Below is an example to clarify for an issue, using the constants
+	// defined by the mainnet parameters (144 blocks per window, 5
+	// voters per block).
+	//
+	// Yes: 350 votes, No: 250 votes, Abstain: 120 votes
+	// Total non-abstaining votes: 600
+	// VotingIssueMultiplier: 3, VotingIssueDivisor: 4
+	// Required for majority: (VotingIssueMultiplier * 600) / VotingIssueDivisor
+	//                        (3 * 600) / 4
+	//                        450
+	//
+	// The threshold of 450 is met by neither the yes nor the no voters,
+	// so the issue is considered to be undecided and may continue to be
+	// voted on until reaching consensus.  If the number of yes or the
+	// number of no votes becomes equal to or greater than 450 while the
+	// number of abstains stays the same, the outcome will be either
+	// 'yes' or 'no'.
+	//
+	// These individual interval verdicts are then summed in a boolean
+	// fashion to provide a verdict within VotingIntervals many interval
+	// periods.  For example, if VotingIntervals is 4 intervals, and all
+	// 4 intervals had the verdict 'yes', the issue is considered to be
+	// 'yes' and consensus logic may require some series of actions
+	// based on this outcome.  If 3 of the 4 intervals are 'yes' and the
+	// remaining interval is 'no', the issue is considered to be
+	// undecided.
+	//
+	// Note that the tallies are encoded as uint16s.  For mainnet
+	// parameter windows, this means that each 'field' in the tally
+	// corresponding to a vote type could possibly be a maximum of
+	// 144 blocks * 5 voters = 720 votes.  The multiplier must NOT
+	// overflow the 2 byte uint16 field, or the results will be
+	// invalid.  This is not an issue for small multipliers like
+	// 3, which could cause a maximum value of 2,160.  This is much
+	// less that the maximum uint16 value of 65,535.
+	VotingIssueMultiplier uint16
+	VotingIssueDivisor    uint16
+
 	// OrganizationPkScript is the output script for block taxes to be
 	// distributed to in every block's coinbase. It should ideally be a P2SH
 	// multisignature address.  OrganizationPkScriptVersion is the version
@@ -407,6 +459,9 @@ var MainNetParams = Params{
 	StakeBaseSigScript:      []byte{0x00, 0x00},
 	StakeMajorityMultiplier: 3,
 	StakeMajorityDivisor:    4,
+	VotingIntervals:         56, // 144 blocks * 56 = 8064 blocks or ~28 days
+	VotingIssueMultiplier:   3,
+	VotingIssueDivisor:      4, // 3 / 4 = 0.75 or 75% for a majority
 
 	// Decred organization related parameters
 	// Organization address is Dcur2mcGjmENx4DhNqDctW5wJCVyT3Qeqkx
@@ -516,6 +571,9 @@ var TestNetParams = Params{
 	StakeBaseSigScript:      []byte{0xDE, 0xAD, 0xBE, 0xEF},
 	StakeMajorityMultiplier: 3,
 	StakeMajorityDivisor:    4,
+	VotingIntervals:         10, // 144 blocks * 10 = 1440 blocks or ~2 days
+	VotingIssueMultiplier:   3,
+	VotingIssueDivisor:      4, // 3 / 4 = 0.75 or 75% for a majority
 
 	// Decred organization related parameters.
 	// Organization address is TcemyEtyHSg9L7jww7uihv9BJfKL6YGiZYn
@@ -614,6 +672,9 @@ var SimNetParams = Params{
 	StakeBaseSigScript:      []byte{0xDE, 0xAD, 0xBE, 0xEF},
 	StakeMajorityMultiplier: 3,
 	StakeMajorityDivisor:    4,
+	VotingIntervals:         64, // 64 * 8 blocks = 512 blocks
+	VotingIssueMultiplier:   3,
+	VotingIssueDivisor:      4, // 3 / 4 = 0.75 or 75% for a majority
 
 	// Decred organization related parameters
 	//

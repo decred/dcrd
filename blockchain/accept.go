@@ -206,6 +206,19 @@ func voteVersionsInBlock(bl *dcrutil.Block, params *chaincfg.Params) []uint32 {
 	}
 
 	return versions
+
+// voteBitsForVotersInBlock returns a list of vote bits for the voters in
+// this block.
+func voteBitsForVotersInBlock(bl *dcrutil.Block) []uint16 {
+	var voteBitsSlice []uint16
+	for _, stx := range bl.MsgBlock().STransactions {
+		if stake.DetermineTxType(stx) == stake.TxTypeSSGen {
+			voteBitsSlice = append(voteBitsSlice,
+				stake.SSGenVoteBits(stx))
+		}
+	}
+
+	return voteBitsSlice
 }
 
 // maybeAcceptBlock potentially accepts a block into the memory block chain.
@@ -268,12 +281,19 @@ func (b *BlockChain) maybeAcceptBlock(block *dcrutil.Block,
 
 	// Fetching a stake node could enable a new DoS vector, so restrict
 	// this only to blocks that are recent in history.
-	if newNode.height < b.bestNode.height-minMemoryNodes {
+	if newNode.height > b.bestNode.height-minMemoryNodes {
 		newNode.stakeNode, err = b.fetchStakeNode(newNode)
 		if err != nil {
 			return false, err
 		}
 		newNode.stakeUndoData = newNode.stakeNode.UndoData()
+	}
+	// fmt.Printf("h %v check %v hash %v stakenode %v\n", newNode.height, b.bestNode.height-minMemoryNodes, newNode.hash, newNode.stakeNode)
+
+	// Fetch the rolling vote tally for this block.
+	newNode.rollingTally, err = b.fetchRollingTally(newNode)
+	if err != nil {
+		return false, err
 	}
 
 	// Connect the passed block to the chain while respecting proper chain

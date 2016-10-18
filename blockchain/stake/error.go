@@ -176,49 +176,69 @@ const (
 	// ErrUnknownTicketSpent indicates that an unknown ticket was spent by
 	// the block.
 	ErrUnknownTicketSpent
+
+	// ErrBadVotingConnectBlock indicates there was an issue with the
+	// block being connected to a rolling voting tally.
+	ErrBadVotingConnectBlock
+
+	// ErrBadVotingRemoveBlock indicates there was an issue with the
+	// block being removed from a rolling voting tally.
+	ErrBadVotingRemoveBlock
+
+	// ErrMissingTally indicates that a given voting tally for some
+	// interval period was missing from the cache or database.
+	ErrMissingTally
+
+	// ErrTallyingIntervals indicates that an invalid number of tallying
+	// intervals to sum was passed by the caller.
+	ErrTallyingIntervals
 )
 
 // Map of ErrorCode values back to their constant names for pretty printing.
 var errorCodeStrings = map[ErrorCode]string{
-	ErrSStxTooManyInputs:    "ErrSStxTooManyInputs",
-	ErrSStxTooManyOutputs:   "ErrSStxTooManyOutputs",
-	ErrSStxNoOutputs:        "ErrSStxNoOutputs",
-	ErrSStxInvalidInputs:    "ErrSStxInvalidInputs",
-	ErrSStxInvalidOutputs:   "ErrSStxInvalidOutputs",
-	ErrSStxInOutProportions: "ErrSStxInOutProportions",
-	ErrSStxBadCommitAmount:  "ErrSStxBadCommitAmount",
-	ErrSStxBadChangeAmts:    "ErrSStxBadChangeAmts",
-	ErrSStxVerifyCalcAmts:   "ErrSStxVerifyCalcAmts",
-	ErrSSGenWrongNumInputs:  "ErrSSGenWrongNumInputs",
-	ErrSSGenTooManyOutputs:  "ErrSSGenTooManyOutputs",
-	ErrSSGenNoOutputs:       "ErrSSGenNoOutputs",
-	ErrSSGenWrongIndex:      "ErrSSGenWrongIndex",
-	ErrSSGenWrongTxTree:     "ErrSSGenWrongTxTree",
-	ErrSSGenNoStakebase:     "ErrSSGenNoStakebase",
-	ErrSSGenNoReference:     "ErrSSGenNoReference",
-	ErrSSGenBadReference:    "ErrSSGenBadReference",
-	ErrSSGenNoVotePush:      "ErrSSGenNoVotePush",
-	ErrSSGenBadVotePush:     "ErrSSGenBadVotePush",
-	ErrSSGenBadGenOuts:      "ErrSSGenBadGenOuts",
-	ErrSSRtxWrongNumInputs:  "ErrSSRtxWrongNumInputs",
-	ErrSSRtxTooManyOutputs:  "ErrSSRtxTooManyOutputs",
-	ErrSSRtxNoOutputs:       "ErrSSRtxNoOutputs",
-	ErrSSRtxWrongTxTree:     "ErrSSRtxWrongTxTree",
-	ErrSSRtxBadOuts:         "ErrSSRtxBadOuts",
-	ErrVerSStxAmts:          "ErrVerSStxAmts",
-	ErrVerifyInput:          "ErrVerifyInput",
-	ErrVerifyOutType:        "ErrVerifyOutType",
-	ErrVerifyTooMuchFees:    "ErrVerifyTooMuchFees",
-	ErrVerifySpendTooMuch:   "ErrVerifySpendTooMuch",
-	ErrVerifyOutputAmt:      "ErrVerifyOutputAmt",
-	ErrVerifyOutPkhs:        "ErrVerifyOutPkhs",
-	ErrDatabaseCorrupt:      "ErrDatabaseCorrupt",
-	ErrMissingDatabaseTx:    "ErrMissingDatabaseTx",
-	ErrMemoryCorruption:     "ErrMemoryCorruption",
-	ErrFindTicketIdxs:       "ErrFindTicketIdxs",
-	ErrMissingTicket:        "ErrMissingTicket",
-	ErrDuplicateTicket:      "ErrDuplicateTicket",
-	ErrUnknownTicketSpent:   "ErrUnknownTicketSpent",
+	ErrSStxTooManyInputs:     "ErrSStxTooManyInputs",
+	ErrSStxTooManyOutputs:    "ErrSStxTooManyOutputs",
+	ErrSStxNoOutputs:         "ErrSStxNoOutputs",
+	ErrSStxInvalidInputs:     "ErrSStxInvalidInputs",
+	ErrSStxInvalidOutputs:    "ErrSStxInvalidOutputs",
+	ErrSStxInOutProportions:  "ErrSStxInOutProportions",
+	ErrSStxBadCommitAmount:   "ErrSStxBadCommitAmount",
+	ErrSStxBadChangeAmts:     "ErrSStxBadChangeAmts",
+	ErrSStxVerifyCalcAmts:    "ErrSStxVerifyCalcAmts",
+	ErrSSGenWrongNumInputs:   "ErrSSGenWrongNumInputs",
+	ErrSSGenTooManyOutputs:   "ErrSSGenTooManyOutputs",
+	ErrSSGenNoOutputs:        "ErrSSGenNoOutputs",
+	ErrSSGenWrongIndex:       "ErrSSGenWrongIndex",
+	ErrSSGenWrongTxTree:      "ErrSSGenWrongTxTree",
+	ErrSSGenNoStakebase:      "ErrSSGenNoStakebase",
+	ErrSSGenNoReference:      "ErrSSGenNoReference",
+	ErrSSGenBadReference:     "ErrSSGenBadReference",
+	ErrSSGenNoVotePush:       "ErrSSGenNoVotePush",
+	ErrSSGenBadVotePush:      "ErrSSGenBadVotePush",
+	ErrSSGenBadGenOuts:       "ErrSSGenBadGenOuts",
+	ErrSSRtxWrongNumInputs:   "ErrSSRtxWrongNumInputs",
+	ErrSSRtxTooManyOutputs:   "ErrSSRtxTooManyOutputs",
+	ErrSSRtxNoOutputs:        "ErrSSRtxNoOutputs",
+	ErrSSRtxWrongTxTree:      "ErrSSRtxWrongTxTree",
+	ErrSSRtxBadOuts:          "ErrSSRtxBadOuts",
+	ErrVerSStxAmts:           "ErrVerSStxAmts",
+	ErrVerifyInput:           "ErrVerifyInput",
+	ErrVerifyOutType:         "ErrVerifyOutType",
+	ErrVerifyTooMuchFees:     "ErrVerifyTooMuchFees",
+	ErrVerifySpendTooMuch:    "ErrVerifySpendTooMuch",
+	ErrVerifyOutputAmt:       "ErrVerifyOutputAmt",
+	ErrVerifyOutPkhs:         "ErrVerifyOutPkhs",
+	ErrDatabaseCorrupt:       "ErrDatabaseCorrupt",
+	ErrMissingDatabaseTx:     "ErrMissingDatabaseTx",
+	ErrMemoryCorruption:      "ErrMemoryCorruption",
+	ErrFindTicketIdxs:        "ErrFindTicketIdxs",
+	ErrMissingTicket:         "ErrMissingTicket",
+	ErrDuplicateTicket:       "ErrDuplicateTicket",
+	ErrUnknownTicketSpent:    "ErrUnknownTicketSpent",
+	ErrBadVotingConnectBlock: "ErrBadVotingConnectBlock",
+	ErrBadVotingRemoveBlock:  "ErrBadVotingRemoveBlock",
+	ErrMissingTally:          "ErrMissingTally",
+	ErrTallyingIntervals:     "ErrTallyingIntervals",
 }
 
 // String returns the ErrorCode as a human-readable name.
