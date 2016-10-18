@@ -30,7 +30,7 @@ const (
 	testDbRoot = "testdbs"
 
 	// blockDataNet is the expected network in the test block data.
-	blockDataNet = wire.MainNet
+	blockDataNet = wire.SimNet
 )
 
 // filesExists returns whether or not the named file or directory exists.

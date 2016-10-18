@@ -174,7 +174,7 @@ func DbPutDatabaseInfo(dbTx database.Tx, dbi *DatabaseInfo) error {
 func deserializeDatabaseInfo(dbInfoBytes []byte) (*DatabaseInfo, error) {
 	if len(dbInfoBytes) < databaseInfoSize {
 		return nil, ticketDBError(ErrDatabaseInfoShortRead,
-			"short read when deserializing best chain state data")
+			"short read when deserializing ticket database info")
 	}
 
 	rawVersion := dbnamespace.ByteOrder.Uint32(dbInfoBytes[0:4])
@@ -202,7 +202,8 @@ func DbFetchDatabaseInfo(dbTx database.Tx) (*DatabaseInfo, error) {
 
 	dbInfoBytes := bucket.Get(dbnamespace.StakeDbInfoBucketName)
 	if dbInfoBytes == nil {
-		return nil, ticketDBError(ErrMissingKey, "missing key for database info")
+		return nil, ticketDBError(ErrMissingKey, "missing key for ticket "+
+			"database info")
 	}
 
 	return deserializeDatabaseInfo(dbInfoBytes)

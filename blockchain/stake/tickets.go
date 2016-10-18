@@ -100,11 +100,19 @@ func (sn *Node) MissedByBlock() []chainhash.Hash {
 // ExistsLiveTicket returns whether or not a ticket exists in the live ticket
 // treap for this stake node.
 func (sn *Node) ExistsLiveTicket(ticket chainhash.Hash) bool {
+	if sn.liveTickets == nil {
+		return false
+	}
+
 	return sn.liveTickets.Has(tickettreap.Key(ticket))
 }
 
 // LiveTickets returns the list of live tickets for this stake node.
 func (sn *Node) LiveTickets() []chainhash.Hash {
+	if sn.liveTickets == nil {
+		return []chainhash.Hash{}
+	}
+
 	tickets := make([]chainhash.Hash, sn.liveTickets.Len())
 	i := 0
 	sn.liveTickets.ForEach(func(k tickettreap.Key, v *tickettreap.Value) bool {
@@ -118,17 +126,29 @@ func (sn *Node) LiveTickets() []chainhash.Hash {
 
 // PoolSize returns the size of the live ticket pool.
 func (sn *Node) PoolSize() int {
+	if sn.liveTickets == nil {
+		return 0
+	}
+
 	return sn.liveTickets.Len()
 }
 
 // ExistsMissedTicket returns whether or not a ticket exists in the missed
 // ticket treap for this stake node.
 func (sn *Node) ExistsMissedTicket(ticket chainhash.Hash) bool {
+	if sn.missedTickets == nil {
+		return false
+	}
+
 	return sn.missedTickets.Has(tickettreap.Key(ticket))
 }
 
 // MissedTickets returns the list of missed tickets for this stake node.
 func (sn *Node) MissedTickets() []chainhash.Hash {
+	if sn.missedTickets == nil {
+		return []chainhash.Hash{}
+	}
+
 	tickets := make([]chainhash.Hash, sn.missedTickets.Len())
 	i := 0
 	sn.missedTickets.ForEach(func(k tickettreap.Key, v *tickettreap.Value) bool {
@@ -143,11 +163,19 @@ func (sn *Node) MissedTickets() []chainhash.Hash {
 // ExistsRevokedTicket returns whether or not a ticket exists in the revoked
 // ticket treap for this stake node.
 func (sn *Node) ExistsRevokedTicket(ticket chainhash.Hash) bool {
+	if sn.revokedTickets == nil {
+		return false
+	}
+
 	return sn.revokedTickets.Has(tickettreap.Key(ticket))
 }
 
 // RevokedTickets returns the list of revoked tickets for this stake node.
 func (sn *Node) RevokedTickets() []*chainhash.Hash {
+	if sn.revokedTickets == nil {
+		return []*chainhash.Hash{}
+	}
+
 	tickets := make([]*chainhash.Hash, sn.revokedTickets.Len())
 	i := 0
 	sn.revokedTickets.ForEach(func(k tickettreap.Key, v *tickettreap.Value) bool {
@@ -163,6 +191,10 @@ func (sn *Node) RevokedTickets() []*chainhash.Hash {
 // ExistsExpiredTicket returns whether or not a ticket was ever expired from
 // the perspective of this stake node.
 func (sn *Node) ExistsExpiredTicket(ticket chainhash.Hash) bool {
+	if sn.missedTickets == nil || sn.revokedTickets == nil {
+		return false
+	}
+
 	v := sn.missedTickets.Get(tickettreap.Key(ticket))
 	if v != nil && v.Expired {
 		return true
@@ -206,9 +238,9 @@ func genesisNode(params *chaincfg.Params) *Node {
 	}
 }
 
-// InitDatabaseState initializes the chain with the best state being the
+// InitTicketDatabaseState initializes the chain with the best state being the
 // genesis block.
-func InitDatabaseState(dbTx database.Tx, params *chaincfg.Params) (*Node, error) {
+func InitTicketDatabaseState(dbTx database.Tx, params *chaincfg.Params) (*Node, error) {
 	// Create the database.
 	err := ticketdb.DbCreate(dbTx)
 	if err != nil {
@@ -347,7 +379,7 @@ func LoadBestNode(dbTx database.Tx, height uint32, blockHash chainhash.Hash, hea
 		copy(node.finalState[:], chainhash.HashFuncB(stateBuffer)[0:6])
 	}
 
-	log.Infof("Stake database version %v loaded", info.Version)
+	log.Infof("Stake ticket database version %v loaded", info.Version)
 
 	return node, nil
 }
@@ -646,14 +678,14 @@ func (sn *Node) ConnectNode(header wire.BlockHeader, ticketsSpentInBlock, revoke
 // UndoTicketDataSlice or tickets are nil in order to look up the undo data or
 // tickets from the database.
 func disconnectNode(node *Node, parentHeader wire.BlockHeader, parentUtds UndoTicketDataSlice, parentTickets []chainhash.Hash, dbTx database.Tx) (*Node, error) {
-	// Edge case for the parent being the genesis block.
-	if node.height == 1 {
-		return genesisNode(node.params), nil
-	}
-
 	if node == nil {
 		return nil, fmt.Errorf("missing stake node pointer input when " +
 			"disconnecting")
+	}
+
+	// Edge case for the parent being the genesis block.
+	if node.height == 1 {
+		return genesisNode(node.params), nil
 	}
 
 	// The undo ticket slice is normally stored in memory for the most

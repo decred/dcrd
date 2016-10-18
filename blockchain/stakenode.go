@@ -11,6 +11,7 @@ import (
 	"github.com/decred/dcrd/blockchain/stake"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/database"
+	_ "github.com/decred/dcrd/database/dummydb"
 )
 
 // nodeAtHeightFromTopNode goes backwards through a node until it a reaches
@@ -126,7 +127,7 @@ func (b *BlockChain) fetchStakeNode(node *blockNode) (*stake.Node, error) {
 		}
 	}
 
-	// We need to generate a path to the stake node and restore it
+	// We need to generate a path to the stake node and restore
 	// it through the entire path.  The bestNode stake node must
 	// always be filled in, so assume it is safe to begin working
 	// backwards from there.
@@ -165,6 +166,12 @@ func (b *BlockChain) fetchStakeNode(node *blockNode) (*stake.Node, error) {
 	// point.
 	err = b.db.View(func(dbTx database.Tx) error {
 		var errLocal error
+		if current.stakeNode == nil {
+			return fmt.Errorf("missing stake node to finally detach when "+
+				"attempting to fetch stake node for hash %v, height %v",
+				node.hash, node.height)
+		}
+
 		if current.parent.stakeNode == nil {
 			current.parent.stakeNode, errLocal =
 				current.stakeNode.DisconnectNode(current.parent.header,
@@ -219,4 +226,160 @@ func (b *BlockChain) fetchStakeNode(node *blockNode) (*stake.Node, error) {
 	}
 
 	return current.stakeNode, nil
+}
+
+// fetchRollingTally will scour the blockchain from the best block, for which we
+// know that there is valid rolling tally.  The first step is finding a path to
+// the ancestor, or, if on a side chain, the path to the common ancestor, followed
+// by the path to the sidechain node.  After this path is established, the
+// algorithm walks along the path, regenerating and storing intermediate tallies
+// as it does so, until the final tally of interest is populated with the correct
+// data.
+//
+// This function MUST be called with the chain state lock held (for writes).
+func (b *BlockChain) fetchRollingTally(node *blockNode) (*stake.RollingVotingPrefixTally, error) {
+	b.rollingTallyCacheLock.Lock()
+	defer b.rollingTallyCacheLock.Unlock()
+
+	// If we already have the rolling tally fetched, returned the cached result.
+	// Rolling tallies are immutable.
+	if node.rollingTally != nil {
+		return node.rollingTally, nil
+	}
+
+	// If the parent rolling tally is cached, connect the rolling tally
+	// from there.
+	if node.parent != nil {
+		if node.rollingTally == nil && node.parent.rollingTally != nil {
+			var tally stake.RollingVotingPrefixTally
+			err := b.db.View(func(dbTx database.Tx) error {
+				var err error
+				tally, err =
+					node.parent.rollingTally.ConnectBlockToTally(
+						b.rollingTallyCache, dbTx, node.hash, node.parent.hash,
+						uint32(node.height), node.voteBitsSlice,
+						b.chainParams)
+				if err != nil {
+					return err
+				}
+
+				return nil
+			})
+			if err != nil {
+				return nil, err
+			}
+			node.rollingTally = &tally
+
+			return node.rollingTally, nil
+		}
+	}
+
+	// We need to generate a path to the rolling tally and restore
+	// it through the entire path.  The bestNode tally must
+	// always be filled in, so assume it is safe to begin working
+	// backwards from there.
+	detachNodes, attachNodes, err := b.getReorganizeNodes(node)
+	if err != nil {
+		return nil, err
+	}
+	current := b.bestNode
+
+	// Move backwards through the main chain, undoing the block
+	// tallies for each block.  The database and cache are passed
+	// because the data required to restore to an earlier state
+	// might be located in either the cache or the database.
+	err = b.db.View(func(dbTx database.Tx) error {
+		for e := detachNodes.Front(); e != nil; e = e.Next() {
+			n := e.Value.(*blockNode)
+			var tally stake.RollingVotingPrefixTally
+			var errLocal error
+			if n.rollingTally == nil {
+				tally, errLocal =
+					current.rollingTally.DisconnectBlockFromTally(
+						b.rollingTallyCache, dbTx, current.hash,
+						uint32(current.height), current.voteBitsSlice,
+						nil, b.chainParams)
+				if errLocal != nil {
+					return errLocal
+				}
+
+				n.rollingTally = &tally
+			}
+
+			current = n
+		}
+
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	// Detach the final block and get the filled in tally for the fork
+	// point.
+	err = b.db.View(func(dbTx database.Tx) error {
+		var tally stake.RollingVotingPrefixTally
+		var errLocal error
+		if current.parent.rollingTally == nil {
+			tally, errLocal = current.rollingTally.DisconnectBlockFromTally(
+				b.rollingTallyCache, dbTx, current.hash,
+				uint32(current.height), current.voteBitsSlice,
+				nil, b.chainParams)
+			if errLocal != nil {
+				return errLocal
+			}
+
+			current.parent.rollingTally = &tally
+		}
+		current = current.parent
+
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	// The tally is at a fork point in the block chain, so just return
+	// this tally.
+	if attachNodes.Len() == 0 {
+		if current.hash != node.hash ||
+			current.height != node.height {
+			return nil, AssertError(fmt.Sprintf("failed to restore "+
+				"rolling tally to fork point when fetching (have %v, "+
+				"expect %v)", current.hash, node.hash))
+		}
+
+		return current.rollingTally, nil
+	}
+
+	// The requested tally is on a side chain, so we need to apply the
+	// blocks from this sidechain to the current tally and write any
+	// interval states to the cache.
+	err = b.db.View(func(dbTx database.Tx) error {
+		for e := attachNodes.Front(); e != nil; e = e.Next() {
+			n := e.Value.(*blockNode)
+
+			var tally stake.RollingVotingPrefixTally
+			var errLocal error
+			if n.rollingTally == nil {
+				tally, errLocal = current.rollingTally.ConnectBlockToTally(
+					b.rollingTallyCache, dbTx, n.hash, n.parent.hash,
+					uint32(n.height), n.voteBitsSlice, b.chainParams)
+				if errLocal != nil {
+					return errLocal
+				}
+
+				n.rollingTally = &tally
+			}
+
+			current = n
+		}
+
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return current.rollingTally, nil
 }
