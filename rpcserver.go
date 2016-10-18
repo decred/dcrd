@@ -3351,6 +3351,7 @@ func handleGetHeaders(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) 
 				"Failed to serialize block header")
 		}
 		hexBlockHeaders[i] = hex.EncodeToString(buf.Bytes())
+		buf.Reset()
 	}
 	return &dcrjson.GetHeadersResult{Headers: hexBlockHeaders}, nil
 }
