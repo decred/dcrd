@@ -45,7 +45,7 @@ func NewExistsAddressesCmd(addresses []string) *ExistsAddressesCmd {
 	}
 }
 
-// ExistsExpiredTicketsCmd defines the existslivetickets JSON-RPC command.
+// ExistsExpiredTicketsCmd defines the existsexpiredtickets JSON-RPC command.
 type ExistsExpiredTicketsCmd struct {
 	TxHashBlob string
 }
