@@ -1760,50 +1760,22 @@ func handleExistsExpiredTickets(s *rpcServer, cmd interface{},
 	closeChan <-chan struct{}) (interface{}, error) {
 	c := cmd.(*dcrjson.ExistsExpiredTicketsCmd)
 
-	txHashBlob, err := hex.DecodeString(c.TxHashBlob)
+	hashes, err := dcrjson.DecodeConcatenatedHashes(c.TxHashBlob)
 	if err != nil {
-		return nil, &dcrjson.RPCError{
-			Code: dcrjson.ErrRPCDecodeHexString,
-			Message: fmt.Sprintf("bad ticket hash blob (unparseable): %v",
-				err.Error()),
-		}
-	}
-
-	// It needs to be an exact number of hashes.
-	if len(txHashBlob)%32 != 0 {
-		return nil, &dcrjson.RPCError{
-			Code: dcrjson.ErrRPCDecodeHexString,
-			Message: fmt.Sprintf("bad ticket hash blob (bad length): %v",
-				len(txHashBlob)),
-		}
-	}
-
-	hashesLen := len(txHashBlob) / 32
-	hashes := make([]chainhash.Hash, hashesLen)
-	for i := 0; i < hashesLen; i++ {
-		newHash, err := chainhash.NewHash(
-			txHashBlob[i*chainhash.HashSize : (i+1)*chainhash.HashSize])
-		if err != nil {
-			return nil, &dcrjson.RPCError{
-				Code: dcrjson.ErrRPCDecodeHexString,
-				Message: fmt.Sprintf("bad ticket hash: %v",
-					err.Error()),
-			}
-		}
-		hashes[i] = *newHash
+		return nil, err
 	}
 
 	exists := s.server.blockManager.chain.CheckExpiredTickets(hashes)
-	if len(exists) != hashesLen {
+	if len(exists) != len(hashes) {
 		return nil, &dcrjson.RPCError{
 			Code: dcrjson.ErrRPCDatabase,
-			Message: fmt.Sprintf("output of ExistsLiveTickets wrong size "+
-				"(want %v, got %v)", hashesLen, len(exists)),
+			Message: fmt.Sprintf("output of ExistsExpiredTickets wrong size "+
+				"(want %v, got %v)", len(hashes), len(exists)),
 		}
 	}
 
 	// Convert the slice of bools into a compacted set of bit flags.
-	set := bitset.NewBytes(hashesLen)
+	set := bitset.NewBytes(len(hashes))
 	for i := range exists {
 		if exists[i] {
 			set.Set(i)
