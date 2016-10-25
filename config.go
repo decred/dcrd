@@ -58,8 +58,8 @@ const (
 	defaultGenerate              = false
 	defaultNoMiningStateSync     = false
 	defaultAllowOldVotes         = false
-	defaultMaxOrphanTransactions = 1000
-	defaultMaxOrphanTxSize       = 5000
+	defaultMaxOrphanTransactions = 100
+	defaultMaxOrphanTxSize       = mempool.MaxStandardTxSize
 	defaultSigCacheMaxSize       = 100000
 	defaultTxIndex               = false
 	defaultNoExistsAddrIndex     = false

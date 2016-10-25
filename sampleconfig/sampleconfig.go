@@ -246,8 +246,8 @@ const FileContents = `[Application Options]
 ; Require high priority for relaying free or low-fee transactions.
 ; norelaypriority=0
 
-; Limit orphan transaction pool to 1000 transactions.
-; maxorphantx=1000
+; Limit orphan transaction pool to 100 transactions.
+; maxorphantx=100
 
 ; Do not accept transactions from remote peers.
 ; blocksonly=1
