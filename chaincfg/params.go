@@ -264,6 +264,10 @@ type Params struct {
 	// it to be this value miners/daemons could freely change it.
 	StakeBaseSigScript []byte
 
+	// StakeVersion is the current stake version.  Miners should use this
+	// value when creating new blocks.
+	StakeVersion uint32
+
 	// OrganizationPkScript is the output script for block taxes to be
 	// distributed to in every block's coinbase. It should ideally be a P2SH
 	// multisignature address.  OrganizationPkScriptVersion is the version
@@ -276,6 +280,11 @@ type Params struct {
 	// block height 1. If there are no payouts to be given, set this
 	// to an empty slice.
 	BlockOneLedger []*TokenPayout
+
+	// SuperMajorityMultiplier, SuperMajorityDivisor are used to calculate
+	// the super majority during version accounting.
+	SuperMajorityMultiplier int64
+	SuperMajorityDivisor    int64
 }
 
 // MainNetParams defines the network parameters for the main Decred network.
@@ -293,7 +302,7 @@ var MainNetParams = Params{
 	// Chain parameters
 	GenesisBlock:             &genesisBlock,
 	GenesisHash:              &genesisHash,
-	CurrentBlockVersion:      1,
+	CurrentBlockVersion:      2,
 	PowLimit:                 mainPowLimit,
 	PowLimitBits:             0x1d00ffff,
 	ResetMinDifficulty:       false,
@@ -362,12 +371,18 @@ var MainNetParams = Params{
 	StakeEnabledHeight:    256 + 256, // CoinbaseMaturity + TicketMaturity
 	StakeValidationHeight: 4096,      // ~14 days
 	StakeBaseSigScript:    []byte{0x00, 0x00},
+	StakeVersion:          2,
 
 	// Decred organization related parameters
 	// Organization address is Dcur2mcGjmENx4DhNqDctW5wJCVyT3Qeqkx
 	OrganizationPkScript:        hexDecode("a914f5916158e3e2c4551c1796708db8367207ed13bb87"),
 	OrganizationPkScriptVersion: 0,
 	BlockOneLedger:              BlockOneLedgerMainNet,
+
+	// Integer percentage X is calculated as follows:
+	// (SuperMajorityMultiplier*X)/SuperMajorityDivisor
+	SuperMajorityMultiplier: 19,
+	SuperMajorityDivisor:    20,
 }
 
 // TestNetParams defines the network parameters for the test currency network.
@@ -386,7 +401,7 @@ var TestNetParams = Params{
 	// Chain parameters
 	GenesisBlock:             &testNetGenesisBlock,
 	GenesisHash:              &testNetGenesisHash,
-	CurrentBlockVersion:      0,
+	CurrentBlockVersion:      1,
 	PowLimit:                 testNetPowLimit,
 	PowLimitBits:             0x1e00ffff,
 	ResetMinDifficulty:       false,
@@ -457,12 +472,18 @@ var TestNetParams = Params{
 	StakeEnabledHeight:    16 + 16, // CoinbaseMaturity + TicketMaturity
 	StakeValidationHeight: 768,     // Arbitrary
 	StakeBaseSigScript:    []byte{0xDE, 0xAD, 0xBE, 0xEF},
+	StakeVersion:          1,
 
 	// Decred organization related parameters.
 	// Organization address is TcemyEtyHSg9L7jww7uihv9BJfKL6YGiZYn
 	OrganizationPkScript:        hexDecode("a9144fa6cbd0dbe5ec407fe4c8ad374e667771fa0d4487"),
 	OrganizationPkScriptVersion: 0,
 	BlockOneLedger:              BlockOneLedgerTestNet,
+
+	// Integer percentage X is calculated as follows:
+	// (SuperMajorityMultiplier*X)/SuperMajorityDivisor
+	SuperMajorityMultiplier: 19,
+	SuperMajorityDivisor:    20,
 }
 
 // SimNetParams defines the network parameters for the simulation test Decred
@@ -481,7 +502,7 @@ var SimNetParams = Params{
 	// Chain parameters
 	GenesisBlock:             &simNetGenesisBlock,
 	GenesisHash:              &simNetGenesisHash,
-	CurrentBlockVersion:      0,
+	CurrentBlockVersion:      1,
 	PowLimit:                 simNetPowLimit,
 	PowLimitBits:             0x207fffff,
 	ResetMinDifficulty:       false,
@@ -543,6 +564,7 @@ var SimNetParams = Params{
 	StakeEnabledHeight:    16 + 16,       // CoinbaseMaturity + TicketMaturity
 	StakeValidationHeight: 16 + (64 * 2), // CoinbaseMaturity + TicketPoolSize*2
 	StakeBaseSigScript:    []byte{0xDE, 0xAD, 0xBE, 0xEF},
+	StakeVersion:          1,
 
 	// Decred organization related parameters
 	//
@@ -577,6 +599,11 @@ var SimNetParams = Params{
 	OrganizationPkScript:        hexDecode("a914cbb08d6ca783b533b2c7d24a51fbca92d937bf9987"),
 	OrganizationPkScriptVersion: 0,
 	BlockOneLedger:              BlockOneLedgerSimNet,
+
+	// Integer percentage X is calculated as follows:
+	// (SuperMajorityMultiplier*X)/SuperMajorityDivisor
+	SuperMajorityMultiplier: 19,
+	SuperMajorityDivisor:    20,
 }
 
 var (

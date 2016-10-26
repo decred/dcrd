@@ -699,22 +699,23 @@ func deepCopyBlockTemplate(blockTemplate *BlockTemplate) *BlockTemplate {
 
 	// Deep copy the header, which we hash on.
 	headerCopy := wire.BlockHeader{
-		Version:     blockTemplate.Block.Header.Version,
-		PrevBlock:   blockTemplate.Block.Header.PrevBlock,
-		MerkleRoot:  blockTemplate.Block.Header.MerkleRoot,
-		StakeRoot:   blockTemplate.Block.Header.StakeRoot,
-		VoteBits:    blockTemplate.Block.Header.VoteBits,
-		FinalState:  blockTemplate.Block.Header.FinalState,
-		Voters:      blockTemplate.Block.Header.Voters,
-		FreshStake:  blockTemplate.Block.Header.FreshStake,
-		Revocations: blockTemplate.Block.Header.Revocations,
-		PoolSize:    blockTemplate.Block.Header.PoolSize,
-		Timestamp:   blockTemplate.Block.Header.Timestamp,
-		Bits:        blockTemplate.Block.Header.Bits,
-		SBits:       blockTemplate.Block.Header.SBits,
-		Nonce:       blockTemplate.Block.Header.Nonce,
-		Height:      blockTemplate.Block.Header.Height,
-		Size:        blockTemplate.Block.Header.Size,
+		Version:      blockTemplate.Block.Header.Version,
+		PrevBlock:    blockTemplate.Block.Header.PrevBlock,
+		MerkleRoot:   blockTemplate.Block.Header.MerkleRoot,
+		StakeRoot:    blockTemplate.Block.Header.StakeRoot,
+		VoteBits:     blockTemplate.Block.Header.VoteBits,
+		FinalState:   blockTemplate.Block.Header.FinalState,
+		Voters:       blockTemplate.Block.Header.Voters,
+		FreshStake:   blockTemplate.Block.Header.FreshStake,
+		Revocations:  blockTemplate.Block.Header.Revocations,
+		PoolSize:     blockTemplate.Block.Header.PoolSize,
+		Timestamp:    blockTemplate.Block.Header.Timestamp,
+		Bits:         blockTemplate.Block.Header.Bits,
+		SBits:        blockTemplate.Block.Header.SBits,
+		Nonce:        blockTemplate.Block.Header.Nonce,
+		StakeVersion: blockTemplate.Block.Header.StakeVersion,
+		Height:       blockTemplate.Block.Header.Height,
+		Size:         blockTemplate.Block.Header.Size,
 	}
 
 	// Copy transactions pointers. Duplicate the coinbase
@@ -923,6 +924,8 @@ func handleTooFewVoters(subsidyCache *blockchain.SubsidyCache,
 					topBlock.MsgBlock().Header.SBits
 				btMsgBlock.Header.Height =
 					topBlock.MsgBlock().Header.Height
+				btMsgBlock.Header.StakeVersion =
+					topBlock.MsgBlock().Header.StakeVersion
 
 				// Set a fresh timestamp.
 				ts, err := medianAdjustedTime(chainState, timeSource)
@@ -2039,20 +2042,21 @@ mempoolLoop:
 
 	var msgBlock wire.MsgBlock
 	msgBlock.Header = wire.BlockHeader{
-		Version:     server.chainParams.CurrentBlockVersion,
-		PrevBlock:   *prevHash,
-		MerkleRoot:  *merkles[len(merkles)-1],
-		StakeRoot:   *merklesStake[len(merklesStake)-1],
-		VoteBits:    votebits,
-		FinalState:  finalState,
-		Voters:      uint16(voters),
-		FreshStake:  uint8(freshStake),
-		Revocations: uint8(revocations),
-		PoolSize:    poolSize,
-		Timestamp:   ts,
-		SBits:       reqStakeDifficulty,
-		Bits:        reqDifficulty,
-		Height:      uint32(nextBlockHeight),
+		Version:      server.chainParams.CurrentBlockVersion,
+		PrevBlock:    *prevHash,
+		MerkleRoot:   *merkles[len(merkles)-1],
+		StakeRoot:    *merklesStake[len(merklesStake)-1],
+		VoteBits:     votebits,
+		FinalState:   finalState,
+		Voters:       uint16(voters),
+		FreshStake:   uint8(freshStake),
+		Revocations:  uint8(revocations),
+		PoolSize:     poolSize,
+		Timestamp:    ts,
+		SBits:        reqStakeDifficulty,
+		Bits:         reqDifficulty,
+		StakeVersion: server.chainParams.StakeVersion,
+		Height:       uint32(nextBlockHeight),
 		// Size declared below
 	}
 

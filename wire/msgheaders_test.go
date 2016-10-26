@@ -7,6 +7,7 @@ package wire_test
 
 import (
 	"bytes"
+	"encoding/binary"
 	"io"
 	"reflect"
 	"testing"
@@ -81,7 +82,8 @@ func TestHeadersWire(t *testing.T) {
 		uint32(0),                                   // Height
 		uint32(0),                                   // Size
 		uint32(0x01010101),                          // Nonce
-		[36]byte{},                                  // ExtraData
+		[32]byte{},                                  // ExtraData
+		binary.LittleEndian.Uint32([]byte{0xba, 0x5e, 0xba, 0x11}), //StakeVersion
 	)
 	bh.Timestamp = time.Unix(0x4966bc61, 0)
 
@@ -125,7 +127,7 @@ func TestHeadersWire(t *testing.T) {
 		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-		0x00, 0x00, 0x00, 0x00,
+		0xba, 0x5e, 0xba, 0x11, // StakeVersion
 		0x00, // TxnCount (0 for headers message)
 	}
 
@@ -209,7 +211,8 @@ func TestHeadersWireErrors(t *testing.T) {
 		uint32(1),                 // Height
 		uint32(0),                 // Size
 		nonce,                     // Nonce
-		[36]byte{},                // ExtraData
+		[32]byte{},                // ExtraData
+		uint32(0xca55e77e),        //StakeVersion
 	)
 
 	bh.Version = testBlock.Header.Version
@@ -244,6 +247,7 @@ func TestHeadersWireErrors(t *testing.T) {
 		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // SBits
 		0x01, 0xe3, 0x62, 0x99, // Nonce
 		0x00, // TxnCount (0 for headers message)
+		//0xca, 0x55, 0xe7, 0x7e, // XXX should we test StakeVersion?
 	}
 
 	// Message that forces an error by having more than the max allowed
@@ -275,7 +279,8 @@ func TestHeadersWireErrors(t *testing.T) {
 		uint32(1),                 // Height
 		uint32(0),                 // Size
 		nonce,                     // Nonce
-		[36]byte{},                // ExtraData
+		[32]byte{},                // ExtraData
+		uint32(0xf01dab1e),        // StakeVersion
 	)
 	bhTrans.Version = testBlock.Header.Version
 	bhTrans.Timestamp = testBlock.Header.Timestamp
@@ -308,6 +313,7 @@ func TestHeadersWireErrors(t *testing.T) {
 		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // SBits
 		0x01, 0xe3, 0x62, 0x99, // Nonce
 		0x01, // TxnCount (should be 0 for headers message, but 1 to force error)
+		//0xf0, 0x1d, 0xab, 0x1e, // XXX should we test StakeVersion?
 	}
 
 	tests := []struct {

@@ -90,7 +90,8 @@ func TestMessage(t *testing.T) {
 		uint32(0),                                   // Height
 		uint32(0),                                   // Size
 		uint32(0x00000000),                          // Nonce
-		[36]byte{},                                  // ExtraData
+		[32]byte{},                                  // ExtraData
+		binary.LittleEndian.Uint32([]byte{0xca, 0xb0, 0x05, 0xe0}), // StakeVersion
 	)
 	msgMerkleBlock := wire.NewMsgMerkleBlock(bh)
 	msgReject := wire.NewMsgReject("block", wire.RejectDuplicate, "duplicate block")

@@ -227,14 +227,15 @@ var helpDescsEnUS = map[string]string{
 	"getbestblockhash--result0":  "The hex-encoded block hash",
 
 	// GetBlockCmd help.
-	"getblock--synopsis":              "Returns information about a block given its hash.",
-	"getblock-hash":                   "The hash of the block",
-	"getblock-verbose":                "Specifies the block is returned as a JSON object instead of hex-encoded string",
-	"getblock-verbosetx":              "Specifies that each transaction is returned as a JSON object and only applies if the verbose flag is true (dcrd extension)",
-	"getblock--condition0":            "verbose=false",
-	"getblock--condition1":            "verbose=true",
-	"getblock--result0":               "Hex-encoded bytes of the serialized block",
-	"getblockverboseresult-extradata": "Extra data field for the requested block",
+	"getblock--synopsis":                 "Returns information about a block given its hash.",
+	"getblock-hash":                      "The hash of the block",
+	"getblock-verbose":                   "Specifies the block is returned as a JSON object instead of hex-encoded string",
+	"getblock-verbosetx":                 "Specifies that each transaction is returned as a JSON object and only applies if the verbose flag is true (dcrd extension)",
+	"getblock--condition0":               "verbose=false",
+	"getblock--condition1":               "verbose=true",
+	"getblock--result0":                  "Hex-encoded bytes of the serialized block",
+	"getblockverboseresult-extradata":    "Extra data field for the requested block",
+	"getblockverboseresult-stakeversion": "Stake Version of the block",
 
 	// TxRawResult help.
 	"txrawresult-hex":           "Hex-encoded transaction",
@@ -330,6 +331,7 @@ var helpDescsEnUS = map[string]string{
 	"getblockheaderverboseresult-finalstate":        "The final state value of the ticket pool",
 	"getblockheaderverboseresult-votebits":          "The vote bits",
 	"getblockheaderverboseresult-stakeroot":         "The merkle root of the stake transaction tree",
+	"getblockheaderverboseresult-stakeversion":      "The stake version of the block",
 
 	// TemplateRequest help.
 	"templaterequest-mode":         "This is 'template', 'proposal', or omitted",

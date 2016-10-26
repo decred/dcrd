@@ -376,6 +376,7 @@ type chainState struct {
 	curBlockHeader      wire.BlockHeader
 	pastMedianTime      time.Time
 	pastMedianTimeErr   error
+	stakeVersion        uint32
 }
 
 // Best returns the block hash and height known for the tip of the best known
@@ -507,7 +508,8 @@ func (b *blockManager) updateChainState(newestHash *chainhash.Hash,
 	nextStakeDiff int64,
 	winningTickets []chainhash.Hash,
 	missedTickets []chainhash.Hash,
-	curBlockHeader wire.BlockHeader) {
+	curBlockHeader wire.BlockHeader,
+	stakeVersion uint32) {
 
 	b.chainState.Lock()
 	defer b.chainState.Unlock()
@@ -527,6 +529,7 @@ func (b *blockManager) updateChainState(newestHash *chainhash.Hash,
 	b.chainState.winningTickets = winningTickets
 	b.chainState.missedTickets = missedTickets
 	b.chainState.curBlockHeader = curBlockHeader
+	b.chainState.stakeVersion = stakeVersion
 }
 
 // findNextHeaderCheckpoint returns the next checkpoint after the passed height.
@@ -1285,9 +1288,15 @@ func (b *blockManager) handleBlockMsg(bmsg *blockMsg) {
 					"data for new best block: %v", err)
 			}
 
+			stakeVersion, err := b.chain.CalcNextStakeVersion()
+			if err != nil {
+				bmgrLog.Warnf("Failed to get stake version "+
+					"for new best block: %v", err)
+			}
+
 			b.updateChainState(best.Hash, best.Height, finalState,
 				uint32(poolSize), nextStakeDiff, winningTickets,
-				missedTickets, *curBlockHeader)
+				missedTickets, *curBlockHeader, stakeVersion)
 
 			// Update this peer's latest block height, for future
 			// potential sync node candidancy.
@@ -1868,6 +1877,12 @@ out:
 					best = b.chain.BestSnapshot()
 					curBlockHeader := b.chain.BestBlockHeader()
 
+					stakeVersion, err := b.chain.CalcNextStakeVersion()
+					if err != nil {
+						bmgrLog.Warnf("Failed to get stake version "+
+							"for new best block: %v", err)
+					}
+
 					b.updateChainState(best.Hash,
 						best.Height,
 						finalState,
@@ -1875,7 +1890,8 @@ out:
 						nextStakeDiff,
 						winningTickets,
 						missedTickets,
-						*curBlockHeader)
+						*curBlockHeader,
+						stakeVersion)
 				}
 
 				msg.reply <- forceReorganizationResponse{
@@ -2008,6 +2024,12 @@ out:
 							best.Hash, err)
 					}
 
+					stakeVersion, err := b.chain.CalcNextStakeVersion()
+					if err != nil {
+						bmgrLog.Warnf("Failed to get stake version "+
+							"for new best block: %v", err)
+					}
+
 					b.updateChainState(best.Hash,
 						best.Height,
 						finalState,
@@ -2015,7 +2037,8 @@ out:
 						nextStakeDiff,
 						winningTickets,
 						missedTickets,
-						*curBlockHeader)
+						*curBlockHeader,
+						stakeVersion)
 				}
 
 				// Allow any clients performing long polling via the
@@ -2788,6 +2811,13 @@ func newBlockManager(s *server, indexManager blockchain.IndexManager) (*blockMan
 		return nil, err
 	}
 
+	stakeVersion, err := bm.chain.CalcNextStakeVersion()
+	if err != nil {
+		// It is ok to fail here since it doesn't affect consensus.
+		// This comment needs to be removed once this code settles.
+		return nil, err
+	}
+
 	bm.updateChainState(best.Hash,
 		best.Height,
 		fs,
@@ -2795,8 +2825,8 @@ func newBlockManager(s *server, indexManager blockchain.IndexManager) (*blockMan
 		nextStakeDiff,
 		wt,
 		missedTickets,
-		*curBlockHeader)
-
+		*curBlockHeader,
+		stakeVersion)
 	bm.lotteryDataBroadcast = make(map[chainhash.Hash]struct{})
 
 	return &bm, nil
