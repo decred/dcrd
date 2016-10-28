@@ -11,6 +11,7 @@ import (
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/dcrutil/v3"
 	"github.com/decred/dcrd/internal/rpcserver"
+	"github.com/decred/dcrd/mempool/v4"
 	"github.com/decred/dcrd/peer/v2"
 	"github.com/decred/dcrd/wire"
 )
@@ -308,7 +309,7 @@ func (b *rpcSyncMgr) SyncHeight() int64 {
 // ProcessTransaction relays the provided transaction validation and insertion
 // into the memory pool.
 func (b *rpcSyncMgr) ProcessTransaction(tx *dcrutil.Tx, allowOrphans bool,
-	rateLimit bool, allowHighFees bool) ([]*dcrutil.Tx, error) {
+	rateLimit bool, allowHighFees bool, tag mempool.Tag) ([]*dcrutil.Tx, error) {
 	return b.blockMgr.ProcessTransaction(tx, allowOrphans,
-		rateLimit, allowHighFees)
+		rateLimit, allowHighFees, tag)
 }

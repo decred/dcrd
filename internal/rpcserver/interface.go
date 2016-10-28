@@ -9,6 +9,7 @@ import (
 	"github.com/decred/dcrd/blockchain/v3/indexers"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/dcrutil/v3"
+	"github.com/decred/dcrd/mempool/v4"
 	"github.com/decred/dcrd/peer/v2"
 	"github.com/decred/dcrd/wire"
 )
@@ -131,5 +132,5 @@ type SyncManager interface {
 	// ProcessTransaction relays the provided transaction validation and
 	// insertion into the memory pool.
 	ProcessTransaction(tx *dcrutil.Tx, allowOrphans bool, rateLimit bool,
-		allowHighFees bool) ([]*dcrutil.Tx, error)
+		allowHighFees bool, tag mempool.Tag) ([]*dcrutil.Tx, error)
 }

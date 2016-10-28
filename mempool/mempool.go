@@ -67,6 +67,11 @@ const (
 	orphanExpireScanInterval = time.Minute * 5
 )
 
+// Tag represents an identifier to use for tagging orphan transactions.  The
+// caller may choose any scheme it desires, however it is common to use peer IDs
+// so that orphans can be identified by which peer first relayed them.
+type Tag uint64
+
 // Config is a descriptor containing the memory pool configuration.
 type Config struct {
 	// Policy defines the various mempool configuration options related
@@ -231,6 +236,7 @@ type VerboseTxDesc struct {
 // to it such as an expiration time to help prevent caching the orphan forever.
 type orphanTx struct {
 	tx         *dcrutil.Tx
+	tag        Tag
 	expiration time.Time
 }
 
@@ -459,7 +465,7 @@ func (mp *TxPool) limitNumOrphans() {
 // addOrphan adds an orphan transaction to the orphan pool.
 //
 // This function MUST be called with the mempool lock held (for writes).
-func (mp *TxPool) addOrphan(tx *dcrutil.Tx) {
+func (mp *TxPool) addOrphan(tx *dcrutil.Tx, tag Tag) {
 	// Nothing to do if no orphans are allowed.
 	if mp.cfg.Policy.MaxOrphanTxs <= 0 {
 		return
@@ -472,6 +478,7 @@ func (mp *TxPool) addOrphan(tx *dcrutil.Tx) {
 
 	mp.orphans[*tx.Hash()] = &orphanTx{
 		tx:         tx,
+		tag:        tag,
 		expiration: time.Now().Add(orphanTTL),
 	}
 	for _, txIn := range tx.MsgTx().TxIn {
@@ -489,7 +496,7 @@ func (mp *TxPool) addOrphan(tx *dcrutil.Tx) {
 // maybeAddOrphan potentially adds an orphan to the orphan pool.
 //
 // This function MUST be called with the mempool lock held (for writes).
-func (mp *TxPool) maybeAddOrphan(tx *dcrutil.Tx) error {
+func (mp *TxPool) maybeAddOrphan(tx *dcrutil.Tx, tag Tag) error {
 	// Ignore orphan transactions that are too large.  This helps avoid
 	// a memory exhaustion attack based on sending a lot of really large
 	// orphans.  In the case there is a valid transaction larger than this,
@@ -509,7 +516,7 @@ func (mp *TxPool) maybeAddOrphan(tx *dcrutil.Tx) error {
 	}
 
 	// Add the orphan if the none of the above disqualified it.
-	mp.addOrphan(tx)
+	mp.addOrphan(tx, tag)
 
 	return nil
 }
@@ -1570,7 +1577,7 @@ func (mp *TxPool) ProcessOrphans(acceptedTx *dcrutil.Tx) []*dcrutil.Tx {
 // passed one being accepted.
 //
 // This function is safe for concurrent access.
-func (mp *TxPool) ProcessTransaction(tx *dcrutil.Tx, allowOrphan, rateLimit, allowHighFees bool) ([]*dcrutil.Tx, error) {
+func (mp *TxPool) ProcessTransaction(tx *dcrutil.Tx, allowOrphan, rateLimit, allowHighFees bool, tag Tag) ([]*dcrutil.Tx, error) {
 	// Protect concurrent access.
 	mp.mtx.Lock()
 	defer mp.mtx.Unlock()
@@ -1625,7 +1632,7 @@ func (mp *TxPool) ProcessTransaction(tx *dcrutil.Tx, allowOrphan, rateLimit, all
 	}
 
 	// Potentially add the orphan transaction to the orphan pool.
-	err = mp.maybeAddOrphan(tx)
+	err = mp.maybeAddOrphan(tx, tag)
 	return nil, err
 }
 

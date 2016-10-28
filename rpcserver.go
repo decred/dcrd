@@ -4117,9 +4117,10 @@ func handleSendRawTransaction(_ context.Context, s *rpcServer, cmd interface{}) 
 			err)
 	}
 
+	// Use 0 for the tag to represent local node.
 	tx := dcrutil.NewTx(msgtx)
 	acceptedTxs, err := s.cfg.SyncMgr.ProcessTransaction(tx, false,
-		false, allowHighFees)
+		false, allowHighFees, 0)
 	if err != nil {
 		// When the error is a rule error, it means the transaction was
 		// simply rejected as opposed to something actually going
