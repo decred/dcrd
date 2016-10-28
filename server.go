@@ -2087,7 +2087,7 @@ func (s *server) outboundPeerConnected(c *connmgr.ConnReq, conn net.Conn) {
 }
 
 // peerDoneHandler handles peer disconnects by notifying the server that it's
-// done.
+// done along with other performing other desirable cleanup.
 func (s *server) peerDoneHandler(sp *serverPeer) {
 	sp.WaitForDisconnect()
 	s.donePeers <- sp
@@ -2095,6 +2095,13 @@ func (s *server) peerDoneHandler(sp *serverPeer) {
 	// Only tell block manager we are gone if we ever told it we existed.
 	if sp.VersionKnown() {
 		s.blockManager.DonePeer(sp.Peer)
+
+		// Evict any remaining orphans that were sent by the peer.
+		numEvicted := s.txMemPool.RemoveOrphansByTag(mempool.Tag(sp.ID()))
+		if numEvicted > 0 {
+			txmpLog.Debugf("Evicted %d %s from peer %v (id %d)", numEvicted,
+				pickNoun(numEvicted, "orphan", "orphans"), sp, sp.ID())
+		}
 	}
 	close(sp.quit)
 }

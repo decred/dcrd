@@ -164,6 +164,15 @@ func directionString(inbound bool) string {
 	return "outbound"
 }
 
+// pickNoun returns the singular or plural form of a noun depending
+// on the count n.
+func pickNoun(n uint64, singular, plural string) string {
+	if n == 1 {
+		return singular
+	}
+	return plural
+}
+
 // fatalf logs a string, then cleanly exits.
 func fatalf(str string) {
 	dcrdLog.Errorf("Unable to create profiler: %v", str)
