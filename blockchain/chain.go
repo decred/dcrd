@@ -708,7 +708,7 @@ func (b *BlockChain) fetchBlockFromHash(hash *chainhash.Hash) (*dcrutil.Block,
 }
 
 // FetchBlockFromHash is the generalized and exported version of
-// fetchBlockFromHash.  It is safe for concurrent access.
+// fetchBlockFromHash.  It is NOT safe for concurrent access.
 func (b *BlockChain) FetchBlockFromHash(hash *chainhash.Hash) (*dcrutil.Block,
 	error) {
 	return b.fetchBlockFromHash(hash)
