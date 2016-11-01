@@ -8,12 +8,12 @@ import (
 	"bytes"
 	"encoding/hex"
 	"reflect"
-	"strings"
 	"testing"
 
 	"github.com/decred/dcrd/blockchain/stake"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/dcrjson"
+	"strings"
 )
 
 func decodeHash(reversedHash string) chainhash.Hash {
@@ -25,47 +25,57 @@ func decodeHash(reversedHash string) chainhash.Hash {
 }
 
 func TestEncodeConcatenatedHashes(t *testing.T) {
-	// Test data taken from Decred's first four mainnet blocks. These are the
-	// hexadecimal encodings of the underlying byte slice for each
-	// chainhash.Hash, not the bytes-reversed hash strings.  This makes it
-	// trivial to generate the expected output.
-	hashes := []string{
+	// Input Hash slice. These are the hexadecimal values of the underlying byte
+	// array of each hash.
+	hashSlice := []chainhash.Hash{
+		{
+			0x80, 0xd9, 0x21, 0x2b, 0xf4, 0xce, 0xb0, 0x66,
+			0xde, 0xd2, 0x86, 0x6b, 0x39, 0xd4, 0xed, 0x89,
+			0xe0, 0xab, 0x60, 0xf3, 0x35, 0xc1, 0x1d, 0xf8,
+			0xe7, 0xbf, 0x85, 0xd9, 0xc3, 0x5c, 0x8e, 0x29,
+		}, {
+			0xb9, 0x26, 0xd1, 0x87, 0x0d, 0x6f, 0x88, 0x76,
+			0x0a, 0x8b, 0x10, 0xdb, 0x0d, 0x44, 0x39, 0xe5,
+			0xcd, 0x74, 0xf3, 0x82, 0x7f, 0xd4, 0xb6, 0x82,
+			0x74, 0x43, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		}, {
+			0xba, 0xdc, 0xb8, 0xe5, 0xc1, 0xe8, 0x95, 0xe8,
+			0xe8, 0xfe, 0xf8, 0xd3, 0x42, 0x5f, 0xa0, 0xbf,
+			0xe9, 0xd2, 0x8f, 0xdb, 0xf7, 0x2f, 0x87, 0x19,
+			0x10, 0xc4, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		}, {
+			0xf5, 0x1c, 0xbd, 0x27, 0x7f, 0x63, 0x2f, 0x59,
+			0x96, 0xec, 0xa0, 0x5d, 0x48, 0xb0, 0xa3, 0x57,
+			0xd7, 0x4d, 0x42, 0xf4, 0xa0, 0x51, 0x3f, 0x3e,
+			0xac, 0x08, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00,
+		},
+	}
+	hashLen := hex.EncodedLen(len(hashSlice[0]))
+
+	// Expected output. The string representation the same hexadecimal values in
+	// the input []chainhash.Hash
+	blockHashes := []string{
 		"80d9212bf4ceb066ded2866b39d4ed89e0ab60f335c11df8e7bf85d9c35c8e29",
 		"b926d1870d6f88760a8b10db0d4439e5cd74f3827fd4b6827443000000000000",
 		"badcb8e5c1e895e8e8fef8d3425fa0bfe9d28fdbf72f871910c4000000000000",
 		"f51cbd277f632f5996eca05d48b0a357d74d42f4a0513f3eac08010000000000",
 	}
+	concatenatedHashes := strings.Join(blockHashes, "")
 
 	// Test from 0 to N of the hashes
-	for j := 0; j < len(hashes)+1; j++ {
-		hashSubset := hashes[:j]
-
+	for j := 0; j < len(hashSlice)+1; j++ {
 		// Expected output string
-		concatenatedHashes := strings.Join(hashSubset, "")
-
-		// Generate input Hash slice
-		testHashes := make([]chainhash.Hash, len(hashSubset))
-		for i := range hashSubset {
-			hashBytes, err := hex.DecodeString(hashSubset[i])
-			if err != nil {
-				t.Fatalf("Unable to decode hash %v: %v", hashSubset[i], err)
-			}
-			testHash, err := chainhash.NewHash(hashBytes)
-			if err != nil {
-				t.Fatal("NewHash failed:", err)
-			}
-			testHashes[i] = *testHash
-		}
+		concatRef := concatenatedHashes[:j*hashLen]
 
 		// Encode to string
-		concatenated, err := dcrjson.EncodeConcatenatedHashes(testHashes)
+		concatenated, err := dcrjson.EncodeConcatenatedHashes(hashSlice[:j])
 		if err != nil {
 			t.Fatal("Encode failed:", err)
 		}
 		// Verify output
-		if concatenated != concatenatedHashes {
+		if concatenated != concatRef {
 			t.Fatalf("EncodeConcatenatedHashes failed (%v!=%v)",
-				concatenated, concatenatedHashes)
+				concatenated, concatRef)
 		}
 	}
 }
