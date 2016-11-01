@@ -49,10 +49,7 @@ func TestEncodeConcatenatedHashes(t *testing.T) {
 		concatRef := concatenatedHashes[:j*hashLen]
 
 		// Encode to string
-		concatenated, err := dcrjson.EncodeConcatenatedHashes(hashSlice[:j])
-		if err != nil {
-			t.Fatal("Encode failed:", err)
-		}
+		concatenated := dcrjson.EncodeConcatenatedHashes(hashSlice[:j])
 		// Verify output
 		if concatenated != concatRef {
 			t.Fatalf("EncodeConcatenatedHashes failed (%v!=%v)",
