@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"encoding/hex"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/decred/dcrd/blockchain/stake"
@@ -21,6 +22,52 @@ func decodeHash(reversedHash string) chainhash.Hash {
 		panic(err)
 	}
 	return *h
+}
+
+func TestEncodeConcatenatedHashes(t *testing.T) {
+	// Test data taken from Decred's first four mainnet blocks. These are the
+	// hexadecimal encodings of the underlying byte slice for each
+	// chainhash.Hash, not the bytes-reversed hash strings.  This makes it
+	// trivial to generate the expected output.
+	hashes := []string{
+		"80d9212bf4ceb066ded2866b39d4ed89e0ab60f335c11df8e7bf85d9c35c8e29",
+		"b926d1870d6f88760a8b10db0d4439e5cd74f3827fd4b6827443000000000000",
+		"badcb8e5c1e895e8e8fef8d3425fa0bfe9d28fdbf72f871910c4000000000000",
+		"f51cbd277f632f5996eca05d48b0a357d74d42f4a0513f3eac08010000000000",
+	}
+
+	// Test from 0 to N of the hashes
+	for j := 0; j < len(hashes)+1; j++ {
+		hashSubset := hashes[:j]
+
+		// Expected output string
+		concatenatedHashes := strings.Join(hashSubset, "")
+
+		// Generate input Hash slice
+		testHashes := make([]chainhash.Hash, len(hashSubset))
+		for i := range hashSubset {
+			hashBytes, err := hex.DecodeString(hashSubset[i])
+			if err != nil {
+				t.Fatalf("Unable to decode hash %v: %v", hashSubset[i], err)
+			}
+			testHash, err := chainhash.NewHash(hashBytes)
+			if err != nil {
+				t.Fatal("NewHash failed:", err)
+			}
+			testHashes[i] = *testHash
+		}
+
+		// Encode to string
+		concatenated, err := dcrjson.EncodeConcatenatedHashes(testHashes)
+		if err != nil {
+			t.Fatal("Encode failed:", err)
+		}
+		// Verify output
+		if concatenated != concatenatedHashes {
+			t.Fatalf("EncodeConcatenatedHashes failed (%v!=%v)",
+				concatenated, concatenatedHashes)
+		}
+	}
 }
 
 func TestDecodeConcatenatedHashes(t *testing.T) {
