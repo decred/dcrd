@@ -856,6 +856,17 @@ func (s *server) locateBlocks(locators []*chainhash.Hash, hashStop *chainhash.Ha
 		}
 	}
 
+	hashStart, err := chain.BlockHashByHeight(startIdx)
+	if err == nil {
+		hashFork, err := chain.FindForkPoint(hashStart)
+		if err == nil {
+			height, err := chain.BlockHeightByHash(hashFork)
+			if err == nil {
+				startIdx = height + 1
+			}
+		}
+	}
+
 	// Don't attempt to fetch more than we can put into a single wire
 	// message.
 	if endIdx-startIdx > wire.MaxBlockHeadersPerMsg {

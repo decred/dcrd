@@ -608,6 +608,19 @@ func (b *BlockChain) InMainChain(h *chainhash.Hash) (bool, error) {
 	return node.inMainChain, nil
 }
 
+func (b *BlockChain) FindForkPoint(h *chainhash.Hash) (*chainhash.Hash, error) {
+	node, err := b.findNode(h)
+	if err != nil {
+		return nil, err
+	}
+	for ; node != nil; node = node.parent {
+		if node.inMainChain == false {
+			return &node.hash, nil
+		}
+	}
+	return nil, nil
+}
+
 // getPrevNodeFromBlock returns a block node for the block previous to the
 // passed block (the passed block's parent).  When it is already in the memory
 // block chain, it simply returns it.  Otherwise, it loads the previous block
