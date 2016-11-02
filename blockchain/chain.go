@@ -600,6 +600,14 @@ func (b *BlockChain) findNode(nodeHash *chainhash.Hash) (*blockNode, error) {
 	return node, err
 }
 
+func (b *BlockChain) InMainChain(h *chainhash.Hash) (bool, error) {
+	node, err := b.findNode(h)
+	if err != nil {
+		return false, err
+	}
+	return node.inMainChain, nil
+}
+
 // getPrevNodeFromBlock returns a block node for the block previous to the
 // passed block (the passed block's parent).  When it is already in the memory
 // block chain, it simply returns it.  Otherwise, it loads the previous block
