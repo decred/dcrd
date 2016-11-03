@@ -390,7 +390,7 @@ func loadConfig() (*config, []string, error) {
 	if err != nil {
 		if e, ok := err.(*flags.Error); ok && e.Type != flags.ErrHelp {
 			fmt.Fprintln(os.Stderr, err)
-			os.Exit(0)
+			os.Exit(1)
 		} else if ok && e.Type == flags.ErrHelp {
 			fmt.Fprintln(os.Stdout, err)
 			os.Exit(0)

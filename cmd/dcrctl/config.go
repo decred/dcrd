@@ -186,13 +186,19 @@ func loadConfig() (*config, []string, error) {
 	preParser := flags.NewParser(&preCfg, flags.HelpFlag)
 	_, err := preParser.Parse()
 	if err != nil {
-		if e, ok := err.(*flags.Error); ok && e.Type == flags.ErrHelp {
+		if e, ok := err.(*flags.Error); ok && e.Type != flags.ErrHelp {
+			fmt.Fprintln(os.Stderr, err)
+			fmt.Fprintln(os.Stderr, "")
+			fmt.Fprintln(os.Stderr, "The special parameter `-` "+
+				"indicates that a parameter should be read "+
+				"from the\nnext unread line from standard input.")
+			os.Exit(1)
+		} else if ok && e.Type == flags.ErrHelp {
 			fmt.Fprintln(os.Stdout, err)
 			fmt.Fprintln(os.Stdout, "")
 			fmt.Fprintln(os.Stdout, "The special parameter `-` "+
 				"indicates that a parameter should be read "+
-				"from the\nnext unread line from standard "+
-				"input.")
+				"from the\nnext unread line from standard input.")
 			os.Exit(0)
 		}
 	}
