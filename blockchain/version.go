@@ -7,8 +7,14 @@ package blockchain
 
 import "fmt"
 
+// calcNextStakeVersion calculates the next stake version based on the provided
+// node.  The next best stake version is defined as a 95% super majority of all
+// stake versions at a StakeDiffWindowSize interval.
+//
+// If the node is not at a StakeDiffWindowSize it returns the prior version.
+//
+// This function is safe for concurrent access.
 func (b *BlockChain) calcNextStakeVersion(node *blockNode) (uint32, error) {
-
 	if node == nil {
 		return 0, AssertError(fmt.Sprintf(
 			"calcNextStakeVersion: invalid node"))
@@ -68,6 +74,13 @@ func (b *BlockChain) calcNextStakeVersion(node *blockNode) (uint32, error) {
 	return node.header.StakeVersion, nil
 }
 
+// CalcNextStakeVersion calculates the next stake version for best node.  The
+// next best stake version is defined as a 95% super majority of all stake
+// versions at a StakeDiffWindowSize interval.
+//
+// If the node is not at a StakeDiffWindowSize it returns the prior version.
+//
+// This function is safe for concurrent access.
 func (b *BlockChain) CalcNextStakeVersion() (uint32, error) {
 	b.chainLock.RLock()
 	defer b.chainLock.RUnlock()
