@@ -204,8 +204,7 @@ func ticketsRevokedInBlock(bl *dcrutil.Block) []chainhash.Hash {
 func voteVersionsInBlock(bl *dcrutil.Block, params *chaincfg.Params) []uint32 {
 	versions := make([]uint32, 0, params.TicketsPerBlock)
 	for _, stx := range bl.MsgBlock().STransactions {
-		is, _ := stake.IsSSGen(stx)
-		if !is {
+		if is, _ := stake.IsSSGen(stx); !is {
 			continue
 		}
 		versions = append(versions, stake.SSGenVersion(stx))
