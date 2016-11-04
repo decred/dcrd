@@ -93,7 +93,8 @@ type blockNode struct {
 	ticketsSpent   []chainhash.Hash
 	ticketsRevoked []chainhash.Hash
 
-	voterVersions []uint32 // Keep track of all voter versions in this block
+	// Keep track of all voter versions in this block.
+	voterVersions []uint32
 }
 
 // newBlockNode returns a new block node for the given block header.  It is
