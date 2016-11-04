@@ -698,25 +698,7 @@ func deepCopyBlockTemplate(blockTemplate *BlockTemplate) *BlockTemplate {
 	}
 
 	// Deep copy the header, which we hash on.
-	headerCopy := wire.BlockHeader{
-		Version:      blockTemplate.Block.Header.Version,
-		PrevBlock:    blockTemplate.Block.Header.PrevBlock,
-		MerkleRoot:   blockTemplate.Block.Header.MerkleRoot,
-		StakeRoot:    blockTemplate.Block.Header.StakeRoot,
-		VoteBits:     blockTemplate.Block.Header.VoteBits,
-		FinalState:   blockTemplate.Block.Header.FinalState,
-		Voters:       blockTemplate.Block.Header.Voters,
-		FreshStake:   blockTemplate.Block.Header.FreshStake,
-		Revocations:  blockTemplate.Block.Header.Revocations,
-		PoolSize:     blockTemplate.Block.Header.PoolSize,
-		Timestamp:    blockTemplate.Block.Header.Timestamp,
-		Bits:         blockTemplate.Block.Header.Bits,
-		SBits:        blockTemplate.Block.Header.SBits,
-		Nonce:        blockTemplate.Block.Header.Nonce,
-		StakeVersion: blockTemplate.Block.Header.StakeVersion,
-		Height:       blockTemplate.Block.Header.Height,
-		Size:         blockTemplate.Block.Header.Size,
-	}
+	headerCopy := blockTemplate.Block.Header
 
 	// Copy transactions pointers. Duplicate the coinbase
 	// transaction, because it might update it by modifying
@@ -902,30 +884,7 @@ func handleTooFewVoters(subsidyCache *blockchain.SubsidyCache,
 				}
 
 				// Copy the rest of the header.
-				btMsgBlock.Header.Version =
-					topBlock.MsgBlock().Header.Version
-				btMsgBlock.Header.PrevBlock =
-					topBlock.MsgBlock().Header.PrevBlock
-				btMsgBlock.Header.VoteBits =
-					topBlock.MsgBlock().Header.VoteBits
-				btMsgBlock.Header.FinalState =
-					topBlock.MsgBlock().Header.FinalState
-				btMsgBlock.Header.Voters =
-					topBlock.MsgBlock().Header.Voters
-				btMsgBlock.Header.FreshStake =
-					topBlock.MsgBlock().Header.FreshStake
-				btMsgBlock.Header.Revocations =
-					topBlock.MsgBlock().Header.Revocations
-				btMsgBlock.Header.PoolSize =
-					topBlock.MsgBlock().Header.PoolSize
-				btMsgBlock.Header.Bits =
-					topBlock.MsgBlock().Header.Bits
-				btMsgBlock.Header.SBits =
-					topBlock.MsgBlock().Header.SBits
-				btMsgBlock.Header.Height =
-					topBlock.MsgBlock().Header.Height
-				btMsgBlock.Header.StakeVersion =
-					topBlock.MsgBlock().Header.StakeVersion
+				btMsgBlock.Header = topBlock.MsgBlock().Header
 
 				// Set a fresh timestamp.
 				ts, err := medianAdjustedTime(chainState, timeSource)
