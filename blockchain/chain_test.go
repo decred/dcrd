@@ -22,7 +22,7 @@ import (
 func TestBlockchainFunctions(t *testing.T) {
 	// Create a new database and chain instance to run tests against.
 	chain, teardownFunc, err := chainSetup("validateunittests",
-		simNetParams)
+		blockchain.TestSimNetParams)
 	if err != nil {
 		t.Errorf("Failed to setup chain instance: %v", err)
 		return
@@ -30,7 +30,7 @@ func TestBlockchainFunctions(t *testing.T) {
 	defer teardownFunc()
 
 	// The genesis block should fail to connect since it's already inserted.
-	genesisBlock := simNetParams.GenesisBlock
+	genesisBlock := blockchain.TestSimNetParams.GenesisBlock
 	err = chain.CheckConnectBlock(dcrutil.NewBlock(genesisBlock))
 	if err == nil {
 		t.Errorf("CheckConnectBlock: Did not receive expected error")

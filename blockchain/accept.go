@@ -199,6 +199,20 @@ func ticketsRevokedInBlock(bl *dcrutil.Block) []chainhash.Hash {
 	return tickets
 }
 
+// voteBitsForVotersInBlock returns a list of vote bits for the voters in
+// this block.
+func voteBitsForVotersInBlock(bl *dcrutil.Block) []uint16 {
+	var voteBitsSlice []uint16
+	for _, stx := range bl.MsgBlock().STransactions {
+		if stake.DetermineTxType(stx) == stake.TxTypeSSGen {
+			voteBitsSlice = append(voteBitsSlice,
+				stake.SSGenVoteBits(stx))
+		}
+	}
+
+	return voteBitsSlice
+}
+
 // maybeAcceptBlock potentially accepts a block into the memory block chain.
 // It performs several validation checks which depend on its position within
 // the block chain before adding it.  The block is expected to have already gone
@@ -248,7 +262,9 @@ func (b *BlockChain) maybeAcceptBlock(block *dcrutil.Block,
 	// Create a new block node for the block and add it to the in-memory
 	// block chain (could be either a side chain or the main chain).
 	blockHeader := &block.MsgBlock().Header
-	newNode := newBlockNode(blockHeader, block.Sha(), blockHeight, ticketsSpentInBlock(block), ticketsRevokedInBlock(block))
+	newNode := newBlockNode(blockHeader, block.Sha(), blockHeight,
+		ticketsSpentInBlock(block), ticketsRevokedInBlock(block),
+		voteBitsForVotersInBlock(block))
 	if prevNode != nil {
 		newNode.parent = prevNode
 		newNode.height = blockHeight
@@ -257,12 +273,19 @@ func (b *BlockChain) maybeAcceptBlock(block *dcrutil.Block,
 
 	// Fetching a stake node could enable a new DoS vector, so restrict
 	// this only to blocks that are recent in history.
-	if newNode.height < b.bestNode.height-minMemoryNodes {
+	if newNode.height > b.bestNode.height-minMemoryNodes {
 		newNode.stakeNode, err = b.fetchStakeNode(newNode)
 		if err != nil {
 			return false, err
 		}
 		newNode.stakeUndoData = newNode.stakeNode.UndoData()
+	}
+	// fmt.Printf("h %v check %v hash %v stakenode %v\n", newNode.height, b.bestNode.height-minMemoryNodes, newNode.hash, newNode.stakeNode)
+
+	// Fetch the rolling vote tally for this block.
+	newNode.rollingTally, err = b.fetchRollingTally(newNode)
+	if err != nil {
+		return false, err
 	}
 
 	// Connect the passed block to the chain while respecting proper chain

@@ -235,12 +235,3 @@ func TestTicketSorting(t *testing.T) {
 		t.Errorf("bucket sort failed to sort to the same slice as global sort")
 	}
 }
-
-func BenchmarkHashPRNG(b *testing.B) {
-	seed := chainhash.HashFuncB([]byte{0x01})
-	prng := NewHash256PRNG(seed)
-
-	for n := 0; n < b.N; n++ {
-		prng.Hash256Rand()
-	}
-}
