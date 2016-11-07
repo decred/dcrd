@@ -401,7 +401,7 @@ var TestNetParams = Params{
 	// Chain parameters
 	GenesisBlock:             &testNetGenesisBlock,
 	GenesisHash:              &testNetGenesisHash,
-	CurrentBlockVersion:      1,
+	CurrentBlockVersion:      2,
 	PowLimit:                 testNetPowLimit,
 	PowLimitBits:             0x1e00ffff,
 	ResetMinDifficulty:       false,
@@ -472,7 +472,7 @@ var TestNetParams = Params{
 	StakeEnabledHeight:    16 + 16, // CoinbaseMaturity + TicketMaturity
 	StakeValidationHeight: 768,     // Arbitrary
 	StakeBaseSigScript:    []byte{0xDE, 0xAD, 0xBE, 0xEF},
-	StakeVersion:          1,
+	StakeVersion:          2,
 
 	// Decred organization related parameters.
 	// Organization address is TcemyEtyHSg9L7jww7uihv9BJfKL6YGiZYn
@@ -502,7 +502,7 @@ var SimNetParams = Params{
 	// Chain parameters
 	GenesisBlock:             &simNetGenesisBlock,
 	GenesisHash:              &simNetGenesisHash,
-	CurrentBlockVersion:      1,
+	CurrentBlockVersion:      2,
 	PowLimit:                 simNetPowLimit,
 	PowLimitBits:             0x207fffff,
 	ResetMinDifficulty:       false,
@@ -564,7 +564,7 @@ var SimNetParams = Params{
 	StakeEnabledHeight:    16 + 16,       // CoinbaseMaturity + TicketMaturity
 	StakeValidationHeight: 16 + (64 * 2), // CoinbaseMaturity + TicketPoolSize*2
 	StakeBaseSigScript:    []byte{0xDE, 0xAD, 0xBE, 0xEF},
-	StakeVersion:          1,
+	StakeVersion:          2,
 
 	// Decred organization related parameters
 	//
