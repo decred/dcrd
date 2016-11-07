@@ -7,7 +7,6 @@ package wire_test
 
 import (
 	"bytes"
-	"encoding/binary"
 	"encoding/hex"
 	"reflect"
 	"testing"
@@ -110,7 +109,6 @@ func TestBlockHeader(t *testing.T) {
 		t.Errorf("NewBlockHeader: wrong nonce - got %v, want %v",
 			bh.Nonce, nonce)
 	}
-
 	if bh.StakeVersion != stakeVersion {
 		t.Errorf("NewBlockHeader: wrong stakeVersion - got %v, want %v",
 			bh.StakeVersion, stakeVersion)
@@ -156,7 +154,7 @@ func TestBlockHeaderWire(t *testing.T) {
 		Bits:         bits,
 		SBits:        int64(0x0000000000000000),
 		Nonce:        nonce,
-		StakeVersion: binary.LittleEndian.Uint32([]byte{0x0d, 0xdb, 0xa1, 0x10}),
+		StakeVersion: uint32(0x0ddba110),
 		Height:       uint32(0),
 		Size:         uint32(0),
 	}
@@ -192,7 +190,7 @@ func TestBlockHeaderWire(t *testing.T) {
 		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-		0x0d, 0xdb, 0xa1, 0x10, // StakeVersion
+		0x10, 0xa1, 0xdb, 0x0d, // StakeVersion
 	}
 
 	tests := []struct {
@@ -286,7 +284,7 @@ func TestBlockHeaderSerialize(t *testing.T) {
 		Bits:         bits,
 		SBits:        int64(0x0000000000000000),
 		Nonce:        nonce,
-		StakeVersion: binary.LittleEndian.Uint32([]byte{0x0d, 0xdb, 0xa1, 0x10}),
+		StakeVersion: uint32(0x0ddba110),
 		Height:       uint32(0),
 		Size:         uint32(0),
 	}
@@ -322,7 +320,7 @@ func TestBlockHeaderSerialize(t *testing.T) {
 		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-		0x0d, 0xdb, 0xa1, 0x10, // StakeVersion
+		0x10, 0xa1, 0xdb, 0x0d, // StakeVersion
 	}
 
 	tests := []struct {
