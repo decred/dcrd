@@ -8,7 +8,6 @@ package wire_test
 import (
 	"bytes"
 	"crypto/rand"
-	"encoding/binary"
 	"io"
 	"reflect"
 	"testing"
@@ -42,7 +41,7 @@ func TestMerkleBlock(t *testing.T) {
 		uint32(0),                                   // Size
 		testBlock.Header.Nonce,                      // Nonce
 		[32]byte{},                                  // ExtraData
-		binary.LittleEndian.Uint32([]byte{0x7e, 0x1e, 0xca, 0x57}), // StakeVersion
+		uint32(0x7e1eca57),                          // StakeVersion
 	)
 
 	// Ensure the command is expected value.
@@ -443,7 +442,7 @@ var testMerkleBlock = wire.MsgMerkleBlock{
 		SBits:        int64(0x0000000000000000),
 		Nonce:        0x9962e301, // 2573394689
 		ExtraData:    [32]byte{},
-		StakeVersion: binary.LittleEndian.Uint32([]byte{0x7e, 0x1e, 0xca, 0x57}),
+		StakeVersion: uint32(0x7e1eca57),
 	},
 	Transactions: 1,
 	Hashes: []*chainhash.Hash{
@@ -497,7 +496,7 @@ var testMerkleBlockBytes = []byte{
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-	0x7e, 0x1e, 0xca, 0x57, // StakeVersion
+	0x57, 0xca, 0x1e, 0x7e, // StakeVersion
 	0x01, 0x00, 0x00, 0x00, // TxnCount (regular) [180]
 	0x01, // Num hashes (regular) [184]
 	0x98, 0x20, 0x51, 0xfd, 0x1e, 0x4b, 0xa7, 0x44,

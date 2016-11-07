@@ -7,7 +7,6 @@ package wire_test
 
 import (
 	"bytes"
-	"encoding/binary"
 	"io"
 	"reflect"
 	"testing"
@@ -83,7 +82,7 @@ func TestHeadersWire(t *testing.T) {
 		uint32(0),                                   // Size
 		uint32(0x01010101),                          // Nonce
 		[32]byte{},                                  // ExtraData
-		binary.LittleEndian.Uint32([]byte{0xba, 0x5e, 0xba, 0x11}), //StakeVersion
+		uint32(0xba5eba11),                          //StakeVersion
 	)
 	bh.Timestamp = time.Unix(0x4966bc61, 0)
 
@@ -127,7 +126,7 @@ func TestHeadersWire(t *testing.T) {
 		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-		0xba, 0x5e, 0xba, 0x11, // StakeVersion
+		0x11, 0xba, 0x5e, 0xba, // StakeVersion
 		0x00, // TxnCount (0 for headers message)
 	}
 
