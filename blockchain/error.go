@@ -417,6 +417,10 @@ const (
 	// ErrInvalidEarlyVoteBits indicates that a block before stake validation
 	// height had an unallowed vote bits value.
 	ErrInvalidEarlyVoteBits
+
+	// ErrVersionVoting indicates that there was an error during version
+	// voting accounting.
+	ErrVersionVoting
 )
 
 // Map of ErrorCode values back to their constant names for pretty printing.
@@ -512,6 +516,7 @@ var errorCodeStrings = map[ErrorCode]string{
 	ErrFraudBlockIndex:        "ErrFraudBlockIndex",
 	ErrZeroValueOutputSpend:   "ErrZeroValueOutputSpend",
 	ErrInvalidEarlyVoteBits:   "ErrInvalidEarlyVoteBits",
+	ErrVersionVoting:          "ErrVersionVoting",
 }
 
 // String returns the ErrorCode as a human-readable name.
