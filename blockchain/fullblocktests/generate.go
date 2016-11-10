@@ -1853,6 +1853,15 @@ func repeatOpcode(opcode uint8, numRepeats int) []byte {
 	return bytes.Repeat([]byte{opcode}, numRepeats)
 }
 
+// removeTransactionsFromBlock returns a function that itself takes a block and
+// modifies it by removing all transactions.
+func removeTransactionsFromBlock() func(*wire.MsgBlock) {
+	return func(b *wire.MsgBlock) {
+		// Remove all transactions from block
+		b.Transactions = nil
+	}
+}
+
 // countBlockSigOps returns the number of legacy signature operations in the
 // scripts in the passed block.
 func countBlockSigOps(block *wire.MsgBlock) int {
@@ -3308,6 +3317,10 @@ func Generate() (tests [][]TestInstance, err error) {
 	g.nextBlock("b80", outs[15], ticketOuts[15], replaceSpendScript(tooManySigOps))
 	g.assertTipBlockSigOpsCount(maxBlockSigOps + 1)
 	rejected(blockchain.ErrTooManySigOps)
+
+	// Create a block without any transactions and ensure it is rejected.
+	g.nextBlock("bemptyblock", nil, nil, removeTransactionsFromBlock())
+	rejected(blockchain.ErrNoTransactions)
 
 	return tests, nil
 }
