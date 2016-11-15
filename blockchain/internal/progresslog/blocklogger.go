@@ -74,7 +74,7 @@ func (b *BlockProgressLogger) LogBlockHeight(block, parent *dcrutil.Block) {
 	}
 	b.subsystemLogger.Infof("%s %d %s in the last %s (%d %s, height %d, %s)",
 		b.progressAction, b.receivedLogBlocks, blockStr, tDuration,
-		b.receivedLogTx, txStr, block.Height(),
+		b.receivedLogTx, txStr, block.MsgBlock().Header.Height,
 		block.MsgBlock().Header.Timestamp)
 
 	b.receivedLogBlocks = 0
