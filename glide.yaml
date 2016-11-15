@@ -31,6 +31,7 @@ import:
 - package: github.com/decred/blake256
 - package: github.com/decred/dcrrpcclient
 - package: github.com/decred/dcrutil
+  version: master
   subpackages:
   - bloom
 - package: github.com/decred/ed25519
