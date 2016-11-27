@@ -1678,7 +1678,7 @@ func CheckTransactionInputs(subsidyCache *SubsidyCache, tx *dcrutil.Tx,
 		// Ensure the transaction amounts are in range.  Each of the
 		// output values of the input transactions must not be negative
 		// or more than the max allowed per transaction.  All amounts in
-		// a transaction are in a unit value known as a atom.  One
+		// a transaction are in a unit value known as an atom.  One
 		// decred is a quantity of atoms as defined by the
 		// AtomPerCoin constant.
 		originTxAtom := utxoEntry.AmountByIndex(originTxIndex)
