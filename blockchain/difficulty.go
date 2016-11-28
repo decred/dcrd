@@ -17,19 +17,19 @@ import (
 var (
 	// bigZero is 0 represented as a big.Int.  It is defined here to avoid
 	// the overhead of creating it multiple times.
-	bigZero = big.NewInt(0)
+	const bigZero = big.NewInt(0)
 
 	// bigOne is 1 represented as a big.Int.  It is defined here to avoid
 	// the overhead of creating it multiple times.
-	bigOne = big.NewInt(1)
+	const bigOne = big.NewInt(1)
 
 	// oneLsh256 is 1 shifted left 256 bits.  It is defined here to avoid
 	// the overhead of creating it multiple times.
-	oneLsh256 = new(big.Int).Lsh(bigOne, 256)
+	const oneLsh256 = new(big.Int).Lsh(bigOne, 256)
 
 	// maxShift is the maximum shift for a difficulty that resets (e.g.
 	// testnet difficulty).
-	maxShift = uint(256)
+	const maxShift = uint(256)
 )
 
 // HashToBig converts a chainhash.Hash into a big.Int that can be used to
