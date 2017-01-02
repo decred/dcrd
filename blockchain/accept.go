@@ -206,6 +206,7 @@ func voteVersionsInBlock(bl *dcrutil.Block, params *chaincfg.Params) []uint32 {
 	}
 
 	return versions
+}
 
 // voteBitsForVotersInBlock returns a list of vote bits for the voters in
 // this block.
@@ -272,7 +273,8 @@ func (b *BlockChain) maybeAcceptBlock(block *dcrutil.Block,
 	blockHeader := &block.MsgBlock().Header
 	newNode := newBlockNode(blockHeader, block.Hash(), blockHeight,
 		ticketsSpentInBlock(block), ticketsRevokedInBlock(block),
-		voteVersionsInBlock(block, b.chainParams))
+		voteVersionsInBlock(block, b.chainParams),
+		voteBitsForVotersInBlock(block))
 	if prevNode != nil {
 		newNode.parent = prevNode
 		newNode.height = blockHeight

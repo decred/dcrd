@@ -601,27 +601,25 @@ var TestSimNetParams = &chaincfg.Params{
 	// Chain parameters
 	GenesisBlock:             &testSimNetGenesisBlock,
 	GenesisHash:              &testSimNetGenesisHash,
-	CurrentBlockVersion:      0,
 	PowLimit:                 testSimNetPowLimit,
 	PowLimitBits:             0x207fffff,
-	ResetMinDifficulty:       false,
 	GenerateSupported:        true,
 	MaximumBlockSize:         1000000,
-	TimePerBlock:             time.Second * 1,
+	TargetTimePerBlock:       time.Second,
 	WorkDiffAlpha:            1,
 	WorkDiffWindowSize:       8,
 	WorkDiffWindows:          4,
-	TargetTimespan:           time.Second * 1 * 8, // TimePerBlock * WindowSize
+	TargetTimespan:           time.Second * 1 * 8, // TargetTimePerBlock * WindowSize
 	RetargetAdjustmentFactor: 4,
 
 	// Subsidy parameters.
-	BaseSubsidy:           50000000000,
-	MulSubsidy:            100,
-	DivSubsidy:            101,
-	ReductionInterval:     128,
-	WorkRewardProportion:  6,
-	StakeRewardProportion: 3,
-	BlockTaxProportion:    1,
+	BaseSubsidy:              50000000000,
+	MulSubsidy:               100,
+	DivSubsidy:               101,
+	SubsidyReductionInterval: 128,
+	WorkRewardProportion:     6,
+	StakeRewardProportion:    3,
+	BlockTaxProportion:       1,
 
 	// Checkpoints ordered from oldest to newest.
 	Checkpoints: nil,
@@ -707,7 +705,7 @@ var testBlockOneLedgerSimNet = []*chaincfg.TokenPayout{
 
 // testSimNetGenesisHash is the hash of the first block in the block chain for the
 // simulation test network.
-var testSimNetGenesisHash = testSimNetGenesisBlock.BlockSha()
+var testSimNetGenesisHash = testSimNetGenesisBlock.BlockHash()
 
 // testSimNetGenesisMerkleRoot is the hash of the first transaction in the genesis
 // block for the simulation test network.  It is the same as the merkle root for
@@ -761,7 +759,7 @@ var testGenesisCoinbaseTxLegacy = wire.MsgTx{
 
 // testGenesisMerkleRoot is the hash of the first transaction in the genesis block
 // for the main network.
-var testGenesisMerkleRoot = testGenesisCoinbaseTxLegacy.TxSha()
+var testGenesisMerkleRoot = testGenesisCoinbaseTxLegacy.TxHash()
 
 var regTestGenesisCoinbaseTx = wire.MsgTx{
 	Version: 1,

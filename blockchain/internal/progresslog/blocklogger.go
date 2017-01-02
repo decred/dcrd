@@ -53,12 +53,12 @@ func (b *BlockProgressLogger) LogBlockHeight(block, parent *wire.MsgBlock) {
 	// the current block.  Otherwise, just use the current block.
 	if parent != nil {
 		regularTxTreeValid := dcrutil.IsFlagSet16(
-			block.MsgBlock().Header.VoteBits, dcrutil.BlockValid)
+			block.Header.VoteBits, dcrutil.BlockValid)
 		if regularTxTreeValid {
-			b.receivedLogTx += int64(len(parent.MsgBlock().Transactions))
+			b.receivedLogTx += int64(len(parent.Transactions))
 		}
 	} else {
-		b.receivedLogTx += int64(len(block.MsgBlock().Transactions))
+		b.receivedLogTx += int64(len(block.Transactions))
 	}
 	b.receivedLogTx += int64(len(block.STransactions))
 

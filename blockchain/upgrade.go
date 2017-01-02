@@ -140,8 +140,8 @@ func (b *BlockChain) upgradeToVersion3() error {
 			}
 
 			// Iteratively connect the tallies in memory.
-			blockSha := block.Sha()
-			parentSha := parent.Sha()
+			blockSha := block.Hash()
+			parentSha := parent.Hash()
 			var tally stake.RollingVotingPrefixTally
 			tally, errLocal = bestTally.ConnectBlockToTally(b.rollingTallyCache,
 				dbTx, *blockSha, *parentSha, uint32(block.Height()),
@@ -163,7 +163,7 @@ func (b *BlockChain) upgradeToVersion3() error {
 				b.bestNode.rollingTally = bestTally
 			}
 
-			progressLogger.LogBlockHeight(block, parent)
+			progressLogger.LogBlockHeight(block.MsgBlock(), parent.MsgBlock())
 			parent = block
 		}
 
