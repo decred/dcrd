@@ -600,12 +600,22 @@ func (b *BlockChain) findNode(nodeHash *chainhash.Hash) (*blockNode, error) {
 	return node, err
 }
 
+// InMainChain() uses findNode() to determine whether a block exists in the
+// main chain.
 func (b *BlockChain) InMainChain(h *chainhash.Hash) (bool, error) {
-	node, err := b.findNode(h)
+	_, err := b.findNode(h)
 	if err != nil {
+		// There is no distinction, at this point, between an
+		// inexistent block and a block in a side chain. Such
+		// distinction can be made by the caller through
+		// BlockHeightByHash(). If a block has a height, and
+		// InMainChain() returns false, then the block must
+		// exist in a side chain.
 		return false, err
 	}
-	return node.inMainChain, nil
+	// findNode() only inspects the main chain. Therefore, if it finds a
+	// block, the block must exist in the main chain.
+	return true, nil
 }
 
 func (b *BlockChain) FindForkPoint(h *chainhash.Hash) (*chainhash.Hash, error) {
