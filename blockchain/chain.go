@@ -613,9 +613,13 @@ func (b *BlockChain) FindForkPoint(h *chainhash.Hash) (*chainhash.Hash, error) {
 	if err != nil {
 		return nil, err
 	}
-	for ; node != nil; node = node.parent {
+	for node != nil {
 		if node.inMainChain == false {
 			return &node.hash, nil
+		}
+		node, err = b.getPrevNodeFromNode(node)
+		if err != nil {
+			return nil, err
 		}
 	}
 	return nil, nil
