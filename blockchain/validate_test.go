@@ -58,7 +58,7 @@ func recalculateMsgBlockMerkleRootsSize(msgBlock *wire.MsgBlock) {
 func TestBlockValidationRules(t *testing.T) {
 	// Create a new database and chain instance to run tests against.
 	chain, teardownFunc, err := chainSetup("validateunittests",
-		simNetParams)
+		blockchain.TestSimNetParams)
 	if err != nil {
 		t.Errorf("Failed to setup chain instance: %v", err)
 		return
@@ -66,7 +66,7 @@ func TestBlockValidationRules(t *testing.T) {
 	defer teardownFunc()
 
 	// The genesis block should fail to connect since it's already inserted.
-	genesisBlock := simNetParams.GenesisBlock
+	genesisBlock := blockchain.TestSimNetParams.GenesisBlock
 	err = chain.CheckConnectBlock(dcrutil.NewBlock(genesisBlock))
 	if err == nil {
 		t.Errorf("CheckConnectBlock: Did not receive expected error")
@@ -113,7 +113,7 @@ func TestBlockValidationRules(t *testing.T) {
 	b1test := dcrutil.NewBlock(noCoinbaseOuts1)
 	b1test.SetHeight(int64(1))
 
-	err = blockchain.CheckWorklessBlockSanity(b1test, timeSource, simNetParams)
+	err = blockchain.CheckWorklessBlockSanity(b1test, timeSource, blockchain.TestSimNetParams)
 	if err != nil {
 		t.Errorf("Got unexpected error for ErrBlockOneOutputs test 2: %v", err)
 	}
@@ -136,7 +136,7 @@ func TestBlockValidationRules(t *testing.T) {
 	b1test = dcrutil.NewBlock(noCoinbaseOuts1)
 	b1test.SetHeight(int64(1))
 
-	err = blockchain.CheckWorklessBlockSanity(b1test, timeSource, simNetParams)
+	err = blockchain.CheckWorklessBlockSanity(b1test, timeSource, blockchain.TestSimNetParams)
 	if err != nil {
 		t.Errorf("Got unexpected error for ErrBlockOneOutputs test 3: %v", err)
 	}
@@ -159,7 +159,7 @@ func TestBlockValidationRules(t *testing.T) {
 	b1test = dcrutil.NewBlock(noCoinbaseOuts1)
 	b1test.SetHeight(int64(1))
 
-	err = blockchain.CheckWorklessBlockSanity(b1test, timeSource, simNetParams)
+	err = blockchain.CheckWorklessBlockSanity(b1test, timeSource, blockchain.TestSimNetParams)
 	if err != nil {
 		t.Errorf("Got unexpected error for ErrBlockOneOutputs test 4: %v", err)
 	}
@@ -212,7 +212,7 @@ func TestBlockValidationRules(t *testing.T) {
 	b142test := dcrutil.NewBlock(earlySSGen142)
 	b142test.SetHeight(int64(stakeEarlyTest))
 
-	err = blockchain.CheckWorklessBlockSanity(b142test, timeSource, simNetParams)
+	err = blockchain.CheckWorklessBlockSanity(b142test, timeSource, blockchain.TestSimNetParams)
 	if err == nil {
 		t.Errorf("got no error for ErrInvalidEarlyStakeTx test")
 	}
@@ -234,7 +234,7 @@ func TestBlockValidationRules(t *testing.T) {
 	b142test.SetHeight(int64(stakeEarlyTest))
 
 	err = blockchain.CheckWorklessBlockSanity(b142test, timeSource, simNetParams)
-	if err == nil || err.(blockchain.RuleError).ErrorCode !=
+	if err == nil || err.(blockchain.RuleError).GetCode() !=
 		blockchain.ErrInvalidEarlyVoteBits {
 		t.Errorf("Got unexpected no error or wrong error for "+
 			"ErrInvalidEarlyVoteBits test: %v", err)
@@ -287,7 +287,7 @@ func TestBlockValidationRules(t *testing.T) {
 	b153test.SetHeight(int64(testsIdx1))
 
 	err = blockchain.CheckWorklessBlockSanity(b153test, timeSource, simNetParams)
-	if err == nil || err.(blockchain.RuleError).ErrorCode !=
+	if err == nil || err.(blockchain.RuleError).GetCode() !=
 		blockchain.ErrBadMerkleRoot {
 		t.Errorf("Failed to get error or correct error for ErrBadMerkleRoot 1"+
 			"test (err: %v)", err)
@@ -310,7 +310,7 @@ func TestBlockValidationRules(t *testing.T) {
 	b153test.SetHeight(int64(testsIdx1))
 
 	err = blockchain.CheckWorklessBlockSanity(b153test, timeSource, simNetParams)
-	if err == nil || err.(blockchain.RuleError).ErrorCode !=
+	if err == nil || err.(blockchain.RuleError).GetCode() !=
 		blockchain.ErrBadMerkleRoot {
 		t.Errorf("Failed to get error or correct error for ErrBadMerkleRoot 2"+
 			"test (err: %v)", err)
@@ -376,7 +376,7 @@ func TestBlockValidationRules(t *testing.T) {
 	b153test = dcrutil.NewBlock(missingParent153)
 	b153test.SetHeight(int64(testsIdx1))
 
-	err = blockchain.CheckWorklessBlockSanity(b153test, timeSource, simNetParams)
+	err = blockchain.CheckWorklessBlockSanity(b153test, timeSource, blockchain.TestSimNetParams)
 	if err != nil {
 		t.Errorf("Got unexpected sanity error for ErrMissingParent test: %v",
 			err)
@@ -397,7 +397,7 @@ func TestBlockValidationRules(t *testing.T) {
 	b153test = dcrutil.NewBlock(badSubsidy153)
 	b153test.SetHeight(int64(testsIdx1))
 
-	err = blockchain.CheckWorklessBlockSanity(b153test, timeSource, simNetParams)
+	err = blockchain.CheckWorklessBlockSanity(b153test, timeSource, blockchain.TestSimNetParams)
 	if err != nil {
 		t.Errorf("Got unexpected sanity error for ErrBadCoinbaseValue test: %v",
 			err)
@@ -421,7 +421,7 @@ func TestBlockValidationRules(t *testing.T) {
 	b153test.SetHeight(int64(testsIdx1))
 
 	err = blockchain.CheckWorklessBlockSanity(b153test, timeSource, simNetParams)
-	if err == nil || err.(blockchain.RuleError).ErrorCode !=
+	if err == nil || err.(blockchain.RuleError).GetCode() !=
 		blockchain.ErrFirstTxNotCoinbase {
 		t.Errorf("Got no or unexpected sanity error for "+
 			"ErrBadCoinbaseOutpoint test: %v", err)
@@ -442,7 +442,7 @@ func TestBlockValidationRules(t *testing.T) {
 	b153test.SetHeight(int64(testsIdx1))
 
 	err = blockchain.CheckWorklessBlockSanity(b153test, timeSource, simNetParams)
-	if err == nil || err.(blockchain.RuleError).ErrorCode !=
+	if err == nil || err.(blockchain.RuleError).GetCode() !=
 		blockchain.ErrBadCoinbaseFraudProof {
 		t.Errorf("Got no or unexpected sanity error for "+
 			"ErrBadCoinbaseFraudProof test: %v", err)
@@ -463,7 +463,7 @@ func TestBlockValidationRules(t *testing.T) {
 	b153test = dcrutil.NewBlock(badCBAmountIn153)
 	b153test.SetHeight(int64(testsIdx1))
 
-	err = blockchain.CheckWorklessBlockSanity(b153test, timeSource, simNetParams)
+	err = blockchain.CheckWorklessBlockSanity(b153test, timeSource, blockchain.TestSimNetParams)
 	if err != nil {
 		t.Errorf("Got unexpected error for ErrBadCoinbaseFraudProof test: %v",
 			err)
@@ -485,7 +485,7 @@ func TestBlockValidationRules(t *testing.T) {
 	b153test = dcrutil.NewBlock(badSBAmountIn153)
 	b153test.SetHeight(int64(testsIdx1))
 
-	err = blockchain.CheckWorklessBlockSanity(b153test, timeSource, simNetParams)
+	err = blockchain.CheckWorklessBlockSanity(b153test, timeSource, blockchain.TestSimNetParams)
 	if err != nil {
 		t.Errorf("Got unexpected error for ErrBadCoinbaseFraudProof test: %v",
 			err)
@@ -513,7 +513,7 @@ func TestBlockValidationRules(t *testing.T) {
 	b153test.SetHeight(int64(testsIdx1))
 
 	err = blockchain.CheckWorklessBlockSanity(b153test, timeSource, simNetParams)
-	if err == nil || err.(blockchain.RuleError).ErrorCode !=
+	if err == nil || err.(blockchain.RuleError).GetCode() !=
 		blockchain.ErrRegTxInStakeTree {
 		t.Errorf("Failed to get error or correct error for ErrRegTxInStakeTree "+
 			"test (err: %v)", err)
@@ -539,7 +539,7 @@ func TestBlockValidationRules(t *testing.T) {
 	b153test.SetHeight(int64(testsIdx1))
 
 	err = blockchain.CheckWorklessBlockSanity(b153test, timeSource, simNetParams)
-	if err == nil || err.(blockchain.RuleError).ErrorCode !=
+	if err == nil || err.(blockchain.RuleError).GetCode() !=
 		blockchain.ErrStakeTxInRegularTree {
 		t.Errorf("Failed to get error or correct error for ErrRegTxInStakeTree "+
 			"test (err: %v)", err)
@@ -563,7 +563,7 @@ func TestBlockValidationRules(t *testing.T) {
 	b153test.SetHeight(int64(testsIdx1))
 
 	err = blockchain.CheckWorklessBlockSanity(b153test, timeSource, simNetParams)
-	if err == nil || err.(blockchain.RuleError).ErrorCode !=
+	if err == nil || err.(blockchain.RuleError).GetCode() !=
 		blockchain.ErrBadStakebaseScriptLen {
 		t.Errorf("Failed to get error or correct error for bad stakebase "+
 			"script len test (err: %v)", err)
@@ -586,8 +586,8 @@ func TestBlockValidationRules(t *testing.T) {
 	b153test.SetHeight(int64(testsIdx1))
 
 	err = blockchain.CheckWorklessBlockSanity(b153test, timeSource, simNetParams)
-	if err == nil || err.(blockchain.RuleError).ErrorCode !=
-		blockchain.ErrBadStakebaseScrVal {
+	if err == nil || err.(blockchain.RuleError).GetCode() !=
+		blockchain.ErrBadStakevaseScrVal {
 		t.Errorf("Failed to get error or correct error for bad stakebase "+
 			"script test (err: %v)", err)
 	}
@@ -609,7 +609,7 @@ func TestBlockValidationRules(t *testing.T) {
 	b153test.SetHeight(int64(testsIdx1))
 
 	err = blockchain.CheckWorklessBlockSanity(b153test, timeSource, simNetParams)
-	if err == nil || err.(blockchain.RuleError).ErrorCode !=
+	if err == nil || err.(blockchain.RuleError).GetCode() !=
 		blockchain.ErrRevocationsMismatch {
 		t.Errorf("got unexpected no error or other error for "+
 			"ErrInvalidRevocations sanity check: %v", err)
@@ -635,7 +635,7 @@ func TestBlockValidationRules(t *testing.T) {
 	b153test = dcrutil.NewBlock(ssrtxPayeesMismatch153)
 	b153test.SetHeight(int64(testsIdx1))
 
-	err = blockchain.CheckWorklessBlockSanity(b153test, timeSource, simNetParams)
+	err = blockchain.CheckWorklessBlockSanity(b153test, timeSource, blockchain.TestSimNetParams)
 	if err != nil {
 		t.Errorf("got unexpected error for ErrSSRtxPayeesMismatch sanity  "+
 			"check: %v", err)
@@ -660,7 +660,7 @@ func TestBlockValidationRules(t *testing.T) {
 	b153test = dcrutil.NewBlock(badSSRtxPayee153)
 	b153test.SetHeight(int64(testsIdx1))
 
-	err = blockchain.CheckWorklessBlockSanity(b153test, timeSource, simNetParams)
+	err = blockchain.CheckWorklessBlockSanity(b153test, timeSource, blockchain.TestSimNetParams)
 	if err != nil {
 		t.Errorf("got unexpected error for ErrSSRtxPayees sanity  "+
 			"check 1: %v", err)
@@ -687,7 +687,7 @@ func TestBlockValidationRules(t *testing.T) {
 	b153test = dcrutil.NewBlock(badSSRtxPayee153)
 	b153test.SetHeight(int64(testsIdx1))
 
-	err = blockchain.CheckWorklessBlockSanity(b153test, timeSource, simNetParams)
+	err = blockchain.CheckWorklessBlockSanity(b153test, timeSource, blockchain.TestSimNetParams)
 	if err != nil {
 		t.Errorf("got unexpected error for ErrSSRtxPayees sanity "+
 			"check 2: %v", err)
@@ -722,7 +722,7 @@ func TestBlockValidationRules(t *testing.T) {
 	b153test = dcrutil.NewBlock(badSSRtx153)
 	b153test.SetHeight(int64(testsIdx1))
 
-	// err = blockchain.CheckWorklessBlockSanity(b153test, timeSource, simNetParams)
+	// err = blockchain.CheckWorklessBlockSanity(b153test, timeSource, blockchain.TestSimNetParams)
 	// if err != nil {
 	//	t.Errorf("got unexpected error for ErrInvalidSSRtx sanity check: %v",
 	//		err)
@@ -753,7 +753,7 @@ func TestBlockValidationRules(t *testing.T) {
 	b154test.SetHeight(int64(testsIdx2))
 
 	// The incoming block should pass fine.
-	err = blockchain.CheckWorklessBlockSanity(b154test, timeSource, simNetParams)
+	err = blockchain.CheckWorklessBlockSanity(b154test, timeSource, blockchain.TestSimNetParams)
 	if err != nil {
 		t.Errorf("Unexpected error for check block 154 sanity: %v", err.Error())
 	}
@@ -775,7 +775,7 @@ func TestBlockValidationRules(t *testing.T) {
 
 	// This fails both checks.
 	err = blockchain.CheckWorklessBlockSanity(b154test, timeSource, simNetParams)
-	if err == nil || err.(blockchain.RuleError).ErrorCode !=
+	if err == nil || err.(blockchain.RuleError).GetCode() !=
 		blockchain.ErrNotEnoughStake {
 		t.Errorf("Failed to get error or correct error for low stake amt "+
 			"test (err: %v)", err)
@@ -798,7 +798,7 @@ func TestBlockValidationRules(t *testing.T) {
 
 	// Throws an error in stake consensus.
 	err = blockchain.CheckWorklessBlockSanity(b154test, timeSource, simNetParams)
-	if err == nil || err.(blockchain.RuleError).ErrorCode !=
+	if err == nil || err.(blockchain.RuleError).GetCode() !=
 		blockchain.ErrFreshStakeMismatch {
 		t.Errorf("Unexpected no or wrong error for ErrFreshStakeMismatch "+
 			"sanity check test: %v", err.Error())
@@ -827,7 +827,7 @@ func TestBlockValidationRules(t *testing.T) {
 
 	// Fails and hits ErrNotEnoughVotes.
 	err = blockchain.CheckWorklessBlockSanity(b154test, timeSource, simNetParams)
-	if err == nil || err.(blockchain.RuleError).ErrorCode !=
+	if err == nil || err.(blockchain.RuleError).GetCode() !=
 		blockchain.ErrNotEnoughVotes {
 		t.Errorf("Got no or unexpected block sanity err for "+
 			"not enough votes (err: %v)", err)
@@ -859,7 +859,7 @@ func TestBlockValidationRules(t *testing.T) {
 	b154test.SetHeight(int64(testsIdx2))
 
 	// Fails and hits ErrTooManyVotes.
-	err = blockchain.CheckWorklessBlockSanity(b154test, timeSource, simNetParams)
+	err = blockchain.CheckWorklessBlockSanity(b154test, timeSource, blockchain.TestSimNetParams)
 	if err == nil {
 		t.Errorf("got unexpected no error for ErrTooManyVotes sanity check")
 	}
@@ -874,7 +874,7 @@ func TestBlockValidationRules(t *testing.T) {
 	b154test = dcrutil.NewBlock(nonChosenTicket154)
 	b154test.SetHeight(int64(testsIdx2))
 
-	err = blockchain.CheckWorklessBlockSanity(b154test, timeSource, simNetParams)
+	err = blockchain.CheckWorklessBlockSanity(b154test, timeSource, blockchain.TestSimNetParams)
 	if err != nil {
 		t.Errorf("got unexpected error for ErrTicketUnavailable sanity check"+
 			": %v",
@@ -901,7 +901,7 @@ func TestBlockValidationRules(t *testing.T) {
 	b154test = dcrutil.NewBlock(wrongBlockVote154)
 	b154test.SetHeight(int64(testsIdx2))
 
-	err = blockchain.CheckWorklessBlockSanity(b154test, timeSource, simNetParams)
+	err = blockchain.CheckWorklessBlockSanity(b154test, timeSource, blockchain.TestSimNetParams)
 	if err != nil {
 		t.Errorf("got unexpected error for ErrVotesOnWrongBlock sanity check: %v",
 			err)
@@ -929,7 +929,7 @@ func TestBlockValidationRules(t *testing.T) {
 
 	// Fails and hits ErrVotesMismatch.
 	err = blockchain.CheckWorklessBlockSanity(b154test, timeSource, simNetParams)
-	if err == nil || err.(blockchain.RuleError).ErrorCode !=
+	if err == nil || err.(blockchain.RuleError).GetCode() !=
 		blockchain.ErrVotesMismatch {
 		t.Errorf("got unexpected no or wrong error for ErrVotesMismatch "+
 			"sanity check: %v", err)
@@ -944,7 +944,7 @@ func TestBlockValidationRules(t *testing.T) {
 	b154test = dcrutil.NewBlock(badVoteBit154)
 	b154test.SetHeight(int64(testsIdx2))
 
-	err = blockchain.CheckWorklessBlockSanity(b154test, timeSource, simNetParams)
+	err = blockchain.CheckWorklessBlockSanity(b154test, timeSource, blockchain.TestSimNetParams)
 	if err != nil {
 		t.Errorf("got unexpected error for ErrIncongruentVotebit 2 sanity  "+
 			"check: %v", err)
@@ -974,7 +974,7 @@ func TestBlockValidationRules(t *testing.T) {
 	b154test = dcrutil.NewBlock(badVoteBit154)
 	b154test.SetHeight(int64(testsIdx2))
 
-	err = blockchain.CheckWorklessBlockSanity(b154test, timeSource, simNetParams)
+	err = blockchain.CheckWorklessBlockSanity(b154test, timeSource, blockchain.TestSimNetParams)
 	if err != nil {
 		t.Errorf("got unexpected error for ErrIncongruentVotebit 2 sanity  "+
 			"check: %v", err)
@@ -1004,7 +1004,7 @@ func TestBlockValidationRules(t *testing.T) {
 	b154test = dcrutil.NewBlock(badVoteBit154)
 	b154test.SetHeight(int64(testsIdx2))
 
-	err = blockchain.CheckWorklessBlockSanity(b154test, timeSource, simNetParams)
+	err = blockchain.CheckWorklessBlockSanity(b154test, timeSource, blockchain.TestSimNetParams)
 	if err != nil {
 		t.Errorf("got unexpected error for ErrIncongruentVotebit 3 sanity  "+
 			"check: %v", err)
@@ -1034,7 +1034,7 @@ func TestBlockValidationRules(t *testing.T) {
 	b154test = dcrutil.NewBlock(badVoteBit154)
 	b154test.SetHeight(int64(testsIdx2))
 
-	err = blockchain.CheckWorklessBlockSanity(b154test, timeSource, simNetParams)
+	err = blockchain.CheckWorklessBlockSanity(b154test, timeSource, blockchain.TestSimNetParams)
 	if err != nil {
 		t.Errorf("got unexpected error for ErrIncongruentVotebit 4 sanity  "+
 			"check: %v", err)
@@ -1069,7 +1069,7 @@ func TestBlockValidationRules(t *testing.T) {
 	b154test = dcrutil.NewBlock(badVoteBit154)
 	b154test.SetHeight(int64(testsIdx2))
 
-	err = blockchain.CheckWorklessBlockSanity(b154test, timeSource, simNetParams)
+	err = blockchain.CheckWorklessBlockSanity(b154test, timeSource, blockchain.TestSimNetParams)
 	if err != nil {
 		t.Errorf("got unexpected error for ErrIncongruentVotebit 5 sanity  "+
 			"check: %v", err)
@@ -1104,7 +1104,7 @@ func TestBlockValidationRules(t *testing.T) {
 	b154test = dcrutil.NewBlock(badVoteBit154)
 	b154test.SetHeight(int64(testsIdx2))
 
-	err = blockchain.CheckWorklessBlockSanity(b154test, timeSource, simNetParams)
+	err = blockchain.CheckWorklessBlockSanity(b154test, timeSource, blockchain.TestSimNetParams)
 	if err != nil {
 		t.Errorf("got unexpected error for ErrIncongruentVotebit 6 sanity  "+
 			"check: %v", err)
@@ -1139,7 +1139,7 @@ func TestBlockValidationRules(t *testing.T) {
 	b154test = dcrutil.NewBlock(badVoteBit154)
 	b154test.SetHeight(int64(testsIdx2))
 
-	err = blockchain.CheckWorklessBlockSanity(b154test, timeSource, simNetParams)
+	err = blockchain.CheckWorklessBlockSanity(b154test, timeSource, blockchain.TestSimNetParams)
 	if err != nil {
 		t.Errorf("got unexpected error for ErrIncongruentVotebit 7 sanity  "+
 			"check: %v", err)
@@ -1166,7 +1166,7 @@ func TestBlockValidationRules(t *testing.T) {
 	b154test = dcrutil.NewBlock(badSStxCommit154)
 	b154test.SetHeight(int64(testsIdx2))
 
-	err = blockchain.CheckWorklessBlockSanity(b154test, timeSource, simNetParams)
+	err = blockchain.CheckWorklessBlockSanity(b154test, timeSource, blockchain.TestSimNetParams)
 	if err != nil {
 		t.Errorf("got unexpected error for ErrSStxCommitment sanity check: %v",
 			err)
@@ -1200,7 +1200,7 @@ func TestBlockValidationRules(t *testing.T) {
 	b154test = dcrutil.NewBlock(badSSGenPayee154)
 	b154test.SetHeight(int64(testsIdx2))
 
-	err = blockchain.CheckWorklessBlockSanity(b154test, timeSource, simNetParams)
+	err = blockchain.CheckWorklessBlockSanity(b154test, timeSource, blockchain.TestSimNetParams)
 	if err != nil {
 		t.Errorf("got unexpected error for ErrSSGenPayeeOuts sanity  "+
 			"check: %v", err)
@@ -1225,7 +1225,7 @@ func TestBlockValidationRules(t *testing.T) {
 	b154test = dcrutil.NewBlock(badSSGenPayee154)
 	b154test.SetHeight(int64(testsIdx2))
 
-	err = blockchain.CheckWorklessBlockSanity(b154test, timeSource, simNetParams)
+	err = blockchain.CheckWorklessBlockSanity(b154test, timeSource, blockchain.TestSimNetParams)
 	if err != nil {
 		t.Errorf("got unexpected error for ErrSSGenPayeeOuts sanity  "+
 			"check2 : %v", err)
@@ -1287,7 +1287,7 @@ func TestBlockValidationRules(t *testing.T) {
 	b154test = dcrutil.NewBlock(spendTaggedIn154)
 	b154test.SetHeight(int64(testsIdx2))
 
-	err = blockchain.CheckWorklessBlockSanity(b154test, timeSource, simNetParams)
+	err = blockchain.CheckWorklessBlockSanity(b154test, timeSource, blockchain.TestSimNetParams)
 	if err != nil {
 		t.Errorf("got unexpected error for ErrTxSStxOutSpend sanity check: %v",
 			err)
@@ -1316,7 +1316,7 @@ func TestBlockValidationRules(t *testing.T) {
 	b154test = dcrutil.NewBlock(spendTaggedOut154)
 	b154test.SetHeight(int64(testsIdx2))
 
-	err = blockchain.CheckWorklessBlockSanity(b154test, timeSource, simNetParams)
+	err = blockchain.CheckWorklessBlockSanity(b154test, timeSource, blockchain.TestSimNetParams)
 	if err != nil {
 		t.Errorf("got unexpected error for ErrRegTxSpendStakeOut sanity check: %v",
 			err)
@@ -1338,7 +1338,7 @@ func TestBlockValidationRules(t *testing.T) {
 	b154test = dcrutil.NewBlock(badFinalState154)
 	b154test.SetHeight(int64(testsIdx2))
 
-	err = blockchain.CheckWorklessBlockSanity(b154test, timeSource, simNetParams)
+	err = blockchain.CheckWorklessBlockSanity(b154test, timeSource, blockchain.TestSimNetParams)
 	if err != nil {
 		t.Errorf("got unexpected error for ErrInvalidFinalState sanity check: %v",
 			err)
@@ -1360,7 +1360,7 @@ func TestBlockValidationRules(t *testing.T) {
 	b154test = dcrutil.NewBlock(badPoolSize154)
 	b154test.SetHeight(int64(testsIdx2))
 
-	err = blockchain.CheckWorklessBlockSanity(b154test, timeSource, simNetParams)
+	err = blockchain.CheckWorklessBlockSanity(b154test, timeSource, blockchain.TestSimNetParams)
 	if err != nil {
 		t.Errorf("got unexpected error for ErrPoolSize sanity check: %v",
 			err)
@@ -1392,7 +1392,7 @@ func TestBlockValidationRules(t *testing.T) {
 	b154test = dcrutil.NewBlock(errTxTreeIn154)
 	b154test.SetHeight(int64(testsIdx2))
 
-	err = blockchain.CheckWorklessBlockSanity(b154test, timeSource, simNetParams)
+	err = blockchain.CheckWorklessBlockSanity(b154test, timeSource, blockchain.TestSimNetParams)
 	if err != nil {
 		t.Errorf("got unexpected error for ErrDiscordantTxTree sanity check: %v",
 			err)
@@ -1439,7 +1439,7 @@ func TestBlockValidationRules(t *testing.T) {
 	b154test = dcrutil.NewBlock(taxMissing154)
 	b154test.SetHeight(int64(testsIdx2))
 
-	err = blockchain.CheckWorklessBlockSanity(b154test, timeSource, simNetParams)
+	err = blockchain.CheckWorklessBlockSanity(b154test, timeSource, blockchain.TestSimNetParams)
 	if err != nil {
 		t.Errorf("Got unexpected error for ErrNoTax "+
 			"test 1: %v", err)
@@ -1462,7 +1462,7 @@ func TestBlockValidationRules(t *testing.T) {
 	b154test = dcrutil.NewBlock(taxMissing154)
 	b154test.SetHeight(int64(testsIdx2))
 
-	err = blockchain.CheckWorklessBlockSanity(b154test, timeSource, simNetParams)
+	err = blockchain.CheckWorklessBlockSanity(b154test, timeSource, blockchain.TestSimNetParams)
 	if err != nil {
 		t.Errorf("Got unexpected error for ErrNoTax test 2: %v", err)
 	}
@@ -1484,7 +1484,7 @@ func TestBlockValidationRules(t *testing.T) {
 	b154test = dcrutil.NewBlock(taxMissing154)
 	b154test.SetHeight(int64(testsIdx2))
 
-	err = blockchain.CheckWorklessBlockSanity(b154test, timeSource, simNetParams)
+	err = blockchain.CheckWorklessBlockSanity(b154test, timeSource, blockchain.TestSimNetParams)
 	if err != nil {
 		t.Errorf("Got unexpected error for ErrNoTax test 3: %v", err)
 	}
@@ -1509,7 +1509,7 @@ func TestBlockValidationRules(t *testing.T) {
 	b154test = dcrutil.NewBlock(expiredTx154)
 	b154test.SetHeight(int64(testsIdx2))
 
-	err = blockchain.CheckWorklessBlockSanity(b154test, timeSource, simNetParams)
+	err = blockchain.CheckWorklessBlockSanity(b154test, timeSource, blockchain.TestSimNetParams)
 	if err != nil {
 		t.Errorf("got unexpected error for ErrExpiredTx sanity check: %v",
 			err)
@@ -1536,7 +1536,7 @@ func TestBlockValidationRules(t *testing.T) {
 	b154test = dcrutil.NewBlock(badValueIn154)
 	b154test.SetHeight(int64(testsIdx2))
 
-	err = blockchain.CheckWorklessBlockSanity(b154test, timeSource, simNetParams)
+	err = blockchain.CheckWorklessBlockSanity(b154test, timeSource, blockchain.TestSimNetParams)
 	if err != nil {
 		t.Errorf("got unexpected error for ErrFraudAmountIn sanity check: %v",
 			err)
@@ -1563,7 +1563,7 @@ func TestBlockValidationRules(t *testing.T) {
 	b154test = dcrutil.NewBlock(badHeightProof154)
 	b154test.SetHeight(int64(testsIdx2))
 
-	err = blockchain.CheckWorklessBlockSanity(b154test, timeSource, simNetParams)
+	err = blockchain.CheckWorklessBlockSanity(b154test, timeSource, blockchain.TestSimNetParams)
 	if err != nil {
 		t.Errorf("got unexpected error for ErrFraudBlockHeight sanity check: %v",
 			err)
@@ -1590,7 +1590,7 @@ func TestBlockValidationRules(t *testing.T) {
 	b154test = dcrutil.NewBlock(badIndexProof154)
 	b154test.SetHeight(int64(testsIdx2))
 
-	err = blockchain.CheckWorklessBlockSanity(b154test, timeSource, simNetParams)
+	err = blockchain.CheckWorklessBlockSanity(b154test, timeSource, blockchain.TestSimNetParams)
 	if err != nil {
 		t.Errorf("got unexpected error for ErrFraudBlockIndex sanity check: %v",
 			err)
@@ -1617,7 +1617,7 @@ func TestBlockValidationRules(t *testing.T) {
 	b154test = dcrutil.NewBlock(badScrVal154)
 	b154test.SetHeight(int64(testsIdx2))
 
-	err = blockchain.CheckWorklessBlockSanity(b154test, timeSource, simNetParams)
+	err = blockchain.CheckWorklessBlockSanity(b154test, timeSource, blockchain.TestSimNetParams)
 	if err != nil {
 		t.Errorf("got unexpected error for ErrScriptValidation sanity check: %v",
 			err)
@@ -1640,7 +1640,7 @@ func TestBlockValidationRules(t *testing.T) {
 	b154test = dcrutil.NewBlock(badScrValS154)
 	b154test.SetHeight(int64(testsIdx2))
 
-	err = blockchain.CheckWorklessBlockSanity(b154test, timeSource, simNetParams)
+	err = blockchain.CheckWorklessBlockSanity(b154test, timeSource, blockchain.TestSimNetParams)
 	if err != nil {
 		t.Errorf("got unexpected error for ErrScriptValidation sanity check: %v",
 			err)
@@ -1670,7 +1670,7 @@ func TestBlockValidationRules(t *testing.T) {
 	b154test = dcrutil.NewBlock(invalMissingInsS154)
 	b154test.SetHeight(int64(testsIdx2))
 
-	err = blockchain.CheckWorklessBlockSanity(b154test, timeSource, simNetParams)
+	err = blockchain.CheckWorklessBlockSanity(b154test, timeSource, blockchain.TestSimNetParams)
 	if err != nil {
 		t.Errorf("got unexpected error for invalMissingInsS154 sanity check: %v",
 			err)
@@ -1697,7 +1697,7 @@ func TestBlockValidationRules(t *testing.T) {
 	b154test = dcrutil.NewBlock(malformedScr154)
 	b154test.SetHeight(int64(testsIdx2))
 
-	err = blockchain.CheckWorklessBlockSanity(b154test, timeSource, simNetParams)
+	err = blockchain.CheckWorklessBlockSanity(b154test, timeSource, blockchain.TestSimNetParams)
 	if err != nil {
 		t.Errorf("got unexpected error for ErrScriptValidation sanity check: %v",
 			err)
@@ -1738,7 +1738,7 @@ func TestBlockValidationRules(t *testing.T) {
 	b154test = dcrutil.NewBlock(spendZeroValueIn154)
 	b154test.SetHeight(int64(testsIdx2))
 
-	err = blockchain.CheckWorklessBlockSanity(b154test, timeSource, simNetParams)
+	err = blockchain.CheckWorklessBlockSanity(b154test, timeSource, blockchain.TestSimNetParams)
 	if err != nil {
 		t.Errorf("got unexpected error for ErrZeroValueOutputSpend sanity "+
 			"check: %v", err)
@@ -1805,7 +1805,7 @@ func TestBlockValidationRules(t *testing.T) {
 	b166test := dcrutil.NewBlock(spendInvalid166)
 	b166test.SetHeight(int64(testsIdx3))
 
-	err = blockchain.CheckWorklessBlockSanity(b166test, timeSource, simNetParams)
+	err = blockchain.CheckWorklessBlockSanity(b166test, timeSource, blockchain.TestSimNetParams)
 	if err != nil {
 		t.Errorf("got unexpected error for ErrMissingTx test 1 sanity "+
 			"check: %v", err)
@@ -1840,7 +1840,7 @@ func TestBlockValidationRules(t *testing.T) {
 	sstxToUse166.AddTxIn(sstxCBIn)
 
 	orgAddr, _ := dcrutil.DecodeAddress("ScuQxvveKGfpG1ypt6u27F99Anf7EW3cqhq",
-		simNetParams)
+		blockchain.TestSimNetParams)
 	pkScript, _ := txscript.GenerateSStxAddrPush(orgAddr,
 		dcrutil.Amount(29702992297), 0x0000)
 	txOut := wire.NewTxOut(int64(0), pkScript)
@@ -1853,7 +1853,7 @@ func TestBlockValidationRules(t *testing.T) {
 	b166test = dcrutil.NewBlock(sstxSpendInvalid166)
 	b166test.SetHeight(int64(testsIdx3))
 
-	err = blockchain.CheckWorklessBlockSanity(b166test, timeSource, simNetParams)
+	err = blockchain.CheckWorklessBlockSanity(b166test, timeSource, blockchain.TestSimNetParams)
 	if err != nil {
 		t.Errorf("got unexpected error for ErrMissingTx test 2 sanity "+
 			"check: %v", err)
@@ -1897,7 +1897,7 @@ func TestBlockValidationRules(t *testing.T) {
 	b166test = dcrutil.NewBlock(sstxSpend2Invalid166)
 	b166test.SetHeight(int64(testsIdx3))
 
-	err = blockchain.CheckWorklessBlockSanity(b166test, timeSource, simNetParams)
+	err = blockchain.CheckWorklessBlockSanity(b166test, timeSource, blockchain.TestSimNetParams)
 	if err != nil {
 		t.Errorf("got unexpected error for ErrImmatureSpend test sanity "+
 			"check: %v", err)
@@ -1928,7 +1928,7 @@ func TestBlockValidationRules(t *testing.T) {
 	b166test = dcrutil.NewBlock(sstxSpend3Invalid166)
 	b166test.SetHeight(int64(testsIdx3))
 
-	err = blockchain.CheckWorklessBlockSanity(b166test, timeSource, simNetParams)
+	err = blockchain.CheckWorklessBlockSanity(b166test, timeSource, blockchain.TestSimNetParams)
 	if err != nil {
 		t.Errorf("got unexpected error for double spend test 1 sanity "+
 			"check: %v", err)
@@ -1954,7 +1954,7 @@ func TestBlockValidationRules(t *testing.T) {
 	b166test = dcrutil.NewBlock(regTxSpendStakeIn166)
 	b166test.SetHeight(int64(testsIdx3))
 
-	err = blockchain.CheckWorklessBlockSanity(b166test, timeSource, simNetParams)
+	err = blockchain.CheckWorklessBlockSanity(b166test, timeSource, blockchain.TestSimNetParams)
 	if err != nil {
 		t.Errorf("got unexpected error for deouble spend test 2 sanity "+
 			"check: %v", err)
@@ -1974,7 +1974,7 @@ func TestBlockValidationRules(t *testing.T) {
 func TestBlockchainSpendJournal(t *testing.T) {
 	// Create a new database and chain instance to run tests against.
 	chain, teardownFunc, err := chainSetup("reorgunittest",
-		simNetParams)
+		blockchain.TestSimNetParams)
 	if err != nil {
 		t.Errorf("Failed to setup chain instance: %v", err)
 		return
@@ -1983,7 +1983,7 @@ func TestBlockchainSpendJournal(t *testing.T) {
 
 	// The genesis block should fail to connect since it's already
 	// inserted.
-	genesisBlock := simNetParams.GenesisBlock
+	genesisBlock := blockchain.TestSimNetParams.GenesisBlock
 	err = chain.CheckConnectBlock(dcrutil.NewBlock(genesisBlock))
 	if err == nil {
 		t.Errorf("CheckConnectBlock: Did not receive expected error")

@@ -615,7 +615,7 @@ func TestTicketDBGeneral(t *testing.T) {
 	var bestNode *Node
 	err = testDb.Update(func(dbTx database.Tx) error {
 		var errLocal error
-		bestNode, errLocal = InitDatabaseState(dbTx, simNetParams)
+		bestNode, errLocal = InitTicketDatabaseState(dbTx, simNetParams)
 		if errLocal != nil {
 			return errLocal
 		}

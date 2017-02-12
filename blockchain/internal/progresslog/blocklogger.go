@@ -47,10 +47,18 @@ func (b *BlockProgressLogger) LogBlockHeight(block, parent *wire.MsgBlock) {
 	b.Lock()
 	defer b.Unlock()
 	b.receivedLogBlocks++
-	regularTxTreeValid := dcrutil.IsFlagSet16(block.Header.VoteBits,
-		dcrutil.BlockValid)
-	if regularTxTreeValid {
-		b.receivedLogTx += int64(len(parent.Transactions))
+
+	// When the process depends on both the parent and the current block
+	// and is staggered, provide transaction counts from the parent and
+	// the current block.  Otherwise, just use the current block.
+	if parent != nil {
+		regularTxTreeValid := dcrutil.IsFlagSet16(
+			block.Header.VoteBits, dcrutil.BlockValid)
+		if regularTxTreeValid {
+			b.receivedLogTx += int64(len(parent.Transactions))
+		}
+	} else {
+		b.receivedLogTx += int64(len(block.Transactions))
 	}
 	b.receivedLogTx += int64(len(block.STransactions))
 

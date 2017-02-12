@@ -28,7 +28,7 @@ const (
 
 	// currentDatabaseVersion indicates what the current database
 	// version is.
-	currentDatabaseVersion = 2
+	currentDatabaseVersion = 3
 )
 
 // errNotInMainChain signifies that a block hash or height that is not in the
@@ -1270,7 +1270,7 @@ func (b *BlockChain) createChainState() error {
 	genesisBlock := dcrutil.NewBlock(b.chainParams.GenesisBlock)
 	header := &genesisBlock.MsgBlock().Header
 	node := newBlockNode(header, genesisBlock.Hash(), 0, []chainhash.Hash{},
-		[]chainhash.Hash{}, []uint32{})
+		[]chainhash.Hash{}, []uint32{}, []uint16{})
 	node.inMainChain = true
 	b.bestNode = node
 
@@ -1348,7 +1348,23 @@ func (b *BlockChain) createChainState() error {
 
 		// Initialize the stake buckets in the database, along with
 		// the best state for the stake database.
-		b.bestNode.stakeNode, err = stake.InitDatabaseState(dbTx, b.chainParams)
+		b.bestNode.stakeNode, err = stake.InitTicketDatabaseState(dbTx,
+			b.chainParams)
+		if err != nil {
+			return err
+		}
+
+		// Initialize the voting tally buckets in the database, along with
+		// the best state for the voting tallies database.
+		b.bestNode.rollingTally, err = stake.InitVotingDatabaseState(dbTx,
+			b.chainParams)
+		if err != nil {
+			return err
+		}
+
+		// Load the rolling tally cache.
+		b.rollingTallyCache, err = stake.InitRollingTallyCache(dbTx,
+			b.chainParams)
 		if err != nil {
 			return err
 		}
@@ -1434,7 +1450,8 @@ func (b *BlockChain) initChainState() error {
 		header := &block.Header
 		node := newBlockNode(header, &state.hash, int64(state.height),
 			ticketsSpentInBlock(blk), ticketsRevokedInBlock(blk),
-			voteVersionsInBlock(blk, b.chainParams))
+			voteVersionsInBlock(blk, b.chainParams),
+			voteBitsForVotersInBlock(dcrutil.NewBlock(&block)))
 		node.inMainChain = true
 		node.workSum = state.workSum
 
@@ -1449,6 +1466,24 @@ func (b *BlockChain) initChainState() error {
 			}
 			node.stakeUndoData = node.stakeNode.UndoData()
 			node.newTickets = node.stakeNode.NewTickets()
+		}
+
+		// Exception for <= version 2 blockchains: skip loading the voting
+		// tally, as the upgrade path handles ensuring this is correctly
+		// set.
+		if dbInfo.version >= 3 {
+			tally, err := stake.LoadVotingDatabaseState(dbTx)
+			if err != nil {
+				return err
+			}
+			node.rollingTally = tally
+
+			// Load the rolling tally cache.
+			b.rollingTallyCache, err = stake.InitRollingTallyCache(dbTx,
+				b.chainParams)
+			if err != nil {
+				return err
+			}
 		}
 
 		b.bestNode = node
