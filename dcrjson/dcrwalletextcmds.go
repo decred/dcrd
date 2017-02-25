@@ -520,11 +520,25 @@ type SetBalanceToMaintainCmd struct {
 	Balance float64
 }
 
-// NewSetBalanceToMaintainCmd creates a new instance of the setticketfee
+// NewSetBalanceToMaintainCmd creates a new instance of the setbalancetomaintain
 // command.
 func NewSetBalanceToMaintainCmd(balance float64) *SetBalanceToMaintainCmd {
 	return &SetBalanceToMaintainCmd{
 		Balance: balance,
+	}
+}
+
+// SetExpiryDeltaCmd is a type handling custom marshaling and
+// unmarshaling of setexpirydelta JSON RPC commands.
+type SetExpiryDeltaCmd struct {
+	Delta uint32
+}
+
+// NewSetExpiryDeltaCmd creates a new instance of the setexpirydelta
+// command.
+func NewSetExpiryDeltaCmd(delta uint32) *SetExpiryDeltaCmd {
+	return &SetExpiryDeltaCmd{
+		Delta: delta,
 	}
 }
 
@@ -670,6 +684,7 @@ func init() {
 	MustRegisterCmd("sendtossgen", (*SendToSSGenCmd)(nil), flags)
 	MustRegisterCmd("sendtossrtx", (*SendToSSRtxCmd)(nil), flags)
 	MustRegisterCmd("setbalancetomaintain", (*SetBalanceToMaintainCmd)(nil), flags)
+	MustRegisterCmd("setexpirydelta", (*SetExpiryDeltaCmd)(nil), flags)
 	MustRegisterCmd("setticketfee", (*SetTicketFeeCmd)(nil), flags)
 	MustRegisterCmd("setticketmaxprice", (*SetTicketMaxPriceCmd)(nil), flags)
 	MustRegisterCmd("setticketvotebits", (*SetTicketVoteBitsCmd)(nil), flags)

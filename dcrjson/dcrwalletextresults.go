@@ -147,5 +147,6 @@ type WalletInfoResult struct {
 	TicketFee         float64 `json:"ticketfee"`
 	TicketMaxPrice    float64 `json:"ticketmaxprice"`
 	BalanceToMaintain float64 `json:"balancetomaintain"`
+	ExpiryDelta       uint32  `json:"expirydelta"`
 	StakeMining       bool    `json:"stakemining"`
 }
