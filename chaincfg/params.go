@@ -159,6 +159,14 @@ const (
 	// VoteIDMaxBlockSize is the vote ID for the the maximum block size
 	// increase agenda used for the hard fork demo.
 	VoteIDMaxBlockSize = "maxblocksize"
+
+	// VoteIDLNSupport is the vote ID for determining if we want to adopt
+	// Lightning Network support.
+	VoteIDLNSupport = "lnsupport"
+
+	// VoteIDSDiffAlgorithm is the vote ID for determining if we want to
+	// adopt the new SDiff algorithm.
+	VoteIDSDiffAlgorithm = "sdiffalgorithm"
 )
 
 // ConsensusDeployment defines details related to a specific consensus rule
@@ -500,6 +508,66 @@ var MainNetParams = Params{
 	RuleChangeActivationMultiplier: 3,    // 75%
 	RuleChangeActivationDivisor:    4,
 	RuleChangeActivationInterval:   2016 * 4, // 4 weeks
+	Deployments: map[uint32][]ConsensusDeployment{
+		4: {
+			{
+				Vote: Vote{
+					Id:          VoteIDLNSupport,
+					Description: "Should decred add Lightning Support (LN)?",
+					Mask:        0x0006, // Bits 1 and 2
+					Choices: []Choice{{
+						Id:          "abstain",
+						Description: "abstain voting for change",
+						Bits:        0x0000,
+						IsIgnore:    true,
+						IsNo:        false,
+					}, {
+						Id:          "no",
+						Description: "reject adding LN support",
+						Bits:        0x0002, // Bit 1
+						IsIgnore:    false,
+						IsNo:        true,
+					}, {
+						Id:          "yes",
+						Description: "accept adding LN support",
+						Bits:        0x0004, // Bit 2
+						IsIgnore:    false,
+						IsNo:        false,
+					}},
+				},
+				StartTime:  1496275200, // Jun 1st 2017
+				ExpireTime: 1504224000, // Sep 1st, 2017
+			},
+			{
+				Vote: Vote{
+					Id:          VoteIDSDiffAlgorithm,
+					Description: "Should decred adopt the new SDiff algorithm?",
+					Mask:        0x0018, // Bits 3 and 4
+					Choices: []Choice{{
+						Id:          "abstain",
+						Description: "abstain voting for change",
+						Bits:        0x0000,
+						IsIgnore:    true,
+						IsNo:        false,
+					}, {
+						Id:          "no",
+						Description: "reject new SDiff algorithm",
+						Bits:        0x0008, // Bit 3
+						IsIgnore:    false,
+						IsNo:        true,
+					}, {
+						Id:          "yes",
+						Description: "accept new SDiff algorithm",
+						Bits:        0x0010, // Bit 4
+						IsIgnore:    false,
+						IsNo:        false,
+					}},
+				},
+				StartTime:  1496275200, // Jun 1st 2017
+				ExpireTime: 1504224000, // Sep 1st, 2017
+			},
+		},
+	},
 
 	// Enforce current block version once majority of the network has
 	// upgraded.
