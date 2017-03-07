@@ -1249,9 +1249,7 @@ func (g *Generator) ReplaceWithNVotes(numVotes uint16) func(*wire.MsgBlock) {
 
 		// Add back the original stake transactions other than the
 		// original stake votes that have been replaced.
-		for _, stakeTx := range b.STransactions[defaultNumVotes:] {
-			stakeTxns = append(stakeTxns, stakeTx)
-		}
+		stakeTxns = append(stakeTxns, b.STransactions[defaultNumVotes:]...)
 
 		// Update the block with the new stake transactions and the
 		// header with the new number of votes.

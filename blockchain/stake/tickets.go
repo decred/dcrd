@@ -894,7 +894,7 @@ func WriteConnectedBestNode(dbTx database.Tx, node *Node, hash chainhash.Hash) e
 		}
 	}
 
-	err = ticketdb.DbPutBestState(dbTx, ticketdb.BestChainState{
+	return ticketdb.DbPutBestState(dbTx, ticketdb.BestChainState{
 		Hash:        hash,
 		Height:      node.height,
 		Live:        uint32(node.liveTickets.Len()),
@@ -903,11 +903,6 @@ func WriteConnectedBestNode(dbTx database.Tx, node *Node, hash chainhash.Hash) e
 		PerBlock:    node.params.TicketsPerBlock,
 		NextWinners: nextWinners,
 	})
-	if err != nil {
-		return err
-	}
-
-	return nil
 }
 
 // WriteDisconnectedBestNode writes the newly connected best node to the database
@@ -1030,7 +1025,7 @@ func WriteDisconnectedBestNode(dbTx database.Tx, node *Node, hash chainhash.Hash
 		}
 	}
 
-	err = ticketdb.DbPutBestState(dbTx, ticketdb.BestChainState{
+	return ticketdb.DbPutBestState(dbTx, ticketdb.BestChainState{
 		Hash:        hash,
 		Height:      node.height,
 		Live:        uint32(node.liveTickets.Len()),
@@ -1039,9 +1034,4 @@ func WriteDisconnectedBestNode(dbTx database.Tx, node *Node, hash chainhash.Hash
 		PerBlock:    node.params.TicketsPerBlock,
 		NextWinners: nextWinners,
 	})
-	if err != nil {
-		return err
-	}
-
-	return nil
 }
