@@ -618,15 +618,15 @@ func handleCreateRawTransaction(s *rpcServer, cmd interface{}, closeChan <-chan 
 			return nil, rpcDecodeHexError(input.Txid)
 		}
 
-		if !(int8(input.Tree) == wire.TxTreeRegular ||
-			int8(input.Tree) == wire.TxTreeStake) {
+		if !(input.Tree == wire.TxTreeRegular ||
+			input.Tree == wire.TxTreeStake) {
 			return nil, dcrjson.RPCError{
 				Code:    dcrjson.ErrRPCInvalidParams.Code,
 				Message: "Invalid parameter, tx tree must be regular or stake",
 			}
 		}
 
-		prevOut := wire.NewOutPoint(txHash, uint32(input.Vout), int8(input.Tree))
+		prevOut := wire.NewOutPoint(txHash, input.Vout, input.Tree)
 		txIn := wire.NewTxIn(prevOut, []byte{})
 		if c.LockTime != nil && *c.LockTime != 0 {
 			txIn.Sequence = wire.MaxTxInSequenceNum - 1
@@ -748,15 +748,15 @@ func handleCreateRawSStx(s *rpcServer,
 			}
 		}
 
-		if !(int8(input.Tree) == wire.TxTreeRegular ||
-			int8(input.Tree) == wire.TxTreeStake) {
+		if !(input.Tree == wire.TxTreeRegular ||
+			input.Tree == wire.TxTreeStake) {
 			return nil, dcrjson.RPCError{
 				Code:    dcrjson.ErrRPCInvalidParameter,
 				Message: "Invalid parameter, tx tree must be regular or stake",
 			}
 		}
 
-		prevOut := wire.NewOutPoint(txHash, uint32(input.Vout), int8(input.Tree))
+		prevOut := wire.NewOutPoint(txHash, input.Vout, input.Tree)
 		txIn := wire.NewTxIn(prevOut, []byte{})
 		mtx.AddTxIn(txIn)
 	}
@@ -1053,14 +1053,14 @@ func handleCreateRawSSGenTx(s *rpcServer,
 			}
 		}
 
-		if !(int8(input.Tree) == wire.TxTreeStake) {
+		if !(input.Tree == wire.TxTreeStake) {
 			return nil, dcrjson.RPCError{
 				Code:    dcrjson.ErrRPCInvalidParameter,
 				Message: "Invalid parameter, tx tree of sstx input must be stake",
 			}
 		}
 
-		prevOut := wire.NewOutPoint(txHash, uint32(input.Vout), int8(input.Tree))
+		prevOut := wire.NewOutPoint(txHash, input.Vout, input.Tree)
 		txIn := wire.NewTxIn(prevOut, []byte{})
 		mtx.AddTxIn(txIn)
 	}
@@ -1233,14 +1233,14 @@ func handleCreateRawSSRtx(s *rpcServer,
 			}
 		}
 
-		if !(int8(input.Tree) == wire.TxTreeStake) {
+		if !(input.Tree == wire.TxTreeStake) {
 			return nil, dcrjson.RPCError{
 				Code:    dcrjson.ErrRPCInvalidParameter,
 				Message: "Invalid parameter, tx tree of sstx input must be stake",
 			}
 		}
 
-		prevOut := wire.NewOutPoint(txHash, uint32(input.Vout), int8(input.Tree))
+		prevOut := wire.NewOutPoint(txHash, input.Vout, input.Tree)
 		txIn := wire.NewTxIn(prevOut, []byte{})
 		mtx.AddTxIn(txIn)
 	}
@@ -2194,7 +2194,7 @@ func handleGetBlock(s *rpcServer, cmd interface{},
 // handleGetBlockCount implements the getblockcount command.
 func handleGetBlockCount(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) (interface{}, error) {
 	best := s.chain.BestSnapshot()
-	return int64(best.Height), nil
+	return best.Height, nil
 }
 
 // handleGetBlockHash implements the getblockhash command.
@@ -3466,7 +3466,7 @@ func handleGetMiningInfo(s *rpcServer, cmd interface{}, closeChan <-chan struct{
 	}
 
 	result := dcrjson.GetMiningInfoResult{
-		Blocks:           int64(best.Height),
+		Blocks:           best.Height,
 		CurrentBlockSize: best.BlockSize,
 		CurrentBlockTx:   best.NumTxns,
 		Difficulty:       getDifficultyRatio(best.Bits),
@@ -3880,7 +3880,7 @@ func handleGetStakeVersionInfo(s *rpcServer, cmd interface{}, closeChan <-chan s
 
 	snapshot := s.chain.BestSnapshot()
 
-	interval := int64(s.server.chainParams.StakeVersionInterval)
+	interval := s.server.chainParams.StakeVersionInterval
 	// Assemble JSON result.
 	result := dcrjson.GetStakeVersionInfoResult{
 		CurrentHeight: snapshot.Height,
@@ -5742,7 +5742,7 @@ func handleTicketVWAP(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) 
 		}
 
 		ticketNum += int64(blockHeader.FreshStake)
-		totalValue += int64(blockHeader.SBits) * int64(blockHeader.FreshStake)
+		totalValue += blockHeader.SBits * int64(blockHeader.FreshStake)
 	}
 	vwap := int64(0)
 	if ticketNum > 0 {
@@ -5959,7 +5959,7 @@ func handleVerifyMessage(s *rpcServer, cmd interface{}, closeChan <-chan struct{
 	}
 
 	// Reconstruct the pubkey hash.
-	dcrPK := (chainec.PublicKey)(pk)
+	dcrPK := pk
 	var serializedPK []byte
 	if wasCompressed {
 		serializedPK = dcrPK.SerializeCompressed()

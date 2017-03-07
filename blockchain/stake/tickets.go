@@ -501,9 +501,9 @@ func connectNode(node *Node, header wire.BlockHeader, ticketsSpentInBlock, revok
 		// the winners are from the cached information in the previous block, so
 		// no drop the results of that here.
 		toExpireHeight := uint32(0)
-		if connectedNode.height > uint32(connectedNode.params.TicketExpiry) {
+		if connectedNode.height > connectedNode.params.TicketExpiry {
 			toExpireHeight = connectedNode.height -
-				uint32(connectedNode.params.TicketExpiry)
+				connectedNode.params.TicketExpiry
 		}
 		expired := fetchExpired(toExpireHeight, connectedNode.liveTickets)
 		for _, treapKey := range expired {

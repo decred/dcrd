@@ -1312,7 +1312,7 @@ func (b *blockManager) handleBlockMsg(bmsg *blockMsg) {
 	if blkHashUpdate != nil && heightUpdate != 0 {
 		bmsg.peer.UpdateLastBlockHeight(heightUpdate)
 		if isOrphan || b.current() {
-			go b.server.UpdatePeerHeights(blkHashUpdate, int64(heightUpdate),
+			go b.server.UpdatePeerHeights(blkHashUpdate, heightUpdate,
 				bmsg.peer)
 		}
 	}
@@ -1587,7 +1587,7 @@ func (b *blockManager) handleInvMsg(imsg *invMsg) {
 		blkHeight, err := b.chain.BlockHeightByHash(&invVects[lastBlock].Hash)
 		if err == nil {
 
-			imsg.peer.UpdateLastBlockHeight(int64(blkHeight))
+			imsg.peer.UpdateLastBlockHeight(blkHeight)
 		}
 	}
 

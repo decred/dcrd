@@ -314,7 +314,7 @@ func (view *UtxoViewpoint) AddTxOuts(tx *dcrutil.Tx, blockHeight int64,
 		view.entries[*tx.Hash()] = entry
 	} else {
 		entry.height = uint32(blockHeight)
-		entry.index = uint32(blockIndex)
+		entry.index = blockIndex
 	}
 	entry.modified = true
 

@@ -2022,7 +2022,7 @@ func (p *Peer) negotiateOutboundProtocol() error {
 func newPeerBase(cfg *Config, inbound bool) *Peer {
 	// Default to the max supported protocol version.  Override to the
 	// version specified by the caller if configured.
-	protocolVersion := uint32(MaxProtocolVersion)
+	protocolVersion := MaxProtocolVersion
 	if cfg.ProtocolVersion != 0 {
 		protocolVersion = cfg.ProtocolVersion
 	}

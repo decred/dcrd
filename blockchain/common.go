@@ -39,10 +39,10 @@ func (b *BlockChain) DoStxoTest() error {
 				return err
 			}
 
-			if int(ntx) != len(stxos) {
+			if ntx != len(stxos) {
 				return fmt.Errorf("bad number of stxos calculated at "+
 					"height %v, got %v expected %v",
-					i, len(stxos), int(ntx))
+					i, len(stxos), ntx)
 			}
 		}
 

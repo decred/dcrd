@@ -171,7 +171,7 @@ func (msg *MsgMerkleBlock) BtcEncode(w io.Writer, pver uint32) error {
 		return err
 	}
 
-	err = WriteVarInt(w, pver, uint64(numHashes))
+	err = WriteVarInt(w, pver, numHashes)
 	if err != nil {
 		return err
 	}
@@ -187,7 +187,7 @@ func (msg *MsgMerkleBlock) BtcEncode(w io.Writer, pver uint32) error {
 		return err
 	}
 
-	err = WriteVarInt(w, pver, uint64(numSHashes))
+	err = WriteVarInt(w, pver, numSHashes)
 	if err != nil {
 		return err
 	}
