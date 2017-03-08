@@ -141,11 +141,17 @@ type StakePoolUserInfoResult struct {
 // WalletInfoResult models the data returned from the walletinfo
 // command.
 type WalletInfoResult struct {
-	DaemonConnected   bool    `json:"daemonconnected"`
-	Unlocked          bool    `json:"unlocked"`
-	TxFee             float64 `json:"txfee"`
-	TicketFee         float64 `json:"ticketfee"`
-	TicketMaxPrice    float64 `json:"ticketmaxprice"`
-	BalanceToMaintain float64 `json:"balancetomaintain"`
-	StakeMining       bool    `json:"stakemining"`
+	DaemonConnected      bool    `json:"daemonconnected"`
+	Unlocked             bool    `json:"unlocked"`
+	TxFee                float64 `json:"txfee"`
+	TicketFee            float64 `json:"ticketfee"`
+	TicketMaxPrice       float64 `json:"ticketmaxprice"`
+	BalanceToMaintain    float64 `json:"balancetomaintain"`
+	StakeMining          bool    `json:"stakemining"`
+	TicketPurchasing     bool    `json:"ticketpurchasing"`
+	TicketPurchasingKind string  `json:"ticketpurchasingkind"`
+	VoteBits             uint16  `json:"votebits"`
+	VoteBitsExtended     string  `json:"votebitsextended"`
+	VoteVersion          uint32  `json:"voteversion"`
+	Voting               bool    `json:"voting"`
 }
