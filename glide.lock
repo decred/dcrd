@@ -1,5 +1,5 @@
-hash: 89ed7e73f1c55de07eaf8c44717dd9919291b8ea2ab16bf76674324057ea583a
-updated: 2017-02-16T20:42:39.426024619Z
+hash: 807209320ff3d80af89663d3407f7d3fef4cfa67e52750c4ffa58bae790f8a16
+updated: 2017-03-08T10:42:36.42609397-05:00
 imports:
 - name: github.com/btcsuite/btclog
   version: 73889fb79bd687870312b6e40effcecffbd57d30
@@ -61,6 +61,10 @@ imports:
   version: b0909d3f798b97a03c9e77023f97a5301a2a7900
   subpackages:
   - edwards25519
+- name: golang.org/x/crypto
+  version: 453249f01cfeb54c3d549ddb75ff152ca243f9d8
+  subpackages:
+  - ripemd160
 testImports:
 - name: github.com/pmezard/go-difflib
   version: d8ed2627bdf02c080bf22230dbb337003b7aba2d
