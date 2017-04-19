@@ -318,6 +318,7 @@ var rpcUnimplemented = map[string]struct{}{
 var rpcLimited = map[string]struct{}{
 	// Websockets commands
 	"notifyblocks":          {},
+	"notifyvotes":           {},
 	"notifynewtransactions": {},
 	"notifyreceived":        {},
 	"notifyspent":           {},
