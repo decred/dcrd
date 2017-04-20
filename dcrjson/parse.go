@@ -11,6 +11,7 @@ import (
 
 	"github.com/decred/dcrd/blockchain/stake"
 	"github.com/decred/dcrd/chaincfg/chainhash"
+	"bytes"
 )
 
 // EncodeConcatenatedHashes serializes a slice of chainhash.Hash values into a
@@ -97,6 +98,15 @@ func EncodeConcatenatedVoteBits(voteBitsSlice []stake.VoteBits) (string, error) 
 	}
 
 	return hex.EncodeToString(vbBytes), nil
+}
+
+// EncodeConcatenatedHashed concatenates multiple hashes
+func EncodeConcatenatedHashed(hashes []*chainhash.Hash) (string, error) {
+	var buffer bytes.Buffer
+	for i := range hashes {
+		buffer.WriteString(hashes[i].String())
+	}
+	return buffer.String(), nil
 }
 
 // DecodeConcatenatedVoteBits decodes a string encoded as a slice of concatenated
