@@ -1190,21 +1190,11 @@ func (p *Peer) maybeAddDeadline(pendingResponses map[string]time.Time, msgCmd st
 	// sent asynchronously and as a result of a long backlock of messages,
 	// such as is typical in the case of initial block download, the
 	// response won't be received in time.
-	log.Debugf("Adding deadline for command %s for peer %s", msgCmd, p.addr)
-
 	deadline := time.Now().Add(stallResponseTimeout)
 	switch msgCmd {
 	case wire.CmdVersion:
 		// Expects a verack message.
 		pendingResponses[wire.CmdVerAck] = deadline
-
-	case wire.CmdMemPool:
-		// Expects an inv message.
-		pendingResponses[wire.CmdInv] = deadline
-
-	case wire.CmdGetBlocks:
-		// Expects an inv message.
-		pendingResponses[wire.CmdInv] = deadline
 
 	case wire.CmdGetData:
 		// Expects a block, tx, or notfound message.
@@ -1218,10 +1208,11 @@ func (p *Peer) maybeAddDeadline(pendingResponses map[string]time.Time, msgCmd st
 		// headers.
 		deadline = time.Now().Add(stallResponseTimeout * 3)
 		pendingResponses[wire.CmdHeaders] = deadline
-
-	case wire.CmdGetMiningState:
-		pendingResponses[wire.CmdMiningState] = deadline
+	default:
+		return
 	}
+
+	log.Debugf("Added deadline for command %s for peer %s", msgCmd, p.addr)
 }
 
 // stallHandler handles stall detection for the peer.  This entails keeping
@@ -1331,12 +1322,10 @@ out:
 					continue
 				}
 
-				if command != wire.CmdMiningState {
-					log.Infof("Peer %s appears to be stalled or "+
-						"misbehaving, %s timeout -- "+
-						"disconnecting", p, command)
-					p.Disconnect()
-				}
+				log.Infof("Peer %s appears to be stalled or "+
+					"misbehaving, %s timeout -- "+
+					"disconnecting", p, command)
+				p.Disconnect()
 				break
 			}
 
