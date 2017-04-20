@@ -529,6 +529,7 @@ var errorCodeStrings = map[ErrorCode]string{
 	ErrSSRtxPayees:            "ErrSSRtxPayees",
 	ErrTxSStxOutSpend:         "ErrTxSStxOutSpend",
 	ErrRegTxSpendStakeOut:     "ErrRegTxSpendStakeOut",
+	ErrBIP0030:                "ErrBIP0030",
 	ErrInvalidFinalState:      "ErrInvalidFinalState",
 	ErrPoolSize:               "ErrPoolSize",
 	ErrForceReorgWrongChain:   "ErrForceReorgWrongChain",
