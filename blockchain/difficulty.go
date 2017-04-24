@@ -486,11 +486,18 @@ func mergeDifficulty(oldDiff int64, newDiff1 int64, newDiff2 int64) int64 {
 	return summedChange.Int64()
 }
 
-// calcNextRequiredStakeDifficulty calculates the exponentially weighted average
-// and then uses it to determine the next stake difficulty.
-// TODO: You can combine the first and second for loops below for a speed up
-// if you'd like, I'm not sure how much it matters.
+// calcNextRequiredStakeDifficultyV1 calculates the next stake difficulty.
 func (b *BlockChain) calcNextRequiredStakeDifficulty(curNode *blockNode) (int64, error) {
+	// For now return the V1 stake difficulty.  This is where we add the
+	// new sdiff algorithm once it is done.
+	return b.calcNextRequiredStakeDifficultyV1(curNode)
+}
+
+// calcNextRequiredStakeDifficultyV1 calculates the exponentially weighted
+// average and then uses it to determine the next stake difficulty.
+// TODO: You can combine the first and second for loops below for a speed up if
+// you'd like, I'm not sure how much it matters.
+func (b *BlockChain) calcNextRequiredStakeDifficultyV1(curNode *blockNode) (int64, error) {
 	alpha := b.chainParams.StakeDiffAlpha
 	stakeDiffStartHeight := int64(b.chainParams.CoinbaseMaturity) +
 		1
