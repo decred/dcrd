@@ -956,7 +956,7 @@ func handleTooFewVoters(subsidyCache *blockchain.SubsidyCache,
 				// we should have the option of readding some
 				// transactions from this block, too.
 				topBlock, err :=
-					bm.GetTopBlockFromChain()
+					bm.chain.GetTopBlock()
 				if err != nil {
 					return nil, fmt.Errorf("failed to get top block from " +
 						"chain")
@@ -1784,7 +1784,7 @@ mempoolLoop:
 			// out.
 			// Decred TODO: This is super inefficient, this block should be
 			// cached and stored somewhere.
-			topBlock, err := blockManager.GetTopBlockFromChain()
+			topBlock, err := blockManager.chain.GetTopBlock()
 			if err != nil {
 				return nil, miningRuleError(ErrGetTopBlock, "couldn't get "+
 					"top block")
