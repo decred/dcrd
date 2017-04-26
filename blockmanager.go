@@ -186,21 +186,6 @@ type getBlockFromHashMsg struct {
 	reply chan getBlockFromHashResponse
 }
 
-// getGenerationResponse is a response sent to the reply channel of a
-// getGenerationMsg query.
-type getGenerationResponse struct {
-	hashes []chainhash.Hash
-	err    error
-}
-
-// getGenerationMsg is a message type to be sent across the message
-// channel for requesting the required the entire generation of a
-// block node.
-type getGenerationMsg struct {
-	hash  chainhash.Hash
-	reply chan getGenerationResponse
-}
-
 // forceReorganizationResponse is a response sent to the reply channel of a
 // forceReorganizationMsg query.
 type forceReorganizationResponse struct {
@@ -1825,13 +1810,6 @@ out:
 					err:   err,
 				}
 
-			case getGenerationMsg:
-				g, err := b.chain.GetGeneration(msg.hash)
-				msg.reply <- getGenerationResponse{
-					hashes: g,
-					err:    err,
-				}
-
 			case processBlockMsg:
 				onMainChain, isOrphan, err := b.chain.ProcessBlock(
 					msg.block, msg.flags)
@@ -2508,16 +2486,6 @@ func (b *blockManager) ForceReorganization(formerBest, newBest chainhash.Hash) e
 		reply:      reply}
 	response := <-reply
 	return response.err
-}
-
-// GetGeneration returns the hashes of all the children of a parent for the
-// block hash that is passed to the function. It is funneled through the block
-// manager since blockchain is not safe for concurrent access.
-func (b *blockManager) GetGeneration(h chainhash.Hash) ([]chainhash.Hash, error) {
-	reply := make(chan getGenerationResponse)
-	b.msgChan <- getGenerationMsg{hash: h, reply: reply}
-	response := <-reply
-	return response.hashes, response.err
 }
 
 // GetBlockFromHash returns a block for some hash from the block manager, so
