@@ -902,7 +902,8 @@ func handleTooFewVoters(subsidyCache *blockchain.SubsidyCache,
 					parentHash := cptCopy.Block.Header.PrevBlock
 
 					requiredDifficulty, err :=
-						bm.CalcNextRequiredDiffNode(&parentHash, ts)
+						bm.chain.CalcNextRequiredDiffFromNode(&parentHash,
+							ts)
 					if err != nil {
 						return nil, miningRuleError(ErrGettingDifficulty,
 							err.Error())
@@ -1004,7 +1005,8 @@ func handleTooFewVoters(subsidyCache *blockchain.SubsidyCache,
 					parentHash := topBlock.MsgBlock().Header.PrevBlock
 
 					requiredDifficulty, err :=
-						bm.CalcNextRequiredDiffNode(&parentHash, ts)
+						bm.chain.CalcNextRequiredDiffFromNode(&parentHash,
+							ts)
 					if err != nil {
 						return nil, miningRuleError(ErrGettingDifficulty,
 							err.Error())
