@@ -172,20 +172,6 @@ type calcNextReqStakeDifficultyMsg struct {
 	reply chan calcNextReqStakeDifficultyResponse
 }
 
-// getBlockFromHashResponse is a response sent to the reply channel of a
-// getBlockFromHashMsg query.
-type getBlockFromHashResponse struct {
-	block *dcrutil.Block
-	err   error
-}
-
-// getBlockFromHashMsg is a message type to be sent across the message
-// channel for requesting the required a given block from the block manager.
-type getBlockFromHashMsg struct {
-	hash  chainhash.Hash
-	reply chan getBlockFromHashResponse
-}
-
 // forceReorganizationResponse is a response sent to the reply channel of a
 // forceReorganizationMsg query.
 type forceReorganizationResponse struct {
@@ -1803,13 +1789,6 @@ out:
 					err: err,
 				}
 
-			case getBlockFromHashMsg:
-				b, err := b.chain.FetchBlockFromHash(&msg.hash)
-				msg.reply <- getBlockFromHashResponse{
-					block: b,
-					err:   err,
-				}
-
 			case processBlockMsg:
 				onMainChain, isOrphan, err := b.chain.ProcessBlock(
 					msg.block, msg.flags)
@@ -2486,16 +2465,6 @@ func (b *blockManager) ForceReorganization(formerBest, newBest chainhash.Hash) e
 		reply:      reply}
 	response := <-reply
 	return response.err
-}
-
-// GetBlockFromHash returns a block for some hash from the block manager, so
-// long as the block exists. It is funneled through the block manager since
-// blockchain is not safe for concurrent access.
-func (b *blockManager) GetBlockFromHash(h chainhash.Hash) (*dcrutil.Block, error) {
-	reply := make(chan getBlockFromHashResponse)
-	b.msgChan <- getBlockFromHashMsg{hash: h, reply: reply}
-	response := <-reply
-	return response.block, response.err
 }
 
 // ProcessBlock makes use of ProcessBlock on an internal instance of a block
