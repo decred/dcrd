@@ -3680,7 +3680,7 @@ func handleGetStakeDifficulty(s *rpcServer, cmd interface{}, closeChan <-chan st
 	}
 	currentSdiff := dcrutil.Amount(blockHeader.SBits)
 
-	nextSdiff, err := s.server.blockManager.CalcNextRequiredStakeDifficulty()
+	nextSdiff, err := s.chain.CalcNextRequiredStakeDifficulty()
 	if err != nil {
 		return nil, rpcInternalError("Could not calculate next stake "+
 			"difficulty "+err.Error(), "")
@@ -4527,7 +4527,7 @@ func handleRebroadcastMissed(s *rpcServer, cmd interface{}, closeChan <-chan str
 			err.Error(), "")
 	}
 
-	stakeDiff, err := s.server.blockManager.CalcNextRequiredStakeDifficulty()
+	stakeDiff, err := s.chain.CalcNextRequiredStakeDifficulty()
 	if err != nil {
 		return nil, rpcInternalError("Could not calculate next stake "+
 			"difficulty "+err.Error(), "")

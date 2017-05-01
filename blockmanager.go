@@ -143,19 +143,6 @@ type calcNextReqDifficultyMsg struct {
 	reply     chan calcNextReqDifficultyResponse
 }
 
-// calcNextReqStakeDifficultyResponse is a response sent to the reply channel of a
-// calcNextReqStakeDifficultyMsg query.
-type calcNextReqStakeDifficultyResponse struct {
-	stakeDifficulty int64
-	err             error
-}
-
-// calcNextReqStakeDifficultyMsg is a message type to be sent across the message
-// channel for requesting the required stake difficulty of the next block.
-type calcNextReqStakeDifficultyMsg struct {
-	reply chan calcNextReqStakeDifficultyResponse
-}
-
 // forceReorganizationResponse is a response sent to the reply channel of a
 // forceReorganizationMsg query.
 type forceReorganizationResponse struct {
@@ -1695,13 +1682,6 @@ out:
 					err: err,
 				}
 
-			case calcNextReqStakeDifficultyMsg:
-				stakeDiff, err := b.chain.CalcNextRequiredStakeDifficulty()
-				msg.reply <- calcNextReqStakeDifficultyResponse{
-					stakeDifficulty: stakeDiff,
-					err:             err,
-				}
-
 			case forceReorganizationMsg:
 				err := b.chain.ForceHeadReorganization(
 					msg.formerBest, msg.newBest)
@@ -2399,18 +2379,6 @@ func (b *blockManager) CalcNextRequiredDifficulty(timestamp time.Time) (uint32, 
 	b.msgChan <- calcNextReqDifficultyMsg{timestamp: timestamp, reply: reply}
 	response := <-reply
 	return response.difficulty, response.err
-}
-
-// CalcNextRequiredStakeDifficulty calculates the required Stake difficulty for
-// the next block after the current main chain.  This function makes use of
-// CalcNextRequiredStakeDifficulty on an internal instance of a block chain.  It is
-// funneled through the block manager since blockchain is not safe for concurrent
-// access.
-func (b *blockManager) CalcNextRequiredStakeDifficulty() (int64, error) {
-	reply := make(chan calcNextReqStakeDifficultyResponse)
-	b.msgChan <- calcNextReqStakeDifficultyMsg{reply: reply}
-	response := <-reply
-	return response.stakeDifficulty, response.err
 }
 
 // ForceReorganization returns the hashes of all the children of a parent for the
