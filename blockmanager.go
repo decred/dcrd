@@ -129,20 +129,6 @@ type requestFromPeerResponse struct {
 	err error
 }
 
-// calcNextReqDifficultyResponse is a response sent to the reply channel of a
-// calcNextReqDifficultyMsg query.
-type calcNextReqDifficultyResponse struct {
-	difficulty uint32
-	err        error
-}
-
-// calcNextReqDifficultyMsg is a message type to be sent across the message
-// channel for requesting the required difficulty of the next block.
-type calcNextReqDifficultyMsg struct {
-	timestamp time.Time
-	reply     chan calcNextReqDifficultyResponse
-}
-
 // forceReorganizationResponse is a response sent to the reply channel of a
 // forceReorganizationMsg query.
 type forceReorganizationResponse struct {
@@ -2367,18 +2353,6 @@ func (b *blockManager) requestFromPeer(p *serverPeer, blocks, txs []*chainhash.H
 	}
 
 	return nil
-}
-
-// CalcNextRequiredDifficulty calculates the required difficulty for the next
-// block after the current main chain.  This function makes use of
-// CalcNextRequiredDifficulty on an internal instance of a block chain.  It is
-// funneled through the block manager since blockchain is not safe for concurrent
-// access.
-func (b *blockManager) CalcNextRequiredDifficulty(timestamp time.Time) (uint32, error) {
-	reply := make(chan calcNextReqDifficultyResponse)
-	b.msgChan <- calcNextReqDifficultyMsg{timestamp: timestamp, reply: reply}
-	response := <-reply
-	return response.difficulty, response.err
 }
 
 // ForceReorganization returns the hashes of all the children of a parent for the
