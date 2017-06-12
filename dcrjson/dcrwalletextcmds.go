@@ -392,6 +392,11 @@ type RescanWalletCmd struct {
 type RevokeTicketsCmd struct {
 }
 
+// NewRevokeTicketsCmd creates a new RevokeTicketsCmd.
+func NewRevokeTicketsCmd() *RevokeTicketsCmd {
+	return &RevokeTicketsCmd{}
+}
+
 // SendToMultiSigCmd is a type handling custom marshaling and
 // unmarshaling of sendtomultisig JSON RPC commands.
 type SendToMultiSigCmd struct {
