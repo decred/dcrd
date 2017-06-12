@@ -388,6 +388,10 @@ type RescanWalletCmd struct {
 	BeginHeight *int `jsonrpcdefault:"0"`
 }
 
+// RevokeTicketsCmd describes the revoketickets JSON-RPC request and parameters.
+type RevokeTicketsCmd struct {
+}
+
 // SendToMultiSigCmd is a type handling custom marshaling and
 // unmarshaling of sendtomultisig JSON RPC commands.
 type SendToMultiSigCmd struct {
