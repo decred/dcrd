@@ -129,86 +129,6 @@ type requestFromPeerResponse struct {
 	err error
 }
 
-// checkConnectBlockMsg is a message type to be sent across the message channel
-// for requesting chain to check if a block connects to the end of the current
-// main chain.
-type checkConnectBlockMsg struct {
-	block *dcrutil.Block
-	reply chan error
-}
-
-// calcNextReqDifficultyResponse is a response sent to the reply channel of a
-// calcNextReqDifficultyMsg query.
-type calcNextReqDifficultyResponse struct {
-	difficulty uint32
-	err        error
-}
-
-// calcNextReqDifficultyMsg is a message type to be sent across the message
-// channel for requesting the required difficulty of the next block.
-type calcNextReqDifficultyMsg struct {
-	timestamp time.Time
-	reply     chan calcNextReqDifficultyResponse
-}
-
-// calcNextReqDiffNodeResponse is a response sent to the reply channel of a
-// calcNextReqDiffNodeMsg query.
-type calcNextReqDiffNodeResponse struct {
-	difficulty uint32
-	err        error
-}
-
-// calcNextReqDiffNodeMsg is a message type to be sent across the message
-// channel for requesting the required difficulty for some block building on
-// the given block hash.
-type calcNextReqDiffNodeMsg struct {
-	hash      *chainhash.Hash
-	timestamp time.Time
-	reply     chan calcNextReqDifficultyResponse
-}
-
-// calcNextReqStakeDifficultyResponse is a response sent to the reply channel of a
-// calcNextReqStakeDifficultyMsg query.
-type calcNextReqStakeDifficultyResponse struct {
-	stakeDifficulty int64
-	err             error
-}
-
-// calcNextReqStakeDifficultyMsg is a message type to be sent across the message
-// channel for requesting the required stake difficulty of the next block.
-type calcNextReqStakeDifficultyMsg struct {
-	reply chan calcNextReqStakeDifficultyResponse
-}
-
-// getBlockFromHashResponse is a response sent to the reply channel of a
-// getBlockFromHashMsg query.
-type getBlockFromHashResponse struct {
-	block *dcrutil.Block
-	err   error
-}
-
-// getBlockFromHashMsg is a message type to be sent across the message
-// channel for requesting the required a given block from the block manager.
-type getBlockFromHashMsg struct {
-	hash  chainhash.Hash
-	reply chan getBlockFromHashResponse
-}
-
-// getGenerationResponse is a response sent to the reply channel of a
-// getGenerationMsg query.
-type getGenerationResponse struct {
-	hashes []chainhash.Hash
-	err    error
-}
-
-// getGenerationMsg is a message type to be sent across the message
-// channel for requesting the required the entire generation of a
-// block node.
-type getGenerationMsg struct {
-	hash  chainhash.Hash
-	reply chan getGenerationResponse
-}
-
 // forceReorganizationResponse is a response sent to the reply channel of a
 // forceReorganizationMsg query.
 type forceReorganizationResponse struct {
@@ -222,20 +142,6 @@ type forceReorganizationMsg struct {
 	formerBest chainhash.Hash
 	newBest    chainhash.Hash
 	reply      chan forceReorganizationResponse
-}
-
-// getTopBlockResponse is a response to the request for the block at HEAD of the
-// blockchain. We need to be able to obtain this from blockChain for mining
-// purposes.
-type getTopBlockResponse struct {
-	block *dcrutil.Block
-	err   error
-}
-
-// getTopBlockMsg is a message type to be sent across the message
-// channel for requesting the required stake difficulty of the next block.
-type getTopBlockMsg struct {
-	reply chan getTopBlockResponse
 }
 
 // processBlockResponse is a response sent to the reply channel of a
@@ -1761,27 +1667,6 @@ out:
 					err: err,
 				}
 
-			case checkConnectBlockMsg:
-				// fmt.Printf("%v\n", blockchain.DebugBlockString(msg.block))
-				err := b.chain.CheckConnectBlock(msg.block)
-				msg.reply <- err
-
-			case calcNextReqDiffNodeMsg:
-				difficulty, err :=
-					b.chain.CalcNextRequiredDiffFromNode(msg.hash,
-						msg.timestamp)
-				msg.reply <- calcNextReqDifficultyResponse{
-					difficulty: difficulty,
-					err:        err,
-				}
-
-			case calcNextReqStakeDifficultyMsg:
-				stakeDiff, err := b.chain.CalcNextRequiredStakeDifficulty()
-				msg.reply <- calcNextReqStakeDifficultyResponse{
-					stakeDifficulty: stakeDiff,
-					err:             err,
-				}
-
 			case forceReorganizationMsg:
 				err := b.chain.ForceHeadReorganization(
 					msg.formerBest, msg.newBest)
@@ -1842,27 +1727,6 @@ out:
 
 				msg.reply <- forceReorganizationResponse{
 					err: err,
-				}
-
-			case getBlockFromHashMsg:
-				b, err := b.chain.FetchBlockFromHash(&msg.hash)
-				msg.reply <- getBlockFromHashResponse{
-					block: b,
-					err:   err,
-				}
-
-			case getGenerationMsg:
-				g, err := b.chain.GetGeneration(msg.hash)
-				msg.reply <- getGenerationResponse{
-					hashes: g,
-					err:    err,
-				}
-
-			case getTopBlockMsg:
-				b, err := b.chain.GetTopBlock()
-				msg.reply <- getTopBlockResponse{
-					block: b,
-					err:   err,
 				}
 
 			case processBlockMsg:
@@ -2490,56 +2354,6 @@ func (b *blockManager) requestFromPeer(p *serverPeer, blocks, txs []*chainhash.H
 	return nil
 }
 
-// CheckConnectBlock performs several checks to confirm connecting the passed
-// block to the main chain does not violate any rules.  This function makes use
-// of CheckConnectBlock on an internal instance of a block chain.  It is funneled
-// through the block manager since blockchain is not safe for concurrent access.
-func (b *blockManager) CheckConnectBlock(block *dcrutil.Block) error {
-	reply := make(chan error)
-	b.msgChan <- checkConnectBlockMsg{block: block, reply: reply}
-	return <-reply
-}
-
-// CalcNextRequiredDifficulty calculates the required difficulty for the next
-// block after the current main chain.  This function makes use of
-// CalcNextRequiredDifficulty on an internal instance of a block chain.  It is
-// funneled through the block manager since blockchain is not safe for concurrent
-// access.
-func (b *blockManager) CalcNextRequiredDifficulty(timestamp time.Time) (uint32, error) {
-	reply := make(chan calcNextReqDifficultyResponse)
-	b.msgChan <- calcNextReqDifficultyMsg{timestamp: timestamp, reply: reply}
-	response := <-reply
-	return response.difficulty, response.err
-}
-
-// CalcNextRequiredDiffNode calculates the required difficulty for the next
-// block after the passed block hash.  This function makes use of
-// CalcNextRequiredDiffFromNode on an internal instance of a block chain.  It is
-// funneled through the block manager since blockchain is not safe for concurrent
-// access.
-func (b *blockManager) CalcNextRequiredDiffNode(hash *chainhash.Hash, timestamp time.Time) (uint32, error) {
-	reply := make(chan calcNextReqDifficultyResponse)
-	b.msgChan <- calcNextReqDiffNodeMsg{
-		hash:      hash,
-		timestamp: timestamp,
-		reply:     reply,
-	}
-	response := <-reply
-	return response.difficulty, response.err
-}
-
-// CalcNextRequiredStakeDifficulty calculates the required Stake difficulty for
-// the next block after the current main chain.  This function makes use of
-// CalcNextRequiredStakeDifficulty on an internal instance of a block chain.  It is
-// funneled through the block manager since blockchain is not safe for concurrent
-// access.
-func (b *blockManager) CalcNextRequiredStakeDifficulty() (int64, error) {
-	reply := make(chan calcNextReqStakeDifficultyResponse)
-	b.msgChan <- calcNextReqStakeDifficultyMsg{reply: reply}
-	response := <-reply
-	return response.stakeDifficulty, response.err
-}
-
 // ForceReorganization returns the hashes of all the children of a parent for the
 // block hash that is passed to the function. It is funneled through the block
 // manager since blockchain is not safe for concurrent access.
@@ -2551,35 +2365,6 @@ func (b *blockManager) ForceReorganization(formerBest, newBest chainhash.Hash) e
 		reply:      reply}
 	response := <-reply
 	return response.err
-}
-
-// GetGeneration returns the hashes of all the children of a parent for the
-// block hash that is passed to the function. It is funneled through the block
-// manager since blockchain is not safe for concurrent access.
-func (b *blockManager) GetGeneration(h chainhash.Hash) ([]chainhash.Hash, error) {
-	reply := make(chan getGenerationResponse)
-	b.msgChan <- getGenerationMsg{hash: h, reply: reply}
-	response := <-reply
-	return response.hashes, response.err
-}
-
-// GetBlockFromHash returns a block for some hash from the block manager, so
-// long as the block exists. It is funneled through the block manager since
-// blockchain is not safe for concurrent access.
-func (b *blockManager) GetBlockFromHash(h chainhash.Hash) (*dcrutil.Block, error) {
-	reply := make(chan getBlockFromHashResponse)
-	b.msgChan <- getBlockFromHashMsg{hash: h, reply: reply}
-	response := <-reply
-	return response.block, response.err
-}
-
-// GetTopBlockFromChain obtains the current top block from HEAD of the blockchain.
-// Returns a pointer to the cached copy of the block in memory.
-func (b *blockManager) GetTopBlockFromChain() (*dcrutil.Block, error) {
-	reply := make(chan getTopBlockResponse)
-	b.msgChan <- getTopBlockMsg{reply: reply}
-	response := <-reply
-	return response.block, response.err
 }
 
 // ProcessBlock makes use of ProcessBlock on an internal instance of a block

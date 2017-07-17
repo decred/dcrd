@@ -902,7 +902,8 @@ func handleTooFewVoters(subsidyCache *blockchain.SubsidyCache,
 					parentHash := cptCopy.Block.Header.PrevBlock
 
 					requiredDifficulty, err :=
-						bm.CalcNextRequiredDiffNode(&parentHash, ts)
+						bm.chain.CalcNextRequiredDiffFromNode(&parentHash,
+							ts)
 					if err != nil {
 						return nil, miningRuleError(ErrGettingDifficulty,
 							err.Error())
@@ -937,7 +938,7 @@ func handleTooFewVoters(subsidyCache *blockchain.SubsidyCache,
 						err.Error())
 				}
 
-				if err := bm.CheckConnectBlock(block); err != nil {
+				if err := bm.chain.CheckConnectBlock(block); err != nil {
 					minrLog.Errorf("failed to check template while "+
 						"duplicating a parent: %v", err.Error())
 					return nil, miningRuleError(ErrCheckConnectBlock,
@@ -956,7 +957,7 @@ func handleTooFewVoters(subsidyCache *blockchain.SubsidyCache,
 				// we should have the option of readding some
 				// transactions from this block, too.
 				topBlock, err :=
-					bm.GetTopBlockFromChain()
+					bm.chain.GetTopBlock()
 				if err != nil {
 					return nil, fmt.Errorf("failed to get top block from " +
 						"chain")
@@ -1004,7 +1005,8 @@ func handleTooFewVoters(subsidyCache *blockchain.SubsidyCache,
 					parentHash := topBlock.MsgBlock().Header.PrevBlock
 
 					requiredDifficulty, err :=
-						bm.CalcNextRequiredDiffNode(&parentHash, ts)
+						bm.chain.CalcNextRequiredDiffFromNode(&parentHash,
+							ts)
 					if err != nil {
 						return nil, miningRuleError(ErrGettingDifficulty,
 							err.Error())
@@ -1046,7 +1048,7 @@ func handleTooFewVoters(subsidyCache *blockchain.SubsidyCache,
 						str)
 				}
 
-				if err := bm.CheckConnectBlock(btBlock); err != nil {
+				if err := bm.chain.CheckConnectBlock(btBlock); err != nil {
 					str := fmt.Sprintf("failed to check template: %v while "+
 						"constructing a new parent", err.Error())
 					return nil, miningRuleError(ErrCheckConnectBlock,
@@ -1248,7 +1250,7 @@ func NewBlockTemplate(policy *mining.Policy, server *server,
 
 	if nextBlockHeight >= stakeValidationHeight {
 		// Obtain the entire generation of blocks stemming from this parent.
-		children, err := blockManager.GetGeneration(*prevHash)
+		children, err := blockManager.chain.GetGeneration(*prevHash)
 		if err != nil {
 			return nil, miningRuleError(ErrFailedToGetGeneration, err.Error())
 		}
@@ -1784,7 +1786,7 @@ mempoolLoop:
 			// out.
 			// Decred TODO: This is super inefficient, this block should be
 			// cached and stored somewhere.
-			topBlock, err := blockManager.GetTopBlockFromChain()
+			topBlock, err := blockManager.chain.GetTopBlock()
 			if err != nil {
 				return nil, miningRuleError(ErrGetTopBlock, "couldn't get "+
 					"top block")
