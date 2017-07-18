@@ -729,6 +729,41 @@ func (b *BlockChain) findNode(nodeHash *chainhash.Hash, searchDepth int) (*block
 	return node, err
 }
 
+// InMainChain() uses findNode() to determine whether a block exists in the
+// main chain.
+func (b *BlockChain) InMainChain(h *chainhash.Hash) (bool, error) {
+	_, err := b.findNode(h)
+	if err != nil {
+		// There is no distinction, at this point, between an
+		// inexistent block and a block in a side chain. Such
+		// distinction can be made by the caller through
+		// BlockHeightByHash(). If a block has a height, and
+		// InMainChain() returns false, then the block must
+		// exist in a side chain.
+		return false, err
+	}
+	// findNode() only inspects the main chain. Therefore, if it finds a
+	// block, the block must exist in the main chain.
+	return true, nil
+}
+
+func (b *BlockChain) FindForkPoint(h *chainhash.Hash) (*chainhash.Hash, error) {
+	node, err := b.findNode(h)
+	if err != nil {
+		return nil, err
+	}
+	for node != nil {
+		if node.inMainChain == false {
+			return &node.hash, nil
+		}
+		node, err = b.getPrevNodeFromNode(node)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return nil, nil
+}
+
 // getPrevNodeFromBlock returns a block node for the block previous to the
 // passed block (the passed block's parent).  When it is already in the memory
 // block chain, it simply returns it.  Otherwise, it loads the previous block
@@ -869,7 +904,7 @@ func (b *BlockChain) fetchBlockFromHash(hash *chainhash.Hash) (*dcrutil.Block,
 }
 
 // FetchBlockFromHash is the generalized and exported version of
-// fetchBlockFromHash.  It is safe for concurrent access.
+// fetchBlockFromHash.  It is NOT safe for concurrent access.
 func (b *BlockChain) FetchBlockFromHash(hash *chainhash.Hash) (*dcrutil.Block,
 	error) {
 	return b.fetchBlockFromHash(hash)

@@ -757,7 +757,10 @@ func (s *server) locateBlocks(locators []*chainhash.Hash, hashStop *chainhash.Ha
 	endIdx := int64(math.MaxInt64)
 	height, err := chain.BlockHeightByHash(hashStop)
 	if err == nil {
-		endIdx = height + 1
+		inMain, err := chain.InMainChain(hashStop)
+		if err == nil && inMain == true {
+			endIdx = height + 1
+		}
 	}
 
 	// There are no block locators so a specific header is being requested
@@ -785,6 +788,17 @@ func (s *server) locateBlocks(locators []*chainhash.Hash, hashStop *chainhash.Ha
 			// Start with the next hash since we know this one.
 			startIdx = height + 1
 			break
+		}
+	}
+
+	hashStart, err := chain.BlockHashByHeight(startIdx)
+	if err == nil {
+		hashFork, err := chain.FindForkPoint(hashStart)
+		if err == nil {
+			height, err := chain.BlockHeightByHash(hashFork)
+			if err == nil {
+				startIdx = height + 1
+			}
 		}
 	}
 
