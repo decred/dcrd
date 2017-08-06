@@ -448,13 +448,8 @@ func loadConfig() (*config, []string, error) {
 	var configFileError error
 	parser := newConfigParser(&cfg, &serviceOpts, flags.Default)
 	if !(preCfg.SimNet) || cfg.ConfigFile != defaultConfigFile {
-
 		if _, err := os.Stat(cfg.ConfigFile); os.IsNotExist(err) {
-			err := createDefaultConfigFile(cfg.ConfigFile)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "Error creating a "+
-					"default config file: %v\n", err)
-			}
+			configFileError = err
 		}
 
 		err := flags.NewIniParser(parser).ParseFile(cfg.ConfigFile)
@@ -1013,6 +1008,8 @@ func loadConfig() (*config, []string, error) {
 	// options.  Note this should go directly before the return.
 	if configFileError != nil {
 		dcrdLog.Warnf("%v", configFileError)
+		cfg.ConfigFile = defaultConfigFile
+		dcrdLog.Warnf("%s", "Reverting to the default config...")
 	}
 
 	return &cfg, remainingArgs, nil
