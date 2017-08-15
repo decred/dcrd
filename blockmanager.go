@@ -25,6 +25,7 @@ import (
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/dcrd/fees"
 	"github.com/decred/dcrd/mempool/v2"
+	peerpkg "github.com/decred/dcrd/peer"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -72,46 +73,48 @@ var zeroHash chainhash.Hash
 
 // newPeerMsg signifies a newly connected peer to the block handler.
 type newPeerMsg struct {
-	peer *serverPeer
+	peer *peerpkg.Peer
 }
 
 // blockMsg packages a Decred block message and the peer it came from together
 // so the block handler has access to that information.
 type blockMsg struct {
 	block *dcrutil.Block
-	peer  *serverPeer
+	peer  *peerpkg.Peer
+	reply chan struct{}
 }
 
 // invMsg packages a Decred inv message and the peer it came from together
 // so the block handler has access to that information.
 type invMsg struct {
 	inv  *wire.MsgInv
-	peer *serverPeer
+	peer *peerpkg.Peer
 }
 
 // headersMsg packages a Decred headers message and the peer it came from
 // together so the block handler has access to that information.
 type headersMsg struct {
 	headers *wire.MsgHeaders
-	peer    *serverPeer
+	peer    *peerpkg.Peer
 }
 
 // donePeerMsg signifies a newly disconnected peer to the block handler.
 type donePeerMsg struct {
-	peer *serverPeer
+	peer *peerpkg.Peer
 }
 
 // txMsg packages a Decred tx message and the peer it came from together
 // so the block handler has access to that information.
 type txMsg struct {
-	tx   *dcrutil.Tx
-	peer *serverPeer
+	tx    *dcrutil.Tx
+	peer  *peerpkg.Peer
+	reply chan struct{}
 }
 
 // getSyncPeerMsg is a message type to be sent across the message channel for
 // retrieving the current sync peer.
 type getSyncPeerMsg struct {
-	reply chan *serverPeer
+	reply chan int32
 }
 
 // requestFromPeerMsg is a message type to be sent across the message channel
@@ -303,7 +306,7 @@ type PeerNotifier interface {
 
 	// UpdatePeerHeights updates the heights of all peers who have have
 	// announced the latest connected main chain block, or a recognized orphan.
-	UpdatePeerHeights(latestBlkHash *chainhash.Hash, latestHeight int64, updateSource *serverPeer)
+	UpdatePeerHeights(latestBlkHash *chainhash.Hash, latestHeight int64, updateSource *peerpkg.Peer)
 
 	// RelayInventory relays the passed inventory vector to all connected peers
 	// that are not already known to have it.
@@ -335,20 +338,32 @@ type blockManagerConfig struct {
 	PruneRebroadcastInventory func()
 }
 
+// peerSyncState stores additional information that the blockManager tracks
+// about a peer.
+type peerSyncState struct {
+	syncCandidate   bool
+	requestQueue    []*wire.InvVect
+	requestedTxns   map[chainhash.Hash]struct{}
+	requestedBlocks map[chainhash.Hash]struct{}
+}
+
 // blockManager provides a concurrency safe block manager for handling all
 // incoming blocks.
 type blockManager struct {
-	cfg             *blockManagerConfig
-	started         int32
-	shutdown        int32
+	cfg            *blockManagerConfig
+	started        int32
+	shutdown       int32
+	progressLogger *blockProgressLogger
+	msgChan        chan interface{}
+	wg             sync.WaitGroup
+	quit           chan struct{}
+
+	// These fields should only be accessed from the blockHandler thread.
 	rejectedTxns    map[chainhash.Hash]struct{}
 	requestedTxns   map[chainhash.Hash]struct{}
 	requestedBlocks map[chainhash.Hash]struct{}
-	progressLogger  *blockProgressLogger
-	syncPeer        *serverPeer
-	msgChan         chan interface{}
-	wg              sync.WaitGroup
-	quit            chan struct{}
+	syncPeer        *peerpkg.Peer
+	peerStates      map[*peerpkg.Peer]*peerSyncState
 
 	// The following fields are used for headers-first mode.
 	headersFirstMode bool
@@ -437,36 +452,36 @@ func (b *blockManager) findNextHeaderCheckpoint(height int64) *chaincfg.Checkpoi
 // download/sync the blockchain from.  When syncing is already running, it
 // simply returns.  It also examines the candidates for any which are no longer
 // candidates and removes them as needed.
-func (b *blockManager) startSync(peers *list.List) {
+func (b *blockManager) startSync() {
 	// Return now if we're already syncing.
 	if b.syncPeer != nil {
 		return
 	}
 
 	best := b.cfg.Chain.BestSnapshot()
-	var bestPeer *serverPeer
-	var enext *list.Element
-	for e := peers.Front(); e != nil; e = enext {
-		enext = e.Next()
-		sp := e.Value.(*serverPeer)
+	var bestPeer *peerpkg.Peer
+	for peer, state := range b.peerStates {
+		if !state.syncCandidate {
+			continue
+		}
 
 		// Remove sync candidate peers that are no longer candidates due
 		// to passing their latest known block.  NOTE: The < is
-		// intentional as opposed to <=.  While techcnically the peer
+		// intentional as opposed to <=.  While technically the peer
 		// doesn't have a later block when it's equal, it will likely
 		// have one soon so it is a reasonable choice.  It also allows
 		// the case where both are at 0 such as during regression test.
-		if sp.LastBlock() < best.Height {
-			peers.Remove(e)
+		if peer.LastBlock() < best.Height {
+			state.syncCandidate = false
 			continue
 		}
 
 		// the best sync candidate is the most updated peer
 		if bestPeer == nil {
-			bestPeer = sp
+			bestPeer = peer
 		}
-		if bestPeer.LastBlock() < sp.LastBlock() {
-			bestPeer = sp
+		if bestPeer.LastBlock() < peer.LastBlock() {
+			bestPeer = peer
 		}
 	}
 
@@ -537,24 +552,24 @@ func (b *blockManager) startSync(peers *list.List) {
 
 // isSyncCandidate returns whether or not the peer is a candidate to consider
 // syncing from.
-func (b *blockManager) isSyncCandidate(sp *serverPeer) bool {
+func (b *blockManager) isSyncCandidate(peer *peerpkg.Peer) bool {
 	// The peer is not a candidate for sync if it's not a full node.
-	return sp.Services()&wire.SFNodeNetwork == wire.SFNodeNetwork
+	return peer.Services()&wire.SFNodeNetwork == wire.SFNodeNetwork
 }
 
 // syncMiningStateAfterSync polls the blockMananger for the current sync
 // state; if the mananger is synced, it executes a call to the peer to
 // sync the mining state to the network.
-func (b *blockManager) syncMiningStateAfterSync(sp *serverPeer) {
+func (b *blockManager) syncMiningStateAfterSync(peer *peerpkg.Peer) {
 	go func() {
 		for {
 			time.Sleep(3 * time.Second)
-			if !sp.Connected() {
+			if !peer.Connected() {
 				return
 			}
 			if b.IsCurrent() {
 				msg := wire.NewMsgGetMiningState()
-				sp.QueueMessage(msg, nil)
+				peer.QueueMessage(msg, nil)
 				return
 			}
 		}
@@ -564,28 +579,28 @@ func (b *blockManager) syncMiningStateAfterSync(sp *serverPeer) {
 // handleNewPeerMsg deals with new peers that have signalled they may
 // be considered as a sync peer (they have already successfully negotiated).  It
 // also starts syncing if needed.  It is invoked from the syncHandler goroutine.
-func (b *blockManager) handleNewPeerMsg(peers *list.List, sp *serverPeer) {
+func (b *blockManager) handleNewPeerMsg(peer *peerpkg.Peer) {
 	// Ignore if in the process of shutting down.
 	if atomic.LoadInt32(&b.shutdown) != 0 {
 		return
 	}
 
-	bmgrLog.Infof("New valid peer %s (%s)", sp, sp.UserAgent())
+	bmgrLog.Infof("New valid peer %s (%s)", peer, peer.UserAgent())
 
-	// Ignore the peer if it's not a sync candidate.
-	if !b.isSyncCandidate(sp) {
-		return
+	// Initialize the peer state
+	isSyncCandidate := b.isSyncCandidate(peer)
+	b.peerStates[peer] = &peerSyncState{
+		syncCandidate:   isSyncCandidate,
+		requestedTxns:   make(map[chainhash.Hash]struct{}),
+		requestedBlocks: make(map[chainhash.Hash]struct{}),
 	}
 
-	// Add the peer as a candidate to sync from.
-	peers.PushBack(sp)
-
 	// Start syncing by choosing the best candidate if needed.
-	b.startSync(peers)
+	b.startSync()
 
 	// Grab the mining state from this peer after we're synced.
 	if !cfg.NoMiningStateSync {
-		b.syncMiningStateAfterSync(sp)
+		b.syncMiningStateAfterSync(peer)
 	}
 }
 
@@ -593,46 +608,54 @@ func (b *blockManager) handleNewPeerMsg(peers *list.List, sp *serverPeer) {
 // removes the peer as a candidate for syncing and in the case where it was
 // the current sync peer, attempts to select a new best peer to sync from.  It
 // is invoked from the syncHandler goroutine.
-func (b *blockManager) handleDonePeerMsg(peers *list.List, sp *serverPeer) {
-	// Remove the peer from the list of candidate peers.
-	for e := peers.Front(); e != nil; e = e.Next() {
-		if e.Value == sp {
-			peers.Remove(e)
-			break
-		}
+func (b *blockManager) handleDonePeerMsg(peer *peerpkg.Peer) {
+	state, exists := b.peerStates[peer]
+	if !exists {
+		bmgrLog.Warnf("Received done peer message for unknown peer %s", peer)
+		return
 	}
 
-	bmgrLog.Infof("Lost peer %s", sp)
+	// Remove the peer from the list of candidate peers.
+	delete(b.peerStates, peer)
+
+	bmgrLog.Infof("Lost peer %s", peer)
 
 	// Remove requested transactions from the global map so that they will
 	// be fetched from elsewhere next time we get an inv.
-	for k := range sp.requestedTxns {
-		delete(b.requestedTxns, k)
+	for txHash := range state.requestedTxns {
+		delete(b.requestedTxns, txHash)
 	}
 
 	// Remove requested blocks from the global map so that they will be
 	// fetched from elsewhere next time we get an inv.
 	// TODO(oga) we could possibly here check which peers have these blocks
 	// and request them now to speed things up a little.
-	for k := range sp.requestedBlocks {
-		delete(b.requestedBlocks, k)
+	for blockHash := range state.requestedBlocks {
+		delete(b.requestedBlocks, blockHash)
 	}
 
 	// Attempt to find a new peer to sync from if the quitting peer is the
 	// sync peer.  Also, reset the headers-first state if in headers-first
 	// mode so
-	if b.syncPeer != nil && b.syncPeer == sp {
+	if b.syncPeer != nil && b.syncPeer == peer {
 		b.syncPeer = nil
 		if b.headersFirstMode {
 			best := b.cfg.Chain.BestSnapshot()
 			b.resetHeaderState(&best.Hash, best.Height)
 		}
-		b.startSync(peers)
+		b.startSync()
 	}
 }
 
 // handleTxMsg handles transaction messages from all peers.
 func (b *blockManager) handleTxMsg(tmsg *txMsg) {
+	peer := tmsg.peer
+	state, exists := b.peerStates[peer]
+	if !exists {
+		bmgrLog.Warnf("Received tx message from unknown peer %s", peer)
+		return
+	}
+
 	// NOTE:  BitcoinJ, and possibly other wallets, don't follow the spec of
 	// sending an inventory message and allowing the remote peer to decide
 	// whether or not they want to request the transaction via a getdata
@@ -646,9 +669,9 @@ func (b *blockManager) handleTxMsg(tmsg *txMsg) {
 	// Ignore transactions that we have already rejected.  Do not
 	// send a reject message here because if the transaction was already
 	// rejected, the transaction was unsolicited.
-	if _, exists := b.rejectedTxns[*txHash]; exists {
+	if _, exists = b.rejectedTxns[*txHash]; exists {
 		bmgrLog.Debugf("Ignoring unsolicited previously rejected "+
-			"transaction %v from %s", txHash, tmsg.peer)
+			"transaction %v from %s", txHash, peer)
 		return
 	}
 
@@ -662,7 +685,7 @@ func (b *blockManager) handleTxMsg(tmsg *txMsg) {
 	// already knows about it and as such we shouldn't have any more
 	// instances of trying to fetch it, or we failed to insert and thus
 	// we'll retry next time we get an inv.
-	delete(tmsg.peer.requestedTxns, *txHash)
+	delete(state.requestedTxns, *txHash)
 	delete(b.requestedTxns, *txHash)
 
 	if err != nil {
@@ -677,7 +700,7 @@ func (b *blockManager) handleTxMsg(tmsg *txMsg) {
 		// so log it as an actual error.
 		if _, ok := err.(mempool.RuleError); ok {
 			bmgrLog.Debugf("Rejected transaction %v from %s: %v",
-				txHash, tmsg.peer, err)
+				txHash, peer, err)
 		} else {
 			bmgrLog.Errorf("Failed to process transaction %v: %v",
 				txHash, err)
@@ -686,8 +709,7 @@ func (b *blockManager) handleTxMsg(tmsg *txMsg) {
 		// Convert the error into an appropriate reject message and
 		// send it.
 		code, reason := mempool.ErrToRejectErr(err)
-		tmsg.peer.PushRejectMsg(wire.CmdTx, code, reason, txHash,
-			false)
+		peer.PushRejectMsg(wire.CmdTx, code, reason, txHash, false)
 		return
 	}
 
@@ -890,9 +912,16 @@ func (b *blockManager) checkBlockForHiddenVotes(block *dcrutil.Block) {
 
 // handleBlockMsg handles block messages from all peers.
 func (b *blockManager) handleBlockMsg(bmsg *blockMsg) {
+	peer := bmsg.peer
+	state, exists := b.peerStates[peer]
+	if !exists {
+		bmgrLog.Warnf("Received block message from unknown peer %s", peer)
+		return
+	}
+
 	// If we didn't ask for this block then the peer is misbehaving.
 	blockHash := bmsg.block.Hash()
-	if _, exists := bmsg.peer.requestedBlocks[*blockHash]; !exists {
+	if _, exists := state.requestedBlocks[*blockHash]; !exists {
 		bmgrLog.Warnf("Got unrequested block %v from %s -- "+
 			"disconnecting", blockHash, bmsg.peer.Addr())
 		bmsg.peer.Disconnect()
@@ -926,7 +955,7 @@ func (b *blockManager) handleBlockMsg(bmsg *blockMsg) {
 	// Remove block from request maps. Either chain will know about it and
 	// so we shouldn't have any more instances of trying to fetch it, or we
 	// will fail the insert and thus we'll retry next time we get an inv.
-	delete(bmsg.peer.requestedBlocks, *blockHash)
+	delete(state.requestedBlocks, *blockHash)
 	delete(b.requestedBlocks, *blockHash)
 
 	// Process the block to include validation, best chain selection, orphan
@@ -940,7 +969,7 @@ func (b *blockManager) handleBlockMsg(bmsg *blockMsg) {
 		// it as an actual error.
 		if _, ok := err.(blockchain.RuleError); ok {
 			bmgrLog.Infof("Rejected block %v from %s: %v", blockHash,
-				bmsg.peer, err)
+				peer, err)
 		} else {
 			bmgrLog.Errorf("Failed to process block %v: %v",
 				blockHash, err)
@@ -953,8 +982,7 @@ func (b *blockManager) handleBlockMsg(bmsg *blockMsg) {
 		// Convert the error into an appropriate reject message and
 		// send it.
 		code, reason := mempool.ErrToRejectErr(err)
-		bmsg.peer.PushRejectMsg(wire.CmdBlock, code, reason,
-			blockHash, false)
+		peer.PushRejectMsg(wire.CmdBlock, code, reason, blockHash, false)
 		return
 	}
 
@@ -988,7 +1016,7 @@ func (b *blockManager) handleBlockMsg(bmsg *blockMsg) {
 			bmgrLog.Warnf("Failed to get block locator for the "+
 				"latest block: %v", err)
 		} else {
-			err = bmsg.peer.PushGetBlocksMsg(locator, orphanRoot)
+			err = peer.PushGetBlocksMsg(locator, orphanRoot)
 			if err != nil {
 				bmgrLog.Warnf("Failed to push getblocksmsg for the "+
 					"latest block: %v", err)
@@ -1030,10 +1058,10 @@ func (b *blockManager) handleBlockMsg(bmsg *blockMsg) {
 	// chain is "current". This avoids sending a spammy amount of messages
 	// if we're syncing the chain from scratch.
 	if blkHashUpdate != nil && heightUpdate != 0 {
-		bmsg.peer.UpdateLastBlockHeight(heightUpdate)
+		peer.UpdateLastBlockHeight(heightUpdate)
 		if isOrphan || b.current() {
-			go b.cfg.PeerNotifier.UpdatePeerHeights(blkHashUpdate, heightUpdate,
-				bmsg.peer)
+			go b.cfg.PeerNotifier.UpdatePeerHeights(blkHashUpdate,
+				heightUpdate, peer)
 		}
 	}
 
@@ -1047,7 +1075,7 @@ func (b *blockManager) handleBlockMsg(bmsg *blockMsg) {
 	// getting short.
 	if !isCheckpointBlock {
 		if b.startHeader != nil &&
-			len(bmsg.peer.requestedBlocks) < minInFlightBlocks {
+			len(state.requestedBlocks) < minInFlightBlocks {
 			b.fetchHeaderBlocks()
 		}
 		return
@@ -1062,10 +1090,10 @@ func (b *blockManager) handleBlockMsg(bmsg *blockMsg) {
 	b.nextCheckpoint = b.findNextHeaderCheckpoint(prevHeight)
 	if b.nextCheckpoint != nil {
 		locator := blockchain.BlockLocator([]*chainhash.Hash{prevHash})
-		err := bmsg.peer.PushGetHeadersMsg(locator, b.nextCheckpoint.Hash)
+		err := peer.PushGetHeadersMsg(locator, b.nextCheckpoint.Hash)
 		if err != nil {
 			bmgrLog.Warnf("Failed to send getheaders message to "+
-				"peer %s: %v", bmsg.peer.Addr(), err)
+				"peer %s: %v", peer.Addr(), err)
 			return
 		}
 		bmgrLog.Infof("Downloading headers for blocks %d to %d from "+
@@ -1081,10 +1109,10 @@ func (b *blockManager) handleBlockMsg(bmsg *blockMsg) {
 	b.headerList.Init()
 	bmgrLog.Infof("Reached the final checkpoint -- switching to normal mode")
 	locator := blockchain.BlockLocator([]*chainhash.Hash{blockHash})
-	err = bmsg.peer.PushGetBlocksMsg(locator, &zeroHash)
+	err = peer.PushGetBlocksMsg(locator, &zeroHash)
 	if err != nil {
 		bmgrLog.Warnf("Failed to send getblocks message to peer %s: %v",
-			bmsg.peer.Addr(), err)
+			peer.Addr(), err)
 		return
 	}
 }
@@ -1119,8 +1147,8 @@ func (b *blockManager) fetchHeaderBlocks() {
 			continue
 		}
 		if !haveInv {
-			b.requestedBlocks[*node.hash] = struct{}{}
-			b.syncPeer.requestedBlocks[*node.hash] = struct{}{}
+			syncPeerState := b.peerStates[b.syncPeer]
+			syncPeerState.requestedBlocks[*node.hash] = struct{}{}
 			err = gdmsg.AddInvVect(iv)
 			if err != nil {
 				bmgrLog.Warnf("Failed to add invvect while fetching "+
@@ -1140,13 +1168,20 @@ func (b *blockManager) fetchHeaderBlocks() {
 
 // handleHeadersMsg handles headers messages from all peers.
 func (b *blockManager) handleHeadersMsg(hmsg *headersMsg) {
+	peer := hmsg.peer
+	_, exists := b.peerStates[peer]
+	if !exists {
+		bmgrLog.Warnf("Received headers message from unknown peer %s", peer)
+		return
+	}
+
 	// The remote peer is misbehaving if we didn't request headers.
 	msg := hmsg.headers
 	numHeaders := len(msg.Headers)
 	if !b.headersFirstMode {
 		bmgrLog.Warnf("Got %d unrequested headers from %s -- "+
-			"disconnecting", numHeaders, hmsg.peer.Addr())
-		hmsg.peer.Disconnect()
+			"disconnecting", numHeaders, peer.Addr())
+		peer.Disconnect()
 		return
 	}
 
@@ -1168,7 +1203,7 @@ func (b *blockManager) handleHeadersMsg(hmsg *headersMsg) {
 		if prevNodeEl == nil {
 			bmgrLog.Warnf("Header list does not contain a previous" +
 				"element as expected -- disconnecting peer")
-			hmsg.peer.Disconnect()
+			peer.Disconnect()
 			return
 		}
 
@@ -1185,8 +1220,8 @@ func (b *blockManager) handleHeadersMsg(hmsg *headersMsg) {
 		} else {
 			bmgrLog.Warnf("Received block header that does not "+
 				"properly connect to the chain from peer %s "+
-				"-- disconnecting", hmsg.peer.Addr())
-			hmsg.peer.Disconnect()
+				"-- disconnecting", peer.Addr())
+			peer.Disconnect()
 			return
 		}
 
@@ -1201,10 +1236,9 @@ func (b *blockManager) handleHeadersMsg(hmsg *headersMsg) {
 				bmgrLog.Warnf("Block header at height %d/hash "+
 					"%s from peer %s does NOT match "+
 					"expected checkpoint hash of %s -- "+
-					"disconnecting", node.height,
-					node.hash, hmsg.peer.Addr(),
-					b.nextCheckpoint.Hash)
-				hmsg.peer.Disconnect()
+					"disconnecting", node.height, node.hash,
+					peer.Addr(), b.nextCheckpoint.Hash)
+				peer.Disconnect()
 				return
 			}
 			break
@@ -1230,10 +1264,10 @@ func (b *blockManager) handleHeadersMsg(hmsg *headersMsg) {
 	// headers starting from the latest known header and ending with the
 	// next checkpoint.
 	locator := blockchain.BlockLocator([]*chainhash.Hash{finalHash})
-	err := hmsg.peer.PushGetHeadersMsg(locator, b.nextCheckpoint.Hash)
+	err := peer.PushGetHeadersMsg(locator, b.nextCheckpoint.Hash)
 	if err != nil {
 		bmgrLog.Warnf("Failed to send getheaders message to "+
-			"peer %s: %v", hmsg.peer.Addr(), err)
+			"peer %s: %v", peer.Addr(), err)
 		return
 	}
 }
@@ -1274,6 +1308,13 @@ func (b *blockManager) haveInventory(invVect *wire.InvVect) (bool, error) {
 // handleInvMsg handles inv messages from all peers.
 // We examine the inventory advertised by the remote peer and act accordingly.
 func (b *blockManager) handleInvMsg(imsg *invMsg) {
+	peer := imsg.peer
+	state, exists := b.peerStates[peer]
+	if !exists {
+		bmgrLog.Warnf("Received inv message from unknown peer %s", peer)
+		return
+	}
+
 	// Attempt to find the final block in the inventory list.  There may
 	// not be one.
 	lastBlock := -1
@@ -1285,7 +1326,7 @@ func (b *blockManager) handleInvMsg(imsg *invMsg) {
 		}
 	}
 
-	fromSyncPeer := imsg.peer == b.syncPeer
+	fromSyncPeer := peer == b.syncPeer
 	isCurrent := b.current()
 
 	// If this inv contains a block announcement, and this isn't coming from
@@ -1294,7 +1335,7 @@ func (b *blockManager) handleInvMsg(imsg *invMsg) {
 	// update the heights of peers based on blocks we've accepted that they
 	// previously announced.
 	if lastBlock != -1 && (!fromSyncPeer || isCurrent) {
-		imsg.peer.UpdateLastAnnouncedBlock(&invVects[lastBlock].Hash)
+		peer.UpdateLastAnnouncedBlock(&invVects[lastBlock].Hash)
 	}
 
 	// Ignore invs from peers that aren't the sync if we are not current.
@@ -1309,7 +1350,7 @@ func (b *blockManager) handleInvMsg(imsg *invMsg) {
 		blkHeight, err := b.cfg.Chain.BlockHeightByHash(
 			&invVects[lastBlock].Hash)
 		if err == nil {
-			imsg.peer.UpdateLastBlockHeight(blkHeight)
+			peer.UpdateLastBlockHeight(blkHeight)
 		}
 	}
 
@@ -1317,7 +1358,6 @@ func (b *blockManager) handleInvMsg(imsg *invMsg) {
 	// request parent blocks of orphans if we receive one we already have.
 	// Finally, attempt to detect potential stalls due to long side chains
 	// we already have and request more blocks to prevent them.
-	var requestQueue []*wire.InvVect
 	for i, iv := range invVects {
 		// Ignore unsupported inventory types.
 		if iv.Type != wire.InvTypeBlock && iv.Type != wire.InvTypeTx {
@@ -1326,7 +1366,7 @@ func (b *blockManager) handleInvMsg(imsg *invMsg) {
 
 		// Add the inventory to the cache of known inventory
 		// for the peer.
-		imsg.peer.AddKnownInventory(iv)
+		peer.AddKnownInventory(iv)
 
 		// Ignore inventory when we're in headers-first mode.
 		if b.headersFirstMode {
@@ -1351,7 +1391,7 @@ func (b *blockManager) handleInvMsg(imsg *invMsg) {
 			}
 
 			// Add it to the request queue.
-			requestQueue = append(requestQueue, iv)
+			state.requestQueue = append(state.requestQueue, iv)
 			continue
 		}
 
@@ -1378,7 +1418,7 @@ func (b *blockManager) handleInvMsg(imsg *invMsg) {
 						"%v", err)
 					continue
 				}
-				err = imsg.peer.PushGetBlocksMsg(locator, orphanRoot)
+				err = peer.PushGetBlocksMsg(locator, orphanRoot)
 				if err != nil {
 					bmgrLog.Errorf("PEER: Failed to push getblocksmsg "+
 						"for orphan chain: %v", err)
@@ -1395,7 +1435,7 @@ func (b *blockManager) handleInvMsg(imsg *invMsg) {
 				// final one the remote peer knows about (zero
 				// stop hash).
 				locator := b.cfg.Chain.BlockLocatorFromHash(&iv.Hash)
-				err = imsg.peer.PushGetBlocksMsg(locator, &zeroHash)
+				err = peer.PushGetBlocksMsg(locator, &zeroHash)
 				if err != nil {
 					bmgrLog.Errorf("PEER: Failed to push getblocksmsg: "+
 						"%v", err)
@@ -1407,7 +1447,7 @@ func (b *blockManager) handleInvMsg(imsg *invMsg) {
 	// Request as much as possible at once.
 	numRequested := 0
 	gdmsg := wire.NewMsgGetData()
-	for _, iv := range requestQueue {
+	for _, iv := range state.requestQueue {
 		switch iv.Type {
 		case wire.InvTypeBlock:
 			// Request the block if there is not already a pending
@@ -1415,7 +1455,7 @@ func (b *blockManager) handleInvMsg(imsg *invMsg) {
 			if _, exists := b.requestedBlocks[iv.Hash]; !exists {
 				b.requestedBlocks[iv.Hash] = struct{}{}
 				b.limitMap(b.requestedBlocks, maxRequestedBlocks)
-				imsg.peer.requestedBlocks[iv.Hash] = struct{}{}
+				state.requestedBlocks[iv.Hash] = struct{}{}
 				gdmsg.AddInvVect(iv)
 				numRequested++
 			}
@@ -1426,7 +1466,7 @@ func (b *blockManager) handleInvMsg(imsg *invMsg) {
 			if _, exists := b.requestedTxns[iv.Hash]; !exists {
 				b.requestedTxns[iv.Hash] = struct{}{}
 				b.limitMap(b.requestedTxns, maxRequestedTxns)
-				imsg.peer.requestedTxns[iv.Hash] = struct{}{}
+				state.requestedTxns[iv.Hash] = struct{}{}
 				gdmsg.AddInvVect(iv)
 				numRequested++
 			}
@@ -1445,7 +1485,7 @@ func (b *blockManager) handleInvMsg(imsg *invMsg) {
 	}
 
 	if len(gdmsg.InvList) > 0 {
-		imsg.peer.QueueMessage(gdmsg, nil)
+		peer.QueueMessage(gdmsg, nil)
 	}
 }
 
@@ -1474,22 +1514,21 @@ func (b *blockManager) limitMap(m map[chainhash.Hash]struct{}, limit int) {
 // important because the block manager controls which blocks are needed and how
 // the fetching should proceed.
 func (b *blockManager) blockHandler() {
-	candidatePeers := list.New()
 out:
 	for {
 		select {
 		case m := <-b.msgChan:
 			switch msg := m.(type) {
 			case *newPeerMsg:
-				b.handleNewPeerMsg(candidatePeers, msg.peer)
+				b.handleNewPeerMsg(msg.peer)
 
 			case *txMsg:
 				b.handleTxMsg(msg)
-				msg.peer.txProcessed <- struct{}{}
+				msg.reply <- struct{}{}
 
 			case *blockMsg:
 				b.handleBlockMsg(msg)
-				msg.peer.blockProcessed <- struct{}{}
+				msg.reply <- struct{}{}
 
 			case *invMsg:
 				b.handleInvMsg(msg)
@@ -1498,10 +1537,14 @@ out:
 				b.handleHeadersMsg(msg)
 
 			case *donePeerMsg:
-				b.handleDonePeerMsg(candidatePeers, msg.peer)
+				b.handleDonePeerMsg(msg.peer)
 
 			case getSyncPeerMsg:
-				msg.reply <- b.syncPeer
+				var peerID int32
+				if b.syncPeer != nil {
+					peerID = b.syncPeer.ID()
+				}
+				msg.reply <- peerID
 
 			case requestFromPeerMsg:
 				err := b.requestFromPeer(msg.peer, msg.blocks, msg.txs)
@@ -1951,68 +1994,71 @@ func (b *blockManager) handleBlockchainNotification(notification *blockchain.Not
 }
 
 // NewPeer informs the block manager of a newly active peer.
-func (b *blockManager) NewPeer(sp *serverPeer) {
+func (b *blockManager) NewPeer(peer *peerpkg.Peer) {
 	// Ignore if we are shutting down.
 	if atomic.LoadInt32(&b.shutdown) != 0 {
 		return
 	}
-	b.msgChan <- &newPeerMsg{peer: sp}
+	b.msgChan <- &newPeerMsg{peer: peer}
 }
 
 // QueueTx adds the passed transaction message and peer to the block handling
 // queue.
-func (b *blockManager) QueueTx(tx *dcrutil.Tx, sp *serverPeer) {
+func (b *blockManager) QueueTx(tx *dcrutil.Tx, peer *peerpkg.Peer, done chan struct{}) {
 	// Don't accept more transactions if we're shutting down.
 	if atomic.LoadInt32(&b.shutdown) != 0 {
-		sp.txProcessed <- struct{}{}
+		done <- struct{}{}
 		return
 	}
 
-	b.msgChan <- &txMsg{tx: tx, peer: sp}
+	b.msgChan <- &txMsg{tx: tx, peer: peer, reply: done}
 }
 
-// QueueBlock adds the passed block message and peer to the block handling queue.
-func (b *blockManager) QueueBlock(block *dcrutil.Block, sp *serverPeer) {
+// QueueBlock adds the passed block message and peer to the block handling
+// queue. Responds to the done channel argument after the block message is
+// processed.
+
+func (b *blockManager) QueueBlock(block *dcrutil.Block, peer *peerpkg.Peer, done chan struct{}) {
 	// Don't accept more blocks if we're shutting down.
 	if atomic.LoadInt32(&b.shutdown) != 0 {
-		sp.blockProcessed <- struct{}{}
+		done <- struct{}{}
 		return
 	}
 
-	b.msgChan <- &blockMsg{block: block, peer: sp}
+	b.msgChan <- &blockMsg{block: block, peer: peer, reply: done}
 }
 
 // QueueInv adds the passed inv message and peer to the block handling queue.
-func (b *blockManager) QueueInv(inv *wire.MsgInv, sp *serverPeer) {
+func (b *blockManager) QueueInv(inv *wire.MsgInv, peer *peerpkg.Peer) {
 	// No channel handling here because peers do not need to block on inv
 	// messages.
 	if atomic.LoadInt32(&b.shutdown) != 0 {
 		return
 	}
 
-	b.msgChan <- &invMsg{inv: inv, peer: sp}
+	b.msgChan <- &invMsg{inv: inv, peer: peer}
 }
 
 // QueueHeaders adds the passed headers message and peer to the block handling
 // queue.
-func (b *blockManager) QueueHeaders(headers *wire.MsgHeaders, sp *serverPeer) {
+func (b *blockManager) QueueHeaders(headers *wire.MsgHeaders, peer *peerpkg.Peer) {
 	// No channel handling here because peers do not need to block on
 	// headers messages.
 	if atomic.LoadInt32(&b.shutdown) != 0 {
 		return
 	}
 
-	b.msgChan <- &headersMsg{headers: headers, peer: sp}
+	b.msgChan <- &headersMsg{headers: headers, peer: peer}
 }
 
 // DonePeer informs the blockmanager that a peer has disconnected.
-func (b *blockManager) DonePeer(sp *serverPeer) {
+func (b *blockManager) DonePeer(peer *peerpkg.Peer) {
 	// Ignore if we are shutting down.
 	if atomic.LoadInt32(&b.shutdown) != 0 {
 		return
 	}
 
-	b.msgChan <- &donePeerMsg{peer: sp}
+	b.msgChan <- &donePeerMsg{peer: peer}
 }
 
 // Start begins the core block handler which processes block and inv messages.
@@ -2042,9 +2088,9 @@ func (b *blockManager) Stop() error {
 	return nil
 }
 
-// SyncPeer returns the current sync peer.
-func (b *blockManager) SyncPeer() *serverPeer {
-	reply := make(chan *serverPeer)
+// SyncPeerID returns the ID of the current sync peer, or 0 if there is none.
+func (b *blockManager) SyncPeerID() int32 {
+	reply := make(chan int32)
 	b.msgChan <- getSyncPeerMsg{reply: reply}
 	return <-reply
 }
@@ -2276,6 +2322,7 @@ func newBlockManager(config *blockManagerConfig) (*blockManager, error) {
 		rejectedTxns:     make(map[chainhash.Hash]struct{}),
 		requestedTxns:    make(map[chainhash.Hash]struct{}),
 		requestedBlocks:  make(map[chainhash.Hash]struct{}),
+		peerStates:       make(map[*peerpkg.Peer]*peerSyncState),
 		progressLogger:   newBlockProgressLogger("Processed", bmgrLog),
 		msgChan:          make(chan interface{}, cfg.MaxPeers*3),
 		headerList:       list.New(),

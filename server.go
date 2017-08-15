@@ -117,7 +117,7 @@ type relayMsg struct {
 type updatePeerHeightsMsg struct {
 	newHash    *chainhash.Hash
 	newHeight  int64
-	originPeer *serverPeer
+	originPeer *peer.Peer
 }
 
 // peerState maintains state of inbound, persistent, outbound peers as well
@@ -448,7 +448,7 @@ func (sp *serverPeer) OnVersion(p *peer.Peer, msg *wire.MsgVersion) *wire.MsgRej
 	sp.server.timeSource.AddTimeSample(p.Addr(), msg.Timestamp)
 
 	// Signal the block manager this peer is a new sync candidate.
-	sp.server.blockManager.NewPeer(sp)
+	sp.server.blockManager.NewPeer(sp.Peer)
 
 	// Add valid peer to the server.
 	sp.server.AddPeer(sp)
@@ -625,7 +625,7 @@ func (sp *serverPeer) OnTx(p *peer.Peer, msg *wire.MsgTx) {
 	// processed and known good or bad.  This helps prevent a malicious peer
 	// from queuing up a bunch of bad transactions before disconnecting (or
 	// being disconnected) and wasting memory.
-	sp.server.blockManager.QueueTx(tx, sp)
+	sp.server.blockManager.QueueTx(tx, sp.Peer, sp.txProcessed)
 	<-sp.txProcessed
 }
 
@@ -649,7 +649,7 @@ func (sp *serverPeer) OnBlock(p *peer.Peer, msg *wire.MsgBlock, buf []byte) {
 	// reference implementation processes blocks in the same thread and
 	// therefore blocks further messages until the network block has been
 	// fully processed.
-	sp.server.blockManager.QueueBlock(block, sp)
+	sp.server.blockManager.QueueBlock(block, sp.Peer, sp.blockProcessed)
 	<-sp.blockProcessed
 }
 
@@ -660,7 +660,7 @@ func (sp *serverPeer) OnBlock(p *peer.Peer, msg *wire.MsgBlock, buf []byte) {
 func (sp *serverPeer) OnInv(p *peer.Peer, msg *wire.MsgInv) {
 	if !cfg.BlocksOnly {
 		if len(msg.InvList) > 0 {
-			sp.server.blockManager.QueueInv(msg, sp)
+			sp.server.blockManager.QueueInv(msg, sp.Peer)
 		}
 		return
 	}
@@ -681,14 +681,14 @@ func (sp *serverPeer) OnInv(p *peer.Peer, msg *wire.MsgInv) {
 	}
 
 	if len(newInv.InvList) > 0 {
-		sp.server.blockManager.QueueInv(newInv, sp)
+		sp.server.blockManager.QueueInv(newInv, sp.Peer)
 	}
 }
 
 // OnHeaders is invoked when a peer receives a headers wire message.  The
 // message is passed down to the block manager.
-func (sp *serverPeer) OnHeaders(p *peer.Peer, msg *wire.MsgHeaders) {
-	sp.server.blockManager.QueueHeaders(msg, sp)
+func (sp *serverPeer) OnHeaders(_ *peer.Peer, msg *wire.MsgHeaders) {
+	sp.server.blockManager.QueueHeaders(msg, sp.Peer)
 }
 
 // handleGetData is invoked when a peer receives a getdata wire message and is
@@ -1270,7 +1270,7 @@ func (s *server) pushBlockMsg(sp *serverPeer, hash *chainhash.Hash, doneChan cha
 func (s *server) handleUpdatePeerHeights(state *peerState, umsg updatePeerHeightsMsg) {
 	state.forAllPeers(func(sp *serverPeer) {
 		// The origin peer should already have the updated height.
-		if sp == umsg.originPeer {
+		if sp.Peer == umsg.originPeer {
 			return
 		}
 
@@ -1743,7 +1743,7 @@ func (s *server) peerDoneHandler(sp *serverPeer) {
 
 	// Only tell block manager we are gone if we ever told it we existed.
 	if sp.VersionKnown() {
-		s.blockManager.DonePeer(sp)
+		s.blockManager.DonePeer(sp.Peer)
 	}
 	close(sp.quit)
 }
@@ -1994,7 +1994,7 @@ func (s *server) NetTotals() (uint64, uint64) {
 // the latest connected main chain block, or a recognized orphan. These height
 // updates allow us to dynamically refresh peer heights, ensuring sync peer
 // selection has access to the latest block heights for each peer.
-func (s *server) UpdatePeerHeights(latestBlkHash *chainhash.Hash, latestHeight int64, updateSource *serverPeer) {
+func (s *server) UpdatePeerHeights(latestBlkHash *chainhash.Hash, latestHeight int64, updateSource *peer.Peer) {
 	s.peerHeightsUpdate <- updatePeerHeightsMsg{
 		newHash:    latestBlkHash,
 		newHeight:  latestHeight,

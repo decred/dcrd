@@ -3372,7 +3372,6 @@ func handleGetNetworkHashPS(s *rpcServer, cmd interface{}, closeChan <-chan stru
 // handleGetPeerInfo implements the getpeerinfo command.
 func handleGetPeerInfo(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) (interface{}, error) {
 	peers := s.cfg.ConnMgr.ConnectedPeers()
-	syncPeer := s.cfg.SyncMgr.SyncPeer().ToPeer()
 	infos := make([]*dcrjson.GetPeerInfoResult, 0, len(peers))
 	for _, p := range peers {
 		statsSnap := p.ToPeer().StatsSnapshot()
@@ -3395,7 +3394,7 @@ func handleGetPeerInfo(s *rpcServer, cmd interface{}, closeChan <-chan struct{})
 			StartingHeight: statsSnap.StartingHeight,
 			CurrentHeight:  statsSnap.LastBlock,
 			BanScore:       int32(p.BanScore()),
-			SyncNode:       p.ToPeer() == syncPeer,
+			SyncNode:       statsSnap.ID == s.cfg.SyncMgr.SyncPeerID(),
 		}
 		if p.ToPeer().LastPingNonce() != 0 {
 			wait := float64(time.Since(statsSnap.LastPingTime).Nanoseconds())
@@ -6531,9 +6530,9 @@ type rpcserverSyncManager interface {
 	// // Pause pauses the sync manager until the returned channel is closed.
 	// Pause() chan<- struct{}
 
-	// SyncPeer returns the peer that is currently the peer being used to
-	// sync from.
-	SyncPeer() rpcserverPeer
+	// SyncPeerID returns the ID of the peer that is currently the peer being
+	// used to sync from or 0 if there is none.
+	SyncPeerID() int32
 
 	// LocateBlocks returns the hashes of the blocks after the first known block in
 	// the locator until the provided stop hash is reached, or up to the provided
