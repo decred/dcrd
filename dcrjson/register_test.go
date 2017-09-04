@@ -39,7 +39,7 @@ func TestUsageFlagStringer(t *testing.T) {
 		highestUsageFlagBit >>= 1
 	}
 	if len(tests)-3 != numUsageFlags {
-		t.Errorf("It appears a usage flag was added without adding " +
+		t.Errorf("it appears a usage flag was added without adding " +
 			"an associated stringer test")
 	}
 
@@ -47,7 +47,7 @@ func TestUsageFlagStringer(t *testing.T) {
 	for i, test := range tests {
 		result := test.in.String()
 		if result != test.want {
-			t.Errorf("String #%d\n got: %s want: %s", i, result,
+			t.Errorf("string #%d\n got: %s want: %s", i, result,
 				test.want)
 			continue
 		}
@@ -212,13 +212,13 @@ func TestRegisterCmdErrors(t *testing.T) {
 		err := dcrjson.RegisterCmd(test.method, test.cmdFunc(),
 			test.flags)
 		if reflect.TypeOf(err) != reflect.TypeOf(test.err) {
-			t.Errorf("Test #%d (%s) wrong error - got %T, "+
+			t.Errorf("test #%d (%s) wrong error - got %T, "+
 				"want %T", i, test.name, err, test.err)
 			continue
 		}
 		gotErrorCode := err.(dcrjson.Error).Code
 		if gotErrorCode != test.err.Code {
-			t.Errorf("Test #%d (%s) mismatched error code - got "+
+			t.Errorf("test #%d (%s) mismatched error code - got "+
 				"%v, want %v", i, test.name, gotErrorCode,
 				test.err.Code)
 			continue

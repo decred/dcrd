@@ -75,7 +75,7 @@ func dcrdMain(serverChan chan<- *server) error {
 	if cfg.CPUProfile != "" {
 		f, err := os.Create(cfg.CPUProfile)
 		if err != nil {
-			dcrdLog.Errorf("Unable to create cpu profile: %v", err.Error())
+			dcrdLog.Errorf("unable to create cpu profile: %v", err.Error())
 			return err
 		}
 		pprof.StartCPUProfile(f)
@@ -87,7 +87,7 @@ func dcrdMain(serverChan chan<- *server) error {
 	if cfg.MemProfile != "" {
 		f, err := os.Create(cfg.MemProfile)
 		if err != nil {
-			dcrdLog.Errorf("Unable to create cpu profile: %v", err)
+			dcrdLog.Errorf("unable to create cpu profile: %v", err)
 			return err
 		}
 		timer := time.NewTimer(time.Minute * 20) // 20 minutes
@@ -127,7 +127,7 @@ func dcrdMain(serverChan chan<- *server) error {
 	defer func() {
 		// Ensure the database is sync'd and closed on shutdown.
 		lifetimeNotifier.notifyShutdownEvent(lifetimeEventDBOpen)
-		dcrdLog.Infof("Gracefully shutting down the database...")
+		dcrdLog.Infof("gracefully shutting down the database...")
 		db.Close()
 	}()
 
@@ -170,16 +170,16 @@ func dcrdMain(serverChan chan<- *server) error {
 	server, err := newServer(cfg.Listeners, db, activeNetParams.Params)
 	if err != nil {
 		// TODO(oga) this logging could do with some beautifying.
-		dcrdLog.Errorf("Unable to start server on %v: %v",
+		dcrdLog.Errorf("unable to start server on %v: %v",
 			cfg.Listeners, err)
 		return err
 	}
 	defer func() {
 		lifetimeNotifier.notifyShutdownEvent(lifetimeEventP2PServer)
-		dcrdLog.Infof("Gracefully shutting down the server...")
+		dcrdLog.Infof("gracefully shutting down the server...")
 		server.Stop()
 		server.WaitForShutdown()
-		srvrLog.Infof("Server shutdown complete")
+		srvrLog.Infof("server shutdown complete")
 	}()
 
 	server.Start()

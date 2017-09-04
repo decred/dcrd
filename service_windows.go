@@ -90,7 +90,7 @@ loop:
 				shutdownRequestChannel <- struct{}{}
 
 			default:
-				elog.Error(1, fmt.Sprintf("Unexpected control "+
+				elog.Error(1, fmt.Sprintf("unexpected control "+
 					"request #%d.", c))
 			}
 
@@ -304,7 +304,7 @@ func serviceMain() (bool, error) {
 
 	err = svc.Run(svcName, &dcrdService{})
 	if err != nil {
-		elog.Error(1, fmt.Sprintf("Service start failed: %v", err))
+		elog.Error(1, fmt.Sprintf("service start failed: %v", err))
 		return true, err
 	}
 

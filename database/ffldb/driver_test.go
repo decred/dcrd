@@ -37,7 +37,7 @@ func TestCreateOpenFail(t *testing.T) {
 
 	// Ensure that attempting to open a database with the wrong number of
 	// parameters returns the expected error.
-	wantErr := fmt.Errorf("invalid arguments to %s.Open -- expected "+
+	wantErr := fmt.Errorf("invalid arguments to %s. Open -- expected "+
 		"database path and block network", dbType)
 	_, err = database.Open(dbType, 1, 2, 3)
 	if err.Error() != wantErr.Error() {
@@ -48,7 +48,7 @@ func TestCreateOpenFail(t *testing.T) {
 
 	// Ensure that attempting to open a database with an invalid type for
 	// the first parameter returns the expected error.
-	wantErr = fmt.Errorf("first argument to %s.Open is invalid -- "+
+	wantErr = fmt.Errorf("first argument to %s. Open is invalid -- "+
 		"expected database path string", dbType)
 	_, err = database.Open(dbType, 1, blockDataNet)
 	if err.Error() != wantErr.Error() {
@@ -59,7 +59,7 @@ func TestCreateOpenFail(t *testing.T) {
 
 	// Ensure that attempting to open a database with an invalid type for
 	// the second parameter returns the expected error.
-	wantErr = fmt.Errorf("second argument to %s.Open is invalid -- "+
+	wantErr = fmt.Errorf("second argument to %s. Open is invalid -- "+
 		"expected block network", dbType)
 	_, err = database.Open(dbType, "noexist", "invalid")
 	if err.Error() != wantErr.Error() {
@@ -70,7 +70,7 @@ func TestCreateOpenFail(t *testing.T) {
 
 	// Ensure that attempting to create a database with the wrong number of
 	// parameters returns the expected error.
-	wantErr = fmt.Errorf("invalid arguments to %s.Create -- expected "+
+	wantErr = fmt.Errorf("invalid arguments to %s. Create -- expected "+
 		"database path and block network", dbType)
 	_, err = database.Create(dbType, 1, 2, 3)
 	if err.Error() != wantErr.Error() {
@@ -81,7 +81,7 @@ func TestCreateOpenFail(t *testing.T) {
 
 	// Ensure that attempting to create a database with an invalid type for
 	// the first parameter returns the expected error.
-	wantErr = fmt.Errorf("first argument to %s.Create is invalid -- "+
+	wantErr = fmt.Errorf("first argument to %s. Create is invalid -- "+
 		"expected database path string", dbType)
 	_, err = database.Create(dbType, 1, blockDataNet)
 	if err.Error() != wantErr.Error() {
@@ -92,7 +92,7 @@ func TestCreateOpenFail(t *testing.T) {
 
 	// Ensure that attempting to create a database with an invalid type for
 	// the second parameter returns the expected error.
-	wantErr = fmt.Errorf("second argument to %s.Create is invalid -- "+
+	wantErr = fmt.Errorf("second argument to %s. Create is invalid -- "+
 		"expected block network", dbType)
 	_, err = database.Create(dbType, "noexist", "invalid")
 	if err.Error() != wantErr.Error() {
@@ -158,7 +158,7 @@ func TestPersistence(t *testing.T) {
 	_ = os.RemoveAll(dbPath)
 	db, err := database.Create(dbType, dbPath, blockDataNet)
 	if err != nil {
-		t.Errorf("Failed to create test database (%s) %v", dbType, err)
+		t.Errorf("failed to create test database (%s) %v", dbType, err)
 		return
 	}
 	defer os.RemoveAll(dbPath)

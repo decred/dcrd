@@ -27,7 +27,7 @@ func TestIsSStx(t *testing.T) {
 
 	test, err := stake.IsSStx(sstx.MsgTx())
 	if !test || err != nil {
-		t.Errorf("IsSSTx should have returned true,<nil> but instead returned %v"+
+		t.Errorf("isSSTx should have returned true,<nil> but instead returned %v"+
 			",%v", test, err)
 	}
 
@@ -54,7 +54,7 @@ func TestIsSStx(t *testing.T) {
 
 	test, err = stake.IsSStx(sstx.MsgTx())
 	if !test || err != nil {
-		t.Errorf("IsSSTx should have returned true,<nil> but instead returned %v"+
+		t.Errorf("isSSTx should have returned true,<nil> but instead returned %v"+
 			",%v", test, err)
 	}
 }
@@ -65,7 +65,7 @@ func TestIsSSTxErrors(t *testing.T) {
 	buf.Grow(sstxMsgTx.SerializeSize())
 	err := sstxMsgTx.Serialize(&buf)
 	if err != nil {
-		t.Errorf("Error serializing the reference sstx: %v", err)
+		t.Errorf("error serializing the reference sstx: %v", err)
 	}
 	bufBytes := buf.Bytes()
 
@@ -79,7 +79,7 @@ func TestIsSSTxErrors(t *testing.T) {
 	test, err := stake.IsSStx(sstxExtraInputs.MsgTx())
 	if test || err.(stake.RuleError).GetCode() !=
 		stake.ErrSStxTooManyInputs {
-		t.Errorf("IsSSTx should have returned false,%v but instead returned %v"+
+		t.Errorf("isSSTx should have returned false,%v but instead returned %v"+
 			",%v", stake.ErrSStxTooManyInputs, test, err)
 	}
 
@@ -93,7 +93,7 @@ func TestIsSSTxErrors(t *testing.T) {
 	test, err = stake.IsSStx(sstxExtraOutputs.MsgTx())
 	if test || err.(stake.RuleError).GetCode() !=
 		stake.ErrSStxTooManyOutputs {
-		t.Errorf("IsSSTx should have returned false,%v but instead returned %v"+
+		t.Errorf("isSSTx should have returned false,%v but instead returned %v"+
 			",%v", stake.ErrSStxTooManyOutputs, test, err)
 	}
 
@@ -112,7 +112,7 @@ func TestIsSSTxErrors(t *testing.T) {
 	rbuf := bytes.NewReader(testFirstOutTagged)
 	err = tx.Deserialize(rbuf)
 	if err != nil {
-		t.Errorf("Deserialize error %v", err)
+		t.Errorf("deserialize error %v", err)
 	}
 
 	var sstxUntaggedOut = dcrutil.NewTx(&tx)
@@ -122,7 +122,7 @@ func TestIsSSTxErrors(t *testing.T) {
 	test, err = stake.IsSStx(sstxUntaggedOut.MsgTx())
 	if test || err.(stake.RuleError).GetCode() !=
 		stake.ErrSStxInvalidOutputs {
-		t.Errorf("IsSSTx should have returned false,%v but instead returned %v"+
+		t.Errorf("isSSTx should have returned false,%v but instead returned %v"+
 			",%v", stake.ErrSStxInvalidOutputs, test, err)
 	}
 
@@ -136,7 +136,7 @@ func TestIsSSTxErrors(t *testing.T) {
 	test, err = stake.IsSStx(sstxInsOutsMismatched.MsgTx())
 	if test || err.(stake.RuleError).GetCode() !=
 		stake.ErrSStxInOutProportions {
-		t.Errorf("IsSSTx should have returned false,%v but instead returned %v"+
+		t.Errorf("isSSTx should have returned false,%v but instead returned %v"+
 			",%v", stake.ErrSStxInOutProportions, test, err)
 	}
 
@@ -149,7 +149,7 @@ func TestIsSSTxErrors(t *testing.T) {
 	test, err = stake.IsSStx(sstxBadVerOut.MsgTx())
 	if test || err.(stake.RuleError).GetCode() !=
 		stake.ErrSStxInvalidOutputs {
-		t.Errorf("IsSSTx should have returned false,%v but instead returned %v"+
+		t.Errorf("isSSTx should have returned false,%v but instead returned %v"+
 			",%v", stake.ErrSStxInvalidOutputs, test, err)
 	}
 
@@ -163,7 +163,7 @@ func TestIsSSTxErrors(t *testing.T) {
 	test, err = stake.IsSStx(sstxNoNullData.MsgTx())
 	if test || err.(stake.RuleError).GetCode() !=
 		stake.ErrSStxInvalidOutputs {
-		t.Errorf("IsSSTx should have returned false,%v but instead returned %v"+
+		t.Errorf("isSSTx should have returned false,%v but instead returned %v"+
 			",%v", stake.ErrSStxInvalidOutputs, test, err)
 	}
 
@@ -177,7 +177,7 @@ func TestIsSSTxErrors(t *testing.T) {
 	test, err = stake.IsSStx(sstxNullDataMis.MsgTx())
 	if test || err.(stake.RuleError).GetCode() !=
 		stake.ErrSStxInvalidOutputs {
-		t.Errorf("IsSSTx should have returned false,%v but instead returned %v"+
+		t.Errorf("isSSTx should have returned false,%v but instead returned %v"+
 			",%v", stake.ErrSStxInvalidOutputs, test, err)
 	}
 
@@ -201,7 +201,7 @@ func TestIsSSTxErrors(t *testing.T) {
 	rbuf = bytes.NewReader(testPKHLength)
 	err = tx.Deserialize(rbuf)
 	if err != nil {
-		t.Errorf("Deserialize error %v", err)
+		t.Errorf("deserialize error %v", err)
 	}
 
 	var sstxWrongPKHLength = dcrutil.NewTx(&tx)
@@ -211,7 +211,7 @@ func TestIsSSTxErrors(t *testing.T) {
 	test, err = stake.IsSStx(sstxWrongPKHLength.MsgTx())
 	if test || err.(stake.RuleError).GetCode() !=
 		stake.ErrSStxInvalidOutputs {
-		t.Errorf("IsSSTx should have returned false,%v but instead returned %v"+
+		t.Errorf("isSSTx should have returned false,%v but instead returned %v"+
 			",%v", stake.ErrSStxInvalidOutputs, test, err)
 	}
 
@@ -235,7 +235,7 @@ func TestIsSSTxErrors(t *testing.T) {
 	rbuf = bytes.NewReader(bufBytes)
 	err = tx.Deserialize(rbuf)
 	if err != nil {
-		t.Errorf("Deserialize error %v", err)
+		t.Errorf("deserialize error %v", err)
 	}
 	tx.TxOut[1].PkScript = tooBigPush
 
@@ -246,7 +246,7 @@ func TestIsSSTxErrors(t *testing.T) {
 	test, err = stake.IsSStx(sstxWrongPrefix.MsgTx())
 	if test || err.(stake.RuleError).GetCode() !=
 		stake.ErrSStxInvalidOutputs {
-		t.Errorf("IsSSTx should have returned false,%v but instead returned %v"+
+		t.Errorf("isSSTx should have returned false,%v but instead returned %v"+
 			",%v", stake.ErrSStxInvalidOutputs, test, err)
 	}
 }
@@ -260,7 +260,7 @@ func TestIsSSGen(t *testing.T) {
 
 	test, err := stake.IsSSGen(ssgen.MsgTx())
 	if !test || err != nil {
-		t.Errorf("IsSSGen should have returned true,<nil> but instead returned %v"+
+		t.Errorf("isSSGen should have returned true,<nil> but instead returned %v"+
 			",%v", test, err)
 	}
 
@@ -286,7 +286,7 @@ func TestIsSSGen(t *testing.T) {
 
 	test, err = stake.IsSSGen(ssgen.MsgTx())
 	if !test || err != nil {
-		t.Errorf("IsSSGen should have returned true,<nil> but instead returned %v"+
+		t.Errorf("isSSGen should have returned true,<nil> but instead returned %v"+
 			",%v", test, err)
 	}
 
@@ -298,7 +298,7 @@ func TestIsSSGenErrors(t *testing.T) {
 	buf.Grow(ssgenMsgTx.SerializeSize())
 	err := ssgenMsgTx.Serialize(&buf)
 	if err != nil {
-		t.Errorf("Error serializing the reference sstx: %v", err)
+		t.Errorf("error serializing the reference sstx: %v", err)
 	}
 	bufBytes := buf.Bytes()
 
@@ -312,7 +312,7 @@ func TestIsSSGenErrors(t *testing.T) {
 	test, err := stake.IsSSGen(ssgenExtraInputs.MsgTx())
 	if test || err.(stake.RuleError).GetCode() !=
 		stake.ErrSSGenWrongNumInputs {
-		t.Errorf("IsSSGen should have returned false,%v but instead returned %v"+
+		t.Errorf("isSSGen should have returned false,%v but instead returned %v"+
 			",%v", stake.ErrSSGenWrongNumInputs, test, err)
 	}
 
@@ -326,7 +326,7 @@ func TestIsSSGenErrors(t *testing.T) {
 	test, err = stake.IsSSGen(ssgenExtraOutputs.MsgTx())
 	if test || err.(stake.RuleError).GetCode() !=
 		stake.ErrSSGenTooManyOutputs {
-		t.Errorf("IsSSGen should have returned false,%v but instead returned %v"+
+		t.Errorf("isSSGen should have returned false,%v but instead returned %v"+
 			",%v", stake.ErrSSGenTooManyOutputs, test, err)
 	}
 
@@ -340,7 +340,7 @@ func TestIsSSGenErrors(t *testing.T) {
 	test, err = stake.IsSSGen(ssgenStakeBaseWrong.MsgTx())
 	if test || err.(stake.RuleError).GetCode() !=
 		stake.ErrSSGenNoStakebase {
-		t.Errorf("IsSSGen should have returned false,%v but instead returned %v"+
+		t.Errorf("isSSGen should have returned false,%v but instead returned %v"+
 			",%v", stake.ErrSSGenNoStakebase, test, err)
 	}
 
@@ -360,7 +360,7 @@ func TestIsSSGenErrors(t *testing.T) {
 	rbuf := bytes.NewReader(testWrongTreeInputs)
 	err = tx.Deserialize(rbuf)
 	if err != nil {
-		t.Errorf("Deserialize error %v", err)
+		t.Errorf("deserialize error %v", err)
 	}
 
 	var ssgenWrongTreeIns = dcrutil.NewTx(&tx)
@@ -370,7 +370,7 @@ func TestIsSSGenErrors(t *testing.T) {
 	test, err = stake.IsSSGen(ssgenWrongTreeIns.MsgTx())
 	if test || err.(stake.RuleError).GetCode() !=
 		stake.ErrSSGenWrongTxTree {
-		t.Errorf("IsSSGen should have returned false,%v but instead returned %v"+
+		t.Errorf("isSSGen should have returned false,%v but instead returned %v"+
 			",%v", stake.ErrSSGenWrongTxTree, test, err)
 	}
 
@@ -383,7 +383,7 @@ func TestIsSSGenErrors(t *testing.T) {
 	test, err = stake.IsSSGen(ssgenTxBadVerOut.MsgTx())
 	if test || err.(stake.RuleError).GetCode() !=
 		stake.ErrSSGenBadGenOuts {
-		t.Errorf("IsSSGen should have returned false,%v but instead returned %v"+
+		t.Errorf("isSSGen should have returned false,%v but instead returned %v"+
 			",%v", stake.ErrSSGenBadGenOuts, test, err)
 	}
 
@@ -397,7 +397,7 @@ func TestIsSSGenErrors(t *testing.T) {
 	test, err = stake.IsSSGen(ssgenWrongZeroethOut.MsgTx())
 	if test || err.(stake.RuleError).GetCode() !=
 		stake.ErrSSGenNoReference {
-		t.Errorf("IsSSGen should have returned false,%v but instead returned %v"+
+		t.Errorf("isSSGen should have returned false,%v but instead returned %v"+
 			",%v", stake.ErrSSGenNoReference, test, err)
 	}
 	// ---------------------------------------------------------------------------
@@ -426,7 +426,7 @@ func TestIsSSGenErrors(t *testing.T) {
 	rbuf = bytes.NewReader(testDataPush0Length)
 	err = tx.Deserialize(rbuf)
 	if err != nil {
-		t.Errorf("Deserialize error %v", err)
+		t.Errorf("deserialize error %v", err)
 	}
 
 	var ssgenWrongDataPush0Length = dcrutil.NewTx(&tx)
@@ -436,7 +436,7 @@ func TestIsSSGenErrors(t *testing.T) {
 	test, err = stake.IsSSGen(ssgenWrongDataPush0Length.MsgTx())
 	if test || err.(stake.RuleError).GetCode() !=
 		stake.ErrSSGenBadReference {
-		t.Errorf("IsSSGen should have returned false,%v but instead returned %v"+
+		t.Errorf("isSSGen should have returned false,%v but instead returned %v"+
 			",%v", stake.ErrSSGenBadReference, test, err)
 	}
 
@@ -466,7 +466,7 @@ func TestIsSSGenErrors(t *testing.T) {
 	rbuf = bytes.NewReader(testNullData0Prefix)
 	err = tx.Deserialize(rbuf)
 	if err != nil {
-		t.Errorf("Deserialize error %v", err)
+		t.Errorf("deserialize error %v", err)
 	}
 
 	var ssgenWrongNullData0Prefix = dcrutil.NewTx(&tx)
@@ -476,7 +476,7 @@ func TestIsSSGenErrors(t *testing.T) {
 	test, err = stake.IsSSGen(ssgenWrongNullData0Prefix.MsgTx())
 	if test || err.(stake.RuleError).GetCode() !=
 		stake.ErrSSGenBadReference {
-		t.Errorf("IsSSGen should have returned false,%v but instead returned %v"+
+		t.Errorf("isSSGen should have returned false,%v but instead returned %v"+
 			",%v", stake.ErrSSGenBadReference, test, err)
 	}
 
@@ -490,7 +490,7 @@ func TestIsSSGenErrors(t *testing.T) {
 	test, err = stake.IsSSGen(ssgenWrongFirstOut.MsgTx())
 	if test || err.(stake.RuleError).GetCode() !=
 		stake.ErrSSGenNoVotePush {
-		t.Errorf("IsSSGen should have returned false,%v but instead returned %v"+
+		t.Errorf("isSSGen should have returned false,%v but instead returned %v"+
 			",%v", stake.ErrSSGenNoVotePush, test, err)
 	}
 	// ---------------------------------------------------------------------------
@@ -508,7 +508,7 @@ func TestIsSSGenErrors(t *testing.T) {
 	rbuf = bytes.NewReader(testDataPush1Length)
 	err = tx.Deserialize(rbuf)
 	if err != nil {
-		t.Errorf("Deserialize error %v", err)
+		t.Errorf("deserialize error %v", err)
 	}
 
 	var ssgenWrongDataPush1Length = dcrutil.NewTx(&tx)
@@ -518,7 +518,7 @@ func TestIsSSGenErrors(t *testing.T) {
 	test, err = stake.IsSSGen(ssgenWrongDataPush1Length.MsgTx())
 	if test || err.(stake.RuleError).GetCode() !=
 		stake.ErrSSGenBadVotePush {
-		t.Errorf("IsSSGen should have returned false,%v but instead returned %v"+
+		t.Errorf("isSSGen should have returned false,%v but instead returned %v"+
 			",%v", stake.ErrSSGenBadVotePush, test, err)
 	}
 
@@ -537,7 +537,7 @@ func TestIsSSGenErrors(t *testing.T) {
 	rbuf = bytes.NewReader(testDataPush1Length)
 	err = tx.Deserialize(rbuf)
 	if err != nil {
-		t.Errorf("Deserialize error %v", err)
+		t.Errorf("deserialize error %v", err)
 	}
 
 	var ssgenLongDataPush1Length = dcrutil.NewTx(&tx)
@@ -546,7 +546,7 @@ func TestIsSSGenErrors(t *testing.T) {
 
 	test, err = stake.IsSSGen(ssgenLongDataPush1Length.MsgTx())
 	if !test || err != nil {
-		t.Errorf("IsSSGen should have returned false,%v but instead returned %v"+
+		t.Errorf("isSSGen should have returned false,%v but instead returned %v"+
 			",%v", stake.ErrSSGenBadVotePush, test, err)
 	}
 
@@ -566,7 +566,7 @@ func TestIsSSGenErrors(t *testing.T) {
 	rbuf = bytes.NewReader(testNullData1Prefix)
 	err = tx.Deserialize(rbuf)
 	if err != nil {
-		t.Errorf("Deserialize error %v", err)
+		t.Errorf("deserialize error %v", err)
 	}
 
 	var ssgenWrongNullData1Prefix = dcrutil.NewTx(&tx)
@@ -576,7 +576,7 @@ func TestIsSSGenErrors(t *testing.T) {
 	test, err = stake.IsSSGen(ssgenWrongNullData1Prefix.MsgTx())
 	if test || err.(stake.RuleError).GetCode() !=
 		stake.ErrSSGenBadVotePush {
-		t.Errorf("IsSSGen should have returned false,%v but instead returned %v"+
+		t.Errorf("isSSGen should have returned false,%v but instead returned %v"+
 			",%v", stake.ErrSSGenBadVotePush, test, err)
 	}
 
@@ -596,7 +596,7 @@ func TestIsSSGenErrors(t *testing.T) {
 	rbuf = bytes.NewReader(testGenOutputUntagged)
 	err = tx.Deserialize(rbuf)
 	if err != nil {
-		t.Errorf("Deserialize error %v", err)
+		t.Errorf("deserialize error %v", err)
 	}
 
 	var ssgentestGenOutputUntagged = dcrutil.NewTx(&tx)
@@ -606,7 +606,7 @@ func TestIsSSGenErrors(t *testing.T) {
 	test, err = stake.IsSSGen(ssgentestGenOutputUntagged.MsgTx())
 	if test || err.(stake.RuleError).GetCode() !=
 		stake.ErrSSGenBadGenOuts {
-		t.Errorf("IsSSGen should have returned false,%v but instead returned %v"+
+		t.Errorf("isSSGen should have returned false,%v but instead returned %v"+
 			",%v", stake.ErrSSGenBadGenOuts, test, err)
 	}
 }
@@ -620,7 +620,7 @@ func TestIsSSRtx(t *testing.T) {
 
 	test, err := stake.IsSSRtx(ssrtx.MsgTx())
 	if !test || err != nil {
-		t.Errorf("IsSSRtx should have returned true,<nil> but instead returned %v"+
+		t.Errorf("isSSRtx should have returned true,<nil> but instead returned %v"+
 			",%v", test, err)
 	}
 }
@@ -631,7 +631,7 @@ func TestIsSSRtxErrors(t *testing.T) {
 	buf.Grow(ssrtxMsgTx.SerializeSize())
 	err := ssrtxMsgTx.Serialize(&buf)
 	if err != nil {
-		t.Errorf("Error serializing the reference sstx: %v", err)
+		t.Errorf("error serializing the reference sstx: %v", err)
 	}
 	bufBytes := buf.Bytes()
 
@@ -645,7 +645,7 @@ func TestIsSSRtxErrors(t *testing.T) {
 	test, err := stake.IsSSRtx(ssrtxTooManyInputs.MsgTx())
 	if test || err.(stake.RuleError).GetCode() !=
 		stake.ErrSSRtxWrongNumInputs {
-		t.Errorf("IsSSRtx should have returned false,%v but instead returned %v"+
+		t.Errorf("isSSRtx should have returned false,%v but instead returned %v"+
 			",%v", stake.ErrSSRtxWrongNumInputs, test, err)
 	}
 
@@ -659,7 +659,7 @@ func TestIsSSRtxErrors(t *testing.T) {
 	test, err = stake.IsSSRtx(ssrtxTooManyOutputs.MsgTx())
 	if test || err.(stake.RuleError).GetCode() !=
 		stake.ErrSSRtxTooManyOutputs {
-		t.Errorf("IsSSRtx should have returned false,%v but instead returned %v"+
+		t.Errorf("isSSRtx should have returned false,%v but instead returned %v"+
 			",%v", stake.ErrSSRtxTooManyOutputs, test, err)
 	}
 
@@ -672,7 +672,7 @@ func TestIsSSRtxErrors(t *testing.T) {
 	test, err = stake.IsSSRtx(ssrtxTxBadVerOut.MsgTx())
 	if test || err.(stake.RuleError).GetCode() !=
 		stake.ErrSSRtxBadOuts {
-		t.Errorf("IsSSRtx should have returned false,%v but instead returned %v"+
+		t.Errorf("isSSRtx should have returned false,%v but instead returned %v"+
 			",%v", stake.ErrSSRtxBadOuts, test, err)
 	}
 
@@ -692,7 +692,7 @@ func TestIsSSRtxErrors(t *testing.T) {
 	rbuf := bytes.NewReader(testRevocOutputUntagged)
 	err = tx.Deserialize(rbuf)
 	if err != nil {
-		t.Errorf("Deserialize error %v", err)
+		t.Errorf("deserialize error %v", err)
 	}
 
 	var ssrtxTestRevocOutputUntagged = dcrutil.NewTx(&tx)
@@ -702,7 +702,7 @@ func TestIsSSRtxErrors(t *testing.T) {
 	test, err = stake.IsSSRtx(ssrtxTestRevocOutputUntagged.MsgTx())
 	if test || err.(stake.RuleError).GetCode() !=
 		stake.ErrSSRtxBadOuts {
-		t.Errorf("IsSSGen should have returned false,%v but instead returned %v"+
+		t.Errorf("isSSGen should have returned false,%v but instead returned %v"+
 			",%v", stake.ErrSSRtxBadOuts, test, err)
 	}
 
@@ -721,7 +721,7 @@ func TestIsSSRtxErrors(t *testing.T) {
 	rbuf = bytes.NewReader(testWrongTreeInputs)
 	err = tx.Deserialize(rbuf)
 	if err != nil {
-		t.Errorf("Deserialize error %v", err)
+		t.Errorf("deserialize error %v", err)
 	}
 
 	var ssrtxWrongTreeIns = dcrutil.NewTx(&tx)
@@ -731,7 +731,7 @@ func TestIsSSRtxErrors(t *testing.T) {
 	test, err = stake.IsSSRtx(ssrtxWrongTreeIns.MsgTx())
 	if test || err.(stake.RuleError).GetCode() !=
 		stake.ErrSSRtxWrongTxTree {
-		t.Errorf("IsSSRtx should have returned false,%v but instead returned %v"+
+		t.Errorf("isSSRtx should have returned false,%v but instead returned %v"+
 			",%v", stake.ErrSSGenWrongTxTree, test, err)
 	}
 }
@@ -760,16 +760,16 @@ func TestGetSSGenBlockVotedOn(t *testing.T) {
 	correctheight := uint32(0x2123e300)
 
 	if err != nil {
-		t.Errorf("Error thrown on TestGetSSGenBlockVotedOn: %v", err)
+		t.Errorf("error thrown on TestGetSSGenBlockVotedOn: %v", err)
 	}
 
 	if !reflect.DeepEqual(blockHash, *correctBlockHash) {
-		t.Errorf("Error thrown on TestGetSSGenBlockVotedOn: Looking for "+
+		t.Errorf("error thrown on TestGetSSGenBlockVotedOn: Looking for "+
 			"hash %v, got hash %v: %v", *correctBlockHash, blockHash, err)
 	}
 
 	if height != correctheight {
-		t.Errorf("Error thrown on TestGetSSGenBlockVotedOn: Looking for "+
+		t.Errorf("error thrown on TestGetSSGenBlockVotedOn: Looking for "+
 			"height %v, got height %v: %v", correctheight, height, err)
 	}
 }
@@ -800,32 +800,32 @@ func TestGetSStxStakeOutputInfo(t *testing.T) {
 		stake.TxSStxStakeOutputInfo(sstx.MsgTx())
 
 	if typs[2] != correctTyp {
-		t.Errorf("Error thrown on TestGetSStxStakeOutputInfo: Looking for "+
+		t.Errorf("error thrown on TestGetSStxStakeOutputInfo: Looking for "+
 			"type %v, got type %v", correctTyp, typs[1])
 	}
 
 	if !reflect.DeepEqual(pkhs[1], correctPkh) {
-		t.Errorf("Error thrown on TestGetSStxStakeOutputInfo: Looking for "+
+		t.Errorf("error thrown on TestGetSStxStakeOutputInfo: Looking for "+
 			"pkh %v, got pkh %v", correctPkh, pkhs[1])
 	}
 
 	if amts[1] != correctAmt {
-		t.Errorf("Error thrown on TestGetSStxStakeOutputInfo: Looking for "+
+		t.Errorf("error thrown on TestGetSStxStakeOutputInfo: Looking for "+
 			"amount %v, got amount %v", correctAmt, amts[1])
 	}
 
 	if changeAmts[1] != correctChange {
-		t.Errorf("Error thrown on TestGetSStxStakeOutputInfo: Looking for "+
+		t.Errorf("error thrown on TestGetSStxStakeOutputInfo: Looking for "+
 			"amount %v, got amount %v", correctChange, changeAmts[1])
 	}
 
 	if rules[1][0] != correctRule {
-		t.Errorf("Error thrown on TestGetSStxStakeOutputInfo: Looking for "+
+		t.Errorf("error thrown on TestGetSStxStakeOutputInfo: Looking for "+
 			"rule %v, got rule %v", correctRule, rules[1][0])
 	}
 
 	if limits[1][0] != correctLimit {
-		t.Errorf("Error thrown on TestGetSStxStakeOutputInfo: Looking for "+
+		t.Errorf("error thrown on TestGetSStxStakeOutputInfo: Looking for "+
 			"limit %v, got limit %v", correctLimit, rules[1][0])
 	}
 }
@@ -849,21 +849,21 @@ func TestGetSSGenStakeOutputInfo(t *testing.T) {
 	typs, pkhs, amts, err := stake.TxSSGenStakeOutputInfo(ssgen.MsgTx(),
 		&chaincfg.SimNetParams)
 	if err != nil {
-		t.Errorf("Got unexpected error: %v", err.Error())
+		t.Errorf("got unexpected error: %v", err.Error())
 	}
 
 	if typs[0] != correctTyp {
-		t.Errorf("Error thrown on TestGetSSGenStakeOutputInfo: Looking for "+
+		t.Errorf("error thrown on TestGetSSGenStakeOutputInfo: Looking for "+
 			"type %v, got type %v", correctamt, amts[0])
 	}
 
 	if !reflect.DeepEqual(pkhs[0], correctpkh) {
-		t.Errorf("Error thrown on TestGetSSGenStakeOutputInfo: Looking for "+
+		t.Errorf("error thrown on TestGetSSGenStakeOutputInfo: Looking for "+
 			"pkh %v, got pkh %v", correctpkh, pkhs[0])
 	}
 
 	if amts[0] != correctamt {
-		t.Errorf("Error thrown on TestGetSSGenStakeOutputInfo: Looking for "+
+		t.Errorf("error thrown on TestGetSSGenStakeOutputInfo: Looking for "+
 			"amount %v, got amount %v", correctamt, amts[0])
 	}
 }
@@ -878,7 +878,7 @@ func TestGetSSGenVoteBits(t *testing.T) {
 	votebits := stake.SSGenVoteBits(ssgen.MsgTx())
 
 	if correctvbs != votebits {
-		t.Errorf("Error thrown on TestGetSSGenVoteBits: Looking for "+
+		t.Errorf("error thrown on TestGetSSGenVoteBits: Looking for "+
 			"vbs % x, got vbs % x", correctvbs, votebits)
 	}
 }
@@ -889,7 +889,7 @@ func TestGetSSGenVersion(t *testing.T) {
 	missingVersion := uint32(stake.VoteConsensusVersionAbsent)
 	version := stake.SSGenVersion(ssgen)
 	if version != missingVersion {
-		t.Errorf("Error thrown on TestGetSSGenVersion: Looking for "+
+		t.Errorf("error thrown on TestGetSSGenVersion: Looking for "+
 			"version % x, got version % x", missingVersion, version)
 	}
 
@@ -897,13 +897,13 @@ func TestGetSSGenVersion(t *testing.T) {
 	expectedVersion := uint32(0xabcdef01)
 	pkScript, err := txscript.GenerateProvablyPruneableOut(vbBytes)
 	if err != nil {
-		t.Errorf("GenerateProvablyPruneableOut error %v", err)
+		t.Errorf("generateProvablyPruneableOut error %v", err)
 	}
 	ssgen.TxOut[1].PkScript = pkScript
 	version = stake.SSGenVersion(ssgen)
 
 	if version != expectedVersion {
-		t.Errorf("Error thrown on TestGetSSGenVersion: Looking for "+
+		t.Errorf("error thrown on TestGetSSGenVersion: Looking for "+
 			"version % x, got version % x", expectedVersion, version)
 	}
 }
@@ -927,21 +927,21 @@ func TestGetSSRtxStakeOutputInfo(t *testing.T) {
 	typs, pkhs, amts, err := stake.TxSSRtxStakeOutputInfo(ssrtx.MsgTx(),
 		&chaincfg.SimNetParams)
 	if err != nil {
-		t.Errorf("Got unexpected error: %v", err.Error())
+		t.Errorf("got unexpected error: %v", err.Error())
 	}
 
 	if typs[0] != correctTyp {
-		t.Errorf("Error thrown on TestGetSStxStakeOutputInfo: Looking for "+
+		t.Errorf("error thrown on TestGetSStxStakeOutputInfo: Looking for "+
 			"type %v, got type %v", correctTyp, typs[0])
 	}
 
 	if !reflect.DeepEqual(pkhs[0], correctPkh) {
-		t.Errorf("Error thrown on TestGetSStxStakeOutputInfo: Looking for "+
+		t.Errorf("error thrown on TestGetSStxStakeOutputInfo: Looking for "+
 			"pkh %v, got pkh %v", correctPkh, pkhs[0])
 	}
 
 	if amts[0] != correctAmt {
-		t.Errorf("Error thrown on TestGetSStxStakeOutputInfo: Looking for "+
+		t.Errorf("error thrown on TestGetSStxStakeOutputInfo: Looking for "+
 			"amount %v, got amount %v", correctAmt, amts[0])
 	}
 }
@@ -967,7 +967,7 @@ func TestGetSStxNullOutputAmounts(t *testing.T) {
 	lenErrStr := "amounts was not equal in length " +
 		"to change amounts!"
 	if err == nil || err.Error() != lenErrStr {
-		t.Errorf("TestGetSStxNullOutputAmounts unexpected error: %v", err)
+		t.Errorf("testGetSStxNullOutputAmounts unexpected error: %v", err)
 	}
 
 	// too small amount to commit
@@ -977,7 +977,7 @@ func TestGetSStxNullOutputAmounts(t *testing.T) {
 		int64(0x00000000))
 	tooSmallErrStr := "committed amount was too small!"
 	if err == nil || err.Error() != tooSmallErrStr {
-		t.Errorf("TestGetSStxNullOutputAmounts unexpected error: %v", err)
+		t.Errorf("testGetSStxNullOutputAmounts unexpected error: %v", err)
 	}
 
 	// overspending error
@@ -991,7 +991,7 @@ func TestGetSStxNullOutputAmounts(t *testing.T) {
 		int64(0x00000020))
 	if err == nil || err.(stake.RuleError).GetCode() !=
 		stake.ErrSStxBadChangeAmts {
-		t.Errorf("TestGetSStxNullOutputAmounts unexpected error: %v", err)
+		t.Errorf("testGetSStxNullOutputAmounts unexpected error: %v", err)
 	}
 
 	fees, amts, err := stake.SStxNullOutputAmounts(commitAmts,
@@ -999,13 +999,13 @@ func TestGetSStxNullOutputAmounts(t *testing.T) {
 		amtTicket)
 
 	if err != nil {
-		t.Errorf("TestGetSStxNullOutputAmounts unexpected error: %v", err)
+		t.Errorf("testGetSStxNullOutputAmounts unexpected error: %v", err)
 	}
 
 	expectedFees := int64(-1361240832)
 
 	if expectedFees != fees {
-		t.Errorf("TestGetSStxNullOutputAmounts error, wanted %v, "+
+		t.Errorf("testGetSStxNullOutputAmounts error, wanted %v, "+
 			"but got %v", expectedFees, fees)
 	}
 
@@ -1015,7 +1015,7 @@ func TestGetSStxNullOutputAmounts(t *testing.T) {
 	}
 
 	if !reflect.DeepEqual(expectedAmts, amts) {
-		t.Errorf("TestGetSStxNullOutputAmounts error, wanted %v, "+
+		t.Errorf("testGetSStxNullOutputAmounts error, wanted %v, "+
 			"but got %v", expectedAmts, amts)
 	}
 }
@@ -1038,7 +1038,7 @@ func TestGetStakeRewards(t *testing.T) {
 	}
 
 	if !reflect.DeepEqual(expectedAmts, outAmts) {
-		t.Errorf("TestGetStakeRewards error, wanted %v, "+
+		t.Errorf("testGetStakeRewards error, wanted %v, "+
 			"but got %v", expectedAmts, outAmts)
 	}
 }
@@ -1061,7 +1061,7 @@ func TestVerifySStxAmounts(t *testing.T) {
 		calcAmountsBad)
 	if err == nil || err.(stake.RuleError).GetCode() !=
 		stake.ErrVerSStxAmts {
-		t.Errorf("TestVerifySStxAmounts unexpected error: %v", err)
+		t.Errorf("testVerifySStxAmounts unexpected error: %v", err)
 	}
 
 	// non-congruent slices error
@@ -1073,13 +1073,13 @@ func TestVerifySStxAmounts(t *testing.T) {
 		calcAmountsBad)
 	if err == nil || err.(stake.RuleError).GetCode() !=
 		stake.ErrVerSStxAmts {
-		t.Errorf("TestVerifySStxAmounts unexpected error: %v", err)
+		t.Errorf("testVerifySStxAmounts unexpected error: %v", err)
 	}
 
 	err = stake.VerifySStxAmounts(amounts,
 		calcAmounts)
 	if err != nil {
-		t.Errorf("TestVerifySStxAmounts unexpected error: %v", err)
+		t.Errorf("testVerifySStxAmounts unexpected error: %v", err)
 	}
 }
 
@@ -1134,7 +1134,7 @@ func TestVerifyStakingPkhsAndAmounts(t *testing.T) {
 		spendLimits)
 	if err == nil || err.(stake.RuleError).GetCode() !=
 		stake.ErrVerifyInput {
-		t.Errorf("TestVerifyStakingPkhsAndAmounts unexpected error: %v", err)
+		t.Errorf("testVerifyStakingPkhsAndAmounts unexpected error: %v", err)
 	}
 
 	// bad types
@@ -1150,7 +1150,7 @@ func TestVerifyStakingPkhsAndAmounts(t *testing.T) {
 		spendLimits)
 	if err == nil || err.(stake.RuleError).GetCode() !=
 		stake.ErrVerifyOutType {
-		t.Errorf("TestVerifyStakingPkhsAndAmounts unexpected error: %v", err)
+		t.Errorf("testVerifyStakingPkhsAndAmounts unexpected error: %v", err)
 	}
 
 	// len error for amt slices
@@ -1166,7 +1166,7 @@ func TestVerifyStakingPkhsAndAmounts(t *testing.T) {
 		spendLimits)
 	if err == nil || err.(stake.RuleError).GetCode() !=
 		stake.ErrVerifyInput {
-		t.Errorf("TestVerifyStakingPkhsAndAmounts unexpected error: %v", err)
+		t.Errorf("testVerifyStakingPkhsAndAmounts unexpected error: %v", err)
 	}
 
 	// len error for pks slices
@@ -1188,7 +1188,7 @@ func TestVerifyStakingPkhsAndAmounts(t *testing.T) {
 		spendLimits)
 	if err == nil || err.(stake.RuleError).GetCode() !=
 		stake.ErrVerifyInput {
-		t.Errorf("TestVerifyStakingPkhsAndAmounts unexpected error: %v", err)
+		t.Errorf("testVerifyStakingPkhsAndAmounts unexpected error: %v", err)
 	}
 
 	// amount non-equivalence in position 1
@@ -1207,7 +1207,7 @@ func TestVerifyStakingPkhsAndAmounts(t *testing.T) {
 		spendLimits)
 	if err == nil || err.(stake.RuleError).GetCode() !=
 		stake.ErrVerifyOutputAmt {
-		t.Errorf("TestVerifyStakingPkhsAndAmounts unexpected error: %v", err)
+		t.Errorf("testVerifyStakingPkhsAndAmounts unexpected error: %v", err)
 	}
 
 	// pkh non-equivalence in position 1
@@ -1234,7 +1234,7 @@ func TestVerifyStakingPkhsAndAmounts(t *testing.T) {
 		spendLimits)
 	if err == nil || err.(stake.RuleError).GetCode() !=
 		stake.ErrVerifyOutPkhs {
-		t.Errorf("TestVerifyStakingPkhsAndAmounts unexpected error: %v", err)
+		t.Errorf("testVerifyStakingPkhsAndAmounts unexpected error: %v", err)
 	}
 
 	// rule non-equivalence in position 1
@@ -1268,7 +1268,7 @@ func TestVerifyStakingPkhsAndAmounts(t *testing.T) {
 		spendLimits)
 	if err == nil || err.(stake.RuleError).GetCode() !=
 		stake.ErrVerifyTooMuchFees {
-		t.Errorf("TestVerifyStakingPkhsAndAmounts unexpected error: %v", err)
+		t.Errorf("testVerifyStakingPkhsAndAmounts unexpected error: %v", err)
 	}
 
 	// original amount: 11000000
@@ -1284,7 +1284,7 @@ func TestVerifyStakingPkhsAndAmounts(t *testing.T) {
 		spendLimits)
 	if err == nil || err.(stake.RuleError).GetCode() !=
 		stake.ErrVerifySpendTooMuch {
-		t.Errorf("TestVerifyStakingPkhsAndAmounts unexpected error: %v", err)
+		t.Errorf("testVerifyStakingPkhsAndAmounts unexpected error: %v", err)
 	}
 
 	// revocation
@@ -1303,7 +1303,7 @@ func TestVerifyStakingPkhsAndAmounts(t *testing.T) {
 		spendLimits)
 	if err == nil || err.(stake.RuleError).GetCode() !=
 		stake.ErrVerifyTooMuchFees {
-		t.Errorf("TestVerifyStakingPkhsAndAmounts unexpected error: %v", err)
+		t.Errorf("testVerifyStakingPkhsAndAmounts unexpected error: %v", err)
 	}
 
 	// correct verification
@@ -1317,7 +1317,7 @@ func TestVerifyStakingPkhsAndAmounts(t *testing.T) {
 		spendRules,
 		spendLimits)
 	if err != nil {
-		t.Errorf("TestVerifySStxAmounts unexpected error: %v", err)
+		t.Errorf("testVerifySStxAmounts unexpected error: %v", err)
 	}
 }
 
@@ -1364,7 +1364,7 @@ func TestVerifyRealTxs(t *testing.T) {
 	ssrtxTypes, ssrtxAddrs, ssrtxAmts, err :=
 		stake.TxSSRtxStakeOutputInfo(ssrtxTx.MsgTx(), &chaincfg.TestNet2Params)
 	if err != nil {
-		t.Errorf("Unexpected GetSSRtxStakeOutputInfo error: %v", err.Error())
+		t.Errorf("unexpected GetSSRtxStakeOutputInfo error: %v", err.Error())
 	}
 
 	ssrtxCalcAmts := stake.CalculateRewards(sstxAmts, sstxMtx.TxOut[0].Value,
@@ -1388,7 +1388,7 @@ func TestVerifyRealTxs(t *testing.T) {
 		sstxLimits)
 	if err == nil || err.(stake.RuleError).GetCode() !=
 		stake.ErrVerifySpendTooMuch {
-		t.Errorf("No or unexpected VerifyStakingPkhsAndAmounts error: %v",
+		t.Errorf("no or unexpected VerifyStakingPkhsAndAmounts error: %v",
 			err.Error())
 	}
 
@@ -1399,7 +1399,7 @@ func TestVerifyRealTxs(t *testing.T) {
 	ssrtxTypes, ssrtxAddrs, ssrtxAmts, err =
 		stake.TxSSRtxStakeOutputInfo(ssrtxTx.MsgTx(), &chaincfg.TestNet2Params)
 	if err != nil {
-		t.Errorf("Unexpected GetSSRtxStakeOutputInfo error: %v", err.Error())
+		t.Errorf("unexpected GetSSRtxStakeOutputInfo error: %v", err.Error())
 	}
 	ssrtxCalcAmts = stake.CalculateRewards(sstxAmts, sstxMtx.TxOut[0].Value,
 		int64(0))
@@ -1413,7 +1413,7 @@ func TestVerifyRealTxs(t *testing.T) {
 		sstxRules,
 		sstxLimits)
 	if err != nil {
-		t.Errorf("Unexpected VerifyStakingPkhsAndAmounts error: %v",
+		t.Errorf("unexpected VerifyStakingPkhsAndAmounts error: %v",
 			err)
 	}
 
@@ -1425,7 +1425,7 @@ func TestVerifyRealTxs(t *testing.T) {
 	ssrtxTypes, ssrtxAddrs, ssrtxAmts, err =
 		stake.TxSSRtxStakeOutputInfo(ssrtxTx.MsgTx(), &chaincfg.TestNet2Params)
 	if err != nil {
-		t.Errorf("Unexpected GetSSRtxStakeOutputInfo error: %v", err.Error())
+		t.Errorf("unexpected GetSSRtxStakeOutputInfo error: %v", err.Error())
 	}
 	ssrtxCalcAmts = stake.CalculateRewards(sstxAmts, sstxMtx.TxOut[0].Value,
 		int64(0))
@@ -1440,7 +1440,7 @@ func TestVerifyRealTxs(t *testing.T) {
 		sstxLimits)
 	if err == nil || err.(stake.RuleError).GetCode() !=
 		stake.ErrVerifyTooMuchFees {
-		t.Errorf("No or unexpected VerifyStakingPkhsAndAmounts error: %v",
+		t.Errorf("no or unexpected VerifyStakingPkhsAndAmounts error: %v",
 			err.Error())
 	}
 
@@ -1456,7 +1456,7 @@ func TestVerifyRealTxs(t *testing.T) {
 	ssrtxTypes, ssrtxAddrs, ssrtxAmts, err =
 		stake.TxSSRtxStakeOutputInfo(ssrtxTx.MsgTx(), &chaincfg.TestNet2Params)
 	if err != nil {
-		t.Errorf("Unexpected GetSSRtxStakeOutputInfo error: %v", err.Error())
+		t.Errorf("unexpected GetSSRtxStakeOutputInfo error: %v", err.Error())
 	}
 	ssrtxCalcAmts = stake.CalculateRewards(sstxAmts, sstxMtx.TxOut[0].Value,
 		int64(0))
@@ -1470,11 +1470,11 @@ func TestVerifyRealTxs(t *testing.T) {
 		sstxRules,
 		sstxLimits)
 	if err != nil {
-		t.Errorf("Unexpected VerifyStakingPkhsAndAmounts error: %v",
+		t.Errorf("unexpected VerifyStakingPkhsAndAmounts error: %v",
 			err.Error())
 	}
 	if ssrtxCalcAmts[0] != ssrtxCalcAmts[1] {
-		t.Errorf("Unexpected ssrtxCalcAmts; both values should be same but "+
+		t.Errorf("unexpected ssrtxCalcAmts; both values should be same but "+
 			"got %v and %v", ssrtxCalcAmts[0], ssrtxCalcAmts[1])
 	}
 }

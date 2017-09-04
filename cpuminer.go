@@ -141,7 +141,7 @@ func (m *CPUMiner) submitBlock(block *dcrutil.Block) bool {
 		// so log that error as an internal error.
 		rErr, ok := err.(blockchain.RuleError)
 		if !ok {
-			minrLog.Errorf("Unexpected error while processing "+
+			minrLog.Errorf("unexpected error while processing "+
 				"block submitted via CPU miner: %v", err)
 			return false
 		}
@@ -156,12 +156,12 @@ func (m *CPUMiner) submitBlock(block *dcrutil.Block) bool {
 			return false
 		}
 		// Other rule errors should be reported.
-		minrLog.Errorf("Block submitted via CPU miner rejected: %v", err)
+		minrLog.Errorf("block submitted via CPU miner rejected: %v", err)
 		return false
 
 	}
 	if isOrphan {
-		minrLog.Errorf("Block submitted via CPU miner is an orphan building "+
+		minrLog.Errorf("block submitted via CPU miner is an orphan building "+
 			"on parent %v", block.MsgBlock().Header.PrevBlock)
 		return false
 	}
@@ -196,7 +196,7 @@ func (m *CPUMiner) solveBlock(msgBlock *wire.MsgBlock, ticker *time.Ticker,
 	// worker.
 	enOffset, err := wire.RandomUint64()
 	if err != nil {
-		minrLog.Errorf("Unexpected error while generating random "+
+		minrLog.Errorf("unexpected error while generating random "+
 			"extra nonce offset: %v", err)
 		enOffset = 0
 	}
@@ -336,7 +336,7 @@ out:
 		template, err := NewBlockTemplate(m.policy, m.server, payToAddr)
 		m.submitBlockLock.Unlock()
 		if err != nil {
-			errStr := fmt.Sprintf("Failed to create new block "+
+			errStr := fmt.Sprintf("failed to create new block "+
 				"template: %v", err)
 			minrLog.Errorf(errStr)
 			continue
@@ -615,13 +615,13 @@ func (m *CPUMiner) GenerateNBlocks(n uint32) ([]*chainhash.Hash, error) {
 		template, err := NewBlockTemplate(m.policy, m.server, payToAddr)
 		m.submitBlockLock.Unlock()
 		if err != nil {
-			errStr := fmt.Sprintf("Failed to create new block "+
+			errStr := fmt.Sprintf("failed to create new block "+
 				"template: %v", err)
 			minrLog.Errorf(errStr)
 			continue
 		}
 		if template == nil {
-			errStr := fmt.Sprintf("Not enough voters on parent block " +
+			errStr := fmt.Sprintf("not enough voters on parent block " +
 				"and failed to pull parent template")
 			minrLog.Debugf(errStr)
 			continue

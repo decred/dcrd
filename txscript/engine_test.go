@@ -67,7 +67,7 @@ func TestBadPC(t *testing.T) {
 	for _, test := range pcTests {
 		vm, err := txscript.NewEngine(pkScript, tx, 0, 0, 0, nil)
 		if err != nil {
-			t.Errorf("Failed to create script: %v", err)
+			t.Errorf("failed to create script: %v", err)
 		}
 
 		// set to after all scripts
@@ -280,7 +280,7 @@ func TestCheckPubKeyEncoding(t *testing.T) {
 				"when it should have succeeded: %v", test.name,
 				err)
 		} else if err == nil && !test.isValid {
-			t.Errorf("checkSignatureEncooding test '%s' succeeded "+
+			t.Errorf("checkSignatureEncoding test '%s' succeeded "+
 				"when it should have failed", test.name)
 		}
 	}
@@ -452,7 +452,7 @@ func TestCheckSignatureEncoding(t *testing.T) {
 				"when it should have succeeded: %v", test.name,
 				err)
 		} else if err == nil && !test.isValid {
-			t.Errorf("checkSignatureEncooding test '%s' succeeded "+
+			t.Errorf("checkSignatureEncoding test '%s' succeeded "+
 				"when it should have failed", test.name)
 		}
 	}

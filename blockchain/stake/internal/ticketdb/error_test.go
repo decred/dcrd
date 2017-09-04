@@ -33,7 +33,7 @@ func TestErrorCodeStringer(t *testing.T) {
 	for i, test := range tests {
 		result := test.in.String()
 		if result != test.want {
-			t.Errorf("String #%d\n got: %s want: %s", i, result,
+			t.Errorf("string #%d\n got: %s want: %s", i, result,
 				test.want)
 			continue
 		}
@@ -58,7 +58,7 @@ func TestRuleError(t *testing.T) {
 	for i, test := range tests {
 		result := test.in.Error()
 		if result != test.want {
-			t.Errorf("Error #%d\n got: %s want: %s", i, result,
+			t.Errorf("error #%d\n got: %s want: %s", i, result,
 				test.want)
 			continue
 		}

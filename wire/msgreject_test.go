@@ -102,19 +102,19 @@ func TestRejectLatest(t *testing.T) {
 
 	// Ensure decoded data is the same.
 	if msg.Cmd != readMsg.Cmd {
-		t.Errorf("Should get same reject command - got %v, want %v",
+		t.Errorf("should get same reject command - got %v, want %v",
 			readMsg.Cmd, msg.Cmd)
 	}
 	if msg.Code != readMsg.Code {
-		t.Errorf("Should get same reject code - got %v, want %v",
+		t.Errorf("should get same reject code - got %v, want %v",
 			readMsg.Code, msg.Code)
 	}
 	if msg.Reason != readMsg.Reason {
-		t.Errorf("Should get same reject reason - got %v, want %v",
+		t.Errorf("should get same reject reason - got %v, want %v",
 			readMsg.Reason, msg.Reason)
 	}
 	if msg.Hash != readMsg.Hash {
-		t.Errorf("Should get same reject hash - got %v, want %v",
+		t.Errorf("should get same reject hash - got %v, want %v",
 			readMsg.Hash, msg.Hash)
 	}
 }

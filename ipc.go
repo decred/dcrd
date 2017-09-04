@@ -50,7 +50,7 @@ func serviceControlPipeRx(fd uintptr) {
 			break
 		}
 		if err != nil {
-			dcrdLog.Errorf("Failed to read from pipe: %v", err)
+			dcrdLog.Errorf("failed to read from pipe: %v", err)
 			break
 		}
 	}
@@ -106,7 +106,7 @@ func serviceControlPipeTx(fd uintptr) {
 		headerBuffer = headerBuffer[:0]
 	}
 
-	dcrdLog.Errorf("Failed to write to pipe: %v", err)
+	dcrdLog.Errorf("failed to write to pipe: %v", err)
 }
 
 func drainOutgoingPipeMessages() {

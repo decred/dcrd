@@ -991,7 +991,7 @@ func TestChainSvrCmds(t *testing.T) {
 		}
 
 		if !bytes.Equal(marshalled, []byte(test.marshalled)) {
-			t.Errorf("Test #%d (%s) unexpected marshalled data - "+
+			t.Errorf("test #%d (%s) unexpected marshalled data - "+
 				"got %s, want %s", i, test.name, marshalled,
 				test.marshalled)
 			t.Errorf("\n%s\n%s", marshalled, test.marshalled)
@@ -1002,7 +1002,7 @@ func TestChainSvrCmds(t *testing.T) {
 		// new command creation function.
 		cmd, err := test.newCmd()
 		if err != nil {
-			t.Errorf("Test #%d (%s) unexpected NewCmd error: %v ",
+			t.Errorf("test #%d (%s) unexpected NewCmd error: %v ",
 				i, test.name, err)
 		}
 
@@ -1016,7 +1016,7 @@ func TestChainSvrCmds(t *testing.T) {
 		}
 
 		if !bytes.Equal(marshalled, []byte(test.marshalled)) {
-			t.Errorf("Test #%d (%s) unexpected marshalled data - "+
+			t.Errorf("test #%d (%s) unexpected marshalled data - "+
 				"got %s, want %s", i, test.name, marshalled,
 				test.marshalled)
 			continue
@@ -1024,8 +1024,8 @@ func TestChainSvrCmds(t *testing.T) {
 
 		var request dcrjson.Request
 		if err := json.Unmarshal(marshalled, &request); err != nil {
-			t.Errorf("Test #%d (%s) unexpected error while "+
-				"unmarshalling JSON-RPC request: %v", i,
+			t.Errorf("test #%d (%s) unexpected error while "+
+				"unmarshalling json-rpc request: %v", i,
 				test.name, err)
 			continue
 		}
@@ -1038,7 +1038,7 @@ func TestChainSvrCmds(t *testing.T) {
 		}
 
 		if !reflect.DeepEqual(cmd, test.unmarshalled) {
-			t.Errorf("Test #%d (%s) unexpected unmarshalled command "+
+			t.Errorf("test #%d (%s) unexpected unmarshalled command "+
 				"- got %s, want %s", i, test.name,
 				fmt.Sprintf("(%T) %+[1]v", cmd),
 				fmt.Sprintf("(%T) %+[1]v\n", test.unmarshalled))
@@ -1082,7 +1082,7 @@ func TestChainSvrCmdErrors(t *testing.T) {
 	for i, test := range tests {
 		err := json.Unmarshal([]byte(test.marshalled), &test.result)
 		if reflect.TypeOf(err) != reflect.TypeOf(test.err) {
-			t.Errorf("Test #%d (%s) wrong error type - got `%T` (%v), got `%T`",
+			t.Errorf("test #%d (%s) wrong error type - got `%T` (%v), got `%T`",
 				i, test.name, err, err, test.err)
 			continue
 		}
@@ -1090,7 +1090,7 @@ func TestChainSvrCmdErrors(t *testing.T) {
 		if terr, ok := test.err.(dcrjson.Error); ok {
 			gotErrorCode := err.(dcrjson.Error).Code
 			if gotErrorCode != terr.Code {
-				t.Errorf("Test #%d (%s) mismatched error code "+
+				t.Errorf("test #%d (%s) mismatched error code "+
 					"- got %v (%v), want %v", i, test.name,
 					gotErrorCode, terr, terr.Code)
 				continue

@@ -103,7 +103,7 @@ func BenchmarkSigVerify(b *testing.B) {
 	}
 
 	if !sig.Verify(msgHash.Bytes(), &pubKey) {
-		b.Errorf("Signature failed to verify")
+		b.Errorf("signature failed to verify")
 		return
 	}
 	b.StartTimer()

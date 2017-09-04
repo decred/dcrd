@@ -1865,7 +1865,7 @@ func getDifficultyRatio(bits uint32) float64 {
 	outString := difficulty.FloatString(8)
 	diff, err := strconv.ParseFloat(outString, 64)
 	if err != nil {
-		rpcsLog.Errorf("Cannot get difficulty: %v", err)
+		rpcsLog.Errorf("cannot get difficulty: %v", err)
 		return 0
 	}
 	return diff
@@ -3089,7 +3089,7 @@ func handleGetBlockTemplateProposal(s *rpcServer, request *dcrjson.TemplateReque
 	isOrphan, err := s.server.blockManager.ProcessBlock(block, flags)
 	if err != nil {
 		if _, ok := err.(blockchain.RuleError); !ok {
-			errStr := fmt.Sprintf("Failed to process block "+
+			errStr := fmt.Sprintf("failed to process block "+
 				"proposal: %v", err)
 			rpcsLog.Error(errStr)
 			return nil, rpcInternalError(err.Error(),
@@ -3650,7 +3650,7 @@ func handleGetStakeDifficulty(s *rpcServer, cmd interface{}, closeChan <-chan st
 	best := s.chain.BestSnapshot()
 	blockHeader, err := s.chain.HeaderByHeight(best.Height)
 	if err != nil {
-		rpcsLog.Errorf("Error getting block: %v", err)
+		rpcsLog.Errorf("error getting block: %v", err)
 		return nil, &dcrjson.RPCError{
 			Code:    dcrjson.ErrRPCDifficulty,
 			Message: "Error getting stake difficulty: " + err.Error(),
@@ -4285,7 +4285,7 @@ func handleGetWorkSubmission(s *rpcServer, hexData string) (interface{}, error) 
 	// available.
 	blockInfo, ok := s.templatePool[merkleRootPair]
 	if !ok {
-		rpcsLog.Errorf("Block submitted via getwork has no matching "+
+		rpcsLog.Errorf("block submitted via getwork has no matching "+
 			"template for merkle root %s",
 			submittedHeader.MerkleRoot)
 		return false, nil
@@ -4322,7 +4322,7 @@ func handleGetWorkSubmission(s *rpcServer, hexData string) (interface{}, error) 
 				"")
 		}
 
-		rpcsLog.Errorf("Block submitted via getwork does not meet "+
+		rpcsLog.Errorf("block submitted via getwork does not meet "+
 			"the required proof of work: %v", err)
 		return false, nil
 	}
@@ -5066,7 +5066,7 @@ func handleSendRawTransaction(s *rpcServer, cmd interface{}, closeChan <-chan st
 			rpcsLog.Debugf("Rejected transaction %v: %v", tx.Hash(),
 				err)
 		} else {
-			rpcsLog.Errorf("Failed to process transaction %v: %v",
+			rpcsLog.Errorf("failed to process transaction %v: %v",
 				tx.Hash(), err)
 		}
 		return nil, rpcInternalError(err.Error(), "Tx rejected")
@@ -5656,7 +5656,7 @@ func verifyChain(s *rpcServer, level, depth int64) error {
 		// Level 0 just looks up the block.
 		block, err := s.chain.BlockByHeight(height)
 		if err != nil {
-			rpcsLog.Errorf("Verify is unable to fetch block at "+
+			rpcsLog.Errorf("verify is unable to fetch block at "+
 				"height %d: %v", height, err)
 			return err
 		}
@@ -5667,7 +5667,7 @@ func verifyChain(s *rpcServer, level, depth int64) error {
 				s.server.timeSource,
 				activeNetParams.Params)
 			if err != nil {
-				rpcsLog.Errorf("Verify is unable to validate "+
+				rpcsLog.Errorf("verify is unable to validate "+
 					"block at hash %v height %d: %v",
 					block.Hash(), height, err)
 				return err
@@ -5865,7 +5865,7 @@ func (s *rpcServer) Stop() error {
 	for _, listener := range s.listeners {
 		err := listener.Close()
 		if err != nil {
-			rpcsLog.Errorf("Problem shutting down rpc: %v", err)
+			rpcsLog.Errorf("problem shutting down rpc: %v", err)
 			return err
 		}
 	}
@@ -6075,7 +6075,7 @@ func (s *rpcServer) jsonRPCRead(w http.ResponseWriter, r *http.Request, isAdmin 
 	}
 	conn, buf, err := hj.Hijack()
 	if err != nil {
-		rpcsLog.Warnf("Failed to hijack HTTP connection: %v", err)
+		rpcsLog.Warnf("failed to hijack HTTP connection: %v", err)
 		errCode := http.StatusInternalServerError
 		http.Error(w, strconv.Itoa(errCode)+" "+
 			err.Error(), errCode)
@@ -6143,7 +6143,7 @@ func (s *rpcServer) jsonRPCRead(w http.ResponseWriter, r *http.Request, isAdmin 
 	// Marshal the response.
 	msg, err := createMarshalledReply(responseID, result, jsonErr)
 	if err != nil {
-		rpcsLog.Errorf("Failed to marshal reply: %v", err)
+		rpcsLog.Errorf("failed to marshal reply: %v", err)
 		return
 	}
 
@@ -6154,7 +6154,7 @@ func (s *rpcServer) jsonRPCRead(w http.ResponseWriter, r *http.Request, isAdmin 
 		return
 	}
 	if _, err := buf.Write(msg); err != nil {
-		rpcsLog.Errorf("Failed to write marshalled reply: %v", err)
+		rpcsLog.Errorf("failed to write marshalled reply: %v", err)
 	}
 }
 
@@ -6215,7 +6215,7 @@ func (s *rpcServer) Start() {
 		ws, err := websocket.Upgrade(w, r, nil, 0, 0)
 		if err != nil {
 			if _, ok := err.(websocket.HandshakeError); !ok {
-				rpcsLog.Errorf("Unexpected websocket error: %v",
+				rpcsLog.Errorf("unexpected websocket error: %v",
 					err)
 			}
 			http.Error(w, "400 Bad Request.", http.StatusBadRequest)

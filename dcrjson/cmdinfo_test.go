@@ -44,14 +44,14 @@ func TestCmdMethod(t *testing.T) {
 	for i, test := range tests {
 		method, err := dcrjson.CmdMethod(test.cmd)
 		if reflect.TypeOf(err) != reflect.TypeOf(test.err) {
-			t.Errorf("Test #%d (%s) wrong error - got %T (%[3]v), "+
+			t.Errorf("test #%d (%s) wrong error - got %T (%[3]v), "+
 				"want %T", i, test.name, err, test.err)
 			continue
 		}
 		if err != nil {
 			gotErrorCode := err.(dcrjson.Error).Code
 			if gotErrorCode != test.err.(dcrjson.Error).Code {
-				t.Errorf("Test #%d (%s) mismatched error code "+
+				t.Errorf("test #%d (%s) mismatched error code "+
 					"- got %v (%v), want %v", i, test.name,
 					gotErrorCode, err,
 					test.err.(dcrjson.Error).Code)
@@ -102,14 +102,14 @@ func TestMethodUsageFlags(t *testing.T) {
 	for i, test := range tests {
 		flags, err := dcrjson.MethodUsageFlags(test.method)
 		if reflect.TypeOf(err) != reflect.TypeOf(test.err) {
-			t.Errorf("Test #%d (%s) wrong error - got %T (%[3]v), "+
+			t.Errorf("test #%d (%s) wrong error - got %T (%[3]v), "+
 				"want %T", i, test.name, err, test.err)
 			continue
 		}
 		if err != nil {
 			gotErrorCode := err.(dcrjson.Error).Code
 			if gotErrorCode != test.err.(dcrjson.Error).Code {
-				t.Errorf("Test #%d (%s) mismatched error code "+
+				t.Errorf("test #%d (%s) mismatched error code "+
 					"- got %v (%v), want %v", i, test.name,
 					gotErrorCode, err,
 					test.err.(dcrjson.Error).Code)
@@ -121,7 +121,7 @@ func TestMethodUsageFlags(t *testing.T) {
 
 		// Ensure flags match the expected value.
 		if flags != test.flags {
-			t.Errorf("Test #%d (%s) mismatched flags - got %v, "+
+			t.Errorf("test #%d (%s) mismatched flags - got %v, "+
 				"want %v", i, test.name, flags, test.flags)
 			continue
 		}
@@ -160,14 +160,14 @@ func TestMethodUsageText(t *testing.T) {
 	for i, test := range tests {
 		usage, err := dcrjson.MethodUsageText(test.method)
 		if reflect.TypeOf(err) != reflect.TypeOf(test.err) {
-			t.Errorf("Test #%d (%s) wrong error - got %T (%[3]v), "+
+			t.Errorf("test #%d (%s) wrong error - got %T (%[3]v), "+
 				"want %T", i, test.name, err, test.err)
 			continue
 		}
 		if err != nil {
 			gotErrorCode := err.(dcrjson.Error).Code
 			if gotErrorCode != test.err.(dcrjson.Error).Code {
-				t.Errorf("Test #%d (%s) mismatched error code "+
+				t.Errorf("test #%d (%s) mismatched error code "+
 					"- got %v (%v), want %v", i, test.name,
 					gotErrorCode, err,
 					test.err.(dcrjson.Error).Code)
@@ -179,7 +179,7 @@ func TestMethodUsageText(t *testing.T) {
 
 		// Ensure usage matches the expected value.
 		if usage != test.expected {
-			t.Errorf("Test #%d (%s) mismatched usage - got %v, "+
+			t.Errorf("test #%d (%s) mismatched usage - got %v, "+
 				"want %v", i, test.name, usage, test.expected)
 			continue
 		}
@@ -187,14 +187,14 @@ func TestMethodUsageText(t *testing.T) {
 		// Get the usage again to excerise caching.
 		usage, err = dcrjson.MethodUsageText(test.method)
 		if err != nil {
-			t.Errorf("Test #%d (%s) unexpected error: %v", i,
+			t.Errorf("test #%d (%s) unexpected error: %v", i,
 				test.name, err)
 			continue
 		}
 
 		// Ensure usage still matches the expected value.
 		if usage != test.expected {
-			t.Errorf("Test #%d (%s) mismatched usage - got %v, "+
+			t.Errorf("test #%d (%s) mismatched usage - got %v, "+
 				"want %v", i, test.name, usage, test.expected)
 			continue
 		}
@@ -423,7 +423,7 @@ func TestFieldUsage(t *testing.T) {
 		// Ensure usage matches the expected value.
 		usage := dcrjson.TstFieldUsage(test.field, test.defValue)
 		if usage != test.expected {
-			t.Errorf("Test #%d (%s) mismatched usage - got %v, "+
+			t.Errorf("test #%d (%s) mismatched usage - got %v, "+
 				"want %v", i, test.name, usage, test.expected)
 			continue
 		}

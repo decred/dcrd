@@ -37,7 +37,7 @@ func TestGenesisBlock(t *testing.T) {
 
 	// Ensure the encoded block matches the expected bytes.
 	if !bytes.Equal(buf.Bytes(), genesisBlockBytes) {
-		t.Fatalf("TestGenesisBlock: Genesis block does not appear valid - "+
+		t.Fatalf("TestGenesisBlock: genesis block does not appear valid - "+
 			"got %v, want %v", spew.Sdump(buf.Bytes()),
 			spew.Sdump(genesisBlockBytes))
 	}
@@ -45,7 +45,7 @@ func TestGenesisBlock(t *testing.T) {
 	// Check hash of the block against expected hash.
 	hash := MainNetParams.GenesisBlock.BlockHash()
 	if !MainNetParams.GenesisHash.IsEqual(&hash) {
-		t.Fatalf("TestGenesisBlock: Genesis block hash does not "+
+		t.Fatalf("TestGenesisBlock: genesis block hash does not "+
 			"appear valid - got %v, want %v", spew.Sdump(hash),
 			spew.Sdump(MainNetParams.GenesisHash))
 	}
@@ -78,7 +78,7 @@ func TestTestNetGenesisBlock(t *testing.T) {
 
 	// Ensure the encoded block matches the expected bytes.
 	if !bytes.Equal(buf.Bytes(), testNetGenesisBlockBytes) {
-		t.Fatalf("TestTestNetGenesisBlock: Genesis block does not "+
+		t.Fatalf("TestTestNetGenesisBlock: genesis block does not "+
 			"appear valid - got %v, want %v",
 			spew.Sdump(buf.Bytes()),
 			spew.Sdump(testNetGenesisBlockBytes))
@@ -87,7 +87,7 @@ func TestTestNetGenesisBlock(t *testing.T) {
 	// Check hash of the block against expected hash.
 	hash := TestNet2Params.GenesisBlock.BlockHash()
 	if !TestNet2Params.GenesisHash.IsEqual(&hash) {
-		t.Fatalf("TestTestNetGenesisBlock: Genesis block hash does "+
+		t.Fatalf("TestTestNetGenesisBlock: genesis block hash does "+
 			"not appear valid - got %v, want %v", spew.Sdump(hash),
 			spew.Sdump(TestNet2Params.GenesisHash))
 	}
@@ -120,7 +120,7 @@ func TestSimNetGenesisBlock(t *testing.T) {
 
 	// Ensure the encoded block matches the expected bytes.
 	if !bytes.Equal(buf.Bytes(), simNetGenesisBlockBytes) {
-		t.Fatalf("TestSimNetGenesisBlock: Genesis block does not "+
+		t.Fatalf("TestSimNetGenesisBlock: genesis block does not "+
 			"appear valid - got %v, want %v",
 			spew.Sdump(buf.Bytes()),
 			spew.Sdump(simNetGenesisBlockBytes))
@@ -129,7 +129,7 @@ func TestSimNetGenesisBlock(t *testing.T) {
 	// Check hash of the block against expected hash.
 	hash := SimNetParams.GenesisBlock.BlockHash()
 	if !SimNetParams.GenesisHash.IsEqual(&hash) {
-		t.Fatalf("TestSimNetGenesisBlock: Genesis block hash does "+
+		t.Fatalf("TestSimNetGenesisBlock: genesis block hash does "+
 			"not appear valid - got %v, want %v", spew.Sdump(hash),
 			spew.Sdump(SimNetParams.GenesisHash))
 	}

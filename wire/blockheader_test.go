@@ -20,7 +20,7 @@ import (
 func TestBlockHeader(t *testing.T) {
 	nonce64, err := RandomUint64()
 	if err != nil {
-		t.Errorf("RandomUint64: Error generating nonce: %v", err)
+		t.Errorf("RandomUint64: error generating nonce: %v", err)
 	}
 	nonce := uint32(nonce64)
 
@@ -93,7 +93,7 @@ func TestBlockHeader(t *testing.T) {
 			bh.Bits, bits)
 	}
 	if bh.PoolSize != poolsize {
-		t.Errorf("NewBlockHeader: wrong PoolSize - got %v, want %v",
+		t.Errorf("NewBlockHeader: wrong pool size - got %v, want %v",
 			bh.PoolSize, poolsize)
 	}
 	if bh.Bits != bits {
@@ -109,7 +109,7 @@ func TestBlockHeader(t *testing.T) {
 			bh.Nonce, nonce)
 	}
 	if bh.StakeVersion != stakeVersion {
-		t.Errorf("NewBlockHeader: wrong stakeVersion - got %v, want %v",
+		t.Errorf("NewBlockHeader: wrong stake version - got %v, want %v",
 			bh.StakeVersion, stakeVersion)
 	}
 }

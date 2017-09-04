@@ -72,13 +72,13 @@ func mockDialer(addr net.Addr) (net.Conn, error) {
 func TestNewConfig(t *testing.T) {
 	_, err := New(&Config{})
 	if err == nil {
-		t.Fatalf("New expected error: 'Dial can't be nil', got nil")
+		t.Fatalf("New() expected error: 'Dial can't be nil', got nil")
 	}
 	_, err = New(&Config{
 		Dial: mockDialer,
 	})
 	if err != nil {
-		t.Fatalf("New unexpected error: %v", err)
+		t.Fatalf("New() unexpected error: %v", err)
 	}
 }
 
@@ -104,7 +104,7 @@ func TestStartStop(t *testing.T) {
 		},
 	})
 	if err != nil {
-		t.Fatalf("New error: %v", err)
+		t.Fatalf("New() error: %v", err)
 	}
 	cmgr.Start()
 	gotConnReq := <-connected
@@ -147,7 +147,7 @@ func TestConnectMode(t *testing.T) {
 		},
 	})
 	if err != nil {
-		t.Fatalf("New error: %v", err)
+		t.Fatalf("New() error: %v", err)
 	}
 	cr := &ConnReq{
 		Addr: &net.TCPAddr{
@@ -199,7 +199,7 @@ func TestTargetOutbound(t *testing.T) {
 		},
 	})
 	if err != nil {
-		t.Fatalf("New error: %v", err)
+		t.Fatalf("New() error: %v", err)
 	}
 	cmgr.Start()
 	for i := uint32(0); i < targetOutbound; i++ {
@@ -234,7 +234,7 @@ func TestRetryPermanent(t *testing.T) {
 		},
 	})
 	if err != nil {
-		t.Fatalf("New error: %v", err)
+		t.Fatalf("New() error: %v", err)
 	}
 
 	cr := &ConnReq{
@@ -326,7 +326,7 @@ func TestMaxRetryDuration(t *testing.T) {
 		},
 	})
 	if err != nil {
-		t.Fatalf("New error: %v", err)
+		t.Fatalf("New() error: %v", err)
 	}
 
 	cr := &ConnReq{
@@ -371,7 +371,7 @@ func TestNetworkFailure(t *testing.T) {
 		},
 	})
 	if err != nil {
-		t.Fatalf("New error: %v", err)
+		t.Fatalf("New() error: %v", err)
 	}
 	cmgr.Start()
 	time.AfterFunc(10*time.Millisecond, cmgr.Stop)
@@ -400,7 +400,7 @@ func TestStopFailed(t *testing.T) {
 		Dial: waitDialer,
 	})
 	if err != nil {
-		t.Fatalf("New error: %v", err)
+		t.Fatalf("New() error: %v", err)
 	}
 	cmgr.Start()
 	go func() {
@@ -497,7 +497,7 @@ func TestListeners(t *testing.T) {
 		Dial: mockDialer,
 	})
 	if err != nil {
-		t.Fatalf("New error: %v", err)
+		t.Fatalf("New() error: %v", err)
 	}
 	cmgr.Start()
 
@@ -525,7 +525,7 @@ out:
 			}
 
 		case <-time.After(time.Millisecond * 50):
-			t.Fatalf("Timeout waiting for %d expected connections",
+			t.Fatalf("timeout waiting for %d expected connections",
 				expectedNumConns)
 		}
 	}

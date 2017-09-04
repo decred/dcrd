@@ -60,7 +60,7 @@ func TestPongLatest(t *testing.T) {
 
 	// Ensure nonce is the same.
 	if msg.Nonce != readmsg.Nonce {
-		t.Errorf("Should get same nonce for protocol version %d", pver)
+		t.Errorf("should get same nonce for protocol version %d", pver)
 	}
 
 	return

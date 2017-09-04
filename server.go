@@ -274,7 +274,7 @@ func (sp *serverPeer) pushAddrMsg(addresses []*wire.NetAddress) {
 	}
 	known, err := sp.PushAddrMsg(addrs)
 	if err != nil {
-		peerLog.Errorf("Can't push address message to %s: %v", sp.Peer, err)
+		peerLog.Errorf("can't push address message to %s: %v", sp.Peer, err)
 		sp.Disconnect()
 		return
 	}
@@ -590,7 +590,7 @@ func (sp *serverPeer) OnInv(p *peer.Peer, msg *wire.MsgInv) {
 		}
 		err := newInv.AddInvVect(invVect)
 		if err != nil {
-			peerLog.Errorf("Failed to add inventory vector: %v", err)
+			peerLog.Errorf("failed to add inventory vector: %v", err)
 			break
 		}
 	}
@@ -985,7 +985,7 @@ func (sp *serverPeer) OnAddr(p *peer.Peer, msg *wire.MsgAddr) {
 
 	// A message that has no addresses is invalid.
 	if len(msg.AddrList) == 0 {
-		peerLog.Errorf("Command [%s] from %s does not contain any addresses",
+		peerLog.Errorf("command [%s] from %s does not contain any addresses",
 			msg.Command(), p)
 		p.Disconnect()
 		return
@@ -1387,7 +1387,7 @@ func (s *server) handleRelayInvMsg(state *peerState, msg relayMsg) {
 			}
 			msgHeaders := wire.NewMsgHeaders()
 			if err := msgHeaders.AddBlockHeader(&blockHeader); err != nil {
-				peerLog.Errorf("Failed to add block"+
+				peerLog.Errorf("failed to add block"+
 					" header: %v", err)
 				return
 			}

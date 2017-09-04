@@ -640,7 +640,7 @@ func loadConfig() (*config, []string, error) {
 	if cfg.Profile != "" {
 		profilePort, err := strconv.Atoi(cfg.Profile)
 		if err != nil || profilePort < 1024 || profilePort > 65535 {
-			str := "%s: The profile port must be between 1024 and 65535"
+			str := "%s: the profile port must be between 1024 and 65535"
 			err := fmt.Errorf(str, funcName)
 			fmt.Fprintln(os.Stderr, err)
 			fmt.Fprintln(os.Stderr, usageMessage)
@@ -949,7 +949,7 @@ func loadConfig() (*config, []string, error) {
 
 	// Tor stream isolation requires either proxy or onion proxy to be set.
 	if cfg.TorIsolation && cfg.Proxy == "" && cfg.OnionProxy == "" {
-		str := "%s: Tor stream isolation requires either proxy or " +
+		str := "%s: tor stream isolation requires either proxy or " +
 			"onionproxy to be set"
 		err := fmt.Errorf(str, funcName)
 		fmt.Fprintln(os.Stderr, err)
@@ -968,7 +968,7 @@ func loadConfig() (*config, []string, error) {
 	if cfg.Proxy != "" {
 		_, _, err := net.SplitHostPort(cfg.Proxy)
 		if err != nil {
-			str := "%s: Proxy address '%s' is invalid: %v"
+			str := "%s: proxy address '%s' is invalid: %v"
 			err := fmt.Errorf(str, funcName, cfg.Proxy, err)
 			fmt.Fprintln(os.Stderr, err)
 			fmt.Fprintln(os.Stderr, usageMessage)
@@ -1006,7 +1006,7 @@ func loadConfig() (*config, []string, error) {
 	if cfg.OnionProxy != "" {
 		_, _, err := net.SplitHostPort(cfg.OnionProxy)
 		if err != nil {
-			str := "%s: Onion proxy address '%s' is invalid: %v"
+			str := "%s: onion proxy address '%s' is invalid: %v"
 			err := fmt.Errorf(str, funcName, cfg.OnionProxy, err)
 			fmt.Fprintln(os.Stderr, err)
 			fmt.Fprintln(os.Stderr, usageMessage)

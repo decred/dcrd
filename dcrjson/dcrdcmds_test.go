@@ -83,7 +83,7 @@ func TestDcrdCmds(t *testing.T) {
 		}
 
 		if !bytes.Equal(marshalled, []byte(test.marshalled)) {
-			t.Errorf("Test #%d (%s) unexpected marshalled data - "+
+			t.Errorf("test #%d (%s) unexpected marshalled data - "+
 				"got %s, want %s", i, test.name, marshalled,
 				test.marshalled)
 			continue
@@ -93,7 +93,7 @@ func TestDcrdCmds(t *testing.T) {
 		// new command creation function.
 		cmd, err := test.newCmd()
 		if err != nil {
-			t.Errorf("Test #%d (%s) unexpected NewCmd error: %v ",
+			t.Errorf("test #%d (%s) unexpected newCmd error: %v ",
 				i, test.name, err)
 		}
 
@@ -107,7 +107,7 @@ func TestDcrdCmds(t *testing.T) {
 		}
 
 		if !bytes.Equal(marshalled, []byte(test.marshalled)) {
-			t.Errorf("Test #%d (%s) unexpected marshalled data - "+
+			t.Errorf("test #%d (%s) unexpected marshalled data - "+
 				"got %s, want %s", i, test.name, marshalled,
 				test.marshalled)
 			continue
@@ -115,7 +115,7 @@ func TestDcrdCmds(t *testing.T) {
 
 		var request dcrjson.Request
 		if err := json.Unmarshal(marshalled, &request); err != nil {
-			t.Errorf("Test #%d (%s) unexpected error while "+
+			t.Errorf("test #%d (%s) unexpected error while "+
 				"unmarshalling JSON-RPC request: %v", i,
 				test.name, err)
 			continue
@@ -129,7 +129,7 @@ func TestDcrdCmds(t *testing.T) {
 		}
 
 		if !reflect.DeepEqual(cmd, test.unmarshalled) {
-			t.Errorf("Test #%d (%s) unexpected unmarshalled command "+
+			t.Errorf("test #%d (%s) unexpected unmarshalled command "+
 				"- got %s, want %s", i, test.name,
 				fmt.Sprintf("(%T) %+[1]v", cmd),
 				fmt.Sprintf("(%T) %+[1]v\n", test.unmarshalled))

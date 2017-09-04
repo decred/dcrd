@@ -45,7 +45,7 @@ func TestErrorCodeStringer(t *testing.T) {
 
 	// Detect additional error codes that don't have the stringer added.
 	if len(tests)-1 != int(database.TstNumErrorCodes) {
-		t.Errorf("It appears an error code was added without adding " +
+		t.Errorf("it appears an error code was added without adding " +
 			"an associated stringer test")
 	}
 
@@ -53,7 +53,7 @@ func TestErrorCodeStringer(t *testing.T) {
 	for i, test := range tests {
 		result := test.in.String()
 		if result != test.want {
-			t.Errorf("String #%d\ngot: %s\nwant: %s", i, result,
+			t.Errorf("string #%d\ngot: %s\nwant: %s", i, result,
 				test.want)
 			continue
 		}
@@ -90,7 +90,7 @@ func TestError(t *testing.T) {
 	for i, test := range tests {
 		result := test.in.Error()
 		if result != test.want {
-			t.Errorf("Error #%d\n got: %s want: %s", i, result,
+			t.Errorf("error #%d\n got: %s want: %s", i, result,
 				test.want)
 			continue
 		}

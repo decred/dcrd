@@ -21,7 +21,7 @@ func TestPing(t *testing.T) {
 	// Ensure we get the same nonce back out.
 	nonce, err := RandomUint64()
 	if err != nil {
-		t.Errorf("RandomUint64: Error generating nonce: %v", err)
+		t.Errorf("RandomUint64: error generating nonce: %v", err)
 	}
 	msg := NewMsgPing(nonce)
 	if msg.Nonce != nonce {

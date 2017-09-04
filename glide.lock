@@ -1,8 +1,8 @@
 hash: 5ff55cbde58db9eecfef0a796b2513f910996d6aaa1244f31475852835e48efe
-updated: 2017-08-30T23:46:58.835362449Z
+updated: 2017-09-04T17:41:46.830686005+02:00
 imports:
 - name: github.com/agl/ed25519
-  version: 278e1ec8e8a6e017cd07577924d6766039146ced
+  version: 5312a61534124124185d41f09206b9fef1d88403
   subpackages:
   - edwards25519
 - name: github.com/btcsuite/btclog
@@ -39,7 +39,7 @@ imports:
   - svc
   - winapi
 - name: github.com/davecgh/go-spew
-  version: adab96458c51a58dc1783b3335dcce5461522e75
+  version: a476722483882dd40b8111f0eb64e1d7f43f56e4
   subpackages:
   - spew
 - name: github.com/dchest/blake256
@@ -55,7 +55,7 @@ imports:
   - bloom
   - hdkeychain
 - name: github.com/jessevdk/go-flags
-  version: 48cf8722c3375517aba351d1f7577c40663a4407
+  version: 96dc06278ce32a0e9d957d590bb987c81ee66407
 - name: github.com/jrick/logrotate
   version: a93b200c26cbae3bb09dd0dc2c7c7fe1468a034a
   subpackages:
@@ -66,7 +66,8 @@ imports:
   - ripemd160
   - ssh/terminal
 - name: golang.org/x/sys
-  version: bb24a47a89eac6c1227fbcb2ae37a8b9ed323366
+  version: 7ddbeae9ae08c6a06a59597f0c9edbc5ff2444ce
   subpackages:
   - unix
+  - windows
 testImports: []

@@ -254,7 +254,7 @@ out:
 						cm.handleFailedConn(connReq)
 					}
 				} else {
-					log.Errorf("Unknown connection: %d", msg.id)
+					log.Errorf("unknown connection: %d", msg.id)
 				}
 
 			case handleFailed:
@@ -343,7 +343,7 @@ func (cm *ConnManager) listenHandler(listener net.Listener) {
 		if err != nil {
 			// Only log the error if not forcibly shutting down.
 			if atomic.LoadInt32(&cm.stop) == 0 {
-				log.Errorf("Can't accept connection: %v", err)
+				log.Errorf("can't accept connection: %v", err)
 			}
 			continue
 		}

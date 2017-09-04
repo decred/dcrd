@@ -219,7 +219,7 @@ func TestMsgAlertWireErrors(t *testing.T) {
 	w := new(bytes.Buffer)
 	err := baseMsgAlert.BtcEncode(w, pver)
 	if _, ok := err.(*MessageError); !ok {
-		t.Errorf("MsgAlert.BtcEncode wrong error got: %T, want: %T",
+		t.Errorf("baseMsgAlert.BtcEncode wrong error got: %T, want: %T",
 			err, MessageError{})
 	}
 
@@ -230,7 +230,7 @@ func TestMsgAlertWireErrors(t *testing.T) {
 	buf := *new(bytes.Buffer)
 	err = baseMsgAlert.BtcEncode(&buf, pver)
 	if _, ok := err.(*MessageError); !ok {
-		t.Errorf("MsgAlert.BtcEncode wrong error got: %T, want: %T",
+		t.Errorf("baseMsgAlert.BtcEncode wrong error got: %T, want: %T",
 			err, MessageError{})
 	}
 
@@ -240,7 +240,7 @@ func TestMsgAlertWireErrors(t *testing.T) {
 	buf = *new(bytes.Buffer)
 	err = baseMsgAlert.BtcEncode(&buf, pver)
 	if _, ok := err.(*MessageError); !ok {
-		t.Errorf("MsgAlert.BtcEncode wrong error got: %T, want: %T",
+		t.Errorf("baseMsgAlert.BtcEncode wrong error got: %T, want: %T",
 			err, MessageError{})
 	}
 }
@@ -378,7 +378,7 @@ func TestAlertErrors(t *testing.T) {
 		{baseAlert, baseAlertEncoded, pver, 70, io.ErrShortWrite, io.EOF},
 	}
 
-	t.Logf("Running %d tests", len(tests))
+	t.Logf("running %d tests", len(tests))
 	for i, test := range tests {
 		w := newFixedWriter(test.max)
 		err := test.in.Serialize(w, test.pver)

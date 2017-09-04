@@ -737,7 +737,7 @@ func TestRandomUint64(t *testing.T) {
 		}
 		if numHits > maxHits {
 			str := fmt.Sprintf(badRNG, numHits, watermark, tries, maxHits)
-			t.Errorf("Random Uint64 iteration %d failed - %v %v", i,
+			t.Errorf("RandomUint64 iteration %d failed - %v %v", i,
 				str, numHits)
 			return
 		}
@@ -751,10 +751,10 @@ func TestRandomUint64Errors(t *testing.T) {
 	fr := &fakeRandReader{n: 2, err: io.EOF}
 	nonce, err := randomUint64(fr)
 	if err != io.ErrUnexpectedEOF {
-		t.Errorf("Error not expected value of %v [%v]",
+		t.Errorf("error not expected value of %v [%v]",
 			io.ErrUnexpectedEOF, err)
 	}
 	if nonce != 0 {
-		t.Errorf("Nonce is not 0 [%v]", nonce)
+		t.Errorf("nonce is not 0 [%v]", nonce)
 	}
 }

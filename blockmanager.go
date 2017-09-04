@@ -544,12 +544,12 @@ func (b *blockManager) startSync(peers *list.List) {
 
 		locator, err := b.chain.LatestBlockLocator()
 		if err != nil {
-			bmgrLog.Errorf("Failed to get block locator for the "+
+			bmgrLog.Errorf("failed to get block locator for the "+
 				"latest block: %v", err)
 			return
 		}
 
-		bmgrLog.Infof("Syncing to block height %d from peer %v",
+		bmgrLog.Infof("syncing to block height %d from peer %v",
 			bestPeer.LastBlock(), bestPeer.Addr())
 
 		// When the current height is less than a known checkpoint we
@@ -575,18 +575,18 @@ func (b *blockManager) startSync(peers *list.List) {
 
 			err := bestPeer.PushGetHeadersMsg(locator, b.nextCheckpoint.Hash)
 			if err != nil {
-				bmgrLog.Errorf("Failed to push getheadermsg for the "+
+				bmgrLog.Errorf("failed to push getheadermsg for the "+
 					"latest blocks: %v", err)
 				return
 			}
 			b.headersFirstMode = true
-			bmgrLog.Infof("Downloading headers for blocks %d to "+
+			bmgrLog.Infof("downloading headers for blocks %d to "+
 				"%d from peer %s", best.Height+1,
 				b.nextCheckpoint.Height, bestPeer.Addr())
 		} else {
 			err := bestPeer.PushGetBlocksMsg(locator, &zeroHash)
 			if err != nil {
-				bmgrLog.Errorf("Failed to push getblocksmsg for the "+
+				bmgrLog.Errorf("failed to push getblocksmsg for the "+
 					"latest blocks: %v", err)
 				return
 			}
@@ -741,7 +741,7 @@ func (b *blockManager) handleTxMsg(tmsg *txMsg) {
 			bmgrLog.Debugf("Rejected transaction %v from %s: %v",
 				txHash, tmsg.peer, err)
 		} else {
-			bmgrLog.Errorf("Failed to process transaction %v: %v",
+			bmgrLog.Errorf("failed to process transaction %v: %v",
 				txHash, err)
 		}
 
@@ -1027,12 +1027,12 @@ func (b *blockManager) handleBlockMsg(bmsg *blockMsg) {
 			bmgrLog.Infof("Rejected block %v from %s: %v", blockHash,
 				bmsg.peer, err)
 		} else {
-			bmgrLog.Errorf("Failed to process block %v: %v",
+			bmgrLog.Errorf("failed to process block %v: %v",
 				blockHash, err)
 		}
 		if dbErr, ok := err.(database.Error); ok && dbErr.ErrorCode ==
 			database.ErrCorruption {
-			bmgrLog.Errorf("Critical failure: %v", dbErr.Error())
+			bmgrLog.Errorf("critical failure: %v", dbErr.Error())
 		}
 
 		// Convert the error into an appropriate reject message and
@@ -1100,7 +1100,7 @@ func (b *blockManager) handleBlockMsg(bmsg *blockMsg) {
 				b.chain.LotteryDataForBlock(blockHash)
 			if err != nil && int64(bmsg.block.MsgBlock().Header.Height) >=
 				b.server.chainParams.StakeValidationHeight-1 {
-				bmgrLog.Errorf("Failed to get next winning tickets: %v", err)
+				bmgrLog.Errorf("failed to get next winning tickets: %v", err)
 
 				code, reason := mempool.ErrToRejectErr(err)
 				bmsg.peer.PushRejectMsg(wire.CmdBlock, code, reason,
@@ -1546,14 +1546,14 @@ func (b *blockManager) handleInvMsg(imsg *invMsg) {
 				orphanRoot := b.chain.GetOrphanRoot(&iv.Hash)
 				locator, err := b.chain.LatestBlockLocator()
 				if err != nil {
-					bmgrLog.Errorf("PEER: Failed to get block "+
+					bmgrLog.Errorf("PEER: failed to get block "+
 						"locator for the latest block: "+
 						"%v", err)
 					continue
 				}
 				err = imsg.peer.PushGetBlocksMsg(locator, orphanRoot)
 				if err != nil {
-					bmgrLog.Errorf("PEER: Failed to push getblocksmsg "+
+					bmgrLog.Errorf("PEER: failed to push getblocksmsg "+
 						"for orphan chain: %v", err)
 				}
 				continue
@@ -1570,7 +1570,7 @@ func (b *blockManager) handleInvMsg(imsg *invMsg) {
 				locator := b.chain.BlockLocatorFromHash(&iv.Hash)
 				err = imsg.peer.PushGetBlocksMsg(locator, &zeroHash)
 				if err != nil {
-					bmgrLog.Errorf("PEER: Failed to push getblocksmsg: "+
+					bmgrLog.Errorf("PEER: failed to push getblocksmsg: "+
 						"%v", err)
 				}
 			}
@@ -1999,7 +1999,7 @@ func (b *blockManager) handleNotifyMsg(notification *blockchain.Notification) {
 			// within blockchain.
 			wt, _, _, err := b.chain.LotteryDataForBlock(hash)
 			if err != nil {
-				bmgrLog.Errorf("Couldn't calculate winning tickets for "+
+				bmgrLog.Errorf("couldn't calculate winning tickets for "+
 					"accepted block %v: %v", block.Hash(), err.Error())
 			} else {
 				if !beenNotified {

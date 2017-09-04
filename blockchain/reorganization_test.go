@@ -24,7 +24,7 @@ func reorgTestLong(t *testing.T) {
 	chain, teardownFunc, err := chainSetup("reorgunittest",
 		simNetParams)
 	if err != nil {
-		t.Errorf("Failed to setup chain instance: %v", err)
+		t.Errorf("failed to setup chain instance: %v", err)
 		return
 	}
 	defer teardownFunc()
@@ -34,14 +34,14 @@ func reorgTestLong(t *testing.T) {
 	genesisBlock := simNetParams.GenesisBlock
 	err = chain.CheckConnectBlock(dcrutil.NewBlock(genesisBlock))
 	if err == nil {
-		t.Errorf("CheckConnectBlock: Did not receive expected error")
+		t.Errorf("checkConnectBlock: Did not receive expected error")
 	}
 
 	// Load up the rest of the blocks up to HEAD.
 	filename := filepath.Join("testdata/", "reorgto179.bz2")
 	fi, err := os.Open(filename)
 	if err != nil {
-		t.Errorf("Unable to open %s: %v", filename, err)
+		t.Errorf("unable to open %s: %v", filename, err)
 	}
 	bcStream := bzip2.NewReader(fi)
 	defer fi.Close()
@@ -79,7 +79,7 @@ func reorgTestLong(t *testing.T) {
 	filename = filepath.Join("testdata/", "reorgto180.bz2")
 	fi, err = os.Open(filename)
 	if err != nil {
-		t.Errorf("Unable to open %s: %v", filename, err)
+		t.Errorf("unable to open %s: %v", filename, err)
 	}
 	bcStream = bzip2.NewReader(fi)
 	defer fi.Close()
@@ -117,7 +117,7 @@ func reorgTestLong(t *testing.T) {
 	expected, _ := chainhash.NewHashFromStr("5ab969d0afd8295b6cd1506f2a310d" +
 		"259322015c8bd5633f283a163ce0e50594")
 	if *tipHash != *expected {
-		t.Errorf("Failed to correctly reorg; expected tip %v, got tip %v",
+		t.Errorf("failed to correctly reorg; expected tip %v, got tip %v",
 			expected, tipHash)
 	}
 	have, err := chain.HaveBlock(expected)
@@ -139,7 +139,7 @@ func reorgTestShort(t *testing.T) {
 	chain, teardownFunc, err := chainSetup("reorgunittest",
 		simNetParams)
 	if err != nil {
-		t.Errorf("Failed to setup chain instance: %v", err)
+		t.Errorf("failed to setup chain instance: %v", err)
 		return
 	}
 	defer teardownFunc()
@@ -149,14 +149,14 @@ func reorgTestShort(t *testing.T) {
 	genesisBlock := simNetParams.GenesisBlock
 	err = chain.CheckConnectBlock(dcrutil.NewBlock(genesisBlock))
 	if err == nil {
-		t.Errorf("CheckConnectBlock: Did not receive expected error")
+		t.Errorf("checkConnectBlock: Did not receive expected error")
 	}
 
 	// Load up the rest of the blocks up to HEAD.
 	filename := filepath.Join("testdata/", "reorgto179.bz2")
 	fi, err := os.Open(filename)
 	if err != nil {
-		t.Errorf("Unable to open %s: %v", filename, err)
+		t.Errorf("unable to open %s: %v", filename, err)
 	}
 	bcStream := bzip2.NewReader(fi)
 	defer fi.Close()
@@ -180,7 +180,7 @@ func reorgTestShort(t *testing.T) {
 	filename = filepath.Join("testdata/", "reorgto180.bz2")
 	fi, err = os.Open(filename)
 	if err != nil {
-		t.Errorf("Unable to open %s: %v", filename, err)
+		t.Errorf("unable to open %s: %v", filename, err)
 	}
 	bcStream = bzip2.NewReader(fi)
 	defer fi.Close()
@@ -238,7 +238,7 @@ func reorgTestShort(t *testing.T) {
 	expected, _ := chainhash.NewHashFromStr("5ab969d0afd8295b6cd1506f2a310d" +
 		"259322015c8bd5633f283a163ce0e50594")
 	if *tipHash != *expected {
-		t.Errorf("Failed to correctly reorg; expected tip %v, got tip %v",
+		t.Errorf("failed to correctly reorg; expected tip %v, got tip %v",
 			expected, tipHash)
 	}
 	have, err := chain.HaveBlock(expected)
@@ -259,7 +259,7 @@ func reorgTestForced(t *testing.T) {
 	chain, teardownFunc, err := chainSetup("reorgunittest",
 		simNetParams)
 	if err != nil {
-		t.Errorf("Failed to setup chain instance: %v", err)
+		t.Errorf("failed to setup chain instance: %v", err)
 		return
 	}
 	defer teardownFunc()
@@ -269,7 +269,7 @@ func reorgTestForced(t *testing.T) {
 	genesisBlock := simNetParams.GenesisBlock
 	err = chain.CheckConnectBlock(dcrutil.NewBlock(genesisBlock))
 	if err == nil {
-		t.Errorf("CheckConnectBlock: Did not receive expected error")
+		t.Errorf("checkConnectBlock: Did not receive expected error")
 	}
 
 	// Load up the rest of the blocks up to HEAD.
@@ -354,7 +354,7 @@ func reorgTestForced(t *testing.T) {
 	expected, _ := chainhash.NewHashFromStr("0df603f434be1dca22d706c7c47be16a8" +
 		"edcef2f151bcf08b51138aa1cda26e2")
 	if *tipHash != *expected {
-		t.Errorf("Failed to correctly reorg; expected tip %v, got tip %v",
+		t.Errorf("failed to correctly reorg; expected tip %v, got tip %v",
 			expected, tipHash)
 	}
 	have, err := chain.HaveBlock(expected)

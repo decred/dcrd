@@ -570,11 +570,11 @@ func TestOutboundPeer(t *testing.T) {
 	case <-disconnected:
 		close(disconnected)
 	case <-time.After(time.Second):
-		t.Fatal("Peer did not automatically disconnect.")
+		t.Fatal("peer did not automatically disconnect.")
 	}
 
 	if p.Connected() {
-		t.Fatalf("Should not be connected as NewestBlock produces error.")
+		t.Fatalf("should not be connected as NewestBlock produces error.")
 	}
 
 	// Test Queue Inv
