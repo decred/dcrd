@@ -1385,7 +1385,7 @@ out:
 			// local peer is not forcibly disconnecting and the
 			// remote peer has not disconnected.
 			if p.shouldHandleReadError(err) {
-				errMsg := fmt.Sprintf("Can't read message from %s: %v", p, err)
+				errMsg := fmt.Sprintf("can't read message from %s: %v", p, err)
 				log.Errorf(errMsg)
 
 				// Push a reject message for the malformed message and wait for
@@ -1740,7 +1740,7 @@ out:
 			if err := p.writeMessage(msg.msg); err != nil {
 				p.Disconnect()
 				if p.shouldLogWriteError(err) {
-					log.Errorf("Failed to send message to "+
+					log.Errorf("failed to send message to "+
 						"%s: %v", p, err)
 				}
 				if msg.doneChan != nil {
@@ -1763,7 +1763,7 @@ out:
 		case <-pingTicker.C:
 			nonce, err := wire.RandomUint64()
 			if err != nil {
-				log.Errorf("Not sending ping to %s: %v", p, err)
+				log.Errorf("not sending ping to %s: %v", p, err)
 				continue
 			}
 			p.QueueMessage(wire.NewMsgPing(nonce), nil)
@@ -1854,7 +1854,7 @@ func (p *Peer) AssociateConnection(conn net.Conn) {
 		// and no point recomputing.
 		na, err := newNetAddress(p.conn.RemoteAddr(), p.services)
 		if err != nil {
-			log.Errorf("Cannot create remote net address: %v", err)
+			log.Errorf("cannot create remote net address: %v", err)
 			p.Disconnect()
 			return
 		}
@@ -1863,7 +1863,7 @@ func (p *Peer) AssociateConnection(conn net.Conn) {
 
 	go func() {
 		if err := p.start(); err != nil {
-			log.Debugf("Cannot start peer %v: %v", p, err)
+			log.Debugf("cannot start peer %v: %v", p, err)
 			p.Disconnect()
 		}
 	}()
@@ -1948,7 +1948,7 @@ func (p *Peer) readRemoteVersionMsg() error {
 
 	remoteVerMsg, ok := msg.(*wire.MsgVersion)
 	if !ok {
-		errStr := "A version message must precede all others"
+		errStr := "a version message must precede all others"
 		log.Errorf(errStr)
 
 		rejectMsg := wire.NewMsgReject(msg.Command(), wire.RejectMalformed,

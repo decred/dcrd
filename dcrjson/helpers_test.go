@@ -108,7 +108,7 @@ func TestHelpers(t *testing.T) {
 	for i, test := range tests {
 		result := test.f()
 		if !reflect.DeepEqual(result, test.expected) {
-			t.Errorf("Test #%d (%s) unexpected value - got %v, "+
+			t.Errorf("test #%d (%s) unexpected value - got %v, "+
 				"want %v", i, test.name, result, test.expected)
 			continue
 		}

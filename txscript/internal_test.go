@@ -3743,7 +3743,7 @@ func TestUnparsingInvalidOpcodes(t *testing.T) {
 	for _, test := range tests {
 		_, err := test.pop.bytes()
 		if err != test.expectedErr {
-			t.Errorf("Parsed Opcode test '%s' failed", test.name)
+			t.Errorf("parsed opcode test '%s' failed", test.name)
 			t.Error(err, test.expectedErr)
 		}
 	}

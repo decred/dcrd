@@ -74,11 +74,11 @@ func TestDecodeConcatenatedHashes(t *testing.T) {
 		t.Fatalf("Decode failed: %v", err)
 	}
 	if len(testHashes) != len(decodedHashes) {
-		t.Fatalf("Got wrong number of decoded hashes (%v)", len(decodedHashes))
+		t.Fatalf("got wrong number of decoded hashes (%v)", len(decodedHashes))
 	}
 	for i, expected := range testHashes {
 		if expected != decodedHashes[i] {
-			t.Fatalf("Decoded hash %d `%v` does not match expected `%v`",
+			t.Fatalf("decoded hash %d `%v` does not match expected `%v`",
 				i, decodedHashes[i], expected)
 		}
 	}
@@ -93,7 +93,7 @@ func TestEncodeConcatenatedVoteBits(t *testing.T) {
 	}
 	encodedResults, err := dcrjson.EncodeConcatenatedVoteBits(testVbs)
 	if err != nil {
-		t.Fatalf("Encode failed: %v", err)
+		t.Fatalf("encode failed: %v", err)
 	}
 
 	expectedEncoded := []byte{
@@ -107,7 +107,7 @@ func TestEncodeConcatenatedVoteBits(t *testing.T) {
 
 	encodedResultsStr, _ := hex.DecodeString(encodedResults)
 	if !bytes.Equal(expectedEncoded, encodedResultsStr) {
-		t.Fatalf("Encoded votebits `%x` does not match expected `%x`",
+		t.Fatalf("encoded votebits `%x` does not match expected `%x`",
 			encodedResults, expectedEncoded)
 	}
 
@@ -144,7 +144,7 @@ func TestDecodeConcatenatedVoteBits(t *testing.T) {
 	}
 
 	if !reflect.DeepEqual(expectedVbs, decodedSlice) {
-		t.Fatalf("Decoded votebits `%v` does not match expected `%v`",
+		t.Fatalf("decoded votebits `%v` does not match expected `%v`",
 			decodedSlice, expectedVbs)
 	}
 

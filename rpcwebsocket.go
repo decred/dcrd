@@ -104,7 +104,7 @@ func (s *rpcServer) WebsocketHandler(conn *websocket.Conn, remoteAddr string,
 	// disconnected), remove it and any notifications it registered for.
 	client, err := newWebsocketClient(s, conn, remoteAddr, authenticated, isAdmin)
 	if err != nil {
-		rpcsLog.Errorf("Failed to serve client %s: %v", remoteAddr, err)
+		rpcsLog.Errorf("failed to serve client %s: %v", remoteAddr, err)
 		conn.Close()
 		return
 	}
@@ -794,7 +794,7 @@ func (m *wsNotificationManager) notifyBlockConnected(clients map[chan struct{}]*
 		// Marshal and queue notification.
 		marshalledJSON, err := dcrjson.MarshalCmd(nil, &ntfn)
 		if err != nil {
-			rpcsLog.Errorf("Failed to marshal block connected "+
+			rpcsLog.Errorf("failed to marshal block connected "+
 				"notification: %v", err)
 			continue
 		}
@@ -826,7 +826,7 @@ func (*wsNotificationManager) notifyBlockDisconnected(clients map[chan struct{}]
 	}
 	marshalledJSON, err := dcrjson.MarshalCmd(nil, &ntfn)
 	if err != nil {
-		rpcsLog.Errorf("Failed to marshal block disconnected "+
+		rpcsLog.Errorf("failed to marshal block disconnected "+
 			"notification: %v", err)
 		return
 	}
@@ -851,7 +851,7 @@ func (m *wsNotificationManager) notifyReorganization(clients map[chan struct{}]*
 		int32(rd.NewHeight))
 	marshalledJSON, err := dcrjson.MarshalCmd(nil, ntfn)
 	if err != nil {
-		rpcsLog.Errorf("Failed to marshal reorganization "+
+		rpcsLog.Errorf("failed to marshal reorganization "+
 			"notification: %v", err)
 		return
 	}
@@ -889,7 +889,7 @@ func (*wsNotificationManager) notifyWinningTickets(
 
 	marshalledJSON, err := dcrjson.MarshalCmd(nil, ntfn)
 	if err != nil {
-		rpcsLog.Errorf("Failed to marshal winning tickets notification: "+
+		rpcsLog.Errorf("failed to marshal winning tickets notification: "+
 			"%v", err)
 		return
 	}
@@ -931,7 +931,7 @@ func (*wsNotificationManager) notifySpentAndMissedTickets(
 
 	marshalledJSON, err := dcrjson.MarshalCmd(nil, ntfn)
 	if err != nil {
-		rpcsLog.Errorf("Failed to marshal spent and missed tickets "+
+		rpcsLog.Errorf("failed to marshal spent and missed tickets "+
 			"notification: %v", err)
 		return
 	}
@@ -982,7 +982,7 @@ func (*wsNotificationManager) notifyNewTickets(clients map[chan struct{}]*wsClie
 
 	marshalledJSON, err := dcrjson.MarshalCmd(nil, ntfn)
 	if err != nil {
-		rpcsLog.Errorf("Failed to marshal new tickets notification: "+
+		rpcsLog.Errorf("failed to marshal new tickets notification: "+
 			"%v", err)
 		return
 	}
@@ -1004,7 +1004,7 @@ func (*wsNotificationManager) notifyStakeDifficulty(
 
 	marshalledJSON, err := dcrjson.MarshalCmd(nil, ntfn)
 	if err != nil {
-		rpcsLog.Errorf("Failed to marshal stake difficulty notification: "+
+		rpcsLog.Errorf("failed to marshal stake difficulty notification: "+
 			"%v", err)
 		return
 	}
@@ -1040,7 +1040,7 @@ func (m *wsNotificationManager) notifyForNewTx(clients map[chan struct{}]*wsClie
 		dcrutil.Amount(amount).ToCoin())
 	marshalledJSON, err := dcrjson.MarshalCmd(nil, ntfn)
 	if err != nil {
-		rpcsLog.Errorf("Failed to marshal tx notification: %s",
+		rpcsLog.Errorf("failed to marshal tx notification: %s",
 			err.Error())
 		return
 	}
@@ -1065,7 +1065,7 @@ func (m *wsNotificationManager) notifyForNewTx(clients map[chan struct{}]*wsClie
 			marshalledJSONVerbose, err = dcrjson.MarshalCmd(nil,
 				verboseNtfn)
 			if err != nil {
-				rpcsLog.Errorf("Failed to marshal verbose tx "+
+				rpcsLog.Errorf("failed to marshal verbose tx "+
 					"notification: %s", err.Error())
 				return
 			}
@@ -1144,7 +1144,7 @@ func (m *wsNotificationManager) notifyRelevantTxAccepted(tx *dcrutil.Tx,
 		n := dcrjson.NewRelevantTxAcceptedNtfn(txHexString(msgTx))
 		marshalled, err := dcrjson.MarshalCmd(nil, n)
 		if err != nil {
-			rpcsLog.Errorf("Failed to marshal notification: %v", err)
+			rpcsLog.Errorf("failed to marshal notification: %v", err)
 			return
 		}
 		for _, c := range clientsToNotify {
@@ -1281,7 +1281,7 @@ out:
 		if err != nil {
 			// Log the error if it's not due to disconnecting.
 			if err != io.EOF {
-				rpcsLog.Errorf("Websocket receive error from "+
+				rpcsLog.Errorf("websocket receive error from "+
 					"%s: %v", c.addr, err)
 			}
 			break out
@@ -1296,11 +1296,11 @@ out:
 
 			jsonErr := &dcrjson.RPCError{
 				Code:    dcrjson.ErrRPCParse.Code,
-				Message: "Failed to parse request: " + err.Error(),
+				Message: "failed to parse request: " + err.Error(),
 			}
 			reply, err := createMarshalledReply(nil, nil, jsonErr)
 			if err != nil {
-				rpcsLog.Errorf("Failed to marshal parse failure "+
+				rpcsLog.Errorf("failed to marshal parse failure "+
 					"reply: %v", err)
 				continue
 			}
@@ -1325,7 +1325,7 @@ out:
 
 			reply, err := createMarshalledReply(cmd.id, nil, cmd.err)
 			if err != nil {
-				rpcsLog.Errorf("Failed to marshal parse failure "+
+				rpcsLog.Errorf("failed to marshal parse failure "+
 					"reply: %v", err)
 				continue
 			}
@@ -1365,7 +1365,7 @@ out:
 			// Marshal and send response.
 			reply, err := createMarshalledReply(cmd.id, nil, nil)
 			if err != nil {
-				rpcsLog.Errorf("Failed to marshal authenticate reply: "+
+				rpcsLog.Errorf("failed to marshal authenticate reply: "+
 					"%v", err.Error())
 				continue
 			}
@@ -1384,7 +1384,7 @@ out:
 				// Marshal and send response.
 				reply, err := createMarshalledReply(request.ID, nil, jsonErr)
 				if err != nil {
-					rpcsLog.Errorf("Failed to marshal parse failure "+
+					rpcsLog.Errorf("failed to marshal parse failure "+
 						"reply: %v", err)
 					continue
 				}
@@ -1445,7 +1445,7 @@ func (c *wsClient) serviceRequest(r *parsedRPCCmd) {
 	}
 	reply, err := createMarshalledReply(r.id, result, err)
 	if err != nil {
-		rpcsLog.Errorf("Failed to marshal reply for <%s> "+
+		rpcsLog.Errorf("failed to marshal reply for <%s> "+
 			"command: %v", r.method, err)
 		return
 	}

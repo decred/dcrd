@@ -111,7 +111,7 @@ func assertConnectedTo(t *testing.T, nodeA *Harness, nodeB *Harness) {
 	}
 
 	if !addrFound {
-		t.Fatal("nodeA not connected to nodeB")
+		t.Fatal("node A not connected to node  B")
 	}
 }
 
@@ -483,7 +483,7 @@ func TestHarness(t *testing.T) {
 	coinbaseMaturity := uint32(mainHarness.ActiveNet.CoinbaseMaturity)
 	expectedChainHeight := numMatureOutputs + coinbaseMaturity + 1
 	if uint32(nodeInfo.Blocks) != expectedChainHeight {
-		t.Errorf("Chain height is %v, should be %v",
+		t.Errorf("chain height is %v, should be %v",
 			nodeInfo.Blocks, expectedChainHeight)
 	}
 

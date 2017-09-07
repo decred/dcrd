@@ -89,7 +89,7 @@ testLoop:
 			// Ensure the original lru entry still exists since it
 			// was updated and should've have become the mru entry.
 			if !mruInvMap.Exists(invVects[origLruIndex]) {
-				t.Errorf("MRU #%d (%s) entry %s does not exist",
+				t.Errorf("mru #%d (%s) entry %s does not exist",
 					i, test.name, *invVects[origLruIndex])
 				continue testLoop
 			}
@@ -98,7 +98,7 @@ testLoop:
 			// entry was evicted.
 			newLruIndex := origLruIndex + 1
 			if mruInvMap.Exists(invVects[newLruIndex]) {
-				t.Errorf("MRU #%d (%s) entry %s exists", i,
+				t.Errorf("mru #%d (%s) entry %s exists", i,
 					test.name, *invVects[newLruIndex])
 				continue testLoop
 			}

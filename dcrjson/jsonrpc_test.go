@@ -46,7 +46,7 @@ func TestIsValidIDType(t *testing.T) {
 	t.Logf("Running %d tests", len(tests))
 	for i, test := range tests {
 		if dcrjson.IsValidIDType(test.id) != test.isValid {
-			t.Errorf("Test #%d (%s) valid mismatch - got %v, "+
+			t.Errorf("test #%d (%s) valid mismatch - got %v, "+
 				"want %v", i, test.name, !test.isValid,
 				test.isValid)
 			continue
@@ -86,13 +86,13 @@ func TestMarshalResponse(t *testing.T) {
 		_, _ = i, test
 		marshalled, err := dcrjson.MarshalResponse(testID, test.result, test.jsonErr)
 		if err != nil {
-			t.Errorf("Test #%d (%s) unexpected error: %v", i,
+			t.Errorf("test #%d (%s) unexpected error: %v", i,
 				test.name, err)
 			continue
 		}
 
 		if !reflect.DeepEqual(marshalled, test.expected) {
-			t.Errorf("Test #%d (%s) mismatched result - got %s, "+
+			t.Errorf("test #%d (%s) mismatched result - got %s, "+
 				"want %s", i, test.name, marshalled,
 				test.expected)
 		}
@@ -154,7 +154,7 @@ func TestRPCError(t *testing.T) {
 	for i, test := range tests {
 		result := test.in.Error()
 		if result != test.want {
-			t.Errorf("Error #%d\n got: %s want: %s", i, result,
+			t.Errorf("error #%d\n got: %s want: %s", i, result,
 				test.want)
 			continue
 		}

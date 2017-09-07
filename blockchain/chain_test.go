@@ -24,7 +24,7 @@ func TestBlockchainFunctions(t *testing.T) {
 	chain, teardownFunc, err := chainSetup("validateunittests",
 		simNetParams)
 	if err != nil {
-		t.Errorf("Failed to setup chain instance: %v", err)
+		t.Errorf("failed to setup chain instance: %v", err)
 		return
 	}
 	defer teardownFunc()
@@ -33,14 +33,14 @@ func TestBlockchainFunctions(t *testing.T) {
 	genesisBlock := simNetParams.GenesisBlock
 	err = chain.CheckConnectBlock(dcrutil.NewBlock(genesisBlock))
 	if err == nil {
-		t.Errorf("CheckConnectBlock: Did not receive expected error")
+		t.Errorf("checkConnectBlock: Did not receive expected error")
 	}
 
 	// Load up the rest of the blocks up to HEAD~1.
 	filename := filepath.Join("testdata/", "blocks0to168.bz2")
 	fi, err := os.Open(filename)
 	if err != nil {
-		t.Errorf("Unable to open %s: %v", filename, err)
+		t.Errorf("unable to open %s: %v", filename, err)
 	}
 	bcStream := bzip2.NewReader(fi)
 	defer fi.Close()
@@ -62,40 +62,40 @@ func TestBlockchainFunctions(t *testing.T) {
 	for i := 1; i <= 168; i++ {
 		bl, err := dcrutil.NewBlockFromBytes(blockChain[int64(i)])
 		if err != nil {
-			t.Errorf("NewBlockFromBytes error: %v", err.Error())
+			t.Errorf("newBlockFromBytes error: %v", err.Error())
 		}
 
 		_, _, err = chain.ProcessBlock(bl, blockchain.BFNone)
 		if err != nil {
-			t.Fatalf("ProcessBlock error at height %v: %v", i, err.Error())
+			t.Fatalf("processBlock error at height %v: %v", i, err.Error())
 		}
 	}
 
 	val, err := chain.TicketPoolValue()
 	if err != nil {
-		t.Errorf("Failed to get ticket pool value: %v", err)
+		t.Errorf("failed to get ticket pool value: %v", err)
 	}
 	expectedVal := dcrutil.Amount(3495091704)
 	if val != expectedVal {
-		t.Errorf("Failed to get correct result for ticket pool value; "+
+		t.Errorf("failed to get correct result for ticket pool value; "+
 			"want %v, got %v", expectedVal, val)
 	}
 
 	a, _ := dcrutil.DecodeAddress("SsbKpMkPnadDcZFFZqRPY8nvdFagrktKuzB")
 	hs, err := chain.TicketsWithAddress(a)
 	if err != nil {
-		t.Errorf("Failed to do TicketsWithAddress: %v", err)
+		t.Errorf("failed to do TicketsWithAddress: %v", err)
 	}
 	expectedLen := 223
 	if len(hs) != expectedLen {
-		t.Errorf("Failed to get correct number of tickets for "+
+		t.Errorf("failed to get correct number of tickets for "+
 			"TicketsWithAddress; want %v, got %v", expectedLen, len(hs))
 	}
 
 	totalSubsidy := chain.TotalSubsidy()
 	expectedSubsidy := int64(35783267326630)
 	if expectedSubsidy != totalSubsidy {
-		t.Errorf("Failed to get correct total subsidy for "+
+		t.Errorf("failed to get correct total subsidy for "+
 			"TotalSubsidy; want %v, got %v", expectedSubsidy,
 			totalSubsidy)
 	}

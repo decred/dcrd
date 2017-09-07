@@ -29,7 +29,7 @@ func TestFullBlocks(t *testing.T) {
 	chain, teardownFunc, err := chainSetup("fullblocktest",
 		&chaincfg.SimNetParams)
 	if err != nil {
-		t.Fatalf("Failed to setup chain instance: %v", err)
+		t.Fatalf("failed to setup chain instance: %v", err)
 	}
 	defer teardownFunc()
 

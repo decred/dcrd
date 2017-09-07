@@ -79,7 +79,7 @@ testLoop:
 			// Ensure the original lru entry still exists since it
 			// was updated and should've have become the mru entry.
 			if !mruNonceMap.Exists(nonces[origLruIndex]) {
-				t.Errorf("MRU #%d (%s) entry %d does not exist",
+				t.Errorf("mru #%d (%s) entry %d does not exist",
 					i, test.name, nonces[origLruIndex])
 				continue testLoop
 			}
@@ -88,7 +88,7 @@ testLoop:
 			// entry was evicted.
 			newLruIndex := origLruIndex + 1
 			if mruNonceMap.Exists(nonces[newLruIndex]) {
-				t.Errorf("MRU #%d (%s) entry %d exists", i,
+				t.Errorf("mru #%d (%s) entry %d exists", i,
 					test.name, nonces[newLruIndex])
 				continue testLoop
 			}

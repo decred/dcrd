@@ -23,13 +23,13 @@ func TestStakeVersion(t *testing.T) {
 	params := &chaincfg.SimNetParams
 	g, err := chaingen.MakeGenerator(params)
 	if err != nil {
-		t.Fatalf("Failed to create generator: %v", err)
+		t.Fatalf("failed to create generator: %v", err)
 	}
 
 	// Create a new database and chain instance to run tests against.
 	chain, teardownFunc, err := chainSetup("stakeversiontest", params)
 	if err != nil {
-		t.Fatalf("Failed to setup chain instance: %v", err)
+		t.Fatalf("failed to setup chain instance: %v", err)
 	}
 	defer teardownFunc()
 

@@ -180,13 +180,13 @@ func TestCalcStakeVersionCorners(t *testing.T) {
 	height += runCount
 
 	if !bc.isStakeMajorityVersion(0, currentNode) {
-		t.Fatalf("invalid StakeVersion expected 0 -> true")
+		t.Fatalf("invalid stake majority version expected 0 -> true")
 	}
 	if !bc.isStakeMajorityVersion(2, currentNode) {
-		t.Fatalf("invalid StakeVersion expected 2 -> true")
+		t.Fatalf("invalid stake majority version expected 2 -> true")
 	}
 	if bc.isStakeMajorityVersion(4, currentNode) {
-		t.Fatalf("invalid StakeVersion expected 4 -> false")
+		t.Fatalf("invalid stake majority version expected 4 -> false")
 	}
 
 	// Generate 3 intervals with v4 votes and calculate StakeVersion.
@@ -212,16 +212,16 @@ func TestCalcStakeVersionCorners(t *testing.T) {
 	height += runCount
 
 	if !bc.isStakeMajorityVersion(0, currentNode) {
-		t.Fatalf("invalid StakeVersion expected 0 -> true")
+		t.Fatalf("invalid stake majority version expected 0 -> true")
 	}
 	if !bc.isStakeMajorityVersion(2, currentNode) {
-		t.Fatalf("invalid StakeVersion expected 2 -> true")
+		t.Fatalf("invalid stake majority version expected 2 -> true")
 	}
 	if !bc.isStakeMajorityVersion(4, currentNode) {
-		t.Fatalf("invalid StakeVersion expected 4 -> true")
+		t.Fatalf("invalid stake majority version expected 4 -> true")
 	}
 	if bc.isStakeMajorityVersion(5, currentNode) {
-		t.Fatalf("invalid StakeVersion expected 5 -> false")
+		t.Fatalf("invalid stake majority version expected 5 -> false")
 	}
 
 	// Generate 3 intervals with v2 votes and calculate StakeVersion.
@@ -248,16 +248,16 @@ func TestCalcStakeVersionCorners(t *testing.T) {
 	height += runCount
 
 	if !bc.isStakeMajorityVersion(0, currentNode) {
-		t.Fatalf("invalid StakeVersion expected 0 -> true")
+		t.Fatalf("invalid stake majority version expected 0 -> true")
 	}
 	if !bc.isStakeMajorityVersion(2, currentNode) {
-		t.Fatalf("invalid StakeVersion expected 2 -> true")
+		t.Fatalf("invalid stake majority version expected 2 -> true")
 	}
 	if !bc.isStakeMajorityVersion(4, currentNode) {
-		t.Fatalf("invalid StakeVersion expected 4 -> true")
+		t.Fatalf("invalid stake majority version expected 4 -> true")
 	}
 	if bc.isStakeMajorityVersion(5, currentNode) {
-		t.Fatalf("invalid StakeVersion expected 5 -> false")
+		t.Fatalf("invalid stake majority version expected 5 -> false")
 	}
 
 	// Generate 2 interval with v5 votes
@@ -284,19 +284,19 @@ func TestCalcStakeVersionCorners(t *testing.T) {
 	height += runCount
 
 	if !bc.isStakeMajorityVersion(0, currentNode) {
-		t.Fatalf("invalid StakeVersion expected 0 -> true")
+		t.Fatalf("invalid stake majority version expected 0 -> true")
 	}
 	if !bc.isStakeMajorityVersion(2, currentNode) {
-		t.Fatalf("invalid StakeVersion expected 2 -> true")
+		t.Fatalf("invalid stake majority version expected 2 -> true")
 	}
 	if !bc.isStakeMajorityVersion(4, currentNode) {
-		t.Fatalf("invalid StakeVersion expected 4 -> true")
+		t.Fatalf("invalid Stakestake majority versionVersion expected 4 -> true")
 	}
 	if !bc.isStakeMajorityVersion(5, currentNode) {
-		t.Fatalf("invalid StakeVersion expected 5 -> true")
+		t.Fatalf("invalid stake majority version expected 5 -> true")
 	}
 	if bc.isStakeMajorityVersion(6, currentNode) {
-		t.Fatalf("invalid StakeVersion expected 6 -> false")
+		t.Fatalf("invalid stake majority version expected 6 -> false")
 	}
 
 	// Generate 1 interval with v4 votes, to test the edge condition
@@ -323,19 +323,19 @@ func TestCalcStakeVersionCorners(t *testing.T) {
 	height += runCount
 
 	if !bc.isStakeMajorityVersion(0, currentNode) {
-		t.Fatalf("invalid StakeVersion expected 0 -> true")
+		t.Fatalf("invalid stake majority version expected 0 -> true")
 	}
 	if !bc.isStakeMajorityVersion(2, currentNode) {
-		t.Fatalf("invalid StakeVersion expected 2 -> true")
+		t.Fatalf("invalid stake majority version expected 2 -> true")
 	}
 	if !bc.isStakeMajorityVersion(4, currentNode) {
-		t.Fatalf("invalid StakeVersion expected 4 -> true")
+		t.Fatalf("invalid stake majority version expected 4 -> true")
 	}
 	if !bc.isStakeMajorityVersion(5, currentNode) {
-		t.Fatalf("invalid StakeVersion expected 5 -> true")
+		t.Fatalf("invalid stake majority version expected 5 -> true")
 	}
 	if bc.isStakeMajorityVersion(6, currentNode) {
-		t.Fatalf("invalid StakeVersion expected 6 -> false")
+		t.Fatalf("invalid stake majority version expected 6 -> false")
 	}
 
 	// Generate 1 interval with v4 votes.
@@ -361,19 +361,19 @@ func TestCalcStakeVersionCorners(t *testing.T) {
 	}
 
 	if !bc.isStakeMajorityVersion(0, currentNode) {
-		t.Fatalf("invalid StakeVersion expected 0 -> true")
+		t.Fatalf("invalid stake majority version expected 0 -> true")
 	}
 	if !bc.isStakeMajorityVersion(2, currentNode) {
-		t.Fatalf("invalid StakeVersion expected 2 -> true")
+		t.Fatalf("invalid stake majority version expected 2 -> true")
 	}
 	if !bc.isStakeMajorityVersion(4, currentNode) {
-		t.Fatalf("invalid StakeVersion expected 4 -> true")
+		t.Fatalf("invalid stake majority version expected 4 -> true")
 	}
 	if !bc.isStakeMajorityVersion(5, currentNode) {
-		t.Fatalf("invalid StakeVersion expected 5 -> true")
+		t.Fatalf("invalid stake majority version expected 5 -> true")
 	}
 	if bc.isStakeMajorityVersion(6, currentNode) {
-		t.Fatalf("invalid StakeVersion expected 6 -> false")
+		t.Fatalf("invalid stake majority version expected 6 -> false")
 	}
 }
 

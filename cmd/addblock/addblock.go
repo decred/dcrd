@@ -80,14 +80,14 @@ func realMain() error {
 	// Load the block database.
 	db, err := loadBlockDB()
 	if err != nil {
-		log.Errorf("Failed to load database: %v", err)
+		log.Errorf("failed to load database: %v", err)
 		return err
 	}
 	defer db.Close()
 
 	fi, err := os.Open(cfg.InFile)
 	if err != nil {
-		log.Errorf("Failed to open file %v: %v", cfg.InFile, err)
+		log.Errorf("failed to open file %v: %v", cfg.InFile, err)
 		return err
 	}
 	defer fi.Close()
@@ -97,7 +97,7 @@ func realMain() error {
 	// anything went wrong.
 	importer, err := newBlockImporter(db, fi)
 	if err != nil {
-		log.Errorf("Failed create block importer: %v", err)
+		log.Errorf("failed create block importer: %v", err)
 		return err
 	}
 

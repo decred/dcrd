@@ -559,7 +559,7 @@ func TestPayToAddrScript(t *testing.T) {
 	p2pkhMain, err := dcrutil.NewAddressPubKeyHash(decodeHex("e34cce70c863"+
 		"73273efcc54ce7d2a491bb4a0e84"), &chaincfg.MainNetParams, secp)
 	if err != nil {
-		t.Errorf("Unable to create public key hash address: %v", err)
+		t.Errorf("unable to create public key hash address: %v", err)
 		return
 	}
 
@@ -568,7 +568,7 @@ func TestPayToAddrScript(t *testing.T) {
 	p2shMain, _ := dcrutil.NewAddressScriptHashFromHash(decodeHex("e8c300"+
 		"c87986efa84c37c0519929019ef86eb5b4"), &chaincfg.MainNetParams)
 	if err != nil {
-		t.Errorf("Unable to create script hash address: %v", err)
+		t.Errorf("unable to create script hash address: %v", err)
 		return
 	}
 
@@ -577,7 +577,7 @@ func TestPayToAddrScript(t *testing.T) {
 		"d0cb94344c9569c2e77901573d8d7903c3ebec3a957724895dca52c6b4"),
 		&chaincfg.MainNetParams)
 	if err != nil {
-		t.Errorf("Unable to create pubkey address (compressed): %v",
+		t.Errorf("unable to create pubkey address (compressed): %v",
 			err)
 		return
 	}
@@ -585,7 +585,7 @@ func TestPayToAddrScript(t *testing.T) {
 		"634234abbb1ba1e986e884185c61cf43e001f9137f23c2c409273eb16e65"),
 		&chaincfg.MainNetParams)
 	if err != nil {
-		t.Errorf("Unable to create pubkey address (compressed 2): %v",
+		t.Errorf("unable to create pubkey address (compressed 2): %v",
 			err)
 		return
 	}
@@ -674,7 +674,7 @@ func TestMultiSigScript(t *testing.T) {
 		"4d0cb94344c9569c2e77901573d8d7903c3ebec3a957724895dca52c6b4"),
 		&chaincfg.MainNetParams)
 	if err != nil {
-		t.Errorf("Unable to create pubkey address (compressed): %v",
+		t.Errorf("unable to create pubkey address (compressed): %v",
 			err)
 		return
 	}
@@ -682,7 +682,7 @@ func TestMultiSigScript(t *testing.T) {
 		"634234abbb1ba1e986e884185c61cf43e001f9137f23c2c409273eb16e65"),
 		&chaincfg.MainNetParams)
 	if err != nil {
-		t.Errorf("Unable to create pubkey address (compressed 2): %v",
+		t.Errorf("unable to create pubkey address (compressed 2): %v",
 			err)
 		return
 	}

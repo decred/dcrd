@@ -98,7 +98,7 @@ func TestLotteryNumSelection(t *testing.T) {
 	}
 	ticketsExp := []int{34850, 8346, 27636, 54482, 25482}
 	if !reflect.DeepEqual(ticketsExp, tickets) {
-		t.Errorf("Unexpected tickets selected; got %v, want %v", tickets,
+		t.Errorf("unexpected tickets selected; got %v, want %v", tickets,
 			ticketsExp)
 	}
 
@@ -110,7 +110,7 @@ func TestLotteryNumSelection(t *testing.T) {
 	}
 	ticketsExp = []int{3, 0, 4, 2, 1}
 	if !reflect.DeepEqual(ticketsExp, tickets) {
-		t.Errorf("Unexpected tickets selected; got %v, want %v", tickets,
+		t.Errorf("unexpected tickets selected; got %v, want %v", tickets,
 			ticketsExp)
 	}
 
@@ -129,7 +129,7 @@ func TestLotteryNumErrors(t *testing.T) {
 	// Too big pool.
 	_, err := FindTicketIdxs(1000000000000, 5, prng)
 	if err == nil {
-		t.Errorf("Expected pool size too big error")
+		t.Errorf("expected pool size too big error")
 	}
 }
 
@@ -150,25 +150,25 @@ func TestFetchWinnersErrors(t *testing.T) {
 	// No indexes.
 	_, err := fetchWinners(nil, treap)
 	if err == nil {
-		t.Errorf("Expected nil slice error")
+		t.Errorf("expected nil slice error")
 	}
 
 	// No treap.
 	_, err = fetchWinners([]int{1, 2, 3, 4, -1}, nil)
 	if err == nil {
-		t.Errorf("Expected nil treap error")
+		t.Errorf("expected nil treap error")
 	}
 
 	// Bad index too small.
 	_, err = fetchWinners([]int{1, 2, 3, 4, -1}, treap)
 	if err == nil {
-		t.Errorf("Expected index too small error")
+		t.Errorf("expected index too small error")
 	}
 
 	// Bad index too big.
 	_, err = fetchWinners([]int{1, 2, 3, 4, 256}, treap)
 	if err == nil {
-		t.Errorf("Expected index too big error")
+		t.Errorf("expected index too big error")
 	}
 }
 

@@ -68,7 +68,7 @@ testLoop:
 
 			// Ensure the stack length is the expected value.
 			if stack.Len() != j+1 {
-				t.Errorf("Len #%d (%d): unexpected stack "+
+				t.Errorf("len #%d (%d): unexpected stack "+
 					"length - got %d, want %d", i, j,
 					stack.Len(), j+1)
 				continue testLoop
@@ -78,7 +78,7 @@ testLoop:
 			for k := 0; k <= j; k++ {
 				atNode := stack.At(j - k)
 				if !reflect.DeepEqual(atNode, nodes[k]) {
-					t.Errorf("At #%d (%d): mismatched node "+
+					t.Errorf("at #%d (%d): mismatched node "+
 						"- got %v, want %v", i, j-k,
 						atNode, nodes[k])
 					continue testLoop
@@ -91,7 +91,7 @@ testLoop:
 			node := stack.Pop()
 			expected := nodes[len(nodes)-j-1]
 			if !reflect.DeepEqual(node, expected) {
-				t.Errorf("At #%d (%d): mismatched node - "+
+				t.Errorf("at #%d (%d): mismatched node - "+
 					"got %v, want %v", i, j, node, expected)
 				continue testLoop
 			}
@@ -99,7 +99,7 @@ testLoop:
 
 		// Ensure the stack is now empty.
 		if stack.Len() != 0 {
-			t.Errorf("Len #%d: stack is not empty - got %d", i,
+			t.Errorf("len #%d: stack is not empty - got %d", i,
 				stack.Len())
 			continue testLoop
 		}
@@ -107,7 +107,7 @@ testLoop:
 		// Ensure attempting to retrieve a node at an index beyond the
 		// stack's length returns nil.
 		if node := stack.At(2); node != nil {
-			t.Errorf("At #%d: did not give back nil - got %v", i,
+			t.Errorf("at #%d: did not give back nil - got %v", i,
 				node)
 			continue testLoop
 		}
@@ -115,7 +115,7 @@ testLoop:
 		// Ensure attempting to pop a node from an empty stack returns
 		// nil.
 		if node := stack.Pop(); node != nil {
-			t.Errorf("Pop #%d: did not give back nil - got %v", i,
+			t.Errorf("pop #%d: did not give back nil - got %v", i,
 				node)
 			continue testLoop
 		}

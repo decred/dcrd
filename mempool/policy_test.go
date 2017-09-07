@@ -278,7 +278,7 @@ func TestDust(t *testing.T) {
 	for _, test := range tests {
 		res := isDust(&test.txOut, test.relayFee)
 		if res != test.isDust {
-			t.Fatalf("Dust test '%s' failed: want %v got %v",
+			t.Fatalf("dust test '%s' failed: want %v got %v",
 				test.name, test.isDust, res)
 			continue
 		}

@@ -298,7 +298,7 @@ func TestExceedMaxScriptSize(t *testing.T) {
 	builder.Reset().AddFullData(make([]byte, maxScriptSize-3))
 	origScript, err := builder.Script()
 	if err != nil {
-		t.Fatalf("Unexpected error for max size script: %v", err)
+		t.Fatalf("unexpected error for max size script: %v", err)
 	}
 
 	// Ensure adding data that would exceed the maximum size of the script

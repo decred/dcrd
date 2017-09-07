@@ -584,7 +584,7 @@ func TestFailureScenarios(t *testing.T) {
 	_ = os.RemoveAll(dbPath)
 	idb, err := database.Create(dbType, dbPath, blockDataNet)
 	if err != nil {
-		t.Errorf("Failed to create test database (%s) %v", dbType, err)
+		t.Errorf("failed to create test database (%s) %v", dbType, err)
 		return
 	}
 	defer os.RemoveAll(dbPath)

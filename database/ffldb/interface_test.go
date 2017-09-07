@@ -166,20 +166,20 @@ func rollbackValues(values []keyPair) []keyPair {
 // provided slice of expected keypairs.
 func testCursorKeyPair(tc *testContext, k, v []byte, index int, values []keyPair) bool {
 	if index >= len(values) || index < 0 {
-		tc.t.Errorf("Cursor: exceeded the expected range of values - "+
+		tc.t.Errorf("cursor: exceeded the expected range of values - "+
 			"index %d, num values %d", index, len(values))
 		return false
 	}
 
 	pair := &values[index]
 	if !bytes.Equal(k, pair.key) {
-		tc.t.Errorf("Mismatched cursor key: index %d does not match "+
+		tc.t.Errorf("mismatched cursor key: index %d does not match "+
 			"the expected key - got %q, want %q", index, k,
 			pair.key)
 		return false
 	}
 	if !bytes.Equal(v, pair.value) {
-		tc.t.Errorf("Mismatched cursor value: index %d does not match "+
+		tc.t.Errorf("mismatched cursor value: index %d does not match "+
 			"the expected value - got %q, want %q", index, v,
 			pair.value)
 		return false
@@ -281,7 +281,7 @@ func testCursorInterface(tc *testContext, bucket database.Bucket) bool {
 			curIdx++
 		}
 		if curIdx != len(unsortedValues) {
-			tc.t.Errorf("Cursor: expected to iterate %d values, "+
+			tc.t.Errorf("cursor: expected to iterate %d values, "+
 				"but only iterated %d", len(unsortedValues),
 				curIdx)
 			return false
@@ -298,7 +298,7 @@ func testCursorInterface(tc *testContext, bucket database.Bucket) bool {
 			curIdx--
 		}
 		if curIdx > -1 {
-			tc.t.Errorf("Reverse cursor: expected to iterate %d "+
+			tc.t.Errorf("reverse cursor: expected to iterate %d "+
 				"values, but only iterated %d",
 				len(sortedValues), len(sortedValues)-(curIdx+1))
 			return false
@@ -316,7 +316,7 @@ func testCursorInterface(tc *testContext, bucket database.Bucket) bool {
 			curIdx++
 		}
 		if curIdx != len(sortedValues) {
-			tc.t.Errorf("Cursor after seek: expected to iterate "+
+			tc.t.Errorf("cursor after seek: expected to iterate "+
 				"%d values, but only iterated %d",
 				len(sortedValues)-middleIdx, curIdx-middleIdx)
 			return false
@@ -332,7 +332,7 @@ func testCursorInterface(tc *testContext, bucket database.Bucket) bool {
 			curIdx--
 		}
 		if curIdx > -1 {
-			tc.t.Errorf("Reverse cursor after seek: expected to "+
+			tc.t.Errorf("reverse cursor after seek: expected to "+
 				"iterate %d values, but only iterated %d",
 				len(sortedValues)-middleIdx, middleIdx-curIdx)
 			return false
@@ -340,16 +340,16 @@ func testCursorInterface(tc *testContext, bucket database.Bucket) bool {
 
 		// Ensure the cursor deletes items properly.
 		if !cursor.First() {
-			tc.t.Errorf("Cursor.First: no value")
+			tc.t.Errorf("cursor.First: no value")
 			return false
 		}
 		k := cursor.Key()
 		if err := cursor.Delete(); err != nil {
-			tc.t.Errorf("Cursor.Delete: unexpected error: %v", err)
+			tc.t.Errorf("cursor.Delete: unexpected error: %v", err)
 			return false
 		}
 		if val := bucket.Get(k); val != nil {
-			tc.t.Errorf("Cursor.Delete: value for key %q was not "+
+			tc.t.Errorf("cursor.Delete: value for key %q was not "+
 				"deleted", k)
 			return false
 		}
@@ -379,7 +379,7 @@ func testNestedBucket(tc *testContext, testBucket database.Bucket) bool {
 // cursor returned from the bucket.
 func testBucketInterface(tc *testContext, bucket database.Bucket) bool {
 	if bucket.Writable() != tc.isWritable {
-		tc.t.Errorf("Bucket writable state does not match.")
+		tc.t.Errorf("bucket writable state does not match.")
 		return false
 	}
 
@@ -604,7 +604,7 @@ func testBucketInterface(tc *testContext, bucket database.Bucket) bool {
 // also logs a test error and repanics so the original panic can be traced.
 func rollbackOnPanic(t *testing.T, tx database.Tx) {
 	if err := recover(); err != nil {
-		t.Errorf("Unexpected panic: %v", err)
+		t.Errorf("unexpected panic: %v", err)
 		_ = tx.Rollback()
 		panic(err)
 	}
@@ -1983,7 +1983,7 @@ func testConcurrecy(tc *testContext) bool {
 		return err
 	})
 	if err != nil {
-		tc.t.Errorf("Unexpected error in view: %v", err)
+		tc.t.Errorf("unexpected error in view: %v", err)
 		return false
 	}
 	elapsed := time.Since(startTime)
@@ -2005,7 +2005,7 @@ func testConcurrecy(tc *testContext) bool {
 			return err
 		})
 		if err != nil {
-			tc.t.Errorf("Unexpected error in concurrent view: %v",
+			tc.t.Errorf("unexpected error in concurrent view: %v",
 				err)
 			resultChan <- false
 		}
@@ -2030,7 +2030,7 @@ func testConcurrecy(tc *testContext) bool {
 	// Consider it a failure if it took longer than half the time it would
 	// take with no concurrency.
 	if elapsed > sleepTime*time.Duration(numReaders/2) {
-		tc.t.Errorf("Concurrent views for same block did not appear to "+
+		tc.t.Errorf("concurrent views for same block did not appear to "+
 			"run simultaneously: elapsed %v", elapsed)
 		return false
 	}
@@ -2053,7 +2053,7 @@ func testConcurrecy(tc *testContext) bool {
 	// Consider it a failure if it took longer than half the time it would
 	// take with no concurrency.
 	if elapsed > sleepTime*time.Duration(numReaders/2) {
-		tc.t.Errorf("Concurrent views for different blocks did not "+
+		tc.t.Errorf("concurrent views for different blocks did not "+
 			"appear to run simultaneously: elapsed %v", elapsed)
 		return false
 	}
@@ -2083,7 +2083,7 @@ func testConcurrecy(tc *testContext) bool {
 			return nil
 		})
 		if err != nil {
-			tc.t.Errorf("Unexpected error in concurrent view: %v",
+			tc.t.Errorf("unexpected error in concurrent view: %v",
 				err)
 			resultChan <- false
 		}
@@ -2103,7 +2103,7 @@ func testConcurrecy(tc *testContext) bool {
 		return tx.Metadata().Put(concurrentKey, concurrentVal)
 	})
 	if err != nil {
-		tc.t.Errorf("Unexpected error in update: %v", err)
+		tc.t.Errorf("unexpected error in update: %v", err)
 		return false
 	}
 	close(writeComplete)
@@ -2125,7 +2125,7 @@ func testConcurrecy(tc *testContext) bool {
 			return nil
 		})
 		if err != nil {
-			tc.t.Errorf("Unexpected error in concurrent view: %v",
+			tc.t.Errorf("unexpected error in concurrent view: %v",
 				err)
 			resultChan <- false
 		}
@@ -2148,7 +2148,7 @@ func testConcurrecy(tc *testContext) bool {
 	// The total time must have been at least the sum of all sleeps if the
 	// writes blocked properly.
 	if elapsed < writeSleepTime*time.Duration(numWriters) {
-		tc.t.Errorf("Concurrent writes appeared to run simultaneously: "+
+		tc.t.Errorf("concurrent writes appeared to run simultaneously: "+
 			"elapsed %v", elapsed)
 		return false
 	}
@@ -2178,7 +2178,7 @@ func testConcurrentClose(tc *testContext) bool {
 			return nil
 		})
 		if err != nil {
-			tc.t.Errorf("Unexpected error in concurrent view: %v",
+			tc.t.Errorf("unexpected error in concurrent view: %v",
 				err)
 			resultChan <- false
 		}
@@ -2199,7 +2199,7 @@ func testConcurrentClose(tc *testContext) bool {
 		started <- struct{}{}
 		err := tc.db.Close()
 		if err != nil {
-			tc.t.Errorf("Unexpected error in concurrent view: %v",
+			tc.t.Errorf("unexpected error in concurrent view: %v",
 				err)
 			resultChan <- false
 		}
@@ -2214,7 +2214,7 @@ func testConcurrentClose(tc *testContext) bool {
 	time.AfterFunc(time.Millisecond*250, func() { close(finishReaders) })
 	<-dbClosed
 	if nr := atomic.LoadInt32(&activeReaders); nr != 0 {
-		tc.t.Errorf("Close did not appear to block with active "+
+		tc.t.Errorf("close did not appear to block with active "+
 			"readers: %d active", nr)
 		return false
 	}

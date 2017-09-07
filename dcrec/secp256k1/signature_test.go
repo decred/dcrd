@@ -564,7 +564,7 @@ func TestRFC6979(t *testing.T) {
 		gotNonce := NonceRFC6979(privKey.D, hash[:], nil, nil).Bytes()
 		wantNonce := decodeHex(test.nonce)
 		if !bytes.Equal(gotNonce, wantNonce) {
-			t.Errorf("NonceRFC6979 #%d (%s): Nonce is incorrect: "+
+			t.Errorf("NonceRFC6979 #%d (%s): nonce is incorrect: "+
 				"%x (expected %x)", i, test.msg, gotNonce,
 				wantNonce)
 			continue

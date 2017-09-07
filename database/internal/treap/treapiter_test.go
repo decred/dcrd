@@ -113,13 +113,13 @@ testLoop:
 		}
 		gotKey := iter.Key()
 		if !bytes.Equal(gotKey, test.expectedFirst) {
-			t.Errorf("First.Key #%d: unexpected key - got %x, "+
+			t.Errorf("first.Key #%d: unexpected key - got %x, "+
 				"want %x", i, gotKey, test.expectedFirst)
 			continue
 		}
 		gotVal := iter.Value()
 		if !bytes.Equal(gotVal, test.expectedFirst) {
-			t.Errorf("First.Value #%d: unexpected value - got %x, "+
+			t.Errorf("first.Value #%d: unexpected value - got %x, "+
 				"want %x", i, gotVal, test.expectedFirst)
 			continue
 		}
@@ -163,13 +163,13 @@ testLoop:
 		}
 		gotKey = iter.Key()
 		if !bytes.Equal(gotKey, test.expectedLast) {
-			t.Errorf("Last.Key #%d: unexpected key - got %x, "+
+			t.Errorf("last.Key #%d: unexpected key - got %x, "+
 				"want %x", i, gotKey, test.expectedLast)
 			continue
 		}
 		gotVal = iter.Value()
 		if !bytes.Equal(gotVal, test.expectedLast) {
-			t.Errorf("Last.Value #%d: unexpected value - got %x, "+
+			t.Errorf("last.Value #%d: unexpected value - got %x, "+
 				"want %x", i, gotVal, test.expectedLast)
 			continue
 		}
@@ -214,13 +214,13 @@ testLoop:
 		}
 		gotKey = iter.Key()
 		if !bytes.Equal(gotKey, test.expectedSeek) {
-			t.Errorf("Seek.Key #%d: unexpected key - got %x, "+
+			t.Errorf("seek.Key #%d: unexpected key - got %x, "+
 				"want %x", i, gotKey, test.expectedSeek)
 			continue
 		}
 		gotVal = iter.Value()
 		if !bytes.Equal(gotVal, test.expectedSeek) {
-			t.Errorf("Seek.Value #%d: unexpected value - got %x, "+
+			t.Errorf("seek.Value #%d: unexpected value - got %x, "+
 				"want %x", i, gotVal, test.expectedSeek)
 			continue
 		}
@@ -235,13 +235,13 @@ testLoop:
 		}
 		gotKey = iter.Key()
 		if !bytes.Equal(gotKey, test.expectedFirst) {
-			t.Errorf("Next.Key #%d: unexpected key - got %x, "+
+			t.Errorf("next.Key #%d: unexpected key - got %x, "+
 				"want %x", i, gotKey, test.expectedFirst)
 			continue
 		}
 		gotVal = iter.Value()
 		if !bytes.Equal(gotVal, test.expectedFirst) {
-			t.Errorf("Next.Value #%d: unexpected value - got %x, "+
+			t.Errorf("next.Value #%d: unexpected value - got %x, "+
 				"want %x", i, gotVal, test.expectedFirst)
 			continue
 		}
@@ -256,13 +256,13 @@ testLoop:
 		}
 		gotKey = iter.Key()
 		if !bytes.Equal(gotKey, test.expectedLast) {
-			t.Errorf("Prev.Key #%d: unexpected key - got %x, "+
+			t.Errorf("prev.Key #%d: unexpected key - got %x, "+
 				"want %x", i, gotKey, test.expectedLast)
 			continue
 		}
 		gotVal = iter.Value()
 		if !bytes.Equal(gotVal, test.expectedLast) {
-			t.Errorf("Next.Value #%d: unexpected value - got %x, "+
+			t.Errorf("next.Value #%d: unexpected value - got %x, "+
 				"want %x", i, gotVal, test.expectedLast)
 			continue
 		}
@@ -513,13 +513,13 @@ testLoop:
 		}
 		gotKey := iter.Key()
 		if !bytes.Equal(gotKey, test.expectedFirst) {
-			t.Errorf("First.Key #%d: unexpected key - got %x, "+
+			t.Errorf("first.Key #%d: unexpected key - got %x, "+
 				"want %x", i, gotKey, test.expectedFirst)
 			continue
 		}
 		gotVal := iter.Value()
 		if !bytes.Equal(gotVal, test.expectedFirst) {
-			t.Errorf("First.Value #%d: unexpected value - got %x, "+
+			t.Errorf("first.Value #%d: unexpected value - got %x, "+
 				"want %x", i, gotVal, test.expectedFirst)
 			continue
 		}
@@ -563,13 +563,13 @@ testLoop:
 		}
 		gotKey = iter.Key()
 		if !bytes.Equal(gotKey, test.expectedLast) {
-			t.Errorf("Last.Key #%d: unexpected key - got %x, "+
+			t.Errorf("last.Key #%d: unexpected key - got %x, "+
 				"want %x", i, gotKey, test.expectedLast)
 			continue
 		}
 		gotVal = iter.Value()
 		if !bytes.Equal(gotVal, test.expectedLast) {
-			t.Errorf("Last.Value #%d: unexpected value - got %x, "+
+			t.Errorf("last.Value #%d: unexpected value - got %x, "+
 				"want %x", i, gotVal, test.expectedLast)
 			continue
 		}
@@ -614,13 +614,13 @@ testLoop:
 		}
 		gotKey = iter.Key()
 		if !bytes.Equal(gotKey, test.expectedSeek) {
-			t.Errorf("Seek.Key #%d: unexpected key - got %x, "+
+			t.Errorf("seek.Key #%d: unexpected key - got %x, "+
 				"want %x", i, gotKey, test.expectedSeek)
 			continue
 		}
 		gotVal = iter.Value()
 		if !bytes.Equal(gotVal, test.expectedSeek) {
-			t.Errorf("Seek.Value #%d: unexpected value - got %x, "+
+			t.Errorf("seek.Value #%d: unexpected value - got %x, "+
 				"want %x", i, gotVal, test.expectedSeek)
 			continue
 		}
@@ -635,13 +635,13 @@ testLoop:
 		}
 		gotKey = iter.Key()
 		if !bytes.Equal(gotKey, test.expectedFirst) {
-			t.Errorf("Next.Key #%d: unexpected key - got %x, "+
+			t.Errorf("next.Key #%d: unexpected key - got %x, "+
 				"want %x", i, gotKey, test.expectedFirst)
 			continue
 		}
 		gotVal = iter.Value()
 		if !bytes.Equal(gotVal, test.expectedFirst) {
-			t.Errorf("Next.Value #%d: unexpected value - got %x, "+
+			t.Errorf("next.Value #%d: unexpected value - got %x, "+
 				"want %x", i, gotVal, test.expectedFirst)
 			continue
 		}
@@ -656,13 +656,13 @@ testLoop:
 		}
 		gotKey = iter.Key()
 		if !bytes.Equal(gotKey, test.expectedLast) {
-			t.Errorf("Prev.Key #%d: unexpected key - got %x, "+
+			t.Errorf("prev.Key #%d: unexpected key - got %x, "+
 				"want %x", i, gotKey, test.expectedLast)
 			continue
 		}
 		gotVal = iter.Value()
 		if !bytes.Equal(gotVal, test.expectedLast) {
-			t.Errorf("Next.Value #%d: unexpected value - got %x, "+
+			t.Errorf("next.Value #%d: unexpected value - got %x, "+
 				"want %x", i, gotVal, test.expectedLast)
 			continue
 		}

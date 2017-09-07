@@ -162,7 +162,7 @@ func TestCipheringErrors(t *testing.T) {
 	for i, test := range tests1 {
 		_, err = Decrypt(privkey, test.ciphertext)
 		if err == nil {
-			t.Errorf("Decrypt #%d did not get error", i)
+			t.Errorf("decrypt #%d did not get error", i)
 		}
 	}
 

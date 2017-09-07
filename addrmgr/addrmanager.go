@@ -402,13 +402,13 @@ func (a *AddrManager) savePeers() {
 
 	w, err := os.Create(a.peersFile)
 	if err != nil {
-		log.Errorf("Error opening file %s: %v", a.peersFile, err)
+		log.Errorf("error opening file %s: %v", a.peersFile, err)
 		return
 	}
 	enc := json.NewEncoder(w)
 	defer w.Close()
 	if err := enc.Encode(&sam); err != nil {
-		log.Errorf("Failed to encode file %s: %v", a.peersFile, err)
+		log.Errorf("failed to encode file %s: %v", a.peersFile, err)
 		return
 	}
 }
@@ -421,7 +421,7 @@ func (a *AddrManager) loadPeers() {
 
 	err := a.deserializePeers(a.peersFile)
 	if err != nil {
-		log.Errorf("Failed to parse file %s: %v", a.peersFile, err)
+		log.Errorf("failed to parse file %s: %v", a.peersFile, err)
 		// if it is invalid we nuke the old one unconditionally.
 		err = os.Remove(a.peersFile)
 		if err != nil {
@@ -496,7 +496,7 @@ func (a *AddrManager) deserializePeers(filePath string) error {
 		for _, val := range sam.TriedBuckets[i] {
 			ka, ok := a.addrIndex[val]
 			if !ok {
-				return fmt.Errorf("Newbucket contains %s but "+
+				return fmt.Errorf("newbucket contains %s but "+
 					"none in address list", val)
 			}
 

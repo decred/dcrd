@@ -240,7 +240,7 @@ func TestHelpReflectInternals(t *testing.T) {
 		// Ensure the description key is the expected value.
 		key := dcrjson.TstReflectTypeToJSONType(xT, test.reflectType)
 		if key != test.key {
-			t.Errorf("Test #%d (%s) unexpected key - got: %v, "+
+			t.Errorf("test #%d (%s) unexpected key - got: %v, "+
 				"want: %v", i, test.name, key, test.key)
 			continue
 		}
@@ -249,20 +249,20 @@ func TestHelpReflectInternals(t *testing.T) {
 		examples, isComplex := dcrjson.TstReflectTypeToJSONExample(xT,
 			test.reflectType, test.indentLevel, "fdk")
 		if isComplex != test.isComplex {
-			t.Errorf("Test #%d (%s) unexpected isComplex - got: %v, "+
+			t.Errorf("test #%d (%s) unexpected isComplex - got: %v, "+
 				"want: %v", i, test.name, isComplex,
 				test.isComplex)
 			continue
 		}
 		if len(examples) != len(test.examples) {
-			t.Errorf("Test #%d (%s) unexpected result length - "+
+			t.Errorf("test #%d (%s) unexpected result length - "+
 				"got: %v, want: %v", i, test.name, len(examples),
 				len(test.examples))
 			continue
 		}
 		for j, example := range examples {
 			if example != test.examples[j] {
-				t.Errorf("Test #%d (%s) example #%d unexpected "+
+				t.Errorf("test #%d (%s) example #%d unexpected "+
 					"example - got: %v, want: %v", i,
 					test.name, j, example, test.examples[j])
 				continue
@@ -272,7 +272,7 @@ func TestHelpReflectInternals(t *testing.T) {
 		// Ensure the generated result type help is as expected.
 		helpText := dcrjson.TstResultTypeHelp(xT, test.reflectType, "fdk")
 		if helpText != test.help {
-			t.Errorf("Test #%d (%s) unexpected result help - "+
+			t.Errorf("test #%d (%s) unexpected result help - "+
 				"got: %v, want: %v", i, test.name, helpText,
 				test.help)
 			continue
@@ -280,7 +280,7 @@ func TestHelpReflectInternals(t *testing.T) {
 
 		isValid := dcrjson.TstIsValidResultType(test.reflectType.Kind())
 		if isValid != !test.isInvalid {
-			t.Errorf("Test #%d (%s) unexpected result type validity "+
+			t.Errorf("test #%d (%s) unexpected result type validity "+
 				"- got: %v", i, test.name, isValid)
 			continue
 		}
@@ -405,14 +405,14 @@ func TestResultStructHelp(t *testing.T) {
 	for i, test := range tests {
 		results := dcrjson.TstResultStructHelp(xT, test.reflectType, 0)
 		if len(results) != len(test.expected) {
-			t.Errorf("Test #%d (%s) unexpected result length - "+
+			t.Errorf("test #%d (%s) unexpected result length - "+
 				"got: %v, want: %v", i, test.name, len(results),
 				len(test.expected))
 			continue
 		}
 		for j, result := range results {
 			if result != test.expected[j] {
-				t.Errorf("Test #%d (%s) result #%d unexpected "+
+				t.Errorf("test #%d (%s) result #%d unexpected "+
 					"result - got: %v, want: %v", i,
 					test.name, j, result, test.expected[j])
 				continue
@@ -559,7 +559,7 @@ func TestHelpArgInternals(t *testing.T) {
 		help := dcrjson.TstArgHelp(xT, test.reflectType, test.defaults,
 			test.method)
 		if help != test.help {
-			t.Errorf("Test #%d (%s) unexpected help - got:\n%v\n"+
+			t.Errorf("test #%d (%s) unexpected help - got:\n%v\n"+
 				"want:\n%v", i, test.name, help, test.help)
 			continue
 		}
@@ -652,7 +652,7 @@ func TestMethodHelp(t *testing.T) {
 		help := dcrjson.TestMethodHelp(xT, test.reflectType,
 			test.defaults, test.method, test.resultTypes)
 		if help != test.help {
-			t.Errorf("Test #%d (%s) unexpected help - got:\n%v\n"+
+			t.Errorf("test #%d (%s) unexpected help - got:\n%v\n"+
 				"want:\n%v", i, test.name, help, test.help)
 			continue
 		}
@@ -700,13 +700,13 @@ func TestGenerateHelpErrors(t *testing.T) {
 		_, err := dcrjson.GenerateHelp(test.method, nil,
 			test.resultTypes...)
 		if reflect.TypeOf(err) != reflect.TypeOf(test.err) {
-			t.Errorf("Test #%d (%s) wrong error type - got `%T` (%v), want `%T`",
+			t.Errorf("test #%d (%s) wrong error type - got `%T` (%v), want `%T`",
 				i, test.name, err, err, test.err)
 			continue
 		}
 		gotErrorCode := err.(dcrjson.Error).Code
 		if gotErrorCode != test.err.Code {
-			t.Errorf("Test #%d (%s) mismatched error code - got "+
+			t.Errorf("test #%d (%s) mismatched error code - got "+
 				"%v (%v), want %v", i, test.name, gotErrorCode,
 				err, test.err.Code)
 			continue

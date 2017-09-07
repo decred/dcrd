@@ -42,7 +42,7 @@ func TestHeaders(t *testing.T) {
 	bh := &testBlock.Header
 	msg.AddBlockHeader(bh)
 	if !reflect.DeepEqual(msg.Headers[0], bh) {
-		t.Errorf("AddHeader: wrong header - got %v, want %v",
+		t.Errorf("AddBlockHeader: wrong header - got %v, want %v",
 			spew.Sdump(msg.Headers),
 			spew.Sdump(bh))
 	}

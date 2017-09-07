@@ -245,7 +245,7 @@ func TestVersionWireErrors(t *testing.T) {
 	// error.
 	fr := newFixedReader(0, []byte{})
 	if err := baseVersion.BtcDecode(fr, pver); err == nil {
-		t.Errorf("Did not received error when calling " +
+		t.Errorf("did not received error when calling " +
 			"MsgVersion.BtcDecode with non *bytes.Buffer")
 	}
 

@@ -108,7 +108,7 @@ func TestStartStop(t *testing.T) {
 	n.Start()
 	err := n.Stop()
 	if err != nil {
-		t.Fatalf("Address Manager failed to stop: %v", err)
+		t.Fatalf("address manager failed to stop: %v", err)
 	}
 }
 
@@ -141,15 +141,15 @@ func TestAddAddressByIP(t *testing.T) {
 	for i, test := range tests {
 		err := amgr.AddAddressByIP(test.addrIP)
 		if test.err != nil && err == nil {
-			t.Errorf("TestGood test %d failed expected an error and got none", i)
+			t.Errorf("testGood test %d failed expected an error and got none", i)
 			continue
 		}
 		if test.err == nil && err != nil {
-			t.Errorf("TestGood test %d failed expected no error and got one", i)
+			t.Errorf("testGood test %d failed expected no error and got one", i)
 			continue
 		}
 		if reflect.TypeOf(err) != reflect.TypeOf(test.err) {
-			t.Errorf("TestGood test %d failed got %v, want %v", i,
+			t.Errorf("testGood test %d failed got %v, want %v", i,
 				reflect.TypeOf(err), reflect.TypeOf(test.err))
 			continue
 		}
@@ -197,12 +197,12 @@ func TestAddLocalAddress(t *testing.T) {
 	for x, test := range tests {
 		result := amgr.AddLocalAddress(&test.address, test.priority)
 		if result == nil && !test.valid {
-			t.Errorf("TestAddLocalAddress test #%d failed: %s should have "+
+			t.Errorf("testAddLocalAddress test #%d failed: %s should have "+
 				"been accepted", x, test.address.IP)
 			continue
 		}
 		if result != nil && test.valid {
-			t.Errorf("TestAddLocalAddress test #%d failed: %s should not have "+
+			t.Errorf("testAddLocalAddress test #%d failed: %s should not have "+
 				"been accepted", x, test.address.IP)
 			continue
 		}
@@ -215,19 +215,19 @@ func TestAttempt(t *testing.T) {
 	// Add a new address and get it
 	err := n.AddAddressByIP(someIP + ":8333")
 	if err != nil {
-		t.Fatalf("Adding address failed: %v", err)
+		t.Fatalf("adding address failed: %v", err)
 	}
 	ka := n.GetAddress()
 
 	if !ka.LastAttempt().IsZero() {
-		t.Errorf("Address should not have attempts, but does")
+		t.Errorf("address should not have attempts, but does")
 	}
 
 	na := ka.NetAddress()
 	n.Attempt(na)
 
 	if ka.LastAttempt().IsZero() {
-		t.Errorf("Address should have an attempt, but does not")
+		t.Errorf("address should have an attempt, but does not")
 	}
 }
 
@@ -237,7 +237,7 @@ func TestConnected(t *testing.T) {
 	// Add a new address and get it
 	err := n.AddAddressByIP(someIP + ":8333")
 	if err != nil {
-		t.Fatalf("Adding address failed: %v", err)
+		t.Fatalf("adding address failed: %v", err)
 	}
 	ka := n.GetAddress()
 	na := ka.NetAddress()
@@ -247,7 +247,7 @@ func TestConnected(t *testing.T) {
 	n.Connected(na)
 
 	if !ka.NetAddress().Timestamp.After(na.Timestamp) {
-		t.Errorf("Address should have a new timestamp, but does not")
+		t.Errorf("address should have a new timestamp, but does not")
 	}
 }
 
@@ -256,7 +256,7 @@ func TestNeedMoreAddresses(t *testing.T) {
 	addrsToAdd := 1500
 	b := n.NeedMoreAddresses()
 	if !b {
-		t.Errorf("Expected that we need more addresses")
+		t.Errorf("expected that we need more addresses")
 	}
 	addrs := make([]*wire.NetAddress, addrsToAdd)
 
@@ -265,7 +265,7 @@ func TestNeedMoreAddresses(t *testing.T) {
 		s := fmt.Sprintf("%d.%d.173.147:8333", i/128+60, i%128+60)
 		addrs[i], err = n.DeserializeNetAddress(s)
 		if err != nil {
-			t.Errorf("Failed to turn %s into an address: %v", s, err)
+			t.Errorf("failed to turn %s into an address: %v", s, err)
 		}
 	}
 
@@ -274,12 +274,12 @@ func TestNeedMoreAddresses(t *testing.T) {
 	n.AddAddresses(addrs, srcAddr)
 	numAddrs := n.NumAddresses()
 	if numAddrs > addrsToAdd {
-		t.Errorf("Number of addresses is too many %d vs %d", numAddrs, addrsToAdd)
+		t.Errorf("number of addresses is too many %d vs %d", numAddrs, addrsToAdd)
 	}
 
 	b = n.NeedMoreAddresses()
 	if b {
-		t.Errorf("Expected that we don't need more addresses")
+		t.Errorf("expected that we don't need more addresses")
 	}
 }
 
@@ -293,7 +293,7 @@ func TestGood(t *testing.T) {
 		s := fmt.Sprintf("%d.173.147.%d:8333", i/64+60, i%64+60)
 		addrs[i], err = n.DeserializeNetAddress(s)
 		if err != nil {
-			t.Errorf("Failed to turn %s into an address: %v", s, err)
+			t.Errorf("failed to turn %s into an address: %v", s, err)
 		}
 	}
 
@@ -306,12 +306,12 @@ func TestGood(t *testing.T) {
 
 	numAddrs := n.NumAddresses()
 	if numAddrs >= addrsToAdd {
-		t.Errorf("Number of addresses is too many: %d vs %d", numAddrs, addrsToAdd)
+		t.Errorf("number of addresses is too many: %d vs %d", numAddrs, addrsToAdd)
 	}
 
 	numCache := len(n.AddressCache())
 	if numCache >= numAddrs/4 {
-		t.Errorf("Number of addresses in cache: got %d, want %d", numCache, numAddrs/4)
+		t.Errorf("number of addresses in cache: got %d, want %d", numCache, numAddrs/4)
 	}
 }
 
@@ -320,35 +320,35 @@ func TestGetAddress(t *testing.T) {
 
 	// Get an address from an empty set (should error)
 	if rv := n.GetAddress(); rv != nil {
-		t.Errorf("GetAddress failed: got: %v want: %v\n", rv, nil)
+		t.Errorf("getAddress failed: got: %v want: %v\n", rv, nil)
 	}
 
 	// Add a new address and get it
 	err := n.AddAddressByIP(someIP + ":8333")
 	if err != nil {
-		t.Fatalf("Adding address failed: %v", err)
+		t.Fatalf("adding address failed: %v", err)
 	}
 	ka := n.GetAddress()
 	if ka == nil {
-		t.Fatalf("Did not get an address where there is one in the pool")
+		t.Fatalf("did not get an address where there is one in the pool")
 	}
 	if ka.NetAddress().IP.String() != someIP {
-		t.Errorf("Wrong IP: got %v, want %v", ka.NetAddress().IP.String(), someIP)
+		t.Errorf("wrong IP: got %v, want %v", ka.NetAddress().IP.String(), someIP)
 	}
 
 	// Mark this as a good address and get it
 	n.Good(ka.NetAddress())
 	ka = n.GetAddress()
 	if ka == nil {
-		t.Fatalf("Did not get an address where there is one in the pool")
+		t.Fatalf("did not get an address where there is one in the pool")
 	}
 	if ka.NetAddress().IP.String() != someIP {
-		t.Errorf("Wrong IP: got %v, want %v", ka.NetAddress().IP.String(), someIP)
+		t.Errorf("wrong IP: got %v, want %v", ka.NetAddress().IP.String(), someIP)
 	}
 
 	numAddrs := n.NumAddresses()
 	if numAddrs != 1 {
-		t.Errorf("Wrong number of addresses: got %d, want %d", numAddrs, 1)
+		t.Errorf("wrong number of addresses: got %d, want %d", numAddrs, 1)
 	}
 }
 
@@ -408,7 +408,7 @@ func TestGetBestLocalAddress(t *testing.T) {
 	for x, test := range tests {
 		got := amgr.GetBestLocalAddress(&test.remoteAddr)
 		if !test.want0.IP.Equal(got.IP) {
-			t.Errorf("TestGetBestLocalAddress test1 #%d failed for remote address %s: want %s got %s",
+			t.Errorf("testGetBestLocalAddress test1 #%d failed for remote address %s: want %s got %s",
 				x, test.remoteAddr.IP, test.want1.IP, got.IP)
 			continue
 		}
@@ -422,7 +422,7 @@ func TestGetBestLocalAddress(t *testing.T) {
 	for x, test := range tests {
 		got := amgr.GetBestLocalAddress(&test.remoteAddr)
 		if !test.want1.IP.Equal(got.IP) {
-			t.Errorf("TestGetBestLocalAddress test1 #%d failed for remote address %s: want %s got %s",
+			t.Errorf("testGetBestLocalAddress test1 #%d failed for remote address %s: want %s got %s",
 				x, test.remoteAddr.IP, test.want1.IP, got.IP)
 			continue
 		}
@@ -436,7 +436,7 @@ func TestGetBestLocalAddress(t *testing.T) {
 	for x, test := range tests {
 		got := amgr.GetBestLocalAddress(&test.remoteAddr)
 		if !test.want2.IP.Equal(got.IP) {
-			t.Errorf("TestGetBestLocalAddress test2 #%d failed for remote address %s: want %s got %s",
+			t.Errorf("testGetBestLocalAddress test2 #%d failed for remote address %s: want %s got %s",
 				x, test.remoteAddr.IP, test.want2.IP, got.IP)
 			continue
 		}
@@ -450,7 +450,7 @@ func TestGetBestLocalAddress(t *testing.T) {
 		for x, test := range tests {
 			got := amgr.GetBestLocalAddress(&test.remoteAddr)
 			if !test.want3.IP.Equal(got.IP) {
-				t.Errorf("TestGetBestLocalAddress test3 #%d failed for remote address %s: want %s got %s",
+				t.Errorf("testGetBestLocalAddress test3 #%d failed for remote address %s: want %s got %s",
 					x, test.remoteAddr.IP, test.want3.IP, got.IP)
 				continue
 			}
@@ -465,7 +465,7 @@ func TestNetAddressKey(t *testing.T) {
 	for i, test := range naTests {
 		key := addrmgr.NetAddressKey(&test.in)
 		if key != test.want {
-			t.Errorf("NetAddressKey #%d\n got: %s want: %s", i, key, test.want)
+			t.Errorf("netAddressKey #%d\n got: %s want: %s", i, key, test.want)
 			continue
 		}
 	}

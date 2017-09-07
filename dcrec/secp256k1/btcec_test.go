@@ -521,7 +521,7 @@ func TestDoubleAffine(t *testing.T) {
 func TestOnCurve(t *testing.T) {
 	s256 := S256()
 	if !s256.IsOnCurve(s256.Params().Gx, s256.Params().Gy) {
-		t.Errorf("FAIL S256")
+		t.Errorf("fail S256")
 	}
 }
 
@@ -851,7 +851,7 @@ func TestNAF(t *testing.T) {
 			}
 		}
 		if got.Cmp(want) != 0 {
-			t.Errorf("%d: Failed NAF got %X want %X", i, got, want)
+			t.Errorf("%d: failed NAF got %X want %X", i, got, want)
 		}
 	}
 }
@@ -886,7 +886,7 @@ func TestNAFRand(t *testing.T) {
 			}
 		}
 		if got.Cmp(want) != 0 {
-			t.Errorf("%d: Failed NAF got %X want %X", i, got, want)
+			t.Errorf("%d: failed NAF got %X want %X", i, got, want)
 		}
 	}
 }

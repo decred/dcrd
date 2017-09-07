@@ -134,7 +134,7 @@ func TestOpcodeDisasm(t *testing.T) {
 		pop := parsedOpcode{opcode: &opcodeArray[opcodeVal], data: data}
 		gotStr := pop.print(true)
 		if gotStr != expectedStr {
-			t.Errorf("pop.print (opcode %x): Unexpected disasm "+
+			t.Errorf("pop.print (opcode %x): unexpected disasm "+
 				"string - got %v, want %v", opcodeVal, gotStr,
 				expectedStr)
 			continue
@@ -200,7 +200,7 @@ func TestOpcodeDisasm(t *testing.T) {
 		pop := parsedOpcode{opcode: &opcodeArray[opcodeVal], data: data}
 		gotStr := pop.print(false)
 		if gotStr != expectedStr {
-			t.Errorf("pop.print (opcode %x): Unexpected disasm "+
+			t.Errorf("pop.print (opcode %x): unexpected disasm "+
 				"string - got %v, want %v", opcodeVal, gotStr,
 				expectedStr)
 			continue
@@ -478,13 +478,13 @@ func TestNewlyEnabledOpCodes(t *testing.T) {
 		flags := StandardVerifyFlags
 		engine, err := NewEngine(test.pkScript, msgTx, 0, flags, 0, nil)
 		if err != nil {
-			t.Errorf("Bad script result for test %v because of error: %v",
+			t.Errorf("bad script result for test %v because of error: %v",
 				test.name, err.Error())
 			continue
 		}
 		err = engine.Execute()
 		if err != nil && test.expected {
-			t.Errorf("Bad script exec for test %v because of error: %v",
+			t.Errorf("bad script exec for test %v because of error: %v",
 				test.name, err.Error())
 		}
 	}
