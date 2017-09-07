@@ -1025,7 +1025,7 @@ func TestChainSvrCmds(t *testing.T) {
 		var request dcrjson.Request
 		if err := json.Unmarshal(marshalled, &request); err != nil {
 			t.Errorf("test #%d (%s) unexpected error while "+
-				"unmarshalling json-rpc request: %v", i,
+				"unmarshalling JSON-RPC request: %v", i,
 				test.name, err)
 			continue
 		}
