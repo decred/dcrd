@@ -57,6 +57,7 @@ const (
 	defaultSigCacheMaxSize       = 100000
 	defaultTxIndex               = false
 	defaultNoExistsAddrIndex     = false
+	defaultPeerIdleTimeout       = 5 * time.Minute
 )
 
 var (
@@ -160,6 +161,7 @@ type config struct {
 	PipeRx               uint          `long:"piperx" description:"File descriptor of read end pipe to enable parent -> child process communication"`
 	PipeTx               uint          `long:"pipetx" description:"File descriptor of write end pipe to enable parent <- child process communication"`
 	LifetimeEvents       bool          `long:"lifetimeevents" description:"Send lifetime notifications over the TX pipe"`
+	PeerIdleTimeout      time.Duration `long:"peerideltimeout" description:"Duration of inactivity before a peer is timed out"`
 	onionlookup          func(string) ([]net.IP, error)
 	lookup               func(string) ([]net.IP, error)
 	oniondial            func(string, string) (net.Conn, error)
@@ -410,6 +412,7 @@ func loadConfig() (*config, []string, error) {
 		AddrIndex:            defaultAddrIndex,
 		AllowOldVotes:        defaultAllowOldVotes,
 		NoExistsAddrIndex:    defaultNoExistsAddrIndex,
+		PeerIdleTimeout:      defaultPeerIdleTimeout,
 	}
 
 	// Service options which are only added on Windows.
@@ -1061,6 +1064,24 @@ func loadConfig() (*config, []string, error) {
 		cfg.onionlookup = func(a string) ([]net.IP, error) {
 			return nil, errors.New("tor has been disabled")
 		}
+	}
+
+	// peer idle time must be greater than stallTickInterval.
+	if stallTickInterval := 15 * time.Second; cfg.PeerIdleTimeout <= stallTickInterval {
+		str := "%s: the peeridletimeout option must be stricly greater than the stall tick interval [%v]-- parsed [%v]"
+		err := fmt.Errorf(str, funcName, stallTickInterval, cfg.PeerIdleTimeout)
+		fmt.Fprintln(os.Stderr, err)
+		fmt.Fprintln(os.Stderr, usageMessage)
+		return nil, nil, err
+	}
+
+	// peer idle time must be greater than stallResponseTimeout.
+	if stallResponseTimeout := 30 * time.Second; cfg.PeerIdleTimeout <= stallResponseTimeout {
+		str := "%s: the peeridletimeout option must be stricly greater than the stall response timeout [%v]-- parsed [%v]"
+		err := fmt.Errorf(str, funcName, stallResponseTimeout, cfg.PeerIdleTimeout)
+		fmt.Fprintln(os.Stderr, err)
+		fmt.Fprintln(os.Stderr, usageMessage)
+		return nil, nil, err
 	}
 
 	// Warn if old testnet directory is present.

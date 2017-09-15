@@ -1,8 +1,8 @@
 hash: 5ff55cbde58db9eecfef0a796b2513f910996d6aaa1244f31475852835e48efe
-updated: 2017-08-30T23:46:58.835362449Z
+updated: 2017-09-15T13:12:25.940076532+02:00
 imports:
 - name: github.com/agl/ed25519
-  version: 278e1ec8e8a6e017cd07577924d6766039146ced
+  version: 5312a61534124124185d41f09206b9fef1d88403
   subpackages:
   - edwards25519
 - name: github.com/btcsuite/btclog
@@ -39,7 +39,7 @@ imports:
   - svc
   - winapi
 - name: github.com/davecgh/go-spew
-  version: adab96458c51a58dc1783b3335dcce5461522e75
+  version: a476722483882dd40b8111f0eb64e1d7f43f56e4
   subpackages:
   - spew
 - name: github.com/dchest/blake256
@@ -47,26 +47,27 @@ imports:
 - name: github.com/decred/bitset
   version: 484b833245d5f9046e2893a6bd2e54b1df3a53a4
 - name: github.com/decred/dcrrpcclient
-  version: abc326aeb97b299c7eb6b13b81353fc375e9b95d
+  version: bd992834efae9f8a81842221a634f4af22b77a0f
 - name: github.com/decred/dcrutil
-  version: 166211f0196be1d3be344ae64149e7c4f5ca36b0
+  version: ddbde93f65ab0692e54ed8a5ad325fa2e8af4daa
   subpackages:
   - base58
   - bloom
   - hdkeychain
 - name: github.com/jessevdk/go-flags
-  version: 48cf8722c3375517aba351d1f7577c40663a4407
+  version: 96dc06278ce32a0e9d957d590bb987c81ee66407
 - name: github.com/jrick/logrotate
   version: a93b200c26cbae3bb09dd0dc2c7c7fe1468a034a
   subpackages:
   - rotator
 - name: golang.org/x/crypto
-  version: 81e90905daefcd6fd217b62423c0908922eadb30
+  version: faadfbdc035307d901e69eea569f5dda451a3ee3
   subpackages:
   - ripemd160
   - ssh/terminal
 - name: golang.org/x/sys
-  version: bb24a47a89eac6c1227fbcb2ae37a8b9ed323366
+  version: 062cd7e4e68206d8bab9b18396626e855c992658
   subpackages:
   - unix
+  - windows
 testImports: []

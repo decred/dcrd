@@ -49,9 +49,6 @@ const (
 	// peer that hasn't completed the initial version negotiation.
 	negotiateTimeout = 30 * time.Second
 
-	// idleTimeout is the duration of inactivity before we time out a peer.
-	idleTimeout = 5 * time.Minute
-
 	// stallTickInterval is the interval of time between each check for
 	// stalled peers.
 	stallTickInterval = 15 * time.Second
@@ -243,6 +240,9 @@ type Config struct {
 	// Listeners houses callback functions to be invoked on receiving peer
 	// messages.
 	Listeners MessageListeners
+
+	// idleTimeout is the duration of inactivity before we time out a peer.
+	IdleTimeout time.Duration
 }
 
 // minUint32 is a helper function to return the minimum of two uint32s.
@@ -1368,8 +1368,8 @@ func (p *Peer) inHandler() {
 	// Peers must complete the initial version negotiation within a shorter
 	// timeframe than a general idle timeout.  The timer is then reset below
 	// to idleTimeout for all future messages.
-	idleTimer := time.AfterFunc(idleTimeout, func() {
-		log.Warnf("Peer %s no answer for %s -- disconnecting", p, idleTimeout)
+	idleTimer := time.AfterFunc(p.cfg.IdleTimeout, func() {
+		log.Warnf("Peer %s no answer for %s -- disconnecting", p, p.cfg.IdleTimeout)
 		p.Disconnect()
 	})
 
@@ -1555,7 +1555,7 @@ out:
 		p.stallControl <- stallControlMsg{sccHandlerDone, rmsg}
 
 		// A message was received so reset the idle timer.
-		idleTimer.Reset(idleTimeout)
+		idleTimer.Reset(p.cfg.IdleTimeout)
 	}
 
 	// Ensure the idle timer is stopped to avoid leaking the resource.
@@ -2048,6 +2048,7 @@ func NewInboundPeer(cfg *Config) *Peer {
 
 // NewOutboundPeer returns a new outbound decred peer.
 func NewOutboundPeer(cfg *Config, addr string) (*Peer, error) {
+
 	p := newPeerBase(cfg, false)
 	p.addr = addr
 
