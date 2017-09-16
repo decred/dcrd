@@ -241,7 +241,7 @@ type Config struct {
 	// messages.
 	Listeners MessageListeners
 
-	// idleTimeout is the duration of inactivity before we time out a peer.
+	// IdleTimeout is the duration of inactivity before we time out a peer.
 	IdleTimeout time.Duration
 }
 
@@ -2048,7 +2048,6 @@ func NewInboundPeer(cfg *Config) *Peer {
 
 // NewOutboundPeer returns a new outbound decred peer.
 func NewOutboundPeer(cfg *Config, addr string) (*Peer, error) {
-
 	p := newPeerBase(cfg, false)
 	p.addr = addr
 

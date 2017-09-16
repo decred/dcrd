@@ -161,7 +161,7 @@ type config struct {
 	PipeRx               uint          `long:"piperx" description:"File descriptor of read end pipe to enable parent -> child process communication"`
 	PipeTx               uint          `long:"pipetx" description:"File descriptor of write end pipe to enable parent <- child process communication"`
 	LifetimeEvents       bool          `long:"lifetimeevents" description:"Send lifetime notifications over the TX pipe"`
-	PeerIdleTimeout      time.Duration `long:"peerideltimeout" description:"Duration of inactivity before a peer is timed out"`
+	PeerIdleTimeout      time.Duration `long:"peeridletimeout" description:"Duration of inactivity before a peer is timed out"`
 	onionlookup          func(string) ([]net.IP, error)
 	lookup               func(string) ([]net.IP, error)
 	oniondial            func(string, string) (net.Conn, error)
