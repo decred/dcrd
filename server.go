@@ -1643,6 +1643,7 @@ func newPeerConfig(sp *serverPeer) *peer.Config {
 		Services:         sp.server.services,
 		DisableRelayTx:   cfg.BlocksOnly,
 		ProtocolVersion:  maxProtocolVersion,
+		IdleTimeout:      cfg.PeerIdleTimeout,
 	}
 }
 
