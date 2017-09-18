@@ -24,6 +24,7 @@ func mockRemotePeer() error {
 		UserAgentName:    "peer",  // User agent name to advertise.
 		UserAgentVersion: "1.0.0", // User agent version to advertise.
 		ChainParams:      &chaincfg.SimNetParams,
+		IdleTimeout:      5 * time.Minute,
 	}
 
 	// Accept connections on the simnet port.

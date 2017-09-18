@@ -224,6 +224,7 @@ func TestPeerConnection(t *testing.T) {
 		UserAgentVersion: "1.0",
 		ChainParams:      &chaincfg.MainNetParams,
 		Services:         0,
+		IdleTimeout:      5 * time.Minute,
 	}
 	wantStats := peerStats{
 		wantUserAgent:       wire.DefaultUserAgent + "peer:1.0/",
@@ -393,6 +394,7 @@ func TestPeerListeners(t *testing.T) {
 		UserAgentVersion: "1.0",
 		ChainParams:      &chaincfg.MainNetParams,
 		Services:         wire.SFNodeBloom,
+		IdleTimeout:      5 * time.Minute,
 	}
 	inConn, outConn := pipe(
 		&conn{raddr: "10.0.0.1:8333"},
