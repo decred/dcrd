@@ -671,7 +671,7 @@ var TestNet2Params = Params{
 	DefaultPort: "19108",
 	DNSSeeds: []string{
 		"testnet-seed.decred.mindcry.org",
-		"testnet-seed.decred.netpurgatory.org",
+		"testnet-seed.decred.netpurgatory.com",
 		"testnet.decredseed.org",
 		"testnet-seed.decred.org",
 	},
