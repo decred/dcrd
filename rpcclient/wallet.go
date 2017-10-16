@@ -810,7 +810,7 @@ func (c *Client) PurchaseTicketAsync(fromAccount string,
 func (c *Client) PurchaseTicket(fromAccount string,
 	spendLimit dcrutil.Amount, minConf *int, ticketAddress dcrutil.Address,
 	numTickets *int, poolAddress dcrutil.Address, poolFees *dcrutil.Amount,
-	expiry *int, noSplitTransaction bool) ([]*chainhash.Hash, error) {
+	expiry *int, noSplitTransaction *bool) ([]*chainhash.Hash, error) {
 
 	return c.PurchaseTicketAsync(fromAccount, spendLimit, minConf, ticketAddress,
 		numTickets, poolAddress, poolFees, expiry, noSplitTransaction).Receive()
