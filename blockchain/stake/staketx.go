@@ -1200,10 +1200,6 @@ func SetTxTree(tx *dcrutil.Tx) {
 // transaction.
 // This function is only safe to be called on a transaction that
 // has passed IsSStx.
-func IsStakeSubmissionTxOut(mtx *wire.MsgTx, index int) bool {
-	if (index >= len(mtx.TxOut)) || (index < 0) {
-		return false;
-	}
-
+func IsStakeSubmissionTxOut(index int) bool {
 	return (index % 2) != 0;
 }
