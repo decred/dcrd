@@ -1201,5 +1201,5 @@ func SetTxTree(tx *dcrutil.Tx) {
 // This function is only safe to be called on a transaction that
 // has passed IsSStx.
 func IsStakeSubmissionTxOut(index int) bool {
-	return (index % 2) != 0;
+	return (index % 2) != 0
 }
