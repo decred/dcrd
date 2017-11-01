@@ -1193,3 +1193,18 @@ func SetTxTree(tx *dcrutil.Tx) {
 
 	tx.SetTree(indicatedTree)
 }
+
+// IsStakeSubmissionTxOut indicates whether the txOut identified by the given
+// index is a stake submission output.
+// Stake Submission outputs are the odd-numbered outputs of an SStx
+// transaction.
+// This function is only safe to be called on a transaction that
+// has passed IsSStx.
+func IsStakeSubmissionTxOut(mtx *wire.MsgTx, index int) (bool, error) {
+	if (index >= len(mtx.TxOut)) || (index < 0) {
+		str := fmt.Sprintf("SStx output index %d does not exist ", index)
+		return false, stakeRuleError(ErrSStxTxOutIndexOutOfBounds, str)
+	}
+
+	return (index % 2) != 0, nil;
+}

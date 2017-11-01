@@ -176,6 +176,10 @@ const (
 	// ErrUnknownTicketSpent indicates that an unknown ticket was spent by
 	// the block.
 	ErrUnknownTicketSpent
+
+	// ErrSStxTxOutIndexOutOfBounds indicates that the provided index
+	// argument is out of bounds from the available outputs
+	ErrSStxTxOutIndexOutOfBounds
 )
 
 // Map of ErrorCode values back to their constant names for pretty printing.
