@@ -281,7 +281,7 @@ func (b byNumberOfVotes) Less(i, j int) bool {
 // at least a majority number of votes) sorted by number of votes, descending.
 //
 // This function is safe for concurrent access.
-func SortParentsByVotes(mp *mempool.TxPool, currentTopBlock chainhash.Hash, blocks []chainhash.Hash, params *chaincfg.Params) []chainhash.Hash {
+func SortParentsByVotes(txSource mining.TxSource, currentTopBlock chainhash.Hash, blocks []chainhash.Hash, params *chaincfg.Params) []chainhash.Hash {
 	// Return now when no blocks were provided.
 	lenBlocks := len(blocks)
 	if lenBlocks == 0 {
@@ -292,7 +292,7 @@ func SortParentsByVotes(mp *mempool.TxPool, currentTopBlock chainhash.Hash, bloc
 	// mempool and filter out any blocks that do not have the minimum
 	// required number of votes.
 	minVotesRequired := (params.TicketsPerBlock / 2) + 1
-	voteMetadata := mp.VotesForBlocks(blocks)
+	voteMetadata := txSource.VotesForBlocks(blocks)
 	filtered := make([]*blockWithNumVotes, 0, lenBlocks)
 	for i := range blocks {
 		numVotes := uint16(len(voteMetadata[i]))
@@ -321,7 +321,7 @@ func SortParentsByVotes(mp *mempool.TxPool, currentTopBlock chainhash.Hash, bloc
 	// the same amount of votes as the current leader after the sort. After this
 	// point, all blocks listed in sortedUsefulBlocks definitely also have the
 	// minimum number of votes required.
-	curVoteMetadata := mp.VotesForBlocks([]chainhash.Hash{currentTopBlock})
+	curVoteMetadata := txSource.VotesForBlocks([]chainhash.Hash{currentTopBlock})
 	numTopBlockVotes := uint16(len(curVoteMetadata))
 	if filtered[0].NumVotes == numTopBlockVotes && filtered[0].Hash !=
 		currentTopBlock {
@@ -486,38 +486,6 @@ func getCoinbaseExtranonces(msgBlock *wire.MsgBlock) []uint64 {
 		msgBlock.Transactions[0].TxOut[1].PkScript[30:38])
 
 	return ens
-}
-
-// UpdateExtraNonce updates the extra nonce in the coinbase script of the passed
-// block by regenerating the coinbase script with the passed value and block
-// height.  It also recalculates and updates the new merkle root that results
-// from changing the coinbase script.
-func UpdateExtraNonce(msgBlock *wire.MsgBlock, blockHeight int64,
-	extraNonces []uint64) error {
-	// First block has no extranonce.
-	if blockHeight == 1 {
-		return nil
-	}
-	if len(extraNonces) != 4 {
-		return fmt.Errorf("not enough nonce information passed")
-	}
-
-	coinbaseOpReturn, err := standardCoinbaseOpReturn(uint32(blockHeight),
-		extraNonces)
-	if err != nil {
-		return err
-	}
-	msgBlock.Transactions[0].TxOut[1].PkScript = coinbaseOpReturn
-
-	// TODO(davec): A dcrutil.Block should use saved in the state to avoid
-	// recalculating all of the other transaction hashes.
-	// block.Transactions[0].InvalidateCache()
-
-	// Recalculate the merkle root with the updated extra nonce.
-	block := dcrutil.NewBlockDeepCopyCoinbase(msgBlock)
-	merkles := blockchain.BuildMerkleTreeStore(block.Transactions())
-	msgBlock.Header.MerkleRoot = *merkles[len(merkles)-1]
-	return nil
 }
 
 // createCoinbaseTx returns a coinbase transaction paying an appropriate subsidy
@@ -803,9 +771,11 @@ func deepCopyBlockTemplate(blockTemplate *BlockTemplate) *BlockTemplate {
 func handleTooFewVoters(subsidyCache *blockchain.SubsidyCache,
 	nextHeight int64,
 	miningAddress dcrutil.Address,
-	bm *blockManager) (*BlockTemplate, error) {
-	timeSource := bm.server.timeSource
-	stakeValidationHeight := bm.server.chainParams.StakeValidationHeight
+	generator *BlkTmplGenerator) (*BlockTemplate, error) {
+	timeSource := generator.timeSource
+	chainParams := generator.chainParams
+	stakeValidationHeight := chainParams.StakeValidationHeight
+	bm := generator.blockManager
 	curTemplate := bm.GetCurrentTemplate()
 
 	// Check to see if we've fallen off the chain, for example if a
@@ -836,7 +806,7 @@ func handleTooFewVoters(subsidyCache *blockchain.SubsidyCache,
 
 				// If we're on testnet, the time since this last block
 				// listed as the parent must be taken into consideration.
-				if bm.server.chainParams.ReduceMinDifficulty {
+				if chainParams.ReduceMinDifficulty {
 					parentHash := cptCopy.Block.Header.PrevBlock
 
 					requiredDifficulty, err :=
@@ -854,14 +824,16 @@ func handleTooFewVoters(subsidyCache *blockchain.SubsidyCache,
 				// same block and choose the same winners as before.
 				ens := cptCopy.getCoinbaseExtranonces()
 				ens[0]++
-				err := UpdateExtraNonce(cptCopy.Block, cptCopy.Height, ens)
+				err := generator.UpdateExtraNonce(cptCopy.Block, cptCopy.Height,
+					ens)
 				if err != nil {
 					return nil, err
 				}
 
 				// Update extranonce of the original template too, so
 				// we keep getting unique numbers.
-				err = UpdateExtraNonce(curTemplate.Block, curTemplate.Height, ens)
+				err = generator.UpdateExtraNonce(curTemplate.Block,
+					curTemplate.Height, ens)
 				if err != nil {
 					return nil, err
 				}
@@ -869,8 +841,8 @@ func handleTooFewVoters(subsidyCache *blockchain.SubsidyCache,
 				// Make sure the block validates.
 				block := dcrutil.NewBlockDeepCopyCoinbase(cptCopy.Block)
 				if err := blockchain.CheckWorklessBlockSanity(block,
-					bm.server.timeSource,
-					bm.server.chainParams); err != nil {
+					timeSource,
+					chainParams); err != nil {
 					return nil, miningRuleError(ErrCheckConnectBlock,
 						err.Error())
 				}
@@ -916,7 +888,7 @@ func handleTooFewVoters(subsidyCache *blockchain.SubsidyCache,
 					topBlock.Height(),
 					miningAddress,
 					topBlock.MsgBlock().Header.Voters,
-					bm.server.chainParams)
+					chainParams)
 				if err != nil {
 					return nil, err
 				}
@@ -936,7 +908,7 @@ func handleTooFewVoters(subsidyCache *blockchain.SubsidyCache,
 
 				// If we're on testnet, the time since this last block
 				// listed as the parent must be taken into consideration.
-				if bm.server.chainParams.ReduceMinDifficulty {
+				if chainParams.ReduceMinDifficulty {
 					parentHash := topBlock.MsgBlock().Header.PrevBlock
 
 					requiredDifficulty, err :=
@@ -973,8 +945,8 @@ func handleTooFewVoters(subsidyCache *blockchain.SubsidyCache,
 				// Make sure the block validates.
 				btBlock := dcrutil.NewBlockDeepCopyCoinbase(btMsgBlock)
 				if err := blockchain.CheckWorklessBlockSanity(btBlock,
-					bm.server.timeSource,
-					bm.server.chainParams); err != nil {
+					timeSource,
+					chainParams); err != nil {
 					str := fmt.Sprintf("failed to check sanity of template "+
 						"while constructing a new parent: %v",
 						err.Error())
@@ -1041,6 +1013,42 @@ func handleCreatedBlockTemplate(blockTemplate *BlockTemplate,
 	}
 
 	return blockTemplate, nil
+}
+
+// BlkTmplGenerator provides a type that can be used to generate block templates
+// based on a given mining policy and source of transactions to choose from.
+// It also houses additional state required in order to ensure the templates
+// are built on top of the current best chain and adhere to the consensus rules.
+//
+// See the NewBlockTemplate method for a detailed description of how the block
+// template is generated.
+type BlkTmplGenerator struct {
+	policy       *mining.Policy
+	chainParams  *chaincfg.Params
+	txSource     mining.TxSource
+	sigCache     *txscript.SigCache
+	blockManager *blockManager
+	timeSource   blockchain.MedianTimeSource
+}
+
+// newBlkTmplGenerator returns a new block template generator for the given
+// policy using transactions from the provided transaction source.
+//
+// The additional state-related fields are required in order to ensure the
+// templates are built on top of the current best chain and adhere to the
+// consensus rules.
+func newBlkTmplGenerator(policy *mining.Policy, params *chaincfg.Params,
+	txSource mining.TxSource, sigCache *txscript.SigCache,
+	blockManager *blockManager, timeSource blockchain.MedianTimeSource) *BlkTmplGenerator {
+
+	return &BlkTmplGenerator{
+		policy:       policy,
+		chainParams:  params,
+		txSource:     txSource,
+		sigCache:     sigCache,
+		blockManager: blockManager,
+		timeSource:   timeSource,
+	}
 }
 
 // NewBlockTemplate returns a new block template that is ready to be solved
@@ -1125,16 +1133,13 @@ func handleCreatedBlockTemplate(blockTemplate *BlockTemplate,
 //
 //  This function returns nil, nil if there are not enough voters on any of
 //  the current top blocks to create a new block template.
-func NewBlockTemplate(policy *mining.Policy, server *server,
-	payToAddress dcrutil.Address) (*BlockTemplate, error) {
+func (g *BlkTmplGenerator) NewBlockTemplate(payToAddress dcrutil.Address) (*BlockTemplate, error) {
+	// Locals for faster access.
+	policy := g.policy
+	blockManager := g.blockManager
+	timeSource := g.timeSource
 
-	// TODO: The mempool should be completely separated via the TxSource
-	// interface so this function is fully decoupled.
-	mp := server.txMemPool
-
-	var txSource mining.TxSource = server.txMemPool
-	blockManager := server.blockManager
-	timeSource := server.timeSource
+	var txSource mining.TxSource = g.txSource
 	subsidyCache := blockManager.chain.FetchSubsidyCache()
 
 	// All transaction scripts are verified using the more strict standarad
@@ -1201,7 +1206,7 @@ func NewBlockTemplate(policy *mining.Policy, server *server,
 	medianTime := chainBest.MedianTime
 
 	// Calculate the stake enabled height.
-	stakeValidationHeight := server.chainParams.StakeValidationHeight
+	stakeValidationHeight := g.chainParams.StakeValidationHeight
 
 	if nextBlockHeight >= stakeValidationHeight {
 		// Obtain the entire generation of blocks stemming from this parent.
@@ -1213,13 +1218,13 @@ func NewBlockTemplate(policy *mining.Policy, server *server,
 		// Get the list of blocks that we can actually build on top of. If we're
 		// not currently on the block that has the most votes, switch to that
 		// block.
-		eligibleParents := SortParentsByVotes(mp, *prevHash, children,
-			blockManager.server.chainParams)
+		eligibleParents := SortParentsByVotes(txSource, *prevHash, children,
+			g.chainParams)
 		if len(eligibleParents) == 0 {
 			minrLog.Debugf("Too few voters found on any HEAD block, " +
 				"recycling a parent block to mine on")
 			return handleTooFewVoters(subsidyCache, nextBlockHeight,
-				payToAddress, server.blockManager)
+				payToAddress, g)
 		}
 
 		minrLog.Debugf("Found eligible parent %v with enough votes to build "+
@@ -1238,13 +1243,13 @@ func NewBlockTemplate(policy *mining.Policy, server *server,
 
 				// Check to make sure we actually have the transactions
 				// (votes) we need in the mempool.
-				voteHashes := mp.VoteHashesForBlock(newHead)
+				voteHashes := txSource.VoteHashesForBlock(newHead)
 				if len(voteHashes) == 0 {
 					return nil, fmt.Errorf("no vote metadata for block %v",
 						newHead)
 				}
 
-				if exist := mp.CheckIfTxsExist(voteHashes); !exist {
+				if exist := txSource.CheckIfTxsExist(voteHashes); !exist {
 					continue
 				} else {
 					prevHash = &newHead
@@ -1296,7 +1301,7 @@ func NewBlockTemplate(policy *mining.Policy, server *server,
 
 	minrLog.Debugf("Considering %d transactions for inclusion to new block",
 		len(sourceTxns))
-	treeValid := mp.IsTxTreeValid(prevHash)
+	treeValid := txSource.IsTxTreeValid(prevHash)
 
 mempoolLoop:
 	for _, txDesc := range sourceTxns {
@@ -1467,7 +1472,7 @@ mempoolLoop:
 
 		// Skip if we already have too many SStx.
 		if isSStx && (numSStx >=
-			int(server.chainParams.MaxFreshStakePerBlock)) {
+			int(g.chainParams.MaxFreshStakePerBlock)) {
 			minrLog.Tracef("Skipping sstx %s because it would exceed "+
 				"the max number of sstx allowed in a block", tx.Hash())
 			logSkippedDeps(tx, deps)
@@ -1601,7 +1606,7 @@ mempoolLoop:
 		// The fraud proof is not checked because it will be filled in
 		// by the miner.
 		_, err = blockchain.CheckTransactionInputs(subsidyCache, tx,
-			nextBlockHeight, blockUtxos, false, server.chainParams)
+			nextBlockHeight, blockUtxos, false, g.chainParams)
 		if err != nil {
 			minrLog.Tracef("Skipping tx %s due to error in "+
 				"CheckTransactionInputs: %v", tx.Hash(), err)
@@ -1609,7 +1614,7 @@ mempoolLoop:
 			continue
 		}
 		err = blockchain.ValidateTransactionScripts(tx, blockUtxos,
-			scriptFlags, server.sigCache)
+			scriptFlags, g.sigCache)
 		if err != nil {
 			minrLog.Tracef("Skipping tx %s due to error in "+
 				"ValidateTransactionScripts: %v", tx.Hash(), err)
@@ -1802,7 +1807,7 @@ mempoolLoop:
 		}
 
 		// Don't let this overflow.
-		if freshStake >= int(server.chainParams.MaxFreshStakePerBlock) {
+		if freshStake >= int(g.chainParams.MaxFreshStakePerBlock) {
 			break
 		}
 	}
@@ -1861,7 +1866,7 @@ mempoolLoop:
 		nextBlockHeight,
 		payToAddress,
 		uint16(voters),
-		server.chainParams)
+		g.chainParams)
 	if err != nil {
 		return nil, err
 	}
@@ -1933,7 +1938,7 @@ mempoolLoop:
 	// If we're greater than or equal to stake validation height, scale the
 	// fees according to the number of voters.
 	totalFees *= int64(voters)
-	totalFees /= int64(server.chainParams.TicketsPerBlock)
+	totalFees /= int64(g.chainParams.TicketsPerBlock)
 
 	// Now that the actual transactions have been selected, update the
 	// block size for the real transaction count and coinbase value with
@@ -1960,13 +1965,12 @@ mempoolLoop:
 	// bit for the mempool to sync with the votes map and we end up down
 	// here despite having the relevant votes available in the votes map.
 	minimumVotesRequired :=
-		int((server.chainParams.TicketsPerBlock / 2) + 1)
+		int((g.chainParams.TicketsPerBlock / 2) + 1)
 	if nextBlockHeight >= stakeValidationHeight &&
 		voters < minimumVotesRequired {
 		minrLog.Warnf("incongruent number of voters in mempool " +
 			"vs mempool.voters; not enough voters found")
-		return handleTooFewVoters(subsidyCache, nextBlockHeight, payToAddress,
-			server.blockManager)
+		return handleTooFewVoters(subsidyCache, nextBlockHeight, payToAddress, g)
 	}
 
 	// Correct transaction index fraud proofs for any transactions that
@@ -2045,7 +2049,7 @@ mempoolLoop:
 
 	// Choose the block version to generate based on the network.
 	blockVersion := int32(generatedBlockVersion)
-	if server.chainParams.Net != wire.MainNet {
+	if g.chainParams.Net != wire.MainNet {
 		blockVersion = generatedBlockVersionTest
 	}
 
@@ -2099,8 +2103,8 @@ mempoolLoop:
 	block := dcrutil.NewBlockDeepCopyCoinbase(&msgBlock)
 
 	if err := blockchain.CheckWorklessBlockSanity(block,
-		server.timeSource,
-		server.chainParams); err != nil {
+		g.timeSource,
+		g.chainParams); err != nil {
 		str := fmt.Sprintf("failed to do final check for block workless "+
 			"sanity when making new block template: %v",
 			err.Error())
@@ -2130,7 +2134,7 @@ mempoolLoop:
 		ValidPayAddress: payToAddress != nil,
 	}
 
-	return handleCreatedBlockTemplate(blockTemplate, server.blockManager)
+	return handleCreatedBlockTemplate(blockTemplate, blockManager)
 }
 
 // UpdateBlockTime updates the timestamp in the header of the passed block to
@@ -2139,24 +2143,56 @@ mempoolLoop:
 // consensus rules.  Finally, it will update the target difficulty if needed
 // based on the new time for the test networks since their target difficulty can
 // change based upon time.
-func UpdateBlockTime(msgBlock *wire.MsgBlock, bManager *blockManager) error {
+func (g *BlkTmplGenerator) UpdateBlockTime(msgBlock *wire.MsgBlock) error {
 	// The new timestamp is potentially adjusted to ensure it comes after
 	// the median time of the last several blocks per the chain consensus
 	// rules.
-	chainBest := bManager.chain.BestSnapshot()
-	newTimestamp := medianAdjustedTime(chainBest, bManager.server.timeSource)
+	chain := g.blockManager.chain
+	chainBest := chain.BestSnapshot()
+	newTimestamp := medianAdjustedTime(chainBest, g.timeSource)
 	msgBlock.Header.Timestamp = newTimestamp
 
 	// If running on a network that requires recalculating the difficulty,
 	// do so now.
 	if activeNetParams.ReduceMinDifficulty {
-		difficulty, err := bManager.chain.CalcNextRequiredDifficulty(
-			newTimestamp)
+		difficulty, err := chain.CalcNextRequiredDifficulty(newTimestamp)
 		if err != nil {
 			return miningRuleError(ErrGettingDifficulty, err.Error())
 		}
 		msgBlock.Header.Bits = difficulty
 	}
 
+	return nil
+}
+
+// UpdateExtraNonce updates the extra nonce in the coinbase script of the passed
+// block by regenerating the coinbase script with the passed value and block
+// height.  It also recalculates and updates the new merkle root that results
+// from changing the coinbase script.
+func (g *BlkTmplGenerator) UpdateExtraNonce(msgBlock *wire.MsgBlock, blockHeight int64,
+	extraNonces []uint64) error {
+	// First block has no extranonce.
+	if blockHeight == 1 {
+		return nil
+	}
+	if len(extraNonces) != 4 {
+		return fmt.Errorf("not enough nonce information passed")
+	}
+
+	coinbaseOpReturn, err := standardCoinbaseOpReturn(uint32(blockHeight),
+		extraNonces)
+	if err != nil {
+		return err
+	}
+	msgBlock.Transactions[0].TxOut[1].PkScript = coinbaseOpReturn
+
+	// TODO(davec): A dcrutil.Block should use saved in the state to avoid
+	// recalculating all of the other transaction hashes.
+	// block.Transactions[0].InvalidateCache()
+
+	// Recalculate the merkle root with the updated extra nonce.
+	block := dcrutil.NewBlockDeepCopyCoinbase(msgBlock)
+	merkles := blockchain.BuildMerkleTreeStore(block.Transactions())
+	msgBlock.Header.MerkleRoot = *merkles[len(merkles)-1]
 	return nil
 }

@@ -8,6 +8,7 @@ package mining
 import (
 	"time"
 
+	"github.com/decred/dcrd/blockchain"
 	"github.com/decred/dcrd/blockchain/stake"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/dcrutil"
@@ -50,4 +51,20 @@ type TxSource interface {
 	// HaveTransaction returns whether or not the passed transaction hash
 	// exists in the source pool.
 	HaveTransaction(hash *chainhash.Hash) bool
+
+	// VoteHashesForBlock returns the hashes for all votes on the provided block
+	// hash that are currently available in the mempool.
+	VoteHashesForBlock(hash chainhash.Hash) []chainhash.Hash
+
+	// CheckIfTxsExist checks a list of transaction hashes against the mempool
+	// and returns true if they all exist in the mempool, otherwise false.
+	CheckIfTxsExist(hashes []chainhash.Hash) bool
+
+	// IsTxTreeValid checks the map of votes for a block to see if the tx
+	// tree regular for the block at HEAD is valid.
+	IsTxTreeValid(hash *chainhash.Hash) bool
+
+	// VotesForBlocks returns the vote metadata for all votes on the provided
+	// block hashes that are currently available in the mempool.
+	VotesForBlocks(hashes []chainhash.Hash) [][]*blockchain.VoteTx
 }

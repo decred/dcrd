@@ -69,13 +69,6 @@ const (
 	maxNullDataOutputs = 4
 )
 
-// VoteTx is a struct describing a block vote (SSGen).
-type VoteTx struct {
-	SsgenHash chainhash.Hash // Vote
-	SstxHash  chainhash.Hash // Ticket
-	Vote      bool
-}
-
 // Config is a descriptor containing the memory pool configuration.
 type Config struct {
 	// Policy defines the various mempool configuration options related
@@ -215,7 +208,7 @@ type TxPool struct {
 
 	// Votes on blocks.
 	votesMtx sync.Mutex
-	votes    map[chainhash.Hash][]*VoteTx
+	votes    map[chainhash.Hash][]*blockchain.VoteTx
 
 	pennyTotal    float64 // exponentially decaying total for penny spends.
 	lastPennyUnix int64   // unix time of last ``penny spend''
@@ -239,7 +232,7 @@ func (mp *TxPool) insertVote(ssgen *dcrutil.Tx) error {
 	// start a new buffered slice and store it.
 	vts, exists := mp.votes[blockHash]
 	if !exists {
-		vts = make([]*VoteTx, 0, mp.cfg.ChainParams.TicketsPerBlock)
+		vts = make([]*blockchain.VoteTx, 0, mp.cfg.ChainParams.TicketsPerBlock)
 		mp.votes[blockHash] = vts
 	}
 
@@ -253,7 +246,8 @@ func (mp *TxPool) insertVote(ssgen *dcrutil.Tx) error {
 	// Append the new vote.
 	voteBits := stake.SSGenVoteBits(msgTx)
 	vote := dcrutil.IsFlagSet16(voteBits, dcrutil.BlockValid)
-	mp.votes[blockHash] = append(vts, &VoteTx{*voteHash, *ticketHash, vote})
+	mp.votes[blockHash] = append(vts, &blockchain.VoteTx{*voteHash, *ticketHash,
+		vote})
 
 	log.Debugf("Accepted vote %v for block hash %v (height %v), voting "+
 		"%v on the transaction tree", voteHash, blockHash, blockHeight,
@@ -289,12 +283,12 @@ func (mp *TxPool) VoteHashesForBlock(blockHash chainhash.Hash) []chainhash.Hash 
 // block hashes that are currently available in the mempool.
 //
 // This function is safe for concurrent access.
-func (mp *TxPool) VotesForBlocks(hashes []chainhash.Hash) [][]*VoteTx {
-	result := make([][]*VoteTx, 0, len(hashes))
+func (mp *TxPool) VotesForBlocks(hashes []chainhash.Hash) [][]*blockchain.VoteTx {
+	result := make([][]*blockchain.VoteTx, 0, len(hashes))
 	mp.votesMtx.Lock()
 	for _, hash := range hashes {
 		votes := mp.votes[hash]
-		votesCopy := make([]*VoteTx, len(votes))
+		votesCopy := make([]*blockchain.VoteTx, len(votes))
 		copy(votesCopy, votes)
 		result = append(result, votesCopy)
 	}
@@ -1597,6 +1591,6 @@ func New(cfg *Config) *TxPool {
 		orphans:       make(map[chainhash.Hash]*dcrutil.Tx),
 		orphansByPrev: make(map[chainhash.Hash]map[chainhash.Hash]*dcrutil.Tx),
 		outpoints:     make(map[wire.OutPoint]*dcrutil.Tx),
-		votes:         make(map[chainhash.Hash][]*VoteTx),
+		votes:         make(map[chainhash.Hash][]*blockchain.VoteTx),
 	}
 }
