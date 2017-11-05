@@ -313,86 +313,6 @@ type headerNode struct {
 	hash   *chainhash.Hash
 }
 
-// chainState tracks the state of the best chain as blocks are inserted.  This
-// is done because blockchain is currently not safe for concurrent access and the
-// block manager is typically quite busy processing block and inventory.
-// Therefore, requesting this information from chain through the block manager
-// would not be anywhere near as efficient as simply updating it as each block
-// is inserted and protecting it with a mutex.
-type chainState struct {
-	sync.Mutex
-	newestHash          *chainhash.Hash
-	newestHeight        int64
-	nextFinalState      [6]byte
-	nextPoolSize        uint32
-	nextStakeDifficulty int64
-	winningTickets      []chainhash.Hash
-	missedTickets       []chainhash.Hash
-	curPrevHash         chainhash.Hash
-	pastMedianTime      time.Time
-	stakeVersion        uint32
-}
-
-// Best returns the block hash and height known for the tip of the best known
-// chain.
-//
-// This function is safe for concurrent access.
-func (c *chainState) Best() (*chainhash.Hash, int64) {
-	c.Lock()
-	defer c.Unlock()
-
-	return c.newestHash, c.newestHeight
-}
-
-// NextWPO returns next winner, potential, and overflow for the current top block
-// of the blockchain.
-//
-// This function is safe for concurrent access.
-func (c *chainState) NextFinalState() [6]byte {
-	c.Lock()
-	defer c.Unlock()
-
-	return c.nextFinalState
-}
-
-func (c *chainState) NextPoolSize() uint32 {
-	c.Lock()
-	defer c.Unlock()
-
-	return c.nextPoolSize
-}
-
-// NextWinners returns the eligible SStx hashes to vote on the
-// next block as inputs for SSGen.
-//
-// This function is safe for concurrent access.
-func (c *chainState) NextWinners() []chainhash.Hash {
-	c.Lock()
-	defer c.Unlock()
-
-	return c.winningTickets
-}
-
-// CurrentlyMissed returns the eligible SStx hashes that can be revoked.
-//
-// This function is safe for concurrent access.
-func (c *chainState) CurrentlyMissed() []chainhash.Hash {
-	c.Lock()
-	defer c.Unlock()
-
-	return c.missedTickets
-}
-
-// GetTopPrevHash returns the current previous block hash.
-//
-// This function is safe for concurrent access.
-func (c *chainState) GetTopPrevHash() chainhash.Hash {
-	c.Lock()
-	defer c.Unlock()
-
-	return c.curPrevHash
-}
-
 // blockManager provides a concurrency safe block manager for handling all
 // incoming blocks.
 type blockManager struct {
@@ -408,7 +328,6 @@ type blockManager struct {
 	progressLogger      *blockProgressLogger
 	syncPeer            *serverPeer
 	msgChan             chan interface{}
-	chainState          chainState
 	wg                  sync.WaitGroup
 	quit                chan struct{}
 
@@ -444,29 +363,6 @@ func (b *blockManager) resetHeaderState(newestHash *chainhash.Hash, newestHeight
 		node := headerNode{height: newestHeight, hash: newestHash}
 		b.headerList.PushBack(&node)
 	}
-}
-
-// updateChainState updates the chain state associated with the block manager.
-// This allows fast access to chain information since blockchain is currently not
-// safe for concurrent access and the block manager is typically quite busy
-// processing block and inventory.
-func (b *blockManager) updateChainState(newestHash *chainhash.Hash,
-	newestHeight int64, finalState [6]byte, poolSize uint32,
-	nextStakeDiff int64, winningTickets []chainhash.Hash,
-	missedTickets []chainhash.Hash, curPrevHash chainhash.Hash) {
-
-	b.chainState.Lock()
-	defer b.chainState.Unlock()
-
-	b.chainState.newestHash = newestHash
-	b.chainState.newestHeight = newestHeight
-	b.chainState.pastMedianTime = b.chain.BestSnapshot().MedianTime
-	b.chainState.nextFinalState = finalState
-	b.chainState.nextPoolSize = poolSize
-	b.chainState.nextStakeDifficulty = nextStakeDiff
-	b.chainState.winningTickets = winningTickets
-	b.chainState.missedTickets = missedTickets
-	b.chainState.curPrevHash = curPrevHash
 }
 
 // findNextHeaderCheckpoint returns the next checkpoint after the passed height.
@@ -1085,7 +981,7 @@ func (b *blockManager) handleBlockMsg(bmsg *blockMsg) {
 
 		// Determine if this block is recent enough that we need to calculate
 		// block lottery data for it.
-		_, bestHeight := b.chainState.Best()
+		bestHeight := b.chain.BestSnapshot().Height
 		blockHeight := int64(bmsg.block.MsgBlock().Header.Height)
 		tooOldForLotteryData := blockHeight <=
 			(bestHeight - maxLotteryDataBlockDelta)
@@ -1140,16 +1036,6 @@ func (b *blockManager) handleBlockMsg(bmsg *blockMsg) {
 			// a reorg.
 			best := b.chain.BestSnapshot()
 
-			// Query the DB for the missed tickets for the next top block.
-			missedTickets, err := b.chain.MissedTickets()
-			if err != nil {
-				bmgrLog.Warnf("Failed to get missed tickets "+
-					"for best block %v: %v", best.Hash, err)
-			}
-
-			// Retrieve the current previous block hash.
-			curPrevHash := b.chain.BestPrevHash()
-
 			nextStakeDiff, errSDiff :=
 				b.chain.CalcNextRequiredStakeDifficulty()
 			if errSDiff != nil {
@@ -1169,17 +1055,6 @@ func (b *blockManager) handleBlockMsg(bmsg *blockMsg) {
 					best.Height)
 				b.server.txMemPool.PruneExpiredTx(best.Height)
 			}
-
-			winningTickets, poolSize, finalState, err :=
-				b.chain.LotteryDataForBlock(blockHash)
-			if err != nil {
-				bmgrLog.Warnf("Failed to get determine lottery "+
-					"data for new best block: %v", err)
-			}
-
-			b.updateChainState(best.Hash, best.Height, finalState,
-				uint32(poolSize), nextStakeDiff, winningTickets,
-				missedTickets, curPrevHash)
 
 			// Update this peer's latest block height, for future
 			// potential sync node candidancy.
@@ -1701,17 +1576,11 @@ out:
 				err := b.chain.ForceHeadReorganization(
 					msg.formerBest, msg.newBest)
 
-				// Reorganizing has succeeded, so we need to
-				// update the chain state.
 				if err == nil {
 					// Query the db for the latest best block since
 					// the block that was processed could be on a
 					// side chain or have caused a reorg.
 					best := b.chain.BestSnapshot()
-
-					// Fetch the required lottery data.
-					winningTickets, poolSize, finalState, err :=
-						b.chain.LotteryDataForBlock(best.Hash)
 
 					// Update registered websocket clients on the
 					// current stake difficulty.
@@ -1733,26 +1602,6 @@ out:
 							best.Height)
 						b.server.txMemPool.PruneExpiredTx(best.Height)
 					}
-
-					missedTickets, err := b.chain.MissedTickets()
-					if err != nil {
-						bmgrLog.Warnf("Failed to get missed tickets"+
-							": %v", err)
-					}
-
-					// The blockchain should be updated, so fetch the
-					// latest snapshot.
-					best = b.chain.BestSnapshot()
-					curPrevHash := b.chain.BestPrevHash()
-
-					b.updateChainState(best.Hash,
-						best.Height,
-						finalState,
-						uint32(poolSize),
-						nextStakeDiff,
-						winningTickets,
-						missedTickets,
-						curPrevHash)
 				}
 
 				msg.reply <- forceReorganizationResponse{
@@ -1788,7 +1637,7 @@ out:
 				// Get the winning tickets if the block is not an
 				// orphan and if it's recent. If they've yet to be
 				// broadcasted, broadcast them.
-				_, bestHeight := b.chainState.Best()
+				bestHeight := b.chain.BestSnapshot().Height
 				blockHeight := int64(msg.block.MsgBlock().Header.Height)
 				tooOldForLotteryData := blockHeight <=
 					(bestHeight - maxLotteryDataBlockDelta)
@@ -1862,30 +1711,6 @@ out:
 						best.Height)
 					b.server.txMemPool.PruneExpiredTx(
 						best.Height)
-
-					missedTickets, err := b.chain.MissedTickets()
-					if err != nil {
-						bmgrLog.Warnf("Failed to get missing tickets for "+
-							"incoming block %v: %v", best.Hash, err)
-					}
-					curPrevHash := b.chain.BestPrevHash()
-
-					winningTickets, poolSize, finalState, err :=
-						b.chain.LotteryDataForBlock(msg.block.Hash())
-					if err != nil {
-						bmgrLog.Warnf("Failed to determine block "+
-							"lottery data for incoming best block %v: %v",
-							best.Hash, err)
-					}
-
-					b.updateChainState(best.Hash,
-						best.Height,
-						finalState,
-						uint32(poolSize),
-						nextStakeDiff,
-						winningTickets,
-						missedTickets,
-						curPrevHash)
 				}
 
 				// Allow any clients performing long polling via the
@@ -1977,7 +1802,7 @@ func (b *blockManager) handleNotifyMsg(notification *blockchain.Notification) {
 		// already been sent out.  Skip notifications if we're not
 		// yet synced to the latest checkpoint or if we're before
 		// the height where we begin voting.
-		_, bestHeight := b.chainState.Best()
+		bestHeight := b.chain.BestSnapshot().Height
 		blockHeight := int64(block.MsgBlock().Header.Height)
 		tooOldForLotteryData := blockHeight <=
 			(bestHeight - maxLotteryDataBlockDelta)
@@ -2597,35 +2422,6 @@ func newBlockManager(s *server, indexManager blockchain.IndexManager) (*blockMan
 
 		return nil, fmt.Errorf("closing after dumping blockchain")
 	}
-
-	// Query the DB for the current winning ticket data.
-	wt, ps, fs, err := bm.chain.LotteryDataForBlock(best.Hash)
-	if err != nil {
-		return nil, err
-	}
-
-	// Query the DB for the currently missed tickets.
-	missedTickets, err := bm.chain.MissedTickets()
-	if err != nil {
-		return nil, err
-	}
-
-	// Retrieve the current previous block hash and next stake difficulty.
-	curPrevHash := bm.chain.BestPrevHash()
-	nextStakeDiff, err := bm.chain.CalcNextRequiredStakeDifficulty()
-	if err != nil {
-		return nil, err
-	}
-
-	bm.updateChainState(best.Hash,
-		best.Height,
-		fs,
-		uint32(ps),
-		nextStakeDiff,
-		wt,
-		missedTickets,
-		curPrevHash)
-	bm.lotteryDataBroadcast = make(map[chainhash.Hash]struct{})
 
 	return &bm, nil
 }
