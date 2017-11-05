@@ -2465,7 +2465,9 @@ func newServer(listenAddrs []string, db database.DB, chainParams *chaincfg.Param
 	}
 	s.txMemPool = mempool.New(&txC)
 
-	// Create the mining policy based on the configuration options.
+	// Create the mining policy and block template generator based on the
+	// configuration options.
+	//
 	// NOTE: The CPU miner relies on the mempool, so the mempool has to be
 	// created before calling the function to create the CPU miner.
 	policy := mining.Policy{
@@ -2474,7 +2476,9 @@ func newServer(listenAddrs []string, db database.DB, chainParams *chaincfg.Param
 		BlockPrioritySize: cfg.BlockPrioritySize,
 		TxMinFreeFee:      cfg.minRelayTxFee,
 	}
-	s.cpuMiner = newCPUMiner(&policy, &s)
+	blockTemplateGenerator := newBlkTmplGenerator(&policy, s.chainParams,
+		s.txMemPool, s.sigCache, bm, s.timeSource)
+	s.cpuMiner = newCPUMiner(blockTemplateGenerator, &s)
 
 	// Only setup a function to return new addresses to connect to when
 	// not running in connect-only mode.  The simulation network is always
@@ -2559,7 +2563,8 @@ func newServer(listenAddrs []string, db database.DB, chainParams *chaincfg.Param
 	}
 
 	if !cfg.DisableRPC {
-		s.rpcServer, err = newRPCServer(cfg.RPCListeners, &policy, &s)
+		s.rpcServer, err = newRPCServer(cfg.RPCListeners,
+			blockTemplateGenerator, &s)
 		if err != nil {
 			return nil, err
 		}

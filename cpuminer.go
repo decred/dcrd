@@ -16,7 +16,6 @@ import (
 	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/dcrutil"
-	"github.com/decred/dcrd/mining"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -60,8 +59,7 @@ var (
 // system which is typically sufficient.
 type CPUMiner struct {
 	sync.Mutex
-	policy            *mining.Policy
-	txSource          mining.TxSource
+	g                 *BlkTmplGenerator
 	server            *server
 	numWorkers        uint32
 	started           bool
@@ -133,9 +131,22 @@ func (m *CPUMiner) submitBlock(block *dcrutil.Block) bool {
 	m.submitBlockLock.Lock()
 	defer m.submitBlockLock.Unlock()
 
+	// Ensure the block is not stale since a new block could have shown up
+	// while the solution was being found.  Typically that condition is
+	// detected and all work on the stale block is halted to start work on
+	// a new block, but the check only happens periodically, so it is
+	// possible a block was found and submitted in between.
+	latestHash := m.g.blockManager.chain.BestSnapshot().Hash
+	msgBlock := block.MsgBlock()
+	if !msgBlock.Header.PrevBlock.IsEqual(latestHash) {
+		minrLog.Debugf("Block submitted via CPU miner with previous "+
+			"block %s is stale", msgBlock.Header.PrevBlock)
+		return false
+	}
+
 	// Process this block using the same rules as blocks coming from other
 	// nodes. This will in turn relay it to the network like normal.
-	isOrphan, err := m.server.blockManager.ProcessBlock(block, blockchain.BFNone)
+	isOrphan, err := m.g.blockManager.ProcessBlock(block, blockchain.BFNone)
 	if err != nil {
 		// Anything other than a rule violation is an unexpected error,
 		// so log that error as an internal error.
@@ -207,7 +218,7 @@ func (m *CPUMiner) solveBlock(msgBlock *wire.MsgBlock, ticker *time.Ticker,
 
 	// Initial state.
 	lastGenerated := time.Now()
-	lastTxUpdate := m.txSource.LastUpdated()
+	lastTxUpdate := m.g.txSource.LastUpdated()
 	hashesCompleted := uint64(0)
 
 	// Note that the entire extra nonce range is iterated and the offset is
@@ -221,7 +232,7 @@ func (m *CPUMiner) solveBlock(msgBlock *wire.MsgBlock, ticker *time.Ticker,
 		// Update the extra nonce in the block template with the
 		// new value by regenerating the coinbase script and
 		// setting the merkle root to the new value.  The
-		err := UpdateExtraNonce(msgBlock, blockHeight, ens)
+		err := m.g.UpdateExtraNonce(msgBlock, blockHeight, ens)
 		if err != nil {
 			minrLog.Warnf("Unable to update CPU miner extranonce: %v",
 				err)
@@ -244,14 +255,14 @@ func (m *CPUMiner) solveBlock(msgBlock *wire.MsgBlock, ticker *time.Ticker,
 				// has been updated since the block template was
 				// generated and it has been at least 3 seconds,
 				// or if it's been one minute.
-				if (lastTxUpdate != m.txSource.LastUpdated() &&
+				if (lastTxUpdate != m.g.txSource.LastUpdated() &&
 					time.Now().After(lastGenerated.Add(3*time.Second))) ||
 					time.Now().After(lastGenerated.Add(60*time.Second)) {
 
 					return false
 				}
 
-				err = UpdateBlockTime(msgBlock, m.server.blockManager)
+				err = m.g.UpdateBlockTime(msgBlock)
 				if err != nil {
 					minrLog.Warnf("CPU miner unable to update block template "+
 						"time: %v", err)
@@ -304,6 +315,14 @@ out:
 			// Non-blocking select to fall through
 		}
 
+		// Wait until there is a connection to at least one other peer
+		// since there is no way to relay a found block or receive
+		// transactions to work on when there are no connected peers.
+		if m.server.ConnectedCount() == 0 {
+			time.Sleep(time.Second)
+			continue
+		}
+
 		// No point in searching for a solution before the chain is
 		// synced.  Also, grab the same lock as used for block
 		// submission, since the current block will be changing and
@@ -315,7 +334,7 @@ out:
 		// Hacks to make dcr work with Decred PoC (simnet only)
 		// TODO Remove before production.
 		if cfg.SimNet {
-			curHeight := m.server.blockManager.chain.BestSnapshot().Height
+			curHeight := m.g.blockManager.chain.BestSnapshot().Height
 
 			if curHeight == 1 {
 				time.Sleep(5500 * time.Millisecond) // let wallet reconn
@@ -333,7 +352,7 @@ out:
 		// Create a new block template using the available transactions
 		// in the memory pool as a source of transactions to potentially
 		// include in the block.
-		template, err := NewBlockTemplate(m.policy, m.server, payToAddr)
+		template, err := m.g.NewBlockTemplate(payToAddr)
 		m.submitBlockLock.Unlock()
 		if err != nil {
 			errStr := fmt.Sprintf("Failed to create new block "+
@@ -612,7 +631,7 @@ func (m *CPUMiner) GenerateNBlocks(n uint32) ([]*chainhash.Hash, error) {
 		// Create a new block template using the available transactions
 		// in the memory pool as a source of transactions to potentially
 		// include in the block.
-		template, err := NewBlockTemplate(m.policy, m.server, payToAddr)
+		template, err := m.g.NewBlockTemplate(payToAddr)
 		m.submitBlockLock.Unlock()
 		if err != nil {
 			errStr := fmt.Sprintf("Failed to create new block "+
@@ -653,10 +672,9 @@ func (m *CPUMiner) GenerateNBlocks(n uint32) ([]*chainhash.Hash, error) {
 // newCPUMiner returns a new instance of a CPU miner for the provided server.
 // Use Start to begin the mining process.  See the documentation for CPUMiner
 // type for more details.
-func newCPUMiner(policy *mining.Policy, s *server) *CPUMiner {
+func newCPUMiner(generator *BlkTmplGenerator, s *server) *CPUMiner {
 	return &CPUMiner{
-		policy:            policy,
-		txSource:          s.txMemPool,
+		g:                 generator,
 		server:            s,
 		numWorkers:        defaultNumWorkers,
 		updateNumWorkers:  make(chan struct{}),
