@@ -2475,7 +2475,14 @@ func newServer(listenAddrs []string, db database.DB, chainParams *chaincfg.Param
 	}
 	blockTemplateGenerator := newBlkTmplGenerator(&policy, s.chainParams,
 		s.txMemPool, s.sigCache, bm, s.timeSource)
-	s.cpuMiner = newCPUMiner(blockTemplateGenerator, &s)
+	s.cpuMiner = newCPUMiner(&Config{
+		ChainParams:            s.chainParams,
+		BlockTemplateGenerator: blockTemplateGenerator,
+		MiningAddrs:            cfg.miningAddrs,
+		ProcessBlock:           bm.ProcessBlock,
+		ConnectedCount:         s.ConnectedCount,
+		IsCurrent:              bm.IsCurrent,
+	})
 
 	// Only setup a function to return new addresses to connect to when
 	// not running in connect-only mode.  The simulation network is always

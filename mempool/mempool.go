@@ -246,8 +246,10 @@ func (mp *TxPool) insertVote(ssgen *dcrutil.Tx) error {
 	// Append the new vote.
 	voteBits := stake.SSGenVoteBits(msgTx)
 	vote := dcrutil.IsFlagSet16(voteBits, dcrutil.BlockValid)
-	mp.votes[blockHash] = append(vts, &blockchain.VoteTx{*voteHash, *ticketHash,
-		vote})
+	mp.votes[blockHash] = append(vts, &blockchain.VoteTx{
+		SsgenHash: *voteHash,
+		SstxHash:  *ticketHash,
+		Vote:      vote})
 
 	log.Debugf("Accepted vote %v for block hash %v (height %v), voting "+
 		"%v on the transaction tree", voteHash, blockHash, blockHeight,
