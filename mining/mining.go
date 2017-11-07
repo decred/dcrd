@@ -600,13 +600,9 @@ func createCoinbaseTx(subsidyCache *blockchain.SubsidyCache,
 
 	// Create a coinbase with correct block subsidy and extranonce.
 	subsidy := blockchain.CalcBlockWorkSubsidy(subsidyCache,
-		nextBlockHeight,
-		voters,
-		activeNetParams.Params)
+		nextBlockHeight, voters, params)
 	tax := blockchain.CalcBlockTaxSubsidy(subsidyCache,
-		nextBlockHeight,
-		voters,
-		activeNetParams.Params)
+		nextBlockHeight, voters, params)
 
 	// Tax output.
 	if params.BlockTaxProportion > 0 {
@@ -1189,17 +1185,12 @@ func newBlkTmplGenerator(policy *mining.Policy, params *chaincfg.Params,
 //  This function returns nil, nil if there are not enough voters on any of
 //  the current top blocks to create a new block template.
 func (g *BlkTmplGenerator) NewBlockTemplate(payToAddress dcrutil.Address) (*BlockTemplate, error) {
-	// Locals for faster access.
-	policy := g.policy
-	blockManager := g.blockManager
-	timeSource := g.timeSource
-
 	var txSource mining.TxSource = g.txSource
-	subsidyCache := blockManager.chain.FetchSubsidyCache()
+	subsidyCache := g.blockManager.chain.FetchSubsidyCache()
 
 	// All transaction scripts are verified using the more strict standarad
 	// flags.
-	scriptFlags, err := standardScriptVerifyFlags(blockManager.chain)
+	scriptFlags, err := standardScriptVerifyFlags(g.blockManager.chain)
 	if err != nil {
 		return nil, err
 	}
@@ -1225,7 +1216,7 @@ func (g *BlkTmplGenerator) NewBlockTemplate(payToAddress dcrutil.Address) (*Bloc
 	// 8. Select the one with the largest penalty ratio (highest block reward).
 	//    This block is then selected to build upon instead of the others, because
 	//    it yields the greater amount of rewards.
-	chainBest := blockManager.chain.BestSnapshot()
+	chainBest := g.blockManager.chain.BestSnapshot()
 	prevHash := chainBest.Hash
 	nextBlockHeight := chainBest.Height + 1
 	if *prevHash != *chainBest.Hash ||
@@ -1236,7 +1227,7 @@ func (g *BlkTmplGenerator) NewBlockTemplate(payToAddress dcrutil.Address) (*Bloc
 	}
 
 	winning, poolSize, finalState, err :=
-		blockManager.chain.LotteryDataForBlock(prevHash)
+		g.blockManager.chain.LotteryDataForBlock(prevHash)
 	if err != nil {
 		minrLog.Warnf("Failed to get lottery data "+
 			"for best block: %v", err)
@@ -1244,12 +1235,12 @@ func (g *BlkTmplGenerator) NewBlockTemplate(payToAddress dcrutil.Address) (*Bloc
 	winningTickets := make([]chainhash.Hash, len(winning))
 	copy(winningTickets, winning)
 	reqStakeDifficulty, err :=
-		blockManager.chain.CalcNextRequiredStakeDifficulty()
+		g.blockManager.chain.CalcNextRequiredStakeDifficulty()
 	if err != nil {
 		minrLog.Warnf("Failed to get next stake difficulty "+
 			"calculation: %v", err)
 	}
-	missed, err := blockManager.chain.MissedTickets()
+	missed, err := g.blockManager.chain.MissedTickets()
 	if err != nil {
 		minrLog.Warnf("Failed to get missed tickets "+
 			"for best block %v: %v", chainBest.Hash, err)
@@ -1265,7 +1256,7 @@ func (g *BlkTmplGenerator) NewBlockTemplate(payToAddress dcrutil.Address) (*Bloc
 
 	if nextBlockHeight >= stakeValidationHeight {
 		// Obtain the entire generation of blocks stemming from this parent.
-		children, err := blockManager.GetGeneration(*prevHash)
+		children, err := g.blockManager.GetGeneration(*prevHash)
 		if err != nil {
 			return nil, miningRuleError(ErrFailedToGetGeneration, err.Error())
 		}
@@ -1290,7 +1281,7 @@ func (g *BlkTmplGenerator) NewBlockTemplate(payToAddress dcrutil.Address) (*Bloc
 		// to.
 		if eligibleParents[0] != *prevHash {
 			for _, newHead := range eligibleParents {
-				err := blockManager.ForceReorganization(*prevHash, newHead)
+				err := g.blockManager.ForceReorganization(*prevHash, newHead)
 				if err != nil {
 					minrLog.Errorf("failed to reorganize to new parent: %v", err)
 					continue
@@ -1321,7 +1312,7 @@ func (g *BlkTmplGenerator) NewBlockTemplate(payToAddress dcrutil.Address) (*Bloc
 	// choose the initial sort order for the priority queue based on whether
 	// or not there is an area allocated for high-priority transactions.
 	sourceTxns := txSource.MiningDescs()
-	sortedByFee := policy.BlockPrioritySize == 0
+	sortedByFee := g.policy.BlockPrioritySize == 0
 	lessFunc := txPQByStakeAndFeeAndThenPriority
 	if sortedByFee {
 		lessFunc = txPQByStakeAndFee
@@ -1398,7 +1389,7 @@ mempoolLoop:
 		// NOTE: This intentionally does not fetch inputs from the
 		// mempool since a transaction which depends on other
 		// transactions in the mempool must come after those
-		utxos, err := blockManager.chain.FetchUtxoView(tx, treeValid)
+		utxos, err := g.blockManager.chain.FetchUtxoView(tx, treeValid)
 		if err != nil {
 			minrLog.Warnf("Unable to fetch utxo view for tx %s: "+
 				"%v", tx.Hash(), err)
@@ -1552,7 +1543,9 @@ mempoolLoop:
 		// Enforce maximum block size.  Also check for overflow.
 		txSize := uint32(tx.MsgTx().SerializeSize())
 		blockPlusTxSize := blockSize + txSize
-		if blockPlusTxSize < blockSize || blockPlusTxSize >= policy.BlockMaxSize {
+		if blockPlusTxSize < blockSize ||
+			blockPlusTxSize >= g.policy.BlockMaxSize {
+
 			minrLog.Tracef("Skipping tx %s (size %v) because it "+
 				"would exceed the max block size; cur block "+
 				"size %v, cur num tx %v", tx.Hash(), txSize,
@@ -1614,15 +1607,15 @@ mempoolLoop:
 		// Skip free transactions once the block is larger than the
 		// minimum block size, except for stake transactions.
 		if sortedByFee &&
-			(prioItem.feePerKB < float64(policy.TxMinFreeFee)) &&
+			(prioItem.feePerKB < float64(g.policy.TxMinFreeFee)) &&
 			(tx.Tree() != wire.TxTreeStake) &&
-			(blockPlusTxSize >= policy.BlockMinSize) {
+			(blockPlusTxSize >= g.policy.BlockMinSize) {
 
 			minrLog.Tracef("Skipping tx %s with feePerKB %.2f "+
 				"< TxMinFreeFee %d and block size %d >= "+
 				"minBlockSize %d", tx.Hash(), prioItem.feePerKB,
-				policy.TxMinFreeFee, blockPlusTxSize,
-				policy.BlockMinSize)
+				g.policy.TxMinFreeFee, blockPlusTxSize,
+				g.policy.BlockMinSize)
 			logSkippedDeps(tx, deps)
 			continue
 		}
@@ -1630,13 +1623,13 @@ mempoolLoop:
 		// Prioritize by fee per kilobyte once the block is larger than
 		// the priority size or there are no more high-priority
 		// transactions.
-		if !sortedByFee && (blockPlusTxSize >= policy.BlockPrioritySize ||
+		if !sortedByFee && (blockPlusTxSize >= g.policy.BlockPrioritySize ||
 			prioItem.priority <= mempool.MinHighPriority) {
 
 			minrLog.Tracef("Switching to sort by fees per "+
 				"kilobyte blockSize %d >= BlockPrioritySize "+
 				"%d || priority %.2f <= minHighPriority %.2f",
-				blockPlusTxSize, policy.BlockPrioritySize,
+				blockPlusTxSize, g.policy.BlockPrioritySize,
 				prioItem.priority, mempool.MinHighPriority)
 
 			sortedByFee = true
@@ -1648,7 +1641,7 @@ mempoolLoop:
 			// too low.  Otherwise this transaction will be the
 			// final one in the high-priority section, so just fall
 			// though to the code below so it is added now.
-			if blockPlusTxSize > policy.BlockPrioritySize ||
+			if blockPlusTxSize > g.policy.BlockPrioritySize ||
 				prioItem.priority < mempool.MinHighPriority {
 
 				heap.Push(priorityQueue, prioItem)
@@ -1747,7 +1740,7 @@ mempoolLoop:
 
 		if isSSGen, _ := stake.IsSSGen(msgTx); isSSGen {
 			txCopy := dcrutil.NewTxDeepTxIns(msgTx)
-			if maybeInsertStakeTx(blockManager, txCopy, treeValid) {
+			if maybeInsertStakeTx(g.blockManager, txCopy, treeValid) {
 				vb := stake.SSGenVoteBits(txCopy.MsgTx())
 				voteBitsVoters = append(voteBitsVoters, vb)
 				blockTxnsStake = append(blockTxnsStake, txCopy)
@@ -1801,7 +1794,7 @@ mempoolLoop:
 			// out.
 			// Decred TODO: This is super inefficient, this block should be
 			// cached and stored somewhere.
-			topBlock, err := blockManager.GetTopBlockFromChain()
+			topBlock, err := g.blockManager.GetTopBlockFromChain()
 			if err != nil {
 				return nil, miningRuleError(ErrGetTopBlock, "couldn't get "+
 					"top block")
@@ -1854,7 +1847,7 @@ mempoolLoop:
 			// Quick check for difficulty here.
 			if msgTx.TxOut[0].Value >= reqStakeDifficulty {
 				txCopy := dcrutil.NewTxDeepTxIns(msgTx)
-				if maybeInsertStakeTx(blockManager, txCopy, treeValid) {
+				if maybeInsertStakeTx(g.blockManager, txCopy, treeValid) {
 					blockTxnsStake = append(blockTxnsStake, txCopy)
 					freshStake++
 				}
@@ -1878,7 +1871,7 @@ mempoolLoop:
 		isSSRtx, _ := stake.IsSSRtx(msgTx)
 		if tx.Tree() == wire.TxTreeStake && isSSRtx {
 			txCopy := dcrutil.NewTxDeepTxIns(msgTx)
-			if maybeInsertStakeTx(blockManager, txCopy, treeValid) {
+			if maybeInsertStakeTx(g.blockManager, txCopy, treeValid) {
 				blockTxnsStake = append(blockTxnsStake, txCopy)
 				revocations++
 			}
@@ -2009,8 +2002,8 @@ mempoolLoop:
 	// Calculate the required difficulty for the block.  The timestamp
 	// is potentially adjusted to ensure it comes after the median time of
 	// the last several blocks per the chain consensus rules.
-	ts := medianAdjustedTime(chainBest, timeSource)
-	reqDifficulty, err := blockManager.chain.CalcNextRequiredDifficulty(ts)
+	ts := medianAdjustedTime(chainBest, g.timeSource)
+	reqDifficulty, err := g.blockManager.chain.CalcNextRequiredDifficulty(ts)
 
 	if err != nil {
 		return nil, miningRuleError(ErrGettingDifficulty, err.Error())
@@ -2038,7 +2031,7 @@ mempoolLoop:
 			break
 		}
 
-		utxs, err := blockManager.chain.FetchUtxoView(tx, treeValid)
+		utxs, err := g.blockManager.chain.FetchUtxoView(tx, treeValid)
 		if err != nil {
 			str := fmt.Sprintf("failed to fetch input utxs for tx %v: %s",
 				tx.Hash(), err.Error())
@@ -2109,7 +2102,8 @@ mempoolLoop:
 	}
 
 	// Figure out stake version.
-	generatedStakeVersion, err := blockManager.chain.CalcStakeVersionByHash(prevHash)
+	generatedStakeVersion, err := g.blockManager.chain.CalcStakeVersionByHash(
+		prevHash)
 	if err != nil {
 		return nil, err
 	}
@@ -2166,7 +2160,7 @@ mempoolLoop:
 		return nil, miningRuleError(ErrCheckConnectBlock, str)
 	}
 
-	if err := blockManager.chain.CheckConnectBlock(block); err != nil {
+	if err := g.blockManager.chain.CheckConnectBlock(block); err != nil {
 		str := fmt.Sprintf("failed to do final check for check connect "+
 			"block when making new block template: %v",
 			err.Error())
@@ -2189,7 +2183,7 @@ mempoolLoop:
 		ValidPayAddress: payToAddress != nil,
 	}
 
-	return handleCreatedBlockTemplate(blockTemplate, blockManager)
+	return handleCreatedBlockTemplate(blockTemplate, g.blockManager)
 }
 
 // UpdateBlockTime updates the timestamp in the header of the passed block to
@@ -2209,7 +2203,7 @@ func (g *BlkTmplGenerator) UpdateBlockTime(msgBlock *wire.MsgBlock) error {
 
 	// If running on a network that requires recalculating the difficulty,
 	// do so now.
-	if activeNetParams.ReduceMinDifficulty {
+	if g.chainParams.ReduceMinDifficulty {
 		difficulty, err := chain.CalcNextRequiredDifficulty(newTimestamp)
 		if err != nil {
 			return miningRuleError(ErrGettingDifficulty, err.Error())
