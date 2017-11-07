@@ -173,7 +173,7 @@ func (m *CPUMiner) submitBlock(block *dcrutil.Block) bool {
 	// detected and all work on the stale block is halted to start work on
 	// a new block, but the check only happens periodically, so it is
 	// possible a block was found and submitted in between.
-	latestHash := m.g.blockManager.chain.BestSnapshot().Hash
+	latestHash := m.g.chain.BestSnapshot().Hash
 	msgBlock := block.MsgBlock()
 	if !msgBlock.Header.PrevBlock.IsEqual(latestHash) {
 		minrLog.Debugf("Block submitted via CPU miner with previous "+
@@ -254,7 +254,7 @@ func (m *CPUMiner) solveBlock(msgBlock *wire.MsgBlock, ticker *time.Ticker,
 
 	// Initial state.
 	lastGenerated := time.Now()
-	lastTxUpdate := m.g.txSource.LastUpdated()
+	lastTxUpdate := m.g.TxSource().LastUpdated()
 	hashesCompleted := uint64(0)
 
 	// Note that the entire extra nonce range is iterated and the offset is
@@ -291,7 +291,7 @@ func (m *CPUMiner) solveBlock(msgBlock *wire.MsgBlock, ticker *time.Ticker,
 				// has been updated since the block template was
 				// generated and it has been at least 3 seconds,
 				// or if it's been one minute.
-				if (lastTxUpdate != m.g.txSource.LastUpdated() &&
+				if (lastTxUpdate != m.g.TxSource().LastUpdated() &&
 					time.Now().After(lastGenerated.Add(3*time.Second))) ||
 					time.Now().After(lastGenerated.Add(60*time.Second)) {
 
@@ -370,7 +370,7 @@ out:
 		// Hacks to make dcr work with Decred PoC (simnet only)
 		// TODO Remove before production.
 		if cfg.SimNet {
-			curHeight := m.g.blockManager.chain.BestSnapshot().Height
+			curHeight := m.g.BestSnapshot().Height
 
 			if curHeight == 1 {
 				time.Sleep(5500 * time.Millisecond) // let wallet reconn

@@ -2474,7 +2474,7 @@ func newServer(listenAddrs []string, db database.DB, chainParams *chaincfg.Param
 		TxMinFreeFee:      cfg.minRelayTxFee,
 	}
 	blockTemplateGenerator := mining.newBlkTmplGenerator(&policy, s.chainParams,
-		s.txMemPool, s.sigCache, bm, s.timeSource)
+		s.txMemPool, bm.chain, s.timeSource, s.sigCache)
 	s.cpuMiner = newCPUMiner(&Config{
 		ChainParams:            s.chainParams,
 		BlockTemplateGenerator: blockTemplateGenerator,

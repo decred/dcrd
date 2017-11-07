@@ -1077,12 +1077,12 @@ func handleCreatedBlockTemplate(blockTemplate *BlockTemplate,
 // See the NewBlockTemplate method for a detailed description of how the block
 // template is generated.
 type BlkTmplGenerator struct {
-	policy       *mining.Policy
-	chainParams  *chaincfg.Params
-	txSource     mining.TxSource
-	sigCache     *txscript.SigCache
-	blockManager *blockManager
-	timeSource   blockchain.MedianTimeSource
+	policy      *mining.Policy
+	chainParams *chaincfg.Params
+	txSource    mining.TxSource
+	chain       *blockchain.BlockChain
+	timeSource  blockchain.MedianTimeSource
+	sigCache    *txscript.SigCache
 }
 
 // newBlkTmplGenerator returns a new block template generator for the given
@@ -1092,16 +1092,17 @@ type BlkTmplGenerator struct {
 // templates are built on top of the current best chain and adhere to the
 // consensus rules.
 func newBlkTmplGenerator(policy *mining.Policy, params *chaincfg.Params,
-	txSource mining.TxSource, sigCache *txscript.SigCache,
-	blockManager *blockManager, timeSource blockchain.MedianTimeSource) *BlkTmplGenerator {
+	txSource mining.TxSource, chain *blockchain.BlockChain,
+	timeSource blockchain.MedianTimeSource,
+	sigCache *txscript.SigCache) *BlkTmplGenerator {
 
 	return &BlkTmplGenerator{
-		policy:       policy,
-		chainParams:  params,
-		txSource:     txSource,
-		sigCache:     sigCache,
-		blockManager: blockManager,
-		timeSource:   timeSource,
+		policy:      policy,
+		chainParams: params,
+		txSource:    txSource,
+		chain:       chain,
+		timeSource:  timeSource,
+		sigCache:    sigCache,
 	}
 }
 
@@ -1189,11 +1190,11 @@ func newBlkTmplGenerator(policy *mining.Policy, params *chaincfg.Params,
 //  the current top blocks to create a new block template.
 func (g *BlkTmplGenerator) NewBlockTemplate(payToAddress dcrutil.Address) (*BlockTemplate, error) {
 	var txSource mining.TxSource = g.txSource
-	subsidyCache := g.blockManager.chain.FetchSubsidyCache()
+	subsidyCache := g.chain.FetchSubsidyCache()
 
 	// All transaction scripts are verified using the more strict standarad
 	// flags.
-	scriptFlags, err := standardScriptVerifyFlags(g.blockManager.chain)
+	scriptFlags, err := standardScriptVerifyFlags(g.chain)
 	if err != nil {
 		return nil, err
 	}
@@ -1219,7 +1220,7 @@ func (g *BlkTmplGenerator) NewBlockTemplate(payToAddress dcrutil.Address) (*Bloc
 	// 8. Select the one with the largest penalty ratio (highest block reward).
 	//    This block is then selected to build upon instead of the others, because
 	//    it yields the greater amount of rewards.
-	chainBest := g.blockManager.chain.BestSnapshot()
+	chainBest := g.chain.BestSnapshot()
 	prevHash := chainBest.Hash
 	nextBlockHeight := chainBest.Height + 1
 	if *prevHash != *chainBest.Hash ||
@@ -1230,7 +1231,7 @@ func (g *BlkTmplGenerator) NewBlockTemplate(payToAddress dcrutil.Address) (*Bloc
 	}
 
 	winning, poolSize, finalState, err :=
-		g.blockManager.chain.LotteryDataForBlock(prevHash)
+		g.chain.LotteryDataForBlock(prevHash)
 	if err != nil {
 		minrLog.Warnf("Failed to get lottery data "+
 			"for best block: %v", err)
@@ -1238,12 +1239,12 @@ func (g *BlkTmplGenerator) NewBlockTemplate(payToAddress dcrutil.Address) (*Bloc
 	winningTickets := make([]chainhash.Hash, len(winning))
 	copy(winningTickets, winning)
 	reqStakeDifficulty, err :=
-		g.blockManager.chain.CalcNextRequiredStakeDifficulty()
+		g.chain.CalcNextRequiredStakeDifficulty()
 	if err != nil {
 		minrLog.Warnf("Failed to get next stake difficulty "+
 			"calculation: %v", err)
 	}
-	missed, err := g.blockManager.chain.MissedTickets()
+	missed, err := g.chain.MissedTickets()
 	if err != nil {
 		minrLog.Warnf("Failed to get missed tickets "+
 			"for best block %v: %v", chainBest.Hash, err)
@@ -1259,7 +1260,7 @@ func (g *BlkTmplGenerator) NewBlockTemplate(payToAddress dcrutil.Address) (*Bloc
 
 	if nextBlockHeight >= stakeValidationHeight {
 		// Obtain the entire generation of blocks stemming from this parent.
-		children, err := g.blockManager.GetGeneration(*prevHash)
+		children, err := g.GetGeneration(*prevHash)
 		if err != nil {
 			return nil, miningRuleError(ErrFailedToGetGeneration, err.Error())
 		}
@@ -1284,7 +1285,7 @@ func (g *BlkTmplGenerator) NewBlockTemplate(payToAddress dcrutil.Address) (*Bloc
 		// to.
 		if eligibleParents[0] != *prevHash {
 			for _, newHead := range eligibleParents {
-				err := g.blockManager.ForceReorganization(*prevHash, newHead)
+				err := g.ForceReorganization(*prevHash, newHead)
 				if err != nil {
 					minrLog.Errorf("failed to reorganize to new parent: %v", err)
 					continue
@@ -1392,7 +1393,7 @@ mempoolLoop:
 		// NOTE: This intentionally does not fetch inputs from the
 		// mempool since a transaction which depends on other
 		// transactions in the mempool must come after those
-		utxos, err := g.blockManager.chain.FetchUtxoView(tx, treeValid)
+		utxos, err := g.chain.FetchUtxoView(tx, treeValid)
 		if err != nil {
 			minrLog.Warnf("Unable to fetch utxo view for tx %s: "+
 				"%v", tx.Hash(), err)
@@ -2006,7 +2007,7 @@ mempoolLoop:
 	// is potentially adjusted to ensure it comes after the median time of
 	// the last several blocks per the chain consensus rules.
 	ts := medianAdjustedTime(chainBest, g.timeSource)
-	reqDifficulty, err := g.blockManager.chain.CalcNextRequiredDifficulty(ts)
+	reqDifficulty, err := g.chain.CalcNextRequiredDifficulty(ts)
 
 	if err != nil {
 		return nil, miningRuleError(ErrGettingDifficulty, err.Error())
@@ -2034,7 +2035,7 @@ mempoolLoop:
 			break
 		}
 
-		utxs, err := g.blockManager.chain.FetchUtxoView(tx, treeValid)
+		utxs, err := g.chain.FetchUtxoView(tx, treeValid)
 		if err != nil {
 			str := fmt.Sprintf("failed to fetch input utxs for tx %v: %s",
 				tx.Hash(), err.Error())
@@ -2105,7 +2106,7 @@ mempoolLoop:
 	}
 
 	// Figure out stake version.
-	generatedStakeVersion, err := g.blockManager.chain.CalcStakeVersionByHash(
+	generatedStakeVersion, err := g.chain.CalcStakeVersionByHash(
 		prevHash)
 	if err != nil {
 		return nil, err
@@ -2163,7 +2164,7 @@ mempoolLoop:
 		return nil, miningRuleError(ErrCheckConnectBlock, str)
 	}
 
-	if err := g.blockManager.chain.CheckConnectBlock(block); err != nil {
+	if err := g.chain.CheckConnectBlock(block); err != nil {
 		str := fmt.Sprintf("failed to do final check for check connect "+
 			"block when making new block template: %v",
 			err.Error())
@@ -2199,10 +2200,10 @@ func (g *BlkTmplGenerator) UpdateBlockTime(msgBlock *wire.MsgBlock) error {
 	// The new timestamp is potentially adjusted to ensure it comes after
 	// the median time of the last several blocks per the chain consensus
 	// rules.
-	chain := g.blockManager.chain
+	chain := g.chain
 	chainBest := chain.BestSnapshot()
-	newTimestamp := medianAdjustedTime(chainBest, g.timeSource)
-	msgBlock.Header.Timestamp = newTimestamp
+	newTime := medianAdjustedTime(chainBest, g.timeSource)
+	msgBlock.Header.Timestamp = newTime
 
 	// If running on a network that requires recalculating the difficulty,
 	// do so now.
@@ -2247,4 +2248,21 @@ func (g *BlkTmplGenerator) UpdateExtraNonce(msgBlock *wire.MsgBlock, blockHeight
 	merkles := blockchain.BuildMerkleTreeStore(block.Transactions())
 	msgBlock.Header.MerkleRoot = *merkles[len(merkles)-1]
 	return nil
+}
+
+// BestSnapshot returns information about the current best chain block and
+// related state as of the current point in time using the chain instance
+// associated with the block template generator.  The returned state must be
+// treated as immutable since it is shared by all callers.
+//
+// This function is safe for concurrent access.
+func (g *BlkTmplGenerator) BestSnapshot() *blockchain.BestState {
+	return g.chain.BestSnapshot()
+}
+
+// TxSource returns the associated transaction source.
+//
+// This function is safe for concurrent access.
+func (g *BlkTmplGenerator) TxSource() mining.TxSource {
+	return g.txSource
 }
