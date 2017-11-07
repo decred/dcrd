@@ -34,10 +34,6 @@ const (
 	// inclusion when generating block templates.
 	DefaultBlockPrioritySize = 20000
 
-	// MinHighPriority is the minimum priority value that allows a
-	// transaction to be considered high priority.
-	MinHighPriority = dcrutil.AtomsPerCoin * 144.0 / 250
-
 	// maxRelayFeeMultiplier is the factor that we disallow fees / kB above the
 	// minimum tx fee.  At the current default minimum relay fee of 0.001
 	// DCR/kB, this results in a maximum allowed high fee of 1 DCR/kB.
@@ -1097,10 +1093,10 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 
 		currentPriority := mining.CalcPriority(msgTx, utxoView,
 			nextBlockHeight)
-		if currentPriority <= MinHighPriority {
+		if currentPriority <= mining.MinHighPriority {
 			str := fmt.Sprintf("transaction %v has insufficient "+
 				"priority (%g <= %g)", txHash,
-				currentPriority, MinHighPriority)
+				currentPriority, mining.MinHighPriority)
 			return nil, txRuleError(wire.RejectInsufficientFee, str)
 		}
 	}

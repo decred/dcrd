@@ -19,7 +19,6 @@ import (
 	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/dcrutil"
-	"github.com/decred/dcrd/mempool"
 	"github.com/decred/dcrd/mining"
 	"github.com/decred/dcrd/txscript"
 	"github.com/decred/dcrd/wire"
@@ -48,6 +47,10 @@ const (
 
 	// kilobyte is the size of a kilobyte.
 	kilobyte = 1000
+
+	// MinHighPriority is the minimum priority value that allows a
+	// transaction to be considered high priority.
+	MinHighPriority = dcrutil.AtomsPerCoin * 144.0 / 250
 )
 
 // TxDesc is a descriptor about a transaction in a transaction source along with
@@ -1624,13 +1627,13 @@ mempoolLoop:
 		// the priority size or there are no more high-priority
 		// transactions.
 		if !sortedByFee && (blockPlusTxSize >= g.policy.BlockPrioritySize ||
-			prioItem.priority <= mempool.MinHighPriority) {
+			prioItem.priority <= MinHighPriority) {
 
 			minrLog.Tracef("Switching to sort by fees per "+
 				"kilobyte blockSize %d >= BlockPrioritySize "+
 				"%d || priority %.2f <= minHighPriority %.2f",
 				blockPlusTxSize, g.policy.BlockPrioritySize,
-				prioItem.priority, mempool.MinHighPriority)
+				prioItem.priority, MinHighPriority)
 
 			sortedByFee = true
 			priorityQueue.SetLessFunc(txPQByStakeAndFee)
@@ -1642,7 +1645,7 @@ mempoolLoop:
 			// final one in the high-priority section, so just fall
 			// though to the code below so it is added now.
 			if blockPlusTxSize > g.policy.BlockPrioritySize ||
-				prioItem.priority < mempool.MinHighPriority {
+				prioItem.priority < MinHighPriority {
 
 				heap.Push(priorityQueue, prioItem)
 				continue
