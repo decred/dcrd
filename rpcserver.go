@@ -44,6 +44,7 @@ import (
 	"github.com/decred/dcrd/dcrjson"
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/dcrd/mempool"
+	"github.com/decred/dcrd/mining"
 	"github.com/decred/dcrd/txscript"
 	"github.com/decred/dcrd/wire"
 	"github.com/jrick/bitset"
@@ -137,7 +138,7 @@ var (
 	// data.
 	gbtCoinbaseAux = &dcrjson.GetBlockTemplateResultAux{
 		Flags: hex.EncodeToString(builderScript(txscript.
-			NewScriptBuilder().AddData([]byte(coinbaseFlags)))),
+			NewScriptBuilder().AddData([]byte(mining.coinbaseFlags)))),
 	}
 
 	// gbtCapabilities describes additional capabilities returned with a
@@ -456,7 +457,7 @@ type gbtWorkState struct {
 	lastGenerated time.Time
 	prevHash      *chainhash.Hash
 	minTimestamp  time.Time
-	template      *BlockTemplate
+	template      *mining.BlockTemplate
 	notifyMap     map[chainhash.Hash]map[int64]chan struct{}
 	timeSource    blockchain.MedianTimeSource
 }
@@ -2374,10 +2375,10 @@ func (state *gbtWorkState) updateBlockTemplate(s *rpcServer, useCoinbaseValue bo
 		state.lastGenerated = time.Now()
 		state.lastTxUpdate = lastTxUpdate
 		state.prevHash = latestHash
-		// Find the minimum allowed timestamp for the block based on the
+		// Get the minimum allowed timestamp for the block based on the
 		// median timestamp of the last several blocks per the chain
 		// consensus rules.
-		state.minTimestamp = minimumMedianTime(chainBest)
+		state.minTimestamp = mining.minimumMedianTime(chainBest)
 
 		rpcsLog.Debugf("Generated block template (timestamp %v, "+
 			"target %s, merkle root %s)",
@@ -5826,7 +5827,7 @@ func handleVersion(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) (in
 type rpcServer struct {
 	started                int32
 	shutdown               int32
-	generator              *BlkTmplGenerator
+	generator              *mining.BlkTmplGenerator
 	server                 *server
 	chain                  *blockchain.BlockChain
 	authsha                [sha256.Size]byte
@@ -6316,7 +6317,7 @@ func genCertPair(certFile, keyFile string) error {
 }
 
 // newRPCServer returns a new instance of the rpcServer struct.
-func newRPCServer(listenAddrs []string, generator *BlkTmplGenerator, s *server) (*rpcServer, error) {
+func newRPCServer(listenAddrs []string, generator *mining.BlkTmplGenerator, s *server) (*rpcServer, error) {
 	rpc := rpcServer{
 		generator:              generator,
 		server:                 s,

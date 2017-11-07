@@ -16,6 +16,7 @@ import (
 	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/dcrutil"
+	"github.com/decred/dcrd/mining"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -59,7 +60,7 @@ type Config struct {
 
 	// BlockTemplateGenerator identifies the instance to use in order to
 	// generate block templates that the miner will attempt to solve.
-	BlockTemplateGenerator *BlkTmplGenerator
+	BlockTemplateGenerator *mining.BlkTmplGenerator
 
 	// MiningAddrs is a list of payment addresses to use for the generated
 	// blocks.  Each generated block will randomly choose one of them.
@@ -95,7 +96,7 @@ type Config struct {
 // system which is typically sufficient.
 type CPUMiner struct {
 	sync.Mutex
-	g                 *BlkTmplGenerator
+	g                 *mining.BlkTmplGenerator
 	cfg               Config
 	numWorkers        uint32
 	started           bool
