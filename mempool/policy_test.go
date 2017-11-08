@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/decred/dcrd/blockchain"
 	"github.com/decred/dcrd/blockchain/stake"
 	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrd/chaincfg/chainec"
@@ -39,13 +40,13 @@ func TestCalcMinRequiredTxRelayFee(t *testing.T) {
 		{
 			"1000 bytes with default minimum relay fee",
 			1000,
-			DefaultMinRelayTxFee,
+			blockchain.DefaultMinRelayTxFee,
 			1e5,
 		},
 		{
 			"max standard tx size with default minimum relay fee",
 			maxStandardTxSize,
-			DefaultMinRelayTxFee,
+			blockchain.DefaultMinRelayTxFee,
 			1e7,
 		},
 		{
@@ -519,7 +520,7 @@ func TestCheckTransactionStandard(t *testing.T) {
 		// Ensure standardness is as expected.
 		tx := dcrutil.NewTx(&test.tx)
 		err := checkTransactionStandard(tx, stake.DetermineTxType(&test.tx),
-			test.height, medianTime, DefaultMinRelayTxFee,
+			test.height, medianTime, blockchain.DefaultMinRelayTxFee,
 			maxTxVersion)
 		if err == nil && test.isStandard {
 			// Test passes since function returned standard for a

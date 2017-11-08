@@ -23,6 +23,7 @@ import (
 	"github.com/decred/dcrd/database"
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/dcrd/mempool"
+	"github.com/decred/dcrd/mining"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -267,13 +268,13 @@ type getCurrentTemplateMsg struct {
 // getCurrentTemplateResponse is a response sent to the reply channel of a
 // getCurrentTemplateMsg.
 type getCurrentTemplateResponse struct {
-	Template *BlockTemplate
+	Template *mining.BlockTemplate
 }
 
 // setCurrentTemplateMsg handles a request to change the current mining block
 // template.
 type setCurrentTemplateMsg struct {
-	Template *BlockTemplate
+	Template *mining.BlockTemplate
 	reply    chan setCurrentTemplateResponse
 }
 
@@ -291,13 +292,13 @@ type getParentTemplateMsg struct {
 // getParentTemplateResponse is a response sent to the reply channel of a
 // getParentTemplateMsg.
 type getParentTemplateResponse struct {
-	Template *BlockTemplate
+	Template *mining.BlockTemplate
 }
 
 // setParentTemplateMsg handles a request to change the parent mining block
 // template.
 type setParentTemplateMsg struct {
-	Template *BlockTemplate
+	Template *mining.BlockTemplate
 	reply    chan setParentTemplateResponse
 }
 
@@ -344,8 +345,8 @@ type blockManager struct {
 	lotteryDataBroadcast      map[chainhash.Hash]struct{}
 	lotteryDataBroadcastMutex sync.Mutex
 
-	cachedCurrentTemplate *BlockTemplate
-	cachedParentTemplate  *BlockTemplate
+	cachedCurrentTemplate *mining.BlockTemplate
+	cachedParentTemplate  *mining.BlockTemplate
 	AggressiveMining      bool
 }
 
@@ -693,7 +694,7 @@ func (b *blockManager) checkBlockForHiddenVotes(block *dcrutil.Block) {
 	// Identify the cached parent template; it's possible that
 	// the parent template hasn't yet been updated, so we may
 	// need to use the current template.
-	var template *BlockTemplate
+	var template *mining.BlockTemplate
 	if b.cachedCurrentTemplate != nil {
 		if b.cachedCurrentTemplate.Height ==
 			block.Height() {
@@ -807,7 +808,7 @@ func (b *blockManager) checkBlockForHiddenVotes(block *dcrutil.Block) {
 		return
 	}
 	height := block.MsgBlock().Header.Height
-	opReturnPkScript, err := standardCoinbaseOpReturn(height,
+	opReturnPkScript, err := mining.StandardCoinbaseOpReturn(height,
 		[]uint64{0, 0, 0, random})
 	if err != nil {
 		// Stopping at this step will lead to a corrupted block template
@@ -817,7 +818,7 @@ func (b *blockManager) checkBlockForHiddenVotes(block *dcrutil.Block) {
 			"block with extra found voters")
 		return
 	}
-	coinbase, err := createCoinbaseTx(b.chain.FetchSubsidyCache(),
+	coinbase, err := mining.CreateCoinbaseTx(b.chain.FetchSubsidyCache(),
 		template.Block.Transactions[0].TxIn[0].SignatureScript,
 		opReturnPkScript,
 		int64(template.Block.Header.Height),
@@ -1742,23 +1743,25 @@ out:
 				<-msg.unpause
 
 			case getCurrentTemplateMsg:
-				cur := deepCopyBlockTemplate(b.cachedCurrentTemplate)
+				cur := mining.DeepCopyBlockTemplate(b.cachedCurrentTemplate)
 				msg.reply <- getCurrentTemplateResponse{
 					Template: cur,
 				}
 
 			case setCurrentTemplateMsg:
-				b.cachedCurrentTemplate = deepCopyBlockTemplate(msg.Template)
+				b.cachedCurrentTemplate = mining.DeepCopyBlockTemplate(
+					msg.Template)
 				msg.reply <- setCurrentTemplateResponse{}
 
 			case getParentTemplateMsg:
-				par := deepCopyBlockTemplate(b.cachedParentTemplate)
+				par := mining.DeepCopyBlockTemplate(b.cachedParentTemplate)
 				msg.reply <- getParentTemplateResponse{
 					Template: par,
 				}
 
 			case setParentTemplateMsg:
-				b.cachedParentTemplate = deepCopyBlockTemplate(msg.Template)
+				b.cachedParentTemplate = mining.DeepCopyBlockTemplate(
+					msg.Template)
 				msg.reply <- setParentTemplateResponse{}
 
 			default:
@@ -2342,7 +2345,7 @@ func (b *blockManager) TicketPoolValue() (dcrutil.Amount, error) {
 }
 
 // GetCurrentTemplate gets the current block template for mining.
-func (b *blockManager) GetCurrentTemplate() *BlockTemplate {
+func (b *blockManager) GetCurrentTemplate() *mining.BlockTemplate {
 	reply := make(chan getCurrentTemplateResponse)
 	b.msgChan <- getCurrentTemplateMsg{reply: reply}
 	response := <-reply
@@ -2350,14 +2353,14 @@ func (b *blockManager) GetCurrentTemplate() *BlockTemplate {
 }
 
 // SetCurrentTemplate sets the current block template for mining.
-func (b *blockManager) SetCurrentTemplate(bt *BlockTemplate) {
+func (b *blockManager) SetCurrentTemplate(bt *mining.BlockTemplate) {
 	reply := make(chan setCurrentTemplateResponse)
 	b.msgChan <- setCurrentTemplateMsg{Template: bt, reply: reply}
 	<-reply
 }
 
 // GetParentTemplate gets the current parent block template for mining.
-func (b *blockManager) GetParentTemplate() *BlockTemplate {
+func (b *blockManager) GetParentTemplate() *mining.BlockTemplate {
 	reply := make(chan getParentTemplateResponse)
 	b.msgChan <- getParentTemplateMsg{reply: reply}
 	response := <-reply
@@ -2365,7 +2368,7 @@ func (b *blockManager) GetParentTemplate() *BlockTemplate {
 }
 
 // SetParentTemplate sets the current parent block template for mining.
-func (b *blockManager) SetParentTemplate(bt *BlockTemplate) {
+func (b *blockManager) SetParentTemplate(bt *mining.BlockTemplate) {
 	reply := make(chan setParentTemplateResponse)
 	b.msgChan <- setParentTemplateMsg{Template: bt, reply: reply}
 	<-reply

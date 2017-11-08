@@ -476,7 +476,7 @@ func (sp *serverPeer) OnGetMiningState(p *peer.Peer, msg *wire.MsgGetMiningState
 	// limit the list to the maximum number of allowed eligible block hashes
 	// per mining state message.  There is nothing to send when there are no
 	// eligible blocks.
-	blockHashes := SortParentsByVotes(mp, *newest, children,
+	blockHashes := mining.SortParentsByVotes(mp, *newest, children,
 		bm.server.chainParams)
 	numBlocks := len(blockHashes)
 	if numBlocks == 0 {
@@ -2214,25 +2214,6 @@ out:
 	s.wg.Done()
 }
 
-// standardScriptVerifyFlags returns the script flags that should be used when
-// executing transaction scripts to enforce additional checks which are required
-// for the script to be considered standard.  Note these flags are different
-// than what is required for the consensus rules in that they are more strict.
-func standardScriptVerifyFlags(chain *blockchain.BlockChain) (txscript.ScriptFlags, error) {
-	scriptFlags := mempool.BaseStandardVerifyFlags
-
-	// Enable validation of OP_SHA256 if the stake vote for the agenda is
-	// active.
-	isActive, err := chain.IsLNFeaturesAgendaActive()
-	if err != nil {
-		return 0, err
-	}
-	if isActive {
-		scriptFlags |= txscript.ScriptVerifySHA256
-	}
-	return scriptFlags, nil
-}
-
 // newServer returns a new dcrd server configured to listen on addr for the
 // decred network type specified by chainParams.  Use start to begin accepting
 // connections from peers.
@@ -2442,7 +2423,7 @@ func newServer(listenAddrs []string, db database.DB, chainParams *chaincfg.Param
 			MinRelayTxFee:        cfg.minRelayTxFee,
 			AllowOldVotes:        cfg.AllowOldVotes,
 			StandardVerifyFlags: func() (txscript.ScriptFlags, error) {
-				return standardScriptVerifyFlags(bm.chain)
+				return mining.StandardScriptVerifyFlags(bm.chain)
 			},
 		},
 		ChainParams: chainParams,
@@ -2473,8 +2454,8 @@ func newServer(listenAddrs []string, db database.DB, chainParams *chaincfg.Param
 		BlockPrioritySize: cfg.BlockPrioritySize,
 		TxMinFreeFee:      cfg.minRelayTxFee,
 	}
-	blockTemplateGenerator := mining.newBlkTmplGenerator(&policy, s.chainParams,
-		s.txMemPool, bm.chain, s.timeSource, s.sigCache)
+	blockTemplateGenerator := mining.NewBlkTmplGenerator(&policy, s.chainParams,
+		s.txMemPool, bm.chain, s.timeSource, bm, s.sigCache, cfg.MiningTimeOffset)
 	s.cpuMiner = newCPUMiner(&Config{
 		ChainParams:            s.chainParams,
 		BlockTemplateGenerator: blockTemplateGenerator,

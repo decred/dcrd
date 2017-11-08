@@ -45,33 +45,10 @@ const (
 	// (1 + 15*74 + 3) + (15*34 + 3) + 23 = 1650
 	maxStandardSigScriptSize = 1650
 
-	// DefaultMinRelayTxFee is the minimum fee in atoms that is required for
-	// a transaction to be treated as free for relay and mining purposes.
-	// It is also used to help determine if a transaction is considered dust
-	// and as a base for calculating minimum required fees for larger
-	// transactions.  This value is in Atoms/1000 bytes.
-	DefaultMinRelayTxFee = dcrutil.Amount(1e5)
-
 	// maxStandardMultiSigKeys is the maximum number of public keys allowed
 	// in a multi-signature transaction output script for it to be
 	// considered standard.
 	maxStandardMultiSigKeys = 3
-
-	// BaseStandardVerifyFlags defines the script flags that should be used
-	// when executing transaction scripts to enforce additional checks which
-	// are required for the script to be considered standard regardless of
-	// the state of any agenda votes.  The full set of standard verification
-	// flags must include these flags as well as any additional flags that
-	// are conditionally enabled depending on the result of agenda votes.
-	BaseStandardVerifyFlags = txscript.ScriptBip16 |
-		txscript.ScriptVerifyDERSignatures |
-		txscript.ScriptVerifyStrictEncoding |
-		txscript.ScriptVerifyMinimalData |
-		txscript.ScriptDiscourageUpgradableNops |
-		txscript.ScriptVerifyCleanStack |
-		txscript.ScriptVerifyCheckLockTimeVerify |
-		txscript.ScriptVerifyCheckSequenceVerify |
-		txscript.ScriptVerifyLowS
 )
 
 // calcMinRequiredTxRelayFee returns the minimum transaction fee required for a

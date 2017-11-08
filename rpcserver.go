@@ -138,7 +138,7 @@ var (
 	// data.
 	gbtCoinbaseAux = &dcrjson.GetBlockTemplateResultAux{
 		Flags: hex.EncodeToString(builderScript(txscript.
-			NewScriptBuilder().AddData([]byte(mining.coinbaseFlags)))),
+			NewScriptBuilder().AddData([]byte(mining.CoinbaseFlags)))),
 	}
 
 	// gbtCapabilities describes additional capabilities returned with a
@@ -2371,14 +2371,14 @@ func (state *gbtWorkState) updateBlockTemplate(s *rpcServer, useCoinbaseValue bo
 
 		// Update work state to ensure another block template isn't
 		// generated until needed.
-		state.template = deepCopyBlockTemplate(template)
+		state.template = mining.DeepCopyBlockTemplate(template)
 		state.lastGenerated = time.Now()
 		state.lastTxUpdate = lastTxUpdate
 		state.prevHash = latestHash
 		// Get the minimum allowed timestamp for the block based on the
 		// median timestamp of the last several blocks per the chain
 		// consensus rules.
-		state.minTimestamp = mining.minimumMedianTime(chainBest)
+		state.minTimestamp = mining.MinimumMedianTime(chainBest)
 
 		rpcsLog.Debugf("Generated block template (timestamp %v, "+
 			"target %s, merkle root %s)",
@@ -2454,7 +2454,7 @@ func (state *gbtWorkState) blockTemplateResult(bm *blockManager, useCoinbaseValu
 	// This should really only ever happen if the local clock is changed
 	// after the template is generated, but it's important to avoid serving
 	// invalid block templates.
-	template := deepCopyBlockTemplate(state.template)
+	template := mining.DeepCopyBlockTemplate(state.template)
 	msgBlock := template.Block
 	header := &msgBlock.Header
 	adjustedTime := state.timeSource.AdjustedTime()
@@ -4146,7 +4146,7 @@ func handleGetWorkRequest(s *rpcServer) (interface{}, error) {
 				"parent template to build from"
 			return nil, rpcInternalError("internal error", context)
 		}
-		templateCopy := deepCopyBlockTemplate(template)
+		templateCopy := mining.DeepCopyBlockTemplate(template)
 		msgBlock = templateCopy.Block
 
 		// Update work state to ensure another block template isn't
@@ -4175,7 +4175,7 @@ func handleGetWorkRequest(s *rpcServer) (interface{}, error) {
 		// existing block template and track the variations so each
 		// variation can be regenerated if a caller finds an answer and
 		// makes a submission against it.
-		templateCopy := deepCopyBlockTemplate(&BlockTemplate{
+		templateCopy := mining.DeepCopyBlockTemplate(&mining.BlockTemplate{
 			Block: msgBlock,
 		})
 		msgBlock = templateCopy.Block
@@ -4193,7 +4193,7 @@ func handleGetWorkRequest(s *rpcServer) (interface{}, error) {
 			// Increment the extra nonce and update the block template
 			// with the new value by regenerating the coinbase script and
 			// setting the merkle root to the new value.
-			ens := getCoinbaseExtranonces(msgBlock)
+			ens := mining.GetCoinbaseExtranonces(msgBlock)
 			state.extraNonce++
 			ens[0]++
 			err := s.generator.UpdateExtraNonce(msgBlock, latestHeight+1, ens)

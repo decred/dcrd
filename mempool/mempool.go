@@ -28,12 +28,6 @@ import (
 )
 
 const (
-	// DefaultBlockPrioritySize is the default size in bytes for high-
-	// priority / low-fee transactions.  It is used to help determine which
-	// are allowed into the mempool and consequently affects their relay and
-	// inclusion when generating block templates.
-	DefaultBlockPrioritySize = 20000
-
 	// maxRelayFeeMultiplier is the factor that we disallow fees / kB above the
 	// minimum tx fee.  At the current default minimum relay fee of 0.001
 	// DCR/kB, this results in a maximum allowed high fee of 1 DCR/kB.
@@ -1072,7 +1066,7 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 	minFee := calcMinRequiredTxRelayFee(serializedSize,
 		mp.cfg.Policy.MinRelayTxFee)
 	if txType == stake.TxTypeRegular { // Non-stake only
-		if serializedSize >= (DefaultBlockPrioritySize-1000) &&
+		if serializedSize >= (blockchain.DefaultBlockPrioritySize-1000) &&
 			txFee < minFee {
 
 			str := fmt.Sprintf("transaction %v has %v fees which "+

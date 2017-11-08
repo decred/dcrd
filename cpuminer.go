@@ -173,7 +173,7 @@ func (m *CPUMiner) submitBlock(block *dcrutil.Block) bool {
 	// detected and all work on the stale block is halted to start work on
 	// a new block, but the check only happens periodically, so it is
 	// possible a block was found and submitted in between.
-	latestHash := m.g.chain.BestSnapshot().Hash
+	latestHash := m.g.BestSnapshot().Hash
 	msgBlock := block.MsgBlock()
 	if !msgBlock.Header.PrevBlock.IsEqual(latestHash) {
 		minrLog.Debugf("Block submitted via CPU miner with previous "+
@@ -196,7 +196,7 @@ func (m *CPUMiner) submitBlock(block *dcrutil.Block) bool {
 		// Occasionally errors are given out for timing errors with
 		// ReduceMinDifficulty and high block works that is above
 		// the target. Feed these to debug.
-		if m.g.chainParams.ReduceMinDifficulty &&
+		if m.cfg.ChainParams.ReduceMinDifficulty &&
 			rErr.ErrorCode == blockchain.ErrHighHash {
 			minrLog.Debugf("Block submitted via CPU miner rejected "+
 				"because of ReduceMinDifficulty time sync failure: %v",
@@ -262,7 +262,7 @@ func (m *CPUMiner) solveBlock(msgBlock *wire.MsgBlock, ticker *time.Ticker,
 	// provided by the Go spec.
 	for extraNonce := uint64(0); extraNonce < maxExtraNonce; extraNonce++ {
 		// Get the old nonce values.
-		ens := getCoinbaseExtranonces(msgBlock)
+		ens := mining.GetCoinbaseExtranonces(msgBlock)
 		ens[2] = extraNonce + enOffset
 
 		// Update the extra nonce in the block template with the
