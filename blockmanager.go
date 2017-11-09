@@ -2614,12 +2614,20 @@ func newBlockManager(s *server, indexManager blockchain.IndexManager) (*blockMan
 		return nil, err
 	}
 
+	// FIXME remove before merge
+	tstart := time.Now().UnixNano()
+
 	// Retrieve the current previous block hash and next stake difficulty.
 	curPrevHash := bm.chain.BestPrevHash()
 	nextStakeDiff, err := bm.chain.CalcNextRequiredStakeDifficulty()
 	if err != nil {
 		return nil, err
 	}
+	bmgrLog.Infof("Next required Stake difficulty: %d", nextStakeDiff)
+
+	// FIXME remove before merge
+	tend := time.Now().UnixNano()
+	fmt.Printf("xxxxxxxxxxxxxxxxx Stake difficulty time %f\n", float64((tend-tstart)/1000000))
 
 	bm.updateChainState(best.Hash,
 		best.Height,
