@@ -254,13 +254,15 @@ func ticketsInBlock(bl *dcrutil.Block) *ticketsInBlockInfo {
 
 	for _, stx := range bl.MsgBlock().STransactions {
 		if is, _ := stake.IsSSGen(stx); is {
-			res.spentTickets = append(res.spentTickets, stx.TxIn[1].PreviousOutPoint.Hash)
+			res.spentTickets = append(res.spentTickets,
+				stx.TxIn[1].PreviousOutPoint.Hash)
 			res.voteBits = append(res.voteBits, VoteVersionTuple{
 				Version: stake.SSGenVersion(stx),
 				Bits:    stake.SSGenVoteBits(stx),
 			})
 		} else if is, _ := stake.IsSSRtx(stx); is {
-			res.revokedTickets = append(res.revokedTickets, stx.TxIn[0].PreviousOutPoint.Hash)
+			res.revokedTickets = append(res.revokedTickets,
+				stx.TxIn[0].PreviousOutPoint.Hash)
 		}
 	}
 	return res
