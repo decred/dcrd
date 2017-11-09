@@ -625,8 +625,9 @@ func (b *BlockChain) loadBlockNode(dbTx database.Tx, hash *chainhash.Hash) (*blo
 	}
 
 	blockHeader := block.MsgBlock().Header
-	node := newBlockNode(&blockHeader, ticketsSpentInBlock(block),
-		ticketsRevokedInBlock(block), voteBitsInBlock(block))
+	tickets := ticketsInBlock(block)
+	node := newBlockNode(&blockHeader, tickets.spentTickets, tickets.revokedTickets,
+		tickets.voteBits)
 	node.inMainChain = true
 	prevHash := &blockHeader.PrevBlock
 
