@@ -8,6 +8,7 @@ package blockchain
 import (
 	"container/list"
 	"fmt"
+	"github.com/decred/dcrd/blockchain/internal/dbnamespace"
 	"math/big"
 	"sort"
 	"sync"
@@ -620,7 +621,17 @@ func (b *BlockChain) loadBlockNode(dbTx database.Tx, hash *chainhash.Hash) (*blo
 	blockHeader := block.MsgBlock().Header
 	node := newBlockNode(&blockHeader, stake.FindSpentTicketsInBlock(block.MsgBlock()))
 	node.inMainChain = true
-	prevHash := &blockHeader.PrevBlock
+	err = b.loadNode(node)
+	if err != nil {
+		return nil, err
+	}
+
+	return node, nil
+}
+
+func (b *BlockChain) loadNode(node *blockNode) error {
+	prevHash := &node.header.PrevBlock
+	hash := &node.hash
 
 	// Add the node to the chain.
 	// There are a few possibilities here:
@@ -662,7 +673,7 @@ func (b *BlockChain) loadBlockNode(dbTx database.Tx, hash *chainhash.Hash) (*blo
 			node.parent = foundParent
 		} else {
 			str := "loadBlockNode: attempt to insert orphan block %v"
-			return nil, AssertError(fmt.Sprintf(str, hash))
+			return AssertError(fmt.Sprintf(str, hash))
 		}
 	}
 
@@ -670,7 +681,7 @@ func (b *BlockChain) loadBlockNode(dbTx database.Tx, hash *chainhash.Hash) (*blo
 	b.index[*hash] = node
 	b.depNodes[*prevHash] = append(b.depNodes[*prevHash], node)
 
-	return node, nil
+	return nil
 }
 
 // findNode finds the node scaling backwards from best chain or return an
@@ -820,6 +831,74 @@ func (b *BlockChain) ancestorNode(node *blockNode, height int64) (*blockNode, er
 	}
 
 	return iterNode, nil
+}
+
+// FIXME document
+func (b *BlockChain) LoadAllBlocksByBatchHeader() error {
+
+	bucketName := "chum-bucket12" // FIXME: just a test, won't remain here.
+
+	b.db.Update(func(dbTx database.Tx) error {
+		meta := dbTx.Metadata()
+		_, err := meta.CreateBucketIfNotExists([]byte(bucketName))
+		if err != nil {
+			panic(err)
+		}
+		return nil
+	})
+
+	return b.db.Update(func(dbTx database.Tx) error {
+
+		meta := dbTx.Metadata()
+		heightIndex := meta.Bucket(dbnamespace.HeightIndexBucketName)
+		voteIndex := meta.Bucket([]byte(bucketName))
+
+		var serializedHeight [4]byte
+		var hash chainhash.Hash
+		var voteInfo *stake.SpentTicketsInBlock
+
+		// load ordered by height
+		for height := b.bestNode.height - 1; height > 1; height-- {
+			dbnamespace.ByteOrder.PutUint32(serializedHeight[:], uint32(height))
+			hashBytes := heightIndex.Get(serializedHeight[:])
+			if hashBytes == nil {
+				str := fmt.Sprintf("no block at height %d exists", height)
+				return fmt.Errorf("%s", str)
+			}
+			copy(hash[:], hashBytes)
+
+			header, err := dbFetchHeaderByHash(dbTx, &hash)
+			if err != nil {
+				panic(err)
+			}
+
+			serializedVoteInfo := voteIndex.Get(hash[:])
+			if serializedVoteInfo == nil {
+				block, err := b.fetchBlockFromHash(&hash)
+				if err != nil {
+					return err
+				}
+				voteInfo = stake.FindSpentTicketsInBlock(block.MsgBlock())
+				if err != nil {
+					return err
+				}
+				serializedVoteInfo, err = voteInfo.ToBytes()
+				if err != nil {
+					return err
+				}
+				voteIndex.Put(hash[:], serializedVoteInfo[:])
+			} else {
+				voteInfo = &stake.SpentTicketsInBlock{}
+				voteInfo.FromBytes(serializedVoteInfo)
+			}
+
+			node := newBlockNode(header, voteInfo)
+			node.inMainChain = true
+			b.loadNode(node)
+		}
+
+		return nil
+	})
 }
 
 // fetchBlockFromHash searches the internal chain block stores and the database in

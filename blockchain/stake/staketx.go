@@ -10,6 +10,7 @@ package stake
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/gob"
 	"errors"
 	"fmt"
 	"math"
@@ -1246,4 +1247,20 @@ func FindSpentTicketsInBlock(block *wire.MsgBlock) *SpentTicketsInBlock {
 		}
 	}
 	return res
+}
+
+func (t *SpentTicketsInBlock) ToBytes() ([]byte, error) {
+	buff := bytes.Buffer{}
+	enc := gob.NewEncoder(&buff)
+	err := enc.Encode(t)
+	if err != nil {
+		return nil, err
+	}
+	return buff.Bytes(), nil
+}
+
+func (t *SpentTicketsInBlock) FromBytes(data []byte) error {
+	buff := bytes.NewBuffer(data)
+	dec := gob.NewDecoder(buff)
+	return dec.Decode(t)
 }
