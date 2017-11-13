@@ -100,7 +100,7 @@ type blockNode struct {
 // completely disconnected from the chain and the workSum value is just the work
 // for the passed block.  The work sum is updated accordingly when the node is
 // inserted into a chain.
-func newBlockNode(blockHeader *wire.BlockHeader, ticketsSpent []chainhash.Hash, ticketsRevoked []chainhash.Hash, votes []stake.VoteVersionTuple) *blockNode {
+func newBlockNode(blockHeader *wire.BlockHeader, spentTickets *stake.SpentTicketsInBlock) *blockNode {
 	// Make a copy of the hash so the node doesn't keep a reference to part
 	// of the full block/block header preventing it from being garbage
 	// collected.
@@ -109,9 +109,9 @@ func newBlockNode(blockHeader *wire.BlockHeader, ticketsSpent []chainhash.Hash, 
 		workSum:        CalcWork(blockHeader.Bits),
 		height:         int64(blockHeader.Height),
 		header:         *blockHeader,
-		ticketsSpent:   ticketsSpent,
-		ticketsRevoked: ticketsRevoked,
-		votes:          votes,
+		ticketsSpent:   spentTickets.VotedTickets,
+		ticketsRevoked: spentTickets.RevokedTickets,
+		votes:          spentTickets.Votes,
 	}
 	return &node
 }
@@ -618,9 +618,7 @@ func (b *BlockChain) loadBlockNode(dbTx database.Tx, hash *chainhash.Hash) (*blo
 	}
 
 	blockHeader := block.MsgBlock().Header
-	tickets := stake.FindSpentTicketsInBlock(block.MsgBlock())
-	node := newBlockNode(&blockHeader, tickets.VotedTickets, tickets.RevokedTickets,
-		tickets.VoteBits)
+	node := newBlockNode(&blockHeader, stake.FindSpentTicketsInBlock(block.MsgBlock()))
 	node.inMainChain = true
 	prevHash := &blockHeader.PrevBlock
 

@@ -205,7 +205,7 @@ type VoteVersionTuple struct {
 type SpentTicketsInBlock struct {
 	VotedTickets   []chainhash.Hash
 	RevokedTickets []chainhash.Hash
-	VoteBits       []VoteVersionTuple
+	Votes          []VoteVersionTuple
 }
 
 // --------------------------------------------------------------------------------
@@ -1236,7 +1236,7 @@ func FindSpentTicketsInBlock(block *wire.MsgBlock) *SpentTicketsInBlock {
 		if is, _ := IsSSGen(stx); is {
 			res.VotedTickets = append(res.VotedTickets,
 				stx.TxIn[1].PreviousOutPoint.Hash)
-			res.VoteBits = append(res.VoteBits, VoteVersionTuple{
+			res.Votes = append(res.Votes, VoteVersionTuple{
 				Version: SSGenVersion(stx),
 				Bits:    SSGenVoteBits(stx),
 			})

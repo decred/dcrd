@@ -276,8 +276,8 @@ func (b *BlockChain) maybeAcceptBlock(block *dcrutil.Block, flags BehaviorFlags)
 	// Create a new block node for the block and add it to the in-memory
 	// block chain (could be either a side chain or the main chain).
 	blockHeader := &block.MsgBlock().Header
-	newNode := newBlockNode(blockHeader, ticketsSpentInBlock(block),
-		ticketsRevokedInBlock(block), voteBitsInBlock(block))
+	newNode := newBlockNode(blockHeader,
+		stake.FindSpentTicketsInBlock(block.MsgBlock()))
 	if prevNode != nil {
 		newNode.parent = prevNode
 		newNode.height = blockHeight
