@@ -193,6 +193,13 @@ type VoteBits struct {
 	ExtendedBits []byte
 }
 
+// VoteVersionTuple contains the extracted vote bits and version from votes
+// (SSGen).
+type VoteVersionTuple struct {
+	Version uint32
+	Bits    uint16
+}
+
 // --------------------------------------------------------------------------------
 // Accessory Stake Functions
 // --------------------------------------------------------------------------------

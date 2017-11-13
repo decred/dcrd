@@ -220,14 +220,14 @@ func ticketsRevokedInBlock(bl *dcrutil.Block) []chainhash.Hash {
 }
 
 // voteBitsInBlock returns a list of vote bits for the voters in this block.
-func voteBitsInBlock(bl *dcrutil.Block) []VoteVersionTuple {
-	var voteBits []VoteVersionTuple
+func voteBitsInBlock(bl *dcrutil.Block) []stake.VoteVersionTuple {
+	var voteBits []stake.VoteVersionTuple
 	for _, stx := range bl.MsgBlock().STransactions {
 		if is, _ := stake.IsSSGen(stx); !is {
 			continue
 		}
 
-		voteBits = append(voteBits, VoteVersionTuple{
+		voteBits = append(voteBits, stake.VoteVersionTuple{
 			Version: stake.SSGenVersion(stx),
 			Bits:    stake.SSGenVoteBits(stx),
 		})
@@ -239,7 +239,7 @@ func voteBitsInBlock(bl *dcrutil.Block) []VoteVersionTuple {
 type ticketsInBlockInfo struct {
 	spentTickets   []chainhash.Hash
 	revokedTickets []chainhash.Hash
-	voteBits       []VoteVersionTuple
+	voteBits       []stake.VoteVersionTuple
 }
 
 // ticketsInBlock returns information about spent tickets of a given block. This
@@ -256,7 +256,7 @@ func ticketsInBlock(bl *dcrutil.Block) *ticketsInBlockInfo {
 		if is, _ := stake.IsSSGen(stx); is {
 			res.spentTickets = append(res.spentTickets,
 				stx.TxIn[1].PreviousOutPoint.Hash)
-			res.voteBits = append(res.voteBits, VoteVersionTuple{
+			res.voteBits = append(res.voteBits, stake.VoteVersionTuple{
 				Version: stake.SSGenVersion(stx),
 				Bits:    stake.SSGenVoteBits(stx),
 			})

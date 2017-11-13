@@ -17,6 +17,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/decred/dcrd/blockchain/stake"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/wire"
 )
@@ -41,6 +42,6 @@ func (b *BlockChain) TstCheckBlockHeaderContext(header *wire.BlockHeader, prevNo
 
 // TstNewBlockNode makes the internal newBlockNode function available to the
 // test package.
-func TstNewBlockNode(blockHeader *wire.BlockHeader, ticketsSpent []chainhash.Hash, ticketsRevoked []chainhash.Hash, voteBits []VoteVersionTuple) *blockNode {
+func TstNewBlockNode(blockHeader *wire.BlockHeader, ticketsSpent []chainhash.Hash, ticketsRevoked []chainhash.Hash, voteBits []stake.VoteVersionTuple) *blockNode {
 	return newBlockNode(blockHeader, ticketsSpent, ticketsRevoked, voteBits)
 }

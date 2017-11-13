@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/decred/dcrd/blockchain/stake"
 	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/wire"
@@ -62,7 +63,7 @@ func newFakeNode(parent *blockNode, blockVersion int32, stakeVersion uint32, bit
 // provided version and vote bits.
 func appendFakeVotes(node *blockNode, numVotes uint16, voteVersion uint32, voteBits uint16) {
 	for i := uint16(0); i < numVotes; i++ {
-		node.votes = append(node.votes, VoteVersionTuple{
+		node.votes = append(node.votes, stake.VoteVersionTuple{
 			Version: voteVersion,
 			Bits:    voteBits,
 		})
