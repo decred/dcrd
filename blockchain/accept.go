@@ -236,38 +236,6 @@ func voteBitsInBlock(bl *dcrutil.Block) []stake.VoteVersionTuple {
 	return voteBits
 }
 
-type ticketsInBlockInfo struct {
-	spentTickets   []chainhash.Hash
-	revokedTickets []chainhash.Hash
-	voteBits       []stake.VoteVersionTuple
-}
-
-// ticketsInBlock returns information about spent tickets of a given block. This
-// includes spent and revoked tickets and the vote bits of each spent ticket.
-//
-// This is faster than calling the individual functions (ticketsSpentInBlock,
-// etc) if all information regarding spent tickets is needed.
-//
-// No validation of the transactions is performed.
-func ticketsInBlock(bl *dcrutil.Block) *ticketsInBlockInfo {
-	res := &ticketsInBlockInfo{}
-
-	for _, stx := range bl.MsgBlock().STransactions {
-		if is, _ := stake.IsSSGen(stx); is {
-			res.spentTickets = append(res.spentTickets,
-				stx.TxIn[1].PreviousOutPoint.Hash)
-			res.voteBits = append(res.voteBits, stake.VoteVersionTuple{
-				Version: stake.SSGenVersion(stx),
-				Bits:    stake.SSGenVoteBits(stx),
-			})
-		} else if is, _ := stake.IsSSRtx(stx); is {
-			res.revokedTickets = append(res.revokedTickets,
-				stx.TxIn[0].PreviousOutPoint.Hash)
-		}
-	}
-	return res
-}
-
 // maybeAcceptBlock potentially accepts a block into the block chain and, if
 // accepted, returns whether or not it is on the main chain.  It performs
 // several validation checks which depend on its position within the block chain
