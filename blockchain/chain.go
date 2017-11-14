@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"github.com/decred/dcrd/blockchain/internal/dbnamespace"
 	"math/big"
+	"runtime"
 	"sort"
 	"sync"
 	"time"
@@ -853,17 +854,16 @@ func (b *BlockChain) LoadAllBlocksByBatchHeader() error {
 		heightIndex := meta.Bucket(dbnamespace.HeightIndexBucketName)
 		voteIndex := meta.Bucket([]byte(bucketName))
 
-		var serializedHeight [4]byte
-		var hash chainhash.Hash
-		var voteInfo *stake.SpentTicketsInBlock
+		var blockNodeForHeight = func(height int64) *blockNode {
+			var serializedHeight [4]byte
+			var voteInfo *stake.SpentTicketsInBlock
+			var hash chainhash.Hash
 
-		// load ordered by height
-		for height := b.bestNode.height - 1; height > 1; height-- {
 			dbnamespace.ByteOrder.PutUint32(serializedHeight[:], uint32(height))
 			hashBytes := heightIndex.Get(serializedHeight[:])
 			if hashBytes == nil {
 				str := fmt.Sprintf("no block at height %d exists", height)
-				return fmt.Errorf("%s", str)
+				panic(str)
 			}
 			copy(hash[:], hashBytes)
 
@@ -876,15 +876,15 @@ func (b *BlockChain) LoadAllBlocksByBatchHeader() error {
 			if serializedVoteInfo == nil {
 				block, err := b.fetchBlockFromHash(&hash)
 				if err != nil {
-					return err
+					panic(err)
 				}
 				voteInfo = stake.FindSpentTicketsInBlock(block.MsgBlock())
 				if err != nil {
-					return err
+					panic(err)
 				}
 				serializedVoteInfo, err = voteInfo.ToBytes()
 				if err != nil {
-					return err
+					panic(err)
 				}
 				voteIndex.Put(hash[:], serializedVoteInfo[:])
 			} else {
@@ -894,7 +894,39 @@ func (b *BlockChain) LoadAllBlocksByBatchHeader() error {
 
 			node := newBlockNode(header, voteInfo)
 			node.inMainChain = true
-			b.loadNode(node)
+			return node
+		}
+
+		var workThreads int64 = int64(runtime.NumCPU())
+		if workThreads > b.bestNode.height-1 {
+			workThreads = b.bestNode.height - 1
+		}
+		workers := make([]chan *blockNode, workThreads)
+
+		var startWorkOn = func(height int64) {
+			idxWorker := height % workThreads
+			workers[idxWorker] <- blockNodeForHeight(height)
+		}
+
+		for i := range workers {
+			workers[i] = make(chan *blockNode)
+			go startWorkOn(b.bestNode.height - 1 - int64(i))
+		}
+
+		// load ordered by height
+		for height := b.bestNode.height - 1; height > 0; height-- {
+			idxWorker := height % workThreads
+
+			node := <-workers[idxWorker]
+
+			err := b.loadNode(node)
+			if err != nil {
+				panic(err)
+			}
+
+			if height-workThreads > 0 {
+				go startWorkOn(height - workThreads)
+			}
 		}
 
 		return nil
