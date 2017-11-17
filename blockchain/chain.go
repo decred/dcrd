@@ -839,6 +839,10 @@ func (b *BlockChain) LoadAllBlocksByBatchHeader() error {
 
 	bucketName := "chum-bucket12" // FIXME: just a test, won't remain here.
 
+	if b.bestNode.height < 2 {
+		return nil
+	}
+
 	b.db.Update(func(dbTx database.Tx) error {
 		meta := dbTx.Metadata()
 		_, err := meta.CreateBucketIfNotExists([]byte(bucketName))
