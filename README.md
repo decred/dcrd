@@ -105,7 +105,7 @@ You can also run `dcrd` with docker:
 Volumes:
 
 - `/etc/dcrd` hold `config`, `rpc.cert ` and `rpc.key` if you want to set any of these.
-- `/var/lib/dcrd` where is stored the blockchain
+- `/var/lib/dcrd` is where the persistent data is stored, such as the blockchain
 
 Ports:
 
