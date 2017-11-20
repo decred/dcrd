@@ -837,7 +837,7 @@ func (b *BlockChain) ancestorNode(node *blockNode, height int64) (*blockNode, er
 // FIXME document
 func (b *BlockChain) LoadAllBlocksByBatchHeader() error {
 
-	bucketName := "chum-bucket12" // FIXME: just a test, won't remain here.
+	bucketName := "chum-bucket13" // FIXME: just a test, won't remain here.
 
 	if b.bestNode.height < 2 {
 		return nil

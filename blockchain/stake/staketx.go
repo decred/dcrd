@@ -10,7 +10,6 @@ package stake
 import (
 	"bytes"
 	"encoding/binary"
-	"encoding/gob"
 	"errors"
 	"fmt"
 	"math"
@@ -200,6 +199,9 @@ type VoteVersionTuple struct {
 	Version uint32
 	Bits    uint16
 }
+
+// VoteVersionTupleSize is the size in bytes of the VoteVersionTuple struct
+const VoteVersionTupleSize = 6
 
 // SpentTicketsInBlock stores the hashes of the spent (both voted and revoked)
 // tickets of a given block, along with the vote information.
@@ -1250,17 +1252,70 @@ func FindSpentTicketsInBlock(block *wire.MsgBlock) *SpentTicketsInBlock {
 }
 
 func (t *SpentTicketsInBlock) ToBytes() ([]byte, error) {
-	buff := bytes.Buffer{}
-	enc := gob.NewEncoder(&buff)
-	err := enc.Encode(t)
-	if err != nil {
-		return nil, err
+	var votedCount, votesCount uint8
+	var revokedCount uint16
+
+	votedCount = uint8(len(t.VotedTickets))
+	votesCount = uint8(len(t.Votes))
+	revokedCount = uint16(len(t.RevokedTickets))
+	bufferSize :=
+		4 +
+			int(votedCount)*chainhash.HashSize +
+			int(revokedCount)*chainhash.HashSize +
+			int(votesCount)*VoteVersionTupleSize
+
+	buff := make([]byte, bufferSize)
+	buff[0] = votedCount
+	buff[1] = votesCount
+	binary.BigEndian.PutUint16(buff[2:4], revokedCount)
+	p := 4
+
+	for i := range t.VotedTickets {
+		copy(buff[p:p+chainhash.HashSize], t.VotedTickets[i][:])
+		p += chainhash.HashSize
 	}
-	return buff.Bytes(), nil
+
+	for i := range t.RevokedTickets {
+		copy(buff[p:p+chainhash.HashSize], t.RevokedTickets[i][:])
+		p += chainhash.HashSize
+	}
+
+	for i := range t.Votes {
+		binary.BigEndian.PutUint32(buff[p:p+4], t.Votes[i].Version)
+		p += 4
+		binary.BigEndian.PutUint16(buff[p:p+2], t.Votes[i].Bits)
+		p += 2
+	}
+
+	return buff, nil
 }
 
 func (t *SpentTicketsInBlock) FromBytes(data []byte) error {
-	buff := bytes.NewBuffer(data)
-	dec := gob.NewDecoder(buff)
-	return dec.Decode(t)
+	votedCount := data[0]
+	votesCount := data[1]
+	revokedCount := binary.BigEndian.Uint16(data[2:4])
+	p := 4
+
+	t.VotedTickets = make([]chainhash.Hash, votedCount)
+	t.RevokedTickets = make([]chainhash.Hash, revokedCount)
+	t.Votes = make([]VoteVersionTuple, votesCount)
+
+	for i := range t.VotedTickets {
+		copy(t.VotedTickets[i][:], data[p:p+chainhash.HashSize])
+		p += chainhash.HashSize
+	}
+
+	for i := range t.RevokedTickets {
+		copy(t.RevokedTickets[i][:], data[p:p+chainhash.HashSize])
+		p += chainhash.HashSize
+	}
+
+	for i := range t.Votes {
+		t.Votes[i].Version = binary.BigEndian.Uint32(data[p : p+4])
+		p += 4
+		t.Votes[i].Bits = binary.BigEndian.Uint16(data[p : p+2])
+		p += 2
+	}
+
+	return nil
 }
