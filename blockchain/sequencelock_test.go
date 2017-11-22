@@ -41,7 +41,7 @@ func TestCalcSequenceLock(t *testing.T) {
 	for i := uint32(0); i < numBlocks; i++ {
 		blockTime = blockTime.Add(time.Second)
 		node = newFakeNode(node, 1, 1, 0, blockTime)
-		bc.index[node.hash] = node
+		bc.index.AddNode(node)
 		bc.bestNode = node
 	}
 

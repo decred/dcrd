@@ -1,3 +1,8 @@
+// Copyright (c) 2015 The btcsuite developers
+// Copyright (c) 2015-2017 The Decred developers
+// Use of this source code is governed by an ISC
+// license that can be found in the LICENSE file.
+
 package blockchain
 
 import (
@@ -63,5 +68,13 @@ func (bi *blockIndex) LookupNode(hash *chainhash.Hash) *blockNode {
 func (bi *blockIndex) AddNode(node *blockNode) {
 	bi.Lock()
 	bi.index[node.hash] = node
+	bi.Unlock()
+}
+
+// RemoveNode removes the associated node of the supplied block hash from the index
+// This function is safe for concurrent access.
+func (bi *blockIndex) RemoveNode(hash *chainhash.Hash) {
+	bi.Lock()
+	delete(bi.index, *hash)
 	bi.Unlock()
 }

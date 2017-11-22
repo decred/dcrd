@@ -1282,7 +1282,7 @@ func (b *BlockChain) createChainState() error {
 	b.bestNode = node
 
 	// Add the new node to the index which is used for faster lookups.
-	b.index[node.hash] = node
+	b.index.AddNode(node)
 
 	// Initialize the state related to the best block.  Since it is the
 	// genesis block, use its timestamp for the median time.
@@ -1463,7 +1463,7 @@ func (b *BlockChain) initChainState() error {
 
 		// Add the new node to the indices for faster lookups.
 		prevHash := node.header.PrevBlock
-		b.index[node.hash] = node
+		b.index.AddNode(node)
 		b.depNodes[prevHash] = append(b.depNodes[prevHash], node)
 
 		// Calculate the median time for the block.
