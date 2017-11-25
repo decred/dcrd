@@ -304,6 +304,9 @@ var rpcUnimplemented = map[string]struct{}{
 	"getblockchaininfo": {},
 	"getchaintips":      {},
 	"getnetworkinfo":    {},
+	"invalidateblock":   {},
+	"preciousblock":     {},
+	"reconsiderblock":   {},
 }
 
 // Commands that are available to a limited user
@@ -1465,7 +1468,9 @@ func handleDecodeScript(s *rpcServer, cmd interface{}, closeChan <-chan struct{}
 		ReqSigs:   int32(reqSigs),
 		Type:      scriptClass.String(),
 		Addresses: addresses,
-		P2sh:      p2sh.EncodeAddress(),
+	}
+	if scriptClass != txscript.ScriptHashTy {
+		reply.P2sh = p2sh.EncodeAddress()
 	}
 	return reply, nil
 }
@@ -3461,7 +3466,9 @@ func handleGetPeerInfo(s *rpcServer, cmd interface{}, closeChan <-chan struct{})
 		info := &dcrjson.GetPeerInfoResult{
 			ID:             statsSnap.ID,
 			Addr:           statsSnap.Addr,
+			AddrLocal:      p.LocalAddr().String(),
 			Services:       fmt.Sprintf("%08d", uint64(statsSnap.Services)),
+			RelayTxes:      !p.disableRelayTx,
 			LastSend:       statsSnap.LastSend.Unix(),
 			LastRecv:       statsSnap.LastRecv.Unix(),
 			BytesSent:      statsSnap.BytesSent,

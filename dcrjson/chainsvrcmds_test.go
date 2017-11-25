@@ -667,6 +667,32 @@ func TestChainSvrCmds(t *testing.T) {
 			unmarshalled: &dcrjson.PingCmd{},
 		},
 		{
+			name: "preciousblock",
+			newCmd: func() (interface{}, error) {
+				return dcrjson.NewCmd("preciousblock", "0123")
+			},
+			staticCmd: func() interface{} {
+				return dcrjson.NewPreciousBlockCmd("0123")
+			},
+			marshalled: `{"jsonrpc":"1.0","method":"preciousblock","params":["0123"],"id":1}`,
+			unmarshalled: &dcrjson.PreciousBlockCmd{
+				BlockHash: "0123",
+			},
+		},
+		{
+			name: "reconsiderblock",
+			newCmd: func() (interface{}, error) {
+				return dcrjson.NewCmd("reconsiderblock", "123")
+			},
+			staticCmd: func() interface{} {
+				return dcrjson.NewReconsiderBlockCmd("123")
+			},
+			marshalled: `{"jsonrpc":"1.0","method":"reconsiderblock","params":["123"],"id":1}`,
+			unmarshalled: &dcrjson.ReconsiderBlockCmd{
+				BlockHash: "123",
+			},
+		},
+		{
 			name: "searchrawtransactions",
 			newCmd: func() (interface{}, error) {
 				return dcrjson.NewCmd("searchrawtransactions", "1Address")
