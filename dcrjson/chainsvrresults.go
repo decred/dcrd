@@ -79,7 +79,7 @@ type DecodeScriptResult struct {
 	ReqSigs   int32    `json:"reqSigs,omitempty"`
 	Type      string   `json:"type"`
 	Addresses []string `json:"addresses,omitempty"`
-	P2sh      string   `json:"p2sh"`
+	P2sh      string   `json:"p2sh,omitempty"`
 }
 
 // GetAddedNodeInfoResultAddr models the data of the addresses portion of the
@@ -197,6 +197,7 @@ type GetPeerInfoResult struct {
 	Addr           string  `json:"addr"`
 	AddrLocal      string  `json:"addrlocal,omitempty"`
 	Services       string  `json:"services"`
+	RelayTxes      bool    `json:"relaytxes"`
 	LastSend       int64   `json:"lastsend"`
 	LastRecv       int64   `json:"lastrecv"`
 	BytesSent      uint64  `json:"bytessent"`

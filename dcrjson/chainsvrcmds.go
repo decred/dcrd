@@ -571,6 +571,32 @@ func NewPingCmd() *PingCmd {
 	return &PingCmd{}
 }
 
+// PreciousBlockCmd defines the preciousblock JSON-RPC command.
+type PreciousBlockCmd struct {
+	BlockHash string
+}
+
+// NewPreciousBlockCmd returns a new instance which can be used to issue a
+// preciousblock JSON-RPC command.
+func NewPreciousBlockCmd(blockHash string) *PreciousBlockCmd {
+	return &PreciousBlockCmd{
+		BlockHash: blockHash,
+	}
+}
+
+// ReconsiderBlockCmd defines the reconsiderblock JSON-RPC command.
+type ReconsiderBlockCmd struct {
+	BlockHash string
+}
+
+// NewReconsiderBlockCmd returns a new instance which can be used to issue a
+// reconsiderblock JSON-RPC command.
+func NewReconsiderBlockCmd(blockHash string) *ReconsiderBlockCmd {
+	return &ReconsiderBlockCmd{
+		BlockHash: blockHash,
+	}
+}
+
 // SearchRawTransactionsCmd defines the searchrawtransactions JSON-RPC command.
 type SearchRawTransactionsCmd struct {
 	Address     string
@@ -755,6 +781,8 @@ func init() {
 	MustRegisterCmd("getwork", (*GetWorkCmd)(nil), flags)
 	MustRegisterCmd("help", (*HelpCmd)(nil), flags)
 	MustRegisterCmd("ping", (*PingCmd)(nil), flags)
+	MustRegisterCmd("preciousblock", (*PreciousBlockCmd)(nil), flags)
+	MustRegisterCmd("reconsiderblock", (*ReconsiderBlockCmd)(nil), flags)
 	MustRegisterCmd("searchrawtransactions", (*SearchRawTransactionsCmd)(nil), flags)
 	MustRegisterCmd("sendrawtransaction", (*SendRawTransactionCmd)(nil), flags)
 	MustRegisterCmd("setgenerate", (*SetGenerateCmd)(nil), flags)
