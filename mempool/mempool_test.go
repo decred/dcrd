@@ -371,7 +371,7 @@ func newPoolHarness(chainParams *chaincfg.Params) (*poolHarness, []spendableOutp
 	chain := &fakeChain{
 		utxos:       blockchain.NewUtxoViewpoint(),
 		blocks:      make(map[chainhash.Hash]*dcrutil.Block),
-		scriptFlags: BaseStandardVerifyFlags,
+		scriptFlags: blockchain.BaseStandardVerifyFlags,
 	}
 	harness := poolHarness{
 		signKey:     signKey,

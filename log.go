@@ -18,6 +18,7 @@ import (
 	"github.com/decred/dcrd/connmgr"
 	"github.com/decred/dcrd/database"
 	"github.com/decred/dcrd/mempool"
+	"github.com/decred/dcrd/mining"
 	"github.com/decred/dcrd/peer"
 	"github.com/decred/dcrd/txscript"
 	"github.com/jrick/logrotate/rotator"
@@ -84,6 +85,7 @@ func init() {
 	database.UseLogger(bcdbLog)
 	blockchain.UseLogger(chanLog)
 	indexers.UseLogger(indxLog)
+	mining.UseLogger(minrLog)
 	peer.UseLogger(peerLog)
 	txscript.UseLogger(scrpLog)
 	stake.UseLogger(stkeLog)
