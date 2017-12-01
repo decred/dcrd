@@ -38,10 +38,6 @@ const (
 	// transaction to be considered high priority.
 	MinHighPriority = dcrutil.AtomsPerCoin * 144.0 / 250
 
-	// mempoolHeight is the height used for the "block" height field of the
-	// contextual transaction information provided in a transaction view.
-	mempoolHeight = 0x7fffffff
-
 	// maxRelayFeeMultiplier is the factor that we disallow fees / kB above the
 	// minimum tx fee.  At the current default minimum relay fee of 0.001
 	// DCR/kB, this results in a maximum allowed high fee of 1 DCR/kB.
@@ -68,13 +64,6 @@ const (
 	// pushes in a transaction, after which it is considered non-standard.
 	maxNullDataOutputs = 4
 )
-
-// VoteTx is a struct describing a block vote (SSGen).
-type VoteTx struct {
-	SsgenHash chainhash.Hash // Vote
-	SstxHash  chainhash.Hash // Ticket
-	Vote      bool
-}
 
 // Config is a descriptor containing the memory pool configuration.
 type Config struct {
@@ -215,7 +204,7 @@ type TxPool struct {
 
 	// Votes on blocks.
 	votesMtx sync.Mutex
-	votes    map[chainhash.Hash][]*VoteTx
+	votes    map[chainhash.Hash][]*blockchain.VoteTx
 
 	pennyTotal    float64 // exponentially decaying total for penny spends.
 	lastPennyUnix int64   // unix time of last ``penny spend''
@@ -239,7 +228,7 @@ func (mp *TxPool) insertVote(ssgen *dcrutil.Tx) error {
 	// start a new buffered slice and store it.
 	vts, exists := mp.votes[blockHash]
 	if !exists {
-		vts = make([]*VoteTx, 0, mp.cfg.ChainParams.TicketsPerBlock)
+		vts = make([]*blockchain.VoteTx, 0, mp.cfg.ChainParams.TicketsPerBlock)
 		mp.votes[blockHash] = vts
 	}
 
@@ -253,7 +242,10 @@ func (mp *TxPool) insertVote(ssgen *dcrutil.Tx) error {
 	// Append the new vote.
 	voteBits := stake.SSGenVoteBits(msgTx)
 	vote := dcrutil.IsFlagSet16(voteBits, dcrutil.BlockValid)
-	mp.votes[blockHash] = append(vts, &VoteTx{*voteHash, *ticketHash, vote})
+	mp.votes[blockHash] = append(vts, &blockchain.VoteTx{
+		SsgenHash: *voteHash,
+		SstxHash:  *ticketHash,
+		Vote:      vote})
 
 	log.Debugf("Accepted vote %v for block hash %v (height %v), voting "+
 		"%v on the transaction tree", voteHash, blockHash, blockHeight,
@@ -289,12 +281,12 @@ func (mp *TxPool) VoteHashesForBlock(blockHash chainhash.Hash) []chainhash.Hash 
 // block hashes that are currently available in the mempool.
 //
 // This function is safe for concurrent access.
-func (mp *TxPool) VotesForBlocks(hashes []chainhash.Hash) [][]*VoteTx {
-	result := make([][]*VoteTx, 0, len(hashes))
+func (mp *TxPool) VotesForBlocks(hashes []chainhash.Hash) [][]*blockchain.VoteTx {
+	result := make([][]*blockchain.VoteTx, 0, len(hashes))
 	mp.votesMtx.Lock()
 	for _, hash := range hashes {
 		votes := mp.votes[hash]
-		votesCopy := make([]*VoteTx, len(votes))
+		votesCopy := make([]*blockchain.VoteTx, len(votes))
 		copy(votesCopy, votes)
 		result = append(result, votesCopy)
 	}
@@ -628,7 +620,7 @@ func (mp *TxPool) addTransaction(utxoView *blockchain.UtxoViewpoint,
 			Height: height,
 			Fee:    fee,
 		},
-		StartingPriority: CalcPriority(msgTx, utxoView, height),
+		StartingPriority: mining.CalcPriority(msgTx, utxoView, height),
 	}
 	for _, txIn := range msgTx.TxIn {
 		mp.outpoints[txIn.PreviousOutPoint] = tx
@@ -727,7 +719,7 @@ func (mp *TxPool) fetchInputUtxos(tx *dcrutil.Tx) (*blockchain.UtxoViewpoint, er
 		}
 
 		if poolTxDesc, exists := mp.pool[originHash]; exists {
-			utxoView.AddTxOuts(poolTxDesc.Tx, mempoolHeight,
+			utxoView.AddTxOuts(poolTxDesc.Tx, mining.UnminedHeight,
 				wire.NullBlockIndex)
 		}
 	}
@@ -1103,7 +1095,7 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 	if isNew && !mp.cfg.Policy.DisableRelayPriority && txFee < minFee &&
 		txType == stake.TxTypeRegular {
 
-		currentPriority := CalcPriority(msgTx, utxoView,
+		currentPriority := mining.CalcPriority(msgTx, utxoView,
 			nextBlockHeight)
 		if currentPriority <= MinHighPriority {
 			str := fmt.Sprintf("transaction %v has insufficient "+
@@ -1536,7 +1528,7 @@ func (mp *TxPool) RawMempoolVerbose(filterType *stake.TxType) map[string]*dcrjso
 		var currentPriority float64
 		utxos, err := mp.fetchInputUtxos(tx)
 		if err == nil {
-			currentPriority = CalcPriority(tx.MsgTx(), utxos,
+			currentPriority = mining.CalcPriority(tx.MsgTx(), utxos,
 				bestHeight+1)
 		}
 
@@ -1597,6 +1589,6 @@ func New(cfg *Config) *TxPool {
 		orphans:       make(map[chainhash.Hash]*dcrutil.Tx),
 		orphansByPrev: make(map[chainhash.Hash]map[chainhash.Hash]*dcrutil.Tx),
 		outpoints:     make(map[wire.OutPoint]*dcrutil.Tx),
-		votes:         make(map[chainhash.Hash][]*VoteTx),
+		votes:         make(map[chainhash.Hash][]*blockchain.VoteTx),
 	}
 }
