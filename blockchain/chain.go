@@ -58,6 +58,13 @@ type VoteVersionTuple struct {
 	Bits    uint16
 }
 
+// VoteTx is a struct describing a block vote (SSGen).
+type VoteTx struct {
+	SsgenHash chainhash.Hash // Vote
+	SstxHash  chainhash.Hash // Ticket
+	Vote      bool
+}
+
 // blockNode represents a block within the block chain and is primarily used to
 // aid in selecting the best chain to be the main chain.  The main chain is
 // stored into the block database.

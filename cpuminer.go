@@ -16,7 +16,6 @@ import (
 	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/dcrutil"
-	"github.com/decred/dcrd/mining"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -52,6 +51,42 @@ var (
 	defaultNumWorkers = uint32(chaincfg.CPUMinerThreads)
 )
 
+// Config is a descriptor containing the cpu miner configuration.
+type Config struct {
+	// ChainParams identifies which chain parameters the cpu miner is
+	// associated with.
+	ChainParams *chaincfg.Params
+
+	// BlockTemplateGenerator identifies the instance to use in order to
+	// generate block templates that the miner will attempt to solve.
+	BlockTemplateGenerator *BlkTmplGenerator
+
+	// MiningAddrs is a list of payment addresses to use for the generated
+	// blocks.  Each generated block will randomly choose one of them.
+	MiningAddrs []dcrutil.Address
+
+	// ProcessBlock defines the function to call with any solved blocks.
+	// It typically must run the provided block through the same set of
+	// rules and handling as any other block coming from the network.
+	ProcessBlock func(*dcrutil.Block, blockchain.BehaviorFlags) (bool, error)
+
+	// ConnectedCount defines the function to use to obtain how many other
+	// peers the server is connected to.  This is used by the automatic
+	// persistent mining routine to determine whether or it should attempt
+	// mining.  This is useful because there is no point in mining when not
+	// connected to any peers since there would no be anyone to send any
+	// found blocks to.
+	ConnectedCount func() int32
+
+	// IsCurrent defines the function to use to obtain whether or not the
+	// block chain is current.  This is used by the automatic persistent
+	// mining routine to determine whether or it should attempt mining.
+	// This is useful because there is no point in mining if the chain is
+	// not current since any solved blocks would be on a side chain and and
+	// up orphaned anyways.
+	IsCurrent func() bool
+}
+
 // CPUMiner provides facilities for solving blocks (mining) using the CPU in
 // a concurrency-safe manner.  It consists of two main goroutines -- a speed
 // monitor and a controller for worker goroutines which generate and solve
@@ -60,9 +95,8 @@ var (
 // system which is typically sufficient.
 type CPUMiner struct {
 	sync.Mutex
-	policy            *mining.Policy
-	txSource          mining.TxSource
-	server            *server
+	g                 *BlkTmplGenerator
+	cfg               Config
 	numWorkers        uint32
 	started           bool
 	discreteMining    bool
@@ -133,9 +167,22 @@ func (m *CPUMiner) submitBlock(block *dcrutil.Block) bool {
 	m.submitBlockLock.Lock()
 	defer m.submitBlockLock.Unlock()
 
+	// Ensure the block is not stale since a new block could have shown up
+	// while the solution was being found.  Typically that condition is
+	// detected and all work on the stale block is halted to start work on
+	// a new block, but the check only happens periodically, so it is
+	// possible a block was found and submitted in between.
+	latestHash := m.g.blockManager.chain.BestSnapshot().Hash
+	msgBlock := block.MsgBlock()
+	if !msgBlock.Header.PrevBlock.IsEqual(latestHash) {
+		minrLog.Debugf("Block submitted via CPU miner with previous "+
+			"block %s is stale", msgBlock.Header.PrevBlock)
+		return false
+	}
+
 	// Process this block using the same rules as blocks coming from other
 	// nodes. This will in turn relay it to the network like normal.
-	isOrphan, err := m.server.blockManager.ProcessBlock(block, blockchain.BFNone)
+	isOrphan, err := m.cfg.ProcessBlock(block, blockchain.BFNone)
 	if err != nil {
 		// Anything other than a rule violation is an unexpected error,
 		// so log that error as an internal error.
@@ -148,7 +195,7 @@ func (m *CPUMiner) submitBlock(block *dcrutil.Block) bool {
 		// Occasionally errors are given out for timing errors with
 		// ReduceMinDifficulty and high block works that is above
 		// the target. Feed these to debug.
-		if m.server.chainParams.ReduceMinDifficulty &&
+		if m.g.chainParams.ReduceMinDifficulty &&
 			rErr.ErrorCode == blockchain.ErrHighHash {
 			minrLog.Debugf("Block submitted via CPU miner rejected "+
 				"because of ReduceMinDifficulty time sync failure: %v",
@@ -158,7 +205,6 @@ func (m *CPUMiner) submitBlock(block *dcrutil.Block) bool {
 		// Other rule errors should be reported.
 		minrLog.Errorf("Block submitted via CPU miner rejected: %v", err)
 		return false
-
 	}
 	if isOrphan {
 		minrLog.Errorf("Block submitted via CPU miner is an orphan building "+
@@ -207,7 +253,7 @@ func (m *CPUMiner) solveBlock(msgBlock *wire.MsgBlock, ticker *time.Ticker,
 
 	// Initial state.
 	lastGenerated := time.Now()
-	lastTxUpdate := m.txSource.LastUpdated()
+	lastTxUpdate := m.g.txSource.LastUpdated()
 	hashesCompleted := uint64(0)
 
 	// Note that the entire extra nonce range is iterated and the offset is
@@ -220,8 +266,8 @@ func (m *CPUMiner) solveBlock(msgBlock *wire.MsgBlock, ticker *time.Ticker,
 
 		// Update the extra nonce in the block template with the
 		// new value by regenerating the coinbase script and
-		// setting the merkle root to the new value.  The
-		err := UpdateExtraNonce(msgBlock, blockHeight, ens)
+		// setting the merkle root to the new value.
+		err := m.g.UpdateExtraNonce(msgBlock, blockHeight, ens)
 		if err != nil {
 			minrLog.Warnf("Unable to update CPU miner extranonce: %v",
 				err)
@@ -244,14 +290,14 @@ func (m *CPUMiner) solveBlock(msgBlock *wire.MsgBlock, ticker *time.Ticker,
 				// has been updated since the block template was
 				// generated and it has been at least 3 seconds,
 				// or if it's been one minute.
-				if (lastTxUpdate != m.txSource.LastUpdated() &&
+				if (lastTxUpdate != m.g.txSource.LastUpdated() &&
 					time.Now().After(lastGenerated.Add(3*time.Second))) ||
 					time.Now().After(lastGenerated.Add(60*time.Second)) {
 
 					return false
 				}
 
-				err = UpdateBlockTime(msgBlock, m.server.blockManager)
+				err = m.g.UpdateBlockTime(msgBlock)
 				if err != nil {
 					minrLog.Warnf("CPU miner unable to update block template "+
 						"time: %v", err)
@@ -304,6 +350,14 @@ out:
 			// Non-blocking select to fall through
 		}
 
+		// Wait until there is a connection to at least one other peer
+		// since there is no way to relay a found block or receive
+		// transactions to work on when there are no connected peers.
+		if m.cfg.ConnectedCount() == 0 {
+			time.Sleep(time.Second)
+			continue
+		}
+
 		// No point in searching for a solution before the chain is
 		// synced.  Also, grab the same lock as used for block
 		// submission, since the current block will be changing and
@@ -315,7 +369,7 @@ out:
 		// Hacks to make dcr work with Decred PoC (simnet only)
 		// TODO Remove before production.
 		if cfg.SimNet {
-			_, curHeight := m.server.blockManager.chainState.Best()
+			curHeight := m.g.blockManager.chain.BestSnapshot().Height
 
 			if curHeight == 1 {
 				time.Sleep(5500 * time.Millisecond) // let wallet reconn
@@ -328,12 +382,12 @@ out:
 
 		// Choose a payment address at random.
 		rand.Seed(time.Now().UnixNano())
-		payToAddr := cfg.miningAddrs[rand.Intn(len(cfg.miningAddrs))]
+		payToAddr := m.cfg.MiningAddrs[rand.Intn(len(m.cfg.MiningAddrs))]
 
 		// Create a new block template using the available transactions
 		// in the memory pool as a source of transactions to potentially
 		// include in the block.
-		template, err := NewBlockTemplate(m.policy, m.server, payToAddr)
+		template, err := m.g.NewBlockTemplate(payToAddr)
 		m.submitBlockLock.Unlock()
 		if err != nil {
 			errStr := fmt.Sprintf("Failed to create new block "+
@@ -445,8 +499,8 @@ func (m *CPUMiner) Start() {
 	m.Lock()
 	defer m.Unlock()
 
-	// Nothing to do if the miner is already running or if running in discrete
-	// mode (using GenerateNBlocks).
+	// Nothing to do if the miner is already running or if running in
+	// discrete mode (using GenerateNBlocks).
 	if m.started || m.discreteMining {
 		return
 	}
@@ -558,17 +612,17 @@ func (m *CPUMiner) GenerateNBlocks(n uint32) ([]*chainhash.Hash, error) {
 	m.Lock()
 
 	// Respond with an error if there's virtually 0 chance of CPU-mining a block.
-	if !m.server.chainParams.GenerateSupported {
+	if !m.cfg.ChainParams.GenerateSupported {
 		m.Unlock()
 		return nil, errors.New("no support for `generate` on the current " +
-			"network, " + m.server.chainParams.Net.String() +
+			"network, " + m.cfg.ChainParams.Net.String() +
 			", as it's unlikely to be possible to CPU-mine a block.")
 	}
 
 	// Respond with an error if server is already mining.
 	if m.started || m.discreteMining {
 		m.Unlock()
-		return nil, errors.New("server is already CPU mining. Please call " +
+		return nil, errors.New("Server is already CPU mining. Please call " +
 			"`setgenerate 0` before calling discrete `generate` commands.")
 	}
 
@@ -607,12 +661,12 @@ func (m *CPUMiner) GenerateNBlocks(n uint32) ([]*chainhash.Hash, error) {
 
 		// Choose a payment address at random.
 		rand.Seed(time.Now().UnixNano())
-		payToAddr := cfg.miningAddrs[rand.Intn(len(cfg.miningAddrs))]
+		payToAddr := m.cfg.MiningAddrs[rand.Intn(len(m.cfg.MiningAddrs))]
 
 		// Create a new block template using the available transactions
 		// in the memory pool as a source of transactions to potentially
 		// include in the block.
-		template, err := NewBlockTemplate(m.policy, m.server, payToAddr)
+		template, err := m.g.NewBlockTemplate(payToAddr)
 		m.submitBlockLock.Unlock()
 		if err != nil {
 			errStr := fmt.Sprintf("Failed to create new block "+
@@ -653,11 +707,10 @@ func (m *CPUMiner) GenerateNBlocks(n uint32) ([]*chainhash.Hash, error) {
 // newCPUMiner returns a new instance of a CPU miner for the provided server.
 // Use Start to begin the mining process.  See the documentation for CPUMiner
 // type for more details.
-func newCPUMiner(policy *mining.Policy, s *server) *CPUMiner {
+func newCPUMiner(cfg *Config) *CPUMiner {
 	return &CPUMiner{
-		policy:            policy,
-		txSource:          s.txMemPool,
-		server:            s,
+		g:                 cfg.BlockTemplateGenerator,
+		cfg:               *cfg,
 		numWorkers:        defaultNumWorkers,
 		updateNumWorkers:  make(chan struct{}),
 		queryHashesPerSec: make(chan float64),
