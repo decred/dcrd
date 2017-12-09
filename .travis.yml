@@ -9,6 +9,26 @@ env:
   - GOVERSION = 1.8
   - GOVERSION = 1.9
 
+matrix:
+  include:
+    # build a library for iOS
+    - os: osx # gomobile: target=ios requires the host machine to be running OS X.
+      go: 1.9
+      install:
+        # setup the cocoapods master repo
+        - gem uninstall cocoapods -a -x
+        - gem install cocoapods
+        - pod setup --verbose
+      script:
+        - gomobile bind -target ios -v github.com/decred/dcrd/mobile
+      after_success:
+        # render cocoapods spec based on a template (project root directory)
+      before_deploy:
+        # ensure that we have a valid cocoapod spec
+        - pod spec lint template.podspec 
+      deploy:
+        - pod trunk push DCRD.podspec --allow-warnings --verbose
+
 install: true
 
 script:
