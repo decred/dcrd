@@ -28,6 +28,20 @@ matrix:
         - pod spec lint template.podspec 
       deploy:
         - pod trunk push DCRD.podspec --allow-warnings --verbose
+    
+    # build a library for Android
+    - os:
+      language: android
+      before_install:
+        # verify that the sdk and ndk are available
+        - 
+      script:
+        - gomobile init -ndk $ANDROID_NDK # install android compiler toolchain
+        - gomobile -target android -javapkg org.decred -v github.com/decred/dcrd/mobile
+      deploy:
+        # upload to Maven Central
+        - 
+  
 
 install: true
 
