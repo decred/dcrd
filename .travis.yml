@@ -21,9 +21,9 @@ matrix:
         - pod setup --verbose
       script:
         - gomobile bind -target ios -v github.com/decred/dcrd/mobile
-      after_success:
-        # render cocoapods spec based on a template (project root directory)
       before_deploy:
+        # render cocoapods spec based on a template (project root directory)
+        -
         # ensure that we have a valid cocoapod spec
         - pod spec lint template.podspec 
       deploy:
