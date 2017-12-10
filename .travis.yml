@@ -38,9 +38,12 @@ matrix:
       script:
         - gomobile init -ndk $ANDROID_NDK # install android compiler toolchain
         - gomobile -target android -javapkg org.decred -v github.com/decred/dcrd/mobile
+      before_deploy:
+        # import key
+        - gpg --import $MVN_KEY
       deploy:
-        # upload to Maven Central
-        - 
+        # sign & deploy to Maven Central
+        - mvn gpg:sign-and-deploy-file -settings=mobile/mvn.settings -Durl=url -Drepository=repo -DpomFile=mobile/pom.xml -Dfile=dcrd.aar
   
 
 install: true
