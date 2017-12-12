@@ -98,6 +98,12 @@ To run the tests locally without docker:
 ./run_tests.sh local
 ```
 
+### Build
+
+```
+docker build -t decred/dcrd .
+```
+
 ### Run
 
 You can also run `dcrd` with docker:
@@ -114,6 +120,33 @@ Ports:
 
 Any command passed to the container are `dcrd` arguments, like `--help`.
 
+Examples
+
+```
+docker run -v ~/decred_data:/var/lib/dcrd -v ~/decred_config:/etc/dcrd:ro decred
+```
+
+Or using [Docker Compose](https://docs.docker.com/compose/)
+
+```
+version: '3.3'
+
+volumes:
+  dcr-chain:
+    driver: local
+  dcr-config:
+    driver: local
+
+  dcr:
+    image: decred/dcrd:latest
+    restart: unless-stopped
+    ports:
+      - 9108:9108
+      - 9109:9109
+    volumes:
+      - dcr-config:/etc/dcrd
+      - dcr-chain:/var/lib/dcrd
+```
 
 ## Contact
 
