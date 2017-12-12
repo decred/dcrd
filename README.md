@@ -115,8 +115,10 @@ Volumes:
 
 Ports:
 
-- `9108` Network connections
-- `9109` RPC
+- `9108` Mainnet Network connections
+- `9109` Mainnet RPC
+- `19108` Testnet Network connections
+- `19109` Testnet RPC
 
 Any command passed to the container are `dcrd` arguments, like `--help`.
 

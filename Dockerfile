@@ -13,6 +13,10 @@ RUN apk --no-cache add ca-certificates
 COPY --from=builder /tmp/output/* /usr/local/bin/
 VOLUME /var/lib/dcrd
 VOLUME /etc/dcrd
+# mainnet
 EXPOSE 9108
 EXPOSE 9109
+# testnet
+EXPOSE 19108
+EXPOSE 19109 
 ENTRYPOINT [ "/usr/local/bin/dcrd", "--datadir=/var/lib/dcrd", "--nofilelogging", "--configfile=/etc/dcrd/config", "--rpccert=/etc/dcrd/rpc.cert", "--rpckey=rpc.key" ]
