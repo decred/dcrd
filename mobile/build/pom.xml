@@ -1,0 +1,31 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+           xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+           xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+                               http://maven.apache.org/maven-v4_0_0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>org.decred</groupId>
+  <artifactId>dcrd</artifactId>
+  <version>@TODO(rgeraldes)</version>
+  <packaging>aar</packaging>
+  <name>Dcrd client - Android</name>
+  <url>https://github.com/decred/dcrd</url>
+  <licenses>
+    <license>
+      <name></name>
+      <url></url>
+    </license>
+  </licenses>
+  <organization>
+    <name>Decred</name>
+    <url>https://decred.org/</url>
+  </organization>
+  <contributors>
+    <contributor>
+      <name>Ricardo Geraldes</name>
+      <email>rgeraldes24@gmail.com</email>
+    </contributor>
+  </contributors>
+  <scm>
+    <url>https://github.com/decred/dcrd</url>
+  </scm>
+</project>
