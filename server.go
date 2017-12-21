@@ -449,7 +449,8 @@ func (sp *serverPeer) OnGetMiningState(p *peer.Peer, msg *wire.MsgGetMiningState
 	// Access the block manager and get the list of best blocks to mine on.
 	bm := sp.server.blockManager
 	mp := sp.server.txMemPool
-	newest, height := bm.chainState.Best()
+	chainBest := bm.chain.BestSnapshot()
+	newest, height := chainBest.Hash, chainBest.Height
 
 	// Send out blank mining states if it's early in the blockchain.
 	if height < activeNetParams.StakeValidationHeight-1 {
@@ -2449,10 +2450,7 @@ func newServer(listenAddrs []string, db database.DB, chainParams *chaincfg.Param
 		},
 		ChainParams: chainParams,
 		NextStakeDifficulty: func() (int64, error) {
-			bm.chainState.Lock()
-			sDiff := bm.chainState.nextStakeDifficulty
-			bm.chainState.Unlock()
-			return sDiff, nil
+			return bm.chain.CalcNextRequiredStakeDifficulty()
 		},
 		FetchUtxoView:    bm.chain.FetchUtxoView,
 		BlockByHash:      bm.chain.BlockByHash,
