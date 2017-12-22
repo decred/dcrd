@@ -11,5 +11,13 @@ env:
 
 install: true
 
-script:
-  - ./run_tests.sh $GOVERSION
+script: ./run_tests.sh $GOVERSION
+
+jobs:
+  include:
+    - stage: deploy
+      script: docker build --rm -t decred/dcrd .
+      # - if [ "$TRAVIS_BRANCH" == "master" ]; then
+      #     docker login -u "$DOCKER_USERNAME" -p "$DOCKER_PASSWORD";
+      #     docker push decred/dcrd
+      #   fi
