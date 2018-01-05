@@ -40,7 +40,7 @@ testrepo () {
     --enable=vet \
     --enable=gosimple \
     --enable=unconvert \
-    --enable=ineffassign ./... | tee /dev/stderr
+    --enable=ineffassign ./...
   if [ $? != 0 ]; then
     echo 'gometalinter has some complaints'
     exit 1
