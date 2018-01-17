@@ -1862,13 +1862,6 @@ func (b *BlockChain) connectBestChain(node *blockNode, block *dcrutil.Block, fla
 	// We are extending the main (best) chain with a new block.  This is the
 	// most common case.
 	if node.header.PrevBlock == b.bestNode.hash {
-		// Fetch the best block, now the parent, to be able to
-		// connect the txTreeRegular if needed.
-		// TODO optimize by not fetching if not needed?
-		parent, err := b.fetchBlockFromHash(&node.header.PrevBlock)
-		if err != nil {
-			return false, err
-		}
 		// Perform several checks to verify the block can be connected
 		// to the main chain without violating any rules and without
 		// actually connecting the block.
@@ -1893,7 +1886,11 @@ func (b *BlockChain) connectBestChain(node *blockNode, block *dcrutil.Block, fla
 		// utxos, spend them, and add the new utxos being created by
 		// this block.
 		if fastAdd {
-			err := view.fetchInputUtxos(b.db, block, parent)
+			parent, err := b.fetchBlockFromHash(&node.header.PrevBlock)
+			if err != nil {
+				return false, err
+			}
+			err = view.fetchInputUtxos(b.db, block, parent)
 			if err != nil {
 				return false, err
 			}
@@ -1904,7 +1901,7 @@ func (b *BlockChain) connectBestChain(node *blockNode, block *dcrutil.Block, fla
 		}
 
 		// Connect the block to the main chain.
-		err = b.connectBlock(node, block, view, stxos)
+		err := b.connectBlock(node, block, view, stxos)
 		if err != nil {
 			return false, err
 		}
