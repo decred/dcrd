@@ -360,7 +360,7 @@ type Params struct {
 	BlockUpgradeNumToCheck uint64
 
 	// Mempool parameters
-	RelayNonStdTxs bool
+	AcceptNonStdTxs bool
 
 	// NetworkAddressPrefix is the first letter of the network
 	// for any given address encoded as a string.
@@ -627,7 +627,7 @@ var MainNetParams = Params{
 	BlockUpgradeNumToCheck:  1000,
 
 	// Mempool parameters
-	RelayNonStdTxs: false,
+	AcceptNonStdTxs: false,
 
 	// Address encoding magics
 	NetworkAddressPrefix: "D",
@@ -806,7 +806,7 @@ var TestNet2Params = Params{
 	BlockUpgradeNumToCheck:  100,
 
 	// Mempool parameters
-	RelayNonStdTxs: true,
+	AcceptNonStdTxs: true,
 
 	// Address encoding magics
 	NetworkAddressPrefix: "T",
@@ -1000,7 +1000,7 @@ var SimNetParams = Params{
 	BlockUpgradeNumToCheck:  100,
 
 	// Mempool parameters
-	RelayNonStdTxs: true,
+	AcceptNonStdTxs: true,
 
 	// Address encoding magics
 	NetworkAddressPrefix: "S",
