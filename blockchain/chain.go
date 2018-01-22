@@ -8,7 +8,9 @@ package blockchain
 import (
 	"container/list"
 	"fmt"
+	"github.com/decred/dcrd/blockchain/internal/dbnamespace"
 	"math/big"
+	"runtime"
 	"sort"
 	"sync"
 	"time"
@@ -50,13 +52,6 @@ const (
 	// fail.
 	maxSearchDepth = 2880
 )
-
-// VoteVersionTuple contains the extracted vote bits and version from votes
-// (SSGen).
-type VoteVersionTuple struct {
-	Version uint32
-	Bits    uint16
-}
 
 // blockNode represents a block within the block chain and is primarily used to
 // aid in selecting the best chain to be the main chain.  The main chain is
@@ -100,14 +95,14 @@ type blockNode struct {
 	ticketsRevoked []chainhash.Hash
 
 	// Keep track of all vote version and bits in this block.
-	votes []VoteVersionTuple
+	votes []stake.VoteVersionTuple
 }
 
 // newBlockNode returns a new block node for the given block header.  It is
 // completely disconnected from the chain and the workSum value is just the work
 // for the passed block.  The work sum is updated accordingly when the node is
 // inserted into a chain.
-func newBlockNode(blockHeader *wire.BlockHeader, ticketsSpent []chainhash.Hash, ticketsRevoked []chainhash.Hash, votes []VoteVersionTuple) *blockNode {
+func newBlockNode(blockHeader *wire.BlockHeader, spentTickets *stake.SpentTicketsInBlock) *blockNode {
 	// Make a copy of the hash so the node doesn't keep a reference to part
 	// of the full block/block header preventing it from being garbage
 	// collected.
@@ -116,9 +111,9 @@ func newBlockNode(blockHeader *wire.BlockHeader, ticketsSpent []chainhash.Hash, 
 		workSum:        CalcWork(blockHeader.Bits),
 		height:         int64(blockHeader.Height),
 		header:         *blockHeader,
-		ticketsSpent:   ticketsSpent,
-		ticketsRevoked: ticketsRevoked,
-		votes:          votes,
+		ticketsSpent:   spentTickets.VotedTickets,
+		ticketsRevoked: spentTickets.RevokedTickets,
+		votes:          spentTickets.Votes,
 	}
 	return &node
 }
@@ -300,7 +295,7 @@ type StakeVersions struct {
 	Height       int64
 	BlockVersion int32
 	StakeVersion uint32
-	Votes        []VoteVersionTuple
+	Votes        []stake.VoteVersionTuple
 }
 
 // GetStakeVersions returns a cooked array of StakeVersions.  We do this in
@@ -623,10 +618,19 @@ func (b *BlockChain) loadBlockNode(dbTx database.Tx, hash *chainhash.Hash) (*blo
 	}
 
 	blockHeader := block.MsgBlock().Header
-	node := newBlockNode(&blockHeader, ticketsSpentInBlock(block),
-		ticketsRevokedInBlock(block), voteBitsInBlock(block))
+	node := newBlockNode(&blockHeader, stake.FindSpentTicketsInBlock(block.MsgBlock()))
 	node.inMainChain = true
-	prevHash := &blockHeader.PrevBlock
+	err = b.loadNode(node)
+	if err != nil {
+		return nil, err
+	}
+
+	return node, nil
+}
+
+func (b *BlockChain) loadNode(node *blockNode) error {
+	prevHash := &node.header.PrevBlock
+	hash := &node.hash
 
 	// Add the node to the chain.
 	// There are a few possibilities here:
@@ -668,7 +672,7 @@ func (b *BlockChain) loadBlockNode(dbTx database.Tx, hash *chainhash.Hash) (*blo
 			node.parent = foundParent
 		} else {
 			str := "loadBlockNode: attempt to insert orphan block %v"
-			return nil, AssertError(fmt.Sprintf(str, hash))
+			return AssertError(fmt.Sprintf(str, hash))
 		}
 	}
 
@@ -676,7 +680,7 @@ func (b *BlockChain) loadBlockNode(dbTx database.Tx, hash *chainhash.Hash) (*blo
 	b.index[*hash] = node
 	b.depNodes[*prevHash] = append(b.depNodes[*prevHash], node)
 
-	return node, nil
+	return nil
 }
 
 // findNode finds the node scaling backwards from best chain or return an
@@ -826,6 +830,109 @@ func (b *BlockChain) ancestorNode(node *blockNode, height int64) (*blockNode, er
 	}
 
 	return iterNode, nil
+}
+
+// FIXME document
+func (b *BlockChain) LoadAllBlocksByBatchHeader() error {
+
+	bucketName := "chum-bucket13" // FIXME: just a test, won't remain here.
+
+	if b.bestNode.height < 2 {
+		return nil
+	}
+
+	b.db.Update(func(dbTx database.Tx) error {
+		meta := dbTx.Metadata()
+		_, err := meta.CreateBucketIfNotExists([]byte(bucketName))
+		if err != nil {
+			panic(err)
+		}
+		return nil
+	})
+
+	return b.db.Update(func(dbTx database.Tx) error {
+
+		meta := dbTx.Metadata()
+		heightIndex := meta.Bucket(dbnamespace.HeightIndexBucketName)
+		voteIndex := meta.Bucket([]byte(bucketName))
+
+		var blockNodeForHeight = func(height int64) *blockNode {
+			var serializedHeight [4]byte
+			var voteInfo *stake.SpentTicketsInBlock
+			var hash chainhash.Hash
+
+			dbnamespace.ByteOrder.PutUint32(serializedHeight[:], uint32(height))
+			hashBytes := heightIndex.Get(serializedHeight[:])
+			if hashBytes == nil {
+				str := fmt.Sprintf("no block at height %d exists", height)
+				panic(str)
+			}
+			copy(hash[:], hashBytes)
+
+			header, err := dbFetchHeaderByHash(dbTx, &hash)
+			if err != nil {
+				panic(err)
+			}
+
+			serializedVoteInfo := voteIndex.Get(hash[:])
+			if serializedVoteInfo == nil {
+				block, err := b.fetchBlockFromHash(&hash)
+				if err != nil {
+					panic(err)
+				}
+				voteInfo = stake.FindSpentTicketsInBlock(block.MsgBlock())
+				if err != nil {
+					panic(err)
+				}
+				serializedVoteInfo, err = voteInfo.ToBytes()
+				if err != nil {
+					panic(err)
+				}
+				voteIndex.Put(hash[:], serializedVoteInfo[:])
+			} else {
+				voteInfo = &stake.SpentTicketsInBlock{}
+				voteInfo.FromBytes(serializedVoteInfo)
+			}
+
+			node := newBlockNode(header, voteInfo)
+			node.inMainChain = true
+			return node
+		}
+
+		var workThreads int64 = int64(runtime.NumCPU())
+		if workThreads > b.bestNode.height-1 {
+			workThreads = b.bestNode.height - 1
+		}
+		workers := make([]chan *blockNode, workThreads)
+
+		var startWorkOn = func(height int64) {
+			idxWorker := height % workThreads
+			workers[idxWorker] <- blockNodeForHeight(height)
+		}
+
+		for i := range workers {
+			workers[i] = make(chan *blockNode)
+			go startWorkOn(b.bestNode.height - 1 - int64(i))
+		}
+
+		// load ordered by height
+		for height := b.bestNode.height - 1; height > 0; height-- {
+			idxWorker := height % workThreads
+
+			node := <-workers[idxWorker]
+
+			err := b.loadNode(node)
+			if err != nil {
+				panic(err)
+			}
+
+			if height-workThreads > 0 {
+				go startWorkOn(height - workThreads)
+			}
+		}
+
+		return nil
+	})
 }
 
 // fetchBlockFromHash searches the internal chain block stores and the database in

@@ -2609,12 +2609,19 @@ func newBlockManager(s *server, indexManager blockchain.IndexManager) (*blockMan
 		return nil, err
 	}
 
+	err = bm.chain.LoadAllBlocksByBatchHeader()
+	if err != nil {
+		return nil, err
+	}
+	bmgrLog.Infof("Loaded all block nodes from db")
+
 	// Retrieve the current previous block hash and next stake difficulty.
 	curPrevHash := bm.chain.BestPrevHash()
 	nextStakeDiff, err := bm.chain.CalcNextRequiredStakeDifficulty()
 	if err != nil {
 		return nil, err
 	}
+	bmgrLog.Infof("Next required Stake difficulty: %d", nextStakeDiff)
 
 	bm.updateChainState(best.Hash,
 		best.Height,
