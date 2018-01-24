@@ -7,7 +7,9 @@ package blockchain
 
 import (
 	"container/list"
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"math/big"
 	"sort"
 	"sync"
@@ -1235,6 +1237,14 @@ func (b *BlockChain) connectBlock(node *blockNode, block *dcrutil.Block, view *U
 	// Prune fully spent entries and mark all entries in the view unmodified
 	// now that the modifications have been committed to the database.
 	view.commit()
+
+	hs := node.stakeNode.LiveTickets()
+	ticketPool := make([]string, 0, len(hs))
+	for i := range hs {
+		ticketPool = append(ticketPool, hs[i].String())
+	}
+	ticketPoolJSON, _ := json.Marshal(ticketPool)
+	ioutil.WriteFile(fmt.Sprintf("ticketpool-%d", node.height), ticketPoolJSON, 0644)
 
 	// Add the new node to the memory main chain indices for faster
 	// lookups.
