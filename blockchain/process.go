@@ -45,7 +45,7 @@ const (
 // This function MUST be called with the chain state lock held (for reads).
 func (b *BlockChain) blockExists(hash *chainhash.Hash) (bool, error) {
 	// Check memory chain first (could be main chain or side chain blocks).
-	if _, ok := b.index[*hash]; ok {
+	if b.index.HaveBlock(hash) {
 		return true, nil
 	}
 

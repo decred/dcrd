@@ -55,8 +55,8 @@ func (b *BlockChain) blockLocatorFromHash(hash *chainhash.Hash) BlockLocator {
 	// which it forks from the main chain.
 	blockHeight := int64(-1)
 	forkHeight := int64(-1)
-	node, exists := b.index[*hash]
-	if !exists {
+	node := b.index.LookupNode(hash)
+	if node == nil {
 		// Try to look up the height for passed block hash.  Assume an
 		// error means it doesn't exist and just return the locator for
 		// the block itself.
@@ -72,6 +72,7 @@ func (b *BlockChain) blockLocatorFromHash(hash *chainhash.Hash) BlockLocator {
 
 		blockHeight = height
 	} else {
+
 		blockHeight = node.height
 
 		// Find the height at which this node forks from the main chain

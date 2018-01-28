@@ -222,7 +222,7 @@ type BlockChain struct {
 	// These fields are related to the memory block index.  They are
 	// protected by the chain lock.
 	bestNode *blockNode
-	index    map[chainhash.Hash]*blockNode
+	index    *blockIndex
 	depNodes map[chainhash.Hash][]*blockNode
 
 	// These fields are related to handling of orphan blocks.  They are
@@ -634,12 +634,13 @@ func (b *BlockChain) loadBlockNode(dbTx database.Tx, hash *chainhash.Hash) (*blo
 	//  2) This node is the parent of one or more nodes
 	//  3) Neither 1 or 2 is true which implies it's an orphan block and
 	//     therefore is an error to insert into the chain
-	if parentNode, ok := b.index[*prevHash]; ok {
+	if b.index.HaveBlock(prevHash) {
 		// Case 1 -- This node is a child of an existing block node.
 		// Update the node's work sum with the sum of the parent node's
 		// work sum and this node's work, append the node as a child of
 		// the parent node and set this node's parent to the parent
 		// node.
+		parentNode := b.index.LookupNode(prevHash)
 		node.workSum = node.workSum.Add(parentNode.workSum, node.workSum)
 		parentNode.children = append(parentNode.children, node)
 		node.parent = parentNode
@@ -673,7 +674,7 @@ func (b *BlockChain) loadBlockNode(dbTx database.Tx, hash *chainhash.Hash) (*blo
 	}
 
 	// Add the new node to the indices for faster lookups.
-	b.index[*hash] = node
+	b.index.AddNode(node)
 	b.depNodes[*prevHash] = append(b.depNodes[*prevHash], node)
 
 	return node, nil
@@ -749,8 +750,8 @@ func (b *BlockChain) getPrevNodeFromBlock(block *dcrutil.Block) (*blockNode, err
 	}
 
 	// Return the existing previous block node if it's already there.
-	if bn, ok := b.index[*prevHash]; ok {
-		return bn, nil
+	if b.index.HaveBlock(prevHash) {
+		return b.index.LookupNode(prevHash), nil
 	}
 
 	// Dynamically load the previous block from the block database, create
@@ -1236,7 +1237,7 @@ func (b *BlockChain) connectBlock(node *blockNode, block *dcrutil.Block, view *U
 	// Add the new node to the memory main chain indices for faster
 	// lookups.
 	node.inMainChain = true
-	b.index[node.hash] = node
+	b.index.AddNode(node)
 	b.depNodes[prevHash] = append(b.depNodes[prevHash], node)
 
 	// This node is now the end of the best chain.
@@ -1938,7 +1939,7 @@ func (b *BlockChain) connectBestChain(node *blockNode, block *dcrutil.Block, fla
 	b.blockCacheLock.Lock()
 	b.blockCache[node.hash] = block
 	b.blockCacheLock.Unlock()
-	b.index[node.hash] = node
+	b.index.AddNode(node)
 
 	// Connect the parent node to this node.
 	node.inMainChain = false
@@ -1952,7 +1953,7 @@ func (b *BlockChain) connectBestChain(node *blockNode, block *dcrutil.Block, fla
 			children = removeChildNode(children, node)
 			node.parent.children = children
 
-			delete(b.index, node.hash)
+			b.index.RemoveNode(&node.hash)
 			b.blockCacheLock.Lock()
 			delete(b.blockCache, node.hash)
 			b.blockCacheLock.Unlock()
@@ -2212,7 +2213,7 @@ func New(config *Config) (*BlockChain, error) {
 		sigCache:                      config.SigCache,
 		indexManager:                  config.IndexManager,
 		bestNode:                      nil,
-		index:                         make(map[chainhash.Hash]*blockNode),
+		index:                         newBlockIndex(config.DB, params),
 		depNodes:                      make(map[chainhash.Hash][]*blockNode),
 		orphans:                       make(map[chainhash.Hash]*orphanBlock),
 		prevOrphans:                   make(map[chainhash.Hash][]*orphanBlock),

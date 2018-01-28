@@ -30,7 +30,7 @@ func newFakeChain(params *chaincfg.Params) *BlockChain {
 		chainParams:      params,
 		deploymentCaches: newThresholdCaches(params),
 		bestNode:         node,
-		index:            index,
+		index:            newBlockIndex(nil, params),
 		isVoterMajorityVersionCache:   make(map[[stakeMajorityCacheKeySize]byte]bool),
 		isStakeMajorityVersionCache:   make(map[[stakeMajorityCacheKeySize]byte]bool),
 		calcPriorStakeVersionCache:    make(map[[chainhash.HashSize]byte]uint32),

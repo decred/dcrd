@@ -51,8 +51,8 @@ func (b *BlockChain) lotteryDataForNode(node *blockNode) ([]chainhash.Hash, int,
 // held for write access.
 func (b *BlockChain) lotteryDataForBlock(hash *chainhash.Hash) ([]chainhash.Hash, int, [6]byte, error) {
 	var node *blockNode
-	if n, exists := b.index[*hash]; exists {
-		node = n
+	if b.index.HaveBlock(hash) {
+		node = b.index.LookupNode(hash)
 	} else {
 		var err error
 		node, err = b.findNode(hash, maxSearchDepth)
