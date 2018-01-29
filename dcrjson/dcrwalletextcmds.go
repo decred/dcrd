@@ -521,6 +521,13 @@ func NewStakePoolUserInfoCmd(user string) *StakePoolUserInfoCmd {
 		User: user,
 	}
 }
+// VerifySeedCmd defines the verifyseed JSON-RPC command. 
+type VerifySeedCmd struct {
+	
+}
+
+//NewVerifySeedCmd returns a new instance which can b eused to issue a walletinfo JSON-RPC command/ 
+func NewVerifySeedCmd(
 
 // WalletInfoCmd defines the walletinfo JSON-RPC command.
 type WalletInfoCmd struct {
@@ -568,5 +575,6 @@ func init() {
 	MustRegisterCmd("setvotechoice", (*SetVoteChoiceCmd)(nil), flags)
 	MustRegisterCmd("signrawtransactions", (*SignRawTransactionsCmd)(nil), flags)
 	MustRegisterCmd("stakepooluserinfo", (*StakePoolUserInfoCmd)(nil), flags)
+	MustRegisterCmd("verifyseed", (*VerifySeedCmd)(nil), flags)
 	MustRegisterCmd("walletinfo", (*WalletInfoCmd)(nil), flags)
 }
