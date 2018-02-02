@@ -7,10 +7,8 @@ package mempool
 
 import (
 	"container/list"
-	"crypto/rand"
 	"fmt"
 	"math"
-	"math/big"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -147,11 +145,10 @@ type Policy struct {
 	// transactions that do not have enough priority to be relayed.
 	DisableRelayPriority bool
 
-	// RelayNonStd defines whether to relay non-standard transactions. If
-	// true, non-standard transactions will be accepted into the mempool
-	// and relayed. Otherwise, all non-standard transactions will be
-	// rejected.
-	RelayNonStd bool
+	// AcceptNonStd defines whether to accept non-standard transactions. If
+	// true, non-standard transactions will be accepted into the mempool.
+	// Otherwise, all non-standard transactions will be rejected.
+	AcceptNonStd bool
 
 	// FreeTxRelayLimit defines the given amount in thousands of bytes
 	// per minute that transactions with no fee are rate limited to.
@@ -350,35 +347,19 @@ func (mp *TxPool) RemoveOrphan(txHash *chainhash.Hash) {
 //
 // This function MUST be called with the mempool lock held (for writes).
 func (mp *TxPool) limitNumOrphans() error {
-	if len(mp.orphans)+1 > mp.cfg.Policy.MaxOrphanTxs &&
-		mp.cfg.Policy.MaxOrphanTxs > 0 {
+	if len(mp.orphans)+1 <= mp.cfg.Policy.MaxOrphanTxs {
+		return nil
+	}
 
-		// Generate a cryptographically random hash.
-		randHashBytes := make([]byte, chainhash.HashSize)
-		_, err := rand.Read(randHashBytes)
-		if err != nil {
-			return err
-		}
-		randHashNum := new(big.Int).SetBytes(randHashBytes)
-
-		// Try to find the first entry that is greater than the random
-		// hash.  Use the first entry (which is already pseudorandom due
-		// to Go's range statement over maps) as a fallback if none of
-		// the hashes in the orphan pool are larger than the random
-		// hash.
-		var foundHash *chainhash.Hash
-		for txHash := range mp.orphans {
-			if foundHash == nil {
-				foundHash = &txHash
-			}
-			txHashNum := blockchain.HashToBig(&txHash)
-			if txHashNum.Cmp(randHashNum) > 0 {
-				foundHash = &txHash
-				break
-			}
-		}
-
-		mp.removeOrphan(foundHash)
+	// Remove a random entry from the map.  For most compilers, Go's
+	// range statement iterates starting at a random item although
+	// that is not 100% guaranteed by the spec.  The iteration order
+	// is not important here because an adversary would have to be
+	// able to pull off preimage attacks on the hashing function in
+	// order to target eviction of specific entries anyways.
+	for txHash := range mp.orphans {
+		mp.removeOrphan(&txHash)
+		break
 	}
 
 	return nil
@@ -388,6 +369,11 @@ func (mp *TxPool) limitNumOrphans() error {
 //
 // This function MUST be called with the mempool lock held (for writes).
 func (mp *TxPool) addOrphan(tx *dcrutil.Tx) {
+	// Nothing to do if no orphans are allowed.
+	if mp.cfg.Policy.MaxOrphanTxs <= 0 {
+		return
+	}
+
 	// Limit the number orphan transactions to prevent memory exhaustion.  A
 	// random orphan is evicted to make room if needed.
 	mp.limitNumOrphans()
@@ -831,9 +817,9 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 	}
 
 	// Don't allow non-standard transactions if the network parameters
-	// forbid their relaying.
+	// forbid their acceptance.
 	medianTime := mp.cfg.PastMedianTime()
-	if !mp.cfg.Policy.RelayNonStd {
+	if !mp.cfg.Policy.AcceptNonStd {
 		err := checkTransactionStandard(tx, txType, nextBlockHeight,
 			medianTime, mp.cfg.Policy.MinRelayTxFee,
 			mp.cfg.Policy.MaxTxVersion)
@@ -1018,8 +1004,8 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 	}
 
 	// Don't allow transactions with non-standard inputs if the network
-	// parameters forbid their relaying.
-	if !mp.cfg.Policy.RelayNonStd {
+	// parameters forbid their acceptance.
+	if !mp.cfg.Policy.AcceptNonStd {
 		err := checkInputsStandard(tx, txType, utxoView)
 		if err != nil {
 			// Attempt to extract a reject code from the error so

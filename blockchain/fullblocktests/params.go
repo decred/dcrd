@@ -246,7 +246,7 @@ var simNetParams = &chaincfg.Params{
 	BlockUpgradeNumToCheck:  100,
 
 	// Mempool parameters
-	RelayNonStdTxs: true,
+	AcceptNonStdTxs: true,
 
 	// Address encoding magics
 	NetworkAddressPrefix: "S",
