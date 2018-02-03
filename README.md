@@ -84,6 +84,8 @@ our docs page at [docs.decred.org](https://docs.decred.org/getting-started/begin
 
 ## Docker
 
+### Build and tests
+
 All tests and linters may be run in a docker container using the script `run_tests.sh`.  This script defaults to using the current supported version of go.  You can run it with the major version of go you would like to use as the only arguement to test a previous on a previous version of go (generally decred supports the current version of go and the previous one).
 
 ```
@@ -94,6 +96,58 @@ To run the tests locally without docker:
 
 ```
 ./run_tests.sh local
+```
+
+### Build
+
+```
+docker build -t decred/dcrd .
+```
+
+### Run
+
+You can also run `dcrd` with docker:
+
+Volumes:
+
+- `/etc/dcrd` hold `config`, `rpc.cert ` and `rpc.key` if you want to set any of these.
+- `/var/lib/dcrd` is where the persistent data is stored, such as the blockchain
+
+Ports:
+
+- `9108` Mainnet Network connections
+- `9109` Mainnet RPC
+- `19108` Testnet Network connections
+- `19109` Testnet RPC
+
+Any command passed to the container are `dcrd` arguments, like `--help`.
+
+Examples
+
+```
+docker run -v ~/decred_data:/var/lib/dcrd -v ~/decred_config:/etc/dcrd:ro decred
+```
+
+Or using [Docker Compose](https://docs.docker.com/compose/)
+
+```
+version: '3.3'
+
+volumes:
+  dcr-chain:
+    driver: local
+  dcr-config:
+    driver: local
+
+  dcr:
+    image: decred/dcrd:latest
+    restart: unless-stopped
+    ports:
+      - 9108:9108
+      - 9109:9109
+    volumes:
+      - dcr-config:/etc/dcrd
+      - dcr-chain:/var/lib/dcrd
 ```
 
 ## Contact
