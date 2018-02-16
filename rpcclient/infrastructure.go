@@ -159,6 +159,9 @@ type Client struct {
 	disconnect      chan struct{}
 	shutdown        chan struct{}
 	wg              sync.WaitGroup
+
+	//balancer
+	rrbalancer *RoundRobinBalancer
 }
 
 // NextID returns the next id to be used when sending a JSON-RPC message.  This
@@ -419,17 +422,19 @@ out:
 			break out
 		default:
 		}
-
-		_, msg, err := c.wsConn.ReadMessage()
-		if err != nil {
-			// Log the error if it's not due to disconnecting.
-			if c.shouldLogReadError(err) {
-				log.Errorf("Websocket receive error from "+
-					"%s: %v", c.config.Host, err)
+		//check for all wsConns with balancer
+		for host := range c.rrbalancer.wsConns {
+			_, msg, err := c.rrbalancer.wsConns[host].ReadMessage()
+			if err != nil {
+				// Log the error if it's not due to disconnecting.
+				if c.shouldLogReadError(err) {
+					log.Errorf("Websocket receive error from "+
+						"%s: %v", c.config.Host, err)
+				}
+				break out
 			}
-			break out
+			c.handleMessage(msg)
 		}
-		c.handleMessage(msg)
 	}
 
 	// Ensure the connection is closed.
@@ -458,7 +463,12 @@ out:
 		// disconnected closed.
 		select {
 		case msg := <-c.sendChan:
-			err := c.wsConn.WriteMessage(websocket.TextMessage, msg)
+			conn, _, err := c.rrbalancer.Get()
+			if err != nil {
+				log.Tracef("RPC client balancer error: %s", err)
+				break out
+			}
+			err = conn.WriteMessage(websocket.TextMessage, msg)
 			if err != nil {
 				c.Disconnect()
 				break out
@@ -824,7 +834,12 @@ func (c *Client) sendPost(jReq *jsonRequest) {
 	if !c.config.DisableTLS {
 		protocol = "https"
 	}
-	url := protocol + "://" + c.config.Host
+	_, conn, err := c.rrbalancer.Get()
+	if err != nil {
+		jReq.responseChan <- &response{result: nil, err: err}
+		return
+	}
+	url := protocol + "://" + conn.Host
 	bodyReader := bytes.NewReader(jReq.marshalledJSON)
 	httpReq, err := http.NewRequest("POST", url, bodyReader)
 	if err != nil {
@@ -950,9 +965,7 @@ func (c *Client) doDisconnect() bool {
 
 	log.Tracef("Disconnecting RPC client %s", c.config.Host)
 	close(c.disconnect)
-	if c.wsConn != nil {
-		c.wsConn.Close()
-	}
+	c.rrbalancer.Close()
 	c.disconnected = true
 	return true
 }
@@ -1035,7 +1048,7 @@ func (c *Client) Shutdown() {
 
 // start begins processing input and output messages.
 func (c *Client) start() {
-	log.Tracef("Starting RPC client %s", c.config.Host)
+	log.Tracef("Starting RPC client")
 
 	// Start the I/O processing handlers depending on whether the client is
 	// in HTTP POST mode or the default websocket mode.
@@ -1122,6 +1135,9 @@ type ConnConfig struct {
 	// however, not all servers support the websocket extensions, so this
 	// flag can be set to true to use basic HTTP POST requests instead.
 	HTTPPostMode bool
+
+	//probable address points to be used for round-robin
+	HostAddresses []HostAddress
 }
 
 // newHTTPClient returns a new http client that is configured according to the
@@ -1250,12 +1266,13 @@ func New(config *ConnConfig, ntfnHandlers *NotificationHandlers) (*Client, error
 	} else {
 		if !config.DisableConnectOnNew {
 			var err error
-			wsConn, err = dial(config)
+			//wsConn, err = dial(config)
 			if err != nil {
 				return nil, err
 			}
 			start = true
 		}
+
 	}
 
 	client := &Client{
@@ -1272,10 +1289,17 @@ func New(config *ConnConfig, ntfnHandlers *NotificationHandlers) (*Client, error
 		disconnect:      make(chan struct{}),
 		shutdown:        make(chan struct{}),
 	}
-
+	//setup balancer
+	client.rrbalancer = client.BuildBalancer(config)
+	if !config.HTTPPostMode && !config.DisableConnectOnNew {
+		var err error
+		_, _, err = client.rrbalancer.Get()
+		if err != nil {
+			return nil, err
+		}
+		start = true
+	}
 	if start {
-		log.Infof("Established connection to RPC server %s",
-			config.Host)
 		close(connEstablished)
 		client.start()
 		if !client.config.HTTPPostMode && !client.config.DisableAutoReconnect {
