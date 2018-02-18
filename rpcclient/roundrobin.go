@@ -32,8 +32,6 @@ func (s ConnectionState) String() string {
 	case Shutdown:
 		return "SHUTDOWN"
 	default:
-		//TODO: check if there is dcrd err log handler that needs to be informed of this invalid state
-		//log eg. grpclog.Errorf("unknown connectivity state: %d", s)
 		return "Invalid-State"
 	}
 }
@@ -159,7 +157,6 @@ func (rrb *RoundRobinBalancer) Get() (*websocket.Conn, *HostAddress, error) {
 			rrb.waitToConnect = make(chan struct{})
 			rrb.connConfig.Host = hostAddress.Host
 			rrb.connConfig.Endpoint = hostAddress.Endpoint
-			//rrb.connConfig.DisableTLS = hostAddress.DisableTLS
 			wsConn, err = dial(rrb.connConfig)
 			close(rrb.waitToConnect)
 			if err != nil {
