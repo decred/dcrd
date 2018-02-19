@@ -8,6 +8,7 @@ package fullblocktests
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"math"
@@ -1089,6 +1090,80 @@ func Generate(includeLargeReorg bool) (tests [][]TestInstance, err error) {
 	})
 	rejected(blockchain.ErrFreshStakeMismatch)
 
+	// Attempt to add block with tickets voting on the wrong block
+	//
+	//   ... -> b36(8)
+	//                \-> bv5(9)
+	g.SetTip("b36")
+	g.NextBlock("bv5", outs[9], ticketOuts[9], func(b *wire.MsgBlock) {
+		wrongBlockScript, _ := hex.DecodeString("6a24008e029f92ae880d45ae61a5366b" +
+			"b81d9903c5e61045c5b17f1bc97260f8e54497000000")
+		b.STransactions[0].TxOut[0].PkScript = wrongBlockScript
+	})
+	rejected(blockchain.ErrVotesOnWrongBlock)
+
+	// Attempt to add block with incorrect votebits set
+	// Everyone votes Yea, but block header says Nay
+	//
+	//   ... -> b36(8)
+	//                \-> bv5(9)
+	g.SetTip("b36")
+	g.NextBlock("bv5", outs[9], ticketOuts[9], func(b *wire.MsgBlock) {
+		b.Header.VoteBits &= 0xFFFE
+	})
+	rejected(blockchain.ErrIncongruentVotebit)
+
+	// Attempt to add block with incorrect votebits set
+	// Everyone votes Nay, but block header says Yea
+	//
+	//   ... -> b36(8)
+	//                \-> bv5(9)
+	g.SetTip("b36")
+	g.NextBlock("bv5", outs[9], ticketOuts[9], func(b *wire.MsgBlock) {
+		b.Header.VoteBits = 0x0001
+		for i, stx := range b.STransactions {
+			if i < 5 {
+				// VoteBits is encoded little endian.
+				stx.TxOut[1].PkScript[2] = 0x00
+			}
+		}
+	})
+	rejected(blockchain.ErrIncongruentVotebit)
+
+	// Attempt to add block with incorrect votebits set
+	// 3x Nay 2x Yea, but block header says Yea
+	//
+	//   ... -> b36(8)
+	//                \-> bv5(9)
+	g.SetTip("b36")
+	g.NextBlock("bv5", outs[9], ticketOuts[9], func(b *wire.MsgBlock) {
+		b.Header.VoteBits = 0x0001
+		for i, stx := range b.STransactions {
+			if i < 3 {
+				// VoteBits is encoded little endian.
+				stx.TxOut[1].PkScript[2] = 0x00
+			}
+		}
+	})
+	rejected(blockchain.ErrIncongruentVotebit)
+
+	// Attempt to add block with incorrect votebits set
+	// 2x Nay 3x Yea, but block header says Nay
+	//
+	//   ... -> b36(8)
+	//                \-> bv5(9)
+	g.SetTip("b36")
+	g.NextBlock("bv5", outs[9], ticketOuts[9], func(b *wire.MsgBlock) {
+		b.Header.VoteBits = 0x0000
+		for i, stx := range b.STransactions {
+			if i < 2 {
+				// VoteBits is encoded little endian.
+				stx.TxOut[1].PkScript[2] = 0x00
+			}
+		}
+	})
+	rejected(blockchain.ErrIncongruentVotebit)
+
 	// ---------------------------------------------------------------------
 	// Stake ticket difficulty tests.
 	// ---------------------------------------------------------------------
@@ -1456,7 +1531,8 @@ func Generate(includeLargeReorg bool) (tests [][]TestInstance, err error) {
 	})
 	rejected(blockchain.ErrTimeTooNew)
 
-	// Create block with an invalid merkle root.
+	// Create block with an invalid merkle root by corrupting
+	// the merkle root of the regular tx tree.
 	//
 	//   ... -> b46(14)
 	//                 \-> b51(15)
@@ -1466,6 +1542,58 @@ func Generate(includeLargeReorg bool) (tests [][]TestInstance, err error) {
 	})
 	g.AssertTipBlockMerkleRoot(chainhash.Hash{})
 	rejected(blockchain.ErrBadMerkleRoot)
+
+	// Create block with an invalid merkle root by corrupting
+	// the merkle root of the stake tx tree.
+	//
+	//   ... -> b46(14)
+	//                 \-> b51(15)
+	g.SetTip("b46")
+	g.NextBlock("b51", outs[15], ticketOuts[15], func(b *wire.MsgBlock) {
+		b.Header.StakeRoot = chainhash.Hash{}
+	})
+	g.AssertTipBlockStakeRoot(chainhash.Hash{})
+	rejected(blockchain.ErrBadMerkleRoot)
+
+	// Create block with an invalid block size
+	//
+	//   ... -> b46(14)
+	//                 \-> b51(15)
+	g.SetTip("b46")
+	g.NextBlock("b51", outs[15], ticketOuts[15], func(b *wire.MsgBlock) {
+		b.Header.Size = 0x20ffff71
+	})
+	rejected(blockchain.ErrWrongBlockSize)
+
+	// Create block with an invalid subsidy for a coinbase input.
+	//
+	//   ... -> b46(14)
+	//                 \-> b52(15)
+	g.SetTip("b46")
+	g.NextBlock("b52", outs[15], ticketOuts[15], func(b *wire.MsgBlock) {
+		b.Transactions[0].TxIn[0].ValueIn = 1234567890123456
+	})
+	rejected(blockchain.ErrBadCoinbaseAmountIn)
+
+	// Create block with an invalid subsidy for a stakebase input.
+	//
+	//   ... -> b46(14)
+	//                 \-> b52(15)
+	g.SetTip("b46")
+	g.NextBlock("b52", outs[15], ticketOuts[15], func(b *wire.MsgBlock) {
+		b.STransactions[0].TxIn[0].ValueIn = 1234567890123456
+	})
+	rejected(blockchain.ErrBadStakebaseAmountIn)
+
+	// Create block with a revocations count mismatch.
+	//
+	//   ... -> b46(14)
+	//                 \-> b52(15)
+	g.SetTip("b46")
+	g.NextBlock("b52", outs[15], ticketOuts[15], func(b *wire.MsgBlock) {
+		b.Header.Revocations = 2
+	})
+	rejected(blockchain.ErrRevocationsMismatch)
 
 	// Create block with an invalid proof-of-work limit.
 	//

@@ -2091,6 +2091,17 @@ func (g *Generator) AssertTipBlockMerkleRoot(expected chainhash.Hash) {
 	}
 }
 
+// AssertTipBlockStakeRoot panics if the stake root in header of the current
+// tip block associated with the generator does not match the specified hash.
+func (g *Generator) AssertTipBlockStakeRoot(expected chainhash.Hash) {
+	hash := g.tip.Header.StakeRoot
+	if hash != expected {
+		panic(fmt.Sprintf("stake root of block %q (height %d) is %v "+
+			"instead of expected %v", g.tipName,
+			g.tip.Header.Height, hash, expected))
+	}
+}
+
 // AssertTipBlockTxOutOpReturn panics if the current tip block associated with
 // the generator does not have an OP_RETURN script for the transaction output at
 // the provided tx index and output index.
