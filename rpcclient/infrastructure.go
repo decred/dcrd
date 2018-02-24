@@ -422,7 +422,7 @@ out:
 		for i := 0; i < len(c.config.HostAddresses); i++ {
 			hostAdd := c.config.HostAddresses[i]
 			wsConn, connOk := c.rrbalancer.GetWsConnection(hostAdd.Host)
-			if connOk == true {
+			if connOk {
 				_, msg, err := wsConn.ReadMessage()
 				if err != nil {
 					// Log the error if it's not due to disconnecting.

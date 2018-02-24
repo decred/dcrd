@@ -178,7 +178,6 @@ func (rrb *RoundRobinBalancer) Get() (*websocket.Conn, *HostAddress, error) {
 			rrb.connConfig.Host = hostAddress.Host
 			rrb.connConfig.Endpoint = hostAddress.Endpoint
 			wsConn, err = dial(rrb.connConfig)
-			close(rrb.waitToConnect)
 			if err != nil {
 				log.Infof("Balancer: Failed to connect to %s: %v",
 					rrb.connConfig.Host, err)
@@ -189,7 +188,7 @@ func (rrb *RoundRobinBalancer) Get() (*websocket.Conn, *HostAddress, error) {
 				if err != nil {
 					return nil, nil, err
 				}
-				wsConn, ok = rrb.GetWsConnection(hostAddress.Host)
+				_, ok = rrb.GetWsConnection(hostAddress.Host)
 			} else {
 				rrb.mu.Lock()
 				rrb.wsConns[hostAddress.Host] = wsConn
@@ -199,6 +198,7 @@ func (rrb *RoundRobinBalancer) Get() (*websocket.Conn, *HostAddress, error) {
 					hostAddress.Host)
 				break
 			}
+			close(rrb.waitToConnect)
 		}
 		wsConn, _ = rrb.GetWsConnection(hostAddress.Host)
 	} else {
