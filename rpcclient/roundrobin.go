@@ -327,7 +327,7 @@ func (rrb *RoundRobinBalancer) GetWsConnection(host string) (wsConn *websocket.C
 func (cn *Client) BuildBalancer(cc *ConnConfig) *RoundRobinBalancer {
 
 	if len(cc.HostAddresses) <= 0 {
-		cc.HostAddresses = []HostAddress{HostAddress{Endpoint: cc.Endpoint, Host: cc.Host}}
+		cc.HostAddresses = []HostAddress{{Endpoint: cc.Endpoint, Host: cc.Host}}
 	}
 	hostAddressesMap := make(map[string]*HostAddress)
 	for _, val := range cc.HostAddresses {
