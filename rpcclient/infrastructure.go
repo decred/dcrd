@@ -126,7 +126,7 @@ type Client struct {
 
 	// wsConn is the underlying websocket connection when not in HTTP POST
 	// mode.
-	wsConn *websocket.Conn
+	// wsConn *websocket.Conn
 
 	// httpClient is the underlying HTTP client to use when running in HTTP
 	// POST mode.
@@ -136,11 +136,7 @@ type Client struct {
 	mtx sync.Mutex
 
 	// disconnected indicated whether or not the server is disconnected.
-	disconnected bool
-
-	// retryCount holds the number of times the client has tried to
-	// reconnect to the RPC server.
-	retryCount int64
+	//disconnected bool
 
 	// Track command and their response channels by ID.
 	requestLock sync.Mutex
@@ -423,17 +419,25 @@ out:
 		default:
 		}
 		//check for all wsConns with balancer
-		for host := range c.rrbalancer.wsConns {
-			_, msg, err := c.rrbalancer.wsConns[host].ReadMessage()
-			if err != nil {
-				// Log the error if it's not due to disconnecting.
-				if c.shouldLogReadError(err) {
-					log.Errorf("Websocket receive error from "+
-						"%s: %v", c.config.Host, err)
+		for i := 0; i < len(c.config.HostAddresses); i++ {
+			hostAdd := c.config.HostAddresses[i]
+			wsConn, connOk := c.rrbalancer.GetWsConnection(hostAdd.Host)
+			if connOk == true {
+				_, msg, err := wsConn.ReadMessage()
+				if err != nil {
+					// Log the error if it's not due to disconnecting.
+					if c.shouldLogReadError(err) {
+						log.Errorf("Websocket receive error from "+
+							"%s: %v", c.config.Host, err)
+					}
+					c.rrbalancer.Close(hostAdd.Host)
+					if c.rrbalancer.IsAllDisconnected() {
+						c.rrbalancer.NeedsClientRestart = true
+						break out
+					}
 				}
-				break out
+				c.handleMessage(msg)
 			}
-			c.handleMessage(msg)
 		}
 	}
 
@@ -463,15 +467,21 @@ out:
 		// disconnected closed.
 		select {
 		case msg := <-c.sendChan:
-			conn, _, err := c.rrbalancer.Get()
+			conn, hostAdd, err := c.rrbalancer.Get()
 			if err != nil {
+				//we failed to get any usable connection, hence breaking out
 				log.Tracef("RPC client balancer error: %s", err)
+				c.rrbalancer.NeedsClientRestart = true
 				break out
 			}
 			err = conn.WriteMessage(websocket.TextMessage, msg)
 			if err != nil {
-				c.Disconnect()
-				break out
+				c.rrbalancer.Close(hostAdd.Host)
+				if c.rrbalancer.IsAllDisconnected() {
+					c.rrbalancer.NeedsClientRestart = true
+					break out
+				}
+
 			}
 
 		case <-c.disconnectChan():
@@ -623,7 +633,7 @@ func (c *Client) resendRequests() {
 	for _, jReq := range resendReqs {
 		// Stop resending commands if the client disconnected again
 		// since the next reconnect will handle them.
-		if c.Disconnected() {
+		if c.rrbalancer.IsAllDisconnected() {
 			return
 		}
 
@@ -660,43 +670,55 @@ out:
 				break out
 			default:
 			}
+			//check for all wsConns with balancer
+			discHostAdd := c.rrbalancer.GetNextDisconnectedWsConn()
+			if discHostAdd != nil {
+				//create copy of config
+				confCopy := *c.config
+				confCopy.Host = discHostAdd.Host
+				confCopy.Endpoint = discHostAdd.Endpoint
+				wsConn, err := dial(&confCopy)
+				if err != nil {
+					//update retryCount
+					c.rrbalancer.UpdateReconnectAttempt(discHostAdd)
+					log.Infof("Failed to connect to %s: %v",
+						c.config.Host, err)
 
-			wsConn, err := dial(c.config)
-			if err != nil {
-				c.retryCount++
-				log.Infof("Failed to connect to %s: %v",
-					c.config.Host, err)
-
-				// Scale the retry interval by the number of
-				// retries so there is a backoff up to a max
-				// of 1 minute.
-				scaledInterval := connectionRetryInterval.Nanoseconds() * c.retryCount
-				scaledDuration := time.Duration(scaledInterval)
-				if scaledDuration > time.Minute {
-					scaledDuration = time.Minute
+					// Scale the retry interval by the number of
+					// retries so there is a backoff up to a max
+					// of 1 minute.
+					scaledInterval := connectionRetryInterval.Nanoseconds() * (discHostAdd.retryCount + 1)
+					scaledDuration := time.Duration(scaledInterval)
+					if scaledDuration > time.Minute {
+						scaledDuration = time.Minute
+					}
+					log.Infof("Retrying connection to %s in "+
+						"%s", c.config.Host, scaledDuration)
+					time.Sleep(scaledDuration)
+					continue reconnect
 				}
-				log.Infof("Retrying connection to %s in "+
-					"%s", c.config.Host, scaledDuration)
-				time.Sleep(scaledDuration)
-				continue reconnect
+				// Reset the connection state and signal the reconnect
+				// has happened.
+				c.rrbalancer.NotifyReconnect(wsConn, discHostAdd)
+				log.Infof("Reestablished connection to RPC server %s",
+					discHostAdd)
+
+				//check and continue with reconnecting for other wsConns
+				if c.rrbalancer.GetNextDisconnectedWsConn() != nil {
+					continue reconnect
+				}
 			}
-
-			log.Infof("Reestablished connection to RPC server %s",
-				c.config.Host)
-
-			// Reset the connection state and signal the reconnect
-			// has happened.
-			c.wsConn = wsConn
-			c.retryCount = 0
 
 			c.mtx.Lock()
 			c.disconnect = make(chan struct{})
-			c.disconnected = false
 			c.mtx.Unlock()
 
 			// Start processing input and output for the
-			// new connection.
-			c.start()
+			// new connection if all got disconnected earlier.
+			if c.rrbalancer.NeedsClientRestart {
+				c.start()
+				c.rrbalancer.NeedsClientRestart = false
+			}
 
 			// Reissue pending requests in another goroutine since
 			// the send can block.
@@ -708,7 +730,7 @@ out:
 		}
 	}
 	c.wg.Done()
-	log.Tracef("RPC client reconnect handler done for %s", c.config.Host)
+	log.Tracef("RPC client reconnect handler done for all possible hosts")
 }
 
 // handleSendPostMessage handles performing the passed HTTP request, reading the
@@ -933,17 +955,17 @@ func (c *Client) sendCmdAndWait(cmd interface{}) (interface{}, error) {
 
 // Disconnected returns whether or not the server is disconnected.  If a
 // websocket client was created but never connected, this also returns false.
-func (c *Client) Disconnected() bool {
-	c.mtx.Lock()
-	defer c.mtx.Unlock()
+// func (c *Client) Disconnected() bool {
+// 	c.mtx.Lock()
+// 	defer c.mtx.Unlock()
 
-	select {
-	case <-c.connEstablished:
-		return c.disconnected
-	default:
-		return false
-	}
-}
+// 	select {
+// 	case <-c.connEstablished:
+// 		return c.disconnected
+// 	default:
+// 		return false
+// 	}
+// }
 
 // doDisconnect disconnects the websocket associated with the client if it
 // hasn't already been disconnected.  It will return false if the disconnect is
@@ -959,14 +981,14 @@ func (c *Client) doDisconnect() bool {
 	defer c.mtx.Unlock()
 
 	// Nothing to do if already disconnected.
-	if c.disconnected {
+	if c.rrbalancer.IsAllDisconnected() {
 		return false
 	}
 
 	log.Tracef("Disconnecting RPC client %s", c.config.Host)
 	close(c.disconnect)
-	c.rrbalancer.Close()
-	c.disconnected = true
+	c.rrbalancer.Close("")
+	//c.disconnected = true
 	return true
 }
 
@@ -1250,7 +1272,7 @@ func New(config *ConnConfig, ntfnHandlers *NotificationHandlers) (*Client, error
 	// Either open a websocket connection or create an HTTP client depending
 	// on the HTTP POST mode.  Also, set the notification handlers to nil
 	// when running in HTTP POST mode.
-	var wsConn *websocket.Conn
+
 	var httpClient *http.Client
 	connEstablished := make(chan struct{})
 	var start bool
@@ -1265,19 +1287,16 @@ func New(config *ConnConfig, ntfnHandlers *NotificationHandlers) (*Client, error
 		}
 	} else {
 		if !config.DisableConnectOnNew {
-			var err error
+			//we would connect to one after setting the balancer below
 			//wsConn, err = dial(config)
-			if err != nil {
-				return nil, err
-			}
 			start = true
 		}
 
 	}
 
 	client := &Client{
-		config:          config,
-		wsConn:          wsConn,
+		config: config,
+		//wsConn:          wsConn,
 		httpClient:      httpClient,
 		requestMap:      make(map[uint64]*list.Element),
 		requestList:     list.New(),
@@ -1328,7 +1347,7 @@ func (c *Client) Connect(ctx context.Context, retry bool) error {
 	if c.config.HTTPPostMode {
 		return ErrNotWebsocketClient
 	}
-	if c.wsConn != nil {
+	if c.rrbalancer.isReady {
 		return ErrClientAlreadyConnected
 	}
 
@@ -1336,12 +1355,11 @@ func (c *Client) Connect(ctx context.Context, retry bool) error {
 	// attempt, up to a maximum of one minute.
 	var backoff time.Duration
 	for {
-		wsConn, err := dial(c.config)
+		_, hostAdd, err := c.rrbalancer.Get()
 		if err != nil {
 			if !retry {
 				return err
 			}
-
 			log.Errorf("Connection attempt failed: %v", err)
 			backoff += connectionRetryInterval
 			if backoff > time.Minute {
@@ -1359,8 +1377,7 @@ func (c *Client) Connect(ctx context.Context, retry bool) error {
 		// member of the client and start the goroutines necessary
 		// to run the client.
 		log.Infof("Established connection to RPC server %s",
-			c.config.Host)
-		c.wsConn = wsConn
+			hostAdd.Host)
 		close(c.connEstablished)
 		c.start()
 		if !c.config.DisableAutoReconnect {
