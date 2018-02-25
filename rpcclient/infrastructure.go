@@ -124,19 +124,12 @@ type Client struct {
 	// config holds the connection configuration assoiated with this client.
 	config *ConnConfig
 
-	// wsConn is the underlying websocket connection when not in HTTP POST
-	// mode.
-	// wsConn *websocket.Conn
-
 	// httpClient is the underlying HTTP client to use when running in HTTP
 	// POST mode.
 	httpClient *http.Client
 
 	// mtx is a mutex to protect access to connection related fields.
 	mtx sync.Mutex
-
-	// disconnected indicated whether or not the server is disconnected.
-	//disconnected bool
 
 	// Track command and their response channels by ID.
 	requestLock sync.Mutex
@@ -156,7 +149,11 @@ type Client struct {
 	shutdown        chan struct{}
 	wg              sync.WaitGroup
 
-	//balancer
+	// rrbalancer holds instance of RoundRobinBalancer. This implements
+	// the logic to round-robin between available connections.
+	// Whenever we need a connection, RoundRobinBalancer.NextConn() should be used to
+	// retrive a websocket connection or a HostAddress in case of HttpPostMode.
+	// It relies on the HostAddresses present in ConnConfig as the source for round-robin.
 	rrbalancer *RoundRobinBalancer
 }
 
@@ -418,10 +415,12 @@ out:
 			break out
 		default:
 		}
-		//check for all wsConns with balancer
+		// To check for incoming messages, iterate over the HostAddresses
+		// present with the config. Check if its an active connection
+		// and go ahead with ReadMessage.
 		for i := 0; i < len(c.config.HostAddresses); i++ {
 			hostAdd := c.config.HostAddresses[i]
-			wsConn, connOk := c.rrbalancer.GetWsConnection(hostAdd.Host)
+			wsConn, connOk := c.rrbalancer.WsConnection(hostAdd.Host)
 			if connOk {
 				_, msg, err := wsConn.ReadMessage()
 				if err != nil {
@@ -467,9 +466,9 @@ out:
 		// disconnected closed.
 		select {
 		case msg := <-c.sendChan:
-			conn, hostAdd, err := c.rrbalancer.Get()
+			conn, hostAdd, err := c.rrbalancer.NextConn()
 			if err != nil {
-				//we failed to get any usable connection, hence breaking out
+				// Failed to get any usable connection, lets break out.
 				log.Tracef("RPC client balancer error: %s", err)
 				c.rrbalancer.NeedsClientRestart = true
 				break out
@@ -670,16 +669,17 @@ out:
 				break out
 			default:
 			}
-			//check for all wsConns with balancer
-			discHostAdd := c.rrbalancer.GetNextDisconnectedWsConn()
+			// Work on one disconnected wsConn at a time.
+			discHostAdd := c.rrbalancer.NextDisconnectedWsConn()
 			if discHostAdd != nil {
-				//create copy of config
+				// Create a copy of the config as the instance is referred
+				// and in use elsewhere.
 				confCopy := *c.config
 				confCopy.Host = discHostAdd.Host
 				confCopy.Endpoint = discHostAdd.Endpoint
 				wsConn, err := dial(&confCopy)
 				if err != nil {
-					//update retryCount
+					// Update the retry count for this Host.
 					c.rrbalancer.UpdateReconnectAttempt(discHostAdd)
 					log.Infof("Failed to connect to %s: %v",
 						c.config.Host, err)
@@ -703,8 +703,8 @@ out:
 				log.Infof("Reestablished connection to RPC server %s",
 					discHostAdd)
 
-				//check and continue with reconnecting for other wsConns
-				if c.rrbalancer.GetNextDisconnectedWsConn() != nil {
+				// Check and continue with reconnecting for other wsConns.
+				if c.rrbalancer.NextDisconnectedWsConn() != nil {
 					continue reconnect
 				}
 			}
@@ -856,7 +856,7 @@ func (c *Client) sendPost(jReq *jsonRequest) {
 	if !c.config.DisableTLS {
 		protocol = "https"
 	}
-	_, conn, err := c.rrbalancer.Get()
+	_, conn, err := c.rrbalancer.NextConn()
 	if err != nil {
 		jReq.responseChan <- &response{result: nil, err: err}
 		return
@@ -1158,7 +1158,8 @@ type ConnConfig struct {
 	// flag can be set to true to use basic HTTP POST requests instead.
 	HTTPPostMode bool
 
-	//probable address points to be used for round-robin
+	// HostAddresses is the list of address points to be used for round-robin
+	// by the RoundRobinBalancer.
 	HostAddresses []HostAddress
 }
 
@@ -1287,16 +1288,15 @@ func New(config *ConnConfig, ntfnHandlers *NotificationHandlers) (*Client, error
 		}
 	} else {
 		if !config.DisableConnectOnNew {
-			//we would connect to one after setting the balancer below
-			//wsConn, err = dial(config)
+			// Connection is made using rrbalancer once the
+			// client instance is set below.
 			start = true
 		}
 
 	}
 
 	client := &Client{
-		config: config,
-		//wsConn:          wsConn,
+		config:          config,
 		httpClient:      httpClient,
 		requestMap:      make(map[uint64]*list.Element),
 		requestList:     list.New(),
@@ -1308,11 +1308,13 @@ func New(config *ConnConfig, ntfnHandlers *NotificationHandlers) (*Client, error
 		disconnect:      make(chan struct{}),
 		shutdown:        make(chan struct{}),
 	}
-	//setup balancer
+	// Setup balancer to be used for round-robin.
 	client.rrbalancer = client.BuildBalancer(config)
 	if !config.HTTPPostMode && !config.DisableConnectOnNew {
 		var err error
-		_, _, err = client.rrbalancer.Get()
+		// Doing a NextConn() here will ensure that there is at least
+		// one connection ready to use.
+		_, _, err = client.rrbalancer.NextConn()
 		if err != nil {
 			return nil, err
 		}
@@ -1355,7 +1357,7 @@ func (c *Client) Connect(ctx context.Context, retry bool) error {
 	// attempt, up to a maximum of one minute.
 	var backoff time.Duration
 	for {
-		_, hostAdd, err := c.rrbalancer.Get()
+		_, hostAdd, err := c.rrbalancer.NextConn()
 		if err != nil {
 			if !retry {
 				return err
