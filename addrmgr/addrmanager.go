@@ -107,11 +107,11 @@ const (
 
 	// triedBucketSize is the maximum number of addresses in each
 	// tried address bucket.
-	triedBucketSize = 256
+	triedBucketSize = 64
 
 	// triedBucketCount is the number of buckets we split tried
 	// addresses over.
-	triedBucketCount = 64
+	triedBucketCount = 256
 
 	// newBucketSize is the maximum number of addresses in each new address
 	// bucket.
