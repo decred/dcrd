@@ -524,6 +524,24 @@ func NewSignRawTransactionCmd(hexEncodedTx string, inputs *[]RawTxInput, privKey
 	}
 }
 
+// VerifySeedCmd defines the verifyseed JSON-RPC command.
+type VerifySeedCmd struct {
+	Seed    string  `json:"seed"`
+	Account *uint32 `json:"account"`
+}
+
+// NewVerifySeedCmd returns a new instance which can be used to issue a
+// walletlock JSON-RPC command.
+//
+// The parameters which are pointers indicate that they are optional. Passing
+// nil for the optional parameters will use the default value.
+func NewVerifySeedCmd(seed string, account *uint32) *VerifySeedCmd {
+	return &VerifySeedCmd{
+		Seed:    seed,
+		Account: account,
+	}
+}
+
 // WalletLockCmd defines the walletlock JSON-RPC command.
 type WalletLockCmd struct{}
 
@@ -597,6 +615,7 @@ func init() {
 	MustRegisterCmd("settxfee", (*SetTxFeeCmd)(nil), flags)
 	MustRegisterCmd("signmessage", (*SignMessageCmd)(nil), flags)
 	MustRegisterCmd("signrawtransaction", (*SignRawTransactionCmd)(nil), flags)
+	MustRegisterCmd("verifyseed", (*VerifySeedCmd)(nil), flags)
 	MustRegisterCmd("walletlock", (*WalletLockCmd)(nil), flags)
 	MustRegisterCmd("walletpassphrase", (*WalletPassphraseCmd)(nil), flags)
 	MustRegisterCmd("walletpassphrasechange", (*WalletPassphraseChangeCmd)(nil), flags)

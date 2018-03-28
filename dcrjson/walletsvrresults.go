@@ -187,6 +187,13 @@ type SignRawTransactionResult struct {
 	Errors   []SignRawTransactionError `json:"errors,omitempty"`
 }
 
+// VerifySeedResult models the data returned by the wallet server verify
+// seed command.
+type VerifySeedResult struct {
+	Result   bool   `json:"keyresult"`
+	CoinType uint32 `json:"cointype"`
+}
+
 // ValidateAddressWalletResult models the data returned by the wallet server
 // validateaddress command.
 type ValidateAddressWalletResult struct {

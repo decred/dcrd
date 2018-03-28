@@ -1072,6 +1072,35 @@ func TestWalletSvrCmds(t *testing.T) {
 			},
 		},
 		{
+			name: "verifyseed",
+			newCmd: func() (interface{}, error) {
+				return dcrjson.NewCmd("verifyseed", "abc")
+			},
+			staticCmd: func() interface{} {
+				return dcrjson.NewVerifySeedCmd("abc", nil)
+			},
+			marshalled: `{"jsonrpc":"1.0","method":"verifyseed","params":["abc"],"id":1}`,
+			unmarshalled: &dcrjson.VerifySeedCmd{
+				Seed:    "abc",
+				Account: nil,
+			},
+		},
+		{
+			name: "verifyseed optional",
+			newCmd: func() (interface{}, error) {
+				return dcrjson.NewCmd("verifyseed", "abc", 5)
+			},
+			staticCmd: func() interface{} {
+				account := dcrjson.Uint32(5)
+				return dcrjson.NewVerifySeedCmd("abc", account)
+			},
+			marshalled: `{"jsonrpc":"1.0","method":"verifyseed","params":["abc",5],"id":1}`,
+			unmarshalled: &dcrjson.VerifySeedCmd{
+				Seed:    "abc",
+				Account: dcrjson.Uint32(5),
+			},
+		},
+		{
 			name: "walletlock",
 			newCmd: func() (interface{}, error) {
 				return dcrjson.NewCmd("walletlock")
