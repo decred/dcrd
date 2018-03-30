@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2016-2017 The Decred developers
+// Copyright (c) 2016-2018 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -28,7 +28,7 @@ import (
 
 const (
 	// MaxProtocolVersion is the max protocol version the peer supports.
-	MaxProtocolVersion = wire.FeeFilterVersion
+	MaxProtocolVersion = wire.NodeCFVersion
 
 	// outputBufferSize is the number of elements the output channels use.
 	outputBufferSize = 5000
@@ -108,9 +108,6 @@ type MessageListeners struct {
 	// OnPong is invoked when a peer receives a pong wire message.
 	OnPong func(p *Peer, msg *wire.MsgPong)
 
-	// OnAlert is invoked when a peer receives an alert wire message.
-	OnAlert func(p *Peer, msg *wire.MsgAlert)
-
 	// OnMemPool is invoked when a peer receives a mempool wire message.
 	OnMemPool func(p *Peer, msg *wire.MsgMemPool)
 
@@ -127,6 +124,16 @@ type MessageListeners struct {
 
 	// OnBlock is invoked when a peer receives a block wire message.
 	OnBlock func(p *Peer, msg *wire.MsgBlock, buf []byte)
+
+	// OnCFilter is invoked when a peer receives a cfilter wire message.
+	OnCFilter func(p *Peer, msg *wire.MsgCFilter)
+
+	// OnCFHeaders is invoked when a peer receives a cfheaders wire
+	// message.
+	OnCFHeaders func(p *Peer, msg *wire.MsgCFHeaders)
+
+	// OnCFTypes is invoked when a peer receives a cftypes wire message.
+	OnCFTypes func(p *Peer, msg *wire.MsgCFTypes)
 
 	// OnInv is invoked when a peer receives an inv wire message.
 	OnInv func(p *Peer, msg *wire.MsgInv)
@@ -146,6 +153,18 @@ type MessageListeners struct {
 	// OnGetHeaders is invoked when a peer receives a getheaders wire
 	// message.
 	OnGetHeaders func(p *Peer, msg *wire.MsgGetHeaders)
+
+	// OnGetCFilter is invoked when a peer receives a getcfilter wire
+	// message.
+	OnGetCFilter func(p *Peer, msg *wire.MsgGetCFilter)
+
+	// OnGetCFHeaders is invoked when a peer receives a getcfheaders
+	// wire message.
+	OnGetCFHeaders func(p *Peer, msg *wire.MsgGetCFHeaders)
+
+	// OnGetCFTypes is invoked when a peer receives a getcftypes wire
+	// message.
+	OnGetCFTypes func(p *Peer, msg *wire.MsgGetCFTypes)
 
 	// OnFeeFilter is invoked when a peer receives a feefilter wire message.
 	OnFeeFilter func(p *Peer, msg *wire.MsgFeeFilter)
@@ -1460,11 +1479,6 @@ out:
 				p.cfg.Listeners.OnPong(p, msg)
 			}
 
-		case *wire.MsgAlert:
-			if p.cfg.Listeners.OnAlert != nil {
-				p.cfg.Listeners.OnAlert(p, msg)
-			}
-
 		case *wire.MsgMemPool:
 			if p.cfg.Listeners.OnMemPool != nil {
 				p.cfg.Listeners.OnMemPool(p, msg)
@@ -1518,6 +1532,36 @@ out:
 		case *wire.MsgGetHeaders:
 			if p.cfg.Listeners.OnGetHeaders != nil {
 				p.cfg.Listeners.OnGetHeaders(p, msg)
+			}
+
+		case *wire.MsgGetCFilter:
+			if p.cfg.Listeners.OnGetCFilter != nil {
+				p.cfg.Listeners.OnGetCFilter(p, msg)
+			}
+
+		case *wire.MsgGetCFHeaders:
+			if p.cfg.Listeners.OnGetCFHeaders != nil {
+				p.cfg.Listeners.OnGetCFHeaders(p, msg)
+			}
+
+		case *wire.MsgGetCFTypes:
+			if p.cfg.Listeners.OnGetCFTypes != nil {
+				p.cfg.Listeners.OnGetCFTypes(p, msg)
+			}
+
+		case *wire.MsgCFilter:
+			if p.cfg.Listeners.OnCFilter != nil {
+				p.cfg.Listeners.OnCFilter(p, msg)
+			}
+
+		case *wire.MsgCFHeaders:
+			if p.cfg.Listeners.OnCFHeaders != nil {
+				p.cfg.Listeners.OnCFHeaders(p, msg)
+			}
+
+		case *wire.MsgCFTypes:
+			if p.cfg.Listeners.OnCFTypes != nil {
+				p.cfg.Listeners.OnCFTypes(p, msg)
 			}
 
 		case *wire.MsgFeeFilter:
