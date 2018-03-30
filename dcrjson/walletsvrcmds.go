@@ -526,8 +526,8 @@ func NewSignRawTransactionCmd(hexEncodedTx string, inputs *[]RawTxInput, privKey
 
 // VerifySeedCmd defines the verifyseed JSON-RPC command.
 type VerifySeedCmd struct {
-	Seed    string  `json:"seed"`
-	Account *uint32 `json:"account"`
+	Seed    string
+	Account *uint32
 }
 
 // NewVerifySeedCmd returns a new instance which can be used to issue a
