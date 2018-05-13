@@ -149,12 +149,12 @@ type Client struct {
 	shutdown        chan struct{}
 	wg              sync.WaitGroup
 
-	// rrbalancer holds instance of RoundRobinBalancer. This implements
+	// balancer holds instance of RoundRobinBalancer. This implements
 	// the logic to round-robin between available connections.
 	// Whenever we need a connection, RoundRobinBalancer.NextConn() should be used to
 	// retrive a websocket connection or a HostAddress in case of HttpPostMode.
 	// It relies on the HostAddresses present in ConnConfig as the source for round-robin.
-	rrbalancer *RoundRobinBalancer
+	balancer *RoundRobinBalancer
 }
 
 // NextID returns the next id to be used when sending a JSON-RPC message.  This
@@ -402,9 +402,10 @@ func (c *Client) shouldLogReadError(err error) bool {
 	return true
 }
 
-// wsInHandler handles all incoming messages for the websocket connection
-// associated with the client.  It must be run as a goroutine.
-func (c *Client) wsInHandler() {
+// WsInHandler handles all incoming messages for the websocket connection
+// associated with the client.  It must be run as a goroutine per ws connection.
+func (c *Client) WsInHandler(wsConn *websocket.Conn, host string) {
+	c.wg.Add(1)
 out:
 	for {
 		// Break out of the loop once the shutdown channel has been
@@ -415,35 +416,23 @@ out:
 			break out
 		default:
 		}
-		// To check for incoming messages, iterate over the HostAddresses
-		// present with the config. Check if its an active connection
-		// and go ahead with ReadMessage.
-		for i := 0; i < len(c.config.HostAddresses); i++ {
-			hostAdd := c.config.HostAddresses[i]
-			wsConn, connOk := c.rrbalancer.WsConnection(hostAdd.Host)
-			if connOk {
-				_, msg, err := wsConn.ReadMessage()
-				if err != nil {
-					// Log the error if it's not due to disconnecting.
-					if c.shouldLogReadError(err) {
-						log.Errorf("Websocket receive error from "+
-							"%s: %v", c.config.Host, err)
-					}
-					c.rrbalancer.Close(hostAdd.Host)
-					if c.rrbalancer.IsAllDisconnected() {
-						c.rrbalancer.NeedsClientRestart = true
-						break out
-					}
-				}
-				c.handleMessage(msg)
+		_, msg, err := wsConn.ReadMessage()
+		if err != nil {
+			// Log the error if it's not due to disconnecting.
+			if c.shouldLogReadError(err) {
+				log.Errorf("Websocket receive error from "+
+					"%s: %v", host, err)
 			}
+			c.balancer.Close(wsConn)
+			break out
 		}
+		c.handleMessage(msg)
 	}
 
 	// Ensure the connection is closed.
 	c.Disconnect()
 	c.wg.Done()
-	log.Tracef("RPC client input handler done for %s", c.config.Host)
+	log.Tracef("RPC client input handler done for %s", host)
 }
 
 // disconnectChan returns a copy of the current disconnect channel.  The channel
@@ -466,18 +455,16 @@ out:
 		// disconnected closed.
 		select {
 		case msg := <-c.sendChan:
-			conn, hostAdd, err := c.rrbalancer.NextConn()
+			conn, _, err := c.balancer.NextConn()
 			if err != nil {
 				// Failed to get any usable connection, lets break out.
 				log.Tracef("RPC client balancer error: %s", err)
-				c.rrbalancer.NeedsClientRestart = true
+				c.balancer.NeedsClientRestart = true
 				break out
 			}
 			err = conn.WriteMessage(websocket.TextMessage, msg)
 			if err != nil {
-				c.rrbalancer.Close(hostAdd.Host)
-				if c.rrbalancer.IsAllDisconnected() {
-					c.rrbalancer.NeedsClientRestart = true
+				if c.balancer.Close(conn) {
 					break out
 				}
 
@@ -632,7 +619,7 @@ func (c *Client) resendRequests() {
 	for _, jReq := range resendReqs {
 		// Stop resending commands if the client disconnected again
 		// since the next reconnect will handle them.
-		if c.rrbalancer.IsAllDisconnected() {
+		if c.balancer.IsAllDisconnected() {
 			return
 		}
 
@@ -670,7 +657,7 @@ out:
 			default:
 			}
 			// Work on one disconnected wsConn at a time.
-			discHostAdd := c.rrbalancer.NextDisconnectedWsConn()
+			discHostAdd := c.balancer.NextDisconnectedWsConn()
 			if discHostAdd != nil {
 				// Create a copy of the config as the instance is referred
 				// and in use elsewhere.
@@ -680,7 +667,7 @@ out:
 				wsConn, err := dial(&confCopy)
 				if err != nil {
 					// Update the retry count for this Host.
-					c.rrbalancer.UpdateReconnectAttempt(discHostAdd)
+					c.balancer.UpdateReconnectAttempt(discHostAdd)
 					log.Infof("Failed to connect to %s: %v",
 						c.config.Host, err)
 
@@ -699,12 +686,12 @@ out:
 				}
 				// Reset the connection state and signal the reconnect
 				// has happened.
-				c.rrbalancer.NotifyReconnect(wsConn, discHostAdd)
+				c.balancer.NotifyReconnect(wsConn, discHostAdd)
 				log.Infof("Reestablished connection to RPC server %s",
 					discHostAdd)
 
 				// Check and continue with reconnecting for other wsConns.
-				if c.rrbalancer.NextDisconnectedWsConn() != nil {
+				if c.balancer.NextDisconnectedWsConn() != nil {
 					continue reconnect
 				}
 			}
@@ -715,15 +702,16 @@ out:
 
 			// Start processing input and output for the
 			// new connection if all got disconnected earlier.
-			if c.rrbalancer.NeedsClientRestart {
+			if c.balancer.NeedsClientRestart {
 				c.start()
-				c.rrbalancer.NeedsClientRestart = false
+				c.balancer.NeedsClientRestart = false
 			}
 
 			// Reissue pending requests in another goroutine since
 			// the send can block.
 			go c.resendRequests()
 
+			// No more disconnected connections.
 			// Break out of the reconnect loop back to wait for
 			// disconnect again.
 			break reconnect
@@ -856,7 +844,7 @@ func (c *Client) sendPost(jReq *jsonRequest) {
 	if !c.config.DisableTLS {
 		protocol = "https"
 	}
-	_, conn, err := c.rrbalancer.NextConn()
+	_, conn, err := c.balancer.NextConn()
 	if err != nil {
 		jReq.responseChan <- &response{result: nil, err: err}
 		return
@@ -981,13 +969,19 @@ func (c *Client) doDisconnect() bool {
 	defer c.mtx.Unlock()
 
 	// Nothing to do if already disconnected.
-	if c.rrbalancer.IsAllDisconnected() {
+	if c.balancer.IsAllDisconnected() {
 		return false
 	}
 
 	log.Tracef("Disconnecting RPC client %s", c.config.Host)
 	close(c.disconnect)
-	c.rrbalancer.Close("")
+	// In case of shutdown, we need to close all connections.
+	// Typically the WsInHandlers might be waiting at ReadMessage
+	select {
+	case <-c.shutdown:
+		c.balancer.CloseAll()
+	default:
+	}
 	//c.disconnected = true
 	return true
 }
@@ -1078,7 +1072,7 @@ func (c *Client) start() {
 		c.wg.Add(1)
 		go c.sendPostHandler()
 	} else {
-		c.wg.Add(3)
+		c.wg.Add(2)
 		go func() {
 			if c.ntfnHandlers != nil {
 				if c.ntfnHandlers.OnClientConnected != nil {
@@ -1087,7 +1081,9 @@ func (c *Client) start() {
 			}
 			c.wg.Done()
 		}()
-		go c.wsInHandler()
+		// c.wsInHandler is invoked per ws connection, which inturn adds
+		// its corresponding waitgroup.
+		// so for now we just need to invoke the out handler
 		go c.wsOutHandler()
 	}
 }
@@ -1288,7 +1284,7 @@ func New(config *ConnConfig, ntfnHandlers *NotificationHandlers) (*Client, error
 		}
 	} else {
 		if !config.DisableConnectOnNew {
-			// Connection is made using rrbalancer once the
+			// Connection is made using balancer once the
 			// client instance is set below.
 			start = true
 		}
@@ -1309,12 +1305,12 @@ func New(config *ConnConfig, ntfnHandlers *NotificationHandlers) (*Client, error
 		shutdown:        make(chan struct{}),
 	}
 	// Setup balancer to be used for round-robin.
-	client.rrbalancer = client.BuildBalancer(config)
+	client.balancer = client.BuildBalancer(config)
 	if !config.HTTPPostMode && !config.DisableConnectOnNew {
 		var err error
 		// Doing a NextConn() here will ensure that there is at least
 		// one connection ready to use.
-		_, _, err = client.rrbalancer.NextConn()
+		_, _, err = client.balancer.NextConn()
 		if err != nil {
 			return nil, err
 		}
@@ -1349,7 +1345,7 @@ func (c *Client) Connect(ctx context.Context, retry bool) error {
 	if c.config.HTTPPostMode {
 		return ErrNotWebsocketClient
 	}
-	if c.rrbalancer.isReady {
+	if c.balancer.isReady {
 		return ErrClientAlreadyConnected
 	}
 
@@ -1357,7 +1353,7 @@ func (c *Client) Connect(ctx context.Context, retry bool) error {
 	// attempt, up to a maximum of one minute.
 	var backoff time.Duration
 	for {
-		_, hostAdd, err := c.rrbalancer.NextConn()
+		_, hostAdd, err := c.balancer.NextConn()
 		if err != nil {
 			if !retry {
 				return err
