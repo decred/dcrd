@@ -200,6 +200,10 @@ func nodesEqual(a *Node, b *Node) error {
 		return fmt.Errorf("missedbyblock were not equal between nodes; "+
 			"a: %x, b: %x", a.MissedByBlock(), b.MissedByBlock())
 	}
+	if !reflect.DeepEqual(a.ExpiredByBlock(), b.ExpiredByBlock()) {
+		return fmt.Errorf("expiredbyblock were not equal between nodes; "+
+			"a: %x, b: %x", a.ExpiredByBlock(), b.ExpiredByBlock())
+	}
 
 	return nil
 }

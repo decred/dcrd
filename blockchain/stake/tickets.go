@@ -97,6 +97,18 @@ func (sn *Node) MissedByBlock() []chainhash.Hash {
 	return missed
 }
 
+// ExpiredByBlock returns the tickets that expired in this block.
+func (sn *Node) ExpiredByBlock() []chainhash.Hash {
+	var expired []chainhash.Hash
+	for _, undo := range sn.databaseUndoUpdate {
+		if undo.Expired {
+			expired = append(expired, undo.TicketHash)
+		}
+	}
+
+	return expired
+}
+
 // ExistsLiveTicket returns whether or not a ticket exists in the live ticket
 // treap for this stake node.
 func (sn *Node) ExistsLiveTicket(ticket chainhash.Hash) bool {
