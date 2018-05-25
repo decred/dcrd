@@ -26,15 +26,17 @@ import (
 	"sync"
 )
 
+const (
+	// ecTypeSecp256k1 is the ECDSA type for the chainec interface.
+	ecTypeSecp256k1 = 0
+)
+
 var (
 	// fieldOne is simply the integer 1 in field representation.  It is
 	// used to avoid needing to create it multiple times during the internal
 	// arithmetic.
 	fieldOne = new(fieldVal).SetInt(1)
 )
-
-// ecTypeSecp256k1 is the ECDSA type for the chainec interface.
-var ecTypeSecp256k1 int
 
 // KoblitzCurve supports a koblitz curve implementation that fits the ECC Curve
 // interface from crypto/elliptic.
