@@ -8,6 +8,8 @@ package edwards
 import (
 	"fmt"
 	"math/big"
+
+	"github.com/decred/dcrd/dcrec"
 )
 
 // Signature is a type representing an ecdsa signature.
@@ -104,6 +106,6 @@ func (sig Signature) GetS() *big.Int {
 }
 
 // GetType satisfies the chainec Signature interface.
-func (sig Signature) GetType() int {
-	return ecTypeEdwards
+func (sig Signature) GetType() dcrec.SignatureType {
+	return dcrec.ECTypeEdwards
 }

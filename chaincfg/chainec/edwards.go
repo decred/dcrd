@@ -9,6 +9,7 @@ import (
 	"io"
 	"math/big"
 
+	"github.com/decred/dcrd/dcrec"
 	"github.com/decred/dcrd/dcrec/edwards"
 )
 
@@ -278,7 +279,7 @@ func newEdwardsDSA() DSA {
 			return edwards.GenerateKey(edwardsCurve, rand)
 		},
 		sign: func(priv PrivateKey, hash []byte) (r, s *big.Int, err error) {
-			if priv.GetType() != ECTypeEdwards {
+			if priv.GetType() != dcrec.ECTypeEdwards {
 				return nil, nil, errors.New("wrong type")
 			}
 			epriv, ok := priv.(edwards.PrivateKey)
@@ -289,7 +290,7 @@ func newEdwardsDSA() DSA {
 			return
 		},
 		verify: func(pub PublicKey, hash []byte, r, s *big.Int) bool {
-			if pub.GetType() != ECTypeEdwards {
+			if pub.GetType() != dcrec.ECTypeEdwards {
 				return false
 			}
 			epub, ok := pub.(edwards.PublicKey)

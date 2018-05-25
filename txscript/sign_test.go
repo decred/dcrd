@@ -15,6 +15,7 @@ import (
 	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrd/chaincfg/chainec"
 	"github.com/decred/dcrd/chaincfg/chainhash"
+	"github.com/decred/dcrd/dcrec"
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/dcrd/wire"
 )
@@ -101,7 +102,7 @@ func checkScripts(msg string, tx *wire.MsgTx, idx int, sigScript, pkScript []byt
 
 func signAndCheck(msg string, tx *wire.MsgTx, idx int, pkScript []byte,
 	hashType SigHashType, kdb KeyDB, sdb ScriptDB,
-	previousScript []byte, suite int) error {
+	previousScript []byte, suite dcrec.SignatureType) error {
 
 	sigScript, err := SignTxOutput(testingParams, tx, idx, pkScript,
 		hashType, kdb, sdb, nil, suite)
@@ -114,7 +115,7 @@ func signAndCheck(msg string, tx *wire.MsgTx, idx int, pkScript []byte,
 
 func signBadAndCheck(msg string, tx *wire.MsgTx, idx int, pkScript []byte,
 	hashType SigHashType, kdb KeyDB, sdb ScriptDB,
-	previousScript []byte, suite int) error {
+	previousScript []byte, suite dcrec.SignatureType) error {
 	// Setup a PRNG.
 	randScriptHash := chainhash.HashB(pkScript)
 	tRand := mrand.New(mrand.NewSource(int64(randScriptHash[0])))
@@ -152,10 +153,10 @@ func TestSignTxOutput(t *testing.T) {
 		SigHashNone | SigHashAnyOneCanPay,
 		SigHashSingle | SigHashAnyOneCanPay,
 	}
-	signatureSuites := []int{
-		chainec.ECTypeSecp256k1,
-		chainec.ECTypeEdwards,
-		chainec.ECTypeSecSchnorr,
+	signatureSuites := []dcrec.SignatureType{
+		dcrec.ECTypeSecp256k1,
+		dcrec.ECTypeEdwards,
+		dcrec.ECTypeSecSchnorr,
 	}
 	tx := &wire.MsgTx{
 		SerType: wire.TxSerializeFull,
@@ -223,15 +224,15 @@ func TestSignTxOutput(t *testing.T) {
 				var pk chainec.PublicKey
 
 				switch suite {
-				case chainec.ECTypeSecp256k1:
+				case dcrec.ECTypeSecp256k1:
 					keyDB, _, _, _ = secp256k1.GenerateKey(rand.Reader)
 					key, pk = secp256k1.PrivKeyFromBytes(keyDB)
 					pkBytes = pk.SerializeUncompressed()
-				case chainec.ECTypeEdwards:
+				case dcrec.ECTypeEdwards:
 					keyDB, _, _, _ = chainec.Edwards.GenerateKey(rand.Reader)
 					key, pk = chainec.Edwards.PrivKeyFromBytes(keyDB)
 					pkBytes = pk.SerializeUncompressed()
-				case chainec.ECTypeSecSchnorr:
+				case dcrec.ECTypeSecSchnorr:
 					keyDB, _, _, _ = chainec.SecSchnorr.GenerateKey(
 						rand.Reader)
 					key, pk = chainec.SecSchnorr.PrivKeyFromBytes(keyDB)
@@ -285,15 +286,15 @@ func TestSignTxOutput(t *testing.T) {
 				var pk chainec.PublicKey
 
 				switch suite {
-				case chainec.ECTypeSecp256k1:
+				case dcrec.ECTypeSecp256k1:
 					keyDB, _, _, _ = secp256k1.GenerateKey(rand.Reader)
 					key, pk = secp256k1.PrivKeyFromBytes(keyDB)
 					pkBytes = pk.SerializeUncompressed()
-				case chainec.ECTypeEdwards:
+				case dcrec.ECTypeEdwards:
 					keyDB, _, _, _ = chainec.Edwards.GenerateKey(rand.Reader)
 					key, pk = chainec.Edwards.PrivKeyFromBytes(keyDB)
 					pkBytes = pk.SerializeUncompressed()
-				case chainec.ECTypeSecSchnorr:
+				case dcrec.ECTypeSecSchnorr:
 					keyDB, _, _, _ = chainec.SecSchnorr.GenerateKey(rand.Reader)
 					key, pk = chainec.SecSchnorr.PrivKeyFromBytes(keyDB)
 					pkBytes = pk.Serialize()
@@ -359,15 +360,15 @@ func TestSignTxOutput(t *testing.T) {
 				var pk chainec.PublicKey
 
 				switch suite {
-				case chainec.ECTypeSecp256k1:
+				case dcrec.ECTypeSecp256k1:
 					keyDB, _, _, _ = secp256k1.GenerateKey(rand.Reader)
 					key, pk = secp256k1.PrivKeyFromBytes(keyDB)
 					pkBytes = pk.SerializeCompressed()
-				case chainec.ECTypeEdwards:
+				case dcrec.ECTypeEdwards:
 					keyDB, _, _, _ = chainec.Edwards.GenerateKey(rand.Reader)
 					key, pk = chainec.Edwards.PrivKeyFromBytes(keyDB)
 					pkBytes = pk.SerializeCompressed()
-				case chainec.ECTypeSecSchnorr:
+				case dcrec.ECTypeSecSchnorr:
 					keyDB, _, _, _ = chainec.SecSchnorr.GenerateKey(rand.Reader)
 					key, pk = chainec.SecSchnorr.PrivKeyFromBytes(keyDB)
 					pkBytes = pk.SerializeCompressed()
@@ -419,15 +420,15 @@ func TestSignTxOutput(t *testing.T) {
 				var pk chainec.PublicKey
 
 				switch suite {
-				case chainec.ECTypeSecp256k1:
+				case dcrec.ECTypeSecp256k1:
 					keyDB, _, _, _ = secp256k1.GenerateKey(rand.Reader)
 					key, pk = secp256k1.PrivKeyFromBytes(keyDB)
 					pkBytes = pk.SerializeCompressed()
-				case chainec.ECTypeEdwards:
+				case dcrec.ECTypeEdwards:
 					keyDB, _, _, _ = chainec.Edwards.GenerateKey(rand.Reader)
 					key, pk = chainec.Edwards.PrivKeyFromBytes(keyDB)
 					pkBytes = pk.SerializeCompressed()
-				case chainec.ECTypeSecSchnorr:
+				case dcrec.ECTypeSecSchnorr:
 					keyDB, _, _, _ = chainec.SecSchnorr.GenerateKey(rand.Reader)
 					key, pk = chainec.SecSchnorr.PrivKeyFromBytes(keyDB)
 					pkBytes = pk.SerializeCompressed()
@@ -499,7 +500,7 @@ func TestSignTxOutput(t *testing.T) {
 
 			address, err := dcrutil.NewAddressPubKeyHash(
 				dcrutil.Hash160(pkBytes), testingParams,
-				chainec.ECTypeSecp256k1)
+				dcrec.ECTypeSecp256k1)
 			if err != nil {
 				t.Errorf("failed to make address for %s: %v",
 					msg, err)
@@ -516,7 +517,7 @@ func TestSignTxOutput(t *testing.T) {
 				mkGetKey(map[string]addressToKey{
 					address.EncodeAddress(): {&key, true},
 				}), mkGetScript(nil), nil,
-				chainec.ECTypeSecp256k1); err != nil {
+				dcrec.ECTypeSecp256k1); err != nil {
 				t.Error(err)
 				break
 			}
@@ -525,7 +526,7 @@ func TestSignTxOutput(t *testing.T) {
 				mkGetKey(map[string]addressToKey{
 					address.EncodeAddress(): {&key, true},
 				}), mkGetScript(nil), nil,
-				chainec.ECTypeSecp256k1); err == nil {
+				dcrec.ECTypeSecp256k1); err == nil {
 				t.Errorf("corrupted signature validated %s: %v",
 					msg, err)
 				break
@@ -548,7 +549,7 @@ func TestSignTxOutput(t *testing.T) {
 
 			address, err := dcrutil.NewAddressPubKeyHash(
 				dcrutil.Hash160(pkBytes), testingParams,
-				chainec.ECTypeSecp256k1)
+				dcrec.ECTypeSecp256k1)
 			if err != nil {
 				t.Errorf("failed to make address for %s: %v",
 					msg, err)
@@ -565,7 +566,7 @@ func TestSignTxOutput(t *testing.T) {
 				mkGetKey(map[string]addressToKey{
 					address.EncodeAddress(): {&key, true},
 				}), mkGetScript(nil), nil,
-				chainec.ECTypeSecp256k1); err != nil {
+				dcrec.ECTypeSecp256k1); err != nil {
 				t.Error(err)
 				break
 			}
@@ -574,7 +575,7 @@ func TestSignTxOutput(t *testing.T) {
 				mkGetKey(map[string]addressToKey{
 					address.EncodeAddress(): {&key, true},
 				}), mkGetScript(nil), nil,
-				chainec.ECTypeSecp256k1); err == nil {
+				dcrec.ECTypeSecp256k1); err == nil {
 				t.Errorf("corrupted signature validated %s: %v",
 					msg, err)
 				break
@@ -597,7 +598,7 @@ func TestSignTxOutput(t *testing.T) {
 
 			address, err := dcrutil.NewAddressPubKeyHash(
 				dcrutil.Hash160(pkBytes), testingParams,
-				chainec.ECTypeSecp256k1)
+				dcrec.ECTypeSecp256k1)
 			if err != nil {
 				t.Errorf("failed to make address for %s: %v",
 					msg, err)
@@ -614,7 +615,7 @@ func TestSignTxOutput(t *testing.T) {
 				mkGetKey(map[string]addressToKey{
 					address.EncodeAddress(): {&key, true},
 				}), mkGetScript(nil), nil,
-				chainec.ECTypeSecp256k1); err != nil {
+				dcrec.ECTypeSecp256k1); err != nil {
 				t.Error(err)
 				break
 			}
@@ -623,7 +624,7 @@ func TestSignTxOutput(t *testing.T) {
 				mkGetKey(map[string]addressToKey{
 					address.EncodeAddress(): {&key, true},
 				}), mkGetScript(nil), nil,
-				chainec.ECTypeSecp256k1); err == nil {
+				dcrec.ECTypeSecp256k1); err == nil {
 				t.Errorf("corrupted signature validated %s: %v",
 					msg, err)
 				break
@@ -646,7 +647,7 @@ func TestSignTxOutput(t *testing.T) {
 
 			address, err := dcrutil.NewAddressPubKeyHash(
 				dcrutil.Hash160(pkBytes), testingParams,
-				chainec.ECTypeSecp256k1)
+				dcrec.ECTypeSecp256k1)
 			if err != nil {
 				t.Errorf("failed to make address for %s: %v",
 					msg, err)
@@ -663,7 +664,7 @@ func TestSignTxOutput(t *testing.T) {
 				mkGetKey(map[string]addressToKey{
 					address.EncodeAddress(): {&key, true},
 				}), mkGetScript(nil), nil,
-				chainec.ECTypeSecp256k1); err != nil {
+				dcrec.ECTypeSecp256k1); err != nil {
 				t.Error(err)
 				break
 			}
@@ -672,7 +673,7 @@ func TestSignTxOutput(t *testing.T) {
 				mkGetKey(map[string]addressToKey{
 					address.EncodeAddress(): {&key, true},
 				}), mkGetScript(nil), nil,
-				chainec.ECTypeSecp256k1); err == nil {
+				dcrec.ECTypeSecp256k1); err == nil {
 				t.Errorf("corrupted signature validated %s: %v",
 					msg, err)
 				break
@@ -742,7 +743,7 @@ func TestSignTxOutput(t *testing.T) {
 				msg := fmt.Sprintf("%d:%d:%d", hashType, i, suite)
 
 				switch suite {
-				case chainec.ECTypeSecp256k1:
+				case dcrec.ECTypeSecp256k1:
 					keyDB, _, _, _ = secp256k1.GenerateKey(rand.Reader)
 					key, pk = secp256k1.PrivKeyFromBytes(keyDB)
 					// For address generation, consensus rules require using
@@ -755,7 +756,7 @@ func TestSignTxOutput(t *testing.T) {
 							msg, err)
 					}
 
-				case chainec.ECTypeEdwards:
+				case dcrec.ECTypeEdwards:
 					keyDB, _, _, _ = chainec.Edwards.GenerateKey(rand.Reader)
 					key, pk = chainec.Edwards.PrivKeyFromBytes(keyDB)
 					pkBytes = pk.SerializeUncompressed()
@@ -766,7 +767,7 @@ func TestSignTxOutput(t *testing.T) {
 							msg, err)
 					}
 
-				case chainec.ECTypeSecSchnorr:
+				case dcrec.ECTypeSecSchnorr:
 					keyDB, _, _, _ = chainec.SecSchnorr.GenerateKey(rand.Reader)
 					key, pk = chainec.SecSchnorr.PrivKeyFromBytes(keyDB)
 					pkBytes = pk.Serialize()
@@ -828,7 +829,7 @@ func TestSignTxOutput(t *testing.T) {
 				msg := fmt.Sprintf("%d:%d:%d", hashType, i, suite)
 
 				switch suite {
-				case chainec.ECTypeSecp256k1:
+				case dcrec.ECTypeSecp256k1:
 					keyDB, _, _, _ = secp256k1.GenerateKey(rand.Reader)
 					key, pk = secp256k1.PrivKeyFromBytes(keyDB)
 					// For address generation, consensus rules require using
@@ -841,7 +842,7 @@ func TestSignTxOutput(t *testing.T) {
 							msg, err)
 					}
 
-				case chainec.ECTypeEdwards:
+				case dcrec.ECTypeEdwards:
 					keyDB, _, _, _ = chainec.Edwards.GenerateKey(rand.Reader)
 					key, pk = chainec.Edwards.PrivKeyFromBytes(keyDB)
 					pkBytes = pk.SerializeCompressed()
@@ -852,7 +853,7 @@ func TestSignTxOutput(t *testing.T) {
 							msg, err)
 					}
 
-				case chainec.ECTypeSecSchnorr:
+				case dcrec.ECTypeSecSchnorr:
 					keyDB, _, _, _ = chainec.SecSchnorr.GenerateKey(rand.Reader)
 					key, pk = chainec.SecSchnorr.PrivKeyFromBytes(keyDB)
 					pkBytes = pk.Serialize()
@@ -903,7 +904,7 @@ func TestSignTxOutput(t *testing.T) {
 				msg := fmt.Sprintf("%d:%d:%d", hashType, i, suite)
 
 				switch suite {
-				case chainec.ECTypeSecp256k1:
+				case dcrec.ECTypeSecp256k1:
 					keyDB, _, _, _ = secp256k1.GenerateKey(rand.Reader)
 					key, pk = secp256k1.PrivKeyFromBytes(keyDB)
 					address, err = dcrutil.NewAddressSecpPubKeyCompressed(pk,
@@ -913,7 +914,7 @@ func TestSignTxOutput(t *testing.T) {
 							msg, err)
 					}
 
-				case chainec.ECTypeEdwards:
+				case dcrec.ECTypeEdwards:
 					keyDB, _, _, _ = chainec.Edwards.GenerateKey(rand.Reader)
 					key, pk = chainec.Edwards.PrivKeyFromBytes(keyDB)
 					pkBytes = pk.SerializeCompressed()
@@ -924,7 +925,7 @@ func TestSignTxOutput(t *testing.T) {
 							msg, err)
 					}
 
-				case chainec.ECTypeSecSchnorr:
+				case dcrec.ECTypeSecSchnorr:
 					keyDB, _, _, _ = chainec.SecSchnorr.GenerateKey(rand.Reader)
 					key, pk = chainec.SecSchnorr.PrivKeyFromBytes(keyDB)
 					pkBytes = pk.Serialize()
@@ -986,15 +987,15 @@ func TestSignTxOutput(t *testing.T) {
 				var pk chainec.PublicKey
 
 				switch suite {
-				case chainec.ECTypeSecp256k1:
+				case dcrec.ECTypeSecp256k1:
 					keyDB, _, _, _ = secp256k1.GenerateKey(rand.Reader)
 					key, pk = secp256k1.PrivKeyFromBytes(keyDB)
 					pkBytes = pk.SerializeUncompressed()
-				case chainec.ECTypeEdwards:
+				case dcrec.ECTypeEdwards:
 					keyDB, _, _, _ = chainec.Edwards.GenerateKey(rand.Reader)
 					key, pk = chainec.Edwards.PrivKeyFromBytes(keyDB)
 					pkBytes = pk.SerializeUncompressed()
-				case chainec.ECTypeSecSchnorr:
+				case dcrec.ECTypeSecSchnorr:
 					keyDB, _, _, _ = chainec.SecSchnorr.GenerateKey(rand.Reader)
 					key, pk = chainec.SecSchnorr.PrivKeyFromBytes(keyDB)
 					pkBytes = pk.Serialize()
@@ -1065,15 +1066,15 @@ func TestSignTxOutput(t *testing.T) {
 				var pk chainec.PublicKey
 
 				switch suite {
-				case chainec.ECTypeSecp256k1:
+				case dcrec.ECTypeSecp256k1:
 					keyDB, _, _, _ = secp256k1.GenerateKey(rand.Reader)
 					key, pk = secp256k1.PrivKeyFromBytes(keyDB)
 					pkBytes = pk.SerializeUncompressed()
-				case chainec.ECTypeEdwards:
+				case dcrec.ECTypeEdwards:
 					keyDB, _, _, _ = chainec.Edwards.GenerateKey(rand.Reader)
 					key, pk = chainec.Edwards.PrivKeyFromBytes(keyDB)
 					pkBytes = pk.SerializeUncompressed()
-				case chainec.ECTypeSecSchnorr:
+				case dcrec.ECTypeSecSchnorr:
 					keyDB, _, _, _ = chainec.SecSchnorr.GenerateKey(rand.Reader)
 					key, pk = chainec.SecSchnorr.PrivKeyFromBytes(keyDB)
 					pkBytes = pk.Serialize()
@@ -1159,15 +1160,15 @@ func TestSignTxOutput(t *testing.T) {
 				var pk chainec.PublicKey
 
 				switch suite {
-				case chainec.ECTypeSecp256k1:
+				case dcrec.ECTypeSecp256k1:
 					keyDB, _, _, _ = secp256k1.GenerateKey(rand.Reader)
 					key, pk = secp256k1.PrivKeyFromBytes(keyDB)
 					pkBytes = pk.SerializeCompressed()
-				case chainec.ECTypeEdwards:
+				case dcrec.ECTypeEdwards:
 					keyDB, _, _, _ = chainec.Edwards.GenerateKey(rand.Reader)
 					key, pk = chainec.Edwards.PrivKeyFromBytes(keyDB)
 					pkBytes = pk.SerializeCompressed()
-				case chainec.ECTypeSecSchnorr:
+				case dcrec.ECTypeSecSchnorr:
 					keyDB, _, _, _ = chainec.SecSchnorr.GenerateKey(rand.Reader)
 					key, pk = chainec.SecSchnorr.PrivKeyFromBytes(keyDB)
 					pkBytes = pk.SerializeCompressed()
@@ -1237,15 +1238,15 @@ func TestSignTxOutput(t *testing.T) {
 				var pk chainec.PublicKey
 
 				switch suite {
-				case chainec.ECTypeSecp256k1:
+				case dcrec.ECTypeSecp256k1:
 					keyDB, _, _, _ = secp256k1.GenerateKey(rand.Reader)
 					key, pk = secp256k1.PrivKeyFromBytes(keyDB)
 					pkBytes = pk.SerializeCompressed()
-				case chainec.ECTypeEdwards:
+				case dcrec.ECTypeEdwards:
 					keyDB, _, _, _ = chainec.Edwards.GenerateKey(rand.Reader)
 					key, pk = chainec.Edwards.PrivKeyFromBytes(keyDB)
 					pkBytes = pk.SerializeCompressed()
-				case chainec.ECTypeSecSchnorr:
+				case dcrec.ECTypeSecSchnorr:
 					keyDB, _, _, _ = chainec.SecSchnorr.GenerateKey(rand.Reader)
 					key, pk = chainec.SecSchnorr.PrivKeyFromBytes(keyDB)
 					pkBytes = pk.SerializeCompressed()
@@ -1334,7 +1335,7 @@ func TestSignTxOutput(t *testing.T) {
 				msg := fmt.Sprintf("%d:%d:%d", hashType, i, suite)
 
 				switch suite {
-				case chainec.ECTypeSecp256k1:
+				case dcrec.ECTypeSecp256k1:
 					keyDB, _, _, _ = secp256k1.GenerateKey(rand.Reader)
 					key, pk = secp256k1.PrivKeyFromBytes(keyDB)
 					// For address generation, consensus rules require using
@@ -1347,7 +1348,7 @@ func TestSignTxOutput(t *testing.T) {
 							msg, err)
 					}
 
-				case chainec.ECTypeEdwards:
+				case dcrec.ECTypeEdwards:
 					keyDB, _, _, _ = chainec.Edwards.GenerateKey(rand.Reader)
 					key, pk = chainec.Edwards.PrivKeyFromBytes(keyDB)
 					pkBytes = pk.SerializeUncompressed()
@@ -1358,7 +1359,7 @@ func TestSignTxOutput(t *testing.T) {
 							msg, err)
 					}
 
-				case chainec.ECTypeSecSchnorr:
+				case dcrec.ECTypeSecSchnorr:
 					keyDB, _, _, _ = chainec.SecSchnorr.GenerateKey(rand.Reader)
 					key, pk = chainec.SecSchnorr.PrivKeyFromBytes(keyDB)
 					pkBytes = pk.Serialize()
@@ -1425,7 +1426,7 @@ func TestSignTxOutput(t *testing.T) {
 				msg := fmt.Sprintf("%d:%d:%d", hashType, i, suite)
 
 				switch suite {
-				case chainec.ECTypeSecp256k1:
+				case dcrec.ECTypeSecp256k1:
 					keyDB, _, _, _ = secp256k1.GenerateKey(rand.Reader)
 					key, pk = secp256k1.PrivKeyFromBytes(keyDB)
 					// For address generation, consensus rules require using
@@ -1438,7 +1439,7 @@ func TestSignTxOutput(t *testing.T) {
 							msg, err)
 					}
 
-				case chainec.ECTypeEdwards:
+				case dcrec.ECTypeEdwards:
 					keyDB, _, _, _ = chainec.Edwards.GenerateKey(rand.Reader)
 					key, pk = chainec.Edwards.PrivKeyFromBytes(keyDB)
 					pkBytes = pk.SerializeUncompressed()
@@ -1449,7 +1450,7 @@ func TestSignTxOutput(t *testing.T) {
 							msg, err)
 					}
 
-				case chainec.ECTypeSecSchnorr:
+				case dcrec.ECTypeSecSchnorr:
 					keyDB, _, _, _ = chainec.SecSchnorr.GenerateKey(rand.Reader)
 					key, pk = chainec.SecSchnorr.PrivKeyFromBytes(keyDB)
 					pkBytes = pk.Serialize()
@@ -1532,7 +1533,7 @@ func TestSignTxOutput(t *testing.T) {
 				msg := fmt.Sprintf("%d:%d:%d", hashType, i, suite)
 
 				switch suite {
-				case chainec.ECTypeSecp256k1:
+				case dcrec.ECTypeSecp256k1:
 					keyDB, _, _, _ = secp256k1.GenerateKey(rand.Reader)
 					key, pk = secp256k1.PrivKeyFromBytes(keyDB)
 					address, err = dcrutil.NewAddressSecpPubKeyCompressed(pk,
@@ -1542,7 +1543,7 @@ func TestSignTxOutput(t *testing.T) {
 							msg, err)
 					}
 
-				case chainec.ECTypeEdwards:
+				case dcrec.ECTypeEdwards:
 					keyDB, _, _, _ = chainec.Edwards.GenerateKey(rand.Reader)
 					key, pk = chainec.Edwards.PrivKeyFromBytes(keyDB)
 					pkBytes = pk.SerializeCompressed()
@@ -1553,7 +1554,7 @@ func TestSignTxOutput(t *testing.T) {
 							msg, err)
 					}
 
-				case chainec.ECTypeSecSchnorr:
+				case dcrec.ECTypeSecSchnorr:
 					keyDB, _, _, _ = chainec.SecSchnorr.GenerateKey(rand.Reader)
 					key, pk = chainec.SecSchnorr.PrivKeyFromBytes(keyDB)
 					pkBytes = pk.Serialize()
@@ -1623,7 +1624,7 @@ func TestSignTxOutput(t *testing.T) {
 				msg := fmt.Sprintf("%d:%d:%d", hashType, i, suite)
 
 				switch suite {
-				case chainec.ECTypeSecp256k1:
+				case dcrec.ECTypeSecp256k1:
 					keyDB, _, _, _ = secp256k1.GenerateKey(rand.Reader)
 					key, pk = secp256k1.PrivKeyFromBytes(keyDB)
 					address, err = dcrutil.NewAddressSecpPubKeyCompressed(pk,
@@ -1633,7 +1634,7 @@ func TestSignTxOutput(t *testing.T) {
 							msg, err)
 					}
 
-				case chainec.ECTypeEdwards:
+				case dcrec.ECTypeEdwards:
 					keyDB, _, _, _ = chainec.Edwards.GenerateKey(rand.Reader)
 					key, pk = chainec.Edwards.PrivKeyFromBytes(keyDB)
 					pkBytes = pk.SerializeCompressed()
@@ -1644,7 +1645,7 @@ func TestSignTxOutput(t *testing.T) {
 							msg, err)
 					}
 
-				case chainec.ECTypeSecSchnorr:
+				case dcrec.ECTypeSecSchnorr:
 					keyDB, _, _, _ = chainec.SecSchnorr.GenerateKey(rand.Reader)
 					key, pk = chainec.SecSchnorr.PrivKeyFromBytes(keyDB)
 					pkBytes = pk.Serialize()
@@ -1781,7 +1782,7 @@ func TestSignTxOutput(t *testing.T) {
 					address2.EncodeAddress(): {&key2, true},
 				}), mkGetScript(map[string][]byte{
 					scriptAddr.EncodeAddress(): pkScript,
-				}), nil, chainec.ECTypeSecp256k1); err != nil {
+				}), nil, dcrec.ECTypeSecp256k1); err != nil {
 				t.Error(err)
 				break
 			}
@@ -1791,7 +1792,7 @@ func TestSignTxOutput(t *testing.T) {
 					address1.EncodeAddress(): {&key1, true},
 					address2.EncodeAddress(): {&key2, true},
 				}), mkGetScript(nil), nil,
-				chainec.ECTypeSecp256k1); err == nil {
+				dcrec.ECTypeSecp256k1); err == nil {
 				t.Errorf("corrupted signature validated %s: %v",
 					msg, err)
 				break
@@ -1863,7 +1864,7 @@ func TestSignTxOutput(t *testing.T) {
 					address1.EncodeAddress(): {&key1, true},
 				}), mkGetScript(map[string][]byte{
 					scriptAddr.EncodeAddress(): pkScript,
-				}), nil, chainec.ECTypeSecp256k1)
+				}), nil, dcrec.ECTypeSecp256k1)
 			if err != nil {
 				t.Errorf("failed to sign output %s: %v", msg,
 					err)
@@ -1884,7 +1885,7 @@ func TestSignTxOutput(t *testing.T) {
 					address2.EncodeAddress(): {&key2, true},
 				}), mkGetScript(map[string][]byte{
 					scriptAddr.EncodeAddress(): pkScript,
-				}), sigScript, chainec.ECTypeSecp256k1)
+				}), sigScript, dcrec.ECTypeSecp256k1)
 			if err != nil {
 				t.Errorf("failed to sign output %s: %v", msg, err)
 				break
@@ -1964,7 +1965,7 @@ func TestSignTxOutput(t *testing.T) {
 					address1.EncodeAddress(): {&key1, true},
 				}), mkGetScript(map[string][]byte{
 					scriptAddr.EncodeAddress(): pkScript,
-				}), nil, chainec.ECTypeSecp256k1)
+				}), nil, dcrec.ECTypeSecp256k1)
 			if err != nil {
 				t.Errorf("failed to sign output %s: %v", msg,
 					err)
@@ -1986,7 +1987,7 @@ func TestSignTxOutput(t *testing.T) {
 					address2.EncodeAddress(): {&key2, true},
 				}), mkGetScript(map[string][]byte{
 					scriptAddr.EncodeAddress(): pkScript,
-				}), sigScript, chainec.ECTypeSecp256k1)
+				}), sigScript, dcrec.ECTypeSecp256k1)
 			if err != nil {
 				t.Errorf("failed to sign output %s: %v", msg, err)
 				break
@@ -2033,11 +2034,11 @@ var (
 	_, thisPubKey     = chainec.Secp256k1.PrivKeyFromBytes(privKeyD)
 	thisAddressUnc, _ = dcrutil.NewAddressPubKeyHash(
 		dcrutil.Hash160(thisPubKey.SerializeUncompressed()),
-		testingParams, chainec.ECTypeSecp256k1)
+		testingParams, dcrec.ECTypeSecp256k1)
 	uncompressedPkScript, _ = PayToAddrScript(thisAddressUnc)
 	thisAddressCom, _       = dcrutil.NewAddressPubKeyHash(
 		dcrutil.Hash160(thisPubKey.SerializeCompressed()),
-		testingParams, chainec.ECTypeSecp256k1)
+		testingParams, dcrec.ECTypeSecp256k1)
 	compressedPkScript, _ = PayToAddrScript(thisAddressCom)
 	shortPkScript         = []byte{0x76, 0xa9, 0x14, 0xd1, 0x7c, 0xb5,
 		0xeb, 0xa4, 0x02, 0xcb, 0x68, 0xe0, 0x69, 0x56, 0xbf, 0x32,

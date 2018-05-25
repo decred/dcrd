@@ -11,6 +11,7 @@ import (
 
 	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrd/chaincfg/chainec"
+	"github.com/decred/dcrd/dcrec"
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/dcrd/wire"
 )
@@ -577,7 +578,7 @@ func (sc ScriptClosure) GetScript(address dcrutil.Address) ([]byte, error) {
 // signature script.
 func SignTxOutput(chainParams *chaincfg.Params, tx *wire.MsgTx, idx int,
 	pkScript []byte, hashType SigHashType, kdb KeyDB, sdb ScriptDB,
-	previousScript []byte, sigType int) ([]byte, error) {
+	previousScript []byte, sigType dcrec.SignatureType) ([]byte, error) {
 	sigScript, class, addresses, nrequired, err := sign(chainParams, tx,
 		idx, pkScript, hashType, kdb, sdb, sigTypes(sigType))
 	if err != nil {

@@ -10,6 +10,8 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+
+	"github.com/decred/dcrd/dcrec"
 )
 
 // These constants define the lengths of serialized public keys.
@@ -92,6 +94,6 @@ func (p PublicKey) GetY() *big.Int {
 }
 
 // GetType satisfies the chainec PublicKey interface.
-func (p PublicKey) GetType() int {
-	return ecTypeEdwards
+func (p PublicKey) GetType() dcrec.SignatureType {
+	return dcrec.ECTypeEdwards
 }

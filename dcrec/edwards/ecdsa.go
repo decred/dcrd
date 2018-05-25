@@ -26,11 +26,6 @@ import (
 // application where you think you might be vulnerable to side channel
 // attacks.
 
-const (
-	// ecTypeEdwards is the ECDSA type for the chainec interface.
-	ecTypeEdwards = 1
-)
-
 var (
 	// oneInitializer is used to fill a byte slice with byte 0x01.  It is provided
 	// here to avoid the need to create it multiple times.

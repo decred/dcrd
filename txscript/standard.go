@@ -10,8 +10,9 @@ import (
 	"fmt"
 
 	"github.com/decred/dcrd/chaincfg"
-	"github.com/decred/dcrd/chaincfg/chainec"
 	"github.com/decred/dcrd/chaincfg/chainhash"
+	"github.com/decred/dcrd/dcrec"
+	"github.com/decred/dcrd/dcrec/secp256k1"
 	"github.com/decred/dcrd/dcrutil"
 )
 
@@ -736,7 +737,7 @@ func PayToSStx(addr dcrutil.Address) ([]byte, error) {
 	scriptType := PubKeyHashTy
 	switch addr := addr.(type) {
 	case *dcrutil.AddressPubKeyHash:
-		if addr.DSA(addr.Net()) != chainec.ECTypeSecp256k1 {
+		if addr.DSA(addr.Net()) != dcrec.ECTypeSecp256k1 {
 			return nil, ErrUnsupportedAddress
 		}
 	case *dcrutil.AddressScriptHash:
@@ -769,7 +770,7 @@ func PayToSStxChange(addr dcrutil.Address) ([]byte, error) {
 	scriptType := PubKeyHashTy
 	switch addr := addr.(type) {
 	case *dcrutil.AddressPubKeyHash:
-		if addr.DSA(addr.Net()) != chainec.ECTypeSecp256k1 {
+		if addr.DSA(addr.Net()) != dcrec.ECTypeSecp256k1 {
 			return nil, ErrUnsupportedAddress
 		}
 	case *dcrutil.AddressScriptHash:
@@ -802,7 +803,7 @@ func PayToSSGen(addr dcrutil.Address) ([]byte, error) {
 	scriptType := PubKeyHashTy
 	switch addr := addr.(type) {
 	case *dcrutil.AddressPubKeyHash:
-		if addr.DSA(addr.Net()) != chainec.ECTypeSecp256k1 {
+		if addr.DSA(addr.Net()) != dcrec.ECTypeSecp256k1 {
 			return nil, ErrUnsupportedAddress
 		}
 	case *dcrutil.AddressScriptHash:
@@ -862,7 +863,7 @@ func PayToSSRtx(addr dcrutil.Address) ([]byte, error) {
 	scriptType := PubKeyHashTy
 	switch addr := addr.(type) {
 	case *dcrutil.AddressPubKeyHash:
-		if addr.DSA(addr.Net()) != chainec.ECTypeSecp256k1 {
+		if addr.DSA(addr.Net()) != dcrec.ECTypeSecp256k1 {
 			return nil, ErrUnsupportedAddress
 		}
 	case *dcrutil.AddressScriptHash:
@@ -922,7 +923,7 @@ func GenerateSStxAddrPush(addr dcrutil.Address, amount dcrutil.Amount,
 	scriptType := PubKeyHashTy
 	switch addr := addr.(type) {
 	case *dcrutil.AddressPubKeyHash:
-		if addr.DSA(addr.Net()) != chainec.ECTypeSecp256k1 {
+		if addr.DSA(addr.Net()) != dcrec.ECTypeSecp256k1 {
 			return nil, ErrUnsupportedAddress
 		}
 	case *dcrutil.AddressScriptHash:
@@ -1016,11 +1017,11 @@ func PayToAddrScript(addr dcrutil.Address) ([]byte, error) {
 			return nil, ErrUnsupportedAddress
 		}
 		switch addr.DSA(addr.Net()) {
-		case chainec.ECTypeSecp256k1:
+		case dcrec.ECTypeSecp256k1:
 			return payToPubKeyHashScript(addr.ScriptAddress())
-		case chainec.ECTypeEdwards:
+		case dcrec.ECTypeEdwards:
 			return payToPubKeyHashEdwardsScript(addr.ScriptAddress())
-		case chainec.ECTypeSecSchnorr:
+		case dcrec.ECTypeSecSchnorr:
 			return payToPubKeyHashSchnorrScript(addr.ScriptAddress())
 		}
 
@@ -1137,7 +1138,7 @@ func ExtractPkScriptAddrs(version uint16, pkScript []byte,
 		// Skip the pubkey hash if it's invalid for some reason.
 		requiredSigs = 1
 		addr, err := dcrutil.NewAddressPubKeyHash(pops[2].data,
-			chainParams, chainec.ECTypeSecp256k1)
+			chainParams, dcrec.ECTypeSecp256k1)
 		if err == nil {
 			addrs = append(addrs, addr)
 		}
@@ -1150,7 +1151,7 @@ func ExtractPkScriptAddrs(version uint16, pkScript []byte,
 		requiredSigs = 1
 		suite, _ := ExtractPkScriptAltSigType(pkScript)
 		addr, err := dcrutil.NewAddressPubKeyHash(pops[2].data,
-			chainParams, suite)
+			chainParams, dcrec.SignatureType(suite))
 		if err == nil {
 			addrs = append(addrs, addr)
 		}
@@ -1161,7 +1162,7 @@ func ExtractPkScriptAddrs(version uint16, pkScript []byte,
 		// Therefore the pubkey is the first item on the stack.
 		// Skip the pubkey if it's invalid for some reason.
 		requiredSigs = 1
-		pk, err := chainec.Secp256k1.ParsePubKey(pops[0].data)
+		pk, err := secp256k1.ParsePubKey(pops[0].data)
 		if err == nil {
 			addr, err := dcrutil.NewAddressSecpPubKeyCompressed(pk, chainParams)
 			if err == nil {
@@ -1179,10 +1180,10 @@ func ExtractPkScriptAddrs(version uint16, pkScript []byte,
 		var addr dcrutil.Address
 		err := fmt.Errorf("invalid signature suite for alt sig")
 		switch suite {
-		case chainec.ECTypeEdwards:
+		case dcrec.ECTypeEdwards:
 			addr, err = dcrutil.NewAddressEdwardsPubKey(pops[0].data,
 				chainParams)
-		case chainec.ECTypeSecSchnorr:
+		case dcrec.ECTypeSecSchnorr:
 			addr, err = dcrutil.NewAddressSecSchnorrPubKey(pops[0].data,
 				chainParams)
 		}
@@ -1257,7 +1258,7 @@ func ExtractPkScriptAddrs(version uint16, pkScript []byte,
 		// Extract the public keys while skipping any that are invalid.
 		addrs = make([]dcrutil.Address, 0, numPubKeys)
 		for i := 0; i < numPubKeys; i++ {
-			pubkey, err := chainec.Secp256k1.ParsePubKey(pops[i+1].data)
+			pubkey, err := secp256k1.ParsePubKey(pops[i+1].data)
 			if err == nil {
 				addr, err := dcrutil.NewAddressSecpPubKeyCompressed(pubkey,
 					chainParams)
@@ -1309,7 +1310,7 @@ func extractOneBytePush(po parsedOpcode) int {
 
 // ExtractPkScriptAltSigType returns the signature scheme to use for an
 // alternative check signature script.
-func ExtractPkScriptAltSigType(pkScript []byte) (int, error) {
+func ExtractPkScriptAltSigType(pkScript []byte) (dcrec.SignatureType, error) {
 	pops, err := parseScript(pkScript)
 	if err != nil {
 		return 0, err
@@ -1328,19 +1329,17 @@ func ExtractPkScriptAltSigType(pkScript []byte) (int, error) {
 
 	valInt := extractOneBytePush(pops[sigTypeLoc])
 	if valInt < 0 {
-		return 0, fmt.Errorf("bad type push")
+		return -1, fmt.Errorf("bad type push")
 	}
 	val := sigTypes(valInt)
 	switch val {
 	case edwards:
-		return int(val), nil
 	case secSchnorr:
-		return int(val), nil
 	default:
-		break
+		return -1, fmt.Errorf("bad signature scheme type")
 	}
 
-	return -1, fmt.Errorf("bad signature scheme type")
+	return dcrec.SignatureType(val), nil
 }
 
 // AtomicSwapDataPushes houses the data pushes found in atomic swap contracts.

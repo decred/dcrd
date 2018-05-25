@@ -10,6 +10,7 @@ import (
 	"io"
 	"math/big"
 
+	"github.com/decred/dcrd/dcrec"
 	"github.com/decred/dcrd/dcrec/secp256k1"
 )
 
@@ -280,7 +281,7 @@ func newSecp256k1DSA() DSA {
 			return secp256k1.GenerateKey(rand)
 		},
 		sign: func(priv PrivateKey, hash []byte) (r, s *big.Int, err error) {
-			if priv.GetType() != ECTypeSecp256k1 {
+			if priv.GetType() != dcrec.ECTypeSecp256k1 {
 				return nil, nil, errors.New("wrong type")
 			}
 			spriv, ok := priv.(*secp256k1.PrivateKey)

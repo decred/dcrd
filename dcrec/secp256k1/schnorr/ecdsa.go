@@ -15,9 +15,6 @@ import (
 )
 
 const (
-	// ecTypeSecSchnorr is the ECDSA type for the chainec interface.
-	ecTypeSecSchnorr = 2
-
 	// scalarSize is the size of an encoded big endian scalar.
 	scalarSize = 32
 )

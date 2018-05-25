@@ -10,8 +10,9 @@ import (
 	"fmt"
 
 	"github.com/decred/dcrd/chaincfg"
-	"github.com/decred/dcrd/chaincfg/chainec"
 	"github.com/decred/dcrd/chaincfg/chainhash"
+	"github.com/decred/dcrd/dcrec"
+	"github.com/decred/dcrd/dcrec/secp256k1"
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/dcrd/txscript"
 	"github.com/decred/dcrd/wire"
@@ -90,10 +91,10 @@ func ExampleSignTxOutput() {
 		fmt.Println(err)
 		return
 	}
-	privKey, pubKey := chainec.Secp256k1.PrivKeyFromBytes(privKeyBytes)
+	privKey, pubKey := secp256k1.PrivKeyFromBytes(privKeyBytes)
 	pubKeyHash := dcrutil.Hash160(pubKey.SerializeCompressed())
 	addr, err := dcrutil.NewAddressPubKeyHash(pubKeyHash,
-		&chaincfg.MainNetParams, chainec.ECTypeSecp256k1)
+		&chaincfg.MainNetParams, dcrec.ECTypeSecp256k1)
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -155,7 +156,7 @@ func ExampleSignTxOutput() {
 	sigScript, err := txscript.SignTxOutput(&chaincfg.MainNetParams,
 		redeemTx, 0, originTx.TxOut[0].PkScript, txscript.SigHashAll,
 		txscript.KeyClosure(lookupKey), nil, nil,
-		chainec.ECTypeSecp256k1)
+		dcrec.ECTypeSecp256k1)
 	if err != nil {
 		fmt.Println(err)
 		return
