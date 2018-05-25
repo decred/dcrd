@@ -1151,7 +1151,7 @@ func ExtractPkScriptAddrs(version uint16, pkScript []byte,
 		requiredSigs = 1
 		suite, _ := ExtractPkScriptAltSigType(pkScript)
 		addr, err := dcrutil.NewAddressPubKeyHash(pops[2].data,
-			chainParams, dcrec.SignatureType(suite))
+			chainParams, suite)
 		if err == nil {
 			addrs = append(addrs, addr)
 		}
