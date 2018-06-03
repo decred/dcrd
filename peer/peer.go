@@ -1746,6 +1746,17 @@ func (p *Peer) handleRemoteVersionMsg(msg *wire.MsgVersion) error {
 		return errors.New("disconnecting peer connected to self")
 	}
 
+	// Negotiate the protocol version and set the services to what the remote
+	// peer advertised.
+	p.flagsMtx.Lock()
+	p.advertisedProtoVer = uint32(msg.ProtocolVersion)
+	p.protocolVersion = minUint32(p.protocolVersion, p.advertisedProtoVer)
+	p.versionKnown = true
+	p.services = msg.Services
+	p.flagsMtx.Unlock()
+	log.Debugf("Negotiated protocol version %d for peer %s",
+		p.protocolVersion, p)
+
 	// Notify and disconnect clients that have a protocol version that is
 	// too old.
 	if msg.ProtocolVersion < int32(wire.InitialProcotolVersion) {
@@ -1768,18 +1779,9 @@ func (p *Peer) handleRemoteVersionMsg(msg *wire.MsgVersion) error {
 	p.timeOffset = msg.Timestamp.Unix() - time.Now().Unix()
 	p.statsMtx.Unlock()
 
-	// Negotiate the protocol version.
 	p.flagsMtx.Lock()
-	p.advertisedProtoVer = uint32(msg.ProtocolVersion)
-	p.protocolVersion = minUint32(p.protocolVersion, p.advertisedProtoVer)
-	p.versionKnown = true
-	log.Debugf("Negotiated protocol version %d for peer %s",
-		p.protocolVersion, p)
 	// Set the peer's ID.
 	p.id = atomic.AddInt32(&nodeCount, 1)
-	// Set the supported services for the peer to what the remote peer
-	// advertised.
-	p.services = msg.Services
 	// Set the remote peer's user agent.
 	p.userAgent = msg.UserAgent
 	p.flagsMtx.Unlock()
