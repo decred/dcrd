@@ -47,6 +47,11 @@ type GetBestBlockResult struct {
 	Height int64  `json:"height"`
 }
 
+// GetContractHashResult models the data from the getcontracthash command.
+type GetContractHashResult struct {
+	ContractHash string `json:"contracthash"`
+}
+
 // GetMultisigOutInfoResult models the data returned from the getmultisigoutinfo
 // command.
 type GetMultisigOutInfoResult struct {
@@ -62,6 +67,12 @@ type GetMultisigOutInfoResult struct {
 	SpentBy      string   `json:"spentby"`
 	SpentByIndex uint32   `json:"spentbyindex"`
 	Amount       float64  `json:"amount"`
+}
+
+// GetPayToContractHashResult models the data returned from the getpaytocontracthash
+// command.
+type GetPayToContractHashResult struct {
+	Address string `json:"address"`
 }
 
 // GetStakeInfoResult models the data returned from the getstakeinfo
