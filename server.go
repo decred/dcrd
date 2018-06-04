@@ -1098,6 +1098,20 @@ func (sp *serverPeer) OnWrite(p *peer.Peer, bytesWritten int, msg wire.Message, 
 	sp.server.AddBytesSent(uint64(bytesWritten))
 }
 
+// OnReject is invoked when a peer receives a reject wire message.
+func (sp *serverPeer) OnReject(p *peer.Peer, msg *wire.MsgReject) {
+	str := fmt.Sprintf("Peer %v sent a reject message: code:%x "+
+		"reason:\"%v\"", p, msg.Code, msg.Reason)
+
+	switch strings.ToLower(msg.Cmd) {
+	case "block":
+		fallthrough
+	case "tx":
+		str += fmt.Sprintf(" hash:%v", msg.Hash)
+	}
+	peerLog.Debugf("%s", str)
+}
+
 // randomUint16Number returns a random uint16 in a specified input range.  Note
 // that the range is in zeroth ordering; if you pass it 1800, you will get
 // values from 0 to 1800.
@@ -1630,6 +1644,7 @@ func newPeerConfig(sp *serverPeer) *peer.Config {
 			OnAddr:           sp.OnAddr,
 			OnRead:           sp.OnRead,
 			OnWrite:          sp.OnWrite,
+			OnReject:         sp.OnReject,
 		},
 		NewestBlock:      sp.newestBlock,
 		HostToNetAddress: sp.server.addrManager.HostToNetAddress,
