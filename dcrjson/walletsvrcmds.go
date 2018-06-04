@@ -318,6 +318,17 @@ func NewGetBalanceCmd(account *string, minConf *int) *GetBalanceCmd {
 	}
 }
 
+// GetContratHashCmd defines the getcontracthash JSON-RPC command.
+type GetContractHashCmd struct {
+	FilePath []string
+}
+
+// NewGetBalanceCmd returns a new instance which can be used to issue a
+// getcontracthash JSON-RPC command.
+func NewGetContractHashCmd(filepaths []string) *GetContractHashCmd {
+	return &GetContractHashCmd{FilePath: filepaths}
+}
+
 // GetMasterPubkeyCmd is a type handling custom marshaling and unmarshaling of
 // getmasterpubkey JSON wallet extension commands.
 type GetMasterPubkeyCmd struct {
@@ -357,6 +368,19 @@ func NewGetNewAddressCmd(account *string, gapPolicy *string) *GetNewAddressCmd {
 	return &GetNewAddressCmd{
 		Account:   account,
 		GapPolicy: gapPolicy,
+	}
+}
+
+// GetPayToContractHashCmd defines the getpaytocontracthash JSON-RPC command.
+type GetPayToContractAddressCmd struct {
+	FilePath []string
+}
+
+// NewGetPayToContractAddressCmd returns a new instance which can be used to issue a
+// getpaytocontractaddress JSON-RPC command.
+func NewGetPayToContractAddressCmd(filepaths []string) *GetPayToContractAddressCmd {
+	return &GetPayToContractAddressCmd{
+		FilePath: filepaths,
 	}
 }
 
@@ -1277,9 +1301,11 @@ func init() {
 	MustRegisterCmd("getaccountaddress", (*GetAccountAddressCmd)(nil), flags)
 	MustRegisterCmd("getaddressesbyaccount", (*GetAddressesByAccountCmd)(nil), flags)
 	MustRegisterCmd("getbalance", (*GetBalanceCmd)(nil), flags)
+	MustRegisterCmd("getcontracthash", (*GetContractHashCmd)(nil), flags)
 	MustRegisterCmd("getmasterpubkey", (*GetMasterPubkeyCmd)(nil), flags)
 	MustRegisterCmd("getmultisigoutinfo", (*GetMultisigOutInfoCmd)(nil), flags)
 	MustRegisterCmd("getnewaddress", (*GetNewAddressCmd)(nil), flags)
+	MustRegisterCmd("getpaytocontractaddress", (*GetPayToContractAddressCmd)(nil), flags)
 	MustRegisterCmd("getrawchangeaddress", (*GetRawChangeAddressCmd)(nil), flags)
 	MustRegisterCmd("getreceivedbyaccount", (*GetReceivedByAccountCmd)(nil), flags)
 	MustRegisterCmd("getreceivedbyaddress", (*GetReceivedByAddressCmd)(nil), flags)
