@@ -612,6 +612,16 @@ func NewListAccountsCmd(minConf *int) *ListAccountsCmd {
 	}
 }
 
+// ListTicketsCmd defines the listtickets JSON-RPC command.
+type ListTicketsCmd struct {
+}
+
+// NewListTicketsCmd returns a new instance which can be used to issue a
+// listtickets JSON-RPC command.
+func NewListTicketsCmd() *ListTicketsCmd {
+	return &ListTicketsCmd{}
+}
+
 // ListLockUnspentCmd defines the listlockunspent JSON-RPC command.
 type ListLockUnspentCmd struct{}
 
@@ -1331,6 +1341,7 @@ func init() {
 	MustRegisterCmd("listreceivedbyaddress", (*ListReceivedByAddressCmd)(nil), flags)
 	MustRegisterCmd("listscripts", (*ListScriptsCmd)(nil), flags)
 	MustRegisterCmd("listsinceblock", (*ListSinceBlockCmd)(nil), flags)
+	MustRegisterCmd("listtickets", (*ListTicketsCmd)(nil), flags)
 	MustRegisterCmd("listtransactions", (*ListTransactionsCmd)(nil), flags)
 	MustRegisterCmd("listunspent", (*ListUnspentCmd)(nil), flags)
 	MustRegisterCmd("lockunspent", (*LockUnspentCmd)(nil), flags)
