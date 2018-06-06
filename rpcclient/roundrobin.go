@@ -13,11 +13,14 @@ import (
 
 var (
 	// ErrNoConnAvailable indicates no Conn is available for pick().
-	ErrNoConnAvailable = errors.New("no Connection is available")
+	ErrNoConnAvailable = errors.New("no connection is available")
 
 	// ErrNoUsableConnAvailable indicates no usable connections available i.e.
 	// client is marked as Shutdown.
-	ErrNoUsableConnAvailable = errors.New("no Connection is available for use, all are marked as Shutdown")
+	ErrNoUsableConnAvailable = errors.New("all connections have been shutdown")
+
+	// ErrBalancerNotFound indicates the balancer type is not found.
+	ErrBalancerNotFound = errors.New("not able to find the specified balancer type")
 )
 
 // ConnectionState indicates the current state of connection.
@@ -71,48 +74,6 @@ type HostAddress struct {
 	retryCount int64
 }
 
-// Balancer uses Picker to pick connections.
-// It collects and maintains the connectivity states.
-type Balancer interface {
-	// NextConn gets the next usabel connection.
-	NextConn() (wsConn *websocket.Conn, hostAddress *HostAddress, err error)
-
-	// ConnectionState gets the connectionstate of corresponding wsConn.
-	ConnectionState(host string) (state ConnectionState, ok bool)
-
-	// WsConnection gets the wsConn corresponding to the host.
-	WsConnection(host string) (wsConn *websocket.Conn, connOk bool)
-
-	// NextDisconnectedWsConn will iterate over the connection state map and
-	// return the first wsConnection that has its state as Disconnected.
-	NextDisconnectedWsConn() *HostAddress
-
-	// NotifyConnStateChange is called by rpcClient when the ConnectionState
-	// for a hostaddress changes.
-	NotifyConnStateChange(sc *HostAddress, state ConnectionState, sync bool)
-
-	// UpdateReconnectAttempt will increase retryattempt + 1.
-	UpdateReconnectAttempt(hostAdd *HostAddress)
-
-	// NotifyReconnect will update the map for wsConns and update the connection state
-	// for this address.
-	NotifyReconnect(wsConn *websocket.Conn, hostAdd *HostAddress)
-
-	// Close closes the passed ws connection and sets the state as Disconnected
-	// by calling NotifyConnStateChange.
-	// Returns true if this was the last WS connection to be closed.
-	Close(wsConn *websocket.Conn) bool
-
-	// CloseAll closes all the ws connections which are active at present.
-	CloseAll()
-}
-
-// Picker is used to pick the next connection to be used.
-type Picker interface {
-	// Pick checks for the next usable connection using the connState map with balancer.
-	Pick(balancer Balancer) (*HostAddress, error)
-}
-
 type picker struct {
 	conns []HostAddress
 	mu    sync.Mutex
@@ -157,6 +118,22 @@ func (p *picker) Pick(balancer Balancer) (conn *HostAddress, err error) {
 	return conn, nil
 }
 
+// isStatefulNotification checks if the notification method is
+// one of those that changes a server state and hence needs special attention.
+func isStatefulNotification(method string) bool {
+	switch method {
+	case "loadtxfilter",
+		"notifyblocks",
+		"notifywinningtickets",
+		"notifyspentandmissedtickets",
+		"notifynewtickets",
+		"notifystakedifficulty",
+		"notifynewtransactions":
+		return true
+	}
+	return false
+}
+
 // WsInHandlerForConn represents the incoming message handler for a
 // ws connection. This is invoked as a goroutine, one per ws connection
 type WsInHandlerForConn func(*websocket.Conn, string)
@@ -185,15 +162,19 @@ type RoundRobinBalancer struct {
 	// connection state as the value.
 	connState map[string]ConnectionState
 
+	// connForNotification is a map of notification name as key and value as
+	// HostAddress.Host corresponding to the connection used for this notification.
+	connForNotification map[string]string
+
 	waitToConnect chan struct{}
 
 	// isReady indicates that at least one connection is in Ready state.
 	isReady bool
 
-	// NeedsClientRestart is used to decide if client.start() needs to be called during reconnect.
+	// needsClientRestart is used to decide if client.start() needs to be called during reconnect.
 	// It is set to true when all connection are either disconnected or shutdown.
 	// It is set to false after client.start() is called during reconnect.
-	NeedsClientRestart bool
+	needsClientRestart bool
 
 	// Receiver for incoming calls for a wsConnection.
 	// This is invoked as a goroutine per ws connection.
@@ -202,7 +183,7 @@ type RoundRobinBalancer struct {
 
 // NextConn gets the next connection to be used.
 // It returns both *websocket.Conn and the corresponding *HostAddress.
-func (rrb *RoundRobinBalancer) NextConn() (*websocket.Conn, *HostAddress, error) {
+func (rrb *RoundRobinBalancer) NextConn(method string) (*websocket.Conn, *HostAddress, error) {
 	if !rrb.isReady {
 		select {
 		// Wait if any handshake is inprogress.
@@ -213,7 +194,12 @@ func (rrb *RoundRobinBalancer) NextConn() (*websocket.Conn, *HostAddress, error)
 		default:
 		}
 	}
-
+	if host, ok := rrb.connForNotification[method]; ok {
+		wsConn, _ := rrb.WsConnection(host)
+		log.Infof("Balancer: Using %s for notification: %s",
+			host, method)
+		return wsConn, rrb.hostAddMap[host], nil
+	}
 	hostAddress, err := rrb.connPicker.Pick(rrb)
 	if err != nil {
 		return nil, nil, err
@@ -256,6 +242,11 @@ func (rrb *RoundRobinBalancer) NextConn() (*websocket.Conn, *HostAddress, error)
 	}
 	log.Infof("Balancer: Connection pick for RPC %s",
 		hostAddress.Host)
+	if isStatefulNotification(method) {
+		rrb.connForNotification[method] = hostAddress.Host
+		log.Infof("Balancer: Will be using %s for notification: %s",
+			hostAddress.Host, method)
+	}
 	return wsConn, hostAddress, err
 }
 
@@ -318,7 +309,7 @@ func (rrb *RoundRobinBalancer) Close(wsConn *websocket.Conn) bool {
 // It returns true if all ws connections are disconnected, false otherwise.
 func (rrb *RoundRobinBalancer) setForClientRestart() bool {
 	if rrb.IsAllDisconnected() {
-		rrb.NeedsClientRestart = true
+		rrb.SetClientRestartNeeded(true)
 		return true
 	}
 	return false
@@ -378,6 +369,11 @@ func (rrb *RoundRobinBalancer) IsAllDisconnected() bool {
 	return true
 }
 
+// IsReady returns true if there is at least one connection ready to use.
+func (rrb *RoundRobinBalancer) IsReady() bool {
+	return rrb.isReady
+}
+
 // NextDisconnectedWsConn will iterate over the connection state map and
 // return the first wsConnection that has its state as Disconnected.
 func (rrb *RoundRobinBalancer) NextDisconnectedWsConn() *HostAddress {
@@ -408,27 +404,41 @@ func (rrb *RoundRobinBalancer) WsConnection(host string) (wsConn *websocket.Conn
 	return
 }
 
+// SetClientRestartNeeded sets the flag used to decide if client.start() needs to be called during reconnect.
+func (rrb *RoundRobinBalancer) SetClientRestartNeeded(isRestartNeeded bool) {
+	rrb.needsClientRestart = isRestartNeeded
+}
+
+// ClientRestartNeeded gets the flag used to decide if client.start() needs to be called during reconnect.
+func (rrb *RoundRobinBalancer) ClientRestartNeeded() bool {
+	return rrb.needsClientRestart
+}
+
 // BuildBalancer is used to setup balancer with required config.
 // If no items in HostAddresses list, then would add one using *ConnConfig.Host
 // and *ConnConfig.Endpoint else use the *ConnConfig.HostAddresses for round-robin.
-func (cn *Client) BuildBalancer(cc *ConnConfig) *RoundRobinBalancer {
-	if len(cc.HostAddresses) <= 0 {
-		cc.HostAddresses = []HostAddress{{Endpoint: cc.Endpoint, Host: cc.Host}}
+func (c *Client) BuildBalancer(config *ConnConfig) (Balancer, error) {
+	if config.Balancer != "" && config.Balancer != "RoundRobinBalancer" {
+		return nil, ErrBalancerNotFound
+	}
+	if len(config.HostAddresses) == 0 {
+		config.HostAddresses = []HostAddress{{Endpoint: config.Endpoint, Host: config.Host}}
 	}
 	hostAddressesMap := make(map[string]*HostAddress)
-	for _, val := range cc.HostAddresses {
+	for _, val := range config.HostAddresses {
 		hostAddressesMap[val.Host] = &val
 	}
-	balancer := &RoundRobinBalancer{
+	var rrb Balancer = &RoundRobinBalancer{
 		connPicker: picker{
-			conns: cc.HostAddresses,
+			conns: config.HostAddresses,
 			next:  0,
 		},
-		connConfig:  cc,
-		connState:   make(map[string]ConnectionState),
-		wsConns:     make(map[string]*websocket.Conn),
-		hostAddMap:  hostAddressesMap,
-		WsInHandler: cn.WsInHandler,
+		connConfig:          config,
+		connState:           make(map[string]ConnectionState),
+		wsConns:             make(map[string]*websocket.Conn),
+		hostAddMap:          hostAddressesMap,
+		WsInHandler:         c.WsInHandler,
+		connForNotification: make(map[string]string),
 	}
-	return balancer
+	return rrb, nil
 }

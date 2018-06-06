@@ -142,7 +142,7 @@ type Client struct {
 	ntfnState     *notificationState
 
 	// Networking infrastructure.
-	sendChan        chan []byte
+	sendChan        chan *jsonRequest
 	sendPostChan    chan *sendPostDetails
 	connEstablished chan struct{}
 	disconnect      chan struct{}
@@ -154,7 +154,7 @@ type Client struct {
 	// Whenever we need a connection, RoundRobinBalancer.NextConn() should be used to
 	// retrive a websocket connection or a HostAddress in case of HttpPostMode.
 	// It relies on the HostAddresses present in ConnConfig as the source for round-robin.
-	balancer *RoundRobinBalancer
+	balancer Balancer
 }
 
 // NextID returns the next id to be used when sending a JSON-RPC message.  This
@@ -454,20 +454,19 @@ out:
 		// Send any messages ready for send until the client is
 		// disconnected closed.
 		select {
-		case msg := <-c.sendChan:
-			conn, _, err := c.balancer.NextConn()
+		case req := <-c.sendChan:
+			conn, _, err := c.balancer.NextConn(req.method)
 			if err != nil {
 				// Failed to get any usable connection, lets break out.
 				log.Tracef("RPC client balancer error: %s", err)
-				c.balancer.NeedsClientRestart = true
+				c.balancer.SetClientRestartNeeded(true)
 				break out
 			}
-			err = conn.WriteMessage(websocket.TextMessage, msg)
+			err = conn.WriteMessage(websocket.TextMessage, req.marshalledJSON)
 			if err != nil {
 				if c.balancer.Close(conn) {
 					break out
 				}
-
 			}
 
 		case <-c.disconnectChan():
@@ -492,10 +491,10 @@ cleanup:
 // sendMessage sends the passed JSON to the connected server using the
 // websocket connection.  It is backed by a buffered channel, so it will not
 // block until the send channel is full.
-func (c *Client) sendMessage(marshalledJSON []byte) {
+func (c *Client) sendMessage(jReq *jsonRequest) {
 	// Don't send the message if disconnected.
 	select {
-	case c.sendChan <- marshalledJSON:
+	case c.sendChan <- jReq:
 	case <-c.disconnectChan():
 		return
 	}
@@ -625,7 +624,7 @@ func (c *Client) resendRequests() {
 
 		log.Tracef("Sending command [%s] with id %d", jReq.method,
 			jReq.id)
-		c.sendMessage(jReq.marshalledJSON)
+		c.sendMessage(jReq)
 	}
 }
 
@@ -702,9 +701,9 @@ out:
 
 			// Start processing input and output for the
 			// new connection if all got disconnected earlier.
-			if c.balancer.NeedsClientRestart {
+			if c.balancer.ClientRestartNeeded() {
 				c.start()
-				c.balancer.NeedsClientRestart = false
+				c.balancer.SetClientRestartNeeded(false)
 			}
 
 			// Reissue pending requests in another goroutine since
@@ -844,7 +843,7 @@ func (c *Client) sendPost(jReq *jsonRequest) {
 	if !c.config.DisableTLS {
 		protocol = "https"
 	}
-	_, conn, err := c.balancer.NextConn()
+	_, conn, err := c.balancer.NextConn("")
 	if err != nil {
 		jReq.responseChan <- &response{result: nil, err: err}
 		return
@@ -897,7 +896,7 @@ func (c *Client) sendRequest(jReq *jsonRequest) {
 		return
 	}
 	log.Tracef("Sending command [%s] with id %d", jReq.method, jReq.id)
-	c.sendMessage(jReq.marshalledJSON)
+	c.sendMessage(jReq)
 }
 
 // sendCmd sends the passed command to the associated server and returns a
@@ -941,20 +940,6 @@ func (c *Client) sendCmdAndWait(cmd interface{}) (interface{}, error) {
 	return receiveFuture(c.sendCmd(cmd))
 }
 
-// Disconnected returns whether or not the server is disconnected.  If a
-// websocket client was created but never connected, this also returns false.
-// func (c *Client) Disconnected() bool {
-// 	c.mtx.Lock()
-// 	defer c.mtx.Unlock()
-
-// 	select {
-// 	case <-c.connEstablished:
-// 		return c.disconnected
-// 	default:
-// 		return false
-// 	}
-// }
-
 // doDisconnect disconnects the websocket associated with the client if it
 // hasn't already been disconnected.  It will return false if the disconnect is
 // not needed or the client is running in HTTP POST mode.
@@ -982,7 +967,6 @@ func (c *Client) doDisconnect() bool {
 		c.balancer.CloseAll()
 	default:
 	}
-	//c.disconnected = true
 	return true
 }
 
@@ -1157,6 +1141,10 @@ type ConnConfig struct {
 	// HostAddresses is the list of address points to be used for round-robin
 	// by the RoundRobinBalancer.
 	HostAddresses []HostAddress
+
+	// Balancer to be used for loadbalancing. If nil, it defaults
+	// to RoundRobinBalancer.
+	Balancer string
 }
 
 // newHTTPClient returns a new http client that is configured according to the
@@ -1298,23 +1286,25 @@ func New(config *ConnConfig, ntfnHandlers *NotificationHandlers) (*Client, error
 		requestList:     list.New(),
 		ntfnHandlers:    ntfnHandlers,
 		ntfnState:       newNotificationState(),
-		sendChan:        make(chan []byte, sendBufferSize),
+		sendChan:        make(chan *jsonRequest, sendBufferSize),
 		sendPostChan:    make(chan *sendPostDetails, sendPostBufferSize),
 		connEstablished: connEstablished,
 		disconnect:      make(chan struct{}),
 		shutdown:        make(chan struct{}),
 	}
+	var err error
 	// Setup balancer to be used for round-robin.
-	client.balancer = client.BuildBalancer(config)
+	client.balancer, err = client.BuildBalancer(config)
+	if err != nil {
+		return nil, err
+	}
 	if !config.HTTPPostMode && !config.DisableConnectOnNew {
-		var err error
 		// Doing a NextConn() here will ensure that there is at least
 		// one connection ready to use.
-		_, _, err = client.balancer.NextConn()
+		_, _, err := client.balancer.NextConn("")
 		if err != nil {
 			return nil, err
 		}
-		start = true
 	}
 	if start {
 		close(connEstablished)
@@ -1345,7 +1335,7 @@ func (c *Client) Connect(ctx context.Context, retry bool) error {
 	if c.config.HTTPPostMode {
 		return ErrNotWebsocketClient
 	}
-	if c.balancer.isReady {
+	if c.balancer.IsReady() {
 		return ErrClientAlreadyConnected
 	}
 
@@ -1353,11 +1343,12 @@ func (c *Client) Connect(ctx context.Context, retry bool) error {
 	// attempt, up to a maximum of one minute.
 	var backoff time.Duration
 	for {
-		_, hostAdd, err := c.balancer.NextConn()
+		_, hostAdd, err := c.balancer.NextConn("")
 		if err != nil {
 			if !retry {
 				return err
 			}
+
 			log.Errorf("Connection attempt failed: %v", err)
 			backoff += connectionRetryInterval
 			if backoff > time.Minute {
