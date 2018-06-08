@@ -5,7 +5,7 @@
 package rpcclient
 
 import (
-	"github.com/btcsuite/websocket"
+	"github.com/gorilla/websocket"
 )
 
 // Balancer defines requirements for a load balancer

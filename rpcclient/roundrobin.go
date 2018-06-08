@@ -8,7 +8,7 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/btcsuite/websocket"
+	"github.com/gorilla/websocket"
 )
 
 var (
