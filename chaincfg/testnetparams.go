@@ -27,8 +27,8 @@ var TestNet2Params = Params{
 	// Chain parameters
 	GenesisBlock:             &testNet2GenesisBlock,
 	GenesisHash:              &testNet2GenesisHash,
-	PowLimit:                 testNetPowLimit,
-	PowLimitBits:             0x1e00ffff,
+	PowLimit:                 testNetPowLimit.ToBigInt(),
+	PowLimitBits:             testNetPowLimit.ToCompact(),
 	ReduceMinDifficulty:      false,
 	MinDiffReductionTime:     0, // Does not apply since ReduceMinDifficulty false
 	GenerateSupported:        true,
