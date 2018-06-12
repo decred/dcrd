@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/decred/dcrd/blockchain/stake"
+	"github.com/decred/dcrd/blockchainutil"
 	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/database"
@@ -368,7 +369,7 @@ func CheckProofOfStake(block *dcrutil.Block, posLimit int64) error {
 //    difficulty is not performed.
 func checkProofOfWork(header *wire.BlockHeader, powLimit *big.Int, flags BehaviorFlags) error {
 	// The target difficulty must be larger than zero.
-	target := CompactToBig(header.Bits)
+	target := blockchainutil.CompactToBig(header.Bits)
 	if target.Sign() <= 0 {
 		str := fmt.Sprintf("block target difficulty of %064x is too "+
 			"low", target)

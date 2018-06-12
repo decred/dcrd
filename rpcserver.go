@@ -33,6 +33,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/decred/dcrd/blockchainutil"
+
 	"github.com/gorilla/websocket"
 
 	"github.com/decred/dcrd/blockchain"
@@ -1898,8 +1900,8 @@ func getDifficultyRatio(bits uint32) float64 {
 	// converted back to a number.  Note this is not the same as the proof
 	// of work limit directly because the block difficulty is encoded in a
 	// block with the compact form which loses precision.
-	max := blockchain.CompactToBig(activeNetParams.PowLimitBits)
-	target := blockchain.CompactToBig(bits)
+	max := blockchainutil.CompactToBig(activeNetParams.PowLimitBits)
+	target := blockchainutil.CompactToBig(bits)
 
 	difficulty := new(big.Rat).SetFrac(max, target)
 	outString := difficulty.FloatString(8)
@@ -2374,7 +2376,7 @@ func (state *gbtWorkState) updateBlockTemplate(s *rpcServer, useCoinbaseValue bo
 		template = blkTemplate
 		msgBlock = template.Block
 		targetDifficulty = fmt.Sprintf("%064x",
-			blockchain.CompactToBig(msgBlock.Header.Bits))
+			blockchainutil.CompactToBig(msgBlock.Header.Bits))
 
 		// Find the minimum allowed timestamp for the block based on the
 		// median timestamp of the last several blocks per the chain
@@ -2438,7 +2440,7 @@ func (state *gbtWorkState) updateBlockTemplate(s *rpcServer, useCoinbaseValue bo
 		// Set locals for convenience.
 		msgBlock = template.Block
 		targetDifficulty = fmt.Sprintf("%064x",
-			blockchain.CompactToBig(msgBlock.Header.Bits))
+			blockchainutil.CompactToBig(msgBlock.Header.Bits))
 
 		// Update the time of the block template to the current time
 		// while accounting for the median time of the past several
@@ -2625,7 +2627,7 @@ func (state *gbtWorkState) blockTemplateResult(bm *blockManager, useCoinbaseValu
 	// are implied by the included or omission of fields:
 	//  Including MinTime -> time/decrement
 	//  Omitting CoinbaseTxn -> coinbase, generation
-	targetDifficulty := fmt.Sprintf("%064x", blockchain.CompactToBig(header.Bits))
+	targetDifficulty := fmt.Sprintf("%064x", blockchainutil.CompactToBig(header.Bits))
 	templateID := encodeTemplateID(state.prevHash, state.lastGenerated)
 	reply := dcrjson.GetBlockTemplateResult{
 		Header:        hex.EncodeToString(headerBytes),
@@ -4080,7 +4082,7 @@ func handleGetWorkRequest(s *rpcServer) (interface{}, error) {
 		rpcsLog.Debugf("Generated block template (timestamp %v, extra "+
 			"nonce %d, target %064x, merkle root %s)",
 			msgBlock.Header.Timestamp, state.extraNonce,
-			blockchain.CompactToBig(msgBlock.Header.Bits),
+			blockchainutil.CompactToBig(msgBlock.Header.Bits),
 			msgBlock.Header.MerkleRoot)
 	} else {
 		if msgBlock == nil {
@@ -4128,7 +4130,7 @@ func handleGetWorkRequest(s *rpcServer) (interface{}, error) {
 			"nonce %d, target %064x, merkle root %s)",
 			msgBlock.Header.Timestamp,
 			state.extraNonce,
-			blockchain.CompactToBig(msgBlock.Header.Bits),
+			blockchainutil.CompactToBig(msgBlock.Header.Bits),
 			msgBlock.Header.MerkleRoot)
 	}
 
@@ -4187,7 +4189,7 @@ func handleGetWorkRequest(s *rpcServer) (interface{}, error) {
 	// The fact the fields are reversed in this way is rather odd and likey
 	// an artifact of some legacy internal state in the reference
 	// implementation, but it is required for compatibility.
-	target := bigToLEUint256(blockchain.CompactToBig(msgBlock.Header.Bits))
+	target := bigToLEUint256(blockchainutil.CompactToBig(msgBlock.Header.Bits))
 	reply := &dcrjson.GetWorkResult{
 		Data:   hex.EncodeToString(data),
 		Target: hex.EncodeToString(target[:]),

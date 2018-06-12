@@ -15,6 +15,7 @@ import (
 
 	"github.com/decred/dcrd/blockchain"
 	"github.com/decred/dcrd/blockchain/stake"
+	"github.com/decred/dcrd/blockchainutil"
 	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/dcrutil"
@@ -2029,7 +2030,7 @@ mempoolLoop:
 		"%d bytes, target difficulty %064x, stake difficulty %v)",
 		len(msgBlock.Transactions), len(msgBlock.STransactions),
 		totalFees, blockSigOps, blockSize,
-		blockchain.CompactToBig(msgBlock.Header.Bits),
+		blockchainutil.CompactToBig(msgBlock.Header.Bits),
 		dcrutil.Amount(msgBlock.Header.SBits).ToCoin())
 
 	blockTemplate := &BlockTemplate{
