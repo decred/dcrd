@@ -12,28 +12,35 @@ import (
 	"math/big"
 	"time"
 
+	"github.com/decred/dcrd/blockchainutil"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/wire"
 )
 
 // These variables are the chain proof-of-work limit parameters for each default
-// network.
+// network. Network power limit is the highest proof of work value a Decred
+// block can have. params_test.go should cover this section to ensure validity
 var (
-	// bigOne is 1 represented as a big.Int.  It is defined here to avoid
-	// the overhead of creating it multiple times.
-	bigOne = big.NewInt(1)
+	//  mainPowLimit value for the main network.
+	//  First 4 bytes (32 bits) are zeroes and the big.Int value
+	//  is equal to 2^(256-4*8) - 1 = 2^(256-32) - 1 = 2^224 - 1
+	//  compact form (Bits) is 0x1d00ffff
+	mainPowLimit = blockchainutil.NewDifficultyFromHashString( //
+		"00 00 00 00 ffffffffffffffffffffffffffffffffffffffffffffffffffffffff")
 
-	// mainPowLimit is the highest proof of work value a Decred block can
-	// have for the main network.  It is the value 2^224 - 1.
-	mainPowLimit = new(big.Int).Sub(new(big.Int).Lsh(bigOne, 224), bigOne)
+	// testNetPowLimit value for the test network.
+	// First 3 bytes (24 bits) are zeroes and the big.Int value
+	// is equal to 2^(256-3*8) - 1 = 2^(256-24) - 1 = 2^232 - 1
+	// compact form (Bits) is 0x1e00ffff
+	testNetPowLimit = blockchainutil.NewDifficultyFromHashString(
+		"00 00 00 ff ffffffffffffffffffffffffffffffffffffffffffffffffffffffff")
 
-	// testNetPowLimit is the highest proof of work value a Decred block
-	// can have for the test network.  It is the value 2^232 - 1.
-	testNetPowLimit = new(big.Int).Sub(new(big.Int).Lsh(bigOne, 232), bigOne)
-
-	// simNetPowLimit is the highest proof of work value a Decred block
-	// can have for the simulation test network.  It is the value 2^255 - 1.
-	simNetPowLimit = new(big.Int).Sub(new(big.Int).Lsh(bigOne, 255), bigOne)
+	// simNetPowLimit value for the simulation test network.
+	// First bit is zero, 7f = 01111111 in binary form, so the big.Int value
+	// is equal to 2^(256-1) - 1 = 2^255 - 1
+	// compact form (Bits) is 0x207fffff
+	simNetPowLimit = blockchainutil.NewDifficultyFromHashString(
+		"7f ff ff ff ffffffffffffffffffffffffffffffffffffffffffffffffffffffff")
 
 	VoteBitsNotFound = fmt.Errorf("vote bits not found")
 )
