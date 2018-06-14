@@ -169,7 +169,7 @@ func createSpendingTx(sigScript, pkScript []byte) *wire.MsgTx {
 
 	outPoint := wire.NewOutPoint(&chainhash.Hash{}, ^uint32(0),
 		wire.TxTreeRegular)
-	txIn := wire.NewTxIn(outPoint, []byte{OP_0, OP_0})
+	txIn := wire.NewTxIn(outPoint, 0, []byte{OP_0, OP_0})
 	txOut := wire.NewTxOut(0, pkScript)
 	coinbaseTx.AddTxIn(txIn)
 	coinbaseTx.AddTxOut(txOut)
@@ -177,7 +177,7 @@ func createSpendingTx(sigScript, pkScript []byte) *wire.MsgTx {
 	spendingTx := wire.NewMsgTx()
 	coinbaseTxHash := coinbaseTx.TxHash()
 	outPoint = wire.NewOutPoint(&coinbaseTxHash, 0, wire.TxTreeRegular)
-	txIn = wire.NewTxIn(outPoint, sigScript)
+	txIn = wire.NewTxIn(outPoint, 0, sigScript)
 	txOut = wire.NewTxOut(0, nil)
 
 	spendingTx.AddTxIn(txIn)
