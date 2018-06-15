@@ -5,7 +5,9 @@
 
 package chaincfg
 
-import "testing"
+import (
+	"testing"
+)
 
 // TestMustRegisterPanic ensures the mustRegister function panics when used to
 // register an invalid network.
