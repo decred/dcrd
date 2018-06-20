@@ -320,10 +320,6 @@ const (
 	// of an SStx did not match those found in the commitment outputs.
 	ErrSStxCommitment
 
-	// ErrInvalidSSGenInput indicates that the input SStx to the SSGen tx was
-	// invalid because it was not an SStx.
-	ErrInvalidSSGenInput
-
 	// ErrSSGenPayeeNum indicates that the number of payees from the referenced
 	// SSGen's SStx was not the same as the number of the payees in the outputs
 	// of the SSGen tx.
@@ -334,10 +330,6 @@ const (
 	// the original SStx, or that the SSGen addresses did not correctly correspond
 	// to the null data outputs given in the originating SStx.
 	ErrSSGenPayeeOuts
-
-	// ErrSSGenSubsidy indicates that there was an error in the amount of subsidy
-	// generated in the vote.
-	ErrSSGenSubsidy
 
 	// ErrSStxInImmature indicates that the OP_SSTX tagged output used as input
 	// was not yet TicketMaturity many blocks old.
@@ -526,10 +518,8 @@ var errorCodeStrings = map[ErrorCode]string{
 	ErrRevocationsMismatch:    "ErrRevocationsMismatch",
 	ErrTooManyRevocations:     "ErrTooManyRevocations",
 	ErrSStxCommitment:         "ErrSStxCommitment",
-	ErrInvalidSSGenInput:      "ErrInvalidSSGenInput",
 	ErrSSGenPayeeNum:          "ErrSSGenPayeeNum",
 	ErrSSGenPayeeOuts:         "ErrSSGenPayeeOuts",
-	ErrSSGenSubsidy:           "ErrSSGenSubsidy",
 	ErrSStxInImmature:         "ErrSStxInImmature",
 	ErrSStxInScrType:          "ErrSStxInScrType",
 	ErrInvalidSSRtxInput:      "ErrInvalidSSRtxInput",
