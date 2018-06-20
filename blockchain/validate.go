@@ -1529,15 +1529,6 @@ func CheckTransactionInputs(subsidyCache *SubsidyCache, tx *dcrutil.Tx, txHeight
 			return 0, ruleError(ErrMissingTxOut, str)
 		}
 
-		// While we're here, double check to make sure that the input
-		// is from an SStx.  By doing so, you also ensure the first
-		// output is OP_SSTX tagged.
-		if utxoEntrySstx.TransactionType() != stake.TxTypeSStx {
-			errStr := fmt.Sprintf("Input transaction %v for SSRtx"+
-				" %v was not an SStx tx", txHash, sstxHash)
-			return 0, ruleError(ErrInvalidSSRtxInput, errStr)
-		}
-
 		minOutsSStx := ConvertUtxosToMinimalOutputs(utxoEntrySstx)
 		sstxPayTypes, sstxPkhs, sstxAmts, _, sstxRules, sstxLimits :=
 			stake.SStxStakeOutputInfo(minOutsSStx)
@@ -1579,18 +1570,6 @@ func CheckTransactionInputs(subsidyCache *SubsidyCache, tx *dcrutil.Tx, txHeight
 				"SStx input %v and SSRtx output %v: %v",
 				sstxHash, txHash, err)
 			return 0, ruleError(ErrSSRtxPayees, errStr)
-		}
-
-		// 2. Check to make sure that the second input was an OP_SSTX
-		//    tagged output from the referenced SStx.
-		if txscript.GetScriptClass(utxoEntrySstx.ScriptVersionByIndex(0),
-			utxoEntrySstx.PkScriptByIndex(0)) !=
-			txscript.StakeSubmissionTy {
-			errStr := fmt.Sprintf("First SStx output in SStx %v "+
-				"referenced by SSGen %v should have been "+
-				"OP_SSTX tagged, but it was not", sstxHash,
-				txHash)
-			return 0, ruleError(ErrInvalidSSRtxInput, errStr)
 		}
 
 		// 3. Check to ensure that ticket maturity number of blocks

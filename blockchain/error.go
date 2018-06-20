@@ -348,10 +348,6 @@ const (
 	// be OP_SS* tagged, but it must be P2PKH or P2SH.
 	ErrSStxInScrType
 
-	// ErrInvalidSSRtxInput indicates that the input for the SSRtx was not from
-	// an SStx.
-	ErrInvalidSSRtxInput
-
 	// ErrSSRtxPayeesMismatch means that the number of payees in an SSRtx was
 	// not the same as the number of payees in the outputs of the input SStx.
 	ErrSSRtxPayeesMismatch
@@ -532,7 +528,6 @@ var errorCodeStrings = map[ErrorCode]string{
 	ErrSSGenSubsidy:           "ErrSSGenSubsidy",
 	ErrSStxInImmature:         "ErrSStxInImmature",
 	ErrSStxInScrType:          "ErrSStxInScrType",
-	ErrInvalidSSRtxInput:      "ErrInvalidSSRtxInput",
 	ErrSSRtxPayeesMismatch:    "ErrSSRtxPayeesMismatch",
 	ErrSSRtxPayees:            "ErrSSRtxPayees",
 	ErrTxSStxOutSpend:         "ErrTxSStxOutSpend",
