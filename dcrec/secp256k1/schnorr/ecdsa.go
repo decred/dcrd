@@ -14,15 +14,14 @@ import (
 	"github.com/decred/dcrd/dcrec/secp256k1"
 )
 
-// scalarSize is the size of an encoded big endian scalar.
-const scalarSize = 32
+const (
+	// scalarSize is the size of an encoded big endian scalar.
+	scalarSize = 32
+)
 
 var (
 	// bigZero is the big representation of zero.
 	bigZero = new(big.Int).SetInt64(0)
-
-	// ecTypeSecSchnorr is the ECDSA type for the chainec interface.
-	ecTypeSecSchnorr = 2
 )
 
 // zeroArray zeroes the memory of a scalar array.

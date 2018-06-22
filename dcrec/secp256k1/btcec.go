@@ -33,9 +33,6 @@ var (
 	fieldOne = new(fieldVal).SetInt(1)
 )
 
-// ecTypeSecp256k1 is the ECDSA type for the chainec interface.
-var ecTypeSecp256k1 int
-
 // KoblitzCurve supports a koblitz curve implementation that fits the ECC Curve
 // interface from crypto/elliptic.
 type KoblitzCurve struct {

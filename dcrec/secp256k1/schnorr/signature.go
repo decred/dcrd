@@ -8,6 +8,8 @@ package schnorr
 import (
 	"fmt"
 	"math/big"
+
+	"github.com/decred/dcrd/dcrec"
 )
 
 // Signature is a type representing a Schnorr signature.
@@ -70,6 +72,6 @@ func (sig Signature) GetS() *big.Int {
 }
 
 // GetType satisfies the chainec Signature interface.
-func (sig Signature) GetType() int {
-	return ecTypeSecSchnorr
+func (sig Signature) GetType() dcrec.SignatureType {
+	return dcrec.ECTypeSecSchnorr
 }

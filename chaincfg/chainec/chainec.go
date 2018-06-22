@@ -9,6 +9,8 @@ import (
 	"crypto/ecdsa"
 	"io"
 	"math/big"
+
+	"github.com/decred/dcrd/dcrec"
 )
 
 // PublicKey is an interface representing a public key and its associated
@@ -38,7 +40,7 @@ type PublicKey interface {
 	GetY() *big.Int
 
 	// GetType returns the ECDSA type of this key.
-	GetType() int
+	GetType() dcrec.SignatureType
 }
 
 // PrivateKey is an interface representing a private key and its associated
@@ -61,7 +63,7 @@ type PrivateKey interface {
 	GetD() *big.Int
 
 	// GetType returns the ECDSA type of this key.
-	GetType() int
+	GetType() dcrec.SignatureType
 }
 
 // Signature is an interface representing a signature and its associated
@@ -78,7 +80,7 @@ type Signature interface {
 	GetS() *big.Int
 
 	// GetType returns the ECDSA type of this key.
-	GetType() int
+	GetType() dcrec.SignatureType
 }
 
 // DSA is an encapsulating interface for all the functions of a digital

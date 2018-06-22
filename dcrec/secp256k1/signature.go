@@ -15,6 +15,8 @@ import (
 	"fmt"
 	"hash"
 	"math/big"
+
+	"github.com/decred/dcrd/dcrec"
 )
 
 // Errors returned by canonicalPadding.
@@ -570,6 +572,6 @@ func (sig Signature) GetS() *big.Int {
 }
 
 // GetType satisfies the chainec Signature interface.
-func (sig Signature) GetType() int {
-	return ecTypeSecp256k1
+func (sig Signature) GetType() dcrec.SignatureType {
+	return dcrec.ECTypeSecp256k1
 }

@@ -14,6 +14,7 @@ import (
 	"math/big"
 
 	"github.com/agl/ed25519"
+	"github.com/decred/dcrd/dcrec"
 )
 
 // These constants define the lengths of serialized private keys.
@@ -202,6 +203,6 @@ func (p PrivateKey) GetD() *big.Int {
 }
 
 // GetType satisfies the chainec PrivateKey interface.
-func (p PrivateKey) GetType() int {
-	return ecTypeEdwards
+func (p PrivateKey) GetType() dcrec.SignatureType {
+	return dcrec.ECTypeEdwards
 }

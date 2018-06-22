@@ -10,6 +10,8 @@ import (
 	"crypto/rand"
 	"io"
 	"math/big"
+
+	"github.com/decred/dcrd/dcrec"
 )
 
 // PrivateKey wraps an ecdsa.PrivateKey as a convenience mainly for signing
@@ -117,6 +119,6 @@ func (p PrivateKey) GetD() *big.Int {
 }
 
 // GetType satisfies the chainec PrivateKey interface.
-func (p PrivateKey) GetType() int {
-	return ecTypeSecp256k1
+func (p PrivateKey) GetType() dcrec.SignatureType {
+	return dcrec.ECTypeSecp256k1
 }
