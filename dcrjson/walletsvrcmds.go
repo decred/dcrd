@@ -240,6 +240,30 @@ func NewEstimatePriorityCmd(numBlocks int64) *EstimatePriorityCmd {
 	}
 }
 
+// FundRawTransactionCmd is a type handling custom marshaling and
+// unmarshaling of fundrawtransaction JSON wallet extension commands.
+type FundRawTransactionCmd struct {
+	HexString             string
+	FundAccount           string
+	ChangeAccount         *string
+	LockUnspents          *bool `jsonrpcdefault:"false"`
+	FeeRate               *float64
+	RequiredConfirmations *int32
+}
+
+// NewFundRawTransactionCmd returns a new instance which can be used to issue a
+// fundrawtransaction JSON-RPC command.
+func NewFundRawTransactionCmd(hexString string, fundAccount string, changeAccount *string, lockUnspents *bool, feeRate *float64, requiredConfirmations *int32) *FundRawTransactionCmd {
+	return &FundRawTransactionCmd{
+		HexString:             hexString,
+		FundAccount:           fundAccount,
+		ChangeAccount:         changeAccount,
+		LockUnspents:          lockUnspents,
+		FeeRate:               feeRate,
+		RequiredConfirmations: requiredConfirmations,
+	}
+}
+
 // GenerateVoteCmd is a type handling custom marshaling and
 // unmarshaling of generatevote JSON wallet extension commands.
 type GenerateVoteCmd struct {
@@ -1270,6 +1294,7 @@ func init() {
 	MustRegisterCmd("dropvotingaccount", (*DropVotingAccountCmd)(nil), flags)
 	MustRegisterCmd("dumpprivkey", (*DumpPrivKeyCmd)(nil), flags)
 	MustRegisterCmd("estimatepriority", (*EstimatePriorityCmd)(nil), flags)
+	MustRegisterCmd("fundrawtransaction", (*FundRawTransactionCmd)(nil), flags)
 	MustRegisterCmd("generatevote", (*GenerateVoteCmd)(nil), flags)
 	MustRegisterCmd("getaccount", (*GetAccountCmd)(nil), flags)
 	MustRegisterCmd("getaccountaddress", (*GetAccountAddressCmd)(nil), flags)

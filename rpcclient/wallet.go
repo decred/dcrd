@@ -2738,6 +2738,44 @@ func (c *Client) AddTicket(ticket *dcrutil.Tx) error {
 	return c.AddTicketAsync(hex.EncodeToString(ticketB)).Receive()
 }
 
+// FutureFundRawTransactionResult is a future promise to deliver the result of a
+// FundRawTransactionAsync RPC invocation (or an applicable error).
+type FutureFundRawTransactionResult chan *response
+
+// Receive waits for the response promised by the future and returns the unsigned
+// transaction with the passed amount and the given address.
+func (r FutureFundRawTransactionResult) Receive() (*dcrjson.FundRawTransactionResult, error) {
+	res, err := receiveFuture(r)
+	if err != nil {
+		return nil, err
+	}
+
+	// Unmarshal result as a string.
+	var infoRes dcrjson.FundRawTransactionResult
+	err = json.Unmarshal(res, &infoRes)
+	if err != nil {
+		return nil, err
+	}
+
+	return &infoRes, nil
+}
+
+// FundRawTransactionAsync returns an instance of a type that can be used to get the
+// result of the RPC at some future time by invoking the Receive function on the
+// returned instance.
+//
+// See FundRawTransaction for the blocking version and more details.
+func (c *Client) FundRawTransactionAsync(rawhex string, fundAccount string, changeAccount string, lockUnspents bool, feeRate float64, requiredConfirmations int32) FutureFundRawTransactionResult {
+	cmd := dcrjson.NewFundRawTransactionCmd(rawhex, fundAccount, &changeAccount, &lockUnspents, &feeRate, &requiredConfirmations)
+	return c.sendCmd(cmd)
+}
+
+// FundRawTransaction Add inputs to a transaction until it has enough
+// in value to meet its out value.
+func (c *Client) FundRawTransaction(rawhex string, fundAccount string, changeAccount string, lockUnspents bool, feeRate float64, requiredConfirmations int32) (*dcrjson.FundRawTransactionResult, error) {
+	return c.FundRawTransactionAsync(rawhex, fundAccount, changeAccount, lockUnspents, feeRate, requiredConfirmations).Receive()
+}
+
 // FutureGenerateVoteResult is a future promise to deliver the result of a
 // GenerateVoteAsync RPC invocation (or an applicable error).
 type FutureGenerateVoteResult chan *response
