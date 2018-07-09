@@ -600,7 +600,8 @@ func (b *blockManager) syncMiningStateAfterSync(sp *serverPeer) {
 			if !sp.Connected() {
 				return
 			}
-			if b.IsCurrent() {
+			if b.IsCurrent() &&
+				sp.Services()&wire.SFNodeNetwork == wire.SFNodeNetwork {
 				msg := wire.NewMsgGetMiningState()
 				sp.QueueMessage(msg, nil)
 				return
