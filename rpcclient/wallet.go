@@ -2765,15 +2765,15 @@ func (r FutureFundRawTransactionResult) Receive() (*dcrjson.FundRawTransactionRe
 // returned instance.
 //
 // See FundRawTransaction for the blocking version and more details.
-func (c *Client) FundRawTransactionAsync(rawhex string, fundAccount string, changeAccount string, lockUnspents bool, feeRate float64, requiredConfirmations int32) FutureFundRawTransactionResult {
-	cmd := dcrjson.NewFundRawTransactionCmd(rawhex, fundAccount, &changeAccount, &lockUnspents, &feeRate, &requiredConfirmations)
+func (c *Client) FundRawTransactionAsync(rawhex string, fundAccount string, options dcrjson.FundRawTransactionOptions) FutureFundRawTransactionResult {
+	cmd := dcrjson.NewFundRawTransactionCmd(rawhex, fundAccount, &options)
 	return c.sendCmd(cmd)
 }
 
 // FundRawTransaction Add inputs to a transaction until it has enough
 // in value to meet its out value.
-func (c *Client) FundRawTransaction(rawhex string, fundAccount string, changeAccount string, lockUnspents bool, feeRate float64, requiredConfirmations int32) (*dcrjson.FundRawTransactionResult, error) {
-	return c.FundRawTransactionAsync(rawhex, fundAccount, changeAccount, lockUnspents, feeRate, requiredConfirmations).Receive()
+func (c *Client) FundRawTransaction(rawhex string, fundAccount string, options dcrjson.FundRawTransactionOptions) (*dcrjson.FundRawTransactionResult, error) {
+	return c.FundRawTransactionAsync(rawhex, fundAccount, options).Receive()
 }
 
 // FutureGenerateVoteResult is a future promise to deliver the result of a

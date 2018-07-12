@@ -240,27 +240,30 @@ func NewEstimatePriorityCmd(numBlocks int64) *EstimatePriorityCmd {
 	}
 }
 
-// FundRawTransactionCmd is a type handling custom marshaling and
-// unmarshaling of fundrawtransaction JSON wallet extension commands.
-type FundRawTransactionCmd struct {
-	HexString             string
-	FundAccount           string
+// FundRawTransactionOptions represents the optional inputs to fund
+// a raw transaction.
+type FundRawTransactionOptions struct {
 	ChangeAccount         *string
 	LockUnspents          *bool `jsonrpcdefault:"false"`
 	FeeRate               *float64
 	RequiredConfirmations *int32
 }
 
+// FundRawTransactionCmd is a type handling custom marshaling and
+// unmarshaling of fundrawtransaction JSON wallet extension commands.
+type FundRawTransactionCmd struct {
+	HexString   string
+	FundAccount string
+	Options     *FundRawTransactionOptions
+}
+
 // NewFundRawTransactionCmd returns a new instance which can be used to issue a
 // fundrawtransaction JSON-RPC command.
-func NewFundRawTransactionCmd(hexString string, fundAccount string, changeAccount *string, lockUnspents *bool, feeRate *float64, requiredConfirmations *int32) *FundRawTransactionCmd {
+func NewFundRawTransactionCmd(hexString string, fundAccount string, options *FundRawTransactionOptions) *FundRawTransactionCmd {
 	return &FundRawTransactionCmd{
-		HexString:             hexString,
-		FundAccount:           fundAccount,
-		ChangeAccount:         changeAccount,
-		LockUnspents:          lockUnspents,
-		FeeRate:               feeRate,
-		RequiredConfirmations: requiredConfirmations,
+		HexString:   hexString,
+		FundAccount: fundAccount,
+		Options:     options,
 	}
 }
 
