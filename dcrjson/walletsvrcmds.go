@@ -243,10 +243,9 @@ func NewEstimatePriorityCmd(numBlocks int64) *EstimatePriorityCmd {
 // FundRawTransactionOptions represents the optional inputs to fund
 // a raw transaction.
 type FundRawTransactionOptions struct {
-	ChangeAccount         *string
-	LockUnspents          *bool `jsonrpcdefault:"false"`
-	FeeRate               *float64
-	RequiredConfirmations *int32
+	ChangeAddress *string  `json:"changeaddress"`
+	FeeRate       *float64 `json:"feerate"`
+	ConfTarget    *int32   `json:"conf_target"`
 }
 
 // FundRawTransactionCmd is a type handling custom marshaling and
