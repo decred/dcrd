@@ -684,6 +684,21 @@ func NewListTransactionsCmd(account *string, count, from *int, includeWatchOnly 
 	}
 }
 
+// CreateUnsignedTransactionCmd is a type handling custom marshaling and
+// unmarshaling of createunsignedtransaction JSON RPC commands.
+type CreateUnsignedTransactionCmd struct {
+	Address string
+	Amount  float64
+}
+
+// NewCreateUnsignedTransactionCmd creates a new CreateUnsignedTransactionCmd.
+func NewCreateUnsignedTransactionCmd(address string, amount float64) *CreateUnsignedTransactionCmd {
+	return &CreateUnsignedTransactionCmd{
+		Address: address,
+		Amount:  amount,
+	}
+}
+
 // ListUnspentCmd defines the listunspent JSON-RPC command.
 type ListUnspentCmd struct {
 	MinConf   *int `jsonrpcdefault:"1"`
@@ -1267,6 +1282,7 @@ func init() {
 	MustRegisterCmd("createrawssgentx", (*CreateRawSSGenTxCmd)(nil), flags)
 	MustRegisterCmd("createrawssrtx", (*CreateRawSSRtxCmd)(nil), flags)
 	MustRegisterCmd("createvotingaccount", (*CreateVotingAccountCmd)(nil), flags)
+	MustRegisterCmd("createunsignedtransaction", (*CreateUnsignedTransactionCmd)(nil), flags)
 	MustRegisterCmd("dropvotingaccount", (*DropVotingAccountCmd)(nil), flags)
 	MustRegisterCmd("dumpprivkey", (*DumpPrivKeyCmd)(nil), flags)
 	MustRegisterCmd("estimatepriority", (*EstimatePriorityCmd)(nil), flags)

@@ -720,6 +720,45 @@ func (c *Client) SendManyComment(fromAccount string,
 		comment).Receive()
 }
 
+// FutureCreateUnsignedTransactionResult is a future promise to deliver the result of a
+// CreateUnsignedTransactionAsync RPC invocation (or an applicable error).
+type FutureCreateUnsignedTransactionResult chan *response
+
+// Receive waits for the response promised by the future and returns the unsigned
+// transaction with the passed amount and the given address.
+func (r FutureCreateUnsignedTransactionResult) Receive() (*dcrjson.CreateUnsignedTransactionResult, error) {
+	res, err := receiveFuture(r)
+	if err != nil {
+		return nil, err
+	}
+
+	// Unmarshal result as a string.
+	var unsignedTransaction dcrjson.CreateUnsignedTransactionResult
+	err = json.Unmarshal(res, &unsignedTransaction)
+	if err != nil {
+		return nil, err
+	}
+
+	return &unsignedTransaction, nil
+}
+
+// CreateUnsignedTransactionAsync returns an instance of a type that can be used to get the
+// result of the RPC at some future time by invoking the Receive function on the
+// returned instance.
+//
+// See CreateUnsignedTransaction for the blocking version and more details.
+func (c *Client) CreateUnsignedTransactionAsync(address dcrutil.Address, amount dcrutil.Amount) FutureCreateUnsignedTransactionResult {
+	addr := address.EncodeAddress()
+	cmd := dcrjson.NewCreateUnsignedTransactionCmd(addr, amount.ToCoin())
+	return c.sendCmd(cmd)
+}
+
+// CreateUnsignedTransaction create an unsigned transaction
+// with the passed amount and the given address.
+func (c *Client) CreateUnsignedTransaction(address dcrutil.Address, amount dcrutil.Amount) (*dcrjson.CreateUnsignedTransactionResult, error) {
+	return c.CreateUnsignedTransactionAsync(address, amount).Receive()
+}
+
 // Begin DECRED FUNCTIONS ---------------------------------------------------------
 //
 // SStx generation RPC call handling

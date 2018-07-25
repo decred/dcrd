@@ -22,6 +22,12 @@ type GetAccountBalanceResult struct {
 	VotingAuthority         float64 `json:"votingauthority"`
 }
 
+// CreateUnsignedTransactionResult models the data from the
+// createunsignedtransaction command.
+type CreateUnsignedTransactionResult struct {
+	UnsignedTransaction string `json:"unsignedtransaction"`
+}
+
 // GetBalanceResult models the data from the getbalance command.
 type GetBalanceResult struct {
 	Balances                     []GetAccountBalanceResult `json:"balances"`
