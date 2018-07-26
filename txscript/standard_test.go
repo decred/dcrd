@@ -102,6 +102,16 @@ func TestExtractPkScriptAddrs(t *testing.T) {
 			class:   PubKeyTy,
 		},
 		{
+			name: "MainNet organizational script and address",
+			script: hexToBytes(
+				"a914f5916158e3e2c4551c1796708db8367207ed13bb87"),
+			addrs: []dcrutil.Address{
+				decodeAddress("Dcur2mcGjmENx4DhNqDctW5wJCVyT3Qeqkx", t),
+			},
+			reqSigs: 1,
+			class:   ScriptHashTy,
+		},
+		{
 			name: "standard p2pk with uncompressed pubkey (0x04)",
 			script: hexToBytes("410411db93e1dcdb8a016b49840f8c53b" +
 				"c1eb68a382e97b1482ecad7b148a6909a5cb2e0eaddf" +
@@ -349,6 +359,15 @@ func TestExtractPkScriptAddrs(t *testing.T) {
 			continue
 		}
 	}
+}
+
+func decodeAddress(addrString string, t *testing.T) dcrutil.Address {
+	addr, err := dcrutil.DecodeAddress(addrString)
+	if err != nil {
+		// test setup failed
+		t.Fatalf("Test is not able to test: %v", err)
+	}
+	return addr
 }
 
 // TestCalcScriptInfo ensures the CalcScriptInfo provides the expected results
