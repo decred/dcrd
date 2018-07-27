@@ -277,7 +277,8 @@ func loadConfig() (*config, []string, error) {
 	if !fileExists(preCfg.ConfigFile) {
 		err := createDefaultConfigFile(preCfg.ConfigFile)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error creating a default config file: %v\n", err)
+			fmt.Fprintf(os.Stderr, "Error creating a default "+
+				"config file: %v\n", err)
 		}
 	}
 
@@ -343,7 +344,7 @@ func loadConfig() (*config, []string, error) {
 // createDefaultConfig creates a basic config file at the given destination path.
 // For this it tries to read the dcrd config file at its default path, and extract
 // the RPC user and password from it.
-func createDefaultConfigFile(destinationPath string) error {
+func createDefaultConfigFile(destPath string) error {
 	// Nothing to do when there is no existing dcrd conf file at the default
 	// path to extract the details from.
 	dcrdConfigPath := filepath.Join(dcrdHomeDir, "dcrd.conf")
@@ -363,7 +364,7 @@ func createDefaultConfigFile(destinationPath string) error {
 	}
 
 	// Extract the rpcuser
-	rpcUserRegexp, err := regexp.Compile(`(?m)^\s*rpcuser=([^\s]+)`)
+	rpcUserRegexp, err := regexp.Compile(`(?m)^\s*(rpcuser=[^\s]+)`)
 	if err != nil {
 		return err
 	}
@@ -374,7 +375,7 @@ func createDefaultConfigFile(destinationPath string) error {
 	}
 
 	// Extract the rpcpass
-	rpcPassRegexp, err := regexp.Compile(`(?m)^\s*rpcpass=([^\s]+)`)
+	rpcPassRegexp, err := regexp.Compile(`(?m)^\s*(rpcpass=[^\s]+)`)
 	if err != nil {
 		return err
 	}
@@ -385,21 +386,26 @@ func createDefaultConfigFile(destinationPath string) error {
 	}
 
 	// Create the destination directory if it does not exists
-	err = os.MkdirAll(filepath.Dir(destinationPath), 0700)
+	err = os.MkdirAll(filepath.Dir(destPath), 0700)
 	if err != nil {
 		return err
 	}
 
+	// Replace the rpcuser and rpcpass lines in the sample configuration
+	// file contents with their extracted values.
+	rpcUserRE := regexp.MustCompile(`(?m)^;\s*rpcuser=[^\s]*$`)
+	rpcPassRE := regexp.MustCompile(`(?m)^;\s*rpcpass=[^\s]*$`)
+	s := rpcUserRE.ReplaceAllString(FileContents, string(userSubmatches[1]))
+	s = rpcPassRE.ReplaceAllString(s, string(passSubmatches[1]))
+
 	// Create the destination file and write the rpcuser and rpcpass to it
-	dest, err := os.OpenFile(destinationPath,
-		os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
+	dest, err := os.OpenFile(destPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC,
+		0600)
 	if err != nil {
 		return err
 	}
 	defer dest.Close()
 
-	dest.WriteString(fmt.Sprintf("rpcuser=%s\nrpcpass=%s",
-		string(userSubmatches[1]), string(passSubmatches[1])))
-
-	return nil
+	_, err = dest.WriteString(s)
+	return err
 }

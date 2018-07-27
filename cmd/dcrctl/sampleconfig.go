@@ -1,4 +1,11 @@
-[Application Options]
+// Copyright (c) 2018 The Decred developers
+// Use of this source code is governed by an ISC
+// license that can be found in the LICENSE file.
+
+package main
+
+// FileContents is a string containing the commented example config for dcrctl.
+const FileContents = `[Application Options]
 
 ; ------------------------------------------------------------------------------
 ; Network settings
@@ -33,4 +40,4 @@
 
 ; RPC server certificate chain file for validation
 ; rpccert=~/.dcrd/rpc.cert
-
+`
