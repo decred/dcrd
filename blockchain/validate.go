@@ -1338,8 +1338,7 @@ func CheckTransactionInputs(subsidyCache *SubsidyCache, tx *dcrutil.Tx, txHeight
 	//    Also check to ensure that there is congruency for output PKH from
 	//    SStx to SSGen outputs.  Check also that the input transaction was
 	//    an SStx.
-	// 2. Make sure the second input is an SStx tagged output.
-	// 3. Check to make sure that the difference in height between the
+	// 2. Check to make sure that the difference in height between the
 	//    current block and the block the SStx was included in is >
 	//    ticketMaturity.
 
@@ -1392,25 +1391,6 @@ func CheckTransactionInputs(subsidyCache *SubsidyCache, tx *dcrutil.Tx, txHeight
 			return 0, ruleError(ErrMissingTxOut, str)
 		}
 
-		// While we're here, double check to make sure that the input
-		// is from an SStx.  By doing so, you also ensure the first
-		// output is OP_SSTX tagged.
-		if utxoEntrySstx.TransactionType() != stake.TxTypeSStx {
-			errStr := fmt.Sprintf("Input transaction %v for SSGen"+
-				" was not an SStx tx (given input: %v)", txHash,
-				sstxHash)
-			return 0, ruleError(ErrInvalidSSGenInput, errStr)
-		}
-
-		// Make sure it's using the 0th output.
-		if sstxIn.PreviousOutPoint.Index != 0 {
-			errStr := fmt.Sprintf("Input transaction %v for SSGen"+
-				" did not reference the first output (given "+
-				"idx %v)", txHash,
-				sstxIn.PreviousOutPoint.Index)
-			return 0, ruleError(ErrInvalidSSGenInput, errStr)
-		}
-
 		minOutsSStx := ConvertUtxosToMinimalOutputs(utxoEntrySstx)
 		if len(minOutsSStx) == 0 {
 			return 0, AssertError("missing stake extra data for " +
@@ -1455,19 +1435,7 @@ func CheckTransactionInputs(subsidyCache *SubsidyCache, tx *dcrutil.Tx, txHeight
 			return 0, ruleError(ErrSSGenPayeeOuts, errStr)
 		}
 
-		// 2. Check to make sure that the second input was an OP_SSTX
-		//    tagged output from the referenced SStx.
-		if txscript.GetScriptClass(utxoEntrySstx.ScriptVersionByIndex(0),
-			utxoEntrySstx.PkScriptByIndex(0)) !=
-			txscript.StakeSubmissionTy {
-			errStr := fmt.Sprintf("First SStx output in SStx %v "+
-				"referenced by SSGen %v should have been "+
-				"OP_SSTX tagged, but it was not", sstxHash,
-				txHash)
-			return 0, ruleError(ErrInvalidSSGenInput, errStr)
-		}
-
-		// 3. Check to ensure that ticket maturity number of blocks
+		// 2. Check to ensure that ticket maturity number of blocks
 		//    have passed between the block the SSGen plans to go into
 		//    and the block in which the SStx was originally found in.
 		originHeight := utxoEntrySstx.BlockHeight()
@@ -2007,50 +1975,6 @@ func checkNumSigOps(tx *dcrutil.Tx, utxoView *UtxoViewpoint, index int, txTree b
 	return cumulativeSigOps, nil
 }
 
-// checkStakeBaseAmounts calculates the total amount given as subsidy from
-// single stakebase transactions (votes) within a block.  This function skips a
-// ton of checks already performed by CheckTransactionInputs.
-func checkStakeBaseAmounts(subsidyCache *SubsidyCache, height int64, params *chaincfg.Params, txs []*dcrutil.Tx, utxoView *UtxoViewpoint) error {
-	for _, tx := range txs {
-		msgTx := tx.MsgTx()
-		if stake.IsSSGen(msgTx) {
-			// Ensure the input is available.
-			txInHash := &msgTx.TxIn[1].PreviousOutPoint.Hash
-			utxoEntry, exists := utxoView.entries[*txInHash]
-			if !exists || utxoEntry == nil {
-				str := fmt.Sprintf("couldn't find input tx %v "+
-					"for stakebase amounts check", txInHash)
-				return ruleError(ErrTicketUnavailable, str)
-			}
-
-			originTxIndex := msgTx.TxIn[1].PreviousOutPoint.Index
-			originTxAtom := utxoEntry.AmountByIndex(originTxIndex)
-
-			totalOutputs := int64(0)
-			// Sum up the outputs.
-			for _, out := range msgTx.TxOut {
-				totalOutputs += out.Value
-			}
-
-			difference := totalOutputs - originTxAtom
-
-			// Subsidy aligns with the height we're voting on, not
-			// with the height of the current block.
-			calcSubsidy := CalcStakeVoteSubsidy(subsidyCache,
-				height-1, params)
-
-			if difference > calcSubsidy {
-				str := fmt.Sprintf("ssgen tx %v spent more "+
-					"than allowed (spent %v, allowed %v)",
-					tx.Hash(), difference, calcSubsidy)
-				return ruleError(ErrSSGenSubsidy, str)
-			}
-		}
-	}
-
-	return nil
-}
-
 // getStakeBaseAmounts calculates the total amount given as subsidy from the
 // collective stakebase transactions (votes) within a block.  This function
 // skips a ton of checks already performed by CheckTransactionInputs.
@@ -2246,12 +2170,6 @@ func (b *BlockChain) checkTransactionsAndConnect(subsidyCache *SubsidyCache, inp
 			str := fmt.Sprintf("empty tx tree stake in block " +
 				"after stake validation height")
 			return ruleError(ErrNoStakeTx, str)
-		}
-
-		err := checkStakeBaseAmounts(subsidyCache, node.height,
-			b.chainParams, txs, utxoView)
-		if err != nil {
-			return err
 		}
 
 		totalAtomOutStake, err := getStakeBaseAmounts(txs, utxoView)
