@@ -84,7 +84,6 @@ func TestErrorCodeStringer(t *testing.T) {
 		{ErrSSGenSubsidy, "ErrSSGenSubsidy"},
 		{ErrSStxInImmature, "ErrSStxInImmature"},
 		{ErrSStxInScrType, "ErrSStxInScrType"},
-		{ErrInvalidSSRtxInput, "ErrInvalidSSRtxInput"},
 		{ErrSSRtxPayeesMismatch, "ErrSSRtxPayeesMismatch"},
 		{ErrSSRtxPayees, "ErrSSRtxPayees"},
 		{ErrTxSStxOutSpend, "ErrTxSStxOutSpend"},
