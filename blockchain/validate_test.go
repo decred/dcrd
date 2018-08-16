@@ -8,7 +8,6 @@ package blockchain
 import (
 	"bytes"
 	"compress/bzip2"
-	"encoding/binary"
 	"encoding/gob"
 	"fmt"
 	mrand "math/rand"
@@ -18,44 +17,12 @@ import (
 	"time"
 
 	"github.com/decred/dcrd/blockchain/chaingen"
-	"github.com/decred/dcrd/blockchain/stake"
 	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/database"
 	"github.com/decred/dcrd/dcrutil"
-	"github.com/decred/dcrd/txscript"
 	"github.com/decred/dcrd/wire"
 )
-
-// recalculateMsgBlockMerkleRootsSize recalculates the merkle roots for a msgBlock,
-// then stores them in the msgBlock's header. It also updates the block size.
-func recalculateMsgBlockMerkleRootsSize(msgBlock *wire.MsgBlock) {
-	tempBlock := dcrutil.NewBlock(msgBlock)
-
-	merkles := BuildMerkleTreeStore(tempBlock.Transactions())
-	merklesStake := BuildMerkleTreeStore(tempBlock.STransactions())
-
-	msgBlock.Header.MerkleRoot = *merkles[len(merkles)-1]
-	msgBlock.Header.StakeRoot = *merklesStake[len(merklesStake)-1]
-	msgBlock.Header.Size = uint32(msgBlock.SerializeSize())
-}
-
-// updateVoteCommitments updates all of the votes in the passed block to commit
-// to the previous block and height specified by the header.
-func updateVoteCommitments(msgBlock *wire.MsgBlock) {
-	for _, stx := range msgBlock.STransactions {
-		if !stake.IsSSGen(stx) {
-			continue
-		}
-
-		// Generate and set the commitment.
-		var commitment [36]byte
-		copy(commitment[:], msgBlock.Header.PrevBlock[:])
-		binary.LittleEndian.PutUint32(commitment[32:], msgBlock.Header.Height-1)
-		pkScript, _ := txscript.GenerateProvablyPruneableOut(commitment[:])
-		stx.TxOut[0].PkScript = pkScript
-	}
-}
 
 // TestBlockchainSpendJournal tests for whether or not the spend journal is being
 // written to disk correctly on a live blockchain.
@@ -120,23 +87,23 @@ func TestBlockchainSpendJournal(t *testing.T) {
 	// Loop through all of the blocks and ensure the number of spent outputs
 	// matches up with the information loaded from the spend journal.
 	err = chain.db.View(func(dbTx database.Tx) error {
-		parentNode := chain.bestNode.parent
+		parentNode := chain.bestChain.NodeByHeight(1)
 		if parentNode == nil {
 			str := fmt.Sprintf("no block at height %d exists", 1)
 			return errNotInMainChain(str)
 		}
-		parent, err := dbFetchBlockByHash(dbTx, &parentNode.hash)
+		parent, err := dbFetchBlockByNode(dbTx, parentNode)
 		if err != nil {
 			return err
 		}
 
-		for i := int64(2); i <= chain.bestNode.height; i++ {
-			node := chain.bestNode.Ancestor(i)
+		for i := int64(2); i <= chain.bestChain.Tip().height; i++ {
+			node := chain.bestChain.NodeByHeight(i)
 			if node == nil {
 				str := fmt.Sprintf("no block at height %d exists", i)
 				return errNotInMainChain(str)
 			}
-			block, err := dbFetchBlockByHash(dbTx, &node.hash)
+			block, err := dbFetchBlockByNode(dbTx, node)
 			if err != nil {
 				return err
 			}
@@ -326,7 +293,7 @@ func TestTxValidationErrors(t *testing.T) {
 	// Create a transaction that is too large
 	tx := wire.NewMsgTx()
 	prevOut := wire.NewOutPoint(&chainhash.Hash{0x01}, 0, wire.TxTreeRegular)
-	tx.AddTxIn(wire.NewTxIn(prevOut, nil))
+	tx.AddTxIn(wire.NewTxIn(prevOut, 0, nil))
 	pkScript := bytes.Repeat([]byte{0x00}, wire.MaxBlockPayload)
 	tx.AddTxOut(wire.NewTxOut(0, pkScript))
 

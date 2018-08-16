@@ -597,7 +597,7 @@ func loadConfig() (*config, []string, error) {
 	// while we're at it
 	if cfg.TestNet {
 		numNets++
-		activeNetParams = &testNet2Params
+		activeNetParams = &testNet3Params
 	}
 	if cfg.SimNet {
 		numNets++
@@ -646,13 +646,14 @@ func loadConfig() (*config, []string, error) {
 	cfg.DataDir = cleanAndExpandPath(cfg.DataDir)
 	var oldTestNets []string
 	oldTestNets = append(oldTestNets, filepath.Join(cfg.DataDir, "testnet"))
-	cfg.DataDir = filepath.Join(cfg.DataDir, netName(activeNetParams))
+	oldTestNets = append(oldTestNets, filepath.Join(cfg.DataDir, "testnet2"))
+	cfg.DataDir = filepath.Join(cfg.DataDir, activeNetParams.Name)
 	logRotator = nil
 	if !cfg.NoFileLogging {
 		// Append the network type to the log directory so it is "namespaced"
 		// per network in the same fashion as the data directory.
 		cfg.LogDir = cleanAndExpandPath(cfg.LogDir)
-		cfg.LogDir = filepath.Join(cfg.LogDir, netName(activeNetParams))
+		cfg.LogDir = filepath.Join(cfg.LogDir, activeNetParams.Name)
 
 		// Initialize log rotation.  After log rotation has been initialized, the
 		// logger variables may be used.

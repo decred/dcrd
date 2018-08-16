@@ -496,6 +496,13 @@ func (b *BlockChain) ThresholdState(hash *chainhash.Hash, version uint32, deploy
 //
 // This function MUST be called with the chain state lock held (for writes).
 func (b *BlockChain) isLNFeaturesAgendaActive(prevNode *blockNode) (bool, error) {
+	// Consensus voting on LN features is only enabled on mainnet, testnet
+	// v2, and simnet.
+	net := b.chainParams.Net
+	if net != wire.MainNet && net != wire.SimNet {
+		return true, nil
+	}
+
 	// Determine the version for the LN features agenda as defined in
 	// DCP0002 and DCP0003 for the provided network.
 	deploymentVer := uint32(5)
@@ -523,7 +530,7 @@ func (b *BlockChain) isLNFeaturesAgendaActive(prevNode *blockNode) (bool, error)
 // This function is safe for concurrent access.
 func (b *BlockChain) IsLNFeaturesAgendaActive() (bool, error) {
 	b.chainLock.Lock()
-	isActive, err := b.isLNFeaturesAgendaActive(b.bestNode)
+	isActive, err := b.isLNFeaturesAgendaActive(b.bestChain.Tip())
 	b.chainLock.Unlock()
 	return isActive, err
 }
@@ -593,7 +600,7 @@ func (b *BlockChain) GetVoteCounts(version uint32, deploymentID string) (VoteCou
 		deployment := &b.chainParams.Deployments[version][k]
 		if deployment.Vote.Id == deploymentID {
 			b.chainLock.Lock()
-			counts, err := b.getVoteCounts(b.bestNode, version, deployment)
+			counts, err := b.getVoteCounts(b.bestChain.Tip(), version, deployment)
 			b.chainLock.Unlock()
 			return counts, err
 		}
@@ -608,7 +615,7 @@ func (b *BlockChain) GetVoteCounts(version uint32, deploymentID string) (VoteCou
 func (b *BlockChain) CountVoteVersion(version uint32) (uint32, error) {
 	b.chainLock.Lock()
 	defer b.chainLock.Unlock()
-	countNode := b.bestNode
+	countNode := b.bestChain.Tip()
 
 	// Don't try to count votes before the stake validation height since there
 	// could not possibly have been any.

@@ -1,5 +1,5 @@
-// Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2017 The Decred developers
+// Copyright (c) 2013-2017 The btcsuite developers
+// Copyright (c) 2015-2018 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/decred/dcrd/chaincfg/chainec"
+	"github.com/decred/dcrd/dcrec/secp256k1"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -18,17 +18,13 @@ import (
 type ScriptFlags uint32
 
 const (
-	// ScriptBip16 defines whether the bip16 threshold has passed and thus
-	// pay-to-script hash transactions will be fully validated.
-	ScriptBip16 ScriptFlags = 1 << iota
-
 	// ScriptDiscourageUpgradableNops defines whether to verify that
 	// currently unused opcodes in the NOP and UNKNOWN families are reserved
 	// for future upgrades.  This flag must not be used for consensus
 	// critical code nor applied to blocks as this flag is only for stricter
 	// standard transaction checks.  This flag is only applied when the
 	// above opcodes are executed.
-	ScriptDiscourageUpgradableNops
+	ScriptDiscourageUpgradableNops ScriptFlags = 1 << iota
 
 	// ScriptVerifyCheckLockTimeVerify defines whether to verify that
 	// a transaction output is spendable based on the locktime.
@@ -46,26 +42,9 @@ const (
 	// This flag should never be used without the ScriptBip16 flag.
 	ScriptVerifyCleanStack
 
-	// ScriptVerifyDERSignatures defines that signatures are required
-	// to compily with the DER format.
-	ScriptVerifyDERSignatures
-
-	// ScriptVerifyLowS defines that signtures are required to comply with
-	// the DER format and whose S value is <= order / 2.  This is rule 5
-	// of BIP0062.
-	ScriptVerifyLowS
-
-	// ScriptVerifyMinimalData defines that signatures must use the smallest
-	// push operator. This is both rules 3 and 4 of BIP0062.
-	ScriptVerifyMinimalData
-
 	// ScriptVerifySigPushOnly defines that signature scripts must contain
 	// only pushed data.  This is rule 2 of BIP0062.
 	ScriptVerifySigPushOnly
-
-	// ScriptVerifyStrictEncoding defines that signature scripts and
-	// public keys must follow the strict encoding requirements.
-	ScriptVerifyStrictEncoding
 
 	// ScriptVerifySHA256 defines whether to treat opcode 192 (previously
 	// OP_UNKNOWN192) as the OP_SHA256 opcode which consumes the top item of
@@ -74,12 +53,12 @@ const (
 )
 
 const (
-	// maxStackSize is the maximum combined height of stack and alt stack
+	// MaxStackSize is the maximum combined height of stack and alt stack
 	// during execution.
-	maxStackSize = 1024
+	MaxStackSize = 1024
 
-	// maxScriptSize is the maximum allowed length of a raw script.
-	maxScriptSize = 16384
+	// MaxScriptSize is the maximum allowed length of a raw script.
+	MaxScriptSize = 16384
 
 	// DefaultScriptVersion is the default scripting language version
 	// representing extended Decred script.
@@ -87,7 +66,7 @@ const (
 )
 
 // halforder is used to tame ECDSA malleability (see BIP0062).
-var halfOrder = new(big.Int).Rsh(chainec.Secp256k1.GetN(), 1)
+var halfOrder = new(big.Int).Rsh(secp256k1.S256().N, 1)
 
 // Engine is the virtual machine that executes scripts.
 type Engine struct {
@@ -131,23 +110,31 @@ func (vm *Engine) isBranchExecuting() bool {
 func (vm *Engine) executeOpcode(pop *parsedOpcode) error {
 	// Disabled opcodes are fail on program counter.
 	if pop.isDisabled() {
-		return ErrStackOpDisabled
+		str := fmt.Sprintf("attempt to execute disabled opcode %s",
+			pop.opcode.name)
+		return scriptError(ErrDisabledOpcode, str)
 	}
 
 	// Always-illegal opcodes are fail on program counter.
 	if pop.alwaysIllegal() {
-		return ErrStackReservedOpcode
+		str := fmt.Sprintf("attempt to execute reserved opcode %s",
+			pop.opcode.name)
+		return scriptError(ErrReservedOpcode, str)
 	}
 
 	// Note that this includes OP_RESERVED which counts as a push operation.
 	if pop.opcode.value > OP_16 {
 		vm.numOps++
 		if vm.numOps > MaxOpsPerScript {
-			return ErrStackTooManyOperations
+			str := fmt.Sprintf("exceeded max operation limit of %d",
+				MaxOpsPerScript)
+			return scriptError(ErrTooManyOperations, str)
 		}
 
 	} else if len(pop.data) > MaxScriptElementSize {
-		return ErrStackElementTooBig
+		str := fmt.Sprintf("element size %d exceeds max allowed size %d",
+			len(pop.data), MaxScriptElementSize)
+		return scriptError(ErrElementTooBig, str)
 	}
 
 	// Nothing left to do when this is not a conditional opcode and it is
@@ -156,10 +143,9 @@ func (vm *Engine) executeOpcode(pop *parsedOpcode) error {
 		return nil
 	}
 
-	// Ensure all executed data push opcodes use the minimal encoding when
-	// the minimal data verification flag is set.
-	if vm.dstack.verifyMinimalData && vm.isBranchExecuting() &&
-		pop.opcode.value >= 0 && pop.opcode.value <= OP_PUSHDATA4 {
+	// Ensure all executed data push opcodes use the minimal encoding.
+	if vm.isBranchExecuting() && pop.opcode.value >= 0 &&
+		pop.opcode.value <= OP_PUSHDATA4 {
 
 		if err := pop.checkMinimalDataPush(); err != nil {
 			return err
@@ -182,13 +168,15 @@ func (vm *Engine) disasm(scriptIdx int, scriptOff int) string {
 // execution, nil otherwise.
 func (vm *Engine) validPC() error {
 	if vm.scriptIdx >= len(vm.scripts) {
-		return fmt.Errorf("past input scripts %v:%v %v:xxxx",
+		str := fmt.Sprintf("past input scripts %v:%v %v:xxxx",
 			vm.scriptIdx, vm.scriptOff, len(vm.scripts))
+		return scriptError(ErrInvalidProgramCounter, str)
 	}
 	if vm.scriptOff >= len(vm.scripts[vm.scriptIdx]) {
-		return fmt.Errorf("past input scripts %v:%v %v:%04d",
+		str := fmt.Sprintf("past input scripts %v:%v %v:%04d",
 			vm.scriptIdx, vm.scriptOff, vm.scriptIdx,
 			len(vm.scripts[vm.scriptIdx]))
+		return scriptError(ErrInvalidProgramCounter, str)
 	}
 	return nil
 }
@@ -218,7 +206,9 @@ func (vm *Engine) DisasmPC() (string, error) {
 // script.
 func (vm *Engine) DisasmScript(idx int) (string, error) {
 	if idx >= len(vm.scripts) {
-		return "", ErrStackInvalidIndex
+		str := fmt.Sprintf("script index %d >= total scripts %d", idx,
+			len(vm.scripts))
+		return "", scriptError(ErrInvalidIndex, str)
 	}
 
 	var disstr string
@@ -235,13 +225,18 @@ func (vm *Engine) CheckErrorCondition(finalScript bool) error {
 	// Check execution is actually done.  When pc is past the end of script
 	// array there are no more scripts to run.
 	if vm.scriptIdx < len(vm.scripts) {
-		return ErrStackScriptUnfinished
+		return scriptError(ErrScriptUnfinished,
+			"error check when script unfinished")
 	}
 	if finalScript && vm.hasFlag(ScriptVerifyCleanStack) &&
 		vm.dstack.Depth() != 1 {
-		return ErrStackCleanStack
+
+		str := fmt.Sprintf("stack contains %d unexpected items",
+			vm.dstack.Depth()-1)
+		return scriptError(ErrCleanStack, str)
 	} else if vm.dstack.Depth() < 1 {
-		return ErrStackEmptyStack
+		return scriptError(ErrEmptyStack,
+			"stack empty at end of script execution")
 	}
 
 	v, err := vm.dstack.PopBool()
@@ -256,7 +251,8 @@ func (vm *Engine) CheckErrorCondition(finalScript bool) error {
 			return fmt.Sprintf("scripts failed: script0: %s\n"+
 				"script1: %s", dis0, dis1)
 		}))
-		return ErrStackScriptFailed
+		return scriptError(ErrEvalFalse,
+			"false stack entry at end of script execution")
 	}
 	return nil
 }
@@ -285,8 +281,11 @@ func (vm *Engine) Step() (done bool, err error) {
 
 	// The number of elements in the combination of the data and alt stacks
 	// must not exceed the maximum number of stack elements allowed.
-	if vm.dstack.Depth()+vm.astack.Depth() > maxStackSize {
-		return false, ErrStackOverflow
+	combinedStackSize := vm.dstack.Depth() + vm.astack.Depth()
+	if combinedStackSize > MaxStackSize {
+		str := fmt.Sprintf("combined stack size %d > max allowed %d",
+			combinedStackSize, MaxStackSize)
+		return false, scriptError(ErrStackOverflow, str)
 	}
 
 	// Prepare for next instruction.
@@ -294,7 +293,8 @@ func (vm *Engine) Step() (done bool, err error) {
 	if vm.scriptOff >= len(vm.scripts[vm.scriptIdx]) {
 		// Illegal to have an `if' that straddles two scripts.
 		if err == nil && len(vm.condStack) != 0 {
-			return false, ErrStackMissingEndif
+			return false, scriptError(ErrUnbalancedConditional,
+				"end of script reached in conditional execution")
 		}
 
 		// Alt stack doesn't persist.
@@ -389,26 +389,19 @@ func (vm *Engine) subScript() []parsedOpcode {
 }
 
 // checkHashTypeEncoding returns whether or not the passed hashtype adheres to
-// the strict encoding requirements if enabled.
+// the strict encoding requirements.
 func (vm *Engine) checkHashTypeEncoding(hashType SigHashType) error {
-	if !vm.hasFlag(ScriptVerifyStrictEncoding) {
-		return nil
-	}
-
 	sigHashType := hashType & ^SigHashAnyOneCanPay
 	if sigHashType < SigHashAll || sigHashType > SigHashSingle {
-		return fmt.Errorf("invalid hashtype: 0x%x\n", hashType)
+		str := fmt.Sprintf("invalid hash type 0x%x", hashType)
+		return scriptError(ErrInvalidSigHashType, str)
 	}
 	return nil
 }
 
 // checkPubKeyEncoding returns whether or not the passed public key adheres to
-// the strict encoding requirements if enabled.
+// the strict encoding requirements.
 func (vm *Engine) checkPubKeyEncoding(pubKey []byte) error {
-	if !vm.hasFlag(ScriptVerifyStrictEncoding) {
-		return nil
-	}
-
 	if len(pubKey) == 33 && (pubKey[0] == 0x02 || pubKey[0] == 0x03) {
 		// Compressed
 		return nil
@@ -417,19 +410,12 @@ func (vm *Engine) checkPubKeyEncoding(pubKey []byte) error {
 		// Uncompressed
 		return nil
 	}
-	return ErrStackInvalidPubKey
+	return scriptError(ErrPubKeyType, "unsupported public key type")
 }
 
 // checkSignatureEncoding returns whether or not the passed signature adheres to
-// the strict encoding requirements if enabled.
+// the strict encoding requirements.
 func (vm *Engine) checkSignatureEncoding(sig []byte) error {
-	if !vm.hasFlag(ScriptVerifyDERSignatures) &&
-		!vm.hasFlag(ScriptVerifyLowS) &&
-		!vm.hasFlag(ScriptVerifyStrictEncoding) {
-
-		return nil
-	}
-
 	// The format of a DER encoded signature is as follows:
 	//
 	// 0x30 <total length> 0x02 <length of R> <R> 0x02 <length of S> <S>
@@ -448,104 +434,165 @@ func (vm *Engine) checkSignatureEncoding(sig []byte) error {
 	//   - S is the arbitrary length big-endian encoded number which
 	//     represents the S value of the signature.  The encoding rules are
 	//     identical as those for R.
+	const (
+		asn1SequenceID = 0x30
+		asn1IntegerID  = 0x02
 
-	// Minimum length is when both numbers are 1 byte each.
-	// 0x30 + <1-byte> + 0x02 + 0x01 + <byte> + 0x2 + 0x01 + <byte>
-	if len(sig) < 8 {
-		// Too short
-		return fmt.Errorf("malformed signature: too short: %d < 8",
-			len(sig))
+		// minSigLen is the minimum length of a DER encoded signature and is
+		// when both R and S are 1 byte each.
+		//
+		// 0x30 + <1-byte> + 0x02 + 0x01 + <byte> + 0x2 + 0x01 + <byte>
+		minSigLen = 8
+
+		// maxSigLen is the maximum length of a DER encoded signature and is
+		// when both R and S are 33 bytes each.  It is 33 bytes because a
+		// 256-bit integer requires 32 bytes and an additional leading null byte
+		// might required if the high bit is set in the value.
+		//
+		// 0x30 + <1-byte> + 0x02 + 0x21 + <33 bytes> + 0x2 + 0x21 + <33 bytes>
+		maxSigLen = 72
+
+		// sequenceOffset is the byte offset within the signature of the
+		// expected ASN.1 sequence identifier.
+		sequenceOffset = 0
+
+		// dataLenOffset is the byte offset within the signature of the expected
+		// total length of all remaining data in the signature.
+		dataLenOffset = 1
+
+		// rTypeOffset is the byte offset within the signature of the ASN.1
+		// identifier for R and is expected to indicate an ASN.1 integer.
+		rTypeOffset = 2
+
+		// rLenOffset is the byte offset within the signature of the length of
+		// R.
+		rLenOffset = 3
+
+		// rOffset is the byte offset within the signature of R.
+		rOffset = 4
+	)
+
+	// The signature must adhere to the minimum and maximum allowed length.
+	sigLen := len(sig)
+	if sigLen < minSigLen {
+		str := fmt.Sprintf("malformed signature: too short: %d < %d", sigLen,
+			minSigLen)
+		return scriptError(ErrSigTooShort, str)
+	}
+	if sigLen > maxSigLen {
+		str := fmt.Sprintf("malformed signature: too long: %d > %d", sigLen,
+			maxSigLen)
+		return scriptError(ErrSigTooLong, str)
 	}
 
-	// Maximum length is when both numbers are 33 bytes each.  It is 33
-	// bytes because a 256-bit integer requires 32 bytes and an additional
-	// leading null byte might required if the high bit is set in the value.
-	// 0x30 + <1-byte> + 0x02 + 0x21 + <33 bytes> + 0x2 + 0x21 + <33 bytes>
-	if len(sig) > 72 {
-		// Too long
-		return fmt.Errorf("malformed signature: too long: %d > 72",
-			len(sig))
-	}
-	if sig[0] != 0x30 {
-		// Wrong type
-		return fmt.Errorf("malformed signature: format has wrong type: 0x%x",
-			sig[0])
-	}
-	if int(sig[1]) != len(sig)-2 {
-		// Invalid length
-		return fmt.Errorf("malformed signature: bad length: %d != %d",
-			sig[1], len(sig)-2)
+	// The signature must start with the ASN.1 sequence identifier.
+	if sig[sequenceOffset] != asn1SequenceID {
+		str := fmt.Sprintf("malformed signature: format has wrong type: %#x",
+			sig[sequenceOffset])
+		return scriptError(ErrSigInvalidSeqID, str)
 	}
 
-	rLen := int(sig[3])
-
-	// Make sure S is inside the signature.
-	if rLen+5 > len(sig) {
-		return fmt.Errorf("malformed signature: S out of bounds")
+	// The signature must indicate the correct amount of data for all elements
+	// related to R and S.
+	if int(sig[dataLenOffset]) != sigLen-2 {
+		str := fmt.Sprintf("malformed signature: bad length: %d != %d",
+			sig[dataLenOffset], sigLen-2)
+		return scriptError(ErrSigInvalidDataLen, str)
 	}
 
-	sLen := int(sig[rLen+5])
-
-	// The length of the elements does not match the length of the
-	// signature.
-	if rLen+sLen+6 != len(sig) {
-		return fmt.Errorf("malformed signature: invalid R length")
+	// Calculate the offsets of the elements related to S and ensure S is inside
+	// the signature.
+	//
+	// rLen specifies the length of the big-endian encoded number which
+	// represents the R value of the signature.
+	//
+	// sTypeOffset is the offset of the ASN.1 identifier for S and, like its R
+	// counterpart, is expected to indicate an ASN.1 integer.
+	//
+	// sLenOffset and sOffset are the byte offsets within the signature of the
+	// length of S and S itself, respectively.
+	rLen := int(sig[rLenOffset])
+	sTypeOffset := rOffset + rLen
+	sLenOffset := sTypeOffset + 1
+	if sTypeOffset >= sigLen {
+		str := "malformed signature: S type indicator missing"
+		return scriptError(ErrSigMissingSTypeID, str)
+	}
+	if sLenOffset >= sigLen {
+		str := "malformed signature: S length missing"
+		return scriptError(ErrSigMissingSLen, str)
 	}
 
-	// R elements must be integers.
-	if sig[2] != 0x02 {
-		return fmt.Errorf("malformed signature: missing first integer marker")
+	// The lengths of R and S must match the overall length of the signature.
+	//
+	// sLen specifies the length of the big-endian encoded number which
+	// represents the S value of the signature.
+	sOffset := sLenOffset + 1
+	sLen := int(sig[sLenOffset])
+	if sOffset+sLen != sigLen {
+		str := "malformed signature: invalid S length"
+		return scriptError(ErrSigInvalidSLen, str)
+	}
+
+	// R elements must be ASN.1 integers.
+	if sig[rTypeOffset] != asn1IntegerID {
+		str := fmt.Sprintf("malformed signature: R integer marker: %#x != %#x",
+			sig[rTypeOffset], asn1IntegerID)
+		return scriptError(ErrSigInvalidRIntID, str)
 	}
 
 	// Zero-length integers are not allowed for R.
 	if rLen == 0 {
-		return fmt.Errorf("malformed signature: R length is zero")
+		str := "malformed signature: R length is zero"
+		return scriptError(ErrSigZeroRLen, str)
 	}
 
 	// R must not be negative.
-	if sig[4]&0x80 != 0 {
-		return fmt.Errorf("malformed signature: R value is negative")
+	if sig[rOffset]&0x80 != 0 {
+		str := "malformed signature: R is negative"
+		return scriptError(ErrSigNegativeR, str)
 	}
 
-	// Null bytes at the start of R are not allowed, unless R would
-	// otherwise be interpreted as a negative number.
-	if rLen > 1 && sig[4] == 0x00 && sig[5]&0x80 == 0 {
-		return fmt.Errorf("malformed signature: invalid R value")
+	// Null bytes at the start of R are not allowed, unless R would otherwise be
+	// interpreted as a negative number.
+	if rLen > 1 && sig[rOffset] == 0x00 && sig[rOffset+1]&0x80 == 0 {
+		str := "malformed signature: R value has too much padding"
+		return scriptError(ErrSigTooMuchRPadding, str)
 	}
 
-	// S elements must be integers.
-	if sig[rLen+4] != 0x02 {
-		return fmt.Errorf("malformed signature: missing second integer marker")
+	// S elements must be ASN.1 integers.
+	if sig[sTypeOffset] != asn1IntegerID {
+		str := fmt.Sprintf("malformed signature: S integer marker: %#x != %#x",
+			sig[sTypeOffset], asn1IntegerID)
+		return scriptError(ErrSigInvalidSIntID, str)
 	}
 
 	// Zero-length integers are not allowed for S.
 	if sLen == 0 {
-		return fmt.Errorf("malformed signature: S length is zero")
+		str := "malformed signature: S length is zero"
+		return scriptError(ErrSigZeroSLen, str)
 	}
 
 	// S must not be negative.
-	if sig[rLen+6]&0x80 != 0 {
-		return fmt.Errorf("malformed signature: S value is negative")
+	if sig[sOffset]&0x80 != 0 {
+		str := "malformed signature: S is negative"
+		return scriptError(ErrSigNegativeS, str)
 	}
 
-	// Null bytes at the start of S are not allowed, unless S would
-	// otherwise be interpreted as a negative number.
-	if sLen > 1 && sig[rLen+6] == 0x00 && sig[rLen+7]&0x80 == 0 {
-		return fmt.Errorf("malformed signature: invalid S value")
+	// Null bytes at the start of S are not allowed, unless S would otherwise be
+	// interpreted as a negative number.
+	if sLen > 1 && sig[sOffset] == 0x00 && sig[sOffset+1]&0x80 == 0 {
+		str := "malformed signature: S value has too much padding"
+		return scriptError(ErrSigTooMuchSPadding, str)
 	}
 
-	// Verify the S value is <= half the order of the curve.  This check is
-	// done because when it is higher, the complement modulo the order can
-	// be used instead which is a shorter encoding by 1 byte.  Further,
-	// without enforcing this, it is possible to replace a signature in a
-	// valid transaction with the complement while still being a valid
-	// signature that verifies.  This would result in changing the
-	// transaction hash and thus is source of malleability.
-	if vm.hasFlag(ScriptVerifyLowS) {
-		sValue := new(big.Int).SetBytes(sig[rLen+6 : rLen+6+sLen])
-		if sValue.Cmp(halfOrder) > 0 {
-			return ErrStackInvalidLowSSignature
-		}
+	// Verify the S value is <= half the order of the curve.  This check is done
+	// because when it is higher, the complement modulo the order can be used
+	// instead which is a shorter encoding by 1 byte.
+	sValue := new(big.Int).SetBytes(sig[sOffset : sOffset+sLen])
+	if sValue.Cmp(halfOrder) > 0 {
+		return scriptError(ErrSigHighS, "signature is not canonical due to "+
+			"unnecessarily high S value")
 	}
 
 	return nil
@@ -599,32 +646,30 @@ func (vm *Engine) SetAltStack(data [][]byte) {
 // NewEngine returns a new script engine for the provided public key script,
 // transaction, and input index.  The flags modify the behavior of the script
 // engine according to the description provided by each flag.
-func NewEngine(scriptPubKey []byte, tx *wire.MsgTx, txIdx int,
-	flags ScriptFlags, scriptVersion uint16, sigCache *SigCache) (*Engine, error) {
-
+func NewEngine(scriptPubKey []byte, tx *wire.MsgTx, txIdx int, flags ScriptFlags, scriptVersion uint16, sigCache *SigCache) (*Engine, error) {
 	// The provided transaction input index must refer to a valid input.
 	if txIdx < 0 || txIdx >= len(tx.TxIn) {
-		return nil, ErrInvalidIndex
+		str := fmt.Sprintf("transaction input index %d is negative or "+
+			">= %d", txIdx, len(tx.TxIn))
+		return nil, scriptError(ErrInvalidIndex, str)
 	}
 	scriptSig := tx.TxIn[txIdx].SignatureScript
 
-	// The clean stack flag (ScriptVerifyCleanStack) is not allowed without
-	// the pay-to-script-hash (P2SH) evaluation (ScriptBip16) flag.
-	//
-	// Recall that evaluating a P2SH script without the flag set results in
-	// non-P2SH evaluation which leaves the P2SH inputs on the stack.  Thus,
-	// allowing the clean stack flag without the P2SH flag would make it
-	// possible to have a situation where P2SH would not be a soft fork when
-	// it should be.
-	vm := Engine{version: scriptVersion, flags: flags, sigCache: sigCache}
-	if vm.hasFlag(ScriptVerifyCleanStack) && !vm.hasFlag(ScriptBip16) {
-		return nil, ErrInvalidFlags
+	// When both the signature script and public key script are empty the
+	// result is necessarily an error since the stack would end up being
+	// empty which is equivalent to a false top element.  Thus, just return
+	// the relevant error now as an optimization.
+	if len(scriptSig) == 0 && len(scriptPubKey) == 0 {
+		return nil, scriptError(ErrEvalFalse,
+			"false stack entry at end of script execution")
 	}
 
 	// The signature script must only contain data pushes when the
 	// associated flag is set.
+	vm := Engine{version: scriptVersion, flags: flags, sigCache: sigCache}
 	if vm.hasFlag(ScriptVerifySigPushOnly) && !IsPushOnlyScript(scriptSig) {
-		return nil, ErrStackNonPushOnly
+		return nil, scriptError(ErrNotPushOnly,
+			"signature script is not push only")
 	}
 
 	// Subscripts for pay to script hash outputs are not allowed
@@ -644,8 +689,10 @@ func NewEngine(scriptPubKey []byte, tx *wire.MsgTx, txIdx int,
 	scripts := [][]byte{scriptSig, scriptPubKey}
 	vm.scripts = make([][]parsedOpcode, len(scripts))
 	for i, scr := range scripts {
-		if len(scr) > maxScriptSize {
-			return nil, ErrStackLongScript
+		if len(scr) > MaxScriptSize {
+			str := fmt.Sprintf("script size %d is larger than max "+
+				"allowed size %d", len(scr), MaxScriptSize)
+			return nil, scriptError(ErrScriptTooBig, str)
 		}
 		var err error
 		vm.scripts[i], err = parseScript(scr)
@@ -661,16 +708,13 @@ func NewEngine(scriptPubKey []byte, tx *wire.MsgTx, txIdx int,
 		vm.scriptIdx++
 	}
 
-	if vm.hasFlag(ScriptBip16) && isAnyKindOfScriptHash(vm.scripts[1]) {
+	if isAnyKindOfScriptHash(vm.scripts[1]) {
 		// Only accept input scripts that push data for P2SH.
 		if !isPushOnly(vm.scripts[0]) {
-			return nil, ErrStackP2SHNonPushOnly
+			return nil, scriptError(ErrNotPushOnly,
+				"pay to script hash is not push only")
 		}
 		vm.bip16 = true
-	}
-	if vm.hasFlag(ScriptVerifyMinimalData) {
-		vm.dstack.verifyMinimalData = true
-		vm.astack.verifyMinimalData = true
 	}
 
 	vm.tx = *tx

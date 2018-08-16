@@ -1,4 +1,4 @@
-// Copyright (c) 2013-2016 The btcsuite developers
+// Copyright (c) 2013-2017 The btcsuite developers
 // Copyright (c) 2015-2018 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
@@ -123,81 +123,29 @@ func TestCheckErrorCondition(t *testing.T) {
 	for i := 0; i < len(pkScript)-1; i++ {
 		done, err := vm.Step()
 		if err != nil {
-			t.Errorf("failed to step %dth time: %v", i, err)
-			return
+			t.Fatalf("failed to step %dth time: %v", i, err)
 		}
 		if done {
-			t.Errorf("finshed early on %dth time", i)
-			return
+			t.Fatalf("finshed early on %dth time", i)
 		}
 
 		err = vm.CheckErrorCondition(false)
-		if err != ErrStackScriptUnfinished {
-			t.Errorf("got unexepected error %v on %dth iteration",
+		if !IsErrorCode(err, ErrScriptUnfinished) {
+			t.Fatalf("got unexepected error %v on %dth iteration",
 				err, i)
-			return
 		}
 	}
 	done, err := vm.Step()
 	if err != nil {
-		t.Errorf("final step failed %v", err)
-		return
+		t.Fatalf("final step failed %v", err)
 	}
 	if !done {
-		t.Errorf("final step isn't done!")
-		return
+		t.Fatalf("final step isn't done!")
 	}
 
 	err = vm.CheckErrorCondition(false)
 	if err != nil {
 		t.Errorf("unexpected error %v on final check", err)
-	}
-}
-
-// TestInvalidFlagCombinations ensures the script engine returns the expected
-// error when disallowed flag combinations are specified.
-func TestInvalidFlagCombinations(t *testing.T) {
-	t.Parallel()
-
-	tests := []ScriptFlags{
-		ScriptVerifyCleanStack,
-	}
-
-	// tx with almost empty scripts.
-	tx := &wire.MsgTx{
-		SerType: wire.TxSerializeFull,
-		Version: 1,
-		TxIn: []*wire.TxIn{{
-			PreviousOutPoint: wire.OutPoint{
-				Hash: chainhash.Hash([32]byte{
-					0xc9, 0x97, 0xa5, 0xe5,
-					0x6e, 0x10, 0x41, 0x02,
-					0xfa, 0x20, 0x9c, 0x6a,
-					0x85, 0x2d, 0xd9, 0x06,
-					0x60, 0xa2, 0x0b, 0x2d,
-					0x9c, 0x35, 0x24, 0x23,
-					0xed, 0xce, 0x25, 0x85,
-					0x7f, 0xcd, 0x37, 0x04,
-				}),
-				Index: 0,
-			},
-			SignatureScript: []uint8{OP_NOP},
-			Sequence:        4294967295,
-		}},
-		TxOut: []*wire.TxOut{{
-			Value:    1000000000,
-			PkScript: nil,
-		}},
-		LockTime: 0,
-	}
-	pkScript := []byte{OP_NOP}
-
-	for i, test := range tests {
-		_, err := NewEngine(pkScript, tx, 0, test, 0, nil)
-		if err != ErrInvalidFlags {
-			t.Fatalf("TestInvalidFlagCombinations #%d unexpected "+
-				"error: %v", i, err)
-		}
 	}
 }
 
@@ -246,7 +194,7 @@ func TestCheckPubKeyEncoding(t *testing.T) {
 		},
 	}
 
-	vm := Engine{flags: ScriptVerifyStrictEncoding}
+	var vm Engine
 	for _, test := range tests {
 		err := vm.checkPubKeyEncoding(test.key)
 		if err != nil && test.isValid {
@@ -417,7 +365,7 @@ func TestCheckSignatureEncoding(t *testing.T) {
 		},
 	}
 
-	vm := Engine{flags: ScriptVerifyStrictEncoding}
+	var vm Engine
 	for _, test := range tests {
 		err := vm.checkSignatureEncoding(test.sig)
 		if err != nil && test.isValid {

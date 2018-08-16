@@ -1,4 +1,4 @@
-// Copyright (c) 2017 The Decred developers
+// Copyright (c) 2017-2018 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -19,11 +19,7 @@ import (
 func testLNFeaturesDeployment(t *testing.T, params *chaincfg.Params, deploymentVer uint32) {
 	// baseConsensusScriptVerifyFlags are the expected script flags when the
 	// agenda is not active.
-	const baseConsensusScriptVerifyFlags = txscript.ScriptBip16 |
-		txscript.ScriptVerifyDERSignatures |
-		txscript.ScriptVerifyStrictEncoding |
-		txscript.ScriptVerifyMinimalData |
-		txscript.ScriptVerifyCleanStack |
+	const baseConsensusScriptVerifyFlags = txscript.ScriptVerifyCleanStack |
 		txscript.ScriptVerifyCheckLockTimeVerify
 
 	// Find the correct deployment for the LN features agenda.
@@ -112,7 +108,7 @@ func testLNFeaturesDeployment(t *testing.T, params *chaincfg.Params, deploymentV
 
 	curTimestamp := time.Now()
 	bc := newFakeChain(params)
-	node := bc.bestNode
+	node := bc.bestChain.Tip()
 	for _, test := range tests {
 		for i := uint32(0); i < test.numNodes; i++ {
 			node = newFakeNode(node, int32(deploymentVer),
@@ -126,7 +122,7 @@ func testLNFeaturesDeployment(t *testing.T, params *chaincfg.Params, deploymentV
 					Bits:    yesChoice.Bits | 0x01,
 				})
 			}
-			bc.bestNode = node
+			bc.bestChain.SetTip(node)
 			curTimestamp = curTimestamp.Add(time.Second)
 		}
 
@@ -176,5 +172,5 @@ func testLNFeaturesDeployment(t *testing.T, params *chaincfg.Params, deploymentV
 // activate the expected changes.
 func TestLNFeaturesDeployment(t *testing.T) {
 	testLNFeaturesDeployment(t, &chaincfg.MainNetParams, 5)
-	testLNFeaturesDeployment(t, &chaincfg.TestNet2Params, 6)
+	testLNFeaturesDeployment(t, &chaincfg.SimNetParams, 6)
 }

@@ -761,7 +761,7 @@ func (r FuturePurchaseTicketResult) Receive() ([]*chainhash.Hash, error) {
 func (c *Client) PurchaseTicketAsync(fromAccount string,
 	spendLimit dcrutil.Amount, minConf *int, ticketAddress dcrutil.Address,
 	numTickets *int, poolAddress dcrutil.Address, poolFees *dcrutil.Amount,
-	expiry *int, ticketChange *bool, ticketFee *dcrutil.Amount) FuturePurchaseTicketResult {
+	expiry *int, ticketFee *dcrutil.Amount) FuturePurchaseTicketResult {
 	// An empty string is used to keep the sendCmd
 	// passing of the command from accidentally
 	// removing certain fields. We fill in the
@@ -805,7 +805,7 @@ func (c *Client) PurchaseTicketAsync(fromAccount string,
 
 	cmd := dcrjson.NewPurchaseTicketCmd(fromAccount, spendLimit.ToCoin(),
 		&minConfVal, &ticketAddrStr, &numTicketsVal, &poolAddrStr,
-		&poolFeesFloat, &expiryVal, dcrjson.String(""), ticketChange, &ticketFeeFloat)
+		&poolFeesFloat, &expiryVal, dcrjson.String(""), &ticketFeeFloat)
 
 	return c.sendCmd(cmd)
 }
@@ -818,7 +818,7 @@ func (c *Client) PurchaseTicket(fromAccount string,
 	expiry *int, ticketChange *bool, ticketFee *dcrutil.Amount) ([]*chainhash.Hash, error) {
 
 	return c.PurchaseTicketAsync(fromAccount, spendLimit, minConf, ticketAddress,
-		numTickets, poolAddress, poolFees, expiry, ticketChange, ticketFee).Receive()
+		numTickets, poolAddress, poolFees, expiry, ticketFee).Receive()
 }
 
 // SStx generation RPC call handling
@@ -2736,6 +2736,44 @@ func (c *Client) AddTicket(ticket *dcrutil.Tx) error {
 	}
 
 	return c.AddTicketAsync(hex.EncodeToString(ticketB)).Receive()
+}
+
+// FutureFundRawTransactionResult is a future promise to deliver the result of a
+// FundRawTransactionAsync RPC invocation (or an applicable error).
+type FutureFundRawTransactionResult chan *response
+
+// Receive waits for the response promised by the future and returns the unsigned
+// transaction with the passed amount and the given address.
+func (r FutureFundRawTransactionResult) Receive() (*dcrjson.FundRawTransactionResult, error) {
+	res, err := receiveFuture(r)
+	if err != nil {
+		return nil, err
+	}
+
+	// Unmarshal result as a string.
+	var infoRes dcrjson.FundRawTransactionResult
+	err = json.Unmarshal(res, &infoRes)
+	if err != nil {
+		return nil, err
+	}
+
+	return &infoRes, nil
+}
+
+// FundRawTransactionAsync returns an instance of a type that can be used to get the
+// result of the RPC at some future time by invoking the Receive function on the
+// returned instance.
+//
+// See FundRawTransaction for the blocking version and more details.
+func (c *Client) FundRawTransactionAsync(rawhex string, fundAccount string, options dcrjson.FundRawTransactionOptions) FutureFundRawTransactionResult {
+	cmd := dcrjson.NewFundRawTransactionCmd(rawhex, fundAccount, &options)
+	return c.sendCmd(cmd)
+}
+
+// FundRawTransaction Add inputs to a transaction until it has enough
+// in value to meet its out value.
+func (c *Client) FundRawTransaction(rawhex string, fundAccount string, options dcrjson.FundRawTransactionOptions) (*dcrjson.FundRawTransactionResult, error) {
+	return c.FundRawTransactionAsync(rawhex, fundAccount, options).Receive()
 }
 
 // FutureGenerateVoteResult is a future promise to deliver the result of a

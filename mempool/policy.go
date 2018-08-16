@@ -63,15 +63,10 @@ const (
 	// the state of any agenda votes.  The full set of standard verification
 	// flags must include these flags as well as any additional flags that
 	// are conditionally enabled depending on the result of agenda votes.
-	BaseStandardVerifyFlags = txscript.ScriptBip16 |
-		txscript.ScriptVerifyDERSignatures |
-		txscript.ScriptVerifyStrictEncoding |
-		txscript.ScriptVerifyMinimalData |
-		txscript.ScriptDiscourageUpgradableNops |
+	BaseStandardVerifyFlags = txscript.ScriptDiscourageUpgradableNops |
 		txscript.ScriptVerifyCleanStack |
 		txscript.ScriptVerifyCheckLockTimeVerify |
-		txscript.ScriptVerifyCheckSequenceVerify |
-		txscript.ScriptVerifyLowS
+		txscript.ScriptVerifyCheckSequenceVerify
 )
 
 // calcMinRequiredTxRelayFee returns the minimum transaction fee required for a

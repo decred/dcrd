@@ -1,5 +1,5 @@
 // Copyright (c) 2013, 2014 The btcsuite developers
-// Copyright (c) 2015 The Decred developers
+// Copyright (c) 2015-2018 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -13,13 +13,13 @@ import (
 	"testing"
 
 	"github.com/decred/dcrd/chaincfg"
-	"github.com/decred/dcrd/chaincfg/chainec"
+	"github.com/decred/dcrd/dcrec"
 	"github.com/decred/dcrd/dcrutil"
-
 	"golang.org/x/crypto/ripemd160"
 )
 
 func TestAddresses(t *testing.T) {
+	testNetParams := &chaincfg.TestNet3Params
 	tests := []struct {
 		name    string
 		addr    string
@@ -47,7 +47,7 @@ func TestAddresses(t *testing.T) {
 					0x27, 0x89, 0xd5, 0x8c, 0xfa, 0x09, 0x57, 0xd2, 0x06, 0xf0,
 					0x25, 0xc2, 0xaf, 0x05, 0x6f, 0xc8, 0xa7, 0x7c, 0xeb, 0xb0}
 				return dcrutil.NewAddressPubKeyHash(pkHash,
-					&chaincfg.MainNetParams, chainec.ECTypeSecp256k1)
+					&chaincfg.MainNetParams, dcrec.STEcdsaSecp256k1)
 			},
 			net: &chaincfg.MainNetParams,
 		},
@@ -66,7 +66,7 @@ func TestAddresses(t *testing.T) {
 					0x22, 0x9e, 0xba, 0xc3, 0x0e, 0xfd, 0x6a, 0x69, 0xee, 0xc9,
 					0xc1, 0xa4, 0x8e, 0x04, 0x8b, 0x7c, 0x97, 0x5c, 0x25, 0xf2}
 				return dcrutil.NewAddressPubKeyHash(pkHash,
-					&chaincfg.MainNetParams, chainec.ECTypeSecp256k1)
+					&chaincfg.MainNetParams, dcrec.STEcdsaSecp256k1)
 			},
 			net: &chaincfg.MainNetParams,
 		},
@@ -79,15 +79,15 @@ func TestAddresses(t *testing.T) {
 				[ripemd160.Size]byte{
 					0xf1, 0x5d, 0xa1, 0xcb, 0x8d, 0x1b, 0xcb, 0x16, 0x2c, 0x6a,
 					0xb4, 0x46, 0xc9, 0x57, 0x57, 0xa6, 0xe7, 0x91, 0xc9, 0x16},
-				chaincfg.TestNet2Params.PubKeyHashAddrID),
+				testNetParams.PubKeyHashAddrID),
 			f: func() (dcrutil.Address, error) {
 				pkHash := []byte{
 					0xf1, 0x5d, 0xa1, 0xcb, 0x8d, 0x1b, 0xcb, 0x16, 0x2c, 0x6a,
 					0xb4, 0x46, 0xc9, 0x57, 0x57, 0xa6, 0xe7, 0x91, 0xc9, 0x16}
 				return dcrutil.NewAddressPubKeyHash(pkHash,
-					&chaincfg.TestNet2Params, chainec.ECTypeSecp256k1)
+					testNetParams, dcrec.STEcdsaSecp256k1)
 			},
-			net: &chaincfg.TestNet2Params,
+			net: testNetParams,
 		},
 
 		// Negative P2PKH tests.
@@ -102,14 +102,14 @@ func TestAddresses(t *testing.T) {
 					0xaa}
 				return dcrutil.NewAddressPubKeyHash(pkHash,
 					&chaincfg.MainNetParams,
-					chainec.ECTypeSecp256k1)
+					dcrec.STEcdsaSecp256k1)
 			},
 		},
 		{
 			name:  "p2pkh bad checksum",
 			addr:  "TsmWaPM77WSyA3aiQ2Q1KnwGDVWvEkhip23",
 			valid: false,
-			net:   &chaincfg.TestNet2Params,
+			net:   testNetParams,
 		},
 
 		// Positive P2SH tests.
@@ -167,14 +167,14 @@ func TestAddresses(t *testing.T) {
 				[ripemd160.Size]byte{
 					0x36, 0xc1, 0xca, 0x10, 0xa8, 0xa6, 0xa4, 0xb5, 0xd4, 0x20,
 					0x4a, 0xc9, 0x70, 0x85, 0x39, 0x79, 0x90, 0x3a, 0xa2, 0x84},
-				chaincfg.TestNet2Params.ScriptHashAddrID),
+				testNetParams.ScriptHashAddrID),
 			f: func() (dcrutil.Address, error) {
 				hash := []byte{
 					0x36, 0xc1, 0xca, 0x10, 0xa8, 0xa6, 0xa4, 0xb5, 0xd4, 0x20,
 					0x4a, 0xc9, 0x70, 0x85, 0x39, 0x79, 0x90, 0x3a, 0xa2, 0x84}
-				return dcrutil.NewAddressScriptHashFromHash(hash, &chaincfg.TestNet2Params)
+				return dcrutil.NewAddressScriptHashFromHash(hash, testNetParams)
 			},
-			net: &chaincfg.TestNet2Params,
+			net: testNetParams,
 		},
 
 		// Negative P2SH tests.
@@ -277,16 +277,16 @@ func TestAddresses(t *testing.T) {
 					0x76, 0x56, 0xa0, 0x9c, 0xaa, 0x23, 0x53, 0xd4, 0xb3, 0x83,
 					0xa9, 0xce, 0x66, 0xee, 0xf5, 0x1e, 0x12, 0x20, 0xea, 0xcf,
 					0x4b, 0xe0, 0x6e},
-				dcrutil.PKFCompressed, chaincfg.TestNet2Params.PubKeyHashAddrID),
+				dcrutil.PKFCompressed, testNetParams.PubKeyHashAddrID),
 			f: func() (dcrutil.Address, error) {
 				serializedPubKey := []byte{
 					0x02, 0x6a, 0x40, 0xc4, 0x03, 0xe7, 0x46, 0x70, 0xc4, 0xde,
 					0x76, 0x56, 0xa0, 0x9c, 0xaa, 0x23, 0x53, 0xd4, 0xb3, 0x83,
 					0xa9, 0xce, 0x66, 0xee, 0xf5, 0x1e, 0x12, 0x20, 0xea, 0xcf,
 					0x4b, 0xe0, 0x6e}
-				return dcrutil.NewAddressSecpPubKey(serializedPubKey, &chaincfg.TestNet2Params)
+				return dcrutil.NewAddressSecpPubKey(serializedPubKey, testNetParams)
 			},
-			net: &chaincfg.TestNet2Params,
+			net: testNetParams,
 		},
 		{
 			name:    "testnet p2pk compressed (0x03)",
@@ -299,16 +299,16 @@ func TestAddresses(t *testing.T) {
 					0xe9, 0xbb, 0x3a, 0x6a, 0x73, 0xd4, 0xb5, 0xbe, 0xc7, 0x70,
 					0xe8, 0xb3, 0x1d, 0x6a, 0x0a, 0xe9, 0xfb, 0x73, 0x90, 0x09,
 					0xd9, 0x1a, 0xf5},
-				dcrutil.PKFCompressed, chaincfg.TestNet2Params.PubKeyHashAddrID),
+				dcrutil.PKFCompressed, testNetParams.PubKeyHashAddrID),
 			f: func() (dcrutil.Address, error) {
 				serializedPubKey := []byte{
 					0x03, 0x08, 0x44, 0xee, 0x70, 0xd8, 0x38, 0x4d, 0x52, 0x50,
 					0xe9, 0xbb, 0x3a, 0x6a, 0x73, 0xd4, 0xb5, 0xbe, 0xc7, 0x70,
 					0xe8, 0xb3, 0x1d, 0x6a, 0x0a, 0xe9, 0xfb, 0x73, 0x90, 0x09,
 					0xd9, 0x1a, 0xf5}
-				return dcrutil.NewAddressSecpPubKey(serializedPubKey, &chaincfg.TestNet2Params)
+				return dcrutil.NewAddressSecpPubKey(serializedPubKey, testNetParams)
 			},
-			net: &chaincfg.TestNet2Params,
+			net: testNetParams,
 		},
 		{
 			name:    "testnet p2pk uncompressed (0x04)",
@@ -325,7 +325,7 @@ func TestAddresses(t *testing.T) {
 					0x90, 0x07, 0xcb, 0x94, 0x22, 0x0b, 0x3b, 0xb8, 0x94, 0x91,
 					0xd5, 0xa1, 0xfd, 0x2d, 0x77, 0x86, 0x7f, 0xca, 0x64, 0x21,
 					0x7a, 0xce, 0xcf, 0x22, 0x44},
-				dcrutil.PKFUncompressed, chaincfg.TestNet2Params.PubKeyHashAddrID),
+				dcrutil.PKFUncompressed, testNetParams.PubKeyHashAddrID),
 			f: func() (dcrutil.Address, error) {
 				serializedPubKey := []byte{
 					0x04, 0x6a, 0x40, 0xc4, 0x03, 0xe7, 0x46, 0x70, 0xc4, 0xde,
@@ -335,9 +335,9 @@ func TestAddresses(t *testing.T) {
 					0x90, 0x07, 0xcb, 0x94, 0x22, 0x0b, 0x3b, 0xb8, 0x94, 0x91,
 					0xd5, 0xa1, 0xfd, 0x2d, 0x77, 0x86, 0x7f, 0xca, 0x64, 0x21,
 					0x7a, 0xce, 0xcf, 0x22, 0x44}
-				return dcrutil.NewAddressSecpPubKey(serializedPubKey, &chaincfg.TestNet2Params)
+				return dcrutil.NewAddressSecpPubKey(serializedPubKey, testNetParams)
 			},
-			net: &chaincfg.TestNet2Params,
+			net: testNetParams,
 		},
 
 		// Negative P2PK tests.
@@ -388,9 +388,9 @@ func TestAddresses(t *testing.T) {
 					0x90, 0x07, 0xcb, 0x94, 0x22, 0x0b, 0x3b, 0xb8, 0x94, 0x91,
 					0xd5, 0xa1, 0xfd, 0x2d, 0x77, 0x86, 0x7f, 0xca, 0x64, 0x21,
 					0x7a, 0xce, 0xcf, 0x22, 0x44}
-				return dcrutil.NewAddressSecpPubKey(serializedPubKey, &chaincfg.TestNet2Params)
+				return dcrutil.NewAddressSecpPubKey(serializedPubKey, testNetParams)
 			},
-			net: &chaincfg.TestNet2Params,
+			net: testNetParams,
 		},
 		{
 			name:  "testnet p2pk hybrid (0x07)",
@@ -405,9 +405,9 @@ func TestAddresses(t *testing.T) {
 					0x65, 0xfe, 0x7b, 0x86, 0x1e, 0x7f, 0x6f, 0xcc, 0x08, 0x7d,
 					0xc7, 0xfe, 0x47, 0x38, 0x0f, 0xa8, 0xbd, 0xe0, 0xd9, 0xc3,
 					0x22, 0xd5, 0x3c, 0x0e, 0x89}
-				return dcrutil.NewAddressSecpPubKey(serializedPubKey, &chaincfg.TestNet2Params)
+				return dcrutil.NewAddressSecpPubKey(serializedPubKey, testNetParams)
 			},
-			net: &chaincfg.TestNet2Params,
+			net: testNetParams,
 		},
 	}
 

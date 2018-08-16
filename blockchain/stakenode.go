@@ -42,7 +42,7 @@ func (b *BlockChain) fetchNewTicketsForNode(node *blockNode) ([]chainhash.Hash, 
 			"ancestor is genesis block")
 	}
 
-	matureBlock, errBlock := b.fetchBlockByHash(&matureNode.hash)
+	matureBlock, errBlock := b.fetchBlockByNode(matureNode)
 	if errBlock != nil {
 		return nil, errBlock
 	}
@@ -106,7 +106,13 @@ func (b *BlockChain) fetchStakeNode(node *blockNode) (*stake.Node, error) {
 	// always be filled in, so assume it is safe to begin working
 	// backwards from there.
 	detachNodes, attachNodes := b.getReorganizeNodes(node)
-	current := b.bestNode
+	current := b.bestChain.Tip()
+
+	// Flush any potential unsaved changes to the block index due to the
+	// call to get the reorganize nodes.  Since the best state is not being
+	// being modified, it is safe to ignore any errors here as the changes
+	// will be flushed at that point and those errors are not ignored.
+	b.flushBlockIndexWarnOnly()
 
 	// Move backwards through the main chain, undoing the ticket
 	// treaps for each block.  The database is passed because the

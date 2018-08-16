@@ -22,6 +22,7 @@ import (
 	"github.com/decred/dcrd/addrmgr"
 	"github.com/decred/dcrd/blockchain"
 	"github.com/decred/dcrd/blockchain/indexers"
+	"github.com/decred/dcrd/blockchain/stake"
 	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/connmgr"
@@ -82,6 +83,10 @@ type broadcastInventoryAdd relayMsg
 // broadcastInventoryDel is a type used to declare that the InvVect it contains
 // needs to be removed from the rebroadcast map
 type broadcastInventoryDel *wire.InvVect
+
+// broadcastPruneInventory is a type used to declare that rebroadcast
+// inventory entries need to be filtered and removed where necessary
+type broadcastPruneInventory struct{}
 
 // relayMsg packages an inventory vector along with the newly discovered
 // inventory so the relay has access to that information.
@@ -726,7 +731,6 @@ func (sp *serverPeer) OnGetBlocks(p *peer.Peer, msg *wire.MsgGetBlocks) {
 	// wire.MaxBlocksPerMsg have been fetched or the provided stop hash is
 	// encountered.
 	//
-	// Find the most recent known block based on the block locator.
 	// Use the block after the genesis block if no other blocks in the
 	// provided locator are known.  This does mean the client will start
 	// over with the genesis block if unknown block locators are provided.
@@ -773,10 +777,6 @@ func (sp *serverPeer) OnGetHeaders(p *peer.Peer, msg *wire.MsgGetHeaders) {
 	// over with the genesis block if unknown block locators are provided.
 	chain := sp.server.blockManager.chain
 	headers := chain.LocateHeaders(msg.BlockLocatorHashes, &msg.HashStop)
-	if len(headers) == 0 {
-		// Nothing to send.
-		return
-	}
 
 	// Send found headers to the requesting peer.
 	blockHeaders := make([]*wire.BlockHeader, len(headers))
@@ -784,6 +784,36 @@ func (sp *serverPeer) OnGetHeaders(p *peer.Peer, msg *wire.MsgGetHeaders) {
 		blockHeaders[i] = &headers[i]
 	}
 	p.QueueMessage(&wire.MsgHeaders{Headers: blockHeaders}, nil)
+}
+
+// enforceNodeCFFlag disconnects the peer if the server is not configured to
+// allow committed filters.  Additionally, if the peer has negotiated to a
+// protocol version that is high enough to observe the committed filter service
+// support bit, it will be banned since it is intentionally violating the
+// protocol.
+func (sp *serverPeer) enforceNodeCFFlag(cmd string) bool {
+	if !hasServices(sp.server.services, wire.SFNodeCF) {
+		// Ban the peer if the protocol version is high enough that the peer is
+		// knowingly violating the protocol and banning is enabled.
+		//
+		// NOTE: Even though the addBanScore function already examines whether
+		// or not banning is enabled, it is checked here as well to ensure the
+		// violation is logged and the peer is disconnected regardless.
+		if sp.ProtocolVersion() >= wire.NodeCFVersion && !cfg.DisableBanning {
+			// Disconnect the peer regardless of whether it was banned.
+			sp.addBanScore(100, 0, cmd)
+			sp.Disconnect()
+			return false
+		}
+
+		// Disconnect the peer regardless of protocol version or banning state.
+		peerLog.Debugf("%s sent an unsupported %s request -- disconnecting", sp,
+			cmd)
+		sp.Disconnect()
+		return false
+	}
+
+	return true
 }
 
 // OnGetCFilter is invoked when a peer receives a getcfilter wire message.
@@ -794,7 +824,7 @@ func (sp *serverPeer) OnGetCFilter(p *peer.Peer, msg *wire.MsgGetCFilter) {
 		return
 	}
 
-	// Ignore getcfilter requests if cfg.NoCFilters is set or we're not in sync.
+	// Ignore request if CFs are disabled or the chain is not yet synced.
 	if cfg.NoCFilters || !sp.server.blockManager.IsCurrent() {
 		return
 	}
@@ -819,8 +849,7 @@ func (sp *serverPeer) OnGetCFilter(p *peer.Peer, msg *wire.MsgGetCFilter) {
 	// block was disconnected, or this has always been a sidechain block) build
 	// the filter on the spot.
 	if len(filterBytes) == 0 {
-		block, err := sp.server.blockManager.chain.FetchBlockByHash(
-			&msg.BlockHash)
+		block, err := sp.server.blockManager.chain.BlockByHash(&msg.BlockHash)
 		if err != nil {
 			peerLog.Errorf("OnGetCFilter: failed to fetch non-mainchain "+
 				"block %v: %v", &msg.BlockHash, err)
@@ -867,8 +896,7 @@ func (sp *serverPeer) OnGetCFHeaders(p *peer.Peer, msg *wire.MsgGetCFHeaders) {
 		return
 	}
 
-	// Ignore getcfheader requests if cfg.NoCFilters is set or we're not in
-	// sync.
+	// Ignore request if CFs are disabled or the chain is not yet synced.
 	if cfg.NoCFilters || !sp.server.blockManager.IsCurrent() {
 		return
 	}
@@ -882,91 +910,31 @@ func (sp *serverPeer) OnGetCFHeaders(p *peer.Peer, msg *wire.MsgGetCFHeaders) {
 		return
 	}
 
-	// Attempt to look up the height of the provided stop hash.
+	// Find the most recent known block in the best chain based on the block
+	// locator and fetch all of the block hashes after it until either
+	// wire.MaxCFHeadersPerMsg have been fetched or the provided stop hash is
+	// encountered.
+	//
+	// Use the block after the genesis block if no other blocks in the provided
+	// locator are known.  This does mean the served filter headers will start
+	// over at the genesis block if unknown block locators are provided.
 	chain := sp.server.blockManager.chain
-	endIdx := int64(math.MaxInt64)
-	height, err := chain.BlockHeightByHash(&msg.HashStop)
-	if err == nil {
-		endIdx = height + 1
-	}
-
-	// There are no block locators so a specific header is being requested
-	// as identified by the stop hash.
-	if len(msg.BlockLocatorHashes) == 0 {
-		// No blocks with the stop hash were found so there is nothing
-		// to do.  Just return.  This behavior mirrors the reference
-		// implementation.
-		if endIdx == math.MaxInt32 {
-			return
-		}
-
-		// Fetch the raw committed filter header bytes from the
-		// database.
-		headerBytes, err := sp.server.cfIndex.FilterHeaderByBlockHash(
-			&msg.HashStop, msg.FilterType)
-		if err != nil || len(headerBytes) == 0 {
-			peerLog.Warnf("Could not obtain CF header for %v: %v",
-				msg.HashStop, err)
-			return
-		}
-
-		// Deserialize the hash.
-		var header chainhash.Hash
-		err = header.SetBytes(headerBytes)
-		if err != nil {
-			peerLog.Warnf("Committed filter header deserialize "+
-				"failed: %v", err)
-			return
-		}
-
-		headersMsg := wire.NewMsgCFHeaders()
-		headersMsg.AddCFHeader(&header)
-		headersMsg.StopHash = msg.HashStop
-		headersMsg.FilterType = msg.FilterType
-		sp.QueueMessage(headersMsg, nil)
-		return
-	}
-
-	// Find the most recent known block based on the block locator.
-	// Use the block after the genesis block if no other blocks in the
-	// provided locator are known.  This does mean the client will start
-	// over with the genesis block if unknown block locators are provided.
-	// This mirrors the behavior in the reference implementation.
-	startIdx := int64(1)
-	for _, hash := range msg.BlockLocatorHashes {
-		height, err := chain.BlockHeightByHash(hash)
-		if err == nil {
-			// Start with the next hash since we know this one.
-			startIdx = height + 1
-			break
-		}
-	}
-
-	// Don't attempt to fetch more than we can put into a single message.
-	if endIdx-startIdx > wire.MaxBlockHeadersPerMsg {
-		endIdx = startIdx + wire.MaxBlockHeadersPerMsg
-	}
-
-	// Fetch the inventory from the block database.
-	hashList, err := chain.HeightRange(startIdx, endIdx)
-	if err != nil {
-		peerLog.Warnf("Header lookup failed: %v", err)
-		return
-	}
+	hashList := chain.LocateBlocks(msg.BlockLocatorHashes, &msg.HashStop,
+		wire.MaxCFHeadersPerMsg)
 	if len(hashList) == 0 {
 		return
 	}
 
 	// Generate cfheaders message and send it.
+	cfIndex := sp.server.cfIndex
 	headersMsg := wire.NewMsgCFHeaders()
 	for i := range hashList {
-		// Fetch the raw committed filter header bytes from the
-		// database.
-		headerBytes, err := sp.server.cfIndex.FilterHeaderByBlockHash(
-			&hashList[i], msg.FilterType)
-		if (err != nil) || (len(headerBytes) == 0) {
-			peerLog.Warnf("Could not obtain CF header for %v: %v",
-				hashList[i], err)
+		// Fetch the raw committed filter header bytes from the database.
+		hash := &hashList[i]
+		headerBytes, err := cfIndex.FilterHeaderByBlockHash(hash,
+			msg.FilterType)
+		if err != nil || len(headerBytes) == 0 {
+			peerLog.Warnf("Could not obtain CF header for %v: %v", hash, err)
 			return
 		}
 
@@ -974,14 +942,12 @@ func (sp *serverPeer) OnGetCFHeaders(p *peer.Peer, msg *wire.MsgGetCFHeaders) {
 		var header chainhash.Hash
 		err = header.SetBytes(headerBytes)
 		if err != nil {
-			peerLog.Warnf("Committed filter header deserialize "+
-				"failed: %v", err)
+			peerLog.Warnf("Committed filter header deserialize failed: %v", err)
 			return
 		}
 
 		headersMsg.AddCFHeader(&header)
 	}
-
 	headersMsg.FilterType = msg.FilterType
 	headersMsg.StopHash = hashList[len(hashList)-1]
 	sp.QueueMessage(headersMsg, nil)
@@ -995,7 +961,7 @@ func (sp *serverPeer) OnGetCFTypes(p *peer.Peer, msg *wire.MsgGetCFTypes) {
 		return
 	}
 
-	// Ignore getcftypes requests if cfg.NoCFilters is set.
+	// Ignore request if CFs are disabled.
 	if cfg.NoCFilters {
 		return
 	}
@@ -1003,42 +969,6 @@ func (sp *serverPeer) OnGetCFTypes(p *peer.Peer, msg *wire.MsgGetCFTypes) {
 	cfTypesMsg := wire.NewMsgCFTypes([]wire.FilterType{
 		wire.GCSFilterRegular, wire.GCSFilterExtended})
 	sp.QueueMessage(cfTypesMsg, nil)
-}
-
-// enforceNodeCFFlag disconnects the peer if the server is not configured to
-// allow committed filters.  Additionally, if the peer has negotiated to a
-// protocol version that is high enough to observe the committed filter service
-// support bit, it will be banned since it is intentionally violating the
-// protocol.
-func (sp *serverPeer) enforceNodeCFFlag(cmd string) bool {
-	if sp.server.services&wire.SFNodeCF != wire.SFNodeCF {
-		// Ban the peer if the protocol version is high enough that the
-		// peer is knowingly violating the protocol and banning is
-		// enabled.
-		//
-		// NOTE: Even though the addBanScore function already examines
-		// whether or not banning is enabled, it is checked here as well
-		// to ensure the violation is logged and the peer is
-		// disconnected regardless.
-		if sp.ProtocolVersion() >= wire.NodeCFVersion &&
-			!cfg.DisableBanning {
-
-			// Disonnect the peer regardless of whether it was
-			// banned.
-			sp.addBanScore(100, 0, cmd)
-			sp.Disconnect()
-			return false
-		}
-
-		// Disconnect the peer regardless of protocol version or banning
-		// state.
-		peerLog.Debugf("%s sent an unsupported %s request -- "+
-			"disconnecting", sp, cmd)
-		sp.Disconnect()
-		return false
-	}
-
-	return true
 }
 
 // OnGetAddr is invoked when a peer receives a getaddr wire message and is used
@@ -1092,6 +1022,7 @@ func (sp *serverPeer) OnAddr(p *peer.Peer, msg *wire.MsgAddr) {
 		return
 	}
 
+	now := time.Now()
 	for _, na := range msg.AddrList {
 		// Don't add more address if we're disconnecting.
 		if !p.Connected() {
@@ -1101,7 +1032,6 @@ func (sp *serverPeer) OnAddr(p *peer.Peer, msg *wire.MsgAddr) {
 		// Set the timestamp to 5 days ago if it's more than 24 hours
 		// in the future so this address is one of the first to be
 		// removed when space is needed.
-		now := time.Now()
 		if na.Timestamp.After(now.Add(time.Minute * 10)) {
 			na.Timestamp = now.Add(-1 * time.Hour * 24 * 5)
 		}
@@ -1170,6 +1100,17 @@ func (s *server) RemoveRebroadcastInventory(iv *wire.InvVect) {
 	s.modifyRebroadcastInv <- broadcastInventoryDel(iv)
 }
 
+// PruneRebroadcastInventory filters and removes rebroadcast inventory entries
+// where necessary.
+func (s *server) PruneRebroadcastInventory() {
+	// Ignore if shutting down.
+	if atomic.LoadInt32(&s.shutdown) != 0 {
+		return
+	}
+
+	s.modifyRebroadcastInv <- broadcastPruneInventory{}
+}
+
 // AnnounceNewTransactions generates and relays inventory vectors and notifies
 // both websocket and getblocktemplate long poll clients of the passed
 // transactions.  This function should be called whenever new transactions
@@ -1228,7 +1169,7 @@ func (s *server) pushTxMsg(sp *serverPeer, hash *chainhash.Hash, doneChan chan<-
 // pushBlockMsg sends a block message for the provided block hash to the
 // connected peer.  An error is returned if the block hash is not known.
 func (s *server) pushBlockMsg(sp *serverPeer, hash *chainhash.Hash, doneChan chan<- struct{}, waitChan <-chan struct{}) error {
-	block, err := sp.server.blockManager.chain.FetchBlockByHash(hash)
+	block, err := sp.server.blockManager.chain.BlockByHash(hash)
 	if err != nil {
 		peerLog.Tracef("Unable to fetch requested block hash %v: %v",
 			hash, err)
@@ -1985,8 +1926,10 @@ func (s *server) rebroadcastHandler() {
 out:
 	for {
 		select {
+
 		case riv := <-s.modifyRebroadcastInv:
 			switch msg := riv.(type) {
+
 			// Incoming InvVects are added to our map of RPC txs.
 			case broadcastInventoryAdd:
 				pendingInvs[*msg.invVect] = msg.data
@@ -1996,6 +1939,59 @@ out:
 			case broadcastInventoryDel:
 				if _, ok := pendingInvs[*msg]; ok {
 					delete(pendingInvs, *msg)
+				}
+
+			case broadcastPruneInventory:
+				best := s.blockManager.chain.BestSnapshot()
+				nextStakeDiff, err :=
+					s.blockManager.chain.CalcNextRequiredStakeDifficulty()
+				if err != nil {
+					srvrLog.Errorf("Failed to get next stake difficulty: %v",
+						err)
+					break
+				}
+
+				for iv, data := range pendingInvs {
+					tx, ok := data.(*dcrutil.Tx)
+					if !ok {
+						continue
+					}
+
+					txType := stake.DetermineTxType(tx.MsgTx())
+
+					// Remove the ticket rebroadcast if the amount not equal to
+					// the current stake difficulty.
+					if txType == stake.TxTypeSStx &&
+						tx.MsgTx().TxOut[0].Value != nextStakeDiff {
+						delete(pendingInvs, iv)
+						srvrLog.Debugf("Pending ticket purchase broadcast "+
+							"inventory for tx %v removed. Ticket value not "+
+							"equal to stake difficulty.", tx.Hash())
+						continue
+					}
+
+					// Remove the ticket rebroadcast if it has already expired.
+					if txType == stake.TxTypeSStx &&
+						blockchain.IsExpired(tx, best.Height) {
+						delete(pendingInvs, iv)
+						srvrLog.Debugf("Pending ticket purchase broadcast "+
+							"inventory for tx %v removed. Transaction "+
+							"expired.", tx.Hash())
+						continue
+					}
+
+					// Remove the revocation rebroadcast if the associated
+					// ticket has been revived.
+					if txType == stake.TxTypeSSRtx {
+						refSStxHash := tx.MsgTx().TxIn[0].PreviousOutPoint.Hash
+						if !s.blockManager.chain.CheckLiveTicket(refSStxHash) {
+							delete(pendingInvs, iv)
+							srvrLog.Debugf("Pending revocation broadcast "+
+								"inventory for tx %v removed. "+
+								"Associated ticket was revived.", tx.Hash())
+							continue
+						}
+					}
 				}
 			}
 

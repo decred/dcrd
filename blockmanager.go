@@ -242,14 +242,6 @@ type isCurrentMsg struct {
 	reply chan bool
 }
 
-// pauseMsg is a message type to be sent across the message channel for
-// pausing the block manager.  This effectively provides the caller with
-// exclusive access over the manager until a receive is performed on the
-// unpause channel.
-type pauseMsg struct {
-	unpause <-chan struct{}
-}
-
 // getCurrentTemplateMsg handles a request for the current mining block template.
 type getCurrentTemplateMsg struct {
 	reply chan getCurrentTemplateResponse
@@ -1073,7 +1065,6 @@ func (b *blockManager) handleBlockMsg(bmsg *blockMsg) {
 		// When the block is not an orphan, log information about it and
 		// update the chain state.
 		b.progressLogger.logBlockHeight(bmsg.block)
-		r := b.server.rpcServer
 
 		onMainChain := !isOrphan && forkLen == 0
 		if onMainChain {
@@ -1101,24 +1092,27 @@ func (b *blockManager) handleBlockMsg(bmsg *blockMsg) {
 			// Retrieve the current previous block hash.
 			curPrevHash := b.chain.BestPrevHash()
 
-			nextStakeDiff, errSDiff :=
+			nextStakeDiff, err :=
 				b.chain.CalcNextRequiredStakeDifficulty()
-			if errSDiff != nil {
+			if err != nil {
 				bmgrLog.Warnf("Failed to get next stake difficulty "+
 					"calculation: %v", err)
 			}
-			if r != nil && errSDiff == nil {
-				// Update registered websocket clients on the
-				// current stake difficulty.
-				r.ntfnMgr.NotifyStakeDifficulty(
-					&StakeDifficultyNtfnData{
-						best.Hash,
-						best.Height,
-						nextStakeDiff,
-					})
+			if err == nil {
+				r := b.server.rpcServer
+				if r != nil {
+					// Update registered websocket clients on the
+					// current stake difficulty.
+					r.ntfnMgr.NotifyStakeDifficulty(
+						&StakeDifficultyNtfnData{
+							best.Hash,
+							best.Height,
+							nextStakeDiff,
+						})
+				}
 				b.server.txMemPool.PruneStakeTx(nextStakeDiff,
 					best.Height)
-				b.server.txMemPool.PruneExpiredTx(best.Height)
+				b.server.txMemPool.PruneExpiredTx()
 			}
 
 			winningTickets, poolSize, finalState, err :=
@@ -1672,17 +1666,19 @@ out:
 						bmgrLog.Warnf("Failed to get next stake difficulty "+
 							"calculation: %v", err)
 					}
-					r := b.server.rpcServer
-					if r != nil && errSDiff == nil {
-						r.ntfnMgr.NotifyStakeDifficulty(
-							&StakeDifficultyNtfnData{
-								best.Hash,
-								best.Height,
-								nextStakeDiff,
-							})
+					if errSDiff == nil {
+						r := b.server.rpcServer
+						if r != nil {
+							r.ntfnMgr.NotifyStakeDifficulty(
+								&StakeDifficultyNtfnData{
+									best.Hash,
+									best.Height,
+									nextStakeDiff,
+								})
+						}
 						b.server.txMemPool.PruneStakeTx(nextStakeDiff,
 							best.Height)
-						b.server.txMemPool.PruneExpiredTx(best.Height)
+						b.server.txMemPool.PruneExpiredTx()
 					}
 
 					missedTickets, err := b.chain.MissedTickets()
@@ -1755,12 +1751,10 @@ out:
 									nextStakeDiff,
 								})
 						}
+						b.server.txMemPool.PruneStakeTx(nextStakeDiff,
+							best.Height)
+						b.server.txMemPool.PruneExpiredTx()
 					}
-
-					b.server.txMemPool.PruneStakeTx(nextStakeDiff,
-						best.Height)
-					b.server.txMemPool.PruneExpiredTx(
-						best.Height)
 
 					missedTickets, err := b.chain.MissedTickets()
 					if err != nil {
@@ -1810,10 +1804,6 @@ out:
 
 			case isCurrentMsg:
 				msg.reply <- b.current()
-
-			case pauseMsg:
-				// Wait until the sender unpauses the manager.
-				<-msg.unpause
 
 			case getCurrentTemplateMsg:
 				cur := deepCopyBlockTemplate(b.cachedCurrentTemplate)
@@ -1992,16 +1982,16 @@ func (b *blockManager) handleNotifyMsg(notification *blockchain.Notification) {
 		for _, tx := range parentBlock.Transactions()[1:] {
 			b.server.txMemPool.RemoveTransaction(tx, false)
 			b.server.txMemPool.RemoveDoubleSpends(tx)
-			b.server.txMemPool.RemoveOrphan(tx.Hash())
-			acceptedTxs := b.server.txMemPool.ProcessOrphans(tx.Hash())
+			b.server.txMemPool.RemoveOrphan(tx)
+			acceptedTxs := b.server.txMemPool.ProcessOrphans(tx)
 			b.server.AnnounceNewTransactions(acceptedTxs)
 		}
 
 		for _, stx := range block.STransactions()[0:] {
 			b.server.txMemPool.RemoveTransaction(stx, false)
 			b.server.txMemPool.RemoveDoubleSpends(stx)
-			b.server.txMemPool.RemoveOrphan(stx.Hash())
-			acceptedTxs := b.server.txMemPool.ProcessOrphans(stx.Hash())
+			b.server.txMemPool.RemoveOrphan(stx)
+			acceptedTxs := b.server.txMemPool.ProcessOrphans(stx)
 			b.server.AnnounceNewTransactions(acceptedTxs)
 		}
 
@@ -2019,6 +2009,9 @@ func (b *blockManager) handleNotifyMsg(notification *blockchain.Notification) {
 				iv := wire.NewInvVect(wire.InvTypeTx, stx.Hash())
 				b.server.RemoveRebroadcastInventory(iv)
 			}
+
+			// Filter and update the rebroadcast inventory.
+			b.server.PruneRebroadcastInventory()
 
 			// Notify registered websocket clients of incoming block.
 			r.ntfnMgr.NotifyBlockConnected(block)
@@ -2076,8 +2069,8 @@ func (b *blockManager) handleNotifyMsg(notification *blockchain.Notification) {
 			for _, tx := range parentBlock.Transactions()[1:] {
 				b.server.txMemPool.RemoveTransaction(tx, false)
 				b.server.txMemPool.RemoveDoubleSpends(tx)
-				b.server.txMemPool.RemoveOrphan(tx.Hash())
-				b.server.txMemPool.ProcessOrphans(tx.Hash())
+				b.server.txMemPool.RemoveOrphan(tx)
+				b.server.txMemPool.ProcessOrphans(tx)
 			}
 		}
 
@@ -2102,6 +2095,9 @@ func (b *blockManager) handleNotifyMsg(notification *blockchain.Notification) {
 				b.server.txMemPool.RemoveTransaction(tx, true)
 			}
 		}
+
+		// Filter and update the rebroadcast inventory.
+		b.server.PruneRebroadcastInventory()
 
 		// Notify registered websocket clients.
 		if r := b.server.rpcServer; r != nil {
@@ -2409,16 +2405,6 @@ func (b *blockManager) IsCurrent() bool {
 	reply := make(chan bool)
 	b.msgChan <- isCurrentMsg{reply: reply}
 	return <-reply
-}
-
-// Pause pauses the block manager until the returned channel is closed.
-//
-// Note that while paused, all peer and block processing is halted.  The
-// message sender should avoid pausing the block manager for long durations.
-func (b *blockManager) Pause() chan<- struct{} {
-	c := make(chan struct{})
-	b.msgChan <- pauseMsg{c}
-	return c
 }
 
 // TicketPoolValue returns the current value of the total stake in the ticket

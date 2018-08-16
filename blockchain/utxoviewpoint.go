@@ -1084,7 +1084,7 @@ func (b *BlockChain) FetchUtxoView(tx *dcrutil.Tx, treeValid bool) (*UtxoViewpoi
 	// can't possibly be any details about it.  This is also necessary
 	// because the code below requires the parent block and the genesis
 	// block doesn't have one.
-	tip := b.bestNode
+	tip := b.bestChain.Tip()
 	view := NewUtxoViewpoint()
 	if tip.height == 0 {
 		view.SetBestHash(&tip.hash)
@@ -1095,11 +1095,11 @@ func (b *BlockChain) FetchUtxoView(tx *dcrutil.Tx, treeValid bool) (*UtxoViewpoi
 	// chain.
 	if treeValid {
 		view.SetStakeViewpoint(ViewpointPrevValidRegular)
-		block, err := b.fetchMainChainBlockByHash(&tip.hash)
+		block, err := b.fetchMainChainBlockByNode(tip)
 		if err != nil {
 			return nil, err
 		}
-		parent, err := b.fetchMainChainBlockByHash(&tip.parent.hash)
+		parent, err := b.fetchMainChainBlockByNode(tip.parent)
 		if err != nil {
 			return nil, err
 		}

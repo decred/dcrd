@@ -21,10 +21,11 @@ import (
 type UndoTicketDataSlice []ticketdb.UndoTicketData
 
 // Node is in-memory stake data for a node.  It contains a list of database
-// updates to be written in the case that the block is inserted in the main chain
-// database.  Because of its use of immutable treap data structures, it allows for
-// a fast, efficient in-memory representation of the ticket database for each
-// node.  It handles connection of and disconnection of new blocks simply.
+// updates to be written in the case that the block is inserted in the main
+// chain database.  Because of its use of immutable treap data structures, it
+// allows for a fast, efficient in-memory representation of the ticket database
+// for each node.  It handles connection of and disconnection of new blocks
+// simply.
 //
 // Like the immutable treap structures, stake nodes themselves are considered
 // to be immutable.  The connection or disconnection of past or future nodes
@@ -85,7 +86,10 @@ func (sn *Node) SpentByBlock() []chainhash.Hash {
 	return spent
 }
 
-// MissedByBlock returns the tickets that were missed in this block.
+// MissedByBlock returns the tickets that were missed in this block. This
+// includes expired tickets and winning tickets that were not spent by a vote.
+// Also note that when a miss is later revoked, that ticket hash will also
+// appear in the output of this function for the block with the revocation.
 func (sn *Node) MissedByBlock() []chainhash.Hash {
 	var missed []chainhash.Hash
 	for _, undo := range sn.databaseUndoUpdate {
@@ -95,6 +99,21 @@ func (sn *Node) MissedByBlock() []chainhash.Hash {
 	}
 
 	return missed
+}
+
+// ExpiredByBlock returns the tickets that expired in this block. This is a
+// subset of the missed tickets returned by MissedByBlock. The output only
+// includes the initial expiration of the ticket, not when an expired ticket is
+// revoked. This is unlike MissedByBlock that includes the revocation as well.
+func (sn *Node) ExpiredByBlock() []chainhash.Hash {
+	var expired []chainhash.Hash
+	for _, undo := range sn.databaseUndoUpdate {
+		if undo.Expired && !undo.Revoked {
+			expired = append(expired, undo.TicketHash)
+		}
+	}
+
+	return expired
 }
 
 // ExistsLiveTicket returns whether or not a ticket exists in the live ticket
@@ -433,7 +452,7 @@ func connectNode(node *Node, lotteryIV chainhash.Hash, ticketsVoted, revokedTick
 		params:               node.params,
 	}
 
-	// We only have to deal with voted related issues and expiry after
+	// We only have to deal with vote-related issues and expiry after
 	// StakeEnabledHeight.
 	var err error
 	if connectedNode.height >= uint32(connectedNode.params.StakeEnabledHeight) {
@@ -601,8 +620,8 @@ func connectNode(node *Node, lotteryIV chainhash.Hash, ticketsVoted, revokedTick
 			})
 	}
 
-	// The first block voted on is at StakeEnabledHeight, so begin calculating
-	// winners at the block before StakeEnabledHeight.
+	// The first block voted on is at StakeValidationHeight, so begin calculating
+	// winners at the block before StakeValidationHeight.
 	if connectedNode.height >=
 		uint32(connectedNode.params.StakeValidationHeight-1) {
 		// Find the next set of winners.

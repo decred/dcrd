@@ -11,9 +11,10 @@ import (
 	"errors"
 	"math"
 	"sort"
+	"sync"
 
-	"github.com/aead/siphash"
 	"github.com/dchest/blake256"
+	"github.com/dchest/siphash"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 )
 
@@ -37,7 +38,14 @@ var (
 
 // KeySize is the size of the byte array required for key material for the
 // SipHash keyed hash function.
-const KeySize = siphash.KeySize
+const KeySize = 16
+
+// uint64s implements sort.Interface for *[]uint64
+type uint64s []uint64
+
+func (s *uint64s) Len() int           { return len(*s) }
+func (s *uint64s) Less(i, j int) bool { return (*s)[i] < (*s)[j] }
+func (s *uint64s) Swap(i, j int)      { (*s)[i], (*s)[j] = (*s)[j], (*s)[i] }
 
 // Filter describes an immutable filter that can be built from a set of data
 // elements, serialized, deserialized, and queried in a thread-safe manner. The
@@ -80,15 +88,17 @@ func NewFilter(P uint8, key [KeySize]byte, data [][]byte) (*Filter, error) {
 	}
 
 	// Allocate filter data.
-	values := make(uint64Slice, 0, len(data))
+	values := make([]uint64, 0, len(data))
 
 	// Insert the hash (modulo N*P) of each data element into a slice and
 	// sort the slice.
+	k0 := binary.LittleEndian.Uint64(key[0:8])
+	k1 := binary.LittleEndian.Uint64(key[8:16])
 	for _, d := range data {
-		v := siphash.Sum64(d, &key) % f.modulusNP
+		v := siphash.Hash(k0, k1, d) % f.modulusNP
 		values = append(values, v)
 	}
-	sort.Sort(values)
+	sort.Sort((*uint64s)(&values))
 
 	var b bitWriter
 
@@ -233,7 +243,9 @@ func (f *Filter) Match(key [KeySize]byte, data []byte) bool {
 	b := newBitReader(f.filterNData[4:])
 
 	// Hash our search term with the same parameters as the filter.
-	term := siphash.Sum64(data, &key) % f.modulusNP
+	k0 := binary.LittleEndian.Uint64(key[0:8])
+	k1 := binary.LittleEndian.Uint64(key[8:16])
+	term := siphash.Hash(k0, k1, data) % f.modulusNP
 
 	// Go through the search filter and look for the desired value.
 	var lastValue uint64
@@ -257,6 +269,9 @@ func (f *Filter) Match(key [KeySize]byte, data []byte) bool {
 	return false
 }
 
+// matchPool pools allocations for match data.
+var matchPool sync.Pool
+
 // MatchAny checks whether any []byte value is likely (within collision
 // probability) to be a member of the set represented by the filter faster than
 // calling Match() for each value individually.
@@ -269,18 +284,28 @@ func (f *Filter) MatchAny(key [KeySize]byte, data [][]byte) bool {
 	b := newBitReader(f.filterNData[4:])
 
 	// Create an uncompressed filter of the search values.
-	values := make(uint64Slice, 0, len(data))
-	for _, d := range data {
-		v := siphash.Sum64(d, &key) % f.modulusNP
-		values = append(values, v)
+	var values *[]uint64
+	if v := matchPool.Get(); v != nil {
+		values = v.(*[]uint64)
+		*values = (*values)[:0]
+	} else {
+		vs := make([]uint64, 0, len(data))
+		values = &vs
 	}
-	sort.Sort(values)
+	defer matchPool.Put(values)
+	k0 := binary.LittleEndian.Uint64(key[0:8])
+	k1 := binary.LittleEndian.Uint64(key[8:16])
+	for _, d := range data {
+		v := siphash.Hash(k0, k1, d) % f.modulusNP
+		*values = append(*values, v)
+	}
+	sort.Sort((*uint64s)(values))
 
 	// Zip down the filters, comparing values until we either run out of
 	// values to compare in one of the filters or we reach a matching
 	// value.
 	var lastValue1, lastValue2 uint64
-	lastValue2 = values[0]
+	lastValue2 = (*values)[0]
 	i := 1
 	for lastValue1 != lastValue2 {
 		// Check which filter to advance to make sure we're comparing
@@ -289,8 +314,8 @@ func (f *Filter) MatchAny(key [KeySize]byte, data [][]byte) bool {
 		case lastValue1 > lastValue2:
 			// Advance filter created from search terms or return
 			// false if we're at the end because nothing matched.
-			if i < len(values) {
-				lastValue2 = values[i]
+			if i < len(*values) {
+				lastValue2 = (*values)[i]
 				i++
 			} else {
 				return false

@@ -232,11 +232,6 @@ func (b *BlockChain) findPrevTestNetDifficulty(startNode *blockNode) uint32 {
 // the exported version uses the current best chain as the previous block node
 // while this function accepts any block node.
 func (b *BlockChain) calcNextRequiredDifficulty(curNode *blockNode, newBlockTime time.Time) (uint32, error) {
-	// Genesis block.
-	if curNode == nil {
-		return b.chainParams.PowLimitBits, nil
-	}
-
 	// Get the old difficulty; if we aren't at a block height where it changes,
 	// just return this.
 	oldDiff := curNode.bits
@@ -253,30 +248,8 @@ func (b *BlockChain) calcNextRequiredDifficulty(curNode *blockNode, newBlockTime
 			reductionTime := int64(b.chainParams.MinDiffReductionTime /
 				time.Second)
 			allowMinTime := curNode.timestamp + reductionTime
-
-			// For every extra target timespan that passes, we halve the
-			// difficulty.
 			if newBlockTime.Unix() > allowMinTime {
-				timePassed := newBlockTime.Unix() - curNode.timestamp
-				timePassed -= reductionTime
-				shifts := uint((timePassed / int64(b.chainParams.TargetTimePerBlock/
-					time.Second)) + 1)
-
-				// Scale the difficulty with time passed.
-				oldTarget := CompactToBig(curNode.bits)
-				newTarget := new(big.Int)
-				if shifts < maxShift {
-					newTarget.Lsh(oldTarget, shifts)
-				} else {
-					newTarget.Set(oneLsh256)
-				}
-
-				// Limit new value to the proof of work limit.
-				if newTarget.Cmp(b.chainParams.PowLimit) > 0 {
-					newTarget.Set(b.chainParams.PowLimit)
-				}
-
-				return BigToCompact(newTarget), nil
+				return b.chainParams.PowLimitBits, nil
 			}
 
 			// The block was mined within the desired timeframe, so
@@ -426,7 +399,7 @@ func (b *BlockChain) CalcNextRequiredDiffFromNode(hash *chainhash.Hash, timestam
 // This function is safe for concurrent access.
 func (b *BlockChain) CalcNextRequiredDifficulty(timestamp time.Time) (uint32, error) {
 	b.chainLock.Lock()
-	difficulty, err := b.calcNextRequiredDifficulty(b.bestNode, timestamp)
+	difficulty, err := b.calcNextRequiredDifficulty(b.bestChain.Tip(), timestamp)
 	b.chainLock.Unlock()
 	return difficulty, err
 }
@@ -909,13 +882,20 @@ func sdiffAlgoDeploymentVersion(network wire.CurrencyNet) uint32 {
 //
 // This function MUST be called with the chain state lock held (for writes).
 func (b *BlockChain) calcNextRequiredStakeDifficulty(curNode *blockNode) (int64, error) {
+	// Consensus voting on the new stake difficulty algorithm is only
+	// enabled on mainnet, testnet v2, and simnet.
+	net := b.chainParams.Net
+	if net != wire.MainNet && net != wire.SimNet {
+		return b.calcNextRequiredStakeDifficultyV2(curNode)
+	}
+
 	// Use the new stake difficulty algorithm if the stake vote for the new
 	// algorithm agenda is active.
 	//
 	// NOTE: The choice field of the return threshold state is not examined
 	// here because there is only one possible choice that can be active
 	// for the agenda, which is yes, so there is no need to check it.
-	deploymentVersion := sdiffAlgoDeploymentVersion(b.chainParams.Net)
+	deploymentVersion := sdiffAlgoDeploymentVersion(net)
 	state, err := b.deploymentState(curNode, deploymentVersion,
 		chaincfg.VoteIDSDiffAlgorithm)
 	if err != nil {
@@ -936,7 +916,7 @@ func (b *BlockChain) calcNextRequiredStakeDifficulty(curNode *blockNode) (int64,
 // This function is safe for concurrent access.
 func (b *BlockChain) CalcNextRequiredStakeDifficulty() (int64, error) {
 	b.chainLock.Lock()
-	nextDiff, err := b.calcNextRequiredStakeDifficulty(b.bestNode)
+	nextDiff, err := b.calcNextRequiredStakeDifficulty(b.bestChain.Tip())
 	b.chainLock.Unlock()
 	return nextDiff, err
 }
@@ -1392,13 +1372,20 @@ func (b *BlockChain) estimateNextStakeDifficultyV2(curNode *blockNode, newTicket
 //
 // This function MUST be called with the chain state lock held (for writes).
 func (b *BlockChain) estimateNextStakeDifficulty(curNode *blockNode, newTickets int64, useMaxTickets bool) (int64, error) {
+	// Consensus voting on the new stake difficulty algorithm is only
+	// enabled on mainnet, testnet v2, and simnet.
+	net := b.chainParams.Net
+	if net != wire.MainNet && net != wire.SimNet {
+		return b.calcNextRequiredStakeDifficultyV2(curNode)
+	}
+
 	// Use the new stake difficulty algorithm if the stake vote for the new
 	// algorithm agenda is active.
 	//
 	// NOTE: The choice field of the return threshold state is not examined
 	// here because there is only one possible choice that can be active
 	// for the agenda, which is yes, so there is no need to check it.
-	deploymentVersion := sdiffAlgoDeploymentVersion(b.chainParams.Net)
+	deploymentVersion := sdiffAlgoDeploymentVersion(net)
 	state, err := b.deploymentState(curNode, deploymentVersion,
 		chaincfg.VoteIDSDiffAlgorithm)
 	if err != nil {
@@ -1423,8 +1410,8 @@ func (b *BlockChain) estimateNextStakeDifficulty(curNode *blockNode, newTickets 
 // This function is safe for concurrent access.
 func (b *BlockChain) EstimateNextStakeDifficulty(newTickets int64, useMaxTickets bool) (int64, error) {
 	b.chainLock.Lock()
-	estimate, err := b.estimateNextStakeDifficulty(b.bestNode, newTickets,
-		useMaxTickets)
+	estimate, err := b.estimateNextStakeDifficulty(b.bestChain.Tip(),
+		newTickets, useMaxTickets)
 	b.chainLock.Unlock()
 	return estimate, err
 }

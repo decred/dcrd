@@ -240,6 +240,32 @@ func NewEstimatePriorityCmd(numBlocks int64) *EstimatePriorityCmd {
 	}
 }
 
+// FundRawTransactionOptions represents the optional inputs to fund
+// a raw transaction.
+type FundRawTransactionOptions struct {
+	ChangeAddress *string  `json:"changeaddress"`
+	FeeRate       *float64 `json:"feerate"`
+	ConfTarget    *int32   `json:"conf_target"`
+}
+
+// FundRawTransactionCmd is a type handling custom marshaling and
+// unmarshaling of fundrawtransaction JSON wallet extension commands.
+type FundRawTransactionCmd struct {
+	HexString   string
+	FundAccount string
+	Options     *FundRawTransactionOptions
+}
+
+// NewFundRawTransactionCmd returns a new instance which can be used to issue a
+// fundrawtransaction JSON-RPC command.
+func NewFundRawTransactionCmd(hexString string, fundAccount string, options *FundRawTransactionOptions) *FundRawTransactionCmd {
+	return &FundRawTransactionCmd{
+		HexString:   hexString,
+		FundAccount: fundAccount,
+		Options:     options,
+	}
+}
+
 // GenerateVoteCmd is a type handling custom marshaling and
 // unmarshaling of generatevote JSON wallet extension commands.
 type GenerateVoteCmd struct {
@@ -731,14 +757,13 @@ type PurchaseTicketCmd struct {
 	PoolFees      *float64
 	Expiry        *int
 	Comment       *string
-	TicketChange  *bool
 	TicketFee     *float64
 }
 
 // NewPurchaseTicketCmd creates a new PurchaseTicketCmd.
 func NewPurchaseTicketCmd(fromAccount string, spendLimit float64, minConf *int,
 	ticketAddress *string, numTickets *int, poolAddress *string, poolFees *float64,
-	expiry *int, comment *string, ticketChange *bool, ticketFee *float64) *PurchaseTicketCmd {
+	expiry *int, comment *string, ticketFee *float64) *PurchaseTicketCmd {
 	return &PurchaseTicketCmd{
 		FromAccount:   fromAccount,
 		SpendLimit:    spendLimit,
@@ -749,7 +774,6 @@ func NewPurchaseTicketCmd(fromAccount string, spendLimit float64, minConf *int,
 		PoolFees:      poolFees,
 		Expiry:        expiry,
 		Comment:       comment,
-		TicketChange:  ticketChange,
 		TicketFee:     ticketFee,
 	}
 }
@@ -1272,6 +1296,7 @@ func init() {
 	MustRegisterCmd("dropvotingaccount", (*DropVotingAccountCmd)(nil), flags)
 	MustRegisterCmd("dumpprivkey", (*DumpPrivKeyCmd)(nil), flags)
 	MustRegisterCmd("estimatepriority", (*EstimatePriorityCmd)(nil), flags)
+	MustRegisterCmd("fundrawtransaction", (*FundRawTransactionCmd)(nil), flags)
 	MustRegisterCmd("generatevote", (*GenerateVoteCmd)(nil), flags)
 	MustRegisterCmd("getaccount", (*GetAccountCmd)(nil), flags)
 	MustRegisterCmd("getaccountaddress", (*GetAccountAddressCmd)(nil), flags)

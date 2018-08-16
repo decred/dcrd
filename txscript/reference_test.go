@@ -1,4 +1,4 @@
-// Copyright (c) 2013-2016 The btcsuite developers
+// Copyright (c) 2013-2017 The btcsuite developers
 // Copyright (c) 2015-2018 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"regexp"
 	"strconv"
 	"strings"
 	"testing"
@@ -21,16 +22,42 @@ import (
 	"github.com/decred/dcrd/wire"
 )
 
-// testName returns a descriptive test name for the given reference test data.
-func testName(test []string) (string, error) {
-	var name string
+var (
+	// tokenRE is a regular expression used to parse tokens from short form
+	// scripts.  It splits on repeated tokens and spaces.  Repeated tokens are
+	// denoted by being wrapped in angular brackets followed by a suffix which
+	// consists of a number inside braces.
+	tokenRE = regexp.MustCompile(`\<.+?\>\{[0-9]+\}|[^\s]+`)
 
-	if len(test) < 3 || len(test) > 4 {
-		return name, fmt.Errorf("invalid test length %d", len(test))
+	// repTokenRE is a regular expression used to parse short form scripts
+	// for a series of tokens repeated a specified number of times.
+	repTokenRE = regexp.MustCompile(`^\<(.+)\>\{([0-9]+)\}$`)
+
+	// repRawRE is a regular expression used to parse short form scripts
+	// for raw data that is to be repeated a specified number of times.
+	repRawRE = regexp.MustCompile(`^(0[xX][0-9a-fA-F]+)\{([0-9]+)\}$`)
+
+	// repQuoteRE is a regular expression used to parse short form scripts for
+	// quoted data that is to be repeated a specified number of times.
+	repQuoteRE = regexp.MustCompile(`^'(.*)'\{([0-9]+)\}$`)
+)
+
+// scriptTestName returns a descriptive test name for the given reference script
+// test data.
+func scriptTestName(test []string) (string, error) {
+	// The test must consist of at least a signature script, public key script,
+	// verification flags, and expected error.  Finally, it may optionally
+	// contain a comment.
+	if len(test) < 4 || len(test) > 5 {
+		return "", fmt.Errorf("invalid test length %d", len(test))
 	}
 
-	if len(test) == 4 {
-		name = fmt.Sprintf("test (%s)", test[3])
+	// Use the comment for the test name if one is specified, otherwise,
+	// construct the name based on the signature script, public key script,
+	// and flags.
+	var name string
+	if len(test) == 5 {
+		name = fmt.Sprintf("test (%s)", test[4])
 	} else {
 		name = fmt.Sprintf("test ([%s, %s, %s])", test[0], test[1],
 			test[2])
@@ -54,12 +81,22 @@ var shortFormOps map[string]byte
 // script it came from.
 //
 // The format used for these tests is pretty simple if ad-hoc:
-//   - Opcodes other than the push opcodes and unknown are present as
-//     either OP_NAME or just NAME
+//   - Opcodes other than the push opcodes and unknown are present as either
+//     OP_NAME or just NAME
 //   - Plain numbers are made into push operations
-//   - Numbers beginning with 0x are inserted into the []byte as-is (so
-//     0x14 is OP_DATA_20)
+//   - Numbers beginning with 0x are inserted into the []byte as-is (so 0x14 is
+//     OP_DATA_20)
+//   - Numbers beginning with 0x which have a suffix which consists of a number
+//     in braces (e.g. 0x6161{10}) repeat the raw bytes the specified number of
+//     times and are inserted as-is
 //   - Single quoted strings are pushed as data
+//   - Single quoted strings that have a suffix which consists of a number in
+//     braces (e.g. 'b'{10}) repeat the data the specified number of times and
+//     are pushed as a single data push
+//   - Tokens inside of angular brackets with a suffix which consists of a
+//     number in braces (e.g. <0 0 CHECKMULTSIG>{5}) is parsed as if the tokens
+//     inside the angular brackets were manually repeated the specified number
+//     of times
 //   - Anything else is an error
 func parseShortForm(script string) ([]byte, error) {
 	// Only create the short form opcode map once.
@@ -87,36 +124,95 @@ func parseShortForm(script string) ([]byte, error) {
 		shortFormOps = ops
 	}
 
-	// Split only does one separator so convert all \n and tab into  space.
-	script = strings.Replace(script, "\n", " ", -1)
-	script = strings.Replace(script, "\t", " ", -1)
-	tokens := strings.Split(script, " ")
 	builder := NewScriptBuilder()
 
-	for _, tok := range tokens {
-		if len(tok) == 0 {
-			continue
+	var handleToken func(tok string) error
+	handleToken = func(tok string) error {
+		// Multiple repeated tokens.
+		if m := repTokenRE.FindStringSubmatch(tok); m != nil {
+			count, err := strconv.ParseInt(m[2], 10, 32)
+			if err != nil {
+				return fmt.Errorf("bad token %q", tok)
+			}
+			tokens := tokenRE.FindAllStringSubmatch(m[1], -1)
+			for i := 0; i < int(count); i++ {
+				for _, t := range tokens {
+					if err := handleToken(t[0]); err != nil {
+						return err
+					}
+				}
+			}
+			return nil
 		}
-		// if parses as a plain number
+
+		// Plain number.
 		if num, err := strconv.ParseInt(tok, 10, 64); err == nil {
 			builder.AddInt64(num)
-			continue
-		} else if bts, err := parseHex(tok); err == nil {
+			return nil
+		}
+
+		// Raw data.
+		if bts, err := parseHex(tok); err == nil {
 			// Concatenate the bytes manually since the test code
 			// intentionally creates scripts that are too large and
 			// would cause the builder to error otherwise.
 			if builder.err == nil {
 				builder.script = append(builder.script, bts...)
 			}
-		} else if len(tok) >= 2 &&
-			tok[0] == '\'' && tok[len(tok)-1] == '\'' {
-			builder.AddFullData([]byte(tok[1 : len(tok)-1]))
-		} else if opcode, ok := shortFormOps[tok]; ok {
-			builder.AddOp(opcode)
-		} else {
-			return nil, fmt.Errorf("bad token \"%s\"", tok)
+			return nil
 		}
 
+		// Repeated raw bytes.
+		if m := repRawRE.FindStringSubmatch(tok); m != nil {
+			bts, err := parseHex(m[1])
+			if err != nil {
+				return fmt.Errorf("bad token %q", tok)
+			}
+			count, err := strconv.ParseInt(m[2], 10, 32)
+			if err != nil {
+				return fmt.Errorf("bad token %q", tok)
+			}
+
+			// Concatenate the bytes manually since the test code
+			// intentionally creates scripts that are too large and
+			// would cause the builder to error otherwise.
+			bts = bytes.Repeat(bts, int(count))
+			if builder.err == nil {
+				builder.script = append(builder.script, bts...)
+			}
+			return nil
+		}
+
+		// Quoted data.
+		if len(tok) >= 2 && tok[0] == '\'' && tok[len(tok)-1] == '\'' {
+			builder.AddFullData([]byte(tok[1 : len(tok)-1]))
+			return nil
+		}
+
+		// Repeated quoted data.
+		if m := repQuoteRE.FindStringSubmatch(tok); m != nil {
+			count, err := strconv.ParseInt(m[2], 10, 32)
+			if err != nil {
+				return fmt.Errorf("bad token %q", tok)
+			}
+			data := strings.Repeat(m[1], int(count))
+			builder.AddFullData([]byte(data))
+			return nil
+		}
+
+		// Named opcode.
+		if opcode, ok := shortFormOps[tok]; ok {
+			builder.AddOp(opcode)
+			return nil
+		}
+
+		return fmt.Errorf("bad token %q", tok)
+	}
+
+	for _, tokens := range tokenRE.FindAllStringSubmatch(script, -1) {
+		if err := handleToken(tokens[0]); err != nil {
+			return nil, err
+		}
 	}
 	return builder.Script()
 }
@@ -137,22 +233,12 @@ func parseScriptFlags(flagStr string) (ScriptFlags, error) {
 			flags |= ScriptVerifyCheckSequenceVerify
 		case "CLEANSTACK":
 			flags |= ScriptVerifyCleanStack
-		case "DERSIG":
-			flags |= ScriptVerifyDERSignatures
 		case "DISCOURAGE_UPGRADABLE_NOPS":
 			flags |= ScriptDiscourageUpgradableNops
-		case "LOW_S":
-			flags |= ScriptVerifyLowS
-		case "MINIMALDATA":
-			flags |= ScriptVerifyMinimalData
 		case "NONE":
 			// Nothing.
-		case "P2SH":
-			flags |= ScriptBip16
 		case "SIGPUSHONLY":
 			flags |= ScriptVerifySigPushOnly
-		case "STRICTENC":
-			flags |= ScriptVerifyStrictEncoding
 		case "SHA256":
 			flags |= ScriptVerifySHA256
 		default:
@@ -162,6 +248,115 @@ func parseScriptFlags(flagStr string) (ScriptFlags, error) {
 	return flags, nil
 }
 
+// parseExpectedResult parses the provided expected result string into allowed
+// script error codes.  An error is returned if the expected result string is
+// not supported.
+func parseExpectedResult(expected string) ([]ErrorCode, error) {
+	switch expected {
+	case "OK":
+		return nil, nil
+	case "ERR_EARLY_RETURN":
+		return []ErrorCode{ErrEarlyReturn}, nil
+	case "ERR_EMPTY_STACK":
+		return []ErrorCode{ErrEmptyStack}, nil
+	case "ERR_EVAL_FALSE":
+		return []ErrorCode{ErrEvalFalse}, nil
+	case "ERR_SCRIPT_SIZE":
+		return []ErrorCode{ErrScriptTooBig}, nil
+	case "ERR_PUSH_SIZE":
+		return []ErrorCode{ErrElementTooBig}, nil
+	case "ERR_OP_COUNT":
+		return []ErrorCode{ErrTooManyOperations}, nil
+	case "ERR_STACK_SIZE":
+		return []ErrorCode{ErrStackOverflow}, nil
+	case "ERR_PUBKEY_COUNT":
+		return []ErrorCode{ErrInvalidPubKeyCount}, nil
+	case "ERR_SIG_COUNT":
+		return []ErrorCode{ErrInvalidSignatureCount}, nil
+	case "ERR_OUT_OF_RANGE":
+		return []ErrorCode{ErrNumOutOfRange}, nil
+	case "ERR_VERIFY":
+		return []ErrorCode{ErrVerify}, nil
+	case "ERR_EQUAL_VERIFY":
+		return []ErrorCode{ErrEqualVerify}, nil
+	case "ERR_DISABLED_OPCODE":
+		return []ErrorCode{ErrDisabledOpcode}, nil
+	case "ERR_RESERVED_OPCODE":
+		return []ErrorCode{ErrReservedOpcode}, nil
+	case "ERR_MALFORMED_PUSH":
+		return []ErrorCode{ErrMalformedPush}, nil
+	case "ERR_INVALID_STACK_OPERATION", "ERR_INVALID_ALTSTACK_OPERATION":
+		return []ErrorCode{ErrInvalidStackOperation}, nil
+	case "ERR_UNBALANCED_CONDITIONAL":
+		return []ErrorCode{ErrUnbalancedConditional}, nil
+	case "ERR_NEGATIVE_SUBSTR_INDEX":
+		return []ErrorCode{ErrNegativeSubstrIdx}, nil
+	case "ERR_OVERFLOW_SUBSTR_INDEX":
+		return []ErrorCode{ErrOverflowSubstrIdx}, nil
+	case "ERR_NEGATIVE_ROTATION":
+		return []ErrorCode{ErrNegativeRotation}, nil
+	case "ERR_OVERFLOW_ROTATION":
+		return []ErrorCode{ErrOverflowRotation}, nil
+	case "ERR_DIVIDE_BY_ZERO":
+		return []ErrorCode{ErrDivideByZero}, nil
+	case "ERR_NEGATIVE_SHIFT":
+		return []ErrorCode{ErrNegativeShift}, nil
+	case "ERR_OVERFLOW_SHIFT":
+		return []ErrorCode{ErrOverflowShift}, nil
+	case "ERR_MINIMAL_DATA":
+		return []ErrorCode{ErrMinimalData}, nil
+	case "ERR_SIG_HASH_TYPE":
+		return []ErrorCode{ErrInvalidSigHashType}, nil
+	case "ERR_SIG_TOO_SHORT":
+		return []ErrorCode{ErrSigTooShort}, nil
+	case "ERR_SIG_TOO_LONG":
+		return []ErrorCode{ErrSigTooLong}, nil
+	case "ERR_SIG_INVALID_SEQ_ID":
+		return []ErrorCode{ErrSigInvalidSeqID}, nil
+	case "ERR_SIG_INVALID_DATA_LEN":
+		return []ErrorCode{ErrSigInvalidDataLen}, nil
+	case "ERR_SIG_MISSING_S_TYPE_ID":
+		return []ErrorCode{ErrSigMissingSTypeID}, nil
+	case "ERR_SIG_MISSING_S_LEN":
+		return []ErrorCode{ErrSigMissingSLen}, nil
+	case "ERR_SIG_INVALID_S_LEN":
+		return []ErrorCode{ErrSigInvalidSLen}, nil
+	case "ERR_SIG_INVALID_R_INT_ID":
+		return []ErrorCode{ErrSigInvalidRIntID}, nil
+	case "ERR_SIG_ZERO_R_LEN":
+		return []ErrorCode{ErrSigZeroRLen}, nil
+	case "ERR_SIG_NEGATIVE_R":
+		return []ErrorCode{ErrSigNegativeR}, nil
+	case "ERR_SIG_TOO_MUCH_R_PADDING":
+		return []ErrorCode{ErrSigTooMuchRPadding}, nil
+	case "ERR_SIG_INVALID_S_INT_ID":
+		return []ErrorCode{ErrSigInvalidSIntID}, nil
+	case "ERR_SIG_ZERO_S_LEN":
+		return []ErrorCode{ErrSigZeroSLen}, nil
+	case "ERR_SIG_NEGATIVE_S":
+		return []ErrorCode{ErrSigNegativeS}, nil
+	case "ERR_SIG_TOO_MUCH_S_PADDING":
+		return []ErrorCode{ErrSigTooMuchSPadding}, nil
+	case "ERR_SIG_HIGH_S":
+		return []ErrorCode{ErrSigHighS}, nil
+	case "ERR_SIG_PUSHONLY":
+		return []ErrorCode{ErrNotPushOnly}, nil
+	case "ERR_PUBKEY_TYPE":
+		return []ErrorCode{ErrPubKeyType}, nil
+	case "ERR_CLEAN_STACK":
+		return []ErrorCode{ErrCleanStack}, nil
+	case "ERR_DISCOURAGE_UPGRADABLE_NOPS":
+		return []ErrorCode{ErrDiscourageUpgradableNOPs}, nil
+	case "ERR_NEGATIVE_LOCKTIME":
+		return []ErrorCode{ErrNegativeLockTime}, nil
+	case "ERR_UNSATISFIED_LOCKTIME":
+		return []ErrorCode{ErrUnsatisfiedLockTime}, nil
+	}
+
+	return nil, fmt.Errorf("unrecognized expected result in test data: %v",
+		expected)
+}
+
 // createSpendTx generates a basic spending transaction given the passed
 // signature and public key scripts.
 func createSpendingTx(sigScript, pkScript []byte) *wire.MsgTx {
@@ -169,7 +364,7 @@ func createSpendingTx(sigScript, pkScript []byte) *wire.MsgTx {
 
 	outPoint := wire.NewOutPoint(&chainhash.Hash{}, ^uint32(0),
 		wire.TxTreeRegular)
-	txIn := wire.NewTxIn(outPoint, []byte{OP_0, OP_0})
+	txIn := wire.NewTxIn(outPoint, 0, []byte{OP_0, OP_0})
 	txOut := wire.NewTxOut(0, pkScript)
 	coinbaseTx.AddTxIn(txIn)
 	coinbaseTx.AddTxOut(txOut)
@@ -177,7 +372,7 @@ func createSpendingTx(sigScript, pkScript []byte) *wire.MsgTx {
 	spendingTx := wire.NewMsgTx()
 	coinbaseTxHash := coinbaseTx.TxHash()
 	outPoint = wire.NewOutPoint(&coinbaseTxHash, 0, wire.TxTreeRegular)
-	txIn = wire.NewTxIn(outPoint, sigScript)
+	txIn = wire.NewTxIn(outPoint, 0, sigScript)
 	txOut = wire.NewTxOut(0, nil)
 
 	spendingTx.AddTxIn(txIn)
@@ -186,143 +381,121 @@ func createSpendingTx(sigScript, pkScript []byte) *wire.MsgTx {
 	return spendingTx
 }
 
-// TestScriptInvalidTests ensures all of the tests in script_invalid.json fail
-// as expected.
-func TestScriptInvalidTests(t *testing.T) {
-	file, err := ioutil.ReadFile("data/script_invalid.json")
-	if err != nil {
-		t.Errorf("TestScriptInvalidTests: %v\n", err)
-		return
+// testScripts ensures all of the passed script tests execute with the expected
+// results with or without using a signature cache, as specified by the
+// parameter.
+func testScripts(t *testing.T, tests [][]string, useSigCache bool) {
+	// Create a signature cache to use only if requested.
+	var sigCache *SigCache
+	if useSigCache {
+		sigCache = NewSigCache(10)
 	}
 
-	var tests [][]string
-	err = json.Unmarshal(file, &tests)
-	if err != nil {
-		t.Errorf("TestScriptInvalidTests couldn't Unmarshal: %v",
-			err)
-		return
-	}
-	sigCache := NewSigCache(10)
+	// "Format is: [scriptSig, scriptPubKey, flags, expectedScriptError, ...
+	//   comments]"
+	for i, test := range tests {
+		// Skip single line comments.
+		if len(test) == 1 {
+			continue
+		}
 
-	sigCacheToggle := []bool{true, false}
-	for _, useSigCache := range sigCacheToggle {
-		for i, test := range tests {
-			// Skip comments
-			if len(test) == 1 {
-				continue
-			}
-			name, err := testName(test)
-			if err != nil {
-				t.Errorf("TestScriptInvalidTests: invalid test #%d",
-					i)
-				continue
-			}
-			scriptSig, err := parseShortForm(test[0])
-			if err != nil {
-				t.Errorf("%s: can't parse scriptSig; %v", name, err)
-				continue
-			}
-			scriptPubKey, err := parseShortForm(test[1])
-			if err != nil {
-				t.Errorf("%s: can't parse scriptPubkey; %v", name, err)
-				continue
-			}
-			flags, err := parseScriptFlags(test[2])
-			if err != nil {
-				t.Errorf("%s: %v", name, err)
-				continue
-			}
-			tx := createSpendingTx(scriptSig, scriptPubKey)
+		// Construct a name for the test based on the comment and test data.
+		name, err := scriptTestName(test)
+		if err != nil {
+			t.Errorf("TestScripts: invalid test #%d: %v", i, err)
+			continue
+		}
 
-			var vm *Engine
-			if useSigCache {
-				vm, err = NewEngine(scriptPubKey, tx, 0, flags,
-					0, sigCache)
-			} else {
-				vm, err = NewEngine(scriptPubKey, tx, 0, flags,
-					0, nil)
-			}
+		// Extract and parse the signature script from the test fields.
+		scriptSig, err := parseShortForm(test[0])
+		if err != nil {
+			t.Errorf("%s: can't parse scriptSig; %v", name, err)
+			continue
+		}
 
-			if err == nil {
-				if err := vm.Execute(); err == nil {
-					t.Errorf("%s test succeeded when it "+
-						"should have failed\n", name)
-				}
+		// Extract and parse the public key script from the test fields.
+		scriptPubKey, err := parseShortForm(test[1])
+		if err != nil {
+			t.Errorf("%s: can't parse scriptPubkey; %v", name, err)
+			continue
+		}
+
+		// Extract and parse the script flags from the test fields.
+		flags, err := parseScriptFlags(test[2])
+		if err != nil {
+			t.Errorf("%s: %v", name, err)
+			continue
+		}
+
+		// Extract and parse the expected result from the test fields.
+		//
+		// Convert the expected result string into the allowed script error
+		// codes.  This allows txscript to be more fine grained with its errors
+		// than the reference test data by allowing some of the test data errors
+		// to map to more than one possibility.
+		resultStr := test[3]
+		allowedErrorCodes, err := parseExpectedResult(resultStr)
+		if err != nil {
+			t.Errorf("%s: %v", name, err)
+			continue
+		}
+
+		// Generate a transaction pair such that one spends from the other and
+		// the provided signature and public key scripts are used, then create a
+		// new engine to execute the scripts.
+		tx := createSpendingTx(scriptSig, scriptPubKey)
+		vm, err := NewEngine(scriptPubKey, tx, 0, flags, 0, sigCache)
+		if err == nil {
+			err = vm.Execute()
+		}
+
+		// Ensure there were no errors when the expected result is OK.
+		if resultStr == "OK" {
+			if err != nil {
+				t.Errorf("%s failed to execute: %v", name, err)
+			}
+			continue
+		}
+
+		// At this point an error was expected so ensure the result of the
+		// execution matches it.
+		success := false
+		for _, code := range allowedErrorCodes {
+			if IsErrorCode(err, code) {
+				success = true
+				break
+			}
+		}
+		if !success {
+			if serr, ok := err.(Error); ok {
+				t.Errorf("%s: want error codes %v, got %v", name,
+					allowedErrorCodes, serr.ErrorCode)
 				continue
 			}
+			t.Errorf("%s: want error codes %v, got err: %v (%T)", name,
+				allowedErrorCodes, err, err)
+			continue
 		}
 	}
 }
 
-// TestScriptValidTests ensures all of the tests in script_valid.json pass as
-// expected.
-func TestScriptValidTests(t *testing.T) {
-	file, err := ioutil.ReadFile("data/script_valid.json")
+// TestScripts ensures all of the tests in script_tests.json execute with the
+// expected results as defined in the test data.
+func TestScripts(t *testing.T) {
+	file, err := ioutil.ReadFile("data/script_tests.json")
 	if err != nil {
-		t.Errorf("TestScriptValidTests: %v\n", err)
-		return
+		t.Fatalf("TestScripts: %v\n", err)
 	}
 
 	var tests [][]string
 	err = json.Unmarshal(file, &tests)
 	if err != nil {
-		t.Errorf("TestScriptValidTests: couldn't Unmarshal: %v",
-			err)
-		return
+		t.Fatalf("TestScripts failed to unmarshal: %v", err)
 	}
 
-	sigCache := NewSigCache(10)
-
-	sigCacheToggle := []bool{true, false}
-	for _, useSigCache := range sigCacheToggle {
-		for i, test := range tests {
-			// Skip comments
-			if len(test) == 1 {
-				continue
-			}
-			name, err := testName(test)
-			if err != nil {
-				t.Errorf("TestScriptValidTests: invalid test #%d",
-					i)
-				continue
-			}
-			scriptSig, err := parseShortForm(test[0])
-			if err != nil {
-				t.Errorf("%s: can't parse scriptSig; %v", name, err)
-				continue
-			}
-			scriptPubKey, err := parseShortForm(test[1])
-			if err != nil {
-				t.Errorf("%s: can't parse scriptPubkey; %v", name, err)
-				continue
-			}
-			flags, err := parseScriptFlags(test[2])
-			if err != nil {
-				t.Errorf("%s: %v", name, err)
-				continue
-			}
-			tx := createSpendingTx(scriptSig, scriptPubKey)
-
-			var vm *Engine
-			if useSigCache {
-				vm, err = NewEngine(scriptPubKey, tx, 0, flags,
-					0, sigCache)
-			} else {
-				vm, err = NewEngine(scriptPubKey, tx, 0, flags,
-					0, nil)
-			}
-
-			if err != nil {
-				t.Errorf("%s failed to create script: %v", name, err)
-				continue
-			}
-			err = vm.Execute()
-			if err != nil {
-				t.Errorf("%s failed to execute: %v", name, err)
-				continue
-			}
-		}
-	}
+	// Run all script tests with and without the signature cache.
+	testScripts(t, tests, true)
+	testScripts(t, tests, false)
 }
 
 // testVecF64ToUint32 properly handles conversion of float64s read from the JSON
@@ -626,12 +799,13 @@ testloop:
 // parseSigHashExpectedResult parses the provided expected result string into
 // allowed error codes.  An error is returned if the expected result string is
 // not supported.
-func parseSigHashExpectedResult(expected string) (error, error) {
+func parseSigHashExpectedResult(expected string) (*ErrorCode, error) {
 	switch expected {
 	case "OK":
 		return nil, nil
 	case "SIGHASH_SINGLE_IDX":
-		return ErrSighashSingleIdx, nil
+		code := ErrInvalidSigHashSingleIndex
+		return &code, nil
 	}
 
 	return nil, fmt.Errorf("unrecognized expected result in test data: %v",
@@ -741,14 +915,21 @@ func TestCalcSignatureHashReference(t *testing.T) {
 		// Calculate the signature hash and verify expected result.
 		hash, err := calcSignatureHash(parsedScript, hashType, &tx,
 			int(inputIdxF64), nil)
-		if err != expectedErr {
-			t.Errorf("Test #%d: unexpected error: want %v, got %v", i,
-				expectedErr, err)
+		if (err == nil) != (expectedErr == nil) ||
+			expectedErr != nil && !IsErrorCode(err, *expectedErr) {
+
+			if serr, ok := err.(Error); ok {
+				t.Errorf("Test #%d: want error code %v, got %v", i, expectedErr,
+					serr.ErrorCode)
+				continue
+			}
+			t.Errorf("Test #%d: want error code %v, got err: %v (%T)", i,
+				expectedErr, err, err)
 			continue
 		}
 		if !bytes.Equal(hash, expectedHash) {
-			t.Errorf("Test #%d: signature hash mismatch - got %x, "+
-				"want %x", i, hash, expectedHash)
+			t.Errorf("Test #%d: signature hash mismatch - got %x, want %x", i,
+				hash, expectedHash)
 			continue
 		}
 	}

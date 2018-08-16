@@ -39,9 +39,9 @@ import (
 	"github.com/decred/dcrd/blockchain/stake"
 	"github.com/decred/dcrd/certgen"
 	"github.com/decred/dcrd/chaincfg"
-	"github.com/decred/dcrd/chaincfg/chainec"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/database"
+	"github.com/decred/dcrd/dcrec/secp256k1"
 	"github.com/decred/dcrd/dcrjson"
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/dcrd/mempool"
@@ -253,6 +253,7 @@ var rpcAskWallet = map[string]struct{}{
 	"createencryptedwallet":   {},
 	"createmultisig":          {},
 	"dumpprivkey":             {},
+	"fundrawtransaction":      {},
 	"getaccount":              {},
 	"getaccountaddress":       {},
 	"getaddressesbyaccount":   {},
@@ -648,8 +649,17 @@ func handleCreateRawTransaction(s *rpcServer, cmd interface{}, closeChan <-chan 
 				"or stake")
 		}
 
+		prevOutV := wire.NullValueIn
+		if input.Amount > 0 {
+			amt, err := dcrutil.NewAmount(input.Amount)
+			if err != nil {
+				return nil, rpcInvalidError(err.Error())
+			}
+			prevOutV = int64(amt)
+		}
+
 		prevOut := wire.NewOutPoint(txHash, input.Vout, input.Tree)
-		txIn := wire.NewTxIn(prevOut, []byte{})
+		txIn := wire.NewTxIn(prevOut, prevOutV, []byte{})
 		if c.LockTime != nil && *c.LockTime != 0 {
 			txIn.Sequence = wire.MaxTxInSequenceNum - 1
 		}
@@ -759,7 +769,7 @@ func handleCreateRawSStx(s *rpcServer, cmd interface{}, closeChan <-chan struct{
 		}
 
 		prevOut := wire.NewOutPoint(txHash, input.Vout, input.Tree)
-		txIn := wire.NewTxIn(prevOut, []byte{})
+		txIn := wire.NewTxIn(prevOut, wire.NullValueIn, []byte{})
 		mtx.AddTxIn(txIn)
 	}
 
@@ -985,7 +995,7 @@ func handleCreateRawSSGenTx(s *rpcServer, cmd interface{}, closeChan <-chan stru
 
 	stakeBaseOutPoint := wire.NewOutPoint(&chainhash.Hash{},
 		uint32(0xFFFFFFFF), int8(0x01))
-	txInStakeBase := wire.NewTxIn(stakeBaseOutPoint, []byte{})
+	txInStakeBase := wire.NewTxIn(stakeBaseOutPoint, stakeVoteSubsidy, []byte{})
 	mtx.AddTxIn(txInStakeBase)
 
 	for _, input := range c.Inputs {
@@ -1003,8 +1013,17 @@ func handleCreateRawSSGenTx(s *rpcServer, cmd interface{}, closeChan <-chan stru
 				"TxTreeStake type")
 		}
 
+		prevOutV := wire.NullValueIn
+		if input.Amount > 0 {
+			amt, err := dcrutil.NewAmount(input.Amount)
+			if err != nil {
+				return nil, rpcInvalidError(err.Error())
+			}
+			prevOutV = int64(amt)
+		}
+
 		prevOut := wire.NewOutPoint(txHash, input.Vout, input.Tree)
-		txIn := wire.NewTxIn(prevOut, []byte{})
+		txIn := wire.NewTxIn(prevOut, prevOutV, []byte{})
 		mtx.AddTxIn(txIn)
 	}
 
@@ -1144,8 +1163,17 @@ func handleCreateRawSSRtx(s *rpcServer, cmd interface{}, closeChan <-chan struct
 				"TxTreeStake type")
 		}
 
+		prevOutV := wire.NullValueIn
+		if input.Amount > 0 {
+			amt, err := dcrutil.NewAmount(input.Amount)
+			if err != nil {
+				return nil, rpcInvalidError(err.Error())
+			}
+			prevOutV = int64(amt)
+		}
+
 		prevOut := wire.NewOutPoint(txHash, input.Vout, input.Tree)
-		txIn := wire.NewTxIn(prevOut, []byte{})
+		txIn := wire.NewTxIn(prevOut, prevOutV, []byte{})
 		mtx.AddTxIn(txIn)
 	}
 
@@ -1522,17 +1550,14 @@ func handleEstimateStakeDiff(s *rpcServer, cmd interface{}, closeChan <-chan str
 	nextAdjustment := ((bestHeight / activeNetParams.StakeDiffWindowSize) +
 		1) * activeNetParams.StakeDiffWindowSize
 	totalTickets := 0
-	err = s.server.db.View(func(dbTx database.Tx) error {
-		for i := lastAdjustment; i <= bestHeight; i++ {
-			bh, err := blockchain.DBFetchHeaderByHeight(dbTx, i)
-			if err != nil {
-				return err
-			}
-			totalTickets += int(bh.FreshStake)
+	for i := lastAdjustment; i <= bestHeight; i++ {
+		bh, err := chain.HeaderByHeight(i)
+		if err != nil {
+			return nil, rpcInternalError(err.Error(), "Could not "+
+				"estimate next stake difficulty")
 		}
-
-		return nil
-	})
+		totalTickets += int(bh.FreshStake)
+	}
 	blocksSince := float64(bestHeight - lastAdjustment + 1)
 	remaining := float64(nextAdjustment - bestHeight - 1)
 	averagePerBlock := float64(totalTickets) / blocksSince
@@ -1920,7 +1945,7 @@ func handleGetBlock(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) (i
 	if err != nil {
 		return nil, rpcDecodeHexError(c.Hash)
 	}
-	blk, err := s.server.blockManager.chain.FetchBlockByHash(hash)
+	blk, err := s.server.blockManager.chain.BlockByHash(hash)
 	if err != nil {
 		return nil, &dcrjson.RPCError{
 			Code:    dcrjson.ErrRPCBlockNotFound,
@@ -1942,14 +1967,11 @@ func handleGetBlock(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) (i
 
 	best := s.chain.BestSnapshot()
 
-	// See if this block is an orphan and adjust Confirmations accordingly.
-	onMainChain, _ := s.chain.MainChainHasBlock(hash)
-
 	// Get next block hash unless there are none.
 	var nextHashString string
 	blockHeader := &blk.MsgBlock().Header
 	confirmations := int64(-1)
-	if onMainChain {
+	if s.chain.MainChainHasBlock(hash) {
 		if int64(blockHeader.Height) < best.Height {
 			nextHash, err := s.chain.BlockHashByHeight(int64(blockHeader.Height + 1))
 			if err != nil {
@@ -2069,7 +2091,7 @@ func handleGetBlockHeader(s *rpcServer, cmd interface{}, closeChan <-chan struct
 	if err != nil {
 		return nil, rpcDecodeHexError(c.Hash)
 	}
-	blockHeader, err := s.chain.FetchHeader(hash)
+	blockHeader, err := s.chain.HeaderByHash(hash)
 	if err != nil {
 		return nil, &dcrjson.RPCError{
 			Code:    dcrjson.ErrRPCBlockNotFound,
@@ -2093,14 +2115,11 @@ func handleGetBlockHeader(s *rpcServer, cmd interface{}, closeChan <-chan struct
 
 	best := s.chain.BestSnapshot()
 
-	// See if this block is an orphan and adjust Confirmations accordingly.
-	onMainChain, _ := s.chain.MainChainHasBlock(hash)
-
 	// Get next block hash unless there are none.
 	var nextHashString string
 	confirmations := int64(-1)
 	height := int64(blockHeader.Height)
-	if onMainChain {
+	if s.chain.MainChainHasBlock(hash) {
 		if height < best.Height {
 			nextHash, err := s.chain.BlockHashByHeight(height + 1)
 			if err != nil {
@@ -3094,16 +3113,20 @@ func handleGetCFilter(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) 
 	case "extended":
 		filterType = wire.GCSFilterExtended
 	default:
-		return nil, rpcMiscError("unknown filter type " + c.FilterType)
+		return nil, rpcInvalidError("Unknown filter type %q",
+			c.FilterType)
 	}
 
 	filterBytes, err := s.server.cfIndex.FilterByBlockHash(hash, filterType)
 	if err != nil {
-		rpcsLog.Debugf("Could not find committed filter for %v: %v",
-			hash, err)
+		context := fmt.Sprintf("Failed to load %v filter for block %v",
+			filterType, hash)
+		return "", rpcInternalError(err.Error(), context)
+	}
+	if len(filterBytes) == 0 {
 		return nil, &dcrjson.RPCError{
 			Code:    dcrjson.ErrRPCBlockNotFound,
-			Message: "Block not found",
+			Message: fmt.Sprintf("Block not found: %v", hash),
 		}
 	}
 
@@ -3133,18 +3156,22 @@ func handleGetCFilterHeader(s *rpcServer, cmd interface{}, closeChan <-chan stru
 	case "extended":
 		filterType = wire.GCSFilterExtended
 	default:
-		return nil, rpcMiscError("unknown filter type " + c.FilterType)
+		return nil, rpcInvalidError("Unknown filter type %q",
+			c.FilterType)
 	}
 
 	headerBytes, err := s.server.cfIndex.FilterHeaderByBlockHash(hash, filterType)
-	if len(headerBytes) > 0 {
-		rpcsLog.Debugf("Found header of committed filter for %v", hash)
-	} else {
-		rpcsLog.Debugf("Could not find header of committed filter for %v: %v",
-			hash, err)
+	if err != nil {
+		context := fmt.Sprintf("Failed to load %v filter header for block %v",
+			filterType, hash)
+		return "", rpcInternalError(err.Error(), context)
+	}
+	if bytes.Equal(headerBytes, zeroHash[:]) && *hash !=
+		*s.server.chainParams.GenesisHash {
+
 		return nil, &dcrjson.RPCError{
 			Code:    dcrjson.ErrRPCBlockNotFound,
-			Message: "Block not found",
+			Message: fmt.Sprintf("Block not found: %v", hash),
 		}
 	}
 
@@ -3349,7 +3376,7 @@ func handleGetNetworkHashPS(s *rpcServer, cmd interface{}, closeChan <-chan stru
 		}
 
 		// Fetch the header from chain.
-		header, err := s.chain.FetchHeader(hash)
+		header, err := s.chain.HeaderByHash(hash)
 		if err != nil {
 			context := "Failed to fetch block header"
 			return nil, rpcInternalError(err.Error(), context)
@@ -3568,7 +3595,7 @@ func handleGetRawTransaction(s *rpcServer, cmd interface{}, closeChan <-chan str
 	)
 	if blkHash != nil {
 		// Fetch the header from chain.
-		header, err := s.chain.FetchHeader(blkHash)
+		header, err := s.chain.HeaderByHash(blkHash)
 		if err != nil {
 			context := "Failed to fetch block header"
 			return nil, rpcInternalError(err.Error(), context)
@@ -3801,7 +3828,7 @@ func handleGetVoteInfo(s *rpcServer, cmd interface{}, closeChan <-chan struct{})
 	result.Agendas = make([]dcrjson.Agenda, 0, len(vi.Agendas))
 	for _, agenda := range vi.Agendas {
 		a := dcrjson.Agenda{
-			Id:          agenda.Vote.Id,
+			ID:          agenda.Vote.Id,
 			Description: agenda.Vote.Description,
 			Mask:        agenda.Vote.Mask,
 			Choices: make([]dcrjson.Choice, 0,
@@ -3813,7 +3840,7 @@ func handleGetVoteInfo(s *rpcServer, cmd interface{}, closeChan <-chan struct{})
 		// Handle choices.
 		for _, choice := range agenda.Vote.Choices {
 			c := dcrjson.Choice{
-				Id:          choice.Id,
+				ID:          choice.Id,
 				Description: choice.Description,
 				Bits:        choice.Bits,
 				IsAbstain:   choice.IsAbstain,
@@ -4960,7 +4987,7 @@ func handleSearchRawTransactions(s *rpcServer, cmd interface{}, closeChan <-chan
 		var blkHeight int64
 		if blkHash := rtx.blkHash; blkHash != nil {
 			// Fetch the header from chain.
-			header, err := s.chain.FetchHeader(blkHash)
+			header, err := s.chain.HeaderByHash(blkHash)
 			if err != nil {
 				return nil, &dcrjson.RPCError{
 					Code:    dcrjson.ErrRPCBlockNotFound,
@@ -5054,16 +5081,7 @@ func handleSendRawTransaction(s *rpcServer, cmd interface{}, closeChan <-chan st
 	//
 	// Note that votes are only valid for a specific block and are time
 	// sensitive, so they should not be added to the rebroadcast logic.
-	//
-	// TODO: Ideally ticket purchases and revocations could be added to the
-	// rebroadcast logic as well, however, they would need to be removed under
-	// certain circumstances such as when the stake difficulty interval changes
-	// and if a revocation is for a ticket that was missed, but then becomes
-	// live again due to a reorg.  All stake transactions are ignored here since
-	// there is no clean infrastructure in place currently to handle those
-	// removals and perpetually broadcasting transactions which are no longer
-	// valid is not desirable.
-	if txType := stake.DetermineTxType(msgtx); txType == stake.TxTypeRegular {
+	if txType := stake.DetermineTxType(msgtx); txType != stake.TxTypeSSGen {
 		iv := wire.NewInvVect(wire.InvTypeTx, tx.Hash())
 		s.server.AddRebroadcastInventory(iv, tx)
 	}
@@ -5716,7 +5734,7 @@ func handleVerifyMessage(s *rpcServer, cmd interface{}, closeChan <-chan struct{
 	wire.WriteVarString(&buf, 0, "Decred Signed Message:\n")
 	wire.WriteVarString(&buf, 0, c.Message)
 	expectedMessageHash := chainhash.HashB(buf.Bytes())
-	pk, wasCompressed, err := chainec.Secp256k1.RecoverCompact(sig,
+	pk, wasCompressed, err := secp256k1.RecoverCompact(sig,
 		expectedMessageHash)
 	if err != nil {
 		// Mirror Bitcoin Core behavior, which treats error in
