@@ -73,7 +73,7 @@ var (
 	rfc6598Net = ipNet("100.64.0.0", 10, 32)
 
 	// onionCatNet defines the IPv6 address block used to support Tor.
-	// bitcoind encodes a .onion address as a 16 byte number by decoding the
+	// dcrd encodes a .onion address as a 16 byte number by decoding the
 	// address prior to the .onion (i.e. the key hash) base32 into a ten
 	// byte number. It then stores the first 6 bytes of the address as
 	// 0xfd, 0x87, 0xd8, 0x7e, 0xeb, 0x43.
@@ -271,7 +271,7 @@ func GroupKey(na *wire.NetAddress) string {
 	}
 
 	// OK, so now we know ourselves to be a IPv6 address.
-	// bitcoind uses /32 for everything, except for Hurricane Electric's
+	// dcrd uses /32 for everything, except for Hurricane Electric's
 	// (he.net) IP range, which it uses /36 for.
 	bits := 32
 	if heNet.Contains(na.IP) {
