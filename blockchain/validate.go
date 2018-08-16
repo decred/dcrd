@@ -757,7 +757,7 @@ func checkBlockSanity(block *dcrutil.Block, timeSource MedianTimeSource, flags B
 	// Build merkle tree and ensure the calculated merkle root matches the
 	// entry in the block header.  This also has the effect of caching all
 	// of the transaction hashes in the block to speed up future hash
-	// checks.  Bitcoind builds the tree here and checks the merkle root
+	// checks.  Dcrd builds the tree here and checks the merkle root
 	// after the following checks, but there is no reason not to check the
 	// merkle root matches here.
 	merkles := BuildMerkleTreeStore(block.Transactions())
