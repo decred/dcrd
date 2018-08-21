@@ -8,8 +8,6 @@ package main
 import (
 	"encoding/binary"
 	"errors"
-	"fmt"
-	"math/rand"
 	"sync"
 	"time"
 
@@ -192,7 +190,8 @@ func (m *CPUMiner) submitBlock(block *dcrutil.Block) bool {
 // This function will return early with false when conditions that trigger a
 // stale block such as a new block showing up or periodically when there are
 // new transactions and enough time has elapsed without finding a solution.
-func (m *CPUMiner) solveBlock(msgBlock *wire.MsgBlock, ticker *time.Ticker, quit chan struct{}) bool {
+// This should be called with the
+func (m *CPUMiner) solveBlock(header *wire.BlockHeader, ticker *time.Ticker, quit chan struct{}) bool {
 	// Choose a random extra nonce offset for this block template and
 	// worker.
 	enOffset, err := wire.RandomUint64()
@@ -203,7 +202,6 @@ func (m *CPUMiner) solveBlock(msgBlock *wire.MsgBlock, ticker *time.Ticker, quit
 	}
 
 	// Create a couple of convenience variables.
-	header := &msgBlock.Header
 	targetDifficulty := blockchain.CompactToBig(header.Bits)
 
 	// Initial state.
@@ -242,7 +240,7 @@ func (m *CPUMiner) solveBlock(msgBlock *wire.MsgBlock, ticker *time.Ticker, quit
 					return false
 				}
 
-				err = UpdateBlockTime(msgBlock, m.server.blockManager)
+				err = UpdateBlockTime(header, m.server.blockManager)
 				if err != nil {
 					minrLog.Warnf("CPU miner unable to update block template "+
 						"time: %v", err)
@@ -295,14 +293,6 @@ out:
 			// Non-blocking select to fall through
 		}
 
-		// No point in searching for a solution before the chain is
-		// synced.  Also, grab the same lock as used for block
-		// submission, since the current block will be changing and
-		// this would otherwise end up building a new block template on
-		// a block that is in the process of becoming stale.
-		m.submitBlockLock.Lock()
-		time.Sleep(100 * time.Millisecond)
-
 		// Hacks to make dcr work with Decred PoC (simnet only)
 		// TODO Remove before production.
 		if cfg.SimNet {
@@ -317,26 +307,17 @@ out:
 			}
 		}
 
-		// Choose a payment address at random.
-		rand.Seed(time.Now().UnixNano())
-		payToAddr := cfg.miningAddrs[rand.Intn(len(cfg.miningAddrs))]
+		m.server.blockManager.chain.WaitForChain()
+		updateChan := m.server.blockManager.RequestTemplateUpdate()
+		template := <-updateChan
+		minrLog.Debugf("block template received "+
+			"(height: %v, hash: %v)",
+			template.Block.Header.Height,
+			template.Block.BlockHash())
 
-		// Create a new block template using the available transactions
-		// in the memory pool as a source of transactions to potentially
-		// include in the block.
-		template, err := NewBlockTemplate(m.policy, m.server, payToAddr)
-		m.submitBlockLock.Unlock()
-		if err != nil {
-			errStr := fmt.Sprintf("Failed to create new block "+
-				"template: %v", err)
-			minrLog.Errorf(errStr)
-			continue
-		}
-
-		// Not enough voters.
-		if template == nil {
-			continue
-		}
+		m.server.blockManager.templateMtx.RLock()
+		header := template.Block.Header
+		m.server.blockManager.templateMtx.RUnlock()
 
 		// This prevents you from causing memory exhaustion issues
 		// when mining aggressively in a simulation network.
@@ -354,7 +335,7 @@ out:
 		// with false when conditions that trigger a stale block, so
 		// a new block template can be generated.  When the return is
 		// true a solution was found, so submit the solved block.
-		if m.solveBlock(template.Block, ticker, quit) {
+		if m.solveBlock(&header, ticker, quit) {
 			block := dcrutil.NewBlock(template.Block)
 			m.submitBlock(block)
 			m.minedOnParents[template.Block.Header.PrevBlock]++
@@ -591,42 +572,30 @@ func (m *CPUMiner) GenerateNBlocks(n uint32) ([]*chainhash.Hash, error) {
 		default:
 		}
 
-		// Grab the lock used for block submission, since the current block will
-		// be changing and this would otherwise end up building a new block
-		// template on a block that is in the process of becoming stale.
-		m.submitBlockLock.Lock()
+		m.server.blockManager.chain.WaitForChain()
+		updateChan := m.server.blockManager.RequestTemplateUpdate()
+		m.server.blockManager.RegenTemplate()
+		template := <-updateChan
+		minrLog.Debugf("block template received "+
+			"(height: %v, hash: %v)",
+			template.Block.Header.Height,
+			template.Block.BlockHash())
 
-		// Choose a payment address at random.
-		rand.Seed(time.Now().UnixNano())
-		payToAddr := cfg.miningAddrs[rand.Intn(len(cfg.miningAddrs))]
-
-		// Create a new block template using the available transactions
-		// in the memory pool as a source of transactions to potentially
-		// include in the block.
-		template, err := NewBlockTemplate(m.policy, m.server, payToAddr)
-		m.submitBlockLock.Unlock()
-		if err != nil {
-			errStr := fmt.Sprintf("Failed to create new block "+
-				"template: %v", err)
-			minrLog.Errorf(errStr)
-			continue
-		}
-		if template == nil {
-			errStr := fmt.Sprintf("Not enough voters on parent block " +
-				"and failed to pull parent template")
-			minrLog.Debugf(errStr)
-			continue
-		}
+		m.server.blockManager.templateMtx.RLock()
+		header := template.Block.Header
+		m.server.blockManager.templateMtx.RUnlock()
 
 		// Attempt to solve the block.  The function will exit early
 		// with false when conditions that trigger a stale block, so
 		// a new block template can be generated.  When the return is
 		// true a solution was found, so submit the solved block.
-		if m.solveBlock(template.Block, ticker, nil) {
+		if m.solveBlock(&header, ticker, nil) {
 			block := dcrutil.NewBlock(template.Block)
-			m.submitBlock(block)
-			blockHashes[i] = block.Hash()
-			i++
+			accepted := m.submitBlock(block)
+			if accepted {
+				blockHashes[i] = block.Hash()
+				i++
+			}
 			if i == n {
 				minrLog.Tracef("Generated %d blocks", i)
 				m.Lock()
