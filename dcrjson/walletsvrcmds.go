@@ -786,6 +786,39 @@ func NewPurchaseTicketCmd(fromAccount string, spendLimit float64, minConf *int,
 	}
 }
 
+// CreateUnsignedTicketCmd is a type handling custom marshaling and
+// unmarshaling of createunsignedticket JSON RPC commands.
+type CreateUnsignedTicketCmd struct {
+	FromAccount   string
+	SpendLimit    float64 // In Coins
+	MinConf       *int    `jsonrpcdefault:"1"`
+	TicketAddress *string
+	NumTickets    *int
+	PoolAddress   *string
+	PoolFees      *float64
+	Expiry        *int
+	Comment       *string
+	TicketFee     *float64
+}
+
+// NewCreateUnsignedTicketCmd creates a new CreateUnsignedTicketCmd.
+func NewCreateUnsignedTicketCmd(fromAccount string, spendLimit float64, minConf *int,
+	ticketAddress *string, numTickets *int, poolAddress *string, poolFees *float64,
+	expiry *int, comment *string, ticketFee *float64) *CreateUnsignedTicketCmd {
+	return &CreateUnsignedTicketCmd{
+		FromAccount:   fromAccount,
+		SpendLimit:    spendLimit,
+		MinConf:       minConf,
+		TicketAddress: ticketAddress,
+		NumTickets:    numTickets,
+		PoolAddress:   poolAddress,
+		PoolFees:      poolFees,
+		Expiry:        expiry,
+		Comment:       comment,
+		TicketFee:     ticketFee,
+	}
+}
+
 // RedeemMultiSigOutCmd is a type handling custom marshaling and
 // unmarshaling of redeemmultisigout JSON RPC commands.
 type RedeemMultiSigOutCmd struct {
@@ -1199,6 +1232,7 @@ func init() {
 	MustRegisterCmd("addticket", (*AddTicketCmd)(nil), flags)
 	MustRegisterCmd("consolidate", (*ConsolidateCmd)(nil), flags)
 	MustRegisterCmd("createmultisig", (*CreateMultisigCmd)(nil), flags)
+	MustRegisterCmd("createunsignedticket", (*CreateUnsignedTicketCmd)(nil), flags)
 	MustRegisterCmd("createnewaccount", (*CreateNewAccountCmd)(nil), flags)
 	MustRegisterCmd("createrawsstx", (*CreateRawSStxCmd)(nil), flags)
 	// DEPRECATED.  createrawssgentx will be removed in the next major version
