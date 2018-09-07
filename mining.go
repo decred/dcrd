@@ -760,24 +760,23 @@ func deepCopyBlockTemplate(blockTemplate *BlockTemplate) *BlockTemplate {
 // of the blockchain. If there are too few voters and a cached parent template to
 // work off of is present, it will return a copy of that template to pass to the
 // miner.
-// Safe for concurrent access.
+// This should be called with the template mutex held.
 func handleTooFewVoters(subsidyCache *blockchain.SubsidyCache, nextHeight int64, miningAddress dcrutil.Address, bm *blockManager) (*BlockTemplate, error) {
 	timeSource := bm.server.timeSource
 	chainState := &bm.chainState
 	stakeValidationHeight := bm.server.chainParams.StakeValidationHeight
-	curTemplate := bm.GetCurrentTemplate()
+	template := bm.cachedCurrentTemplate
 
 	// Check to see if we've fallen off the chain, for example if a
 	// reorganization had recently occurred. If this is the case,
 	// nuke the templates.
 	prevBlockHash := chainState.GetTopPrevHash()
-	if curTemplate != nil {
-		if !prevBlockHash.IsEqual(
-			&curTemplate.Block.Header.PrevBlock) {
+	if template != nil {
+		if !prevBlockHash.IsEqual(&(template.Block.Header.PrevBlock)) {
 			minrLog.Debugf("Cached mining templates are no longer current, " +
 				"resetting")
-			bm.SetCurrentTemplate(nil)
-			bm.SetParentTemplate(nil)
+			bm.cachedCurrentTemplate = nil
+			bm.cachedParentTemplate = nil
 		}
 	}
 
@@ -785,20 +784,18 @@ func handleTooFewVoters(subsidyCache *blockchain.SubsidyCache, nextHeight int64,
 	// (default behaviour).
 	if nextHeight >= stakeValidationHeight {
 		if bm.AggressiveMining {
-			if curTemplate != nil {
-				cptCopy := deepCopyBlockTemplate(curTemplate)
-
+			if template != nil {
 				// Update the timestamp of the old template.
 				ts, err := medianAdjustedTime(chainState, timeSource)
 				if err != nil {
 					return nil, err
 				}
-				cptCopy.Block.Header.Timestamp = ts
+				template.Block.Header.Timestamp = ts
 
 				// If we're on testnet, the time since this last block
 				// listed as the parent must be taken into consideration.
 				if bm.server.chainParams.ReduceMinDifficulty {
-					parentHash := cptCopy.Block.Header.PrevBlock
+					parentHash := template.Block.Header.PrevBlock
 
 					requiredDifficulty, err :=
 						bm.CalcNextRequiredDiffNode(&parentHash, ts)
@@ -807,27 +804,27 @@ func handleTooFewVoters(subsidyCache *blockchain.SubsidyCache, nextHeight int64,
 							err.Error())
 					}
 
-					cptCopy.Block.Header.Bits = requiredDifficulty
+					template.Block.Header.Bits = requiredDifficulty
 				}
 
 				// Choose a new extra nonce value that is one greater
 				// than the previous extra nonce, so we don't remine the
 				// same block and choose the same winners as before.
-				en := cptCopy.extractCoinbaseExtraNonce() + 1
-				err = UpdateExtraNonce(cptCopy.Block, cptCopy.Height, en)
+				en := template.extractCoinbaseExtraNonce() + 1
+				err = UpdateExtraNonce(template.Block, template.Height, en)
 				if err != nil {
 					return nil, err
 				}
 
 				// Update extranonce of the original template too, so
 				// we keep getting unique numbers.
-				err = UpdateExtraNonce(curTemplate.Block, curTemplate.Height, en)
+				err = UpdateExtraNonce(template.Block, template.Height, en)
 				if err != nil {
 					return nil, err
 				}
 
 				// Make sure the block validates.
-				block := dcrutil.NewBlockDeepCopyCoinbase(cptCopy.Block)
+				block := dcrutil.NewBlockDeepCopyCoinbase(template.Block)
 				err = bm.chain.CheckConnectBlockTemplate(block)
 				if err != nil {
 					minrLog.Errorf("failed to check template while "+
@@ -836,12 +833,12 @@ func handleTooFewVoters(subsidyCache *blockchain.SubsidyCache, nextHeight int64,
 						err.Error())
 				}
 
-				return cptCopy, nil
+				return template, nil
 			}
 
 			// We may have just started mining and stored the current block
 			// template, so we don't have a parent.
-			if curTemplate == nil {
+			if template == nil {
 				// Fetch the latest block and head and begin working
 				// off of it with an empty transaction tree regular
 				// and the contents of that stake tree. In the future
@@ -939,10 +936,7 @@ func handleTooFewVoters(subsidyCache *blockchain.SubsidyCache, nextHeight int64,
 						str)
 				}
 
-				// Make a copy to return.
-				cptCopy := deepCopyBlockTemplate(bt)
-
-				return cptCopy, nil
+				return bt, nil
 			}
 		}
 	}
@@ -951,43 +945,6 @@ func handleTooFewVoters(subsidyCache *blockchain.SubsidyCache, nextHeight int64,
 		"new block template")
 
 	return nil, nil
-}
-
-// handleCreatedBlockTemplate stores a successfully created block template to
-// the appropriate cache if needed, then returns the template to the miner to
-// work on. The stored template is a copy of the template, to prevent races
-// from occurring in case the template is mined on by the CPUminer.
-func handleCreatedBlockTemplate(blockTemplate *BlockTemplate, bm *blockManager) (*BlockTemplate, error) {
-	curTemplate := bm.GetCurrentTemplate()
-
-	nextBlockHeight := blockTemplate.Height
-	stakeValidationHeight := bm.server.chainParams.StakeValidationHeight
-	// This is where we begin storing block templates, when either the
-	// program is freshly started or the chain is matured to stake
-	// validation height.
-	if curTemplate == nil && nextBlockHeight >= stakeValidationHeight-2 {
-		bm.SetCurrentTemplate(blockTemplate)
-	}
-
-	// We're at the height where the next block needs to include SSGens,
-	// so we check to if CachedCurrentTemplate is out of date. If it is,
-	// we store it as the cached parent template, and store the new block
-	// template as the currenct template.
-	if curTemplate != nil && nextBlockHeight >= stakeValidationHeight-1 {
-		if curTemplate.Height < nextBlockHeight {
-			bm.SetParentTemplate(curTemplate)
-			bm.SetCurrentTemplate(blockTemplate)
-		}
-	}
-
-	// Overwrite the old cached block if it's out of date.
-	if curTemplate != nil {
-		if curTemplate.Height == nextBlockHeight {
-			bm.SetCurrentTemplate(blockTemplate)
-		}
-	}
-
-	return blockTemplate, nil
 }
 
 // NewBlockTemplate returns a new block template that is ready to be solved
@@ -2040,7 +1997,8 @@ mempoolLoop:
 		ValidPayAddress: payToAddress != nil,
 	}
 
-	return handleCreatedBlockTemplate(blockTemplate, server.blockManager)
+	return blockTemplate, nil
+	// return handleCreatedBlockTemplate(blockTemplate, server.blockManager)
 }
 
 // UpdateBlockTime updates the timestamp in the header of the passed block to
@@ -2049,7 +2007,7 @@ mempoolLoop:
 // consensus rules.  Finally, it will update the target difficulty if needed
 // based on the new time for the test networks since their target difficulty can
 // change based upon time.
-func UpdateBlockTime(msgBlock *wire.MsgBlock, bManager *blockManager) error {
+func UpdateBlockTime(header *wire.BlockHeader, bManager *blockManager) error {
 	// The new timestamp is potentially adjusted to ensure it comes after
 	// the median time of the last several blocks per the chain consensus
 	// rules.
@@ -2058,7 +2016,7 @@ func UpdateBlockTime(msgBlock *wire.MsgBlock, bManager *blockManager) error {
 	if err != nil {
 		return miningRuleError(ErrGettingMedianTime, err.Error())
 	}
-	msgBlock.Header.Timestamp = newTimestamp
+	header.Timestamp = newTimestamp
 
 	// If running on a network that requires recalculating the difficulty,
 	// do so now.
@@ -2068,7 +2026,7 @@ func UpdateBlockTime(msgBlock *wire.MsgBlock, bManager *blockManager) error {
 		if err != nil {
 			return miningRuleError(ErrGettingDifficulty, err.Error())
 		}
-		msgBlock.Header.Bits = difficulty
+		header.Bits = difficulty
 	}
 
 	return nil

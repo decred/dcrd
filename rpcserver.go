@@ -2343,137 +2343,39 @@ func (state *gbtWorkState) templateUpdateChan(prevHash *chainhash.Hash, lastGene
 // addresses.
 //
 // This function MUST be called with the state locked.
-func (state *gbtWorkState) updateBlockTemplate(s *rpcServer, useCoinbaseValue bool) error {
+func (state *gbtWorkState) updateBlockTemplate(s *rpcServer) error {
+	s.server.blockManager.chain.WaitForChain()
+	updateChan := s.server.blockManager.RequestTemplateUpdate()
+	template := <-updateChan
+	minrLog.Debugf("block template received "+
+		"(height: %v, hash: %v)",
+		template.Block.Header.Height,
+		template.Block.BlockHash())
+
 	lastTxUpdate := s.server.txMemPool.LastUpdated()
 	if lastTxUpdate.IsZero() {
 		lastTxUpdate = time.Now()
 	}
 
-	// Generate a new block template when the current best block has
-	// changed or the transactions in the memory pool have been updated and
-	// it has been at least gbtRegenerateSecond since the last template was
-	// generated.
-	var msgBlock *wire.MsgBlock
-	var targetDifficulty string
+	s.server.blockManager.chainState.Lock()
 	latestHash, _ := s.server.blockManager.chainState.Best()
-	template := state.template
-	if template == nil || state.prevHash == nil ||
-		!state.prevHash.IsEqual(latestHash) ||
-		(state.lastTxUpdate != lastTxUpdate &&
-			time.Now().After(state.lastGenerated.Add(time.Second*
-				gbtRegenerateSeconds))) {
+	s.server.blockManager.chainState.Unlock()
 
-		// Reset the previous best hash the block template was generated
-		// against so any errors below cause the next invocation to try
-		// again.
-		state.prevHash = nil
-
-		// Choose a payment address at random if the caller requests a
-		// full coinbase as opposed to only the pertinent details needed
-		// to create their own coinbase.
-		var payAddr dcrutil.Address
-		if !useCoinbaseValue {
-			payAddr = cfg.miningAddrs[rand.Intn(len(cfg.miningAddrs))]
-		}
-
-		// Create a new block template that has a coinbase which anyone
-		// can redeem.  This is only acceptable because the returned
-		// block template doesn't include the coinbase, so the caller
-		// will ultimately create their own coinbase which pays to the
-		// appropriate address(es).
-		blkTemplate, err := NewBlockTemplate(s.policy, s.server, payAddr)
-		if err != nil {
-			return rpcInternalError("Failed to create new block "+
-				"template: "+err.Error(), "")
-		}
-		if blkTemplate == nil {
-			return rpcInternalError("Failed to create new block "+
-				"template: not enough voters on parent and no "+
-				"suitable cached template", "")
-		}
-		template = blkTemplate
-		msgBlock = template.Block
-		targetDifficulty = fmt.Sprintf("%064x",
-			blockchain.CompactToBig(msgBlock.Header.Bits))
-
-		// Find the minimum allowed timestamp for the block based on the
-		// median timestamp of the last several blocks per the chain
-		// consensus rules.
-		chainState := &s.server.blockManager.chainState
-		minTimestamp, err := minimumMedianTime(chainState)
-		if err != nil {
-			context := "Failed to get minimum median time"
-			return rpcInternalError(err.Error(), context)
-		}
-
-		// Update work state to ensure another block template isn't
-		// generated until needed.
-		state.template = deepCopyBlockTemplate(template)
-		state.lastGenerated = time.Now()
-		state.lastTxUpdate = lastTxUpdate
-		state.prevHash = latestHash
-		state.minTimestamp = minTimestamp
-
-		rpcsLog.Debugf("Generated block template (timestamp %v, "+
-			"target %s, merkle root %s)",
-			msgBlock.Header.Timestamp, targetDifficulty,
-			msgBlock.Header.MerkleRoot)
-
-		// Notify any clients that are long polling about the new
-		// template.
-		state.notifyLongPollers(latestHash, lastTxUpdate)
-	} else {
-		// At this point, there is a saved block template and another
-		// request for a template was made, but either the available
-		// transactions haven't change or it hasn't been long enough to
-		// trigger a new block template to be generated.  So, update the
-		// existing block template.
-
-		// When the caller requires a full coinbase as opposed to only
-		// the pertinent details needed to create their own coinbase,
-		// add a payment address to the output of the coinbase of the
-		// template if it doesn't already have one.  Since this requires
-		// mining addresses to be specified via the config, an error is
-		// returned if none have been specified.
-		if !useCoinbaseValue && !template.ValidPayAddress {
-			// Choose a payment address at random.
-			payToAddr := cfg.miningAddrs[rand.Intn(len(cfg.miningAddrs))]
-
-			// Update the block coinbase output of the template to
-			// pay to the randomly selected payment address.
-			pkScript, err := txscript.PayToAddrScript(payToAddr)
-			if err != nil {
-				context := "Failed to create pay-to-addr script"
-				return rpcInternalError(err.Error(), context)
-			}
-			template.Block.Transactions[0].TxOut[0].PkScript = pkScript
-			template.ValidPayAddress = true
-
-			// Update the merkle root.
-			block := dcrutil.NewBlock(template.Block)
-			merkles := blockchain.BuildMerkleTreeStore(block.Transactions())
-			template.Block.Header.MerkleRoot = *merkles[len(merkles)-1]
-		}
-
-		// Set locals for convenience.
-		msgBlock = template.Block
-		targetDifficulty = fmt.Sprintf("%064x",
-			blockchain.CompactToBig(msgBlock.Header.Bits))
-
-		// Update the time of the block template to the current time
-		// while accounting for the median time of the past several
-		// blocks per the chain consensus rules.
-		err := UpdateBlockTime(msgBlock, s.server.blockManager)
-		if err != nil {
-			context := "Failed to update timestamp"
-			return rpcInternalError(err.Error(), context)
-		}
-		msgBlock.Header.Nonce = 0
-
-		rpcsLog.Debugf("Updated block template (timestamp %v, "+
-			"target %s)", msgBlock.Header.Timestamp,
-			targetDifficulty)
+	// Find the minimum allowed timestamp for the block based on the
+	// median timestamp of the last several blocks per the chain
+	// consensus rules.
+	chainState := &s.server.blockManager.chainState
+	minTimestamp, err := minimumMedianTime(chainState)
+	if err != nil {
+		context := "Failed to get minimum median time"
+		return rpcInternalError(err.Error(), context)
 	}
+
+	state.lastGenerated = time.Now()
+	state.lastTxUpdate = lastTxUpdate
+	state.prevHash = latestHash
+	state.minTimestamp = minTimestamp
+	state.notifyLongPollers(latestHash, lastTxUpdate)
 
 	return nil
 }
@@ -2716,7 +2618,7 @@ func handleGetBlockTemplateLongPoll(s *rpcServer, longPollID string, useCoinbase
 	// be manually unlocked before waiting for a notification about block
 	// template changes.
 
-	if err := state.updateBlockTemplate(s, useCoinbaseValue); err != nil {
+	if err := state.updateBlockTemplate(s); err != nil {
 		state.Unlock()
 		return nil, err
 	}
@@ -2740,9 +2642,7 @@ func handleGetBlockTemplateLongPoll(s *rpcServer, longPollID string, useCoinbase
 	// identified by the long poll ID no longer matches the current block
 	// template as this means the provided template is stale.
 	prevTemplateHash := &state.template.Block.Header.PrevBlock
-	if !prevHash.IsEqual(prevTemplateHash) ||
-		lastGenerated != state.lastGenerated.Unix() {
-
+	if !prevHash.IsEqual(prevTemplateHash) {
 		// Include whether or not it is valid to submit work against the
 		// old block template depending on whether or not a solution has
 		// already been found and added to the block chain.
@@ -2776,11 +2676,11 @@ func handleGetBlockTemplateLongPoll(s *rpcServer, longPollID string, useCoinbase
 		// Fallthrough
 	}
 
-	// Get the lastest block template
+	// Get the lastest block template.
 	state.Lock()
 	defer state.Unlock()
 
-	if err := state.updateBlockTemplate(s, useCoinbaseValue); err != nil {
+	if err := state.updateBlockTemplate(s); err != nil {
 		return nil, err
 	}
 
@@ -2874,7 +2774,7 @@ func handleGetBlockTemplateRequest(s *rpcServer, request *dcrjson.TemplateReques
 	// least five seconds since the last template was generated.
 	// Otherwise, the timestamp for the existing block template is updated
 	// (and possibly the difficulty on testnet per the consesus rules).
-	if err := state.updateBlockTemplate(s, useCoinbaseValue); err != nil {
+	if err := state.updateBlockTemplate(s); err != nil {
 		return nil, err
 	}
 	return state.blockTemplateResult(s.server.blockManager, useCoinbaseValue, nil)
@@ -4042,123 +3942,15 @@ func pruneOldBlockTemplates(s *rpcServer, bestHeight int64) {
 }
 
 // handleGetWorkRequest is a helper for handleGetWork which deals with
-// generating and returning work to the caller.
+// fetching and returning work to the caller.
 //
 // This function MUST be called with the RPC workstate locked.
 func handleGetWorkRequest(s *rpcServer) (interface{}, error) {
-	state := s.workState
-
-	// Generate a new block template when the current best block has
-	// changed or the transactions in the memory pool have been updated and
-	// it has been at least one minute since the last template was
-	// generated.
-	lastTxUpdate := s.server.txMemPool.LastUpdated()
-	latestHash, latestHeight := s.server.blockManager.chainState.Best()
-	msgBlock := state.msgBlock
-
-	// The current code pulls down a new template every second, however
-	// with a large mempool this will be pretty excruciating sometimes. It
-	// should examine whether or not a new template needs to be created
-	// based on the votes present every second or so, and then, if needed,
-	// generate a new block template. TODO cj
-	if msgBlock == nil || state.prevHash == nil ||
-		!state.prevHash.IsEqual(latestHash) ||
-		(state.lastTxUpdate != lastTxUpdate &&
-			time.Now().After(state.lastGenerated.Add(time.Second))) {
-		// Reset the extra nonce and clear all expired cached template
-		// variations if the best block changed.
-		if state.prevHash != nil && !state.prevHash.IsEqual(latestHash) {
-			state.extraNonce = 0
-			pruneOldBlockTemplates(s, latestHeight)
-		}
-
-		// Reset the previous best hash the block template was
-		// generated against so any errors below cause the next
-		// invocation to try again.
-		state.prevHash = nil
-
-		// Choose a payment address at random.
-		payToAddr := cfg.miningAddrs[rand.Intn(len(cfg.miningAddrs))]
-
-		template, err := NewBlockTemplate(s.policy, s.server, payToAddr)
-		if err != nil {
-			context := "Failed to create new block template"
-			return nil, rpcInternalError(err.Error(), context)
-		}
-		if template == nil {
-			// This happens if the template is returned nil because
-			// there are not enough voters on HEAD and there is
-			// currently an unsuitable parent cached template to
-			// try building off of.
-			context := "Failed to create new block template: not " +
-				"enough voters and failed to find a suitable " +
-				"parent template to build from"
-			return nil, rpcInternalError("internal error", context)
-		}
-		templateCopy := deepCopyBlockTemplate(template)
-		msgBlock = templateCopy.Block
-
-		// Update work state to ensure another block template isn't
-		// generated until needed.
-		state.msgBlock = msgBlock
-		state.lastGenerated = time.Now()
-		state.lastTxUpdate = lastTxUpdate
-		state.prevHash = latestHash
-
-		rpcsLog.Debugf("Generated block template (timestamp %v, extra "+
-			"nonce %d, target %064x, merkle root %s)",
-			msgBlock.Header.Timestamp, state.extraNonce,
-			blockchain.CompactToBig(msgBlock.Header.Bits),
-			msgBlock.Header.MerkleRoot)
-	} else {
-		if msgBlock == nil {
-			context := "Failed to create new block template, " +
-				"no previous state"
-			return nil, rpcInternalError("internal error", context)
-		}
-
-		// At this point, there is a saved block template and a new
-		// request for work was made, but either the available
-		// transactions haven't change or it hasn't been long enough to
-		// trigger a new block template to be generated.  So, update the
-		// existing block template and track the variations so each
-		// variation can be regenerated if a caller finds an answer and
-		// makes a submission against it.
-		templateCopy := deepCopyBlockTemplate(&BlockTemplate{
-			Block: msgBlock,
-		})
-		msgBlock = templateCopy.Block
-
-		// Update the time of the block template to the current time
-		// while accounting for the median time of the past several
-		// blocks per the chain consensus rules.
-		err := UpdateBlockTime(msgBlock, s.server.blockManager)
-		if err != nil {
-			return nil, rpcInternalError(err.Error(),
-				"Failed to update block time")
-		}
-
-		if templateCopy.Height > 1 {
-			// Increment the extra nonce and update the block template
-			// with the new value by regenerating the coinbase script and
-			// setting the merkle root to the new value.
-			en := extractCoinbaseExtraNonce(msgBlock) + 1
-			state.extraNonce++
-			err := UpdateExtraNonce(msgBlock, latestHeight+1, en)
-			if err != nil {
-				errStr := fmt.Sprintf("Failed to update extra nonce: "+
-					"%v", err)
-				return nil, rpcInternalError(errStr, "")
-			}
-		}
-
-		rpcsLog.Debugf("Updated block template (timestamp %v, extra "+
-			"nonce %d, target %064x, merkle root %s)",
-			msgBlock.Header.Timestamp,
-			state.extraNonce,
-			blockchain.CompactToBig(msgBlock.Header.Bits),
-			msgBlock.Header.MerkleRoot)
-	}
+	var msgBlock *wire.MsgBlock
+	s.server.blockManager.chain.WaitForChain()
+	s.server.blockManager.templateMtx.RLock()
+	msgBlock = s.server.blockManager.cachedCurrentTemplate.Block
+	s.server.blockManager.templateMtx.RUnlock()
 
 	// In order to efficiently store the variations of block templates that
 	// have been provided to callers, save a pointer to the block as well
@@ -4364,12 +4156,18 @@ func handleGetWork(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) (in
 		}
 	}
 
-	c := cmd.(*dcrjson.GetWorkCmd)
+	// Exit early if the template has not been generated yet.
+	s.server.blockManager.templateMtx.RLock()
+	templateNotGenerated := s.server.blockManager.cachedCurrentTemplate == nil
+	s.server.blockManager.templateMtx.RUnlock()
+	if templateNotGenerated {
+		return nil, &dcrjson.RPCError{
+			Code:    dcrjson.ErrRPCClientInInitialDownload,
+			Message: "Template is being generated...",
+		}
+	}
 
-	// Protect concurrent access from multiple RPC invocations for work
-	// requests and submission.
-	s.workState.Lock()
-	defer s.workState.Unlock()
+	c := cmd.(*dcrjson.GetWorkCmd)
 
 	// When the caller provides data, it is a submission of a supposedly
 	// solved block that needs to be checked and submitted to the network
@@ -5806,7 +5604,6 @@ type rpcServer struct {
 	statusLock             sync.RWMutex
 	wg                     sync.WaitGroup
 	listeners              []net.Listener
-	workState              *workState
 	gbtWorkState           *gbtWorkState
 	templatePool           map[[merkleRootPairSize]byte]*workStateBlockInfo
 	helpCacher             *helpCacher
@@ -6445,7 +6242,6 @@ func newRPCServer(listenAddrs []string, policy *mining.Policy, s *server) (*rpcS
 		server:                 s,
 		chain:                  s.blockManager.chain,
 		statusLines:            make(map[int]string),
-		workState:              newWorkState(),
 		templatePool:           make(map[[merkleRootPairSize]byte]*workStateBlockInfo),
 		gbtWorkState:           newGbtWorkState(s.timeSource),
 		helpCacher:             newHelpCacher(),

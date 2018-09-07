@@ -2467,7 +2467,14 @@ func newServer(listenAddrs []string, db database.DB, chainParams *chaincfg.Param
 	if len(indexes) > 0 {
 		indexManager = indexers.NewManager(db, indexes, chainParams)
 	}
-	bm, err := newBlockManager(&s, indexManager, interrupt)
+
+	// A config with mining address(es) connotes a mining node.
+	var isMining bool
+	if len(cfg.miningAddrs) > 0 {
+		isMining = true
+	}
+
+	bm, err := newBlockManager(&s, indexManager, isMining, interrupt)
 	if err != nil {
 		return nil, err
 	}
@@ -2505,6 +2512,8 @@ func newServer(listenAddrs []string, db database.DB, chainParams *chaincfg.Param
 		PastMedianTime:   func() time.Time { return bm.chain.BestSnapshot().MedianTime },
 		AddrIndex:        s.addrIndex,
 		ExistsAddrIndex:  s.existsAddrIndex,
+		RegenTemplate:    func() { bm.RegenTemplate() },
+		NonVoteTx:        func() { bm.ReceiveNonVoteTx() },
 	}
 	s.txMemPool = mempool.New(&txC)
 

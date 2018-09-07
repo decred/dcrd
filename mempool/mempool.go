@@ -120,6 +120,14 @@ type Config struct {
 	// to use for indexing the unconfirmed transactions in the memory pool.
 	// This can be nil if the address index is not enabled.
 	ExistsAddrIndex *indexers.ExistsAddrIndex
+
+	// RegenTemplate defines the function to use in regenerating a
+	// block template.
+	RegenTemplate func()
+
+	// NonVoteTx defines the function to use in signalling the receipt of a non
+	// vota transaction.
+	NonVoteTx func()
 }
 
 // Policy houses the policy (configuration parameters) which is used to
@@ -643,6 +651,21 @@ func (mp *TxPool) RemoveDoubleSpends(tx *dcrutil.Tx) {
 // This function MUST be called with the mempool lock held (for writes).
 func (mp *TxPool) addTransaction(utxoView *blockchain.UtxoViewpoint,
 	tx *dcrutil.Tx, txType stake.TxType, height int64, fee int64) {
+	// Signal block template regeneration when a vote transaction is received
+	// or a non vote transaction if the received transaction is not a vote.
+	if txType == stake.TxTypeSSGen {
+		if mp.cfg.RegenTemplate != nil {
+			mp.cfg.RegenTemplate()
+		} else {
+			log.Debug("provided regen template function is nil")
+		}
+	} else {
+		if mp.cfg.NonVoteTx != nil {
+			mp.cfg.NonVoteTx()
+		} else {
+			log.Debug("provided non vote tx function is nil")
+		}
+	}
 
 	// Add the transaction to the pool and mark the referenced outpoints
 	// as spent by the pool.
