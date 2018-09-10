@@ -44,6 +44,7 @@ import (
 	"github.com/decred/dcrd/dcrec/secp256k1"
 	"github.com/decred/dcrd/dcrjson"
 	"github.com/decred/dcrd/dcrutil"
+	"github.com/decred/dcrd/internal/version"
 	"github.com/decred/dcrd/mempool"
 	"github.com/decred/dcrd/mining"
 	"github.com/decred/dcrd/txscript"
@@ -797,6 +798,7 @@ func handleCreateRawSStx(s *rpcServer, cmd interface{}, closeChan <-chan struct{
 		// server is currently on.
 		switch addr.(type) {
 		case *dcrutil.AddressPubKeyHash:
+		case *dcrutil.AddressScriptHash:
 		default:
 			return nil, rpcAddressKeyError("Invalid address type: "+
 				"%T", addr)
@@ -3229,8 +3231,8 @@ func handleGetHeaders(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) 
 func handleGetInfo(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) (interface{}, error) {
 	best := s.chain.BestSnapshot()
 	ret := &dcrjson.InfoChainResult{
-		Version: int32(1000000*appMajor + 10000*appMinor +
-			100*appPatch),
+		Version: int32(1000000*version.Major + 10000*version.Minor +
+			100*version.Patch),
 		ProtocolVersion: int32(maxProtocolVersion),
 		Blocks:          best.Height,
 		TimeOffset:      int64(s.server.timeSource.Offset().Seconds()),
@@ -3515,6 +3517,7 @@ func handleGetRawTransaction(s *rpcServer, cmd interface{}, closeChan <-chan str
 	var mtx *wire.MsgTx
 	var blkHash *chainhash.Hash
 	var blkHeight int64
+	var blkIndex uint32
 	tx, err := s.server.txMemPool.FetchTransaction(txHash, true)
 	if err != nil {
 		txIndex := s.server.txIndex
@@ -3552,13 +3555,14 @@ func handleGetRawTransaction(s *rpcServer, cmd interface{}, closeChan <-chan str
 			return hex.EncodeToString(txBytes), nil
 		}
 
-		// Grab the block height.
+		// Grab the block details.
 		blkHash = blockRegion.Hash
 		blkHeight, err = s.chain.BlockHeightByHash(blkHash)
 		if err != nil {
 			context := "Failed to retrieve block height"
 			return nil, rpcInternalError(err.Error(), context)
 		}
+		blkIndex = wire.NullBlockIndex // TODO: Update txindex to provide.
 
 		// Deserialize the transaction
 		var msgTx wire.MsgTx
@@ -3606,9 +3610,8 @@ func handleGetRawTransaction(s *rpcServer, cmd interface{}, closeChan <-chan str
 		confirmations = 1 + s.chain.BestSnapshot().Height - blkHeight
 	}
 
-	rawTxn, err := createTxRawResult(s.server.chainParams, mtx,
-		txHash.String(), 0, blkHeader, blkHashStr, blkHeight,
-		confirmations)
+	rawTxn, err := createTxRawResult(s.server.chainParams, mtx, txHash.String(),
+		blkIndex, blkHeader, blkHashStr, blkHeight, confirmations)
 	if err != nil {
 		return nil, err
 	}
@@ -4527,9 +4530,10 @@ func handleRebroadcastWinners(s *rpcServer, cmd interface{}, closeChan <-chan st
 // This is mainly done for efficiency to avoid extra serialization steps when
 // possible.
 type retrievedTx struct {
-	txBytes []byte
-	blkHash *chainhash.Hash // Only set when transaction is in a block.
-	tx      *dcrutil.Tx
+	txBytes  []byte
+	blkHash  *chainhash.Hash // Only set when transaction is in a block.
+	blkIndex uint32          // Only set when transaction is in a block.
+	tx       *dcrutil.Tx
 }
 
 // fetchInputTxos fetches the outpoints from all transactions referenced by the
@@ -4838,8 +4842,8 @@ func handleSearchRawTransactions(s *rpcServer, cmd interface{}, closeChan <-chan
 	addressTxns := make([]retrievedTx, 0, numRequested)
 	if reverse {
 		// Transactions in the mempool are not in a block header yet,
-		// so the block header field in the retieved transaction struct
-		// is left nil.
+		// so the block header and block index fields in the retrieved
+		// transaction struct are left unset.
 		mpTxns, mpSkipped := fetchMempoolTxnsForAddress(s, addr,
 			uint32(numToSkip), uint32(numRequested))
 		numSkipped += mpSkipped
@@ -4871,10 +4875,13 @@ func handleSearchRawTransactions(s *rpcServer, cmd interface{}, closeChan <-chan
 			// requested non-verbose output and hence there would
 			// be no point in deserializing it just to reserialize
 			// it later.
+			//
+			// TODO: Update txindex to provide block index.
 			for i, serializedTx := range serializedTxns {
 				addressTxns = append(addressTxns, retrievedTx{
-					txBytes: serializedTx,
-					blkHash: regions[i].Hash,
+					txBytes:  serializedTx,
+					blkHash:  regions[i].Hash,
+					blkIndex: wire.NullBlockIndex,
 				})
 			}
 			numSkipped += dbSkipped
@@ -4977,6 +4984,7 @@ func handleSearchRawTransactions(s *rpcServer, cmd interface{}, closeChan <-chan
 		result.Vout = createVoutList(mtx, chainParams, filterAddrMap)
 		result.Version = int32(mtx.Version)
 		result.LockTime = mtx.LockTime
+		result.Expiry = mtx.Expiry
 
 		// Transactions grabbed from the mempool aren't yet in a block,
 		// so conditionally fetch block details here.  This will be
@@ -4985,6 +4993,7 @@ func handleSearchRawTransactions(s *rpcServer, cmd interface{}, closeChan <-chan
 		var blkHeader *wire.BlockHeader
 		var blkHashStr string
 		var blkHeight int64
+		var blkIndex uint32
 		if blkHash := rtx.blkHash; blkHash != nil {
 			// Fetch the header from chain.
 			header, err := s.chain.HeaderByHash(blkHash)
@@ -5005,6 +5014,7 @@ func handleSearchRawTransactions(s *rpcServer, cmd interface{}, closeChan <-chan
 			blkHeader = &header
 			blkHashStr = blkHash.String()
 			blkHeight = height
+			blkIndex = rtx.blkIndex
 		}
 
 		// Add the block information to the result if there is any.
@@ -5014,6 +5024,8 @@ func handleSearchRawTransactions(s *rpcServer, cmd interface{}, closeChan <-chan
 			result.Time = blkHeader.Timestamp.Unix()
 			result.Blocktime = blkHeader.Timestamp.Unix()
 			result.BlockHash = blkHashStr
+			result.BlockHeight = blkHeight
+			result.BlockIndex = blkIndex
 			result.Confirmations = uint64(1 + best.Height - blkHeight)
 		}
 	}
@@ -5765,8 +5777,9 @@ func handleVerifyMessage(s *rpcServer, cmd interface{}, closeChan <-chan struct{
 // handleVersion implements the version command.
 func handleVersion(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) (interface{}, error) {
 	runtimeVer := strings.Replace(runtime.Version(), ".", "-", -1)
-	buildMeta := normalizeBuildString(runtimeVer)
-	if build := normalizeBuildString(appBuild); build != "" {
+	buildMeta := version.NormalizeBuildString(runtimeVer)
+	build := version.NormalizeBuildString(version.BuildMetadata)
+	if build != "" {
 		buildMeta = fmt.Sprintf("%s.%s", build, buildMeta)
 	}
 	result := map[string]dcrjson.VersionResult{
@@ -5777,11 +5790,11 @@ func handleVersion(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) (in
 			Patch:         jsonrpcSemverPatch,
 		},
 		"dcrd": {
-			VersionString: version(),
-			Major:         uint32(appMajor),
-			Minor:         uint32(appMinor),
-			Patch:         uint32(appPatch),
-			Prerelease:    normalizePreRelString(appPreRelease),
+			VersionString: version.String(),
+			Major:         uint32(version.Major),
+			Minor:         uint32(version.Minor),
+			Patch:         uint32(version.Patch),
+			Prerelease:    version.NormalizePreRelString(version.PreRelease),
 			BuildMetadata: buildMeta,
 		},
 	}
@@ -6448,7 +6461,7 @@ func newRPCServer(listenAddrs []string, policy *mining.Policy, s *server) (*rpcS
 		gbtWorkState:           newGbtWorkState(s.timeSource),
 		helpCacher:             newHelpCacher(),
 		requestProcessShutdown: make(chan struct{}),
-		quit: make(chan int),
+		quit:                   make(chan int),
 	}
 	if cfg.RPCUser != "" && cfg.RPCPass != "" {
 		login := cfg.RPCUser + ":" + cfg.RPCPass

@@ -16,7 +16,8 @@ import (
 	"time"
 
 	"github.com/decred/dcrd/blockchain/indexers"
-	"github.com/decred/dcrd/limits"
+	"github.com/decred/dcrd/internal/limits"
+	"github.com/decred/dcrd/internal/version"
 )
 
 var cfg *config
@@ -51,7 +52,8 @@ func dcrdMain(serverChan chan<- *server) error {
 	defer dcrdLog.Info("Shutdown complete")
 
 	// Show version and home dir at startup.
-	dcrdLog.Infof("Version %s (Go version %s)", version(), runtime.Version())
+	dcrdLog.Infof("Version %s (Go version %s %s/%s)", version.String(),
+		runtime.Version(), runtime.GOOS, runtime.GOARCH)
 	dcrdLog.Infof("Home dir: %s", cfg.HomeDir)
 	if cfg.NoFileLogging {
 		dcrdLog.Info("File logging disabled")

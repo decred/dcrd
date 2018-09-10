@@ -76,17 +76,6 @@ func NewExistsAddrIndex(db database.DB, chainParams *chaincfg.Params) *ExistsAdd
 // Ensure the ExistsAddrIndex type implements the Indexer interface.
 var _ Indexer = (*ExistsAddrIndex)(nil)
 
-// Ensure the ExistsAddrIndex type implements the NeedsInputser interface.
-var _ NeedsInputser = (*ExistsAddrIndex)(nil)
-
-// NeedsInputs signals that the index requires the referenced inputs in order
-// to properly create the index.
-//
-// This implements the NeedsInputser interface.
-func (idx *ExistsAddrIndex) NeedsInputs() bool {
-	return false
-}
-
 // Init is only provided to satisfy the Indexer interface as there is nothing to
 // initialize for this index.
 //
@@ -122,13 +111,13 @@ func (idx *ExistsAddrIndex) Create(dbTx database.Tx) error {
 
 // dbPutExistsAddr uses an existing database transaction to update or add a
 // used address index to the database.
-func dbPutExistsAddr(bucket database.Bucket, addrKey [addrKeySize]byte) error {
+func dbPutExistsAddr(bucket internalBucket, addrKey [addrKeySize]byte) error {
 	return bucket.Put(addrKey[:], nil)
 }
 
 // existsAddress takes a bucket and key for an address and responds with
 // whether or not the key exists in the database.
-func (idx *ExistsAddrIndex) existsAddress(bucket database.Bucket, k [addrKeySize]byte) bool {
+func (idx *ExistsAddrIndex) existsAddress(bucket internalBucket, k [addrKeySize]byte) bool {
 	if bucket.Get(k[:]) != nil {
 		return true
 	}

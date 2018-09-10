@@ -9,6 +9,7 @@ import (
 	"compress/bzip2"
 	"encoding/gob"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -26,9 +27,6 @@ import (
 const (
 	// testDbType is the database backend type to use for the tests.
 	testDbType = "ffldb"
-
-	// testDbRoot is the root directory used to create all test databases.
-	testDbRoot = "testdbs"
 )
 
 // calcHash256PRNGIVFromHeader calculates the initialization vector for a
@@ -212,7 +210,7 @@ func TestTicketDBLongChain(t *testing.T) {
 	// Declare some useful variables.
 	params := &chaincfg.SimNetParams
 	testBCHeight := int64(1001)
-	filename := filepath.Join("..", "/../blockchain/testdata", "testexpiry.bz2")
+	filename := filepath.Join("testdata", "testexpiry.bz2")
 	fi, err := os.Open(filename)
 	if err != nil {
 		t.Fatalf("failed ot open test data: %v", err)
@@ -405,16 +403,15 @@ func TestTicketDBLongChain(t *testing.T) {
 	/*
 		// Create a new database to store the accepted stake node data into.
 		dbName := "ffldb_staketest"
-		dbPath := filepath.Join(testDbRoot, dbName)
-		_ = os.RemoveAll(dbPath)
+		dbPath, err := ioutil.TempDir("", dbName)
+		if err != nil {
+			t.Fatalf("unable to create test db path: %v", err)
+		}
+		defer os.RemoveAll(dbPath)
 		testDb, err := database.Create(testDbType, dbPath, params.Net)
 		if err != nil {
 			t.Fatalf("error creating db: %v", err)
 		}
-
-		// Setup a teardown.
-		defer os.RemoveAll(dbPath)
-		defer os.RemoveAll(testDbRoot)
 		defer testDb.Close()
 
 		// Load the genesis block and begin testing exported functions.
@@ -593,7 +590,7 @@ func TestTicketDBGeneral(t *testing.T) {
 	// Declare some useful variables.
 	params := &chaincfg.SimNetParams
 	testBCHeight := int64(168)
-	filename := filepath.Join("..", "/../blockchain/testdata", "blocks0to168.bz2")
+	filename := filepath.Join("testdata", "blocks0to168.bz2")
 	fi, err := os.Open(filename)
 	if err != nil {
 		t.Errorf("Failed to open %s: %v", filename, err)
@@ -625,16 +622,15 @@ func TestTicketDBGeneral(t *testing.T) {
 
 	// Create a new database to store the accepted stake node data into.
 	dbName := "ffldb_staketest"
-	dbPath := filepath.Join(testDbRoot, dbName)
-	_ = os.RemoveAll(dbPath)
+	dbPath, err := ioutil.TempDir("", dbName)
+	if err != nil {
+		t.Fatalf("unable to create test db path: %v", err)
+	}
+	defer os.RemoveAll(dbPath)
 	testDb, err := database.Create(testDbType, dbPath, params.Net)
 	if err != nil {
 		t.Fatalf("error creating db: %v", err)
 	}
-
-	// Setup a teardown.
-	defer os.RemoveAll(dbPath)
-	defer os.RemoveAll(testDbRoot)
 	defer testDb.Close()
 
 	// Load the genesis block and begin testing exported functions.
