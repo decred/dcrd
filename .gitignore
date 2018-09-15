@@ -18,6 +18,7 @@ dcrd.db
 _obj
 _test
 vendor
+.idea
 
 # Architecture specific extensions/prefixes
 *.[568vq]
