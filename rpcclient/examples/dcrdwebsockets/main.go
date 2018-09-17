@@ -8,11 +8,13 @@ package main
 import (
 	"io/ioutil"
 	"log"
+	"os"
 	"path/filepath"
 	"time"
 
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/dcrd/rpcclient"
+	"github.com/decred/slog"
 )
 
 func main() {
@@ -35,13 +37,35 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	// connCfg := &rpcclient.ConnConfig{
+	// 	Host:         "localhost:9109",
+	// 	Endpoint:     "ws",
+	// 	User:         "yourrpcuser",
+	// 	Pass:         "yourrpcpass",
+	// 	Certificates: certs,
+	// }
+	hostAdds := []rpcclient.HostAddress{}
+	hostAdds = append(hostAdds, rpcclient.HostAddress{Endpoint: "ws", Host: "localhost:19109"})
+	hostAdds = append(hostAdds, rpcclient.HostAddress{Endpoint: "ws", Host: "localhost:19119"})
+
 	connCfg := &rpcclient.ConnConfig{
-		Host:         "localhost:9109",
-		Endpoint:     "ws",
-		User:         "yourrpcuser",
-		Pass:         "yourrpcpass",
-		Certificates: certs,
+		//Host:          "localhost:19109",
+		//Endpoint:      "ws",
+		User:          "+kIg/DhSdAj64PCA1/oeNNPm9CE=",
+		Pass:          "aHQs8vTQUY+XbwdYdVkbPENJK58=",
+		Certificates:  certs,
+		HostAddresses: hostAdds,
+		HTTPPostMode:  false,
 	}
+	// Setup logging.
+	backendLogger := slog.NewBackend(os.Stdout)
+	defer os.Stdout.Sync()
+	//btclog := backendLogger.Logger("MAIN")
+	rpcClientLog := backendLogger.Logger("RPCCLIENT")
+	rpcClientLog.SetLevel(slog.LevelTrace)
+	//dbLog.SetLevel(btclog.LevelDebug)
+	rpcclient.UseLogger(rpcClientLog)
+
 	client, err := rpcclient.New(connCfg, &ntfnHandlers)
 	if err != nil {
 		log.Fatal(err)

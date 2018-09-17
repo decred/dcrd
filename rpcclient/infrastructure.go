@@ -171,8 +171,13 @@ func (c *Client) String() string {
 	default:
 		u.Scheme = "wss"
 	}
-	u.Host = c.config.Host
-	u.Path = c.config.Endpoint
+	_, workingHost, err := c.balancer.NextConn("")
+	if err != nil {
+		log.Errorf("Balancer: Error getting connection: %v", err)
+	} else {
+		u.Host = workingHost.Host
+		u.Path = workingHost.Endpoint
+	}
 	return u.String()
 }
 
@@ -504,7 +509,7 @@ cleanup:
 		}
 	}
 	c.wg.Done()
-	log.Tracef("RPC client output handler done for %s", c.config.Host)
+	log.Tracef("RPC client output handler done for all hosts")
 }
 
 // sendMessage sends the passed JSON to the connected server using the
@@ -674,44 +679,46 @@ out:
 				break out
 			default:
 			}
-			// Work on one disconnected wsConn at a time.
-			discHostAdd := c.balancer.NextDisconnectedWsConn()
-			if discHostAdd != nil {
-				// Create a copy of the config as the instance is referred
-				// and in use elsewhere.
-				confCopy := *c.config
-				confCopy.Host = discHostAdd.Host
-				confCopy.Endpoint = discHostAdd.Endpoint
-				wsConn, err := dial(&confCopy)
-				if err != nil {
-					// Update the retry count for this Host.
-					c.balancer.UpdateReconnectAttempt(discHostAdd)
-					log.Infof("Failed to connect to %s: %v",
-						c.config.Host, err)
+			// iterate over the list of disconnected wsConn
+			var needToRetry bool
+			for _, discHostAdd := range c.balancer.AllDisconnectedWsConns() {
+				if discHostAdd != nil {
+					// Create a copy of the config as the instance is referred
+					// and in use elsewhere.
+					confCopy := *c.config
+					confCopy.Host = discHostAdd.Host
+					confCopy.Endpoint = discHostAdd.Endpoint
+					wsConn, err := dial(&confCopy)
+					if err != nil {
+						// Update the retry count for this Host.
+						c.balancer.UpdateReconnectAttempt(discHostAdd)
+						log.Infof("Failed to connect to %s: %v",
+							c.config.Host, err)
 
-					// Scale the retry interval by the number of
-					// retries so there is a backoff up to a max
-					// of 1 minute.
-					scaledInterval := connectionRetryInterval.Nanoseconds() * (discHostAdd.retryCount + 1)
-					scaledDuration := time.Duration(scaledInterval)
-					if scaledDuration > time.Minute {
-						scaledDuration = time.Minute
+						// Scale the retry interval by the number of
+						// retries so there is a backoff up to a max
+						// of 1 minute.
+						scaledInterval := connectionRetryInterval.Nanoseconds() * (discHostAdd.retryCount + 1)
+						scaledDuration := time.Duration(scaledInterval)
+						if scaledDuration > time.Minute {
+							scaledDuration = time.Minute
+						}
+						log.Infof("Retrying connection to %s in "+
+							"%s", c.config.Host, scaledDuration)
+						time.Sleep(scaledDuration)
+						needToRetry = true
+						continue
 					}
-					log.Infof("Retrying connection to %s in "+
-						"%s", c.config.Host, scaledDuration)
-					time.Sleep(scaledDuration)
-					continue reconnect
+					// Reset the connection state and signal the reconnect
+					// has happened.
+					c.balancer.NotifyReconnect(wsConn, discHostAdd)
+					log.Infof("Reestablished connection to RPC server %s",
+						discHostAdd)
 				}
-				// Reset the connection state and signal the reconnect
-				// has happened.
-				c.balancer.NotifyReconnect(wsConn, discHostAdd)
-				log.Infof("Reestablished connection to RPC server %s",
-					discHostAdd)
-
-				// Check and continue with reconnecting for other wsConns.
-				if c.balancer.NextDisconnectedWsConn() != nil {
-					continue reconnect
-				}
+			}
+			// Continue reconnecting for next iteration.
+			if needToRetry {
+				continue reconnect
 			}
 
 			c.mtx.Lock()
@@ -977,7 +984,7 @@ func (c *Client) doDisconnect() bool {
 		return false
 	}
 
-	log.Tracef("Disconnecting RPC client %s", c.config.Host)
+	log.Tracef("Disconnecting RPC client")
 	close(c.disconnect)
 	// In case of shutdown, we need to close all connections.
 	// Typically the WsInHandlers might be waiting at ReadMessage
@@ -1002,7 +1009,7 @@ func (c *Client) doShutdown() bool {
 	default:
 	}
 
-	log.Tracef("Shutting down RPC client %s", c.config.Host)
+	log.Tracef("Shutting down RPC client")
 	close(c.shutdown)
 	return true
 }

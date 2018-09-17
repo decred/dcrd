@@ -37,13 +37,15 @@ func (s ConnectionState) String() string {
 		return "READY"
 	case shutdown:
 		return "SHUTDOWN"
+	case disconnected:
+		return "DISCONNECTED"
 	default:
 		return "Invalid-State"
 	}
 }
 
 const (
-	// idle indicates the conn is idle.
+	// idle indicates the conn is idle i.e. not yet tried or not yet successfully connected.
 	idle ConnectionState = iota
 
 	// connecting indicates the conn is connecting.
@@ -85,7 +87,7 @@ type picker struct {
 // This would error out if there are no HostAddresses available for round-robin.
 func (p *picker) Pick(balancer Balancer) (conn *HostAddress, err error) {
 
-	if len(p.conns) <= 0 {
+	if len(p.conns) == 0 {
 		log.Infof(ErrNoConnAvailable.Error())
 		return conn, ErrNoConnAvailable
 	}
@@ -216,8 +218,9 @@ func (rrb *RoundRobinBalancer) NextConn(method string) (*websocket.Conn, *HostAd
 			if err != nil {
 				log.Infof("Balancer: Failed to connect to %s: %v",
 					rrb.connConfig.Host, err)
-				// Update the connection state.
-				rrb.NotifyConnStateChange(hostAddress, shutdown, true)
+				// Update the connection state to idle so that we try again
+				// as we haven't yet connected to this host successfully.
+				rrb.NotifyConnStateChange(hostAddress, idle, true)
 				// Try for the next Host.
 				hostAddress, err = rrb.connPicker.Pick(rrb)
 				if err != nil {
@@ -272,6 +275,7 @@ func (rrb *RoundRobinBalancer) NotifyConnStateChange(hostAdd *HostAddress, state
 		}
 	}
 	rrb.connState[hostAdd.Host] = state
+	log.Infof("Connection state update for host %s: %v", hostAdd.Host, state)
 	if sync {
 		rrb.mu.Unlock()
 	}
@@ -360,7 +364,7 @@ func (rrb *RoundRobinBalancer) UpdateReconnectAttempt(hostAdd *HostAddress) {
 func (rrb *RoundRobinBalancer) IsAllDisconnected() bool {
 	rrb.mu.Lock()
 	for _, state := range rrb.connState {
-		if state != disconnected && state != shutdown {
+		if state != disconnected && state != shutdown && state != idle {
 			rrb.mu.Unlock()
 			return false
 		}
@@ -374,18 +378,18 @@ func (rrb *RoundRobinBalancer) IsReady() bool {
 	return rrb.isReady
 }
 
-// NextDisconnectedWsConn will iterate over the connection state map and
-// return the first wsConnection that has its state as Disconnected.
-func (rrb *RoundRobinBalancer) NextDisconnectedWsConn() *HostAddress {
+// AllDisconnectedWsConns will iterate over the connection state map and
+// return all the wsConnections that have their state as Disconnected.
+func (rrb *RoundRobinBalancer) AllDisconnectedWsConns() []*HostAddress {
 	rrb.mu.Lock()
+	var disconnectedWsConns []*HostAddress
 	for host, state := range rrb.connState {
 		if state == disconnected {
-			rrb.mu.Unlock()
-			return rrb.hostAddMap[host]
+			disconnectedWsConns = append(disconnectedWsConns, rrb.hostAddMap[host])
 		}
 	}
 	rrb.mu.Unlock()
-	return nil
+	return disconnectedWsConns
 }
 
 // ConnectionState will return the connection state for given host.
@@ -425,8 +429,8 @@ func (c *Client) BuildBalancer(config *ConnConfig) (Balancer, error) {
 		config.HostAddresses = []HostAddress{{Endpoint: config.Endpoint, Host: config.Host}}
 	}
 	hostAddressesMap := make(map[string]*HostAddress)
-	for _, val := range config.HostAddresses {
-		hostAddressesMap[val.Host] = &val
+	for i, val := range config.HostAddresses {
+		hostAddressesMap[val.Host] = &config.HostAddresses[i]
 	}
 	var rrb Balancer = &RoundRobinBalancer{
 		connPicker: picker{

@@ -3,21 +3,26 @@
 
 [[projects]]
   branch = "master"
+  digest = "1:47ea4fbe2ab4aeb9808502c51e657041c2e49b36b83fc1c1a349135cdf16342f"
   name = "github.com/agl/ed25519"
   packages = [
     ".",
-    "edwards25519"
+    "edwards25519",
   ]
+  pruneopts = "UT"
   revision = "5312a61534124124185d41f09206b9fef1d88403"
 
 [[projects]]
   branch = "master"
+  digest = "1:1e6b2f7aa98b082c30a1303c29a702c369b2ec6d86b74a599bc8bbe2333db299"
   name = "github.com/btcsuite/go-socks"
   packages = ["socks"]
+  pruneopts = "UT"
   revision = "4720035b7bfd2a9bb130b1c184f8bbe41b6f0d0f"
 
 [[projects]]
   branch = "master"
+  digest = "1:2d6b1dd5a1f854ffbc1e7fc3bf4609b3351f9a621930840a8db321beb03922a1"
   name = "github.com/btcsuite/goleveldb"
   packages = [
     "leveldb",
@@ -31,103 +36,155 @@
     "leveldb/opt",
     "leveldb/storage",
     "leveldb/table",
-    "leveldb/util"
+    "leveldb/util",
   ]
+  pruneopts = "UT"
   revision = "7834afc9e8cd15233b6c3d97e12674a31ca24602"
 
 [[projects]]
   branch = "master"
+  digest = "1:50da27383f97dd545cbaa0ff6c5fb0757588dd5d2b3048d5425a34de13c9f421"
   name = "github.com/btcsuite/snappy-go"
   packages = ["."]
+  pruneopts = "UT"
   revision = "0bdef8d067237991ddaa1bb6072a740bc40601ba"
 
 [[projects]]
   branch = "master"
+  digest = "1:a0faecc39336c429a46476189bcb276e47aac54b531bd5c03650319cb759fedc"
   name = "github.com/btcsuite/winsvc"
   packages = [
     "eventlog",
     "mgr",
     "registry",
     "svc",
-    "winapi"
+    "winapi",
   ]
+  pruneopts = "UT"
   revision = "f8fb11f83f7e860e3769a08e6811d1b399a43722"
 
 [[projects]]
   branch = "master"
+  digest = "1:ffe9824d294da03b391f44e1ae8281281b4afc1bdaa9588c9097785e3af10cec"
   name = "github.com/davecgh/go-spew"
   packages = ["spew"]
+  pruneopts = "UT"
   revision = "8991bc29aa16c548c550c7ff78260e27b9ab7c73"
 
 [[projects]]
   branch = "master"
+  digest = "1:05cf4e9e60a620f39b540b8ae6120675740d5f41050a40587d36f599fbbc338c"
   name = "github.com/dchest/blake256"
   packages = ["."]
+  pruneopts = "UT"
   revision = "dee3fe6eb0e98dc774a94fc231f85baf7c29d360"
 
 [[projects]]
+  digest = "1:2915e1464ca9a9480ed2fb94d6939cdf418525b03b24bfb256486990abd8155a"
   name = "github.com/dchest/siphash"
   packages = ["."]
+  pruneopts = "UT"
   revision = "ca249f45189071f5d44dc6401334e3572037b9cb"
   version = "v1.2.0"
 
 [[projects]]
   branch = "master"
+  digest = "1:6e0bace02164b96762f35e9011c931d6f270a4e84e46a35a854910b9216153d8"
   name = "github.com/decred/base58"
   packages = ["."]
+  pruneopts = "UT"
   revision = "56c501706f00d9e1cfacee19a27117e12da24734"
 
 [[projects]]
-  branch = "master"
+  digest = "1:72c1f6339c7ca1ecea3e3d30f9cae51bfca19b02d04cfe7e6db32cbfb9a65ddc"
   name = "github.com/decred/slog"
   packages = ["."]
+  pruneopts = "UT"
   revision = "fbd821ef791ba2b8ae945f5d44f4e49396d230c5"
+  version = "v1.0.0"
 
 [[projects]]
+  digest = "1:43dd08a10854b2056e615d1b1d22ac94559d822e1f8b6fcc92c1a1057e85188e"
   name = "github.com/gorilla/websocket"
   packages = ["."]
+  pruneopts = "UT"
   revision = "ea4d1f681babbce9545c9c5f3d5194a789c89f5b"
   version = "v1.2.0"
 
 [[projects]]
+  digest = "1:1b626a9a3dc9490e97cf64bd3eba87da729b95be0383dda9d0d59fd8ba5da3cf"
   name = "github.com/jessevdk/go-flags"
   packages = ["."]
+  pruneopts = "UT"
   revision = "96dc06278ce32a0e9d957d590bb987c81ee66407"
   version = "v1.3.0"
 
 [[projects]]
   branch = "master"
+  digest = "1:4c44d8756886d0a38a4c4f4f82b0d54f14ab2daf698ad5a9876a69fdd645f2b5"
   name = "github.com/jrick/bitset"
   packages = ["."]
+  pruneopts = "UT"
   revision = "06eae37cdf93c699c0503c23f998167ce841974c"
 
 [[projects]]
   branch = "master"
+  digest = "1:4b6a85c651ea3faa6dfb4e6de5249b602226270b9eb3dfb8f49ec91fa3ef08ff"
   name = "github.com/jrick/logrotate"
   packages = ["rotator"]
+  pruneopts = "UT"
   revision = "a93b200c26cbae3bb09dd0dc2c7c7fe1468a034a"
 
 [[projects]]
   branch = "master"
+  digest = "1:9c2ed66f474408b23cdc4a845f0236897f7b826bf1c4b19eab6e90df998905cb"
   name = "golang.org/x/crypto"
   packages = [
     "ripemd160",
-    "ssh/terminal"
+    "ssh/terminal",
   ]
+  pruneopts = "UT"
   revision = "88942b9c40a4c9d203b82b3731787b672d6e809b"
 
 [[projects]]
   branch = "master"
+  digest = "1:5045bd5ed8083958e27c933e665c38b4de5d7d966146a074d541f691a56d8bc4"
   name = "golang.org/x/sys"
   packages = [
     "unix",
-    "windows"
+    "windows",
   ]
+  pruneopts = "UT"
   revision = "13d03a9a82fba647c21a0ef8fba44a795d0f0835"
 
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "39581a6756a6344d0ccd461101b468d5d9df91892fe8cedd0b87aa0c49d38dc4"
+  input-imports = [
+    "github.com/agl/ed25519",
+    "github.com/agl/ed25519/edwards25519",
+    "github.com/btcsuite/go-socks/socks",
+    "github.com/btcsuite/goleveldb/leveldb",
+    "github.com/btcsuite/goleveldb/leveldb/comparer",
+    "github.com/btcsuite/goleveldb/leveldb/errors",
+    "github.com/btcsuite/goleveldb/leveldb/filter",
+    "github.com/btcsuite/goleveldb/leveldb/iterator",
+    "github.com/btcsuite/goleveldb/leveldb/opt",
+    "github.com/btcsuite/goleveldb/leveldb/util",
+    "github.com/btcsuite/winsvc/eventlog",
+    "github.com/btcsuite/winsvc/mgr",
+    "github.com/btcsuite/winsvc/svc",
+    "github.com/davecgh/go-spew/spew",
+    "github.com/dchest/blake256",
+    "github.com/dchest/siphash",
+    "github.com/decred/base58",
+    "github.com/decred/slog",
+    "github.com/gorilla/websocket",
+    "github.com/jessevdk/go-flags",
+    "github.com/jrick/bitset",
+    "github.com/jrick/logrotate/rotator",
+    "golang.org/x/crypto/ripemd160",
+    "golang.org/x/crypto/ssh/terminal",
+  ]
   solver-name = "gps-cdcl"
   solver-version = 1

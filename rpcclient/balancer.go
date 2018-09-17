@@ -11,10 +11,10 @@ import (
 // Balancer defines requirements for a load balancer
 // using list of hostaddresses as the source.
 type Balancer interface {
-	// NextConn gets the next usabel connection.
+	// NextConn gets the next usable connection.
 	// If the methodName is one of notifications, then would remember the connection used
 	// for this method and would next time pick the same connection.
-	// Else would consider normal routine to get the next connection.
+	// Else would consider normal roundrobin routine to get the next connection.
 	NextConn(methodName string) (wsConn *websocket.Conn, hostAddress *HostAddress, err error)
 
 	// ConnectionState gets the connectionstate of corresponding wsConn.
@@ -23,9 +23,9 @@ type Balancer interface {
 	// WsConnection gets the wsConn corresponding to the host.
 	WsConnection(host string) (wsConn *websocket.Conn, connOk bool)
 
-	// NextDisconnectedWsConn will iterate over the connection state map and
-	// return the first wsConnection that has its state as Disconnected.
-	NextDisconnectedWsConn() *HostAddress
+	// AllDisconnectedWsConns will iterate over the connection state map and
+	// return all the wsConnections that have their state as Disconnected.
+	AllDisconnectedWsConns() []*HostAddress
 
 	// NotifyConnStateChange is called by rpcClient when the ConnectionState
 	// for a hostaddress changes.
