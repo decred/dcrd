@@ -91,10 +91,13 @@ type broadcastInventoryDel *wire.InvVect
 type broadcastPruneInventory struct{}
 
 // relayMsg packages an inventory vector along with the newly discovered
-// inventory so the relay has access to that information.
+// inventory and a flag that determines if the relay should happen immediately
+// (it will be put into a trickle queue if false) so the relay has access to
+// that information.
 type relayMsg struct {
-	invVect *wire.InvVect
-	data    interface{}
+	invVect   *wire.InvVect
+	data      interface{}
+	immediate bool
 }
 
 // updatePeerHeightsMsg is a message sent from the blockmanager to the server
@@ -491,10 +494,10 @@ func (sp *serverPeer) OnGetMiningState(p *peer.Peer, msg *wire.MsgGetMiningState
 	// Access the block manager and get the list of best blocks to mine on.
 	bm := sp.server.blockManager
 	mp := sp.server.txMemPool
-	newest, height := bm.chainState.Best()
+	best := bm.chain.BestSnapshot()
 
 	// Send out blank mining states if it's early in the blockchain.
-	if height < activeNetParams.StakeValidationHeight-1 {
+	if best.Height < activeNetParams.StakeValidationHeight-1 {
 		err := sp.pushMiningStateMsg(0, nil, nil)
 		if err != nil {
 			peerLog.Warnf("unexpected error while pushing data for "+
@@ -509,7 +512,7 @@ func (sp *serverPeer) OnGetMiningState(p *peer.Peer, msg *wire.MsgGetMiningState
 	children, err := bm.TipGeneration()
 	if err != nil {
 		peerLog.Warnf("failed to access block manager to get the generation "+
-			"for a mining state request (block: %v): %v", newest, err)
+			"for a mining state request (block: %v): %v", best.Hash, err)
 		return
 	}
 
@@ -517,7 +520,7 @@ func (sp *serverPeer) OnGetMiningState(p *peer.Peer, msg *wire.MsgGetMiningState
 	// limit the list to the maximum number of allowed eligible block hashes
 	// per mining state message.  There is nothing to send when there are no
 	// eligible blocks.
-	blockHashes := SortParentsByVotes(mp, *newest, children,
+	blockHashes := SortParentsByVotes(mp, best.Hash, children,
 		bm.server.chainParams)
 	numBlocks := len(blockHashes)
 	if numBlocks == 0 {
@@ -542,7 +545,7 @@ func (sp *serverPeer) OnGetMiningState(p *peer.Peer, msg *wire.MsgGetMiningState
 		voteHashes = append(voteHashes, vhsForBlock...)
 	}
 
-	err = sp.pushMiningStateMsg(uint32(height), blockHashes, voteHashes)
+	err = sp.pushMiningStateMsg(uint32(best.Height), blockHashes, voteHashes)
 	if err != nil {
 		peerLog.Warnf("unexpected error while pushing data for "+
 			"mining state request: %v", err.Error())
@@ -1124,7 +1127,7 @@ func (s *server) AnnounceNewTransactions(newTxs []*dcrutil.Tx) {
 	for _, tx := range newTxs {
 		// Generate the inventory vector and relay it.
 		iv := wire.NewInvVect(wire.InvTypeTx, tx.Hash())
-		s.RelayInventory(iv, tx)
+		s.RelayInventory(iv, tx, false)
 
 		if s.rpcServer != nil {
 			// Notify websocket clients about mempool transactions.
@@ -1389,10 +1392,16 @@ func (s *server) handleRelayInvMsg(state *peerState, msg relayMsg) {
 			}
 		}
 
-		// Queue the inventory to be relayed with the next batch.
-		// It will be ignored if the peer is already known to
-		// have the inventory.
-		sp.QueueInventory(msg.invVect)
+		// Either queue the inventory to be relayed immediately or with
+		// the next batch depending on the immediate flag.
+		//
+		// It will be ignored in either case if the peer is already
+		// known to have the inventory.
+		if msg.immediate {
+			sp.QueueInventoryImmediate(msg.invVect)
+		} else {
+			sp.QueueInventory(msg.invVect)
+		}
 	})
 }
 
@@ -1780,8 +1789,8 @@ func (s *server) BanPeer(sp *serverPeer) {
 
 // RelayInventory relays the passed inventory vector to all connected peers
 // that are not already known to have it.
-func (s *server) RelayInventory(invVect *wire.InvVect, data interface{}) {
-	s.relayInv <- relayMsg{invVect: invVect, data: data}
+func (s *server) RelayInventory(invVect *wire.InvVect, data interface{}, immediate bool) {
+	s.relayInv <- relayMsg{invVect: invVect, data: data, immediate: immediate}
 }
 
 // BroadcastMessage sends msg to all peers currently connected to the server
@@ -2008,7 +2017,7 @@ out:
 			// yet. We periodically resubmit them until they have.
 			for iv, data := range pendingInvs {
 				ivCopy := iv
-				s.RelayInventory(&ivCopy, data)
+				s.RelayInventory(&ivCopy, data, false)
 			}
 
 			// Process at a random time up to 30mins (in seconds)
@@ -2490,10 +2499,7 @@ func newServer(listenAddrs []string, db database.DB, chainParams *chaincfg.Param
 		},
 		ChainParams: chainParams,
 		NextStakeDifficulty: func() (int64, error) {
-			bm.chainState.Lock()
-			sDiff := bm.chainState.nextStakeDifficulty
-			bm.chainState.Unlock()
-			return sDiff, nil
+			return bm.chain.BestSnapshot().NextStakeDiff, nil
 		},
 		FetchUtxoView:    bm.chain.FetchUtxoView,
 		BlockByHash:      bm.chain.BlockByHash,
@@ -2502,13 +2508,17 @@ func newServer(listenAddrs []string, db database.DB, chainParams *chaincfg.Param
 		CalcSequenceLock: bm.chain.CalcSequenceLock,
 		SubsidyCache:     bm.chain.FetchSubsidyCache(),
 		SigCache:         s.sigCache,
-		PastMedianTime:   func() time.Time { return bm.chain.BestSnapshot().MedianTime },
-		AddrIndex:        s.addrIndex,
-		ExistsAddrIndex:  s.existsAddrIndex,
+		PastMedianTime: func() time.Time {
+			return bm.chain.BestSnapshot().MedianTime
+		},
+		AddrIndex:       s.addrIndex,
+		ExistsAddrIndex: s.existsAddrIndex,
 	}
 	s.txMemPool = mempool.New(&txC)
 
-	// Create the mining policy based on the configuration options.
+	// Create the mining policy and block template generator based on the
+	// configuration options.
+	//
 	// NOTE: The CPU miner relies on the mempool, so the mempool has to be
 	// created before calling the function to create the CPU miner.
 	policy := mining.Policy{
@@ -2517,7 +2527,17 @@ func newServer(listenAddrs []string, db database.DB, chainParams *chaincfg.Param
 		BlockPrioritySize: cfg.BlockPrioritySize,
 		TxMinFreeFee:      cfg.minRelayTxFee,
 	}
-	s.cpuMiner = newCPUMiner(&policy, &s)
+	blockTemplateGenerator := newBlkTmplGenerator(&policy, s.txMemPool,
+		s.timeSource, s.sigCache, s.chainParams, bm.chain, bm)
+	s.cpuMiner = newCPUMiner(&cpuminerConfig{
+		ChainParams:                s.chainParams,
+		PermitConnectionlessMining: cfg.SimNet,
+		BlockTemplateGenerator:     blockTemplateGenerator,
+		MiningAddrs:                cfg.miningAddrs,
+		ProcessBlock:               bm.ProcessBlock,
+		ConnectedCount:             s.ConnectedCount,
+		IsCurrent:                  bm.IsCurrent,
+	})
 
 	// Only setup a function to return new addresses to connect to when
 	// not running in connect-only mode.  The simulation network is always
@@ -2602,7 +2622,8 @@ func newServer(listenAddrs []string, db database.DB, chainParams *chaincfg.Param
 	}
 
 	if !cfg.DisableRPC {
-		s.rpcServer, err = newRPCServer(cfg.RPCListeners, &policy, &s)
+		s.rpcServer, err = newRPCServer(cfg.RPCListeners,
+			blockTemplateGenerator, &s)
 		if err != nil {
 			return nil, err
 		}

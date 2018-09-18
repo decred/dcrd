@@ -46,7 +46,6 @@ import (
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/dcrd/internal/version"
 	"github.com/decred/dcrd/mempool"
-	"github.com/decred/dcrd/mining"
 	"github.com/decred/dcrd/txscript"
 	"github.com/decred/dcrd/wire"
 	"github.com/jrick/bitset"
@@ -54,9 +53,9 @@ import (
 
 // API version constants
 const (
-	jsonrpcSemverString = "3.3.0"
-	jsonrpcSemverMajor  = 3
-	jsonrpcSemverMinor  = 3
+	jsonrpcSemverString = "4.0.0"
+	jsonrpcSemverMajor  = 4
+	jsonrpcSemverMinor  = 0
 	jsonrpcSemverPatch  = 0
 )
 
@@ -172,7 +171,6 @@ var rpcHandlers map[string]commandHandler
 var rpcHandlersBeforeInit = map[string]commandHandler{
 	"addnode":               handleAddNode,
 	"createrawsstx":         handleCreateRawSStx,
-	"createrawssgentx":      handleCreateRawSSGenTx,
 	"createrawssrtx":        handleCreateRawSSRtx,
 	"createrawtransaction":  handleCreateRawTransaction,
 	"debuglevel":            handleDebugLevel,
@@ -944,164 +942,6 @@ func handleCreateRawSStx(s *rpcServer, cmd interface{}, closeChan <-chan struct{
 	return mtxHex, nil
 }
 
-// handleCreateRawSSGenTx handles createrawssgentx commands.
-func handleCreateRawSSGenTx(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) (interface{}, error) {
-	c := cmd.(*dcrjson.CreateRawSSGenTxCmd)
-	// Only a single SStx should be given
-	if len(c.Inputs) != 1 {
-		return nil, rpcInvalidError("SSGen Tx can only have one valid" +
-			" input")
-	}
-
-	// 1. Fetch the SStx, then calculate all the values we'll need later for
-	// the generation of the SSGen tx outputs.
-	//
-	// Convert the provided transaction hash hex to a chainhash.Hash.
-	txHash, err := chainhash.NewHashFromStr(c.Inputs[0].Txid)
-	if err != nil {
-		return nil, &dcrjson.RPCError{
-			Code:    dcrjson.ErrRPCBlockNotFound,
-			Message: fmt.Sprintf("Inputs 0 Txid: %v", err),
-		}
-	}
-
-	// Try to fetch the ticket from the block database.
-	ticketUtx, err := s.chain.FetchUtxoEntry(txHash)
-	if ticketUtx == nil || err != nil {
-		return nil, rpcNoTxInfoError(txHash)
-	}
-	if t := ticketUtx.TransactionType(); t != stake.TxTypeSStx {
-		return nil, rpcDeserializationError("Invalid Tx type: %v", t)
-	}
-
-	// Store the sstx pubkeyhashes and amounts as found in the transaction
-	// outputs.
-	minimalOutputs := blockchain.ConvertUtxosToMinimalOutputs(ticketUtx)
-	ssgenPayTypes, ssgenPkhs, sstxAmts, _, _, _ :=
-		stake.SStxStakeOutputInfo(minimalOutputs)
-
-	// Get the current reward.
-	blockHash, curHeight := s.server.blockManager.chainState.Best()
-	stakeVoteSubsidy := blockchain.CalcStakeVoteSubsidy(
-		s.chain.FetchSubsidyCache(), curHeight, activeNetParams.Params)
-
-	// Calculate the output values from this data.
-	ssgenCalcAmts := stake.CalculateRewards(sstxAmts,
-		minimalOutputs[0].Value,
-		stakeVoteSubsidy)
-
-	// 2. Add all transaction inputs to a new transaction after performing
-	// some validity checks. First, add the stake base, then the OP_SSTX
-	// tagged output.
-	mtx := wire.NewMsgTx()
-
-	stakeBaseOutPoint := wire.NewOutPoint(&chainhash.Hash{},
-		uint32(0xFFFFFFFF), int8(0x01))
-	txInStakeBase := wire.NewTxIn(stakeBaseOutPoint, stakeVoteSubsidy, []byte{})
-	mtx.AddTxIn(txInStakeBase)
-
-	for _, input := range c.Inputs {
-		txHash, err := chainhash.NewHashFromStr(input.Txid)
-		if err != nil {
-			return nil, rpcDecodeHexError(input.Txid)
-		}
-
-		if input.Vout < 0 {
-			return nil, rpcInvalidError("Vout must be positive")
-		}
-
-		if !(input.Tree == wire.TxTreeStake) {
-			return nil, rpcInvalidError("Input tree is not " +
-				"TxTreeStake type")
-		}
-
-		prevOutV := wire.NullValueIn
-		if input.Amount > 0 {
-			amt, err := dcrutil.NewAmount(input.Amount)
-			if err != nil {
-				return nil, rpcInvalidError(err.Error())
-			}
-			prevOutV = int64(amt)
-		}
-
-		prevOut := wire.NewOutPoint(txHash, input.Vout, input.Tree)
-		txIn := wire.NewTxIn(prevOut, prevOutV, []byte{})
-		mtx.AddTxIn(txIn)
-	}
-
-	// 3. Add the OP_RETURN null data pushes of the block header hash, the
-	// block height, and votebits, then add all the OP_SSGEN tagged
-	// outputs.
-	//
-	// Block reference output.
-	blockRefScript, err := txscript.GenerateSSGenBlockRef(*blockHash,
-		uint32(curHeight))
-	if err != nil {
-		return nil, rpcInvalidError("Could not generate SSGen block "+
-			"reference: %v", err)
-	}
-	blockRefOut := wire.NewTxOut(0, blockRefScript)
-	mtx.AddTxOut(blockRefOut)
-
-	// Votebits output.
-	blockVBScript, err := txscript.GenerateSSGenVotes(c.VoteBits)
-	if err != nil {
-		return nil, rpcInvalidError("Could not generate SSGen votes: "+
-			"%v", err)
-	}
-	blockVBOut := wire.NewTxOut(0, blockVBScript)
-	mtx.AddTxOut(blockVBOut)
-
-	// Add all the SSGen-tagged transaction outputs to the transaction
-	// after performing some validity checks.
-	for i, ssgenPkh := range ssgenPkhs {
-		// Ensure amount is in the valid range for monetary amounts.
-		if ssgenCalcAmts[i] <= 0 ||
-			ssgenCalcAmts[i] > dcrutil.MaxAmount {
-			return nil, rpcInvalidError("Invalid SSGen amounts: "+
-				"0 >= %v > %v", ssgenCalcAmts[i],
-				dcrutil.MaxAmount)
-		}
-
-		// Create a new script which pays to the provided address
-		// specified in the original ticket tx.
-		var ssgenOut []byte
-		switch ssgenPayTypes[i] {
-		case false: // P2PKH
-			ssgenOut, err = txscript.PayToSSGenPKHDirect(ssgenPkh)
-			if err != nil {
-				return nil,
-					rpcInvalidError("Could not generate "+
-						"PKH script: %v", err)
-			}
-		case true: // P2SH
-			ssgenOut, err = txscript.PayToSSGenSHDirect(ssgenPkh)
-			if err != nil {
-				return nil,
-					rpcInvalidError("Could not generate "+
-						"SHD script: %v", err)
-			}
-		}
-
-		// Add the txout to our SSGen tx.
-		txOut := wire.NewTxOut(ssgenCalcAmts[i], ssgenOut)
-		mtx.AddTxOut(txOut)
-	}
-
-	// Check to make sure our SSGen was created correctly.
-	err = stake.CheckSSGen(mtx)
-	if err != nil {
-		return nil, rpcInternalError(err.Error(), "Invalid SSGen")
-	}
-
-	// Return the serialized and hex-encoded transaction.
-	mtxHex, err := messageToHex(mtx)
-	if err != nil {
-		return nil, err
-	}
-	return mtxHex, nil
-}
-
 // handleCreateRawSSRtx handles createrawssrtx commands.
 func handleCreateRawSSRtx(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) (interface{}, error) {
 	c := cmd.(*dcrjson.CreateRawSSRtxCmd)
@@ -1546,7 +1386,7 @@ func handleEstimateStakeDiff(s *rpcServer, cmd interface{}, closeChan <-chan str
 	// The expected stake difficulty. Average the number of fresh stake
 	// since the last retarget to get the number of tickets per block,
 	// then use that to estimate the next stake difficulty.
-	_, bestHeight := s.server.blockManager.chainState.Best()
+	bestHeight := s.server.blockManager.chain.BestSnapshot().Height
 	lastAdjustment := (bestHeight / activeNetParams.StakeDiffWindowSize) *
 		activeNetParams.StakeDiffWindowSize
 	nextAdjustment := ((bestHeight / activeNetParams.StakeDiffWindowSize) +
@@ -2356,10 +2196,11 @@ func (state *gbtWorkState) updateBlockTemplate(s *rpcServer, useCoinbaseValue bo
 	// generated.
 	var msgBlock *wire.MsgBlock
 	var targetDifficulty string
-	latestHash, _ := s.server.blockManager.chainState.Best()
+	best := s.server.blockManager.chain.BestSnapshot()
+	latestHash := best.Hash
 	template := state.template
 	if template == nil || state.prevHash == nil ||
-		!state.prevHash.IsEqual(latestHash) ||
+		!state.prevHash.IsEqual(&best.Hash) ||
 		(state.lastTxUpdate != lastTxUpdate &&
 			time.Now().After(state.lastGenerated.Add(time.Second*
 				gbtRegenerateSeconds))) {
@@ -2382,7 +2223,7 @@ func (state *gbtWorkState) updateBlockTemplate(s *rpcServer, useCoinbaseValue bo
 		// block template doesn't include the coinbase, so the caller
 		// will ultimately create their own coinbase which pays to the
 		// appropriate address(es).
-		blkTemplate, err := NewBlockTemplate(s.policy, s.server, payAddr)
+		blkTemplate, err := s.generator.NewBlockTemplate(payAddr)
 		if err != nil {
 			return rpcInternalError("Failed to create new block "+
 				"template: "+err.Error(), "")
@@ -2400,19 +2241,14 @@ func (state *gbtWorkState) updateBlockTemplate(s *rpcServer, useCoinbaseValue bo
 		// Find the minimum allowed timestamp for the block based on the
 		// median timestamp of the last several blocks per the chain
 		// consensus rules.
-		chainState := &s.server.blockManager.chainState
-		minTimestamp, err := minimumMedianTime(chainState)
-		if err != nil {
-			context := "Failed to get minimum median time"
-			return rpcInternalError(err.Error(), context)
-		}
+		minTimestamp := minimumMedianTime(best)
 
 		// Update work state to ensure another block template isn't
 		// generated until needed.
 		state.template = deepCopyBlockTemplate(template)
 		state.lastGenerated = time.Now()
 		state.lastTxUpdate = lastTxUpdate
-		state.prevHash = latestHash
+		state.prevHash = &latestHash
 		state.minTimestamp = minTimestamp
 
 		rpcsLog.Debugf("Generated block template (timestamp %v, "+
@@ -2422,7 +2258,7 @@ func (state *gbtWorkState) updateBlockTemplate(s *rpcServer, useCoinbaseValue bo
 
 		// Notify any clients that are long polling about the new
 		// template.
-		state.notifyLongPollers(latestHash, lastTxUpdate)
+		state.notifyLongPollers(&best.Hash, lastTxUpdate)
 	} else {
 		// At this point, there is a saved block template and another
 		// request for a template was made, but either the available
@@ -2464,7 +2300,7 @@ func (state *gbtWorkState) updateBlockTemplate(s *rpcServer, useCoinbaseValue bo
 		// Update the time of the block template to the current time
 		// while accounting for the median time of the past several
 		// blocks per the chain consensus rules.
-		err := UpdateBlockTime(msgBlock, s.server.blockManager)
+		err := s.generator.UpdateBlockTime(&msgBlock.Header)
 		if err != nil {
 			context := "Failed to update timestamp"
 			return rpcInternalError(err.Error(), context)
@@ -2848,8 +2684,8 @@ func handleGetBlockTemplateRequest(s *rpcServer, request *dcrjson.TemplateReques
 	}
 
 	// No point in generating or accepting work before the chain is synced.
-	_, currentHeight := s.server.blockManager.chainState.Best()
-	if currentHeight != 0 && !s.server.blockManager.IsCurrent() {
+	bestHeight := s.server.blockManager.chain.BestSnapshot().Height
+	if bestHeight != 0 && !s.server.blockManager.IsCurrent() {
 		return nil, &dcrjson.RPCError{
 			Code:    dcrjson.ErrRPCClientInInitialDownload,
 			Message: "Decred is downloading blocks...",
@@ -2997,7 +2833,7 @@ func handleGetBlockTemplateProposal(s *rpcServer, request *dcrjson.TemplateReque
 	block := dcrutil.NewBlock(&msgBlock)
 
 	// Ensure the block is building from the expected previous block.
-	expectedPrevHash, _ := s.server.blockManager.chainState.Best()
+	expectedPrevHash := &s.server.blockManager.chain.BestSnapshot().Hash
 	prevHash := &block.MsgBlock().Header.PrevBlock
 	if expectedPrevHash == nil || !expectedPrevHash.IsEqual(prevHash) {
 		return "bad-prevblk", nil
@@ -4055,7 +3891,7 @@ func handleGetWorkRequest(s *rpcServer) (interface{}, error) {
 	// it has been at least one minute since the last template was
 	// generated.
 	lastTxUpdate := s.server.txMemPool.LastUpdated()
-	latestHash, latestHeight := s.server.blockManager.chainState.Best()
+	best := s.server.blockManager.chain.BestSnapshot()
 	msgBlock := state.msgBlock
 
 	// The current code pulls down a new template every second, however
@@ -4064,14 +3900,14 @@ func handleGetWorkRequest(s *rpcServer) (interface{}, error) {
 	// based on the votes present every second or so, and then, if needed,
 	// generate a new block template. TODO cj
 	if msgBlock == nil || state.prevHash == nil ||
-		!state.prevHash.IsEqual(latestHash) ||
+		!state.prevHash.IsEqual(&best.Hash) ||
 		(state.lastTxUpdate != lastTxUpdate &&
 			time.Now().After(state.lastGenerated.Add(time.Second))) {
 		// Reset the extra nonce and clear all expired cached template
 		// variations if the best block changed.
-		if state.prevHash != nil && !state.prevHash.IsEqual(latestHash) {
+		if state.prevHash != nil && !state.prevHash.IsEqual(&best.Hash) {
 			state.extraNonce = 0
-			pruneOldBlockTemplates(s, latestHeight)
+			pruneOldBlockTemplates(s, best.Height)
 		}
 
 		// Reset the previous best hash the block template was
@@ -4082,7 +3918,7 @@ func handleGetWorkRequest(s *rpcServer) (interface{}, error) {
 		// Choose a payment address at random.
 		payToAddr := cfg.miningAddrs[rand.Intn(len(cfg.miningAddrs))]
 
-		template, err := NewBlockTemplate(s.policy, s.server, payToAddr)
+		template, err := s.generator.NewBlockTemplate(payToAddr)
 		if err != nil {
 			context := "Failed to create new block template"
 			return nil, rpcInternalError(err.Error(), context)
@@ -4105,7 +3941,7 @@ func handleGetWorkRequest(s *rpcServer) (interface{}, error) {
 		state.msgBlock = msgBlock
 		state.lastGenerated = time.Now()
 		state.lastTxUpdate = lastTxUpdate
-		state.prevHash = latestHash
+		state.prevHash = &best.Hash
 
 		rpcsLog.Debugf("Generated block template (timestamp %v, extra "+
 			"nonce %d, target %064x, merkle root %s)",
@@ -4134,7 +3970,7 @@ func handleGetWorkRequest(s *rpcServer) (interface{}, error) {
 		// Update the time of the block template to the current time
 		// while accounting for the median time of the past several
 		// blocks per the chain consensus rules.
-		err := UpdateBlockTime(msgBlock, s.server.blockManager)
+		err := s.generator.UpdateBlockTime(&msgBlock.Header)
 		if err != nil {
 			return nil, rpcInternalError(err.Error(),
 				"Failed to update block time")
@@ -4146,7 +3982,7 @@ func handleGetWorkRequest(s *rpcServer) (interface{}, error) {
 			// setting the merkle root to the new value.
 			en := extractCoinbaseExtraNonce(msgBlock) + 1
 			state.extraNonce++
-			err := UpdateExtraNonce(msgBlock, latestHeight+1, en)
+			err := UpdateExtraNonce(msgBlock, best.Height+1, en)
 			if err != nil {
 				errStr := fmt.Sprintf("Failed to update extra nonce: "+
 					"%v", err)
@@ -4358,8 +4194,8 @@ func handleGetWork(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) (in
 	}
 
 	// No point in generating or accepting work before the chain is synced.
-	_, currentHeight := s.server.blockManager.chainState.Best()
-	if currentHeight != 0 && !s.server.blockManager.IsCurrent() {
+	bestHeight := s.server.blockManager.chain.BestSnapshot().Height
+	if bestHeight != 0 && !s.server.blockManager.IsCurrent() {
 		return nil, &dcrjson.RPCError{
 			Code:    dcrjson.ErrRPCClientInInitialDownload,
 			Message: "Decred is downloading blocks...",
@@ -4467,7 +4303,7 @@ func handlePing(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) (inter
 
 // handleRebroadcastMissed implements the rebroadcastmissed command.
 func handleRebroadcastMissed(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) (interface{}, error) {
-	hash, height := s.server.blockManager.chainState.Best()
+	best := s.server.blockManager.chain.BestSnapshot()
 	mt, err := s.server.blockManager.chain.MissedTickets()
 	if err != nil {
 		return nil, rpcInternalError("Could not get missed tickets "+
@@ -4481,8 +4317,8 @@ func handleRebroadcastMissed(s *rpcServer, cmd interface{}, closeChan <-chan str
 	}
 
 	missedTicketsNtfn := &blockchain.TicketNotificationsData{
-		Hash:            *hash,
-		Height:          height,
+		Hash:            best.Hash,
+		Height:          best.Height,
 		StakeDifficulty: stakeDiff,
 		TicketsSpent:    []chainhash.Hash{},
 		TicketsMissed:   mt,
@@ -4496,7 +4332,7 @@ func handleRebroadcastMissed(s *rpcServer, cmd interface{}, closeChan <-chan str
 
 // handleRebroadcastWinners implements the rebroadcastwinners command.
 func handleRebroadcastWinners(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) (interface{}, error) {
-	_, height := s.server.blockManager.chainState.Best()
+	bestHeight := s.server.blockManager.chain.BestSnapshot().Height
 	blocks, err := s.server.blockManager.TipGeneration()
 	if err != nil {
 		return nil, rpcInternalError("Could not get generation "+
@@ -4512,7 +4348,7 @@ func handleRebroadcastWinners(s *rpcServer, cmd interface{}, closeChan <-chan st
 		}
 		ntfnData := &WinningTicketsNtfnData{
 			BlockHash:   blocks[i],
-			BlockHeight: height,
+			BlockHeight: bestHeight,
 			Tickets:     winningTickets,
 		}
 
@@ -5392,9 +5228,7 @@ func ticketFeeInfoForRange(s *rpcServer, start int64, end int64, txType stake.Tx
 func handleTicketFeeInfo(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) (interface{}, error) {
 	c := cmd.(*dcrjson.TicketFeeInfoCmd)
 
-	s.server.blockManager.chainState.Lock()
-	bestHeight := s.server.blockManager.chainState.newestHeight
-	s.server.blockManager.chainState.Unlock()
+	bestHeight := s.server.blockManager.chain.BestSnapshot().Height
 
 	// Memory pool first.
 	feeInfoMempool := feeInfoForMempool(s, stake.TxTypeSStx)
@@ -5505,7 +5339,7 @@ func handleTicketVWAP(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) 
 
 	// The default VWAP is for the past WorkDiffWindows * WorkDiffWindowSize
 	// many blocks.
-	_, bestHeight := s.server.blockManager.chainState.Best()
+	bestHeight := s.server.blockManager.chain.BestSnapshot().Height
 	var start uint32
 	if c.Start == nil {
 		toEval := activeNetParams.WorkDiffWindows *
@@ -5562,9 +5396,7 @@ func handleTicketVWAP(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) 
 func handleTxFeeInfo(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) (interface{}, error) {
 	c := cmd.(*dcrjson.TxFeeInfoCmd)
 
-	s.server.blockManager.chainState.Lock()
-	bestHeight := s.server.blockManager.chainState.newestHeight
-	s.server.blockManager.chainState.Unlock()
+	bestHeight := s.server.blockManager.chain.BestSnapshot().Height
 
 	// Memory pool first.
 	feeInfoMempool := feeInfoForMempool(s, stake.TxTypeRegular)
@@ -5806,7 +5638,7 @@ func handleVersion(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) (in
 type rpcServer struct {
 	started                int32
 	shutdown               int32
-	policy                 *mining.Policy
+	generator              *BlkTmplGenerator
 	server                 *server
 	chain                  *blockchain.BlockChain
 	authsha                [sha256.Size]byte
@@ -6450,10 +6282,10 @@ func genCertPair(certFile, keyFile string) error {
 }
 
 // newRPCServer returns a new instance of the rpcServer struct.
-func newRPCServer(listenAddrs []string, policy *mining.Policy, s *server) (*rpcServer, error) {
+func newRPCServer(listenAddrs []string, generator *BlkTmplGenerator, s *server) (*rpcServer, error) {
 	rpc := rpcServer{
-		policy:                 policy,
 		server:                 s,
+		generator:              generator,
 		chain:                  s.blockManager.chain,
 		statusLines:            make(map[int]string),
 		workState:              newWorkState(),

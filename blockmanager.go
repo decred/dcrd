@@ -296,85 +296,6 @@ type headerNode struct {
 	hash   *chainhash.Hash
 }
 
-// chainState tracks the state of the best chain as blocks are inserted.  This
-// is done because blockchain is currently not safe for concurrent access and the
-// block manager is typically quite busy processing block and inventory.
-// Therefore, requesting this information from chain through the block manager
-// would not be anywhere near as efficient as simply updating it as each block
-// is inserted and protecting it with a mutex.
-type chainState struct {
-	sync.Mutex
-	newestHash          *chainhash.Hash
-	newestHeight        int64
-	nextFinalState      [6]byte
-	nextPoolSize        uint32
-	nextStakeDifficulty int64
-	winningTickets      []chainhash.Hash
-	missedTickets       []chainhash.Hash
-	curPrevHash         chainhash.Hash
-	pastMedianTime      time.Time
-}
-
-// Best returns the block hash and height known for the tip of the best known
-// chain.
-//
-// This function is safe for concurrent access.
-func (c *chainState) Best() (*chainhash.Hash, int64) {
-	c.Lock()
-	defer c.Unlock()
-
-	return c.newestHash, c.newestHeight
-}
-
-// NextWPO returns next winner, potential, and overflow for the current top block
-// of the blockchain.
-//
-// This function is safe for concurrent access.
-func (c *chainState) NextFinalState() [6]byte {
-	c.Lock()
-	defer c.Unlock()
-
-	return c.nextFinalState
-}
-
-func (c *chainState) NextPoolSize() uint32 {
-	c.Lock()
-	defer c.Unlock()
-
-	return c.nextPoolSize
-}
-
-// NextWinners returns the eligible SStx hashes to vote on the
-// next block as inputs for SSGen.
-//
-// This function is safe for concurrent access.
-func (c *chainState) NextWinners() []chainhash.Hash {
-	c.Lock()
-	defer c.Unlock()
-
-	return c.winningTickets
-}
-
-// CurrentlyMissed returns the eligible SStx hashes that can be revoked.
-//
-// This function is safe for concurrent access.
-func (c *chainState) CurrentlyMissed() []chainhash.Hash {
-	c.Lock()
-	defer c.Unlock()
-
-	return c.missedTickets
-}
-
-// GetTopPrevHash returns the current previous block hash.
-//
-// This function is safe for concurrent access.
-func (c *chainState) GetTopPrevHash() chainhash.Hash {
-	c.Lock()
-	defer c.Unlock()
-
-	return c.curPrevHash
-}
-
 // blockManager provides a concurrency safe block manager for handling all
 // incoming blocks.
 type blockManager struct {
@@ -390,7 +311,6 @@ type blockManager struct {
 	progressLogger      *blockProgressLogger
 	syncPeer            *serverPeer
 	msgChan             chan interface{}
-	chainState          chainState
 	wg                  sync.WaitGroup
 	quit                chan struct{}
 
@@ -426,29 +346,6 @@ func (b *blockManager) resetHeaderState(newestHash *chainhash.Hash, newestHeight
 		node := headerNode{height: newestHeight, hash: newestHash}
 		b.headerList.PushBack(&node)
 	}
-}
-
-// updateChainState updates the chain state associated with the block manager.
-// This allows fast access to chain information since blockchain is currently not
-// safe for concurrent access and the block manager is typically quite busy
-// processing block and inventory.
-func (b *blockManager) updateChainState(newestHash *chainhash.Hash,
-	newestHeight int64, finalState [6]byte, poolSize uint32,
-	nextStakeDiff int64, winningTickets []chainhash.Hash,
-	missedTickets []chainhash.Hash, curPrevHash chainhash.Hash) {
-
-	b.chainState.Lock()
-	defer b.chainState.Unlock()
-
-	b.chainState.newestHash = newestHash
-	b.chainState.newestHeight = newestHeight
-	b.chainState.pastMedianTime = b.chain.BestSnapshot().MedianTime
-	b.chainState.nextFinalState = finalState
-	b.chainState.nextPoolSize = poolSize
-	b.chainState.nextStakeDifficulty = nextStakeDiff
-	b.chainState.winningTickets = winningTickets
-	b.chainState.missedTickets = missedTickets
-	b.chainState.curPrevHash = curPrevHash
 }
 
 // findNextHeaderCheckpoint returns the next checkpoint after the passed height.
@@ -1077,54 +974,23 @@ func (b *blockManager) handleBlockMsg(bmsg *blockMsg) {
 				b.checkBlockForHiddenVotes(bmsg.block)
 			}
 
-			// Query the db for the latest best block since the block
-			// that was processed could be on a side chain or have caused
-			// a reorg.
+			// Notify stake difficulty subscribers and prune invalidated
+			// transactions.
 			best := b.chain.BestSnapshot()
-
-			// Query the DB for the missed tickets for the next top block.
-			missedTickets, err := b.chain.MissedTickets()
-			if err != nil {
-				bmgrLog.Warnf("Failed to get missed tickets "+
-					"for best block %v: %v", best.Hash, err)
+			r := b.server.rpcServer
+			if r != nil {
+				// Update registered websocket clients on the
+				// current stake difficulty.
+				r.ntfnMgr.NotifyStakeDifficulty(
+					&StakeDifficultyNtfnData{
+						best.Hash,
+						best.Height,
+						best.NextStakeDiff,
+					})
 			}
-
-			// Retrieve the current previous block hash.
-			curPrevHash := b.chain.BestPrevHash()
-
-			nextStakeDiff, err :=
-				b.chain.CalcNextRequiredStakeDifficulty()
-			if err != nil {
-				bmgrLog.Warnf("Failed to get next stake difficulty "+
-					"calculation: %v", err)
-			}
-			if err == nil {
-				r := b.server.rpcServer
-				if r != nil {
-					// Update registered websocket clients on the
-					// current stake difficulty.
-					r.ntfnMgr.NotifyStakeDifficulty(
-						&StakeDifficultyNtfnData{
-							best.Hash,
-							best.Height,
-							nextStakeDiff,
-						})
-				}
-				b.server.txMemPool.PruneStakeTx(nextStakeDiff,
-					best.Height)
-				b.server.txMemPool.PruneExpiredTx()
-			}
-
-			winningTickets, poolSize, finalState, err :=
-				b.chain.LotteryDataForBlock(blockHash)
-			if err != nil {
-				bmgrLog.Warnf("Failed to get determine lottery "+
-					"data for new best block: %v", err)
-			}
-
-			b.updateChainState(&best.Hash, best.Height, finalState,
-				uint32(poolSize), nextStakeDiff, winningTickets,
-				missedTickets, curPrevHash)
+			b.server.txMemPool.PruneStakeTx(best.NextStakeDiff,
+				best.Height)
+			b.server.txMemPool.PruneExpiredTx()
 
 			// Update this peer's latest block height, for future
 			// potential sync node candidancy.
@@ -1646,60 +1512,22 @@ out:
 				err := b.chain.ForceHeadReorganization(
 					msg.formerBest, msg.newBest)
 
-				// Reorganizing has succeeded, so we need to
-				// update the chain state.
 				if err == nil {
-					// Query the db for the latest best block since
-					// the block that was processed could be on a
-					// side chain or have caused a reorg.
+					// Notify stake difficulty subscribers and prune
+					// invalidated transactions.
 					best := b.chain.BestSnapshot()
-
-					// Fetch the required lottery data.
-					winningTickets, poolSize, finalState, err :=
-						b.chain.LotteryDataForBlock(&best.Hash)
-
-					// Update registered websocket clients on the
-					// current stake difficulty.
-					nextStakeDiff, errSDiff :=
-						b.chain.CalcNextRequiredStakeDifficulty()
-					if err != nil {
-						bmgrLog.Warnf("Failed to get next stake difficulty "+
-							"calculation: %v", err)
+					r := b.server.rpcServer
+					if r != nil {
+						r.ntfnMgr.NotifyStakeDifficulty(
+							&StakeDifficultyNtfnData{
+								best.Hash,
+								best.Height,
+								best.NextStakeDiff,
+							})
 					}
-					if errSDiff == nil {
-						r := b.server.rpcServer
-						if r != nil {
-							r.ntfnMgr.NotifyStakeDifficulty(
-								&StakeDifficultyNtfnData{
-									best.Hash,
-									best.Height,
-									nextStakeDiff,
-								})
-						}
-						b.server.txMemPool.PruneStakeTx(nextStakeDiff,
-							best.Height)
-						b.server.txMemPool.PruneExpiredTx()
-					}
-
-					missedTickets, err := b.chain.MissedTickets()
-					if err != nil {
-						bmgrLog.Warnf("Failed to get missed tickets"+
-							": %v", err)
-					}
-
-					// The blockchain should be updated, so fetch the
-					// latest snapshot.
-					best = b.chain.BestSnapshot()
-					curPrevHash := b.chain.BestPrevHash()
-
-					b.updateChainState(&best.Hash,
-						best.Height,
-						finalState,
-						uint32(poolSize),
-						nextStakeDiff,
-						winningTickets,
-						missedTickets,
-						curPrevHash)
+					b.server.txMemPool.PruneStakeTx(best.NextStakeDiff,
+						best.Height)
+					b.server.txMemPool.PruneExpiredTx()
 				}
 
 				msg.reply <- forceReorganizationResponse{
@@ -1725,60 +1553,23 @@ out:
 					continue
 				}
 
-				// If the block added to the main chain, then we need to
-				// update the tip locally on block manager.
 				onMainChain := !isOrphan && forkLen == 0
 				if onMainChain {
-					// Query the chain for the latest best block
-					// since the block that was processed could be
-					// on a side chain or have caused a reorg.
+					// Notify stake difficulty subscribers and prune
+					// invalidated transactions.
 					best := b.chain.BestSnapshot()
-
-					// Update registered websocket clients on the
-					// current stake difficulty.
-					nextStakeDiff, err :=
-						b.chain.CalcNextRequiredStakeDifficulty()
-					if err != nil {
-						bmgrLog.Warnf("Failed to get next stake difficulty "+
-							"calculation: %v", err)
-					} else {
-						r := b.server.rpcServer
-						if r != nil {
-							r.ntfnMgr.NotifyStakeDifficulty(
-								&StakeDifficultyNtfnData{
-									best.Hash,
-									best.Height,
-									nextStakeDiff,
-								})
-						}
-						b.server.txMemPool.PruneStakeTx(nextStakeDiff,
-							best.Height)
-						b.server.txMemPool.PruneExpiredTx()
+					r := b.server.rpcServer
+					if r != nil {
+						r.ntfnMgr.NotifyStakeDifficulty(
+							&StakeDifficultyNtfnData{
+								best.Hash,
+								best.Height,
+								best.NextStakeDiff,
+							})
 					}
-
-					missedTickets, err := b.chain.MissedTickets()
-					if err != nil {
-						bmgrLog.Warnf("Failed to get missing tickets for "+
-							"incoming block %v: %v", best.Hash, err)
-					}
-					curPrevHash := b.chain.BestPrevHash()
-
-					winningTickets, poolSize, finalState, err :=
-						b.chain.LotteryDataForBlock(msg.block.Hash())
-					if err != nil {
-						bmgrLog.Warnf("Failed to determine block "+
-							"lottery data for incoming best block %v: %v",
-							best.Hash, err)
-					}
-
-					b.updateChainState(&best.Hash,
-						best.Height,
-						finalState,
-						uint32(poolSize),
-						nextStakeDiff,
-						winningTickets,
-						missedTickets,
-						curPrevHash)
+					b.server.txMemPool.PruneStakeTx(best.NextStakeDiff,
+						best.Height)
+					b.server.txMemPool.PruneExpiredTx()
 				}
 
 				// Allow any clients performing long polling via the
@@ -1852,8 +1643,26 @@ func (b *blockManager) notifiedWinningTickets(hash *chainhash.Hash) bool {
 // as request orphan block parents and relay accepted blocks to connected peers.
 func (b *blockManager) handleNotifyMsg(notification *blockchain.Notification) {
 	switch notification.Type {
+	// A block that intends to extend the main chain has passed all sanity and
+	// contextual checks and the chain is believed to be current.  Relay it to
+	// other peers.
+	case blockchain.NTNewTipBlockChecked:
+		// WARNING: The chain lock is not released before sending this
+		// notification, so care must be taken to avoid calling chain functions
+		// which could result in a deadlock.
+		block, ok := notification.Data.(*dcrutil.Block)
+		if !ok {
+			bmgrLog.Warnf("New tip block checkedd notification is not a block.")
+			break
+		}
+
+		// Generate the inventory vector and relay it immediately.
+		iv := wire.NewInvVect(wire.InvTypeBlock, block.Hash())
+		b.server.RelayInventory(iv, block.MsgBlock().Header, true)
+
 	// A block has been accepted into the block chain.  Relay it to other peers
-	// and possibly notify RPC clients with the winning tickets.
+	// (will be ignored if already relayed via NTNewTipBlockChecked) and
+	// possibly notify RPC clients with the winning tickets.
 	case blockchain.NTBlockAccepted:
 		// Don't relay or notify RPC clients with winning tickets if we
 		// are not current. Other peers that are current should already
@@ -1927,9 +1736,9 @@ func (b *blockManager) handleNotifyMsg(notification *blockchain.Notification) {
 			}
 		}
 
-		// Generate the inventory vector and relay it.
+		// Generate the inventory vector and relay it immediately.
 		iv := wire.NewInvVect(wire.InvTypeBlock, blockHash)
-		b.server.RelayInventory(iv, block.MsgBlock().Header)
+		b.server.RelayInventory(iv, block.MsgBlock().Header, true)
 
 	// A block has been connected to the main block chain.
 	case blockchain.NTBlockConnected:
@@ -2483,34 +2292,6 @@ func newBlockManager(s *server, indexManager blockchain.IndexManager, interrupt 
 		return nil, fmt.Errorf("closing after dumping blockchain")
 	}
 
-	// Query the DB for the current winning ticket data.
-	wt, ps, fs, err := bm.chain.LotteryDataForBlock(&best.Hash)
-	if err != nil {
-		return nil, err
-	}
-
-	// Query the DB for the currently missed tickets.
-	missedTickets, err := bm.chain.MissedTickets()
-	if err != nil {
-		return nil, err
-	}
-
-	// Retrieve the current previous block hash and next stake difficulty.
-	curPrevHash := bm.chain.BestPrevHash()
-	nextStakeDiff, err := bm.chain.CalcNextRequiredStakeDifficulty()
-	if err != nil {
-		return nil, err
-	}
-	bmgrLog.Infof("Next required Stake difficulty: %d", nextStakeDiff)
-
-	bm.updateChainState(&best.Hash,
-		best.Height,
-		fs,
-		uint32(ps),
-		nextStakeDiff,
-		wt,
-		missedTickets,
-		curPrevHash)
 	bm.lotteryDataBroadcast = make(map[chainhash.Hash]struct{})
 
 	return &bm, nil
