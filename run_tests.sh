@@ -49,11 +49,9 @@ testrepo () {
     | sed -e "s/^$ROOTPATHPATTERN//" -e 's/^\\\|\///')
   MODPATHS=". $MODPATHS"
   for module in $MODPATHS; do
-    if [[ $module == "rpcclient" ]]; then
-      echo "==> ${module}"
-      (cd $module && env GORACE='halt_on_error=1' CC=gcc $GO test -v -short -race \
-      -tags rpctest ./...)
-    fi
+    echo "==> ${module}"
+    (cd $module && env GORACE='halt_on_error=1' CC=gcc $GO test -v -short -race \
+    -tags rpctest ./...)
   done
 
   # check linters
