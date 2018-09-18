@@ -74,6 +74,10 @@ type HostAddress struct {
 	// retryCount holds the number of times the client has tried to
 	// reconnect to the RPC server.
 	retryCount int64
+
+	// initialConnectAttemptCount holds the number of times the client has tried to
+	// establish initial connection to the RPC server.
+	initialConnectAttemptCount int64
 }
 
 type picker struct {
@@ -101,12 +105,17 @@ func (p *picker) Pick(balancer Balancer) (conn *HostAddress, err error) {
 		var state ConnectionState
 		state, ok = balancer.ConnectionState(conn.Host)
 		p.next = (p.next + 1) % len(p.conns)
-		if !ok || state == ready || state == idle {
+		if !ok || state == ready {
 			// This Host is either not yet tried or its ready to use.
+			break
+		} else if state == idle && conn.initialConnectAttemptCount < 50 {
+			// We are yet to establish a successful connection to this host.
+			// If need be, max attempt allowed, can be made configurable.
 			break
 		}
 		// This indicates iteration is complete.
 		if startPos == p.next {
+			conn = nil
 			break
 		}
 	}
@@ -221,6 +230,7 @@ func (rrb *RoundRobinBalancer) NextConn(method string) (*websocket.Conn, *HostAd
 				// Update the connection state to idle so that we try again
 				// as we haven't yet connected to this host successfully.
 				rrb.NotifyConnStateChange(hostAddress, idle, true)
+				rrb.updateInitialConnectAttempt(hostAddress)
 				// Try for the next Host.
 				hostAddress, err = rrb.connPicker.Pick(rrb)
 				if err != nil {
@@ -230,6 +240,8 @@ func (rrb *RoundRobinBalancer) NextConn(method string) (*websocket.Conn, *HostAd
 			} else {
 				rrb.mu.Lock()
 				rrb.wsConns[hostAddress.Host] = wsConn
+				// reset as we successfully connected
+				hostAddress.initialConnectAttemptCount = 0
 				//invoke the lister for this ws connection
 				go rrb.WsInHandler(wsConn, hostAddress.Host)
 				rrb.mu.Unlock()
@@ -356,6 +368,14 @@ func (rrb *RoundRobinBalancer) NotifyReconnect(wsConn *websocket.Conn, hostAdd *
 func (rrb *RoundRobinBalancer) UpdateReconnectAttempt(hostAdd *HostAddress) {
 	rrb.mu.Lock()
 	rrb.hostAddMap[hostAdd.Host].retryCount++
+	rrb.mu.Unlock()
+}
+
+// updateInitialConnectAttempt will increase initialConnectAttemptCount + 1
+// for corresponding host address.
+func (rrb *RoundRobinBalancer) updateInitialConnectAttempt(hostAdd *HostAddress) {
+	rrb.mu.Lock()
+	rrb.hostAddMap[hostAdd.Host].initialConnectAttemptCount++
 	rrb.mu.Unlock()
 }
 

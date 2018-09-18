@@ -173,7 +173,9 @@ func (c *Client) String() string {
 	}
 	_, workingHost, err := c.balancer.NextConn("")
 	if err != nil {
-		log.Errorf("Balancer: Error getting connection: %v", err)
+		log.Errorf("Balancer: Error getting connection: %v, returning last attempted connection.", err)
+		u.Host = c.config.Host
+		u.Path = c.config.Endpoint
 	} else {
 		u.Host = workingHost.Host
 		u.Path = workingHost.Endpoint
