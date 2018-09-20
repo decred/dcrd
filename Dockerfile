@@ -1,12 +1,10 @@
-FROM golang:1.10.3
+FROM golang:1.11
 
 WORKDIR /go/src/github.com/decred/dcrd
 COPY . .
 
-RUN go get -u github.com/golang/dep/cmd/dep
-RUN dep ensure
-RUN go install . ./cmd/...
+RUN env GO111MODULE=on go install . ./cmd/...
 
 EXPOSE 9108
 
-CMD dcrd
+CMD [ "dcrd" ]
