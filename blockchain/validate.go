@@ -175,6 +175,40 @@ func SequenceLockActive(lock *SequenceLock, blockHeight int64, medianTime time.T
 	return true
 }
 
+// IsFinalizedTransaction determines whether or not a transaction is finalized.
+func IsFinalizedTransaction(tx *dcrutil.Tx, blockHeight int64, blockTime time.Time) bool {
+	// Lock time of zero means the transaction is finalized.
+	msgTx := tx.MsgTx()
+	lockTime := msgTx.LockTime
+	if lockTime == 0 {
+		return true
+	}
+
+	// The lock time field of a transaction is either a block height at
+	// which the transaction is finalized or a timestamp depending on if the
+	// value is before the txscript.LockTimeThreshold.  When it is under the
+	// threshold it is a block height.
+	var blockTimeOrHeight int64
+	if lockTime < txscript.LockTimeThreshold {
+		blockTimeOrHeight = blockHeight
+	} else {
+		blockTimeOrHeight = blockTime.Unix()
+	}
+	if int64(lockTime) < blockTimeOrHeight {
+		return true
+	}
+
+	// At this point, the transaction's lock time hasn't occurred yet, but
+	// the transaction might still be finalized if the sequence number
+	// for all transaction inputs is maxed out.
+	for _, txIn := range msgTx.TxIn {
+		if txIn.Sequence != math.MaxUint32 {
+			return false
+		}
+	}
+	return true
+}
+
 // CheckTransactionSanity performs some preliminary checks on a transaction to
 // ensure it is sane.  These checks are context free.
 func CheckTransactionSanity(tx *wire.MsgTx, params *chaincfg.Params) error {
