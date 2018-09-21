@@ -6,64 +6,12 @@
 package blockchain
 
 import (
-	"encoding/binary"
 	"fmt"
 
 	"github.com/decred/dcrd/blockchain/stake"
 	"github.com/decred/dcrd/database"
 	"github.com/decred/dcrd/dcrutil"
-	"github.com/decred/dcrd/txscript"
 )
-
-// checkCoinbaseUniqueHeight checks to ensure that for all blocks height > 1 the
-// coinbase contains the height encoding to make coinbase hash collisions
-// impossible.
-func checkCoinbaseUniqueHeight(blockHeight int64, block *dcrutil.Block) error {
-	// Coinbase TxOut[0] is always tax, TxOut[1] is always
-	// height + extranonce, so at least two outputs must
-	// exist.
-	if len(block.MsgBlock().Transactions[0].TxOut) < 2 {
-		str := fmt.Sprintf("block %v is missing necessary coinbase "+
-			"outputs", block.Hash())
-		return ruleError(ErrFirstTxNotCoinbase, str)
-	}
-
-	// Only version 0 scripts are currently valid.
-	nullDataOut := block.MsgBlock().Transactions[0].TxOut[1]
-	if nullDataOut.Version != 0 {
-		str := fmt.Sprintf("block %v output 1 has wrong script version",
-			block.Hash())
-		return ruleError(ErrFirstTxNotCoinbase, str)
-	}
-
-	// The first 4 bytes of the null data output must be the encoded height
-	// of the block, so that every coinbase created has a unique transaction
-	// hash.
-	nullData, err := txscript.ExtractCoinbaseNullData(nullDataOut.PkScript)
-	if err != nil {
-		str := fmt.Sprintf("block %v output 1 has wrong script type",
-			block.Hash())
-		return ruleError(ErrFirstTxNotCoinbase, str)
-	}
-	if len(nullData) < 4 {
-		str := fmt.Sprintf("block %v output 1 data push too short to "+
-			"contain height", block.Hash())
-		return ruleError(ErrFirstTxNotCoinbase, str)
-	}
-
-	// Check the height and ensure it is correct.
-	cbHeight := binary.LittleEndian.Uint32(nullData[0:4])
-	if cbHeight != uint32(blockHeight) {
-		prevBlock := block.MsgBlock().Header.PrevBlock
-		str := fmt.Sprintf("block %v output 1 has wrong height in "+
-			"coinbase; want %v, got %v; prevBlock %v, header height %v",
-			block.Hash(), blockHeight, cbHeight, prevBlock,
-			block.MsgBlock().Header.Height)
-		return ruleError(ErrCoinbaseHeight, str)
-	}
-
-	return nil
-}
 
 // maybeAcceptBlock potentially accepts a block into the block chain and, if
 // accepted, returns the length of the fork the block extended.  It performs
