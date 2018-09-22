@@ -1538,7 +1538,7 @@ func (b *BlockChain) createChainState() error {
 // initChainState attempts to load and initialize the chain state from the
 // database.  When the db does not yet contain any chain state, both it and the
 // chain state are initialized to the genesis block.
-func (b *BlockChain) initChainState(interrupt <-chan struct{}) error {
+func (b *BlockChain) initChainState() error {
 	// Update database versioning scheme if needed.
 	err := b.db.Update(func(dbTx database.Tx) error {
 		// No versioning upgrade is needed if the dbinfo bucket does not
@@ -1630,7 +1630,7 @@ func (b *BlockChain) initChainState(interrupt <-chan struct{}) error {
 	}
 
 	// Upgrade the database as needed.
-	err = upgradeDB(b.db, b.chainParams, b.dbInfo, interrupt)
+	err = upgradeDB(b.db, b.chainParams, b.dbInfo, b.interrupt)
 	if err != nil {
 		return err
 	}

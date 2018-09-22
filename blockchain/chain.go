@@ -145,6 +145,7 @@ type BlockChain struct {
 	notifications       NotificationCallback
 	sigCache            *txscript.SigCache
 	indexManager        IndexManager
+	interrupt           <-chan struct{}
 
 	// subsidyCache is the cache that provides quick lookup of subsidy
 	// values.
@@ -2215,6 +2216,7 @@ func New(config *Config) (*BlockChain, error) {
 		notifications:                 config.Notifications,
 		sigCache:                      config.SigCache,
 		indexManager:                  config.IndexManager,
+		interrupt:                     config.Interrupt,
 		index:                         newBlockIndex(config.DB, params),
 		bestChain:                     newChainView(nil),
 		orphans:                       make(map[chainhash.Hash]*orphanBlock),
@@ -2232,7 +2234,7 @@ func New(config *Config) (*BlockChain, error) {
 	// Initialize the chain state from the passed database.  When the db
 	// does not yet contain any chain state, both it and the chain state
 	// will be initialized to contain only the genesis block.
-	if err := b.initChainState(config.Interrupt); err != nil {
+	if err := b.initChainState(); err != nil {
 		return nil, err
 	}
 
