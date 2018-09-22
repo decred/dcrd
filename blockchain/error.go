@@ -65,8 +65,8 @@ const (
 	// maximum allowed size.
 	ErrBlockTooBig
 
-	// ErrWrongBlockSize indicates that the block size from the header was
-	// not the actual serialized size of the block.
+	// ErrWrongBlockSize indicates that the block size in the header is not
+	// the actual serialized size of the block.
 	ErrWrongBlockSize
 
 	// ErrBlockVersionTooOld indicates the block version is too old and is
@@ -316,45 +316,55 @@ const (
 	// than were allowed.
 	ErrTooManyRevocations
 
-	// ErrSStxCommitment indicates that the propotional amounts from the inputs
-	// of an SStx did not match those found in the commitment outputs.
-	ErrSStxCommitment
+	// ErrTicketCommitment indicates that a ticket commitment contains an amount
+	// that does not coincide with the associated ticket input amount.
+	ErrTicketCommitment
 
-	// ErrInvalidSSGenInput indicates that the input SStx to the SSGen tx was
-	// invalid because it was not an SStx.
-	ErrInvalidSSGenInput
+	// ErrInvalidVoteInput indicates that an input to a vote transaction is
+	// either not a stake ticket submission or is not a supported version.
+	ErrInvalidVoteInput
 
-	// ErrSSGenPayeeNum indicates that the number of payees from the referenced
-	// SSGen's SStx was not the same as the number of the payees in the outputs
-	// of the SSGen tx.
-	ErrSSGenPayeeNum
+	// ErrBadNumPayees indicates that either a vote or revocation transaction
+	// does not make the correct number of payments per the associated ticket
+	// commitments.
+	ErrBadNumPayees
 
-	// ErrSSGenPayeeOuts indicates that the SSGen payee outputs were either not
-	// the values that would be expected given the rewards and input amounts of
-	// the original SStx, or that the SSGen addresses did not correctly correspond
-	// to the null data outputs given in the originating SStx.
-	ErrSSGenPayeeOuts
+	// ErrBadPayeeScriptVersion indicates that either a vote or revocation
+	// transaction output that corresponds to a ticket commitment does not use
+	// a supported script version.
+	ErrBadPayeeScriptVersion
+
+	// ErrBadPayeeScriptType indicates that either a vote or revocation
+	// transaction output that corresponds to a ticket commitment does not pay
+	// to the same script type required by the commitment.
+	ErrBadPayeeScriptType
+
+	// ErrBadPayeeScriptType indicates that either a vote or revocation
+	// transaction output that corresponds to a ticket commitment does not pay
+	// to the hash required by the commitment.
+	ErrMismatchedPayeeHash
+
+	// ErrBadPayeeValue indicates that either a vote or revocation transaction
+	// output that corresponds to a ticket commitment does not pay the expected
+	// amount required by the commitment.
+	ErrBadPayeeValue
 
 	// ErrSSGenSubsidy indicates that there was an error in the amount of subsidy
 	// generated in the vote.
 	ErrSSGenSubsidy
 
-	// ErrSStxInImmature indicates that the OP_SSTX tagged output used as input
-	// was not yet TicketMaturity many blocks old.
-	ErrSStxInImmature
+	// ErrImmatureTicketSpend indicates that a vote or revocation is attempting
+	// to spend a ticket submission output that has not yet reached the required
+	// maturity.
+	ErrImmatureTicketSpend
 
-	// ErrSStxInScrType indicates that the input used in an sstx was not
-	// pay-to-pubkeyhash or pay-to-script-hash, which is required. It can
-	// be OP_SS* tagged, but it must be P2PKH or P2SH.
-	ErrSStxInScrType
+	// ErrTicketInputScript indicates that a ticket input is not one of the
+	// supported script forms or versions.
+	ErrTicketInputScript
 
-	// ErrInvalidSSRtxInput indicates that the input for the SSRtx was not from
-	// an SStx.
-	ErrInvalidSSRtxInput
-
-	// ErrSSRtxPayeesMismatch means that the number of payees in an SSRtx was
-	// not the same as the number of payees in the outputs of the input SStx.
-	ErrSSRtxPayeesMismatch
+	// ErrInvalidRevokeInput indicates that an input to a revocation transaction
+	// is either not a stake ticket submission or is not a supported version.
+	ErrInvalidRevokeInput
 
 	// ErrSSRtxPayees indicates that the SSRtx failed to pay out to the committed
 	// addresses or amounts from the originating SStx.
@@ -431,10 +441,12 @@ const (
 	// ErrFraudAmountIn indicates the witness amount given was fraudulent.
 	ErrFraudAmountIn
 
-	// ErrFraudBlockHeight indicates the witness block height given was fraudulent.
+	// ErrFraudBlockHeight indicates the witness block height given was
+	// fraudulent.
 	ErrFraudBlockHeight
 
-	// ErrFraudBlockIndex indicates the witness block index given was fraudulent.
+	// ErrFraudBlockIndex indicates the witness block index given was
+	// fraudulent.
 	ErrFraudBlockIndex
 
 	// ErrZeroValueOutputSpend indicates that a transaction attempted to spend a
@@ -529,15 +541,17 @@ var errorCodeStrings = map[ErrorCode]string{
 	ErrInvalidSSRtx:           "ErrInvalidSSRtx",
 	ErrRevocationsMismatch:    "ErrRevocationsMismatch",
 	ErrTooManyRevocations:     "ErrTooManyRevocations",
-	ErrSStxCommitment:         "ErrSStxCommitment",
-	ErrInvalidSSGenInput:      "ErrInvalidSSGenInput",
-	ErrSSGenPayeeNum:          "ErrSSGenPayeeNum",
-	ErrSSGenPayeeOuts:         "ErrSSGenPayeeOuts",
+	ErrTicketCommitment:       "ErrTicketCommitment",
+	ErrInvalidVoteInput:       "ErrInvalidVoteInput",
+	ErrBadNumPayees:           "ErrBadNumPayees",
+	ErrBadPayeeScriptVersion:  "ErrBadPayeeScriptVersion",
+	ErrBadPayeeScriptType:     "ErrBadPayeeScriptType",
+	ErrMismatchedPayeeHash:    "ErrMismatchedPayeeHash",
+	ErrBadPayeeValue:          "ErrBadPayeeValue",
 	ErrSSGenSubsidy:           "ErrSSGenSubsidy",
-	ErrSStxInImmature:         "ErrSStxInImmature",
-	ErrSStxInScrType:          "ErrSStxInScrType",
-	ErrInvalidSSRtxInput:      "ErrInvalidSSRtxInput",
-	ErrSSRtxPayeesMismatch:    "ErrSSRtxPayeesMismatch",
+	ErrImmatureTicketSpend:    "ErrImmatureTicketSpend",
+	ErrTicketInputScript:      "ErrTicketInputScript",
+	ErrInvalidRevokeInput:     "ErrInvalidRevokeInput",
 	ErrSSRtxPayees:            "ErrSSRtxPayees",
 	ErrTxSStxOutSpend:         "ErrTxSStxOutSpend",
 	ErrRegTxCreateStakeOut:    "ErrRegTxCreateStakeOut",

@@ -181,34 +181,46 @@ const (
 	numSpecialScripts = 64
 )
 
-// isPubKeyHash returns whether or not the passed public key script is a
-// standard pay-to-pubkey-hash script along with the pubkey hash it is paying to
-// if it is.
-func isPubKeyHash(script []byte) (bool, []byte) {
+// extractPubKeyHash extracts a pubkey hash that is being paid from the passed
+// public key script if it is a standard pay-to-pubkey-hash script.  It will
+// return nil otherwise.
+func extractPubKeyHash(script []byte) []byte {
 	if len(script) == 25 && script[0] == txscript.OP_DUP &&
 		script[1] == txscript.OP_HASH160 &&
 		script[2] == txscript.OP_DATA_20 &&
 		script[23] == txscript.OP_EQUALVERIFY &&
 		script[24] == txscript.OP_CHECKSIG {
 
-		return true, script[3:23]
+		return script[3:23]
 	}
 
-	return false, nil
+	return nil
 }
 
-// isScriptHash returns whether or not the passed public key script is a
-// standard pay-to-script-hash script along with the script hash it is paying to
-// if it is.
-func isScriptHash(script []byte) (bool, []byte) {
+// isPubKeyHash returns whether or not the passed public key script is a
+// standard pay-to-pubkey-hash script.
+func isPubKeyHash(script []byte) bool {
+	return extractPubKeyHash(script) != nil
+}
+
+// extractScriptHash extracts a script hash that is being paid from the passed
+// public key script if it is a standard pay-to-script-hash script.  It will
+// return nil otherwise.
+func extractScriptHash(script []byte) []byte {
 	if len(script) == 23 && script[0] == txscript.OP_HASH160 &&
 		script[1] == txscript.OP_DATA_20 &&
 		script[22] == txscript.OP_EQUAL {
 
-		return true, script[2:22]
+		return script[2:22]
 	}
 
-	return false, nil
+	return nil
+}
+
+// isScriptHash returns whether or not the passed public key script is a
+// standard pay-to-script-hash script.
+func isScriptHash(script []byte) bool {
+	return extractScriptHash(script) != nil
 }
 
 // isPubKey returns whether or not the passed public key script is a standard
@@ -253,13 +265,8 @@ func isPubKey(script []byte) (bool, []byte) {
 // when encoded with the domain specific compression algorithm described above.
 func compressedScriptSize(scriptVersion uint16, pkScript []byte,
 	compressionVersion uint32) int {
-	// Pay-to-pubkey-hash script.
-	if valid, _ := isPubKeyHash(pkScript); valid {
-		return 21
-	}
-
-	// Pay-to-script-hash script.
-	if valid, _ := isScriptHash(pkScript); valid {
+	// Pay-to-pubkey-hash or pay-to-script-hash script.
+	if isPubKeyHash(pkScript) || isScriptHash(pkScript) {
 		return 21
 	}
 
@@ -315,14 +322,14 @@ func putCompressedScript(target []byte, scriptVersion uint16, pkScript []byte,
 	}
 
 	// Pay-to-pubkey-hash script.
-	if valid, hash := isPubKeyHash(pkScript); valid {
+	if hash := extractPubKeyHash(pkScript); hash != nil {
 		target[0] = cstPayToPubKeyHash
 		copy(target[1:21], hash)
 		return 21
 	}
 
 	// Pay-to-script-hash script.
-	if valid, hash := isScriptHash(pkScript); valid {
+	if hash := extractScriptHash(pkScript); hash != nil {
 		target[0] = cstPayToScriptHash
 		copy(target[1:21], hash)
 		return 21

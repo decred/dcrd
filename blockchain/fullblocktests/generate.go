@@ -1344,7 +1344,7 @@ func Generate(includeLargeReorg bool) (tests [][]TestInstance, err error) {
 			chaingen.PurchaseCommitmentScript(g.P2shOpTrueAddr(),
 				ticketPrice+ticketFee, 0, ticketPrice)
 	})
-	rejected(blockchain.ErrSStxCommitment)
+	rejected(blockchain.ErrTicketCommitment)
 
 	// Attempt to add block with a ticket purchase using output from
 	// disapproved block.
@@ -1459,7 +1459,7 @@ func Generate(includeLargeReorg bool) (tests [][]TestInstance, err error) {
 	g.NextBlock("bss3", outs[9], ticketOuts[9], func(b *wire.MsgBlock) {
 		b.STransactions[0].TxOut[2].PkScript[8] ^= 0x55
 	})
-	rejected(blockchain.ErrSSGenPayeeOuts)
+	rejected(blockchain.ErrMismatchedPayeeHash)
 
 	// Attempt to add a block with an incorrect vote payee output amount.
 	//
@@ -1469,7 +1469,7 @@ func Generate(includeLargeReorg bool) (tests [][]TestInstance, err error) {
 	g.NextBlock("bss4", outs[9], ticketOuts[9], func(b *wire.MsgBlock) {
 		b.STransactions[0].TxOut[2].Value++
 	})
-	rejected(blockchain.ErrSSGenPayeeOuts)
+	rejected(blockchain.ErrBadPayeeValue)
 
 	// ---------------------------------------------------------------------
 	// Multisig[Verify]/ChecksigVerifiy signature operation count tests.
@@ -2852,7 +2852,7 @@ func Generate(includeLargeReorg bool) (tests [][]TestInstance, err error) {
 			b.STransactions[10].TxOut[0])
 	})
 	g.AssertTipNumRevocations(1)
-	rejected(blockchain.ErrSSRtxPayeesMismatch)
+	rejected(blockchain.ErrBadNumPayees)
 
 	// Create block that has a revocation paying more than the original
 	// amount to the committed address.
@@ -2864,7 +2864,7 @@ func Generate(includeLargeReorg bool) (tests [][]TestInstance, err error) {
 		b.STransactions[10].TxOut[0].Value++
 	})
 	g.AssertTipNumRevocations(1)
-	rejected(blockchain.ErrSSRtxPayees)
+	rejected(blockchain.ErrBadPayeeValue)
 
 	// Create block that has a revocation using a corrupted pay-to-address
 	// script.
@@ -2876,7 +2876,7 @@ func Generate(includeLargeReorg bool) (tests [][]TestInstance, err error) {
 		b.STransactions[10].TxOut[0].PkScript[8] ^= 0x55
 	})
 	g.AssertTipNumRevocations(1)
-	rejected(blockchain.ErrSSRtxPayees)
+	rejected(blockchain.ErrMismatchedPayeeHash)
 
 	// Create block that has a revocation for a voted ticket.
 	//
