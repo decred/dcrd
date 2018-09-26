@@ -5,6 +5,7 @@
 package main
 
 import (
+	"bytes"
 	"strings"
 	"testing"
 
@@ -50,8 +51,7 @@ func checkPowLimitsAreConsistent(t *testing.T, params *chaincfg.Params) {
 // Solved block shouldn't be rejected due to the PoW limit check.
 //
 // This test ensures these blocks will respect the network PoW limit.
-func checkGenesisBlockRespectsNetworkPowLimit(
-	t *testing.T, params *chaincfg.Params) {
+func checkGenesisBlockRespectsNetworkPowLimit(t *testing.T, params *chaincfg.Params) {
 	genesis := params.GenesisBlock
 	bits := genesis.Header.Bits
 
@@ -72,24 +72,14 @@ func checkGenesisBlockRespectsNetworkPowLimit(
 	}
 }
 
-func checkPrefix(t *testing.T, prefix string, encoded, networkName string) {
-	if strings.Index(encoded, prefix) != 0 {
-		t.Logf(
-			"Address prefix mismatch for <%s>: expected <%s> received <%s>",
-			networkName,
-			prefix,
-			encoded,
+// checkPrefix checks if targetString starts with the given prefix
+func checkPrefix(t *testing.T, prefix string, targetString, networkName string) {
+	if strings.Index(targetString, prefix) != 0 {
+		t.Logf("Address prefix mismatch for <%s>: expected <%s> received <%s>",
+			networkName, prefix, targetString,
 		)
 		t.FailNow()
 	}
-}
-
-func preFillArray(size int, value byte) []byte {
-	b := make([]byte, size)
-	for i := 0; i < size; i++ {
-		b[i] = value
-	}
-	return b
 }
 
 // checkInterval creates two corner cases defining interval
@@ -97,11 +87,12 @@ func preFillArray(size int, value byte) []byte {
 // where xxxx - is the encoding magic, and cccc is a checksum.
 // The interval is mapped to corresponding interval in base 58.
 // Then prefixes are checked for mismatch.
-func checkInterval(t *testing.T,
-	desiredPrefix string, keySize int, networkName string, magic [2]byte) {
+func checkInterval(t *testing.T, desiredPrefix string, keySize int, networkName string, magic [2]byte) {
 	// min and max possible keys
-	minKey := preFillArray(keySize, 0x00) // all zeroes
-	maxKey := preFillArray(keySize, 0xff) // all ones
+	// all zeroes
+	minKey := bytes.Repeat([]byte{0x00}, keySize)
+	// all ones
+	maxKey := bytes.Repeat([]byte{0xff}, keySize)
 
 	base58interval := [2]string{
 		base58.CheckEncode(minKey, magic),
@@ -114,8 +105,7 @@ func checkInterval(t *testing.T,
 // checkAddressPrefixesAreConsistent ensures address encoding magics and
 // NetworkAddressPrefix are consistent with each other.
 // This test will light red when a new network is started with incorrect values.
-func checkAddressPrefixesAreConsistent(t *testing.T,
-	privateKeyPrefix string, params *chaincfg.Params) {
+func checkAddressPrefixesAreConsistent(t *testing.T, privateKeyPrefix string, params *chaincfg.Params) {
 	P := params.NetworkAddressPrefix
 
 	// Desired prefixes
