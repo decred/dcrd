@@ -76,8 +76,7 @@ func checkGenesisBlockRespectsNetworkPowLimit(t *testing.T, params *chaincfg.Par
 func checkPrefix(t *testing.T, prefix string, targetString, networkName string) {
 	if strings.Index(targetString, prefix) != 0 {
 		t.Logf("Address prefix mismatch for <%s>: expected <%s> received <%s>",
-			networkName, prefix, targetString,
-		)
+			networkName, prefix, targetString)
 		t.FailNow()
 	}
 }
