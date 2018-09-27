@@ -203,16 +203,23 @@ func (idx *ExistsAddrIndex) ExistsAddresses(addrs []dcrutil.Address) ([]bool, er
 //
 // This is part of the Indexer interface.
 func (idx *ExistsAddrIndex) ConnectBlock(dbTx database.Tx, block, parent *dcrutil.Block, view *blockchain.UtxoViewpoint) error {
-	var parentTxs []*dcrutil.Tx
-	if approvesParent(block) && block.Height() > 1 {
-		parentTxs = parent.Transactions()
-	}
-	blockTxns := block.STransactions()
-	allTxns := append(parentTxs, blockTxns...)
+	// NOTE: The fact that the block can disapprove the regular tree of the
+	// previous block is ignored for this index because even though technically
+	// the address might become unused again if its only use was in a
+	// transaction that was disapproved, the chances of that are extremely low
+	// since disapproved transactions are nearly always mined again in another
+	// block.
+	//
+	// More importantly, the primary purpose of this index is to track whether
+	// or not addresses have ever been seen, so even if they technically end up
+	// becoming unused, they were still seen.
 
 	usedAddrs := make(map[[addrKeySize]byte]struct{})
-
-	for _, tx := range allTxns {
+	blockTxns := make([]*dcrutil.Tx, 0, len(block.Transactions())+
+		len(block.STransactions()))
+	blockTxns = append(blockTxns, block.Transactions()...)
+	blockTxns = append(blockTxns, block.STransactions()...)
+	for _, tx := range blockTxns {
 		msgTx := tx.MsgTx()
 		isSStx := stake.IsSStx(msgTx)
 		for _, txIn := range msgTx.TxIn {
@@ -283,23 +290,23 @@ func (idx *ExistsAddrIndex) ConnectBlock(dbTx database.Tx, block, parent *dcruti
 	// then remove them from the unconfirmed map drop
 	// dropping the old map and reassigning a new map.
 	idx.unconfirmedLock.Lock()
-	for k := range idx.mpExistsAddr {
-		usedAddrs[k] = struct{}{}
+	for addrKey := range idx.mpExistsAddr {
+		usedAddrs[addrKey] = struct{}{}
 	}
 	idx.mpExistsAddr = make(map[[addrKeySize]byte]struct{})
 	idx.unconfirmedLock.Unlock()
 
 	meta := dbTx.Metadata()
-	existsAddrIndex := meta.Bucket(existsAddrIndexKey)
+	existsAddrIdxBucket := meta.Bucket(existsAddrIndexKey)
 	newUsedAddrs := make(map[[addrKeySize]byte]struct{})
-	for k := range usedAddrs {
-		if !idx.existsAddress(existsAddrIndex, k) {
-			newUsedAddrs[k] = struct{}{}
+	for addrKey := range usedAddrs {
+		if !idx.existsAddress(existsAddrIdxBucket, addrKey) {
+			newUsedAddrs[addrKey] = struct{}{}
 		}
 	}
 
-	for k := range newUsedAddrs {
-		err := dbPutExistsAddr(existsAddrIndex, k)
+	for addrKey := range newUsedAddrs {
+		err := dbPutExistsAddr(existsAddrIdxBucket, addrKey)
 		if err != nil {
 			return err
 		}
@@ -314,11 +321,25 @@ func (idx *ExistsAddrIndex) ConnectBlock(dbTx database.Tx, block, parent *dcruti
 //
 // This is part of the Indexer interface.
 func (idx *ExistsAddrIndex) DisconnectBlock(dbTx database.Tx, block, parent *dcrutil.Block, view *blockchain.UtxoViewpoint) error {
+	// The primary purpose of this index is to track whether or not addresses
+	// have ever been seen, so even if they ultimately end up technically
+	// becoming unused due to being in a block that was disconnected and the
+	// associated transactions never make it into a new block for some reason,
+	// it was still seen at some point.  Thus, don't bother removing entries.
+	//
+	// Note that this does mean different nodes may slightly disagree about
+	// whether or not an address that only ever existed in an orphaned side
+	// chain was seen, however, that is an acceptable tradeoff given the use
+	// case and the huge performance gained from not having to constantly update
+	// the index with usage counts that would be required to properly handle
+	// disconnecting block and disapproved regular trees.
 	return nil
 }
 
 // addUnconfirmedTx adds all addresses related to the transaction to the
 // unconfirmed (memory-only) exists address index.
+//
+// This function MUST be called with the unconfirmed lock held.
 func (idx *ExistsAddrIndex) addUnconfirmedTx(tx *wire.MsgTx) {
 	isSStx := stake.IsSStx(tx)
 	for _, txIn := range tx.TxIn {
@@ -387,18 +408,18 @@ func (idx *ExistsAddrIndex) addUnconfirmedTx(tx *wire.MsgTx) {
 	}
 }
 
-// AddUnconfirmedTx is the exported form of addUnconfirmedTx.
+// AddUnconfirmedTx adds all addresses related to the transaction to the
+// unconfirmed (memory-only) exists address index.
 //
 // This function is safe for concurrent access.
 func (idx *ExistsAddrIndex) AddUnconfirmedTx(tx *wire.MsgTx) {
 	idx.unconfirmedLock.Lock()
-	defer idx.unconfirmedLock.Unlock()
-
 	idx.addUnconfirmedTx(tx)
+	idx.unconfirmedLock.Unlock()
 }
 
-// DropExistsAddrIndex drops the exists address index from the provided
-// database if it exists.
+// DropExistsAddrIndex drops the exists address index from the provided database
+// if it exists.
 func DropExistsAddrIndex(db database.DB, interrupt <-chan struct{}) error {
 	return dropFlatIndex(db, existsAddrIndexKey, existsAddressIndexName,
 		interrupt)

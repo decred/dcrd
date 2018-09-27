@@ -1150,7 +1150,7 @@ func (s *server) pushTxMsg(sp *serverPeer, hash *chainhash.Hash, doneChan chan<-
 	// Do not allow peers to request transactions already in a block
 	// but are unconfirmed, as they may be expensive. Restrict that
 	// to the authenticated RPC only.
-	tx, err := s.txMemPool.FetchTransaction(hash, false)
+	tx, err := s.txMemPool.FetchTransaction(hash)
 	if err != nil {
 		peerLog.Tracef("Unable to fetch tx %v from transaction "+
 			"pool: %v", hash, err)

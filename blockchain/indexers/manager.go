@@ -347,7 +347,7 @@ func (m *Manager) Init(chain *blockchain.BlockChain, interrupt <-chan struct{}) 
 				var view *blockchain.UtxoViewpoint
 				if indexNeedsInputs(indexer) {
 					var err error
-					view, err = makeUtxoView(dbTx, block, parent,
+					view, err = makeUtxoView(dbTx, block,
 						interrupt)
 					if err != nil {
 						return err
@@ -487,8 +487,7 @@ func (m *Manager) Init(chain *blockchain.BlockChain, interrupt <-chan struct{}) 
 				// index.
 				if view == nil && indexNeedsInputs(indexer) {
 					var errMakeView error
-					view, errMakeView = makeUtxoView(dbTx, block, parent,
-						interrupt)
+					view, errMakeView = makeUtxoView(dbTx, block, interrupt)
 					if errMakeView != nil {
 						return errMakeView
 					}
@@ -528,16 +527,16 @@ func indexNeedsInputs(index Indexer) bool {
 // loads it from the database.
 func dbFetchTx(dbTx database.Tx, hash *chainhash.Hash) (*wire.MsgTx, error) {
 	// Look up the location of the transaction.
-	blockRegion, err := dbFetchTxIndexEntry(dbTx, hash)
+	entry, err := dbFetchTxIndexEntry(dbTx, hash)
 	if err != nil {
 		return nil, err
 	}
-	if blockRegion == nil {
+	if entry == nil {
 		return nil, fmt.Errorf("transaction %v not found in the txindex", hash)
 	}
 
 	// Load the raw transaction bytes from the database.
-	txBytes, err := dbTx.FetchBlockRegion(blockRegion)
+	txBytes, err := dbTx.FetchBlockRegion(&entry.BlockRegion)
 	if err != nil {
 		return nil, err
 	}
@@ -557,74 +556,56 @@ func dbFetchTx(dbTx database.Tx, hash *chainhash.Hash) (*wire.MsgTx, error) {
 // transactions in the block.  This is sometimes needed when catching indexes up
 // because many of the txouts could actually already be spent however the
 // associated scripts are still required to index them.
-func makeUtxoView(dbTx database.Tx, block, parent *dcrutil.Block, interrupt <-chan struct{}) (*blockchain.UtxoViewpoint, error) {
+func makeUtxoView(dbTx database.Tx, block *dcrutil.Block, interrupt <-chan struct{}) (*blockchain.UtxoViewpoint, error) {
 	view := blockchain.NewUtxoViewpoint()
-	var parentRegularTxs []*dcrutil.Tx
-	if approvesParent(block) {
-		parentRegularTxs = parent.Transactions()
+	processTxns := func(txns []*dcrutil.Tx, regularTree bool) error {
+		for txIdx, tx := range txns {
+			// Coinbases do not reference any inputs.  Since the block is
+			// required to have already gone through full validation, it has
+			// already been proven on the first transaction in the block is a
+			// coinbase.
+			if regularTree && txIdx == 0 {
+				continue
+			}
+			msgTx := tx.MsgTx()
+			isVote := !regularTree && stake.IsSSGen(msgTx)
+
+			// Use the transaction index to load all of the referenced inputs
+			// and add their outputs to the view.
+			for txInIdx, txIn := range msgTx.TxIn {
+				// Ignore stakebase since it has no input.
+				if isVote && txInIdx == 0 {
+					continue
+				}
+
+				// Skip already fetched outputs.
+				originOut := &txIn.PreviousOutPoint
+				if view.LookupEntry(&originOut.Hash) != nil {
+					continue
+				}
+
+				originTx, err := dbFetchTx(dbTx, &originOut.Hash)
+				if err != nil {
+					return err
+				}
+
+				view.AddTxOuts(dcrutil.NewTx(originTx), int64(txIn.BlockHeight),
+					txIn.BlockIndex)
+			}
+
+			if interruptRequested(interrupt) {
+				return errInterruptRequested
+			}
+		}
+
+		return nil
 	}
-	for txIdx, tx := range parentRegularTxs {
-		// Coinbases do not reference any inputs.  Since the block is
-		// required to have already gone through full validation, it has
-		// already been proven on the first transaction in the block is
-		// a coinbase.
-		if txIdx == 0 {
-			continue
-		}
 
-		// Use the transaction index to load all of the referenced
-		// inputs and add their outputs to the view.
-		for _, txIn := range tx.MsgTx().TxIn {
-			// Skip already fetched outputs.
-			originOut := &txIn.PreviousOutPoint
-			if view.LookupEntry(&originOut.Hash) != nil {
-				continue
-			}
-
-			originTx, err := dbFetchTx(dbTx, &originOut.Hash)
-			if err != nil {
-				return nil, err
-			}
-
-			view.AddTxOuts(dcrutil.NewTx(originTx),
-				int64(wire.NullBlockHeight),
-				wire.NullBlockIndex)
-		}
-
-		if interruptRequested(interrupt) {
-			return nil, errInterruptRequested
-		}
+	if err := processTxns(block.STransactions(), false); err != nil {
+		return nil, err
 	}
-
-	for _, tx := range block.STransactions() {
-		msgTx := tx.MsgTx()
-		isSSGen := stake.IsSSGen(msgTx)
-
-		// Use the transaction index to load all of the referenced
-		// inputs and add their outputs to the view.
-		for i, txIn := range msgTx.TxIn {
-			// Skip stakebases.
-			if isSSGen && i == 0 {
-				continue
-			}
-
-			originOut := &txIn.PreviousOutPoint
-			if view.LookupEntry(&originOut.Hash) != nil {
-				continue
-			}
-
-			originTx, err := dbFetchTx(dbTx, &originOut.Hash)
-			if err != nil {
-				return nil, err
-			}
-
-			view.AddTxOuts(dcrutil.NewTx(originTx), int64(wire.NullBlockHeight),
-				wire.NullBlockIndex)
-		}
-
-		if interruptRequested(interrupt) {
-			return nil, errInterruptRequested
-		}
+	if err := processTxns(block.Transactions(), true); err != nil {
+		return nil, err
 	}
 
 	return view, nil

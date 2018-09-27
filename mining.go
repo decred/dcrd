@@ -1220,7 +1220,7 @@ func (g *BlkTmplGenerator) NewBlockTemplate(payToAddress dcrutil.Address) (*Bloc
 
 	minrLog.Debugf("Considering %d transactions for inclusion to new block",
 		len(sourceTxns))
-	treeKnownInvalid := g.txSource.IsTxTreeKnownInvalid(&prevHash)
+	knownDisapproved := g.txSource.IsRegTxTreeKnownDisapproved(&prevHash)
 
 mempoolLoop:
 	for _, txDesc := range sourceTxns {
@@ -1255,7 +1255,7 @@ mempoolLoop:
 		// NOTE: This intentionally does not fetch inputs from the
 		// mempool since a transaction which depends on other
 		// transactions in the mempool must come after those
-		utxos, err := g.chain.FetchUtxoView(tx, !treeKnownInvalid)
+		utxos, err := g.chain.FetchUtxoView(tx, !knownDisapproved)
 		if err != nil {
 			minrLog.Warnf("Unable to fetch utxo view for tx %s: "+
 				"%v", tx.Hash(), err)
@@ -1597,7 +1597,7 @@ mempoolLoop:
 
 		if stake.IsSSGen(msgTx) {
 			txCopy := dcrutil.NewTxDeepTxIns(msgTx)
-			if maybeInsertStakeTx(g.blockManager, txCopy, !treeKnownInvalid) {
+			if maybeInsertStakeTx(g.blockManager, txCopy, !knownDisapproved) {
 				vb := stake.SSGenVoteBits(txCopy.MsgTx())
 				voteBitsVoters = append(voteBitsVoters, vb)
 				blockTxnsStake = append(blockTxnsStake, txCopy)
@@ -1701,7 +1701,7 @@ mempoolLoop:
 			// Quick check for difficulty here.
 			if msgTx.TxOut[0].Value >= best.NextStakeDiff {
 				txCopy := dcrutil.NewTxDeepTxIns(msgTx)
-				if maybeInsertStakeTx(g.blockManager, txCopy, !treeKnownInvalid) {
+				if maybeInsertStakeTx(g.blockManager, txCopy, !knownDisapproved) {
 					blockTxnsStake = append(blockTxnsStake, txCopy)
 					freshStake++
 				}
@@ -1724,7 +1724,7 @@ mempoolLoop:
 		msgTx := tx.MsgTx()
 		if tx.Tree() == wire.TxTreeStake && stake.IsSSRtx(msgTx) {
 			txCopy := dcrutil.NewTxDeepTxIns(msgTx)
-			if maybeInsertStakeTx(g.blockManager, txCopy, !treeKnownInvalid) {
+			if maybeInsertStakeTx(g.blockManager, txCopy, !knownDisapproved) {
 				blockTxnsStake = append(blockTxnsStake, txCopy)
 				revocations++
 			}
@@ -1884,7 +1884,7 @@ mempoolLoop:
 			break
 		}
 
-		utxs, err := g.chain.FetchUtxoView(tx, !treeKnownInvalid)
+		utxs, err := g.chain.FetchUtxoView(tx, !knownDisapproved)
 		if err != nil {
 			str := fmt.Sprintf("failed to fetch input utxs for tx %v: %s",
 				tx.Hash(), err.Error())

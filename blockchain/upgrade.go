@@ -544,5 +544,11 @@ func upgradeDB(db database.DB, chainParams *chaincfg.Params, dbInfo *databaseInf
 	// quickly at startup on the block nodes in memory without requiring a
 	// database version bump.
 
+	// TODO(davec): Replace with proper upgrade code for utxo set semantics
+	// reversal and index updates.
+	if dbInfo.version == 4 {
+		return errors.New("Upgrade from version 4 database not supported yet")
+	}
+
 	return nil
 }

@@ -597,7 +597,6 @@ func (mp *TxPool) removeTransaction(tx *dcrutil.Tx, removeRedeemers bool) {
 		}
 
 		// Mark the referenced outpoints as unspent by the pool.
-
 		for _, txIn := range txDesc.Tx.MsgTx().TxIn {
 			delete(mp.outpoints, txIn.PreviousOutPoint)
 		}
@@ -699,23 +698,23 @@ func (mp *TxPool) checkPoolDoubleSpend(tx *dcrutil.Tx, txType stake.TxType) erro
 	return nil
 }
 
-// IsTxTreeKnownInvalid returns whether or not the transaction tree of the
-// provided hash is knwon to be invalid according to the votes currently in the
-// memory pool.
+// IsRegTxTreeKnownDisapproved returns whether or not the regular tree of the
+// block represented by the provided hash is known to be disapproved according
+// to the votes currently in the memory pool.
 //
 // The function is safe for concurrent access.
-func (mp *TxPool) IsTxTreeKnownInvalid(hash *chainhash.Hash) bool {
+func (mp *TxPool) IsRegTxTreeKnownDisapproved(hash *chainhash.Hash) bool {
 	mp.votesMtx.RLock()
 	vts := mp.votes[*hash]
 	mp.votesMtx.RUnlock()
 
 	// There are not possibly enough votes to tell if the regular transaction
-	// tree is valid or not, so assume it's valid.
+	// tree is approved or not, so assume it's valid.
 	if len(vts) <= int(mp.cfg.ChainParams.TicketsPerBlock/2) {
 		return false
 	}
 
-	// Otherwise, tally the votes and determine if it's valid or not.
+	// Otherwise, tally the votes and determine if it's approved or not.
 	var yes, no int
 	for _, vote := range vts {
 		if vote.ApprovesParent {
@@ -735,8 +734,8 @@ func (mp *TxPool) IsTxTreeKnownInvalid(hash *chainhash.Hash) bool {
 //
 // This function MUST be called with the mempool lock held (for reads).
 func (mp *TxPool) fetchInputUtxos(tx *dcrutil.Tx) (*blockchain.UtxoViewpoint, error) {
-	knownInvalid := mp.IsTxTreeKnownInvalid(mp.cfg.BestHash())
-	utxoView, err := mp.cfg.FetchUtxoView(tx, !knownInvalid)
+	knownDisapproved := mp.IsRegTxTreeKnownDisapproved(mp.cfg.BestHash())
+	utxoView, err := mp.cfg.FetchUtxoView(tx, !knownDisapproved)
 	if err != nil {
 		return nil, err
 	}
@@ -761,7 +760,7 @@ func (mp *TxPool) fetchInputUtxos(tx *dcrutil.Tx) (*blockchain.UtxoViewpoint, er
 // orphans.
 //
 // This function is safe for concurrent access.
-func (mp *TxPool) FetchTransaction(txHash *chainhash.Hash, includeRecentBlock bool) (*dcrutil.Tx, error) {
+func (mp *TxPool) FetchTransaction(txHash *chainhash.Hash) (*dcrutil.Tx, error) {
 	// Protect concurrent access.
 	mp.mtx.RLock()
 	txDesc, exists := mp.pool[*txHash]
@@ -769,22 +768,6 @@ func (mp *TxPool) FetchTransaction(txHash *chainhash.Hash, includeRecentBlock bo
 
 	if exists {
 		return txDesc.Tx, nil
-	}
-
-	// For Decred, the latest block is considered "unconfirmed"
-	// for the regular transaction tree. Search that if the
-	// user indicates too, as well.
-	if includeRecentBlock {
-		bl, err := mp.cfg.BlockByHash(mp.cfg.BestHash())
-		if err != nil {
-			return nil, err
-		}
-
-		for _, tx := range bl.Transactions() {
-			if tx.Hash().IsEqual(txHash) {
-				return tx, nil
-			}
-		}
 	}
 
 	return nil, fmt.Errorf("transaction is not in the pool")
@@ -984,7 +967,7 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 	}
 
 	// Don't allow the transaction if it exists in the main chain and is not
-	// not already fully spent.
+	// already fully spent.
 	txEntry := utxoView.LookupEntry(txHash)
 	if txEntry != nil && !txEntry.IsFullySpent() {
 		return nil, txRuleError(wire.RejectDuplicate,

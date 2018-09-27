@@ -24,7 +24,7 @@ import (
 const (
 	// currentDatabaseVersion indicates what the current database
 	// version is.
-	currentDatabaseVersion = 4
+	currentDatabaseVersion = 5
 
 	// currentBlockIndexVersion indicates what the current block index
 	// database version.
@@ -646,9 +646,7 @@ func deserializeSpendJournalEntry(serialized []byte, txns []*wire.MsgTx) ([]spen
 	// Calculate the total number of stxos.
 	var numStxos int
 	for _, tx := range txns {
-		txType := stake.DetermineTxType(tx)
-
-		if txType == stake.TxTypeSSGen {
+		if stake.IsSSGen(tx) {
 			numStxos++
 			continue
 		}
@@ -676,13 +674,13 @@ func deserializeSpendJournalEntry(serialized []byte, txns []*wire.MsgTx) ([]spen
 	stxos := make([]spentTxOut, numStxos)
 	for txIdx := len(txns) - 1; txIdx > -1; txIdx-- {
 		tx := txns[txIdx]
-		txType := stake.DetermineTxType(tx)
+		isVote := stake.IsSSGen(tx)
 
 		// Loop backwards through all of the transaction inputs and read
 		// the associated stxo.
 		for txInIdx := len(tx.TxIn) - 1; txInIdx > -1; txInIdx-- {
-			// Skip stakebase.
-			if txInIdx == 0 && txType == stake.TxTypeSSGen {
+			// Skip stakebase since it has no input.
+			if isVote && txInIdx == 0 {
 				continue
 			}
 
@@ -760,17 +758,13 @@ func serializeSpendJournalEntry(stxos []spentTxOut) ([]byte, error) {
 // view MUST have the utxos referenced by all of the transactions available for
 // the passed block since that information is required to reconstruct the spent
 // txouts.
-func dbFetchSpendJournalEntry(dbTx database.Tx, block *dcrutil.Block, parent *dcrutil.Block) ([]spentTxOut, error) {
+func dbFetchSpendJournalEntry(dbTx database.Tx, block *dcrutil.Block) ([]spentTxOut, error) {
 	// Exclude the coinbase transaction since it can't spend anything.
 	spendBucket := dbTx.Metadata().Bucket(dbnamespace.SpendJournalBucketName)
 	serialized := spendBucket.Get(block.Hash()[:])
-
 	var blockTxns []*wire.MsgTx
-	if headerApprovesParent(&block.MsgBlock().Header) {
-		blockTxns = append(blockTxns, parent.MsgBlock().Transactions[1:]...)
-	}
 	blockTxns = append(blockTxns, block.MsgBlock().STransactions...)
-
+	blockTxns = append(blockTxns, block.MsgBlock().Transactions[1:]...)
 	if len(blockTxns) > 0 && len(serialized) == 0 {
 		panicf("missing spend journal data for %s", block.Hash())
 	}

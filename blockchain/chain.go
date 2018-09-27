@@ -186,6 +186,15 @@ type BlockChain struct {
 	mainchainBlockCache     map[chainhash.Hash]*dcrutil.Block
 	mainchainBlockCacheSize int
 
+	// These fields house a cached view that represents a block that votes
+	// against its parent and therefore contains all changes as a result
+	// of disconnecting all regular transactions in its parent.  It is only
+	// lazily updated to the current tip when fetching a utxo view via the
+	// FetchUtxoView function with the flag indicating the block votes against
+	// the parent set.
+	disapprovedViewLock sync.Mutex
+	disapprovedView     *UtxoViewpoint
+
 	// These fields are related to checkpoint handling.  They are protected
 	// by the chain lock.
 	nextCheckpoint *chaincfg.Checkpoint
@@ -775,10 +784,10 @@ func (b *BlockChain) connectBlock(node *blockNode, block, parent *dcrutil.Block,
 	}
 
 	// Sanity check the correct number of stxos are provided.
-	if len(stxos) != countSpentOutputs(block, parent) {
-		panicf("provided %v stxos for block %v (height %v), but counted %v "+
-			"spent utxos", len(stxos), node.hash, node.height,
-			countSpentOutputs(block, parent))
+	if len(stxos) != countSpentOutputs(block) {
+		panicf("provided %v stxos for block %v (height %v) which spends %v "+
+			"outputs", len(stxos), node.hash, node.height,
+			countSpentOutputs(block))
 	}
 
 	// Write any modified block index entries to the database before
@@ -796,26 +805,20 @@ func (b *BlockChain) connectBlock(node *blockNode, block, parent *dcrutil.Block,
 		return err
 	}
 
+	// Calculate the next stake difficulty.
+	nextStakeDiff, err := b.calcNextRequiredStakeDifficulty(node)
+	if err != nil {
+		return err
+	}
+
 	// Generate a new best state snapshot that will be used to update the
 	// database and later memory if all database updates are successful.
 	b.stateLock.RLock()
 	curTotalTxns := b.stateSnapshot.TotalTxns
 	curTotalSubsidy := b.stateSnapshot.TotalSubsidy
 	b.stateLock.RUnlock()
-
-	// Calculate the number of transactions that would be added by adding
-	// this block.
-	numTxns := countNumberOfTransactions(block, parent)
-
-	// Calculate the exact subsidy produced by adding the block.
 	subsidy := CalculateAddedSubsidy(block, parent)
-
-	// Calcultate the next stake difficulty.
-	nextStakeDiff, err := b.calcNextRequiredStakeDifficulty(node)
-	if err != nil {
-		return err
-	}
-
+	numTxns := uint64(len(block.Transactions()) + len(block.STransactions()))
 	blockSize := uint64(block.MsgBlock().Header.Size)
 	state := newBestState(node, blockSize, numTxns, curTotalTxns+numTxns,
 		node.CalcPastMedianTime(), curTotalSubsidy+subsidy,
@@ -983,19 +986,14 @@ func (b *BlockChain) disconnectBlock(node *blockNode, block, parent *dcrutil.Blo
 	curTotalSubsidy := b.stateSnapshot.TotalSubsidy
 	b.stateLock.RUnlock()
 	parentBlockSize := uint64(parent.MsgBlock().Header.Size)
-
-	// Calculate the number of transactions that would be added by adding
-	// this block.
-	numTxns := countNumberOfTransactions(block, parent)
-	newTotalTxns := curTotalTxns - numTxns
-
-	// Calculate the exact subsidy produced by adding the block.
+	numParentTxns := uint64(len(parent.Transactions()) + len(parent.STransactions()))
+	numBlockTxns := uint64(len(block.Transactions()) + len(block.STransactions()))
+	newTotalTxns := curTotalTxns - numBlockTxns
 	subsidy := CalculateAddedSubsidy(block, parent)
 	newTotalSubsidy := curTotalSubsidy - subsidy
-
 	prevNode := node.parent
-	state := newBestState(prevNode, parentBlockSize, numTxns, newTotalTxns,
-		prevNode.CalcPastMedianTime(), newTotalSubsidy,
+	state := newBestState(prevNode, parentBlockSize, numParentTxns,
+		newTotalTxns, prevNode.CalcPastMedianTime(), newTotalSubsidy,
 		uint32(prevNode.stakeNode.PoolSize()), node.sbits,
 		prevNode.stakeNode.Winners(), prevNode.stakeNode.MissedTickets(),
 		prevNode.stakeNode.FinalState())
@@ -1075,39 +1073,35 @@ func (b *BlockChain) disconnectBlock(node *blockNode, block, parent *dcrutil.Blo
 	return nil
 }
 
-// countSpentOutputs returns the number of utxos the passed block spends.
-func countSpentOutputs(block *dcrutil.Block, parent *dcrutil.Block) int {
-	// We need to skip the regular tx tree if it's not valid.
-	// We also exclude the coinbase transaction since it can't
-	// spend anything.
+// countSpentRegularOutputs returns the number of utxos the regular transactions
+// in the passed block spend.
+func countSpentRegularOutputs(block *dcrutil.Block) int {
+	// Skip the coinbase since it has no inputs.
 	var numSpent int
-	if headerApprovesParent(&block.MsgBlock().Header) {
-		for _, tx := range parent.Transactions()[1:] {
-			numSpent += len(tx.MsgTx().TxIn)
-		}
+	for _, tx := range block.MsgBlock().Transactions[1:] {
+		numSpent += len(tx.TxIn)
 	}
+	return numSpent
+}
+
+// countSpentStakeOutputs returns the number of utxos the stake transactions in
+// the passed block spend.
+func countSpentStakeOutputs(block *dcrutil.Block) int {
+	var numSpent int
 	for _, stx := range block.MsgBlock().STransactions {
-		txType := stake.DetermineTxType(stx)
-		if txType == stake.TxTypeSSGen || txType == stake.TxTypeSSRtx {
+		// Exclude the vote stakebase since it has no input.
+		if stake.IsSSGen(stx) {
 			numSpent++
 			continue
 		}
 		numSpent += len(stx.TxIn)
 	}
-
 	return numSpent
 }
 
-// countNumberOfTransactions returns the number of transactions inserted by
-// adding the block.
-func countNumberOfTransactions(block, parent *dcrutil.Block) uint64 {
-	var numTxns uint64
-	if headerApprovesParent(&block.MsgBlock().Header) {
-		numTxns += uint64(len(parent.Transactions()))
-	}
-	numTxns += uint64(len(block.STransactions()))
-
-	return numTxns
+// countSpentOutputs returns the number of utxos the passed block spends.
+func countSpentOutputs(block *dcrutil.Block) int {
+	return countSpentRegularOutputs(block) + countSpentStakeOutputs(block)
 }
 
 // reorganizeChain reorganizes the block chain by disconnecting the nodes in the
@@ -1167,10 +1161,10 @@ func (b *BlockChain) reorganizeChain(detachNodes, attachNodes *list.List) error 
 	// Disconnect all of the blocks back to the point of the fork.  This
 	// entails loading the blocks and their associated spent txos from the
 	// database and using that information to unspend all of the spent txos
-	// and remove the utxos created by the blocks.
+	// and remove the utxos created by the blocks.  In addition, if a block
+	// votes against its parent, the regular transactions are reconnected.
 	view := NewUtxoViewpoint()
 	view.SetBestHash(&oldBest.hash)
-	view.SetStakeViewpoint(ViewpointPrevValidInitial)
 	var nextBlockToDetach *dcrutil.Block
 	for e := detachNodes.Front(); e != nil; e = e.Next() {
 		// Grab the block to detach based on the node.  Use the fact that the
@@ -1204,25 +1198,21 @@ func (b *BlockChain) reorganizeChain(detachNodes, attachNodes *list.List) error 
 		// journal.
 		var stxos []spentTxOut
 		err = b.db.View(func(dbTx database.Tx) error {
-			stxos, err = dbFetchSpendJournalEntry(dbTx, block, parent)
+			stxos, err = dbFetchSpendJournalEntry(dbTx, block)
 			return err
 		})
 		if err != nil {
 			return err
 		}
 
-		// Quick sanity test.
-		if len(stxos) != countSpentOutputs(block, parent) {
-			panicf("retrieved %v stxos when trying to disconnect block %v "+
-				"(height %v), yet counted %v many spent utxos", len(stxos),
-				block.Hash(), block.Height(), countSpentOutputs(block, parent))
-		}
-
 		// Store the loaded block and spend journal entry for later.
 		detachBlocks = append(detachBlocks, block)
 		detachSpentTxOuts = append(detachSpentTxOuts, stxos)
 
-		err = b.disconnectTransactions(view, block, parent, stxos)
+		// Update the view to unspend all of the spent txos and remove the utxos
+		// created by the block.  Also, if the block votes against its parent,
+		// reconnect all of the regular transactions.
+		err = view.disconnectBlock(b.db, block, parent, stxos)
 		if err != nil {
 			return err
 		}
@@ -1283,24 +1273,22 @@ func (b *BlockChain) reorganizeChain(detachNodes, attachNodes *list.List) error 
 		// Skip validation if the block is already known to be valid.
 		// However, the UTXO view still needs to be updated.
 		if b.index.NodeStatus(n).KnownValid() {
-			err = b.connectTransactions(view, block, parent, nil)
+			stxos := make([]spentTxOut, 0, countSpentOutputs(block))
+			err := view.connectBlock(b.db, block, parent, &stxos)
 			if err != nil {
 				return err
 			}
+			view.cachedStxos[n.hash] = stxos
 
 			newBest = n
 			continue
 		}
 
-		// Notice the spent txout details are not requested here and
-		// thus will not be generated.  This is done because the state
-		// is not being immediately written to the database, so it is
-		// not needed.
-		//
-		// In the case the block is determined to be invalid due to a
-		// rule violation, mark it as invalid and mark all of its
-		// descendants as having an invalid ancestor.
-		err = b.checkConnectBlock(n, block, parent, view, nil)
+		// In the case the block is determined to be invalid due to a rule
+		// violation, mark it as invalid and mark all of its  descendants as
+		// having an invalid ancestor.
+		stxos := make([]spentTxOut, 0, countSpentOutputs(block))
+		err = b.checkConnectBlock(n, block, parent, view, &stxos)
 		if err != nil {
 			if _, ok := err.(RuleError); ok {
 				b.index.SetStatusFlags(n, statusValidateFailed)
@@ -1312,6 +1300,7 @@ func (b *BlockChain) reorganizeChain(detachNodes, attachNodes *list.List) error 
 			return err
 		}
 		b.index.SetStatusFlags(n, statusValid)
+		view.cachedStxos[n.hash] = stxos
 
 		newBest = n
 	}
@@ -1348,7 +1337,6 @@ func (b *BlockChain) reorganizeChain(detachNodes, attachNodes *list.List) error 
 	// disconnected.
 	view = NewUtxoViewpoint()
 	view.SetBestHash(&oldBest.hash)
-	view.SetStakeViewpoint(ViewpointPrevValidInitial)
 
 	// Disconnect blocks from the main chain.
 	for i, e := 0, detachNodes.Front(); e != nil; i, e = i+1, e.Next() {
@@ -1368,17 +1356,10 @@ func (b *BlockChain) reorganizeChain(detachNodes, attachNodes *list.List) error 
 				&n.parent.hash, parent.Hash())
 		}
 
-		// Load all of the utxos referenced by the block that aren't
-		// already in the view.
-		err := view.fetchInputUtxos(b.db, block, parent)
-		if err != nil {
-			return err
-		}
-
-		// Update the view to unspend all of the spent txos and remove
-		// the utxos created by the block.
-		err = b.disconnectTransactions(view, block, parent,
-			detachSpentTxOuts[i])
+		// Update the view to unspend all of the spent txos and remove the utxos
+		// created by the block.  Also, if the block votes against its parent,
+		// reconnect all of the regular transactions.
+		err := view.disconnectBlock(b.db, block, parent, detachSpentTxOuts[i])
 		if err != nil {
 			return err
 		}
@@ -1408,12 +1389,13 @@ func (b *BlockChain) reorganizeChain(detachNodes, attachNodes *list.List) error 
 				&n.parent.hash, parent.Hash())
 		}
 
-		// Update the view to mark all utxos referenced by the block
-		// as spent and add all transactions being created by this block
-		// to it.  Also, provide an stxo slice so the spent txout
-		// details are generated.
-		stxos := make([]spentTxOut, 0, countSpentOutputs(block, parent))
-		err := b.connectTransactions(view, block, parent, &stxos)
+		// Update the view to mark all utxos referenced by the block as spent
+		// and add all transactions being created by this block to it.  In the
+		// case the block votes against the parent, also disconnect all of the
+		// regular transactions in the parent block.   Finally, provide an stxo
+		// slice so the spent txout details are generated.
+		stxos := make([]spentTxOut, 0, countSpentOutputs(block))
+		err := view.connectBlock(b.db, block, parent, &stxos)
 		if err != nil {
 			return err
 		}
@@ -1483,7 +1465,6 @@ func (b *BlockChain) forceHeadReorganization(formerBest chainhash.Hash, newBest 
 		// Check to make sure our forced-in node validates correctly.
 		view := NewUtxoViewpoint()
 		view.SetBestHash(&formerBestNode.parent.hash)
-		view.SetStakeViewpoint(ViewpointPrevValidInitial)
 
 		formerBestBlock, err := b.fetchBlockByNode(formerBestNode)
 		if err != nil {
@@ -1495,25 +1476,14 @@ func (b *BlockChain) forceHeadReorganization(formerBest chainhash.Hash, newBest 
 		}
 		var stxos []spentTxOut
 		err = b.db.View(func(dbTx database.Tx) error {
-			stxos, err = dbFetchSpendJournalEntry(dbTx, formerBestBlock,
-				commonParentBlock)
+			stxos, err = dbFetchSpendJournalEntry(dbTx, formerBestBlock)
 			return err
 		})
 		if err != nil {
 			return err
 		}
 
-		// Quick sanity test.
-		if len(stxos) != countSpentOutputs(formerBestBlock, commonParentBlock) {
-			panicf("retrieved %v stxos when trying to disconnect block %v "+
-				"(height %v), yet counted %v many spent utxos when trying to "+
-				"force head reorg", len(stxos), formerBestBlock.Hash(),
-				formerBestBlock.Height(),
-				countSpentOutputs(formerBestBlock, commonParentBlock))
-		}
-
-		err = b.disconnectTransactions(view, formerBestBlock, commonParentBlock,
-			stxos)
+		err = view.disconnectBlock(b.db, formerBestBlock, commonParentBlock, stxos)
 		if err != nil {
 			return err
 		}
@@ -1645,7 +1615,6 @@ func (b *BlockChain) connectBestChain(node *blockNode, block, parent *dcrutil.Bl
 		// revalidated after a restart.
 		view := NewUtxoViewpoint()
 		view.SetBestHash(parentHash)
-		view.SetStakeViewpoint(ViewpointPrevValidInitial)
 		var stxos []spentTxOut
 		if !fastAdd {
 			err := b.checkConnectBlock(node, block, parent, view,
@@ -1666,13 +1635,11 @@ func (b *BlockChain) connectBestChain(node *blockNode, block, parent *dcrutil.Bl
 		// In the fast add case the code to check the block connection
 		// was skipped, so the utxo view needs to load the referenced
 		// utxos, spend them, and add the new utxos being created by
-		// this block.
+		// this block.  Also, in the case the the block votes against
+		// the parent, its regular transaction tree must be
+		// disconnected.
 		if fastAdd {
-			err := view.fetchInputUtxos(b.db, block, parent)
-			if err != nil {
-				return 0, err
-			}
-			err = b.connectTransactions(view, block, parent, &stxos)
+			err := view.connectBlock(b.db, block, parent, &stxos)
 			if err != nil {
 				return 0, err
 			}

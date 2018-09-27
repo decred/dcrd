@@ -3452,7 +3452,7 @@ func handleGetRawTransaction(s *rpcServer, cmd interface{}, closeChan <-chan str
 	var blkHash *chainhash.Hash
 	var blkHeight int64
 	var blkIndex uint32
-	tx, err := s.server.txMemPool.FetchTransaction(txHash, true)
+	tx, err := s.server.txMemPool.FetchTransaction(txHash)
 	if err != nil {
 		txIndex := s.server.txIndex
 		if txIndex == nil {
@@ -3462,14 +3462,15 @@ func handleGetRawTransaction(s *rpcServer, cmd interface{}, closeChan <-chan str
 		}
 
 		// Look up the location of the transaction.
-		blockRegion, err := txIndex.TxBlockRegion(*txHash)
+		idxEntry, err := txIndex.Entry(txHash)
 		if err != nil {
 			context := "Failed to retrieve transaction location"
 			return nil, rpcInternalError(err.Error(), context)
 		}
-		if blockRegion == nil {
+		if idxEntry == nil {
 			return nil, rpcNoTxInfoError(txHash)
 		}
+		blockRegion := &idxEntry.BlockRegion
 
 		// Load the raw transaction bytes from the database.
 		var txBytes []byte
@@ -3496,7 +3497,7 @@ func handleGetRawTransaction(s *rpcServer, cmd interface{}, closeChan <-chan str
 			context := "Failed to retrieve block height"
 			return nil, rpcInternalError(err.Error(), context)
 		}
-		blkIndex = wire.NullBlockIndex // TODO: Update txindex to provide.
+		blkIndex = idxEntry.BlockIndex
 
 		// Deserialize the transaction
 		var msgTx wire.MsgTx
@@ -3879,8 +3880,7 @@ func handleGetTxOut(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) (i
 	}
 	var txFromMempool *dcrutil.Tx
 	if includeMempool {
-		txFromMempool, _ = s.server.txMemPool.FetchTransaction(txHash,
-			true)
+		txFromMempool, _ = s.server.txMemPool.FetchTransaction(txHash)
 	}
 	if txFromMempool != nil {
 		mtx := txFromMempool.MsgTx()
@@ -4486,7 +4486,7 @@ func fetchInputTxos(s *rpcServer, tx *wire.MsgTx) (map[wire.OutPoint]wire.TxOut,
 		// Attempt to fetch and use the referenced transaction from the
 		// memory pool.
 		origin := &txIn.PreviousOutPoint
-		originTx, err := mp.FetchTransaction(&origin.Hash, true)
+		originTx, err := mp.FetchTransaction(&origin.Hash)
 		if err == nil {
 			txOuts := originTx.MsgTx().TxOut
 			if origin.Index >= uint32(len(txOuts)) {
@@ -4501,14 +4501,15 @@ func fetchInputTxos(s *rpcServer, tx *wire.MsgTx) (map[wire.OutPoint]wire.TxOut,
 		}
 
 		// Look up the location of the transaction.
-		blockRegion, err := s.server.txIndex.TxBlockRegion(origin.Hash)
+		idxEntry, err := s.server.txIndex.Entry(&origin.Hash)
 		if err != nil {
 			context := "Failed to retrieve transaction location"
 			return nil, rpcInternalError(err.Error(), context)
 		}
-		if blockRegion == nil {
+		if idxEntry == nil {
 			return nil, rpcNoTxInfoError(&origin.Hash)
 		}
+		blockRegion := &idxEntry.BlockRegion
 
 		// Load the raw transaction bytes from the database.
 		var txBytes []byte
@@ -4790,11 +4791,16 @@ func handleSearchRawTransactions(s *rpcServer, cmd interface{}, closeChan <-chan
 	// are needed.
 	if len(addressTxns) < numRequested {
 		err = s.server.db.View(func(dbTx database.Tx) error {
-			regions, dbSkipped, err := addrIndex.TxRegionsForAddress(
+			idxEntries, dbSkipped, err := addrIndex.EntriesForAddress(
 				dbTx, addr, uint32(numToSkip)-numSkipped,
 				uint32(numRequested-len(addressTxns)), reverse)
 			if err != nil {
 				return err
+			}
+			regions := make([]database.BlockRegion, 0, len(idxEntries))
+			for i := 0; i < len(idxEntries); i++ {
+				entry := &idxEntries[i]
+				regions = append(regions, entry.BlockRegion)
 			}
 
 			// Load the raw transaction bytes from the database.
@@ -4815,7 +4821,7 @@ func handleSearchRawTransactions(s *rpcServer, cmd interface{}, closeChan <-chan
 				addressTxns = append(addressTxns, retrievedTx{
 					txBytes:  serializedTx,
 					blkHash:  regions[i].Hash,
-					blkIndex: wire.NullBlockIndex,
+					blkIndex: idxEntries[i].BlockIndex,
 				})
 			}
 			numSkipped += dbSkipped

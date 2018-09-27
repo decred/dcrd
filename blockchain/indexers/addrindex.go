@@ -67,10 +67,6 @@ const (
 	// the hash of a pubkey address might be the same as that of a script
 	// hash.
 	addrKeyTypeScriptHash = 3
-
-	// Size of a transaction entry.  It consists of 4 bytes block id + 4
-	// bytes offset + 4 bytes length.
-	txEntrySize = 4 + 4 + 4
 )
 
 var (
@@ -131,14 +127,15 @@ var (
 //
 // The serialized value format is:
 //
-//   [<block id><start offset><tx length>,...]
+//   [<block id><start offset><tx length><block index>,...]
 //
 //   Field           Type      Size
 //   block id        uint32    4 bytes
 //   start offset    uint32    4 bytes
 //   tx length       uint32    4 bytes
+//   block index     uint32    4 bytes
 //   -----
-//   Total: 12 bytes per indexed tx
+//   Total: 16 bytes per indexed tx
 // -----------------------------------------------------------------------------
 
 // fetchBlockHashFunc defines a callback function to use in order to convert a
@@ -147,12 +144,13 @@ type fetchBlockHashFunc func(serializedID []byte) (*chainhash.Hash, error)
 
 // serializeAddrIndexEntry serializes the provided block id and transaction
 // location according to the format described in detail above.
-func serializeAddrIndexEntry(blockID uint32, txLoc wire.TxLoc) []byte {
+func serializeAddrIndexEntry(blockID uint32, txLoc wire.TxLoc, blockIndex uint32) []byte {
 	// Serialize the entry.
-	serialized := make([]byte, 12)
+	serialized := make([]byte, txEntrySize)
 	byteOrder.PutUint32(serialized, blockID)
 	byteOrder.PutUint32(serialized[4:], uint32(txLoc.TxStart))
 	byteOrder.PutUint32(serialized[8:], uint32(txLoc.TxLen))
+	byteOrder.PutUint32(serialized[12:], blockIndex)
 	return serialized
 }
 
@@ -160,7 +158,7 @@ func serializeAddrIndexEntry(blockID uint32, txLoc wire.TxLoc) []byte {
 // provided region struct according to the format described in detail above and
 // uses the passed block hash fetching function in order to conver the block ID
 // to the associated block hash.
-func deserializeAddrIndexEntry(serialized []byte, region *database.BlockRegion, fetchBlockHash fetchBlockHashFunc) error {
+func deserializeAddrIndexEntry(serialized []byte, entry *TxIndexEntry, fetchBlockHash fetchBlockHashFunc) error {
 	// Ensure there are enough bytes to decode.
 	if len(serialized) < txEntrySize {
 		return errDeserialize("unexpected end of data")
@@ -170,9 +168,11 @@ func deserializeAddrIndexEntry(serialized []byte, region *database.BlockRegion, 
 	if err != nil {
 		return err
 	}
+	region := &entry.BlockRegion
 	region.Hash = hash
 	region.Offset = byteOrder.Uint32(serialized[4:8])
 	region.Len = byteOrder.Uint32(serialized[8:12])
+	entry.BlockIndex = byteOrder.Uint32(serialized[12:16])
 	return nil
 }
 
@@ -187,14 +187,14 @@ func keyForLevel(addrKey [addrKeySize]byte, level uint8) [levelKeySize]byte {
 
 // dbPutAddrIndexEntry updates the address index to include the provided entry
 // according to the level-based scheme described in detail above.
-func dbPutAddrIndexEntry(bucket internalBucket, addrKey [addrKeySize]byte, blockID uint32, txLoc wire.TxLoc) error {
+func dbPutAddrIndexEntry(bucket internalBucket, addrKey [addrKeySize]byte, blockID uint32, txLoc wire.TxLoc, blockIndex uint32) error {
 	// Start with level 0 and its initial max number of entries.
 	curLevel := uint8(0)
 	maxLevelBytes := level0MaxEntries * txEntrySize
 
 	// Simply append the new entry to level 0 and return now when it will
 	// fit.  This is the most common path.
-	newData := serializeAddrIndexEntry(blockID, txLoc)
+	newData := serializeAddrIndexEntry(blockID, txLoc, blockIndex)
 	level0Key := keyForLevel(addrKey, 0)
 	level0Data := bucket.Get(level0Key[:])
 	if len(level0Data)+len(newData) <= maxLevelBytes {
@@ -258,7 +258,7 @@ func dbPutAddrIndexEntry(bucket internalBucket, addrKey [addrKeySize]byte, block
 // the given address key and the number of entries skipped since it could have
 // been less in the case where there are less total entries than the requested
 // number of entries to skip.
-func dbFetchAddrIndexEntries(bucket internalBucket, addrKey [addrKeySize]byte, numToSkip, numRequested uint32, reverse bool, fetchBlockHash fetchBlockHashFunc) ([]database.BlockRegion, uint32, error) {
+func dbFetchAddrIndexEntries(bucket internalBucket, addrKey [addrKeySize]byte, numToSkip, numRequested uint32, reverse bool, fetchBlockHash fetchBlockHashFunc) ([]TxIndexEntry, uint32, error) {
 	// When the reverse flag is not set, all levels need to be fetched
 	// because numToSkip and numRequested are counted from the oldest
 	// transactions (highest level) and thus the total count is needed.
@@ -304,7 +304,7 @@ func dbFetchAddrIndexEntries(bucket internalBucket, addrKey [addrKeySize]byte, n
 
 	// Start the offset after all skipped entries and load the calculated
 	// number.
-	results := make([]database.BlockRegion, numToLoad)
+	results := make([]TxIndexEntry, numToLoad)
 	for i := uint32(0); i < numToLoad; i++ {
 		// Calculate the read offset according to the reverse flag.
 		var offset uint32
@@ -714,20 +714,16 @@ func (idx *AddrIndex) indexPkScript(data writeIndexData, scriptVersion uint16, p
 	}
 }
 
-// indexBlock extract all of the standard addresses from all of the transactions
-// in the parent of the passed block (if they were valid) and all of the stake
-// transactions in the passed block, and maps each of them to the associated
-// transaction using the passed map.
-func (idx *AddrIndex) indexBlock(data writeIndexData, block, parent *dcrutil.Block, view *blockchain.UtxoViewpoint) {
-	var parentRegularTxs []*dcrutil.Tx
-	if approvesParent(block) && block.Height() > 1 {
-		parentRegularTxs = parent.Transactions()
-	}
-	for txIdx, tx := range parentRegularTxs {
+// indexBlock extracts all of the standard addresses from all of the
+// regular and stake transactions in the passed block and maps each of them to
+// the associated transaction using the passed map.
+func (idx *AddrIndex) indexBlock(data writeIndexData, block *dcrutil.Block, view *blockchain.UtxoViewpoint) {
+	regularTxns := block.Transactions()
+	for txIdx, tx := range regularTxns {
 		// Coinbases do not reference any inputs.  Since the block is
 		// required to have already gone through full validation, it has
-		// already been proven on the first transaction in the block is
-		// a coinbase.
+		// already been proven that the first transaction in the block
+		// is a coinbase.
 		if txIdx != 0 {
 			for _, txIn := range tx.MsgTx().TxIn {
 				// The view should always have the input since
@@ -758,7 +754,7 @@ func (idx *AddrIndex) indexBlock(data writeIndexData, block, parent *dcrutil.Blo
 
 	for txIdx, tx := range block.STransactions() {
 		msgTx := tx.MsgTx()
-		thisTxOffset := txIdx + len(parentRegularTxs)
+		thisTxOffset := txIdx + len(regularTxns)
 
 		isSSGen := stake.IsSSGen(msgTx)
 		for i, txIn := range msgTx.TxIn {
@@ -800,64 +796,44 @@ func (idx *AddrIndex) indexBlock(data writeIndexData, block, parent *dcrutil.Blo
 //
 // This is part of the Indexer interface.
 func (idx *AddrIndex) ConnectBlock(dbTx database.Tx, block, parent *dcrutil.Block, view *blockchain.UtxoViewpoint) error {
-	// The offset and length of the transactions within the serialized
-	// block for the regular transactions of the previous block, if
-	// applicable.
-	var parentTxLocs []wire.TxLoc
-	var parentBlockID uint32
-	if approvesParent(block) && block.Height() > 1 {
-		var err error
-		parentTxLocs, _, err = parent.TxLoc()
-		if err != nil {
-			return err
-		}
+	// NOTE: The fact that the block can disapprove the regular tree of the
+	// previous block is ignored for this index because even though the
+	// disapproved transactions no longer apply spend semantics, they still
+	// exist within the block and thus have to be processed before the next
+	// block disapproves them.
 
-		parentHash := parent.Hash()
-		parentBlockID, err = dbFetchBlockIDByHash(dbTx, parentHash)
-		if err != nil {
-			return err
-		}
-	}
-
-	// The offset and length of the transactions within the serialized
-	// block for the added stake transactions.
-	_, blockStxLocs, err := block.TxLoc()
+	// The offset and length of the transactions within the serialized block.
+	txLocs, stakeTxLocs, err := block.TxLoc()
 	if err != nil {
 		return err
 	}
 
-	// Nothing to index, just return.
-	if len(parentTxLocs)+len(blockStxLocs) == 0 {
-		return nil
-	}
-
 	// Get the internal block ID associated with the block.
-	blockHash := block.Hash()
-	blockID, err := dbFetchBlockIDByHash(dbTx, blockHash)
+	blockID, err := dbFetchBlockIDByHash(dbTx, block.Hash())
 	if err != nil {
 		return err
 	}
 
 	// Build all of the address to transaction mappings in a local map.
 	addrsToTxns := make(writeIndexData)
-	idx.indexBlock(addrsToTxns, block, parent, view)
+	idx.indexBlock(addrsToTxns, block, view)
 
 	// Add all of the index entries for each address.
-	stakeIdxsStart := len(parentTxLocs)
-	allTxLocs := append(parentTxLocs, blockStxLocs...)
+	stakeIdxsStart := len(txLocs)
 	addrIdxBucket := dbTx.Metadata().Bucket(addrIndexKey)
 	for addrKey, txIdxs := range addrsToTxns {
 		for _, txIdx := range txIdxs {
-			// Switch to using the newest block ID for the stake transactions,
-			// since these are not from the parent. Offset the index to be
-			// correct for the location in this given block.
-			blockIDToUse := parentBlockID
+			// Adjust the block index and slice of transaction locations to use
+			// based on the regular or stake tree.
+			txLocations := txLocs
+			blockIndex := txIdx
 			if txIdx >= stakeIdxsStart {
-				blockIDToUse = blockID
+				txLocations = stakeTxLocs
+				blockIndex -= stakeIdxsStart
 			}
 
-			err := dbPutAddrIndexEntry(addrIdxBucket, addrKey,
-				blockIDToUse, allTxLocs[txIdx])
+			err := dbPutAddrIndexEntry(addrIdxBucket, addrKey, blockID,
+				txLocations[blockIndex], uint32(blockIndex))
 			if err != nil {
 				return err
 			}
@@ -873,9 +849,15 @@ func (idx *AddrIndex) ConnectBlock(dbTx database.Tx, block, parent *dcrutil.Bloc
 //
 // This is part of the Indexer interface.
 func (idx *AddrIndex) DisconnectBlock(dbTx database.Tx, block, parent *dcrutil.Block, view *blockchain.UtxoViewpoint) error {
+	// NOTE: The fact that the block can disapprove the regular tree of the
+	// previous block is ignored for this index because even though the
+	// disapproved transactions no longer apply spend semantics, they still
+	// exist within the block and thus have to be processed before the next
+	// block disapproves them.
+
 	// Build all of the address to transaction mappings in a local map.
 	addrsToTxns := make(writeIndexData)
-	idx.indexBlock(addrsToTxns, block, parent, view)
+	idx.indexBlock(addrsToTxns, block, view)
 
 	// Remove all of the index entries for each address.
 	bucket := dbTx.Metadata().Bucket(addrIndexKey)
@@ -889,24 +871,24 @@ func (idx *AddrIndex) DisconnectBlock(dbTx database.Tx, block, parent *dcrutil.B
 	return nil
 }
 
-// TxRegionsForAddress returns a slice of block regions which identify each
-// transaction that involves the passed address according to the specified
-// number to skip, number requested, and whether or not the results should be
-// reversed.  It also returns the number actually skipped since it could be less
-// in the case where there are not enough entries.
+// EntriesForAddress returns a slice of details which identify each transaction,
+// including a block region, that involves the passed address according to the
+// specified number to skip, number requested, and whether or not the results
+// should be reversed.  It also returns the number actually skipped since it
+// could be less in the case where there are not enough entries.
 //
 // NOTE: These results only include transactions confirmed in blocks.  See the
 // UnconfirmedTxnsForAddress method for obtaining unconfirmed transactions
 // that involve a given address.
 //
 // This function is safe for concurrent access.
-func (idx *AddrIndex) TxRegionsForAddress(dbTx database.Tx, addr dcrutil.Address, numToSkip, numRequested uint32, reverse bool) ([]database.BlockRegion, uint32, error) {
+func (idx *AddrIndex) EntriesForAddress(dbTx database.Tx, addr dcrutil.Address, numToSkip, numRequested uint32, reverse bool) ([]TxIndexEntry, uint32, error) {
 	addrKey, err := addrToKey(addr, idx.chainParams)
 	if err != nil {
 		return nil, 0, err
 	}
 
-	var regions []database.BlockRegion
+	var entries []TxIndexEntry
 	var skipped uint32
 	err = idx.db.View(func(dbTx database.Tx) error {
 		// Create closure to lookup the block hash given the ID using
@@ -918,13 +900,13 @@ func (idx *AddrIndex) TxRegionsForAddress(dbTx database.Tx, addr dcrutil.Address
 
 		var err error
 		addrIdxBucket := dbTx.Metadata().Bucket(addrIndexKey)
-		regions, skipped, err = dbFetchAddrIndexEntries(addrIdxBucket,
+		entries, skipped, err = dbFetchAddrIndexEntries(addrIdxBucket,
 			addrKey, numToSkip, numRequested, reverse,
 			fetchBlockHash)
 		return err
 	})
 
-	return regions, skipped, err
+	return entries, skipped, err
 }
 
 // indexUnconfirmedAddresses modifies the unconfirmed (memory-only) address

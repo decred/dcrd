@@ -96,16 +96,6 @@ func TestBlockchainSpendJournal(t *testing.T) {
 	// Loop through all of the blocks and ensure the number of spent outputs
 	// matches up with the information loaded from the spend journal.
 	err = chain.db.View(func(dbTx database.Tx) error {
-		parentNode := chain.bestChain.NodeByHeight(1)
-		if parentNode == nil {
-			str := fmt.Sprintf("no block at height %d exists", 1)
-			return errNotInMainChain(str)
-		}
-		parent, err := dbFetchBlockByNode(dbTx, parentNode)
-		if err != nil {
-			return err
-		}
-
 		for i := int64(2); i <= chain.bestChain.Tip().height; i++ {
 			node := chain.bestChain.NodeByHeight(i)
 			if node == nil {
@@ -117,9 +107,8 @@ func TestBlockchainSpendJournal(t *testing.T) {
 				return err
 			}
 
-			ntx := countSpentOutputs(block, parent)
-			stxos, err := dbFetchSpendJournalEntry(dbTx, block,
-				parent)
+			ntx := countSpentOutputs(block)
+			stxos, err := dbFetchSpendJournalEntry(dbTx, block)
 			if err != nil {
 				return err
 			}
@@ -129,8 +118,6 @@ func TestBlockchainSpendJournal(t *testing.T) {
 					"calculated at "+"height %v, got %v "+
 					"expected %v", i, len(stxos), ntx)
 			}
-
-			parent = block
 		}
 
 		return nil

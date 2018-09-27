@@ -222,7 +222,7 @@ nextTest:
 		for i := 0; i < test.numInsert; i++ {
 			txLoc := wire.TxLoc{TxStart: i * 2}
 			err := dbPutAddrIndexEntry(populatedBucket, test.key,
-				uint32(i), txLoc)
+				uint32(i), txLoc, uint32(i%100))
 			if err != nil {
 				t.Errorf("dbPutAddrIndexEntry #%d (%s) - "+
 					"unexpected error: %v", testNum,

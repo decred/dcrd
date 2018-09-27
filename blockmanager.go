@@ -1658,6 +1658,35 @@ func (b *blockManager) notifiedWinningTickets(hash *chainhash.Hash) bool {
 	return beenNotified
 }
 
+// headerApprovesParent returns whether or not the vote bits in the passed
+// header indicate the regular transaction tree of the parent block should be
+// considered valid.
+func headerApprovesParent(header *wire.BlockHeader) bool {
+	return dcrutil.IsFlagSet16(header.VoteBits, dcrutil.BlockValid)
+}
+
+// isDoubleSpendOrDuplicateError returns whether or not the passed error, which
+// is expected to have come from mempool, indicates a transaction was rejected
+// either due to containing a double spend or already existing in the pool.
+func isDoubleSpendOrDuplicateError(err error) bool {
+	merr, ok := err.(mempool.RuleError)
+	if !ok {
+		return false
+	}
+
+	rerr, ok := merr.Err.(mempool.TxRuleError)
+	if ok && rerr.RejectCode == wire.RejectDuplicate {
+		return true
+	}
+
+	cerr, ok := merr.Err.(blockchain.RuleError)
+	if ok && cerr.ErrorCode == blockchain.ErrMissingTxOut {
+		return true
+	}
+
+	return false
+}
+
 // handleNotifyMsg handles notifications from blockchain.  It does things such
 // as request orphan block parents and relay accepted blocks to connected peers.
 func (b *blockManager) handleNotifyMsg(notification *blockchain.Notification) {
@@ -1785,56 +1814,81 @@ func (b *blockManager) handleNotifyMsg(notification *blockchain.Notification) {
 		block := blockSlice[0]
 		parentBlock := blockSlice[1]
 
-		// Check and see if the regular tx tree of the previous block was
-		// invalid or not. If it wasn't, then we need to restore all the tx
-		// from this block into the mempool. They may end up being spent in
-		// the regular tx tree of the current block, for which there is code
-		// below.
-		txTreeRegularValid := dcrutil.IsFlagSet16(block.MsgBlock().Header.VoteBits,
-			dcrutil.BlockValid)
+		// TODO: In the case the new tip disapproves the previous block, any
+		// transactions the previous block contains in its regular tree which
+		// double spend the same inputs as transactions in either tree of the
+		// current tip should ideally be tracked in the pool as eligibile for
+		// inclusion in an alternative tip (side chain block) in case the
+		// current tip block does not get enough votes.  However, the
+		// transaction pool currently does not provide any way to distinguish
+		// this condition and thus only provides tracking based on the current
+		// tip.  In order to handle this condition, the pool would have to
+		// provide a way to track and independently query which txns are
+		// eligible based on the current tip both approving and disapproving the
+		// previous block as well as the previous block itself.
 
-		// Remove all of the regular and stake transactions in the
-		// connected block from the transaction pool.  Also, remove any
-		// transactions which are now double spends as a result of these
-		// new transactions.  Finally, remove any transaction that is
-		// no longer an orphan. Transactions which depend on a confirmed
-		// transaction are NOT removed recursively because they are still
-		// valid.  Also, the coinbase of the regular tx tree is skipped
-		// because the memory pool doesn't (and can't) have regular
-		// tree coinbase transactions in it.
-		if txTreeRegularValid {
-			for _, tx := range parentBlock.Transactions()[1:] {
-				b.server.txMemPool.RemoveTransaction(tx, false)
-				b.server.txMemPool.RemoveDoubleSpends(tx)
-				b.server.txMemPool.RemoveOrphan(tx)
-				acceptedTxs := b.server.txMemPool.ProcessOrphans(tx)
+		// Remove all of the regular and stake transactions in the connected
+		// block from the transaction pool.  Also, remove any transactions which
+		// are now double spends as a result of these new transactions.
+		// Finally, remove any transaction that is no longer an orphan.
+		// Transactions which depend on a confirmed transaction are NOT removed
+		// recursively because they are still valid.  Also, the coinbase of the
+		// regular tx tree is skipped because the transaction pool doesn't (and
+		// can't) have regular tree coinbase transactions in it.
+		//
+		// Also, in the case the RPC server is enabled, stop rebroadcasting any
+		// transactions in the block that were setup to be rebroadcast.
+		txMemPool := b.server.txMemPool
+		handleConnectedBlockTxns := func(txns []*dcrutil.Tx) {
+			for _, tx := range txns {
+				txMemPool.RemoveTransaction(tx, false)
+				txMemPool.RemoveDoubleSpends(tx)
+				txMemPool.RemoveOrphan(tx)
+				acceptedTxs := txMemPool.ProcessOrphans(tx)
 				b.server.AnnounceNewTransactions(acceptedTxs)
-			}
-		}
 
-		for _, stx := range block.STransactions()[0:] {
-			b.server.txMemPool.RemoveTransaction(stx, false)
-			b.server.txMemPool.RemoveDoubleSpends(stx)
-			b.server.txMemPool.RemoveOrphan(stx)
-			acceptedTxs := b.server.txMemPool.ProcessOrphans(stx)
-			b.server.AnnounceNewTransactions(acceptedTxs)
-		}
-
-		if r := b.server.rpcServer; r != nil {
-			// Now that this block is in the blockchain we can mark
-			// all the transactions (except the coinbase) as no
-			// longer needing rebroadcasting.
-			if txTreeRegularValid {
-				for _, tx := range parentBlock.Transactions()[1:] {
+				// Now that this block is in the blockchain, mark the
+				// transaction (except the coinbase) as no longer needing
+				// rebroadcasting.
+				if b.server.rpcServer != nil {
 					iv := wire.NewInvVect(wire.InvTypeTx, tx.Hash())
 					b.server.RemoveRebroadcastInventory(iv)
 				}
 			}
-			for _, stx := range block.STransactions()[0:] {
-				iv := wire.NewInvVect(wire.InvTypeTx, stx.Hash())
-				b.server.RemoveRebroadcastInventory(iv)
-			}
+		}
+		handleConnectedBlockTxns(block.Transactions()[1:])
+		handleConnectedBlockTxns(block.STransactions())
 
+		// In the case the regular tree of the previous block was disapproved,
+		// add all of the its transactions, with the exception of the coinbase,
+		// back to the transaction pool to be mined in a future block.
+		//
+		// Notice that some of those transactions might have been included in
+		// the current block and others might also be spending some of the same
+		// outputs that transactions in the previous originally block spent.
+		// This is the expected behavior because disapproval of the regular tree
+		// of the previous block essentially makes it as if those transactions
+		// never happened.
+		//
+		// Finally, if transactions fail to add to the pool for some reason
+		// other than the pool already having it (a duplicate) or now being a
+		// double spend, remove all transactions that depend on it as well.
+		// The dependencies are not removed for double spends because the only
+		// way a transaction which was not a double spend in the previous block
+		// to now be one is due to some transaction in the current block
+		// (probably the same one) also spending those outputs, and, in that
+		// case, anything that happens to be in the pool which depends on the
+		// transaction is still valid.
+		if !headerApprovesParent(&block.MsgBlock().Header) {
+			for _, tx := range parentBlock.Transactions()[1:] {
+				_, err := txMemPool.MaybeAcceptTransaction(tx, false, true)
+				if err != nil && !isDoubleSpendOrDuplicateError(err) {
+					txMemPool.RemoveTransaction(tx, true)
+				}
+			}
+		}
+
+		if r := b.server.rpcServer; r != nil {
 			// Filter and update the rebroadcast inventory.
 			b.server.PruneRebroadcastInventory()
 
@@ -1884,48 +1938,60 @@ func (b *blockManager) handleNotifyMsg(notification *blockchain.Notification) {
 		block := blockSlice[0]
 		parentBlock := blockSlice[1]
 
-		// If the parent tx tree was invalidated, we need to remove these
-		// tx from the mempool as the next incoming block may alternatively
-		// validate them.
-		txTreeRegularValid := dcrutil.IsFlagSet16(block.MsgBlock().Header.VoteBits,
-			dcrutil.BlockValid)
-
-		if !txTreeRegularValid {
+		// In the case the regular tree of the previous block was disapproved,
+		// disconnecting the current block makes all of those transactions valid
+		// again.  Thus, with the exception of the coinbase, remove all of those
+		// transactions and any that are now double spends from the transaction
+		// pool.  Transactions which depend on a confirmed transaction are NOT
+		// removed recursively because they are still valid.
+		txMemPool := b.server.txMemPool
+		if !headerApprovesParent(&block.MsgBlock().Header) {
 			for _, tx := range parentBlock.Transactions()[1:] {
-				b.server.txMemPool.RemoveTransaction(tx, false)
-				b.server.txMemPool.RemoveDoubleSpends(tx)
-				b.server.txMemPool.RemoveOrphan(tx)
-				b.server.txMemPool.ProcessOrphans(tx)
+				txMemPool.RemoveTransaction(tx, false)
+				txMemPool.RemoveDoubleSpends(tx)
+				txMemPool.RemoveOrphan(tx)
+				txMemPool.ProcessOrphans(tx)
 			}
 		}
 
-		// Reinsert all of the transactions (except the coinbase) from the parent
-		// tx tree regular into the transaction pool.
-		for _, tx := range parentBlock.Transactions()[1:] {
-			_, err := b.server.txMemPool.MaybeAcceptTransaction(tx, false, true)
-			if err != nil {
-				// Remove the transaction and all transactions
-				// that depend on it if it wasn't accepted into
-				// the transaction pool.
-				b.server.txMemPool.RemoveTransaction(tx, true)
+		// Add all of the regular and stake transactions in the disconnected
+		// block, with the exception of the regular tree coinbase, back to the
+		// transaction pool to be mined in a future block.
+		//
+		// Notice that, in the case the previous block was disapproved, some of
+		// the transactions in the block being disconnected might have been
+		// included in the previous block and others might also have been
+		// spending some of the same outputs.  This is the expected behavior
+		// because disapproval of the regular tree of the previous block
+		// essentially makes it as if those transactions never happened, so
+		// disconnecting the block that disapproved those transactions
+		// effectively revives them.
+		//
+		// Finally, if transactions fail to add to the pool for some reason
+		// other than the pool already having it (a duplicate) or now being a
+		// double spend, remove all transactions that depend on it as well.
+		// The dependencies are not removed for double spends because the only
+		// way a transaction which was not a double spend in the block being
+		// disconnected to now be one is due to some transaction in the previous
+		// block (probably the same one), which was disapproved, also spending
+		// those outputs, and, in that case, anything that happens to be in the
+		// pool which depends on the transaction is still valid.
+		handleDisconnectedBlockTxns := func(txns []*dcrutil.Tx) {
+			for _, tx := range txns {
+				_, err := txMemPool.MaybeAcceptTransaction(tx, false, true)
+				if err != nil && !isDoubleSpendOrDuplicateError(err) {
+					txMemPool.RemoveTransaction(tx, true)
+				}
 			}
 		}
+		handleDisconnectedBlockTxns(block.Transactions()[1:])
+		handleDisconnectedBlockTxns(block.STransactions())
 
-		for _, tx := range block.STransactions()[0:] {
-			_, err := b.server.txMemPool.MaybeAcceptTransaction(tx, false, true)
-			if err != nil {
-				// Remove the transaction and all transactions
-				// that depend on it if it wasn't accepted into
-				// the transaction pool.
-				b.server.txMemPool.RemoveTransaction(tx, true)
-			}
-		}
-
-		// Filter and update the rebroadcast inventory.
-		b.server.PruneRebroadcastInventory()
-
-		// Notify registered websocket clients.
 		if r := b.server.rpcServer; r != nil {
+			// Filter and update the rebroadcast inventory.
+			b.server.PruneRebroadcastInventory()
+
+			// Notify registered websocket clients.
 			r.ntfnMgr.NotifyBlockDisconnected(block)
 		}
 
