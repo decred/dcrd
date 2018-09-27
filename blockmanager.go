@@ -330,6 +330,10 @@ type blockManager struct {
 	cachedCurrentTemplate *BlockTemplate
 	cachedParentTemplate  *BlockTemplate
 	AggressiveMining      bool
+
+	// The following fields are used to filter duplicate block announcements.
+	announcedBlockMtx sync.Mutex
+	announcedBlock    *chainhash.Hash
 }
 
 // resetHeaderState sets the headers-first mode state to values appropriate for
@@ -1659,6 +1663,9 @@ func (b *blockManager) handleNotifyMsg(notification *blockchain.Notification) {
 		// Generate the inventory vector and relay it immediately.
 		iv := wire.NewInvVect(wire.InvTypeBlock, block.Hash())
 		b.server.RelayInventory(iv, block.MsgBlock().Header, true)
+		b.announcedBlockMtx.Lock()
+		b.announcedBlock = block.Hash()
+		b.announcedBlockMtx.Unlock()
 
 	// A block has been accepted into the block chain.  Relay it to other peers
 	// (will be ignored if already relayed via NTNewTipBlockChecked) and
@@ -1736,9 +1743,16 @@ func (b *blockManager) handleNotifyMsg(notification *blockchain.Notification) {
 			}
 		}
 
-		// Generate the inventory vector and relay it immediately.
-		iv := wire.NewInvVect(wire.InvTypeBlock, blockHash)
-		b.server.RelayInventory(iv, block.MsgBlock().Header, true)
+		// Generate the inventory vector and relay it immediately if not already
+		// known to have been sent in NTNewTipBlockChecked.
+		b.announcedBlockMtx.Lock()
+		sent := b.announcedBlock != nil && *b.announcedBlock == *blockHash
+		b.announcedBlock = nil
+		b.announcedBlockMtx.Unlock()
+		if !sent {
+			iv := wire.NewInvVect(wire.InvTypeBlock, blockHash)
+			b.server.RelayInventory(iv, block.MsgBlock().Header, true)
+		}
 
 	// A block has been connected to the main block chain.
 	case blockchain.NTBlockConnected:
