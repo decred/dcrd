@@ -347,34 +347,6 @@ func TestWalletSvrCmds(t *testing.T) {
 			},
 		},
 		{
-			name: "importaddress",
-			newCmd: func() (interface{}, error) {
-				return NewCmd("importaddress", "1Address")
-			},
-			staticCmd: func() interface{} {
-				return NewImportAddressCmd("1Address", nil)
-			},
-			marshalled: `{"jsonrpc":"1.0","method":"importaddress","params":["1Address"],"id":1}`,
-			unmarshalled: &ImportAddressCmd{
-				Address: "1Address",
-				Rescan:  Bool(true),
-			},
-		},
-		{
-			name: "importaddress optional",
-			newCmd: func() (interface{}, error) {
-				return NewCmd("importaddress", "1Address", false)
-			},
-			staticCmd: func() interface{} {
-				return NewImportAddressCmd("1Address", Bool(false))
-			},
-			marshalled: `{"jsonrpc":"1.0","method":"importaddress","params":["1Address",false],"id":1}`,
-			unmarshalled: &ImportAddressCmd{
-				Address: "1Address",
-				Rescan:  Bool(false),
-			},
-		},
-		{
 			name: "importprivkey",
 			newCmd: func() (interface{}, error) {
 				return NewCmd("importprivkey", "abc")
@@ -433,34 +405,6 @@ func TestWalletSvrCmds(t *testing.T) {
 				Label:    String("label"),
 				Rescan:   Bool(false),
 				ScanFrom: Int(12345),
-			},
-		},
-		{
-			name: "importpubkey",
-			newCmd: func() (interface{}, error) {
-				return NewCmd("importpubkey", "031234")
-			},
-			staticCmd: func() interface{} {
-				return NewImportPubKeyCmd("031234", nil)
-			},
-			marshalled: `{"jsonrpc":"1.0","method":"importpubkey","params":["031234"],"id":1}`,
-			unmarshalled: &ImportPubKeyCmd{
-				PubKey: "031234",
-				Rescan: Bool(true),
-			},
-		},
-		{
-			name: "importpubkey optional",
-			newCmd: func() (interface{}, error) {
-				return NewCmd("importpubkey", "031234", false)
-			},
-			staticCmd: func() interface{} {
-				return NewImportPubKeyCmd("031234", Bool(false))
-			},
-			marshalled: `{"jsonrpc":"1.0","method":"importpubkey","params":["031234",false],"id":1}`,
-			unmarshalled: &ImportPubKeyCmd{
-				PubKey: "031234",
-				Rescan: Bool(false),
 			},
 		},
 		{
