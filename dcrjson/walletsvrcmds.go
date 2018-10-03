@@ -515,21 +515,6 @@ func NewGetWalletFeeCmd() *GetWalletFeeCmd {
 	return &GetWalletFeeCmd{}
 }
 
-// ImportAddressCmd defines the importaddress JSON-RPC command.
-type ImportAddressCmd struct {
-	Address string
-	Rescan  *bool `jsonrpcdefault:"true"`
-}
-
-// NewImportAddressCmd returns a new instance which can be used to issue an
-// importaddress JSON-RPC command.
-func NewImportAddressCmd(address string, rescan *bool) *ImportAddressCmd {
-	return &ImportAddressCmd{
-		Address: address,
-		Rescan:  rescan,
-	}
-}
-
 // ImportPrivKeyCmd defines the importprivkey JSON-RPC command.
 type ImportPrivKeyCmd struct {
 	PrivKey  string
@@ -549,21 +534,6 @@ func NewImportPrivKeyCmd(privKey string, label *string, rescan *bool, scanFrom *
 		Label:    label,
 		Rescan:   rescan,
 		ScanFrom: scanFrom,
-	}
-}
-
-// ImportPubKeyCmd defines the importpubkey JSON-RPC command.
-type ImportPubKeyCmd struct {
-	PubKey string
-	Rescan *bool `jsonrpcdefault:"true"`
-}
-
-// NewImportPubKeyCmd returns a new instance which can be used to issue an
-// importpubkey JSON-RPC command.
-func NewImportPubKeyCmd(pubKey string, rescan *bool) *ImportPubKeyCmd {
-	return &ImportPubKeyCmd{
-		PubKey: pubKey,
-		Rescan: rescan,
 	}
 }
 
@@ -943,89 +913,6 @@ func NewSendToMultiSigCmd(fromaccount string, amount float64, pubkeys []string,
 	}
 }
 
-// SendToSStxCmd is a type handling custom marshaling and
-// unmarshaling of sendtosstx JSON RPC commands.
-type SendToSStxCmd struct {
-	FromAccount string
-	Amounts     map[string]int64
-	Inputs      []SStxInput
-	COuts       []SStxCommitOut
-	MinConf     *int `jsonrpcdefault:"1"`
-	Comment     *string
-}
-
-// NewSendToSStxCmd creates a new SendToSStxCmd. Optionally a
-// pointer to a TemplateRequest may be provided.
-func NewSendToSStxCmd(fromaccount string, amounts map[string]int64,
-	inputs []SStxInput, couts []SStxCommitOut, minConf *int,
-	comment *string) *SendToSStxCmd {
-	return &SendToSStxCmd{
-		FromAccount: fromaccount,
-		Amounts:     amounts,
-		Inputs:      inputs,
-		COuts:       couts,
-		MinConf:     minConf,
-		Comment:     comment,
-	}
-}
-
-// SendToSSGenCmd models the data needed for sendtossgen.
-type SendToSSGenCmd struct {
-	FromAccount string
-	TicketHash  string
-	BlockHash   string
-	Height      int64
-	VoteBits    uint16
-	Comment     *string
-}
-
-// NewSendToSSGenCmd creates a new SendToSSGenCmd. Optionally a
-// pointer to a TemplateRequest may be provided.
-func NewSendToSSGenCmd(fromaccount string, tickethash string, blockhash string,
-	height int64, votebits uint16, comment *string) *SendToSSGenCmd {
-	return &SendToSSGenCmd{
-		FromAccount: fromaccount,
-		TicketHash:  tickethash,
-		BlockHash:   blockhash,
-		Height:      height,
-		VoteBits:    votebits,
-		Comment:     comment,
-	}
-}
-
-// SendToSSRtxCmd is a type handling custom marshaling and
-// unmarshaling of sendtossrtx JSON RPC commands.
-type SendToSSRtxCmd struct {
-	FromAccount string
-	TicketHash  string
-	Comment     *string
-}
-
-// NewSendToSSRtxCmd creates a new SendToSSRtxCmd. Optionally a
-// pointer to a TemplateRequest may be provided.
-func NewSendToSSRtxCmd(fromaccount string, tickethash string,
-	comment *string) *SendToSSRtxCmd {
-	return &SendToSSRtxCmd{
-		FromAccount: fromaccount,
-		TicketHash:  tickethash,
-		Comment:     comment,
-	}
-}
-
-// SetBalanceToMaintainCmd is a type handling custom marshaling and
-// unmarshaling of setbalancetomaintain JSON RPC commands.
-type SetBalanceToMaintainCmd struct {
-	Balance float64
-}
-
-// NewSetBalanceToMaintainCmd creates a new instance of the setticketfee
-// command.
-func NewSetBalanceToMaintainCmd(balance float64) *SetBalanceToMaintainCmd {
-	return &SetBalanceToMaintainCmd{
-		Balance: balance,
-	}
-}
-
 // SetTxFeeCmd defines the settxfee JSON-RPC command.
 type SetTxFeeCmd struct {
 	Amount float64 // In DCR
@@ -1050,20 +937,6 @@ type SetTicketFeeCmd struct {
 func NewSetTicketFeeCmd(fee float64) *SetTicketFeeCmd {
 	return &SetTicketFeeCmd{
 		Fee: fee,
-	}
-}
-
-// SetTicketMaxPriceCmd is a type handling custom marshaling and
-// unmarshaling of setticketmaxprice JSON RPC commands.
-type SetTicketMaxPriceCmd struct {
-	Max float64
-}
-
-// NewSetTicketMaxPriceCmd creates a new instance of the setticketmaxprice
-// command.
-func NewSetTicketMaxPriceCmd(max float64) *SetTicketMaxPriceCmd {
-	return &SetTicketMaxPriceCmd{
-		Max: max,
 	}
 }
 
@@ -1320,9 +1193,7 @@ func init() {
 	MustRegisterCmd("gettransaction", (*GetTransactionCmd)(nil), flags)
 	MustRegisterCmd("getvotechoices", (*GetVoteChoicesCmd)(nil), flags)
 	MustRegisterCmd("getwalletfee", (*GetWalletFeeCmd)(nil), flags)
-	MustRegisterCmd("importaddress", (*ImportAddressCmd)(nil), flags)
 	MustRegisterCmd("importprivkey", (*ImportPrivKeyCmd)(nil), flags)
-	MustRegisterCmd("importpubkey", (*ImportPubKeyCmd)(nil), flags)
 	MustRegisterCmd("importscript", (*ImportScriptCmd)(nil), flags)
 	MustRegisterCmd("keypoolrefill", (*KeyPoolRefillCmd)(nil), flags)
 	MustRegisterCmd("listaccounts", (*ListAccountsCmd)(nil), flags)
@@ -1344,13 +1215,8 @@ func init() {
 	MustRegisterCmd("sendmany", (*SendManyCmd)(nil), flags)
 	MustRegisterCmd("sendtoaddress", (*SendToAddressCmd)(nil), flags)
 	MustRegisterCmd("sendtomultisig", (*SendToMultiSigCmd)(nil), flags)
-	MustRegisterCmd("sendtosstx", (*SendToSStxCmd)(nil), flags)
-	MustRegisterCmd("sendtossgen", (*SendToSSGenCmd)(nil), flags)
-	MustRegisterCmd("sendtossrtx", (*SendToSSRtxCmd)(nil), flags)
-	MustRegisterCmd("setbalancetomaintain", (*SetBalanceToMaintainCmd)(nil), flags)
 	MustRegisterCmd("settxfee", (*SetTxFeeCmd)(nil), flags)
 	MustRegisterCmd("setticketfee", (*SetTicketFeeCmd)(nil), flags)
-	MustRegisterCmd("setticketmaxprice", (*SetTicketMaxPriceCmd)(nil), flags)
 	MustRegisterCmd("setvotechoice", (*SetVoteChoiceCmd)(nil), flags)
 	MustRegisterCmd("signmessage", (*SignMessageCmd)(nil), flags)
 	MustRegisterCmd("signrawtransaction", (*SignRawTransactionCmd)(nil), flags)
