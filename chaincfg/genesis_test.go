@@ -130,3 +130,42 @@ func TestSimNetGenesisBlock(t *testing.T) {
 			spew.Sdump(SimNetParams.GenesisHash))
 	}
 }
+
+// TestRegNetGenesisBlock tests the genesis block of the regression test network
+// for validity by checking the encoded bytes and hashes.
+func TestRegNetGenesisBlock(t *testing.T) {
+	// Encode the genesis block to raw bytes.
+	var buf bytes.Buffer
+	err := RegNetParams.GenesisBlock.Serialize(&buf)
+	if err != nil {
+		t.Fatalf("TestSimNetGenesisBlock: %v", err)
+	}
+
+	regNetGenesisBlockBytes, _ := hex.DecodeString("0100000000000000000" +
+		"000000000000000000000000000000000000000000000000000000dc101dfc" +
+		"3c6a2eb10ca0c5374e10d28feb53f7eabcc850511ceadb99174aa660000000" +
+		"00000000000000000000000000000000000000000000000000000000000000" +
+		"000000000000000000000000000ffff7f20000000000000000000000000000" +
+		"000008006b45b0000000000000000000000000000000000000000000000000" +
+		"00000000000000000000000000000000101000000010000000000000000000" +
+		"000000000000000000000000000000000000000000000ffffffff00fffffff" +
+		"f010000000000000000000020801679e98561ada96caec2949a5d41c4cab38" +
+		"51eb740d951c10ecbcf265c1fd9000000000000000001ffffffffffffffff0" +
+		"0000000ffffffff02000000")
+
+	// Ensure the encoded block matches the expected bytes.
+	if !bytes.Equal(buf.Bytes(), regNetGenesisBlockBytes) {
+		t.Fatalf("TestRegNetGenesisBlock: Genesis block does not "+
+			"appear valid - got %v, want %v",
+			spew.Sdump(buf.Bytes()),
+			spew.Sdump(regNetGenesisBlockBytes))
+	}
+
+	// Check hash of the block against expected hash.
+	hash := RegNetParams.GenesisBlock.BlockHash()
+	if !RegNetParams.GenesisHash.IsEqual(&hash) {
+		t.Fatalf("TestRegNetGenesisBlock: Genesis block hash does "+
+			"not appear valid - got %v, want %v", spew.Sdump(hash),
+			spew.Sdump(RegNetParams.GenesisHash))
+	}
+}

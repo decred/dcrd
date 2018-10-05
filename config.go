@@ -128,6 +128,7 @@ type config struct {
 	TorIsolation         bool          `long:"torisolation" description:"Enable Tor stream isolation by randomizing user credentials for each connection."`
 	TestNet              bool          `long:"testnet" description:"Use the test network"`
 	SimNet               bool          `long:"simnet" description:"Use the simulation test network"`
+	RegNet               bool          `long:"regnet" description:"Use the regression test network"`
 	DisableCheckpoints   bool          `long:"nocheckpoints" description:"Disable built-in checkpoints.  Don't do this unless you know what you're doing."`
 	DbType               string        `long:"dbtype" description:"Database backend to use for the Block Chain"`
 	Profile              string        `long:"profile" description:"Enable HTTP profiling on given [addr:]port -- NOTE port must be between 1024 and 65536"`
@@ -537,8 +538,8 @@ func loadConfig() (*config, []string, error) {
 
 	// Create a default config file when one does not exist and the user did
 	// not specify an override.
-	if !preCfg.SimNet && preCfg.ConfigFile == defaultConfigFile &&
-		!fileExists(preCfg.ConfigFile) {
+	if !(preCfg.SimNet || preCfg.RegNet) && preCfg.ConfigFile ==
+		defaultConfigFile && !fileExists(preCfg.ConfigFile) {
 
 		err := createDefaultConfigFile(preCfg.ConfigFile)
 		if err != nil {
@@ -550,7 +551,7 @@ func loadConfig() (*config, []string, error) {
 	// Load additional config from file.
 	var configFileError error
 	parser := newConfigParser(&cfg, &serviceOpts, flags.Default)
-	if !cfg.SimNet || preCfg.ConfigFile != defaultConfigFile {
+	if !(cfg.SimNet || cfg.RegNet) || preCfg.ConfigFile != defaultConfigFile {
 		err := flags.NewIniParser(parser).ParseFile(preCfg.ConfigFile)
 		if err != nil {
 			if _, ok := err.(*os.PathError); !ok {
@@ -561,6 +562,11 @@ func loadConfig() (*config, []string, error) {
 			}
 			configFileError = err
 		}
+	}
+
+	// Don't add peers from the config file when in regression test mode.
+	if preCfg.RegNet && len(cfg.AddPeers) > 0 {
+		cfg.AddPeers = nil
 	}
 
 	// Parse command line options again to ensure they take precedence.
@@ -592,11 +598,9 @@ func loadConfig() (*config, []string, error) {
 		return nil, nil, err
 	}
 
-	// Multiple networks can't be selected simultaneously.
+	// Multiple networks can't be selected simultaneously.  Count number of
+	// network flags passed and assign active network params.
 	numNets := 0
-
-	// Count number of network flags passed; assign active network params
-	// while we're at it
 	if cfg.TestNet {
 		numNets++
 		activeNetParams = &testNet3Params
@@ -607,8 +611,12 @@ func loadConfig() (*config, []string, error) {
 		activeNetParams = &simNetParams
 		cfg.DisableDNSSeed = true
 	}
+	if cfg.RegNet {
+		numNets++
+		activeNetParams = &regNetParams
+	}
 	if numNets > 1 {
-		str := "%s: the testnet and simnet params can't be " +
+		str := "%s: the testnet, regnet, and simnet params can't be " +
 			"used together -- choose one of the three"
 		err := fmt.Errorf(str, funcName)
 		fmt.Fprintln(os.Stderr, err)

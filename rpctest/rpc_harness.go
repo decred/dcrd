@@ -113,6 +113,8 @@ func New(activeNet *chaincfg.Params, handlers *rpcclient.NotificationHandlers, e
 		extraArgs = append(extraArgs, "--testnet")
 	case wire.SimNet:
 		extraArgs = append(extraArgs, "--simnet")
+	case wire.RegNet:
+		extraArgs = append(extraArgs, "--regnet")
 	default:
 		return nil, fmt.Errorf("rpctest.New must be called with one " +
 			"of the supported chain networks")

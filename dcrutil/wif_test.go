@@ -77,6 +77,10 @@ func TestEncodeDecodeWIF(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		wif4, err := NewWIF(priv2, &chaincfg.RegNetParams, suite)
+		if err != nil {
+			t.Fatal(err)
+		}
 
 		var tests []struct {
 			wif     *WIF
@@ -101,6 +105,10 @@ func TestEncodeDecodeWIF(t *testing.T) {
 					wif3,
 					"PsURoUb7FMeJQdTYea8pkbUQFBZAsxtfDcfTLGja5sCLZvLZWRtjK",
 				},
+				{
+					wif4,
+					"Pr9D8L8s9nG4AroRjbTGiRuYrweN1T8Dg9grAEeTEStZAPMnjxwCT",
+				},
 			}
 		case dcrec.STEd25519:
 			tests = []struct {
@@ -119,6 +127,10 @@ func TestEncodeDecodeWIF(t *testing.T) {
 					wif3,
 					"PsUSAB97uSWqSr4jsnQNJMRC2Y33iD7FDymZuss9rM6PExexSPyTQ",
 				},
+				{
+					wif4,
+					"Pr9DV2gsos8bD5QcxoipGBrLeJ8EqhLogWnxjqn2zvnbqRg9fZMHs",
+				},
 			}
 		case dcrec.STSchnorrSecp256k1:
 			tests = []struct {
@@ -136,6 +148,10 @@ func TestEncodeDecodeWIF(t *testing.T) {
 				{
 					wif3,
 					"PsUVgxwa9RM9m5jBoywyzbP3SjPQ7QC4uNEjUVDsTfBeahKkmETvQ",
+				},
+				{
+					wif4,
+					"Pr9H1pVL3qxuXK54u1GRxRpC4VUbEtRdMuG8JT8kcEssBALyTRM7v",
 				},
 			}
 		}

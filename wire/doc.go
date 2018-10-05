@@ -85,8 +85,9 @@ message and which Decred network the message applies to.  This package provides
 the following constants:
 
 	wire.MainNet
-	wire.TestNet (Test network version 3)
+	wire.TestNet3 (Test network version 3)
 	wire.SimNet   (Simulation test network)
+	wire.RegNet   (Regression test network)
 
 Determining Message Type
 

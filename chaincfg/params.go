@@ -35,6 +35,10 @@ var (
 	// can have for the simulation test network.  It is the value 2^255 - 1.
 	simNetPowLimit = new(big.Int).Sub(new(big.Int).Lsh(bigOne, 255), bigOne)
 
+	// regNetPowLimit is the highest proof of work value a Decred block
+	// can have for the regression test network.  It is the value 2^255 - 1.
+	regNetPowLimit = new(big.Int).Sub(new(big.Int).Lsh(bigOne, 255), bigOne)
+
 	VoteBitsNotFound = fmt.Errorf("vote bits not found")
 )
 
@@ -654,4 +658,5 @@ func init() {
 	mustRegister(&MainNetParams)
 	mustRegister(&TestNet3Params)
 	mustRegister(&SimNetParams)
+	mustRegister(&RegNetParams)
 }

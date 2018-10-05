@@ -74,6 +74,7 @@ Application Options:
                             credentials for each connection.
       --testnet             Use the test network
       --simnet              Use the simulation test network
+      --regnet              Use the regression test network
       --nocheckpoints       Disable built-in checkpoints.  Don't do this unless
                             you know what you're doing.
       --dbtype=             Database backend to use for the Block Chain (ffldb)

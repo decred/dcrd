@@ -44,3 +44,10 @@ var simNetParams = params{
 	Params:  &chaincfg.SimNetParams,
 	rpcPort: "19556",
 }
+
+// regNetParams contains parameters specific to the regression test
+// network (wire.RegNet).
+var regNetParams = params{
+	Params:  &chaincfg.RegNetParams,
+	rpcPort: "18656",
+}

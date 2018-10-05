@@ -66,6 +66,11 @@ func TestRegister(t *testing.T) {
 					params: &SimNetParams,
 					err:    ErrDuplicateNet,
 				},
+				{
+					name:   "duplicate regnet",
+					params: &RegNetParams,
+					err:    ErrDuplicateNet,
+				},
 			},
 			p2pkhMagics: []magicTest{
 				{
@@ -78,6 +83,10 @@ func TestRegister(t *testing.T) {
 				},
 				{
 					magic: SimNetParams.PubKeyHashAddrID,
+					valid: true,
+				},
+				{
+					magic: RegNetParams.PubKeyHashAddrID,
 					valid: true,
 				},
 				{
@@ -103,6 +112,10 @@ func TestRegister(t *testing.T) {
 					valid: true,
 				},
 				{
+					magic: RegNetParams.ScriptHashAddrID,
+					valid: true,
+				},
+				{
 					magic: mockNetParams.ScriptHashAddrID,
 					valid: false,
 				},
@@ -125,6 +138,11 @@ func TestRegister(t *testing.T) {
 				{
 					priv: SimNetParams.HDPrivateKeyID[:],
 					want: SimNetParams.HDPublicKeyID[:],
+					err:  nil,
+				},
+				{
+					priv: RegNetParams.HDPrivateKeyID[:],
+					want: RegNetParams.HDPublicKeyID[:],
 					err:  nil,
 				},
 				{
@@ -164,6 +182,10 @@ func TestRegister(t *testing.T) {
 					valid: true,
 				},
 				{
+					magic: RegNetParams.PubKeyHashAddrID,
+					valid: true,
+				},
+				{
 					magic: mockNetParams.PubKeyHashAddrID,
 					valid: true,
 				},
@@ -183,6 +205,10 @@ func TestRegister(t *testing.T) {
 				},
 				{
 					magic: SimNetParams.ScriptHashAddrID,
+					valid: true,
+				},
+				{
+					magic: RegNetParams.ScriptHashAddrID,
 					valid: true,
 				},
 				{
@@ -221,6 +247,11 @@ func TestRegister(t *testing.T) {
 					err:    ErrDuplicateNet,
 				},
 				{
+					name:   "duplicate regnet",
+					params: &RegNetParams,
+					err:    ErrDuplicateNet,
+				},
+				{
 					name:   "duplicate mocknet",
 					params: &mockNetParams,
 					err:    ErrDuplicateNet,
@@ -237,6 +268,10 @@ func TestRegister(t *testing.T) {
 				},
 				{
 					magic: SimNetParams.PubKeyHashAddrID,
+					valid: true,
+				},
+				{
+					magic: RegNetParams.PubKeyHashAddrID,
 					valid: true,
 				},
 				{
@@ -262,6 +297,10 @@ func TestRegister(t *testing.T) {
 					valid: true,
 				},
 				{
+					magic: RegNetParams.ScriptHashAddrID,
+					valid: true,
+				},
+				{
 					magic: mockNetParams.ScriptHashAddrID,
 					valid: true,
 				},
@@ -284,6 +323,11 @@ func TestRegister(t *testing.T) {
 				{
 					priv: SimNetParams.HDPrivateKeyID[:],
 					want: SimNetParams.HDPublicKeyID[:],
+					err:  nil,
+				},
+				{
+					priv: RegNetParams.HDPrivateKeyID[:],
+					want: RegNetParams.HDPublicKeyID[:],
 					err:  nil,
 				},
 				{

@@ -213,6 +213,8 @@ func detectNetworkForAddress(addr string) (*chaincfg.Params, error) {
 		return &chaincfg.TestNet3Params, nil
 	case chaincfg.SimNetParams.NetworkAddressPrefix:
 		return &chaincfg.SimNetParams, nil
+	case chaincfg.RegNetParams.NetworkAddressPrefix:
+		return &chaincfg.RegNetParams, nil
 	}
 
 	return nil, fmt.Errorf("unknown network type in string encoded address")

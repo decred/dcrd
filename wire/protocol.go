@@ -108,8 +108,14 @@ const (
 	// MainNet represents the main Decred network.
 	MainNet CurrencyNet = 0xd9b400f9
 
+	// RegNet represents the regression test network.
+	RegNet CurrencyNet = 0xdab500fa
+
 	// RegTest represents the regression test network.
-	RegTest CurrencyNet = 0xdab500fa
+	//
+	// DEPRECATED.  This will be removed in the next major version bump.
+	// Use Regnet instead.
+	RegTest CurrencyNet = RegNet
 
 	// TestNet3 represents the 3rd test network.
 	TestNet3 CurrencyNet = 0xb194aa75
@@ -123,7 +129,7 @@ const (
 var bnStrings = map[CurrencyNet]string{
 	MainNet:  "MainNet",
 	TestNet3: "TestNet3",
-	RegTest:  "RegNet",
+	RegNet:   "RegNet",
 	SimNet:   "SimNet",
 }
 

@@ -56,6 +56,12 @@ func TestCalcWantHeight(t *testing.T) {
 			multiplier: 10000,
 		},
 		{
+			name:       "regnet params",
+			skip:       chaincfg.RegNetParams.StakeValidationHeight,
+			interval:   chaincfg.RegNetParams.StakeVersionInterval,
+			multiplier: 10000,
+		},
+		{
 			name:       "negative mainnet params",
 			skip:       chaincfg.MainNetParams.StakeValidationHeight,
 			interval:   chaincfg.MainNetParams.StakeVersionInterval,

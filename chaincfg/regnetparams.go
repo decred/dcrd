@@ -1,5 +1,4 @@
-// Copyright (c) 2014-2016 The btcsuite developers
-// Copyright (c) 2015-2017 The Decred developers
+// Copyright (c) 2018 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -12,27 +11,26 @@ import (
 	"github.com/decred/dcrd/wire"
 )
 
-// SimNetParams defines the network parameters for the simulation test network.
-// This network is similar to the normal test network except it is intended for
-// private use within a group of individuals doing simulation testing and full
-// integration tests between different applications such as wallets, voting
-// service providers, mining pools, block explorers, and other services that
-// build on Decred.
+// RegNetParams defines the network parameters for the regression test network.
+// This should not be confused with the public test network or the simulation
+// test network.  The purpose of this network is primarily for unit tests and
+// RPC server tests.  On the other hand, the simulation test network is intended
+// for full integration tests between different applications such as wallets,
+// voting service providers, mining pools, block explorers, and other services
+// that build on Decred.
 //
-// The functionality is intended to differ in that the only nodes which are
-// specifically specified are used to create the network rather than following
-// normal discovery rules.  This is important as otherwise it would just turn
-// into another public testnet.
-var SimNetParams = Params{
-	Name:        "simnet",
-	Net:         wire.SimNet,
-	DefaultPort: "18555",
+// Since this network is only intended for unit testing, its values are subject
+// to change even if it would cause a hard fork.
+var RegNetParams = Params{
+	Name:        "regnet",
+	Net:         wire.RegNet,
+	DefaultPort: "18655",
 	DNSSeeds:    nil, // NOTE: There must NOT be any seeds.
 
 	// Chain parameters
-	GenesisBlock:             &simNetGenesisBlock,
-	GenesisHash:              &simNetGenesisHash,
-	PowLimit:                 simNetPowLimit,
+	GenesisBlock:             &regNetGenesisBlock,
+	GenesisHash:              &regNetGenesisHash,
+	PowLimit:                 regNetPowLimit,
 	PowLimitBits:             0x207fffff,
 	ReduceMinDifficulty:      false,
 	MinDiffReductionTime:     0, // Does not apply since ReduceMinDifficulty false
@@ -65,7 +63,7 @@ var SimNetParams = Params{
 	RuleChangeActivationQuorum:     160, // 10 % of RuleChangeActivationInterval * TicketsPerBlock
 	RuleChangeActivationMultiplier: 3,   // 75%
 	RuleChangeActivationDivisor:    4,
-	RuleChangeActivationInterval:   320, // 320 seconds
+	RuleChangeActivationInterval:   320, // Full ticket pool -- 320 seconds
 	Deployments: map[uint32][]ConsensusDeployment{
 		4: {{
 			Vote: Vote{
@@ -168,22 +166,22 @@ var SimNetParams = Params{
 	AcceptNonStdTxs: true,
 
 	// Address encoding magics
-	NetworkAddressPrefix: "S",
-	PubKeyAddrID:         [2]byte{0x27, 0x6f}, // starts with Sk
-	PubKeyHashAddrID:     [2]byte{0x0e, 0x91}, // starts with Ss
-	PKHEdwardsAddrID:     [2]byte{0x0e, 0x71}, // starts with Se
-	PKHSchnorrAddrID:     [2]byte{0x0e, 0x53}, // starts with SS
-	ScriptHashAddrID:     [2]byte{0x0e, 0x6c}, // starts with Sc
-	PrivateKeyID:         [2]byte{0x23, 0x07}, // starts with Ps
+	NetworkAddressPrefix: "R",
+	PubKeyAddrID:         [2]byte{0x25, 0xe5}, // starts with Rk
+	PubKeyHashAddrID:     [2]byte{0x0e, 0x00}, // starts with Rs
+	PKHEdwardsAddrID:     [2]byte{0x0d, 0xe0}, // starts with Re
+	PKHSchnorrAddrID:     [2]byte{0x0d, 0xc2}, // starts with RS
+	ScriptHashAddrID:     [2]byte{0x0d, 0xdb}, // starts with Rc
+	PrivateKeyID:         [2]byte{0x22, 0xfe}, // starts with Pr
 
 	// BIP32 hierarchical deterministic extended key magics
-	HDPrivateKeyID: [4]byte{0x04, 0x20, 0xb9, 0x03}, // starts with sprv
-	HDPublicKeyID:  [4]byte{0x04, 0x20, 0xbd, 0x3d}, // starts with spub
+	HDPrivateKeyID: [4]byte{0xea, 0xb4, 0x04, 0x48}, // starts with rprv
+	HDPublicKeyID:  [4]byte{0xea, 0xb4, 0xf9, 0x87}, // starts with rpub
 
 	// BIP44 coin type used in the hierarchical deterministic path for
 	// address generation.
-	SLIP0044CoinType: 1,   // SLIP0044, Testnet (all coins)
-	LegacyCoinType:   115, // ASCII for s, for backwards compatibility
+	SLIP0044CoinType: 1, // SLIP0044, Testnet (all coins)
+	LegacyCoinType:   1,
 
 	// Decred PoS parameters
 	MinimumStakeDiff:        20000,
@@ -201,7 +199,7 @@ var SimNetParams = Params{
 	MaxFreshStakePerBlock:   20,            // 4*TicketsPerBlock
 	StakeEnabledHeight:      16 + 16,       // CoinbaseMaturity + TicketMaturity
 	StakeValidationHeight:   16 + (64 * 2), // CoinbaseMaturity + TicketPoolSize*2
-	StakeBaseSigScript:      []byte{0xDE, 0xAD, 0xBE, 0xEF},
+	StakeBaseSigScript:      []byte{0x73, 0x57},
 	StakeMajorityMultiplier: 3,
 	StakeMajorityDivisor:    4,
 
@@ -219,22 +217,22 @@ var SimNetParams = Params{
 	// briefcase
 	// (seed 0x0000000000000000000000000000000000000000000000000000000000000000)
 	//
-	// This same wallet owns the three ledger outputs for simnet.
+	// This same wallet owns the three ledger outputs for regnet.
 	//
-	// P2SH details for simnet treasury:
+	// P2SH details for regnet treasury:
 	//
-	// redeemScript: 532103e8c60c7336744c8dcc7b85c27789950fc52aa4e48f895ebbfb
-	// ac383ab893fc4c2103ff9afc246e0921e37d12e17d8296ca06a8f92a07fbe7857ed1d4
-	// f0f5d94e988f21033ed09c7fa8b83ed53e6f2c57c5fa99ed2230c0d38edf53c0340d0f
-	// c2e79c725a53ae
+	// redeemScript: 53210323c1b9aa4facca85df363fb4abd5c52fe2af4746fbb5f99a6d
+	// cc2edb633fe2a62103c2d8a61a2800092ddaf04ba30dfc7cf1ab4130ac1d2398ba15fc
+	// 795b11bc690621035fe97a7b2d6b98242f4bfc33d86a564158b44634b93cdefa155909
+	// 5d4bf6167853ae
 	//   (3-of-3 multisig)
 	// Pubkeys used:
-	//   SkQmxbeuEFDByPoTj41TtXat8tWySVuYUQpd4fuNNyUx51tF1csSs
-	//   SkQn8ervNvAUEX5Ua3Lwjc6BAuTXRznDoDzsyxgjYqX58znY7w9e4
-	//   SkQkfkHZeBbMW8129tZ3KspEh1XBFC1btbkgzs6cjSyPbrgxzsKqk
+	//   Rk8J2ZY5CkDLaBbAYqU7fb1Tr6nSwEACJ1j2oWAwuFZ26PyPeMXiB
+	//   Rk8KEdGMGJiF27CZ8rw2gDPD7MkVGSPjHinXjtTZhoH8ZQ6UhJvhV
+	//   Rk8JV484ePPX6vWZCfBX2Scme5XriXhzwmyaKSYQT64HTbkkfyzL3
 	//
-	// Organization address is ScuQxvveKGfpG1ypt6u27F99Anf7EW3cqhq
-	OrganizationPkScript:        hexDecode("a914cbb08d6ca783b533b2c7d24a51fbca92d937bf9987"),
+	// Organization address is RcQR65gasxuzf7mUeBXeAux6Z37joPuUwUN
+	OrganizationPkScript:        hexDecode("a9146913bcc838bd0087fb3f6b3c868423d5e300078d87"),
 	OrganizationPkScriptVersion: 0,
-	BlockOneLedger:              BlockOneLedgerSimNet,
+	BlockOneLedger:              BlockOneLedgerRegNet,
 }

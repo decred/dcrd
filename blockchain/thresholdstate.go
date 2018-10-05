@@ -604,9 +604,9 @@ func (b *BlockChain) ThresholdState(hash *chainhash.Hash, version uint32, deploy
 // This function MUST be called with the chain state lock held (for writes).
 func (b *BlockChain) isLNFeaturesAgendaActive(prevNode *blockNode) (bool, error) {
 	// Consensus voting on LN features is only enabled on mainnet, testnet
-	// v2, and simnet.
+	// v2 (removed from code), simnet, and regnet.
 	net := b.chainParams.Net
-	if net != wire.MainNet && net != wire.SimNet {
+	if net != wire.MainNet && net != wire.SimNet && net != wire.RegNet {
 		return true, nil
 	}
 

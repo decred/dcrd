@@ -1765,9 +1765,9 @@ func (b *BlockChain) BestSnapshot() *BestState {
 //
 // This function MUST be called with the chain state lock held (for reads).
 func (b *BlockChain) maxBlockSize(prevNode *blockNode) (int64, error) {
-	// Hard fork voting on block size is only enabled on testnet v1 and
-	// simnet.
-	if b.chainParams.Net != wire.SimNet {
+	// Hard fork voting on block size is only enabled on testnet v1 (removed
+	// from code), simnet, and regnet.
+	if b.chainParams.Net != wire.SimNet && b.chainParams.Net != wire.RegNet {
 		return int64(b.chainParams.MaximumBlockSizes[0]), nil
 	}
 
