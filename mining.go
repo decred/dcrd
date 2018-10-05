@@ -33,7 +33,7 @@ const (
 	generatedBlockVersion = 5
 
 	// generatedBlockVersionTest is the version of the block being generated
-	// for networks other than the main network.
+	// for networks other than the main and simulation networks.
 	generatedBlockVersionTest = 6
 
 	// blockHeaderOverhead is the max number of bytes it takes to serialize
@@ -1950,7 +1950,7 @@ mempoolLoop:
 
 	// Choose the block version to generate based on the network.
 	blockVersion := int32(generatedBlockVersion)
-	if g.chainParams.Net != wire.MainNet {
+	if g.chainParams.Net != wire.MainNet && g.chainParams.Net != wire.SimNet {
 		blockVersion = generatedBlockVersionTest
 	}
 

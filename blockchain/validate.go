@@ -1005,8 +1005,7 @@ func (b *BlockChain) checkBlockHeaderContext(header *wire.BlockHeader, prevNode 
 		// Reject version 5 blocks for networks other than the main
 		// network once a majority of the network has upgraded.
 		if b.chainParams.Net != wire.MainNet && header.Version < 6 &&
-			b.isMajorityVersion(6, prevNode,
-				b.chainParams.BlockRejectNumRequired) {
+			b.isMajorityVersion(6, prevNode, b.chainParams.BlockRejectNumRequired) {
 
 			str := "new blocks with version %d are no longer valid"
 			str = fmt.Sprintf(str, header.Version)
