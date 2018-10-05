@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/decred/dcrd/blockchain/chaingen"
 	"github.com/decred/dcrd/chaincfg"
@@ -40,10 +41,19 @@ func cloneParams(params *chaincfg.Params) *chaincfg.Params {
 // TestBlockchainFunction tests the various blockchain API to ensure proper
 // functionality.
 func TestBlockchainFunctions(t *testing.T) {
-	// Update simnet parameters to reflect what is expected by the legacy
-	// data.
-	params := cloneParams(&chaincfg.SimNetParams)
+	// Update parameters to reflect what is expected by the legacy data.
+	params := cloneParams(&chaincfg.RegNetParams)
 	params.GenesisBlock.Header.MerkleRoot = *mustParseHash("a216ea043f0d481a072424af646787794c32bcefd3ed181a090319bbf8a37105")
+	params.GenesisBlock.Header.Timestamp = time.Unix(1401292357, 0)
+	params.GenesisBlock.Transactions[0].TxIn[0].ValueIn = 0
+	params.PubKeyHashAddrID = [2]byte{0x0e, 0x91}
+	params.StakeBaseSigScript = []byte{0xde, 0xad, 0xbe, 0xef}
+	params.OrganizationPkScript = hexToBytes("a914cbb08d6ca783b533b2c7d24a51fbca92d937bf9987")
+	params.BlockOneLedger = []*chaincfg.TokenPayout{
+		{Address: "Sshw6S86G2bV6W32cbc7EhtFy8f93rU6pae", Amount: 100000 * 1e8},
+		{Address: "SsjXRK6Xz6CFuBt6PugBvrkdAa4xGbcZ18w", Amount: 100000 * 1e8},
+		{Address: "SsfXiYkYkCoo31CuVQw428N6wWKus2ZEw5X", Amount: 100000 * 1e8},
+	}
 	genesisHash := params.GenesisBlock.BlockHash()
 	params.GenesisHash = &genesisHash
 
@@ -125,7 +135,7 @@ func TestForceHeadReorg(t *testing.T) {
 	// Create a test generator instance initialized with the genesis block
 	// as the tip as well as some cached payment scripts to be used
 	// throughout the tests.
-	params := &chaincfg.SimNetParams
+	params := &chaincfg.RegNetParams
 	g, err := chaingen.MakeGenerator(params)
 	if err != nil {
 		t.Fatalf("Failed to create generator: %v", err)

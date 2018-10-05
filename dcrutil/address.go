@@ -230,8 +230,7 @@ type AddressPubKeyHash struct {
 
 // NewAddressPubKeyHash returns a new AddressPubKeyHash.  pkHash must
 // be 20 bytes.
-func NewAddressPubKeyHash(pkHash []byte, net *chaincfg.Params,
-	algo dcrec.SignatureType) (*AddressPubKeyHash, error) {
+func NewAddressPubKeyHash(pkHash []byte, net *chaincfg.Params, algo dcrec.SignatureType) (*AddressPubKeyHash, error) {
 	var addrID [2]byte
 	switch algo {
 	case dcrec.STEcdsaSecp256k1:
@@ -256,8 +255,7 @@ func NewAddressPubKeyHash(pkHash []byte, net *chaincfg.Params,
 // it up through its parameters.  This is useful when creating a new address
 // structure from a string encoding where the identifer byte is already
 // known.
-func newAddressPubKeyHash(pkHash []byte, netID [2]byte) (*AddressPubKeyHash,
-	error) {
+func newAddressPubKeyHash(pkHash []byte, netID [2]byte) (*AddressPubKeyHash, error) {
 	// Check for a valid pubkey hash length.
 	if len(pkHash) != ripemd160.Size {
 		return nil, errors.New("pkHash must be 20 bytes")

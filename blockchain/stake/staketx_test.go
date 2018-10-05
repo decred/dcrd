@@ -892,7 +892,7 @@ func TestGetSSGenStakeOutputInfo(t *testing.T) {
 	correctamt := int64(0x2123e300)
 
 	typs, pkhs, amts, err := stake.TxSSGenStakeOutputInfo(ssgen.MsgTx(),
-		&chaincfg.SimNetParams)
+		&chaincfg.RegNetParams)
 	if err != nil {
 		t.Errorf("Got unexpected error: %v", err.Error())
 	}
@@ -970,7 +970,7 @@ func TestGetSSRtxStakeOutputInfo(t *testing.T) {
 	correctAmt := int64(0x2122e300)
 
 	typs, pkhs, amts, err := stake.TxSSRtxStakeOutputInfo(ssrtx.MsgTx(),
-		&chaincfg.SimNetParams)
+		&chaincfg.RegNetParams)
 	if err != nil {
 		t.Errorf("Got unexpected error: %v", err.Error())
 	}

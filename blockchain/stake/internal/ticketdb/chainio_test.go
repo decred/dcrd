@@ -425,7 +425,7 @@ func TestLiveDatabase(t *testing.T) {
 		t.Fatalf("unable to create test db path: %v", err)
 	}
 	defer os.RemoveAll(dbPath)
-	testDb, err := database.Create(testDbType, dbPath, chaincfg.SimNetParams.Net)
+	testDb, err := database.Create(testDbType, dbPath, chaincfg.RegNetParams.Net)
 	if err != nil {
 		t.Fatalf("error creating db: %v", err)
 	}

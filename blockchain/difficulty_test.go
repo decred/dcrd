@@ -1056,9 +1056,9 @@ nextTest:
 // minimum required difficulty, when the network params allow it, works as
 // expected.
 func TestMinDifficultyReduction(t *testing.T) {
-	// Create chain params based on simnet params, but set the fields related to
+	// Create chain params based on regnet params, but set the fields related to
 	// proof-of-work difficulty to specific values expected by the tests.
-	params := chaincfg.SimNetParams
+	params := chaincfg.RegNetParams
 	params.ReduceMinDifficulty = true
 	params.TargetTimePerBlock = time.Minute * 2
 	params.MinDiffReductionTime = time.Minute * 10 // ~99.3% chance to be mined

@@ -208,7 +208,7 @@ func nodesEqual(a *Node, b *Node) error {
 
 func TestTicketDBLongChain(t *testing.T) {
 	// Declare some useful variables.
-	params := &chaincfg.SimNetParams
+	params := &chaincfg.RegNetParams
 	testBCHeight := int64(1001)
 	filename := filepath.Join("testdata", "testexpiry.bz2")
 	fi, err := os.Open(filename)
@@ -588,7 +588,7 @@ func TestTicketDBLongChain(t *testing.T) {
 
 func TestTicketDBGeneral(t *testing.T) {
 	// Declare some useful variables.
-	params := &chaincfg.SimNetParams
+	params := &chaincfg.RegNetParams
 	testBCHeight := int64(168)
 	filename := filepath.Join("testdata", "blocks0to168.bz2")
 	fi, err := os.Open(filename)

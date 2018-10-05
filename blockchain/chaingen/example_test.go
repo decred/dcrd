@@ -15,7 +15,7 @@ import (
 // generate the required premine block and enough blocks to have mature coinbase
 // outputs to work with along with asserting the generator state along the way.
 func Example_basicUsage() {
-	params := &chaincfg.SimNetParams
+	params := &chaincfg.RegNetParams
 	g, err := chaingen.MakeGenerator(params)
 	if err != nil {
 		fmt.Println(err)

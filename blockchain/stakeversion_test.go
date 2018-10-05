@@ -321,7 +321,7 @@ func TestCalcStakeVersion(t *testing.T) {
 // TestIsStakeMajorityVersion ensures that determining the current majority
 // stake version works as intended under a wide variety of scenarios.
 func TestIsStakeMajorityVersion(t *testing.T) {
-	params := &chaincfg.MainNetParams
+	params := &chaincfg.RegNetParams
 	svh := params.StakeValidationHeight
 	svi := params.StakeVersionInterval
 	tpb := params.TicketsPerBlock

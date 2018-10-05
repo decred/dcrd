@@ -133,7 +133,7 @@ func TestFullBlocks(t *testing.T) {
 
 	// Create a new database and chain instance to run tests against.
 	chain, teardownFunc, err := chainSetup("fullblocktest",
-		&chaincfg.SimNetParams)
+		&chaincfg.RegNetParams)
 	if err != nil {
 		t.Fatalf("Failed to setup chain instance: %v", err)
 	}

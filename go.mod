@@ -12,24 +12,23 @@ require (
 	github.com/decred/base58 v1.0.0
 	github.com/decred/dcrd/addrmgr v1.0.2
 	github.com/decred/dcrd/blockchain v1.1.0
-	github.com/decred/dcrd/blockchain/stake v1.0.2
+	github.com/decred/dcrd/blockchain/stake v1.0.3
 	github.com/decred/dcrd/certgen v1.0.1
 	github.com/decred/dcrd/chaincfg v1.2.0
 	github.com/decred/dcrd/chaincfg/chainhash v1.0.1
 	github.com/decred/dcrd/connmgr v1.0.1
 	github.com/decred/dcrd/database v1.0.2
 	github.com/decred/dcrd/dcrec v0.0.0-20180801202239-0761de129164
-	github.com/decred/dcrd/dcrec/edwards v0.0.0-20180808153611-f0e65ec62f91 // indirect
 	github.com/decred/dcrd/dcrec/secp256k1 v1.0.0
 	github.com/decred/dcrd/dcrjson v1.0.0
 	github.com/decred/dcrd/dcrutil v1.2.0
 	github.com/decred/dcrd/gcs v1.0.2
 	github.com/decred/dcrd/hdkeychain v1.1.1
-	github.com/decred/dcrd/mempool v1.0.1
+	github.com/decred/dcrd/mempool v1.0.2
 	github.com/decred/dcrd/mining v1.0.1
 	github.com/decred/dcrd/peer v1.1.0
 	github.com/decred/dcrd/rpcclient v1.0.2
-	github.com/decred/dcrd/txscript v1.0.1
+	github.com/decred/dcrd/txscript v1.0.2
 	github.com/decred/dcrd/wire v1.2.0
 	github.com/decred/slog v1.0.0
 	github.com/gorilla/websocket v1.2.0

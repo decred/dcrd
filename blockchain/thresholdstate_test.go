@@ -113,12 +113,12 @@ var (
 // TestThresholdState ensures that the threshold state function progresses
 // through the states correctly.
 func TestThresholdState(t *testing.T) {
-	// Create chain params based on simnet params, but add a specific test
+	// Create chain params based on regnet params, but add a specific test
 	// dummy deployment and set the proof-of-work difficulty readjustment
 	// size to a really large number so that the test chain can be generated
 	// more quickly.
 	posVersion := uint32(4)
-	params := chaincfg.SimNetParams
+	params := chaincfg.RegNetParams
 	params.WorkDiffWindowSize = 200000
 	params.WorkDiffWindows = 1
 	params.TargetTimespan = params.TargetTimePerBlock *

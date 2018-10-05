@@ -179,5 +179,5 @@ func testLNFeaturesDeployment(t *testing.T, params *chaincfg.Params, deploymentV
 // activate the expected changes.
 func TestLNFeaturesDeployment(t *testing.T) {
 	testLNFeaturesDeployment(t, &chaincfg.MainNetParams, 5)
-	testLNFeaturesDeployment(t, &chaincfg.SimNetParams, 6)
+	testLNFeaturesDeployment(t, &chaincfg.RegNetParams, 6)
 }

@@ -32,7 +32,7 @@ func mustParseHash(s string) *chainhash.Hash {
 func TestBlockNodeHeader(t *testing.T) {
 	// Create a fake chain and block header with all fields set to nondefault
 	// values.
-	params := &chaincfg.SimNetParams
+	params := &chaincfg.RegNetParams
 	bc := newFakeChain(params)
 	tip := bc.bestChain.Tip()
 	testHeader := wire.BlockHeader{
@@ -150,7 +150,15 @@ func TestCalcPastMedianTime(t *testing.T) {
 		},
 	}
 
-	params := &chaincfg.SimNetParams
+	// Ensure the genesis block timestamp of the test params is before the test
+	// data.  Also, clone the provided parameters first to avoid mutating them.
+	//
+	// The timestamp corresponds to 2018-01-01 00:00:00 +0000 UTC.
+	params := cloneParams(&chaincfg.RegNetParams)
+	params.GenesisBlock.Header.Timestamp = time.Unix(1514764800, 0)
+	genesisHash := params.GenesisBlock.BlockHash()
+	params.GenesisHash = &genesisHash
+
 	for _, test := range tests {
 		// Create a synthetic chain with the correct number of nodes and the
 		// timestamps as specified by the test.
@@ -176,7 +184,7 @@ func TestCalcPastMedianTime(t *testing.T) {
 // TestChainTips ensures the chain tip tracking in the block index works
 // as expected.
 func TestChainTips(t *testing.T) {
-	params := &chaincfg.SimNetParams
+	params := &chaincfg.RegNetParams
 	bc := newFakeChain(params)
 	genesis := bc.bestChain.NodeByHeight(0)
 

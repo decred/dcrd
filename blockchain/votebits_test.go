@@ -96,8 +96,10 @@ var (
 	}
 )
 
+// defaultParams returns net parameters modified to have a single known
+// deployment that is used throughout the various votebit tests.
 func defaultParams(vote chaincfg.Vote) chaincfg.Params {
-	params := chaincfg.SimNetParams
+	params := chaincfg.RegNetParams
 	params.Deployments = make(map[uint32][]chaincfg.ConsensusDeployment)
 	params.Deployments[posVersion] = []chaincfg.ConsensusDeployment{{
 		Vote: vote,
@@ -1496,8 +1498,10 @@ func TestVoting(t *testing.T) {
 	}
 }
 
+// defaultParallelParams returns net parameters modified to have two known
+// deployments that are used throughout the parallel votebit tests.
 func defaultParallelParams() chaincfg.Params {
-	params := chaincfg.SimNetParams
+	params := chaincfg.RegNetParams
 	params.Deployments = make(map[uint32][]chaincfg.ConsensusDeployment)
 	params.Deployments[posVersion] = []chaincfg.ConsensusDeployment{
 		{

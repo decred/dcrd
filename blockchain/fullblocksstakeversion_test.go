@@ -19,7 +19,7 @@ func TestStakeVersion(t *testing.T) {
 	// Create a test generator instance initialized with the genesis block
 	// as the tip as well as some cached payment scripts to be used
 	// throughout the tests.
-	params := &chaincfg.SimNetParams
+	params := &chaincfg.RegNetParams
 	g, err := chaingen.MakeGenerator(params)
 	if err != nil {
 		t.Fatalf("Failed to create generator: %v", err)

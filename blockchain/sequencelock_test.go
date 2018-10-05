@@ -34,7 +34,7 @@ func TestCalcSequenceLock(t *testing.T) {
 	// Generate a synthetic simnet chain with enough nodes to properly test
 	// the sequence lock functionality.
 	numBlocks := uint32(20)
-	params := &chaincfg.SimNetParams
+	params := &chaincfg.RegNetParams
 	bc := newFakeChain(params)
 	node := bc.bestChain.Tip()
 	blockTime := time.Unix(node.timestamp, 0)
