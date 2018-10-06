@@ -2597,3 +2597,12 @@ func (g *Generator) AssertTipNumRevocations(expected uint8) {
 			g.tip.Header.Height, numRevocations, expected))
 	}
 }
+
+// AssertTipDisapprovesPrevious panics if the current tip block associated with
+// the generator does not disapprove the previous block.
+func (g *Generator) AssertTipDisapprovesPrevious() {
+	if g.tip.Header.VoteBits&voteBitYes == 1 {
+		panic(fmt.Sprintf("block %q (height %d) does not disapprove prev block",
+			g.tipName, g.tip.Header.Height))
+	}
+}

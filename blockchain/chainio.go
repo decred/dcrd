@@ -779,7 +779,7 @@ func dbFetchSpendJournalEntry(dbTx database.Tx, block *dcrutil.Block, parent *dc
 	blockTxns = append(blockTxns, block.MsgBlock().STransactions...)
 
 	if len(blockTxns) > 0 && len(serialized) == 0 {
-		return nil, AssertError("missing spend journal data")
+		panicf("missing spend journal data for %s", block.Hash())
 	}
 
 	stxos, err := deserializeSpendJournalEntry(serialized, blockTxns)
