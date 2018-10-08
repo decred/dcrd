@@ -171,7 +171,8 @@ type Generator struct {
 	liveTickets     []*stakeTicket
 	wonTickets      map[chainhash.Hash][]*stakeTicket
 	expiredTickets  []*stakeTicket
-	missedVotes     map[chainhash.Hash][]*stakeTicket
+	revokedTickets  map[chainhash.Hash][]*stakeTicket
+	missedVotes     map[chainhash.Hash]*stakeTicket
 }
 
 // MakeGenerator returns a generator instance initialized with the genesis block
@@ -202,7 +203,8 @@ func MakeGenerator(params *chaincfg.Params) (Generator, error) {
 		p2shOpTrueScript: p2shOpTrueScript,
 		originalParents:  make(map[chainhash.Hash]chainhash.Hash),
 		wonTickets:       make(map[chainhash.Hash][]*stakeTicket),
-		missedVotes:      make(map[chainhash.Hash][]*stakeTicket),
+		revokedTickets:   make(map[chainhash.Hash][]*stakeTicket),
+		missedVotes:      make(map[chainhash.Hash]*stakeTicket),
 	}, nil
 }
 
@@ -1771,9 +1773,35 @@ func (g *Generator) addMissedVotes(blockHash *chainhash.Hash, stakeTxns []*wire.
 
 	// Add the missed votes to the generator state so future blocks will
 	// generate revocations for them.
-	for _, missedVote := range missedVotes {
-		g.missedVotes[*blockHash] = append(g.missedVotes[*blockHash],
-			missedVote)
+	for ticketHash, missedVote := range missedVotes {
+		g.missedVotes[ticketHash] = missedVote
+	}
+}
+
+// connectRevocations updates the missed and revoked ticket data structs
+// according to the revocations in the passed block.
+func (g *Generator) connectRevocations(blockHash *chainhash.Hash, stakeTxns []*wire.MsgTx) {
+	for _, stx := range stakeTxns {
+		// Ignore all stake transactions that are not revocations.
+		if !isRevocationTx(stx) {
+			continue
+		}
+
+		// Ignore the revocation if it is not for a missed ticket.
+		ticketInput := stx.TxIn[0]
+		ticketHash := ticketInput.PreviousOutPoint.Hash
+		ticket, ok := g.missedVotes[ticketHash]
+		if !ok || ticket.blockHeight != ticketInput.BlockHeight ||
+			ticket.blockIndex != ticketInput.BlockIndex {
+
+			continue
+		}
+
+		// Remove the revoked ticket from the missed votes and add it to the
+		// list of tickets revoked by the block.
+		delete(g.missedVotes, ticketHash)
+		g.revokedTickets[*blockHash] = append(g.revokedTickets[*blockHash],
+			ticket)
 	}
 }
 
@@ -1800,6 +1828,9 @@ func (g *Generator) connectBlockTickets(b *wire.MsgBlock) {
 	// Keep track of any missed votes.
 	g.addMissedVotes(&blockHash, b.STransactions, winners)
 
+	// Keep track of revocations.
+	g.connectRevocations(&blockHash, b.STransactions)
+
 	// Extract the ticket purchases (sstx) from the block.
 	var purchases []*stakeTicket
 	blockHeight := g.blockHeight(blockHash)
@@ -1824,6 +1855,17 @@ func (g *Generator) disconnectBlockTickets(b *wire.MsgBlock) {
 	if b != g.tip {
 		panic(fmt.Sprintf("attempt to disconnect block %s that is not "+
 			"the current tip %s", blockHash, g.tip.BlockHash()))
+	}
+
+	// Move tickets revoked by the block back to the list of missed tickets.
+	for _, ticket := range g.revokedTickets[blockHash] {
+		g.missedVotes[ticket.tx.TxHash()] = ticket
+	}
+
+	// Remove any votes missed by the block.
+	winners := g.wonTickets[blockHash]
+	for _, ticket := range winners {
+		delete(g.missedVotes, ticket.tx.TxHash())
 	}
 
 	// Remove tickets created in the block from the immature ticket pool.
@@ -1878,11 +1920,8 @@ func (g *Generator) disconnectBlockTickets(b *wire.MsgBlock) {
 
 	// Add the winning tickets consumed by the block back to the live ticket
 	// pool.
-	g.liveTickets = append(g.liveTickets, g.wonTickets[blockHash]...)
+	g.liveTickets = append(g.liveTickets, winners...)
 	delete(g.wonTickets, blockHash)
-
-	// Remove any votes missed by the block.
-	delete(g.missedVotes, blockHash)
 
 	// Resort the ticket pool now that all live ticket pool manipulations
 	// are done.
@@ -2005,6 +2044,10 @@ func updateVoteCommitments(block *wire.MsgBlock) {
 //     - One OP_RETURN followed by the vote bits
 //     - One or more OP_SSGEN outputs with the payouts according to the original
 //       ticket commitments
+//   - Revocation transactions (ssrtx) as required according to any missed votes
+//     with the following outputs:
+//     - One or more OP_SSRTX outputs with the payouts according to the original
+//       ticket commitments
 //
 // Additionally, if one or more munge functions are specified, they will be
 // invoked with the block prior to solving it.  This provides callers with the
@@ -2069,28 +2112,25 @@ func (g *Generator) NextBlock(blockName string, spend *SpendableOut, ticketSpend
 		}
 
 		// Generate and add revocations for any missed tickets.
-		for _, missedVotes := range g.missedVotes {
-			for _, missedVote := range missedVotes {
-				revocationTx := g.createRevocationTxFromTicket(missedVote)
-				stakeTxns = append(stakeTxns, revocationTx)
-			}
+		for _, missedVote := range g.missedVotes {
+			revocationTx := g.createRevocationTxFromTicket(missedVote)
+			stakeTxns = append(stakeTxns, revocationTx)
 		}
 	}
 
-	// Create stake tickets for the ticket purchases (sstx), count the
-	// votes (ssgen) and ticket revocations (ssrtx),  and calculate the
-	// total PoW fees generated by the stake transactions.
+	// Count the ticket purchases (sstx), votes (ssgen,  and ticket revocations
+	// (ssrtx),  and calculate the total PoW fees generated by the stake
+	// transactions.
 	var numVotes uint16
 	var numTicketRevocations uint8
-	var ticketPurchases []*stakeTicket
+	var numTicketPurchases uint8
 	var stakeTreeFees dcrutil.Amount
-	for txIdx, tx := range stakeTxns {
+	for _, tx := range stakeTxns {
 		switch {
 		case isVoteTx(tx):
 			numVotes++
 		case isTicketPurchaseTx(tx):
-			ticket := &stakeTicket{tx, nextHeight, uint32(txIdx)}
-			ticketPurchases = append(ticketPurchases, ticket)
+			numTicketPurchases++
 		case isRevocationTx(tx):
 			numTicketRevocations++
 		}
@@ -2169,7 +2209,7 @@ func (g *Generator) NextBlock(blockName string, spend *SpendableOut, ticketSpend
 			VoteBits:     1,
 			FinalState:   finalState,
 			Voters:       numVotes,
-			FreshStake:   uint8(len(ticketPurchases)),
+			FreshStake:   numTicketPurchases,
 			Revocations:  numTicketRevocations,
 			PoolSize:     uint32(len(g.liveTickets)),
 			Bits:         g.CalcNextRequiredDifficulty(),
@@ -2220,6 +2260,17 @@ func (g *Generator) NextBlock(blockName string, spend *SpendableOut, ticketSpend
 			block.Header.Height))
 	}
 
+	// Create stake tickets for the ticket purchases (sstx) in the block.  This
+	// is done after the mungers to ensure all changes are accurately accounted
+	// for.
+	var ticketPurchases []*stakeTicket
+	for txIdx, tx := range block.STransactions {
+		if isTicketPurchaseTx(tx) {
+			ticket := &stakeTicket{tx, nextHeight, uint32(txIdx)}
+			ticketPurchases = append(ticketPurchases, ticket)
+		}
+	}
+
 	// Update generator state and return the block.
 	blockHash := block.BlockHash()
 	if block.Header.PrevBlock != prevHash {
@@ -2230,6 +2281,7 @@ func (g *Generator) NextBlock(blockName string, spend *SpendableOut, ticketSpend
 		g.originalParents[blockHash] = prevHash
 	}
 	g.addMissedVotes(&blockHash, block.STransactions, ticketWinners)
+	g.connectRevocations(&blockHash, block.STransactions)
 	g.connectLiveTickets(&blockHash, nextHeight, ticketWinners,
 		ticketPurchases)
 	g.blocks[blockHash] = &block
