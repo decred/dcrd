@@ -236,6 +236,31 @@ var helpDescsEnUS = map[string]string{
 	"getblock--condition1": "verbose=true",
 	"getblock--result0":    "Hex-encoded bytes of the serialized block",
 
+	// GetBlockchainInfoCmd help.
+	"getblockchaininfo--synopsis": "Returns information about the current state of the block chain.",
+
+	// GetBlockchainInfoResult help.
+	"getblockchaininforesult-chain":                "The current network name.",
+	"getblockchaininforesult-blocks":               "The number of blocks in the current best chain.",
+	"getblockchaininforesult-headers":              "The number of validated block headers that comprise the target best chain.",
+	"getblockchaininforesult-syncheight":           "The latest known block height being synced to.",
+	"getblockchaininforesult-bestblockhash":        "The block hash of the current best chain tip.",
+	"getblockchaininforesult-difficulty":           "The current network difficulty.",
+	"getblockchaininforesult-verificationprogress": "The chain verification progress estimate.",
+	"getblockchaininforesult-chainwork":            "Hex encoded total work done for the chain.",
+	"getblockchaininforesult-initialblockdownload": "Best guess of whether this node is in the initial block download mode used to catch up the chain when it is far behind",
+	"getblockchaininforesult-maxblocksize":         "The maximum allowed block size.",
+	"getblockchaininforesult-deployments":          "Network consensus deployments.",
+	"getblockchaininforesult-deployments--desc":    "Consensus deployment agendas.",
+	"getblockchaininforesult-deployments--key":     "The consensus deployment agenda id.",
+	"getblockchaininforesult-deployments--value":   "The consensus deployment agenda information.",
+
+	// AgendaInfo help.
+	"agendainfo-status":     "The deployment agenda's current status.",
+	"agendainfo-since":      "The block height of the first block to which the status applies.",
+	"agendainfo-starttime":  "The start time of the voting period for the agenda.",
+	"agendainfo-expiretime": "The expiry time of the voting period for the agenda.",
+
 	// TxRawResult help.
 	"txrawresult-hex":           "Hex-encoded transaction",
 	"txrawresult-txid":          "The hash of the transaction",
@@ -932,6 +957,7 @@ var rpcResultTypes = map[string][]interface{}{
 	"generate":              {(*[]string)(nil)},
 	"getbestblockhash":      {(*string)(nil)},
 	"getblock":              {(*string)(nil), (*dcrjson.GetBlockVerboseResult)(nil)},
+	"getblockchaininfo":     {(*dcrjson.GetBlockChainInfoResult)(nil)},
 	"getblockcount":         {(*int64)(nil)},
 	"getblockhash":          {(*string)(nil)},
 	"getblockheader":        {(*string)(nil), (*dcrjson.GetBlockHeaderVerboseResult)(nil)},

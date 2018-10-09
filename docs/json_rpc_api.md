@@ -161,38 +161,39 @@ the method name for further details such as parameter and return information.
 |5|[getaddednodeinfo](#getaddednodeinfo)|N|Returns information about manually added (persistent) peers.|
 |6|[getbestblockhash](#getbestblockhash)|Y|Returns the hash of the of the best (most recent) block in the longest block chain.|
 |7|[getblock](#getblock)|Y|Returns information about a block given its hash.|
-|8|[getblockcount](#getblockcount)|Y|Returns the number of blocks in the longest block chain.|
-|9|[getblockhash](#getblockhash)|Y|Returns hash of the block in best block chain at the given height.|
-|10|[getblockheader](#getblockheader)|Y|Returns the block header of the block.|
-|11|[getchaintips](#getchaintips)|Y|Returns information about all known chain tips the in the block tree.|
-|12|[getconnectioncount](#getconnectioncount)|N|Returns the number of active connections to other peers.|
-|13|[getdifficulty](#getdifficulty)|Y|Returns the proof-of-work difficulty as a multiple of the minimum difficulty.|
-|14|[getgenerate](#getgenerate)|N|Return if the server is set to generate coins (mine) or not.|
-|15|[gethashespersec](#gethashespersec)|N|Returns a recent hashes per second performance measurement while generating coins (mining).|
-|16|[getinfo](#getinfo)|Y|Returns a JSON object containing various state info.|
-|17|[getmempoolinfo](#getmempoolinfo)|N|Returns a JSON object containing mempool-related information.|
-|18|[getmininginfo](#getmininginfo)|N|Returns a JSON object containing mining-related information.|
-|19|[getnettotals](#getnettotals)|Y|Returns a JSON object containing network traffic statistics.|
-|20|[getnetworkhashps](#getnetworkhashps)|Y|Returns the estimated network hashes per second for the block heights provided by the parameters.|
-|21|[getpeerinfo](#getpeerinfo)|N|Returns information about each connected network peer as an array of json objects.|
-|22|[getrawmempool](#getrawmempool)|Y|Returns an array of hashes for all of the transactions currently in the memory pool.|
-|23|[getrawtransaction](#getrawtransaction)|Y|Returns information about a transaction given its hash.|
-|24|[getwork](#getwork)|N|Returns formatted hash data to work on or checks and submits solved data.<br /><br />NOTE: Since dcrd does not have the wallet integrated to provide payment addresses, dcrd must be configured via the `--miningaddr` option to provide which payment addresses to pay created blocks to for this RPC to function.|
-|25|[help](#help)|Y|Returns a list of all commands or help for a specified command.|
-|26|[ping](#ping)|N|Queues a ping to be sent to each connected peer.|
-|27|[sendrawtransaction](#sendrawtransaction)|Y|Submits the serialized, hex-encoded transaction to the local peer and relays it to the network.<br /><br />NOTE: dcrd does not yet implement the `allowhighfees` parameter, so it has no effect|
-|28|[setgenerate](#setgenerate) |N|Set the server to generate coins (mine) or not.<br/>NOTE: Since dcrd does not have the wallet integrated to provide payment addresses, dcrd must be configured via the `--miningaddr` option to provide which payment addresses to pay created blocks to for this RPC to function.|
-|29|[stop](#stop)|N|Shutdown dcrd.|
-|30|[submitblock](#submitblock)|Y|Attempts to submit a new serialized, hex-encoded block to the network.|
-|31|[validateaddress](#validateaddress)|Y|Verifies the given address is valid.  NOTE: Since dcrd does not have a wallet integrated, dcrd will only return whether the address is valid or not.|
-|32|[verifychain](#verifychain)|N|Verifies the block chain database.|
-|33|[debuglevel](#debuglevel)|N|Dynamically changes the debug logging level.|
-|34|[getbestblock](#getbestblock)|Y|Get block height and hash of best block in the main chain.|
-|35|[getcurrentnet](#getcurrentnet)|Y|Get Decred network dcrd is running on.|
-|36|[searchrawtransactions](#searchrawtransactions)|Y|Query for transactions related to a particular address.|
-|37|[node](#node)|N|Attempts to add or remove a peer. |
-|38|[generate](#generate)|N|When in simnet or regtest mode, generate a set number of blocks. |
-|39|[getstakeversions](#getstakeversions)|Y|Get stake versions per block. |
+|8|[getblockchaininfo](#getblockchaininfo)|Y|Returns information about the current state of the block chain.|
+|9|[getblockcount](#getblockcount)|Y|Returns the number of blocks in the longest block chain.|
+|10|[getblockhash](#getblockhash)|Y|Returns hash of the block in best block chain at the given height.|
+|11|[getblockheader](#getblockheader)|Y|Returns the block header of the block.|
+|12|[getchaintips](#getchaintips)|Y|Returns information about all known chain tips the in the block tree.|
+|13|[getconnectioncount](#getconnectioncount)|N|Returns the number of active connections to other peers.|
+|14|[getdifficulty](#getdifficulty)|Y|Returns the proof-of-work difficulty as a multiple of the minimum difficulty.|
+|15|[getgenerate](#getgenerate)|N|Return if the server is set to generate coins (mine) or not.|
+|16|[gethashespersec](#gethashespersec)|N|Returns a recent hashes per second performance measurement while generating coins (mining).|
+|17|[getinfo](#getinfo)|Y|Returns a JSON object containing various state info.|
+|18|[getmempoolinfo](#getmempoolinfo)|N|Returns a JSON object containing mempool-related information.|
+|19|[getmininginfo](#getmininginfo)|N|Returns a JSON object containing mining-related information.|
+|20|[getnettotals](#getnettotals)|Y|Returns a JSON object containing network traffic statistics.|
+|21|[getnetworkhashps](#getnetworkhashps)|Y|Returns the estimated network hashes per second for the block heights provided by the parameters.|
+|22|[getpeerinfo](#getpeerinfo)|N|Returns information about each connected network peer as an array of json objects.|
+|23|[getrawmempool](#getrawmempool)|Y|Returns an array of hashes for all of the transactions currently in the memory pool.|
+|24|[getrawtransaction](#getrawtransaction)|Y|Returns information about a transaction given its hash.|
+|25|[getwork](#getwork)|N|Returns formatted hash data to work on or checks and submits solved data.<br /><br />NOTE: Since dcrd does not have the wallet integrated to provide payment addresses, dcrd must be configured via the `--miningaddr` option to provide which payment addresses to pay created blocks to for this RPC to function.|
+|26|[help](#help)|Y|Returns a list of all commands or help for a specified command.|
+|27|[ping](#ping)|N|Queues a ping to be sent to each connected peer.|
+|28|[sendrawtransaction](#sendrawtransaction)|Y|Submits the serialized, hex-encoded transaction to the local peer and relays it to the network.<br /><br />NOTE: dcrd does not yet implement the `allowhighfees` parameter, so it has no effect|
+|29|[setgenerate](#setgenerate) |N|Set the server to generate coins (mine) or not.<br/>NOTE: Since dcrd does not have the wallet integrated to provide payment addresses, dcrd must be configured via the `--miningaddr` option to provide which payment addresses to pay created blocks to for this RPC to function.|
+|30|[stop](#stop)|N|Shutdown dcrd.|
+|31|[submitblock](#submitblock)|Y|Attempts to submit a new serialized, hex-encoded block to the network.|
+|32|[validateaddress](#validateaddress)|Y|Verifies the given address is valid.  NOTE: Since dcrd does not have a wallet integrated, dcrd will only return whether the address is valid or not.|
+|33|[verifychain](#verifychain)|N|Verifies the block chain database.|
+|34|[debuglevel](#debuglevel)|N|Dynamically changes the debug logging level.|
+|35|[getbestblock](#getbestblock)|Y|Get block height and hash of best block in the main chain.|
+|36|[getcurrentnet](#getcurrentnet)|Y|Get Decred network dcrd is running on.|
+|37|[searchrawtransactions](#searchrawtransactions)|Y|Query for transactions related to a particular address.|
+|38|[node](#node)|N|Attempts to add or remove a peer. |
+|39|[generate](#generate)|N|When in simnet or regtest mode, generate a set number of blocks. |
+|40|[getstakeversions](#getstakeversions)|Y|Get stake versions per block. |
 
 <a name="MethodDetails" />
 
@@ -333,6 +334,18 @@ the method name for further details such as parameter and return information.
 |Description|Returns about all known chain tips the in the block tree.<br /><br />The statuses in the result have the following meanings:<br /><br />`active`: The current best chain tip.<br />`invalid`: The block or one of its ancestors is invalid.<br />`headers-only`: The block or one of its ancestors does not have the full block data available which also means the block can't be validated or connected.<br />`valid-fork`: The block is fully validated which implies it was probably part of the main chain at one point and was reorganized.<br />`valid-headers`: The full block data is available and the header is valid, but the block was never validated which implies it was probably never part of the main chain.|
 |Returns|`(json array of objects)`<br />`height`: `(numeric)` The height of the chain tip.<br />`hash`: `(string)` The block hash of the chain tip.<br />`branchlen`: `(numeric)` The length of the branch that connects the tip to the main chain (0 for the main chain tip).<br />`status`: `(string)`  status of the chain (active, invalid, headers-only, valid-fork, valid-headers).<br /><br />`[{"height": n, "hash": "hash", "branchlen": n, "status": "status"}, ...]`|
 |Example Return|`[{"height": 217033, "hash": "00000000000000161bd5b120ef945faad60fc6e4c32b5caf1d4cabeae9a75346", "branchlen": 0, "status": "active"}, {"height": 213522, "hash": "0000000000000015e27658ce02ba8fa05d8d7ad9c587a5a472e3307773a9b36e", "branchlen": 1, "status": "valid-fork"}]"`|
+[Return to Overview](#MethodOverview)<br />
+
+***
+<a name="getblockchaininfo"/>
+
+|   |   |
+|---|---|
+|Method|getblockchaininfo|
+|Parameters|None|
+|Description|Returns information about the current state of the block chain.|
+|Returns|`(json object)`<br />`chain`: `(string)` The current network name.<br />`blocks`: `(numeric)` The number of blocks in the current best chain.<br />`headers`: `(numeric)` The number of validated block headers that comprise the target best chain.<br />`syncheight`: `(numeric)` The latest known block height being synced to.<br />`bestblockhash`: `(string)` The block hash of the current best chain tip.<br />`difficulty`: `(numeric)` The current network difficulty.<br />`verificationprogress`: `(numeric)` The chain verification progress estimate.<br />`chainwork`: `(string)` Hex encoded total work done for the chain.<br />`initialblockdownload`: `(boolean)` Best guess of whether this node is in the initial block download mode used to catch up the chain when it is far behind.<br />`maxblocksize`: `(numeric)` The maximum allowed block size.<br />`deployments`: `(json array of objects)` Network consensus deployments.<br />`status`: `(string)` The deployment agenda's current status.<br />`since`: `(numeric)` The blockheight of the first block to which the status applies.<br />`starttime`: `(numeric)` The start time of the voting period for the agenda.<br />`expiretime`: `(numeric)` The expiry time of the voting period for the agenda.<br /><br />`{ "chain": "name", "blocks": n, "headers": n, "syncheight": n, "bestblockhash": "hash", "difficulty": n, "verificationprogress": n, "chainwork": "n", "initialblockdownload": bool, "maxblocksize": n, "deployments": {"agenda": { "status": "status", "since": n, "starttime": n, "expiretime": n}, ...}}`|
+|Example Return|`{"chain": "simnet", "blocks": 463, "headers": 463, "syncheight": 0, "bestblockhash": "000043c89f6e227c9d90a5460aff98b662e503b9a394818942bdd60709cbb8aa", "difficulty": 520127421, "verificationprogress": 0, "chainwork": "0x23c0e40", "initialblockdownload": false, "maxblocksize": 1000000, "deployments": {"lnfeatures": {"status": "started", "since": 463, "starttime": 0, "expiretime": 9223372036854775807}, "maxblocksize": {"status": "started", "since": 463, "starttime": 0, "expiretime": 9223372036854775807}, "sdiffalgorithm": {"status": "started", "since": 463, "starttime": 0, "expiretime": 9223372036854775807}}}`|
 [Return to Overview](#MethodOverview)<br />
 
 ***

@@ -190,6 +190,7 @@ var rpcHandlersBeforeInit = map[string]commandHandler{
 	"getbestblock":          handleGetBestBlock,
 	"getbestblockhash":      handleGetBestBlockHash,
 	"getblock":              handleGetBlock,
+	"getblockchaininfo":     handleGetBlockchainInfo,
 	"getblockcount":         handleGetBlockCount,
 	"getblockhash":          handleGetBlockHash,
 	"getblockheader":        handleGetBlockHeader,
@@ -296,11 +297,10 @@ var rpcAskWallet = map[string]struct{}{
 
 // Commands that are currently unimplemented, but should ultimately be.
 var rpcUnimplemented = map[string]struct{}{
-	"estimatefee":       {},
-	"estimatepriority":  {},
-	"getblocktemplate":  {},
-	"getblockchaininfo": {},
-	"getnetworkinfo":    {},
+	"estimatefee":      {},
+	"estimatepriority": {},
+	"getblocktemplate": {},
+	"getnetworkinfo":   {},
 }
 
 // Commands that are available to a limited user
@@ -323,6 +323,7 @@ var rpcLimited = map[string]struct{}{
 	"getbestblock":          {},
 	"getbestblockhash":      {},
 	"getblock":              {},
+	"getblockchaininfo":     {},
 	"getblockcount":         {},
 	"getblockhash":          {},
 	"getchaintips":          {},
@@ -1901,6 +1902,81 @@ func handleGetBlock(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) (i
 	}
 
 	return blockReply, nil
+}
+
+// handleGetBlockchainInfo implements the getblockchaininfo command.
+func handleGetBlockchainInfo(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) (interface{}, error) {
+	best := s.chain.BestSnapshot()
+
+	// Fetch the current chain work using the the best block hash.
+	chainWork, err := s.chain.ChainWork(&best.Hash)
+	if err != nil {
+		return nil, rpcInternalError(err.Error(), "Could not fetch chain work.")
+	}
+
+	// Estimate the verification progress of the node.
+	syncHeight := s.server.blockManager.SyncHeight()
+	var verifyProgress float64
+	if syncHeight > 0 {
+		verifyProgress = float64(best.Height) / float64(syncHeight)
+	}
+
+	// Fetch the maximum allowed block size.
+	maxBlockSize, err := s.chain.MaxBlockSize()
+	if err != nil {
+		return nil, rpcInternalError(err.Error(),
+			"Could not fetch max block size.")
+	}
+
+	// Fetch the agendas of the consensus deployments as well as their
+	// threshold states and state activation heights.
+	dInfo := make(map[string]dcrjson.AgendaInfo)
+	params := s.server.chainParams
+	for version, deployments := range params.Deployments {
+		for _, agenda := range deployments {
+			aInfo := dcrjson.AgendaInfo{
+				StartTime:  agenda.StartTime,
+				ExpireTime: agenda.ExpireTime,
+			}
+
+			state, err := s.chain.ThresholdState(&best.PrevHash, version,
+				agenda.Vote.Id)
+			if err != nil {
+				return nil, rpcInternalError(err.Error(),
+					fmt.Sprintf("Could not fetch threshold state "+
+						"for agenda with id (%v).", agenda.Vote.Id))
+			}
+
+			stateChangedHeight, err := s.chain.StateLastChangedHeight(
+				&best.Hash, version, agenda.Vote.Id)
+			if err != nil {
+				return nil, rpcInternalError(err.Error(),
+					fmt.Sprintf("Could not fetch state last changed "+
+						"height for agenda with id (%v).", agenda.Vote.Id))
+			}
+
+			aInfo.Since = stateChangedHeight
+			aInfo.Status = state.String()
+			dInfo[agenda.Vote.Id] = aInfo
+		}
+	}
+
+	// Generate rpc response.
+	response := dcrjson.GetBlockChainInfoResult{
+		Chain:                params.Name,
+		Blocks:               best.Height,
+		Headers:              best.Height,
+		SyncHeight:           syncHeight,
+		ChainWork:            fmt.Sprintf("%064x", chainWork),
+		InitialBlockDownload: !s.chain.IsCurrent(),
+		VerificationProgress: verifyProgress,
+		BestBlockHash:        best.Hash.String(),
+		Difficulty:           best.Bits,
+		MaxBlockSize:         maxBlockSize,
+		Deployments:          dInfo,
+	}
+
+	return response, nil
 }
 
 // handleGetBlockCount implements the getblockcount command.

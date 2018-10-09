@@ -80,7 +80,7 @@ type ThresholdStateTuple struct {
 	// state contains the current ThresholdState.
 	State ThresholdState
 
-	// coice is set to invalidChoice unless state is: ThresholdLockedIn,
+	// Choice is set to invalidChoice unless state is: ThresholdLockedIn,
 	// ThresholdFailed & ThresholdActive.  choice should always be
 	// crosschecked with invalidChoice.
 	Choice uint32
@@ -463,6 +463,108 @@ func (b *BlockChain) deploymentState(prevNode *blockNode, version uint32, deploy
 		Choice: invalidChoice,
 	}
 	return invalidState, DeploymentError(deploymentID)
+}
+
+// stateLastChanged returns the node at which the provided consensus deployment
+// agenda last changed state.  The function will return nil if the state has
+// never changed.
+//
+// This function MUST be called with the chain state lock held (for writes).
+func (b *BlockChain) stateLastChanged(version uint32, node *blockNode, checker thresholdConditionChecker, cache *thresholdStateCache) (*blockNode, error) {
+	// No state changes are possible if the chain is not yet past stake
+	// validation height and had a full interval to change.
+	confirmationInterval := int64(checker.RuleChangeActivationInterval())
+	svh := checker.StakeValidationHeight()
+	if node == nil || node.height < svh+confirmationInterval {
+		return nil, nil
+	}
+
+	// Determine the current state.  Notice that thresholdState always
+	// calculates the state for the block after the provided one, so use the
+	// parent to get the state for the requested block.
+	curState, err := b.thresholdState(version, node.parent, checker, cache)
+	if err != nil {
+		return nil, err
+	}
+
+	// Determine the first block of the current confirmation interval in order
+	// to determine block at which the state possibly changed.  Since the state
+	// can only change at an interval boundary, loop backwards one interval at
+	// a time to determine when (and if) the state changed.
+	finalNodeHeight := calcWantHeight(svh, confirmationInterval, node.height)
+	node = node.Ancestor(finalNodeHeight + 1)
+	priorStateChangeNode := node
+	for node != nil && node.parent != nil {
+		// As previously mentioned, thresholdState always calculates the state
+		// for the block after the provided one, so use the parent to get the
+		// state of the block itself.
+		state, err := b.thresholdState(version, node.parent, checker, cache)
+		if err != nil {
+			return nil, err
+		}
+
+		if state.State != curState.State {
+			return priorStateChangeNode, nil
+		}
+
+		// Get the ancestor that is the first block of the previous confirmation
+		// interval.
+		priorStateChangeNode = node
+		node = node.RelativeAncestor(confirmationInterval)
+	}
+
+	return nil, nil
+}
+
+// StateLastChangedHeight returns the height at which the provided consensus
+// deployment agenda last changed state.  Note that, unlike the ThresholdState
+// function, this function returns the information as of the passed block hash.
+//
+// This function is safe for concurrent access.
+func (b *BlockChain) StateLastChangedHeight(hash *chainhash.Hash, version uint32, deploymentID string) (int64, error) {
+	// NOTE: The requirement for the node being fully validated here is strictly
+	// stronger than what is actually required.  In reality, all that is needed
+	// is for the block data for the node and all of its ancestors to be
+	// available, but there is not currently any tracking to be able to
+	// efficiently determine that state.
+	node := b.index.LookupNode(hash)
+	if node == nil || !b.index.NodeStatus(node).KnownValid() {
+		return 0, HashError(hash.String())
+	}
+
+	// Fetch the treshold state cache for the provided deployment id as well as
+	// the condition checker.
+	var cache *thresholdStateCache
+	var checker thresholdConditionChecker
+	for k := range b.chainParams.Deployments[version] {
+		if b.chainParams.Deployments[version][k].Vote.Id == deploymentID {
+			checker = deploymentChecker{
+				deployment: &b.chainParams.Deployments[version][k],
+				chain:      b,
+			}
+			cache = &b.deploymentCaches[version][k]
+			break
+		}
+	}
+
+	if cache == nil {
+		return 0, fmt.Errorf("threshold state cache for agenda with "+
+			"deployment id (%s) not found", deploymentID)
+	}
+
+	// Find the node at which the current state changed.
+	b.chainLock.Lock()
+	stateNode, err := b.stateLastChanged(version, node, checker, cache)
+	b.chainLock.Unlock()
+	if err != nil {
+		return 0, err
+	}
+
+	var height int64
+	if stateNode != nil {
+		height = stateNode.height
+	}
+	return height, nil
 }
 
 // ThresholdState returns the current rule change threshold state of the given

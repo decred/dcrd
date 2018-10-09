@@ -89,16 +89,28 @@ type GetBlockVerboseResult struct {
 	NextHash      string        `json:"nextblockhash,omitempty"`
 }
 
+// AgendaInfo provides an overview of an agenda in a consensus deployment.
+type AgendaInfo struct {
+	Status     string `json:"status"`
+	Since      int64  `json:"since,omitempty"`
+	StartTime  uint64 `json:"starttime"`
+	ExpireTime uint64 `json:"expiretime"`
+}
+
 // GetBlockChainInfoResult models the data returned from the getblockchaininfo
 // command.
 type GetBlockChainInfoResult struct {
-	Chain                string  `json:"chain"`
-	Blocks               int32   `json:"blocks"`
-	Headers              int32   `json:"headers"`
-	BestBlockHash        string  `json:"bestblockhash"`
-	Difficulty           float64 `json:"difficulty"`
-	VerificationProgress float64 `json:"verificationprogress"`
-	ChainWork            string  `json:"chainwork"`
+	Chain                string                `json:"chain"`
+	Blocks               int64                 `json:"blocks"`
+	Headers              int64                 `json:"headers"`
+	SyncHeight           int64                 `json:"syncheight"`
+	BestBlockHash        string                `json:"bestblockhash"`
+	Difficulty           uint32                `json:"difficulty"`
+	VerificationProgress float64               `json:"verificationprogress"`
+	ChainWork            string                `json:"chainwork"`
+	InitialBlockDownload bool                  `json:"initialblockdownload"`
+	MaxBlockSize         int64                 `json:"maxblocksize"`
+	Deployments          map[string]AgendaInfo `json:"deployments"`
 }
 
 // GetBlockHeaderVerboseResult models the data from the getblockheader command when
