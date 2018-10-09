@@ -334,6 +334,11 @@ type blockManager struct {
 	// The following fields are used to filter duplicate block announcements.
 	announcedBlockMtx sync.Mutex
 	announcedBlock    *chainhash.Hash
+
+	// The following fields are used to track the height being synced to from
+	// peers.
+	syncHeightMtx sync.Mutex
+	syncHeight    int64
 }
 
 // resetHeaderState sets the headers-first mode state to values appropriate for
@@ -350,6 +355,13 @@ func (b *blockManager) resetHeaderState(newestHash *chainhash.Hash, newestHeight
 		node := headerNode{height: newestHeight, hash: newestHash}
 		b.headerList.PushBack(&node)
 	}
+}
+
+// SyncHeight returns latest known block being synced to.
+func (b *blockManager) SyncHeight() int64 {
+	b.syncHeightMtx.Lock()
+	defer b.syncHeightMtx.Unlock()
+	return b.syncHeight
 }
 
 // findNextHeaderCheckpoint returns the next checkpoint after the passed height.
@@ -479,6 +491,9 @@ func (b *blockManager) startSync(peers *list.List) {
 			}
 		}
 		b.syncPeer = bestPeer
+		b.syncHeightMtx.Lock()
+		b.syncHeight = bestPeer.LastBlock()
+		b.syncHeightMtx.Unlock()
 	} else {
 		bmgrLog.Warnf("No sync peer candidates available")
 	}
@@ -2307,6 +2322,9 @@ func newBlockManager(s *server, indexManager blockchain.IndexManager, interrupt 
 	}
 
 	bm.lotteryDataBroadcast = make(map[chainhash.Hash]struct{})
+	bm.syncHeightMtx.Lock()
+	bm.syncHeight = best.Height
+	bm.syncHeightMtx.Unlock()
 
 	return &bm, nil
 }

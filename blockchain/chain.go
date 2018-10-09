@@ -8,6 +8,7 @@ package blockchain
 import (
 	"container/list"
 	"fmt"
+	"math/big"
 	"sync"
 	"time"
 
@@ -295,12 +296,16 @@ func (b *BlockChain) GetStakeVersions(hash *chainhash.Hash, count int32) ([]Stak
 	return result, nil
 }
 
+// VoteInfo represents information on agendas and their respective states for
+// a consensus deployment.
 type VoteInfo struct {
 	Agendas      []chaincfg.ConsensusDeployment
 	AgendaStatus []ThresholdStateTuple
 }
 
-// GetVoteInfo returns
+// GetVoteInfo returns information on consensus deployment agendas
+// and their respective states at the provided hash, for the provided
+// deployment version.
 func (b *BlockChain) GetVoteInfo(hash *chainhash.Hash, version uint32) (*VoteInfo, error) {
 	deployments, ok := b.chainParams.Deployments[version]
 	if !ok {
@@ -366,6 +371,17 @@ func (b *BlockChain) FetchSubsidyCache() *SubsidyCache {
 // This function is safe for concurrent access.
 func (b *BlockChain) HaveBlock(hash *chainhash.Hash) (bool, error) {
 	return b.index.HaveBlock(hash) || b.IsKnownOrphan(hash), nil
+}
+
+// ChainWork returns the total work up to and including the block of the
+// provided block hash.
+func (b *BlockChain) ChainWork(hash *chainhash.Hash) (*big.Int, error) {
+	node := b.index.LookupNode(hash)
+	if node == nil {
+		return nil, fmt.Errorf("block %s is not known", hash)
+	}
+
+	return node.workSum, nil
 }
 
 // IsKnownOrphan returns whether the passed hash is currently a known orphan.
