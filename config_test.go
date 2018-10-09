@@ -1,3 +1,7 @@
+// Copyright (c) 2018 The Decred developers
+// Use of this source code is governed by an ISC
+// license that can be found in the LICENSE file.
+
 package main
 
 import (
@@ -21,11 +25,11 @@ func setup() {
 	// from previously set env variables or default config files.
 	file, _ := ioutil.TempFile("", "dcrd_test_file.cfg")
 	defer os.Remove(file.Name())
+
 	// Parse the -test.* flags before removing them from the command line
 	// arguments list, which we do to allow go-flags to succeed.
 	flag.Parse()
 	os.Args = os.Args[:1]
-	// Run the tests now that the testing package flags have been parsed.
 }
 
 func TestLoadConfig(t *testing.T) {
