@@ -428,9 +428,9 @@ func (c *Client) shouldLogReadError(err error) bool {
 	return true
 }
 
-// WsInHandler handles all incoming messages for the websocket connection
+// wsInHandler handles all incoming messages for the websocket connection
 // associated with the client.  It must be run as a goroutine per ws connection.
-func (c *Client) WsInHandler(wsConn *websocket.Conn, host string) {
+func (c *Client) wsInHandler(wsConn *websocket.Conn, host string) {
 	c.wg.Add(1)
 out:
 	for {

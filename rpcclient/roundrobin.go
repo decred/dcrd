@@ -463,7 +463,7 @@ func (c *Client) BuildBalancer(config *ConnConfig) (Balancer, error) {
 		connState:           make(map[string]ConnectionState),
 		wsConns:             make(map[string]*websocket.Conn),
 		hostAddMap:          hostAddressesMap,
-		WsInHandler:         c.WsInHandler,
+		WsInHandler:         c.wsInHandler,
 		connForNotification: make(map[string]string),
 	}
 	return rrb, nil
