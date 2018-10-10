@@ -348,12 +348,12 @@ func NewGetBalanceCmd(account *string, minConf *int) *GetBalanceCmd {
 	}
 }
 
-// GetContratHashCmd defines the getcontracthash JSON-RPC command.
+// GetContractHashCmd defines the getcontracthash JSON-RPC command.
 type GetContractHashCmd struct {
 	FilePath []string
 }
 
-// NewGetBalanceCmd returns a new instance which can be used to issue a
+// NewGetContractHashCmd returns a new instance which can be used to issue a
 // getcontracthash JSON-RPC command.
 func NewGetContractHashCmd(filepaths []string) *GetContractHashCmd {
 	return &GetContractHashCmd{FilePath: filepaths}
@@ -401,7 +401,7 @@ func NewGetNewAddressCmd(account *string, gapPolicy *string) *GetNewAddressCmd {
 	}
 }
 
-// GetPayToContractHashCmd defines the getpaytocontracthash JSON-RPC command.
+// GetPayToContractAddressCmd defines the getpaytocontracthash JSON-RPC command.
 type GetPayToContractAddressCmd struct {
 	FilePath []string
 }

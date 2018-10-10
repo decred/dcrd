@@ -194,11 +194,7 @@ func (n *node) start() error {
 		return err
 	}
 
-	if err := pid.Close(); err != nil {
-		return err
-	}
-
-	return nil
+	return pid.Close()
 }
 
 // stop interrupts the running dcrd process process, and waits until it exits
@@ -238,10 +234,7 @@ func (n *node) shutdown() error {
 	if err := n.stop(); err != nil {
 		return err
 	}
-	if err := n.cleanup(); err != nil {
-		return err
-	}
-	return nil
+	return n.cleanup()
 }
 
 // genCertPair generates a key/cert pair to the paths provided.

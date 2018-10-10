@@ -4,6 +4,8 @@
 
 package dcrec
 
+// SignatureType defines a specific cryptographic signature and curve pair for
+// use in transaction scripts and addresses.
 type SignatureType int
 
 const (

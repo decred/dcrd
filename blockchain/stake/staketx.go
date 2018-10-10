@@ -759,7 +759,7 @@ func CheckSStx(tx *wire.MsgTx) error {
 	return nil
 }
 
-// IsSSx returns whether or not a transaction is a stake submission transaction.
+// IsSStx returns whether or not a transaction is a stake submission transaction.
 // These are also known as tickets.
 func IsSStx(tx *wire.MsgTx) bool {
 	return CheckSStx(tx) == nil
