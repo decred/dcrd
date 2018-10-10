@@ -28,8 +28,8 @@ digraph {
 	{rank=same connmgr addrmgr hdkeychain peer rpcclient mempool}
 
 	certgen
- 	chainhash -> dcrjson [dir=back color=aquamarine]
- 	chainhash -> wire [dir=back color=aquamarine]
+	chainhash -> dcrjson [dir=back color=aquamarine]
+	chainhash -> wire [dir=back color=aquamarine]
 	wire -> addrmgr [dir=back color=coral]
 	wire -> chaincfg [dir=back color=coral]
 	chaincfg -> connmgr [dir=back color=cadetblue]
