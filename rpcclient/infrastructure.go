@@ -152,7 +152,7 @@ type Client struct {
 	// balancer holds instance of RoundRobinBalancer. This implements
 	// the logic to round-robin between available connections.
 	// Whenever we need a connection, RoundRobinBalancer.NextConn() should be used to
-	// retrive a websocket connection or a HostAddress in case of HttpPostMode.
+	// retrieve a websocket connection or a HostAddress in case of HttpPostMode.
 	// It relies on the HostAddresses present in ConnConfig as the source for round-robin.
 	balancer Balancer
 }
@@ -477,8 +477,8 @@ func (c *Client) disconnectChan() <-chan struct{} {
 func (c *Client) wsOutHandler() {
 out:
 	for {
-		// Send any messages ready for send until the client is
-		// disconnected closed.
+		// Send any messages ready for send until the client
+		// gets a valid connection through balancer.
 		select {
 		case req := <-c.sendChan:
 			conn, _, err := c.balancer.NextConn(req.method)
@@ -496,7 +496,9 @@ out:
 			}
 
 		case <-c.disconnectChan():
-			break out
+			if c.balancer.IsAllDisconnected() {
+				break out
+			}
 		}
 	}
 
@@ -518,12 +520,11 @@ cleanup:
 // websocket connection.  It is backed by a buffered channel, so it will not
 // block until the send channel is full.
 func (c *Client) sendMessage(jReq *jsonRequest) {
-	// Don't send the message if disconnected.
-	select {
-	case c.sendChan <- jReq:
-	case <-c.disconnectChan():
+	// Don't send the message if all are disconnected.
+	if c.balancer.IsAllDisconnected() {
 		return
 	}
+	c.sendChan <- jReq
 }
 
 // reregisterNtfns creates and sends commands needed to re-establish the current
@@ -695,7 +696,7 @@ out:
 						// Update the retry count for this Host.
 						c.balancer.UpdateReconnectAttempt(discHostAdd)
 						log.Infof("Failed to connect to %s: %v",
-							c.config.Host, err)
+							confCopy.Host, err)
 
 						// Scale the retry interval by the number of
 						// retries so there is a backoff up to a max
@@ -706,7 +707,7 @@ out:
 							scaledDuration = time.Minute
 						}
 						log.Infof("Retrying connection to %s in "+
-							"%s", c.config.Host, scaledDuration)
+							"%s", confCopy.Host, scaledDuration)
 						time.Sleep(scaledDuration)
 						needToRetry = true
 						continue
@@ -968,8 +969,8 @@ func (c *Client) sendCmdAndWait(cmd interface{}) (interface{}, error) {
 	return receiveFuture(c.sendCmd(cmd))
 }
 
-// doDisconnect disconnects the websocket associated with the client if it
-// hasn't already been disconnected.  It will return false if the disconnect is
+// doDisconnect closes the disconnect channel if it hasn't already been
+// disconnected.  It will return false if the disconnect is
 // not needed or the client is running in HTTP POST mode.
 //
 // This function is safe for concurrent access.
@@ -981,17 +982,21 @@ func (c *Client) doDisconnect() bool {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
-	// Nothing to do if already disconnected.
-	if c.balancer.IsAllDisconnected() {
-		return false
+	select {
+	case <-c.disconnect:
+	default:
+		close(c.disconnect)
 	}
 
-	log.Tracef("Disconnecting RPC client")
-	close(c.disconnect)
 	// In case of shutdown, we need to close all connections.
 	// Typically the WsInHandlers might be waiting at ReadMessage
 	select {
 	case <-c.shutdown:
+		log.Tracef("Disconnecting RPC client")
+		// Nothing to do if already disconnected.
+		if c.balancer.IsAllDisconnected() {
+			return false
+		}
 		c.balancer.CloseAll()
 	default:
 	}
@@ -1032,7 +1037,7 @@ func (c *Client) Disconnect() {
 
 	// When operating without auto reconnect, send errors to any pending
 	// requests and shutdown the client.
-	if c.config.DisableAutoReconnect {
+	if c.config.DisableAutoReconnect && c.balancer.IsAllDisconnected() {
 		for e := c.requestList.Front(); e != nil; e = e.Next() {
 			req := e.Value.(*jsonRequest)
 			req.responseChan <- &response{
@@ -1095,7 +1100,7 @@ func (c *Client) start() {
 		}()
 		// c.wsInHandler is invoked per ws connection, which inturn adds
 		// its corresponding waitgroup.
-		// so for now we just need to invoke the out handler
+		// so for now we just need to invoke the out handler.
 		go c.wsOutHandler()
 	}
 }

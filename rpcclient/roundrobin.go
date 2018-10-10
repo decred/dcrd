@@ -77,7 +77,7 @@ type HostAddress struct {
 
 	// initialConnectAttemptCount holds the number of times the client has tried to
 	// establish initial connection to the RPC server.
-	initialConnectAttemptCount int64
+	initialConnectAttemptCount int
 }
 
 type picker struct {
@@ -225,12 +225,12 @@ func (rrb *RoundRobinBalancer) NextConn(method string) (*websocket.Conn, *HostAd
 			rrb.connConfig.Endpoint = hostAddress.Endpoint
 			wsConn, err = dial(rrb.connConfig)
 			if err != nil {
-				log.Infof("Balancer: Failed to connect to %s: %v",
-					rrb.connConfig.Host, err)
 				// Update the connection state to idle so that we try again
 				// as we haven't yet connected to this host successfully.
 				rrb.NotifyConnStateChange(hostAddress, idle, true)
-				rrb.updateInitialConnectAttempt(hostAddress)
+				attempt := rrb.updateInitialConnectAttempt(hostAddress)
+				log.Infof("Balancer: Failed to make initial connection to %s: %v, attempt:%v",
+					rrb.connConfig.Host, err, attempt)
 				// Try for the next Host.
 				hostAddress, err = rrb.connPicker.Pick(rrb)
 				if err != nil {
@@ -360,10 +360,10 @@ func (rrb *RoundRobinBalancer) NotifyReconnect(wsConn *websocket.Conn, hostAdd *
 	rrb.wsConns[hostAdd.Host] = wsConn
 	rrb.hostAddMap[hostAdd.Host].retryCount = 0
 	rrb.mu.Unlock()
-	rrb.WsInHandler(wsConn, hostAdd.Host)
+	go rrb.WsInHandler(wsConn, hostAdd.Host)
 }
 
-// UpdateReconnectAttempt will increase retryattempt + 1
+// UpdateReconnectAttempt increments the connection's retry counter by one
 // for corresponding host address.
 func (rrb *RoundRobinBalancer) UpdateReconnectAttempt(hostAdd *HostAddress) {
 	rrb.mu.Lock()
@@ -371,12 +371,14 @@ func (rrb *RoundRobinBalancer) UpdateReconnectAttempt(hostAdd *HostAddress) {
 	rrb.mu.Unlock()
 }
 
-// updateInitialConnectAttempt will increase initialConnectAttemptCount + 1
+// updateInitialConnectAttempt increments the connection's initial connection attempt by one
 // for corresponding host address.
-func (rrb *RoundRobinBalancer) updateInitialConnectAttempt(hostAdd *HostAddress) {
+func (rrb *RoundRobinBalancer) updateInitialConnectAttempt(hostAdd *HostAddress) int {
 	rrb.mu.Lock()
 	rrb.hostAddMap[hostAdd.Host].initialConnectAttemptCount++
+	attempt := rrb.hostAddMap[hostAdd.Host].initialConnectAttemptCount
 	rrb.mu.Unlock()
+	return attempt
 }
 
 // IsAllDisconnected would return true if all hostaddresses are marked with

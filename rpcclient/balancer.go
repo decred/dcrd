@@ -11,10 +11,10 @@ import (
 // Balancer defines requirements for a load balancer
 // using list of hostaddresses as the source.
 type Balancer interface {
-	// NextConn gets the next usable connection.
-	// If the methodName is one of notifications, then would remember the connection used
-	// for this method and would next time pick the same connection.
-	// Else would consider normal roundrobin routine to get the next connection.
+	// NextConn gets the next usable connection. The balancer remembers connections
+	// used for notification methods, these connections are reused on subsequent
+	// calls of the notification calls. The default round robin process is used in picking
+	// connections for all other methods.
 	NextConn(methodName string) (wsConn *websocket.Conn, hostAddress *HostAddress, err error)
 
 	// ConnectionState gets the connectionstate of corresponding wsConn.
@@ -31,7 +31,7 @@ type Balancer interface {
 	// for a hostaddress changes.
 	NotifyConnStateChange(sc *HostAddress, state ConnectionState, sync bool)
 
-	// UpdateReconnectAttempt will increase retryattempt + 1.
+	// UpdateReconnectAttempt increments the connection's retry counter by one.
 	UpdateReconnectAttempt(hostAdd *HostAddress)
 
 	// NotifyReconnect will update the map for wsConns and update the connection state
