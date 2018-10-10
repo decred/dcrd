@@ -23,11 +23,11 @@ var (
 	ErrBalancerNotFound = errors.New("not able to find the specified balancer type")
 )
 
-// ConnectionState indicates the current state of connection.
-type ConnectionState int
+// connectionState indicates the current state of connection.
+type connectionState int
 
-// String would return a string representation of the said ConnectionState
-func (s ConnectionState) String() string {
+// String would return a string representation of the said connectionState
+func (s connectionState) String() string {
 	switch s {
 	case idle:
 		return "IDLE"
@@ -46,7 +46,7 @@ func (s ConnectionState) String() string {
 
 const (
 	// idle indicates the conn is idle i.e. not yet tried or not yet successfully connected.
-	idle ConnectionState = iota
+	idle connectionState = iota
 
 	// connecting indicates the conn is connecting.
 	connecting
@@ -102,7 +102,7 @@ func (p *picker) Pick(balancer Balancer) (conn *HostAddress, err error) {
 
 	for {
 		conn = &p.conns[p.next]
-		var state ConnectionState
+		var state connectionState
 		state, ok = balancer.ConnectionState(conn.Host)
 		p.next = (p.next + 1) % len(p.conns)
 		if !ok || state == ready {
@@ -145,9 +145,9 @@ func isStatefulNotification(method string) bool {
 	return false
 }
 
-// WsInHandlerForConn represents the incoming message handler for a
+// wsInHandlerForConn represents the incoming message handler for a
 // ws connection. This is invoked as a goroutine, one per ws connection
-type WsInHandlerForConn func(*websocket.Conn, string)
+type wsInHandlerForConn func(*websocket.Conn, string)
 
 // RoundRobinBalancer represents a round-robin balancer. It implements Balancer
 // interface and maintains a Picker for picking Hosts in a round-robin manner.
@@ -171,7 +171,7 @@ type RoundRobinBalancer struct {
 
 	// connState is a map of HostAddress.Host as key and corresponding
 	// connection state as the value.
-	connState map[string]ConnectionState
+	connState map[string]connectionState
 
 	// connForNotification is a map of notification name as key and value as
 	// HostAddress.Host corresponding to the connection used for this notification.
@@ -187,9 +187,9 @@ type RoundRobinBalancer struct {
 	// It is set to false after client.start() is called during reconnect.
 	needsClientRestart bool
 
-	// Receiver for incoming calls for a wsConnection.
+	// wsInHandler is receiver for incoming calls for a wsConnection.
 	// This is invoked as a goroutine per ws connection.
-	WsInHandler WsInHandlerForConn
+	wsInHandler wsInHandlerForConn
 }
 
 // NextConn gets the next connection to be used.
@@ -243,7 +243,7 @@ func (rrb *RoundRobinBalancer) NextConn(method string) (*websocket.Conn, *HostAd
 				// reset as we successfully connected
 				hostAddress.initialConnectAttemptCount = 0
 				//invoke the lister for this ws connection
-				go rrb.WsInHandler(wsConn, hostAddress.Host)
+				go rrb.wsInHandler(wsConn, hostAddress.Host)
 				rrb.mu.Unlock()
 				rrb.NotifyConnStateChange(hostAddress, ready, true)
 				log.Infof("Balancer: Established connection to RPC server %s",
@@ -268,7 +268,7 @@ func (rrb *RoundRobinBalancer) NextConn(method string) (*websocket.Conn, *HostAd
 // NotifyConnStateChange updates connState map for the given Host address.
 // It also updates the isReady field to indicate if at least one connection
 // with Ready state exists.
-func (rrb *RoundRobinBalancer) NotifyConnStateChange(hostAdd *HostAddress, state ConnectionState, sync bool) {
+func (rrb *RoundRobinBalancer) NotifyConnStateChange(hostAdd *HostAddress, state connectionState, sync bool) {
 	if sync {
 		rrb.mu.Lock()
 	}
@@ -360,7 +360,7 @@ func (rrb *RoundRobinBalancer) NotifyReconnect(wsConn *websocket.Conn, hostAdd *
 	rrb.wsConns[hostAdd.Host] = wsConn
 	rrb.hostAddMap[hostAdd.Host].retryCount = 0
 	rrb.mu.Unlock()
-	go rrb.WsInHandler(wsConn, hostAdd.Host)
+	go rrb.wsInHandler(wsConn, hostAdd.Host)
 }
 
 // UpdateReconnectAttempt increments the connection's retry counter by one
@@ -415,7 +415,7 @@ func (rrb *RoundRobinBalancer) AllDisconnectedWsConns() []*HostAddress {
 }
 
 // ConnectionState will return the connection state for given host.
-func (rrb *RoundRobinBalancer) ConnectionState(host string) (state ConnectionState, ok bool) {
+func (rrb *RoundRobinBalancer) ConnectionState(host string) (state connectionState, ok bool) {
 	rrb.mu.Lock()
 	state, ok = rrb.connState[host]
 	rrb.mu.Unlock()
@@ -460,10 +460,10 @@ func (c *Client) BuildBalancer(config *ConnConfig) (Balancer, error) {
 			next:  0,
 		},
 		connConfig:          config,
-		connState:           make(map[string]ConnectionState),
+		connState:           make(map[string]connectionState),
 		wsConns:             make(map[string]*websocket.Conn),
 		hostAddMap:          hostAddressesMap,
-		WsInHandler:         c.wsInHandler,
+		wsInHandler:         c.wsInHandler,
 		connForNotification: make(map[string]string),
 	}
 	return rrb, nil

@@ -18,7 +18,7 @@ type Balancer interface {
 	NextConn(methodName string) (wsConn *websocket.Conn, hostAddress *HostAddress, err error)
 
 	// ConnectionState gets the connectionstate of corresponding wsConn.
-	ConnectionState(host string) (state ConnectionState, ok bool)
+	ConnectionState(host string) (state connectionState, ok bool)
 
 	// WsConnection gets the wsConn corresponding to the host.
 	WsConnection(host string) (wsConn *websocket.Conn, connOk bool)
@@ -27,9 +27,9 @@ type Balancer interface {
 	// return all the wsConnections that have their state as Disconnected.
 	AllDisconnectedWsConns() []*HostAddress
 
-	// NotifyConnStateChange is called by rpcClient when the ConnectionState
+	// NotifyConnStateChange is called by rpcClient when the connectionState
 	// for a hostaddress changes.
-	NotifyConnStateChange(sc *HostAddress, state ConnectionState, sync bool)
+	NotifyConnStateChange(sc *HostAddress, state connectionState, sync bool)
 
 	// UpdateReconnectAttempt increments the connection's retry counter by one.
 	UpdateReconnectAttempt(hostAdd *HostAddress)
