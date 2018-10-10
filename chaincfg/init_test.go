@@ -296,47 +296,47 @@ func TestChoices(t *testing.T) {
 		{
 			name:     "consecutive mask",
 			vote:     consecMask,
-			expected: ErrInvalidMask,
+			expected: errInvalidMask,
 		},
 		{
 			name:     "not consecutive choices",
 			vote:     notConsec,
-			expected: ErrNotConsecutive,
+			expected: errNotConsecutive,
 		},
 		{
 			name:     "too many choices",
 			vote:     tooManyChoices,
-			expected: ErrTooManyChoices,
+			expected: errTooManyChoices,
 		},
 		{
 			name:     "invalid ignore",
 			vote:     invalidAbstain,
-			expected: ErrInvalidAbstain,
+			expected: errInvalidAbstain,
 		},
 		{
 			name:     "invalid vote bits",
 			vote:     invalidVoteBits,
-			expected: ErrInvalidBits,
+			expected: errInvalidBits,
 		},
 		{
 			name:     "2 IsAbstain",
 			vote:     twoIsAbstain,
-			expected: ErrInvalidIsAbstain,
+			expected: errInvalidIsAbstain,
 		},
 		{
 			name:     "2 IsNo",
 			vote:     twoIsNo,
-			expected: ErrInvalidIsNo,
+			expected: errInvalidIsNo,
 		},
 		{
 			name:     "both IsAbstain IsNo",
 			vote:     bothFlags,
-			expected: ErrInvalidBothFlags,
+			expected: errInvalidBothFlags,
 		},
 		{
 			name:     "duplicate choice id",
 			vote:     dupChoice,
-			expected: ErrDuplicateChoiceId,
+			expected: errDuplicateChoiceId,
 		},
 	}
 
@@ -366,7 +366,7 @@ func TestDeployments(t *testing.T) {
 		{
 			name:        "duplicate vote id",
 			deployments: dupVote,
-			expected:    ErrDuplicateVoteId,
+			expected:    errDuplicateVoteId,
 		},
 	}
 

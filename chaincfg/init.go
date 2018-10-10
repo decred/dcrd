@@ -11,18 +11,18 @@ import (
 )
 
 var (
-	ErrDuplicateVoteId  = errors.New("duplicate vote id")
-	ErrInvalidMask      = errors.New("invalid mask")
-	ErrNotConsecutive   = errors.New("choices not consecutive")
-	ErrTooManyChoices   = errors.New("too many choices")
-	ErrInvalidAbstain   = errors.New("invalid abstain bits")
-	ErrInvalidBits      = errors.New("invalid vote bits")
-	ErrInvalidIsAbstain = errors.New("one and only one IsAbstain rule " +
+	errDuplicateVoteId  = errors.New("duplicate vote id")
+	errInvalidMask      = errors.New("invalid mask")
+	errNotConsecutive   = errors.New("choices not consecutive")
+	errTooManyChoices   = errors.New("too many choices")
+	errInvalidAbstain   = errors.New("invalid abstain bits")
+	errInvalidBits      = errors.New("invalid vote bits")
+	errInvalidIsAbstain = errors.New("one and only one IsAbstain rule " +
 		"violation")
-	ErrInvalidIsNo      = errors.New("one and only one IsNo rule violation")
-	ErrInvalidBothFlags = errors.New("IsNo and IsAbstain may not be both " +
+	errInvalidIsNo      = errors.New("one and only one IsNo rule violation")
+	errInvalidBothFlags = errors.New("IsNo and IsAbstain may not be both " +
 		"set to true")
-	ErrDuplicateChoiceId = errors.New("duplicate choice ID")
+	errDuplicateChoiceId = errors.New("duplicate choice ID")
 )
 
 // bitsSet counts number of bits set.
@@ -65,12 +65,12 @@ func validateChoices(mask uint16, choices []Choice) error {
 
 	// Check that mask is consecutive.
 	if consecOnes(mask) != bitsSet(mask) {
-		return ErrInvalidMask
+		return errInvalidMask
 	}
 
 	// Check bits and choice bounds.
 	if len(choices) > 1<<bitsSet(mask) {
-		return ErrTooManyChoices
+		return errTooManyChoices
 	}
 
 	dups := make(map[string]struct{})
@@ -78,23 +78,23 @@ func validateChoices(mask uint16, choices []Choice) error {
 	for index, choice := range choices {
 		// Check that choice 0 is the abstain vote.
 		if mask&choice.Bits == 0 && !choice.IsAbstain {
-			return ErrInvalidAbstain
+			return errInvalidAbstain
 		}
 
 		// Check mask bits.
 		if mask&choice.Bits != choice.Bits {
-			return ErrInvalidBits
+			return errInvalidBits
 		}
 
 		// Check that index is consecutive.  This test is below the
 		// Check mask bits one for testing reasons.  Leave it here.
 		if uint16(index) != choice.Bits>>s {
-			return ErrNotConsecutive
+			return errNotConsecutive
 		}
 
 		// Check that both flags aren't set to true.
 		if choice.IsAbstain && choice.IsNo {
-			return ErrInvalidBothFlags
+			return errInvalidBothFlags
 		}
 
 		// Count flags.
@@ -109,17 +109,17 @@ func validateChoices(mask uint16, choices []Choice) error {
 		id := strings.ToLower(choice.Id)
 		_, found := dups[id]
 		if found {
-			return ErrDuplicateChoiceId
+			return errDuplicateChoiceId
 		}
 		dups[id] = struct{}{}
 	}
 
 	// Check that there is only one IsNo and IsAbstain flag set to true.
 	if numAbstain != 1 {
-		return ErrInvalidIsAbstain
+		return errInvalidIsAbstain
 	}
 	if numNo != 1 {
-		return ErrInvalidIsNo
+		return errInvalidIsNo
 	}
 
 	return nil
@@ -136,7 +136,7 @@ func validateDeployments(deployments []ConsensusDeployment) (int, error) {
 		id := strings.ToLower(deployment.Vote.Id)
 		_, found := dups[id]
 		if found {
-			return index, ErrDuplicateVoteId
+			return index, errDuplicateVoteId
 		}
 		dups[id] = struct{}{}
 	}
