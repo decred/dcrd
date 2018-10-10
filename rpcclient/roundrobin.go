@@ -149,9 +149,9 @@ func isStatefulNotification(method string) bool {
 // ws connection. This is invoked as a goroutine, one per ws connection
 type wsInHandlerForConn func(*websocket.Conn, string)
 
-// RoundRobinBalancer represents a round-robin balancer. It implements Balancer
+// roundRobinBalancer represents a round-robin balancer. It implements Balancer
 // interface and maintains a Picker for picking Hosts in a round-robin manner.
-type RoundRobinBalancer struct {
+type roundRobinBalancer struct {
 	// connPicker is the Picker to be used to do round-robin.
 	connPicker picker
 
@@ -194,7 +194,7 @@ type RoundRobinBalancer struct {
 
 // NextConn gets the next connection to be used.
 // It returns both *websocket.Conn and the corresponding *HostAddress.
-func (rrb *RoundRobinBalancer) NextConn(method string) (*websocket.Conn, *HostAddress, error) {
+func (rrb *roundRobinBalancer) NextConn(method string) (*websocket.Conn, *HostAddress, error) {
 	if !rrb.isReady {
 		select {
 		// Wait if any handshake is inprogress.
@@ -268,7 +268,7 @@ func (rrb *RoundRobinBalancer) NextConn(method string) (*websocket.Conn, *HostAd
 // NotifyConnStateChange updates connState map for the given Host address.
 // It also updates the isReady field to indicate if at least one connection
 // with Ready state exists.
-func (rrb *RoundRobinBalancer) NotifyConnStateChange(hostAdd *HostAddress, state connectionState, sync bool) {
+func (rrb *roundRobinBalancer) NotifyConnStateChange(hostAdd *HostAddress, state connectionState, sync bool) {
 	if sync {
 		rrb.mu.Lock()
 	}
@@ -294,7 +294,7 @@ func (rrb *RoundRobinBalancer) NotifyConnStateChange(hostAdd *HostAddress, state
 }
 
 // Close closes the passed ws connection
-func (rrb *RoundRobinBalancer) Close(wsConn *websocket.Conn) bool {
+func (rrb *roundRobinBalancer) Close(wsConn *websocket.Conn) bool {
 	rrb.mu.Lock()
 
 	hostToBeClosed := ""
@@ -323,7 +323,7 @@ func (rrb *RoundRobinBalancer) Close(wsConn *websocket.Conn) bool {
 
 // setForClientRestart sets the flag to mark if client restart is needed during reconnect.
 // It returns true if all ws connections are disconnected, false otherwise.
-func (rrb *RoundRobinBalancer) setForClientRestart() bool {
+func (rrb *roundRobinBalancer) setForClientRestart() bool {
 	if rrb.IsAllDisconnected() {
 		rrb.SetClientRestartNeeded(true)
 		return true
@@ -333,7 +333,7 @@ func (rrb *RoundRobinBalancer) setForClientRestart() bool {
 
 // CloseAll closes all the socket connections in the wsConns list
 // This must be called during shutdown.
-func (rrb *RoundRobinBalancer) CloseAll() {
+func (rrb *roundRobinBalancer) CloseAll() {
 	rrb.mu.Lock()
 	for host := range rrb.wsConns {
 		if rrb.connState[host] != disconnected && rrb.connState[host] != shutdown {
@@ -354,7 +354,7 @@ func (rrb *RoundRobinBalancer) CloseAll() {
 
 // NotifyReconnect will update the map for wsConns and update the connection state
 // for the corresponding host address.
-func (rrb *RoundRobinBalancer) NotifyReconnect(wsConn *websocket.Conn, hostAdd *HostAddress) {
+func (rrb *roundRobinBalancer) NotifyReconnect(wsConn *websocket.Conn, hostAdd *HostAddress) {
 	rrb.mu.Lock()
 	rrb.connState[hostAdd.Host] = ready
 	rrb.wsConns[hostAdd.Host] = wsConn
@@ -365,7 +365,7 @@ func (rrb *RoundRobinBalancer) NotifyReconnect(wsConn *websocket.Conn, hostAdd *
 
 // UpdateReconnectAttempt increments the connection's retry counter by one
 // for corresponding host address.
-func (rrb *RoundRobinBalancer) UpdateReconnectAttempt(hostAdd *HostAddress) {
+func (rrb *roundRobinBalancer) UpdateReconnectAttempt(hostAdd *HostAddress) {
 	rrb.mu.Lock()
 	rrb.hostAddMap[hostAdd.Host].retryCount++
 	rrb.mu.Unlock()
@@ -373,7 +373,7 @@ func (rrb *RoundRobinBalancer) UpdateReconnectAttempt(hostAdd *HostAddress) {
 
 // updateInitialConnectAttempt increments the connection's initial connection attempt by one
 // for corresponding host address.
-func (rrb *RoundRobinBalancer) updateInitialConnectAttempt(hostAdd *HostAddress) int {
+func (rrb *roundRobinBalancer) updateInitialConnectAttempt(hostAdd *HostAddress) int {
 	rrb.mu.Lock()
 	rrb.hostAddMap[hostAdd.Host].initialConnectAttemptCount++
 	attempt := rrb.hostAddMap[hostAdd.Host].initialConnectAttemptCount
@@ -383,7 +383,7 @@ func (rrb *RoundRobinBalancer) updateInitialConnectAttempt(hostAdd *HostAddress)
 
 // IsAllDisconnected would return true if all hostaddresses are marked with
 // connection state as Disconnected.
-func (rrb *RoundRobinBalancer) IsAllDisconnected() bool {
+func (rrb *roundRobinBalancer) IsAllDisconnected() bool {
 	rrb.mu.Lock()
 	for _, state := range rrb.connState {
 		if state != disconnected && state != shutdown && state != idle {
@@ -396,13 +396,13 @@ func (rrb *RoundRobinBalancer) IsAllDisconnected() bool {
 }
 
 // IsReady returns true if there is at least one connection ready to use.
-func (rrb *RoundRobinBalancer) IsReady() bool {
+func (rrb *roundRobinBalancer) IsReady() bool {
 	return rrb.isReady
 }
 
 // AllDisconnectedWsConns will iterate over the connection state map and
 // return all the wsConnections that have their state as Disconnected.
-func (rrb *RoundRobinBalancer) AllDisconnectedWsConns() []*HostAddress {
+func (rrb *roundRobinBalancer) AllDisconnectedWsConns() []*HostAddress {
 	rrb.mu.Lock()
 	var disconnectedWsConns []*HostAddress
 	for host, state := range rrb.connState {
@@ -415,7 +415,7 @@ func (rrb *RoundRobinBalancer) AllDisconnectedWsConns() []*HostAddress {
 }
 
 // ConnectionState will return the connection state for given host.
-func (rrb *RoundRobinBalancer) ConnectionState(host string) (state connectionState, ok bool) {
+func (rrb *roundRobinBalancer) ConnectionState(host string) (state connectionState, ok bool) {
 	rrb.mu.Lock()
 	state, ok = rrb.connState[host]
 	rrb.mu.Unlock()
@@ -423,7 +423,7 @@ func (rrb *RoundRobinBalancer) ConnectionState(host string) (state connectionSta
 }
 
 // WsConnection gets the wsConn corresponding to the host.
-func (rrb *RoundRobinBalancer) WsConnection(host string) (wsConn *websocket.Conn, connOk bool) {
+func (rrb *roundRobinBalancer) WsConnection(host string) (wsConn *websocket.Conn, connOk bool) {
 	rrb.mu.Lock()
 	wsConn, connOk = rrb.wsConns[host]
 	rrb.mu.Unlock()
@@ -431,12 +431,12 @@ func (rrb *RoundRobinBalancer) WsConnection(host string) (wsConn *websocket.Conn
 }
 
 // SetClientRestartNeeded sets the flag used to decide if client.start() needs to be called during reconnect.
-func (rrb *RoundRobinBalancer) SetClientRestartNeeded(isRestartNeeded bool) {
+func (rrb *roundRobinBalancer) SetClientRestartNeeded(isRestartNeeded bool) {
 	rrb.needsClientRestart = isRestartNeeded
 }
 
 // ClientRestartNeeded gets the flag used to decide if client.start() needs to be called during reconnect.
-func (rrb *RoundRobinBalancer) ClientRestartNeeded() bool {
+func (rrb *roundRobinBalancer) ClientRestartNeeded() bool {
 	return rrb.needsClientRestart
 }
 
@@ -454,7 +454,7 @@ func (c *Client) BuildBalancer(config *ConnConfig) (Balancer, error) {
 	for i, val := range config.HostAddresses {
 		hostAddressesMap[val.Host] = &config.HostAddresses[i]
 	}
-	var rrb Balancer = &RoundRobinBalancer{
+	var rrb Balancer = &roundRobinBalancer{
 		connPicker: picker{
 			conns: config.HostAddresses,
 			next:  0,
