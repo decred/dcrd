@@ -44,12 +44,12 @@ digraph {
 	database ->  stake [dir=back color=dodgerblue]
 	txscript -> stake [dir=back color=mediumspringgreen]
 	stake -> gcs [dir=back color=bisque]
-	dcrjson -> blockchain [dir=back color=indianred]
 	gcs -> blockchain [dir=back color=gold]
 	blockchain -> mining [dir=back color=orchid]
 	mining -> mempool [dir=back color=chartreuse]
 	blockchain -> peer [dir=back color=orchid]
 	blockchain -> rpcclient [dir=back color=orchid]
+	dcrjson -> rpcclient [dir=back color=indianred]
 
 	mempool -> dcrd [dir=back color=slategray]
 	certgen -> dcrd [dir=back color=darkkhaki]

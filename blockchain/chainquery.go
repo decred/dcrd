@@ -8,7 +8,7 @@ import (
 	"bytes"
 	"sort"
 
-	"github.com/decred/dcrd/dcrjson"
+	"github.com/decred/dcrd/chaincfg/chainhash"
 )
 
 // nodeHeightSorter implements sort.Interface to allow a slice of nodes to
@@ -38,9 +38,44 @@ func (s nodeHeightSorter) Less(i, j int) bool {
 	return s[i].height < s[j].height
 }
 
+// ChainTipInfo models information about a chain tip.
+type ChainTipInfo struct {
+	// Height specifies the block height of the chain tip.
+	Height int64
+
+	// Hash specifies the block hash of the chain tip.
+	Hash chainhash.Hash
+
+	// BranchLen specifies the length of the branch that connects the chain tip
+	// to the main chain.  It will be zero for the main chain tip.
+	BranchLen int64
+
+	// Status specifies the validation status of chain formed by the chain tip.
+	//
+	// active:
+	//   The current best chain tip.
+	//
+	// invalid:
+	//   The block or one of its ancestors is invalid.
+	//
+	// headers-only:
+	//   The block or one of its ancestors does not have the full block data
+	//   available which also means the block can't be validated or connected.
+	//
+	// valid-fork:
+	//   The block is fully validated which implies it was probably part of the
+	//   main chain at one point and was reorganized.
+	//
+	// valid-headers:
+	//   The full block data is available and the header is valid, but the block
+	//   was never validated which implies it was probably never part of the
+	//   main chain.
+	Status string
+}
+
 // ChainTips returns information, in JSON-RPC format, about all of the currently
 // known chain tips in the block index.
-func (b *BlockChain) ChainTips() []dcrjson.GetChainTipsResult {
+func (b *BlockChain) ChainTips() []ChainTipInfo {
 	b.index.RLock()
 	var chainTips []*blockNode
 	for _, nodes := range b.index.chainTips {
@@ -50,12 +85,12 @@ func (b *BlockChain) ChainTips() []dcrjson.GetChainTipsResult {
 
 	// Generate the results sorted by descending height.
 	sort.Sort(sort.Reverse(nodeHeightSorter(chainTips)))
-	results := make([]dcrjson.GetChainTipsResult, len(chainTips))
+	results := make([]ChainTipInfo, len(chainTips))
 	bestTip := b.bestChain.Tip()
 	for i, tip := range chainTips {
 		result := &results[i]
 		result.Height = tip.height
-		result.Hash = tip.hash.String()
+		result.Hash = tip.hash
 		result.BranchLen = tip.height - b.bestChain.FindFork(tip).height
 
 		// Determine the status of the chain tip.

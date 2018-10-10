@@ -2971,7 +2971,17 @@ func handleGetBlockTemplate(s *rpcServer, cmd interface{}, closeChan <-chan stru
 
 // handleGetChainTips implements the getchaintips command.
 func handleGetChainTips(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) (interface{}, error) {
-	return s.chain.ChainTips(), nil
+	chainTips := s.chain.ChainTips()
+	result := make([]dcrjson.GetChainTipsResult, 0, len(chainTips))
+	for _, tip := range chainTips {
+		result = append(result, dcrjson.GetChainTipsResult{
+			Height:    tip.Height,
+			Hash:      tip.Hash.String(),
+			BranchLen: tip.BranchLen,
+			Status:    tip.Status,
+		})
+	}
+	return result, nil
 }
 
 // handleGetCoinSupply implements the getcoinsupply command.

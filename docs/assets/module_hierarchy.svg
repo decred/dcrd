@@ -27,48 +27,48 @@
 </g>
 <!-- chainhash -->
 <g id="node2" class="node"><title>chainhash</title>
-<path fill="aquamarine" stroke="black" d="M456.5,-756C456.5,-756 358.5,-756 358.5,-756 352.5,-756 346.5,-750 346.5,-744 346.5,-744 346.5,-732 346.5,-732 346.5,-726 352.5,-720 358.5,-720 358.5,-720 456.5,-720 456.5,-720 462.5,-720 468.5,-726 468.5,-732 468.5,-732 468.5,-744 468.5,-744 468.5,-750 462.5,-756 456.5,-756"/>
-<text text-anchor="middle" x="407.5" y="-734.3" font-family="Times New Roman,serif" font-size="14.00">chaincfg/chainhash</text>
+<path fill="aquamarine" stroke="black" d="M489.5,-756C489.5,-756 391.5,-756 391.5,-756 385.5,-756 379.5,-750 379.5,-744 379.5,-744 379.5,-732 379.5,-732 379.5,-726 385.5,-720 391.5,-720 391.5,-720 489.5,-720 489.5,-720 495.5,-720 501.5,-726 501.5,-732 501.5,-732 501.5,-744 501.5,-744 501.5,-750 495.5,-756 489.5,-756"/>
+<text text-anchor="middle" x="440.5" y="-734.3" font-family="Times New Roman,serif" font-size="14.00">chaincfg/chainhash</text>
 </g>
 <!-- dcrjson -->
 <g id="node3" class="node"><title>dcrjson</title>
-<path fill="indianred" stroke="black" d="M509,-540C509,-540 474,-540 474,-540 468,-540 462,-534 462,-528 462,-528 462,-516 462,-516 462,-510 468,-504 474,-504 474,-504 509,-504 509,-504 515,-504 521,-510 521,-516 521,-516 521,-528 521,-528 521,-534 515,-540 509,-540"/>
-<text text-anchor="middle" x="491.5" y="-518.3" font-family="Times New Roman,serif" font-size="14.00">dcrjson</text>
+<path fill="indianred" stroke="black" d="M546,-540C546,-540 511,-540 511,-540 505,-540 499,-534 499,-528 499,-528 499,-516 499,-516 499,-510 505,-504 511,-504 511,-504 546,-504 546,-504 552,-504 558,-510 558,-516 558,-516 558,-528 558,-528 558,-534 552,-540 546,-540"/>
+<text text-anchor="middle" x="528.5" y="-518.3" font-family="Times New Roman,serif" font-size="14.00">dcrjson</text>
 </g>
 <!-- chainhash&#45;&gt;dcrjson -->
 <g id="edge1" class="edge"><title>chainhash&#45;&gt;dcrjson</title>
-<path fill="none" stroke="aquamarine" d="M478.572,-738C478.572,-738 494.75,-738 494.75,-738 494.75,-738 494.75,-591.958 494.75,-540.045"/>
-<polygon fill="aquamarine" stroke="aquamarine" points="478.572,-734.5 468.572,-738 478.572,-741.5 478.572,-734.5"/>
+<path fill="none" stroke="aquamarine" d="M511.511,-738C511.511,-738 529.75,-738 529.75,-738 529.75,-738 529.75,-591.958 529.75,-540.045"/>
+<polygon fill="aquamarine" stroke="aquamarine" points="511.511,-734.5 501.511,-738 511.511,-741.5 511.511,-734.5"/>
 </g>
 <!-- wire -->
 <g id="node4" class="node"><title>wire</title>
-<path fill="coral" stroke="black" d="M191.5,-684C191.5,-684 161.5,-684 161.5,-684 155.5,-684 149.5,-678 149.5,-672 149.5,-672 149.5,-660 149.5,-660 149.5,-654 155.5,-648 161.5,-648 161.5,-648 191.5,-648 191.5,-648 197.5,-648 203.5,-654 203.5,-660 203.5,-660 203.5,-672 203.5,-672 203.5,-678 197.5,-684 191.5,-684"/>
-<text text-anchor="middle" x="176.5" y="-662.3" font-family="Times New Roman,serif" font-size="14.00">wire</text>
+<path fill="coral" stroke="black" d="M205.5,-684C205.5,-684 175.5,-684 175.5,-684 169.5,-684 163.5,-678 163.5,-672 163.5,-672 163.5,-660 163.5,-660 163.5,-654 169.5,-648 175.5,-648 175.5,-648 205.5,-648 205.5,-648 211.5,-648 217.5,-654 217.5,-660 217.5,-660 217.5,-672 217.5,-672 217.5,-678 211.5,-684 205.5,-684"/>
+<text text-anchor="middle" x="190.5" y="-662.3" font-family="Times New Roman,serif" font-size="14.00">wire</text>
 </g>
 <!-- chainhash&#45;&gt;wire -->
 <g id="edge2" class="edge"><title>chainhash&#45;&gt;wire</title>
-<path fill="none" stroke="aquamarine" d="M336.203,-738C336.203,-738 176.5,-738 176.5,-738 176.5,-738 176.5,-705.498 176.5,-684.169"/>
-<polygon fill="aquamarine" stroke="aquamarine" points="336.203,-741.5 346.203,-738 336.203,-734.5 336.203,-741.5"/>
+<path fill="none" stroke="aquamarine" d="M369.343,-738C369.343,-738 190.5,-738 190.5,-738 190.5,-738 190.5,-705.498 190.5,-684.169"/>
+<polygon fill="aquamarine" stroke="aquamarine" points="369.343,-741.5 379.343,-738 369.343,-734.5 369.343,-741.5"/>
 </g>
 <!-- secp256k1 -->
 <g id="node10" class="node"><title>secp256k1</title>
-<path fill="mediumvioletred" stroke="black" d="M451.5,-684C451.5,-684 363.5,-684 363.5,-684 357.5,-684 351.5,-678 351.5,-672 351.5,-672 351.5,-660 351.5,-660 351.5,-654 357.5,-648 363.5,-648 363.5,-648 451.5,-648 451.5,-648 457.5,-648 463.5,-654 463.5,-660 463.5,-660 463.5,-672 463.5,-672 463.5,-678 457.5,-684 451.5,-684"/>
-<text text-anchor="middle" x="407.5" y="-662.3" font-family="Times New Roman,serif" font-size="14.00">dcrec/secp256k1</text>
+<path fill="mediumvioletred" stroke="black" d="M484.5,-684C484.5,-684 396.5,-684 396.5,-684 390.5,-684 384.5,-678 384.5,-672 384.5,-672 384.5,-660 384.5,-660 384.5,-654 390.5,-648 396.5,-648 396.5,-648 484.5,-648 484.5,-648 490.5,-648 496.5,-654 496.5,-660 496.5,-660 496.5,-672 496.5,-672 496.5,-678 490.5,-684 484.5,-684"/>
+<text text-anchor="middle" x="440.5" y="-662.3" font-family="Times New Roman,serif" font-size="14.00">dcrec/secp256k1</text>
 </g>
 <!-- chainhash&#45;&gt;secp256k1 -->
 <g id="edge6" class="edge"><title>chainhash&#45;&gt;secp256k1</title>
-<path fill="none" stroke="aquamarine" d="M407.5,-709.831C407.5,-709.831 407.5,-684.413 407.5,-684.413"/>
-<polygon fill="aquamarine" stroke="aquamarine" points="404,-709.831 407.5,-719.831 411,-709.831 404,-709.831"/>
+<path fill="none" stroke="aquamarine" d="M440.5,-709.831C440.5,-709.831 440.5,-684.413 440.5,-684.413"/>
+<polygon fill="aquamarine" stroke="aquamarine" points="437,-709.831 440.5,-719.831 444,-709.831 437,-709.831"/>
 </g>
-<!-- blockchain -->
-<g id="node17" class="node"><title>blockchain</title>
-<path fill="orchid" stroke="black" d="M481,-252C481,-252 428,-252 428,-252 422,-252 416,-246 416,-240 416,-240 416,-228 416,-228 416,-222 422,-216 428,-216 428,-216 481,-216 481,-216 487,-216 493,-222 493,-228 493,-228 493,-240 493,-240 493,-246 487,-252 481,-252"/>
-<text text-anchor="middle" x="454.5" y="-230.3" font-family="Times New Roman,serif" font-size="14.00">blockchain</text>
+<!-- rpcclient -->
+<g id="node21" class="node"><title>rpcclient</title>
+<path fill="mediumseagreen" stroke="black" d="M553,-108C553,-108 512,-108 512,-108 506,-108 500,-102 500,-96 500,-96 500,-84 500,-84 500,-78 506,-72 512,-72 512,-72 553,-72 553,-72 559,-72 565,-78 565,-84 565,-84 565,-96 565,-96 565,-102 559,-108 553,-108"/>
+<text text-anchor="middle" x="532.5" y="-86.3" font-family="Times New Roman,serif" font-size="14.00">rpcclient</text>
 </g>
-<!-- dcrjson&#45;&gt;blockchain -->
-<g id="edge17" class="edge"><title>dcrjson&#45;&gt;blockchain</title>
-<path fill="none" stroke="indianred" d="M478.25,-493.984C478.25,-493.984 478.25,-252.009 478.25,-252.009"/>
-<polygon fill="indianred" stroke="indianred" points="474.75,-493.984 478.25,-503.984 481.75,-493.984 474.75,-493.984"/>
+<!-- dcrjson&#45;&gt;rpcclient -->
+<g id="edge22" class="edge"><title>dcrjson&#45;&gt;rpcclient</title>
+<path fill="none" stroke="indianred" d="M538.667,-493.987C538.667,-493.987 538.667,-108.089 538.667,-108.089"/>
+<polygon fill="indianred" stroke="indianred" points="535.167,-493.987 538.667,-503.987 542.167,-493.988 535.167,-493.987"/>
 </g>
 <!-- addrmgr -->
 <g id="node5" class="node"><title>addrmgr</title>
@@ -77,18 +77,18 @@
 </g>
 <!-- wire&#45;&gt;addrmgr -->
 <g id="edge3" class="edge"><title>wire&#45;&gt;addrmgr</title>
-<path fill="none" stroke="coral" d="M139.229,-666C139.229,-666 107.5,-666 107.5,-666 107.5,-666 107.5,-206.099 107.5,-108.19"/>
-<polygon fill="coral" stroke="coral" points="139.229,-669.5 149.229,-666 139.229,-662.5 139.229,-669.5"/>
+<path fill="none" stroke="coral" d="M153.323,-666C153.323,-666 107.5,-666 107.5,-666 107.5,-666 107.5,-206.099 107.5,-108.19"/>
+<polygon fill="coral" stroke="coral" points="153.323,-669.5 163.323,-666 153.323,-662.5 153.323,-669.5"/>
 </g>
 <!-- chaincfg -->
 <g id="node6" class="node"><title>chaincfg</title>
-<path fill="cadetblue" stroke="black" d="M196.5,-612C196.5,-612 156.5,-612 156.5,-612 150.5,-612 144.5,-606 144.5,-600 144.5,-600 144.5,-588 144.5,-588 144.5,-582 150.5,-576 156.5,-576 156.5,-576 196.5,-576 196.5,-576 202.5,-576 208.5,-582 208.5,-588 208.5,-588 208.5,-600 208.5,-600 208.5,-606 202.5,-612 196.5,-612"/>
-<text text-anchor="middle" x="176.5" y="-590.3" font-family="Times New Roman,serif" font-size="14.00">chaincfg</text>
+<path fill="cadetblue" stroke="black" d="M210.5,-612C210.5,-612 170.5,-612 170.5,-612 164.5,-612 158.5,-606 158.5,-600 158.5,-600 158.5,-588 158.5,-588 158.5,-582 164.5,-576 170.5,-576 170.5,-576 210.5,-576 210.5,-576 216.5,-576 222.5,-582 222.5,-588 222.5,-588 222.5,-600 222.5,-600 222.5,-606 216.5,-612 210.5,-612"/>
+<text text-anchor="middle" x="190.5" y="-590.3" font-family="Times New Roman,serif" font-size="14.00">chaincfg</text>
 </g>
 <!-- wire&#45;&gt;chaincfg -->
 <g id="edge4" class="edge"><title>wire&#45;&gt;chaincfg</title>
-<path fill="none" stroke="coral" d="M176.5,-637.831C176.5,-637.831 176.5,-612.413 176.5,-612.413"/>
-<polygon fill="coral" stroke="coral" points="173,-637.831 176.5,-647.831 180,-637.831 173,-637.831"/>
+<path fill="none" stroke="coral" d="M190.5,-637.831C190.5,-637.831 190.5,-612.413 190.5,-612.413"/>
+<polygon fill="coral" stroke="coral" points="187,-637.831 190.5,-647.831 194,-637.831 187,-637.831"/>
 </g>
 <!-- addrmgr&#45;&gt;dcrd -->
 <g id="edge25" class="edge"><title>addrmgr&#45;&gt;dcrd</title>
@@ -102,18 +102,18 @@
 </g>
 <!-- chaincfg&#45;&gt;connmgr -->
 <g id="edge5" class="edge"><title>chaincfg&#45;&gt;connmgr</title>
-<path fill="none" stroke="cadetblue" d="M174.5,-565.765C174.5,-565.765 174.5,-108.211 174.5,-108.211"/>
-<polygon fill="cadetblue" stroke="cadetblue" points="171,-565.765 174.5,-575.765 178,-565.765 171,-565.765"/>
+<path fill="none" stroke="cadetblue" d="M179.833,-565.765C179.833,-565.765 179.833,-108.211 179.833,-108.211"/>
+<polygon fill="cadetblue" stroke="cadetblue" points="176.333,-565.765 179.833,-575.765 183.333,-565.765 176.333,-565.765"/>
 </g>
 <!-- dcrutil -->
 <g id="node11" class="node"><title>dcrutil</title>
-<path fill="burlywood" stroke="black" d="M354.5,-540C354.5,-540 324.5,-540 324.5,-540 318.5,-540 312.5,-534 312.5,-528 312.5,-528 312.5,-516 312.5,-516 312.5,-510 318.5,-504 324.5,-504 324.5,-504 354.5,-504 354.5,-504 360.5,-504 366.5,-510 366.5,-516 366.5,-516 366.5,-528 366.5,-528 366.5,-534 360.5,-540 354.5,-540"/>
-<text text-anchor="middle" x="339.5" y="-518.3" font-family="Times New Roman,serif" font-size="14.00">dcrutil</text>
+<path fill="burlywood" stroke="black" d="M368.5,-540C368.5,-540 338.5,-540 338.5,-540 332.5,-540 326.5,-534 326.5,-528 326.5,-528 326.5,-516 326.5,-516 326.5,-510 332.5,-504 338.5,-504 338.5,-504 368.5,-504 368.5,-504 374.5,-504 380.5,-510 380.5,-516 380.5,-516 380.5,-528 380.5,-528 380.5,-534 374.5,-540 368.5,-540"/>
+<text text-anchor="middle" x="353.5" y="-518.3" font-family="Times New Roman,serif" font-size="14.00">dcrutil</text>
 </g>
 <!-- chaincfg&#45;&gt;dcrutil -->
 <g id="edge7" class="edge"><title>chaincfg&#45;&gt;dcrutil</title>
-<path fill="none" stroke="cadetblue" d="M191.5,-565.831C191.5,-565.831 191.5,-522 191.5,-522 191.5,-522 269.628,-522 312.355,-522"/>
-<polygon fill="cadetblue" stroke="cadetblue" points="188,-565.831 191.5,-575.831 195,-565.831 188,-565.831"/>
+<path fill="none" stroke="cadetblue" d="M201.167,-565.831C201.167,-565.831 201.167,-522 201.167,-522 201.167,-522 282.449,-522 326.266,-522"/>
+<polygon fill="cadetblue" stroke="cadetblue" points="197.667,-565.831 201.167,-575.831 204.667,-565.831 197.667,-565.831"/>
 </g>
 <!-- connmgr&#45;&gt;dcrd -->
 <g id="edge27" class="edge"><title>connmgr&#45;&gt;dcrd</title>
@@ -122,38 +122,38 @@
 </g>
 <!-- dcrec -->
 <g id="node8" class="node"><title>dcrec</title>
-<path fill="mediumpurple" stroke="black" d="M268.5,-612C268.5,-612 238.5,-612 238.5,-612 232.5,-612 226.5,-606 226.5,-600 226.5,-600 226.5,-588 226.5,-588 226.5,-582 232.5,-576 238.5,-576 238.5,-576 268.5,-576 268.5,-576 274.5,-576 280.5,-582 280.5,-588 280.5,-588 280.5,-600 280.5,-600 280.5,-606 274.5,-612 268.5,-612"/>
-<text text-anchor="middle" x="253.5" y="-590.3" font-family="Times New Roman,serif" font-size="14.00">dcrec</text>
+<path fill="mediumpurple" stroke="black" d="M282.5,-612C282.5,-612 252.5,-612 252.5,-612 246.5,-612 240.5,-606 240.5,-600 240.5,-600 240.5,-588 240.5,-588 240.5,-582 246.5,-576 252.5,-576 252.5,-576 282.5,-576 282.5,-576 288.5,-576 294.5,-582 294.5,-588 294.5,-588 294.5,-600 294.5,-600 294.5,-606 288.5,-612 282.5,-612"/>
+<text text-anchor="middle" x="267.5" y="-590.3" font-family="Times New Roman,serif" font-size="14.00">dcrec</text>
 </g>
 <!-- dcrec&#45;&gt;dcrutil -->
 <g id="edge8" class="edge"><title>dcrec&#45;&gt;dcrutil</title>
-<path fill="none" stroke="mediumpurple" d="M261,-565.778C261,-565.778 261,-531 261,-531 261,-531 289.778,-531 312.485,-531"/>
-<polygon fill="mediumpurple" stroke="mediumpurple" points="257.5,-565.778 261,-575.778 264.5,-565.778 257.5,-565.778"/>
+<path fill="none" stroke="mediumpurple" d="M268,-565.778C268,-565.778 268,-531 268,-531 268,-531 301.398,-531 326.447,-531"/>
+<polygon fill="mediumpurple" stroke="mediumpurple" points="264.5,-565.778 268,-575.778 271.5,-565.778 264.5,-565.778"/>
 </g>
 <!-- edwards -->
 <g id="node9" class="node"><title>edwards</title>
-<path fill="lightseagreen" stroke="black" d="M386,-612C386,-612 311,-612 311,-612 305,-612 299,-606 299,-600 299,-600 299,-588 299,-588 299,-582 305,-576 311,-576 311,-576 386,-576 386,-576 392,-576 398,-582 398,-588 398,-588 398,-600 398,-600 398,-606 392,-612 386,-612"/>
-<text text-anchor="middle" x="348.5" y="-590.3" font-family="Times New Roman,serif" font-size="14.00">dcrec/edwards</text>
+<path fill="lightseagreen" stroke="black" d="M400,-612C400,-612 325,-612 325,-612 319,-612 313,-606 313,-600 313,-600 313,-588 313,-588 313,-582 319,-576 325,-576 325,-576 400,-576 400,-576 406,-576 412,-582 412,-588 412,-588 412,-600 412,-600 412,-606 406,-612 400,-612"/>
+<text text-anchor="middle" x="362.5" y="-590.3" font-family="Times New Roman,serif" font-size="14.00">dcrec/edwards</text>
 </g>
 <!-- edwards&#45;&gt;dcrutil -->
 <g id="edge9" class="edge"><title>edwards&#45;&gt;dcrutil</title>
-<path fill="none" stroke="lightseagreen" d="M339.5,-565.831C339.5,-565.831 339.5,-540.413 339.5,-540.413"/>
-<polygon fill="lightseagreen" stroke="lightseagreen" points="336,-565.831 339.5,-575.831 343,-565.831 336,-565.831"/>
+<path fill="none" stroke="lightseagreen" d="M353.5,-565.831C353.5,-565.831 353.5,-540.413 353.5,-540.413"/>
+<polygon fill="lightseagreen" stroke="lightseagreen" points="350,-565.831 353.5,-575.831 357,-565.831 350,-565.831"/>
 </g>
 <!-- secp256k1&#45;&gt;dcrutil -->
 <g id="edge10" class="edge"><title>secp256k1&#45;&gt;dcrutil</title>
-<path fill="none" stroke="mediumvioletred" d="M425,-637.959C425,-637.959 425,-528 425,-528 425,-528 391.602,-528 366.553,-528"/>
-<polygon fill="mediumvioletred" stroke="mediumvioletred" points="421.5,-637.959 425,-647.959 428.5,-637.959 421.5,-637.959"/>
+<path fill="none" stroke="mediumvioletred" d="M437.5,-637.959C437.5,-637.959 437.5,-528 437.5,-528 437.5,-528 405.096,-528 380.541,-528"/>
+<polygon fill="mediumvioletred" stroke="mediumvioletred" points="434,-637.959 437.5,-647.959 441,-637.959 434,-637.959"/>
 </g>
 <!-- database -->
 <g id="node12" class="node"><title>database</title>
-<path fill="dodgerblue" stroke="black" d="M440,-468C440,-468 399,-468 399,-468 393,-468 387,-462 387,-456 387,-456 387,-444 387,-444 387,-438 393,-432 399,-432 399,-432 440,-432 440,-432 446,-432 452,-438 452,-444 452,-444 452,-456 452,-456 452,-462 446,-468 440,-468"/>
-<text text-anchor="middle" x="419.5" y="-446.3" font-family="Times New Roman,serif" font-size="14.00">database</text>
+<path fill="dodgerblue" stroke="black" d="M374,-468C374,-468 333,-468 333,-468 327,-468 321,-462 321,-456 321,-456 321,-444 321,-444 321,-438 327,-432 333,-432 333,-432 374,-432 374,-432 380,-432 386,-438 386,-444 386,-444 386,-456 386,-456 386,-462 380,-468 374,-468"/>
+<text text-anchor="middle" x="353.5" y="-446.3" font-family="Times New Roman,serif" font-size="14.00">database</text>
 </g>
 <!-- dcrutil&#45;&gt;database -->
 <g id="edge11" class="edge"><title>dcrutil&#45;&gt;database</title>
-<path fill="none" stroke="burlywood" d="M376.621,-516C376.621,-516 392.5,-516 392.5,-516 392.5,-516 392.5,-487.576 392.5,-468.035"/>
-<polygon fill="burlywood" stroke="burlywood" points="376.621,-512.5 366.621,-516 376.621,-519.5 376.621,-512.5"/>
+<path fill="none" stroke="burlywood" d="M353.5,-493.831C353.5,-493.831 353.5,-468.413 353.5,-468.413"/>
+<polygon fill="burlywood" stroke="burlywood" points="350,-493.831 353.5,-503.831 357,-493.831 350,-493.831"/>
 </g>
 <!-- hdkeychain -->
 <g id="node13" class="node"><title>hdkeychain</title>
@@ -162,28 +162,28 @@
 </g>
 <!-- dcrutil&#45;&gt;hdkeychain -->
 <g id="edge12" class="edge"><title>dcrutil&#45;&gt;hdkeychain</title>
-<path fill="none" stroke="burlywood" d="M305.277,-513C305.277,-513 304.5,-513 304.5,-513 304.5,-513 304.5,-189.141 304.5,-108.176"/>
-<polygon fill="burlywood" stroke="burlywood" points="302.268,-516.5 312.268,-513 302.268,-509.5 302.268,-516.5"/>
+<path fill="none" stroke="burlywood" d="M317.921,-513C317.921,-513 317,-513 317,-513 317,-513 317,-189.141 317,-108.176"/>
+<polygon fill="burlywood" stroke="burlywood" points="316.211,-516.5 326.21,-513 316.21,-509.5 316.211,-516.5"/>
 </g>
 <!-- txscript -->
 <g id="node14" class="node"><title>txscript</title>
-<path fill="mediumspringgreen" stroke="black" d="M357,-468C357,-468 322,-468 322,-468 316,-468 310,-462 310,-456 310,-456 310,-444 310,-444 310,-438 316,-432 322,-432 322,-432 357,-432 357,-432 363,-432 369,-438 369,-444 369,-444 369,-456 369,-456 369,-462 363,-468 357,-468"/>
-<text text-anchor="middle" x="339.5" y="-446.3" font-family="Times New Roman,serif" font-size="14.00">txscript</text>
+<path fill="mediumspringgreen" stroke="black" d="M451,-468C451,-468 416,-468 416,-468 410,-468 404,-462 404,-456 404,-456 404,-444 404,-444 404,-438 410,-432 416,-432 416,-432 451,-432 451,-432 457,-432 463,-438 463,-444 463,-444 463,-456 463,-456 463,-462 457,-468 451,-468"/>
+<text text-anchor="middle" x="433.5" y="-446.3" font-family="Times New Roman,serif" font-size="14.00">txscript</text>
 </g>
 <!-- dcrutil&#45;&gt;txscript -->
 <g id="edge13" class="edge"><title>dcrutil&#45;&gt;txscript</title>
-<path fill="none" stroke="burlywood" d="M339.5,-493.831C339.5,-493.831 339.5,-468.413 339.5,-468.413"/>
-<polygon fill="burlywood" stroke="burlywood" points="336,-493.831 339.5,-503.831 343,-493.831 336,-493.831"/>
+<path fill="none" stroke="burlywood" d="M390.75,-516C390.75,-516 408,-516 408,-516 408,-516 408,-487.576 408,-468.035"/>
+<polygon fill="burlywood" stroke="burlywood" points="390.75,-512.5 380.75,-516 390.75,-519.5 390.75,-512.5"/>
 </g>
 <!-- stake -->
 <g id="node15" class="node"><title>stake</title>
-<path fill="bisque" stroke="black" d="M451.5,-396C451.5,-396 365.5,-396 365.5,-396 359.5,-396 353.5,-390 353.5,-384 353.5,-384 353.5,-372 353.5,-372 353.5,-366 359.5,-360 365.5,-360 365.5,-360 451.5,-360 451.5,-360 457.5,-360 463.5,-366 463.5,-372 463.5,-372 463.5,-384 463.5,-384 463.5,-390 457.5,-396 451.5,-396"/>
-<text text-anchor="middle" x="408.5" y="-374.3" font-family="Times New Roman,serif" font-size="14.00">blockchain/stake</text>
+<path fill="bisque" stroke="black" d="M476.5,-396C476.5,-396 390.5,-396 390.5,-396 384.5,-396 378.5,-390 378.5,-384 378.5,-384 378.5,-372 378.5,-372 378.5,-366 384.5,-360 390.5,-360 390.5,-360 476.5,-360 476.5,-360 482.5,-360 488.5,-366 488.5,-372 488.5,-372 488.5,-384 488.5,-384 488.5,-390 482.5,-396 476.5,-396"/>
+<text text-anchor="middle" x="433.5" y="-374.3" font-family="Times New Roman,serif" font-size="14.00">blockchain/stake</text>
 </g>
 <!-- database&#45;&gt;stake -->
 <g id="edge14" class="edge"><title>database&#45;&gt;stake</title>
-<path fill="none" stroke="dodgerblue" d="M419.5,-421.831C419.5,-421.831 419.5,-396.413 419.5,-396.413"/>
-<polygon fill="dodgerblue" stroke="dodgerblue" points="416,-421.831 419.5,-431.831 423,-421.831 416,-421.831"/>
+<path fill="none" stroke="dodgerblue" d="M382.25,-421.831C382.25,-421.831 382.25,-396.413 382.25,-396.413"/>
+<polygon fill="dodgerblue" stroke="dodgerblue" points="378.75,-421.831 382.25,-431.831 385.75,-421.831 378.75,-421.831"/>
 </g>
 <!-- hdkeychain&#45;&gt;dcrd -->
 <g id="edge26" class="edge"><title>hdkeychain&#45;&gt;dcrd</title>
@@ -192,33 +192,38 @@
 </g>
 <!-- txscript&#45;&gt;stake -->
 <g id="edge15" class="edge"><title>txscript&#45;&gt;stake</title>
-<path fill="none" stroke="mediumspringgreen" d="M361.25,-421.831C361.25,-421.831 361.25,-396.413 361.25,-396.413"/>
-<polygon fill="mediumspringgreen" stroke="mediumspringgreen" points="357.75,-421.831 361.25,-431.831 364.75,-421.831 357.75,-421.831"/>
+<path fill="none" stroke="mediumspringgreen" d="M433.5,-421.831C433.5,-421.831 433.5,-396.413 433.5,-396.413"/>
+<polygon fill="mediumspringgreen" stroke="mediumspringgreen" points="430,-421.831 433.5,-431.831 437,-421.831 430,-421.831"/>
 </g>
 <!-- gcs -->
 <g id="node16" class="node"><title>gcs</title>
-<path fill="gold" stroke="black" d="M437.5,-324C437.5,-324 407.5,-324 407.5,-324 401.5,-324 395.5,-318 395.5,-312 395.5,-312 395.5,-300 395.5,-300 395.5,-294 401.5,-288 407.5,-288 407.5,-288 437.5,-288 437.5,-288 443.5,-288 449.5,-294 449.5,-300 449.5,-300 449.5,-312 449.5,-312 449.5,-318 443.5,-324 437.5,-324"/>
-<text text-anchor="middle" x="422.5" y="-302.3" font-family="Times New Roman,serif" font-size="14.00">gcs</text>
+<path fill="gold" stroke="black" d="M453.5,-324C453.5,-324 423.5,-324 423.5,-324 417.5,-324 411.5,-318 411.5,-312 411.5,-312 411.5,-300 411.5,-300 411.5,-294 417.5,-288 423.5,-288 423.5,-288 453.5,-288 453.5,-288 459.5,-288 465.5,-294 465.5,-300 465.5,-300 465.5,-312 465.5,-312 465.5,-318 459.5,-324 453.5,-324"/>
+<text text-anchor="middle" x="438.5" y="-302.3" font-family="Times New Roman,serif" font-size="14.00">gcs</text>
 </g>
 <!-- stake&#45;&gt;gcs -->
 <g id="edge16" class="edge"><title>stake&#45;&gt;gcs</title>
-<path fill="none" stroke="bisque" d="M422.5,-349.831C422.5,-349.831 422.5,-324.413 422.5,-324.413"/>
-<polygon fill="bisque" stroke="bisque" points="419,-349.831 422.5,-359.831 426,-349.831 419,-349.831"/>
+<path fill="none" stroke="bisque" d="M438.5,-349.831C438.5,-349.831 438.5,-324.413 438.5,-324.413"/>
+<polygon fill="bisque" stroke="bisque" points="435,-349.831 438.5,-359.831 442,-349.831 435,-349.831"/>
+</g>
+<!-- blockchain -->
+<g id="node17" class="node"><title>blockchain</title>
+<path fill="orchid" stroke="black" d="M474,-252C474,-252 421,-252 421,-252 415,-252 409,-246 409,-240 409,-240 409,-228 409,-228 409,-222 415,-216 421,-216 421,-216 474,-216 474,-216 480,-216 486,-222 486,-228 486,-228 486,-240 486,-240 486,-246 480,-252 474,-252"/>
+<text text-anchor="middle" x="447.5" y="-230.3" font-family="Times New Roman,serif" font-size="14.00">blockchain</text>
 </g>
 <!-- gcs&#45;&gt;blockchain -->
-<g id="edge18" class="edge"><title>gcs&#45;&gt;blockchain</title>
-<path fill="none" stroke="gold" d="M432.75,-277.831C432.75,-277.831 432.75,-252.413 432.75,-252.413"/>
-<polygon fill="gold" stroke="gold" points="429.25,-277.831 432.75,-287.831 436.25,-277.831 429.25,-277.831"/>
+<g id="edge17" class="edge"><title>gcs&#45;&gt;blockchain</title>
+<path fill="none" stroke="gold" d="M438.5,-277.831C438.5,-277.831 438.5,-252.413 438.5,-252.413"/>
+<polygon fill="gold" stroke="gold" points="435,-277.831 438.5,-287.831 442,-277.831 435,-277.831"/>
 </g>
 <!-- mining -->
 <g id="node19" class="node"><title>mining</title>
-<path fill="chartreuse" stroke="black" d="M401.5,-180C401.5,-180 371.5,-180 371.5,-180 365.5,-180 359.5,-174 359.5,-168 359.5,-168 359.5,-156 359.5,-156 359.5,-150 365.5,-144 371.5,-144 371.5,-144 401.5,-144 401.5,-144 407.5,-144 413.5,-150 413.5,-156 413.5,-156 413.5,-168 413.5,-168 413.5,-174 407.5,-180 401.5,-180"/>
-<text text-anchor="middle" x="386.5" y="-158.3" font-family="Times New Roman,serif" font-size="14.00">mining</text>
+<path fill="chartreuse" stroke="black" d="M398.5,-180C398.5,-180 368.5,-180 368.5,-180 362.5,-180 356.5,-174 356.5,-168 356.5,-168 356.5,-156 356.5,-156 356.5,-150 362.5,-144 368.5,-144 368.5,-144 398.5,-144 398.5,-144 404.5,-144 410.5,-150 410.5,-156 410.5,-156 410.5,-168 410.5,-168 410.5,-174 404.5,-180 398.5,-180"/>
+<text text-anchor="middle" x="383.5" y="-158.3" font-family="Times New Roman,serif" font-size="14.00">mining</text>
 </g>
 <!-- blockchain&#45;&gt;mining -->
-<g id="edge19" class="edge"><title>blockchain&#45;&gt;mining</title>
-<path fill="none" stroke="orchid" d="M421.75,-205.831C421.75,-205.831 421.75,-162 421.75,-162 421.75,-162 418.308,-162 413.574,-162"/>
-<polygon fill="orchid" stroke="orchid" points="418.25,-205.831 421.75,-215.831 425.25,-205.831 418.25,-205.831"/>
+<g id="edge18" class="edge"><title>blockchain&#45;&gt;mining</title>
+<path fill="none" stroke="orchid" d="M419,-205.831C419,-205.831 419,-162 419,-162 419,-162 415.533,-162 410.766,-162"/>
+<polygon fill="orchid" stroke="orchid" points="415.5,-205.831 419,-215.831 422.5,-205.831 415.5,-205.831"/>
 </g>
 <!-- peer -->
 <g id="node20" class="node"><title>peer</title>
@@ -226,19 +231,14 @@
 <text text-anchor="middle" x="454.5" y="-86.3" font-family="Times New Roman,serif" font-size="14.00">peer</text>
 </g>
 <!-- blockchain&#45;&gt;peer -->
-<g id="edge21" class="edge"><title>blockchain&#45;&gt;peer</title>
+<g id="edge20" class="edge"><title>blockchain&#45;&gt;peer</title>
 <path fill="none" stroke="orchid" d="M454.5,-205.762C454.5,-205.762 454.5,-108.09 454.5,-108.09"/>
 <polygon fill="orchid" stroke="orchid" points="451,-205.762 454.5,-215.762 458,-205.762 451,-205.762"/>
 </g>
-<!-- rpcclient -->
-<g id="node21" class="node"><title>rpcclient</title>
-<path fill="mediumseagreen" stroke="black" d="M553,-108C553,-108 512,-108 512,-108 506,-108 500,-102 500,-96 500,-96 500,-84 500,-84 500,-78 506,-72 512,-72 512,-72 553,-72 553,-72 559,-72 565,-78 565,-84 565,-84 565,-96 565,-96 565,-102 559,-108 553,-108"/>
-<text text-anchor="middle" x="532.5" y="-86.3" font-family="Times New Roman,serif" font-size="14.00">rpcclient</text>
-</g>
 <!-- blockchain&#45;&gt;rpcclient -->
-<g id="edge22" class="edge"><title>blockchain&#45;&gt;rpcclient</title>
-<path fill="none" stroke="orchid" d="M487.25,-205.762C487.25,-205.762 487.25,-90 487.25,-90 487.25,-90 492.597,-90 499.615,-90"/>
-<polygon fill="orchid" stroke="orchid" points="483.75,-205.762 487.25,-215.762 490.75,-205.762 483.75,-205.762"/>
+<g id="edge21" class="edge"><title>blockchain&#45;&gt;rpcclient</title>
+<path fill="none" stroke="orchid" d="M496.36,-234C496.36,-234 519.333,-234 519.333,-234 519.333,-234 519.333,-146.986 519.333,-108.238"/>
+<polygon fill="orchid" stroke="orchid" points="496.36,-230.5 486.36,-234 496.36,-237.5 496.36,-230.5"/>
 </g>
 <!-- mempool -->
 <g id="node18" class="node"><title>mempool</title>
@@ -251,9 +251,9 @@
 <polygon fill="slategray" stroke="slategray" points="371,-61.7778 374.5,-71.7778 378,-61.7778 371,-61.7778"/>
 </g>
 <!-- mining&#45;&gt;mempool -->
-<g id="edge20" class="edge"><title>mining&#45;&gt;mempool</title>
-<path fill="none" stroke="chartreuse" d="M384.25,-133.831C384.25,-133.831 384.25,-108.413 384.25,-108.413"/>
-<polygon fill="chartreuse" stroke="chartreuse" points="380.75,-133.831 384.25,-143.831 387.75,-133.831 380.75,-133.831"/>
+<g id="edge19" class="edge"><title>mining&#45;&gt;mempool</title>
+<path fill="none" stroke="chartreuse" d="M382.75,-133.831C382.75,-133.831 382.75,-108.413 382.75,-108.413"/>
+<polygon fill="chartreuse" stroke="chartreuse" points="379.25,-133.831 382.75,-143.831 386.25,-133.831 379.25,-133.831"/>
 </g>
 <!-- peer&#45;&gt;dcrd -->
 <g id="edge29" class="edge"><title>peer&#45;&gt;dcrd</title>
