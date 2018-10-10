@@ -838,7 +838,7 @@ func TestVoteOrphan(t *testing.T) {
 	}
 	testPoolMembership(tc, ticket, true, false)
 
-	// Ensure the regular tx whose ouput is spent by the ticket is accepted.
+	// Ensure the regular tx whose output is spent by the ticket is accepted.
 	_, err = harness.txPool.ProcessTransaction(tx, false, false, true)
 	if err != nil {
 		t.Fatalf("ProcessTransaction: failed to accept valid transaction %v",
@@ -909,7 +909,7 @@ func TestRevocationOrphan(t *testing.T) {
 	}
 	testPoolMembership(tc, ticket, true, false)
 
-	// Ensure the regular tx whose ouput is spent by the ticket is accepted.
+	// Ensure the regular tx whose output is spent by the ticket is accepted.
 	_, err = harness.txPool.ProcessTransaction(tx, false, false, true)
 	if err != nil {
 		t.Fatalf("ProcessTransaction: failed to accept valid transaction %v",
