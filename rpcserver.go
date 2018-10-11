@@ -1939,7 +1939,7 @@ func handleGetBlockchainInfo(s *rpcServer, cmd interface{}, closeChan <-chan str
 				ExpireTime: agenda.ExpireTime,
 			}
 
-			state, err := s.chain.ThresholdState(&best.PrevHash, version,
+			state, err := s.chain.NextThresholdState(&best.PrevHash, version,
 				agenda.Vote.Id)
 			if err != nil {
 				return nil, rpcInternalError(err.Error(),
@@ -3775,7 +3775,7 @@ func handleGetVoteInfo(s *rpcServer, cmd interface{}, closeChan <-chan struct{})
 		}
 
 		// Obtain status of agenda.
-		state, err := s.chain.ThresholdState(&snapshot.Hash, c.Version,
+		state, err := s.chain.NextThresholdState(&snapshot.Hash, c.Version,
 			agenda.Vote.Id)
 		if err != nil {
 			return nil, err

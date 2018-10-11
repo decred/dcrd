@@ -323,7 +323,7 @@ func (b *BlockChain) GetVoteInfo(hash *chainhash.Hash, version uint32) (*VoteInf
 	}
 	for _, deployment := range deployments {
 		vi.Agendas = append(vi.Agendas, deployment)
-		status, err := b.ThresholdState(hash, version, deployment.Vote.Id)
+		status, err := b.NextThresholdState(hash, version, deployment.Vote.Id)
 		if err != nil {
 			return nil, err
 		}

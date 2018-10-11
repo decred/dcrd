@@ -189,7 +189,7 @@ func TestThresholdState(t *testing.T) {
 	// state and choice to match the provided values.
 	testThresholdState := func(id string, state ThresholdState, choice uint32) {
 		tipHash := g.Tip().BlockHash()
-		s, err := chain.ThresholdState(&tipHash, posVersion, id)
+		s, err := chain.NextThresholdState(&tipHash, posVersion, id)
 		if err != nil {
 			t.Fatalf("block %q (hash %s, height %d) unexpected "+
 				"error when retrieving threshold state: %v",
