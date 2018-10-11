@@ -70,7 +70,7 @@ var (
 	defaultRPCKeyFile  = filepath.Join(defaultHomeDir, "rpc.key")
 	defaultRPCCertFile = filepath.Join(defaultHomeDir, "rpc.cert")
 	defaultLogDir      = filepath.Join(defaultHomeDir, defaultLogDirname)
-	defaultAltDNSNames = []string{}
+	defaultAltDNSNames = []string(nil)
 )
 
 // runServiceCommand is only set to a real function on Windows.  It is used

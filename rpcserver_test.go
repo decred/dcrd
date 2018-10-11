@@ -12,7 +12,6 @@ import (
 	"bytes"
 	"crypto/x509"
 	"encoding/pem"
-	"flag"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -108,23 +107,16 @@ var rpcTestCases = []rpctest.HarnessTestCase{
 var primaryHarness *rpctest.Harness
 
 func TestMain(m *testing.M) {
-	var err error
-
-	// Parse the -test.* flags before removing them from the command line
-	// arguments list, which we do to allow go-flags to succeed.
-	// See config_test.go for more info
-	flag.Parse()
-	os.Args = os.Args[:1]
-
 	// In order to properly test scenarios on as if we were on mainnet,
 	// ensure that non-standard transactions aren't accepted into the
 	// mempool or relayed.
 	args := []string{"--rejectnonstd"}
-	primaryHarness, err = rpctest.New(&chaincfg.RegNetParams, nil, args)
+	harness, err := rpctest.New(&chaincfg.RegNetParams, nil, args)
 	if err != nil {
 		fmt.Println("unable to create primary harness: ", err)
 		os.Exit(1)
 	}
+	primaryHarness = harness
 
 	// Initialize the primary mining node with a chain of length 125,
 	// providing 25 mature coinbases to allow spending from for testing
@@ -176,23 +168,30 @@ func TestRpcServer(t *testing.T) {
 	}
 }
 
+// TestCertCreationWithHosts creates a certificate pair with extra hosts and
+// ensures the extra hosts are present in the generated files.
 func TestCertCreationWithHosts(t *testing.T) {
-	certfile, err := ioutil.TempFile("", "certfile")
+	certFile, err := ioutil.TempFile("", "certfile")
 	if err != nil {
 		t.Fatalf("Unable to create temp certfile: %s", err)
 	}
-	keyfile, err := ioutil.TempFile("", "keyfile")
+	certFile.Close()
+	defer os.Remove(certFile.Name())
+
+	keyFile, err := ioutil.TempFile("", "keyfile")
 	if err != nil {
 		t.Fatalf("Unable to create temp keyfile: %s", err)
 	}
+	keyFile.Close()
+	defer os.Remove(keyFile.Name())
+
+	// Generate cert pair with extra hosts.
 	hostnames := []string{"hostname1", "hostname2"}
-	defer os.Remove(keyfile.Name())
-	defer os.Remove(certfile.Name())
-	err = genCertPair(certfile.Name(), keyfile.Name(), hostnames)
+	err = genCertPair(certFile.Name(), keyFile.Name(), hostnames)
 	if err != nil {
-		t.Fatalf("certifcate was not created correctly: %s", err)
+		t.Fatalf("Certificate was not created correctly: %s", err)
 	}
-	certBytes, err := ioutil.ReadFile(certfile.Name())
+	certBytes, err := ioutil.ReadFile(certFile.Name())
 	if err != nil {
 		t.Fatalf("Unable to read the certfile: %s", err)
 	}
@@ -201,6 +200,7 @@ func TestCertCreationWithHosts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Unable to parse the certificate: %s", err)
 	}
+
 	// Ensure the specified extra hosts are present.
 	for _, host := range hostnames {
 		err := x509Cert.VerifyHostname(host)
@@ -210,19 +210,26 @@ func TestCertCreationWithHosts(t *testing.T) {
 	}
 }
 
+// TestCertCreationWithOutHosts ensures the creating a certificate pair without
+// any hosts works as intended.
 func TestCertCreationWithOutHosts(t *testing.T) {
-	certfile, err := ioutil.TempFile("", "certfile")
+	certFile, err := ioutil.TempFile("", "certfile")
 	if err != nil {
 		t.Fatalf("Unable to create temp certfile: %s", err)
 	}
-	keyfile, err := ioutil.TempFile("", "keyfile")
+	certFile.Close()
+	defer os.Remove(certFile.Name())
+
+	keyFile, err := ioutil.TempFile("", "keyfile")
 	if err != nil {
 		t.Fatalf("Unable to create temp keyfile: %s", err)
 	}
-	defer os.Remove(keyfile.Name())
-	defer os.Remove(certfile.Name())
-	err = genCertPair(certfile.Name(), keyfile.Name(), []string{})
+	keyFile.Close()
+	defer os.Remove(keyFile.Name())
+
+	// Generate cert pair with no extra hosts.
+	err = genCertPair(certFile.Name(), keyFile.Name(), nil)
 	if err != nil {
-		t.Fatalf("certifcate was not created correctly: %s", err)
+		t.Fatalf("Certificate was not created correctly: %s", err)
 	}
 }

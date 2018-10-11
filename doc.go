@@ -126,6 +126,9 @@ Application Options:
                             for the active network.
       --rejectnonstd        Reject non-standard transactions regardless of the
                             default settings for the active network.
+      --altdnsnames:        Specify additional dns names to use when
+                            generating the rpc server certificate
+                            [supports DCRD_ALT_DNSNAMES environment variable]
 
 Help Options:
   -h, --help           Show this help message
