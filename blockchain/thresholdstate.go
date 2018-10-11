@@ -213,12 +213,12 @@ func newThresholdCaches(params *chaincfg.Params) map[uint32][]thresholdStateCach
 	return caches
 }
 
-// thresholdState returns the current rule change threshold state for the block
-// AFTER the given node and deployment ID.  The cache is used to ensure the
-// threshold states for previous windows are only calculated once.
+// nextThresholdState returns the current rule change threshold state for the
+// block AFTER the given node and deployment ID.  The cache is used to ensure
+// the threshold states for previous windows are only calculated once.
 //
 // This function MUST be called with the chain state lock held (for writes).
-func (b *BlockChain) thresholdState(version uint32, prevNode *blockNode, checker thresholdConditionChecker, cache *thresholdStateCache) (ThresholdStateTuple, error) {
+func (b *BlockChain) nextThresholdState(version uint32, prevNode *blockNode, checker thresholdConditionChecker, cache *thresholdStateCache) (ThresholdStateTuple, error) {
 	// The threshold state for the window that contains the genesis block is
 	// defined by definition.
 	confirmationWindow := int64(checker.RuleChangeActivationInterval())
@@ -454,7 +454,7 @@ func (b *BlockChain) deploymentState(prevNode *blockNode, version uint32, deploy
 				chain:      b,
 			}
 			cache := &b.deploymentCaches[version][k]
-			return b.thresholdState(version, prevNode, checker, cache)
+			return b.nextThresholdState(version, prevNode, checker, cache)
 		}
 	}
 
@@ -479,10 +479,10 @@ func (b *BlockChain) stateLastChanged(version uint32, node *blockNode, checker t
 		return nil, nil
 	}
 
-	// Determine the current state.  Notice that thresholdState always
+	// Determine the current state.  Notice that nextThresholdState always
 	// calculates the state for the block after the provided one, so use the
 	// parent to get the state for the requested block.
-	curState, err := b.thresholdState(version, node.parent, checker, cache)
+	curState, err := b.nextThresholdState(version, node.parent, checker, cache)
 	if err != nil {
 		return nil, err
 	}
@@ -495,10 +495,10 @@ func (b *BlockChain) stateLastChanged(version uint32, node *blockNode, checker t
 	node = node.Ancestor(finalNodeHeight + 1)
 	priorStateChangeNode := node
 	for node != nil && node.parent != nil {
-		// As previously mentioned, thresholdState always calculates the state
-		// for the block after the provided one, so use the parent to get the
-		// state of the block itself.
-		state, err := b.thresholdState(version, node.parent, checker, cache)
+		// As previously mentioned, nextThresholdState always calculates the
+		// state for the block after the provided one, so use the parent to get
+		// the state of the block itself.
+		state, err := b.nextThresholdState(version, node.parent, checker, cache)
 		if err != nil {
 			return nil, err
 		}
@@ -567,11 +567,11 @@ func (b *BlockChain) StateLastChangedHeight(hash *chainhash.Hash, version uint32
 	return height, nil
 }
 
-// ThresholdState returns the current rule change threshold state of the given
-// deployment ID for the block AFTER the provided block hash.
+// NextThresholdState returns the current rule change threshold state of the
+// given deployment ID for the block AFTER the provided block hash.
 //
 // This function is safe for concurrent access.
-func (b *BlockChain) ThresholdState(hash *chainhash.Hash, version uint32, deploymentID string) (ThresholdStateTuple, error) {
+func (b *BlockChain) NextThresholdState(hash *chainhash.Hash, version uint32, deploymentID string) (ThresholdStateTuple, error) {
 	// NOTE: The requirement for the node being fully validated here is strictly
 	// stronger than what is actually required.  In reality, all that is needed
 	// is for the block data for the node and all of its ancestors to be
