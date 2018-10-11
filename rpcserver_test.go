@@ -10,7 +10,11 @@ package main
 
 import (
 	"bytes"
+	"crypto/x509"
+	"encoding/pem"
+	"flag"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"runtime/debug"
 	"testing"
@@ -106,6 +110,12 @@ var primaryHarness *rpctest.Harness
 func TestMain(m *testing.M) {
 	var err error
 
+	// Parse the -test.* flags before removing them from the command line
+	// arguments list, which we do to allow go-flags to succeed.
+	// See config_test.go for more info
+	flag.Parse()
+	os.Args = os.Args[:1]
+
 	// In order to properly test scenarios on as if we were on mainnet,
 	// ensure that non-standard transactions aren't accepted into the
 	// mempool or relayed.
@@ -163,5 +173,56 @@ func TestRpcServer(t *testing.T) {
 		testCase(primaryHarness, t)
 
 		currentTestNum++
+	}
+}
+
+func TestCertCreationWithHosts(t *testing.T) {
+	certfile, err := ioutil.TempFile("", "certfile")
+	if err != nil {
+		t.Fatalf("Unable to create temp certfile: %s", err)
+	}
+	keyfile, err := ioutil.TempFile("", "keyfile")
+	if err != nil {
+		t.Fatalf("Unable to create temp keyfile: %s", err)
+	}
+	hostnames := []string{"hostname1", "hostname2"}
+	defer os.Remove(keyfile.Name())
+	defer os.Remove(certfile.Name())
+	err = genCertPair(certfile.Name(), keyfile.Name(), hostnames)
+	if err != nil {
+		t.Fatalf("certifcate was not created correctly: %s", err)
+	}
+	certBytes, err := ioutil.ReadFile(certfile.Name())
+	if err != nil {
+		t.Fatalf("Unable to read the certfile: %s", err)
+	}
+	pemCert, _ := pem.Decode(certBytes)
+	x509Cert, err := x509.ParseCertificate(pemCert.Bytes)
+	if err != nil {
+		t.Fatalf("Unable to parse the certificate: %s", err)
+	}
+	// Ensure the specified extra hosts are present.
+	for _, host := range hostnames {
+		err := x509Cert.VerifyHostname(host)
+		if err != nil {
+			t.Fatalf("failed to verify extra host '%s'", host)
+		}
+	}
+}
+
+func TestCertCreationWithOutHosts(t *testing.T) {
+	certfile, err := ioutil.TempFile("", "certfile")
+	if err != nil {
+		t.Fatalf("Unable to create temp certfile: %s", err)
+	}
+	keyfile, err := ioutil.TempFile("", "keyfile")
+	if err != nil {
+		t.Fatalf("Unable to create temp keyfile: %s", err)
+	}
+	defer os.Remove(keyfile.Name())
+	defer os.Remove(certfile.Name())
+	err = genCertPair(certfile.Name(), keyfile.Name(), []string{})
+	if err != nil {
+		t.Fatalf("certifcate was not created correctly: %s", err)
 	}
 }

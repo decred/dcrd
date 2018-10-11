@@ -70,6 +70,7 @@ var (
 	defaultRPCKeyFile  = filepath.Join(defaultHomeDir, "rpc.key")
 	defaultRPCCertFile = filepath.Join(defaultHomeDir, "rpc.cert")
 	defaultLogDir      = filepath.Join(defaultHomeDir, defaultLogDirname)
+	defaultAltDNSNames = []string{}
 )
 
 // runServiceCommand is only set to a real function on Windows.  It is used
@@ -166,6 +167,7 @@ type config struct {
 	PipeRx               uint          `long:"piperx" description:"File descriptor of read end pipe to enable parent -> child process communication"`
 	PipeTx               uint          `long:"pipetx" description:"File descriptor of write end pipe to enable parent <- child process communication"`
 	LifetimeEvents       bool          `long:"lifetimeevents" description:"Send lifetime notifications over the TX pipe"`
+	AltDNSNames          []string      `long:"altdnsnames" description:"Specify additional dns names to use when generating the rpc server certificate" env:"DCRD_ALT_DNSNAMES" env-delim:","`
 	onionlookup          func(string) ([]net.IP, error)
 	lookup               func(string) ([]net.IP, error)
 	oniondial            func(string, string) (net.Conn, error)
@@ -457,6 +459,7 @@ func loadConfig() (*config, []string, error) {
 		AllowOldVotes:        defaultAllowOldVotes,
 		NoExistsAddrIndex:    defaultNoExistsAddrIndex,
 		NoCFilters:           defaultNoCFilters,
+		AltDNSNames:          defaultAltDNSNames,
 	}
 
 	// Service options which are only added on Windows.
