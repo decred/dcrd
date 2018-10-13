@@ -1331,6 +1331,18 @@ func (b *BlockChain) reorganizeChain(detachNodes, attachNodes *list.List) error 
 	b.sendNotification(NTReorganization, reorgData)
 	b.chainLock.Lock()
 
+	// Send a notification announcing the start of the chain reorganization.
+	b.chainLock.Unlock()
+	b.sendNotification(NTChainReorgStarted, nil)
+	b.chainLock.Lock()
+
+	defer func() {
+		// Send a notification announcing the end of the chain reorganization.
+		b.chainLock.Unlock()
+		b.sendNotification(NTChainReorgDone, nil)
+		b.chainLock.Lock()
+	}()
+
 	// Reset the view for the actual connection code below.  This is
 	// required because the view was previously modified when checking if
 	// the reorg would be successful and the connection code requires the

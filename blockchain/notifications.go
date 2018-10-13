@@ -55,6 +55,12 @@ const (
 	// from the main chain.
 	NTBlockDisconnected
 
+	// NTChainReorgStarted indicates that a chain reorganization has commenced.
+	NTChainReorgStarted
+
+	// NTChainReorgDone indicates that a chain reorganization has concluded.
+	NTChainReorgDone
+
 	// NTReorganization indicates that a blockchain reorganization is in
 	// progress.
 	NTReorganization
@@ -75,6 +81,8 @@ var notificationTypeStrings = map[NotificationType]string{
 	NTBlockAccepted:         "NTBlockAccepted",
 	NTBlockConnected:        "NTBlockConnected",
 	NTBlockDisconnected:     "NTBlockDisconnected",
+	NTChainReorgStarted:     "NTChainReorgStarted",
+	NTChainReorgDone:        "NTChainReorgDone",
 	NTReorganization:        "NTReorganization",
 	NTSpentAndMissedTickets: "NTSpentAndMissedTickets",
 	NTNewTickets:            "NTNewTickets",
@@ -137,6 +145,8 @@ type TicketNotificationsData struct {
 // 	- NTBlockAccepted:         *BlockAcceptedNtfnsData
 // 	- NTBlockConnected:        []*dcrutil.Block of len 2
 // 	- NTBlockDisconnected:     []*dcrutil.Block of len 2
+// 	- NTChainReorgStarted:     nil
+// 	- NTChainReorgDone:        nil
 //  - NTReorganization:        *ReorganizationNtfnsData
 //  - NTSpentAndMissedTickets: *TicketNotificationsData
 //  - NTNewTickets:            *TicketNotificationsData
