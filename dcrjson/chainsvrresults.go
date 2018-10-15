@@ -82,9 +82,9 @@ type GetBlockVerboseResult struct {
 	PoolSize      uint32        `json:"poolsize"`
 	Bits          string        `json:"bits"`
 	SBits         float64       `json:"sbits"`
-	Difficulty    float64       `json:"difficulty"`
 	ExtraData     string        `json:"extradata"`
 	StakeVersion  uint32        `json:"stakeversion"`
+	Difficulty    float64       `json:"difficulty"`
 	PreviousHash  string        `json:"previousblockhash"`
 	NextHash      string        `json:"nextblockhash,omitempty"`
 }
@@ -120,7 +120,6 @@ type GetBlockHeaderVerboseResult struct {
 	Hash          string  `json:"hash"`
 	Confirmations int64   `json:"confirmations"`
 	Version       int32   `json:"version"`
-	PreviousHash  string  `json:"previousblockhash,omitempty"`
 	MerkleRoot    string  `json:"merkleroot"`
 	StakeRoot     string  `json:"stakeroot"`
 	VoteBits      uint16  `json:"votebits"`
@@ -135,8 +134,10 @@ type GetBlockHeaderVerboseResult struct {
 	Size          uint32  `json:"size"`
 	Time          int64   `json:"time"`
 	Nonce         uint32  `json:"nonce"`
+	ExtraData     string  `json:"extradata"`
 	StakeVersion  uint32  `json:"stakeversion"`
 	Difficulty    float64 `json:"difficulty"`
+	PreviousHash  string  `json:"previousblockhash,omitempty"`
 	NextHash      string  `json:"nextblockhash,omitempty"`
 }
 
