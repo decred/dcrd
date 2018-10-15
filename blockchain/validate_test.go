@@ -240,18 +240,6 @@ func TestCheckBlockSanity(t *testing.T) {
 	}
 }
 
-// TestCheckWorklessBlockSanity tests the context free workless block sanity
-// checks with blocks not on a chain.
-func TestCheckWorklessBlockSanity(t *testing.T) {
-	params := &chaincfg.RegNetParams
-	timeSource := NewMedianTime()
-	block := dcrutil.NewBlock(&badBlock)
-	err := CheckWorklessBlockSanity(block, timeSource, params)
-	if err == nil {
-		t.Fatalf("block should fail.\n")
-	}
-}
-
 // TestCheckBlockHeaderContext tests that genesis block passes context headers
 // because its parent is nil.
 func TestCheckBlockHeaderContext(t *testing.T) {

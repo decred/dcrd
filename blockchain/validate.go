@@ -902,13 +902,6 @@ func CheckBlockSanity(block *dcrutil.Block, timeSource MedianTimeSource, chainPa
 	return checkBlockSanity(block, timeSource, BFNone, chainParams)
 }
 
-// CheckWorklessBlockSanity performs some preliminary checks on a block to
-// ensure it is sane before continuing with block processing.  These checks are
-// context free.
-func CheckWorklessBlockSanity(block *dcrutil.Block, timeSource MedianTimeSource, chainParams *chaincfg.Params) error {
-	return checkBlockSanity(block, timeSource, BFNoPoWCheck, chainParams)
-}
-
 // checkBlockHeaderContext peforms several validation checks on the block
 // header which depend on its position within the block chain.
 //
