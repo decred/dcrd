@@ -1808,6 +1808,11 @@ func handleGetBlock(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) (i
 		return hex.EncodeToString(blkBytes), nil
 	}
 
+	chainWork, err := s.chain.ChainWork(hash)
+	if err != nil {
+		return nil, rpcInternalError(err.Error(), "Failed to retrieve work")
+	}
+
 	best := s.chain.BestSnapshot()
 
 	// Get next block hash unless there are none.
@@ -1849,6 +1854,7 @@ func handleGetBlock(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) (i
 		Bits:          strconv.FormatInt(int64(blockHeader.Bits), 16),
 		SBits:         sbitsFloat,
 		Difficulty:    getDifficultyRatio(blockHeader.Bits),
+		ChainWork:     fmt.Sprintf("%064x", chainWork),
 		ExtraData:     hex.EncodeToString(blockHeader.ExtraData[:]),
 		NextHash:      nextHashString,
 	}
@@ -2031,6 +2037,11 @@ func handleGetBlockHeader(s *rpcServer, cmd interface{}, closeChan <-chan struct
 
 	// The verbose flag is set, so generate the JSON object and return it.
 
+	chainWork, err := s.chain.ChainWork(hash)
+	if err != nil {
+		return nil, rpcInternalError(err.Error(), "Failed to retrieve work")
+	}
+
 	best := s.chain.BestSnapshot()
 
 	// Get next block hash unless there are none.
@@ -2071,6 +2082,7 @@ func handleGetBlockHeader(s *rpcServer, cmd interface{}, closeChan <-chan struct
 		ExtraData:     hex.EncodeToString(blockHeader.ExtraData[:]),
 		StakeVersion:  blockHeader.StakeVersion,
 		Difficulty:    getDifficultyRatio(blockHeader.Bits),
+		ChainWork:     fmt.Sprintf("%064x", chainWork),
 		PreviousHash:  blockHeader.PrevBlock.String(),
 		NextHash:      nextHashString,
 	}

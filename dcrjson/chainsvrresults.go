@@ -85,6 +85,7 @@ type GetBlockVerboseResult struct {
 	ExtraData     string        `json:"extradata"`
 	StakeVersion  uint32        `json:"stakeversion"`
 	Difficulty    float64       `json:"difficulty"`
+	ChainWork     string        `json:"chainwork"`
 	PreviousHash  string        `json:"previousblockhash"`
 	NextHash      string        `json:"nextblockhash,omitempty"`
 }
@@ -137,6 +138,7 @@ type GetBlockHeaderVerboseResult struct {
 	ExtraData     string  `json:"extradata"`
 	StakeVersion  uint32  `json:"stakeversion"`
 	Difficulty    float64 `json:"difficulty"`
+	ChainWork     string  `json:"chainwork"`
 	PreviousHash  string  `json:"previousblockhash,omitempty"`
 	NextHash      string  `json:"nextblockhash,omitempty"`
 }
