@@ -61,8 +61,8 @@ const (
 	// NTChainReorgDone indicates that a chain reorganization has concluded.
 	NTChainReorgDone
 
-	// NTReorganization indicates that a blockchain reorganization is in
-	// progress.
+	// NTReorganization indicates that a blockchain reorganization has taken
+	// place.
 	NTReorganization
 
 	// NTSpentAndMissedTickets indicates spent or missed tickets from a newly

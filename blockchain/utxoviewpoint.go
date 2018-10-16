@@ -247,9 +247,8 @@ func newUtxoEntry(txVersion uint16, height uint32, index uint32, isCoinBase bool
 // The unspent outputs are needed by other transactions for things such as
 // script validation and double spend prevention.
 type UtxoViewpoint struct {
-	entries     map[chainhash.Hash]*UtxoEntry
-	cachedStxos map[chainhash.Hash][]spentTxOut
-	bestHash    chainhash.Hash
+	entries  map[chainhash.Hash]*UtxoEntry
+	bestHash chainhash.Hash
 }
 
 // BestHash returns the hash of the best block in the chain the view currently
@@ -536,25 +535,20 @@ func (view *UtxoViewpoint) disconnectStakeTransactions(block *dcrutil.Block, stx
 // information.
 //func (view *UtxoViewpoint) disconnectDisapprovedBlock(db database.DB, block *dcrutil.Block, stxos []spentTxOut) error {
 func (view *UtxoViewpoint) disconnectDisapprovedBlock(db database.DB, block *dcrutil.Block) error {
-	// Load all of the spent txos for the block either from the cached values
-	// or from the database spend journal.
+	// Load all of the spent txos for the block from the database spend journal.
 	var stxos []spentTxOut
-	if blockStxos, ok := view.cachedStxos[*block.Hash()]; ok {
-		stxos = blockStxos
-	} else {
-		err := db.View(func(dbTx database.Tx) error {
-			var err error
-			stxos, err = dbFetchSpendJournalEntry(dbTx, block)
-			return err
-		})
-		if err != nil {
-			return err
-		}
+	err := db.View(func(dbTx database.Tx) error {
+		var err error
+		stxos, err = dbFetchSpendJournalEntry(dbTx, block)
+		return err
+	})
+	if err != nil {
+		return err
 	}
 
 	// Load all of the utxos referenced by the inputs for all transactions in
 	// the block that don't already exist in the utxo view from the database.
-	err := view.fetchRegularInputUtxos(db, block)
+	err = view.fetchRegularInputUtxos(db, block)
 	if err != nil {
 		return err
 	}
@@ -878,8 +872,7 @@ func (view *UtxoViewpoint) clone() *UtxoViewpoint {
 // NewUtxoViewpoint returns a new empty unspent transaction output view.
 func NewUtxoViewpoint() *UtxoViewpoint {
 	return &UtxoViewpoint{
-		entries:     make(map[chainhash.Hash]*UtxoEntry),
-		cachedStxos: make(map[chainhash.Hash][]spentTxOut),
+		entries: make(map[chainhash.Hash]*UtxoEntry),
 	}
 }
 
