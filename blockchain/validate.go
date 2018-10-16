@@ -2984,7 +2984,7 @@ func (b *BlockChain) CheckConnectBlockTemplate(block *dcrutil.Block) error {
 	newNode := newBlockNode(&block.MsgBlock().Header, prevNode)
 	newNode.populateTicketInfo(stake.FindSpentTicketsInBlock(block.MsgBlock()))
 
-	// Use the ticket database as is when extending the main (best) chain.
+	// Use the chain state as is when extending the main (best) chain.
 	if prevNode.hash == tip.hash {
 		// Grab the parent block since it is required throughout the block
 		// connection process.
@@ -2998,126 +2998,41 @@ func (b *BlockChain) CheckConnectBlockTemplate(block *dcrutil.Block) error {
 		return b.checkConnectBlock(newNode, block, parent, view, nil)
 	}
 
-	// The requested node is either on a side chain or is a node on the
-	// main chain before the end of it.  In either case, we need to undo
-	// the transactions and spend information for the blocks which would be
-	// disconnected during a reorganize to the point of view of the node
-	// just before the requested node.
-	detachNodes, attachNodes := b.getReorganizeNodes(prevNode)
-
-	// Flush any potential unsaved changes to the block index due to the
-	// call to get the reorganize nodes.  Since the best state is not being
-	// modified, it is safe to ignore any errors here as the changes will be
-	// flushed at that point and those errors are not ignored.
-	b.flushBlockIndexWarnOnly()
-
+	// At this point, the block template must be building on the parent of the
+	// current tip due to the previous checks, so undo the transactions and
+	// spend information for the tip block to reach the point of view of the
+	// block template.
 	view := NewUtxoViewpoint()
 	view.SetBestHash(&tip.hash)
 	view.SetStakeViewpoint(ViewpointPrevValidInitial)
-	var nextBlockToDetach *dcrutil.Block
-	for e := detachNodes.Front(); e != nil; e = e.Next() {
-		// Grab the block to detach based on the node.  Use the fact that the
-		// parent of the block is already required, and the next block to detach
-		// will also be the parent to optimize.
-		n := e.Value.(*blockNode)
-		block := nextBlockToDetach
-		if block == nil {
-			var err error
-			block, err = b.fetchMainChainBlockByNode(n)
-			if err != nil {
-				return err
-			}
-		}
-		if n.hash != *block.Hash() {
-			panicf("detach block node hash %v (height %v) does not match "+
-				"previous parent block hash %v", &n.hash, n.height,
-				block.Hash())
-		}
-
-		parent, err := b.fetchMainChainBlockByNode(n.parent)
-		if err != nil {
-			return err
-		}
-		nextBlockToDetach = parent
-
-		// Load all of the spent txos for the block from the spend journal.
-		var stxos []spentTxOut
-		err = b.db.View(func(dbTx database.Tx) error {
-			stxos, err = dbFetchSpendJournalEntry(dbTx, block, parent)
-			return err
-		})
-		if err != nil {
-			return err
-		}
-
-		err = b.disconnectTransactions(view, block, parent, stxos)
-		if err != nil {
-			return err
-		}
-	}
-
-	// The UTXO viewpoint is now accurate to either the node where the
-	// requested node forks off the main chain (in the case where the
-	// requested node is on a side chain), or the requested node itself if
-	// the requested node is an old node on the main chain.  Entries in the
-	// attachNodes list indicate the requested node is on a side chain, so
-	// if there are no nodes to attach, we're done.
-	if attachNodes.Len() == 0 {
-		// Grab the parent block since it is required throughout the block
-		// connection process.
-		parent, err := b.fetchMainChainBlockByNode(prevNode)
-		if err != nil {
-			return ruleError(ErrMissingParent, err.Error())
-		}
-
-		return b.checkConnectBlock(newNode, block, parent, view, nil)
-	}
-
-	// The requested node is on a side chain, so we need to apply the
-	// transactions and spend information from each of the nodes to attach.
-	var prevAttachBlock *dcrutil.Block
-	for e := attachNodes.Front(); e != nil; e = e.Next() {
-		// Grab the block to attach based on the node.  Use the fact that the
-		// parent of the block is either the fork point for the first node being
-		// attached or the previous one that was attached for subsequent blocks
-		// to optimize.
-		n := e.Value.(*blockNode)
-		block, err := b.fetchBlockByNode(n)
-		if err != nil {
-			return err
-		}
-		parent := prevAttachBlock
-		if parent == nil {
-			var err error
-			parent, err = b.fetchMainChainBlockByNode(n.parent)
-			if err != nil {
-				return err
-			}
-		}
-		if n.parent.hash != *parent.Hash() {
-			panicf("attach block node hash %v (height %v) parent hash %v does "+
-				"not match previous parent block hash %v", &n.hash, n.height,
-				&n.parent.hash, parent.Hash())
-		}
-
-		// Store the loaded block for the next iteration.
-		prevAttachBlock = block
-
-		err = b.connectTransactions(view, block, parent, nil)
-		if err != nil {
-			return err
-		}
-	}
-
-	// Grab the parent block since it is required throughout the block
-	// connection process.
-	parent, err := b.fetchBlockByNode(prevNode)
+	tipBlock, err := b.fetchMainChainBlockByNode(tip)
 	if err != nil {
-		return ruleError(ErrMissingParent, err.Error())
+		return err
+	}
+	parent, err := b.fetchMainChainBlockByNode(tip.parent)
+	if err != nil {
+		return err
 	}
 
-	// Notice the spent txout details are not requested here and thus will not
-	// be generated.  This is done because the state will not be written to the
-	// database, so it is not needed.
+	// Load all of the spent txos for the tip block from the spend journal.
+	var stxos []spentTxOut
+	err = b.db.View(func(dbTx database.Tx) error {
+		stxos, err = dbFetchSpendJournalEntry(dbTx, tipBlock, parent)
+		return err
+	})
+	if err != nil {
+		return err
+	}
+
+	// Update the view to unspend all of the spent txos and remove the utxos
+	// created by the tip block.
+	err = b.disconnectTransactions(view, tipBlock, parent, stxos)
+	if err != nil {
+		return err
+	}
+
+	// The view is now from the point of view of the parent of the current tip
+	// block.  Ensure the block template can be connected without violating any
+	// rules.
 	return b.checkConnectBlock(newNode, block, parent, view, nil)
 }
