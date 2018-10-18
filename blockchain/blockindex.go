@@ -447,8 +447,11 @@ func (bi *blockIndex) NodeStatus(node *blockNode) blockStatus {
 // This function is safe for concurrent access.
 func (bi *blockIndex) SetStatusFlags(node *blockNode, flags blockStatus) {
 	bi.Lock()
+	origStatus := node.status
 	node.status |= flags
-	bi.modified[node] = struct{}{}
+	if node.status != origStatus {
+		bi.modified[node] = struct{}{}
+	}
 	bi.Unlock()
 }
 
@@ -458,8 +461,11 @@ func (bi *blockIndex) SetStatusFlags(node *blockNode, flags blockStatus) {
 // This function is safe for concurrent access.
 func (bi *blockIndex) UnsetStatusFlags(node *blockNode, flags blockStatus) {
 	bi.Lock()
+	origStatus := node.status
 	node.status &^= flags
-	bi.modified[node] = struct{}{}
+	if node.status != origStatus {
+		bi.modified[node] = struct{}{}
+	}
 	bi.Unlock()
 }
 
