@@ -121,7 +121,6 @@ type blockNode struct {
 	// evaluation of sidechains.
 	stakeNode      *stake.Node
 	newTickets     []chainhash.Hash
-	stakeUndoData  stake.UndoTicketDataSlice
 	ticketsVoted   []chainhash.Hash
 	ticketsRevoked []chainhash.Hash
 
@@ -227,7 +226,7 @@ func (node *blockNode) lotteryIV() chainhash.Hash {
 // node.
 //
 // This function is NOT safe for concurrent access.  It must only be called when
-// initially creating a node.
+// initially creating a node or when protected by the chain lock.
 func (node *blockNode) populateTicketInfo(spentTickets *stake.SpentTicketsInBlock) {
 	node.ticketsVoted = spentTickets.VotedTickets
 	node.ticketsRevoked = spentTickets.RevokedTickets

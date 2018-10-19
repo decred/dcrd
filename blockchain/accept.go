@@ -80,7 +80,7 @@ func (b *BlockChain) maybeAcceptBlock(block *dcrutil.Block, flags BehaviorFlags)
 	b.index.AddNode(newNode)
 
 	// Ensure the new block index entry is written to the database.
-	err = b.index.flush()
+	err = b.flushBlockIndex()
 	if err != nil {
 		return 0, err
 	}
@@ -111,7 +111,6 @@ func (b *BlockChain) maybeAcceptBlock(block *dcrutil.Block, flags BehaviorFlags)
 		if err != nil {
 			return 0, err
 		}
-		newNode.stakeUndoData = newNode.stakeNode.UndoData()
 	}
 
 	// Grab the parent block since it is required throughout the block

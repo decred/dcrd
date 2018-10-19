@@ -35,11 +35,11 @@ func (b *BlockChain) NextLotteryData() ([]chainhash.Hash, int, [6]byte, error) {
 // with the chainLock held for writes.
 func (b *BlockChain) lotteryDataForNode(node *blockNode) ([]chainhash.Hash, int, [6]byte, error) {
 	if node.height < b.chainParams.StakeEnabledHeight {
-		return []chainhash.Hash{}, 0, [6]byte{}, nil
+		return nil, 0, [6]byte{}, nil
 	}
 	stakeNode, err := b.fetchStakeNode(node)
 	if err != nil {
-		return []chainhash.Hash{}, 0, [6]byte{}, err
+		return nil, 0, [6]byte{}, err
 	}
 
 	return stakeNode.Winners(), stakeNode.PoolSize(), stakeNode.FinalState(), nil

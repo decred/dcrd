@@ -631,7 +631,6 @@ func (b *BlockChain) pruneStakeNodes() {
 		// for example if you're adding an old side chain block.
 		if node.height > b.bestChain.Tip().height-minMemoryNodes {
 			node.stakeNode = nil
-			node.stakeUndoData = nil
 			node.newTickets = nil
 			node.ticketsVoted = nil
 			node.ticketsRevoked = nil
@@ -696,7 +695,7 @@ func (b *BlockChain) getReorganizeNodes(node *blockNode) (*list.List, *list.List
 		return detachNodes, attachNodes
 	}
 
-	// Do not allow a reorganize to a known invalid chain.	Note that all
+	// Do not allow a reorganize to a known invalid chain.  Note that all
 	// intermediate ancestors other than the direct parent are also checked
 	// below, however, this check allows extra to work to be avoided in the
 	// majority of cases since reorgs across multiple unvalidated blocks are
@@ -784,7 +783,7 @@ func (b *BlockChain) connectBlock(node *blockNode, block, parent *dcrutil.Block,
 
 	// Write any modified block index entries to the database before
 	// updating the best state.
-	if err := b.index.flush(); err != nil {
+	if err := b.flushBlockIndex(); err != nil {
 		return err
 	}
 
@@ -929,7 +928,6 @@ func (b *BlockChain) connectBlock(node *blockNode, block, parent *dcrutil.Block,
 	if node.height < b.chainParams.LatestCheckpointHeight() {
 		parent := b.bestChain.Tip().parent
 		parent.stakeNode = nil
-		parent.stakeUndoData = nil
 		parent.newTickets = nil
 		parent.ticketsVoted = nil
 		parent.ticketsRevoked = nil
@@ -963,7 +961,7 @@ func (b *BlockChain) disconnectBlock(node *blockNode, block, parent *dcrutil.Blo
 
 	// Write any modified block index entries to the database before
 	// updating the best state.
-	if err := b.index.flush(); err != nil {
+	if err := b.flushBlockIndex(); err != nil {
 		return err
 	}
 
@@ -1559,6 +1557,22 @@ func (b *BlockChain) ForceHeadReorganization(formerBest chainhash.Hash, newBest 
 	return err
 }
 
+// flushBlockIndex populates any ticket data that has been pruned from modified
+// block nodes, writes those nodes to the database and clears the set of
+// modified nodes if it succeeds.
+func (b *BlockChain) flushBlockIndex() error {
+	b.index.RLock()
+	for node := range b.index.modified {
+		if err := b.maybeFetchTicketInfo(node); err != nil {
+			b.index.RUnlock()
+			return err
+		}
+	}
+	b.index.RUnlock()
+
+	return b.index.flush()
+}
+
 // flushBlockIndexWarnOnly attempts to flush and modified block index nodes to
 // the database and will log a warning if it fails.
 //
@@ -1567,7 +1581,7 @@ func (b *BlockChain) ForceHeadReorganization(formerBest chainhash.Hash, newBest 
 // to be validated again.  All other cases must directly call the function on
 // the block index and check the error return accordingly.
 func (b *BlockChain) flushBlockIndexWarnOnly() {
-	if err := b.index.flush(); err != nil {
+	if err := b.flushBlockIndex(); err != nil {
 		log.Warnf("Unable to flush block index changes to db: %v", err)
 	}
 }

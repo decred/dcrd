@@ -1749,7 +1749,6 @@ func (b *BlockChain) initChainState() error {
 			if err != nil {
 				return err
 			}
-			tip.stakeUndoData = tip.stakeNode.UndoData()
 			tip.newTickets = tip.stakeNode.NewTickets()
 		}
 
