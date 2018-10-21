@@ -16,10 +16,16 @@ import (
 	"github.com/decred/dcrd/wire"
 )
 
-var (
+const (
 	// existsAddressIndexName is the human-readable name for the index.
 	existsAddressIndexName = "exists address index"
 
+	// existsAddrIndexVersion is the current version of the exists address
+	// index.
+	existsAddrIndexVersion = 2
+)
+
+var (
 	// existsAddrIndexKey is the key of the ever seen address index and
 	// the db bucket used to house it.
 	existsAddrIndexKey = []byte("existsaddridx")
@@ -97,6 +103,13 @@ func (idx *ExistsAddrIndex) Key() []byte {
 // This is part of the Indexer interface.
 func (idx *ExistsAddrIndex) Name() string {
 	return existsAddressIndexName
+}
+
+// Version returns the current version of the index.
+//
+// This is part of the Indexer interface.
+func (idx *ExistsAddrIndex) Version() uint32 {
+	return existsAddrIndexVersion
 }
 
 // Create is invoked when the indexer manager determines the index needs

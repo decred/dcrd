@@ -20,6 +20,9 @@ const (
 	// txIndexName is the human-readable name for the index.
 	txIndexName = "transaction index"
 
+	// txIndexVersion is the current version of the transaction index.
+	txIndexVersion = 2
+
 	// txEntrySize is the size of a transaction entry.  It consists of 4
 	// bytes block id + 4 bytes offset + 4 bytes length + 4 bytes block
 	// index.
@@ -408,6 +411,13 @@ func (idx *TxIndex) Name() string {
 	return txIndexName
 }
 
+// Version returns the current version of the index.
+//
+// This is part of the Indexer interface.
+func (idx *TxIndex) Version() uint32 {
+	return txIndexVersion
+}
+
 // Create is invoked when the indexer manager determines the index needs
 // to be created for the first time.  It creates the buckets for the hash-based
 // transaction index and the internal block ID indexes.
@@ -577,7 +587,7 @@ func DropTxIndex(db database.DB, interrupt <-chan struct{}) error {
 		return err
 	}
 
-	// Remove the index tip, index bucket, and in-progress drop flag now
+	// Remove the index tip, version, bucket, and in-progress drop flag now
 	// that all index entries have been removed.
 	err = dropIndexMetadata(db, txIndexKey, txIndexName)
 	if err != nil {

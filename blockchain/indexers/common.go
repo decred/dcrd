@@ -42,6 +42,9 @@ type Indexer interface {
 	// Name returns the human-readable name of the index.
 	Name() string
 
+	// Return the current version of the index.
+	Version() uint32
+
 	// Create is invoked when the indexer manager determines the index needs
 	// to be created for the first time.
 	Create(dbTx database.Tx) error

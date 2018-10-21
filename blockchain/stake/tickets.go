@@ -225,6 +225,19 @@ func genesisNode(params *chaincfg.Params) *Node {
 	}
 }
 
+// ResetDatabase resets the ticket database back to the genesis block.
+func ResetDatabase(dbTx database.Tx, params *chaincfg.Params) error {
+	// Remove all of the database buckets.
+	err := ticketdb.DbRemoveAllBuckets(dbTx)
+	if err != nil {
+		return err
+	}
+
+	// Initialize the database.
+	_, err = InitDatabaseState(dbTx, params)
+	return err
+}
+
 // InitDatabaseState initializes the chain with the best state being the
 // genesis block.
 func InitDatabaseState(dbTx database.Tx, params *chaincfg.Params) (*Node, error) {

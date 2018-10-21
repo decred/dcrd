@@ -1711,20 +1711,6 @@ func (b *BlockChain) initChainState() error {
 		}
 		b.bestChain.SetTip(tip)
 
-		// Ensure all ancestors of the current best chain tip are marked as
-		// valid.  This is necessary due to older software versions not marking
-		// nodes before the final checkpoint as valid.
-		//
-		// Note that the nodes are not marked as modified here, so the database
-		// is not updated unless the node is otherwise modified and written back
-		// out a later point.  Ultimately, the nodes should be updated in the
-		// database accordingly as part of a database upgrade, however, since
-		// the nodes are all in memory, they can be updated very quickly here
-		// without requiring a database version bump.
-		for node := tip; node != nil; node = node.parent {
-			node.status |= statusValid
-		}
-
 		log.Debugf("Block index loaded in %v", time.Since(bidxStart))
 
 		// Exception for version 1 blockchains: skip loading the stake

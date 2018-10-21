@@ -662,6 +662,32 @@ func DbLoadAllTickets(dbTx database.Tx, ticketBucket []byte) (*tickettreap.Immut
 	return treap, nil
 }
 
+// DbRemoveAllBuckets removes all buckets from the database.
+func DbRemoveAllBuckets(dbTx database.Tx) error {
+	meta := dbTx.Metadata()
+	err := meta.DeleteBucket(dbnamespace.StakeDbInfoBucketName)
+	if err != nil {
+		return err
+	}
+	err = meta.DeleteBucket(dbnamespace.LiveTicketsBucketName)
+	if err != nil {
+		return err
+	}
+	err = meta.DeleteBucket(dbnamespace.MissedTicketsBucketName)
+	if err != nil {
+		return err
+	}
+	err = meta.DeleteBucket(dbnamespace.RevokedTicketsBucketName)
+	if err != nil {
+		return err
+	}
+	err = meta.DeleteBucket(dbnamespace.StakeBlockUndoDataBucketName)
+	if err != nil {
+		return err
+	}
+	return meta.DeleteBucket(dbnamespace.TicketsInBlockBucketName)
+}
+
 // DbCreate initializes all the buckets required for the database and stores
 // the current database version information.
 func DbCreate(dbTx database.Tx) error {

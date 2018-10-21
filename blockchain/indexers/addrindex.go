@@ -25,6 +25,9 @@ const (
 	// addrIndexName is the human-readable name for the index.
 	addrIndexName = "address index"
 
+	// addrIndexVersion is the current version of the address index.
+	addrIndexVersion = 2
+
 	// level0MaxEntries is the maximum number of transactions that are
 	// stored in level 0 of an address index entry.  Subsequent levels store
 	// 2^n * level0MaxEntries entries, or in words, double the maximum of
@@ -650,6 +653,13 @@ func (idx *AddrIndex) Key() []byte {
 // This is part of the Indexer interface.
 func (idx *AddrIndex) Name() string {
 	return addrIndexName
+}
+
+// Version returns the current version of the index.
+//
+// This is part of the Indexer interface.
+func (idx *AddrIndex) Version() uint32 {
+	return addrIndexVersion
 }
 
 // Create is invoked when the indexer manager determines the index needs

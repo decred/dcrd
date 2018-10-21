@@ -22,6 +22,9 @@ import (
 const (
 	// cfIndexName is the human-readable name for the index.
 	cfIndexName = "committed filter index"
+
+	// cfIndexVersion is the current version of the committed filter index.
+	cfIndexVersion = 2
 )
 
 // Committed filters come in two flavors: basic and extended. They are
@@ -124,6 +127,13 @@ func (idx *CFIndex) Key() []byte {
 // Indexer interface.
 func (idx *CFIndex) Name() string {
 	return cfIndexName
+}
+
+// Version returns the current version of the index.
+//
+// This is part of the Indexer interface.
+func (idx *CFIndex) Version() uint32 {
+	return cfIndexVersion
 }
 
 // Create is invoked when the indexer manager determines the index needs to

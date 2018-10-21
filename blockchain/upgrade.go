@@ -509,6 +509,215 @@ func upgradeToVersion4(db database.DB, dbInfo *databaseInfo, interrupt <-chan st
 	})
 }
 
+// incrementalFlatDrop uses multiple database updates to remove key/value pairs
+// saved to a flag bucket.
+func incrementalFlatDrop(db database.DB, bucketKey []byte, humanName string, interrupt <-chan struct{}) error {
+	const maxDeletions = 2000000
+	var totalDeleted uint64
+	for numDeleted := maxDeletions; numDeleted == maxDeletions; {
+		numDeleted = 0
+		err := db.Update(func(dbTx database.Tx) error {
+			bucket := dbTx.Metadata().Bucket(bucketKey)
+			cursor := bucket.Cursor()
+			for ok := cursor.First(); ok; ok = cursor.Next() &&
+				numDeleted < maxDeletions {
+
+				if err := cursor.Delete(); err != nil {
+					return err
+				}
+				numDeleted++
+			}
+			return nil
+		})
+		if err != nil {
+			return err
+		}
+
+		if numDeleted > 0 {
+			totalDeleted += uint64(numDeleted)
+			log.Infof("Deleted %d keys (%d total) from %s", numDeleted,
+				totalDeleted, humanName)
+		}
+
+		if interruptRequested(interrupt) {
+			return errInterruptRequested
+		}
+	}
+	return nil
+}
+
+// upgradeToVersion5 upgrades a version 4 blockchain database to version 5.
+func upgradeToVersion5(db database.DB, chainParams *chaincfg.Params, dbInfo *databaseInfo, interrupt <-chan struct{}) error {
+	// Hardcoded bucket and key names so updates to the global values do not
+	// affect old upgrades.
+	utxoSetBucketName := []byte("utxoset")
+	spendJournalBucketName := []byte("spendjournal")
+	chainStateKeyName := []byte("chainstate")
+	v5ReindexTipKeyName := []byte("v5reindextip")
+
+	log.Info("Clearing database utxoset and spend journal for upgrade...")
+	start := time.Now()
+
+	// Clear the utxoset.
+	err := incrementalFlatDrop(db, utxoSetBucketName, "utxoset", interrupt)
+	if err != nil {
+		return err
+	}
+	log.Infof("Cleared utxoset.")
+
+	if interruptRequested(interrupt) {
+		return errInterruptRequested
+	}
+
+	// Clear the spend journal.
+	err = incrementalFlatDrop(db, spendJournalBucketName, "spend journal",
+		interrupt)
+	if err != nil {
+		return err
+	}
+	log.Infof("Cleared spend journal.")
+
+	if interruptRequested(interrupt) {
+		return errInterruptRequested
+	}
+
+	err = db.Update(func(dbTx database.Tx) error {
+		// Reset the ticket database to the genesis block.
+		log.Infof("Resetting the ticket database.  This might take a while...")
+		if err := stake.ResetDatabase(dbTx, chainParams); err != nil {
+			return err
+		}
+
+		// Fetch the stored best chain state from the database metadata.
+		meta := dbTx.Metadata()
+		serializedData := meta.Get(chainStateKeyName)
+		best, err := deserializeBestChainState(serializedData)
+		if err != nil {
+			return err
+		}
+
+		// Store the current best chain tip as the reindex target.
+		if err := meta.Put(v5ReindexTipKeyName, best.hash[:]); err != nil {
+			return err
+		}
+
+		// Reset the state related to the best block to the genesis block.
+		genesisBlock := chainParams.GenesisBlock
+		numTxns := uint64(len(genesisBlock.Transactions))
+		serializedData = serializeBestChainState(bestChainState{
+			hash:         genesisBlock.BlockHash(),
+			height:       0,
+			totalTxns:    numTxns,
+			totalSubsidy: 0,
+			workSum:      CalcWork(genesisBlock.Header.Bits),
+		})
+		return meta.Put(chainStateKeyName, serializedData)
+	})
+	if err != nil {
+		return err
+	}
+
+	elapsed := time.Since(start).Round(time.Millisecond)
+	log.Infof("Done upgrading database in %v.", elapsed)
+
+	// Update and persist the updated database versions.
+	dbInfo.version = 5
+	return db.Update(func(dbTx database.Tx) error {
+		return dbPutDatabaseInfo(dbTx, dbInfo)
+	})
+
+	return nil
+}
+
+// maybeFinishV5Upgrade potentially reindexes the chain due to a version 5
+// database upgrade.  It will resume previously uncompleted attempts.
+func (b *BlockChain) maybeFinishV5Upgrade() error {
+	// Nothing to do if the database is not version 5.
+	if b.dbInfo.version != 5 {
+		return nil
+	}
+
+	// Hardcoded key name so updates to the global values do not affect old
+	// upgrades.
+	v5ReindexTipKeyName := []byte("v5reindextip")
+
+	// Finish the version 5 reindex as needed.
+	var v5ReindexTipHash *chainhash.Hash
+	err := b.db.View(func(dbTx database.Tx) error {
+		hash := dbTx.Metadata().Get(v5ReindexTipKeyName)
+		if hash != nil {
+			v5ReindexTipHash = new(chainhash.Hash)
+			copy(v5ReindexTipHash[:], hash)
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	if v5ReindexTipHash != nil {
+		// Look up the final target tip to reindex to in the block index.
+		targetTip := b.index.LookupNode(v5ReindexTipHash)
+		if targetTip == nil {
+			return AssertError(fmt.Sprintf("maybeFinishV5Upgrade: cannot find "+
+				"chain tip %s in block index", v5ReindexTipHash))
+		}
+
+		// Ensure all ancestors of the current best chain tip are marked as
+		// valid.  This is necessary due to older software versions not marking
+		// nodes before the final checkpoint as valid.
+		for node := targetTip; node != nil; node = node.parent {
+			b.index.SetStatusFlags(node, statusValid)
+		}
+		if err := b.index.flush(); err != nil {
+			return err
+		}
+
+		// Disable notifications during the reindex.
+		ntfnCallback := b.notifications
+		b.notifications = nil
+		defer func() {
+			b.notifications = ntfnCallback
+		}()
+
+		tip := b.bestChain.Tip()
+		for tip != targetTip {
+			if interruptRequested(b.interrupt) {
+				return errInterruptRequested
+			}
+
+			// Limit to a reasonable number of blocks at a time.
+			const maxReindexBlocks = 250
+			intermediateTip := targetTip
+			if intermediateTip.height-tip.height > maxReindexBlocks {
+				intermediateTip = intermediateTip.Ancestor(tip.height +
+					maxReindexBlocks)
+			}
+
+			log.Infof("Reindexing to height %d of %d (progress %.2f%%)...",
+				intermediateTip.height, targetTip.height,
+				float64(intermediateTip.height)/float64(targetTip.height)*100)
+			b.chainLock.Lock()
+			if err := b.reorganizeChainInternal(intermediateTip); err != nil {
+				b.chainLock.Unlock()
+				return err
+			}
+			b.chainLock.Unlock()
+
+			tip = b.bestChain.Tip()
+		}
+
+		// Mark the v5 reindex as complete by removing the associated key.
+		err := b.db.Update(func(dbTx database.Tx) error {
+			return dbTx.Metadata().Delete(v5ReindexTipKeyName)
+		})
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 // upgradeDB upgrades old database versions to the newest version by applying
 // all possible upgrades iteratively.
 //
@@ -536,18 +745,13 @@ func upgradeDB(db database.DB, chainParams *chaincfg.Params, dbInfo *databaseInf
 		}
 	}
 
-	// NOTE: The next time a new database version is needed, the code in
-	// initChainState which marks all ancestors of the current chain tip as
-	// valid should be converted to updgrade all nodes in the database in the
-	// upgrade path here and removed from the chain init.  The version was not
-	// bumped when applying the update since it is possible to perform very
-	// quickly at startup on the block nodes in memory without requiring a
-	// database version bump.
-
-	// TODO(davec): Replace with proper upgrade code for utxo set semantics
-	// reversal and index updates.
+	// Clear the utxoset, clear the spend journal, reset the best chain back to
+	// the genesis block, and mark that a v5 reindex is required if needed.
 	if dbInfo.version == 4 {
-		return errors.New("Upgrade from version 4 database not supported yet")
+		err := upgradeToVersion5(db, chainParams, dbInfo, interrupt)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil

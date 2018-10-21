@@ -2165,14 +2165,20 @@ func New(config *Config) (*BlockChain, error) {
 		}
 	}
 
-	tip := b.bestChain.Tip()
-	b.subsidyCache = NewSubsidyCache(tip.height, b.chainParams)
+	b.subsidyCache = NewSubsidyCache(b.bestChain.Tip().height, b.chainParams)
 	b.pruner = newChainPruner(&b)
+
+	// The version 5 database upgrade requires a full reindex.  Perform, or
+	// resume, the reindex as needed.
+	if err := b.maybeFinishV5Upgrade(); err != nil {
+		return nil, err
+	}
 
 	log.Infof("Blockchain database version info: chain: %d, compression: "+
 		"%d, block index: %d", b.dbInfo.version, b.dbInfo.compVer,
 		b.dbInfo.bidxVer)
 
+	tip := b.bestChain.Tip()
 	log.Infof("Chain state: height %d, hash %v, total transactions %d, "+
 		"work %v, stake version %v", tip.height, tip.hash,
 		b.stateSnapshot.TotalTxns, tip.workSum, 0)
