@@ -1648,8 +1648,7 @@ func handleGenerate(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) (i
 
 	blockHashes, err := s.server.cpuMiner.GenerateNBlocks(c.NumBlocks)
 	if err != nil {
-		return nil, rpcInternalError("Could not generate blocks",
-			"Configuration")
+		return nil, rpcInternalError(err.Error(), "Could not generate blocks")
 	}
 
 	// Mine the correct number of blocks, assigning the hex representation of the
