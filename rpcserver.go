@@ -1923,7 +1923,7 @@ func handleGetBlockchainInfo(s *rpcServer, cmd interface{}, closeChan <-chan str
 	syncHeight := s.server.blockManager.SyncHeight()
 	var verifyProgress float64
 	if syncHeight > 0 {
-		verifyProgress = float64(best.Height) / float64(syncHeight)
+		verifyProgress = math.Min(float64(best.Height)/float64(syncHeight), 1.0)
 	}
 
 	// Fetch the maximum allowed block size.
