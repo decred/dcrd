@@ -29,10 +29,6 @@ var (
 	oneLsh256 = new(big.Int).Lsh(bigOne, 256)
 )
 
-// maxShift is the maximum shift for a difficulty that resets (e.g.
-// testnet difficulty).
-const maxShift = uint(256)
-
 // HashToBig converts a chainhash.Hash into a big.Int that can be used to
 // perform math comparisons.
 func HashToBig(hash *chainhash.Hash) *big.Int {

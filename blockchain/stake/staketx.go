@@ -180,10 +180,6 @@ var (
 	// a package level variable to avoid the need to create a new instance
 	// every time a check is needed.
 	zeroHash = &chainhash.Hash{}
-
-	// rangeLimitMax is the maximum bitshift for a fees limit on an
-	// sstx commitment output.
-	rangeLimitMax = uint16(63)
 )
 
 // VoteBits is a field representing the mandatory 2-byte field of voteBits along

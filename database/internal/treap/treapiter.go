@@ -225,7 +225,7 @@ func (iter *Iterator) Prev() bool {
 	// When there is no left node walk the parents until the parent's left
 	// node is not equal to the previous child.  This will be the previous
 	// node.
-	for iter.node.left == nil {
+	if iter.node.left == nil {
 		parent := iter.parents.Pop()
 		for parent != nil && parent.left == iter.node {
 			iter.node = parent

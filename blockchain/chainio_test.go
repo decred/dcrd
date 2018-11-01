@@ -65,6 +65,13 @@ func hexToExtraData(s string) [32]byte {
 	return extraData
 }
 
+// isNotInMainChainErr returns whether or not the passed error is an
+// errNotInMainChain error.
+func isNotInMainChainErr(err error) bool {
+	_, ok := err.(errNotInMainChain)
+	return ok
+}
+
 // TestErrNotInMainChain ensures the functions related to errNotInMainChain work
 // as expected.
 func TestErrNotInMainChain(t *testing.T) {

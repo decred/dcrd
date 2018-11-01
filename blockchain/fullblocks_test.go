@@ -30,16 +30,6 @@ const (
 	blockDataNet = wire.MainNet
 )
 
-// filesExists returns whether or not the named file or directory exists.
-func fileExists(name string) bool {
-	if _, err := os.Stat(name); err != nil {
-		if os.IsNotExist(err) {
-			return false
-		}
-	}
-	return true
-}
-
 // isSupportedDbType returns whether or not the passed database type is
 // currently supported.
 func isSupportedDbType(dbType string) bool {

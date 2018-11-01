@@ -45,13 +45,6 @@ func (e errNotInMainChain) Error() string {
 	return string(e)
 }
 
-// isNotInMainChainErr returns whether or not the passed error is an
-// errNotInMainChain error.
-func isNotInMainChainErr(err error) bool {
-	_, ok := err.(errNotInMainChain)
-	return ok
-}
-
 // errDeserialize signifies that a problem was encountered when deserializing
 // data.
 type errDeserialize string

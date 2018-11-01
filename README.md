@@ -31,7 +31,7 @@ transactions to other Decred nodes around the world.
 This software is currently under active development.  It is extremely stable and
 has been in production use since February 2016.
 
-The sofware was originally forked from [btcd](https://github.com/btcsuite/btcd),
+The software was originally forked from [btcd](https://github.com/btcsuite/btcd),
 which is a bitcoin full node implementation that is still under active
 development.  To gain the benefit of btcd's ongoing upgrades, including improved
 peer and connection handling, database optimization, and other blockchain
@@ -66,7 +66,7 @@ lightweight clients, such as Simplified Payment Verification (SPV) wallets.
 
 Without enough full nodes, the network could be unable to expediently serve
 users of lightweight clients which could force them to have to rely on
-centralized services that significantly reduce privacy and are vulernable to
+centralized services that significantly reduce privacy and are vulnerable to
 censorship.
 
 In terms of individual benefits, since dcrd fully validates every block and

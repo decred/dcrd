@@ -70,55 +70,6 @@ func (b *BlockChain) findStakeVersionPriorNode(prevNode *blockNode) *blockNode {
 	return prevNode.Ancestor(wantHeight)
 }
 
-// isVoterMajorityVersion determines if minVer requirement is met based on
-// prevNode.  The function always uses the voter versions of the prior window.
-// For example, if StakeVersionInterval = 11 and StakeValidationHeight = 13 the
-// windows start at 13 + 11 -1 = 24 and are as follows: 24-34, 35-45, 46-56 ...
-// If height comes in at 35 we use the 24-34 window, up to height 45.
-// If height comes in at 46 we use the 35-45 window, up to height 56 etc.
-//
-// This function MUST be called with the chain state lock held (for writes).
-func (b *BlockChain) isVoterMajorityVersion(minVer uint32, prevNode *blockNode) bool {
-	// Walk blockchain backwards to calculate version.
-	node := b.findStakeVersionPriorNode(prevNode)
-	if node == nil {
-		return 0 >= minVer
-	}
-
-	// Generate map key and look up cached result.
-	key := stakeMajorityCacheVersionKey(minVer, &node.hash)
-	if result, ok := b.isVoterMajorityVersionCache[key]; ok {
-		return result
-	}
-
-	// Tally both the total number of votes in the previous stake version validation
-	// interval and how many of those votes are at least the requested minimum
-	// version.
-	totalVotesFound := int32(0)
-	versionCount := int32(0)
-	iterNode := node
-	for i := int64(0); i < b.chainParams.StakeVersionInterval && iterNode != nil; i++ {
-		totalVotesFound += int32(len(iterNode.votes))
-		for _, v := range iterNode.votes {
-			if v.Version >= minVer {
-				versionCount++
-			}
-		}
-
-		iterNode = iterNode.parent
-	}
-
-	// Determine the required amount of votes to reach supermajority.
-	numRequired := totalVotesFound * b.chainParams.StakeMajorityMultiplier /
-		b.chainParams.StakeMajorityDivisor
-
-	// Cache value.
-	result := versionCount >= numRequired
-	b.isVoterMajorityVersionCache[key] = result
-
-	return result
-}
-
 // isStakeMajorityVersion determines if minVer requirement is met based on
 // prevNode.  The function always uses the stake versions of the prior window.
 // For example, if StakeVersionInterval = 11 and StakeValidationHeight = 13 the
