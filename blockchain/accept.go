@@ -21,8 +21,9 @@ import (
 // extends the best chain or is now the tip of the best chain due to causing a
 // reorganize, the fork length will be 0.
 //
-// The flags are also passed to checkBlockContext and connectBestChain.  See
-// their documentation for how the flags modify their behavior.
+// The flags are also passed to checkBlockPositional, checkBlockContext and
+// connectBestChain.  See their documentation for how the flags modify their
+// behavior.
 //
 // This function MUST be called with the chain state lock held (for writes).
 func (b *BlockChain) maybeAcceptBlock(block *dcrutil.Block, flags BehaviorFlags) (int64, error) {
@@ -43,9 +44,17 @@ func (b *BlockChain) maybeAcceptBlock(block *dcrutil.Block, flags BehaviorFlags)
 		return 0, ruleError(ErrInvalidAncestorBlock, str)
 	}
 
-	// The block must pass all of the validation rules which depend on the
-	// position of the block within the block chain.
-	err := b.checkBlockContext(block, prevNode, flags)
+	// The block must pass all of the validation rules which depend on having
+	// the headers of all ancestors available, but do not rely on having the
+	// full block data of all ancestors available.
+	err := b.checkBlockPositional(block, prevNode, flags)
+	if err != nil {
+		return 0, err
+	}
+
+	// The block must pass all of the validation rules which depend on having
+	// the full block data for all of its ancestors available.
+	err = b.checkBlockContext(block, prevNode, flags)
 	if err != nil {
 		return 0, err
 	}

@@ -902,15 +902,17 @@ func CheckBlockSanity(block *dcrutil.Block, timeSource MedianTimeSource, chainPa
 	return checkBlockSanity(block, timeSource, BFNone, chainParams)
 }
 
-// checkBlockHeaderContext peforms several validation checks on the block
-// header which depend on its position within the block chain.
+// checkBlockHeaderPositional performs several validation checks on the block
+// header which depend on its position within the block chain and having the
+// headers of all ancestors available.  These checks do not, and must not, rely
+// on having the full block data of all ancestors available.
 //
 // The flags modify the behavior of this function as follows:
 //  - BFFastAdd: All checks except those involving comparing the header against
-//    the checkpoints are not performed.
+//    the checkpoints and expected height are not performed.
 //
-// This function MUST be called with the chain state lock held (for writes).
-func (b *BlockChain) checkBlockHeaderContext(header *wire.BlockHeader, prevNode *blockNode, flags BehaviorFlags) error {
+// This function MUST be called with the chain state lock held (for reads).
+func (b *BlockChain) checkBlockHeaderPositional(header *wire.BlockHeader, prevNode *blockNode, flags BehaviorFlags) error {
 	// The genesis block is valid by definition.
 	if prevNode == nil {
 		return nil
@@ -932,20 +934,6 @@ func (b *BlockChain) checkBlockHeaderContext(header *wire.BlockHeader, prevNode 
 				" expected value of %d", blockDifficulty,
 				expDiff)
 			return ruleError(ErrUnexpectedDifficulty, str)
-		}
-
-		// Ensure the stake difficulty specified in the block header
-		// matches the calculated difficulty based on the previous block
-		// and difficulty retarget rules.
-		expSDiff, err := b.calcNextRequiredStakeDifficulty(prevNode)
-		if err != nil {
-			return err
-		}
-		if header.SBits != expSDiff {
-			errStr := fmt.Sprintf("block stake difficulty of %d "+
-				"is not the expected value of %d", header.SBits,
-				expSDiff)
-			return ruleError(ErrUnexpectedDifficulty, errStr)
 		}
 
 		// Ensure the timestamp for the block header is after the
@@ -1043,6 +1031,113 @@ func (b *BlockChain) checkBlockHeaderContext(header *wire.BlockHeader, prevNode 
 			str := "new blocks with version %d are no longer valid"
 			str = fmt.Sprintf(str, header.Version)
 			return ruleError(ErrBlockVersionTooOld, str)
+		}
+	}
+
+	return nil
+}
+
+// checkBlockPositional performs several validation checks on the block which
+// depend on its position within the block chain and having the headers of all
+// ancestors available.  These checks do not, and must not, rely on having the
+// full block data of all ancestors available.
+//
+// The flags modify the behavior of this function as follows:
+//  - BFFastAdd: The transactions are not checked to see if they are expired and
+//    the coinbae height check is not performed.
+//
+// The flags are also passed to checkBlockHeaderPositional.  See its
+// documentation for how the flags modify its behavior.
+func (b *BlockChain) checkBlockPositional(block *dcrutil.Block, prevNode *blockNode, flags BehaviorFlags) error {
+	// The genesis block is valid by definition.
+	if prevNode == nil {
+		return nil
+	}
+
+	// Perform all block header related validation checks that depend on its
+	// position within the block chain and having the headers of all
+	// ancestors available, but do not rely on having the full block data of
+	// all ancestors available.
+	header := &block.MsgBlock().Header
+	err := b.checkBlockHeaderPositional(header, prevNode, flags)
+	if err != nil {
+		return err
+	}
+
+	fastAdd := flags&BFFastAdd == BFFastAdd
+	if !fastAdd {
+		// The height of this block is one more than the referenced
+		// previous block.
+		blockHeight := prevNode.height + 1
+
+		// Ensure all transactions in the block are not expired.
+		for _, tx := range block.Transactions() {
+			if IsExpired(tx, blockHeight) {
+				errStr := fmt.Sprintf("block contains expired regular "+
+					"transaction %v (expiration height %d)", tx.Hash(),
+					tx.MsgTx().Expiry)
+				return ruleError(ErrExpiredTx, errStr)
+			}
+		}
+		for _, stx := range block.STransactions() {
+			if IsExpired(stx, blockHeight) {
+				errStr := fmt.Sprintf("block contains expired stake "+
+					"transaction %v (expiration height %d)", stx.Hash(),
+					stx.MsgTx().Expiry)
+				return ruleError(ErrExpiredTx, errStr)
+			}
+		}
+
+		// Check that the coinbase contains at minimum the block
+		// height in output 1.
+		if blockHeight > 1 {
+			err := checkCoinbaseUniqueHeight(blockHeight, block)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+// checkBlockHeaderContext performs several validation checks on the block
+// header which depend on having the full block data for all of its ancestors
+// available.  This includes checks which depend on tallying the results of
+// votes, because votes are part of the block data.
+//
+// It should be noted that rule changes that have become buried deep enough
+// typically will eventually be transitioned to using well-known activation
+// points for efficiency purposes at which point the associated checks no longer
+// require having direct access to the historical votes, and therefore may be
+// transitioned to checkBlockHeaderPositional at that time.  Conversely, any
+// checks in that function which become conditional based on the results of a
+// vote will necessarily need to be transitioned to this function.
+//
+// The flags modify the behavior of this function as follows:
+//  - BFFastAdd: No check are performed.
+//
+// This function MUST be called with the chain state lock held (for writes).
+func (b *BlockChain) checkBlockHeaderContext(header *wire.BlockHeader, prevNode *blockNode, flags BehaviorFlags) error {
+	// The genesis block is valid by definition.
+	if prevNode == nil {
+		return nil
+	}
+
+	fastAdd := flags&BFFastAdd == BFFastAdd
+	if !fastAdd {
+		// Ensure the stake difficulty specified in the block header
+		// matches the calculated difficulty based on the previous block
+		// and difficulty retarget rules.
+		expSDiff, err := b.calcNextRequiredStakeDifficulty(prevNode)
+		if err != nil {
+			return err
+		}
+		if header.SBits != expSDiff {
+			errStr := fmt.Sprintf("block stake difficulty of %d "+
+				"is not the expected value of %d", header.SBits,
+				expSDiff)
+			return ruleError(ErrUnexpectedDifficulty, errStr)
 		}
 
 		// Enforce the stake version in the header once a majority of
@@ -1196,12 +1291,23 @@ func (b *BlockChain) checkAllowedRevocations(parentStakeNode *stake.Node, block 
 	return nil
 }
 
-// checkBlockContext peforms several validation checks on the block which depend
-// on its position within the block chain.
+// checkBlockContext performs several validation checks on the block which depend
+// on having the full block data for all of its ancestors available.  This
+// includes checks which depend on tallying the results of votes, because votes
+// are part of the block data.
+//
+// It should be noted that rule changes that have become buried deep enough
+// typically will eventually be transitioned to using well-known activation
+// points for efficiency purposes at which point the associated checks no longer
+// require having direct access to the historical votes, and therefore may be
+// transitioned to checkBlockPositional at that time.  Conversely, any checks
+// in that function which become conditional based on the results of a vote will
+// necessarily need to be transitioned to this function.
 //
 // The flags modify the behavior of this function as follows:
-//  - BFFastAdd: The transactions are not checked to see if they are finalized
-//    and the somewhat expensive duplication transaction check is not performed.
+//  - BFFastAdd: The max block size is not checked, transactions are not checked
+//    to see if they are finalized, and the included votes and revocations are
+//    not verified to be allowed.
 //
 // The flags are also passed to checkBlockHeaderContext.  See its documentation
 // for how the flags modify its behavior.
@@ -1211,7 +1317,8 @@ func (b *BlockChain) checkBlockContext(block *dcrutil.Block, prevNode *blockNode
 		return nil
 	}
 
-	// Perform all block header related validation checks.
+	// Perform all block header related validation checks which depend on
+	// having the full block data for all of its ancestors available.
 	header := &block.MsgBlock().Header
 	err := b.checkBlockHeaderContext(header, prevNode, flags)
 	if err != nil {
@@ -1251,21 +1358,12 @@ func (b *BlockChain) checkBlockContext(block *dcrutil.Block, prevNode *blockNode
 		// previous block.
 		blockHeight := prevNode.height + 1
 
-		// Ensure all transactions in the block are finalized and are
-		// not expired.
+		// Ensure all transactions in the block are finalized.
 		for _, tx := range block.Transactions() {
 			if !IsFinalizedTransaction(tx, blockHeight, blockTime) {
 				str := fmt.Sprintf("block contains unfinalized regular "+
 					"transaction %v", tx.Hash())
 				return ruleError(ErrUnfinalizedTx, str)
-			}
-
-			// The transaction must not be expired.
-			if IsExpired(tx, blockHeight) {
-				errStr := fmt.Sprintf("block contains expired regular "+
-					"transaction %v (expiration height %d)", tx.Hash(),
-					tx.MsgTx().Expiry)
-				return ruleError(ErrExpiredTx, errStr)
 			}
 		}
 		for _, stx := range block.STransactions() {
@@ -1273,23 +1371,6 @@ func (b *BlockChain) checkBlockContext(block *dcrutil.Block, prevNode *blockNode
 				str := fmt.Sprintf("block contains unfinalized stake "+
 					"transaction %v", stx.Hash())
 				return ruleError(ErrUnfinalizedTx, str)
-			}
-
-			// The transaction must not be expired.
-			if IsExpired(stx, blockHeight) {
-				errStr := fmt.Sprintf("block contains expired stake "+
-					"transaction %v (expiration height %d)", stx.Hash(),
-					stx.MsgTx().Expiry)
-				return ruleError(ErrExpiredTx, errStr)
-			}
-		}
-
-		// Check that the coinbase contains at minimum the block
-		// height in output 1.
-		if blockHeight > 1 {
-			err := checkCoinbaseUniqueHeight(blockHeight, block)
-			if err != nil {
-				return err
 			}
 		}
 
@@ -2974,8 +3055,16 @@ func (b *BlockChain) CheckConnectBlockTemplate(block *dcrutil.Block) error {
 		return err
 	}
 
-	// The block must pass all of the validation rules which depend on the
-	// position of the block within the block chain.
+	// The block must pass all of the validation rules which depend on having
+	// the headers of all ancestors available, but do not rely on having the
+	// full block data of all ancestors available.
+	err = b.checkBlockPositional(block, prevNode, flags)
+	if err != nil {
+		return err
+	}
+
+	// The block must pass all of the validation rules which depend on having
+	// the full block data for all of its ancestors available.
 	err = b.checkBlockContext(block, prevNode, flags)
 	if err != nil {
 		return err

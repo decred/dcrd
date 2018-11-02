@@ -656,7 +656,7 @@ func (b *BlockChain) BestPrevHash() chainhash.Hash {
 // isMajorityVersion determines if a previous number of blocks in the chain
 // starting with startNode are at least the minimum passed version.
 //
-// This function MUST be called with the chain state lock held (for writes).
+// This function MUST be called with the chain state lock held (for reads).
 func (b *BlockChain) isMajorityVersion(minVer int32, startNode *blockNode, numRequired uint64) bool {
 	numFound := uint64(0)
 	iterNode := startNode
@@ -1518,11 +1518,22 @@ func (b *BlockChain) forceHeadReorganization(formerBest chainhash.Hash, newBest 
 			return err
 		}
 
+		// Perform preliminary sanity checks on the block and its transactions.
 		err = checkBlockSanity(newBestBlock, b.timeSource, BFNone, b.chainParams)
 		if err != nil {
 			return err
 		}
 
+		// The block must pass all of the validation rules which depend on
+		// having the headers of all ancestors available, but do not rely on
+		// having the full block data of all ancestors available.
+		err = b.checkBlockPositional(newBestBlock, newBestNode.parent, BFNone)
+		if err != nil {
+			return err
+		}
+
+		// The block must pass all of the validation rules which depend on
+		// having the full block data for all of its ancestors available.
 		err = b.checkBlockContext(newBestBlock, newBestNode.parent, BFNone)
 		if err != nil {
 			return err
