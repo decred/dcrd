@@ -4998,16 +4998,14 @@ func handleSendRawTransaction(s *rpcServer, cmd interface{}, closeChan <-chan st
 		// go wrong, so log it as an actual error.  In both cases, a
 		// JSON-RPC error is returned to the client with the
 		// deserialization error code (to match bitcoind behavior).
-		if _, ok := err.(mempool.RuleError); ok {
+		if rErr, ok := err.(mempool.RuleError); ok {
 			err = fmt.Errorf("Rejected transaction %v: %v", tx.Hash(),
 				err)
 			rpcsLog.Debugf("%v", err)
-			txRuleErr, ok := err.(mempool.TxRuleError)
-			if ok {
-				if txRuleErr.RejectCode == wire.RejectDuplicate {
-					// return a dublicate tx error
-					return nil, rpcDuplicateTxError("%v", err)
-				}
+			txRuleErr, ok := rErr.Err.(mempool.TxRuleError)
+			if ok && txRuleErr.RejectCode == wire.RejectDuplicate {
+				// return a duplicate tx error
+				return nil, rpcDuplicateTxError("%v", err)
 			}
 
 			// return a generic rule error
