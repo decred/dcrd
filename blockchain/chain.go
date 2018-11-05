@@ -884,6 +884,16 @@ func (b *BlockChain) connectBlock(node *blockNode, block, parent *dcrutil.Block,
 	b.stateSnapshot = state
 	b.stateLock.Unlock()
 
+	// Assemble the current block and the parent into a slice.
+	blockAndParent := []*dcrutil.Block{block, parent}
+
+	// Notify the caller that the block was connected to the main chain.
+	// The caller would typically want to react with actions such as
+	// updating wallets.
+	b.chainLock.Unlock()
+	b.sendNotification(NTBlockConnected, blockAndParent)
+	b.chainLock.Lock()
+
 	// Send stake notifications about the new block.
 	if node.height >= b.chainParams.StakeEnabledHeight {
 		nextStakeDiff, err := b.calcNextRequiredStakeDifficulty(node)
@@ -912,16 +922,6 @@ func (b *BlockChain) connectBlock(node *blockNode, block, parent *dcrutil.Block,
 				TicketsNew:      node.stakeNode.NewTickets(),
 			})
 	}
-
-	// Assemble the current block and the parent into a slice.
-	blockAndParent := []*dcrutil.Block{block, parent}
-
-	// Notify the caller that the block was connected to the main chain.
-	// The caller would typically want to react with actions such as
-	// updating wallets.
-	b.chainLock.Unlock()
-	b.sendNotification(NTBlockConnected, blockAndParent)
-	b.chainLock.Lock()
 
 	// Optimization: Before checkpoints, immediately dump the parent's stake
 	// node because we no longer need it.
