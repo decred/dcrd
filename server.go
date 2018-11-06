@@ -1279,8 +1279,9 @@ func (s *server) handleAddPeerMsg(state *peerState, sp *serverPeer) bool {
 
 	// TODO: Check for max peers from a single IP.
 
-	// Limit max number of total peers.
-	if state.Count() >= cfg.MaxPeers {
+	// Limit max number of total peers.  However, allow whitelisted inbound
+	// peers regardless.
+	if state.Count() >= cfg.MaxPeers && !(sp.Inbound() && sp.isWhitelisted) {
 		srvrLog.Infof("Max peers reached [%d] - disconnecting peer %s",
 			cfg.MaxPeers, sp)
 		sp.Disconnect()
