@@ -406,7 +406,7 @@ func (rrb *roundRobinBalancer) AllDisconnectedWsConns() []*HostAddress {
 	rrb.mu.Lock()
 	var disconnectedWsConns []*HostAddress
 	for host, state := range rrb.connState {
-		if state == disconnected {
+		if state == disconnected || state == idle || state == shutdown {
 			disconnectedWsConns = append(disconnectedWsConns, rrb.hostAddMap[host])
 		}
 	}

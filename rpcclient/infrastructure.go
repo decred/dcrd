@@ -717,6 +717,15 @@ out:
 					c.balancer.NotifyReconnect(wsConn, discHostAdd)
 					log.Infof("Reestablished connection to RPC server %s",
 						discHostAdd)
+					// Start processing input and output for the
+					// new connection if all got disconnected earlier.
+					if c.balancer.ClientRestartNeeded() {
+						c.start()
+						c.balancer.SetClientRestartNeeded(false)
+						// Reissue pending requests in another goroutine since
+						// the send can block.
+						go c.resendRequests()
+					}
 				}
 			}
 			// Continue reconnecting for next iteration.
@@ -727,17 +736,6 @@ out:
 			c.mtx.Lock()
 			c.disconnect = make(chan struct{})
 			c.mtx.Unlock()
-
-			// Start processing input and output for the
-			// new connection if all got disconnected earlier.
-			if c.balancer.ClientRestartNeeded() {
-				c.start()
-				c.balancer.SetClientRestartNeeded(false)
-			}
-
-			// Reissue pending requests in another goroutine since
-			// the send can block.
-			go c.resendRequests()
 
 			// No more disconnected connections.
 			// Break out of the reconnect loop back to wait for
