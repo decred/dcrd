@@ -759,20 +759,14 @@ func (r FuturePurchaseTicketResult) Receive() ([]*chainhash.Hash, error) {
 // future chan to receive the transactions representing the purchased tickets
 // when they come.
 func (c *Client) PurchaseTicketAsync(fromAccount string,
-	spendLimit dcrutil.Amount, createUnsigned *bool, minConf *int,
-	ticketAddress dcrutil.Address, numTickets *int,
-	poolAddress dcrutil.Address, poolFees *dcrutil.Amount, expiry *int,
-	ticketFee *dcrutil.Amount) FuturePurchaseTicketResult {
+	spendLimit dcrutil.Amount, minConf *int, ticketAddress dcrutil.Address,
+	numTickets *int, poolAddress dcrutil.Address, poolFees *dcrutil.Amount,
+	expiry *int, ticketFee *dcrutil.Amount) FuturePurchaseTicketResult {
 	// An empty string is used to keep the sendCmd
 	// passing of the command from accidentally
 	// removing certain fields. We fill in the
 	// default values of the other arguments as
 	// well for the same reason.
-
-	createUnsignedVal := false
-	if createUnsigned != nil {
-		createUnsignedVal = *createUnsigned
-	}
 
 	minConfVal := 1
 	if minConf != nil {
@@ -810,9 +804,8 @@ func (c *Client) PurchaseTicketAsync(fromAccount string,
 	}
 
 	cmd := dcrjson.NewPurchaseTicketCmd(fromAccount, spendLimit.ToCoin(),
-		&createUnsignedVal, &minConfVal, &ticketAddrStr, &numTicketsVal,
-		&poolAddrStr, &poolFeesFloat, &expiryVal, dcrjson.String(""),
-		&ticketFeeFloat)
+		&minConfVal, &ticketAddrStr, &numTicketsVal, &poolAddrStr,
+		&poolFeesFloat, &expiryVal, dcrjson.String(""), &ticketFeeFloat)
 
 	return c.sendCmd(cmd)
 }
@@ -820,12 +813,103 @@ func (c *Client) PurchaseTicketAsync(fromAccount string,
 // PurchaseTicket takes an account and a spending limit and calls the async
 // puchasetickets command.
 func (c *Client) PurchaseTicket(fromAccount string,
-	spendLimit dcrutil.Amount, createUnsigned *bool, minConf *int, ticketAddress dcrutil.Address,
+	spendLimit dcrutil.Amount, minConf *int, ticketAddress dcrutil.Address,
 	numTickets *int, poolAddress dcrutil.Address, poolFees *dcrutil.Amount,
 	expiry *int, ticketChange *bool, ticketFee *dcrutil.Amount) ([]*chainhash.Hash, error) {
 
-	return c.PurchaseTicketAsync(fromAccount, spendLimit, createUnsigned, minConf, ticketAddress,
+	return c.PurchaseTicketAsync(fromAccount, spendLimit, minConf, ticketAddress,
 		numTickets, poolAddress, poolFees, expiry, ticketFee).Receive()
+}
+
+// CreateUnsignedTicketAsync returns an instance of a type that can be used to get the
+// result of the RPC at some future time by invoking the Receive function on the
+// returned instance.
+//
+// See CreateUnsignedTicket for more details.
+func (c *Client) CreateUnsignedTicketAsync(fromAccount string,
+	spendLimit dcrutil.Amount, minConf *int,
+	ticketAddress dcrutil.Address, numTickets *int,
+	poolAddress dcrutil.Address, poolFees *dcrutil.Amount, expiry *int,
+	ticketFee *dcrutil.Amount) FutureCreateUnsignedTicketResult {
+	// An empty string is used to keep the sendCmd
+	// passing of the command from accidentally
+	// removing certain fields. We fill in the
+	// default values of the other arguments as
+	// well for the same reason.
+
+	minConfVal := 1
+	if minConf != nil {
+		minConfVal = *minConf
+	}
+
+	ticketAddrStr := ""
+	if ticketAddress != nil {
+		ticketAddrStr = ticketAddress.EncodeAddress()
+	}
+
+	numTicketsVal := 1
+	if numTickets != nil {
+		numTicketsVal = *numTickets
+	}
+
+	poolAddrStr := ""
+	if poolAddress != nil {
+		poolAddrStr = poolAddress.EncodeAddress()
+	}
+
+	poolFeesFloat := 0.0
+	if poolFees != nil {
+		poolFeesFloat = poolFees.ToCoin()
+	}
+
+	expiryVal := 0
+	if expiry != nil {
+		expiryVal = *expiry
+	}
+
+	ticketFeeFloat := 0.0
+	if ticketFee != nil {
+		ticketFeeFloat = ticketFee.ToCoin()
+	}
+
+	cmd := dcrjson.NewCreateUnsignedTicketCmd(fromAccount, spendLimit.ToCoin(),
+		&minConfVal, &ticketAddrStr, &numTicketsVal,
+		&poolAddrStr, &poolFeesFloat, &expiryVal, dcrjson.String(""),
+		&ticketFeeFloat)
+
+	return c.sendCmd(cmd)
+}
+
+// CreateUnsignedTicket takes an account and a spending limit and calls the async
+// createunsigned command to create an unsigned ticket transaction.
+func (c *Client) CreateUnsignedTicket(fromAccount string,
+	spendLimit dcrutil.Amount, minConf *int, ticketAddress dcrutil.Address,
+	numTickets *int, poolAddress dcrutil.Address, poolFees *dcrutil.Amount,
+	expiry *int, ticketChange *bool, ticketFee *dcrutil.Amount) ([]string, error) {
+
+	return c.CreateUnsignedTicketAsync(fromAccount, spendLimit, minConf, ticketAddress,
+		numTickets, poolAddress, poolFees, expiry, ticketFee).Receive()
+}
+
+type FutureCreateUnsignedTicketResult chan *response
+
+// Receive waits for the response promised by the future and returns the hash
+// of the transaction sending multiple amounts to multiple addresses using the
+// provided account as a source of funds.
+func (r FutureCreateUnsignedTicketResult) Receive() ([]string, error) {
+	res, err := receiveFuture(r)
+	if err != nil {
+		return nil, err
+	}
+
+	// Unmashal result as a string slice.
+	var unsignedTickets []string
+	err = json.Unmarshal(res, &unsignedTickets)
+	if err != nil {
+		return nil, err
+	}
+
+	return unsignedTickets, nil
 }
 
 // END DECRED FUNCTIONS -----------------------------------------------------------

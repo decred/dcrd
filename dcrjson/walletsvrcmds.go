@@ -756,36 +756,67 @@ func NewLockUnspentCmd(unlock bool, transactions []TransactionInput) *LockUnspen
 // PurchaseTicketCmd is a type handling custom marshaling and
 // unmarshaling of purchaseticket JSON RPC commands.
 type PurchaseTicketCmd struct {
-	FromAccount    string
-	SpendLimit     float64 // In Coins
-	CreateUnsigned *bool   `jsonrpcdefault:"false"`
-	MinConf        *int    `jsonrpcdefault:"1"`
-	TicketAddress  *string
-	NumTickets     *int
-	PoolAddress    *string
-	PoolFees       *float64
-	Expiry         *int
-	Comment        *string
-	TicketFee      *float64
+	FromAccount   string
+	SpendLimit    float64 // In Coins
+	MinConf       *int    `jsonrpcdefault:"1"`
+	TicketAddress *string
+	NumTickets    *int
+	PoolAddress   *string
+	PoolFees      *float64
+	Expiry        *int
+	Comment       *string
+	TicketFee     *float64
 }
 
 // NewPurchaseTicketCmd creates a new PurchaseTicketCmd.
-func NewPurchaseTicketCmd(fromAccount string, spendLimit float64,
-	createUnsigned *bool, minConf *int, ticketAddress *string,
-	numTickets *int, poolAddress *string, poolFees *float64, expiry *int,
-	comment *string, ticketFee *float64) *PurchaseTicketCmd {
+func NewPurchaseTicketCmd(fromAccount string, spendLimit float64, minConf *int,
+	ticketAddress *string, numTickets *int, poolAddress *string, poolFees *float64,
+	expiry *int, comment *string, ticketFee *float64) *PurchaseTicketCmd {
 	return &PurchaseTicketCmd{
-		FromAccount:    fromAccount,
-		SpendLimit:     spendLimit,
-		CreateUnsigned: createUnsigned,
-		MinConf:        minConf,
-		TicketAddress:  ticketAddress,
-		NumTickets:     numTickets,
-		PoolAddress:    poolAddress,
-		PoolFees:       poolFees,
-		Expiry:         expiry,
-		Comment:        comment,
-		TicketFee:      ticketFee,
+		FromAccount:   fromAccount,
+		SpendLimit:    spendLimit,
+		MinConf:       minConf,
+		TicketAddress: ticketAddress,
+		NumTickets:    numTickets,
+		PoolAddress:   poolAddress,
+		PoolFees:      poolFees,
+		Expiry:        expiry,
+		Comment:       comment,
+		TicketFee:     ticketFee,
+	}
+}
+
+// CreateUnsignedTicketCmd is a type handling custom marshaling and
+// unmarshaling of createunsignedticket JSON RPC commands.
+type CreateUnsignedTicketCmd struct {
+	FromAccount   string
+	SpendLimit    float64 // In Coins
+	MinConf       *int    `jsonrpcdefault:"1"`
+	TicketAddress *string
+	NumTickets    *int
+	PoolAddress   *string
+	PoolFees      *float64
+	Expiry        *int
+	Comment       *string
+	TicketFee     *float64
+}
+
+// NewCreateUnsignedTicketCmd creates a new CreateUnsignedTicketCmd.
+func NewCreateUnsignedTicketCmd(fromAccount string, spendLimit float64,
+	minConf *int, ticketAddress *string,
+	numTickets *int, poolAddress *string, poolFees *float64, expiry *int,
+	comment *string, ticketFee *float64) *CreateUnsignedTicketCmd {
+	return &CreateUnsignedTicketCmd{
+		FromAccount:   fromAccount,
+		SpendLimit:    spendLimit,
+		MinConf:       minConf,
+		TicketAddress: ticketAddress,
+		NumTickets:    numTickets,
+		PoolAddress:   poolAddress,
+		PoolFees:      poolFees,
+		Expiry:        expiry,
+		Comment:       comment,
+		TicketFee:     ticketFee,
 	}
 }
 
@@ -1208,6 +1239,7 @@ func init() {
 	// bump of dcrjson.
 	MustRegisterCmd("createrawssgentx", (*CreateRawSSGenTxCmd)(nil), flags)
 	MustRegisterCmd("createrawssrtx", (*CreateRawSSRtxCmd)(nil), flags)
+	MustRegisterCmd("createunsignedticket", (*CreateUnsignedTicketCmd)(nil), flags)
 	MustRegisterCmd("createvotingaccount", (*CreateVotingAccountCmd)(nil), flags)
 	MustRegisterCmd("dropvotingaccount", (*DropVotingAccountCmd)(nil), flags)
 	MustRegisterCmd("dumpprivkey", (*DumpPrivKeyCmd)(nil), flags)
