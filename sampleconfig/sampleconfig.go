@@ -41,7 +41,7 @@ const FileContents = `[Application Options]
 ; proxypass=
 
 ; The SOCKS5 proxy above is assumed to be Tor (https://www.torproject.org).
-; If the proxy  is not tor the the following my be used to prevent using
+; If the proxy is not tor, the following may be used to prevent using
 ; tor specific SOCKS queries to lookup addresses (this increases anonymity when
 ; tor is used by preventing your IP being leaked via DNS).
 ; noonion=1
