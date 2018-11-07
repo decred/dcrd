@@ -39,6 +39,7 @@ const (
 	defaultLogLevel              = "info"
 	defaultLogDirname            = "logs"
 	defaultLogFilename           = "dcrd.log"
+	defaultMaxSameIP             = 5
 	defaultMaxPeers              = 125
 	defaultBanDuration           = time.Hour * 24
 	defaultBanThreshold          = 100
@@ -100,6 +101,7 @@ type config struct {
 	ConnectPeers         []string      `long:"connect" description:"Connect only to the specified peers at startup"`
 	DisableListen        bool          `long:"nolisten" description:"Disable listening for incoming connections -- NOTE: Listening is automatically disabled if the --connect or --proxy options are used without also specifying listen interfaces via --listen"`
 	Listeners            []string      `long:"listen" description:"Add an interface/port to listen for connections (default all interfaces port: 9108, testnet: 19108)"`
+	MaxSameIP            int           `long:"maxsameip" description:"Max number of connections with the same IP -- 0 to disable"`
 	MaxPeers             int           `long:"maxpeers" description:"Max number of inbound and outbound peers"`
 	DisableBanning       bool          `long:"nobanning" description:"Disable banning of misbehaving peers"`
 	BanDuration          time.Duration `long:"banduration" description:"How long to ban misbehaving peers.  Valid time units are {s, m, h}.  Minimum 1 second"`
@@ -434,6 +436,7 @@ func loadConfig() (*config, []string, error) {
 		HomeDir:              defaultHomeDir,
 		ConfigFile:           defaultConfigFile,
 		DebugLevel:           defaultLogLevel,
+		MaxSameIP:            defaultMaxSameIP,
 		MaxPeers:             defaultMaxPeers,
 		BanDuration:          defaultBanDuration,
 		BanThreshold:         defaultBanThreshold,
