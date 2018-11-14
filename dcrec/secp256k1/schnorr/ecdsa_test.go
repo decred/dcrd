@@ -1,4 +1,4 @@
-// Copyright (c) 2015-2016 The Decred developers
+// Copyright (c) 2015-2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -93,7 +93,7 @@ type SchorrSigningTestVector struct {
 }
 
 func GetSigningTestVectors() []*SchorrSigningTestVector {
-	var tvs []*SchorrSigningTestVector
+	tvs := make([]*SchorrSigningTestVector, 0, len(schnorrSigningTestVectors))
 	for _, v := range schnorrSigningTestVectors {
 		msg, _ := hex.DecodeString(v.msg)
 		nonce, _ := hex.DecodeString(v.nonce)

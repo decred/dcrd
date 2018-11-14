@@ -60,7 +60,7 @@ func TestDecodeConcatenatedHashes(t *testing.T) {
 		decodeHash("000000000000437482b6d47f82f374cde539440ddb108b0a76886f0d87d126b9"),
 		decodeHash("000000000000c41019872ff7db8fd2e9bfa05f42d3f8fee8e895e8c1e5b8dcba"),
 	}
-	var concatenatedHashBytes []byte
+	concatenatedHashBytes := make([]byte, 0, len(testHashes))
 	for _, h := range testHashes {
 		concatenatedHashBytes = append(concatenatedHashBytes, h[:]...)
 	}

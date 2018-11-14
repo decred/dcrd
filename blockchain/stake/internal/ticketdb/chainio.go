@@ -244,13 +244,21 @@ type BestChainState struct {
 }
 
 // serializeBestChainState returns the serialization of the passed block best
-// chain state.  This is data to be stored in the chain state bucket. This
-// function will panic if the number of tickets per block is less than the
+// chain state.  This is data to be stored in the chain state bucket.
+// This function will panic if the number of tickets per block is less than the
 // size of next winners, which should never happen unless there is memory
 // corruption.
 func serializeBestChainState(state BestChainState) []byte {
+	if int(state.PerBlock) < len(state.NextWinners) {
+		errStr := fmt.Sprintf("PerBlock:%d < NextWinners:%d",
+			state.PerBlock, len(state.NextWinners))
+		panic(errStr)
+	}
+
+	serializedDataLen := minimumBestChainStateSize +
+		(chainhash.HashSize * int(state.PerBlock))
 	// Serialize the chain state.
-	serializedData := make([]byte, minimumBestChainStateSize)
+	serializedData := make([]byte, serializedDataLen)
 
 	offset := 0
 	copy(serializedData[offset:offset+chainhash.HashSize], state.Hash[:])
@@ -267,8 +275,6 @@ func serializeBestChainState(state BestChainState) []byte {
 	offset += 2
 
 	// Serialize the next winners.
-	ticketBuffer := make([]byte, chainhash.HashSize*int(state.PerBlock))
-	serializedData = append(serializedData, ticketBuffer...)
 	for i := range state.NextWinners {
 		copy(serializedData[offset:offset+chainhash.HashSize],
 			state.NextWinners[i][:])

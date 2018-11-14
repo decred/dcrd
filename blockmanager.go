@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2018 The Decred developers
+// Copyright (c) 2015-2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -688,13 +688,6 @@ func (b *blockManager) current() bool {
 // access through the block mananger. All template access must also be routed
 // through the block manager.
 func (b *blockManager) checkBlockForHiddenVotes(block *dcrutil.Block) {
-	var votesFromBlock []*dcrutil.Tx
-	for _, stx := range block.STransactions() {
-		if stake.IsSSGen(stx.MsgTx()) {
-			votesFromBlock = append(votesFromBlock, stx)
-		}
-	}
-
 	// Identify the cached parent template; it's possible that
 	// the parent template hasn't yet been updated, so we may
 	// need to use the current template.
@@ -726,6 +719,14 @@ func (b *blockManager) checkBlockForHiddenVotes(block *dcrutil.Block) {
 			"block for hidden votes: template did not have the " +
 			"same parent as the incoming block")
 		return
+	}
+
+	votesFromBlock := make([]*dcrutil.Tx, 0,
+		activeNetParams.TicketsPerBlock)
+	for _, stx := range block.STransactions() {
+		if stake.IsSSGen(stx.MsgTx()) {
+			votesFromBlock = append(votesFromBlock, stx)
+		}
 	}
 
 	// Now that we have the template, grab the votes and compare
@@ -791,7 +792,7 @@ func (b *blockManager) checkBlockForHiddenVotes(block *dcrutil.Block) {
 	// calculated.
 	template.Block.ClearSTransactions()
 	updatedTxTreeStake := make([]*dcrutil.Tx, 0,
-		votesTotal+len(oldTickets)+len(oldRevocations))
+		len(newVotes)+len(oldTickets)+len(oldRevocations))
 	for _, vote := range newVotes {
 		updatedTxTreeStake = append(updatedTxTreeStake, vote)
 		template.Block.AddSTransaction(vote.MsgTx())
@@ -837,7 +838,8 @@ func (b *blockManager) checkBlockForHiddenVotes(block *dcrutil.Block) {
 
 	// Patch the header. First, reconstruct the merkle trees, then
 	// correct the number of voters, and finally recalculate the size.
-	var updatedTxTreeRegular []*dcrutil.Tx
+	updatedTxTreeRegular := make([]*dcrutil.Tx, 0,
+		len(template.Block.Transactions))
 	updatedTxTreeRegular = append(updatedTxTreeRegular, coinbase)
 	for i, mtx := range template.Block.Transactions {
 		// Coinbase

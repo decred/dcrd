@@ -728,7 +728,7 @@ func serializeSpendJournalEntry(stxos []spentTxOut) ([]byte, error) {
 
 	// Calculate the size needed to serialize the entire journal entry.
 	var size int
-	var sizes []int
+	sizes := make([]int, 0, len(stxos))
 	for i := range stxos {
 		sz := spentTxOutSerializeSize(&stxos[i])
 		sizes = append(sizes, sz)
@@ -762,9 +762,12 @@ func dbFetchSpendJournalEntry(dbTx database.Tx, block *dcrutil.Block) ([]spentTx
 	// Exclude the coinbase transaction since it can't spend anything.
 	spendBucket := dbTx.Metadata().Bucket(dbnamespace.SpendJournalBucketName)
 	serialized := spendBucket.Get(block.Hash()[:])
-	var blockTxns []*wire.MsgTx
-	blockTxns = append(blockTxns, block.MsgBlock().STransactions...)
-	blockTxns = append(blockTxns, block.MsgBlock().Transactions[1:]...)
+	msgBlock := block.MsgBlock()
+
+	blockTxns := make([]*wire.MsgTx, 0, len(msgBlock.STransactions)+
+		len(msgBlock.Transactions[1:]))
+	blockTxns = append(blockTxns, msgBlock.STransactions...)
+	blockTxns = append(blockTxns, msgBlock.Transactions[1:]...)
 	if len(blockTxns) > 0 && len(serialized) == 0 {
 		panicf("missing spend journal data for %s", block.Hash())
 	}
