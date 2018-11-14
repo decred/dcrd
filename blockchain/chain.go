@@ -1321,7 +1321,7 @@ func (b *BlockChain) reorganizeChain(targetTip *blockNode) error {
 	return nil
 }
 
-// forceReorganizationToBlock forces a reorganization of the block chain to the
+// forceHeadReorganization forces a reorganization of the block chain to the
 // block hash requested, so long as it matches up with the current organization
 // of the best chain.
 //
@@ -1355,71 +1355,6 @@ func (b *BlockChain) forceHeadReorganization(formerBest chainhash.Hash, newBest 
 		return ruleError(ErrKnownInvalidBlock, "block is known to be invalid")
 	}
 
-	// Only validate the block if it is not already known valid.
-	if !newBestNodeStatus.KnownValid() {
-		newBestBlock, err := b.fetchBlockByNode(newBestNode)
-		if err != nil {
-			return err
-		}
-
-		// Check to make sure our forced-in node validates correctly.
-		view := NewUtxoViewpoint()
-		view.SetBestHash(&formerBestNode.parent.hash)
-
-		formerBestBlock, err := b.fetchBlockByNode(formerBestNode)
-		if err != nil {
-			return err
-		}
-		commonParentBlock, err := b.fetchMainChainBlockByNode(formerBestNode.parent)
-		if err != nil {
-			return err
-		}
-		var stxos []spentTxOut
-		err = b.db.View(func(dbTx database.Tx) error {
-			stxos, err = dbFetchSpendJournalEntry(dbTx, formerBestBlock)
-			return err
-		})
-		if err != nil {
-			return err
-		}
-
-		err = view.disconnectBlock(b.db, formerBestBlock, commonParentBlock, stxos)
-		if err != nil {
-			return err
-		}
-
-		// Perform preliminary sanity checks on the block and its transactions.
-		err = checkBlockSanity(newBestBlock, b.timeSource, BFNone, b.chainParams)
-		if err != nil {
-			return err
-		}
-
-		// The block must pass all of the validation rules which depend on
-		// having the headers of all ancestors available, but do not rely on
-		// having the full block data of all ancestors available.
-		err = b.checkBlockPositional(newBestBlock, newBestNode.parent, BFNone)
-		if err != nil {
-			return err
-		}
-
-		// The block must pass all of the validation rules which depend on
-		// having the full block data for all of its ancestors available.
-		err = b.checkBlockContext(newBestBlock, newBestNode.parent, BFNone)
-		if err != nil {
-			return err
-		}
-
-		err = b.checkConnectBlock(newBestNode, newBestBlock, commonParentBlock,
-			view, nil)
-		if err != nil {
-			if _, ok := err.(RuleError); ok {
-				b.index.SetStatusFlags(newBestNode, statusValidateFailed)
-			}
-			return err
-		}
-		b.index.SetStatusFlags(newBestNode, statusValid)
-	}
-
 	// Reorganize the chain and flush any potential unsaved changes to the
 	// block index to the database.  It is safe to ignore any flushing
 	// errors here as the only time the index will be modified is if the
@@ -1429,7 +1364,11 @@ func (b *BlockChain) forceHeadReorganization(formerBest chainhash.Hash, newBest 
 	return err
 }
 
-// ForceHeadReorganization is the exported version of forceHeadReorganization.
+// ForceHeadReorganization forces a reorganization of the block chain to the
+// block hash requested, so long as it matches up with the current organization
+// of the best chain.
+//
+// This function is safe for concurrent access.
 func (b *BlockChain) ForceHeadReorganization(formerBest chainhash.Hash, newBest chainhash.Hash) error {
 	b.chainLock.Lock()
 	err := b.forceHeadReorganization(formerBest, newBest)
