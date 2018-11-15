@@ -611,7 +611,14 @@ func upgradeToVersion5(db database.DB, chainParams *chaincfg.Params, dbInfo *dat
 			totalSubsidy: 0,
 			workSum:      CalcWork(genesisBlock.Header.Bits),
 		})
-		return meta.Put(chainStateKeyName, serializedData)
+		err = meta.Put(chainStateKeyName, serializedData)
+		if err != nil {
+			return err
+		}
+
+		// Update and persist the updated database versions.
+		dbInfo.version = 5
+		return dbPutDatabaseInfo(dbTx, dbInfo)
 	})
 	if err != nil {
 		return err
@@ -619,13 +626,6 @@ func upgradeToVersion5(db database.DB, chainParams *chaincfg.Params, dbInfo *dat
 
 	elapsed := time.Since(start).Round(time.Millisecond)
 	log.Infof("Done upgrading database in %v.", elapsed)
-
-	// Update and persist the updated database versions.
-	dbInfo.version = 5
-	return db.Update(func(dbTx database.Tx) error {
-		return dbPutDatabaseInfo(dbTx, dbInfo)
-	})
-
 	return nil
 }
 
