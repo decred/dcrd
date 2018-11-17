@@ -957,7 +957,7 @@ func TestWalletSvrCmds(t *testing.T) {
 				return NewCmd("sendtoaddress", "1Address", 0.5)
 			},
 			staticCmd: func() interface{} {
-				return NewSendToAddressCmd("1Address", 0.5, nil, nil)
+				return NewSendToAddressCmd("1Address", 0.5, nil, nil, false)
 			},
 			marshalled: `{"jsonrpc":"1.0","method":"sendtoaddress","params":["1Address",0.5],"id":1}`,
 			unmarshalled: &SendToAddressCmd{
@@ -965,6 +965,7 @@ func TestWalletSvrCmds(t *testing.T) {
 				Amount:    0.5,
 				Comment:   nil,
 				CommentTo: nil,
+				SubtractFeeFromAmount: false,
 			},
 		},
 		{
@@ -974,14 +975,15 @@ func TestWalletSvrCmds(t *testing.T) {
 			},
 			staticCmd: func() interface{} {
 				return NewSendToAddressCmd("1Address", 0.5, String("comment"),
-					String("commentto"))
+					String("commentto"), false)
 			},
-			marshalled: `{"jsonrpc":"1.0","method":"sendtoaddress","params":["1Address",0.5,"comment","commentto"],"id":1}`,
+			marshalled: `{"jsonrpc":"1.0","method":"sendtoaddress","params":["1Address",0.5,"comment","commentto",true],"id":1}`,
 			unmarshalled: &SendToAddressCmd{
 				Address:   "1Address",
 				Amount:    0.5,
 				Comment:   String("comment"),
 				CommentTo: String("commentto"),
+				SubtractFeeFromAmount: true,
 			},
 		},
 		{

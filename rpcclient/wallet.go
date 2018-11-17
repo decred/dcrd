@@ -444,7 +444,7 @@ func (r FutureSendToAddressResult) Receive() (*chainhash.Hash, error) {
 // See SendToAddress for the blocking version and more details.
 func (c *Client) SendToAddressAsync(address dcrutil.Address, amount dcrutil.Amount) FutureSendToAddressResult {
 	addr := address.EncodeAddress()
-	cmd := dcrjson.NewSendToAddressCmd(addr, amount.ToCoin(), nil, nil)
+	cmd := dcrjson.NewSendToAddressCmd(addr, amount.ToCoin(), nil, nil, false)
 	return c.sendCmd(cmd)
 }
 
@@ -471,7 +471,7 @@ func (c *Client) SendToAddressCommentAsync(address dcrutil.Address,
 
 	addr := address.EncodeAddress()
 	cmd := dcrjson.NewSendToAddressCmd(addr, amount.ToCoin(), &comment,
-		&commentTo)
+		&commentTo, false)
 	return c.sendCmd(cmd)
 }
 
