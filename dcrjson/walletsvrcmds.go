@@ -907,7 +907,7 @@ type SendToAddressCmd struct {
 	Amount    float64
 	Comment   *string
 	CommentTo *string
-	SubtractFeeFromAmount bool
+	SubtractFeeFromAmount *bool
 }
 
 // NewSendToAddressCmd returns a new instance which can be used to issue a
@@ -915,7 +915,7 @@ type SendToAddressCmd struct {
 //
 // The parameters which are pointers indicate they are optional.  Passing nil
 // for optional parameters will use the default value.
-func NewSendToAddressCmd(address string, amount float64, comment, commentTo *string, subtractFeeFromAmount bool) *SendToAddressCmd {
+func NewSendToAddressCmd(address string, amount float64, comment, commentTo *string, subtractFeeFromAmount *bool) *SendToAddressCmd {
 	return &SendToAddressCmd{
 		Address:   address,
 		Amount:    amount,
