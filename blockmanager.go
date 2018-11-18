@@ -328,9 +328,7 @@ type blockManager struct {
 	lotteryDataBroadcast      map[chainhash.Hash]struct{}
 	lotteryDataBroadcastMutex sync.RWMutex
 
-	cachedCurrentTemplate *BlockTemplate
-	cachedParentTemplate  *BlockTemplate
-	AggressiveMining      bool
+	AggressiveMining bool
 
 	// The following fields are used to filter duplicate block announcements.
 	announcedBlockMtx sync.Mutex
@@ -700,17 +698,16 @@ func (b *blockManager) checkBlockForHiddenVotes(block *dcrutil.Block) {
 	// the parent template hasn't yet been updated, so we may
 	// need to use the current template.
 	var template *BlockTemplate
-	if b.cachedCurrentTemplate != nil {
-		if b.cachedCurrentTemplate.Height ==
-			block.Height() {
-			template = b.cachedCurrentTemplate
+	if b.server.bg != nil {
+		if b.server.bg.currentTemplate != nil {
+			if b.server.bg.currentTemplate.Height == block.Height() {
+				template = b.server.bg.currentTemplate
+			}
 		}
-	}
-	if template == nil &&
-		b.cachedParentTemplate != nil {
-		if b.cachedParentTemplate.Height ==
-			block.Height() {
-			template = b.cachedParentTemplate
+		if template == nil && b.server.bg.parentTemplate != nil {
+			if b.server.bg.parentTemplate.Height == block.Height() {
+				template = b.server.bg.parentTemplate
+			}
 		}
 	}
 
@@ -1616,26 +1613,6 @@ out:
 			case isCurrentMsg:
 				msg.reply <- b.current()
 
-			case getCurrentTemplateMsg:
-				cur := deepCopyBlockTemplate(b.cachedCurrentTemplate)
-				msg.reply <- getCurrentTemplateResponse{
-					Template: cur,
-				}
-
-			case setCurrentTemplateMsg:
-				b.cachedCurrentTemplate = deepCopyBlockTemplate(msg.Template)
-				msg.reply <- setCurrentTemplateResponse{}
-
-			case getParentTemplateMsg:
-				par := deepCopyBlockTemplate(b.cachedParentTemplate)
-				msg.reply <- getParentTemplateResponse{
-					Template: par,
-				}
-
-			case setParentTemplateMsg:
-				b.cachedParentTemplate = deepCopyBlockTemplate(msg.Template)
-				msg.reply <- setParentTemplateResponse{}
-
 			default:
 				bmgrLog.Warnf("Invalid message type in block "+
 					"handler: %T", msg)
@@ -2048,7 +2025,9 @@ func (b *blockManager) handleNotifyMsg(notification *blockchain.Notification) {
 
 		// Drop the associated mining template from the old chain, since it
 		// will be no longer valid.
-		b.cachedCurrentTemplate = nil
+		b.server.bg.templateMtx.Lock()
+		b.server.bg.currentTemplate = nil
+		b.server.bg.templateMtx.Unlock()
 	}
 }
 
@@ -2340,36 +2319,6 @@ func (b *blockManager) IsCurrent() bool {
 // pool.
 func (b *blockManager) TicketPoolValue() (dcrutil.Amount, error) {
 	return b.chain.TicketPoolValue()
-}
-
-// GetCurrentTemplate gets the current block template for mining.
-func (b *blockManager) GetCurrentTemplate() *BlockTemplate {
-	reply := make(chan getCurrentTemplateResponse)
-	b.msgChan <- getCurrentTemplateMsg{reply: reply}
-	response := <-reply
-	return response.Template
-}
-
-// SetCurrentTemplate sets the current block template for mining.
-func (b *blockManager) SetCurrentTemplate(bt *BlockTemplate) {
-	reply := make(chan setCurrentTemplateResponse)
-	b.msgChan <- setCurrentTemplateMsg{Template: bt, reply: reply}
-	<-reply
-}
-
-// GetParentTemplate gets the current parent block template for mining.
-func (b *blockManager) GetParentTemplate() *BlockTemplate {
-	reply := make(chan getParentTemplateResponse)
-	b.msgChan <- getParentTemplateMsg{reply: reply}
-	response := <-reply
-	return response.Template
-}
-
-// SetParentTemplate sets the current parent block template for mining.
-func (b *blockManager) SetParentTemplate(bt *BlockTemplate) {
-	reply := make(chan setParentTemplateResponse)
-	b.msgChan <- setParentTemplateMsg{Template: bt, reply: reply}
-	<-reply
 }
 
 // newBlockManager returns a new Decred block manager.

@@ -772,7 +772,7 @@ func deepCopyBlockTemplate(blockTemplate *BlockTemplate) *BlockTemplate {
 func handleTooFewVoters(subsidyCache *blockchain.SubsidyCache, nextHeight int64, miningAddress dcrutil.Address, bm *blockManager) (*BlockTemplate, error) {
 	timeSource := bm.server.timeSource
 	stakeValidationHeight := bm.server.chainParams.StakeValidationHeight
-	curTemplate := bm.GetCurrentTemplate()
+	curTemplate := bm.server.bg.currentTemplate
 
 	// Check to see if we've fallen off the chain, for example if a
 	// reorganization had recently occurred. If this is the case,
@@ -783,8 +783,8 @@ func handleTooFewVoters(subsidyCache *blockchain.SubsidyCache, nextHeight int64,
 			&curTemplate.Block.Header.PrevBlock) {
 			minrLog.Debugf("Cached mining templates are no longer current, " +
 				"resetting.")
-			bm.SetCurrentTemplate(nil)
-			bm.SetParentTemplate(nil)
+			bm.server.bg.currentTemplate = nil
+			bm.server.bg.parentTemplate = nil
 		}
 	}
 
