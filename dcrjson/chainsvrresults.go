@@ -276,10 +276,11 @@ type LocalAddressesResult struct {
 
 // NetworksResult models the networks data from the getnetworkinfo command.
 type NetworksResult struct {
-	Name      string `json:"name"`
-	Limited   bool   `json:"limited"`
-	Reachable bool   `json:"reachable"`
-	Proxy     string `json:"proxy"`
+	Name                      string `json:"name"`
+	Limited                   bool   `json:"limited"`
+	Reachable                 bool   `json:"reachable"`
+	Proxy                     string `json:"proxy"`
+	ProxyRandomizeCredentials bool   `json:"proxyrandomizecredentials"`
 }
 
 // GetNetworkInfoResult models the data returned from the getnetworkinfo

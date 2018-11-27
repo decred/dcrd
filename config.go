@@ -25,6 +25,7 @@ import (
 	"github.com/decred/dcrd/connmgr"
 	"github.com/decred/dcrd/database"
 	_ "github.com/decred/dcrd/database/ffldb"
+	"github.com/decred/dcrd/dcrjson"
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/dcrd/internal/version"
 	"github.com/decred/dcrd/mempool/v2"
@@ -176,6 +177,7 @@ type config struct {
 	miningAddrs          []dcrutil.Address
 	minRelayTxFee        dcrutil.Amount
 	whitelists           []*net.IPNet
+	networks             *Networks
 }
 
 // serviceOptions defines the configuration options for the daemon as a service on
@@ -415,6 +417,196 @@ func createDefaultConfigFile(destPath string) error {
 
 	_, err = dest.WriteString(s)
 	return err
+}
+
+// Network protocols.
+var (
+	IPV4  = "ipv4"
+	IPV6  = "ipv6"
+	Onion = "onion"
+)
+
+// Networks is a map of network states.
+type Networks map[string]*dcrjson.NetworksResult
+
+// setReachable sets the reachable state for the provided network protocol.
+func (n Networks) setReachable(protocol string, value bool) error {
+	net, ok := n[protocol]
+	if !ok {
+		return fmt.Errorf("network (%v) not found", protocol)
+	}
+
+	net.Reachable = value
+	n[protocol] = net
+	return nil
+}
+
+// setLimited sets the limited state for the provided network protocol.
+func (n Networks) setLimited(protocol string, value bool) error {
+	net, ok := n[protocol]
+	if !ok {
+		return fmt.Errorf("network (%v) not found", protocol)
+	}
+
+	net.Limited = value
+	n[protocol] = net
+	return nil
+}
+
+// setProxy sets the proxy state for the provided network protocol.
+func (n Networks) setProxy(protocol string, value string) error {
+	net, ok := n[protocol]
+	if !ok {
+		return fmt.Errorf("network (%v) not found", protocol)
+	}
+
+	net.Proxy = value
+	n[protocol] = net
+	return nil
+}
+
+// setProxyRandomizeCredentials sets the limited state for the provided
+// network protocol.
+func (n Networks) setProxyRandomizeCredentials(protocol string, value bool) error {
+	net, ok := n[protocol]
+	if !ok {
+		return fmt.Errorf("network (%v) not found", protocol)
+	}
+
+	net.ProxyRandomizeCredentials = value
+	n[protocol] = net
+	return nil
+}
+
+// generateInfo is a convenience function that creates a slice from the
+// networks map.
+func (n Networks) generateInfo() ([]dcrjson.NetworksResult, error) {
+	nInfo := make([]dcrjson.NetworksResult, 3)
+	for net, info := range n {
+		switch net {
+		case IPV4:
+			nInfo[0] = *info
+		case IPV6:
+			nInfo[1] = *info
+		case Onion:
+			nInfo[2] = *info
+		default:
+			return nil, fmt.Errorf("Unknown network type: %v", net)
+		}
+	}
+
+	return nInfo, nil
+}
+
+// parseNetworkInterfaces updates all network interface states based on the
+// provided configuration.
+func parseNetworkInterfaces(cfg *config) (*Networks, error) {
+	networks := &Networks{
+		IPV4: &dcrjson.NetworksResult{
+			Name: IPV4,
+		},
+		IPV6: &dcrjson.NetworksResult{
+			Name: IPV6,
+		},
+		Onion: &dcrjson.NetworksResult{
+			Name: Onion,
+		},
+	}
+
+	v4Addrs, v6Addrs, _, err := parseListeners(cfg.Listeners)
+	if err != nil {
+		return nil, err
+	}
+
+	limited := len(v4Addrs)+len(v6Addrs) == 1
+
+	// Parse IPV4 interface state.
+	if len(v4Addrs) > 0 {
+		if !cfg.DisableListen {
+			err = networks.setReachable(IPV4, true)
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		if cfg.Proxy != "" {
+			err = networks.setProxy(IPV4, cfg.Proxy)
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		if limited {
+			err = networks.setLimited(IPV4, true)
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	// Parse IPV6 interface state.
+	if len(v6Addrs) > 0 {
+		if !cfg.DisableListen {
+			err = networks.setReachable(IPV6, true)
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		if cfg.Proxy != "" {
+			err = networks.setProxy(IPV6, cfg.Proxy)
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		if limited {
+			err = networks.setLimited(IPV6, true)
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	// Parse Onion interface state.
+	if len(v6Addrs) > 0 && (cfg.Proxy != "" || cfg.OnionProxy != "") {
+		if !cfg.DisableListen && !cfg.NoOnion {
+			err = networks.setReachable(Onion, true)
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		if limited {
+			err = networks.setLimited(Onion, true)
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		if cfg.Proxy != "" {
+			err = networks.setProxy(Onion, cfg.Proxy)
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		if cfg.OnionProxy != "" {
+			err = networks.setProxy(Onion, cfg.OnionProxy)
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		if cfg.TorIsolation {
+			err = networks.setProxyRandomizeCredentials(Onion, true)
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	return networks, nil
 }
 
 // loadConfig initializes and parses the config using a config file and command
@@ -1120,6 +1312,11 @@ func loadConfig() (*config, []string, error) {
 				" found (%v) and can probably be removed.",
 				oldDir)
 		}
+	}
+
+	cfg.networks, err = parseNetworkInterfaces(&cfg)
+	if err != nil {
+		return nil, nil, err
 	}
 
 	// Warn about missing config file only after all other configuration is
