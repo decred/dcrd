@@ -827,10 +827,9 @@ func (c *Client) PurchaseTicket(fromAccount string,
 //
 // See CreateUnsignedTicket for more details.
 func (c *Client) CreateUnsignedTicketAsync(fromAccount string,
-	spendLimit dcrutil.Amount, minConf *int,
-	ticketAddress dcrutil.Address, numTickets *int,
-	poolAddress dcrutil.Address, poolFees *dcrutil.Amount, expiry *int,
-	ticketFee *dcrutil.Amount) FutureCreateUnsignedTicketResult {
+	spendLimit dcrutil.Amount, minConf *int, ticketAddress dcrutil.Address,
+	numTickets *int, poolAddress dcrutil.Address, poolFees *dcrutil.Amount,
+	expiry *int, ticketFee *dcrutil.Amount) FutureCreateUnsignedTicketResult {
 	// An empty string is used to keep the sendCmd
 	// passing of the command from accidentally
 	// removing certain fields. We fill in the
