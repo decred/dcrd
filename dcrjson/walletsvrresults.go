@@ -134,6 +134,8 @@ type GetTransactionResult struct {
 	TimeReceived    int64                         `json:"timereceived"`
 	Details         []GetTransactionDetailsResult `json:"details"`
 	Hex             string                        `json:"hex"`
+	Type            string                        `json:"type"`
+	TicketStatus    string                        `json:"ticketstatus,omitempty"`
 }
 
 // VoteChoice models the data for a vote choice in the getvotechoices result.

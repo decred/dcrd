@@ -53,10 +53,10 @@ import (
 
 // API version constants
 const (
-	jsonrpcSemverString = "4.0.1"
-	jsonrpcSemverMajor  = 4
+	jsonrpcSemverString = "5.0.0"
+	jsonrpcSemverMajor  = 5
 	jsonrpcSemverMinor  = 0
-	jsonrpcSemverPatch  = 1
+	jsonrpcSemverPatch  = 0
 )
 
 const (
