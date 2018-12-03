@@ -8,7 +8,7 @@ require (
 	github.com/btcsuite/winsvc v1.0.0
 	github.com/davecgh/go-spew v1.1.0
 	github.com/dchest/blake256 v1.0.0
-	github.com/dchest/siphash v1.2.0
+	github.com/dchest/siphash v1.2.1
 	github.com/decred/base58 v1.0.0
 	github.com/decred/dcrd/addrmgr v1.0.2
 	github.com/decred/dcrd/blockchain v1.1.0
