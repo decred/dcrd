@@ -944,70 +944,38 @@ func GenerateSStxAddrPush(addr dcrutil.Address, amount dcrutil.Amount, limits ui
 		return nil, scriptError(ErrUnsupportedAddress, str)
 	}
 
-	// Prefix
-	dataPushes := []byte{
-		0x6a, // OP_RETURN
-		0x1e, // OP_DATA_30
-	}
-
-	hash := addr.ScriptAddress()
-
-	amountBuffer := make([]byte, 8)
-	binary.LittleEndian.PutUint64(amountBuffer, uint64(amount))
+	// Concatenate the prefix, pubkeyhash, and amount.
+	adBytes := make([]byte, 20+8+2)
+	copy(adBytes[0:20], addr.ScriptAddress())
+	binary.LittleEndian.PutUint64(adBytes[20:28], uint64(amount))
+	binary.LittleEndian.PutUint16(adBytes[28:30], limits)
 
 	// Set the bit flag indicating pay to script hash.
 	if scriptType == ScriptHashTy {
-		amountBuffer[7] |= 1 << 7
+		adBytes[27] |= 1 << 7
 	}
 
-	limitsBuffer := make([]byte, 2)
-	binary.LittleEndian.PutUint16(limitsBuffer, limits)
-
-	// Concatenate the prefix, pubkeyhash, and amount.
-	addrOut := append(dataPushes, hash...)
-	addrOut = append(addrOut, amountBuffer...)
-	addrOut = append(addrOut, limitsBuffer...)
-
-	return addrOut, nil
+	return NewScriptBuilder().AddOp(OP_RETURN).AddData(adBytes).Script()
 }
 
 // GenerateSSGenBlockRef generates an OP_RETURN push for the block header hash and
 // height which the block votes on.
 func GenerateSSGenBlockRef(blockHash chainhash.Hash, height uint32) ([]byte, error) {
-	// Prefix
-	dataPushes := []byte{
-		0x6a, // OP_RETURN
-		0x24, // OP_DATA_36
-	}
-
 	// Serialize the block hash and height
-	blockHeightBytes := make([]byte, 4)
-	binary.LittleEndian.PutUint32(blockHeightBytes, height)
+	brBytes := make([]byte, 32+4)
+	copy(brBytes[0:32], blockHash[:])
+	binary.LittleEndian.PutUint32(brBytes[32:36], height)
 
-	blockData := append(blockHash[:], blockHeightBytes...)
-
-	// Concatenate the prefix and block data
-	blockDataOut := append(dataPushes, blockData...)
-
-	return blockDataOut, nil
+	return NewScriptBuilder().AddOp(OP_RETURN).AddData(brBytes).Script()
 }
 
 // GenerateSSGenVotes generates an OP_RETURN push for the vote bits in an SSGen tx.
 func GenerateSSGenVotes(votebits uint16) ([]byte, error) {
-	// Prefix
-	dataPushes := []byte{
-		0x6a, // OP_RETURN
-		0x02, // OP_DATA_2
-	}
-
 	// Serialize the votebits
-	voteBitsBytes := make([]byte, 2)
-	binary.LittleEndian.PutUint16(voteBitsBytes, votebits)
+	vbBytes := make([]byte, 2)
+	binary.LittleEndian.PutUint16(vbBytes, votebits)
 
-	// Concatenate the prefix and vote bits
-	voteBitsOut := append(dataPushes, voteBitsBytes...)
-
-	return voteBitsOut, nil
+	return NewScriptBuilder().AddOp(OP_RETURN).AddData(vbBytes).Script()
 }
 
 // GenerateProvablyPruneableOut creates a provably-prunable script containing
