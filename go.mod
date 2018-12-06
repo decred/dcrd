@@ -22,6 +22,7 @@ require (
 	github.com/decred/dcrd/dcrec/secp256k1 v1.0.0
 	github.com/decred/dcrd/dcrjson v1.0.0
 	github.com/decred/dcrd/dcrutil v1.2.0
+	github.com/decred/dcrd/fees v1.0.0
 	github.com/decred/dcrd/gcs v1.0.2
 	github.com/decred/dcrd/hdkeychain v1.1.1
 	github.com/decred/dcrd/mempool v1.0.2
@@ -53,6 +54,7 @@ replace (
 	github.com/decred/dcrd/dcrec/secp256k1 => ./dcrec/secp256k1
 	github.com/decred/dcrd/dcrjson => ./dcrjson
 	github.com/decred/dcrd/dcrutil => ./dcrutil
+	github.com/decred/dcrd/fees => ./fees
 	github.com/decred/dcrd/gcs => ./gcs
 	github.com/decred/dcrd/hdkeychain => ./hdkeychain
 	github.com/decred/dcrd/limits => ./limits
