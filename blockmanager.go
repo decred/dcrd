@@ -1798,6 +1798,13 @@ func (b *blockManager) handleNotifyMsg(notification *blockchain.Notification) {
 			b.server.RelayInventory(iv, block.MsgBlock().Header, true)
 		}
 
+		if !b.server.feeEstimator.IsEnabled() {
+			// fee estimation can only start after we have performed an initial
+			// sync, otherwise we'll start adding mempool transactions at the
+			// wrong height.
+			b.server.feeEstimator.Enable(block.Height())
+		}
+
 	// A block has been connected to the main block chain.
 	case blockchain.NTBlockConnected:
 		blockSlice, ok := notification.Data.([]*dcrutil.Block)
@@ -1813,6 +1820,12 @@ func (b *blockManager) handleNotifyMsg(notification *blockchain.Notification) {
 
 		block := blockSlice[0]
 		parentBlock := blockSlice[1]
+
+		// Account for transactions mined in the newly connected block for fee
+		// estimation. This must be done before attempting to remove
+		// transactions from the mempool because the mempool will alert the
+		// estimator of the txs that are leaving
+		b.server.feeEstimator.ProcessBlock(block)
 
 		// TODO: In the case the new tip disapproves the previous block, any
 		// transactions the previous block contains in its regular tree which

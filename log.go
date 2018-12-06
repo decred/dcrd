@@ -16,6 +16,7 @@ import (
 	"github.com/decred/dcrd/blockchain/stake"
 	"github.com/decred/dcrd/connmgr"
 	"github.com/decred/dcrd/database"
+	"github.com/decred/dcrd/fees"
 	"github.com/decred/dcrd/mempool"
 	"github.com/decred/dcrd/peer"
 	"github.com/decred/dcrd/txscript"
@@ -55,12 +56,13 @@ var (
 
 	adxrLog = backendLog.Logger("ADXR")
 	amgrLog = backendLog.Logger("AMGR")
-	cmgrLog = backendLog.Logger("CMGR")
 	bcdbLog = backendLog.Logger("BCDB")
 	bmgrLog = backendLog.Logger("BMGR")
-	dcrdLog = backendLog.Logger("DCRD")
 	chanLog = backendLog.Logger("CHAN")
+	cmgrLog = backendLog.Logger("CMGR")
+	dcrdLog = backendLog.Logger("DCRD")
 	discLog = backendLog.Logger("DISC")
+	feesLog = backendLog.Logger("FEES")
 	indxLog = backendLog.Logger("INDX")
 	minrLog = backendLog.Logger("MINR")
 	peerLog = backendLog.Logger("PEER")
@@ -74,26 +76,28 @@ var (
 // Initialize package-global logger variables.
 func init() {
 	addrmgr.UseLogger(amgrLog)
+	blockchain.UseLogger(chanLog)
 	connmgr.UseLogger(cmgrLog)
 	database.UseLogger(bcdbLog)
-	blockchain.UseLogger(chanLog)
+	fees.UseLogger(feesLog)
 	indexers.UseLogger(indxLog)
-	peer.UseLogger(peerLog)
-	txscript.UseLogger(scrpLog)
-	stake.UseLogger(stkeLog)
 	mempool.UseLogger(txmpLog)
+	peer.UseLogger(peerLog)
+	stake.UseLogger(stkeLog)
+	txscript.UseLogger(scrpLog)
 }
 
 // subsystemLoggers maps each subsystem identifier to its associated logger.
 var subsystemLoggers = map[string]slog.Logger{
 	"ADXR": adxrLog,
 	"AMGR": amgrLog,
-	"CMGR": cmgrLog,
 	"BCDB": bcdbLog,
 	"BMGR": bmgrLog,
-	"DCRD": dcrdLog,
 	"CHAN": chanLog,
+	"CMGR": cmgrLog,
+	"DCRD": dcrdLog,
 	"DISC": discLog,
+	"FEES": feesLog,
 	"INDX": indxLog,
 	"MINR": minrLog,
 	"PEER": peerLog,

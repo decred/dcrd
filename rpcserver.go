@@ -177,6 +177,7 @@ var rpcHandlersBeforeInit = map[string]commandHandler{
 	"decoderawtransaction":  handleDecodeRawTransaction,
 	"decodescript":          handleDecodeScript,
 	"estimatefee":           handleEstimateFee,
+	"estimatesmartfee":      handleEstimateSmartFee,
 	"estimatestakediff":     handleEstimateStakeDiff,
 	"existsaddress":         handleExistsAddress,
 	"existsaddresses":       handleExistsAddresses,
@@ -297,7 +298,6 @@ var rpcAskWallet = map[string]struct{}{
 
 // Commands that are currently unimplemented, but should ultimately be.
 var rpcUnimplemented = map[string]struct{}{
-	"estimatefee":      {},
 	"estimatepriority": {},
 	"getblocktemplate": {},
 	"getnetworkinfo":   {},
@@ -1363,6 +1363,31 @@ func handleDecodeScript(s *rpcServer, cmd interface{}, closeChan <-chan struct{}
 // modified to match the bitcoin-core one.
 func handleEstimateFee(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) (interface{}, error) {
 	return cfg.minRelayTxFee.ToCoin(), nil
+}
+
+// handleEstimateSmartFee implements the estimatesmartfee command.
+//
+// The default estimation mode when unset is assumed as "conservative". As of
+// 2018-12, the only supported mode is "conservative".
+func handleEstimateSmartFee(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) (interface{}, error) {
+	c := cmd.(*dcrjson.EstimateSmartFeeCmd)
+
+	mode := dcrjson.EstimateSmartFeeConservative
+	if c.Mode != nil {
+		mode = *c.Mode
+	}
+
+	if mode != dcrjson.EstimateSmartFeeConservative {
+		return nil, rpcInvalidError("Only the default and conservative modes " +
+			"are supported for smart fee estimation at the moment")
+	}
+
+	fee, err := s.server.feeEstimator.EstimateFee(int32(c.Confirmations))
+	if err != nil {
+		return nil, rpcInternalError(err.Error(), "Could not estimate fee")
+	}
+
+	return fee.ToCoin(), nil
 }
 
 // handleEstimateStakeDiff implements the estimatestakediff command.
