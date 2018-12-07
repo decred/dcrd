@@ -28,7 +28,7 @@ require (
 	github.com/decred/dcrd/mempool v1.0.2
 	github.com/decred/dcrd/mining v1.0.1
 	github.com/decred/dcrd/peer v1.1.0
-	github.com/decred/dcrd/rpcclient v1.0.2
+	github.com/decred/dcrd/rpcclient v1.1.0
 	github.com/decred/dcrd/txscript v1.0.2
 	github.com/decred/dcrd/wire v1.2.0
 	github.com/decred/slog v1.0.0
