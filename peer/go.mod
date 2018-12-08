@@ -4,10 +4,10 @@ require (
 	github.com/btcsuite/go-socks v0.0.0-20170105172521-4720035b7bfd
 	github.com/davecgh/go-spew v1.1.0
 	github.com/decred/dcrd/blockchain v1.0.1
-	github.com/decred/dcrd/chaincfg v1.1.1
+	github.com/decred/dcrd/chaincfg v1.2.0
 	github.com/decred/dcrd/chaincfg/chainhash v1.0.1
 	github.com/decred/dcrd/txscript v1.0.1
-	github.com/decred/dcrd/wire v1.1.0
+	github.com/decred/dcrd/wire v1.2.0
 	github.com/decred/slog v1.0.0
 )
 
