@@ -23,6 +23,7 @@ digraph {
 	mining [label="mining" fillcolor=chartreuse]
 	peer [label="peer" fillcolor=khaki]
 	rpcclient [label="rpcclient" fillcolor=mediumseagreen]
+	fees [label="fees" fillcolor=darkolivegreen2]
 	dcrd [label="dcrd" fillcolor=chocolate]
 
 	{rank=same connmgr addrmgr hdkeychain peer rpcclient mempool}
@@ -51,6 +52,7 @@ digraph {
 	blockchain -> rpcclient [dir=back color=orchid]
 	dcrjson -> rpcclient [dir=back color=indianred]
 
+	fees -> dcrd [dir=back color=darkolivegreen2]
 	mempool -> dcrd [dir=back color=slategray]
 	certgen -> dcrd [dir=back color=darkkhaki]
 	addrmgr -> dcrd [dir=back color=lightsalmon]
