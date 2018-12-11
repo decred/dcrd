@@ -7,8 +7,8 @@ github.com/decred/dcrd/chaincfg v1.1.1 h1:qRZkiA7ucsfsQPE/G/U1OnEUFozDl1MvM4ysJC
 github.com/decred/dcrd/chaincfg v1.1.1/go.mod h1:UlGtnp8Xx9YK+etBTybGjoFGoGXSw2bxZQuAnwfKv6I=
 github.com/decred/dcrd/chaincfg/chainhash v1.0.1 h1:0vG7U9+dSjSCaHQKdoSKURK2pOb47+b+8FK5q4+Je7M=
 github.com/decred/dcrd/chaincfg/chainhash v1.0.1/go.mod h1:OVfvaOsNLS/A1y4Eod0Ip/Lf8qga7VXCQjUQLbkY0Go=
-github.com/decred/dcrd/wire v1.1.0 h1:G+3CugtxNbToUN8RKWqm74yLfzJJ2BKMOr2RgWc4TyY=
-github.com/decred/dcrd/wire v1.1.0/go.mod h1:/JKOsLInOJu6InN+/zH5AyCq3YDIOW/EqcffvU8fJHM=
 github.com/decred/dcrd/dcrec/edwards v0.0.0-20181208004914-a0816cf4301f/go.mod h1:+ehP0Hk/mesyZXttxCtBbhPX23BMpZJ1pcVBqUfbmvU=
+github.com/decred/dcrd/wire v1.2.0 h1:HqJVB7vcklIguzFWgRXw/WYCQ9cD3bUC5TKj53i1Hng=
+github.com/decred/dcrd/wire v1.2.0/go.mod h1:/JKOsLInOJu6InN+/zH5AyCq3YDIOW/EqcffvU8fJHM=
 github.com/decred/slog v1.0.0 h1:Dl+W8O6/JH6n2xIFN2p3DNjCmjYwvrXsjlSJTQQ4MhE=
 github.com/decred/slog v1.0.0/go.mod h1:zR98rEZHSnbZ4WHZtO0iqmSZjDLKhkXfrPTZQKtAonQ=

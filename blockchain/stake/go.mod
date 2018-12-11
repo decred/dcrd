@@ -10,11 +10,11 @@ require (
 	github.com/decred/dcrd/wire v1.2.0
 	github.com/decred/slog v1.0.0
 	github.com/fsnotify/fsnotify v1.4.7 // indirect
-	github.com/golang/protobuf v1.1.0 // indirect
+	github.com/golang/protobuf v1.2.0 // indirect
 	github.com/hpcloud/tail v1.0.0 // indirect
 	github.com/kr/pretty v0.1.0 // indirect
-	golang.org/x/sync v0.0.0-20180314180146-1d60e4601c6f // indirect
-	golang.org/x/sys v0.0.0-20180816055513-1c9583448a9c // indirect
+	golang.org/x/sync v0.0.0-20181108010431-42b317875d0f // indirect
+	golang.org/x/sys v0.0.0-20181211161752-7da8ea5c8182 // indirect
 	gopkg.in/fsnotify.v1 v1.4.7 // indirect
 	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect
 )

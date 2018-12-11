@@ -21,8 +21,8 @@ github.com/decred/base58 v1.0.0/go.mod h1:LLY1p5e3g91byL/UO1eiZaYd+uRoVRarybgcoy
 github.com/decred/dcrd/addrmgr v1.0.2 h1:BfJoFEkdDDhaQSsx9NkVOTiOTUbEevbVf+aYRQSIAmU=
 github.com/decred/dcrd/addrmgr v1.0.2/go.mod h1:gNnmTuf/Xkg8ZX3j5GXbajzPrSdf5bA7HitO2bjmq0Q=
 github.com/decred/dcrd/blockchain v1.0.1/go.mod h1:R/4XnwNOTj5IP8jQIUzrJ8zhr/7EOk09IMODwBamZoI=
-github.com/decred/dcrd/blockchain v1.0.2 h1:+gJFfgv5LK+LcadyoiMln838/aU3rxDd0Smqogd6fkA=
-github.com/decred/dcrd/blockchain v1.0.2/go.mod h1:R/4XnwNOTj5IP8jQIUzrJ8zhr/7EOk09IMODwBamZoI=
+github.com/decred/dcrd/blockchain v1.1.1 h1:CWr90sZ2YLQz84EGT+X/pzU+9AZB1eXQUy+4fsJSt5w=
+github.com/decred/dcrd/blockchain v1.1.1/go.mod h1:zxi/41LgzHitpz/CZu0gxHyFHz8+ysd3lH8E3P5Uifg=
 github.com/decred/dcrd/blockchain/stake v1.0.1/go.mod h1:hgoGmWMIu2LLApBbcguVpzCEEfX7M2YhuMrQdpohJzc=
 github.com/decred/dcrd/blockchain/stake v1.0.2 h1:trUDgZsT5DYiwKu255k4hFtGiVEOAM9IDmP2GqOLYGU=
 github.com/decred/dcrd/blockchain/stake v1.0.2/go.mod h1:hgoGmWMIu2LLApBbcguVpzCEEfX7M2YhuMrQdpohJzc=
