@@ -187,8 +187,8 @@ func NewTxDeepTxIns(msgTx *wire.MsgTx) *Tx {
 	}
 
 	return &Tx{
-		hash:    msgTx.TxHash(),
-		msgTx:   msgTx,
+		hash:    newMsgTx.TxHash(),
+		msgTx:   newMsgTx,
 		txTree:  wire.TxTreeUnknown,
 		txIndex: TxIndexUnknown,
 	}
