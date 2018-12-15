@@ -145,6 +145,7 @@ type BlockChain struct {
 	timeSource          MedianTimeSource
 	notifications       NotificationCallback
 	sigCache            *txscript.SigCache
+	spendJournal        *SpendJournal
 	indexManager        IndexManager
 	interrupt           <-chan struct{}
 
@@ -709,7 +710,7 @@ func (b *BlockChain) pushMainChainBlockCache(block *dcrutil.Block) {
 // it would be inefficient to repeat it.
 //
 // This function MUST be called with the chain state lock held (for writes).
-func (b *BlockChain) connectBlock(node *blockNode, block, parent *dcrutil.Block, view *UtxoViewpoint, stxos []spentTxOut) error {
+func (b *BlockChain) connectBlock(node *blockNode, block, parent *dcrutil.Block, view *UtxoViewpoint, stxos []SpentTxOut) error {
 	// Make sure it's extending the end of the best chain.
 	prevHash := block.MsgBlock().Header.PrevBlock
 	tip := b.bestChain.Tip()
@@ -780,7 +781,7 @@ func (b *BlockChain) connectBlock(node *blockNode, block, parent *dcrutil.Block,
 
 		// Update the transaction spend journal by adding a record for
 		// the block that contains all txos spent by it.
-		err = dbPutSpendJournalEntry(dbTx, block.Hash(), stxos)
+		err = b.spendJournal.DbPutSpendJournalEntry(dbTx, block.Hash(), stxos)
 		if err != nil {
 			return err
 		}
@@ -795,7 +796,7 @@ func (b *BlockChain) connectBlock(node *blockNode, block, parent *dcrutil.Block,
 		// optional indexes with the block being connected so they can
 		// update themselves accordingly.
 		if b.indexManager != nil {
-			err := b.indexManager.ConnectBlock(dbTx, block, parent, view)
+			err := b.indexManager.ConnectBlock(dbTx, block, parent, stxos)
 			if err != nil {
 				return err
 			}
@@ -949,9 +950,16 @@ func (b *BlockChain) disconnectBlock(node *blockNode, block, parent *dcrutil.Blo
 			return err
 		}
 
+		// Load stxos before removing the record from SpendJournal as indexers may need this data
+		// for disconnection
+		stxos, err := b.spendJournal.DbFetchSpendJournalEntry(dbTx, block)
+		if err != nil {
+			return err
+		}
+
 		// Update the transaction spend journal by removing the record
 		// that contains all txos spent by the block .
-		err = dbRemoveSpendJournalEntry(dbTx, block.Hash())
+		err = b.spendJournal.DbRemoveSpendJournalEntry(dbTx, block.Hash())
 		if err != nil {
 			return err
 		}
@@ -966,7 +974,7 @@ func (b *BlockChain) disconnectBlock(node *blockNode, block, parent *dcrutil.Blo
 		// optional indexes with the block being disconnected so they
 		// can update themselves accordingly.
 		if b.indexManager != nil {
-			err := b.indexManager.DisconnectBlock(dbTx, block, parent, view)
+			err := b.indexManager.DisconnectBlock(dbTx, block, parent, stxos)
 			if err != nil {
 				return err
 			}
@@ -1128,9 +1136,9 @@ func (b *BlockChain) reorganizeChainInternal(targetTip *blockNode) error {
 		nextBlockToDetach = parent
 
 		// Load all of the spent txos for the block from the spend journal.
-		var stxos []spentTxOut
+		var stxos []SpentTxOut
 		err = b.db.View(func(dbTx database.Tx) error {
-			stxos, err = dbFetchSpendJournalEntry(dbTx, block)
+			stxos, err = b.spendJournal.DbFetchSpendJournalEntry(dbTx, block)
 			return err
 		})
 		if err != nil {
@@ -1196,14 +1204,14 @@ func (b *BlockChain) reorganizeChainInternal(targetTip *blockNode) error {
 		// Skip validation if the block is already known to be valid.  However,
 		// the utxo view still needs to be updated and the stxos are still
 		// needed.
-		stxos := make([]spentTxOut, 0, countSpentOutputs(block))
+		stxos := make([]SpentTxOut, 0, countSpentOutputs(block))
 		if b.index.NodeStatus(n).KnownValid() {
 			// Update the view to mark all utxos referenced by the block as
 			// spent and add all transactions being created by this block to it.
 			// In the case the block votes against the parent, also disconnect
 			// all of the regular transactions in the parent block.  Finally,
 			// provide an stxo slice so the spent txout details are generated.
-			err := view.connectBlock(b.db, block, parent, &stxos)
+			err := view.connectBlock(b.db, block, parent, &stxos, b.spendJournal)
 			if err != nil {
 				return err
 			}
@@ -1453,7 +1461,7 @@ func (b *BlockChain) connectBestChain(node *blockNode, block, parent *dcrutil.Bl
 		// revalidated after a restart.
 		view := NewUtxoViewpoint()
 		view.SetBestHash(parentHash)
-		var stxos []spentTxOut
+		var stxos []SpentTxOut
 		if !fastAdd {
 			err := b.checkConnectBlock(node, block, parent, view,
 				&stxos)
@@ -1477,7 +1485,7 @@ func (b *BlockChain) connectBestChain(node *blockNode, block, parent *dcrutil.Bl
 		// the parent, its regular transaction tree must be
 		// disconnected.
 		if fastAdd {
-			err := view.connectBlock(b.db, block, parent, &stxos)
+			err := view.connectBlock(b.db, block, parent, &stxos, b.spendJournal)
 			if err != nil {
 				return 0, err
 			}
@@ -1982,11 +1990,11 @@ type IndexManager interface {
 
 	// ConnectBlock is invoked when a new block has been connected to the
 	// main chain.
-	ConnectBlock(database.Tx, *dcrutil.Block, *dcrutil.Block, *UtxoViewpoint) error
+	ConnectBlock(database.Tx, *dcrutil.Block, *dcrutil.Block, []SpentTxOut) error
 
 	// DisconnectBlock is invoked when a block has been disconnected from
 	// the main chain.
-	DisconnectBlock(database.Tx, *dcrutil.Block, *dcrutil.Block, *UtxoViewpoint) error
+	DisconnectBlock(database.Tx, *dcrutil.Block, *dcrutil.Block, []SpentTxOut) error
 }
 
 // Config is a descriptor which specifies the blockchain instance configuration.
@@ -2073,6 +2081,7 @@ func New(config *Config) (*BlockChain, error) {
 		notifications:                 config.Notifications,
 		sigCache:                      config.SigCache,
 		indexManager:                  config.IndexManager,
+		spendJournal:                  NewSpendJournal(),
 		interrupt:                     config.Interrupt,
 		index:                         newBlockIndex(config.DB, params),
 		bestChain:                     newChainView(nil),

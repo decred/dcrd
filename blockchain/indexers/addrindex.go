@@ -727,30 +727,24 @@ func (idx *AddrIndex) indexPkScript(data writeIndexData, scriptVersion uint16, p
 // indexBlock extracts all of the standard addresses from all of the
 // regular and stake transactions in the passed block and maps each of them to
 // the associated transaction using the passed map.
-func (idx *AddrIndex) indexBlock(data writeIndexData, block *dcrutil.Block, view *blockchain.UtxoViewpoint) {
+func (idx *AddrIndex) indexBlock(data writeIndexData, block *dcrutil.Block, stxos []blockchain.SpentTxOut) {
 	regularTxns := block.Transactions()
+	stakeTxns := block.STransactions()
+
+	// stxos hold stake txns before regular txns
+	regularStxosOffset := len(stakeTxns)
 	for txIdx, tx := range regularTxns {
 		// Coinbases do not reference any inputs.  Since the block is
 		// required to have already gone through full validation, it has
 		// already been proven that the first transaction in the block
 		// is a coinbase.
 		if txIdx != 0 {
-			for _, txIn := range tx.MsgTx().TxIn {
-				// The view should always have the input since
-				// the index contract requires it, however, be
-				// safe and simply ignore any missing entries.
-				origin := &txIn.PreviousOutPoint
-				entry := view.LookupEntry(&origin.Hash)
-				if entry == nil {
-					log.Warnf("Missing input %v for tx %v while "+
-						"indexing block %v (height %v)\n", origin.Hash,
-						tx.Hash(), block.Hash(), block.Height())
-					continue
-				}
+			for i := range tx.MsgTx().TxIn {
+				stxo := stxos[regularStxosOffset+i]
+				version := stxo.ScriptVersion()
+				pkScript := stxo.PkScript()
+				txType := stxo.TransactionType()
 
-				version := entry.ScriptVersionByIndex(origin.Index)
-				pkScript := entry.PkScriptByIndex(origin.Index)
-				txType := entry.TransactionType()
 				idx.indexPkScript(data, version, pkScript, txIdx,
 					txType == stake.TxTypeSStx)
 			}
@@ -762,32 +756,22 @@ func (idx *AddrIndex) indexBlock(data writeIndexData, block *dcrutil.Block, view
 		}
 	}
 
-	for txIdx, tx := range block.STransactions() {
+	for txIdx, tx := range stakeTxns {
 		msgTx := tx.MsgTx()
 		thisTxOffset := txIdx + len(regularTxns)
 
 		isSSGen := stake.IsSSGen(msgTx)
-		for i, txIn := range msgTx.TxIn {
+		for i := range msgTx.TxIn {
 			// Skip stakebases.
 			if isSSGen && i == 0 {
 				continue
 			}
 
-			// The view should always have the input since
-			// the index contract requires it, however, be
-			// safe and simply ignore any missing entries.
-			origin := &txIn.PreviousOutPoint
-			entry := view.LookupEntry(&origin.Hash)
-			if entry == nil {
-				log.Warnf("Missing input %v for tx %v while "+
-					"indexing block %v (height %v)\n", origin.Hash,
-					tx.Hash(), block.Hash(), block.Height())
-				continue
-			}
+			stxo := stxos[i]
+			version := stxo.ScriptVersion()
+			pkScript := stxo.PkScript()
+			txType := stxo.TransactionType()
 
-			version := entry.ScriptVersionByIndex(origin.Index)
-			pkScript := entry.PkScriptByIndex(origin.Index)
-			txType := entry.TransactionType()
 			idx.indexPkScript(data, version, pkScript, thisTxOffset,
 				txType == stake.TxTypeSStx)
 		}
@@ -805,7 +789,7 @@ func (idx *AddrIndex) indexBlock(data writeIndexData, block *dcrutil.Block, view
 // the transactions in the block involve.
 //
 // This is part of the Indexer interface.
-func (idx *AddrIndex) ConnectBlock(dbTx database.Tx, block, parent *dcrutil.Block, view *blockchain.UtxoViewpoint) error {
+func (idx *AddrIndex) ConnectBlock(dbTx database.Tx, block, parent *dcrutil.Block, stxos []blockchain.SpentTxOut) error {
 	// NOTE: The fact that the block can disapprove the regular tree of the
 	// previous block is ignored for this index because even though the
 	// disapproved transactions no longer apply spend semantics, they still
@@ -826,7 +810,7 @@ func (idx *AddrIndex) ConnectBlock(dbTx database.Tx, block, parent *dcrutil.Bloc
 
 	// Build all of the address to transaction mappings in a local map.
 	addrsToTxns := make(writeIndexData)
-	idx.indexBlock(addrsToTxns, block, view)
+	idx.indexBlock(addrsToTxns, block, stxos)
 
 	// Add all of the index entries for each address.
 	stakeIdxsStart := len(txLocs)
@@ -858,7 +842,7 @@ func (idx *AddrIndex) ConnectBlock(dbTx database.Tx, block, parent *dcrutil.Bloc
 // each transaction in the block involve.
 //
 // This is part of the Indexer interface.
-func (idx *AddrIndex) DisconnectBlock(dbTx database.Tx, block, parent *dcrutil.Block, view *blockchain.UtxoViewpoint) error {
+func (idx *AddrIndex) DisconnectBlock(dbTx database.Tx, block, parent *dcrutil.Block, stxos []blockchain.SpentTxOut) error {
 	// NOTE: The fact that the block can disapprove the regular tree of the
 	// previous block is ignored for this index because even though the
 	// disapproved transactions no longer apply spend semantics, they still
@@ -867,7 +851,7 @@ func (idx *AddrIndex) DisconnectBlock(dbTx database.Tx, block, parent *dcrutil.B
 
 	// Build all of the address to transaction mappings in a local map.
 	addrsToTxns := make(writeIndexData)
-	idx.indexBlock(addrsToTxns, block, view)
+	idx.indexBlock(addrsToTxns, block, stxos)
 
 	// Remove all of the index entries for each address.
 	bucket := dbTx.Metadata().Bucket(addrIndexKey)

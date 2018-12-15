@@ -338,7 +338,7 @@ func newBlockImporter(db database.DB, r io.ReadSeeker) (*blockImporter, error) {
 	// Create an index manager if any of the optional indexes are enabled.
 	var indexManager blockchain.IndexManager
 	if len(indexes) > 0 {
-		indexManager = indexers.NewManager(db, indexes, activeNetParams)
+		indexManager = indexers.NewManager(db, indexes, activeNetParams, blockchain.NewSpendJournal())
 	}
 
 	chain, err := blockchain.New(&blockchain.Config{

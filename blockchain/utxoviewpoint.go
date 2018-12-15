@@ -339,7 +339,7 @@ func (view *UtxoViewpoint) AddTxOuts(tx *dcrutil.Tx, blockHeight int64, blockInd
 // spent.  In addition, when the 'stxos' argument is not nil, it will be updated
 // to append an entry for each spent txout.  An error will be returned if the
 // view does not contain the required utxos.
-func (view *UtxoViewpoint) connectTransaction(tx *dcrutil.Tx, blockHeight int64, blockIndex uint32, stxos *[]spentTxOut) error {
+func (view *UtxoViewpoint) connectTransaction(tx *dcrutil.Tx, blockHeight int64, blockIndex uint32, stxos *[]SpentTxOut) error {
 	// Coinbase transactions don't have any inputs to spend.
 	if IsCoinBase(tx) {
 		// Add the transaction's outputs as available utxos.
@@ -377,7 +377,7 @@ func (view *UtxoViewpoint) connectTransaction(tx *dcrutil.Tx, blockHeight int64,
 		// transaction is fully spent, set the additional stxo fields
 		// accordingly since those details will no longer be available
 		// in the utxo set.
-		var stxo = spentTxOut{
+		var stxo = SpentTxOut{
 			compressed:    false,
 			amount:        txIn.ValueIn,
 			scriptVersion: entry.ScriptVersionByIndex(originIndex),
@@ -411,7 +411,7 @@ func (view *UtxoViewpoint) connectTransaction(tx *dcrutil.Tx, blockHeight int64,
 // the transactions in either the regular or stake tree of the block, depending
 // on the flag, and unspending all of the txos spent by those same transactions
 // by using the provided spent txo information.
-func (view *UtxoViewpoint) disconnectTransactions(block *dcrutil.Block, stxos []spentTxOut, stakeTree bool) error {
+func (view *UtxoViewpoint) disconnectTransactions(block *dcrutil.Block, stxos []SpentTxOut, stakeTree bool) error {
 	// Choose which transaction tree to use and the appropriate offset into the
 	// spent transaction outputs that corresponds to them depending on the flag.
 	// Transactions in the stake tree are spent before transactions in the
@@ -515,7 +515,7 @@ func (view *UtxoViewpoint) disconnectTransactions(block *dcrutil.Block, stxos []
 // by the transactions in regular tree of the provided block and unspending all
 // of the txos spent by those same transactions by using the provided spent txo
 // information.
-func (view *UtxoViewpoint) disconnectRegularTransactions(block *dcrutil.Block, stxos []spentTxOut) error {
+func (view *UtxoViewpoint) disconnectRegularTransactions(block *dcrutil.Block, stxos []SpentTxOut) error {
 	return view.disconnectTransactions(block, stxos, false)
 }
 
@@ -523,7 +523,7 @@ func (view *UtxoViewpoint) disconnectRegularTransactions(block *dcrutil.Block, s
 // by the transactions in stake tree of the provided block and unspending all
 // of the txos spent by those same transactions by using the provided spent txo
 // information.
-func (view *UtxoViewpoint) disconnectStakeTransactions(block *dcrutil.Block, stxos []spentTxOut) error {
+func (view *UtxoViewpoint) disconnectStakeTransactions(block *dcrutil.Block, stxos []SpentTxOut) error {
 	return view.disconnectTransactions(block, stxos, true)
 }
 
@@ -533,13 +533,13 @@ func (view *UtxoViewpoint) disconnectStakeTransactions(block *dcrutil.Block, stx
 // Disconnecting a transaction entails removing the utxos created by it and
 // restoring the outputs spent by it with the help of the provided spent txo
 // information.
-//func (view *UtxoViewpoint) disconnectDisapprovedBlock(db database.DB, block *dcrutil.Block, stxos []spentTxOut) error {
-func (view *UtxoViewpoint) disconnectDisapprovedBlock(db database.DB, block *dcrutil.Block) error {
+//func (view *UtxoViewpoint) disconnectDisapprovedBlock(db database.DB, block *dcrutil.Block, stxos []SpentTxOut) error {
+func (view *UtxoViewpoint) disconnectDisapprovedBlock(db database.DB, block *dcrutil.Block, spendJournal *SpendJournal) error {
 	// Load all of the spent txos for the block from the database spend journal.
-	var stxos []spentTxOut
+	var stxos []SpentTxOut
 	err := db.View(func(dbTx database.Tx) error {
 		var err error
-		stxos, err = dbFetchSpendJournalEntry(dbTx, block)
+		stxos, err = spendJournal.DbFetchSpendJournalEntry(dbTx, block)
 		return err
 	})
 	if err != nil {
@@ -578,11 +578,11 @@ func (view *UtxoViewpoint) disconnectDisapprovedBlock(db database.DB, block *dcr
 //
 // In addition, when the 'stxos' argument is not nil, it will be updated to
 // append an entry for each spent txout.
-func (view *UtxoViewpoint) connectBlock(db database.DB, block, parent *dcrutil.Block, stxos *[]spentTxOut) error {
+func (view *UtxoViewpoint) connectBlock(db database.DB, block, parent *dcrutil.Block, stxos *[]SpentTxOut, spendJournal *SpendJournal) error {
 	// Disconnect the transactions in the regular tree of the parent block if
 	// the passed block disapproves it.
 	if !headerApprovesParent(&block.MsgBlock().Header) {
-		err := view.disconnectDisapprovedBlock(db, parent)
+		err := view.disconnectDisapprovedBlock(db, parent, spendJournal)
 		if err != nil {
 			return err
 		}
@@ -636,7 +636,7 @@ func (view *UtxoViewpoint) connectBlock(db database.DB, block, parent *dcrutil.B
 // Note that, unlike block connection, the spent transaction output (stxo)
 // information is required and failure to provide it will result in an assertion
 // panic.
-func (view *UtxoViewpoint) disconnectBlock(db database.DB, block, parent *dcrutil.Block, stxos []spentTxOut) error {
+func (view *UtxoViewpoint) disconnectBlock(db database.DB, block, parent *dcrutil.Block, stxos []SpentTxOut) error {
 	// Sanity check the correct number of stxos are provided.
 	if len(stxos) != countSpentOutputs(block) {
 		panicf("provided %v stxos for block %v (height %v) which spends %v "+
@@ -917,7 +917,7 @@ func (b *BlockChain) FetchUtxoView(tx *dcrutil.Tx, includePrevRegularTxns bool) 
 
 			// Disconnect the transactions in the regular tree of the parent
 			// block.
-			err = view.disconnectDisapprovedBlock(b.db, parent)
+			err = view.disconnectDisapprovedBlock(b.db, parent, b.spendJournal)
 			if err != nil {
 				b.disapprovedViewLock.Unlock()
 				return nil, err

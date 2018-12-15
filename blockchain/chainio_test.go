@@ -389,13 +389,13 @@ func TestStxoSerialization(t *testing.T) {
 
 	tests := []struct {
 		name       string
-		stxo       spentTxOut
+		stxo       SpentTxOut
 		txVersion  int32 // When the txout is not fully spent.
 		serialized []byte
 	}{
 		{
 			name: "Spends last output of coinbase",
-			stxo: spentTxOut{
+			stxo: SpentTxOut{
 				amount:        9999,
 				scriptVersion: 0,
 				pkScript:      hexToBytes("76a9146edbc6c4d31bae9f1ccc38538a114bf42de65e8688ac"),
@@ -411,7 +411,7 @@ func TestStxoSerialization(t *testing.T) {
 		},
 		{
 			name: "Spends last output of non coinbase and is a ticket",
-			stxo: spentTxOut{
+			stxo: SpentTxOut{
 				amount:        9999,
 				scriptVersion: 0,
 				pkScript:      hexToBytes("76a9146edbc6c4d31bae9f1ccc38538a114bf42de65e8688ac"),
@@ -428,7 +428,7 @@ func TestStxoSerialization(t *testing.T) {
 		},
 		{
 			name: "Does not spend last output",
-			stxo: spentTxOut{
+			stxo: SpentTxOut{
 				amount:        34405000000,
 				pkScript:      hexToBytes("76a9146edbc6c4d31bae9f1ccc38538a114bf42de65e8688ac"),
 				scriptVersion: 0,
@@ -467,7 +467,7 @@ func TestStxoSerialization(t *testing.T) {
 
 		// Ensure the serialized bytes are decoded back to the expected
 		// stxo.
-		var gotStxo spentTxOut
+		var gotStxo SpentTxOut
 		offset, err := decodeSpentTxOut(test.serialized, &gotStxo,
 			test.stxo.amount, test.stxo.height, test.stxo.index)
 		if err != nil {
@@ -491,7 +491,7 @@ func TestStxoDecodeErrors(t *testing.T) {
 
 	tests := []struct {
 		name       string
-		stxo       spentTxOut
+		stxo       SpentTxOut
 		txVersion  int32 // When the txout is not fully spent.
 		serialized []byte
 		bytesRead  int // Expected number of bytes read.
@@ -499,42 +499,42 @@ func TestStxoDecodeErrors(t *testing.T) {
 	}{
 		{
 			name:       "nothing serialized",
-			stxo:       spentTxOut{},
+			stxo:       SpentTxOut{},
 			serialized: hexToBytes(""),
 			errType:    errDeserialize(""),
 			bytesRead:  0,
 		},
 		{
 			name:       "no data after flags w/o version",
-			stxo:       spentTxOut{},
+			stxo:       SpentTxOut{},
 			serialized: hexToBytes("00"),
 			errType:    errDeserialize(""),
 			bytesRead:  1,
 		},
 		{
 			name:       "no data after flags code",
-			stxo:       spentTxOut{},
+			stxo:       SpentTxOut{},
 			serialized: hexToBytes("14"),
 			errType:    errDeserialize(""),
 			bytesRead:  1,
 		},
 		{
 			name:       "no tx version data after script",
-			stxo:       spentTxOut{},
+			stxo:       SpentTxOut{},
 			serialized: hexToBytes("1400016edbc6c4d31bae9f1ccc38538a114bf42de65e86"),
 			errType:    errDeserialize(""),
 			bytesRead:  23,
 		},
 		{
 			name:       "no stakeextra data after script for ticket",
-			stxo:       spentTxOut{},
+			stxo:       SpentTxOut{},
 			serialized: hexToBytes("1400016edbc6c4d31bae9f1ccc38538a114bf42de65e8601"),
 			errType:    errDeserialize(""),
 			bytesRead:  24,
 		},
 		{
 			name:       "incomplete compressed txout",
-			stxo:       spentTxOut{},
+			stxo:       SpentTxOut{},
 			txVersion:  1,
 			serialized: hexToBytes("1432"),
 			errType:    errDeserialize(""),
@@ -570,7 +570,7 @@ func TestSpendJournalSerialization(t *testing.T) {
 
 	tests := []struct {
 		name       string
-		entry      []spentTxOut
+		entry      []SpentTxOut
 		blockTxns  []*wire.MsgTx
 		utxoView   *UtxoViewpoint
 		serialized []byte
@@ -584,7 +584,7 @@ func TestSpendJournalSerialization(t *testing.T) {
 		},
 		{
 			name: "One tx with one input spends last output of coinbase",
-			entry: []spentTxOut{{
+			entry: []SpentTxOut{{
 				amount:        5000000000,
 				scriptVersion: 0,
 				pkScript:      hexToBytes("0511db93e1dcdb8a016b49840f8c53bc1eb68a382e97b1482ecad7b148a6909a5c"),
@@ -630,7 +630,7 @@ func TestSpendJournalSerialization(t *testing.T) {
 		},
 		{
 			name: "Two txns when one spends last output, one doesn't",
-			entry: []spentTxOut{{
+			entry: []SpentTxOut{{
 				amount:        34405000000,
 				height:        321,
 				index:         123,
@@ -725,7 +725,7 @@ func TestSpendJournalSerialization(t *testing.T) {
 		},
 		{
 			name: "One tx, two inputs from same tx, neither spend last output",
-			entry: []spentTxOut{{
+			entry: []SpentTxOut{{
 				amount:        159747816,
 				height:        1111,
 				index:         2222,
@@ -794,9 +794,10 @@ func TestSpendJournalSerialization(t *testing.T) {
 		},
 	}
 
+	spendJournal := NewSpendJournal()
 	for i, test := range tests {
 		// Ensure the journal entry serializes to the expected value.
-		gotBytes, err := serializeSpendJournalEntry(test.entry)
+		gotBytes, err := spendJournal.serializeSpendJournalEntry(test.entry)
 		if err != nil {
 			t.Errorf("serializeSpendJournalEntry #%d (%s) "+
 				"unexpected error: %v", i, test.name, err)
@@ -810,7 +811,7 @@ func TestSpendJournalSerialization(t *testing.T) {
 		}
 
 		// Deserialize to a spend journal entry.
-		gotEntry, err := deserializeSpendJournalEntry(test.serialized,
+		gotEntry, err := spendJournal.deserializeSpendJournalEntry(test.serialized,
 			test.blockTxns)
 		if err != nil {
 			t.Errorf("deserializeSpendJournalEntry #%d (%s) "+
@@ -881,10 +882,11 @@ func TestSpendJournalErrors(t *testing.T) {
 		},
 	}
 
+	spendJournal := NewSpendJournal()
 	for _, test := range tests {
 		// Ensure the expected error type is returned and the returned
 		// slice is nil.
-		stxos, err := deserializeSpendJournalEntry(test.serialized,
+		stxos, err := spendJournal.deserializeSpendJournalEntry(test.serialized,
 			test.blockTxns)
 		if reflect.TypeOf(err) != reflect.TypeOf(test.errType) {
 			t.Errorf("deserializeSpendJournalEntry (%s): expected "+
