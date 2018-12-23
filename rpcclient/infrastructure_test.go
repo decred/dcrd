@@ -19,11 +19,12 @@ func TestClientStringer(t *testing.T) {
 	}
 	for _, test := range tests {
 		cfg := &ConnConfig{
-			Host:                test.host,
-			Endpoint:            test.endpoint,
-			HTTPPostMode:        test.post,
-			DisableTLS:          false,
-			DisableConnectOnNew: true,
+			Host:                 test.host,
+			Endpoint:             test.endpoint,
+			HTTPPostMode:         test.post,
+			DisableTLS:           false,
+			DisableConnectOnNew:  true,
+			DisableAutoReconnect: true,
 		}
 		c, err := New(cfg, nil)
 		if err != nil {

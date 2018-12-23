@@ -225,14 +225,16 @@ func (rrb *roundRobinBalancer) NextConn(method string) (*websocket.Conn, *HostAd
 			if err != nil {
 				if rrb.connConfig.DisableAutoReconnect {
 					rrb.NotifyConnStateChange(hostAddress, shutdown)
+					log.Infof("Balancer: Failed to make initial connection to %s: %v",
+						rrb.connConfig.Host, err)
 				} else {
 					// Update the connection state to idle so that we try again
 					// as we haven't yet connected to this host successfully.
 					rrb.NotifyConnStateChange(hostAddress, idle)
+					attempt := rrb.updateInitialConnectAttempt(hostAddress)
+					log.Infof("Balancer: Failed to make initial connection to %s: %v, attempt:%v",
+						rrb.connConfig.Host, err, attempt)
 				}
-				attempt := rrb.updateInitialConnectAttempt(hostAddress)
-				log.Infof("Balancer: Failed to make initial connection to %s: %v, attempt:%v",
-					rrb.connConfig.Host, err, attempt)
 				// Try for the next Host.
 				hostAddress, err = rrb.connPicker.Pick(rrb)
 				if err != nil {
