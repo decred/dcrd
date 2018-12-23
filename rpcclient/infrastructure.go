@@ -697,15 +697,7 @@ out:
 						c.balancer.UpdateReconnectAttempt(discHostAdd)
 						log.Infof("Failed to connect to %s: %v",
 							confCopy.Host, err)
-
-						// Scale the retry interval by the number of
-						// retries so there is a backoff up to a max
-						// of 1 minute.
-						scaledInterval := connectionRetryInterval.Nanoseconds() * (discHostAdd.retryCount + 1)
-						scaledDuration := time.Duration(scaledInterval)
-						if scaledDuration > time.Minute {
-							scaledDuration = time.Minute
-						}
+						scaledDuration := c.balancer.GetNextAttemptInvterval(discHostAdd.retryCount)
 						log.Infof("Retrying connection to %s in "+
 							"%s", confCopy.Host, scaledDuration)
 						time.Sleep(scaledDuration)
@@ -716,7 +708,7 @@ out:
 					// has happened.
 					c.balancer.NotifyReconnect(wsConn, discHostAdd)
 					log.Infof("Reestablished connection to RPC server %s",
-						discHostAdd)
+						discHostAdd.Host)
 					// Start processing input and output for the
 					// new connection if all got disconnected earlier.
 					if c.balancer.ClientRestartNeeded() {
