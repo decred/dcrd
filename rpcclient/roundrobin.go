@@ -223,9 +223,13 @@ func (rrb *roundRobinBalancer) NextConn(method string) (*websocket.Conn, *HostAd
 			wsConn, err = dial(rrb.connConfig)
 			rrb.mu.Unlock()
 			if err != nil {
-				// Update the connection state to idle so that we try again
-				// as we haven't yet connected to this host successfully.
-				rrb.NotifyConnStateChange(hostAddress, idle)
+				if rrb.connConfig.DisableAutoReconnect {
+					rrb.NotifyConnStateChange(hostAddress, shutdown)
+				} else {
+					// Update the connection state to idle so that we try again
+					// as we haven't yet connected to this host successfully.
+					rrb.NotifyConnStateChange(hostAddress, idle)
+				}
 				attempt := rrb.updateInitialConnectAttempt(hostAddress)
 				log.Infof("Balancer: Failed to make initial connection to %s: %v, attempt:%v",
 					rrb.connConfig.Host, err, attempt)
