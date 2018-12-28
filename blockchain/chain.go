@@ -957,13 +957,6 @@ func (b *BlockChain) disconnectBlock(node *blockNode, block, parent *dcrutil.Blo
 			return err
 		}
 
-		// Update the transaction spend journal by removing the record
-		// that contains all txos spent by the block .
-		err = b.spendJournal.DbRemoveSpendJournalEntry(dbTx, block.Hash())
-		if err != nil {
-			return err
-		}
-
 		err = stake.WriteDisconnectedBestNode(dbTx, parentStakeNode,
 			node.parent.hash, childStakeNode.UndoData())
 		if err != nil {

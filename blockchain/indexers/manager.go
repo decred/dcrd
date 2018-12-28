@@ -180,6 +180,7 @@ type Manager struct {
 	db             database.DB
 	enabledIndexes []Indexer
 	spendJournal   *blockchain.SpendJournal
+	indexingQueue  chan IndexingQueueItem
 }
 
 // Ensure the Manager type implements the blockchain.IndexManager interface.
@@ -368,6 +369,86 @@ func dbFetchBlockByHash(dbTx database.Tx, hash *chainhash.Hash) (*dcrutil.Block,
 	return dcrutil.NewBlockFromBytes(blockBytes)
 }
 
+func (m *Manager) runAsyncIndexing(interrupt <-chan struct{}) {
+out:
+	for {
+		select {
+		case <-interrupt:
+			break out
+		case item := <-m.indexingQueue:
+			indexer := m.enabledIndexes[item.IndexerIdx]
+
+			if interruptRequested(interrupt) {
+				break out
+			}
+
+			err := m.db.Update(func(dbTx database.Tx) error {
+				block, err := dbFetchBlockByHash(dbTx, item.BlockHash)
+				if err != nil {
+					return err
+				}
+
+				if item.Action == IndexingQueueItemActionDropSpendJournalEntry {
+					// Update the transaction spend journal by removing the record
+					// that contains all txos spent by the block .
+					err = m.spendJournal.DbRemoveSpendJournalEntry(dbTx, block.Hash())
+					return err
+				}
+
+				// Load the parent block for the height since it is
+				// required to remove it.
+				parentHash := &block.MsgBlock().Header.PrevBlock
+				parent, err := dbFetchBlockByHash(dbTx, parentHash)
+				if err != nil {
+					return err
+				}
+
+				if interruptRequested(interrupt) {
+					return errInterruptRequested
+				}
+
+				var stxos []blockchain.SpentTxOut
+				// When the index requires all of the referenced
+				// txouts and they haven't been loaded yet, they
+				// need to be retrieved from the transaction
+				// index.
+				if indexNeedsInputs(indexer) {
+					var err error
+					stxos, err = m.spendJournal.DbFetchSpendJournalEntry(dbTx, block)
+					if err != nil {
+						return err
+					}
+				}
+				if item.Action == IndexingQueueItemActionConnect {
+					err = dbIndexConnectBlock(dbTx, indexer, block, parent, stxos)
+					if err != nil {
+						return err
+					}
+				} else {
+					// Remove all of the index entries associated
+					// with the block and update the indexer tip.
+					err = dbIndexDisconnectBlock(dbTx, indexer, block, parent, stxos)
+					if err != nil {
+						return err
+					}
+				}
+				return nil
+			})
+
+			if err != nil {
+				switch item.Action {
+				case IndexingQueueItemActionConnect:
+					log.Errorf("Error while connecting block %d for index %s: %s", item.BlockHeight, indexer.Key(), err.Error())
+				case IndexingQueueItemActionDisconnect:
+					log.Errorf("Error while disconnecting block %d for index %s: %s", item.BlockHeight, indexer.Key(), err.Error())
+				case IndexingQueueItemActionDropSpendJournalEntry:
+					log.Errorf("Error while removing spend journal entry for block %s: %s", item.BlockHeight, err.Error())
+				}
+			}
+		}
+	}
+}
+
 // Init initializes the enabled indexes.  This is called during chain
 // initialization and primarily consists of catching up all indexes to the
 // current best chain tip.  This is necessary since each index can be disabled
@@ -408,12 +489,18 @@ func (m *Manager) Init(chain *blockchain.BlockChain, interrupt <-chan struct{}) 
 		}
 	}
 
+	// Run async indexer items queue listener. Code below checks current
+	// chain index state and prepares missing indexes queue items
+	go m.runAsyncIndexing(interrupt)
+
 	// Rollback indexes to the main chain if their tip is an orphaned fork.
 	// This is fairly unlikely, but it can happen if the chain is
 	// reorganized while the index is disabled.  This has to be done in
 	// reverse order because later indexes can depend on earlier ones.
 	var err error
 	var cachedBlock *dcrutil.Block
+	var dropSpendJournalEntriesList []IndexingQueueItem
+	var spendJournalEntriesAdded map[chainhash.Hash]struct{}
 	for i := len(m.enabledIndexes); i > 0; i-- {
 		indexer := m.enabledIndexes[i-1]
 
@@ -437,7 +524,7 @@ func (m *Manager) Init(chain *blockchain.BlockChain, interrupt <-chan struct{}) 
 		// Loop until the tip is a block that exists in the main chain.
 		var interrupted bool
 		initialHeight := height
-		err = m.db.Update(func(dbTx database.Tx) error {
+		err = m.db.View(func(dbTx database.Tx) error {
 			for !chain.MainChainHasBlock(hash) {
 				// Get the block, unless it's already cached.
 				var block *dcrutil.Block
@@ -459,25 +546,20 @@ func (m *Manager) Init(chain *blockchain.BlockChain, interrupt <-chan struct{}) 
 				}
 				cachedBlock = parent
 
-				// When the index requires all of the referenced
-				// txouts they need to be retrieved from the
-				// transaction index.
-				var stxos []blockchain.SpentTxOut
-				if indexNeedsInputs(indexer) {
-					var err error
-					stxos, err = m.spendJournal.DbFetchSpendJournalEntry(dbTx, block)
-					if err != nil {
-						return err
-					}
+				m.indexingQueue <- IndexingQueueItem{
+					Action:      IndexingQueueItemActionDisconnect,
+					BlockHash:   hash,
+					BlockHeight: height,
+					IndexerIdx:  i - 1,
 				}
-
-				// Remove all of the index entries associated
-				// with the block and update the indexer tip.
-				err = dbIndexDisconnectBlock(dbTx, indexer, block, parent, stxos)
-				if err != nil {
-					return err
+				if _, ok := spendJournalEntriesAdded[*hash]; !ok {
+					dropSpendJournalEntriesList = append(dropSpendJournalEntriesList, IndexingQueueItem{
+						Action:      IndexingQueueItemActionDropSpendJournalEntry,
+						BlockHash:   hash,
+						BlockHeight: height,
+					})
+					spendJournalEntriesAdded[*hash] = struct{}{}
 				}
-
 				// Update the tip to the previous block.
 				hash = &block.MsgBlock().Header.PrevBlock
 				height--
@@ -502,10 +584,14 @@ func (m *Manager) Init(chain *blockchain.BlockChain, interrupt <-chan struct{}) 
 		}
 
 		if initialHeight != height {
-			log.Infof("Removed %d orphaned blocks from %s "+
+			log.Infof("Added items to de-indexing queue for %d orphaned blocks from %s "+
 				"(heights %d to %d)", initialHeight-height,
 				indexer.Name(), height+1, initialHeight)
 		}
+	}
+
+	for _, queueItem := range dropSpendJournalEntriesList {
+		m.indexingQueue <- queueItem
 	}
 
 	// Fetch the current tip heights for each index along with tracking the
@@ -547,7 +633,7 @@ func (m *Manager) Init(chain *blockchain.BlockChain, interrupt <-chan struct{}) 
 	// At this point, one or more indexes are behind the current best chain
 	// tip and need to be caught up, so log the details and loop through
 	// each block that needs to be indexed.
-	log.Infof("Catching up indexes from height %d to %d", lowestHeight,
+	log.Infof("Preparing async index queue items for indexes from height %d to %d", lowestHeight,
 		bestHeight)
 
 	var cachedParent *dcrutil.Block
@@ -589,28 +675,18 @@ func (m *Manager) Init(chain *blockchain.BlockChain, interrupt <-chan struct{}) 
 			}
 
 			// Connect the block for all indexes that need it.
-			var stxos []blockchain.SpentTxOut
-			for i, indexer := range m.enabledIndexes {
+			for i := range m.enabledIndexes {
 				// Skip indexes that don't need to be updated with this
 				// block.
 				if indexerHeights[i] >= height {
 					continue
 				}
 
-				// When the index requires all of the referenced
-				// txouts and they haven't been loaded yet, they
-				// need to be retrieved from the transaction
-				// index.
-				if stxos == nil && indexNeedsInputs(indexer) {
-					var err error
-					stxos, err = m.spendJournal.DbFetchSpendJournalEntry(dbTx, block)
-					if err != nil {
-						return err
-					}
-				}
-				err = dbIndexConnectBlock(dbTx, indexer, block, parent, stxos)
-				if err != nil {
-					return err
+				m.indexingQueue <- IndexingQueueItem{
+					Action:      IndexingQueueItemActionConnect,
+					BlockHash:   hash,
+					BlockHeight: height,
+					IndexerIdx:  i,
 				}
 
 				indexerHeights[i] = height
@@ -624,7 +700,7 @@ func (m *Manager) Init(chain *blockchain.BlockChain, interrupt <-chan struct{}) 
 		progressLogger.LogBlockHeight(block.MsgBlock(), parent.MsgBlock())
 	}
 
-	log.Infof("Indexes caught up to height %d", bestHeight)
+	log.Infof("Missing indexes are put into the queue to catch up to height %d", bestHeight)
 	return nil
 }
 
@@ -646,10 +722,12 @@ func indexNeedsInputs(index Indexer) bool {
 func (m *Manager) ConnectBlock(dbTx database.Tx, block, parent *dcrutil.Block, stxos []blockchain.SpentTxOut) error {
 	// Call each of the currently active optional indexes with the block
 	// being connected so they can update accordingly.
-	for _, index := range m.enabledIndexes {
-		err := dbIndexConnectBlock(dbTx, index, block, parent, stxos)
-		if err != nil {
-			return err
+	for i := range m.enabledIndexes {
+		m.indexingQueue <- IndexingQueueItem{
+			Action:      IndexingQueueItemActionConnect,
+			BlockHash:   block.Hash(),
+			BlockHeight: int32(block.Height()),
+			IndexerIdx:  i,
 		}
 	}
 	return nil
@@ -663,14 +741,41 @@ func (m *Manager) ConnectBlock(dbTx database.Tx, block, parent *dcrutil.Block, s
 // This is part of the blockchain.IndexManager interface.
 func (m *Manager) DisconnectBlock(dbTx database.Tx, block, parent *dcrutil.Block, stxos []blockchain.SpentTxOut) error {
 	// Call each of the currently active optional indexes with the block
-	// being disconnected so they can update accordingly.
-	for _, index := range m.enabledIndexes {
-		err := dbIndexDisconnectBlock(dbTx, index, block, parent, stxos)
-		if err != nil {
-			return err
+	// being disconnected so they can update accordingly. This has to be done in
+	//	// reverse order because later indexes can depend on earlier ones.
+	for i := len(m.enabledIndexes); i > 0; i-- {
+		m.indexingQueue <- IndexingQueueItem{
+			Action:      IndexingQueueItemActionDisconnect,
+			BlockHash:   block.Hash(),
+			BlockHeight: int32(block.Height()),
+			IndexerIdx:  i - 1,
 		}
 	}
+
+	// Add queue item to drop spend journal entry after all indexes disconnected
+	m.indexingQueue <- IndexingQueueItem{
+		Action:      IndexingQueueItemActionDropSpendJournalEntry,
+		BlockHash:   block.Hash(),
+		BlockHeight: int32(block.Height()),
+	}
 	return nil
+}
+
+type IndexQueueItemAction int
+
+const (
+	indexingQueueLen = 1000000
+
+	IndexingQueueItemActionConnect IndexQueueItemAction = iota
+	IndexingQueueItemActionDisconnect
+	IndexingQueueItemActionDropSpendJournalEntry
+)
+
+type IndexingQueueItem struct {
+	Action      IndexQueueItemAction
+	BlockHash   *chainhash.Hash
+	BlockHeight int32
+	IndexerIdx  int
 }
 
 // NewManager returns a new index manager with the provided indexes enabled.
@@ -683,6 +788,7 @@ func NewManager(db database.DB, enabledIndexes []Indexer, params *chaincfg.Param
 		enabledIndexes: enabledIndexes,
 		params:         params,
 		spendJournal:   spendJournal,
+		indexingQueue:  make(chan IndexingQueueItem, indexingQueueLen*len(enabledIndexes)),
 	}
 }
 
