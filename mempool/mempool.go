@@ -706,8 +706,7 @@ func (mp *TxPool) addTransaction(utxoView *blockchain.UtxoViewpoint,
 func (mp *TxPool) checkPoolDoubleSpend(tx *dcrutil.Tx, txType stake.TxType) error {
 	for i, txIn := range tx.MsgTx().TxIn {
 		// We don't care about double spends of stake bases.
-		if (txType == stake.TxTypeSSGen || txType == stake.TxTypeSSRtx) &&
-			(i == 0) {
+		if i == 0 && (txType == stake.TxTypeSSGen || txType == stake.TxTypeSSRtx) {
 			continue
 		}
 
