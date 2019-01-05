@@ -750,7 +750,7 @@ func (mp *TxPool) IsRegTxTreeKnownDisapproved(hash *chainhash.Hash) bool {
 }
 
 // fetchInputUtxos loads utxo details about the input transactions referenced by
-// the passed transaction.  First, it loads the details form the viewpoint of
+// the passed transaction.  First, it loads the details from the viewpoint of
 // the main chain, then it adjusts them based upon the contents of the
 // transaction pool.
 //
