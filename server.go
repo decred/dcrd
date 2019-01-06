@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"math"
 	"net"
+	"path"
 	"runtime"
 	"strconv"
 	"strings"
@@ -28,6 +29,7 @@ import (
 	"github.com/decred/dcrd/connmgr"
 	"github.com/decred/dcrd/database"
 	"github.com/decred/dcrd/dcrutil"
+	"github.com/decred/dcrd/fees"
 	"github.com/decred/dcrd/gcs"
 	"github.com/decred/dcrd/gcs/blockcf"
 	"github.com/decred/dcrd/internal/version"
@@ -187,6 +189,7 @@ type server struct {
 	rpcServer            *rpcServer
 	blockManager         *blockManager
 	txMemPool            *mempool.TxPool
+	feeEstimator         *fees.Estimator
 	cpuMiner             *CPUMiner
 	modifyRebroadcastInv chan interface{}
 	newPeers             chan *serverPeer
@@ -2133,6 +2136,8 @@ func (s *server) Stop() error {
 		s.rpcServer.Stop()
 	}
 
+	s.feeEstimator.Close()
+
 	// Signal the remaining goroutines to quit.
 	close(s.quit)
 	return nil
@@ -2312,7 +2317,7 @@ func standardScriptVerifyFlags(chain *blockchain.BlockChain) (txscript.ScriptFla
 // newServer returns a new dcrd server configured to listen on addr for the
 // Decred network type specified by chainParams.  Use start to begin accepting
 // connections from peers.
-func newServer(listenAddrs []string, db database.DB, chainParams *chaincfg.Params, interrupt <-chan struct{}) (*server, error) {
+func newServer(listenAddrs []string, db database.DB, chainParams *chaincfg.Params, dataDir string, interrupt <-chan struct{}) (*server, error) {
 	services := defaultServices
 	if cfg.NoCFilters {
 		services &^= wire.SFNodeCF
@@ -2503,6 +2508,27 @@ func newServer(listenAddrs []string, db database.DB, chainParams *chaincfg.Param
 		indexes = append(indexes, s.cfIndex)
 	}
 
+	feC := fees.EstimatorConfig{
+		ChainParams:  chainParams,
+		MinBucketFee: cfg.minRelayTxFee,
+		MaxBucketFee: dcrutil.Amount(fees.DefaultMaxBucketFeeMultiplier) * cfg.minRelayTxFee,
+		MaxConfirms:  fees.DefaultMaxConfirmations,
+		FeeRateStep:  fees.DefaultFeeRateStep,
+		DatabaseFile: path.Join(dataDir, "feesdb"),
+
+		// 1e5 is the previous (up to 1.1.0) mempool.DefaultMinRelayTxFee that
+		// un-upgraded wallets will be using, so track this particular rate
+		// explicitly. Note that bumping this value will cause the existing fees
+		// database to become invalid and will force nodes to explicitly delete
+		// it.
+		ExtraBucketFee: 1e5,
+	}
+	fe, err := fees.NewEstimator(&feC)
+	if err != nil {
+		return nil, err
+	}
+	s.feeEstimator = fe
+
 	// Create an index manager if any of the optional indexes are enabled.
 	var indexManager blockchain.IndexManager
 	if len(indexes) > 0 {
@@ -2543,8 +2569,10 @@ func newServer(listenAddrs []string, db database.DB, chainParams *chaincfg.Param
 		PastMedianTime: func() time.Time {
 			return bm.chain.BestSnapshot().MedianTime
 		},
-		AddrIndex:       s.addrIndex,
-		ExistsAddrIndex: s.existsAddrIndex,
+		AddrIndex:                 s.addrIndex,
+		ExistsAddrIndex:           s.existsAddrIndex,
+		AddTxToFeeEstimation:      s.feeEstimator.AddMemPoolTransaction,
+		RemoveTxFromFeeEstimation: s.feeEstimator.RemoveMemPoolTransaction,
 	}
 	s.txMemPool = mempool.New(&txC)
 

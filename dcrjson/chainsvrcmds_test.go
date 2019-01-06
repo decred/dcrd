@@ -117,13 +117,31 @@ func TestChainSvrCmds(t *testing.T) {
 		{
 			name: "estimatesmartfee",
 			newCmd: func() (interface{}, error) {
+				return NewCmd("estimatesmartfee", 6)
+			},
+			staticCmd: func() interface{} {
+				return NewEstimateSmartFeeCmd(6, nil)
+			},
+			marshalled: `{"jsonrpc":"1.0","method":"estimatesmartfee","params":[6],"id":1}`,
+			unmarshalled: &EstimateSmartFeeCmd{
+				Confirmations: 6,
+				Mode:          EstimateSmartFeeModeAddr(EstimateSmartFeeConservative),
+			},
+		},
+		{
+			name: "estimatesmartfee optional",
+			newCmd: func() (interface{}, error) {
 				return NewCmd("estimatesmartfee", 6, EstimateSmartFeeConservative)
 			},
 			staticCmd: func() interface{} {
-				return NewEstimateSmartFeeCmd(6, EstimateSmartFeeConservative)
+				mode := EstimateSmartFeeConservative
+				return NewEstimateSmartFeeCmd(6, &mode)
 			},
-			marshalled:   `{"jsonrpc":"1.0","method":"estimatesmartfee","params":[6,"conservative"],"id":1}`,
-			unmarshalled: &EstimateSmartFeeCmd{Confirmations: 6, Mode: EstimateSmartFeeConservative},
+			marshalled: `{"jsonrpc":"1.0","method":"estimatesmartfee","params":[6,"conservative"],"id":1}`,
+			unmarshalled: &EstimateSmartFeeCmd{
+				Confirmations: 6,
+				Mode:          EstimateSmartFeeModeAddr(EstimateSmartFeeConservative),
+			},
 		},
 		{
 			name: "generate",

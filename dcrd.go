@@ -180,7 +180,7 @@ func dcrdMain(serverChan chan<- *server) error {
 	// Create server and start it.
 	lifetimeNotifier.notifyStartupEvent(lifetimeEventP2PServer)
 	server, err := newServer(cfg.Listeners, db, activeNetParams.Params,
-		interrupt)
+		cfg.DataDir, interrupt)
 	if err != nil {
 		// TODO(oga) this logging could do with some beautifying.
 		dcrdLog.Errorf("Unable to start server on %v: %v",

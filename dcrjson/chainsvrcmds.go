@@ -158,18 +158,18 @@ const (
 
 	// EstimateSmartFeeConservative potentially returns
 	// a conservative result.
-	EstimateSmartFeeConservative = "conservative"
+	EstimateSmartFeeConservative EstimateSmartFeeMode = "conservative"
 )
 
 // EstimateSmartFeeCmd defines the estimatesmartfee JSON-RPC command.
 type EstimateSmartFeeCmd struct {
 	Confirmations int64
-	Mode          EstimateSmartFeeMode
+	Mode          *EstimateSmartFeeMode `jsonrpcdefault:"\"conservative\""`
 }
 
 // NewEstimateSmartFeeCmd returns a new instance which can be used to issue an
 // estimatesmartfee JSON-RPC command.
-func NewEstimateSmartFeeCmd(confirmations int64, mode EstimateSmartFeeMode) *EstimateSmartFeeCmd {
+func NewEstimateSmartFeeCmd(confirmations int64, mode *EstimateSmartFeeMode) *EstimateSmartFeeCmd {
 	return &EstimateSmartFeeCmd{
 		Confirmations: confirmations,
 		Mode:          mode,

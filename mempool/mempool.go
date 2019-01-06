@@ -123,6 +123,16 @@ type Config struct {
 	// to use for indexing the unconfirmed transactions in the memory pool.
 	// This can be nil if the address index is not enabled.
 	ExistsAddrIndex *indexers.ExistsAddrIndex
+
+	// AddTxToFeeEstimation defines an optional function to be called whenever a
+	// new transaction is added to the mempool, which can be used to track fees
+	// for the purposes of smart fee estimation.
+	AddTxToFeeEstimation func(txHash *chainhash.Hash, fee, size int64, txType stake.TxType)
+
+	// RemoveTxFromFeeEstimation defines an optional function to be called
+	// whenever a transaction is removed from the mempool in order to track fee
+	// estimation.
+	RemoveTxFromFeeEstimation func(txHash *chainhash.Hash)
 }
 
 // Policy houses the policy (configuration parameters) which is used to
@@ -602,6 +612,12 @@ func (mp *TxPool) removeTransaction(tx *dcrutil.Tx, removeRedeemers bool) {
 		}
 		delete(mp.pool, *txHash)
 		atomic.StoreInt64(&mp.lastUpdated, time.Now().Unix())
+
+		// Inform associated fee estimator that the transaction has been removed
+		// from the mempool
+		if mp.cfg.RemoveTxFromFeeEstimation != nil {
+			mp.cfg.RemoveTxFromFeeEstimation(txHash)
+		}
 	}
 }
 
@@ -672,6 +688,13 @@ func (mp *TxPool) addTransaction(utxoView *blockchain.UtxoViewpoint,
 	if mp.cfg.ExistsAddrIndex != nil {
 		mp.cfg.ExistsAddrIndex.AddUnconfirmedTx(msgTx)
 	}
+
+	// Inform the associated fee estimator that a new transaction has been added
+	// to the mempool
+	if mp.cfg.AddTxToFeeEstimation != nil {
+		mp.cfg.AddTxToFeeEstimation(tx.Hash(), fee, int64(msgTx.SerializeSize()),
+			txType)
+	}
 }
 
 // checkPoolDoubleSpend checks whether or not the passed transaction is
@@ -683,8 +706,7 @@ func (mp *TxPool) addTransaction(utxoView *blockchain.UtxoViewpoint,
 func (mp *TxPool) checkPoolDoubleSpend(tx *dcrutil.Tx, txType stake.TxType) error {
 	for i, txIn := range tx.MsgTx().TxIn {
 		// We don't care about double spends of stake bases.
-		if (txType == stake.TxTypeSSGen || txType == stake.TxTypeSSRtx) &&
-			(i == 0) {
+		if i == 0 && (txType == stake.TxTypeSSGen || txType == stake.TxTypeSSRtx) {
 			continue
 		}
 
@@ -728,7 +750,7 @@ func (mp *TxPool) IsRegTxTreeKnownDisapproved(hash *chainhash.Hash) bool {
 }
 
 // fetchInputUtxos loads utxo details about the input transactions referenced by
-// the passed transaction.  First, it loads the details form the viewpoint of
+// the passed transaction.  First, it loads the details from the viewpoint of
 // the main chain, then it adjusts them based upon the contents of the
 // transaction pool.
 //
