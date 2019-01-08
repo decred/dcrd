@@ -554,10 +554,11 @@ func (view *UtxoViewpoint) disconnectDisapprovedBlock(db database.DB, block *dcr
 	}
 
 	// Sanity check the correct number of stxos are provided.
-	if len(stxos) != countSpentOutputs(block) {
+	numSpentOut := countSpentOutputs(block)
+	if len(stxos) != numSpentOut {
 		panicf("provided %v stxos for block %v (height %v) which spends %v "+
-			"outputs", len(stxos), block.Hash(), block.MsgBlock().Header.Height,
-			countSpentOutputs(block))
+			"outputs", len(stxos), block.Hash(), block.MsgBlock().Header.Height, 
+		       	numSpentOut)
 	}
 
 	return view.disconnectRegularTransactions(block, stxos)
