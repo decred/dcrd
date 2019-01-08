@@ -558,7 +558,7 @@ func (view *UtxoViewpoint) disconnectDisapprovedBlock(db database.DB, block *dcr
 	if len(stxos) != numSpentOut {
 		panicf("provided %v stxos for block %v (height %v) which spends %v "+
 			"outputs", len(stxos), block.Hash(), block.MsgBlock().Header.Height,
-		       	numSpentOut)
+		    	numSpentOut)
 	}
 
 	return view.disconnectRegularTransactions(block, stxos)
