@@ -137,6 +137,74 @@ func testConnectNode(r *Harness, t *testing.T) {
 	assertConnectedTo(t, harness, r)
 }
 
+func assertNotConnectedTo(t *testing.T, nodeA *Harness, nodeB *Harness) {
+	nodeAPeers, err := nodeA.Node.GetPeerInfo()
+	if err != nil {
+		t.Fatalf("unable to get nodeA's peer info")
+	}
+
+	nodeAddr := nodeB.node.config.listen
+	addrFound := false
+	for _, peerInfo := range nodeAPeers {
+		if peerInfo.Addr == nodeAddr {
+			addrFound = true
+			break
+		}
+	}
+
+	if addrFound {
+		t.Fatal("nodeA is connected to nodeB")
+	}
+}
+
+func testDisconnectNode(r *Harness, t *testing.T) {
+	// Create a fresh test harness.
+	harness, err := New(&chaincfg.RegNetParams, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := harness.SetUp(false, 0); err != nil {
+		t.Fatalf("unable to complete rpctest setup: %v", err)
+	}
+	defer harness.TearDown()
+
+	// Establish a p2p connection from our new local harness to the main
+	// harness.
+	if err := ConnectNode(harness, r); err != nil {
+		t.Fatalf("unable to connect local to main harness: %v", err)
+	}
+
+	// Sanity check.
+	assertConnectedTo(t, harness, r)
+
+	// Disconnect the nodes.
+	if err := RemoveNode(harness, r); err != nil {
+		t.Fatalf("unable to disconnect local to main harness: %v", err)
+	}
+
+	assertNotConnectedTo(t, harness, r)
+
+	// Re-connect the nodes. We'll perform the test in the reverse direction now
+	// and assert that the nodes remain connected and that RemoveNode() fails.
+	if err := ConnectNode(harness, r); err != nil {
+		t.Fatalf("unable to connect local to main harness: %v", err)
+	}
+
+	// Sanity check.
+	assertConnectedTo(t, harness, r)
+
+	// Try to disconnect the nodes in the reverse direction. This should fail,
+	// as the nodes are connected in the harness->r direction.
+	if err := RemoveNode(r, harness); err == nil {
+		t.Fatalf("removeNode on unconnected peers should return an error")
+	}
+
+	// Ensure the nodes remain connected after trying to disconnect them in the
+	// reverse order.
+	assertConnectedTo(t, harness, r)
+
+}
+
 func testTearDownAll(t *testing.T) {
 	// Grab a local copy of the currently active harnesses before
 	// attempting to tear them all down.
@@ -423,6 +491,7 @@ func testMemWalletLockedOutputs(r *Harness, t *testing.T) {
 var harnessTestCases = []HarnessTestCase{
 	testSendOutputs,
 	testConnectNode,
+	testDisconnectNode,
 	testActiveHarnesses,
 	testJoinBlocks,
 	testJoinMempools, // Depends on results of testJoinBlocks
