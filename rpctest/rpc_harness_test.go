@@ -202,7 +202,75 @@ func testDisconnectNode(r *Harness, t *testing.T) {
 	// Ensure the nodes remain connected after trying to disconnect them in the
 	// reverse order.
 	assertConnectedTo(t, harness, r)
+}
 
+func testNodesConnected(r *Harness, t *testing.T) {
+	// Create a fresh test harness.
+	harness, err := New(&chaincfg.RegNetParams, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := harness.SetUp(false, 0); err != nil {
+		t.Fatalf("unable to complete rpctest setup: %v", err)
+	}
+	defer harness.TearDown()
+
+	// Establish a p2p connection from our new local harness to the main
+	// harness.
+	if err := ConnectNode(harness, r); err != nil {
+		t.Fatalf("unable to connect local to main harness: %v", err)
+	}
+
+	// Sanity check.
+	assertConnectedTo(t, harness, r)
+
+	// Ensure nodes are still connected.
+	assertConnectedTo(t, harness, r)
+
+	testCases := []struct {
+		name         string
+		allowReverse bool
+		expected     bool
+		from         *Harness
+		to           *Harness
+	}{
+		// The existing connection is h->r.
+		{"!allowReverse, h->r", false, true, harness, r},
+		{"allowReverse, h->r", true, true, harness, r},
+		{"!allowReverse, r->h", false, false, r, harness},
+		{"allowReverse, r->h", true, true, r, harness},
+	}
+
+	for _, tc := range testCases {
+		actual, err := NodesConnected(tc.from, tc.to, tc.allowReverse)
+		if err != nil {
+			t.Fatalf("unable to determine node connection: %v", err)
+		}
+		if actual != tc.expected {
+			t.Fatalf("test case %s: actual result (%v) differs from expected "+
+				"(%v)", tc.name, actual, tc.expected)
+		}
+	}
+
+	// Disconnect the nodes.
+	if err := RemoveNode(harness, r); err != nil {
+		t.Fatalf("unable to disconnect local to main harness: %v", err)
+	}
+
+	// Sanity check.
+	assertNotConnectedTo(t, harness, r)
+
+	// All test cases must return false now.
+	for _, tc := range testCases {
+		actual, err := NodesConnected(tc.from, tc.to, tc.allowReverse)
+		if err != nil {
+			t.Fatalf("unable to determine node connection: %v", err)
+		}
+		if actual {
+			t.Fatalf("test case %s: nodes connected after commanded to "+
+				"disconnect", tc.name)
+		}
+	}
 }
 
 func testTearDownAll(t *testing.T) {
@@ -492,6 +560,7 @@ var harnessTestCases = []HarnessTestCase{
 	testSendOutputs,
 	testConnectNode,
 	testDisconnectNode,
+	testNodesConnected,
 	testActiveHarnesses,
 	testJoinBlocks,
 	testJoinMempools, // Depends on results of testJoinBlocks
