@@ -876,3 +876,48 @@ func (c *Client) GetCFilterHeaderAsync(blockHash *chainhash.Hash, filterType wir
 func (c *Client) GetCFilterHeader(blockHash *chainhash.Hash, filterType wire.FilterType) (*chainhash.Hash, error) {
 	return c.GetCFilterHeaderAsync(blockHash, filterType).Receive()
 }
+
+// FutureEstimateSmartFeeResult is a future promise to deliver the result of a
+// EstimateSmartFee RPC invocation (or an applicable error).
+type FutureEstimateSmartFeeResult chan *response
+
+// Receive waits for the response promised by the future and returns a fee
+// estimation for the given target confirmation window and mode.
+func (r FutureEstimateSmartFeeResult) Receive() (float64, error) {
+	res, err := receiveFuture(r)
+	if err != nil {
+		return 0, err
+	}
+
+	// Unmarshal the result as a float64.
+	var dcrPerKB float64
+	err = json.Unmarshal(res, &dcrPerKB)
+	if err != nil {
+		return 0, err
+	}
+	return dcrPerKB, nil
+}
+
+// EstimateSmartFeeAsync returns an instance of a type that can be used to get
+// the result of the RPC at some future time by invoking the Receive function on
+// the returned instance.
+//
+// See EstimateSmartFee for the blocking version and more details.
+func (c *Client) EstimateSmartFeeAsync(confirmations int64, mode dcrjson.EstimateSmartFeeMode) FutureEstimateSmartFeeResult {
+	cmd := dcrjson.NewEstimateSmartFeeCmd(confirmations, &mode)
+	return c.sendCmd(cmd)
+}
+
+// EstimateSmartFee returns an estimation of a transaction fee rate (in dcr/KB)
+// that new transactions should pay if they desire to be mined in up to
+// 'confirmations' blocks.
+//
+// The mode parameter (roughly) selects the different thresholds for accepting
+// an estimation as reasonable, allowing users to select different trade-offs
+// between probability of the transaction being mined in the given target
+// confirmation range and minimization of fees paid.
+//
+// As of 2019-01, only the default conservative mode is supported by dcrd.
+func (c *Client) EstimateSmartFee(confirmations int64, mode dcrjson.EstimateSmartFeeMode) (float64, error) {
+	return c.EstimateSmartFeeAsync(confirmations, mode).Receive()
+}
