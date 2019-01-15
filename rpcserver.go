@@ -4227,24 +4227,25 @@ func handleGetWorkSubmission(s *rpcServer, hexData string) (interface{}, error) 
 	}
 
 	// Reconstruct the block using the submitted header stored block info.
-	// A temporary block is used because we will be mutating the contents
-	// for the construction of the correct regular merkle tree. You must
-	// also deep copy the block itself because it could be accessed outside
-	// of the GW workstate mutexes once it gets submitted to the
+	// The MsgBlock is copied here because it could be accessed
+	// outside of the GW workstate mutexes once it gets submitted to the
 	// blockchain.
-	tempBlock := dcrutil.NewBlockDeepCopy(blockInfo.msgBlock)
-	msgBlock := tempBlock.MsgBlock()
-	msgBlock.Header = submittedHeader
-	if msgBlock.Header.Height > 1 {
-		pkScriptCopy := make([]byte, len(blockInfo.pkScript))
-		copy(pkScriptCopy, blockInfo.pkScript)
-		msgBlock.Transactions[0].TxOut[1].PkScript = blockInfo.pkScript
-		merkles := blockchain.BuildMerkleTreeStore(tempBlock.Transactions())
-		msgBlock.Header.MerkleRoot = *merkles[len(merkles)-1]
+
+	msgBlockB, err := blockInfo.msgBlock.Bytes()
+	if err != nil {
+		return false, rpcInternalError("Unexpected error "+
+			"while serializing MsgBlock: "+err.Error(), "")
 	}
 
-	// The real block to submit, with a proper nonce and extraNonce.
-	block := dcrutil.NewBlockDeepCopyCoinbase(msgBlock)
+	var msgBlock wire.MsgBlock
+	err = msgBlock.FromBytes(msgBlockB)
+	if err != nil {
+		return false, rpcInternalError("Unexpected error "+
+			"while creating MsgBlock from bytes: "+err.Error(), "")
+	}
+
+	msgBlock.Header = submittedHeader
+	block := dcrutil.NewBlock(&msgBlock)
 
 	// Ensure the submitted block hash is less than the target difficulty.
 	err = blockchain.CheckProofOfWork(&block.MsgBlock().Header,
