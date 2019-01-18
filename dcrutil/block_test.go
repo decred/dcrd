@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2016 The Decred developers
+// Copyright (c) 2015-2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -142,6 +142,28 @@ func TestBlock(t *testing.T) {
 				spew.Sdump(block100000Bytes))
 			continue
 		}
+	}
+
+	// Serialize the test block's header.
+	var block100000HeaderBuf bytes.Buffer
+	block100000HeaderBuf.Grow(wire.MaxBlockHeaderPayload)
+	err = Block100000.Header.Serialize(&block100000HeaderBuf)
+	if err != nil {
+		t.Errorf("Serialize: %v", err)
+	}
+	block100000HeaderBytes := block100000HeaderBuf.Bytes()
+
+	// Request serialized header bytes after the previous calls to block.Bytes
+	// to ensure the correct bytes are returned (not the cached copy of the full
+	// serialized block).
+	serializedHeaderBytes, err := b.BlockHeaderBytes()
+	if err != nil {
+		t.Errorf("Bytes: %v", err)
+	}
+	if !bytes.Equal(serializedHeaderBytes, block100000HeaderBytes) {
+		t.Errorf("BlockHeaderBytes wrong bytes - got %v, want %v",
+			spew.Sdump(serializedHeaderBytes),
+			spew.Sdump(block100000HeaderBytes))
 	}
 
 	// Transaction offsets and length for the transaction in Block100000.
