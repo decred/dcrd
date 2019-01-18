@@ -52,7 +52,6 @@ func (b *BlockChain) calcSequenceLock(node *blockNode, tx *dcrutil.Tx, view *Utx
 	enforce := isActive && msgTx.Version >= 2
 	if !enforce || IsCoinBaseTx(msgTx) || isStakeBaseTx(msgTx) {
 		return sequenceLock, nil
-
 	}
 
 	for txInIndex, txIn := range msgTx.TxIn {
