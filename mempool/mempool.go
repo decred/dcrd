@@ -858,8 +858,22 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 		tx.SetTree(wire.TxTreeStake)
 	}
 
-	// Reject votes before stake validation height.
+	// Don't accept transactions with sequence locks enabled until a vote
+	// takes place to change the semantics.
 	isVote := txType == stake.TxTypeSSGen
+	if msgTx.Version >= 2 && !isVote {
+		for _, txIn := range msgTx.TxIn {
+			sequenceNum := txIn.Sequence
+			if sequenceNum&wire.SequenceLockTimeDisabled != 0 {
+				continue
+			}
+
+			str := "violates sequence lock consensus bug"
+			return nil, txRuleError(wire.RejectInvalid, str)
+		}
+	}
+
+	// Reject votes before stake validation height.
 	stakeValidationHeight := mp.cfg.ChainParams.StakeValidationHeight
 	if isVote && nextBlockHeight < stakeValidationHeight {
 		str := fmt.Sprintf("votes are not valid until block height %d (next "+

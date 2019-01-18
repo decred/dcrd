@@ -2440,6 +2440,61 @@ func CountP2SHSigOps(tx *dcrutil.Tx, isCoinBaseTx bool, isStakeBaseTx bool, view
 	return totalSigOps, nil
 }
 
+// createLegacySeqLockView returns a view to use when calculating sequence locks
+// for the transactions in the regular tree that preserves the same incorrect
+// semantics that were present in previous versions of the software.
+func (b *BlockChain) createLegacySeqLockView(block, parent *dcrutil.Block, view *UtxoViewpoint) (*UtxoViewpoint, error) {
+	// Clone the real view to avoid mutating it.
+	seqLockView := view.clone()
+
+	// Ensure all of the inputs referenced by the transactions in the regular
+	// tree of the parent block and the parent block outputs are available in
+	// the legacy view so long as it has not been disapproved.
+	if headerApprovesParent(&block.MsgBlock().Header) {
+		err := seqLockView.fetchRegularInputUtxos(b.db, parent)
+		if err != nil {
+			return nil, err
+		}
+
+		for txInIdx, tx := range parent.Transactions() {
+			seqLockView.AddTxOuts(tx, parent.Height(), uint32(txInIdx))
+		}
+	}
+
+	// Ensure all of the inputs referenced by the transactions in the stake tree
+	// of the current block are available in the legacy view.
+	filteredSet := make(viewFilteredSet)
+	for _, stx := range block.STransactions() {
+		isVote := stake.IsSSGen(stx.MsgTx())
+		for txInIdx, txIn := range stx.MsgTx().TxIn {
+			// Ignore stakebase since it has no input.
+			if txInIdx == 0 && isVote {
+				continue
+			}
+
+			// Only request entries that are not already in the view from the
+			// database.
+			originHash := &txIn.PreviousOutPoint.Hash
+			filteredSet.add(seqLockView, originHash)
+		}
+	}
+	err := seqLockView.fetchUtxosMain(b.db, filteredSet)
+	if err != nil {
+		return nil, err
+	}
+
+	// Connect all of the transactions in the stake tree of the current block.
+	for txIdx, stx := range block.STransactions() {
+		err := seqLockView.connectTransaction(stx, block.Height(),
+			uint32(txIdx), nil)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return seqLockView, nil
+}
+
 // checkNumSigOps Checks the number of P2SH signature operations to make
 // sure they don't overflow the limits.  It takes a cumulative number of sig
 // ops as an argument and increments will each call.
@@ -2833,6 +2888,23 @@ func (b *BlockChain) checkConnectBlock(node *blockNode, block, parent *dcrutil.B
 		}
 	}
 
+	// Create a view which preserves the expected consensus semantics for
+	// relative lock times via sequence numbers once the stake vote for the
+	// agenda is active.
+	var legacySeqLockView *UtxoViewpoint
+	lnFeaturesActive, err := b.isLNFeaturesAgendaActive(node.parent)
+	if err != nil {
+		return err
+	}
+	if lnFeaturesActive {
+		var err error
+		legacySeqLockView, err = b.createLegacySeqLockView(block, parent,
+			view)
+		if err != nil {
+			return err
+		}
+	}
+
 	// Disconnect all of the transactions in the regular transaction tree of
 	// the parent if the block being checked votes against it.
 	if node.height > 1 && !voteBitsApproveParent(node.voteBits) {
@@ -2878,10 +2950,6 @@ func (b *BlockChain) checkConnectBlock(node *blockNode, block, parent *dcrutil.B
 	// Enforce all relative lock times via sequence numbers for the stake
 	// transaction tree once the stake vote for the agenda is active.
 	var prevMedianTime time.Time
-	lnFeaturesActive, err := b.isLNFeaturesAgendaActive(node.parent)
-	if err != nil {
-		return err
-	}
 	if lnFeaturesActive {
 		// Use the past median time of the *previous* block in order
 		// to determine if the transactions in the current block are
@@ -2938,7 +3006,7 @@ func (b *BlockChain) checkConnectBlock(node *blockNode, block, parent *dcrutil.B
 		// lock times do not apply.
 		for _, tx := range block.Transactions()[1:] {
 			sequenceLock, err := b.calcSequenceLock(node, tx,
-				view, true)
+				legacySeqLockView, true)
 			if err != nil {
 				return err
 			}
