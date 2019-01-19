@@ -2072,6 +2072,15 @@ func newBgBlkTmplGenerator(tg *BlkTmplGenerator, addrs []dcrutil.Address, permit
 	}
 }
 
+// fetchTemplate retrieves a block template from the template pool based on the
+// provided key.
+func (g *BgBlkTmplGenerator) fetchTemplate(key [merkleRootPairSize]byte) *wire.MsgBlock {
+	g.templatePoolMtx.Lock()
+	template := g.templatePool[key]
+	g.templatePoolMtx.Unlock()
+	return template
+}
+
 // scheduleRegen schedules a template regeneration by the provided duration
 // in the future.  If there is an existing schedule in play the sheduled time
 // reset to updated the provided duration.
