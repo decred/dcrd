@@ -91,6 +91,12 @@ func (b *BlockChain) processOrphans(hash *chainhash.Hash, flags BehaviorFlags) e
 	return nil
 }
 
+// WaitForChain blocks if the chain is processing a block or handling a reorg.
+func (b *BlockChain) WaitForChain() {
+	b.chainLock.RLock()
+	b.chainLock.RUnlock()
+}
+
 // ProcessBlock is the main workhorse for handling insertion of new blocks into
 // the block chain.  It includes functionality such as rejecting duplicate
 // blocks, ensuring blocks follow all rules, orphan handling, and insertion into
