@@ -215,6 +215,620 @@ func TestSequenceLocksActive(t *testing.T) {
 	}
 }
 
+// quickVoteActivationParams returns a set of test chain parameters which allow
+// for quicker vote activation as compared to various existing network params by
+// reducing the required maturities, the ticket pool size, the stake enabled and
+// validation heights, the proof-of-work block version upgrade window, the stake
+// version interval, and the rule change activation interval.
+func quickVoteActivationParams() *chaincfg.Params {
+	params := cloneParams(&chaincfg.RegNetParams)
+	params.WorkDiffWindowSize = 200000
+	params.WorkDiffWindows = 1
+	params.TargetTimespan = params.TargetTimePerBlock *
+		time.Duration(params.WorkDiffWindowSize)
+	params.CoinbaseMaturity = 2
+	params.BlockEnforceNumRequired = 5
+	params.BlockRejectNumRequired = 7
+	params.BlockUpgradeNumToCheck = 10
+	params.TicketMaturity = 2
+	params.TicketPoolSize = 4
+	params.TicketExpiry = 6 * uint32(params.TicketPoolSize)
+	params.StakeEnabledHeight = int64(params.CoinbaseMaturity) +
+		int64(params.TicketMaturity)
+	params.StakeValidationHeight = int64(params.CoinbaseMaturity) +
+		int64(params.TicketPoolSize)*2
+	params.StakeVersionInterval = 10
+	params.RuleChangeActivationInterval = uint32(params.TicketPoolSize) *
+		uint32(params.TicketsPerBlock)
+	params.RuleChangeActivationQuorum = params.RuleChangeActivationInterval *
+		uint32(params.TicketsPerBlock*100) / 1000
+
+	return params
+}
+
+// TestLegacySequenceLocks ensure that sequence locks within blocks behave as
+// expected according to the legacy semantics in previous version of the
+// software.
+func TestLegacySequenceLocks(t *testing.T) {
+	// Use a set of test chain parameters which allow for quicker vote
+	// activation as compared to various existing network params.
+	params := quickVoteActivationParams()
+
+	// deploymentVer is the deployment version of the ln features vote for the
+	// chain params.
+	const deploymentVer = 6
+
+	// Find the correct deployment for the LN features agenda.
+	voteID := chaincfg.VoteIDLNFeatures
+	var deployment *chaincfg.ConsensusDeployment
+	deployments := params.Deployments[deploymentVer]
+	for deploymentID, depl := range deployments {
+		if depl.Vote.Id == voteID {
+			deployment = &deployments[deploymentID]
+			break
+		}
+	}
+	if deployment == nil {
+		t.Fatalf("Unable to find consensus deployement for %s", voteID)
+	}
+
+	// Find the correct choice for the yes vote.
+	const yesVoteID = "yes"
+	var yesChoice *chaincfg.Choice
+	for _, choice := range deployment.Vote.Choices {
+		if choice.Id == yesVoteID {
+			yesChoice = &choice
+		}
+	}
+	if yesChoice == nil {
+		t.Fatalf("Unable to find vote choice for id %q", yesVoteID)
+	}
+
+	// Create a test generator instance initialized with the genesis block as
+	// the tip.
+	g, err := chaingen.MakeGenerator(params)
+	if err != nil {
+		t.Fatalf("Failed to create generator: %v", err)
+	}
+
+	// Create a new database and chain instance to run tests against.
+	chain, teardownFunc, err := chainSetup("seqlocksoldsemanticstest", params)
+	if err != nil {
+		t.Fatalf("Failed to setup chain instance: %v", err)
+	}
+	defer teardownFunc()
+
+	// accepted processes the current tip block associated with the generator
+	// and expects it to be accepted to the main chain.
+	//
+	// rejected expects the block to be rejected with the provided error code.
+	//
+	// expectTip expects the provided block to be the current tip of the
+	// main chain.
+	//
+	// acceptedToSideChainWithExpectedTip expects the block to be accepted to a
+	// side chain, but the current best chain tip to be the provided value.
+	//
+	// testThresholdState queries the threshold state from the current tip block
+	// associated with the generator and expects the returned state to match the
+	// provided value.
+	accepted := func() {
+		msgBlock := g.Tip()
+		blockHeight := msgBlock.Header.Height
+		block := dcrutil.NewBlock(msgBlock)
+		t.Logf("Testing block %s (hash %s, height %d)", g.TipName(),
+			block.Hash(), blockHeight)
+
+		forkLen, isOrphan, err := chain.ProcessBlock(block, BFNone)
+		if err != nil {
+			t.Fatalf("block %q (hash %s, height %d) should have been "+
+				"accepted: %v", g.TipName(), block.Hash(), blockHeight, err)
+		}
+
+		// Ensure the main chain and orphan flags match the values specified in
+		// the test.
+		isMainChain := !isOrphan && forkLen == 0
+		if !isMainChain {
+			t.Fatalf("block %q (hash %s, height %d) unexpected main chain "+
+				"flag -- got %v, want true", g.TipName(), block.Hash(),
+				blockHeight, isMainChain)
+		}
+		if isOrphan {
+			t.Fatalf("block %q (hash %s, height %d) unexpected orphan flag -- "+
+				"got %v, want false", g.TipName(), block.Hash(), blockHeight,
+				isOrphan)
+		}
+	}
+	rejected := func(code ErrorCode) {
+		msgBlock := g.Tip()
+		blockHeight := msgBlock.Header.Height
+		block := dcrutil.NewBlock(msgBlock)
+		t.Logf("Testing block %s (hash %s, height %d)", g.TipName(),
+			block.Hash(), blockHeight)
+
+		_, _, err := chain.ProcessBlock(block, BFNone)
+		if err == nil {
+			t.Fatalf("block %q (hash %s, height %d) should not have been "+
+				"accepted", g.TipName(), block.Hash(), blockHeight)
+		}
+
+		// Ensure the error code is of the expected type and the reject code
+		// matches the value specified in the test instance.
+		rerr, ok := err.(RuleError)
+		if !ok {
+			t.Fatalf("block %q (hash %s, height %d) returned unexpected error "+
+				"type -- got %T, want blockchain.RuleError", g.TipName(),
+				block.Hash(), blockHeight, err)
+		}
+		if rerr.ErrorCode != code {
+			t.Fatalf("block %q (hash %s, height %d) does not have expected "+
+				"reject code -- got %v, want %v", g.TipName(), block.Hash(),
+				blockHeight, rerr.ErrorCode, code)
+		}
+	}
+	expectTip := func(tipName string) {
+		// Ensure hash and height match.
+		wantTip := g.BlockByName(tipName)
+		best := chain.BestSnapshot()
+		if best.Hash != wantTip.BlockHash() ||
+			best.Height != int64(wantTip.Header.Height) {
+			t.Fatalf("block %q (hash %s, height %d) should be the current tip "+
+				"-- got (hash %s, height %d)", tipName, wantTip.BlockHash(),
+				wantTip.Header.Height, best.Hash, best.Height)
+		}
+	}
+	acceptedToSideChainWithExpectedTip := func(tipName string) {
+		msgBlock := g.Tip()
+		blockHeight := msgBlock.Header.Height
+		block := dcrutil.NewBlock(msgBlock)
+		t.Logf("Testing block %s (hash %s, height %d)", g.TipName(),
+			block.Hash(), blockHeight)
+
+		forkLen, isOrphan, err := chain.ProcessBlock(block, BFNone)
+		if err != nil {
+			t.Fatalf("block %q (hash %s, height %d) should have been "+
+				"accepted: %v", g.TipName(), block.Hash(), blockHeight, err)
+		}
+
+		// Ensure the main chain and orphan flags match the values specified in
+		// the test.
+		isMainChain := !isOrphan && forkLen == 0
+		if isMainChain {
+			t.Fatalf("block %q (hash %s, height %d) unexpected main chain "+
+				"flag -- got %v, want false", g.TipName(), block.Hash(),
+				blockHeight, isMainChain)
+		}
+		if isOrphan {
+			t.Fatalf("block %q (hash %s, height %d) unexpected orphan flag -- "+
+				"got %v, want false", g.TipName(), block.Hash(), blockHeight,
+				isOrphan)
+		}
+
+		expectTip(tipName)
+	}
+	testThresholdState := func(id string, state ThresholdState) {
+		tipHash := g.Tip().BlockHash()
+		s, err := chain.NextThresholdState(&tipHash, deploymentVer, id)
+		if err != nil {
+			t.Fatalf("block %q (hash %s, height %d) unexpected error when "+
+				"retrieving threshold state: %v", g.TipName(), tipHash,
+				g.Tip().Header.Height, err)
+		}
+
+		if s.State != state {
+			t.Fatalf("block %q (hash %s, height %d) unexpected threshold "+
+				"state for %s -- got %v, want %v", g.TipName(), tipHash,
+				g.Tip().Header.Height, id, s.State, state)
+		}
+	}
+
+	// Shorter versions of useful params for convenience.
+	ticketsPerBlock := int64(params.TicketsPerBlock)
+	coinbaseMaturity := params.CoinbaseMaturity
+	stakeEnabledHeight := params.StakeEnabledHeight
+	stakeValidationHeight := params.StakeValidationHeight
+	stakeVerInterval := params.StakeVersionInterval
+	ruleChangeInterval := int64(params.RuleChangeActivationInterval)
+
+	// ---------------------------------------------------------------------
+	// First block.
+	// ---------------------------------------------------------------------
+
+	// Add the required first block.
+	//
+	//   genesis -> bp
+	g.CreatePremineBlock("bp", 0)
+	g.AssertTipHeight(1)
+	accepted()
+
+	// ---------------------------------------------------------------------
+	// Generate enough blocks to have mature coinbase outputs to work with.
+	//
+	//   genesis -> bp -> bm0 -> bm1 -> ... -> bm#
+	// ---------------------------------------------------------------------
+
+	for i := uint16(0); i < coinbaseMaturity; i++ {
+		blockName := fmt.Sprintf("bm%d", i)
+		g.NextBlock(blockName, nil, nil)
+		g.SaveTipCoinbaseOuts()
+		accepted()
+	}
+	g.AssertTipHeight(uint32(coinbaseMaturity) + 1)
+
+	// ---------------------------------------------------------------------
+	// Generate enough blocks to reach the stake enabled height while
+	// creating ticket purchases that spend from the coinbases matured
+	// above.  This will also populate the pool of immature tickets.
+	//
+	//   ... -> bm# ... -> bse0 -> bse1 -> ... -> bse#
+	// ---------------------------------------------------------------------
+
+	var ticketsPurchased int
+	for i := int64(0); int64(g.Tip().Header.Height) < stakeEnabledHeight; i++ {
+		outs := g.OldestCoinbaseOuts()
+		ticketOuts := outs[1:]
+		ticketsPurchased += len(ticketOuts)
+		blockName := fmt.Sprintf("bse%d", i)
+		g.NextBlock(blockName, nil, ticketOuts)
+		g.SaveTipCoinbaseOuts()
+		accepted()
+	}
+	g.AssertTipHeight(uint32(stakeEnabledHeight))
+
+	// ---------------------------------------------------------------------
+	// Generate enough blocks to reach the stake validation height while
+	// continuing to purchase tickets using the coinbases matured above and
+	// allowing the immature tickets to mature and thus become live.
+	//
+	// The blocks are also generated with version 6 to ensure stake version
+	// and ln feature enforcement is reached.
+	//
+	//   ... -> bse# -> bsv0 -> bsv1 -> ... -> bsv#
+	// ---------------------------------------------------------------------
+
+	targetPoolSize := int64(g.Params().TicketPoolSize) * ticketsPerBlock
+	for i := int64(0); int64(g.Tip().Header.Height) < stakeValidationHeight; i++ {
+		// Only purchase tickets until the target ticket pool size is reached.
+		outs := g.OldestCoinbaseOuts()
+		ticketOuts := outs[1:]
+		if ticketsPurchased+len(ticketOuts) > int(targetPoolSize) {
+			ticketsNeeded := int(targetPoolSize) - ticketsPurchased
+			if ticketsNeeded > 0 {
+				ticketOuts = ticketOuts[1 : ticketsNeeded+1]
+			} else {
+				ticketOuts = nil
+			}
+		}
+		ticketsPurchased += len(ticketOuts)
+
+		blockName := fmt.Sprintf("bsv%d", i)
+		g.NextBlock(blockName, nil, ticketOuts,
+			chaingen.ReplaceBlockVersion(6))
+		g.SaveTipCoinbaseOuts()
+		accepted()
+	}
+	g.AssertTipHeight(uint32(stakeValidationHeight))
+
+	// ---------------------------------------------------------------------
+	// Generate enough blocks to reach one block before the next two stake
+	// version intervals with block version 6, stake version 0, and vote
+	// version 6.
+	//
+	// This will result in triggering enforcement of the stake version and
+	// that the stake version is 6.  The treshold state for deployment will
+	// move to started since the next block also coincides with the start of
+	// a new rule change activation interval for the chosen parameters.
+	//
+	//   ... -> bsv# -> bvu0 -> bvu1 -> ... -> bvu#
+	// ---------------------------------------------------------------------
+
+	blocksNeeded := stakeValidationHeight + stakeVerInterval*2 - 1 -
+		int64(g.Tip().Header.Height)
+	for i := int64(0); i < blocksNeeded; i++ {
+		outs := g.OldestCoinbaseOuts()
+		blockName := fmt.Sprintf("bvu%d", i)
+		g.NextBlock(blockName, nil, outs[1:], chaingen.ReplaceBlockVersion(6),
+			chaingen.ReplaceVoteVersions(6))
+		g.SaveTipCoinbaseOuts()
+		accepted()
+	}
+	testThresholdState(voteID, ThresholdStarted)
+
+	// ---------------------------------------------------------------------
+	// Generate enough blocks to reach the next rule change interval with
+	// block version 6, stake version 6, and vote version 6.  Also, set the
+	// vote bits to include yes votes for the ln feature agenda.
+	//
+	// This will result in moving the threshold state for the ln feature
+	// enforcement to locked in.
+	//
+	//   ... -> bvu# -> bvli0 -> bvli1 -> ... -> bvli#
+	// ---------------------------------------------------------------------
+
+	blocksNeeded = stakeValidationHeight + ruleChangeInterval*2 - 1 -
+		int64(g.Tip().Header.Height)
+	for i := int64(0); i < blocksNeeded; i++ {
+		outs := g.OldestCoinbaseOuts()
+		blockName := fmt.Sprintf("bvli%d", i)
+		g.NextBlock(blockName, nil, outs[1:], chaingen.ReplaceBlockVersion(6),
+			chaingen.ReplaceStakeVersion(6),
+			chaingen.ReplaceVotes(vbPrevBlockValid|yesChoice.Bits, 6))
+		g.SaveTipCoinbaseOuts()
+		accepted()
+	}
+	g.AssertTipHeight(uint32(stakeValidationHeight + ruleChangeInterval*2 - 1))
+	g.AssertBlockVersion(6)
+	g.AssertStakeVersion(6)
+	testThresholdState(voteID, ThresholdLockedIn)
+
+	// ---------------------------------------------------------------------
+	// Generate enough blocks to reach the next rule change interval with
+	// block version 6, stake version 6, and vote version 6.
+	//
+	// This will result in moving the threshold state for the ln feature
+	// enforcement to active thereby activating it.
+	//
+	//   ... -> bvli# -> bva0 -> bva1 -> ... -> bva#
+	// ---------------------------------------------------------------------
+
+	blocksNeeded = stakeValidationHeight + ruleChangeInterval*3 - 1 -
+		int64(g.Tip().Header.Height)
+	for i := int64(0); i < blocksNeeded; i++ {
+		outs := g.OldestCoinbaseOuts()
+		blockName := fmt.Sprintf("bva%d", i)
+		g.NextBlock(blockName, nil, outs[1:], chaingen.ReplaceBlockVersion(6),
+			chaingen.ReplaceStakeVersion(6), chaingen.ReplaceVoteVersions(6))
+		g.SaveTipCoinbaseOuts()
+		accepted()
+	}
+	g.AssertTipHeight(uint32(stakeValidationHeight + ruleChangeInterval*3 - 1))
+	g.AssertBlockVersion(6)
+	g.AssertStakeVersion(6)
+	testThresholdState(voteID, ThresholdActive)
+
+	// ---------------------------------------------------------------------
+	// Perform a series of sequence lock tests now that ln feature
+	// enforcement is active.
+	// ---------------------------------------------------------------------
+
+	// enableSeqLocks modifies the passed transaction to enable sequence locks
+	// for the provided input.
+	enableSeqLocks := func(tx *wire.MsgTx, txInIdx int) {
+		tx.Version = 2
+		tx.TxIn[txInIdx].Sequence = 0
+	}
+
+	// ---------------------------------------------------------------------
+	// Create block that has a transaction with an input shared with a
+	// transaction in the stake tree and has several outputs used in
+	// subsequent blocks.  Also, enable sequence locks for the first of
+	// those outputs.
+	//
+	//   ... -> b0
+	// ---------------------------------------------------------------------
+
+	outs := g.OldestCoinbaseOuts()
+	b0 := g.NextBlock("b0", &outs[0], outs[1:],
+		chaingen.ReplaceBlockVersion(6), chaingen.ReplaceStakeVersion(6),
+		chaingen.ReplaceVoteVersions(6), func(b *wire.MsgBlock) {
+			// Save the current outputs of the spend tx and clear them.
+			tx := b.Transactions[1]
+			origOut := tx.TxOut[0]
+			origOpReturnOut := tx.TxOut[1]
+			tx.TxOut = tx.TxOut[:0]
+
+			// Evenly split the original output amount over multiple outputs.
+			const numOutputs = 6
+			amount := origOut.Value / numOutputs
+			for i := 0; i < numOutputs; i++ {
+				if i == numOutputs-1 {
+					amount = origOut.Value - amount*(numOutputs-1)
+				}
+				tx.AddTxOut(wire.NewTxOut(int64(amount), origOut.PkScript))
+			}
+
+			// Add the original op return back to the outputs and enable
+			// sequence locks for the first output.
+			tx.AddTxOut(origOpReturnOut)
+			enableSeqLocks(tx, 0)
+		})
+	g.SaveTipCoinbaseOuts()
+	accepted()
+
+	// ---------------------------------------------------------------------
+	// Create block that spends from an output created in the previous
+	// block.
+	//
+	//   ... -> b0 -> b1a
+	// ---------------------------------------------------------------------
+
+	outs = g.OldestCoinbaseOuts()
+	g.NextBlock("b1a", nil, outs[1:],
+		chaingen.ReplaceBlockVersion(6), chaingen.ReplaceStakeVersion(6),
+		chaingen.ReplaceVoteVersions(6), func(b *wire.MsgBlock) {
+			spend := chaingen.MakeSpendableOut(b0, 1, 0)
+			tx := g.CreateSpendTx(&spend, dcrutil.Amount(1))
+			enableSeqLocks(tx, 0)
+			b.AddTransaction(tx)
+		})
+	accepted()
+
+	// ---------------------------------------------------------------------
+	// Create block that involves reorganize to a sequence lock spending
+	// from an output created in a block prior to the parent also spent on
+	// on the side chain.
+	//
+	//   ... -> b0 -> b1  -> b2
+	//            \-> b1a
+	// ---------------------------------------------------------------------
+	g.SetTip("b0")
+	g.NextBlock("b1", nil, outs[1:],
+		chaingen.ReplaceBlockVersion(6), chaingen.ReplaceStakeVersion(6),
+		chaingen.ReplaceVoteVersions(6))
+	g.SaveTipCoinbaseOuts()
+	acceptedToSideChainWithExpectedTip("b1a")
+
+	outs = g.OldestCoinbaseOuts()
+	g.NextBlock("b2", nil, outs[1:],
+		chaingen.ReplaceBlockVersion(6), chaingen.ReplaceStakeVersion(6),
+		chaingen.ReplaceVoteVersions(6), func(b *wire.MsgBlock) {
+			spend := chaingen.MakeSpendableOut(b0, 1, 0)
+			tx := g.CreateSpendTx(&spend, dcrutil.Amount(1))
+			enableSeqLocks(tx, 0)
+			b.AddTransaction(tx)
+		})
+	g.SaveTipCoinbaseOuts()
+	accepted()
+	expectTip("b2")
+
+	// ---------------------------------------------------------------------
+	// Create block that involves a sequence lock on a vote.
+	//
+	//   ... -> b2 -> b3
+	// ---------------------------------------------------------------------
+
+	outs = g.OldestCoinbaseOuts()
+	g.NextBlock("b3", nil, outs[1:],
+		chaingen.ReplaceBlockVersion(6), chaingen.ReplaceStakeVersion(6),
+		chaingen.ReplaceVoteVersions(6), func(b *wire.MsgBlock) {
+			enableSeqLocks(b.STransactions[0], 0)
+		})
+	g.SaveTipCoinbaseOuts()
+	accepted()
+
+	// ---------------------------------------------------------------------
+	// Create block that involves a sequence lock on a ticket.
+	//
+	//   ... -> b3 -> b4
+	// ---------------------------------------------------------------------
+
+	outs = g.OldestCoinbaseOuts()
+	g.NextBlock("b4", nil, outs[1:],
+		chaingen.ReplaceBlockVersion(6), chaingen.ReplaceStakeVersion(6),
+		chaingen.ReplaceVoteVersions(6), func(b *wire.MsgBlock) {
+			enableSeqLocks(b.STransactions[5], 0)
+		})
+	g.SaveTipCoinbaseOuts()
+	accepted()
+
+	// ---------------------------------------------------------------------
+	// Create two blocks such that the tip block involves a sequence lock
+	// spending from a different output of a transaction the parent block
+	// also spends from.
+	//
+	//   ... -> b4 -> b5 -> b6
+	// ---------------------------------------------------------------------
+
+	outs = g.OldestCoinbaseOuts()
+	g.NextBlock("b5", nil, outs[1:],
+		chaingen.ReplaceBlockVersion(6), chaingen.ReplaceStakeVersion(6),
+		chaingen.ReplaceVoteVersions(6), func(b *wire.MsgBlock) {
+			spend := chaingen.MakeSpendableOut(b0, 1, 1)
+			tx := g.CreateSpendTx(&spend, dcrutil.Amount(1))
+			b.AddTransaction(tx)
+		})
+	g.SaveTipCoinbaseOuts()
+	accepted()
+
+	outs = g.OldestCoinbaseOuts()
+	g.NextBlock("b6", nil, outs[1:],
+		chaingen.ReplaceBlockVersion(6), chaingen.ReplaceStakeVersion(6),
+		chaingen.ReplaceVoteVersions(6), func(b *wire.MsgBlock) {
+			spend := chaingen.MakeSpendableOut(b0, 1, 2)
+			tx := g.CreateSpendTx(&spend, dcrutil.Amount(1))
+			enableSeqLocks(tx, 0)
+			b.AddTransaction(tx)
+		})
+	g.SaveTipCoinbaseOuts()
+	accepted()
+
+	// ---------------------------------------------------------------------
+	// Create block that involves a sequence lock spending from a regular
+	// tree transaction earlier in the block.  It should be rejected due
+	// to a consensus bug.
+	//
+	//   ... -> b6
+	//            \-> b7
+	// ---------------------------------------------------------------------
+
+	outs = g.OldestCoinbaseOuts()
+	g.NextBlock("b7", &outs[0], outs[1:],
+		chaingen.ReplaceBlockVersion(6), chaingen.ReplaceStakeVersion(6),
+		chaingen.ReplaceVoteVersions(6), func(b *wire.MsgBlock) {
+			spend := chaingen.MakeSpendableOut(b, 1, 0)
+			tx := g.CreateSpendTx(&spend, dcrutil.Amount(1))
+			enableSeqLocks(tx, 0)
+			b.AddTransaction(tx)
+		})
+	rejected(ErrMissingTxOut)
+
+	// ---------------------------------------------------------------------
+	// Create block that involves a sequence lock spending from a block
+	// prior to the parent.  It should be rejected due to a consensus bug.
+	//
+	//   ... -> b6 -> b8
+	//                  \-> b9
+	// ---------------------------------------------------------------------
+
+	g.SetTip("b6")
+	g.NextBlock("b8", nil, outs[1:],
+		chaingen.ReplaceBlockVersion(6), chaingen.ReplaceStakeVersion(6),
+		chaingen.ReplaceVoteVersions(6))
+	g.SaveTipCoinbaseOuts()
+	accepted()
+
+	outs = g.OldestCoinbaseOuts()
+	g.NextBlock("b9", nil, outs[1:],
+		chaingen.ReplaceBlockVersion(6), chaingen.ReplaceStakeVersion(6),
+		chaingen.ReplaceVoteVersions(6), func(b *wire.MsgBlock) {
+			spend := chaingen.MakeSpendableOut(b0, 1, 3)
+			tx := g.CreateSpendTx(&spend, dcrutil.Amount(1))
+			enableSeqLocks(tx, 0)
+			b.AddTransaction(tx)
+		})
+	rejected(ErrMissingTxOut)
+
+	// ---------------------------------------------------------------------
+	// Create two blocks such that the tip block involves a sequence lock
+	// spending from a different output of a transaction the parent block
+	// also spends from when the parent block has been disapproved.    It
+	// should be rejected due to a consensus bug.
+	//
+	//   ... -> b8 -> b10
+	//                   \-> b11
+	// ---------------------------------------------------------------------
+
+	const (
+		// vbDisapprovePrev and vbApprovePrev represent no and yes votes,
+		// respectively, on whether or not to approve the previous block.
+		vbDisapprovePrev = 0x0000
+		vbApprovePrev    = 0x0001
+	)
+
+	g.SetTip("b8")
+	g.NextBlock("b10", nil, outs[1:],
+		chaingen.ReplaceBlockVersion(6), chaingen.ReplaceStakeVersion(6),
+		chaingen.ReplaceVoteVersions(6), func(b *wire.MsgBlock) {
+			spend := chaingen.MakeSpendableOut(b0, 1, 4)
+			tx := g.CreateSpendTx(&spend, dcrutil.Amount(1))
+			b.AddTransaction(tx)
+		})
+	g.SaveTipCoinbaseOuts()
+	accepted()
+
+	outs = g.OldestCoinbaseOuts()
+	g.NextBlock("b11", nil, outs[1:],
+		chaingen.ReplaceBlockVersion(6), chaingen.ReplaceStakeVersion(6),
+		chaingen.ReplaceVotes(vbDisapprovePrev, 6), func(b *wire.MsgBlock) {
+			b.Header.VoteBits &^= vbApprovePrev
+			spend := chaingen.MakeSpendableOut(b0, 1, 5)
+			tx := g.CreateSpendTx(&spend, dcrutil.Amount(1))
+			enableSeqLocks(tx, 0)
+			b.AddTransaction(tx)
+		})
+	rejected(ErrMissingTxOut)
+}
+
 // TestCheckBlockSanity tests the context free block sanity checks with blocks
 // not on a chain.
 func TestCheckBlockSanity(t *testing.T) {
