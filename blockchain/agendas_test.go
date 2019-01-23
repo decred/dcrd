@@ -6,7 +6,6 @@ package blockchain
 
 import (
 	"fmt"
-	"math"
 	"testing"
 	"time"
 
@@ -19,44 +18,29 @@ import (
 )
 
 // testLNFeaturesDeployment ensures the deployment of the LN features agenda
-// activates the expected changes for the provided network parameters and
-// expected deployment version.
-func testLNFeaturesDeployment(t *testing.T, params *chaincfg.Params, deploymentVer uint32) {
+// activates the expected changes for the provided network parameters.
+func testLNFeaturesDeployment(t *testing.T, params *chaincfg.Params) {
 	// baseConsensusScriptVerifyFlags are the expected script flags when the
 	// agenda is not active.
 	const baseConsensusScriptVerifyFlags = txscript.ScriptVerifyCleanStack |
 		txscript.ScriptVerifyCheckLockTimeVerify
 
-	// Find the correct deployment for the LN features agenda and ensure it
-	// never expires to prevent test failures when the real expiration time
-	// passes.  Also, clone the provided parameters first to avoid mutating
-	// them.
+	// Clone the parameters so they can be mutated, find the correct deployment
+	// for the LN features agenda as well as the yes vote choice within it, and,
+	// finally, ensure it is always available to vote by removing the time
+	// constraints to prevent test failures when the real expiration time
+	// passes.
 	params = cloneParams(params)
-	var deployment *chaincfg.ConsensusDeployment
-	deployments := params.Deployments[deploymentVer]
-	for deploymentID, depl := range deployments {
-		if depl.Vote.Id == chaincfg.VoteIDLNFeatures {
-			deployment = &deployments[deploymentID]
-			break
-		}
+	deploymentVer, deployment, err := findDeployment(params,
+		chaincfg.VoteIDLNFeatures)
+	if err != nil {
+		t.Fatal(err)
 	}
-	if deployment == nil {
-		t.Fatalf("Unable to find consensus deployement for %s",
-			chaincfg.VoteIDLNFeatures)
+	yesChoice, err := findDeploymentChoice(deployment, "yes")
+	if err != nil {
+		t.Fatal(err)
 	}
-	deployment.ExpireTime = math.MaxUint64 // Never expires.
-
-	// Find the correct choice for the yes vote.
-	const yesVoteID = "yes"
-	var yesChoice chaincfg.Choice
-	for _, choice := range deployment.Vote.Choices {
-		if choice.Id == yesVoteID {
-			yesChoice = choice
-		}
-	}
-	if yesChoice.Id != yesVoteID {
-		t.Fatalf("Unable to find vote choice for id %q", yesVoteID)
-	}
+	removeDeploymentTimeConstraints(deployment)
 
 	// Shorter versions of params for convenience.
 	stakeValidationHeight := uint32(params.StakeValidationHeight)
@@ -182,45 +166,29 @@ func testLNFeaturesDeployment(t *testing.T, params *chaincfg.Params, deploymentV
 // TestLNFeaturesDeployment ensures the deployment of the LN features agenda
 // activate the expected changes.
 func TestLNFeaturesDeployment(t *testing.T) {
-	testLNFeaturesDeployment(t, &chaincfg.MainNetParams, 5)
-	testLNFeaturesDeployment(t, &chaincfg.RegNetParams, 6)
+	testLNFeaturesDeployment(t, &chaincfg.MainNetParams)
+	testLNFeaturesDeployment(t, &chaincfg.RegNetParams)
 }
 
 // testFixSeqLocksDeployment ensures the deployment of the fix sequence locks
-// agenda activates for the provided network parameters and expected deployment
-// version.
-func testFixSeqLocksDeployment(t *testing.T, params *chaincfg.Params, deploymentVer uint32) {
+// agenda activates for the provided network parameters.
+func testFixSeqLocksDeployment(t *testing.T, params *chaincfg.Params) {
 	// Clone the parameters so they can be mutated, find the correct deployment
-	// for the fix sequence locks agenda and ensure it is always available to
-	// vote by removing the time constraints to prevent test failures when the
-	// real expiration time passes.
+	// for the fix sequence locks agenda as well as the yes vote choice within
+	// it, and, finally, ensure it is always available to vote by removing the
+	// time constraints to prevent test failures when the real expiration time
+	// passes.
 	params = cloneParams(params)
-	var deployment *chaincfg.ConsensusDeployment
-	deployments := params.Deployments[deploymentVer]
-	for deploymentID, depl := range deployments {
-		if depl.Vote.Id == chaincfg.VoteIDFixLNSeqLocks {
-			deployment = &deployments[deploymentID]
-			break
-		}
+	deploymentVer, deployment, err := findDeployment(params,
+		chaincfg.VoteIDFixLNSeqLocks)
+	if err != nil {
+		t.Fatal(err)
 	}
-	if deployment == nil {
-		t.Fatalf("Unable to find consensus deployement for %s",
-			chaincfg.VoteIDFixLNSeqLocks)
+	yesChoice, err := findDeploymentChoice(deployment, "yes")
+	if err != nil {
+		t.Fatal(err)
 	}
-	deployment.StartTime = 0               // Always available for vote.
-	deployment.ExpireTime = math.MaxUint64 // Never expires.
-
-	// Find the correct choice for the yes vote.
-	const yesVoteID = "yes"
-	var yesChoice *chaincfg.Choice
-	for i, choice := range deployment.Vote.Choices {
-		if choice.Id == yesVoteID {
-			yesChoice = &deployment.Vote.Choices[i]
-		}
-	}
-	if yesChoice.Id != yesVoteID {
-		t.Fatalf("Unable to find vote choice for id %q", yesVoteID)
-	}
+	removeDeploymentTimeConstraints(deployment)
 
 	// Shorter versions of params for convenience.
 	stakeValidationHeight := uint32(params.StakeValidationHeight)
@@ -321,8 +289,8 @@ func testFixSeqLocksDeployment(t *testing.T, params *chaincfg.Params, deployment
 // TestFixSeqLocksDeployment ensures the deployment of the fix sequence locks
 // agenda activates as expected.
 func TestFixSeqLocksDeployment(t *testing.T) {
-	testFixSeqLocksDeployment(t, &chaincfg.MainNetParams, 6)
-	testFixSeqLocksDeployment(t, &chaincfg.RegNetParams, 7)
+	testFixSeqLocksDeployment(t, &chaincfg.MainNetParams)
+	testFixSeqLocksDeployment(t, &chaincfg.RegNetParams)
 }
 
 // TestFixedSequenceLocks ensures that sequence locks within blocks behave as
@@ -332,35 +300,22 @@ func TestFixedSequenceLocks(t *testing.T) {
 	// activation as compared to various existing network params.
 	params := quickVoteActivationParams()
 
-	// fslVersion is the deployment version of the fix sequence locks vote for
-	// the chain params.
-	const fslVersion = 7
-
-	// Find the correct deployment for the LN features agenda.
-	fslVoteID := chaincfg.VoteIDFixLNSeqLocks
-	var deployment *chaincfg.ConsensusDeployment
-	deployments := params.Deployments[fslVersion]
-	for deploymentID, depl := range deployments {
-		if depl.Vote.Id == fslVoteID {
-			deployment = &deployments[deploymentID]
-			break
-		}
+	// Clone the parameters so they can be mutated, find the correct deployment
+	// for the fix sequence locks agenda as well as the yes vote choice within
+	// it, and, finally, ensure it is always available to vote by removing the
+	// time constraints to prevent test failures when the real expiration time
+	// passes.
+	const fslVoteID = chaincfg.VoteIDFixLNSeqLocks
+	params = cloneParams(params)
+	fslVersion, deployment, err := findDeployment(params, fslVoteID)
+	if err != nil {
+		t.Fatal(err)
 	}
-	if deployment == nil {
-		t.Fatalf("Unable to find consensus deployement for %s", fslVoteID)
+	fslYes, err := findDeploymentChoice(deployment, "yes")
+	if err != nil {
+		t.Fatal(err)
 	}
-
-	// Find the correct choice for the yes vote.
-	const yesVoteID = "yes"
-	var fslYes *chaincfg.Choice
-	for i, choice := range deployment.Vote.Choices {
-		if choice.Id == yesVoteID {
-			fslYes = &deployment.Vote.Choices[i]
-		}
-	}
-	if fslYes == nil {
-		t.Fatalf("Unable to find vote choice for id %q", yesVoteID)
-	}
+	removeDeploymentTimeConstraints(deployment)
 
 	// Create a test generator instance initialized with the genesis block as
 	// the tip.
@@ -475,7 +430,7 @@ func TestFixedSequenceLocks(t *testing.T) {
 	// provided block by replacing the block, stake, and vote versions with the
 	// fix sequence locks deployment version.
 	replaceFixSeqLocksVersions := func(b *wire.MsgBlock) {
-		chaingen.ReplaceBlockVersion(fslVersion)(b)
+		chaingen.ReplaceBlockVersion(int32(fslVersion))(b)
 		chaingen.ReplaceStakeVersion(fslVersion)(b)
 		chaingen.ReplaceVoteVersions(fslVersion)(b)
 	}
@@ -561,7 +516,7 @@ func TestFixedSequenceLocks(t *testing.T) {
 
 		blockName := fmt.Sprintf("bsv%d", i)
 		g.NextBlock(blockName, nil, ticketOuts,
-			chaingen.ReplaceBlockVersion(fslVersion))
+			chaingen.ReplaceBlockVersion(int32(fslVersion)))
 		g.SaveTipCoinbaseOuts()
 		accepted()
 	}
@@ -591,7 +546,7 @@ func TestFixedSequenceLocks(t *testing.T) {
 		outs := g.OldestCoinbaseOuts()
 		blockName := fmt.Sprintf("bvu%d", i)
 		g.NextBlock(blockName, nil, outs[1:],
-			chaingen.ReplaceBlockVersion(fslVersion),
+			chaingen.ReplaceBlockVersion(int32(fslVersion)),
 			chaingen.ReplaceVoteVersions(fslVersion))
 		g.SaveTipCoinbaseOuts()
 		accepted()
@@ -617,7 +572,7 @@ func TestFixedSequenceLocks(t *testing.T) {
 		g.SaveTipCoinbaseOuts()
 		accepted()
 	}
-	g.AssertBlockVersion(fslVersion)
+	g.AssertBlockVersion(int32(fslVersion))
 	g.AssertStakeVersion(fslVersion)
 	testThresholdState(fslVoteID, ThresholdLockedIn)
 
@@ -638,7 +593,7 @@ func TestFixedSequenceLocks(t *testing.T) {
 		g.SaveTipCoinbaseOuts()
 		accepted()
 	}
-	g.AssertBlockVersion(fslVersion)
+	g.AssertBlockVersion(int32(fslVersion))
 	g.AssertStakeVersion(fslVersion)
 	testThresholdState(fslVoteID, ThresholdActive)
 

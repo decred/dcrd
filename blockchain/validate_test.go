@@ -254,35 +254,22 @@ func TestLegacySequenceLocks(t *testing.T) {
 	// activation as compared to various existing network params.
 	params := quickVoteActivationParams()
 
-	// lnfVersion is the deployment version of the ln features vote for the
-	// chain params.
-	const lnfVersion = 6
-
-	// Find the correct deployment for the LN features agenda.
-	lnfVoteID := chaincfg.VoteIDLNFeatures
-	var deployment *chaincfg.ConsensusDeployment
-	deployments := params.Deployments[lnfVersion]
-	for deploymentID, depl := range deployments {
-		if depl.Vote.Id == lnfVoteID {
-			deployment = &deployments[deploymentID]
-			break
-		}
+	// Clone the parameters so they can be mutated, find the correct deployment
+	// for the LN features agenda as well as the yes vote choice within it, and,
+	// finally, ensure it is always available to vote by removing the time
+	// constraints to prevent test failures when the real expiration time
+	// passes.
+	const lnfVoteID = chaincfg.VoteIDLNFeatures
+	params = cloneParams(params)
+	lnfVersion, deployment, err := findDeployment(params, lnfVoteID)
+	if err != nil {
+		t.Fatal(err)
 	}
-	if deployment == nil {
-		t.Fatalf("Unable to find consensus deployement for %s", lnfVoteID)
+	lnfYes, err := findDeploymentChoice(deployment, "yes")
+	if err != nil {
+		t.Fatal(err)
 	}
-
-	// Find the correct choice for the yes vote.
-	const yesVoteID = "yes"
-	var lnfYes *chaincfg.Choice
-	for i, choice := range deployment.Vote.Choices {
-		if choice.Id == yesVoteID {
-			lnfYes = &deployment.Vote.Choices[i]
-		}
-	}
-	if lnfYes == nil {
-		t.Fatalf("Unable to find vote choice for id %q", yesVoteID)
-	}
+	removeDeploymentTimeConstraints(deployment)
 
 	// Create a test generator instance initialized with the genesis block as
 	// the tip.
@@ -426,7 +413,7 @@ func TestLegacySequenceLocks(t *testing.T) {
 	// block by replacing the block, stake, and vote versions with the LN
 	// features deployment version.
 	replaceLNFeaturesVersions := func(b *wire.MsgBlock) {
-		chaingen.ReplaceBlockVersion(lnfVersion)(b)
+		chaingen.ReplaceBlockVersion(int32(lnfVersion))(b)
 		chaingen.ReplaceStakeVersion(lnfVersion)(b)
 		chaingen.ReplaceVoteVersions(lnfVersion)(b)
 	}
@@ -512,7 +499,7 @@ func TestLegacySequenceLocks(t *testing.T) {
 
 		blockName := fmt.Sprintf("bsv%d", i)
 		g.NextBlock(blockName, nil, ticketOuts,
-			chaingen.ReplaceBlockVersion(lnfVersion))
+			chaingen.ReplaceBlockVersion(int32(lnfVersion)))
 		g.SaveTipCoinbaseOuts()
 		accepted()
 	}
@@ -538,7 +525,7 @@ func TestLegacySequenceLocks(t *testing.T) {
 		outs := g.OldestCoinbaseOuts()
 		blockName := fmt.Sprintf("bvu%d", i)
 		g.NextBlock(blockName, nil, outs[1:],
-			chaingen.ReplaceBlockVersion(lnfVersion),
+			chaingen.ReplaceBlockVersion(int32(lnfVersion)),
 			chaingen.ReplaceVoteVersions(lnfVersion))
 		g.SaveTipCoinbaseOuts()
 		accepted()
@@ -567,7 +554,7 @@ func TestLegacySequenceLocks(t *testing.T) {
 		accepted()
 	}
 	g.AssertTipHeight(uint32(stakeValidationHeight + ruleChangeInterval*2 - 1))
-	g.AssertBlockVersion(lnfVersion)
+	g.AssertBlockVersion(int32(lnfVersion))
 	g.AssertStakeVersion(lnfVersion)
 	testThresholdState(lnfVoteID, ThresholdLockedIn)
 
@@ -591,7 +578,7 @@ func TestLegacySequenceLocks(t *testing.T) {
 		accepted()
 	}
 	g.AssertTipHeight(uint32(stakeValidationHeight + ruleChangeInterval*3 - 1))
-	g.AssertBlockVersion(lnfVersion)
+	g.AssertBlockVersion(int32(lnfVersion))
 	g.AssertStakeVersion(lnfVersion)
 	testThresholdState(lnfVoteID, ThresholdActive)
 
