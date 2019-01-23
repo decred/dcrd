@@ -118,7 +118,7 @@ func TestThresholdState(t *testing.T) {
 	// size to a really large number so that the test chain can be generated
 	// more quickly.
 	posVersion := uint32(4)
-	params := chaincfg.RegNetParams
+	params := cloneParams(&chaincfg.RegNetParams)
 	params.WorkDiffWindowSize = 200000
 	params.WorkDiffWindows = 1
 	params.TargetTimespan = params.TargetTimePerBlock *
@@ -141,13 +141,13 @@ func TestThresholdState(t *testing.T) {
 
 	// Create a test generator instance initialized with the genesis block
 	// as the tip.
-	g, err := chaingen.MakeGenerator(&params)
+	g, err := chaingen.MakeGenerator(params)
 	if err != nil {
 		t.Fatalf("Failed to create generator: %v", err)
 	}
 
 	// Create a new database and chain instance to run tests against.
-	chain, teardownFunc, err := chainSetup("thresholdstatetest", &params)
+	chain, teardownFunc, err := chainSetup("thresholdstatetest", params)
 	if err != nil {
 		t.Fatalf("Failed to setup chain instance: %v", err)
 	}

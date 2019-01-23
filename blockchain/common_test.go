@@ -8,6 +8,7 @@ package blockchain
 import (
 	"fmt"
 	"io/ioutil"
+	"math"
 	mrand "math/rand"
 	"os"
 	"time"
@@ -201,4 +202,45 @@ func appendFakeVotes(node *blockNode, numVotes uint16, voteVersion uint32, voteB
 			Bits:    voteBits,
 		})
 	}
+}
+
+// findDeployment finds the provided vote ID within the deployments of the
+// provided parameters and either returns the deployment version it was found in
+// along with a pointer to the deployment or an error when not found.
+func findDeployment(params *chaincfg.Params, voteID string) (uint32, *chaincfg.ConsensusDeployment, error) {
+	// Find the correct deployment for the passed vote ID.
+	for version, deployments := range params.Deployments {
+		for i, deployment := range deployments {
+			if deployment.Vote.Id == voteID {
+				return version, &deployments[i], nil
+			}
+		}
+	}
+
+	return 0, nil, fmt.Errorf("unable to find deployement for id %q", voteID)
+}
+
+// findDeploymentChoice finds the provided choice ID withing the given
+// deployment params and either returns a pointer to the found choice or an
+// error when not found.
+func findDeploymentChoice(deployment *chaincfg.ConsensusDeployment, choiceID string) (*chaincfg.Choice, error) {
+	// Find the correct choice for the passed choice ID.
+	for i, choice := range deployment.Vote.Choices {
+		if choice.Id == choiceID {
+			return &deployment.Vote.Choices[i], nil
+		}
+	}
+
+	return nil, fmt.Errorf("unable to find vote choice for id %q", choiceID)
+}
+
+// removeDeploymentTimeConstraints modifies the passed deployment to remove the
+// voting time constraints by making it always available to vote and to never
+// expire.
+//
+// NOTE: This will mutate the passed deployment, so ensure this function is
+// only called with parameters that are not globally available.
+func removeDeploymentTimeConstraints(deployment *chaincfg.ConsensusDeployment) {
+	deployment.StartTime = 0               // Always available for vote.
+	deployment.ExpireTime = math.MaxUint64 // Never expires.
 }
