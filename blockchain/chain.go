@@ -321,10 +321,6 @@ func (b *BlockChain) GetVoteInfo(hash *chainhash.Hash, version uint32) (*VoteInf
 		return nil, VoteVersionError(version)
 	}
 
-	if !ok {
-		return nil, HashError(hash.String())
-	}
-
 	vi := VoteInfo{
 		Agendas: make([]chaincfg.ConsensusDeployment,
 			0, len(deployments)),
