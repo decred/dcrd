@@ -596,7 +596,7 @@ func TestThresholdState(t *testing.T) {
 			chaingen.ReplaceBlockVersion(4),
 			chaingen.ReplaceStakeVersion(4),
 			chaingen.ReplaceVotes(voteBits, 4))
-		totalVotes += int64(ticketsPerBlock)
+		totalVotes += ticketsPerBlock
 		g.SaveTipCoinbaseOuts()
 		accepted()
 	}

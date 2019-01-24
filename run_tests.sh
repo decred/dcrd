@@ -18,7 +18,7 @@ set -ex
 # 4. ineffassign   (https://github.com/gordonklaus/ineffassign)
 # 5. race detector (http://blog.golang.org/race-detector)
 
-# gometalinter (github.com/alecthomas/gometalinter) is used to run each each
+# golangci-lint (github.com/golangci/golangci-lint) is used to run each each
 # static checker.
 
 # To run on docker on windows, symlink /mnt/c to /c and then execute the script
@@ -55,21 +55,14 @@ testrepo () {
   done
 
   # check linters
-  if [[ $GOVERSION != 1.10 ]]; then
-    # linters do not work with modules yet
-    go mod vendor
-    unset GO111MODULE
-
-    gometalinter --vendor --disable-all --deadline=10m \
-      --enable=gofmt \
-      --enable=gosimple \
-      --enable=unconvert \
-      --enable=ineffassign \
-      ./...
-    if [ $? != 0 ]; then
-      echo 'gometalinter has some complaints'
-      exit 1
-    fi
+  golangci-lint run --disable-all --deadline=10m \
+    --enable=gofmt \
+    --enable=gosimple \
+    --enable=unconvert \
+    --enable=ineffassign
+  if [ $? != 0 ]; then
+    echo 'golangci-lint has some complaints'
+    exit 1
   fi
 
   echo "------------------------------------------"
@@ -85,15 +78,7 @@ fi
 
 # use Travis cache with docker
 DOCKER_IMAGE_TAG=decred-golang-builder-$GOVERSION
-mkdir -p ~/.cache
-if [ -f ~/.cache/$DOCKER_IMAGE_TAG.tar ]; then
-  # load via cache
-  $DOCKER load -i ~/.cache/$DOCKER_IMAGE_TAG.tar
-else
-  # pull and save image to cache
-  $DOCKER pull decred/$DOCKER_IMAGE_TAG
-  $DOCKER save decred/$DOCKER_IMAGE_TAG > ~/.cache/$DOCKER_IMAGE_TAG.tar
-fi
+$DOCKER pull decred/$DOCKER_IMAGE_TAG
 
 $DOCKER run --rm -it -v $(pwd):/src:Z decred/$DOCKER_IMAGE_TAG /bin/bash -c "\
   rsync -ra --filter=':- .gitignore'  \
