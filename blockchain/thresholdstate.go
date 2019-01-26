@@ -1,5 +1,5 @@
 // Copyright (c) 2016 The btcsuite developers
-// Copyright (c) 2017-2018 The Decred developers
+// Copyright (c) 2017-2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -638,6 +638,55 @@ func (b *BlockChain) isLNFeaturesAgendaActive(prevNode *blockNode) (bool, error)
 func (b *BlockChain) IsLNFeaturesAgendaActive() (bool, error) {
 	b.chainLock.Lock()
 	isActive, err := b.isLNFeaturesAgendaActive(b.bestChain.Tip())
+	b.chainLock.Unlock()
+	return isActive, err
+}
+
+// isFixSeqLocksAgendaActive returns whether or not the fix sequence locks
+// agenda vote, as defined in DCP0004 has passed and is now active from the
+// point of view of the passed block node.
+//
+// It is important to note that, as the variable name indicates, this function
+// expects the block node prior to the block for which the deployment state is
+// desired.  In other words, the returned deployment state is for the block
+// AFTER the passed node.
+//
+// This function MUST be called with the chain state lock held (for writes).
+func (b *BlockChain) isFixSeqLocksAgendaActive(prevNode *blockNode) (bool, error) {
+	// Consensus voting on the fix sequence locks agenda is only enabled on
+	// mainnet, testnet v3, and regnet.
+	net := b.chainParams.Net
+	if net != wire.MainNet && net != wire.TestNet3 && net != wire.RegNet {
+		return true, nil
+	}
+
+	// Determine the version for the fix sequence locks agenda as defined in
+	// DCP0004 for the provided network.
+	deploymentVer := uint32(6)
+	if b.chainParams.Net != wire.MainNet {
+		deploymentVer = 7
+	}
+
+	state, err := b.deploymentState(prevNode, deploymentVer,
+		chaincfg.VoteIDFixLNSeqLocks)
+	if err != nil {
+		return false, err
+	}
+
+	// NOTE: The choice field of the return threshold state is not examined
+	// here because there is only one possible choice that can be active for
+	// the agenda, which is yes, so there is no need to check it.
+	return state.State == ThresholdActive, nil
+}
+
+// IsFixSeqLocksAgendaActive returns whether or not whether or not the fix
+// sequence locks agenda vote, as defined in DCP0004 has passed and is now
+// active for the block AFTER the current best chain block.
+//
+// This function is safe for concurrent access.
+func (b *BlockChain) IsFixSeqLocksAgendaActive() (bool, error) {
+	b.chainLock.Lock()
+	isActive, err := b.isFixSeqLocksAgendaActive(b.bestChain.Tip())
 	b.chainLock.Unlock()
 	return isActive, err
 }

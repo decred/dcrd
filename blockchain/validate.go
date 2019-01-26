@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2018 The Decred developers
+// Copyright (c) 2015-2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -983,10 +983,20 @@ func (b *BlockChain) checkBlockHeaderPositional(header *wire.BlockHeader, prevNo
 	}
 
 	if !fastAdd {
-		// Reject version 5 blocks for networks other than the main
+		// Reject version 6 blocks for networks other than the main
 		// network once a majority of the network has upgraded.
-		if b.chainParams.Net != wire.MainNet && header.Version < 6 &&
-			b.isMajorityVersion(6, prevNode, b.chainParams.BlockRejectNumRequired) {
+		if b.chainParams.Net != wire.MainNet && header.Version < 7 &&
+			b.isMajorityVersion(7, prevNode, b.chainParams.BlockRejectNumRequired) {
+
+			str := "new blocks with version %d are no longer valid"
+			str = fmt.Sprintf(str, header.Version)
+			return ruleError(ErrBlockVersionTooOld, str)
+		}
+
+		// Reject version 5 blocks once a majority of the network has
+		// upgraded.
+		if header.Version < 6 && b.isMajorityVersion(6, prevNode,
+			b.chainParams.BlockRejectNumRequired) {
 
 			str := "new blocks with version %d are no longer valid"
 			str = fmt.Sprintf(str, header.Version)
@@ -2891,12 +2901,16 @@ func (b *BlockChain) checkConnectBlock(node *blockNode, block, parent *dcrutil.B
 	// Create a view which preserves the expected consensus semantics for
 	// relative lock times via sequence numbers once the stake vote for the
 	// agenda is active.
-	var legacySeqLockView *UtxoViewpoint
+	legacySeqLockView := view
 	lnFeaturesActive, err := b.isLNFeaturesAgendaActive(node.parent)
 	if err != nil {
 		return err
 	}
-	if lnFeaturesActive {
+	fixSeqLocksActive, err := b.isFixSeqLocksAgendaActive(node.parent)
+	if err != nil {
+		return err
+	}
+	if lnFeaturesActive && !fixSeqLocksActive {
 		var err error
 		legacySeqLockView, err = b.createLegacySeqLockView(block, parent,
 			view)

@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2017 The Decred developers
+// Copyright (c) 2015-2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -186,6 +186,13 @@ type Policy struct {
 	//
 	// This function must be safe for concurrent access.
 	StandardVerifyFlags func() (txscript.ScriptFlags, error)
+
+	// AcceptSequenceLocks defines the function to determine whether or not
+	// to accept transactions with sequence locks.  Typically this will be
+	// set depending on the result of the fix sequence locks agenda vote.
+	//
+	// This function must be safe for concurrent access.
+	AcceptSequenceLocks func() (bool, error)
 }
 
 // TxDesc is a descriptor containing a transaction in the mempool along with
@@ -857,19 +864,30 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 	} else {
 		tx.SetTree(wire.TxTreeStake)
 	}
-
-	// Don't accept transactions with sequence locks enabled until a vote
-	// takes place to change the semantics.
 	isVote := txType == stake.TxTypeSSGen
-	if msgTx.Version >= 2 && !isVote {
-		for _, txIn := range msgTx.TxIn {
-			sequenceNum := txIn.Sequence
-			if sequenceNum&wire.SequenceLockTimeDisabled != 0 {
-				continue
-			}
 
-			str := "violates sequence lock consensus bug"
-			return nil, txRuleError(wire.RejectInvalid, str)
+	// Choose whether or not to accept transactions with sequence locks enabled.
+	//
+	// Typically, this will be set based on the result of the fix sequence locks
+	// agenda vote.
+	acceptSeqLocks, err := mp.cfg.Policy.AcceptSequenceLocks()
+	if err != nil {
+		if cerr, ok := err.(blockchain.RuleError); ok {
+			return nil, chainRuleError(cerr)
+		}
+		return nil, err
+	}
+	if !acceptSeqLocks {
+		if msgTx.Version >= 2 && !isVote {
+			for _, txIn := range msgTx.TxIn {
+				sequenceNum := txIn.Sequence
+				if sequenceNum&wire.SequenceLockTimeDisabled != 0 {
+					continue
+				}
+
+				str := "violates sequence lock consensus bug"
+				return nil, txRuleError(wire.RejectInvalid, str)
+			}
 		}
 	}
 
