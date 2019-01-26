@@ -1,5 +1,5 @@
 // Copyright (c) 2016 The btcsuite developers
-// Copyright (c) 2017 The Decred developers
+// Copyright (c) 2017-2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -283,7 +283,12 @@ func (p *poolHarness) CreateCoinbaseTx(blockHeight int64, numOutputs uint32) (*d
 // inputs and generates the provided number of outputs by evenly splitting the
 // total input amount.  All outputs will be to the payment script associated
 // with the harness and all inputs are assumed to do the same.
-func (p *poolHarness) CreateSignedTx(inputs []spendableOutput, numOutputs uint32, expiry uint32) (*dcrutil.Tx, error) {
+//
+// Additionally, if one or more munge functions are specified, they will be
+// invoked with the transaction prior to signing it.  This provides callers with
+// the opportunity to modify the transaction which is especially useful for
+// testing.
+func (p *poolHarness) CreateSignedTx(inputs []spendableOutput, numOutputs uint32, mungers ...func(*wire.MsgTx)) (*dcrutil.Tx, error) {
 	// Calculate the total input amount and split it amongst the requested
 	// number of outputs.
 	var totalInput dcrutil.Amount
@@ -294,12 +299,13 @@ func (p *poolHarness) CreateSignedTx(inputs []spendableOutput, numOutputs uint32
 	remainder := int64(totalInput) - amountPerOutput*int64(numOutputs)
 
 	tx := wire.NewMsgTx()
-	tx.Expiry = expiry
+	tx.Expiry = wire.NoExpiryValue
 	for _, input := range inputs {
 		tx.AddTxIn(&wire.TxIn{
 			PreviousOutPoint: input.outPoint,
 			SignatureScript:  nil,
 			Sequence:         wire.MaxTxInSequenceNum,
+			ValueIn:          int64(input.amount),
 		})
 	}
 	for i := uint32(0); i < numOutputs; i++ {
@@ -313,6 +319,11 @@ func (p *poolHarness) CreateSignedTx(inputs []spendableOutput, numOutputs uint32
 			PkScript: p.payScript,
 			Value:    amount,
 		})
+	}
+
+	// Perform any transaction munging just before signing.
+	for _, f := range mungers {
+		f(tx)
 	}
 
 	// Sign the new transaction.
@@ -1066,7 +1077,7 @@ func TestExpirationPruning(t *testing.T) {
 	// These outputs will be used as inputs to transactions with expirations.
 	const numTxns = 5
 	multiOutputTx, err := harness.CreateSignedTx([]spendableOutput{outputs[0]},
-		numTxns, wire.NoExpiryValue)
+		numTxns)
 	if err != nil {
 		t.Fatalf("unable to create signed tx: %v", err)
 	}
@@ -1089,7 +1100,9 @@ func TestExpirationPruning(t *testing.T) {
 	for i := 0; i < numTxns; i++ {
 		tx, err := harness.CreateSignedTx([]spendableOutput{
 			txOutToSpendableOut(multiOutputTx, uint32(i), wire.TxTreeRegular),
-		}, 1, uint32(nextBlockHeight+int64(i)+1))
+		}, 1, func(tx *wire.MsgTx) {
+			tx.Expiry = uint32(nextBlockHeight + int64(i) + 1)
+		})
 		if err != nil {
 			t.Fatalf("unable to create signed tx: %v", err)
 		}
@@ -1175,7 +1188,9 @@ func TestBasicOrphanRemoval(t *testing.T) {
 	nonChainedOrphanTx, err := harness.CreateSignedTx([]spendableOutput{{
 		amount:   dcrutil.Amount(5000000000),
 		outPoint: wire.OutPoint{Hash: chainhash.Hash{}, Index: 0},
-	}}, 1, uint32(harness.chain.BestHeight()+1))
+	}}, 1, func(tx *wire.MsgTx) {
+		tx.Expiry = uint32(harness.chain.BestHeight() + 1)
+	})
 	if err != nil {
 		t.Fatalf("unable to create signed tx: %v", err)
 	}
@@ -1311,7 +1326,7 @@ func TestMultiInputOrphanDoubleSpend(t *testing.T) {
 	doubleSpendTx, err := harness.CreateSignedTx([]spendableOutput{
 		txOutToSpendableOut(chainedTxns[1], 0, wire.TxTreeRegular),
 		txOutToSpendableOut(chainedTxns[maxOrphans], 0, wire.TxTreeRegular),
-	}, 1, wire.NoExpiryValue)
+	}, 1)
 	if err != nil {
 		t.Fatalf("unable to create signed tx: %v", err)
 	}
