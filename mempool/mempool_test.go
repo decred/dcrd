@@ -24,6 +24,7 @@ import (
 	"github.com/decred/dcrd/dcrec"
 	"github.com/decred/dcrd/dcrec/secp256k1"
 	"github.com/decred/dcrd/dcrutil"
+	"github.com/decred/dcrd/mining"
 	"github.com/decred/dcrd/txscript"
 	"github.com/decred/dcrd/wire"
 )
@@ -41,6 +42,7 @@ type fakeChain struct {
 	sync.RWMutex
 	nextStakeDiff int64
 	utxos         *blockchain.UtxoViewpoint
+	utxoTimes     map[wire.OutPoint]int64
 	blocks        map[chainhash.Hash]*dcrutil.Block
 	currentHash   chainhash.Hash
 	currentHeight int64
@@ -166,10 +168,84 @@ func (s *fakeChain) SetPastMedianTime(medianTime time.Time) {
 // CalcSequenceLock returns the current sequence lock for the passed transaction
 // associated with the fake chain instance.
 func (s *fakeChain) CalcSequenceLock(tx *dcrutil.Tx, view *blockchain.UtxoViewpoint) (*blockchain.SequenceLock, error) {
-	return &blockchain.SequenceLock{
-		MinHeight: -1,
-		MinTime:   -1,
-	}, nil
+	// A value of -1 for each lock type allows a transaction to be included in a
+	// block at any given height or time.
+	sequenceLock := &blockchain.SequenceLock{MinHeight: -1, MinTime: -1}
+
+	// Sequence locks do not apply if the tx version is less than 2, or the tx
+	// is a coinbase or stakebase, so return now with a sequence lock that
+	// indicates the tx can possibly be included in a block at any given height
+	// or time.
+	msgTx := tx.MsgTx()
+	enforce := msgTx.Version >= 2
+	if !enforce || blockchain.IsCoinBaseTx(msgTx) || stake.IsSSGen(msgTx) {
+		return sequenceLock, nil
+	}
+
+	for txInIndex, txIn := range msgTx.TxIn {
+		// Nothing to calculate for this input when relative time locks are
+		// disabled for it.
+		sequenceNum := txIn.Sequence
+		if sequenceNum&wire.SequenceLockTimeDisabled != 0 {
+			continue
+		}
+
+		utxo := view.LookupEntry(&txIn.PreviousOutPoint.Hash)
+		if utxo == nil {
+			str := fmt.Sprintf("output %v referenced from transaction %s:%d "+
+				"either does not exist or has already been spent",
+				txIn.PreviousOutPoint, tx.Hash(), txInIndex)
+			return sequenceLock, blockchain.RuleError{
+				ErrorCode:   blockchain.ErrMissingTxOut,
+				Description: str,
+			}
+		}
+
+		// Calculate the sequence locks from the point of view of the next block
+		// for inputs that are in the mempool.
+		inputHeight := utxo.BlockHeight()
+		if inputHeight == mining.UnminedHeight {
+			inputHeight = s.BestHeight() + 1
+		}
+
+		// Mask off the value portion of the sequence number to obtain
+		// the time lock delta required before this input can be spent.
+		// The relative lock can be time based or block based.
+		relativeLock := int64(sequenceNum & wire.SequenceLockTimeMask)
+
+		if sequenceNum&wire.SequenceLockTimeIsSeconds != 0 {
+			// Ordinarily time based relative locks determine the median time
+			// for the block before the one the input was mined into, however,
+			// in order to facilitate testing the fake chain instance instead
+			// allows callers to directly set median times associated with fake
+			// utxos and looks up those values here.
+			medianTime := s.FakeUxtoMedianTime(&txIn.PreviousOutPoint)
+
+			// Calculate the minimum required timestamp based on the sum of the
+			// past median time and required relative number of seconds.  Since
+			// time based relative locks have a granularity associated with
+			// them, shift left accordingly in order to convert to the proper
+			// number of relative seconds.  Also, subtract one from the relative
+			// lock to maintain the original lock time semantics.
+			relativeSecs := relativeLock << wire.SequenceLockTimeGranularity
+			minTime := medianTime + relativeSecs - 1
+			if minTime > sequenceLock.MinTime {
+				sequenceLock.MinTime = minTime
+			}
+		} else {
+			// This input requires a relative lock expressed in blocks before it
+			// can be spent.  Therefore, calculate the minimum required height
+			// based on the sum of the input height and required relative number
+			// of blocks.  Also, subtract one from the relative lock in order to
+			// maintain the original lock time semantics.
+			minHeight := inputHeight + relativeLock - 1
+			if minHeight > sequenceLock.MinHeight {
+				sequenceLock.MinHeight = minHeight
+			}
+		}
+	}
+
+	return sequenceLock, nil
 }
 
 // StandardVerifyFlags returns the standard verification script flags associated
@@ -182,6 +258,28 @@ func (s *fakeChain) StandardVerifyFlags() (txscript.ScriptFlags, error) {
 // with the fake chain instance.
 func (s *fakeChain) SetStandardVerifyFlags(flags txscript.ScriptFlags) {
 	s.scriptFlags = flags
+}
+
+// FakeUxtoMedianTime returns the median time associated with the requested utxo
+// from the cake chain instance.
+func (s *fakeChain) FakeUxtoMedianTime(prevOut *wire.OutPoint) int64 {
+	s.RLock()
+	medianTime := s.utxoTimes[*prevOut]
+	s.RUnlock()
+	return medianTime
+}
+
+// AddFakeUtxoMedianTime adds a median time to the fake chain instance that will
+// be used when querying the median time for the provided transaction and output
+// when calculating by-time sequence locks.
+func (s *fakeChain) AddFakeUtxoMedianTime(tx *dcrutil.Tx, txOutIdx uint32, medianTime time.Time) {
+	s.Lock()
+	s.utxoTimes[wire.OutPoint{
+		Hash:  *tx.Hash(),
+		Index: txOutIdx,
+		Tree:  wire.TxTreeRegular,
+	}] = medianTime.Unix()
+	s.Unlock()
 }
 
 // spendableOutput is a convenience type that houses a particular utxo and the
@@ -589,6 +687,7 @@ func newPoolHarness(chainParams *chaincfg.Params) (*poolHarness, []spendableOutp
 	subsidyCache := blockchain.NewSubsidyCache(0, chainParams)
 	chain := &fakeChain{
 		utxos:       blockchain.NewUtxoViewpoint(),
+		utxoTimes:   make(map[wire.OutPoint]int64),
 		blocks:      make(map[chainhash.Hash]*dcrutil.Block),
 		scriptFlags: BaseStandardVerifyFlags,
 	}
@@ -601,7 +700,7 @@ func newPoolHarness(chainParams *chaincfg.Params) (*poolHarness, []spendableOutp
 		chain: chain,
 		txPool: New(&Config{
 			Policy: Policy{
-				MaxTxVersion:         wire.TxVersion,
+				MaxTxVersion:         2,
 				DisableRelayPriority: true,
 				FreeTxRelayLimit:     15.0,
 				MaxOrphanTxs:         5,
