@@ -40,14 +40,15 @@ const (
 // transactions to be appear as though they are spending completely valid utxos.
 type fakeChain struct {
 	sync.RWMutex
-	nextStakeDiff int64
-	utxos         *blockchain.UtxoViewpoint
-	utxoTimes     map[wire.OutPoint]int64
-	blocks        map[chainhash.Hash]*dcrutil.Block
-	currentHash   chainhash.Hash
-	currentHeight int64
-	medianTime    time.Time
-	scriptFlags   txscript.ScriptFlags
+	nextStakeDiff  int64
+	utxos          *blockchain.UtxoViewpoint
+	utxoTimes      map[wire.OutPoint]int64
+	blocks         map[chainhash.Hash]*dcrutil.Block
+	currentHash    chainhash.Hash
+	currentHeight  int64
+	medianTime     time.Time
+	scriptFlags    txscript.ScriptFlags
+	acceptSeqLocks bool
 }
 
 // NextStakeDifficulty returns the next stake difficulty associated with the
@@ -279,6 +280,23 @@ func (s *fakeChain) AddFakeUtxoMedianTime(tx *dcrutil.Tx, txOutIdx uint32, media
 		Index: txOutIdx,
 		Tree:  wire.TxTreeRegular,
 	}] = medianTime.Unix()
+	s.Unlock()
+}
+
+// AcceptSequenceLocks returns whether or not the pool harness the fake chain
+// is associated with should accept transactions with sequence locks enabled.
+func (s *fakeChain) AcceptSequenceLocks() (bool, error) {
+	s.RLock()
+	acceptSeqLocks := s.acceptSeqLocks
+	s.RUnlock()
+	return acceptSeqLocks, nil
+}
+
+// SetAcceptSequenceLocks sets whether or not the pool harness the fake chain is
+// associated with should accept transactions with sequence locks enabled.
+func (s *fakeChain) SetAcceptSequenceLocks(accept bool) {
+	s.Lock()
+	s.acceptSeqLocks = accept
 	s.Unlock()
 }
 
@@ -708,6 +726,7 @@ func newPoolHarness(chainParams *chaincfg.Params) (*poolHarness, []spendableOutp
 				MaxSigOpsPerTx:       blockchain.MaxSigOpsPerBlock / 5,
 				MinRelayTxFee:        1000, // 1 Satoshi per byte
 				StandardVerifyFlags:  chain.StandardVerifyFlags,
+				AcceptSequenceLocks:  chain.AcceptSequenceLocks,
 			},
 			ChainParams:         chainParams,
 			NextStakeDifficulty: chain.NextStakeDifficulty,
@@ -1467,4 +1486,304 @@ func TestMultiInputOrphanDoubleSpend(t *testing.T) {
 	// Ensure the double spending orphan is no longer in the orphan pool and
 	// was not moved to the transaction pool.
 	testPoolMembership(tc, doubleSpendTx, false, false)
+}
+
+// mustLockTimeToSeq converts the passed relative lock time to a sequence number
+// by using LockTimeToSequence.  It only differs in that it will panic if there
+// is an error so errors in the source code can be detected.  It will only (and
+// must only)  be called with hard-coded, and therefore known good, values.
+func mustLockTimeToSeq(isSeconds bool, lockTime uint32) uint32 {
+	sequence, err := blockchain.LockTimeToSequence(isSeconds, lockTime)
+	if err != nil {
+		panic(fmt.Sprintf("invalid lock time in source file: "+
+			"isSeconds: %v, lockTime: %d", isSeconds, lockTime))
+	}
+	return sequence
+}
+
+// seqIntervalToSecs converts the passed number of sequence lock intervals into
+// the number of seconds it represents.
+func seqIntervalToSecs(intervals uint32) uint32 {
+	return intervals << wire.SequenceLockTimeGranularity
+}
+
+// TestSequenceLockAcceptance ensures that transactions which involve sequence
+// locks are accepted or rejected from the memory as expected.
+func TestSequenceLockAcceptance(t *testing.T) {
+	t.Parallel()
+
+	// Shorter versions of variables for convenience.
+	const seqLockTimeDisabled = wire.SequenceLockTimeDisabled
+	const seqLockTimeIsSecs = wire.SequenceLockTimeIsSeconds
+
+	tests := []struct {
+		name         string // test description.
+		txVersion    uint16 // transaction version.
+		sequence     uint32 // sequence number used for input.
+		heightOffset int64  // mock chain height offset at which to evaluate.
+		secsOffset   int64  // mock median time offset at which to evaluate.
+		valid        bool   // whether tx is valid when enforcing seq locks.
+	}{
+		{
+			name:         "By-height lock with seq == height == 0",
+			txVersion:    2,
+			sequence:     mustLockTimeToSeq(false, 0),
+			heightOffset: 0,
+			valid:        true,
+		},
+		{
+			// The mempool is for transactions to be included in the next block
+			// so sequence locks are calculated based on that point of view.
+			// Thus, a sequence lock of one for an input created at the current
+			// height will be satisified.
+			name:         "By-height lock with seq == 1, height == 0",
+			txVersion:    2,
+			sequence:     mustLockTimeToSeq(false, 1),
+			heightOffset: 0,
+			valid:        true,
+		},
+		{
+			name:         "By-height lock with seq == height == 65535",
+			txVersion:    2,
+			sequence:     mustLockTimeToSeq(false, 65535),
+			heightOffset: 65534,
+			valid:        true,
+		},
+		{
+			name:         "By-height lock with masked max seq == height",
+			txVersion:    2,
+			sequence:     0xffffffff &^ seqLockTimeDisabled &^ seqLockTimeIsSecs,
+			heightOffset: 65534,
+			valid:        true,
+		},
+		{
+			name:         "By-height lock with unsatisfied seq == 2",
+			txVersion:    2,
+			sequence:     mustLockTimeToSeq(false, 2),
+			heightOffset: 0,
+			valid:        false,
+		},
+		{
+			name:         "By-height lock with unsatisfied masked max sequence",
+			txVersion:    2,
+			sequence:     0xffffffff &^ seqLockTimeDisabled &^ seqLockTimeIsSecs,
+			heightOffset: 65533,
+			valid:        false,
+		},
+		{
+			name:       "By-time lock with seq == elapsed == 0",
+			txVersion:  2,
+			sequence:   mustLockTimeToSeq(true, 0),
+			secsOffset: 0,
+			valid:      true,
+		},
+		{
+			name:       "By-time lock with seq == elapsed == max",
+			txVersion:  2,
+			sequence:   mustLockTimeToSeq(true, seqIntervalToSecs(65535)),
+			secsOffset: int64(seqIntervalToSecs(65535)),
+			valid:      true,
+		},
+		{
+			name:       "By-time lock with unsatisifed seq == 1024",
+			txVersion:  2,
+			sequence:   mustLockTimeToSeq(true, seqIntervalToSecs(2)),
+			secsOffset: int64(seqIntervalToSecs(1)),
+			valid:      false,
+		},
+		{
+			name:       "By-time lock with unsatisifed masked max sequence",
+			txVersion:  2,
+			sequence:   0xffffffff &^ seqLockTimeDisabled,
+			secsOffset: int64(seqIntervalToSecs(65534)),
+			valid:      false,
+		},
+		{
+			name:         "Disabled by-height lock with seq == height == 0",
+			txVersion:    2,
+			sequence:     mustLockTimeToSeq(false, 0) | seqLockTimeDisabled,
+			heightOffset: 0,
+			valid:        true,
+		},
+		{
+			name:         "Disabled by-height lock with unsatisified sequence",
+			txVersion:    2,
+			sequence:     mustLockTimeToSeq(false, 2) | seqLockTimeDisabled,
+			heightOffset: 0,
+			valid:        true,
+		},
+		{
+			name:       "Disabled by-time lock with seq == elapsed == 0",
+			txVersion:  2,
+			sequence:   mustLockTimeToSeq(true, 0) | seqLockTimeDisabled,
+			secsOffset: 0,
+			valid:      true,
+		},
+		{
+			name:      "Disabled by-time lock with unsatisifed seq == 1024",
+			txVersion: 2,
+			sequence: mustLockTimeToSeq(true, seqIntervalToSecs(2)) |
+				seqLockTimeDisabled,
+			secsOffset: int64(seqIntervalToSecs(1)),
+			valid:      true,
+		},
+
+		// The following section uses version 1 transactions which are not
+		// subject to sequence locks.
+		{
+			name:         "By-height lock with seq == height == 0 (v1)",
+			txVersion:    1,
+			sequence:     mustLockTimeToSeq(false, 0),
+			heightOffset: 0,
+			valid:        true,
+		},
+		{
+			name:         "By-height lock with unsatisfied seq == 2 (v1)",
+			txVersion:    1,
+			sequence:     mustLockTimeToSeq(false, 2),
+			heightOffset: 0,
+			valid:        true,
+		},
+		{
+			name:       "By-time lock with seq == elapsed == 0 (v1)",
+			txVersion:  1,
+			sequence:   mustLockTimeToSeq(true, 0),
+			secsOffset: 0,
+			valid:      true,
+		},
+		{
+			name:       "By-time lock with unsatisifed seq == 1024 (v1)",
+			txVersion:  1,
+			sequence:   mustLockTimeToSeq(true, seqIntervalToSecs(2)),
+			secsOffset: int64(seqIntervalToSecs(1)),
+			valid:      true,
+		},
+		{
+			name:         "Disabled by-height lock with seq == height == 0 (v1)",
+			txVersion:    1,
+			sequence:     mustLockTimeToSeq(false, 0) | seqLockTimeDisabled,
+			heightOffset: 0,
+			valid:        true,
+		},
+		{
+			name:         "Disabled by-height lock with unsatisified seq (v1)",
+			txVersion:    1,
+			sequence:     mustLockTimeToSeq(false, 2) | seqLockTimeDisabled,
+			heightOffset: 0,
+			valid:        true,
+		},
+		{
+			name:       "Disabled by-time lock with seq == elapsed == 0 (v1)",
+			txVersion:  1,
+			sequence:   mustLockTimeToSeq(true, 0) | seqLockTimeDisabled,
+			secsOffset: 0,
+			valid:      true,
+		},
+		{
+			name:      "Disabled by-time lock with unsatisifed seq == 1024 (v1)",
+			txVersion: 1,
+			sequence: mustLockTimeToSeq(true, seqIntervalToSecs(2)) |
+				seqLockTimeDisabled,
+			secsOffset: int64(seqIntervalToSecs(1)),
+			valid:      true,
+		},
+	}
+
+	// Run through the tests twice such that the first time the pool is set to
+	// reject all sequence locks and the second it is not.
+	for _, acceptSeqLocks := range []bool{false, true} {
+		harness, _, err := newPoolHarness(&chaincfg.MainNetParams)
+		if err != nil {
+			t.Fatalf("unable to create test pool: %v", err)
+		}
+		tc := &testContext{t, harness}
+
+		harness.chain.SetAcceptSequenceLocks(acceptSeqLocks)
+		baseHeight := harness.chain.BestHeight()
+		baseTime := time.Now()
+		for i, test := range tests {
+			// Create and add a mock utxo at a common base height so updating
+			// the mock chain height below will cause sequence locks to be
+			// evaluated relative to that height.
+			//
+			// The output value adds the test index in order to ensure the
+			// resulting transaction hash is unique.
+			inputMsgTx := wire.NewMsgTx()
+			inputMsgTx.AddTxOut(&wire.TxOut{
+				PkScript: harness.payScript,
+				Value:    1000000000 + int64(i),
+			})
+			inputTx := dcrutil.NewTx(inputMsgTx)
+			harness.AddFakeUTXO(inputTx, baseHeight)
+			harness.chain.AddFakeUtxoMedianTime(inputTx, 0, baseTime)
+
+			// Create a transaction which spends from the mock utxo with the
+			// details specified in the test data.
+			spendableOut := txOutToSpendableOut(inputTx, 0, wire.TxTreeRegular)
+			inputs := []spendableOutput{spendableOut}
+			tx, err := harness.CreateSignedTx(inputs, 1, func(tx *wire.MsgTx) {
+				tx.Version = test.txVersion
+				tx.TxIn[0].Sequence = test.sequence
+			})
+			if err != nil {
+				t.Fatalf("unable to create tx: %v", err)
+			}
+
+			// Determine if the test data describes a transaction with an
+			// enabled sequence lock.
+			hasEnabledSeqLock := test.txVersion >= 2 &&
+				test.sequence&wire.SequenceLockTimeDisabled == 0
+
+			// Set the mock chain height and median time based on the test data
+			// and ensure the transaction is either accepted or rejected as
+			// desired.
+			secsOffset := time.Second * time.Duration(test.secsOffset)
+			harness.chain.SetHeight(baseHeight + test.heightOffset)
+			harness.chain.SetPastMedianTime(baseTime.Add(secsOffset))
+			acceptedTxns, err := harness.txPool.ProcessTransaction(tx, false,
+				false, true)
+			switch {
+			case !acceptSeqLocks && hasEnabledSeqLock && err == nil:
+				t.Fatalf("%s: did not reject tx when seq locks are not allowed",
+					test.name)
+
+			case !acceptSeqLocks && !hasEnabledSeqLock && err != nil:
+				t.Fatalf("%s: did not accept tx: %v", test.name, err)
+
+			case acceptSeqLocks && test.valid && err != nil:
+				t.Fatalf("%s: did not accept tx: %v", test.name, err)
+
+			case acceptSeqLocks && !test.valid && err == nil:
+				t.Fatalf("%s: did not reject tx", test.name)
+			}
+
+			// Ensure the number of reported accepted transactions and pool
+			// membership matches the expected result.
+			shouldHaveAccepted := (acceptSeqLocks && test.valid) ||
+				(!acceptSeqLocks && !hasEnabledSeqLock)
+			switch {
+			case shouldHaveAccepted:
+				// Ensure the transaction was reported as accepted.
+				if len(acceptedTxns) != 1 {
+					t.Fatalf("%s: reported %d accepted transactions from what "+
+						"should be 1", test.name, len(acceptedTxns))
+				}
+
+				// Ensure the transaction is not in the orphan pool, in the
+				// transaction pool, and reported as available.
+				testPoolMembership(tc, tx, false, true)
+
+			case !shouldHaveAccepted:
+				if len(acceptedTxns) != 0 {
+					// Ensure no transactions were reported as accepted.
+					t.Fatalf("%s: reported %d accepted transactions from what "+
+						"should have been rejected", test.name, len(acceptedTxns))
+				}
+
+				// Ensure the transaction is not in the orphan pool, not in the
+				// transaction pool, and not reported as available.
+				testPoolMembership(tc, tx, false, false)
+			}
+		}
+	}
 }

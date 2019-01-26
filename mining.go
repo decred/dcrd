@@ -1,5 +1,5 @@
 // Copyright (c) 2014-2016 The btcsuite developers
-// Copyright (c) 2015-2018 The Decred developers
+// Copyright (c) 2015-2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -30,11 +30,11 @@ const (
 	// will require changes to the generated block.  Using the wire constant
 	// for generated block version could allow creation of invalid blocks
 	// for the updated version.
-	generatedBlockVersion = 5
+	generatedBlockVersion = 6
 
 	// generatedBlockVersionTest is the version of the block being generated
 	// for networks other than the main and simulation networks.
-	generatedBlockVersionTest = 6
+	generatedBlockVersionTest = 7
 
 	// blockHeaderOverhead is the max number of bytes it takes to serialize
 	// a block header and max possible transaction count.
