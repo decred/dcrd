@@ -1,5 +1,5 @@
 // Copyright (c) 2014-2016 The btcsuite developers
-// Copyright (c) 2015-2018 The Decred developers
+// Copyright (c) 2015-2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -173,6 +173,11 @@ const (
 	// features useful for the Lightning Network (among other uses) defined
 	// by DCP0002 and DCP0003.
 	VoteIDLNFeatures = "lnfeatures"
+
+	// VoteIDFixLNSeqLocks is the vote ID for the agenda that corrects the
+	// sequence lock functionality needed for Lightning Network (among other
+	// uses) defined by DCP0004.
+	VoteIDFixLNSeqLocks = "fixlnseqlocks"
 )
 
 // ConsensusDeployment defines details related to a specific consensus rule
