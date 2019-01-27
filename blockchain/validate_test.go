@@ -255,159 +255,20 @@ func TestLegacySequenceLocks(t *testing.T) {
 	params := quickVoteActivationParams()
 
 	// Clone the parameters so they can be mutated, find the correct deployment
-	// for the LN features agenda as well as the yes vote choice within it, and,
-	// finally, ensure it is always available to vote by removing the time
-	// constraints to prevent test failures when the real expiration time
-	// passes.
+	// for the LN features agenda, and, finally, ensure it is always available
+	// to vote by removing the time constraints to prevent test failures when
+	// the real expiration time passes.
 	const lnfVoteID = chaincfg.VoteIDLNFeatures
 	params = cloneParams(params)
 	lnfVersion, deployment, err := findDeployment(params, lnfVoteID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	lnfYes, err := findDeploymentChoice(deployment, "yes")
-	if err != nil {
-		t.Fatal(err)
-	}
 	removeDeploymentTimeConstraints(deployment)
 
-	// Create a test generator instance initialized with the genesis block as
-	// the tip.
-	g, err := chaingen.MakeGenerator(params)
-	if err != nil {
-		t.Fatalf("Failed to create generator: %v", err)
-	}
-
-	// Create a new database and chain instance to run tests against.
-	chain, teardownFunc, err := chainSetup("seqlocksoldsemanticstest", params)
-	if err != nil {
-		t.Fatalf("Failed to setup chain instance: %v", err)
-	}
+	// Create a test harness initialized with the genesis block as the tip.
+	g, teardownFunc := newChaingenHarness(t, params, "seqlocksoldsemanticstest")
 	defer teardownFunc()
-
-	// accepted processes the current tip block associated with the generator
-	// and expects it to be accepted to the main chain.
-	//
-	// rejected expects the block to be rejected with the provided error code.
-	//
-	// expectTip expects the provided block to be the current tip of the
-	// main chain.
-	//
-	// acceptedToSideChainWithExpectedTip expects the block to be accepted to a
-	// side chain, but the current best chain tip to be the provided value.
-	//
-	// testThresholdState queries the threshold state from the current tip block
-	// associated with the generator and expects the returned state to match the
-	// provided value.
-	accepted := func() {
-		msgBlock := g.Tip()
-		blockHeight := msgBlock.Header.Height
-		block := dcrutil.NewBlock(msgBlock)
-		t.Logf("Testing block %s (hash %s, height %d)", g.TipName(),
-			block.Hash(), blockHeight)
-
-		forkLen, isOrphan, err := chain.ProcessBlock(block, BFNone)
-		if err != nil {
-			t.Fatalf("block %q (hash %s, height %d) should have been "+
-				"accepted: %v", g.TipName(), block.Hash(), blockHeight, err)
-		}
-
-		// Ensure the main chain and orphan flags match the values specified in
-		// the test.
-		isMainChain := !isOrphan && forkLen == 0
-		if !isMainChain {
-			t.Fatalf("block %q (hash %s, height %d) unexpected main chain "+
-				"flag -- got %v, want true", g.TipName(), block.Hash(),
-				blockHeight, isMainChain)
-		}
-		if isOrphan {
-			t.Fatalf("block %q (hash %s, height %d) unexpected orphan flag -- "+
-				"got %v, want false", g.TipName(), block.Hash(), blockHeight,
-				isOrphan)
-		}
-	}
-	rejected := func(code ErrorCode) {
-		msgBlock := g.Tip()
-		blockHeight := msgBlock.Header.Height
-		block := dcrutil.NewBlock(msgBlock)
-		t.Logf("Testing block %s (hash %s, height %d)", g.TipName(),
-			block.Hash(), blockHeight)
-
-		_, _, err := chain.ProcessBlock(block, BFNone)
-		if err == nil {
-			t.Fatalf("block %q (hash %s, height %d) should not have been "+
-				"accepted", g.TipName(), block.Hash(), blockHeight)
-		}
-
-		// Ensure the error code is of the expected type and the reject code
-		// matches the value specified in the test instance.
-		rerr, ok := err.(RuleError)
-		if !ok {
-			t.Fatalf("block %q (hash %s, height %d) returned unexpected error "+
-				"type -- got %T, want blockchain.RuleError", g.TipName(),
-				block.Hash(), blockHeight, err)
-		}
-		if rerr.ErrorCode != code {
-			t.Fatalf("block %q (hash %s, height %d) does not have expected "+
-				"reject code -- got %v, want %v", g.TipName(), block.Hash(),
-				blockHeight, rerr.ErrorCode, code)
-		}
-	}
-	expectTip := func(tipName string) {
-		// Ensure hash and height match.
-		wantTip := g.BlockByName(tipName)
-		best := chain.BestSnapshot()
-		if best.Hash != wantTip.BlockHash() ||
-			best.Height != int64(wantTip.Header.Height) {
-			t.Fatalf("block %q (hash %s, height %d) should be the current tip "+
-				"-- got (hash %s, height %d)", tipName, wantTip.BlockHash(),
-				wantTip.Header.Height, best.Hash, best.Height)
-		}
-	}
-	acceptedToSideChainWithExpectedTip := func(tipName string) {
-		msgBlock := g.Tip()
-		blockHeight := msgBlock.Header.Height
-		block := dcrutil.NewBlock(msgBlock)
-		t.Logf("Testing block %s (hash %s, height %d)", g.TipName(),
-			block.Hash(), blockHeight)
-
-		forkLen, isOrphan, err := chain.ProcessBlock(block, BFNone)
-		if err != nil {
-			t.Fatalf("block %q (hash %s, height %d) should have been "+
-				"accepted: %v", g.TipName(), block.Hash(), blockHeight, err)
-		}
-
-		// Ensure the main chain and orphan flags match the values specified in
-		// the test.
-		isMainChain := !isOrphan && forkLen == 0
-		if isMainChain {
-			t.Fatalf("block %q (hash %s, height %d) unexpected main chain "+
-				"flag -- got %v, want false", g.TipName(), block.Hash(),
-				blockHeight, isMainChain)
-		}
-		if isOrphan {
-			t.Fatalf("block %q (hash %s, height %d) unexpected orphan flag -- "+
-				"got %v, want false", g.TipName(), block.Hash(), blockHeight,
-				isOrphan)
-		}
-
-		expectTip(tipName)
-	}
-	testThresholdState := func(id string, state ThresholdState) {
-		tipHash := g.Tip().BlockHash()
-		s, err := chain.NextThresholdState(&tipHash, lnfVersion, id)
-		if err != nil {
-			t.Fatalf("block %q (hash %s, height %d) unexpected error when "+
-				"retrieving threshold state: %v", g.TipName(), tipHash,
-				g.Tip().Header.Height, err)
-		}
-
-		if s.State != state {
-			t.Fatalf("block %q (hash %s, height %d) unexpected threshold "+
-				"state for %s -- got %v, want %v", g.TipName(), tipHash,
-				g.Tip().Header.Height, id, s.State, state)
-		}
-	}
 
 	// replaceLNFeaturesVersions is a munge function which modifies the provided
 	// block by replacing the block, stake, and vote versions with the LN
@@ -418,169 +279,13 @@ func TestLegacySequenceLocks(t *testing.T) {
 		chaingen.ReplaceVoteVersions(lnfVersion)(b)
 	}
 
-	// Shorter versions of useful params for convenience.
-	ticketsPerBlock := int64(params.TicketsPerBlock)
-	coinbaseMaturity := params.CoinbaseMaturity
-	stakeEnabledHeight := params.StakeEnabledHeight
-	stakeValidationHeight := params.StakeValidationHeight
-	stakeVerInterval := params.StakeVersionInterval
-	ruleChangeInterval := int64(params.RuleChangeActivationInterval)
-
 	// ---------------------------------------------------------------------
-	// First block.
+	// Generate and accept enough blocks with the appropriate vote bits set
+	// to reach one block prior to the LN features agenda becoming active.
 	// ---------------------------------------------------------------------
 
-	// Add the required first block.
-	//
-	//   genesis -> bp
-	g.CreatePremineBlock("bp", 0)
-	g.AssertTipHeight(1)
-	accepted()
-
-	// ---------------------------------------------------------------------
-	// Generate enough blocks to have mature coinbase outputs to work with.
-	//
-	//   genesis -> bp -> bm0 -> bm1 -> ... -> bm#
-	// ---------------------------------------------------------------------
-
-	for i := uint16(0); i < coinbaseMaturity; i++ {
-		blockName := fmt.Sprintf("bm%d", i)
-		g.NextBlock(blockName, nil, nil)
-		g.SaveTipCoinbaseOuts()
-		accepted()
-	}
-	g.AssertTipHeight(uint32(coinbaseMaturity) + 1)
-
-	// ---------------------------------------------------------------------
-	// Generate enough blocks to reach the stake enabled height while
-	// creating ticket purchases that spend from the coinbases matured
-	// above.  This will also populate the pool of immature tickets.
-	//
-	//   ... -> bm# ... -> bse0 -> bse1 -> ... -> bse#
-	// ---------------------------------------------------------------------
-
-	var ticketsPurchased int
-	for i := int64(0); int64(g.Tip().Header.Height) < stakeEnabledHeight; i++ {
-		outs := g.OldestCoinbaseOuts()
-		ticketOuts := outs[1:]
-		ticketsPurchased += len(ticketOuts)
-		blockName := fmt.Sprintf("bse%d", i)
-		g.NextBlock(blockName, nil, ticketOuts)
-		g.SaveTipCoinbaseOuts()
-		accepted()
-	}
-	g.AssertTipHeight(uint32(stakeEnabledHeight))
-
-	// ---------------------------------------------------------------------
-	// Generate enough blocks to reach the stake validation height while
-	// continuing to purchase tickets using the coinbases matured above and
-	// allowing the immature tickets to mature and thus become live.
-	//
-	// The blocks are also generated with the deployment version to ensure
-	// stake version and ln feature enforcement is reached.
-	//
-	//   ... -> bse# -> bsv0 -> bsv1 -> ... -> bsv#
-	// ---------------------------------------------------------------------
-
-	targetPoolSize := int64(g.Params().TicketPoolSize) * ticketsPerBlock
-	for i := int64(0); int64(g.Tip().Header.Height) < stakeValidationHeight; i++ {
-		// Only purchase tickets until the target ticket pool size is reached.
-		outs := g.OldestCoinbaseOuts()
-		ticketOuts := outs[1:]
-		if ticketsPurchased+len(ticketOuts) > int(targetPoolSize) {
-			ticketsNeeded := int(targetPoolSize) - ticketsPurchased
-			if ticketsNeeded > 0 {
-				ticketOuts = ticketOuts[1 : ticketsNeeded+1]
-			} else {
-				ticketOuts = nil
-			}
-		}
-		ticketsPurchased += len(ticketOuts)
-
-		blockName := fmt.Sprintf("bsv%d", i)
-		g.NextBlock(blockName, nil, ticketOuts,
-			chaingen.ReplaceBlockVersion(int32(lnfVersion)))
-		g.SaveTipCoinbaseOuts()
-		accepted()
-	}
-	g.AssertTipHeight(uint32(stakeValidationHeight))
-
-	// ---------------------------------------------------------------------
-	// Generate enough blocks to reach one block before the next two stake
-	// version intervals with block and vote versions for the ln features
-	// agenda and stake version 0.
-	//
-	// This will result in triggering enforcement of the stake version and
-	// that the stake version is the ln features version.  The threshold
-	// state for deployment will move to started since the next block also
-	// coincides with the start of a new rule change activation interval for
-	// the chosen parameters.
-	//
-	//   ... -> bsv# -> bvu0 -> bvu1 -> ... -> bvu#
-	// ---------------------------------------------------------------------
-
-	blocksNeeded := stakeValidationHeight + stakeVerInterval*2 - 1 -
-		int64(g.Tip().Header.Height)
-	for i := int64(0); i < blocksNeeded; i++ {
-		outs := g.OldestCoinbaseOuts()
-		blockName := fmt.Sprintf("bvu%d", i)
-		g.NextBlock(blockName, nil, outs[1:],
-			chaingen.ReplaceBlockVersion(int32(lnfVersion)),
-			chaingen.ReplaceVoteVersions(lnfVersion))
-		g.SaveTipCoinbaseOuts()
-		accepted()
-	}
-	testThresholdState(lnfVoteID, ThresholdStarted)
-
-	// ---------------------------------------------------------------------
-	// Generate enough blocks to reach the next rule change interval with
-	// block, stake, and vote versions for the ln features agenda.  Also,
-	// set the vote bits to include yes votes for the agenda.
-	//
-	// This will result in moving the threshold state for the ln features
-	// agenda to locked in.
-	//
-	//   ... -> bvu# -> bvli0 -> bvli1 -> ... -> bvli#
-	// ---------------------------------------------------------------------
-
-	blocksNeeded = stakeValidationHeight + ruleChangeInterval*2 - 1 -
-		int64(g.Tip().Header.Height)
-	for i := int64(0); i < blocksNeeded; i++ {
-		outs := g.OldestCoinbaseOuts()
-		blockName := fmt.Sprintf("bvli%d", i)
-		g.NextBlock(blockName, nil, outs[1:], replaceLNFeaturesVersions,
-			chaingen.ReplaceVotes(vbPrevBlockValid|lnfYes.Bits, lnfVersion))
-		g.SaveTipCoinbaseOuts()
-		accepted()
-	}
-	g.AssertTipHeight(uint32(stakeValidationHeight + ruleChangeInterval*2 - 1))
-	g.AssertBlockVersion(int32(lnfVersion))
-	g.AssertStakeVersion(lnfVersion)
-	testThresholdState(lnfVoteID, ThresholdLockedIn)
-
-	// ---------------------------------------------------------------------
-	// Generate enough blocks to reach the next rule change interval with
-	// block, stake, and vote versions for the ln features agenda.
-	//
-	// This will result in moving the threshold state for the ln features
-	// agenda to active thereby activating it.
-	//
-	//   ... -> bvli# -> bva0 -> bva1 -> ... -> bva#
-	// ---------------------------------------------------------------------
-
-	blocksNeeded = stakeValidationHeight + ruleChangeInterval*3 - 1 -
-		int64(g.Tip().Header.Height)
-	for i := int64(0); i < blocksNeeded; i++ {
-		outs := g.OldestCoinbaseOuts()
-		blockName := fmt.Sprintf("bva%d", i)
-		g.NextBlock(blockName, nil, outs[1:], replaceLNFeaturesVersions)
-		g.SaveTipCoinbaseOuts()
-		accepted()
-	}
-	g.AssertTipHeight(uint32(stakeValidationHeight + ruleChangeInterval*3 - 1))
-	g.AssertBlockVersion(int32(lnfVersion))
-	g.AssertStakeVersion(lnfVersion)
-	testThresholdState(lnfVoteID, ThresholdActive)
+	g.AdvanceToStakeValidationHeight()
+	g.AdvanceFromSVHToActiveAgenda(lnfVoteID)
 
 	// ---------------------------------------------------------------------
 	// Perform a series of sequence lock tests now that ln feature
@@ -628,7 +333,7 @@ func TestLegacySequenceLocks(t *testing.T) {
 			enableSeqLocks(tx, 0)
 		})
 	g.SaveTipCoinbaseOuts()
-	accepted()
+	g.Accepted()
 
 	// ---------------------------------------------------------------------
 	// Create block that spends from an output created in the previous
@@ -645,7 +350,7 @@ func TestLegacySequenceLocks(t *testing.T) {
 			enableSeqLocks(tx, 0)
 			b.AddTransaction(tx)
 		})
-	accepted()
+	g.Accepted()
 
 	// ---------------------------------------------------------------------
 	// Create block that involves reorganize to a sequence lock spending
@@ -658,7 +363,7 @@ func TestLegacySequenceLocks(t *testing.T) {
 	g.SetTip("b0")
 	g.NextBlock("b1", nil, outs[1:], replaceLNFeaturesVersions)
 	g.SaveTipCoinbaseOuts()
-	acceptedToSideChainWithExpectedTip("b1a")
+	g.AcceptedToSideChainWithExpectedTip("b1a")
 
 	outs = g.OldestCoinbaseOuts()
 	g.NextBlock("b2", nil, outs[1:], replaceLNFeaturesVersions,
@@ -669,8 +374,8 @@ func TestLegacySequenceLocks(t *testing.T) {
 			b.AddTransaction(tx)
 		})
 	g.SaveTipCoinbaseOuts()
-	accepted()
-	expectTip("b2")
+	g.Accepted()
+	g.ExpectTip("b2")
 
 	// ---------------------------------------------------------------------
 	// Create block that involves a sequence lock on a vote.
@@ -684,7 +389,7 @@ func TestLegacySequenceLocks(t *testing.T) {
 			enableSeqLocks(b.STransactions[0], 0)
 		})
 	g.SaveTipCoinbaseOuts()
-	accepted()
+	g.Accepted()
 
 	// ---------------------------------------------------------------------
 	// Create block that involves a sequence lock on a ticket.
@@ -698,7 +403,7 @@ func TestLegacySequenceLocks(t *testing.T) {
 			enableSeqLocks(b.STransactions[5], 0)
 		})
 	g.SaveTipCoinbaseOuts()
-	accepted()
+	g.Accepted()
 
 	// ---------------------------------------------------------------------
 	// Create two blocks such that the tip block involves a sequence lock
@@ -716,7 +421,7 @@ func TestLegacySequenceLocks(t *testing.T) {
 			b.AddTransaction(tx)
 		})
 	g.SaveTipCoinbaseOuts()
-	accepted()
+	g.Accepted()
 
 	outs = g.OldestCoinbaseOuts()
 	g.NextBlock("b6", nil, outs[1:], replaceLNFeaturesVersions,
@@ -727,7 +432,7 @@ func TestLegacySequenceLocks(t *testing.T) {
 			b.AddTransaction(tx)
 		})
 	g.SaveTipCoinbaseOuts()
-	accepted()
+	g.Accepted()
 
 	// ---------------------------------------------------------------------
 	// Create block that involves a sequence lock spending from a regular
@@ -746,7 +451,7 @@ func TestLegacySequenceLocks(t *testing.T) {
 			enableSeqLocks(tx, 0)
 			b.AddTransaction(tx)
 		})
-	rejected(ErrMissingTxOut)
+	g.Rejected(ErrMissingTxOut)
 
 	// ---------------------------------------------------------------------
 	// Create block that involves a sequence lock spending from a block
@@ -759,7 +464,7 @@ func TestLegacySequenceLocks(t *testing.T) {
 	g.SetTip("b6")
 	g.NextBlock("b8", nil, outs[1:], replaceLNFeaturesVersions)
 	g.SaveTipCoinbaseOuts()
-	accepted()
+	g.Accepted()
 
 	outs = g.OldestCoinbaseOuts()
 	g.NextBlock("b9", nil, outs[1:], replaceLNFeaturesVersions,
@@ -769,7 +474,7 @@ func TestLegacySequenceLocks(t *testing.T) {
 			enableSeqLocks(tx, 0)
 			b.AddTransaction(tx)
 		})
-	rejected(ErrMissingTxOut)
+	g.Rejected(ErrMissingTxOut)
 
 	// ---------------------------------------------------------------------
 	// Create two blocks such that the tip block involves a sequence lock
@@ -796,7 +501,7 @@ func TestLegacySequenceLocks(t *testing.T) {
 			b.AddTransaction(tx)
 		})
 	g.SaveTipCoinbaseOuts()
-	accepted()
+	g.Accepted()
 
 	outs = g.OldestCoinbaseOuts()
 	g.NextBlock("b11", nil, outs[1:], replaceLNFeaturesVersions,
@@ -808,7 +513,7 @@ func TestLegacySequenceLocks(t *testing.T) {
 			enableSeqLocks(tx, 0)
 			b.AddTransaction(tx)
 		})
-	rejected(ErrMissingTxOut)
+	g.Rejected(ErrMissingTxOut)
 }
 
 // TestCheckBlockSanity tests the context free block sanity checks with blocks

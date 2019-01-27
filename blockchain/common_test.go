@@ -621,3 +621,123 @@ func (g *chaingenHarness) AdvanceToStakeValidationHeight() {
 	}
 	g.AssertTipHeight(uint32(stakeValidationHeight))
 }
+
+// AdvanceFromSVHToActiveAgenda generates and accepts enough blocks with the
+// appropriate vote bits set to reach one block prior to the specified agenda
+// becoming active.
+//
+// The function will fail with a fatal test error if it is called when the
+// harness is not at stake validation height.
+//
+// WARNING: This function currently assumes the chain parameters were created
+// via the quickVoteActivationParams.  It should be updated in the future to
+// work with arbitrary params.
+func (g *chaingenHarness) AdvanceFromSVHToActiveAgenda(voteID string) {
+	g.t.Helper()
+
+	// Find the correct deployment for the provided ID along with the the yes
+	// vote choice within it.
+	params := g.Params()
+	deploymentVer, deployment, err := findDeployment(params, voteID)
+	if err != nil {
+		g.t.Fatal(err)
+	}
+	yesChoice, err := findDeploymentChoice(deployment, "yes")
+	if err != nil {
+		g.t.Fatal(err)
+	}
+
+	// Shorter versions of useful params for convenience.
+	stakeValidationHeight := params.StakeValidationHeight
+	stakeVerInterval := params.StakeVersionInterval
+	ruleChangeInterval := int64(params.RuleChangeActivationInterval)
+
+	// Only allow this to be called on a harness at SVH.
+	if g.Tip().Header.Height != uint32(stakeValidationHeight) {
+		g.t.Fatalf("chaingen harness instance must be at the genesis block " +
+			"to advance to stake validation height")
+	}
+
+	// ---------------------------------------------------------------------
+	// Generate enough blocks to reach one block before the next two stake
+	// version intervals with block and vote versions for the agenda and
+	// stake version 0.
+	//
+	// This will result in triggering enforcement of the stake version and
+	// that the stake version is the deployment version.  The threshold
+	// state for deployment will move to started since the next block also
+	// coincides with the start of a new rule change activation interval for
+	// the chosen parameters.
+	//
+	//   ... -> bsv# -> bvu0 -> bvu1 -> ... -> bvu#
+	// ---------------------------------------------------------------------
+
+	blocksNeeded := stakeValidationHeight + stakeVerInterval*2 - 1 -
+		int64(g.Tip().Header.Height)
+	for i := int64(0); i < blocksNeeded; i++ {
+		outs := g.OldestCoinbaseOuts()
+		blockName := fmt.Sprintf("bvu%d", i)
+		g.NextBlock(blockName, nil, outs[1:],
+			chaingen.ReplaceBlockVersion(int32(deploymentVer)),
+			chaingen.ReplaceVoteVersions(deploymentVer))
+		g.SaveTipCoinbaseOuts()
+		g.Accepted()
+	}
+	g.TestThresholdState(voteID, ThresholdStarted)
+
+	// ---------------------------------------------------------------------
+	// Generate enough blocks to reach the next rule change interval with
+	// block, stake, and vote versions for the agenda.  Also, set the vote
+	// bits to include yes votes for the agenda.
+	//
+	// This will result in moving the threshold state for the agenda to
+	// locked in.
+	//
+	//   ... -> bvu# -> bvli0 -> bvli1 -> ... -> bvli#
+	// ---------------------------------------------------------------------
+
+	blocksNeeded = stakeValidationHeight + ruleChangeInterval*2 - 1 -
+		int64(g.Tip().Header.Height)
+	for i := int64(0); i < blocksNeeded; i++ {
+		outs := g.OldestCoinbaseOuts()
+		blockName := fmt.Sprintf("bvli%d", i)
+		g.NextBlock(blockName, nil, outs[1:],
+			chaingen.ReplaceBlockVersion(int32(deploymentVer)),
+			chaingen.ReplaceStakeVersion(deploymentVer),
+			chaingen.ReplaceVotes(vbPrevBlockValid|yesChoice.Bits, deploymentVer))
+		g.SaveTipCoinbaseOuts()
+		g.Accepted()
+	}
+	g.AssertTipHeight(uint32(stakeValidationHeight + ruleChangeInterval*2 - 1))
+	g.AssertBlockVersion(int32(deploymentVer))
+	g.AssertStakeVersion(deploymentVer)
+	g.TestThresholdState(voteID, ThresholdLockedIn)
+
+	// ---------------------------------------------------------------------
+	// Generate enough blocks to reach the next rule change interval with
+	// block, stake, and vote versions for the agenda.
+	//
+	// This will result in moving the threshold state for the agenda to
+	// active thereby activating it.
+	//
+	//   ... -> bvli# -> bva0 -> bva1 -> ... -> bva#
+	// ---------------------------------------------------------------------
+
+	blocksNeeded = stakeValidationHeight + ruleChangeInterval*3 - 1 -
+		int64(g.Tip().Header.Height)
+	for i := int64(0); i < blocksNeeded; i++ {
+		outs := g.OldestCoinbaseOuts()
+		blockName := fmt.Sprintf("bva%d", i)
+		g.NextBlock(blockName, nil, outs[1:],
+			chaingen.ReplaceBlockVersion(int32(deploymentVer)),
+			chaingen.ReplaceStakeVersion(deploymentVer),
+			chaingen.ReplaceVoteVersions(deploymentVer),
+		)
+		g.SaveTipCoinbaseOuts()
+		g.Accepted()
+	}
+	g.AssertTipHeight(uint32(stakeValidationHeight + ruleChangeInterval*3 - 1))
+	g.AssertBlockVersion(int32(deploymentVer))
+	g.AssertStakeVersion(deploymentVer)
+	g.TestThresholdState(voteID, ThresholdActive)
+}
