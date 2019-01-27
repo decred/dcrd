@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2018 The Decred developers
+// Copyright (c) 2015-2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -132,162 +132,17 @@ func TestBlockchainFunctions(t *testing.T) {
 
 // TestForceHeadReorg ensures forcing header reorganization works as expected.
 func TestForceHeadReorg(t *testing.T) {
-	// Create a test generator instance initialized with the genesis block
-	// as the tip as well as some cached payment scripts to be used
-	// throughout the tests.
+	// Create a test harness initialized with the genesis block as the tip.
 	params := &chaincfg.RegNetParams
-	g, err := chaingen.MakeGenerator(params)
-	if err != nil {
-		t.Fatalf("Failed to create generator: %v", err)
-	}
-
-	// Create a new database and chain instance to run tests against.
-	chain, teardownFunc, err := chainSetup("forceheadreorgtest", params)
-	if err != nil {
-		t.Fatalf("Failed to setup chain instance: %v", err)
-	}
+	g, teardownFunc := newChaingenHarness(t, params, "forceheadreorgtest")
 	defer teardownFunc()
 
-	// Define some convenience helper functions to process the current tip
-	// block associated with the generator.
-	//
-	// accepted expects the block to be accepted to the main chain.
-	//
-	// rejected expects the block to be rejected with the provided error
-	// code.
-	//
-	// expectTip expects the provided block to be the current tip of the
-	// main chain.
-	//
-	// acceptedToSideChainWithExpectedTip expects the block to be accepted
-	// to a side chain, but the current best chain tip to be the provided
-	// value.
-	//
-	// forceTipReorg forces the chain instance to reorganize the current tip
-	// of the main chain from the given block to the given block.  An error
-	// will result if the provided from block is not actually the current
-	// tip.
+	// Define some additional convenience helper functions to process the
+	// current tip block associated with the generator.
 	//
 	// rejectForceTipReorg forces the chain instance to reorganize the
 	// current tip of the main chain from the given block to the given
 	// block and expected it to be rejected with the provided error code.
-	accepted := func() {
-		msgBlock := g.Tip()
-		blockHeight := msgBlock.Header.Height
-		block := dcrutil.NewBlock(msgBlock)
-		t.Logf("Testing block %s (hash %s, height %d)",
-			g.TipName(), block.Hash(), blockHeight)
-
-		forkLen, isOrphan, err := chain.ProcessBlock(block, BFNone)
-		if err != nil {
-			t.Fatalf("block %q (hash %s, height %d) should "+
-				"have been accepted: %v", g.TipName(),
-				block.Hash(), blockHeight, err)
-		}
-
-		// Ensure the main chain and orphan flags match the values
-		// specified in the test.
-		isMainChain := !isOrphan && forkLen == 0
-		if !isMainChain {
-			t.Fatalf("block %q (hash %s, height %d) unexpected main "+
-				"chain flag -- got %v, want true", g.TipName(),
-				block.Hash(), blockHeight, isMainChain)
-		}
-		if isOrphan {
-			t.Fatalf("block %q (hash %s, height %d) unexpected "+
-				"orphan flag -- got %v, want false", g.TipName(),
-				block.Hash(), blockHeight, isOrphan)
-		}
-	}
-	rejected := func(code ErrorCode) {
-		msgBlock := g.Tip()
-		blockHeight := msgBlock.Header.Height
-		block := dcrutil.NewBlock(msgBlock)
-		t.Logf("Testing block %s (hash %s, height %d)", g.TipName(),
-			block.Hash(), blockHeight)
-
-		_, _, err := chain.ProcessBlock(block, BFNone)
-		if err == nil {
-			t.Fatalf("block %q (hash %s, height %d) should not "+
-				"have been accepted", g.TipName(), block.Hash(),
-				blockHeight)
-		}
-
-		// Ensure the error code is of the expected type and the reject
-		// code matches the value specified in the test instance.
-		rerr, ok := err.(RuleError)
-		if !ok {
-			t.Fatalf("block %q (hash %s, height %d) returned "+
-				"unexpected error type -- got %T, want "+
-				"blockchain.RuleError", g.TipName(),
-				block.Hash(), blockHeight, err)
-		}
-		if rerr.ErrorCode != code {
-			t.Fatalf("block %q (hash %s, height %d) does not have "+
-				"expected reject code -- got %v, want %v",
-				g.TipName(), block.Hash(), blockHeight,
-				rerr.ErrorCode, code)
-		}
-	}
-	expectTip := func(tipName string) {
-		// Ensure hash and height match.
-		wantTip := g.BlockByName(tipName)
-		best := chain.BestSnapshot()
-		if best.Hash != wantTip.BlockHash() ||
-			best.Height != int64(wantTip.Header.Height) {
-			t.Fatalf("block %q (hash %s, height %d) should be "+
-				"the current tip -- got (hash %s, height %d)",
-				tipName, wantTip.BlockHash(),
-				wantTip.Header.Height, best.Hash, best.Height)
-		}
-	}
-	acceptedToSideChainWithExpectedTip := func(tipName string) {
-		msgBlock := g.Tip()
-		blockHeight := msgBlock.Header.Height
-		block := dcrutil.NewBlock(msgBlock)
-		t.Logf("Testing block %s (hash %s, height %d)",
-			g.TipName(), block.Hash(), blockHeight)
-
-		forkLen, isOrphan, err := chain.ProcessBlock(block, BFNone)
-		if err != nil {
-			t.Fatalf("block %q (hash %s, height %d) should "+
-				"have been accepted: %v", g.TipName(),
-				block.Hash(), blockHeight, err)
-		}
-
-		// Ensure the main chain and orphan flags match the values
-		// specified in the test.
-		isMainChain := !isOrphan && forkLen == 0
-		if isMainChain {
-			t.Fatalf("block %q (hash %s, height %d) unexpected main "+
-				"chain flag -- got %v, want false", g.TipName(),
-				block.Hash(), blockHeight, isMainChain)
-		}
-		if isOrphan {
-			t.Fatalf("block %q (hash %s, height %d) unexpected "+
-				"orphan flag -- got %v, want false", g.TipName(),
-				block.Hash(), blockHeight, isOrphan)
-		}
-
-		expectTip(tipName)
-	}
-	forceTipReorg := func(fromTipName, toTipName string) {
-		from := g.BlockByName(fromTipName)
-		to := g.BlockByName(toTipName)
-		t.Logf("Testing forced reorg from %s (hash %s, height %d) "+
-			"to %s (hash %s, height %d)", fromTipName,
-			from.BlockHash(), from.Header.Height, toTipName,
-			to.BlockHash(), to.Header.Height)
-
-		err = chain.ForceHeadReorganization(from.BlockHash(), to.BlockHash())
-		if err != nil {
-			t.Fatalf("failed to force header reorg from block %q "+
-				"(hash %s, height %d) to block %q (hash %s, "+
-				"height %d): %v", fromTipName, from.BlockHash(),
-				from.Header.Height, toTipName, to.BlockHash(),
-				to.Header.Height, err)
-		}
-	}
 	rejectForceTipReorg := func(fromTipName, toTipName string, code ErrorCode) {
 		from := g.BlockByName(fromTipName)
 		to := g.BlockByName(toTipName)
@@ -296,7 +151,7 @@ func TestForceHeadReorg(t *testing.T) {
 			from.BlockHash(), from.Header.Height, toTipName,
 			to.BlockHash(), to.Header.Height)
 
-		err = chain.ForceHeadReorganization(from.BlockHash(), to.BlockHash())
+		err := g.chain.ForceHeadReorganization(from.BlockHash(), to.BlockHash())
 		if err == nil {
 			t.Fatalf("forced header reorg from block %q (hash %s, "+
 				"height %d) to block %q (hash %s, height %d) "+
@@ -328,84 +183,14 @@ func TestForceHeadReorg(t *testing.T) {
 	}
 
 	// Shorter versions of useful params for convenience.
-	ticketsPerBlock := params.TicketsPerBlock
 	coinbaseMaturity := params.CoinbaseMaturity
-	stakeEnabledHeight := params.StakeEnabledHeight
 	stakeValidationHeight := params.StakeValidationHeight
 
 	// ---------------------------------------------------------------------
-	// Premine.
+	// Generate and accept enough blocks to reach stake validation height.
 	// ---------------------------------------------------------------------
 
-	// Add the required premine block.
-	//
-	//   genesis -> bp
-	g.CreatePremineBlock("bp", 0)
-	g.AssertTipHeight(1)
-	accepted()
-
-	// ---------------------------------------------------------------------
-	// Generate enough blocks to have mature coinbase outputs to work with.
-	//
-	//   genesis -> bp -> bm0 -> bm1 -> ... -> bm#
-	// ---------------------------------------------------------------------
-
-	for i := uint16(0); i < coinbaseMaturity; i++ {
-		blockName := fmt.Sprintf("bm%d", i)
-		g.NextBlock(blockName, nil, nil)
-		g.SaveTipCoinbaseOuts()
-		accepted()
-	}
-	g.AssertTipHeight(uint32(coinbaseMaturity) + 1)
-
-	// ---------------------------------------------------------------------
-	// Generate enough blocks to reach the stake enabled height while
-	// creating ticket purchases that spend from the coinbases matured
-	// above.  This will also populate the pool of immature tickets.
-	//
-	//   ... -> bm# ... -> bse0 -> bse1 -> ... -> bse#
-	// ---------------------------------------------------------------------
-
-	var ticketsPurchased int
-	for i := int64(0); int64(g.Tip().Header.Height) < stakeEnabledHeight; i++ {
-		outs := g.OldestCoinbaseOuts()
-		ticketOuts := outs[1:]
-		ticketsPurchased += len(ticketOuts)
-		blockName := fmt.Sprintf("bse%d", i)
-		g.NextBlock(blockName, nil, ticketOuts)
-		g.SaveTipCoinbaseOuts()
-		accepted()
-	}
-	g.AssertTipHeight(uint32(stakeEnabledHeight))
-
-	// ---------------------------------------------------------------------
-	// Generate enough blocks to reach the stake validation height while
-	// continuing to purchase tickets using the coinbases matured above and
-	// allowing the immature tickets to mature and thus become live.
-	// ---------------------------------------------------------------------
-
-	targetPoolSize := g.Params().TicketPoolSize * ticketsPerBlock
-	for i := int64(0); int64(g.Tip().Header.Height) < stakeValidationHeight; i++ {
-		// Only purchase tickets until the target ticket pool size is
-		// reached.
-		outs := g.OldestCoinbaseOuts()
-		ticketOuts := outs[1:]
-		if ticketsPurchased+len(ticketOuts) > int(targetPoolSize) {
-			ticketsNeeded := int(targetPoolSize) - ticketsPurchased
-			if ticketsNeeded > 0 {
-				ticketOuts = ticketOuts[1 : ticketsNeeded+1]
-			} else {
-				ticketOuts = nil
-			}
-		}
-		ticketsPurchased += len(ticketOuts)
-
-		blockName := fmt.Sprintf("bsv%d", i)
-		g.NextBlock(blockName, nil, ticketOuts)
-		g.SaveTipCoinbaseOuts()
-		accepted()
-	}
-	g.AssertTipHeight(uint32(stakeValidationHeight))
+	g.AdvanceToStakeValidationHeight()
 
 	// ---------------------------------------------------------------------
 	// Generate enough blocks to have a known distance to the first mature
@@ -420,7 +205,7 @@ func TestForceHeadReorg(t *testing.T) {
 		blockName := fmt.Sprintf("bbm%d", i)
 		g.NextBlock(blockName, nil, outs[1:])
 		g.SaveTipCoinbaseOuts()
-		accepted()
+		g.Accepted()
 	}
 	g.AssertTipHeight(uint32(stakeValidationHeight) + uint32(coinbaseMaturity))
 
@@ -445,7 +230,7 @@ func TestForceHeadReorg(t *testing.T) {
 	//
 	//   ... -> b1(0)
 	g.NextBlock("b1", outs[0], ticketOuts[0])
-	accepted()
+	g.Accepted()
 
 	// Create a fork from b1 with an invalid block due to committing to an
 	// invalid number of votes.  Since verifying the header commitment is a
@@ -457,7 +242,7 @@ func TestForceHeadReorg(t *testing.T) {
 	g.NextBlock("b2bad0", outs[1], ticketOuts[1], func(b *wire.MsgBlock) {
 		b.Header.Voters++
 	})
-	rejected(ErrTooManyVotes)
+	g.Rejected(ErrTooManyVotes)
 
 	// Create a fork from b1 with an invalid block due to committing to an
 	// invalid input amount.  Since verifying the fraud proof necessarily
@@ -472,7 +257,7 @@ func TestForceHeadReorg(t *testing.T) {
 	g.NextBlock("b2bad1", outs[1], ticketOuts[1], func(b *wire.MsgBlock) {
 		b.Transactions[1].TxIn[0].ValueIn--
 	})
-	rejected(ErrFraudAmountIn)
+	g.Rejected(ErrFraudAmountIn)
 
 	// Create some forks from b1.  There should not be a reorg since b1 is
 	// the current tip and b2 is seen first.
@@ -485,19 +270,19 @@ func TestForceHeadReorg(t *testing.T) {
 	//               \-> b2bad1(1)
 	g.SetTip("b1")
 	g.NextBlock("b2", outs[1], ticketOuts[1])
-	accepted()
+	g.Accepted()
 
 	g.SetTip("b1")
 	g.NextBlock("b3", outs[1], ticketOuts[1])
-	acceptedToSideChainWithExpectedTip("b2")
+	g.AcceptedToSideChainWithExpectedTip("b2")
 
 	g.SetTip("b1")
 	g.NextBlock("b4", outs[1], ticketOuts[1])
-	acceptedToSideChainWithExpectedTip("b2")
+	g.AcceptedToSideChainWithExpectedTip("b2")
 
 	g.SetTip("b1")
 	g.NextBlock("b5", outs[1], ticketOuts[1])
-	acceptedToSideChainWithExpectedTip("b2")
+	g.AcceptedToSideChainWithExpectedTip("b2")
 
 	// Create a fork from b1 with an invalid block due to committing to an
 	// invalid input amount.  Since verifying the fraud proof necessarily
@@ -518,7 +303,7 @@ func TestForceHeadReorg(t *testing.T) {
 	g.NextBlock("b2bad2", outs[1], ticketOuts[1], func(b *wire.MsgBlock) {
 		b.Transactions[1].TxIn[0].ValueIn--
 	})
-	acceptedToSideChainWithExpectedTip("b2")
+	g.AcceptedToSideChainWithExpectedTip("b2")
 
 	// Force tip reorganization to b3.
 	//
@@ -530,8 +315,8 @@ func TestForceHeadReorg(t *testing.T) {
 	//               \-> b2bad1(1)
 	//               \-> b2bad2(1)
 	g.SetTip("b1")
-	forceTipReorg("b2", "b3")
-	expectTip("b3")
+	g.ForceTipReorg("b2", "b3")
+	g.ExpectTip("b3")
 
 	// Force tip reorganization to b4.
 	//
@@ -542,8 +327,8 @@ func TestForceHeadReorg(t *testing.T) {
 	//               \-> b2bad0(1)
 	//               \-> b2bad1(1)
 	//               \-> b2bad2(1)
-	forceTipReorg("b3", "b4")
-	expectTip("b4")
+	g.ForceTipReorg("b3", "b4")
+	g.ExpectTip("b4")
 
 	// Force tip reorganization to b5.
 	//
@@ -554,8 +339,8 @@ func TestForceHeadReorg(t *testing.T) {
 	//               \-> b2bad0(1)
 	//               \-> b2bad1(1)
 	//               \-> b2bad2(1)
-	forceTipReorg("b4", "b5")
-	expectTip("b5")
+	g.ForceTipReorg("b4", "b5")
+	g.ExpectTip("b5")
 
 	// Force tip reorganization back to b3 to ensure cached validation
 	// results are exercised.
@@ -567,8 +352,8 @@ func TestForceHeadReorg(t *testing.T) {
 	//               \-> b2bad0(1)
 	//               \-> b2bad1(1)
 	//               \-> b2bad2(1)
-	forceTipReorg("b5", "b3")
-	expectTip("b3")
+	g.ForceTipReorg("b5", "b3")
+	g.ExpectTip("b3")
 
 	// Attempt to force tip reorganization from a block that is not the
 	// current tip.  This should fail since that is not allowed.
@@ -581,7 +366,7 @@ func TestForceHeadReorg(t *testing.T) {
 	//               \-> b2bad1(1)
 	//               \-> b2bad2(1)
 	rejectForceTipReorg("b2", "b4", ErrForceReorgWrongChain)
-	expectTip("b3")
+	g.ExpectTip("b3")
 
 	// Attempt to force tip reorganization to an invalid block that does
 	// not have an entry in the block index.
@@ -594,7 +379,7 @@ func TestForceHeadReorg(t *testing.T) {
 	//               \-> b2bad1(1)
 	//               \-> b2bad2(1)
 	rejectForceTipReorg("b3", "b2bad0", ErrForceReorgMissingChild)
-	expectTip("b3")
+	g.ExpectTip("b3")
 
 	// Attempt to force tip reorganization to an invalid block that has an
 	// entry in the block index and is already known to be invalid.
@@ -607,7 +392,7 @@ func TestForceHeadReorg(t *testing.T) {
 	//               \-> b2bad1(1)
 	//               \-> b2bad2(1)
 	rejectForceTipReorg("b3", "b2bad1", ErrKnownInvalidBlock)
-	expectTip("b3")
+	g.ExpectTip("b3")
 
 	// Attempt to force tip reorganization to an invalid block that has an
 	// entry in the block index, but is not already known to be invalid.
@@ -621,7 +406,7 @@ func TestForceHeadReorg(t *testing.T) {
 	//               \-> b2bad1(1)
 	//               \-> b2bad2(1)
 	rejectForceTipReorg("b3", "b2bad2", ErrFraudAmountIn)
-	expectTip("b3")
+	g.ExpectTip("b3")
 }
 
 // locatorHashes is a convenience function that returns the hashes for all of
