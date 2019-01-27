@@ -1,4 +1,4 @@
-// Copyright (c) 2016-2018 The Decred developers
+// Copyright (c) 2016-2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -10,176 +10,28 @@ import (
 
 	"github.com/decred/dcrd/blockchain/chaingen"
 	"github.com/decred/dcrd/chaincfg"
-	"github.com/decred/dcrd/dcrutil"
 )
 
 // TestStakeVersion ensures that the stake version field in the block header is
 // enforced properly.
 func TestStakeVersion(t *testing.T) {
-	// Create a test generator instance initialized with the genesis block
-	// as the tip as well as some cached payment scripts to be used
-	// throughout the tests.
+	// Create a test harness initialized with the genesis block as the tip.
 	params := &chaincfg.RegNetParams
-	g, err := chaingen.MakeGenerator(params)
-	if err != nil {
-		t.Fatalf("Failed to create generator: %v", err)
-	}
-
-	// Create a new database and chain instance to run tests against.
-	chain, teardownFunc, err := chainSetup("stakeversiontest", params)
-	if err != nil {
-		t.Fatalf("Failed to setup chain instance: %v", err)
-	}
+	g, teardownFunc := newChaingenHarness(t, params, "stakeversiontest")
 	defer teardownFunc()
-
-	// Define some convenience helper functions to process the current tip
-	// block associated with the generator.
-	//
-	// accepted expects the block to be accepted to the main chain.
-	//
-	// rejected expects the block to be rejected with the provided error
-	// code.
-	accepted := func() {
-		msgBlock := g.Tip()
-		blockHeight := msgBlock.Header.Height
-		block := dcrutil.NewBlock(msgBlock)
-		t.Logf("Testing block %s (hash %s, height %d)",
-			g.TipName(), block.Hash(), blockHeight)
-
-		forkLen, isOrphan, err := chain.ProcessBlock(block, BFNone)
-		if err != nil {
-			t.Fatalf("block %q (hash %s, height %d) should "+
-				"have been accepted: %v", g.TipName(),
-				block.Hash(), blockHeight, err)
-		}
-
-		// Ensure the main chain and orphan flags match the values
-		// specified in the test.
-		isMainChain := !isOrphan && forkLen == 0
-		if !isMainChain {
-			t.Fatalf("block %q (hash %s, height %d) unexpected main "+
-				"chain flag -- got %v, want true", g.TipName(),
-				block.Hash(), blockHeight, isMainChain)
-		}
-		if isOrphan {
-			t.Fatalf("block %q (hash %s, height %d) unexpected "+
-				"orphan flag -- got %v, want false", g.TipName(),
-				block.Hash(), blockHeight, isOrphan)
-		}
-	}
-	rejected := func(code ErrorCode) {
-		msgBlock := g.Tip()
-		blockHeight := msgBlock.Header.Height
-		block := dcrutil.NewBlock(msgBlock)
-		t.Logf("Testing block %s (hash %s, height %d)", g.TipName(),
-			block.Hash(), blockHeight)
-
-		_, _, err := chain.ProcessBlock(block, BFNone)
-		if err == nil {
-			t.Fatalf("block %q (hash %s, height %d) should not "+
-				"have been accepted", g.TipName(), block.Hash(),
-				blockHeight)
-		}
-
-		// Ensure the error code is of the expected type and the reject
-		// code matches the value specified in the test instance.
-		rerr, ok := err.(RuleError)
-		if !ok {
-			t.Fatalf("block %q (hash %s, height %d) returned "+
-				"unexpected error type -- got %T, want "+
-				"blockchain.RuleError", g.TipName(),
-				block.Hash(), blockHeight, err)
-		}
-		if rerr.ErrorCode != code {
-			t.Fatalf("block %q (hash %s, height %d) does not have "+
-				"expected reject code -- got %v, want %v",
-				g.TipName(), block.Hash(), blockHeight,
-				rerr.ErrorCode, code)
-		}
-	}
 
 	// Shorter versions of useful params for convenience.
 	ticketsPerBlock := params.TicketsPerBlock
-	coinbaseMaturity := params.CoinbaseMaturity
-	stakeEnabledHeight := params.StakeEnabledHeight
 	stakeValidationHeight := params.StakeValidationHeight
 	stakeVerInterval := params.StakeVersionInterval
 	stakeMajorityMul := int64(params.StakeMajorityMultiplier)
 	stakeMajorityDiv := int64(params.StakeMajorityDivisor)
 
 	// ---------------------------------------------------------------------
-	// Premine.
+	// Generate and accept enough blocks to reach stake validation height.
 	// ---------------------------------------------------------------------
 
-	// Add the required premine block.
-	//
-	//   genesis -> bp
-	g.CreatePremineBlock("bp", 0)
-	g.AssertTipHeight(1)
-	accepted()
-
-	// ---------------------------------------------------------------------
-	// Generate enough blocks to have mature coinbase outputs to work with.
-	//
-	//   genesis -> bp -> bm0 -> bm1 -> ... -> bm#
-	// ---------------------------------------------------------------------
-
-	for i := uint16(0); i < coinbaseMaturity; i++ {
-		blockName := fmt.Sprintf("bm%d", i)
-		g.NextBlock(blockName, nil, nil)
-		g.SaveTipCoinbaseOuts()
-		accepted()
-	}
-	g.AssertTipHeight(uint32(coinbaseMaturity) + 1)
-
-	// ---------------------------------------------------------------------
-	// Generate enough blocks to reach the stake enabled height while
-	// creating ticket purchases that spend from the coinbases matured
-	// above.  This will also populate the pool of immature tickets.
-	//
-	//   ... -> bm# ... -> bse0 -> bse1 -> ... -> bse#
-	// ---------------------------------------------------------------------
-
-	var ticketsPurchased int
-	for i := int64(0); int64(g.Tip().Header.Height) < stakeEnabledHeight; i++ {
-		outs := g.OldestCoinbaseOuts()
-		ticketOuts := outs[1:]
-		ticketsPurchased += len(ticketOuts)
-		blockName := fmt.Sprintf("bse%d", i)
-		g.NextBlock(blockName, nil, ticketOuts)
-		g.SaveTipCoinbaseOuts()
-		accepted()
-	}
-	g.AssertTipHeight(uint32(stakeEnabledHeight))
-
-	// ---------------------------------------------------------------------
-	// Generate enough blocks to reach the stake validation height while
-	// continuing to purchase tickets using the coinbases matured above and
-	// allowing the immature tickets to mature and thus become live.
-	// ---------------------------------------------------------------------
-
-	targetPoolSize := g.Params().TicketPoolSize * ticketsPerBlock
-	for i := int64(0); int64(g.Tip().Header.Height) < stakeValidationHeight; i++ {
-		// Only purchase tickets until the target ticket pool size is
-		// reached.
-		outs := g.OldestCoinbaseOuts()
-		ticketOuts := outs[1:]
-		if ticketsPurchased+len(ticketOuts) > int(targetPoolSize) {
-			ticketsNeeded := int(targetPoolSize) - ticketsPurchased
-			if ticketsNeeded > 0 {
-				ticketOuts = ticketOuts[1 : ticketsNeeded+1]
-			} else {
-				ticketOuts = nil
-			}
-		}
-		ticketsPurchased += len(ticketOuts)
-
-		blockName := fmt.Sprintf("bsv%d", i)
-		g.NextBlock(blockName, nil, ticketOuts)
-		g.SaveTipCoinbaseOuts()
-		accepted()
-	}
-	g.AssertTipHeight(uint32(stakeValidationHeight))
+	g.AdvanceToStakeValidationHeight()
 
 	// ---------------------------------------------------------------------
 	// Generate enough blocks to reach one block before the next stake
@@ -199,7 +51,7 @@ func TestStakeVersion(t *testing.T) {
 			chaingen.ReplaceStakeVersion(0),
 			chaingen.ReplaceVoteVersions(3))
 		g.SaveTipCoinbaseOuts()
-		accepted()
+		g.Accepted()
 	}
 	g.AssertTipHeight(uint32(stakeValidationHeight + stakeVerInterval - 1))
 	g.AssertBlockVersion(2)
@@ -221,7 +73,7 @@ func TestStakeVersion(t *testing.T) {
 		chaingen.ReplaceStakeVersion(42),
 		chaingen.ReplaceVoteVersions(41))
 	g.SaveTipCoinbaseOuts()
-	accepted()
+	g.Accepted()
 	g.AssertTipHeight(uint32(stakeValidationHeight + stakeVerInterval))
 	g.AssertBlockVersion(3)
 	g.AssertStakeVersion(42) // expected bogus
@@ -246,7 +98,7 @@ func TestStakeVersion(t *testing.T) {
 			chaingen.ReplaceStakeVersion(0),
 			chaingen.ReplaceVoteVersions(2))
 		g.SaveTipCoinbaseOuts()
-		accepted()
+		g.Accepted()
 	}
 	g.AssertTipHeight(uint32(stakeValidationHeight + 2*stakeVerInterval - 1))
 	g.AssertBlockVersion(3)
@@ -269,7 +121,7 @@ func TestStakeVersion(t *testing.T) {
 	g.AssertTipHeight(uint32(stakeValidationHeight + 2*stakeVerInterval))
 	g.AssertBlockVersion(3)
 	g.AssertStakeVersion(2)
-	rejected(ErrBadStakeVersion)
+	g.Rejected(ErrBadStakeVersion)
 
 	// ---------------------------------------------------------------------
 	// Generate a single block with block version 3, stake version 1, and
@@ -289,7 +141,7 @@ func TestStakeVersion(t *testing.T) {
 	g.AssertTipHeight(uint32(stakeValidationHeight + 2*stakeVerInterval))
 	g.AssertBlockVersion(3)
 	g.AssertStakeVersion(1)
-	rejected(ErrBadStakeVersion)
+	g.Rejected(ErrBadStakeVersion)
 
 	// ---------------------------------------------------------------------
 	// Generate enough blocks to reach one block before the next stake
@@ -309,7 +161,7 @@ func TestStakeVersion(t *testing.T) {
 			chaingen.ReplaceStakeVersion(0),
 			chaingen.ReplaceVoteVersions(3))
 		g.SaveTipCoinbaseOuts()
-		accepted()
+		g.Accepted()
 	}
 	g.AssertTipHeight(uint32(stakeValidationHeight + 3*stakeVerInterval - 1))
 	g.AssertBlockVersion(3)
@@ -330,7 +182,7 @@ func TestStakeVersion(t *testing.T) {
 	g.AssertTipHeight(uint32(stakeValidationHeight + 3*stakeVerInterval))
 	g.AssertBlockVersion(3)
 	g.AssertStakeVersion(2)
-	rejected(ErrBadStakeVersion)
+	g.Rejected(ErrBadStakeVersion)
 
 	// ---------------------------------------------------------------------
 	// Generate a single block with block version 3, stake version 4, and
@@ -348,7 +200,7 @@ func TestStakeVersion(t *testing.T) {
 	g.AssertTipHeight(uint32(stakeValidationHeight + 3*stakeVerInterval))
 	g.AssertBlockVersion(3)
 	g.AssertStakeVersion(4)
-	rejected(ErrBadStakeVersion)
+	g.Rejected(ErrBadStakeVersion)
 
 	// ---------------------------------------------------------------------
 	// Generate enough blocks to reach one block before the next stake
@@ -368,7 +220,7 @@ func TestStakeVersion(t *testing.T) {
 			chaingen.ReplaceStakeVersion(3),
 			chaingen.ReplaceVoteVersions(2))
 		g.SaveTipCoinbaseOuts()
-		accepted()
+		g.Accepted()
 	}
 	g.AssertTipHeight(uint32(stakeValidationHeight + 4*stakeVerInterval - 1))
 	g.AssertBlockVersion(3)
@@ -390,7 +242,7 @@ func TestStakeVersion(t *testing.T) {
 	g.AssertTipHeight(uint32(stakeValidationHeight + 4*stakeVerInterval))
 	g.AssertBlockVersion(3)
 	g.AssertStakeVersion(2)
-	rejected(ErrBadStakeVersion)
+	g.Rejected(ErrBadStakeVersion)
 
 	// ---------------------------------------------------------------------
 	// Generate a single block with block version 3, stake version 4, and
@@ -408,7 +260,7 @@ func TestStakeVersion(t *testing.T) {
 	g.AssertTipHeight(uint32(stakeValidationHeight + 4*stakeVerInterval))
 	g.AssertBlockVersion(3)
 	g.AssertStakeVersion(4)
-	rejected(ErrBadStakeVersion)
+	g.Rejected(ErrBadStakeVersion)
 
 	// ---------------------------------------------------------------------
 	// Generate enough blocks to reach one block before the next stake
@@ -433,7 +285,7 @@ func TestStakeVersion(t *testing.T) {
 		g.SaveTipCoinbaseOuts()
 		g.AssertBlockVersion(3)
 		g.AssertStakeVersion(3)
-		accepted()
+		g.Accepted()
 	}
 	for i := int64(0); i < stakeVerInterval-(targetBlocks-1); i++ {
 		outs := g.OldestCoinbaseOuts()
@@ -445,7 +297,7 @@ func TestStakeVersion(t *testing.T) {
 		g.SaveTipCoinbaseOuts()
 		g.AssertBlockVersion(3)
 		g.AssertStakeVersion(3)
-		accepted()
+		g.Accepted()
 	}
 	g.AssertTipHeight(uint32(stakeValidationHeight + 5*stakeVerInterval - 1))
 
@@ -465,7 +317,7 @@ func TestStakeVersion(t *testing.T) {
 	g.AssertTipHeight(uint32(stakeValidationHeight + 5*stakeVerInterval))
 	g.AssertBlockVersion(3)
 	g.AssertStakeVersion(4)
-	rejected(ErrBadStakeVersion)
+	g.Rejected(ErrBadStakeVersion)
 
 	// ---------------------------------------------------------------------
 	// Generate enough blocks to reach one block before the next stake
@@ -487,7 +339,7 @@ func TestStakeVersion(t *testing.T) {
 		g.SaveTipCoinbaseOuts()
 		g.AssertBlockVersion(3)
 		g.AssertStakeVersion(3)
-		accepted()
+		g.Accepted()
 	}
 	for i := int64(0); i < stakeVerInterval-targetBlocks; i++ {
 		outs := g.OldestCoinbaseOuts()
@@ -499,7 +351,7 @@ func TestStakeVersion(t *testing.T) {
 		g.SaveTipCoinbaseOuts()
 		g.AssertBlockVersion(3)
 		g.AssertStakeVersion(3)
-		accepted()
+		g.Accepted()
 	}
 	g.AssertTipHeight(uint32(stakeValidationHeight + 6*stakeVerInterval - 1))
 
@@ -518,7 +370,7 @@ func TestStakeVersion(t *testing.T) {
 	g.AssertTipHeight(uint32(stakeValidationHeight + 6*stakeVerInterval))
 	g.AssertBlockVersion(3)
 	g.AssertStakeVersion(3)
-	rejected(ErrBadStakeVersion)
+	g.Rejected(ErrBadStakeVersion)
 
 	// ---------------------------------------------------------------------
 	// Generate a single block with block version 3, stake version 4, and
@@ -536,5 +388,5 @@ func TestStakeVersion(t *testing.T) {
 	g.AssertTipHeight(uint32(stakeValidationHeight + 6*stakeVerInterval))
 	g.AssertBlockVersion(3)
 	g.AssertStakeVersion(4)
-	accepted()
+	g.Accepted()
 }
