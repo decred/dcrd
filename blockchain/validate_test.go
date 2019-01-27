@@ -254,33 +254,33 @@ func TestLegacySequenceLocks(t *testing.T) {
 	// activation as compared to various existing network params.
 	params := quickVoteActivationParams()
 
-	// deploymentVer is the deployment version of the ln features vote for the
+	// lnfVersion is the deployment version of the ln features vote for the
 	// chain params.
-	const deploymentVer = 6
+	const lnfVersion = 6
 
 	// Find the correct deployment for the LN features agenda.
-	voteID := chaincfg.VoteIDLNFeatures
+	lnfVoteID := chaincfg.VoteIDLNFeatures
 	var deployment *chaincfg.ConsensusDeployment
-	deployments := params.Deployments[deploymentVer]
+	deployments := params.Deployments[lnfVersion]
 	for deploymentID, depl := range deployments {
-		if depl.Vote.Id == voteID {
+		if depl.Vote.Id == lnfVoteID {
 			deployment = &deployments[deploymentID]
 			break
 		}
 	}
 	if deployment == nil {
-		t.Fatalf("Unable to find consensus deployement for %s", voteID)
+		t.Fatalf("Unable to find consensus deployement for %s", lnfVoteID)
 	}
 
 	// Find the correct choice for the yes vote.
 	const yesVoteID = "yes"
-	var yesChoice *chaincfg.Choice
-	for _, choice := range deployment.Vote.Choices {
+	var lnfYes *chaincfg.Choice
+	for i, choice := range deployment.Vote.Choices {
 		if choice.Id == yesVoteID {
-			yesChoice = &choice
+			lnfYes = &deployment.Vote.Choices[i]
 		}
 	}
-	if yesChoice == nil {
+	if lnfYes == nil {
 		t.Fatalf("Unable to find vote choice for id %q", yesVoteID)
 	}
 
@@ -408,7 +408,7 @@ func TestLegacySequenceLocks(t *testing.T) {
 	}
 	testThresholdState := func(id string, state ThresholdState) {
 		tipHash := g.Tip().BlockHash()
-		s, err := chain.NextThresholdState(&tipHash, deploymentVer, id)
+		s, err := chain.NextThresholdState(&tipHash, lnfVersion, id)
 		if err != nil {
 			t.Fatalf("block %q (hash %s, height %d) unexpected error when "+
 				"retrieving threshold state: %v", g.TipName(), tipHash,
@@ -420,6 +420,15 @@ func TestLegacySequenceLocks(t *testing.T) {
 				"state for %s -- got %v, want %v", g.TipName(), tipHash,
 				g.Tip().Header.Height, id, s.State, state)
 		}
+	}
+
+	// replaceLNFeaturesVersions is a munge function which modifies the provided
+	// block by replacing the block, stake, and vote versions with the LN
+	// features deployment version.
+	replaceLNFeaturesVersions := func(b *wire.MsgBlock) {
+		chaingen.ReplaceBlockVersion(lnfVersion)(b)
+		chaingen.ReplaceStakeVersion(lnfVersion)(b)
+		chaingen.ReplaceVoteVersions(lnfVersion)(b)
 	}
 
 	// Shorter versions of useful params for convenience.
@@ -480,8 +489,8 @@ func TestLegacySequenceLocks(t *testing.T) {
 	// continuing to purchase tickets using the coinbases matured above and
 	// allowing the immature tickets to mature and thus become live.
 	//
-	// The blocks are also generated with version 6 to ensure stake version
-	// and ln feature enforcement is reached.
+	// The blocks are also generated with the deployment version to ensure
+	// stake version and ln feature enforcement is reached.
 	//
 	//   ... -> bse# -> bsv0 -> bsv1 -> ... -> bsv#
 	// ---------------------------------------------------------------------
@@ -503,7 +512,7 @@ func TestLegacySequenceLocks(t *testing.T) {
 
 		blockName := fmt.Sprintf("bsv%d", i)
 		g.NextBlock(blockName, nil, ticketOuts,
-			chaingen.ReplaceBlockVersion(6))
+			chaingen.ReplaceBlockVersion(lnfVersion))
 		g.SaveTipCoinbaseOuts()
 		accepted()
 	}
@@ -511,13 +520,14 @@ func TestLegacySequenceLocks(t *testing.T) {
 
 	// ---------------------------------------------------------------------
 	// Generate enough blocks to reach one block before the next two stake
-	// version intervals with block version 6, stake version 0, and vote
-	// version 6.
+	// version intervals with block and vote versions for the ln features
+	// agenda and stake version 0.
 	//
 	// This will result in triggering enforcement of the stake version and
-	// that the stake version is 6.  The treshold state for deployment will
-	// move to started since the next block also coincides with the start of
-	// a new rule change activation interval for the chosen parameters.
+	// that the stake version is the ln features version.  The threshold
+	// state for deployment will move to started since the next block also
+	// coincides with the start of a new rule change activation interval for
+	// the chosen parameters.
 	//
 	//   ... -> bsv# -> bvu0 -> bvu1 -> ... -> bvu#
 	// ---------------------------------------------------------------------
@@ -527,20 +537,21 @@ func TestLegacySequenceLocks(t *testing.T) {
 	for i := int64(0); i < blocksNeeded; i++ {
 		outs := g.OldestCoinbaseOuts()
 		blockName := fmt.Sprintf("bvu%d", i)
-		g.NextBlock(blockName, nil, outs[1:], chaingen.ReplaceBlockVersion(6),
-			chaingen.ReplaceVoteVersions(6))
+		g.NextBlock(blockName, nil, outs[1:],
+			chaingen.ReplaceBlockVersion(lnfVersion),
+			chaingen.ReplaceVoteVersions(lnfVersion))
 		g.SaveTipCoinbaseOuts()
 		accepted()
 	}
-	testThresholdState(voteID, ThresholdStarted)
+	testThresholdState(lnfVoteID, ThresholdStarted)
 
 	// ---------------------------------------------------------------------
 	// Generate enough blocks to reach the next rule change interval with
-	// block version 6, stake version 6, and vote version 6.  Also, set the
-	// vote bits to include yes votes for the ln feature agenda.
+	// block, stake, and vote versions for the ln features agenda.  Also,
+	// set the vote bits to include yes votes for the agenda.
 	//
-	// This will result in moving the threshold state for the ln feature
-	// enforcement to locked in.
+	// This will result in moving the threshold state for the ln features
+	// agenda to locked in.
 	//
 	//   ... -> bvu# -> bvli0 -> bvli1 -> ... -> bvli#
 	// ---------------------------------------------------------------------
@@ -550,23 +561,22 @@ func TestLegacySequenceLocks(t *testing.T) {
 	for i := int64(0); i < blocksNeeded; i++ {
 		outs := g.OldestCoinbaseOuts()
 		blockName := fmt.Sprintf("bvli%d", i)
-		g.NextBlock(blockName, nil, outs[1:], chaingen.ReplaceBlockVersion(6),
-			chaingen.ReplaceStakeVersion(6),
-			chaingen.ReplaceVotes(vbPrevBlockValid|yesChoice.Bits, 6))
+		g.NextBlock(blockName, nil, outs[1:], replaceLNFeaturesVersions,
+			chaingen.ReplaceVotes(vbPrevBlockValid|lnfYes.Bits, lnfVersion))
 		g.SaveTipCoinbaseOuts()
 		accepted()
 	}
 	g.AssertTipHeight(uint32(stakeValidationHeight + ruleChangeInterval*2 - 1))
-	g.AssertBlockVersion(6)
-	g.AssertStakeVersion(6)
-	testThresholdState(voteID, ThresholdLockedIn)
+	g.AssertBlockVersion(lnfVersion)
+	g.AssertStakeVersion(lnfVersion)
+	testThresholdState(lnfVoteID, ThresholdLockedIn)
 
 	// ---------------------------------------------------------------------
 	// Generate enough blocks to reach the next rule change interval with
-	// block version 6, stake version 6, and vote version 6.
+	// block, stake, and vote versions for the ln features agenda.
 	//
-	// This will result in moving the threshold state for the ln feature
-	// enforcement to active thereby activating it.
+	// This will result in moving the threshold state for the ln features
+	// agenda to active thereby activating it.
 	//
 	//   ... -> bvli# -> bva0 -> bva1 -> ... -> bva#
 	// ---------------------------------------------------------------------
@@ -576,15 +586,14 @@ func TestLegacySequenceLocks(t *testing.T) {
 	for i := int64(0); i < blocksNeeded; i++ {
 		outs := g.OldestCoinbaseOuts()
 		blockName := fmt.Sprintf("bva%d", i)
-		g.NextBlock(blockName, nil, outs[1:], chaingen.ReplaceBlockVersion(6),
-			chaingen.ReplaceStakeVersion(6), chaingen.ReplaceVoteVersions(6))
+		g.NextBlock(blockName, nil, outs[1:], replaceLNFeaturesVersions)
 		g.SaveTipCoinbaseOuts()
 		accepted()
 	}
 	g.AssertTipHeight(uint32(stakeValidationHeight + ruleChangeInterval*3 - 1))
-	g.AssertBlockVersion(6)
-	g.AssertStakeVersion(6)
-	testThresholdState(voteID, ThresholdActive)
+	g.AssertBlockVersion(lnfVersion)
+	g.AssertStakeVersion(lnfVersion)
+	testThresholdState(lnfVoteID, ThresholdActive)
 
 	// ---------------------------------------------------------------------
 	// Perform a series of sequence lock tests now that ln feature
@@ -608,9 +617,8 @@ func TestLegacySequenceLocks(t *testing.T) {
 	// ---------------------------------------------------------------------
 
 	outs := g.OldestCoinbaseOuts()
-	b0 := g.NextBlock("b0", &outs[0], outs[1:],
-		chaingen.ReplaceBlockVersion(6), chaingen.ReplaceStakeVersion(6),
-		chaingen.ReplaceVoteVersions(6), func(b *wire.MsgBlock) {
+	b0 := g.NextBlock("b0", &outs[0], outs[1:], replaceLNFeaturesVersions,
+		func(b *wire.MsgBlock) {
 			// Save the current outputs of the spend tx and clear them.
 			tx := b.Transactions[1]
 			origOut := tx.TxOut[0]
@@ -643,9 +651,8 @@ func TestLegacySequenceLocks(t *testing.T) {
 	// ---------------------------------------------------------------------
 
 	outs = g.OldestCoinbaseOuts()
-	g.NextBlock("b1a", nil, outs[1:],
-		chaingen.ReplaceBlockVersion(6), chaingen.ReplaceStakeVersion(6),
-		chaingen.ReplaceVoteVersions(6), func(b *wire.MsgBlock) {
+	g.NextBlock("b1a", nil, outs[1:], replaceLNFeaturesVersions,
+		func(b *wire.MsgBlock) {
 			spend := chaingen.MakeSpendableOut(b0, 1, 0)
 			tx := g.CreateSpendTx(&spend, dcrutil.Amount(1))
 			enableSeqLocks(tx, 0)
@@ -662,16 +669,13 @@ func TestLegacySequenceLocks(t *testing.T) {
 	//            \-> b1a
 	// ---------------------------------------------------------------------
 	g.SetTip("b0")
-	g.NextBlock("b1", nil, outs[1:],
-		chaingen.ReplaceBlockVersion(6), chaingen.ReplaceStakeVersion(6),
-		chaingen.ReplaceVoteVersions(6))
+	g.NextBlock("b1", nil, outs[1:], replaceLNFeaturesVersions)
 	g.SaveTipCoinbaseOuts()
 	acceptedToSideChainWithExpectedTip("b1a")
 
 	outs = g.OldestCoinbaseOuts()
-	g.NextBlock("b2", nil, outs[1:],
-		chaingen.ReplaceBlockVersion(6), chaingen.ReplaceStakeVersion(6),
-		chaingen.ReplaceVoteVersions(6), func(b *wire.MsgBlock) {
+	g.NextBlock("b2", nil, outs[1:], replaceLNFeaturesVersions,
+		func(b *wire.MsgBlock) {
 			spend := chaingen.MakeSpendableOut(b0, 1, 0)
 			tx := g.CreateSpendTx(&spend, dcrutil.Amount(1))
 			enableSeqLocks(tx, 0)
@@ -688,9 +692,8 @@ func TestLegacySequenceLocks(t *testing.T) {
 	// ---------------------------------------------------------------------
 
 	outs = g.OldestCoinbaseOuts()
-	g.NextBlock("b3", nil, outs[1:],
-		chaingen.ReplaceBlockVersion(6), chaingen.ReplaceStakeVersion(6),
-		chaingen.ReplaceVoteVersions(6), func(b *wire.MsgBlock) {
+	g.NextBlock("b3", nil, outs[1:], replaceLNFeaturesVersions,
+		func(b *wire.MsgBlock) {
 			enableSeqLocks(b.STransactions[0], 0)
 		})
 	g.SaveTipCoinbaseOuts()
@@ -703,9 +706,8 @@ func TestLegacySequenceLocks(t *testing.T) {
 	// ---------------------------------------------------------------------
 
 	outs = g.OldestCoinbaseOuts()
-	g.NextBlock("b4", nil, outs[1:],
-		chaingen.ReplaceBlockVersion(6), chaingen.ReplaceStakeVersion(6),
-		chaingen.ReplaceVoteVersions(6), func(b *wire.MsgBlock) {
+	g.NextBlock("b4", nil, outs[1:], replaceLNFeaturesVersions,
+		func(b *wire.MsgBlock) {
 			enableSeqLocks(b.STransactions[5], 0)
 		})
 	g.SaveTipCoinbaseOuts()
@@ -720,9 +722,8 @@ func TestLegacySequenceLocks(t *testing.T) {
 	// ---------------------------------------------------------------------
 
 	outs = g.OldestCoinbaseOuts()
-	g.NextBlock("b5", nil, outs[1:],
-		chaingen.ReplaceBlockVersion(6), chaingen.ReplaceStakeVersion(6),
-		chaingen.ReplaceVoteVersions(6), func(b *wire.MsgBlock) {
+	g.NextBlock("b5", nil, outs[1:], replaceLNFeaturesVersions,
+		func(b *wire.MsgBlock) {
 			spend := chaingen.MakeSpendableOut(b0, 1, 1)
 			tx := g.CreateSpendTx(&spend, dcrutil.Amount(1))
 			b.AddTransaction(tx)
@@ -731,9 +732,8 @@ func TestLegacySequenceLocks(t *testing.T) {
 	accepted()
 
 	outs = g.OldestCoinbaseOuts()
-	g.NextBlock("b6", nil, outs[1:],
-		chaingen.ReplaceBlockVersion(6), chaingen.ReplaceStakeVersion(6),
-		chaingen.ReplaceVoteVersions(6), func(b *wire.MsgBlock) {
+	g.NextBlock("b6", nil, outs[1:], replaceLNFeaturesVersions,
+		func(b *wire.MsgBlock) {
 			spend := chaingen.MakeSpendableOut(b0, 1, 2)
 			tx := g.CreateSpendTx(&spend, dcrutil.Amount(1))
 			enableSeqLocks(tx, 0)
@@ -752,9 +752,8 @@ func TestLegacySequenceLocks(t *testing.T) {
 	// ---------------------------------------------------------------------
 
 	outs = g.OldestCoinbaseOuts()
-	g.NextBlock("b7", &outs[0], outs[1:],
-		chaingen.ReplaceBlockVersion(6), chaingen.ReplaceStakeVersion(6),
-		chaingen.ReplaceVoteVersions(6), func(b *wire.MsgBlock) {
+	g.NextBlock("b7", &outs[0], outs[1:], replaceLNFeaturesVersions,
+		func(b *wire.MsgBlock) {
 			spend := chaingen.MakeSpendableOut(b, 1, 0)
 			tx := g.CreateSpendTx(&spend, dcrutil.Amount(1))
 			enableSeqLocks(tx, 0)
@@ -771,16 +770,13 @@ func TestLegacySequenceLocks(t *testing.T) {
 	// ---------------------------------------------------------------------
 
 	g.SetTip("b6")
-	g.NextBlock("b8", nil, outs[1:],
-		chaingen.ReplaceBlockVersion(6), chaingen.ReplaceStakeVersion(6),
-		chaingen.ReplaceVoteVersions(6))
+	g.NextBlock("b8", nil, outs[1:], replaceLNFeaturesVersions)
 	g.SaveTipCoinbaseOuts()
 	accepted()
 
 	outs = g.OldestCoinbaseOuts()
-	g.NextBlock("b9", nil, outs[1:],
-		chaingen.ReplaceBlockVersion(6), chaingen.ReplaceStakeVersion(6),
-		chaingen.ReplaceVoteVersions(6), func(b *wire.MsgBlock) {
+	g.NextBlock("b9", nil, outs[1:], replaceLNFeaturesVersions,
+		func(b *wire.MsgBlock) {
 			spend := chaingen.MakeSpendableOut(b0, 1, 3)
 			tx := g.CreateSpendTx(&spend, dcrutil.Amount(1))
 			enableSeqLocks(tx, 0)
@@ -806,9 +802,8 @@ func TestLegacySequenceLocks(t *testing.T) {
 	)
 
 	g.SetTip("b8")
-	g.NextBlock("b10", nil, outs[1:],
-		chaingen.ReplaceBlockVersion(6), chaingen.ReplaceStakeVersion(6),
-		chaingen.ReplaceVoteVersions(6), func(b *wire.MsgBlock) {
+	g.NextBlock("b10", nil, outs[1:], replaceLNFeaturesVersions,
+		func(b *wire.MsgBlock) {
 			spend := chaingen.MakeSpendableOut(b0, 1, 4)
 			tx := g.CreateSpendTx(&spend, dcrutil.Amount(1))
 			b.AddTransaction(tx)
@@ -817,9 +812,9 @@ func TestLegacySequenceLocks(t *testing.T) {
 	accepted()
 
 	outs = g.OldestCoinbaseOuts()
-	g.NextBlock("b11", nil, outs[1:],
-		chaingen.ReplaceBlockVersion(6), chaingen.ReplaceStakeVersion(6),
-		chaingen.ReplaceVotes(vbDisapprovePrev, 6), func(b *wire.MsgBlock) {
+	g.NextBlock("b11", nil, outs[1:], replaceLNFeaturesVersions,
+		chaingen.ReplaceVotes(vbDisapprovePrev, lnfVersion),
+		func(b *wire.MsgBlock) {
 			b.Header.VoteBits &^= vbApprovePrev
 			spend := chaingen.MakeSpendableOut(b0, 1, 5)
 			tx := g.CreateSpendTx(&spend, dcrutil.Amount(1))
