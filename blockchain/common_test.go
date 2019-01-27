@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2017 The Decred developers
+// Copyright (c) 2015-2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -11,13 +11,16 @@ import (
 	"math"
 	mrand "math/rand"
 	"os"
+	"testing"
 	"time"
 
+	"github.com/decred/dcrd/blockchain/chaingen"
 	"github.com/decred/dcrd/blockchain/stake"
 	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/database"
 	_ "github.com/decred/dcrd/database/ffldb"
+	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/dcrd/txscript"
 	"github.com/decred/dcrd/wire"
 )
@@ -243,4 +246,241 @@ func findDeploymentChoice(deployment *chaincfg.ConsensusDeployment, choiceID str
 func removeDeploymentTimeConstraints(deployment *chaincfg.ConsensusDeployment) {
 	deployment.StartTime = 0               // Always available for vote.
 	deployment.ExpireTime = math.MaxUint64 // Never expires.
+}
+
+// chaingenHelpers houses several helper closures which encapsulate a test
+// instance, a chaingen generator instance, and a block chain instance.  These
+// are used when performing various full block tests.
+//
+// Use generateChaingenHelpers to return an instance of this structure with the
+// described closures.
+type chaingenHelpers struct {
+	// accepted processes the current tip block associated with the generator
+	// and expects it to be accepted to the main chain.
+	accepted func()
+
+	// rejected expects the current tip block associated with the generator to
+	// be rejected with the provided error code.
+	rejected func(ErrorCode)
+
+	// expectTip expects the provided block to be the current tip of the main
+	// chain associated with the generator.
+	expectTip func(string)
+
+	// acceptedToSideChainWithExpectedTip expects the tip block associated with
+	// the generator to be accepted to a side chain, but the current best chain
+	// tip to be the provided value.
+	acceptedToSideChainWithExpectedTip func(string)
+
+	// testThresholdState queries the threshold state from the current tip block
+	// associated with the generator and expects the returned state to match the
+	// provided value.
+	testThresholdState func(id string, state ThresholdState)
+
+	// forceTipReorg forces the chain instance associated with the generator to
+	// reorganize the current tip of the main chain from the given block to the
+	// given block.  An error will result if the provided from block is not
+	// actually the current tip.
+	forceTipReorg func(fromTipName, toTipName string)
+}
+
+// generateChaingenHelpers return a struct which houses several helper closures
+// that encapsulate the provided state and are used when performing various full
+// block tests.
+//
+// See chaingenHelpers for a description of the returned closures.
+func generateChaingenHelpers(t *testing.T, g *chaingen.Generator, chain *BlockChain) chaingenHelpers {
+	// accepted processes the current tip block associated with the generator
+	// and expects it to be accepted to the main chain.
+	accepted := func() {
+		t.Helper()
+
+		msgBlock := g.Tip()
+		blockHeight := msgBlock.Header.Height
+		block := dcrutil.NewBlock(msgBlock)
+		t.Logf("Testing block %s (hash %s, height %d)", g.TipName(),
+			block.Hash(), blockHeight)
+
+		forkLen, isOrphan, err := chain.ProcessBlock(block, BFNone)
+		if err != nil {
+			t.Fatalf("block %q (hash %s, height %d) should have been "+
+				"accepted: %v", g.TipName(), block.Hash(), blockHeight, err)
+		}
+
+		// Ensure the main chain and orphan flags match the values specified in
+		// the test.
+		isMainChain := !isOrphan && forkLen == 0
+		if !isMainChain {
+			t.Fatalf("block %q (hash %s, height %d) unexpected main chain "+
+				"flag -- got %v, want true", g.TipName(), block.Hash(),
+				blockHeight, isMainChain)
+		}
+		if isOrphan {
+			t.Fatalf("block %q (hash %s, height %d) unexpected orphan flag -- "+
+				"got %v, want false", g.TipName(), block.Hash(), blockHeight,
+				isOrphan)
+		}
+	}
+
+	// rejected expects the current tip block associated with the generator to
+	// be rejected with the provided error code.
+	rejected := func(code ErrorCode) {
+		t.Helper()
+
+		msgBlock := g.Tip()
+		blockHeight := msgBlock.Header.Height
+		block := dcrutil.NewBlock(msgBlock)
+		t.Logf("Testing block %s (hash %s, height %d)", g.TipName(),
+			block.Hash(), blockHeight)
+
+		_, _, err := chain.ProcessBlock(block, BFNone)
+		if err == nil {
+			t.Fatalf("block %q (hash %s, height %d) should not have been "+
+				"accepted", g.TipName(), block.Hash(), blockHeight)
+		}
+
+		// Ensure the error code is of the expected type and the reject code
+		// matches the value specified in the test instance.
+		rerr, ok := err.(RuleError)
+		if !ok {
+			t.Fatalf("block %q (hash %s, height %d) returned unexpected error "+
+				"type -- got %T, want blockchain.RuleError", g.TipName(),
+				block.Hash(), blockHeight, err)
+		}
+		if rerr.ErrorCode != code {
+			t.Fatalf("block %q (hash %s, height %d) does not have expected "+
+				"reject code -- got %v, want %v", g.TipName(), block.Hash(),
+				blockHeight, rerr.ErrorCode, code)
+		}
+	}
+
+	// expectTip expects the provided block to be the current tip of the main
+	// chain associated with the generator.
+	expectTip := func(tipName string) {
+		t.Helper()
+
+		// Ensure hash and height match.
+		wantTip := g.BlockByName(tipName)
+		best := chain.BestSnapshot()
+		if best.Hash != wantTip.BlockHash() ||
+			best.Height != int64(wantTip.Header.Height) {
+			t.Fatalf("block %q (hash %s, height %d) should be the current tip "+
+				"-- got (hash %s, height %d)", tipName, wantTip.BlockHash(),
+				wantTip.Header.Height, best.Hash, best.Height)
+		}
+	}
+
+	// acceptedToSideChainWithExpectedTip expects the tip block associated with
+	// the generator to be accepted to a side chain, but the current best chain
+	// tip to be the provided value.
+	acceptedToSideChainWithExpectedTip := func(tipName string) {
+		t.Helper()
+
+		msgBlock := g.Tip()
+		blockHeight := msgBlock.Header.Height
+		block := dcrutil.NewBlock(msgBlock)
+		t.Logf("Testing block %s (hash %s, height %d)", g.TipName(),
+			block.Hash(), blockHeight)
+
+		forkLen, isOrphan, err := chain.ProcessBlock(block, BFNone)
+		if err != nil {
+			t.Fatalf("block %q (hash %s, height %d) should have been "+
+				"accepted: %v", g.TipName(), block.Hash(), blockHeight, err)
+		}
+
+		// Ensure the main chain and orphan flags match the values specified in
+		// the test.
+		isMainChain := !isOrphan && forkLen == 0
+		if isMainChain {
+			t.Fatalf("block %q (hash %s, height %d) unexpected main chain "+
+				"flag -- got %v, want false", g.TipName(), block.Hash(),
+				blockHeight, isMainChain)
+		}
+		if isOrphan {
+			t.Fatalf("block %q (hash %s, height %d) unexpected orphan flag -- "+
+				"got %v, want false", g.TipName(), block.Hash(), blockHeight,
+				isOrphan)
+		}
+
+		expectTip(tipName)
+	}
+
+	// lookupDeploymentVersion returns the version of the deployment with the
+	// provided ID and caches the result for future invocations.  An error is
+	// returned if the ID is not found.
+	deploymentVersions := make(map[string]uint32)
+	lookupDeploymentVersion := func(voteID string) (uint32, error) {
+		if version, ok := deploymentVersions[voteID]; ok {
+			return version, nil
+		}
+
+		version, _, err := findDeployment(g.Params(), voteID)
+		if err != nil {
+			return 0, err
+		}
+
+		deploymentVersions[voteID] = version
+		return version, nil
+	}
+
+	// testThresholdState queries the threshold state from the current tip block
+	// associated with the generator and expects the returned state to match the
+	// provided value.
+	testThresholdState := func(id string, state ThresholdState) {
+		t.Helper()
+
+		tipHash := g.Tip().BlockHash()
+		deploymentVer, err := lookupDeploymentVersion(id)
+		if err != nil {
+			t.Fatalf("block %q (hash %s, height %d) unexpected error when "+
+				"retrieving threshold state: %v", g.TipName(), tipHash,
+				g.Tip().Header.Height, err)
+		}
+
+		s, err := chain.NextThresholdState(&tipHash, deploymentVer, id)
+		if err != nil {
+			t.Fatalf("block %q (hash %s, height %d) unexpected error when "+
+				"retrieving threshold state: %v", g.TipName(), tipHash,
+				g.Tip().Header.Height, err)
+		}
+
+		if s.State != state {
+			t.Fatalf("block %q (hash %s, height %d) unexpected threshold "+
+				"state for %s -- got %v, want %v", g.TipName(), tipHash,
+				g.Tip().Header.Height, id, s.State, state)
+		}
+	}
+
+	// forceTipReorg forces the chain instance associated with the generator to
+	// reorganize the current tip of the main chain from the given block to the
+	// given block.  An error will result if the provided from block is not
+	// actually the current tip.
+	forceTipReorg := func(fromTipName, toTipName string) {
+		t.Helper()
+
+		from := g.BlockByName(fromTipName)
+		to := g.BlockByName(toTipName)
+		t.Logf("Testing forced reorg from %s (hash %s, height %d) "+
+			"to %s (hash %s, height %d)", fromTipName,
+			from.BlockHash(), from.Header.Height, toTipName,
+			to.BlockHash(), to.Header.Height)
+
+		err := chain.ForceHeadReorganization(from.BlockHash(), to.BlockHash())
+		if err != nil {
+			t.Fatalf("failed to force header reorg from block %q "+
+				"(hash %s, height %d) to block %q (hash %s, "+
+				"height %d): %v", fromTipName, from.BlockHash(),
+				from.Header.Height, toTipName, to.BlockHash(),
+				to.Header.Height, err)
+		}
+	}
+
+	return chaingenHelpers{
+		accepted:                           accepted,
+		rejected:                           rejected,
+		expectTip:                          expectTip,
+		acceptedToSideChainWithExpectedTip: acceptedToSideChainWithExpectedTip,
+		testThresholdState:                 testThresholdState,
+		forceTipReorg:                      forceTipReorg,
+	}
 }
