@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2017 The Decred developers
+// Copyright (c) 2015-2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -11,13 +11,16 @@ import (
 	"math"
 	mrand "math/rand"
 	"os"
+	"testing"
 	"time"
 
+	"github.com/decred/dcrd/blockchain/chaingen"
 	"github.com/decred/dcrd/blockchain/stake"
 	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/database"
 	_ "github.com/decred/dcrd/database/ffldb"
+	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/dcrd/txscript"
 	"github.com/decred/dcrd/wire"
 )
@@ -243,4 +246,337 @@ func findDeploymentChoice(deployment *chaincfg.ConsensusDeployment, choiceID str
 func removeDeploymentTimeConstraints(deployment *chaincfg.ConsensusDeployment) {
 	deployment.StartTime = 0               // Always available for vote.
 	deployment.ExpireTime = math.MaxUint64 // Never expires.
+}
+
+// chaingenHarness provides a test harness which encapsulates a test instance, a
+// chaingen generator instance, and a block chain instance to provide all of the
+// functionality of the aforementioned types as well as several convenience
+// functions such as block acceptance and rejection, expected tip checking, and
+// threshold state checking.
+//
+// The chaingen generator is embedded in the struct so callers can directly
+// access its method the same as if they were directly working with the
+// underlying generator.
+//
+// Since chaingen involves creating fully valid and solved blocks, which is
+// relatively expensive, only tests which actually require that functionality
+// should make use of this harness.  In many cases, a much faster synthetic
+// chain instance created by newFakeChain will suffice.
+type chaingenHarness struct {
+	*chaingen.Generator
+
+	t                  *testing.T
+	chain              *BlockChain
+	deploymentVersions map[string]uint32
+}
+
+// newChaingenHarness creates and returns a new instance of a chaingen harness
+// that encapsulates the provided test instance along with a teardown function
+// the caller should invoke when done testing to clean up.
+//
+// See the documentation for the chaingenHarness type for more details.
+func newChaingenHarness(t *testing.T, params *chaincfg.Params, dbName string) (*chaingenHarness, func()) {
+	t.Helper()
+
+	// Create a test generator instance initialized with the genesis block as
+	// the tip.
+	g, err := chaingen.MakeGenerator(params)
+	if err != nil {
+		t.Fatalf("Failed to create generator: %v", err)
+	}
+
+	// Create a new database and chain instance to run tests against.
+	chain, teardownFunc, err := chainSetup(dbName, params)
+	if err != nil {
+		t.Fatalf("Failed to setup chain instance: %v", err)
+	}
+
+	harness := chaingenHarness{
+		Generator:          &g,
+		t:                  t,
+		chain:              chain,
+		deploymentVersions: make(map[string]uint32),
+	}
+	return &harness, teardownFunc
+}
+
+// Accepted processes the current tip block associated with the harness
+// generator and expects it to be accepted to the main chain.
+func (g *chaingenHarness) Accepted() {
+	g.t.Helper()
+
+	msgBlock := g.Tip()
+	blockHeight := msgBlock.Header.Height
+	block := dcrutil.NewBlock(msgBlock)
+	g.t.Logf("Testing block %s (hash %s, height %d)", g.TipName(), block.Hash(),
+		blockHeight)
+
+	forkLen, isOrphan, err := g.chain.ProcessBlock(block, BFNone)
+	if err != nil {
+		g.t.Fatalf("block %q (hash %s, height %d) should have been accepted: %v",
+			g.TipName(), block.Hash(), blockHeight, err)
+	}
+
+	// Ensure the main chain and orphan flags match the values specified in the
+	// test.
+	isMainChain := !isOrphan && forkLen == 0
+	if !isMainChain {
+		g.t.Fatalf("block %q (hash %s, height %d) unexpected main chain flag "+
+			"-- got %v, want true", g.TipName(), block.Hash(), blockHeight,
+			isMainChain)
+	}
+	if isOrphan {
+		g.t.Fatalf("block %q (hash %s, height %d) unexpected orphan flag -- "+
+			"got %v, want false", g.TipName(), block.Hash(), blockHeight,
+			isOrphan)
+	}
+}
+
+// Rejected expects the current tip block associated with the harness generator
+// to be rejected with the provided error code.
+func (g *chaingenHarness) Rejected(code ErrorCode) {
+	g.t.Helper()
+
+	msgBlock := g.Tip()
+	blockHeight := msgBlock.Header.Height
+	block := dcrutil.NewBlock(msgBlock)
+	g.t.Logf("Testing block %s (hash %s, height %d)", g.TipName(), block.Hash(),
+		blockHeight)
+
+	_, _, err := g.chain.ProcessBlock(block, BFNone)
+	if err == nil {
+		g.t.Fatalf("block %q (hash %s, height %d) should not have been accepted",
+			g.TipName(), block.Hash(), blockHeight)
+	}
+
+	// Ensure the error code is of the expected type and the reject code matches
+	// the value specified in the test instance.
+	rerr, ok := err.(RuleError)
+	if !ok {
+		g.t.Fatalf("block %q (hash %s, height %d) returned unexpected error "+
+			"type -- got %T, want blockchain.RuleError", g.TipName(),
+			block.Hash(), blockHeight, err)
+	}
+	if rerr.ErrorCode != code {
+		g.t.Fatalf("block %q (hash %s, height %d) does not have expected reject "+
+			"code -- got %v, want %v", g.TipName(), block.Hash(), blockHeight,
+			rerr.ErrorCode, code)
+	}
+}
+
+// ExpectTip expects the provided block to be the current tip of the main chain
+// associated with the harness generator.
+func (g *chaingenHarness) ExpectTip(tipName string) {
+	g.t.Helper()
+
+	// Ensure hash and height match.
+	wantTip := g.BlockByName(tipName)
+	best := g.chain.BestSnapshot()
+	if best.Hash != wantTip.BlockHash() ||
+		best.Height != int64(wantTip.Header.Height) {
+		g.t.Fatalf("block %q (hash %s, height %d) should be the current tip "+
+			"-- got (hash %s, height %d)", tipName, wantTip.BlockHash(),
+			wantTip.Header.Height, best.Hash, best.Height)
+	}
+}
+
+// AcceptedToSideChainWithExpectedTip expects the tip block associated with the
+// generator to be accepted to a side chain, but the current best chain tip to
+// be the provided value.
+func (g *chaingenHarness) AcceptedToSideChainWithExpectedTip(tipName string) {
+	g.t.Helper()
+
+	msgBlock := g.Tip()
+	blockHeight := msgBlock.Header.Height
+	block := dcrutil.NewBlock(msgBlock)
+	g.t.Logf("Testing block %s (hash %s, height %d)", g.TipName(), block.Hash(),
+		blockHeight)
+
+	forkLen, isOrphan, err := g.chain.ProcessBlock(block, BFNone)
+	if err != nil {
+		g.t.Fatalf("block %q (hash %s, height %d) should have been accepted: %v",
+			g.TipName(), block.Hash(), blockHeight, err)
+	}
+
+	// Ensure the main chain and orphan flags match the values specified in
+	// the test.
+	isMainChain := !isOrphan && forkLen == 0
+	if isMainChain {
+		g.t.Fatalf("block %q (hash %s, height %d) unexpected main chain flag "+
+			"-- got %v, want false", g.TipName(), block.Hash(), blockHeight,
+			isMainChain)
+	}
+	if isOrphan {
+		g.t.Fatalf("block %q (hash %s, height %d) unexpected orphan flag -- "+
+			"got %v, want false", g.TipName(), block.Hash(), blockHeight,
+			isOrphan)
+	}
+
+	g.ExpectTip(tipName)
+}
+
+// lookupDeploymentVersion returns the version of the deployment with the
+// provided ID and caches the result for future invocations.  An error is
+// returned if the ID is not found.
+func (g *chaingenHarness) lookupDeploymentVersion(voteID string) (uint32, error) {
+	if version, ok := g.deploymentVersions[voteID]; ok {
+		return version, nil
+	}
+
+	version, _, err := findDeployment(g.Params(), voteID)
+	if err != nil {
+		return 0, err
+	}
+
+	g.deploymentVersions[voteID] = version
+	return version, nil
+}
+
+// TestThresholdState queries the threshold state from the current tip block
+// associated with the harness generator and expects the returned state to match
+// the provided value.
+func (g *chaingenHarness) TestThresholdState(id string, state ThresholdState) {
+	g.t.Helper()
+
+	tipHash := g.Tip().BlockHash()
+	tipHeight := g.Tip().Header.Height
+	deploymentVer, err := g.lookupDeploymentVersion(id)
+	if err != nil {
+		g.t.Fatalf("block %q (hash %s, height %d) unexpected error when "+
+			"retrieving threshold state: %v", g.TipName(), tipHash, tipHeight,
+			err)
+	}
+
+	s, err := g.chain.NextThresholdState(&tipHash, deploymentVer, id)
+	if err != nil {
+		g.t.Fatalf("block %q (hash %s, height %d) unexpected error when "+
+			"retrieving threshold state: %v", g.TipName(), tipHash, tipHeight,
+			err)
+	}
+
+	if s.State != state {
+		g.t.Fatalf("block %q (hash %s, height %d) unexpected threshold "+
+			"state for %s -- got %v, want %v", g.TipName(), tipHash, tipHeight,
+			id, s.State, state)
+	}
+}
+
+// ForceTipReorg forces the chain instance associated with the generator to
+// reorganize the current tip of the main chain from the given block to the
+// given block.  An error will result if the provided from block is not actually
+// the current tip.
+func (g *chaingenHarness) ForceTipReorg(fromTipName, toTipName string) {
+	g.t.Helper()
+
+	from := g.BlockByName(fromTipName)
+	to := g.BlockByName(toTipName)
+	g.t.Logf("Testing forced reorg from %s (hash %s, height %d) to %s (hash "+
+		"%s, height %d)", fromTipName, from.BlockHash(), from.Header.Height,
+		toTipName, to.BlockHash(), to.Header.Height)
+
+	err := g.chain.ForceHeadReorganization(from.BlockHash(), to.BlockHash())
+	if err != nil {
+		g.t.Fatalf("failed to force header reorg from block %q (hash %s, "+
+			"height %d) to block %q (hash %s, height %d): %v", fromTipName,
+			from.BlockHash(), from.Header.Height, toTipName, to.BlockHash(),
+			to.Header.Height, err)
+	}
+}
+
+// AdvanceToStakeValidationHeight generates and accepts enough blocks to the
+// chain instance associated with the harness to reach stake validation height.
+//
+// The function will fail with a fatal test error if it is not called with the
+// harness at the genesis block which is the case when it is first created.
+func (g *chaingenHarness) AdvanceToStakeValidationHeight() {
+	g.t.Helper()
+
+	// Only allow this to be called on a newly created harness.
+	if g.Tip().Header.Height != 0 {
+		g.t.Fatalf("chaingen harness instance must be at the genesis block " +
+			"to advance to stake validation height")
+	}
+
+	// Shorter versions of useful params for convenience.
+	params := g.Params()
+	ticketsPerBlock := params.TicketsPerBlock
+	coinbaseMaturity := params.CoinbaseMaturity
+	stakeEnabledHeight := params.StakeEnabledHeight
+	stakeValidationHeight := params.StakeValidationHeight
+
+	// ---------------------------------------------------------------------
+	// Block One.
+	// ---------------------------------------------------------------------
+
+	// Add the required first block.
+	//
+	//   genesis -> bfb
+	g.CreatePremineBlock("bfb", 0)
+	g.AssertTipHeight(1)
+	g.Accepted()
+
+	// ---------------------------------------------------------------------
+	// Generate enough blocks to have mature coinbase outputs to work with.
+	//
+	//   genesis -> bfb -> bm0 -> bm1 -> ... -> bm#
+	// ---------------------------------------------------------------------
+
+	for i := uint16(0); i < coinbaseMaturity; i++ {
+		blockName := fmt.Sprintf("bm%d", i)
+		g.NextBlock(blockName, nil, nil)
+		g.SaveTipCoinbaseOuts()
+		g.Accepted()
+	}
+	g.AssertTipHeight(uint32(coinbaseMaturity) + 1)
+
+	// ---------------------------------------------------------------------
+	// Generate enough blocks to reach the stake enabled height while
+	// creating ticket purchases that spend from the coinbases matured
+	// above.  This will also populate the pool of immature tickets.
+	//
+	//   ... -> bm# ... -> bse0 -> bse1 -> ... -> bse#
+	// ---------------------------------------------------------------------
+
+	var ticketsPurchased int
+	for i := int64(0); int64(g.Tip().Header.Height) < stakeEnabledHeight; i++ {
+		outs := g.OldestCoinbaseOuts()
+		ticketOuts := outs[1:]
+		ticketsPurchased += len(ticketOuts)
+		blockName := fmt.Sprintf("bse%d", i)
+		g.NextBlock(blockName, nil, ticketOuts)
+		g.SaveTipCoinbaseOuts()
+		g.Accepted()
+	}
+	g.AssertTipHeight(uint32(stakeEnabledHeight))
+
+	// ---------------------------------------------------------------------
+	// Generate enough blocks to reach the stake validation height while
+	// continuing to purchase tickets using the coinbases matured above and
+	// allowing the immature tickets to mature and thus become live.
+	//
+	//   ... -> bse# -> bsv0 -> bsv1 -> ... -> bsv#
+	// ---------------------------------------------------------------------
+
+	targetPoolSize := g.Params().TicketPoolSize * ticketsPerBlock
+	for i := int64(0); int64(g.Tip().Header.Height) < stakeValidationHeight; i++ {
+		// Only purchase tickets until the target ticket pool size is
+		// reached.
+		outs := g.OldestCoinbaseOuts()
+		ticketOuts := outs[1:]
+		if ticketsPurchased+len(ticketOuts) > int(targetPoolSize) {
+			ticketsNeeded := int(targetPoolSize) - ticketsPurchased
+			if ticketsNeeded > 0 {
+				ticketOuts = ticketOuts[1 : ticketsNeeded+1]
+			} else {
+				ticketOuts = nil
+			}
+		}
+		ticketsPurchased += len(ticketOuts)
+
+		blockName := fmt.Sprintf("bsv%d", i)
+		g.NextBlock(blockName, nil, ticketOuts)
+		g.SaveTipCoinbaseOuts()
+		g.Accepted()
+	}
+	g.AssertTipHeight(uint32(stakeValidationHeight))
 }
