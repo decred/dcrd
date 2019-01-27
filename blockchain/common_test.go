@@ -461,6 +461,40 @@ func (g *chaingenHarness) TestThresholdState(id string, state ThresholdState) {
 	}
 }
 
+// TestThresholdStateChoice queries the threshold state from the current tip
+// block associated with the harness generator and expects the returned state
+// and choice to match the provided value.
+func (g *chaingenHarness) TestThresholdStateChoice(id string, state ThresholdState, choice uint32) {
+	g.t.Helper()
+
+	tipHash := g.Tip().BlockHash()
+	tipHeight := g.Tip().Header.Height
+	deploymentVer, err := g.lookupDeploymentVersion(id)
+	if err != nil {
+		g.t.Fatalf("block %q (hash %s, height %d) unexpected error when "+
+			"retrieving threshold state: %v", g.TipName(), tipHash, tipHeight,
+			err)
+	}
+
+	s, err := g.chain.NextThresholdState(&tipHash, deploymentVer, id)
+	if err != nil {
+		g.t.Fatalf("block %q (hash %s, height %d) unexpected error when "+
+			"retrieving threshold state: %v", g.TipName(), tipHash, tipHeight,
+			err)
+	}
+
+	if s.State != state {
+		g.t.Fatalf("block %q (hash %s, height %d) unexpected threshold "+
+			"state for %s -- got %v, want %v", g.TipName(), tipHash, tipHeight,
+			id, s.State, state)
+	}
+	if s.Choice != choice {
+		g.t.Fatalf("block %q (hash %s, height %d) unexpected choice for %s -- "+
+			"got %v, want %v", g.TipName(), tipHash, tipHeight, id, s.Choice,
+			choice)
+	}
+}
+
 // ForceTipReorg forces the chain instance associated with the generator to
 // reorganize the current tip of the main chain from the given block to the
 // given block.  An error will result if the provided from block is not actually
