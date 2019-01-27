@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2018 The Decred developers
+// Copyright (c) 2015-2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -924,159 +924,19 @@ var badBlock = wire.MsgBlock{
 // TestCheckConnectBlockTemplate ensures that the code which deals with
 // checking block templates works as expected.
 func TestCheckConnectBlockTemplate(t *testing.T) {
-	// Create a test generator instance initialized with the genesis block
-	// as the tip as well as some cached payment scripts to be used
-	// throughout the tests.
+	// Create a test harness initialized with the genesis block as the tip.
 	params := &chaincfg.RegNetParams
-	g, err := chaingen.MakeGenerator(params)
-	if err != nil {
-		t.Fatalf("Failed to create generator: %v", err)
-	}
-
-	// Create a new database and chain instance to run tests against.
-	chain, teardownFunc, err := chainSetup("connectblktemplatetest", params)
-	if err != nil {
-		t.Fatalf("Failed to setup chain instance: %v", err)
-	}
+	g, teardownFunc := newChaingenHarness(t, params, "connectblktemplatetest")
 	defer teardownFunc()
 
-	// Define some convenience helper functions to process the current tip
-	// block associated with the generator.
-	//
-	// accepted expects the block to be accepted to the main chain.
-	//
-	// rejected expects the block to be rejected with the provided error
-	// code.
-	//
-	// expectTip expects the provided block to be the current tip of the
-	// main chain.
-	//
-	// acceptedToSideChainWithExpectedTip expects the block to be accepted
-	// to a side chain, but the current best chain tip to be the provided
-	// value.
-	//
-	// forceTipReorg forces the chain instance to reorganize the current tip
-	// of the main chain from the given block to the given block.  An error
-	// will result if the provided from block is not actually the current
-	// tip.
+	// Define some additional convenience helper functions to process the
+	// current tip block associated with the generator.
 	//
 	// acceptedBlockTemplate expected the block to considered a valid block
 	// template.
 	//
 	// rejectedBlockTemplate expects the block to be considered an invalid
 	// block template due to the provided error code.
-	accepted := func() {
-		msgBlock := g.Tip()
-		blockHeight := msgBlock.Header.Height
-		block := dcrutil.NewBlock(msgBlock)
-		t.Logf("Testing block %s (hash %s, height %d)",
-			g.TipName(), block.Hash(), blockHeight)
-
-		forkLen, isOrphan, err := chain.ProcessBlock(block, BFNone)
-		if err != nil {
-			t.Fatalf("block %q (hash %s, height %d) should "+
-				"have been accepted: %v", g.TipName(),
-				block.Hash(), blockHeight, err)
-		}
-
-		// Ensure the main chain and orphan flags match the values
-		// specified in the test.
-		isMainChain := !isOrphan && forkLen == 0
-		if !isMainChain {
-			t.Fatalf("block %q (hash %s, height %d) unexpected main "+
-				"chain flag -- got %v, want true", g.TipName(),
-				block.Hash(), blockHeight, isMainChain)
-		}
-		if isOrphan {
-			t.Fatalf("block %q (hash %s, height %d) unexpected "+
-				"orphan flag -- got %v, want false", g.TipName(),
-				block.Hash(), blockHeight, isOrphan)
-		}
-	}
-	rejected := func(code ErrorCode) {
-		msgBlock := g.Tip()
-		blockHeight := msgBlock.Header.Height
-		block := dcrutil.NewBlock(msgBlock)
-		t.Logf("Testing block %s (hash %s, height %d)", g.TipName(),
-			block.Hash(), blockHeight)
-
-		_, _, err := chain.ProcessBlock(block, BFNone)
-		if err == nil {
-			t.Fatalf("block %q (hash %s, height %d) should not "+
-				"have been accepted", g.TipName(), block.Hash(),
-				blockHeight)
-		}
-
-		// Ensure the error code is of the expected type and the reject
-		// code matches the value specified in the test instance.
-		rerr, ok := err.(RuleError)
-		if !ok {
-			t.Fatalf("block %q (hash %s, height %d) returned "+
-				"unexpected error type -- got %T, want "+
-				"blockchain.RuleError", g.TipName(),
-				block.Hash(), blockHeight, err)
-		}
-		if rerr.ErrorCode != code {
-			t.Fatalf("block %q (hash %s, height %d) does not have "+
-				"expected reject code -- got %v, want %v",
-				g.TipName(), block.Hash(), blockHeight,
-				rerr.ErrorCode, code)
-		}
-	}
-	expectTip := func(tipName string) {
-		// Ensure hash and height match.
-		wantTip := g.BlockByName(tipName)
-		best := chain.BestSnapshot()
-		if best.Hash != wantTip.BlockHash() ||
-			best.Height != int64(wantTip.Header.Height) {
-			t.Fatalf("block %q (hash %s, height %d) should be "+
-				"the current tip -- got (hash %s, height %d)",
-				tipName, wantTip.BlockHash(),
-				wantTip.Header.Height, best.Hash, best.Height)
-		}
-	}
-	acceptedToSideChainWithExpectedTip := func(tipName string) {
-		msgBlock := g.Tip()
-		blockHeight := msgBlock.Header.Height
-		block := dcrutil.NewBlock(msgBlock)
-		t.Logf("Testing block %s (hash %s, height %d)",
-			g.TipName(), block.Hash(), blockHeight)
-
-		forkLen, isOrphan, err := chain.ProcessBlock(block, BFNone)
-		if err != nil {
-			t.Fatalf("block %q (hash %s, height %d) should "+
-				"have been accepted: %v", g.TipName(),
-				block.Hash(), blockHeight, err)
-		}
-
-		// Ensure the main chain and orphan flags match the values
-		// specified in the test.
-		isMainChain := !isOrphan && forkLen == 0
-		if isMainChain {
-			t.Fatalf("block %q (hash %s, height %d) unexpected main "+
-				"chain flag -- got %v, want false", g.TipName(),
-				block.Hash(), blockHeight, isMainChain)
-		}
-		if isOrphan {
-			t.Fatalf("block %q (hash %s, height %d) unexpected "+
-				"orphan flag -- got %v, want false", g.TipName(),
-				block.Hash(), blockHeight, isOrphan)
-		}
-
-		expectTip(tipName)
-	}
-	forceTipReorg := func(fromTipName, toTipName string) {
-		from := g.BlockByName(fromTipName)
-		to := g.BlockByName(toTipName)
-		err = chain.ForceHeadReorganization(from.BlockHash(), to.BlockHash())
-		if err != nil {
-			t.Fatalf("failed to force header reorg from block %q "+
-				"(hash %s, height %d) to block %q (hash %s, "+
-				"height %d): %v", fromTipName, from.BlockHash(),
-				from.Header.Height, toTipName, to.BlockHash(),
-				to.Header.Height, err)
-		}
-	}
 	acceptedBlockTemplate := func() {
 		msgBlock := g.Tip()
 		blockHeight := msgBlock.Header.Height
@@ -1084,7 +944,7 @@ func TestCheckConnectBlockTemplate(t *testing.T) {
 		t.Logf("Testing block template %s (hash %s, height %d)",
 			g.TipName(), block.Hash(), blockHeight)
 
-		err := chain.CheckConnectBlockTemplate(block)
+		err := g.chain.CheckConnectBlockTemplate(block)
 		if err != nil {
 			t.Fatalf("block template %q (hash %s, height %d) should "+
 				"have been accepted: %v", g.TipName(),
@@ -1098,7 +958,7 @@ func TestCheckConnectBlockTemplate(t *testing.T) {
 		t.Logf("Testing block template %s (hash %s, height %d)",
 			g.TipName(), block.Hash(), blockHeight)
 
-		err := chain.CheckConnectBlockTemplate(block)
+		err := g.chain.CheckConnectBlockTemplate(block)
 		if err == nil {
 			t.Fatalf("block template %q (hash %s, height %d) should "+
 				"not have been accepted", g.TipName(), block.Hash(),
@@ -1137,25 +997,29 @@ func TestCheckConnectBlockTemplate(t *testing.T) {
 	stakeValidationHeight := params.StakeValidationHeight
 
 	// ---------------------------------------------------------------------
-	// Premine block templates.
+	// First block templates.
+	//
+	// NOTE: The advance funcs on the harness are intentionally not used in
+	// these tests since they need to manually test block templates at all
+	// heights.
 	// ---------------------------------------------------------------------
 
-	// Produce a premine block with too much coinbase and ensure the block
+	// Produce an initial block with too much coinbase and ensure the block
 	// template is rejected.
 	//
 	//   genesis
-	//          \-> bpbad
-	g.CreatePremineBlock("bpbad", 1)
+	//          \-> bfbbad
+	g.CreatePremineBlock("bfbbad", 1)
 	g.AssertTipHeight(1)
 	rejectedBlockTemplate(ErrBadCoinbaseValue)
 
-	// Produce a valid, but unsolved premine block and ensure the block template
+	// Produce a valid, but unsolved initial block and ensure the block template
 	// is accepted while the unsolved block is rejected.
 	//
 	//   genesis
-	//          \-> bpunsolved
+	//          \-> bfbunsolved
 	g.SetTip("genesis")
-	bpunsolved := g.CreatePremineBlock("bpunsolved", 0, changeNonce)
+	bfbunsolved := g.CreatePremineBlock("bfbunsolved", 0, changeNonce)
 	// Since the difficulty is so low in the tests, the block might still
 	// end up being inadvertently solved.  It can't be checked inside the
 	// munger because the block is finalized after the function returns and
@@ -1163,24 +1027,24 @@ func TestCheckConnectBlockTemplate(t *testing.T) {
 	// increment the nonce until it's not solved and then replace it in the
 	// generator's state.
 	{
-		origHash := bpunsolved.BlockHash()
-		for chaingen.IsSolved(&bpunsolved.Header) {
-			bpunsolved.Header.Nonce++
+		origHash := bfbunsolved.BlockHash()
+		for chaingen.IsSolved(&bfbunsolved.Header) {
+			bfbunsolved.Header.Nonce++
 		}
-		g.UpdateBlockState("bpunsolved", origHash, "bpunsolved", bpunsolved)
+		g.UpdateBlockState("bfbunsolved", origHash, "bfbunsolved", bfbunsolved)
 	}
 	g.AssertTipHeight(1)
 	acceptedBlockTemplate()
-	rejected(ErrHighHash)
-	expectTip("genesis")
+	g.Rejected(ErrHighHash)
+	g.ExpectTip("genesis")
 
-	// Produce a valid and solved premine block.
+	// Produce a valid and solved initial block.
 	//
-	//   genesis -> bp
+	//   genesis -> bfb
 	g.SetTip("genesis")
-	g.CreatePremineBlock("bp", 0)
+	g.CreatePremineBlock("bfb", 0)
 	g.AssertTipHeight(1)
-	accepted()
+	g.Accepted()
 
 	// ---------------------------------------------------------------------
 	// Generate enough blocks to have mature coinbase outputs to work with.
@@ -1188,7 +1052,7 @@ func TestCheckConnectBlockTemplate(t *testing.T) {
 	// Also, ensure that each block is considered a valid template along the
 	// way.
 	//
-	//   genesis -> bp -> bm0 -> bm1 -> ... -> bm#
+	//   genesis -> bfb -> bm0 -> bm1 -> ... -> bm#
 	// ---------------------------------------------------------------------
 
 	var tipName string
@@ -1197,7 +1061,7 @@ func TestCheckConnectBlockTemplate(t *testing.T) {
 		g.NextBlock(blockName, nil, nil)
 		g.SaveTipCoinbaseOuts()
 		acceptedBlockTemplate()
-		accepted()
+		g.Accepted()
 		tipName = blockName
 	}
 	g.AssertTipHeight(uint32(coinbaseMaturity) + 1)
@@ -1246,7 +1110,7 @@ func TestCheckConnectBlockTemplate(t *testing.T) {
 	g.NextBlock("bse0", nil, tempTicketOuts)
 	g.SaveTipCoinbaseOuts()
 	acceptedBlockTemplate()
-	accepted()
+	g.Accepted()
 
 	var ticketsPurchased int
 	for i := int64(1); int64(g.Tip().Header.Height) < stakeEnabledHeight; i++ {
@@ -1257,7 +1121,7 @@ func TestCheckConnectBlockTemplate(t *testing.T) {
 		g.NextBlock(blockName, nil, ticketOuts)
 		g.SaveTipCoinbaseOuts()
 		acceptedBlockTemplate()
-		accepted()
+		g.Accepted()
 	}
 	g.AssertTipHeight(uint32(stakeEnabledHeight))
 
@@ -1292,7 +1156,7 @@ func TestCheckConnectBlockTemplate(t *testing.T) {
 		g.NextBlock(blockName, nil, ticketOuts)
 		g.SaveTipCoinbaseOuts()
 		acceptedBlockTemplate()
-		accepted()
+		g.Accepted()
 	}
 	g.AssertTipHeight(uint32(stakeValidationHeight))
 
@@ -1313,7 +1177,7 @@ func TestCheckConnectBlockTemplate(t *testing.T) {
 		g.NextBlock(blockName, nil, outs[1:])
 		g.SaveTipCoinbaseOuts()
 		acceptedBlockTemplate()
-		accepted()
+		g.Accepted()
 	}
 	g.AssertTipHeight(uint32(stakeValidationHeight) + uint32(coinbaseMaturity))
 
@@ -1338,13 +1202,13 @@ func TestCheckConnectBlockTemplate(t *testing.T) {
 	//
 	//   ... -> b1(0) -> b2(1) -> b3(2)
 	g.NextBlock("b1", outs[0], ticketOuts[0])
-	accepted()
+	g.Accepted()
 
 	g.NextBlock("b2", outs[1], ticketOuts[1])
-	accepted()
+	g.Accepted()
 
 	g.NextBlock("b3", outs[2], ticketOuts[2])
-	accepted()
+	g.Accepted()
 
 	// Create a block template that forks from b1.  It should not be allowed
 	// since it is not the current tip or its parent.
@@ -1421,14 +1285,14 @@ func TestCheckConnectBlockTemplate(t *testing.T) {
 	//               \-> b3a(2)
 	g.SetTip("b2")
 	g.NextBlock("b3a", outs[2], ticketOuts[2])
-	acceptedToSideChainWithExpectedTip("b3")
+	g.AcceptedToSideChainWithExpectedTip("b3")
 
 	// Force tip reorganization to b3a.
 	//
 	//   ... -> b2(1) -> b3a(2)
 	//               \-> b3(2)
-	forceTipReorg("b3", "b3a")
-	expectTip("b3a")
+	g.ForceTipReorg("b3", "b3a")
+	g.ExpectTip("b3a")
 
 	// Create a block template that forks from b2 (the tip's parent) and
 	// ensure it is still accepted after the forced reorg.
@@ -1438,7 +1302,7 @@ func TestCheckConnectBlockTemplate(t *testing.T) {
 	g.SetTip("b2")
 	g.NextBlock("b3dt", outs[2], ticketOuts[2], changeNonce)
 	acceptedBlockTemplate()
-	expectTip("b3a") // Ensure chain tip didn't change.
+	g.ExpectTip("b3a") // Ensure chain tip didn't change.
 
 	// Create a block template that builds on the current tip and ensure it
 	// it is still accepted after the forced reorg.
