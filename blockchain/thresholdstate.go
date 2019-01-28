@@ -10,7 +10,6 @@ import (
 
 	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrd/chaincfg/chainhash"
-	"github.com/decred/dcrd/wire"
 )
 
 // ThresholdState define the various threshold states used when voting on
@@ -603,22 +602,16 @@ func (b *BlockChain) NextThresholdState(hash *chainhash.Hash, version uint32, de
 //
 // This function MUST be called with the chain state lock held (for writes).
 func (b *BlockChain) isLNFeaturesAgendaActive(prevNode *blockNode) (bool, error) {
-	// Consensus voting on LN features is only enabled on mainnet, testnet
-	// v2 (removed from code), and regnet.
-	net := b.chainParams.Net
-	if net != wire.MainNet && net != wire.RegNet {
+	// Determine the correct deployment version for the LN features consensus
+	// vote as defined in DCP0002 and DCP0003 or treat it as active when voting
+	// is not enabled for the current network.
+	const deploymentID = chaincfg.VoteIDLNFeatures
+	deploymentVer, ok := b.deploymentVers[deploymentID]
+	if !ok {
 		return true, nil
 	}
 
-	// Determine the version for the LN features agenda as defined in
-	// DCP0002 and DCP0003 for the provided network.
-	deploymentVer := uint32(5)
-	if b.chainParams.Net != wire.MainNet {
-		deploymentVer = 6
-	}
-
-	state, err := b.deploymentState(prevNode, deploymentVer,
-		chaincfg.VoteIDLNFeatures)
+	state, err := b.deploymentState(prevNode, deploymentVer, deploymentID)
 	if err != nil {
 		return false, err
 	}
@@ -653,22 +646,16 @@ func (b *BlockChain) IsLNFeaturesAgendaActive() (bool, error) {
 //
 // This function MUST be called with the chain state lock held (for writes).
 func (b *BlockChain) isFixSeqLocksAgendaActive(prevNode *blockNode) (bool, error) {
-	// Consensus voting on the fix sequence locks agenda is only enabled on
-	// mainnet, testnet v3, and regnet.
-	net := b.chainParams.Net
-	if net != wire.MainNet && net != wire.TestNet3 && net != wire.RegNet {
+	// Determine the correct deployment version for the fix sequence locks
+	// consensus vote as defined in DCP0004 or treat it as active when voting
+	// is not enabled for the current network.
+	const deploymentID = chaincfg.VoteIDFixLNSeqLocks
+	deploymentVer, ok := b.deploymentVers[deploymentID]
+	if !ok {
 		return true, nil
 	}
 
-	// Determine the version for the fix sequence locks agenda as defined in
-	// DCP0004 for the provided network.
-	deploymentVer := uint32(6)
-	if b.chainParams.Net != wire.MainNet {
-		deploymentVer = 7
-	}
-
-	state, err := b.deploymentState(prevNode, deploymentVer,
-		chaincfg.VoteIDFixLNSeqLocks)
+	state, err := b.deploymentState(prevNode, deploymentVer, deploymentID)
 	if err != nil {
 		return false, err
 	}

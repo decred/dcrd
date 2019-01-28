@@ -1,5 +1,5 @@
 // Copyright (c) 2014-2016 The btcsuite developers
-// Copyright (c) 2015-2016 The Decred developers
+// Copyright (c) 2015-2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -23,8 +23,8 @@ func (e VoteVersionError) Error() string {
 // not exist.
 type HashError string
 
-// Error returns the assertion error as a human-readable string and satisfies
-// the error interface.
+// Error returns the error as a human-readable string and satisfies the error
+// interface.
 func (e HashError) Error() string {
 	return fmt.Sprintf("hash %v does not exist", string(e))
 }
@@ -37,6 +37,17 @@ type DeploymentError string
 // the error interface.
 func (e DeploymentError) Error() string {
 	return fmt.Sprintf("deployment ID %v does not exist", string(e))
+}
+
+// DuplicateDeploymentError identifies an error that indicates a duplicate
+// deployment ID was specified in the network parameter deployment definitions.
+type DuplicateDeploymentError string
+
+// Error returns the assertion error as a human-readable string and satisfies
+// the error interface.
+func (e DuplicateDeploymentError) Error() string {
+	return fmt.Sprintf("deployment ID %v exists in more than one deployment",
+		string(e))
 }
 
 // AssertError identifies an error that indicates an internal code consistency

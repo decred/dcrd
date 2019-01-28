@@ -128,7 +128,14 @@ func newFakeChain(params *chaincfg.Params) *BlockChain {
 	index := newBlockIndex(nil, params)
 	index.AddNode(node)
 
+	// Generate a deployment ID to version map from the provided params.
+	deploymentVers, err := extractDeploymentIDVersions(params)
+	if err != nil {
+		panic(err)
+	}
+
 	return &BlockChain{
+		deploymentVers:                deploymentVers,
 		chainParams:                   params,
 		deploymentCaches:              newThresholdCaches(params),
 		index:                         index,

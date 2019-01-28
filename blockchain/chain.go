@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2018 The Decred developers
+// Copyright (c) 2015-2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -139,6 +139,7 @@ type BlockChain struct {
 	// be changed afterwards, so there is no need to protect them with a
 	// separate mutex.
 	checkpointsByHeight map[int64]*chaincfg.Checkpoint
+	deploymentVers      map[string]uint32
 	db                  database.DB
 	dbInfo              *databaseInfo
 	chainParams         *chaincfg.Params
@@ -1602,20 +1603,23 @@ func (b *BlockChain) BestSnapshot() *BestState {
 //
 // This function MUST be called with the chain state lock held (for reads).
 func (b *BlockChain) maxBlockSize(prevNode *blockNode) (int64, error) {
-	// Hard fork voting on block size is only enabled on testnet v1 (removed
-	// from code) and regnet.
-	if b.chainParams.Net != wire.RegNet {
+	// Determine the correct deployment version for the block size consensus
+	// vote or treat it as active when voting is not enabled for the current
+	// network.
+	const deploymentID = chaincfg.VoteIDMaxBlockSize
+	deploymentVer, ok := b.deploymentVers[deploymentID]
+	if !ok {
 		return int64(b.chainParams.MaximumBlockSizes[0]), nil
 	}
 
-	// Return the larger block size if the version 4 stake vote for the max
-	// block size increase agenda is active.
+	// Return the larger block size if the stake vote for the max block size
+	// increase agenda is active.
 	//
 	// NOTE: The choice field of the return threshold state is not examined
 	// here because there is only one possible choice that can be active
 	// for the agenda, which is yes, so there is no need to check it.
 	maxSize := int64(b.chainParams.MaximumBlockSizes[0])
-	state, err := b.deploymentState(prevNode, 4, chaincfg.VoteIDMaxBlockSize)
+	state, err := b.deploymentState(prevNode, deploymentVer, deploymentID)
 	if err != nil {
 		return maxSize, err
 	}
@@ -1965,6 +1969,25 @@ func (b *BlockChain) LatestBlockLocator() (BlockLocator, error) {
 	return locator, nil
 }
 
+// extractDeploymentIDVersions returns a map of all deployment IDs within the
+// provided params to the deployment version for which they are defined.  An
+// error is returned if a duplicate ID is encountered.
+func extractDeploymentIDVersions(params *chaincfg.Params) (map[string]uint32, error) {
+	// Generate a deployment ID to version map from the provided params.
+	deploymentVers := make(map[string]uint32)
+	for version, deployments := range params.Deployments {
+		for _, deployment := range deployments {
+			id := deployment.Vote.Id
+			if _, ok := deploymentVers[id]; ok {
+				return nil, DuplicateDeploymentError(id)
+			}
+			deploymentVers[id] = version
+		}
+	}
+
+	return deploymentVers, nil
+}
+
 // IndexManager provides a generic interface that the is called when blocks are
 // connected and disconnected to and from the tip of the main chain for the
 // purpose of supporting optional indexes.
@@ -2061,8 +2084,15 @@ func New(config *Config) (*BlockChain, error) {
 		}
 	}
 
+	// Generate a deployment ID to version map from the provided params.
+	deploymentVers, err := extractDeploymentIDVersions(params)
+	if err != nil {
+		return nil, err
+	}
+
 	b := BlockChain{
 		checkpointsByHeight:           checkpointsByHeight,
+		deploymentVers:                deploymentVers,
 		db:                            config.DB,
 		chainParams:                   params,
 		timeSource:                    config.TimeSource,
