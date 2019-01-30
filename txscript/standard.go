@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2017 The btcsuite developers
-// Copyright (c) 2015-2018 The Decred developers
+// Copyright (c) 2015-2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -316,27 +316,28 @@ func isSStxChange(pops []parsedOpcode) bool {
 // scriptType returns the type of the script being inspected from the known
 // standard types.
 func typeOfScript(pops []parsedOpcode) ScriptClass {
-	if isPubkey(pops) {
+	switch {
+	case isPubkey(pops):
 		return PubKeyTy
-	} else if isPubkeyAlt(pops) {
+	case isPubkeyAlt(pops):
 		return PubkeyAltTy
-	} else if isPubkeyHash(pops) {
+	case isPubkeyHash(pops):
 		return PubKeyHashTy
-	} else if isPubkeyHashAlt(pops) {
+	case isPubkeyHashAlt(pops):
 		return PubkeyHashAltTy
-	} else if isScriptHash(pops) {
+	case isScriptHash(pops):
 		return ScriptHashTy
-	} else if isMultiSig(pops) {
+	case isMultiSig(pops):
 		return MultiSigTy
-	} else if isNullData(pops) {
+	case isNullData(pops):
 		return NullDataTy
-	} else if isStakeSubmission(pops) {
+	case isStakeSubmission(pops):
 		return StakeSubmissionTy
-	} else if isStakeGen(pops) {
+	case isStakeGen(pops):
 		return StakeGenTy
-	} else if isStakeRevocation(pops) {
+	case isStakeRevocation(pops):
 		return StakeRevocationTy
-	} else if isSStxChange(pops) {
+	case isSStxChange(pops):
 		return StakeSubChangeTy
 	}
 

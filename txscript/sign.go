@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2015 The btcsuite developers
-// Copyright (c) 2015-2016 The Decred developers
+// Copyright (c) 2015-2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -191,8 +191,8 @@ func signMultiSig(tx *wire.MsgTx, idx int, subScript []byte, hashType SigHashTyp
 
 // handleStakeOutSign is a convenience function for reducing code clutter in
 // sign. It handles the signing of stake outputs.
-func handleStakeOutSign(chainParams *chaincfg.Params, tx *wire.MsgTx, idx int,
-	subScript []byte, hashType SigHashType, kdb KeyDB, sdb ScriptDB,
+func handleStakeOutSign(tx *wire.MsgTx, idx int, subScript []byte,
+	hashType SigHashType, kdb KeyDB, sdb ScriptDB,
 	addresses []dcrutil.Address, class ScriptClass, subClass ScriptClass,
 	nrequired int) ([]byte, ScriptClass, []dcrutil.Address, int, error) {
 
@@ -325,19 +325,19 @@ func sign(chainParams *chaincfg.Params, tx *wire.MsgTx, idx int,
 		return script, class, addresses, nrequired, nil
 
 	case StakeSubmissionTy:
-		return handleStakeOutSign(chainParams, tx, idx, subScript, hashType, kdb,
+		return handleStakeOutSign(tx, idx, subScript, hashType, kdb,
 			sdb, addresses, class, subClass, nrequired)
 
 	case StakeGenTy:
-		return handleStakeOutSign(chainParams, tx, idx, subScript, hashType, kdb,
+		return handleStakeOutSign(tx, idx, subScript, hashType, kdb,
 			sdb, addresses, class, subClass, nrequired)
 
 	case StakeRevocationTy:
-		return handleStakeOutSign(chainParams, tx, idx, subScript, hashType, kdb,
+		return handleStakeOutSign(tx, idx, subScript, hashType, kdb,
 			sdb, addresses, class, subClass, nrequired)
 
 	case StakeSubChangeTy:
-		return handleStakeOutSign(chainParams, tx, idx, subScript, hashType, kdb,
+		return handleStakeOutSign(tx, idx, subScript, hashType, kdb,
 			sdb, addresses, class, subClass, nrequired)
 
 	case NullDataTy:

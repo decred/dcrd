@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2018 The Decred developers
+// Copyright (c) 2015-2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -202,7 +202,7 @@ func sigHashPrefixSerializeSize(hashType SigHashType, txIns []*wire.TxIn, txOuts
 // sigHashWitnessSerializeSize returns the number of bytes the passed parameters
 // would take when encoded with the format used by the witness hash portion of
 // the overall signature hash.
-func sigHashWitnessSerializeSize(hashType SigHashType, txIns []*wire.TxIn, signScript []byte) int {
+func sigHashWitnessSerializeSize(txIns []*wire.TxIn, signScript []byte) int {
 	// 1) 4 bytes version/serialization type
 	// 2) number of inputs varint
 	// 3) per input:
@@ -411,7 +411,7 @@ func calcSignatureHash(prevOutScript []parsedOpcode, hashType SigHashType, tx *w
 	//    a) length of prevout pkscript (as varint)
 	//    b) prevout pkscript (as unmodified bytes)
 
-	size := sigHashWitnessSerializeSize(hashType, txIns, signScript)
+	size := sigHashWitnessSerializeSize(txIns, signScript)
 	witnessBuf := make([]byte, size)
 
 	// Commit to the version and hash serialization type.

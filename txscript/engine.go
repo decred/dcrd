@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2017 The btcsuite developers
-// Copyright (c) 2015-2018 The Decred developers
+// Copyright (c) 2015-2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -302,10 +302,11 @@ func (vm *Engine) Step() (done bool, err error) {
 
 		vm.numOps = 0 // number of ops is per script.
 		vm.scriptOff = 0
-		if vm.scriptIdx == 0 && vm.bip16 {
+		switch {
+		case vm.scriptIdx == 0 && vm.bip16:
 			vm.scriptIdx++
 			vm.savedFirstStack = vm.GetStack()
-		} else if vm.scriptIdx == 1 && vm.bip16 {
+		case vm.scriptIdx == 1 && vm.bip16:
 			// Put us past the end for CheckErrorCondition()
 			vm.scriptIdx++
 			// Check script ran successfully and pull the script
@@ -325,7 +326,7 @@ func (vm *Engine) Step() (done bool, err error) {
 			// Set stack to be the stack from first script minus the
 			// script itself
 			vm.SetStack(vm.savedFirstStack[:len(vm.savedFirstStack)-1])
-		} else {
+		default:
 			vm.scriptIdx++
 		}
 		// there are zero length scripts in the wild

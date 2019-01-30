@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2017 The Decred developers
+// Copyright (c) 2015-2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -684,11 +684,12 @@ func (pop *parsedOpcode) checkMinimalDataPush() error {
 	dataLen := len(data)
 	opcode := pop.opcode.value
 
-	if dataLen == 0 && opcode != OP_0 {
+	switch {
+	case dataLen == 0 && opcode != OP_0:
 		str := fmt.Sprintf("zero length data push is encoded with "+
 			"opcode %s instead of OP_0", pop.opcode.name)
 		return scriptError(ErrMinimalData, str)
-	} else if dataLen == 1 && data[0] >= 1 && data[0] <= 16 {
+	case dataLen == 1 && data[0] >= 1 && data[0] <= 16:
 		if opcode != OP_1+data[0]-1 {
 			// Should have used OP_1 .. OP_16
 			str := fmt.Sprintf("data push of the value %d encoded "+
@@ -696,14 +697,14 @@ func (pop *parsedOpcode) checkMinimalDataPush() error {
 				pop.opcode.name, data[0])
 			return scriptError(ErrMinimalData, str)
 		}
-	} else if dataLen == 1 && data[0] == 0x81 {
+	case dataLen == 1 && data[0] == 0x81:
 		if opcode != OP_1NEGATE {
 			str := fmt.Sprintf("data push of the value -1 encoded "+
 				"with opcode %s instead of OP_1NEGATE",
 				pop.opcode.name)
 			return scriptError(ErrMinimalData, str)
 		}
-	} else if dataLen <= 75 {
+	case dataLen <= 75:
 		if int(opcode) != dataLen {
 			// Should have used a direct push
 			str := fmt.Sprintf("data push of %d bytes encoded "+
@@ -711,14 +712,14 @@ func (pop *parsedOpcode) checkMinimalDataPush() error {
 				pop.opcode.name, dataLen)
 			return scriptError(ErrMinimalData, str)
 		}
-	} else if dataLen <= 255 {
+	case dataLen <= 255:
 		if opcode != OP_PUSHDATA1 {
 			str := fmt.Sprintf("data push of %d bytes encoded "+
 				"with opcode %s instead of OP_PUSHDATA1",
 				dataLen, pop.opcode.name)
 			return scriptError(ErrMinimalData, str)
 		}
-	} else if dataLen <= 65535 {
+	case dataLen <= 65535:
 		if opcode != OP_PUSHDATA2 {
 			str := fmt.Sprintf("data push of %d bytes encoded "+
 				"with opcode %s instead of OP_PUSHDATA2",
@@ -2501,7 +2502,7 @@ func opcodeBlake256(op *parsedOpcode, vm *Engine) error {
 	}
 
 	hash := chainhash.HashB(buf)
-	vm.dstack.PushByteArray(hash[:])
+	vm.dstack.PushByteArray(hash)
 	return nil
 }
 
@@ -2541,7 +2542,7 @@ func opcodeHash160(op *parsedOpcode, vm *Engine) error {
 	}
 
 	hash := chainhash.HashB(buf)
-	vm.dstack.PushByteArray(calcHash(hash[:], ripemd160.New()))
+	vm.dstack.PushByteArray(calcHash(hash, ripemd160.New()))
 	return nil
 }
 

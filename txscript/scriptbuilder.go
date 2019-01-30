@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2015 The btcsuite developers
-// Copyright (c) 2015-2018 The Decred developers
+// Copyright (c) 2015-2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -103,19 +103,19 @@ func CanonicalDataSize(data []byte) int {
 	// When the data consists of a single number that can be represented
 	// by one of the "small integer" opcodes, that opcode will be instead
 	// of a data push opcode followed by the number.
-	if dataLen == 0 {
-		return 1
-	} else if dataLen == 1 && data[0] <= 16 {
-		return 1
-	} else if dataLen == 1 && data[0] == 0x81 {
+	switch {
+	case dataLen == 0,
+		dataLen == 1 && data[0] <= 16,
+		dataLen == 1 && data[0] == 0x81:
 		return 1
 	}
 
-	if dataLen < OP_PUSHDATA1 {
+	switch {
+	case dataLen < OP_PUSHDATA1:
 		return 1 + dataLen
-	} else if dataLen <= 0xff {
+	case dataLen <= 0xff:
 		return 2 + dataLen
-	} else if dataLen <= 0xffff {
+	case dataLen <= 0xffff:
 		return 3 + dataLen
 	}
 
@@ -132,13 +132,14 @@ func (b *ScriptBuilder) addData(data []byte) *ScriptBuilder {
 	// When the data consists of a single number that can be represented
 	// by one of the "small integer" opcodes, use that opcode instead of
 	// a data push opcode followed by the number.
-	if dataLen == 0 || dataLen == 1 && data[0] == 0 {
+	switch {
+	case dataLen == 0 || dataLen == 1 && data[0] == 0:
 		b.script = append(b.script, OP_0)
 		return b
-	} else if dataLen == 1 && data[0] <= 16 {
+	case dataLen == 1 && data[0] <= 16:
 		b.script = append(b.script, OP_1-1+data[0])
 		return b
-	} else if dataLen == 1 && data[0] == 0x81 {
+	case dataLen == 1 && data[0] == 0x81:
 		b.script = append(b.script, byte(OP_1NEGATE))
 		return b
 	}
@@ -147,16 +148,17 @@ func (b *ScriptBuilder) addData(data []byte) *ScriptBuilder {
 	// enough so the data push instruction is only a single byte.
 	// Otherwise, choose the smallest possible OP_PUSHDATA# opcode that
 	// can represent the length of the data.
-	if dataLen < OP_PUSHDATA1 {
+	switch {
+	case dataLen < OP_PUSHDATA1:
 		b.script = append(b.script, byte((OP_DATA_1-1)+dataLen))
-	} else if dataLen <= 0xff {
+	case dataLen <= 0xff:
 		b.script = append(b.script, OP_PUSHDATA1, byte(dataLen))
-	} else if dataLen <= 0xffff {
+	case dataLen <= 0xffff:
 		buf := make([]byte, 2)
 		binary.LittleEndian.PutUint16(buf, uint16(dataLen))
 		b.script = append(b.script, OP_PUSHDATA2)
 		b.script = append(b.script, buf...)
-	} else {
+	default:
 		buf := make([]byte, 4)
 		binary.LittleEndian.PutUint32(buf, uint32(dataLen))
 		b.script = append(b.script, OP_PUSHDATA4)
