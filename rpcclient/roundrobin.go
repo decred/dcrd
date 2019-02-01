@@ -13,7 +13,7 @@ import (
 )
 
 var (
-	// ErrNoConnAvailable indicates no Connection is available to pick.
+	// ErrNoConnAvailable indicates no connection is available to pick.
 	ErrNoConnAvailable = errors.New("no connection is available")
 
 	// ErrNoUsableConnAvailable indicates no usable connections available i.e.
@@ -22,6 +22,9 @@ var (
 
 	// ErrBalancerNotFound indicates the balancer type is not found.
 	ErrBalancerNotFound = errors.New("not able to find the specified balancer type")
+
+	// ErrNoConnConfigured indicates no connection is configured.
+	ErrNoConnConfigured = errors.New("no connection configured")
 )
 
 // connectionState indicates the current state of connection.
@@ -113,7 +116,7 @@ func (p *picker) Pick(balancer Balancer) (conn *HostAddress, err error) {
 			break
 		} else if state == idle && conn.initialConnectAttemptCount < 50 {
 			// We are yet to establish a successful connection to this host.
-			// If need be, max attempt allowed, can be made configurable.
+			// If need be, max attempt allowed can be made configurable.
 			break
 		}
 		// This indicates iteration is complete.
@@ -123,6 +126,7 @@ func (p *picker) Pick(balancer Balancer) (conn *HostAddress, err error) {
 		}
 	}
 	if conn == nil {
+		p.mu.Unlock()
 		return conn, ErrNoUsableConnAvailable
 	}
 	if !ok {
@@ -464,6 +468,9 @@ func (rrb *roundRobinBalancer) ClientRestartNeeded() bool {
 func (c *Client) BuildBalancer(config *ConnConfig) (Balancer, error) {
 	if config.Balancer != "" && config.Balancer != "RoundRobinBalancer" {
 		return nil, ErrBalancerNotFound
+	}
+	if len(config.HostAddresses) == 0 && len(config.Host) == 0 {
+		return nil, ErrNoConnConfigured
 	}
 	if len(config.HostAddresses) == 0 {
 		config.HostAddresses = []HostAddress{{Endpoint: config.Endpoint, Host: config.Host}}
