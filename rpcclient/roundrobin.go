@@ -224,8 +224,8 @@ func (rrb *roundRobinBalancer) NextConn(method string) (*websocket.Conn, *HostAd
 					"%s", hostAddress.Host, scaledDuration)
 				time.Sleep(scaledDuration)
 			}
-			wsConn, err = dial(rrb.connConfig)
 			rrb.mu.Unlock()
+			wsConn, err = dial(rrb.connConfig)
 			if err != nil {
 				if rrb.connConfig.DisableAutoReconnect {
 					rrb.NotifyConnStateChange(hostAddress, shutdown)
