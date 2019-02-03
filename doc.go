@@ -114,7 +114,6 @@ Application Options:
                             a block (375000)
       --blockprioritysize=  Size in bytes for high-priority/low-fee transactions
                             when creating a block (20000)
-      --getworkkey=         DEPRECATED -- Use the --miningaddr option instead
       --nonaggressive       Disable mining off of the parent block of the blockchain
                             if there aren't enough voters
       --nominingstatesync   Disable synchronizing the mining state with other nodes

@@ -150,7 +150,6 @@ type config struct {
 	BlockMinSize         uint32        `long:"blockminsize" description:"Mininum block size in bytes to be used when creating a block"`
 	BlockMaxSize         uint32        `long:"blockmaxsize" description:"Maximum block size in bytes to be used when creating a block"`
 	BlockPrioritySize    uint32        `long:"blockprioritysize" description:"Size in bytes for high-priority/low-fee transactions when creating a block"`
-	GetWorkKeys          []string      `long:"getworkkey" description:"DEPRECATED -- Use the --miningaddr option instead"`
 	SigCacheMaxSize      uint          `long:"sigcachemaxsize" description:"The maximum number of entries in the signature verification cache"`
 	NonAggressive        bool          `long:"nonaggressive" description:"Disable mining off of the parent block of the blockchain if there aren't enough voters"`
 	NoMiningStateSync    bool          `long:"nominingstatesync" description:"Disable synchronizing the mining state with other nodes"`
@@ -934,29 +933,8 @@ func loadConfig() (*config, []string, error) {
 		return nil, nil, err
 	}
 
-	// Check getwork keys are valid and saved parsed versions.
-	cfg.miningAddrs = make([]dcrutil.Address, 0, len(cfg.GetWorkKeys)+
-		len(cfg.MiningAddrs))
-	for _, strAddr := range cfg.GetWorkKeys {
-		addr, err := dcrutil.DecodeAddress(strAddr)
-		if err != nil {
-			str := "%s: getworkkey '%s' failed to decode: %v"
-			err := fmt.Errorf(str, funcName, strAddr, err)
-			fmt.Fprintln(os.Stderr, err)
-			fmt.Fprintln(os.Stderr, usageMessage)
-			return nil, nil, err
-		}
-		if !addr.IsForNet(activeNetParams.Params) {
-			str := "%s: getworkkey '%s' is on the wrong network"
-			err := fmt.Errorf(str, funcName, strAddr)
-			fmt.Fprintln(os.Stderr, err)
-			fmt.Fprintln(os.Stderr, usageMessage)
-			return nil, nil, err
-		}
-		cfg.miningAddrs = append(cfg.miningAddrs, addr)
-	}
-
 	// Check mining addresses are valid and saved parsed versions.
+	cfg.miningAddrs = make([]dcrutil.Address, 0, len(cfg.MiningAddrs))
 	for _, strAddr := range cfg.MiningAddrs {
 		addr, err := dcrutil.DecodeAddress(strAddr)
 		if err != nil {
