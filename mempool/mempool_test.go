@@ -563,8 +563,15 @@ func newVoteScript(voteBits stake.VoteBits) ([]byte, error) {
 	return txscript.GenerateProvablyPruneableOut(b)
 }
 
-// CreateVote creates a vote transaction using the provided ticket.
-func (p *poolHarness) CreateVote(ticket *dcrutil.Tx) (*dcrutil.Tx, error) {
+// CreateVote creates a vote transaction using the provided ticket.  The vote
+// will vote on the current best block hash and height associated with the
+// harness.
+//
+// Additionally, if one or more munge functions are specified, they will be
+// invoked with the transaction prior to signing it.  This provides callers with
+// the opportunity to modify the transaction which is especially useful for
+// testing.
+func (p *poolHarness) CreateVote(ticket *dcrutil.Tx, mungers ...func(*wire.MsgTx)) (*dcrutil.Tx, error) {
 	// Calculate the vote subsidy
 	subsidy := blockchain.CalcStakeVoteSubsidy(p.txPool.cfg.SubsidyCache,
 		p.chain.BestHeight(), p.chainParams)
@@ -589,7 +596,7 @@ func (p *poolHarness) CreateVote(ticket *dcrutil.Tx) (*dcrutil.Tx, error) {
 	vote.AddTxIn(ticketInput)
 
 	// Add the block reference output.
-	blockRefScript, _ := txscript.GenerateSSGenBlockRef(chainhash.Hash{},
+	blockRefScript, _ := txscript.GenerateSSGenBlockRef(*p.chain.BestHash(),
 		uint32(p.chain.BestHeight()))
 	vote.AddTxOut(wire.NewTxOut(0, blockRefScript))
 
@@ -610,6 +617,11 @@ func (p *poolHarness) CreateVote(ticket *dcrutil.Tx) (*dcrutil.Tx, error) {
 		// Error is checking for a nil hash160, just ignore it.
 		script, _ := scriptFn(hash160)
 		vote.AddTxOut(wire.NewTxOut(voteRewardValues[i], script))
+	}
+
+	// Perform any transaction munging just before signing.
+	for _, f := range mungers {
+		f(vote)
 	}
 
 	// Sign the input.
