@@ -1520,7 +1520,7 @@ func seqIntervalToSecs(intervals uint32) uint32 {
 }
 
 // TestSequenceLockAcceptance ensures that transactions which involve sequence
-// locks are accepted or rejected from the memory as expected.
+// locks are accepted or rejected from the pool as expected.
 func TestSequenceLockAcceptance(t *testing.T) {
 	t.Parallel()
 
@@ -1798,4 +1798,125 @@ func TestSequenceLockAcceptance(t *testing.T) {
 			}
 		}
 	}
+}
+
+// TestMaxVoteDoubleSpendRejection ensures that votes that spend the same ticket
+// while voting on different blocks are accepted to the pool until the maximum
+// allowed is reached and rejected afterwards.
+func TestMaxVoteDoubleSpendRejection(t *testing.T) {
+	t.Parallel()
+
+	harness, spendableOuts, err := newPoolHarness(&chaincfg.MainNetParams)
+	if err != nil {
+		t.Fatalf("unable to create test pool: %v", err)
+	}
+	tc := &testContext{t, harness}
+
+	// Create a regular transaction from the first spendable output provided by
+	// the harness.
+	tx, err := harness.CreateTx(spendableOuts[0])
+	if err != nil {
+		t.Fatalf("unable to create transaction: %v", err)
+	}
+
+	// Create a ticket purchase transaction spending the outputs of the prior
+	// regular transaction.
+	ticket, err := harness.CreateTicketPurchase(tx, 40000)
+	if err != nil {
+		t.Fatalf("unable to create ticket purchase transaction: %v", err)
+	}
+
+	// Add the ticket outputs as utxos to fake their existence.  Use one after
+	// the stake enabled height for the height of the fake utxos to ensure they
+	// are mature for the votes cast a stake validation height below.
+	harness.chain.SetHeight(harness.chainParams.StakeEnabledHeight + 1)
+	harness.chain.utxos.AddTxOuts(ticket, harness.chain.BestHeight(), 0)
+
+	// Create enough votes all using the same ticket and voting on different
+	// blocks at stake validation height to be able to force rejection due to
+	// exceeding the max allowed double spends.
+	harness.chain.SetHeight(harness.chainParams.StakeValidationHeight)
+	var votes []*dcrutil.Tx
+	for i := 0; i < maxVoteDoubleSpends*2; i++ {
+		// Ensure each vote is voting on a different block.
+		var hash chainhash.Hash
+		binary.LittleEndian.PutUint32(hash[:4], uint32(i))
+		harness.chain.SetBestHash(&hash)
+
+		vote, err := harness.CreateVote(ticket)
+		if err != nil {
+			t.Fatalf("unable to create vote: %v", err)
+		}
+		votes = append(votes, vote)
+	}
+
+	// Add enough of the votes to reach the max allowed while ensuring they are
+	// all accepted.
+	for _, vote := range votes[:maxVoteDoubleSpends] {
+		acceptedTxns, err := harness.txPool.ProcessTransaction(vote, false,
+			false, true)
+		if err != nil {
+			t.Fatalf("ProcessTransaction: failed to accept valid vote %v", err)
+		}
+
+		// Ensure the transaction was reported as accepted.
+		if len(acceptedTxns) != 1 {
+			t.Fatalf("ProcessTransaction: reported %d accepted transactions from "+
+				"what should be 1", len(acceptedTxns))
+		}
+
+		// Ensure the transaction is not in the orphan pool, in the transaction
+		// pool, and reported as available.
+		testPoolMembership(tc, vote, false, true)
+	}
+
+	// Attempt to add the remaining votes while ensuring they are all rejected
+	// due to exceeding the max allowed double spends across all blocks being
+	// voted on.
+	for _, vote := range votes[maxVoteDoubleSpends:] {
+		acceptedTxns, err := harness.txPool.ProcessTransaction(vote, false,
+			false, true)
+		if err == nil {
+			t.Fatalf("ProcessTransaction: accepted double-spending vote with " +
+				"more than max allowed")
+		}
+
+		// Ensure no transactions were reported as accepted.
+		if len(acceptedTxns) != 0 {
+			t.Fatalf("ProcessTransaction: reported %d accepted "+
+				"transactions from what should be an orphan",
+				len(acceptedTxns))
+		}
+
+		// Ensure the transaction is not in the orphan pool, not in the
+		// transaction pool, and not reported as available.
+		testPoolMembership(tc, vote, false, false)
+	}
+
+	// Remove one of the votes from the pool and ensure it is not in the orphan
+	// pool, not in the transaction pool, and not reported as available.
+	vote := votes[2]
+	harness.txPool.RemoveTransaction(vote, true)
+	testPoolMembership(tc, vote, false, false)
+
+	// Add one of the votes that was rejected above due to the pool being at the
+	// max allowed and ensure it is accepted now.  Also, ensure it is not in the
+	// orphan pool, is in the transaction pool, and is reported as available.
+	vote = votes[maxVoteDoubleSpends]
+	_, err = harness.txPool.ProcessTransaction(vote, false, false, true)
+	if err != nil {
+		t.Fatalf("ProcessTransaction: failed to accept valid vote %v", err)
+	}
+	testPoolMembership(tc, vote, false, true)
+
+	// Attempt to add another one of the votes and ensure it is rejected due to
+	// exceeding the max again.  Also, ensure it is not in the orphan pool, not
+	// in the transaction pool, and not reported as available.
+	vote = votes[maxVoteDoubleSpends+1]
+	_, err = harness.txPool.ProcessTransaction(vote, false, false, true)
+	if err == nil {
+		t.Fatalf("ProcessTransaction: accepted double-spending vote with " +
+			"more than max allowed")
+	}
+	testPoolMembership(tc, vote, false, false)
 }

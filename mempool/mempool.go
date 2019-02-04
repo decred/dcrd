@@ -973,7 +973,7 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 					voteAlreadyFound++
 				}
 			}
-			if voteAlreadyFound > maxVoteDoubleSpends {
+			if voteAlreadyFound >= maxVoteDoubleSpends {
 				str := fmt.Sprintf("transaction %v in the pool with more than "+
 					"%v votes", msgTx.TxIn[1].PreviousOutPoint,
 					maxVoteDoubleSpends)
