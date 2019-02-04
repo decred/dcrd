@@ -727,6 +727,46 @@ func (mp *TxPool) checkPoolDoubleSpend(tx *dcrutil.Tx, txType stake.TxType) erro
 	return nil
 }
 
+// checkVoteDoubleSpend checks whether or not the passed vote is for a block
+// that already has a vote that spends the same ticket available.  This is
+// necessary because the same ticket might be selected for blocks on candidate
+// side chains and thus a more generic check to merely reject double spends of
+// tickets is not possible.
+//
+// This function MUST be called with the mempool lock held (for reads).
+// This function MUST NOT be called with the votes mutex held.
+func (mp *TxPool) checkVoteDoubleSpend(vote *dcrutil.Tx) error {
+	voteTx := vote.MsgTx()
+	ticketSpent := voteTx.TxIn[1].PreviousOutPoint.Hash
+	hashVotedOn, heightVotedOn := stake.SSGenBlockVotedOn(voteTx)
+	mp.votesMtx.RLock()
+	for _, existingVote := range mp.votes[hashVotedOn] {
+		if existingVote.TicketHash == ticketSpent {
+			// Ensure the vote is still actually in the mempool.  This is needed
+			// because the votes map is not currently kept in sync with the
+			// contents of the pool.
+			//
+			// TODO(decred): Ideally the votes map and mempool would be kept in
+			// sync, which would remove the need for this check, however, there
+			// is currently code outside of mempool that relies on being able to
+			// look up seen votes by block hash, regardless of their current
+			// membership in the pool.
+			if _, exists := mp.pool[existingVote.VoteHash]; !exists {
+				continue
+			}
+
+			mp.votesMtx.RUnlock()
+			str := fmt.Sprintf("vote %v spending ticket %v already votes on "+
+				"block %s (height %d)", vote.Hash(), ticketSpent, hashVotedOn,
+				heightVotedOn)
+			return txRuleError(wire.RejectDuplicate, str)
+		}
+	}
+	mp.votesMtx.RUnlock()
+
+	return nil
+}
+
 // IsRegTxTreeKnownDisapproved returns whether or not the regular tree of the
 // block represented by the provided hash is known to be disapproved according
 // to the votes currently in the memory pool.
@@ -964,7 +1004,17 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 		if err != nil {
 			return nil, err
 		}
+
 	} else if isVote {
+		// Reject votes on blocks that already have a vote that spends the same
+		// ticket available.  This is necessary because the same ticket might be
+		// selected for blocks on candidate side chains and thus a more generic
+		// check to merely reject double spends of tickets is not possible.
+		err := mp.checkVoteDoubleSpend(tx)
+		if err != nil {
+			return nil, err
+		}
+
 		voteAlreadyFound := 0
 		for _, mpTx := range mp.pool {
 			if mpTx.Type == stake.TxTypeSSGen {
@@ -980,6 +1030,7 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 				return nil, txRuleError(wire.RejectDuplicate, str)
 			}
 		}
+
 	} else if isRevocation {
 		for _, mpTx := range mp.pool {
 			if mpTx.Type == stake.TxTypeSSRtx {

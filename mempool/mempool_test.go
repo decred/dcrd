@@ -1920,3 +1920,89 @@ func TestMaxVoteDoubleSpendRejection(t *testing.T) {
 	}
 	testPoolMembership(tc, vote, false, false)
 }
+
+// TestDuplicateVoteRejection ensures that additional votes on the same block
+// that spend the same ticket are rejected from the pool as expected.
+func TestDuplicateVoteRejection(t *testing.T) {
+	t.Parallel()
+
+	harness, spendableOuts, err := newPoolHarness(&chaincfg.MainNetParams)
+	if err != nil {
+		t.Fatalf("unable to create test pool: %v", err)
+	}
+	tc := &testContext{t, harness}
+
+	// Create a regular transaction from the first spendable output provided by
+	// the harness.
+	tx, err := harness.CreateTx(spendableOuts[0])
+	if err != nil {
+		t.Fatalf("unable to create transaction: %v", err)
+	}
+
+	// Create a ticket purchase transaction spending the outputs of the prior
+	// regular transaction.
+	ticket, err := harness.CreateTicketPurchase(tx, 40000)
+	if err != nil {
+		t.Fatalf("unable to create ticket purchase transaction: %v", err)
+	}
+
+	// Add the ticket outputs as utxos to fake their existence.  Use one after
+	// the stake enabled height for the height of the fake utxos to ensure they
+	// are matured for the votes cast a stake validation height below.
+	harness.chain.SetHeight(harness.chainParams.StakeEnabledHeight + 1)
+	harness.chain.utxos.AddTxOuts(ticket, harness.chain.BestHeight(), 0)
+
+	// Create a vote that votes on a block at stake validation height.
+	harness.chain.SetBestHash(&chainhash.Hash{0x5c, 0xa1, 0xab, 0x1e})
+	harness.chain.SetHeight(harness.chainParams.StakeValidationHeight)
+	vote, err := harness.CreateVote(ticket)
+	if err != nil {
+		t.Fatalf("unable to create vote: %v", err)
+	}
+
+	// Add the vote and ensure it is not in the orphan pool, is in the
+	// transaction pool, and is reported as available.
+	_, err = harness.txPool.ProcessTransaction(vote, false, false, true)
+	if err != nil {
+		t.Fatalf("ProcessTransaction: failed to accept valid vote %v", err)
+	}
+	testPoolMembership(tc, vote, false, true)
+
+	// Create another vote with a different hash that votes on the same block
+	// using the same ticket.
+	dupVote, err := harness.CreateVote(ticket, func(tx *wire.MsgTx) {
+		voteBits := stake.VoteBits{Bits: uint16(0x03), ExtendedBits: nil}
+		voteScript, err := newVoteScript(voteBits)
+		if err != nil {
+			t.Fatalf("failed to create vote script: %v", err)
+		}
+		tx.TxOut[1].PkScript = voteScript
+	})
+	if err != nil {
+		t.Fatalf("unable to create vote: %v", err)
+	}
+
+	// Attempt to add the duplicate vote and ensure it is rejected.  Also,
+	// ensure it is not in the orphan pool, not in the transaction pool, and not
+	// reported as available.
+	_, err = harness.txPool.ProcessTransaction(dupVote, false, false, true)
+	if err == nil {
+		t.Fatalf("ProcessTransaction: accepted duplicate vote with different " +
+			"hash")
+	}
+	testPoolMembership(tc, dupVote, false, false)
+
+	// Remove the original vote from the pool and ensure it is not in the orphan
+	// pool, not in the transaction pool, and not reported as available.
+	harness.txPool.RemoveTransaction(vote, true)
+	testPoolMembership(tc, vote, false, false)
+
+	// Add the duplicate vote which should now be accepted.  Also, ensure it is
+	// not in the orphan pool, is in the transaction pool, and is reported as
+	// available.
+	_, err = harness.txPool.ProcessTransaction(dupVote, false, false, true)
+	if err != nil {
+		t.Fatalf("ProcessTransaction: failed to accept valid vote %v", err)
+	}
+	testPoolMembership(tc, dupVote, false, true)
+}
