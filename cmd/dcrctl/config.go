@@ -264,7 +264,8 @@ func loadConfig() (*config, []string, error) {
 	appName = strings.TrimSuffix(appName, filepath.Ext(appName))
 	usageMessage := fmt.Sprintf("Use %s -h to show options", appName)
 	if preCfg.ShowVersion {
-		fmt.Println(appName, "version", version.String())
+		fmt.Printf("%s version %s (Go version %s %s/%s)\n", appName,
+			version.String(), runtime.Version(), runtime.GOOS, runtime.GOARCH)
 		os.Exit(0)
 	}
 
