@@ -50,8 +50,8 @@ testrepo () {
   MODPATHS=". $MODPATHS"
   for module in $MODPATHS; do
     echo "==> ${module}"
-    (cd $module && env GORACE='halt_on_error=1' CC=gcc $GO test -short -race \
-	  -tags rpctest ./...)
+    env GORACE='halt_on_error=1' CC=gcc $GO test -short -race \
+	  -tags rpctest ./${module}/...
   done
 
   # check linters
