@@ -680,7 +680,7 @@ func deserializeSpendJournalEntry(serialized []byte, txns []*wire.MsgTx) ([]spen
 		// the associated stxo.
 		for txInIdx := len(tx.TxIn) - 1; txInIdx > -1; txInIdx-- {
 			// Skip stakebase since it has no input.
-			if isVote && txInIdx == 0 {
+			if txInIdx == 0 && isVote {
 				continue
 			}
 
