@@ -1589,25 +1589,25 @@ mempoolLoop:
 	voters := 0
 	var voteBitsVoters []uint16
 
-	for _, tx := range blockTxns {
-		msgTx := tx.MsgTx()
-		if nextBlockHeight < stakeValidationHeight {
-			break // No SSGen should be present before this height.
-		}
+	// Have SSGen should be present after this height.
+	if nextBlockHeight >= stakeValidationHeight {
+		for _, tx := range blockTxns {
+			msgTx := tx.MsgTx()
 
-		if stake.IsSSGen(msgTx) {
-			txCopy := dcrutil.NewTxDeepTxIns(msgTx)
-			if maybeInsertStakeTx(g.blockManager, txCopy, !knownDisapproved) {
-				vb := stake.SSGenVoteBits(txCopy.MsgTx())
-				voteBitsVoters = append(voteBitsVoters, vb)
-				blockTxnsStake = append(blockTxnsStake, txCopy)
-				voters++
+			if stake.IsSSGen(msgTx) {
+				txCopy := dcrutil.NewTxDeepTxIns(msgTx)
+				if maybeInsertStakeTx(g.blockManager, txCopy, !knownDisapproved) {
+					vb := stake.SSGenVoteBits(txCopy.MsgTx())
+					voteBitsVoters = append(voteBitsVoters, vb)
+					blockTxnsStake = append(blockTxnsStake, txCopy)
+					voters++
+				}
 			}
-		}
 
-		// Don't let this overflow, although probably it's impossible.
-		if voters >= math.MaxUint16 {
-			break
+			// Don't let this overflow, although probably it's impossible.
+			if voters >= math.MaxUint16 {
+				break
+			}
 		}
 	}
 
