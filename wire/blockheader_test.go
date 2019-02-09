@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2017 The Decred developers
+// Copyright (c) 2015-2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -242,6 +242,33 @@ func TestBlockHeaderWire(t *testing.T) {
 		if !reflect.DeepEqual(&bh, test.out) {
 			t.Errorf("BtcDecode #%d\n got: %s want: %s", i,
 				spew.Sdump(&bh), spew.Sdump(test.out))
+			continue
+		}
+
+		// Ensure Bytes encodes block header correctly.
+		bts, err := test.out.Bytes()
+		if err != nil {
+			t.Errorf("Bytes #%d error %v", i, err)
+			continue
+		}
+
+		if !bytes.Equal(bts, test.buf) {
+			t.Errorf("Bytes #%d\n got: %s want: %s", i,
+				spew.Sdump(&bts), spew.Sdump(test.out))
+			continue
+		}
+
+		// Ensure FromBytes decodes encoded block header correctly.
+		bh2 := &BlockHeader{}
+		err = bh2.FromBytes(test.buf)
+		if err != nil {
+			t.Errorf("FromBytes #%d error %v", i, err)
+			continue
+		}
+
+		if !reflect.DeepEqual(bh2, test.out) {
+			t.Errorf("FromBytes #%d\n got: %s want: %s", i,
+				spew.Sdump(bh2), spew.Sdump(test.out))
 			continue
 		}
 	}
