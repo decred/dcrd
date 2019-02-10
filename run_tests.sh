@@ -51,19 +51,15 @@ testrepo () {
   for module in $MODPATHS; do
     echo "==> ${module}"
     env GORACE='halt_on_error=1' CC=gcc $GO test -short -race \
-	  -tags rpctest ./${module}/...
-  done
+      -tags rpctest ./${module}/...
 
-  # check linters
-  golangci-lint run --disable-all --deadline=10m \
-    --enable=gofmt \
-    --enable=gosimple \
-    --enable=unconvert \
-    --enable=ineffassign
-  if [ $? != 0 ]; then
-    echo 'golangci-lint has some complaints'
-    exit 1
-  fi
+    # check linters
+    golangci-lint run --build-tags rpctest --disable-all --deadline=10m \
+      --enable=gofmt \
+      --enable=gosimple \
+      --enable=unconvert \
+      --enable=ineffassign ./${module}/...
+  done
 
   echo "------------------------------------------"
   echo "Tests completed successfully!"
