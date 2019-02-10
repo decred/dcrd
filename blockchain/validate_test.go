@@ -324,7 +324,7 @@ func TestLegacySequenceLocks(t *testing.T) {
 				if i == numOutputs-1 {
 					amount = origOut.Value - amount*(numOutputs-1)
 				}
-				tx.AddTxOut(wire.NewTxOut(int64(amount), origOut.PkScript))
+				tx.AddTxOut(wire.NewTxOut(amount, origOut.PkScript))
 			}
 
 			// Add the original op return back to the outputs and enable

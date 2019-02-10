@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018 The Decred developers
+// Copyright (c) 2017-2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -141,7 +141,7 @@ func TestNoQuorum(t *testing.T) {
 	}
 
 	// get to started
-	for i := uint32(0); i < uint32(params.RuleChangeActivationInterval-1); i++ {
+	for i := uint32(0); i < params.RuleChangeActivationInterval-1; i++ {
 		// Set stake versions and vote bits.
 		node = newFakeNode(node, powVersion, posVersion, 0, curTimestamp)
 		appendFakeVotes(node, params.TicketsPerBlock, posVersion, 0x01)
@@ -164,7 +164,7 @@ func TestNoQuorum(t *testing.T) {
 
 	// get to quorum - 1
 	voteCount := uint32(0)
-	for i := uint32(0); i < uint32(params.RuleChangeActivationInterval); i++ {
+	for i := uint32(0); i < params.RuleChangeActivationInterval; i++ {
 		// Set stake versions and vote bits.
 		node = newFakeNode(node, powVersion, posVersion, 0, curTimestamp)
 		for x := 0; x < int(params.TicketsPerBlock); x++ {
@@ -195,7 +195,7 @@ func TestNoQuorum(t *testing.T) {
 
 	// get to exact quorum but with 75%%-1 yes votes
 	voteCount = uint32(0)
-	for i := uint32(0); i < uint32(params.RuleChangeActivationInterval); i++ {
+	for i := uint32(0); i < params.RuleChangeActivationInterval; i++ {
 		// Set stake versions and vote bits.
 		node = newFakeNode(node, powVersion, posVersion, 0, curTimestamp)
 		for x := 0; x < int(params.TicketsPerBlock); x++ {
@@ -232,7 +232,7 @@ func TestNoQuorum(t *testing.T) {
 
 	// get to exact quorum with exactly 75% of votes
 	voteCount = uint32(0)
-	for i := uint32(0); i < uint32(params.RuleChangeActivationInterval); i++ {
+	for i := uint32(0); i < params.RuleChangeActivationInterval; i++ {
 		// Set stake versions and vote bits.
 		node = newFakeNode(node, powVersion, posVersion, 0, curTimestamp)
 		for x := 0; x < int(params.TicketsPerBlock); x++ {
@@ -298,7 +298,7 @@ func TestYesQuorum(t *testing.T) {
 	}
 
 	// get to started
-	for i := uint32(0); i < uint32(params.RuleChangeActivationInterval-1); i++ {
+	for i := uint32(0); i < params.RuleChangeActivationInterval-1; i++ {
 		// Set stake versions and vote bits.
 		node = newFakeNode(node, powVersion, posVersion, 0, curTimestamp)
 		appendFakeVotes(node, params.TicketsPerBlock, posVersion, 0x01)
@@ -321,7 +321,7 @@ func TestYesQuorum(t *testing.T) {
 
 	// get to quorum - 1
 	voteCount := uint32(0)
-	for i := uint32(0); i < uint32(params.RuleChangeActivationInterval); i++ {
+	for i := uint32(0); i < params.RuleChangeActivationInterval; i++ {
 		// Set stake versions and vote bits.
 		node = newFakeNode(node, powVersion, posVersion, 0, curTimestamp)
 		for x := 0; x < int(params.TicketsPerBlock); x++ {
@@ -352,7 +352,7 @@ func TestYesQuorum(t *testing.T) {
 
 	// get to exact quorum but with 75%-1 yes votes
 	voteCount = uint32(0)
-	for i := uint32(0); i < uint32(params.RuleChangeActivationInterval); i++ {
+	for i := uint32(0); i < params.RuleChangeActivationInterval; i++ {
 		// Set stake versions and vote bits.
 		node = newFakeNode(node, powVersion, posVersion, 0, curTimestamp)
 		for x := 0; x < int(params.TicketsPerBlock); x++ {
@@ -389,7 +389,7 @@ func TestYesQuorum(t *testing.T) {
 
 	// get to exact quorum with exactly 75% of votes
 	voteCount = uint32(0)
-	for i := uint32(0); i < uint32(params.RuleChangeActivationInterval); i++ {
+	for i := uint32(0); i < params.RuleChangeActivationInterval; i++ {
 		// Set stake versions and vote bits.
 		node = newFakeNode(node, powVersion, posVersion, 0, curTimestamp)
 		for x := 0; x < int(params.TicketsPerBlock); x++ {
@@ -1072,7 +1072,7 @@ func TestVoting(t *testing.T) {
 					Version: posVersion,
 					Bits:    0x03,
 				},
-				count: uint32(rci) - 1,
+				count: rci - 1,
 			}, {
 				vote: stake.VoteVersionTuple{
 					Version: posVersion,
@@ -1084,7 +1084,7 @@ func TestVoting(t *testing.T) {
 					Version: posVersion,
 					Bits:    0x01,
 				},
-				count: uint32(rci),
+				count: rci,
 			}},
 			expectedState: []ThresholdStateTuple{{
 				State:  ThresholdDefined,

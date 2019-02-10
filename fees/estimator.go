@@ -1,4 +1,4 @@
-// Copyright (c) 2018 The Decred developers
+// Copyright (c) 2018-2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -706,7 +706,7 @@ func (stats *Estimator) estimateMedianFee(targetConfs int32, successPct float64)
 	if txCount <= 0 {
 		return 0, ErrNotEnoughTxsForEstimate
 	}
-	txCount = txCount / 2
+	txCount /= 2
 	for b := bestBucketsStt; b <= bestBucketsEnd; b++ {
 		if stats.buckets[b].confirmCount < txCount {
 			txCount -= stats.buckets[b].confirmCount

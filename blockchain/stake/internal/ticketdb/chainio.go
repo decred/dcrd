@@ -1,4 +1,4 @@
-// Copyright (c) 2015-2016 The Decred developers
+// Copyright (c) 2015-2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -167,7 +167,7 @@ func DbPutDatabaseInfo(dbTx database.Tx, dbi *DatabaseInfo) error {
 	val := serializeDatabaseInfo(dbi)
 
 	// Store the current database info into the database.
-	return subsidyBucket.Put(dbnamespace.StakeDbInfoBucketName, val[:])
+	return subsidyBucket.Put(dbnamespace.StakeDbInfoBucketName, val)
 }
 
 // deserializeDatabaseInfo deserializes a database information struct.
@@ -275,7 +275,7 @@ func serializeBestChainState(state BestChainState) []byte {
 		offset += chainhash.HashSize
 	}
 
-	return serializedData[:]
+	return serializedData
 }
 
 // deserializeBestChainState deserializes the passed serialized best chain
@@ -492,7 +492,7 @@ func DbPutBlockUndoData(dbTx database.Tx, height uint32, utds []UndoTicketData) 
 	dbnamespace.ByteOrder.PutUint32(k, height)
 	v := serializeBlockUndoData(utds)
 
-	return bucket.Put(k[:], v[:])
+	return bucket.Put(k, v)
 }
 
 // DbDropBlockUndoData drops block undo data from the database at a given height.
@@ -582,7 +582,7 @@ func DbPutNewTickets(dbTx database.Tx, height uint32, ths TicketHashes) error {
 	dbnamespace.ByteOrder.PutUint32(k, height)
 	v := serializeTicketHashes(ths)
 
-	return bucket.Put(k[:], v[:])
+	return bucket.Put(k, v)
 }
 
 // DbDropNewTickets drops new tickets for a mainchain block data at some height.
@@ -622,7 +622,7 @@ func DbPutTicket(dbTx database.Tx, ticketBucket []byte, hash *chainhash.Hash,
 	dbnamespace.ByteOrder.PutUint32(v, height)
 	v[4] = undoBitFlagsToByte(missed, revoked, spent, expired)
 
-	return bucket.Put(k[:], v[:])
+	return bucket.Put(k, v)
 }
 
 // DbLoadAllTickets loads all the live tickets from the database into a treap.

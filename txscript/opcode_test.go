@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2017 The btcsuite developers
-// Copyright (c) 2015-2018 The Decred developers
+// Copyright (c) 2015-2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -139,7 +139,7 @@ func TestOpcodeDisasm(t *testing.T) {
 
 		// OP_UNKNOWN#.
 		case opcodeVal >= 0xc1 && opcodeVal <= 0xf8 || opcodeVal == 0xfc:
-			expectedStr = "OP_UNKNOWN" + strconv.Itoa(int(opcodeVal))
+			expectedStr = "OP_UNKNOWN" + strconv.Itoa(opcodeVal)
 		}
 
 		pop := parsedOpcode{opcode: &opcodeArray[opcodeVal], data: data}
@@ -205,7 +205,7 @@ func TestOpcodeDisasm(t *testing.T) {
 
 		// OP_UNKNOWN#.
 		case opcodeVal >= 0xc1 && opcodeVal <= 0xf8 || opcodeVal == 0xfc:
-			expectedStr = "OP_UNKNOWN" + strconv.Itoa(int(opcodeVal))
+			expectedStr = "OP_UNKNOWN" + strconv.Itoa(opcodeVal)
 		}
 
 		pop := parsedOpcode{opcode: &opcodeArray[opcodeVal], data: data}

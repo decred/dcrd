@@ -1,4 +1,4 @@
-// Copyright (c) 2016 The Decred developers
+// Copyright (c) 2016-2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -432,9 +432,7 @@ func TestLiveDatabase(t *testing.T) {
 	defer testDb.Close()
 
 	// Initialize the database, then try to read the version.
-	err = testDb.Update(func(dbTx database.Tx) error {
-		return DbCreate(dbTx)
-	})
+	err = testDb.Update(DbCreate)
 	if err != nil {
 		t.Fatalf("%v", err.Error())
 	}

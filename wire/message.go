@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2018 The Decred developers
+// Copyright (c) 2015-2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -354,7 +354,7 @@ func ReadMessageN(r io.Reader, pver uint32, dcrnet CurrencyNet) (int, Message, [
 
 	// Test checksum.
 	checksum := chainhash.HashB(payload)[0:4]
-	if !bytes.Equal(checksum[:], hdr.checksum[:]) {
+	if !bytes.Equal(checksum, hdr.checksum[:]) {
 		str := fmt.Sprintf("payload checksum failed - header "+
 			"indicates %v, but actual checksum is %v.",
 			hdr.checksum, checksum)

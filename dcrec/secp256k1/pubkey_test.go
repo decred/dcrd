@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2017 The Decred developers
+// Copyright (c) 2015-2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -231,9 +231,9 @@ func TestPubKeys(t *testing.T) {
 		var pkStr []byte
 		switch test.format {
 		case pubkeyUncompressed:
-			pkStr = (*PublicKey)(pk).SerializeUncompressed()
+			pkStr = pk.SerializeUncompressed()
 		case pubkeyCompressed:
-			pkStr = (*PublicKey)(pk).SerializeCompressed()
+			pkStr = pk.SerializeCompressed()
 		}
 		if !bytes.Equal(test.key, pkStr) {
 			t.Errorf("%s pubkey: serialized keys do not match.",

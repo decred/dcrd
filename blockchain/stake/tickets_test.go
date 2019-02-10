@@ -1,4 +1,4 @@
-// Copyright (c) 2015-2017 The Decred developers
+// Copyright (c) 2015-2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -60,9 +60,9 @@ func copyNode(n *Node) *Node {
 	databaseUndoUpdate := make(UndoTicketDataSlice, len(n.databaseUndoUpdate))
 	copy(databaseUndoUpdate[:], n.databaseUndoUpdate[:])
 	databaseBlockTickets := make([]chainhash.Hash, len(n.databaseBlockTickets))
-	copy(databaseBlockTickets[:], n.databaseBlockTickets[:])
+	copy(databaseBlockTickets, n.databaseBlockTickets[:])
 	nextWinners := make([]chainhash.Hash, len(n.nextWinners))
-	copy(nextWinners[:], n.nextWinners[:])
+	copy(nextWinners, n.nextWinners)
 	var finalState [6]byte
 	copy(finalState[:], n.finalState[:])
 

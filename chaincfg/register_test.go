@@ -1,4 +1,4 @@
-// Copyright (c) 2015-2018 The Decred developers
+// Copyright (c) 2015-2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -370,15 +370,15 @@ func TestRegister(t *testing.T) {
 			}
 		}
 		for i, magTest := range test.hdMagics {
-			pubKey, err := HDPrivateKeyToPublicKeyID(magTest.priv[:])
+			pubKey, err := HDPrivateKeyToPublicKeyID(magTest.priv)
 			if !reflect.DeepEqual(err, magTest.err) {
 				t.Errorf("%s: HD magic %d mismatched error: got %v expected %v ",
 					test.name, i, err, magTest.err)
 				continue
 			}
-			if magTest.err == nil && !bytes.Equal(pubKey, magTest.want[:]) {
+			if magTest.err == nil && !bytes.Equal(pubKey, magTest.want) {
 				t.Errorf("%s: HD magic %d private and public mismatch: got %v expected %v ",
-					test.name, i, pubKey, magTest.want[:])
+					test.name, i, pubKey, magTest.want)
 			}
 		}
 	}

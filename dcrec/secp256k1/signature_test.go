@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2017 The Decred developers
+// Copyright (c) 2015-2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -440,8 +440,7 @@ func TestSignatureSerialize(t *testing.T) {
 
 func testSignCompact(t *testing.T, tag string,
 	data []byte, isCompressed bool) {
-	tmp, _ := GeneratePrivateKey()
-	priv := (*PrivateKey)(tmp)
+	priv, _ := GeneratePrivateKey()
 
 	hashed := []byte("testing")
 	sig, err := SignCompact(priv, hashed, isCompressed)

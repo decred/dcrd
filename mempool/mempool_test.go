@@ -559,7 +559,7 @@ func (p *poolHarness) CreateTicketPurchase(sourceTx *dcrutil.Tx, cost int64) (*d
 func newVoteScript(voteBits stake.VoteBits) ([]byte, error) {
 	b := make([]byte, 2+len(voteBits.ExtendedBits))
 	binary.LittleEndian.PutUint16(b[0:2], voteBits.Bits)
-	copy(b[2:], voteBits.ExtendedBits[:])
+	copy(b[2:], voteBits.ExtendedBits)
 	return txscript.GenerateProvablyPruneableOut(b)
 }
 

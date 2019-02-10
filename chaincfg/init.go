@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018 The Decred developers
+// Copyright (c) 2017-2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -40,7 +40,7 @@ func bitsSet(bits uint16) uint {
 func consecOnes(bits uint16) uint {
 	c := uint(0)
 	for v := bits; v != 0; c++ {
-		v = v & (v << 1)
+		v &= (v << 1)
 	}
 	return c
 }

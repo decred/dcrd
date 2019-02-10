@@ -1,4 +1,4 @@
-// Copyright (c) 2015-2016 The Decred developers
+// Copyright (c) 2015-2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -149,9 +149,9 @@ func TestPubKeys(t *testing.T) {
 		var pkStr []byte
 		switch test.format {
 		case TstPubkeyUncompressed:
-			pkStr = (PublicKey)(pk).SerializeUncompressed()
+			pkStr = pk.SerializeUncompressed()
 		case TstPubkeyCompressed:
-			pkStr = (PublicKey)(pk).SerializeCompressed()
+			pkStr = pk.SerializeCompressed()
 		}
 		if !bytes.Equal(test.key, pkStr) {
 			t.Errorf("%s pubkey: serialized keys do not match.",

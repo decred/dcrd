@@ -1,4 +1,4 @@
-// Copyright (c) 2016-2018 The Decred developers
+// Copyright (c) 2016-2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -603,13 +603,13 @@ func voteBlockScript(parentBlock *wire.MsgBlock) []byte {
 // depending on the provided params.
 func voteBitsScript(bits uint16, voteVersion uint32) []byte {
 	data := make([]byte, 6)
-	binary.LittleEndian.PutUint16(data[:], bits)
+	binary.LittleEndian.PutUint16(data, bits)
 	binary.LittleEndian.PutUint32(data[2:], voteVersion)
 	if voteVersion == 0 {
 		data = data[:2]
 	}
 	script, err := txscript.NewScriptBuilder().AddOp(txscript.OP_RETURN).
-		AddData(data[:]).Script()
+		AddData(data).Script()
 	if err != nil {
 		panic(err)
 	}
@@ -967,7 +967,7 @@ func (g *Generator) CalcNextReqStakeDifficulty(prevBlock *wire.MsgBlock) int64 {
 		// built tests won't be using large enough values to overflow,
 		// so just use uint64s.
 		adjusted := (skewedPoolSize << 32) / targetPoolSize
-		adjusted = adjusted << uint64((numWindows-i)*weightAlpha)
+		adjusted <<= uint64((numWindows - i) * weightAlpha)
 		weightedPoolSizeSum += uint64(adjusted)
 		weightSum += 1 << uint64((numWindows-i)*weightAlpha)
 	}
@@ -1023,7 +1023,7 @@ func (g *Generator) CalcNextReqStakeDifficulty(prevBlock *wire.MsgBlock) int64 {
 		// built tests won't be using large enough values to overflow,
 		// so just use uint64s.
 		adjusted := (windowNewTickets << 32) / targetTicketsPerWindow
-		adjusted = adjusted << uint64((numWindows-i)*weightAlpha)
+		adjusted <<= uint64((numWindows - i) * weightAlpha)
 		weightedTicketsSum += uint64(adjusted)
 	}
 

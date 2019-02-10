@@ -1,4 +1,4 @@
-// Copyright (c) 2016-2018 The Decred developers
+// Copyright (c) 2016-2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -123,7 +123,7 @@ func TestCalcWantHeight(t *testing.T) {
 		t.Logf("running: %v skip: %v interval: %v",
 			test.name, test.skip, test.interval)
 
-		start := int64(test.skip + test.interval*2)
+		start := test.skip + test.interval*2
 		expectedHeight := start - 1 // zero based
 		x := int64(0) + test.negative
 		for i := start; i < test.multiplier*test.interval; i++ {
@@ -328,7 +328,7 @@ func TestCalcStakeVersion(t *testing.T) {
 			numNodes:      svh + svi*3,
 			expectVersion: 3,
 			set: func(node *blockNode) {
-				if int64(node.height) > svh {
+				if node.height > svh {
 					appendFakeVotes(node, tpb, 3, 0)
 					node.stakeVersion = 2
 					node.blockVersion = 3
@@ -340,7 +340,7 @@ func TestCalcStakeVersion(t *testing.T) {
 			numNodes:      svh + svi*3,
 			expectVersion: 3,
 			set: func(node *blockNode) {
-				if int64(node.height) > svh {
+				if node.height > svh {
 					appendFakeVotes(node, tpb, 2, 0)
 					node.stakeVersion = 3
 					node.blockVersion = 3
@@ -422,7 +422,7 @@ func TestIsStakeMajorityVersion(t *testing.T) {
 			name:     "100%",
 			numNodes: svh + svi,
 			set: func(node *blockNode) {
-				if int64(node.height) > svh {
+				if node.height > svh {
 					appendFakeVotes(node, tpb, 2, 0)
 				}
 			},
@@ -435,11 +435,11 @@ func TestIsStakeMajorityVersion(t *testing.T) {
 			name:     "50%",
 			numNodes: svh + (svi * 2),
 			set: func(node *blockNode) {
-				if int64(node.height) <= svh {
+				if node.height <= svh {
 					return
 				}
 
-				if int64(node.height) < svh+svi {
+				if node.height < svh+svi {
 					appendFakeVotes(node, tpb, 1, 0)
 					return
 				}
@@ -464,11 +464,11 @@ func TestIsStakeMajorityVersion(t *testing.T) {
 			name:     "75%-1",
 			numNodes: svh + (svi * 2),
 			set: func(node *blockNode) {
-				if int64(node.height) < svh {
+				if node.height < svh {
 					return
 				}
 
-				if int64(node.height) < svh+svi {
+				if node.height < svh+svi {
 					appendFakeVotes(node, tpb, 1, 0)
 					return
 				}
@@ -493,11 +493,11 @@ func TestIsStakeMajorityVersion(t *testing.T) {
 			name:     "75%",
 			numNodes: svh + (svi * 2),
 			set: func(node *blockNode) {
-				if int64(node.height) <= svh {
+				if node.height <= svh {
 					return
 				}
 
-				if int64(node.height) < svh+svi {
+				if node.height < svh+svi {
 					appendFakeVotes(node, tpb, 1, 0)
 					return
 				}
@@ -522,11 +522,11 @@ func TestIsStakeMajorityVersion(t *testing.T) {
 			name:     "100% after several non majority intervals",
 			numNodes: svh + (params.StakeVersionInterval * 222),
 			set: func(node *blockNode) {
-				if int64(node.height) <= svh {
+				if node.height <= svh {
 					return
 				}
 
-				if int64(node.height) < svh+svi {
+				if node.height < svh+svi {
 					appendFakeVotes(node, tpb, 1, 0)
 					return
 				}
@@ -544,7 +544,7 @@ func TestIsStakeMajorityVersion(t *testing.T) {
 			name:     "no majority ever",
 			numNodes: svh + (svi * 8),
 			set: func(node *blockNode) {
-				if int64(node.height) <= svh {
+				if node.height <= svh {
 					return
 				}
 
@@ -561,11 +561,11 @@ func TestIsStakeMajorityVersion(t *testing.T) {
 			name:     "75%-1 with 3 votes",
 			numNodes: svh + (svi * 2),
 			set: func(node *blockNode) {
-				if int64(node.height) < svh {
+				if node.height < svh {
 					return
 				}
 
-				if int64(node.height) < svh+svi {
+				if node.height < svh+svi {
 					appendFakeVotes(node, tpb-2, 1, 0)
 					return
 				}
@@ -590,11 +590,11 @@ func TestIsStakeMajorityVersion(t *testing.T) {
 			name:     "75% with 3 votes",
 			numNodes: svh + (svi * 2),
 			set: func(node *blockNode) {
-				if int64(node.height) <= svh {
+				if node.height <= svh {
 					return
 				}
 
-				if int64(node.height) < svh+svi {
+				if node.height < svh+svi {
 					appendFakeVotes(node, tpb-2, 1, 0)
 					return
 				}
@@ -619,11 +619,11 @@ func TestIsStakeMajorityVersion(t *testing.T) {
 			name:     "75% with 3 votes blockversion 3",
 			numNodes: svh + (svi * 2),
 			set: func(node *blockNode) {
-				if int64(node.height) <= svh {
+				if node.height <= svh {
 					return
 				}
 
-				if int64(node.height) < svh+svi {
+				if node.height < svh+svi {
 					appendFakeVotes(node, tpb-2, 1, 0)
 					return
 				}
@@ -649,11 +649,11 @@ func TestIsStakeMajorityVersion(t *testing.T) {
 			name:     "75%-1 with 3 votes blockversion 3",
 			numNodes: svh + (svi * 2),
 			set: func(node *blockNode) {
-				if int64(node.height) < svh {
+				if node.height < svh {
 					return
 				}
 
-				if int64(node.height) < svh+svi {
+				if node.height < svh+svi {
 					appendFakeVotes(node, tpb-2, 1, 0)
 					return
 				}

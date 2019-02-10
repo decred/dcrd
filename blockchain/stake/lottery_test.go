@@ -1,4 +1,4 @@
-// Copyright (c) 2015-2016 The Decred developers
+// Copyright (c) 2015-2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -167,7 +167,7 @@ func TestTicketSorting(t *testing.T) {
 	bucketsSize := 256
 
 	randomGen := rand.New(rand.NewSource(12345))
-	ticketMap := make([]SStxMemMap, int(bucketsSize))
+	ticketMap := make([]SStxMemMap, bucketsSize)
 
 	for i := 0; i < bucketsSize; i++ {
 		ticketMap[i] = make(SStxMemMap)
@@ -183,7 +183,7 @@ func TestTicketSorting(t *testing.T) {
 		h := chainhash.HashH(randBytes)
 		td.SStxHash = h
 
-		prefix := byte(h[0])
+		prefix := h[0]
 
 		ticketMap[prefix][h] = td
 	}
