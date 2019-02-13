@@ -6,18 +6,18 @@ dcrjson
 [![GoDoc](https://img.shields.io/badge/godoc-reference-blue.svg)](http://godoc.org/github.com/decred/dcrd/dcrjson)
 
 Package dcrjson implements concrete types for marshalling to and from the
-bitcoin JSON-RPC API.  A comprehensive suite of tests is provided to ensure
+decred JSON-RPC API.  A comprehensive suite of tests is provided to ensure
 proper functionality.
 
 Although this package was primarily written for the decred, it has
 intentionally been designed so it can be used as a standalone package for any
-projects needing to marshal to and from bitcoin JSON-RPC requests and responses.
+projects needing to marshal to and from decred JSON-RPC requests and responses.
 
 Note that although it's possible to use this package directly to implement an
 RPC client, it is not recommended since it is only intended as an infrastructure
 package.  Instead, RPC clients should use the
-[rpcclient](https://github.com/decred/dcrd/tree/master/rpcclient) package which provides
-a full blown RPC client with many features such as automatic connection
+[rpcclient](https://github.com/decred/dcrd/tree/master/rpcclient) package which
+provides a full blown RPC client with many features such as automatic connection
 management, websocket support, automatic notification re-registration on
 reconnect, and conversion from the raw underlying RPC types (strings, floats,
 ints, etc) to higher-level types with many nice and useful properties.
