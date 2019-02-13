@@ -32,13 +32,13 @@
 </g>
 <!-- dcrjson -->
 <g id="node3" class="node"><title>dcrjson</title>
-<path fill="indianred" stroke="black" d="M543,-540C543,-540 508,-540 508,-540 502,-540 496,-534 496,-528 496,-528 496,-516 496,-516 496,-510 502,-504 508,-504 508,-504 543,-504 543,-504 549,-504 555,-510 555,-516 555,-516 555,-528 555,-528 555,-534 549,-540 543,-540"/>
-<text text-anchor="middle" x="525.5" y="-518.3" font-family="Times New Roman,serif" font-size="14.00">dcrjson</text>
+<path fill="indianred" stroke="black" d="M551.5,-540C551.5,-540 499.5,-540 499.5,-540 493.5,-540 487.5,-534 487.5,-528 487.5,-528 487.5,-516 487.5,-516 487.5,-510 493.5,-504 499.5,-504 499.5,-504 551.5,-504 551.5,-504 557.5,-504 563.5,-510 563.5,-516 563.5,-516 563.5,-528 563.5,-528 563.5,-534 557.5,-540 551.5,-540"/>
+<text text-anchor="middle" x="525.5" y="-518.3" font-family="Times New Roman,serif" font-size="14.00">dcrjson/v2</text>
 </g>
 <!-- chainhash&#45;&gt;dcrjson -->
 <g id="edge1" class="edge"><title>chainhash&#45;&gt;dcrjson</title>
-<path fill="none" stroke="aquamarine" d="M511.922,-738C511.922,-738 528.25,-738 528.25,-738 528.25,-738 528.25,-591.958 528.25,-540.045"/>
-<polygon fill="aquamarine" stroke="aquamarine" points="511.922,-734.5 501.922,-738 511.922,-741.5 511.922,-734.5"/>
+<path fill="none" stroke="aquamarine" d="M511.609,-738C511.609,-738 532.5,-738 532.5,-738 532.5,-738 532.5,-591.958 532.5,-540.045"/>
+<polygon fill="aquamarine" stroke="aquamarine" points="511.609,-734.5 501.609,-738 511.609,-741.5 511.609,-734.5"/>
 </g>
 <!-- wire -->
 <g id="node4" class="node"><title>wire</title>
@@ -67,8 +67,8 @@
 </g>
 <!-- dcrjson&#45;&gt;rpcclient -->
 <g id="edge22" class="edge"><title>dcrjson&#45;&gt;rpcclient</title>
-<path fill="none" stroke="indianred" d="M536.667,-493.987C536.667,-493.987 536.667,-108.089 536.667,-108.089"/>
-<polygon fill="indianred" stroke="indianred" points="533.167,-493.987 536.667,-503.987 540.167,-493.988 533.167,-493.987"/>
+<path fill="none" stroke="indianred" d="M542.333,-493.987C542.333,-493.987 542.333,-108.089 542.333,-108.089"/>
+<polygon fill="indianred" stroke="indianred" points="538.833,-493.987 542.333,-503.987 545.833,-493.988 538.833,-493.987"/>
 </g>
 <!-- addrmgr -->
 <g id="node5" class="node"><title>addrmgr</title>
@@ -237,8 +237,8 @@
 </g>
 <!-- blockchain&#45;&gt;rpcclient -->
 <g id="edge21" class="edge"><title>blockchain&#45;&gt;rpcclient</title>
-<path fill="none" stroke="orchid" d="M494.049,-234C494.049,-234 518.333,-234 518.333,-234 518.333,-234 518.333,-146.986 518.333,-108.238"/>
-<polygon fill="orchid" stroke="orchid" points="494.049,-230.5 484.049,-234 494.049,-237.5 494.049,-230.5"/>
+<path fill="none" stroke="orchid" d="M494.22,-234C494.22,-234 521.167,-234 521.167,-234 521.167,-234 521.167,-146.986 521.167,-108.238"/>
+<polygon fill="orchid" stroke="orchid" points="494.22,-230.5 484.22,-234 494.22,-237.5 494.22,-230.5"/>
 </g>
 <!-- mempool -->
 <g id="node18" class="node"><title>mempool</title>

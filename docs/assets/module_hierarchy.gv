@@ -4,7 +4,7 @@ digraph {
 
 	certgen [label="certgen" fillcolor=darkkhaki]
 	chainhash [label="chaincfg/chainhash" fillcolor=aquamarine]
-	dcrjson [label="dcrjson" fillcolor=indianred]
+	dcrjson [label="dcrjson/v2" fillcolor=indianred]
 	wire [label="wire" fillcolor=coral]
 	addrmgr [label="addrmgr" fillcolor=lightsalmon]
 	chaincfg [label="chaincfg" fillcolor=cadetblue]
