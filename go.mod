@@ -52,7 +52,6 @@ replace (
 	github.com/decred/dcrd/dcrec => ./dcrec
 	github.com/decred/dcrd/dcrec/edwards => ./dcrec/edwards
 	github.com/decred/dcrd/dcrec/secp256k1 => ./dcrec/secp256k1
-	github.com/decred/dcrd/dcrjson => ./dcrjson
 	github.com/decred/dcrd/dcrutil => ./dcrutil
 	github.com/decred/dcrd/fees => ./fees
 	github.com/decred/dcrd/gcs => ./gcs
