@@ -1,5 +1,5 @@
 // Copyright (c) 2014 The btcsuite developers
-// Copyright (c) 2015-2016 The Decred developers
+// Copyright (c) 2015-2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -58,6 +58,57 @@ func NewAddNodeCmd(addr string, subCmd AddNodeSubCmd) *AddNodeCmd {
 	return &AddNodeCmd{
 		Addr:   addr,
 		SubCmd: subCmd,
+	}
+}
+
+// SStxInput represents the inputs to an SStx transaction. Specifically a
+// transactionsha and output number pair, along with the output amounts.
+type SStxInput struct {
+	Txid string `json:"txid"`
+	Vout uint32 `json:"vout"`
+	Tree int8   `json:"tree"`
+	Amt  int64  `json:"amt"`
+}
+
+// SStxCommitOut represents the output to an SStx transaction. Specifically a
+// a commitment address and amount, and a change address and amount.
+type SStxCommitOut struct {
+	Addr       string `json:"addr"`
+	CommitAmt  int64  `json:"commitamt"`
+	ChangeAddr string `json:"changeaddr"`
+	ChangeAmt  int64  `json:"changeamt"`
+}
+
+// CreateRawSStxCmd is a type handling custom marshaling and
+// unmarshaling of createrawsstx JSON RPC commands.
+type CreateRawSStxCmd struct {
+	Inputs []SStxInput
+	Amount map[string]int64
+	COuts  []SStxCommitOut
+}
+
+// NewCreateRawSStxCmd creates a new CreateRawSStxCmd.
+func NewCreateRawSStxCmd(inputs []SStxInput, amount map[string]int64,
+	couts []SStxCommitOut) *CreateRawSStxCmd {
+	return &CreateRawSStxCmd{
+		Inputs: inputs,
+		Amount: amount,
+		COuts:  couts,
+	}
+}
+
+// CreateRawSSRtxCmd is a type handling custom marshaling and
+// unmarshaling of createrawssrtx JSON RPC commands.
+type CreateRawSSRtxCmd struct {
+	Inputs []TransactionInput
+	Fee    *float64
+}
+
+// NewCreateRawSSRtxCmd creates a new CreateRawSSRtxCmd.
+func NewCreateRawSSRtxCmd(inputs []TransactionInput, fee *float64) *CreateRawSSRtxCmd {
+	return &CreateRawSSRtxCmd{
+		Inputs: inputs,
+		Fee:    fee,
 	}
 }
 
@@ -1146,6 +1197,8 @@ func init() {
 	flags := UsageFlag(0)
 
 	MustRegisterCmd("addnode", (*AddNodeCmd)(nil), flags)
+	MustRegisterCmd("createrawssrtx", (*CreateRawSSRtxCmd)(nil), flags)
+	MustRegisterCmd("createrawsstx", (*CreateRawSStxCmd)(nil), flags)
 	MustRegisterCmd("createrawtransaction", (*CreateRawTransactionCmd)(nil), flags)
 	MustRegisterCmd("debuglevel", (*DebugLevelCmd)(nil), flags)
 	MustRegisterCmd("decoderawtransaction", (*DecodeRawTransactionCmd)(nil), flags)

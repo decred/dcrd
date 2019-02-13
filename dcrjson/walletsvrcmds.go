@@ -124,42 +124,6 @@ func NewCreateNewAccountCmd(account string) *CreateNewAccountCmd {
 	}
 }
 
-// SStxInput represents the inputs to an SStx transaction. Specifically a
-// transactionsha and output number pair, along with the output amounts.
-type SStxInput struct {
-	Txid string `json:"txid"`
-	Vout uint32 `json:"vout"`
-	Tree int8   `json:"tree"`
-	Amt  int64  `json:"amt"`
-}
-
-// SStxCommitOut represents the output to an SStx transaction. Specifically a
-// a commitment address and amount, and a change address and amount.
-type SStxCommitOut struct {
-	Addr       string `json:"addr"`
-	CommitAmt  int64  `json:"commitamt"`
-	ChangeAddr string `json:"changeaddr"`
-	ChangeAmt  int64  `json:"changeamt"`
-}
-
-// CreateRawSStxCmd is a type handling custom marshaling and
-// unmarshaling of createrawsstx JSON RPC commands.
-type CreateRawSStxCmd struct {
-	Inputs []SStxInput
-	Amount map[string]int64
-	COuts  []SStxCommitOut
-}
-
-// NewCreateRawSStxCmd creates a new CreateRawSStxCmd.
-func NewCreateRawSStxCmd(inputs []SStxInput, amount map[string]int64,
-	couts []SStxCommitOut) *CreateRawSStxCmd {
-	return &CreateRawSStxCmd{
-		Inputs: inputs,
-		Amount: amount,
-		COuts:  couts,
-	}
-}
-
 // CreateRawSSGenTxCmd is a type handling custom marshaling and
 // unmarshaling of createrawssgentxcmd JSON RPC commands.
 //
@@ -177,21 +141,6 @@ func NewCreateRawSSGenTxCmd(inputs []TransactionInput,
 	return &CreateRawSSGenTxCmd{
 		Inputs:   inputs,
 		VoteBits: vb,
-	}
-}
-
-// CreateRawSSRtxCmd is a type handling custom marshaling and
-// unmarshaling of createrawssrtx JSON RPC commands.
-type CreateRawSSRtxCmd struct {
-	Inputs []TransactionInput
-	Fee    *float64
-}
-
-// NewCreateRawSSRtxCmd creates a new CreateRawSSRtxCmd.
-func NewCreateRawSSRtxCmd(inputs []TransactionInput, fee *float64) *CreateRawSSRtxCmd {
-	return &CreateRawSSRtxCmd{
-		Inputs: inputs,
-		Fee:    fee,
 	}
 }
 
@@ -1200,11 +1149,9 @@ func init() {
 	MustRegisterCmd("consolidate", (*ConsolidateCmd)(nil), flags)
 	MustRegisterCmd("createmultisig", (*CreateMultisigCmd)(nil), flags)
 	MustRegisterCmd("createnewaccount", (*CreateNewAccountCmd)(nil), flags)
-	MustRegisterCmd("createrawsstx", (*CreateRawSStxCmd)(nil), flags)
 	// DEPRECATED.  createrawssgentx will be removed in the next major version
 	// bump of dcrjson.
 	MustRegisterCmd("createrawssgentx", (*CreateRawSSGenTxCmd)(nil), flags)
-	MustRegisterCmd("createrawssrtx", (*CreateRawSSRtxCmd)(nil), flags)
 	MustRegisterCmd("createvotingaccount", (*CreateVotingAccountCmd)(nil), flags)
 	MustRegisterCmd("dropvotingaccount", (*DropVotingAccountCmd)(nil), flags)
 	MustRegisterCmd("dumpprivkey", (*DumpPrivKeyCmd)(nil), flags)
