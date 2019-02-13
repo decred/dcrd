@@ -412,11 +412,11 @@ type VerifySeedResult struct {
 	CoinType uint32 `json:"cointype"`
 }
 
-// WalletInfoResult models the data returned from the walletinfo
-// command.
+// WalletInfoResult models the data returned from the walletinfo command.
 type WalletInfoResult struct {
 	DaemonConnected  bool    `json:"daemonconnected"`
 	Unlocked         bool    `json:"unlocked"`
+	CoinType         uint32  `json:"cointype,omitempty"`
 	TxFee            float64 `json:"txfee"`
 	TicketFee        float64 `json:"ticketfee"`
 	TicketPurchasing bool    `json:"ticketpurchasing"`
