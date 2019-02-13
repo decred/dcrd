@@ -41,12 +41,6 @@ type GetBalanceResult struct {
 	TotalVotingAuthority         float64                   `json:"totalvotingauthority,omitempty"`
 }
 
-// GetBestBlockResult models the data from the getbestblock command.
-type GetBestBlockResult struct {
-	Hash   string `json:"hash"`
-	Height int64  `json:"height"`
-}
-
 // GetContractHashResult models the data from the getcontracthash command.
 type GetContractHashResult struct {
 	ContractHash string `json:"contracthash"`

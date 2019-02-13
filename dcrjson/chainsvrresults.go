@@ -1,5 +1,5 @@
 // Copyright (c) 2014 The btcsuite developers
-// Copyright (c) 2015-2016 The Decred developers
+// Copyright (c) 2015-2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -96,6 +96,12 @@ type AgendaInfo struct {
 	Since      int64  `json:"since,omitempty"`
 	StartTime  uint64 `json:"starttime"`
 	ExpireTime uint64 `json:"expiretime"`
+}
+
+// GetBestBlockResult models the data from the getbestblock command.
+type GetBestBlockResult struct {
+	Hash   string `json:"hash"`
+	Height int64  `json:"height"`
 }
 
 // GetBlockChainInfoResult models the data returned from the getblockchaininfo
