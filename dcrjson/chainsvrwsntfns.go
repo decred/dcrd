@@ -40,6 +40,10 @@ const (
 	// spentandmissedtickets notification.
 	SpentAndMissedTicketsNtfnMethod = "spentandmissedtickets"
 
+	// StakeDifficultyNtfnMethod is the method of the daemon stakedifficulty
+	// notification.
+	StakeDifficultyNtfnMethod = "stakedifficulty"
+
 	// WinningTicketsNtfnMethod is the method of the daemon winningtickets
 	// notification.
 	WinningTicketsNtfnMethod = "winningtickets"
@@ -112,6 +116,23 @@ func NewSpentAndMissedTicketsNtfn(hash string, height int32, stakeDiff int64, ti
 	}
 }
 
+// StakeDifficultyNtfn is a type handling custom marshaling and
+// unmarshaling of stakedifficulty JSON websocket notifications.
+type StakeDifficultyNtfn struct {
+	BlockHash   string
+	BlockHeight int32
+	StakeDiff   int64
+}
+
+// NewStakeDifficultyNtfn creates a new StakeDifficultyNtfn.
+func NewStakeDifficultyNtfn(hash string, height int32, stakeDiff int64) *StakeDifficultyNtfn {
+	return &StakeDifficultyNtfn{
+		BlockHash:   hash,
+		BlockHeight: height,
+		StakeDiff:   stakeDiff,
+	}
+}
+
 // TxAcceptedNtfn defines the txaccepted JSON-RPC notification.
 type TxAcceptedNtfn struct {
 	TxID   string  `json:"txid"`
@@ -181,5 +202,6 @@ func init() {
 	MustRegisterCmd(TxAcceptedVerboseNtfnMethod, (*TxAcceptedVerboseNtfn)(nil), flags)
 	MustRegisterCmd(RelevantTxAcceptedNtfnMethod, (*RelevantTxAcceptedNtfn)(nil), flags)
 	MustRegisterCmd(SpentAndMissedTicketsNtfnMethod, (*SpentAndMissedTicketsNtfn)(nil), flags)
+	MustRegisterCmd(StakeDifficultyNtfnMethod, (*StakeDifficultyNtfn)(nil), flags)
 	MustRegisterCmd(WinningTicketsNtfnMethod, (*WinningTicketsNtfn)(nil), flags)
 }
