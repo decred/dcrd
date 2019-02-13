@@ -17,6 +17,9 @@ const (
 	// the chain server that a block has been disconnected.
 	BlockDisconnectedNtfnMethod = "blockdisconnected"
 
+	// NewTicketsNtfnMethod is the method of the daemon newtickets notification.
+	NewTicketsNtfnMethod = "newtickets"
+
 	// ReorganizationNtfnMethod is the method used for notifications that the
 	// block chain is in the process of a reorganization.
 	ReorganizationNtfnMethod = "reorganization"
@@ -74,6 +77,25 @@ type BlockDisconnectedNtfn struct {
 func NewBlockDisconnectedNtfn(header string) *BlockDisconnectedNtfn {
 	return &BlockDisconnectedNtfn{
 		Header: header,
+	}
+}
+
+// NewTicketsNtfn is a type handling custom marshaling and
+// unmarshaling of newtickets JSON websocket notifications.
+type NewTicketsNtfn struct {
+	Hash      string
+	Height    int32
+	StakeDiff int64
+	Tickets   []string
+}
+
+// NewNewTicketsNtfn creates a new NewTicketsNtfn.
+func NewNewTicketsNtfn(hash string, height int32, stakeDiff int64, tickets []string) *NewTicketsNtfn {
+	return &NewTicketsNtfn{
+		Hash:      hash,
+		Height:    height,
+		StakeDiff: stakeDiff,
+		Tickets:   tickets,
 	}
 }
 
@@ -197,6 +219,7 @@ func init() {
 
 	MustRegisterCmd(BlockConnectedNtfnMethod, (*BlockConnectedNtfn)(nil), flags)
 	MustRegisterCmd(BlockDisconnectedNtfnMethod, (*BlockDisconnectedNtfn)(nil), flags)
+	MustRegisterCmd(NewTicketsNtfnMethod, (*NewTicketsNtfn)(nil), flags)
 	MustRegisterCmd(ReorganizationNtfnMethod, (*ReorganizationNtfn)(nil), flags)
 	MustRegisterCmd(TxAcceptedNtfnMethod, (*TxAcceptedNtfn)(nil), flags)
 	MustRegisterCmd(TxAcceptedVerboseNtfnMethod, (*TxAcceptedVerboseNtfn)(nil), flags)

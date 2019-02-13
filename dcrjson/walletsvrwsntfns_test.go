@@ -56,22 +56,6 @@ func TestWalletSvrWsNtfns(t *testing.T) {
 			},
 		},
 		{
-			name: "newtickets",
-			newNtfn: func() (interface{}, error) {
-				return NewCmd("newtickets", "123", 100, 3, []string{"a", "b"})
-			},
-			staticNtfn: func() interface{} {
-				return NewNewTicketsNtfn("123", 100, 3, []string{"a", "b"})
-			},
-			marshalled: `{"jsonrpc":"1.0","method":"newtickets","params":["123",100,3,["a","b"]],"id":null}`,
-			unmarshalled: &NewTicketsNtfn{
-				Hash:      "123",
-				Height:    100,
-				StakeDiff: 3,
-				Tickets:   []string{"a", "b"},
-			},
-		},
-		{
 			name: "newtx",
 			newNtfn: func() (interface{}, error) {
 				return NewCmd("newtx", "acct", `{"account":"acct","address":"1Address","category":"send","amount":1.5,"fee":0.0001,"confirmations":1,"txid":"456","walletconflicts":[],"time":12345678,"timereceived":12345876,"vout":789,"otheraccount":"otheracct"}`)

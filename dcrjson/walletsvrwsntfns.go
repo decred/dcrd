@@ -17,10 +17,6 @@ const (
 	// a wallet server is connected to a chain server.
 	DcrdConnectedNtfnMethod = "dcrdconnected"
 
-	// NewTicketsNtfnMethod is the method of the daemon
-	// newtickets notification.
-	NewTicketsNtfnMethod = "newtickets"
-
 	// NewTxNtfnMethod is the method used to notify that a wallet server has
 	// added a new transaction to the transaction store.
 	NewTxNtfnMethod = "newtx"
@@ -69,25 +65,6 @@ type DcrdConnectedNtfn struct {
 func NewDcrdConnectedNtfn(connected bool) *DcrdConnectedNtfn {
 	return &DcrdConnectedNtfn{
 		Connected: connected,
-	}
-}
-
-// NewTicketsNtfn is a type handling custom marshaling and
-// unmarshaling of newtickets JSON websocket notifications.
-type NewTicketsNtfn struct {
-	Hash      string
-	Height    int32
-	StakeDiff int64
-	Tickets   []string
-}
-
-// NewNewTicketsNtfn creates a new NewTicketsNtfn.
-func NewNewTicketsNtfn(hash string, height int32, stakeDiff int64, tickets []string) *NewTicketsNtfn {
-	return &NewTicketsNtfn{
-		Hash:      hash,
-		Height:    height,
-		StakeDiff: stakeDiff,
-		Tickets:   tickets,
 	}
 }
 
@@ -177,7 +154,6 @@ func init() {
 
 	MustRegisterCmd(AccountBalanceNtfnMethod, (*AccountBalanceNtfn)(nil), flags)
 	MustRegisterCmd(DcrdConnectedNtfnMethod, (*DcrdConnectedNtfn)(nil), flags)
-	MustRegisterCmd(NewTicketsNtfnMethod, (*NewTicketsNtfn)(nil), flags)
 	MustRegisterCmd(NewTxNtfnMethod, (*NewTxNtfn)(nil), flags)
 	MustRegisterCmd(TicketPurchasedNtfnMethod, (*TicketPurchasedNtfn)(nil), flags)
 	MustRegisterCmd(RevocationCreatedNtfnMethod, (*RevocationCreatedNtfn)(nil), flags)
