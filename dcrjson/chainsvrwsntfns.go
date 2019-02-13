@@ -36,6 +36,10 @@ const (
 	// transaction was accepted by the mempool.
 	RelevantTxAcceptedNtfnMethod = "relevanttxaccepted"
 
+	// SpentAndMissedTicketsNtfnMethod is the method of the daemon
+	// spentandmissedtickets notification.
+	SpentAndMissedTicketsNtfnMethod = "spentandmissedtickets"
+
 	// WinningTicketsNtfnMethod is the method of the daemon winningtickets
 	// notification.
 	WinningTicketsNtfnMethod = "winningtickets"
@@ -86,6 +90,25 @@ func NewReorganizationNtfn(oldHash string, oldHeight int32, newHash string,
 		OldHeight: oldHeight,
 		NewHash:   newHash,
 		NewHeight: newHeight,
+	}
+}
+
+// SpentAndMissedTicketsNtfn is a type handling custom marshaling and
+// unmarshaling of spentandmissedtickets JSON websocket notifications.
+type SpentAndMissedTicketsNtfn struct {
+	Hash      string
+	Height    int32
+	StakeDiff int64
+	Tickets   map[string]string
+}
+
+// NewSpentAndMissedTicketsNtfn creates a new SpentAndMissedTicketsNtfn.
+func NewSpentAndMissedTicketsNtfn(hash string, height int32, stakeDiff int64, tickets map[string]string) *SpentAndMissedTicketsNtfn {
+	return &SpentAndMissedTicketsNtfn{
+		Hash:      hash,
+		Height:    height,
+		StakeDiff: stakeDiff,
+		Tickets:   tickets,
 	}
 }
 
@@ -157,5 +180,6 @@ func init() {
 	MustRegisterCmd(TxAcceptedNtfnMethod, (*TxAcceptedNtfn)(nil), flags)
 	MustRegisterCmd(TxAcceptedVerboseNtfnMethod, (*TxAcceptedVerboseNtfn)(nil), flags)
 	MustRegisterCmd(RelevantTxAcceptedNtfnMethod, (*RelevantTxAcceptedNtfn)(nil), flags)
+	MustRegisterCmd(SpentAndMissedTicketsNtfnMethod, (*SpentAndMissedTicketsNtfn)(nil), flags)
 	MustRegisterCmd(WinningTicketsNtfnMethod, (*WinningTicketsNtfn)(nil), flags)
 }

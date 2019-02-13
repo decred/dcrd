@@ -68,6 +68,22 @@ func TestChainSvrWsNtfns(t *testing.T) {
 			},
 		},
 		{
+			name: "spentandmissedtickets",
+			newNtfn: func() (interface{}, error) {
+				return NewCmd("spentandmissedtickets", "123", 100, 3, map[string]string{"a": "b"})
+			},
+			staticNtfn: func() interface{} {
+				return NewSpentAndMissedTicketsNtfn("123", 100, 3, map[string]string{"a": "b"})
+			},
+			marshalled: `{"jsonrpc":"1.0","method":"spentandmissedtickets","params":["123",100,3,{"a":"b"}],"id":null}`,
+			unmarshalled: &SpentAndMissedTicketsNtfn{
+				Hash:      "123",
+				Height:    100,
+				StakeDiff: 3,
+				Tickets:   map[string]string{"a": "b"},
+			},
+		},
+		{
 			name: "txaccepted",
 			newNtfn: func() (interface{}, error) {
 				return NewCmd("txaccepted", "123", 1.5)

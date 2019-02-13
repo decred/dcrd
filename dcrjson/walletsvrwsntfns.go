@@ -29,10 +29,6 @@ const (
 	// revocationcreated notification.
 	RevocationCreatedNtfnMethod = "revocationcreated"
 
-	// SpentAndMissedTicketsNtfnMethod is the method of the daemon
-	// spentandmissedtickets notification.
-	SpentAndMissedTicketsNtfnMethod = "spentandmissedtickets"
-
 	// StakeDifficultyNtfnMethod is the method of the daemon
 	// stakedifficulty notification.
 	StakeDifficultyNtfnMethod = "stakedifficulty"
@@ -144,25 +140,6 @@ func NewRevocationCreatedNtfn(txHash string, sstxIn string) *RevocationCreatedNt
 	}
 }
 
-// SpentAndMissedTicketsNtfn is a type handling custom marshaling and
-// unmarshaling of spentandmissedtickets JSON websocket notifications.
-type SpentAndMissedTicketsNtfn struct {
-	Hash      string
-	Height    int32
-	StakeDiff int64
-	Tickets   map[string]string
-}
-
-// NewSpentAndMissedTicketsNtfn creates a new SpentAndMissedTicketsNtfn.
-func NewSpentAndMissedTicketsNtfn(hash string, height int32, stakeDiff int64, tickets map[string]string) *SpentAndMissedTicketsNtfn {
-	return &SpentAndMissedTicketsNtfn{
-		Hash:      hash,
-		Height:    height,
-		StakeDiff: stakeDiff,
-		Tickets:   tickets,
-	}
-}
-
 // StakeDifficultyNtfn is a type handling custom marshaling and
 // unmarshaling of stakedifficulty JSON websocket notifications.
 type StakeDifficultyNtfn struct {
@@ -225,7 +202,6 @@ func init() {
 	MustRegisterCmd(NewTxNtfnMethod, (*NewTxNtfn)(nil), flags)
 	MustRegisterCmd(TicketPurchasedNtfnMethod, (*TicketPurchasedNtfn)(nil), flags)
 	MustRegisterCmd(RevocationCreatedNtfnMethod, (*RevocationCreatedNtfn)(nil), flags)
-	MustRegisterCmd(SpentAndMissedTicketsNtfnMethod, (*SpentAndMissedTicketsNtfn)(nil), flags)
 	MustRegisterCmd(StakeDifficultyNtfnMethod, (*StakeDifficultyNtfn)(nil), flags)
 	MustRegisterCmd(VoteCreatedNtfnMethod, (*VoteCreatedNtfn)(nil), flags)
 	MustRegisterCmd(WalletLockStateNtfnMethod, (*WalletLockStateNtfn)(nil), flags)
