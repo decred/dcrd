@@ -85,7 +85,7 @@ type Engine struct {
 	numOps      int
 	flags       ScriptFlags
 	version     uint16
-	bip16       bool // treat execution as pay-to-script-hash
+	isP2SH      bool // treat execution as pay-to-script-hash
 }
 
 // hasFlag returns whether the script engine instance has the passed flag set.
@@ -303,10 +303,10 @@ func (vm *Engine) Step() (done bool, err error) {
 		vm.numOps = 0 // number of ops is per script.
 		vm.scriptOff = 0
 		switch {
-		case vm.scriptIdx == 0 && vm.bip16:
+		case vm.scriptIdx == 0 && vm.isP2SH:
 			vm.scriptIdx++
 			vm.savedFirstStack = vm.GetStack()
-		case vm.scriptIdx == 1 && vm.bip16:
+		case vm.scriptIdx == 1 && vm.isP2SH:
 			// Put us past the end for CheckErrorCondition()
 			vm.scriptIdx++
 			// Check script ran successfully and pull the script
@@ -715,7 +715,7 @@ func NewEngine(scriptPubKey []byte, tx *wire.MsgTx, txIdx int, flags ScriptFlags
 			return nil, scriptError(ErrNotPushOnly,
 				"pay to script hash is not push only")
 		}
-		vm.bip16 = true
+		vm.isP2SH = true
 	}
 
 	vm.tx = *tx
