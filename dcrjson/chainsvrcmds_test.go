@@ -1,5 +1,5 @@
 // Copyright (c) 2014 The btcsuite developers
-// Copyright (c) 2016 The Decred developers
+// Copyright (c) 2016-2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -113,6 +113,19 @@ func TestChainSvrCmds(t *testing.T) {
 			},
 			marshalled:   `{"jsonrpc":"1.0","method":"decodescript","params":["00"],"id":1}`,
 			unmarshalled: &DecodeScriptCmd{HexScript: "00"},
+		},
+		{
+			name: "estimatefee",
+			newCmd: func() (interface{}, error) {
+				return NewCmd("estimatefee", 6)
+			},
+			staticCmd: func() interface{} {
+				return NewEstimateFeeCmd(6)
+			},
+			marshalled: `{"jsonrpc":"1.0","method":"estimatefee","params":[6],"id":1}`,
+			unmarshalled: &EstimateFeeCmd{
+				NumBlocks: 6,
+			},
 		},
 		{
 			name: "estimatesmartfee",
