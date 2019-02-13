@@ -1,5 +1,5 @@
 // Copyright (c) 2014 The btcsuite developers
-// Copyright (c) 2015-2016 The Decred developers
+// Copyright (c) 2015-2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -35,6 +35,10 @@ const (
 	// from the chain server that inform a client that a relevant
 	// transaction was accepted by the mempool.
 	RelevantTxAcceptedNtfnMethod = "relevanttxaccepted"
+
+	// WinningTicketsNtfnMethod is the method of the daemon winningtickets
+	// notification.
+	WinningTicketsNtfnMethod = "winningtickets"
 )
 
 // BlockConnectedNtfn defines the blockconnected JSON-RPC notification.
@@ -125,6 +129,23 @@ func NewRelevantTxAcceptedNtfn(txHex string) *RelevantTxAcceptedNtfn {
 	return &RelevantTxAcceptedNtfn{Transaction: txHex}
 }
 
+// WinningTicketsNtfn is a type handling custom marshaling and
+// unmarshaling of blockconnected JSON websocket notifications.
+type WinningTicketsNtfn struct {
+	BlockHash   string
+	BlockHeight int32
+	Tickets     map[string]string
+}
+
+// NewWinningTicketsNtfn creates a new WinningTicketsNtfn.
+func NewWinningTicketsNtfn(hash string, height int32, tickets map[string]string) *WinningTicketsNtfn {
+	return &WinningTicketsNtfn{
+		BlockHash:   hash,
+		BlockHeight: height,
+		Tickets:     tickets,
+	}
+}
+
 func init() {
 	// The commands in this file are only usable by websockets and are
 	// notifications.
@@ -136,4 +157,5 @@ func init() {
 	MustRegisterCmd(TxAcceptedNtfnMethod, (*TxAcceptedNtfn)(nil), flags)
 	MustRegisterCmd(TxAcceptedVerboseNtfnMethod, (*TxAcceptedVerboseNtfn)(nil), flags)
 	MustRegisterCmd(RelevantTxAcceptedNtfnMethod, (*RelevantTxAcceptedNtfn)(nil), flags)
+	MustRegisterCmd(WinningTicketsNtfnMethod, (*WinningTicketsNtfn)(nil), flags)
 }

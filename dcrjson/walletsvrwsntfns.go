@@ -45,10 +45,6 @@ const (
 	// votecreated notification.
 	VoteCreatedNtfnMethod = "votecreated"
 
-	// WinningTicketsNtfnMethod is the method of the daemon
-	// winningtickets notification.
-	WinningTicketsNtfnMethod = "winningtickets"
-
 	// WalletLockStateNtfnMethod is the method used to notify the lock state
 	// of a wallet has changed.
 	WalletLockStateNtfnMethod = "walletlockstate"
@@ -218,23 +214,6 @@ func NewWalletLockStateNtfn(locked bool) *WalletLockStateNtfn {
 	}
 }
 
-// WinningTicketsNtfn is a type handling custom marshaling and
-// unmarshaling of blockconnected JSON websocket notifications.
-type WinningTicketsNtfn struct {
-	BlockHash   string
-	BlockHeight int32
-	Tickets     map[string]string
-}
-
-// NewWinningTicketsNtfn creates a new WinningTicketsNtfn.
-func NewWinningTicketsNtfn(hash string, height int32, tickets map[string]string) *WinningTicketsNtfn {
-	return &WinningTicketsNtfn{
-		BlockHash:   hash,
-		BlockHeight: height,
-		Tickets:     tickets,
-	}
-}
-
 func init() {
 	// The commands in this file are only usable with a wallet server via
 	// websockets and are notifications.
@@ -250,5 +229,4 @@ func init() {
 	MustRegisterCmd(StakeDifficultyNtfnMethod, (*StakeDifficultyNtfn)(nil), flags)
 	MustRegisterCmd(VoteCreatedNtfnMethod, (*VoteCreatedNtfn)(nil), flags)
 	MustRegisterCmd(WalletLockStateNtfnMethod, (*WalletLockStateNtfn)(nil), flags)
-	MustRegisterCmd(WinningTicketsNtfnMethod, (*WinningTicketsNtfn)(nil), flags)
 }

@@ -186,21 +186,6 @@ func TestWalletSvrWsNtfns(t *testing.T) {
 				Locked: true,
 			},
 		},
-		{
-			name: "winningtickets",
-			newNtfn: func() (interface{}, error) {
-				return NewCmd("winningtickets", "123", 100, map[string]string{"a": "b"})
-			},
-			staticNtfn: func() interface{} {
-				return NewWinningTicketsNtfn("123", 100, map[string]string{"a": "b"})
-			},
-			marshalled: `{"jsonrpc":"1.0","method":"winningtickets","params":["123",100,{"a":"b"}],"id":null}`,
-			unmarshalled: &WinningTicketsNtfn{
-				BlockHash:   "123",
-				BlockHeight: 100,
-				Tickets:     map[string]string{"a": "b"},
-			},
-		},
 	}
 
 	t.Logf("Running %d tests", len(tests))

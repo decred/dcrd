@@ -1,5 +1,5 @@
 // Copyright (c) 2014 The btcsuite developers
-// Copyright (c) 2015-2016 The Decred developers
+// Copyright (c) 2015-2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -109,6 +109,21 @@ func TestChainSvrWsNtfns(t *testing.T) {
 					Vout:          nil,
 					Confirmations: 0,
 				},
+			},
+		},
+		{
+			name: "winningtickets",
+			newNtfn: func() (interface{}, error) {
+				return NewCmd("winningtickets", "123", 100, map[string]string{"a": "b"})
+			},
+			staticNtfn: func() interface{} {
+				return NewWinningTicketsNtfn("123", 100, map[string]string{"a": "b"})
+			},
+			marshalled: `{"jsonrpc":"1.0","method":"winningtickets","params":["123",100,{"a":"b"}],"id":null}`,
+			unmarshalled: &WinningTicketsNtfn{
+				BlockHash:   "123",
+				BlockHeight: 100,
+				Tickets:     map[string]string{"a": "b"},
 			},
 		},
 	}
