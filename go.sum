@@ -69,6 +69,8 @@ github.com/decred/dcrd/hdkeychain v1.1.0 h1:6bFdL672dCmtg/JEzb3Jw0dTRO2jLxcA7BK2
 github.com/decred/dcrd/hdkeychain v1.1.0/go.mod h1:zyUZtZ3PdnTPHt2XUr1x76b8ZuiM+9aVkP8Rq8Scp1k=
 github.com/decred/dcrd/mempool v1.0.1 h1:xZOfwGmVbWfKDNztVgsVO/GkMmiZn3MMfDDVE07ZKKs=
 github.com/decred/dcrd/mempool v1.0.1/go.mod h1:r+/DGiiluXi1EyMCCPPH58Qu+rsr8nZv0DialAG5VZQ=
+github.com/decred/dcrd/mempool v1.2.0 h1:jFlofZOz9QPv7eXWYYyQ9gBq6roeV2SaYI1uDD4wbF0=
+github.com/decred/dcrd/mempool v1.2.0/go.mod h1:jbL4+jOVjTU/MfgYV8SptKVpOTFD+DeHC15DhdJsfAI=
 github.com/decred/dcrd/mining v1.0.0/go.mod h1:VA5H4zhJgXb8LK5lqM5H58dhMRXJRcaQQoX3G8QRpP8=
 github.com/decred/dcrd/mining v1.0.1 h1:BSeywfR4kZyIziS1jc6VlCpdRIr7GB3SZXo3l2tLxOs=
 github.com/decred/dcrd/peer v1.0.1 h1:O3Xzf5A/IzF8Ex03EuOrTofrQt/R+qAxirK3mlAvy3k=
