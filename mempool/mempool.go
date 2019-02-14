@@ -32,13 +32,6 @@ const (
 	// inclusion when generating block templates.
 	DefaultBlockPrioritySize = 20000
 
-	// MinHighPriority is the minimum priority value that allows a
-	// transaction to be considered high priority.
-	//
-	// Deprecated: Use mining.MinHighPriority
-	// TODO: Remove in next version update.
-	MinHighPriority = mining.MinHighPriority
-
 	// maxRelayFeeMultiplier is the factor that we disallow fees / kB above the
 	// minimum tx fee.  At the current default minimum relay fee of 0.0001
 	// DCR/kB, this results in a maximum allowed high fee of 1 DCR/kB.
