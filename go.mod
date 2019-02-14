@@ -52,6 +52,7 @@ replace (
 	github.com/decred/dcrd/dcrec => ./dcrec
 	github.com/decred/dcrd/dcrec/edwards => ./dcrec/edwards
 	github.com/decred/dcrd/dcrec/secp256k1 => ./dcrec/secp256k1
+	github.com/decred/dcrd/dcrjson/v2 => ./dcrjson
 	github.com/decred/dcrd/dcrutil => ./dcrutil
 	github.com/decred/dcrd/fees => ./fees
 	github.com/decred/dcrd/gcs => ./gcs
@@ -60,7 +61,6 @@ replace (
 	github.com/decred/dcrd/mempool => ./mempool
 	github.com/decred/dcrd/mining => ./mining
 	github.com/decred/dcrd/peer => ./peer
-	github.com/decred/dcrd/rpcclient => ./rpcclient
 	github.com/decred/dcrd/txscript => ./txscript
 	github.com/decred/dcrd/wire => ./wire
 )

@@ -1,4 +1,4 @@
-module github.com/decred/dcrd/rpcclient
+module github.com/decred/dcrd/rpcclient/v2
 
 require (
 	github.com/btcsuite/go-socks v0.0.0-20170105172521-4720035b7bfd
@@ -10,11 +10,12 @@ require (
 	github.com/decred/dcrd/database v1.0.3 // indirect
 	github.com/decred/dcrd/dcrec v0.0.0-20190130161649-59ed4247a1d5 // indirect
 	github.com/decred/dcrd/dcrec/edwards v0.0.0-20190130161649-59ed4247a1d5 // indirect
-	github.com/decred/dcrd/dcrjson v1.1.0
+	github.com/decred/dcrd/dcrjson/v2 v2.0.0
 	github.com/decred/dcrd/dcrutil v1.2.0
 	github.com/decred/dcrd/gcs v1.0.2
 	github.com/decred/dcrd/txscript v1.0.2 // indirect
 	github.com/decred/dcrd/wire v1.2.0
+	github.com/decred/dcrwallet/rpc/jsonrpc/types v1.0.0
 	github.com/decred/slog v1.0.0
 	github.com/gorilla/websocket v1.4.0
 	github.com/onsi/ginkgo v1.7.0 // indirect

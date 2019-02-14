@@ -1,5 +1,5 @@
 // Copyright (c) 2014-2016 The btcsuite developers
-// Copyright (c) 2015-2017 The Decred developers
+// Copyright (c) 2015-2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -11,9 +11,10 @@ import (
 	"encoding/json"
 
 	"github.com/decred/dcrd/chaincfg/chainhash"
-	"github.com/decred/dcrd/dcrjson"
+	"github.com/decred/dcrd/dcrjson/v2"
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/dcrd/wire"
+	walletjson "github.com/decred/dcrwallet/rpc/jsonrpc/types"
 )
 
 // SigHashType enumerates the available signature hashing types that the
@@ -339,60 +340,6 @@ func (c *Client) CreateRawSStx(inputs []dcrjson.SStxInput,
 	return c.CreateRawSStxAsync(inputs, amount, couts).Receive()
 }
 
-// FutureCreateRawSSGenTxResult is a future promise to deliver the result
-// of a CreateRawSSGenTxAsync RPC invocation (or an applicable error).
-type FutureCreateRawSSGenTxResult chan *response
-
-// Receive waits for the response promised by the future and returns a new
-// transaction spending the provided inputs and sending to the provided
-// addresses.
-func (r FutureCreateRawSSGenTxResult) Receive() (*wire.MsgTx, error) {
-	res, err := receiveFuture(r)
-	if err != nil {
-		return nil, err
-	}
-
-	// Unmarshal result as a string.
-	var txHex string
-	err = json.Unmarshal(res, &txHex)
-	if err != nil {
-		return nil, err
-	}
-
-	// Decode the serialized transaction hex to raw bytes.
-	serializedTx, err := hex.DecodeString(txHex)
-	if err != nil {
-		return nil, err
-	}
-
-	// Deserialize the transaction and return it.
-	var msgTx wire.MsgTx
-	if err := msgTx.Deserialize(bytes.NewReader(serializedTx)); err != nil {
-		return nil, err
-	}
-	return &msgTx, nil
-}
-
-// CreateRawSSGenTxAsync returns an instance of a type that can be used to
-// get the result of the RPC at some future time by invoking the Receive
-// function on the returned instance.
-//
-// See CreateRawSSGenTx for the blocking version and more details.
-func (c *Client) CreateRawSSGenTxAsync(inputs []dcrjson.TransactionInput,
-	votebits uint16) FutureCreateRawSSGenTxResult {
-
-	cmd := dcrjson.NewCreateRawSSGenTxCmd(inputs, votebits)
-	return c.sendCmd(cmd)
-}
-
-// CreateRawSSGenTx returns a new transaction spending the provided inputs
-// and sending to the provided addresses.
-func (c *Client) CreateRawSSGenTx(inputs []dcrjson.TransactionInput,
-	votebits uint16) (*wire.MsgTx, error) {
-
-	return c.CreateRawSSGenTxAsync(inputs, votebits).Receive()
-}
-
 // FutureCreateRawSSRtxResult is a future promise to deliver the result
 // of a CreateRawSSRtxAsync RPC invocation (or an applicable error).
 type FutureCreateRawSSRtxResult chan *response
@@ -506,7 +453,7 @@ func (r FutureSignRawTransactionResult) Receive() (*wire.MsgTx, bool, error) {
 	}
 
 	// Unmarshal as a signrawtransaction result.
-	var signRawTxResult dcrjson.SignRawTransactionResult
+	var signRawTxResult walletjson.SignRawTransactionResult
 	err = json.Unmarshal(res, &signRawTxResult)
 	if err != nil {
 		return nil, false, err
@@ -543,7 +490,7 @@ func (c *Client) SignRawTransactionAsync(tx *wire.MsgTx) FutureSignRawTransactio
 		txHex = hex.EncodeToString(buf.Bytes())
 	}
 
-	cmd := dcrjson.NewSignRawTransactionCmd(txHex, nil, nil, nil)
+	cmd := walletjson.NewSignRawTransactionCmd(txHex, nil, nil, nil)
 	return c.sendCmd(cmd)
 }
 
@@ -563,7 +510,7 @@ func (c *Client) SignRawTransaction(tx *wire.MsgTx) (*wire.MsgTx, bool, error) {
 // function on the returned instance.
 //
 // See SignRawTransaction2 for the blocking version and more details.
-func (c *Client) SignRawTransaction2Async(tx *wire.MsgTx, inputs []dcrjson.RawTxInput) FutureSignRawTransactionResult {
+func (c *Client) SignRawTransaction2Async(tx *wire.MsgTx, inputs []walletjson.RawTxInput) FutureSignRawTransactionResult {
 	txHex := ""
 	if tx != nil {
 		// Serialize the transaction and convert to hex string.
@@ -574,7 +521,7 @@ func (c *Client) SignRawTransaction2Async(tx *wire.MsgTx, inputs []dcrjson.RawTx
 		txHex = hex.EncodeToString(buf.Bytes())
 	}
 
-	cmd := dcrjson.NewSignRawTransactionCmd(txHex, &inputs, nil, nil)
+	cmd := walletjson.NewSignRawTransactionCmd(txHex, &inputs, nil, nil)
 	return c.sendCmd(cmd)
 }
 
@@ -588,7 +535,7 @@ func (c *Client) SignRawTransaction2Async(tx *wire.MsgTx, inputs []dcrjson.RawTx
 //
 // See SignRawTransaction if the RPC server already knows the input
 // transactions.
-func (c *Client) SignRawTransaction2(tx *wire.MsgTx, inputs []dcrjson.RawTxInput) (*wire.MsgTx, bool, error) {
+func (c *Client) SignRawTransaction2(tx *wire.MsgTx, inputs []walletjson.RawTxInput) (*wire.MsgTx, bool, error) {
 	return c.SignRawTransaction2Async(tx, inputs).Receive()
 }
 
@@ -598,7 +545,7 @@ func (c *Client) SignRawTransaction2(tx *wire.MsgTx, inputs []dcrjson.RawTxInput
 //
 // See SignRawTransaction3 for the blocking version and more details.
 func (c *Client) SignRawTransaction3Async(tx *wire.MsgTx,
-	inputs []dcrjson.RawTxInput,
+	inputs []walletjson.RawTxInput,
 	privKeysWIF []string) FutureSignRawTransactionResult {
 
 	txHex := ""
@@ -611,7 +558,7 @@ func (c *Client) SignRawTransaction3Async(tx *wire.MsgTx,
 		txHex = hex.EncodeToString(buf.Bytes())
 	}
 
-	cmd := dcrjson.NewSignRawTransactionCmd(txHex, &inputs, &privKeysWIF,
+	cmd := walletjson.NewSignRawTransactionCmd(txHex, &inputs, &privKeysWIF,
 		nil)
 	return c.sendCmd(cmd)
 }
@@ -634,7 +581,7 @@ func (c *Client) SignRawTransaction3Async(tx *wire.MsgTx,
 // transactions and private keys or SignRawTransaction2 if it already knows the
 // private keys.
 func (c *Client) SignRawTransaction3(tx *wire.MsgTx,
-	inputs []dcrjson.RawTxInput,
+	inputs []walletjson.RawTxInput,
 	privKeysWIF []string) (*wire.MsgTx, bool, error) {
 
 	return c.SignRawTransaction3Async(tx, inputs, privKeysWIF).Receive()
@@ -646,7 +593,7 @@ func (c *Client) SignRawTransaction3(tx *wire.MsgTx,
 //
 // See SignRawTransaction4 for the blocking version and more details.
 func (c *Client) SignRawTransaction4Async(tx *wire.MsgTx,
-	inputs []dcrjson.RawTxInput, privKeysWIF []string,
+	inputs []walletjson.RawTxInput, privKeysWIF []string,
 	hashType SigHashType) FutureSignRawTransactionResult {
 
 	txHex := ""
@@ -659,7 +606,7 @@ func (c *Client) SignRawTransaction4Async(tx *wire.MsgTx,
 		txHex = hex.EncodeToString(buf.Bytes())
 	}
 
-	cmd := dcrjson.NewSignRawTransactionCmd(txHex, &inputs, &privKeysWIF,
+	cmd := walletjson.NewSignRawTransactionCmd(txHex, &inputs, &privKeysWIF,
 		dcrjson.String(string(hashType)))
 	return c.sendCmd(cmd)
 }
@@ -684,7 +631,7 @@ func (c *Client) SignRawTransaction4Async(tx *wire.MsgTx,
 // the input transactions and private keys, SignRawTransaction2 if it already
 // knows the private keys, or SignRawTransaction3 if it does not know both.
 func (c *Client) SignRawTransaction4(tx *wire.MsgTx,
-	inputs []dcrjson.RawTxInput, privKeysWIF []string,
+	inputs []walletjson.RawTxInput, privKeysWIF []string,
 	hashType SigHashType) (*wire.MsgTx, bool, error) {
 
 	return c.SignRawTransaction4Async(tx, inputs, privKeysWIF,
@@ -708,7 +655,7 @@ func (c *Client) SignRawSSGenTxAsync(tx *wire.MsgTx) FutureSignRawTransactionRes
 		txHex = hex.EncodeToString(buf.Bytes())
 	}
 
-	cmd := dcrjson.NewSignRawTransactionCmd(txHex, &[]dcrjson.RawTxInput{},
+	cmd := walletjson.NewSignRawTransactionCmd(txHex, &[]walletjson.RawTxInput{},
 		nil, dcrjson.String("ssgen"))
 	return c.sendCmd(cmd)
 }
