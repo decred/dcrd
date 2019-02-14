@@ -1,3 +1,8 @@
+// Copyright (c) 2013-2015 The btcsuite developers
+// Copyright (c) 2015-2019 The Decred developers
+// Use of this source code is governed by an ISC
+// license that can be found in the LICENSE file.
+
 package main
 
 import (
@@ -10,7 +15,7 @@ import (
 	"net"
 	"net/http"
 
-	"github.com/decred/dcrd/dcrjson"
+	"github.com/decred/dcrd/dcrjson/v2"
 
 	"github.com/btcsuite/go-socks/socks"
 )

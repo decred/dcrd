@@ -21,6 +21,7 @@ require (
 	github.com/decred/dcrd/dcrec v0.0.0-20190130161649-59ed4247a1d5
 	github.com/decred/dcrd/dcrec/secp256k1 v1.0.1
 	github.com/decred/dcrd/dcrjson v1.2.0
+	github.com/decred/dcrd/dcrjson/v2 v2.0.0
 	github.com/decred/dcrd/dcrutil v1.2.0
 	github.com/decred/dcrd/fees v1.0.0
 	github.com/decred/dcrd/gcs v1.0.2
@@ -31,6 +32,7 @@ require (
 	github.com/decred/dcrd/rpcclient v1.1.0
 	github.com/decred/dcrd/txscript v1.0.2
 	github.com/decred/dcrd/wire v1.2.0
+	github.com/decred/dcrwallet/rpc/jsonrpc/types v1.0.0
 	github.com/decred/slog v1.0.0
 	github.com/gorilla/websocket v1.4.0
 	github.com/jessevdk/go-flags v1.4.0

@@ -52,6 +52,7 @@ github.com/decred/dcrd/dcrec/secp256k1 v1.0.0 h1:Le54WTGdTQv7XYXpS31uhFE8LZE7ypw
 github.com/decred/dcrd/dcrec/secp256k1 v1.0.0/go.mod h1:JPMFscGlgXTV684jxQNDijae2qrh0fLG7pJBimaYotE=
 github.com/decred/dcrd/dcrjson v1.0.0 h1:50DnA0XeV2JrQXoHh43TCKmH+kz2gHjZ1Mj/Pdk7Oz0=
 github.com/decred/dcrd/dcrjson v1.0.0/go.mod h1:ozddIaeF+EAvZZvFuB3zpfxhyxBGfvbt22crQh+PYuI=
+github.com/decred/dcrd/dcrjson v1.1.0 h1:pFpbay3cWACkgloFxWjHBwlXWG2+S2QCJJzNxL40hwg=
 github.com/decred/dcrd/dcrjson v1.1.0/go.mod h1:ozddIaeF+EAvZZvFuB3zpfxhyxBGfvbt22crQh+PYuI=
 github.com/decred/dcrd/dcrjson v1.2.0 h1:3BFFQHq3/YO/zae9WLxQkXsX6AXKx3+M8H3yk4oXZi0=
 github.com/decred/dcrd/dcrjson v1.2.0/go.mod h1:ozddIaeF+EAvZZvFuB3zpfxhyxBGfvbt22crQh+PYuI=
@@ -80,6 +81,8 @@ github.com/decred/dcrd/txscript v1.0.1 h1:IMgxZFCw3AyG4EbKwywE3SDNshOSHsoUK1Wk/5
 github.com/decred/dcrd/txscript v1.0.1/go.mod h1:FqUX07Y+u3cJ1eIGPoyWbJg+Wk1NTllln/TyDpx9KnY=
 github.com/decred/dcrd/wire v1.1.0 h1:G+3CugtxNbToUN8RKWqm74yLfzJJ2BKMOr2RgWc4TyY=
 github.com/decred/dcrd/wire v1.1.0/go.mod h1:/JKOsLInOJu6InN+/zH5AyCq3YDIOW/EqcffvU8fJHM=
+github.com/decred/dcrwallet/rpc/jsonrpc/types v1.0.0 h1:FPVohgxZHHwi7qTOBki/Dw9j5cgGsZYiktGSfgqHR0w=
+github.com/decred/dcrwallet/rpc/jsonrpc/types v1.0.0/go.mod h1:k+IOPnUY0YqlwhSDhczzaUN17NX/gMtztwl3UxKgVZY=
 github.com/decred/slog v1.0.0 h1:Dl+W8O6/JH6n2xIFN2p3DNjCmjYwvrXsjlSJTQQ4MhE=
 github.com/decred/slog v1.0.0/go.mod h1:zR98rEZHSnbZ4WHZtO0iqmSZjDLKhkXfrPTZQKtAonQ=
 github.com/fsnotify/fsnotify v1.4.7 h1:IXs+QLmnXW2CcXuY+8Mzv/fWEsPGWxqefPtCP5CnV9I=
