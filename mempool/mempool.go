@@ -18,7 +18,6 @@ import (
 	"github.com/decred/dcrd/blockchain/stake"
 	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrd/chaincfg/chainhash"
-	"github.com/decred/dcrd/dcrjson"
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/dcrd/mining"
 	"github.com/decred/dcrd/txscript"
@@ -196,6 +195,22 @@ type TxDesc struct {
 	// StartingPriority is the priority of the transaction when it was added
 	// to the pool.
 	StartingPriority float64
+}
+
+// VerboseTxDesc is a descriptor containing a transaction in the mempool along
+// with additional more expensive to calculate metadata.  Callers should prefer
+// working with the more efficient TxDesc unless they specifically need access
+// to the additional details provided.
+type VerboseTxDesc struct {
+	TxDesc
+
+	// CurrentPriority is the current priority of the transaction within the
+	// pool.
+	CurrentPriority float64
+
+	// Depends enumerates any unconfirmed transactions in the pool used as
+	// inputs for the transaction.
+	Depends []*TxDesc
 }
 
 // TxPool is used as a source of transactions that need to be mined into blocks
@@ -1596,7 +1611,7 @@ func (mp *TxPool) TxHashes() []*chainhash.Hash {
 }
 
 // TxDescs returns a slice of descriptors for all the transactions in the pool.
-// The descriptors are to be treated as read only.
+// The descriptors must be treated as read only.
 //
 // This function is safe for concurrent access.
 func (mp *TxPool) TxDescs() []*TxDesc {
@@ -1610,6 +1625,50 @@ func (mp *TxPool) TxDescs() []*TxDesc {
 	mp.mtx.RUnlock()
 
 	return descs
+}
+
+// VerboseTxDescs returns a slice of verbose descriptors for all the
+// transactions in the pool.  The descriptors must be treated as read only.
+//
+// Callers should prefer working with the more efficient TxDescs unless they
+// specifically need access to the additional details provided.
+//
+// This function is safe for concurrent access.
+func (mp *TxPool) VerboseTxDescs() []*VerboseTxDesc {
+	mp.mtx.RLock()
+	defer mp.mtx.RUnlock()
+
+	result := make([]*VerboseTxDesc, 0, len(mp.pool))
+	bestHeight := mp.cfg.BestHeight()
+
+	for _, desc := range mp.pool {
+		// Calculate the current priority based on inputs to the transaction.
+		// Use zero if one or more of the input transactions can't be found for
+		// some reason.
+		tx := desc.Tx
+		var currentPriority float64
+		utxos, err := mp.fetchInputUtxos(tx)
+		if err == nil {
+			currentPriority = mining.CalcPriority(tx.MsgTx(), utxos,
+				bestHeight+1)
+		}
+
+		// Create the descriptor and add dependencies as needed.
+		vtxd := &VerboseTxDesc{
+			TxDesc:          *desc,
+			CurrentPriority: currentPriority,
+		}
+		for _, txIn := range tx.MsgTx().TxIn {
+			hash := &txIn.PreviousOutPoint.Hash
+			if depDesc, ok := mp.pool[*hash]; ok {
+				vtxd.Depends = append(vtxd.Depends, depDesc)
+			}
+		}
+
+		result = append(result, vtxd)
+	}
+
+	return result
 }
 
 // MiningDescs returns a slice of mining descriptors for all the transactions
@@ -1628,60 +1687,6 @@ func (mp *TxPool) MiningDescs() []*mining.TxDesc {
 	mp.mtx.RUnlock()
 
 	return descs
-}
-
-// RawMempoolVerbose returns all of the entries in the mempool filtered by the
-// provided stake type as a fully populated JSON result.  The filter type can be
-// nil in which case all transactions will be returned.
-//
-// This function is safe for concurrent access.
-func (mp *TxPool) RawMempoolVerbose(filterType *stake.TxType) map[string]*dcrjson.GetRawMempoolVerboseResult {
-	mp.mtx.RLock()
-	defer mp.mtx.RUnlock()
-
-	result := make(map[string]*dcrjson.GetRawMempoolVerboseResult,
-		len(mp.pool))
-	bestHeight := mp.cfg.BestHeight()
-
-	for _, desc := range mp.pool {
-		// Skip entries that don't match the requested stake type if
-		// specified.
-		if filterType != nil && desc.Type != *filterType {
-			continue
-		}
-
-		// Calculate the current priority based on the inputs to
-		// the transaction.  Use zero if one or more of the
-		// input transactions can't be found for some reason.
-		tx := desc.Tx
-		var currentPriority float64
-		utxos, err := mp.fetchInputUtxos(tx)
-		if err == nil {
-			currentPriority = mining.CalcPriority(tx.MsgTx(), utxos,
-				bestHeight+1)
-		}
-
-		mpd := &dcrjson.GetRawMempoolVerboseResult{
-			Size:             int32(tx.MsgTx().SerializeSize()),
-			Fee:              dcrutil.Amount(desc.Fee).ToCoin(),
-			Time:             desc.Added.Unix(),
-			Height:           desc.Height,
-			StartingPriority: desc.StartingPriority,
-			CurrentPriority:  currentPriority,
-			Depends:          make([]string, 0),
-		}
-		for _, txIn := range tx.MsgTx().TxIn {
-			hash := &txIn.PreviousOutPoint.Hash
-			if mp.haveTransaction(hash) {
-				mpd.Depends = append(mpd.Depends,
-					hash.String())
-			}
-		}
-
-		result[tx.Hash().String()] = mpd
-	}
-
-	return result
 }
 
 // LastUpdated returns the last time a transaction was added to or removed from
