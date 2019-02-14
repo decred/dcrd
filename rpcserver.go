@@ -45,7 +45,7 @@ import (
 	"github.com/decred/dcrd/dcrjson/v2"
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/dcrd/internal/version"
-	"github.com/decred/dcrd/mempool"
+	"github.com/decred/dcrd/mempool/v2"
 	"github.com/decred/dcrd/txscript"
 	"github.com/decred/dcrd/wire"
 	"github.com/jrick/bitset"
@@ -3432,15 +3432,43 @@ func handleGetRawMempool(s *rpcServer, cmd interface{}, closeChan <-chan struct{
 		case dcrjson.GRMAll:
 			// Nothing to do
 		default:
-			return nil, rpcInvalidError("Invalid transaction "+
-				"type: %T", *c.TxType)
+			supported := []dcrjson.GetRawMempoolTxTypeCmd{dcrjson.GRMRegular,
+				dcrjson.GRMTickets, dcrjson.GRMVotes, dcrjson.GRMRevocations,
+				dcrjson.GRMAll}
+			return nil, rpcInvalidError("Invalid transaction type: %s -- "+
+				"supported types: %v", *c.TxType, supported)
 		}
 	}
 
 	// Return verbose results if requested.
 	mp := s.server.txMemPool
 	if c.Verbose != nil && *c.Verbose {
-		return mp.RawMempoolVerbose(filterType), nil
+		descs := mp.VerboseTxDescs()
+		result := make(map[string]*dcrjson.GetRawMempoolVerboseResult, len(descs))
+		for i := range descs {
+			desc := descs[i]
+			if filterType != nil && desc.Type != *filterType {
+				continue
+			}
+
+			tx := desc.Tx
+			mpd := &dcrjson.GetRawMempoolVerboseResult{
+				Size:             int32(tx.MsgTx().SerializeSize()),
+				Fee:              dcrutil.Amount(desc.Fee).ToCoin(),
+				Time:             desc.Added.Unix(),
+				Height:           desc.Height,
+				StartingPriority: desc.StartingPriority,
+				CurrentPriority:  desc.CurrentPriority,
+				Depends:          make([]string, len(desc.Depends)),
+			}
+			for j, depDesc := range desc.Depends {
+				mpd.Depends[j] = depDesc.Tx.Hash().String()
+			}
+
+			result[tx.Hash().String()] = mpd
+		}
+
+		return result, nil
 	}
 
 	// The response is simply an array of the transaction hashes if the

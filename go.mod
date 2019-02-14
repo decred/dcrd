@@ -13,13 +13,12 @@ require (
 	github.com/decred/dcrd/connmgr v1.0.2
 	github.com/decred/dcrd/database v1.0.3
 	github.com/decred/dcrd/dcrec/secp256k1 v1.0.1
-	github.com/decred/dcrd/dcrjson v1.2.0 // indirect
 	github.com/decred/dcrd/dcrjson/v2 v2.0.0
 	github.com/decred/dcrd/dcrutil v1.2.0
 	github.com/decred/dcrd/fees v1.0.0
 	github.com/decred/dcrd/gcs v1.0.2
 	github.com/decred/dcrd/hdkeychain v1.1.1
-	github.com/decred/dcrd/mempool v1.2.0
+	github.com/decred/dcrd/mempool/v2 v2.0.0
 	github.com/decred/dcrd/mining v1.1.0
 	github.com/decred/dcrd/peer v1.1.0
 	github.com/decred/dcrd/rpcclient/v2 v2.0.0
@@ -52,6 +51,7 @@ replace (
 	github.com/decred/dcrd/gcs => ./gcs
 	github.com/decred/dcrd/hdkeychain => ./hdkeychain
 	github.com/decred/dcrd/limits => ./limits
+	github.com/decred/dcrd/mempool/v2 => ./mempool
 	github.com/decred/dcrd/mining => ./mining
 	github.com/decred/dcrd/peer => ./peer
 	github.com/decred/dcrd/rpcclient/v2 => ./rpcclient

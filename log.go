@@ -17,7 +17,7 @@ import (
 	"github.com/decred/dcrd/connmgr"
 	"github.com/decred/dcrd/database"
 	"github.com/decred/dcrd/fees"
-	"github.com/decred/dcrd/mempool"
+	"github.com/decred/dcrd/mempool/v2"
 	"github.com/decred/dcrd/peer"
 	"github.com/decred/dcrd/txscript"
 	"github.com/decred/slog"

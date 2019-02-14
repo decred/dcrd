@@ -27,7 +27,7 @@ import (
 	_ "github.com/decred/dcrd/database/ffldb"
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/dcrd/internal/version"
-	"github.com/decred/dcrd/mempool"
+	"github.com/decred/dcrd/mempool/v2"
 	"github.com/decred/dcrd/sampleconfig"
 	"github.com/decred/slog"
 	flags "github.com/jessevdk/go-flags"
