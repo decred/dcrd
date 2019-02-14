@@ -22,7 +22,7 @@ digraph {
 	mempool [label="mempool" fillcolor=slategray]
 	mining [label="mining" fillcolor=chartreuse]
 	peer [label="peer" fillcolor=khaki]
-	rpcclient [label="rpcclient" fillcolor=mediumseagreen]
+	rpcclient [label="rpcclient/v2" fillcolor=mediumseagreen]
 	fees [label="fees" fillcolor=darkolivegreen2]
 	dcrd [label="dcrd" fillcolor=chocolate]
 
