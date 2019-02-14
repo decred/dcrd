@@ -10,7 +10,7 @@ require (
 	github.com/decred/dcrd/dcrec v0.0.0-20190130161649-59ed4247a1d5
 	github.com/decred/dcrd/dcrec/edwards v0.0.0-20190130161649-59ed4247a1d5 // indirect
 	github.com/decred/dcrd/dcrec/secp256k1 v1.0.1
-	github.com/decred/dcrd/dcrjson v1.1.0
+	github.com/decred/dcrd/dcrjson/v2 v2.0.0
 	github.com/decred/dcrd/dcrutil v1.2.0
 	github.com/decred/dcrd/gcs v1.0.2 // indirect
 	github.com/decred/dcrd/mining v1.1.0
