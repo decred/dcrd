@@ -16,7 +16,8 @@ set -ex
 # 2. gosimple      (https://github.com/dominikh/go-simple)
 # 3. unconvert     (https://github.com/mdempsky/unconvert)
 # 4. ineffassign   (https://github.com/gordonklaus/ineffassign)
-# 5. race detector (http://blog.golang.org/race-detector)
+# 5. misspell      (https://github.com/client9/misspell)
+# 6. race detector (http://blog.golang.org/race-detector)
 
 # golangci-lint (github.com/golangci/golangci-lint) is used to run each each
 # static checker.
@@ -58,7 +59,8 @@ testrepo () {
       --enable=gofmt \
       --enable=gosimple \
       --enable=unconvert \
-      --enable=ineffassign ./${module}/...
+      --enable=ineffassign \
+      --enable=misspell ./${module}/...
   done
 
   echo "------------------------------------------"
