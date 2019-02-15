@@ -1,14 +1,8 @@
 module github.com/decred/dcrd
 
 require (
-	github.com/agl/ed25519 v0.0.0-20170116200512-5312a6153412
 	github.com/btcsuite/go-socks v0.0.0-20170105172521-4720035b7bfd
-	github.com/btcsuite/goleveldb v1.0.0
-	github.com/btcsuite/snappy-go v1.0.0
 	github.com/btcsuite/winsvc v1.0.0
-	github.com/davecgh/go-spew v1.1.1
-	github.com/dchest/blake256 v1.0.0
-	github.com/dchest/siphash v1.2.1
 	github.com/decred/base58 v1.0.0
 	github.com/decred/dcrd/addrmgr v1.0.2
 	github.com/decred/dcrd/blockchain v1.1.1
@@ -18,9 +12,8 @@ require (
 	github.com/decred/dcrd/chaincfg/chainhash v1.0.1
 	github.com/decred/dcrd/connmgr v1.0.2
 	github.com/decred/dcrd/database v1.0.3
-	github.com/decred/dcrd/dcrec v0.0.0-20190130161649-59ed4247a1d5
 	github.com/decred/dcrd/dcrec/secp256k1 v1.0.1
-	github.com/decred/dcrd/dcrjson v1.2.0
+	github.com/decred/dcrd/dcrjson v1.2.0 // indirect
 	github.com/decred/dcrd/dcrjson/v2 v2.0.0
 	github.com/decred/dcrd/dcrutil v1.2.0
 	github.com/decred/dcrd/fees v1.0.0
@@ -39,7 +32,6 @@ require (
 	github.com/jrick/bitset v1.0.0
 	github.com/jrick/logrotate v1.0.0
 	golang.org/x/crypto v0.0.0-20190131182504-b8fe1690c613
-	golang.org/x/sys v0.0.0-20190203050204-7ae0202eb74c
 )
 
 replace (
