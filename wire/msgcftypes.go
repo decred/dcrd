@@ -1,6 +1,6 @@
 // Copyright (c) 2017 The btcsuite developers
 // Copyright (c) 2017 The Lightning Network Developers
-// Copyright (c) 2018 The Decred developers
+// Copyright (c) 2018-2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -46,6 +46,7 @@ func (msg *MsgCFTypes) BtcDecode(r io.Reader, pver uint32) error {
 	if err != nil {
 		return err
 	}
+
 	if count > MaxFilterTypesPerMsg {
 		str := fmt.Sprintf("too many filter types for for message "+
 			"[count %v, max %v]", count, MaxFilterTypesPerMsg)
@@ -73,7 +74,13 @@ func (msg *MsgCFTypes) BtcEncode(w io.Writer, pver uint32) error {
 		return messageError("MsgCFTypes.BtcEncode", str)
 	}
 
-	// Write length of supported filters slice. We assume it's deduplicated.
+	if len(msg.SupportedFilters) > MaxFilterTypesPerMsg {
+		str := fmt.Sprintf("too many filter types for message "+
+			"[count %v, max %v]", len(msg.SupportedFilters), MaxFilterTypesPerMsg)
+		return messageError("MsgCFTypes.BtcEncode", str)
+	}
+
+	// Write length of supported filters slice.
 	err := WriteVarInt(w, pver, uint64(len(msg.SupportedFilters)))
 	if err != nil {
 		return err
@@ -111,7 +118,7 @@ func (msg *MsgCFTypes) Command() string {
 }
 
 // MaxPayloadLength returns the maximum length the payload can be for the
-// receiver.  This is part of the Message interface implementation.
+// receiver. This is part of the Message interface implementation.
 func (msg *MsgCFTypes) MaxPayloadLength(pver uint32) uint32 {
 	// 2 bytes for filter count, and 1 byte for up to 256 filter types.
 	return 258
