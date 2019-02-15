@@ -230,7 +230,7 @@ func findDeployment(params *chaincfg.Params, voteID string) (uint32, *chaincfg.C
 	return 0, nil, fmt.Errorf("unable to find deployement for id %q", voteID)
 }
 
-// findDeploymentChoice finds the provided choice ID withing the given
+// findDeploymentChoice finds the provided choice ID within the given
 // deployment params and either returns a pointer to the found choice or an
 // error when not found.
 func findDeploymentChoice(deployment *chaincfg.ConsensusDeployment, choiceID string) (*chaincfg.Choice, error) {

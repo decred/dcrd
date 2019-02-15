@@ -1334,7 +1334,7 @@ func buildMerkleTreeStore(transactions []*dcrutil.Tx) []*chainhash.Hash {
 			merkles[offset] = newHash
 
 		// The normal case sets the parent node to the hash of the
-		// concatentation of the left and right children.
+		// concatenation of the left and right children.
 		default:
 			newHash := hashMerkleBranches(merkles[i], merkles[i+1])
 			merkles[offset] = newHash
