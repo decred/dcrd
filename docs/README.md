@@ -192,7 +192,7 @@ The following versioned modules are provided by dcrd repository:
     Implements the edwards25519 twisted Edwards curve
 * [database](https://github.com/decred/dcrd/tree/master/database) -
   Provides a database interface for the Decred block chain
-* [mempool](https://github.com/decred/dcrd/tree/master/mempool) - Provides a
+* [mempool/v2](https://github.com/decred/dcrd/tree/master/mempool) - Provides a
   policy-enforced pool of unmined Decred transactions
 * [dcrutil](https://github.com/decred/dcrd/tree/master/dcrutil) - Provides
   Decred-specific convenience functions and types

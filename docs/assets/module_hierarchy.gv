@@ -19,7 +19,7 @@ digraph {
 	stake [label="blockchain/stake" fillcolor=bisque]
 	gcs [label="gcs" fillcolor=gold]
 	blockchain [label="blockchain" fillcolor=orchid]
-	mempool [label="mempool" fillcolor=slategray]
+	mempool [label="mempool/v2" fillcolor=slategray]
 	mining [label="mining" fillcolor=chartreuse]
 	peer [label="peer" fillcolor=khaki]
 	rpcclient [label="rpcclient/v2" fillcolor=mediumseagreen]
