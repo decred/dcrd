@@ -253,7 +253,7 @@ func NewAddressPubKeyHash(pkHash []byte, net *chaincfg.Params, algo dcrec.Signat
 // newAddressPubKeyHash is the internal API to create a pubkey hash address
 // with a known leading identifier byte for a network, rather than looking
 // it up through its parameters.  This is useful when creating a new address
-// structure from a string encoding where the identifer byte is already
+// structure from a string encoding where the identifier byte is already
 // known.
 func newAddressPubKeyHash(pkHash []byte, netID [2]byte) (*AddressPubKeyHash, error) {
 	// Check for a valid pubkey hash length.
@@ -355,7 +355,7 @@ func NewAddressScriptHashFromHash(scriptHash []byte,
 // newAddressScriptHashFromHash is the internal API to create a script hash
 // address with a known leading identifier byte for a network, rather than
 // looking it up through its parameters.  This is useful when creating a new
-// address structure from a string encoding where the identifer byte is already
+// address structure from a string encoding where the identifier byte is already
 // known.
 func newAddressScriptHashFromHash(scriptHash []byte,
 	netID [2]byte) (*AddressScriptHash, error) {
