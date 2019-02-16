@@ -506,25 +506,6 @@ func (b *blockManager) isSyncCandidate(sp *serverPeer) bool {
 	return sp.Services()&wire.SFNodeNetwork == wire.SFNodeNetwork
 }
 
-// syncMiningStateAfterSync polls the blockMananger for the current sync
-// state; if the mananger is synced, it executes a call to the peer to
-// sync the mining state to the network.
-func (b *blockManager) syncMiningStateAfterSync(sp *serverPeer) {
-	go func() {
-		for {
-			time.Sleep(3 * time.Second)
-			if !sp.Connected() {
-				return
-			}
-			if b.IsCurrent() {
-				msg := wire.NewMsgGetMiningState()
-				sp.QueueMessage(msg, nil)
-				return
-			}
-		}
-	}()
-}
-
 // handleNewPeerMsg deals with new peers that have signalled they may
 // be considered as a sync peer (they have already successfully negotiated).  It
 // also starts syncing if needed.  It is invoked from the syncHandler goroutine.
@@ -546,11 +527,6 @@ func (b *blockManager) handleNewPeerMsg(peers *list.List, sp *serverPeer) {
 
 	// Start syncing by choosing the best candidate if needed.
 	b.startSync(peers)
-
-	// Grab the mining state from this peer after we're synced.
-	if !cfg.NoMiningStateSync {
-		b.syncMiningStateAfterSync(sp)
-	}
 }
 
 // handleDonePeerMsg deals with peers that have signalled they are done.  It

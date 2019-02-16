@@ -363,6 +363,17 @@ func hasServices(advertised, desired wire.ServiceFlag) bool {
 	return advertised&desired == desired
 }
 
+// OnVerAck is invoked when a peer receives a verack wire message.
+func (sp *serverPeer) OnVerAck(p *peer.Peer, _ *wire.MsgVerAck) {
+	reqState := !cfg.NoMiningStateSync &&
+		hasServices(p.Services(), wire.SFNodeNetwork) &&
+		sp.server.blockManager.IsCurrent()
+
+	if reqState {
+		p.QueueMessage(wire.NewMsgGetMiningState(), nil)
+	}
+}
+
 // OnVersion is invoked when a peer receives a version wire message and is used
 // to negotiate the protocol version details as well as kick start the
 // communications.
@@ -1636,6 +1647,7 @@ func newPeerConfig(sp *serverPeer) *peer.Config {
 
 	return &peer.Config{
 		Listeners: peer.MessageListeners{
+			OnVerAck:         sp.OnVerAck,
 			OnVersion:        sp.OnVersion,
 			OnMemPool:        sp.OnMemPool,
 			OnGetMiningState: sp.OnGetMiningState,
