@@ -1290,24 +1290,27 @@ func (b *blockManager) handleInvMsg(imsg *invMsg) {
 		}
 	}
 
+	fromSyncPeer := imsg.peer == b.syncPeer
+	isCurrent := b.current()
+
 	// If this inv contains a block announcement, and this isn't coming from
 	// our current sync peer or we're current, then update the last
 	// announced block for this peer. We'll use this information later to
 	// update the heights of peers based on blocks we've accepted that they
 	// previously announced.
-	if lastBlock != -1 && (imsg.peer != b.syncPeer || b.current()) {
+	if lastBlock != -1 && (!fromSyncPeer || isCurrent) {
 		imsg.peer.UpdateLastAnnouncedBlock(&invVects[lastBlock].Hash)
 	}
 
 	// Ignore invs from peers that aren't the sync if we are not current.
 	// Helps prevent fetching a mass of orphans.
-	if imsg.peer != b.syncPeer && !b.current() {
+	if !fromSyncPeer && !isCurrent {
 		return
 	}
 
 	// If our chain is current and a peer announces a block we already
 	// know of, then update their current block height.
-	if lastBlock != -1 && b.current() {
+	if lastBlock != -1 && isCurrent {
 		blkHeight, err := b.chain.BlockHeightByHash(&invVects[lastBlock].Hash)
 		if err == nil {
 
