@@ -1301,6 +1301,7 @@ func (b *blockManager) handleInvMsg(imsg *invMsg) {
 	// request parent blocks of orphans if we receive one we already have.
 	// Finally, attempt to detect potential stalls due to long side chains
 	// we already have and request more blocks to prevent them.
+	var requestQueue []*wire.InvVect
 	for i, iv := range invVects {
 		// Ignore unsupported inventory types.
 		if iv.Type != wire.InvTypeBlock && iv.Type != wire.InvTypeTx {
@@ -1334,7 +1335,7 @@ func (b *blockManager) handleInvMsg(imsg *invMsg) {
 			}
 
 			// Add it to the request queue.
-			imsg.peer.requestQueue = append(imsg.peer.requestQueue, iv)
+			requestQueue = append(requestQueue, iv)
 			continue
 		}
 
@@ -1387,16 +1388,10 @@ func (b *blockManager) handleInvMsg(imsg *invMsg) {
 		}
 	}
 
-	// Request as much as possible at once.  Anything that won't fit into
-	// the request will be requested on the next inv message.
+	// Request as much as possible at once.
 	numRequested := 0
 	gdmsg := wire.NewMsgGetData()
-	requestQueue := imsg.peer.requestQueue
-	for len(requestQueue) != 0 {
-		iv := requestQueue[0]
-		requestQueue[0] = nil
-		requestQueue = requestQueue[1:]
-
+	for _, iv := range requestQueue {
 		switch iv.Type {
 		case wire.InvTypeBlock:
 			// Request the block if there is not already a pending
@@ -1421,11 +1416,18 @@ func (b *blockManager) handleInvMsg(imsg *invMsg) {
 			}
 		}
 
-		if numRequested >= wire.MaxInvPerMsg {
-			break
+		if numRequested == wire.MaxInvPerMsg {
+			// Send full getdata message and reset.
+			//
+			// NOTE: There should never be more than wire.MaxInvPerMsg
+			// in the inv request, so we could return after the
+			// QueueMessage, but this is more safe.
+			imsg.peer.QueueMessage(gdmsg, nil)
+			gdmsg = wire.NewMsgGetData()
+			numRequested = 0
 		}
 	}
-	imsg.peer.requestQueue = requestQueue
+
 	if len(gdmsg.InvList) > 0 {
 		imsg.peer.QueueMessage(gdmsg, nil)
 	}

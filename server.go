@@ -233,7 +233,6 @@ type serverPeer struct {
 	relayMtx        sync.Mutex
 	disableRelayTx  bool
 	isWhitelisted   bool
-	requestQueue    []*wire.InvVect
 	requestedTxns   map[chainhash.Hash]struct{}
 	requestedBlocks map[chainhash.Hash]struct{}
 	knownAddresses  lru.Cache
