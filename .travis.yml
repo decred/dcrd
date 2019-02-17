@@ -8,6 +8,7 @@ services:
 
 env:
   - GOVERSION=1.11
+  - GOVERSION=1.12
 
 install: true
 

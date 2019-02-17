@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 
 # usage:
-# ./run_tests.sh                         # local, go 1.11
-# GOVERSION=1.10 ./run_tests.sh          # local, go 1.10 (vgo)
-# ./run_tests.sh docker                  # docker, go 1.11
-# GOVERSION=1.10 ./run_tests.sh docker   # docker, go 1.10 (vgo)
-# ./run_tests.sh podman                  # podman, go 1.11
-# GOVERSION=1.10 ./run_tests.sh podman   # podman, go 1.10 (vgo)
+# ./run_tests.sh                         # local, go 1.12
+# GOVERSION=1.11 ./run_tests.sh          # local, go 1.11
+# ./run_tests.sh docker                  # docker, go 1.12
+# GOVERSION=1.11 ./run_tests.sh docker   # docker, go 1.11
+# ./run_tests.sh podman                  # podman, go 1.12
+# GOVERSION=1.11 ./run_tests.sh podman   # podman, go 1.11
 
 set -ex
 
@@ -28,14 +28,11 @@ set -ex
 # for more details.
 
 # Default GOVERSION
-[[ ! "$GOVERSION" ]] && GOVERSION=1.11
+[[ ! "$GOVERSION" ]] && GOVERSION=1.12
 REPO=dcrd
 
 testrepo () {
   GO=go
-  if [[ $GOVERSION == 1.10 ]]; then
-    GO=vgo
-  fi
 
   $GO version
 
