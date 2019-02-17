@@ -305,7 +305,6 @@ type blockManager struct {
 	chain               *blockchain.BlockChain
 	rejectedTxns        map[chainhash.Hash]struct{}
 	requestedTxns       map[chainhash.Hash]struct{}
-	requestedEverTxns   map[chainhash.Hash]uint8
 	requestedBlocks     map[chainhash.Hash]struct{}
 	requestedEverBlocks map[chainhash.Hash]uint8
 	progressLogger      *blockProgressLogger
@@ -1433,7 +1432,6 @@ func (b *blockManager) handleInvMsg(imsg *invMsg) {
 			// pending request.
 			if _, exists := b.requestedTxns[iv.Hash]; !exists {
 				b.requestedTxns[iv.Hash] = struct{}{}
-				b.requestedEverTxns[iv.Hash] = 0
 				b.limitMap(b.requestedTxns, maxRequestedTxns)
 				imsg.peer.requestedTxns[iv.Hash] = struct{}{}
 				gdmsg.AddInvVect(iv)
@@ -2208,7 +2206,6 @@ func (b *blockManager) requestFromPeer(p *serverPeer, blocks, txs []*chainhash.H
 
 		p.requestedTxns[*vh] = struct{}{}
 		b.requestedTxns[*vh] = struct{}{}
-		b.requestedEverTxns[*vh] = 0
 	}
 
 	if len(msgResp.InvList) > 0 {
@@ -2354,7 +2351,6 @@ func newBlockManager(s *server, indexManager blockchain.IndexManager, interrupt 
 		server:              s,
 		rejectedTxns:        make(map[chainhash.Hash]struct{}),
 		requestedTxns:       make(map[chainhash.Hash]struct{}),
-		requestedEverTxns:   make(map[chainhash.Hash]uint8),
 		requestedBlocks:     make(map[chainhash.Hash]struct{}),
 		requestedEverBlocks: make(map[chainhash.Hash]uint8),
 		progressLogger:      newBlockProgressLogger("Processed", bmgrLog),
