@@ -37,10 +37,6 @@ const (
 	// database name.
 	blockDbNamePrefix = "blocks"
 
-	// maxResendLimit is the maximum number of times a node can resend a
-	// block or transaction before it is dropped.
-	maxResendLimit = 3
-
 	// maxRejectedTxns is the maximum number of rejected transactions
 	// hashes to store in memory.
 	maxRejectedTxns = 1000
@@ -299,19 +295,18 @@ type headerNode struct {
 // blockManager provides a concurrency safe block manager for handling all
 // incoming blocks.
 type blockManager struct {
-	server              *server
-	started             int32
-	shutdown            int32
-	chain               *blockchain.BlockChain
-	rejectedTxns        map[chainhash.Hash]struct{}
-	requestedTxns       map[chainhash.Hash]struct{}
-	requestedBlocks     map[chainhash.Hash]struct{}
-	requestedEverBlocks map[chainhash.Hash]uint8
-	progressLogger      *blockProgressLogger
-	syncPeer            *serverPeer
-	msgChan             chan interface{}
-	wg                  sync.WaitGroup
-	quit                chan struct{}
+	server          *server
+	started         int32
+	shutdown        int32
+	chain           *blockchain.BlockChain
+	rejectedTxns    map[chainhash.Hash]struct{}
+	requestedTxns   map[chainhash.Hash]struct{}
+	requestedBlocks map[chainhash.Hash]struct{}
+	progressLogger  *blockProgressLogger
+	syncPeer        *serverPeer
+	msgChan         chan interface{}
+	wg              sync.WaitGroup
+	quit            chan struct{}
 
 	// The following fields are used for headers-first mode.
 	headersFirstMode bool
@@ -859,26 +854,10 @@ func (b *blockManager) handleBlockMsg(bmsg *blockMsg) {
 	// If we didn't ask for this block then the peer is misbehaving.
 	blockHash := bmsg.block.Hash()
 	if _, exists := bmsg.peer.requestedBlocks[*blockHash]; !exists {
-		// Check to see if we ever requested this block, since it may
-		// have been accidentally sent in duplicate. If it was,
-		// increment the counter in the ever requested map and make
-		// sure that the node isn't spamming us with these blocks.
-		received, exists := b.requestedEverBlocks[*blockHash]
-		if exists {
-			if received > maxResendLimit {
-				bmgrLog.Warnf("Got duplicate block %v from %s -- "+
-					"too many times, disconnecting",
-					blockHash, bmsg.peer.Addr())
-				bmsg.peer.Disconnect()
-				return
-			}
-			b.requestedEverBlocks[*blockHash]++
-		} else {
-			bmgrLog.Warnf("Got unrequested block %v from %s -- "+
-				"disconnecting", blockHash, bmsg.peer.Addr())
-			bmsg.peer.Disconnect()
-			return
-		}
+		bmgrLog.Warnf("Got unrequested block %v from %s -- "+
+			"disconnecting", blockHash, bmsg.peer.Addr())
+		bmsg.peer.Disconnect()
+		return
 	}
 
 	// When in headers-first mode, if the block matches the hash of the
@@ -1123,7 +1102,6 @@ func (b *blockManager) fetchHeaderBlocks() {
 		}
 		if !haveInv {
 			b.requestedBlocks[*node.hash] = struct{}{}
-			b.requestedEverBlocks[*node.hash] = 0
 			b.syncPeer.requestedBlocks[*node.hash] = struct{}{}
 			err = gdmsg.AddInvVect(iv)
 			if err != nil {
@@ -1420,7 +1398,6 @@ func (b *blockManager) handleInvMsg(imsg *invMsg) {
 			// request.
 			if _, exists := b.requestedBlocks[iv.Hash]; !exists {
 				b.requestedBlocks[iv.Hash] = struct{}{}
-				b.requestedEverBlocks[iv.Hash] = 0
 				b.limitMap(b.requestedBlocks, maxRequestedBlocks)
 				imsg.peer.requestedBlocks[iv.Hash] = struct{}{}
 				gdmsg.AddInvVect(iv)
@@ -2168,7 +2145,6 @@ func (b *blockManager) requestFromPeer(p *serverPeer, blocks, txs []*chainhash.H
 
 		p.requestedBlocks[*bh] = struct{}{}
 		b.requestedBlocks[*bh] = struct{}{}
-		b.requestedEverBlocks[*bh] = 0
 	}
 
 	// Add the vote transactions to the request.
@@ -2348,16 +2324,15 @@ func (b *blockManager) SetParentTemplate(bt *BlockTemplate) {
 // Use Start to begin processing asynchronous block and inv updates.
 func newBlockManager(s *server, indexManager blockchain.IndexManager, interrupt <-chan struct{}) (*blockManager, error) {
 	bm := blockManager{
-		server:              s,
-		rejectedTxns:        make(map[chainhash.Hash]struct{}),
-		requestedTxns:       make(map[chainhash.Hash]struct{}),
-		requestedBlocks:     make(map[chainhash.Hash]struct{}),
-		requestedEverBlocks: make(map[chainhash.Hash]uint8),
-		progressLogger:      newBlockProgressLogger("Processed", bmgrLog),
-		msgChan:             make(chan interface{}, cfg.MaxPeers*3),
-		headerList:          list.New(),
-		AggressiveMining:    !cfg.NonAggressive,
-		quit:                make(chan struct{}),
+		server:           s,
+		rejectedTxns:     make(map[chainhash.Hash]struct{}),
+		requestedTxns:    make(map[chainhash.Hash]struct{}),
+		requestedBlocks:  make(map[chainhash.Hash]struct{}),
+		progressLogger:   newBlockProgressLogger("Processed", bmgrLog),
+		msgChan:          make(chan interface{}, cfg.MaxPeers*3),
+		headerList:       list.New(),
+		AggressiveMining: !cfg.NonAggressive,
+		quit:             make(chan struct{}),
 	}
 
 	// Create a new block chain instance with the appropriate configuration.
