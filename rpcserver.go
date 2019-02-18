@@ -5810,7 +5810,6 @@ type rpcServer struct {
 	templatePool           map[[merkleRootPairSize]byte]*workStateBlockInfo
 	helpCacher             *helpCacher
 	requestProcessShutdown chan struct{}
-	quit                   chan int
 }
 
 // httpStatusLine returns a response Status-Line (RFC 2616 Section 6.1) for the
@@ -5885,7 +5884,6 @@ func (s *rpcServer) Stop() error {
 	}
 	s.ntfnMgr.Shutdown()
 	s.ntfnMgr.WaitForShutdown()
-	close(s.quit)
 	s.wg.Wait()
 	rpcsLog.Infof("RPC server shutdown complete")
 	return nil
@@ -6449,7 +6447,6 @@ func newRPCServer(listenAddrs []string, generator *BlkTmplGenerator, s *server) 
 		gbtWorkState:           newGbtWorkState(s.timeSource),
 		helpCacher:             newHelpCacher(),
 		requestProcessShutdown: make(chan struct{}),
-		quit:                   make(chan int),
 	}
 	if cfg.RPCUser != "" && cfg.RPCPass != "" {
 		login := cfg.RPCUser + ":" + cfg.RPCPass
