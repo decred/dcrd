@@ -1,4 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
+// Copyright (c) 2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -177,6 +178,13 @@ func TestNewHashFromStr(t *testing.T) {
 			"abcdefg",
 			Hash{},
 			hex.InvalidByteError('g'),
+		},
+
+		// Another Hash string that is contains non-hex chars.
+		{
+			"banana",
+			Hash{},
+			hex.InvalidByteError('n'),
 		},
 	}
 
