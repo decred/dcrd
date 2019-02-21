@@ -1549,6 +1549,15 @@ func (s *server) handleQuery(state *peerState, querymsg interface{}) {
 			// Keep group counts ok since we remove from
 			// the list now.
 			state.outboundGroups[addrmgr.GroupKey(sp.NA())]--
+
+			peerLog.Debugf("Removing persistent peer %s:%d (reqid %d)",
+				sp.NA().IP, sp.NA().Port, sp.connReq.ID())
+			connReq := sp.connReq
+
+			// Mark the peer's connReq as nil to prevent it from scheduling a
+			// re-connect attempt.
+			sp.connReq = nil
+			s.connManager.Remove(connReq.ID())
 		})
 
 		if found {
