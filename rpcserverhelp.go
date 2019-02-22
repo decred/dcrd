@@ -689,7 +689,7 @@ var helpDescsEnUS = map[string]string{
 	"getworkresult-target":   "Hex-encoded little-endian hash target",
 
 	// GetWorkCmd help.
-	"getwork--synopsis":   "(DEPRECATED - Use getblocktemplate instead) Returns formatted hash data to work on or checks and submits solved data.",
+	"getwork--synopsis":   "Returns formatted hash data to work on or checks and submits solved data.",
 	"getwork-data":        "Hex-encoded data to check",
 	"getwork--condition0": "no data provided",
 	"getwork--condition1": "data provided",
