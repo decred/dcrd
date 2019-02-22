@@ -3377,10 +3377,15 @@ func handleGetPeerInfo(s *rpcServer, cmd interface{}, closeChan <-chan struct{})
 	infos := make([]*dcrjson.GetPeerInfoResult, 0, len(peers))
 	for _, p := range peers {
 		statsSnap := p.StatsSnapshot()
+		localAddr := p.LocalAddr()
+		if localAddr == nil {
+			// Currently not connected
+			continue
+		}
 		info := &dcrjson.GetPeerInfoResult{
 			ID:             statsSnap.ID,
 			Addr:           statsSnap.Addr,
-			AddrLocal:      p.LocalAddr().String(),
+			AddrLocal:      localAddr.String(),
 			Services:       fmt.Sprintf("%08d", uint64(statsSnap.Services)),
 			RelayTxes:      !p.disableRelayTx,
 			LastSend:       statsSnap.LastSend.Unix(),
