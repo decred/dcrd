@@ -62,6 +62,7 @@ Application Options:
       --notls               Disable TLS for the RPC server -- NOTE: This is only
                             allowed if the RPC server is bound to localhost
       --nodnsseed           Disable DNS seeding for peers
+      --dnssec              Enable DNSSEC validating resolver
       --externalip=         Add an ip to the list of local addresses we claim to
                             listen on to peers
       --proxy=              Connect via SOCKS5 proxy (eg. 127.0.0.1:9050)

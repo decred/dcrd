@@ -19,9 +19,9 @@ var TestNet3Params = Params{
 	Net:         wire.TestNet3,
 	DefaultPort: "19108",
 	DNSSeeds: []DNSSeed{
-		{"testnet-seed.decred.mindcry.org", true},
-		{"testnet-seed.decred.netpurgatory.com", true},
-		{"testnet-seed.decred.org", true},
+		//{"testnet-seed.decred.mindcry.org", true},
+		//{"testnet-seed.decred.netpurgatory.com", true},
+		{"testnet-seed.stakey.org.", true},
 	},
 
 	// Chain parameters

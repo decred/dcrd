@@ -30,7 +30,8 @@ require (
 	github.com/jessevdk/go-flags v1.4.0
 	github.com/jrick/bitset v1.0.0
 	github.com/jrick/logrotate v1.0.0
-	golang.org/x/crypto v0.0.0-20190131182504-b8fe1690c613
+	github.com/peterzen/goresolver v0.0.0-20190226014630-3d41033d1367
+	golang.org/x/crypto v0.0.0-20190222235706-ffb98f73852f
 )
 
 replace (

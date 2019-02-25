@@ -31,6 +31,7 @@ import (
 	"github.com/decred/dcrd/sampleconfig"
 	"github.com/decred/slog"
 	flags "github.com/jessevdk/go-flags"
+	"github.com/peterzen/goresolver"
 )
 
 const (
@@ -120,6 +121,7 @@ type config struct {
 	DisableRPC           bool          `long:"norpc" description:"Disable built-in RPC server -- NOTE: The RPC server is disabled by default if no rpcuser/rpcpass or rpclimituser/rpclimitpass is specified"`
 	DisableTLS           bool          `long:"notls" description:"Disable TLS for the RPC server -- NOTE: This is only allowed if the RPC server is bound to localhost"`
 	DisableDNSSeed       bool          `long:"nodnsseed" description:"Disable DNS seeding for peers"`
+	DNSSECResolver       bool          `long:"dnssec" description:"Enable DNSSEC validating resolver"`
 	ExternalIPs          []string      `long:"externalip" description:"Add an ip to the list of local addresses we claim to listen on to peers"`
 	Proxy                string        `long:"proxy" description:"Connect via SOCKS5 proxy (eg. 127.0.0.1:9050)"`
 	ProxyUser            string        `long:"proxyuser" description:"Username for proxy server"`
@@ -1029,7 +1031,17 @@ func loadConfig() (*config, []string, error) {
 	// function and the lookup is set to use tor (unless --noonion is
 	// specified in which case the system DNS resolver is used).
 	cfg.dial = net.Dial
-	cfg.lookup = net.LookupIP
+
+	if cfg.DNSSECResolver == true {
+		cfg.lookup = goresolver.LookupIP
+		err := goresolver.Initialize("/etc/resolv.conf")
+		if err != nil {
+			cfg.lookup = net.LookupIP
+		}
+	} else {
+		cfg.lookup = net.LookupIP
+	}
+
 	if cfg.Proxy != "" {
 		_, _, err := net.SplitHostPort(cfg.Proxy)
 		if err != nil {
