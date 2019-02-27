@@ -21,7 +21,7 @@ var TestNet3Params = Params{
 	DNSSeeds: []DNSSeed{
 		//{"testnet-seed.decred.mindcry.org", true},
 		//{"testnet-seed.decred.netpurgatory.com", true},
-		{"testnet-seed.stakey.org.", true},
+		{"testnet-seed.decred.org.", true},
 	},
 
 	// Chain parameters
