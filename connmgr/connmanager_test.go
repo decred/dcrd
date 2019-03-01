@@ -68,6 +68,16 @@ func mockDialer(network, addr string) (net.Conn, error) {
 	return c, nil
 }
 
+// mockDialer mocks the net.Dial interface by returning a mock connection to
+// the given address.
+func mockDialerAddr(addr net.Addr) (net.Conn, error) {
+	r, w := io.Pipe()
+	c := &mockConn{rAddr: addr}
+	c.Reader = r
+	c.Writer = w
+	return c, nil
+}
+
 // TestNewConfig tests that new ConnManager config is validated as expected.
 func TestNewConfig(t *testing.T) {
 	_, err := New(&Config{})
@@ -76,6 +86,21 @@ func TestNewConfig(t *testing.T) {
 	}
 	_, err = New(&Config{
 		Dial: mockDialer,
+	})
+	if err != nil {
+		t.Fatalf("New unexpected error: %v", err)
+	}
+
+	_, err = New(&Config{
+		Dial:     mockDialer,
+		DialAddr: mockDialerAddr,
+	})
+	if err == nil {
+		t.Fatalf("New expected error: 'Dial and DialAddr can't be both nil', got nil")
+	}
+
+	_, err = New(&Config{
+		DialAddr: mockDialerAddr,
 	})
 	if err != nil {
 		t.Fatalf("New unexpected error: %v", err)
@@ -211,6 +236,52 @@ func TestTargetOutbound(t *testing.T) {
 		t.Fatalf("target outbound: got unexpected connection - %v", c.Addr)
 	case <-time.After(time.Millisecond):
 		break
+	}
+	cmgr.Stop()
+}
+
+// TestPassAddrAlongDialAddr tests if when using the DialAddr config option,
+// any address object returned by GetNewAddress will be correctly passed along
+// to DialAddr to be used for connecting to a host.
+func TestPassAddrAlongDialAddr(t *testing.T) {
+	connected := make(chan *ConnReq)
+
+	// targetAddr will be the specific address we'll use to connect. It _could_
+	// be carrying more info than a standard (tcp/udp) network address, so it
+	// needs to be relayed to dialAddr.
+	targetAddr := mockAddr{
+		net:     "invalid",
+		address: "unreachable",
+	}
+
+	cmgr, err := New(&Config{
+		TargetOutbound: 1,
+		DialAddr:       mockDialerAddr,
+		GetNewAddress: func() (net.Addr, error) {
+			return targetAddr, nil
+		},
+		OnConnection: func(c *ConnReq, conn net.Conn) {
+			connected <- c
+		},
+	})
+	if err != nil {
+		t.Fatalf("New error: %v", err)
+	}
+	cmgr.Start()
+
+	select {
+	case c := <-connected:
+		var receivedMock mockAddr
+		var isMockAddr bool
+		receivedMock, isMockAddr = c.Addr.(mockAddr)
+		if !isMockAddr {
+			t.Fatalf("connected to an address that was not a mockAddr")
+		}
+		if receivedMock != targetAddr {
+			t.Fatalf("connected to an address different than the expected target")
+		}
+	case <-time.After(time.Millisecond * 5):
+		t.Fatalf("did not get connection to target address before timeout")
 	}
 	cmgr.Stop()
 }

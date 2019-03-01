@@ -23,6 +23,10 @@ var (
 	// ErrDialNil is used to indicate that Dial cannot be nil in the configuration.
 	ErrDialNil = errors.New("config: dial cannot be nil")
 
+	// ErrBothDialsFilled is used to indicate that Dial and DialAddr cannot both
+	// be specified in the configuration.
+	ErrBothDialsFilled = errors.New("config: cannot specify both Dial and DialAddr")
+
 	// maxRetryDuration is the max duration of time retrying of a persistent
 	// connection is allowed to grow to.  This is necessary since the retry
 	// logic uses a backoff mechanism which increases the interval base times
@@ -133,8 +137,14 @@ type Config struct {
 	// to.  If nil, no new connections will be made automatically.
 	GetNewAddress func() (net.Addr, error)
 
-	// Dial connects to the address on the named network. It cannot be nil.
+	// Dial connects to the address on the named network. Either Dial or
+	// DialAddr need to be specified (but not both).
 	Dial func(network, addr string) (net.Conn, error)
+
+	// DialAddr is an alternative to Dial which receives a full net.Addr instead
+	// of just the protocol family and address. Either DialAddr or Dial need
+	// to be specified (but not both).
+	DialAddr func(net.Addr) (net.Conn, error)
 }
 
 // handleConnected is used to queue a successful connection.
@@ -300,7 +310,14 @@ func (cm *ConnManager) Connect(c *ConnReq) {
 		atomic.StoreUint64(&c.id, atomic.AddUint64(&cm.connReqCount, 1))
 	}
 	log.Debugf("Attempting to connect to %v", c)
-	conn, err := cm.cfg.Dial(c.Addr.Network(), c.Addr.String())
+
+	var conn net.Conn
+	var err error
+	if cm.cfg.Dial != nil {
+		conn, err = cm.cfg.Dial(c.Addr.Network(), c.Addr.String())
+	} else {
+		conn, err = cm.cfg.DialAddr(c.Addr)
+	}
 	if err != nil {
 		cm.requests <- handleFailed{c, err}
 	} else {
@@ -399,8 +416,11 @@ func (cm *ConnManager) Stop() {
 // New returns a new connection manager.
 // Use Start to start connecting to the network.
 func New(cfg *Config) (*ConnManager, error) {
-	if cfg.Dial == nil {
+	if cfg.Dial == nil && cfg.DialAddr == nil {
 		return nil, ErrDialNil
+	}
+	if cfg.Dial != nil && cfg.DialAddr != nil {
+		return nil, ErrBothDialsFilled
 	}
 	// Default to sane values
 	if cfg.RetryDuration <= 0 {
