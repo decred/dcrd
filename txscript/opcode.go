@@ -3043,7 +3043,7 @@ func opcodeCheckSigAlt(op *parsedOpcode, vm *Engine) error {
 func opcodeCheckSigAltVerify(op *parsedOpcode, vm *Engine) error {
 	err := opcodeCheckSigAlt(op, vm)
 	if err == nil {
-		err = opcodeVerify(op, vm)
+		err = abstractVerify(op, vm, ErrCheckSigAltVerify)
 	}
 	return err
 }
