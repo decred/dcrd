@@ -921,7 +921,7 @@ func (m *wsNotificationManager) UnregisterStakeDifficulty(wsc *wsClient) {
 // maturing ticket updates.
 func (*wsNotificationManager) notifyNewTickets(clients map[chan struct{}]*wsClient, tnd *blockchain.TicketNotificationsData) {
 	// Create a ticket map to export as JSON.
-	var tickets []string
+	tickets := make([]string, 0, len(tnd.TicketsNew))
 	for _, h := range tnd.TicketsNew {
 		tickets = append(tickets, h.String())
 	}
