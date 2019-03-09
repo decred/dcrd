@@ -1,5 +1,5 @@
 // Copyright (c) 2015-2017 The btcsuite developers
-// Copyright (c) 2015-2018 The Decred developers
+// Copyright (c) 2015-2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -16,6 +16,18 @@ const (
 	// mathOpCodeMaxScriptNumLen is the maximum number of bytes data being
 	// interpreted as an integer may be for the majority of op codes.
 	mathOpCodeMaxScriptNumLen = 4
+
+	// cltvMaxScriptNumLen is the maximum number of bytes data being interpreted
+	// as an integer may be for by-time and by-height locks as interpreted by
+	// CHECKLOCKTIMEVERIFY.
+	//
+	// The value comes from the fact that the current transaction locktime
+	// is a uint32 resulting in a maximum locktime of 2^32-1 (the year
+	// 2106).  However, scriptNums are signed and therefore a standard
+	// 4-byte scriptNum would only support up to a maximum of 2^31-1 (the
+	// year 2038).  Thus, a 5-byte scriptNum is needed since it will support
+	// up to 2^39-1 which allows dates beyond the current locktime limit.
+	cltvMaxScriptNumLen = 5
 
 	// altSigSuitesMaxscriptNumLen is the maximum number of bytes for the
 	// type of alternative signature suite
