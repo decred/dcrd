@@ -76,9 +76,10 @@ func (t ScriptClass) String() string {
 // isPubkey returns true if the script passed is a pay-to-pubkey transaction,
 // false otherwise.
 func isPubkey(pops []parsedOpcode) bool {
-	// Valid pubkeys are either 33 or 65 bytes.
+	// Valid pubkeys are either 33 or 65 bytes and must start with the correct
+	// prefix for the given length.
 	return len(pops) == 2 &&
-		(len(pops[0].data) == 33 || len(pops[0].data) == 65) &&
+		isStrictPubKeyEncoding(pops[0].data) &&
 		pops[1].opcode.value == OP_CHECKSIG
 }
 
@@ -163,8 +164,9 @@ func isMultiSig(pops []parsedOpcode) bool {
 	}
 
 	for _, pop := range pops[1 : l-2] {
-		// Valid pubkeys are either 33 or 65 bytes.
-		if len(pop.data) != 33 && len(pop.data) != 65 {
+		// Valid pubkeys are either 33 or 65 bytes and must start with
+		// the correct prefix for the given length.
+		if !isStrictPubKeyEncoding(pop.data) {
 			return false
 		}
 	}

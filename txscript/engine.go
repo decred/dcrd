@@ -400,18 +400,27 @@ func (vm *Engine) checkHashTypeEncoding(hashType SigHashType) error {
 	return nil
 }
 
-// checkPubKeyEncoding returns whether or not the passed public key adheres to
-// the strict encoding requirements.
-func (vm *Engine) checkPubKeyEncoding(pubKey []byte) error {
+// isStrictPubKeyEncoding returns whether or not the passed public key adheres
+// to the strict encoding requirements.
+func isStrictPubKeyEncoding(pubKey []byte) bool {
 	if len(pubKey) == 33 && (pubKey[0] == 0x02 || pubKey[0] == 0x03) {
 		// Compressed
-		return nil
+		return true
 	}
 	if len(pubKey) == 65 && pubKey[0] == 0x04 {
 		// Uncompressed
-		return nil
+		return true
 	}
-	return scriptError(ErrPubKeyType, "unsupported public key type")
+	return false
+}
+
+// checkPubKeyEncoding returns an error if the passed public key does not
+// adhere to the strict encoding requirements.
+func (vm *Engine) checkPubKeyEncoding(pubKey []byte) error {
+	if !isStrictPubKeyEncoding(pubKey) {
+		return scriptError(ErrPubKeyType, "unsupported public key type")
+	}
+	return nil
 }
 
 // checkSignatureEncoding returns whether or not the passed signature adheres to
