@@ -85,7 +85,7 @@ For a list of available options, run: `$ dcrctl --help`
 <a name="Mining" />
 
 **2.4 Mining**<br />
-dcrd supports the [getwork](https://github.com/decred/dcrd/tree/master/docs/json_rpc_api.md#getwork)
+dcrd supports the [getwork](https://github.com/decred/dcrd/tree/master/docs/json_rpc_api.mediawiki#getwork)
 RPC.  The limited user cannot access this RPC.<br />
 
 **1. Add the payment addresses with the `miningaddr` option.**<br />
@@ -160,8 +160,8 @@ https://decred.org/community
 
 **5.2 JSON-RPC Reference**
 
-* [JSON-RPC Reference](https://github.com/decred/dcrd/tree/master/docs/json_rpc_api.md)
-    * [RPC Examples](https://github.com/decred/dcrd/tree/master/docs/json_rpc_api.md#ExampleCode)
+* [JSON-RPC Reference](https://github.com/decred/dcrd/tree/master/docs/json_rpc_api.mediawiki)
+* [RPC Examples](https://github.com/decred/dcrd/tree/master/docs/json_rpc_api.mediawiki#8-example-code)
 
 <a name="GoModules" />
 
