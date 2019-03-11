@@ -38,7 +38,7 @@ var (
 // GenerateKey generates a key using a random number generator, returning
 // the private scalar and the corresponding public key points from a
 // random secret.
-func GenerateKey(curve *TwistedEdwardsCurve, rand io.Reader) (priv []byte, x, y *big.Int, err error) {
+func GenerateKey(rand io.Reader) (priv []byte, x, y *big.Int, err error) {
 	var pub *[PubKeyBytesLen]byte
 	var privArray *[PrivKeyBytesLen]byte
 	pub, privArray, err = ed25519.GenerateKey(rand)
@@ -46,6 +46,9 @@ func GenerateKey(curve *TwistedEdwardsCurve, rand io.Reader) (priv []byte, x, y 
 		return nil, nil, nil, err
 	}
 	priv = privArray[:]
+
+	curve := new(TwistedEdwardsCurve)
+	curve.InitParam25519()
 
 	x, y, err = curve.EncodedBytesToBigIntPoint(pub)
 	if err != nil {
