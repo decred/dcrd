@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"crypto/rand"
 	"fmt"
+	"io"
 	"math/big"
 
 	"github.com/decred/dcrd/chaincfg/chainhash"
@@ -37,6 +38,12 @@ func zeroSlice(s []byte) {
 	for i := 0; i < scalarSize; i++ {
 		s[i] = 0x00
 	}
+}
+
+// GenerateKey generates a key using a random number generator, returning
+// the private scalar and the corresponding public key points.
+func GenerateKey(rand io.Reader) (priv []byte, x, y *big.Int, err error) {
+	return secp256k1.GenerateKey(rand)
 }
 
 // schnorrSign signs a Schnorr signature using a specified hash function

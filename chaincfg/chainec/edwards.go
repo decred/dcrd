@@ -275,7 +275,7 @@ func newEdwardsDSA() DSA {
 
 		// ECDSA
 		generateKey: func(rand io.Reader) ([]byte, *big.Int, *big.Int, error) {
-			return edwards.GenerateKey(edwardsCurve, rand)
+			return edwards.GenerateKey(rand)
 		},
 		sign: func(priv PrivateKey, hash []byte) (r, s *big.Int, err error) {
 			if priv.GetType() != ECTypeEdwards {
