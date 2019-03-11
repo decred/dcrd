@@ -113,6 +113,7 @@ type GetBlockChainInfoResult struct {
 	SyncHeight           int64                 `json:"syncheight"`
 	BestBlockHash        string                `json:"bestblockhash"`
 	Difficulty           uint32                `json:"difficulty"`
+	DifficultyRatio      float64               `json:"difficultyratio"`
 	VerificationProgress float64               `json:"verificationprogress"`
 	ChainWork            string                `json:"chainwork"`
 	InitialBlockDownload bool                  `json:"initialblockdownload"`

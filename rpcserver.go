@@ -53,9 +53,9 @@ import (
 
 // API version constants
 const (
-	jsonrpcSemverString = "5.0.0"
+	jsonrpcSemverString = "5.1.0"
 	jsonrpcSemverMajor  = 5
-	jsonrpcSemverMinor  = 0
+	jsonrpcSemverMinor  = 1
 	jsonrpcSemverPatch  = 0
 )
 
@@ -2002,6 +2002,7 @@ func handleGetBlockchainInfo(s *rpcServer, cmd interface{}, closeChan <-chan str
 		VerificationProgress: verifyProgress,
 		BestBlockHash:        best.Hash.String(),
 		Difficulty:           best.Bits,
+		DifficultyRatio:      getDifficultyRatio(best.Bits),
 		MaxBlockSize:         maxBlockSize,
 		Deployments:          dInfo,
 	}
