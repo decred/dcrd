@@ -178,7 +178,7 @@ func NewTxDeepTxIns(msgTx *wire.MsgTx) *Tx {
 
 		txInCopy.SignatureScript = sigScrCopy
 
-		newMsgTx.AddTxIn(txIn)
+		newMsgTx.AddTxIn(txInCopy)
 	}
 
 	// Shallow copy the TxOuts.
