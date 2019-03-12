@@ -13,7 +13,6 @@ import (
 	"runtime"
 	"runtime/debug"
 	"runtime/pprof"
-	"time"
 
 	"github.com/decred/dcrd/blockchain/indexers"
 	"github.com/decred/dcrd/internal/limits"
@@ -94,12 +93,8 @@ func dcrdMain(serverChan chan<- *server) error {
 			dcrdLog.Errorf("Unable to create mem profile: %v", err)
 			return err
 		}
-		timer := time.NewTimer(time.Minute * 20) // 20 minutes
-		go func() {
-			<-timer.C
-			pprof.WriteHeapProfile(f)
-			f.Close()
-		}()
+		defer f.Close()
+		defer pprof.WriteHeapProfile(f)
 	}
 
 	var lifetimeNotifier lifetimeEventServer
