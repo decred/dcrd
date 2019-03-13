@@ -682,6 +682,20 @@ func NewEngine(scriptPubKey []byte, tx *wire.MsgTx, txIdx int, flags ScriptFlags
 			"signature script is not push only")
 	}
 
+	// The signature script must only contain data pushes for P2SH which is
+	// determined based on the form of the public key script.
+	if isAnyKindOfScriptHash(scriptPubKey) {
+		// Notice that the push only checks have already been done when the flag
+		// to verify signature scripts are push only is set above, so avoid
+		// checking again.
+		alreadyChecked := vm.hasFlag(ScriptVerifySigPushOnly)
+		if !alreadyChecked && !IsPushOnlyScript(scriptSig) {
+			return nil, scriptError(ErrNotPushOnly,
+				"pay to script hash is not push only")
+		}
+		vm.isP2SH = true
+	}
+
 	// Subscripts for pay to script hash outputs are not allowed
 	// to use any stake tag OP codes if the script version is 0.
 	if scriptVersion == DefaultScriptVersion {
@@ -716,20 +730,6 @@ func NewEngine(scriptPubKey []byte, tx *wire.MsgTx, txIdx int, flags ScriptFlags
 	// case.
 	if len(scripts[0]) == 0 {
 		vm.scriptIdx++
-	}
-
-	// The signature script must only contain data pushes for P2SH which is
-	// determined based on the form of the public key script.
-	if isAnyKindOfScriptHash(scriptPubKey) {
-		// Notice that the push only checks have already been done when the flag
-		// to verify signature scripts are push only is set above, so avoid
-		// checking again.
-		alreadyChecked := vm.hasFlag(ScriptVerifySigPushOnly)
-		if !alreadyChecked && !IsPushOnlyScript(scriptSig) {
-			return nil, scriptError(ErrNotPushOnly,
-				"pay to script hash is not push only")
-		}
-		vm.isP2SH = true
 	}
 
 	vm.tx = *tx
