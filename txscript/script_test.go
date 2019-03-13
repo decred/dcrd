@@ -4072,7 +4072,7 @@ func TestRemoveOpcodeByData(t *testing.T) {
 			return nil, err
 		}
 
-		return removeOpcodeByDataRaw(script, data), nil
+		return removeOpcodeByData(script, data), nil
 	}
 
 	for _, test := range tests {

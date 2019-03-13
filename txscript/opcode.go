@@ -2530,7 +2530,7 @@ func opcodeCheckSig(op *parsedOpcode, vm *Engine) error {
 
 	// Remove the signature since there is no way for a signature to sign
 	// itself.
-	subScript = removeOpcodeByDataRaw(subScript, fullSigBytes)
+	subScript = removeOpcodeByData(subScript, fullSigBytes)
 
 	// Generate the signature hash based on the signature hash type.
 	var prefixHash *chainhash.Hash
@@ -2675,7 +2675,7 @@ func opcodeCheckMultiSig(op *parsedOpcode, vm *Engine) error {
 	// Remove any of the signatures since there is no way for a signature to
 	// sign itself.
 	for _, sigInfo := range signatures {
-		script = removeOpcodeByDataRaw(script, sigInfo.signature)
+		script = removeOpcodeByData(script, sigInfo.signature)
 	}
 
 	success := true
@@ -2894,7 +2894,7 @@ func opcodeCheckSigAlt(op *parsedOpcode, vm *Engine) error {
 
 	// Remove the signature since there is no way for a signature to sign
 	// itself.
-	subScript = removeOpcodeByDataRaw(subScript, fullSigBytes)
+	subScript = removeOpcodeByData(subScript, fullSigBytes)
 
 	// Generate the signature hash based on the signature hash type.
 	var prefixHash *chainhash.Hash
