@@ -4123,9 +4123,8 @@ func TestIsAnyKindOfScriptHash(t *testing.T) {
 
 	for _, test := range scriptClassTests {
 		script := mustParseShortForm(test.script)
-		pops, _ := parseScript(script)
 		want := (test.class == ScriptHashTy || test.subClass == ScriptHashTy)
-		p2sh := isAnyKindOfScriptHash(pops)
+		p2sh := isAnyKindOfScriptHash(script)
 		if p2sh != want {
 			t.Errorf("%s: epxected p2sh %v, got %v", test.name,
 				want, p2sh)

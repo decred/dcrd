@@ -718,7 +718,9 @@ func NewEngine(scriptPubKey []byte, tx *wire.MsgTx, txIdx int, flags ScriptFlags
 		vm.scriptIdx++
 	}
 
-	if isAnyKindOfScriptHash(vm.scripts[1]) {
+	// The signature script must only contain data pushes for P2SH which is
+	// determined based on the form of the public key script.
+	if isAnyKindOfScriptHash(scriptPubKey) {
 		// Only accept input scripts that push data for P2SH.
 		if !isPushOnly(vm.scripts[0]) {
 			return nil, scriptError(ErrNotPushOnly,

@@ -112,20 +112,21 @@ func isScriptHashScript(script []byte) bool {
 	return extractScriptHash(script) != nil
 }
 
-// isStakeScriptHash returns whether or not the passed script is a stake
-// pay-to-script-hash script.
-func isStakeScriptHash(pops []parsedOpcode) bool {
-	return len(pops) == 4 &&
-		isStakeOpcode(pops[0].opcode.value) &&
-		pops[1].opcode.value == OP_HASH160 &&
-		pops[2].opcode.value == OP_DATA_20 &&
-		pops[3].opcode.value == OP_EQUAL
+// isStakeScriptHashScript returns whether or not the passed script is a
+// stake-tagged pay-to-script-hash script.
+func isStakeScriptHashScript(script []byte) bool {
+	return len(script) == 24 &&
+		isStakeOpcode(script[0]) &&
+		script[1] == OP_HASH160 &&
+		script[2] == OP_DATA_20 &&
+		script[23] == OP_EQUAL
 }
 
 // isAnyKindOfScriptHash returns whether or not the passed script is either a
-// regular pay-to-script-hash script or a stake pay-to-script-hash script.
-func isAnyKindOfScriptHash(pops []parsedOpcode) bool {
-	return isScriptHash(pops) || isStakeScriptHash(pops)
+// regular pay-to-script-hash script or a stake-tagged pay-to-script-hash
+// script.
+func isAnyKindOfScriptHash(script []byte) bool {
+	return isScriptHashScript(script) || isStakeScriptHashScript(script)
 }
 
 // HasP2SHScriptSigStakeOpCodes returns an error is the p2sh script has either

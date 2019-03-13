@@ -234,7 +234,6 @@ func BenchmarkIsAnyKindOfScriptHash(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		pops, _ := parseScript(script)
-		_ = isAnyKindOfScriptHash(pops)
+		_ = isAnyKindOfScriptHash(script)
 	}
 }
