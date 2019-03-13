@@ -95,16 +95,6 @@ func isOneByteMaxDataPush(po parsedOpcode) bool {
 		po.opcode.value == OP_DATA_1
 }
 
-// isPubkey returns true if the script passed is an alternative pay-to-pubkey
-// transaction, false otherwise.
-func isPubkeyAlt(pops []parsedOpcode) bool {
-	// An alternative pubkey must be less than 512 bytes.
-	return len(pops) == 3 &&
-		len(pops[0].data) < 512 &&
-		isOneByteMaxDataPush(pops[1]) &&
-		pops[2].opcode.value == OP_CHECKSIGALT
-}
-
 // isPubkeyHashAlt returns true if the script passed is a pay-to-pubkey-hash
 // transaction, false otherwise.
 func isPubkeyHashAlt(pops []parsedOpcode) bool {
