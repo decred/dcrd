@@ -35,7 +35,7 @@ type opcode struct {
 	value  byte
 	name   string
 	length int
-	opfunc func(*parsedOpcode, *Engine) error
+	opfunc func(*opcode, []byte, *Engine) error
 }
 
 // These constants are the values of the official opcodes used on the btc wiki,
@@ -626,13 +626,6 @@ var opcodeOnelineRepls = map[string]string{
 	"OP_16":      "16",
 }
 
-// parsedOpcode represents an opcode that has been parsed and includes any
-// potential data associated with it.
-type parsedOpcode struct {
-	opcode *opcode
-	data   []byte
-}
-
 // disasmOpcode writes a human-readable disassembly of the provided opcode and
 // data into the provided buffer.  The compact flag indicates the disassembly
 // should print a more compact representation of data-carrying and small integer
@@ -691,45 +684,42 @@ func disasmOpcode(buf *strings.Builder, op *opcode, data []byte, compact bool) {
 // opcodes before executing in an initial parse step, the consensus rules
 // dictate the script doesn't fail until the program counter passes over a
 // disabled opcode (even when they appear in a branch that is not executed).
-func opcodeDisabled(op *parsedOpcode, vm *Engine) error {
-	str := fmt.Sprintf("attempt to execute disabled opcode %s",
-		op.opcode.name)
+func opcodeDisabled(op *opcode, data []byte, vm *Engine) error {
+	str := fmt.Sprintf("attempt to execute disabled opcode %s", op.name)
 	return scriptError(ErrDisabledOpcode, str)
 }
 
 // opcodeReserved is a common handler for all reserved opcodes.  It returns an
 // appropriate error indicating the opcode is reserved.
-func opcodeReserved(op *parsedOpcode, vm *Engine) error {
-	str := fmt.Sprintf("attempt to execute reserved opcode %s",
-		op.opcode.name)
+func opcodeReserved(op *opcode, data []byte, vm *Engine) error {
+	str := fmt.Sprintf("attempt to execute reserved opcode %s", op.name)
 	return scriptError(ErrReservedOpcode, str)
 }
 
 // opcodeInvalid is a common handler for all invalid opcodes.  It returns an
 // appropriate error indicating the opcode is invalid.
-func opcodeInvalid(op *parsedOpcode, vm *Engine) error {
-	str := fmt.Sprintf("attempt to execute invalid opcode %s",
-		op.opcode.name)
+func opcodeInvalid(op *opcode, data []byte, vm *Engine) error {
+	str := fmt.Sprintf("attempt to execute invalid opcode %s", op.name)
 	return scriptError(ErrReservedOpcode, str)
 }
 
 // opcodeFalse pushes an empty array to the data stack to represent false.  Note
 // that 0, when encoded as a number according to the numeric encoding consensus
 // rules, is an empty array.
-func opcodeFalse(op *parsedOpcode, vm *Engine) error {
+func opcodeFalse(op *opcode, data []byte, vm *Engine) error {
 	vm.dstack.PushByteArray(nil)
 	return nil
 }
 
 // opcodePushData is a common handler for the vast majority of opcodes that push
 // raw data (bytes) to the data stack.
-func opcodePushData(op *parsedOpcode, vm *Engine) error {
-	vm.dstack.PushByteArray(op.data)
+func opcodePushData(op *opcode, data []byte, vm *Engine) error {
+	vm.dstack.PushByteArray(data)
 	return nil
 }
 
 // opcode1Negate pushes -1, encoded as a number, to the data stack.
-func opcode1Negate(op *parsedOpcode, vm *Engine) error {
+func opcode1Negate(op *opcode, data []byte, vm *Engine) error {
 	vm.dstack.PushInt(scriptNum(-1))
 	return nil
 }
@@ -737,18 +727,18 @@ func opcode1Negate(op *parsedOpcode, vm *Engine) error {
 // opcodeN is a common handler for the small integer data push opcodes.  It
 // pushes the numeric value the opcode represents (which will be from 1 to 16)
 // onto the data stack.
-func opcodeN(op *parsedOpcode, vm *Engine) error {
+func opcodeN(op *opcode, data []byte, vm *Engine) error {
 	// The opcodes are all defined consecutively, so the numeric value is
 	// the difference.
-	vm.dstack.PushInt(scriptNum((op.opcode.value - (OP_1 - 1))))
+	vm.dstack.PushInt(scriptNum((op.value - (OP_1 - 1))))
 	return nil
 }
 
 // opcodeNop is a common handler for the NOP family of opcodes.  As the name
 // implies it generally does nothing, however, it will return an error when
 // the flag to discourage use of NOPs is set for select opcodes.
-func opcodeNop(op *parsedOpcode, vm *Engine) error {
-	switch op.opcode.value {
+func opcodeNop(op *opcode, data []byte, vm *Engine) error {
+	switch op.value {
 	case OP_NOP1, OP_NOP4, OP_NOP5, OP_NOP6,
 		OP_NOP7, OP_NOP8, OP_NOP9, OP_NOP10,
 		OP_UNKNOWN193, OP_UNKNOWN194, OP_UNKNOWN195,
@@ -768,8 +758,7 @@ func opcodeNop(op *parsedOpcode, vm *Engine) error {
 		OP_UNKNOWN248:
 
 		if vm.hasFlag(ScriptDiscourageUpgradableNops) {
-			str := fmt.Sprintf("%s reserved for upgrades",
-				op.opcode.name)
+			str := fmt.Sprintf("%s reserved for upgrades", op.name)
 			return scriptError(ErrDiscourageUpgradableNOPs, str)
 		}
 	}
@@ -791,7 +780,7 @@ func opcodeNop(op *parsedOpcode, vm *Engine) error {
 //
 // Data stack transformation: [... bool] -> [...]
 // Conditional stack transformation: [...] -> [... OpCondValue]
-func opcodeIf(op *parsedOpcode, vm *Engine) error {
+func opcodeIf(op *opcode, data []byte, vm *Engine) error {
 	condVal := OpCondFalse
 	if vm.isBranchExecuting() {
 		ok, err := vm.dstack.PopBool()
@@ -824,7 +813,7 @@ func opcodeIf(op *parsedOpcode, vm *Engine) error {
 //
 // Data stack transformation: [... bool] -> [...]
 // Conditional stack transformation: [...] -> [... OpCondValue]
-func opcodeNotIf(op *parsedOpcode, vm *Engine) error {
+func opcodeNotIf(op *opcode, data []byte, vm *Engine) error {
 	condVal := OpCondFalse
 	if vm.isBranchExecuting() {
 		ok, err := vm.dstack.PopBool()
@@ -846,10 +835,10 @@ func opcodeNotIf(op *parsedOpcode, vm *Engine) error {
 // An error is returned if there has not already been a matching OP_IF.
 //
 // Conditional stack transformation: [... OpCondValue] -> [... !OpCondValue]
-func opcodeElse(op *parsedOpcode, vm *Engine) error {
+func opcodeElse(op *opcode, data []byte, vm *Engine) error {
 	if len(vm.condStack) == 0 {
 		str := fmt.Sprintf("encountered opcode %s with no matching "+
-			"opcode to begin conditional execution", op.opcode.name)
+			"opcode to begin conditional execution", op.name)
 		return scriptError(ErrUnbalancedConditional, str)
 	}
 
@@ -872,10 +861,10 @@ func opcodeElse(op *parsedOpcode, vm *Engine) error {
 // An error is returned if there has not already been a matching OP_IF.
 //
 // Conditional stack transformation: [... OpCondValue] -> [...]
-func opcodeEndif(op *parsedOpcode, vm *Engine) error {
+func opcodeEndif(op *opcode, data []byte, vm *Engine) error {
 	if len(vm.condStack) == 0 {
 		str := fmt.Sprintf("encountered opcode %s with no matching "+
-			"opcode to begin conditional execution", op.opcode.name)
+			"opcode to begin conditional execution", op.name)
 		return scriptError(ErrUnbalancedConditional, str)
 	}
 
@@ -888,14 +877,14 @@ func opcodeEndif(op *parsedOpcode, vm *Engine) error {
 // item on the stack or when that item evaluates to false.  In the latter case
 // where the verification fails specifically due to the top item evaluating
 // to false, the returned error will use the passed error code.
-func abstractVerify(op *parsedOpcode, vm *Engine, c ErrorCode) error {
+func abstractVerify(op *opcode, vm *Engine, c ErrorCode) error {
 	verified, err := vm.dstack.PopBool()
 	if err != nil {
 		return err
 	}
 
 	if !verified {
-		str := fmt.Sprintf("%s failed", op.opcode.name)
+		str := fmt.Sprintf("%s failed", op.name)
 		return scriptError(c, str)
 	}
 	return nil
@@ -903,13 +892,13 @@ func abstractVerify(op *parsedOpcode, vm *Engine, c ErrorCode) error {
 
 // opcodeVerify examines the top item on the data stack as a boolean value and
 // verifies it evaluates to true.  An error is returned if it does not.
-func opcodeVerify(op *parsedOpcode, vm *Engine) error {
+func opcodeVerify(op *opcode, data []byte, vm *Engine) error {
 	return abstractVerify(op, vm, ErrVerify)
 }
 
 // opcodeReturn returns an appropriate error since it is always an error to
 // return early from a script.
-func opcodeReturn(op *parsedOpcode, vm *Engine) error {
+func opcodeReturn(op *opcode, data []byte, vm *Engine) error {
 	return scriptError(ErrEarlyReturn, "script returned early")
 }
 
@@ -939,7 +928,7 @@ func verifyLockTime(txLockTime, threshold, lockTime int64) error {
 // validating if the transaction outputs are spendable yet.  If flag
 // ScriptVerifyCheckLockTimeVerify is not set, the code continues as if OP_NOP2
 // were executed.
-func opcodeCheckLockTimeVerify(op *parsedOpcode, vm *Engine) error {
+func opcodeCheckLockTimeVerify(op *opcode, data []byte, vm *Engine) error {
 	// If the ScriptVerifyCheckLockTimeVerify script flag is not set, treat
 	// opcode as OP_NOP2 instead.
 	if !vm.hasFlag(ScriptVerifyCheckLockTimeVerify) {
@@ -1006,7 +995,7 @@ func opcodeCheckLockTimeVerify(op *parsedOpcode, vm *Engine) error {
 // validating if the transaction outputs are spendable yet.  If flag
 // ScriptVerifyCheckSequenceVerify is not set, the code continues as if OP_NOP3
 // were executed.
-func opcodeCheckSequenceVerify(op *parsedOpcode, vm *Engine) error {
+func opcodeCheckSequenceVerify(op *opcode, data []byte, vm *Engine) error {
 	// If the ScriptVerifyCheckSequenceVerify script flag is not set, treat
 	// opcode as OP_NOP3 instead.
 	if !vm.hasFlag(ScriptVerifyCheckSequenceVerify) {
@@ -1077,7 +1066,7 @@ func opcodeCheckSequenceVerify(op *parsedOpcode, vm *Engine) error {
 //
 // Main data stack transformation: [... x1 x2 x3] -> [... x1 x2]
 // Alt data stack transformation:  [... y1 y2 y3] -> [... y1 y2 y3 x3]
-func opcodeToAltStack(op *parsedOpcode, vm *Engine) error {
+func opcodeToAltStack(op *opcode, data []byte, vm *Engine) error {
 	so, err := vm.dstack.PopByteArray()
 	if err != nil {
 		return err
@@ -1092,7 +1081,7 @@ func opcodeToAltStack(op *parsedOpcode, vm *Engine) error {
 //
 // Main data stack transformation: [... x1 x2 x3] -> [... x1 x2 x3 y3]
 // Alt data stack transformation:  [... y1 y2 y3] -> [... y1 y2]
-func opcodeFromAltStack(op *parsedOpcode, vm *Engine) error {
+func opcodeFromAltStack(op *opcode, data []byte, vm *Engine) error {
 	so, err := vm.astack.PopByteArray()
 	if err != nil {
 		return err
@@ -1105,35 +1094,35 @@ func opcodeFromAltStack(op *parsedOpcode, vm *Engine) error {
 // opcode2Drop removes the top 2 items from the data stack.
 //
 // Stack transformation: [... x1 x2 x3] -> [... x1]
-func opcode2Drop(op *parsedOpcode, vm *Engine) error {
+func opcode2Drop(op *opcode, data []byte, vm *Engine) error {
 	return vm.dstack.DropN(2)
 }
 
 // opcode2Dup duplicates the top 2 items on the data stack.
 //
 // Stack transformation: [... x1 x2 x3] -> [... x1 x2 x3 x2 x3]
-func opcode2Dup(op *parsedOpcode, vm *Engine) error {
+func opcode2Dup(op *opcode, data []byte, vm *Engine) error {
 	return vm.dstack.DupN(2)
 }
 
 // opcode3Dup duplicates the top 3 items on the data stack.
 //
 // Stack transformation: [... x1 x2 x3] -> [... x1 x2 x3 x1 x2 x3]
-func opcode3Dup(op *parsedOpcode, vm *Engine) error {
+func opcode3Dup(op *opcode, data []byte, vm *Engine) error {
 	return vm.dstack.DupN(3)
 }
 
 // opcode2Over duplicates the 2 items before the top 2 items on the data stack.
 //
 // Stack transformation: [... x1 x2 x3 x4] -> [... x1 x2 x3 x4 x1 x2]
-func opcode2Over(op *parsedOpcode, vm *Engine) error {
+func opcode2Over(op *opcode, data []byte, vm *Engine) error {
 	return vm.dstack.OverN(2)
 }
 
 // opcode2Rot rotates the top 6 items on the data stack to the left twice.
 //
 // Stack transformation: [... x1 x2 x3 x4 x5 x6] -> [... x3 x4 x5 x6 x1 x2]
-func opcode2Rot(op *parsedOpcode, vm *Engine) error {
+func opcode2Rot(op *opcode, data []byte, vm *Engine) error {
 	return vm.dstack.RotN(2)
 }
 
@@ -1141,7 +1130,7 @@ func opcode2Rot(op *parsedOpcode, vm *Engine) error {
 // before them.
 //
 // Stack transformation: [... x1 x2 x3 x4] -> [... x3 x4 x1 x2]
-func opcode2Swap(op *parsedOpcode, vm *Engine) error {
+func opcode2Swap(op *opcode, data []byte, vm *Engine) error {
 	return vm.dstack.SwapN(2)
 }
 
@@ -1149,7 +1138,7 @@ func opcode2Swap(op *parsedOpcode, vm *Engine) error {
 //
 // Stack transformation (x1==0): [... x1] -> [... x1]
 // Stack transformation (x1!=0): [... x1] -> [... x1 x1]
-func opcodeIfDup(op *parsedOpcode, vm *Engine) error {
+func opcodeIfDup(op *opcode, data []byte, vm *Engine) error {
 	so, err := vm.dstack.PeekByteArray(0)
 	if err != nil {
 		return err
@@ -1169,7 +1158,7 @@ func opcodeIfDup(op *parsedOpcode, vm *Engine) error {
 // Stack transformation: [...] -> [... <num of items on the stack>]
 // Example with 2 items: [x1 x2] -> [x1 x2 2]
 // Example with 3 items: [x1 x2 x3] -> [x1 x2 x3 3]
-func opcodeDepth(op *parsedOpcode, vm *Engine) error {
+func opcodeDepth(op *opcode, data []byte, vm *Engine) error {
 	vm.dstack.PushInt(scriptNum(vm.dstack.Depth()))
 	return nil
 }
@@ -1177,28 +1166,28 @@ func opcodeDepth(op *parsedOpcode, vm *Engine) error {
 // opcodeDrop removes the top item from the data stack.
 //
 // Stack transformation: [... x1 x2 x3] -> [... x1 x2]
-func opcodeDrop(op *parsedOpcode, vm *Engine) error {
+func opcodeDrop(op *opcode, data []byte, vm *Engine) error {
 	return vm.dstack.DropN(1)
 }
 
 // opcodeDup duplicates the top item on the data stack.
 //
 // Stack transformation: [... x1 x2 x3] -> [... x1 x2 x3 x3]
-func opcodeDup(op *parsedOpcode, vm *Engine) error {
+func opcodeDup(op *opcode, data []byte, vm *Engine) error {
 	return vm.dstack.DupN(1)
 }
 
 // opcodeNip removes the item before the top item on the data stack.
 //
 // Stack transformation: [... x1 x2 x3] -> [... x1 x3]
-func opcodeNip(op *parsedOpcode, vm *Engine) error {
+func opcodeNip(op *opcode, data []byte, vm *Engine) error {
 	return vm.dstack.NipN(1)
 }
 
 // opcodeOver duplicates the item before the top item on the data stack.
 //
 // Stack transformation: [... x1 x2 x3] -> [... x1 x2 x3 x2]
-func opcodeOver(op *parsedOpcode, vm *Engine) error {
+func opcodeOver(op *opcode, data []byte, vm *Engine) error {
 	return vm.dstack.OverN(1)
 }
 
@@ -1208,7 +1197,7 @@ func opcodeOver(op *parsedOpcode, vm *Engine) error {
 // Stack transformation: [xn ... x2 x1 x0 n] -> [xn ... x2 x1 x0 xn]
 // Example with n=1: [x2 x1 x0 1] -> [x2 x1 x0 x1]
 // Example with n=2: [x2 x1 x0 2] -> [x2 x1 x0 x2]
-func opcodePick(op *parsedOpcode, vm *Engine) error {
+func opcodePick(op *opcode, data []byte, vm *Engine) error {
 	val, err := vm.dstack.PopInt(mathOpCodeMaxScriptNumLen)
 	if err != nil {
 		return err
@@ -1223,7 +1212,7 @@ func opcodePick(op *parsedOpcode, vm *Engine) error {
 // Stack transformation: [xn ... x2 x1 x0 n] -> [... x2 x1 x0 xn]
 // Example with n=1: [x2 x1 x0 1] -> [x2 x0 x1]
 // Example with n=2: [x2 x1 x0 2] -> [x1 x0 x2]
-func opcodeRoll(op *parsedOpcode, vm *Engine) error {
+func opcodeRoll(op *opcode, data []byte, vm *Engine) error {
 	val, err := vm.dstack.PopInt(mathOpCodeMaxScriptNumLen)
 	if err != nil {
 		return err
@@ -1235,14 +1224,14 @@ func opcodeRoll(op *parsedOpcode, vm *Engine) error {
 // opcodeRot rotates the top 3 items on the data stack to the left.
 //
 // Stack transformation: [... x1 x2 x3] -> [... x2 x3 x1]
-func opcodeRot(op *parsedOpcode, vm *Engine) error {
+func opcodeRot(op *opcode, data []byte, vm *Engine) error {
 	return vm.dstack.RotN(1)
 }
 
 // opcodeSwap swaps the top two items on the stack.
 //
 // Stack transformation: [... x1 x2] -> [... x2 x1]
-func opcodeSwap(op *parsedOpcode, vm *Engine) error {
+func opcodeSwap(op *opcode, data []byte, vm *Engine) error {
 	return vm.dstack.SwapN(1)
 }
 
@@ -1250,7 +1239,7 @@ func opcodeSwap(op *parsedOpcode, vm *Engine) error {
 // second-to-top item.
 //
 // Stack transformation: [... x1 x2] -> [... x2 x1 x2]
-func opcodeTuck(op *parsedOpcode, vm *Engine) error {
+func opcodeTuck(op *opcode, data []byte, vm *Engine) error {
 	return vm.dstack.Tuck()
 }
 
@@ -1259,7 +1248,7 @@ func opcodeTuck(op *parsedOpcode, vm *Engine) error {
 // of the concatenation would exceed the max allowed stack item size.
 //
 // Stack transformation: [... x1 x2] -> [... x1 || x2]
-func opcodeCat(op *parsedOpcode, vm *Engine) error {
+func opcodeCat(op *opcode, data []byte, vm *Engine) error {
 	a, err := vm.dstack.PopByteArray() // x2
 	if err != nil {
 		return err
@@ -1307,7 +1296,7 @@ func opcodeCat(op *parsedOpcode, vm *Engine) error {
 // end indexes.
 //
 // Stack transformation: [... x1 x2 x3] -> [... x1[x3:x2]]
-func opcodeSubstr(op *parsedOpcode, vm *Engine) error {
+func opcodeSubstr(op *opcode, data []byte, vm *Engine) error {
 	v0, err := vm.dstack.PopInt(mathOpCodeMaxScriptNumLen) // x3
 	if err != nil {
 		return err
@@ -1380,7 +1369,7 @@ func opcodeSubstr(op *parsedOpcode, vm *Engine) error {
 // raw bytes.
 //
 // Stack transformation: [... x1 x2] -> [... x1[0:x2]]
-func opcodeLeft(op *parsedOpcode, vm *Engine) error {
+func opcodeLeft(op *opcode, data []byte, vm *Engine) error {
 	v0, err := vm.dstack.PopInt(mathOpCodeMaxScriptNumLen) // x2
 	if err != nil {
 		return err
@@ -1428,7 +1417,7 @@ func opcodeLeft(op *parsedOpcode, vm *Engine) error {
 // the given raw bytes.
 //
 // Stack transformation: [... x1 x2] -> [... x1[x2:]]
-func opcodeRight(op *parsedOpcode, vm *Engine) error {
+func opcodeRight(op *opcode, data []byte, vm *Engine) error {
 	v0, err := vm.dstack.PopInt(mathOpCodeMaxScriptNumLen) // x2
 	if err != nil {
 		return err
@@ -1478,7 +1467,7 @@ func opcodeRight(op *parsedOpcode, vm *Engine) error {
 // stack.
 //
 // Stack transformation: [... x1] -> [... x1 len(x1)]
-func opcodeSize(op *parsedOpcode, vm *Engine) error {
+func opcodeSize(op *opcode, data []byte, vm *Engine) error {
 	so, err := vm.dstack.PeekByteArray(0)
 	if err != nil {
 		return err
@@ -1492,7 +1481,7 @@ func opcodeSize(op *parsedOpcode, vm *Engine) error {
 // inverts the bits, and then pushes it back to the stack.
 //
 // Stack transformation: [... x1] -> [... ~x1]
-func opcodeInvert(op *parsedOpcode, vm *Engine) error {
+func opcodeInvert(op *opcode, data []byte, vm *Engine) error {
 	v0, err := vm.dstack.PopInt(mathOpCodeMaxScriptNumLen)
 	if err != nil {
 		return err
@@ -1506,7 +1495,7 @@ func opcodeInvert(op *parsedOpcode, vm *Engine) error {
 // bitwise ANDs the value, and then pushes the result back to the stack.
 //
 // Stack transformation: [... x1 x2] -> [... x1 & x2]
-func opcodeAnd(op *parsedOpcode, vm *Engine) error {
+func opcodeAnd(op *opcode, data []byte, vm *Engine) error {
 	v0, err := vm.dstack.PopInt(mathOpCodeMaxScriptNumLen)
 	if err != nil {
 		return err
@@ -1525,7 +1514,7 @@ func opcodeAnd(op *parsedOpcode, vm *Engine) error {
 // bitwise ORs the value, and then pushes the result back to the stack.
 //
 // Stack transformation: [... x1 x2] -> [... x1 | x2]
-func opcodeOr(op *parsedOpcode, vm *Engine) error {
+func opcodeOr(op *opcode, data []byte, vm *Engine) error {
 	v0, err := vm.dstack.PopInt(mathOpCodeMaxScriptNumLen)
 	if err != nil {
 		return err
@@ -1544,7 +1533,7 @@ func opcodeOr(op *parsedOpcode, vm *Engine) error {
 // bitwise XORs the value, and then pushes the result back to the stack.
 //
 // Stack transformation: [... x1 x2] -> [... x1 ^ x2]
-func opcodeXor(op *parsedOpcode, vm *Engine) error {
+func opcodeXor(op *opcode, data []byte, vm *Engine) error {
 	v0, err := vm.dstack.PopInt(mathOpCodeMaxScriptNumLen)
 	if err != nil {
 		return err
@@ -1563,7 +1552,7 @@ func opcodeXor(op *parsedOpcode, vm *Engine) error {
 // bytes, and pushes the result, encoded as a boolean, back to the stack.
 //
 // Stack transformation: [... x1 x2] -> [... bool]
-func opcodeEqual(op *parsedOpcode, vm *Engine) error {
+func opcodeEqual(op *opcode, data []byte, vm *Engine) error {
 	a, err := vm.dstack.PopByteArray()
 	if err != nil {
 		return err
@@ -1584,8 +1573,8 @@ func opcodeEqual(op *parsedOpcode, vm *Engine) error {
 // evaluates to true.  An error is returned if it does not.
 //
 // Stack transformation: [... x1 x2] -> [... bool] -> [...]
-func opcodeEqualVerify(op *parsedOpcode, vm *Engine) error {
-	err := opcodeEqual(op, vm)
+func opcodeEqualVerify(op *opcode, data []byte, vm *Engine) error {
+	err := opcodeEqual(op, data, vm)
 	if err == nil {
 		err = abstractVerify(op, vm, ErrEqualVerify)
 	}
@@ -1604,7 +1593,7 @@ func rotateRight(value int32, count int32) int32 {
 // a uint32), and replaces them both with the result of the rotation.
 //
 // Stack transformation: [... x1 x2] -> [... rotr(x1, x2)]
-func opcodeRotr(op *parsedOpcode, vm *Engine) error {
+func opcodeRotr(op *opcode, data []byte, vm *Engine) error {
 	// WARNING: Since scriptNums are signed, a standard 4-byte scriptNum only
 	// supports up to a maximum of 2^31-1.  The value (v1) really should allow
 	// 5-byte scriptNums and have an overflow check later to clamp it to uint32,
@@ -1656,7 +1645,7 @@ func rotateLeft(value int32, count int32) int32 {
 // uint32), and replaces them both with the result of the rotation.
 //
 // Stack transformation: [... x1 x2] -> [... rotl(x1, x2)]
-func opcodeRotl(op *parsedOpcode, vm *Engine) error {
+func opcodeRotl(op *opcode, data []byte, vm *Engine) error {
 	// WARNING: Since scriptNums are signed, a standard 4-byte scriptNum only
 	// supports up to a maximum of 2^31-1.  The value (v1) really should allow
 	// 5-byte scriptNums and have an overflow check later to clamp it to uint32,
@@ -1700,7 +1689,7 @@ func opcodeRotl(op *parsedOpcode, vm *Engine) error {
 // it with its incremented value (plus 1).
 //
 // Stack transformation: [... x1 x2] -> [... x1 x2+1]
-func opcode1Add(op *parsedOpcode, vm *Engine) error {
+func opcode1Add(op *opcode, data []byte, vm *Engine) error {
 	m, err := vm.dstack.PopInt(mathOpCodeMaxScriptNumLen)
 	if err != nil {
 		return err
@@ -1714,7 +1703,7 @@ func opcode1Add(op *parsedOpcode, vm *Engine) error {
 // it with its decremented value (minus 1).
 //
 // Stack transformation: [... x1 x2] -> [... x1 x2-1]
-func opcode1Sub(op *parsedOpcode, vm *Engine) error {
+func opcode1Sub(op *opcode, data []byte, vm *Engine) error {
 	m, err := vm.dstack.PopInt(mathOpCodeMaxScriptNumLen)
 	if err != nil {
 		return err
@@ -1728,7 +1717,7 @@ func opcode1Sub(op *parsedOpcode, vm *Engine) error {
 // it with its negation.
 //
 // Stack transformation: [... x1 x2] -> [... x1 -x2]
-func opcodeNegate(op *parsedOpcode, vm *Engine) error {
+func opcodeNegate(op *opcode, data []byte, vm *Engine) error {
 	m, err := vm.dstack.PopInt(mathOpCodeMaxScriptNumLen)
 	if err != nil {
 		return err
@@ -1742,7 +1731,7 @@ func opcodeNegate(op *parsedOpcode, vm *Engine) error {
 // it with its absolute value.
 //
 // Stack transformation: [... x1 x2] -> [... x1 abs(x2)]
-func opcodeAbs(op *parsedOpcode, vm *Engine) error {
+func opcodeAbs(op *opcode, data []byte, vm *Engine) error {
 	m, err := vm.dstack.PopInt(mathOpCodeMaxScriptNumLen)
 	if err != nil {
 		return err
@@ -1767,7 +1756,7 @@ func opcodeAbs(op *parsedOpcode, vm *Engine) error {
 // Stack transformation (x2==0): [... x1 0] -> [... x1 1]
 // Stack transformation (x2!=0): [... x1 1] -> [... x1 0]
 // Stack transformation (x2!=0): [... x1 17] -> [... x1 0]
-func opcodeNot(op *parsedOpcode, vm *Engine) error {
+func opcodeNot(op *opcode, data []byte, vm *Engine) error {
 	m, err := vm.dstack.PopInt(mathOpCodeMaxScriptNumLen)
 	if err != nil {
 		return err
@@ -1787,7 +1776,7 @@ func opcodeNot(op *parsedOpcode, vm *Engine) error {
 // Stack transformation (x2==0): [... x1 0] -> [... x1 0]
 // Stack transformation (x2!=0): [... x1 1] -> [... x1 1]
 // Stack transformation (x2!=0): [... x1 17] -> [... x1 1]
-func opcode0NotEqual(op *parsedOpcode, vm *Engine) error {
+func opcode0NotEqual(op *opcode, data []byte, vm *Engine) error {
 	m, err := vm.dstack.PopInt(mathOpCodeMaxScriptNumLen)
 	if err != nil {
 		return err
@@ -1804,7 +1793,7 @@ func opcode0NotEqual(op *parsedOpcode, vm *Engine) error {
 // them with their sum.
 //
 // Stack transformation: [... x1 x2] -> [... x1+x2]
-func opcodeAdd(op *parsedOpcode, vm *Engine) error {
+func opcodeAdd(op *opcode, data []byte, vm *Engine) error {
 	v0, err := vm.dstack.PopInt(mathOpCodeMaxScriptNumLen)
 	if err != nil {
 		return err
@@ -1824,7 +1813,7 @@ func opcodeAdd(op *parsedOpcode, vm *Engine) error {
 // entry.
 //
 // Stack transformation: [... x1 x2] -> [... x1-x2]
-func opcodeSub(op *parsedOpcode, vm *Engine) error {
+func opcodeSub(op *opcode, data []byte, vm *Engine) error {
 	v0, err := vm.dstack.PopInt(mathOpCodeMaxScriptNumLen)
 	if err != nil {
 		return err
@@ -1844,7 +1833,7 @@ func opcodeSub(op *parsedOpcode, vm *Engine) error {
 // entry as 4-byte integers.
 //
 // Stack transformation: [... x1 x2] -> [... x1*x2]
-func opcodeMul(op *parsedOpcode, vm *Engine) error {
+func opcodeMul(op *opcode, data []byte, vm *Engine) error {
 	v0, err := vm.dstack.PopInt(mathOpCodeMaxScriptNumLen)
 	if err != nil {
 		return err
@@ -1866,7 +1855,7 @@ func opcodeMul(op *parsedOpcode, vm *Engine) error {
 // 4-byte integers.
 //
 // Stack transformation: [... x1 x2] -> [... x1/x2]
-func opcodeDiv(op *parsedOpcode, vm *Engine) error {
+func opcodeDiv(op *opcode, data []byte, vm *Engine) error {
 	v0, err := vm.dstack.PopInt(mathOpCodeMaxScriptNumLen)
 	if err != nil {
 		return err
@@ -1897,7 +1886,7 @@ func opcodeDiv(op *parsedOpcode, vm *Engine) error {
 // dividend.
 //
 // Stack transformation: [... x1 x2] -> [... x1/x2]
-func opcodeMod(op *parsedOpcode, vm *Engine) error {
+func opcodeMod(op *opcode, data []byte, vm *Engine) error {
 	v0, err := vm.dstack.PopInt(mathOpCodeMaxScriptNumLen)
 	if err != nil {
 		return err
@@ -1926,7 +1915,7 @@ func opcodeMod(op *parsedOpcode, vm *Engine) error {
 // with the result of the shift.
 //
 // Stack transformation: [... x1 x2] -> [... x1 << x2]
-func opcodeLShift(op *parsedOpcode, vm *Engine) error {
+func opcodeLShift(op *opcode, data []byte, vm *Engine) error {
 	// WARNING: Since scriptNums are signed, a standard 4-byte scriptNum only
 	// supports up to a maximum of 2^31-1.  The value (v1) really should allow
 	// 5-byte scriptNums and have an overflow check later to clamp it to uint32,
@@ -1973,7 +1962,7 @@ func opcodeLShift(op *parsedOpcode, vm *Engine) error {
 // signed 32-bit integer, negative values right shifted will be sign extended.
 //
 // Stack transformation: [... x1 x2] -> [... x1 >> x2]
-func opcodeRShift(op *parsedOpcode, vm *Engine) error {
+func opcodeRShift(op *opcode, data []byte, vm *Engine) error {
 	// WARNING: Since scriptNums are signed, a standard 4-byte scriptNum only
 	// supports up to a maximum of 2^31-1.  The value (v1) really should allow
 	// 5-byte scriptNums and have an overflow check later to clamp it to uint32,
@@ -2019,7 +2008,7 @@ func opcodeRShift(op *parsedOpcode, vm *Engine) error {
 // Stack transformation (x1!=0, x2==0): [... 5 0] -> [... 0]
 // Stack transformation (x1==0, x2!=0): [... 0 7] -> [... 0]
 // Stack transformation (x1!=0, x2!=0): [... 4 8] -> [... 1]
-func opcodeBoolAnd(op *parsedOpcode, vm *Engine) error {
+func opcodeBoolAnd(op *opcode, data []byte, vm *Engine) error {
 	v0, err := vm.dstack.PopInt(mathOpCodeMaxScriptNumLen)
 	if err != nil {
 		return err
@@ -2046,7 +2035,7 @@ func opcodeBoolAnd(op *parsedOpcode, vm *Engine) error {
 // Stack transformation (x1!=0, x2==0): [... 5 0] -> [... 1]
 // Stack transformation (x1==0, x2!=0): [... 0 7] -> [... 1]
 // Stack transformation (x1!=0, x2!=0): [... 4 8] -> [... 1]
-func opcodeBoolOr(op *parsedOpcode, vm *Engine) error {
+func opcodeBoolOr(op *opcode, data []byte, vm *Engine) error {
 	v0, err := vm.dstack.PopInt(mathOpCodeMaxScriptNumLen)
 	if err != nil {
 		return err
@@ -2071,7 +2060,7 @@ func opcodeBoolOr(op *parsedOpcode, vm *Engine) error {
 //
 // Stack transformation (x1==x2): [... 5 5] -> [... 1]
 // Stack transformation (x1!=x2): [... 5 7] -> [... 0]
-func opcodeNumEqual(op *parsedOpcode, vm *Engine) error {
+func opcodeNumEqual(op *opcode, data []byte, vm *Engine) error {
 	v0, err := vm.dstack.PopInt(mathOpCodeMaxScriptNumLen)
 	if err != nil {
 		return err
@@ -2099,8 +2088,8 @@ func opcodeNumEqual(op *parsedOpcode, vm *Engine) error {
 // to true.  An error is returned if it does not.
 //
 // Stack transformation: [... x1 x2] -> [... bool] -> [...]
-func opcodeNumEqualVerify(op *parsedOpcode, vm *Engine) error {
-	err := opcodeNumEqual(op, vm)
+func opcodeNumEqualVerify(op *opcode, data []byte, vm *Engine) error {
+	err := opcodeNumEqual(op, data, vm)
 	if err == nil {
 		err = abstractVerify(op, vm, ErrNumEqualVerify)
 	}
@@ -2112,7 +2101,7 @@ func opcodeNumEqualVerify(op *parsedOpcode, vm *Engine) error {
 //
 // Stack transformation (x1==x2): [... 5 5] -> [... 0]
 // Stack transformation (x1!=x2): [... 5 7] -> [... 1]
-func opcodeNumNotEqual(op *parsedOpcode, vm *Engine) error {
+func opcodeNumNotEqual(op *opcode, data []byte, vm *Engine) error {
 	v0, err := vm.dstack.PopInt(mathOpCodeMaxScriptNumLen)
 	if err != nil {
 		return err
@@ -2137,7 +2126,7 @@ func opcodeNumNotEqual(op *parsedOpcode, vm *Engine) error {
 // otherwise a 0.
 //
 // Stack transformation: [... x1 x2] -> [... bool]
-func opcodeLessThan(op *parsedOpcode, vm *Engine) error {
+func opcodeLessThan(op *opcode, data []byte, vm *Engine) error {
 	v0, err := vm.dstack.PopInt(mathOpCodeMaxScriptNumLen)
 	if err != nil {
 		return err
@@ -2162,7 +2151,7 @@ func opcodeLessThan(op *parsedOpcode, vm *Engine) error {
 // with a 1, otherwise a 0.
 //
 // Stack transformation: [... x1 x2] -> [... bool]
-func opcodeGreaterThan(op *parsedOpcode, vm *Engine) error {
+func opcodeGreaterThan(op *opcode, data []byte, vm *Engine) error {
 	v0, err := vm.dstack.PopInt(mathOpCodeMaxScriptNumLen)
 	if err != nil {
 		return err
@@ -2186,7 +2175,7 @@ func opcodeGreaterThan(op *parsedOpcode, vm *Engine) error {
 // replaced with a 1, otherwise a 0.
 //
 // Stack transformation: [... x1 x2] -> [... bool]
-func opcodeLessThanOrEqual(op *parsedOpcode, vm *Engine) error {
+func opcodeLessThanOrEqual(op *opcode, data []byte, vm *Engine) error {
 	v0, err := vm.dstack.PopInt(mathOpCodeMaxScriptNumLen)
 	if err != nil {
 		return err
@@ -2210,7 +2199,7 @@ func opcodeLessThanOrEqual(op *parsedOpcode, vm *Engine) error {
 // item, they are replaced with a 1, otherwise a 0.
 //
 // Stack transformation: [... x1 x2] -> [... bool]
-func opcodeGreaterThanOrEqual(op *parsedOpcode, vm *Engine) error {
+func opcodeGreaterThanOrEqual(op *opcode, data []byte, vm *Engine) error {
 	v0, err := vm.dstack.PopInt(mathOpCodeMaxScriptNumLen)
 	if err != nil {
 		return err
@@ -2234,7 +2223,7 @@ func opcodeGreaterThanOrEqual(op *parsedOpcode, vm *Engine) error {
 // them with the minimum of the two.
 //
 // Stack transformation: [... x1 x2] -> [... min(x1, x2)]
-func opcodeMin(op *parsedOpcode, vm *Engine) error {
+func opcodeMin(op *opcode, data []byte, vm *Engine) error {
 	v0, err := vm.dstack.PopInt(mathOpCodeMaxScriptNumLen)
 	if err != nil {
 		return err
@@ -2258,7 +2247,7 @@ func opcodeMin(op *parsedOpcode, vm *Engine) error {
 // them with the maximum of the two.
 //
 // Stack transformation: [... x1 x2] -> [... max(x1, x2)]
-func opcodeMax(op *parsedOpcode, vm *Engine) error {
+func opcodeMax(op *opcode, data []byte, vm *Engine) error {
 	v0, err := vm.dstack.PopInt(mathOpCodeMaxScriptNumLen)
 	if err != nil {
 		return err
@@ -2286,7 +2275,7 @@ func opcodeMax(op *parsedOpcode, vm *Engine) error {
 // the third-to-top item is the value to test.
 //
 // Stack transformation: [... x1 min max] -> [... bool]
-func opcodeWithin(op *parsedOpcode, vm *Engine) error {
+func opcodeWithin(op *opcode, data []byte, vm *Engine) error {
 	maxVal, err := vm.dstack.PopInt(mathOpCodeMaxScriptNumLen)
 	if err != nil {
 		return err
@@ -2320,7 +2309,7 @@ func calcHash(buf []byte, hasher hash.Hash) []byte {
 // replaces it with ripemd160(data).
 //
 // Stack transformation: [... x1] -> [... ripemd160(x1)]
-func opcodeRipemd160(op *parsedOpcode, vm *Engine) error {
+func opcodeRipemd160(op *opcode, data []byte, vm *Engine) error {
 	buf, err := vm.dstack.PopByteArray()
 	if err != nil {
 		return err
@@ -2334,7 +2323,7 @@ func opcodeRipemd160(op *parsedOpcode, vm *Engine) error {
 // with sha1(data).
 //
 // Stack transformation: [... x1] -> [... sha1(x1)]
-func opcodeSha1(op *parsedOpcode, vm *Engine) error {
+func opcodeSha1(op *opcode, data []byte, vm *Engine) error {
 	buf, err := vm.dstack.PopByteArray()
 	if err != nil {
 		return err
@@ -2349,7 +2338,7 @@ func opcodeSha1(op *parsedOpcode, vm *Engine) error {
 // replaces it with blake256(data).
 //
 // Stack transformation: [... x1] -> [... blake256(x1)]
-func opcodeBlake256(op *parsedOpcode, vm *Engine) error {
+func opcodeBlake256(op *opcode, data []byte, vm *Engine) error {
 	buf, err := vm.dstack.PopByteArray()
 	if err != nil {
 		return err
@@ -2364,7 +2353,7 @@ func opcodeBlake256(op *parsedOpcode, vm *Engine) error {
 // it with sha256(data).
 //
 // Stack transformation: [... x1] -> [... sha256(x1)]
-func opcodeSha256(op *parsedOpcode, vm *Engine) error {
+func opcodeSha256(op *opcode, data []byte, vm *Engine) error {
 	// Treat the opcode as OP_UNKNOWN192 if the flag to interpret it as the
 	// SHA256 opcode is not set.
 	if !vm.hasFlag(ScriptVerifySHA256) {
@@ -2389,7 +2378,7 @@ func opcodeSha256(op *parsedOpcode, vm *Engine) error {
 // it with ripemd160(blake256(data)).
 //
 // Stack transformation: [... x1] -> [... ripemd160(blake256(x1))]
-func opcodeHash160(op *parsedOpcode, vm *Engine) error {
+func opcodeHash160(op *opcode, data []byte, vm *Engine) error {
 	buf, err := vm.dstack.PopByteArray()
 	if err != nil {
 		return err
@@ -2404,7 +2393,7 @@ func opcodeHash160(op *parsedOpcode, vm *Engine) error {
 // it with blake256(blake256(data)).
 //
 // Stack transformation: [... x1] -> [... blake256(blake256(x1))]
-func opcodeHash256(op *parsedOpcode, vm *Engine) error {
+func opcodeHash256(op *opcode, data []byte, vm *Engine) error {
 	buf, err := vm.dstack.PopByteArray()
 	if err != nil {
 		return err
@@ -2428,7 +2417,7 @@ func opcodeHash256(op *parsedOpcode, vm *Engine) error {
 // cryptographic methods against the provided public key.
 //
 // Stack transformation: [... signature pubkey] -> [... bool]
-func opcodeCheckSig(op *parsedOpcode, vm *Engine) error {
+func opcodeCheckSig(op *opcode, data []byte, vm *Engine) error {
 	pkBytes, err := vm.dstack.PopByteArray()
 	if err != nil {
 		return err
@@ -2522,8 +2511,8 @@ func opcodeCheckSig(op *parsedOpcode, vm *Engine) error {
 // documentation for each of those opcodes for more details.
 //
 // Stack transformation: [... signature pubkey] -> [... bool] -> [...]
-func opcodeCheckSigVerify(op *parsedOpcode, vm *Engine) error {
-	err := opcodeCheckSig(op, vm)
+func opcodeCheckSigVerify(op *opcode, data []byte, vm *Engine) error {
+	err := opcodeCheckSig(op, data, vm)
 	if err == nil {
 		err = abstractVerify(op, vm, ErrCheckSigVerify)
 	}
@@ -2552,7 +2541,7 @@ type parsedSigInfo struct {
 //
 // Stack transformation:
 // [... [sig ...] numsigs [pubkey ...] numpubkeys] -> [... bool]
-func opcodeCheckMultiSig(op *parsedOpcode, vm *Engine) error {
+func opcodeCheckMultiSig(op *opcode, data []byte, vm *Engine) error {
 	numKeys, err := vm.dstack.PopInt(mathOpCodeMaxScriptNumLen)
 	if err != nil {
 		return err
@@ -2733,8 +2722,8 @@ func opcodeCheckMultiSig(op *parsedOpcode, vm *Engine) error {
 //
 // Stack transformation:
 // [... [sig ...] numsigs [pubkey ...] numpubkeys] -> [... bool] -> [...]
-func opcodeCheckMultiSigVerify(op *parsedOpcode, vm *Engine) error {
-	err := opcodeCheckMultiSig(op, vm)
+func opcodeCheckMultiSigVerify(op *opcode, data []byte, vm *Engine) error {
+	err := opcodeCheckMultiSig(op, data, vm)
 	if err == nil {
 		err = abstractVerify(op, vm, ErrCheckMultiSigVerify)
 	}
@@ -2751,7 +2740,7 @@ func opcodeCheckMultiSigVerify(op *parsedOpcode, vm *Engine) error {
 // Failing to parse a pubkey or signature results in false.
 // After parsing, the signature and pubkey are verified against the message
 // (the hash of this transaction and its input).
-func opcodeCheckSigAlt(op *parsedOpcode, vm *Engine) error {
+func opcodeCheckSigAlt(op *opcode, data []byte, vm *Engine) error {
 	sigType, err := vm.dstack.PopInt(altSigSuitesMaxscriptNumLen)
 	if err != nil {
 		return err
@@ -2894,8 +2883,8 @@ func opcodeCheckSigAlt(op *parsedOpcode, vm *Engine) error {
 
 // opcodeCheckSigAltVerify is a combination of opcodeCheckSigAlt and
 // opcodeVerify.  The opcodeCheckSigAlt is invoked followed by opcodeVerify.
-func opcodeCheckSigAltVerify(op *parsedOpcode, vm *Engine) error {
-	err := opcodeCheckSigAlt(op, vm)
+func opcodeCheckSigAltVerify(op *opcode, data []byte, vm *Engine) error {
+	err := opcodeCheckSigAlt(op, data, vm)
 	if err == nil {
 		err = abstractVerify(op, vm, ErrCheckSigAltVerify)
 	}
