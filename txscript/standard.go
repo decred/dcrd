@@ -73,28 +73,6 @@ func (t ScriptClass) String() string {
 	return scriptClassToName[t]
 }
 
-// isOneByteMaxDataPush returns true if the parsed opcode pushes exactly one
-// byte to the stack.
-func isOneByteMaxDataPush(po parsedOpcode) bool {
-	return po.opcode.value == OP_1 ||
-		po.opcode.value == OP_2 ||
-		po.opcode.value == OP_3 ||
-		po.opcode.value == OP_4 ||
-		po.opcode.value == OP_5 ||
-		po.opcode.value == OP_6 ||
-		po.opcode.value == OP_7 ||
-		po.opcode.value == OP_8 ||
-		po.opcode.value == OP_9 ||
-		po.opcode.value == OP_10 ||
-		po.opcode.value == OP_11 ||
-		po.opcode.value == OP_12 ||
-		po.opcode.value == OP_13 ||
-		po.opcode.value == OP_14 ||
-		po.opcode.value == OP_15 ||
-		po.opcode.value == OP_16 ||
-		po.opcode.value == OP_DATA_1
-}
-
 // multiSigDetails houses details extracted from a standard multisig script.
 type multiSigDetails struct {
 	requiredSigs int
