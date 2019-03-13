@@ -468,6 +468,40 @@ func isNullDataScript(scriptVersion uint16, script []byte) bool {
 		len(tokenizer.Data()) <= MaxDataCarrierSize
 }
 
+// extractStakePubKeyHash extracts the public key hash from the passed script if
+// it is a standard stake-tagged pay-to-pubkey-hash script with the provided
+// stake opcode.  It will return nil otherwise.
+func extractStakePubKeyHash(script []byte, stakeOpcode byte) []byte {
+	// A stake-tagged pay-to-pubkey-hash is of the form:
+	//   <stake opcode> <standard-pay-to-pubkey-hash script>
+
+	// The script can't possibly be a stake-tagged pay-to-pubkey-hash if it
+	// doesn't start with the given stake opcode.  Fail fast to avoid more work
+	// below.
+	if len(script) < 1 || script[0] != stakeOpcode {
+		return nil
+	}
+
+	return extractPubKeyHash(script[1:])
+}
+
+// extractStakeScriptHash extracts the script hash from the passed script if it
+// is a standard stake-tagged pay-to-script-hash script with the provided stake
+// opcode.  It will return nil otherwise.
+func extractStakeScriptHash(script []byte, stakeOpcode byte) []byte {
+	// A stake-tagged pay-to-script-hash is of the form:
+	//   <stake opcode> <standard-pay-to-script-hash script>
+
+	// The script can't possibly be a stake-tagged pay-to-script-hash if it
+	// doesn't start with the given stake opcode.  Fail fast to avoid more work
+	// below.
+	if len(script) < 1 || script[0] != stakeOpcode {
+		return nil
+	}
+
+	return extractScriptHash(script[1:])
+}
+
 // isStakeSubmission returns true if the script passed is a stake submission tx,
 // false otherwise.
 func isStakeSubmission(pops []parsedOpcode) bool {
@@ -490,6 +524,24 @@ func isStakeSubmission(pops []parsedOpcode) bool {
 	}
 
 	return false
+}
+
+// isStakeSubmissionScript returns whether or not the passed script is a
+// supported stake submission script.
+//
+// NOTE: This function is only valid for version 0 scripts.  It will always
+// return false for other script versions.
+func isStakeSubmissionScript(scriptVersion uint16, script []byte) bool {
+	// The only currently supported script version is 0.
+	if scriptVersion != 0 {
+		return false
+	}
+
+	// The only supported stake submission scripts are pay-to-pubkey-hash and
+	// pay-to-script-hash tagged with the stake submission opcode.
+	const stakeOpcode = OP_SSTX
+	return extractStakePubKeyHash(script, stakeOpcode) != nil ||
+		extractStakeScriptHash(script, stakeOpcode) != nil
 }
 
 // isStakeGen returns true if the script passed is a stake generation tx,
@@ -589,6 +641,8 @@ func typeOfScript(scriptVersion uint16, script []byte) ScriptClass {
 		return MultiSigTy
 	case isNullDataScript(scriptVersion, script):
 		return NullDataTy
+	case isStakeSubmissionScript(scriptVersion, script):
+		return StakeSubmissionTy
 	}
 
 	pops, err := parseScript(script)
@@ -597,8 +651,6 @@ func typeOfScript(scriptVersion uint16, script []byte) ScriptClass {
 	}
 
 	switch {
-	case isStakeSubmission(pops):
-		return StakeSubmissionTy
 	case isStakeGen(pops):
 		return StakeGenTy
 	case isStakeRevocation(pops):

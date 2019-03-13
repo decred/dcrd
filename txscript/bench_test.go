@@ -371,9 +371,9 @@ func BenchmarkIsStakeSubmissionScript(b *testing.B) {
 		b.Fatalf("failed to create benchmark script: %v", err)
 	}
 
+	const scriptVersion = 0
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		pops, _ := parseScript(script)
-		_ = isStakeSubmission(pops)
+		_ = isStakeSubmissionScript(scriptVersion, script)
 	}
 }
