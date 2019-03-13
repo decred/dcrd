@@ -448,6 +448,8 @@ func typeOfScript(scriptVersion uint16, script []byte) ScriptClass {
 	switch {
 	case isScriptHashScript(script):
 		return ScriptHashTy
+	case isMultisigScript(scriptVersion, script):
+		return MultiSigTy
 	}
 
 	pops, err := parseScript(script)
@@ -464,8 +466,6 @@ func typeOfScript(scriptVersion uint16, script []byte) ScriptClass {
 		return PubKeyHashTy
 	case isPubkeyHashAlt(pops):
 		return PubkeyHashAltTy
-	case isMultiSig(pops):
-		return MultiSigTy
 	case isNullData(pops):
 		return NullDataTy
 	case isStakeSubmission(pops):
