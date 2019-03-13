@@ -10,6 +10,7 @@ import (
 	"io/ioutil"
 	"testing"
 
+	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -554,6 +555,43 @@ func BenchmarkExtractAtomicSwapDataPushes(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		_, err := ExtractAtomicSwapDataPushes(scriptVersion, script)
+		if err != nil {
+			b.Fatalf("unexpected err: %v", err)
+		}
+	}
+}
+
+// BenchmarkExtractPkScriptAddrsLarge benchmarks how long it takes to analyze
+// and potentially extract addresses from a very large non-standard script.
+func BenchmarkExtractPkScriptAddrsLarge(b *testing.B) {
+	script, err := genComplexScript()
+	if err != nil {
+		b.Fatalf("failed to create benchmark script: %v", err)
+	}
+
+	const scriptVersion = 0
+	params := &chaincfg.MainNetParams
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, _, _, err := ExtractPkScriptAddrs(scriptVersion, script, params)
+		if err != nil {
+			b.Fatalf("unexpected err: %v", err)
+		}
+	}
+}
+
+// BenchmarkExtractPkScriptAddrs benchmarks how long it takes to analyze and
+// potentially extract addresses from a typical script.
+func BenchmarkExtractPkScriptAddrs(b *testing.B) {
+	script := mustParseShortForm("OP_SSTX HASH160 " +
+		"DATA_20 0x0102030405060708090a0b0c0d0e0f1011121314 " +
+		"EQUAL")
+
+	const scriptVersion = 0
+	params := &chaincfg.MainNetParams
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, _, _, err := ExtractPkScriptAddrs(scriptVersion, script, params)
 		if err != nil {
 			b.Fatalf("unexpected err: %v", err)
 		}
