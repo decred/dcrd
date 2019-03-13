@@ -288,13 +288,16 @@ func DisasmString(script []byte) (string, error) {
 	return disbuf.String(), tokenizer.Err()
 }
 
-// canonicalPush returns true if the object is either not a push instruction
-// or the push instruction contained wherein is matches the canonical form
-// or using the smallest instruction to do the job. False otherwise.
-func canonicalPush(pop parsedOpcode) bool {
-	opcode := pop.opcode.value
-	data := pop.data
-	dataLen := len(pop.data)
+// isCanonicalPush returns true if the opcode is either not a push instruction
+// or the data associated with the push instruction uses the smallest
+// instruction to do the job.  False otherwise.
+//
+// For example, it is possible to push a value of 1 to the stack as "OP_1",
+// "OP_DATA_1 0x01", "OP_PUSHDATA1 0x01 0x01", and others, however, the first
+// only takes a single byte, while the rest take more.  Only the first is
+// considered canonical.
+func isCanonicalPush(opcode byte, data []byte) bool {
+	dataLen := len(data)
 	if opcode > OP_16 {
 		return true
 	}
@@ -319,7 +322,9 @@ func canonicalPush(pop parsedOpcode) bool {
 func removeOpcodeByData(pkscript []parsedOpcode, data []byte) []parsedOpcode {
 	retScript := make([]parsedOpcode, 0, len(pkscript))
 	for _, pop := range pkscript {
-		if !canonicalPush(pop) || !bytes.Contains(pop.data, data) {
+		if !isCanonicalPush(pop.opcode.value, pop.data) ||
+			!bytes.Contains(pop.data, data) {
+
 			retScript = append(retScript, pop)
 		}
 	}

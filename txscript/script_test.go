@@ -3753,33 +3753,27 @@ func TestPushedData(t *testing.T) {
 	}
 }
 
-// TestHasCanonicalPush ensures the canonicalPush function works as expected.
+// TestHasCanonicalPush ensures the isCanonicalPush function works as expected.
 func TestHasCanonicalPush(t *testing.T) {
 	t.Parallel()
 
+	const scriptVersion = 0
 	for i := 0; i < 65535; i++ {
 		builder := NewScriptBuilder()
 		builder.AddInt64(int64(i))
 		script, err := builder.Script()
 		if err != nil {
-			t.Errorf("Script: test #%d unexpected error: %v\n", i,
-				err)
+			t.Errorf("Script: test #%d unexpected error: %v\n", i, err)
 			continue
 		}
-		if result := IsPushOnlyScript(script); !result {
-			t.Errorf("IsPushOnlyScript: test #%d failed: %x\n", i,
-				script)
+		if !IsPushOnlyScript(script) {
+			t.Errorf("IsPushOnlyScript: test #%d failed: %x\n", i, script)
 			continue
 		}
-		pops, err := parseScript(script)
-		if err != nil {
-			t.Errorf("parseScript: #%d failed: %v", i, err)
-			continue
-		}
-		for _, pop := range pops {
-			if result := canonicalPush(pop); !result {
-				t.Errorf("canonicalPush: test #%d "+
-					"failed: %x\n", i, script)
+		tokenizer := MakeScriptTokenizer(scriptVersion, script)
+		for tokenizer.Next() {
+			if !isCanonicalPush(tokenizer.Opcode(), tokenizer.Data()) {
+				t.Errorf("isCanonicalPush: test #%d failed: %x\n", i, script)
 				break
 			}
 		}
@@ -3789,21 +3783,17 @@ func TestHasCanonicalPush(t *testing.T) {
 		builder.AddData(bytes.Repeat([]byte{0x49}, i))
 		script, err := builder.Script()
 		if err != nil {
-			t.Errorf("StandardPushesTests test #%d unexpected error: %v\n", i, err)
+			t.Errorf("Script: test #%d unexpected error: %v\n", i, err)
 			continue
 		}
-		if result := IsPushOnlyScript(script); !result {
-			t.Errorf("StandardPushesTests IsPushOnlyScript test #%d failed: %x\n", i, script)
+		if !IsPushOnlyScript(script) {
+			t.Errorf("IsPushOnlyScript: test #%d failed: %x\n", i, script)
 			continue
 		}
-		pops, err := parseScript(script)
-		if err != nil {
-			t.Errorf("StandardPushesTests #%d failed to parseScript: %v", i, err)
-			continue
-		}
-		for _, pop := range pops {
-			if result := canonicalPush(pop); !result {
-				t.Errorf("StandardPushesTests canonicalPush test #%d failed: %x\n", i, script)
+		tokenizer := MakeScriptTokenizer(scriptVersion, script)
+		for tokenizer.Next() {
+			if !isCanonicalPush(tokenizer.Opcode(), tokenizer.Data()) {
+				t.Errorf("isCanonicalPush: test #%d failed: %x\n", i, script)
 				break
 			}
 		}
@@ -4132,11 +4122,13 @@ func TestIsAnyKindOfScriptHash(t *testing.T) {
 	}
 }
 
-// TestHasCanonicalPushes ensures the canonicalPush function properly determines
-// what is considered a canonical push for the purposes of removeOpcodeByData.
+// TestHasCanonicalPushes ensures the isCanonicalPush function properly
+// determines what is considered a canonical push for the purposes of
+// removeOpcodeByData.
 func TestHasCanonicalPushes(t *testing.T) {
 	t.Parallel()
 
+	const scriptVersion = 0
 	tests := []struct {
 		name     string
 		script   string
@@ -4155,20 +4147,20 @@ func TestHasCanonicalPushes(t *testing.T) {
 		},
 	}
 
-	for i, test := range tests {
+	for _, test := range tests {
 		script := mustParseShortForm(test.script)
-		pops, err := parseScript(script)
-		if err != nil {
+		if err := checkScriptParses(scriptVersion, script); err != nil {
 			if test.expected {
-				t.Errorf("TstParseScript #%d failed: %v", i, err)
+				t.Errorf("%q: script parse failed: %v", test.name, err)
 			}
 			continue
 		}
-		for _, pop := range pops {
-			if canonicalPush(pop) != test.expected {
-				t.Errorf("canonicalPush: #%d (%s) wrong result"+
-					"\ngot: %v\nwant: %v", i, test.name,
-					true, test.expected)
+		tokenizer := MakeScriptTokenizer(scriptVersion, script)
+		for tokenizer.Next() {
+			result := isCanonicalPush(tokenizer.Opcode(), tokenizer.Data())
+			if result != test.expected {
+				t.Errorf("%q: isCanonicalPush wrong result\ngot: %v\nwant: %v",
+					test.name, result, test.expected)
 				break
 			}
 		}
