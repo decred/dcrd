@@ -860,18 +860,24 @@ func CalcMultiSigStats(script []byte) (int, int, error) {
 	return details.numPubKeys, details.requiredSigs, nil
 }
 
-// MultisigRedeemScriptFromScriptSig attempts to extract a multi-
-// signature redeem script from a P2SH-redeeming input. It returns
-// nil if the signature script is not a multisignature script.
+// MultisigRedeemScriptFromScriptSig attempts to extract a multi-signature
+// redeem script from a P2SH-redeeming input.  The script is expected to already
+// have been checked to be a multisignature script prior to calling this
+// function.  The results are undefined for other script types.
+//
+// NOTE: This function is only valid for version 0 scripts.  Since the function
+// does not accept a script version, the results are undefined for other script
+// versions.
+//
+// The error is DEPRECATED and will be removed in the major version bump.
 func MultisigRedeemScriptFromScriptSig(script []byte) ([]byte, error) {
-	pops, err := parseScript(script)
-	if err != nil {
+	const scriptVersion = 0
+	if err := checkScriptParses(scriptVersion, script); err != nil {
 		return nil, err
 	}
 
-	// The redeemScript is always the last item on the stack of
-	// the script sig.
-	return pops[len(pops)-1].data, nil
+	// The redeemScript is always the last item on the stack of the script sig.
+	return finalOpcodeData(scriptVersion, script), nil
 }
 
 // payToPubKeyHashScript creates a new script to pay a transaction
