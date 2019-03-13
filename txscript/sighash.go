@@ -460,11 +460,15 @@ func calcSignatureHash(prevOutScript []parsedOpcode, hashType SigHashType, tx *w
 // cached prefix parameter allows the caller to optimize the calculation by
 // providing the prefix hash to be reused in the case of SigHashAll without the
 // SigHashAnyOneCanPay flag set.
+//
+// NOTE: This function is only valid for version 0 scripts.  Since the function
+// does not accept a script version, the results are undefined for other script
+// versions.
 func CalcSignatureHash(script []byte, hashType SigHashType, tx *wire.MsgTx, idx int, cachedPrefix *chainhash.Hash) ([]byte, error) {
-	pops, err := parseScript(script)
-	if err != nil {
+	const scriptVersion = 0
+	if err := checkScriptParses(scriptVersion, script); err != nil {
 		return nil, err
 	}
 
-	return calcSignatureHash(pops, hashType, tx, idx, cachedPrefix)
+	return calcSignatureHashRaw(script, hashType, tx, idx, cachedPrefix)
 }

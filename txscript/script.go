@@ -416,6 +416,15 @@ func GetPreciseSigOpCount(scriptSig, scriptPubKey []byte, bip16 bool) int {
 	return getSigOpCount(shPops, true)
 }
 
+// checkScriptParses returns an error if the provided script fails to parse.
+func checkScriptParses(scriptVersion uint16, script []byte) error {
+	tokenizer := MakeScriptTokenizer(scriptVersion, script)
+	for tokenizer.Next() {
+		// Nothing to do.
+	}
+	return tokenizer.Err()
+}
+
 // IsUnspendable returns whether the passed public key script is unspendable, or
 // guaranteed to fail at execution.  This allows inputs to be pruned instantly
 // when entering the UTXO set. In Decred, all zero value outputs are unspendable.
