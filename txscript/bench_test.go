@@ -439,3 +439,17 @@ func BenchmarkContainsStakeOpCodes(b *testing.B) {
 		}
 	}
 }
+
+// BenchmarkExactCoinbaseNullData benchmarks how long it takes
+// ExtractCoinbaseNullData to extract the info from a typical coinbase script.
+func BenchmarkExactCoinbaseNullData(b *testing.B) {
+	script := mustParseShortForm("RETURN DATA_12 0xe0930400d477e87e1581d8d0")
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, err := ExtractCoinbaseNullData(script)
+		if err != nil {
+			b.Fatalf("unexpected err: %v", err)
+		}
+	}
+}
