@@ -1476,18 +1476,30 @@ func ExtractPkScriptAddrs(version uint16, pkScript []byte,
 		return PubkeyAltTy, addrs, 1, nil
 	}
 
+	// Check for multi-signature script.
+	details := extractMultisigScriptDetails(version, pkScript, true)
+	if details.valid {
+		// Convert the public keys while skipping any that are invalid.
+		addrs := make([]dcrutil.Address, 0, details.numPubKeys)
+		for i := 0; i < details.numPubKeys; i++ {
+			pubkey, err := secp256k1.ParsePubKey(details.pubKeys[i])
+			if err == nil {
+				addr, err := dcrutil.NewAddressSecpPubKeyCompressed(pubkey,
+					chainParams)
+				if err == nil {
+					addrs = append(addrs, addr)
+				}
+			}
+		}
+		return MultiSigTy, addrs, details.requiredSigs, nil
+	}
+
 	// Fall back to slow path.  Ultimately these are intended to be replaced by
 	// faster variants based on the unparsed raw scripts.
 
 	var addrs []dcrutil.Address
 	var requiredSigs int
-
-	// No valid addresses or required signatures if the script doesn't
-	// parse.
-	pops, err := parseScript(pkScript)
-	if err != nil {
-		return NonStandardTy, nil, 0, err
-	}
+	var err error
 
 	scriptClass := typeOfScript(version, pkScript)
 
@@ -1533,28 +1545,6 @@ func ExtractPkScriptAddrs(version uint16, pkScript []byte,
 				chainParams)
 		if err == nil {
 			addrs = append(addrs, localAddrs...)
-		}
-
-	case MultiSigTy:
-		// A multi-signature script is of the form:
-		//  <numsigs> <pubkey> <pubkey> <pubkey>... <numpubkeys> OP_CHECKMULTISIG
-		// Therefore the number of required signatures is the 1st item
-		// on the stack and the number of public keys is the 2nd to last
-		// item on the stack.
-		requiredSigs = asSmallInt(pops[0].opcode.value)
-		numPubKeys := asSmallInt(pops[len(pops)-2].opcode.value)
-
-		// Extract the public keys while skipping any that are invalid.
-		addrs = make([]dcrutil.Address, 0, numPubKeys)
-		for i := 0; i < numPubKeys; i++ {
-			pubkey, err := secp256k1.ParsePubKey(pops[i+1].data)
-			if err == nil {
-				addr, err := dcrutil.NewAddressSecpPubKeyCompressed(pubkey,
-					chainParams)
-				if err == nil {
-					addrs = append(addrs, addr)
-				}
-			}
 		}
 
 	case NullDataTy:
