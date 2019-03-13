@@ -1,5 +1,5 @@
 // Copyright (c) 2015-2016 The btcsuite developers
-// Copyright (c) 2015-2017 The Decred developers
+// Copyright (c) 2015-2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -25,12 +25,11 @@ const (
 // ExtractCoinbaseNullData ensures the passed script is a nulldata script as
 // required by the consensus rules for the coinbase output that is used to
 // ensure the coinbase has a unique hash and returns the data it pushes.
+//
+// NOTE: This function is only valid for version 0 scripts.  Since the function
+// does not accept a script version, the results are undefined for other script
+// versions.
 func ExtractCoinbaseNullData(pkScript []byte) ([]byte, error) {
-	pops, err := parseScript(pkScript)
-	if err != nil {
-		return nil, err
-	}
-
 	// The nulldata in the coinbase must be a single OP_RETURN followed by a
 	// data push up to maxUniqueCoinbaseNullDataSize bytes.
 	//
@@ -44,14 +43,18 @@ func ExtractCoinbaseNullData(pkScript []byte) ([]byte, error) {
 	// height to be encoded as a 4-byte little-endian uint32 pushed via a normal
 	// data push, as opposed to using the normal number handling semantics of
 	// scripts, so this is specialized to accommodate that.
-	if len(pops) == 1 && pops[0].opcode.value == OP_RETURN {
+	const scriptVersion = 0
+	if len(pkScript) == 1 && pkScript[0] == OP_RETURN {
 		return nil, nil
 	}
-	if len(pops) == 2 && pops[0].opcode.value == OP_RETURN &&
-		pops[1].opcode.value <= OP_PUSHDATA4 && len(pops[1].data) <=
-		maxUniqueCoinbaseNullDataSize {
+	if len(pkScript) > 1 && pkScript[0] == OP_RETURN {
+		tokenizer := MakeScriptTokenizer(scriptVersion, pkScript[1:])
+		if tokenizer.Next() && tokenizer.Done() &&
+			tokenizer.Opcode() <= OP_PUSHDATA4 &&
+			len(tokenizer.Data()) <= maxUniqueCoinbaseNullDataSize {
 
-		return pops[1].data, nil
+			return tokenizer.Data(), nil
+		}
 	}
 
 	str := fmt.Sprintf("script %x is not well-formed coinbase nulldata",
