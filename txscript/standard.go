@@ -562,6 +562,24 @@ func isStakeRevocation(pops []parsedOpcode) bool {
 	return false
 }
 
+// isStakeRevocationScript returns whether or not the passed script is a
+// supported stake revocation script.
+//
+// NOTE: This function is only valid for version 0 scripts.  It will always
+// return false for other script versions.
+func isStakeRevocationScript(scriptVersion uint16, script []byte) bool {
+	// The only currently supported script version is 0.
+	if scriptVersion != 0 {
+		return false
+	}
+
+	// The only supported stake revocation scripts are pay-to-pubkey-hash and
+	// pay-to-script-hash tagged with the stake submission opcode.
+	const stakeOpcode = OP_SSRTX
+	return extractStakePubKeyHash(script, stakeOpcode) != nil ||
+		extractStakeScriptHash(script, stakeOpcode) != nil
+}
+
 // isSStxChange returns true if the script passed is a stake submission
 // change tx, false otherwise.
 func isSStxChange(pops []parsedOpcode) bool {
@@ -615,6 +633,8 @@ func typeOfScript(scriptVersion uint16, script []byte) ScriptClass {
 		return StakeSubmissionTy
 	case isStakeGenScript(scriptVersion, script):
 		return StakeGenTy
+	case isStakeRevocationScript(scriptVersion, script):
+		return StakeRevocationTy
 	}
 
 	pops, err := parseScript(script)
@@ -623,8 +643,6 @@ func typeOfScript(scriptVersion uint16, script []byte) ScriptClass {
 	}
 
 	switch {
-	case isStakeRevocation(pops):
-		return StakeRevocationTy
 	case isSStxChange(pops):
 		return StakeSubChangeTy
 	}
