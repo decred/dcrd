@@ -344,7 +344,6 @@ func BenchmarkIsAltPubKeyHashScript(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		pops, _ := parseScript(script)
-		_ = isPubkeyHashAlt(pops)
+		_ = isPubKeyHashAltScript(script)
 	}
 }

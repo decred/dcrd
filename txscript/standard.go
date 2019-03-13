@@ -386,6 +386,53 @@ func isPubKeyHashScript(script []byte) bool {
 	return extractPubKeyHash(script) != nil
 }
 
+// isStandardAltSignatureType returns whether or not the provided opcode
+// represents a push of a standard alt signature type.
+func isStandardAltSignatureType(op byte) bool {
+	if !isSmallInt(op) {
+		return false
+	}
+
+	sigType := asSmallInt(op)
+	return sigType == dcrec.STEd25519 || sigType == dcrec.STSchnorrSecp256k1
+}
+
+// extractPubKeyHashAltDetails extracts the public key hash and signature type
+// from the passed script if it is a standard pay-to-alt-pubkey-hash script.  It
+// will return nil otherwise.
+func extractPubKeyHashAltDetails(script []byte) ([]byte, dcrec.SignatureType) {
+	// A pay-to-alt-pubkey-hash script is of the form:
+	//  DUP HASH160 <20-byte hash> EQUALVERIFY SIGTYPE CHECKSIG
+	//
+	// The only two currently supported alternative signature types are ed25519
+	// and schnorr + secp256k1 (with a compressed pubkey).
+	//
+	//  DUP HASH160 <20-byte hash> EQUALVERIFY <1-byte ed25519 sigtype> CHECKSIG
+	//  DUP HASH160 <20-byte hash> EQUALVERIFY <1-byte schnorr+secp sigtype> CHECKSIG
+	//
+	//  Notice that OP_0 is not specified since signature type 0 disabled.
+
+	if len(script) == 26 &&
+		script[0] == OP_DUP &&
+		script[1] == OP_HASH160 &&
+		script[2] == OP_DATA_20 &&
+		script[23] == OP_EQUALVERIFY &&
+		isStandardAltSignatureType(script[24]) &&
+		script[25] == OP_CHECKSIGALT {
+
+		return script[3:23], dcrec.SignatureType(asSmallInt(script[24]))
+	}
+
+	return nil, 0
+}
+
+// isPubKeyHashAltScript returns whether or not the passed script is a standard
+// pay-to-alt-pubkey-hash script.
+func isPubKeyHashAltScript(script []byte) bool {
+	pk, _ := extractPubKeyHashAltDetails(script)
+	return pk != nil
+}
+
 // isNullData returns true if the passed script is a null data transaction,
 // false otherwise.
 func isNullData(pops []parsedOpcode) bool {
@@ -517,6 +564,8 @@ func typeOfScript(scriptVersion uint16, script []byte) ScriptClass {
 		return PubkeyAltTy
 	case isPubKeyHashScript(script):
 		return PubKeyHashTy
+	case isPubKeyHashAltScript(script):
+		return PubkeyHashAltTy
 	case isScriptHashScript(script):
 		return ScriptHashTy
 	case isMultisigScript(scriptVersion, script):
@@ -529,8 +578,6 @@ func typeOfScript(scriptVersion uint16, script []byte) ScriptClass {
 	}
 
 	switch {
-	case isPubkeyHashAlt(pops):
-		return PubkeyHashAltTy
 	case isNullData(pops):
 		return NullDataTy
 	case isStakeSubmission(pops):
