@@ -1572,38 +1572,21 @@ func extractOneBytePush(po parsedOpcode) int {
 
 // ExtractPkScriptAltSigType returns the signature scheme to use for an
 // alternative check signature script.
+//
+// NOTE: This function only attempts to identify version 0 scripts.  Since the
+// function does not accept a script version, the results are undefined for
+// other script versions.
 func ExtractPkScriptAltSigType(pkScript []byte) (dcrec.SignatureType, error) {
-	pops, err := parseScript(pkScript)
-	if err != nil {
-		return 0, err
+	if pk, sigType := extractPubKeyAltDetails(pkScript); pk != nil {
+		return sigType, nil
 	}
 
-	isPKA := isPubkeyAlt(pops)
-	isPKHA := isPubkeyHashAlt(pops)
-	if !(isPKA || isPKHA) {
-		return -1, fmt.Errorf("wrong script type")
+	if pk, sigType := extractPubKeyHashAltDetails(pkScript); pk != nil {
+		return sigType, nil
 	}
 
-	sigTypeLoc := 1
-	if isPKHA {
-		sigTypeLoc = 4
-	}
-
-	valInt := extractOneBytePush(pops[sigTypeLoc])
-	if valInt < 0 {
-		return 0, fmt.Errorf("bad type push")
-	}
-	val := dcrec.SignatureType(valInt)
-	switch val {
-	case dcrec.STEd25519:
-		return val, nil
-	case dcrec.STSchnorrSecp256k1:
-		return val, nil
-	default:
-		break
-	}
-
-	return -1, fmt.Errorf("bad signature scheme type")
+	return -1, fmt.Errorf("not a standard pay-to-alt-pubkey or " +
+		"pay-to-alt-pubkey-hash script")
 }
 
 // AtomicSwapDataPushes houses the data pushes found in atomic swap contracts.
