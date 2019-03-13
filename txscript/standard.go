@@ -1542,34 +1542,6 @@ func ExtractPkScriptAddrs(version uint16, pkScript []byte,
 	return NonStandardTy, nil, 0, nil
 }
 
-// extractOneBytePush returns the value of a one byte push.
-func extractOneBytePush(po parsedOpcode) int {
-	if !isOneByteMaxDataPush(po) {
-		return -1
-	}
-
-	if po.opcode.value == OP_1 ||
-		po.opcode.value == OP_2 ||
-		po.opcode.value == OP_3 ||
-		po.opcode.value == OP_4 ||
-		po.opcode.value == OP_5 ||
-		po.opcode.value == OP_6 ||
-		po.opcode.value == OP_7 ||
-		po.opcode.value == OP_8 ||
-		po.opcode.value == OP_9 ||
-		po.opcode.value == OP_10 ||
-		po.opcode.value == OP_11 ||
-		po.opcode.value == OP_12 ||
-		po.opcode.value == OP_13 ||
-		po.opcode.value == OP_14 ||
-		po.opcode.value == OP_15 ||
-		po.opcode.value == OP_16 {
-		return int(po.opcode.value - 80)
-	}
-
-	return int(po.data[0])
-}
-
 // ExtractPkScriptAltSigType returns the signature scheme to use for an
 // alternative check signature script.
 //
