@@ -98,6 +98,8 @@ func isAnyKindOfScriptHash(pops []parsedOpcode) bool {
 
 // HasP2SHScriptSigStakeOpCodes returns an error is the p2sh script has either
 // stake opcodes or if the pkscript cannot be retrieved.
+//
+// DEPRECATED.  This will be removed in the next major version bump.
 func HasP2SHScriptSigStakeOpCodes(version uint16, scriptSig, scriptPubKey []byte) error {
 	class := GetScriptClass(version, scriptPubKey)
 	if IsStakeOutput(scriptPubKey) {
