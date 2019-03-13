@@ -1096,18 +1096,16 @@ func PushedData(script []byte) ([][]byte, error) {
 
 // GetMultisigMandN returns the number of public keys and the number of
 // signatures required to redeem the multisignature script.
+//
+// DEPRECATED.  Use CalcMultiSigStats instead.  This will be removed in the next
+// major version bump.
 func GetMultisigMandN(script []byte) (uint8, uint8, error) {
-	// No valid addresses or required signatures if the script doesn't
-	// parse.
-	pops, err := parseScript(script)
+	numPubKeys, requiredSigs, err := CalcMultiSigStats(script)
 	if err != nil {
 		return 0, 0, err
 	}
 
-	requiredSigs := uint8(asSmallInt(pops[0].opcode))
-	numPubKeys := uint8(asSmallInt(pops[len(pops)-2].opcode))
-
-	return requiredSigs, numPubKeys, nil
+	return uint8(requiredSigs), uint8(numPubKeys), nil
 }
 
 // ExtractPkScriptAddrs returns the type of script, addresses and required
