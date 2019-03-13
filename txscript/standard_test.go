@@ -7,6 +7,7 @@ package txscript
 
 import (
 	"bytes"
+	"fmt"
 	"reflect"
 	"testing"
 
@@ -1242,6 +1243,195 @@ func TestGenerateSSGenVotes(t *testing.T) {
 		if !bytes.Equal(s, test.expected) {
 			t.Errorf("GenerateSSGenVotes: unexpected script:\n "+
 				"got %x\nwant %x", s, test.expected)
+		}
+	}
+}
+
+// mustExpectedAtomicSwapData is a convenience function that converts the passed
+// parameters into an expected atomic swap data pushes structure and will panic
+// if there is an error.  This is only provided for the hard-coded constants so
+// errors in the source code can be detected. It will only (and must only) be
+// called with hard-coded values.
+func mustExpectedAtomicSwapData(recipientHash, refundHash, secretHash string, secretSize, lockTime int64) *AtomicSwapDataPushes {
+	result := &AtomicSwapDataPushes{
+		SecretSize: secretSize,
+		LockTime:   lockTime,
+	}
+	copy(result.RecipientHash160[:], hexToBytes(recipientHash))
+	copy(result.RefundHash160[:], hexToBytes(refundHash))
+	copy(result.SecretHash[:], hexToBytes(secretHash))
+	return result
+}
+
+// TestExtractAtomicSwapDataPushes ensures atomic swap scripts are recognized
+// properly and the correct information is extracted from them.
+func TestExtractAtomicSwapDataPushes(t *testing.T) {
+	// Define some values shared in the tests for convenience.
+	secret := "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+	recipient := "0000000000000000000000000000000000000001"
+	refund := "0000000000000000000000000000000000000002"
+
+	tests := []struct {
+		name          string                // test description
+		scriptVersion uint16                // version of script to analyze
+		script        string                // script to analyze
+		data          *AtomicSwapDataPushes // expected data pushes
+		err           error                 // expected error
+	}{{
+		name: "normal valid atomic swap",
+		script: fmt.Sprintf("IF SIZE 32 EQUALVERIFY SHA256 DATA_32 "+
+			"0x%s EQUALVERIFY DUP HASH160 DATA_20 0x%s ELSE 300000 "+
+			"CHECKLOCKTIMEVERIFY DROP DUP HASH160 DATA_20 0x%s ENDIF "+
+			"EQUALVERIFY CHECKSIG", secret, recipient, refund),
+		scriptVersion: 0,
+		data: mustExpectedAtomicSwapData(recipient, refund, secret, 32,
+			300000),
+		err: nil,
+	}, {
+		name: "atomic swap with mismatched smallint secret size",
+		script: fmt.Sprintf("IF SIZE 16 EQUALVERIFY SHA256 DATA_32 "+
+			"0x%s EQUALVERIFY DUP HASH160 DATA_20 0x%s ELSE 300000 "+
+			"CHECKLOCKTIMEVERIFY DROP DUP HASH160 DATA_20 0x%s ENDIF "+
+			"EQUALVERIFY CHECKSIG", secret, recipient, refund),
+		scriptVersion: 0,
+		data: mustExpectedAtomicSwapData(recipient, refund, secret, 16,
+			300000),
+		err: nil,
+	}, {
+		name: "atomic swap with smallint locktime",
+		script: fmt.Sprintf("IF SIZE 32 EQUALVERIFY SHA256 DATA_32 "+
+			"0x%s EQUALVERIFY DUP HASH160 DATA_20 0x%s ELSE 10 "+
+			"CHECKLOCKTIMEVERIFY DROP DUP HASH160 DATA_20 0x%s ENDIF "+
+			"EQUALVERIFY CHECKSIG", secret, recipient, refund),
+		scriptVersion: 0,
+		data: mustExpectedAtomicSwapData(recipient, refund, secret, 32,
+			10),
+		err: nil,
+	}, {
+		name: "almost valid, but NOP for secret size",
+		script: fmt.Sprintf("IF SIZE NOP EQUALVERIFY SHA256 DATA_32 "+
+			"0x%s EQUALVERIFY DUP HASH160 DATA_20 0x%s ELSE 300000 "+
+			"CHECKLOCKTIMEVERIFY DROP DUP HASH160 DATA_20 0x%s ENDIF "+
+			"EQUALVERIFY CHECKSIG", secret, recipient, refund),
+		scriptVersion: 0,
+		data:          nil,
+		err:           nil,
+	}, {
+		name: "almost valid, but NOP for locktime",
+		script: fmt.Sprintf("IF SIZE 32 EQUALVERIFY SHA256 DATA_32 "+
+			"0x%s EQUALVERIFY DUP HASH160 DATA_20 0x%s ELSE NOP "+
+			"CHECKLOCKTIMEVERIFY DROP DUP HASH160 DATA_20 0x%s ENDIF "+
+			"EQUALVERIFY CHECKSIG", secret, recipient, refund),
+		scriptVersion: 0,
+		data:          nil,
+		err:           nil,
+	}, {
+		name: "almost valid, but wrong sha256 secret size",
+		script: fmt.Sprintf("IF SIZE 32 EQUALVERIFY SHA256 DATA_31 "+
+			"0x%s EQUALVERIFY DUP HASH160 DATA_20 0x%s ELSE 300000 "+
+			"CHECKLOCKTIMEVERIFY DROP DUP HASH160 DATA_20 0x%s ENDIF "+
+			"EQUALVERIFY CHECKSIG", secret[:len(secret)-2], recipient, refund),
+		scriptVersion: 0,
+		data:          nil,
+		err:           nil,
+	}, {
+		name: "almost valid, but wrong recipient hash size",
+		script: fmt.Sprintf("IF SIZE 32 EQUALVERIFY SHA256 DATA_32 "+
+			"0x%s EQUALVERIFY DUP HASH160 DATA_19 0x%s ELSE 300000 "+
+			"CHECKLOCKTIMEVERIFY DROP DUP HASH160 DATA_20 0x%s ENDIF "+
+			"EQUALVERIFY CHECKSIG", secret, recipient[:len(recipient)-2],
+			refund),
+		scriptVersion: 0,
+		data:          nil,
+		err:           nil,
+	}, {
+		name: "almost valid, but wrong refund hash size",
+		script: fmt.Sprintf("IF SIZE 32 EQUALVERIFY SHA256 DATA_32 "+
+			"0x%s EQUALVERIFY DUP HASH160 DATA_20 0x%s ELSE 300000 "+
+			"CHECKLOCKTIMEVERIFY DROP DUP HASH160 DATA_19 0x%s ENDIF "+
+			"EQUALVERIFY CHECKSIG", secret, recipient, refund[:len(refund)-2]),
+		scriptVersion: 0,
+		data:          nil,
+		err:           nil,
+	}, {
+		name: "almost valid, but missing final CHECKSIG",
+		script: fmt.Sprintf("IF SIZE 32 EQUALVERIFY SHA256 DATA_32 "+
+			"0x%s EQUALVERIFY DUP HASH160 DATA_20 0x%s ELSE 300000 "+
+			"CHECKLOCKTIMEVERIFY DROP DUP HASH160 DATA_20 0x%s ENDIF "+
+			"EQUALVERIFY", secret, recipient, refund),
+		scriptVersion: 0,
+		data:          nil,
+		err:           nil,
+	}, {
+		name: "almost valid, but additional opcode at end",
+		script: fmt.Sprintf("IF SIZE 32 EQUALVERIFY SHA256 DATA_32 "+
+			"0x%s EQUALVERIFY DUP HASH160 DATA_20 0x%s ELSE 300000 "+
+			"CHECKLOCKTIMEVERIFY DROP DUP HASH160 DATA_20 0x%s ENDIF "+
+			"EQUALVERIFY CHECKSIG NOP", secret, recipient, refund),
+		scriptVersion: 0,
+		data:          nil,
+		err:           nil,
+	}, {
+		name: "valid atomic swap for v0 script, but unsupported version",
+		script: fmt.Sprintf("IF SIZE 32 EQUALVERIFY SHA256 DATA_32 "+
+			"0x%s EQUALVERIFY DUP HASH160 DATA_20 0x%s ELSE 300000 "+
+			"CHECKLOCKTIMEVERIFY DROP DUP HASH160 DATA_20 0x%s ENDIF "+
+			"EQUALVERIFY CHECKSIG", secret, recipient, refund),
+		scriptVersion: 65535,
+		data:          nil,
+		err:           scriptError(ErrUnsupportedScriptVersion, ""),
+	}}
+
+	for _, test := range tests {
+		script := mustParseShortForm(test.script)
+
+		// Attempt to extract the atomic swap data from the script and ensure
+		// the error is as expected.
+		data, err := ExtractAtomicSwapDataPushes(test.scriptVersion, script)
+		if test.err == nil && err != nil {
+			t.Fatalf("%q: unexpected err -- got %v, want nil", test.name, err)
+		} else if test.err != nil {
+			if !IsErrorCode(err, test.err.(Error).ErrorCode) {
+				t.Fatalf("%q: unexpected err -- got %v, want %v",
+					test.name, err, test.err.(Error).ErrorCode)
+			}
+			continue
+		}
+
+		// Ensure there is either extract data or not as expected.
+		switch {
+		case test.data == nil && data != nil:
+			t.Fatalf("%q: unexpected extracted data", test.name)
+
+		case test.data != nil && data == nil:
+			t.Fatalf("%q: failed to extract expected data", test.name)
+
+		case data == nil:
+			continue
+		}
+
+		// Ensure the invidual fields of the extracted data is accurate.  The
+		// two structs could be directly compared, but testing them individually
+		// allows nicer error reporting in the case of failure.
+		if data.RecipientHash160 != test.data.RecipientHash160 {
+			t.Fatalf("%q: unexpected recipient hash -- got %x, want %x",
+				test.name, data.RecipientHash160, test.data.RecipientHash160)
+		}
+		if data.RefundHash160 != test.data.RefundHash160 {
+			t.Fatalf("%q: unexpected refund hash -- got %x, want %x", test.name,
+				data.RefundHash160, test.data.RefundHash160)
+		}
+		if data.SecretHash != test.data.SecretHash {
+			t.Fatalf("%q: unexpected secret hash -- got %x, want %x", test.name,
+				data.SecretHash, test.data.SecretHash)
+		}
+		if data.SecretSize != test.data.SecretSize {
+			t.Fatalf("%q: unexpected secret size -- got %d, want %d", test.name,
+				data.SecretSize, test.data.SecretSize)
+		}
+		if data.LockTime != test.data.LockTime {
+			t.Fatalf("%q: unexpected locktime -- got %d, want %d", test.name,
+				data.LockTime, test.data.LockTime)
 		}
 	}
 }
