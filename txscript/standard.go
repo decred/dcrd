@@ -753,19 +753,20 @@ func getStakeOutSubscript(pkScript []byte) []byte {
 
 // ContainsStakeOpCodes returns whether or not a pkScript contains stake tagging
 // OP codes.
+//
+// NOTE: This function is only valid for version 0 scripts.  Since the function
+// does not accept a script version, the results are undefined for other script
+// versions.
 func ContainsStakeOpCodes(pkScript []byte) (bool, error) {
-	shPops, err := parseScript(pkScript)
-	if err != nil {
-		return false, err
-	}
-
-	for _, pop := range shPops {
-		if isStakeOpcode(pop.opcode.value) {
+	const scriptVersion = 0
+	tokenizer := MakeScriptTokenizer(scriptVersion, pkScript)
+	for tokenizer.Next() {
+		if isStakeOpcode(tokenizer.Opcode()) {
 			return true, nil
 		}
 	}
 
-	return false, nil
+	return false, tokenizer.Err()
 }
 
 // CalcScriptInfo returns a structure providing data about the provided script
