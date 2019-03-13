@@ -95,18 +95,6 @@ func isOneByteMaxDataPush(po parsedOpcode) bool {
 		po.opcode.value == OP_DATA_1
 }
 
-// isPubkeyHashAlt returns true if the script passed is a pay-to-pubkey-hash
-// transaction, false otherwise.
-func isPubkeyHashAlt(pops []parsedOpcode) bool {
-	return len(pops) == 6 &&
-		pops[0].opcode.value == OP_DUP &&
-		pops[1].opcode.value == OP_HASH160 &&
-		pops[2].opcode.value == OP_DATA_20 &&
-		pops[3].opcode.value == OP_EQUALVERIFY &&
-		isOneByteMaxDataPush(pops[4]) &&
-		pops[5].opcode.value == OP_CHECKSIGALT
-}
-
 // multiSigDetails houses details extracted from a standard multisig script.
 type multiSigDetails struct {
 	requiredSigs int
