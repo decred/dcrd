@@ -1414,14 +1414,15 @@ func scriptHashToAddrs(hash []byte, params *chaincfg.Params) []dcrutil.Address {
 // signatures associated with the passed PkScript.  Note that it only works for
 // 'standard' transaction script types.  Any data such as public keys which are
 // invalid are omitted from the results.
+//
+// NOTE: This function only attempts to identify version 0 scripts.  The return
+// value will indicate a nonstandard script type for other script versions along
+// with an invalid script version error.
 func ExtractPkScriptAddrs(version uint16, pkScript []byte,
 	chainParams *chaincfg.Params) (ScriptClass, []dcrutil.Address, int, error) {
 	if version != 0 {
 		return NonStandardTy, nil, 0, fmt.Errorf("invalid script version")
 	}
-
-	// Avoid parsing the script for the cases that already have the able to
-	// work with raw scripts.
 
 	// Check for pay-to-pubkey-hash script.
 	if hash := extractPubKeyHash(pkScript); hash != nil {
@@ -1530,25 +1531,15 @@ func ExtractPkScriptAddrs(version uint16, pkScript []byte,
 		return StakeSubChangeTy, scriptHashToAddrs(hash, chainParams), 1, nil
 	}
 
-	// Fall back to slow path.  Ultimately these are intended to be replaced by
-	// faster variants based on the unparsed raw scripts.
-
-	var addrs []dcrutil.Address
-	var requiredSigs int
-
-	scriptClass := typeOfScript(version, pkScript)
-
-	switch scriptClass {
-	case NullDataTy:
-		// Null data transactions have no addresses or required
-		// signatures.
-
-	case NonStandardTy:
-		// Don't attempt to extract addresses or required signatures for
-		// nonstandard transactions.
+	// Check for null data script.
+	if isNullDataScript(version, pkScript) {
+		// Null data transactions have no addresses or required signatures.
+		return NullDataTy, nil, 0, nil
 	}
 
-	return scriptClass, addrs, requiredSigs, nil
+	// Don't attempt to extract addresses or required signatures for nonstandard
+	// transactions.
+	return NonStandardTy, nil, 0, nil
 }
 
 // extractOneBytePush returns the value of a one byte push.
