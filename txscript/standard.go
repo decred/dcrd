@@ -1383,15 +1383,39 @@ func GetMultisigMandN(script []byte) (uint8, uint8, error) {
 	return uint8(requiredSigs), uint8(numPubKeys), nil
 }
 
+// scriptHashToAddrs is a convenience function to attempt to convert the passed
+// hash to a pay-to-script-hash address housed within an address slice.  It is
+// used to consolidate common code.
+func scriptHashToAddrs(hash []byte, params *chaincfg.Params) []dcrutil.Address {
+	// Skip the hash if it's invalid for some reason.
+	var addrs []dcrutil.Address
+	addr, err := dcrutil.NewAddressScriptHashFromHash(hash, params)
+	if err == nil {
+		addrs = append(addrs, addr)
+	}
+	return addrs
+}
+
 // ExtractPkScriptAddrs returns the type of script, addresses and required
 // signatures associated with the passed PkScript.  Note that it only works for
 // 'standard' transaction script types.  Any data such as public keys which are
 // invalid are omitted from the results.
 func ExtractPkScriptAddrs(version uint16, pkScript []byte,
 	chainParams *chaincfg.Params) (ScriptClass, []dcrutil.Address, int, error) {
-	if version != DefaultScriptVersion {
+	if version != 0 {
 		return NonStandardTy, nil, 0, fmt.Errorf("invalid script version")
 	}
+
+	// Avoid parsing the script for the cases that already have the able to
+	// work with raw scripts.
+
+	// Check for pay-to-script-hash.
+	if hash := extractScriptHash(pkScript); hash != nil {
+		return ScriptHashTy, scriptHashToAddrs(hash, chainParams), 1, nil
+	}
+
+	// Fall back to slow path.  Ultimately these are intended to be replaced by
+	// faster variants based on the unparsed raw scripts.
 
 	var addrs []dcrutil.Address
 	var requiredSigs int
@@ -1507,18 +1531,6 @@ func ExtractPkScriptAddrs(version uint16, pkScript []byte,
 				chainParams)
 		if err == nil {
 			addrs = append(addrs, localAddrs...)
-		}
-
-	case ScriptHashTy:
-		// A pay-to-script-hash script is of the form:
-		//  OP_HASH160 <scripthash> OP_EQUAL
-		// Therefore the script hash is the 2nd item on the stack.
-		// Skip the script hash if it's invalid for some reason.
-		requiredSigs = 1
-		addr, err := dcrutil.NewAddressScriptHashFromHash(pops[1].data,
-			chainParams)
-		if err == nil {
-			addrs = append(addrs, addr)
 		}
 
 	case MultiSigTy:
