@@ -36,6 +36,10 @@ $ go get -u github.com/decred/dcrd/txscript
 * [Manually Signing a Transaction Output](http://godoc.org/github.com/decred/dcrd/txscript#example-SignTxOutput)  
   Demonstrates manually creating and signing a redeem transaction.
 
+* [Counting Opcodes in Scripts](http://godoc.org/github.com/decred/dcrd/txscript#example-ScriptTokenizer)  
+  Demonstrates creating a script tokenizer instance and using it to count the
+  number of opcodes a script contains.
+
 ## License
 
 Package txscript is licensed under the [copyfree](http://copyfree.org) ISC
