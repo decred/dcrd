@@ -623,13 +623,16 @@ func GetScriptClass(version uint16, script []byte) ScriptClass {
 	return typeOfScript(version, script)
 }
 
-// expectedInputs returns the number of arguments required by a script.
-// If the script is of unknown type such that the number can not be determined
-// then -1 is returned. We are an internal function and thus assume that class
-// is the real class of pops (and we can thus assume things that were determined
-// while finding out the type).
-func expectedInputs(pops []parsedOpcode, class ScriptClass,
-	subclass ScriptClass) int {
+// expectedInputs returns the number of arguments required by a script.  A value
+// of -1 is returned if the script is of unknown type such that the number can
+// not be determined.  This is an internal function and thus assumes that both
+// class and subclass are correct for the script (and can thus assume things
+// that were determined while finding out the type).
+//
+// NOTE: This function is only valid for version 0 scripts.  Since the function
+// does not accept a script version, the results are undefined for other script
+// versions.
+func expectedInputs(script []byte, class ScriptClass, subclass ScriptClass) int {
 	switch class {
 	case PubKeyTy:
 		return 1
@@ -666,14 +669,11 @@ func expectedInputs(pops []parsedOpcode, class ScriptClass,
 		return 1
 
 	case MultiSigTy:
-		// Standard multisig has a push a small number for the number
-		// of sigs and number of keys.  Check the first push instruction
-		// to see how many arguments are expected. typeOfScript already
-		// checked this so we know it'll be a small int.  Also, due to
-		// the original bitcoind bug where OP_CHECKMULTISIG pops an
-		// additional item from the stack, add an extra expected input
-		// for the extra push that is required to compensate.
-		return asSmallInt(pops[0].opcode.value)
+		// Standard multisig has a small number push for the number of sigs and
+		// number of keys.  Check the first push instruction to to see how many
+		// arguments are expected. typeOfScript already checked this so we know
+		// it'll be a small int.
+		return asSmallInt(script[0])
 
 	case NullDataTy:
 		fallthrough
@@ -780,62 +780,61 @@ func ContainsStakeOpCodes(pkScript []byte) (bool, error) {
 //
 // DEPRECATED.  This will be removed in the next major version bump.
 func CalcScriptInfo(sigScript, pkScript []byte, bip16 bool) (*ScriptInfo, error) {
+	// Count the number of opcodes in the signature script while also ensuring
+	// that successfully parses.  Since there is a check below to ensure the
+	// script is push only, this equates to the number of inputs to the public
+	// key script.
 	const scriptVersion = 0
-	sigPops, err := parseScript(sigScript)
-	if err != nil {
+	var numInputs int
+	tokenizer := MakeScriptTokenizer(scriptVersion, sigScript)
+	for tokenizer.Next() {
+		numInputs++
+	}
+	if err := tokenizer.Err(); err != nil {
 		return nil, err
 	}
 
-	pkPops, err := parseScript(pkScript)
-	if err != nil {
+	if err := checkScriptParses(scriptVersion, pkScript); err != nil {
 		return nil, err
+	}
+
+	// Can't have a signature script that doesn't just push data.
+	if !IsPushOnlyScript(sigScript) {
+		return nil, scriptError(ErrNotPushOnly,
+			"signature script is not push only")
 	}
 
 	si := new(ScriptInfo)
 	si.PkScriptClass = typeOfScript(scriptVersion, pkScript)
-
-	// Can't have a signature script that doesn't just push data.
-	if !isPushOnly(sigPops) {
-		return nil, scriptError(ErrNotPushOnly,
-			"signature script is not push only")
-	}
 
 	subClass := ScriptClass(0)
 	if si.PkScriptClass == StakeSubmissionTy ||
 		si.PkScriptClass == StakeGenTy ||
 		si.PkScriptClass == StakeRevocationTy ||
 		si.PkScriptClass == StakeSubChangeTy {
-		subClass, err = GetStakeOutSubclass(pkScript)
-		if err != nil {
-			return nil, err
-		}
+
+		subClass = typeOfScript(scriptVersion, getStakeOutSubscript(pkScript))
 	}
 
-	si.ExpectedInputs = expectedInputs(pkPops, si.PkScriptClass, subClass)
+	si.ExpectedInputs = expectedInputs(pkScript, si.PkScriptClass, subClass)
 
 	// All entries pushed to stack (or are OP_RESERVED and exec will fail).
-	si.NumInputs = len(sigPops)
+	si.NumInputs = numInputs
 
 	// Count sigops taking into account pay-to-script-hash.
 	if (si.PkScriptClass == ScriptHashTy || subClass == ScriptHashTy) && bip16 {
-		// The pay-to-hash-script is the final data push of the
-		// signature script.
-		script := sigPops[len(sigPops)-1].data
-		shPops, err := parseScript(script)
-		if err != nil {
-			return nil, err
-		}
-
-		reedeemClass := typeOfScript(scriptVersion, script)
-		shInputs := expectedInputs(shPops, reedeemClass, 0)
-		if shInputs == -1 {
+		// The redeem script is the final data push of the signature script.
+		redeemScript := finalOpcodeData(scriptVersion, sigScript)
+		reedeemClass := typeOfScript(scriptVersion, redeemScript)
+		rsInputs := expectedInputs(redeemScript, reedeemClass, 0)
+		if rsInputs == -1 {
 			si.ExpectedInputs = -1
 		} else {
-			si.ExpectedInputs += shInputs
+			si.ExpectedInputs += rsInputs
 		}
-		si.SigOps = getSigOpCount(shPops, true)
+		si.SigOps = countSigOpsV0(redeemScript, true)
 	} else {
-		si.SigOps = getSigOpCount(pkPops, true)
+		si.SigOps = countSigOpsV0(pkScript, true)
 	}
 
 	return si, nil
