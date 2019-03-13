@@ -1456,6 +1456,26 @@ func ExtractPkScriptAddrs(version uint16, pkScript []byte,
 		return PubKeyTy, addrs, 1, nil
 	}
 
+	// Check for pay-to-alt-pubkey script.
+	if pk, sigType := extractPubKeyAltDetails(pkScript); pk != nil {
+		var addrs []dcrutil.Address
+		switch sigType {
+		case dcrec.STEd25519:
+			addr, err := dcrutil.NewAddressEdwardsPubKey(pk, chainParams)
+			if err == nil {
+				addrs = append(addrs, addr)
+			}
+
+		case dcrec.STSchnorrSecp256k1:
+			addr, err := dcrutil.NewAddressSecSchnorrPubKey(pk, chainParams)
+			if err == nil {
+				addrs = append(addrs, addr)
+			}
+		}
+
+		return PubkeyAltTy, addrs, 1, nil
+	}
+
 	// Fall back to slow path.  Ultimately these are intended to be replaced by
 	// faster variants based on the unparsed raw scripts.
 
@@ -1472,27 +1492,6 @@ func ExtractPkScriptAddrs(version uint16, pkScript []byte,
 	scriptClass := typeOfScript(version, pkScript)
 
 	switch scriptClass {
-	case PubkeyAltTy:
-		// A pay-to-pubkey alt script is of the form:
-		//  <pubkey> <type> OP_CHECKSIGALT
-		// Therefore the pubkey is the first item on the stack.
-		// Skip the pubkey if it's invalid for some reason.
-		requiredSigs = 1
-		suite, _ := ExtractPkScriptAltSigType(pkScript)
-		var addr dcrutil.Address
-		err := fmt.Errorf("invalid signature suite for alt sig")
-		switch suite {
-		case dcrec.STEd25519:
-			addr, err = dcrutil.NewAddressEdwardsPubKey(pops[0].data,
-				chainParams)
-		case dcrec.STSchnorrSecp256k1:
-			addr, err = dcrutil.NewAddressSecSchnorrPubKey(pops[0].data,
-				chainParams)
-		}
-		if err == nil {
-			addrs = append(addrs, addr)
-		}
-
 	case StakeSubmissionTy:
 		// A pay-to-stake-submission-hash script is of the form:
 		//  OP_SSTX ... P2PKH or P2SH
