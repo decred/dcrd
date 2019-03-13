@@ -443,6 +443,12 @@ type ScriptInfo struct {
 }
 
 // IsStakeOutput returns true is a script output is a stake type.
+//
+// NOTE: This function is only valid for version 0 scripts.  Since the function
+// does not accept a script version, the results are undefined for other script
+// versions.
+//
+// DEPRECATED.  This will be removed in the next major version bump.
 func IsStakeOutput(pkScript []byte) bool {
 	pkPops, err := parseScript(pkScript)
 	if err != nil {
