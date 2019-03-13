@@ -377,3 +377,18 @@ func BenchmarkIsStakeSubmissionScript(b *testing.B) {
 		_ = isStakeSubmissionScript(scriptVersion, script)
 	}
 }
+
+// BenchmarkIsStakeGenerationScript benchmarks how long it takes to analyze a
+// very large script to determine if it is a standard stake generation script.
+func BenchmarkIsStakeGenerationScript(b *testing.B) {
+	script, err := genComplexScript()
+	if err != nil {
+		b.Fatalf("failed to create benchmark script: %v", err)
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		pops, _ := parseScript(script)
+		_ = isStakeGen(pops)
+	}
+}
