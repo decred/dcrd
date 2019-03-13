@@ -2530,14 +2530,14 @@ func opcodeCheckSig(op *parsedOpcode, vm *Engine) error {
 
 	// Remove the signature since there is no way for a signature to sign
 	// itself.
-	subScript = removeOpcodeByData(subScript, fullSigBytes)
+	subScript = removeOpcodeByDataRaw(subScript, fullSigBytes)
 
 	// Generate the signature hash based on the signature hash type.
 	var prefixHash *chainhash.Hash
 	if hashType&sigHashMask == SigHashAll && optimizeSigVerification {
 		prefixHash = vm.tx.CachedTxHash()
 	}
-	hash, err := calcSignatureHash(subScript, hashType, &vm.tx, vm.txIdx,
+	hash, err := calcSignatureHashRaw(subScript, hashType, &vm.tx, vm.txIdx,
 		prefixHash)
 	if err != nil {
 		vm.dstack.PushBool(false)
@@ -2675,7 +2675,7 @@ func opcodeCheckMultiSig(op *parsedOpcode, vm *Engine) error {
 	// Remove any of the signatures since there is no way for a signature to
 	// sign itself.
 	for _, sigInfo := range signatures {
-		script = removeOpcodeByData(script, sigInfo.signature)
+		script = removeOpcodeByDataRaw(script, sigInfo.signature)
 	}
 
 	success := true
@@ -2753,7 +2753,7 @@ func opcodeCheckMultiSig(op *parsedOpcode, vm *Engine) error {
 		if hashType&sigHashMask == SigHashAll && optimizeSigVerification {
 			prefixHash = vm.tx.CachedTxHash()
 		}
-		hash, err := calcSignatureHash(script, hashType, &vm.tx, vm.txIdx,
+		hash, err := calcSignatureHashRaw(script, hashType, &vm.tx, vm.txIdx,
 			prefixHash)
 		if err != nil {
 			return err
@@ -2894,7 +2894,7 @@ func opcodeCheckSigAlt(op *parsedOpcode, vm *Engine) error {
 
 	// Remove the signature since there is no way for a signature to sign
 	// itself.
-	subScript = removeOpcodeByData(subScript, fullSigBytes)
+	subScript = removeOpcodeByDataRaw(subScript, fullSigBytes)
 
 	// Generate the signature hash based on the signature hash type.
 	var prefixHash *chainhash.Hash
@@ -2904,7 +2904,7 @@ func opcodeCheckSigAlt(op *parsedOpcode, vm *Engine) error {
 			prefixHash = ph
 		}
 	}
-	hash, err := calcSignatureHash(subScript, hashType, &vm.tx, vm.txIdx,
+	hash, err := calcSignatureHashRaw(subScript, hashType, &vm.tx, vm.txIdx,
 		prefixHash)
 	if err != nil {
 		vm.dstack.PushBool(false)
