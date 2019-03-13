@@ -1433,6 +1433,16 @@ func ExtractPkScriptAddrs(version uint16, pkScript []byte,
 		return ScriptHashTy, scriptHashToAddrs(hash, chainParams), 1, nil
 	}
 
+	// Check for pay-to-alt-pubkey-hash script.
+	if data, sigType := extractPubKeyHashAltDetails(pkScript); data != nil {
+		var addrs []dcrutil.Address
+		addr, err := dcrutil.NewAddressPubKeyHash(data, chainParams, sigType)
+		if err == nil {
+			addrs = append(addrs, addr)
+		}
+		return PubkeyHashAltTy, addrs, 1, nil
+	}
+
 	// Fall back to slow path.  Ultimately these are intended to be replaced by
 	// faster variants based on the unparsed raw scripts.
 
@@ -1449,19 +1459,6 @@ func ExtractPkScriptAddrs(version uint16, pkScript []byte,
 	scriptClass := typeOfScript(version, pkScript)
 
 	switch scriptClass {
-	case PubkeyHashAltTy:
-		// A pay-to-pubkey-hash script is of the form:
-		// OP_DUP OP_HASH160 <hash> OP_EQUALVERIFY <type> OP_CHECKSIGALT
-		// Therefore the pubkey hash is the 3rd item on the stack.
-		// Skip the pubkey hash if it's invalid for some reason.
-		requiredSigs = 1
-		suite, _ := ExtractPkScriptAltSigType(pkScript)
-		addr, err := dcrutil.NewAddressPubKeyHash(pops[2].data,
-			chainParams, suite)
-		if err == nil {
-			addrs = append(addrs, addr)
-		}
-
 	case PubKeyTy:
 		// A pay-to-pubkey script is of the form:
 		//  <pubkey> OP_CHECKSIG
