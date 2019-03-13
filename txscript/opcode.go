@@ -634,17 +634,6 @@ type parsedOpcode struct {
 	data   []byte
 }
 
-// isDisabled returns whether or not the opcode is disabled and thus is always
-// bad to see in the instruction stream (even if turned off by a conditional).
-func (pop *parsedOpcode) isDisabled() bool {
-	switch pop.opcode.value {
-	case OP_CODESEPARATOR:
-		return true
-	default:
-		return false
-	}
-}
-
 // alwaysIllegal returns whether or not the opcode is always illegal when passed
 // over by the program counter even if in a non-executed branch (it isn't a
 // coincidence that they are conditionals).
