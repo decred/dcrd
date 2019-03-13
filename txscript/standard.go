@@ -437,7 +437,19 @@ func isSStxChange(pops []parsedOpcode) bool {
 
 // scriptType returns the type of the script being inspected from the known
 // standard types.
-func typeOfScript(pops []parsedOpcode) ScriptClass {
+//
+// NOTE:  All scripts that are not version 0 are currently considered non
+// standard.
+func typeOfScript(scriptVersion uint16, script []byte) ScriptClass {
+	if scriptVersion != 0 {
+		return NonStandardTy
+	}
+
+	pops, err := parseScript(script)
+	if err != nil {
+		return NonStandardTy
+	}
+
 	switch {
 	case isPubkey(pops):
 		return PubKeyTy
@@ -470,18 +482,11 @@ func typeOfScript(pops []parsedOpcode) ScriptClass {
 //
 // NonStandardTy will be returned when the script does not parse.
 func GetScriptClass(version uint16, script []byte) ScriptClass {
-	// NullDataTy outputs are allowed to have non-default script
-	// versions. However, other types are not.
 	if version != DefaultScriptVersion {
 		return NonStandardTy
 	}
 
-	pops, err := parseScript(script)
-	if err != nil {
-		return NonStandardTy
-	}
-
-	return typeOfScript(pops)
+	return typeOfScript(version, script)
 }
 
 // expectedInputs returns the number of arguments required by a script.
@@ -570,12 +575,8 @@ type ScriptInfo struct {
 //
 // DEPRECATED.  This will be removed in the next major version bump.
 func IsStakeOutput(pkScript []byte) bool {
-	pkPops, err := parseScript(pkScript)
-	if err != nil {
-		return false
-	}
-
-	class := typeOfScript(pkPops)
+	const scriptVersion = 0
+	class := typeOfScript(scriptVersion, pkScript)
 	return class == StakeSubmissionTy ||
 		class == StakeGenTy ||
 		class == StakeRevocationTy ||
@@ -584,13 +585,17 @@ func IsStakeOutput(pkScript []byte) bool {
 
 // GetStakeOutSubclass extracts the subclass (P2PKH or P2SH)
 // from a stake output.
+//
+// NOTE: This function is only valid for version 0 scripts.  Since the function
+// does not accept a script version, the results are undefined for other script
+// versions.
 func GetStakeOutSubclass(pkScript []byte) (ScriptClass, error) {
-	pkPops, err := parseScript(pkScript)
-	if err != nil {
+	const scriptVersion = 0
+	if err := checkScriptParses(scriptVersion, pkScript); err != nil {
 		return 0, err
 	}
 
-	class := typeOfScript(pkPops)
+	class := typeOfScript(scriptVersion, pkScript)
 	isStake := class == StakeSubmissionTy ||
 		class == StakeGenTy ||
 		class == StakeRevocationTy ||
@@ -598,15 +603,7 @@ func GetStakeOutSubclass(pkScript []byte) (ScriptClass, error) {
 
 	subClass := ScriptClass(0)
 	if isStake {
-		var stakeSubscript []parsedOpcode
-		for _, pop := range pkPops {
-			if isStakeOpcode(pop.opcode.value) {
-				continue
-			}
-			stakeSubscript = append(stakeSubscript, pop)
-		}
-
-		subClass = typeOfScript(stakeSubscript)
+		subClass = typeOfScript(scriptVersion, pkScript[1:])
 	} else {
 		return 0, fmt.Errorf("not a stake output")
 	}
@@ -641,7 +638,14 @@ func ContainsStakeOpCodes(pkScript []byte) (bool, error) {
 // pair.  It will error if the pair is in someway invalid such that they can not
 // be analysed, i.e. if they do not parse or the pkScript is not a push-only
 // script
+//
+// NOTE: This function is only valid for version 0 scripts.  Since the function
+// does not accept a script version, the results are undefined for other script
+// versions.
+//
+// DEPRECATED.  This will be removed in the next major version bump.
 func CalcScriptInfo(sigScript, pkScript []byte, bip16 bool) (*ScriptInfo, error) {
+	const scriptVersion = 0
 	sigPops, err := parseScript(sigScript)
 	if err != nil {
 		return nil, err
@@ -652,9 +656,8 @@ func CalcScriptInfo(sigScript, pkScript []byte, bip16 bool) (*ScriptInfo, error)
 		return nil, err
 	}
 
-	// Push only sigScript makes little sense.
 	si := new(ScriptInfo)
-	si.PkScriptClass = typeOfScript(pkPops)
+	si.PkScriptClass = typeOfScript(scriptVersion, pkScript)
 
 	// Can't have a signature script that doesn't just push data.
 	if !isPushOnly(sigPops) {
@@ -688,7 +691,8 @@ func CalcScriptInfo(sigScript, pkScript []byte, bip16 bool) (*ScriptInfo, error)
 			return nil, err
 		}
 
-		shInputs := expectedInputs(shPops, typeOfScript(shPops), 0)
+		reedeemClass := typeOfScript(scriptVersion, script)
+		shInputs := expectedInputs(shPops, reedeemClass, 0)
 		if shInputs == -1 {
 			si.ExpectedInputs = -1
 		} else {
@@ -1248,7 +1252,7 @@ func ExtractPkScriptAddrs(version uint16, pkScript []byte,
 		return NonStandardTy, nil, 0, err
 	}
 
-	scriptClass := typeOfScript(pops)
+	scriptClass := typeOfScript(version, pkScript)
 
 	switch scriptClass {
 	case PubKeyHashTy:
