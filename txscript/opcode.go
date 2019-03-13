@@ -2537,7 +2537,7 @@ func opcodeCheckSig(op *parsedOpcode, vm *Engine) error {
 	if hashType&sigHashMask == SigHashAll && optimizeSigVerification {
 		prefixHash = vm.tx.CachedTxHash()
 	}
-	hash, err := calcSignatureHashRaw(subScript, hashType, &vm.tx, vm.txIdx,
+	hash, err := calcSignatureHash(subScript, hashType, &vm.tx, vm.txIdx,
 		prefixHash)
 	if err != nil {
 		vm.dstack.PushBool(false)
@@ -2753,7 +2753,7 @@ func opcodeCheckMultiSig(op *parsedOpcode, vm *Engine) error {
 		if hashType&sigHashMask == SigHashAll && optimizeSigVerification {
 			prefixHash = vm.tx.CachedTxHash()
 		}
-		hash, err := calcSignatureHashRaw(script, hashType, &vm.tx, vm.txIdx,
+		hash, err := calcSignatureHash(script, hashType, &vm.tx, vm.txIdx,
 			prefixHash)
 		if err != nil {
 			return err
@@ -2904,7 +2904,7 @@ func opcodeCheckSigAlt(op *parsedOpcode, vm *Engine) error {
 			prefixHash = ph
 		}
 	}
-	hash, err := calcSignatureHashRaw(subScript, hashType, &vm.tx, vm.txIdx,
+	hash, err := calcSignatureHash(subScript, hashType, &vm.tx, vm.txIdx,
 		prefixHash)
 	if err != nil {
 		vm.dstack.PushBool(false)

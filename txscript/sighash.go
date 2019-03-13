@@ -222,12 +222,12 @@ func sigHashWitnessSerializeSize(txIns []*wire.TxIn, signScript []byte) int {
 		len(signScript)
 }
 
-// calcSignatureHashRaw computes the signature hash for the specified input of
-// the target transaction observing the desired signature hash type.  The cached
+// calcSignatureHash computes the signature hash for the specified input of the
+// target transaction observing the desired signature hash type.  The cached
 // prefix parameter allows the caller to optimize the calculation by providing
 // the prefix hash to be reused in the case of SigHashAll without the
 // SigHashAnyOneCanPay flag set.
-func calcSignatureHashRaw(signScript []byte, hashType SigHashType, tx *wire.MsgTx, idx int, cachedPrefix *chainhash.Hash) ([]byte, error) {
+func calcSignatureHash(signScript []byte, hashType SigHashType, tx *wire.MsgTx, idx int, cachedPrefix *chainhash.Hash) ([]byte, error) {
 	// The SigHashSingle signature type signs only the corresponding input
 	// and output (the output with the same index number as the input).
 	//
@@ -455,5 +455,5 @@ func CalcSignatureHash(script []byte, hashType SigHashType, tx *wire.MsgTx, idx 
 		return nil, err
 	}
 
-	return calcSignatureHashRaw(script, hashType, tx, idx, cachedPrefix)
+	return calcSignatureHash(script, hashType, tx, idx, cachedPrefix)
 }

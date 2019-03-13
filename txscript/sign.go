@@ -424,7 +424,7 @@ sigLoop:
 		// however, assume no sigs etc are in the script since that
 		// would make the transaction nonstandard and thus not
 		// MultiSigTy, so we just need to hash the full thing.
-		hash, err := calcSignatureHashRaw(pkScript, hashType, tx, idx, nil)
+		hash, err := calcSignatureHash(pkScript, hashType, tx, idx, nil)
 		if err != nil {
 			// Decred -- is this the right handling for SIGHASH_SINGLE error ?
 			// TODO make sure this doesn't break anything.
