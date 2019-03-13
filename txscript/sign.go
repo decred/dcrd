@@ -145,11 +145,12 @@ func p2pkSignatureScript(tx *wire.MsgTx, idx int, subScript []byte,
 	return NewScriptBuilder().AddData(sig).Script()
 }
 
-// p2pkSignatureScript constructs a pay-to-pubkey signature script for alternative
-// ECDSA types.
+// p2pkSignatureScriptAlt constructs a pay-to-pubkey signature script for
+// alternative ECDSA types.
 func p2pkSignatureScriptAlt(tx *wire.MsgTx, idx int, subScript []byte,
 	hashType SigHashType, privKey chainec.PrivateKey, sigType dcrec.SignatureType) ([]byte,
 	error) {
+
 	sig, err := RawTxInSignatureAlt(tx, idx, subScript, hashType, privKey,
 		sigType)
 	if err != nil {
