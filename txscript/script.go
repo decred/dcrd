@@ -89,17 +89,6 @@ func isStakeOpcode(op byte) bool {
 	return op >= OP_SSTX && op <= OP_SSTXCHANGE
 }
 
-// isScriptHash returns whether or not the passed script is a regular
-// pay-to-script-hash script.
-//
-// DEPRECATED.  Use isScriptHashScript or extractScriptHash instead.
-func isScriptHash(pops []parsedOpcode) bool {
-	return len(pops) == 3 &&
-		pops[0].opcode.value == OP_HASH160 &&
-		pops[1].opcode.value == OP_DATA_20 &&
-		pops[2].opcode.value == OP_EQUAL
-}
-
 // extractScriptHash extracts the script hash from the passed script if it is a
 // standard pay-to-script-hash script.  It will return nil otherwise.
 //
