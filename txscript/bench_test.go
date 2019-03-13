@@ -422,3 +422,20 @@ func BenchmarkIsStakeChangeScript(b *testing.B) {
 		_ = isStakeChangeScript(scriptVersion, script)
 	}
 }
+
+// BenchmarkContainsStakeOpCodes benchmarks how long it takes
+// ContainsStakeOpCodes to analyze a very large script.
+func BenchmarkContainsStakeOpCodes(b *testing.B) {
+	script, err := genComplexScript()
+	if err != nil {
+		b.Fatalf("failed to create benchmark script: %v", err)
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, err = ContainsStakeOpCodes(script)
+		if err != nil {
+			b.Fatalf("unexpected err: %v", err)
+		}
+	}
+}
