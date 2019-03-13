@@ -302,7 +302,6 @@ func BenchmarkIsPubKeyScript(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		pops, _ := parseScript(script)
-		_ = isPubkey(pops)
+		_ = isPubKeyScript(script)
 	}
 }
