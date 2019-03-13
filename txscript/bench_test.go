@@ -291,3 +291,18 @@ func BenchmarkGetScriptClass(b *testing.B) {
 		_ = GetScriptClass(scriptVersion, script)
 	}
 }
+
+// BenchmarkIsPubKeyScript benchmarks how long it takes to analyze a very large
+// script to determine if it is a standard pay-to-pubkey script.
+func BenchmarkIsPubKeyScript(b *testing.B) {
+	script, err := genComplexScript()
+	if err != nil {
+		b.Fatalf("failed to create benchmark script: %v", err)
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		pops, _ := parseScript(script)
+		_ = isPubkey(pops)
+	}
+}
