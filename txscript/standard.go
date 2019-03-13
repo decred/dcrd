@@ -1512,6 +1512,15 @@ func ExtractPkScriptAddrs(version uint16, pkScript []byte,
 		return StakeGenTy, scriptHashToAddrs(hash, chainParams), 1, nil
 	}
 
+	// Check for stake revocation script.  Only stake-revocation-tagged
+	// pay-to-pubkey-hash and pay-to-script-hash are allowed.
+	if hash := extractStakePubKeyHash(pkScript, OP_SSRTX); hash != nil {
+		return StakeRevocationTy, pubKeyHashToAddrs(hash, chainParams), 1, nil
+	}
+	if hash := extractStakeScriptHash(pkScript, OP_SSRTX); hash != nil {
+		return StakeRevocationTy, scriptHashToAddrs(hash, chainParams), 1, nil
+	}
+
 	// Fall back to slow path.  Ultimately these are intended to be replaced by
 	// faster variants based on the unparsed raw scripts.
 
@@ -1522,17 +1531,6 @@ func ExtractPkScriptAddrs(version uint16, pkScript []byte,
 	scriptClass := typeOfScript(version, pkScript)
 
 	switch scriptClass {
-	case StakeRevocationTy:
-		// A pay-to-stake-revocation-hash script is of the form:
-		//  OP_SSRTX  ... P2PKH or P2SH
-		var localAddrs []dcrutil.Address
-		_, localAddrs, requiredSigs, err =
-			ExtractPkScriptAddrs(version, getStakeOutSubscript(pkScript),
-				chainParams)
-		if err == nil {
-			addrs = append(addrs, localAddrs...)
-		}
-
 	case StakeSubChangeTy:
 		// A pay-to-stake-submission-change-hash script is of the form:
 		// OP_SSTXCHANGE ... P2PKH or P2SH
