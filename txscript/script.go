@@ -30,12 +30,14 @@ func isSmallInt(op byte) bool {
 
 // IsPayToScriptHash returns true if the script is in the standard
 // pay-to-script-hash (P2SH) format, false otherwise.
+//
+// WARNING: This function always treats the passed script as version 0.  Great
+// care must be taken if introducing a new script version because it is used in
+// consensus which, unfortunately as of the time of this writing, does not check
+// script versions before determining if the script is a P2SH which means nodes
+// on existing rules will analyze new version scripts as if they were version 0.
 func IsPayToScriptHash(script []byte) bool {
-	pops, err := parseScript(script)
-	if err != nil {
-		return false
-	}
-	return isScriptHash(pops)
+	return isScriptHashScript(script)
 }
 
 // isPushOnly returns true if the script only pushes data, false otherwise.
@@ -75,11 +77,39 @@ func isStakeOpcode(op byte) bool {
 
 // isScriptHash returns whether or not the passed script is a regular
 // pay-to-script-hash script.
+//
+// DEPRECATED.  Use isScriptHashScript or extractScriptHash instead.
 func isScriptHash(pops []parsedOpcode) bool {
 	return len(pops) == 3 &&
 		pops[0].opcode.value == OP_HASH160 &&
 		pops[1].opcode.value == OP_DATA_20 &&
 		pops[2].opcode.value == OP_EQUAL
+}
+
+// extractScriptHash extracts the script hash from the passed script if it is a
+// standard pay-to-script-hash script.  It will return nil otherwise.
+//
+// NOTE: This function is only valid for version 0 opcodes.  Since the function
+// does not accept a script version, the results are undefined for other script
+// versions.
+func extractScriptHash(script []byte) []byte {
+	// A pay-to-script-hash script is of the form:
+	//  OP_HASH160 <20-byte scripthash> OP_EQUAL
+	if len(script) == 23 &&
+		script[0] == OP_HASH160 &&
+		script[1] == OP_DATA_20 &&
+		script[22] == OP_EQUAL {
+
+		return script[2:22]
+	}
+
+	return nil
+}
+
+// isScriptHashScript returns whether or not the passed script is a standard
+// pay-to-script-hash script.
+func isScriptHashScript(script []byte) bool {
+	return extractScriptHash(script) != nil
 }
 
 // isStakeScriptHash returns whether or not the passed script is a stake
