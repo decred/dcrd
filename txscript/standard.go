@@ -1521,27 +1521,24 @@ func ExtractPkScriptAddrs(version uint16, pkScript []byte,
 		return StakeRevocationTy, scriptHashToAddrs(hash, chainParams), 1, nil
 	}
 
+	// Check for stake change script.  Only stake-change-tagged
+	// pay-to-pubkey-hash and pay-to-script-hash are allowed.
+	if hash := extractStakePubKeyHash(pkScript, OP_SSTXCHANGE); hash != nil {
+		return StakeSubChangeTy, pubKeyHashToAddrs(hash, chainParams), 1, nil
+	}
+	if hash := extractStakeScriptHash(pkScript, OP_SSTXCHANGE); hash != nil {
+		return StakeSubChangeTy, scriptHashToAddrs(hash, chainParams), 1, nil
+	}
+
 	// Fall back to slow path.  Ultimately these are intended to be replaced by
 	// faster variants based on the unparsed raw scripts.
 
 	var addrs []dcrutil.Address
 	var requiredSigs int
-	var err error
 
 	scriptClass := typeOfScript(version, pkScript)
 
 	switch scriptClass {
-	case StakeSubChangeTy:
-		// A pay-to-stake-submission-change-hash script is of the form:
-		// OP_SSTXCHANGE ... P2PKH or P2SH
-		var localAddrs []dcrutil.Address
-		_, localAddrs, requiredSigs, err =
-			ExtractPkScriptAddrs(version, getStakeOutSubscript(pkScript),
-				chainParams)
-		if err == nil {
-			addrs = append(addrs, localAddrs...)
-		}
-
 	case NullDataTy:
 		// Null data transactions have no addresses or required
 		// signatures.
