@@ -106,3 +106,17 @@ func BenchmarkDisasmString(b *testing.B) {
 		}
 	}
 }
+
+// BenchmarkIsPayToScriptHash benchmarks how long it takes IsPayToScriptHash to
+// analyze a very large script.
+func BenchmarkIsPayToScriptHash(b *testing.B) {
+	script, err := genComplexScript()
+	if err != nil {
+		b.Fatalf("failed to create benchmark script: %v", err)
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = IsPayToScriptHash(script)
+	}
+}
