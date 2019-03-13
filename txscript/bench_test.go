@@ -237,3 +237,17 @@ func BenchmarkIsAnyKindOfScriptHash(b *testing.B) {
 		_ = isAnyKindOfScriptHash(script)
 	}
 }
+
+// BenchmarkIsPushOnlyScript benchmarks how long it takes IsPushOnlyScript to
+// analyze a very large script.
+func BenchmarkIsPushOnlyScript(b *testing.B) {
+	script, err := genComplexScript()
+	if err != nil {
+		b.Fatalf("failed to create benchmark script: %v", err)
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = IsPushOnlyScript(script)
+	}
+}
