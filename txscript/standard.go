@@ -480,7 +480,7 @@ func GetStakeOutSubclass(pkScript []byte) (ScriptClass, error) {
 	if isStake {
 		var stakeSubscript []parsedOpcode
 		for _, pop := range pkPops {
-			if isStakeOpcode(pop.opcode) {
+			if isStakeOpcode(pop.opcode.value) {
 				continue
 			}
 			stakeSubscript = append(stakeSubscript, pop)
@@ -509,7 +509,7 @@ func ContainsStakeOpCodes(pkScript []byte) (bool, error) {
 	}
 
 	for _, pop := range shPops {
-		if isStakeOpcode(pop.opcode) {
+		if isStakeOpcode(pop.opcode.value) {
 			return true, nil
 		}
 	}

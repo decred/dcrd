@@ -69,8 +69,8 @@ func IsPushOnlyScript(script []byte) bool {
 
 // isStakeOpcode returns whether or not the opcode is one of the stake tagging
 // opcodes.
-func isStakeOpcode(op *opcode) bool {
-	return op.value >= OP_SSTX && op.value <= OP_SSTXCHANGE
+func isStakeOpcode(op byte) bool {
+	return op >= OP_SSTX && op <= OP_SSTXCHANGE
 }
 
 // isScriptHash returns whether or not the passed script is a regular
@@ -86,7 +86,7 @@ func isScriptHash(pops []parsedOpcode) bool {
 // pay-to-script-hash script.
 func isStakeScriptHash(pops []parsedOpcode) bool {
 	return len(pops) == 4 &&
-		isStakeOpcode(pops[0].opcode) &&
+		isStakeOpcode(pops[0].opcode.value) &&
 		pops[1].opcode.value == OP_HASH160 &&
 		pops[2].opcode.value == OP_DATA_20 &&
 		pops[3].opcode.value == OP_EQUAL
