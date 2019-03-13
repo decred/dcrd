@@ -481,15 +481,20 @@ func checkScriptParses(scriptVersion uint16, script []byte) error {
 // IsUnspendable returns whether the passed public key script is unspendable, or
 // guaranteed to fail at execution.  This allows inputs to be pruned instantly
 // when entering the UTXO set. In Decred, all zero value outputs are unspendable.
+//
+// NOTE: This function is only valid for version 0 scripts.  Since the function
+// does not accept a script version, the results are undefined for other script
+// versions.
 func IsUnspendable(amount int64, pkScript []byte) bool {
-	if amount == 0 {
+	// The script is unspendable if starts with OP_RETURN or is guaranteed to
+	// fail at execution due to being larger than the max allowed script size.
+	if amount == 0 || len(pkScript) > MaxScriptSize || len(pkScript) > 0 &&
+		pkScript[0] == OP_RETURN {
+
 		return true
 	}
 
-	pops, err := parseScript(pkScript)
-	if err != nil {
-		return true
-	}
-
-	return len(pops) > 0 && pops[0].opcode.value == OP_RETURN
+	// The script is unspendable if it is guaranteed to fail at execution.
+	const scriptVersion = 0
+	return checkScriptParses(scriptVersion, pkScript) != nil
 }
