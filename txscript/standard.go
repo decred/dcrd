@@ -556,30 +556,6 @@ func isStakeRevocationScript(scriptVersion uint16, script []byte) bool {
 		extractStakeScriptHash(script, stakeOpcode) != nil
 }
 
-// isSStxChange returns true if the script passed is a stake submission
-// change tx, false otherwise.
-func isSStxChange(pops []parsedOpcode) bool {
-	if len(pops) == 6 &&
-		pops[0].opcode.value == OP_SSTXCHANGE &&
-		pops[1].opcode.value == OP_DUP &&
-		pops[2].opcode.value == OP_HASH160 &&
-		pops[3].opcode.value == OP_DATA_20 &&
-		pops[4].opcode.value == OP_EQUALVERIFY &&
-		pops[5].opcode.value == OP_CHECKSIG {
-		return true
-	}
-
-	if len(pops) == 4 &&
-		pops[0].opcode.value == OP_SSTXCHANGE &&
-		pops[1].opcode.value == OP_HASH160 &&
-		pops[2].opcode.value == OP_DATA_20 &&
-		pops[3].opcode.value == OP_EQUAL {
-		return true
-	}
-
-	return false
-}
-
 // isStakeChangeScript returns whether or not the passed script is a supported
 // stake change script.
 //
