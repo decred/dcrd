@@ -440,21 +440,6 @@ func calcSignatureHashRaw(signScript []byte, hashType SigHashType, tx *wire.MsgT
 	return chainhash.HashB(sigHashBuf), nil
 }
 
-// calcSignatureHash computes the signature hash for the specified input of the
-// target transaction observing the desired signature hash type.  The cached
-// prefix parameter allows the caller to optimize the calculation by providing
-// the prefix hash to be reused in the case of SigHashAll without the
-// SigHashAnyOneCanPay flag set.
-//
-// DEPRECATED.  Use calcSignatureHashRaw instead.
-func calcSignatureHash(prevOutScript []parsedOpcode, hashType SigHashType, tx *wire.MsgTx, idx int, cachedPrefix *chainhash.Hash) ([]byte, error) {
-	signScript, err := unparseScript(prevOutScript)
-	if err != nil {
-		return nil, err
-	}
-	return calcSignatureHashRaw(signScript, hashType, tx, idx, cachedPrefix)
-}
-
 // CalcSignatureHash computes the signature hash for the specified input of
 // the target transaction observing the desired signature hash type.  The
 // cached prefix parameter allows the caller to optimize the calculation by
