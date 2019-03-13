@@ -18,14 +18,14 @@ import (
 
 // RawTxInSignature returns the serialized ECDSA signature for the input idx of
 // the given transaction, with hashType appended to it.
+//
+// NOTE: This function is only valid for version 0 scripts.  Since the function
+// does not accept a script version, the results are undefined for other script
+// versions.
 func RawTxInSignature(tx *wire.MsgTx, idx int, subScript []byte,
 	hashType SigHashType, key chainec.PrivateKey) ([]byte, error) {
 
-	parsedScript, err := parseScript(subScript)
-	if err != nil {
-		return nil, fmt.Errorf("cannot parse output script: %v", err)
-	}
-	hash, err := calcSignatureHash(parsedScript, hashType, tx, idx, nil)
+	hash, err := CalcSignatureHash(subScript, hashType, tx, idx, nil)
 	if err != nil {
 		return nil, err
 	}
