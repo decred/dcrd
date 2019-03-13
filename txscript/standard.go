@@ -1443,6 +1443,19 @@ func ExtractPkScriptAddrs(version uint16, pkScript []byte,
 		return PubkeyHashAltTy, addrs, 1, nil
 	}
 
+	// Check for pay-to-pubkey script.
+	if data := extractPubKey(pkScript); data != nil {
+		var addrs []dcrutil.Address
+		pk, err := secp256k1.ParsePubKey(data)
+		if err == nil {
+			addr, err := dcrutil.NewAddressSecpPubKeyCompressed(pk, chainParams)
+			if err == nil {
+				addrs = append(addrs, addr)
+			}
+		}
+		return PubKeyTy, addrs, 1, nil
+	}
+
 	// Fall back to slow path.  Ultimately these are intended to be replaced by
 	// faster variants based on the unparsed raw scripts.
 
@@ -1459,20 +1472,6 @@ func ExtractPkScriptAddrs(version uint16, pkScript []byte,
 	scriptClass := typeOfScript(version, pkScript)
 
 	switch scriptClass {
-	case PubKeyTy:
-		// A pay-to-pubkey script is of the form:
-		//  <pubkey> OP_CHECKSIG
-		// Therefore the pubkey is the first item on the stack.
-		// Skip the pubkey if it's invalid for some reason.
-		requiredSigs = 1
-		pk, err := secp256k1.ParsePubKey(pops[0].data)
-		if err == nil {
-			addr, err := dcrutil.NewAddressSecpPubKeyCompressed(pk, chainParams)
-			if err == nil {
-				addrs = append(addrs, addr)
-			}
-		}
-
 	case PubkeyAltTy:
 		// A pay-to-pubkey alt script is of the form:
 		//  <pubkey> <type> OP_CHECKSIGALT
