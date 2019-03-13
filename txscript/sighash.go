@@ -222,12 +222,12 @@ func sigHashWitnessSerializeSize(txIns []*wire.TxIn, signScript []byte) int {
 		len(signScript)
 }
 
-// calcSignatureHash computes the signature hash for the specified input of
-// the target transaction observing the desired signature hash type.  The
-// cached prefix parameter allows the caller to optimize the calculation by
-// providing the prefix hash to be reused in the case of SigHashAll without the
+// calcSignatureHashRaw computes the signature hash for the specified input of
+// the target transaction observing the desired signature hash type.  The cached
+// prefix parameter allows the caller to optimize the calculation by providing
+// the prefix hash to be reused in the case of SigHashAll without the
 // SigHashAnyOneCanPay flag set.
-func calcSignatureHash(prevOutScript []parsedOpcode, hashType SigHashType, tx *wire.MsgTx, idx int, cachedPrefix *chainhash.Hash) ([]byte, error) {
+func calcSignatureHashRaw(signScript []byte, hashType SigHashType, tx *wire.MsgTx, idx int, cachedPrefix *chainhash.Hash) ([]byte, error) {
 	// The SigHashSingle signature type signs only the corresponding input
 	// and output (the output with the same index number as the input).
 	//
@@ -239,13 +239,6 @@ func calcSignatureHash(prevOutScript []parsedOpcode, hashType SigHashType, tx *w
 			">= %d outputs", idx, len(tx.TxOut))
 		return nil, scriptError(ErrInvalidSigHashSingleIndex, str)
 	}
-
-	// Remove all instances of OP_CODESEPARATOR from the script.
-	//
-	// The call to unparseScript cannot fail here because removeOpcode
-	// only returns a valid script.
-	prevOutScript = removeOpcode(prevOutScript, OP_CODESEPARATOR)
-	signScript, _ := unparseScript(prevOutScript)
 
 	// Choose the inputs that will be committed to based on the signature
 	// hash type.
@@ -445,6 +438,21 @@ func calcSignatureHash(prevOutScript []parsedOpcode, hashType SigHashType, tx *w
 	offset += copy(sigHashBuf[offset:], prefixHash[:])
 	copy(sigHashBuf[offset:], witnessHash[:])
 	return chainhash.HashB(sigHashBuf), nil
+}
+
+// calcSignatureHash computes the signature hash for the specified input of the
+// target transaction observing the desired signature hash type.  The cached
+// prefix parameter allows the caller to optimize the calculation by providing
+// the prefix hash to be reused in the case of SigHashAll without the
+// SigHashAnyOneCanPay flag set.
+//
+// DEPRECATED.  Use calcSignatureHashRaw instead.
+func calcSignatureHash(prevOutScript []parsedOpcode, hashType SigHashType, tx *wire.MsgTx, idx int, cachedPrefix *chainhash.Hash) ([]byte, error) {
+	signScript, err := unparseScript(prevOutScript)
+	if err != nil {
+		return nil, err
+	}
+	return calcSignatureHashRaw(signScript, hashType, tx, idx, cachedPrefix)
 }
 
 // CalcSignatureHash computes the signature hash for the specified input of

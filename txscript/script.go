@@ -273,18 +273,6 @@ func DisasmString(script []byte) (string, error) {
 	return disbuf.String(), tokenizer.Err()
 }
 
-// removeOpcode will remove any opcode matching ``opcode'' from the opcode
-// stream in pkscript
-func removeOpcode(pkscript []parsedOpcode, opcode byte) []parsedOpcode {
-	retScript := make([]parsedOpcode, 0, len(pkscript))
-	for _, pop := range pkscript {
-		if pop.opcode.value != opcode {
-			retScript = append(retScript, pop)
-		}
-	}
-	return retScript
-}
-
 // canonicalPush returns true if the object is either not a push instruction
 // or the push instruction contained wherein is matches the canonical form
 // or using the smallest instruction to do the job. False otherwise.

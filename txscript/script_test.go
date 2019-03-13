@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2017 The btcsuite developers
-// Copyright (c) 2015-2018 The Decred developers
+// Copyright (c) 2015-2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -3857,88 +3857,6 @@ func TestGetPreciseSigOps(t *testing.T) {
 			t.Errorf("%s: expected count of %d, got %d", test.name,
 				test.nSigOps, count)
 
-		}
-	}
-}
-
-// TestRemoveOpcodes ensures that removing opcodes from scripts behaves as
-// expected.
-func TestRemoveOpcodes(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name   string
-		before string
-		remove byte
-		err    error
-		after  string
-	}{
-		{
-			// Nothing to remove.
-			name:   "nothing to remove",
-			before: "NOP",
-			remove: OP_CODESEPARATOR,
-			after:  "NOP",
-		},
-		{
-			// Test basic opcode removal.
-			name:   "codeseparator 1",
-			before: "NOP CODESEPARATOR TRUE",
-			remove: OP_CODESEPARATOR,
-			after:  "NOP TRUE",
-		},
-		{
-			// The opcode in question is actually part of the data
-			// in a previous opcode.
-			name:   "codeseparator by coincidence",
-			before: "NOP DATA_1 CODESEPARATOR TRUE",
-			remove: OP_CODESEPARATOR,
-			after:  "NOP DATA_1 CODESEPARATOR TRUE",
-		},
-		{
-			name:   "invalid opcode",
-			before: "CAT",
-			remove: OP_CODESEPARATOR,
-			after:  "CAT",
-		},
-		{
-			name:   "invalid length (insruction)",
-			before: "PUSHDATA1",
-			remove: OP_CODESEPARATOR,
-			err:    scriptError(ErrMalformedPush, ""),
-		},
-		{
-			name:   "invalid length (data)",
-			before: "PUSHDATA1 0xff 0xfe",
-			remove: OP_CODESEPARATOR,
-			err:    scriptError(ErrMalformedPush, ""),
-		},
-	}
-
-	// tstRemoveOpcode is a convenience function to parse the provided
-	// raw script, remove the passed opcode, then unparse the result back
-	// into a raw script.
-	tstRemoveOpcode := func(script []byte, opcode byte) ([]byte, error) {
-		pops, err := parseScript(script)
-		if err != nil {
-			return nil, err
-		}
-		pops = removeOpcode(pops, opcode)
-		return unparseScript(pops)
-	}
-
-	for _, test := range tests {
-		before := mustParseShortForm(test.before)
-		after := mustParseShortForm(test.after)
-		result, err := tstRemoveOpcode(before, test.remove)
-		if e := tstCheckScriptError(err, test.err); e != nil {
-			t.Errorf("%s: %v", test.name, e)
-			continue
-		}
-
-		if !bytes.Equal(after, result) {
-			t.Errorf("%s: value does not equal expected: exp: %q"+
-				" got: %q", test.name, after, result)
 		}
 	}
 }
