@@ -451,6 +451,41 @@ func isNullData(pops []parsedOpcode) bool {
 		len(pops[1].data) <= MaxDataCarrierSize
 }
 
+// isNullDataScript returns whether or not the passed script is a standard
+// null data script.
+//
+// NOTE: This function is only valid for version 0 scripts.  It will always
+// return false for other script versions.
+func isNullDataScript(scriptVersion uint16, script []byte) bool {
+	// The only currently supported script version is 0.
+	if scriptVersion != 0 {
+		return false
+	}
+
+	// A null script is of the form:
+	//  OP_RETURN <optional data>
+	//
+	// Thus, it can either be a single OP_RETURN or an OP_RETURN followed by a
+	// data push up to MaxDataCarrierSize bytes.
+
+	// The script can't possibly be a a null data script if it doesn't start
+	// with OP_RETURN.  Fail fast to avoid more work below.
+	if len(script) < 1 || script[0] != OP_RETURN {
+		return false
+	}
+
+	// Single OP_RETURN.
+	if len(script) == 1 {
+		return true
+	}
+
+	// OP_RETURN followed by data push up to MaxDataCarrierSize bytes.
+	tokenizer := MakeScriptTokenizer(scriptVersion, script[1:])
+	return tokenizer.Next() && tokenizer.Done() &&
+		(isSmallInt(tokenizer.Opcode()) || tokenizer.Opcode() <= OP_PUSHDATA4) &&
+		len(tokenizer.Data()) <= MaxDataCarrierSize
+}
+
 // isStakeSubmission returns true if the script passed is a stake submission tx,
 // false otherwise.
 func isStakeSubmission(pops []parsedOpcode) bool {
@@ -570,6 +605,8 @@ func typeOfScript(scriptVersion uint16, script []byte) ScriptClass {
 		return ScriptHashTy
 	case isMultisigScript(scriptVersion, script):
 		return MultiSigTy
+	case isNullDataScript(scriptVersion, script):
+		return NullDataTy
 	}
 
 	pops, err := parseScript(script)
@@ -578,8 +615,6 @@ func typeOfScript(scriptVersion uint16, script []byte) ScriptClass {
 	}
 
 	switch {
-	case isNullData(pops):
-		return NullDataTy
 	case isStakeSubmission(pops):
 		return StakeSubmissionTy
 	case isStakeGen(pops):
