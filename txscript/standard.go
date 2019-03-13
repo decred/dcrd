@@ -1383,6 +1383,20 @@ func GetMultisigMandN(script []byte) (uint8, uint8, error) {
 	return uint8(requiredSigs), uint8(numPubKeys), nil
 }
 
+// pubKeyHashToAddrs is a convenience function to attempt to convert the
+// passed hash to a pay-to-pubkey-hash address housed within an address
+// slice.  It is used to consolidate common code.
+func pubKeyHashToAddrs(hash []byte, params *chaincfg.Params) []dcrutil.Address {
+	// Skip the pubkey hash if it's invalid for some reason.
+	var addrs []dcrutil.Address
+	addr, err := dcrutil.NewAddressPubKeyHash(hash, params,
+		dcrec.STEcdsaSecp256k1)
+	if err == nil {
+		addrs = append(addrs, addr)
+	}
+	return addrs
+}
+
 // scriptHashToAddrs is a convenience function to attempt to convert the passed
 // hash to a pay-to-script-hash address housed within an address slice.  It is
 // used to consolidate common code.
@@ -1409,6 +1423,11 @@ func ExtractPkScriptAddrs(version uint16, pkScript []byte,
 	// Avoid parsing the script for the cases that already have the able to
 	// work with raw scripts.
 
+	// Check for pay-to-pubkey-hash script.
+	if hash := extractPubKeyHash(pkScript); hash != nil {
+		return PubKeyHashTy, pubKeyHashToAddrs(hash, chainParams), 1, nil
+	}
+
 	// Check for pay-to-script-hash.
 	if hash := extractScriptHash(pkScript); hash != nil {
 		return ScriptHashTy, scriptHashToAddrs(hash, chainParams), 1, nil
@@ -1430,18 +1449,6 @@ func ExtractPkScriptAddrs(version uint16, pkScript []byte,
 	scriptClass := typeOfScript(version, pkScript)
 
 	switch scriptClass {
-	case PubKeyHashTy:
-		// A pay-to-pubkey-hash script is of the form:
-		//  OP_DUP OP_HASH160 <hash> OP_EQUALVERIFY OP_CHECKSIG
-		// Therefore the pubkey hash is the 3rd item on the stack.
-		// Skip the pubkey hash if it's invalid for some reason.
-		requiredSigs = 1
-		addr, err := dcrutil.NewAddressPubKeyHash(pops[2].data,
-			chainParams, dcrec.STEcdsaSecp256k1)
-		if err == nil {
-			addrs = append(addrs, addr)
-		}
-
 	case PubkeyHashAltTy:
 		// A pay-to-pubkey-hash script is of the form:
 		// OP_DUP OP_HASH160 <hash> OP_EQUALVERIFY <type> OP_CHECKSIGALT
