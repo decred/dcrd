@@ -73,16 +73,6 @@ func (t ScriptClass) String() string {
 	return scriptClassToName[t]
 }
 
-// isPubkey returns true if the script passed is a pay-to-pubkey transaction,
-// false otherwise.
-func isPubkey(pops []parsedOpcode) bool {
-	// Valid pubkeys are either 33 or 65 bytes and must start with the correct
-	// prefix for the given length.
-	return len(pops) == 2 &&
-		isStrictPubKeyEncoding(pops[0].data) &&
-		pops[1].opcode.value == OP_CHECKSIG
-}
-
 // isOneByteMaxDataPush returns true if the parsed opcode pushes exactly one
 // byte to the stack.
 func isOneByteMaxDataPush(po parsedOpcode) bool {
