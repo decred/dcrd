@@ -776,9 +776,10 @@ func TestCalcMultiSigStats(t *testing.T) {
 // inside a function scope since this spans both the standard tests and the
 // consensus tests (pay-to-script-hash is part of consensus).
 var scriptClassTests = []struct {
-	name   string
-	script string
-	class  ScriptClass
+	name     string
+	script   string
+	class    ScriptClass
+	subClass ScriptClass
 }{
 	{
 		name: "Pay Pubkey",
@@ -809,6 +810,34 @@ var scriptClassTests = []struct {
 		script: "HASH160 DATA_20 0x433ec2ac1ffa1b7b7d027f564529c57197f" +
 			"9ae88 EQUAL",
 		class: ScriptHashTy,
+	},
+	{
+		name: "Stake Submission P2SH",
+		script: "SSTX HASH160 DATA_20 0x433ec2ac1ffa1b7b7d027f564529" +
+			"c57197f9ae88 EQUAL",
+		class:    StakeSubmissionTy,
+		subClass: ScriptHashTy,
+	},
+	{
+		name: "Stake Submission Generation P2SH",
+		script: "SSGEN HASH160 DATA_20 0x433ec2ac1ffa1b7b7d027f564529" +
+			"c57197f9ae88 EQUAL",
+		class:    StakeGenTy,
+		subClass: ScriptHashTy,
+	},
+	{
+		name: "Stake Submission Revocation P2SH",
+		script: "SSRTX HASH160 DATA_20 0x433ec2ac1ffa1b7b7d027f564529" +
+			"c57197f9ae88 EQUAL",
+		class:    StakeRevocationTy,
+		subClass: ScriptHashTy,
+	},
+	{
+		name: "Stake Submission Change P2SH",
+		script: "SSTXCHANGE HASH160 DATA_20 0x433ec2ac1ffa1b7b7d027f5" +
+			"64529c57197f9ae88 EQUAL",
+		class:    StakeSubChangeTy,
+		subClass: ScriptHashTy,
 	},
 
 	{

@@ -4116,6 +4116,23 @@ func TestIsPayToScriptHash(t *testing.T) {
 	}
 }
 
+// TestIsAnyKindOfScriptHash ensures the isAnyKindOfScriptHash function returns
+// the expected results for all the scripts in scriptClassTests.
+func TestIsAnyKindOfScriptHash(t *testing.T) {
+	t.Parallel()
+
+	for _, test := range scriptClassTests {
+		script := mustParseShortForm(test.script)
+		pops, _ := parseScript(script)
+		want := (test.class == ScriptHashTy || test.subClass == ScriptHashTy)
+		p2sh := isAnyKindOfScriptHash(pops)
+		if p2sh != want {
+			t.Errorf("%s: epxected p2sh %v, got %v", test.name,
+				want, p2sh)
+		}
+	}
+}
+
 // TestHasCanonicalPushes ensures the canonicalPush function properly determines
 // what is considered a canonical push for the purposes of removeOpcodeByData.
 func TestHasCanonicalPushes(t *testing.T) {
