@@ -40,26 +40,6 @@ func IsPayToScriptHash(script []byte) bool {
 	return isScriptHashScript(script)
 }
 
-// isPushOnly returns true if the script only pushes data, false otherwise.
-//
-// DEPRECATED.  Use IsPushOnlyScript instead.
-func isPushOnly(pops []parsedOpcode) bool {
-	// NOTE: This function does NOT verify opcodes directly since it is
-	// internal and is only called with parsed opcodes for scripts that did
-	// not have any parse errors.  Thus, consensus is properly maintained.
-
-	for _, pop := range pops {
-		// All opcodes up to OP_16 are data push instructions.
-		// NOTE: This does consider OP_RESERVED to be a data push
-		// instruction, but execution of OP_RESERVED will fail anyways
-		// and matches the behavior required by consensus.
-		if pop.opcode.value > OP_16 {
-			return false
-		}
-	}
-	return true
-}
-
 // IsPushOnlyScript returns whether or not the passed script only pushes data
 // according to the consensus definition of pushing data.
 //
