@@ -330,7 +330,6 @@ func BenchmarkIsPubKeyHashScript(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		pops, _ := parseScript(script)
-		_ = isPubkeyHash(pops)
+		_ = isPubKeyHashScript(script)
 	}
 }
