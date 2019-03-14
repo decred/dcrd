@@ -491,6 +491,11 @@ var (
 	// is intended to identify the network for a hierarchical deterministic
 	// private extended key is not registered.
 	ErrUnknownHDKeyID = errors.New("unknown hd private extended key bytes")
+
+	// ErrDuplicateNetAddrPrefix describes an error where the parameters for a
+	// Decred network could not be set due to the network prefix colliding with
+	// a standard or previously-registered network in this package.
+	ErrDuplicateNetAddrPrefix = errors.New("duplicate network address prefix")
 )
 
 var (
@@ -501,6 +506,7 @@ var (
 	pkhSchnorrAddrIDs = make(map[[2]byte]struct{})
 	scriptHashAddrIDs = make(map[[2]byte]struct{})
 	hdPrivToPubKeyIDs = make(map[[4]byte][]byte)
+	netPrefixToParams = make(map[string]*Params)
 )
 
 // String returns the hostname of the DNS seed in human-readable form.
@@ -521,11 +527,15 @@ func Register(params *Params) error {
 	if _, ok := registeredNets[params.Net]; ok {
 		return ErrDuplicateNet
 	}
+	if _, ok := netPrefixToParams[params.NetworkAddressPrefix]; ok {
+		return ErrDuplicateNetAddrPrefix
+	}
 	registeredNets[params.Net] = struct{}{}
 	pubKeyAddrIDs[params.PubKeyAddrID] = struct{}{}
 	pubKeyHashAddrIDs[params.PubKeyHashAddrID] = struct{}{}
 	scriptHashAddrIDs[params.ScriptHashAddrID] = struct{}{}
 	hdPrivToPubKeyIDs[params.HDPrivateKeyID] = params.HDPublicKeyID[:]
+	netPrefixToParams[params.NetworkAddressPrefix] = params
 	return nil
 }
 
