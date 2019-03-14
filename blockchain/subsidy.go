@@ -236,11 +236,12 @@ func blockOneCoinbasePaysTokens(tx *dcrutil.Tx, params *chaincfg.Params) error {
 	}
 
 	// Check the addresses and output amounts against those in the ledger.
+	const consensusScriptVersion = 0
 	for i, txout := range tx.MsgTx().TxOut {
-		if txout.Version != txscript.DefaultScriptVersion {
-			errStr := fmt.Sprintf("bad block one output version; want %v, got %v",
-				txscript.DefaultScriptVersion, txout.Version)
-			return ruleError(ErrBlockOneOutputs, errStr)
+		if txout.Version != consensusScriptVersion {
+			str := fmt.Sprintf("block one output %d script version %d is not %d",
+				i, txout.Version, consensusScriptVersion)
+			return ruleError(ErrBlockOneOutputs, str)
 		}
 
 		// There should only be one address.
