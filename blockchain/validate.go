@@ -3047,7 +3047,7 @@ func (b *BlockChain) checkConnectBlock(node *blockNode, block, parent *dcrutil.B
 
 	// First block has special rules concerning the ledger.
 	if node.height == 1 {
-		err := BlockOneCoinbasePaysTokens(block.Transactions()[0],
+		err := blockOneCoinbasePaysTokens(block.Transactions()[0],
 			b.chainParams)
 		if err != nil {
 			return err

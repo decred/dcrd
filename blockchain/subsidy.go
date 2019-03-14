@@ -200,9 +200,9 @@ func CalcBlockTaxSubsidy(subsidyCache *SubsidyCache, height int64, voters uint16
 	return adjusted
 }
 
-// BlockOneCoinbasePaysTokens checks to see if the first block coinbase pays
+// blockOneCoinbasePaysTokens checks to see if the first block coinbase pays
 // out to the network initial token ledger.
-func BlockOneCoinbasePaysTokens(tx *dcrutil.Tx, params *chaincfg.Params) error {
+func blockOneCoinbasePaysTokens(tx *dcrutil.Tx, params *chaincfg.Params) error {
 	// If no ledger is specified, just return true.
 	if len(params.BlockOneLedger) == 0 {
 		return nil
@@ -278,6 +278,14 @@ func BlockOneCoinbasePaysTokens(tx *dcrutil.Tx, params *chaincfg.Params) error {
 	}
 
 	return nil
+}
+
+// BlockOneCoinbasePaysTokens checks to see if the first block coinbase pays
+// out to the network initial token ledger.
+//
+// DEPRECATED.  This will be removed in the next major version bump.
+func BlockOneCoinbasePaysTokens(tx *dcrutil.Tx, params *chaincfg.Params) error {
+	return blockOneCoinbasePaysTokens(tx, params)
 }
 
 // CoinbasePaysTax checks to see if a given block's coinbase correctly pays
