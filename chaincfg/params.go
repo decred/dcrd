@@ -496,6 +496,10 @@ var (
 	// Decred network could not be set due to the network prefix colliding with
 	// a standard or previously-registered network in this package.
 	ErrDuplicateNetAddrPrefix = errors.New("duplicate network address prefix")
+
+	// ErrUnknownNetAddrPrefix describes an error where the provided network
+	// address prefix is not registered.
+	ErrUnknownNetAddrPrefix = errors.New("unknown network address prefix")
 )
 
 var (
@@ -606,6 +610,16 @@ func HDPrivateKeyToPublicKeyID(id []byte) ([]byte, error) {
 	}
 
 	return pubBytes, nil
+}
+
+// ParamsByNetAddrPrefix the parameters registered for  the provided network
+// address prefix.  An error is returned if the prefix is not registered.
+func ParamsByNetAddrPrefix(prefix string) (*Params, error) {
+	params, ok := netPrefixToParams[prefix]
+	if !ok {
+		return nil, ErrUnknownNetAddrPrefix
+	}
+	return params, nil
 }
 
 // newHashFromStr converts the passed big-endian hex string into a
