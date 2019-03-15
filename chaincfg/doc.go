@@ -32,14 +32,14 @@
 //  var testnet = flag.Bool("testnet", false, "operate on the testnet Decred network")
 //
 //  // By default (without -testnet), use mainnet.
-//  var chainParams = &chaincfg.MainNetParams
+//  var chainParams = chaincfg.MainNetParams()
 //
 //  func main() {
 //          flag.Parse()
 //
 //          // Modify active network parameters if operating on testnet.
 //          if *testnet {
-//                  chainParams = &chaincfg.TestNetParams
+//                  chainParams = chaincfg.TestNet3Params()
 //          }
 //
 //          // later...
@@ -53,9 +53,8 @@
 //          fmt.Println(addr)
 //  }
 //
-// If an application does not use one of the three standard Decred networks,
-// a new Params struct may be created which defines the parameters for the
+// If an application does not use one of the standard Decred networks, a new
+// Params struct may be created which defines the parameters for the
 // non-standard network.  As a general rule of thumb, all network parameters
-// should be unique to the network, but parameter collisions can still occur
-// (unfortunately, this is the case with regtest and testnet sharing magics).
+// should be unique to the network, but parameter collisions can still occur.
 package chaincfg

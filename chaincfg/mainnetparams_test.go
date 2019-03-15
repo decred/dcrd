@@ -28,8 +28,9 @@ func TestGenesisBlock(t *testing.T) {
 		"000000000001ffffffffffffffff00000000ffffffff02000000")
 
 	// Encode the genesis block to raw bytes.
+	params := MainNetParams()
 	var buf bytes.Buffer
-	err := MainNetParams.GenesisBlock.Serialize(&buf)
+	err := params.GenesisBlock.Serialize(&buf)
 	if err != nil {
 		t.Fatalf("TestGenesisBlock: %v", err)
 	}
@@ -42,10 +43,10 @@ func TestGenesisBlock(t *testing.T) {
 	}
 
 	// Check hash of the block against expected hash.
-	hash := MainNetParams.GenesisBlock.BlockHash()
-	if !MainNetParams.GenesisHash.IsEqual(&hash) {
+	hash := params.GenesisBlock.BlockHash()
+	if !params.GenesisHash.IsEqual(&hash) {
 		t.Fatalf("TestGenesisBlock: Genesis block hash does not "+
 			"appear valid - got %v, want %v", spew.Sdump(hash),
-			spew.Sdump(MainNetParams.GenesisHash))
+			spew.Sdump(params.GenesisHash))
 	}
 }

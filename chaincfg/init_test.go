@@ -385,8 +385,8 @@ func TestDeployments(t *testing.T) {
 // allDefaultNetParams returns the parameters for all of the default networks
 // for use in the tests.
 func allDefaultNetParams() []*Params {
-	return []*Params{&MainNetParams, &TestNet3Params, &SimNetParams,
-		&RegNetParams}
+	return []*Params{MainNetParams(), TestNet3Params(), SimNetParams(),
+		RegNetParams()}
 }
 
 // TestRequiredUnique ensures that the network parameter fields that are
