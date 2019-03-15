@@ -664,7 +664,7 @@ type AddressSecSchnorrPubKey struct {
 // parameter must be a valid pubkey and must be compressed.
 func NewAddressSecSchnorrPubKey(serializedPubKey []byte,
 	net *chaincfg.Params) (*AddressSecSchnorrPubKey, error) {
-	pubKey, err := schnorr.ParsePubKey(secp256k1.S256(), serializedPubKey)
+	pubKey, err := schnorr.ParsePubKey(serializedPubKey)
 	if err != nil {
 		return nil, err
 	}

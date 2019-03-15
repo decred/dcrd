@@ -225,7 +225,7 @@ func newSecSchnorrDSA() DSA {
 			return tpk
 		},
 		parsePubKey: func(pubKeyStr []byte) (PublicKey, error) {
-			pk, err := schnorr.ParsePubKey(secp256k1Curve, pubKeyStr)
+			pk, err := schnorr.ParsePubKey(pubKeyStr)
 			if err != nil {
 				return nil, err
 			}
