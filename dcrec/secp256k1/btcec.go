@@ -679,14 +679,14 @@ func (curve *KoblitzCurve) moduloReduce(k []byte) []byte {
 	return k
 }
 
-// NAF takes a positive integer k and returns the Non-Adjacent Form (NAF) as two
+// naf takes a positive integer k and returns the Non-Adjacent Form (NAF) as two
 // byte slices.  The first is where 1s will be.  The second is where -1s will
 // be.  NAF is convenient in that on average, only 1/3rd of its values are
 // non-zero.  This is algorithm 3.30 from [GECC].
 //
 // Essentially, this makes it possible to minimize the number of operations
 // since the resulting ints returned will be at least 50% 0s.
-func NAF(k []byte) ([]byte, []byte) {
+func naf(k []byte) ([]byte, []byte) {
 	// The essence of this algorithm is that whenever we have consecutive 1s
 	// in the binary, we want to put a -1 in the lowest bit and get a bunch
 	// of 0s up to the highest bit of consecutive 1s.  This is due to this
@@ -798,8 +798,8 @@ func (curve *KoblitzCurve) ScalarMult(Bx, By *big.Int, k []byte) (*big.Int, *big
 	//
 	// The Pos version of the bytes contain the +1s and the Neg versions
 	// contain the -1s.
-	k1PosNAF, k1NegNAF := NAF(k1)
-	k2PosNAF, k2NegNAF := NAF(k2)
+	k1PosNAF, k1NegNAF := naf(k1)
+	k2PosNAF, k2NegNAF := naf(k2)
 	k1Len := len(k1PosNAF)
 	k2Len := len(k2PosNAF)
 
