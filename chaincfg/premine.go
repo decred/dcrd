@@ -5,12 +5,6 @@
 
 package chaincfg
 
-// BlockOneLedgerTestNet3 is the block one output ledger for testnet version 3.
-var BlockOneLedgerTestNet3 = []*TokenPayout{
-	{"Tsi6gGYNSMmFwi7JoL5Li39SrERZTTMu6vY", 80000 * 1e8},
-	{"TscB7V5RuR1oXpA364DFEsNDuAs8Rk6BHJE", 20000 * 1e8},
-}
-
 // BlockOneLedgerSimNet is the block one output ledger for the simulation
 // network.  See "Decred organization related parameters" in simnetparams.go for
 // information on how to spend these outputs.

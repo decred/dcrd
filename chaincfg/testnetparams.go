@@ -6,10 +6,42 @@
 package chaincfg
 
 import (
+	"math/big"
 	"time"
 
+	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/wire"
 )
+
+// testNetPowLimit is the highest proof of work value a Decred block
+// can have for the test network.  It is the value 2^232 - 1.
+var testNetPowLimit = new(big.Int).Sub(new(big.Int).Lsh(bigOne, 232), bigOne)
+
+// testNet3GenesisBlock defines the genesis block of the block chain which
+// serves as the public transaction ledger for the test network (version 3).
+var testNet3GenesisBlock = wire.MsgBlock{
+	Header: wire.BlockHeader{
+		Version:      6,
+		PrevBlock:    chainhash.Hash{},
+		MerkleRoot:   genesisCoinbaseTx.TxHash(),
+		Timestamp:    time.Unix(1533513600, 0), // 2018-08-06 00:00:00 +0000 UTC
+		Bits:         0x1e00ffff,               // Difficulty 1 [000000ffff000000000000000000000000000000000000000000000000000000]
+		SBits:        20000000,
+		Nonce:        0x18aea41a,
+		StakeVersion: 6,
+	},
+	Transactions: []*wire.MsgTx{&genesisCoinbaseTx},
+}
+
+// testNet3GenesisHash is the hash of the first block in the block chain for the
+// test network (version 3).
+var testNet3GenesisHash = testNet3GenesisBlock.BlockHash()
+
+// blockOneLedgerTestNet3 is the block one output ledger for testnet version 3.
+var blockOneLedgerTestNet3 = []*TokenPayout{
+	{"Tsi6gGYNSMmFwi7JoL5Li39SrERZTTMu6vY", 80000 * 1e8},
+	{"TscB7V5RuR1oXpA364DFEsNDuAs8Rk6BHJE", 20000 * 1e8},
+}
 
 // TestNet3Params defines the network parameters for the test currency network.
 // This network is sometimes simply called "testnet".
@@ -150,5 +182,5 @@ var TestNet3Params = Params{
 	// Organization address is TcrypGAcGCRVXrES7hWqVZb5oLJKCZEtoL1.
 	OrganizationPkScript:        hexDecode("a914d585cd7426d25b4ea5faf1e6987aacfeda3db94287"),
 	OrganizationPkScriptVersion: 0,
-	BlockOneLedger:              BlockOneLedgerTestNet3,
+	BlockOneLedger:              blockOneLedgerTestNet3,
 }
