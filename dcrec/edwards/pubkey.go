@@ -36,7 +36,7 @@ func ParsePubKey(pubKeyStr []byte) (key *PublicKey, err error) {
 	curve := Edwards()
 	pubkey := PublicKey{}
 	pubkey.Curve = curve
-	x, y, err := curve.EncodedBytesToBigIntPoint(copyBytes(pubKeyStr))
+	x, y, err := curve.encodedBytesToBigIntPoint(copyBytes(pubKeyStr))
 	if err != nil {
 		return nil, err
 	}

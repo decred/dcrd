@@ -153,7 +153,7 @@ func schnorrPartialSign(msg []byte, priv []byte,
 	}
 	privNonceBig.SetInt64(0)
 
-	gpkX, gpkY, err := curve.EncodedBytesToBigIntPoint(copyBytes(groupPublicKey))
+	gpkX, gpkY, err := curve.encodedBytesToBigIntPoint(copyBytes(groupPublicKey))
 	if err != nil {
 		str := fmt.Sprintf("public key point could not be decoded")
 		return nil, nil, fmt.Errorf("%v", str)
@@ -163,7 +163,7 @@ func schnorrPartialSign(msg []byte, priv []byte,
 		return nil, nil, fmt.Errorf("%v", str)
 	}
 
-	gpnX, gpnY, err := curve.EncodedBytesToBigIntPoint(copyBytes(pubNonceSum))
+	gpnX, gpnY, err := curve.encodedBytesToBigIntPoint(copyBytes(pubNonceSum))
 	if err != nil {
 		str := fmt.Sprintf("public key point could not be decoded")
 		return nil, nil, fmt.Errorf("%v", str)

@@ -37,7 +37,7 @@ func Marshal(curve TwistedEdwardsCurve, x, y *big.Int) []byte {
 // Unmarshal converts a point into the 32 byte encoded Ed25519 form.
 func Unmarshal(curve *TwistedEdwardsCurve, data []byte) (x, y *big.Int) {
 	var err error
-	x, y, err = curve.EncodedBytesToBigIntPoint(copyBytes(data))
+	x, y, err = curve.encodedBytesToBigIntPoint(copyBytes(data))
 	if err != nil {
 		x = nil
 		y = nil
@@ -254,7 +254,7 @@ func (curve *TwistedEdwardsCurve) Add(x1, y1, x2, y2 *big.Int) (x, y *big.Int) {
 	s := new([32]byte)
 	rEGE.ToBytes(s)
 
-	x, y, _ = curve.EncodedBytesToBigIntPoint(s)
+	x, y, _ = curve.encodedBytesToBigIntPoint(s)
 
 	return
 }
@@ -274,7 +274,7 @@ func (curve *TwistedEdwardsCurve) Double(x1, y1 *big.Int) (x, y *big.Int) {
 
 	s := new([32]byte)
 	rEGE.ToBytes(s)
-	x, y, _ = curve.EncodedBytesToBigIntPoint(s)
+	x, y, _ = curve.encodedBytesToBigIntPoint(s)
 
 	return
 }
@@ -311,7 +311,7 @@ func (curve *TwistedEdwardsCurve) ScalarMult(x1, y1 *big.Int, k []byte) (x, y *b
 			ss := new([32]byte)
 			dEGE.ToBytes(ss)
 			var err error
-			xi, yi, err := curve.EncodedBytesToBigIntPoint(ss)
+			xi, yi, err := curve.encodedBytesToBigIntPoint(ss)
 			if err != nil {
 				return nil, nil
 			}
@@ -325,7 +325,7 @@ func (curve *TwistedEdwardsCurve) ScalarMult(x1, y1 *big.Int, k []byte) (x, y *b
 	dEGE.ToBytes(finalBytes)
 
 	var err error
-	x, y, err = curve.EncodedBytesToBigIntPoint(finalBytes)
+	x, y, err = curve.encodedBytesToBigIntPoint(finalBytes)
 	if err != nil {
 		return nil, nil
 	}

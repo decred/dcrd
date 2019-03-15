@@ -289,7 +289,7 @@ func TestPointConversion(t *testing.T) {
 	curve.InitParam25519()
 
 	for _, vector := range testPointConversionVectors() {
-		x, y, err := curve.EncodedBytesToBigIntPoint(vector.bIn)
+		x, y, err := curve.encodedBytesToBigIntPoint(vector.bIn)
 		// The random point wasn't on the curve.
 		if err != nil {
 			continue

@@ -47,7 +47,7 @@ func GenerateKey(rand io.Reader) (priv []byte, x, y *big.Int, err error) {
 	}
 	priv = privArray[:]
 
-	x, y, err = Edwards().EncodedBytesToBigIntPoint(pub)
+	x, y, err = Edwards().encodedBytesToBigIntPoint(pub)
 	if err != nil {
 		return nil, nil, nil, err
 	}

@@ -45,7 +45,7 @@ func TestXRecovery(t *testing.T) {
 	for _, vector := range testPointXRecoveryVectors() {
 		isNegative := vector.bIn[31]>>7 == 1
 		notOnCurve := false
-		_, y, err := curve.EncodedBytesToBigIntPoint(vector.bIn)
+		_, y, err := curve.encodedBytesToBigIntPoint(vector.bIn)
 		// The random point wasn't on the curve.
 		if err != nil {
 			notOnCurve = true
@@ -121,13 +121,13 @@ func TestAdd(t *testing.T) {
 			continue
 		}
 
-		x1, y1, err := curve.EncodedBytesToBigIntPoint(tpcv[i-1].bIn)
+		x1, y1, err := curve.encodedBytesToBigIntPoint(tpcv[i-1].bIn)
 		// The random point wasn't on the curve.
 		if err != nil {
 			continue
 		}
 
-		x2, y2, err := curve.EncodedBytesToBigIntPoint(tpcv[i].bIn)
+		x2, y2, err := curve.encodedBytesToBigIntPoint(tpcv[i].bIn)
 		// The random point wasn't on the curve.
 		if err != nil {
 			continue
@@ -217,7 +217,7 @@ func TestScalarMult(t *testing.T) {
 	curve.InitParam25519()
 
 	for _, vector := range testVectorsScalarMult() {
-		x, y, _ := curve.EncodedBytesToBigIntPoint(vector.bIn)
+		x, y, _ := curve.encodedBytesToBigIntPoint(vector.bIn)
 		sBig := EncodedBytesToBigInt(vector.s) // We need big endian
 		xMul, yMul := curve.ScalarMult(x, y, sBig.Bytes())
 		finalPoint := BigIntPointToEncodedBytes(xMul, yMul)

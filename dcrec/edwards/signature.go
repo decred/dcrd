@@ -55,7 +55,7 @@ func parseSig(sigStr []byte, der bool) (*Signature, error) {
 	r := EncodedBytesToBigInt(rBytes)
 	// r is a point on the curve as well. Evaluate it and make sure it's
 	// a valid point.
-	_, _, err := curve.EncodedBytesToBigIntPoint(rBytes)
+	_, _, err := curve.encodedBytesToBigIntPoint(rBytes)
 	if err != nil {
 		return nil, err
 	}
