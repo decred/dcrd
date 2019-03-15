@@ -14,16 +14,10 @@ import (
 	"github.com/decred/dcrd/wire"
 )
 
-// These variables are the chain proof-of-work limit parameters for each default
-// network.
 var (
 	// bigOne is 1 represented as a big.Int.  It is defined here to avoid
 	// the overhead of creating it multiple times.
 	bigOne = big.NewInt(1)
-
-	// mainPowLimit is the highest proof of work value a Decred block can
-	// have for the main network.  It is the value 2^224 - 1.
-	mainPowLimit = new(big.Int).Sub(new(big.Int).Lsh(bigOne, 224), bigOne)
 
 	// testNetPowLimit is the highest proof of work value a Decred block
 	// can have for the test network.  It is the value 2^232 - 1.
