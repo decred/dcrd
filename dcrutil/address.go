@@ -571,7 +571,7 @@ type AddressEdwardsPubKey struct {
 // parameter must be a valid 32 byte serialized public key.
 func NewAddressEdwardsPubKey(serializedPubKey []byte,
 	net *chaincfg.Params) (*AddressEdwardsPubKey, error) {
-	pubKey, err := edwards.ParsePubKey(edwards.Edwards(), serializedPubKey)
+	pubKey, err := edwards.ParsePubKey(serializedPubKey)
 	if err != nil {
 		return nil, err
 	}

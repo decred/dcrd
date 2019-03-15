@@ -103,7 +103,7 @@ func DecodeWIF(wif string) (*WIF, error) {
 		ecType = dcrec.STEcdsaSecp256k1
 	case dcrec.STEd25519:
 		privKeyBytes := decoded[3 : 3+edwards.PrivScalarSize]
-		privKey, _, _ = edwards.PrivKeyFromScalar(edwards.Edwards(), privKeyBytes)
+		privKey, _, _ = edwards.PrivKeyFromScalar(privKeyBytes)
 		ecType = dcrec.STEd25519
 	case dcrec.STSchnorrSecp256k1:
 		privKeyBytes := decoded[3 : 3+secp256k1.PrivKeyBytesLen]
@@ -144,7 +144,7 @@ func (w *WIF) SerializePubKey() []byte {
 	case dcrec.STEcdsaSecp256k1:
 		pk = secp256k1.NewPublicKey(pkx, pky)
 	case dcrec.STEd25519:
-		pk = edwards.NewPublicKey(edwards.Edwards(), pkx, pky)
+		pk = edwards.NewPublicKey(pkx, pky)
 	case dcrec.STSchnorrSecp256k1:
 		pk = secp256k1.NewPublicKey(pkx, pky)
 	}

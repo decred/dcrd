@@ -184,14 +184,14 @@ func newEdwardsDSA() DSA {
 
 		// Private keys
 		newPrivateKey: func(d *big.Int) PrivateKey {
-			pk := edwards.NewPrivateKey(edwardsCurve, d)
+			pk := edwards.NewPrivateKey(d)
 			if pk != nil {
 				return PrivateKey(*pk)
 			}
 			return nil
 		},
 		privKeyFromBytes: func(pk []byte) (PrivateKey, PublicKey) {
-			priv, pub := edwards.PrivKeyFromBytes(edwardsCurve, pk)
+			priv, pub := edwards.PrivKeyFromBytes(pk)
 			if priv == nil {
 				return nil, nil
 			}
@@ -203,7 +203,7 @@ func newEdwardsDSA() DSA {
 			return tpriv, tpub
 		},
 		privKeyFromScalar: func(pk []byte) (PrivateKey, PublicKey) {
-			priv, pub, err := edwards.PrivKeyFromScalar(edwardsCurve, pk)
+			priv, pub, err := edwards.PrivKeyFromScalar(pk)
 			if err != nil {
 				return nil, nil
 			}
@@ -223,12 +223,12 @@ func newEdwardsDSA() DSA {
 
 		// Public keys
 		newPublicKey: func(x *big.Int, y *big.Int) PublicKey {
-			pk := edwards.NewPublicKey(edwardsCurve, x, y)
+			pk := edwards.NewPublicKey(x, y)
 			tpk := PublicKey(*pk)
 			return tpk
 		},
 		parsePubKey: func(pubKeyStr []byte) (PublicKey, error) {
-			pk, err := edwards.ParsePubKey(edwardsCurve, pubKeyStr)
+			pk, err := edwards.ParsePubKey(pubKeyStr)
 			if err != nil {
 				return nil, err
 			}
@@ -252,7 +252,7 @@ func newEdwardsDSA() DSA {
 			return ts
 		},
 		parseDERSignature: func(sigStr []byte) (Signature, error) {
-			sig, err := edwards.ParseDERSignature(edwardsCurve, sigStr)
+			sig, err := edwards.ParseDERSignature(sigStr)
 			if err != nil {
 				return nil, err
 			}
@@ -260,7 +260,7 @@ func newEdwardsDSA() DSA {
 			return ts, err
 		},
 		parseSignature: func(sigStr []byte) (Signature, error) {
-			sig, err := edwards.ParseSignature(edwardsCurve, sigStr)
+			sig, err := edwards.ParseSignature(sigStr)
 			if err != nil {
 				return nil, err
 			}
@@ -285,7 +285,7 @@ func newEdwardsDSA() DSA {
 			if !ok {
 				return nil, nil, errors.New("wrong type")
 			}
-			r, s, err = edwards.Sign(edwardsCurve, &epriv, hash)
+			r, s, err = edwards.Sign(&epriv, hash)
 			return
 		},
 		verify: func(pub PublicKey, hash []byte, r, s *big.Int) bool {
@@ -301,25 +301,23 @@ func newEdwardsDSA() DSA {
 
 		// Symmetric cipher encryption
 		generateSharedSecret: func(privkey []byte, x, y *big.Int) []byte {
-			privKeyLocal, _, err := edwards.PrivKeyFromScalar(edwardsCurve,
-				privkey)
+			privKeyLocal, _, err := edwards.PrivKeyFromScalar(privkey)
 			if err != nil {
 				return nil
 			}
-			pubkey := edwards.NewPublicKey(edwardsCurve, x, y)
+			pubkey := edwards.NewPublicKey(x, y)
 			return edwards.GenerateSharedSecret(privKeyLocal, pubkey)
 		},
 		encrypt: func(x, y *big.Int, in []byte) ([]byte, error) {
-			pubkey := edwards.NewPublicKey(edwardsCurve, x, y)
-			return edwards.Encrypt(edwardsCurve, pubkey, in)
+			pubkey := edwards.NewPublicKey(x, y)
+			return edwards.Encrypt(pubkey, in)
 		},
 		decrypt: func(privkey []byte, in []byte) ([]byte, error) {
-			privKeyLocal, _, err := edwards.PrivKeyFromScalar(edwardsCurve,
-				privkey)
+			privKeyLocal, _, err := edwards.PrivKeyFromScalar(privkey)
 			if err != nil {
 				return nil, err
 			}
-			return edwards.Decrypt(edwardsCurve, privKeyLocal, in)
+			return edwards.Decrypt(privKeyLocal, in)
 		},
 	}
 
