@@ -41,7 +41,7 @@ func TestSchnorrThreshold(t *testing.T) {
 		allPubkeys := make([]*PublicKey, numKeysForTest)
 		copy(allPubkeys, pubKeysToUse)
 
-		allPksSum := CombinePubkeys(allPubkeys)
+		allPksSum := combinePubkeys(allPubkeys)
 
 		curve := Edwards()
 		privNoncesToUse := make([]*PrivateKey, numKeysForTest)
@@ -77,7 +77,7 @@ func TestSchnorrThreshold(t *testing.T) {
 		partialSignatures := make([]*Signature, numKeysForTest)
 
 		// Partial signature generation.
-		publicNonceSum := CombinePubkeys(pubNoncesToUse)
+		publicNonceSum := combinePubkeys(pubNoncesToUse)
 		cmp := publicNonceSum != nil
 		if !cmp {
 			t.Fatalf("expected %v, got %v", true, cmp)
@@ -95,7 +95,7 @@ func TestSchnorrThreshold(t *testing.T) {
 		}
 
 		// Combine signatures.
-		combinedSignature, err := SchnorrCombineSigs(partialSignatures)
+		combinedSignature, err := schnorrCombinePartialSigs(partialSignatures)
 		if err != nil {
 			t.Fatalf("unexpected error %s, ", err)
 		}
@@ -105,7 +105,7 @@ func TestSchnorrThreshold(t *testing.T) {
 		// the private keys and private nonces.
 		combinedPrivkeysD := new(big.Int).SetInt64(0)
 		for _, priv := range keysToUse {
-			combinedPrivkeysD = ScalarAdd(combinedPrivkeysD, priv.GetD())
+			combinedPrivkeysD = scalarAdd(combinedPrivkeysD, priv.GetD())
 			combinedPrivkeysD = combinedPrivkeysD.Mod(combinedPrivkeysD, curve.N)
 		}
 
@@ -158,7 +158,7 @@ func TestSchnorrThreshold(t *testing.T) {
 		}
 		// Corrupt public key.
 		if corruptWhat == 1 {
-			pubXCorrupt := BigIntToEncodedBytes(pubKeysToUse[randItem].GetX())
+			pubXCorrupt := bigIntToEncodedBytes(pubKeysToUse[randItem].GetX())
 			pos := tRand.Intn(31)
 			bitPos := tRand.Intn(7)
 			pubXCorrupt[pos] ^= 1 << uint8(bitPos)
@@ -174,7 +174,7 @@ func TestSchnorrThreshold(t *testing.T) {
 		}
 		// Corrupt public nonce.
 		if corruptWhat == 3 {
-			pubXCorrupt := BigIntToEncodedBytes(pubNoncesToUse[randItem].GetX())
+			pubXCorrupt := bigIntToEncodedBytes(pubNoncesToUse[randItem].GetX())
 			pos := tRand.Intn(31)
 			bitPos := tRand.Intn(7)
 			pubXCorrupt[pos] ^= 1 << uint8(bitPos)
@@ -192,7 +192,7 @@ func TestSchnorrThreshold(t *testing.T) {
 				localPubNonces[itr] = pubNonce
 				itr++
 			}
-			publicNonceSum := CombinePubkeys(localPubNonces)
+			publicNonceSum := combinePubkeys(localPubNonces)
 
 			sigR, sigS, _ := schnorrPartialSign(msg,
 				keysToUse[j].Serialize(), allPksSum.Serialize(),
@@ -203,8 +203,8 @@ func TestSchnorrThreshold(t *testing.T) {
 			partialSignatures[j] = localSig
 		}
 
-		// Combine signatures.
-		combinedSignature, _ = SchnorrCombineSigs(partialSignatures)
+		// combine signatures.
+		combinedSignature, _ = schnorrCombinePartialSigs(partialSignatures)
 
 		// Nothing that makes it here should be valid.
 		if allPksSum != nil && combinedSignature != nil {

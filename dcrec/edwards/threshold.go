@@ -13,9 +13,9 @@ import (
 // over the Curve25519 curve using BLAKE256 as the hash function.
 var Sha512VersionStringRFC6979 = []byte("Edwards+SHA512  ")
 
-// CombinePubkeys combines a slice of public keys into a single public key
+// combinePubkeys combines a slice of public keys into a single public key
 // by adding them together with point addition.
-func CombinePubkeys(pks []*PublicKey) *PublicKey {
+func combinePubkeys(pks []*PublicKey) *PublicKey {
 	numPubKeys := len(pks)
 
 	// Have to have at least two pubkeys.
@@ -78,22 +78,6 @@ func generateNoncePair(msg []byte, priv []byte,
 	pubnonce := NewPublicKey(pubx, puby)
 
 	return k, pubnonce, nil
-}
-
-// GenerateNoncePair is the generalized and exported version of generateNoncePair.
-func GenerateNoncePair(msg []byte, privkey *PrivateKey, extra []byte,
-	version []byte) (*PrivateKey, *PublicKey, error) {
-
-	priv, pubNonce, err := generateNoncePair(msg, privkey.Serialize(),
-		nonceRFC6979, extra, version)
-
-	if err != nil {
-		return nil, nil, err
-	}
-
-	privNonce := NewPrivateKey(
-		EncodedBytesToBigIntNoReverse(copyBytes(priv)))
-	return privNonce, pubNonce, nil
 }
 
 // schnorrPartialSign creates a partial Schnorr signature which may be combined
@@ -182,20 +166,6 @@ func schnorrPartialSign(msg []byte, priv []byte,
 		privNonceDecoded, pubNonceSumDecoded)
 }
 
-// SchnorrPartialSign is the generalized and exported version of
-// schnorrPartialSign.
-func SchnorrPartialSign(msg []byte, priv *PrivateKey, groupPub *PublicKey,
-	privNonce *PrivateKey, pubSum *PublicKey) (*big.Int, *big.Int, error) {
-
-	privBytes := priv.Serialize()
-	defer zeroSlice(privBytes)
-	privNonceBytes := privNonce.Serialize()
-	defer zeroSlice(privNonceBytes)
-
-	return schnorrPartialSign(msg, privBytes, groupPub.Serialize(),
-		privNonceBytes, pubSum.Serialize())
-}
-
 // schnorrCombineSigs combines a list of partial Schnorr signatures s values
 // into a complete signature s for some group public key. This is achieved
 // by simply adding the s values of the partial signatures as scalars.
@@ -203,7 +173,7 @@ func schnorrCombineSigs(sigss [][]byte) (*big.Int, error) {
 	curve := Edwards()
 	combinedSigS := new(big.Int).SetInt64(0)
 	for i, sigs := range sigss {
-		sigsBI := EncodedBytesToBigInt(copyBytes(sigs))
+		sigsBI := encodedBytesToBigInt(copyBytes(sigs))
 		if sigsBI.Cmp(zero) == 0 {
 			str := fmt.Sprintf("sig s %v is zero", i)
 			return nil, fmt.Errorf("%v", str)
@@ -213,7 +183,7 @@ func schnorrCombineSigs(sigss [][]byte) (*big.Int, error) {
 			return nil, fmt.Errorf("%v", str)
 		}
 
-		combinedSigS = ScalarAdd(combinedSigS, sigsBI)
+		combinedSigS = scalarAdd(combinedSigS, sigsBI)
 		combinedSigS.Mod(combinedSigS, curve.N)
 	}
 
@@ -225,9 +195,8 @@ func schnorrCombineSigs(sigss [][]byte) (*big.Int, error) {
 	return combinedSigS, nil
 }
 
-// SchnorrCombineSigs is the generalized and exported version of
-// generateNoncePair.
-func SchnorrCombineSigs(sigs []*Signature) (*Signature, error) {
+// schnorrCombinePartialSigs combines partial signatures.
+func schnorrCombinePartialSigs(sigs []*Signature) (*Signature, error) {
 	sigss := make([][]byte, len(sigs))
 	for i, sig := range sigs {
 		if sig == nil {
@@ -242,7 +211,7 @@ func SchnorrCombineSigs(sigs []*Signature) (*Signature, error) {
 			}
 		}
 
-		sigss[i] = BigIntToEncodedBytes(sig.GetS())[:]
+		sigss[i] = bigIntToEncodedBytes(sig.GetS())[:]
 	}
 
 	combinedSigS, err := schnorrCombineSigs(sigss)

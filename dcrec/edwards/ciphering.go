@@ -44,7 +44,7 @@ var (
 // RFC5903 Section 9 states we should only return y.
 func GenerateSharedSecret(privkey *PrivateKey, pubkey *PublicKey) []byte {
 	x, y := pubkey.Curve.ScalarMult(pubkey.X, pubkey.Y, privkey.ecPk.D.Bytes())
-	return BigIntPointToEncodedBytes(x, y)[:]
+	return bigIntPointToEncodedBytes(x, y)[:]
 }
 
 // Encrypt encrypts data for the target public key using AES-256-CBC. It also

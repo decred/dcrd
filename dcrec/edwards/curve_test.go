@@ -39,8 +39,7 @@ func testPointXRecoveryVectors() []XRecoveryVector {
 //   extendedToBigAffine
 //   EncodedBytesToBigIntPoint
 func TestXRecovery(t *testing.T) {
-	curve := new(TwistedEdwardsCurve)
-	curve.InitParam25519()
+	curve := Edwards()
 
 	for _, vector := range testPointXRecoveryVectors() {
 		isNegative := vector.bIn[31]>>7 == 1
@@ -52,10 +51,10 @@ func TestXRecovery(t *testing.T) {
 		}
 
 		if notOnCurve {
-			y = EncodedBytesToBigInt(vector.bIn)
+			y = encodedBytesToBigInt(vector.bIn)
 		}
 
-		x2 := curve.RecoverXBigInt(isNegative, y)
+		x2 := curve.recoverXBigInt(isNegative, y)
 		if !curve.IsOnCurve(x2, y) {
 			if !notOnCurve {
 				t.Fatalf("expected %v, got %v", true, notOnCurve)
@@ -64,15 +63,15 @@ func TestXRecovery(t *testing.T) {
 			if notOnCurve {
 				t.Fatalf("expected %v, got %v", false, notOnCurve)
 			}
-			b2 := BigIntPointToEncodedBytes(x2, y)
+			b2 := bigIntPointToEncodedBytes(x2, y)
 			if !bytes.Equal(vector.bIn[:], b2[:]) {
 				t.Fatalf("expected %x, got %x", vector.bIn[:], b2)
 			}
 		}
 
-		yFE := EncodedBytesToFieldElement(vector.bIn)
-		x3 := curve.RecoverXFieldElement(isNegative, yFE)
-		x3BI := FieldElementToBigInt(x3)
+		yFE := encodedBytesToFieldElement(vector.bIn)
+		x3 := curve.recoverXFieldElement(isNegative, yFE)
+		x3BI := fieldElementToBigInt(x3)
 		if !curve.IsOnCurve(x3BI, y) {
 			if !notOnCurve {
 				t.Fatalf("expected %v, got %v", true, notOnCurve)
@@ -82,7 +81,7 @@ func TestXRecovery(t *testing.T) {
 				t.Fatalf("expected %v, got %v", false, notOnCurve)
 			}
 
-			b3 := BigIntPointToEncodedBytes(x3BI, y)
+			b3 := bigIntPointToEncodedBytes(x3BI, y)
 			if !bytes.Equal(vector.bIn[:], b3[:]) {
 				t.Fatalf("expected %x, got %x", vector.bIn[:],
 					b3)
@@ -92,9 +91,9 @@ func TestXRecovery(t *testing.T) {
 }
 
 // Tested functions:
-//   BigIntPointToEncodedBytes
+//   bigIntPointToEncodedBytes
 //   extendedToBigAffine
-//   EncodedBytesToBigIntPoint
+//   encodedBytesToBigIntPoint
 func TestAdd(t *testing.T) {
 	pointHexStrIdx := 0
 	pointHexStrSet := []string{
@@ -112,8 +111,7 @@ func TestAdd(t *testing.T) {
 		"413df123e96ffc6e8d033037cdbe40d70fb9ec17adf547d9f95a2c6e778bb3cb",
 		"b3c815edc658038e31fef3e08190bfdfc63640df5e3b490fb50421cc0380bc21",
 	}
-	curve := new(TwistedEdwardsCurve)
-	curve.InitParam25519()
+	curve := Edwards()
 	tpcv := testPointConversionVectors()
 
 	for i := range tpcv {
@@ -134,7 +132,7 @@ func TestAdd(t *testing.T) {
 		}
 
 		x, y := curve.Add(x1, y1, x2, y2)
-		pointEnc := BigIntPointToEncodedBytes(x, y)
+		pointEnc := bigIntPointToEncodedBytes(x, y)
 		pointEncAsStr := hex.EncodeToString(pointEnc[:])
 		// Assert our results.
 		pointHexStr := pointHexStrSet[pointHexStrIdx]
@@ -213,14 +211,13 @@ func testVectorsScalarMult() []ScalarMultVector {
 //   Double
 //   ScalarMult
 func TestScalarMult(t *testing.T) {
-	curve := new(TwistedEdwardsCurve)
-	curve.InitParam25519()
+	curve := Edwards()
 
 	for _, vector := range testVectorsScalarMult() {
 		x, y, _ := curve.encodedBytesToBigIntPoint(vector.bIn)
-		sBig := EncodedBytesToBigInt(vector.s) // We need big endian
+		sBig := encodedBytesToBigInt(vector.s) // We need big endian
 		xMul, yMul := curve.ScalarMult(x, y, sBig.Bytes())
-		finalPoint := BigIntPointToEncodedBytes(xMul, yMul)
+		finalPoint := bigIntPointToEncodedBytes(xMul, yMul)
 		cmp := bytes.Equal(vector.bRes[:], finalPoint[:])
 		if !cmp {
 			t.Fatalf("expected %v, got %v", true, cmp)

@@ -29,25 +29,9 @@ func (curve TwistedEdwardsCurve) Params() *elliptic.CurveParams {
 	return curve.CurveParams
 }
 
-// Marshal converts a point into the 32 byte encoded Ed25519 form.
-func Marshal(curve TwistedEdwardsCurve, x, y *big.Int) []byte {
-	return BigIntPointToEncodedBytes(x, y)[:]
-}
-
-// Unmarshal converts a point into the 32 byte encoded Ed25519 form.
-func Unmarshal(curve *TwistedEdwardsCurve, data []byte) (x, y *big.Int) {
-	var err error
-	x, y, err = curve.encodedBytesToBigIntPoint(copyBytes(data))
-	if err != nil {
-		x = nil
-		y = nil
-	}
-	return
-}
-
-// RecoverXBigInt recovers the X value for some Y value, for a coordinate
+// recoverXBigInt recovers the X value for some Y value, for a coordinate
 // on the Ed25519 curve given as a big integer Y value.
-func (curve *TwistedEdwardsCurve) RecoverXBigInt(xIsNeg bool, y *big.Int) *big.Int {
+func (curve *TwistedEdwardsCurve) recoverXBigInt(xIsNeg bool, y *big.Int) *big.Int {
 	// (y^2 - 1)
 	l := new(big.Int).Mul(y, y)
 	l.Sub(l, one)
@@ -90,10 +74,10 @@ func (curve *TwistedEdwardsCurve) RecoverXBigInt(xIsNeg bool, y *big.Int) *big.I
 	return x
 }
 
-// RecoverXFieldElement recovers the X value for some Y value, for a coordinate
+// recoverXFieldElement recovers the X value for some Y value, for a coordinate
 // on the Ed25519 curve given as a field element. Y value. Probably the fastest
 // way to get your respective X from Y.
-func (curve *TwistedEdwardsCurve) RecoverXFieldElement(xIsNeg bool, y *edwards25519.FieldElement) *edwards25519.FieldElement {
+func (curve *TwistedEdwardsCurve) recoverXFieldElement(xIsNeg bool, y *edwards25519.FieldElement) *edwards25519.FieldElement {
 	// (y^2 - 1)
 	l := new(edwards25519.FieldElement)
 	edwards25519.FeSquare(l, y)
@@ -110,7 +94,7 @@ func (curve *TwistedEdwardsCurve) RecoverXFieldElement(xIsNeg bool, y *edwards25
 	edwards25519.FeMul(x2, r, l)
 
 	// Get a big int so we can do the exponentiation.
-	x2Big := FieldElementToBigInt(x2)
+	x2Big := fieldElementToBigInt(x2)
 
 	// x = exp(x^2,(P+3)/8, P)
 	qp3 := new(big.Int).Add(curve.P, three)
@@ -119,32 +103,32 @@ func (curve *TwistedEdwardsCurve) RecoverXFieldElement(xIsNeg bool, y *edwards25
 
 	// Convert back to a field element and do
 	// the rest.
-	x := BigIntToFieldElement(xBig)
+	x := bigIntToFieldElement(xBig)
 
 	// check (x^2 - x2) % q != 0
 	x22 := new(edwards25519.FieldElement)
 	edwards25519.FeSquare(x22, x)
 	xsub := new(edwards25519.FieldElement)
 	edwards25519.FeSub(xsub, x22, x2)
-	xsubBig := FieldElementToBigInt(xsub)
+	xsubBig := fieldElementToBigInt(xsub)
 	xsubBig.Mod(xsubBig, curve.P)
 
 	if xsubBig.Cmp(zero) != 0 {
 		xi := new(edwards25519.FieldElement)
 		edwards25519.FeMul(xi, x, &feI)
-		xiModBig := FieldElementToBigInt(xi)
+		xiModBig := fieldElementToBigInt(xi)
 		xiModBig.Mod(xiModBig, curve.P)
-		xiMod := BigIntToFieldElement(xiModBig)
+		xiMod := bigIntToFieldElement(xiModBig)
 
 		x = xiMod
 	}
 
-	xBig = FieldElementToBigInt(x)
+	xBig = fieldElementToBigInt(x)
 	xmod2 := new(big.Int).Mod(xBig, two)
 	if xmod2.Cmp(zero) != 0 {
 		// TODO replace this with FeSub
 		xBig.Sub(curve.P, xBig)
-		x = BigIntToFieldElement(xBig)
+		x = bigIntToFieldElement(xBig)
 	}
 
 	// We got the wrong x, negate it to get the right one.
@@ -160,8 +144,8 @@ func (curve *TwistedEdwardsCurve) RecoverXFieldElement(xIsNeg bool, y *edwards25
 // checking (y^2 - x^2 - 1 - dx^2y^2) % P == 0.
 func (curve *TwistedEdwardsCurve) IsOnCurve(x *big.Int, y *big.Int) bool {
 	// Convert to field elements.
-	xB := BigIntToEncodedBytes(x)
-	yB := BigIntToEncodedBytes(y)
+	xB := bigIntToEncodedBytes(x)
+	yB := bigIntToEncodedBytes(y)
 
 	yfe := new(edwards25519.FieldElement)
 	xfe := new(edwards25519.FieldElement)
@@ -182,7 +166,7 @@ func (curve *TwistedEdwardsCurve) IsOnCurve(x *big.Int, y *big.Int) bool {
 	edwards25519.FeSub(enum, enum, &feOne)
 	edwards25519.FeSub(enum, enum, dx2y2)
 
-	enumBig := FieldElementToBigInt(enum)
+	enumBig := fieldElementToBigInt(enum)
 	enumBig.Mod(enumBig, curve.P)
 
 	if enumBig.Cmp(zero) != 0 {
@@ -215,11 +199,11 @@ func toCached(r *cachedGroupElement, p *edwards25519.ExtendedGroupElement) {
 // curve.
 func (curve *TwistedEdwardsCurve) Add(x1, y1, x2, y2 *big.Int) (x, y *big.Int) {
 	// Convert to extended from affine.
-	a := BigIntPointToEncodedBytes(x1, y1)
+	a := bigIntPointToEncodedBytes(x1, y1)
 	aEGE := new(edwards25519.ExtendedGroupElement)
 	aEGE.FromBytes(a)
 
-	b := BigIntPointToEncodedBytes(x2, y2)
+	b := bigIntPointToEncodedBytes(x2, y2)
 	bEGE := new(edwards25519.ExtendedGroupElement)
 	bEGE.FromBytes(b)
 
@@ -263,7 +247,7 @@ func (curve *TwistedEdwardsCurve) Add(x1, y1, x2, y2 *big.Int) (x, y *big.Int) {
 // elliptical curve.
 func (curve *TwistedEdwardsCurve) Double(x1, y1 *big.Int) (x, y *big.Int) {
 	// Convert to extended projective coordinates.
-	a := BigIntPointToEncodedBytes(x1, y1)
+	a := bigIntPointToEncodedBytes(x1, y1)
 	aEGE := new(edwards25519.ExtendedGroupElement)
 	aEGE.FromBytes(a)
 
@@ -316,7 +300,7 @@ func (curve *TwistedEdwardsCurve) ScalarMult(x1, y1 *big.Int, k []byte) (x, y *b
 				return nil, nil
 			}
 			xAdd, yAdd := curve.Add(xi, yi, x1, y1)
-			dTempBytes := BigIntPointToEncodedBytes(xAdd, yAdd)
+			dTempBytes := bigIntPointToEncodedBytes(xAdd, yAdd)
 			dEGE.FromBytes(dTempBytes)
 		}
 	}
@@ -340,21 +324,21 @@ func (curve *TwistedEdwardsCurve) ScalarBaseMult(k []byte) (x, y *big.Int) {
 	return curve.ScalarMult(curve.Gx, curve.Gy, k)
 }
 
-// ScalarAdd adds two scalars and returns the sum mod N.
-func ScalarAdd(a, b *big.Int) *big.Int {
-	feA := BigIntToFieldElement(a)
-	feB := BigIntToFieldElement(b)
+// scalarAdd adds two scalars and returns the sum mod N.
+func scalarAdd(a, b *big.Int) *big.Int {
+	feA := bigIntToFieldElement(a)
+	feB := bigIntToFieldElement(b)
 	sum := new(edwards25519.FieldElement)
 
 	edwards25519.FeAdd(sum, feA, feB)
 	sumArray := new([32]byte)
 	edwards25519.FeToBytes(sumArray, sum)
 
-	return EncodedBytesToBigInt(sumArray)
+	return encodedBytesToBigInt(sumArray)
 }
 
-// InitParam25519 initializes an instance of the Ed25519 curve.
-func (curve *TwistedEdwardsCurve) InitParam25519() {
+// initParam25519 initializes an instance of the Ed25519 curve.
+func (curve *TwistedEdwardsCurve) initParam25519() {
 	// The prime modulus of the field.
 	// P = 2^255-19
 	curve.CurveParams = new(elliptic.CurveParams)
@@ -401,6 +385,6 @@ func (curve *TwistedEdwardsCurve) InitParam25519() {
 // Edwards returns a Curve which implements Ed25519.
 func Edwards() *TwistedEdwardsCurve {
 	c := new(TwistedEdwardsCurve)
-	c.InitParam25519()
+	c.initParam25519()
 	return c
 }

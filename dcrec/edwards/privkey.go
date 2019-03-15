@@ -33,7 +33,7 @@ type PrivateKey struct {
 // NewPrivateKey instantiates a new private key from a scalar encoded as a
 // big integer.
 func NewPrivateKey(d *big.Int) *PrivateKey {
-	dArray := BigIntToEncodedBytes(d)
+	dArray := bigIntToEncodedBytes(d)
 	priv, _ := PrivKeyFromSecret(dArray[:])
 	return priv
 }
@@ -187,7 +187,7 @@ func (p PrivateKey) SerializeSecret() []byte {
 
 	// This is little endian.
 	pubX, pubY := p.Public()
-	spk := BigIntPointToEncodedBytes(pubX, pubY)
+	spk := bigIntPointToEncodedBytes(pubX, pubY)
 
 	all := append(p.secret[:], spk[:]...)
 
