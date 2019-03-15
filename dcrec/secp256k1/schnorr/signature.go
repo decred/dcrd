@@ -31,8 +31,8 @@ func NewSignature(r, s *big.Int) *Signature {
 //   sig[32:64] S, scalar multiplication/addition results = (ab+c) mod l
 //     encoded also as big endian
 func (sig Signature) Serialize() []byte {
-	rBytes := BigIntToEncodedBytes(sig.R)
-	sBytes := BigIntToEncodedBytes(sig.S)
+	rBytes := bigIntToEncodedBytes(sig.R)
+	sBytes := bigIntToEncodedBytes(sig.S)
 
 	all := append(rBytes[:], sBytes[:]...)
 
@@ -46,9 +46,9 @@ func parseSig(sigStr []byte) (*Signature, error) {
 	}
 
 	rBytes := copyBytes(sigStr[0:32])
-	r := EncodedBytesToBigInt(rBytes)
+	r := encodedBytesToBigInt(rBytes)
 	sBytes := copyBytes(sigStr[32:64])
-	s := EncodedBytesToBigInt(sBytes)
+	s := encodedBytesToBigInt(sBytes)
 
 	return &Signature{r, s}, nil
 }
