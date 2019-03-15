@@ -18,12 +18,9 @@ func TestSchnorrThreshold(t *testing.T) {
 	numTests := 5
 	numSignatories := maxSignatories * numTests
 
-	curve := new(TwistedEdwardsCurve)
-	curve.InitParam25519()
-
 	msg, _ := hex.DecodeString(
 		"d04b98f48e8f8bcc15c6ae5ac050801cd6dcfd428fb5f9e65c4e16e7807340fa")
-	privkeys := randPrivScalarKeyList(curve, numSignatories)
+	privkeys := randPrivScalarKeyList(numSignatories)
 
 	for i := 0; i < numTests; i++ {
 		numKeysForTest := tRand.Intn(maxSignatories-2) + 2
@@ -35,7 +32,7 @@ func TestSchnorrThreshold(t *testing.T) {
 
 		pubKeysToUse := make([]*PublicKey, numKeysForTest)
 		for j := 0; j < numKeysForTest; j++ {
-			_, pubkey, _ := PrivKeyFromScalar(curve,
+			_, pubkey, _ := PrivKeyFromScalar(
 				keysToUse[j].Serialize())
 			pubKeysToUse[j] = pubkey
 		}
@@ -44,19 +41,20 @@ func TestSchnorrThreshold(t *testing.T) {
 		allPubkeys := make([]*PublicKey, numKeysForTest)
 		copy(allPubkeys, pubKeysToUse)
 
-		allPksSum := CombinePubkeys(curve, allPubkeys)
+		allPksSum := CombinePubkeys(allPubkeys)
 
+		curve := Edwards()
 		privNoncesToUse := make([]*PrivateKey, numKeysForTest)
 		pubNoncesToUse := make([]*PublicKey, numKeysForTest)
 		for j := 0; j < numKeysForTest; j++ {
-			nonce := nonceRFC6979(curve, keysToUse[j].Serialize(), msg, nil,
+			nonce := nonceRFC6979(keysToUse[j].Serialize(), msg, nil,
 				Sha512VersionStringRFC6979)
 			nonceBig := new(big.Int).SetBytes(nonce)
 			nonceBig.Mod(nonceBig, curve.N)
 			nonce = copyBytes(nonceBig.Bytes())[:]
 			nonce[31] &= 248
 
-			privNonce, pubNonce, err := PrivKeyFromScalar(curve,
+			privNonce, pubNonce, err := PrivKeyFromScalar(
 				nonce[:])
 			cmp := privNonce != nil
 			if !cmp {
@@ -79,13 +77,13 @@ func TestSchnorrThreshold(t *testing.T) {
 		partialSignatures := make([]*Signature, numKeysForTest)
 
 		// Partial signature generation.
-		publicNonceSum := CombinePubkeys(curve, pubNoncesToUse)
+		publicNonceSum := CombinePubkeys(pubNoncesToUse)
 		cmp := publicNonceSum != nil
 		if !cmp {
 			t.Fatalf("expected %v, got %v", true, cmp)
 		}
 		for j := range keysToUse {
-			r, s, err := schnorrPartialSign(curve, msg, keysToUse[j].Serialize(),
+			r, s, err := schnorrPartialSign(msg, keysToUse[j].Serialize(),
 				allPksSum.Serialize(), privNoncesToUse[j].Serialize(),
 				publicNonceSum.Serialize())
 			if err != nil {
@@ -97,7 +95,7 @@ func TestSchnorrThreshold(t *testing.T) {
 		}
 
 		// Combine signatures.
-		combinedSignature, err := SchnorrCombineSigs(curve, partialSignatures)
+		combinedSignature, err := SchnorrCombineSigs(partialSignatures)
 		if err != nil {
 			t.Fatalf("unexpected error %s, ", err)
 		}
@@ -117,17 +115,17 @@ func TestSchnorrThreshold(t *testing.T) {
 			combinedNonceD.Mod(combinedNonceD, curve.N)
 		}
 
-		combinedPrivkey, _, err := PrivKeyFromScalar(curve,
+		combinedPrivkey, _, err := PrivKeyFromScalar(
 			copyBytes(combinedPrivkeysD.Bytes())[:])
 		if err != nil {
 			t.Fatalf("unexpected error %s, ", err)
 		}
-		combinedNonce, _, err := PrivKeyFromScalar(curve,
+		combinedNonce, _, err := PrivKeyFromScalar(
 			copyBytes(combinedNonceD.Bytes())[:])
 		if err != nil {
 			t.Fatalf("unexpected error %s, ", err)
 		}
-		cSigR, cSigS, err := SignFromScalar(curve, combinedPrivkey,
+		cSigR, cSigS, err := SignFromScalar(combinedPrivkey,
 			combinedNonce.Serialize(), msg)
 		sumSig := NewSignature(cSigR, cSigS)
 		cmp = bytes.Equal(sumSig.Serialize(), combinedSignature.Serialize())
@@ -194,9 +192,9 @@ func TestSchnorrThreshold(t *testing.T) {
 				localPubNonces[itr] = pubNonce
 				itr++
 			}
-			publicNonceSum := CombinePubkeys(curve, localPubNonces)
+			publicNonceSum := CombinePubkeys(localPubNonces)
 
-			sigR, sigS, _ := schnorrPartialSign(curve, msg,
+			sigR, sigS, _ := schnorrPartialSign(msg,
 				keysToUse[j].Serialize(), allPksSum.Serialize(),
 				privNoncesToUse[j].Serialize(),
 				publicNonceSum.Serialize())
@@ -206,7 +204,7 @@ func TestSchnorrThreshold(t *testing.T) {
 		}
 
 		// Combine signatures.
-		combinedSignature, _ = SchnorrCombineSigs(curve, partialSignatures)
+		combinedSignature, _ = SchnorrCombineSigs(partialSignatures)
 
 		// Nothing that makes it here should be valid.
 		if allPksSum != nil && combinedSignature != nil {

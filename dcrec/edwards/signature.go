@@ -40,7 +40,7 @@ func (sig Signature) Serialize() []byte {
 }
 
 // parseSig is the default method of parsing a serialized Ed25519 signature.
-func parseSig(curve *TwistedEdwardsCurve, sigStr []byte, der bool) (*Signature, error) {
+func parseSig(sigStr []byte, der bool) (*Signature, error) {
 	if der {
 		return nil, fmt.Errorf("DER signatures not allowed in ed25519")
 	}
@@ -50,6 +50,7 @@ func parseSig(curve *TwistedEdwardsCurve, sigStr []byte, der bool) (*Signature, 
 			len(sigStr), SignatureSize)
 	}
 
+	curve := Edwards()
 	rBytes := copyBytes(sigStr[0:32])
 	r := EncodedBytesToBigInt(rBytes)
 	// r is a point on the curve as well. Evaluate it and make sure it's
@@ -72,14 +73,14 @@ func parseSig(curve *TwistedEdwardsCurve, sigStr []byte, der bool) (*Signature, 
 
 // ParseSignature parses a signature in BER format for the curve type `curve'
 // into a Signature type, perfoming some basic sanity checks.
-func ParseSignature(curve *TwistedEdwardsCurve, sigStr []byte) (*Signature, error) {
-	return parseSig(curve, sigStr, false)
+func ParseSignature(sigStr []byte) (*Signature, error) {
+	return parseSig(sigStr, false)
 }
 
 // ParseDERSignature offers a legacy function for plugging into Decred, which
 // is based off btcec.
-func ParseDERSignature(curve *TwistedEdwardsCurve, sigStr []byte) (*Signature, error) {
-	return parseSig(curve, sigStr, false)
+func ParseDERSignature(sigStr []byte) (*Signature, error) {
+	return parseSig(sigStr, false)
 }
 
 // RecoverCompact uses a signature and a hash to recover is private
