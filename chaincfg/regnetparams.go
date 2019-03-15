@@ -59,10 +59,10 @@ var regNetGenesisBlock = wire.MsgBlock{
 // blockOneLedgerRegNet is the block one output ledger for the regression test
 // network.  See "Decred organization related parameters" below for information
 // on how to spend these outputs.
-var blockOneLedgerRegNet = []*TokenPayout{
-	{"RsKrWb7Vny1jnzL1sDLgKTAteh9RZcRr5g6", 100000 * 1e8},
-	{"Rs8ca5cDALtsMVD4PV3xvFTC7dmuU1juvLv", 100000 * 1e8},
-	{"RsHzbGt6YajuHpurtpqXXHz57LmYZK8w9tX", 100000 * 1e8},
+var blockOneLedgerRegNet = []TokenPayout{
+	mustPayout("76a9147e4765ae88ba9ad5c9e4715c484e90b34d358d5188ac", 100000*1e8),
+	mustPayout("76a91402fb1ac0137666d79165e13cecd403883615270788ac", 100000*1e8),
+	mustPayout("76a91469de627d3231b14228653dd09cba75eeb872754288ac", 100000*1e8),
 }
 
 // RegNetParams defines the network parameters for the regression test network.

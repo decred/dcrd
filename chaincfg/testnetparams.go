@@ -34,9 +34,9 @@ var testNet3GenesisBlock = wire.MsgBlock{
 }
 
 // blockOneLedgerTestNet3 is the block one output ledger for testnet version 3.
-var blockOneLedgerTestNet3 = []*TokenPayout{
-	{"Tsi6gGYNSMmFwi7JoL5Li39SrERZTTMu6vY", 80000 * 1e8},
-	{"TscB7V5RuR1oXpA364DFEsNDuAs8Rk6BHJE", 20000 * 1e8},
+var blockOneLedgerTestNet3 = []TokenPayout{
+	mustPayout("76a914bb56576997d9f7abeebac585821b4d9a79d7ea0a88ac", 80000*1e8),
+	mustPayout("76a9147a5c4cca76f2e0b36db4763daacbd6cbb6ee6e7b88ac", 20000*1e8),
 }
 
 // TestNet3Params defines the network parameters for the test currency network.

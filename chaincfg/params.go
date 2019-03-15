@@ -154,11 +154,25 @@ type ConsensusDeployment struct {
 	ExpireTime uint64
 }
 
-// TokenPayout is a payout for block 1 which specifies an address and an amount
-// to pay to that address in a transaction output.
+// TokenPayout is a payout for block 1 which specifies a required script
+// version, script, and amount to pay in a transaction output.
 type TokenPayout struct {
-	Address string
-	Amount  int64
+	ScriptVersion uint16
+	Script        []byte
+	Amount        int64
+}
+
+// mustPayout returns a token payout populated with script version 0, the
+// provided hex-encoded script string converted to bytes and the provided
+// amount.  It will panic if the specified script hex fails to parse so errors
+// in the source code be detected.  It will only (and must only) be called with
+// hard-coded, and therefore known good, hex-encoded scripts.
+func mustPayout(script string, amount int64) TokenPayout {
+	return TokenPayout{
+		ScriptVersion: 0,
+		Script:        hexDecode(script),
+		Amount:        amount,
+	}
 }
 
 // DNSSeed identifies a DNS seed.
@@ -440,7 +454,7 @@ type Params struct {
 	// BlockOneLedger specifies the list of payouts in the coinbase of
 	// block height 1. If there are no payouts to be given, set this
 	// to an empty slice.
-	BlockOneLedger []*TokenPayout
+	BlockOneLedger []TokenPayout
 }
 
 // HDPrivKeyVersion returns the hierarchical deterministic extended private key
