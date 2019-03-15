@@ -6,10 +6,68 @@ package chaincfg
 
 import (
 	"math"
+	"math/big"
 	"time"
 
+	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/wire"
 )
+
+// regNetPowLimit is the highest proof of work value a Decred block
+// can have for the regression test network.  It is the value 2^255 - 1.
+var regNetPowLimit = new(big.Int).Sub(new(big.Int).Lsh(bigOne, 255), bigOne)
+
+// regNetGenesisMerkleRoot is the hash of the first transaction in the genesis
+// block for the regression test network.  It is the same as the merkle root for
+// the main network.
+var regNetGenesisMerkleRoot = genesisMerkleRoot
+
+// regNetGenesisBlock defines the genesis block of the block chain which serves
+// as the public transaction ledger for the regression test network.
+var regNetGenesisBlock = wire.MsgBlock{
+	Header: wire.BlockHeader{
+		Version: 1,
+		PrevBlock: chainhash.Hash([chainhash.HashSize]byte{ // Make go vet happy.
+			0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+			0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+			0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+			0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		}),
+		MerkleRoot: regNetGenesisMerkleRoot,
+		StakeRoot: chainhash.Hash([chainhash.HashSize]byte{ // Make go vet happy.
+			0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+			0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+			0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+			0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		}),
+		VoteBits:     0,
+		FinalState:   [6]byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
+		Voters:       0,
+		FreshStake:   0,
+		Revocations:  0,
+		Timestamp:    time.Unix(1538524800, 0), // 2018-10-03 00:00:00 +0000 UTC
+		PoolSize:     0,
+		Bits:         0x207fffff, // 545259519 [7fffff0000000000000000000000000000000000000000000000000000000000]
+		SBits:        0,
+		Nonce:        0,
+		StakeVersion: 0,
+		Height:       0,
+	},
+	Transactions: []*wire.MsgTx{&genesisCoinbaseTx},
+}
+
+// regNetGenesisHash is the hash of the first block in the block chain for the
+// simulation test network.
+var regNetGenesisHash = regNetGenesisBlock.BlockHash()
+
+// blockOneLedgerRegNet is the block one output ledger for the regression test
+// network.  See "Decred organization related parameters" below for information
+// on how to spend these outputs.
+var blockOneLedgerRegNet = []*TokenPayout{
+	{"RsKrWb7Vny1jnzL1sDLgKTAteh9RZcRr5g6", 100000 * 1e8},
+	{"Rs8ca5cDALtsMVD4PV3xvFTC7dmuU1juvLv", 100000 * 1e8},
+	{"RsHzbGt6YajuHpurtpqXXHz57LmYZK8w9tX", 100000 * 1e8},
+}
 
 // RegNetParams defines the network parameters for the regression test network.
 // This should not be confused with the public test network or the simulation
@@ -262,5 +320,5 @@ var RegNetParams = Params{
 	// Organization address is RcQR65gasxuzf7mUeBXeAux6Z37joPuUwUN
 	OrganizationPkScript:        hexDecode("a9146913bcc838bd0087fb3f6b3c868423d5e300078d87"),
 	OrganizationPkScriptVersion: 0,
-	BlockOneLedger:              BlockOneLedgerRegNet,
+	BlockOneLedger:              blockOneLedgerRegNet,
 }

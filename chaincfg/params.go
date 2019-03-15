@@ -14,15 +14,9 @@ import (
 	"github.com/decred/dcrd/wire"
 )
 
-var (
-	// bigOne is 1 represented as a big.Int.  It is defined here to avoid
-	// the overhead of creating it multiple times.
-	bigOne = big.NewInt(1)
-
-	// regNetPowLimit is the highest proof of work value a Decred block
-	// can have for the regression test network.  It is the value 2^255 - 1.
-	regNetPowLimit = new(big.Int).Sub(new(big.Int).Lsh(bigOne, 255), bigOne)
-)
+// bigOne is 1 represented as a big.Int.  It is defined here to avoid the
+// overhead of creating it multiple times.
+var bigOne = big.NewInt(1)
 
 // Checkpoint identifies a known good point in the block chain.  Using
 // checkpoints allows a few optimizations for old blocks during initial download
