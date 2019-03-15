@@ -212,7 +212,6 @@ func GetThresholdTestVectors() []*ThresholdTestVector {
 }
 
 func TestSchnorrThresholdRef(t *testing.T) {
-	curve := secp256k1.S256()
 	tvs := GetThresholdTestVectors()
 	for _, tv := range tvs {
 		partialSignatures := make([]*Signature, len(tv.signers))
@@ -256,7 +255,7 @@ func TestSchnorrThresholdRef(t *testing.T) {
 				t.Fatalf("expected %v, got %v", true, cmp)
 			}
 
-			sig, err := schnorrPartialSign(curve, tv.msg, signer.privkey, nonce,
+			sig, err := schnorrPartialSign(tv.msg, signer.privkey, nonce,
 				publicNonceSum, testSchnorrSha256Hash)
 			if err != nil {
 				t.Fatalf("unexpected error %s, ", err)
@@ -271,7 +270,7 @@ func TestSchnorrThresholdRef(t *testing.T) {
 		}
 
 		// Combine signatures.
-		combinedSignature, err := CombineSigs(curve, partialSignatures)
+		combinedSignature, err := CombineSigs(partialSignatures)
 		if err != nil {
 			t.Fatalf("unexpected error %s, ", err)
 		}
@@ -307,7 +306,6 @@ func TestSchnorrThreshold(t *testing.T) {
 	numTests := 100
 	numSignatories := maxSignatories * numTests
 
-	curve := secp256k1.S256()
 	msg, _ := hex.DecodeString(
 		"07BE073995BF78D440B660AF7B06DC0E9BA120A8D686201989BA99AA384ADF12")
 	privkeys := randPrivKeyList(numSignatories)
@@ -350,7 +348,7 @@ func TestSchnorrThreshold(t *testing.T) {
 			}
 			publicNonceSum := CombinePubkeys(localPubNonces)
 
-			sig, err := schnorrPartialSign(curve, msg, keysToUse[j].Serialize(),
+			sig, err := schnorrPartialSign(msg, keysToUse[j].Serialize(),
 				privNoncesToUse[j].Serialize(), publicNonceSum,
 				chainhash.HashB)
 			if err != nil {
@@ -361,7 +359,7 @@ func TestSchnorrThreshold(t *testing.T) {
 		}
 
 		// Combine signatures.
-		combinedSignature, err := CombineSigs(curve, partialSignatures)
+		combinedSignature, err := CombineSigs(partialSignatures)
 		if err != nil {
 			t.Fatalf("unexpected error %s, ", err)
 		}
@@ -433,7 +431,7 @@ func TestSchnorrThreshold(t *testing.T) {
 			}
 			publicNonceSum := CombinePubkeys(localPubNonces)
 
-			sig, _ := schnorrPartialSign(curve, msg, keysToUse[j].Serialize(),
+			sig, _ := schnorrPartialSign(msg, keysToUse[j].Serialize(),
 				privNoncesToUse[j].Serialize(), publicNonceSum,
 				chainhash.HashB)
 
@@ -441,7 +439,7 @@ func TestSchnorrThreshold(t *testing.T) {
 		}
 
 		// Combine signatures.
-		combinedSignature, _ = CombineSigs(curve, partialSignatures)
+		combinedSignature, _ = CombineSigs(partialSignatures)
 
 		// Combine pubkeys.
 		allPubkeys = make([]*secp256k1.PublicKey, numKeysForTest)

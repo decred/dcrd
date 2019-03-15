@@ -24,8 +24,7 @@ const (
 // ParsePubKey parses a public key for a koblitz curve from a bytestring into a
 // ecdsa.Publickey, verifying that it is valid. It supports compressed signature
 // formats only.
-func ParsePubKey(curve *secp256k1.KoblitzCurve,
-	pubKeyStr []byte) (key *secp256k1.PublicKey, err error) {
+func ParsePubKey(pubKeyStr []byte) (key *secp256k1.PublicKey, err error) {
 	if pubKeyStr == nil {
 		err = fmt.Errorf("nil pubkey byte string")
 		return
