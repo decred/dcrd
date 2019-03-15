@@ -64,8 +64,8 @@ func GenerateSharedSecret(privkey *PrivateKey, pubkey *PublicKey) []byte {
 // The primary aim is to ensure byte compatibility with Pyelliptic.
 // Additionally, refer to section 5.8.1 of ANSI X9.63 for rationale on this
 // format.
-func Encrypt(curve *TwistedEdwardsCurve, pubkey *PublicKey, in []byte) ([]byte, error) {
-	ephemeral, err := GeneratePrivateKey(curve)
+func Encrypt(pubkey *PublicKey, in []byte) ([]byte, error) {
+	ephemeral, err := GeneratePrivateKey()
 	if err != nil {
 		return nil, err
 	}
@@ -83,7 +83,7 @@ func Encrypt(curve *TwistedEdwardsCurve, pubkey *PublicKey, in []byte) ([]byte, 
 	}
 	// start writing public key
 	ePubX, ePubY := ephemeral.Public()
-	pbk := NewPublicKey(curve, ePubX, ePubY)
+	pbk := NewPublicKey(ePubX, ePubY)
 	pb := pbk.Serialize()
 	offset := aes.BlockSize
 
@@ -111,7 +111,7 @@ func Encrypt(curve *TwistedEdwardsCurve, pubkey *PublicKey, in []byte) ([]byte, 
 }
 
 // Decrypt decrypts data that was encrypted using the Encrypt function.
-func Decrypt(curve *TwistedEdwardsCurve, priv *PrivateKey, in []byte) ([]byte, error) {
+func Decrypt(priv *PrivateKey, in []byte) ([]byte, error) {
 	// IV + Curve params/X/Y + 1 block + HMAC-256
 	if len(in) < aes.BlockSize+36+aes.BlockSize+sha256.Size {
 		return nil, errInputTooShort
@@ -139,7 +139,7 @@ func Decrypt(curve *TwistedEdwardsCurve, priv *PrivateKey, in []byte) ([]byte, e
 	copy(pb[0:32], yBytes)
 
 	// check if (X, Y) lies on the curve and create a Pubkey if it does
-	pubkey, err := ParsePubKey(curve, pb)
+	pubkey, err := ParsePubKey(pb)
 	if err != nil {
 		return nil, err
 	}

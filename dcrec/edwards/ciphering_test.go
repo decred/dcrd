@@ -13,23 +13,21 @@ import (
 )
 
 func TestGenerateSharedSecret(t *testing.T) {
-	c := new(TwistedEdwardsCurve)
-	c.InitParam25519()
-	privKey1, err := GeneratePrivateKey(c)
+	privKey1, err := GeneratePrivateKey()
 	if err != nil {
 		t.Errorf("private key generation error: %s", err)
 		return
 	}
-	privKey2, err := GeneratePrivateKey(c)
+	privKey2, err := GeneratePrivateKey()
 	if err != nil {
 		t.Errorf("private key generation error: %s", err)
 		return
 	}
 
 	pk1x, pk1y := privKey1.Public()
-	pk1 := NewPublicKey(c, pk1x, pk1y)
+	pk1 := NewPublicKey(pk1x, pk1y)
 	pk2x, pk2y := privKey2.Public()
-	pk2 := NewPublicKey(c, pk2x, pk2y)
+	pk2 := NewPublicKey(pk2x, pk2y)
 	secret1 := GenerateSharedSecret(privKey1, pk2)
 	secret2 := GenerateSharedSecret(privKey2, pk1)
 
@@ -41,9 +39,7 @@ func TestGenerateSharedSecret(t *testing.T) {
 
 // Test 1: Encryption and decryption
 func TestCipheringBasic(t *testing.T) {
-	c := new(TwistedEdwardsCurve)
-	c.InitParam25519()
-	privkey, err := GeneratePrivateKey(c)
+	privkey, err := GeneratePrivateKey()
 	if err != nil {
 		t.Fatal("failed to generate private key")
 	}
@@ -51,13 +47,13 @@ func TestCipheringBasic(t *testing.T) {
 	in := []byte("Hey there dude. How are you doing? This is a test.")
 
 	pk1x, pk1y := privkey.Public()
-	pk1 := NewPublicKey(c, pk1x, pk1y)
-	out, err := Encrypt(c, pk1, in)
+	pk1 := NewPublicKey(pk1x, pk1y)
+	out, err := Encrypt(pk1, in)
 	if err != nil {
 		t.Fatal("failed to encrypt:", err)
 	}
 
-	dec, err := Decrypt(c, privkey, out)
+	dec, err := Decrypt(privkey, out)
 	if err != nil {
 		t.Fatal("failed to decrypt:", err)
 	}
@@ -68,8 +64,7 @@ func TestCipheringBasic(t *testing.T) {
 }
 
 func TestCiphering(t *testing.T) {
-	c := new(TwistedEdwardsCurve)
-	c.InitParam25519()
+	c := Edwards()
 
 	pb, _ := hex.DecodeString("fe38240982f313ae5afb3e904fb8215fb11af1200592b" +
 		"fca26c96c4738e4bf8f")
@@ -77,12 +72,12 @@ func TestCiphering(t *testing.T) {
 	pbBig.Mod(pbBig, c.N)
 	pb = pbBig.Bytes()
 	pb = copyBytes(pb)[:]
-	privkey, pubkey, err := PrivKeyFromScalar(c, pb)
+	privkey, pubkey, err := PrivKeyFromScalar(pb)
 	if err != nil {
 		t.Error(err)
 	}
 	in := []byte("This is just a test.")
-	localOut, err := Encrypt(c, pubkey, in)
+	localOut, err := Encrypt(pubkey, in)
 	if err != nil {
 		t.Error(err)
 	}
@@ -92,12 +87,12 @@ func TestCiphering(t *testing.T) {
 		"04f86635c50baca78d11189d4dc02c2f32c4c11e9d50b04eb2d3ff4b9f95e7f2e90e" +
 		"0f4a8d64a2a4149c27d21f88f2dedc200f4b609936c0d67ca98")
 
-	_, err = Decrypt(c, privkey, out)
+	_, err = Decrypt(privkey, out)
 	if err != nil {
 		t.Fatal("failed to decrypt:", err)
 	}
 
-	dec, err := Decrypt(c, privkey, localOut)
+	dec, err := Decrypt(privkey, localOut)
 	if err != nil {
 		t.Fatal("failed to decrypt:", err)
 	}
@@ -108,10 +103,7 @@ func TestCiphering(t *testing.T) {
 }
 
 func TestCipheringErrors(t *testing.T) {
-	c := new(TwistedEdwardsCurve)
-	c.InitParam25519()
-
-	privkey, err := GeneratePrivateKey(c)
+	privkey, err := GeneratePrivateKey()
 	if err != nil {
 		t.Fatal("failed to generate private key")
 	}
@@ -172,7 +164,7 @@ func TestCipheringErrors(t *testing.T) {
 	}
 
 	for i, test := range tests1 {
-		_, err = Decrypt(c, privkey, test.ciphertext)
+		_, err = Decrypt(privkey, test.ciphertext)
 		if err == nil {
 			t.Errorf("Decrypt #%d did not get error", i)
 		}

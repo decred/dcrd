@@ -32,16 +32,16 @@ type PrivateKey struct {
 
 // NewPrivateKey instantiates a new private key from a scalar encoded as a
 // big integer.
-func NewPrivateKey(curve *TwistedEdwardsCurve, d *big.Int) *PrivateKey {
+func NewPrivateKey(d *big.Int) *PrivateKey {
 	dArray := BigIntToEncodedBytes(d)
-	priv, _ := PrivKeyFromSecret(curve, dArray[:])
+	priv, _ := PrivKeyFromSecret(dArray[:])
 	return priv
 }
 
 // GeneratePrivateKey is a wrapper for ecdsa.GenerateKey that returns a
 // PrivateKey instead of the normal ecdsa.PrivateKey.
-func GeneratePrivateKey(curve *TwistedEdwardsCurve) (*PrivateKey, error) {
-	key, err := ecdsa.GenerateKey(curve, rand.Reader)
+func GeneratePrivateKey() (*PrivateKey, error) {
+	key, err := ecdsa.GenerateKey(Edwards(), rand.Reader)
 	if err != nil {
 		return nil, err
 	}
@@ -70,7 +70,7 @@ func computeScalar(privateKey *[PrivKeyBytesLen]byte) *[PrivScalarSize]byte {
 
 // PrivKeyFromBytes returns a private and public key for `curve' based on the
 // private key passed as an argument as a byte slice.
-func PrivKeyFromBytes(curve *TwistedEdwardsCurve, pkBytes []byte) (*PrivateKey, *PublicKey) {
+func PrivKeyFromBytes(pkBytes []byte) (*PrivateKey, *PublicKey) {
 	if len(pkBytes) != PrivKeyBytesLen {
 		return nil, nil
 	}
@@ -82,7 +82,7 @@ func PrivKeyFromBytes(curve *TwistedEdwardsCurve, pkBytes []byte) (*PrivateKey, 
 	// So, make sure we only grab the actual scalar we care about.
 	privKeyBytes := pk[0:32]
 	pubKeyBytes := pk[32:64]
-	pubKey, err := ParsePubKey(curve, pubKeyBytes)
+	pubKey, err := ParsePubKey(pubKeyBytes)
 	if err != nil {
 		return nil, nil
 	}
@@ -100,7 +100,7 @@ func PrivKeyFromBytes(curve *TwistedEdwardsCurve, pkBytes []byte) (*PrivateKey, 
 
 // PrivKeyFromSecret returns a private and public key for `curve' based on the
 // 32-byte private key secret passed as an argument as a byte slice.
-func PrivKeyFromSecret(curve *TwistedEdwardsCurve, s []byte) (*PrivateKey, *PublicKey) {
+func PrivKeyFromSecret(s []byte) (*PrivateKey, *PublicKey) {
 	if len(s) != PrivKeyBytesLen/2 {
 		return nil, nil
 	}
@@ -113,13 +113,13 @@ func PrivKeyFromSecret(curve *TwistedEdwardsCurve, s []byte) (*PrivateKey, *Publ
 		return nil, nil
 	}
 
-	return PrivKeyFromBytes(curve, pk[:])
+	return PrivKeyFromBytes(pk[:])
 }
 
 // PrivKeyFromScalar returns a private and public key for `curve' based on the
 // 32-byte private scalar passed as an argument as a byte slice (encoded big
 // endian int).
-func PrivKeyFromScalar(curve *TwistedEdwardsCurve, p []byte) (*PrivateKey, *PublicKey, error) {
+func PrivKeyFromScalar(p []byte) (*PrivateKey, *PublicKey, error) {
 	if len(p) != PrivScalarSize {
 		return nil, nil, fmt.Errorf("bad private scalar size")
 	}
@@ -129,6 +129,7 @@ func PrivKeyFromScalar(curve *TwistedEdwardsCurve, p []byte) (*PrivateKey, *Publ
 	pk.ecPk.D = new(big.Int).SetBytes(p)
 
 	// The scalar must be in the subgroup.
+	curve := Edwards()
 	if pk.ecPk.D.Cmp(curve.N) > 0 {
 		return nil, nil, fmt.Errorf("not on subgroup (>N)")
 	}
