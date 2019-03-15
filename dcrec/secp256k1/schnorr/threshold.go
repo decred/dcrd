@@ -97,8 +97,7 @@ func generateNoncePair(msg []byte, priv []byte,
 }
 
 // GenerateNoncePair is the generalized and exported version of generateNoncePair.
-func GenerateNoncePair(curve *secp256k1.KoblitzCurve, msg []byte,
-	privkey *secp256k1.PrivateKey, extra []byte,
+func GenerateNoncePair(msg []byte, privkey *secp256k1.PrivateKey, extra []byte,
 	version []byte) (*secp256k1.PrivateKey, *secp256k1.PublicKey, error) {
 	priv, pubNonce, err := generateNoncePair(msg, privkey.Serialize(),
 		nonceRFC6979, extra, version)
@@ -112,9 +111,8 @@ func GenerateNoncePair(curve *secp256k1.KoblitzCurve, msg []byte,
 
 // schnorrPartialSign creates a partial Schnorr signature which may be combined
 // with other Schnorr signatures to create a valid signature for a group pubkey.
-func schnorrPartialSign(curve *secp256k1.KoblitzCurve, msg []byte, priv []byte,
-	privNonce []byte, pubSum *secp256k1.PublicKey,
-	hashFunc func([]byte) []byte) (*Signature, error) {
+func schnorrPartialSign(msg []byte, priv []byte, privNonce []byte,
+	pubSum *secp256k1.PublicKey, hashFunc func([]byte) []byte) (*Signature, error) {
 	// Sanity checks.
 	if len(msg) != scalarSize {
 		str := fmt.Sprintf("wrong size for message (got %v, want %v)",
@@ -136,6 +134,7 @@ func schnorrPartialSign(curve *secp256k1.KoblitzCurve, msg []byte, priv []byte,
 		return nil, schnorrError(ErrInputValue, str)
 	}
 
+	curve := secp256k1.S256()
 	privBig := new(big.Int).SetBytes(priv)
 	if privBig.Cmp(bigZero) == 0 {
 		str := fmt.Sprintf("priv scalar is zero")
@@ -169,23 +168,23 @@ func schnorrPartialSign(curve *secp256k1.KoblitzCurve, msg []byte, priv []byte,
 
 // PartialSign is the generalized and exported version of
 // schnorrPartialSign.
-func PartialSign(curve *secp256k1.KoblitzCurve, msg []byte,
-	priv *secp256k1.PrivateKey, privNonce *secp256k1.PrivateKey,
+func PartialSign(msg []byte, priv *secp256k1.PrivateKey, privNonce *secp256k1.PrivateKey,
 	pubSum *secp256k1.PublicKey) (*Signature, error) {
 	privBytes := priv.Serialize()
 	defer zeroSlice(privBytes)
 	privNonceBytes := privNonce.Serialize()
 	defer zeroSlice(privNonceBytes)
 
-	return schnorrPartialSign(curve, msg, privBytes, privNonceBytes, pubSum,
+	return schnorrPartialSign(msg, privBytes, privNonceBytes, pubSum,
 		chainhash.HashB)
 }
 
 // schnorrCombineSigs combines a list of partial Schnorr signatures s values
 // into a complete signature s for some group public key. This is achieved
 // by simply adding the s values of the partial signatures as scalars.
-func schnorrCombineSigs(curve *secp256k1.KoblitzCurve, sigss [][]byte) (*big.Int,
+func schnorrCombineSigs(sigss [][]byte) (*big.Int,
 	error) {
+	curve := secp256k1.S256()
 	combinedSigS := new(big.Int).SetInt64(0)
 	for i, sigs := range sigss {
 		sigsBI := EncodedBytesToBigInt(copyBytes(sigs))
@@ -212,8 +211,7 @@ func schnorrCombineSigs(curve *secp256k1.KoblitzCurve, sigss [][]byte) (*big.Int
 
 // CombineSigs is the generalized and exported version of
 // generateNoncePair.
-func CombineSigs(curve *secp256k1.KoblitzCurve,
-	sigs []*Signature) (*Signature, error) {
+func CombineSigs(sigs []*Signature) (*Signature, error) {
 	sigss := make([][]byte, len(sigs))
 	for i, sig := range sigs {
 		if sig == nil {
@@ -231,7 +229,7 @@ func CombineSigs(curve *secp256k1.KoblitzCurve,
 		sigss[i] = BigIntToEncodedBytes(sig.GetS())[:]
 	}
 
-	combinedSigS, err := schnorrCombineSigs(curve, sigss)
+	combinedSigS, err := schnorrCombineSigs(sigss)
 	if err != nil {
 		return nil, err
 	}
