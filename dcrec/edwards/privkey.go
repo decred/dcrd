@@ -194,6 +194,30 @@ func (p PrivateKey) SerializeSecret() []byte {
 	return all
 }
 
+// Sign is the generalized and exported version of Ed25519 signing, that
+// handles both standard private secrets and non-standard scalars.
+func (p PrivateKey) Sign(hash []byte) (*Signature, error) {
+	if hash == nil {
+		return nil, fmt.Errorf("message key is nil")
+	}
+
+	var r, s *big.Int
+	var err error
+	if p.secret == nil {
+		privLE := copyBytes(p.Serialize())
+		reverse(privLE)
+		nonce := nonceRFC6979(privLE[:], hash, nil, nil)
+		r, s, err = SignFromScalar(&p, nonce, hash)
+	} else {
+		r, s, err = SignFromSecretNoReader(&p, hash)
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	return NewSignature(r, s), nil
+}
+
 // GetD satisfies the chainec PrivateKey interface.
 func (p PrivateKey) GetD() *big.Int {
 	return p.ecPk.D
