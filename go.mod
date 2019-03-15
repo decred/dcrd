@@ -10,7 +10,7 @@ require (
 	github.com/decred/dcrd/blockchain v1.1.1
 	github.com/decred/dcrd/blockchain/stake v1.1.0
 	github.com/decred/dcrd/certgen v1.0.2
-	github.com/decred/dcrd/chaincfg v1.4.0
+	github.com/decred/dcrd/chaincfg v1.5.0
 	github.com/decred/dcrd/chaincfg/chainhash v1.0.1
 	github.com/decred/dcrd/connmgr v1.0.2
 	github.com/decred/dcrd/database v1.0.3
@@ -42,7 +42,6 @@ replace (
 	github.com/decred/dcrd/blockchain => ./blockchain
 	github.com/decred/dcrd/blockchain/stake => ./blockchain/stake
 	github.com/decred/dcrd/certgen => ./certgen
-	github.com/decred/dcrd/chaincfg => ./chaincfg
 	github.com/decred/dcrd/chaincfg/chainhash => ./chaincfg/chainhash
 	github.com/decred/dcrd/connmgr => ./connmgr
 	github.com/decred/dcrd/database => ./database
