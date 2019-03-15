@@ -831,7 +831,7 @@ func TestNAF(t *testing.T) {
 	two := big.NewInt(2)
 	for i, test := range tests {
 		want, _ := new(big.Int).SetString(test, 16)
-		nafPos, nafNeg := NAF(want.Bytes())
+		nafPos, nafNeg := naf(want.Bytes())
 		got := big.NewInt(0)
 		// Check that the NAF representation comes up with the right number
 		for i := 0; i < len(nafPos); i++ {
@@ -865,7 +865,7 @@ func TestNAFRand(t *testing.T) {
 			t.Fatalf("failed to read random data at %d", i)
 			break
 		}
-		nafPos, nafNeg := NAF(data)
+		nafPos, nafNeg := naf(data)
 		want := new(big.Int).SetBytes(data)
 		got := big.NewInt(0)
 		// Check that the NAF representation comes up with the right number
