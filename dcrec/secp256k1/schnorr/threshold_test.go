@@ -249,7 +249,7 @@ func TestSchnorrThresholdRef(t *testing.T) {
 				pubKeys[itr] = signer.publicNonce
 				itr++
 			}
-			publicNonceSum := CombinePubkeys(pubKeys)
+			publicNonceSum := combinePubkeys(pubKeys)
 			cmp = bytes.Equal(publicNonceSum.Serialize()[:], signer.pubKeySumLocal.Serialize()[:])
 			if !cmp {
 				t.Fatalf("expected %v, got %v", true, cmp)
@@ -270,7 +270,7 @@ func TestSchnorrThresholdRef(t *testing.T) {
 		}
 
 		// Combine signatures.
-		combinedSignature, err := CombineSigs(partialSignatures)
+		combinedSignature, err := combineSigs(partialSignatures)
 		if err != nil {
 			t.Fatalf("unexpected error %s, ", err)
 		}
@@ -285,7 +285,7 @@ func TestSchnorrThresholdRef(t *testing.T) {
 		for i, signer := range tv.signers {
 			allPubkeys[i] = signer.pubkey
 		}
-		allPksSum := CombinePubkeys(allPubkeys)
+		allPksSum := combinePubkeys(allPubkeys)
 
 		// Verify the combined signature and public keys.
 		ok, err := schnorrVerify(combinedSignature.Serialize(),
@@ -346,7 +346,7 @@ func TestSchnorrThreshold(t *testing.T) {
 				localPubNonces[itr] = pubNonce
 				itr++
 			}
-			publicNonceSum := CombinePubkeys(localPubNonces)
+			publicNonceSum := combinePubkeys(localPubNonces)
 
 			sig, err := schnorrPartialSign(msg, keysToUse[j].Serialize(),
 				privNoncesToUse[j].Serialize(), publicNonceSum,
@@ -359,7 +359,7 @@ func TestSchnorrThreshold(t *testing.T) {
 		}
 
 		// Combine signatures.
-		combinedSignature, err := CombineSigs(partialSignatures)
+		combinedSignature, err := combineSigs(partialSignatures)
 		if err != nil {
 			t.Fatalf("unexpected error %s, ", err)
 		}
@@ -368,7 +368,7 @@ func TestSchnorrThreshold(t *testing.T) {
 		allPubkeys := make([]*secp256k1.PublicKey, numKeysForTest)
 		copy(allPubkeys, pubKeysToUse)
 
-		allPksSum := CombinePubkeys(allPubkeys)
+		allPksSum := combinePubkeys(allPubkeys)
 
 		// Verify the combined signature and public keys.
 		ok, err := schnorrVerify(combinedSignature.Serialize(),
@@ -395,7 +395,7 @@ func TestSchnorrThreshold(t *testing.T) {
 		}
 		// Corrupt public key.
 		if corruptWhat == 1 {
-			pubXCorrupt := BigIntToEncodedBytes(pubKeysToUse[randItem].GetX())
+			pubXCorrupt := bigIntToEncodedBytes(pubKeysToUse[randItem].GetX())
 			pos := tRand.Intn(31)
 			bitPos := tRand.Intn(7)
 			pubXCorrupt[pos] ^= 1 << uint8(bitPos)
@@ -411,7 +411,7 @@ func TestSchnorrThreshold(t *testing.T) {
 		}
 		// Corrupt public nonce.
 		if corruptWhat == 3 {
-			pubXCorrupt := BigIntToEncodedBytes(pubNoncesToUse[randItem].GetX())
+			pubXCorrupt := bigIntToEncodedBytes(pubNoncesToUse[randItem].GetX())
 			pos := tRand.Intn(31)
 			bitPos := tRand.Intn(7)
 			pubXCorrupt[pos] ^= 1 << uint8(bitPos)
@@ -429,7 +429,7 @@ func TestSchnorrThreshold(t *testing.T) {
 				localPubNonces[itr] = pubNonce
 				itr++
 			}
-			publicNonceSum := CombinePubkeys(localPubNonces)
+			publicNonceSum := combinePubkeys(localPubNonces)
 
 			sig, _ := schnorrPartialSign(msg, keysToUse[j].Serialize(),
 				privNoncesToUse[j].Serialize(), publicNonceSum,
@@ -439,13 +439,13 @@ func TestSchnorrThreshold(t *testing.T) {
 		}
 
 		// Combine signatures.
-		combinedSignature, _ = CombineSigs(partialSignatures)
+		combinedSignature, _ = combineSigs(partialSignatures)
 
 		// Combine pubkeys.
 		allPubkeys = make([]*secp256k1.PublicKey, numKeysForTest)
 		copy(allPubkeys, pubKeysToUse)
 
-		allPksSum = CombinePubkeys(allPubkeys)
+		allPksSum = combinePubkeys(allPubkeys)
 
 		// Nothing that makes it here should be valid.
 		if allPksSum != nil && combinedSignature != nil {

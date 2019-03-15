@@ -32,9 +32,9 @@ func copyBytes(aB []byte) *[32]byte {
 	return s
 }
 
-// BigIntToEncodedBytes converts a big integer into its corresponding
+// bigIntToEncodedBytes converts a big integer into its corresponding
 // 32 byte little endian representation.
-func BigIntToEncodedBytes(a *big.Int) *[32]byte {
+func bigIntToEncodedBytes(a *big.Int) *[32]byte {
 	s := new([32]byte)
 	if a == nil {
 		return s
@@ -59,9 +59,9 @@ func BigIntToEncodedBytes(a *big.Int) *[32]byte {
 	return s
 }
 
-// EncodedBytesToBigInt converts a 32 byte big endian representation of
+// encodedBytesToBigInt converts a 32 byte big endian representation of
 // an integer into a big integer.
-func EncodedBytesToBigInt(s *[32]byte) *big.Int {
+func encodedBytesToBigInt(s *[32]byte) *big.Int {
 	// Use a copy so we don't screw up our original
 	// memory.
 	sCopy := new([32]byte)

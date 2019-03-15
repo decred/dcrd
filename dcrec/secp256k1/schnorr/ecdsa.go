@@ -115,7 +115,7 @@ func schnorrSign(msg []byte, ps []byte, k []byte,
 	}
 
 	// h = Hash(r || m)
-	Rpxb := BigIntToEncodedBytes(Rpx)
+	Rpxb := bigIntToEncodedBytes(Rpx)
 	hashInput := make([]byte, 0, scalarSize*2)
 	hashInput = append(hashInput, Rpxb[:]...)
 	hashInput = append(hashInput, msg...)
@@ -159,7 +159,7 @@ func schnorrSign(msg []byte, ps []byte, k []byte,
 func Sign(priv *secp256k1.PrivateKey,
 	hash []byte) (r, s *big.Int, err error) {
 	// Convert the private scalar to a 32 byte big endian number.
-	pA := BigIntToEncodedBytes(priv.GetD())
+	pA := bigIntToEncodedBytes(priv.GetD())
 	defer zeroArray(pA)
 
 	// Generate a 32-byte scalar to use as a nonce. Try RFC6979
@@ -244,7 +244,7 @@ func schnorrVerify(sig []byte,
 	}
 
 	// Convert s to big int.
-	sBig := EncodedBytesToBigInt(copyBytes(sigS))
+	sBig := encodedBytesToBigInt(copyBytes(sigS))
 
 	// We also can't have s greater than the order of the curve.
 	if sBig.Cmp(curve.N) >= 0 {
@@ -253,7 +253,7 @@ func schnorrVerify(sig []byte,
 	}
 
 	// r can't be larger than the curve prime.
-	rBig := EncodedBytesToBigInt(copyBytes(sigR))
+	rBig := encodedBytesToBigInt(copyBytes(sigR))
 	if rBig.Cmp(curve.P) == 1 {
 		str := fmt.Sprintf("given R was greater than curve prime")
 		return false, schnorrError(ErrBadSigRNotOnCurve, str)
@@ -272,7 +272,7 @@ func schnorrVerify(sig []byte,
 		str := fmt.Sprintf("calculated R point was not on curve")
 		return false, schnorrError(ErrBadSigRNotOnCurve, str)
 	}
-	rlxB := BigIntToEncodedBytes(rlx)
+	rlxB := bigIntToEncodedBytes(rlx)
 
 	// r == r' --> valid signature
 	if !bytes.Equal(sigR, rlxB[:]) {
@@ -332,7 +332,7 @@ func schnorrRecover(sig, msg []byte,
 	}
 
 	// Convert s to big int.
-	sBig := EncodedBytesToBigInt(copyBytes(sigS))
+	sBig := encodedBytesToBigInt(copyBytes(sigS))
 
 	// We also can't have s greater than the order of the curve.
 	if sBig.Cmp(curve.N) >= 0 {
@@ -341,7 +341,7 @@ func schnorrRecover(sig, msg []byte,
 	}
 
 	// r can't be larger than the curve prime.
-	rBig := EncodedBytesToBigInt(copyBytes(sigR))
+	rBig := encodedBytesToBigInt(copyBytes(sigR))
 	if rBig.Cmp(curve.P) == 1 {
 		str := fmt.Sprintf("given R was greater than curve prime")
 		return nil, false, schnorrError(ErrBadSigRNotOnCurve, str)
