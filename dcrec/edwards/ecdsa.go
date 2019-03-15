@@ -75,9 +75,9 @@ func SignFromSecretNoReader(priv *PrivateKey, hash []byte) (r, s *big.Int, err e
 	//   sig[32:64] S, scalar multiplication/addition results = (ab+c) mod l
 	//     encoded also as little endian
 	rBytes := copyBytes(sig[0:32])
-	r = EncodedBytesToBigInt(rBytes)
+	r = encodedBytesToBigInt(rBytes)
 	sBytes := copyBytes(sig[32:64])
-	s = EncodedBytesToBigInt(sBytes)
+	s = encodedBytesToBigInt(sBytes)
 
 	return
 }
@@ -89,7 +89,7 @@ func nonceRFC6979(privkey []byte, hash []byte, extra []byte, version []byte) []b
 	defer pkD.SetInt64(0)
 	bigK := NonceRFC6979(pkD, hash, extra, version)
 	defer bigK.SetInt64(0)
-	k := BigIntToEncodedBytesNoReverse(bigK)
+	k := bigIntToEncodedBytesNoReverse(bigK)
 	return k[:]
 }
 
@@ -289,7 +289,7 @@ func SignThreshold(priv *PrivateKey, groupPub *PublicKey, hash []byte, privNonce
 	// Where K_Sum is the sum of the public keys corresponding to
 	// the private nonce scalars of each group signature member.
 	// That is, R = k1G + ... + knG.
-	encodedGroupR := BigIntPointToEncodedBytes(pubNonceSum.GetX(),
+	encodedGroupR := bigIntPointToEncodedBytes(pubNonceSum.GetX(),
 		pubNonceSum.GetY())
 
 	// h = hash512(k || A || M)

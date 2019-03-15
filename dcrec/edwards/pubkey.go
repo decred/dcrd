@@ -64,7 +64,7 @@ func (p PublicKey) Serialize() []byte {
 	if p.X == nil || p.Y == nil {
 		return nil
 	}
-	return BigIntPointToEncodedBytes(p.X, p.Y)[:]
+	return bigIntPointToEncodedBytes(p.X, p.Y)[:]
 }
 
 // SerializeUncompressed satisfies the chainec PublicKey interface.

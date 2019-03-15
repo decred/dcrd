@@ -31,8 +31,8 @@ func NewSignature(r, s *big.Int) *Signature {
 //   sig[32:64] S, scalar multiplication/addition results = (ab+c) mod l
 //     encoded also as little endian
 func (sig Signature) Serialize() []byte {
-	rBytes := BigIntToEncodedBytes(sig.R)
-	sBytes := BigIntToEncodedBytes(sig.S)
+	rBytes := bigIntToEncodedBytes(sig.R)
+	sBytes := bigIntToEncodedBytes(sig.S)
 
 	all := append(rBytes[:], sBytes[:]...)
 
@@ -52,7 +52,7 @@ func parseSig(sigStr []byte, der bool) (*Signature, error) {
 
 	curve := Edwards()
 	rBytes := copyBytes(sigStr[0:32])
-	r := EncodedBytesToBigInt(rBytes)
+	r := encodedBytesToBigInt(rBytes)
 	// r is a point on the curve as well. Evaluate it and make sure it's
 	// a valid point.
 	_, _, err := curve.encodedBytesToBigIntPoint(rBytes)
@@ -61,7 +61,7 @@ func parseSig(sigStr []byte, der bool) (*Signature, error) {
 	}
 
 	sBytes := copyBytes(sigStr[32:64])
-	s := EncodedBytesToBigInt(sBytes)
+	s := encodedBytesToBigInt(sBytes)
 	// s may not be zero or >= curve.N.
 	if s.Cmp(curve.N) >= 0 || s.Cmp(zero) == 0 {
 		return nil, fmt.Errorf("s scalar is empty or larger than the order of " +

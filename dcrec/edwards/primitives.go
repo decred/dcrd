@@ -91,9 +91,9 @@ func zeroSlice(s []byte) {
 	}
 }
 
-// BigIntToEncodedBytes converts a big integer into its corresponding
+// bigIntToEncodedBytes converts a big integer into its corresponding
 // 32 byte little endian representation.
-func BigIntToEncodedBytes(a *big.Int) *[32]byte {
+func bigIntToEncodedBytes(a *big.Int) *[32]byte {
 	s := new([32]byte)
 	if a == nil {
 		return s
@@ -122,9 +122,9 @@ func BigIntToEncodedBytes(a *big.Int) *[32]byte {
 	return s
 }
 
-// BigIntToEncodedBytesNoReverse converts a big integer into its corresponding
+// bigIntToEncodedBytesNoReverse converts a big integer into its corresponding
 // 32 byte big endian representation.
-func BigIntToEncodedBytesNoReverse(a *big.Int) *[32]byte {
+func bigIntToEncodedBytesNoReverse(a *big.Int) *[32]byte {
 	s := new([32]byte)
 	if a == nil {
 		return s
@@ -149,20 +149,20 @@ func BigIntToEncodedBytesNoReverse(a *big.Int) *[32]byte {
 	return s
 }
 
-// BigIntToFieldElement converts a big little endian integer into its corresponding
+// bigIntToFieldElement converts a big little endian integer into its corresponding
 // 40 byte field representation.
-func BigIntToFieldElement(a *big.Int) *edwards25519.FieldElement {
-	aB := BigIntToEncodedBytes(a)
+func bigIntToFieldElement(a *big.Int) *edwards25519.FieldElement {
+	aB := bigIntToEncodedBytes(a)
 	fe := new(edwards25519.FieldElement)
 	edwards25519.FeFromBytes(fe, aB)
 	return fe
 }
 
-// BigIntPointToEncodedBytes converts an affine point to a compressed
+// bigIntPointToEncodedBytes converts an affine point to a compressed
 // 32 byte integer representation.
-func BigIntPointToEncodedBytes(x *big.Int, y *big.Int) *[32]byte {
-	s := BigIntToEncodedBytes(y)
-	xB := BigIntToEncodedBytes(x)
+func bigIntPointToEncodedBytes(x *big.Int, y *big.Int) *[32]byte {
+	s := bigIntToEncodedBytes(y)
+	xB := bigIntToEncodedBytes(x)
 	xFE := new(edwards25519.FieldElement)
 	edwards25519.FeFromBytes(xFE, xB)
 	isNegative := edwards25519.FeIsNegative(xFE) == 1
@@ -176,9 +176,9 @@ func BigIntPointToEncodedBytes(x *big.Int, y *big.Int) *[32]byte {
 	return s
 }
 
-// EncodedBytesToBigInt converts a 32 byte little endian representation of
+// encodedBytesToBigInt converts a 32 byte little endian representation of
 // an integer into a big, big endian integer.
-func EncodedBytesToBigInt(s *[32]byte) *big.Int {
+func encodedBytesToBigInt(s *[32]byte) *big.Int {
 	// Use a copy so we don't screw up our original
 	// memory.
 	sCopy := new([32]byte)
@@ -192,9 +192,9 @@ func EncodedBytesToBigInt(s *[32]byte) *big.Int {
 	return bi
 }
 
-// EncodedBytesToBigIntNoReverse converts a 32 byte big endian representation of
+// encodedBytesToBigIntNoReverse converts a 32 byte big endian representation of
 // an integer into a big little endian integer.
-func EncodedBytesToBigIntNoReverse(s *[32]byte) *big.Int {
+func encodedBytesToBigIntNoReverse(s *[32]byte) *big.Int {
 	// Use a copy so we don't screw up our original
 	// memory.
 	sCopy := new([32]byte)
@@ -221,7 +221,7 @@ func (curve *TwistedEdwardsCurve) extendedToBigAffine(xi, yi,
 
 	isNegative := edwards25519.FeIsNegative(&x) == 1
 
-	return FieldElementToBigInt(&x), FieldElementToBigInt(&y), isNegative
+	return fieldElementToBigInt(&x), fieldElementToBigInt(&y), isNegative
 }
 
 // EncodedBytesToBigIntPoint converts a 32 byte representation of a point
@@ -257,16 +257,16 @@ func (curve *TwistedEdwardsCurve) encodedBytesToBigIntPoint(s *[32]byte) (*big.I
 	return x, y, nil
 }
 
-// EncodedBytesToFieldElement converts a 32 byte little endian integer into
+// encodedBytesToFieldElement converts a 32 byte little endian integer into
 // a field element.
-func EncodedBytesToFieldElement(s *[32]byte) *edwards25519.FieldElement {
+func encodedBytesToFieldElement(s *[32]byte) *edwards25519.FieldElement {
 	fe := new(edwards25519.FieldElement)
 	edwards25519.FeFromBytes(fe, s)
 	return fe
 }
 
-// FieldElementToBigInt converts a 40 byte field element into a big int.
-func FieldElementToBigInt(fe *edwards25519.FieldElement) *big.Int {
+// fieldElementToBigInt converts a 40 byte field element into a big int.
+func fieldElementToBigInt(fe *edwards25519.FieldElement) *big.Int {
 	s := new([32]byte)
 	edwards25519.FeToBytes(s, fe)
 	reverse(s)
@@ -276,9 +276,9 @@ func FieldElementToBigInt(fe *edwards25519.FieldElement) *big.Int {
 	return aBI
 }
 
-// FieldElementToEncodedBytes converts a 40 byte field element into a 32 byte
+// fieldElementToEncodedBytes converts a 40 byte field element into a 32 byte
 // little endian integer.
-func FieldElementToEncodedBytes(fe *edwards25519.FieldElement) *[32]byte {
+func fieldElementToEncodedBytes(fe *edwards25519.FieldElement) *[32]byte {
 	s := new([32]byte)
 	edwards25519.FeToBytes(s, fe)
 	return s
