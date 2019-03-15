@@ -5,15 +5,6 @@
 
 package chaincfg
 
-// BlockOneLedgerSimNet is the block one output ledger for the simulation
-// network.  See "Decred organization related parameters" in simnetparams.go for
-// information on how to spend these outputs.
-var BlockOneLedgerSimNet = []*TokenPayout{
-	{"Sshw6S86G2bV6W32cbc7EhtFy8f93rU6pae", 100000 * 1e8},
-	{"SsjXRK6Xz6CFuBt6PugBvrkdAa4xGbcZ18w", 100000 * 1e8},
-	{"SsfXiYkYkCoo31CuVQw428N6wWKus2ZEw5X", 100000 * 1e8},
-}
-
 // BlockOneLedgerRegNet is the block one output ledger for the regression test
 // network.  See "Decred organization related parameters" in regnetparams.go for
 // information on how to spend these outputs.

@@ -19,10 +19,6 @@ var (
 	// the overhead of creating it multiple times.
 	bigOne = big.NewInt(1)
 
-	// simNetPowLimit is the highest proof of work value a Decred block
-	// can have for the simulation test network.  It is the value 2^255 - 1.
-	simNetPowLimit = new(big.Int).Sub(new(big.Int).Lsh(bigOne, 255), bigOne)
-
 	// regNetPowLimit is the highest proof of work value a Decred block
 	// can have for the regression test network.  It is the value 2^255 - 1.
 	regNetPowLimit = new(big.Int).Sub(new(big.Int).Lsh(bigOne, 255), bigOne)
