@@ -196,7 +196,7 @@ The following versioned modules are provided by dcrd repository:
   policy-enforced pool of unmined Decred transactions
 * [dcrutil](https://github.com/decred/dcrd/tree/master/dcrutil) - Provides
   Decred-specific convenience functions and types
-* [chaincfg](https://github.com/decred/dcrd/tree/master/chaincfg) - Defines
+* [chaincfg/v2](https://github.com/decred/dcrd/tree/master/chaincfg) - Defines
   chain configuration parameters for the standard Decred networks and allows
   callers to define their own custom Decred networks for testing puproses
   * [chainhash](https://github.com/decred/dcrd/tree/master/chaincfg/chainhash) -

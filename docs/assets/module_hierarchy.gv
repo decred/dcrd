@@ -7,7 +7,7 @@ digraph {
 	dcrjson [label="dcrjson/v2" fillcolor=indianred]
 	wire [label="wire" fillcolor=coral]
 	addrmgr [label="addrmgr" fillcolor=lightsalmon]
-	chaincfg [label="chaincfg" fillcolor=cadetblue]
+	chaincfg [label="chaincfg/v2" fillcolor=cadetblue]
 	connmgr [label="connmgr" fillcolor=mistyrose]
 	dcrec [label="dcrec" fillcolor=mediumpurple]
 	edwards [label="dcrec/edwards" fillcolor=lightseagreen]
