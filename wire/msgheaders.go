@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2016 The Decred developers
+// Copyright (c) 2015-2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -122,10 +122,10 @@ func (msg *MsgHeaders) Command() string {
 // MaxPayloadLength returns the maximum length the payload can be for the
 // receiver.  This is part of the Message interface implementation.
 func (msg *MsgHeaders) MaxPayloadLength(pver uint32) uint32 {
-	// Num headers (varInt) + max allowed headers (header length + 1 byte
-	// for the number of transactions which is always 0).
-	return MaxVarIntPayload + ((MaxBlockHeaderPayload + 1) *
-		MaxBlockHeadersPerMsg)
+	// Num headers (varInt) 3 bytes + max allowed headers (header length +
+	// 1 byte for the number of transactions which is always 0).
+	return uint32(VarIntSerializeSize(MaxBlockHeadersPerMsg)) +
+		((MaxBlockHeaderPayload + 1) * MaxBlockHeadersPerMsg)
 }
 
 // NewMsgHeaders returns a new Decred headers message that conforms to the

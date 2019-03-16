@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2015 The btcsuite developers
-// Copyright (c) 2015-2016 The Decred developers
+// Copyright (c) 2015-2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -97,9 +97,10 @@ func (msg *MsgNotFound) Command() string {
 // MaxPayloadLength returns the maximum length the payload can be for the
 // receiver.  This is part of the Message interface implementation.
 func (msg *MsgNotFound) MaxPayloadLength(pver uint32) uint32 {
-	// Max var int 9 bytes + max InvVects at 36 bytes each.
-	// Num inventory vectors (varInt) + max allowed inventory vectors.
-	return MaxVarIntPayload + (MaxInvPerMsg * maxInvVectPayload)
+	// Num inventory vectors (varInt) 3 bytes + max allowed inventory vectors (
+	// 36 bytes each).
+	return uint32(VarIntSerializeSize(MaxInvPerMsg)) + (MaxInvPerMsg *
+		maxInvVectPayload)
 }
 
 // NewMsgNotFound returns a new Decred notfound message that conforms to the
