@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2015 The btcsuite developers
-// Copyright (c) 2015-2016 The Decred developers
+// Copyright (c) 2015-2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -181,11 +181,12 @@ func (msg *MsgMiningState) Command() string {
 // MaxPayloadLength returns the maximum length the payload can be for the
 // receiver.  This is part of the Message interface implementation.
 func (msg *MsgMiningState) MaxPayloadLength(pver uint32) uint32 {
-	// Protocol version 4 bytes + Height 4 bytes + num block hashes (varInt) +
-	// block hashes + num vote hashes (varInt) + vote hashes
-	return 4 + 4 + MaxVarIntPayload + (MaxMSBlocksAtHeadPerMsg *
-		chainhash.HashSize) + MaxVarIntPayload + (MaxMSVotesAtHeadPerMsg *
-		chainhash.HashSize)
+	// Protocol version 4 bytes + Height 4 bytes + num block hashes (varInt)
+	// 1 byte + block hashes + num vote hashes (varInt) 1 byte + vote hashes
+	return 4 + 4 + uint32(VarIntSerializeSize(MaxMSBlocksAtHeadPerMsg)) +
+		(MaxMSBlocksAtHeadPerMsg * chainhash.HashSize) +
+		uint32(VarIntSerializeSize(MaxMSVotesAtHeadPerMsg)) +
+		(MaxMSVotesAtHeadPerMsg * chainhash.HashSize)
 }
 
 // NewMsgMiningState returns a new Decred miningstate message that conforms to

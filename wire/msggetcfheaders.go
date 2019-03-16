@@ -1,6 +1,6 @@
 // Copyright (c) 2017 The btcsuite developers
 // Copyright (c) 2017 The Lightning Network Developers
-// Copyright (c) 2018 The Decred developers
+// Copyright (c) 2018-2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -121,10 +121,10 @@ func (msg *MsgGetCFHeaders) Command() string {
 // MaxPayloadLength returns the maximum length the payload can be for the
 // receiver.  This is part of the Message interface implementation.
 func (msg *MsgGetCFHeaders) MaxPayloadLength(pver uint32) uint32 {
-	// Num block locator hashes (varInt) + max allowed
+	// Num block locator hashes (varInt) 3 bytes + max allowed
 	// block locators + hash stop + filter type 1 byte.
-	return MaxVarIntPayload + (MaxBlockLocatorsPerMsg *
-		chainhash.HashSize) + chainhash.HashSize + 1
+	return uint32(VarIntSerializeSize(MaxBlockLocatorsPerMsg)) +
+		(MaxBlockLocatorsPerMsg * chainhash.HashSize) + chainhash.HashSize + 1
 }
 
 // NewMsgGetCFHeaders returns a new getcfheader message that conforms to the

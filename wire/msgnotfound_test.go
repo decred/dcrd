@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2016 The Decred developers
+// Copyright (c) 2015-2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -28,8 +28,8 @@ func TestNotFound(t *testing.T) {
 	}
 
 	// Ensure max payload is expected value for latest protocol version.
-	// Num inventory vectors (varInt) + max allowed inventory vectors.
-	wantPayload := uint32(1800009)
+	// Num inventory vectors (varInt) 3 bytes + max allowed inventory vectors.
+	wantPayload := uint32(1800003)
 	maxPayload := msg.MaxPayloadLength(pver)
 	if maxPayload != wantPayload {
 		t.Errorf("MaxPayloadLength: wrong max payload length for "+

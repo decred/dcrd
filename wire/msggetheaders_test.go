@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2016 The Decred developers
+// Copyright (c) 2015-2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -35,9 +35,9 @@ func TestGetHeaders(t *testing.T) {
 	}
 
 	// Ensure max payload is expected value for latest protocol version.
-	// Protocol version 4 bytes + num hashes (varInt) + max block locator
-	// hashes + hash stop.
-	wantPayload := uint32(16045)
+	// Protocol version 4 bytes + num hashes (varInt) 3 bytes + max block
+	// locator hashes + hash stop.
+	wantPayload := uint32(16039)
 	maxPayload := msg.MaxPayloadLength(pver)
 	if maxPayload != wantPayload {
 		t.Errorf("MaxPayloadLength: wrong max payload length for "+

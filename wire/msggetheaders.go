@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2016 The Decred developers
+// Copyright (c) 2015-2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -121,10 +121,10 @@ func (msg *MsgGetHeaders) Command() string {
 // MaxPayloadLength returns the maximum length the payload can be for the
 // receiver.  This is part of the Message interface implementation.
 func (msg *MsgGetHeaders) MaxPayloadLength(pver uint32) uint32 {
-	// Version 4 bytes + num block locator hashes (varInt) + max allowed block
-	// locators + hash stop.
-	return 4 + MaxVarIntPayload + (MaxBlockLocatorsPerMsg *
-		chainhash.HashSize) + chainhash.HashSize
+	// Version 4 bytes + num block locator hashes (varInt) 3 bytes + max allowed
+	// block locators + hash stop.
+	return 4 + uint32(VarIntSerializeSize(MaxBlockLocatorsPerMsg)) +
+		(MaxBlockLocatorsPerMsg * chainhash.HashSize) + chainhash.HashSize
 }
 
 // NewMsgGetHeaders returns a new Decred getheaders message that conforms to
