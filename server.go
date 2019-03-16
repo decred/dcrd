@@ -1670,7 +1670,7 @@ func newPeerConfig(sp *serverPeer) *peer.Config {
 		UserAgentName:     userAgentName,
 		UserAgentVersion:  userAgentVersion,
 		UserAgentComments: userAgentComments,
-		ChainParams:       sp.server.chainParams,
+		Net:               sp.server.chainParams.Net,
 		Services:          sp.server.services,
 		DisableRelayTx:    cfg.BlocksOnly,
 		ProtocolVersion:   maxProtocolVersion,
