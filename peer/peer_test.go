@@ -225,7 +225,7 @@ func TestPeerConnection(t *testing.T) {
 		},
 		UserAgentName:    "peer",
 		UserAgentVersion: "1.0",
-		ChainParams:      &chaincfg.MainNetParams,
+		Net:              wire.MainNet,
 		Services:         0,
 	}
 	wantStats := peerStats{
@@ -401,7 +401,7 @@ func TestPeerListeners(t *testing.T) {
 		},
 		UserAgentName:    "peer",
 		UserAgentVersion: "1.0",
-		ChainParams:      &chaincfg.MainNetParams,
+		Net:              wire.MainNet,
 		Services:         wire.SFNodeBloom,
 	}
 	inConn, outConn := pipe(
@@ -556,7 +556,7 @@ func TestOutboundPeer(t *testing.T) {
 		},
 		UserAgentName:    "peer",
 		UserAgentVersion: "1.0",
-		ChainParams:      &chaincfg.MainNetParams,
+		Net:              wire.MainNet,
 		Services:         0,
 	}
 
@@ -645,7 +645,7 @@ func TestOutboundPeer(t *testing.T) {
 	p1.Disconnect()
 
 	// Test testnet
-	peerCfg.ChainParams = &chaincfg.TestNet3Params
+	peerCfg.Net = wire.TestNet3
 	peerCfg.Services = wire.SFNodeBloom
 	r2, w2 := io.Pipe()
 	c2 := &conn{raddr: "10.0.0.1:8333", Writer: w2, Reader: r2}
@@ -703,7 +703,7 @@ func TestDuplicateVersionMsg(t *testing.T) {
 		},
 		UserAgentName:    "peer",
 		UserAgentVersion: "1.0",
-		ChainParams:      &chaincfg.MainNetParams,
+		Net:              wire.MainNet,
 		Services:         0,
 	}
 	inConn, outConn := pipe(
@@ -748,6 +748,44 @@ func TestDuplicateVersionMsg(t *testing.T) {
 	case <-disconnected:
 	case <-time.After(time.Second):
 		t.Fatal("peer did not disconnect")
+	}
+}
+
+// TestNetFallback ensures the network is set to the expected value in
+// accordance with the parameters.
+func TestNetFallback(t *testing.T) {
+	cfg := Config{
+		NewestBlock: func() (*chainhash.Hash, int64, error) {
+			return nil, 0, errors.New("newest block not found")
+		},
+		UserAgentName:    "peer",
+		UserAgentVersion: "1.0",
+		Services:         0,
+	}
+
+	// Ensure testnet is used when neither params nor network is specified.
+	p := NewInboundPeer(&cfg)
+	if p.cfg.Net != wire.TestNet3 {
+		t.Fatalf("default network is %v instead of testnet3", p.cfg.Net)
+	}
+
+	// Ensure network is set to the value associated with chain params when
+	// they are specified and there is no network override specified.
+	chainParams := &chaincfg.MainNetParams
+	cfg.ChainParams = chainParams
+	p = NewInboundPeer(&cfg)
+	if p.cfg.Net != chainParams.Net {
+		t.Fatalf("chainparams fallbase network is %v instead of %v", p.cfg.Net,
+			chainParams.Net)
+	}
+
+	// Ensure network is set to the explicitly specified value even when there
+	// are also different chain params specified.
+	cfg.ChainParams = chainParams
+	cfg.Net = wire.SimNet
+	p = NewInboundPeer(&cfg)
+	if p.cfg.Net != wire.SimNet {
+		t.Fatalf("explicit network is %v instead of %v", p.cfg.Net, wire.SimNet)
 	}
 }
 

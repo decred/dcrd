@@ -236,7 +236,17 @@ type Config struct {
 	// ChainParams identifies which chain parameters the peer is associated
 	// with.  It is highly recommended to specify this field, however it can
 	// be omitted in which case the test network will be used.
+	//
+	// DEPRECATED.  This is  will be removed in the next major API bump.
+	// Use Net instead.
 	ChainParams *chaincfg.Params
+
+	// Net identifies the network the peer is associated with.  It is highly
+	// recommended to specify this field, but it can be omitted in which
+	// case the network associated with the chain parameters specified in
+	// the ChainParams field (or the test network fallback if that also was
+	// not specified) will be used.
+	Net wire.CurrencyNet
 
 	// Services specifies which services to advertise as supported by the
 	// local peer.  This field can be omitted in which case it will be 0
@@ -959,7 +969,7 @@ func (p *Peer) handlePongMsg(msg *wire.MsgPong) {
 // readMessage reads the next wire message from the peer with logging.
 func (p *Peer) readMessage() (wire.Message, []byte, error) {
 	n, msg, buf, err := wire.ReadMessageN(p.conn, p.ProtocolVersion(),
-		p.cfg.ChainParams.Net)
+		p.cfg.Net)
 	atomic.AddUint64(&p.bytesReceived, uint64(n))
 	if p.cfg.Listeners.OnRead != nil {
 		p.cfg.Listeners.OnRead(p, n, msg, err)
@@ -1012,8 +1022,7 @@ func (p *Peer) writeMessage(msg wire.Message) error {
 	}))
 	log.Tracef("%v", newLogClosure(func() string {
 		var buf bytes.Buffer
-		err := wire.WriteMessage(&buf, msg, p.ProtocolVersion(),
-			p.cfg.ChainParams.Net)
+		err := wire.WriteMessage(&buf, msg, p.ProtocolVersion(), p.cfg.Net)
 		if err != nil {
 			return err.Error()
 		}
@@ -1021,8 +1030,7 @@ func (p *Peer) writeMessage(msg wire.Message) error {
 	}))
 
 	// Write the message to the peer.
-	n, err := wire.WriteMessageN(p.conn, msg, p.ProtocolVersion(),
-		p.cfg.ChainParams.Net)
+	n, err := wire.WriteMessageN(p.conn, msg, p.ProtocolVersion(), p.cfg.Net)
 	atomic.AddUint64(&p.bytesSent, uint64(n))
 	if p.cfg.Listeners.OnWrite != nil {
 		p.cfg.Listeners.OnWrite(p, n, msg, err)
@@ -2042,7 +2050,10 @@ func (p *Peer) WaitForDisconnect() {
 // newPeerBase returns a new base Decred peer based on the inbound flag.  This
 // is used by the NewInboundPeer and NewOutboundPeer functions to perform base
 // setup needed by both types of peers.
-func newPeerBase(cfg *Config, inbound bool) *Peer {
+func newPeerBase(cfgOrig *Config, inbound bool) *Peer {
+	// Copy to avoid mutating the caller and so the caller can't mutate.
+	cfg := *cfgOrig
+
 	// Default to the max supported protocol version.  Override to the
 	// version specified by the caller if configured.
 	protocolVersion := MaxProtocolVersion
@@ -2050,9 +2061,14 @@ func newPeerBase(cfg *Config, inbound bool) *Peer {
 		protocolVersion = cfg.ProtocolVersion
 	}
 
-	// Set the chain parameters to testnet if the caller did not specify any.
-	if cfg.ChainParams == nil {
-		cfg.ChainParams = &chaincfg.TestNet3Params
+	// Set the network if the caller did not specify one.  The default is
+	// testnet unless chain parameters were specified in which case the
+	// network associated with the chain parameters is used.
+	if cfg.Net == 0 {
+		cfg.Net = wire.TestNet3
+		if cfg.ChainParams != nil {
+			cfg.Net = cfg.ChainParams.Net
+		}
 	}
 
 	p := Peer{
@@ -2067,7 +2083,7 @@ func newPeerBase(cfg *Config, inbound bool) *Peer {
 		queueQuit:       make(chan struct{}),
 		outQuit:         make(chan struct{}),
 		quit:            make(chan struct{}),
-		cfg:             *cfg, // Copy so caller can't mutate.
+		cfg:             cfg,
 		services:        cfg.Services,
 		protocolVersion: protocolVersion,
 	}

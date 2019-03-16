@@ -10,7 +10,6 @@ import (
 	"net"
 	"time"
 
-	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrd/peer"
 	"github.com/decred/dcrd/wire"
 )
@@ -23,7 +22,7 @@ func mockRemotePeer() error {
 	peerCfg := &peer.Config{
 		UserAgentName:    "peer",  // User agent name to advertise.
 		UserAgentVersion: "1.0.0", // User agent version to advertise.
-		ChainParams:      &chaincfg.SimNetParams,
+		Net:              wire.SimNet,
 	}
 
 	// Accept connections on the simnet port.
@@ -68,7 +67,7 @@ func Example_newOutboundPeer() {
 	peerCfg := &peer.Config{
 		UserAgentName:    "peer",  // User agent name to advertise.
 		UserAgentVersion: "1.0.0", // User agent version to advertise.
-		ChainParams:      &chaincfg.SimNetParams,
+		Net:              wire.SimNet,
 		Services:         0,
 		Listeners: peer.MessageListeners{
 			OnVersion: func(p *peer.Peer, msg *wire.MsgVersion) *wire.MsgReject {
