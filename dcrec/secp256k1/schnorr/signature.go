@@ -8,6 +8,9 @@ package schnorr
 import (
 	"fmt"
 	"math/big"
+
+	"github.com/decred/dcrd/chaincfg/chainhash"
+	"github.com/decred/dcrd/dcrec/secp256k1"
 )
 
 // Signature is a type representing a Schnorr signature.
@@ -72,4 +75,21 @@ func (sig Signature) GetS() *big.Int {
 // GetType satisfies the chainec Signature interface.
 func (sig Signature) GetType() int {
 	return ecTypeSecSchnorr
+}
+
+// IsEqual compares this Signature instance to the one passed, returning true
+// if both Signatures are equivalent. A signature is equivalent to another, if
+// they both have the same scalar value for R and S.
+func (sig Signature) IsEqual(otherSig *Signature) bool {
+	return sig.R.Cmp(otherSig.R) == 0 &&
+		sig.S.Cmp(otherSig.S) == 0
+}
+
+// Verify is the generalized and exported function for the verification of a
+// secp256k1 Schnorr signature. BLAKE256 is used as the hashing function.
+func (sig Signature) Verify(msg []byte, pubkey *secp256k1.PublicKey) bool {
+	ok, _ := schnorrVerify(sig.Serialize(), pubkey, msg,
+		chainhash.HashB)
+
+	return ok
 }
