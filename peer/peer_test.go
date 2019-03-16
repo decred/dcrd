@@ -1,9 +1,9 @@
 // Copyright (c) 2015-2016 The btcsuite developers
-// Copyright (c) 2016-2018 The Decred developers
+// Copyright (c) 2016-2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
-package peer_test
+package peer
 
 import (
 	"encoding/binary"
@@ -18,7 +18,6 @@ import (
 	"github.com/btcsuite/go-socks/socks"
 	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrd/chaincfg/chainhash"
-	"github.com/decred/dcrd/peer"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -109,7 +108,7 @@ type peerStats struct {
 }
 
 // testPeer tests the given peer's flags and stats
-func testPeer(t *testing.T, p *peer.Peer, s peerStats) {
+func testPeer(t *testing.T, p *Peer, s peerStats) {
 	if p.UserAgent() != s.wantUserAgent {
 		t.Errorf("testPeer: wrong UserAgent - got %v, want %v", p.UserAgent(), s.wantUserAgent)
 		return
@@ -210,12 +209,12 @@ func testPeer(t *testing.T, p *peer.Peer, s peerStats) {
 func TestPeerConnection(t *testing.T) {
 	var pause sync.Mutex
 	verack := make(chan struct{})
-	peerCfg := &peer.Config{
-		Listeners: peer.MessageListeners{
-			OnVerAck: func(p *peer.Peer, msg *wire.MsgVerAck) {
+	peerCfg := &Config{
+		Listeners: MessageListeners{
+			OnVerAck: func(p *Peer, msg *wire.MsgVerAck) {
 				verack <- struct{}{}
 			},
-			OnWrite: func(p *peer.Peer, bytesWritten int, msg wire.Message,
+			OnWrite: func(p *Peer, bytesWritten int, msg wire.Message,
 				err error) {
 				if _, ok := msg.(*wire.MsgVerAck); ok {
 					verack <- struct{}{}
@@ -232,7 +231,7 @@ func TestPeerConnection(t *testing.T) {
 	wantStats := peerStats{
 		wantUserAgent:       wire.DefaultUserAgent + "peer:1.0/",
 		wantServices:        0,
-		wantProtocolVersion: peer.MaxProtocolVersion,
+		wantProtocolVersion: MaxProtocolVersion,
 		wantConnected:       true,
 		wantVersionKnown:    true,
 		wantVerAckReceived:  true,
@@ -245,19 +244,19 @@ func TestPeerConnection(t *testing.T) {
 	}
 	tests := []struct {
 		name  string
-		setup func() (*peer.Peer, *peer.Peer, error)
+		setup func() (*Peer, *Peer, error)
 	}{
 		{
 			"basic handshake",
-			func() (*peer.Peer, *peer.Peer, error) {
+			func() (*Peer, *Peer, error) {
 				inConn, outConn := pipe(
 					&conn{raddr: "10.0.0.1:8333"},
 					&conn{raddr: "10.0.0.2:8333"},
 				)
-				inPeer := peer.NewInboundPeer(peerCfg)
+				inPeer := NewInboundPeer(peerCfg)
 				inPeer.AssociateConnection(inConn)
 
-				outPeer, err := peer.NewOutboundPeer(peerCfg, "10.0.0.2:8333")
+				outPeer, err := NewOutboundPeer(peerCfg, "10.0.0.2:8333")
 				if err != nil {
 					return nil, nil, err
 				}
@@ -275,15 +274,15 @@ func TestPeerConnection(t *testing.T) {
 		},
 		{
 			"socks proxy",
-			func() (*peer.Peer, *peer.Peer, error) {
+			func() (*Peer, *Peer, error) {
 				inConn, outConn := pipe(
 					&conn{raddr: "10.0.0.1:8333", proxy: true},
 					&conn{raddr: "10.0.0.2:8333"},
 				)
-				inPeer := peer.NewInboundPeer(peerCfg)
+				inPeer := NewInboundPeer(peerCfg)
 				inPeer.AssociateConnection(inConn)
 
-				outPeer, err := peer.NewOutboundPeer(peerCfg, "10.0.0.2:8333")
+				outPeer, err := NewOutboundPeer(peerCfg, "10.0.0.2:8333")
 				if err != nil {
 					return nil, nil, err
 				}
@@ -324,79 +323,79 @@ func TestPeerConnection(t *testing.T) {
 func TestPeerListeners(t *testing.T) {
 	verack := make(chan struct{}, 1)
 	ok := make(chan wire.Message, 20)
-	peerCfg := &peer.Config{
-		Listeners: peer.MessageListeners{
-			OnGetAddr: func(p *peer.Peer, msg *wire.MsgGetAddr) {
+	peerCfg := &Config{
+		Listeners: MessageListeners{
+			OnGetAddr: func(p *Peer, msg *wire.MsgGetAddr) {
 				ok <- msg
 			},
-			OnAddr: func(p *peer.Peer, msg *wire.MsgAddr) {
+			OnAddr: func(p *Peer, msg *wire.MsgAddr) {
 				ok <- msg
 			},
-			OnPing: func(p *peer.Peer, msg *wire.MsgPing) {
+			OnPing: func(p *Peer, msg *wire.MsgPing) {
 				ok <- msg
 			},
-			OnPong: func(p *peer.Peer, msg *wire.MsgPong) {
+			OnPong: func(p *Peer, msg *wire.MsgPong) {
 				ok <- msg
 			},
-			OnMemPool: func(p *peer.Peer, msg *wire.MsgMemPool) {
+			OnMemPool: func(p *Peer, msg *wire.MsgMemPool) {
 				ok <- msg
 			},
-			OnTx: func(p *peer.Peer, msg *wire.MsgTx) {
+			OnTx: func(p *Peer, msg *wire.MsgTx) {
 				ok <- msg
 			},
-			OnBlock: func(p *peer.Peer, msg *wire.MsgBlock, buf []byte) {
+			OnBlock: func(p *Peer, msg *wire.MsgBlock, buf []byte) {
 				ok <- msg
 			},
-			OnInv: func(p *peer.Peer, msg *wire.MsgInv) {
+			OnInv: func(p *Peer, msg *wire.MsgInv) {
 				ok <- msg
 			},
-			OnHeaders: func(p *peer.Peer, msg *wire.MsgHeaders) {
+			OnHeaders: func(p *Peer, msg *wire.MsgHeaders) {
 				ok <- msg
 			},
-			OnNotFound: func(p *peer.Peer, msg *wire.MsgNotFound) {
+			OnNotFound: func(p *Peer, msg *wire.MsgNotFound) {
 				ok <- msg
 			},
-			OnGetData: func(p *peer.Peer, msg *wire.MsgGetData) {
+			OnGetData: func(p *Peer, msg *wire.MsgGetData) {
 				ok <- msg
 			},
-			OnGetBlocks: func(p *peer.Peer, msg *wire.MsgGetBlocks) {
+			OnGetBlocks: func(p *Peer, msg *wire.MsgGetBlocks) {
 				ok <- msg
 			},
-			OnGetHeaders: func(p *peer.Peer, msg *wire.MsgGetHeaders) {
+			OnGetHeaders: func(p *Peer, msg *wire.MsgGetHeaders) {
 				ok <- msg
 			},
-			OnGetCFilter: func(p *peer.Peer, msg *wire.MsgGetCFilter) {
+			OnGetCFilter: func(p *Peer, msg *wire.MsgGetCFilter) {
 				ok <- msg
 			},
-			OnGetCFHeaders: func(p *peer.Peer, msg *wire.MsgGetCFHeaders) {
+			OnGetCFHeaders: func(p *Peer, msg *wire.MsgGetCFHeaders) {
 				ok <- msg
 			},
-			OnGetCFTypes: func(p *peer.Peer, msg *wire.MsgGetCFTypes) {
+			OnGetCFTypes: func(p *Peer, msg *wire.MsgGetCFTypes) {
 				ok <- msg
 			},
-			OnCFilter: func(p *peer.Peer, msg *wire.MsgCFilter) {
+			OnCFilter: func(p *Peer, msg *wire.MsgCFilter) {
 				ok <- msg
 			},
-			OnCFHeaders: func(p *peer.Peer, msg *wire.MsgCFHeaders) {
+			OnCFHeaders: func(p *Peer, msg *wire.MsgCFHeaders) {
 				ok <- msg
 			},
-			OnCFTypes: func(p *peer.Peer, msg *wire.MsgCFTypes) {
+			OnCFTypes: func(p *Peer, msg *wire.MsgCFTypes) {
 				ok <- msg
 			},
-			OnFeeFilter: func(p *peer.Peer, msg *wire.MsgFeeFilter) {
+			OnFeeFilter: func(p *Peer, msg *wire.MsgFeeFilter) {
 				ok <- msg
 			},
-			OnVersion: func(p *peer.Peer, msg *wire.MsgVersion) *wire.MsgReject {
+			OnVersion: func(p *Peer, msg *wire.MsgVersion) *wire.MsgReject {
 				ok <- msg
 				return nil
 			},
-			OnVerAck: func(p *peer.Peer, msg *wire.MsgVerAck) {
+			OnVerAck: func(p *Peer, msg *wire.MsgVerAck) {
 				verack <- struct{}{}
 			},
-			OnReject: func(p *peer.Peer, msg *wire.MsgReject) {
+			OnReject: func(p *Peer, msg *wire.MsgReject) {
 				ok <- msg
 			},
-			OnSendHeaders: func(p *peer.Peer, msg *wire.MsgSendHeaders) {
+			OnSendHeaders: func(p *Peer, msg *wire.MsgSendHeaders) {
 				ok <- msg
 			},
 		},
@@ -409,15 +408,15 @@ func TestPeerListeners(t *testing.T) {
 		&conn{raddr: "10.0.0.1:8333"},
 		&conn{raddr: "10.0.0.2:8333"},
 	)
-	inPeer := peer.NewInboundPeer(peerCfg)
+	inPeer := NewInboundPeer(peerCfg)
 	inPeer.AssociateConnection(inConn)
 
-	peerCfg.Listeners = peer.MessageListeners{
-		OnVerAck: func(p *peer.Peer, msg *wire.MsgVerAck) {
+	peerCfg.Listeners = MessageListeners{
+		OnVerAck: func(p *Peer, msg *wire.MsgVerAck) {
 			verack <- struct{}{}
 		},
 	}
-	outPeer, err := peer.NewOutboundPeer(peerCfg, "10.0.0.1:8333")
+	outPeer, err := NewOutboundPeer(peerCfg, "10.0.0.1:8333")
 	if err != nil {
 		t.Errorf("NewOutboundPeer: unexpected err %v\n", err)
 		return
@@ -551,7 +550,7 @@ func TestPeerListeners(t *testing.T) {
 
 // TestOutboundPeer tests that the outbound peer works as expected.
 func TestOutboundPeer(t *testing.T) {
-	peerCfg := &peer.Config{
+	peerCfg := &Config{
 		NewestBlock: func() (*chainhash.Hash, int64, error) {
 			return nil, 0, errors.New("newest block not found")
 		},
@@ -564,7 +563,7 @@ func TestOutboundPeer(t *testing.T) {
 	r, w := io.Pipe()
 	c := &conn{raddr: "10.0.0.1:8333", Writer: w, Reader: r}
 
-	p, err := peer.NewOutboundPeer(peerCfg, "10.0.0.1:8333")
+	p, err := NewOutboundPeer(peerCfg, "10.0.0.1:8333")
 	if err != nil {
 		t.Errorf("NewOutboundPeer: unexpected err - %v\n", err)
 		return
@@ -620,7 +619,7 @@ func TestOutboundPeer(t *testing.T) {
 	peerCfg.NewestBlock = newestBlock
 	r1, w1 := io.Pipe()
 	c1 := &conn{raddr: "10.0.0.1:8333", Writer: w1, Reader: r1}
-	p1, err := peer.NewOutboundPeer(peerCfg, "10.0.0.1:8333")
+	p1, err := NewOutboundPeer(peerCfg, "10.0.0.1:8333")
 	if err != nil {
 		t.Errorf("NewOutboundPeer: unexpected err - %v\n", err)
 		return
@@ -650,7 +649,7 @@ func TestOutboundPeer(t *testing.T) {
 	peerCfg.Services = wire.SFNodeBloom
 	r2, w2 := io.Pipe()
 	c2 := &conn{raddr: "10.0.0.1:8333", Writer: w2, Reader: r2}
-	p2, err := peer.NewOutboundPeer(peerCfg, "10.0.0.1:8333")
+	p2, err := NewOutboundPeer(peerCfg, "10.0.0.1:8333")
 	if err != nil {
 		t.Errorf("NewOutboundPeer: unexpected err - %v\n", err)
 		return
@@ -696,9 +695,9 @@ func TestDuplicateVersionMsg(t *testing.T) {
 	// Create a pair of peers that are connected to each other using a fake
 	// connection.
 	verack := make(chan struct{})
-	peerCfg := &peer.Config{
-		Listeners: peer.MessageListeners{
-			OnVerAck: func(p *peer.Peer, msg *wire.MsgVerAck) {
+	peerCfg := &Config{
+		Listeners: MessageListeners{
+			OnVerAck: func(p *Peer, msg *wire.MsgVerAck) {
 				verack <- struct{}{}
 			},
 		},
@@ -711,12 +710,12 @@ func TestDuplicateVersionMsg(t *testing.T) {
 		&conn{laddr: "10.0.0.1:9108", raddr: "10.0.0.2:9108"},
 		&conn{laddr: "10.0.0.2:9108", raddr: "10.0.0.1:9108"},
 	)
-	outPeer, err := peer.NewOutboundPeer(peerCfg, inConn.laddr)
+	outPeer, err := NewOutboundPeer(peerCfg, inConn.laddr)
 	if err != nil {
 		t.Fatalf("NewOutboundPeer: unexpected err: %v\n", err)
 	}
 	outPeer.AssociateConnection(outConn)
-	inPeer := peer.NewInboundPeer(peerCfg)
+	inPeer := NewInboundPeer(peerCfg)
 	inPeer.AssociateConnection(inConn)
 
 	// Wait for the veracks from the initial protocol version negotiation.
@@ -754,5 +753,5 @@ func TestDuplicateVersionMsg(t *testing.T) {
 
 func init() {
 	// Allow self connection when running the tests.
-	peer.TstAllowSelfConns()
+	allowSelfConns = true
 }
