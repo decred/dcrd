@@ -8,6 +8,8 @@ package edwards
 import (
 	"fmt"
 	"math/big"
+
+	"github.com/agl/ed25519"
 )
 
 // Signature is a type representing an ecdsa signature.
@@ -37,6 +39,27 @@ func (sig Signature) Serialize() []byte {
 	all := append(rBytes[:], sBytes[:]...)
 
 	return all
+}
+
+// IsEqual compares this Signature instance to the one passed, returning true
+// if both Signatures are equivalent. A signature is equivalent to another, if
+// they both have the same scalar value for R and S.
+func (sig *Signature) IsEqual(otherSig *Signature) bool {
+	return sig.R.Cmp(otherSig.R) == 0 &&
+		sig.S.Cmp(otherSig.S) == 0
+}
+
+// Verify verifies a message 'hash' using the given public keys and signature.
+func (sig *Signature) Verify(hash []byte, pubKey *PublicKey) bool {
+	if pubKey == nil || hash == nil {
+		return false
+	}
+
+	pubBytes := pubKey.Serialize()
+	sigBytes := sig.Serialize()
+	pubArray := copyBytes(pubBytes)
+	sigArray := copyBytes64(sigBytes)
+	return ed25519.Verify(pubArray, hash, sigArray)
 }
 
 // parseSig is the default method of parsing a serialized Ed25519 signature.
