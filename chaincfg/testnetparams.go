@@ -33,10 +33,6 @@ var testNet3GenesisBlock = wire.MsgBlock{
 	Transactions: []*wire.MsgTx{&genesisCoinbaseTx},
 }
 
-// testNet3GenesisHash is the hash of the first block in the block chain for the
-// test network (version 3).
-var testNet3GenesisHash = testNet3GenesisBlock.BlockHash()
-
 // blockOneLedgerTestNet3 is the block one output ledger for testnet version 3.
 var blockOneLedgerTestNet3 = []*TokenPayout{
 	{"Tsi6gGYNSMmFwi7JoL5Li39SrERZTTMu6vY", 80000 * 1e8},
@@ -58,7 +54,7 @@ var TestNet3Params = Params{
 
 	// Chain parameters
 	GenesisBlock:             &testNet3GenesisBlock,
-	GenesisHash:              &testNet3GenesisHash,
+	GenesisHash:              testNet3GenesisBlock.BlockHash(),
 	PowLimit:                 testNetPowLimit,
 	PowLimitBits:             0x1e00ffff,
 	ReduceMinDifficulty:      true,

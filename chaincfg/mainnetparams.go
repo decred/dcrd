@@ -65,8 +65,8 @@ var genesisMerkleRoot = genesisCoinbaseTx.TxHashFull()
 // The genesis block for Decred mainnet, testnet, and simnet are not evaluated
 // for proof of work. The only values that are ever used elsewhere in the
 // blockchain from it are:
-// (1) The genesis block hash is used as the PrevBlock in params.go.
-// (2) The difficulty starts off at the value given by bits.
+// (1) The genesis block hash is used as the PrevBlock.
+// (2) The difficulty starts off at the value given by Bits.
 // (3) The stake difficulty starts off at the value given by SBits.
 // (4) The timestamp, which guides when blocks can be built on top of it
 //      and what the initial difficulty calculations come out to be.
@@ -87,10 +87,6 @@ var genesisBlock = wire.MsgBlock{
 	},
 	Transactions: []*wire.MsgTx{&genesisCoinbaseTx},
 }
-
-// genesisHash is the hash of the first block in the block chain for the main
-// network (genesis block).
-var genesisHash = genesisBlock.BlockHash()
 
 // blockOneLedgerMainNet is the block one output ledger for the main network.
 var blockOneLedgerMainNet = []*TokenPayout{
@@ -3255,7 +3251,7 @@ var MainNetParams = Params{
 
 	// Chain parameters
 	GenesisBlock:             &genesisBlock,
-	GenesisHash:              &genesisHash,
+	GenesisHash:              genesisBlock.BlockHash(),
 	PowLimit:                 mainPowLimit,
 	PowLimitBits:             0x1d00ffff,
 	ReduceMinDifficulty:      false,

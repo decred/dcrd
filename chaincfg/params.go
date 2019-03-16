@@ -197,7 +197,7 @@ type Params struct {
 	GenesisBlock *wire.MsgBlock
 
 	// GenesisHash is the starting block hash.
-	GenesisHash *chainhash.Hash
+	GenesisHash chainhash.Hash
 
 	// PowLimit defines the highest allowed proof of work value for a block
 	// as a uint256.

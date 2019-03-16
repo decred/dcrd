@@ -100,10 +100,6 @@ var simNetGenesisBlock = wire.MsgBlock{
 	Transactions: []*wire.MsgTx{&simNetGenesisCoinbaseTx},
 }
 
-// simNetGenesisHash is the hash of the first block in the block chain for the
-// simulation test network.
-var simNetGenesisHash = simNetGenesisBlock.BlockHash()
-
 // blockOneLedgerSimNet is the block one output ledger for the simulation
 // network.  See "Decred organization related parameters" below for information
 // on how to spend these outputs.
@@ -132,7 +128,7 @@ var SimNetParams = Params{
 
 	// Chain parameters
 	GenesisBlock:             &simNetGenesisBlock,
-	GenesisHash:              &simNetGenesisHash,
+	GenesisHash:              simNetGenesisBlock.BlockHash(),
 	PowLimit:                 simNetPowLimit,
 	PowLimitBits:             0x207fffff,
 	ReduceMinDifficulty:      false,

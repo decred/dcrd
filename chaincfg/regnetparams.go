@@ -56,10 +56,6 @@ var regNetGenesisBlock = wire.MsgBlock{
 	Transactions: []*wire.MsgTx{&genesisCoinbaseTx},
 }
 
-// regNetGenesisHash is the hash of the first block in the block chain for the
-// simulation test network.
-var regNetGenesisHash = regNetGenesisBlock.BlockHash()
-
 // blockOneLedgerRegNet is the block one output ledger for the regression test
 // network.  See "Decred organization related parameters" below for information
 // on how to spend these outputs.
@@ -87,7 +83,7 @@ var RegNetParams = Params{
 
 	// Chain parameters
 	GenesisBlock:             &regNetGenesisBlock,
-	GenesisHash:              &regNetGenesisHash,
+	GenesisHash:              regNetGenesisBlock.BlockHash(),
 	PowLimit:                 regNetPowLimit,
 	PowLimitBits:             0x207fffff,
 	ReduceMinDifficulty:      false,
