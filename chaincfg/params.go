@@ -39,10 +39,6 @@ var (
 	regNetPowLimit = new(big.Int).Sub(new(big.Int).Lsh(bigOne, 255), bigOne)
 )
 
-// CPUMinerThreads is the default number of threads to utilize with the
-// CPUMiner when mining.
-var CPUMinerThreads = 1
-
 // Checkpoint identifies a known good point in the block chain.  Using
 // checkpoints allows a few optimizations for old blocks during initial download
 // and also prevents forks from old blocks.
