@@ -120,8 +120,9 @@ func (msg *MsgCFTypes) Command() string {
 // MaxPayloadLength returns the maximum length the payload can be for the
 // receiver. This is part of the Message interface implementation.
 func (msg *MsgCFTypes) MaxPayloadLength(pver uint32) uint32 {
-	// 2 bytes for filter count, and 1 byte for up to 256 filter types.
-	return 258
+	// 3 bytes for filter count, 1 byte up to 256 bytes filter types.
+	return uint32(VarIntSerializeSize(MaxFilterTypesPerMsg)) +
+		MaxFilterTypesPerMsg
 }
 
 // NewMsgCFTypes returns a new cftypes message that conforms to the Message

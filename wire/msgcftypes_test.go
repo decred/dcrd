@@ -31,8 +31,9 @@ func TestCFTypes(t *testing.T) {
 	}
 
 	// Ensure max payload is expected value for latest protocol version.
-	// Filters count 2 bytes + 1 byte up to 256 bytes for each filter type.
-	wantPayload := uint32(258)
+	// Filters count (varInt) 3 bytes + 1 byte up to 256 bytes for each
+	// filter type.
+	wantPayload := uint32(259)
 	maxPayload := msg.MaxPayloadLength(pver)
 	if maxPayload != wantPayload {
 		t.Errorf("MaxPayloadLength: wrong max payload length for "+
