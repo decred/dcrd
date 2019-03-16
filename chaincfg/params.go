@@ -192,6 +192,11 @@ type DNSSeed struct {
 	HasFiltering bool
 }
 
+// String returns the hostname of the DNS seed in human-readable form.
+func (d DNSSeed) String() string {
+	return d.Host
+}
+
 // Params defines a Decred network by its parameters.  These parameters may be
 // used by Decred applications to differentiate networks as well as addresses
 // and keys for one network from those intended for use on another network.
@@ -502,11 +507,6 @@ var (
 	hdPrivToPubKeyIDs = make(map[[4]byte][]byte)
 	netPrefixToParams = make(map[string]*Params)
 )
-
-// String returns the hostname of the DNS seed in human-readable form.
-func (d DNSSeed) String() string {
-	return d.Host
-}
 
 // Register registers the network parameters for a Decred network.  This may
 // error with ErrDuplicateNet if the network is already registered (either
