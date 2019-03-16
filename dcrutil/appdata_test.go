@@ -1,9 +1,9 @@
 // Copyright (c) 2013-2014 The btcsuite developers
-// Copyright (c) 2015 The Decred developers
+// Copyright (c) 2015-2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
-package dcrutil_test
+package dcrutil
 
 import (
 	"os"
@@ -12,8 +12,6 @@ import (
 	"runtime"
 	"testing"
 	"unicode"
-
-	"github.com/decred/dcrd/dcrutil"
 )
 
 // TestAppDataDir tests the API for AppDataDir to ensure it gives expected
@@ -123,7 +121,7 @@ func TestAppDataDir(t *testing.T) {
 
 	t.Logf("Running %d tests", len(tests))
 	for i, test := range tests {
-		ret := dcrutil.TstAppDataDir(test.goos, test.appName, test.roaming)
+		ret := appDataDir(test.goos, test.appName, test.roaming)
 		if ret != test.want {
 			t.Errorf("appDataDir #%d (%s) does not match - "+
 				"expected got %s, want %s", i, test.goos, ret,

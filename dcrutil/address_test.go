@@ -1,9 +1,9 @@
 // Copyright (c) 2013, 2014 The btcsuite developers
-// Copyright (c) 2015-2018 The Decred developers
+// Copyright (c) 2015-2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
-package dcrutil_test
+package dcrutil
 
 import (
 	"bytes"
@@ -12,11 +12,24 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/decred/base58"
 	"github.com/decred/dcrd/chaincfg"
+	"github.com/decred/dcrd/chaincfg/chainec"
 	"github.com/decred/dcrd/dcrec"
-	"github.com/decred/dcrd/dcrutil"
+	"github.com/decred/dcrd/dcrec/secp256k1"
 	"golang.org/x/crypto/ripemd160"
 )
+
+// tstAddressPubKey makes an AddressPubKey, setting the unexported fields with
+// the parameters.
+func tstAddressPubKey(serializedPubKey []byte, pubKeyFormat PubKeyFormat, netID [2]byte) *AddressSecpPubKey {
+	pubKey, _ := secp256k1.ParsePubKey(serializedPubKey)
+	return &AddressSecpPubKey{
+		pubKeyFormat: pubKeyFormat,
+		pubKey:       chainec.PublicKey(pubKey),
+		pubKeyHashID: netID,
+	}
+}
 
 func TestAddresses(t *testing.T) {
 	mainNetParams := &chaincfg.MainNetParams
@@ -28,8 +41,8 @@ func TestAddresses(t *testing.T) {
 		saddr   string
 		encoded string
 		valid   bool
-		result  dcrutil.Address
-		f       func() (dcrutil.Address, error)
+		result  Address
+		f       func() (Address, error)
 		net     *chaincfg.Params
 	}{
 		// Positive P2PKH tests.
@@ -38,17 +51,18 @@ func TestAddresses(t *testing.T) {
 			addr:    "DsUZxxoHJSty8DCfwfartwTYbuhmVct7tJu",
 			encoded: "DsUZxxoHJSty8DCfwfartwTYbuhmVct7tJu",
 			valid:   true,
-			result: dcrutil.TstAddressPubKeyHash(
-				[ripemd160.Size]byte{
+			result: &AddressPubKeyHash{
+				hash: [ripemd160.Size]byte{
 					0x27, 0x89, 0xd5, 0x8c, 0xfa, 0x09, 0x57, 0xd2, 0x06, 0xf0,
 					0x25, 0xc2, 0xaf, 0x05, 0x6f, 0xc8, 0xa7, 0x7c, 0xeb, 0xb0},
-				mainNetParams.PubKeyHashAddrID),
-			f: func() (dcrutil.Address, error) {
+				netID: mainNetParams.PubKeyHashAddrID,
+			},
+			f: func() (Address, error) {
 				pkHash := []byte{
 					0x27, 0x89, 0xd5, 0x8c, 0xfa, 0x09, 0x57, 0xd2, 0x06, 0xf0,
 					0x25, 0xc2, 0xaf, 0x05, 0x6f, 0xc8, 0xa7, 0x7c, 0xeb, 0xb0}
-				return dcrutil.NewAddressPubKeyHash(pkHash,
-					mainNetParams, dcrec.STEcdsaSecp256k1)
+				return NewAddressPubKeyHash(pkHash, mainNetParams,
+					dcrec.STEcdsaSecp256k1)
 			},
 			net: mainNetParams,
 		},
@@ -57,17 +71,18 @@ func TestAddresses(t *testing.T) {
 			addr:    "DsU7xcg53nxaKLLcAUSKyRndjG78Z2VZnX9",
 			encoded: "DsU7xcg53nxaKLLcAUSKyRndjG78Z2VZnX9",
 			valid:   true,
-			result: dcrutil.TstAddressPubKeyHash(
-				[ripemd160.Size]byte{
+			result: &AddressPubKeyHash{
+				hash: [ripemd160.Size]byte{
 					0x22, 0x9e, 0xba, 0xc3, 0x0e, 0xfd, 0x6a, 0x69, 0xee, 0xc9,
 					0xc1, 0xa4, 0x8e, 0x04, 0x8b, 0x7c, 0x97, 0x5c, 0x25, 0xf2},
-				mainNetParams.PubKeyHashAddrID),
-			f: func() (dcrutil.Address, error) {
+				netID: mainNetParams.PubKeyHashAddrID,
+			},
+			f: func() (Address, error) {
 				pkHash := []byte{
 					0x22, 0x9e, 0xba, 0xc3, 0x0e, 0xfd, 0x6a, 0x69, 0xee, 0xc9,
 					0xc1, 0xa4, 0x8e, 0x04, 0x8b, 0x7c, 0x97, 0x5c, 0x25, 0xf2}
-				return dcrutil.NewAddressPubKeyHash(pkHash,
-					mainNetParams, dcrec.STEcdsaSecp256k1)
+				return NewAddressPubKeyHash(pkHash, mainNetParams,
+					dcrec.STEcdsaSecp256k1)
 			},
 			net: mainNetParams,
 		},
@@ -76,16 +91,17 @@ func TestAddresses(t *testing.T) {
 			addr:    "Tso2MVTUeVrjHTBFedFhiyM7yVTbieqp91h",
 			encoded: "Tso2MVTUeVrjHTBFedFhiyM7yVTbieqp91h",
 			valid:   true,
-			result: dcrutil.TstAddressPubKeyHash(
-				[ripemd160.Size]byte{
+			result: &AddressPubKeyHash{
+				hash: [ripemd160.Size]byte{
 					0xf1, 0x5d, 0xa1, 0xcb, 0x8d, 0x1b, 0xcb, 0x16, 0x2c, 0x6a,
 					0xb4, 0x46, 0xc9, 0x57, 0x57, 0xa6, 0xe7, 0x91, 0xc9, 0x16},
-				testNetParams.PubKeyHashAddrID),
-			f: func() (dcrutil.Address, error) {
+				netID: testNetParams.PubKeyHashAddrID,
+			},
+			f: func() (Address, error) {
 				pkHash := []byte{
 					0xf1, 0x5d, 0xa1, 0xcb, 0x8d, 0x1b, 0xcb, 0x16, 0x2c, 0x6a,
 					0xb4, 0x46, 0xc9, 0x57, 0x57, 0xa6, 0xe7, 0x91, 0xc9, 0x16}
-				return dcrutil.NewAddressPubKeyHash(pkHash,
+				return NewAddressPubKeyHash(pkHash,
 					testNetParams, dcrec.STEcdsaSecp256k1)
 			},
 			net: testNetParams,
@@ -95,16 +111,17 @@ func TestAddresses(t *testing.T) {
 			addr:    "RsWM2w5LPJip56uxcZ1Scq7Tcbg97EfiwPA",
 			encoded: "RsWM2w5LPJip56uxcZ1Scq7Tcbg97EfiwPA",
 			valid:   true,
-			result: dcrutil.TstAddressPubKeyHash(
-				[ripemd160.Size]byte{
+			result: &AddressPubKeyHash{
+				hash: [ripemd160.Size]byte{
 					0xf1, 0x5d, 0xa1, 0xcb, 0x8d, 0x1b, 0xcb, 0x16, 0x2c, 0x6a,
 					0xb4, 0x46, 0xc9, 0x57, 0x57, 0xa6, 0xe7, 0x91, 0xc9, 0x16},
-				regNetParams.PubKeyHashAddrID),
-			f: func() (dcrutil.Address, error) {
+				netID: regNetParams.PubKeyHashAddrID,
+			},
+			f: func() (Address, error) {
 				pkHash := []byte{
 					0xf1, 0x5d, 0xa1, 0xcb, 0x8d, 0x1b, 0xcb, 0x16, 0x2c, 0x6a,
 					0xb4, 0x46, 0xc9, 0x57, 0x57, 0xa6, 0xe7, 0x91, 0xc9, 0x16}
-				return dcrutil.NewAddressPubKeyHash(pkHash, regNetParams,
+				return NewAddressPubKeyHash(pkHash, regNetParams,
 					dcrec.STEcdsaSecp256k1)
 			},
 			net: regNetParams,
@@ -115,12 +132,12 @@ func TestAddresses(t *testing.T) {
 			name:  "p2pkh wrong hash length",
 			addr:  "",
 			valid: false,
-			f: func() (dcrutil.Address, error) {
+			f: func() (Address, error) {
 				pkHash := []byte{
 					0x00, 0x0e, 0xf0, 0x30, 0x10, 0x7f, 0xd2, 0x6e, 0x0b, 0x6b,
 					0xf4, 0x05, 0x12, 0xbc, 0xa2, 0xce, 0xb1, 0xdd, 0x80, 0xad,
 					0xaa}
-				return dcrutil.NewAddressPubKeyHash(pkHash, mainNetParams,
+				return NewAddressPubKeyHash(pkHash, mainNetParams,
 					dcrec.STEcdsaSecp256k1)
 			},
 		},
@@ -140,18 +157,19 @@ func TestAddresses(t *testing.T) {
 			addr:    "DcuQKx8BES9wU7C6Q5VmLBjw436r27hayjS",
 			encoded: "DcuQKx8BES9wU7C6Q5VmLBjw436r27hayjS",
 			valid:   true,
-			result: dcrutil.TstAddressScriptHash(
-				[ripemd160.Size]byte{
+			result: &AddressScriptHash{
+				hash: [ripemd160.Size]byte{
 					0xf0, 0xb4, 0xe8, 0x51, 0x00, 0xae, 0xe1, 0xa9, 0x96, 0xf2,
 					0x29, 0x15, 0xeb, 0x3c, 0x3f, 0x76, 0x4d, 0x53, 0x77, 0x9a},
-				mainNetParams.ScriptHashAddrID),
-			f: func() (dcrutil.Address, error) {
+				netID: mainNetParams.ScriptHashAddrID,
+			},
+			f: func() (Address, error) {
 				txscript := []byte{
 					0x51, 0x21, 0x03, 0xaa, 0x43, 0xf0, 0xa6, 0xc1, 0x57, 0x30,
 					0xd8, 0x86, 0xcc, 0x1f, 0x03, 0x42, 0x04, 0x6d, 0x20, 0x17,
 					0x54, 0x83, 0xd9, 0x0d, 0x7c, 0xcb, 0x65, 0x7f, 0x90, 0xc4,
 					0x89, 0x11, 0x1d, 0x79, 0x4c, 0x51, 0xae}
-				return dcrutil.NewAddressScriptHash(txscript, mainNetParams)
+				return NewAddressScriptHash(txscript, mainNetParams)
 			},
 			net: mainNetParams,
 		},
@@ -163,16 +181,17 @@ func TestAddresses(t *testing.T) {
 			addr:    "DcqgK4N4Ccucu2Sq4VDAdu4wH4LASLhzLVp",
 			encoded: "DcqgK4N4Ccucu2Sq4VDAdu4wH4LASLhzLVp",
 			valid:   true,
-			result: dcrutil.TstAddressScriptHash(
-				[ripemd160.Size]byte{
+			result: &AddressScriptHash{
+				hash: [ripemd160.Size]byte{
 					0xc7, 0xda, 0x50, 0x95, 0x68, 0x34, 0x36, 0xf4, 0x43, 0x5f,
 					0xc4, 0xe7, 0x16, 0x3d, 0xca, 0xfd, 0xa1, 0xa2, 0xd0, 0x07},
-				mainNetParams.ScriptHashAddrID),
-			f: func() (dcrutil.Address, error) {
+				netID: mainNetParams.ScriptHashAddrID,
+			},
+			f: func() (Address, error) {
 				hash := []byte{
 					0xc7, 0xda, 0x50, 0x95, 0x68, 0x34, 0x36, 0xf4, 0x43, 0x5f,
 					0xc4, 0xe7, 0x16, 0x3d, 0xca, 0xfd, 0xa1, 0xa2, 0xd0, 0x07}
-				return dcrutil.NewAddressScriptHashFromHash(hash, mainNetParams)
+				return NewAddressScriptHashFromHash(hash, mainNetParams)
 			},
 			net: mainNetParams,
 		},
@@ -182,16 +201,17 @@ func TestAddresses(t *testing.T) {
 			addr:    "TccWLgcquqvwrfBocq5mcK5kBiyw8MvyvCi",
 			encoded: "TccWLgcquqvwrfBocq5mcK5kBiyw8MvyvCi",
 			valid:   true,
-			result: dcrutil.TstAddressScriptHash(
-				[ripemd160.Size]byte{
+			result: &AddressScriptHash{
+				hash: [ripemd160.Size]byte{
 					0x36, 0xc1, 0xca, 0x10, 0xa8, 0xa6, 0xa4, 0xb5, 0xd4, 0x20,
 					0x4a, 0xc9, 0x70, 0x85, 0x39, 0x79, 0x90, 0x3a, 0xa2, 0x84},
-				testNetParams.ScriptHashAddrID),
-			f: func() (dcrutil.Address, error) {
+				netID: testNetParams.ScriptHashAddrID,
+			},
+			f: func() (Address, error) {
 				hash := []byte{
 					0x36, 0xc1, 0xca, 0x10, 0xa8, 0xa6, 0xa4, 0xb5, 0xd4, 0x20,
 					0x4a, 0xc9, 0x70, 0x85, 0x39, 0x79, 0x90, 0x3a, 0xa2, 0x84}
-				return dcrutil.NewAddressScriptHashFromHash(hash, testNetParams)
+				return NewAddressScriptHashFromHash(hash, testNetParams)
 			},
 			net: testNetParams,
 		},
@@ -200,16 +220,17 @@ func TestAddresses(t *testing.T) {
 			addr:    "RcKq28Eheeo2eJvWakqWWAr5pqCUWykwDHe",
 			encoded: "RcKq28Eheeo2eJvWakqWWAr5pqCUWykwDHe",
 			valid:   true,
-			result: dcrutil.TstAddressScriptHash(
-				[ripemd160.Size]byte{
+			result: &AddressScriptHash{
+				hash: [ripemd160.Size]byte{
 					0x36, 0xc1, 0xca, 0x10, 0xa8, 0xa6, 0xa4, 0xb5, 0xd4, 0x20,
 					0x4a, 0xc9, 0x70, 0x85, 0x39, 0x79, 0x90, 0x3a, 0xa2, 0x84},
-				regNetParams.ScriptHashAddrID),
-			f: func() (dcrutil.Address, error) {
+				netID: regNetParams.ScriptHashAddrID,
+			},
+			f: func() (Address, error) {
 				hash := []byte{
 					0x36, 0xc1, 0xca, 0x10, 0xa8, 0xa6, 0xa4, 0xb5, 0xd4, 0x20,
 					0x4a, 0xc9, 0x70, 0x85, 0x39, 0x79, 0x90, 0x3a, 0xa2, 0x84}
-				return dcrutil.NewAddressScriptHashFromHash(hash, regNetParams)
+				return NewAddressScriptHashFromHash(hash, regNetParams)
 			},
 			net: regNetParams,
 		},
@@ -219,12 +240,12 @@ func TestAddresses(t *testing.T) {
 			name:  "p2sh wrong hash length",
 			addr:  "",
 			valid: false,
-			f: func() (dcrutil.Address, error) {
+			f: func() (Address, error) {
 				hash := []byte{
 					0x00, 0xf8, 0x15, 0xb0, 0x36, 0xd9, 0xbb, 0xbc, 0xe5, 0xe9,
 					0xf2, 0xa0, 0x0a, 0xbd, 0x1b, 0xf3, 0xdc, 0x91, 0xe9, 0x55,
 					0x10}
-				return dcrutil.NewAddressScriptHashFromHash(hash, mainNetParams)
+				return NewAddressScriptHashFromHash(hash, mainNetParams)
 			},
 			net: mainNetParams,
 		},
@@ -235,20 +256,20 @@ func TestAddresses(t *testing.T) {
 			addr:    "DsT4FDqBKYG1Xr8aGrT1rKP3kiv6TZ5K5th",
 			encoded: "DsT4FDqBKYG1Xr8aGrT1rKP3kiv6TZ5K5th",
 			valid:   true,
-			result: dcrutil.TstAddressPubKey(
+			result: tstAddressPubKey(
 				[]byte{
 					0x02, 0x8f, 0x53, 0x83, 0x8b, 0x76, 0x39, 0x56, 0x3f, 0x27,
 					0xc9, 0x48, 0x45, 0x54, 0x9a, 0x41, 0xe5, 0x14, 0x6b, 0xcd,
 					0x52, 0xe7, 0xfe, 0xf0, 0xea, 0x6d, 0xa1, 0x43, 0xa0, 0x2b,
 					0x0f, 0xe2, 0xed},
-				dcrutil.PKFCompressed, mainNetParams.PubKeyHashAddrID),
-			f: func() (dcrutil.Address, error) {
+				PKFCompressed, mainNetParams.PubKeyHashAddrID),
+			f: func() (Address, error) {
 				serializedPubKey := []byte{
 					0x02, 0x8f, 0x53, 0x83, 0x8b, 0x76, 0x39, 0x56, 0x3f, 0x27,
 					0xc9, 0x48, 0x45, 0x54, 0x9a, 0x41, 0xe5, 0x14, 0x6b, 0xcd,
 					0x52, 0xe7, 0xfe, 0xf0, 0xea, 0x6d, 0xa1, 0x43, 0xa0, 0x2b,
 					0x0f, 0xe2, 0xed}
-				return dcrutil.NewAddressSecpPubKey(serializedPubKey, mainNetParams)
+				return NewAddressSecpPubKey(serializedPubKey, mainNetParams)
 			},
 			net: mainNetParams,
 		},
@@ -257,20 +278,20 @@ func TestAddresses(t *testing.T) {
 			addr:    "DsfiE2y23CGwKNxSGjbfPGeEW4xw1tamZdc",
 			encoded: "DsfiE2y23CGwKNxSGjbfPGeEW4xw1tamZdc",
 			valid:   true,
-			result: dcrutil.TstAddressPubKey(
+			result: tstAddressPubKey(
 				[]byte{
 					0x03, 0xe9, 0x25, 0xaa, 0xfc, 0x1e, 0xdd, 0x44, 0xe7, 0xc7,
 					0xf1, 0xea, 0x4f, 0xb7, 0xd2, 0x65, 0xdc, 0x67, 0x2f, 0x20,
 					0x4c, 0x3d, 0x0c, 0x81, 0x93, 0x03, 0x89, 0xc1, 0x0b, 0x81,
 					0xfb, 0x75, 0xde},
-				dcrutil.PKFCompressed, mainNetParams.PubKeyHashAddrID),
-			f: func() (dcrutil.Address, error) {
+				PKFCompressed, mainNetParams.PubKeyHashAddrID),
+			f: func() (Address, error) {
 				serializedPubKey := []byte{
 					0x03, 0xe9, 0x25, 0xaa, 0xfc, 0x1e, 0xdd, 0x44, 0xe7, 0xc7,
 					0xf1, 0xea, 0x4f, 0xb7, 0xd2, 0x65, 0xdc, 0x67, 0x2f, 0x20,
 					0x4c, 0x3d, 0x0c, 0x81, 0x93, 0x03, 0x89, 0xc1, 0x0b, 0x81,
 					0xfb, 0x75, 0xde}
-				return dcrutil.NewAddressSecpPubKey(serializedPubKey, mainNetParams)
+				return NewAddressSecpPubKey(serializedPubKey, mainNetParams)
 			},
 			net: mainNetParams,
 		},
@@ -280,7 +301,7 @@ func TestAddresses(t *testing.T) {
 			encoded: "DsfFjaADsV8c5oHWx85ZqfxCZy74K8RFuhK",
 			valid:   true,
 			saddr:   "0264c44653d6567eff5753c5d24a682ddc2b2cadfe1b0c6433b16374dace6778f0",
-			result: dcrutil.TstAddressPubKey(
+			result: tstAddressPubKey(
 				[]byte{
 					0x04, 0x64, 0xc4, 0x46, 0x53, 0xd6, 0x56, 0x7e, 0xff, 0x57,
 					0x53, 0xc5, 0xd2, 0x4a, 0x68, 0x2d, 0xdc, 0x2b, 0x2c, 0xad,
@@ -289,8 +310,8 @@ func TestAddresses(t *testing.T) {
 					0x21, 0x30, 0xce, 0x59, 0xf7, 0x5b, 0xfb, 0xb2, 0xb8, 0x8d,
 					0xa7, 0x94, 0x14, 0x3d, 0x7c, 0xfd, 0x3e, 0x80, 0x80, 0x8a,
 					0x1f, 0xa3, 0x20, 0x39, 0x04},
-				dcrutil.PKFUncompressed, mainNetParams.PubKeyHashAddrID),
-			f: func() (dcrutil.Address, error) {
+				PKFUncompressed, mainNetParams.PubKeyHashAddrID),
+			f: func() (Address, error) {
 				serializedPubKey := []byte{
 					0x04, 0x64, 0xc4, 0x46, 0x53, 0xd6, 0x56, 0x7e, 0xff, 0x57,
 					0x53, 0xc5, 0xd2, 0x4a, 0x68, 0x2d, 0xdc, 0x2b, 0x2c, 0xad,
@@ -299,7 +320,7 @@ func TestAddresses(t *testing.T) {
 					0x21, 0x30, 0xce, 0x59, 0xf7, 0x5b, 0xfb, 0xb2, 0xb8, 0x8d,
 					0xa7, 0x94, 0x14, 0x3d, 0x7c, 0xfd, 0x3e, 0x80, 0x80, 0x8a,
 					0x1f, 0xa3, 0x20, 0x39, 0x04}
-				return dcrutil.NewAddressSecpPubKey(serializedPubKey, mainNetParams)
+				return NewAddressSecpPubKey(serializedPubKey, mainNetParams)
 			},
 			net: mainNetParams,
 		},
@@ -308,20 +329,20 @@ func TestAddresses(t *testing.T) {
 			addr:    "Tso9sQD3ALqRsmEkAm7KvPrkGbeG2Vun7Kv",
 			encoded: "Tso9sQD3ALqRsmEkAm7KvPrkGbeG2Vun7Kv",
 			valid:   true,
-			result: dcrutil.TstAddressPubKey(
+			result: tstAddressPubKey(
 				[]byte{
 					0x02, 0x6a, 0x40, 0xc4, 0x03, 0xe7, 0x46, 0x70, 0xc4, 0xde,
 					0x76, 0x56, 0xa0, 0x9c, 0xaa, 0x23, 0x53, 0xd4, 0xb3, 0x83,
 					0xa9, 0xce, 0x66, 0xee, 0xf5, 0x1e, 0x12, 0x20, 0xea, 0xcf,
 					0x4b, 0xe0, 0x6e},
-				dcrutil.PKFCompressed, testNetParams.PubKeyHashAddrID),
-			f: func() (dcrutil.Address, error) {
+				PKFCompressed, testNetParams.PubKeyHashAddrID),
+			f: func() (Address, error) {
 				serializedPubKey := []byte{
 					0x02, 0x6a, 0x40, 0xc4, 0x03, 0xe7, 0x46, 0x70, 0xc4, 0xde,
 					0x76, 0x56, 0xa0, 0x9c, 0xaa, 0x23, 0x53, 0xd4, 0xb3, 0x83,
 					0xa9, 0xce, 0x66, 0xee, 0xf5, 0x1e, 0x12, 0x20, 0xea, 0xcf,
 					0x4b, 0xe0, 0x6e}
-				return dcrutil.NewAddressSecpPubKey(serializedPubKey, testNetParams)
+				return NewAddressSecpPubKey(serializedPubKey, testNetParams)
 			},
 			net: testNetParams,
 		},
@@ -330,20 +351,20 @@ func TestAddresses(t *testing.T) {
 			addr:    "TsWZ1EzypJfMwBKAEDYKuyHRGctqGAxMje2",
 			encoded: "TsWZ1EzypJfMwBKAEDYKuyHRGctqGAxMje2",
 			valid:   true,
-			result: dcrutil.TstAddressPubKey(
+			result: tstAddressPubKey(
 				[]byte{
 					0x03, 0x08, 0x44, 0xee, 0x70, 0xd8, 0x38, 0x4d, 0x52, 0x50,
 					0xe9, 0xbb, 0x3a, 0x6a, 0x73, 0xd4, 0xb5, 0xbe, 0xc7, 0x70,
 					0xe8, 0xb3, 0x1d, 0x6a, 0x0a, 0xe9, 0xfb, 0x73, 0x90, 0x09,
 					0xd9, 0x1a, 0xf5},
-				dcrutil.PKFCompressed, testNetParams.PubKeyHashAddrID),
-			f: func() (dcrutil.Address, error) {
+				PKFCompressed, testNetParams.PubKeyHashAddrID),
+			f: func() (Address, error) {
 				serializedPubKey := []byte{
 					0x03, 0x08, 0x44, 0xee, 0x70, 0xd8, 0x38, 0x4d, 0x52, 0x50,
 					0xe9, 0xbb, 0x3a, 0x6a, 0x73, 0xd4, 0xb5, 0xbe, 0xc7, 0x70,
 					0xe8, 0xb3, 0x1d, 0x6a, 0x0a, 0xe9, 0xfb, 0x73, 0x90, 0x09,
 					0xd9, 0x1a, 0xf5}
-				return dcrutil.NewAddressSecpPubKey(serializedPubKey, testNetParams)
+				return NewAddressSecpPubKey(serializedPubKey, testNetParams)
 			},
 			net: testNetParams,
 		},
@@ -353,7 +374,7 @@ func TestAddresses(t *testing.T) {
 			encoded: "Tso9sQD3ALqRsmEkAm7KvPrkGbeG2Vun7Kv",
 			valid:   true,
 			saddr:   "026a40c403e74670c4de7656a09caa2353d4b383a9ce66eef51e1220eacf4be06e",
-			result: dcrutil.TstAddressPubKey(
+			result: tstAddressPubKey(
 				[]byte{
 					0x04, 0x6a, 0x40, 0xc4, 0x03, 0xe7, 0x46, 0x70, 0xc4, 0xde,
 					0x76, 0x56, 0xa0, 0x9c, 0xaa, 0x23, 0x53, 0xd4, 0xb3, 0x83,
@@ -362,8 +383,8 @@ func TestAddresses(t *testing.T) {
 					0x90, 0x07, 0xcb, 0x94, 0x22, 0x0b, 0x3b, 0xb8, 0x94, 0x91,
 					0xd5, 0xa1, 0xfd, 0x2d, 0x77, 0x86, 0x7f, 0xca, 0x64, 0x21,
 					0x7a, 0xce, 0xcf, 0x22, 0x44},
-				dcrutil.PKFUncompressed, testNetParams.PubKeyHashAddrID),
-			f: func() (dcrutil.Address, error) {
+				PKFUncompressed, testNetParams.PubKeyHashAddrID),
+			f: func() (Address, error) {
 				serializedPubKey := []byte{
 					0x04, 0x6a, 0x40, 0xc4, 0x03, 0xe7, 0x46, 0x70, 0xc4, 0xde,
 					0x76, 0x56, 0xa0, 0x9c, 0xaa, 0x23, 0x53, 0xd4, 0xb3, 0x83,
@@ -372,7 +393,7 @@ func TestAddresses(t *testing.T) {
 					0x90, 0x07, 0xcb, 0x94, 0x22, 0x0b, 0x3b, 0xb8, 0x94, 0x91,
 					0xd5, 0xa1, 0xfd, 0x2d, 0x77, 0x86, 0x7f, 0xca, 0x64, 0x21,
 					0x7a, 0xce, 0xcf, 0x22, 0x44}
-				return dcrutil.NewAddressSecpPubKey(serializedPubKey, testNetParams)
+				return NewAddressSecpPubKey(serializedPubKey, testNetParams)
 			},
 			net: testNetParams,
 		},
@@ -381,21 +402,20 @@ func TestAddresses(t *testing.T) {
 			addr:    "RsWUYqptu9hWfQyT8gs4pFd5uhroR5yjiVg",
 			encoded: "RsWUYqptu9hWfQyT8gs4pFd5uhroR5yjiVg",
 			valid:   true,
-			result: dcrutil.TstAddressPubKey(
+			result: tstAddressPubKey(
 				[]byte{
 					0x02, 0x6a, 0x40, 0xc4, 0x03, 0xe7, 0x46, 0x70, 0xc4, 0xde,
 					0x76, 0x56, 0xa0, 0x9c, 0xaa, 0x23, 0x53, 0xd4, 0xb3, 0x83,
 					0xa9, 0xce, 0x66, 0xee, 0xf5, 0x1e, 0x12, 0x20, 0xea, 0xcf,
 					0x4b, 0xe0, 0x6e},
-				dcrutil.PKFCompressed, regNetParams.PubKeyHashAddrID),
-			f: func() (dcrutil.Address, error) {
+				PKFCompressed, regNetParams.PubKeyHashAddrID),
+			f: func() (Address, error) {
 				serializedPubKey := []byte{
 					0x02, 0x6a, 0x40, 0xc4, 0x03, 0xe7, 0x46, 0x70, 0xc4, 0xde,
 					0x76, 0x56, 0xa0, 0x9c, 0xaa, 0x23, 0x53, 0xd4, 0xb3, 0x83,
 					0xa9, 0xce, 0x66, 0xee, 0xf5, 0x1e, 0x12, 0x20, 0xea, 0xcf,
 					0x4b, 0xe0, 0x6e}
-				return dcrutil.NewAddressSecpPubKey(serializedPubKey,
-					regNetParams)
+				return NewAddressSecpPubKey(serializedPubKey, regNetParams)
 			},
 			net: regNetParams,
 		},
@@ -404,21 +424,20 @@ func TestAddresses(t *testing.T) {
 			addr:    "RsDsggcqZ7XSiq3sC9J4oq3kuj7NefnBshc",
 			encoded: "RsDsggcqZ7XSiq3sC9J4oq3kuj7NefnBshc",
 			valid:   true,
-			result: dcrutil.TstAddressPubKey(
+			result: tstAddressPubKey(
 				[]byte{
 					0x03, 0x08, 0x44, 0xee, 0x70, 0xd8, 0x38, 0x4d, 0x52, 0x50,
 					0xe9, 0xbb, 0x3a, 0x6a, 0x73, 0xd4, 0xb5, 0xbe, 0xc7, 0x70,
 					0xe8, 0xb3, 0x1d, 0x6a, 0x0a, 0xe9, 0xfb, 0x73, 0x90, 0x09,
 					0xd9, 0x1a, 0xf5},
-				dcrutil.PKFCompressed, regNetParams.PubKeyHashAddrID),
-			f: func() (dcrutil.Address, error) {
+				PKFCompressed, regNetParams.PubKeyHashAddrID),
+			f: func() (Address, error) {
 				serializedPubKey := []byte{
 					0x03, 0x08, 0x44, 0xee, 0x70, 0xd8, 0x38, 0x4d, 0x52, 0x50,
 					0xe9, 0xbb, 0x3a, 0x6a, 0x73, 0xd4, 0xb5, 0xbe, 0xc7, 0x70,
 					0xe8, 0xb3, 0x1d, 0x6a, 0x0a, 0xe9, 0xfb, 0x73, 0x90, 0x09,
 					0xd9, 0x1a, 0xf5}
-				return dcrutil.NewAddressSecpPubKey(serializedPubKey,
-					regNetParams)
+				return NewAddressSecpPubKey(serializedPubKey, regNetParams)
 			},
 			net: regNetParams,
 		},
@@ -428,7 +447,7 @@ func TestAddresses(t *testing.T) {
 			name:  "mainnet p2pk hybrid (0x06)",
 			addr:  "",
 			valid: false,
-			f: func() (dcrutil.Address, error) {
+			f: func() (Address, error) {
 				serializedPubKey := []byte{
 					0x06, 0x64, 0xc4, 0x46, 0x53, 0xd6, 0x56, 0x7e, 0xff, 0x57,
 					0x53, 0xc5, 0xd2, 0x4a, 0x68, 0x2d, 0xdc, 0x2b, 0x2c, 0xad,
@@ -437,7 +456,7 @@ func TestAddresses(t *testing.T) {
 					0x21, 0x30, 0xce, 0x59, 0xf7, 0x5b, 0xfb, 0xb2, 0xb8, 0x8d,
 					0xa7, 0x94, 0x14, 0x3d, 0x7c, 0xfd, 0x3e, 0x80, 0x80, 0x8a,
 					0x1f, 0xa3, 0x20, 0x39, 0x04}
-				return dcrutil.NewAddressSecpPubKey(serializedPubKey, mainNetParams)
+				return NewAddressSecpPubKey(serializedPubKey, mainNetParams)
 			},
 			net: mainNetParams,
 		},
@@ -445,7 +464,7 @@ func TestAddresses(t *testing.T) {
 			name:  "mainnet p2pk hybrid (0x07)",
 			addr:  "",
 			valid: false,
-			f: func() (dcrutil.Address, error) {
+			f: func() (Address, error) {
 				serializedPubKey := []byte{
 					0x07, 0x34, 0x8d, 0x8a, 0xeb, 0x42, 0x53, 0xca, 0x52, 0x45,
 					0x6f, 0xe5, 0xda, 0x94, 0xab, 0x12, 0x63, 0xbf, 0xee, 0x16,
@@ -454,7 +473,7 @@ func TestAddresses(t *testing.T) {
 					0x3b, 0x14, 0x25, 0x8b, 0x90, 0x5d, 0xc9, 0x4f, 0xae, 0xd3,
 					0x24, 0xdd, 0x8a, 0x9d, 0x67, 0xff, 0xac, 0x8c, 0xc0, 0xa8,
 					0x5b, 0xe8, 0x4b, 0xac, 0x5d}
-				return dcrutil.NewAddressSecpPubKey(serializedPubKey, mainNetParams)
+				return NewAddressSecpPubKey(serializedPubKey, mainNetParams)
 			},
 			net: mainNetParams,
 		},
@@ -462,7 +481,7 @@ func TestAddresses(t *testing.T) {
 			name:  "testnet p2pk hybrid (0x06)",
 			addr:  "",
 			valid: false,
-			f: func() (dcrutil.Address, error) {
+			f: func() (Address, error) {
 				serializedPubKey := []byte{
 					0x06, 0x6a, 0x40, 0xc4, 0x03, 0xe7, 0x46, 0x70, 0xc4, 0xde,
 					0x76, 0x56, 0xa0, 0x9c, 0xaa, 0x23, 0x53, 0xd4, 0xb3, 0x83,
@@ -471,7 +490,7 @@ func TestAddresses(t *testing.T) {
 					0x90, 0x07, 0xcb, 0x94, 0x22, 0x0b, 0x3b, 0xb8, 0x94, 0x91,
 					0xd5, 0xa1, 0xfd, 0x2d, 0x77, 0x86, 0x7f, 0xca, 0x64, 0x21,
 					0x7a, 0xce, 0xcf, 0x22, 0x44}
-				return dcrutil.NewAddressSecpPubKey(serializedPubKey, testNetParams)
+				return NewAddressSecpPubKey(serializedPubKey, testNetParams)
 			},
 			net: testNetParams,
 		},
@@ -479,7 +498,7 @@ func TestAddresses(t *testing.T) {
 			name:  "testnet p2pk hybrid (0x07)",
 			addr:  "",
 			valid: false,
-			f: func() (dcrutil.Address, error) {
+			f: func() (Address, error) {
 				serializedPubKey := []byte{
 					0x07, 0xed, 0xd4, 0x07, 0x47, 0xde, 0x90, 0x5a, 0x9b, 0xec,
 					0xb1, 0x49, 0x87, 0xa1, 0xa2, 0x6c, 0x1a, 0xdb, 0xd6, 0x17,
@@ -488,7 +507,7 @@ func TestAddresses(t *testing.T) {
 					0x65, 0xfe, 0x7b, 0x86, 0x1e, 0x7f, 0x6f, 0xcc, 0x08, 0x7d,
 					0xc7, 0xfe, 0x47, 0x38, 0x0f, 0xa8, 0xbd, 0xe0, 0xd9, 0xc3,
 					0x22, 0xd5, 0x3c, 0x0e, 0x89}
-				return dcrutil.NewAddressSecpPubKey(serializedPubKey, testNetParams)
+				return NewAddressSecpPubKey(serializedPubKey, testNetParams)
 			},
 			net: testNetParams,
 		},
@@ -496,7 +515,7 @@ func TestAddresses(t *testing.T) {
 
 	for _, test := range tests {
 		// Decode addr and compare error against valid.
-		decoded, err := dcrutil.DecodeAddress(test.addr)
+		decoded, err := DecodeAddress(test.addr)
 		if (err == nil) != test.valid {
 			t.Errorf("%v: decoding test failed: %v", test.name, err)
 			return
@@ -524,13 +543,15 @@ func TestAddresses(t *testing.T) {
 			// Perform type-specific calculations.
 			var saddr []byte
 			switch d := decoded.(type) {
-			case *dcrutil.AddressPubKeyHash:
-				saddr = dcrutil.TstAddressSAddr(encoded)
+			case *AddressPubKeyHash:
+				decoded := base58.Decode(encoded)
+				saddr = decoded[2 : 2+ripemd160.Size]
 
-			case *dcrutil.AddressScriptHash:
-				saddr = dcrutil.TstAddressSAddr(encoded)
+			case *AddressScriptHash:
+				decoded := base58.Decode(encoded)
+				saddr = decoded[2 : 2+ripemd160.Size]
 
-			case *dcrutil.AddressSecpPubKey:
+			case *AddressSecpPubKey:
 				// Ignore the error here since the script
 				// address is checked below.
 				saddr, err = hex.DecodeString(d.String())
@@ -538,12 +559,12 @@ func TestAddresses(t *testing.T) {
 					saddr, _ = hex.DecodeString(test.saddr)
 				}
 
-			case *dcrutil.AddressEdwardsPubKey:
+			case *AddressEdwardsPubKey:
 				// Ignore the error here since the script
 				// address is checked below.
 				saddr, _ = hex.DecodeString(d.String())
 
-			case *dcrutil.AddressSecSchnorrPubKey:
+			case *AddressSecSchnorrPubKey:
 				// Ignore the error here since the script
 				// address is checked below.
 				saddr, _ = hex.DecodeString(d.String())
@@ -557,14 +578,14 @@ func TestAddresses(t *testing.T) {
 				return
 			}
 			switch a := decoded.(type) {
-			case *dcrutil.AddressPubKeyHash:
+			case *AddressPubKeyHash:
 				if h := a.Hash160()[:]; !bytes.Equal(saddr, h) {
 					t.Errorf("%v: hashes do not match:\n%x != \n%x",
 						test.name, saddr, h)
 					return
 				}
 
-			case *dcrutil.AddressScriptHash:
+			case *AddressScriptHash:
 				if h := a.Hash160()[:]; !bytes.Equal(saddr, h) {
 					t.Errorf("%v: hashes do not match:\n%x != \n%x",
 						test.name, saddr, h)

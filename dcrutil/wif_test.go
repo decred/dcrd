@@ -1,9 +1,9 @@
 // Copyright (c) 2013, 2014 The btcsuite developers
-// Copyright (c) 2015-2018 The Decred developers
+// Copyright (c) 2015-2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
-package dcrutil_test
+package dcrutil
 
 import (
 	"testing"
@@ -13,7 +13,6 @@ import (
 	"github.com/decred/dcrd/dcrec"
 	"github.com/decred/dcrd/dcrec/edwards"
 	"github.com/decred/dcrd/dcrec/secp256k1"
-	. "github.com/decred/dcrd/dcrutil"
 )
 
 func TestEncodeDecodeWIF(t *testing.T) {
