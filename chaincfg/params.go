@@ -39,17 +39,6 @@ var (
 	regNetPowLimit = new(big.Int).Sub(new(big.Int).Lsh(bigOne, 255), bigOne)
 )
 
-// SigHashOptimization is an optimization for verification of transactions that
-// do CHECKSIG operations with hashType SIGHASH_ALL. Although there should be no
-// consequences to daemons that are simply running a node, it may be the case
-// that you could cause database corruption if you turn this code on, create and
-// manipulate your own MsgTx, then include them in blocks. For safety, if you're
-// using the daemon with wallet or mining with the daemon this should be disabled.
-// If you believe that any MsgTxs in your daemon will be used mutably, do NOT
-// turn on this feature. It is disabled by default.
-// This feature is considered EXPERIMENTAL, enable at your own risk!
-var SigHashOptimization = false
-
 // CheckForDuplicateHashes checks for duplicate hashes when validating blocks.
 // Because of the rule inserting the height into the second (nonce) txOut, there
 // should never be a duplicate transaction hash that overwrites another. However,
