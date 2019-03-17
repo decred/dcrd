@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/decred/dcrd/blockchain/stake"
-	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/database"
 	"github.com/decred/dcrd/wire"
@@ -309,8 +308,7 @@ type blockIndex struct {
 	// The following fields are set when the instance is created and can't
 	// be changed afterwards, so there is no need to protect them with a
 	// separate mutex.
-	db          database.DB
-	chainParams *chaincfg.Params
+	db database.DB
 
 	// These following fields are protected by the embedded mutex.
 	//
@@ -330,13 +328,12 @@ type blockIndex struct {
 // newBlockIndex returns a new empty instance of a block index.  The index will
 // be dynamically populated as block nodes are loaded from the database and
 // manually added.
-func newBlockIndex(db database.DB, chainParams *chaincfg.Params) *blockIndex {
+func newBlockIndex(db database.DB) *blockIndex {
 	return &blockIndex{
-		db:          db,
-		chainParams: chainParams,
-		index:       make(map[chainhash.Hash]*blockNode),
-		modified:    make(map[*blockNode]struct{}),
-		chainTips:   make(map[int64][]*blockNode),
+		db:        db,
+		index:     make(map[chainhash.Hash]*blockNode),
+		modified:  make(map[*blockNode]struct{}),
+		chainTips: make(map[int64][]*blockNode),
 	}
 }
 

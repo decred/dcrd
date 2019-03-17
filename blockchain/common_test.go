@@ -125,7 +125,7 @@ func newFakeChain(params *chaincfg.Params) *BlockChain {
 	// when creating the fake chain below.
 	node := newBlockNode(&params.GenesisBlock.Header, nil)
 	node.status = statusDataStored | statusValid
-	index := newBlockIndex(nil, params)
+	index := newBlockIndex(nil)
 	index.AddNode(node)
 
 	// Generate a deployment ID to version map from the provided params.

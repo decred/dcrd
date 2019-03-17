@@ -2100,7 +2100,7 @@ func New(config *Config) (*BlockChain, error) {
 		sigCache:                      config.SigCache,
 		indexManager:                  config.IndexManager,
 		interrupt:                     config.Interrupt,
-		index:                         newBlockIndex(config.DB, params),
+		index:                         newBlockIndex(config.DB),
 		bestChain:                     newChainView(nil),
 		orphans:                       make(map[chainhash.Hash]*orphanBlock),
 		prevOrphans:                   make(map[chainhash.Hash][]*orphanBlock),
