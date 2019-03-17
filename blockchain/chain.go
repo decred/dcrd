@@ -6,7 +6,6 @@
 package blockchain
 
 import (
-	"container/list"
 	"fmt"
 	"math/big"
 	"sync"
@@ -618,21 +617,21 @@ func (b *BlockChain) pruneStakeNodes() {
 		return
 	}
 
-	// Push the nodes to delete on a list in reverse order since it's easier
-	// to prune them going forwards than it is backwards.  This will
-	// typically end up being a single node since pruning is currently done
-	// just before each new node is created.  However, that might be tuned
-	// later to only prune at intervals, so the code needs to account for
-	// the possibility of multiple nodes.
-	deleteNodes := list.New()
+	// Push the nodes to delete on a list. This will typically end up being
+	// a single node since pruning is currently done just before each new
+	// node is created.  However, that might be tuned later to only prune at
+	// intervals, so the code needs to account for the possibility of
+	// multiple nodes.
+	var deleteNodes []*blockNode
 	for node := pruneToNode.parent; node != nil; node = node.parent {
-		deleteNodes.PushFront(node)
+		deleteNodes = append(deleteNodes, node)
 	}
 
-	// Loop through each node to prune, unlink its children, remove it from
-	// the dependency index, and remove it from the node index.
-	for e := deleteNodes.Front(); e != nil; e = e.Next() {
-		node := e.Value.(*blockNode)
+	// Loop through each node to prune in reverse, unlink its children, remove
+	// it from the dependency index, and remove it from the node index.
+	for i := len(deleteNodes) - 1; i >= 0; i-- {
+		node := deleteNodes[i]
+
 		// Do not attempt to prune if the node should already have been pruned,
 		// for example if you're adding an old side chain block.
 		if node.height > b.bestChain.Tip().height-minMemoryNodes {
