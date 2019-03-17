@@ -1,5 +1,7 @@
 module github.com/decred/dcrd/database
 
+go 1.11
+
 require (
 	github.com/btcsuite/goleveldb v1.0.0
 	github.com/davecgh/go-spew v1.1.1 // indirect

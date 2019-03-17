@@ -1,5 +1,7 @@
 module github.com/decred/dcrd/gcs
 
+go 1.11
+
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dchest/blake256 v1.0.0

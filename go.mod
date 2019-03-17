@@ -1,5 +1,7 @@
 module github.com/decred/dcrd
 
+go 1.11
+
 require (
 	github.com/btcsuite/go-socks v0.0.0-20170105172521-4720035b7bfd
 	github.com/btcsuite/winsvc v1.0.0

@@ -1,5 +1,7 @@
 module github.com/decred/dcrd/rpcclient/v2
 
+go 1.11
+
 require (
 	github.com/btcsuite/go-socks v0.0.0-20170105172521-4720035b7bfd
 	github.com/davecgh/go-spew v1.1.1

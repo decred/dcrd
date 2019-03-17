@@ -1,5 +1,7 @@
 module github.com/decred/dcrd/mining
 
+go 1.11
+
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/decred/dcrd/blockchain v1.1.1
