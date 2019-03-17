@@ -6,7 +6,6 @@
 package addrmgr
 
 import (
-	"container/list"
 	crand "crypto/rand" // for seeding
 	"encoding/base32"
 	"encoding/binary"
@@ -40,7 +39,7 @@ type AddrManager struct {
 	key            [32]byte                                 // cryptographically secure random bytes
 	addrIndex      map[string]*KnownAddress                 // address key to ka for all addresses
 	addrNew        [newBucketCount]map[string]*KnownAddress // storage for new addresses
-	addrTried      [triedBucketCount]*list.List             // storage for tried addresses
+	addrTried      [triedBucketCount][]*KnownAddress        // storage for tried addresses
 	addrChanged    bool                                     // true if address state needs saving
 	started        int32                                    // is 1 if started
 	shutdown       int32                                    // is 1 if shutdown is done or in progress
@@ -287,18 +286,18 @@ func (a *AddrManager) expireNew(bucket int) {
 // pickTried selects an address from the tried bucket to be evicted.
 // We just choose the eldest. Bitcoind selects 4 random entries and throws away
 // the older of them.
-func (a *AddrManager) pickTried(bucket int) *list.Element {
+func (a *AddrManager) pickTried(bucket int) int {
 	var oldest *KnownAddress
-	var oldestElem *list.Element
-	for e := a.addrTried[bucket].Front(); e != nil; e = e.Next() {
-		ka := e.Value.(*KnownAddress)
-		if oldest == nil || oldest.na.Timestamp.After(ka.na.Timestamp) {
-			oldestElem = e
+	var idx int
+
+	for i, ka := range a.addrTried[bucket] {
+		if i == 0 || oldest.na.Timestamp.After(ka.na.Timestamp) {
 			oldest = ka
+			idx = i
 		}
 
 	}
-	return oldestElem
+	return idx
 }
 
 func (a *AddrManager) getNewBucket(netAddr, srcAddr *wire.NetAddress) int {
@@ -405,10 +404,9 @@ func (a *AddrManager) savePeers() {
 		}
 	}
 	for i := range a.addrTried {
-		sam.TriedBuckets[i] = make([]string, a.addrTried[i].Len())
+		sam.TriedBuckets[i] = make([]string, len(a.addrTried[i]))
 		j := 0
-		for e := a.addrTried[i].Front(); e != nil; e = e.Next() {
-			ka := e.Value.(*KnownAddress)
+		for _, ka := range a.addrTried[i] {
 			sam.TriedBuckets[i][j] = NetAddressKey(ka.na)
 			j++
 		}
@@ -525,7 +523,7 @@ func (a *AddrManager) deserializePeers(filePath string) error {
 
 			ka.tried = true
 			a.nTried++
-			a.addrTried[i].PushBack(ka)
+			a.addrTried[i] = append(a.addrTried[i], ka)
 		}
 	}
 
@@ -707,7 +705,7 @@ func (a *AddrManager) reset() {
 		a.addrNew[i] = make(map[string]*KnownAddress)
 	}
 	for i := range a.addrTried {
-		a.addrTried[i] = list.New()
+		a.addrTried[i] = nil
 	}
 	a.addrChanged = true
 }
@@ -784,16 +782,14 @@ func (a *AddrManager) GetAddress() *KnownAddress {
 		for {
 			// Pick a random bucket.
 			bucket := a.rand.Intn(len(a.addrTried))
-			if a.addrTried[bucket].Len() == 0 {
+			if len(a.addrTried[bucket]) == 0 {
 				continue
 			}
 
 			// Then, a random entry in the list.
-			e := a.addrTried[bucket].Front()
-			for i := a.rand.Int63n(int64(a.addrTried[bucket].Len())); i > 0; i-- {
-				e = e.Next()
-			}
-			ka := e.Value.(*KnownAddress)
+			randEntry := a.rand.Intn(len(a.addrTried[bucket]))
+			ka := a.addrTried[bucket][randEntry]
+
 			randval := a.rand.Intn(large)
 			if float64(randval) < (factor * ka.chance() * float64(large)) {
 				log.Tracef("Selected %v from tried bucket",
@@ -931,17 +927,17 @@ func (a *AddrManager) Good(addr *wire.NetAddress) {
 	bucket := a.getTriedBucket(ka.na)
 
 	// Room in this tried bucket?
-	if a.addrTried[bucket].Len() < triedBucketSize {
+	if len(a.addrTried[bucket]) < triedBucketSize {
 		ka.tried = true
-		a.addrTried[bucket].PushBack(ka)
+		a.addrTried[bucket] = append(a.addrTried[bucket], ka)
 		a.addrChanged = true
 		a.nTried++
 		return
 	}
 
 	// No room, we have to evict something else.
-	entry := a.pickTried(bucket)
-	rmka := entry.Value.(*KnownAddress)
+	triedIdx := a.pickTried(bucket)
+	rmka := a.addrTried[bucket][triedIdx]
 
 	// First bucket it would have been put in.
 	newBucket := a.getNewBucket(rmka.na, rmka.srcAddr)
@@ -954,7 +950,7 @@ func (a *AddrManager) Good(addr *wire.NetAddress) {
 
 	// replace with ka in list.
 	ka.tried = true
-	entry.Value = ka
+	a.addrTried[bucket][triedIdx] = ka
 
 	rmka.tried = false
 	rmka.refs++
