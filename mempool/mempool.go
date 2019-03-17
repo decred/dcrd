@@ -6,7 +6,6 @@
 package mempool
 
 import (
-	"container/list"
 	"fmt"
 	"math"
 	"sync"
@@ -1361,12 +1360,12 @@ func (mp *TxPool) processOrphans(acceptedTx *dcrutil.Tx) []*dcrutil.Tx {
 	var acceptedTxns []*dcrutil.Tx
 
 	// Start with processing at least the passed transaction.
-	processList := list.New()
-	processList.PushBack(acceptedTx)
-	for processList.Len() > 0 {
+	processList := []*dcrutil.Tx{acceptedTx}
+	for len(processList) > 0 {
 		// Pop the transaction to process from the front of the list.
-		firstElement := processList.Remove(processList.Front())
-		processItem := firstElement.(*dcrutil.Tx)
+		processItem := processList[0]
+		processList[0] = nil
+		processList = processList[1:]
 
 		txType := stake.DetermineTxType(processItem.MsgTx())
 		tree := wire.TxTreeRegular
@@ -1421,7 +1420,7 @@ func (mp *TxPool) processOrphans(acceptedTx *dcrutil.Tx) []*dcrutil.Tx {
 				// depend on it are handled too.
 				acceptedTxns = append(acceptedTxns, tx)
 				mp.removeOrphan(tx, false)
-				processList.PushBack(tx)
+				processList = append(processList, tx)
 
 				// Only one transaction for this outpoint can be
 				// accepted, so the rest are now double spends
