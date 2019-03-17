@@ -2516,7 +2516,6 @@ func newServer(listenAddrs []string, db database.DB, chainParams *chaincfg.Param
 	}
 
 	feC := fees.EstimatorConfig{
-		ChainParams:  chainParams,
 		MinBucketFee: cfg.minRelayTxFee,
 		MaxBucketFee: dcrutil.Amount(fees.DefaultMaxBucketFeeMultiplier) * cfg.minRelayTxFee,
 		MaxConfirms:  fees.DefaultMaxConfirmations,

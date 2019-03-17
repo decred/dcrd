@@ -16,7 +16,6 @@ import (
 	"github.com/btcsuite/goleveldb/leveldb"
 	ldbutil "github.com/btcsuite/goleveldb/leveldb/util"
 	"github.com/decred/dcrd/blockchain/stake"
-	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/dcrutil"
 )
@@ -131,9 +130,6 @@ type EstimatorConfig struct {
 	// updates to the estimator state are not backed by the filesystem.
 	DatabaseFile string
 
-	// ChainParams must point to the parameters of the current network.
-	ChainParams *chaincfg.Params
-
 	// ReplaceBucketsOnLoad indicates whether to replace the buckets in the
 	// current estimator by those stored in the feesdb file instead of
 	// validating that they are both using the same set of fees.
@@ -169,7 +165,6 @@ type Estimator struct {
 	bestHeight  int64
 	db          *leveldb.DB
 	lock        sync.RWMutex
-	chainParams *chaincfg.Params
 }
 
 // NewEstimator returns an empty estimator given a config. This estimator
@@ -220,7 +215,6 @@ func NewEstimator(cfg *EstimatorConfig) (*Estimator, error) {
 		decay:           decay,
 		memPoolTxs:      make(map[chainhash.Hash]memPoolTxDesc),
 		bestHeight:      -1,
-		chainParams:     cfg.ChainParams,
 	}
 
 	for i := range bucketFees {
