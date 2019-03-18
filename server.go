@@ -33,6 +33,7 @@ import (
 	"github.com/decred/dcrd/gcs"
 	"github.com/decred/dcrd/gcs/blockcf"
 	"github.com/decred/dcrd/internal/version"
+	"github.com/decred/dcrd/lru"
 	"github.com/decred/dcrd/mempool/v2"
 	"github.com/decred/dcrd/mining"
 	"github.com/decred/dcrd/peer"
@@ -60,6 +61,10 @@ const (
 
 	// maxProtocolVersion is the max protocol version the server supports.
 	maxProtocolVersion = wire.NodeCFVersion
+
+	// maxKnownAddrsPerPeer is the maximum number of items to keep in the
+	// per-peer known address cache.
+	maxKnownAddrsPerPeer = 10000
 )
 
 var (
@@ -231,7 +236,7 @@ type serverPeer struct {
 	requestQueue    []*wire.InvVect
 	requestedTxns   map[chainhash.Hash]struct{}
 	requestedBlocks map[chainhash.Hash]struct{}
-	knownAddresses  map[string]struct{}
+	knownAddresses  lru.Cache
 	banScore        connmgr.DynamicBanScore
 	quit            chan struct{}
 
@@ -252,7 +257,7 @@ func newServerPeer(s *server, isPersistent bool) *serverPeer {
 		persistent:      isPersistent,
 		requestedTxns:   make(map[chainhash.Hash]struct{}),
 		requestedBlocks: make(map[chainhash.Hash]struct{}),
-		knownAddresses:  make(map[string]struct{}),
+		knownAddresses:  lru.NewCache(maxKnownAddrsPerPeer),
 		quit:            make(chan struct{}),
 		txProcessed:     make(chan struct{}, 1),
 		blockProcessed:  make(chan struct{}, 1),
@@ -270,14 +275,13 @@ func (sp *serverPeer) newestBlock() (*chainhash.Hash, int64, error) {
 // the peer to prevent sending duplicate addresses.
 func (sp *serverPeer) addKnownAddresses(addresses []*wire.NetAddress) {
 	for _, na := range addresses {
-		sp.knownAddresses[addrmgr.NetAddressKey(na)] = struct{}{}
+		sp.knownAddresses.Add(addrmgr.NetAddressKey(na))
 	}
 }
 
 // addressKnown true if the given address is already known to the peer.
 func (sp *serverPeer) addressKnown(na *wire.NetAddress) bool {
-	_, exists := sp.knownAddresses[addrmgr.NetAddressKey(na)]
-	return exists
+	return sp.knownAddresses.Contains(addrmgr.NetAddressKey(na))
 }
 
 // setDisableRelayTx toggles relaying of transactions for the given peer.
