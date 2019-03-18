@@ -121,3 +121,53 @@ func TestTxErrors(t *testing.T) {
 			"got %v, want %v", err, io.EOF)
 	}
 }
+
+// TestNewTxDeep tests the API for Tx deep copy.
+func TestNewTxDeep(t *testing.T) {
+	orgTx := Block100000.Transactions[0]
+	copyTxDeep := NewTxDeep(orgTx)
+	copyTx := copyTxDeep.MsgTx()
+
+	// Ensure original and copied has equal values to original transaction.
+	if !reflect.DeepEqual(orgTx, copyTx) {
+		t.Fatalf("MsgTx is not equal - got %v, want %v",
+			spew.Sdump(copyTx), spew.Sdump(&orgTx))
+	}
+
+	// Ensure original and copied transaction referring to different allocations.
+	if orgTx == copyTx {
+		t.Fatal("MsgTx is referring to the same allocation")
+	}
+
+	// Compare each original and copied input transaction allocations.
+	for i := 0; i < len(orgTx.TxIn); i++ {
+		// Ensure input transactions referring to different allocations.
+		if orgTx.TxIn[i] == copyTx.TxIn[i] {
+			t.Errorf("TxIn #%d is referring to the same allocation", i)
+		}
+
+		// Ensure previous transaction output points referring to different
+		// allocations.
+		if &orgTx.TxIn[i].PreviousOutPoint == &copyTx.TxIn[i].PreviousOutPoint {
+			t.Errorf("PreviousOutPoint #%d is referring to the same allocation", i)
+		}
+
+		// Ensure signature scripts referring to different allocations.
+		if &orgTx.TxIn[i].SignatureScript[0] == &copyTx.TxIn[i].SignatureScript[0] {
+			t.Errorf("SignatureScript #%d is referring to the same allocation", i)
+		}
+	}
+
+	// Compare each original and copied output transaction allocations.
+	for i := 0; i < len(orgTx.TxOut); i++ {
+		// Ensure output transactions referring to different allocations.
+		if orgTx.TxOut[i] == copyTx.TxOut[i] {
+			t.Errorf("TxOut #%d is referring to the same allocation", i)
+		}
+
+		// Ensure PkScripts referring to different allocations.
+		if &orgTx.TxOut[i].PkScript[0] == &copyTx.TxOut[i].PkScript[0] {
+			t.Errorf("PkScript #%d is referring to the same allocation", i)
+		}
+	}
+}
