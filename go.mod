@@ -20,6 +20,7 @@ require (
 	github.com/decred/dcrd/fees v1.0.0
 	github.com/decred/dcrd/gcs v1.0.2
 	github.com/decred/dcrd/hdkeychain v1.1.1
+	github.com/decred/dcrd/lru v1.0.0
 	github.com/decred/dcrd/mempool/v2 v2.0.0
 	github.com/decred/dcrd/mining v1.1.0
 	github.com/decred/dcrd/peer v1.1.0
@@ -53,6 +54,7 @@ replace (
 	github.com/decred/dcrd/gcs => ./gcs
 	github.com/decred/dcrd/hdkeychain => ./hdkeychain
 	github.com/decred/dcrd/limits => ./limits
+	github.com/decred/dcrd/lru => ./lru
 	github.com/decred/dcrd/mempool/v2 => ./mempool
 	github.com/decred/dcrd/mining => ./mining
 	github.com/decred/dcrd/peer => ./peer
