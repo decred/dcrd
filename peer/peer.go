@@ -79,7 +79,7 @@ var (
 
 	// sentNonces houses the unique nonces that are generated when pushing
 	// version messages that are used to detect self connections.
-	sentNonces = newLruNonceCache(50)
+	sentNonces = lru.NewCache(50)
 
 	// allowSelfConns is only used to allow the tests to bypass the self
 	// connection detecting and disconnect logic since they intentionally
@@ -1805,7 +1805,7 @@ func (p *Peer) readRemoteVersionMsg() error {
 	}
 
 	// Detect self connections.
-	if !allowSelfConns && sentNonces.Exists(msg.Nonce) {
+	if !allowSelfConns && sentNonces.Contains(msg.Nonce) {
 		return errors.New("disconnecting peer connected to self")
 	}
 
