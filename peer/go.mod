@@ -10,6 +10,7 @@ require (
 	github.com/decred/dcrd/chaincfg/chainhash v1.0.1
 	github.com/decred/dcrd/dcrec v0.0.0-20190130161649-59ed4247a1d5 // indirect
 	github.com/decred/dcrd/dcrec/edwards v0.0.0-20190130161649-59ed4247a1d5 // indirect
+	github.com/decred/dcrd/lru v1.0.0
 	github.com/decred/dcrd/txscript v1.0.2
 	github.com/decred/dcrd/wire v1.2.0
 	github.com/decred/slog v1.0.0

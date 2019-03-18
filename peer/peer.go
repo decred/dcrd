@@ -23,6 +23,7 @@ import (
 	"github.com/decred/dcrd/blockchain"
 	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrd/chaincfg/chainhash"
+	"github.com/decred/dcrd/lru"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -436,7 +437,7 @@ type Peer struct {
 	versionSent          bool
 	verAckReceived       bool
 
-	knownInventory     *lruInventoryCache
+	knownInventory     lru.Cache
 	prevGetBlocksMtx   sync.Mutex
 	prevGetBlocksBegin *chainhash.Hash
 	prevGetBlocksStop  *chainhash.Hash
@@ -1539,7 +1540,7 @@ out:
 
 				// Don't send inventory that became known after
 				// the initial check.
-				if p.knownInventory.Exists(iv) {
+				if p.knownInventory.Contains(iv) {
 					continue
 				}
 
@@ -1718,7 +1719,7 @@ func (p *Peer) QueueMessage(msg wire.Message, doneChan chan<- struct{}) {
 func (p *Peer) QueueInventory(invVect *wire.InvVect) {
 	// Don't add the inventory to the send queue if the peer is already
 	// known to have it.
-	if p.knownInventory.Exists(invVect) {
+	if p.knownInventory.Contains(invVect) {
 		return
 	}
 
@@ -1741,7 +1742,7 @@ func (p *Peer) QueueInventory(invVect *wire.InvVect) {
 // This function is safe for concurrent access.
 func (p *Peer) QueueInventoryImmediate(invVect *wire.InvVect) {
 	// Don't announce the inventory if the peer is already known to have it.
-	if p.knownInventory.Exists(invVect) {
+	if p.knownInventory.Contains(invVect) {
 		return
 	}
 
@@ -2073,7 +2074,7 @@ func newPeerBase(cfgOrig *Config, inbound bool) *Peer {
 
 	p := Peer{
 		inbound:         inbound,
-		knownInventory:  newLruInventoryCache(maxKnownInventory),
+		knownInventory:  lru.NewCache(maxKnownInventory),
 		stallControl:    make(chan stallControlMsg, 1), // nonblocking sync
 		outputQueue:     make(chan outMsg, outputBufferSize),
 		sendQueue:       make(chan outMsg, 1),   // nonblocking sync
