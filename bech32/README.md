@@ -1,7 +1,7 @@
 bech32
 ==========
 
-[![Build Status](http://img.shields.io/travis/decred/dcrd/dcrd.svg)](https://travis-ci.org/decred/dcrd/bech32)
+[![Build Status](http://img.shields.io/travis/decred/dcrd.svg)](https://travis-ci.org/decred/dcrd/bech32)
 [![ISC License](http://img.shields.io/badge/license-ISC-blue.svg)](http://copyfree.org)
 [![GoDoc](http://img.shields.io/badge/godoc-reference-blue.svg)](http://godoc.org/github.com/decred/dcrd/bech32)
 
@@ -18,9 +18,10 @@ $ go get -u github.com/decred/dcrd/bech32
 
 ## Examples
 
-* [Bech32 decode Example](http://godoc.org/github.com/decred/dcrd/bech32#example-Bech32Decode)
+* [Bech32 decode Example](https://godoc.org/github.com/decred/dcrd/bech32#example-Decode)  
   Demonstrates how to decode a bech32 encoded string.
-* [Bech32 encode Example](http://godoc.org/github.com/decred/dcrd/bech32#example-BechEncode)
+
+* [Bech32 encode Example](https://godoc.org/github.com/decred/dcrd/bech32#example-Encode)  
   Demonstrates how to encode data into a bech32 string.
 
 ## License
