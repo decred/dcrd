@@ -7,7 +7,6 @@ package chaincfg
 
 import (
 	"encoding/hex"
-	"errors"
 	"math/big"
 	"time"
 
@@ -476,142 +475,6 @@ func (p *Params) HDPubKeyVersion() [4]byte {
 	return p.HDPublicKeyID
 }
 
-var (
-	// ErrDuplicateNet describes an error where the parameters for a Decred
-	// network could not be set due to the network already being a standard
-	// network or previously-registered into this package.
-	ErrDuplicateNet = errors.New("duplicate Decred network")
-
-	// ErrUnknownHDKeyID describes an error where the provided id which
-	// is intended to identify the network for a hierarchical deterministic
-	// private extended key is not registered.
-	ErrUnknownHDKeyID = errors.New("unknown hd private extended key bytes")
-
-	// ErrDuplicateNetAddrPrefix describes an error where the parameters for a
-	// Decred network could not be set due to the network prefix colliding with
-	// a standard or previously-registered network in this package.
-	ErrDuplicateNetAddrPrefix = errors.New("duplicate network address prefix")
-
-	// ErrUnknownNetAddrPrefix describes an error where the provided network
-	// address prefix is not registered.
-	ErrUnknownNetAddrPrefix = errors.New("unknown network address prefix")
-)
-
-var (
-	registeredNets    = make(map[wire.CurrencyNet]struct{})
-	pubKeyAddrIDs     = make(map[[2]byte]struct{})
-	pubKeyHashAddrIDs = make(map[[2]byte]struct{})
-	pkhEdwardsAddrIDs = make(map[[2]byte]struct{})
-	pkhSchnorrAddrIDs = make(map[[2]byte]struct{})
-	scriptHashAddrIDs = make(map[[2]byte]struct{})
-	hdPrivToPubKeyIDs = make(map[[4]byte][]byte)
-	netPrefixToParams = make(map[string]*Params)
-)
-
-// Register registers the network parameters for a Decred network.  This may
-// error with ErrDuplicateNet if the network is already registered (either
-// due to a previous Register call, or the network being one of the default
-// networks).
-//
-// Network parameters should be registered into this package by a main package
-// as early as possible.  Then, library packages may lookup networks or network
-// parameters based on inputs and work regardless of the network being standard
-// or not.
-func Register(params *Params) error {
-	if _, ok := registeredNets[params.Net]; ok {
-		return ErrDuplicateNet
-	}
-	if _, ok := netPrefixToParams[params.NetworkAddressPrefix]; ok {
-		return ErrDuplicateNetAddrPrefix
-	}
-	registeredNets[params.Net] = struct{}{}
-	pubKeyAddrIDs[params.PubKeyAddrID] = struct{}{}
-	pubKeyHashAddrIDs[params.PubKeyHashAddrID] = struct{}{}
-	scriptHashAddrIDs[params.ScriptHashAddrID] = struct{}{}
-	hdPrivToPubKeyIDs[params.HDPrivateKeyID] = params.HDPublicKeyID[:]
-	netPrefixToParams[params.NetworkAddressPrefix] = params
-	return nil
-}
-
-// mustRegister performs the same function as Register except it panics if there
-// is an error.  This should only be called from package init functions.
-func mustRegister(params *Params) {
-	if err := Register(params); err != nil {
-		panic("failed to register network: " + err.Error())
-	}
-}
-
-// IsPubKeyAddrID returns whether the id is an identifier known to prefix a
-// pay-to-pubkey address on any default or registered network.
-func IsPubKeyAddrID(id [2]byte) bool {
-	_, ok := pubKeyHashAddrIDs[id]
-	return ok
-}
-
-// IsPubKeyHashAddrID returns whether the id is an identifier known to prefix a
-// pay-to-pubkey-hash address on any default or registered network.  This is
-// used when decoding an address string into a specific address type.  It is up
-// to the caller to check both this and IsScriptHashAddrID and decide whether an
-// address is a pubkey hash address, script hash address, neither, or
-// undeterminable (if both return true).
-func IsPubKeyHashAddrID(id [2]byte) bool {
-	_, ok := pubKeyHashAddrIDs[id]
-	return ok
-}
-
-// IsPKHEdwardsAddrID returns whether the id is an identifier know to prefix a
-// pay-to-pubkey-hash Edwards address.
-func IsPKHEdwardsAddrID(id [2]byte) bool {
-	_, ok := pkhEdwardsAddrIDs[id]
-	return ok
-}
-
-// IsPKHSchnorrAddrID returns whether the id is an identifier know to prefix a
-// pay-to-pubkey-hash secp256k1 Schnorr address.
-func IsPKHSchnorrAddrID(id [2]byte) bool {
-	_, ok := pkhSchnorrAddrIDs[id]
-	return ok
-}
-
-// IsScriptHashAddrID returns whether the id is an identifier known to prefix a
-// pay-to-script-hash address on any default or registered network.  This is
-// used when decoding an address string into a specific address type.  It is up
-// to the caller to check both this and IsPubKeyHashAddrID and decide whether an
-// address is a pubkey hash address, script hash address, neither, or
-// undeterminable (if both return true).
-func IsScriptHashAddrID(id [2]byte) bool {
-	_, ok := scriptHashAddrIDs[id]
-	return ok
-}
-
-// HDPrivateKeyToPublicKeyID accepts a private hierarchical deterministic
-// extended key id and returns the associated public key id.  When the provided
-// id is not registered, the ErrUnknownHDKeyID error will be returned.
-func HDPrivateKeyToPublicKeyID(id []byte) ([]byte, error) {
-	if len(id) != 4 {
-		return nil, ErrUnknownHDKeyID
-	}
-
-	var key [4]byte
-	copy(key[:], id)
-	pubBytes, ok := hdPrivToPubKeyIDs[key]
-	if !ok {
-		return nil, ErrUnknownHDKeyID
-	}
-
-	return pubBytes, nil
-}
-
-// ParamsByNetAddrPrefix the parameters registered for  the provided network
-// address prefix.  An error is returned if the prefix is not registered.
-func ParamsByNetAddrPrefix(prefix string) (*Params, error) {
-	params, ok := netPrefixToParams[prefix]
-	if !ok {
-		return nil, ErrUnknownNetAddrPrefix
-	}
-	return params, nil
-}
-
 // newHashFromStr converts the passed big-endian hex string into a
 // chainhash.Hash.  It only differs from the one available in chainhash in that
 // it panics on an error since it will only (and must only) be called with
@@ -667,12 +530,4 @@ func (p *Params) LatestCheckpointHeight() int64 {
 		return 0
 	}
 	return p.Checkpoints[len(p.Checkpoints)-1].Height
-}
-
-func init() {
-	// Register all default networks when the package is initialized.
-	mustRegister(&MainNetParams)
-	mustRegister(&TestNet3Params)
-	mustRegister(&SimNetParams)
-	mustRegister(&RegNetParams)
 }
