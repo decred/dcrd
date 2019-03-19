@@ -24,13 +24,13 @@ report.
   keys
 - Support for custom networks by registering them with chaincfg
 - Obtaining the underlying EC pubkeys, EC privkeys, and associated decred
-  addresses ties in seamlessly with existing btcec and dcrutil types which
+  addresses ties in seamlessly with existing secp256k1 and dcrutil types which
   provide powerful tools for working with them to do things like sign
   transactions and generate payment scripts
-- Uses the btcec package which is highly optimized for secp256k1
+- Uses the highly-optimized secp256k1 package
 - Code examples including:
-  - Generating a cryptographically secure random seed and deriving a
-    master node from it
+  - Generating a cryptographically secure random seed and deriving a master node
+    from it
   - Default HD wallet layout as described by BIP0032
   - Audits use case as described by BIP0032
 - Comprehensive test coverage including the BIP0032 test vectors
@@ -44,13 +44,13 @@ $ go get -u github.com/decred/dcrd/hdkeychain
 
 ## Examples
 
-* [NewMaster Example](http://godoc.org/github.com/decred/dcrd/hdkeychain#example-NewMaster)
+* [NewMaster Example](http://godoc.org/github.com/decred/dcrd/hdkeychain#example-package--NewMaster)  
   Demonstrates how to generate a cryptographically random seed then use it to
   create a new master node (extended key).
-* [Default Wallet Layout Example](http://godoc.org/github.com/decred/dcrd/hdkeychain#example-package--DefaultWalletLayout)
+* [Default Wallet Layout Example](http://godoc.org/github.com/decred/dcrd/hdkeychain#example-package--DefaultWalletLayout)  
   Demonstrates the default hierarchical deterministic wallet layout as described
   in BIP0032.
-* [Audits Use Case Example](http://godoc.org/github.com/decred/dcrd/hdkeychain#example-package--Audits)
+* [Audits Use Case Example](http://godoc.org/github.com/decred/dcrd/hdkeychain#example-package--Audits)  
   Demonstrates the audits use case in BIP0032.
 
 ## License
