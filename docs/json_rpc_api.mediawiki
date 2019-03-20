@@ -228,7 +228,7 @@ the method name for further details such as parameter and return information.
 |-
 |[[#sendrawtransaction|sendrawtransaction]]
 |Y
-|Submits the serialized, hex-encoded transaction to the local peer and relays it to the network. NOTE: dcrd does not yet implement the <code>allowhighfees</code> parameter, so it has no effect
+|Submits the serialized, hex-encoded transaction to the local peer and relays it to the network.
 |-
 |[[#setgenerate|setgenerate]]
 |N
@@ -1232,9 +1232,6 @@ the method name for further details such as parameter and return information.
 |-
 !Description
 |Submits the serialized, hex-encoded transaction to the local peer and relays it to the network.
-|-
-!Notes
-|dcrd does not yet implement the <code>allowhighfees</code> parameter, so it has no effect.
 |-
 !Returns
 |<code>"hash" (string) the hash of the transaction</code>
