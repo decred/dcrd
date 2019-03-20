@@ -481,6 +481,18 @@ type Params struct {
 	BlockOneLedger []*TokenPayout
 }
 
+// XPrivKeyID returns the hierarchical deterministic extended private key magic
+// version bytes for the network the parameters define.
+func (p *Params) XPrivKeyID() [4]byte {
+	return p.HDPrivateKeyID
+}
+
+// XPubKeyID returns the hierarchical deterministic extended public key magic
+// version bytes for the network the parameters define.
+func (p *Params) XPubKeyID() [4]byte {
+	return p.HDPublicKeyID
+}
+
 var (
 	// ErrDuplicateNet describes an error where the parameters for a Decred
 	// network could not be set due to the network already being a standard
