@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2017 The Decred developers
+// Copyright (c) 2015-2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -154,41 +154,43 @@ func NewTxDeepTxIns(msgTx *wire.MsgTx) *Tx {
 		return nil
 	}
 
-	newMsgTx := new(wire.MsgTx)
+	txIns := make([]*wire.TxIn, len(msgTx.TxIn))
+	txOuts := make([]*wire.TxOut, len(msgTx.TxOut))
 
-	// Copy the fixed fields.
-	newMsgTx.Version = msgTx.Version
-	newMsgTx.LockTime = msgTx.LockTime
-	newMsgTx.Expiry = msgTx.Expiry
+	for i, txin := range msgTx.TxIn {
+		sigScript := make([]byte, len(txin.SignatureScript))
+		copy(sigScript[:], txin.SignatureScript[:])
 
-	// Copy the TxIns deeply.
-	for _, txIn := range msgTx.TxIn {
-		sigScrLen := len(txIn.SignatureScript)
-		sigScrCopy := make([]byte, sigScrLen)
-
-		txInCopy := new(wire.TxIn)
-		txInCopy.PreviousOutPoint.Hash = txIn.PreviousOutPoint.Hash
-		txInCopy.PreviousOutPoint.Index = txIn.PreviousOutPoint.Index
-		txInCopy.PreviousOutPoint.Tree = txIn.PreviousOutPoint.Tree
-
-		txInCopy.Sequence = txIn.Sequence
-		txInCopy.ValueIn = txIn.ValueIn
-		txInCopy.BlockHeight = txIn.BlockHeight
-		txInCopy.BlockIndex = txIn.BlockIndex
-
-		txInCopy.SignatureScript = sigScrCopy
-
-		newMsgTx.AddTxIn(txIn)
+		txIns[i] = &wire.TxIn{
+			PreviousOutPoint: wire.OutPoint{
+				Hash:  txin.PreviousOutPoint.Hash,
+				Index: txin.PreviousOutPoint.Index,
+				Tree:  txin.PreviousOutPoint.Tree,
+			},
+			Sequence:        txin.Sequence,
+			ValueIn:         txin.ValueIn,
+			BlockHeight:     txin.BlockHeight,
+			BlockIndex:      txin.BlockIndex,
+			SignatureScript: sigScript,
+		}
 	}
 
 	// Shallow copy the TxOuts.
-	for _, txOut := range msgTx.TxOut {
-		newMsgTx.AddTxOut(txOut)
+	copy(txOuts, msgTx.TxOut)
+
+	newTxMsg := &wire.MsgTx{
+		CachedHash: nil,
+		SerType:    msgTx.SerType,
+		Version:    msgTx.Version,
+		TxIn:       txIns,
+		TxOut:      txOuts,
+		LockTime:   msgTx.LockTime,
+		Expiry:     msgTx.Expiry,
 	}
 
 	return &Tx{
-		hash:    newMsgTx.TxHash(),
-		msgTx:   newMsgTx,
+		hash:    newTxMsg.TxHash(),
+		msgTx:   newTxMsg,
 		txTree:  wire.TxTreeUnknown,
 		txIndex: TxIndexUnknown,
 	}
