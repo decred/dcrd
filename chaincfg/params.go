@@ -481,15 +481,15 @@ type Params struct {
 	BlockOneLedger []*TokenPayout
 }
 
-// XPrivKeyID returns the hierarchical deterministic extended private key magic
-// version bytes for the network the parameters define.
-func (p *Params) XPrivKeyID() [4]byte {
+// HDPrivKeyVersion returns the hierarchical deterministic extended private key
+// magic version bytes for the network the parameters define.
+func (p *Params) HDPrivKeyVersion() [4]byte {
 	return p.HDPrivateKeyID
 }
 
-// XPubKeyID returns the hierarchical deterministic extended public key magic
-// version bytes for the network the parameters define.
-func (p *Params) XPubKeyID() [4]byte {
+// HDPubKeyVersion returns the hierarchical deterministic extended public key
+// magic version bytes for the network the parameters define.
+func (p *Params) HDPubKeyVersion() [4]byte {
 	return p.HDPublicKeyID
 }
 
