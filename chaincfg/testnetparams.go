@@ -62,7 +62,7 @@ var TestNet3Params = Params{
 	RuleChangeActivationQuorum:     2520, // 10 % of RuleChangeActivationInterval * TicketsPerBlock
 	RuleChangeActivationMultiplier: 3,    // 75%
 	RuleChangeActivationDivisor:    4,
-	RuleChangeActivationInterval:   5040, // 1 week
+	RuleChangeActivationInterval:   5040, // 2.5 weeks
 	Deployments: map[uint32][]ConsensusDeployment{
 		7: {{
 			Vote: Vote{
