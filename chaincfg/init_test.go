@@ -6,6 +6,8 @@ package chaincfg
 
 import (
 	"testing"
+
+	"github.com/decred/dcrd/wire"
 )
 
 var (
@@ -377,5 +379,71 @@ func TestDeployments(t *testing.T) {
 			t.Fatalf("%v: got '%v' expected '%v'", test.name, err,
 				test.expected)
 		}
+	}
+}
+
+// allDefaultNetParams returns the parameters for all of the default networks
+// for use in the tests.
+func allDefaultNetParams() []*Params {
+	return []*Params{&MainNetParams, &TestNet3Params, &SimNetParams,
+		&RegNetParams}
+}
+
+// TestRequiredUnique ensures that the network parameter fields that are
+// required to be unique are in fact unique for all of the provided default
+// parameters.
+func TestRequiredUnique(t *testing.T) {
+	var (
+		netMagics         = make(map[wire.CurrencyNet]struct{})
+		netPrefixes       = make(map[string]struct{})
+		pubKeyAddrIDs     = make(map[[2]byte]struct{})
+		pubKeyHashAddrIDs = make(map[[2]byte]struct{})
+		pkhEdwardsAddrIDs = make(map[[2]byte]struct{})
+		pkhSchnorrAddrIDs = make(map[[2]byte]struct{})
+		scriptHashAddrIDs = make(map[[2]byte]struct{})
+	)
+
+	for _, params := range allDefaultNetParams() {
+		if _, ok := netMagics[params.Net]; ok {
+			t.Fatalf("%q: duplicate network magic %x", params.Name,
+				params.Net)
+		}
+		netMagics[params.Net] = struct{}{}
+
+		if _, ok := netPrefixes[params.NetworkAddressPrefix]; ok {
+			t.Fatalf("%q: duplicate network address prefix %s", params.Name,
+				params.NetworkAddressPrefix)
+		}
+		netPrefixes[params.Name] = struct{}{}
+
+		if _, ok := pubKeyAddrIDs[params.PubKeyAddrID]; ok {
+			t.Fatalf("%q: duplicate pubkey addr ID %x", params.Name,
+				params.PubKeyAddrID)
+		}
+		pubKeyAddrIDs[params.PubKeyAddrID] = struct{}{}
+
+		if _, ok := pubKeyHashAddrIDs[params.PubKeyHashAddrID]; ok {
+			t.Fatalf("%q: duplicate pubkey hash addr ID %x", params.Name,
+				params.PubKeyHashAddrID)
+		}
+		pubKeyHashAddrIDs[params.PubKeyHashAddrID] = struct{}{}
+
+		if _, ok := pkhEdwardsAddrIDs[params.PKHEdwardsAddrID]; ok {
+			t.Fatalf("%q: duplicate edwards pubkey hash addr ID %x",
+				params.Name, params.PKHEdwardsAddrID)
+		}
+		pkhEdwardsAddrIDs[params.PKHEdwardsAddrID] = struct{}{}
+
+		if _, ok := pkhSchnorrAddrIDs[params.PKHSchnorrAddrID]; ok {
+			t.Fatalf("%q: duplicate schnorr pubkey hash addr ID %x",
+				params.Name, params.PKHSchnorrAddrID)
+		}
+		pkhSchnorrAddrIDs[params.PKHSchnorrAddrID] = struct{}{}
+
+		if _, ok := scriptHashAddrIDs[params.ScriptHashAddrID]; ok {
+			t.Fatalf("%q: duplicate script hash addr ID %x", params.Name,
+				params.ScriptHashAddrID)
+		}
+		scriptHashAddrIDs[params.ScriptHashAddrID] = struct{}{}
 	}
 }
