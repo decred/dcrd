@@ -346,9 +346,10 @@ func TestPrivateDerivation(t *testing.T) {
 		},
 	}
 
+	mainNetParms := &chaincfg.MainNetParams
 tests:
 	for i, test := range tests {
-		extKey, err := NewKeyFromString(test.master)
+		extKey, err := NewKeyFromString(test.master, mainNetParms)
 		if err != nil {
 			t.Errorf("NewKeyFromString #%d (%s): unexpected error "+
 				"creating extended key: %v", i, test.name,
@@ -465,9 +466,10 @@ func TestPublicDerivation(t *testing.T) {
 		},
 	}
 
+	mainNetParams := &chaincfg.MainNetParams
 tests:
 	for i, test := range tests {
-		extKey, err := NewKeyFromString(test.master)
+		extKey, err := NewKeyFromString(test.master, mainNetParams)
 		if err != nil {
 			t.Errorf("NewKeyFromString #%d (%s): unexpected error "+
 				"creating extended key: %v", i, test.name,
@@ -561,8 +563,9 @@ func TestExtendedKeyAPI(t *testing.T) {
 		},
 	}
 
+	mainNetParams := &chaincfg.MainNetParams
 	for i, test := range tests {
-		key, err := NewKeyFromString(test.extKey)
+		key, err := NewKeyFromString(test.extKey, mainNetParams)
 		if err != nil {
 			t.Errorf("NewKeyFromString #%d (%s): unexpected "+
 				"error: %v", i, test.name, err)
@@ -690,16 +693,15 @@ func TestErrors(t *testing.T) {
 			err:  errors.New("pubkey [0,50963827496501355358210603252497135226159332537351223778668747140855667399507] isn't on secp256k1 curve"),
 		},
 		{
-			name:      "unsupported version",
-			key:       "4s9bfpYH9CkJboPNLFC4BhTENPrjfmKwUxesnqxHBjv585bCLzVdQKuKQ5TouA57FkdDskrR695Z5U2wWwDUUVWXPg7V57sLpc9dMgx74LsVZGEB",
-			err:       nil,
-			neuter:    true,
-			neuterErr: chaincfg.ErrUnknownHDKeyID,
+			name: "unsupported version",
+			key:  "4s9bfpYH9CkJboPNLFC4BhTENPrjfmKwUxesnqxHBjv585bCLzVdQKuKQ5TouA57FkdDskrR695Z5U2wWwDUUVWXPg7V57sLpc9dMgx74LsVZGEB",
+			err:  ErrWrongNetwork,
 		},
 	}
 
+	mainNetParams := &chaincfg.MainNetParams
 	for i, test := range tests {
-		extKey, err := NewKeyFromString(test.key)
+		extKey, err := NewKeyFromString(test.key, mainNetParams)
 		if !reflect.DeepEqual(err, test.err) {
 			t.Errorf("NewKeyFromString #%d (%s): mismatched error "+
 				"-- got: %v, want: %v", i, test.name, err,
@@ -827,7 +829,7 @@ func TestZero(t *testing.T) {
 		}
 
 		// Deserialize key and get the neutered version.
-		key, err = NewKeyFromString(test.extKey)
+		key, err = NewKeyFromString(test.extKey, mainNetParams)
 		if err != nil {
 			t.Errorf("NewKeyFromString #%d (%s): unexpected "+
 				"error: %v", i, test.name, err)

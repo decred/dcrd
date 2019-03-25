@@ -78,8 +78,9 @@ looks like the following:
 Network
 
 Extended keys are much like normal Decred addresses in that they have version
-bytes which tie them to a specific network.  The SetNet and IsForNet functions
-are provided to set and determinine which network an extended key is associated
-with.
+bytes which tie them to a specific network.  The network that an extended key is
+associated with is specified when creating and decoding the key.  In the case of
+decoding, an error will be returned if a given encoded extended key is not for
+the specified network.
 */
 package hdkeychain

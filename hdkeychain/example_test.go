@@ -67,7 +67,7 @@ func Example_defaultWalletLayout() {
 	// This gives the path:
 	//   m
 	net := &chaincfg.MainNetParams
-	masterKey, err := hdkeychain.NewKeyFromString(master)
+	masterKey, err := hdkeychain.NewKeyFromString(master, net)
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -180,7 +180,8 @@ func Example_audits() {
 	// Start by getting an extended key instance for the master node.
 	// This gives the path:
 	//   m
-	masterKey, err := hdkeychain.NewKeyFromString(master)
+	masterKey, err := hdkeychain.NewKeyFromString(master,
+		&chaincfg.MainNetParams)
 	if err != nil {
 		fmt.Println(err)
 		return

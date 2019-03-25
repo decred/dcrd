@@ -89,6 +89,11 @@ var (
 	// key is not the expected length.
 	ErrInvalidKeyLen = errors.New("the provided serialized extended key " +
 		"length is invalid")
+
+	// ErrWrongNetwork desribes an error in which the provided serialized
+	// key is not for the expected network.
+	ErrWrongNetwork = errors.New("the provided serialized extended key " +
+		"is for the wrong network")
 )
 
 // masterKey is the master key used along with a random seed used to generate
@@ -395,13 +400,6 @@ func (k *ExtendedKey) String() string {
 	return base58.Encode(serializedBytes)
 }
 
-// IsForNet returns whether or not the extended key is associated with the
-// passed Decred network.
-func (k *ExtendedKey) IsForNet(net *chaincfg.Params) bool {
-	return bytes.Equal(k.version, net.HDPrivateKeyID[:]) ||
-		bytes.Equal(k.version, net.HDPublicKeyID[:])
-}
-
 // zero sets all bytes in the passed slice to zero.  This is used to
 // explicitly clear private key material from memory.
 func zero(b []byte) {
@@ -466,8 +464,8 @@ func NewMaster(seed []byte, net *chaincfg.Params) (*ExtendedKey, error) {
 }
 
 // NewKeyFromString returns a new extended key instance from a base58-encoded
-// extended key.
-func NewKeyFromString(key string) (*ExtendedKey, error) {
+// extended key which is required to be for the provided network.
+func NewKeyFromString(key string, net *chaincfg.Params) (*ExtendedKey, error) {
 	// The base58-decoded extended key must consist of a serialized payload
 	// plus an additional 4 bytes for the checksum.
 	decoded := base58.Decode(key)
@@ -487,8 +485,17 @@ func NewKeyFromString(key string) (*ExtendedKey, error) {
 		return nil, ErrBadChecksum
 	}
 
-	// Deserialize each of the payload fields.
+	// Ensure the version encoded in the payload matches the provided network.
+	privVersion := net.HDPrivateKeyID
+	pubVersion := net.HDPublicKeyID
 	version := payload[:4]
+	if !bytes.Equal(version, privVersion[:]) &&
+		!bytes.Equal(version, pubVersion[:]) {
+
+		return nil, ErrWrongNetwork
+	}
+
+	// Deserialize the remaining payload fields.
 	depth := uint16(payload[4:5][0])
 	parentFP := payload[5:9]
 	childNum := binary.BigEndian.Uint32(payload[9:13])
