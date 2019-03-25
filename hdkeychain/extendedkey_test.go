@@ -541,7 +541,6 @@ func TestExtendedKeyAPI(t *testing.T) {
 		privKey    string
 		privKeyErr error
 		pubKey     string
-		address    string
 	}{
 		{
 			name:      "test vector 1 master node private",
@@ -550,7 +549,6 @@ func TestExtendedKeyAPI(t *testing.T) {
 			parentFP:  0,
 			privKey:   "33a63922ea4e6686c9fc31daf136888297537f66c1aabe3363df06af0b8274c7",
 			pubKey:    "039f2e1d7b50b8451911c64cf745f9ba16193b319212a64096e5679555449d8f37",
-			address:   "Dsk8SfRLF2hssYuLcb6Gu4zh19rg2QBEDGs",
 		},
 		{
 			name:       "test vector 2 chain m/0/2147483647/1/2147483646/2",
@@ -559,7 +557,6 @@ func TestExtendedKeyAPI(t *testing.T) {
 			parentFP:   4220580796,
 			privKeyErr: ErrNotPrivExtKey,
 			pubKey:     "03dceb0b07698ec3d6ac08ae7297e7f5e63d7fda99d3fce1ded31d36badcdd4d36",
-			address:    "DsZcjfdSKUrEQxoyjkWEo7dM4YZKhma8wCa",
 		},
 	}
 
@@ -621,19 +618,6 @@ func TestExtendedKeyAPI(t *testing.T) {
 			t.Errorf("ECPubKey #%d (%s): mismatched public key -- "+
 				"want %s, got %s", i, test.name, test.pubKey,
 				pubKeyStr)
-			continue
-		}
-
-		addr, err := key.Address(&chaincfg.MainNetParams)
-		if err != nil {
-			t.Errorf("Address #%d (%s): unexpected error: %v", i,
-				test.name, err)
-			continue
-		}
-		if addr.EncodeAddress() != test.address {
-			t.Errorf("Address #%d (%s): mismatched address -- want "+
-				"%s, got %s", i, test.name, test.address,
-				addr.EncodeAddress())
 			continue
 		}
 	}
@@ -935,20 +919,6 @@ func TestZero(t *testing.T) {
 		if !reflect.DeepEqual(err, wantErr) {
 			t.Errorf("ECPubKey #%d (%s): mismatched error: want "+
 				"%v, got %v", i, testName, wantErr, err)
-			return false
-		}
-
-		wantAddr := "DsWuefL3Rgj6NXoMFqqBzxY2nmh87RZyPkv"
-		addr, err := key.Address(&chaincfg.MainNetParams)
-		if err != nil {
-			t.Errorf("Address #%d (%s): unexpected error: %v", i,
-				testName, err)
-			return false
-		}
-		if addr.EncodeAddress() != wantAddr {
-			t.Errorf("Address #%d (%s): mismatched address -- want "+
-				"%s, got %s", i, testName, wantAddr,
-				addr.EncodeAddress())
 			return false
 		}
 

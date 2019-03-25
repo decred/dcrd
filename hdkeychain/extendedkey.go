@@ -1,5 +1,5 @@
 // Copyright (c) 2014-2016 The btcsuite developers
-// Copyright (c) 2015-2016 The Decred developers
+// Copyright (c) 2015-2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -22,7 +22,6 @@ import (
 	"github.com/decred/base58"
 	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrd/chaincfg/chainhash"
-	"github.com/decred/dcrd/dcrec"
 	"github.com/decred/dcrd/dcrec/secp256k1"
 	"github.com/decred/dcrd/dcrutil"
 )
@@ -353,13 +352,6 @@ func (k *ExtendedKey) ECPrivKey() (*secp256k1.PrivateKey, error) {
 
 	privKey, _ := secp256k1.PrivKeyFromBytes(k.key)
 	return privKey, nil
-}
-
-// Address converts the extended key to a standard Decred pay-to-pubkey-hash
-// address for the passed network.
-func (k *ExtendedKey) Address(net *chaincfg.Params) (*dcrutil.AddressPubKeyHash, error) {
-	pkHash := dcrutil.Hash160(k.pubKeyBytes())
-	return dcrutil.NewAddressPubKeyHash(pkHash, net, dcrec.STEcdsaSecp256k1)
 }
 
 // paddedAppend appends the src byte slice to dst, returning the new slice.

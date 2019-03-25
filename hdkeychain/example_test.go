@@ -9,6 +9,8 @@ import (
 	"fmt"
 
 	"github.com/decred/dcrd/chaincfg"
+	"github.com/decred/dcrd/dcrec"
+	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/dcrd/hdkeychain"
 )
 
@@ -64,6 +66,7 @@ func Example_defaultWalletLayout() {
 	// Start by getting an extended key instance for the master node.
 	// This gives the path:
 	//   m
+	net := &chaincfg.MainNetParams
 	masterKey, err := hdkeychain.NewKeyFromString(master)
 	if err != nil {
 		fmt.Println(err)
@@ -119,12 +122,29 @@ func Example_defaultWalletLayout() {
 
 	// Get and show the address associated with the extended keys for the
 	// main Decred network.
-	acct0ExtAddr, err := acct0Ext10.Address(&chaincfg.MainNetParams)
+	//
+	// pubKeyHashAddr is a convenience function to convert an extended
+	// pubkey to a standard pay-to-pubkey-hash address.
+	pubKeyHashAddr := func(extKey *hdkeychain.ExtendedKey) (string, error) {
+		ecPubKey, err := extKey.ECPubKey()
+		if err != nil {
+			return "", err
+		}
+		pkHash := dcrutil.Hash160(ecPubKey.SerializeCompressed())
+		addr, err := dcrutil.NewAddressPubKeyHash(pkHash, net,
+			dcrec.STEcdsaSecp256k1)
+		if err != nil {
+			fmt.Println(err)
+			return "", err
+		}
+		return addr.String(), nil
+	}
+	acct0ExtAddr, err := pubKeyHashAddr(acct0Ext10)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-	acct0IntAddr, err := acct0Int0.Address(&chaincfg.MainNetParams)
+	acct0IntAddr, err := pubKeyHashAddr(acct0Int0)
 	if err != nil {
 		fmt.Println(err)
 		return

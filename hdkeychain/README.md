@@ -23,10 +23,9 @@ report.
 - Easy serialization and deserialization for both private and public extended
   keys
 - Support for custom networks by registering them with chaincfg
-- Obtaining the underlying EC pubkeys, EC privkeys, and associated decred
-  addresses ties in seamlessly with existing secp256k1 and dcrutil types which
-  provide powerful tools for working with them to do things like sign
-  transactions and generate payment scripts
+- Obtaining the underlying EC pubkeys and EC privkeys ties in seamlessly with
+  existing secp256k1 types which provide powerful tools for working with them to
+  do things like sign transactions and generate payment scripts
 - Uses the highly-optimized secp256k1 package
 - Code examples including:
   - Generating a cryptographically secure random seed and deriving a master node
