@@ -402,16 +402,6 @@ func (k *ExtendedKey) IsForNet(net *chaincfg.Params) bool {
 		bytes.Equal(k.version, net.HDPublicKeyID[:])
 }
 
-// SetNet associates the extended key, and any child keys yet to be derived from
-// it, with the passed network.
-func (k *ExtendedKey) SetNet(net *chaincfg.Params) {
-	if k.isPrivate {
-		k.version = net.HDPrivateKeyID[:]
-	} else {
-		k.version = net.HDPublicKeyID[:]
-	}
-}
-
 // zero sets all bytes in the passed slice to zero.  This is used to
 // explicitly clear private key material from memory.
 func zero(b []byte) {
