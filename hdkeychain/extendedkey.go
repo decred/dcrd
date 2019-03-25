@@ -20,7 +20,6 @@ import (
 	"math/big"
 
 	"github.com/decred/base58"
-	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/dcrec/secp256k1"
 	"github.com/decred/dcrd/dcrutil"
@@ -99,6 +98,19 @@ var (
 // masterKey is the master key used along with a random seed used to generate
 // the master node in the hierarchical tree.
 var masterKey = []byte("Bitcoin seed")
+
+// NetworkParams defines an interface that is used throughout the package to
+// access the hierarchical deterministic extended key magic versions that
+// uniquely identify a network.
+type NetworkParams interface {
+	// HDPrivKeyVersion returns the hierarchical deterministic extended private
+	// key magic version bytes.
+	HDPrivKeyVersion() [4]byte
+
+	// HDPubKeyVersion returns the hierarchical deterministic extended public
+	// key magic version bytes.
+	HDPubKeyVersion() [4]byte
+}
 
 // ExtendedKey houses all the information needed to support a hierarchical
 // deterministic extended key.  See the package overview documentation for
@@ -432,7 +444,7 @@ func (k *ExtendedKey) Zero() {
 // will derive to an unusable secret key.  The ErrUnusable error will be
 // returned if this should occur, so the caller must check for it and generate a
 // new seed accordingly.
-func NewMaster(seed []byte, net *chaincfg.Params) (*ExtendedKey, error) {
+func NewMaster(seed []byte, net NetworkParams) (*ExtendedKey, error) {
 	// Per [BIP32], the seed must be in range [MinSeedBytes, MaxSeedBytes].
 	if len(seed) < MinSeedBytes || len(seed) > MaxSeedBytes {
 		return nil, ErrInvalidSeedLen
@@ -458,13 +470,13 @@ func NewMaster(seed []byte, net *chaincfg.Params) (*ExtendedKey, error) {
 	}
 
 	parentFP := []byte{0x00, 0x00, 0x00, 0x00}
-	return newExtendedKey(net.HDPrivateKeyID, net.HDPublicKeyID, secretKey,
-		chainCode, parentFP, 0, 0, true), nil
+	return newExtendedKey(net.HDPrivKeyVersion(), net.HDPubKeyVersion(),
+		secretKey, chainCode, parentFP, 0, 0, true), nil
 }
 
 // NewKeyFromString returns a new extended key instance from a base58-encoded
 // extended key which is required to be for the provided network.
-func NewKeyFromString(key string, net *chaincfg.Params) (*ExtendedKey, error) {
+func NewKeyFromString(key string, net NetworkParams) (*ExtendedKey, error) {
 	// The base58-decoded extended key must consist of a serialized payload
 	// plus an additional 4 bytes for the checksum.
 	decoded := base58.Decode(key)
@@ -485,8 +497,8 @@ func NewKeyFromString(key string, net *chaincfg.Params) (*ExtendedKey, error) {
 	}
 
 	// Ensure the version encoded in the payload matches the provided network.
-	privVersion := net.HDPrivateKeyID
-	pubVersion := net.HDPublicKeyID
+	privVersion := net.HDPrivKeyVersion()
+	pubVersion := net.HDPubKeyVersion()
 	version := payload[:4]
 	if !bytes.Equal(version, privVersion[:]) &&
 		!bytes.Equal(version, pubVersion[:]) {

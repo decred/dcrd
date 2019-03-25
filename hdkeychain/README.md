@@ -22,7 +22,7 @@ report.
 - Support for multi-layer derivation
 - Easy serialization and deserialization for both private and public extended
   keys
-- Support for custom networks by registering them with chaincfg
+- Support for custom networks by accepting a network parameters interface
 - Obtaining the underlying EC pubkeys and EC privkeys ties in seamlessly with
   existing secp256k1 types which provide powerful tools for working with them to
   do things like sign transactions and generate payment scripts
