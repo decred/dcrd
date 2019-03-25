@@ -104,11 +104,12 @@ var masterKey = []byte("Bitcoin seed")
 // deterministic extended key.  See the package overview documentation for
 // more details on how to use extended keys.
 type ExtendedKey struct {
-	key       []byte // This will be the pubkey for extended pub keys
-	pubKey    []byte // This will only be set for extended priv keys
+	privVer   [4]byte // Network version bytes for extended priv keys
+	pubVer    [4]byte // Network version bytes for extended pub keys
+	key       []byte  // This will be the pubkey for extended pub keys
+	pubKey    []byte  // This will only be set for extended priv keys
 	chainCode []byte
 	parentFP  []byte
-	version   []byte
 	childNum  uint32
 	depth     uint16
 	isPrivate bool
@@ -117,18 +118,19 @@ type ExtendedKey struct {
 // newExtendedKey returns a new instance of an extended key with the given
 // fields.  No error checking is performed here as it's only intended to be a
 // convenience method used to create a populated struct.
-func newExtendedKey(version, key, chainCode, parentFP []byte, depth uint16,
-	childNum uint32, isPrivate bool) *ExtendedKey {
+func newExtendedKey(privVer, pubVer [4]byte, key, chainCode, parentFP []byte,
+	depth uint16, childNum uint32, isPrivate bool) *ExtendedKey {
 
 	// NOTE: The pubKey field is intentionally left nil so it is only
 	// computed and memoized as required.
 	return &ExtendedKey{
+		privVer:   privVer,
+		pubVer:    pubVer,
 		key:       key,
 		chainCode: chainCode,
 		depth:     depth,
 		parentFP:  parentFP,
 		childNum:  childNum,
-		version:   version,
 		isPrivate: isPrivate,
 	}
 }
@@ -309,8 +311,8 @@ func (k *ExtendedKey) Child(i uint32) (*ExtendedKey, error) {
 	// The fingerprint of the parent for the derived child is the first 4
 	// bytes of the RIPEMD160(BLAKE256(parentPubKey)).
 	parentFP := dcrutil.Hash160(k.pubKeyBytes())[:4]
-	return newExtendedKey(k.version, childKey, childChainCode, parentFP,
-		k.depth+1, i, isPrivate), nil
+	return newExtendedKey(k.privVer, k.pubVer, childKey, childChainCode,
+		parentFP, k.depth+1, i, isPrivate), nil
 }
 
 // Neuter returns a new extended public key from this extended private key.  The
@@ -327,18 +329,12 @@ func (k *ExtendedKey) Neuter() (*ExtendedKey, error) {
 		return k, nil
 	}
 
-	// Get the associated public extended key version bytes.
-	version, err := chaincfg.HDPrivateKeyToPublicKeyID(k.version)
-	if err != nil {
-		return nil, err
-	}
-
 	// Convert it to an extended public key.  The key for the new extended
 	// key will simply be the pubkey of the current extended private key.
 	//
 	// This is the function N((k,c)) -> (K, c) from [BIP32].
-	return newExtendedKey(version, k.pubKeyBytes(), k.chainCode, k.parentFP,
-		k.depth, k.childNum, false), nil
+	return newExtendedKey(k.privVer, k.pubVer, k.pubKeyBytes(), k.chainCode,
+		k.parentFP, k.depth, k.childNum, false), nil
 }
 
 // ECPubKey converts the extended key to a dcrec public key and returns it.
@@ -383,7 +379,11 @@ func (k *ExtendedKey) String() string {
 	//   version (4) || depth (1) || parent fingerprint (4)) ||
 	//   child num (4) || chain code (32) || key data (33) || checksum (4)
 	serializedBytes := make([]byte, 0, serializedKeyLen+4)
-	serializedBytes = append(serializedBytes, k.version...)
+	if k.isPrivate {
+		serializedBytes = append(serializedBytes, k.privVer[:]...)
+	} else {
+		serializedBytes = append(serializedBytes, k.pubVer[:]...)
+	}
 	serializedBytes = append(serializedBytes, depthByte)
 	serializedBytes = append(serializedBytes, k.parentFP...)
 	serializedBytes = append(serializedBytes, childNumBytes[:]...)
@@ -418,7 +418,6 @@ func (k *ExtendedKey) Zero() {
 	zero(k.pubKey)
 	zero(k.chainCode)
 	zero(k.parentFP)
-	k.version = nil
 	k.key = nil
 	k.depth = 0
 	k.childNum = 0
@@ -459,8 +458,8 @@ func NewMaster(seed []byte, net *chaincfg.Params) (*ExtendedKey, error) {
 	}
 
 	parentFP := []byte{0x00, 0x00, 0x00, 0x00}
-	return newExtendedKey(net.HDPrivateKeyID[:], secretKey, chainCode,
-		parentFP, 0, 0, true), nil
+	return newExtendedKey(net.HDPrivateKeyID, net.HDPublicKeyID, secretKey,
+		chainCode, parentFP, 0, 0, true), nil
 }
 
 // NewKeyFromString returns a new extended key instance from a base58-encoded
@@ -522,8 +521,8 @@ func NewKeyFromString(key string, net *chaincfg.Params) (*ExtendedKey, error) {
 		}
 	}
 
-	return newExtendedKey(version, keyData, chainCode, parentFP, depth,
-		childNum, isPrivate), nil
+	return newExtendedKey(privVersion, pubVersion, keyData, chainCode, parentFP,
+		depth, childNum, isPrivate), nil
 }
 
 // GenerateSeed returns a cryptographically secure random seed that can be used
