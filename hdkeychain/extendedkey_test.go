@@ -15,9 +15,50 @@ import (
 	"errors"
 	"reflect"
 	"testing"
-
-	"github.com/decred/dcrd/chaincfg"
 )
+
+// mockNetParams implements the NetworkParams interface and is used throughout
+// the tests to mock multiple networks.
+type mockNetParams struct {
+	privKeyID [4]byte
+	pubKeyID  [4]byte
+}
+
+// HDPrivKeyVersion returns the extended private key version bytes associated
+// with the mock params.
+//
+// This is part of the NetworkParams interface.
+func (p *mockNetParams) HDPrivKeyVersion() [4]byte {
+	return p.privKeyID
+}
+
+// HDPubKeyVersion returns the extended public key version bytes associated with
+// the mock params.
+//
+// This is part of the NetworkParams interface.
+func (p *mockNetParams) HDPubKeyVersion() [4]byte {
+	return p.pubKeyID
+}
+
+// mockMainNetParams returns mock mainnet parameters to use throughout the
+// tests.  They match the Decred mainnet params as of the time this comment was
+// written.
+func mockMainNetParams() *mockNetParams {
+	return &mockNetParams{
+		privKeyID: [4]byte{0x02, 0xfd, 0xa4, 0xe8}, // starts with dprv
+		pubKeyID:  [4]byte{0x02, 0xfd, 0xa9, 0x26}, // starts with dpub
+	}
+}
+
+// mockTestNetParams returns mock testnet parameters to use throughout the
+// tests.  They match the Decred testnet version 3 params as of the time this
+// comment was written.
+func mockTestNetParams() *mockNetParams {
+	return &mockNetParams{
+		privKeyID: [4]byte{0x04, 0x35, 0x83, 0x97}, // starts with tprv
+		pubKeyID:  [4]byte{0x04, 0x35, 0x87, 0xd1}, // starts with tpub
+	}
+}
 
 // TestBIP0032Vectors tests the vectors provided by [BIP32] to ensure the
 // derivation works as intended.
@@ -27,15 +68,15 @@ func TestBIP0032Vectors(t *testing.T) {
 	testVec2MasterHex := "fffcf9f6f3f0edeae7e4e1dedbd8d5d2cfccc9c6c3c0bdbab7b4b1aeaba8a5a29f9c999693908d8a8784817e7b7875726f6c696663605d5a5754514e4b484542"
 	hkStart := uint32(0x80000000)
 
-	mainNetParams := &chaincfg.MainNetParams
-	testNetParams := &chaincfg.TestNet3Params
+	mainNetParams := mockMainNetParams()
+	testNetParams := mockTestNetParams()
 	tests := []struct {
 		name     string
 		master   string
 		path     []uint32
 		wantPub  string
 		wantPriv string
-		net      *chaincfg.Params
+		net      NetworkParams
 	}{
 		// Test vector 1
 		{
@@ -346,7 +387,7 @@ func TestPrivateDerivation(t *testing.T) {
 		},
 	}
 
-	mainNetParms := &chaincfg.MainNetParams
+	mainNetParms := mockMainNetParams()
 tests:
 	for i, test := range tests {
 		extKey, err := NewKeyFromString(test.master, mainNetParms)
@@ -466,7 +507,7 @@ func TestPublicDerivation(t *testing.T) {
 		},
 	}
 
-	mainNetParams := &chaincfg.MainNetParams
+	mainNetParams := mockMainNetParams()
 tests:
 	for i, test := range tests {
 		extKey, err := NewKeyFromString(test.master, mainNetParams)
@@ -563,7 +604,7 @@ func TestExtendedKeyAPI(t *testing.T) {
 		},
 	}
 
-	mainNetParams := &chaincfg.MainNetParams
+	mainNetParams := mockMainNetParams()
 	for i, test := range tests {
 		key, err := NewKeyFromString(test.extKey, mainNetParams)
 		if err != nil {
@@ -631,7 +672,7 @@ func TestExtendedKeyAPI(t *testing.T) {
 // the errors are handled properly.
 func TestErrors(t *testing.T) {
 	// Should get an error when seed has too few bytes.
-	net := &chaincfg.MainNetParams
+	net := mockMainNetParams()
 	_, err := NewMaster(bytes.Repeat([]byte{0x00}, 15), net)
 	if err != ErrInvalidSeedLen {
 		t.Errorf("NewMaster: mismatched error -- got: %v, want: %v",
@@ -699,7 +740,7 @@ func TestErrors(t *testing.T) {
 		},
 	}
 
-	mainNetParams := &chaincfg.MainNetParams
+	mainNetParams := mockMainNetParams()
 	for i, test := range tests {
 		extKey, err := NewKeyFromString(test.key, mainNetParams)
 		if !reflect.DeepEqual(err, test.err) {
@@ -723,12 +764,12 @@ func TestErrors(t *testing.T) {
 
 // TestZero ensures that zeroing an extended key works as intended.
 func TestZero(t *testing.T) {
-	mainNetParams := &chaincfg.MainNetParams
+	mainNetParams := mockMainNetParams()
 	tests := []struct {
 		name   string
 		master string
 		extKey string
-		net    *chaincfg.Params
+		net    NetworkParams
 	}{
 		// Test vector 1
 		{

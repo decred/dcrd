@@ -7,8 +7,6 @@ package hdkeychain
 
 import (
 	"testing"
-
-	"github.com/decred/dcrd/chaincfg"
 )
 
 // bip0032MasterPriv1 is the master private extended key from the first set of
@@ -20,8 +18,7 @@ const bip0032MasterPriv1 = "dprv3hCznBesA6jBtmoyVFPfyMSZ1qYZ3WdjdebquvkEfmRfx" +
 // child from a master private extended key.
 func BenchmarkDeriveHardened(b *testing.B) {
 	b.StopTimer()
-	masterKey, err := NewKeyFromString(bip0032MasterPriv1,
-		&chaincfg.MainNetParams)
+	masterKey, err := NewKeyFromString(bip0032MasterPriv1, mockMainNetParams())
 	if err != nil {
 		b.Errorf("Failed to decode master seed: %v", err)
 	}
@@ -36,8 +33,7 @@ func BenchmarkDeriveHardened(b *testing.B) {
 // (non-hardened) child from a master private extended key.
 func BenchmarkDeriveNormal(b *testing.B) {
 	b.StopTimer()
-	masterKey, err := NewKeyFromString(bip0032MasterPriv1,
-		&chaincfg.MainNetParams)
+	masterKey, err := NewKeyFromString(bip0032MasterPriv1, mockMainNetParams())
 	if err != nil {
 		b.Errorf("Failed to decode master seed: %v", err)
 	}
@@ -52,8 +48,7 @@ func BenchmarkDeriveNormal(b *testing.B) {
 // key to a public extended key.
 func BenchmarkPrivToPub(b *testing.B) {
 	b.StopTimer()
-	masterKey, err := NewKeyFromString(bip0032MasterPriv1,
-		&chaincfg.MainNetParams)
+	masterKey, err := NewKeyFromString(bip0032MasterPriv1, mockMainNetParams())
 	if err != nil {
 		b.Errorf("Failed to decode master seed: %v", err)
 	}
@@ -67,8 +62,9 @@ func BenchmarkPrivToPub(b *testing.B) {
 // BenchmarkDeserialize benchmarks how long it takes to deserialize a private
 // extended key.
 func BenchmarkDeserialize(b *testing.B) {
+	mainNetParams := mockMainNetParams()
 	for i := 0; i < b.N; i++ {
-		NewKeyFromString(bip0032MasterPriv1, &chaincfg.MainNetParams)
+		NewKeyFromString(bip0032MasterPriv1, mainNetParams)
 	}
 }
 
@@ -76,8 +72,7 @@ func BenchmarkDeserialize(b *testing.B) {
 // extended key.
 func BenchmarkSerialize(b *testing.B) {
 	b.StopTimer()
-	masterKey, err := NewKeyFromString(bip0032MasterPriv1,
-		&chaincfg.MainNetParams)
+	masterKey, err := NewKeyFromString(bip0032MasterPriv1, mockMainNetParams())
 	if err != nil {
 		b.Errorf("Failed to decode master seed: %v", err)
 	}
