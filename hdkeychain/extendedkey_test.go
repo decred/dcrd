@@ -1,9 +1,9 @@
 // Copyright (c) 2014 The btcsuite developers
-// Copyright (c) 2015-2018 The Decred developers
+// Copyright (c) 2015-2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
-package hdkeychain_test
+package hdkeychain
 
 // References:
 //   [BIP32]: BIP0032 - Hierarchical Deterministic Wallets
@@ -17,7 +17,6 @@ import (
 	"testing"
 
 	"github.com/decred/dcrd/chaincfg"
-	"github.com/decred/dcrd/hdkeychain"
 )
 
 // TestBIP0032Vectors tests the vectors provided by [BIP32] to ensure the
@@ -197,7 +196,7 @@ tests:
 			continue
 		}
 
-		extKey, err := hdkeychain.NewMaster(masterSeed, test.net)
+		extKey, err := NewMaster(masterSeed, test.net)
 		if err != nil {
 			t.Errorf("NewMaster #%d (%s): unexpected error when "+
 				"creating new master key: %v", i, test.name,
@@ -348,7 +347,7 @@ func TestPrivateDerivation(t *testing.T) {
 
 tests:
 	for i, test := range tests {
-		extKey, err := hdkeychain.NewKeyFromString(test.master)
+		extKey, err := NewKeyFromString(test.master)
 		if err != nil {
 			t.Errorf("NewKeyFromString #%d (%s): unexpected error "+
 				"creating extended key: %v", i, test.name,
@@ -467,7 +466,7 @@ func TestPublicDerivation(t *testing.T) {
 
 tests:
 	for i, test := range tests {
-		extKey, err := hdkeychain.NewKeyFromString(test.master)
+		extKey, err := NewKeyFromString(test.master)
 		if err != nil {
 			t.Errorf("NewKeyFromString #%d (%s): unexpected error "+
 				"creating extended key: %v", i, test.name,
@@ -516,7 +515,7 @@ func TestGenenerateSeed(t *testing.T) {
 	}
 
 	for i, test := range tests {
-		seed, err := hdkeychain.GenerateSeed(test.length)
+		seed, err := GenerateSeed(test.length)
 		if !reflect.DeepEqual(err, test.err) {
 			t.Errorf("GenerateSeed #%d (%s): unexpected error -- "+
 				"want %v, got %v", i, test.name, test.err, err)
@@ -558,14 +557,14 @@ func TestExtendedKeyAPI(t *testing.T) {
 			extKey:     "dpubZRuRErXqhdJaZWD1AzXB6d5w2zw7UZ7ALxiS1gHbnQbVEohBzQzsVwGRzq97pmuE7ToA6DGn2QTH4DexxzdnMvkiYUpk8Nh2KEuYUM2RCeU",
 			isPrivate:  false,
 			parentFP:   4220580796,
-			privKeyErr: hdkeychain.ErrNotPrivExtKey,
+			privKeyErr: ErrNotPrivExtKey,
 			pubKey:     "03dceb0b07698ec3d6ac08ae7297e7f5e63d7fda99d3fce1ded31d36badcdd4d36",
 			address:    "DsZcjfdSKUrEQxoyjkWEo7dM4YZKhma8wCa",
 		},
 	}
 
 	for i, test := range tests {
-		key, err := hdkeychain.NewKeyFromString(test.extKey)
+		key, err := NewKeyFromString(test.extKey)
 		if err != nil {
 			t.Errorf("NewKeyFromString #%d (%s): unexpected "+
 				"error: %v", i, test.name, err)
@@ -725,7 +724,7 @@ func TestNet(t *testing.T) {
 	}
 
 	for i, test := range tests {
-		extKey, err := hdkeychain.NewKeyFromString(test.key)
+		extKey, err := NewKeyFromString(test.key)
 		if err != nil {
 			t.Errorf("NewKeyFromString #%d (%s): unexpected error "+
 				"creating extended key: %v", i, test.name,
@@ -779,26 +778,26 @@ func TestNet(t *testing.T) {
 func TestErrors(t *testing.T) {
 	// Should get an error when seed has too few bytes.
 	net := &chaincfg.MainNetParams
-	_, err := hdkeychain.NewMaster(bytes.Repeat([]byte{0x00}, 15), net)
-	if err != hdkeychain.ErrInvalidSeedLen {
+	_, err := NewMaster(bytes.Repeat([]byte{0x00}, 15), net)
+	if err != ErrInvalidSeedLen {
 		t.Errorf("NewMaster: mismatched error -- got: %v, want: %v",
-			err, hdkeychain.ErrInvalidSeedLen)
+			err, ErrInvalidSeedLen)
 	}
 
 	// Should get an error when seed has too many bytes.
-	_, err = hdkeychain.NewMaster(bytes.Repeat([]byte{0x00}, 65), net)
-	if err != hdkeychain.ErrInvalidSeedLen {
+	_, err = NewMaster(bytes.Repeat([]byte{0x00}, 65), net)
+	if err != ErrInvalidSeedLen {
 		t.Errorf("NewMaster: mismatched error -- got: %v, want: %v",
-			err, hdkeychain.ErrInvalidSeedLen)
+			err, ErrInvalidSeedLen)
 	}
 
 	// Generate a new key and neuter it to a public extended key.
-	seed, err := hdkeychain.GenerateSeed(hdkeychain.RecommendedSeedLen)
+	seed, err := GenerateSeed(RecommendedSeedLen)
 	if err != nil {
 		t.Errorf("GenerateSeed: unexpected error: %v", err)
 		return
 	}
-	extKey, err := hdkeychain.NewMaster(seed, net)
+	extKey, err := NewMaster(seed, net)
 	if err != nil {
 		t.Errorf("NewMaster: unexpected error: %v", err)
 		return
@@ -810,10 +809,10 @@ func TestErrors(t *testing.T) {
 	}
 
 	// Deriving a hardened child extended key should fail from a public key.
-	_, err = pubKey.Child(hdkeychain.HardenedKeyStart)
-	if err != hdkeychain.ErrDeriveHardFromPublic {
+	_, err = pubKey.Child(HardenedKeyStart)
+	if err != ErrDeriveHardFromPublic {
 		t.Errorf("Child: mismatched error -- got: %v, want: %v",
-			err, hdkeychain.ErrDeriveHardFromPublic)
+			err, ErrDeriveHardFromPublic)
 	}
 
 	// NewKeyFromString failure tests.
@@ -827,12 +826,12 @@ func TestErrors(t *testing.T) {
 		{
 			name: "invalid key length",
 			key:  "dpub1234",
-			err:  hdkeychain.ErrInvalidKeyLen,
+			err:  ErrInvalidKeyLen,
 		},
 		{
 			name: "bad checksum",
 			key:  "dpubZF6AWaFizAuUcbkZSs8cP8Gxzr6Sg5tLYYM7gEjZMC5GDaSHB4rW4F51zkWyo9U19BnXhc99kkEiPg248bYin8m9b8mGss9nxV6N2QpU8vj",
-			err:  hdkeychain.ErrBadChecksum,
+			err:  ErrBadChecksum,
 		},
 		{
 			name: "pubkey not on curve",
@@ -849,7 +848,7 @@ func TestErrors(t *testing.T) {
 	}
 
 	for i, test := range tests {
-		extKey, err := hdkeychain.NewKeyFromString(test.key)
+		extKey, err := NewKeyFromString(test.key)
 		if !reflect.DeepEqual(err, test.err) {
 			t.Errorf("NewKeyFromString #%d (%s): mismatched error "+
 				"-- got: %v, want: %v", i, test.name, err,
@@ -897,7 +896,7 @@ func TestZero(t *testing.T) {
 	// Use a closure to test that a key is zeroed since the tests create
 	// keys in different ways and need to test the same things multiple
 	// times.
-	testZeroed := func(i int, testName string, key *hdkeychain.ExtendedKey) bool {
+	testZeroed := func(i int, testName string, key *ExtendedKey) bool {
 		// Zeroing a key should result in it no longer being private
 		if key.IsPrivate() {
 			t.Errorf("IsPrivate #%d (%s): mismatched key type -- "+
@@ -923,7 +922,7 @@ func TestZero(t *testing.T) {
 			return false
 		}
 
-		wantErr := hdkeychain.ErrNotPrivExtKey
+		wantErr := ErrNotPrivExtKey
 		_, err := key.ECPrivKey()
 		if !reflect.DeepEqual(err, wantErr) {
 			t.Errorf("ECPrivKey #%d (%s): mismatched error: want "+
@@ -964,7 +963,7 @@ func TestZero(t *testing.T) {
 				i, test.name, err)
 			continue
 		}
-		key, err := hdkeychain.NewMaster(masterSeed, test.net)
+		key, err := NewMaster(masterSeed, test.net)
 		if err != nil {
 			t.Errorf("NewMaster #%d (%s): unexpected error when "+
 				"creating new master key: %v", i, test.name,
@@ -990,7 +989,7 @@ func TestZero(t *testing.T) {
 		}
 
 		// Deserialize key and get the neutered version.
-		key, err = hdkeychain.NewKeyFromString(test.extKey)
+		key, err = NewKeyFromString(test.extKey)
 		if err != nil {
 			t.Errorf("NewKeyFromString #%d (%s): unexpected "+
 				"error: %v", i, test.name, err)
