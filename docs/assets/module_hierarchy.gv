@@ -14,7 +14,7 @@ digraph {
 	secp256k1 [label="dcrec/secp256k1" fillcolor=mediumvioletred]
 	dcrutil [label="dcrutil" fillcolor=burlywood]
 	database [label="database" fillcolor=dodgerblue]
-	hdkeychain [label="hdkeychain" fillcolor=deepskyblue]
+	hdkeychain [label="hdkeychain/v2" fillcolor=deepskyblue]
 	txscript [label="txscript" fillcolor=mediumspringgreen]
 	stake [label="blockchain/stake" fillcolor=bisque]
 	gcs [label="gcs" fillcolor=gold]
