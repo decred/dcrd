@@ -52,7 +52,6 @@ replace (
 	github.com/decred/dcrd/dcrutil => ./dcrutil
 	github.com/decred/dcrd/fees => ./fees
 	github.com/decred/dcrd/gcs => ./gcs
-	github.com/decred/dcrd/hdkeychain => ./hdkeychain
 	github.com/decred/dcrd/limits => ./limits
 	github.com/decred/dcrd/lru => ./lru
 	github.com/decred/dcrd/mempool/v2 => ./mempool
