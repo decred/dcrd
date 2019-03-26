@@ -333,7 +333,7 @@ func TestLegacySequenceLocks(t *testing.T) {
 			enableSeqLocks(tx, 0)
 		})
 	g.SaveTipCoinbaseOuts()
-	g.Accepted()
+	g.AcceptTipBlock()
 
 	// ---------------------------------------------------------------------
 	// Create block that spends from an output created in the previous
@@ -350,7 +350,7 @@ func TestLegacySequenceLocks(t *testing.T) {
 			enableSeqLocks(tx, 0)
 			b.AddTransaction(tx)
 		})
-	g.Accepted()
+	g.AcceptTipBlock()
 
 	// ---------------------------------------------------------------------
 	// Create block that involves reorganize to a sequence lock spending
@@ -374,7 +374,7 @@ func TestLegacySequenceLocks(t *testing.T) {
 			b.AddTransaction(tx)
 		})
 	g.SaveTipCoinbaseOuts()
-	g.Accepted()
+	g.AcceptTipBlock()
 	g.ExpectTip("b2")
 
 	// ---------------------------------------------------------------------
@@ -389,7 +389,7 @@ func TestLegacySequenceLocks(t *testing.T) {
 			enableSeqLocks(b.STransactions[0], 0)
 		})
 	g.SaveTipCoinbaseOuts()
-	g.Accepted()
+	g.AcceptTipBlock()
 
 	// ---------------------------------------------------------------------
 	// Create block that involves a sequence lock on a ticket.
@@ -403,7 +403,7 @@ func TestLegacySequenceLocks(t *testing.T) {
 			enableSeqLocks(b.STransactions[5], 0)
 		})
 	g.SaveTipCoinbaseOuts()
-	g.Accepted()
+	g.AcceptTipBlock()
 
 	// ---------------------------------------------------------------------
 	// Create two blocks such that the tip block involves a sequence lock
@@ -421,7 +421,7 @@ func TestLegacySequenceLocks(t *testing.T) {
 			b.AddTransaction(tx)
 		})
 	g.SaveTipCoinbaseOuts()
-	g.Accepted()
+	g.AcceptTipBlock()
 
 	outs = g.OldestCoinbaseOuts()
 	g.NextBlock("b6", nil, outs[1:], replaceLNFeaturesVersions,
@@ -432,7 +432,7 @@ func TestLegacySequenceLocks(t *testing.T) {
 			b.AddTransaction(tx)
 		})
 	g.SaveTipCoinbaseOuts()
-	g.Accepted()
+	g.AcceptTipBlock()
 
 	// ---------------------------------------------------------------------
 	// Create block that involves a sequence lock spending from a regular
@@ -451,7 +451,7 @@ func TestLegacySequenceLocks(t *testing.T) {
 			enableSeqLocks(tx, 0)
 			b.AddTransaction(tx)
 		})
-	g.Rejected(ErrMissingTxOut)
+	g.RejectTipBlock(ErrMissingTxOut)
 
 	// ---------------------------------------------------------------------
 	// Create block that involves a sequence lock spending from a block
@@ -464,7 +464,7 @@ func TestLegacySequenceLocks(t *testing.T) {
 	g.SetTip("b6")
 	g.NextBlock("b8", nil, outs[1:], replaceLNFeaturesVersions)
 	g.SaveTipCoinbaseOuts()
-	g.Accepted()
+	g.AcceptTipBlock()
 
 	outs = g.OldestCoinbaseOuts()
 	g.NextBlock("b9", nil, outs[1:], replaceLNFeaturesVersions,
@@ -474,7 +474,7 @@ func TestLegacySequenceLocks(t *testing.T) {
 			enableSeqLocks(tx, 0)
 			b.AddTransaction(tx)
 		})
-	g.Rejected(ErrMissingTxOut)
+	g.RejectTipBlock(ErrMissingTxOut)
 
 	// ---------------------------------------------------------------------
 	// Create two blocks such that the tip block involves a sequence lock
@@ -501,7 +501,7 @@ func TestLegacySequenceLocks(t *testing.T) {
 			b.AddTransaction(tx)
 		})
 	g.SaveTipCoinbaseOuts()
-	g.Accepted()
+	g.AcceptTipBlock()
 
 	outs = g.OldestCoinbaseOuts()
 	g.NextBlock("b11", nil, outs[1:], replaceLNFeaturesVersions,
@@ -513,7 +513,7 @@ func TestLegacySequenceLocks(t *testing.T) {
 			enableSeqLocks(tx, 0)
 			b.AddTransaction(tx)
 		})
-	g.Rejected(ErrMissingTxOut)
+	g.RejectTipBlock(ErrMissingTxOut)
 }
 
 // TestCheckBlockSanity tests the context free block sanity checks with blocks
@@ -740,7 +740,7 @@ func TestCheckConnectBlockTemplate(t *testing.T) {
 	}
 	g.AssertTipHeight(1)
 	acceptedBlockTemplate()
-	g.Rejected(ErrHighHash)
+	g.RejectTipBlock(ErrHighHash)
 	g.ExpectTip("genesis")
 
 	// Produce a valid and solved initial block.
@@ -749,7 +749,7 @@ func TestCheckConnectBlockTemplate(t *testing.T) {
 	g.SetTip("genesis")
 	g.CreatePremineBlock("bfb", 0)
 	g.AssertTipHeight(1)
-	g.Accepted()
+	g.AcceptTipBlock()
 
 	// ---------------------------------------------------------------------
 	// Generate enough blocks to have mature coinbase outputs to work with.
@@ -766,7 +766,7 @@ func TestCheckConnectBlockTemplate(t *testing.T) {
 		g.NextBlock(blockName, nil, nil)
 		g.SaveTipCoinbaseOuts()
 		acceptedBlockTemplate()
-		g.Accepted()
+		g.AcceptTipBlock()
 		tipName = blockName
 	}
 	g.AssertTipHeight(uint32(coinbaseMaturity) + 1)
@@ -815,7 +815,7 @@ func TestCheckConnectBlockTemplate(t *testing.T) {
 	g.NextBlock("bse0", nil, tempTicketOuts)
 	g.SaveTipCoinbaseOuts()
 	acceptedBlockTemplate()
-	g.Accepted()
+	g.AcceptTipBlock()
 
 	var ticketsPurchased int
 	for i := int64(1); int64(g.Tip().Header.Height) < stakeEnabledHeight; i++ {
@@ -826,7 +826,7 @@ func TestCheckConnectBlockTemplate(t *testing.T) {
 		g.NextBlock(blockName, nil, ticketOuts)
 		g.SaveTipCoinbaseOuts()
 		acceptedBlockTemplate()
-		g.Accepted()
+		g.AcceptTipBlock()
 	}
 	g.AssertTipHeight(uint32(stakeEnabledHeight))
 
@@ -861,7 +861,7 @@ func TestCheckConnectBlockTemplate(t *testing.T) {
 		g.NextBlock(blockName, nil, ticketOuts)
 		g.SaveTipCoinbaseOuts()
 		acceptedBlockTemplate()
-		g.Accepted()
+		g.AcceptTipBlock()
 	}
 	g.AssertTipHeight(uint32(stakeValidationHeight))
 
@@ -882,7 +882,7 @@ func TestCheckConnectBlockTemplate(t *testing.T) {
 		g.NextBlock(blockName, nil, outs[1:])
 		g.SaveTipCoinbaseOuts()
 		acceptedBlockTemplate()
-		g.Accepted()
+		g.AcceptTipBlock()
 	}
 	g.AssertTipHeight(uint32(stakeValidationHeight) + uint32(coinbaseMaturity))
 
@@ -907,13 +907,13 @@ func TestCheckConnectBlockTemplate(t *testing.T) {
 	//
 	//   ... -> b1(0) -> b2(1) -> b3(2)
 	g.NextBlock("b1", outs[0], ticketOuts[0])
-	g.Accepted()
+	g.AcceptTipBlock()
 
 	g.NextBlock("b2", outs[1], ticketOuts[1])
-	g.Accepted()
+	g.AcceptTipBlock()
 
 	g.NextBlock("b3", outs[2], ticketOuts[2])
-	g.Accepted()
+	g.AcceptTipBlock()
 
 	// Create a block template that forks from b1.  It should not be allowed
 	// since it is not the current tip or its parent.

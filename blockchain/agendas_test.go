@@ -379,7 +379,7 @@ func TestFixedSequenceLocks(t *testing.T) {
 			enableSeqLocks(tx, 0)
 		})
 	g.SaveTipCoinbaseOuts()
-	g.Accepted()
+	g.AcceptTipBlock()
 
 	// ---------------------------------------------------------------------
 	// Create block that spends from an output created in the previous
@@ -396,7 +396,7 @@ func TestFixedSequenceLocks(t *testing.T) {
 			enableSeqLocks(tx, 0)
 			b.AddTransaction(tx)
 		})
-	g.Accepted()
+	g.AcceptTipBlock()
 
 	// ---------------------------------------------------------------------
 	// Create block that involves reorganize to a sequence lock spending
@@ -420,7 +420,7 @@ func TestFixedSequenceLocks(t *testing.T) {
 			b.AddTransaction(tx)
 		})
 	g.SaveTipCoinbaseOuts()
-	g.Accepted()
+	g.AcceptTipBlock()
 	g.ExpectTip("b2")
 
 	// ---------------------------------------------------------------------
@@ -435,7 +435,7 @@ func TestFixedSequenceLocks(t *testing.T) {
 			enableSeqLocks(b.STransactions[0], 0)
 		})
 	g.SaveTipCoinbaseOuts()
-	g.Accepted()
+	g.AcceptTipBlock()
 
 	// ---------------------------------------------------------------------
 	// Create block that involves a sequence lock on a ticket.
@@ -449,7 +449,7 @@ func TestFixedSequenceLocks(t *testing.T) {
 			enableSeqLocks(b.STransactions[5], 0)
 		})
 	g.SaveTipCoinbaseOuts()
-	g.Accepted()
+	g.AcceptTipBlock()
 
 	// ---------------------------------------------------------------------
 	// Create two blocks such that the tip block involves a sequence lock
@@ -467,7 +467,7 @@ func TestFixedSequenceLocks(t *testing.T) {
 			b.AddTransaction(tx)
 		})
 	g.SaveTipCoinbaseOuts()
-	g.Accepted()
+	g.AcceptTipBlock()
 
 	outs = g.OldestCoinbaseOuts()
 	g.NextBlock("b6", nil, outs[1:], replaceFixSeqLocksVersions,
@@ -478,7 +478,7 @@ func TestFixedSequenceLocks(t *testing.T) {
 			b.AddTransaction(tx)
 		})
 	g.SaveTipCoinbaseOuts()
-	g.Accepted()
+	g.AcceptTipBlock()
 
 	// ---------------------------------------------------------------------
 	// Create block that involves a sequence lock spending from a regular
@@ -498,7 +498,7 @@ func TestFixedSequenceLocks(t *testing.T) {
 			b.AddTransaction(tx)
 		})
 	g.SaveTipCoinbaseOuts()
-	g.Accepted()
+	g.AcceptTipBlock()
 
 	// ---------------------------------------------------------------------
 	// Create block that involves a sequence lock spending from a block
@@ -512,7 +512,7 @@ func TestFixedSequenceLocks(t *testing.T) {
 	outs = g.OldestCoinbaseOuts()
 	g.NextBlock("b8", nil, outs[1:], replaceFixSeqLocksVersions)
 	g.SaveTipCoinbaseOuts()
-	g.Accepted()
+	g.AcceptTipBlock()
 
 	outs = g.OldestCoinbaseOuts()
 	g.NextBlock("b9", nil, outs[1:], replaceFixSeqLocksVersions,
@@ -523,7 +523,7 @@ func TestFixedSequenceLocks(t *testing.T) {
 			b.AddTransaction(tx)
 		})
 	g.SaveTipCoinbaseOuts()
-	g.Accepted()
+	g.AcceptTipBlock()
 
 	// ---------------------------------------------------------------------
 	// Create two blocks such that the tip block involves a sequence lock
@@ -550,7 +550,7 @@ func TestFixedSequenceLocks(t *testing.T) {
 			b.AddTransaction(tx)
 		})
 	g.SaveTipCoinbaseOuts()
-	g.Accepted()
+	g.AcceptTipBlock()
 
 	outs = g.OldestCoinbaseOuts()
 	g.NextBlock("b11", nil, outs[1:], replaceFixSeqLocksVersions,
@@ -563,5 +563,5 @@ func TestFixedSequenceLocks(t *testing.T) {
 			b.AddTransaction(tx)
 		})
 	g.SaveTipCoinbaseOuts()
-	g.Accepted()
+	g.AcceptTipBlock()
 }

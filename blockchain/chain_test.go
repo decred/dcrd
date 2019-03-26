@@ -205,7 +205,7 @@ func TestForceHeadReorg(t *testing.T) {
 		blockName := fmt.Sprintf("bbm%d", i)
 		g.NextBlock(blockName, nil, outs[1:])
 		g.SaveTipCoinbaseOuts()
-		g.Accepted()
+		g.AcceptTipBlock()
 	}
 	g.AssertTipHeight(uint32(stakeValidationHeight) + uint32(coinbaseMaturity))
 
@@ -230,7 +230,7 @@ func TestForceHeadReorg(t *testing.T) {
 	//
 	//   ... -> b1(0)
 	g.NextBlock("b1", outs[0], ticketOuts[0])
-	g.Accepted()
+	g.AcceptTipBlock()
 
 	// Create a fork from b1 with an invalid block due to committing to an
 	// invalid number of votes.  Since verifying the header commitment is a
@@ -242,7 +242,7 @@ func TestForceHeadReorg(t *testing.T) {
 	g.NextBlock("b2bad0", outs[1], ticketOuts[1], func(b *wire.MsgBlock) {
 		b.Header.Voters++
 	})
-	g.Rejected(ErrTooManyVotes)
+	g.RejectTipBlock(ErrTooManyVotes)
 
 	// Create a fork from b1 with an invalid block due to committing to an
 	// invalid input amount.  Since verifying the fraud proof necessarily
@@ -257,7 +257,7 @@ func TestForceHeadReorg(t *testing.T) {
 	g.NextBlock("b2bad1", outs[1], ticketOuts[1], func(b *wire.MsgBlock) {
 		b.Transactions[1].TxIn[0].ValueIn--
 	})
-	g.Rejected(ErrFraudAmountIn)
+	g.RejectTipBlock(ErrFraudAmountIn)
 
 	// Create some forks from b1.  There should not be a reorg since b1 is
 	// the current tip and b2 is seen first.
@@ -270,7 +270,7 @@ func TestForceHeadReorg(t *testing.T) {
 	//               \-> b2bad1(1)
 	g.SetTip("b1")
 	g.NextBlock("b2", outs[1], ticketOuts[1])
-	g.Accepted()
+	g.AcceptTipBlock()
 
 	g.SetTip("b1")
 	g.NextBlock("b3", outs[1], ticketOuts[1])

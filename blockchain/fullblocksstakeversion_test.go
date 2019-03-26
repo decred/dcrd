@@ -51,7 +51,7 @@ func TestStakeVersion(t *testing.T) {
 			chaingen.ReplaceStakeVersion(0),
 			chaingen.ReplaceVoteVersions(3))
 		g.SaveTipCoinbaseOuts()
-		g.Accepted()
+		g.AcceptTipBlock()
 	}
 	g.AssertTipHeight(uint32(stakeValidationHeight + stakeVerInterval - 1))
 	g.AssertBlockVersion(2)
@@ -73,7 +73,7 @@ func TestStakeVersion(t *testing.T) {
 		chaingen.ReplaceStakeVersion(42),
 		chaingen.ReplaceVoteVersions(41))
 	g.SaveTipCoinbaseOuts()
-	g.Accepted()
+	g.AcceptTipBlock()
 	g.AssertTipHeight(uint32(stakeValidationHeight + stakeVerInterval))
 	g.AssertBlockVersion(3)
 	g.AssertStakeVersion(42) // expected bogus
@@ -98,7 +98,7 @@ func TestStakeVersion(t *testing.T) {
 			chaingen.ReplaceStakeVersion(0),
 			chaingen.ReplaceVoteVersions(2))
 		g.SaveTipCoinbaseOuts()
-		g.Accepted()
+		g.AcceptTipBlock()
 	}
 	g.AssertTipHeight(uint32(stakeValidationHeight + 2*stakeVerInterval - 1))
 	g.AssertBlockVersion(3)
@@ -121,7 +121,7 @@ func TestStakeVersion(t *testing.T) {
 	g.AssertTipHeight(uint32(stakeValidationHeight + 2*stakeVerInterval))
 	g.AssertBlockVersion(3)
 	g.AssertStakeVersion(2)
-	g.Rejected(ErrBadStakeVersion)
+	g.RejectTipBlock(ErrBadStakeVersion)
 
 	// ---------------------------------------------------------------------
 	// Generate a single block with block version 3, stake version 1, and
@@ -141,7 +141,7 @@ func TestStakeVersion(t *testing.T) {
 	g.AssertTipHeight(uint32(stakeValidationHeight + 2*stakeVerInterval))
 	g.AssertBlockVersion(3)
 	g.AssertStakeVersion(1)
-	g.Rejected(ErrBadStakeVersion)
+	g.RejectTipBlock(ErrBadStakeVersion)
 
 	// ---------------------------------------------------------------------
 	// Generate enough blocks to reach one block before the next stake
@@ -161,7 +161,7 @@ func TestStakeVersion(t *testing.T) {
 			chaingen.ReplaceStakeVersion(0),
 			chaingen.ReplaceVoteVersions(3))
 		g.SaveTipCoinbaseOuts()
-		g.Accepted()
+		g.AcceptTipBlock()
 	}
 	g.AssertTipHeight(uint32(stakeValidationHeight + 3*stakeVerInterval - 1))
 	g.AssertBlockVersion(3)
@@ -182,7 +182,7 @@ func TestStakeVersion(t *testing.T) {
 	g.AssertTipHeight(uint32(stakeValidationHeight + 3*stakeVerInterval))
 	g.AssertBlockVersion(3)
 	g.AssertStakeVersion(2)
-	g.Rejected(ErrBadStakeVersion)
+	g.RejectTipBlock(ErrBadStakeVersion)
 
 	// ---------------------------------------------------------------------
 	// Generate a single block with block version 3, stake version 4, and
@@ -200,7 +200,7 @@ func TestStakeVersion(t *testing.T) {
 	g.AssertTipHeight(uint32(stakeValidationHeight + 3*stakeVerInterval))
 	g.AssertBlockVersion(3)
 	g.AssertStakeVersion(4)
-	g.Rejected(ErrBadStakeVersion)
+	g.RejectTipBlock(ErrBadStakeVersion)
 
 	// ---------------------------------------------------------------------
 	// Generate enough blocks to reach one block before the next stake
@@ -220,7 +220,7 @@ func TestStakeVersion(t *testing.T) {
 			chaingen.ReplaceStakeVersion(3),
 			chaingen.ReplaceVoteVersions(2))
 		g.SaveTipCoinbaseOuts()
-		g.Accepted()
+		g.AcceptTipBlock()
 	}
 	g.AssertTipHeight(uint32(stakeValidationHeight + 4*stakeVerInterval - 1))
 	g.AssertBlockVersion(3)
@@ -242,7 +242,7 @@ func TestStakeVersion(t *testing.T) {
 	g.AssertTipHeight(uint32(stakeValidationHeight + 4*stakeVerInterval))
 	g.AssertBlockVersion(3)
 	g.AssertStakeVersion(2)
-	g.Rejected(ErrBadStakeVersion)
+	g.RejectTipBlock(ErrBadStakeVersion)
 
 	// ---------------------------------------------------------------------
 	// Generate a single block with block version 3, stake version 4, and
@@ -260,7 +260,7 @@ func TestStakeVersion(t *testing.T) {
 	g.AssertTipHeight(uint32(stakeValidationHeight + 4*stakeVerInterval))
 	g.AssertBlockVersion(3)
 	g.AssertStakeVersion(4)
-	g.Rejected(ErrBadStakeVersion)
+	g.RejectTipBlock(ErrBadStakeVersion)
 
 	// ---------------------------------------------------------------------
 	// Generate enough blocks to reach one block before the next stake
@@ -285,7 +285,7 @@ func TestStakeVersion(t *testing.T) {
 		g.SaveTipCoinbaseOuts()
 		g.AssertBlockVersion(3)
 		g.AssertStakeVersion(3)
-		g.Accepted()
+		g.AcceptTipBlock()
 	}
 	for i := int64(0); i < stakeVerInterval-(targetBlocks-1); i++ {
 		outs := g.OldestCoinbaseOuts()
@@ -297,7 +297,7 @@ func TestStakeVersion(t *testing.T) {
 		g.SaveTipCoinbaseOuts()
 		g.AssertBlockVersion(3)
 		g.AssertStakeVersion(3)
-		g.Accepted()
+		g.AcceptTipBlock()
 	}
 	g.AssertTipHeight(uint32(stakeValidationHeight + 5*stakeVerInterval - 1))
 
@@ -317,7 +317,7 @@ func TestStakeVersion(t *testing.T) {
 	g.AssertTipHeight(uint32(stakeValidationHeight + 5*stakeVerInterval))
 	g.AssertBlockVersion(3)
 	g.AssertStakeVersion(4)
-	g.Rejected(ErrBadStakeVersion)
+	g.RejectTipBlock(ErrBadStakeVersion)
 
 	// ---------------------------------------------------------------------
 	// Generate enough blocks to reach one block before the next stake
@@ -339,7 +339,7 @@ func TestStakeVersion(t *testing.T) {
 		g.SaveTipCoinbaseOuts()
 		g.AssertBlockVersion(3)
 		g.AssertStakeVersion(3)
-		g.Accepted()
+		g.AcceptTipBlock()
 	}
 	for i := int64(0); i < stakeVerInterval-targetBlocks; i++ {
 		outs := g.OldestCoinbaseOuts()
@@ -351,7 +351,7 @@ func TestStakeVersion(t *testing.T) {
 		g.SaveTipCoinbaseOuts()
 		g.AssertBlockVersion(3)
 		g.AssertStakeVersion(3)
-		g.Accepted()
+		g.AcceptTipBlock()
 	}
 	g.AssertTipHeight(uint32(stakeValidationHeight + 6*stakeVerInterval - 1))
 
@@ -370,7 +370,7 @@ func TestStakeVersion(t *testing.T) {
 	g.AssertTipHeight(uint32(stakeValidationHeight + 6*stakeVerInterval))
 	g.AssertBlockVersion(3)
 	g.AssertStakeVersion(3)
-	g.Rejected(ErrBadStakeVersion)
+	g.RejectTipBlock(ErrBadStakeVersion)
 
 	// ---------------------------------------------------------------------
 	// Generate a single block with block version 3, stake version 4, and
@@ -388,5 +388,5 @@ func TestStakeVersion(t *testing.T) {
 	g.AssertTipHeight(uint32(stakeValidationHeight + 6*stakeVerInterval))
 	g.AssertBlockVersion(3)
 	g.AssertStakeVersion(4)
-	g.Accepted()
+	g.AcceptTipBlock()
 }
