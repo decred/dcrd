@@ -36,6 +36,9 @@ const (
 )
 
 const (
+	// consensusVersion = txscript.consensusVersion
+	consensusVersion = 0
+
 	// MaxInputsPerSStx is the maximum number of inputs allowed in an SStx.
 	MaxInputsPerSStx = 64
 
@@ -147,13 +150,13 @@ var (
 	// 0x?? 0x?? 0x?? 0x??
 	//
 	// 0x?? 0x??           (2 byte range limits)
-	validSStxAddressOutMinPrefix = []byte{0x6a, 0x1e}
+	validSStxAddressOutMinPrefix = []byte{txscript.OP_RETURN, txscript.OP_DATA_30}
 
 	// validSSGenReferenceOutPrefix is the valid prefix for a block
 	// reference output for an SSGen tx.
 	// Example SStx address out:
 	// 0x6a (OP_RETURN)
-	// 0x28 (OP_DATA_40, push length: 40 bytes)
+	// 0x24 (OP_DATA_36, push length: 36 bytes)
 	//
 	// 0x?? 0x?? 0x?? 0x?? (32 byte block header hash for the block
 	// 0x?? 0x?? 0x?? 0x??   you wish to vote on)
@@ -166,7 +169,7 @@ var (
 	//
 	// 0x?? 0x?? 0x?? 0x?? (4 byte uint32 for the height of the block
 	//                      that you wish to vote on)
-	validSSGenReferenceOutPrefix = []byte{0x6a, 0x24}
+	validSSGenReferenceOutPrefix = []byte{txscript.OP_RETURN, txscript.OP_DATA_36}
 
 	// validSSGenVoteOutMinPrefix is the valid prefix for a vote output for an
 	// SSGen tx.
@@ -174,7 +177,7 @@ var (
 	// 0x02 (OP_DATA_2 to OP_DATA_75, push length: 2-75 bytes)
 	//
 	// 0x?? 0x?? (VoteBits) ... 0x??
-	validSSGenVoteOutMinPrefix = []byte{0x6a, 0x02}
+	validSSGenVoteOutMinPrefix = []byte{txscript.OP_RETURN, txscript.OP_DATA_2}
 
 	// zeroHash is the zero value for a chainhash.Hash and is defined as
 	// a package level variable to avoid the need to create a new instance
@@ -674,9 +677,9 @@ func CheckSStx(tx *wire.MsgTx) error {
 			"outputs")
 	}
 
-	// Check to make sure that all output scripts are the default version.
+	// Check to make sure that all output scripts are the consensus version.
 	for idx, txOut := range tx.TxOut {
-		if txOut.Version != txscript.DefaultScriptVersion {
+		if txOut.Version != consensusVersion {
 			errStr := fmt.Sprintf("invalid script version found in "+
 				"txOut idx %v", idx)
 			return stakeRuleError(ErrSStxInvalidOutputs, errStr)
@@ -833,9 +836,9 @@ func CheckSSGen(tx *wire.MsgTx) error {
 		}
 	}
 
-	// Check to make sure that all output scripts are the default version.
+	// Check to make sure that all output scripts are the consensus version.
 	for _, txOut := range tx.TxOut {
-		if txOut.Version != txscript.DefaultScriptVersion {
+		if txOut.Version != consensusVersion {
 			return stakeRuleError(ErrSSGenBadGenOuts, "invalid "+
 				"script version found in txOut")
 		}
@@ -980,9 +983,9 @@ func CheckSSRtx(tx *wire.MsgTx) error {
 			"outputs")
 	}
 
-	// Check to make sure that all output scripts are the default version.
+	// Check to make sure that all output scripts are the consensus version.
 	for _, txOut := range tx.TxOut {
-		if txOut.Version != txscript.DefaultScriptVersion {
+		if txOut.Version != consensusVersion {
 			return stakeRuleError(ErrSSRtxBadOuts, "invalid "+
 				"script version found in txOut")
 		}
