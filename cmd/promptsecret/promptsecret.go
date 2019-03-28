@@ -5,11 +5,14 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"os"
 
 	"golang.org/x/crypto/ssh/terminal"
 )
+
+var n = flag.Int("n", 1, "prompt n times")
 
 func zero(b []byte) {
 	for i := 0; i < len(b); i++ {
@@ -17,7 +20,9 @@ func zero(b []byte) {
 	}
 }
 
-func main() {
+var nl = []byte("\n")
+
+func prompt() {
 	fmt.Fprint(os.Stderr, "Secret: ")
 
 	secret, err := terminal.ReadPassword(int(os.Stdin.Fd()))
@@ -32,5 +37,14 @@ func main() {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "unable to write to stdout: %v\n", err)
 		os.Exit(1)
+	}
+	os.Stdout.Write(nl)
+}
+
+func main() {
+	flag.Parse()
+
+	for i := 0; i < *n; i++ {
+		prompt()
 	}
 }
