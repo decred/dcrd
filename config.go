@@ -25,7 +25,7 @@ import (
 	"github.com/decred/dcrd/connmgr"
 	"github.com/decred/dcrd/database"
 	_ "github.com/decred/dcrd/database/ffldb"
-	"github.com/decred/dcrd/dcrjson"
+	"github.com/decred/dcrd/dcrjson/v2"
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/dcrd/internal/version"
 	"github.com/decred/dcrd/mempool/v2"
@@ -177,7 +177,9 @@ type config struct {
 	miningAddrs          []dcrutil.Address
 	minRelayTxFee        dcrutil.Amount
 	whitelists           []*net.IPNet
-	networks             *Networks
+	ipv4NetInfo          dcrjson.NetworksResult
+	ipv6NetInfo          dcrjson.NetworksResult
+	onionNetInfo         dcrjson.NetworksResult
 }
 
 // serviceOptions defines the configuration options for the daemon as a service on
@@ -419,194 +421,50 @@ func createDefaultConfigFile(destPath string) error {
 	return err
 }
 
-// Network protocols.
-var (
-	IPV4  = "ipv4"
-	IPV6  = "ipv6"
-	Onion = "onion"
-)
-
-// Networks is a map of network states.
-type Networks map[string]*dcrjson.NetworksResult
-
-// setReachable sets the reachable state for the provided network protocol.
-func (n Networks) setReachable(protocol string, value bool) error {
-	net, ok := n[protocol]
-	if !ok {
-		return fmt.Errorf("network (%v) not found", protocol)
-	}
-
-	net.Reachable = value
-	n[protocol] = net
-	return nil
-}
-
-// setLimited sets the limited state for the provided network protocol.
-func (n Networks) setLimited(protocol string, value bool) error {
-	net, ok := n[protocol]
-	if !ok {
-		return fmt.Errorf("network (%v) not found", protocol)
-	}
-
-	net.Limited = value
-	n[protocol] = net
-	return nil
-}
-
-// setProxy sets the proxy state for the provided network protocol.
-func (n Networks) setProxy(protocol string, value string) error {
-	net, ok := n[protocol]
-	if !ok {
-		return fmt.Errorf("network (%v) not found", protocol)
-	}
-
-	net.Proxy = value
-	n[protocol] = net
-	return nil
-}
-
-// setProxyRandomizeCredentials sets the limited state for the provided
-// network protocol.
-func (n Networks) setProxyRandomizeCredentials(protocol string, value bool) error {
-	net, ok := n[protocol]
-	if !ok {
-		return fmt.Errorf("network (%v) not found", protocol)
-	}
-
-	net.ProxyRandomizeCredentials = value
-	n[protocol] = net
-	return nil
-}
-
-// generateInfo is a convenience function that creates a slice from the
-// networks map.
-func (n Networks) generateInfo() ([]dcrjson.NetworksResult, error) {
-	nInfo := make([]dcrjson.NetworksResult, 3)
-	for net, info := range n {
-		switch net {
-		case IPV4:
-			nInfo[0] = *info
-		case IPV6:
-			nInfo[1] = *info
-		case Onion:
-			nInfo[2] = *info
-		default:
-			return nil, fmt.Errorf("Unknown network type: %v", net)
-		}
-	}
-
-	return nInfo, nil
+// generateNetworkInfo is a convenience function that creates a slice from the
+// available networks.
+func (cfg *config) generateNetworkInfo() []dcrjson.NetworksResult {
+	return []dcrjson.NetworksResult{cfg.ipv4NetInfo, cfg.ipv6NetInfo,
+		cfg.onionNetInfo}
 }
 
 // parseNetworkInterfaces updates all network interface states based on the
 // provided configuration.
-func parseNetworkInterfaces(cfg *config) (*Networks, error) {
-	networks := &Networks{
-		IPV4: &dcrjson.NetworksResult{
-			Name: IPV4,
-		},
-		IPV6: &dcrjson.NetworksResult{
-			Name: IPV6,
-		},
-		Onion: &dcrjson.NetworksResult{
-			Name: Onion,
-		},
-	}
-
+func parseNetworkInterfaces(cfg *config) error {
 	v4Addrs, v6Addrs, _, err := parseListeners(cfg.Listeners)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	limited := len(v4Addrs)+len(v6Addrs) == 1
-
-	// Parse IPV4 interface state.
+	// Set IPV4 interface state.
 	if len(v4Addrs) > 0 {
-		if !cfg.DisableListen {
-			err = networks.setReachable(IPV4, true)
-			if err != nil {
-				return nil, err
-			}
-		}
-
-		if cfg.Proxy != "" {
-			err = networks.setProxy(IPV4, cfg.Proxy)
-			if err != nil {
-				return nil, err
-			}
-		}
-
-		if limited {
-			err = networks.setLimited(IPV4, true)
-			if err != nil {
-				return nil, err
-			}
-		}
+		ipv4 := &cfg.ipv4NetInfo
+		ipv4.Reachable = !cfg.DisableListen
+		ipv4.Limited = len(v6Addrs) == 0
+		ipv4.Proxy = cfg.Proxy
 	}
 
-	// Parse IPV6 interface state.
+	// Set IPV6 interface state.
 	if len(v6Addrs) > 0 {
-		if !cfg.DisableListen {
-			err = networks.setReachable(IPV6, true)
-			if err != nil {
-				return nil, err
-			}
-		}
-
-		if cfg.Proxy != "" {
-			err = networks.setProxy(IPV6, cfg.Proxy)
-			if err != nil {
-				return nil, err
-			}
-		}
-
-		if limited {
-			err = networks.setLimited(IPV6, true)
-			if err != nil {
-				return nil, err
-			}
-		}
+		ipv6 := &cfg.ipv6NetInfo
+		ipv6.Reachable = !cfg.DisableListen
+		ipv6.Limited = len(v4Addrs) == 0
+		ipv6.Proxy = cfg.Proxy
 	}
 
-	// Parse Onion interface state.
+	// Set Onion interface state.
 	if len(v6Addrs) > 0 && (cfg.Proxy != "" || cfg.OnionProxy != "") {
-		if !cfg.DisableListen && !cfg.NoOnion {
-			err = networks.setReachable(Onion, true)
-			if err != nil {
-				return nil, err
-			}
-		}
-
-		if limited {
-			err = networks.setLimited(Onion, true)
-			if err != nil {
-				return nil, err
-			}
-		}
-
-		if cfg.Proxy != "" {
-			err = networks.setProxy(Onion, cfg.Proxy)
-			if err != nil {
-				return nil, err
-			}
-		}
-
+		onion := &cfg.onionNetInfo
+		onion.Reachable = !cfg.DisableListen && !cfg.NoOnion
+		onion.Limited = len(v4Addrs) == 0
+		onion.Proxy = cfg.Proxy
 		if cfg.OnionProxy != "" {
-			err = networks.setProxy(Onion, cfg.OnionProxy)
-			if err != nil {
-				return nil, err
-			}
+			onion.Proxy = cfg.OnionProxy
 		}
-
-		if cfg.TorIsolation {
-			err = networks.setProxyRandomizeCredentials(Onion, true)
-			if err != nil {
-				return nil, err
-			}
-		}
+		onion.ProxyRandomizeCredentials = cfg.TorIsolation
 	}
 
-	return networks, nil
+	return nil
 }
 
 // loadConfig initializes and parses the config using a config file and command
@@ -654,6 +512,9 @@ func loadConfig() (*config, []string, error) {
 		NoExistsAddrIndex:    defaultNoExistsAddrIndex,
 		NoCFilters:           defaultNoCFilters,
 		AltDNSNames:          defaultAltDNSNames,
+		ipv4NetInfo:          dcrjson.NetworksResult{Name: "IPV4"},
+		ipv6NetInfo:          dcrjson.NetworksResult{Name: "IPV6"},
+		onionNetInfo:         dcrjson.NetworksResult{Name: "Onion"},
 	}
 
 	// Service options which are only added on Windows.
@@ -1314,8 +1175,9 @@ func loadConfig() (*config, []string, error) {
 		}
 	}
 
-	cfg.networks, err = parseNetworkInterfaces(&cfg)
-	if err != nil {
+	// Parse information regarding the state of the supported network
+	// interfaces.
+	if err := parseNetworkInterfaces(&cfg); err != nil {
 		return nil, nil, err
 	}
 
