@@ -1891,6 +1891,10 @@ func (b *blockManager) handleNotifyMsg(notification *blockchain.Notification) {
 			r.ntfnMgr.NotifyBlockConnected(block)
 		}
 
+		if b.server.bg != nil {
+			b.server.bg.handleConnectedBlock(block.Height())
+		}
+
 	// Stake tickets are spent or missed from the most recently connected block.
 	case blockchain.NTSpentAndMissedTickets:
 		tnd, ok := notification.Data.(*blockchain.TicketNotificationsData)
@@ -1982,12 +1986,32 @@ func (b *blockManager) handleNotifyMsg(notification *blockchain.Notification) {
 		handleDisconnectedBlockTxns(block.Transactions()[1:])
 		handleDisconnectedBlockTxns(block.STransactions())
 
+		if b.server.bg != nil {
+			b.server.bg.handleDisconnectedBlock(block.Height())
+		}
+
+		// Filter and update the rebroadcast inventory.
+		b.server.PruneRebroadcastInventory()
+
+		// Notify registered websocket clients.
 		if r := b.server.rpcServer; r != nil {
 			// Filter and update the rebroadcast inventory.
 			b.server.PruneRebroadcastInventory()
 
 			// Notify registered websocket clients.
 			r.ntfnMgr.NotifyBlockDisconnected(block)
+		}
+
+	// Chain reorganization has commenced.
+	case blockchain.NTChainReorgStarted:
+		if b.server.bg != nil {
+			b.server.bg.handleChainReorgStarted()
+		}
+
+	// Chain reorganization has concluded.
+	case blockchain.NTChainReorgDone:
+		if b.server.bg != nil {
+			b.server.bg.handleChainReorgDone()
 		}
 
 	// The blockchain is reorganizing.

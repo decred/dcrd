@@ -125,6 +125,10 @@ type Config struct {
 	// whenever a transaction is removed from the mempool in order to track fee
 	// estimation.
 	RemoveTxFromFeeEstimation func(txHash *chainhash.Hash)
+
+	// OnVoteReceived defines the function used to signal receiving a new
+	// vote in the mempool.
+	OnVoteReceived func(voteTx *wire.MsgTx)
 }
 
 // Policy houses the policy (configuration parameters) which is used to
@@ -676,6 +680,9 @@ func (mp *TxPool) RemoveDoubleSpends(tx *dcrutil.Tx) {
 // This function MUST be called with the mempool lock held (for writes).
 func (mp *TxPool) addTransaction(utxoView *blockchain.UtxoViewpoint,
 	tx *dcrutil.Tx, txType stake.TxType, height int64, fee int64) {
+	if mp.cfg.OnVoteReceived != nil && txType == stake.TxTypeSSGen {
+		mp.cfg.OnVoteReceived(tx.MsgTx())
+	}
 
 	// Add the transaction to the pool and mark the referenced outpoints
 	// as spent by the pool.

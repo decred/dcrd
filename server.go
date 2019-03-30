@@ -6,6 +6,7 @@
 package main
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/binary"
 	"errors"
@@ -193,6 +194,7 @@ type server struct {
 	sigCache             *txscript.SigCache
 	rpcServer            *rpcServer
 	blockManager         *blockManager
+	bg                   *BgBlkTmplGenerator
 	txMemPool            *mempool.TxPool
 	feeEstimator         *fees.Estimator
 	cpuMiner             *CPUMiner
@@ -210,6 +212,8 @@ type server struct {
 	db                   database.DB
 	timeSource           blockchain.MedianTimeSource
 	services             wire.ServiceFlag
+	context              context.Context
+	cancel               context.CancelFunc
 
 	// The following fields are used for optional indexes.  They will be nil
 	// if the associated index is not enabled.  These fields are set during
@@ -2128,6 +2132,12 @@ func (s *server) Start() {
 		s.rpcServer.Start()
 	}
 
+	// Start the background block template generator if the config provides
+	// a mining address.
+	if len(cfg.MiningAddrs) > 0 {
+		s.bg.Start(s.context)
+	}
+
 	// Start the CPU miner if generation is enabled.
 	if cfg.Generate {
 		s.cpuMiner.Start()
@@ -2144,6 +2154,12 @@ func (s *server) Stop() error {
 	}
 
 	srvrLog.Warnf("Server shutting down")
+
+	// Stop the background block template generator.
+	if len(cfg.miningAddrs) > 0 {
+		minrLog.Info("Shutting down background block template generator.")
+		s.cancel()
+	}
 
 	// Stop the CPU miner if needed.
 	if cfg.Generate && s.cpuMiner != nil {
@@ -2471,6 +2487,7 @@ func newServer(listenAddrs []string, db database.DB, chainParams *chaincfg.Param
 		}
 	}
 
+	ctx, cancel := context.WithCancel(context.Background())
 	s := server{
 		chainParams:          chainParams,
 		addrManager:          amgr,
@@ -2488,6 +2505,8 @@ func newServer(listenAddrs []string, db database.DB, chainParams *chaincfg.Param
 		timeSource:           blockchain.NewMedianTime(),
 		services:             services,
 		sigCache:             txscript.NewSigCache(cfg.SigCacheMaxSize),
+		context:              ctx,
+		cancel:               cancel,
 	}
 
 	// Create the transaction and address indexes if needed.
@@ -2592,6 +2611,11 @@ func newServer(listenAddrs []string, db database.DB, chainParams *chaincfg.Param
 		ExistsAddrIndex:           s.existsAddrIndex,
 		AddTxToFeeEstimation:      s.feeEstimator.AddMemPoolTransaction,
 		RemoveTxFromFeeEstimation: s.feeEstimator.RemoveMemPoolTransaction,
+		OnVoteReceived: func(voteTx *wire.MsgTx) {
+			if s.bg != nil {
+				s.bg.OnVoteReceived(voteTx)
+			}
+		},
 	}
 	s.txMemPool = mempool.New(&txC)
 
@@ -2606,12 +2630,19 @@ func newServer(listenAddrs []string, db database.DB, chainParams *chaincfg.Param
 		BlockPrioritySize: cfg.BlockPrioritySize,
 		TxMinFreeFee:      cfg.minRelayTxFee,
 	}
-	blockTemplateGenerator := newBlkTmplGenerator(&policy, s.txMemPool,
-		s.timeSource, s.sigCache, s.chainParams, bm.chain, bm)
+	tg := newBlkTmplGenerator(&policy, s.txMemPool, s.timeSource, s.sigCache,
+		s.chainParams, bm.chain, bm)
+
+	// Create the background block template generator if the config has a
+	// mining address.
+	if len(cfg.miningAddrs) > 0 {
+		s.bg = newBgBlkTmplGenerator(tg, cfg.miningAddrs, cfg.SimNet)
+	}
+
 	s.cpuMiner = newCPUMiner(&cpuminerConfig{
 		ChainParams:                s.chainParams,
 		PermitConnectionlessMining: cfg.SimNet,
-		BlockTemplateGenerator:     blockTemplateGenerator,
+		BlockTemplateGenerator:     tg,
 		MiningAddrs:                cfg.miningAddrs,
 		ProcessBlock:               bm.ProcessBlock,
 		ConnectedCount:             s.ConnectedCount,
@@ -2701,8 +2732,7 @@ func newServer(listenAddrs []string, db database.DB, chainParams *chaincfg.Param
 	}
 
 	if !cfg.DisableRPC {
-		s.rpcServer, err = newRPCServer(cfg.RPCListeners,
-			blockTemplateGenerator, &s)
+		s.rpcServer, err = newRPCServer(cfg.RPCListeners, tg, &s)
 		if err != nil {
 			return nil, err
 		}

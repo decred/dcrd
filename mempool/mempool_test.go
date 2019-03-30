@@ -752,6 +752,7 @@ func newPoolHarness(chainParams *chaincfg.Params) (*poolHarness, []spendableOutp
 			SigCache:            nil,
 			AddrIndex:           nil,
 			ExistsAddrIndex:     nil,
+			OnVoteReceived:      nil,
 		}),
 	}
 

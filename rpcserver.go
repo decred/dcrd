@@ -99,9 +99,6 @@ const (
 	// in the memory pool.
 	gbtRegenerateSeconds = 60
 
-	// merkleRootPairSize
-	merkleRootPairSize = 64
-
 	// sstxCommitmentString is the string to insert when a verbose
 	// transaction output's pkscript type is a ticket commitment.
 	sstxCommitmentString = "sstxcommitment"
