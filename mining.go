@@ -2112,10 +2112,8 @@ func (g *BgBlkTmplGenerator) notifySubscribersHandler(ctx context.Context) {
 		case t := <-g.notifyChan:
 			g.subscriptionMtx.Lock()
 			for c := range g.subscribers {
-				go func() {
-					c <- t
-					close(c)
-				}()
+				c <- t
+				close(c)
 
 				delete(g.subscribers, c)
 			}
