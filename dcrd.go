@@ -25,12 +25,15 @@ var cfg *config
 // as a service and reacts accordingly.
 var winServiceMain func() (bool, error)
 
+// serviceStartOfDayChan is only used by Windows when the code is running as a
+// service.  It signals the service code that startup has completed.  Notice
+// that it uses a buffered channel so the caller will not be blocked when the
+// service is not running.
+var serviceStartOfDayChan = make(chan *config, 1)
+
 // dcrdMain is the real main function for dcrd.  It is necessary to work around
-// the fact that deferred functions do not run when os.Exit() is called.  The
-// optional serverChan parameter is mainly used by the service code to be
-// notified with the server once it is setup so it can gracefully stop it when
-// requested from the service control manager.
-func dcrdMain(serverChan chan<- *server) error {
+// the fact that deferred functions do not run when os.Exit() is called.
+func dcrdMain() error {
 	// Load configuration and parse command line.  This function also
 	// initializes logging and configures it accordingly.
 	tcfg, _, err := loadConfig()
@@ -191,15 +194,15 @@ func dcrdMain(serverChan chan<- *server) error {
 	}()
 
 	server.Start()
-	if serverChan != nil {
-		serverChan <- server
-	}
 
 	if interruptRequested(interrupt) {
 		return nil
 	}
 
 	lifetimeNotifier.notifyStartupComplete()
+
+	// Signal the Windows service (if running) that startup has completed.
+	serviceStartOfDayChan <- cfg
 
 	// Wait until the interrupt signal is received from an OS signal or
 	// shutdown is requested through one of the subsystems such as the RPC
@@ -239,7 +242,7 @@ func main() {
 	}
 
 	// Work around defer not working after os.Exit()
-	if err := dcrdMain(nil); err != nil {
+	if err := dcrdMain(); err != nil {
 		os.Exit(1)
 	}
 }

@@ -36,7 +36,7 @@ var elog *eventlog.Log
 
 // logServiceStartOfDay logs information about dcrd when the main server has
 // been started to the Windows event log.
-func logServiceStartOfDay(srvr *server) {
+func logServiceStartOfDay(cfg *config) {
 	var message string
 	message += fmt.Sprintf("Version %s\n", version.String())
 	message += fmt.Sprintf("Configuration directory: %s\n", cfg.HomeDir)
@@ -61,19 +61,16 @@ func (s *dcrdService) Execute(args []string, r <-chan svc.ChangeRequest, changes
 
 	// Start dcrdMain in a separate goroutine so the service can start
 	// quickly.  Shutdown (along with a potential error) is reported via
-	// doneChan.  serverChan is notified with the main server instance once
-	// it is started so it can be gracefully stopped.
+	// doneChan.
 	doneChan := make(chan error)
-	serverChan := make(chan *server)
 	go func() {
-		err := dcrdMain(serverChan)
+		err := dcrdMain()
 		doneChan <- err
 	}()
 
 	// Service is now started.
 	changes <- svc.Status{State: svc.Running, Accepts: cmdsAccepted}
 
-	var mainServer *server
 loop:
 	for {
 		select {
@@ -95,9 +92,8 @@ loop:
 					"request #%d.", c))
 			}
 
-		case srvr := <-serverChan:
-			mainServer = srvr
-			logServiceStartOfDay(mainServer)
+		case cfg := <-serviceStartOfDayChan:
+			logServiceStartOfDay(cfg)
 
 		case err := <-doneChan:
 			if err != nil {
