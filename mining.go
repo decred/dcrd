@@ -64,9 +64,10 @@ const (
 	// of a block.
 	merkleRootPairSize = 64
 
-	// templateIDSize is the size in bytes of the merkle root pair + timestamp
-	// of a block.
-	templateIDSize = merkleRootPairSize + 8 // 72 bytes
+	// templateKeySize is the number of bytes for a unique block template key.
+	// It consists of the 32-byte merkle root and 8-byte little-endian unix
+	// timestamp.
+	templateKeySize = chainhash.HashSize + 8 // 40 bytes
 )
 
 // txPrioItem houses a transaction along with extra information that allows the
@@ -2055,7 +2056,7 @@ type BgBlkTmplGenerator struct {
 	subscriptionMtx            sync.Mutex
 	currentTemplate            *BlockTemplate
 	parentTemplate             *BlockTemplate
-	templatePool               map[[templateIDSize]byte]*wire.MsgBlock
+	templatePool               map[[templateKeySize]byte]*wire.MsgBlock
 	templatePoolMtx            sync.RWMutex
 	chainReorg                 bool
 	chainReorgMtx              sync.Mutex
@@ -2072,9 +2073,20 @@ func newBgBlkTmplGenerator(tg *BlkTmplGenerator, addrs []dcrutil.Address, permit
 		txSource:                   tg.txSource,
 		miningAddrs:                addrs,
 		subscribers:                make(map[chan *BlockTemplate]struct{}),
-		templatePool:               make(map[[templateIDSize]byte]*wire.MsgBlock),
+		templatePool:               make(map[[templateKeySize]byte]*wire.MsgBlock),
 		permitConnectionlessMining: permitConnectionlessMining,
 	}
+}
+
+// templateKey returns a key that is to be used as a unique identifier for a
+// block template.  The key is composed of the 32-byte merkle root followed by
+// the timestamp encoded as a little-endian 64-bit unsigned integer.
+func templateKey(header *wire.BlockHeader) [templateKeySize]byte {
+	var key [templateKeySize]byte
+	copy(key[:], header.MerkleRoot[:])
+	littleEndian.PutUint64(key[chainhash.HashSize:],
+		uint64(header.Timestamp.Unix()))
+	return key
 }
 
 // scheduleRegen schedules a template regeneration by the provided duration
@@ -2171,19 +2183,11 @@ func (g *BgBlkTmplGenerator) regenTemplate() {
 
 	// In order to efficiently store the variations of block templates that
 	// have been provided to callers, save a pointer to the block keyed by
-	// the merkle root + stake root + timestamp.  This along with the data
-	// that is included in a work submission is used to rebuild the block
-	// before checking the submitted solution.
-	var templateID [templateIDSize]byte
-	copy(templateID[:chainhash.HashSize], msgBlock.Header.MerkleRoot[:])
-	copy(templateID[chainhash.HashSize:], msgBlock.Header.StakeRoot[:])
-	timestampNano := make([]byte, 8)
-	binary.LittleEndian.PutUint64(timestampNano,
-		uint64(msgBlock.Header.Timestamp.UnixNano()))
-	copy(templateID[merkleRootPairSize:], timestampNano)
-
+	// the merkle root + timestamp.  This along with the data that is
+	// included in a work submission is used to rebuild the block before
+	// checking the submitted solution.
 	g.templatePoolMtx.Lock()
-	g.templatePool[templateID] = &msgBlock
+	g.templatePool[templateKey(&msgBlock.Header)] = &msgBlock
 	g.templatePoolMtx.Unlock()
 
 	t := *template
@@ -2201,10 +2205,10 @@ func (g *BgBlkTmplGenerator) regenTemplate() {
 // the height of the best block's parent from the template pool.
 func (g *BgBlkTmplGenerator) pruneOldBlockTemplates(bestHeight int64) {
 	g.templatePoolMtx.Lock()
-	for rootHash, block := range g.templatePool {
+	for key, block := range g.templatePool {
 		height := int64(block.Header.Height)
 		if height < bestHeight-1 {
-			delete(g.templatePool, rootHash)
+			delete(g.templatePool, key)
 		}
 	}
 	g.templatePoolMtx.Unlock()
@@ -2257,8 +2261,8 @@ func (g *BgBlkTmplGenerator) handleChainReorgDone() {
 func (g *BgBlkTmplGenerator) handleDisconnectedBlock(discHeight int64) {
 	// Remove all block templates in the template pool.
 	g.templatePoolMtx.Lock()
-	for rootHash := range g.templatePool {
-		delete(g.templatePool, rootHash)
+	for key := range g.templatePool {
+		delete(g.templatePool, key)
 	}
 	g.templatePoolMtx.Unlock()
 
