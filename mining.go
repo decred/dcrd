@@ -2045,6 +2045,7 @@ func (g *BlkTmplGenerator) UpdateBlockTime(header *wire.BlockHeader) error {
 // It generates new templates based on the time elapsed since last template
 // regeneration.
 type BgBlkTmplGenerator struct {
+	wg                         sync.WaitGroup
 	voteChan                   chan *wire.MsgTx
 	notifyChan                 chan *BlockTemplate
 	tg                         *BlkTmplGenerator
@@ -2115,10 +2116,10 @@ func (g *BgBlkTmplGenerator) cancelScheduledRegen() {
 }
 
 // notifySubscribersHandler updates subscribers of newly created block
-// templates. All subscribers are unsubscribed after being updated and
-// required to resubscribe after a template update.
+// templates.  All subscribers are unsubscribed after being updated and required
+// to resubscribe after a template update.  It must be run as a goroutine.
 func (g *BgBlkTmplGenerator) notifySubscribersHandler(ctx context.Context) {
-	minrLog.Debug("Starting notify subscribers handler.")
+	minrLog.Debug("Starting notify subscribers handler")
 	for {
 		select {
 		case t := <-g.notifyChan:
@@ -2131,7 +2132,8 @@ func (g *BgBlkTmplGenerator) notifySubscribersHandler(ctx context.Context) {
 			}
 			g.subscriptionMtx.Unlock()
 		case <-ctx.Done():
-			minrLog.Debug("Notify subscribers handler done.")
+			minrLog.Debug("Notify subscribers handler done")
+			g.wg.Done()
 			return
 		}
 	}
@@ -2294,7 +2296,7 @@ func (g *BgBlkTmplGenerator) handleConnectedBlock(connHeight int64) {
 // onVoteReceivedHandler triggers block template regeneration based on
 // votes received by the mempool.  This must be run as a goroutine.
 func (g *BgBlkTmplGenerator) onVoteReceivedHandler(ctx context.Context) {
-	minrLog.Debug("Starting vote received handler.")
+	minrLog.Debug("Starting vote received handler")
 	for {
 		select {
 		case voteTx := <-g.voteChan:
@@ -2351,7 +2353,8 @@ func (g *BgBlkTmplGenerator) onVoteReceivedHandler(ctx context.Context) {
 			}
 
 		case <-ctx.Done():
-			minrLog.Debug("Vote received handler done.")
+			minrLog.Debug("Vote received handler done")
+			g.wg.Done()
 			return
 		}
 	}
@@ -2366,6 +2369,7 @@ func (g *BgBlkTmplGenerator) OnVoteReceived(tx *wire.MsgTx) {
 // and non-vote transactions and the time elapsed since the last template
 // regeneration. This must be run as a goroutine.
 func (g *BgBlkTmplGenerator) generator(ctx context.Context) {
+	minrLog.Trace("Starting background block template generator")
 	var isTicking bool
 	ticker := time.NewTicker(time.Millisecond * 500)
 	defer ticker.Stop()
@@ -2400,16 +2404,19 @@ func (g *BgBlkTmplGenerator) generator(ctx context.Context) {
 
 		case <-ctx.Done():
 			minrLog.Debug("Background block template generator done")
+			g.wg.Done()
 			return
 		}
 	}
 }
 
-// Start runs the background block template generator as a goroutine using
-// the provided context.
-func (g *BgBlkTmplGenerator) Start(ctx context.Context) {
-	minrLog.Trace("Starting background block template generator")
+// Run starts the background block template generator and all other goroutines
+// necessary for it to function properly and blocks until the provided context
+// is cancelled.
+func (g *BgBlkTmplGenerator) Run(ctx context.Context) {
+	g.wg.Add(3)
 	go g.generator(ctx)
 	go g.notifySubscribersHandler(ctx)
 	go g.onVoteReceivedHandler(ctx)
+	g.wg.Wait()
 }

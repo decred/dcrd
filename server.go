@@ -2134,7 +2134,11 @@ func (s *server) Start() {
 	// Start the background block template generator if the config provides
 	// a mining address.
 	if len(cfg.MiningAddrs) > 0 {
-		s.bg.Start(s.context)
+		s.wg.Add(1)
+		go func(s *server) {
+			s.bg.Run(s.context)
+			s.wg.Done()
+		}(s)
 	}
 
 	// Start the CPU miner if generation is enabled.
@@ -2156,7 +2160,7 @@ func (s *server) Stop() error {
 
 	// Stop the background block template generator.
 	if len(cfg.miningAddrs) > 0 {
-		minrLog.Info("Shutting down background block template generator.")
+		minrLog.Info("Background block template generator shutting down")
 		s.cancel()
 	}
 
