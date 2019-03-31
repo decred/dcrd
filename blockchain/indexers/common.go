@@ -105,14 +105,6 @@ type internalBucket interface {
 	Delete(key []byte) error
 }
 
-// approvesParent returns whether or not the vote bits in the header of the
-// passed block indicate the regular transaction tree of the parent block should
-// be considered valid.
-func approvesParent(block *dcrutil.Block) bool {
-	return dcrutil.IsFlagSet16(block.MsgBlock().Header.VoteBits,
-		dcrutil.BlockValid)
-}
-
 // interruptRequested returns true when the provided channel has been closed.
 // This simplifies early shutdown slightly since the caller can just use an if
 // statement instead of a select.
