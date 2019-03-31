@@ -296,7 +296,7 @@ func (vm *Engine) executeOpcode(op *opcode, data []byte) error {
 	}
 
 	// Ensure all executed data push opcodes use the minimal encoding.
-	if vm.isBranchExecuting() && op.value >= 0 && op.value <= OP_PUSHDATA4 {
+	if vm.isBranchExecuting() && op.value <= OP_PUSHDATA4 {
 		if err := checkMinimalDataPush(op, data); err != nil {
 			return err
 		}
