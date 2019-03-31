@@ -47,10 +47,10 @@ func dcrdMain() error {
 		}
 	}()
 
-	// Get a channel that will be closed when a shutdown signal has been
+	// Get a context that will be canceled when a shutdown signal has been
 	// triggered either from an OS signal such as SIGINT (Ctrl+C) or from
 	// another subsystem such as the RPC server.
-	interrupt := interruptListener()
+	ctx := shutdownListener()
 	defer dcrdLog.Info("Shutdown complete")
 
 	// Show version and home dir at startup.
@@ -114,8 +114,8 @@ func dcrdMain() error {
 		go drainOutgoingPipeMessages()
 	}
 
-	// Return now if an interrupt signal was triggered.
-	if interruptRequested(interrupt) {
+	// Return now if a shutdown signal was triggered.
+	if shutdownRequested(ctx) {
 		return nil
 	}
 
@@ -133,8 +133,8 @@ func dcrdMain() error {
 		db.Close()
 	}()
 
-	// Return now if an interrupt signal was triggered.
-	if interruptRequested(interrupt) {
+	// Return now if a shutdown signal was triggered.
+	if shutdownRequested(ctx) {
 		return nil
 	}
 
@@ -143,7 +143,7 @@ func dcrdMain() error {
 	// NOTE: The order is important here because dropping the tx index also
 	// drops the address index since it relies on it.
 	if cfg.DropAddrIndex {
-		if err := indexers.DropAddrIndex(db, interrupt); err != nil {
+		if err := indexers.DropAddrIndex(db, ctx.Done()); err != nil {
 			dcrdLog.Errorf("%v", err)
 			return err
 		}
@@ -151,7 +151,7 @@ func dcrdMain() error {
 		return nil
 	}
 	if cfg.DropTxIndex {
-		if err := indexers.DropTxIndex(db, interrupt); err != nil {
+		if err := indexers.DropTxIndex(db, ctx.Done()); err != nil {
 			dcrdLog.Errorf("%v", err)
 			return err
 		}
@@ -159,7 +159,7 @@ func dcrdMain() error {
 		return nil
 	}
 	if cfg.DropExistsAddrIndex {
-		if err := indexers.DropExistsAddrIndex(db, interrupt); err != nil {
+		if err := indexers.DropExistsAddrIndex(db, ctx.Done()); err != nil {
 			dcrdLog.Errorf("%v", err)
 			return err
 		}
@@ -167,7 +167,7 @@ func dcrdMain() error {
 		return nil
 	}
 	if cfg.DropCFIndex {
-		if err := indexers.DropCfIndex(db, interrupt); err != nil {
+		if err := indexers.DropCfIndex(db, ctx.Done()); err != nil {
 			dcrdLog.Errorf("%v", err)
 			return err
 		}
@@ -178,7 +178,7 @@ func dcrdMain() error {
 	// Create server and start it.
 	lifetimeNotifier.notifyStartupEvent(lifetimeEventP2PServer)
 	server, err := newServer(cfg.Listeners, db, activeNetParams.Params,
-		cfg.DataDir, interrupt)
+		cfg.DataDir, ctx.Done())
 	if err != nil {
 		// TODO(oga) this logging could do with some beautifying.
 		dcrdLog.Errorf("Unable to start server on %v: %v",
@@ -195,7 +195,7 @@ func dcrdMain() error {
 
 	server.Start()
 
-	if interruptRequested(interrupt) {
+	if shutdownRequested(ctx) {
 		return nil
 	}
 
@@ -207,7 +207,7 @@ func dcrdMain() error {
 	// Wait until the interrupt signal is received from an OS signal or
 	// shutdown is requested through one of the subsystems such as the RPC
 	// server.
-	<-interrupt
+	<-ctx.Done()
 	return nil
 }
 

@@ -6,6 +6,7 @@
 package main
 
 import (
+	"context"
 	"os"
 	"os/signal"
 )
@@ -18,26 +19,24 @@ var shutdownRequestChannel = make(chan struct{})
 // shutdown.  This may be modified during init depending on the platform.
 var interruptSignals = []os.Signal{os.Interrupt}
 
-// interruptListener listens for OS Signals such as SIGINT (Ctrl+C) and shutdown
-// requests from shutdownRequestChannel.  It returns a channel that is closed
+// shutdownListener listens for OS Signals such as SIGINT (Ctrl+C) and shutdown
+// requests from shutdownRequestChannel.  It returns a context that is canceled
 // when either signal is received.
-func interruptListener() <-chan struct{} {
-	c := make(chan struct{})
+func shutdownListener() context.Context {
+	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
 		interruptChannel := make(chan os.Signal, 1)
 		signal.Notify(interruptChannel, interruptSignals...)
 
-		// Listen for initial shutdown signal and close the returned
-		// channel to notify the caller.
+		// Listen for initial shutdown signal and cancel the returned context.
 		select {
 		case sig := <-interruptChannel:
-			dcrdLog.Infof("Received signal (%s).  Shutting down...",
-				sig)
+			dcrdLog.Infof("Received signal (%s).  Shutting down...", sig)
 
 		case <-shutdownRequestChannel:
 			dcrdLog.Infof("Shutdown requested.  Shutting down...")
 		}
-		close(c)
+		cancel()
 
 		// Listen for repeated signals and display a message so the user
 		// knows the shutdown is in progress and the process is not
@@ -55,15 +54,15 @@ func interruptListener() <-chan struct{} {
 		}
 	}()
 
-	return c
+	return ctx
 }
 
-// interruptRequested returns true when the channel returned by
-// interruptListener was closed.  This simplifies early shutdown slightly since
-// the caller can just use an if statement instead of a select.
-func interruptRequested(interrupted <-chan struct{}) bool {
+// shutdownRequested returns true when the context returned by shutdownListener
+// was canceled.  This simplifies early shutdown slightly since the caller can
+// just use an if statement instead of a select.
+func shutdownRequested(ctx context.Context) bool {
 	select {
-	case <-interrupted:
+	case <-ctx.Done():
 		return true
 	default:
 	}
