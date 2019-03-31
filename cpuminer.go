@@ -114,7 +114,6 @@ type CPUMiner struct {
 	updateNumWorkers  chan struct{}
 	queryHashesPerSec chan float64
 	updateHashes      chan uint64
-	speedMonitorQuit  chan struct{}
 	quit              chan struct{}
 
 	// This is a map that keeps track of how many blocks have
@@ -160,7 +159,7 @@ out:
 		case m.queryHashesPerSec <- hashesPerSec:
 			// Nothing to do.
 
-		case <-m.speedMonitorQuit:
+		case <-m.quit:
 			break out
 		}
 	}
@@ -265,8 +264,12 @@ func (m *CPUMiner) solveBlock(msgBlock *wire.MsgBlock, ticker *time.Ticker, quit
 				return false
 
 			case <-ticker.C:
-				m.updateHashes <- hashesCompleted
-				hashesCompleted = 0
+				select {
+				case m.updateHashes <- hashesCompleted:
+					hashesCompleted = 0
+				default:
+				}
+
 				// The current block is stale if the memory pool
 				// has been updated since the block template was
 				// generated and it has been at least 3 seconds,
@@ -297,7 +300,10 @@ func (m *CPUMiner) solveBlock(msgBlock *wire.MsgBlock, ticker *time.Ticker, quit
 			// The block is solved when the new block hash is less
 			// than the target difficulty.  Yay!
 			if blockchain.HashToBig(&hash).Cmp(targetDifficulty) <= 0 {
-				m.updateHashes <- hashesCompleted
+				select {
+				case m.updateHashes <- hashesCompleted:
+				default:
+				}
 				return true
 			}
 		}
@@ -456,10 +462,8 @@ out:
 		}
 	}
 
-	// Wait until all workers shut down to stop the speed monitor since
-	// they rely on being able to send updates to it.
+	// Wait until all workers shut down.
 	m.workerWg.Wait()
-	close(m.speedMonitorQuit)
 	m.wg.Done()
 }
 
@@ -479,7 +483,6 @@ func (m *CPUMiner) Start() {
 	}
 
 	m.quit = make(chan struct{})
-	m.speedMonitorQuit = make(chan struct{})
 	m.wg.Add(2)
 	go m.speedMonitor()
 	go m.miningWorkerController()
@@ -510,7 +513,7 @@ func (m *CPUMiner) Stop() {
 }
 
 // IsMining returns whether or not the CPU miner has been started and is
-// therefore currenting mining.
+// therefore currently mining.
 //
 // This function is safe for concurrent access.
 func (m *CPUMiner) IsMining() bool {
@@ -582,17 +585,15 @@ func (m *CPUMiner) NumWorkers() int32 {
 // generating a new block template.  When a block is solved, it is submitted.
 // The function returns a list of the hashes of generated blocks.
 func (m *CPUMiner) GenerateNBlocks(n uint32) ([]*chainhash.Hash, error) {
-	m.Lock()
-
 	// Respond with an error if there's virtually 0 chance of CPU-mining a block.
 	if !m.cfg.ChainParams.GenerateSupported {
-		m.Unlock()
 		return nil, errors.New("no support for `generate` on the current " +
 			"network, " + m.cfg.ChainParams.Net.String() +
 			", as it's unlikely to be possible to CPU-mine a block.")
 	}
 
 	// Respond with an error if server is already mining.
+	m.Lock()
 	if m.started || m.discreteMining {
 		m.Unlock()
 		return nil, errors.New("server is already CPU mining. Please call " +
@@ -601,11 +602,6 @@ func (m *CPUMiner) GenerateNBlocks(n uint32) ([]*chainhash.Hash, error) {
 
 	m.started = true
 	m.discreteMining = true
-
-	m.speedMonitorQuit = make(chan struct{})
-	m.wg.Add(1)
-	go m.speedMonitor()
-
 	m.Unlock()
 
 	minrLog.Tracef("Generating %d blocks", n)
@@ -613,8 +609,7 @@ func (m *CPUMiner) GenerateNBlocks(n uint32) ([]*chainhash.Hash, error) {
 	i := uint32(0)
 	blockHashes := make([]*chainhash.Hash, n)
 
-	// Start a ticker which is used to signal checks for stale work and
-	// updates to the speed monitor.
+	// Start a ticker which is used to signal checks for stale work.
 	ticker := time.NewTicker(time.Second * hashUpdateSecs)
 	defer ticker.Stop()
 
@@ -665,9 +660,8 @@ func (m *CPUMiner) GenerateNBlocks(n uint32) ([]*chainhash.Hash, error) {
 			i++
 			if i == n {
 				minrLog.Tracef("Generated %d blocks", i)
-				m.Lock()
-				close(m.speedMonitorQuit)
 				m.wg.Wait()
+				m.Lock()
 				m.started = false
 				m.discreteMining = false
 				m.Unlock()
