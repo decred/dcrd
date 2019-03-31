@@ -2737,28 +2737,6 @@ func addrStringToNetAddr(addr string) (net.Addr, error) {
 	}, nil
 }
 
-// dynamicTickDuration is a convenience function used to dynamically choose a
-// tick duration based on remaining time.  It is primarily used during
-// server shutdown to make shutdown warnings more frequent as the shutdown time
-// approaches.
-func dynamicTickDuration(remaining time.Duration) time.Duration {
-	switch {
-	case remaining <= time.Second*5:
-		return time.Second
-	case remaining <= time.Second*15:
-		return time.Second * 5
-	case remaining <= time.Minute:
-		return time.Second * 15
-	case remaining <= time.Minute*5:
-		return time.Minute
-	case remaining <= time.Minute*15:
-		return time.Minute * 5
-	case remaining <= time.Hour:
-		return time.Minute * 15
-	}
-	return time.Hour
-}
-
 // isWhitelisted returns whether the IP address is included in the whitelisted
 // networks and IPs.
 func isWhitelisted(addr net.Addr) bool {
