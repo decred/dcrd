@@ -2317,9 +2317,10 @@ func (g *BgBlkTmplGenerator) onVoteReceivedHandler(ctx context.Context) {
 
 				// Schedule a block template regeneration if the new vote received
 				// is voting on the current chain tip with at least the minimum
-				// required number of votes by the network.
-				if currTipVotes >=
-					int((g.tg.chainParams.TicketsPerBlock/2)+1) {
+				// required number of votes by the network but less than the
+				// maximum number of votes possible for a block.
+				if currTipVotes < int(g.tg.chainParams.TicketsPerBlock) &&
+					currTipVotes >= int((g.tg.chainParams.TicketsPerBlock/2)+1) {
 					g.scheduleRegen(time.Second)
 				}
 			}
