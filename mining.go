@@ -2362,7 +2362,9 @@ func (g *BgBlkTmplGenerator) onVoteReceivedHandler(ctx context.Context) {
 
 // OnVoteReceived signals a new vote received by the mempool.
 func (g *BgBlkTmplGenerator) OnVoteReceived(tx *wire.MsgTx) {
-	g.voteChan <- tx
+	go func() {
+		g.voteChan <- tx
+	}()
 }
 
 // generator generates new templates based on mempool activity for vote
