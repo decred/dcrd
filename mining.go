@@ -2093,18 +2093,19 @@ func templateKey(header *wire.BlockHeader) [templateKeySize]byte {
 // scheduleRegen schedules a template regeneration by the provided duration
 // in the future.  If there is an existing schedule in play the sheduled time
 // reset to updated the provided duration.
-func (g *BgBlkTmplGenerator) scheduleRegen(dt time.Duration) {
-	if g.regenScheduler != nil {
-		if !g.regenScheduler.Reset(dt) {
-			minrLog.Errorf("failed to reset the template regen scheduler")
-			return
-		}
+func (g *BgBlkTmplGenerator) scheduleRegen(ctx context.Context, dt time.Duration) {
+	if g.regenScheduler == nil {
+		g.regenScheduler = time.AfterFunc(dt, func() {
+			go g.regenTemplate(ctx)
+			g.cancelScheduledRegen()
+		})
+
+		return
 	}
 
-	g.regenScheduler = time.AfterFunc(dt, func() {
-		go g.regenTemplate()
-		g.cancelScheduledRegen()
-	})
+	if !g.regenScheduler.Reset(dt) {
+		minrLog.Errorf("failed to reset template regen scheduler")
+	}
 }
 
 // cancelScheduledRegen terminates a scheduled template regeneration.
@@ -2127,7 +2128,6 @@ func (g *BgBlkTmplGenerator) notifySubscribersHandler(ctx context.Context) {
 			for c := range g.subscribers {
 				c <- t
 				close(c)
-
 				delete(g.subscribers, c)
 			}
 			g.subscriptionMtx.Unlock()
@@ -2152,11 +2152,13 @@ func (g *BgBlkTmplGenerator) RequestTemplateUpdate() chan *BlockTemplate {
 
 // regenTemplate regenerates the block template.  This must be run as a
 // goroutine.
-func (g *BgBlkTmplGenerator) regenTemplate() {
-	// NOTE: If the blockchain package is updated to provide more
-	// fine grained locking, it will be necessary to add a call to
-	// WaitForChain here.
-
+func (g *BgBlkTmplGenerator) regenTemplate(ctx context.Context) {
+	select {
+	case <-ctx.Done():
+		return
+	default:
+		// Non-blocking receive fallthrough.
+	}
 	// Do not generate block templates if the chain is reorganizing.
 	g.chainReorgMtx.Lock()
 	if g.chainReorg {
@@ -2249,13 +2251,13 @@ func (g *BgBlkTmplGenerator) handleChainReorgStarted() {
 // handleChainReorgDone updates the chain reorg state of the background
 // template generator and immdiately regenerates the block template
 // when a chain reorganization concludes.
-func (g *BgBlkTmplGenerator) handleChainReorgDone() {
+func (g *BgBlkTmplGenerator) handleChainReorgDone(ctx context.Context) {
 	g.chainReorgMtx.Lock()
 	g.chainReorg = false
 	g.chainReorgMtx.Unlock()
 
 	// Regenerate block template.
-	go g.regenTemplate()
+	go g.regenTemplate(ctx)
 }
 
 // handleDisconnectedBlock empties the template pool and updates the cached
@@ -2282,14 +2284,14 @@ func (g *BgBlkTmplGenerator) handleDisconnectedBlock(discHeight int64) {
 
 // handleConnectedBlock updates the parent template and generates a new block
 // template if the connected block height is below SVH-1.
-func (g *BgBlkTmplGenerator) handleConnectedBlock(connHeight int64) {
+func (g *BgBlkTmplGenerator) handleConnectedBlock(ctx context.Context, connHeight int64) {
 	// Update the cached parent template.
 	g.updateParentTemplate()
 
 	// Generate a new block template if the connected block height
 	// is below SVH-1.
 	if connHeight <= g.tg.chainParams.StakeValidationHeight-2 {
-		go g.regenTemplate()
+		go g.regenTemplate(ctx)
 	}
 }
 
@@ -2314,7 +2316,7 @@ func (g *BgBlkTmplGenerator) onVoteReceivedHandler(ctx context.Context) {
 				// voted on has the maximum number of votes possible.
 				if currTipVotes == int(g.tg.chainParams.TicketsPerBlock) {
 					g.cancelScheduledRegen()
-					g.regenTemplate()
+					go g.regenTemplate(ctx)
 				}
 
 				// Schedule a block template regeneration if the new vote received
@@ -2323,7 +2325,7 @@ func (g *BgBlkTmplGenerator) onVoteReceivedHandler(ctx context.Context) {
 				// maximum number of votes possible for a block.
 				if currTipVotes < int(g.tg.chainParams.TicketsPerBlock) &&
 					currTipVotes >= int((g.tg.chainParams.TicketsPerBlock/2)+1) {
-					g.scheduleRegen(time.Second)
+					g.scheduleRegen(ctx, time.Second)
 				}
 			}
 
@@ -2338,16 +2340,16 @@ func (g *BgBlkTmplGenerator) onVoteReceivedHandler(ctx context.Context) {
 					// voted on has the maximum number of votes possible.
 					if votedOnVotes == int(g.tg.chainParams.TicketsPerBlock) {
 						g.cancelScheduledRegen()
-						g.regenTemplate()
+						go g.regenTemplate(ctx)
 					}
 
 					// Schdule a block template if the new vote received is voting
 					// on a side chain tip with at least the minimum required number
 					// of votes by the network and more votes than the current chain
 					// tip.
-					if votedOnVotes >=
-						int((g.tg.chainParams.TicketsPerBlock/2)+1) {
-						g.scheduleRegen(time.Second)
+					if votedOnVotes < int(g.tg.chainParams.TicketsPerBlock) &&
+						votedOnVotes >= int((g.tg.chainParams.TicketsPerBlock/2)+1) {
+						g.scheduleRegen(ctx, time.Second)
 					}
 				}
 			}
@@ -2379,7 +2381,7 @@ func (g *BgBlkTmplGenerator) generator(ctx context.Context) {
 	// Immediately generate a block template if the chain is below SVH-1.
 	if g.tg.chain.BestSnapshot().Height <=
 		g.tg.chainParams.StakeValidationHeight-2 {
-		g.regenTemplate()
+		go g.regenTemplate(ctx)
 	}
 
 	for {
@@ -2401,7 +2403,7 @@ func (g *BgBlkTmplGenerator) generator(ctx context.Context) {
 			// seconds has elapsed since the last template regeneration.
 			if (lastUpdated > lastRegen && sinceLastRegen >
 				templateRegenSecs) || sinceLastRegen > maxTemplateRegenSecs {
-				g.regenTemplate()
+				go g.regenTemplate(ctx)
 			}
 
 		case <-ctx.Done():

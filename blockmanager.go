@@ -1892,7 +1892,7 @@ func (b *blockManager) handleNotifyMsg(notification *blockchain.Notification) {
 		}
 
 		if b.server.bg != nil {
-			b.server.bg.handleConnectedBlock(block.Height())
+			b.server.bg.handleConnectedBlock(b.server.context, block.Height())
 		}
 
 	// Stake tickets are spent or missed from the most recently connected block.
@@ -2011,7 +2011,7 @@ func (b *blockManager) handleNotifyMsg(notification *blockchain.Notification) {
 	// Chain reorganization has concluded.
 	case blockchain.NTChainReorgDone:
 		if b.server.bg != nil {
-			b.server.bg.handleChainReorgDone()
+			b.server.bg.handleChainReorgDone(b.server.context)
 		}
 
 	// The blockchain is reorganizing.
