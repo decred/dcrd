@@ -8,7 +8,6 @@ package main
 import (
 	"encoding/binary"
 	"errors"
-	"fmt"
 	"math/rand"
 	"sync"
 	"time"
@@ -65,9 +64,11 @@ type cpuminerConfig struct {
 	// PermitConnectionlessMining allows single node mining on simnet.
 	PermitConnectionlessMining bool
 
-	// BlockTemplateGenerator identifies the instance to use in order to
-	// generate block templates that the miner will attempt to solve.
-	BlockTemplateGenerator *BlkTmplGenerator
+	// bg is the background block template generator.
+	bg *BgBlkTmplGenerator
+
+	// tg is the main workhorse for block template generation.
+	tg *BlkTmplGenerator
 
 	// MiningAddrs is a list of payment addresses to use for the generated
 	// blocks.  Each generated block will randomly choose one of them.
@@ -103,7 +104,8 @@ type cpuminerConfig struct {
 // system which is typically sufficient.
 type CPUMiner struct {
 	sync.Mutex
-	g                 *BlkTmplGenerator
+	bg                *BgBlkTmplGenerator
+	tg                *BlkTmplGenerator
 	cfg               *cpuminerConfig
 	numWorkers        uint32
 	started           bool
@@ -228,7 +230,7 @@ func (m *CPUMiner) submitBlock(block *dcrutil.Block) bool {
 // This function will return early with false when conditions that trigger a
 // stale block such as a new block showing up or periodically when there are
 // new transactions and enough time has elapsed without finding a solution.
-func (m *CPUMiner) solveBlock(msgBlock *wire.MsgBlock, ticker *time.Ticker, quit chan struct{}) bool {
+func (m *CPUMiner) solveBlock(header *wire.BlockHeader, ticker *time.Ticker, quit chan struct{}) bool {
 	// Choose a random extra nonce offset for this block template and
 	// worker.
 	enOffset, err := wire.RandomUint64()
@@ -238,13 +240,11 @@ func (m *CPUMiner) solveBlock(msgBlock *wire.MsgBlock, ticker *time.Ticker, quit
 		enOffset = 0
 	}
 
-	// Create a couple of convenience variables.
-	header := &msgBlock.Header
 	targetDifficulty := blockchain.CompactToBig(header.Bits)
 
 	// Initial state.
 	lastGenerated := time.Now()
-	lastTxUpdate := m.g.txSource.LastUpdated()
+	lastTxUpdate := m.tg.txSource.LastUpdated()
 	hashesCompleted := uint64(0)
 
 	// Note that the entire extra nonce range is iterated and the offset is
@@ -275,13 +275,13 @@ func (m *CPUMiner) solveBlock(msgBlock *wire.MsgBlock, ticker *time.Ticker, quit
 				// generated and it has been at least 3 seconds,
 				// or if it's been one minute.
 				now := time.Now()
-				if (lastTxUpdate != m.g.txSource.LastUpdated() &&
+				if (lastTxUpdate != m.tg.txSource.LastUpdated() &&
 					now.After(lastGenerated.Add(3*time.Second))) ||
 					now.After(lastGenerated.Add(60*time.Second)) {
 					return false
 				}
 
-				err = m.g.UpdateBlockTime(header)
+				err = m.tg.UpdateBlockTime(header)
 				if err != nil {
 					minrLog.Warnf("CPU miner unable to update block template "+
 						"time: %v", err)
@@ -289,7 +289,7 @@ func (m *CPUMiner) solveBlock(msgBlock *wire.MsgBlock, ticker *time.Ticker, quit
 				}
 
 			default:
-				// Non-blocking select to fall through
+				// Non-blocking select to fallthrough.
 			}
 
 			// Update the nonce and hash the block header.
@@ -312,11 +312,9 @@ func (m *CPUMiner) solveBlock(msgBlock *wire.MsgBlock, ticker *time.Ticker, quit
 	return false
 }
 
-// generateBlocks is a worker that is controlled by the miningWorkerController.
-// It is self contained in that it creates block templates and attempts to solve
-// them while detecting when it is performing stale work and reacting
-// accordingly by generating a new block template.  When a block is solved, it
-// is submitted.
+// generateBlocks is a worker controlled by the miningWorkerController.
+// It subscribes to block template updates and attempts to solve blocks while
+// detecting stale work. Solved blocks are related to the network.
 //
 // It must be run as a goroutine.
 func (m *CPUMiner) generateBlocks(quit chan struct{}) {
@@ -333,73 +331,41 @@ out:
 		select {
 		case <-quit:
 			break out
-		default:
-			// Non-blocking select to fall through
-		}
+		case template := <-m.bg.RequestTemplateUpdate():
 
-		// If not in connectionless mode, wait until there is a connection to
-		// at least one other peer since there is no way to relay a found
-		// block or receive transactions to work on when there are no
-		// connected peers.
-		if !m.cfg.PermitConnectionlessMining && m.cfg.ConnectedCount() == 0 {
-			time.Sleep(time.Second)
-			continue
-		}
-
-		// No point in searching for a solution before the chain is
-		// synced.  Also, grab the same lock as used for block
-		// submission, since the current block will be changing and
-		// this would otherwise end up building a new block template on
-		// a block that is in the process of becoming stale.
-		m.submitBlockLock.Lock()
-		curHeight := m.g.chain.BestSnapshot().Height
-		if curHeight != 0 && !m.cfg.IsCurrent() {
-			m.submitBlockLock.Unlock()
-			time.Sleep(time.Second)
-			continue
-		}
-
-		// Choose a payment address at random.
-		rand.Seed(time.Now().UnixNano())
-		payToAddr := m.cfg.MiningAddrs[rand.Intn(len(m.cfg.MiningAddrs))]
-
-		// Create a new block template using the available transactions
-		// in the memory pool as a source of transactions to potentially
-		// include in the block.
-		template, err := m.g.NewBlockTemplate(payToAddr)
-		m.submitBlockLock.Unlock()
-		if err != nil {
-			errStr := fmt.Sprintf("Failed to create new block "+
-				"template: %v", err)
-			minrLog.Errorf(errStr)
-			continue
-		}
-
-		// Not enough voters.
-		if template == nil {
-			continue
-		}
-
-		// This prevents you from causing memory exhaustion issues
-		// when mining aggressively in a simulation network.
-		if m.cfg.PermitConnectionlessMining {
-			if m.minedOnParents[template.Block.Header.PrevBlock] >=
-				maxSimnetToMine {
-				minrLog.Tracef("too many blocks mined on parent, stopping " +
-					"until there are enough votes on these to make a new " +
-					"block")
+			// If not in connectionless mode, wait until there is a connection
+			// to at least one other peer since there is no way to relay a
+			// found block or receive transactions to work on when there are
+			// no connected peers.
+			if !m.cfg.PermitConnectionlessMining && m.cfg.ConnectedCount() == 0 {
 				continue
 			}
-		}
 
-		// Attempt to solve the block.  The function will exit early
-		// with false when conditions that trigger a stale block, so
-		// a new block template can be generated.  When the return is
-		// true a solution was found, so submit the solved block.
-		if m.solveBlock(template.Block, ticker, quit) {
-			block := dcrutil.NewBlock(template.Block)
-			m.submitBlock(block)
-			m.minedOnParents[template.Block.Header.PrevBlock]++
+			// This prevents memory exhaustion issues when mining aggressively
+			// on a simulation network.
+			if m.cfg.PermitConnectionlessMining {
+				if m.minedOnParents[template.Block.Header.PrevBlock] >=
+					maxSimnetToMine {
+					minrLog.Tracef("too many blocks mined on parent, " +
+						"stopping until there are enough votes on these to " +
+						"make a new block")
+					continue
+				}
+			}
+
+			minrLog.Debugf("new block template from background generator "+
+				"(height: %v, hash: %v)", template.Block.Header.Height,
+				template.Block.BlockHash())
+
+			// Attempt to solve the block.  The function will exit early
+			// with false when conditions that trigger a stale block, so
+			// a new block template can be generated.  When the return is
+			// true a solution was found, so submit the solved block.
+			if m.solveBlock(&template.Block.Header, ticker, quit) {
+				block := dcrutil.NewBlock(template.Block)
+				m.submitBlock(block)
+				m.minedOnParents[template.Block.Header.PrevBlock]++
+			}
 		}
 	}
 
@@ -597,7 +563,7 @@ func (m *CPUMiner) GenerateNBlocks(n uint32) ([]*chainhash.Hash, error) {
 	if m.started || m.discreteMining {
 		m.Unlock()
 		return nil, errors.New("server is already CPU mining. Please call " +
-			"`setgenerate 0` before calling discrete `generate` commands.")
+			"`setgenerate 0` before calling discrete `generate` commands")
 	}
 
 	m.started = true
@@ -634,26 +600,28 @@ func (m *CPUMiner) GenerateNBlocks(n uint32) ([]*chainhash.Hash, error) {
 		// Create a new block template using the available transactions
 		// in the memory pool as a source of transactions to potentially
 		// include in the block.
-		template, err := m.g.NewBlockTemplate(payToAddr)
+		template, err := m.tg.NewBlockTemplate(payToAddr)
 		m.submitBlockLock.Unlock()
 		if err != nil {
-			errStr := fmt.Sprintf("Failed to create new block "+
-				"template: %v", err)
-			minrLog.Errorf(errStr)
+			minrLog.Errorf("Failed to create new block template: %v", err)
 			continue
 		}
+
 		if template == nil {
-			errStr := fmt.Sprintf("Not enough voters on parent block " +
+			minrLog.Debugf("Not enough voters on parent block " +
 				"and failed to pull parent template")
-			minrLog.Debugf(errStr)
 			continue
 		}
+
+		minrLog.Debugf("new block template from background generator "+
+			"(height: %v, hash: %v)", template.Block.Header.Height,
+			template.Block.BlockHash())
 
 		// Attempt to solve the block.  The function will exit early
 		// with false when conditions that trigger a stale block, so
 		// a new block template can be generated.  When the return is
 		// true a solution was found, so submit the solved block.
-		if m.solveBlock(template.Block, ticker, nil) {
+		if m.solveBlock(&template.Block.Header, ticker, nil) {
 			block := dcrutil.NewBlock(template.Block)
 			m.submitBlock(block)
 			blockHashes[i] = block.Hash()
@@ -676,7 +644,8 @@ func (m *CPUMiner) GenerateNBlocks(n uint32) ([]*chainhash.Hash, error) {
 // type for more details.
 func newCPUMiner(cfg *cpuminerConfig) *CPUMiner {
 	return &CPUMiner{
-		g:                 cfg.BlockTemplateGenerator,
+		bg:                cfg.bg,
+		tg:                cfg.tg,
 		cfg:               cfg,
 		numWorkers:        defaultNumWorkers,
 		updateNumWorkers:  make(chan struct{}),

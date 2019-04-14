@@ -2596,16 +2596,15 @@ func newServer(listenAddrs []string, db database.DB, chainParams *chaincfg.Param
 	tg := newBlkTmplGenerator(&policy, s.txMemPool, s.timeSource, s.sigCache,
 		s.chainParams, bm.chain, bm)
 
-	// Create the background block template generator if the config has a
-	// mining address.
 	if len(cfg.miningAddrs) > 0 {
 		s.bg = newBgBlkTmplGenerator(tg, cfg.miningAddrs, cfg.SimNet)
 	}
 
 	s.cpuMiner = newCPUMiner(&cpuminerConfig{
+		bg:                         s.bg,
+		tg:                         tg,
 		ChainParams:                s.chainParams,
 		PermitConnectionlessMining: cfg.SimNet,
-		BlockTemplateGenerator:     tg,
 		MiningAddrs:                cfg.miningAddrs,
 		ProcessBlock:               bm.ProcessBlock,
 		ConnectedCount:             s.ConnectedCount,
