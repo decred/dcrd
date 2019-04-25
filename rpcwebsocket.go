@@ -7,7 +7,6 @@ package main
 
 import (
 	"bytes"
-	"container/list"
 	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/base64"
@@ -1714,7 +1713,7 @@ func (c *wsClient) notificationQueueHandler() {
 	// future, not knowing what has and hasn't been sent to the outHandler
 	// (and thus who should respond to the done channel) would be
 	// problematic without using this approach.
-	pendingNtfns := list.New()
+	var pendingNtfns [][]byte
 	waiting := false
 out:
 	for {
@@ -1728,7 +1727,7 @@ out:
 			if !waiting {
 				c.SendMessage(msg, ntfnSentChan)
 			} else {
-				pendingNtfns.PushBack(msg)
+				pendingNtfns = append(pendingNtfns, msg)
 			}
 			waiting = true
 
@@ -1737,15 +1736,15 @@ out:
 		case <-ntfnSentChan:
 			// No longer waiting if there are no more messages in
 			// the pending messages queue.
-			next := pendingNtfns.Front()
-			if next == nil {
+			if len(pendingNtfns) == 0 {
 				waiting = false
 				continue
 			}
-
 			// Notify the outHandler about the next item to
 			// asynchronously send.
-			msg := pendingNtfns.Remove(next).([]byte)
+			msg := pendingNtfns[0]
+			pendingNtfns[0] = nil
+			pendingNtfns = pendingNtfns[1:]
 			c.SendMessage(msg, ntfnSentChan)
 
 		case <-c.quit:
