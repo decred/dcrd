@@ -2534,11 +2534,24 @@ func newServer(listenAddrs []string, db database.DB, chainParams *chaincfg.Param
 	if len(indexes) > 0 {
 		indexManager = indexers.NewManager(db, indexes, chainParams)
 	}
-	bm, err := newBlockManager(&s, indexManager, interrupt)
+
+	// Create a new block chain instance with the appropriate configuration.
+	chain, err := blockchain.New(&blockchain.Config{
+		DB:          s.db,
+		Interrupt:   interrupt,
+		ChainParams: s.chainParams,
+		TimeSource:  s.timeSource,
+		Notifications: func(notif *blockchain.Notification) {
+			if s.blockManager != nil {
+				s.blockManager.handleNotifyMsg(notif)
+			}
+		},
+		SigCache:     s.sigCache,
+		IndexManager: indexManager,
+	})
 	if err != nil {
 		return nil, err
 	}
-	s.blockManager = bm
 
 	txC := mempool.Config{
 		Policy: mempool.Policy{
@@ -2552,23 +2565,23 @@ func newServer(listenAddrs []string, db database.DB, chainParams *chaincfg.Param
 			MinRelayTxFee:        cfg.minRelayTxFee,
 			AllowOldVotes:        cfg.AllowOldVotes,
 			StandardVerifyFlags: func() (txscript.ScriptFlags, error) {
-				return standardScriptVerifyFlags(bm.chain)
+				return standardScriptVerifyFlags(chain)
 			},
-			AcceptSequenceLocks: bm.chain.IsFixSeqLocksAgendaActive,
+			AcceptSequenceLocks: chain.IsFixSeqLocksAgendaActive,
 		},
 		ChainParams: chainParams,
 		NextStakeDifficulty: func() (int64, error) {
-			return bm.chain.BestSnapshot().NextStakeDiff, nil
+			return chain.BestSnapshot().NextStakeDiff, nil
 		},
-		FetchUtxoView:    bm.chain.FetchUtxoView,
-		BlockByHash:      bm.chain.BlockByHash,
-		BestHash:         func() *chainhash.Hash { return &bm.chain.BestSnapshot().Hash },
-		BestHeight:       func() int64 { return bm.chain.BestSnapshot().Height },
-		CalcSequenceLock: bm.chain.CalcSequenceLock,
-		SubsidyCache:     bm.chain.FetchSubsidyCache(),
+		FetchUtxoView:    chain.FetchUtxoView,
+		BlockByHash:      chain.BlockByHash,
+		BestHash:         func() *chainhash.Hash { return &chain.BestSnapshot().Hash },
+		BestHeight:       func() int64 { return chain.BestSnapshot().Height },
+		CalcSequenceLock: chain.CalcSequenceLock,
+		SubsidyCache:     chain.FetchSubsidyCache(),
 		SigCache:         s.sigCache,
 		PastMedianTime: func() time.Time {
-			return bm.chain.BestSnapshot().MedianTime
+			return chain.BestSnapshot().MedianTime
 		},
 		AddrIndex:                 s.addrIndex,
 		ExistsAddrIndex:           s.existsAddrIndex,
@@ -2582,6 +2595,12 @@ func newServer(listenAddrs []string, db database.DB, chainParams *chaincfg.Param
 	}
 	s.txMemPool = mempool.New(&txC)
 
+	s.blockManager, err = newBlockManager(&s, indexManager, chain,
+		s.txMemPool, interrupt)
+	if err != nil {
+		return nil, err
+	}
+
 	// Create the mining policy and block template generator based on the
 	// configuration options.
 	//
@@ -2594,7 +2613,7 @@ func newServer(listenAddrs []string, db database.DB, chainParams *chaincfg.Param
 		TxMinFreeFee:      cfg.minRelayTxFee,
 	}
 	tg := newBlkTmplGenerator(&policy, s.txMemPool, s.timeSource, s.sigCache,
-		s.chainParams, bm.chain, bm)
+		s.chainParams, chain, s.blockManager)
 
 	// Create the background block template generator if the config has a
 	// mining address.
@@ -2607,9 +2626,9 @@ func newServer(listenAddrs []string, db database.DB, chainParams *chaincfg.Param
 		PermitConnectionlessMining: cfg.SimNet,
 		BlockTemplateGenerator:     tg,
 		MiningAddrs:                cfg.miningAddrs,
-		ProcessBlock:               bm.ProcessBlock,
+		ProcessBlock:               s.blockManager.ProcessBlock,
 		ConnectedCount:             s.ConnectedCount,
-		IsCurrent:                  bm.IsCurrent,
+		IsCurrent:                  s.blockManager.IsCurrent,
 	})
 
 	// Only setup a function to return new addresses to connect to when

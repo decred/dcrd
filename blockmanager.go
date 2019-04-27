@@ -299,6 +299,7 @@ type blockManager struct {
 	started         int32
 	shutdown        int32
 	chain           *blockchain.BlockChain
+	txMemPool       *mempool.TxPool
 	rejectedTxns    map[chainhash.Hash]struct{}
 	requestedTxns   map[chainhash.Hash]struct{}
 	requestedBlocks map[chainhash.Hash]struct{}
@@ -613,7 +614,7 @@ func (b *blockManager) handleTxMsg(tmsg *txMsg) {
 	// Process the transaction to include validation, insertion in the
 	// memory pool, orphan handling, etc.
 	allowOrphans := cfg.MaxOrphanTxs > 0
-	acceptedTxs, err := b.server.txMemPool.ProcessTransaction(tmsg.tx,
+	acceptedTxs, err := b.txMemPool.ProcessTransaction(tmsg.tx,
 		allowOrphans, true, true)
 
 	// Remove transaction from request maps. Either the mempool/chain
@@ -1235,7 +1236,7 @@ func (b *blockManager) haveInventory(invVect *wire.InvVect) (bool, error) {
 	case wire.InvTypeTx:
 		// Ask the transaction memory pool if the transaction is known
 		// to it in any form (main pool or orphan).
-		if b.server.txMemPool.HaveTransaction(&invVect.Hash) {
+		if b.txMemPool.HaveTransaction(&invVect.Hash) {
 			return true, nil
 		}
 
@@ -1831,13 +1832,12 @@ func (b *blockManager) handleNotifyMsg(notification *blockchain.Notification) {
 		//
 		// Also, in the case the RPC server is enabled, stop rebroadcasting any
 		// transactions in the block that were setup to be rebroadcast.
-		txMemPool := b.server.txMemPool
 		handleConnectedBlockTxns := func(txns []*dcrutil.Tx) {
 			for _, tx := range txns {
-				txMemPool.RemoveTransaction(tx, false)
-				txMemPool.RemoveDoubleSpends(tx)
-				txMemPool.RemoveOrphan(tx)
-				acceptedTxs := txMemPool.ProcessOrphans(tx)
+				b.txMemPool.RemoveTransaction(tx, false)
+				b.txMemPool.RemoveDoubleSpends(tx)
+				b.txMemPool.RemoveOrphan(tx)
+				acceptedTxs := b.txMemPool.ProcessOrphans(tx)
 				b.server.AnnounceNewTransactions(acceptedTxs)
 
 				// Now that this block is in the blockchain, mark the
@@ -1874,9 +1874,9 @@ func (b *blockManager) handleNotifyMsg(notification *blockchain.Notification) {
 		// transaction is still valid.
 		if !headerApprovesParent(&block.MsgBlock().Header) {
 			for _, tx := range parentBlock.Transactions()[1:] {
-				_, err := txMemPool.MaybeAcceptTransaction(tx, false, true)
+				_, err := b.txMemPool.MaybeAcceptTransaction(tx, false, true)
 				if err != nil && !isDoubleSpendOrDuplicateError(err) {
-					txMemPool.RemoveTransaction(tx, true)
+					b.txMemPool.RemoveTransaction(tx, true)
 				}
 			}
 		}
@@ -1941,13 +1941,12 @@ func (b *blockManager) handleNotifyMsg(notification *blockchain.Notification) {
 		// transactions and any that are now double spends from the transaction
 		// pool.  Transactions which depend on a confirmed transaction are NOT
 		// removed recursively because they are still valid.
-		txMemPool := b.server.txMemPool
 		if !headerApprovesParent(&block.MsgBlock().Header) {
 			for _, tx := range parentBlock.Transactions()[1:] {
-				txMemPool.RemoveTransaction(tx, false)
-				txMemPool.RemoveDoubleSpends(tx)
-				txMemPool.RemoveOrphan(tx)
-				txMemPool.ProcessOrphans(tx)
+				b.txMemPool.RemoveTransaction(tx, false)
+				b.txMemPool.RemoveDoubleSpends(tx)
+				b.txMemPool.RemoveOrphan(tx)
+				b.txMemPool.ProcessOrphans(tx)
 			}
 		}
 
@@ -1975,9 +1974,9 @@ func (b *blockManager) handleNotifyMsg(notification *blockchain.Notification) {
 		// pool which depends on the transaction is still valid.
 		handleDisconnectedBlockTxns := func(txns []*dcrutil.Tx) {
 			for _, tx := range txns {
-				_, err := txMemPool.MaybeAcceptTransaction(tx, false, true)
+				_, err := b.txMemPool.MaybeAcceptTransaction(tx, false, true)
 				if err != nil && !isDoubleSpendOrDuplicateError(err) {
-					txMemPool.RemoveTransaction(tx, true)
+					b.txMemPool.RemoveTransaction(tx, true)
 				}
 			}
 		}
@@ -2351,9 +2350,11 @@ func (b *blockManager) SetParentTemplate(bt *BlockTemplate) {
 
 // newBlockManager returns a new Decred block manager.
 // Use Start to begin processing asynchronous block and inv updates.
-func newBlockManager(s *server, indexManager blockchain.IndexManager, interrupt <-chan struct{}) (*blockManager, error) {
+func newBlockManager(s *server, indexManager blockchain.IndexManager, chain *blockchain.BlockChain, txMemPool *mempool.TxPool, interrupt <-chan struct{}) (*blockManager, error) {
 	bm := blockManager{
 		server:           s,
+		chain:            chain,
+		txMemPool:        txMemPool,
 		rejectedTxns:     make(map[chainhash.Hash]struct{}),
 		requestedTxns:    make(map[chainhash.Hash]struct{}),
 		requestedBlocks:  make(map[chainhash.Hash]struct{}),
@@ -2364,20 +2365,6 @@ func newBlockManager(s *server, indexManager blockchain.IndexManager, interrupt 
 		quit:             make(chan struct{}),
 	}
 
-	// Create a new block chain instance with the appropriate configuration.
-	var err error
-	bm.chain, err = blockchain.New(&blockchain.Config{
-		DB:            s.db,
-		Interrupt:     interrupt,
-		ChainParams:   s.chainParams,
-		TimeSource:    s.timeSource,
-		Notifications: bm.handleNotifyMsg,
-		SigCache:      s.sigCache,
-		IndexManager:  indexManager,
-	})
-	if err != nil {
-		return nil, err
-	}
 	best := bm.chain.BestSnapshot()
 	bm.chain.DisableCheckpoints(cfg.DisableCheckpoints)
 	if !cfg.DisableCheckpoints {
@@ -2392,7 +2379,7 @@ func newBlockManager(s *server, indexManager blockchain.IndexManager, interrupt 
 
 	// Dump the blockchain here if asked for it, and quit.
 	if cfg.DumpBlockchain != "" {
-		err = dumpBlockChain(bm.chain, best.Height)
+		err := dumpBlockChain(bm.chain, best.Height)
 		if err != nil {
 			return nil, err
 		}
