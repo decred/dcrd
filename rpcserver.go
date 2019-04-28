@@ -6515,6 +6515,92 @@ func newRPCServer(listenAddrs []string, generator *BlkTmplGenerator, s *server) 
 	return &rpc, nil
 }
 
+func (s *rpcServer) handleBlockchainNotification(notification *blockchain.Notification) {
+	switch notification.Type {
+	case blockchain.NTBlockConnected:
+		blockSlice, ok := notification.Data.([]*dcrutil.Block)
+		if !ok {
+			rpcsLog.Warnf("Block connected notification is not a block slice.")
+			break
+		}
+
+		if len(blockSlice) != 2 {
+			rpcsLog.Warnf("Block connected notification is wrong size slice.")
+			break
+		}
+
+		block := blockSlice[0]
+
+		// Notify registered websocket clients of incoming block.
+		s.ntfnMgr.NotifyBlockConnected(block)
+
+		// Update registered websocket clients on the current stake difficulty.
+		best := s.chain.BestSnapshot()
+		s.ntfnMgr.NotifyStakeDifficulty(
+			&StakeDifficultyNtfnData{best.Hash, best.Height, best.NextStakeDiff})
+
+		// Allow any clients performing long polling via the
+		// getblocktemplate RPC to be notified when the new
+		// block causes their old block template to become stale.
+		s.gbtWorkState.NotifyBlockConnected(block.Hash())
+
+	case blockchain.NTBlockDisconnected:
+		blockSlice, ok := notification.Data.([]*dcrutil.Block)
+		if !ok {
+			rpcsLog.Warnf("Block disconnected notification is not a block slice.")
+			break
+		}
+
+		if len(blockSlice) != 2 {
+			rpcsLog.Warnf("Block disconnected notification is wrong size slice.")
+			break
+		}
+
+		block := blockSlice[0]
+
+		// Notify registered websocket clients.
+		s.ntfnMgr.NotifyBlockDisconnected(block)
+
+		// Update registered websocket clients on the current stake difficulty.
+		best := s.chain.BestSnapshot()
+		s.ntfnMgr.NotifyStakeDifficulty(
+			&StakeDifficultyNtfnData{best.Hash, best.Height, best.NextStakeDiff})
+
+	// Stake tickets are spent or missed from the most recently connected block.
+	case blockchain.NTSpentAndMissedTickets:
+		tnd, ok := notification.Data.(*blockchain.TicketNotificationsData)
+		if !ok {
+			bmgrLog.Warnf("Tickets connected notification is not " +
+				"TicketNotificationsData")
+			break
+		}
+
+		s.ntfnMgr.NotifySpentAndMissedTickets(tnd)
+
+	// Stake tickets are matured from the most recently connected block.
+	case blockchain.NTNewTickets:
+		tnd, ok := notification.Data.(*blockchain.TicketNotificationsData)
+		if !ok {
+			bmgrLog.Warnf("Tickets connected notification is not " +
+				"TicketNotificationsData")
+			break
+		}
+
+		s.ntfnMgr.NotifyNewTickets(tnd)
+
+	// The blockchain is reorganizing.
+	case blockchain.NTReorganization:
+		rd, ok := notification.Data.(*blockchain.ReorganizationNtfnsData)
+		if !ok {
+			bmgrLog.Warnf("Chain reorganization notification is malformed")
+			break
+		}
+
+		// Notify registered websocket clients.
+		s.ntfnMgr.NotifyReorganization(rd)
+	}
+}
+
 func init() {
 	rpcHandlers = rpcHandlersBeforeInit
 	rand.Seed(time.Now().UnixNano())

@@ -194,6 +194,7 @@ type server struct {
 	rpcServer            *rpcServer
 	blockManager         *blockManager
 	bg                   *BgBlkTmplGenerator
+	chain                *blockchain.BlockChain
 	txMemPool            *mempool.TxPool
 	feeEstimator         *fees.Estimator
 	cpuMiner             *CPUMiner
@@ -818,7 +819,7 @@ func (sp *serverPeer) OnGetHeaders(p *peer.Peer, msg *wire.MsgGetHeaders) {
 	// Use the block after the genesis block if no other blocks in the
 	// provided locator are known.  This does mean the client will start
 	// over with the genesis block if unknown block locators are provided.
-	chain := sp.server.blockManager.chain
+	chain := sp.server.chain
 	headers := chain.LocateHeaders(msg.BlockLocatorHashes, &msg.HashStop)
 
 	// Send found headers to the requesting peer.
@@ -1176,6 +1177,16 @@ func (s *server) AnnounceNewTransactions(newTxs []*dcrutil.Tx) {
 			s.rpcServer.gbtWorkState.NotifyMempoolTx(
 				s.txMemPool.LastUpdated())
 		}
+	}
+}
+
+// TransactionConfirmed marks the provided single confirmation transaction as
+// no longer needing rebroadcasting.
+func (s *server) TransactionConfirmed(tx *dcrutil.Tx) {
+	// Rebroadcasting is only necessary when the RPC server is active.
+	if s.rpcServer != nil {
+		iv := wire.NewInvVect(wire.InvTypeTx, tx.Hash())
+		s.RemoveRebroadcastInventory(iv)
 	}
 }
 
@@ -2536,14 +2547,19 @@ func newServer(listenAddrs []string, db database.DB, chainParams *chaincfg.Param
 	}
 
 	// Create a new block chain instance with the appropriate configuration.
-	chain, err := blockchain.New(&blockchain.Config{
+	s.chain, err = blockchain.New(&blockchain.Config{
 		DB:          s.db,
 		Interrupt:   interrupt,
 		ChainParams: s.chainParams,
 		TimeSource:  s.timeSource,
-		Notifications: func(notif *blockchain.Notification) {
+		// TODO: Modify blockchain to be able to register multiple listeners and
+		// have the block manager and RPC server subscribe directly.
+		Notifications: func(notification *blockchain.Notification) {
 			if s.blockManager != nil {
-				s.blockManager.handleNotifyMsg(notif)
+				s.blockManager.handleBlockchainNotification(notification)
+			}
+			if s.rpcServer != nil {
+				s.rpcServer.handleBlockchainNotification(notification)
 			}
 		},
 		SigCache:     s.sigCache,
@@ -2565,23 +2581,23 @@ func newServer(listenAddrs []string, db database.DB, chainParams *chaincfg.Param
 			MinRelayTxFee:        cfg.minRelayTxFee,
 			AllowOldVotes:        cfg.AllowOldVotes,
 			StandardVerifyFlags: func() (txscript.ScriptFlags, error) {
-				return standardScriptVerifyFlags(chain)
+				return standardScriptVerifyFlags(s.chain)
 			},
-			AcceptSequenceLocks: chain.IsFixSeqLocksAgendaActive,
+			AcceptSequenceLocks: s.chain.IsFixSeqLocksAgendaActive,
 		},
 		ChainParams: chainParams,
 		NextStakeDifficulty: func() (int64, error) {
-			return chain.BestSnapshot().NextStakeDiff, nil
+			return s.chain.BestSnapshot().NextStakeDiff, nil
 		},
-		FetchUtxoView:    chain.FetchUtxoView,
-		BlockByHash:      chain.BlockByHash,
-		BestHash:         func() *chainhash.Hash { return &chain.BestSnapshot().Hash },
-		BestHeight:       func() int64 { return chain.BestSnapshot().Height },
-		CalcSequenceLock: chain.CalcSequenceLock,
-		SubsidyCache:     chain.FetchSubsidyCache(),
+		FetchUtxoView:    s.chain.FetchUtxoView,
+		BlockByHash:      s.chain.BlockByHash,
+		BestHash:         func() *chainhash.Hash { return &s.chain.BestSnapshot().Hash },
+		BestHeight:       func() int64 { return s.chain.BestSnapshot().Height },
+		CalcSequenceLock: s.chain.CalcSequenceLock,
+		SubsidyCache:     s.chain.FetchSubsidyCache(),
 		SigCache:         s.sigCache,
 		PastMedianTime: func() time.Time {
-			return chain.BestSnapshot().MedianTime
+			return s.chain.BestSnapshot().MedianTime
 		},
 		AddrIndex:                 s.addrIndex,
 		ExistsAddrIndex:           s.existsAddrIndex,
@@ -2595,8 +2611,7 @@ func newServer(listenAddrs []string, db database.DB, chainParams *chaincfg.Param
 	}
 	s.txMemPool = mempool.New(&txC)
 
-	s.blockManager, err = newBlockManager(&s, indexManager, chain,
-		s.txMemPool, interrupt)
+	s.blockManager, err = newBlockManager(&s, s.chain, s.txMemPool, interrupt)
 	if err != nil {
 		return nil, err
 	}
@@ -2613,7 +2628,7 @@ func newServer(listenAddrs []string, db database.DB, chainParams *chaincfg.Param
 		TxMinFreeFee:      cfg.minRelayTxFee,
 	}
 	tg := newBlkTmplGenerator(&policy, s.txMemPool, s.timeSource, s.sigCache,
-		s.chainParams, chain, s.blockManager)
+		s.chainParams, s.chain, s.blockManager)
 
 	// Create the background block template generator if the config has a
 	// mining address.
