@@ -12,12 +12,13 @@ set -ex
 
 # The script does automatic checking on a Go package and its sub-packages,
 # including:
-# 1. gofmt         (http://golang.org/cmd/gofmt/)
+# 1. gofmt         (https://golang.org/cmd/gofmt/)
 # 2. gosimple      (https://github.com/dominikh/go-simple)
 # 3. unconvert     (https://github.com/mdempsky/unconvert)
 # 4. ineffassign   (https://github.com/gordonklaus/ineffassign)
-# 5. misspell      (https://github.com/client9/misspell)
-# 6. race detector (http://blog.golang.org/race-detector)
+# 5. go vet        (https://golang.org/cmd/vet)
+# 6. misspell      (https://github.com/client9/misspell)
+# 7. race detector (https://blog.golang.org/race-detector)
 
 # golangci-lint (github.com/golangci/golangci-lint) is used to run each each
 # static checker.
@@ -57,6 +58,7 @@ testrepo () {
       --enable=gosimple \
       --enable=unconvert \
       --enable=ineffassign \
+      --enable=govet \
       --enable=misspell ./${module}/...
   done
 

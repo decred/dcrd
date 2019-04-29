@@ -2946,7 +2946,7 @@ func handleGetBlockTemplateProposal(s *rpcServer, request *dcrjson.TemplateReque
 	// Ensure the block is building from the expected previous block.
 	expectedPrevHash := &s.server.blockManager.chain.BestSnapshot().Hash
 	prevHash := &block.MsgBlock().Header.PrevBlock
-	if expectedPrevHash == nil || !expectedPrevHash.IsEqual(prevHash) {
+	if *expectedPrevHash != *prevHash {
 		return "bad-prevblk", nil
 	}
 
@@ -3233,7 +3233,7 @@ func handleGetMiningInfo(s *rpcServer, cmd interface{}, closeChan <-chan struct{
 	}
 	networkHashesPerSec, ok := networkHashesPerSecIface.(int64)
 	if !ok {
-		return nil, rpcInternalError(err.Error(),
+		return nil, rpcInternalError("invalid network hashes per sec",
 			fmt.Sprintf("Invalid type: %q",
 				networkHashesPerSecIface))
 	}
@@ -4098,12 +4098,6 @@ func handleGetWorkRequest(s *rpcServer) (interface{}, error) {
 			blockchain.CompactToBig(msgBlock.Header.Bits),
 			msgBlock.Header.MerkleRoot)
 	} else {
-		if msgBlock == nil {
-			context := "Failed to create new block template, " +
-				"no previous state"
-			return nil, rpcInternalError("internal error", context)
-		}
-
 		// At this point, there is a saved block template and a new
 		// request for work was made, but either the available
 		// transactions haven't change or it hasn't been long enough to
