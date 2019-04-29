@@ -1224,7 +1224,7 @@ func writeTxInWitness(w io.Writer, pver uint32, version uint16, ti *TxIn) error 
 	}
 
 	// BlockIndex.
-	binarySerializer.PutUint32(w, littleEndian, ti.BlockIndex)
+	err = binarySerializer.PutUint32(w, littleEndian, ti.BlockIndex)
 	if err != nil {
 		return err
 	}
