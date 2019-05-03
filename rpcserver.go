@@ -1392,7 +1392,7 @@ func handleEstimateStakeDiff(s *rpcServer, cmd interface{}, closeChan <-chan str
 	c := cmd.(*dcrjson.EstimateStakeDiffCmd)
 
 	// Minimum possible stake difficulty.
-	chain := s.server.blockManager.chain
+	chain := s.server.chain
 	min, err := chain.EstimateNextStakeDifficulty(0, false)
 	if err != nil {
 		return nil, rpcInternalError(err.Error(), "Could not "+
@@ -1409,7 +1409,7 @@ func handleEstimateStakeDiff(s *rpcServer, cmd interface{}, closeChan <-chan str
 	// The expected stake difficulty. Average the number of fresh stake
 	// since the last retarget to get the number of tickets per block,
 	// then use that to estimate the next stake difficulty.
-	bestHeight := s.server.blockManager.chain.BestSnapshot().Height
+	bestHeight := s.server.chain.BestSnapshot().Height
 	lastAdjustment := (bestHeight / activeNetParams.StakeDiffWindowSize) *
 		activeNetParams.StakeDiffWindowSize
 	nextAdjustment := ((bestHeight / activeNetParams.StakeDiffWindowSize) +
@@ -1525,7 +1525,7 @@ func handleExistsMissedTickets(s *rpcServer, cmd interface{}, closeChan <-chan s
 		return nil, err
 	}
 
-	exists := s.server.blockManager.chain.CheckMissedTickets(hashes)
+	exists := s.server.chain.CheckMissedTickets(hashes)
 	if len(exists) != len(hashes) {
 		return nil, rpcInvalidError("Invalid missed ticket count "+
 			"got %v, want %v", len(exists), len(hashes))
@@ -1551,7 +1551,7 @@ func handleExistsExpiredTickets(s *rpcServer, cmd interface{}, closeChan <-chan 
 		return nil, err
 	}
 
-	exists := s.server.blockManager.chain.CheckExpiredTickets(hashes)
+	exists := s.server.chain.CheckExpiredTickets(hashes)
 	if len(exists) != len(hashes) {
 		return nil, rpcInvalidError("Invalid expired ticket count "+
 			"got %v, want %v", len(exists), len(hashes))
@@ -1577,7 +1577,7 @@ func handleExistsLiveTicket(s *rpcServer, cmd interface{}, closeChan <-chan stru
 		return nil, rpcDecodeHexError(c.TxHash)
 	}
 
-	return s.server.blockManager.chain.CheckLiveTicket(*hash), nil
+	return s.server.chain.CheckLiveTicket(*hash), nil
 }
 
 // handleExistsLiveTickets implements the existslivetickets command.
@@ -1589,7 +1589,7 @@ func handleExistsLiveTickets(s *rpcServer, cmd interface{}, closeChan <-chan str
 		return nil, err
 	}
 
-	exists := s.server.blockManager.chain.CheckLiveTickets(hashes)
+	exists := s.server.chain.CheckLiveTickets(hashes)
 	if len(exists) != len(hashes) {
 		return nil, rpcInvalidError("Invalid live ticket count got "+
 			"%v, want %v", len(exists), len(hashes))
@@ -1809,7 +1809,7 @@ func handleGetBlock(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) (i
 	if err != nil {
 		return nil, rpcDecodeHexError(c.Hash)
 	}
-	blk, err := s.server.blockManager.chain.BlockByHash(hash)
+	blk, err := s.server.chain.BlockByHash(hash)
 	if err != nil {
 		return nil, &dcrjson.RPCError{
 			Code:    dcrjson.ErrRPCBlockNotFound,
@@ -2307,7 +2307,7 @@ func (state *gbtWorkState) updateBlockTemplate(s *rpcServer, useCoinbaseValue bo
 	// generated.
 	var msgBlock *wire.MsgBlock
 	var targetDifficulty string
-	best := s.server.blockManager.chain.BestSnapshot()
+	best := s.server.chain.BestSnapshot()
 	latestHash := best.Hash
 	template := state.template
 	if template == nil || state.prevHash == nil ||
@@ -2583,7 +2583,7 @@ func (state *gbtWorkState) blockTemplateResult(bm *blockManager, useCoinbaseValu
 	// Choose the correct maximum block size as defined by the  network
 	// parameters and the current status of any hard fork votes to change
 	// it when serialized.
-	maxBlockSize, err := bm.chain.MaxBlockSize()
+	maxBlockSize, err := bm.cfg.Chain.MaxBlockSize()
 	if err != nil {
 		context := "Invalid blocksize"
 		return nil, rpcInternalError(err.Error(), context)
@@ -2795,7 +2795,7 @@ func handleGetBlockTemplateRequest(s *rpcServer, request *dcrjson.TemplateReques
 	}
 
 	// No point in generating or accepting work before the chain is synced.
-	bestHeight := s.server.blockManager.chain.BestSnapshot().Height
+	bestHeight := s.server.chain.BestSnapshot().Height
 	if bestHeight != 0 && !s.server.blockManager.IsCurrent() {
 		return nil, &dcrjson.RPCError{
 			Code:    dcrjson.ErrRPCClientInInitialDownload,
@@ -2944,13 +2944,13 @@ func handleGetBlockTemplateProposal(s *rpcServer, request *dcrjson.TemplateReque
 	block := dcrutil.NewBlock(&msgBlock)
 
 	// Ensure the block is building from the expected previous block.
-	expectedPrevHash := &s.server.blockManager.chain.BestSnapshot().Hash
+	expectedPrevHash := &s.server.chain.BestSnapshot().Hash
 	prevHash := &block.MsgBlock().Header.PrevBlock
 	if *expectedPrevHash != *prevHash {
 		return "bad-prevblk", nil
 	}
 
-	err = s.server.blockManager.chain.CheckConnectBlockTemplate(block)
+	err = s.server.chain.CheckConnectBlockTemplate(block)
 	if err != nil {
 		if _, ok := err.(blockchain.RuleError); !ok {
 			errStr := fmt.Sprintf("Failed to process block "+
@@ -3164,7 +3164,7 @@ func handleGetHeaders(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) 
 		locators[i] = &blockLocators[i]
 	}
 
-	chain := s.server.blockManager.chain
+	chain := s.server.chain
 	headers := chain.LocateHeaders(locators, &hashStop)
 
 	// Return the serialized block headers as hex-encoded strings.
@@ -4040,7 +4040,7 @@ func handleGetWorkRequest(s *rpcServer) (interface{}, error) {
 	// it has been at least one minute since the last template was
 	// generated.
 	lastTxUpdate := s.server.txMemPool.LastUpdated()
-	best := s.server.blockManager.chain.BestSnapshot()
+	best := s.server.chain.BestSnapshot()
 	msgBlock := state.msgBlock
 
 	// The current code pulls down a new template every second, however
@@ -4338,7 +4338,7 @@ func handleGetWork(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) (in
 	}
 
 	// No point in generating or accepting work before the chain is synced.
-	bestHeight := s.server.blockManager.chain.BestSnapshot().Height
+	bestHeight := s.server.chain.BestSnapshot().Height
 	if bestHeight != 0 && !s.server.blockManager.IsCurrent() {
 		return nil, &dcrjson.RPCError{
 			Code:    dcrjson.ErrRPCClientInInitialDownload,
@@ -4402,7 +4402,7 @@ func handleHelp(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) (inter
 
 // handleLiveTickets implements the livetickets command.
 func handleLiveTickets(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) (interface{}, error) {
-	lt, err := s.server.blockManager.chain.LiveTickets()
+	lt, err := s.server.chain.LiveTickets()
 	if err != nil {
 		return nil, rpcInternalError("Could not get live tickets "+
 			err.Error(), "")
@@ -4418,7 +4418,7 @@ func handleLiveTickets(s *rpcServer, cmd interface{}, closeChan <-chan struct{})
 
 // handleMissedTickets implements the missedtickets command.
 func handleMissedTickets(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) (interface{}, error) {
-	mt, err := s.server.blockManager.chain.MissedTickets()
+	mt, err := s.server.chain.MissedTickets()
 	if err != nil {
 		return nil, rpcInternalError("Could not get missed tickets "+
 			err.Error(), "")
@@ -4447,8 +4447,8 @@ func handlePing(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) (inter
 
 // handleRebroadcastMissed implements the rebroadcastmissed command.
 func handleRebroadcastMissed(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) (interface{}, error) {
-	best := s.server.blockManager.chain.BestSnapshot()
-	mt, err := s.server.blockManager.chain.MissedTickets()
+	best := s.server.chain.BestSnapshot()
+	mt, err := s.server.chain.MissedTickets()
 	if err != nil {
 		return nil, rpcInternalError("Could not get missed tickets "+
 			err.Error(), "")
@@ -4476,7 +4476,7 @@ func handleRebroadcastMissed(s *rpcServer, cmd interface{}, closeChan <-chan str
 
 // handleRebroadcastWinners implements the rebroadcastwinners command.
 func handleRebroadcastWinners(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) (interface{}, error) {
-	bestHeight := s.server.blockManager.chain.BestSnapshot().Height
+	bestHeight := s.server.chain.BestSnapshot().Height
 	blocks, err := s.server.blockManager.TipGeneration()
 	if err != nil {
 		return nil, rpcInternalError("Could not get generation "+
@@ -4485,7 +4485,7 @@ func handleRebroadcastWinners(s *rpcServer, cmd interface{}, closeChan <-chan st
 
 	for i := range blocks {
 		winningTickets, _, _, err :=
-			s.server.blockManager.chain.LotteryDataForBlock(&blocks[i])
+			s.server.chain.LotteryDataForBlock(&blocks[i])
 		if err != nil {
 			return nil, rpcInternalError("Lottery data for block "+
 				"failed: "+err.Error(), "")
@@ -5051,7 +5051,7 @@ func handleSendRawTransaction(s *rpcServer, cmd interface{}, closeChan <-chan st
 		// JSON-RPC error is returned to the client with the
 		// deserialization error code (to match bitcoind behavior).
 		if rErr, ok := err.(mempool.RuleError); ok {
-			err = fmt.Errorf("Rejected transaction %v: %v", tx.Hash(),
+			err = fmt.Errorf("rejected transaction %v: %v", tx.Hash(),
 				err)
 			rpcsLog.Debugf("%v", err)
 			txRuleErr, ok := rErr.Err.(mempool.TxRuleError)
@@ -5376,7 +5376,7 @@ func ticketFeeInfoForRange(s *rpcServer, start int64, end int64, txType stake.Tx
 func handleTicketFeeInfo(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) (interface{}, error) {
 	c := cmd.(*dcrjson.TicketFeeInfoCmd)
 
-	bestHeight := s.server.blockManager.chain.BestSnapshot().Height
+	bestHeight := s.server.chain.BestSnapshot().Height
 
 	// Memory pool first.
 	feeInfoMempool := feeInfoForMempool(s, stake.TxTypeSStx)
@@ -5462,10 +5462,9 @@ func handleTicketsForAddress(s *rpcServer, cmd interface{}, closeChan <-chan str
 		return nil, rpcInvalidError("Invalid address: %v", err)
 	}
 
-	tickets, err := s.server.blockManager.chain.TicketsWithAddress(addr)
+	tickets, err := s.server.chain.TicketsWithAddress(addr)
 	if err != nil {
-		return nil, rpcInternalError(err.Error(),
-			"Could not obtain tickets")
+		return nil, rpcInternalError(err.Error(), "could not obtain tickets")
 	}
 
 	ticketStrings := make([]string, len(tickets))
@@ -5487,15 +5486,14 @@ func handleTicketVWAP(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) 
 
 	// The default VWAP is for the past WorkDiffWindows * WorkDiffWindowSize
 	// many blocks.
-	bestHeight := s.server.blockManager.chain.BestSnapshot().Height
+	bestHeight := s.server.chain.BestSnapshot().Height
 	var start uint32
 	if c.Start == nil {
 		toEval := activeNetParams.WorkDiffWindows *
 			activeNetParams.WorkDiffWindowSize
 		startI64 := bestHeight - toEval
 
-		// Use 1 as the first block if there aren't
-		// enough blocks.
+		// Use 1 as the first block if there aren't enough blocks.
 		if startI64 <= 0 {
 			start = 1
 		} else {
@@ -5544,7 +5542,7 @@ func handleTicketVWAP(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) 
 func handleTxFeeInfo(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) (interface{}, error) {
 	c := cmd.(*dcrjson.TxFeeInfoCmd)
 
-	bestHeight := s.server.blockManager.chain.BestSnapshot().Height
+	bestHeight := s.server.chain.BestSnapshot().Height
 
 	// Memory pool first.
 	feeInfoMempool := feeInfoForMempool(s, stake.TxTypeRegular)
@@ -6432,7 +6430,7 @@ func newRPCServer(listenAddrs []string, generator *BlkTmplGenerator, s *server) 
 	rpc := rpcServer{
 		server:                 s,
 		generator:              generator,
-		chain:                  s.blockManager.chain,
+		chain:                  s.chain,
 		statusLines:            make(map[int]string),
 		workState:              newWorkState(),
 		templatePool:           make(map[[merkleRootPairSize]byte]*workStateBlockInfo),
@@ -6515,6 +6513,9 @@ func newRPCServer(listenAddrs []string, generator *BlkTmplGenerator, s *server) 
 	return &rpc, nil
 }
 
+// handleBlockchainNotification callback for notifications from blockchain.
+// It notifies clients that are long polling for changes or subscribed to
+// websockets notifications.
 func (s *rpcServer) handleBlockchainNotification(notification *blockchain.Notification) {
 	switch notification.Type {
 	case blockchain.NTBlockConnected:
@@ -6598,6 +6599,11 @@ func (s *rpcServer) handleBlockchainNotification(notification *blockchain.Notifi
 
 		// Notify registered websocket clients.
 		s.ntfnMgr.NotifyReorganization(rd)
+
+		// Notify stake difficulty subscribers.
+		best := s.chain.BestSnapshot()
+		s.ntfnMgr.NotifyStakeDifficulty(&StakeDifficultyNtfnData{best.Hash,
+			best.Height, best.NextStakeDiff})
 	}
 }
 

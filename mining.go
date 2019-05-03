@@ -685,7 +685,7 @@ func medianAdjustedTime(best *blockchain.BestState, timeSource blockchain.Median
 func maybeInsertStakeTx(bm *blockManager, stx *dcrutil.Tx, treeValid bool) bool {
 	missingInput := false
 
-	view, err := bm.chain.FetchUtxoView(stx, treeValid)
+	view, err := bm.cfg.Chain.FetchUtxoView(stx, treeValid)
 	if err != nil {
 		minrLog.Warnf("Unable to fetch transaction store for "+
 			"stx %s: %v", stx.Hash(), err)
@@ -776,14 +776,14 @@ func deepCopyBlockTemplate(blockTemplate *BlockTemplate) *BlockTemplate {
 // miner.
 // Safe for concurrent access.
 func handleTooFewVoters(subsidyCache *blockchain.SubsidyCache, nextHeight int64, miningAddress dcrutil.Address, bm *blockManager) (*BlockTemplate, error) {
-	timeSource := bm.server.timeSource
-	stakeValidationHeight := bm.server.chainParams.StakeValidationHeight
+	timeSource := bm.cfg.TimeSource
+	stakeValidationHeight := bm.cfg.ChainParams.StakeValidationHeight
 	curTemplate := bm.GetCurrentTemplate()
 
 	// Check to see if we've fallen off the chain, for example if a
 	// reorganization had recently occurred. If this is the case,
 	// nuke the templates.
-	best := bm.chain.BestSnapshot()
+	best := bm.cfg.Chain.BestSnapshot()
 	if curTemplate != nil {
 		if !best.PrevHash.IsEqual(
 			&curTemplate.Block.Header.PrevBlock) {
@@ -807,7 +807,7 @@ func handleTooFewVoters(subsidyCache *blockchain.SubsidyCache, nextHeight int64,
 
 				// If we're on testnet, the time since this last block
 				// listed as the parent must be taken into consideration.
-				if bm.server.chainParams.ReduceMinDifficulty {
+				if bm.cfg.ChainParams.ReduceMinDifficulty {
 					parentHash := cptCopy.Block.Header.PrevBlock
 
 					requiredDifficulty, err :=
@@ -838,7 +838,7 @@ func handleTooFewVoters(subsidyCache *blockchain.SubsidyCache, nextHeight int64,
 
 				// Make sure the block validates.
 				block := dcrutil.NewBlockDeepCopyCoinbase(cptCopy.Block)
-				err = bm.chain.CheckConnectBlockTemplate(block)
+				err = bm.cfg.Chain.CheckConnectBlockTemplate(block)
 				if err != nil {
 					minrLog.Errorf("failed to check template while "+
 						"duplicating a parent: %v", err.Error())
@@ -857,7 +857,7 @@ func handleTooFewVoters(subsidyCache *blockchain.SubsidyCache, nextHeight int64,
 			// and the contents of that stake tree. In the future
 			// we should have the option of readding some
 			// transactions from this block, too.
-			topBlock, err := bm.chain.BlockByHash(&best.Hash)
+			topBlock, err := bm.cfg.Chain.BlockByHash(&best.Hash)
 			if err != nil {
 				str := fmt.Sprintf("unable to get tip block %s",
 					best.PrevHash)
@@ -876,13 +876,9 @@ func handleTooFewVoters(subsidyCache *blockchain.SubsidyCache, nextHeight int64,
 			if err != nil {
 				return nil, err
 			}
-			coinbaseTx, err := createCoinbaseTx(subsidyCache,
-				coinbaseScript,
-				opReturnPkScript,
-				topBlock.Height(),
-				miningAddress,
-				topBlock.MsgBlock().Header.Voters,
-				bm.server.chainParams)
+			coinbaseTx, err := createCoinbaseTx(subsidyCache, coinbaseScript,
+				opReturnPkScript, topBlock.Height(), miningAddress,
+				topBlock.MsgBlock().Header.Voters, bm.cfg.ChainParams)
 			if err != nil {
 				return nil, err
 			}
@@ -901,7 +897,7 @@ func handleTooFewVoters(subsidyCache *blockchain.SubsidyCache, nextHeight int64,
 
 			// If we're on testnet, the time since this last block
 			// listed as the parent must be taken into consideration.
-			if bm.server.chainParams.ReduceMinDifficulty {
+			if bm.cfg.ChainParams.ReduceMinDifficulty {
 				parentHash := topBlock.MsgBlock().Header.PrevBlock
 
 				requiredDifficulty, err :=
@@ -937,7 +933,7 @@ func handleTooFewVoters(subsidyCache *blockchain.SubsidyCache, nextHeight int64,
 
 			// Make sure the block validates.
 			btBlock := dcrutil.NewBlockDeepCopyCoinbase(btMsgBlock)
-			err = bm.chain.CheckConnectBlockTemplate(btBlock)
+			err = bm.cfg.Chain.CheckConnectBlockTemplate(btBlock)
 			if err != nil {
 				str := fmt.Sprintf("failed to check template: %v while "+
 					"constructing a new parent", err.Error())
