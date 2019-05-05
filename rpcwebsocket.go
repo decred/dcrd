@@ -675,8 +675,8 @@ func (m *wsNotificationManager) subscribedClients(tx *dcrutil.Tx, clients map[ch
 
 		for i, output := range msgTx.TxOut {
 			_, addrs, _, err := txscript.ExtractPkScriptAddrs(
-				txscript.DefaultScriptVersion,
-				output.PkScript, m.server.server.chainParams)
+				txscript.DefaultScriptVersion, output.PkScript,
+				m.server.cfg.ChainParams)
 			if err != nil {
 				// Clients are not able to subscribe to
 				// nonstandard or non-address outputs.
@@ -1001,7 +1001,7 @@ func (m *wsNotificationManager) notifyForNewTx(clients map[chan struct{}]*wsClie
 				continue
 			}
 
-			net := m.server.server.chainParams
+			net := m.server.cfg.ChainParams
 			rawTx, err := createTxRawResult(net, mtx, txHashStr,
 				wire.NullBlockIndex, nil, "", 0, 0)
 			if err != nil {
@@ -1061,9 +1061,8 @@ func (m *wsNotificationManager) notifyRelevantTxAccepted(tx *dcrutil.Tx,
 		}
 
 		for i, output := range msgTx.TxOut {
-			_, addrs, _, err := txscript.ExtractPkScriptAddrs(
-				output.Version, output.PkScript,
-				m.server.server.chainParams)
+			_, addrs, _, err := txscript.ExtractPkScriptAddrs(output.Version,
+				output.PkScript, m.server.cfg.ChainParams)
 			if err != nil {
 				continue
 			}
@@ -2191,7 +2190,7 @@ func handleRescan(wsc *wsClient, icmd interface{}) (interface{}, error) {
 
 	// Iterate over each block in the request and rescan.  When a block
 	// contains relevant transactions, add it to the response.
-	bc := wsc.server.chain
+	bc := wsc.server.cfg.Chain
 	var lastBlockHash *chainhash.Hash
 	for i := range blockHashes {
 		block, err := bc.BlockByHash(&blockHashes[i])

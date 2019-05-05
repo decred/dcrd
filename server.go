@@ -1155,27 +1155,28 @@ func (s *server) PruneRebroadcastInventory() {
 	s.modifyRebroadcastInv <- broadcastPruneInventory{}
 }
 
+// relayTransactions generates and relays inventory vectors for all of the
+// passed transactions to all connected peers.
+func (s *server) relayTransactions(txns []*dcrutil.Tx) {
+	for _, tx := range txns {
+		iv := wire.NewInvVect(wire.InvTypeTx, tx.Hash())
+		s.RelayInventory(iv, tx, false)
+	}
+}
+
 // AnnounceNewTransactions generates and relays inventory vectors and notifies
 // both websocket and getblocktemplate long poll clients of the passed
 // transactions.  This function should be called whenever new transactions
 // are added to the mempool.
 func (s *server) AnnounceNewTransactions(txns []*dcrutil.Tx) {
 	// Generate and relay inventory vectors for all newly accepted
-	// transactions into the memory pool due to the original being
-	// accepted.
-	for _, tx := range txns {
-		// Generate the inventory vector and relay it.
-		iv := wire.NewInvVect(wire.InvTypeTx, tx.Hash())
-		s.RelayInventory(iv, tx, false)
+	// transactions.
+	s.relayTransactions(txns)
 
-		if s.rpcServer != nil {
-			// Notify websocket clients about mempool transactions.
-			s.rpcServer.ntfnMgr.NotifyMempoolTx(tx, true)
-
-			// Potentially notify any getblocktemplate long poll clients
-			// about stale block templates due to the new transaction.
-			s.rpcServer.gbtWorkState.NotifyMempoolTx(s.txMemPool.LastUpdated())
-		}
+	// Notify both websocket and getblocktemplate long poll clients of all
+	// newly accepted transactions.
+	if s.rpcServer != nil {
+		s.rpcServer.NotifyNewTransactions(txns)
 	}
 }
 
@@ -2742,7 +2743,22 @@ func newServer(listenAddrs []string, db database.DB, chainParams *chaincfg.Param
 	}
 
 	if !cfg.DisableRPC {
-		s.rpcServer, err = newRPCServer(cfg.RPCListeners, tg, &s)
+		s.rpcServer, err = newRPCServer(&rpcserverConfig{
+			ListenAddrs:  cfg.RPCListeners,
+			ConnMgr:      &rpcConnManager{&s},
+			SyncMgr:      &rpcSyncMgr{&s, s.blockManager},
+			PeerNotifier: &s,
+			FeeEstimator: s.feeEstimator,
+			TimeSource:   s.timeSource,
+			Chain:        s.chain,
+			ChainParams:  chainParams,
+			DB:           db,
+			TxMemPool:    s.txMemPool,
+			Generator:    s.bg.tg,
+			CPUMiner:     s.cpuMiner,
+			TxIndex:      s.txIndex,
+			AddrIndex:    s.addrIndex,
+		})
 		if err != nil {
 			return nil, err
 		}
