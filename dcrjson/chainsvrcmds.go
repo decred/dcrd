@@ -8,11 +8,6 @@
 
 package dcrjson
 
-import (
-	"encoding/json"
-	"fmt"
-)
-
 // AddNodeSubCmd defines the type used in the addnode JSON-RPC command for the
 // sub command field.
 type AddNodeSubCmd string
@@ -457,94 +452,6 @@ func NewGetBlockSubsidyCmd(height int64, voters uint16) *GetBlockSubsidyCmd {
 	return &GetBlockSubsidyCmd{
 		Height: height,
 		Voters: voters,
-	}
-}
-
-// TemplateRequest is a request object as defined in BIP22
-// (https://en.bitcoin.it/wiki/BIP_0022), it is optionally provided as an
-// pointer argument to GetBlockTemplateCmd.
-type TemplateRequest struct {
-	Mode         string   `json:"mode,omitempty"`
-	Capabilities []string `json:"capabilities,omitempty"`
-
-	// Optional long polling.
-	LongPollID string `json:"longpollid,omitempty"`
-
-	// Optional template tweaking.  SigOpLimit and SizeLimit can be int64
-	// or bool.
-	SigOpLimit interface{} `json:"sigoplimit,omitempty"`
-	SizeLimit  interface{} `json:"sizelimit,omitempty"`
-	MaxVersion uint32      `json:"maxversion,omitempty"`
-
-	// Basic pool extension from BIP 0023.
-	Target string `json:"target,omitempty"`
-
-	// Block proposal from BIP 0023.  Data is only provided when Mode is
-	// "proposal".
-	Data   string `json:"data,omitempty"`
-	WorkID string `json:"workid,omitempty"`
-}
-
-// convertTemplateRequestField potentially converts the provided value as
-// needed.
-func convertTemplateRequestField(fieldName string, iface interface{}) (interface{}, error) {
-	switch val := iface.(type) {
-	case nil:
-		return nil, nil
-	case bool:
-		return val, nil
-	case float64:
-		if val == float64(int64(val)) {
-			return int64(val), nil
-		}
-	}
-
-	str := fmt.Sprintf("the %s field must be unspecified, a boolean, or "+
-		"a 64-bit integer", fieldName)
-	return nil, makeError(ErrInvalidType, str)
-}
-
-// UnmarshalJSON provides a custom Unmarshal method for TemplateRequest.  This
-// is necessary because the SigOpLimit and SizeLimit fields can only be specific
-// types.
-func (t *TemplateRequest) UnmarshalJSON(data []byte) error {
-	type templateRequest TemplateRequest
-
-	request := (*templateRequest)(t)
-	if err := json.Unmarshal(data, &request); err != nil {
-		return err
-	}
-
-	// The SigOpLimit field can only be nil, bool, or int64.
-	val, err := convertTemplateRequestField("sigoplimit", request.SigOpLimit)
-	if err != nil {
-		return err
-	}
-	request.SigOpLimit = val
-
-	// The SizeLimit field can only be nil, bool, or int64.
-	val, err = convertTemplateRequestField("sizelimit", request.SizeLimit)
-	if err != nil {
-		return err
-	}
-	request.SizeLimit = val
-
-	return nil
-}
-
-// GetBlockTemplateCmd defines the getblocktemplate JSON-RPC command.
-type GetBlockTemplateCmd struct {
-	Request *TemplateRequest
-}
-
-// NewGetBlockTemplateCmd returns a new instance which can be used to issue a
-// getblocktemplate JSON-RPC command.
-//
-// The parameters which are pointers indicate they are optional.  Passing nil
-// for optional parameters will use the default value.
-func NewGetBlockTemplateCmd(request *TemplateRequest) *GetBlockTemplateCmd {
-	return &GetBlockTemplateCmd{
-		Request: request,
 	}
 }
 
@@ -1223,7 +1130,6 @@ func init() {
 	MustRegisterCmd("getblockhash", (*GetBlockHashCmd)(nil), flags)
 	MustRegisterCmd("getblockheader", (*GetBlockHeaderCmd)(nil), flags)
 	MustRegisterCmd("getblocksubsidy", (*GetBlockSubsidyCmd)(nil), flags)
-	MustRegisterCmd("getblocktemplate", (*GetBlockTemplateCmd)(nil), flags)
 	MustRegisterCmd("getcfilter", (*GetCFilterCmd)(nil), flags)
 	MustRegisterCmd("getcfilterheader", (*GetCFilterHeaderCmd)(nil), flags)
 	MustRegisterCmd("getchaintips", (*GetChainTipsCmd)(nil), flags)

@@ -374,64 +374,6 @@ var helpDescsEnUS = map[string]string{
 	"getblocksubsidyresult-pow":       "The Proof-of-Work subsidy",
 	"getblocksubsidyresult-total":     "The total subsidy",
 
-	// TemplateRequest help.
-	"templaterequest-mode":         "This is 'template', 'proposal', or omitted",
-	"templaterequest-capabilities": "List of capabilities",
-	"templaterequest-longpollid":   "The long poll ID of a job to monitor for expiration; required and valid only for long poll requests ",
-	"templaterequest-sigoplimit":   "Number of signature operations allowed in blocks (this parameter is ignored)",
-	"templaterequest-sizelimit":    "Number of bytes allowed in blocks (this parameter is ignored)",
-	"templaterequest-maxversion":   "Highest supported block version number (this parameter is ignored)",
-	"templaterequest-target":       "The desired target for the block template (this parameter is ignored)",
-	"templaterequest-data":         "Hex-encoded block data (only for mode=proposal)",
-	"templaterequest-workid":       "The server provided workid if provided in block template (not applicable)",
-
-	// GetBlockTemplateResultTx help.
-	"getblocktemplateresulttx-data":    "Hex-encoded transaction data (byte-for-byte)",
-	"getblocktemplateresulttx-hash":    "Hex-encoded transaction hash (little endian if treated as a 256-bit number)",
-	"getblocktemplateresulttx-depends": "Other transactions before this one (by 1-based index in the 'transactions'  list) that must be present in the final block if this one is",
-	"getblocktemplateresulttx-fee":     "Difference in value between transaction inputs and outputs (in Atoms)",
-	"getblocktemplateresulttx-sigops":  "Total number of signature operations as counted for purposes of block limits",
-	"getblocktemplateresulttx-txtype":  "Type of the transaction",
-
-	// GetBlockTemplateResultAux help.
-	"getblocktemplateresultaux-flags": "Hex-encoded byte-for-byte data to include in the coinbase signature script",
-
-	// GetBlockTemplateResult help.
-	"getblocktemplateresult-bits":              "Hex-encoded compressed difficulty",
-	"getblocktemplateresult-curtime":           "Current time as seen by the server (recommended for block time); must fall within mintime/maxtime rules",
-	"getblocktemplateresult-height":            "Height of the block to be solved",
-	"getblocktemplateresult-previousblockhash": "Hex-encoded big-endian hash of the previous block",
-	"getblocktemplateresult-sigoplimit":        "Number of sigops allowed in blocks ",
-	"getblocktemplateresult-sizelimit":         "Number of bytes allowed in blocks",
-	"getblocktemplateresult-transactions":      "Array of transactions as JSON objects",
-	"getblocktemplateresult-version":           "The block version",
-	"getblocktemplateresult-coinbaseaux":       "Data that should be included in the coinbase signature script",
-	"getblocktemplateresult-coinbasetxn":       "Information about the coinbase transaction",
-	"getblocktemplateresult-coinbasevalue":     "Total amount available for the coinbase in Atoms",
-	"getblocktemplateresult-workid":            "This value must be returned with result if provided (not provided)",
-	"getblocktemplateresult-longpollid":        "Identifier for long poll request which allows monitoring for expiration",
-	"getblocktemplateresult-longpolluri":       "An alternate URI to use for long poll requests if provided (not provided)",
-	"getblocktemplateresult-submitold":         "Not applicable",
-	"getblocktemplateresult-target":            "Hex-encoded big-endian number which valid results must be less than",
-	"getblocktemplateresult-expires":           "Maximum number of seconds (starting from when the server sent the response) this work is valid for",
-	"getblocktemplateresult-maxtime":           "Maximum allowed time",
-	"getblocktemplateresult-mintime":           "Minimum allowed time",
-	"getblocktemplateresult-mutable":           "List of mutations the server explicitly allows",
-	"getblocktemplateresult-noncerange":        "Two concatenated hex-encoded big-endian 32-bit integers which represent the valid ranges of nonces the miner may scan",
-	"getblocktemplateresult-capabilities":      "List of server capabilities including 'proposal' to indicate support for block proposals",
-	"getblocktemplateresult-reject-reason":     "Reason the proposal was invalid as-is (only applies to proposal responses)",
-	"getblocktemplateresult-stransactions":     "Stake transactions",
-	"getblocktemplateresult-header":            "Block header",
-
-	// GetBlockTemplateCmd help.
-	"getblocktemplate--synopsis": "Returns a JSON object with information necessary to construct a block to mine or accepts a proposal to validate.\n" +
-		"See BIP0022 and BIP0023 for the full specification.",
-	"getblocktemplate-request":     "Request object which controls the mode and several parameters",
-	"getblocktemplate--condition0": "mode=template",
-	"getblocktemplate--condition1": "mode=proposal, rejected",
-	"getblocktemplate--condition2": "mode=proposal, accepted",
-	"getblocktemplate--result1":    "An error string which represents why the proposal was rejected or nothing if accepted",
-
 	// GetCFilterCmd help.
 	"getcfilter--synopsis":  "Returns the committed filter for a block",
 	"getcfilter--result0":   "The committed filter serialized with the N value and encoded as a hex string",
@@ -970,7 +912,6 @@ var rpcResultTypes = map[string][]interface{}{
 	"getblockhash":          {(*string)(nil)},
 	"getblockheader":        {(*string)(nil), (*dcrjson.GetBlockHeaderVerboseResult)(nil)},
 	"getblocksubsidy":       {(*dcrjson.GetBlockSubsidyResult)(nil)},
-	"getblocktemplate":      {(*dcrjson.GetBlockTemplateResult)(nil), (*string)(nil), nil},
 	"getcfilter":            {(*string)(nil)},
 	"getcfilterheader":      {(*string)(nil)},
 	"getchaintips":          {(*[]dcrjson.GetChainTipsResult)(nil)},

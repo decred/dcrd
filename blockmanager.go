@@ -300,8 +300,7 @@ type headerNode struct {
 // PeerNotifier provides an interface for server peer notifications.
 type PeerNotifier interface {
 	// AnnounceNewTransactions generates and relays inventory vectors and
-	// notifies both websocket and getblocktemplate long poll clients of
-	// the passed transactions.
+	// notifies websocket clients of the passed transactions.
 	AnnounceNewTransactions(txns []*dcrutil.Tx)
 
 	// UpdatePeerHeights updates the heights of all peers who have have

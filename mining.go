@@ -998,6 +998,11 @@ func newBlkTmplGenerator(policy *mining.Policy, txSource mining.TxSource,
 // coinbase which will replace the one generated for the block template.  Thus
 // the need to have configured address can be avoided.
 //
+// TODO (dnldd): this needs to be updated to require a valid address when
+// getblocktemplate is removed, and perhaps update createCoinbase as well to
+// remove creating spendable-by-any coinbases if not required by
+// any tests.
+//
 // The transactions selected and included are prioritized according to several
 // factors.  First, each transaction has a priority calculated based on its
 // value, age of inputs, and size.  Transactions which consist of larger

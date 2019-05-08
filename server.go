@@ -1165,16 +1165,14 @@ func (s *server) relayTransactions(txns []*dcrutil.Tx) {
 }
 
 // AnnounceNewTransactions generates and relays inventory vectors and notifies
-// both websocket and getblocktemplate long poll clients of the passed
-// transactions.  This function should be called whenever new transactions
-// are added to the mempool.
+// websocket clients of the passed transactions.  This function should be
+// called whenever new transactions are added to the mempool.
 func (s *server) AnnounceNewTransactions(txns []*dcrutil.Tx) {
 	// Generate and relay inventory vectors for all newly accepted
 	// transactions.
 	s.relayTransactions(txns)
 
-	// Notify both websocket and getblocktemplate long poll clients of all
-	// newly accepted transactions.
+	// Notify websocket clients of all newly accepted transactions.
 	if s.rpcServer != nil {
 		s.rpcServer.NotifyNewTransactions(txns)
 	}
