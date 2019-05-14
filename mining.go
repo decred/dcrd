@@ -590,24 +590,12 @@ func createCoinbaseTx(subsidyCache *blockchain.SubsidyCache, coinbaseScript []by
 	// ValueIn.
 	tx.TxIn[0].ValueIn = subsidy + tax
 
-	// Create the script to pay to the provided payment address if one was
-	// specified.  Otherwise create a script that allows the coinbase to be
-	// redeemable by anyone.
-	var pksSubsidy []byte
-	if addr != nil {
-		var err error
-		pksSubsidy, err = txscript.PayToAddrScript(addr)
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		var err error
-		scriptBuilder := txscript.NewScriptBuilder()
-		pksSubsidy, err = scriptBuilder.AddOp(txscript.OP_TRUE).Script()
-		if err != nil {
-			return nil, err
-		}
+	// Create the script to pay to the provided payment address.
+	pksSubsidy, err := txscript.PayToAddrScript(addr)
+	if err != nil {
+		return nil, err
 	}
+
 	// Subsidy paid to miner.
 	tx.AddTxOut(&wire.TxOut{
 		Value:    subsidy,
@@ -991,17 +979,7 @@ func newBlkTmplGenerator(policy *mining.Policy, txSource mining.TxSource,
 
 // NewBlockTemplate returns a new block template that is ready to be solved
 // using the transactions from the passed transaction source pool and a coinbase
-// that either pays to the passed address if it is not nil, or a coinbase that
-// is redeemable by anyone if the passed address is nil.  The nil address
-// functionality is useful since there are cases such as the getblocktemplate
-// RPC where external mining software is responsible for creating their own
-// coinbase which will replace the one generated for the block template.  Thus
-// the need to have configured address can be avoided.
-//
-// TODO (dnldd): this needs to be updated to require a valid address when
-// getblocktemplate is removed, and perhaps update createCoinbase as well to
-// remove creating spendable-by-any coinbases if not required by
-// any tests.
+// that either pays to the passed address.
 //
 // The transactions selected and included are prioritized according to several
 // factors.  First, each transaction has a priority calculated based on its
@@ -1076,6 +1054,11 @@ func newBlkTmplGenerator(policy *mining.Policy, txSource mining.TxSource,
 //  This function returns nil, nil if there are not enough voters on any of
 //  the current top blocks to create a new block template.
 func (g *BlkTmplGenerator) NewBlockTemplate(payToAddress dcrutil.Address) (*BlockTemplate, error) {
+	if payToAddress == nil {
+		return nil, fmt.Errorf("a valid address is required for template " +
+			"generation")
+	}
+
 	subsidyCache := g.chain.FetchSubsidyCache()
 
 	// All transaction scripts are verified using the more strict standarad
@@ -1747,12 +1730,8 @@ mempoolLoop:
 	if err != nil {
 		return nil, err
 	}
-	coinbaseTx, err := createCoinbaseTx(subsidyCache,
-		coinbaseScript,
-		opReturnPkScript,
-		nextBlockHeight,
-		payToAddress,
-		uint16(voters),
+	coinbaseTx, err := createCoinbaseTx(subsidyCache, coinbaseScript,
+		opReturnPkScript, nextBlockHeight, payToAddress, uint16(voters),
 		g.chainParams)
 	if err != nil {
 		return nil, err
