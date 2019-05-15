@@ -226,8 +226,15 @@ func (cm *rpcConnManager) AddedNodeInfo() []*serverPeer {
 // rpcSyncMgr provides a block manager for use with the RPC server and
 // implements the rpcserverSyncManager interface.
 type rpcSyncMgr struct {
-	server   *server
-	blockMgr *blockManager
+	IsCurrentImpl          func() bool
+	SubmitBlockImpl        func(block *dcrutil.Block, flags blockchain.BehaviorFlags) (bool, error)
+	SyncPeerIDImpl         func() int32
+	LocateBlocksImpl       func(locator blockchain.BlockLocator, hashStop *chainhash.Hash, maxHashes uint32) []chainhash.Hash
+	ExistsAddrIndexImpl    *indexers.ExistsAddrIndex
+	CFIndexImpl            *indexers.CFIndex
+	TipGenerationImpl      func() ([]chainhash.Hash, error)
+	SyncHeightImpl         func() int64
+	ProcessTransactionImpl func(tx *dcrutil.Tx, allowOrphans bool, rateLimit bool, allowHighFees bool) ([]*dcrutil.Tx, error)
 }
 
 // Ensure rpcSyncMgr implements the rpcserverSyncManager interface.
@@ -239,7 +246,7 @@ var _ rpcserverSyncManager = (*rpcSyncMgr)(nil)
 // This function is safe for concurrent access and is part of the
 // rpcserverSyncManager interface implementation.
 func (b *rpcSyncMgr) IsCurrent() bool {
-	return b.blockMgr.IsCurrent()
+	return b.IsCurrentImpl()
 }
 
 // SubmitBlock submits the provided block to the network after processing it
@@ -248,7 +255,7 @@ func (b *rpcSyncMgr) IsCurrent() bool {
 // This function is safe for concurrent access and is part of the
 // rpcserverSyncManager interface implementation.
 func (b *rpcSyncMgr) SubmitBlock(block *dcrutil.Block, flags blockchain.BehaviorFlags) (bool, error) {
-	return b.blockMgr.ProcessBlock(block, flags)
+	return b.SubmitBlockImpl(block, flags)
 }
 
 // Pause pauses the sync manager until the returned channel is closed.
@@ -265,7 +272,7 @@ func (b *rpcSyncMgr) SubmitBlock(block *dcrutil.Block, flags blockchain.Behavior
 // This function is safe for concurrent access and is part of the
 // rpcserverSyncManager interface implementation.
 func (b *rpcSyncMgr) SyncPeerID() int32 {
-	return b.blockMgr.SyncPeerID()
+	return b.SyncPeerIDImpl()
 }
 
 // LocateBlocks returns the hashes of the blocks after the first known block in
@@ -275,7 +282,7 @@ func (b *rpcSyncMgr) SyncPeerID() int32 {
 // This function is safe for concurrent access and is part of the
 // rpcserverSyncManager interface implementation.
 func (b *rpcSyncMgr) LocateBlocks(locator blockchain.BlockLocator, hashStop *chainhash.Hash, maxHashes uint32) []chainhash.Hash {
-	return b.server.chain.LocateBlocks(locator, hashStop, maxHashes)
+	return b.LocateBlocksImpl(locator, hashStop, maxHashes)
 }
 
 // ExistsAddrIndex returns the address index.
@@ -283,8 +290,7 @@ func (b *rpcSyncMgr) LocateBlocks(locator blockchain.BlockLocator, hashStop *cha
 // This function is safe for concurrent access and is part of the
 // rpcserverSyncManager interface implementation.
 func (b *rpcSyncMgr) ExistsAddrIndex() *indexers.ExistsAddrIndex {
-	return b.server.existsAddrIndex
-	// ExistsAddrIndex:           s.existsAddrIndex,
+	return b.ExistsAddrIndexImpl
 }
 
 // CFIndex returns the committed filter (cf) by hash index.
@@ -292,24 +298,23 @@ func (b *rpcSyncMgr) ExistsAddrIndex() *indexers.ExistsAddrIndex {
 // This function is safe for concurrent access and is part of the
 // rpcserverSyncManager interface implementation.
 func (b *rpcSyncMgr) CFIndex() *indexers.CFIndex {
-	return b.server.cfIndex
+	return b.CFIndexImpl
 }
 
 // TipGeneration returns the entire generation of blocks stemming from the
 // parent of the current tip.
 func (b *rpcSyncMgr) TipGeneration() ([]chainhash.Hash, error) {
-	return b.blockMgr.TipGeneration()
+	return b.TipGenerationImpl()
 }
 
 // SyncHeight returns latest known block being synced to.
 func (b *rpcSyncMgr) SyncHeight() int64 {
-	return b.blockMgr.SyncHeight()
+	return b.SyncHeightImpl()
 }
 
 // ProcessTransaction relays the provided transaction validation and insertion
 // into the memory pool.
 func (b *rpcSyncMgr) ProcessTransaction(tx *dcrutil.Tx, allowOrphans bool,
 	rateLimit bool, allowHighFees bool) ([]*dcrutil.Tx, error) {
-	return b.blockMgr.ProcessTransaction(tx, allowOrphans,
-		rateLimit, allowHighFees)
+	return b.ProcessTransactionImpl(tx, allowOrphans, rateLimit, allowHighFees)
 }
