@@ -247,9 +247,9 @@ func TestCFTypesWireErrors(t *testing.T) {
 	}
 }
 
-// TestCFTypesExtendedErrors performs negative tests against decode
+// TestCFTypesMalformedErrors performs negative tests against decode
 // of CFTypes to confirm malformed encoded data doesn't pass through.
-func TestCFTypesExtendedErrors(t *testing.T) {
+func TestCFTypesMalformedErrors(t *testing.T) {
 	pver := ProtocolVersion
 	wireErr := &MessageError{}
 
