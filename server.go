@@ -2742,8 +2742,16 @@ func newServer(listenAddrs []string, db database.DB, chainParams *chaincfg.Param
 
 	if !cfg.DisableRPC {
 		s.rpcServer, err = newRPCServer(&rpcserverConfig{
-			ListenAddrs:  cfg.RPCListeners,
-			ConnMgr:      &rpcConnManager{&s},
+			ListenAddrs: cfg.RPCListeners,
+			ConnMgr: &rpcConnManager{
+				Query:             s.query,
+				PeerCount:         s.ConnectedCount,
+				NetworkTotals:     s.NetTotals,
+				BroadcastMsg:      s.BroadcastMessage,
+				AddRebroadcastInv: s.AddRebroadcastInventory,
+				RelayTxns:         s.relayTransactions,
+				NodeInfo:          s.AddedNodeInfo,
+			},
 			SyncMgr:      &rpcSyncMgr{&s, s.blockManager},
 			PeerNotifier: &s,
 			FeeEstimator: s.feeEstimator,

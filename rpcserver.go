@@ -5555,9 +5555,9 @@ type rpcserverConnManager interface {
 	// peers.
 	PersistentPeers() []rpcserverPeer
 
-	// BroadcastMessage sends the provided message to all currently
-	// connected peers.
-	BroadcastMessage(msg wire.Message)
+	// BroadcastMessage sends the provided message to all connected peers
+	// not excluded from the broadcast.
+	BroadcastMessage(msg wire.Message, excluded ...*serverPeer)
 
 	// AddRebroadcastInventory adds the provided inventory to the list of
 	// inventories to be rebroadcast at random intervals until they show up
