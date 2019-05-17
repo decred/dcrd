@@ -5496,6 +5496,15 @@ func genCertPair(certFile, keyFile string, altDNSNames []string) error {
 // The interface contract requires that all of these methods are safe for
 // concurrent access.
 type rpcserverPeer interface {
+	// Addr returns the peer address.
+	Addr() string
+
+	// Connected returns whether or not the peer is currently connected.
+	Connected() bool
+
+	// Inbound returns whether the peer is inbound.
+	Inbound() bool
+
 	// ToPeer returns the underlying peer instance.
 	ToPeer() *peer.Peer
 
@@ -5557,7 +5566,7 @@ type rpcserverConnManager interface {
 
 	// BroadcastMessage sends the provided message to all connected peers
 	// not excluded from the broadcast.
-	BroadcastMessage(msg wire.Message, excluded ...*serverPeer)
+	BroadcastMessage(msg wire.Message, excluded ...rpcserverPeer)
 
 	// AddRebroadcastInventory adds the provided inventory to the list of
 	// inventories to be rebroadcast at random intervals until they show up
@@ -5569,7 +5578,7 @@ type rpcserverConnManager interface {
 	RelayTransactions(txns []*dcrutil.Tx)
 
 	// AddedNodeInfo returns information describing persistent (added) nodes.
-	AddedNodeInfo() []*serverPeer
+	AddedNodeInfo() []rpcserverPeer
 }
 
 // rpcserverSyncManager represents a sync manager for use with the RPC server.

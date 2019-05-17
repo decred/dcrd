@@ -83,7 +83,7 @@ var (
 // to all connected peers except specified excluded peers.
 type broadcastMsg struct {
 	message      wire.Message
-	excludePeers []*serverPeer
+	excludePeers []rpcserverPeer
 }
 
 // broadcastInventoryAdd is a type used to declare that the InvVect it contains
@@ -1472,7 +1472,7 @@ func (s *server) handleBroadcastMsg(state *peerState, bmsg *broadcastMsg) {
 		}
 
 		for _, ep := range bmsg.excludePeers {
-			if sp == ep {
+			if sp.Peer.Addr() == ep.Addr() {
 				return
 			}
 		}
@@ -1486,7 +1486,7 @@ type getConnCountMsg struct {
 }
 
 type getPeersMsg struct {
-	reply chan []*serverPeer
+	reply chan []rpcserverPeer
 }
 
 type getOutboundGroup struct {
@@ -1495,7 +1495,7 @@ type getOutboundGroup struct {
 }
 
 type getAddedNodesMsg struct {
-	reply chan []*serverPeer
+	reply chan []rpcserverPeer
 }
 
 type disconnectNodeMsg struct {
@@ -1528,12 +1528,17 @@ func (s *server) handleQuery(state *peerState, querymsg interface{}) {
 		msg.reply <- nconnected
 
 	case getPeersMsg:
-		peers := make([]*serverPeer, 0, state.Count())
+		peers := make([]rpcserverPeer, 0, state.Count())
 		state.forAllPeers(func(sp *serverPeer) {
 			if !sp.Connected() {
 				return
 			}
-			peers = append(peers, sp)
+
+			peers = append(peers, &rpcPeer{
+				Peer:           sp.Peer,
+				BanScoreImpl:   sp.banScore.Int(),
+				DisableRelayTx: sp.disableRelayTx,
+			})
 		})
 		msg.reply <- peers
 
@@ -1598,9 +1603,13 @@ func (s *server) handleQuery(state *peerState, querymsg interface{}) {
 	// Request a list of the persistent (added) peers.
 	case getAddedNodesMsg:
 		// Respond with a slice of the relevant peers.
-		peers := make([]*serverPeer, 0, len(state.persistentPeers))
+		peers := make([]rpcserverPeer, 0, len(state.persistentPeers))
 		for _, sp := range state.persistentPeers {
-			peers = append(peers, sp)
+			peers = append(peers, &rpcPeer{
+				Peer:           sp.Peer,
+				BanScoreImpl:   sp.banScore.Int(),
+				DisableRelayTx: sp.disableRelayTx,
+			})
 		}
 		msg.reply <- peers
 	case disconnectNodeMsg:
@@ -1863,7 +1872,7 @@ func (s *server) RelayInventory(invVect *wire.InvVect, data interface{}, immedia
 
 // BroadcastMessage sends msg to all peers currently connected to the server
 // except those in the passed peers to exclude.
-func (s *server) BroadcastMessage(msg wire.Message, exclPeers ...*serverPeer) {
+func (s *server) BroadcastMessage(msg wire.Message, exclPeers ...rpcserverPeer) {
 	// XXX: Need to determine if this is an alert that has already been
 	// broadcast and refrain from broadcasting again.
 	bmsg := broadcastMsg{message: msg, excludePeers: exclPeers}
@@ -1889,18 +1898,16 @@ func (s *server) OutboundGroupCount(key string) int {
 
 // AddedNodeInfo returns an array of dcrjson.GetAddedNodeInfoResult structures
 // describing the persistent (added) nodes.
-func (s *server) AddedNodeInfo() []*serverPeer {
-	replyChan := make(chan []*serverPeer)
+func (s *server) AddedNodeInfo() []rpcserverPeer {
+	replyChan := make(chan []rpcserverPeer)
 	s.query <- getAddedNodesMsg{reply: replyChan}
 	return <-replyChan
 }
 
 // Peers returns an array of all connected peers.
-func (s *server) Peers() []*serverPeer {
-	replyChan := make(chan []*serverPeer)
-
+func (s *server) Peers() []rpcserverPeer {
+	replyChan := make(chan []rpcserverPeer)
 	s.query <- getPeersMsg{reply: replyChan}
-
 	return <-replyChan
 }
 

@@ -16,10 +16,38 @@ import (
 
 // rpcPeer provides a peer for use with the RPC server and implements the
 // rpcserverPeer interface.
-type rpcPeer serverPeer
+type rpcPeer struct {
+	Peer           *peer.Peer
+	BanScoreImpl   uint32
+	DisableRelayTx bool
+}
 
 // Ensure rpcPeer implements the rpcserverPeer interface.
 var _ rpcserverPeer = (*rpcPeer)(nil)
+
+// Addr returns the peer address.
+//
+// This function is safe for concurrent access and is part of the rpcserverPeer
+// interface implementation.
+func (p *rpcPeer) Addr() string {
+	return p.Peer.Addr()
+}
+
+// Connected returns whether or not the peer is currently connected.
+//
+// This function is safe for concurrent access and is part of the rpcserverPeer
+// interface implementation.
+func (p *rpcPeer) Connected() bool {
+	return p.Peer.Connected()
+}
+
+// Inbound returns whether the peer is inbound.
+//
+// This function is safe for concurrent access and is part of the rpcserverPeer
+// interface implementation.
+func (p *rpcPeer) Inbound() bool {
+	return p.Peer.Inbound()
+}
 
 // ToPeer returns the underlying peer instance.
 //
@@ -29,7 +57,7 @@ func (p *rpcPeer) ToPeer() *peer.Peer {
 	if p == nil {
 		return nil
 	}
-	return (*serverPeer)(p).Peer
+	return p.Peer
 }
 
 // IsTxRelayDisabled returns whether or not the peer has disabled transaction
@@ -38,7 +66,7 @@ func (p *rpcPeer) ToPeer() *peer.Peer {
 // This function is safe for concurrent access and is part of the rpcserverPeer
 // interface implementation.
 func (p *rpcPeer) IsTxRelayDisabled() bool {
-	return (*serverPeer)(p).disableRelayTx
+	return p.DisableRelayTx
 }
 
 // BanScore returns the current integer value that represents how close the peer
@@ -47,7 +75,7 @@ func (p *rpcPeer) IsTxRelayDisabled() bool {
 // This function is safe for concurrent access and is part of the rpcserverPeer
 // interface implementation.
 func (p *rpcPeer) BanScore() uint32 {
-	return (*serverPeer)(p).banScore.Int()
+	return p.BanScoreImpl
 }
 
 // rpcConnManager provides a connection manager for use with the RPC server and
@@ -56,10 +84,10 @@ type rpcConnManager struct {
 	Query             chan interface{}
 	PeerCount         func() int32
 	NetworkTotals     func() (uint64, uint64)
-	BroadcastMsg      func(msg wire.Message, excluded ...*serverPeer)
+	BroadcastMsg      func(msg wire.Message, excluded ...rpcserverPeer)
 	AddRebroadcastInv func(iv *wire.InvVect, data interface{})
 	RelayTxns         func(txns []*dcrutil.Tx)
-	NodeInfo          func() []*serverPeer
+	NodeInfo          func() []rpcserverPeer
 }
 
 // Ensure rpcConnManager implements the rpcserverConnManager interface.
@@ -164,15 +192,10 @@ func (cm *rpcConnManager) NetTotals() (uint64, uint64) {
 // This function is safe for concurrent access and is part of the
 // rpcserverConnManager interface implementation.
 func (cm *rpcConnManager) ConnectedPeers() []rpcserverPeer {
-	replyChan := make(chan []*serverPeer)
+	replyChan := make(chan []rpcserverPeer)
 	cm.Query <- getPeersMsg{reply: replyChan}
-	serverPeers := <-replyChan
+	peers := <-replyChan
 
-	// Convert to RPC server peers.
-	peers := make([]rpcserverPeer, 0, len(serverPeers))
-	for _, sp := range serverPeers {
-		peers = append(peers, (*rpcPeer)(sp))
-	}
 	return peers
 }
 
@@ -182,15 +205,10 @@ func (cm *rpcConnManager) ConnectedPeers() []rpcserverPeer {
 // This function is safe for concurrent access and is part of the
 // rpcserverConnManager interface implementation.
 func (cm *rpcConnManager) PersistentPeers() []rpcserverPeer {
-	replyChan := make(chan []*serverPeer)
+	replyChan := make(chan []rpcserverPeer)
 	cm.Query <- getAddedNodesMsg{reply: replyChan}
-	serverPeers := <-replyChan
+	peers := <-replyChan
 
-	// Convert to generic peers.
-	peers := make([]rpcserverPeer, 0, len(serverPeers))
-	for _, sp := range serverPeers {
-		peers = append(peers, (*rpcPeer)(sp))
-	}
 	return peers
 }
 
@@ -198,7 +216,7 @@ func (cm *rpcConnManager) PersistentPeers() []rpcserverPeer {
 //
 // This function is safe for concurrent access and is part of the
 // rpcserverConnManager interface implementation.
-func (cm *rpcConnManager) BroadcastMessage(msg wire.Message, excluded ...*serverPeer) {
+func (cm *rpcConnManager) BroadcastMessage(msg wire.Message, excluded ...rpcserverPeer) {
 	cm.BroadcastMsg(msg, excluded...)
 }
 
@@ -219,7 +237,7 @@ func (cm *rpcConnManager) RelayTransactions(txns []*dcrutil.Tx) {
 }
 
 // AddedNodeInfo returns information describing persistent (added) nodes.
-func (cm *rpcConnManager) AddedNodeInfo() []*serverPeer {
+func (cm *rpcConnManager) AddedNodeInfo() []rpcserverPeer {
 	return cm.NodeInfo()
 }
 
