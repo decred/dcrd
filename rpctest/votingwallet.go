@@ -106,6 +106,11 @@ type VotingWallet struct {
 
 	errorReporter func(error)
 
+	// miner is a function responsible for generating new blocks. If
+	// specified, then this function is used instead of directly calling
+	// the underlying harness' Generate().
+	miner func(uint32) ([]*chainhash.Hash, error)
+
 	subsidyCache *blockchain.SubsidyCache
 
 	// utxos are the unspent outpoints not yet locked into a ticket.
@@ -270,6 +275,16 @@ func (w *VotingWallet) SetErrorReporting(f func(err error)) {
 	w.errorReporter = f
 }
 
+// SetMiner allows users of the voting wallet to specify a function that will
+// be used to mine new blocks instead of using the regular Generate function of
+// the configured rpcclient.
+//
+// This allows callers to use a custom function to generate blocks, such as one
+// that allows faster mining in simnet.
+func (w *VotingWallet) SetMiner(f func(uint32) ([]*chainhash.Hash, error)) {
+	w.miner = f
+}
+
 // GenerateBlocks generates blocks while ensuring the chain will continue past
 // SVH indefinitely. This will generate a block then wait for the votes from
 // this wallet to be sent and tickets to be purchased before either generating
@@ -287,12 +302,17 @@ func (w *VotingWallet) GenerateBlocks(nb uint32) ([]*chainhash.Hash, error) {
 	nbVotes := int(w.hn.ActiveNet.TicketsPerBlock)
 	hashes := make([]*chainhash.Hash, nb)
 
+	miner := w.c.Generate
+	if w.miner != nil {
+		miner = w.miner
+	}
+
 	for i := uint32(0); i < nb; i++ {
 		// genHeight is the height of the _next_ block (the one that will be
 		// generated once we call generate()).
 		genHeight := startHeight + int64(i) + 1
 
-		h, err := w.c.Generate(1)
+		h, err := miner(1)
 		if err != nil {
 			return nil, fmt.Errorf("unable to generate block at height %d: %v",
 				genHeight, err)
