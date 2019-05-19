@@ -628,8 +628,11 @@ func TestHarness(t *testing.T) {
 			nodeInfo.Blocks, expectedChainHeight)
 	}
 
-	for _, testCase := range harnessTestCases {
-		testCase(mainHarness, t)
+	// Skip tests when running with -short
+	if !testing.Short() {
+		for _, testCase := range harnessTestCases {
+			testCase(mainHarness, t)
+		}
 	}
 
 	testTearDownAll(t)

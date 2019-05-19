@@ -54,6 +54,11 @@ func testCanPassSVH(t *testing.T, vw *VotingWallet) {
 }
 
 func TestMinimalVotingWallet(t *testing.T) {
+	// Skip tests when running with -short
+	if testing.Short() {
+		t.Skip("Skipping minimal voting wallet in short mode")
+	}
+
 	var handlers *rpcclient.NotificationHandlers
 	net := &chaincfg.SimNetParams
 

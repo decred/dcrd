@@ -1778,6 +1778,12 @@ func (b *blockManager) handleNotifyMsg(notification *blockchain.Notification) {
 			b.server.RelayInventory(iv, block.MsgBlock().Header, true)
 		}
 
+		// Inform the background block template generator about the accepted
+		// block.
+		if b.server.bg != nil {
+			b.server.bg.BlockAccepted(block)
+		}
+
 		if !b.server.feeEstimator.IsEnabled() {
 			// fee estimation can only start after we have performed an initial
 			// sync, otherwise we'll start adding mempool transactions at the
@@ -1890,7 +1896,7 @@ func (b *blockManager) handleNotifyMsg(notification *blockchain.Notification) {
 		}
 
 		if b.server.bg != nil {
-			b.server.bg.handleConnectedBlock(b.server.context, block.Height())
+			b.server.bg.BlockConnected(block)
 		}
 
 	// Stake tickets are spent or missed from the most recently connected block.
@@ -1985,7 +1991,7 @@ func (b *blockManager) handleNotifyMsg(notification *blockchain.Notification) {
 		handleDisconnectedBlockTxns(block.STransactions())
 
 		if b.server.bg != nil {
-			b.server.bg.handleDisconnectedBlock(block.Height())
+			b.server.bg.BlockDisconnected(block)
 		}
 
 		// Filter and update the rebroadcast inventory.
@@ -2003,13 +2009,13 @@ func (b *blockManager) handleNotifyMsg(notification *blockchain.Notification) {
 	// Chain reorganization has commenced.
 	case blockchain.NTChainReorgStarted:
 		if b.server.bg != nil {
-			b.server.bg.handleChainReorgStarted()
+			b.server.bg.ChainReorgStarted()
 		}
 
 	// Chain reorganization has concluded.
 	case blockchain.NTChainReorgDone:
 		if b.server.bg != nil {
-			b.server.bg.handleChainReorgDone(b.server.context)
+			b.server.bg.ChainReorgDone()
 		}
 
 	// The blockchain is reorganizing.

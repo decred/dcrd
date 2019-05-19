@@ -2574,9 +2574,9 @@ func newServer(listenAddrs []string, db database.DB, chainParams *chaincfg.Param
 		ExistsAddrIndex:           s.existsAddrIndex,
 		AddTxToFeeEstimation:      s.feeEstimator.AddMemPoolTransaction,
 		RemoveTxFromFeeEstimation: s.feeEstimator.RemoveMemPoolTransaction,
-		OnVoteReceived: func(voteTx *wire.MsgTx) {
+		OnVoteReceived: func(voteTx *dcrutil.Tx) {
 			if s.bg != nil {
-				s.bg.OnVoteReceived(voteTx)
+				s.bg.VoteReceived(voteTx)
 			}
 		},
 	}

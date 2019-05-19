@@ -127,7 +127,7 @@ type Config struct {
 
 	// OnVoteReceived defines the function used to signal receiving a new
 	// vote in the mempool.
-	OnVoteReceived func(voteTx *wire.MsgTx)
+	OnVoteReceived func(voteTx *dcrutil.Tx)
 }
 
 // Policy houses the policy (configuration parameters) which is used to
@@ -242,10 +242,8 @@ type TxPool struct {
 //
 // This function MUST be called with the vote mutex locked (for writes).
 func (mp *TxPool) insertVote(ssgen *dcrutil.Tx) error {
-	msgTx := ssgen.MsgTx()
-	ticketHash := &msgTx.TxIn[1].PreviousOutPoint.Hash
-
 	// Get the block it is voting on; here we're agnostic of height.
+	msgTx := ssgen.MsgTx()
 	blockHash, blockHeight := stake.SSGenBlockVotedOn(msgTx)
 
 	// If there are currently no votes for this block,
@@ -256,6 +254,7 @@ func (mp *TxPool) insertVote(ssgen *dcrutil.Tx) error {
 	}
 
 	// Nothing to do if a vote for the ticket is already known.
+	ticketHash := &msgTx.TxIn[1].PreviousOutPoint.Hash
 	for _, vt := range vts {
 		if vt.TicketHash.IsEqual(ticketHash) {
 			return nil
@@ -679,8 +678,10 @@ func (mp *TxPool) RemoveDoubleSpends(tx *dcrutil.Tx) {
 // This function MUST be called with the mempool lock held (for writes).
 func (mp *TxPool) addTransaction(utxoView *blockchain.UtxoViewpoint,
 	tx *dcrutil.Tx, txType stake.TxType, height int64, fee int64) {
+
+	// Notify callback about vote if requested.
 	if mp.cfg.OnVoteReceived != nil && txType == stake.TxTypeSSGen {
-		mp.cfg.OnVoteReceived(tx.MsgTx())
+		mp.cfg.OnVoteReceived(tx)
 	}
 
 	// Add the transaction to the pool and mark the referenced outpoints
@@ -1319,7 +1320,7 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 	// Add to transaction pool.
 	mp.addTransaction(utxoView, tx, txType, bestHeight, txFee)
 
-	// Keep track of vote separately.
+	// Keep track of votes separately.
 	if isVote {
 		mp.votesMtx.Lock()
 		err := mp.insertVote(tx)
