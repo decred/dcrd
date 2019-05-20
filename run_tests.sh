@@ -18,7 +18,6 @@ set -ex
 # 4. ineffassign   (https://github.com/gordonklaus/ineffassign)
 # 5. go vet        (https://golang.org/cmd/vet)
 # 6. misspell      (https://github.com/client9/misspell)
-# 7. race detector (https://blog.golang.org/race-detector)
 
 # golangci-lint (github.com/golangci/golangci-lint) is used to run each each
 # static checker.
@@ -49,8 +48,7 @@ testrepo () {
   MODPATHS=". $MODPATHS"
   for module in $MODPATHS; do
     echo "==> ${module}"
-    env GORACE='halt_on_error=1' CC=gcc $GO test -short -race \
-      -tags rpctest ./${module}/...
+    env CC=gcc $GO test -short -tags rpctest ./${module}/...
 
     # check linters
     golangci-lint run --build-tags rpctest --disable-all --deadline=10m \
