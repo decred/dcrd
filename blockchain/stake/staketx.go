@@ -26,8 +26,7 @@ import (
 // TxType indicates the type of tx (regular or stake type).
 type TxType int
 
-// Possible TxTypes.  Statically declare these so that they might be used in
-// consensus code.
+// Possible TxTypes.
 const (
 	TxTypeRegular TxType = iota
 	TxTypeSStx
