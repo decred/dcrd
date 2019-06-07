@@ -8,9 +8,11 @@ new TLS certificate key pair.
 
 Overview
 
-This package currently contains a single function for creating
-a new TLS certificate key pair, typically used for encrypting
-RPC and websocket communications.
+This package contains functions for creating self-signed TLS certificate from
+random new key pairs, typically used for encrypting RPC and websocket
+communications.
 
+ECDSA certificates are supported on all Go versions.  Beginning with Go 1.13,
+this package additionally includes support for Ed25519 certificates.
 */
 package certgen
