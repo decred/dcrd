@@ -1,16 +1,16 @@
 // Copyright (c) 2013-2015 The btcsuite developers
-// Copyright (c) 2015-2017 The Decred developers
+// Copyright (c) 2015-2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
+
+//+build go1.13
 
 package certgen
 
 import (
 	"bytes"
-	"crypto/ecdsa"
-	"crypto/elliptic"
+	"crypto/ed25519"
 	"crypto/rand"
-	_ "crypto/sha512" // Needed for RegisterHash in init
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
@@ -22,19 +22,21 @@ import (
 	"time"
 )
 
-// NewTLSCertPair returns a new PEM-encoded x.509 certificate pair with new
-// ECDSA keys.  The machine's local interface addresses and all variants of IPv4
-// and IPv6 localhost are included as valid IP addresses.
-func NewTLSCertPair(curve elliptic.Curve, organization string, validUntil time.Time, extraHosts []string) (cert, key []byte, err error) {
+// NewEd25519TLSCertPair returns a new PEM-encoded x.509 certificate pair with
+// new Ed25519 keys.  The machine's local interface addresses and all variants
+// of IPv4 and IPv6 localhost are included as valid IP addresses.
+func NewEd25519TLSCertPair(organization string, validUntil time.Time, extraHosts []string) (cert, key []byte, err error) {
 	now := time.Now()
 	if validUntil.Before(now) {
 		return nil, nil, errors.New("validUntil would create an already-expired certificate")
 	}
 
-	priv, err := ecdsa.GenerateKey(curve, rand.Reader)
+	seed := make([]byte, ed25519.SeedSize)
+	_, err = rand.Read(seed)
 	if err != nil {
 		return nil, nil, err
 	}
+	priv := ed25519.NewKeyFromSeed(seed)
 
 	// end of ASN.1 time
 	endOfTime := time.Date(2049, 12, 31, 23, 59, 59, 0, time.UTC)
@@ -118,7 +120,7 @@ func NewTLSCertPair(curve elliptic.Curve, organization string, validUntil time.T
 	}
 
 	derBytes, err := x509.CreateCertificate(rand.Reader, &template,
-		&template, &priv.PublicKey, priv)
+		&template, priv.Public(), priv)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create certificate: %v", err)
 	}
@@ -129,13 +131,13 @@ func NewTLSCertPair(curve elliptic.Curve, organization string, validUntil time.T
 		return nil, nil, fmt.Errorf("failed to encode certificate: %v", err)
 	}
 
-	keybytes, err := x509.MarshalECPrivateKey(priv)
+	keybytes, err := x509.MarshalPKCS8PrivateKey(priv)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to marshal private key: %v", err)
 	}
 
 	keyBuf := &bytes.Buffer{}
-	err = pem.Encode(keyBuf, &pem.Block{Type: "EC PRIVATE KEY", Bytes: keybytes})
+	err = pem.Encode(keyBuf, &pem.Block{Type: "PRIVATE KEY", Bytes: keybytes})
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to encode private key: %v", err)
 	}
