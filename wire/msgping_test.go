@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2016 The Decred developers
+// Copyright (c) 2015-2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -43,6 +43,13 @@ func TestPing(t *testing.T) {
 		t.Errorf("MaxPayloadLength: wrong max payload length for "+
 			"protocol version %d - got %v, want %v", pver,
 			maxPayload, wantPayload)
+	}
+
+	// Ensure max payload length is not more than MaxMessagePayload.
+	if maxPayload > MaxMessagePayload {
+		t.Fatalf("MaxPayloadLength: payload length (%v) for protocol "+
+			"version %d exceeds MaxMessagePayload (%v).", maxPayload, pver,
+			MaxMessagePayload)
 	}
 }
 

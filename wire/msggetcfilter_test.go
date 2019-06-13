@@ -6,11 +6,12 @@ package wire
 
 import (
 	"bytes"
-	"github.com/davecgh/go-spew/spew"
-	"github.com/decred/dcrd/chaincfg/chainhash"
 	"io"
 	"reflect"
 	"testing"
+
+	"github.com/davecgh/go-spew/spew"
+	"github.com/decred/dcrd/chaincfg/chainhash"
 )
 
 // TestMsgGetCFilter tests the MsgGetCFilter API.
@@ -52,6 +53,13 @@ func TestGetCFilter(t *testing.T) {
 		t.Fatalf("NewMsgGetCFilter: wrong max payload length for "+
 			"protocol version %d - got %v, want %v", pver,
 			maxPayload, wantPayload)
+	}
+
+	// Ensure max payload length is not more than MaxMessagePayload.
+	if maxPayload > MaxMessagePayload {
+		t.Fatalf("MaxPayloadLength: payload length (%v) for protocol "+
+			"version %d exceeds MaxMessagePayload (%v).", maxPayload, pver,
+			MaxMessagePayload)
 	}
 }
 

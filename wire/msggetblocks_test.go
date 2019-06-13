@@ -58,6 +58,13 @@ func TestGetBlocks(t *testing.T) {
 			maxPayload, wantPayload)
 	}
 
+	// Ensure max payload length is not more than MaxMessagePayload.
+	if maxPayload > MaxMessagePayload {
+		t.Fatalf("MaxPayloadLength: payload length (%v) for protocol "+
+			"version %d exceeds MaxMessagePayload (%v).", maxPayload, pver,
+			MaxMessagePayload)
+	}
+
 	// Ensure block locator hashes are added properly.
 	err = msg.AddBlockLocatorHash(locatorHash)
 	if err != nil {

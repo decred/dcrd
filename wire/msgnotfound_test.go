@@ -37,6 +37,13 @@ func TestNotFound(t *testing.T) {
 			maxPayload, wantPayload)
 	}
 
+	// Ensure max payload length is not more than MaxMessagePayload.
+	if maxPayload > MaxMessagePayload {
+		t.Fatalf("MaxPayloadLength: payload length (%v) for protocol "+
+			"version %d exceeds MaxMessagePayload (%v).", maxPayload, pver,
+			MaxMessagePayload)
+	}
+
 	// Ensure inventory vectors are added properly.
 	hash := chainhash.Hash{}
 	iv := NewInvVect(InvTypeBlock, &hash)

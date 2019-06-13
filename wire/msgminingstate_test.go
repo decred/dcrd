@@ -1,4 +1,7 @@
-// msgminingstate_test.go
+// Copyright (c) 2019 The Decred developers
+// Use of this source code is governed by an ISC
+// license that can be found in the LICENSE file.
+
 package wire
 
 import (
@@ -10,6 +13,48 @@ import (
 
 	"github.com/decred/dcrd/chaincfg/chainhash"
 )
+
+func TestMiningState(t *testing.T) {
+	pver := ProtocolVersion
+
+	// Ensure the command is expected value.
+	wantCmd := "miningstate"
+	msg := NewMsgMiningState()
+	if cmd := msg.Command(); cmd != wantCmd {
+		t.Errorf("NewMsgMemPool: wrong command - got %v want %v",
+			cmd, wantCmd)
+	}
+
+	// Ensure max payload is expected value.
+	wantPayload := uint32(1546)
+	maxPayload := msg.MaxPayloadLength(pver)
+	if maxPayload != wantPayload {
+		t.Errorf("MaxPayloadLength: wrong max payload length for "+
+			"protocol version %d - got %v, want %v", pver,
+			maxPayload, wantPayload)
+	}
+
+	// Ensure max payload length is not more than MaxMessagePayload.
+	if maxPayload > MaxMessagePayload {
+		t.Fatalf("MaxPayloadLength: payload length (%v) for protocol "+
+			"version %d exceeds MaxMessagePayload (%v).", maxPayload, pver,
+			MaxMessagePayload)
+	}
+
+	// Test encode with latest protocol version.
+	var buf bytes.Buffer
+	err := msg.BtcEncode(&buf, pver)
+	if err != nil {
+		t.Errorf("encode of MsgMiningState failed %v err <%v>", msg, err)
+	}
+
+	// Test decode with latest protocol version.
+	readmsg := NewMsgMiningState()
+	err = readmsg.BtcDecode(&buf, pver)
+	if err != nil {
+		t.Errorf("decode of MsgMiningState failed [%v] err <%v>", buf, err)
+	}
+}
 
 // TestMiningStateWire tests the MsgMiningState wire encode and decode for a sample
 // message containing a fake block header and some fake vote hashes.

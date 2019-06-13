@@ -38,6 +38,13 @@ func TestAddr(t *testing.T) {
 			maxPayload, wantPayload)
 	}
 
+	// Ensure max payload length is not more than MaxMessagePayload.
+	if maxPayload > MaxMessagePayload {
+		t.Fatalf("MaxPayloadLength: payload length (%v) for protocol "+
+			"version %d exceeds MaxMessagePayload (%v).", maxPayload, pver,
+			MaxMessagePayload)
+	}
+
 	// Ensure NetAddresses are added properly.
 	tcpAddr := &net.TCPAddr{IP: net.ParseIP("127.0.0.1"), Port: 8333}
 	na, err := NewNetAddress(tcpAddr, SFNodeNetwork)
