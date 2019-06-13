@@ -1,4 +1,4 @@
-module github.com/decred/dcrd/dcrec/edwards
+module github.com/decred/dcrd/dcrec/edwards/v2
 
 go 1.11
 
