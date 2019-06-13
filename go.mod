@@ -46,7 +46,6 @@ replace (
 	github.com/decred/dcrd/connmgr => ./connmgr
 	github.com/decred/dcrd/database => ./database
 	github.com/decred/dcrd/dcrec => ./dcrec
-	github.com/decred/dcrd/dcrec/edwards => ./dcrec/edwards
 	github.com/decred/dcrd/dcrec/secp256k1 => ./dcrec/secp256k1
 	github.com/decred/dcrd/dcrjson/v2 => ./dcrjson
 	github.com/decred/dcrd/dcrutil => ./dcrutil
