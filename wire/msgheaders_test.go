@@ -38,6 +38,13 @@ func TestHeaders(t *testing.T) {
 			maxPayload, wantPayload)
 	}
 
+	// Ensure max payload length is not more than MaxMessagePayload.
+	if maxPayload > MaxMessagePayload {
+		t.Fatalf("MaxPayloadLength: payload length (%v) for protocol "+
+			"version %d exceeds MaxMessagePayload (%v).", maxPayload, pver,
+			MaxMessagePayload)
+	}
+
 	// Ensure headers are added properly.
 	bh := &testBlock.Header
 	msg.AddBlockHeader(bh)

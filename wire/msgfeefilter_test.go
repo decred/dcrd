@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2017 The Decred developers
+// Copyright (c) 2017-2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -47,6 +47,13 @@ func TestFeeFilterLatest(t *testing.T) {
 	err := msg.BtcEncode(&buf, pver)
 	if err != nil {
 		t.Errorf("encode of MsgFeeFilter failed %v err <%v>", msg, err)
+	}
+
+	// Ensure max payload length is not more than MaxMessagePayload.
+	if maxPayload > MaxMessagePayload {
+		t.Fatalf("MaxPayloadLength: payload length (%v) for protocol "+
+			"version %d exceeds MaxMessagePayload (%v).", maxPayload, pver,
+			MaxMessagePayload)
 	}
 
 	// Test decode with latest protocol version.
