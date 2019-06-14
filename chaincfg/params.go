@@ -469,6 +469,39 @@ func (p *Params) HDPubKeyVersion() [4]byte {
 	return p.HDPublicKeyID
 }
 
+// AddrIDPubKeyV0 returns the magic prefix bytes for version 0 pay-to-pubkey
+// addresses.
+func (p *Params) AddrIDPubKeyV0() [2]byte {
+	return p.PubKeyAddrID
+}
+
+// AddrIDPubKeyHashECDSAV0 returns the magic prefix bytes for version 0
+// pay-to-pubkey-hash addresses where the underlying pubkey is secp256k1 and the
+// signature algorithm is ECDSA.
+func (p *Params) AddrIDPubKeyHashECDSAV0() [2]byte {
+	return p.PubKeyHashAddrID
+}
+
+// AddrIDPubKeyHashEd25519V0 returns the magic prefix bytes for version 0
+// pay-to-pubkey-hash addresses where the underlying pubkey and signature
+// algorithm are Ed25519.
+func (p *Params) AddrIDPubKeyHashEd25519V0() [2]byte {
+	return p.PKHEdwardsAddrID
+}
+
+// AddrIDPubKeyHashSchnorrV0 returns the magic prefix bytes for version 0
+// pay-to-pubkey-hash addresses where the underlying pubkey is secp256k1 and the
+// signature algorithm is Schnorr.
+func (p *Params) AddrIDPubKeyHashSchnorrV0() [2]byte {
+	return p.PKHSchnorrAddrID
+}
+
+// AddrIDScriptHashV0 returns the magic prefix bytes for version 0
+// pay-to-script-hash addresses.
+func (p *Params) AddrIDScriptHashV0() [2]byte {
+	return p.ScriptHashAddrID
+}
+
 // newHashFromStr converts the passed big-endian hex string into a
 // chainhash.Hash.  It only differs from the one available in chainhash in that
 // it panics on an error since it will only (and must only) be called with
