@@ -10,7 +10,7 @@ digraph {
 	chaincfg [label="chaincfg/v2" fillcolor=cadetblue]
 	connmgr [label="connmgr" fillcolor=mistyrose]
 	dcrec [label="dcrec" fillcolor=mediumpurple]
-	edwards [label="dcrec/edwards" fillcolor=lightseagreen]
+	edwards [label="dcrec/edwards/v2" fillcolor=lightseagreen]
 	secp256k1 [label="dcrec/secp256k1" fillcolor=mediumvioletred]
 	dcrutil [label="dcrutil" fillcolor=burlywood]
 	database [label="database" fillcolor=dodgerblue]
