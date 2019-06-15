@@ -13,12 +13,107 @@ import (
 	"testing"
 
 	"github.com/decred/base58"
-	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrd/chaincfg/chainec"
 	"github.com/decred/dcrd/dcrec"
 	"github.com/decred/dcrd/dcrec/secp256k1"
 	"golang.org/x/crypto/ripemd160"
 )
+
+// mockAddrParams implements the AddressParams interface and is used throughout
+// the tests to mock multiple networks.
+type mockAddrParams struct {
+	pubKeyID     [2]byte
+	pkhEcdsaID   [2]byte
+	pkhEd25519ID [2]byte
+	pkhSchnorrID [2]byte
+	scriptHashID [2]byte
+	privKeyID    [2]byte
+}
+
+// AddrIDPubKeyV0 returns the magic prefix bytes associated with the mock params
+// for version 0 pay-to-pubkey addresses.
+//
+// This is part of the AddressParams interface.
+func (p *mockAddrParams) AddrIDPubKeyV0() [2]byte {
+	return p.pubKeyID
+}
+
+// AddrIDPubKeyHashECDSAV0 returns the magic prefix bytes associated with the
+// mock params for version 0 pay-to-pubkey-hash addresses where the underlying
+// pubkey is secp256k1 and the signature algorithm is ECDSA.
+//
+// This is part of the AddressParams interface.
+func (p *mockAddrParams) AddrIDPubKeyHashECDSAV0() [2]byte {
+	return p.pkhEcdsaID
+}
+
+// AddrIDPubKeyHashEd25519V0 returns the magic prefix bytes associated with the
+// mock params for version 0 pay-to-pubkey-hash addresses where the underlying
+// pubkey and signature algorithm are Ed25519.
+//
+// This is part of the AddressParams interface.
+func (p *mockAddrParams) AddrIDPubKeyHashEd25519V0() [2]byte {
+	return p.pkhEd25519ID
+}
+
+// AddrIDPubKeyHashSchnorrV0 returns the magic prefix bytes associated with the
+// mock params for version 0 pay-to-pubkey-hash addresses where the underlying
+// pubkey is secp256k1 and the signature algorithm is Schnorr.
+//
+// This is part of the AddressParams interface.
+func (p *mockAddrParams) AddrIDPubKeyHashSchnorrV0() [2]byte {
+	return p.pkhSchnorrID
+}
+
+// AddrIDScriptHashV0 returns the magic prefix bytes associated with the mock
+// params for version 0 pay-to-script-hash addresses.
+//
+// This is part of the AddressParams interface.
+func (p *mockAddrParams) AddrIDScriptHashV0() [2]byte {
+	return p.scriptHashID
+}
+
+// mockMainNetParams returns mock mainnet address parameters to use throughout
+// the tests.  They match the Decred mainnet params as of the time this comment
+// was written.
+func mockMainNetParams() *mockAddrParams {
+	return &mockAddrParams{
+		pubKeyID:     [2]byte{0x13, 0x86}, // starts with Dk
+		pkhEcdsaID:   [2]byte{0x07, 0x3f}, // starts with Ds
+		pkhEd25519ID: [2]byte{0x07, 0x1f}, // starts with De
+		pkhSchnorrID: [2]byte{0x07, 0x01}, // starts with DS
+		scriptHashID: [2]byte{0x07, 0x1a}, // starts with Dc
+		privKeyID:    [2]byte{0x22, 0xde}, // starts with Pm
+	}
+}
+
+// mockTestNetParams returns mock testnet address parameters to use throughout
+// the tests.  They match the Decred mainnet params as of the time this comment
+// was written.
+func mockTestNetParams() *mockAddrParams {
+	return &mockAddrParams{
+		pubKeyID:     [2]byte{0x28, 0xf7}, // starts with Tk
+		pkhEcdsaID:   [2]byte{0x0f, 0x21}, // starts with Ts
+		pkhEd25519ID: [2]byte{0x0f, 0x01}, // starts with Te
+		pkhSchnorrID: [2]byte{0x0e, 0xe3}, // starts with TS
+		scriptHashID: [2]byte{0x0e, 0xfc}, // starts with Tc
+		privKeyID:    [2]byte{0x23, 0x0e}, // starts with Pt
+	}
+}
+
+// mockRegNetParams returns mock regression test address parameters to use
+// throughout the tests.  They match the Decred mainnet params as of the time
+// this comment was written.
+func mockRegNetParams() *mockAddrParams {
+	return &mockAddrParams{
+		pubKeyID:     [2]byte{0x25, 0xe5}, // starts with Rk
+		pkhEcdsaID:   [2]byte{0x0e, 0x00}, // starts with Rs
+		pkhEd25519ID: [2]byte{0x0d, 0xe0}, // starts with Re
+		pkhSchnorrID: [2]byte{0x0d, 0xc2}, // starts with RS
+		scriptHashID: [2]byte{0x0d, 0xdb}, // starts with Rc
+		privKeyID:    [2]byte{0x22, 0xfe}, // starts with Pr
+	}
+}
 
 // tstAddressPubKey makes an AddressPubKey, setting the unexported fields with
 // the parameters.
@@ -32,9 +127,9 @@ func tstAddressPubKey(serializedPubKey []byte, pubKeyFormat PubKeyFormat, netID 
 }
 
 func TestAddresses(t *testing.T) {
-	mainNetParams := &chaincfg.MainNetParams
-	testNetParams := &chaincfg.TestNet3Params
-	regNetParams := &chaincfg.RegNetParams
+	mainNetParams := mockMainNetParams()
+	testNetParams := mockTestNetParams()
+	regNetParams := mockRegNetParams()
 	tests := []struct {
 		name    string
 		addr    string
