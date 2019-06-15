@@ -1,9 +1,14 @@
+// Copyright (c) 2015-2019 The Decred developers
+// Use of this source code is governed by an ISC
+// license that can be found in the LICENSE file.
+
 package dcrutil_test
 
 import (
 	"fmt"
 	"math"
 
+	"github.com/decred/dcrd/dcrec"
 	"github.com/decred/dcrd/dcrutil"
 )
 
@@ -73,4 +78,50 @@ func ExampleAmount_unitConversions() {
 	// Atom to MilliCoin: 444333222.111 mDCR
 	// Atom to MicroCoin: 444333222111 μDCR
 	// Atom to Atom: 44433322211100 Atom
+}
+
+// This example demonstrates decoding addresses, determining their underlying
+// type, and displaying their associated underlying hash160 and digitial
+// signature algorithm.
+func ExampleDecodeAddress() {
+	// Ordinarily addresses would be read from the user or the result of a
+	// derivation, but they are hard coded here for the purposes of this
+	// example.
+	addrsToDecode := []string{
+		"DsRUvfCwTMrKz29dDiQBJhZii9GDN3bVx6Q", // pay-to-pubkey-hash ecdsa
+		"DSpf9Sru9MarMKQQnuzTiQ9tjWVJA3KSm2d", // pay-to-pubkey-hash schnorr
+	}
+	for idx, encodedAddr := range addrsToDecode {
+		addr, err := dcrutil.DecodeAddress(encodedAddr)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		fmt.Printf("addr%d hash160: %x\n", idx, *addr.Hash160())
+
+		// The example addresses are pay-to-pubkey-hash with different signature
+		// algorithms, so this code is limited to that type
+		switch a := addr.(type) {
+		case *dcrutil.AddressPubKeyHash:
+			// Determine and display the digitial signature algorithm.
+			algo := "unknown"
+			switch a.DSA(a.Net()) {
+			case dcrec.STEcdsaSecp256k1:
+				algo = "ECDSA"
+			case dcrec.STSchnorrSecp256k1:
+				algo = "Schnorr"
+			}
+			fmt.Printf("addr%d DSA: %v\n", idx, algo)
+
+		default:
+			fmt.Println("Unexpected test address type")
+			return
+		}
+	}
+
+	// Output:
+	// addr0 hash160: 05ad744deacf5334671d3e62db86230af1891f71
+	// addr0 DSA: ECDSA
+	// addr1 hash160: e280cb6e66b96679aec288b1fbdbd4db08077a1b
+	// addr1 DSA: Schnorr
 }
