@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2016 The Decred developers
+// Copyright (c) 2015-2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -8,6 +8,7 @@ package dcrutil
 import (
 	"bytes"
 	"errors"
+	"fmt"
 
 	"github.com/decred/base58"
 	"github.com/decred/dcrd/chaincfg"
@@ -18,11 +19,21 @@ import (
 	"github.com/decred/dcrd/dcrec/secp256k1"
 )
 
-// ErrMalformedPrivateKey describes an error where a WIF-encoded private
-// key cannot be decoded due to being improperly formatted.  This may occur
-// if the byte length is incorrect or an unexpected magic number was
+// ErrMalformedPrivateKey describes an error where a WIF-encoded private key
+// cannot be decoded due to being improperly formatted.  This may occur if
+// the byte length is incorrect or an unexpected magic number was
 // encountered.
 var ErrMalformedPrivateKey = errors.New("malformed private key")
+
+// ErrWrongWIFNetwork desribes an error in which the provided WIF is not for
+// the expected network.
+type ErrWrongWIFNetwork [2]byte
+
+// Error implements the error interface.
+func (e ErrWrongWIFNetwork) Error() string {
+	return fmt.Sprintf("WIF is not for the network identified by %#04x",
+		[2]byte(e))
+}
 
 // WIF contains the individual components described by the Wallet Import Format
 // (WIF).  A WIF string is typically used to represent a private key and its
@@ -54,19 +65,13 @@ func NewWIF(privKey chainec.PrivateKey, net *chaincfg.Params, ecType dcrec.Signa
 	return &WIF{ecType, privKey, net.PrivateKeyID}, nil
 }
 
-// IsForNet returns whether or not the decoded WIF structure is associated
-// with the passed network.
-func (w *WIF) IsForNet(net *chaincfg.Params) bool {
-	return w.netID == net.PrivateKeyID
-}
-
 // DecodeWIF creates a new WIF structure by decoding the string encoding of
-// the import format.
+// the import format which is required to be for the provided network.
 //
 // The WIF string must be a base58-encoded string of the following byte
 // sequence:
 //
-//  * 2 bytes to identify the network, must be 0x80 for mainnet or 0xef for testnet
+//  * 2 bytes to identify the network
 //  * 1 byte for ECDSA type
 //  * 32 bytes of a binary-encoded, big-endian, zero-padded private key
 //  * 4 bytes of checksum, must equal the first four bytes of the double SHA256
@@ -76,7 +81,7 @@ func (w *WIF) IsForNet(net *chaincfg.Params) bool {
 // return a non-nil error.  ErrMalformedPrivateKey is returned when the WIF
 // is of an impossible length.  ErrChecksumMismatch is returned if the
 // expected WIF checksum does not match the calculated checksum.
-func DecodeWIF(wif string) (*WIF, error) {
+func DecodeWIF(wif string, net [2]byte) (*WIF, error) {
 	decoded := base58.Decode(wif)
 	decodedLen := len(decoded)
 
@@ -93,6 +98,9 @@ func DecodeWIF(wif string) (*WIF, error) {
 	}
 
 	netID := [2]byte{decoded[0], decoded[1]}
+	if netID != net {
+		return nil, ErrWrongWIFNetwork(net)
+	}
 	var privKey chainec.PrivateKey
 
 	var ecType dcrec.SignatureType
