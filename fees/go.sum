@@ -17,8 +17,6 @@ github.com/decred/dcrd/blockchain/stake v1.1.0/go.mod h1:WRuaml4bcyZYza1NT3qizlL
 github.com/decred/dcrd/chaincfg v1.1.1/go.mod h1:UlGtnp8Xx9YK+etBTybGjoFGoGXSw2bxZQuAnwfKv6I=
 github.com/decred/dcrd/chaincfg v1.2.0 h1:Vj0xr85wmqOdQDxKLkpP9TqwK1RykqY2eC0fWcCsl0k=
 github.com/decred/dcrd/chaincfg v1.2.0/go.mod h1:kpoGTMIriKn5hHRSu5b65+Q9LlGUdbQcMzGujac1BVs=
-github.com/decred/dcrd/chaincfg v1.3.0 h1:DEysyX1/kxlWbY97PTIPpGbMOp3+n2iixi3m9d27A6c=
-github.com/decred/dcrd/chaincfg v1.3.0/go.mod h1:kpoGTMIriKn5hHRSu5b65+Q9LlGUdbQcMzGujac1BVs=
 github.com/decred/dcrd/chaincfg/chainhash v1.0.1 h1:0vG7U9+dSjSCaHQKdoSKURK2pOb47+b+8FK5q4+Je7M=
 github.com/decred/dcrd/chaincfg/chainhash v1.0.1/go.mod h1:OVfvaOsNLS/A1y4Eod0Ip/Lf8qga7VXCQjUQLbkY0Go=
 github.com/decred/dcrd/database v1.0.1 h1:BSIerNf4RhSA0iDhiE/320RYqD2y9T+SCj99Pv7svgo=
