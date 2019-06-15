@@ -106,7 +106,7 @@ func ExampleDecodeAddress() {
 		case *dcrutil.AddressPubKeyHash:
 			// Determine and display the digitial signature algorithm.
 			algo := "unknown"
-			switch a.DSA(a.Net()) {
+			switch a.DSA() {
 			case dcrec.STEcdsaSecp256k1:
 				algo = "ECDSA"
 			case dcrec.STSchnorrSecp256k1:

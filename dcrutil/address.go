@@ -105,9 +105,6 @@ type Address interface {
 	// hashed to 160 bits from the respective address type.
 	Hash160() *[ripemd160.Size]byte
 
-	// DSA returns the digital signature algorithm for the address.
-	DSA(*chaincfg.Params) dcrec.SignatureType
-
 	// Net returns the network parameters of the address.
 	Net() *chaincfg.Params
 }
@@ -249,13 +246,13 @@ func (a *AddressPubKeyHash) Hash160() *[ripemd160.Size]byte {
 
 // DSA returns the digital signature algorithm for the associated public key
 // hash.
-func (a *AddressPubKeyHash) DSA(net *chaincfg.Params) dcrec.SignatureType {
+func (a *AddressPubKeyHash) DSA() dcrec.SignatureType {
 	switch a.netID {
-	case net.PubKeyHashAddrID:
+	case a.net.PubKeyHashAddrID:
 		return dcrec.STEcdsaSecp256k1
-	case net.PKHEdwardsAddrID:
+	case a.net.PKHEdwardsAddrID:
 		return dcrec.STEd25519
-	case net.PKHSchnorrAddrID:
+	case a.net.PKHSchnorrAddrID:
 		return dcrec.STSchnorrSecp256k1
 	}
 	return -1
@@ -341,12 +338,6 @@ func (a *AddressScriptHash) String() string {
 // keys).
 func (a *AddressScriptHash) Hash160() *[ripemd160.Size]byte {
 	return &a.hash
-}
-
-// DSA returns -1 (invalid) as the digital signature algorithm for scripts,
-// as scripts may not involve digital signatures at all.
-func (a *AddressScriptHash) DSA(net *chaincfg.Params) dcrec.SignatureType {
-	return -1
 }
 
 // Net returns the network for the address.
@@ -487,11 +478,11 @@ func (a *AddressSecpPubKey) PubKey() chainec.PublicKey {
 
 // DSA returns the underlying digital signature algorithm for the
 // address.
-func (a *AddressSecpPubKey) DSA(net *chaincfg.Params) dcrec.SignatureType {
+func (a *AddressSecpPubKey) DSA() dcrec.SignatureType {
 	switch a.pubKeyHashID {
-	case net.PubKeyHashAddrID:
+	case a.net.PubKeyHashAddrID:
 		return dcrec.STEcdsaSecp256k1
-	case net.PKHSchnorrAddrID:
+	case a.net.PKHSchnorrAddrID:
 		return dcrec.STSchnorrSecp256k1
 	}
 	return -1
@@ -584,7 +575,7 @@ func (a *AddressEdwardsPubKey) PubKey() chainec.PublicKey {
 
 // DSA returns the underlying digital signature algorithm for the
 // address.
-func (a *AddressEdwardsPubKey) DSA(net *chaincfg.Params) dcrec.SignatureType {
+func (a *AddressEdwardsPubKey) DSA() dcrec.SignatureType {
 	return dcrec.STEd25519
 }
 
@@ -671,7 +662,7 @@ func (a *AddressSecSchnorrPubKey) AddressPubKeyHash() *AddressPubKeyHash {
 
 // DSA returns the underlying digital signature algorithm for the
 // address.
-func (a *AddressSecSchnorrPubKey) DSA(net *chaincfg.Params) dcrec.SignatureType {
+func (a *AddressSecSchnorrPubKey) DSA() dcrec.SignatureType {
 	return dcrec.STSchnorrSecp256k1
 }
 
