@@ -11,7 +11,6 @@ import (
 	"fmt"
 
 	"github.com/decred/base58"
-	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrd/chaincfg/chainec"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/dcrec"
@@ -54,15 +53,10 @@ type WIF struct {
 }
 
 // NewWIF creates a new WIF structure to export an address and its private key
-// as a string encoded in the Wallet Import Format.  The compress argument
-// specifies whether the address intended to be imported or exported was created
-// by serializing the public key compressed rather than uncompressed.
-func NewWIF(privKey chainec.PrivateKey, net *chaincfg.Params, ecType dcrec.SignatureType) (*WIF,
-	error) {
-	if net == nil {
-		return nil, errors.New("no network")
-	}
-	return &WIF{ecType, privKey, net.PrivateKeyID}, nil
+// as a string encoded in the Wallet Import Format.  The net parameter specifies
+// the magic bytes of the network for which the WIF string is intended.
+func NewWIF(privKey chainec.PrivateKey, net [2]byte, ecType dcrec.SignatureType) *WIF {
+	return &WIF{ecType, privKey, net}
 }
 
 // DecodeWIF creates a new WIF structure by decoding the string encoding of

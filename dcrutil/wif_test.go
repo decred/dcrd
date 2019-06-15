@@ -8,7 +8,6 @@ package dcrutil
 import (
 	"testing"
 
-	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrd/chaincfg/chainec"
 	"github.com/decred/dcrd/dcrec"
 	"github.com/decred/dcrd/dcrec/edwards"
@@ -16,14 +15,10 @@ import (
 )
 
 func TestEncodeDecodeWIF(t *testing.T) {
-	mainNetParams := &chaincfg.MainNetParams
-	testNetParams := &chaincfg.TestNet3Params
-	simNetParams := &chaincfg.SimNetParams
-	regNetParams := &chaincfg.RegNetParams
-	mainNetPrivKeyID := mainNetParams.PrivateKeyID
-	testNetPrivKeyID := testNetParams.PrivateKeyID
-	simNetPrivKeyID := simNetParams.PrivateKeyID
-	regNetPrivKeyID := regNetParams.PrivateKeyID
+	mainNetPrivKeyID := [2]byte{0x22, 0xde} // starts with Pm
+	testNetPrivKeyID := [2]byte{0x23, 0x0e} // starts with Pt
+	simNetPrivKeyID := [2]byte{0x23, 0x07}  // starts with Ps
+	regNetPrivKeyID := [2]byte{0x22, 0xfe}  // starts with Pr
 	suites := []dcrec.SignatureType{
 		dcrec.STEcdsaSecp256k1,
 		dcrec.STEd25519,
@@ -72,22 +67,10 @@ func TestEncodeDecodeWIF(t *testing.T) {
 				0x94, 0xb9, 0x67, 0x89, 0xb2, 0x1a, 0x03, 0x98})
 		}
 
-		wif1, err := NewWIF(priv1, mainNetParams, suite)
-		if err != nil {
-			t.Fatal(err)
-		}
-		wif2, err := NewWIF(priv2, testNetParams, suite)
-		if err != nil {
-			t.Fatal(err)
-		}
-		wif3, err := NewWIF(priv2, simNetParams, suite)
-		if err != nil {
-			t.Fatal(err)
-		}
-		wif4, err := NewWIF(priv2, regNetParams, suite)
-		if err != nil {
-			t.Fatal(err)
-		}
+		wif1 := NewWIF(priv1, mainNetPrivKeyID, suite)
+		wif2 := NewWIF(priv2, testNetPrivKeyID, suite)
+		wif3 := NewWIF(priv2, simNetPrivKeyID, suite)
+		wif4 := NewWIF(priv2, regNetPrivKeyID, suite)
 
 		var tests []struct {
 			wif     *WIF
