@@ -30,11 +30,6 @@ var (
 	// beginning with an identifier byte unknown to any standard or
 	// registered (via chaincfg.Register) network.
 	ErrUnknownAddressType = errors.New("unknown address type")
-
-	// ErrMissingDefaultNet describes an error in DecodeAddress that
-	// attempts to decode an address without defining which network to decode
-	// for.
-	ErrMissingDefaultNet = errors.New("default net not defined")
 )
 
 // encodeAddress returns a human-readable payment address given a ripemd160 hash
