@@ -85,17 +85,16 @@ type Address interface {
 	// String returns the string encoding of the transaction output
 	// destination.
 	//
-	// Please note that String differs subtly from EncodeAddress: String
-	// will return the value as a string without any conversion, while
-	// EncodeAddress may convert destination types (for example,
-	// converting pubkeys to P2PKH addresses) before encoding as a
-	// payment address string.
+	// Please note that String differs subtly from Address: String will
+	// return the value as a string without any conversion, while Address
+	// may convert destination types (for example, converting pubkeys to
+	// P2PKH addresses) before encoding as a payment address string.
 	String() string
 
-	// EncodeAddress returns the string encoding of the payment address
-	// associated with the Address value.  See the comment on String
-	// for how this method differs from String.
-	EncodeAddress() string
+	// Address returns the string encoding of the payment address associated
+	// with the Address value.  See the comment on String for how this
+	// method differs from String.
+	Address() string
 
 	// ScriptAddress returns the raw bytes of the address to be used
 	// when inserting the address into a txout's script.
@@ -215,9 +214,10 @@ func newAddressPubKeyHash(pkHash []byte, netID [2]byte) (*AddressPubKeyHash, err
 	return addr, nil
 }
 
-// EncodeAddress returns the string encoding of a pay-to-pubkey-hash
-// address.  Part of the Address interface.
-func (a *AddressPubKeyHash) EncodeAddress() string {
+// Address returns the string encoding of a pay-to-pubkey-hash address.
+//
+// Part of the Address interface.
+func (a *AddressPubKeyHash) Address() string {
 	return encodeAddress(a.hash[:], a.netID)
 }
 
@@ -228,10 +228,10 @@ func (a *AddressPubKeyHash) ScriptAddress() []byte {
 }
 
 // String returns a human-readable string for the pay-to-pubkey-hash address.
-// This is equivalent to calling EncodeAddress, but is provided so the type can
-// be used as a fmt.Stringer.
+// This is equivalent to calling Address, but is provided so the type can be
+// used as a fmt.Stringer.
 func (a *AddressPubKeyHash) String() string {
-	return a.EncodeAddress()
+	return a.Address()
 }
 
 // Hash160 returns the underlying array of the pubkey hash.  This can be useful
@@ -306,9 +306,10 @@ func newAddressScriptHashFromHash(scriptHash []byte,
 	return addr, nil
 }
 
-// EncodeAddress returns the string encoding of a pay-to-script-hash
-// address.  Part of the Address interface.
-func (a *AddressScriptHash) EncodeAddress() string {
+// Address returns the string encoding of a pay-to-script-hash address.
+//
+// Part of the Address interface.
+func (a *AddressScriptHash) Address() string {
 	return encodeAddress(a.hash[:], a.netID)
 }
 
@@ -319,10 +320,10 @@ func (a *AddressScriptHash) ScriptAddress() []byte {
 }
 
 // String returns a human-readable string for the pay-to-script-hash address.
-// This is equivalent to calling EncodeAddress, but is provided so the type can
-// be used as a fmt.Stringer.
+// This is equivalent to calling Address, but is provided so the type can be
+// used as a fmt.Stringer.
 func (a *AddressScriptHash) String() string {
-	return a.EncodeAddress()
+	return a.Address()
 }
 
 // Hash160 returns the underlying array of the script hash.  This can be useful
@@ -403,15 +404,15 @@ func (a *AddressSecpPubKey) serialize() []byte {
 	}
 }
 
-// EncodeAddress returns the string encoding of the public key as a
+// Address returns the string encoding of the public key as a
 // pay-to-pubkey-hash.  Note that the public key format (uncompressed,
 // compressed, etc) will change the resulting address.  This is expected since
 // pay-to-pubkey-hash is a hash of the serialized public key which obviously
 // differs with the format.  At the time of this writing, most Decred addresses
-// are pay-to-pubkey-hash constructed from the uncompressed public key.
+// are pay-to-pubkey-hash constructed from the compressed public key.
 //
 // Part of the Address interface.
-func (a *AddressSecpPubKey) EncodeAddress() string {
+func (a *AddressSecpPubKey) Address() string {
 	return encodeAddress(Hash160(a.serialize()), a.pubKeyHashID)
 }
 
@@ -434,7 +435,7 @@ func (a *AddressSecpPubKey) Hash160() *[ripemd160.Size]byte {
 }
 
 // String returns the hex-encoded human-readable string for the pay-to-pubkey
-// address.  This is not the same as calling EncodeAddress.
+// address.  This is not the same as calling Address.
 func (a *AddressSecpPubKey) String() string {
 	return encodePKAddress(a.serialize(), a.net.PubKeyAddrID,
 		dcrec.STEcdsaSecp256k1)
@@ -509,11 +510,11 @@ func (a *AddressEdwardsPubKey) serialize() []byte {
 	return a.pubKey.Serialize()
 }
 
-// EncodeAddress returns the string encoding of the public key as a
+// Address returns the string encoding of the public key as a
 // pay-to-pubkey-hash.
 //
 // Part of the Address interface.
-func (a *AddressEdwardsPubKey) EncodeAddress() string {
+func (a *AddressEdwardsPubKey) Address() string {
 	return encodeAddress(Hash160(a.serialize()), a.pubKeyHashID)
 }
 
@@ -536,7 +537,7 @@ func (a *AddressEdwardsPubKey) Hash160() *[ripemd160.Size]byte {
 }
 
 // String returns the hex-encoded human-readable string for the pay-to-pubkey
-// address.  This is not the same as calling EncodeAddress.
+// address.  This is not the same as calling Address.
 func (a *AddressEdwardsPubKey) String() string {
 	return encodePKAddress(a.serialize(), a.net.PubKeyAddrID,
 		dcrec.STEd25519)
@@ -592,15 +593,15 @@ func (a *AddressSecSchnorrPubKey) serialize() []byte {
 	return a.pubKey.Serialize()
 }
 
-// EncodeAddress returns the string encoding of the public key as a
+// Address returns the string encoding of the public key as a
 // pay-to-pubkey-hash.  Note that the public key format (uncompressed,
 // compressed, etc) will change the resulting address.  This is expected since
 // pay-to-pubkey-hash is a hash of the serialized public key which obviously
 // differs with the format.  At the time of this writing, most Decred addresses
-// are pay-to-pubkey-hash constructed from the uncompressed public key.
+// are pay-to-pubkey-hash constructed from the compressed public key.
 //
 // Part of the Address interface.
-func (a *AddressSecSchnorrPubKey) EncodeAddress() string {
+func (a *AddressSecSchnorrPubKey) Address() string {
 	return encodeAddress(Hash160(a.serialize()), a.pubKeyHashID)
 }
 
@@ -623,7 +624,7 @@ func (a *AddressSecSchnorrPubKey) Hash160() *[ripemd160.Size]byte {
 }
 
 // String returns the hex-encoded human-readable string for the pay-to-pubkey
-// address.  This is not the same as calling EncodeAddress.
+// address.  This is not the same as calling Address.
 func (a *AddressSecSchnorrPubKey) String() string {
 	return encodePKAddress(a.serialize(), a.net.PubKeyAddrID,
 		dcrec.STSchnorrSecp256k1)

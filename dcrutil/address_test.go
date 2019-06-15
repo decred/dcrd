@@ -533,7 +533,7 @@ func TestAddresses(t *testing.T) {
 			}
 
 			// Encode again and compare against the original.
-			encoded := decoded.EncodeAddress()
+			encoded := decoded.Address()
 			if test.encoded != encoded {
 				t.Errorf("%v: decoding and encoding produced different addresses: %v != %v",
 					test.name, test.encoded, encoded)
