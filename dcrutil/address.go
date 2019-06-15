@@ -25,10 +25,10 @@ var (
 	// to a bad checksum.
 	ErrChecksumMismatch = errors.New("checksum mismatch")
 
-	// ErrUnknownAddressType describes an error where an address can not
+	// ErrUnknownAddressType describes an error where an address can not be
 	// decoded as a specific address type due to the string encoding
-	// beginning with an identifier byte unknown to any standard or
-	// registered (via chaincfg.Register) network.
+	// beginning with unrecognized values that identify the network, type,
+	// and signature algorithm.
 	ErrUnknownAddressType = errors.New("unknown address type")
 )
 
@@ -146,22 +146,17 @@ func NewAddressPubKey(decoded []byte, net *chaincfg.Params) (Address, error) {
 	return nil, ErrUnknownAddressType
 }
 
-// DecodeAddress decodes the string encoding of an address and returns
-// the Address if addr is a valid encoding for a known address type
-func DecodeAddress(addr string) (Address, error) {
+// DecodeAddress decodes the string encoding of an address and returns the
+// Address if it is a valid encoding for a known address type and is for the
+// provided network.
+func DecodeAddress(addr string, net *chaincfg.Params) (Address, error) {
 	// Switch on decoded length to determine the type.
 	decoded, netID, err := base58.CheckDecode(addr)
 	if err != nil {
 		if err == base58.ErrChecksum {
 			return nil, ErrChecksumMismatch
 		}
-		return nil, fmt.Errorf("decoded address is of unknown format: %v",
-			err.Error())
-	}
-
-	net, err := detectNetworkForAddress(addr)
-	if err != nil {
-		return nil, ErrUnknownAddressType
+		return nil, fmt.Errorf("decoded address is of unknown format: %v", err)
 	}
 
 	switch netID {
@@ -183,16 +178,6 @@ func DecodeAddress(addr string) (Address, error) {
 	default:
 		return nil, ErrUnknownAddressType
 	}
-}
-
-// detectNetworkForAddress pops the first character from a string encoded
-// address and detects what network type it is for.
-func detectNetworkForAddress(addr string) (*chaincfg.Params, error) {
-	if len(addr) < 1 {
-		return nil, fmt.Errorf("empty string given for network detection")
-	}
-
-	return chaincfg.ParamsByNetAddrPrefix(addr[0:1])
 }
 
 // AddressPubKeyHash is an Address for a pay-to-pubkey-hash (P2PKH)

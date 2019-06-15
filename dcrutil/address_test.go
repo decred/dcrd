@@ -515,7 +515,7 @@ func TestAddresses(t *testing.T) {
 
 	for _, test := range tests {
 		// Decode addr and compare error against valid.
-		decoded, err := DecodeAddress(test.addr)
+		decoded, err := DecodeAddress(test.addr, test.net)
 		if (err == nil) != test.valid {
 			t.Errorf("%v: decoding test failed: %v", test.name, err)
 			return

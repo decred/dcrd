@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"math"
 
+	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrd/dcrec"
 	"github.com/decred/dcrd/dcrutil"
 )
@@ -92,7 +93,7 @@ func ExampleDecodeAddress() {
 		"DSpf9Sru9MarMKQQnuzTiQ9tjWVJA3KSm2d", // pay-to-pubkey-hash schnorr
 	}
 	for idx, encodedAddr := range addrsToDecode {
-		addr, err := dcrutil.DecodeAddress(encodedAddr)
+		addr, err := dcrutil.DecodeAddress(encodedAddr, &chaincfg.MainNetParams)
 		if err != nil {
 			fmt.Println(err)
 			return
