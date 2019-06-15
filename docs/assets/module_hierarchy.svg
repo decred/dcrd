@@ -107,13 +107,13 @@
 </g>
 <!-- dcrutil -->
 <g id="node11" class="node"><title>dcrutil</title>
-<path fill="burlywood" stroke="black" d="M367.5,-540C367.5,-540 337.5,-540 337.5,-540 331.5,-540 325.5,-534 325.5,-528 325.5,-528 325.5,-516 325.5,-516 325.5,-510 331.5,-504 337.5,-504 337.5,-504 367.5,-504 367.5,-504 373.5,-504 379.5,-510 379.5,-516 379.5,-516 379.5,-528 379.5,-528 379.5,-534 373.5,-540 367.5,-540"/>
-<text text-anchor="middle" x="352.5" y="-518.3" font-family="Times New Roman,serif" font-size="14.00">dcrutil</text>
+<path fill="burlywood" stroke="black" d="M375,-540C375,-540 330,-540 330,-540 324,-540 318,-534 318,-528 318,-528 318,-516 318,-516 318,-510 324,-504 330,-504 330,-504 375,-504 375,-504 381,-504 387,-510 387,-516 387,-516 387,-528 387,-528 387,-534 381,-540 375,-540"/>
+<text text-anchor="middle" x="352.5" y="-518.3" font-family="Times New Roman,serif" font-size="14.00">dcrutil/v2</text>
 </g>
 <!-- chaincfg&#45;&gt;dcrutil -->
 <g id="edge7" class="edge"><title>chaincfg&#45;&gt;dcrutil</title>
-<path fill="none" stroke="cadetblue" d="M227.25,-565.831C227.25,-565.831 227.25,-522 227.25,-522 227.25,-522 288.486,-522 325.323,-522"/>
-<polygon fill="cadetblue" stroke="cadetblue" points="223.75,-565.831 227.25,-575.831 230.75,-565.831 223.75,-565.831"/>
+<path fill="none" stroke="cadetblue" d="M227.25,-565.62C227.25,-565.62 227.25,-513 227.25,-513 227.25,-513 280.87,-513 317.943,-513"/>
+<polygon fill="cadetblue" stroke="cadetblue" points="223.75,-565.62 227.25,-575.62 230.75,-565.62 223.75,-565.62"/>
 </g>
 <!-- connmgr&#45;&gt;dcrd -->
 <g id="edge29" class="edge"><title>connmgr&#45;&gt;dcrd</title>
@@ -127,8 +127,8 @@
 </g>
 <!-- dcrec&#45;&gt;dcrutil -->
 <g id="edge8" class="edge"><title>dcrec&#45;&gt;dcrutil</title>
-<path fill="none" stroke="mediumpurple" d="M276.5,-565.778C276.5,-565.778 276.5,-531 276.5,-531 276.5,-531 303.647,-531 325.491,-531"/>
-<polygon fill="mediumpurple" stroke="mediumpurple" points="273,-565.778 276.5,-575.778 280,-565.778 273,-565.778"/>
+<path fill="none" stroke="mediumpurple" d="M276.5,-565.831C276.5,-565.831 276.5,-522 276.5,-522 276.5,-522 297.635,-522 317.614,-522"/>
+<polygon fill="mediumpurple" stroke="mediumpurple" points="273,-565.831 276.5,-575.831 280,-565.831 273,-565.831"/>
 </g>
 <!-- edwards -->
 <g id="node9" class="node"><title>edwards</title>
@@ -137,12 +137,12 @@
 </g>
 <!-- edwards&#45;&gt;dcrutil -->
 <g id="edge9" class="edge"><title>edwards&#45;&gt;dcrutil</title>
-<path fill="none" stroke="lightseagreen" d="M352.5,-565.831C352.5,-565.831 352.5,-540.413 352.5,-540.413"/>
-<polygon fill="lightseagreen" stroke="lightseagreen" points="349,-565.831 352.5,-575.831 356,-565.831 349,-565.831"/>
+<path fill="none" stroke="lightseagreen" d="M354.25,-565.831C354.25,-565.831 354.25,-540.413 354.25,-540.413"/>
+<polygon fill="lightseagreen" stroke="lightseagreen" points="350.75,-565.831 354.25,-575.831 357.75,-565.831 350.75,-565.831"/>
 </g>
 <!-- secp256k1&#45;&gt;dcrutil -->
 <g id="edge10" class="edge"><title>secp256k1&#45;&gt;dcrutil</title>
-<path fill="none" stroke="mediumvioletred" d="M449.75,-637.959C449.75,-637.959 449.75,-528 449.75,-528 449.75,-528 408.365,-528 379.59,-528"/>
+<path fill="none" stroke="mediumvioletred" d="M449.75,-637.959C449.75,-637.959 449.75,-528 449.75,-528 449.75,-528 415.013,-528 387.061,-528"/>
 <polygon fill="mediumvioletred" stroke="mediumvioletred" points="446.25,-637.959 449.75,-647.959 453.25,-637.959 446.25,-637.959"/>
 </g>
 <!-- database -->
@@ -162,8 +162,8 @@
 </g>
 <!-- dcrutil&#45;&gt;hdkeychain -->
 <g id="edge12" class="edge"><title>dcrutil&#45;&gt;hdkeychain</title>
-<path fill="none" stroke="burlywood" d="M315.093,-513C315.093,-513 311.75,-513 311.75,-513 311.75,-513 311.75,-189.141 311.75,-108.176"/>
-<polygon fill="burlywood" stroke="burlywood" points="315.093,-516.5 325.093,-513 315.093,-509.5 315.093,-516.5"/>
+<path fill="none" stroke="burlywood" d="M311.439,-531C311.439,-531 310.75,-531 310.75,-531 310.75,-531 310.75,-191.095 310.75,-108.11"/>
+<polygon fill="burlywood" stroke="burlywood" points="307.644,-534.5 317.644,-531 307.644,-527.5 307.644,-534.5"/>
 </g>
 <!-- txscript -->
 <g id="node14" class="node"><title>txscript</title>
@@ -172,8 +172,8 @@
 </g>
 <!-- dcrutil&#45;&gt;txscript -->
 <g id="edge13" class="edge"><title>dcrutil&#45;&gt;txscript</title>
-<path fill="none" stroke="burlywood" d="M389.666,-516C389.666,-516 420.25,-516 420.25,-516 420.25,-516 420.25,-487.576 420.25,-468.035"/>
-<polygon fill="burlywood" stroke="burlywood" points="389.666,-512.5 379.666,-516 389.666,-519.5 389.666,-512.5"/>
+<path fill="none" stroke="burlywood" d="M397.169,-516C397.169,-516 420.25,-516 420.25,-516 420.25,-516 420.25,-487.576 420.25,-468.035"/>
+<polygon fill="burlywood" stroke="burlywood" points="397.169,-512.5 387.169,-516 397.169,-519.5 397.169,-512.5"/>
 </g>
 <!-- stake -->
 <g id="node15" class="node"><title>stake</title>

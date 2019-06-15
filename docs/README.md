@@ -194,7 +194,7 @@ The following versioned modules are provided by dcrd repository:
   Provides a database interface for the Decred block chain
 * [mempool/v2](https://github.com/decred/dcrd/tree/master/mempool) - Provides a
   policy-enforced pool of unmined Decred transactions
-* [dcrutil](https://github.com/decred/dcrd/tree/master/dcrutil) - Provides
+* [dcrutil/v2](https://github.com/decred/dcrd/tree/master/dcrutil) - Provides
   Decred-specific convenience functions and types
 * [chaincfg/v2](https://github.com/decred/dcrd/tree/master/chaincfg) - Defines
   chain configuration parameters for the standard Decred networks and allows
