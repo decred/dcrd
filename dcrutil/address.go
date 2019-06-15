@@ -105,10 +105,6 @@ type Address interface {
 	// hashed to 160 bits from the respective address type.
 	Hash160() *[ripemd160.Size]byte
 
-	// IsForNet returns whether or not the address is associated with the
-	// passed network.
-	IsForNet(*chaincfg.Params) bool
-
 	// DSA returns the digital signature algorithm for the address.
 	DSA(*chaincfg.Params) dcrec.SignatureType
 
@@ -237,14 +233,6 @@ func (a *AddressPubKeyHash) ScriptAddress() []byte {
 	return a.hash[:]
 }
 
-// IsForNet returns whether or not the pay-to-pubkey-hash address is associated
-// with the passed network.
-func (a *AddressPubKeyHash) IsForNet(net *chaincfg.Params) bool {
-	return a.netID == net.PubKeyHashAddrID ||
-		a.netID == net.PKHEdwardsAddrID ||
-		a.netID == net.PKHSchnorrAddrID
-}
-
 // String returns a human-readable string for the pay-to-pubkey-hash address.
 // This is equivalent to calling EncodeAddress, but is provided so the type can
 // be used as a fmt.Stringer.
@@ -339,12 +327,6 @@ func (a *AddressScriptHash) EncodeAddress() string {
 // to a script hash.  Part of the Address interface.
 func (a *AddressScriptHash) ScriptAddress() []byte {
 	return a.hash[:]
-}
-
-// IsForNet returns whether or not the pay-to-script-hash address is associated
-// with the passed network.
-func (a *AddressScriptHash) IsForNet(net *chaincfg.Params) bool {
-	return a.netID == net.ScriptHashAddrID
 }
 
 // String returns a human-readable string for the pay-to-script-hash address.
@@ -473,12 +455,6 @@ func (a *AddressSecpPubKey) Hash160() *[ripemd160.Size]byte {
 	return array
 }
 
-// IsForNet returns whether or not the pay-to-pubkey address is associated
-// with the passed network.
-func (a *AddressSecpPubKey) IsForNet(net *chaincfg.Params) bool {
-	return a.pubKeyHashID == net.PubKeyHashAddrID
-}
-
 // String returns the hex-encoded human-readable string for the pay-to-pubkey
 // address.  This is not the same as calling EncodeAddress.
 func (a *AddressSecpPubKey) String() string {
@@ -586,12 +562,6 @@ func (a *AddressEdwardsPubKey) Hash160() *[ripemd160.Size]byte {
 	return array
 }
 
-// IsForNet returns whether or not the pay-to-pubkey address is associated
-// with the passed network.
-func (a *AddressEdwardsPubKey) IsForNet(net *chaincfg.Params) bool {
-	return a.pubKeyHashID == net.PKHEdwardsAddrID
-}
-
 // String returns the hex-encoded human-readable string for the pay-to-pubkey
 // address.  This is not the same as calling EncodeAddress.
 func (a *AddressEdwardsPubKey) String() string {
@@ -682,12 +652,6 @@ func (a *AddressSecSchnorrPubKey) Hash160() *[ripemd160.Size]byte {
 	copy(array[:], h160)
 
 	return array
-}
-
-// IsForNet returns whether or not the pay-to-pubkey address is associated
-// with the passed network.
-func (a *AddressSecSchnorrPubKey) IsForNet(net *chaincfg.Params) bool {
-	return a.pubKeyHashID == net.PubKeyHashAddrID
 }
 
 // String returns the hex-encoded human-readable string for the pay-to-pubkey
