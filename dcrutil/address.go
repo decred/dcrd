@@ -104,9 +104,6 @@ type Address interface {
 	// Hash160 returns the Hash160(data) where data is the data normally
 	// hashed to 160 bits from the respective address type.
 	Hash160() *[ripemd160.Size]byte
-
-	// Net returns the network parameters of the address.
-	Net() *chaincfg.Params
 }
 
 // NewAddressPubKey returns a new Address. decoded must
@@ -258,11 +255,6 @@ func (a *AddressPubKeyHash) DSA() dcrec.SignatureType {
 	return -1
 }
 
-// Net returns the network for the address.
-func (a *AddressPubKeyHash) Net() *chaincfg.Params {
-	return a.net
-}
-
 // AddressScriptHash is an Address for a pay-to-script-hash (P2SH)
 // transaction.
 type AddressScriptHash struct {
@@ -338,11 +330,6 @@ func (a *AddressScriptHash) String() string {
 // keys).
 func (a *AddressScriptHash) Hash160() *[ripemd160.Size]byte {
 	return &a.hash
-}
-
-// Net returns the network for the address.
-func (a *AddressScriptHash) Net() *chaincfg.Params {
-	return a.net
 }
 
 // PubKeyFormat describes what format to use for a pay-to-pubkey address.
@@ -488,11 +475,6 @@ func (a *AddressSecpPubKey) DSA() dcrec.SignatureType {
 	return -1
 }
 
-// Net returns the network for the address.
-func (a *AddressSecpPubKey) Net() *chaincfg.Params {
-	return a.net
-}
-
 // NewAddressSecpPubKeyCompressed creates a new address using a compressed public key
 func NewAddressSecpPubKeyCompressed(pubkey chainec.PublicKey, params *chaincfg.Params) (*AddressSecpPubKey, error) {
 	return NewAddressSecpPubKey(pubkey.SerializeCompressed(), params)
@@ -579,11 +561,6 @@ func (a *AddressEdwardsPubKey) DSA() dcrec.SignatureType {
 	return dcrec.STEd25519
 }
 
-// Net returns the network for the address.
-func (a *AddressEdwardsPubKey) Net() *chaincfg.Params {
-	return a.net
-}
-
 // AddressSecSchnorrPubKey is an Address for a secp256k1 pay-to-pubkey
 // transaction.
 type AddressSecSchnorrPubKey struct {
@@ -664,9 +641,4 @@ func (a *AddressSecSchnorrPubKey) AddressPubKeyHash() *AddressPubKeyHash {
 // address.
 func (a *AddressSecSchnorrPubKey) DSA() dcrec.SignatureType {
 	return dcrec.STSchnorrSecp256k1
-}
-
-// Net returns the network for the address.
-func (a *AddressSecSchnorrPubKey) Net() *chaincfg.Params {
-	return a.net
 }
