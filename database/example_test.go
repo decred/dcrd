@@ -11,7 +11,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/decred/dcrd/chaincfg"
+	"github.com/decred/dcrd/chaincfg/v2"
 	"github.com/decred/dcrd/database"
 	_ "github.com/decred/dcrd/database/ffldb"
 	"github.com/decred/dcrd/dcrutil"
@@ -135,9 +135,9 @@ func Example_blockStorageAndRetrieval() {
 	// Use the Update function of the database to perform a managed
 	// read-write transaction and store a genesis block in the database as
 	// and example.
+	mainNetParams := chaincfg.MainNetParams()
 	err = db.Update(func(tx database.Tx) error {
-		genesisBlock := chaincfg.MainNetParams.GenesisBlock
-		return tx.StoreBlock(dcrutil.NewBlock(genesisBlock))
+		return tx.StoreBlock(dcrutil.NewBlock(mainNetParams.GenesisBlock))
 	})
 	if err != nil {
 		fmt.Println(err)
@@ -148,8 +148,7 @@ func Example_blockStorageAndRetrieval() {
 	// transaction and fetch the block stored above.
 	var loadedBlockBytes []byte
 	err = db.Update(func(tx database.Tx) error {
-		genesisHash := chaincfg.MainNetParams.GenesisHash
-		blockBytes, err := tx.FetchBlock(genesisHash)
+		blockBytes, err := tx.FetchBlock(&mainNetParams.GenesisHash)
 		if err != nil {
 			return err
 		}

@@ -11,7 +11,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/decred/dcrd/chaincfg"
+	"github.com/decred/dcrd/chaincfg/v2"
 	"github.com/decred/dcrd/database"
 	_ "github.com/decred/dcrd/database/ffldb"
 	"github.com/decred/dcrd/dcrutil"
@@ -20,7 +20,7 @@ import (
 var (
 	dcrdHomeDir     = dcrutil.AppDataDir("dcrd", false)
 	knownDbTypes    = database.SupportedDrivers()
-	activeNetParams = &chaincfg.MainNetParams
+	activeNetParams = chaincfg.MainNetParams()
 
 	// Default global config.
 	cfg = &config{
@@ -68,11 +68,11 @@ func setupGlobalConfig() error {
 	numNets := 0
 	if cfg.TestNet {
 		numNets++
-		activeNetParams = &chaincfg.TestNet3Params
+		activeNetParams = chaincfg.TestNet3Params()
 	}
 	if cfg.SimNet {
 		numNets++
-		activeNetParams = &chaincfg.SimNetParams
+		activeNetParams = chaincfg.SimNetParams()
 	}
 	if numNets > 1 {
 		return errors.New("the testnet and simnet params can't be " +

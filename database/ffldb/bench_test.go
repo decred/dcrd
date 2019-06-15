@@ -10,7 +10,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/decred/dcrd/chaincfg"
+	"github.com/decred/dcrd/chaincfg/v2"
 	"github.com/decred/dcrd/database"
 	"github.com/decred/dcrd/dcrutil"
 )
@@ -28,8 +28,9 @@ func BenchmarkBlockHeader(b *testing.B) {
 	}
 	defer os.RemoveAll(dbPath)
 	defer db.Close()
+	mainNetParams := chaincfg.MainNetParams()
 	err = db.Update(func(tx database.Tx) error {
-		block := dcrutil.NewBlock(chaincfg.MainNetParams.GenesisBlock)
+		block := dcrutil.NewBlock(mainNetParams.GenesisBlock)
 		return tx.StoreBlock(block)
 	})
 	if err != nil {
@@ -39,7 +40,7 @@ func BenchmarkBlockHeader(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	err = db.View(func(tx database.Tx) error {
-		blockHash := chaincfg.MainNetParams.GenesisHash
+		blockHash := &mainNetParams.GenesisHash
 		for i := 0; i < b.N; i++ {
 			_, err := tx.FetchBlockHeader(blockHash)
 			if err != nil {
@@ -69,8 +70,9 @@ func BenchmarkBlock(b *testing.B) {
 	}
 	defer os.RemoveAll(dbPath)
 	defer db.Close()
+	mainNetParams := chaincfg.MainNetParams()
 	err = db.Update(func(tx database.Tx) error {
-		block := dcrutil.NewBlock(chaincfg.MainNetParams.GenesisBlock)
+		block := dcrutil.NewBlock(mainNetParams.GenesisBlock)
 		return tx.StoreBlock(block)
 	})
 	if err != nil {
@@ -80,7 +82,7 @@ func BenchmarkBlock(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	err = db.View(func(tx database.Tx) error {
-		blockHash := chaincfg.MainNetParams.GenesisHash
+		blockHash := &mainNetParams.GenesisHash
 		for i := 0; i < b.N; i++ {
 			_, err := tx.FetchBlock(blockHash)
 			if err != nil {

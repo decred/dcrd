@@ -13,7 +13,7 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/decred/dcrd/chaincfg"
+	"github.com/decred/dcrd/chaincfg/v2"
 	"github.com/decred/dcrd/database"
 	"github.com/decred/dcrd/database/ffldb"
 	"github.com/decred/dcrd/dcrutil"
@@ -172,8 +172,9 @@ func TestPersistence(t *testing.T) {
 		"b1key2": "foo2",
 		"b1key3": "foo3",
 	}
-	genesisBlock := dcrutil.NewBlock(chaincfg.MainNetParams.GenesisBlock)
-	genesisHash := chaincfg.MainNetParams.GenesisHash
+	mainNetParams := chaincfg.MainNetParams()
+	genesisBlock := dcrutil.NewBlock(mainNetParams.GenesisBlock)
+	genesisHash := &mainNetParams.GenesisHash
 	err = db.Update(func(tx database.Tx) error {
 		metadataBucket := tx.Metadata()
 		if metadataBucket == nil {
