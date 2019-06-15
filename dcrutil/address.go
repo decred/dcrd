@@ -172,14 +172,15 @@ func DecodeAddress(addr string, net *chaincfg.Params) (Address, error) {
 // AddressPubKeyHash is an Address for a pay-to-pubkey-hash (P2PKH)
 // transaction.
 type AddressPubKeyHash struct {
-	net   *chaincfg.Params
 	hash  [ripemd160.Size]byte
 	netID [2]byte
+	dsa   dcrec.SignatureType
 }
 
 // NewAddressPubKeyHash returns a new AddressPubKeyHash.  pkHash must
 // be 20 bytes.
 func NewAddressPubKeyHash(pkHash []byte, net *chaincfg.Params, algo dcrec.SignatureType) (*AddressPubKeyHash, error) {
+	// Ensure the provided signature algo is supported.
 	var addrID [2]byte
 	switch algo {
 	case dcrec.STEcdsaSecp256k1:
@@ -189,27 +190,14 @@ func NewAddressPubKeyHash(pkHash []byte, net *chaincfg.Params, algo dcrec.Signat
 	case dcrec.STSchnorrSecp256k1:
 		addrID = net.PKHSchnorrAddrID
 	default:
-		return nil, errors.New("unknown ECDSA algorithm")
+		return nil, errors.New("unknown signature algorithm")
 	}
-	apkh, err := newAddressPubKeyHash(pkHash, addrID)
-	if err != nil {
-		return nil, err
-	}
-	apkh.net = net
-	return apkh, nil
-}
 
-// newAddressPubKeyHash is the internal API to create a pubkey hash address
-// with a known leading identifier byte for a network, rather than looking
-// it up through its parameters.  This is useful when creating a new address
-// structure from a string encoding where the identifier byte is already
-// known.
-func newAddressPubKeyHash(pkHash []byte, netID [2]byte) (*AddressPubKeyHash, error) {
-	// Check for a valid pubkey hash length.
+	// Ensure the provided pubkey hash length is valid.
 	if len(pkHash) != ripemd160.Size {
 		return nil, errors.New("pkHash must be 20 bytes")
 	}
-	addr := &AddressPubKeyHash{netID: netID}
+	addr := &AddressPubKeyHash{netID: addrID, dsa: algo}
 	copy(addr.hash[:], pkHash)
 	return addr, nil
 }
@@ -244,47 +232,29 @@ func (a *AddressPubKeyHash) Hash160() *[ripemd160.Size]byte {
 // DSA returns the digital signature algorithm for the associated public key
 // hash.
 func (a *AddressPubKeyHash) DSA() dcrec.SignatureType {
-	switch a.netID {
-	case a.net.PubKeyHashAddrID:
-		return dcrec.STEcdsaSecp256k1
-	case a.net.PKHEdwardsAddrID:
-		return dcrec.STEd25519
-	case a.net.PKHSchnorrAddrID:
-		return dcrec.STSchnorrSecp256k1
-	}
-	return -1
+	return a.dsa
 }
 
 // AddressScriptHash is an Address for a pay-to-script-hash (P2SH)
 // transaction.
 type AddressScriptHash struct {
-	net   *chaincfg.Params
 	hash  [ripemd160.Size]byte
 	netID [2]byte
 }
 
 // NewAddressScriptHash returns a new AddressScriptHash.
-func NewAddressScriptHash(serializedScript []byte,
-	net *chaincfg.Params) (*AddressScriptHash, error) {
+func NewAddressScriptHash(serializedScript []byte, net *chaincfg.Params) (*AddressScriptHash, error) {
 	scriptHash := Hash160(serializedScript)
-	ash, err := newAddressScriptHashFromHash(scriptHash, net.ScriptHashAddrID)
-	if err != nil {
-		return nil, err
-	}
-	ash.net = net
-
-	return ash, nil
+	return newAddressScriptHashFromHash(scriptHash, net.ScriptHashAddrID)
 }
 
 // NewAddressScriptHashFromHash returns a new AddressScriptHash.  scriptHash
 // must be 20 bytes.
-func NewAddressScriptHashFromHash(scriptHash []byte,
-	net *chaincfg.Params) (*AddressScriptHash, error) {
+func NewAddressScriptHashFromHash(scriptHash []byte, net *chaincfg.Params) (*AddressScriptHash, error) {
 	ash, err := newAddressScriptHashFromHash(scriptHash, net.ScriptHashAddrID)
 	if err != nil {
 		return nil, err
 	}
-	ash.net = net
 
 	return ash, nil
 }
@@ -352,17 +322,16 @@ var ErrInvalidPubKeyFormat = errors.New("invalid pubkey format")
 
 // AddressSecpPubKey is an Address for a secp256k1 pay-to-pubkey transaction.
 type AddressSecpPubKey struct {
-	net          *chaincfg.Params
 	pubKeyFormat PubKeyFormat
 	pubKey       chainec.PublicKey
+	pubKeyID     [2]byte
 	pubKeyHashID [2]byte
 }
 
 // NewAddressSecpPubKey returns a new AddressSecpPubKey which represents a
 // pay-to-pubkey address, using a secp256k1 pubkey.  The serializedPubKey
 // parameter must be a valid pubkey and must be uncompressed or compressed.
-func NewAddressSecpPubKey(serializedPubKey []byte,
-	net *chaincfg.Params) (*AddressSecpPubKey, error) {
+func NewAddressSecpPubKey(serializedPubKey []byte, net *chaincfg.Params) (*AddressSecpPubKey, error) {
 	pubKey, err := secp256k1.ParsePubKey(serializedPubKey)
 	if err != nil {
 		return nil, err
@@ -383,9 +352,9 @@ func NewAddressSecpPubKey(serializedPubKey []byte,
 	}
 
 	return &AddressSecpPubKey{
-		net:          net,
 		pubKeyFormat: pkFormat,
 		pubKey:       pubKey,
+		pubKeyID:     net.PubKeyAddrID,
 		pubKeyHashID: net.PubKeyHashAddrID,
 	}, nil
 }
@@ -437,8 +406,7 @@ func (a *AddressSecpPubKey) Hash160() *[ripemd160.Size]byte {
 // String returns the hex-encoded human-readable string for the pay-to-pubkey
 // address.  This is not the same as calling Address.
 func (a *AddressSecpPubKey) String() string {
-	return encodePKAddress(a.serialize(), a.net.PubKeyAddrID,
-		dcrec.STEcdsaSecp256k1)
+	return encodePKAddress(a.serialize(), a.pubKeyID, dcrec.STEcdsaSecp256k1)
 }
 
 // Format returns the format (uncompressed, compressed, etc) of the
@@ -454,7 +422,8 @@ func (a *AddressSecpPubKey) Format() PubKeyFormat {
 // differs with the format.  At the time of this writing, most Decred addresses
 // are pay-to-pubkey-hash constructed from the uncompressed public key.
 func (a *AddressSecpPubKey) AddressPubKeyHash() *AddressPubKeyHash {
-	addr := &AddressPubKeyHash{net: a.net, netID: a.pubKeyHashID}
+	addr := &AddressPubKeyHash{netID: a.pubKeyHashID,
+		dsa: dcrec.STEcdsaSecp256k1}
 	copy(addr.hash[:], Hash160(a.serialize()))
 	return addr
 }
@@ -467,13 +436,7 @@ func (a *AddressSecpPubKey) PubKey() chainec.PublicKey {
 // DSA returns the underlying digital signature algorithm for the
 // address.
 func (a *AddressSecpPubKey) DSA() dcrec.SignatureType {
-	switch a.pubKeyHashID {
-	case a.net.PubKeyHashAddrID:
-		return dcrec.STEcdsaSecp256k1
-	case a.net.PKHSchnorrAddrID:
-		return dcrec.STSchnorrSecp256k1
-	}
-	return -1
+	return dcrec.STEcdsaSecp256k1
 }
 
 // NewAddressSecpPubKeyCompressed creates a new address using a compressed public key
@@ -483,24 +446,23 @@ func NewAddressSecpPubKeyCompressed(pubkey chainec.PublicKey, params *chaincfg.P
 
 // AddressEdwardsPubKey is an Address for an Ed25519 pay-to-pubkey transaction.
 type AddressEdwardsPubKey struct {
-	net          *chaincfg.Params
 	pubKey       chainec.PublicKey
+	pubKeyID     [2]byte
 	pubKeyHashID [2]byte
 }
 
 // NewAddressEdwardsPubKey returns a new AddressEdwardsPubKey which represents a
 // pay-to-pubkey address, using an Ed25519 pubkey.  The serializedPubKey
 // parameter must be a valid 32 byte serialized public key.
-func NewAddressEdwardsPubKey(serializedPubKey []byte,
-	net *chaincfg.Params) (*AddressEdwardsPubKey, error) {
+func NewAddressEdwardsPubKey(serializedPubKey []byte, net *chaincfg.Params) (*AddressEdwardsPubKey, error) {
 	pubKey, err := edwards.ParsePubKey(edwards.Edwards(), serializedPubKey)
 	if err != nil {
 		return nil, err
 	}
 
 	return &AddressEdwardsPubKey{
-		net:          net,
 		pubKey:       pubKey,
+		pubKeyID:     net.PubKeyAddrID,
 		pubKeyHashID: net.PKHEdwardsAddrID,
 	}, nil
 }
@@ -539,14 +501,13 @@ func (a *AddressEdwardsPubKey) Hash160() *[ripemd160.Size]byte {
 // String returns the hex-encoded human-readable string for the pay-to-pubkey
 // address.  This is not the same as calling Address.
 func (a *AddressEdwardsPubKey) String() string {
-	return encodePKAddress(a.serialize(), a.net.PubKeyAddrID,
-		dcrec.STEd25519)
+	return encodePKAddress(a.serialize(), a.pubKeyID, dcrec.STEd25519)
 }
 
 // AddressPubKeyHash returns the pay-to-pubkey address converted to a
 // pay-to-pubkey-hash address.
 func (a *AddressEdwardsPubKey) AddressPubKeyHash() *AddressPubKeyHash {
-	addr := &AddressPubKeyHash{net: a.net, netID: a.pubKeyHashID}
+	addr := &AddressPubKeyHash{netID: a.pubKeyHashID, dsa: dcrec.STEd25519}
 	copy(addr.hash[:], Hash160(a.serialize()))
 	return addr
 }
@@ -565,24 +526,23 @@ func (a *AddressEdwardsPubKey) DSA() dcrec.SignatureType {
 // AddressSecSchnorrPubKey is an Address for a secp256k1 pay-to-pubkey
 // transaction.
 type AddressSecSchnorrPubKey struct {
-	net          *chaincfg.Params
 	pubKey       chainec.PublicKey
+	pubKeyID     [2]byte
 	pubKeyHashID [2]byte
 }
 
 // NewAddressSecSchnorrPubKey returns a new AddressSecpPubKey which represents a
 // pay-to-pubkey address, using a secp256k1 pubkey.  The serializedPubKey
 // parameter must be a valid pubkey and must be compressed.
-func NewAddressSecSchnorrPubKey(serializedPubKey []byte,
-	net *chaincfg.Params) (*AddressSecSchnorrPubKey, error) {
+func NewAddressSecSchnorrPubKey(serializedPubKey []byte, net *chaincfg.Params) (*AddressSecSchnorrPubKey, error) {
 	pubKey, err := schnorr.ParsePubKey(secp256k1.S256(), serializedPubKey)
 	if err != nil {
 		return nil, err
 	}
 
 	return &AddressSecSchnorrPubKey{
-		net:          net,
 		pubKey:       pubKey,
+		pubKeyID:     net.PubKeyAddrID,
 		pubKeyHashID: net.PKHSchnorrAddrID,
 	}, nil
 }
@@ -626,14 +586,14 @@ func (a *AddressSecSchnorrPubKey) Hash160() *[ripemd160.Size]byte {
 // String returns the hex-encoded human-readable string for the pay-to-pubkey
 // address.  This is not the same as calling Address.
 func (a *AddressSecSchnorrPubKey) String() string {
-	return encodePKAddress(a.serialize(), a.net.PubKeyAddrID,
-		dcrec.STSchnorrSecp256k1)
+	return encodePKAddress(a.serialize(), a.pubKeyID, dcrec.STSchnorrSecp256k1)
 }
 
 // AddressPubKeyHash returns the pay-to-pubkey address converted to a
 // pay-to-pubkey-hash address.
 func (a *AddressSecSchnorrPubKey) AddressPubKeyHash() *AddressPubKeyHash {
-	addr := &AddressPubKeyHash{net: a.net, netID: a.pubKeyHashID}
+	addr := &AddressPubKeyHash{netID: a.pubKeyHashID,
+		dsa: dcrec.STSchnorrSecp256k1}
 	copy(addr.hash[:], Hash160(a.serialize()))
 	return addr
 }
