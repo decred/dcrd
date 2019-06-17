@@ -43,6 +43,11 @@ const (
 	// MaxCoinbaseScriptLen is the maximum length a coinbase script can be.
 	MaxCoinbaseScriptLen = 100
 
+	// maxUniqueCoinbaseNullDataSize is the maximum number of bytes allowed
+	// in the pushed data output of the coinbase output that is used to
+	// ensure the coinbase has a unique hash.
+	maxUniqueCoinbaseNullDataSize = 256
+
 	// medianTimeBlocks is the number of previous blocks which should be
 	// used to calculate the median time used to validate block timestamps.
 	medianTimeBlocks = 11
@@ -1197,46 +1202,72 @@ func (b *BlockChain) checkBlockHeaderContext(header *wire.BlockHeader, prevNode 
 // coinbase contains the height encoding to make coinbase hash collisions
 // impossible.
 func checkCoinbaseUniqueHeight(blockHeight int64, block *dcrutil.Block) error {
-	// Coinbase TxOut[0] is always tax, TxOut[1] is always
-	// height + extranonce, so at least two outputs must
-	// exist.
-	if len(block.MsgBlock().Transactions[0].TxOut) < 2 {
-		str := fmt.Sprintf("block %v is missing necessary coinbase "+
-			"outputs", block.Hash())
+	// Coinbase output 0 is the project subsidy, and output 1 is height +
+	// extranonce, so at least two outputs must exist.
+	const minReqOutputs = 2
+	coinbaseTx := block.MsgBlock().Transactions[0]
+	if len(coinbaseTx.TxOut) < minReqOutputs {
+		str := fmt.Sprintf("block %s is missing required coinbase outputs ("+
+			"num outputs: %d, min required: %d)", block.Hash(),
+			len(coinbaseTx.TxOut), minReqOutputs)
 		return ruleError(ErrFirstTxNotCoinbase, str)
 	}
 
 	// Only version 0 scripts are currently valid.
-	nullDataOut := block.MsgBlock().Transactions[0].TxOut[1]
-	if nullDataOut.Version != 0 {
-		str := fmt.Sprintf("block %v output 1 has wrong script version",
-			block.Hash())
+	const scriptVersion = 0
+	nullDataOut := coinbaseTx.TxOut[1]
+	if nullDataOut.Version != scriptVersion {
+		str := fmt.Sprintf("block %s coinbase output 1 script version %d is "+
+			"not the required version %d", block.Hash(), nullDataOut.Version,
+			scriptVersion)
 		return ruleError(ErrFirstTxNotCoinbase, str)
 	}
 
-	// The first 4 bytes of the null data output must be the encoded height
-	// of the block, so that every coinbase created has a unique transaction
-	// hash.
-	nullData, err := txscript.ExtractCoinbaseNullData(nullDataOut.PkScript)
-	if err != nil {
-		str := fmt.Sprintf("block %v output 1 has wrong script type",
-			block.Hash())
+	// The nulldata in the coinbase must be a single OP_RETURN followed by a
+	// data push up to maxUniqueCoinbaseNullDataSize bytes and the first 4 bytes
+	// of that data must be the encoded height of the block so that every
+	// coinbase created has a unique transaction hash.
+	//
+	// NOTE: This is intentionally not using GetScriptClass and the related
+	// functions because those are specifically for standardness checks which
+	// can change over time and this function is enforces consensus rules.
+	//
+	// Also of note is that technically normal nulldata scripts support encoding
+	// numbers via small opcodes, however, for legacy reasons, the consensus
+	// rules require the block height to be encoded as a 4-byte little-endian
+	// uint32 pushed via a normal data push, as opposed to using the normal
+	// number handling semantics of scripts, so this is specialized to
+	// accommodate that.
+	var nullData []byte
+	pkScript := nullDataOut.PkScript
+	if len(pkScript) > 1 && pkScript[0] == txscript.OP_RETURN {
+		tokenizer := txscript.MakeScriptTokenizer(scriptVersion, pkScript[1:])
+		if tokenizer.Next() && tokenizer.Done() && tokenizer.Opcode() <=
+			txscript.OP_PUSHDATA4 {
+
+			nullData = tokenizer.Data()
+		}
+	}
+	if len(nullData) > maxUniqueCoinbaseNullDataSize {
+		str := fmt.Sprintf("block %s coinbase output 1 pushes %d bytes which "+
+			"is more than allowed value of %d", block.Hash(), len(nullData),
+			maxUniqueCoinbaseNullDataSize)
 		return ruleError(ErrFirstTxNotCoinbase, str)
 	}
 	if len(nullData) < 4 {
-		str := fmt.Sprintf("block %v output 1 data push too short to "+
-			"contain height", block.Hash())
+		str := fmt.Sprintf("block %s coinbase output 1 pushes %d bytes which "+
+			"is too short to encode height", block.Hash(), len(nullData))
 		return ruleError(ErrFirstTxNotCoinbase, str)
 	}
 
 	// Check the height and ensure it is correct.
 	cbHeight := binary.LittleEndian.Uint32(nullData[0:4])
 	if cbHeight != uint32(blockHeight) {
-		prevBlock := block.MsgBlock().Header.PrevBlock
-		str := fmt.Sprintf("block %v output 1 has wrong height in "+
-			"coinbase; want %v, got %v; prevBlock %v, header height %v",
-			block.Hash(), blockHeight, cbHeight, prevBlock,
-			block.MsgBlock().Header.Height)
+		header := &block.MsgBlock().Header
+		str := fmt.Sprintf("block %s coinbase output 1 encodes height %d "+
+			"instead of expected height %d (prev block: %s, header height %d)",
+			block.Hash(), cbHeight, uint32(blockHeight), header.PrevBlock,
+			header.Height)
 		return ruleError(ErrCoinbaseHeight, str)
 	}
 

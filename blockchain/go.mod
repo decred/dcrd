@@ -12,7 +12,7 @@ require (
 	github.com/decred/dcrd/dcrec/secp256k1 v1.0.1
 	github.com/decred/dcrd/dcrutil v1.2.0
 	github.com/decred/dcrd/gcs v1.0.2
-	github.com/decred/dcrd/txscript v1.0.2
+	github.com/decred/dcrd/txscript v1.1.0
 	github.com/decred/dcrd/wire v1.2.0
 	github.com/decred/slog v1.0.0
 	github.com/onsi/ginkgo v1.7.0 // indirect

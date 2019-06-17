@@ -26,7 +26,7 @@ require (
 	github.com/decred/dcrd/mining v1.1.0
 	github.com/decred/dcrd/peer v1.1.0
 	github.com/decred/dcrd/rpcclient/v2 v2.0.0
-	github.com/decred/dcrd/txscript v1.0.2
+	github.com/decred/dcrd/txscript v1.1.0
 	github.com/decred/dcrd/wire v1.2.0
 	github.com/decred/dcrwallet/rpc/jsonrpc/types v1.0.0
 	github.com/decred/slog v1.0.0

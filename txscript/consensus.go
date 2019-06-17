@@ -19,6 +19,8 @@ const (
 	// maxUniqueCoinbaseNullDataSize is the maximum number of bytes allowed
 	// in the pushed data output of the coinbase output that is used to
 	// ensure the coinbase has a unique hash.
+	//
+	// Deprecated: This will be removed in the next major version bump.
 	maxUniqueCoinbaseNullDataSize = 256
 )
 
@@ -29,6 +31,8 @@ const (
 // NOTE: This function is only valid for version 0 scripts.  Since the function
 // does not accept a script version, the results are undefined for other script
 // versions.
+//
+// Deprecated: This will be removed in the next major version bump.
 func ExtractCoinbaseNullData(pkScript []byte) ([]byte, error) {
 	// The nulldata in the coinbase must be a single OP_RETURN followed by a
 	// data push up to maxUniqueCoinbaseNullDataSize bytes.
