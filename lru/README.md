@@ -1,9 +1,9 @@
 lru
 ===
 
-[![Build Status](http://img.shields.io/travis/decred/dcrd.svg)](https://travis-ci.org/decred/dcrd)
-[![ISC License](http://img.shields.io/badge/license-ISC-blue.svg)](http://copyfree.org)
-[![GoDoc](https://img.shields.io/badge/godoc-reference-blue.svg)](http://godoc.org/github.com/decred/dcrd/lru)
+[![Build Status](https://img.shields.io/travis/decred/dcrd.svg)](https://travis-ci.org/decred/dcrd)
+[![ISC License](https://img.shields.io/badge/license-ISC-blue.svg)](http://copyfree.org)
+[![GoDoc](https://img.shields.io/badge/godoc-reference-blue.svg)](https://godoc.org/github.com/decred/dcrd/lru)
 
 Package lru implements a generic least-recently-used cache with near O(1) perf.
 
@@ -31,7 +31,7 @@ $ go get -u github.com/decred/dcrd/lru
 
 ## Examples
 
-* [Basic Usage](http://godoc.org/github.com/decred/dcrd/lru#example-package--BasicUsage)  
+* [Basic Usage](https://godoc.org/github.com/decred/dcrd/lru#example-package--BasicUsage)
   Demonstrates creating a new cache instance, inserting items into the cache,
   causing an eviction of the least-recently-used item, and removing an item.
 

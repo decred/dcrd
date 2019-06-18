@@ -1,12 +1,12 @@
 rpcclient
 =========
 
-[![Build Status](http://img.shields.io/travis/decred/dcrd.svg)](https://travis-ci.org/decred/dcrd)
-[![ISC License](http://img.shields.io/badge/license-ISC-blue.svg)](http://copyfree.org)
-[![GoDoc](https://img.shields.io/badge/godoc-reference-blue.svg)](http://godoc.org/github.com/decred/dcrd/rpcclient)
+[![Build Status](https://img.shields.io/travis/decred/dcrd.svg)](https://travis-ci.org/decred/dcrd)
+[![ISC License](https://img.shields.io/badge/license-ISC-blue.svg)](http://copyfree.org)
+[![GoDoc](https://img.shields.io/badge/godoc-reference-blue.svg)](https://godoc.org/github.com/decred/dcrd/rpcclient)
 
 rpcclient implements a Websocket-enabled Decred JSON-RPC client package written
-in [Go](http://golang.org/).  It provides a robust and easy to use client for
+in [Go](https://golang.org/).  It provides a robust and easy to use client for
 interfacing with a Decred RPC server that uses a dcrd compatible Decred
 JSON-RPC API.
 
@@ -18,7 +18,7 @@ implement and the API is not stable yet.
 
 ## Documentation
 
-* [API Reference](http://godoc.org/github.com/decred/dcrd/rpcclient)
+* [API Reference](https://godoc.org/github.com/decred/dcrd/rpcclient)
 * [dcrd Websockets Example](https://github.com/decred/dcrd/tree/master/rpcclient/examples/dcrdwebsockets)
   Connects to a dcrd RPC server using TLS-secured websockets, registers for
   block connected and block disconnected notifications, and gets the current

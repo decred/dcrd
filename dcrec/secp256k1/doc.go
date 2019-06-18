@@ -8,7 +8,7 @@ Package secp256k1 implements support for the elliptic curves needed for Decred.
 
 Decred uses elliptic curve cryptography using koblitz curves
 (specifically secp256k1) for cryptographic functions.  See
-http://www.secg.org/sec2-v2.pdf for details on the standard.
+https://www.secg.org/sec2-v2.pdf for details on the standard.
 
 This package provides the data structures and functions implementing the
 crypto/elliptic Curve interface in order to permit using these curves
