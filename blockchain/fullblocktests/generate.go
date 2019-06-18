@@ -2477,13 +2477,35 @@ func Generate(includeLargeReorg bool) (tests [][]TestInstance, err error) {
 	})
 	rejected(blockchain.ErrFirstTxNotCoinbase)
 
+	// Create block with an invalid script version in the coinbase block
+	// commitment output.
+	//
+	//   ... -> bsb2(18)
+	//                  \-> bcb2a(19)
+	g.SetTip("bsb2")
+	g.NextBlock("bcb2a", outs[19], ticketOuts[19], func(b *wire.MsgBlock) {
+		b.Transactions[0].TxOut[1].Version = ^uint16(0)
+	})
+	rejected(blockchain.ErrFirstTxNotCoinbase)
+
 	// Create block with too few bytes for the coinbase height commitment.
 	//
 	//   ... -> bsb2(18)
-	//                  \-> bcb2(19)
+	//                  \-> bcb3(19)
 	g.SetTip("bsb2")
 	g.NextBlock("bcb3", outs[19], ticketOuts[19], func(b *wire.MsgBlock) {
 		script := opReturnScript(repeatOpcode(0x00, 3))
+		b.Transactions[0].TxOut[1].PkScript = script
+	})
+	rejected(blockchain.ErrFirstTxNotCoinbase)
+
+	// Create block with too many bytes for the coinbase height commitment.
+	//
+	//   ... -> bsb2(18)
+	//                  \-> bcb3a(19)
+	g.SetTip("bsb2")
+	g.NextBlock("bcb3a", outs[19], ticketOuts[19], func(b *wire.MsgBlock) {
+		script := opReturnScript(repeatOpcode(0x00, 257))
 		b.Transactions[0].TxOut[1].PkScript = script
 	})
 	rejected(blockchain.ErrFirstTxNotCoinbase)
