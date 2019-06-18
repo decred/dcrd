@@ -24,7 +24,7 @@ const (
 )
 
 // These constants define the application version and follow the semantic
-// versioning 2.0.0 spec (http://semver.org/).
+// versioning 2.0.0 spec (https://semver.org/).
 const (
 	Major uint = 1
 	Minor uint = 5
@@ -48,7 +48,7 @@ var (
 )
 
 // String returns the application version as a properly formed string per the
-// semantic versioning 2.0.0 spec (http://semver.org/).
+// semantic versioning 2.0.0 spec (https://semver.org/).
 func String() string {
 	// Start with the major, minor, and patch versions.
 	version := fmt.Sprintf("%d.%d.%d", Major, Minor, Patch)

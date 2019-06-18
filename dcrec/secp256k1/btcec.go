@@ -9,7 +9,7 @@ package secp256k1
 
 // References:
 //   [SECG]: Recommended Elliptic Curve Domain Parameters
-//     http://www.secg.org/sec2-v2.pdf
+//     https://www.secg.org/sec2-v2.pdf
 //
 //   [GECC]: Guide to Elliptic Curve Cryptography (Hankerson, Menezes, Vanstone)
 
@@ -130,7 +130,7 @@ func (curve *KoblitzCurve) addZ1AndZ2EqualsOne(x1, y1, z1, x2, y2, x3, y3, z3 *f
 	// To compute the point addition efficiently, this implementation splits
 	// the equation into intermediate elements which are used to minimize
 	// the number of field multiplications using the method shown at:
-	// http://hyperelliptic.org/EFD/g1p/auto-shortw-jacobian-0.html#addition-mmadd-2007-bl
+	// https://hyperelliptic.org/EFD/g1p/auto-shortw-jacobian-0.html#addition-mmadd-2007-bl
 	//
 	// In particular it performs the calculations using the following:
 	// H = X2-X1, HH = H^2, I = 4*HH, J = H*I, r = 2*(Y2-Y1), V = X1*I
@@ -197,7 +197,7 @@ func (curve *KoblitzCurve) addZ1EqualsZ2(x1, y1, z1, x2, y2, x3, y3, z3 *fieldVa
 	// the equation into intermediate elements which are used to minimize
 	// the number of field multiplications using a slightly modified version
 	// of the method shown at:
-	// http://hyperelliptic.org/EFD/g1p/auto-shortw-jacobian-0.html#addition-mmadd-2007-bl
+	// https://hyperelliptic.org/EFD/g1p/auto-shortw-jacobian-0.html#addition-mmadd-2007-bl
 	//
 	// In particular it performs the calculations using the following:
 	// A = X2-X1, B = A^2, C=Y2-Y1, D = C^2, E = X1*B, F = X2*B
@@ -265,7 +265,7 @@ func (curve *KoblitzCurve) addZ2EqualsOne(x1, y1, z1, x2, y2, x3, y3, z3 *fieldV
 	// To compute the point addition efficiently, this implementation splits
 	// the equation into intermediate elements which are used to minimize
 	// the number of field multiplications using the method shown at:
-	// http://hyperelliptic.org/EFD/g1p/auto-shortw-jacobian-0.html#addition-madd-2007-bl
+	// https://hyperelliptic.org/EFD/g1p/auto-shortw-jacobian-0.html#addition-madd-2007-bl
 	//
 	// In particular it performs the calculations using the following:
 	// Z1Z1 = Z1^2, U2 = X2*Z1Z1, S2 = Y2*Z1*Z1Z1, H = U2-X1, HH = H^2,
@@ -341,7 +341,7 @@ func (curve *KoblitzCurve) addGeneric(x1, y1, z1, x2, y2, z2, x3, y3, z3 *fieldV
 	// To compute the point addition efficiently, this implementation splits
 	// the equation into intermediate elements which are used to minimize
 	// the number of field multiplications using the method shown at:
-	// http://hyperelliptic.org/EFD/g1p/auto-shortw-jacobian-0.html#addition-add-2007-bl
+	// https://hyperelliptic.org/EFD/g1p/auto-shortw-jacobian-0.html#addition-add-2007-bl
 	//
 	// In particular it performs the calculations using the following:
 	// Z1Z1 = Z1^2, Z2Z2 = Z2^2, U1 = X1*Z2Z2, U2 = X2*Z1Z1, S1 = Y1*Z2*Z2Z2
@@ -497,7 +497,7 @@ func (curve *KoblitzCurve) doubleZ1EqualsOne(x1, y1, x3, y3, z3 *fieldVal) {
 	// implementation at the time this was written.
 	//
 	// This uses a slightly modified version of the method shown at:
-	// http://hyperelliptic.org/EFD/g1p/auto-shortw-jacobian-0.html#doubling-mdbl-2007-bl
+	// https://hyperelliptic.org/EFD/g1p/auto-shortw-jacobian-0.html#doubling-mdbl-2007-bl
 	//
 	// In particular it performs the calculations using the following:
 	// A = X1^2, B = Y1^2, C = B^2, D = 2*((X1+B)^2-A-C)
@@ -546,7 +546,7 @@ func (curve *KoblitzCurve) doubleGeneric(x1, y1, z1, x3, y3, z3 *fieldVal) {
 	// implementation at the time this was written.
 	//
 	// This uses a slightly modified version of the method shown at:
-	// http://hyperelliptic.org/EFD/g1p/auto-shortw-jacobian-0.html#doubling-dbl-2009-l
+	// https://hyperelliptic.org/EFD/g1p/auto-shortw-jacobian-0.html#doubling-dbl-2009-l
 	//
 	// In particular it performs the calculations using the following:
 	// A = X1^2, B = Y1^2, C = B^2, D = 2*((X1+B)^2-A-C)

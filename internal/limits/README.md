@@ -1,9 +1,9 @@
 limits
 ======
 
-[![Build Status](http://img.shields.io/travis/decred/dcrd.svg)](https://travis-ci.org/decred/dcrd)
-[![ISC License](http://img.shields.io/badge/license-ISC-blue.svg)](http://copyfree.org)
-[![GoDoc](http://img.shields.io/badge/godoc-reference-blue.svg)](http://godoc.org/github.com/decred/dcrd/internal/limits)
+[![Build Status](https://img.shields.io/travis/decred/dcrd.svg)](https://travis-ci.org/decred/dcrd)
+[![ISC License](https://img.shields.io/badge/license-ISC-blue.svg)](http://copyfree.org)
+[![GoDoc](https://img.shields.io/badge/godoc-reference-blue.svg)](https://godoc.org/github.com/decred/dcrd/internal/limits)
 
 Package limits allows some process limits to be raised.
 

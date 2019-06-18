@@ -108,7 +108,7 @@ func Discover() (nat NAT, err error) {
 			continue
 		}
 		// HTTP header field names are case-insensitive.
-		// http://www.w3.org/Protocols/rfc2616/rfc2616-sec4.html#sec4.2
+		// https://www.w3.org/Protocols/rfc2616/rfc2616-sec4.html#sec4.2
 		locString := "\r\nlocation: "
 		locIndex := strings.Index(strings.ToLower(answer), locString)
 		if locIndex < 0 {

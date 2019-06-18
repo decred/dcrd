@@ -20,7 +20,7 @@
 
 ### 1. About
 
-dcrd is a full node Decred implementation written in [Go](http://golang.org),
+dcrd is a full node Decred implementation written in [Go](https://golang.org),
 and is licensed under the [copyfree](http://www.copyfree.org) ISC License.
 
 This software is currently under active development.  It is extremely stable and
@@ -48,7 +48,7 @@ The first step is to install dcrd.  The installation instructions can be found
 
 **2.2 Configuration**<br />
 
-dcrd has a number of [configuration](http://godoc.org/github.com/decred/dcrd)
+dcrd has a number of [configuration](https://godoc.org/github.com/decred/dcrd)
 options, which can be viewed by running: `$ dcrd --help`.
 
 <a name="DcrctlConfig" />
@@ -56,7 +56,7 @@ options, which can be viewed by running: `$ dcrd --help`.
 **2.3 Controlling and Querying dcrd via dcrctl**<br />
 
 dcrctl is a command line utility that can be used to both control and query dcrd
-via [RPC](http://www.wikipedia.org/wiki/Remote_procedure_call).  dcrd does
+via [RPC](https://www.wikipedia.org/wiki/Remote_procedure_call).  dcrd does
 **not** enable its RPC server by default;  You must configure at minimum both an
 RPC username and password or both an RPC limited username and password:
 
@@ -100,7 +100,7 @@ miningaddr=DsExampleAddress2
 
 **2. Add dcrd's RPC TLS certificate to system Certificate Authority list.**<br />
 
-`cgminer` uses [curl](http://curl.haxx.se/) to fetch data from the RPC server.
+`cgminer` uses [curl](https://curl.haxx.se/) to fetch data from the RPC server.
 Since curl validates the certificate by default, we must install the `dcrd` RPC
 certificate into the default system Certificate Authority list.
 

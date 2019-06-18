@@ -69,7 +69,7 @@ security and performance implications.
 
 ### 3. Required Reading
 
-- [Effective Go](http://golang.org/doc/effective_go.html) - The entire dcrd
+- [Effective Go](https://golang.org/doc/effective_go.html) - The entire dcrd
   suite follows the guidelines in this document.  For your code to be accepted,
   it must follow the guidelines therein.
 - [Original Satoshi Whitepaper](https://bitcoin.org/bitcoin.pdf) - This is the
@@ -125,7 +125,7 @@ code works correctly when it is fed correct data as well as incorrect data
 
 Go provides an excellent test framework that makes writing test code and
 checking coverage statistics straight forward.  For more information about the
-test coverage tools, see the [Golang cover blog post](http://blog.golang.org/cover).
+test coverage tools, see the [Golang cover blog post](https://blog.golang.org/cover).
 
 A simple way to check the coverage of a package and all its functions is to call
 ```
@@ -147,7 +147,7 @@ A quick summary of test practices follows:
 - At a minimum every function must be commented with its intended purpose and
   any assumptions that it makes
   - Function comments must always begin with the name of the function per
-    [Effective Go](http://golang.org/doc/effective_go.html).
+    [Effective Go](https://golang.org/doc/effective_go.html).
   - Function comments should be complete sentences since they allow a wide
     variety of automated presentations such as [godoc.org](https://godoc.org).
   - The general rule of thumb is to look at it as if you were completely

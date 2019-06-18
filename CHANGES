@@ -47,7 +47,7 @@ Changes in 0.11.0 (Wed May 06 2015)
     - Fix a case that could lead stalled syncs (#138, #296)
   - Network address manager changes:
     - Implement eclipse attack countermeasures as proposed in
-      http://cs-people.bu.edu/heilman/eclipse (#370, #373)
+      https://cs-people.bu.edu/heilman/eclipse (#370, #373)
   - Optional address indexing changes:
     - Fix an issue where a reorg could cause an orderly shutdown when the
       address index is active (#340, #357)
