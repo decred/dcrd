@@ -368,9 +368,7 @@ func finalOpcodeData(scriptVersion uint16, script []byte) []byte {
 // consensus which, unfortunately as of the time of this writing, does not check
 // script versions before counting their signature operations which means nodes
 // on existing rules will count new version scripts as if they were version 0.
-//
-// The third parameter is DEPRECATED and is unused.
-func GetPreciseSigOpCount(scriptSig, scriptPubKey []byte, _ bool) int {
+func GetPreciseSigOpCount(scriptSig, scriptPubKey []byte) int {
 	const scriptVersion = 0
 
 	// Treat non P2SH transactions as normal.  Note that signature operation

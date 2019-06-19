@@ -161,7 +161,7 @@ func TestGetPreciseSigOps(t *testing.T) {
 	pkScript := mustParseShortForm("HASH160 DATA_20 0x433ec2ac1ffa1b7b7d0" +
 		"27f564529c57197f9ae88 EQUAL")
 	for _, test := range tests {
-		count := GetPreciseSigOpCount(test.scriptSig, pkScript, true)
+		count := GetPreciseSigOpCount(test.scriptSig, pkScript)
 		if count != test.nSigOps {
 			t.Errorf("%s: expected count of %d, got %d", test.name,
 				test.nSigOps, count)
