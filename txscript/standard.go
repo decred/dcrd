@@ -730,16 +730,10 @@ func CalcMultiSigStats(script []byte) (int, int, error) {
 // NOTE: This function is only valid for version 0 scripts.  Since the function
 // does not accept a script version, the results are undefined for other script
 // versions.
-//
-// The error is DEPRECATED and will be removed in the major version bump.
-func MultisigRedeemScriptFromScriptSig(script []byte) ([]byte, error) {
-	const scriptVersion = 0
-	if err := checkScriptParses(scriptVersion, script); err != nil {
-		return nil, err
-	}
-
+func MultisigRedeemScriptFromScriptSig(script []byte) []byte {
 	// The redeemScript is always the last item on the stack of the script sig.
-	return finalOpcodeData(scriptVersion, script), nil
+	const scriptVersion = 0
+	return finalOpcodeData(scriptVersion, script)
 }
 
 // payToPubKeyHashScript creates a new script to pay a transaction
