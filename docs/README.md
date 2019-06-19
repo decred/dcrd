@@ -182,7 +182,7 @@ The following versioned modules are provided by dcrd repository:
   * [stake](https://github.com/decred/dcrd/tree/master/blockchain/stake) -
     Provides an API for working with stake transactions and other portions
     related to the Proof-of-Stake (PoS) system
-* [txscript](https://github.com/decred/dcrd/tree/master/txscript) -
+* [txscript/v2](https://github.com/decred/dcrd/tree/master/txscript) -
   Implements the Decred transaction scripting language
 * [dcrec](https://github.com/decred/dcrd/tree/master/dcrec) - Provides constants
   for the supported cryptographic signatures supported by Decred scripts

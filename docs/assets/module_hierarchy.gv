@@ -15,7 +15,7 @@ digraph {
 	dcrutil [label="dcrutil/v2" fillcolor=burlywood]
 	database [label="database" fillcolor=dodgerblue]
 	hdkeychain [label="hdkeychain/v2" fillcolor=deepskyblue]
-	txscript [label="txscript" fillcolor=mediumspringgreen]
+	txscript [label="txscript/v2" fillcolor=mediumspringgreen]
 	stake [label="blockchain/stake" fillcolor=bisque]
 	gcs [label="gcs" fillcolor=gold]
 	blockchain [label="blockchain" fillcolor=orchid]
