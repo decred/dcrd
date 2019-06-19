@@ -773,42 +773,6 @@ func payToScriptHashScript(scriptHash []byte) ([]byte, error) {
 		AddOp(OP_EQUAL).Script()
 }
 
-// GetScriptHashFromP2SHScript extracts the script hash from a valid
-// pay-to-script-hash pkScript.   The script is expected to already have been
-// checked to be a pay-to-script-hash script prior to calling this function.
-// The results are undefined for other script types.
-//
-// NOTE: This function is only valid for version 0 scripts.  Since the function
-// does not accept a script version, the results are undefined for other script
-// versions.
-//
-// DEPRECATED.  This will be removed in the next major version bump.
-func GetScriptHashFromP2SHScript(pkScript []byte) ([]byte, error) {
-	// Scan through the opcodes until the first HASH160 opcode is found.
-	const scriptVersion = 0
-	tokenizer := MakeScriptTokenizer(scriptVersion, pkScript)
-	for tokenizer.Next() {
-		if tokenizer.Opcode() == OP_HASH160 {
-			break
-		}
-	}
-
-	// Attempt to extract the script hash if the script is not already fully
-	// parsed and didn't already fail during parsing above.
-	//
-	// Note that this means a script without a data push for the script hash or
-	// where OP_HASH160 wasn't found will result in nil data being returned.
-	// This was done to preserve existing behavior, although it is questionable
-	// since a p2sh script has a specific form and if there is no push here,
-	// it's not really a p2sh script and thus should probably have returned an
-	// appropriate error for calling the function incorrectly.
-	if tokenizer.Next() {
-		return tokenizer.Data(), nil
-	}
-	return nil, tokenizer.Err()
-
-}
-
 // PayToScriptHashScript is the exported version of payToScriptHashScript.
 func PayToScriptHashScript(scriptHash []byte) ([]byte, error) {
 	return payToScriptHashScript(scriptHash)
