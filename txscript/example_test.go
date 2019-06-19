@@ -58,6 +58,7 @@ func ExamplePayToAddrScript() {
 // script.
 func ExampleExtractPkScriptAddrs() {
 	// Start with a standard pay-to-pubkey-hash script.
+	const scriptVersion = 0
 	scriptHex := "76a914128004ff2fcaf13b2b91eb654b1dc2b674f7ec6188ac"
 	script, err := hex.DecodeString(scriptHex)
 	if err != nil {
@@ -67,7 +68,7 @@ func ExampleExtractPkScriptAddrs() {
 
 	// Extract and print details from the script.
 	scriptClass, addresses, reqSigs, err := txscript.ExtractPkScriptAddrs(
-		txscript.DefaultScriptVersion, script, &chaincfg.MainNetParams)
+		scriptVersion, script, &chaincfg.MainNetParams)
 	if err != nil {
 		fmt.Println(err)
 		return

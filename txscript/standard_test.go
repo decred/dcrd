@@ -83,6 +83,7 @@ func newAddressScriptHash(scriptHash []byte) dcrutil.Address {
 func TestExtractPkScriptAddrs(t *testing.T) {
 	t.Parallel()
 
+	const scriptVersion = 0
 	tests := []struct {
 		name    string
 		script  []byte
@@ -324,9 +325,8 @@ func TestExtractPkScriptAddrs(t *testing.T) {
 
 	t.Logf("Running %d tests.", len(tests))
 	for i, test := range tests {
-		class, addrs, reqSigs, err := ExtractPkScriptAddrs(
-			DefaultScriptVersion, test.script,
-			&chaincfg.MainNetParams)
+		class, addrs, reqSigs, err := ExtractPkScriptAddrs(scriptVersion,
+			test.script, &chaincfg.MainNetParams)
 		if err != nil && !test.noparse {
 			t.Errorf("ExtractPkScriptAddrs #%d (%s): %v", i,
 				test.name, err)
@@ -865,9 +865,10 @@ var scriptClassTests = []struct {
 func TestScriptClass(t *testing.T) {
 	t.Parallel()
 
+	const scriptVersion = 0
 	for _, test := range scriptClassTests {
 		script := mustParseShortForm(test.script)
-		class := GetScriptClass(DefaultScriptVersion, script)
+		class := GetScriptClass(scriptVersion, script)
 		if class != test.class {
 			t.Errorf("%s: expected %s got %s (script %x)", test.name,
 				test.class, class, script)
@@ -934,6 +935,7 @@ func TestStringifyClass(t *testing.T) {
 
 // TestGenerateProvablyPruneableOut tests whether GenerateProvablyPruneableOut returns a valid script.
 func TestGenerateProvablyPruneableOut(t *testing.T) {
+	const scriptVersion = 0
 	tests := []struct {
 		name     string
 		data     []byte
@@ -1026,7 +1028,7 @@ func TestGenerateProvablyPruneableOut(t *testing.T) {
 		}
 
 		// Check that the script has the correct type.
-		scriptType := GetScriptClass(DefaultScriptVersion, script)
+		scriptType := GetScriptClass(scriptVersion, script)
 		if scriptType != test.class {
 			t.Errorf("GetScriptClass: #%d (%s) wrong result -- "+
 				"got: %v, want: %v", i, test.name, scriptType,

@@ -232,7 +232,8 @@ func sign(chainParams *chaincfg.Params, tx *wire.MsgTx, idx int,
 	sigType dcrec.SignatureType) ([]byte,
 	ScriptClass, []dcrutil.Address, int, error) {
 
-	class, addresses, nrequired, err := ExtractPkScriptAddrs(DefaultScriptVersion,
+	const scriptVersion = 0
+	class, addresses, nrequired, err := ExtractPkScriptAddrs(scriptVersion,
 		subScript, chainParams)
 	if err != nil {
 		return nil, NonStandardTy, nil, 0, err
@@ -521,8 +522,8 @@ func mergeScripts(chainParams *chaincfg.Params, tx *wire.MsgTx, idx int,
 
 		// We already know this information somewhere up the stack,
 		// therefore the error is ignored.
-		class, addresses, nrequired, _ :=
-			ExtractPkScriptAddrs(DefaultScriptVersion, script, chainParams)
+		class, addresses, nrequired, _ := ExtractPkScriptAddrs(scriptVersion,
+			script, chainParams)
 
 		// Merge
 		mergedScript := mergeScripts(chainParams, tx, idx, script,

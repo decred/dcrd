@@ -60,10 +60,6 @@ const (
 
 	// MaxScriptSize is the maximum allowed length of a raw script.
 	MaxScriptSize = 16384
-
-	// DefaultScriptVersion is the default scripting language version
-	// representing extended Decred script.
-	DefaultScriptVersion = uint16(0)
 )
 
 // halforder is used to tame ECDSA malleability (see BIP0062).

@@ -570,7 +570,8 @@ func typeOfScript(scriptVersion uint16, script []byte) ScriptClass {
 //
 // NonStandardTy will be returned when the script does not parse.
 func GetScriptClass(version uint16, script []byte) ScriptClass {
-	if version != DefaultScriptVersion {
+	// All scripts with nonzero versions are considered non standard.
+	if version != 0 {
 		return NonStandardTy
 	}
 
