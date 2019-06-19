@@ -132,11 +132,7 @@ func BenchmarkIsMultisigScriptLarge(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		isMultisig, err := IsMultisigScript(script)
-		if err != nil {
-			b.Fatalf("unexpected err: %v", err)
-		}
-		if isMultisig {
+		if IsMultisigScript(script) {
 			b.Fatalf("script should NOT be reported as mutisig script")
 		}
 	}
@@ -155,11 +151,7 @@ func BenchmarkIsMultisigScript(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		isMultisig, err := IsMultisigScript(pkScript)
-		if err != nil {
-			b.Fatalf("unexpected err: %v", err)
-		}
-		if !isMultisig {
+		if !IsMultisigScript(pkScript) {
 			b.Fatalf("script should be reported as a mutisig script")
 		}
 	}

@@ -177,11 +177,9 @@ func isMultisigScript(scriptVersion uint16, script []byte) bool {
 // NOTE: This function is only valid for version 0 scripts.  Since the function
 // does not accept a script version, the results are undefined for other script
 // versions.
-//
-// The error is DEPRECATED and will be removed in the major version bump.
-func IsMultisigScript(script []byte) (bool, error) {
+func IsMultisigScript(script []byte) bool {
 	const scriptVersion = 0
-	return isMultisigScript(scriptVersion, script), nil
+	return isMultisigScript(scriptVersion, script)
 }
 
 // IsMultisigSigScript returns whether or not the passed script appears to be a
