@@ -56,6 +56,5 @@ replace (
 	github.com/decred/dcrd/mining => ./mining
 	github.com/decred/dcrd/peer => ./peer
 	github.com/decred/dcrd/rpcclient/v2 => ./rpcclient
-	github.com/decred/dcrd/txscript => ./txscript
 	github.com/decred/dcrd/wire => ./wire
 )
