@@ -9,12 +9,12 @@ import (
 	"encoding/hex"
 	"fmt"
 
-	"github.com/decred/dcrd/chaincfg"
-	"github.com/decred/dcrd/chaincfg/chainec"
 	"github.com/decred/dcrd/chaincfg/chainhash"
+	"github.com/decred/dcrd/chaincfg/v2"
+	"github.com/decred/dcrd/chaincfg/v2/chainec"
 	"github.com/decred/dcrd/dcrec"
 	"github.com/decred/dcrd/dcrec/secp256k1"
-	"github.com/decred/dcrd/dcrutil"
+	"github.com/decred/dcrd/dcrutil/v2"
 	"github.com/decred/dcrd/txscript"
 	"github.com/decred/dcrd/wire"
 )
@@ -27,8 +27,9 @@ func ExamplePayToAddrScript() {
 	// which is useful to ensure the accuracy of the address and determine
 	// the address type.  It is also required for the upcoming call to
 	// PayToAddrScript.
+	mainNetParams := chaincfg.MainNetParams()
 	addressStr := "DsSej1qR3Fyc8kV176DCh9n9cY9nqf9Quxk"
-	address, err := dcrutil.DecodeAddress(addressStr)
+	address, err := dcrutil.DecodeAddress(addressStr, mainNetParams)
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -67,8 +68,9 @@ func ExampleExtractPkScriptAddrs() {
 	}
 
 	// Extract and print details from the script.
+	mainNetParams := chaincfg.MainNetParams()
 	scriptClass, addresses, reqSigs, err := txscript.ExtractPkScriptAddrs(
-		scriptVersion, script, &chaincfg.MainNetParams)
+		scriptVersion, script, mainNetParams)
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -95,8 +97,9 @@ func ExampleSignTxOutput() {
 	}
 	privKey, pubKey := secp256k1.PrivKeyFromBytes(privKeyBytes)
 	pubKeyHash := dcrutil.Hash160(pubKey.SerializeCompressed())
-	addr, err := dcrutil.NewAddressPubKeyHash(pubKeyHash,
-		&chaincfg.MainNetParams, dcrec.STEcdsaSecp256k1)
+	mainNetParams := chaincfg.MainNetParams()
+	addr, err := dcrutil.NewAddressPubKeyHash(pubKeyHash, mainNetParams,
+		dcrec.STEcdsaSecp256k1)
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -155,10 +158,9 @@ func ExampleSignTxOutput() {
 	// Notice that the script database parameter is nil here since it isn't
 	// used.  It must be specified when pay-to-script-hash transactions are
 	// being signed.
-	sigScript, err := txscript.SignTxOutput(&chaincfg.MainNetParams,
-		redeemTx, 0, originTx.TxOut[0].PkScript, txscript.SigHashAll,
-		txscript.KeyClosure(lookupKey), nil, nil,
-		dcrec.STEcdsaSecp256k1)
+	sigScript, err := txscript.SignTxOutput(mainNetParams, redeemTx, 0,
+		originTx.TxOut[0].PkScript, txscript.SigHashAll,
+		txscript.KeyClosure(lookupKey), nil, nil, dcrec.STEcdsaSecp256k1)
 	if err != nil {
 		fmt.Println(err)
 		return

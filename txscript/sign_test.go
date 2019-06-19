@@ -12,17 +12,17 @@ import (
 	mrand "math/rand"
 	"testing"
 
-	"github.com/decred/dcrd/chaincfg"
-	"github.com/decred/dcrd/chaincfg/chainec"
 	"github.com/decred/dcrd/chaincfg/chainhash"
+	"github.com/decred/dcrd/chaincfg/v2"
+	"github.com/decred/dcrd/chaincfg/v2/chainec"
 	"github.com/decred/dcrd/dcrec"
-	"github.com/decred/dcrd/dcrutil"
+	"github.com/decred/dcrd/dcrutil/v2"
 	"github.com/decred/dcrd/wire"
 )
 
 // testingParams defines the chain params to use throughout these tests so it
 // can more easily be changed if desired.
-var testingParams = &chaincfg.RegNetParams
+var testingParams = chaincfg.RegNetParams()
 
 const testValueIn = 12345
 
@@ -40,7 +40,7 @@ func mkGetKey(keys map[string]addressToKey) KeyDB {
 	}
 	return KeyClosure(func(addr dcrutil.Address) (chainec.PrivateKey,
 		bool, error) {
-		a2k, ok := keys[addr.EncodeAddress()]
+		a2k, ok := keys[addr.Address()]
 		if !ok {
 			return nil, false, errors.New("nope 2")
 		}
@@ -74,7 +74,7 @@ func mkGetScript(scripts map[string][]byte) ScriptDB {
 	}
 	return ScriptClosure(func(addr dcrutil.Address) ([]byte,
 		error) {
-		script, ok := scripts[addr.EncodeAddress()]
+		script, ok := scripts[addr.Address()]
 		if !ok {
 			return nil, errors.New("nope 4")
 		}
@@ -258,7 +258,7 @@ func TestSignTxOutput(t *testing.T) {
 
 				if err := signAndCheck(msg, tx, i, pkScript, hashType,
 					mkGetKey(map[string]addressToKey{
-						address.EncodeAddress(): {&key, false},
+						address.Address(): {&key, false},
 					}), mkGetScript(nil), suite); err != nil {
 					t.Error(err)
 					break
@@ -266,7 +266,7 @@ func TestSignTxOutput(t *testing.T) {
 
 				if err := signBadAndCheck(msg, tx, i, pkScript, hashType,
 					mkGetKey(map[string]addressToKey{
-						address.EncodeAddress(): {&key, false},
+						address.Address(): {&key, false},
 					}), mkGetScript(nil), suite); err == nil {
 					t.Errorf("corrupted signature validated %s: %v",
 						msg, err)
@@ -319,7 +319,7 @@ func TestSignTxOutput(t *testing.T) {
 				sigScript, err := SignTxOutput(
 					testingParams, tx, i, pkScript,
 					hashType, mkGetKey(map[string]addressToKey{
-						address.EncodeAddress(): {&key, false},
+						address.Address(): {&key, false},
 					}), mkGetScript(nil), nil, suite)
 				if err != nil {
 					t.Errorf("failed to sign output %s: %v", msg,
@@ -332,7 +332,7 @@ func TestSignTxOutput(t *testing.T) {
 				sigScript, err = SignTxOutput(
 					testingParams, tx, i, pkScript,
 					hashType, mkGetKey(map[string]addressToKey{
-						address.EncodeAddress(): {&key, false},
+						address.Address(): {&key, false},
 					}), mkGetScript(nil), sigScript, suite)
 				if err != nil {
 					t.Errorf("failed to sign output %s a "+
@@ -392,7 +392,7 @@ func TestSignTxOutput(t *testing.T) {
 
 				if err := signAndCheck(msg, tx, i, pkScript, hashType,
 					mkGetKey(map[string]addressToKey{
-						address.EncodeAddress(): {&key, true},
+						address.Address(): {&key, true},
 					}), mkGetScript(nil), suite); err != nil {
 					t.Error(err)
 					break
@@ -400,7 +400,7 @@ func TestSignTxOutput(t *testing.T) {
 
 				if err := signBadAndCheck(msg, tx, i, pkScript, hashType,
 					mkGetKey(map[string]addressToKey{
-						address.EncodeAddress(): {&key, true},
+						address.Address(): {&key, true},
 					}), mkGetScript(nil), suite); err == nil {
 					t.Errorf("corrupted signature validated %s: %v",
 						msg, err)
@@ -453,7 +453,7 @@ func TestSignTxOutput(t *testing.T) {
 				sigScript, err := SignTxOutput(testingParams,
 					tx, i, pkScript, hashType,
 					mkGetKey(map[string]addressToKey{
-						address.EncodeAddress(): {&key, true},
+						address.Address(): {&key, true},
 					}), mkGetScript(nil), nil, suite)
 				if err != nil {
 					t.Errorf("failed to sign output %s: %v", msg,
@@ -466,7 +466,7 @@ func TestSignTxOutput(t *testing.T) {
 				sigScript, err = SignTxOutput(testingParams,
 					tx, i, pkScript,
 					hashType, mkGetKey(map[string]addressToKey{
-						address.EncodeAddress(): {&key, true},
+						address.Address(): {&key, true},
 					}), mkGetScript(nil), sigScript, suite)
 				if err != nil {
 					t.Errorf("failed to sign output %s a "+
@@ -514,7 +514,7 @@ func TestSignTxOutput(t *testing.T) {
 
 			if err := signAndCheck(msg, tx, i, pkScript, hashType,
 				mkGetKey(map[string]addressToKey{
-					address.EncodeAddress(): {&key, true},
+					address.Address(): {&key, true},
 				}), mkGetScript(nil),
 				dcrec.STEcdsaSecp256k1); err != nil {
 				t.Error(err)
@@ -523,7 +523,7 @@ func TestSignTxOutput(t *testing.T) {
 
 			if err := signBadAndCheck(msg, tx, i, pkScript, hashType,
 				mkGetKey(map[string]addressToKey{
-					address.EncodeAddress(): {&key, true},
+					address.Address(): {&key, true},
 				}), mkGetScript(nil),
 				dcrec.STEcdsaSecp256k1); err == nil {
 				t.Errorf("corrupted signature validated %s: %v",
@@ -563,7 +563,7 @@ func TestSignTxOutput(t *testing.T) {
 
 			if err := signAndCheck(msg, tx, i, pkScript, hashType,
 				mkGetKey(map[string]addressToKey{
-					address.EncodeAddress(): {&key, true},
+					address.Address(): {&key, true},
 				}), mkGetScript(nil),
 				dcrec.STEcdsaSecp256k1); err != nil {
 				t.Error(err)
@@ -572,7 +572,7 @@ func TestSignTxOutput(t *testing.T) {
 
 			if err := signBadAndCheck(msg, tx, i, pkScript, hashType,
 				mkGetKey(map[string]addressToKey{
-					address.EncodeAddress(): {&key, true},
+					address.Address(): {&key, true},
 				}), mkGetScript(nil),
 				dcrec.STEcdsaSecp256k1); err == nil {
 				t.Errorf("corrupted signature validated %s: %v",
@@ -612,7 +612,7 @@ func TestSignTxOutput(t *testing.T) {
 
 			if err := signAndCheck(msg, tx, i, pkScript, hashType,
 				mkGetKey(map[string]addressToKey{
-					address.EncodeAddress(): {&key, true},
+					address.Address(): {&key, true},
 				}), mkGetScript(nil),
 				dcrec.STEcdsaSecp256k1); err != nil {
 				t.Error(err)
@@ -621,7 +621,7 @@ func TestSignTxOutput(t *testing.T) {
 
 			if err := signBadAndCheck(msg, tx, i, pkScript, hashType,
 				mkGetKey(map[string]addressToKey{
-					address.EncodeAddress(): {&key, true},
+					address.Address(): {&key, true},
 				}), mkGetScript(nil),
 				dcrec.STEcdsaSecp256k1); err == nil {
 				t.Errorf("corrupted signature validated %s: %v",
@@ -661,7 +661,7 @@ func TestSignTxOutput(t *testing.T) {
 
 			if err := signAndCheck(msg, tx, i, pkScript, hashType,
 				mkGetKey(map[string]addressToKey{
-					address.EncodeAddress(): {&key, true},
+					address.Address(): {&key, true},
 				}), mkGetScript(nil),
 				dcrec.STEcdsaSecp256k1); err != nil {
 				t.Error(err)
@@ -670,7 +670,7 @@ func TestSignTxOutput(t *testing.T) {
 
 			if err := signBadAndCheck(msg, tx, i, pkScript, hashType,
 				mkGetKey(map[string]addressToKey{
-					address.EncodeAddress(): {&key, true},
+					address.Address(): {&key, true},
 				}), mkGetScript(nil),
 				dcrec.STEcdsaSecp256k1); err == nil {
 				t.Errorf("corrupted signature validated %s: %v",
@@ -711,7 +711,7 @@ func TestSignTxOutput(t *testing.T) {
 
 				if err := signAndCheck(msg, tx, i, pkScript, hashType,
 					mkGetKey(map[string]addressToKey{
-						address.EncodeAddress(): {&key, false},
+						address.Address(): {&key, false},
 					}), mkGetScript(nil), suite); err != nil {
 					t.Error(err)
 					break
@@ -719,7 +719,7 @@ func TestSignTxOutput(t *testing.T) {
 
 				if err := signBadAndCheck(msg, tx, i, pkScript, hashType,
 					mkGetKey(map[string]addressToKey{
-						address.EncodeAddress(): {&key, false},
+						address.Address(): {&key, false},
 					}), mkGetScript(nil), suite); err == nil {
 					t.Errorf("corrupted signature validated %s: %v",
 						msg, err)
@@ -945,7 +945,7 @@ func TestSignTxOutput(t *testing.T) {
 				sigScript, err := SignTxOutput(testingParams,
 					tx, i, pkScript, hashType,
 					mkGetKey(map[string]addressToKey{
-						address.EncodeAddress(): {&key, true},
+						address.Address(): {&key, true},
 					}), mkGetScript(nil), nil, suite)
 				if err != nil {
 					t.Errorf("failed to sign output %s: %v", msg,
@@ -958,7 +958,7 @@ func TestSignTxOutput(t *testing.T) {
 				sigScript, err = SignTxOutput(testingParams,
 					tx, i, pkScript, hashType,
 					mkGetKey(map[string]addressToKey{
-						address.EncodeAddress(): {&key, true},
+						address.Address(): {&key, true},
 					}), mkGetScript(nil), sigScript, suite)
 				if err != nil {
 					t.Errorf("failed to sign output %s a "+
@@ -1036,9 +1036,9 @@ func TestSignTxOutput(t *testing.T) {
 				if err := signAndCheck(msg, tx, i, scriptPkScript,
 					hashType,
 					mkGetKey(map[string]addressToKey{
-						address.EncodeAddress(): {&key, false},
+						address.Address(): {&key, false},
 					}), mkGetScript(map[string][]byte{
-						scriptAddr.EncodeAddress(): pkScript,
+						scriptAddr.Address(): pkScript,
 					}), suite); err != nil {
 					t.Error(err)
 					break
@@ -1046,7 +1046,7 @@ func TestSignTxOutput(t *testing.T) {
 
 				if err := signBadAndCheck(msg, tx, i, pkScript, hashType,
 					mkGetKey(map[string]addressToKey{
-						address.EncodeAddress(): {&key, false},
+						address.Address(): {&key, false},
 					}), mkGetScript(nil), suite); err == nil {
 					t.Errorf("corrupted signature validated %s: %v",
 						msg, err)
@@ -1115,9 +1115,9 @@ func TestSignTxOutput(t *testing.T) {
 				_, err = SignTxOutput(testingParams, tx, i,
 					scriptPkScript, hashType,
 					mkGetKey(map[string]addressToKey{
-						address.EncodeAddress(): {&key, false},
+						address.Address(): {&key, false},
 					}), mkGetScript(map[string][]byte{
-						scriptAddr.EncodeAddress(): pkScript,
+						scriptAddr.Address(): pkScript,
 					}), nil, suite)
 				if err != nil {
 					t.Errorf("failed to sign output %s: %v", msg,
@@ -1130,9 +1130,9 @@ func TestSignTxOutput(t *testing.T) {
 				sigScript, err := SignTxOutput(testingParams,
 					tx, i, scriptPkScript, hashType,
 					mkGetKey(map[string]addressToKey{
-						address.EncodeAddress(): {&key, false},
+						address.Address(): {&key, false},
 					}), mkGetScript(map[string][]byte{
-						scriptAddr.EncodeAddress(): pkScript,
+						scriptAddr.Address(): pkScript,
 					}), nil, suite)
 				if err != nil {
 					t.Errorf("failed to sign output %s a "+
@@ -1208,9 +1208,9 @@ func TestSignTxOutput(t *testing.T) {
 				if err := signAndCheck(msg, tx, i, scriptPkScript,
 					hashType,
 					mkGetKey(map[string]addressToKey{
-						address.EncodeAddress(): {&key, true},
+						address.Address(): {&key, true},
 					}), mkGetScript(map[string][]byte{
-						scriptAddr.EncodeAddress(): pkScript,
+						scriptAddr.Address(): pkScript,
 					}), suite); err != nil {
 					t.Error(err)
 					break
@@ -1218,7 +1218,7 @@ func TestSignTxOutput(t *testing.T) {
 
 				if err := signBadAndCheck(msg, tx, i, pkScript, hashType,
 					mkGetKey(map[string]addressToKey{
-						address.EncodeAddress(): {&key, true},
+						address.Address(): {&key, true},
 					}), mkGetScript(nil), suite); err == nil {
 					t.Errorf("corrupted signature validated %s: %v",
 						msg, err)
@@ -1286,9 +1286,9 @@ func TestSignTxOutput(t *testing.T) {
 				_, err = SignTxOutput(testingParams,
 					tx, i, scriptPkScript, hashType,
 					mkGetKey(map[string]addressToKey{
-						address.EncodeAddress(): {&key, true},
+						address.Address(): {&key, true},
 					}), mkGetScript(map[string][]byte{
-						scriptAddr.EncodeAddress(): pkScript,
+						scriptAddr.Address(): pkScript,
 					}), nil, suite)
 				if err != nil {
 					t.Errorf("failed to sign output %s: %v", msg,
@@ -1301,9 +1301,9 @@ func TestSignTxOutput(t *testing.T) {
 				sigScript, err := SignTxOutput(testingParams,
 					tx, i, scriptPkScript, hashType,
 					mkGetKey(map[string]addressToKey{
-						address.EncodeAddress(): {&key, true},
+						address.Address(): {&key, true},
 					}), mkGetScript(map[string][]byte{
-						scriptAddr.EncodeAddress(): pkScript,
+						scriptAddr.Address(): pkScript,
 					}), nil, suite)
 				if err != nil {
 					t.Errorf("failed to sign output %s a "+
@@ -1393,16 +1393,16 @@ func TestSignTxOutput(t *testing.T) {
 				if err := signAndCheck(msg, tx, i, scriptPkScript,
 					hashType,
 					mkGetKey(map[string]addressToKey{
-						address.EncodeAddress(): {&key, false},
+						address.Address(): {&key, false},
 					}), mkGetScript(map[string][]byte{
-						scriptAddr.EncodeAddress(): pkScript,
+						scriptAddr.Address(): pkScript,
 					}), suite); err != nil {
 					t.Error(err)
 				}
 
 				if err := signBadAndCheck(msg, tx, i, pkScript, hashType,
 					mkGetKey(map[string]addressToKey{
-						address.EncodeAddress(): {&key, false},
+						address.Address(): {&key, false},
 					}), mkGetScript(nil), suite); err == nil {
 					t.Errorf("corrupted signature validated %s: %v",
 						msg, err)
@@ -1484,9 +1484,9 @@ func TestSignTxOutput(t *testing.T) {
 				_, err = SignTxOutput(testingParams,
 					tx, i, scriptPkScript, hashType,
 					mkGetKey(map[string]addressToKey{
-						address.EncodeAddress(): {&key, false},
+						address.Address(): {&key, false},
 					}), mkGetScript(map[string][]byte{
-						scriptAddr.EncodeAddress(): pkScript,
+						scriptAddr.Address(): pkScript,
 					}), nil, suite)
 				if err != nil {
 					t.Errorf("failed to sign output %s: %v", msg,
@@ -1499,9 +1499,9 @@ func TestSignTxOutput(t *testing.T) {
 				sigScript, err := SignTxOutput(testingParams,
 					tx, i, scriptPkScript, hashType,
 					mkGetKey(map[string]addressToKey{
-						address.EncodeAddress(): {&key, false},
+						address.Address(): {&key, false},
 					}), mkGetScript(map[string][]byte{
-						scriptAddr.EncodeAddress(): pkScript,
+						scriptAddr.Address(): pkScript,
 					}), nil, suite)
 				if err != nil {
 					t.Errorf("failed to sign output %s a "+
@@ -1590,9 +1590,9 @@ func TestSignTxOutput(t *testing.T) {
 				if err := signAndCheck(msg, tx, i, scriptPkScript,
 					hashType,
 					mkGetKey(map[string]addressToKey{
-						address.EncodeAddress(): {&key, true},
+						address.Address(): {&key, true},
 					}), mkGetScript(map[string][]byte{
-						scriptAddr.EncodeAddress(): pkScript,
+						scriptAddr.Address(): pkScript,
 					}), suite); err != nil {
 					t.Error(err)
 					break
@@ -1600,7 +1600,7 @@ func TestSignTxOutput(t *testing.T) {
 
 				if err := signBadAndCheck(msg, tx, i, pkScript, hashType,
 					mkGetKey(map[string]addressToKey{
-						address.EncodeAddress(): {&key, false},
+						address.Address(): {&key, false},
 					}), mkGetScript(nil), suite); err == nil {
 					t.Errorf("corrupted signature validated %s: %v",
 						msg, err)
@@ -1681,9 +1681,9 @@ func TestSignTxOutput(t *testing.T) {
 				_, err = SignTxOutput(testingParams,
 					tx, i, scriptPkScript, hashType,
 					mkGetKey(map[string]addressToKey{
-						address.EncodeAddress(): {&key, true},
+						address.Address(): {&key, true},
 					}), mkGetScript(map[string][]byte{
-						scriptAddr.EncodeAddress(): pkScript,
+						scriptAddr.Address(): pkScript,
 					}), nil, suite)
 				if err != nil {
 					t.Errorf("failed to sign output %s: %v", msg,
@@ -1696,9 +1696,9 @@ func TestSignTxOutput(t *testing.T) {
 				sigScript, err := SignTxOutput(testingParams,
 					tx, i, scriptPkScript, hashType,
 					mkGetKey(map[string]addressToKey{
-						address.EncodeAddress(): {&key, true},
+						address.Address(): {&key, true},
 					}), mkGetScript(map[string][]byte{
-						scriptAddr.EncodeAddress(): pkScript,
+						scriptAddr.Address(): pkScript,
 					}), nil, suite)
 				if err != nil {
 					t.Errorf("failed to sign output %s a "+
@@ -1777,10 +1777,10 @@ func TestSignTxOutput(t *testing.T) {
 			if err := signAndCheck(msg, tx, i, scriptPkScript,
 				hashType,
 				mkGetKey(map[string]addressToKey{
-					address1.EncodeAddress(): {&key1, true},
-					address2.EncodeAddress(): {&key2, true},
+					address1.Address(): {&key1, true},
+					address2.Address(): {&key2, true},
 				}), mkGetScript(map[string][]byte{
-					scriptAddr.EncodeAddress(): pkScript,
+					scriptAddr.Address(): pkScript,
 				}), dcrec.STEcdsaSecp256k1); err != nil {
 				t.Error(err)
 				break
@@ -1788,8 +1788,8 @@ func TestSignTxOutput(t *testing.T) {
 
 			if err := signBadAndCheck(msg, tx, i, pkScript, hashType,
 				mkGetKey(map[string]addressToKey{
-					address1.EncodeAddress(): {&key1, true},
-					address2.EncodeAddress(): {&key2, true},
+					address1.Address(): {&key1, true},
+					address2.Address(): {&key2, true},
 				}), mkGetScript(nil),
 				dcrec.STEcdsaSecp256k1); err == nil {
 				t.Errorf("corrupted signature validated %s: %v",
@@ -1860,9 +1860,9 @@ func TestSignTxOutput(t *testing.T) {
 			sigScript, err := SignTxOutput(testingParams, tx, i,
 				scriptPkScript, hashType,
 				mkGetKey(map[string]addressToKey{
-					address1.EncodeAddress(): {&key1, true},
+					address1.Address(): {&key1, true},
 				}), mkGetScript(map[string][]byte{
-					scriptAddr.EncodeAddress(): pkScript,
+					scriptAddr.Address(): pkScript,
 				}), nil, dcrec.STEcdsaSecp256k1)
 			if err != nil {
 				t.Errorf("failed to sign output %s: %v", msg,
@@ -1881,9 +1881,9 @@ func TestSignTxOutput(t *testing.T) {
 			sigScript, err = SignTxOutput(testingParams, tx, i,
 				scriptPkScript, hashType,
 				mkGetKey(map[string]addressToKey{
-					address2.EncodeAddress(): {&key2, true},
+					address2.Address(): {&key2, true},
 				}), mkGetScript(map[string][]byte{
-					scriptAddr.EncodeAddress(): pkScript,
+					scriptAddr.Address(): pkScript,
 				}), sigScript, dcrec.STEcdsaSecp256k1)
 			if err != nil {
 				t.Errorf("failed to sign output %s: %v", msg, err)
@@ -1961,9 +1961,9 @@ func TestSignTxOutput(t *testing.T) {
 			sigScript, err := SignTxOutput(testingParams, tx, i,
 				scriptPkScript, hashType,
 				mkGetKey(map[string]addressToKey{
-					address1.EncodeAddress(): {&key1, true},
+					address1.Address(): {&key1, true},
 				}), mkGetScript(map[string][]byte{
-					scriptAddr.EncodeAddress(): pkScript,
+					scriptAddr.Address(): pkScript,
 				}), nil, dcrec.STEcdsaSecp256k1)
 			if err != nil {
 				t.Errorf("failed to sign output %s: %v", msg,
@@ -1982,10 +1982,10 @@ func TestSignTxOutput(t *testing.T) {
 			sigScript, err = SignTxOutput(testingParams, tx, i,
 				scriptPkScript, hashType,
 				mkGetKey(map[string]addressToKey{
-					address1.EncodeAddress(): {&key1, true},
-					address2.EncodeAddress(): {&key2, true},
+					address1.Address(): {&key1, true},
+					address2.Address(): {&key2, true},
 				}), mkGetScript(map[string][]byte{
-					scriptAddr.EncodeAddress(): pkScript,
+					scriptAddr.Address(): pkScript,
 				}), sigScript, dcrec.STEcdsaSecp256k1)
 			if err != nil {
 				t.Errorf("failed to sign output %s: %v", msg, err)

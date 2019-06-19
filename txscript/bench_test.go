@@ -10,7 +10,6 @@ import (
 	"io/ioutil"
 	"testing"
 
-	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -562,7 +561,7 @@ func BenchmarkExtractPkScriptAddrsLarge(b *testing.B) {
 	}
 
 	const scriptVersion = 0
-	params := &chaincfg.MainNetParams
+	params := mainNetParams
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		_, _, _, err := ExtractPkScriptAddrs(scriptVersion, script, params)
@@ -580,7 +579,7 @@ func BenchmarkExtractPkScriptAddrs(b *testing.B) {
 		"EQUAL")
 
 	const scriptVersion = 0
-	params := &chaincfg.MainNetParams
+	params := mainNetParams
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		_, _, _, err := ExtractPkScriptAddrs(scriptVersion, script, params)

@@ -9,11 +9,10 @@ import (
 	"encoding/binary"
 	"fmt"
 
-	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/dcrec"
 	"github.com/decred/dcrd/dcrec/secp256k1"
-	"github.com/decred/dcrd/dcrutil"
+	"github.com/decred/dcrd/dcrutil/v2"
 )
 
 const (
@@ -816,7 +815,7 @@ func PayToSStx(addr dcrutil.Address) ([]byte, error) {
 			return nil, scriptError(ErrUnsupportedAddress,
 				nilAddrErrStr)
 		}
-		if addr.DSA(addr.Net()) != dcrec.STEcdsaSecp256k1 {
+		if addr.DSA() != dcrec.STEcdsaSecp256k1 {
 			str := "unable to generate payment script for " +
 				"unsupported digital signature algorithm"
 			return nil, scriptError(ErrUnsupportedAddress, str)
@@ -859,7 +858,7 @@ func PayToSStxChange(addr dcrutil.Address) ([]byte, error) {
 			return nil, scriptError(ErrUnsupportedAddress,
 				nilAddrErrStr)
 		}
-		if addr.DSA(addr.Net()) != dcrec.STEcdsaSecp256k1 {
+		if addr.DSA() != dcrec.STEcdsaSecp256k1 {
 			str := "unable to generate payment script for " +
 				"unsupported digital signature algorithm"
 			return nil, scriptError(ErrUnsupportedAddress, str)
@@ -902,7 +901,7 @@ func PayToSSGen(addr dcrutil.Address) ([]byte, error) {
 			return nil, scriptError(ErrUnsupportedAddress,
 				nilAddrErrStr)
 		}
-		if addr.DSA(addr.Net()) != dcrec.STEcdsaSecp256k1 {
+		if addr.DSA() != dcrec.STEcdsaSecp256k1 {
 			str := "unable to generate payment script for " +
 				"unsupported digital signature algorithm"
 			return nil, scriptError(ErrUnsupportedAddress, str)
@@ -964,7 +963,7 @@ func PayToSSRtx(addr dcrutil.Address) ([]byte, error) {
 			return nil, scriptError(ErrUnsupportedAddress,
 				nilAddrErrStr)
 		}
-		if addr.DSA(addr.Net()) != dcrec.STEcdsaSecp256k1 {
+		if addr.DSA() != dcrec.STEcdsaSecp256k1 {
 			str := "unable to generate payment script for " +
 				"unsupported digital signature algorithm"
 			return nil, scriptError(ErrUnsupportedAddress, str)
@@ -1025,7 +1024,7 @@ func GenerateSStxAddrPush(addr dcrutil.Address, amount dcrutil.Amount, limits ui
 			return nil, scriptError(ErrUnsupportedAddress,
 				nilAddrErrStr)
 		}
-		if addr.DSA(addr.Net()) != dcrec.STEcdsaSecp256k1 {
+		if addr.DSA() != dcrec.STEcdsaSecp256k1 {
 			str := "unable to generate payment script for " +
 				"unsupported digital signature algorithm"
 			return nil, scriptError(ErrUnsupportedAddress, str)
@@ -1101,7 +1100,7 @@ func PayToAddrScript(addr dcrutil.Address) ([]byte, error) {
 			return nil, scriptError(ErrUnsupportedAddress,
 				nilAddrErrStr)
 		}
-		switch addr.DSA(addr.Net()) {
+		switch addr.DSA() {
 		case dcrec.STEcdsaSecp256k1:
 			return payToPubKeyHashScript(addr.ScriptAddress())
 		case dcrec.STEd25519:
@@ -1193,7 +1192,7 @@ func PushedData(script []byte) ([][]byte, error) {
 // pubKeyHashToAddrs is a convenience function to attempt to convert the
 // passed hash to a pay-to-pubkey-hash address housed within an address
 // slice.  It is used to consolidate common code.
-func pubKeyHashToAddrs(hash []byte, params *chaincfg.Params) []dcrutil.Address {
+func pubKeyHashToAddrs(hash []byte, params dcrutil.AddressParams) []dcrutil.Address {
 	// Skip the pubkey hash if it's invalid for some reason.
 	var addrs []dcrutil.Address
 	addr, err := dcrutil.NewAddressPubKeyHash(hash, params,
@@ -1207,7 +1206,7 @@ func pubKeyHashToAddrs(hash []byte, params *chaincfg.Params) []dcrutil.Address {
 // scriptHashToAddrs is a convenience function to attempt to convert the passed
 // hash to a pay-to-script-hash address housed within an address slice.  It is
 // used to consolidate common code.
-func scriptHashToAddrs(hash []byte, params *chaincfg.Params) []dcrutil.Address {
+func scriptHashToAddrs(hash []byte, params dcrutil.AddressParams) []dcrutil.Address {
 	// Skip the hash if it's invalid for some reason.
 	var addrs []dcrutil.Address
 	addr, err := dcrutil.NewAddressScriptHashFromHash(hash, params)
@@ -1226,7 +1225,7 @@ func scriptHashToAddrs(hash []byte, params *chaincfg.Params) []dcrutil.Address {
 // value will indicate a nonstandard script type for other script versions along
 // with an invalid script version error.
 func ExtractPkScriptAddrs(version uint16, pkScript []byte,
-	chainParams *chaincfg.Params) (ScriptClass, []dcrutil.Address, int, error) {
+	chainParams dcrutil.AddressParams) (ScriptClass, []dcrutil.Address, int, error) {
 	if version != 0 {
 		return NonStandardTy, nil, 0, fmt.Errorf("invalid script version")
 	}

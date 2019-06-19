@@ -9,10 +9,9 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/decred/dcrd/chaincfg"
-	"github.com/decred/dcrd/chaincfg/chainec"
+	"github.com/decred/dcrd/chaincfg/v2/chainec"
 	"github.com/decred/dcrd/dcrec"
-	"github.com/decred/dcrd/dcrutil"
+	"github.com/decred/dcrd/dcrutil/v2"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -227,7 +226,7 @@ func handleStakeOutSign(tx *wire.MsgTx, idx int, subScript []byte,
 // its input index, a database of keys, a database of scripts, and information
 // about the type of signature and returns a signature, script class, the
 // addresses involved, and the number of signatures required.
-func sign(chainParams *chaincfg.Params, tx *wire.MsgTx, idx int,
+func sign(chainParams dcrutil.AddressParams, tx *wire.MsgTx, idx int,
 	subScript []byte, hashType SigHashType, kdb KeyDB, sdb ScriptDB,
 	sigType dcrec.SignatureType) ([]byte,
 	ScriptClass, []dcrutil.Address, int, error) {
@@ -446,7 +445,7 @@ sigLoop:
 			r := pSig.GetR()
 			s := pSig.GetS()
 			if chainec.Secp256k1.Verify(pubKey, hash, r, s) {
-				aStr := addr.EncodeAddress()
+				aStr := addr.Address()
 				if _, ok := addrToSig[aStr]; !ok {
 					addrToSig[aStr] = sig
 				}
@@ -459,7 +458,7 @@ sigLoop:
 	doneSigs := 0
 	// This assumes that addresses are in the same order as in the script.
 	for _, addr := range addresses {
-		sig, ok := addrToSig[addr.EncodeAddress()]
+		sig, ok := addrToSig[addr.Address()]
 		if !ok {
 			continue
 		}
@@ -489,7 +488,7 @@ sigLoop:
 // NOTE: This function is only valid for version 0 scripts.  Since the function
 // does not accept a script version, the results are undefined for other script
 // versions.
-func mergeScripts(chainParams *chaincfg.Params, tx *wire.MsgTx, idx int,
+func mergeScripts(chainParams dcrutil.AddressParams, tx *wire.MsgTx, idx int,
 	pkScript []byte, class ScriptClass, addresses []dcrutil.Address,
 	nRequired int, sigScript, prevScript []byte) []byte {
 
@@ -593,7 +592,7 @@ func (sc ScriptClosure) GetScript(address dcrutil.Address) ([]byte, error) {
 // NOTE: This function is only valid for version 0 scripts.  Since the function
 // does not accept a script version, the results are undefined for other script
 // versions.
-func SignTxOutput(chainParams *chaincfg.Params, tx *wire.MsgTx, idx int,
+func SignTxOutput(chainParams dcrutil.AddressParams, tx *wire.MsgTx, idx int,
 	pkScript []byte, hashType SigHashType, kdb KeyDB, sdb ScriptDB,
 	previousScript []byte, sigType dcrec.SignatureType) ([]byte, error) {
 
