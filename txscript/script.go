@@ -111,11 +111,9 @@ func isAnyKindOfScriptHash(script []byte) bool {
 	return isScriptHashScript(script) || isStakeScriptHashScript(script)
 }
 
-// HasP2SHScriptSigStakeOpCodes returns an error is the p2sh script has either
+// hasP2SHScriptSigStakeOpCodes returns an error is the p2sh script has either
 // stake opcodes or if the pkscript cannot be retrieved.
-//
-// DEPRECATED.  This will be removed in the next major version bump.
-func HasP2SHScriptSigStakeOpCodes(version uint16, scriptSig, scriptPubKey []byte) error {
+func hasP2SHScriptSigStakeOpCodes(version uint16, scriptSig, scriptPubKey []byte) error {
 	class := GetScriptClass(version, scriptPubKey)
 	if IsStakeOutput(scriptPubKey) {
 		class, _ = GetStakeOutSubclass(scriptPubKey)
