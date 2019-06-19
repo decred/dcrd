@@ -636,25 +636,6 @@ func expectedInputs(script []byte, class ScriptClass, subclass ScriptClass) int 
 	}
 }
 
-// ScriptInfo houses information about a script pair that is determined by
-// CalcScriptInfo.
-type ScriptInfo struct {
-	// PkScriptClass is the class of the public key script and is equivalent
-	// to calling GetScriptClass on it.
-	PkScriptClass ScriptClass
-
-	// NumInputs is the number of inputs provided by the public key script.
-	NumInputs int
-
-	// ExpectedInputs is the number of outputs required by the signature
-	// script and any pay-to-script-hash scripts. The number will be -1 if
-	// unknown.
-	ExpectedInputs int
-
-	// SigOps is the number of signature operations in the script pair.
-	SigOps int
-}
-
 // isStakeOutput returns true is a script output is a stake type.
 //
 // NOTE: This function is only valid for version 0 scripts.  Since the function
@@ -719,77 +700,6 @@ func ContainsStakeOpCodes(pkScript []byte) (bool, error) {
 	}
 
 	return false, tokenizer.Err()
-}
-
-// CalcScriptInfo returns a structure providing data about the provided script
-// pair.  It will error if the pair is in someway invalid such that they can not
-// be analysed, i.e. if they do not parse or the pkScript is not a push-only
-// script
-//
-// NOTE: This function is only valid for version 0 scripts.  Since the function
-// does not accept a script version, the results are undefined for other script
-// versions.
-//
-// DEPRECATED.  This will be removed in the next major version bump.
-func CalcScriptInfo(sigScript, pkScript []byte, bip16 bool) (*ScriptInfo, error) {
-	// Count the number of opcodes in the signature script while also ensuring
-	// that successfully parses.  Since there is a check below to ensure the
-	// script is push only, this equates to the number of inputs to the public
-	// key script.
-	const scriptVersion = 0
-	var numInputs int
-	tokenizer := MakeScriptTokenizer(scriptVersion, sigScript)
-	for tokenizer.Next() {
-		numInputs++
-	}
-	if err := tokenizer.Err(); err != nil {
-		return nil, err
-	}
-
-	if err := checkScriptParses(scriptVersion, pkScript); err != nil {
-		return nil, err
-	}
-
-	// Can't have a signature script that doesn't just push data.
-	if !IsPushOnlyScript(sigScript) {
-		return nil, scriptError(ErrNotPushOnly,
-			"signature script is not push only")
-	}
-
-	si := new(ScriptInfo)
-	si.PkScriptClass = typeOfScript(scriptVersion, pkScript)
-
-	subClass := ScriptClass(0)
-	if si.PkScriptClass == StakeSubmissionTy ||
-		si.PkScriptClass == StakeGenTy ||
-		si.PkScriptClass == StakeRevocationTy ||
-		si.PkScriptClass == StakeSubChangeTy {
-
-		subClass = typeOfScript(scriptVersion, getStakeOutSubscript(pkScript))
-	}
-
-	si.ExpectedInputs = expectedInputs(pkScript, si.PkScriptClass, subClass)
-
-	// All entries pushed to stack (or are OP_RESERVED and exec will fail).
-	si.NumInputs = numInputs
-
-	// Count sigops taking into account pay-to-script-hash.
-	if (si.PkScriptClass == ScriptHashTy || subClass == ScriptHashTy) && bip16 {
-		// The redeem script is the final data push of the signature script.
-		redeemScript := finalOpcodeData(scriptVersion, sigScript)
-		reedeemClass := typeOfScript(scriptVersion, redeemScript)
-		rsInputs := expectedInputs(redeemScript, reedeemClass, 0)
-		if rsInputs == -1 {
-			si.ExpectedInputs = -1
-		} else {
-			si.ExpectedInputs += rsInputs
-		}
-		si.SigOps = countSigOpsV0(redeemScript, true)
-	} else {
-		si.SigOps = countSigOpsV0(pkScript, true)
-	}
-
-	return si, nil
 }
 
 // CalcMultiSigStats returns the number of public keys and signatures from
