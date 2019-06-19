@@ -1189,20 +1189,6 @@ func PushedData(script []byte) ([][]byte, error) {
 	return data, nil
 }
 
-// GetMultisigMandN returns the number of public keys and the number of
-// signatures required to redeem the multisignature script.
-//
-// DEPRECATED.  Use CalcMultiSigStats instead.  This will be removed in the next
-// major version bump.
-func GetMultisigMandN(script []byte) (uint8, uint8, error) {
-	numPubKeys, requiredSigs, err := CalcMultiSigStats(script)
-	if err != nil {
-		return 0, 0, err
-	}
-
-	return uint8(requiredSigs), uint8(numPubKeys), nil
-}
-
 // pubKeyHashToAddrs is a convenience function to attempt to convert the
 // passed hash to a pay-to-pubkey-hash address housed within an address
 // slice.  It is used to consolidate common code.
