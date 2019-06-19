@@ -115,7 +115,7 @@ func isAnyKindOfScriptHash(script []byte) bool {
 // stake opcodes or if the pkscript cannot be retrieved.
 func hasP2SHScriptSigStakeOpCodes(version uint16, scriptSig, scriptPubKey []byte) error {
 	class := GetScriptClass(version, scriptPubKey)
-	if IsStakeOutput(scriptPubKey) {
+	if isStakeOutput(scriptPubKey) {
 		class, _ = GetStakeOutSubclass(scriptPubKey)
 	}
 	if class == ScriptHashTy {
