@@ -1,5 +1,5 @@
 // Copyright (c) 2015-2016 The btcsuite developers
-// Copyright (c) 2016 The Decred developers
+// Copyright (c) 2016-2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -9,8 +9,8 @@ import (
 	"bytes"
 	"sync"
 
-	"github.com/decred/dcrd/chaincfg/chainec"
 	"github.com/decred/dcrd/chaincfg/chainhash"
+	"github.com/decred/dcrd/dcrec/secp256k1"
 )
 
 // sigCacheEntry represents an entry in the SigCache. Entries within the
@@ -20,8 +20,8 @@ import (
 // match. In the occasion that two sigHashes collide, the newer sigHash will
 // simply overwrite the existing entry.
 type sigCacheEntry struct {
-	sig    chainec.Signature
-	pubKey chainec.PublicKey
+	sig    *secp256k1.Signature
+	pubKey *secp256k1.PublicKey
 }
 
 // SigCache implements an ECDSA signature verification cache with a randomized
@@ -57,7 +57,7 @@ func NewSigCache(maxEntries uint) *SigCache {
 //
 // NOTE: This function is safe for concurrent access. Readers won't be blocked
 // unless there exists a writer, adding an entry to the SigCache.
-func (s *SigCache) Exists(sigHash chainhash.Hash, sig chainec.Signature, pubKey chainec.PublicKey) bool {
+func (s *SigCache) Exists(sigHash chainhash.Hash, sig *secp256k1.Signature, pubKey *secp256k1.PublicKey) bool {
 	s.RLock()
 	entry, ok := s.validSigs[sigHash]
 	s.RUnlock()
@@ -75,7 +75,7 @@ func (s *SigCache) Exists(sigHash chainhash.Hash, sig chainec.Signature, pubKey 
 //
 // NOTE: This function is safe for concurrent access. Writers will block
 // simultaneous readers until function execution has concluded.
-func (s *SigCache) Add(sigHash chainhash.Hash, sig chainec.Signature, pubKey chainec.PublicKey) {
+func (s *SigCache) Add(sigHash chainhash.Hash, sig *secp256k1.Signature, pubKey *secp256k1.PublicKey) {
 	s.Lock()
 	defer s.Unlock()
 
