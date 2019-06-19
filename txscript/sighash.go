@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/wire"
 )
@@ -299,7 +298,7 @@ func calcSignatureHash(signScript []byte, hashType SigHashType, tx *wire.MsgTx, 
 	// can be reused because only the witness data has been modified, so
 	// the wasteful extra O(N^2) hash can be avoided.
 	var prefixHash chainhash.Hash
-	if chaincfg.SigHashOptimization && cachedPrefix != nil &&
+	if optimizeSigVerification && cachedPrefix != nil &&
 		hashType&sigHashMask == SigHashAll &&
 		hashType&SigHashAnyOneCanPay == 0 {
 

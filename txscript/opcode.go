@@ -16,7 +16,6 @@ import (
 
 	"golang.org/x/crypto/ripemd160"
 
-	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/dcrec"
 	"github.com/decred/dcrd/dcrec/edwards"
@@ -25,7 +24,12 @@ import (
 	"github.com/decred/dcrd/wire"
 )
 
-var optimizeSigVerification = chaincfg.SigHashOptimization
+// optimizeSigVerification is an optimization for verification of transactions
+// that contain scripts with CHECKSIG operations with a hash type of SigHashAll.
+//
+// WARNING: This has not been properly vetted or tested, so it needs significant
+// review to ensure it does not break consensus before being enabled.
+const optimizeSigVerification = false
 
 // An opcode defines the information related to a txscript opcode.  opfunc, if
 // present, is the function to call to perform the opcode on the script.  The
