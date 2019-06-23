@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2015 The btcsuite developers
-// Copyright (c) 2015-2018 The Decred developers
+// Copyright (c) 2015-2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -52,5 +52,25 @@ func TestBlockSubsidy(t *testing.T) {
 
 	if totalSubsidy != 2099999999800912 {
 		t.Errorf("Bad total subsidy; want 2099999999800912, got %v", totalSubsidy)
+	}
+}
+
+func TestCachedCalcBlockSubsidy(t *testing.T) {
+	mainnet := &chaincfg.MainNetParams
+
+	cacheA := NewSubsidyCache(0, mainnet)
+	_ = cacheA.CalcBlockSubsidy(mainnet.SubsidyReductionInterval + 1)
+
+	// subsidyA is internally being calculated using the last cached subsidy.
+	subsidyA := cacheA.CalcBlockSubsidy((mainnet.SubsidyReductionInterval * 2) + 1)
+
+	cacheB := NewSubsidyCache(0, mainnet)
+
+	// subsidyB is internally being calculated from scratch.
+	subsidyB := cacheB.CalcBlockSubsidy((mainnet.SubsidyReductionInterval * 2) + 1)
+
+	if subsidyA != subsidyB {
+		t.Fatalf("Expected equal subsidies, got sudsidyA -> %v, "+
+			"subsidyB -> %v", subsidyA, subsidyB)
 	}
 }

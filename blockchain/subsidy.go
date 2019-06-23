@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2015 The btcsuite developers
-// Copyright (c) 2015-2018 The Decred developers
+// Copyright (c) 2015-2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -85,15 +85,28 @@ func (s *SubsidyCache) CalcBlockSubsidy(height int64) int64 {
 		return cachedValue
 	}
 
-	// Is the previous one in the cache? If so, calculate
-	// the subsidy from the previous known value and store
-	// it in the database and the cache.
+	// If a cached block subsidy for the provided height is not found
+	// fetch the last cached block subsidy and generate the requested
+	// subsidy from that.
+	var lastCachedIter uint64
 	s.subsidyCacheLock.RLock()
-	cachedValue, existsInCache = s.subsidyCache[iteration-1]
+	for k := iteration - 1; k > 0; k-- {
+		cachedValue, existsInCache = s.subsidyCache[k]
+		if existsInCache {
+			lastCachedIter = k
+			break
+		}
+	}
 	s.subsidyCacheLock.RUnlock()
-	if existsInCache {
-		cachedValue *= s.params.MulSubsidy
-		cachedValue /= s.params.DivSubsidy
+
+	if lastCachedIter != 0 {
+		// Calculate the requested block subsidy using the last cached
+		// block subsidy.
+		diff := iteration - lastCachedIter
+		for i := uint64(0); i < diff; i++ {
+			cachedValue *= s.params.MulSubsidy
+			cachedValue /= s.params.DivSubsidy
+		}
 
 		s.subsidyCacheLock.Lock()
 		s.subsidyCache[iteration] = cachedValue
@@ -102,9 +115,7 @@ func (s *SubsidyCache) CalcBlockSubsidy(height int64) int64 {
 		return cachedValue
 	}
 
-	// Calculate the subsidy from scratch and store in the
-	// cache. TODO If there's an older item in the cache,
-	// calculate it from that to save time.
+	// Calculate the subsidy from scratch and store in the cache.
 	subsidy := s.params.BaseSubsidy
 	for i := uint64(0); i < iteration; i++ {
 		subsidy *= s.params.MulSubsidy
