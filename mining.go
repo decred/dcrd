@@ -776,8 +776,8 @@ func deepCopyBlockTemplate(blockTemplate *BlockTemplate) *BlockTemplate {
 // miner.
 // Safe for concurrent access.
 func handleTooFewVoters(subsidyCache *blockchain.SubsidyCache, nextHeight int64, miningAddress dcrutil.Address, bm *blockManager) (*BlockTemplate, error) {
-	timeSource := bm.server.timeSource
-	stakeValidationHeight := bm.server.chainParams.StakeValidationHeight
+	timeSource := bm.cfg.TimeSource
+	stakeValidationHeight := bm.cfg.ChainParams.StakeValidationHeight
 	curTemplate := bm.GetCurrentTemplate()
 
 	// Check to see if we've fallen off the chain, for example if a
@@ -807,7 +807,7 @@ func handleTooFewVoters(subsidyCache *blockchain.SubsidyCache, nextHeight int64,
 
 				// If we're on testnet, the time since this last block
 				// listed as the parent must be taken into consideration.
-				if bm.server.chainParams.ReduceMinDifficulty {
+				if bm.cfg.ChainParams.ReduceMinDifficulty {
 					parentHash := cptCopy.Block.Header.PrevBlock
 
 					requiredDifficulty, err :=
@@ -876,13 +876,9 @@ func handleTooFewVoters(subsidyCache *blockchain.SubsidyCache, nextHeight int64,
 			if err != nil {
 				return nil, err
 			}
-			coinbaseTx, err := createCoinbaseTx(subsidyCache,
-				coinbaseScript,
-				opReturnPkScript,
-				topBlock.Height(),
-				miningAddress,
-				topBlock.MsgBlock().Header.Voters,
-				bm.server.chainParams)
+			coinbaseTx, err := createCoinbaseTx(subsidyCache, coinbaseScript,
+				opReturnPkScript, topBlock.Height(), miningAddress,
+				topBlock.MsgBlock().Header.Voters, bm.cfg.ChainParams)
 			if err != nil {
 				return nil, err
 			}
@@ -901,7 +897,7 @@ func handleTooFewVoters(subsidyCache *blockchain.SubsidyCache, nextHeight int64,
 
 			// If we're on testnet, the time since this last block
 			// listed as the parent must be taken into consideration.
-			if bm.server.chainParams.ReduceMinDifficulty {
+			if bm.cfg.ChainParams.ReduceMinDifficulty {
 				parentHash := topBlock.MsgBlock().Header.PrevBlock
 
 				requiredDifficulty, err :=

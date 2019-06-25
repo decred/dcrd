@@ -22,6 +22,7 @@ import (
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/database"
 	"github.com/decred/dcrd/dcrutil"
+	"github.com/decred/dcrd/fees"
 	"github.com/decred/dcrd/mempool/v2"
 	"github.com/decred/dcrd/wire"
 )
@@ -292,10 +293,51 @@ type headerNode struct {
 	hash   *chainhash.Hash
 }
 
+// PeerNotifier provides an interface for server peer notifications.
+type PeerNotifier interface {
+	// AnnounceNewTransactions generates and relays inventory vectors and
+	// notifies both websocket and getblocktemplate long poll clients of
+	// the passed transactions.
+	AnnounceNewTransactions(txns []*dcrutil.Tx)
+
+	// UpdatePeerHeights updates the heights of all peers who have have
+	// announced the latest connected main chain block, or a recognized orphan.
+	UpdatePeerHeights(latestBlkHash *chainhash.Hash, latestHeight int64, updateSource *serverPeer)
+
+	// RelayInventory relays the passed inventory vector to all connected peers
+	// that are not already known to have it.
+	RelayInventory(invVect *wire.InvVect, data interface{}, immediate bool)
+
+	// TransactionConfirmed marks the provided single confirmation transaction
+	// as no longer needing rebroadcasting.
+	TransactionConfirmed(tx *dcrutil.Tx)
+}
+
+// blockManangerConfig is a configuration struct for a blockManager.
+type blockManagerConfig struct {
+	PeerNotifier PeerNotifier
+	TimeSource   blockchain.MedianTimeSource
+
+	// The following fields are for accessing the chain and its configuration.
+	Chain       *blockchain.BlockChain
+	ChainParams *chaincfg.Params
+
+	// The following fields provide access to the fee estimator, mempool and
+	// the background block template generator.
+	FeeEstimator       *fees.Estimator
+	TxMemPool          *mempool.TxPool
+	BgBlkTmplGenerator *BgBlkTmplGenerator
+
+	// The following fields are blockManger callbacks.
+	NotifyWinningTickets      func(*WinningTicketsNtfnData)
+	PruneRebroadcastInventory func()
+	RpcServer                 func() *rpcServer
+}
+
 // blockManager provides a concurrency safe block manager for handling all
 // incoming blocks.
 type blockManager struct {
-	server          *server
+	cfg             *blockManagerConfig
 	started         int32
 	shutdown        int32
 	chain           *blockchain.BlockChain
@@ -368,7 +410,7 @@ func (b *blockManager) findNextHeaderCheckpoint(height int64) *chaincfg.Checkpoi
 	if cfg.DisableCheckpoints {
 		return nil
 	}
-	checkpoints := b.server.chainParams.Checkpoints
+	checkpoints := b.chain.Checkpoints()
 	if len(checkpoints) == 0 {
 		return nil
 	}
@@ -613,7 +655,7 @@ func (b *blockManager) handleTxMsg(tmsg *txMsg) {
 	// Process the transaction to include validation, insertion in the
 	// memory pool, orphan handling, etc.
 	allowOrphans := cfg.MaxOrphanTxs > 0
-	acceptedTxs, err := b.server.txMemPool.ProcessTransaction(tmsg.tx,
+	acceptedTxs, err := b.cfg.TxMemPool.ProcessTransaction(tmsg.tx,
 		allowOrphans, true, true)
 
 	// Remove transaction from request maps. Either the mempool/chain
@@ -649,7 +691,7 @@ func (b *blockManager) handleTxMsg(tmsg *txMsg) {
 		return
 	}
 
-	b.server.AnnounceNewTransactions(acceptedTxs)
+	b.cfg.PeerNotifier.AnnounceNewTransactions(acceptedTxs)
 }
 
 // current returns true if we believe we are synced with our peers, false if we
@@ -732,7 +774,7 @@ func (b *blockManager) checkBlockForHiddenVotes(block *dcrutil.Block) {
 	var oldTickets []*dcrutil.Tx
 	var oldRevocations []*dcrutil.Tx
 	oldVoteMap := make(map[chainhash.Hash]struct{},
-		int(b.server.chainParams.TicketsPerBlock))
+		int(b.cfg.ChainParams.TicketsPerBlock))
 	templateBlock := dcrutil.NewBlock(template.Block)
 
 	// Add all the votes found in our template. Keep their
@@ -768,12 +810,11 @@ func (b *blockManager) checkBlockForHiddenVotes(block *dcrutil.Block) {
 	// Check the length of the reconstructed voter list for
 	// integrity.
 	votesTotal := len(newVotes)
-	if votesTotal > int(b.server.chainParams.TicketsPerBlock) {
+	if votesTotal > int(b.cfg.ChainParams.TicketsPerBlock) {
 		bmgrLog.Warnf("error found while adding hidden votes "+
 			"from block %v to the old block template: %v max "+
 			"votes expected but %v votes found", block.Hash(),
-			int(b.server.chainParams.TicketsPerBlock),
-			votesTotal)
+			int(b.cfg.ChainParams.TicketsPerBlock), votesTotal)
 		return
 	}
 
@@ -816,11 +857,9 @@ func (b *blockManager) checkBlockForHiddenVotes(block *dcrutil.Block) {
 	}
 	coinbase, err := createCoinbaseTx(b.chain.FetchSubsidyCache(),
 		template.Block.Transactions[0].TxIn[0].SignatureScript,
-		opReturnPkScript,
-		int64(template.Block.Header.Height),
+		opReturnPkScript, int64(template.Block.Header.Height),
 		cfg.miningAddrs[rand.Intn(len(cfg.miningAddrs))],
-		uint16(votesTotal),
-		b.server.chainParams)
+		uint16(votesTotal), b.cfg.ChainParams)
 	if err != nil {
 		bmgrLog.Errorf("failed to create coinbase while generating " +
 			"block with extra found voters")
@@ -966,7 +1005,7 @@ func (b *blockManager) handleBlockMsg(bmsg *blockMsg) {
 			// votes in it that were hidden from the network and which
 			// validate our parent block. We should bolt these new votes
 			// into the tx tree stake of the old block template on parent.
-			svl := b.server.chainParams.StakeValidationHeight
+			svl := b.cfg.ChainParams.StakeValidationHeight
 			if b.AggressiveMining && bmsg.block.Height() >= svl {
 				b.checkBlockForHiddenVotes(bmsg.block)
 			}
@@ -974,7 +1013,7 @@ func (b *blockManager) handleBlockMsg(bmsg *blockMsg) {
 			// Notify stake difficulty subscribers and prune invalidated
 			// transactions.
 			best := b.chain.BestSnapshot()
-			r := b.server.rpcServer
+			r := b.cfg.RpcServer()
 			if r != nil {
 				// Update registered websocket clients on the
 				// current stake difficulty.
@@ -985,9 +1024,8 @@ func (b *blockManager) handleBlockMsg(bmsg *blockMsg) {
 						best.NextStakeDiff,
 					})
 			}
-			b.server.txMemPool.PruneStakeTx(best.NextStakeDiff,
-				best.Height)
-			b.server.txMemPool.PruneExpiredTx()
+			b.cfg.TxMemPool.PruneStakeTx(best.NextStakeDiff, best.Height)
+			b.cfg.TxMemPool.PruneExpiredTx()
 
 			// Update this peer's latest block height, for future
 			// potential sync node candidancy.
@@ -1000,9 +1038,8 @@ func (b *blockManager) handleBlockMsg(bmsg *blockMsg) {
 			// Allow any clients performing long polling via the
 			// getblocktemplate RPC to be notified when the new block causes
 			// their old block template to become stale.
-			rpcServer := b.server.rpcServer
-			if rpcServer != nil {
-				rpcServer.gbtWorkState.NotifyBlockConnected(blockHash)
+			if r := b.cfg.RpcServer(); r != nil {
+				r.gbtWorkState.NotifyBlockConnected(blockHash)
 			}
 		}
 	}
@@ -1014,7 +1051,7 @@ func (b *blockManager) handleBlockMsg(bmsg *blockMsg) {
 	if blkHashUpdate != nil && heightUpdate != 0 {
 		bmsg.peer.UpdateLastBlockHeight(heightUpdate)
 		if isOrphan || b.current() {
-			go b.server.UpdatePeerHeights(blkHashUpdate, heightUpdate,
+			go b.cfg.PeerNotifier.UpdatePeerHeights(blkHashUpdate, heightUpdate,
 				bmsg.peer)
 		}
 	}
@@ -1235,7 +1272,7 @@ func (b *blockManager) haveInventory(invVect *wire.InvVect) (bool, error) {
 	case wire.InvTypeTx:
 		// Ask the transaction memory pool if the transaction is known
 		// to it in any form (main pool or orphan).
-		if b.server.txMemPool.HaveTransaction(&invVect.Hash) {
+		if b.cfg.TxMemPool.HaveTransaction(&invVect.Hash) {
 			return true, nil
 		}
 
@@ -1290,7 +1327,6 @@ func (b *blockManager) handleInvMsg(imsg *invMsg) {
 	if lastBlock != -1 && isCurrent {
 		blkHeight, err := b.chain.BlockHeightByHash(&invVects[lastBlock].Hash)
 		if err == nil {
-
 			imsg.peer.UpdateLastBlockHeight(blkHeight)
 		}
 	}
@@ -1515,7 +1551,7 @@ out:
 					// Notify stake difficulty subscribers and prune
 					// invalidated transactions.
 					best := b.chain.BestSnapshot()
-					r := b.server.rpcServer
+					r := b.cfg.RpcServer()
 					if r != nil {
 						r.ntfnMgr.NotifyStakeDifficulty(
 							&StakeDifficultyNtfnData{
@@ -1524,9 +1560,9 @@ out:
 								best.NextStakeDiff,
 							})
 					}
-					b.server.txMemPool.PruneStakeTx(best.NextStakeDiff,
+					b.cfg.TxMemPool.PruneStakeTx(best.NextStakeDiff,
 						best.Height)
-					b.server.txMemPool.PruneExpiredTx()
+					b.cfg.TxMemPool.PruneExpiredTx()
 				}
 
 				msg.reply <- forceReorganizationResponse{
@@ -1552,12 +1588,12 @@ out:
 					continue
 				}
 
+				r := b.cfg.RpcServer()
 				onMainChain := !isOrphan && forkLen == 0
 				if onMainChain {
 					// Notify stake difficulty subscribers and prune
 					// invalidated transactions.
 					best := b.chain.BestSnapshot()
-					r := b.server.rpcServer
 					if r != nil {
 						r.ntfnMgr.NotifyStakeDifficulty(
 							&StakeDifficultyNtfnData{
@@ -1566,17 +1602,16 @@ out:
 								best.NextStakeDiff,
 							})
 					}
-					b.server.txMemPool.PruneStakeTx(best.NextStakeDiff,
+					b.cfg.TxMemPool.PruneStakeTx(best.NextStakeDiff,
 						best.Height)
-					b.server.txMemPool.PruneExpiredTx()
+					b.cfg.TxMemPool.PruneExpiredTx()
 				}
 
 				// Allow any clients performing long polling via the
 				// getblocktemplate RPC to be notified when the new block causes
 				// their old block template to become stale.
-				rpcServer := b.server.rpcServer
-				if rpcServer != nil {
-					rpcServer.gbtWorkState.NotifyBlockConnected(msg.block.Hash())
+				if r != nil {
+					r.gbtWorkState.NotifyBlockConnected(msg.block.Hash())
 				}
 
 				msg.reply <- processBlockResponse{
@@ -1585,7 +1620,7 @@ out:
 				}
 
 			case processTransactionMsg:
-				acceptedTxs, err := b.server.txMemPool.ProcessTransaction(msg.tx,
+				acceptedTxs, err := b.cfg.TxMemPool.ProcessTransaction(msg.tx,
 					msg.allowOrphans, msg.rateLimit, msg.allowHighFees)
 				msg.reply <- processTransactionResponse{
 					acceptedTxs: acceptedTxs,
@@ -1616,8 +1651,7 @@ out:
 				msg.reply <- setParentTemplateResponse{}
 
 			default:
-				bmgrLog.Warnf("Invalid message type in block "+
-					"handler: %T", msg)
+				bmgrLog.Warnf("Invalid message type in block handler: %T", msg)
 			}
 
 		case <-b.quit:
@@ -1667,9 +1701,10 @@ func isDoubleSpendOrDuplicateError(err error) bool {
 	return false
 }
 
-// handleNotifyMsg handles notifications from blockchain.  It does things such
-// as request orphan block parents and relay accepted blocks to connected peers.
-func (b *blockManager) handleNotifyMsg(notification *blockchain.Notification) {
+// handleBlockchainNotification handles notifications from blockchain.  It does
+// things such as request orphan block parents and relay accepted blocks to
+// connected peers.
+func (b *blockManager) handleBlockchainNotification(notification *blockchain.Notification) {
 	switch notification.Type {
 	// A block that intends to extend the main chain has passed all sanity and
 	// contextual checks and the chain is believed to be current.  Relay it to
@@ -1686,7 +1721,7 @@ func (b *blockManager) handleNotifyMsg(notification *blockchain.Notification) {
 
 		// Generate the inventory vector and relay it immediately.
 		iv := wire.NewInvVect(wire.InvTypeBlock, block.Hash())
-		b.server.RelayInventory(iv, block.MsgBlock().Header, true)
+		b.cfg.PeerNotifier.RelayInventory(iv, block.MsgBlock().Header, true)
 		b.announcedBlockMtx.Lock()
 		b.announcedBlock = block.Hash()
 		b.announcedBlockMtx.Unlock()
@@ -1738,10 +1773,10 @@ func (b *blockManager) handleNotifyMsg(notification *blockchain.Notification) {
 		bestHeight := band.BestHeight
 		blockHeight := int64(block.MsgBlock().Header.Height)
 		reorgDepth := bestHeight - (blockHeight - band.ForkLen)
-		if b.server.rpcServer != nil &&
-			blockHeight >= b.server.chainParams.StakeValidationHeight-1 &&
+		if b.cfg.RpcServer() != nil &&
+			blockHeight >= b.cfg.ChainParams.StakeValidationHeight-1 &&
 			reorgDepth < maxReorgDepthNotify &&
-			blockHeight > b.server.chainParams.LatestCheckpointHeight() &&
+			blockHeight > b.cfg.ChainParams.LatestCheckpointHeight() &&
 			!b.notifiedWinningTickets(blockHash) {
 
 			// Obtain the winning tickets for this block.  handleNotifyMsg
@@ -1752,15 +1787,14 @@ func (b *blockManager) handleNotifyMsg(notification *blockchain.Notification) {
 				bmgrLog.Errorf("Couldn't calculate winning tickets for "+
 					"accepted block %v: %v", blockHash, err.Error())
 			} else {
-				ntfnData := &WinningTicketsNtfnData{
+				// Notify registered websocket clients of newly
+				// eligible tickets to vote on.
+				b.cfg.NotifyWinningTickets(&WinningTicketsNtfnData{
 					BlockHash:   *blockHash,
 					BlockHeight: blockHeight,
 					Tickets:     wt,
-				}
+				})
 
-				// Notify registered websocket clients of newly
-				// eligible tickets to vote on.
-				b.server.rpcServer.ntfnMgr.NotifyWinningTickets(ntfnData)
 				b.lotteryDataBroadcastMutex.Lock()
 				b.lotteryDataBroadcast[*blockHash] = struct{}{}
 				b.lotteryDataBroadcastMutex.Unlock()
@@ -1775,32 +1809,32 @@ func (b *blockManager) handleNotifyMsg(notification *blockchain.Notification) {
 		b.announcedBlockMtx.Unlock()
 		if !sent {
 			iv := wire.NewInvVect(wire.InvTypeBlock, blockHash)
-			b.server.RelayInventory(iv, block.MsgBlock().Header, true)
+			b.cfg.PeerNotifier.RelayInventory(iv, block.MsgBlock().Header, true)
 		}
 
 		// Inform the background block template generator about the accepted
 		// block.
-		if b.server.bg != nil {
-			b.server.bg.BlockAccepted(block)
+		if b.cfg.BgBlkTmplGenerator != nil {
+			b.cfg.BgBlkTmplGenerator.BlockAccepted(block)
 		}
 
-		if !b.server.feeEstimator.IsEnabled() {
+		if !b.cfg.FeeEstimator.IsEnabled() {
 			// fee estimation can only start after we have performed an initial
 			// sync, otherwise we'll start adding mempool transactions at the
 			// wrong height.
-			b.server.feeEstimator.Enable(block.Height())
+			b.cfg.FeeEstimator.Enable(block.Height())
 		}
 
 	// A block has been connected to the main block chain.
 	case blockchain.NTBlockConnected:
 		blockSlice, ok := notification.Data.([]*dcrutil.Block)
 		if !ok {
-			bmgrLog.Warnf("Chain connected notification is not a block slice.")
+			bmgrLog.Warnf("Block connected notification is not a block slice.")
 			break
 		}
 
 		if len(blockSlice) != 2 {
-			bmgrLog.Warnf("Chain connected notification is wrong size slice.")
+			bmgrLog.Warnf("Block connected notification is wrong size slice.")
 			break
 		}
 
@@ -1811,7 +1845,7 @@ func (b *blockManager) handleNotifyMsg(notification *blockchain.Notification) {
 		// estimation. This must be done before attempting to remove
 		// transactions from the mempool because the mempool will alert the
 		// estimator of the txs that are leaving
-		b.server.feeEstimator.ProcessBlock(block)
+		b.cfg.FeeEstimator.ProcessBlock(block)
 
 		// TODO: In the case the new tip disapproves the previous block, any
 		// transactions the previous block contains in its regular tree which
@@ -1837,22 +1871,19 @@ func (b *blockManager) handleNotifyMsg(notification *blockchain.Notification) {
 		//
 		// Also, in the case the RPC server is enabled, stop rebroadcasting any
 		// transactions in the block that were setup to be rebroadcast.
-		txMemPool := b.server.txMemPool
+		txMemPool := b.cfg.TxMemPool
 		handleConnectedBlockTxns := func(txns []*dcrutil.Tx) {
 			for _, tx := range txns {
 				txMemPool.RemoveTransaction(tx, false)
 				txMemPool.RemoveDoubleSpends(tx)
 				txMemPool.RemoveOrphan(tx)
 				acceptedTxs := txMemPool.ProcessOrphans(tx)
-				b.server.AnnounceNewTransactions(acceptedTxs)
+				b.cfg.PeerNotifier.AnnounceNewTransactions(acceptedTxs)
 
 				// Now that this block is in the blockchain, mark the
 				// transaction (except the coinbase) as no longer needing
 				// rebroadcasting.
-				if b.server.rpcServer != nil {
-					iv := wire.NewInvVect(wire.InvTypeTx, tx.Hash())
-					b.server.RemoveRebroadcastInventory(iv)
-				}
+				b.cfg.PeerNotifier.TransactionConfirmed(tx)
 			}
 		}
 		handleConnectedBlockTxns(block.Transactions()[1:])
@@ -1887,16 +1918,16 @@ func (b *blockManager) handleNotifyMsg(notification *blockchain.Notification) {
 			}
 		}
 
-		if r := b.server.rpcServer; r != nil {
+		if r := b.cfg.RpcServer(); r != nil {
 			// Filter and update the rebroadcast inventory.
-			b.server.PruneRebroadcastInventory()
+			b.cfg.PruneRebroadcastInventory()
 
 			// Notify registered websocket clients of incoming block.
 			r.ntfnMgr.NotifyBlockConnected(block)
 		}
 
-		if b.server.bg != nil {
-			b.server.bg.BlockConnected(block)
+		if b.cfg.BgBlkTmplGenerator != nil {
+			b.cfg.BgBlkTmplGenerator.BlockConnected(block)
 		}
 
 	// Stake tickets are spent or missed from the most recently connected block.
@@ -1908,7 +1939,7 @@ func (b *blockManager) handleNotifyMsg(notification *blockchain.Notification) {
 			break
 		}
 
-		if r := b.server.rpcServer; r != nil {
+		if r := b.cfg.RpcServer(); r != nil {
 			r.ntfnMgr.NotifySpentAndMissedTickets(tnd)
 		}
 
@@ -1921,7 +1952,7 @@ func (b *blockManager) handleNotifyMsg(notification *blockchain.Notification) {
 			break
 		}
 
-		if r := b.server.rpcServer; r != nil {
+		if r := b.cfg.RpcServer(); r != nil {
 			r.ntfnMgr.NotifyNewTickets(tnd)
 		}
 
@@ -1929,12 +1960,12 @@ func (b *blockManager) handleNotifyMsg(notification *blockchain.Notification) {
 	case blockchain.NTBlockDisconnected:
 		blockSlice, ok := notification.Data.([]*dcrutil.Block)
 		if !ok {
-			bmgrLog.Warnf("Chain disconnected notification is not a block slice.")
+			bmgrLog.Warnf("Block disconnected notification is not a block slice.")
 			break
 		}
 
 		if len(blockSlice) != 2 {
-			bmgrLog.Warnf("Chain disconnected notification is wrong size slice.")
+			bmgrLog.Warnf("Block disconnected notification is wrong size slice.")
 			break
 		}
 
@@ -1947,7 +1978,7 @@ func (b *blockManager) handleNotifyMsg(notification *blockchain.Notification) {
 		// transactions and any that are now double spends from the transaction
 		// pool.  Transactions which depend on a confirmed transaction are NOT
 		// removed recursively because they are still valid.
-		txMemPool := b.server.txMemPool
+		txMemPool := b.cfg.TxMemPool
 		if !headerApprovesParent(&block.MsgBlock().Header) {
 			for _, tx := range parentBlock.Transactions()[1:] {
 				txMemPool.RemoveTransaction(tx, false)
@@ -1990,17 +2021,14 @@ func (b *blockManager) handleNotifyMsg(notification *blockchain.Notification) {
 		handleDisconnectedBlockTxns(block.Transactions()[1:])
 		handleDisconnectedBlockTxns(block.STransactions())
 
-		if b.server.bg != nil {
-			b.server.bg.BlockDisconnected(block)
+		if b.cfg.BgBlkTmplGenerator != nil {
+			b.cfg.BgBlkTmplGenerator.BlockDisconnected(block)
 		}
 
-		// Filter and update the rebroadcast inventory.
-		b.server.PruneRebroadcastInventory()
-
 		// Notify registered websocket clients.
-		if r := b.server.rpcServer; r != nil {
+		if r := b.cfg.RpcServer(); r != nil {
 			// Filter and update the rebroadcast inventory.
-			b.server.PruneRebroadcastInventory()
+			b.cfg.PruneRebroadcastInventory()
 
 			// Notify registered websocket clients.
 			r.ntfnMgr.NotifyBlockDisconnected(block)
@@ -2008,14 +2036,14 @@ func (b *blockManager) handleNotifyMsg(notification *blockchain.Notification) {
 
 	// Chain reorganization has commenced.
 	case blockchain.NTChainReorgStarted:
-		if b.server.bg != nil {
-			b.server.bg.ChainReorgStarted()
+		if b.cfg.BgBlkTmplGenerator != nil {
+			b.cfg.BgBlkTmplGenerator.ChainReorgStarted()
 		}
 
 	// Chain reorganization has concluded.
 	case blockchain.NTChainReorgDone:
-		if b.server.bg != nil {
-			b.server.bg.ChainReorgDone()
+		if b.cfg.BgBlkTmplGenerator != nil {
+			b.cfg.BgBlkTmplGenerator.ChainReorgDone()
 		}
 
 	// The blockchain is reorganizing.
@@ -2027,7 +2055,7 @@ func (b *blockManager) handleNotifyMsg(notification *blockchain.Notification) {
 		}
 
 		// Notify registered websocket clients.
-		if r := b.server.rpcServer; r != nil {
+		if r := b.cfg.RpcServer(); r != nil {
 			r.ntfnMgr.NotifyReorganization(rd)
 		}
 
@@ -2194,7 +2222,7 @@ func (b *blockManager) requestFromPeer(p *serverPeer, blocks, txs []*chainhash.H
 
 		// Ask the transaction memory pool if the transaction is known
 		// to it in any form (main pool or orphan).
-		if b.server.txMemPool.HaveTransaction(vh) {
+		if b.cfg.TxMemPool.HaveTransaction(vh) {
 			continue
 		}
 
@@ -2357,9 +2385,10 @@ func (b *blockManager) SetParentTemplate(bt *BlockTemplate) {
 
 // newBlockManager returns a new Decred block manager.
 // Use Start to begin processing asynchronous block and inv updates.
-func newBlockManager(s *server, indexManager blockchain.IndexManager, interrupt <-chan struct{}) (*blockManager, error) {
+func newBlockManager(config *blockManagerConfig) (*blockManager, error) {
 	bm := blockManager{
-		server:           s,
+		cfg:              config,
+		chain:            config.Chain,
 		rejectedTxns:     make(map[chainhash.Hash]struct{}),
 		requestedTxns:    make(map[chainhash.Hash]struct{}),
 		requestedBlocks:  make(map[chainhash.Hash]struct{}),
@@ -2370,20 +2399,6 @@ func newBlockManager(s *server, indexManager blockchain.IndexManager, interrupt 
 		quit:             make(chan struct{}),
 	}
 
-	// Create a new block chain instance with the appropriate configuration.
-	var err error
-	bm.chain, err = blockchain.New(&blockchain.Config{
-		DB:            s.db,
-		Interrupt:     interrupt,
-		ChainParams:   s.chainParams,
-		TimeSource:    s.timeSource,
-		Notifications: bm.handleNotifyMsg,
-		SigCache:      s.sigCache,
-		IndexManager:  indexManager,
-	})
-	if err != nil {
-		return nil, err
-	}
 	best := bm.chain.BestSnapshot()
 	bm.chain.DisableCheckpoints(cfg.DisableCheckpoints)
 	if !cfg.DisableCheckpoints {
@@ -2398,7 +2413,7 @@ func newBlockManager(s *server, indexManager blockchain.IndexManager, interrupt 
 
 	// Dump the blockchain here if asked for it, and quit.
 	if cfg.DumpBlockchain != "" {
-		err = dumpBlockChain(bm.chain, best.Height)
+		err := dumpBlockChain(bm.chain, best.Height)
 		if err != nil {
 			return nil, err
 		}
