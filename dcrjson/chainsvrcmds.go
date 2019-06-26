@@ -175,13 +175,15 @@ func NewDecodeRawTransactionCmd(hexTx string) *DecodeRawTransactionCmd {
 // DecodeScriptCmd defines the decodescript JSON-RPC command.
 type DecodeScriptCmd struct {
 	HexScript string
+	Version   *uint16
 }
 
 // NewDecodeScriptCmd returns a new instance which can be used to issue a
 // decodescript JSON-RPC command.
-func NewDecodeScriptCmd(hexScript string) *DecodeScriptCmd {
+func NewDecodeScriptCmd(hexScript string, version *uint16) *DecodeScriptCmd {
 	return &DecodeScriptCmd{
 		HexScript: hexScript,
+		Version:   version,
 	}
 }
 
