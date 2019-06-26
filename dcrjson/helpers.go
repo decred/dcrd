@@ -29,6 +29,14 @@ func Uint(v uint) *uint {
 	return p
 }
 
+// Uint16 is a helper routine that allocates a new uint16 value to store v and
+// returns a pointer to it.  This is useful when assigning optional parameters.
+func Uint16(v uint16) *uint16 {
+	p := new(uint16)
+	*p = v
+	return p
+}
+
 // Int32 is a helper routine that allocates a new int32 value to store v and
 // returns a pointer to it.  This is useful when assigning optional parameters.
 func Int32(v int32) *int32 {

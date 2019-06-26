@@ -109,10 +109,21 @@ func TestChainSvrCmds(t *testing.T) {
 				return NewCmd("decodescript", "00")
 			},
 			staticCmd: func() interface{} {
-				return NewDecodeScriptCmd("00")
+				return NewDecodeScriptCmd("00", nil)
 			},
 			marshalled:   `{"jsonrpc":"1.0","method":"decodescript","params":["00"],"id":1}`,
 			unmarshalled: &DecodeScriptCmd{HexScript: "00"},
+		},
+		{
+			name: "decodescript optional",
+			newCmd: func() (interface{}, error) {
+				return NewCmd("decodescript", "00", Uint16(1))
+			},
+			staticCmd: func() interface{} {
+				return NewDecodeScriptCmd("00", Uint16(1))
+			},
+			marshalled:   `{"jsonrpc":"1.0","method":"decodescript","params":["00",1],"id":1}`,
+			unmarshalled: &DecodeScriptCmd{HexScript: "00", Version: Uint16(1)},
 		},
 		{
 			name: "estimatefee",

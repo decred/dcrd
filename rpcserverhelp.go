@@ -156,6 +156,7 @@ var helpDescsEnUS = map[string]string{
 	// DecodeScriptCmd help.
 	"decodescript--synopsis": "Returns a JSON object with information about the provided hex-encoded script.",
 	"decodescript-hexscript": "Hex-encoded script",
+	"decodescript-version":   "The script version, defaults to version 0 if not set.",
 
 	// ExistsAddressCmd help.
 	"existsaddress--synopsis": "Test for the existence of the provided address",

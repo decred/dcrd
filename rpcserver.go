@@ -1320,6 +1320,12 @@ func handleDecodeScript(s *rpcServer, cmd interface{}, closeChan <-chan struct{}
 		return nil, rpcDecodeHexError(hexStr)
 	}
 
+	// Fetch the script version if provided.
+	scriptVersion := uint16(0)
+	if c.Version != nil {
+		scriptVersion = *c.Version
+	}
+
 	// The disassembled string will contain [error] inline if the script
 	// doesn't fully parse, so ignore the error here.
 	disbuf, _ := txscript.DisasmString(script)
@@ -1327,9 +1333,8 @@ func handleDecodeScript(s *rpcServer, cmd interface{}, closeChan <-chan struct{}
 	// Get information about the script.
 	// Ignore the error here since an error means the script couldn't parse
 	// and there is no additinal information about it anyways.
-	// TODO Replace magic version with argument passed to RPC call
 	scriptClass, addrs, reqSigs, _ := txscript.ExtractPkScriptAddrs(
-		txscript.DefaultScriptVersion, script, s.server.chainParams)
+		scriptVersion, script, s.server.chainParams)
 	addresses := make([]string, len(addrs))
 	for i, addr := range addrs {
 		addresses[i] = addr.EncodeAddress()
