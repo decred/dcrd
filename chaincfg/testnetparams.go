@@ -34,7 +34,7 @@ func TestNet3Params() *Params {
 			Nonce:        0x18aea41a,
 			StakeVersion: 6,
 		},
-		Transactions: []*wire.MsgTx{&wire.MsgTx{
+		Transactions: []*wire.MsgTx{{
 			SerType: wire.TxSerializeFull,
 			Version: 1,
 			TxIn: []*wire.TxIn{{

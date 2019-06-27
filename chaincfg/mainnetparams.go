@@ -45,7 +45,7 @@ func MainNetParams() *Params {
 			Nonce:        0x00000000,
 			StakeVersion: 0,
 		},
-		Transactions: []*wire.MsgTx{&wire.MsgTx{
+		Transactions: []*wire.MsgTx{{
 			SerType: wire.TxSerializeFull,
 			Version: 1,
 			TxIn: []*wire.TxIn{{

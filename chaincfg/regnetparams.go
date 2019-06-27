@@ -49,7 +49,7 @@ func RegNetParams() *Params {
 			StakeVersion: 0,
 			Height:       0,
 		},
-		Transactions: []*wire.MsgTx{&wire.MsgTx{
+		Transactions: []*wire.MsgTx{{
 			SerType: wire.TxSerializeFull,
 			Version: 1,
 			TxIn: []*wire.TxIn{{
