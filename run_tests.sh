@@ -41,23 +41,28 @@ testrepo () {
   cp "$REPO" "$GOPATH/bin/"
 
   # run tests on all modules
-  ROOTPATH=$($GO list -m -f {{.Dir}} 2>/dev/null)
+  ROOTPATH=$($GO list -m)
   ROOTPATHPATTERN=$(echo $ROOTPATH | sed 's/\\/\\\\/g' | sed 's/\//\\\//g')
-  MODPATHS=$($GO list -m -f {{.Dir}} all 2>/dev/null | grep "^$ROOTPATHPATTERN"\
-    | sed -e "s/^$ROOTPATHPATTERN//" -e 's/^\\//' -e 's/^\///')
-  MODPATHS=". $MODPATHS"
+  MODPATHS=$($GO list -m all | grep "^$ROOTPATHPATTERN" | cut -d' ' -f1)
   for module in $MODPATHS; do
     echo "==> ${module}"
-    env CC=gcc $GO test -short -tags rpctest ./${module}/...
+    env CC=gcc $GO test -short -tags rpctest ${module}/...
 
     # check linters
-    golangci-lint run --build-tags rpctest --disable-all --deadline=10m \
-      --enable=gofmt \
-      --enable=gosimple \
-      --enable=unconvert \
-      --enable=ineffassign \
-      --enable=govet \
-      --enable=misspell ./${module}/...
+    MODNAME=$(echo $module | sed -e "s/^$ROOTPATHPATTERN//" \
+      -e 's/^\///' -e 's/\/v[0-9]\+$//')
+    if [ -z "$MODNAME" ]; then
+      MODNAME=.
+    fi
+    (cd $MODNAME && \
+      golangci-lint run --build-tags=rpctest --disable-all --deadline=10m \
+        --enable=gofmt \
+        --enable=gosimple \
+        --enable=unconvert \
+        --enable=ineffassign \
+        --enable=govet \
+        --enable=misspell \
+    )
   done
 
   echo "------------------------------------------"
