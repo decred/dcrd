@@ -23,8 +23,6 @@ github.com/decred/dcrd/chaincfg v1.4.0 h1:dIJhXQooiVW5AVZ0c4brylsiwkc8KSawpZ3NPq
 github.com/decred/dcrd/chaincfg v1.4.0/go.mod h1:ypuM30F+XgZmZTFfAkWHWd0lwwkWWAOAQYNRkRDlYLc=
 github.com/decred/dcrd/chaincfg v1.5.1 h1:u1Xbq0VTnAXIHW5ECqrWe0VYSgf5vWHqpSiwoLBzxAQ=
 github.com/decred/dcrd/chaincfg v1.5.1/go.mod h1:FukMzTjkwzjPU+hK7CqDMQe3NMbSZAYU5PAcsx1wlv0=
-github.com/decred/dcrd/chaincfg/v2 v2.0.2 h1:VeGY52lHuYT01tIGbvYj+OO0GaGxGaJmnh+4vGca1+U=
-github.com/decred/dcrd/chaincfg/v2 v2.0.2/go.mod h1:hpKvhLCDAD/xDZ3V1Pqpv9fIKVYYi11DyxETguazyvg=
 github.com/decred/dcrd/dcrec/edwards v0.0.0-20180721005212-59fe2b293f69/go.mod h1:+ehP0Hk/mesyZXttxCtBbhPX23BMpZJ1pcVBqUfbmvU=
 github.com/decred/dcrd/dcrec/edwards v0.0.0-20181208004914-a0816cf4301f/go.mod h1:+ehP0Hk/mesyZXttxCtBbhPX23BMpZJ1pcVBqUfbmvU=
 github.com/decred/dcrd/dcrec/edwards v0.0.0-20190130161649-59ed4247a1d5/go.mod h1:+ehP0Hk/mesyZXttxCtBbhPX23BMpZJ1pcVBqUfbmvU=
