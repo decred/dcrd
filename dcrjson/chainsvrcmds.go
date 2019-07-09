@@ -180,10 +180,9 @@ type DecodeScriptCmd struct {
 
 // NewDecodeScriptCmd returns a new instance which can be used to issue a
 // decodescript JSON-RPC command.
-func NewDecodeScriptCmd(hexScript string, version *uint16) *DecodeScriptCmd {
+func NewDecodeScriptCmd(hexScript string) *DecodeScriptCmd {
 	return &DecodeScriptCmd{
 		HexScript: hexScript,
-		Version:   version,
 	}
 }
 
