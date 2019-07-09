@@ -783,13 +783,14 @@ func newPoolHarness(chainParams *chaincfg.Params) (*poolHarness, []spendableOutp
 		chain: chain,
 		txPool: New(&Config{
 			Policy: Policy{
+				FeeDecayRate:         0,
 				MaxTxVersion:         wire.TxVersionTreasury,
 				DisableRelayPriority: true,
 				FreeTxRelayLimit:     15.0,
 				MaxOrphanTxs:         5,
 				MaxOrphanTxSize:      1000,
 				MaxSigOpsPerTx:       blockchain.MaxSigOpsPerBlock / 5,
-				MinRelayTxFee:        1000, // 1 Satoshi per byte
+				MinRelayTxFee:        1000, // 1 Atom per byte
 				MaxVoteAge: func() uint16 {
 					switch chainParams.Net {
 					case wire.MainNet, wire.SimNet, wire.RegNet:
@@ -2749,4 +2750,338 @@ func TestHandlesTAdds(t *testing.T) {
 		t.Fatalf("tadd was created with change: %#v", tadd)
 	}
 	acceptTAdd(tadd)
+}
+
+// Tests the behavior of the mining view when returned from a mempool with
+// containing a transaction chain depicted as:
+//
+//                       /--> d
+//                       |
+//                 |--> b --|
+// <coinbase>  --> a        |-->e
+//                 |--> c --|
+//
+//
+func TestMiningView(t *testing.T) {
+	harness, spendableOuts, err := newPoolHarness(chaincfg.MainNetParams())
+	if err != nil {
+		t.Fatalf("unable to create test pool: %v", err)
+	}
+
+	applyTxFee := func(fee int64) func(*wire.MsgTx) {
+		return func(tx *wire.MsgTx) {
+			tx.TxOut[0].Value -= fee
+		}
+	}
+
+	// All transactions have the same number of outputs
+	// to keep the size uniform.
+	txA, _ := harness.CreateSignedTx([]spendableOutput{
+		spendableOuts[0],
+	}, 2, applyTxFee(1000))
+
+	txB, _ := harness.CreateSignedTx([]spendableOutput{
+		txOutToSpendableOut(txA, 0, wire.TxTreeRegular),
+	}, 2, applyTxFee(5000))
+
+	txC, _ := harness.CreateSignedTx([]spendableOutput{
+		txOutToSpendableOut(txA, 1, wire.TxTreeRegular),
+	}, 2, applyTxFee(5000))
+
+	txD, _ := harness.CreateSignedTx([]spendableOutput{
+		txOutToSpendableOut(txB, 0, wire.TxTreeRegular),
+	}, 2, applyTxFee(5000))
+
+	txE, _ := harness.CreateSignedTx([]spendableOutput{
+		txOutToSpendableOut(txB, 1, wire.TxTreeRegular),
+		txOutToSpendableOut(txC, 0, wire.TxTreeRegular),
+	}, 2, applyTxFee(5000))
+
+	// Add all to chain.
+	allTxns := []*dcrutil.Tx{txA, txB, txC, txD, txE}
+	for index, tx := range allTxns {
+		acceptedTxns, err := harness.txPool.ProcessTransaction(tx,
+			false, false, true, 0)
+		if err != nil {
+			t.Fatalf("ProcessTransaction: failed to accept valid "+
+				"transaction at index %d: %v", index, err)
+		}
+		if len(acceptedTxns) != 1 {
+			t.Fatalf("ProcessTransaction: reported accepted transactions "+
+				"length does not match expected -- got %d, want %d",
+				len(acceptedTxns), 1)
+		}
+	}
+
+	type test struct {
+		name              string
+		miningView        mining.TxMiningView
+		subject           *dcrutil.Tx
+		expectedFees      int64
+		expectedSizeBytes int64
+		expectedSigOps    int64
+		ancestors         []*dcrutil.Tx
+		descendents       []*dcrutil.Tx
+		orderedAncestors  [][]*dcrutil.Tx
+	}
+
+	txALen := int64(txA.MsgTx().SerializeSize())
+	txBLen := int64(txB.MsgTx().SerializeSize())
+	txCLen := int64(txC.MsgTx().SerializeSize())
+
+	txANumSigOps := int64(2)
+	txBNumSigOps := int64(2)
+	txCNumSigOps := int64(2)
+
+	tests := []*test{
+		{
+			name:              "Tx A",
+			subject:           txA,
+			expectedFees:      0,
+			expectedSizeBytes: 0,
+			expectedSigOps:    0,
+			ancestors:         []*dcrutil.Tx{},
+			descendents:       []*dcrutil.Tx{txB, txC, txD, txE},
+			orderedAncestors:  [][]*dcrutil.Tx{},
+		},
+		{
+			name:              "Tx B",
+			subject:           txB,
+			expectedFees:      1000,
+			expectedSizeBytes: txALen,
+			expectedSigOps:    txANumSigOps,
+			ancestors:         []*dcrutil.Tx{txA},
+			descendents:       []*dcrutil.Tx{txD, txE},
+			orderedAncestors: [][]*dcrutil.Tx{
+				{txA},
+			},
+		},
+		{
+			name:              "Tx C",
+			subject:           txC,
+			expectedFees:      1000,
+			expectedSizeBytes: txALen,
+			expectedSigOps:    txANumSigOps,
+			ancestors:         []*dcrutil.Tx{txA},
+			descendents:       []*dcrutil.Tx{txE},
+			orderedAncestors: [][]*dcrutil.Tx{
+				{txA},
+			},
+		},
+		{
+			name:              "Tx D",
+			subject:           txD,
+			expectedFees:      6000,
+			expectedSizeBytes: txALen + txBLen,
+			expectedSigOps:    txANumSigOps + txBNumSigOps,
+			ancestors:         []*dcrutil.Tx{txA, txB},
+			descendents:       []*dcrutil.Tx{},
+			orderedAncestors: [][]*dcrutil.Tx{
+				{txA, txB},
+			},
+		},
+		{
+			name:              "Tx E",
+			subject:           txE,
+			expectedFees:      11000,
+			expectedSizeBytes: txALen + txBLen + txCLen,
+			expectedSigOps:    txANumSigOps + txBNumSigOps + txCNumSigOps,
+			ancestors:         []*dcrutil.Tx{txA, txB, txC},
+			descendents:       []*dcrutil.Tx{txE},
+			orderedAncestors: [][]*dcrutil.Tx{
+				{txA, txB, txC},
+				{txA, txC, txB},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		txHash := test.subject.Hash()
+		txDesc := harness.txPool.pool[*txHash]
+		miningView := harness.txPool.MiningView()
+
+		// Make sure transaction is not rejected between view instances.
+		if miningView.IsRejected(txHash) {
+			t.Fatalf("%v: expected test subject txn %v to not be rejected",
+				test.name, *txHash)
+		}
+
+		// Ensure stats are calculated before retrieving ancestors.
+		stat := miningView.BundleStats(txHash)
+		if test.expectedFees != stat.Fees {
+			t.Fatalf("%v: expected subject txn to have bundle fees %v, got %v",
+				test.name, test.expectedFees, stat.Fees)
+		}
+
+		if test.expectedSizeBytes != stat.SizeBytes {
+			t.Fatalf("%v: expected subject txn to have SizeBytes=%v, got %v",
+				test.name, 0, stat.SizeBytes)
+		}
+
+		if test.expectedSigOps != stat.NumSigOps {
+			t.Fatalf("%v: expected subject txn to have SigOps=%v, got %v",
+				test.name, test.expectedSigOps, stat.NumSigOps)
+		}
+
+		if len(test.ancestors) != stat.NumAncestors {
+			t.Fatalf("%v: expected subject txn to have NumAncestors=%v, got %v",
+				test.name, len(test.ancestors), stat.NumAncestors)
+		}
+
+		// Retrieving ancestors will cause the cached stats to be updated.
+		ancestors, stat := miningView.Ancestors(txHash)
+
+		// Get snapshot of transaction relationships as they exist in the pool.
+		descendents := harness.txPool.miningView.txGraph.descendents(txHash)
+
+		if len(test.ancestors) != len(ancestors) {
+			t.Fatalf("%v: expected subject txn to have %v ancestors, got %v",
+				test.name, len(test.ancestors), len(ancestors))
+		}
+
+		if len(ancestors) != stat.NumAncestors {
+			t.Fatalf("%v: expected subject txn to have NumAncestors=%v, got %v",
+				test.name, len(test.ancestors), stat.NumAncestors)
+		}
+
+		// Ensure that transactions have a valid order, and that one of the
+		// test's orderedAncestors matches ancestors returned from the view
+		// exactly.
+		exactMatch := true
+		for _, ancestorGroups := range test.orderedAncestors {
+			exactMatch = true
+			for index, ancestor := range ancestorGroups {
+				if *ancestors[index].Tx.Hash() != *ancestor.Hash() {
+					exactMatch = false
+					break
+				}
+			}
+
+			if exactMatch {
+				break
+			}
+		}
+
+		if !exactMatch {
+			t.Fatalf("%v: subject txn ancestors returned out of order",
+				test.name)
+		}
+
+		if miningView.HasParents(txHash) && len(test.ancestors) == 0 {
+			t.Fatalf("%v: expected subject txn to not have 0 parents, got %v",
+				test.name, len(test.ancestors))
+		}
+
+		// Make sure all parents are valid outpoints from this tx
+		txInputHashes := make(map[chainhash.Hash]struct{})
+		for _, outpoint := range test.subject.MsgTx().TxIn {
+			txInputHashes[outpoint.PreviousOutPoint.Hash] = struct{}{}
+		}
+
+		for _, parentDesc := range miningView.Parents(txHash) {
+			if _, exist := txInputHashes[*parentDesc.Tx.Hash()]; !exist {
+				t.Fatalf("%v: test subject %v has invalid parent %v",
+					test.name, *txHash, *parentDesc.Tx.Hash())
+			}
+		}
+
+		// if the transaction has children, make sure it's no longer the
+		// child's ancestor after removal.
+		removalMiningView := harness.txPool.MiningView()
+		if children := removalMiningView.Children(txHash); len(children) > 0 {
+			removalMiningView.Remove(txHash, false)
+			child := children[0]
+			siblings := removalMiningView.Parents(child.Tx.Hash())
+
+			// Make sure parent fee has not changed.
+			oldStat := miningView.BundleStats(child.Tx.Hash())
+			newStat := removalMiningView.BundleStats(child.Tx.Hash())
+
+			if *oldStat != *newStat {
+				t.Fatalf("%v: expected test subject's child bundle stats to "+
+					"remain unchanged.", test.name)
+			}
+
+			for _, sibling := range siblings {
+				if *sibling.Tx.Hash() == *txHash {
+					t.Fatalf("%v: expected test subject to no longer be an"+
+						"ancestor of %v after being removed from the view.",
+						test.name, *sibling.Tx.Hash())
+				}
+			}
+		}
+
+		// reset the mining view after removing tx
+		// ensure all descendents have the fee removed for this transaction
+		// when calling Remove with option to do so.
+		removalMiningView = harness.txPool.MiningView()
+		removalMiningView.Remove(txHash, true)
+
+		for _, descendent := range descendents {
+			oldStat := miningView.BundleStats(descendent)
+			newStat := removalMiningView.BundleStats(descendent)
+
+			expectedFee := oldStat.Fees - txDesc.Fee
+			expectedSigOps := oldStat.NumSigOps - int64(txDesc.NumSigOps)
+			expectedSizeBytes := oldStat.SizeBytes -
+				int64(txDesc.Tx.MsgTx().SerializeSize())
+			expectedNumAncestors := oldStat.NumAncestors - 1
+
+			if newStat.Fees != expectedFee {
+				t.Fatalf("%v: expected descendent to have adjusted "+
+					"Fees=%v, but got %v", test.name, expectedFee, newStat.Fees)
+			}
+
+			if newStat.NumSigOps != expectedSigOps {
+				t.Fatalf("%v: expected descendent to have adjusted "+
+					"NumSigOps=%v, but got %v", test.name,
+					expectedSigOps, newStat.NumSigOps)
+			}
+
+			if newStat.SizeBytes != expectedSizeBytes {
+				t.Fatalf("%v: expected descendent to have adjusted "+
+					"SizeBytes=%v, but got %v", test.name,
+					expectedSizeBytes, newStat.SizeBytes)
+			}
+
+			if newStat.NumAncestors != expectedNumAncestors {
+				t.Fatalf("%v: expected descendent to have "+
+					"NumAncestors=%v, but got %v", test.name,
+					expectedNumAncestors, newStat.NumAncestors)
+			}
+		}
+
+		miningView.Reject(txHash)
+
+		if !miningView.IsRejected(txHash) {
+			t.Fatalf("%v: expected test subject txn %v to be rejected",
+				test.name, *txHash)
+		}
+
+		// Rejecting a transaction rejects all descendent transactions
+		// and removes the tx from the graph.
+		if ancestors, _ := miningView.Ancestors(txHash); len(ancestors) > 0 {
+			t.Fatalf("%v: expected subject txn to have 0 ancestors, got %v",
+				test.name, len(ancestors))
+		}
+
+		for _, descendent := range descendents {
+			if !miningView.IsRejected(descendent) {
+				t.Fatalf("%v: expected descendent txn %v to be rejected.",
+					test.name, *descendent)
+			}
+		}
+	}
+
+	// Create mining view prior to remove txn from pool.
+	miningView := harness.txPool.MiningView()
+
+	// Remove all transactions (txA is root) from the mempool.
+	harness.txPool.RemoveTransaction(txA, true, true)
+
+	// Ensure tx and children are still accessible in view.
+	if len(miningView.Children(txA.Hash())) != 2 {
+		t.Fatalf("RemoveTxnFromPool: expected txA to exist in graph " +
+			"even though it was removed from the mempool.")
+	}
 }

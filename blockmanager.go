@@ -2051,6 +2051,9 @@ func (b *blockManager) handleBlockchainNotification(notification *blockchain.Not
 				b.cfg.PeerNotifier.TransactionConfirmed(tx)
 			}
 		}
+
+		// Add regular transactions back to the mempool,
+		// excluding the coinbase since it does not belong in the mempool.
 		handleConnectedBlockTxns(block.Transactions()[1:])
 		if isTreasuryEnabled {
 			// Skip treasurybase

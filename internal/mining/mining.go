@@ -62,6 +62,67 @@ type TxDesc struct {
 
 	// Fee is the total fee the transaction associated with the entry pays.
 	Fee int64
+
+	// NumSigOps is the total sigops for this transaction
+	NumSigOps int
+}
+
+// TxBundleStats is a descriptor that stores aggregated statistics for the
+// unconfirmed ancestors of a transasction.
+type TxBundleStats struct {
+	// Fees is the sum of all fees of unconfirmed ancestors
+	// and the current transaction.
+	Fees int64
+
+	// SizeBytes is the total size of all unconfirmed ancestors.
+	SizeBytes int64
+
+	// NumSigOps is the total number of signature operations of all ancestors.
+	NumSigOps int64
+
+	// NumAncestors is the total number of ancestors for a given transaction.
+	NumAncestors int
+}
+
+// TxMiningView is a snapshot of the tx source.
+type TxMiningView interface {
+	// MiningDescs returns a slice of mining descriptors for all the
+	// transactions in the source pool.
+	TxDescs() []*TxDesc
+
+	// BundleStats returns the last known bundle stats for a given transaction.
+	// May return a nil pointer if the stats have not been calculated. Calling
+	// Ancestors will calculate and update the value returned by this method.
+	BundleStats(txHash *chainhash.Hash) *TxBundleStats
+
+	// Ancestors returns all transactions in the mining view that the provided
+	// transaction has depends on.
+	Ancestors(txHash *chainhash.Hash) ([]*TxDesc, *TxBundleStats)
+
+	// HasParents returns true if the provided transaction hash has any
+	// ancestors known to the view.
+	HasParents(txHash *chainhash.Hash) bool
+
+	// Parents returns a unique set of transactions that the provided
+	// transaction hash spends from in the view. The order of elements is not
+	// guaranteed.
+	Parents(txHash *chainhash.Hash) []*TxDesc
+
+	// Children returns a unique set of transactions that spend from the
+	// provided transaction hash. The order of elements is not guaranteed.
+	Children(txHash *chainhash.Hash) []*TxDesc
+
+	// Remove causes the provided transaction to be removed from the view, if
+	// it exists.
+	Remove(txHash *chainhash.Hash, notifyFeeChange bool)
+
+	// Reject removes and flags the provided transaction hash and all of its
+	// descendents in the view as rejected.
+	Reject(txHash *chainhash.Hash)
+
+	// IsRejected checks to see if a transaction that once existed in the view
+	// has been rejected.
+	IsRejected(txHash *chainhash.Hash) bool
 }
 
 // VoteDesc is a descriptor about a vote transaction in a transaction source
@@ -108,6 +169,9 @@ type TxSource interface {
 	// known to be disapproved according to the votes currently in the
 	// source pool.
 	IsRegTxTreeKnownDisapproved(hash *chainhash.Hash) bool
+
+	// MiningView returns a snapshot of the underlying TxSource
+	MiningView() TxMiningView
 }
 
 const (
@@ -159,12 +223,6 @@ type txPrioItem struct {
 	fee      int64
 	priority float64
 	feePerKB float64
-
-	// dependsOn holds a map of transaction hashes which this one depends
-	// on.  It will only be set when the transaction references other
-	// transactions in the source pool and hence must come after them in
-	// a block.
-	dependsOn map[chainhash.Hash]struct{}
 }
 
 // txPriorityQueueLessFunc describes a function that can be used as a compare
@@ -762,14 +820,14 @@ func spendTransaction(utxoView *blockchain.UtxoViewpoint, tx *dcrutil.Tx, height
 
 // logSkippedDeps logs any dependencies which are also skipped as a result of
 // skipping a transaction while generating a block template at the trace level.
-func logSkippedDeps(tx *dcrutil.Tx, deps map[chainhash.Hash]*txPrioItem) {
+func logSkippedDeps(tx *dcrutil.Tx, deps []*TxDesc) {
 	if deps == nil {
 		return
 	}
 
 	for _, item := range deps {
 		log.Tracef("Skipping tx %s since it depends on %s\n",
-			item.tx.Hash(), tx.Hash())
+			item.Tx.Hash(), tx.Hash())
 	}
 }
 
@@ -1235,7 +1293,8 @@ func (g *BlkTmplGenerator) NewBlockTemplate(payToAddress dcrutil.Address) (*Bloc
 	// number of items that are available for the priority queue.  Also,
 	// choose the initial sort order for the priority queue based on whether
 	// or not there is an area allocated for high-priority transactions.
-	sourceTxns := g.txSource.MiningDescs()
+	miningView := g.txSource.MiningView()
+	sourceTxns := miningView.TxDescs()
 	sortedByFee := g.policy.BlockPrioritySize == 0
 	lessFunc := txPQByStakeAndFeeAndThenPriority
 	if sortedByFee {
@@ -1249,13 +1308,6 @@ func (g *BlkTmplGenerator) NewBlockTemplate(payToAddress dcrutil.Address) (*Bloc
 	// avoided.
 	blockTxns := make([]*dcrutil.Tx, 0, len(sourceTxns))
 	blockUtxos := blockchain.NewUtxoViewpoint(g.chain)
-
-	// dependers is used to track transactions which depend on another
-	// transaction in the source pool.  This, in conjunction with the
-	// dependsOn map kept with each dependent transaction helps quickly
-	// determine which dependent transactions are now eligible for inclusion
-	// in the block once each transaction has been included.
-	dependers := make(map[chainhash.Hash]map[chainhash.Hash]*txPrioItem)
 
 	// Create slices to hold the fees and number of signature operations
 	// for each of the selected transactions and add an entry for the
@@ -1272,6 +1324,10 @@ func (g *BlkTmplGenerator) NewBlockTemplate(payToAddress dcrutil.Address) (*Bloc
 	log.Debugf("Considering %d transactions for inclusion to new block",
 		len(sourceTxns))
 	knownDisapproved := g.txSource.IsRegTxTreeKnownDisapproved(&prevHash)
+
+	// Tracks the total number of transactions that depend on another
+	// from the tx source.
+	totalDescendentTxns := 0
 
 mempoolLoop:
 	for _, txDesc := range sourceTxns {
@@ -1341,25 +1397,6 @@ mempoolLoop:
 						tx.Hash(), txIn.PreviousOutPoint)
 					continue mempoolLoop
 				}
-
-				// The transaction is referencing another
-				// transaction in the source pool, so setup an
-				// ordering dependency.
-				deps, exists := dependers[*originHash]
-				if !exists {
-					deps = make(map[chainhash.Hash]*txPrioItem)
-					dependers[*originHash] = deps
-				}
-				deps[*prioItem.tx.Hash()] = prioItem
-				if prioItem.dependsOn == nil {
-					prioItem.dependsOn = make(
-						map[chainhash.Hash]struct{})
-				}
-				prioItem.dependsOn[*originHash] = struct{}{}
-
-				// Skip the check below. We already know the
-				// referenced transaction is available.
-				continue
 			}
 		}
 
@@ -1381,8 +1418,10 @@ mempoolLoop:
 
 		// Add the transaction to the priority queue to mark it ready
 		// for inclusion in the block unless it has dependencies.
-		if prioItem.dependsOn == nil {
+		if !miningView.HasParents(tx.Hash()) {
 			heap.Push(priorityQueue, prioItem)
+		} else {
+			totalDescendentTxns++
 		}
 
 		// Merge the referenced outputs from the input transactions to
@@ -1392,7 +1431,7 @@ mempoolLoop:
 	}
 
 	log.Tracef("Priority queue len %d, dependers len %d",
-		priorityQueue.Len(), len(dependers))
+		priorityQueue.Len(), totalDescendentTxns)
 
 	// The starting block size is the size of the block header plus the max
 	// possible transaction count size, plus the size of the coinbase
@@ -1442,7 +1481,7 @@ mempoolLoop:
 		}
 
 		// Grab the list of transactions which depend on this one (if any).
-		deps := dependers[*tx.Hash()]
+		deps := miningView.Children(tx.Hash())
 
 		// Skip TSpend if this block is not on a TVI or outside of the
 		// Tspend window.
@@ -1688,14 +1727,17 @@ mempoolLoop:
 		log.Tracef("Adding tx %s (priority %.2f, feePerKB %.2f)",
 			prioItem.tx.Hash(), prioItem.priority, prioItem.feePerKB)
 
+		// Remove transaction from mining view since it's been added to the
+		// block template.
+		miningView.Remove(tx.Hash(), false)
+
 		// Add transactions which depend on this one (and also do not
 		// have any other unsatisfied dependencies) to the priority
 		// queue.
 		for _, item := range deps {
 			// Add the transaction to the priority queue if there
 			// are no more dependencies after this one.
-			delete(item.dependsOn, *tx.Hash())
-			if len(item.dependsOn) == 0 {
+			if !miningView.HasParents(item.Tx.Hash()) {
 				heap.Push(priorityQueue, item)
 			}
 		}
