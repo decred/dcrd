@@ -1,5 +1,5 @@
 // Copyright (c) 2014 The btcsuite developers
-// Copyright (c) 2015-2016 The Decred developers
+// Copyright (c) 2015-2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -11,6 +11,27 @@ import (
 	"testing"
 )
 
+// Register methods for testing purposes.  This does not conflict with
+// registration performed by external packages as they are done in separate
+// builds.
+func init() {
+	MustRegister("getblock", (*testGetBlockCmd)(nil), 0)
+	MustRegister("getblockcount", (*testGetBlockCountCmd)(nil), 0)
+	MustRegister("session", (*testSessionCmd)(nil), UFWebsocketOnly)
+	MustRegister("help", (*testHelpCmd)(nil), 0)
+}
+
+type testGetBlockCmd struct {
+	Hash      string
+	Verbose   *bool `jsonrpcdefault:"true"`
+	VerboseTx *bool `jsonrpcdefault:"false"`
+}
+type testGetBlockCountCmd struct{}
+type testSessionCmd struct{}
+type testHelpCmd struct {
+	Command *string
+}
+
 // TestUsageFlagStringer tests the stringized output for the UsageFlag type.
 func TestUsageFlagStringer(t *testing.T) {
 	t.Parallel()
@@ -20,12 +41,12 @@ func TestUsageFlagStringer(t *testing.T) {
 		want string
 	}{
 		{0, "0x0"},
-		{UFWalletOnly, "UFWalletOnly"},
+		{1, "0x0"}, // was UFWalletOnly
 		{UFWebsocketOnly, "UFWebsocketOnly"},
 		{UFNotification, "UFNotification"},
-		{UFWalletOnly | UFWebsocketOnly, "UFWalletOnly|UFWebsocketOnly"},
-		{UFWalletOnly | UFWebsocketOnly | (1 << 31),
-			"UFWalletOnly|UFWebsocketOnly|0x80000000"},
+		{UFWebsocketOnly | UFNotification, "UFWebsocketOnly|UFNotification"},
+		{1 | UFWebsocketOnly | UFNotification | (1 << 31),
+			"UFWebsocketOnly|UFNotification|0x80000000"},
 	}
 
 	// Detect additional usage flags that don't have the stringer added.
@@ -206,8 +227,7 @@ func TestRegisterCmdErrors(t *testing.T) {
 
 	t.Logf("Running %d tests", len(tests))
 	for i, test := range tests {
-		err := RegisterCmd(test.method, test.cmdFunc(),
-			test.flags)
+		err := Register(test.method, test.cmdFunc(), test.flags)
 		if reflect.TypeOf(err) != reflect.TypeOf(test.err) {
 			t.Errorf("Test #%d (%s) wrong error - got %T, "+
 				"want %T", i, test.name, err, test.err)
@@ -237,7 +257,7 @@ func TestMustRegisterCmdPanic(t *testing.T) {
 	}()
 
 	// Intentionally try to register an invalid type to force a panic.
-	MustRegisterCmd("panicme", 0, 0)
+	MustRegister("panicme", 0, 0)
 }
 
 // TestRegisteredCmdMethods tests the RegisteredCmdMethods function ensure it
@@ -245,8 +265,8 @@ func TestMustRegisterCmdPanic(t *testing.T) {
 func TestRegisteredCmdMethods(t *testing.T) {
 	t.Parallel()
 
-	// Ensure the registered methods are returned.
-	methods := RegisteredCmdMethods()
+	// Ensure the registered methods for plain string methods are returned.
+	methods := RegisteredMethods("")
 	if len(methods) == 0 {
 		t.Fatal("RegisteredCmdMethods: no methods")
 	}

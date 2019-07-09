@@ -1,5 +1,5 @@
 // Copyright (c) 2014 The btcsuite developers
-// Copyright (c) 2015-2016 The Decred developers
+// Copyright (c) 2015-2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -419,13 +419,13 @@ func TestMarshalCmdErrors(t *testing.T) {
 		{
 			name: "nil instance of registered type",
 			id:   1,
-			cmd:  (*GetBlockCmd)(nil),
+			cmd:  (*testGetBlockCmd)(nil),
 			err:  Error{Code: ErrInvalidType},
 		},
 		{
-			name: "nil instance of registered type",
+			name: "zero instance of registered type",
 			id:   []int{0, 1},
-			cmd:  &GetBlockCountCmd{},
+			cmd:  &testGetBlockCountCmd{},
 			err:  Error{Code: ErrInvalidType},
 		},
 	}
@@ -448,60 +448,46 @@ func TestMarshalCmdErrors(t *testing.T) {
 	}
 }
 
-// TestUnmarshalCmdErrors  tests the error paths of the UnmarshalCmd function.
-func TestUnmarshalCmdErrors(t *testing.T) {
+// TestParseParamsErrors tests the error paths of the ParseParams function.
+func TestParseParamsErrors(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
 		name    string
+		method  string
+		params  []json.RawMessage
 		request Request
 		err     Error
 	}{
 		{
-			name: "unregistered type",
-			request: Request{
-				Jsonrpc: "1.0",
-				Method:  "bogusmethod",
-				Params:  nil,
-				ID:      nil,
-			},
-			err: Error{Code: ErrUnregisteredMethod},
+			name:   "unregistered type",
+			method: "bogusmethod",
+			params: nil,
+			err:    Error{Code: ErrUnregisteredMethod},
 		},
 		{
-			name: "incorrect number of params",
-			request: Request{
-				Jsonrpc: "1.0",
-				Method:  "getblockcount",
-				Params:  []json.RawMessage{[]byte(`"bogusparam"`)},
-				ID:      nil,
-			},
-			err: Error{Code: ErrNumParams},
+			name:   "incorrect number of params",
+			method: "getblockcount",
+			params: []json.RawMessage{[]byte(`"bogusparam"`)},
+			err:    Error{Code: ErrNumParams},
 		},
 		{
-			name: "invalid type for a parameter",
-			request: Request{
-				Jsonrpc: "1.0",
-				Method:  "getblock",
-				Params:  []json.RawMessage{[]byte("1")},
-				ID:      nil,
-			},
-			err: Error{Code: ErrInvalidType},
+			name:   "invalid type for a parameter",
+			method: "getblock",
+			params: []json.RawMessage{[]byte("1")},
+			err:    Error{Code: ErrInvalidType},
 		},
 		{
-			name: "invalid JSON for a parameter",
-			request: Request{
-				Jsonrpc: "1.0",
-				Method:  "getblock",
-				Params:  []json.RawMessage{[]byte(`"1`)},
-				ID:      nil,
-			},
-			err: Error{Code: ErrInvalidType},
+			name:   "invalid JSON for a parameter",
+			method: "getblock",
+			params: []json.RawMessage{[]byte(`"1`)},
+			err:    Error{Code: ErrInvalidType},
 		},
 	}
 
 	t.Logf("Running %d tests", len(tests))
 	for i, test := range tests {
-		_, err := UnmarshalCmd(&test.request)
+		_, err := ParseParams(test.method, test.params)
 		if reflect.TypeOf(err) != reflect.TypeOf(test.err) {
 			t.Errorf("Test #%d (%s) wrong error type - got `%T` (%v), want `%T`",
 				i, test.name, err, err, test.err)

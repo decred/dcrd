@@ -32,6 +32,10 @@ github.com/decred/dcrd/dcrec/secp256k1 v1.0.0/go.mod h1:JPMFscGlgXTV684jxQNDijae
 github.com/decred/dcrd/dcrec/secp256k1 v1.0.1/go.mod h1:lhu4eZFSfTJWUnR3CFRcpD+Vta0KUAqnhTsTksHXgy0=
 github.com/decred/dcrd/dcrec/secp256k1 v1.0.2 h1:awk7sYJ4pGWmtkiGHFfctztJjHMKGLV8jctGQhAbKe0=
 github.com/decred/dcrd/dcrec/secp256k1 v1.0.2/go.mod h1:CHTUIVfmDDd0KFVFpNX1pFVCBUegxW387nN0IGwNKR0=
+github.com/decred/dcrd/dcrjson/v2 v2.0.0 h1:W0q4Alh36c5N318eUpfmU8kXoCNgImMLI87NIXni9Us=
+github.com/decred/dcrd/dcrjson/v2 v2.0.0/go.mod h1:FYueNy8BREAFq04YNEwcTsmGFcNqY+ehUUO81w2igi4=
+github.com/decred/dcrd/dcrjson/v2 v2.1.0-0.20190709184057-e4f5e3f84f39 h1:gRp7NXypQMNiK8MX4rxEgB7jWXZrpE9R3tqNYGoLeM0=
+github.com/decred/dcrd/dcrjson/v2 v2.1.0-0.20190709184057-e4f5e3f84f39/go.mod h1:x4dY9EiT+awLvXz4wNzGlVtzR9EXYkZglXlrnDoLI6g=
 github.com/decred/dcrd/dcrutil v1.1.1/go.mod h1:Jsttr0pEvzPAw+qay1kS1/PsbZYPyhluiNwwY6yBJS4=
 github.com/decred/dcrd/dcrutil v1.2.0/go.mod h1:tUNHS2gj7ApeEVS8gb6O+4wJW7w3O2MSRyRdcjW1JxU=
 github.com/decred/dcrd/dcrutil v1.3.0 h1:LtKIiDnq925yJT/4OpIKKiU9/WaxfD9LfhxrpLSi0Qs=
@@ -56,6 +60,12 @@ github.com/jessevdk/go-flags v1.4.0 h1:4IU2WS7AumrZ/40jfhf4QVDMsQwqA7VEHozFRrGAR
 github.com/jessevdk/go-flags v1.4.0/go.mod h1:4FA24M0QyGHXBuZZK/XkWh8h0e1EYbRYJSGM75WSRxI=
 github.com/jrick/bitset v1.0.0 h1:Ws0PXV3PwXqWK2n7Vz6idCdrV/9OrBXgHEJi27ZB9Dw=
 github.com/jrick/bitset v1.0.0/go.mod h1:ZOYB5Uvkla7wIEY4FEssPVi3IQXa02arznRaYaAEPe4=
+github.com/jrick/btcd/dcrjson/v2 v2.0.0-20190712210503-292c1e5e80ac h1:2vTh3IBLNrz5hsSpL8ADkxaIRSU8UW64wqUC0wmADtc=
+github.com/jrick/btcd/dcrjson/v2 v2.0.0-20190712210503-292c1e5e80ac/go.mod h1:JwKNPWI2B+oMTtj4zv5ale8682i99PF+ETEydAGdQIg=
+github.com/jrick/btcd/dcrjson/v2 v2.0.0-20190715200557-9fffa6c80ab0 h1:wgwsgxMRl8Z3MohHq+RxTxsZI8S3qHdJq88tZkX9Rv8=
+github.com/jrick/btcd/dcrjson/v2 v2.0.0-20190715200557-9fffa6c80ab0/go.mod h1:JwKNPWI2B+oMTtj4zv5ale8682i99PF+ETEydAGdQIg=
+github.com/jrick/btcwallet/rpc/jsonrpc/types v0.0.0-20190715193601-785bca9161e7 h1:mzBwESVcoOOQRdj+redewvo14ZY8o7FndeaNvMjYqss=
+github.com/jrick/btcwallet/rpc/jsonrpc/types v0.0.0-20190715193601-785bca9161e7/go.mod h1:3sSyqYX80jbLe3O/o3VgxHR82Up8lRLvhhbWZ26wCos=
 github.com/jrick/logrotate v1.0.0 h1:lQ1bL/n9mBNeIXoTUoYRlK4dHuNJVofX9oWqBtPnSzI=
 github.com/jrick/logrotate v1.0.0/go.mod h1:LNinyqDIJnpAur+b8yyulnQw/wDuN1+BYKlTRt3OuAQ=
 github.com/kr/pretty v0.1.0 h1:L/CwN0zerZDmRFUapSPitk6f+Q3+0za1rQkzVuMiMFI=

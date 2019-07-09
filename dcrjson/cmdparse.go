@@ -43,7 +43,7 @@ func MarshalCmd(rpcVersion string, id interface{}, cmd interface{}) ([]byte, err
 	method, ok := concreteTypeToMethod[rt]
 	registerLock.RUnlock()
 	if !ok {
-		str := fmt.Sprintf("%q is not registered", method)
+		str := fmt.Sprintf("%T is not registered", cmd)
 		return nil, makeError(ErrUnregisteredMethod, str)
 	}
 
@@ -60,7 +60,7 @@ func MarshalCmd(rpcVersion string, id interface{}, cmd interface{}) ([]byte, err
 	params := makeParams(rt.Elem(), rv.Elem())
 
 	// Generate and marshal the final JSON-RPC request.
-	rawCmd, err := NewRequest(rpcVersion, id, method, params)
+	rawCmd, err := NewRequest(rpcVersion, id, reflect.ValueOf(method).String(), params)
 	if err != nil {
 		return nil, err
 	}
@@ -105,16 +105,15 @@ func populateDefaults(numParams int, info *methodInfo, rv reflect.Value) {
 	}
 }
 
-// UnmarshalCmd unmarshals a JSON-RPC request into a suitable concrete command
-// so long as the method type contained within the marshalled request is
-// registered.
-func UnmarshalCmd(r *Request) (interface{}, error) {
+// ParseParams unmarshals and parses the parameters for a JSON-RPC request based
+// on the registered method.
+func ParseParams(method interface{}, params []json.RawMessage) (interface{}, error) {
 	registerLock.RLock()
-	rtp, ok := methodToConcreteType[r.Method]
-	info := methodToInfo[r.Method]
+	rtp, ok := methodToConcreteType[method]
+	info := methodToInfo[method]
 	registerLock.RUnlock()
 	if !ok {
-		str := fmt.Sprintf("%q is not registered", r.Method)
+		str := fmt.Sprintf("%q is not registered", method)
 		return nil, makeError(ErrUnregisteredMethod, str)
 	}
 	rt := rtp.Elem()
@@ -122,7 +121,7 @@ func UnmarshalCmd(r *Request) (interface{}, error) {
 	rv := rvp.Elem()
 
 	// Ensure the number of parameters are correct.
-	numParams := len(r.Params)
+	numParams := len(params)
 	if err := checkNumParams(numParams, &info); err != nil {
 		return nil, err
 	}
@@ -133,7 +132,7 @@ func UnmarshalCmd(r *Request) (interface{}, error) {
 		rvf := rv.Field(i)
 		// Unmarshal the parameter into the struct field.
 		concreteVal := rvf.Addr().Interface()
-		if err := json.Unmarshal(r.Params[i], &concreteVal); err != nil {
+		if err := json.Unmarshal(params[i], &concreteVal); err != nil {
 			// The most common error is the wrong type, so
 			// explicitly detect that error and make it nicer.
 			fieldName := strings.ToLower(rt.Field(i).Name)
@@ -509,7 +508,7 @@ func assignField(paramNum int, fieldName string, dest reflect.Value, src reflect
 //   - Conversion from string to arrays, slices, structs, and maps by treating
 //     the string as marshalled JSON and calling json.Unmarshal into the
 //     destination field
-func NewCmd(method string, args ...interface{}) (interface{}, error) {
+func NewCmd(method interface{}, args ...interface{}) (interface{}, error) {
 	// Look up details about the provided method.  Any methods that aren't
 	// registered are an error.
 	registerLock.RLock()

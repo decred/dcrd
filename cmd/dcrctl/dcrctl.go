@@ -15,7 +15,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/decred/dcrd/dcrjson/v2"
+	"github.com/decred/dcrd/dcrjson/v3"
+	dcrdtypes "github.com/decred/dcrd/rpc/jsonrpc/types"
+	wallettypes "github.com/decred/dcrwallet/rpc/jsonrpc/types"
 )
 
 const (
@@ -24,7 +26,7 @@ const (
 )
 
 // commandUsage display the usage for a specific command.
-func commandUsage(method string) {
+func commandUsage(method interface{}) {
 	usage, err := dcrjson.MethodUsageText(method)
 	if err != nil {
 		// This should never happen since the method was already checked
@@ -64,10 +66,15 @@ func main() {
 
 	// Ensure the specified method identifies a valid registered command and
 	// is one of the usable types.
-	method := args[0]
+	methodStr := args[0]
+	var method interface{} = dcrdtypes.Method(methodStr)
 	usageFlags, err := dcrjson.MethodUsageFlags(method)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Unrecognized command '%s'\n", method)
+		method = wallettypes.Method(methodStr)
+		usageFlags, err = dcrjson.MethodUsageFlags(method)
+	}
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Unrecognized command %q\n", methodStr)
 		fmt.Fprintln(os.Stderr, listCmdMessage)
 		os.Exit(1)
 	}

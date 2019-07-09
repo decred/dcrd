@@ -21,17 +21,17 @@ func CmdMethod(cmd interface{}) (string, error) {
 	method, ok := concreteTypeToMethod[rt]
 	registerLock.RUnlock()
 	if !ok {
-		str := fmt.Sprintf("%q is not registered", method)
+		str := fmt.Sprintf("%T is not registered", cmd)
 		return "", makeError(ErrUnregisteredMethod, str)
 	}
 
-	return method, nil
+	return reflect.ValueOf(method).String(), nil
 }
 
 // MethodUsageFlags returns the usage flags for the passed command method.  The
 // provided method must be associated with a registered type.  All commands
 // provided by this package are registered by default.
-func MethodUsageFlags(method string) (UsageFlag, error) {
+func MethodUsageFlags(method interface{}) (UsageFlag, error) {
 	// Look up details about the provided method and error out if not
 	// registered.
 	registerLock.RLock()
@@ -178,7 +178,7 @@ func fieldUsage(structField reflect.StructField, defaultVal *reflect.Value) stri
 // methodUsageText returns a one-line usage string for the provided command and
 // method info.  This is the main work horse for the exported MethodUsageText
 // function.
-func methodUsageText(rtp reflect.Type, defaults map[int]reflect.Value, method string) string {
+func methodUsageText(rtp reflect.Type, defaults map[int]reflect.Value, method interface{}) string {
 	// Generate the individual usage for each field in the command.  Several
 	// simplifying assumptions are made here because the RegisterCmd
 	// function has already rigorously enforced the layout.
@@ -209,7 +209,7 @@ func methodUsageText(rtp reflect.Type, defaults map[int]reflect.Value, method st
 	}
 
 	// Generate and return the one-line usage string.
-	usageStr := method
+	usageStr := reflect.ValueOf(method).String()
 	if len(reqFieldUsages) > 0 {
 		usageStr += " " + strings.Join(reqFieldUsages, " ")
 	}
@@ -222,7 +222,7 @@ func methodUsageText(rtp reflect.Type, defaults map[int]reflect.Value, method st
 // MethodUsageText returns a one-line usage string for the provided method.  The
 // provided method must be associated with a registered type.  All commands
 // provided by this package are registered by default.
-func MethodUsageText(method string) (string, error) {
+func MethodUsageText(method interface{}) (string, error) {
 	// Look up details about the provided method and error out if not
 	// registered.
 	registerLock.RLock()

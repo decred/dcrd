@@ -25,10 +25,10 @@ import (
 	"github.com/decred/dcrd/connmgr"
 	"github.com/decred/dcrd/database"
 	_ "github.com/decred/dcrd/database/ffldb"
-	"github.com/decred/dcrd/dcrjson/v2"
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/dcrd/internal/version"
 	"github.com/decred/dcrd/mempool/v2"
+	"github.com/decred/dcrd/rpc/jsonrpc/types"
 	"github.com/decred/dcrd/sampleconfig"
 	"github.com/decred/slog"
 	flags "github.com/jessevdk/go-flags"
@@ -177,9 +177,9 @@ type config struct {
 	miningAddrs          []dcrutil.Address
 	minRelayTxFee        dcrutil.Amount
 	whitelists           []*net.IPNet
-	ipv4NetInfo          dcrjson.NetworksResult
-	ipv6NetInfo          dcrjson.NetworksResult
-	onionNetInfo         dcrjson.NetworksResult
+	ipv4NetInfo          types.NetworksResult
+	ipv6NetInfo          types.NetworksResult
+	onionNetInfo         types.NetworksResult
 }
 
 // serviceOptions defines the configuration options for the daemon as a service on
@@ -423,8 +423,8 @@ func createDefaultConfigFile(destPath string) error {
 
 // generateNetworkInfo is a convenience function that creates a slice from the
 // available networks.
-func (cfg *config) generateNetworkInfo() []dcrjson.NetworksResult {
-	return []dcrjson.NetworksResult{cfg.ipv4NetInfo, cfg.ipv6NetInfo,
+func (cfg *config) generateNetworkInfo() []types.NetworksResult {
+	return []types.NetworksResult{cfg.ipv4NetInfo, cfg.ipv6NetInfo,
 		cfg.onionNetInfo}
 }
 
@@ -512,9 +512,9 @@ func loadConfig() (*config, []string, error) {
 		NoExistsAddrIndex:    defaultNoExistsAddrIndex,
 		NoCFilters:           defaultNoCFilters,
 		AltDNSNames:          defaultAltDNSNames,
-		ipv4NetInfo:          dcrjson.NetworksResult{Name: "IPV4"},
-		ipv6NetInfo:          dcrjson.NetworksResult{Name: "IPV6"},
-		onionNetInfo:         dcrjson.NetworksResult{Name: "Onion"},
+		ipv4NetInfo:          types.NetworksResult{Name: "IPV4"},
+		ipv6NetInfo:          types.NetworksResult{Name: "IPV6"},
+		onionNetInfo:         types.NetworksResult{Name: "Onion"},
 	}
 
 	// Service options which are only added on Windows.
