@@ -5,19 +5,14 @@
 
 package dcrjson
 
+import "github.com/decred/dcrd/rpc/jsonrpc/types"
+
 // SessionResult models the data from the session command.
-type SessionResult struct {
-	SessionID uint64 `json:"sessionid"`
-}
+type SessionResult = types.SessionResult
 
 // RescanResult models the result object returned by the rescan RPC.
-type RescanResult struct {
-	DiscoveredData []RescannedBlock `json:"discovereddata"`
-}
+type RescanResult = types.RescanResult
 
 // RescannedBlock contains the hash and all discovered transactions of a single
 // rescanned block.
-type RescannedBlock struct {
-	Hash         string   `json:"hash"`
-	Transactions []string `json:"transactions"`
-}
+type RescannedBlock = types.RescannedBlock

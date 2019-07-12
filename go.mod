@@ -16,7 +16,7 @@ require (
 	github.com/decred/dcrd/database v1.1.0
 	github.com/decred/dcrd/dcrec v1.0.0
 	github.com/decred/dcrd/dcrec/secp256k1 v1.0.2
-	github.com/decred/dcrd/dcrjson/v2 v2.0.0
+	github.com/decred/dcrd/dcrjson/v2 v2.2.0
 	github.com/decred/dcrd/dcrutil v1.3.0
 	github.com/decred/dcrd/fees v1.0.0
 	github.com/decred/dcrd/gcs v1.0.2

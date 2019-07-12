@@ -32,10 +32,14 @@ github.com/decred/dcrd/dcrec/secp256k1 v1.0.0/go.mod h1:JPMFscGlgXTV684jxQNDijae
 github.com/decred/dcrd/dcrec/secp256k1 v1.0.1/go.mod h1:lhu4eZFSfTJWUnR3CFRcpD+Vta0KUAqnhTsTksHXgy0=
 github.com/decred/dcrd/dcrec/secp256k1 v1.0.2 h1:awk7sYJ4pGWmtkiGHFfctztJjHMKGLV8jctGQhAbKe0=
 github.com/decred/dcrd/dcrec/secp256k1 v1.0.2/go.mod h1:CHTUIVfmDDd0KFVFpNX1pFVCBUegxW387nN0IGwNKR0=
+github.com/decred/dcrd/dcrjson/v3 v3.0.0 h1:yDrNFvyn2l/557iZHB236jTqQjAmhZnVaFgMb2vm0UM=
+github.com/decred/dcrd/dcrjson/v3 v3.0.0/go.mod h1:pWYlHJ3VFidPwqD5HHiJXjfGaplif8uspAL2qFdifkY=
 github.com/decred/dcrd/dcrutil v1.1.1/go.mod h1:Jsttr0pEvzPAw+qay1kS1/PsbZYPyhluiNwwY6yBJS4=
 github.com/decred/dcrd/dcrutil v1.2.0/go.mod h1:tUNHS2gj7ApeEVS8gb6O+4wJW7w3O2MSRyRdcjW1JxU=
 github.com/decred/dcrd/dcrutil v1.3.0 h1:LtKIiDnq925yJT/4OpIKKiU9/WaxfD9LfhxrpLSi0Qs=
 github.com/decred/dcrd/dcrutil v1.3.0/go.mod h1:7fUT70QAarhDwQK62g92uDbbYpjXlXngpy5RBiecufo=
+github.com/decred/dcrd/rpc/jsonrpc/types v1.0.0 h1:d5ptnjuSADTQMa3i83VpeJNoMRTOJZZBqk7P+E41VXM=
+github.com/decred/dcrd/rpc/jsonrpc/types v1.0.0/go.mod h1:0dwmpIP21tJxjg/UuUHWIFMbfoLv2ifCBMokNKlOxpo=
 github.com/decred/dcrd/txscript v1.0.2/go.mod h1:hmUOHFlOjU7H6T/czt6kurWwXJvGPGKKGtXoft6w/qY=
 github.com/decred/dcrd/txscript v1.1.0 h1:MwkLXdc4Yq83oeNNEQJdlBTkNlorKXn8Nd5W2JXyMZg=
 github.com/decred/dcrd/txscript v1.1.0/go.mod h1:gbcq6gpGfKddPmZSKp+17ils2cLzUqHopXf8H5rCY7Y=
@@ -55,6 +59,10 @@ github.com/jessevdk/go-flags v1.4.0 h1:4IU2WS7AumrZ/40jfhf4QVDMsQwqA7VEHozFRrGAR
 github.com/jessevdk/go-flags v1.4.0/go.mod h1:4FA24M0QyGHXBuZZK/XkWh8h0e1EYbRYJSGM75WSRxI=
 github.com/jrick/bitset v1.0.0 h1:Ws0PXV3PwXqWK2n7Vz6idCdrV/9OrBXgHEJi27ZB9Dw=
 github.com/jrick/bitset v1.0.0/go.mod h1:ZOYB5Uvkla7wIEY4FEssPVi3IQXa02arznRaYaAEPe4=
+github.com/jrick/btcd/dcrjson/v3 v3.0.0-20190715200236-fd3999b97122 h1:0ZWJpr+GCoS57fFKbKpSxjEWJE0puITuq23quXxTYMY=
+github.com/jrick/btcd/dcrjson/v3 v3.0.0-20190715200236-fd3999b97122/go.mod h1:pWYlHJ3VFidPwqD5HHiJXjfGaplif8uspAL2qFdifkY=
+github.com/jrick/btcd/rpc/jsonrpc/types v0.0.0-20190711163540-0c004bf518d0 h1:Fa07+yCdWWysRLEeAJwhlt3Rse/yj6LJ63p8s4Q1kJo=
+github.com/jrick/btcd/rpc/jsonrpc/types v0.0.0-20190711163540-0c004bf518d0/go.mod h1:Dl5M4hBL2F6/CNtE7CpjRtX7ChnGgpsWXTn6EdL1Khs=
 github.com/jrick/logrotate v1.0.0 h1:lQ1bL/n9mBNeIXoTUoYRlK4dHuNJVofX9oWqBtPnSzI=
 github.com/jrick/logrotate v1.0.0/go.mod h1:LNinyqDIJnpAur+b8yyulnQw/wDuN1+BYKlTRt3OuAQ=
 github.com/kr/pretty v0.1.0 h1:L/CwN0zerZDmRFUapSPitk6f+Q3+0za1rQkzVuMiMFI=

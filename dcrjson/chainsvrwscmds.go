@@ -8,113 +8,91 @@
 
 package dcrjson
 
+import "github.com/decred/dcrd/rpc/jsonrpc/types"
+
 // AuthenticateCmd defines the authenticate JSON-RPC command.
-type AuthenticateCmd struct {
-	Username   string
-	Passphrase string
-}
+type AuthenticateCmd = types.AuthenticateCmd
 
 // NewAuthenticateCmd returns a new instance which can be used to issue an
 // authenticate JSON-RPC command.
 func NewAuthenticateCmd(username, passphrase string) *AuthenticateCmd {
-	return &AuthenticateCmd{
-		Username:   username,
-		Passphrase: passphrase,
-	}
+	return types.NewAuthenticateCmd(username, passphrase)
 }
 
 // OutPoint describes a transaction outpoint that will be marshalled to and
 // from JSON.  Contains Decred addition.
-type OutPoint struct {
-	Hash  string `json:"hash"`
-	Tree  int8   `json:"tree"`
-	Index uint32 `json:"index"`
-}
+type OutPoint = types.OutPoint
 
 // LoadTxFilterCmd defines the loadtxfilter request parameters to load or
 // reload a transaction filter.
-type LoadTxFilterCmd struct {
-	Reload    bool
-	Addresses []string
-	OutPoints []OutPoint
-}
+type LoadTxFilterCmd = types.LoadTxFilterCmd
 
 // NewLoadTxFilterCmd returns a new instance which can be used to issue a
 // loadtxfilter JSON-RPC command.
 func NewLoadTxFilterCmd(reload bool, addresses []string, outPoints []OutPoint) *LoadTxFilterCmd {
-	return &LoadTxFilterCmd{
-		Reload:    reload,
-		Addresses: addresses,
-		OutPoints: outPoints,
-	}
+	return types.NewLoadTxFilterCmd(reload, addresses, outPoints)
 }
 
 // NotifyBlocksCmd defines the notifyblocks JSON-RPC command.
-type NotifyBlocksCmd struct{}
+type NotifyBlocksCmd = types.NotifyBlocksCmd
 
 // NewNotifyBlocksCmd returns a new instance which can be used to issue a
 // notifyblocks JSON-RPC command.
 func NewNotifyBlocksCmd() *NotifyBlocksCmd {
-	return &NotifyBlocksCmd{}
+	return types.NewNotifyBlocksCmd()
 }
 
 // NotifyWinningTicketsCmd is a type handling custom marshaling and
 // unmarshaling of notifywinningtickets JSON websocket extension
 // commands.
-type NotifyWinningTicketsCmd struct {
-}
+type NotifyWinningTicketsCmd = types.NotifyWinningTicketsCmd
 
 // NewNotifyWinningTicketsCmd creates a new NotifyWinningTicketsCmd.
 func NewNotifyWinningTicketsCmd() *NotifyWinningTicketsCmd {
-	return &NotifyWinningTicketsCmd{}
+	return types.NewNotifyWinningTicketsCmd()
 }
 
 // NotifySpentAndMissedTicketsCmd is a type handling custom marshaling and
 // unmarshaling of notifyspentandmissedtickets JSON websocket extension
 // commands.
-type NotifySpentAndMissedTicketsCmd struct {
-}
+type NotifySpentAndMissedTicketsCmd = types.NotifySpentAndMissedTicketsCmd
 
 // NewNotifySpentAndMissedTicketsCmd creates a new NotifySpentAndMissedTicketsCmd.
 func NewNotifySpentAndMissedTicketsCmd() *NotifySpentAndMissedTicketsCmd {
-	return &NotifySpentAndMissedTicketsCmd{}
+	return types.NewNotifySpentAndMissedTicketsCmd()
 }
 
 // NotifyNewTicketsCmd is a type handling custom marshaling and
 // unmarshaling of notifynewtickets JSON websocket extension
 // commands.
-type NotifyNewTicketsCmd struct {
-}
+type NotifyNewTicketsCmd = types.NotifyNewTicketsCmd
 
 // NewNotifyNewTicketsCmd creates a new NotifyNewTicketsCmd.
 func NewNotifyNewTicketsCmd() *NotifyNewTicketsCmd {
-	return &NotifyNewTicketsCmd{}
+	return types.NewNotifyNewTicketsCmd()
 }
 
 // NotifyStakeDifficultyCmd is a type handling custom marshaling and
 // unmarshaling of notifystakedifficulty JSON websocket extension
 // commands.
-type NotifyStakeDifficultyCmd struct {
-}
+type NotifyStakeDifficultyCmd = types.NotifyStakeDifficultyCmd
 
 // NewNotifyStakeDifficultyCmd creates a new NotifyStakeDifficultyCmd.
 func NewNotifyStakeDifficultyCmd() *NotifyStakeDifficultyCmd {
-	return &NotifyStakeDifficultyCmd{}
+	return types.NewNotifyStakeDifficultyCmd()
 }
 
 // StopNotifyBlocksCmd defines the stopnotifyblocks JSON-RPC command.
-type StopNotifyBlocksCmd struct{}
+type StopNotifyBlocksCmd = types.StopNotifyBlocksCmd
 
 // NewStopNotifyBlocksCmd returns a new instance which can be used to issue a
 // stopnotifyblocks JSON-RPC command.
 func NewStopNotifyBlocksCmd() *StopNotifyBlocksCmd {
-	return &StopNotifyBlocksCmd{}
+	return types.NewStopNotifyBlocksCmd()
 }
 
 // NotifyNewTransactionsCmd defines the notifynewtransactions JSON-RPC command.
-type NotifyNewTransactionsCmd struct {
-	Verbose *bool `jsonrpcdefault:"false"`
-}
+type NotifyNewTransactionsCmd = types.NotifyNewTransactionsCmd
 
 // NewNotifyNewTransactionsCmd returns a new instance which can be used to issue
 // a notifynewtransactions JSON-RPC command.
@@ -122,22 +100,20 @@ type NotifyNewTransactionsCmd struct {
 // The parameters which are pointers indicate they are optional.  Passing nil
 // for optional parameters will use the default value.
 func NewNotifyNewTransactionsCmd(verbose *bool) *NotifyNewTransactionsCmd {
-	return &NotifyNewTransactionsCmd{
-		Verbose: verbose,
-	}
+	return types.NewNotifyNewTransactionsCmd(verbose)
 }
 
 // SessionCmd defines the session JSON-RPC command.
-type SessionCmd struct{}
+type SessionCmd = types.SessionCmd
 
 // NewSessionCmd returns a new instance which can be used to issue a session
 // JSON-RPC command.
 func NewSessionCmd() *SessionCmd {
-	return &SessionCmd{}
+	return types.NewSessionCmd()
 }
 
 // StopNotifyNewTransactionsCmd defines the stopnotifynewtransactions JSON-RPC command.
-type StopNotifyNewTransactionsCmd struct{}
+type StopNotifyNewTransactionsCmd = types.StopNotifyNewTransactionsCmd
 
 // NewStopNotifyNewTransactionsCmd returns a new instance which can be used to issue
 // a stopnotifynewtransactions JSON-RPC command.
@@ -145,7 +121,7 @@ type StopNotifyNewTransactionsCmd struct{}
 // The parameters which are pointers indicate they are optional.  Passing nil
 // for optional parameters will use the default value.
 func NewStopNotifyNewTransactionsCmd() *StopNotifyNewTransactionsCmd {
-	return &StopNotifyNewTransactionsCmd{}
+	return types.NewStopNotifyNewTransactionsCmd()
 }
 
 // RescanCmd defines the rescan JSON-RPC command.
