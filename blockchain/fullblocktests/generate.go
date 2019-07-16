@@ -41,6 +41,11 @@ const (
 	// whether or not to approve the previous block.
 	voteBitNo  = 0x0000
 	voteBitYes = 0x0001
+
+	// noTreasury signifies the treasury agenda should be treated as though
+	// it is inactive.  It is used to increase the readability of the
+	// tests.
+	noTreasury = false
 )
 
 var (
@@ -823,7 +828,7 @@ func Generate(includeLargeReorg bool) (tests [][]TestInstance, err error) {
 			taxOutput := b.Transactions[0].TxOut[0]
 			_, addrs, _, _ := txscript.ExtractPkScriptAddrs(
 				g.Params().OrganizationPkScriptVersion,
-				taxOutput.PkScript, g.Params())
+				taxOutput.PkScript, g.Params(), noTreasury)
 			p2shTaxAddr := addrs[0].(*dcrutil.AddressScriptHash)
 			p2pkhTaxAddr, err := dcrutil.NewAddressPubKeyHash(
 				p2shTaxAddr.Hash160()[:], g.Params(),

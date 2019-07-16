@@ -326,10 +326,43 @@ func TestExtractPkScriptAddrs(t *testing.T) {
 		},
 	}
 
-	t.Logf("Running %d tests.", len(tests))
+	// Run tests with treasury disabled.
+	t.Logf("Running %d tests without treasury agenda.", len(tests))
 	for i, test := range tests {
 		class, addrs, reqSigs, err := ExtractPkScriptAddrs(scriptVersion,
-			test.script, mainNetParams)
+			test.script, mainNetParams, noTreasury)
+		if err != nil && !test.noparse {
+			t.Errorf("ExtractPkScriptAddrs #%d (%s): %v", i,
+				test.name, err)
+		}
+
+		if !reflect.DeepEqual(addrs, test.addrs) {
+			t.Errorf("ExtractPkScriptAddrs #%d (%s) unexpected "+
+				"addresses\ngot  %v\nwant %v", i, test.name,
+				addrs, test.addrs)
+			continue
+		}
+
+		if reqSigs != test.reqSigs {
+			t.Errorf("ExtractPkScriptAddrs #%d (%s) unexpected "+
+				"number of required signatures - got %d, "+
+				"want %d", i, test.name, reqSigs, test.reqSigs)
+			continue
+		}
+
+		if class != test.class {
+			t.Errorf("ExtractPkScriptAddrs #%d (%s) unexpected "+
+				"script type - got %s, want %s", i, test.name,
+				class, test.class)
+			continue
+		}
+	}
+
+	// Run same tests with treasury agenda active.
+	t.Logf("Running %d tests with treasury agenda.", len(tests))
+	for i, test := range tests {
+		class, addrs, reqSigs, err := ExtractPkScriptAddrs(scriptVersion,
+			test.script, mainNetParams, withTreasury)
 		if err != nil && !test.noparse {
 			t.Errorf("ExtractPkScriptAddrs #%d (%s): %v", i,
 				test.name, err)
@@ -851,7 +884,18 @@ func TestScriptClass(t *testing.T) {
 	const scriptVersion = 0
 	for _, test := range scriptClassTests {
 		script := mustParseShortForm(test.script)
-		class := GetScriptClass(scriptVersion, script)
+		class := GetScriptClass(scriptVersion, script, noTreasury)
+		if class != test.class {
+			t.Errorf("%s: expected %s got %s (script %x)", test.name,
+				test.class, class, script)
+			continue
+		}
+	}
+
+	// Repeat tests with treasury.
+	for _, test := range scriptClassTests {
+		script := mustParseShortForm(test.script)
+		class := GetScriptClass(scriptVersion, script, withTreasury)
 		if class != test.class {
 			t.Errorf("%s: expected %s got %s (script %x)", test.name,
 				test.class, class, script)
@@ -899,6 +943,16 @@ func TestStringifyClass(t *testing.T) {
 			name:     "nulldataty",
 			class:    NullDataTy,
 			stringed: "nulldata",
+		},
+		{
+			name:     "treasuryadd",
+			class:    TreasuryAddTy,
+			stringed: "treasuryadd",
+		},
+		{
+			name:     "treasurygen",
+			class:    TreasuryGenTy,
+			stringed: "treasurygen",
 		},
 		{
 			name:     "broken",
@@ -1010,7 +1064,17 @@ func TestGenerateProvablyPruneableOut(t *testing.T) {
 		}
 
 		// Check that the script has the correct type.
-		scriptType := GetScriptClass(scriptVersion, script)
+		scriptType := GetScriptClass(scriptVersion, script, noTreasury)
+		if scriptType != test.class {
+			t.Errorf("GetScriptClass: #%d (%s) wrong result -- "+
+				"got: %v, want: %v", i, test.name, scriptType,
+				test.class)
+			continue
+		}
+
+		// Check that the script has the correct type with treasury
+		// agenda enabled.
+		scriptType = GetScriptClass(scriptVersion, script, withTreasury)
 		if scriptType != test.class {
 			t.Errorf("GetScriptClass: #%d (%s) wrong result -- "+
 				"got: %v, want: %v", i, test.name, scriptType,

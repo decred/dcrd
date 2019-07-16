@@ -15,8 +15,16 @@ import (
 )
 
 const (
-	// TxVersion is the current latest supported transaction version.
+	// TxVersion is the initial transaction version.
 	TxVersion uint16 = 1
+
+	// TxVersionSeqLock is the transaction version that enables sequence
+	// locks.
+	TxVersionSeqLock uint16 = 2
+
+	// TxVersionTreasury is the transaction version that enables the
+	// decentralized treasury features.
+	TxVersionTreasury uint16 = 3
 
 	// MaxTxInSequenceNum is the maximum sequence number the sequence field
 	// of a transaction input can be.
@@ -355,7 +363,7 @@ type MsgTx struct {
 	TxIn       []*TxIn
 	TxOut      []*TxOut
 	LockTime   uint32
-	Expiry     uint32
+	Expiry     uint32 // In blocks
 }
 
 // AddTxIn adds a transaction input to the message.

@@ -22,14 +22,24 @@ const (
 	// lower than the required target difficultly.
 	ErrHighHash
 
+	// ErrTSpendStartInvalidExpiry indicates that an invalid expiry was
+	// provided to calculate the start of a treasury spend vote window.
+	ErrTSpendStartInvalidExpiry
+
+	// ErrTSpendEndInvalidExpiry indicates that an invalid expiry was
+	// provided to calculate the end of a treasury spend vote window.
+	ErrTSpendEndInvalidExpiry
+
 	// numErrorCodes is the maximum error code number used in tests.
 	numErrorCodes
 )
 
 // Map of ErrorCode values back to their constant names for pretty printing.
 var errorCodeStrings = map[ErrorCode]string{
-	ErrUnexpectedDifficulty: "ErrUnexpectedDifficulty",
-	ErrHighHash:             "ErrHighHash",
+	ErrUnexpectedDifficulty:     "ErrUnexpectedDifficulty",
+	ErrHighHash:                 "ErrHighHash",
+	ErrTSpendStartInvalidExpiry: "ErrTSpendStartInvalidExpiry",
+	ErrTSpendEndInvalidExpiry:   "ErrTSpendEndInvalidExpiry",
 }
 
 // String returns the ErrorCode as a human-readable name.

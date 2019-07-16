@@ -34,6 +34,7 @@ var (
 type notificationState struct {
 	notifyBlocks                bool
 	notifyWork                  bool
+	notifyTSpend                bool
 	notifyWinningTickets        bool
 	notifySpentAndMissedTickets bool
 	notifyNewTickets            bool
@@ -47,6 +48,7 @@ func (s *notificationState) Copy() *notificationState {
 	var stateCopy notificationState
 	stateCopy.notifyBlocks = s.notifyBlocks
 	stateCopy.notifyWork = s.notifyWork
+	stateCopy.notifyTSpend = s.notifyTSpend
 	stateCopy.notifyWinningTickets = s.notifyWinningTickets
 	stateCopy.notifySpentAndMissedTickets = s.notifySpentAndMissedTickets
 	stateCopy.notifyNewTickets = s.notifyNewTickets
@@ -103,6 +105,11 @@ type NotificationHandlers struct {
 	// It will only be invoked if a preceding call to NotifyWork has
 	// been made to register for the notification and the function is non-nil.
 	OnWork func(data []byte, target []byte, reason string)
+
+	// OnTSpend is invoked when a new tspend arrives in the mempool.  It
+	// will only be invoked if a preceding call to NotifyTSpend has been
+	// made to register for the notification and the function is non-nil.
+	OnTSpend func(tspend []byte)
 
 	// OnRelevantTxAccepted is invoked when an unmined transaction passes
 	// the client's transaction filter.
@@ -230,6 +237,23 @@ func (c *Client) handleNotification(ntfn *rawNotification) {
 		}
 
 		c.ntfnHandlers.OnWork(data, target, reason)
+
+	// OnTSpend
+	case chainjson.TSpendNtfnMethod:
+		// Ignore the notification if the client is not interested in
+		// it.
+		if c.ntfnHandlers.OnTSpend == nil {
+			return
+		}
+
+		tspend, err := parseTSpendParams(ntfn.Params)
+		if err != nil {
+			log.Warnf("Received invalid tspend notification: %v",
+				err)
+			return
+		}
+
+		c.ntfnHandlers.OnTSpend(tspend)
 
 	case chainjson.RelevantTxAcceptedNtfnMethod:
 		// Ignore the notification if the client is not interested in
@@ -460,6 +484,21 @@ func parseWorkParams(params []json.RawMessage) (data, target []byte, reason stri
 	}
 
 	return data, target, reason, nil
+}
+
+// parseTSpendParams parses out the parameters included in a tspend
+// notification.
+func parseTSpendParams(params []json.RawMessage) ([]byte, error) {
+	if len(params) != 1 {
+		return nil, wrongNumParams(len(params))
+	}
+
+	data, err := parseHexParam(params[0])
+	if err != nil {
+		return nil, err
+	}
+
+	return data, nil
 }
 
 // parseBlockDisconnectedParams parses out the parameters included in a
@@ -843,6 +882,17 @@ func (r *FutureNotifyWorkResult) Receive() error {
 	return err
 }
 
+// FutureNotifyTSpendResult is a future promise to deliver the result of a
+// NotifyTSpendAsync RPC invocation (or an applicable error).
+type FutureNotifyTSpendResult cmdRes
+
+// Receive waits for the response promised by the future and returns an error
+// if the registration was not successful.
+func (r *FutureNotifyTSpendResult) Receive() error {
+	_, err := receiveFuture(r.ctx, r.c)
+	return err
+}
+
 // NotifyBlocksAsync returns an instance of a type that can be used to get the
 // result of the RPC at some future time by invoking the Receive function on
 // the returned instance.
@@ -889,6 +939,29 @@ func (c *Client) NotifyWorkAsync(ctx context.Context) *FutureNotifyWorkResult {
 	return (*FutureNotifyWorkResult)(c.sendCmd(ctx, cmd))
 }
 
+// NotifyTSpendAsync returns an instance of a type that can be used to get the
+// result of the RPC at some future time by invoking the Receive function on
+// the returned instance.
+//
+// See NotifyTSpend for the blocking version and more details.
+//
+// NOTE: This is a dcrd extension and requires a websocket connection.
+func (c *Client) NotifyTSpendAsync(ctx context.Context) *FutureNotifyTSpendResult {
+	// Not supported in HTTP POST mode.
+	if c.config.HTTPPostMode {
+		return (*FutureNotifyTSpendResult)(newFutureError(ctx, ErrWebsocketsRequired))
+	}
+
+	// Ignore the notification if the client is not interested in
+	// notifications.
+	if c.ntfnHandlers == nil {
+		return (*FutureNotifyTSpendResult)(newNilFutureResult(ctx))
+	}
+
+	cmd := chainjson.NewNotifyTSpendCmd()
+	return (*FutureNotifyTSpendResult)(c.sendCmd(ctx, cmd))
+}
+
 // NotifyBlocks registers the client to receive notifications when blocks are
 // connected and disconnected from the main chain.  The notifications are
 // delivered to the notification handlers associated with the client.  Calling
@@ -911,6 +984,17 @@ func (c *Client) NotifyBlocks(ctx context.Context) error {
 // NOTE: This is a dcrd extension and requires a websocket connection.
 func (c *Client) NotifyWork(ctx context.Context) error {
 	return c.NotifyWorkAsync(ctx).Receive()
+}
+
+// NotifyTSpend registers the client to receive notifications when a new tspend
+// arrives in the mempool.
+//
+// The notifications delivered as a result of this call will be via one of
+// OnTSpend.
+//
+// NOTE: This is a dcrd extension and requires a websocket connection.
+func (c *Client) NotifyTSpend(ctx context.Context) error {
+	return c.NotifyTSpendAsync(ctx).Receive()
 }
 
 // FutureNotifyWinningTicketsResult is a future promise to deliver the result of a

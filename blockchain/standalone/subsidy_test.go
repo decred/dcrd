@@ -8,6 +8,18 @@ import (
 	"testing"
 )
 
+const (
+	// noTreasury signifies the treasury agenda should be treated as though
+	// it is inactive.  It is used to increase the readability of the
+	// tests.
+	noTreasury = false
+
+	// withTreasury signifies the treasury agenda should be treated as
+	// though it is active.  It is used to increase the readability of
+	// the tests.
+	withTreasury = true
+)
+
 // mockSubsidyParams implements the SubsidyParams interface and is used
 // throughout the tests to mock networks.
 type mockSubsidyParams struct {
@@ -363,7 +375,251 @@ func TestSubsidyCacheCalcs(t *testing.T) {
 		}
 
 		// Ensure the treasury subsidy is the expected value.
-		treasuryResult := cache.CalcTreasurySubsidy(test.height, test.numVotes)
+		treasuryResult := cache.CalcTreasurySubsidy(test.height, test.numVotes,
+			noTreasury)
+		if treasuryResult != test.wantTreasury {
+			t.Errorf("%s: unexpected treasury subsidy result -- got %d, want %d",
+				test.name, treasuryResult, test.wantTreasury)
+			continue
+		}
+	}
+}
+
+// TestSubsidyCacheCalcsTreasury ensures the subsidy cache calculates the
+// various subsidy proportions and values as expected.
+func TestSubsidyCacheCalcsTreasury(t *testing.T) {
+	// Mock params used in tests.
+	mockMainNetParams := mockMainNetParams()
+
+	tests := []struct {
+		name         string        // test description
+		params       SubsidyParams // params to use in subsidy calculations
+		height       int64         // height to calculate subsidy for
+		numVotes     uint16        // number of votes
+		wantFull     int64         // expected full block subsidy
+		wantWork     int64         // expected pow subsidy
+		wantVote     int64         // expected single vote subsidy
+		wantTreasury int64         // expected treasury subsidy
+	}{{
+		name:         "negative height",
+		params:       mockMainNetParams,
+		height:       -1,
+		numVotes:     0,
+		wantFull:     0,
+		wantWork:     0,
+		wantVote:     0,
+		wantTreasury: 0,
+	}, {
+		name:         "height 0",
+		params:       mockMainNetParams,
+		height:       0,
+		numVotes:     0,
+		wantFull:     0,
+		wantWork:     0,
+		wantVote:     0,
+		wantTreasury: 0,
+	}, {
+		name:         "height 1 (initial payouts)",
+		params:       mockMainNetParams,
+		height:       1,
+		numVotes:     0,
+		wantFull:     168000000000000,
+		wantWork:     168000000000000,
+		wantVote:     0,
+		wantTreasury: 0,
+	}, {
+		name:         "height 2 (first non-special block prior voting start)",
+		params:       mockMainNetParams,
+		height:       2,
+		numVotes:     0,
+		wantFull:     3119582664,
+		wantWork:     1871749598,
+		wantVote:     0,
+		wantTreasury: 311958266,
+	}, {
+		name:         "height 4094 (two blocks prior to voting start)",
+		params:       mockMainNetParams,
+		height:       4094,
+		numVotes:     0,
+		wantFull:     3119582664,
+		wantWork:     1871749598,
+		wantVote:     0,
+		wantTreasury: 311958266,
+	}, {
+		name:         "height 4095 (final block prior to voting start)",
+		params:       mockMainNetParams,
+		height:       4095,
+		numVotes:     0,
+		wantFull:     3119582664,
+		wantWork:     1871749598,
+		wantVote:     187174959,
+		wantTreasury: 311958266,
+	}, {
+		name:         "height 4096 (voting start), 5 votes",
+		params:       mockMainNetParams,
+		height:       4096,
+		numVotes:     5,
+		wantFull:     3119582664,
+		wantWork:     1871749598,
+		wantVote:     187174959,
+		wantTreasury: 311958266,
+	}, {
+		name:         "height 4096 (voting start), 4 votes",
+		params:       mockMainNetParams,
+		height:       4096,
+		numVotes:     4,
+		wantFull:     3119582664,
+		wantWork:     1497399678,
+		wantVote:     187174959,
+		wantTreasury: 311958266, // No reduction
+	}, {
+		name:         "height 4096 (voting start), 3 votes",
+		params:       mockMainNetParams,
+		height:       4096,
+		numVotes:     3,
+		wantFull:     3119582664,
+		wantWork:     1123049758,
+		wantVote:     187174959,
+		wantTreasury: 311958266, // No reduction
+	}, {
+		name:         "height 4096 (voting start), 2 votes",
+		params:       mockMainNetParams,
+		height:       4096,
+		numVotes:     2,
+		wantFull:     3119582664,
+		wantWork:     0,
+		wantVote:     187174959,
+		wantTreasury: 0,
+	}, {
+		name:         "height 6143 (final block prior to 1st reduction), 5 votes",
+		params:       mockMainNetParams,
+		height:       6143,
+		numVotes:     5,
+		wantFull:     3119582664,
+		wantWork:     1871749598,
+		wantVote:     187174959,
+		wantTreasury: 311958266,
+	}, {
+		name:         "height 6144 (1st block in 1st reduction), 5 votes",
+		params:       mockMainNetParams,
+		height:       6144,
+		numVotes:     5,
+		wantFull:     3088695706,
+		wantWork:     1853217423,
+		wantVote:     185321742,
+		wantTreasury: 308869570,
+	}, {
+		name:         "height 6144 (1st block in 1st reduction), 4 votes",
+		params:       mockMainNetParams,
+		height:       6144,
+		numVotes:     4,
+		wantFull:     3088695706,
+		wantWork:     1482573938,
+		wantVote:     185321742,
+		wantTreasury: 308869570, // No reduction
+	}, {
+		name:         "height 12287 (last block in 1st reduction), 5 votes",
+		params:       mockMainNetParams,
+		height:       12287,
+		numVotes:     5,
+		wantFull:     3088695706,
+		wantWork:     1853217423,
+		wantVote:     185321742,
+		wantTreasury: 308869570,
+	}, {
+		name:         "height 12288 (1st block in 2nd reduction), 5 votes",
+		params:       mockMainNetParams,
+		height:       12288,
+		numVotes:     5,
+		wantFull:     3058114560,
+		wantWork:     1834868736,
+		wantVote:     183486873,
+		wantTreasury: 305811456,
+	}, {
+		name:         "height 307200 (1st block in 50th reduction), 5 votes",
+		params:       mockMainNetParams,
+		height:       307200,
+		numVotes:     5,
+		wantFull:     1896827356,
+		wantWork:     1138096413,
+		wantVote:     113809641,
+		wantTreasury: 189682735,
+	}, {
+		name:         "height 307200 (1st block in 50th reduction), 3 votes",
+		params:       mockMainNetParams,
+		height:       307200,
+		numVotes:     3,
+		wantFull:     1896827356,
+		wantWork:     682857847,
+		wantVote:     113809641,
+		wantTreasury: 189682735, // No reduction
+	}, {
+		name:         "height 10911744 (first zero vote subsidy 1776th reduction), 5 votes",
+		params:       mockMainNetParams,
+		height:       10911744,
+		numVotes:     5,
+		wantFull:     16,
+		wantWork:     9,
+		wantVote:     0,
+		wantTreasury: 1,
+	}, {
+		name:         "height 10954752 (first zero treasury subsidy 1783rd reduction), 5 votes",
+		params:       mockMainNetParams,
+		height:       10954752,
+		numVotes:     5,
+		wantFull:     9,
+		wantWork:     5,
+		wantVote:     0,
+		wantTreasury: 0,
+	}, {
+		name:         "height 11003904 (first zero work subsidy 1791st reduction), 5 votes",
+		params:       mockMainNetParams,
+		height:       11003904,
+		numVotes:     5,
+		wantFull:     1,
+		wantWork:     0,
+		wantVote:     0,
+		wantTreasury: 0,
+	}, {
+		name:         "height 11010048 (first zero full subsidy 1792nd reduction), 5 votes",
+		params:       mockMainNetParams,
+		height:       11010048,
+		numVotes:     5,
+		wantFull:     0,
+		wantWork:     0,
+		wantVote:     0,
+		wantTreasury: 0,
+	}}
+
+	for _, test := range tests {
+		// Ensure the full subsidy is the expected value.
+		cache := NewSubsidyCache(test.params)
+		fullSubsidyResult := cache.CalcBlockSubsidy(test.height)
+		if fullSubsidyResult != test.wantFull {
+			t.Errorf("%s: unexpected full subsidy result -- got %d, want %d",
+				test.name, fullSubsidyResult, test.wantFull)
+			continue
+		}
+
+		// Ensure the PoW subsidy is the expected value.
+		workResult := cache.CalcWorkSubsidy(test.height, test.numVotes)
+		if workResult != test.wantWork {
+			t.Errorf("%s: unexpected work subsidy result -- got %d, want %d",
+				test.name, workResult, test.wantWork)
+			continue
+		}
+
+		// Ensure the vote subsidy is the expected value.
+		voteResult := cache.CalcStakeVoteSubsidy(test.height)
+		if voteResult != test.wantVote {
+			t.Errorf("%s: unexpected vote subsidy result -- got %d, want %d",
+				test.name, voteResult, test.wantVote)
+			continue
+		}
+
+		// Ensure the treasury subsidy is the expected value. With treasury.
+		treasuryResult := cache.CalcTreasurySubsidy(test.height, test.numVotes,
+			withTreasury)
 		if treasuryResult != test.wantTreasury {
 			t.Errorf("%s: unexpected treasury subsidy result -- got %d, want %d",
 				test.name, treasuryResult, test.wantTreasury)
@@ -389,7 +645,70 @@ func TestTotalSubsidy(t *testing.T) {
 	subsidySum := func(height int64) int64 {
 		work := cache.CalcWorkSubsidy(height, votesPerBlock)
 		vote := cache.CalcStakeVoteSubsidy(height) * int64(votesPerBlock)
-		treasury := cache.CalcTreasurySubsidy(height, votesPerBlock)
+		treasury := cache.CalcTreasurySubsidy(height, votesPerBlock,
+			noTreasury)
+		return work + vote + treasury
+	}
+
+	// Calculate the total possible subsidy.
+	totalSubsidy := mockMainNetParams.BlockOneSubsidy()
+	for reductionNum := int64(0); ; reductionNum++ {
+		// The first interval contains a few special cases:
+		// 1) Block 0 does not produce any subsidy
+		// 2) Block 1 consists of a special initial coin distribution
+		// 3) Votes do not produce subsidy until voting begins
+		if reductionNum == 0 {
+			// Account for the block up to the point voting begins ignoring the
+			// first two special blocks.
+			subsidyCalcHeight := int64(2)
+			nonVotingBlocks := stakeValidationHeight - subsidyCalcHeight
+			totalSubsidy += subsidySum(subsidyCalcHeight) * nonVotingBlocks
+
+			// Account for the blocks remaining in the interval once voting
+			// begins.
+			subsidyCalcHeight = stakeValidationHeight
+			votingBlocks := reductionInterval - subsidyCalcHeight
+			totalSubsidy += subsidySum(subsidyCalcHeight) * votingBlocks
+			continue
+		}
+
+		// Account for the all other reduction intervals until all subsidy has
+		// been produced.
+		subsidyCalcHeight := reductionNum * reductionInterval
+		sum := subsidySum(subsidyCalcHeight)
+		if sum == 0 {
+			break
+		}
+		totalSubsidy += sum * reductionInterval
+	}
+
+	// Ensure the total calculated subsidy is the expected value.
+	const expectedTotalSubsidy = 2099999999800912
+	if totalSubsidy != expectedTotalSubsidy {
+		t.Fatalf("mismatched total subsidy -- got %d, want %d", totalSubsidy,
+			expectedTotalSubsidy)
+	}
+}
+
+// TestTotalSubsidyTreasury ensures the total subsidy produced matches the
+// expected value with treasury enabled.
+func TestTotalSubsidyTreasury(t *testing.T) {
+	// Locals for convenience.
+	mockMainNetParams := mockMainNetParams()
+	reductionInterval := mockMainNetParams.SubsidyReductionIntervalBlocks()
+	stakeValidationHeight := mockMainNetParams.StakeValidationBeginHeight()
+	votesPerBlock := mockMainNetParams.VotesPerBlock()
+
+	// subsidySum returns the sum of the individual subsidy types for the given
+	// height.  Note that this value is not exactly the same as the full subsidy
+	// originally used to calculate the individual proportions due to the use
+	// of integer math.
+	cache := NewSubsidyCache(mockMainNetParams)
+	subsidySum := func(height int64) int64 {
+		work := cache.CalcWorkSubsidy(height, votesPerBlock)
+		vote := cache.CalcStakeVoteSubsidy(height) * int64(votesPerBlock)
+		treasury := cache.CalcTreasurySubsidy(height, votesPerBlock,
+			withTreasury)
 		return work + vote + treasury
 	}
 

@@ -69,6 +69,15 @@ func NewNotifyWorkCmd() *NotifyWorkCmd {
 	return &NotifyWorkCmd{}
 }
 
+// NotifyTSpendCmd defines the notifytspend JSON-RPC command.
+type NotifyTSpendCmd struct{}
+
+// NewNotifyTSpendCmd returns a new instance which can be used to issue a
+// notifytspend JSON-RPC command.
+func NewNotifyTSpendCmd() *NotifyTSpendCmd {
+	return &NotifyTSpendCmd{}
+}
+
 // NotifyWinningTicketsCmd is a type handling custom marshaling and
 // unmarshaling of notifywinningtickets JSON websocket extension
 // commands.
@@ -146,9 +155,18 @@ func NewStopNotifyBlocksCmd() *StopNotifyBlocksCmd {
 type StopNotifyWorkCmd struct{}
 
 // NewStopNotifyWorkCmd returns a new instance which can be used to issue a
-// stopnotifyblocks JSON-RPC command.
+// stopnotifywork JSON-RPC command.
 func NewStopNotifyWorkCmd() *StopNotifyWorkCmd {
 	return &StopNotifyWorkCmd{}
+}
+
+// StopNotifyTSpendCmd defines the stopnotifytspend JSON-RPC command.
+type StopNotifyTSpendCmd struct{}
+
+// NewStopNotifyTSpendCmd returns a new instance which can be used to issue a
+// stopnotifytspend JSON-RPC command.
+func NewStopNotifyTSpendCmd() *StopNotifyTSpendCmd {
+	return &StopNotifyTSpendCmd{}
 }
 
 // NotifyNewTransactionsCmd defines the notifynewtransactions JSON-RPC command.
@@ -207,6 +225,7 @@ func init() {
 	dcrjson.MustRegister(Method("loadtxfilter"), (*LoadTxFilterCmd)(nil), flags)
 	dcrjson.MustRegister(Method("notifyblocks"), (*NotifyBlocksCmd)(nil), flags)
 	dcrjson.MustRegister(Method("notifywork"), (*NotifyWorkCmd)(nil), flags)
+	dcrjson.MustRegister(Method("notifytspend"), (*NotifyTSpendCmd)(nil), flags)
 	dcrjson.MustRegister(Method("notifynewtransactions"), (*NotifyNewTransactionsCmd)(nil), flags)
 	dcrjson.MustRegister(Method("notifynewtickets"), (*NotifyNewTicketsCmd)(nil), flags)
 	dcrjson.MustRegister(Method("notifyspentandmissedtickets"),
@@ -220,6 +239,7 @@ func init() {
 	dcrjson.MustRegister(Method("session"), (*SessionCmd)(nil), flags)
 	dcrjson.MustRegister(Method("stopnotifyblocks"), (*StopNotifyBlocksCmd)(nil), flags)
 	dcrjson.MustRegister(Method("stopnotifywork"), (*StopNotifyWorkCmd)(nil), flags)
+	dcrjson.MustRegister(Method("stopnotifytspend"), (*StopNotifyTSpendCmd)(nil), flags)
 	dcrjson.MustRegister(Method("stopnotifynewtransactions"), (*StopNotifyNewTransactionsCmd)(nil), flags)
 	dcrjson.MustRegister(Method("rescan"), (*RescanCmd)(nil), flags)
 }

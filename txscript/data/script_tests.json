@@ -1938,6 +1938,12 @@
 ["'z'{16385}", "HASH256", "NONE", "ERR_SCRIPT_SIZE", "Exceeded max allowed script size"],
 ["DATA_37 'a' HASH256 0x20 0x8a298a038c1a85591aa7abda75a8a393b742ee3f6b759ff15a3b5a8edff78532 EQUAL", "HASH160 DATA_20 0x7c93aa0d3c9f41d65257aae2cbcb8eafa1660227 EQUAL", "NONE", "OK", "HASH256 P2SH"],
 
+["Treasury opcode tests"],
+["1 1 ADD", "TADD 2 OP_EQUAL", "TREASURY", "OK", "TADD is a NOP"],
+["1 1 TADD", "2 OP_EQUAL", "TREASURY", "ERR_EVAL_FALSE", "TADD is a NOP"],
+["TADD 1 1 ADD", "TADD 2 OP_EQUAL", "NONE", "OK", "TADD is a NOP"],
+["TADD 1 1 ADD", "TADD 2 OP_EQUAL", "TREASURY", "OK", "TADD is a NOP"],
+
 ["CODESEPARATOR test coverage"],
 ["NOP", "CODESEPARATOR", "NONE", "ERR_DISABLED_OPCODE", "CODESEPARATOR is disabled"],
 ["0", "IF CODESEPARATOR ENDIF 1", "NONE", "ERR_DISABLED_OPCODE", "CODESEPARATOR is disabled when in a non-executed branch"],
@@ -2829,6 +2835,8 @@
 ["'a'{2048} 'b'{2048} 'b'{2048} 'b'{2048} 'b'{2048} 'b'{2048} 'b'{2048} 'b'{1764} 1 2 3 4 5 0x6f{255}",
   "'a'{2048} 'b'{2048} 'b'{2048} 'b'{2048} 'b'{2048} 'b'{2048} 'b'{2048} 'b'{1786} 1 2 3 4 0x6f{78}", "NONE", "OK",
   "Max-size (16384 bytes), max-push (2048 bytes), max-opcodes (255), max stack size (1024 items). 0x6f is 3DUP, 0x61 is NOP"],
+["1","NOP1 NOP2 NOP3 NOP4 NOP5 NOP6 NOP7 NOP8 NOP9 NOP10 TADD TSPEND TGEN 2 EQUAL", "TREASURY", "ERR_EVAL_FALSE"],
+["1","NOP1 NOP2 NOP3 NOP4 NOP5 NOP6 NOP7 NOP8 NOP9 NOP10 TADD TSPEND TGEN 2 EQUAL", "NONE", "ERR_EVAL_FALSE"],
 
 ["NOP1...NOP10 test coverage"],
 ["NOP", "NOP1 1", "NONE", "OK"],
@@ -2857,9 +2865,9 @@
 ["1", "NOP9",  "DISCOURAGE_UPGRADABLE_NOPS", "ERR_DISCOURAGE_UPGRADABLE_NOPS", "Opcode 0xb8 is a discouraged NOP"],
 ["1", "NOP10", "DISCOURAGE_UPGRADABLE_NOPS", "ERR_DISCOURAGE_UPGRADABLE_NOPS", "Opcode 0xb9 is a discouraged NOP"],
 ["1", "0xc0", "DISCOURAGE_UPGRADABLE_NOPS", "ERR_DISCOURAGE_UPGRADABLE_NOPS", "Opcode 0xc0 is a discouraged NOP when SHA256 is inactive"],
-["1", "0xc1", "DISCOURAGE_UPGRADABLE_NOPS", "ERR_DISCOURAGE_UPGRADABLE_NOPS", "Opcode 0xc1 is a discouraged NOP"],
-["1", "0xc2", "DISCOURAGE_UPGRADABLE_NOPS", "ERR_DISCOURAGE_UPGRADABLE_NOPS", "Opcode 0xc2 is a discouraged NOP"],
-["1", "0xc3", "DISCOURAGE_UPGRADABLE_NOPS", "ERR_DISCOURAGE_UPGRADABLE_NOPS", "Opcode 0xc3 is a discouraged NOP"],
+["1", "0xc1", "DISCOURAGE_UPGRADABLE_NOPS", "ERR_DISCOURAGE_UPGRADABLE_NOPS", "Opcode 0xc1 is a discouraged NOP when TREASURY is inactive"],
+["1", "0xc2", "DISCOURAGE_UPGRADABLE_NOPS", "ERR_DISCOURAGE_UPGRADABLE_NOPS", "Opcode 0xc2 is a discouraged NOP when TREASURY is inactive"],
+["1", "0xc3", "DISCOURAGE_UPGRADABLE_NOPS", "ERR_DISCOURAGE_UPGRADABLE_NOPS", "Opcode 0xc3 is a discouraged NOP when TREASURY is inactive"],
 ["1", "0xc4", "DISCOURAGE_UPGRADABLE_NOPS", "ERR_DISCOURAGE_UPGRADABLE_NOPS", "Opcode 0xc4 is a discouraged NOP"],
 ["1", "0xc5", "DISCOURAGE_UPGRADABLE_NOPS", "ERR_DISCOURAGE_UPGRADABLE_NOPS", "Opcode 0xc5 is a discouraged NOP"],
 ["1", "0xc6", "DISCOURAGE_UPGRADABLE_NOPS", "ERR_DISCOURAGE_UPGRADABLE_NOPS", "Opcode 0xc6 is a discouraged NOP"],
@@ -2925,9 +2933,9 @@
 ["0", "IF NOP9 ENDIF 1", "DISCOURAGE_UPGRADABLE_NOPS", "OK", "Discouraged NOP9 allowed if not executed"],
 ["0", "IF NOP10 ENDIF 1", "DISCOURAGE_UPGRADABLE_NOPS", "OK", "Discouraged NOP10 allowed if not executed"],
 ["0", "IF 0xc0 ENDIF 1", "DISCOURAGE_UPGRADABLE_NOPS", "OK", "Discouraged nop opcode 0xc0 allowed if not executed when SHA256 is inactive"],
-["0", "IF 0xc1 ENDIF 1", "DISCOURAGE_UPGRADABLE_NOPS", "OK", "Discouraged nop opcode 0xc1 allowed if not executed"],
-["0", "IF 0xc2 ENDIF 1", "DISCOURAGE_UPGRADABLE_NOPS", "OK", "Discouraged nop opcode 0xc2 allowed if not executed"],
-["0", "IF 0xc3 ENDIF 1", "DISCOURAGE_UPGRADABLE_NOPS", "OK", "Discouraged nop opcode 0xc3 allowed if not executed"],
+["0", "IF 0xc1 ENDIF 1", "DISCOURAGE_UPGRADABLE_NOPS", "OK", "Discouraged nop opcode 0xc1 allowed if not executed when TREASURY is inactive"],
+["0", "IF 0xc2 ENDIF 1", "DISCOURAGE_UPGRADABLE_NOPS", "OK", "Discouraged nop opcode 0xc2 allowed if not executed when TREASURY is inactive"],
+["0", "IF 0xc3 ENDIF 1", "DISCOURAGE_UPGRADABLE_NOPS", "OK", "Discouraged nop opcode 0xc3 allowed if not executed when TREASURY is inactive"],
 ["0", "IF 0xc4 ENDIF 1", "DISCOURAGE_UPGRADABLE_NOPS", "OK", "Discouraged nop opcode 0xc4 allowed if not executed"],
 ["0", "IF 0xc5 ENDIF 1", "DISCOURAGE_UPGRADABLE_NOPS", "OK", "Discouraged nop opcode 0xc5 allowed if not executed"],
 ["0", "IF 0xc6 ENDIF 1", "DISCOURAGE_UPGRADABLE_NOPS", "OK", "Discouraged nop opcode 0xc6 allowed if not executed"],
@@ -3025,6 +3033,39 @@
 ["1 1 ADD", "SSTXCHANGE 2 OP_EQUAL", "NONE", "OK", "SSTXCHANGE is a NOP"],
 ["DATA_5 DATA_4 0x7a{4}", "SSTXCHANGE HASH160 DATA_20 0x246bda0f2b9aba6dc78c6259970e45e6af960d46 EQUAL", "NONE", "ERR_EVAL_FALSE", "SSTXCHANGE almost P2SH"],
 ["1 3 DATA_2 ADD SSTXCHANGE", "HASH160 DATA_20 0x346bae114bc3467f3c337f620a3272f4dd417daa EQUAL", "NONE", "ERR_P2SH_STAKE_OPCODES", "SSTXCHANGE invalid in a P2SH"],
+
+["Treasury related tests"],
+
+["TADD related tests with flag"],
+["1 1 ADD", "TADD 2 OP_EQUAL", "TREASURY", "OK", "TADD is a NOP"],
+["DATA_5 DATA_4 0x7a{4}", "TADD HASH160 DATA_20 0xb6af362271461175f31523e5d0ed2c7692b6fcb0 EQUAL", "TREASURY", "ERR_EVAL_FALSE", "TADD almost P2SH"],
+["1 3 DATA_2 ADD TADD", "HASH160 DATA_20 0xdd89abd7707a62cce078e9eb443f5a31729dfb05 EQUAL", "TREASURY", "ERR_P2SH_STAKE_OPCODES", "TADD invalid in a P2SH"],
+
+["TADD related tests without flag"],
+["1 1 ADD", "TADD 2 OP_EQUAL", "NONE", "OK", "TADD is a NOP"],
+["DATA_5 DATA_4 0x7a{4}", "TADD HASH160 DATA_20 0xb6af362271461175f31523e5d0ed2c7692b6fcb0 EQUAL", "NONE", "ERR_EVAL_FALSE", "TADD almost P2SH"],
+["1 3 DATA_2 ADD TADD", "HASH160 DATA_20 0xdd89abd7707a62cce078e9eb443f5a31729dfb05 EQUAL", "NONE", "OK", "TADD as UNKNOWN193 valid in a P2SH prior to treasury activation"],
+
+["TSPEND related tests with flag"],
+["1 1 ADD", "TSPEND 2 OP_EQUAL", "TREASURY", "OK", "TSPEND is a NOP"],
+["DATA_5 DATA_4 0x7a{4}", "TSPEND HASH160 DATA_20 0xb6af362271461175f31523e5d0ed2c7692b6fcb0 EQUAL", "TREASURY", "ERR_EVAL_FALSE", "TSPEND almost P2SH"],
+["1 3 DATA_2 ADD TSPEND", "HASH160 DATA_20 0xe0487bab3a670fdf8471dd5288508ab7469ee829 EQUAL", "TREASURY", "ERR_P2SH_STAKE_OPCODES", "TSPEND invalid in a P2SH"],
+
+["TSPEND related tests without flag"],
+["1 1 ADD", "TSPEND 2 OP_EQUAL", "NONE", "OK", "TSPEND is a NOP"],
+["DATA_5 DATA_4 0x7a{4}", "TSPEND HASH160 DATA_20 0xb6af362271461175f31523e5d0ed2c7692b6fcb0 EQUAL", "NONE", "ERR_EVAL_FALSE", "TSPEND almost P2SH"],
+["1 3 DATA_2 ADD TSPEND", "HASH160 DATA_20 0xe0487bab3a670fdf8471dd5288508ab7469ee829 EQUAL", "NONE", "OK", "TSPEND as UNKNOWN194 valid in a P2SH prior to treasury activation"],
+
+["TGEN related tests with flag"],
+["1 1 ADD", "TGEN 2 OP_EQUAL", "TREASURY", "OK", "TGEN is a NOP"],
+["DATA_5 DATA_4 0x7a{4}", "TGEN HASH160 DATA_20 0xb6af362271461175f31523e5d0ed2c7692b6fcb0 EQUAL", "TREASURY", "ERR_EVAL_FALSE", "TGEN almost P2SH"],
+["1 3 DATA_2 ADD TGEN", "HASH160 DATA_20 0xff427ddf9d331321de937e1ff0563573bca6bb99 EQUAL", "TREASURY", "ERR_P2SH_STAKE_OPCODES", "TGEN invalid in a P2SH"],
+
+["TGEN related tests without flag"],
+["1 1 ADD", "TGEN 2 OP_EQUAL", "NONE", "OK", "TGEN is a NOP"],
+["DATA_5 DATA_4 0x7a{4}", "TGEN HASH160 DATA_20 0xb6af362271461175f31523e5d0ed2c7692b6fcb0 EQUAL", "NONE", "ERR_EVAL_FALSE", "TGEN almost P2SH"],
+["1 3 DATA_2 ADD TGEN", "HASH160 DATA_20 0xff427ddf9d331321de937e1ff0563573bca6bb99 EQUAL", "NONE", "OK", "TGEN as UNKNOWN195 valid in a P2SH prior to treasury activation"],
+
 
 ["The End"]
 ]

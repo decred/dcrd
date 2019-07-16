@@ -44,6 +44,12 @@ import (
 	"github.com/decred/dcrd/wire"
 )
 
+const (
+	// noTreasury signifies the treasury agenda should be treated as though it
+	// is inactive.  It is used to increase the readability of the tests.
+	noTreasury = false
+)
+
 // testDataPath is the path where all rpcserver test fixtures reside.
 const testDataPath = "testdata"
 
@@ -356,7 +362,7 @@ func (c *testRPCChain) TicketPoolValue() (dcrutil.Amount, error) {
 
 // TicketsWithAddress returns a mocked slice of ticket hashes that are currently
 // live corresponding to the given address.
-func (c *testRPCChain) TicketsWithAddress(address dcrutil.Address) ([]chainhash.Hash, error) {
+func (c *testRPCChain) TicketsWithAddress(address dcrutil.Address, isTreasuryEnabled bool) ([]chainhash.Hash, error) {
 	return c.ticketsWithAddress, nil
 }
 
@@ -364,6 +370,15 @@ func (c *testRPCChain) TicketsWithAddress(address dcrutil.Address) ([]chainhash.
 // stemming from the parent of the current tip.
 func (c *testRPCChain) TipGeneration() ([]chainhash.Hash, error) {
 	return c.tipGeneration, nil
+}
+
+// TreasuryBalance returns the treasury balance at the provided block.
+func (c *testRPCChain) TreasuryBalance(*chainhash.Hash) (*blockchain.TreasuryBalanceInfo, error) {
+	return nil, fmt.Errorf("not implemented")
+}
+
+func (c *testRPCChain) IsTreasuryAgendaActive(*chainhash.Hash) (bool, error) {
+	return false, nil
 }
 
 // testPeer provides a mock peer by implementing the Peer interface.
@@ -2737,7 +2752,7 @@ func TestHandleExistsAddresses(t *testing.T) {
 	validAddr := "DcurAwesomeAddressmqDctW5wJCW1Cn2MF"
 	validAddrs := []string{validAddr, validAddr, validAddr}
 	existsSlice := []bool{false, true, true}
-	// existsSlice as a bitset is 110₂ which is 6₁₆ in hex.
+	// existsSlice as a bitset is 110 binary which is 6 in hex.
 	existsStr := "06"
 	testRPCServerHandler(t, []rpcTest{{
 		name:    "handleExistsAddresses: ok",
@@ -3492,7 +3507,7 @@ func TestHandleGetBlock(t *testing.T) {
 	for i, tx := range txns {
 		rawTxn, err := testServer.createTxRawResult(defaultChainParams, tx.MsgTx(),
 			tx.Hash().String(), uint32(i), &blkHeader, blk.Hash().String(),
-			int64(blkHeader.Height), confirmations)
+			int64(blkHeader.Height), confirmations, noTreasury)
 		if err != nil {
 			t.Fatalf("error creating tx raw result: %+v", err)
 		}
@@ -3503,7 +3518,7 @@ func TestHandleGetBlock(t *testing.T) {
 	for i, tx := range stxns {
 		rawSTxn, err := testServer.createTxRawResult(defaultChainParams, tx.MsgTx(),
 			tx.Hash().String(), uint32(i), &blkHeader, blk.Hash().String(),
-			int64(blkHeader.Height), confirmations)
+			int64(blkHeader.Height), confirmations, noTreasury)
 		if err != nil {
 			t.Fatalf("error creating stx raw result: %+v", err)
 		}
@@ -4837,7 +4852,7 @@ func searchRawTransactionsResult(t *testing.T, s *Server, tx testTx,
 ) types.SearchRawTransactionsResult {
 	msgTx := hexToMsgTx(tx.hex)
 	vinList, err := createVinListPrevOut(s, msgTx, defaultChainParams, vinExtra,
-		filterAddr)
+		filterAddr, noTreasury)
 	if err != nil {
 		t.Fatalf("error creating vinList: %+v", err)
 	}
@@ -4848,7 +4863,8 @@ func searchRawTransactionsResult(t *testing.T, s *Server, tx testTx,
 		LockTime: msgTx.LockTime,
 		Expiry:   msgTx.Expiry,
 		Vin:      vinList,
-		Vout:     createVoutList(msgTx, defaultChainParams, filterAddr),
+		Vout: createVoutList(msgTx, defaultChainParams, filterAddr,
+			noTreasury),
 	}
 	if tx.indexEntry != nil {
 		result.BlockHash = tx.indexEntry.BlockRegion.Hash.String()

@@ -287,6 +287,34 @@ func MainNetParams() *Params {
 				StartTime:  1567641600, // Sep 5th, 2019
 				ExpireTime: 1599264000, // Sep 5th, 2020
 			}},
+			8: {{
+				Vote: Vote{
+					Id:          VoteIDTreasury,
+					Description: "Enable decentralized Treasury opcodes as defined in DCP0006",
+					Mask:        0x0006, // Bits 1 and 2
+					Choices: []Choice{{
+						Id:          "abstain",
+						Description: "abstain voting for change",
+						Bits:        0x0000,
+						IsAbstain:   true,
+						IsNo:        false,
+					}, {
+						Id:          "no",
+						Description: "keep the existing consensus rules",
+						Bits:        0x0002, // Bit 1
+						IsAbstain:   false,
+						IsNo:        true,
+					}, {
+						Id:          "yes",
+						Description: "change to the new consensus rules",
+						Bits:        0x0004, // Bit 2
+						IsAbstain:   false,
+						IsNo:        false,
+					}},
+				},
+				StartTime:  1596240000, // Aug 1st, 2020
+				ExpireTime: 1627776000, // Aug 1st, 2021
+			}},
 		},
 
 		// Enforce current block version once majority of the network has
@@ -347,6 +375,35 @@ func MainNetParams() *Params {
 		OrganizationPkScript:        hexDecode("a914f5916158e3e2c4551c1796708db8367207ed13bb87"),
 		OrganizationPkScriptVersion: 0,
 		BlockOneLedger:              tokenPayouts_MainNetParams(),
+
+		// Sanctioned Politeia keys.
+		PiKeys: [][]byte{
+			hexDecode("03f6e7041f1cf51ee10e0a01cd2b0385ce3cd9debaabb2296f7e9dee9329da946c"),
+			hexDecode("0319a37405cb4d1691971847d7719cfce70857c0f6e97d7c9174a3998cf0ab86dd"),
+		},
+
+		// ~1 day for tspend inclusion
+		TreasuryVoteInterval: 288,
+
+		// ~7.2 days for short circuit approval, ~42%
+		// target=ticket-pool-equivalent participation
+		TreasuryVoteIntervalMultiplier: 12,
+
+		// Sum of tspends within any ~24 day window cannot exceed
+		// policy check
+		TreasuryExpenditureWindow: 2,
+
+		// policy check is average of prior ~4.8 months + a 50%
+		// increase allowance
+		TreasuryExpenditurePolicy: 6,
+
+		// 16000 dcr/tew as expense bootstrap
+		TreasuryExpenditureBootstrap: 16000 * 1e8,
+
+		TreasuryVoteQuorumMultiplier:   1, // 20% quorum required
+		TreasuryVoteQuorumDivisor:      5,
+		TreasuryVoteRequiredMultiplier: 3, // 60% yes votes required
+		TreasuryVoteRequiredDivisor:    5,
 
 		seeders: []string{
 			"mainnet-seed-1.decred.org",

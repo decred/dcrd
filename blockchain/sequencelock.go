@@ -32,8 +32,8 @@ type SequenceLock struct {
 // to the IsSSGen function in the stake package and exists to make calling code
 // that does not care about the specific reason the transaction is not a
 // stakebase, rather only if it is one or not.
-func isStakeBaseTx(tx *wire.MsgTx) bool {
-	return stake.IsSSGen(tx)
+func isStakeBaseTx(tx *wire.MsgTx, isTreasuryEnabled bool) bool {
+	return stake.IsSSGen(tx, isTreasuryEnabled)
 }
 
 // calcSequenceLock computes the relative lock times for the passed transaction
@@ -41,6 +41,11 @@ func isStakeBaseTx(tx *wire.MsgTx) bool {
 //
 // See the CalcSequenceLock comments for more details.
 func (b *BlockChain) calcSequenceLock(node *blockNode, tx *dcrutil.Tx, view *UtxoViewpoint, isActive bool) (*SequenceLock, error) {
+	isTreasuryEnabled, err := b.isTreasuryAgendaActive(node.parent)
+	if err != nil {
+		return nil, err
+	}
+
 	// A value of -1 for each lock type allows a transaction to be included
 	// in a block at any given height or time.
 	sequenceLock := &SequenceLock{MinHeight: -1, MinTime: -1}
@@ -51,7 +56,8 @@ func (b *BlockChain) calcSequenceLock(node *blockNode, tx *dcrutil.Tx, view *Utx
 	// included in a block at any given height or time.
 	msgTx := tx.MsgTx()
 	enforce := isActive && msgTx.Version >= 2
-	if !enforce || standalone.IsCoinBaseTx(msgTx) || isStakeBaseTx(msgTx) {
+	if !enforce || standalone.IsCoinBaseTx(msgTx, isTreasuryEnabled) ||
+		isStakeBaseTx(msgTx, isTreasuryEnabled) {
 		return sequenceLock, nil
 	}
 

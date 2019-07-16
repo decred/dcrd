@@ -373,7 +373,7 @@ func TestStxoSerialization(t *testing.T) {
 				txType:        0,
 				txVersion:     1,
 			},
-			serialized: hexToBytes("1100006edbc6c4d31bae9f1ccc38538a114bf42de65e8601"),
+			serialized: hexToBytes("4100006edbc6c4d31bae9f1ccc38538a114bf42de65e8601"),
 		},
 		{
 			name: "Spends last output of non coinbase and is a ticket",
@@ -390,7 +390,7 @@ func TestStxoSerialization(t *testing.T) {
 				txVersion:     1,
 				stakeExtra:    []byte{0x00},
 			},
-			serialized: hexToBytes("1400006edbc6c4d31bae9f1ccc38538a114bf42de65e860100"),
+			serialized: hexToBytes("4400006edbc6c4d31bae9f1ccc38538a114bf42de65e860100"),
 		},
 		{
 			name: "Does not spend last output",
@@ -482,7 +482,7 @@ func TestStxoDecodeErrors(t *testing.T) {
 			// [<flags 10> <script version 00> EOF]
 			name:       "no tx version data after empty script for a fully spent regular stxo",
 			stxo:       spentTxOut{},
-			serialized: hexToBytes("1000"),
+			serialized: hexToBytes("4000"),
 			errType:    errDeserialize(""),
 			bytesRead:  2,
 		},
@@ -490,7 +490,7 @@ func TestStxoDecodeErrors(t *testing.T) {
 			// [<flags 10> <script version 00> <compressed pk script 01 6e ...> EOF]
 			name:       "no tx version data after a pay-to-script-hash script for a fully spent regular stxo",
 			stxo:       spentTxOut{},
-			serialized: hexToBytes("1000016edbc6c4d31bae9f1ccc38538a114bf42de65e86"),
+			serialized: hexToBytes("4000016edbc6c4d31bae9f1ccc38538a114bf42de65e86"),
 			errType:    errDeserialize(""),
 			bytesRead:  23,
 		},
@@ -498,7 +498,7 @@ func TestStxoDecodeErrors(t *testing.T) {
 			// [<flags 14> <script version 00> <compressed pk script 01 6e ...> <tx version 01> EOF]
 			name:       "no stakeextra data after script for a fully spent ticket stxo",
 			stxo:       spentTxOut{},
-			serialized: hexToBytes("1400016edbc6c4d31bae9f1ccc38538a114bf42de65e8601"),
+			serialized: hexToBytes("4400016edbc6c4d31bae9f1ccc38538a114bf42de65e8601"),
 			errType:    errDeserialize(""),
 			bytesRead:  24,
 		},
@@ -506,7 +506,7 @@ func TestStxoDecodeErrors(t *testing.T) {
 			// [<flags 14> <script version 00> <compressed pk script 01 6e ...> <tx version 01> <stakeextra {num outputs 01}> EOF]
 			name:       "truncated stakeextra data after script for a fully spent ticket stxo (num outputs only)",
 			stxo:       spentTxOut{},
-			serialized: hexToBytes("1400016edbc6c4d31bae9f1ccc38538a114bf42de65e860101"),
+			serialized: hexToBytes("4400016edbc6c4d31bae9f1ccc38538a114bf42de65e860101"),
 			errType:    errDeserialize(""),
 			bytesRead:  25,
 		},
@@ -514,7 +514,7 @@ func TestStxoDecodeErrors(t *testing.T) {
 			// [<flags 14> <script version 00> <compressed pk script 01 6e ...> <tx version 01> <stakeextra {num outputs 01} {amount 0f}> EOF]
 			name:       "truncated stakeextra data after script for a fully spent ticket stxo (num outputs and amount only)",
 			stxo:       spentTxOut{},
-			serialized: hexToBytes("1400016edbc6c4d31bae9f1ccc38538a114bf42de65e8601010f"),
+			serialized: hexToBytes("4400016edbc6c4d31bae9f1ccc38538a114bf42de65e8601010f"),
 			errType:    errDeserialize(""),
 			bytesRead:  26,
 		},
@@ -522,7 +522,7 @@ func TestStxoDecodeErrors(t *testing.T) {
 			// [<flags 14> <script version 00> <compressed pk script 01 6e ...> <tx version 01> <stakeextra {num outputs 01} {amount 0f} {script version 00}> EOF]
 			name:       "truncated stakeextra data after script for a fully spent ticket stxo (num outputs, amount, and script version only)",
 			stxo:       spentTxOut{},
-			serialized: hexToBytes("1400016edbc6c4d31bae9f1ccc38538a114bf42de65e8601010f00"),
+			serialized: hexToBytes("4400016edbc6c4d31bae9f1ccc38538a114bf42de65e8601010f00"),
 			errType:    errDeserialize(""),
 			bytesRead:  27,
 		},
@@ -530,7 +530,7 @@ func TestStxoDecodeErrors(t *testing.T) {
 			// [<flags 14> <script version 00> <compressed pk script 01 6e ...> <tx version 01> <stakeextra {num outputs 01} {amount 0f} {script version 00} {script size 1a} {25 bytes of script instead of 26}> EOF]
 			name:       "truncated stakeextra data after script for a fully spent ticket stxo (script size specified as 0x1a, but only 0x19 bytes provided)",
 			stxo:       spentTxOut{},
-			serialized: hexToBytes("1400016edbc6c4d31bae9f1ccc38538a114bf42de65e8601010f001aba76a9140cdf9941c0c221243cb8672cd1ad2c4c0933850588"),
+			serialized: hexToBytes("4400016edbc6c4d31bae9f1ccc38538a114bf42de65e8601010f001aba76a9140cdf9941c0c221243cb8672cd1ad2c4c0933850588"),
 			errType:    errDeserialize(""),
 			bytesRead:  28,
 		},
@@ -573,7 +573,7 @@ func TestSpendJournalSerialization(t *testing.T) {
 			name:       "No spends",
 			entry:      nil,
 			blockTxns:  nil,
-			utxoView:   NewUtxoViewpoint(),
+			utxoView:   NewUtxoViewpoint(nil),
 			serialized: nil,
 		},
 		{
@@ -619,8 +619,8 @@ func TestSpendJournalSerialization(t *testing.T) {
 				LockTime: 0,
 				Expiry:   0,
 			}},
-			utxoView:   NewUtxoViewpoint(),
-			serialized: hexToBytes("11000511db93e1dcdb8a016b49840f8c53bc1eb68a382e97b1482ecad7b148a6909a5c01"),
+			utxoView:   NewUtxoViewpoint(nil),
+			serialized: hexToBytes("41000511db93e1dcdb8a016b49840f8c53bc1eb68a382e97b1482ecad7b148a6909a5c01"),
 		},
 		{
 			name: "Two txns when one spends last output, one doesn't",
@@ -715,7 +715,7 @@ func TestSpendJournalSerialization(t *testing.T) {
 					},
 				},
 			}},
-			serialized: hexToBytes("100001b2fb57eadf61e106a100a7445a8c3f67898841ec010000016edbc6c4d31bae9f1ccc38538a114bf42de65e86"),
+			serialized: hexToBytes("400001b2fb57eadf61e106a100a7445a8c3f67898841ec010000016edbc6c4d31bae9f1ccc38538a114bf42de65e86"),
 		},
 		{
 			name: "One tx, two inputs from same tx, neither spend last output",
@@ -805,7 +805,7 @@ func TestSpendJournalSerialization(t *testing.T) {
 
 		// Deserialize to a spend journal entry.
 		gotEntry, err := deserializeSpendJournalEntry(test.serialized,
-			test.blockTxns)
+			test.blockTxns, noTreasury)
 		if err != nil {
 			t.Errorf("deserializeSpendJournalEntry #%d (%s) "+
 				"unexpected error: %v", i, test.name, err)
@@ -879,7 +879,7 @@ func TestSpendJournalErrors(t *testing.T) {
 		// Ensure the expected error type is returned and the returned
 		// slice is nil.
 		stxos, err := deserializeSpendJournalEntry(test.serialized,
-			test.blockTxns)
+			test.blockTxns, noTreasury)
 		if !errors.As(err, &test.errType) {
 			t.Errorf("deserializeSpendJournalEntry (%s): expected "+
 				"error type does not match - got %T, want %T",

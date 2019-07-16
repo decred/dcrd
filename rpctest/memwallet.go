@@ -25,6 +25,13 @@ import (
 	"github.com/decred/dcrd/wire"
 )
 
+const (
+	// noTreasury signifies the treasury agenda should be treated as though
+	// it is inactive.  It is used to increase the readability of the
+	// tests.
+	noTreasury = false
+)
+
 var (
 	// hdSeed is the BIP 32 seed used by the memWallet to initialize it's
 	// HD root key. This value is hard coded in order to ensure
@@ -247,7 +254,7 @@ func (m *memWallet) chainSyncer() {
 		}
 		for _, tx := range update.filteredTxns {
 			mtx := tx.MsgTx()
-			isCoinbase := standalone.IsCoinBaseTx(mtx)
+			isCoinbase := standalone.IsCoinBaseTx(mtx, noTreasury)
 			txHash := mtx.TxHash()
 			m.evalOutputs(mtx.TxOut, &txHash, isCoinbase, undo)
 			m.evalInputs(mtx.TxIn, undo)

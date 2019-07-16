@@ -16,6 +16,8 @@ func TestErrorCodeStringer(t *testing.T) {
 	}{
 		{ErrUnexpectedDifficulty, "ErrUnexpectedDifficulty"},
 		{ErrHighHash, "ErrHighHash"},
+		{ErrTSpendStartInvalidExpiry, "ErrTSpendStartInvalidExpiry"},
+		{ErrTSpendEndInvalidExpiry, "ErrTSpendEndInvalidExpiry"},
 		{0xffff, "Unknown ErrorCode (65535)"},
 	}
 

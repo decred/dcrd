@@ -6,6 +6,7 @@
 package chaincfg
 
 import (
+	"bytes"
 	"encoding/hex"
 	"math/big"
 	"time"
@@ -140,6 +141,10 @@ const (
 	// the stake root header field to support header commitments and provides
 	// an initial commitment to version 2 GCS filters defined by DCP0005.
 	VoteIDHeaderCommitments = "headercommitments"
+
+	// VoteIDTreasury is the vote ID for the agenda that enables the
+	// decentralized treasury opcodes defined by DCP0006.
+	VoteIDTreasury = "treasury"
 )
 
 // ConsensusDeployment defines details related to a specific consensus rule
@@ -459,6 +464,46 @@ type Params struct {
 	// to an empty slice.
 	BlockOneLedger []TokenPayout
 
+	// PiKeys is the list of sanctioned Politeia keys. There should be at
+	// least two of them at any given time. The corresponding private keys
+	// for mainnet and testnet must be guarded with extreme prejudice. On
+	// the other hand simnet and regnet have these values hardcoded for
+	// easier testing.
+	PiKeys [][]byte
+
+	// TreasuryVoteInterval dictates when a TSpend transaction is allowed
+	// in a block.
+	TreasuryVoteInterval uint64
+
+	// TreasuryVoteIntervalMultiplier is the multiplier to the
+	// TreasuryVoteInterval that is needed to calculate Expiry.
+	TreasuryVoteIntervalMultiplier uint64
+
+	// TreasuryVoteQuorumMultiplier and TreasuryVoteQuorumDivisor are used
+	// to calculate the TSpend vote quorum percentage.
+	TreasuryVoteQuorumMultiplier uint64
+	TreasuryVoteQuorumDivisor    uint64
+
+	// TreasuryVoteRequiredMultiplier and TreasuryVoteRequiredDivisor are
+	// used to calculate the required number of votes percentage.
+	TreasuryVoteRequiredMultiplier uint64
+	TreasuryVoteRequiredDivisor    uint64
+
+	// TreasuryExpenditureWindow is the number of TVI*Multiplier windows
+	// that define a single "expenditure window".
+	TreasuryExpenditureWindow uint64
+
+	// TreasuryExpenditurePolicy is the number of previous
+	// TreasuryExpenditureWindows that defines how far back to calculate
+	// the average expenditure of the treasury for an expenditure policy
+	// check.
+	TreasuryExpenditurePolicy uint64
+
+	// TreasuryExpenditureBootstrap is the value to use as previous average
+	// expenditure when there are no treasury spends inside the entire
+	// window defined by TreasuryExpenditurePolicy.
+	TreasuryExpenditureBootstrap uint64
+
 	// seeders defines a list of seeders for the network that are used
 	// as one method to discover peers.
 	seeders []string
@@ -663,6 +708,16 @@ func (p *Params) LatestCheckpointHeight() int64 {
 		return 0
 	}
 	return p.Checkpoints[len(p.Checkpoints)-1].Height
+}
+
+// PiKeyExists returns true if the provided key is a sanctioned Pi Key.
+func (p *Params) PiKeyExists(key []byte) bool {
+	for _, v := range p.PiKeys {
+		if bytes.Equal(v, key) {
+			return true
+		}
+	}
+	return false
 }
 
 // Seeders returns the list of HTTP seeders.

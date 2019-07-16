@@ -243,9 +243,9 @@ const (
 	OP_CHECKSIGALT         = 0xbe // 190 DECRED
 	OP_CHECKSIGALTVERIFY   = 0xbf // 191 DECRED
 	OP_SHA256              = 0xc0 // 192
-	OP_UNKNOWN193          = 0xc1 // 193
-	OP_UNKNOWN194          = 0xc2 // 194
-	OP_UNKNOWN195          = 0xc3 // 195
+	OP_TADD                = 0xc1 // 193 DECRED
+	OP_TSPEND              = 0xc2 // 194 DECRED
+	OP_TGEN                = 0xc3 // 195 DECRED
 	OP_UNKNOWN196          = 0xc4 // 196
 	OP_UNKNOWN197          = 0xc5 // 197
 	OP_UNKNOWN198          = 0xc6 // 198
@@ -529,10 +529,12 @@ var opcodeArray = [256]opcode{
 	OP_CHECKSIGALT:       {OP_CHECKSIGALT, "OP_CHECKSIGALT", 1, opcodeCheckSigAlt},
 	OP_CHECKSIGALTVERIFY: {OP_CHECKSIGALTVERIFY, "OP_CHECKSIGALTVERIFY", 1, opcodeCheckSigAltVerify},
 
+	// treasury opcodes.
+	OP_TADD:   {OP_TADD, "OP_TADD", 1, opcodeTAdd},
+	OP_TSPEND: {OP_TSPEND, "OP_TSPEND", 1, opcodeTSpend},
+	OP_TGEN:   {OP_TGEN, "OP_TGEN", 1, opcodeTGen},
+
 	// Undefined opcodes.
-	OP_UNKNOWN193: {OP_UNKNOWN193, "OP_UNKNOWN193", 1, opcodeNop},
-	OP_UNKNOWN194: {OP_UNKNOWN194, "OP_UNKNOWN194", 1, opcodeNop},
-	OP_UNKNOWN195: {OP_UNKNOWN195, "OP_UNKNOWN195", 1, opcodeNop},
 	OP_UNKNOWN196: {OP_UNKNOWN196, "OP_UNKNOWN196", 1, opcodeNop},
 	OP_UNKNOWN197: {OP_UNKNOWN197, "OP_UNKNOWN197", 1, opcodeNop},
 	OP_UNKNOWN198: {OP_UNKNOWN198, "OP_UNKNOWN198", 1, opcodeNop},
@@ -738,7 +740,6 @@ func opcodeNop(op *opcode, data []byte, vm *Engine) error {
 	switch op.value {
 	case OP_NOP1, OP_NOP4, OP_NOP5, OP_NOP6,
 		OP_NOP7, OP_NOP8, OP_NOP9, OP_NOP10,
-		OP_UNKNOWN193, OP_UNKNOWN194, OP_UNKNOWN195,
 		OP_UNKNOWN196, OP_UNKNOWN197, OP_UNKNOWN198, OP_UNKNOWN199,
 		OP_UNKNOWN200, OP_UNKNOWN201, OP_UNKNOWN202, OP_UNKNOWN203,
 		OP_UNKNOWN204, OP_UNKNOWN205, OP_UNKNOWN206, OP_UNKNOWN207,
@@ -2897,6 +2898,52 @@ func opcodeCheckSigAltVerify(op *opcode, data []byte, vm *Engine) error {
 		err = abstractVerify(op, vm, ErrCheckSigAltVerify)
 	}
 	return err
+}
+
+// opcodeTAdd is a tag used for treasurybase and credits to the treasury.
+func opcodeTAdd(op *opcode, data []byte, vm *Engine) error {
+	// Treat the opcode as OP_UNKNOWN193 if the flag to interpret it as the
+	// TADD opcode is not set.
+	if !vm.hasFlag(ScriptVerifyTreasury) {
+		if vm.hasFlag(ScriptDiscourageUpgradableNops) {
+			return scriptError(ErrDiscourageUpgradableNOPs,
+				"OP_UNKNOWN193 reserved for upgrades")
+		}
+		return nil
+	}
+
+	return nil
+}
+
+// opcodeTSpend is a tag used to designated treasury spends.
+func opcodeTSpend(op *opcode, data []byte, vm *Engine) error {
+	// Treat the opcode as OP_UNKNOWN194 if the flag to interpret it as the
+	// TSPEND opcode is not set.
+	if !vm.hasFlag(ScriptVerifyTreasury) {
+		if vm.hasFlag(ScriptDiscourageUpgradableNops) {
+			return scriptError(ErrDiscourageUpgradableNOPs,
+				"OP_UNKNOWN194 reserved for upgrades")
+		}
+		return nil
+	}
+
+	return nil
+}
+
+// opcodeTGen is a tag used in TSpend transactions to designate P2PKH or P2PH
+// payouts.
+func opcodeTGen(op *opcode, data []byte, vm *Engine) error {
+	// Treat the opcode as OP_UNKNOWN195 if the flag to interpret it as the
+	// TGEN opcode is not set.
+	if !vm.hasFlag(ScriptVerifyTreasury) {
+		if vm.hasFlag(ScriptDiscourageUpgradableNops) {
+			return scriptError(ErrDiscourageUpgradableNOPs,
+				"OP_UNKNOWN195 reserved for upgrades")
+		}
+		return nil
+	}
+
+	return nil
 }
 
 // OpcodeByName is a map that can be used to lookup an opcode by its

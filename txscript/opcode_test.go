@@ -25,7 +25,8 @@ const testScriptFlags = ScriptDiscourageUpgradableNops |
 	ScriptVerifyCleanStack |
 	ScriptVerifyCheckLockTimeVerify |
 	ScriptVerifyCheckSequenceVerify |
-	ScriptVerifySHA256
+	ScriptVerifySHA256 |
+	ScriptVerifyTreasury
 
 // TestOpcodeDisabled tests the opcodeDisabled function manually because all
 // disabled opcodes result in a script execution failure when executed normally,
@@ -94,6 +95,7 @@ func TestOpcodeDisasm(t *testing.T) {
 		0xff: "OP_INVALIDOPCODE", 0xba: "OP_SSTX", 0xbb: "OP_SSGEN",
 		0xbc: "OP_SSRTX", 0xbd: "OP_SSTXCHANGE", 0xbe: "OP_CHECKSIGALT",
 		0xbf: "OP_CHECKSIGALTVERIFY", 0xc0: "OP_SHA256",
+		0xc1: "OP_TADD", 0xc2: "OP_TSPEND", 0xc3: "OP_TGEN",
 	}
 	for opcodeVal, expectedStr := range expectedStrings {
 		var data []byte
@@ -139,7 +141,7 @@ func TestOpcodeDisasm(t *testing.T) {
 			}
 
 		// OP_UNKNOWN#.
-		case opcodeVal >= 0xc1 && opcodeVal <= 0xf8 || opcodeVal == 0xfc:
+		case opcodeVal >= 0xc4 && opcodeVal <= 0xf8 || opcodeVal == 0xfc:
 			expectedStr = "OP_UNKNOWN" + strconv.Itoa(opcodeVal)
 		}
 
@@ -206,7 +208,7 @@ func TestOpcodeDisasm(t *testing.T) {
 			}
 
 		// OP_UNKNOWN#.
-		case opcodeVal >= 0xc1 && opcodeVal <= 0xf8 || opcodeVal == 0xfc:
+		case opcodeVal >= 0xc4 && opcodeVal <= 0xf8 || opcodeVal == 0xfc:
 			expectedStr = "OP_UNKNOWN" + strconv.Itoa(opcodeVal)
 		}
 

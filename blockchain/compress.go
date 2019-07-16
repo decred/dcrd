@@ -703,25 +703,28 @@ func decodeCompressedTxOut(serialized []byte, compressionVersion uint32,
 // of the bit is given in zeroeth order:
 //     0: Is coinbase
 //     1: Has an expiry
-//   2-3: Transaction type
-//     4: Fully spent
-//   5-7: Unused
+//   2-4: Transaction type
+//     5: Unused
+//     6: Fully spent
+//     7: Unused
 //
-// 0, 1, and 4 are bit flags, while the transaction type is encoded with a bitmask
+// 0, 1, and 6 are bit flags, while the transaction type is encoded with a bitmask
 // and used to describe the underlying int.
 //
 // The fully spent flag should always come as the *last* flag (highest bit index)
 // in this data type should flags be updated to include more rules in the future,
 // such as rules governing new script OP codes. This ensures that we may still use
-// these flags in the UTX serialized data without consequence, where the last flag
-// indicating fully spent will always be zeroed.
+// these flags in the UTX serialized data without consequence, where the last
+// flag indicating fully spent will always be zeroed. Note that currently the
+// fully spent flag is stored in bit 6 so that when serializing the flags as a
+// VLQ integer it still fits into a single byte.
 //
 // -----------------------------------------------------------------------------
 
 const (
-	// txTypeBitmask describes the bitmask that yields the 3rd and 4th bits
-	// from the flags byte.
-	txTypeBitmask = 0x0c
+	// txTypeBitmask describes the bitmask that yields the 3rd, 4th and 5th
+	// bits from the flags byte.
+	txTypeBitmask = 0x1c
 
 	// txTypeShift is the number of bits to shift flags to the right to yield the
 	// correct integer value after applying the bitmask with AND.
@@ -740,7 +743,7 @@ func encodeFlags(isCoinBase bool, hasExpiry bool, txType stake.TxType, fullySpen
 		b |= 0x02 // Set bit 1
 	}
 	if fullySpent {
-		b |= 0x10 // Set bit 4
+		b |= 0x40 // Set bit 6
 	}
 
 	return b
@@ -751,7 +754,7 @@ func encodeFlags(isCoinBase bool, hasExpiry bool, txType stake.TxType, fullySpen
 func decodeFlags(b byte) (bool, bool, stake.TxType, bool) {
 	isCoinBase := b&0x01 != 0
 	hasExpiry := b&(1<<1) != 0
-	fullySpent := b&(1<<4) != 0
+	fullySpent := b&(1<<6) != 0
 	txType := stake.TxType((b & txTypeBitmask) >> txTypeShift)
 
 	return isCoinBase, hasExpiry, txType, fullySpent
@@ -759,5 +762,13 @@ func decodeFlags(b byte) (bool, bool, stake.TxType, bool) {
 
 // decodeFlagsFullySpent decodes whether or not a transaction was fully spent.
 func decodeFlagsFullySpent(b byte) bool {
-	return b&(1<<4) != 0
+	return b&(1<<6) != 0
+}
+
+// absInt64 computes the absolute value of the given int64 and converts it into
+// an uint64. Source:
+// http://graphics.stanford.edu/~seander/bithacks.html#IntegerAbs
+func absInt64(i int64) uint64 {
+	m := i >> 63
+	return uint64((i + m) ^ m)
 }

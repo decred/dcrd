@@ -28,7 +28,7 @@ import (
 const (
 	// currentDatabaseVersion indicates what the current database
 	// version is.
-	currentDatabaseVersion = 6
+	currentDatabaseVersion = 7
 
 	// currentBlockIndexVersion indicates what the current block index
 	// database version.
@@ -88,6 +88,14 @@ var (
 	// gcsFilterBucketName is the name of the db bucket used to house GCS
 	// filters.
 	gcsFilterBucketName = []byte("gcsfilters")
+
+	// treasuryBucketName is the name of the db bucket that is used to house
+	// TADD/TSPEND additions and subtractions from the treasury account.
+	treasuryBucketName = []byte("treasury")
+
+	// treasuryTSpendBucketName is the name of the db bucket that is used to
+	// house TSpend transactions which were included in the blockchain.
+	treasuryTSpendBucketName = []byte("tspend")
 )
 
 // errNotInMainChain signifies that a block hash or height that is not in the
@@ -106,6 +114,14 @@ type errDeserialize string
 // Error implements the error interface.
 func (e errDeserialize) Error() string {
 	return string(e)
+}
+
+// Is implements the interface to work with the standard library's errors.Is.
+//
+// It returns true in the following cases:
+// - The target is errDeserialize
+func (e errDeserialize) Is(target error) bool {
+	return isDeserializeErr(target)
 }
 
 // isDeserializeErr returns whether or not the passed error is an errDeserialize
@@ -474,8 +490,10 @@ func dbMaybeStoreBlock(dbTx database.Tx, block *dcrutil.Block) error {
 // The serialized flags code format is:
 //   bit  0   - containing transaction is a coinbase
 //   bit  1   - containing transaction has an expiry
-//   bits 2-3 - transaction type
-//   bit  4   - is fully spent
+//   bits 2-4 - transaction type
+//   bit  5   - unused
+//   bit  6   - is fully spent
+//   bit  7   - unused
 //
 // The stake extra field contains minimally encoded outputs for all
 // consensus-related outputs in the stake transaction. It is only
@@ -648,11 +666,11 @@ func decodeSpentTxOut(serialized []byte, stxo *spentTxOut, amount int64, height 
 // format comments, this function also requires the transactions that spend the
 // txouts and a utxo view that contains any remaining existing utxos in the
 // transactions referenced by the inputs to the passed transactions.
-func deserializeSpendJournalEntry(serialized []byte, txns []*wire.MsgTx) ([]spentTxOut, error) {
+func deserializeSpendJournalEntry(serialized []byte, txns []*wire.MsgTx, isTreasuryEnabled bool) ([]spentTxOut, error) {
 	// Calculate the total number of stxos.
 	var numStxos int
 	for _, tx := range txns {
-		if stake.IsSSGen(tx) {
+		if stake.IsSSGen(tx, isTreasuryEnabled) {
 			numStxos++
 			continue
 		}
@@ -680,7 +698,7 @@ func deserializeSpendJournalEntry(serialized []byte, txns []*wire.MsgTx) ([]spen
 	stxos := make([]spentTxOut, numStxos)
 	for txIdx := len(txns) - 1; txIdx > -1; txIdx-- {
 		tx := txns[txIdx]
-		isVote := stake.IsSSGen(tx)
+		isVote := stake.IsSSGen(tx, isTreasuryEnabled)
 
 		// Loop backwards through all of the transaction inputs and read
 		// the associated stxo.
@@ -764,7 +782,7 @@ func serializeSpendJournalEntry(stxos []spentTxOut) ([]byte, error) {
 // view MUST have the utxos referenced by all of the transactions available for
 // the passed block since that information is required to reconstruct the spent
 // txouts.
-func dbFetchSpendJournalEntry(dbTx database.Tx, block *dcrutil.Block) ([]spentTxOut, error) {
+func dbFetchSpendJournalEntry(dbTx database.Tx, block *dcrutil.Block, isTreasuryEnabled bool) ([]spentTxOut, error) {
 	// Exclude the coinbase transaction since it can't spend anything.
 	spendBucket := dbTx.Metadata().Bucket(spendJournalBucketName)
 	serialized := spendBucket.Get(block.Hash()[:])
@@ -772,13 +790,24 @@ func dbFetchSpendJournalEntry(dbTx database.Tx, block *dcrutil.Block) ([]spentTx
 
 	blockTxns := make([]*wire.MsgTx, 0, len(msgBlock.STransactions)+
 		len(msgBlock.Transactions[1:]))
-	blockTxns = append(blockTxns, msgBlock.STransactions...)
+	if len(msgBlock.STransactions) > 0 && isTreasuryEnabled {
+		// Skip treasury base and remove tspends.
+		for _, v := range msgBlock.STransactions[1:] {
+			if stake.IsTSpend(v) {
+				continue
+			}
+			blockTxns = append(blockTxns, v)
+		}
+	} else {
+		blockTxns = append(blockTxns, msgBlock.STransactions...)
+	}
 	blockTxns = append(blockTxns, msgBlock.Transactions[1:]...)
 	if len(blockTxns) > 0 && len(serialized) == 0 {
 		panicf("missing spend journal data for %s", block.Hash())
 	}
 
-	stxos, err := deserializeSpendJournalEntry(serialized, blockTxns)
+	stxos, err := deserializeSpendJournalEntry(serialized, blockTxns,
+		isTreasuryEnabled)
 	if err != nil {
 		// Ensure any deserialization errors are returned as database
 		// corruption errors.
@@ -843,8 +872,10 @@ func dbRemoveSpendJournalEntry(dbTx database.Tx, blockHash *chainhash.Hash) erro
 // The serialized flags code format is:
 //   bit  0   - containing transaction is a coinbase
 //   bit  1   - containing transaction has an expiry
-//   bits 2-3 - transaction type
-//   bits 4-7 - unused
+//   bits 2-4 - transaction type
+//   bit  5   - unused
+//   bit  6   - is fully spent
+//   bit  7   - unused
 //
 // The serialized header code format is:
 //   bit 0 - output zero is unspent
@@ -1659,7 +1690,19 @@ func (b *BlockChain) createChainState() error {
 		if err != nil {
 			return err
 		}
-		return dbPutGCSFilter(dbTx, &b.chainParams.GenesisHash, genesisFilter)
+		err = dbPutGCSFilter(dbTx, &b.chainParams.GenesisHash, genesisFilter)
+		if err != nil {
+			return err
+		}
+
+		// Create the bucket that houses the treasury account
+		// information.
+		_, err = meta.CreateBucket(treasuryBucketName)
+		if err != nil {
+			return err
+		}
+		_, err = meta.CreateBucket(treasuryTSpendBucketName)
+		return err
 	})
 	return err
 }

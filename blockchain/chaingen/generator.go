@@ -6,6 +6,7 @@ package chaingen
 
 import (
 	"bytes"
+	"crypto/rand"
 	"encoding/binary"
 	"fmt"
 	"math"
@@ -47,6 +48,11 @@ const (
 	// voteBitYes is the specific bit that is set in the vote bits to
 	// indicate that the previous block is valid.
 	voteBitYes = 0x01
+
+	// noTreasury signifies the treasury agenda should be treated as though
+	// it is inactive.  It is used to increase the readability of the
+	// tests.
+	noTreasury = false
 )
 
 // SpendableOut represents a transaction output that is spendable along with
@@ -520,6 +526,143 @@ func (g *Generator) CreateTicketPurchaseTx(spend *SpendableOut, ticketPrice, fee
 	return tx
 }
 
+// CreateTreasuryTAdd creates a new transaction that spends the provided output
+// to the treasury. If the amount minus fee is zero the returned transaction
+// does not have a change output.
+//
+// The transaction consists of the following outputs:
+// - First output is an OP_TADD
+// - Second output is optional and when used it is an OP_SSTXCHANGE paying to
+// the provided changeAddr
+func (g *Generator) CreateTreasuryTAddChange(spend *SpendableOut,
+	amount, fee dcrutil.Amount, changeAddr dcrutil.Address) *wire.MsgTx {
+
+	// Calculate change and generate script to deliver it.
+	var (
+		changeScript []byte
+		err          error
+	)
+	change := spend.amount - amount - fee
+	if change < 0 {
+		panic(fmt.Sprintf("negative change %v", change))
+	}
+	if change > 0 {
+		changeScript, err = txscript.PayToSStxChange(changeAddr)
+		if err != nil {
+			panic(err)
+		}
+	}
+
+	// Generate and return the transaction spending from the provided
+	// spendable output with the previously described outputs.
+	tx := wire.NewMsgTx()
+	tx.AddTxIn(&wire.TxIn{
+		PreviousOutPoint: spend.prevOut,
+		Sequence:         wire.MaxTxInSequenceNum,
+		ValueIn:          int64(spend.amount),
+		BlockHeight:      spend.blockHeight,
+		BlockIndex:       spend.blockIndex,
+		SignatureScript:  opTrueRedeemScript,
+	})
+	tx.AddTxOut(wire.NewTxOut(int64(amount),
+		[]byte{txscript.OP_TADD}))
+	if len(changeScript) > 0 {
+		tx.AddTxOut(wire.NewTxOut(int64(change), changeScript))
+	}
+	return tx
+}
+
+// CreateTreasuryTAdd creates a new transaction that spends the provided output
+// to the treasury and uses the standard chaingen OP_TRUE P2SH as change address.
+func (g *Generator) CreateTreasuryTAdd(spend *SpendableOut, amount, fee dcrutil.Amount) *wire.MsgTx {
+	return g.CreateTreasuryTAddChange(spend, amount, fee, g.p2shOpTrueAddr)
+}
+
+// AddressAmountTuple wraps address+amount in a tuple for easy parameter
+// passing.
+type AddressAmountTuple struct {
+	Address dcrutil.Address
+	Amount  dcrutil.Amount
+}
+
+// CreateTreasuryTSpend creates a new transaction that spends treasury funds to
+// outputs.
+//
+// The transaction consists of the following outputs:
+// - First input is <signature> <pi pubkey> OP_TSPEND
+// - First output is an OP_RETURN <32 byte random data>
+// - Second and other outputs are OP_TGEN P2PKH/P2SH accounting.
+//
+// If an address is specified for a payout then it is used, otherwise the
+// standard OP_TRUE p2sh script is used as payout address.
+func (g *Generator) CreateTreasuryTSpend(privKey []byte, payouts []AddressAmountTuple, fee dcrutil.Amount, expiry uint32) *wire.MsgTx {
+	// Calculate total payout.
+	totalPayout := int64(0)
+	for _, v := range payouts {
+		totalPayout += int64(v.Amount)
+	}
+	valueIn := int64(fee) + totalPayout
+
+	// OP_RETURN <8 byte LE ValueIn><24 byte random>
+	// The TSpend TxIn ValueIn is encoded in the first 8 bytes to ensure
+	// that it becomes signed. This is consensus enforced.
+	var payload [32]byte
+	binary.LittleEndian.PutUint64(payload[0:8], uint64(valueIn))
+	_, err := rand.Read(payload[8:])
+	if err != nil {
+		panic(err)
+	}
+	builder := txscript.NewScriptBuilder()
+	builder.AddOp(txscript.OP_RETURN)
+	builder.AddData(payload[:])
+	opretScript, err := builder.Script()
+	if err != nil {
+		panic(err)
+	}
+	msgTx := wire.NewMsgTx()
+	msgTx.Version = wire.TxVersionTreasury
+	msgTx.Expiry = expiry
+	msgTx.AddTxOut(wire.NewTxOut(0, opretScript))
+
+	// OP_TGEN
+	for _, v := range payouts {
+		addr := g.p2shOpTrueAddr
+		if v.Address != nil {
+			addr = v.Address
+		}
+		script, err := txscript.PayToAddrScript(addr)
+		if err != nil {
+			panic(err)
+		}
+		tgenScript := make([]byte, len(script)+1)
+		tgenScript[0] = txscript.OP_TGEN
+		copy(tgenScript[1:], script)
+		msgTx.AddTxOut(wire.NewTxOut(int64(v.Amount), tgenScript))
+	}
+
+	// Treasury spend transactions have no inputs since the funds are
+	// sourced from a special account, so previous outpoint is zero hash
+	// and max index.
+	msgTx.AddTxIn(&wire.TxIn{
+		PreviousOutPoint: *wire.NewOutPoint(&chainhash.Hash{},
+			wire.MaxPrevOutIndex, wire.TxTreeRegular),
+		Sequence:        wire.MaxTxInSequenceNum,
+		ValueIn:         int64(fee) + totalPayout,
+		BlockHeight:     wire.NullBlockHeight,
+		BlockIndex:      wire.NullBlockIndex,
+		SignatureScript: nil,
+	})
+
+	// Calculate TSpend signature without SigHashType.
+	sigscript, err := txscript.TSpendSignatureScript(msgTx, privKey)
+	if err != nil {
+		panic(err)
+	}
+	msgTx.TxIn[0].SignatureScript = sigscript
+
+	return msgTx
+}
+
 // isTicketPurchaseTx returns whether or not the passed transaction is a stake
 // ticket purchase.
 //
@@ -534,7 +677,8 @@ func isTicketPurchaseTx(tx *wire.MsgTx) bool {
 		return false
 	}
 	txOut := tx.TxOut[0]
-	scriptClass := txscript.GetScriptClass(txOut.Version, txOut.PkScript)
+	scriptClass := txscript.GetScriptClass(txOut.Version, txOut.PkScript,
+		noTreasury)
 	return scriptClass == txscript.StakeSubmissionTy
 }
 
@@ -551,7 +695,8 @@ func isVoteTx(tx *wire.MsgTx) bool {
 		return false
 	}
 	txOut := tx.TxOut[2]
-	scriptClass := txscript.GetScriptClass(txOut.Version, txOut.PkScript)
+	scriptClass := txscript.GetScriptClass(txOut.Version, txOut.PkScript,
+		noTreasury)
 	return scriptClass == txscript.StakeGenTy
 }
 
@@ -569,7 +714,8 @@ func isRevocationTx(tx *wire.MsgTx) bool {
 		return false
 	}
 	txOut := tx.TxOut[0]
-	scriptClass := txscript.GetScriptClass(txOut.Version, txOut.PkScript)
+	scriptClass := txscript.GetScriptClass(txOut.Version, txOut.PkScript,
+		noTreasury)
 	return scriptClass == txscript.StakeRevocationTy
 }
 
@@ -2379,10 +2525,31 @@ func (g *Generator) saveCoinbaseOuts(b *wire.MsgBlock) {
 	g.prevCollectedHash = b.BlockHash()
 }
 
+// saveCoinbaseOutsWithTreasury adds the proof-of-work outputs of the coinbase tx in the
+// passed block to the list of spendable outputs. The offset changed due to
+// treasury agenda.
+func (g *Generator) saveCoinbaseOutsWithTreasury(b *wire.MsgBlock) {
+	g.spendableOuts = append(g.spendableOuts, []SpendableOut{
+		MakeSpendableOut(b, 0, 1),
+		MakeSpendableOut(b, 0, 2),
+		MakeSpendableOut(b, 0, 3),
+		MakeSpendableOut(b, 0, 4),
+		MakeSpendableOut(b, 0, 5),
+		MakeSpendableOut(b, 0, 6),
+	})
+	g.prevCollectedHash = b.BlockHash()
+}
+
 // SaveTipCoinbaseOuts adds the proof-of-work outputs of the coinbase tx in the
 // current tip block to the list of spendable outputs.
 func (g *Generator) SaveTipCoinbaseOuts() {
 	g.saveCoinbaseOuts(g.tip)
+}
+
+// SaveTipCoinbaseOutsWithTreasury adds the proof-of-work outputs of the
+// coinbase tx in the current tip block to the list of spendable outputs.
+func (g *Generator) SaveTipCoinbaseOutsWithTreasury() {
+	g.saveCoinbaseOutsWithTreasury(g.tip)
 }
 
 // SaveSpendableCoinbaseOuts adds all proof-of-work coinbase outputs starting
@@ -2420,7 +2587,7 @@ func (g *Generator) AssertTipHeight(expected uint32) {
 // AssertScriptSigOpsCount panics if the provided script does not have the
 // specified number of signature operations.
 func (g *Generator) AssertScriptSigOpsCount(script []byte, expected int) {
-	numSigOps := txscript.GetSigOpCount(script)
+	numSigOps := txscript.GetSigOpCount(script, noTreasury)
 	if numSigOps != expected {
 		_, file, line, _ := runtime.Caller(1)
 		panic(fmt.Sprintf("assertion failed at %s:%d: generated number "+
@@ -2435,11 +2602,13 @@ func countBlockSigOps(block *wire.MsgBlock) int {
 	totalSigOps := 0
 	for _, tx := range block.Transactions {
 		for _, txIn := range tx.TxIn {
-			numSigOps := txscript.GetSigOpCount(txIn.SignatureScript)
+			numSigOps := txscript.GetSigOpCount(txIn.SignatureScript,
+				noTreasury)
 			totalSigOps += numSigOps
 		}
 		for _, txOut := range tx.TxOut {
-			numSigOps := txscript.GetSigOpCount(txOut.PkScript)
+			numSigOps := txscript.GetSigOpCount(txOut.PkScript,
+				noTreasury)
 			totalSigOps += numSigOps
 		}
 	}

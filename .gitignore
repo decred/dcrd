@@ -40,3 +40,7 @@ cmd/checkdevpremine/checkdevpremine
 cmd/findcheckpoint/findcheckpoint
 cmd/gencerts/gencerts
 cmd/promptsecret/promptsecret
+
+# Vim
+*.sw*
+Session.vim

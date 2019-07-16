@@ -24,6 +24,13 @@ import (
 	"github.com/decred/dcrd/wire"
 )
 
+const (
+	// noTreasury signifies the treasury agenda should be treated as though
+	// it is inactive.  It is used to increase the readability of the
+	// tests.
+	noTreasury = false
+)
+
 // cloneParams returns a deep copy of the provided parameters so the caller is
 // free to modify them without worrying about interfering with other tests.
 func cloneParams(params *chaincfg.Params) *chaincfg.Params {
@@ -119,7 +126,7 @@ func TestBlockchainFunctions(t *testing.T) {
 	}
 
 	a, _ := dcrutil.DecodeAddress("SsbKpMkPnadDcZFFZqRPY8nvdFagrktKuzB", params)
-	hs, err := chain.TicketsWithAddress(a)
+	hs, err := chain.TicketsWithAddress(a, noTreasury)
 	if err != nil {
 		t.Errorf("Failed to do TicketsWithAddress: %v", err)
 	}

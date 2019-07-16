@@ -55,6 +55,7 @@ func TestErrorKindStringer(t *testing.T) {
 		{ErrDivideByZero, "ErrDivideByZero"},
 		{ErrNegativeShift, "ErrNegativeShift"},
 		{ErrOverflowShift, "ErrOverflowShift"},
+		{ErrP2SHTreasuryOpCodes, "ErrP2SHTreasuryOpCodes"},
 		{ErrMinimalData, "ErrMinimalData"},
 		{ErrInvalidSigHashType, "ErrInvalidSigHashType"},
 		{ErrSigTooShort, "ErrSigTooShort"},

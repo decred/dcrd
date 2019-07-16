@@ -71,6 +71,7 @@ var wsHandlersBeforeInit = map[types.Method]wsCommandHandler{
 	"loadtxfilter":                handleLoadTxFilter,
 	"notifyblocks":                handleNotifyBlocks,
 	"notifywork":                  handleNotifyWork,
+	"notifytspend":                handleNotifyTSpend,
 	"notifywinningtickets":        handleWinningTickets,
 	"notifyspentandmissedtickets": handleSpentAndMissedTickets,
 	"notifynewtickets":            handleNewTickets,
@@ -82,6 +83,7 @@ var wsHandlersBeforeInit = map[types.Method]wsCommandHandler{
 	"session":                     handleSession,
 	"stopnotifyblocks":            handleStopNotifyBlocks,
 	"stopnotifywork":              handleStopNotifyWork,
+	"stopnotifytspend":            handleStopNotifyTSpend,
 	"stopnotifynewtransactions":   handleStopNotifyNewTransactions,
 }
 
@@ -223,6 +225,14 @@ func (m *wsNotificationManager) NotifyBlockDisconnected(block *dcrutil.Block) {
 func (m *wsNotificationManager) NotifyWork(templateNtfn *mining.TemplateNtfn) {
 	select {
 	case m.queueNotification <- (*notificationWork)(templateNtfn):
+	case <-m.quit:
+	}
+}
+
+// NotifyTSpend passes new tspends for mempool additions.
+func (m *wsNotificationManager) NotifyTSpend(tx *dcrutil.Tx) {
+	select {
+	case m.queueNotification <- (*notificationTSpend)(tx):
 	case <-m.quit:
 	}
 }
@@ -433,6 +443,7 @@ func (f *wsClientFilter) existsUnspentOutPoint(op *wire.OutPoint) bool {
 type notificationBlockConnected dcrutil.Block
 type notificationBlockDisconnected dcrutil.Block
 type notificationWork mining.TemplateNtfn
+type notificationTSpend dcrutil.Tx
 type notificationReorganization blockchain.ReorganizationNtfnsData
 type notificationWinningTickets WinningTicketsNtfnData
 type notificationSpentAndMissedTickets blockchain.TicketNotificationsData
@@ -450,6 +461,8 @@ type notificationRegisterBlocks wsClient
 type notificationUnregisterBlocks wsClient
 type notificationRegisterWork wsClient
 type notificationUnregisterWork wsClient
+type notificationRegisterTSpend wsClient
+type notificationUnregisterTSpend wsClient
 type notificationRegisterWinningTickets wsClient
 type notificationUnregisterWinningTickets wsClient
 type notificationRegisterSpentAndMissedTickets wsClient
@@ -476,6 +489,7 @@ func (m *wsNotificationManager) notificationHandler(ctx context.Context) {
 	// since it is quite a bit more efficient than using the entire struct.
 	blockNotifications := make(map[chan struct{}]*wsClient)
 	workNotifications := make(map[chan struct{}]*wsClient)
+	tspendNotifications := make(map[chan struct{}]*wsClient)
 	winningTicketNotifications := make(map[chan struct{}]*wsClient)
 	ticketSMNotifications := make(map[chan struct{}]*wsClient)
 	ticketNewNotifications := make(map[chan struct{}]*wsClient)
@@ -512,6 +526,9 @@ out:
 
 			case *notificationWork:
 				m.notifyWork(workNotifications, (*mining.TemplateNtfn)(n))
+
+			case *notificationTSpend:
+				m.notifyTSpend(tspendNotifications, (*dcrutil.Tx)(n))
 
 			case *notificationReorganization:
 				m.notifyReorganization(blockNotifications,
@@ -555,6 +572,14 @@ out:
 				wsc := (*wsClient)(n)
 				delete(workNotifications, wsc.quit)
 
+			case *notificationRegisterTSpend:
+				wsc := (*wsClient)(n)
+				tspendNotifications[wsc.quit] = wsc
+
+			case *notificationUnregisterTSpend:
+				wsc := (*wsClient)(n)
+				delete(tspendNotifications, wsc.quit)
+
 			case *notificationRegisterWinningTickets:
 				wsc := (*wsClient)(n)
 				winningTicketNotifications[wsc.quit] = wsc
@@ -597,6 +622,7 @@ out:
 				// the client itself.
 				delete(blockNotifications, wsc.quit)
 				delete(workNotifications, wsc.quit)
+				delete(tspendNotifications, wsc.quit)
 				delete(txNotifications, wsc.quit)
 				delete(winningTicketNotifications, wsc.quit)
 				delete(ticketSMNotifications, wsc.quit)
@@ -613,7 +639,7 @@ out:
 				delete(txNotifications, wsc.quit)
 
 			default:
-				log.Warn("Unhandled notification type")
+				log.Warnf("Unhandled notification type: %T", n)
 			}
 
 		case m.numClients <- len(clients):
@@ -660,6 +686,18 @@ func (m *wsNotificationManager) UnregisterWorkUpdates(wsc *wsClient) {
 	m.queueNotification <- (*notificationUnregisterWork)(wsc)
 }
 
+// RegisterTSpendUpdates requests tspend update notifications to the passed
+// websocket client.
+func (m *wsNotificationManager) RegisterTSpendUpdates(wsc *wsClient) {
+	m.queueNotification <- (*notificationRegisterTSpend)(wsc)
+}
+
+// UnregisterTSpendUpdates removes tspend update notifications for the passed
+// websocket client.
+func (m *wsNotificationManager) UnregisterTSpendUpdates(wsc *wsClient) {
+	m.queueNotification <- (*notificationUnregisterTSpend)(wsc)
+}
+
 // subscribedClients returns the set of all websocket client quit channels that
 // are registered to receive notifications regarding tx, either due to tx
 // spending a watched output or outputting to a watched address.  Matching
@@ -672,6 +710,8 @@ func (m *wsNotificationManager) subscribedClients(tx *dcrutil.Tx, clients map[ch
 
 	// Reusable backing array for a slice of a single address.
 	var scratchAddress [1]dcrutil.Address
+
+	const isTreasuryEnabled = true // No need to look it up here.
 
 	msgTx := tx.MsgTx()
 	var isTicket bool // lazily set
@@ -693,14 +733,16 @@ func (m *wsNotificationManager) subscribedClients(tx *dcrutil.Tx, clients map[ch
 		for i, output := range msgTx.TxOut {
 			watchOutput := true
 			sc, addrs, _, err := txscript.ExtractPkScriptAddrs(output.Version,
-				output.PkScript, m.server.cfg.ChainParams)
+				output.PkScript, m.server.cfg.ChainParams,
+				isTreasuryEnabled)
 			if err != nil {
 				// Clients are not able to subscribe to
 				// nonstandard or non-address outputs.
 				continue
 			}
 			if sc == txscript.NullDataTy && i&1 == 1 &&
-				(isTicket || stake.DetermineTxType(msgTx) == stake.TxTypeSStx) {
+				(isTicket || stake.DetermineTxType(msgTx,
+					isTreasuryEnabled) == stake.TxTypeSStx) {
 				isTicket = true
 				// OP_RETURN ticket commitments may contain relevant
 				// P2PKH or P2SH HASH160s.
@@ -914,6 +956,37 @@ func (m *wsNotificationManager) notifyWork(clients map[chan struct{}]*wsClient,
 	}
 }
 
+// notifyTSpend notifies websocket clients that have registered for mempool
+// tspend arrivals.
+func (m *wsNotificationManager) notifyTSpend(clients map[chan struct{}]*wsClient,
+	tspend *dcrutil.Tx) {
+	// Skip notification creation if no clients have requested tspend
+	// notifications.
+	if len(clients) == 0 {
+		return
+	}
+
+	data, err := tspend.MsgTx().Bytes()
+	if err != nil {
+		log.Errorf("Failed to marshal new tspend notification: %v", err)
+		return
+	}
+	ntfn := types.TSpendNtfn{
+		TSpend: hex.EncodeToString(data),
+	}
+
+	// Notify interested websocket clients about new tspends.
+	marshalledJSON, err := dcrjson.MarshalCmd("1.0", nil, &ntfn)
+	if err != nil {
+		log.Errorf("Failed to marshal new tspend notification: %v", err)
+		return
+	}
+
+	for _, wsc := range clients {
+		wsc.QueueNotification(marshalledJSON)
+	}
+}
+
 // notifyReorganization notifies websocket clients that have registered for
 // block updates when the blockchain is beginning a reorganization.
 func (m *wsNotificationManager) notifyReorganization(clients map[chan struct{}]*wsClient, rd *blockchain.ReorganizationNtfnsData) {
@@ -1117,6 +1190,12 @@ func (m *wsNotificationManager) notifyForNewTx(clients map[chan struct{}]*wsClie
 		return
 	}
 
+	isTreasuryEnabled, err := isTreasuryAgendaActive(m.server)
+	if err != nil {
+		log.Errorf("Could not obtain treasury agenda status: %v", err)
+		return
+	}
+
 	var verboseNtfn *types.TxAcceptedVerboseNtfn
 	var marshalledJSONVerbose []byte
 	for _, wsc := range clients {
@@ -1128,7 +1207,7 @@ func (m *wsNotificationManager) notifyForNewTx(clients map[chan struct{}]*wsClie
 
 			net := m.server.cfg.ChainParams
 			rawTx, err := m.server.createTxRawResult(net, mtx, txHashStr,
-				wire.NullBlockIndex, nil, "", 0, 0)
+				wire.NullBlockIndex, nil, "", 0, 0, isTreasuryEnabled)
 			if err != nil {
 				return
 			}
@@ -1166,6 +1245,8 @@ func (m *wsNotificationManager) notifyRelevantTxAccepted(tx *dcrutil.Tx,
 
 	var clientsToNotify map[chan struct{}]*wsClient
 
+	const isTreasuryEnabled = true // No need to look it up here.
+
 	msgTx := tx.MsgTx()
 	for q, c := range clients {
 		c.Lock()
@@ -1187,7 +1268,8 @@ func (m *wsNotificationManager) notifyRelevantTxAccepted(tx *dcrutil.Tx,
 
 		for i, output := range msgTx.TxOut {
 			_, addrs, _, err := txscript.ExtractPkScriptAddrs(output.Version,
-				output.PkScript, m.server.cfg.ChainParams)
+				output.PkScript, m.server.cfg.ChainParams,
+				isTreasuryEnabled)
 			if err != nil {
 				continue
 			}
@@ -2193,6 +2275,13 @@ func handleNotifyWork(wsc *wsClient, icmd interface{}) (interface{}, error) {
 	return nil, nil
 }
 
+// handleNotifyTSpend implements the notifytspend command extension for
+// websocket connections.
+func handleNotifyTSpend(wsc *wsClient, icmd interface{}) (interface{}, error) {
+	wsc.rpcServer.ntfnMgr.RegisterTSpendUpdates(wsc)
+	return nil, nil
+}
+
 // handleSession implements the session command extension for websocket
 // connections.
 func handleSession(wsc *wsClient, icmd interface{}) (interface{}, error) {
@@ -2241,6 +2330,13 @@ func handleStopNotifyWork(wsc *wsClient, icmd interface{}) (interface{}, error) 
 	return nil, nil
 }
 
+// handleStopNotifyTSpend implements the stopnotifytspend command extension for
+// websocket connections.
+func handleStopNotifyTSpend(wsc *wsClient, icmd interface{}) (interface{}, error) {
+	wsc.rpcServer.ntfnMgr.UnregisterTSpendUpdates(wsc)
+	return nil, nil
+}
+
 // handleNotifyNewTransations implements the notifynewtransactions command
 // extension for websocket connections.
 func handleNotifyNewTransactions(wsc *wsClient, icmd interface{}) (interface{}, error) {
@@ -2264,7 +2360,7 @@ func handleStopNotifyNewTransactions(wsc *wsClient, icmd interface{}) (interface
 // rescanBlock rescans a block for any relevant transactions for the passed
 // lookup keys.  Any discovered transactions are returned hex encoded as a
 // string slice.
-func rescanBlock(filter *wsClientFilter, block *dcrutil.Block, params *chaincfg.Params) []string {
+func rescanBlock(filter *wsClientFilter, block *dcrutil.Block, params *chaincfg.Params, isTreasuryEnabled bool) []string {
 	var transactions []string
 
 	// Need to iterate over both the stake and regular transactions in a
@@ -2283,11 +2379,11 @@ func rescanBlock(filter *wsClientFilter, block *dcrutil.Block, params *chaincfg.
 		if tree == wire.TxTreeRegular {
 			// Skip previous output checks for coinbase inputs.  These do
 			// not reference a previous output.
-			if standalone.IsCoinBaseTx(tx) {
+			if standalone.IsCoinBaseTx(tx, isTreasuryEnabled) {
 				goto LoopOutputs
 			}
 		} else {
-			if stake.DetermineTxType(tx) == stake.TxTypeSSGen {
+			if stake.DetermineTxType(tx, isTreasuryEnabled) == stake.TxTypeSSGen {
 				// Skip the first stakebase input.  These do not
 				// reference a previous output.
 				inputs = inputs[1:]
@@ -2306,7 +2402,8 @@ func rescanBlock(filter *wsClientFilter, block *dcrutil.Block, params *chaincfg.
 	LoopOutputs:
 		for i, output := range tx.TxOut {
 			_, addrs, _, err := txscript.ExtractPkScriptAddrs(
-				output.Version, output.PkScript, params)
+				output.Version, output.PkScript, params,
+				isTreasuryEnabled)
 			if err != nil {
 				continue
 			}
@@ -2369,6 +2466,11 @@ func handleRescan(wsc *wsClient, icmd interface{}) (interface{}, error) {
 
 	discoveredData := make([]types.RescannedBlock, 0, len(blockHashes))
 
+	isTreasuryEnabled, err := isTreasuryAgendaActive(wsc.rpcServer)
+	if err != nil {
+		return nil, err
+	}
+
 	// Iterate over each block in the request and rescan.  When a block
 	// contains relevant transactions, add it to the response.
 	cfg := wsc.rpcServer.cfg
@@ -2391,7 +2493,8 @@ func handleRescan(wsc *wsClient, icmd interface{}) (interface{}, error) {
 		}
 		lastBlockHash = &blockHashes[i]
 
-		transactions := rescanBlock(filter, block, cfg.ChainParams)
+		transactions := rescanBlock(filter, block, cfg.ChainParams,
+			isTreasuryEnabled)
 		if len(transactions) != 0 {
 			discoveredData = append(discoveredData, types.RescannedBlock{
 				Hash:         blockHashes[i].String(),

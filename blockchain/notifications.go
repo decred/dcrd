@@ -118,6 +118,36 @@ type BlockAcceptedNtfnsData struct {
 	Block *dcrutil.Block
 }
 
+// BlockConnectedNtfnsData is the structure for data indicating information
+// about a connected block.
+type BlockConnectedNtfnsData struct {
+	// Block is the block that was connected to the main chain.
+	Block *dcrutil.Block
+
+	// ParentBlock is the parent block of the one that was connected to the main
+	// chain.
+	ParentBlock *dcrutil.Block
+
+	// IsTreasuryActive indicates whether or not the treasury agenda is active
+	// for the block that was connected.
+	IsTreasuryActive bool
+}
+
+// BlockDisconnectedNtfnsData is the structure for data indicating information
+// about a disconnected block.
+type BlockDisconnectedNtfnsData struct {
+	// Block is the block that was disconnected from the main chain.
+	Block *dcrutil.Block
+
+	// ParentBlock is the parent block of the one that was disconnected from the
+	// main chain meaning this block is now the tip of the main chain.
+	ParentBlock *dcrutil.Block
+
+	// IsTreasuryActive indicates whether or not the treasury agenda was active
+	// for the block that was **disconnected**.
+	IsTreasuryActive bool
+}
+
 // ReorganizationNtfnsData is the structure for data indicating information
 // about a reorganization.
 type ReorganizationNtfnsData struct {
@@ -143,8 +173,8 @@ type TicketNotificationsData struct {
 // as well as associated data that depends on the type as follows:
 // 	- NTNewTipBlockChecked:    *dcrutil.Block
 // 	- NTBlockAccepted:         *BlockAcceptedNtfnsData
-// 	- NTBlockConnected:        []*dcrutil.Block of len 2
-// 	- NTBlockDisconnected:     []*dcrutil.Block of len 2
+// 	- NTBlockConnected:        *BlockConnectedNtfnsData
+// 	- NTBlockDisconnected:     *BlockDisconnectedNtfnsData
 // 	- NTChainReorgStarted:     nil
 // 	- NTChainReorgDone:        nil
 //  - NTReorganization:        *ReorganizationNtfnsData

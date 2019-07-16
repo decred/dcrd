@@ -65,15 +65,21 @@ func (b *BlockChain) ProcessBlock(block *dcrutil.Block, flags BehaviorFlags) (in
 		return 0, ruleError(ErrDuplicateBlock, str)
 	}
 
+	blockHeader := &block.MsgBlock().Header
+	prevHash := &blockHeader.PrevBlock
+	isTreasuryEnabled, err := b.isTreasuryAgendaActiveByHash(prevHash)
+	if err != nil {
+		return 0, err
+	}
+
 	// Perform preliminary sanity checks on the block and its transactions.
-	err := checkBlockSanity(block, b.timeSource, flags, b.chainParams)
+	err = checkBlockSanity(block, b.timeSource, flags, b.chainParams,
+		isTreasuryEnabled)
 	if err != nil {
 		return 0, err
 	}
 
 	// This function should never be called with orphans or the genesis block.
-	blockHeader := &block.MsgBlock().Header
-	prevHash := &blockHeader.PrevBlock
 	if !b.index.HaveBlock(prevHash) {
 		// The fork length of orphans is unknown since they, by definition, do
 		// not connect to the best chain.

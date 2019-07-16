@@ -1934,19 +1934,15 @@ func (b *blockManager) handleBlockchainNotification(notification *blockchain.Not
 
 	// A block has been connected to the main block chain.
 	case blockchain.NTBlockConnected:
-		blockSlice, ok := notification.Data.([]*dcrutil.Block)
+		ntfn, ok := notification.Data.(*blockchain.BlockConnectedNtfnsData)
 		if !ok {
-			bmgrLog.Warnf("Block connected notification is not a block slice.")
+			bmgrLog.Warnf("Block connected notification is not " +
+				"BlockConnectedNtfnsData.")
 			break
 		}
-
-		if len(blockSlice) != 2 {
-			bmgrLog.Warnf("Block connected notification is wrong size slice.")
-			break
-		}
-
-		block := blockSlice[0]
-		parentBlock := blockSlice[1]
+		block := ntfn.Block
+		parentBlock := ntfn.ParentBlock
+		isTreasuryEnabled := ntfn.IsTreasuryActive
 
 		// Account for transactions mined in the newly connected block for fee
 		// estimation. This must be done before attempting to remove
@@ -1981,11 +1977,12 @@ func (b *blockManager) handleBlockchainNotification(notification *blockchain.Not
 		txMemPool := b.cfg.TxMemPool
 		handleConnectedBlockTxns := func(txns []*dcrutil.Tx) {
 			for _, tx := range txns {
-				txMemPool.RemoveTransaction(tx, false)
-				txMemPool.MaybeAcceptDependents(tx)
-				txMemPool.RemoveDoubleSpends(tx)
-				txMemPool.RemoveOrphan(tx)
-				acceptedTxs := txMemPool.ProcessOrphans(tx)
+				txMemPool.RemoveTransaction(tx, false, isTreasuryEnabled)
+				txMemPool.MaybeAcceptDependents(tx, isTreasuryEnabled)
+				txMemPool.RemoveDoubleSpends(tx, isTreasuryEnabled)
+				txMemPool.RemoveOrphan(tx, isTreasuryEnabled)
+				acceptedTxs := txMemPool.ProcessOrphans(tx,
+					isTreasuryEnabled)
 				b.cfg.PeerNotifier.AnnounceNewTransactions(acceptedTxs)
 
 				// Now that this block is in the blockchain, mark the
@@ -1995,7 +1992,12 @@ func (b *blockManager) handleBlockchainNotification(notification *blockchain.Not
 			}
 		}
 		handleConnectedBlockTxns(block.Transactions()[1:])
-		handleConnectedBlockTxns(block.STransactions())
+		if isTreasuryEnabled {
+			// Skip treasurybase
+			handleConnectedBlockTxns(block.STransactions()[1:])
+		} else {
+			handleConnectedBlockTxns(block.STransactions())
+		}
 
 		// In the case the regular tree of the previous block was disapproved,
 		// add all of the its transactions, with the exception of the coinbase,
@@ -2021,7 +2023,8 @@ func (b *blockManager) handleBlockchainNotification(notification *blockchain.Not
 			for _, tx := range parentBlock.Transactions()[1:] {
 				_, err := txMemPool.MaybeAcceptTransaction(tx, false, true)
 				if err != nil && !isDoubleSpendOrDuplicateError(err) {
-					txMemPool.RemoveTransaction(tx, true)
+					txMemPool.RemoveTransaction(tx, true,
+						isTreasuryEnabled)
 				}
 			}
 		}
@@ -2066,19 +2069,15 @@ func (b *blockManager) handleBlockchainNotification(notification *blockchain.Not
 
 	// A block has been disconnected from the main block chain.
 	case blockchain.NTBlockDisconnected:
-		blockSlice, ok := notification.Data.([]*dcrutil.Block)
+		ntfn, ok := notification.Data.(*blockchain.BlockDisconnectedNtfnsData)
 		if !ok {
-			bmgrLog.Warnf("Block disconnected notification is not a block slice.")
+			bmgrLog.Warnf("Block disconnected notification is not " +
+				"BlockDisconnectedNtfnsData.")
 			break
 		}
-
-		if len(blockSlice) != 2 {
-			bmgrLog.Warnf("Block disconnected notification is wrong size slice.")
-			break
-		}
-
-		block := blockSlice[0]
-		parentBlock := blockSlice[1]
+		block := ntfn.Block
+		parentBlock := ntfn.ParentBlock
+		isTreasuryEnabled := ntfn.IsTreasuryActive
 
 		// In the case the regular tree of the previous block was disapproved,
 		// disconnecting the current block makes all of those transactions valid
@@ -2089,11 +2088,11 @@ func (b *blockManager) handleBlockchainNotification(notification *blockchain.Not
 		txMemPool := b.cfg.TxMemPool
 		if !headerApprovesParent(&block.MsgBlock().Header) {
 			for _, tx := range parentBlock.Transactions()[1:] {
-				txMemPool.RemoveTransaction(tx, false)
-				txMemPool.MaybeAcceptDependents(tx)
-				txMemPool.RemoveDoubleSpends(tx)
-				txMemPool.RemoveOrphan(tx)
-				txMemPool.ProcessOrphans(tx)
+				txMemPool.RemoveTransaction(tx, false, isTreasuryEnabled)
+				txMemPool.MaybeAcceptDependents(tx, isTreasuryEnabled)
+				txMemPool.RemoveDoubleSpends(tx, isTreasuryEnabled)
+				txMemPool.RemoveOrphan(tx, isTreasuryEnabled)
+				txMemPool.ProcessOrphans(tx, isTreasuryEnabled)
 			}
 		}
 
@@ -2123,12 +2122,19 @@ func (b *blockManager) handleBlockchainNotification(notification *blockchain.Not
 			for _, tx := range txns {
 				_, err := txMemPool.MaybeAcceptTransaction(tx, false, true)
 				if err != nil && !isDoubleSpendOrDuplicateError(err) {
-					txMemPool.RemoveTransaction(tx, true)
+					txMemPool.RemoveTransaction(tx, true,
+						isTreasuryEnabled)
 				}
 			}
 		}
 		handleDisconnectedBlockTxns(block.Transactions()[1:])
-		handleDisconnectedBlockTxns(block.STransactions())
+
+		if isTreasuryEnabled {
+			// Skip treasurybase
+			handleDisconnectedBlockTxns(block.STransactions()[1:])
+		} else {
+			handleDisconnectedBlockTxns(block.STransactions())
+		}
 
 		if b.cfg.BgBlkTmplGenerator != nil {
 			b.cfg.BgBlkTmplGenerator.BlockDisconnected(block)

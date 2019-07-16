@@ -211,6 +211,33 @@ func SimNetParams() *Params {
 		OrganizationPkScriptVersion: 0,
 		BlockOneLedger:              tokenPayouts_SimNetParams(),
 
+		// Commands to generate simnet Pi keys:
+		// $ treasurykey.go -simnet
+		// Private key: 62deae1ab2b1ebd96a28c80e870aee325bed359e83d8db2464ef999e616a9eef
+		// Public  key: 02a36b785d584555696b69d1b2bbeff4010332b301e3edd316d79438554cacb3e7
+		// WIF        : PsUUktzTqNKDRudiz3F4Chh5CKqqmp5W3ckRDhwECbwrSuWZ9m5fk
+		//
+		// $ treasurykey.go -simnet
+		// Private key: cc0d8258d68acf047732088e9b70e2c97c53f711518042d267fc6975f39b791b
+		// Public  key: 02b2c110e7b560aa9e1545dd18dd9f7e74a3ba036297a696050c0256f1f69479d7
+		// WIF        : PsUVZDkMHvsH8RmYtCxCWs78xsLU9qAyZyLvV9SJWAdoiJxSFhvFx
+		PiKeys: [][]byte{
+			hexDecode("02a36b785d584555696b69d1b2bbeff4010332b301e3edd316d79438554cacb3e7"),
+			hexDecode("02b2c110e7b560aa9e1545dd18dd9f7e74a3ba036297a696050c0256f1f69479d7"),
+		},
+
+		TreasuryVoteInterval:           16 * 3, // 3 times coinbase (48 blocks).
+		TreasuryVoteIntervalMultiplier: 3,      // 3 * 48 block Expiry.
+
+		TreasuryExpenditureWindow:    4,         // 4 * 2 * 48 blocks for policy check
+		TreasuryExpenditurePolicy:    3,         // Avg of 3*4*2*48 blocks for policy check
+		TreasuryExpenditureBootstrap: 100 * 1e8, // 100 dcr/tew as expense bootstrap
+
+		TreasuryVoteQuorumMultiplier:   1, // 20% quorum required
+		TreasuryVoteQuorumDivisor:      5,
+		TreasuryVoteRequiredMultiplier: 3, // 60% yes votes required
+		TreasuryVoteRequiredDivisor:    5,
+
 		seeders: nil, // NOTE: There must NOT be any seeds.
 	}
 }

@@ -79,6 +79,16 @@ func (t *Tx) SetTree(tree int8) {
 	t.txTree = tree
 }
 
+// Version returns the transaction version.
+func (t *Tx) Version() uint16 {
+	return t.msgTx.Version
+}
+
+// SetVersion sets the version of the transaction within a block.
+func (t *Tx) SetVersion(version uint16) {
+	t.msgTx.Version = version
+}
+
 // NewTx returns a new instance of a transaction given an underlying
 // wire.MsgTx.  See Tx.
 func NewTx(msgTx *wire.MsgTx) *Tx {

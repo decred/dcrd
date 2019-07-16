@@ -316,29 +316,32 @@ func (c *SubsidyCache) CalcStakeVoteSubsidy(height int64) int64 {
 // block to be valid by consensus along with a height greater than or equal to
 // the height at which voting begins will return zero.
 //
+// When the treasury agenda is active the subsidy rule changes from paying out
+// a proportion based on the number of votes to always pay the full subsidy.
+//
 // This function is safe for concurrent access.
-func (c *SubsidyCache) CalcTreasurySubsidy(height int64, voters uint16) int64 {
+func (c *SubsidyCache) CalcTreasurySubsidy(height int64, voters uint16, isTreasuryEnabled bool) int64 {
 	// The first two blocks have special subsidy rules.
 	if height <= 1 {
 		return 0
 	}
 
-	// The subsidy is zero if there are not enough voters once voting begins.  A
-	// block without enough voters will fail to validate anyway.
+	// The subsidy is zero if there are not enough voters once voting
+	// begins.  A block without enough voters will fail to validate anyway.
 	stakeValidationHeight := c.params.StakeValidationBeginHeight()
 	if height >= stakeValidationHeight && voters < c.minVotesRequired {
 		return 0
 	}
 
-	// Calculate the full block subsidy and reduce it according to the treasury
-	// proportion.
+	// Calculate the full block subsidy and reduce it according to the
+	// treasury proportion.
 	subsidy := c.CalcBlockSubsidy(height)
 	subsidy *= int64(c.params.TreasurySubsidyProportion())
 	subsidy /= int64(c.totalProportions)
 
-	// Ignore any potential subsidy reductions due to the number of votes prior
-	// to the point voting begins.
-	if height < stakeValidationHeight {
+	// Ignore any potential subsidy reductions due to the number of votes
+	// prior to the point voting begins or if treasury is enabled.
+	if height < stakeValidationHeight || isTreasuryEnabled {
 		return subsidy
 	}
 

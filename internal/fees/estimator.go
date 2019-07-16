@@ -775,6 +775,13 @@ func (stats *Estimator) AddMemPoolTransaction(txHash *chainhash.Hash, fee, size 
 		return
 	}
 
+	// Ignore tspends for the purposes of fee estimation, since they remain
+	// in the mempool for a long time and have special rules about when
+	// they can be included in blocks.
+	if txType == stake.TxTypeTSpend {
+		return
+	}
+
 	// Note that we use this less exact version instead of fee * 1000 / size
 	// (using ints) because it naturally "downsamples" the fee rates towards the
 	// minimum at values less than 0.001 DCR/KB. This is needed because due to

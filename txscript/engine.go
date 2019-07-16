@@ -50,6 +50,12 @@ const (
 	// OP_UNKNOWN192) as the OP_SHA256 opcode which consumes the top item of
 	// the data stack and replaces it with the sha256 of it.
 	ScriptVerifySHA256
+
+	// ScriptVerifyTreasury defines whether to treat opcode 193 (previously
+	// OP_UNKNOWN193), opcode 194 (previously OP_UNKNOWN194) and opcode 195
+	// (previously OP_UNKNOWN195) as the OP_TADD, OP_TSPEND and OP_TGEN
+	// opcodes which add and spend an amount from the treasury.
+	ScriptVerifyTreasury
 )
 
 const (
@@ -714,7 +720,7 @@ func NewEngine(scriptPubKey []byte, tx *wire.MsgTx, txIdx int, flags ScriptFlags
 
 	// The signature script must only contain data pushes for P2SH which is
 	// determined based on the form of the public key script.
-	if isAnyKindOfScriptHash(scriptPubKey) {
+	if vm.isAnyKindOfScriptHash(scriptPubKey) {
 		// Notice that the push only checks have already been done when the flag
 		// to verify signature scripts are push only is set above, so avoid
 		// checking again.
@@ -726,11 +732,9 @@ func NewEngine(scriptPubKey []byte, tx *wire.MsgTx, txIdx int, flags ScriptFlags
 		vm.isP2SH = true
 	}
 
-	// Redeem scripts for pay to script hash outputs are not allowed to use any
-	// stake tag opcodes if the script version is 0.
 	if scriptVersion == 0 {
-		err := hasP2SHRedeemScriptStakeOpCodes(scriptVersion, scriptSig,
-			scriptPubKey)
+		err := vm.hasP2SHRedeemScriptStakeOpCodes(scriptVersion,
+			scriptSig, scriptPubKey)
 		if err != nil {
 			return nil, err
 		}

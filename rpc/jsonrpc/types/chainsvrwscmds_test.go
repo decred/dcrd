@@ -108,6 +108,17 @@ func TestChainSvrWsCmds(t *testing.T) {
 			unmarshalled: &NotifyWorkCmd{},
 		},
 		{
+			name: "notifytspend",
+			newCmd: func() (interface{}, error) {
+				return dcrjson.NewCmd(Method("notifytspend"))
+			},
+			staticCmd: func() interface{} {
+				return NewNotifyTSpendCmd()
+			},
+			marshalled:   `{"jsonrpc":"1.0","method":"notifytspend","params":[],"id":1}`,
+			unmarshalled: &NotifyTSpendCmd{},
+		},
+		{
 			name: "stopnotifyblocks",
 			newCmd: func() (interface{}, error) {
 				return dcrjson.NewCmd(Method("stopnotifyblocks"))
@@ -128,6 +139,17 @@ func TestChainSvrWsCmds(t *testing.T) {
 			},
 			marshalled:   `{"jsonrpc":"1.0","method":"stopnotifywork","params":[],"id":1}`,
 			unmarshalled: &StopNotifyWorkCmd{},
+		},
+		{
+			name: "stopnotifytspend",
+			newCmd: func() (interface{}, error) {
+				return dcrjson.NewCmd(Method("stopnotifytspend"))
+			},
+			staticCmd: func() interface{} {
+				return NewStopNotifyTSpendCmd()
+			},
+			marshalled:   `{"jsonrpc":"1.0","method":"stopnotifytspend","params":[],"id":1}`,
+			unmarshalled: &StopNotifyTSpendCmd{},
 		},
 		{
 			name: "notifynewtransactions",

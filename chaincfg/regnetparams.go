@@ -267,6 +267,34 @@ func RegNetParams() *Params {
 				StartTime:  0,             // Always available for vote
 				ExpireTime: math.MaxInt64, // Never expires
 			}},
+			9: {{
+				Vote: Vote{
+					Id:          VoteIDTreasury,
+					Description: "Enable decentralized Treasury opcodes as defined in DCP0006",
+					Mask:        0x0006, // Bits 1 and 2
+					Choices: []Choice{{
+						Id:          "abstain",
+						Description: "abstain voting for change",
+						Bits:        0x0000,
+						IsAbstain:   true,
+						IsNo:        false,
+					}, {
+						Id:          "no",
+						Description: "keep the existing consensus rules",
+						Bits:        0x0002, // Bit 1
+						IsAbstain:   false,
+						IsNo:        true,
+					}, {
+						Id:          "yes",
+						Description: "change to the new consensus rules",
+						Bits:        0x0004, // Bit 2
+						IsAbstain:   false,
+						IsNo:        false,
+					}},
+				},
+				StartTime:  0,             // Always available for vote
+				ExpireTime: math.MaxInt64, // Never expires
+			}},
 		},
 
 		// Enforce current block version once majority of the network has
@@ -353,6 +381,32 @@ func RegNetParams() *Params {
 		OrganizationPkScript:        hexDecode("a9146913bcc838bd0087fb3f6b3c868423d5e300078d87"),
 		OrganizationPkScriptVersion: 0,
 		BlockOneLedger:              tokenPayouts_RegNetParams(),
+
+		// Commands to generate regnet Pi keys:
+		// $ treasurykey.go -regnet
+		// Private key: 68ab7efdac0eb99b1edf83b23374cc7a9c8d0a4183a2627afc8ea0437b20589e
+		// Public  key: 03b459ccf3ce4935a676414fd9ec93ecf7c9dad081a52ed6993bf073c627499388
+		// WIF        : Pr9CEpLjchr6eiHGySbR1fu3FJb6NW8JHvdQdbkUs2BN7Qi7h6UuQ
+		//
+		// $ treasurykey.go -regnet
+		// Private key: 2527f13f61024c9b9f4b30186f16e0b0af35b08c54ed2ed67def863b447ea11b
+		// Public  key: 02e3af1209f4d39dd8b448ef0a5375befa85bbc50be0aa0936379d67444184a2c3
+		// WIF        : Pr9Bj5nkQ3DVPeAyiQUrDD4oL6TBmVLeNbFt3CLQurxSi4sFaPXNk
+		PiKeys: [][]byte{
+			hexDecode("03b459ccf3ce4935a676414fd9ec93ecf7c9dad081a52ed6993bf073c627499388"),
+			hexDecode("02e3af1209f4d39dd8b448ef0a5375befa85bbc50be0aa0936379d67444184a2c3"),
+		},
+		TreasuryVoteInterval:           4, // every 4 blocks for regnet
+		TreasuryVoteIntervalMultiplier: 3, // 3 * 4 block Expiry.
+
+		TreasuryExpenditureWindow:    4,         // 4 * 2 * 4 blocks for policy check
+		TreasuryExpenditurePolicy:    3,         // Avg of 3*4*2*4 blocks for policy check
+		TreasuryExpenditureBootstrap: 100 * 1e8, // 100 dcr/tew as expense bootstrap
+
+		TreasuryVoteQuorumMultiplier:   1, // 20% quorum required
+		TreasuryVoteQuorumDivisor:      5,
+		TreasuryVoteRequiredMultiplier: 3, // 60% yes votes required
+		TreasuryVoteRequiredDivisor:    5,
 
 		seeders: nil, // NOTE: There must NOT be any seeds.
 	}

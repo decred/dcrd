@@ -13,6 +13,7 @@ import (
 	"github.com/decred/dcrd/blockchain/standalone/v2"
 	"github.com/decred/dcrd/chaincfg/v3"
 	"github.com/decred/dcrd/dcrutil/v3"
+	"github.com/decred/dcrd/txscript/v3"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -78,9 +79,10 @@ func blockOneCoinbasePaysTokens(tx *dcrutil.Tx, params *chaincfg.Params) error {
 	return nil
 }
 
-// coinbasePaysTreasury checks to see if a given block's coinbase correctly pays
-// the treasury.
-func coinbasePaysTreasury(subsidyCache *standalone.SubsidyCache, tx *dcrutil.Tx, height int64, voters uint16, params *chaincfg.Params) error {
+// coinbasePaysTreasuryAddress checks to see if a given block's coinbase
+// correctly pays the treasury prior to the agenda that modifies the treasury
+// payout to happen via a treasurybase transaction in the stake tree instead.
+func coinbasePaysTreasuryAddress(subsidyCache *standalone.SubsidyCache, tx *dcrutil.Tx, height int64, voters uint16, params *chaincfg.Params, isTreasuryEnabled bool) error {
 	// Treasury subsidy only applies from block 2 onwards.
 	if height <= 1 {
 		return nil
@@ -110,7 +112,8 @@ func coinbasePaysTreasury(subsidyCache *standalone.SubsidyCache, tx *dcrutil.Tx,
 
 	// Calculate the amount of subsidy that should have been paid out to the
 	// Treasury and ensure the subsidy generated is correct.
-	orgSubsidy := subsidyCache.CalcTreasurySubsidy(height, voters)
+	orgSubsidy := subsidyCache.CalcTreasurySubsidy(height, voters,
+		isTreasuryEnabled)
 	if orgSubsidy != treasuryOutput.Value {
 		str := fmt.Sprintf("treasury output amount is %s instead of %s",
 			dcrutil.Amount(treasuryOutput.Value), dcrutil.Amount(orgSubsidy))
@@ -120,18 +123,68 @@ func coinbasePaysTreasury(subsidyCache *standalone.SubsidyCache, tx *dcrutil.Tx,
 	return nil
 }
 
+// checkTreasuryBase checks to see if a given block's treasurybase correctly
+// pays the treasury. This is the new function that uses the treasury base for
+// the payout.
+func checkTreasuryBase(subsidyCache *standalone.SubsidyCache, tx *dcrutil.Tx, height int64, voters uint16, params *chaincfg.Params) error {
+	// Treasury subsidy only applies from block 2 onwards.
+	if height <= 1 {
+		return nil
+	}
+
+	// Treasury subsidy is disabled.
+	if params.BlockTaxProportion == 0 {
+		return nil
+	}
+
+	if len(tx.MsgTx().TxOut) != 2 {
+		// Can't get hit
+		return ruleError(ErrInvalidTreasurybaseTxOutputs,
+			fmt.Sprintf("invalid treasurybase number of outputs: %v",
+				len(tx.MsgTx().TxOut)))
+	}
+
+	treasuryOutput := tx.MsgTx().TxOut[0]
+	if treasuryOutput.Version != 0 {
+		// Can't get hit
+		str := fmt.Sprintf("treasury output version %d is instead of %d",
+			treasuryOutput.Version, 0)
+		return ruleError(ErrInvalidTreasurybaseVersion, str)
+	}
+	if len(treasuryOutput.PkScript) != 1 ||
+		treasuryOutput.PkScript[0] != txscript.OP_TADD {
+		// Can't get hit
+		str := fmt.Sprintf("treasury output script is %x instead of %x",
+			treasuryOutput.PkScript, params.OrganizationPkScript)
+		return ruleError(ErrInvalidTreasurybaseScript, str)
+	}
+
+	// Calculate the amount of subsidy that should have been paid out to the
+	// Treasury and ensure the subsidy generated is correct.
+	const withTreasury = true
+	orgSubsidy := subsidyCache.CalcTreasurySubsidy(height, voters,
+		withTreasury)
+	if orgSubsidy != treasuryOutput.Value {
+		str := fmt.Sprintf("treasury output amount is %s instead of %s",
+			dcrutil.Amount(treasuryOutput.Value), dcrutil.Amount(orgSubsidy))
+		return ruleError(ErrTreasurybaseOutValue, str)
+	}
+
+	return nil
+}
+
 // calculateAddedSubsidy calculates the amount of subsidy added by a block
 // and its parent. The blocks passed to this function MUST be valid blocks
 // that have already been confirmed to abide by the consensus rules of the
 // network, or the function might panic.
-func calculateAddedSubsidy(block, parent *dcrutil.Block) int64 {
+func calculateAddedSubsidy(block, parent *dcrutil.Block, isTreasuryEnabled bool) int64 {
 	var subsidy int64
 	if headerApprovesParent(&block.MsgBlock().Header) {
 		subsidy += parent.MsgBlock().Transactions[0].TxIn[0].ValueIn
 	}
 
 	for _, stx := range block.MsgBlock().STransactions {
-		if stake.IsSSGen(stx) {
+		if stake.IsSSGen(stx, isTreasuryEnabled) {
 			subsidy += stx.TxIn[0].ValueIn
 		}
 	}

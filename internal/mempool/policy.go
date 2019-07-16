@@ -106,7 +106,7 @@ func calcMinRequiredTxRelayFee(serializedSize int64, minRelayTxFee dcrutil.Amoun
 //
 // Note: all non-nil errors MUST be RuleError with an underlying TxRuleError
 // instance.
-func checkInputsStandard(tx *dcrutil.Tx, txType stake.TxType, utxoView *blockchain.UtxoViewpoint) error {
+func checkInputsStandard(tx *dcrutil.Tx, txType stake.TxType, utxoView *blockchain.UtxoViewpoint, isTreasuryEnabled bool) error {
 	// NOTE: The reference implementation also does a coinbase check here,
 	// but coinbases have already been rejected prior to calling this
 	// function so no need to recheck.
@@ -123,10 +123,12 @@ func checkInputsStandard(tx *dcrutil.Tx, txType stake.TxType, utxoView *blockcha
 		entry := utxoView.LookupEntry(&prevOut.Hash)
 		originPkScriptVer := entry.ScriptVersionByIndex(prevOut.Index)
 		originPkScript := entry.PkScriptByIndex(prevOut.Index)
-		switch txscript.GetScriptClass(originPkScriptVer, originPkScript) {
+		switch txscript.GetScriptClass(originPkScriptVer,
+			originPkScript, isTreasuryEnabled) {
 		case txscript.ScriptHashTy:
 			numSigOps := txscript.GetPreciseSigOpCount(
-				txIn.SignatureScript, originPkScript)
+				txIn.SignatureScript, originPkScript,
+				isTreasuryEnabled)
 			if numSigOps > maxStandardP2SHSigOps {
 				str := fmt.Sprintf("transaction input #%d has "+
 					"%d signature operations which is more "+
@@ -290,9 +292,7 @@ func isDust(txOut *wire.TxOut, minRelayTxFee dcrutil.Amount) bool {
 //
 // Note: all non-nil errors MUST be RuleError with an underlying TxRuleError
 // instance.
-func checkTransactionStandard(tx *dcrutil.Tx, txType stake.TxType, height int64,
-	medianTime time.Time, minRelayTxFee dcrutil.Amount,
-	maxTxVersion uint16) error {
+func checkTransactionStandard(tx *dcrutil.Tx, txType stake.TxType, height int64, medianTime time.Time, minRelayTxFee dcrutil.Amount, maxTxVersion uint16, isTreasuryEnabled bool) error {
 
 	// The transaction must be a currently supported version and serialize
 	// type.
@@ -352,7 +352,8 @@ func checkTransactionStandard(tx *dcrutil.Tx, txType stake.TxType, height int64,
 	// be "dust" (except when the script is a null data script).
 	numNullDataOutputs := 0
 	for i, txOut := range msgTx.TxOut {
-		scriptClass := txscript.GetScriptClass(txOut.Version, txOut.PkScript)
+		scriptClass := txscript.GetScriptClass(txOut.Version,
+			txOut.PkScript, isTreasuryEnabled)
 		err := checkPkScriptStandard(txOut.Version, txOut.PkScript, scriptClass)
 		if err != nil {
 			str := fmt.Sprintf("transaction output %d: %v", i, err)

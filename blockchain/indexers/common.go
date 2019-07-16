@@ -67,11 +67,11 @@ type Indexer interface {
 
 	// ConnectBlock is invoked when the index manager is notified that a new
 	// block has been connected to the main chain.
-	ConnectBlock(dbTx database.Tx, block, parent *dcrutil.Block, prevScripts PrevScripter) error
+	ConnectBlock(dbTx database.Tx, block, parent *dcrutil.Block, prevScripts PrevScripter, isTreasuryEnabled bool) error
 
 	// DisconnectBlock is invoked when the index manager is notified that a
 	// block has been disconnected from the main chain.
-	DisconnectBlock(dbTx database.Tx, block, parent *dcrutil.Block, prevScripts PrevScripter) error
+	DisconnectBlock(dbTx database.Tx, block, parent *dcrutil.Block, prevScripts PrevScripter, isTreasuryEnabled bool) error
 }
 
 // ChainQueryer provides a generic interface that is used to provide access to
@@ -94,6 +94,10 @@ type ChainQueryer interface {
 	// PrevScripts returns a source of previous transaction scripts and their
 	// associated versions spent by the given block.
 	PrevScripts(database.Tx, *dcrutil.Block) (PrevScripter, error)
+
+	// IsTreasuryEnabled returns true if the treasury agenda is active at
+	// the provided block.
+	IsTreasuryEnabled(*chainhash.Hash) (bool, error)
 }
 
 // IndexManager provides a generic interface that is called when blocks are
@@ -109,11 +113,11 @@ type IndexManager interface {
 
 	// ConnectBlock is invoked when a new block has been connected to the main
 	// chain.
-	ConnectBlock(database.Tx, *dcrutil.Block, *dcrutil.Block, PrevScripter) error
+	ConnectBlock(database.Tx, *dcrutil.Block, *dcrutil.Block, PrevScripter, bool) error
 
 	// DisconnectBlock is invoked when a block has been disconnected from the
 	// main chain.
-	DisconnectBlock(database.Tx, *dcrutil.Block, *dcrutil.Block, PrevScripter) error
+	DisconnectBlock(database.Tx, *dcrutil.Block, *dcrutil.Block, PrevScripter, bool) error
 }
 
 // IndexDropper provides a method to remove an index from the database. Indexers

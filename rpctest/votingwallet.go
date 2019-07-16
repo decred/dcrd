@@ -123,6 +123,9 @@ type VotingWallet struct {
 	// maturingVotes tracks the votes maturing at each (future) block height,
 	// which will be available for purchasing new tickets.
 	maturingVotes map[int64][]utxoInfo
+
+	// tspends to vote for when generating votes.
+	tspendVotes []*stake.TreasuryVoteTuple
 }
 
 // NewVotingWallet creates a new minimal voting wallet for the given harness.
@@ -507,6 +510,29 @@ func (w *VotingWallet) handleWinningTicketsNtfn(ntfn *winningTicketsNtfn) {
 		vote.AddTxOut(wire.NewTxOut(0, voteScript))
 		vote.AddTxOut(wire.NewTxOut(voteReturnValue, voteReturnScript))
 
+		// If there are tspends to vote for, create an additional
+		// output.
+		if len(w.tspendVotes) > 0 {
+			n := len(w.tspendVotes)
+			opReturnLen := 2 + chainhash.HashSize*n + n
+			opReturnData := make([]byte, 0, opReturnLen)
+			opReturnData = append(opReturnData, 'T', 'V')
+			for _, v := range w.tspendVotes {
+				opReturnData = append(opReturnData, v.Hash[:]...)
+				opReturnData = append(opReturnData, byte(v.Vote))
+			}
+			var bldr txscript.ScriptBuilder
+			bldr.AddOp(txscript.OP_RETURN)
+			bldr.AddData(opReturnData)
+			voteScript, err := bldr.Script()
+			if err != nil {
+				w.logError(fmt.Errorf("unable to construct vote script: %v", err))
+				return
+			}
+			vote.AddTxOut(wire.NewTxOut(0, voteScript))
+			vote.Version = wire.TxVersionTreasury
+		}
+
 		sig, err := txscript.SignatureScript(vote, 1, w.p2sstx, txscript.SigHashAll,
 			w.privateKey, dcrec.STEcdsaSecp256k1, true)
 		if err != nil {
@@ -515,7 +541,7 @@ func (w *VotingWallet) handleWinningTicketsNtfn(ntfn *winningTicketsNtfn) {
 		}
 		vote.TxIn[1].SignatureScript = sig
 
-		err = stake.CheckSSGen(vote)
+		err = stake.CheckSSGen(vote, true)
 		if err != nil {
 			w.logError(fmt.Errorf("transaction is not a valid vote: %v", err))
 			return
@@ -558,6 +584,12 @@ func (w *VotingWallet) handleNotifications() {
 			w.handleWinningTicketsNtfn(&ntfn)
 		}
 	}
+}
+
+// VoteForTSpends sets the wallet to vote for the provided tspends when
+// creating vote transactions.
+func (w *VotingWallet) VoteForTSpends(votes []*stake.TreasuryVoteTuple) {
+	w.tspendVotes = votes
 }
 
 // ticketPurchaseStartHeight returns the block height where ticket buying

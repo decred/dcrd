@@ -36,6 +36,8 @@ n
 y
 ${WALLET_SEED}
 "
+TSPEND_PRIMARY_WIF=PsUUktzTqNKDRudiz3F4Chh5CKqqmp5W3ckRDhwECbwrSuWZ9m5fk
+TSPEND_SECONDARY_WIF=PsUVZDkMHvsH8RmYtCxCWs78xsLU9qAyZyLvV9SJWAdoiJxSFhvFx
 
 if [ -d "${NODES_ROOT}" ] ; then
   rm -R "${NODES_ROOT}"
@@ -174,6 +176,9 @@ fi
 EOF
 chmod +x "${NODES_ROOT}/${PRIMARY_WALLET_NAME}/xfer"
 
+sleep 1
+tmux send-keys "./ctl importprivkey ${TSPEND_PRIMARY_WIF} imported false; ./ctl importprivkey ${TSPEND_SECONDARY_WIF} imported false" C-m
+
 ################################################################################
 # Setup the serially connected secondary dcrd node
 ################################################################################
@@ -237,6 +242,9 @@ chmod +x "${NODES_ROOT}/${SECONDARY_WALLET_NAME}/tickets"
 
 cp "${NODES_ROOT}/${PRIMARY_WALLET_NAME}/xfer" "${NODES_ROOT}/${SECONDARY_WALLET_NAME}/"
 chmod +x "${NODES_ROOT}/${SECONDARY_WALLET_NAME}/xfer"
+
+sleep 1
+tmux send-keys "./ctl importprivkey ${TSPEND_PRIMARY_WIF} imported false; ./ctl importprivkey ${TSPEND_SECONDARY_WIF} imported false" C-m
 
 ################################################################################
 # Setup helper script to stop everything

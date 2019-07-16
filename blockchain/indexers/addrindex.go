@@ -682,11 +682,11 @@ type writeIndexData map[[addrKeySize]byte][]int
 // indexPkScript extracts all standard addresses from the passed public key
 // script and maps each of them to the associated transaction using the passed
 // map.
-func (idx *AddrIndex) indexPkScript(data writeIndexData, scriptVersion uint16, pkScript []byte, txIdx int, isSStx bool) {
+func (idx *AddrIndex) indexPkScript(data writeIndexData, scriptVersion uint16, pkScript []byte, txIdx int, isSStx bool, isTreasuryEnabled bool) {
 	// Nothing to index if the script is non-standard or otherwise doesn't
 	// contain any addresses.
-	class, addrs, _, err := txscript.ExtractPkScriptAddrs(scriptVersion, pkScript,
-		idx.chainParams)
+	class, addrs, _, err := txscript.ExtractPkScriptAddrs(scriptVersion,
+		pkScript, idx.chainParams, isTreasuryEnabled)
 	if err != nil {
 		return
 	}
@@ -728,7 +728,7 @@ func (idx *AddrIndex) indexPkScript(data writeIndexData, scriptVersion uint16, p
 // indexBlock extracts all of the standard addresses from all of the regular and
 // stake transactions in the passed block and maps each of them to the
 // associated transaction using the passed map.
-func (idx *AddrIndex) indexBlock(data writeIndexData, block *dcrutil.Block, prevScripts PrevScripter) {
+func (idx *AddrIndex) indexBlock(data writeIndexData, block *dcrutil.Block, prevScripts PrevScripter, isTreasuryEnabled bool) {
 	regularTxns := block.Transactions()
 	for txIdx, tx := range regularTxns {
 		// Coinbases do not reference any inputs.  Since the block is
@@ -749,13 +749,14 @@ func (idx *AddrIndex) indexBlock(data writeIndexData, block *dcrutil.Block, prev
 					continue
 				}
 
-				idx.indexPkScript(data, version, pkScript, txIdx, false)
+				idx.indexPkScript(data, version, pkScript,
+					txIdx, false, isTreasuryEnabled)
 			}
 		}
 
 		for _, txOut := range tx.MsgTx().TxOut {
-			idx.indexPkScript(data, txOut.Version, txOut.PkScript, txIdx,
-				false)
+			idx.indexPkScript(data, txOut.Version, txOut.PkScript,
+				txIdx, false, isTreasuryEnabled)
 		}
 	}
 
@@ -763,10 +764,23 @@ func (idx *AddrIndex) indexBlock(data writeIndexData, block *dcrutil.Block, prev
 		msgTx := tx.MsgTx()
 		thisTxOffset := txIdx + len(regularTxns)
 
-		isSSGen := stake.IsSSGen(msgTx)
+		isSSGen := stake.IsSSGen(msgTx, isTreasuryEnabled)
+		var (
+			isTSpend, isTreasuryBase bool
+		)
+		if isTreasuryEnabled {
+			// Short circuit expensive Is* calls.
+			isTreasuryBase = !isSSGen && stake.IsTreasuryBase(msgTx)
+			isTSpend = !isTreasuryBase && stake.IsTSpend(msgTx)
+		}
 		for i, txIn := range msgTx.TxIn {
 			// Skip stakebases.
 			if isSSGen && i == 0 {
+				continue
+			}
+
+			// Skip treasury transactions that do not have inputs.
+			if isTreasuryBase || isTSpend {
 				continue
 			}
 
@@ -782,13 +796,14 @@ func (idx *AddrIndex) indexBlock(data writeIndexData, block *dcrutil.Block, prev
 				continue
 			}
 
-			idx.indexPkScript(data, version, pkScript, thisTxOffset, false)
+			idx.indexPkScript(data, version, pkScript, thisTxOffset,
+				false, isTreasuryEnabled)
 		}
 
 		isSStx := stake.IsSStx(msgTx)
 		for _, txOut := range msgTx.TxOut {
 			idx.indexPkScript(data, txOut.Version, txOut.PkScript,
-				thisTxOffset, isSStx)
+				thisTxOffset, isSStx, isTreasuryEnabled)
 		}
 	}
 }
@@ -798,7 +813,7 @@ func (idx *AddrIndex) indexBlock(data writeIndexData, block *dcrutil.Block, prev
 // the transactions in the block involve.
 //
 // This is part of the Indexer interface.
-func (idx *AddrIndex) ConnectBlock(dbTx database.Tx, block, parent *dcrutil.Block, prevScripts PrevScripter) error {
+func (idx *AddrIndex) ConnectBlock(dbTx database.Tx, block, parent *dcrutil.Block, prevScripts PrevScripter, isTreasuryEnabled bool) error {
 	// NOTE: The fact that the block can disapprove the regular tree of the
 	// previous block is ignored for this index because even though the
 	// disapproved transactions no longer apply spend semantics, they still
@@ -819,7 +834,7 @@ func (idx *AddrIndex) ConnectBlock(dbTx database.Tx, block, parent *dcrutil.Bloc
 
 	// Build all of the address to transaction mappings in a local map.
 	addrsToTxns := make(writeIndexData)
-	idx.indexBlock(addrsToTxns, block, prevScripts)
+	idx.indexBlock(addrsToTxns, block, prevScripts, isTreasuryEnabled)
 
 	// Add all of the index entries for each address.
 	stakeIdxsStart := len(txLocs)
@@ -851,7 +866,7 @@ func (idx *AddrIndex) ConnectBlock(dbTx database.Tx, block, parent *dcrutil.Bloc
 // each transaction in the block involve.
 //
 // This is part of the Indexer interface.
-func (idx *AddrIndex) DisconnectBlock(dbTx database.Tx, block, parent *dcrutil.Block, prevScripts PrevScripter) error {
+func (idx *AddrIndex) DisconnectBlock(dbTx database.Tx, block, parent *dcrutil.Block, prevScripts PrevScripter, isTreasuryEnabled bool) error {
 	// NOTE: The fact that the block can disapprove the regular tree of the
 	// previous block is ignored for this index because even though the
 	// disapproved transactions no longer apply spend semantics, they still
@@ -860,7 +875,7 @@ func (idx *AddrIndex) DisconnectBlock(dbTx database.Tx, block, parent *dcrutil.B
 
 	// Build all of the address to transaction mappings in a local map.
 	addrsToTxns := make(writeIndexData)
-	idx.indexBlock(addrsToTxns, block, prevScripts)
+	idx.indexBlock(addrsToTxns, block, prevScripts, isTreasuryEnabled)
 
 	// Remove all of the index entries for each address.
 	bucket := dbTx.Metadata().Bucket(addrIndexKey)
@@ -917,12 +932,12 @@ func (idx *AddrIndex) EntriesForAddress(dbTx database.Tx, addr dcrutil.Address, 
 // script to the transaction.
 //
 // This function is safe for concurrent access.
-func (idx *AddrIndex) indexUnconfirmedAddresses(scriptVersion uint16, pkScript []byte, tx *dcrutil.Tx, isSStx bool) {
+func (idx *AddrIndex) indexUnconfirmedAddresses(scriptVersion uint16, pkScript []byte, tx *dcrutil.Tx, isSStx bool, isTreasuryEnabled bool) {
 	// The error is ignored here since the only reason it can fail is if the
 	// script fails to parse and it was already validated before being
 	// admitted to the mempool.
 	class, addresses, _, _ := txscript.ExtractPkScriptAddrs(scriptVersion,
-		pkScript, idx.chainParams)
+		pkScript, idx.chainParams, isTreasuryEnabled)
 
 	if isSStx && class == txscript.NullDataTy {
 		addr, err := stake.AddrFromSStxPkScrCommitment(pkScript, idx.chainParams)
@@ -970,14 +985,14 @@ func (idx *AddrIndex) indexUnconfirmedAddresses(scriptVersion uint16, pkScript [
 // some or all addresses not being indexed.
 //
 // This function is safe for concurrent access.
-func (idx *AddrIndex) AddUnconfirmedTx(tx *dcrutil.Tx, prevScripts PrevScripter) {
+func (idx *AddrIndex) AddUnconfirmedTx(tx *dcrutil.Tx, prevScripts PrevScripter, isTreasuryEnabled bool) {
 	// Index addresses of all referenced previous transaction outputs.
 	//
 	// The existence checks are elided since this is only called after the
 	// transaction has already been validated and thus all inputs are
 	// already known to exist.
 	msgTx := tx.MsgTx()
-	isSSGen := stake.IsSSGen(msgTx)
+	isSSGen := stake.IsSSGen(msgTx, isTreasuryEnabled)
 	for i, txIn := range msgTx.TxIn {
 		// Skip stakebase.
 		if i == 0 && isSSGen {
@@ -991,14 +1006,15 @@ func (idx *AddrIndex) AddUnconfirmedTx(tx *dcrutil.Tx, prevScripts PrevScripter)
 			// be available.
 			continue
 		}
-		idx.indexUnconfirmedAddresses(version, pkScript, tx, false)
+		idx.indexUnconfirmedAddresses(version, pkScript, tx, false,
+			isTreasuryEnabled)
 	}
 
 	// Index addresses of all created outputs.
 	isSStx := stake.IsSStx(msgTx)
 	for _, txOut := range msgTx.TxOut {
 		idx.indexUnconfirmedAddresses(txOut.Version, txOut.PkScript, tx,
-			isSStx)
+			isSStx, isTreasuryEnabled)
 	}
 }
 

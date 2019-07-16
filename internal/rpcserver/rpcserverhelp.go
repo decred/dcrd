@@ -653,6 +653,19 @@ var helpDescsEnUS = map[string]string{
 	"getticketpoolvalue--synopsis": "Return the current value of all locked funds in the ticket pool",
 	"getticketpoolvalue--result0":  "Total value of ticket pool",
 
+	// GetTreasuryBalanceResult help.
+	"gettreasurybalanceresult-hash":    "Block hash",
+	"gettreasurybalanceresult-height":  "Block height",
+	"gettreasurybalanceresult-balance": "Treasury balance at this block",
+	"gettreasurybalanceresult-updates": "Optional treasury updates that will be applied coinbase maturity from now",
+
+	// GetTreasuryBalanceCmd help.
+	"gettreasurybalance--synopsis":   "Returns treasury balance at the given hash.",
+	"gettreasurybalance-hash":        "The hash of the block",
+	"gettreasurybalance-verbose":     "Optionally returns the updates to the balance that will be applied coinbase maturity from now",
+	"gettreasurybalance--condition0": "verbose=false",
+	"gettreasurybalance--condition1": "verbose=true",
+
 	// GetTxOutResult help.
 	"gettxoutresult-bestblock":     "The block hash that contains the transaction output",
 	"gettxoutresult-confirmations": "The number of confirmations",
@@ -807,6 +820,12 @@ var helpDescsEnUS = map[string]string{
 
 	// StopNotifyWorkCmd help.
 	"stopnotifywork--synopsis": "Cancel registered notifications for whenever a new block template is generated.",
+
+	// NotifyTSpendCmd help.
+	"notifytspend--synopsis": "Request notifications for whenever a new tspend arrives in the mempool.",
+
+	// StopNotifyTSpendCmd help.
+	"stopnotifytspend--synopsis": "Cancel registered notifications for whenever a new tspend arrives in the mempool.",
 
 	// NotifyNewTransactionsCmd help.
 	"notifynewtransactions--synopsis": "Send either a txaccepted or a txacceptedverbose notification when a new transaction is accepted into the mempool.",
@@ -998,6 +1017,7 @@ var rpcResultTypes = map[types.Method][]interface{}{
 	"getrawmempool":         {(*[]string)(nil), (*types.GetRawMempoolVerboseResult)(nil)},
 	"getrawtransaction":     {(*string)(nil), (*types.TxRawResult)(nil)},
 	"getticketpoolvalue":    {(*float64)(nil)},
+	"gettreasurybalance":    {(*types.GetTreasuryBalanceResult)(nil)},
 	"gettxout":              {(*types.GetTxOutResult)(nil)},
 	"gettxoutsetinfo":       {(*types.GetTxOutSetInfoResult)(nil)},
 	"getvoteinfo":           {(*types.GetVoteInfoResult)(nil)},
@@ -1031,6 +1051,7 @@ var rpcResultTypes = map[types.Method][]interface{}{
 	"notifystakedifficulty":       nil,
 	"notifyblocks":                nil,
 	"notifywork":                  nil,
+	"notifytspend":                nil,
 	"notifynewtransactions":       nil,
 	"notifyreceived":              nil,
 	"notifyspent":                 nil,
@@ -1040,6 +1061,7 @@ var rpcResultTypes = map[types.Method][]interface{}{
 	"session":                     {(*types.SessionResult)(nil)},
 	"stopnotifyblocks":            nil,
 	"stopnotifywork":              nil,
+	"stopnotifytspend":            nil,
 	"stopnotifynewtransactions":   nil,
 	"stopnotifyreceived":          nil,
 	"stopnotifyspent":             nil,

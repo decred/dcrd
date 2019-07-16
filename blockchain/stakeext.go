@@ -102,7 +102,7 @@ func (b *BlockChain) MissedTickets() ([]chainhash.Hash, error) {
 // corresponding to the given address.
 //
 // This function is safe for concurrent access.
-func (b *BlockChain) TicketsWithAddress(address dcrutil.Address) ([]chainhash.Hash, error) {
+func (b *BlockChain) TicketsWithAddress(address dcrutil.Address, isTreasuryEnabled bool) ([]chainhash.Hash, error) {
 	b.chainLock.RLock()
 	sn := b.bestChain.Tip().stakeNode
 	b.chainLock.RUnlock()
@@ -119,7 +119,8 @@ func (b *BlockChain) TicketsWithAddress(address dcrutil.Address) ([]chainhash.Ha
 
 			_, addrs, _, err :=
 				txscript.ExtractPkScriptAddrs(utxo.ScriptVersionByIndex(0),
-					utxo.PkScriptByIndex(0), b.chainParams)
+					utxo.PkScriptByIndex(0), b.chainParams,
+					isTreasuryEnabled)
 			if err != nil {
 				return err
 			}

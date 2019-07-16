@@ -183,6 +183,34 @@ func TestNet3Params() *Params {
 				StartTime:  1567641600, // Sep 5th, 2019
 				ExpireTime: 1599264000, // Sep 5th, 2020
 			}},
+			9: {{
+				Vote: Vote{
+					Id:          VoteIDTreasury,
+					Description: "Enable decentralized Treasury opcodes as defined in DCP0006",
+					Mask:        0x0006, // Bits 1 and 2
+					Choices: []Choice{{
+						Id:          "abstain",
+						Description: "abstain voting for change",
+						Bits:        0x0000,
+						IsAbstain:   true,
+						IsNo:        false,
+					}, {
+						Id:          "no",
+						Description: "keep the existing consensus rules",
+						Bits:        0x0002, // Bit 1
+						IsAbstain:   false,
+						IsNo:        true,
+					}, {
+						Id:          "yes",
+						Description: "change to the new consensus rules",
+						Bits:        0x0004, // Bit 2
+						IsAbstain:   false,
+						IsNo:        false,
+					}},
+				},
+				StartTime:  1596240000, // Aug 1st, 2020
+				ExpireTime: 1627776000, // Aug 1st, 2021
+			}},
 		},
 
 		// Enforce current block version once majority of the network has
@@ -242,6 +270,32 @@ func TestNet3Params() *Params {
 		OrganizationPkScript:        hexDecode("a914d585cd7426d25b4ea5faf1e6987aacfeda3db94287"),
 		OrganizationPkScriptVersion: 0,
 		BlockOneLedger:              tokenPayouts_TestNet3Params(),
+
+		// Sanctioned Politeia keys.
+		PiKeys: [][]byte{
+			hexDecode("03beca9bbd227ca6bb5a58e03a36ba2b52fff09093bd7a50aee1193bccd257fb8a"),
+			hexDecode("03e647c014f55265da506781f0b2d67674c35cb59b873d9926d483c4ced9a7bbd3"),
+		},
+
+		// ~2 hours for tspend inclusion
+		TreasuryVoteInterval: 60,
+
+		// ~4.8 hours for short circuit approval
+		TreasuryVoteIntervalMultiplier: 4,
+
+		// ~1 day policy window
+		TreasuryExpenditureWindow: 4,
+
+		// ~6 day policy window check
+		TreasuryExpenditurePolicy: 3,
+
+		// 10000 dcr/tew as expense bootstrap
+		TreasuryExpenditureBootstrap: 10000 * 1e8,
+
+		TreasuryVoteQuorumMultiplier:   1, // 20% quorum required
+		TreasuryVoteQuorumDivisor:      5,
+		TreasuryVoteRequiredMultiplier: 3, // 60% yes votes required
+		TreasuryVoteRequiredDivisor:    5,
 
 		seeders: []string{
 			"testnet-seed-1.decred.org",

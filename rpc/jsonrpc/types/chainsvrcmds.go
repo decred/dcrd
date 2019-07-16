@@ -672,6 +672,9 @@ const (
 
 	// GRMRevocations indicates that only revocations should be returned.
 	GRMRevocations GetRawMempoolTxTypeCmd = "revocations"
+
+	// GRMTSpend indicates that only tspends should be returned.
+	GRMTSpend GetRawMempoolTxTypeCmd = "tspend"
 )
 
 // GetRawMempoolCmd defines the getmempool JSON-RPC command.
@@ -802,6 +805,21 @@ type GetVoteInfoCmd struct {
 func NewGetVoteInfoCmd(version uint32) *GetVoteInfoCmd {
 	return &GetVoteInfoCmd{
 		Version: version,
+	}
+}
+
+// GetTreasuryBalanceCmd returns the treasury balance for the provided block
+// hash. If no hash is provided it returns the best block treasury balance.
+type GetTreasuryBalanceCmd struct {
+	Hash    *string
+	Verbose *bool `jsonrpcdefault:"false"`
+}
+
+// NewGetTreasuryBalanceCmd returns a new instance which can be used to
+// issue a JSON-RPC gettreasurybalance command.
+func NewGetTreasuryBalanceCmd(hash *string) *GetTreasuryBalanceCmd {
+	return &GetTreasuryBalanceCmd{
+		Hash: hash,
 	}
 }
 
@@ -1161,6 +1179,7 @@ func init() {
 	dcrjson.MustRegister(Method("getstakeversioninfo"), (*GetStakeVersionInfoCmd)(nil), flags)
 	dcrjson.MustRegister(Method("getstakeversions"), (*GetStakeVersionsCmd)(nil), flags)
 	dcrjson.MustRegister(Method("getticketpoolvalue"), (*GetTicketPoolValueCmd)(nil), flags)
+	dcrjson.MustRegister(Method("gettreasurybalance"), (*GetTreasuryBalanceCmd)(nil), flags)
 	dcrjson.MustRegister(Method("gettxout"), (*GetTxOutCmd)(nil), flags)
 	dcrjson.MustRegister(Method("gettxoutsetinfo"), (*GetTxOutSetInfoCmd)(nil), flags)
 	dcrjson.MustRegister(Method("getvoteinfo"), (*GetVoteInfoCmd)(nil), flags)

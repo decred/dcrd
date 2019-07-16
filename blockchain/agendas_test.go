@@ -689,3 +689,163 @@ func TestHeaderCommitmentsDeployment(t *testing.T) {
 	testHeaderCommitmentsDeployment(t, chaincfg.MainNetParams())
 	testHeaderCommitmentsDeployment(t, chaincfg.RegNetParams())
 }
+
+// testTreasuryFeaturesDeployment ensures the deployment of the treasury
+// features agenda activates the expected changes for the provided network
+// parameters.
+func testTreasuryFeaturesDeployment(t *testing.T, params *chaincfg.Params) {
+	// baseConsensusScriptVerifyFlags are the expected script flags when the
+	// agenda is not active.
+	baseConsensusScriptVerifyFlags := txscript.ScriptVerifyCleanStack |
+		txscript.ScriptVerifyCheckLockTimeVerify
+
+	// Since some agendas are active by default on testnet, modify the expected
+	// base script flags accordingly.
+	if params.Net == wire.TestNet3 {
+		baseConsensusScriptVerifyFlags |=
+			txscript.ScriptVerifyCheckSequenceVerify |
+				txscript.ScriptVerifySHA256
+	}
+
+	// Clone the parameters so they can be mutated, find the correct deployment
+	// for the Treasury features agenda as well as the yes vote choice within
+	// it, and, finally, ensure it is always available to vote by removing the
+	// time constraints to prevent test failures when the real expiration time
+	// passes.
+	params = cloneParams(params)
+	deploymentVer, deployment, err := findDeployment(params,
+		chaincfg.VoteIDTreasury)
+	if err != nil {
+		t.Fatal(err)
+	}
+	yesChoice, err := findDeploymentChoice(deployment, "yes")
+	if err != nil {
+		t.Fatal(err)
+	}
+	removeDeploymentTimeConstraints(deployment)
+
+	// Shorter versions of params for convenience.
+	stakeValidationHeight := uint32(params.StakeValidationHeight)
+	ruleChangeActivationInterval := params.RuleChangeActivationInterval
+
+	tests := []struct {
+		name          string
+		numNodes      uint32 // num fake nodes to create
+		curActive     bool   // whether agenda active for current block
+		nextActive    bool   // whether agenda active for NEXT block
+		expectedFlags txscript.ScriptFlags
+	}{
+		{
+			name:          "stake validation height",
+			numNodes:      stakeValidationHeight,
+			curActive:     false,
+			nextActive:    false,
+			expectedFlags: baseConsensusScriptVerifyFlags,
+		},
+		{
+			name:          "started",
+			numNodes:      ruleChangeActivationInterval,
+			curActive:     false,
+			nextActive:    false,
+			expectedFlags: baseConsensusScriptVerifyFlags,
+		},
+		{
+			name:          "lockedin",
+			numNodes:      ruleChangeActivationInterval,
+			curActive:     false,
+			nextActive:    false,
+			expectedFlags: baseConsensusScriptVerifyFlags,
+		},
+		{
+			name:          "one before active",
+			numNodes:      ruleChangeActivationInterval - 1,
+			curActive:     false,
+			nextActive:    true,
+			expectedFlags: baseConsensusScriptVerifyFlags,
+		},
+		{
+			name:       "exactly active",
+			numNodes:   1,
+			curActive:  true,
+			nextActive: true,
+			expectedFlags: baseConsensusScriptVerifyFlags |
+				txscript.ScriptVerifyTreasury,
+		},
+		{
+			name:       "one after active",
+			numNodes:   1,
+			curActive:  true,
+			nextActive: true,
+			expectedFlags: baseConsensusScriptVerifyFlags |
+				txscript.ScriptVerifyTreasury,
+		},
+	}
+
+	curTimestamp := time.Now()
+	bc := newFakeChain(params)
+	node := bc.bestChain.Tip()
+	for _, test := range tests {
+		for i := uint32(0); i < test.numNodes; i++ {
+			node = newFakeNode(node, int32(deploymentVer), deploymentVer, 0,
+				curTimestamp)
+
+			// Create fake votes that vote yes on the agenda to ensure it is
+			// activated.
+			for j := uint16(0); j < params.TicketsPerBlock; j++ {
+				node.votes = append(node.votes, stake.VoteVersionTuple{
+					Version: deploymentVer,
+					Bits:    yesChoice.Bits | 0x01,
+				})
+			}
+			bc.index.AddNode(node)
+			bc.bestChain.SetTip(node)
+			curTimestamp = curTimestamp.Add(time.Second)
+		}
+
+		// Ensure the agenda reports the expected activation status for the
+		// current block.
+		gotActive, err := bc.isTreasuryAgendaActive(node.parent)
+		if err != nil {
+			t.Errorf("%s: unexpected err: %v", test.name, err)
+			continue
+		}
+		if gotActive != test.curActive {
+			t.Errorf("%s: mismatched current active status - got: %v, want: %v",
+				test.name, gotActive, test.curActive)
+			continue
+		}
+
+		// Ensure the agenda reports the expected activation status for the NEXT
+		// block
+		gotActive, err = bc.IsTreasuryAgendaActive(&node.hash)
+		if err != nil {
+			t.Errorf("%s: unexpected err: %v", test.name, err)
+			continue
+		}
+		if gotActive != test.nextActive {
+			t.Errorf("%s: mismatched next active status - got: %v, want: %v",
+				test.name, gotActive, test.nextActive)
+			continue
+		}
+
+		// Ensure the consensus script verify flags are as expected.
+		gotFlags, err := bc.consensusScriptVerifyFlags(node)
+		if err != nil {
+			t.Errorf("%s: unexpected err: %v", test.name, err)
+			continue
+		}
+		if gotFlags != test.expectedFlags {
+			t.Errorf("%s: mismatched flags - got %v, want %v", test.name,
+				gotFlags, test.expectedFlags)
+			continue
+		}
+	}
+}
+
+// TestTreasuryFeaturesDeployment ensures the deployment of the Treasury
+// features agenda activate the expected changes.
+func TestTreasuryFeaturesDeployment(t *testing.T) {
+	testTreasuryFeaturesDeployment(t, chaincfg.MainNetParams())
+	testTreasuryFeaturesDeployment(t, chaincfg.TestNet3Params())
+	testTreasuryFeaturesDeployment(t, chaincfg.RegNetParams())
+}

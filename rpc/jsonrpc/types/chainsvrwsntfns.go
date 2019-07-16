@@ -26,6 +26,10 @@ const (
 	// the chain server that a new block template has been generated.
 	WorkNtfnMethod = "work"
 
+	// TSpendNtfnMethod is the method used for notifications from the chain
+	// server that a new tspend has arrived in the mempool.
+	TSpendNtfnMethod = "tspend"
+
 	// ReorganizationNtfnMethod is the method used for notifications that the
 	// block chain is in the process of a reorganization.
 	ReorganizationNtfnMethod Method = "reorganization"
@@ -118,6 +122,19 @@ func NewWorkNtfn(data string, target string) *WorkNtfn {
 	return &WorkNtfn{
 		Data:   data,
 		Target: target,
+	}
+}
+
+// TSpendNtfn defines the tspend JSON-RPC notification.
+type TSpendNtfn struct {
+	TSpend string `json:"tspend"` // Hex string encoded tspend.
+}
+
+// NewTSpendNtfn returns a new instance which can be used to issue a tspend
+// JSON-RPC notification.
+func NewTSpendNtfn(tspend string) *TSpendNtfn {
+	return &TSpendNtfn{
+		TSpend: tspend,
 	}
 }
 
@@ -242,6 +259,7 @@ func init() {
 	dcrjson.MustRegister(BlockConnectedNtfnMethod, (*BlockConnectedNtfn)(nil), flags)
 	dcrjson.MustRegister(BlockDisconnectedNtfnMethod, (*BlockDisconnectedNtfn)(nil), flags)
 	dcrjson.MustRegister(WorkNtfnMethod, (*WorkNtfn)(nil), flags)
+	dcrjson.MustRegister(TSpendNtfnMethod, (*TSpendNtfn)(nil), flags)
 	dcrjson.MustRegister(NewTicketsNtfnMethod, (*NewTicketsNtfn)(nil), flags)
 	dcrjson.MustRegister(ReorganizationNtfnMethod, (*ReorganizationNtfn)(nil), flags)
 	dcrjson.MustRegister(TxAcceptedNtfnMethod, (*TxAcceptedNtfn)(nil), flags)

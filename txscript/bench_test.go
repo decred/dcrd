@@ -212,7 +212,21 @@ func BenchmarkGetSigOpCount(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = GetSigOpCount(script)
+		_ = GetSigOpCount(script, noTreasury)
+	}
+}
+
+// BenchmarkGetSigOpCountTreasury benchmarks how long it takes to count the
+// signature operations of a very large script.
+func BenchmarkGetSigOpCountTreasury(b *testing.B) {
+	script, err := genComplexScript()
+	if err != nil {
+		b.Fatalf("failed to create benchmark script: %v", err)
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = GetSigOpCount(script, withTreasury)
 	}
 }
 
@@ -237,11 +251,36 @@ func BenchmarkGetPreciseSigOpCount(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = GetPreciseSigOpCount(sigScript, pkScript)
+		_ = GetPreciseSigOpCount(sigScript, pkScript, noTreasury)
 	}
 }
 
-// BenchmarkIsAnyKindOfScriptHash benchmarks how long it takes to
+// BenchmarkGetPreciseSigOpCountTreasury benchmarks how long it takes to count
+// the signature operations of a very large script using the more precise
+// counting method.
+func BenchmarkGetPreciseSigOpCountTreasury(b *testing.B) {
+	redeemScript, err := genComplexScript()
+	if err != nil {
+		b.Fatalf("failed to create benchmark script: %v", err)
+	}
+
+	// Create a fake pay-to-script-hash to pass the necessary checks and create
+	// the signature script accordingly by pushing the generated "redeem" script
+	// as the final data push so the benchmark will cover the p2sh path.
+	scriptHash := "0x0000000000000000000000000000000000000001"
+	pkScript := mustParseShortForm("HASH160 DATA_20 " + scriptHash + " EQUAL")
+	sigScript, err := NewScriptBuilder().AddFullData(redeemScript).Script()
+	if err != nil {
+		b.Fatalf("failed to create signature script: %v", err)
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = GetPreciseSigOpCount(sigScript, pkScript, withTreasury)
+	}
+}
+
+// BenchmarkIsAnyKindOfScriptHash benchmarks how long it takes
 // isAnyKindOfScriptHash to analyze operations of a very large script.
 func BenchmarkIsAnyKindOfScriptHash(b *testing.B) {
 	script, err := genComplexScript()
@@ -249,9 +288,26 @@ func BenchmarkIsAnyKindOfScriptHash(b *testing.B) {
 		b.Fatalf("failed to create benchmark script: %v", err)
 	}
 
+	vm := Engine{flags: 0}
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = isAnyKindOfScriptHash(script)
+		_ = vm.isAnyKindOfScriptHash(script)
+	}
+}
+
+// BenchmarkIsAnyKindOfScriptHashTreasury benchmarks how long it takes
+// isAnyKindOfScriptHash to analyze operations of a very large script with the
+// treasury agenda enabled.
+func BenchmarkIsAnyKindOfScriptHashTreasury(b *testing.B) {
+	script, err := genComplexScript()
+	if err != nil {
+		b.Fatalf("failed to create benchmark script: %v", err)
+	}
+
+	vm := Engine{flags: ScriptVerifyTreasury}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = vm.isAnyKindOfScriptHash(script)
 	}
 }
 
@@ -280,7 +336,7 @@ func BenchmarkGetScriptClass(b *testing.B) {
 	const scriptVersion = 0
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = GetScriptClass(scriptVersion, script)
+		_ = GetScriptClass(scriptVersion, script, noTreasury)
 	}
 }
 
@@ -425,7 +481,24 @@ func BenchmarkContainsStakeOpCodes(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, err = ContainsStakeOpCodes(script)
+		_, err = ContainsStakeOpCodes(script, noTreasury)
+		if err != nil {
+			b.Fatalf("unexpected err: %v", err)
+		}
+	}
+}
+
+// BenchmarkContainsStakeOpCodesTreasury benchmarks how long it takes
+// ContainsStakeOpCodes to analyze a very large script.
+func BenchmarkContainsStakeOpCodesTreasury(b *testing.B) {
+	script, err := genComplexScript()
+	if err != nil {
+		b.Fatalf("failed to create benchmark script: %v", err)
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, err = ContainsStakeOpCodes(script, withTreasury)
 		if err != nil {
 			b.Fatalf("unexpected err: %v", err)
 		}
@@ -550,7 +623,8 @@ func BenchmarkExtractPkScriptAddrsLarge(b *testing.B) {
 	params := mainNetParams
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, _, _, err := ExtractPkScriptAddrs(scriptVersion, script, params)
+		_, _, _, err := ExtractPkScriptAddrs(scriptVersion, script,
+			params, noTreasury)
 		if err != nil {
 			b.Fatalf("unexpected err: %v", err)
 		}
@@ -568,7 +642,8 @@ func BenchmarkExtractPkScriptAddrs(b *testing.B) {
 	params := mainNetParams
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, _, _, err := ExtractPkScriptAddrs(scriptVersion, script, params)
+		_, _, _, err := ExtractPkScriptAddrs(scriptVersion, script,
+			params, noTreasury)
 		if err != nil {
 			b.Fatalf("unexpected err: %v", err)
 		}

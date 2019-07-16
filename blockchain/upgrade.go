@@ -81,10 +81,10 @@ func deserializeDatabaseInfoV2(dbInfoBytes []byte) (*databaseInfo, error) {
 
 // ticketsVotedInBlock fetches a list of tickets that were voted in the
 // block.
-func ticketsVotedInBlock(bl *dcrutil.Block) []chainhash.Hash {
+func ticketsVotedInBlock(bl *dcrutil.Block, isTreasuryEnabled bool) []chainhash.Hash {
 	var tickets []chainhash.Hash
 	for _, stx := range bl.MsgBlock().STransactions {
-		if stake.IsSSGen(stx) {
+		if stake.IsSSGen(stx, isTreasuryEnabled) {
 			tickets = append(tickets, stx.TxIn[1].PreviousOutPoint.Hash)
 		}
 	}
@@ -94,10 +94,10 @@ func ticketsVotedInBlock(bl *dcrutil.Block) []chainhash.Hash {
 
 // ticketsRevokedInBlock fetches a list of tickets that were revoked in the
 // block.
-func ticketsRevokedInBlock(bl *dcrutil.Block) []chainhash.Hash {
+func ticketsRevokedInBlock(bl *dcrutil.Block, isTreasuryEnabled bool) []chainhash.Hash {
 	var tickets []chainhash.Hash
 	for _, stx := range bl.MsgBlock().STransactions {
-		if stake.DetermineTxType(stx) == stake.TxTypeSSRtx {
+		if stake.DetermineTxType(stx, isTreasuryEnabled) == stake.TxTypeSSRtx {
 			tickets = append(tickets, stx.TxIn[0].PreviousOutPoint.Hash)
 		}
 	}
@@ -207,9 +207,14 @@ func upgradeToVersion2(db database.DB, chainParams *chaincfg.Params, dbInfo *dat
 			if errLocal != nil {
 				return errLocal
 			}
+
+			// Assume v2 does NOT support treasury agenda.
+			const isTreasuryEnabled = false
 			bestStakeNode, errLocal = bestStakeNode.ConnectNode(
-				stake.CalcHash256PRNGIV(hB), ticketsVotedInBlock(block),
-				ticketsRevokedInBlock(block), newTickets)
+				stake.CalcHash256PRNGIV(hB), ticketsVotedInBlock(block,
+					isTreasuryEnabled),
+				ticketsRevokedInBlock(block, isTreasuryEnabled),
+				newTickets)
 			if errLocal != nil {
 				return errLocal
 			}
@@ -275,7 +280,7 @@ type blockIndexEntryV2 struct {
 	ticketsRevoked []chainhash.Hash
 }
 
-// blockIndexEntrySerializeSizV2e returns the number of bytes it would take to
+// blockIndexEntrySerializeSizeV2 returns the number of bytes it would take to
 // serialize the passed block index entry according to the legacy version 2
 // format described above.
 func blockIndexEntrySerializeSizeV2(entry *blockIndexEntryV2) int {
@@ -957,7 +962,7 @@ func clearFailedBlockFlags(index *blockIndex) error {
 //
 // The database is  guaranteed to have a filter entry for every block in the
 // main chain if this returns without failure.
-func initializeGCSFilters(ctx context.Context, db database.DB, index *blockIndex, bestChain *chainView) error {
+func initializeGCSFilters(ctx context.Context, db database.DB, index *blockIndex, bestChain *chainView, isTreasuryEnabled bool) error {
 	// Hardcoded values so updates to the global values do not affect old
 	// upgrades.
 	gcsBucketName := []byte("gcsfilters")
@@ -985,7 +990,8 @@ func initializeGCSFilters(ctx context.Context, db database.DB, index *blockIndex
 		}
 
 		// Load all of the spent transaction output data from the database.
-		stxos, err := dbFetchSpendJournalEntry(dbTx, block)
+		stxos, err := dbFetchSpendJournalEntry(dbTx, block,
+			isTreasuryEnabled)
 		if err != nil {
 			return nil, err
 		}
@@ -993,7 +999,8 @@ func initializeGCSFilters(ctx context.Context, db database.DB, index *blockIndex
 		// Use the combination of the block and the stxos to create a source
 		// of previous scripts spent by the block needed to create the
 		// filter.
-		prevScripts := stxosToScriptSource(block, stxos, compressionVersion)
+		prevScripts := stxosToScriptSource(block, stxos,
+			compressionVersion, isTreasuryEnabled)
 
 		// Create the filter from the block and referenced previous output
 		// scripts.
@@ -1138,7 +1145,9 @@ func upgradeToVersion6(ctx context.Context, db database.DB, chainParams *chaincf
 	}
 
 	// Create and store version 2 GCS filters for all blocks in the main chain.
-	err = initializeGCSFilters(ctx, db, index, bestChain)
+	// We can use the false flag because there is no way the treasury could
+	// be active at this point.
+	err = initializeGCSFilters(ctx, db, index, bestChain, false)
 	if err != nil {
 		return err
 	}
@@ -1368,6 +1377,14 @@ func upgradeDB(ctx context.Context, db database.DB, chainParams *chaincfg.Params
 		if err != nil {
 			return err
 		}
+	}
+
+	// Update to a version 7 database if needed.
+	if dbInfo.version == 6 {
+		// FIXME: implement upgrade of the "transaction encoding flags",
+		// moving the "fully spent" bit flag from bit 4 to bit 6. See
+		// compress.go for info.
+		return fmt.Errorf("treasury upgrade is disabled")
 	}
 
 	return nil

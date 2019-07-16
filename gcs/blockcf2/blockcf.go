@@ -101,11 +101,12 @@ func Key(merkleRoot *chainhash.Hash) [gcs.KeySize]byte {
 
 // isStakeOutput returns true if a script output is a stake type.
 func isStakeOutput(scriptVersion uint16, pkScript []byte) bool {
-	class := txscript.GetScriptClass(scriptVersion, pkScript)
+	class := txscript.GetScriptClass(scriptVersion, pkScript, true)
 	return class == txscript.StakeSubmissionTy ||
 		class == txscript.StakeGenTy ||
 		class == txscript.StakeRevocationTy ||
-		class == txscript.StakeSubChangeTy
+		class == txscript.StakeSubChangeTy ||
+		class == txscript.TreasuryGenTy
 }
 
 // extractTicketCommitHash extracts the commitment hash from a ticket output
@@ -316,6 +317,12 @@ func Regular(block *wire.MsgBlock, prevScripts PrevScripter) (*gcs.FilterV2, err
 	// - Revocations:
 	//   - Output scripts that pay the original ticket commitments
 	//
+	// - Treasury add:
+	//   - Input scripts that are payments to the treasury
+	//
+	// - Treasury spends:
+	//   - Output scripts that make payments
+	//
 	// Output scripts are handled specially for stake transactions by slicing
 	// off the stake opcode tag (OP_SS*).  This tag always appears as the first
 	// byte of the script and removing it allows users of the filter to only
@@ -323,7 +330,11 @@ func Regular(block *wire.MsgBlock, prevScripts PrevScripter) (*gcs.FilterV2, err
 	// matches for each tag.
 	converter := makeCommitmentConverter(block.Header.FreshStake)
 	for _, tx := range block.STransactions {
-		switch stake.DetermineTxType(tx) {
+		// It is ok to set isTreasuryEnabled to true. This code relies
+		// on consensus to make sure treasury opcodes never make it
+		// here. Setting it to true also will automatically enable the
+		// opcodes once the treasury agenda is voted in.
+		switch stake.DetermineTxType(tx, true) {
 		case stake.TxTypeSStx:
 			for txInIdx, txIn := range tx.TxIn {
 				prevOut := &txIn.PreviousOutPoint
@@ -391,6 +402,52 @@ func Regular(block *wire.MsgBlock, prevScripts PrevScripter) (*gcs.FilterV2, err
 
 		case stake.TxTypeSSRtx:
 			for _, txOut := range tx.TxOut {
+				data.AddStakePkScript(txOut.PkScript)
+			}
+
+		// The treasury opcodes can be added to cfilter2 for two reasons:
+		// 1. Nothing changes from the viewpoint of the wallet.
+		// 2. Consensus disallows treasury opcodes prior to activation.
+		case stake.TxTypeTAdd:
+			// All inputs from TAdd are burnt as they enter the treasury account.
+			for txInIdx, txIn := range tx.TxIn {
+				prevOut := &txIn.PreviousOutPoint
+				scriptVer, prevOutScript, ok := prevScripts.PrevScript(prevOut)
+				if !ok {
+					return nil, PrevScriptError{
+						PrevOut: *prevOut,
+						TxHash:  tx.TxHash(),
+						TxInIdx: txInIdx,
+					}
+				}
+
+				// Don't add scripts that are empty, larger than the max allowed
+				// length, or for an unsupported script version.
+				if excludeFromFilter(scriptVer, prevOutScript) {
+					continue
+				}
+
+				// Add the script to be included in the filter while stripping
+				// the initial stake opcode for those in the stake tree.
+				isStakeTree := prevOut.Tree == wire.TxTreeStake
+				isStakeOut := isStakeTree && isStakeOutput(scriptVer, prevOutScript)
+				if isStakeOut {
+					data.AddStakePkScript(prevOutScript)
+				} else {
+					data.AddRegularPkScript(prevOutScript)
+				}
+			}
+
+			// Handle stake change. Stake change is always output 1 and output 1
+			// only exists if there is change. Check for 0 value just to be sure.
+			if len(tx.TxOut) == 2 && tx.TxOut[1].Value != 0 {
+				data.AddStakePkScript(tx.TxOut[1].PkScript)
+			}
+
+		case stake.TxTypeTSpend:
+			// Skip OP_RETURN and then strip all OP_TGEN from the remaining
+			// outputs.
+			for _, txOut := range tx.TxOut[1:] {
 				data.AddStakePkScript(txOut.PkScript)
 			}
 		}

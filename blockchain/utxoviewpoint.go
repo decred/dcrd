@@ -248,8 +248,9 @@ func newUtxoEntry(txVersion uint16, height uint32, index uint32, isCoinBase bool
 // The unspent outputs are needed by other transactions for things such as
 // script validation and double spend prevention.
 type UtxoViewpoint struct {
-	entries  map[chainhash.Hash]*UtxoEntry
-	bestHash chainhash.Hash
+	entries    map[chainhash.Hash]*UtxoEntry
+	bestHash   chainhash.Hash
+	blockChain *BlockChain
 }
 
 // BestHash returns the hash of the best block in the chain the view currently
@@ -311,16 +312,16 @@ func (view *UtxoViewpoint) PriorityInput(prevOut *wire.OutPoint) (int64, int64, 
 // unspendable to the view.  When the view already has entries for any of the
 // outputs, they are simply marked unspent.  All fields will be updated for
 // existing entries since it's possible it has changed during a reorg.
-func (view *UtxoViewpoint) AddTxOuts(tx *dcrutil.Tx, blockHeight int64, blockIndex uint32) {
+func (view *UtxoViewpoint) AddTxOuts(tx *dcrutil.Tx, blockHeight int64, blockIndex uint32, isTreasuryEnabled bool) {
 	// When there are not already any utxos associated with the transaction,
 	// add a new entry for it to the view.
 	entry := view.LookupEntry(tx.Hash())
 	if entry == nil {
 		msgTx := tx.MsgTx()
-		txType := stake.DetermineTxType(msgTx)
+		txType := stake.DetermineTxType(msgTx, isTreasuryEnabled)
 		entry = newUtxoEntry(msgTx.Version, uint32(blockHeight),
-			blockIndex, standalone.IsCoinBaseTx(msgTx), msgTx.Expiry != 0,
-			txType)
+			blockIndex, standalone.IsCoinBaseTx(msgTx, isTreasuryEnabled),
+			msgTx.Expiry != 0, txType)
 		if txType == stake.TxTypeSStx {
 			stakeExtra := make([]byte, serializeSizeForMinimalOutputs(tx))
 			putTxToMinimalOutputs(stakeExtra, tx)
@@ -371,22 +372,36 @@ func (view *UtxoViewpoint) AddTxOuts(tx *dcrutil.Tx, blockHeight int64, blockInd
 // spent.  In addition, when the 'stxos' argument is not nil, it will be updated
 // to append an entry for each spent txout.  An error will be returned if the
 // view does not contain the required utxos.
-func (view *UtxoViewpoint) connectTransaction(tx *dcrutil.Tx, blockHeight int64, blockIndex uint32, stxos *[]spentTxOut) error {
+func (view *UtxoViewpoint) connectTransaction(tx *dcrutil.Tx, blockHeight int64, blockIndex uint32, stxos *[]spentTxOut, isTreasuryEnabled bool) error {
 	// Coinbase transactions don't have any inputs to spend.
 	msgTx := tx.MsgTx()
-	if standalone.IsCoinBaseTx(msgTx) {
+	if standalone.IsCoinBaseTx(msgTx, isTreasuryEnabled) {
 		// Add the transaction's outputs as available utxos.
-		view.AddTxOuts(tx, blockHeight, blockIndex)
+		view.AddTxOuts(tx, blockHeight, blockIndex, isTreasuryEnabled)
+		return nil
+	}
+
+	// Treasurybase transactions don't have any inputs to spend.
+	if isTreasuryEnabled && standalone.IsTreasuryBase(msgTx) {
 		return nil
 	}
 
 	// Spend the referenced utxos by marking them spent in the view and,
 	// if a slice was provided for the spent txout details, append an entry
 	// to it.
-	isVote := stake.IsSSGen(msgTx)
+	isVote := stake.IsSSGen(msgTx, isTreasuryEnabled)
+	var isTSpend bool
+	if isTreasuryEnabled {
+		isTSpend = stake.IsTSpend(msgTx)
+	}
 	for txInIdx, txIn := range msgTx.TxIn {
 		// Ignore stakebase since it has no input.
 		if isVote && txInIdx == 0 {
+			continue
+		}
+
+		// Ignore TSpend since it has no input.
+		if isTSpend {
 			continue
 		}
 
@@ -434,7 +449,7 @@ func (view *UtxoViewpoint) connectTransaction(tx *dcrutil.Tx, blockHeight int64,
 	}
 
 	// Add the transaction's outputs as available utxos.
-	view.AddTxOuts(tx, blockHeight, blockIndex)
+	view.AddTxOuts(tx, blockHeight, blockIndex, isTreasuryEnabled)
 
 	return nil
 }
@@ -443,7 +458,7 @@ func (view *UtxoViewpoint) connectTransaction(tx *dcrutil.Tx, blockHeight int64,
 // the transactions in either the regular or stake tree of the block, depending
 // on the flag, and unspending all of the txos spent by those same transactions
 // by using the provided spent txo information.
-func (view *UtxoViewpoint) disconnectTransactions(block *dcrutil.Block, stxos []spentTxOut, stakeTree bool) error {
+func (view *UtxoViewpoint) disconnectTransactions(block *dcrutil.Block, stxos []spentTxOut, stakeTree bool, isTreasuryEnabled bool) error {
 	// Choose which transaction tree to use and the appropriate offset into the
 	// spent transaction outputs that corresponds to them depending on the flag.
 	// Transactions in the stake tree are spent before transactions in the
@@ -461,9 +476,17 @@ func (view *UtxoViewpoint) disconnectTransactions(block *dcrutil.Block, stxos []
 		msgTx := tx.MsgTx()
 		txType := stake.TxTypeRegular
 		if stakeTree {
-			txType = stake.DetermineTxType(msgTx)
+			txType = stake.DetermineTxType(msgTx, isTreasuryEnabled)
 		}
 		isVote := txType == stake.TxTypeSSGen
+
+		var isTreasuryBase, isTSpend bool
+
+		if isTreasuryEnabled {
+			isTSpend = txType == stake.TxTypeTSpend && stakeTree
+			isTreasuryBase = txType == stake.TxTypeTreasuryBase &&
+				stakeTree && txIdx == 0
+		}
 
 		// Clear this transaction from the view if it already exists or create a
 		// new empty entry for when it does not.  This is done because the code
@@ -479,10 +502,11 @@ func (view *UtxoViewpoint) disconnectTransactions(block *dcrutil.Block, stxos []
 		entry.modified = true
 		entry.sparseOutputs = make(map[uint32]*utxoOutput)
 
-		// Loop backwards through all of the transaction inputs (except for the
-		// coinbase which has no inputs) and unspend the referenced txos.  This
-		// is necessary to match the order of the spent txout entries.
-		if isCoinbase {
+		// Loop backwards through all of the transaction inputs (except
+		// for the coinbase and treasurybase which have no inputs) and
+		// unspend the referenced txos.  This is necessary to match the
+		// order of the spent txout entries.
+		if isCoinbase || isTreasuryBase || isTSpend {
 			continue
 		}
 		for txInIdx := len(msgTx.TxIn) - 1; txInIdx > -1; txInIdx-- {
@@ -547,16 +571,16 @@ func (view *UtxoViewpoint) disconnectTransactions(block *dcrutil.Block, stxos []
 // by the transactions in regular tree of the provided block and unspending all
 // of the txos spent by those same transactions by using the provided spent txo
 // information.
-func (view *UtxoViewpoint) disconnectRegularTransactions(block *dcrutil.Block, stxos []spentTxOut) error {
-	return view.disconnectTransactions(block, stxos, false)
+func (view *UtxoViewpoint) disconnectRegularTransactions(block *dcrutil.Block, stxos []spentTxOut, isTreasuryEnabled bool) error {
+	return view.disconnectTransactions(block, stxos, false, isTreasuryEnabled)
 }
 
 // disconnectStakeTransactions updates the view by removing all utxos created
 // by the transactions in stake tree of the provided block and unspending all
 // of the txos spent by those same transactions by using the provided spent txo
 // information.
-func (view *UtxoViewpoint) disconnectStakeTransactions(block *dcrutil.Block, stxos []spentTxOut) error {
-	return view.disconnectTransactions(block, stxos, true)
+func (view *UtxoViewpoint) disconnectStakeTransactions(block *dcrutil.Block, stxos []spentTxOut, isTreasuryEnabled bool) error {
+	return view.disconnectTransactions(block, stxos, true, isTreasuryEnabled)
 }
 
 // disconnectDisapprovedBlock updates the view by disconnecting all of the
@@ -566,12 +590,12 @@ func (view *UtxoViewpoint) disconnectStakeTransactions(block *dcrutil.Block, stx
 // restoring the outputs spent by it with the help of the provided spent txo
 // information.
 //func (view *UtxoViewpoint) disconnectDisapprovedBlock(db database.DB, block *dcrutil.Block, stxos []spentTxOut) error {
-func (view *UtxoViewpoint) disconnectDisapprovedBlock(db database.DB, block *dcrutil.Block) error {
+func (view *UtxoViewpoint) disconnectDisapprovedBlock(db database.DB, block *dcrutil.Block, isTreasuryEnabled bool) error {
 	// Load all of the spent txos for the block from the database spend journal.
 	var stxos []spentTxOut
 	err := db.View(func(dbTx database.Tx) error {
 		var err error
-		stxos, err = dbFetchSpendJournalEntry(dbTx, block)
+		stxos, err = dbFetchSpendJournalEntry(dbTx, block, isTreasuryEnabled)
 		return err
 	})
 	if err != nil {
@@ -580,19 +604,19 @@ func (view *UtxoViewpoint) disconnectDisapprovedBlock(db database.DB, block *dcr
 
 	// Load all of the utxos referenced by the inputs for all transactions in
 	// the block that don't already exist in the utxo view from the database.
-	err = view.fetchRegularInputUtxos(db, block)
+	err = view.fetchRegularInputUtxos(db, block, isTreasuryEnabled)
 	if err != nil {
 		return err
 	}
 
 	// Sanity check the correct number of stxos are provided.
-	if len(stxos) != countSpentOutputs(block) {
+	if len(stxos) != countSpentOutputs(block, isTreasuryEnabled) {
 		panicf("provided %v stxos for block %v (height %v) which spends %v "+
 			"outputs", len(stxos), block.Hash(), block.MsgBlock().Header.Height,
-			countSpentOutputs(block))
+			countSpentOutputs(block, isTreasuryEnabled))
 	}
 
-	return view.disconnectRegularTransactions(block, stxos)
+	return view.disconnectRegularTransactions(block, stxos, isTreasuryEnabled)
 }
 
 // connectBlock updates the view by potentially disconnecting all of the
@@ -610,11 +634,12 @@ func (view *UtxoViewpoint) disconnectDisapprovedBlock(db database.DB, block *dcr
 //
 // In addition, when the 'stxos' argument is not nil, it will be updated to
 // append an entry for each spent txout.
-func (view *UtxoViewpoint) connectBlock(db database.DB, block, parent *dcrutil.Block, stxos *[]spentTxOut) error {
+func (view *UtxoViewpoint) connectBlock(db database.DB, block, parent *dcrutil.Block, stxos *[]spentTxOut, isTreasuryEnabled bool) error {
 	// Disconnect the transactions in the regular tree of the parent block if
 	// the passed block disapproves it.
 	if !headerApprovesParent(&block.MsgBlock().Header) {
-		err := view.disconnectDisapprovedBlock(db, parent)
+		err := view.disconnectDisapprovedBlock(db, parent,
+			isTreasuryEnabled)
 		if err != nil {
 			return err
 		}
@@ -622,7 +647,7 @@ func (view *UtxoViewpoint) connectBlock(db database.DB, block, parent *dcrutil.B
 
 	// Load all of the utxos referenced by the inputs for all transactions in
 	// the block that don't already exist in the utxo view from the database.
-	err := view.fetchInputUtxos(db, block)
+	err := view.fetchInputUtxos(db, block, isTreasuryEnabled)
 	if err != nil {
 		return err
 	}
@@ -634,13 +659,15 @@ func (view *UtxoViewpoint) connectBlock(db database.DB, block, parent *dcrutil.B
 	// important since the regular tree may be disapproved by the subsequent
 	// block while the stake tree must remain valid.
 	for i, stx := range block.STransactions() {
-		err := view.connectTransaction(stx, block.Height(), uint32(i), stxos)
+		err := view.connectTransaction(stx, block.Height(), uint32(i),
+			stxos, isTreasuryEnabled)
 		if err != nil {
 			return err
 		}
 	}
 	for i, tx := range block.Transactions() {
-		err := view.connectTransaction(tx, block.Height(), uint32(i), stxos)
+		err := view.connectTransaction(tx, block.Height(), uint32(i),
+			stxos, isTreasuryEnabled)
 		if err != nil {
 			return err
 		}
@@ -668,17 +695,17 @@ func (view *UtxoViewpoint) connectBlock(db database.DB, block, parent *dcrutil.B
 // Note that, unlike block connection, the spent transaction output (stxo)
 // information is required and failure to provide it will result in an assertion
 // panic.
-func (view *UtxoViewpoint) disconnectBlock(db database.DB, block, parent *dcrutil.Block, stxos []spentTxOut) error {
+func (view *UtxoViewpoint) disconnectBlock(db database.DB, block, parent *dcrutil.Block, stxos []spentTxOut, isTreasuryEnabled bool) error {
 	// Sanity check the correct number of stxos are provided.
-	if len(stxos) != countSpentOutputs(block) {
+	if len(stxos) != countSpentOutputs(block, isTreasuryEnabled) {
 		panicf("provided %v stxos for block %v (height %v) which spends %v "+
 			"outputs", len(stxos), block.Hash(), block.MsgBlock().Header.Height,
-			countSpentOutputs(block))
+			countSpentOutputs(block, isTreasuryEnabled))
 	}
 
 	// Load all of the utxos referenced by the inputs for all transactions in
 	// the block don't already exist in the utxo view from the database.
-	err := view.fetchInputUtxos(db, block)
+	err := view.fetchInputUtxos(db, block, isTreasuryEnabled)
 	if err != nil {
 		return err
 	}
@@ -686,11 +713,11 @@ func (view *UtxoViewpoint) disconnectBlock(db database.DB, block, parent *dcruti
 	// Disconnect all of the transactions in both the regular and stake trees of
 	// the block.  Notice that the regular tree is disconnected before the stake
 	// tree since that is the reverse of how they are connected.
-	err = view.disconnectRegularTransactions(block, stxos)
+	err = view.disconnectRegularTransactions(block, stxos, isTreasuryEnabled)
 	if err != nil {
 		return err
 	}
-	err = view.disconnectStakeTransactions(block, stxos)
+	err = view.disconnectStakeTransactions(block, stxos, isTreasuryEnabled)
 	if err != nil {
 		return err
 	}
@@ -701,13 +728,14 @@ func (view *UtxoViewpoint) disconnectBlock(db database.DB, block, parent *dcruti
 		// Load all of the utxos referenced by the inputs for all transactions
 		// in the regular tree of the parent block that don't already exist in
 		// the utxo view from the database.
-		err := view.fetchRegularInputUtxos(db, parent)
+		err := view.fetchRegularInputUtxos(db, parent, isTreasuryEnabled)
 		if err != nil {
 			return err
 		}
 
 		for i, tx := range parent.Transactions() {
-			err := view.connectTransaction(tx, parent.Height(), uint32(i), nil)
+			err := view.connectTransaction(tx, parent.Height(),
+				uint32(i), nil, isTreasuryEnabled)
 			if err != nil {
 				return err
 			}
@@ -791,7 +819,7 @@ func (view *UtxoViewpoint) fetchUtxosMain(db database.DB, filteredSet viewFilter
 // located later in the regular tree of the block and returns a set of the
 // referenced outputs that are not already in the view and thus need to be
 // fetched from the database.
-func (view *UtxoViewpoint) addRegularInputUtxos(block *dcrutil.Block) viewFilteredSet {
+func (view *UtxoViewpoint) addRegularInputUtxos(block *dcrutil.Block, isTreasuryEnabled bool) viewFilteredSet {
 	// Build a map of in-flight transactions because some of the inputs in the
 	// regular transaction tree of this block could be referencing other
 	// transactions earlier in the block which are not yet in the chain.
@@ -822,7 +850,8 @@ func (view *UtxoViewpoint) addRegularInputUtxos(block *dcrutil.Block) viewFilter
 				i >= inFlightIndex {
 
 				originTx := regularTxns[inFlightIndex]
-				view.AddTxOuts(originTx, block.Height(), uint32(inFlightIndex))
+				view.AddTxOuts(originTx, block.Height(),
+					uint32(inFlightIndex), isTreasuryEnabled)
 				continue
 			}
 
@@ -840,11 +869,11 @@ func (view *UtxoViewpoint) addRegularInputUtxos(block *dcrutil.Block) viewFilter
 // the view from the database as needed.  In particular, referenced entries that
 // are earlier in the block are added to the view and entries that are already
 // in the view are not modified.
-func (view *UtxoViewpoint) fetchRegularInputUtxos(db database.DB, block *dcrutil.Block) error {
+func (view *UtxoViewpoint) fetchRegularInputUtxos(db database.DB, block *dcrutil.Block, isTreasuryEnabled bool) error {
 	// Add any outputs of transactions in the regular tree of the block that are
 	// referenced by inputs of transactions that are located later in the tree
 	// and fetch any inputs that are not already in the view from the database.
-	filteredSet := view.addRegularInputUtxos(block)
+	filteredSet := view.addRegularInputUtxos(block, isTreasuryEnabled)
 	return view.fetchUtxosMain(db, filteredSet)
 }
 
@@ -854,12 +883,12 @@ func (view *UtxoViewpoint) fetchRegularInputUtxos(db database.DB, block *dcrutil
 // referenced entries that are earlier in the regular tree of the block are
 // added to the view.  In all cases, entries that are already in the view are
 // not modified.
-func (view *UtxoViewpoint) fetchInputUtxos(db database.DB, block *dcrutil.Block) error {
+func (view *UtxoViewpoint) fetchInputUtxos(db database.DB, block *dcrutil.Block, isTreasuryEnabled bool) error {
 	// Add any outputs of transactions in the regular tree of the block that are
 	// referenced by inputs of transactions that are located later in the tree
 	// and, while doing so, determine which inputs are not already in the view
 	// and thus need to be fetched from the database.
-	filteredSet := view.addRegularInputUtxos(block)
+	filteredSet := view.addRegularInputUtxos(block, isTreasuryEnabled)
 
 	// Loop through all of the inputs of the transaction in the stake tree and
 	// add those that aren't already known to the set of what is needed.
@@ -869,7 +898,7 @@ func (view *UtxoViewpoint) fetchInputUtxos(db database.DB, block *dcrutil.Block)
 	// the block.  This applies to both transactions earlier in the stake tree
 	// as well as those in the regular tree.
 	for _, stx := range block.STransactions() {
-		isVote := stake.IsSSGen(stx.MsgTx())
+		isVote := stake.IsSSGen(stx.MsgTx(), isTreasuryEnabled)
 		for txInIdx, txIn := range stx.MsgTx().TxIn {
 			// Ignore stakebase since it has no input.
 			if isVote && txInIdx == 0 {
@@ -890,8 +919,9 @@ func (view *UtxoViewpoint) fetchInputUtxos(db database.DB, block *dcrutil.Block)
 // clone returns a deep copy of the view.
 func (view *UtxoViewpoint) clone() *UtxoViewpoint {
 	clonedView := &UtxoViewpoint{
-		entries:  make(map[chainhash.Hash]*UtxoEntry),
-		bestHash: view.bestHash,
+		entries:    make(map[chainhash.Hash]*UtxoEntry),
+		bestHash:   view.bestHash,
+		blockChain: view.blockChain,
 	}
 
 	for txHash, entry := range view.entries {
@@ -902,9 +932,10 @@ func (view *UtxoViewpoint) clone() *UtxoViewpoint {
 }
 
 // NewUtxoViewpoint returns a new empty unspent transaction output view.
-func NewUtxoViewpoint() *UtxoViewpoint {
+func NewUtxoViewpoint(blockChain *BlockChain) *UtxoViewpoint {
 	return &UtxoViewpoint{
-		entries: make(map[chainhash.Hash]*UtxoEntry),
+		entries:    make(map[chainhash.Hash]*UtxoEntry),
+		blockChain: blockChain,
 	}
 }
 
@@ -926,10 +957,15 @@ func (b *BlockChain) FetchUtxoView(tx *dcrutil.Tx, includeRegularTxns bool) (*Ut
 	// because the code below requires the parent block and the genesis
 	// block doesn't have one.
 	tip := b.bestChain.Tip()
-	view := NewUtxoViewpoint()
+	view := NewUtxoViewpoint(b)
 	view.SetBestHash(&tip.hash)
 	if tip.height == 0 {
 		return view, nil
+	}
+
+	isTreasuryEnabled, err := b.isTreasuryAgendaActive(tip)
+	if err != nil {
+		return nil, err
 	}
 
 	// Disconnect the transactions in the regular tree of the tip block if the
@@ -948,7 +984,8 @@ func (b *BlockChain) FetchUtxoView(tx *dcrutil.Tx, includeRegularTxns bool) (*Ut
 			}
 
 			// Disconnect the transactions in the regular tree of the tip block.
-			err = view.disconnectDisapprovedBlock(b.db, tipBlock)
+			err = view.disconnectDisapprovedBlock(b.db, tipBlock,
+				isTreasuryEnabled)
 			if err != nil {
 				b.disapprovedViewLock.Unlock()
 				return nil, err
@@ -970,8 +1007,8 @@ func (b *BlockChain) FetchUtxoView(tx *dcrutil.Tx, includeRegularTxns bool) (*Ut
 	filteredSet := make(viewFilteredSet)
 	filteredSet.add(view, tx.Hash())
 	msgTx := tx.MsgTx()
-	if !standalone.IsCoinBaseTx(msgTx) {
-		isVote := stake.IsSSGen(msgTx)
+	if !standalone.IsCoinBaseTx(msgTx, isTreasuryEnabled) {
+		isVote := stake.IsSSGen(msgTx, isTreasuryEnabled)
 		for txInIdx, txIn := range msgTx.TxIn {
 			// Ignore stakebase since it has no input.
 			if isVote && txInIdx == 0 {
@@ -982,7 +1019,7 @@ func (b *BlockChain) FetchUtxoView(tx *dcrutil.Tx, includeRegularTxns bool) (*Ut
 		}
 	}
 
-	err := view.fetchUtxosMain(b.db, filteredSet)
+	err = view.fetchUtxosMain(b.db, filteredSet)
 	return view, err
 }
 

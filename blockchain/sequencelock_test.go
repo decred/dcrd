@@ -55,8 +55,8 @@ func TestCalcSequenceLock(t *testing.T) {
 			PkScript: nil,
 		}},
 	})
-	view := NewUtxoViewpoint()
-	view.AddTxOuts(targetTx, int64(numBlocks)-4, 0)
+	view := NewUtxoViewpoint(bc)
+	view.AddTxOuts(targetTx, int64(numBlocks)-4, 0, noTreasury)
 	view.SetBestHash(&node.hash)
 
 	// Create a utxo that spends the fake utxo created above for use in the
@@ -100,7 +100,8 @@ func TestCalcSequenceLock(t *testing.T) {
 
 	// Adding a utxo with a height of 0x7fffffff indicates that the output
 	// is currently unmined.
-	view.AddTxOuts(dcrutil.NewTx(unConfTx), 0x7fffffff, wire.NullBlockIndex)
+	view.AddTxOuts(dcrutil.NewTx(unConfTx), 0x7fffffff, wire.NullBlockIndex,
+		noTreasury)
 
 	tests := []struct {
 		name      string

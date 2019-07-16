@@ -13,9 +13,17 @@ import (
 // means the package will not perform any logging by default until the caller
 // requests it.
 // The default amount of logging is none.
-var log = slog.Disabled
+var (
+	log     = slog.Disabled
+	trsyLog = slog.Disabled
+)
 
 // UseLogger uses a specified Logger to output package logging info.
 func UseLogger(logger slog.Logger) {
 	log = logger
+}
+
+// UseTreasuryLogger uses a specified Logger to output treasury logging info.
+func UseTreasuryLogger(logger slog.Logger) {
+	trsyLog = logger
 }

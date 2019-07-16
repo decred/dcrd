@@ -215,7 +215,7 @@ func (idx *ExistsAddrIndex) ExistsAddresses(addrs []dcrutil.Address) ([]bool, er
 // the transactions in the block involve.
 //
 // This is part of the Indexer interface.
-func (idx *ExistsAddrIndex) ConnectBlock(dbTx database.Tx, block, parent *dcrutil.Block, _ PrevScripter) error {
+func (idx *ExistsAddrIndex) ConnectBlock(dbTx database.Tx, block, parent *dcrutil.Block, _ PrevScripter, isTreasuryEnabled bool) error {
 	// NOTE: The fact that the block can disapprove the regular tree of the
 	// previous block is ignored for this index because even though technically
 	// the address might become unused again if its only use was in a
@@ -244,7 +244,8 @@ func (idx *ExistsAddrIndex) ConnectBlock(dbTx database.Tx, block, parent *dcruti
 				rs := txscript.MultisigRedeemScriptFromScriptSig(
 					txIn.SignatureScript)
 				class, addrs, _, err := txscript.ExtractPkScriptAddrs(
-					scriptVersion, rs, idx.chainParams)
+					scriptVersion, rs, idx.chainParams,
+					isTreasuryEnabled)
 				if err != nil {
 					// Non-standard outputs are skipped.
 					continue
@@ -267,7 +268,8 @@ func (idx *ExistsAddrIndex) ConnectBlock(dbTx database.Tx, block, parent *dcruti
 
 		for _, txOut := range tx.MsgTx().TxOut {
 			class, addrs, _, err := txscript.ExtractPkScriptAddrs(
-				txOut.Version, txOut.PkScript, idx.chainParams)
+				txOut.Version, txOut.PkScript, idx.chainParams,
+				isTreasuryEnabled)
 			if err != nil {
 				// Non-standard outputs are skipped.
 				continue
@@ -332,7 +334,7 @@ func (idx *ExistsAddrIndex) ConnectBlock(dbTx database.Tx, block, parent *dcruti
 // never removes addresses.
 //
 // This is part of the Indexer interface.
-func (idx *ExistsAddrIndex) DisconnectBlock(dbTx database.Tx, block, parent *dcrutil.Block, _ PrevScripter) error {
+func (idx *ExistsAddrIndex) DisconnectBlock(dbTx database.Tx, block, parent *dcrutil.Block, _ PrevScripter, isTreasuryEnabled bool) error {
 	// The primary purpose of this index is to track whether or not addresses
 	// have ever been seen, so even if they ultimately end up technically
 	// becoming unused due to being in a block that was disconnected and the
@@ -352,7 +354,7 @@ func (idx *ExistsAddrIndex) DisconnectBlock(dbTx database.Tx, block, parent *dcr
 // unconfirmed (memory-only) exists address index.
 //
 // This function MUST be called with the unconfirmed lock held.
-func (idx *ExistsAddrIndex) addUnconfirmedTx(tx *wire.MsgTx) {
+func (idx *ExistsAddrIndex) addUnconfirmedTx(tx *wire.MsgTx, isTreasuryEnabled bool) {
 	isSStx := stake.IsSStx(tx)
 	for _, txIn := range tx.TxIn {
 		if txscript.IsMultisigSigScript(txIn.SignatureScript) {
@@ -363,7 +365,8 @@ func (idx *ExistsAddrIndex) addUnconfirmedTx(tx *wire.MsgTx) {
 			rs := txscript.MultisigRedeemScriptFromScriptSig(
 				txIn.SignatureScript)
 			class, addrs, _, err := txscript.ExtractPkScriptAddrs(
-				scriptVersion, rs, idx.chainParams)
+				scriptVersion, rs, idx.chainParams,
+				isTreasuryEnabled)
 			if err != nil {
 				// Non-standard outputs are skipped.
 				continue
@@ -388,7 +391,7 @@ func (idx *ExistsAddrIndex) addUnconfirmedTx(tx *wire.MsgTx) {
 
 	for _, txOut := range tx.TxOut {
 		class, addrs, _, err := txscript.ExtractPkScriptAddrs(txOut.Version,
-			txOut.PkScript, idx.chainParams)
+			txOut.PkScript, idx.chainParams, isTreasuryEnabled)
 		if err != nil {
 			// Non-standard outputs are skipped.
 			continue
@@ -423,9 +426,9 @@ func (idx *ExistsAddrIndex) addUnconfirmedTx(tx *wire.MsgTx) {
 // unconfirmed (memory-only) exists address index.
 //
 // This function is safe for concurrent access.
-func (idx *ExistsAddrIndex) AddUnconfirmedTx(tx *wire.MsgTx) {
+func (idx *ExistsAddrIndex) AddUnconfirmedTx(tx *wire.MsgTx, isTreasuryEnabled bool) {
 	idx.unconfirmedLock.Lock()
-	idx.addUnconfirmedTx(tx)
+	idx.addUnconfirmedTx(tx, isTreasuryEnabled)
 	idx.unconfirmedLock.Unlock()
 }
 

@@ -1077,3 +1077,51 @@ func (c *Client) VersionAsync(ctx context.Context) *FutureVersionResult {
 func (c *Client) Version(ctx context.Context) (map[string]chainjson.VersionResult, error) {
 	return c.VersionAsync(ctx).Receive()
 }
+
+// FutureGetTreasuryBalance is a future promise to deliver the result of a
+// GetTreasuryBalanceAsync RPC invocation (or an applicable error).
+type FutureGetTreasuryBalanceResult cmdRes
+
+// Receive waits for the response promised by the future and returns the
+// gettreasurybalance result.
+func (r *FutureGetTreasuryBalanceResult) Receive() (*chainjson.GetTreasuryBalanceResult, error) {
+	res, err := receiveFuture(r.ctx, r.c)
+	if err != nil {
+		return nil, err
+	}
+
+	// Unmarshal result as a gettreasurybalance result object.
+	var balanceRes chainjson.GetTreasuryBalanceResult
+	err = json.Unmarshal(res, &balanceRes)
+	if err != nil {
+		return nil, err
+	}
+
+	return &balanceRes, nil
+}
+
+// GetTreasuryBalanceAsync returns an instance of a type that can be used to
+// get the result of the RPC at some future time by invoking the Receive
+// function on the returned instance.
+//
+// See GetTreasuryBalance for the blocking version and more details.
+func (c *Client) GetTreasuryBalanceAsync(ctx context.Context, block *chainhash.Hash, verbose bool) *FutureGetTreasuryBalanceResult {
+	var bh *string
+	if block != nil {
+		s := block.String()
+		bh = &s
+	}
+	cmd := &chainjson.GetTreasuryBalanceCmd{
+		Hash:    bh,
+		Verbose: &verbose,
+	}
+	return (*FutureGetTreasuryBalanceResult)(c.sendCmd(ctx, cmd))
+}
+
+// GetTreasuryBalance returns the treasury balance as of a given block hash or
+// at the current tip if no hash is specified. If verbose is specified, then
+// the treasury balance updates (TreasuryBase, TAdds and TSpends) in the given
+// block are also returned.
+func (c *Client) GetTreasuryBalance(ctx context.Context, block *chainhash.Hash, verbose bool) (*chainjson.GetTreasuryBalanceResult, error) {
+	return c.GetTreasuryBalanceAsync(ctx, block, verbose).Receive()
+}

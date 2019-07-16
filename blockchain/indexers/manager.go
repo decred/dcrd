@@ -118,7 +118,7 @@ func dbFetchIndexerVersion(dbTx database.Tx, idxKey []byte) (uint32, error) {
 // given block using the provided indexer and updates the tip of the indexer
 // accordingly.  An error will be returned if the current tip for the indexer is
 // not the previous block for the passed block.
-func dbIndexConnectBlock(dbTx database.Tx, indexer Indexer, block, parent *dcrutil.Block, prevScripts PrevScripter) error {
+func dbIndexConnectBlock(dbTx database.Tx, indexer Indexer, block, parent *dcrutil.Block, prevScripts PrevScripter, isTreasuryEnabled bool) error {
 	// Assert that the block being connected properly connects to the
 	// current tip of the index.
 	idxKey := indexer.Key()
@@ -134,7 +134,8 @@ func dbIndexConnectBlock(dbTx database.Tx, indexer Indexer, block, parent *dcrut
 	}
 
 	// Notify the indexer with the connected block so it can index it.
-	err = indexer.ConnectBlock(dbTx, block, parent, prevScripts)
+	err = indexer.ConnectBlock(dbTx, block, parent, prevScripts,
+		isTreasuryEnabled)
 	if err != nil {
 		return err
 	}
@@ -147,7 +148,7 @@ func dbIndexConnectBlock(dbTx database.Tx, indexer Indexer, block, parent *dcrut
 // given block using the provided indexer and updates the tip of the indexer
 // accordingly.  An error will be returned if the current tip for the indexer is
 // not the passed block.
-func dbIndexDisconnectBlock(dbTx database.Tx, indexer Indexer, block, parent *dcrutil.Block, prevScripts PrevScripter) error {
+func dbIndexDisconnectBlock(dbTx database.Tx, indexer Indexer, block, parent *dcrutil.Block, prevScripts PrevScripter, isTreasuryEnabled bool) error {
 	// Assert that the block being disconnected is the current tip of the
 	// index.
 	idxKey := indexer.Key()
@@ -164,7 +165,8 @@ func dbIndexDisconnectBlock(dbTx database.Tx, indexer Indexer, block, parent *dc
 
 	// Notify the indexer with the disconnected block so it can remove all
 	// of the appropriate entries.
-	err = indexer.DisconnectBlock(dbTx, block, parent, prevScripts)
+	err = indexer.DisconnectBlock(dbTx, block, parent, prevScripts,
+		isTreasuryEnabled)
 	if err != nil {
 		return err
 	}
@@ -472,10 +474,17 @@ func (m *Manager) Init(ctx context.Context, chain ChainQueryer) error {
 					}
 				}
 
+				// Find out if treasury was enabled at the parent.
+				isTreasuryEnabled, err := chain.IsTreasuryEnabled(parent.Hash())
+				if err != nil {
+					return err
+				}
+
 				// Remove all of the index entries associated
 				// with the block and update the indexer tip.
 				err = dbIndexDisconnectBlock(dbTx, indexer,
-					block, parent, prevScripts)
+					block, parent, prevScripts,
+					isTreasuryEnabled)
 				if err != nil {
 					return err
 				}
@@ -610,8 +619,14 @@ func (m *Manager) Init(ctx context.Context, chain ChainQueryer) error {
 						return errMakeView
 					}
 				}
+
+				// Find out if treasury was enabled at the parent.
+				isTreasuryEnabled, err := chain.IsTreasuryEnabled(parent.Hash())
+				if err != nil {
+					return err
+				}
 				err = dbIndexConnectBlock(dbTx, indexer, block,
-					parent, prevScripts)
+					parent, prevScripts, isTreasuryEnabled)
 				if err != nil {
 					return err
 				}
@@ -646,11 +661,12 @@ func indexNeedsInputs(index Indexer) bool {
 // checks, and invokes each indexer.
 //
 // This is part of the IndexManager interface.
-func (m *Manager) ConnectBlock(dbTx database.Tx, block, parent *dcrutil.Block, prevScripts PrevScripter) error {
+func (m *Manager) ConnectBlock(dbTx database.Tx, block, parent *dcrutil.Block, prevScripts PrevScripter, isTreasuryEnabled bool) error {
 	// Call each of the currently active optional indexes with the block
 	// being connected so they can update accordingly.
 	for _, index := range m.enabledIndexes {
-		err := dbIndexConnectBlock(dbTx, index, block, parent, prevScripts)
+		err := dbIndexConnectBlock(dbTx, index, block, parent,
+			prevScripts, isTreasuryEnabled)
 		if err != nil {
 			return err
 		}
@@ -664,11 +680,12 @@ func (m *Manager) ConnectBlock(dbTx database.Tx, block, parent *dcrutil.Block, p
 // the index entries associated with the block.
 //
 // This is part of the IndexManager interface.
-func (m *Manager) DisconnectBlock(dbTx database.Tx, block, parent *dcrutil.Block, prevScripts PrevScripter) error {
+func (m *Manager) DisconnectBlock(dbTx database.Tx, block, parent *dcrutil.Block, prevScripts PrevScripter, isTreasuryEnabled bool) error {
 	// Call each of the currently active optional indexes with the block
 	// being disconnected so they can update accordingly.
 	for _, index := range m.enabledIndexes {
-		err := dbIndexDisconnectBlock(dbTx, index, block, parent, prevScripts)
+		err := dbIndexDisconnectBlock(dbTx, index, block, parent,
+			prevScripts, isTreasuryEnabled)
 		if err != nil {
 			return err
 		}

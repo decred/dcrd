@@ -20,6 +20,12 @@ import (
 	"github.com/decred/dcrd/wire"
 )
 
+const (
+	// noTreasury signifies the treasury agenda should be treated as though it
+	// is inactive.  It is used to increase the readability of the tests.
+	noTreasury = false
+)
+
 // TestCalcMinRequiredTxRelayFee tests the calcMinRequiredTxRelayFee API.
 func TestCalcMinRequiredTxRelayFee(t *testing.T) {
 	tests := []struct {
@@ -190,7 +196,7 @@ func TestCheckPkScriptStandard(t *testing.T) {
 				"failed: %v", test.name, err)
 			continue
 		}
-		scriptClass := txscript.GetScriptClass(0, script)
+		scriptClass := txscript.GetScriptClass(0, script, noTreasury)
 		got := checkPkScriptStandard(0, script, scriptClass)
 		if (test.isStandard && got != nil) ||
 			(!test.isStandard && got == nil) {
@@ -529,10 +535,10 @@ func TestCheckTransactionStandard(t *testing.T) {
 	medianTime := time.Now()
 	for _, test := range tests {
 		// Ensure standardness is as expected.
+		txType := stake.DetermineTxType(&test.tx, noTreasury)
 		tx := dcrutil.NewTx(&test.tx)
-		err := checkTransactionStandard(tx, stake.DetermineTxType(&test.tx),
-			test.height, medianTime, DefaultMinRelayTxFee,
-			maxTxVersion)
+		err := checkTransactionStandard(tx, txType, test.height, medianTime,
+			DefaultMinRelayTxFee, maxTxVersion, noTreasury)
 		if err == nil && test.isStandard {
 			// Test passes since function returned standard for a
 			// transaction which is intended to be standard.

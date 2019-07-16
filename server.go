@@ -2195,10 +2195,17 @@ func (s *server) peerDoneHandler(sp *serverPeer) {
 	if sp.VersionKnown() {
 		s.blockManager.DonePeer(sp.Peer)
 
+		tipHash := &s.chain.BestSnapshot().Hash
+		isTreasuryEnabled, err := s.chain.IsTreasuryAgendaActive(tipHash)
+		if err != nil {
+			srvrLog.Errorf("Could not obtain treasury agenda status: %v", err)
+		}
+
 		// Evict any remaining orphans that were sent by the peer.
-		numEvicted := s.txMemPool.RemoveOrphansByTag(mempool.Tag(sp.ID()))
+		numEvicted := s.txMemPool.RemoveOrphansByTag(mempool.Tag(sp.ID()),
+			isTreasuryEnabled)
 		if numEvicted > 0 {
-			txmpLog.Debugf("Evicted %d %s from peer %v (id %d)", numEvicted,
+			srvrLog.Debugf("Evicted %d %s from peer %v (id %d)", numEvicted,
 				pickNoun(numEvicted, "orphan", "orphans"), sp, sp.ID())
 		}
 	}
@@ -2505,13 +2512,21 @@ out:
 					break
 				}
 
+				isTreasuryEnabled, err := s.chain.IsTreasuryAgendaActive(&best.Hash)
+				if err != nil {
+					srvrLog.Errorf("Could not obtain treasury agenda status: %v",
+						err)
+					break
+				}
+
 				for iv, data := range pendingInvs {
 					tx, ok := data.(*dcrutil.Tx)
 					if !ok {
 						continue
 					}
 
-					txType := stake.DetermineTxType(tx.MsgTx())
+					txType := stake.DetermineTxType(tx.MsgTx(),
+						isTreasuryEnabled)
 
 					// Remove the ticket rebroadcast if the amount not equal to
 					// the current stake difficulty.
@@ -2817,6 +2832,18 @@ func standardScriptVerifyFlags(chain *blockchain.BlockChain) (txscript.ScriptFla
 	if isActive {
 		scriptFlags |= txscript.ScriptVerifySHA256
 	}
+
+	// Enable validation of treasury-related opcodes when the associated
+	// agenda is active.
+	tipHash := &chain.BestSnapshot().Hash
+	isActive, err = chain.IsTreasuryAgendaActive(tipHash)
+	if err != nil {
+		return 0, err
+	}
+	if isActive {
+		scriptFlags |= txscript.ScriptVerifyTreasury
+	}
+
 	return scriptFlags, nil
 }
 
@@ -3089,6 +3116,19 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB, chainP
 				s.bg.VoteReceived(voteTx)
 			}
 		},
+		OnTSpendReceived: func(tx *dcrutil.Tx) {
+			if s.rpcServer != nil {
+				s.rpcServer.NotifyTSpend(tx)
+			}
+		},
+		IsTreasuryAgendaActive: func() (bool, error) {
+			tipHash := &s.chain.BestSnapshot().Hash
+			return s.chain.IsTreasuryAgendaActive(tipHash)
+		},
+		TSpendMinedOnAncestor: func(tspend chainhash.Hash) error {
+			tipHash := s.chain.BestSnapshot().Hash
+			return s.chain.CheckTSpendExists(tipHash, tspend)
+		},
 	}
 	s.txMemPool = mempool.New(&txC)
 	s.blockManager, err = newBlockManager(&blockManagerConfig{
@@ -3248,18 +3288,22 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB, chainP
 		}
 
 		rpcsConfig := rpcserver.Config{
-			Listeners:            rpcListeners,
-			ConnMgr:              &rpcConnManager{&s},
-			SyncMgr:              &rpcSyncMgr{server: &s, blockMgr: s.blockManager},
-			FeeEstimator:         s.feeEstimator,
-			TimeSource:           s.timeSource,
-			Services:             s.services,
-			AddrManager:          s.addrManager,
-			Clock:                &rpcClock{},
-			SubsidyCache:         s.subsidyCache,
-			Chain:                &rpcChain{s.chain},
-			ChainParams:          chainParams,
-			SanityChecker:        &rpcSanityChecker{s.timeSource, chainParams},
+			Listeners:    rpcListeners,
+			ConnMgr:      &rpcConnManager{&s},
+			SyncMgr:      &rpcSyncMgr{server: &s, blockMgr: s.blockManager},
+			FeeEstimator: s.feeEstimator,
+			TimeSource:   s.timeSource,
+			Services:     s.services,
+			AddrManager:  s.addrManager,
+			Clock:        &rpcClock{},
+			SubsidyCache: s.subsidyCache,
+			Chain:        &rpcChain{s.chain},
+			ChainParams:  chainParams,
+			SanityChecker: &rpcSanityChecker{
+				chain:       s.chain,
+				timeSource:  s.timeSource,
+				chainParams: chainParams,
+			},
 			DB:                   db,
 			TxMempooler:          s.txMemPool,
 			CPUMiner:             &rpcCPUMiner{s.cpuMiner},

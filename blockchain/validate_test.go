@@ -116,8 +116,9 @@ func TestBlockchainSpendJournal(t *testing.T) {
 				return err
 			}
 
-			ntx := countSpentOutputs(block)
-			stxos, err := dbFetchSpendJournalEntry(dbTx, block)
+			ntx := countSpentOutputs(block, noTreasury)
+			stxos, err := dbFetchSpendJournalEntry(dbTx, block,
+				noTreasury)
 			if err != nil {
 				return err
 			}
@@ -531,7 +532,7 @@ func TestCheckBlockSanity(t *testing.T) {
 	params := chaincfg.RegNetParams()
 	timeSource := NewMedianTime()
 	block := dcrutil.NewBlock(&badBlock)
-	err := CheckBlockSanity(block, timeSource, params)
+	err := CheckBlockSanity(block, timeSource, params, noTreasury)
 	if err == nil {
 		t.Fatalf("block should fail.\n")
 	}
@@ -600,7 +601,7 @@ func TestTxValidationErrors(t *testing.T) {
 	}
 
 	// Ensure transaction is rejected due to being too large.
-	err := CheckTransactionSanity(tx, chaincfg.MainNetParams())
+	err := CheckTransactionSanity(tx, chaincfg.MainNetParams(), noTreasury)
 	var rerr RuleError
 	if !errors.As(err, &rerr) {
 		t.Fatalf("CheckTransactionSanity: unexpected error type for "+

@@ -8,7 +8,19 @@ package blockchain
 import (
 	"errors"
 	"fmt"
+
+	"github.com/decred/dcrd/chaincfg/chainhash"
 )
+
+// UnknownBlockError identifies an error that indicates a requested block
+// does not exist.
+type UnknownBlockError chainhash.Hash
+
+// Error returns the error as a human-readable string and satisfies the error
+// interface.
+func (e UnknownBlockError) Error() string {
+	return fmt.Sprintf("block %s is not known", chainhash.Hash(e))
+}
 
 // VoteVersionError identifies an error that indicates a vote version was
 // specified that does not exist.
@@ -59,6 +71,16 @@ type NoFilterError string
 // interface.
 func (e NoFilterError) Error() string {
 	return fmt.Sprintf("no filter available for block %s", string(e))
+}
+
+// NoTreasuryError identifies an error that indicates the treasury balance for a
+// given block hash does not exist.
+type NoTreasuryError string
+
+// Error returns the error as a human-readable string and satisfies the error
+// interface.
+func (e NoTreasuryError) Error() string {
+	return fmt.Sprintf("treasury balance not available for block %s", string(e))
 }
 
 // AssertError identifies an error that indicates an internal code consistency
@@ -166,6 +188,10 @@ const (
 	// valid transaction must have at least one output.
 	ErrNoTxOutputs
 
+	// ErrInvalidTxOutputs indicates a transaction does not have the exact
+	// number of outputs.
+	ErrInvalidTxOutputs
+
 	// ErrTxTooBig indicates a transaction exceeds the maximum allowed size
 	// when serialized.
 	ErrTxTooBig
@@ -220,6 +246,10 @@ const (
 	// ErrFirstTxNotCoinbase indicates the first transaction in a block
 	// is not a coinbase transaction.
 	ErrFirstTxNotCoinbase
+
+	// ErrFirstTxNotOpReturn indicates the first transaction in a block
+	// is not an OP_RETURN.
+	ErrFirstTxNotOpReturn
 
 	// ErrCoinbaseHeight indicates that the encoded height in the coinbase
 	// is incorrect.
@@ -499,113 +529,244 @@ const (
 	// block that is either not the current best chain tip or its parent.
 	ErrInvalidTemplateParent
 
+	// ErrUnknownPiKey indicates that the provided public Pi Key is not
+	// a well known key.
+	ErrUnknownPiKey
+
+	// ErrInvalidPiSignature indicates that a treasury spend transaction
+	// was not properly signed.
+	ErrInvalidPiSignature
+
+	// ErrInvalidTVoteWindow indicates that a treasury spend transaction
+	// appeared in a block that is prior to a valid treasury vote window.
+	ErrInvalidTVoteWindow
+
+	// ErrNotTVI indicates that a treasury spend transaction appeared in a
+	// block that is not at a TVI interval.
+	ErrNotTVI
+
+	// ErrInvalidTSpendWindow indicates that this treasury spend
+	// transaction is outside of the allowed window.
+	ErrInvalidTSpendWindow
+
+	// ErrNotEnoughTSpendVotes indicates that a treasury spend transaction
+	// does not have enough votes to be included in block.
+	ErrNotEnoughTSpendVotes
+
+	// ErrInvalidTSpendValueIn indicates that a treasury spend transaction
+	// ValueIn does not match the encoded copy in the first TxOut.
+	ErrInvalidTSpendValueIn
+
+	// ErrTSpendExists indicates that a duplicate treasury spend
+	// transaction has been mined on a TVI in the current best chain.
+	ErrTSpendExists
+
+	// ErrInvalidExpenditure indicates that a treasury spend transaction
+	// expenditure is out of range.
+	ErrInvalidExpenditure
+
+	// ErrFirstTxNotTreasurybase indicates the first transaction in a block
+	// is not a treasurybase transaction.
+	ErrFirstTxNotTreasurybase
+
+	// ErrBadTreasurybaseOutpoint indicates that the outpoint used by a
+	// treasurybase as input was non-null.
+	ErrBadTreasurybaseOutpoint
+
+	// ErrBadTreasurybaseFraudProof indicates that the fraud proof for a
+	// treasurybase input was non-null.
+	ErrBadTreasurybaseFraudProof
+
+	// ErrBadTreasurybaseScriptLen indicates the length of the signature script
+	// for a treasurybase transaction is not within the valid range.
+	ErrBadTreasurybaseScriptLen
+
+	// ErrTreasurybaseTxNotOpReturn indicates the second ouptut of a
+	// treasury base transaction is not an OP_RETURN.
+	ErrTreasurybaseTxNotOpReturn
+
+	// ErrTreasurybaseHeight indicates that the encoded height in the
+	// treasurybase is incorrect.
+	ErrTreasurybaseHeight
+
+	// ErrInvalidTreasurybaseTxOutputs indicates that the transaction does
+	// not have the correct number of outputs.
+	ErrInvalidTreasurybaseTxOutputs
+
+	// ErrInvalidTreasurybaseVersion indicates that the transaction output
+	// has the wrong version.
+	ErrInvalidTreasurybaseVersion
+
+	// ErrInvalidTreasurybaseScript indicates that the transaction output
+	// script is invalid.
+	ErrInvalidTreasurybaseScript
+
+	// ErrTreasurybaseOutValue ensures that the OP_TADD value of a
+	// treasurybase is not the expected amount.
+	ErrTreasurybaseOutValue
+
+	// ErrMultipleTreasurybases indicates a block contains more than one
+	// treasurybase transaction.
+	ErrMultipleTreasurybases
+
+	// ErrBadTreasurybaseAmountIn indicates that a block contains an
+	// invalid treasury contribution.
+	ErrBadTreasurybaseAmountIn
+
+	// ErrBadTSpendOutpoint indicates that the outpoint used by a
+	// treasury spend as input was non-null.
+	ErrBadTSpendOutpoint
+
+	// ErrBadTSpendFraudProof indicates that the fraud proof for a treasury
+	// spend transaction input was non-null.
+	ErrBadTSpendFraudProof
+
+	// ErrBadTSpendScriptLen indicates the length of the signature script
+	// for a treasury spend transaction is not within the valid range.
+	ErrBadTSpendScriptLen
+
+	// ErrInvalidTAddChange indicates the change output of a TAdd is zero.
+	ErrInvalidTAddChange
+
+	// ErrTooManyTAdds indicates the number of treasury adds in a given
+	// block is larger than the maximum allowed.
+	ErrTooManyTAdds
+
 	// numErrorCodes is the maximum error code number used in tests.
 	numErrorCodes
 )
 
 // Map of ErrorCode values back to their constant names for pretty printing.
 var errorCodeStrings = map[ErrorCode]string{
-	ErrDuplicateBlock:         "ErrDuplicateBlock",
-	ErrMissingParent:          "ErrMissingParent",
-	ErrBlockTooBig:            "ErrBlockTooBig",
-	ErrWrongBlockSize:         "ErrWrongBlockSize",
-	ErrBlockVersionTooOld:     "ErrBlockVersionTooOld",
-	ErrBadStakeVersion:        "ErrBadStakeVersion",
-	ErrInvalidTime:            "ErrInvalidTime",
-	ErrTimeTooOld:             "ErrTimeTooOld",
-	ErrTimeTooNew:             "ErrTimeTooNew",
-	ErrDifficultyTooLow:       "ErrDifficultyTooLow",
-	ErrUnexpectedDifficulty:   "ErrUnexpectedDifficulty",
-	ErrHighHash:               "ErrHighHash",
-	ErrBadMerkleRoot:          "ErrBadMerkleRoot",
-	ErrBadCommitmentRoot:      "ErrBadCommitmentRoot",
-	ErrBadCheckpoint:          "ErrBadCheckpoint",
-	ErrForkTooOld:             "ErrForkTooOld",
-	ErrCheckpointTimeTooOld:   "ErrCheckpointTimeTooOld",
-	ErrNoTransactions:         "ErrNoTransactions",
-	ErrTooManyTransactions:    "ErrTooManyTransactions",
-	ErrNoTxInputs:             "ErrNoTxInputs",
-	ErrNoTxOutputs:            "ErrNoTxOutputs",
-	ErrTxTooBig:               "ErrTxTooBig",
-	ErrBadTxOutValue:          "ErrBadTxOutValue",
-	ErrDuplicateTxInputs:      "ErrDuplicateTxInputs",
-	ErrBadTxInput:             "ErrBadTxInput",
-	ErrMissingTxOut:           "ErrMissingTxOut",
-	ErrUnfinalizedTx:          "ErrUnfinalizedTx",
-	ErrDuplicateTx:            "ErrDuplicateTx",
-	ErrOverwriteTx:            "ErrOverwriteTx",
-	ErrImmatureSpend:          "ErrImmatureSpend",
-	ErrSpendTooHigh:           "ErrSpendTooHigh",
-	ErrBadFees:                "ErrBadFees",
-	ErrTooManySigOps:          "ErrTooManySigOps",
-	ErrFirstTxNotCoinbase:     "ErrFirstTxNotCoinbase",
-	ErrCoinbaseHeight:         "ErrCoinbaseHeight",
-	ErrMultipleCoinbases:      "ErrMultipleCoinbases",
-	ErrStakeTxInRegularTree:   "ErrStakeTxInRegularTree",
-	ErrRegTxInStakeTree:       "ErrRegTxInStakeTree",
-	ErrBadCoinbaseScriptLen:   "ErrBadCoinbaseScriptLen",
-	ErrBadCoinbaseValue:       "ErrBadCoinbaseValue",
-	ErrBadCoinbaseOutpoint:    "ErrBadCoinbaseOutpoint",
-	ErrBadCoinbaseFraudProof:  "ErrBadCoinbaseFraudProof",
-	ErrBadCoinbaseAmountIn:    "ErrBadCoinbaseAmountIn",
-	ErrBadStakebaseAmountIn:   "ErrBadStakebaseAmountIn",
-	ErrBadStakebaseScriptLen:  "ErrBadStakebaseScriptLen",
-	ErrBadStakebaseScrVal:     "ErrBadStakebaseScrVal",
-	ErrScriptMalformed:        "ErrScriptMalformed",
-	ErrScriptValidation:       "ErrScriptValidation",
-	ErrNotEnoughStake:         "ErrNotEnoughStake",
-	ErrStakeBelowMinimum:      "ErrStakeBelowMinimum",
-	ErrNonstandardStakeTx:     "ErrNonstandardStakeTx",
-	ErrNotEnoughVotes:         "ErrNotEnoughVotes",
-	ErrTooManyVotes:           "ErrTooManyVotes",
-	ErrFreshStakeMismatch:     "ErrFreshStakeMismatch",
-	ErrTooManySStxs:           "ErrTooManySStxs",
-	ErrInvalidEarlyStakeTx:    "ErrInvalidEarlyStakeTx",
-	ErrTicketUnavailable:      "ErrTicketUnavailable",
-	ErrVotesOnWrongBlock:      "ErrVotesOnWrongBlock",
-	ErrVotesMismatch:          "ErrVotesMismatch",
-	ErrIncongruentVotebit:     "ErrIncongruentVotebit",
-	ErrInvalidSSRtx:           "ErrInvalidSSRtx",
-	ErrRevocationsMismatch:    "ErrRevocationsMismatch",
-	ErrTooManyRevocations:     "ErrTooManyRevocations",
-	ErrTicketCommitment:       "ErrTicketCommitment",
-	ErrInvalidVoteInput:       "ErrInvalidVoteInput",
-	ErrBadNumPayees:           "ErrBadNumPayees",
-	ErrBadPayeeScriptVersion:  "ErrBadPayeeScriptVersion",
-	ErrBadPayeeScriptType:     "ErrBadPayeeScriptType",
-	ErrMismatchedPayeeHash:    "ErrMismatchedPayeeHash",
-	ErrBadPayeeValue:          "ErrBadPayeeValue",
-	ErrSSGenSubsidy:           "ErrSSGenSubsidy",
-	ErrImmatureTicketSpend:    "ErrImmatureTicketSpend",
-	ErrTicketInputScript:      "ErrTicketInputScript",
-	ErrInvalidRevokeInput:     "ErrInvalidRevokeInput",
-	ErrSSRtxPayees:            "ErrSSRtxPayees",
-	ErrTxSStxOutSpend:         "ErrTxSStxOutSpend",
-	ErrRegTxCreateStakeOut:    "ErrRegTxCreateStakeOut",
-	ErrInvalidFinalState:      "ErrInvalidFinalState",
-	ErrPoolSize:               "ErrPoolSize",
-	ErrForceReorgWrongChain:   "ErrForceReorgWrongChain",
-	ErrForceReorgMissingChild: "ErrForceReorgMissingChild",
-	ErrBadStakebaseValue:      "ErrBadStakebaseValue",
-	ErrDiscordantTxTree:       "ErrDiscordantTxTree",
-	ErrStakeFees:              "ErrStakeFees",
-	ErrNoStakeTx:              "ErrNoStakeTx",
-	ErrBadBlockHeight:         "ErrBadBlockHeight",
-	ErrBlockOneTx:             "ErrBlockOneTx",
-	ErrBlockOneInputs:         "ErrBlockOneInputs",
-	ErrBlockOneOutputs:        "ErrBlockOneOutputs",
-	ErrNoTax:                  "ErrNoTax",
-	ErrExpiredTx:              "ErrExpiredTx",
-	ErrExpiryTxSpentEarly:     "ErrExpiryTxSpentEarly",
-	ErrFraudAmountIn:          "ErrFraudAmountIn",
-	ErrFraudBlockHeight:       "ErrFraudBlockHeight",
-	ErrFraudBlockIndex:        "ErrFraudBlockIndex",
-	ErrZeroValueOutputSpend:   "ErrZeroValueOutputSpend",
-	ErrInvalidEarlyVoteBits:   "ErrInvalidEarlyVoteBits",
-	ErrInvalidEarlyFinalState: "ErrInvalidEarlyFinalState",
-	ErrKnownInvalidBlock:      "ErrKnownInvalidBlock",
-	ErrInvalidAncestorBlock:   "ErrInvalidAncestorBlock",
-	ErrInvalidTemplateParent:  "ErrInvalidTemplateParent",
+	ErrDuplicateBlock:               "ErrDuplicateBlock",
+	ErrMissingParent:                "ErrMissingParent",
+	ErrBlockTooBig:                  "ErrBlockTooBig",
+	ErrWrongBlockSize:               "ErrWrongBlockSize",
+	ErrBlockVersionTooOld:           "ErrBlockVersionTooOld",
+	ErrBadStakeVersion:              "ErrBadStakeVersion",
+	ErrInvalidTime:                  "ErrInvalidTime",
+	ErrTimeTooOld:                   "ErrTimeTooOld",
+	ErrTimeTooNew:                   "ErrTimeTooNew",
+	ErrDifficultyTooLow:             "ErrDifficultyTooLow",
+	ErrUnexpectedDifficulty:         "ErrUnexpectedDifficulty",
+	ErrHighHash:                     "ErrHighHash",
+	ErrBadMerkleRoot:                "ErrBadMerkleRoot",
+	ErrBadCommitmentRoot:            "ErrBadCommitmentRoot",
+	ErrBadCheckpoint:                "ErrBadCheckpoint",
+	ErrForkTooOld:                   "ErrForkTooOld",
+	ErrCheckpointTimeTooOld:         "ErrCheckpointTimeTooOld",
+	ErrNoTransactions:               "ErrNoTransactions",
+	ErrTooManyTransactions:          "ErrTooManyTransactions",
+	ErrNoTxInputs:                   "ErrNoTxInputs",
+	ErrNoTxOutputs:                  "ErrNoTxOutputs",
+	ErrInvalidTxOutputs:             "ErrInvalidTxOutputs",
+	ErrTxTooBig:                     "ErrTxTooBig",
+	ErrBadTxOutValue:                "ErrBadTxOutValue",
+	ErrDuplicateTxInputs:            "ErrDuplicateTxInputs",
+	ErrBadTxInput:                   "ErrBadTxInput",
+	ErrMissingTxOut:                 "ErrMissingTxOut",
+	ErrUnfinalizedTx:                "ErrUnfinalizedTx",
+	ErrDuplicateTx:                  "ErrDuplicateTx",
+	ErrOverwriteTx:                  "ErrOverwriteTx",
+	ErrImmatureSpend:                "ErrImmatureSpend",
+	ErrSpendTooHigh:                 "ErrSpendTooHigh",
+	ErrBadFees:                      "ErrBadFees",
+	ErrTooManySigOps:                "ErrTooManySigOps",
+	ErrFirstTxNotCoinbase:           "ErrFirstTxNotCoinbase",
+	ErrFirstTxNotOpReturn:           "ErrFirstTxNotOpReturn",
+	ErrCoinbaseHeight:               "ErrCoinbaseHeight",
+	ErrMultipleCoinbases:            "ErrMultipleCoinbases",
+	ErrStakeTxInRegularTree:         "ErrStakeTxInRegularTree",
+	ErrRegTxInStakeTree:             "ErrRegTxInStakeTree",
+	ErrBadCoinbaseScriptLen:         "ErrBadCoinbaseScriptLen",
+	ErrBadCoinbaseValue:             "ErrBadCoinbaseValue",
+	ErrBadCoinbaseOutpoint:          "ErrBadCoinbaseOutpoint",
+	ErrBadCoinbaseFraudProof:        "ErrBadCoinbaseFraudProof",
+	ErrBadCoinbaseAmountIn:          "ErrBadCoinbaseAmountIn",
+	ErrBadStakebaseAmountIn:         "ErrBadStakebaseAmountIn",
+	ErrBadStakebaseScriptLen:        "ErrBadStakebaseScriptLen",
+	ErrBadStakebaseScrVal:           "ErrBadStakebaseScrVal",
+	ErrScriptMalformed:              "ErrScriptMalformed",
+	ErrScriptValidation:             "ErrScriptValidation",
+	ErrNotEnoughStake:               "ErrNotEnoughStake",
+	ErrStakeBelowMinimum:            "ErrStakeBelowMinimum",
+	ErrNonstandardStakeTx:           "ErrNonstandardStakeTx",
+	ErrNotEnoughVotes:               "ErrNotEnoughVotes",
+	ErrTooManyVotes:                 "ErrTooManyVotes",
+	ErrFreshStakeMismatch:           "ErrFreshStakeMismatch",
+	ErrTooManySStxs:                 "ErrTooManySStxs",
+	ErrInvalidEarlyStakeTx:          "ErrInvalidEarlyStakeTx",
+	ErrTicketUnavailable:            "ErrTicketUnavailable",
+	ErrVotesOnWrongBlock:            "ErrVotesOnWrongBlock",
+	ErrVotesMismatch:                "ErrVotesMismatch",
+	ErrIncongruentVotebit:           "ErrIncongruentVotebit",
+	ErrInvalidSSRtx:                 "ErrInvalidSSRtx",
+	ErrRevocationsMismatch:          "ErrRevocationsMismatch",
+	ErrTooManyRevocations:           "ErrTooManyRevocations",
+	ErrTicketCommitment:             "ErrTicketCommitment",
+	ErrInvalidVoteInput:             "ErrInvalidVoteInput",
+	ErrBadNumPayees:                 "ErrBadNumPayees",
+	ErrBadPayeeScriptVersion:        "ErrBadPayeeScriptVersion",
+	ErrBadPayeeScriptType:           "ErrBadPayeeScriptType",
+	ErrMismatchedPayeeHash:          "ErrMismatchedPayeeHash",
+	ErrBadPayeeValue:                "ErrBadPayeeValue",
+	ErrSSGenSubsidy:                 "ErrSSGenSubsidy",
+	ErrImmatureTicketSpend:          "ErrImmatureTicketSpend",
+	ErrTicketInputScript:            "ErrTicketInputScript",
+	ErrInvalidRevokeInput:           "ErrInvalidRevokeInput",
+	ErrSSRtxPayees:                  "ErrSSRtxPayees",
+	ErrTxSStxOutSpend:               "ErrTxSStxOutSpend",
+	ErrRegTxCreateStakeOut:          "ErrRegTxCreateStakeOut",
+	ErrInvalidFinalState:            "ErrInvalidFinalState",
+	ErrPoolSize:                     "ErrPoolSize",
+	ErrForceReorgWrongChain:         "ErrForceReorgWrongChain",
+	ErrForceReorgMissingChild:       "ErrForceReorgMissingChild",
+	ErrBadStakebaseValue:            "ErrBadStakebaseValue",
+	ErrDiscordantTxTree:             "ErrDiscordantTxTree",
+	ErrStakeFees:                    "ErrStakeFees",
+	ErrNoStakeTx:                    "ErrNoStakeTx",
+	ErrBadBlockHeight:               "ErrBadBlockHeight",
+	ErrBlockOneTx:                   "ErrBlockOneTx",
+	ErrBlockOneInputs:               "ErrBlockOneInputs",
+	ErrBlockOneOutputs:              "ErrBlockOneOutputs",
+	ErrNoTax:                        "ErrNoTax",
+	ErrExpiredTx:                    "ErrExpiredTx",
+	ErrExpiryTxSpentEarly:           "ErrExpiryTxSpentEarly",
+	ErrFraudAmountIn:                "ErrFraudAmountIn",
+	ErrFraudBlockHeight:             "ErrFraudBlockHeight",
+	ErrFraudBlockIndex:              "ErrFraudBlockIndex",
+	ErrZeroValueOutputSpend:         "ErrZeroValueOutputSpend",
+	ErrInvalidEarlyVoteBits:         "ErrInvalidEarlyVoteBits",
+	ErrInvalidEarlyFinalState:       "ErrInvalidEarlyFinalState",
+	ErrKnownInvalidBlock:            "ErrKnownInvalidBlock",
+	ErrInvalidAncestorBlock:         "ErrInvalidAncestorBlock",
+	ErrUnknownPiKey:                 "ErrUnknownPiKey",
+	ErrInvalidPiSignature:           "ErrInvalidPiSignature",
+	ErrInvalidTVoteWindow:           "ErrInvalidTVoteWindow",
+	ErrNotTVI:                       "ErrNotTVI",
+	ErrInvalidTSpendWindow:          "ErrInvalidTSpendWindow",
+	ErrNotEnoughTSpendVotes:         "ErrNotEnoughTSpendVotes",
+	ErrInvalidTSpendValueIn:         "ErrInvalidTSpendValueIn",
+	ErrTSpendExists:                 "ErrTSpendExists",
+	ErrInvalidExpenditure:           "ErrInvalidExpenditure",
+	ErrFirstTxNotTreasurybase:       "ErrFirstTxNotTreasurybase",
+	ErrBadTreasurybaseOutpoint:      "ErrBadTreasurybaseOutpoint",
+	ErrBadTreasurybaseFraudProof:    "ErrBadTreasurybaseFraudProof",
+	ErrBadTreasurybaseScriptLen:     "ErrBadTreasurybaseScriptLen",
+	ErrTreasurybaseTxNotOpReturn:    "ErrTreasurybaseTxNotOpReturn",
+	ErrTreasurybaseHeight:           "ErrTreasurybaseHeight",
+	ErrTreasurybaseOutValue:         "ErrTreasurybaseOutValue",
+	ErrInvalidTreasurybaseTxOutputs: "ErrInvalidTreasurybaseTxOutputs",
+	ErrInvalidTreasurybaseVersion:   "ErrInvalidTreasurybaseVersion",
+	ErrInvalidTreasurybaseScript:    "ErrInvalidTreasurybaseScript",
+	ErrMultipleTreasurybases:        "ErrMultipleTreasurybases",
+	ErrBadTreasurybaseAmountIn:      "ErrBadTreasurybaseAmountIn",
+	ErrBadTSpendOutpoint:            "ErrBadTSpendOutpoint",
+	ErrBadTSpendFraudProof:          "ErrBadTSpendFraudProof",
+	ErrBadTSpendScriptLen:           "ErrBadTSpendScriptLen",
+	ErrInvalidTemplateParent:        "ErrInvalidTemplateParent",
+	ErrInvalidTAddChange:            "ErrInvalidTAddChange",
+	ErrTooManyTAdds:                 "ErrTooManyTAdds",
 }
 
 // String returns the ErrorCode as a human-readable name.

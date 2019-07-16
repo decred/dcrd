@@ -468,6 +468,7 @@ func (*rpcLogManager) ParseAndSetDebugLevels(debugLevel string) error {
 // rpcSanityChecker provides a block sanity checker for use with the RPC and
 // implements the rpcserver.SanityChecker interface.
 type rpcSanityChecker struct {
+	chain       *blockchain.BlockChain
 	timeSource  blockchain.MedianTimeSource
 	chainParams *chaincfg.Params
 }
@@ -481,7 +482,14 @@ var _ rpcserver.SanityChecker = (*rpcSanityChecker)(nil)
 //
 // This function is part of the rpcserver.SanityChecker interface implementation.
 func (s *rpcSanityChecker) CheckBlockSanity(block *dcrutil.Block) error {
-	return blockchain.CheckBlockSanity(block, s.timeSource, s.chainParams)
+	pHash := &block.MsgBlock().Header.PrevBlock
+	isTreasuryEnabled, err := s.chain.IsTreasuryAgendaActive(pHash)
+	if err != nil {
+		return err
+	}
+
+	return blockchain.CheckBlockSanity(block, s.timeSource, s.chainParams,
+		isTreasuryEnabled)
 }
 
 // rpcBlockTemplater provides a block template generator for use with the

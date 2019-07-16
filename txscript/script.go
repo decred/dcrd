@@ -64,7 +64,11 @@ func IsPushOnlyScript(script []byte) bool {
 
 // isStakeOpcode returns whether or not the opcode is one of the stake tagging
 // opcodes.
-func isStakeOpcode(op byte) bool {
+func isStakeOpcode(op byte, isTreasuryEnabled bool) bool {
+	if isTreasuryEnabled {
+		return (op >= OP_SSTX && op <= OP_SSTXCHANGE) ||
+			(op >= OP_TADD && op <= OP_TGEN)
+	}
 	return op >= OP_SSTX && op <= OP_SSTXCHANGE
 }
 
@@ -96,9 +100,9 @@ func isScriptHashScript(script []byte) bool {
 
 // isStakeScriptHashScript returns whether or not the passed script is a
 // stake-tagged pay-to-script-hash script.
-func isStakeScriptHashScript(script []byte) bool {
+func (vm *Engine) isStakeScriptHashScript(script []byte) bool {
 	return len(script) == 24 &&
-		isStakeOpcode(script[0]) &&
+		isStakeOpcode(script[0], vm.hasFlag(ScriptVerifyTreasury)) &&
 		script[1] == OP_HASH160 &&
 		script[2] == OP_DATA_20 &&
 		script[23] == OP_EQUAL
@@ -107,8 +111,8 @@ func isStakeScriptHashScript(script []byte) bool {
 // isAnyKindOfScriptHash returns whether or not the passed script is either a
 // regular pay-to-script-hash script or a stake-tagged pay-to-script-hash
 // script.
-func isAnyKindOfScriptHash(script []byte) bool {
-	return isScriptHashScript(script) || isStakeScriptHashScript(script)
+func (vm *Engine) isAnyKindOfScriptHash(script []byte) bool {
+	return isScriptHashScript(script) || vm.isStakeScriptHashScript(script)
 }
 
 // hasP2SHRedeemScriptStakeOpCodes returns an error if the provided public key
@@ -117,7 +121,7 @@ func isAnyKindOfScriptHash(script []byte) bool {
 // contains stake opcodes.  An error is also returned if the signature script is
 // malformed after determining the public key script is one of the
 // aforementioned cases.
-func hasP2SHRedeemScriptStakeOpCodes(version uint16, sigScript, pkScript []byte) error {
+func (vm *Engine) hasP2SHRedeemScriptStakeOpCodes(version uint16, sigScript, pkScript []byte) error {
 	// The only stake scripts currently supported are version 0.
 	if version != 0 {
 		return nil
@@ -125,7 +129,8 @@ func hasP2SHRedeemScriptStakeOpCodes(version uint16, sigScript, pkScript []byte)
 
 	// Nothing further to check if the public key script is not a normal
 	// pay-to-script-hash script or one tagged with a stake opcode.
-	if !(isScriptHashScript(pkScript) || isStakeScriptHashScript(pkScript)) {
+	if !(isScriptHashScript(pkScript) ||
+		vm.isStakeScriptHashScript(pkScript)) {
 		return nil
 	}
 
@@ -139,7 +144,8 @@ func hasP2SHRedeemScriptStakeOpCodes(version uint16, sigScript, pkScript []byte)
 	// Ensure the redeem script does not contain any stake opcodes as their use
 	// is prohibited outside of the very specific circumstances permitted by
 	// the staking system.
-	hasStakeOpCodes, err := ContainsStakeOpCodes(redeemScript)
+	hasStakeOpCodes, err := ContainsStakeOpCodes(redeemScript,
+		vm.hasFlag(ScriptVerifyTreasury))
 	if err != nil {
 		return err
 	}
@@ -289,7 +295,7 @@ func AsSmallInt(op byte) int {
 // consensus which, unfortunately as of the time of this writing, does not check
 // script versions before counting their signature operations which means nodes
 // on existing rules will count new version scripts as if they were version 0.
-func countSigOpsV0(script []byte, precise bool) int {
+func countSigOpsV0(script []byte, precise bool, isTreasuryEnabled bool) int {
 	const scriptVersion = 0
 
 	numSigOps := 0
@@ -297,6 +303,11 @@ func countSigOpsV0(script []byte, precise bool) int {
 	prevOp := byte(OP_INVALIDOPCODE)
 	for tokenizer.Next() {
 		switch tokenizer.Opcode() {
+		case OP_TSPEND:
+			if isTreasuryEnabled {
+				numSigOps++
+			}
+
 		case OP_CHECKSIG, OP_CHECKSIGVERIFY, OP_CHECKSIGALT,
 			OP_CHECKSIGALTVERIFY:
 
@@ -342,8 +353,8 @@ func countSigOpsV0(script []byte, precise bool) int {
 // consensus which, unfortunately as of the time of this writing, does not check
 // script versions before counting their signature operations which means nodes
 // on existing rules will count new version scripts as if they were version 0.
-func GetSigOpCount(script []byte) int {
-	return countSigOpsV0(script, false)
+func GetSigOpCount(script []byte, isTreasuryEnabled bool) int {
+	return countSigOpsV0(script, false, isTreasuryEnabled)
 }
 
 // finalOpcodeData returns the data associated with the final opcode in the
@@ -376,13 +387,13 @@ func finalOpcodeData(scriptVersion uint16, script []byte) []byte {
 // consensus which, unfortunately as of the time of this writing, does not check
 // script versions before counting their signature operations which means nodes
 // on existing rules will count new version scripts as if they were version 0.
-func GetPreciseSigOpCount(scriptSig, scriptPubKey []byte) int {
+func GetPreciseSigOpCount(scriptSig, scriptPubKey []byte, isTreasuryEnabled bool) int {
 	const scriptVersion = 0
 
 	// Treat non P2SH transactions as normal.  Note that signature operation
 	// counting includes all operations up to the first parse failure.
 	if !isScriptHashScript(scriptPubKey) {
-		return countSigOpsV0(scriptPubKey, true)
+		return countSigOpsV0(scriptPubKey, true, isTreasuryEnabled)
 	}
 
 	// The signature script must only push data to the stack for P2SH to be
@@ -405,7 +416,7 @@ func GetPreciseSigOpCount(scriptSig, scriptPubKey []byte) int {
 	// Return the more precise sigops count for the redeem script.  Note that
 	// signature operation counting includes all operations up to the first
 	// parse failure.
-	return countSigOpsV0(redeemScript, true)
+	return countSigOpsV0(redeemScript, true, isTreasuryEnabled)
 }
 
 // checkScriptParses returns an error if the provided script fails to parse.

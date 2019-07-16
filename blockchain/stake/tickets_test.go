@@ -28,6 +28,10 @@ import (
 const (
 	// testDbType is the database backend type to use for the tests.
 	testDbType = "ffldb"
+
+	// noTreasury signifies the treasury agenda should be treated as though it
+	// is inactive.  It is used to increase the readability of the tests.
+	noTreasury = false
 )
 
 // calcHash256PRNGIVFromHeader calculates the initialization vector for a
@@ -127,7 +131,7 @@ func copyNode(n *Node) *Node {
 func ticketsInBlock(bl *dcrutil.Block) []chainhash.Hash {
 	tickets := make([]chainhash.Hash, 0)
 	for _, stx := range bl.STransactions() {
-		if DetermineTxType(stx.MsgTx()) == TxTypeSStx {
+		if DetermineTxType(stx.MsgTx(), noTreasury) == TxTypeSStx {
 			h := stx.Hash()
 			tickets = append(tickets, *h)
 		}
@@ -140,7 +144,7 @@ func ticketsInBlock(bl *dcrutil.Block) []chainhash.Hash {
 func ticketsSpentInBlock(bl *dcrutil.Block) []chainhash.Hash {
 	tickets := make([]chainhash.Hash, 0, bl.MsgBlock().Header.Voters)
 	for _, stx := range bl.STransactions() {
-		if DetermineTxType(stx.MsgTx()) == TxTypeSSGen {
+		if DetermineTxType(stx.MsgTx(), noTreasury) == TxTypeSSGen {
 			tickets = append(tickets, stx.MsgTx().TxIn[1].PreviousOutPoint.Hash)
 		}
 	}
@@ -152,7 +156,7 @@ func ticketsSpentInBlock(bl *dcrutil.Block) []chainhash.Hash {
 func revokedTicketsInBlock(bl *dcrutil.Block) []chainhash.Hash {
 	tickets := make([]chainhash.Hash, 0, bl.MsgBlock().Header.Revocations)
 	for _, stx := range bl.STransactions() {
-		if DetermineTxType(stx.MsgTx()) == TxTypeSSRtx {
+		if DetermineTxType(stx.MsgTx(), noTreasury) == TxTypeSSRtx {
 			tickets = append(tickets, stx.MsgTx().TxIn[0].PreviousOutPoint.Hash)
 		}
 	}

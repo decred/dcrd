@@ -297,6 +297,9 @@ func (c *Client) trackRegisteredNtfns(cmd interface{}) {
 
 	case *chainjson.NotifyWorkCmd:
 		c.ntfnState.notifyWork = true
+
+	case *chainjson.NotifyTSpendCmd:
+		c.ntfnState.notifyTSpend = true
 	}
 }
 
@@ -563,6 +566,14 @@ func (c *Client) reregisterNtfns(ctx context.Context) error {
 	if stateCopy.notifyWork {
 		log.Debugf("Reregistering [notifywork]")
 		if err := c.NotifyWork(ctx); err != nil {
+			return err
+		}
+	}
+
+	// Reregister notifytspend if needed.
+	if stateCopy.notifyTSpend {
+		log.Debugf("Reregistering [notifytspend]")
+		if err := c.NotifyTSpend(ctx); err != nil {
 			return err
 		}
 	}

@@ -667,8 +667,8 @@ func (b *BlockChain) isFixSeqLocksAgendaActive(prevNode *blockNode) (bool, error
 }
 
 // IsFixSeqLocksAgendaActive returns whether or not the fix sequence locks
-// agenda vote, as defined in DCP0004 has passed and is now active for the
-// block AFTER the current best chain block.
+// agenda vote, as defined in DCP0004 has passed and is now active for the block
+// AFTER the current best chain block.
 //
 // This function is safe for concurrent access.
 func (b *BlockChain) IsFixSeqLocksAgendaActive() (bool, error) {
@@ -727,6 +727,79 @@ func (b *BlockChain) IsHeaderCommitmentsAgendaActive(prevHash *chainhash.Hash) (
 
 	b.chainLock.Lock()
 	isActive, err := b.isHeaderCommitmentsAgendaActive(node)
+	b.chainLock.Unlock()
+	return isActive, err
+}
+
+// isTreasuryAgendaActive returns whether or not the treasury agenda, as defined
+// in DCP0006, has passed and is now active from the point of view of the passed
+// block node.
+//
+// It is important to note that, as the variable name indicates, this function
+// expects the block node prior to the block for which the deployment state is
+// desired.  In other words, the returned deployment state is for the block
+// AFTER the passed node.
+//
+// This function MUST be called with the chain state lock held (for writes).
+func (b *BlockChain) isTreasuryAgendaActive(prevNode *blockNode) (bool, error) {
+	// Ignore block 0 and 1 because they are special.
+	if prevNode.height == 0 {
+		return false, nil
+	}
+	const deploymentID = chaincfg.VoteIDTreasury
+	deploymentVer, ok := b.deploymentVers[deploymentID]
+	if !ok {
+		return true, nil
+	}
+
+	state, err := b.deploymentState(prevNode, deploymentVer, deploymentID)
+	if err != nil {
+		return false, err
+	}
+
+	// NOTE: The choice field of the return threshold state is not examined
+	// here because there is only one possible choice that can be active for
+	// the agenda, which is yes, so there is no need to check it.
+	return state.State == ThresholdActive, nil
+}
+
+// isTreasuryAgendaActiveByHash returns whether or not the treasury agenda vote,
+// as defined in DCP0006, has passed and is now active for the block AFTER the
+// given block.
+//
+// NOTE: Unlike IsTreasuryAgendaActive, this version returns false to indicate
+// the it is not active in the case the hash is not found instead of an error.
+//
+// This is necessary because this particular version is needed before the full
+// context is available.
+//
+// This function MUST be called with the chain state lock held (for writes).
+func (b *BlockChain) isTreasuryAgendaActiveByHash(prevHash *chainhash.Hash) (bool, error) {
+	// NOTE: The requirement for the node being fully validated here is strictly
+	// stronger than what is actually required.  In reality, all that is needed
+	// is for the block data for the node and all of its ancestors to be
+	// available, but there is not currently any tracking to be able to
+	// efficiently determine that state.
+	prevNode := b.index.LookupNode(prevHash)
+	if prevNode == nil {
+		return false, nil // Not found means not active.
+	}
+	return b.isTreasuryAgendaActive(prevNode)
+}
+
+// IsTreasuryAgendaActive returns whether or not the treasury agenda vote, as
+// defined in DCP0006, has passed and is now active for the block AFTER the
+// given block.
+//
+// This function is safe for concurrent access.
+func (b *BlockChain) IsTreasuryAgendaActive(prevHash *chainhash.Hash) (bool, error) {
+	prevNode := b.index.LookupNode(prevHash)
+	if prevNode == nil || !b.index.NodeStatus(prevNode).HasValidated() {
+		return false, HashError(prevHash.String())
+	}
+
+	b.chainLock.Lock()
+	isActive, err := b.isTreasuryAgendaActive(prevNode)
 	b.chainLock.Unlock()
 	return isActive, err
 }

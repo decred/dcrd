@@ -8,6 +8,7 @@ package txscript
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"reflect"
 	"testing"
 )
@@ -120,6 +121,111 @@ func TestHasCanonicalPush(t *testing.T) {
 	}
 }
 
+// TestGetSigOpCount tests that the GetSigOpCount function behaves as expected.
+func TestGetSigOpCount(t *testing.T) {
+	// This should correspond to MaxPubKeysPerMultiSig. It's intentionally
+	// not referred to here so that any changes to MaxPubKeysPerMultisig
+	// are flagged during tests.
+	maxMultiSigOps := 20
+
+	// Build out a script that tests every opcode not on the "special list"
+	// below. These will be tested separately.
+	specialOpCodes := map[byte]struct{}{
+		OP_CHECKSIG:            {},
+		OP_CHECKSIGVERIFY:      {},
+		OP_CHECKSIGALT:         {},
+		OP_CHECKSIGALTVERIFY:   {},
+		OP_CHECKMULTISIG:       {},
+		OP_CHECKMULTISIGVERIFY: {},
+		OP_TADD:                {},
+		OP_TGEN:                {},
+		OP_TSPEND:              {},
+	}
+	otherOpCodesScript := ""
+	for i := 0; i <= 255; i++ {
+		if _, ok := specialOpCodes[byte(i)]; ok {
+			continue
+		}
+		otherOpCodesScript = fmt.Sprintf("%s 0x%.2x", otherOpCodesScript, i)
+	}
+
+	testCases := []struct {
+		name              string
+		script            string
+		wantCount         int
+		wantTreasuryCount int
+	}{{
+		name:              "all opcodes that dont count for a sigop",
+		script:            otherOpCodesScript,
+		wantCount:         0,
+		wantTreasuryCount: 0,
+	}, {
+		name:              "all opcodes that count for a sigop",
+		script:            "CHECKSIG CHECKSIGVERIFY CHECKSIGALT CHECKSIGALTVERIFY",
+		wantCount:         4,
+		wantTreasuryCount: 4,
+	}, {
+		name:              "multisig with < MaxPubKeysPerMultiSig",
+		script:            "2 DATA_33 0x00{33} 0x00{33} 0x00{33} 3 OP_CHECKMULTISIG",
+		wantCount:         maxMultiSigOps,
+		wantTreasuryCount: maxMultiSigOps,
+	}, {
+		name:              "multisigverify with less than MaxPubKeysPerMultiSig",
+		script:            "2 DATA_33 0x00{33} 0x00{33} 0x00{33} 3 OP_CHECKMULTISIGVERIFY",
+		wantCount:         maxMultiSigOps,
+		wantTreasuryCount: maxMultiSigOps,
+	}, {
+		name:              "valid p2pkh output",
+		script:            "DUP HASH160 DATA_20 0x00{20} EQUALVERIFY CHECKSIG",
+		wantCount:         1,
+		wantTreasuryCount: 1,
+	}, {
+		name:              "valid p2sh output",
+		script:            "HASH160 DATA_20 0x00{20} EQUAL",
+		wantCount:         0,
+		wantTreasuryCount: 0,
+	}, {
+		name:              "valid stake change output",
+		script:            "SSTXCHANGE DUP HASH160 DATA_20 0x00{20} EQUALVERIFY CHECKSIG",
+		wantCount:         1,
+		wantTreasuryCount: 1,
+	}, {
+		name:              "valid tspend output",
+		script:            "TGEN DUP HASH160 DATA_20 0x00{20} EQUALVERIFY CHECKSIG",
+		wantCount:         1,
+		wantTreasuryCount: 1,
+	}, {
+		name:              "valid tspend input",
+		script:            "DATA_64 0x00{64} TSPEND",
+		wantCount:         0,
+		wantTreasuryCount: 1,
+	}, {
+		name:              "valid tadd output",
+		script:            "TADD",
+		wantCount:         0,
+		wantTreasuryCount: 0,
+	}}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			script := mustParseShortForm(tc.script)
+			gotCount := GetSigOpCount(script, false)
+			if gotCount != tc.wantCount {
+				t.Fatalf("unexpected sigOpCount with treasury=false. "+
+					"want=%d got=%d", tc.wantCount, gotCount)
+			}
+
+			gotTreasuryCount := GetSigOpCount(script, true)
+			if gotTreasuryCount != tc.wantTreasuryCount {
+				t.Fatalf("unexpected sigOpCount with treasury=true. "+
+					"want=%d got=%d", tc.wantTreasuryCount,
+					gotTreasuryCount)
+			}
+		})
+	}
+}
+
 // TestGetPreciseSigOps ensures the more precise signature operation counting
 // mechanism which includes signatures in P2SH scripts works as expected.
 func TestGetPreciseSigOps(t *testing.T) {
@@ -158,11 +264,26 @@ func TestGetPreciseSigOps(t *testing.T) {
 
 	// The signature in the p2sh script is nonsensical for the tests since
 	// this script will never be executed.  What matters is that it matches
-	// the right pattern.
+	// the right pattern. Without treasury enabled.
 	pkScript := mustParseShortForm("HASH160 DATA_20 0x433ec2ac1ffa1b7b7d0" +
 		"27f564529c57197f9ae88 EQUAL")
 	for _, test := range tests {
-		count := GetPreciseSigOpCount(test.scriptSig, pkScript)
+		count := GetPreciseSigOpCount(test.scriptSig, pkScript,
+			noTreasury)
+		if count != test.nSigOps {
+			t.Errorf("%s: expected count of %d, got %d", test.name,
+				test.nSigOps, count)
+		}
+	}
+
+	// The signature in the p2sh script is nonsensical for the tests since
+	// this script will never be executed.  What matters is that it matches
+	// the right pattern. With treasury enabled.
+	pkScript = mustParseShortForm("HASH160 DATA_20 0x433ec2ac1ffa1b7b7d0" +
+		"27f564529c57197f9ae88 EQUAL")
+	for _, test := range tests {
+		count := GetPreciseSigOpCount(test.scriptSig, pkScript,
+			withTreasury)
 		if count != test.nSigOps {
 			t.Errorf("%s: expected count of %d, got %d", test.name,
 				test.nSigOps, count)
@@ -352,9 +473,9 @@ func TestRemoveOpcodeByData(t *testing.T) {
 		},
 		{
 			name:   "invalid opcode",
-			before: []byte{OP_UNKNOWN193},
+			before: []byte{OP_UNKNOWN240},
 			remove: []byte{1, 2, 3, 4},
-			after:  []byte{OP_UNKNOWN193},
+			after:  []byte{OP_UNKNOWN240},
 		},
 		{
 			name:   "invalid length (instruction)",
@@ -406,7 +527,7 @@ func TestIsPayToScriptHash(t *testing.T) {
 		shouldBe := (test.class == ScriptHashTy)
 		p2sh := IsPayToScriptHash(script)
 		if p2sh != shouldBe {
-			t.Errorf("%s: epxected p2sh %v, got %v", test.name,
+			t.Errorf("%s: expected p2sh %v, got %v", test.name,
 				shouldBe, p2sh)
 		}
 	}
@@ -420,9 +541,20 @@ func TestIsAnyKindOfScriptHash(t *testing.T) {
 	for _, test := range scriptClassTests {
 		script := mustParseShortForm(test.script)
 		want := (test.class == ScriptHashTy || test.subClass == ScriptHashTy)
-		p2sh := isAnyKindOfScriptHash(script)
+
+		// Without treasury enabled.
+		vm := Engine{flags: 0}
+		p2sh := vm.isAnyKindOfScriptHash(script)
 		if p2sh != want {
-			t.Errorf("%s: epxected p2sh %v, got %v", test.name,
+			t.Errorf("%s: expected p2sh %v, got %v", test.name,
+				want, p2sh)
+		}
+
+		// With treasury enabled.
+		vm = Engine{flags: ScriptVerifyTreasury}
+		p2sh = vm.isAnyKindOfScriptHash(script)
+		if p2sh != want {
+			t.Errorf("%s: expected p2sh %v, got %v", test.name,
 				want, p2sh)
 		}
 	}

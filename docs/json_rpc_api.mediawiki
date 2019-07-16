@@ -2569,6 +2569,14 @@ user.  Click the method name for further details such as parameter and return in
 |Cancel registered notifications for whenever a new block template is generated.
 |None
 |-
+|[[#notifytspend|notifytspend]]
+|Send notifications when a new tspend arrives in the mempool.
+|[[#tspend|tspend]]
+|-
+|[[#stoptspend|stoptspend]]
+|Cancel registered notifications for whenever when a new tspend arrives in the mempool.
+|None
+|-
 |[[#notifyreceived|notifyreceived]]
 |Send notifications when a txout spends to an address.
 |[[#recvtx|recvtx]] and [[#redeemingtx|redeemingtx]]
@@ -2727,6 +2735,46 @@ NOTE: This is only required if an HTTP Authorization header is not being used.
 |-
 !Description
 |Cancel sending notifications for whenever a new block template is generated.
+|-
+!Returns
+|Nothing
+|}
+
+----
+
+====notifytspend====
+{|
+!Method
+|notifytspend
+|-
+!Notifications
+|[[#tspend|tspend]]
+|-
+!Parameters
+|None
+|-
+!Description
+|Send notifications when a new tspend arrives in the mempool.
+|-
+!Returns
+|Nothing
+|}
+
+----
+
+====stopnotifytspend====
+{|
+!Method
+|stopnotifytspend
+|-
+!Notifications
+|None
+|-
+!Parameters
+|None
+|-
+!Description
+|Cancel sending notifications for whenever a new tspend arrives in the mempool.
 |-
 !Returns
 |Nothing
@@ -3095,6 +3143,10 @@ The following is an overview of the JSON-RPC notifications used for Websocket co
 |New generated block template.
 |[[#notifywork|notifywork]]
 |-
+|[[#tspend|tspend]]
+|New generated tspend.
+|[[#notifytspend|notifytspend]]
+|-
 |[[#redeemingtx|redeemingtx]]
 |Processed a transaction that spends a registered outpoint.
 |[[#notifyspent|notifyspent]] and [[#rescan|rescan]]
@@ -3237,6 +3289,29 @@ The recvtx notification for the same txout, after the transaction was mined into
 |Example work notification on testnet:
 
 : <code>{"jsonrpc":"1.0","method":"work","params":["06000000c9ee7cd5b14b72e41195891a9617f80049eaac06a0dfe063479523060000000088087dbb59923da4faf632a29777805a7632efbd680b86f3c6cbbe3fddf905d45045d61784ad0810749cc045d03a7b9d5e8f6b2ed3ed767c9827f1dad4925771010082ebc7097cf5050007003b1400003b84061cff2d333700000000322400003f10000070b67b5b3bc400803b057900c5575400000000000000000000000000000000000000000000000000060000008000000100000000000005a0","000000000000000000000000000000000000000000000000003b840600000000","newparent"],"id":null}</code>
+|}
+
+----
+
+====tspend====
+{|
+!Method
+|tspend
+|-
+!Request
+|[[#notifytspend|notifytspend]]
+|-
+!Parameters
+|
+# <code>TSpend</code>: <code>(string)</code> hex-encoded tspend transaction.
+|-
+!Description
+|Notifies a client when a new tspend has arrived in the mempool.
+|-
+!Example
+|Example tspend notification on simnet:
+
+: <code>{"jsonrpc":"1.0","method":"tspend","params":["03000000010000000000000000000000000000000000000000000000000000000000000000ffffffff00ffffffff0300000000000000000000226a203ff1461b188e100f6fed467eb9b12e2d10ed86446df6c3a99c1df4af159d39f70065cd1d0000000000001ac376a91449a6061cda6d9243cecf3186af60caefc613904988ac0027b9290000000000001ac376a9145722802cd0905b4589d2094fcb6b76f746dcf18988ac000000002200000001c29786470000000000000000ffffffff644039401cb6daacd3310cd282abcc04f92649a3f27d3fd9be2038c94d531addb2ced539a25dbb186fc4c572054d36d457b1416008ac11033175e31d68a5d97877d42102a36b785d584555696b69d1b2bbeff4010332b301e3edd316d79438554cacb3e7c2"],"id":null}</code>
 |}
 
 ----

@@ -74,12 +74,14 @@ var (
 	srvrLog = backendLog.Logger("SRVR")
 	stkeLog = backendLog.Logger("STKE")
 	txmpLog = backendLog.Logger("TXMP")
+	trsyLog = backendLog.Logger("TRSY")
 )
 
 // Initialize package-global logger variables.
 func init() {
 	addrmgr.UseLogger(amgrLog)
 	blockchain.UseLogger(chanLog)
+	blockchain.UseTreasuryLogger(trsyLog)
 	connmgr.UseLogger(cmgrLog)
 	database.UseLogger(bcdbLog)
 	fees.UseLogger(feesLog)
@@ -112,6 +114,7 @@ var subsystemLoggers = map[string]slog.Logger{
 	"SRVR": srvrLog,
 	"STKE": stkeLog,
 	"TXMP": txmpLog,
+	"TRSY": trsyLog,
 }
 
 // initLogRotator initializes the logging rotator to write logs to logFile and

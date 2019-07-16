@@ -18,6 +18,13 @@ import (
 	"github.com/decred/dcrd/wire"
 )
 
+const (
+	// noTreasury signifies the treasury agenda should be treated as though
+	// it is inactive.  It is used to increase the readability of the
+	// tests.
+	noTreasury = false
+)
+
 // This example demonstrates creating a script which pays to a Decred address.
 // It also prints the created script hex and uses the DisasmString function to
 // display the disassembled script.
@@ -69,7 +76,7 @@ func ExampleExtractPkScriptAddrs() {
 	// Extract and print details from the script.
 	mainNetParams := chaincfg.MainNetParams()
 	scriptClass, addresses, reqSigs, err := txscript.ExtractPkScriptAddrs(
-		scriptVersion, script, mainNetParams)
+		scriptVersion, script, mainNetParams, noTreasury)
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -160,7 +167,7 @@ func ExampleSignTxOutput() {
 	// being signed.
 	sigScript, err := txscript.SignTxOutput(mainNetParams, redeemTx, 0,
 		originTx.TxOut[0].PkScript, txscript.SigHashAll,
-		txscript.KeyClosure(lookupKey), nil, nil)
+		txscript.KeyClosure(lookupKey), nil, nil, noTreasury)
 	if err != nil {
 		fmt.Println(err)
 		return

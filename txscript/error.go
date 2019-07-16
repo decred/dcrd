@@ -204,6 +204,10 @@ const (
 	// for a shift.
 	ErrOverflowShift = ErrorKind("ErrOverflowShift")
 
+	// ErrP2SHTreasuryOpCodes is returned when one or more treasury opcodes
+	// are found in the redeem script of a pay-to-script-hash script.
+	ErrP2SHTreasuryOpCodes = ErrorKind("ErrP2SHTreasuryOpCodes")
+
 	// ---------------------------------
 	// Failures related to malleability.
 	// ---------------------------------

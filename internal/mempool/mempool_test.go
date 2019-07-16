@@ -81,7 +81,7 @@ func (s *fakeChain) FetchUtxoView(tx *dcrutil.Tx, treeValid bool) (*blockchain.U
 	// do not affect the fake chain's view.
 
 	// Add an entry for the tx itself to the new view.
-	viewpoint := blockchain.NewUtxoViewpoint()
+	viewpoint := blockchain.NewUtxoViewpoint(nil)
 	entry := s.utxos.LookupEntry(tx.Hash())
 	viewpoint.Entries()[*tx.Hash()] = entry.Clone()
 
@@ -178,7 +178,8 @@ func (s *fakeChain) CalcSequenceLock(tx *dcrutil.Tx, view *blockchain.UtxoViewpo
 	// or time.
 	msgTx := tx.MsgTx()
 	enforce := msgTx.Version >= 2
-	if !enforce || standalone.IsCoinBaseTx(msgTx) || stake.IsSSGen(msgTx) {
+	if !enforce || standalone.IsCoinBaseTx(msgTx, noTreasury) ||
+		stake.IsSSGen(msgTx, noTreasury) {
 		return sequenceLock, nil
 	}
 
@@ -350,7 +351,7 @@ func (p *poolHarness) GetKey(addr dcrutil.Address) ([]byte, dcrec.SignatureType,
 
 // AddFakeUTXO creates a fake mined utxo for the provided transaction.
 func (p *poolHarness) AddFakeUTXO(tx *dcrutil.Tx, blockHeight int64) {
-	p.chain.utxos.AddTxOuts(tx, blockHeight, wire.NullBlockIndex)
+	p.chain.utxos.AddTxOuts(tx, blockHeight, wire.NullBlockIndex, noTreasury)
 }
 
 // CreateCoinbaseTx returns a coinbase transaction with the requested number of
@@ -632,7 +633,7 @@ func (p *poolHarness) CreateVote(ticket *dcrutil.Tx, mungers ...func(*wire.MsgTx
 	redeemTicketScript := ticket.MsgTx().TxOut[0].PkScript
 	signedScript, err := txscript.SignTxOutput(p.chainParams, vote, inputToSign,
 		redeemTicketScript, txscript.SigHashAll, p,
-		p, vote.TxIn[inputToSign].SignatureScript)
+		p, vote.TxIn[inputToSign].SignatureScript, noTreasury)
 	if err != nil {
 		return nil, err
 	}
@@ -676,9 +677,9 @@ func (p *poolHarness) CreateRevocation(ticket *dcrutil.Tx) (*dcrutil.Tx, error) 
 	// Sign the input.
 	inputToSign := 0
 	redeemTicketScript := ticket.MsgTx().TxOut[0].PkScript
-	signedScript, err := txscript.SignTxOutput(p.chainParams, revocation, inputToSign,
-		redeemTicketScript, txscript.SigHashAll, p,
-		p, revocation.TxIn[inputToSign].SignatureScript)
+	signedScript, err := txscript.SignTxOutput(p.chainParams, revocation,
+		inputToSign, redeemTicketScript, txscript.SigHashAll, p, p,
+		revocation.TxIn[inputToSign].SignatureScript, noTreasury)
 	if err != nil {
 		return nil, err
 	}
@@ -719,7 +720,7 @@ func newPoolHarness(chainParams *chaincfg.Params) (*poolHarness, []spendableOutp
 	// Create a new fake chain and harness bound to it.
 	subsidyCache := standalone.NewSubsidyCache(chainParams)
 	chain := &fakeChain{
-		utxos:       blockchain.NewUtxoViewpoint(),
+		utxos:       blockchain.NewUtxoViewpoint(nil),
 		utxoTimes:   make(map[wire.OutPoint]int64),
 		blocks:      make(map[chainhash.Hash]*dcrutil.Block),
 		scriptFlags: BaseStandardVerifyFlags,
@@ -769,6 +770,9 @@ func newPoolHarness(chainParams *chaincfg.Params) (*poolHarness, []spendableOutp
 			AddrIndex:           nil,
 			ExistsAddrIndex:     nil,
 			OnVoteReceived:      nil,
+			IsTreasuryAgendaActive: func() (bool, error) {
+				return noTreasury, nil
+			},
 		}),
 	}
 
@@ -784,7 +788,8 @@ func newPoolHarness(chainParams *chaincfg.Params) (*poolHarness, []spendableOutp
 	if err != nil {
 		return nil, nil, err
 	}
-	harness.chain.utxos.AddTxOuts(coinbase, curHeight+1, wire.NullBlockIndex)
+	harness.chain.utxos.AddTxOuts(coinbase, curHeight+1, wire.NullBlockIndex,
+		noTreasury)
 	for i := uint32(0); i < numOutputs; i++ {
 		outputs = append(outputs, txOutToSpendableOut(coinbase, i, wire.TxTreeRegular))
 	}
@@ -957,8 +962,8 @@ func TestTicketPurchaseOrphan(t *testing.T) {
 	// Remove the transaction from the mempool. This causes the ticket
 	// in the stage pool to enter the mempool.
 	harness.AddFakeUTXO(tx, int64(ticket.MsgTx().TxIn[0].BlockHeight))
-	harness.txPool.RemoveTransaction(tx, false)
-	harness.txPool.MaybeAcceptDependents(tx)
+	harness.txPool.RemoveTransaction(tx, false, noTreasury)
+	harness.txPool.MaybeAcceptDependents(tx, noTreasury)
 
 	testPoolMembership(tc, tx, false, false)
 	testPoolMembership(tc, ticket, false, true)
@@ -1363,7 +1368,7 @@ func TestBasicOrphanRemoval(t *testing.T) {
 		t.Fatalf("unable to create signed tx: %v", err)
 	}
 
-	harness.txPool.RemoveOrphan(nonChainedOrphanTx)
+	harness.txPool.RemoveOrphan(nonChainedOrphanTx, noTreasury)
 	testPoolMembership(tc, nonChainedOrphanTx, false, false)
 	for _, tx := range chainedTxns[1 : maxOrphans+1] {
 		testPoolMembership(tc, tx, true, false)
@@ -1372,7 +1377,7 @@ func TestBasicOrphanRemoval(t *testing.T) {
 	// Attempt to remove an orphan that has an existing redeemer but itself
 	// is not present and ensure the state of all other orphans (including
 	// the one that redeems it) are unaffected.
-	harness.txPool.RemoveOrphan(chainedTxns[0])
+	harness.txPool.RemoveOrphan(chainedTxns[0], noTreasury)
 	testPoolMembership(tc, chainedTxns[0], false, false)
 	for _, tx := range chainedTxns[1 : maxOrphans+1] {
 		testPoolMembership(tc, tx, true, false)
@@ -1381,7 +1386,7 @@ func TestBasicOrphanRemoval(t *testing.T) {
 	// Remove each orphan one-by-one and ensure they are removed as
 	// expected.
 	for _, tx := range chainedTxns[1 : maxOrphans+1] {
-		harness.txPool.RemoveOrphan(tx)
+		harness.txPool.RemoveOrphan(tx, noTreasury)
 		testPoolMembership(tc, tx, false, false)
 	}
 }
@@ -1432,7 +1437,7 @@ func TestOrphanChainRemoval(t *testing.T) {
 	// remove redeemer flag set and ensure that only the first orphan was
 	// removed.
 	harness.txPool.mtx.Lock()
-	harness.txPool.removeOrphan(chainedTxns[1], false)
+	harness.txPool.removeOrphan(chainedTxns[1], false, noTreasury)
 	harness.txPool.mtx.Unlock()
 	testPoolMembership(tc, chainedTxns[1], false, false)
 	for _, tx := range chainedTxns[2 : maxOrphans+1] {
@@ -1442,7 +1447,7 @@ func TestOrphanChainRemoval(t *testing.T) {
 	// Remove the first remaining orphan that starts the orphan chain with
 	// the remove redeemer flag set and ensure they are all removed.
 	harness.txPool.mtx.Lock()
-	harness.txPool.removeOrphan(chainedTxns[2], true)
+	harness.txPool.removeOrphan(chainedTxns[2], true, noTreasury)
 	harness.txPool.mtx.Unlock()
 	for _, tx := range chainedTxns[2 : maxOrphans+1] {
 		testPoolMembership(tc, tx, false, false)
@@ -1872,7 +1877,8 @@ func TestMaxVoteDoubleSpendRejection(t *testing.T) {
 	// the stake enabled height for the height of the fake utxos to ensure they
 	// are mature for the votes cast a stake validation height below.
 	harness.chain.SetHeight(harness.chainParams.StakeEnabledHeight + 1)
-	harness.chain.utxos.AddTxOuts(ticket, harness.chain.BestHeight(), 0)
+	harness.chain.utxos.AddTxOuts(ticket, harness.chain.BestHeight(), 0,
+		noTreasury)
 
 	// Create enough votes all using the same ticket and voting on different
 	// blocks at stake validation height to be able to force rejection due to
@@ -1942,7 +1948,7 @@ func TestMaxVoteDoubleSpendRejection(t *testing.T) {
 	// Remove one of the votes from the pool and ensure it is not in the orphan
 	// pool, not in the transaction pool, and not reported as available.
 	vote := votes[2]
-	harness.txPool.RemoveTransaction(vote, true)
+	harness.txPool.RemoveTransaction(vote, true, noTreasury)
 	testPoolMembership(tc, vote, false, false)
 
 	// Add one of the votes that was rejected above due to the pool being at the
@@ -1996,7 +2002,8 @@ func TestDuplicateVoteRejection(t *testing.T) {
 	// the stake enabled height for the height of the fake utxos to ensure they
 	// are matured for the votes cast a stake validation height below.
 	harness.chain.SetHeight(harness.chainParams.StakeEnabledHeight + 1)
-	harness.chain.utxos.AddTxOuts(ticket, harness.chain.BestHeight(), 0)
+	harness.chain.utxos.AddTxOuts(ticket, harness.chain.BestHeight(), 0,
+		noTreasury)
 
 	// Create a vote that votes on a block at stake validation height.
 	harness.chain.SetBestHash(&chainhash.Hash{0x5c, 0xa1, 0xab, 0x1e})
@@ -2040,7 +2047,7 @@ func TestDuplicateVoteRejection(t *testing.T) {
 
 	// Remove the original vote from the pool and ensure it is not in the orphan
 	// pool, not in the transaction pool, and not reported as available.
-	harness.txPool.RemoveTransaction(vote, true)
+	harness.txPool.RemoveTransaction(vote, true, noTreasury)
 	testPoolMembership(tc, vote, false, false)
 
 	// Add the duplicate vote which should now be accepted.  Also, ensure it is
@@ -2269,7 +2276,7 @@ func TestRemoveDoubleSpends(t *testing.T) {
 
 	// If a staged transaction double-spends an input due to a reorg,
 	// it should be removed from the stage pool.
-	tc.harness.txPool.RemoveDoubleSpends(doubleSpendTx)
+	tc.harness.txPool.RemoveDoubleSpends(doubleSpendTx, noTreasury)
 
 	// FetchTransaction should not be able to retrieve the ticket anymore.
 	_, err = harness.txPool.FetchTransaction(ticket.Hash())

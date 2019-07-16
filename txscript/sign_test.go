@@ -25,7 +25,19 @@ import (
 // can more easily be changed if desired.
 var testingParams = chaincfg.RegNetParams()
 
-const testValueIn = 12345
+const (
+	testValueIn = 12345
+
+	// noTreasury signifies the treasury agenda should be treated as though
+	// it is inactive.  It is used to increase the readability of the
+	// tests.
+	noTreasury = false
+
+	// withTreasury signifies the treasury agenda should be treated as
+	// though it is active.  It is used to increase the readability of
+	// the tests.
+	withTreasury = true
+)
 
 type addressToKey struct {
 	key        []byte
@@ -102,11 +114,10 @@ func checkScripts(msg string, tx *wire.MsgTx, idx int, sigScript, pkScript []byt
 	return nil
 }
 
-func signAndCheck(msg string, tx *wire.MsgTx, idx int, pkScript []byte,
-	hashType SigHashType, kdb KeyDB, sdb ScriptDB) error {
+func signAndCheck(msg string, tx *wire.MsgTx, idx int, pkScript []byte, hashType SigHashType, kdb KeyDB, sdb ScriptDB, isTreasuryEnabled bool) error {
 
 	sigScript, err := SignTxOutput(testingParams, tx, idx, pkScript,
-		hashType, kdb, sdb, nil)
+		hashType, kdb, sdb, nil, isTreasuryEnabled)
 	if err != nil {
 		return fmt.Errorf("failed to sign output %s: %v", msg, err)
 	}
@@ -114,14 +125,13 @@ func signAndCheck(msg string, tx *wire.MsgTx, idx int, pkScript []byte,
 	return checkScripts(msg, tx, idx, sigScript, pkScript)
 }
 
-func signBadAndCheck(msg string, tx *wire.MsgTx, idx int, pkScript []byte,
-	hashType SigHashType, kdb KeyDB, sdb ScriptDB) error {
+func signBadAndCheck(msg string, tx *wire.MsgTx, idx int, pkScript []byte, hashType SigHashType, kdb KeyDB, sdb ScriptDB, isTreasuryEnabled bool) error {
 	// Setup a PRNG.
 	randScriptHash := chainhash.HashB(pkScript)
 	tRand := mrand.New(mrand.NewSource(int64(randScriptHash[0])))
 
 	sigScript, err := SignTxOutput(testingParams, tx,
-		idx, pkScript, hashType, kdb, sdb, nil)
+		idx, pkScript, hashType, kdb, sdb, nil, isTreasuryEnabled)
 	if err != nil {
 		return fmt.Errorf("failed to sign output %s: %v", msg, err)
 	}
@@ -252,10 +262,11 @@ func TestSignTxOutput(t *testing.T) {
 						"for %s: %v", msg, err)
 				}
 
+				// Without treasury agenda.
 				if err := signAndCheck(msg, tx, i, pkScript, hashType,
 					mkGetKey(map[string]addressToKey{
 						address.Address(): {keyDB, suite, false},
-					}), mkGetScript(nil)); err != nil {
+					}), mkGetScript(nil), noTreasury); err != nil {
 					t.Error(err)
 					break
 				}
@@ -263,9 +274,25 @@ func TestSignTxOutput(t *testing.T) {
 				if err := signBadAndCheck(msg, tx, i, pkScript, hashType,
 					mkGetKey(map[string]addressToKey{
 						address.Address(): {keyDB, suite, false},
-					}), mkGetScript(nil)); err == nil {
-					t.Errorf("corrupted signature validated %s: %v",
-						msg, err)
+					}), mkGetScript(nil), noTreasury); err == nil {
+					t.Errorf("corrupted signature validated: %s", msg)
+					break
+				}
+
+				// With treasury agenda.
+				if err := signAndCheck(msg, tx, i, pkScript, hashType,
+					mkGetKey(map[string]addressToKey{
+						address.Address(): {keyDB, suite, false},
+					}), mkGetScript(nil), withTreasury); err != nil {
+					t.Error(err)
+					break
+				}
+
+				if err := signBadAndCheck(msg, tx, i, pkScript, hashType,
+					mkGetKey(map[string]addressToKey{
+						address.Address(): {keyDB, suite, false},
+					}), mkGetScript(nil), withTreasury); err == nil {
+					t.Errorf("corrupted signature validated: %s", msg)
 					break
 				}
 			}
@@ -310,11 +337,12 @@ func TestSignTxOutput(t *testing.T) {
 						"for %s: %v", msg, err)
 				}
 
+				// Without treasury agenda.
 				sigScript, err := SignTxOutput(
 					testingParams, tx, i, pkScript,
 					hashType, mkGetKey(map[string]addressToKey{
 						address.Address(): {keyDB, suite, false},
-					}), mkGetScript(nil), nil)
+					}), mkGetScript(nil), nil, noTreasury)
 				if err != nil {
 					t.Errorf("failed to sign output %s: %v", msg,
 						err)
@@ -327,7 +355,39 @@ func TestSignTxOutput(t *testing.T) {
 					testingParams, tx, i, pkScript,
 					hashType, mkGetKey(map[string]addressToKey{
 						address.Address(): {keyDB, suite, false},
-					}), mkGetScript(nil), sigScript)
+					}), mkGetScript(nil), sigScript, noTreasury)
+				if err != nil {
+					t.Errorf("failed to sign output %s a "+
+						"second time: %v", msg, err)
+					break
+				}
+
+				err = checkScripts(msg, tx, i, sigScript, pkScript)
+				if err != nil {
+					t.Errorf("twice signed script invalid for "+
+						"%s: %v", msg, err)
+					break
+				}
+
+				// With treasury agenda.
+				sigScript, err = SignTxOutput(
+					testingParams, tx, i, pkScript,
+					hashType, mkGetKey(map[string]addressToKey{
+						address.Address(): {keyDB, suite, false},
+					}), mkGetScript(nil), nil, withTreasury)
+				if err != nil {
+					t.Errorf("failed to sign output %s: %v", msg,
+						err)
+					break
+				}
+
+				// by the above loop, this should be valid, now sign
+				// again and merge.
+				sigScript, err = SignTxOutput(
+					testingParams, tx, i, pkScript,
+					hashType, mkGetKey(map[string]addressToKey{
+						address.Address(): {keyDB, suite, false},
+					}), mkGetScript(nil), sigScript, withTreasury)
 				if err != nil {
 					t.Errorf("failed to sign output %s a "+
 						"second time: %v", msg, err)
@@ -382,10 +442,11 @@ func TestSignTxOutput(t *testing.T) {
 						"for %s: %v", msg, err)
 				}
 
+				// Without treasury agenda.
 				if err := signAndCheck(msg, tx, i, pkScript, hashType,
 					mkGetKey(map[string]addressToKey{
 						address.Address(): {keyDB, suite, true},
-					}), mkGetScript(nil)); err != nil {
+					}), mkGetScript(nil), noTreasury); err != nil {
 					t.Error(err)
 					break
 				}
@@ -393,9 +454,25 @@ func TestSignTxOutput(t *testing.T) {
 				if err := signBadAndCheck(msg, tx, i, pkScript, hashType,
 					mkGetKey(map[string]addressToKey{
 						address.Address(): {keyDB, suite, true},
-					}), mkGetScript(nil)); err == nil {
-					t.Errorf("corrupted signature validated %s: %v",
-						msg, err)
+					}), mkGetScript(nil), noTreasury); err == nil {
+					t.Errorf("corrupted signature validated: %s", msg)
+					break
+				}
+
+				// With treasury agenda.
+				if err := signAndCheck(msg, tx, i, pkScript, hashType,
+					mkGetKey(map[string]addressToKey{
+						address.Address(): {keyDB, suite, true},
+					}), mkGetScript(nil), withTreasury); err != nil {
+					t.Error(err)
+					break
+				}
+
+				if err := signBadAndCheck(msg, tx, i, pkScript, hashType,
+					mkGetKey(map[string]addressToKey{
+						address.Address(): {keyDB, suite, true},
+					}), mkGetScript(nil), withTreasury); err == nil {
+					t.Errorf("corrupted signature validated: %s", msg)
 					break
 				}
 			}
@@ -440,11 +517,12 @@ func TestSignTxOutput(t *testing.T) {
 						"for %s: %v", msg, err)
 				}
 
+				// Without treasury agenda.
 				sigScript, err := SignTxOutput(testingParams,
 					tx, i, pkScript, hashType,
 					mkGetKey(map[string]addressToKey{
 						address.Address(): {keyDB, suite, true},
-					}), mkGetScript(nil), nil)
+					}), mkGetScript(nil), nil, noTreasury)
 				if err != nil {
 					t.Errorf("failed to sign output %s: %v", msg,
 						err)
@@ -457,7 +535,39 @@ func TestSignTxOutput(t *testing.T) {
 					tx, i, pkScript,
 					hashType, mkGetKey(map[string]addressToKey{
 						address.Address(): {keyDB, suite, true},
-					}), mkGetScript(nil), sigScript)
+					}), mkGetScript(nil), sigScript, noTreasury)
+				if err != nil {
+					t.Errorf("failed to sign output %s a "+
+						"second time: %v", msg, err)
+					break
+				}
+
+				err = checkScripts(msg, tx, i, sigScript, pkScript)
+				if err != nil {
+					t.Errorf("twice signed script invalid for "+
+						"%s: %v", msg, err)
+					break
+				}
+
+				// With treasury agenda.
+				sigScript, err = SignTxOutput(testingParams,
+					tx, i, pkScript, hashType,
+					mkGetKey(map[string]addressToKey{
+						address.Address(): {keyDB, suite, true},
+					}), mkGetScript(nil), nil, withTreasury)
+				if err != nil {
+					t.Errorf("failed to sign output %s: %v", msg,
+						err)
+					break
+				}
+
+				// by the above loop, this should be valid, now sign
+				// again and merge.
+				sigScript, err = SignTxOutput(testingParams,
+					tx, i, pkScript,
+					hashType, mkGetKey(map[string]addressToKey{
+						address.Address(): {keyDB, suite, true},
+					}), mkGetScript(nil), sigScript, withTreasury)
 				if err != nil {
 					t.Errorf("failed to sign output %s a "+
 						"second time: %v", msg, err)
@@ -503,10 +613,11 @@ func TestSignTxOutput(t *testing.T) {
 					"for %s: %v", msg, err)
 			}
 
+			// Without treasury agenda.
 			if err := signAndCheck(msg, tx, i, pkScript, hashType,
 				mkGetKey(map[string]addressToKey{
 					address.Address(): {keyDB, suite, true},
-				}), mkGetScript(nil)); err != nil {
+				}), mkGetScript(nil), noTreasury); err != nil {
 				t.Error(err)
 				break
 			}
@@ -514,9 +625,25 @@ func TestSignTxOutput(t *testing.T) {
 			if err := signBadAndCheck(msg, tx, i, pkScript, hashType,
 				mkGetKey(map[string]addressToKey{
 					address.Address(): {keyDB, suite, true},
-				}), mkGetScript(nil)); err == nil {
-				t.Errorf("corrupted signature validated %s: %v",
-					msg, err)
+				}), mkGetScript(nil), noTreasury); err == nil {
+				t.Errorf("corrupted signature validated: %s", msg)
+				break
+			}
+
+			// With treasury agenda.
+			if err := signAndCheck(msg, tx, i, pkScript, hashType,
+				mkGetKey(map[string]addressToKey{
+					address.Address(): {keyDB, suite, true},
+				}), mkGetScript(nil), withTreasury); err != nil {
+				t.Error(err)
+				break
+			}
+
+			if err := signBadAndCheck(msg, tx, i, pkScript, hashType,
+				mkGetKey(map[string]addressToKey{
+					address.Address(): {keyDB, suite, true},
+				}), mkGetScript(nil), withTreasury); err == nil {
+				t.Errorf("corrupted signature validated: %s", msg)
 				break
 			}
 		}
@@ -551,10 +678,11 @@ func TestSignTxOutput(t *testing.T) {
 					"for %s: %v", msg, err)
 			}
 
+			// Without treasury agenda.
 			if err := signAndCheck(msg, tx, i, pkScript, hashType,
 				mkGetKey(map[string]addressToKey{
 					address.Address(): {keyDB, suite, true},
-				}), mkGetScript(nil)); err != nil {
+				}), mkGetScript(nil), noTreasury); err != nil {
 				t.Error(err)
 				break
 			}
@@ -562,9 +690,25 @@ func TestSignTxOutput(t *testing.T) {
 			if err := signBadAndCheck(msg, tx, i, pkScript, hashType,
 				mkGetKey(map[string]addressToKey{
 					address.Address(): {keyDB, suite, true},
-				}), mkGetScript(nil)); err == nil {
-				t.Errorf("corrupted signature validated %s: %v",
-					msg, err)
+				}), mkGetScript(nil), noTreasury); err == nil {
+				t.Errorf("corrupted signature validated: %s", msg)
+				break
+			}
+
+			// With treasury agenda.
+			if err := signAndCheck(msg, tx, i, pkScript, hashType,
+				mkGetKey(map[string]addressToKey{
+					address.Address(): {keyDB, suite, true},
+				}), mkGetScript(nil), withTreasury); err != nil {
+				t.Error(err)
+				break
+			}
+
+			if err := signBadAndCheck(msg, tx, i, pkScript, hashType,
+				mkGetKey(map[string]addressToKey{
+					address.Address(): {keyDB, suite, true},
+				}), mkGetScript(nil), withTreasury); err == nil {
+				t.Errorf("corrupted signature validated: %s", msg)
 				break
 			}
 		}
@@ -599,10 +743,11 @@ func TestSignTxOutput(t *testing.T) {
 					"for %s: %v", msg, err)
 			}
 
+			// Without treasury agenda.
 			if err := signAndCheck(msg, tx, i, pkScript, hashType,
 				mkGetKey(map[string]addressToKey{
 					address.Address(): {keyDB, suite, true},
-				}), mkGetScript(nil)); err != nil {
+				}), mkGetScript(nil), noTreasury); err != nil {
 				t.Error(err)
 				break
 			}
@@ -610,9 +755,25 @@ func TestSignTxOutput(t *testing.T) {
 			if err := signBadAndCheck(msg, tx, i, pkScript, hashType,
 				mkGetKey(map[string]addressToKey{
 					address.Address(): {keyDB, suite, true},
-				}), mkGetScript(nil)); err == nil {
-				t.Errorf("corrupted signature validated %s: %v",
-					msg, err)
+				}), mkGetScript(nil), noTreasury); err == nil {
+				t.Errorf("corrupted signature validated: %s", msg)
+				break
+			}
+
+			// With treasury agenda.
+			if err := signAndCheck(msg, tx, i, pkScript, hashType,
+				mkGetKey(map[string]addressToKey{
+					address.Address(): {keyDB, suite, true},
+				}), mkGetScript(nil), withTreasury); err != nil {
+				t.Error(err)
+				break
+			}
+
+			if err := signBadAndCheck(msg, tx, i, pkScript, hashType,
+				mkGetKey(map[string]addressToKey{
+					address.Address(): {keyDB, suite, true},
+				}), mkGetScript(nil), withTreasury); err == nil {
+				t.Errorf("corrupted signature validated: %s", msg)
 				break
 			}
 		}
@@ -647,10 +808,11 @@ func TestSignTxOutput(t *testing.T) {
 					"for %s: %v", msg, err)
 			}
 
+			// Without treasury agenda.
 			if err := signAndCheck(msg, tx, i, pkScript, hashType,
 				mkGetKey(map[string]addressToKey{
 					address.Address(): {keyDB, suite, true},
-				}), mkGetScript(nil)); err != nil {
+				}), mkGetScript(nil), noTreasury); err != nil {
 				t.Error(err)
 				break
 			}
@@ -658,9 +820,25 @@ func TestSignTxOutput(t *testing.T) {
 			if err := signBadAndCheck(msg, tx, i, pkScript, hashType,
 				mkGetKey(map[string]addressToKey{
 					address.Address(): {keyDB, suite, true},
-				}), mkGetScript(nil)); err == nil {
-				t.Errorf("corrupted signature validated %s: %v",
-					msg, err)
+				}), mkGetScript(nil), noTreasury); err == nil {
+				t.Errorf("corrupted signature validated: %s", msg)
+				break
+			}
+
+			// With treasury agenda.
+			if err := signAndCheck(msg, tx, i, pkScript, hashType,
+				mkGetKey(map[string]addressToKey{
+					address.Address(): {keyDB, suite, true},
+				}), mkGetScript(nil), withTreasury); err != nil {
+				t.Error(err)
+				break
+			}
+
+			if err := signBadAndCheck(msg, tx, i, pkScript, hashType,
+				mkGetKey(map[string]addressToKey{
+					address.Address(): {keyDB, suite, true},
+				}), mkGetScript(nil), withTreasury); err == nil {
+				t.Errorf("corrupted signature validated: %s", msg)
 				break
 			}
 		}
@@ -697,10 +875,11 @@ func TestSignTxOutput(t *testing.T) {
 						"for %s: %v", msg, err)
 				}
 
+				// Without treasury agenda.
 				if err := signAndCheck(msg, tx, i, pkScript, hashType,
 					mkGetKey(map[string]addressToKey{
 						address.Address(): {keyDB, suite, false},
-					}), mkGetScript(nil)); err != nil {
+					}), mkGetScript(nil), noTreasury); err != nil {
 					t.Error(err)
 					break
 				}
@@ -708,9 +887,25 @@ func TestSignTxOutput(t *testing.T) {
 				if err := signBadAndCheck(msg, tx, i, pkScript, hashType,
 					mkGetKey(map[string]addressToKey{
 						address.Address(): {keyDB, dcrec.STEcdsaSecp256k1, false},
-					}), mkGetScript(nil)); err == nil {
-					t.Errorf("corrupted signature validated %s: %v",
-						msg, err)
+					}), mkGetScript(nil), noTreasury); err == nil {
+					t.Errorf("corrupted signature validated: %s", msg)
+					break
+				}
+
+				// With treasury agenda.
+				if err := signAndCheck(msg, tx, i, pkScript, hashType,
+					mkGetKey(map[string]addressToKey{
+						address.Address(): {keyDB, suite, false},
+					}), mkGetScript(nil), withTreasury); err != nil {
+					t.Error(err)
+					break
+				}
+
+				if err := signBadAndCheck(msg, tx, i, pkScript, hashType,
+					mkGetKey(map[string]addressToKey{
+						address.Address(): {keyDB, dcrec.STEcdsaSecp256k1, false},
+					}), mkGetScript(nil), withTreasury); err == nil {
+					t.Errorf("corrupted signature validated: %s", msg)
 					break
 				}
 			}
@@ -771,11 +966,12 @@ func TestSignTxOutput(t *testing.T) {
 						"for %s: %v", msg, err)
 				}
 
+				// Without treasury agenda.
 				sigScript, err := SignTxOutput(testingParams,
 					tx, i, pkScript, hashType,
 					mkGetKeyPub(map[string]addressToKey{
 						address.String(): {keyDB, suite, false},
-					}), mkGetScript(nil), nil)
+					}), mkGetScript(nil), nil, noTreasury)
 				if err != nil {
 					t.Errorf("failed to sign output %s: %v", msg,
 						err)
@@ -787,7 +983,36 @@ func TestSignTxOutput(t *testing.T) {
 					tx, i, pkScript, hashType,
 					mkGetKeyPub(map[string]addressToKey{
 						address.String(): {keyDB, suite, false},
-					}), mkGetScript(nil), sigScript)
+					}), mkGetScript(nil), sigScript, noTreasury)
+				if err != nil {
+					t.Errorf("failed to sign output %s a "+
+						"second time: %v", msg, err)
+				}
+
+				err = checkScripts(msg, tx, i, sigScript, pkScript)
+				if err != nil {
+					t.Errorf("twice signed script invalid for "+
+						"%s: %v", msg, err)
+				}
+
+				// With treasury agenda.
+				sigScript, err = SignTxOutput(testingParams,
+					tx, i, pkScript, hashType,
+					mkGetKeyPub(map[string]addressToKey{
+						address.String(): {keyDB, suite, false},
+					}), mkGetScript(nil), nil, withTreasury)
+				if err != nil {
+					t.Errorf("failed to sign output %s: %v", msg,
+						err)
+				}
+
+				// by the above loop, this should be valid, now sign
+				// again and merge.
+				sigScript, err = SignTxOutput(testingParams,
+					tx, i, pkScript, hashType,
+					mkGetKeyPub(map[string]addressToKey{
+						address.String(): {keyDB, suite, false},
+					}), mkGetScript(nil), sigScript, withTreasury)
 				if err != nil {
 					t.Errorf("failed to sign output %s a "+
 						"second time: %v", msg, err)
@@ -856,10 +1081,11 @@ func TestSignTxOutput(t *testing.T) {
 						"for %s: %v", msg, err)
 				}
 
+				// Without treasury agenda.
 				if err := signAndCheck(msg, tx, i, pkScript, hashType,
 					mkGetKeyPub(map[string]addressToKey{
 						address.String(): {keyDB, suite, true},
-					}), mkGetScript(nil)); err != nil {
+					}), mkGetScript(nil), noTreasury); err != nil {
 					t.Error(err)
 					break
 				}
@@ -867,9 +1093,25 @@ func TestSignTxOutput(t *testing.T) {
 				if err := signBadAndCheck(msg, tx, i, pkScript, hashType,
 					mkGetKeyPub(map[string]addressToKey{
 						address.String(): {keyDB, suite, true},
-					}), mkGetScript(nil)); err == nil {
-					t.Errorf("corrupted signature validated %s: %v",
-						msg, err)
+					}), mkGetScript(nil), noTreasury); err == nil {
+					t.Errorf("corrupted signature validated: %s", msg)
+					break
+				}
+
+				// With treasury agenda.
+				if err := signAndCheck(msg, tx, i, pkScript, hashType,
+					mkGetKeyPub(map[string]addressToKey{
+						address.String(): {keyDB, suite, true},
+					}), mkGetScript(nil), withTreasury); err != nil {
+					t.Error(err)
+					break
+				}
+
+				if err := signBadAndCheck(msg, tx, i, pkScript, hashType,
+					mkGetKeyPub(map[string]addressToKey{
+						address.String(): {keyDB, suite, true},
+					}), mkGetScript(nil), withTreasury); err == nil {
+					t.Errorf("corrupted signature validated: %s", msg)
 					break
 				}
 			}
@@ -927,11 +1169,12 @@ func TestSignTxOutput(t *testing.T) {
 						"for %s: %v", msg, err)
 				}
 
+				// Without treasury agenda.
 				sigScript, err := SignTxOutput(testingParams,
 					tx, i, pkScript, hashType,
 					mkGetKey(map[string]addressToKey{
 						address.Address(): {keyDB, suite, true},
-					}), mkGetScript(nil), nil)
+					}), mkGetScript(nil), nil, noTreasury)
 				if err != nil {
 					t.Errorf("failed to sign output %s: %v", msg,
 						err)
@@ -944,7 +1187,39 @@ func TestSignTxOutput(t *testing.T) {
 					tx, i, pkScript, hashType,
 					mkGetKey(map[string]addressToKey{
 						address.Address(): {keyDB, suite, true},
-					}), mkGetScript(nil), sigScript)
+					}), mkGetScript(nil), sigScript, noTreasury)
+				if err != nil {
+					t.Errorf("failed to sign output %s a "+
+						"second time: %v", msg, err)
+					break
+				}
+
+				err = checkScripts(msg, tx, i, sigScript, pkScript)
+				if err != nil {
+					t.Errorf("twice signed script invalid for "+
+						"%s: %v", msg, err)
+					break
+				}
+
+				// With treasury agenda.
+				sigScript, err = SignTxOutput(testingParams,
+					tx, i, pkScript, hashType,
+					mkGetKey(map[string]addressToKey{
+						address.Address(): {keyDB, suite, true},
+					}), mkGetScript(nil), nil, withTreasury)
+				if err != nil {
+					t.Errorf("failed to sign output %s: %v", msg,
+						err)
+					break
+				}
+
+				// by the above loop, this should be valid, now sign
+				// again and merge.
+				sigScript, err = SignTxOutput(testingParams,
+					tx, i, pkScript, hashType,
+					mkGetKey(map[string]addressToKey{
+						address.Address(): {keyDB, suite, true},
+					}), mkGetScript(nil), sigScript, withTreasury)
 				if err != nil {
 					t.Errorf("failed to sign output %s a "+
 						"second time: %v", msg, err)
@@ -1016,13 +1291,14 @@ func TestSignTxOutput(t *testing.T) {
 					break
 				}
 
+				// Without treasury agenda.
 				if err := signAndCheck(msg, tx, i, scriptPkScript,
 					hashType,
 					mkGetKey(map[string]addressToKey{
 						address.Address(): {keyDB, suite, false},
 					}), mkGetScript(map[string][]byte{
 						scriptAddr.Address(): pkScript,
-					})); err != nil {
+					}), noTreasury); err != nil {
 					t.Error(err)
 					break
 				}
@@ -1030,9 +1306,28 @@ func TestSignTxOutput(t *testing.T) {
 				if err := signBadAndCheck(msg, tx, i, pkScript, hashType,
 					mkGetKey(map[string]addressToKey{
 						address.Address(): {keyDB, suite, false},
-					}), mkGetScript(nil)); err == nil {
-					t.Errorf("corrupted signature validated %s: %v",
-						msg, err)
+					}), mkGetScript(nil), noTreasury); err == nil {
+					t.Errorf("corrupted signature validated: %s", msg)
+					break
+				}
+
+				// With treasury agenda.
+				if err := signAndCheck(msg, tx, i, scriptPkScript,
+					hashType,
+					mkGetKey(map[string]addressToKey{
+						address.Address(): {keyDB, suite, false},
+					}), mkGetScript(map[string][]byte{
+						scriptAddr.Address(): pkScript,
+					}), withTreasury); err != nil {
+					t.Error(err)
+					break
+				}
+
+				if err := signBadAndCheck(msg, tx, i, pkScript, hashType,
+					mkGetKey(map[string]addressToKey{
+						address.Address(): {keyDB, suite, false},
+					}), mkGetScript(nil), withTreasury); err == nil {
+					t.Errorf("corrupted signature validated: %s", msg)
 					break
 				}
 			}
@@ -1093,13 +1388,13 @@ func TestSignTxOutput(t *testing.T) {
 					break
 				}
 
+				// Without treasury agenda.
 				_, err = SignTxOutput(testingParams, tx, i,
 					scriptPkScript, hashType,
 					mkGetKey(map[string]addressToKey{
 						address.Address(): {keyDB, suite, false},
 					}), mkGetScript(map[string][]byte{
-						scriptAddr.Address(): pkScript,
-					}), nil)
+						scriptAddr.Address(): pkScript}), nil, noTreasury)
 				if err != nil {
 					t.Errorf("failed to sign output %s: %v", msg,
 						err)
@@ -1114,7 +1409,42 @@ func TestSignTxOutput(t *testing.T) {
 						address.Address(): {keyDB, suite, false},
 					}), mkGetScript(map[string][]byte{
 						scriptAddr.Address(): pkScript,
-					}), nil)
+					}), nil, noTreasury)
+				if err != nil {
+					t.Errorf("failed to sign output %s a "+
+						"second time: %v", msg, err)
+					break
+				}
+
+				err = checkScripts(msg, tx, i, sigScript, scriptPkScript)
+				if err != nil {
+					t.Errorf("twice signed script invalid for "+
+						"%s: %v", msg, err)
+					break
+				}
+
+				// Wit treasury agenda.
+				_, err = SignTxOutput(testingParams, tx, i,
+					scriptPkScript, hashType,
+					mkGetKey(map[string]addressToKey{
+						address.Address(): {keyDB, suite, false},
+					}), mkGetScript(map[string][]byte{
+						scriptAddr.Address(): pkScript}), nil, withTreasury)
+				if err != nil {
+					t.Errorf("failed to sign output %s: %v", msg,
+						err)
+					break
+				}
+
+				// by the above loop, this should be valid, now sign
+				// again and merge.
+				sigScript, err = SignTxOutput(testingParams,
+					tx, i, scriptPkScript, hashType,
+					mkGetKey(map[string]addressToKey{
+						address.Address(): {keyDB, suite, false},
+					}), mkGetScript(map[string][]byte{
+						scriptAddr.Address(): pkScript,
+					}), nil, withTreasury)
 				if err != nil {
 					t.Errorf("failed to sign output %s a "+
 						"second time: %v", msg, err)
@@ -1184,13 +1514,14 @@ func TestSignTxOutput(t *testing.T) {
 					break
 				}
 
+				// Without treasury agenda.
 				if err := signAndCheck(msg, tx, i, scriptPkScript,
 					hashType,
 					mkGetKey(map[string]addressToKey{
 						address.Address(): {keyDB, suite, true},
 					}), mkGetScript(map[string][]byte{
 						scriptAddr.Address(): pkScript,
-					})); err != nil {
+					}), noTreasury); err != nil {
 					t.Error(err)
 					break
 				}
@@ -1198,9 +1529,28 @@ func TestSignTxOutput(t *testing.T) {
 				if err := signBadAndCheck(msg, tx, i, pkScript, hashType,
 					mkGetKey(map[string]addressToKey{
 						address.Address(): {keyDB, suite, true},
-					}), mkGetScript(nil)); err == nil {
-					t.Errorf("corrupted signature validated %s: %v",
-						msg, err)
+					}), mkGetScript(nil), noTreasury); err == nil {
+					t.Errorf("corrupted signature validated: %s", msg)
+					break
+				}
+
+				// With treasury agenda.
+				if err := signAndCheck(msg, tx, i, scriptPkScript,
+					hashType,
+					mkGetKey(map[string]addressToKey{
+						address.Address(): {keyDB, suite, true},
+					}), mkGetScript(map[string][]byte{
+						scriptAddr.Address(): pkScript,
+					}), withTreasury); err != nil {
+					t.Error(err)
+					break
+				}
+
+				if err := signBadAndCheck(msg, tx, i, pkScript, hashType,
+					mkGetKey(map[string]addressToKey{
+						address.Address(): {keyDB, suite, true},
+					}), mkGetScript(nil), withTreasury); err == nil {
+					t.Errorf("corrupted signature validated: %s", msg)
 					break
 				}
 			}
@@ -1260,13 +1610,14 @@ func TestSignTxOutput(t *testing.T) {
 					break
 				}
 
+				// Without treasury agenda.
 				_, err = SignTxOutput(testingParams,
 					tx, i, scriptPkScript, hashType,
 					mkGetKey(map[string]addressToKey{
 						address.Address(): {keyDB, suite, true},
 					}), mkGetScript(map[string][]byte{
 						scriptAddr.Address(): pkScript,
-					}), nil)
+					}), nil, noTreasury)
 				if err != nil {
 					t.Errorf("failed to sign output %s: %v", msg,
 						err)
@@ -1281,7 +1632,43 @@ func TestSignTxOutput(t *testing.T) {
 						address.Address(): {keyDB, suite, true},
 					}), mkGetScript(map[string][]byte{
 						scriptAddr.Address(): pkScript,
-					}), nil)
+					}), nil, noTreasury)
+				if err != nil {
+					t.Errorf("failed to sign output %s a "+
+						"second time: %v", msg, err)
+					break
+				}
+
+				err = checkScripts(msg, tx, i, sigScript, scriptPkScript)
+				if err != nil {
+					t.Errorf("twice signed script invalid for "+
+						"%s: %v", msg, err)
+					break
+				}
+
+				// With treasury agenda.
+				_, err = SignTxOutput(testingParams,
+					tx, i, scriptPkScript, hashType,
+					mkGetKey(map[string]addressToKey{
+						address.Address(): {keyDB, suite, true},
+					}), mkGetScript(map[string][]byte{
+						scriptAddr.Address(): pkScript,
+					}), nil, withTreasury)
+				if err != nil {
+					t.Errorf("failed to sign output %s: %v", msg,
+						err)
+					break
+				}
+
+				// by the above loop, this should be valid, now sign
+				// again and merge.
+				sigScript, err = SignTxOutput(testingParams,
+					tx, i, scriptPkScript, hashType,
+					mkGetKey(map[string]addressToKey{
+						address.Address(): {keyDB, suite, true},
+					}), mkGetScript(map[string][]byte{
+						scriptAddr.Address(): pkScript,
+					}), nil, withTreasury)
 				if err != nil {
 					t.Errorf("failed to sign output %s a "+
 						"second time: %v", msg, err)
@@ -1366,22 +1753,41 @@ func TestSignTxOutput(t *testing.T) {
 						"%s: %v", msg, err)
 				}
 
+				// Without treasury agenda.
 				if err := signAndCheck(msg, tx, i, scriptPkScript,
 					hashType,
 					mkGetKey(map[string]addressToKey{
 						address.Address(): {keyDB, suite, false},
 					}), mkGetScript(map[string][]byte{
 						scriptAddr.Address(): pkScript,
-					})); err != nil {
+					}), noTreasury); err != nil {
 					t.Error(err)
 				}
 
 				if err := signBadAndCheck(msg, tx, i, pkScript, hashType,
 					mkGetKey(map[string]addressToKey{
 						address.Address(): {keyDB, suite, false},
-					}), mkGetScript(nil)); err == nil {
-					t.Errorf("corrupted signature validated %s: %v",
-						msg, err)
+					}), mkGetScript(nil), noTreasury); err == nil {
+					t.Errorf("corrupted signature validated: %s", msg)
+					break
+				}
+
+				// With treasury agenda.
+				if err := signAndCheck(msg, tx, i, scriptPkScript,
+					hashType,
+					mkGetKey(map[string]addressToKey{
+						address.Address(): {keyDB, suite, false},
+					}), mkGetScript(map[string][]byte{
+						scriptAddr.Address(): pkScript,
+					}), withTreasury); err != nil {
+					t.Error(err)
+				}
+
+				if err := signBadAndCheck(msg, tx, i, pkScript, hashType,
+					mkGetKey(map[string]addressToKey{
+						address.Address(): {keyDB, suite, false},
+					}), mkGetScript(nil), withTreasury); err == nil {
+					t.Errorf("corrupted signature validated: %s", msg)
 					break
 				}
 			}
@@ -1456,13 +1862,14 @@ func TestSignTxOutput(t *testing.T) {
 						"%s: %v", msg, err)
 				}
 
+				// Without treasury agenda.
 				_, err = SignTxOutput(testingParams,
 					tx, i, scriptPkScript, hashType,
 					mkGetKey(map[string]addressToKey{
 						address.Address(): {keyDB, suite, false},
 					}), mkGetScript(map[string][]byte{
 						scriptAddr.Address(): pkScript,
-					}), nil)
+					}), nil, noTreasury)
 				if err != nil {
 					t.Errorf("failed to sign output %s: %v", msg,
 						err)
@@ -1477,7 +1884,43 @@ func TestSignTxOutput(t *testing.T) {
 						address.Address(): {keyDB, suite, false},
 					}), mkGetScript(map[string][]byte{
 						scriptAddr.Address(): pkScript,
-					}), nil)
+					}), nil, noTreasury)
+				if err != nil {
+					t.Errorf("failed to sign output %s a "+
+						"second time: %v", msg, err)
+					break
+				}
+
+				err = checkScripts(msg, tx, i, sigScript, scriptPkScript)
+				if err != nil {
+					t.Errorf("twice signed script invalid for "+
+						"%s: %v", msg, err)
+					break
+				}
+
+				// With treasury agenda.
+				_, err = SignTxOutput(testingParams,
+					tx, i, scriptPkScript, hashType,
+					mkGetKey(map[string]addressToKey{
+						address.Address(): {keyDB, suite, false},
+					}), mkGetScript(map[string][]byte{
+						scriptAddr.Address(): pkScript,
+					}), nil, withTreasury)
+				if err != nil {
+					t.Errorf("failed to sign output %s: %v", msg,
+						err)
+					break
+				}
+
+				// by the above loop, this should be valid, now sign
+				// again and merge.
+				sigScript, err = SignTxOutput(testingParams,
+					tx, i, scriptPkScript, hashType,
+					mkGetKey(map[string]addressToKey{
+						address.Address(): {keyDB, suite, false},
+					}), mkGetScript(map[string][]byte{
+						scriptAddr.Address(): pkScript,
+					}), nil, withTreasury)
 				if err != nil {
 					t.Errorf("failed to sign output %s a "+
 						"second time: %v", msg, err)
@@ -1561,13 +2004,14 @@ func TestSignTxOutput(t *testing.T) {
 					break
 				}
 
+				// Without treasury agenda.
 				if err := signAndCheck(msg, tx, i, scriptPkScript,
 					hashType,
 					mkGetKey(map[string]addressToKey{
 						address.Address(): {keyDB, suite, true},
 					}), mkGetScript(map[string][]byte{
 						scriptAddr.Address(): pkScript,
-					})); err != nil {
+					}), noTreasury); err != nil {
 					t.Error(err)
 					break
 				}
@@ -1575,9 +2019,28 @@ func TestSignTxOutput(t *testing.T) {
 				if err := signBadAndCheck(msg, tx, i, pkScript, hashType,
 					mkGetKey(map[string]addressToKey{
 						address.Address(): {keyDB, suite, false},
-					}), mkGetScript(nil)); err == nil {
-					t.Errorf("corrupted signature validated %s: %v",
-						msg, err)
+					}), mkGetScript(nil), noTreasury); err == nil {
+					t.Errorf("corrupted signature validated: %s", msg)
+					break
+				}
+
+				// With treasury agenda.
+				if err := signAndCheck(msg, tx, i, scriptPkScript,
+					hashType,
+					mkGetKey(map[string]addressToKey{
+						address.Address(): {keyDB, suite, true},
+					}), mkGetScript(map[string][]byte{
+						scriptAddr.Address(): pkScript,
+					}), withTreasury); err != nil {
+					t.Error(err)
+					break
+				}
+
+				if err := signBadAndCheck(msg, tx, i, pkScript, hashType,
+					mkGetKey(map[string]addressToKey{
+						address.Address(): {keyDB, suite, false},
+					}), mkGetScript(nil), withTreasury); err == nil {
+					t.Errorf("corrupted signature validated: %s", msg)
 					break
 				}
 			}
@@ -1651,13 +2114,14 @@ func TestSignTxOutput(t *testing.T) {
 					break
 				}
 
+				// Without treasury agenda.
 				_, err = SignTxOutput(testingParams,
 					tx, i, scriptPkScript, hashType,
 					mkGetKey(map[string]addressToKey{
 						address.Address(): {keyDB, suite, true},
 					}), mkGetScript(map[string][]byte{
 						scriptAddr.Address(): pkScript,
-					}), nil)
+					}), nil, noTreasury)
 				if err != nil {
 					t.Errorf("failed to sign output %s: %v", msg,
 						err)
@@ -1672,7 +2136,43 @@ func TestSignTxOutput(t *testing.T) {
 						address.Address(): {keyDB, suite, true},
 					}), mkGetScript(map[string][]byte{
 						scriptAddr.Address(): pkScript,
-					}), nil)
+					}), nil, noTreasury)
+				if err != nil {
+					t.Errorf("failed to sign output %s a "+
+						"second time: %v", msg, err)
+					break
+				}
+
+				err = checkScripts(msg, tx, i, sigScript, scriptPkScript)
+				if err != nil {
+					t.Errorf("twice signed script invalid for "+
+						"%s: %v", msg, err)
+					break
+				}
+
+				// With treasury agenda.
+				_, err = SignTxOutput(testingParams,
+					tx, i, scriptPkScript, hashType,
+					mkGetKey(map[string]addressToKey{
+						address.Address(): {keyDB, suite, true},
+					}), mkGetScript(map[string][]byte{
+						scriptAddr.Address(): pkScript,
+					}), nil, withTreasury)
+				if err != nil {
+					t.Errorf("failed to sign output %s: %v", msg,
+						err)
+					break
+				}
+
+				// by the above loop, this should be valid, now sign
+				// again and merge.
+				sigScript, err = SignTxOutput(testingParams,
+					tx, i, scriptPkScript, hashType,
+					mkGetKey(map[string]addressToKey{
+						address.Address(): {keyDB, suite, true},
+					}), mkGetScript(map[string][]byte{
+						scriptAddr.Address(): pkScript,
+					}), nil, withTreasury)
 				if err != nil {
 					t.Errorf("failed to sign output %s a "+
 						"second time: %v", msg, err)
@@ -1751,6 +2251,7 @@ func TestSignTxOutput(t *testing.T) {
 				break
 			}
 
+			// Without treasury agenda.
 			if err := signAndCheck(msg, tx, i, scriptPkScript,
 				hashType,
 				mkGetKey(map[string]addressToKey{
@@ -1758,7 +2259,7 @@ func TestSignTxOutput(t *testing.T) {
 					address2.Address(): {keyDB2, suite2, true},
 				}), mkGetScript(map[string][]byte{
 					scriptAddr.Address(): pkScript,
-				})); err != nil {
+				}), noTreasury); err != nil {
 				t.Error(err)
 				break
 			}
@@ -1767,9 +2268,30 @@ func TestSignTxOutput(t *testing.T) {
 				mkGetKey(map[string]addressToKey{
 					address1.Address(): {keyDB1, suite1, true},
 					address2.Address(): {keyDB2, suite2, true},
-				}), mkGetScript(nil)); err == nil {
-				t.Errorf("corrupted signature validated %s: %v",
-					msg, err)
+				}), mkGetScript(nil), noTreasury); err == nil {
+				t.Errorf("corrupted signature validated: %s", msg)
+				break
+			}
+
+			// With treasury agenda.
+			if err := signAndCheck(msg, tx, i, scriptPkScript,
+				hashType,
+				mkGetKey(map[string]addressToKey{
+					address1.Address(): {keyDB1, suite1, true},
+					address2.Address(): {keyDB2, suite2, true},
+				}), mkGetScript(map[string][]byte{
+					scriptAddr.Address(): pkScript,
+				}), withTreasury); err != nil {
+				t.Error(err)
+				break
+			}
+
+			if err := signBadAndCheck(msg, tx, i, pkScript, hashType,
+				mkGetKey(map[string]addressToKey{
+					address1.Address(): {keyDB1, suite1, true},
+					address2.Address(): {keyDB2, suite2, true},
+				}), mkGetScript(nil), withTreasury); err == nil {
+				t.Errorf("corrupted signature validated: %s", msg)
 				break
 			}
 		}
@@ -1837,13 +2359,14 @@ func TestSignTxOutput(t *testing.T) {
 				break
 			}
 
+			// Without treasury agenda.
 			sigScript, err := SignTxOutput(testingParams, tx, i,
 				scriptPkScript, hashType,
 				mkGetKey(map[string]addressToKey{
 					address1.Address(): {keyDB1, suite1, true},
 				}), mkGetScript(map[string][]byte{
 					scriptAddr.Address(): pkScript,
-				}), nil)
+				}), nil, noTreasury)
 			if err != nil {
 				t.Errorf("failed to sign output %s: %v", msg,
 					err)
@@ -1864,7 +2387,49 @@ func TestSignTxOutput(t *testing.T) {
 					address2.Address(): {keyDB2, suite2, true},
 				}), mkGetScript(map[string][]byte{
 					scriptAddr.Address(): pkScript,
-				}), sigScript)
+				}), sigScript, noTreasury)
+			if err != nil {
+				t.Errorf("failed to sign output %s: %v", msg, err)
+				break
+			}
+
+			err = checkScripts(msg, tx, i, sigScript,
+				scriptPkScript)
+			if err != nil {
+				t.Errorf("fully signed script invalid for "+
+					"%s: %v", msg, err)
+				break
+			}
+
+			// With treasury agenda.
+			sigScript, err = SignTxOutput(testingParams, tx, i,
+				scriptPkScript, hashType,
+				mkGetKey(map[string]addressToKey{
+					address1.Address(): {keyDB1, suite1, true},
+				}), mkGetScript(map[string][]byte{
+					scriptAddr.Address(): pkScript,
+				}), nil, withTreasury)
+			if err != nil {
+				t.Errorf("failed to sign output %s: %v", msg,
+					err)
+				break
+			}
+
+			// Only 1 out of 2 signed, this *should* fail.
+			if checkScripts(msg, tx, i, sigScript,
+				scriptPkScript) == nil {
+				t.Errorf("part signed script valid for %s", msg)
+				break
+			}
+
+			// Sign with the other key and merge
+			sigScript, err = SignTxOutput(testingParams, tx, i,
+				scriptPkScript, hashType,
+				mkGetKey(map[string]addressToKey{
+					address2.Address(): {keyDB2, suite2, true},
+				}), mkGetScript(map[string][]byte{
+					scriptAddr.Address(): pkScript,
+				}), sigScript, withTreasury)
 			if err != nil {
 				t.Errorf("failed to sign output %s: %v", msg, err)
 				break
@@ -1942,13 +2507,14 @@ func TestSignTxOutput(t *testing.T) {
 				break
 			}
 
+			// Without treasury agenda.
 			sigScript, err := SignTxOutput(testingParams, tx, i,
 				scriptPkScript, hashType,
 				mkGetKey(map[string]addressToKey{
 					address1.Address(): {keyDB1, suite1, true},
 				}), mkGetScript(map[string][]byte{
 					scriptAddr.Address(): pkScript,
-				}), nil)
+				}), nil, noTreasury)
 			if err != nil {
 				t.Errorf("failed to sign output %s: %v", msg,
 					err)
@@ -1970,7 +2536,51 @@ func TestSignTxOutput(t *testing.T) {
 					address2.Address(): {keyDB2, suite2, true},
 				}), mkGetScript(map[string][]byte{
 					scriptAddr.Address(): pkScript,
-				}), sigScript)
+				}), sigScript, noTreasury)
+			if err != nil {
+				t.Errorf("failed to sign output %s: %v", msg, err)
+				break
+			}
+
+			// Now we should pass.
+			err = checkScripts(msg, tx, i, sigScript,
+				scriptPkScript)
+			if err != nil {
+				t.Errorf("fully signed script invalid for "+
+					"%s: %v", msg, err)
+				break
+			}
+
+			// With treasury agenda.
+			sigScript, err = SignTxOutput(testingParams, tx, i,
+				scriptPkScript, hashType,
+				mkGetKey(map[string]addressToKey{
+					address1.Address(): {keyDB1, suite1, true},
+				}), mkGetScript(map[string][]byte{
+					scriptAddr.Address(): pkScript,
+				}), nil, withTreasury)
+			if err != nil {
+				t.Errorf("failed to sign output %s: %v", msg,
+					err)
+				break
+			}
+
+			// Only 1 out of 2 signed, this *should* fail.
+			if checkScripts(msg, tx, i, sigScript,
+				scriptPkScript) == nil {
+				t.Errorf("part signed script valid for %s", msg)
+				break
+			}
+
+			// Sign with the other key and merge
+			sigScript, err = SignTxOutput(testingParams, tx, i,
+				scriptPkScript, hashType,
+				mkGetKey(map[string]addressToKey{
+					address1.Address(): {keyDB1, suite1, true},
+					address2.Address(): {keyDB2, suite2, true},
+				}), mkGetScript(map[string][]byte{
+					scriptAddr.Address(): pkScript,
+				}), sigScript, withTreasury)
 			if err != nil {
 				t.Errorf("failed to sign output %s: %v", msg, err)
 				break

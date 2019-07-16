@@ -7,6 +7,8 @@ package blockchain
 
 import (
 	"context"
+	"encoding/binary"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -148,6 +150,7 @@ func newFakeChain(params *chaincfg.Params) *BlockChain {
 		calcPriorStakeVersionCache:    make(map[[chainhash.HashSize]byte]uint32),
 		calcVoterVersionIntervalCache: make(map[[chainhash.HashSize]byte]uint32),
 		calcStakeVersionCache:         make(map[[chainhash.HashSize]byte]uint32),
+		mainChainBlockCache:           make(map[chainhash.Hash]*dcrutil.Block),
 	}
 }
 
@@ -178,6 +181,142 @@ func newFakeNode(parent *blockNode, blockVersion int32, stakeVersion uint32, bit
 	node := newBlockNode(header, parent)
 	node.status = statusDataStored | statusValidated
 	return node
+}
+
+type treasuryVoteTuple struct {
+	tspendHash chainhash.Hash
+	vote       byte
+}
+
+// newFakeCreateVoteTx creates a fake vote transaction and appends treasury
+// votes if provided.
+func newFakeCreateVoteTx(tspendVotes []treasuryVoteTuple) *wire.MsgTx {
+	var (
+		voteSubsidy        = 5000000000
+		ticketPrice        = 100000000
+		opTrueRedeemScript = []byte{txscript.OP_DATA_1, txscript.OP_TRUE}
+		stakeGenScript     = [26]byte{txscript.OP_SSGEN}
+		blockScript        = [38]byte{txscript.OP_RETURN, txscript.OP_DATA_36}
+		voteScript         = [4]byte{txscript.OP_RETURN, txscript.OP_DATA_2}
+	)
+	// Fake out stakeGenScript.
+	tagOffset := 1 // Prefixed with OP_SSGEN
+	stakeGenScript[tagOffset+0] = txscript.OP_DUP
+	stakeGenScript[tagOffset+1] = txscript.OP_HASH160
+	stakeGenScript[tagOffset+2] = txscript.OP_DATA_20
+	stakeGenScript[tagOffset+23] = txscript.OP_EQUALVERIFY
+	stakeGenScript[tagOffset+24] = txscript.OP_CHECKSIG
+
+	// Generate and return the transaction with the proof-of-stake subsidy
+	// coinbase and spending from the provided ticket along with the
+	// previously described outputs.
+	ticketHash := &chainhash.Hash{}
+	tx := wire.NewMsgTx()
+	tx.AddTxIn(&wire.TxIn{
+		PreviousOutPoint: *wire.NewOutPoint(&chainhash.Hash{},
+			wire.MaxPrevOutIndex, wire.TxTreeRegular),
+		Sequence:    wire.MaxTxInSequenceNum,
+		ValueIn:     int64(voteSubsidy),
+		BlockHeight: wire.NullBlockHeight,
+		BlockIndex:  wire.NullBlockIndex,
+	})
+	tx.AddTxIn(&wire.TxIn{
+		PreviousOutPoint: *wire.NewOutPoint(ticketHash, 0,
+			wire.TxTreeStake),
+		Sequence:        wire.MaxTxInSequenceNum,
+		ValueIn:         int64(ticketPrice),
+		SignatureScript: opTrueRedeemScript,
+	})
+	tx.AddTxOut(wire.NewTxOut(0, blockScript[:]))
+	tx.AddTxOut(wire.NewTxOut(0, voteScript[:]))
+	tx.AddTxOut(wire.NewTxOut(int64(voteSubsidy+ticketPrice),
+		stakeGenScript[:]))
+
+	// Append tspend votes if set.
+	if tspendVotes != nil {
+		tx.Version = wire.TxVersionTreasury
+		tspendScript := make([]byte, 0, 256)
+		tspendScript = append(tspendScript, txscript.OP_RETURN,
+			byte(len(tspendVotes)*33+2), 'T', 'V')
+		for _, v := range tspendVotes {
+			tspendScript = append(tspendScript, v.tspendHash[:]...)
+			tspendScript = append(tspendScript, v.vote)
+		}
+		tx.AddTxOut(wire.NewTxOut(0, tspendScript))
+	}
+	return tx
+}
+
+type addressAmountTuple struct {
+	address dcrutil.Address
+	amount  dcrutil.Amount
+}
+
+// newFakeCreateTSpend creates a fake tspend transaction.
+func newFakeCreateTSpend(privKey []byte, payouts []addressAmountTuple, fee dcrutil.Amount, expiry uint32) *wire.MsgTx {
+	// Calculate total payout.
+	totalPayout := int64(0)
+	for _, v := range payouts {
+		totalPayout += int64(v.amount)
+	}
+	valueIn := int64(fee) + totalPayout
+
+	// OP_RETURN <8 byte LE ValueIn><24 byte random>
+	// The TSpend TxIn ValueIn is encoded in the first 8 bytes to ensure
+	// that it becomes signed. This is consensus enforced.
+	var payload [32]byte
+	binary.LittleEndian.PutUint64(payload[0:8], uint64(valueIn))
+	_, err := mrand.Read(payload[8:])
+	if err != nil {
+		panic(err)
+	}
+	builder := txscript.NewScriptBuilder()
+	builder.AddOp(txscript.OP_RETURN)
+	builder.AddData(payload[:])
+	opretScript, err := builder.Script()
+	if err != nil {
+		panic(err)
+	}
+	msgTx := wire.NewMsgTx()
+	msgTx.Version = wire.TxVersionTreasury
+	msgTx.Expiry = expiry
+	msgTx.AddTxOut(wire.NewTxOut(0, opretScript))
+
+	// OP_TGEN
+	for _, v := range payouts {
+		// Generate valid script. This is a hex encdoded blob from
+		// generator.go.
+		p2shOpTrueScript, err := hex.DecodeString("a914f5a8302ee8695bf836258b8f2b57b38a0be14e4787")
+		if err != nil {
+			panic(err)
+		}
+		script := make([]byte, len(p2shOpTrueScript)+1)
+		script[0] = txscript.OP_TGEN
+		copy(script[1:], p2shOpTrueScript[:])
+		msgTx.AddTxOut(wire.NewTxOut(int64(v.amount), script))
+	}
+
+	// Treasury spend transactions have no inputs since the funds are
+	// sourced from a special account, so previous outpoint is zero hash
+	// and max index.
+	msgTx.AddTxIn(&wire.TxIn{
+		PreviousOutPoint: *wire.NewOutPoint(&chainhash.Hash{},
+			wire.MaxPrevOutIndex, wire.TxTreeRegular),
+		Sequence:        wire.MaxTxInSequenceNum,
+		ValueIn:         valueIn,
+		BlockHeight:     wire.NullBlockHeight,
+		BlockIndex:      wire.NullBlockIndex,
+		SignatureScript: nil,
+	})
+
+	// Calculate TSpend signature without SigHashType.
+	sigscript, err := txscript.TSpendSignatureScript(msgTx, privKey)
+	if err != nil {
+		panic(err)
+	}
+	msgTx.TxIn[0].SignatureScript = sigscript
+
+	return msgTx
 }
 
 // chainedFakeNodes returns the specified number of nodes constructed such that
@@ -269,10 +408,6 @@ func findDeploymentChoice(deployment *chaincfg.ConsensusDeployment, choiceID str
 
 	return nil, fmt.Errorf("unable to find vote choice for id %q", choiceID)
 }
-
-// Make the linter happy.  This should be removed once the function is actually
-// used.
-var _ = removeDeployment
 
 // removeDeployment modifies the passed parameters to remove all deployments for
 // the provided vote ID.  An error is returned when not found.
