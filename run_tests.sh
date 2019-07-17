@@ -49,8 +49,8 @@ testrepo () {
     env CC=gcc $GO test -short -tags rpctest ${module}/...
 
     # check linters
-    MODNAME=$(echo $module | sed -e "s/^$ROOTPATHPATTERN//" \
-      -e 's/^\///' -e 's/\/v[0-9]\+$//')
+    MODNAME=$(echo $module | sed -E -e "s/^$ROOTPATHPATTERN//" \
+      -e 's,^/,,' -e 's,/v[0-9]+$,,')
     if [ -z "$MODNAME" ]; then
       MODNAME=.
     fi
