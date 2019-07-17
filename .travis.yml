@@ -1,23 +1,35 @@
 language: go
-go:
-  - 1.x
-
-sudo: required
-services:
-  - docker
-
+sudo: false
 env:
-  - GOVERSION=1.11
-  - GOVERSION=1.12
-
-before_install:
-  - chmod +x ./run_tests.sh
-
-install: true
-
-cache:
-  directories:
-    - ~/.cache
-
+  - GO111MODULE=on
+matrix:
+  include:
+    - os: linux
+      go: 1.12.x
+      cache:
+        directories:
+          - $HOME/.cache/go-build
+          - $HOME/gopath/pkg/mod
+    - os: linux
+      go: 1.11.x
+      cache:
+        directories:
+          - $HOME/.cache/go-build
+          - $HOME/gopath/pkg/mod
+    - os: osx
+      go: 1.12.x
+      cache:
+        directories:
+          - $HOME/.cache/go-build
+          - $HOME/gopath/pkg/mod
+    - os: osx
+      go: 1.11.x
+      cache:
+        directories:
+          - $HOME/Library/Caches/go-build
+          - $HOME/gopath/pkg/mod
+install:
+  - go get -v github.com/golangci/golangci-lint/cmd/golangci-lint
 script:
-  - ./run_tests.sh docker
+  - env GO111MODULE=on go build ./...
+  - env GO111MODULE=on ./run_tests.sh
