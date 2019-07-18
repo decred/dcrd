@@ -1395,7 +1395,7 @@ func (r FutureGetMasterPubkeyResult) Receive(net hdkeychain.NetworkParams) (*hdk
 		return nil, err
 	}
 
-	// pubkey is a hierarchical deterministic master public key (BIP0032)
+	// pubkey is a hierarchical deterministic master public key
 	pubkey, err := hdkeychain.NewKeyFromString(pubkeystr, net)
 	if err != nil {
 		return nil, err
