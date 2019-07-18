@@ -10,6 +10,7 @@ require (
 	github.com/decred/dcrd/dcrjson/v2 v2.0.0
 	github.com/decred/dcrd/dcrutil v1.2.0
 	github.com/decred/dcrd/gcs v1.0.2
+	github.com/decred/dcrd/hdkeychain/v2 v2.0.0
 	github.com/decred/dcrd/wire v1.2.0
 	github.com/decred/dcrwallet/rpc/jsonrpc/types v1.0.0
 	github.com/decred/slog v1.0.0

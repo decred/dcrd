@@ -12,6 +12,7 @@ import (
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/dcrjson/v2"
 	"github.com/decred/dcrd/dcrutil"
+	"github.com/decred/dcrd/hdkeychain/v2"
 	"github.com/decred/dcrd/wire"
 	walletjson "github.com/decred/dcrwallet/rpc/jsonrpc/types"
 )
@@ -1373,6 +1374,51 @@ func (c *Client) ListAccountsMinConfAsync(minConfirms int) FutureListAccountsRes
 // See ListAccounts to use the default minimum number of confirmations.
 func (c *Client) ListAccountsMinConf(minConfirms int) (map[string]dcrutil.Amount, error) {
 	return c.ListAccountsMinConfAsync(minConfirms).Receive()
+}
+
+// FutureGetMasterPubkeyResult is a future promise to deliver the result of a
+// GetMasterPubkeyAsync RPC invocation (or an applicable error).
+type FutureGetMasterPubkeyResult chan *response
+
+// Receive waits for the response promised by the future and returns a pointer to
+// the master extended public key for account and the network's hierarchical
+// deterministic extended key magic versions (e.g. MainNetParams)
+func (r FutureGetMasterPubkeyResult) Receive(net hdkeychain.NetworkParams) (*hdkeychain.ExtendedKey, error) {
+	res, err := receiveFuture(r)
+	if err != nil {
+		return nil, err
+	}
+
+	var pubkeystr string
+	err = json.Unmarshal(res, &pubkeystr)
+	if err != nil {
+		return nil, err
+	}
+
+	// pubkey is a hierarchical deterministic master public key
+	pubkey, err := hdkeychain.NewKeyFromString(pubkeystr, net)
+	if err != nil {
+		return nil, err
+	}
+
+	return pubkey, nil
+}
+
+// GetMasterPubkeyAsync returns an instance of a type that can be used to get the
+// result of the RPC at some future time by invoking the Receive function on the
+// returned instance.
+//
+// See GetMasterPubkey for the blocking version and more details.
+func (c *Client) GetMasterPubkeyAsync(account string) FutureGetMasterPubkeyResult {
+	cmd := walletjson.NewGetMasterPubkeyCmd(&account)
+	return c.sendCmd(cmd)
+}
+
+// GetMasterPubkey returns a pointer to the master extended public key for account
+// and the network's hierarchical deterministic extended key magic versions
+// (e.g. MainNetParams)
+func (c *Client) GetMasterPubkey(account string, net hdkeychain.NetworkParams) (*hdkeychain.ExtendedKey, error) {
+	return c.GetMasterPubkeyAsync(account).Receive(net)
 }
 
 // FutureGetBalanceResult is a future promise to deliver the result of a
