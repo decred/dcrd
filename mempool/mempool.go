@@ -241,7 +241,7 @@ type TxPool struct {
 // insertVote inserts a vote into the map of block votes.
 //
 // This function MUST be called with the vote mutex locked (for writes).
-func (mp *TxPool) insertVote(ssgen *dcrutil.Tx) error {
+func (mp *TxPool) insertVote(ssgen *dcrutil.Tx) {
 	// Get the block it is voting on; here we're agnostic of height.
 	msgTx := ssgen.MsgTx()
 	blockHash, blockHeight := stake.SSGenBlockVotedOn(msgTx)
@@ -257,7 +257,7 @@ func (mp *TxPool) insertVote(ssgen *dcrutil.Tx) error {
 	ticketHash := &msgTx.TxIn[1].PreviousOutPoint.Hash
 	for _, vt := range vts {
 		if vt.TicketHash.IsEqual(ticketHash) {
-			return nil
+			return
 		}
 	}
 
@@ -276,8 +276,6 @@ func (mp *TxPool) insertVote(ssgen *dcrutil.Tx) error {
 	log.Debugf("Accepted vote %v for block hash %v (height %v), voting "+
 		"%v on the transaction tree", voteHash, blockHash, blockHeight,
 		vote)
-
-	return nil
 }
 
 // VoteHashesForBlock returns the hashes for all votes on the provided block
@@ -389,9 +387,9 @@ func (mp *TxPool) RemoveOrphan(tx *dcrutil.Tx) {
 // orphan if adding a new one would cause it to overflow the max allowed.
 //
 // This function MUST be called with the mempool lock held (for writes).
-func (mp *TxPool) limitNumOrphans() error {
+func (mp *TxPool) limitNumOrphans() {
 	if len(mp.orphans)+1 <= mp.cfg.Policy.MaxOrphanTxs {
-		return nil
+		return
 	}
 
 	// Remove a random entry from the map.  For most compilers, Go's
@@ -404,8 +402,6 @@ func (mp *TxPool) limitNumOrphans() error {
 		mp.removeOrphan(tx, false)
 		break
 	}
-
-	return nil
 }
 
 // addOrphan adds an orphan transaction to the orphan pool.
@@ -1323,11 +1319,8 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 	// Keep track of votes separately.
 	if isVote {
 		mp.votesMtx.Lock()
-		err := mp.insertVote(tx)
+		mp.insertVote(tx)
 		mp.votesMtx.Unlock()
-		if err != nil {
-			return nil, err
-		}
 	}
 
 	log.Debugf("Accepted transaction %v (pool size: %v)", txHash,
