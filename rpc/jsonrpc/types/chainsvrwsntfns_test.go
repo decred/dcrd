@@ -3,7 +3,7 @@
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
-package dcrjson
+package types
 
 import (
 	"bytes"
@@ -11,6 +11,8 @@ import (
 	"fmt"
 	"reflect"
 	"testing"
+
+	"github.com/decred/dcrd/dcrjson/v3"
 )
 
 // TestChainSvrWsNtfns tests all of the chain server websocket-specific
@@ -30,7 +32,7 @@ func TestChainSvrWsNtfns(t *testing.T) {
 		{
 			name: "blockconnected",
 			newNtfn: func() (interface{}, error) {
-				return NewCmd("blockconnected", "header", []string{"tx0", "tx1"})
+				return dcrjson.NewCmd(Method("blockconnected"), "header", []string{"tx0", "tx1"})
 			},
 			staticNtfn: func() interface{} {
 				return NewBlockConnectedNtfn("header", []string{"tx0", "tx1"})
@@ -44,7 +46,7 @@ func TestChainSvrWsNtfns(t *testing.T) {
 		{
 			name: "blockdisconnected",
 			newNtfn: func() (interface{}, error) {
-				return NewCmd("blockdisconnected", "header")
+				return dcrjson.NewCmd(Method("blockdisconnected"), "header")
 			},
 			staticNtfn: func() interface{} {
 				return NewBlockDisconnectedNtfn("header")
@@ -57,7 +59,7 @@ func TestChainSvrWsNtfns(t *testing.T) {
 		{
 			name: "newtickets",
 			newNtfn: func() (interface{}, error) {
-				return NewCmd("newtickets", "123", 100, 3, []string{"a", "b"})
+				return dcrjson.NewCmd(Method("newtickets"), "123", 100, 3, []string{"a", "b"})
 			},
 			staticNtfn: func() interface{} {
 				return NewNewTicketsNtfn("123", 100, 3, []string{"a", "b"})
@@ -73,7 +75,7 @@ func TestChainSvrWsNtfns(t *testing.T) {
 		{
 			name: "relevanttxaccepted",
 			newNtfn: func() (interface{}, error) {
-				return NewCmd("relevanttxaccepted", "001122")
+				return dcrjson.NewCmd(Method("relevanttxaccepted"), "001122")
 			},
 			staticNtfn: func() interface{} {
 				return NewRelevantTxAcceptedNtfn("001122")
@@ -86,7 +88,7 @@ func TestChainSvrWsNtfns(t *testing.T) {
 		{
 			name: "spentandmissedtickets",
 			newNtfn: func() (interface{}, error) {
-				return NewCmd("spentandmissedtickets", "123", 100, 3, map[string]string{"a": "b"})
+				return dcrjson.NewCmd(Method("spentandmissedtickets"), "123", 100, 3, map[string]string{"a": "b"})
 			},
 			staticNtfn: func() interface{} {
 				return NewSpentAndMissedTicketsNtfn("123", 100, 3, map[string]string{"a": "b"})
@@ -102,7 +104,7 @@ func TestChainSvrWsNtfns(t *testing.T) {
 		{
 			name: "txaccepted",
 			newNtfn: func() (interface{}, error) {
-				return NewCmd("txaccepted", "123", 1.5)
+				return dcrjson.NewCmd(Method("txaccepted"), "123", 1.5)
 			},
 			staticNtfn: func() interface{} {
 				return NewTxAcceptedNtfn("123", 1.5)
@@ -116,7 +118,7 @@ func TestChainSvrWsNtfns(t *testing.T) {
 		{
 			name: "txacceptedverbose",
 			newNtfn: func() (interface{}, error) {
-				return NewCmd("txacceptedverbose", `{"hex":"001122","txid":"123","version":1,"locktime":4294967295,"vin":null,"vout":null,"confirmations":0}`)
+				return dcrjson.NewCmd(Method("txacceptedverbose"), `{"hex":"001122","txid":"123","version":1,"locktime":4294967295,"vin":null,"vout":null,"confirmations":0}`)
 			},
 			staticNtfn: func() interface{} {
 				txResult := TxRawResult{
@@ -146,7 +148,7 @@ func TestChainSvrWsNtfns(t *testing.T) {
 		{
 			name: "winningtickets",
 			newNtfn: func() (interface{}, error) {
-				return NewCmd("winningtickets", "123", 100, map[string]string{"a": "b"})
+				return dcrjson.NewCmd(Method("winningtickets"), "123", 100, map[string]string{"a": "b"})
 			},
 			staticNtfn: func() interface{} {
 				return NewWinningTicketsNtfn("123", 100, map[string]string{"a": "b"})
@@ -164,7 +166,7 @@ func TestChainSvrWsNtfns(t *testing.T) {
 	for i, test := range tests {
 		// Marshal the notification as created by the new static
 		// creation function.  The ID is nil for notifications.
-		marshalled, err := MarshalCmd("1.0", nil, test.staticNtfn())
+		marshalled, err := dcrjson.MarshalCmd("1.0", nil, test.staticNtfn())
 		if err != nil {
 			t.Errorf("MarshalCmd #%d (%s) unexpected error: %v", i,
 				test.name, err)
@@ -182,14 +184,14 @@ func TestChainSvrWsNtfns(t *testing.T) {
 		// generic new notification creation function.
 		cmd, err := test.newNtfn()
 		if err != nil {
-			t.Errorf("Test #%d (%s) unexpected NewCmd error: %v ",
+			t.Errorf("Test #%d (%s) unexpected dcrjson.NewCmd error: %v ",
 				i, test.name, err)
 		}
 
 		// Marshal the notification as created by the generic new
 		// notification creation function.    The ID is nil for
 		// notifications.
-		marshalled, err = MarshalCmd("1.0", nil, cmd)
+		marshalled, err = dcrjson.MarshalCmd("1.0", nil, cmd)
 		if err != nil {
 			t.Errorf("MarshalCmd #%d (%s) unexpected error: %v", i,
 				test.name, err)
@@ -203,7 +205,7 @@ func TestChainSvrWsNtfns(t *testing.T) {
 			continue
 		}
 
-		var request Request
+		var request dcrjson.Request
 		if err := json.Unmarshal(marshalled, &request); err != nil {
 			t.Errorf("Test #%d (%s) unexpected error while "+
 				"unmarshalling JSON-RPC request: %v", i,
@@ -211,9 +213,9 @@ func TestChainSvrWsNtfns(t *testing.T) {
 			continue
 		}
 
-		cmd, err = UnmarshalCmd(&request)
+		cmd, err = dcrjson.ParseParams(Method(request.Method), request.Params)
 		if err != nil {
-			t.Errorf("UnmarshalCmd #%d (%s) unexpected error: %v", i,
+			t.Errorf("ParseParams #%d (%s) unexpected error: %v", i,
 				test.name, err)
 			continue
 		}

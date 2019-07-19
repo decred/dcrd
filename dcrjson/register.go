@@ -1,5 +1,5 @@
 // Copyright (c) 2014 The btcsuite developers
-// Copyright (c) 2015-2016 The Decred developers
+// Copyright (c) 2015-2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -20,9 +20,7 @@ import (
 type UsageFlag uint32
 
 const (
-	// UFWalletOnly indicates that the command can only be used with an RPC
-	// server that supports wallet commands.
-	UFWalletOnly UsageFlag = 1 << iota
+	_ UsageFlag = 1 << iota // unused, was UFWalletOnly
 
 	// UFWebsocketOnly indicates that the command can only be used when
 	// communicating with an RPC server over websockets.  This typically
@@ -42,13 +40,15 @@ const (
 
 // Map of UsageFlag values back to their constant names for pretty printing.
 var usageFlagStrings = map[UsageFlag]string{
-	UFWalletOnly:    "UFWalletOnly",
 	UFWebsocketOnly: "UFWebsocketOnly",
 	UFNotification:  "UFNotification",
 }
 
 // String returns the UsageFlag in human-readable form.
 func (fl UsageFlag) String() string {
+	// Mask off the deprecated WalletOnly bit
+	fl &^= 0x01
+
 	// No flags are set.
 	if fl == 0 {
 		return "0x0"
@@ -56,9 +56,9 @@ func (fl UsageFlag) String() string {
 
 	// Add individual bit flags.
 	s := ""
-	for flag := UFWalletOnly; flag < highestUsageFlagBit; flag <<= 1 {
-		if fl&flag == flag {
-			s += usageFlagStrings[flag] + "|"
+	for flag := UsageFlag(1); flag < highestUsageFlagBit; flag <<= 1 {
+		if name, ok := usageFlagStrings[fl&flag]; ok {
+			s += name + "|"
 			fl -= flag
 		}
 	}
@@ -86,9 +86,9 @@ type methodInfo struct {
 var (
 	// These fields are used to map the registered types to method names.
 	registerLock         sync.RWMutex
-	methodToConcreteType = make(map[string]reflect.Type)
-	methodToInfo         = make(map[string]methodInfo)
-	concreteTypeToMethod = make(map[reflect.Type]string)
+	methodToConcreteType = make(map[interface{}]reflect.Type)
+	methodToInfo         = make(map[interface{}]methodInfo)
+	concreteTypeToMethod = make(map[reflect.Type]interface{})
 )
 
 // baseKindString returns the base kind for a given reflect.Type after
@@ -125,10 +125,10 @@ func isAcceptableKind(kind reflect.Kind) bool {
 	return true
 }
 
-// RegisterCmd registers a new command that will automatically marshal to and
-// from JSON-RPC with full type checking and positional parameter support.  It
-// also accepts usage flags which identify the circumstances under which the
-// command can be used.
+// Register registers a method that will automatically marshal to and from
+// JSON-RPC with full type checking and positional parameter support.  It also
+// accepts usage flags which identify the circumstances under which the command
+// can be used.
 //
 // This package automatically registers all of the exported commands by default
 // using this function, however it is also exported so callers can easily
@@ -137,8 +137,9 @@ func isAcceptableKind(kind reflect.Kind) bool {
 // The type format is very strict since it needs to be able to automatically
 // marshal to and from JSON-RPC 1.0.  The following enumerates the requirements:
 //
-//   - The provided command must be a single pointer to a struct
-//   - All fields must be exported
+//   - The method must be a string or string type
+//   - The provided params must be a pointer to a struct
+//   - All parameter fields must be exported
 //   - The order of the positional parameters in the marshalled JSON will be in
 //     the same order as declared in the struct definition
 //   - Struct embedding is not supported
@@ -151,16 +152,29 @@ func isAcceptableKind(kind reflect.Kind) bool {
 //   - A field that has a 'jsonrpcdefault' struct tag must be an optional field
 //     (pointer)
 //
+// Duplicate registrations with identical method and params types are allowed.
+// All other duplicate registrations of a method will error.
+//
 // NOTE: This function only needs to be able to examine the structure of the
 // passed struct, so it does not need to be an actual instance.  Therefore, it
 // is recommended to simply pass a nil pointer cast to the appropriate type.
 // For example, (*FooCmd)(nil).
-func RegisterCmd(method string, cmd interface{}, flags UsageFlag) error {
+func Register(method interface{}, params interface{}, flags UsageFlag) error {
 	registerLock.Lock()
 	defer registerLock.Unlock()
 
-	if _, ok := methodToConcreteType[method]; ok {
-		str := fmt.Sprintf("method %q is already registered", method)
+	if reflect.ValueOf(method).Kind() != reflect.String {
+		str := fmt.Sprintf("method %q is not a string type", method)
+		return makeError(ErrInvalidType, str)
+	}
+
+	rtp := reflect.TypeOf(params)
+	if paramsType, ok := methodToConcreteType[method]; ok {
+		if rtp == paramsType {
+			return nil
+		}
+		str := fmt.Sprintf("method %q is already registered for "+
+			"type %T", method, paramsType)
 		return makeError(ErrDuplicateMethod, str)
 	}
 
@@ -171,7 +185,6 @@ func RegisterCmd(method string, cmd interface{}, flags UsageFlag) error {
 		return makeError(ErrInvalidUsageFlags, str)
 	}
 
-	rtp := reflect.TypeOf(cmd)
 	if rtp.Kind() != reflect.Ptr {
 		str := fmt.Sprintf("type must be *struct not '%s (%s)'", rtp,
 			rtp.Kind())
@@ -267,25 +280,29 @@ func RegisterCmd(method string, cmd interface{}, flags UsageFlag) error {
 	return nil
 }
 
-// MustRegisterCmd performs the same function as RegisterCmd except it panics
-// if there is an error.  This should only be called from package init
-// functions.
-func MustRegisterCmd(method string, cmd interface{}, flags UsageFlag) {
-	if err := RegisterCmd(method, cmd, flags); err != nil {
-		panic(fmt.Sprintf("failed to register type %q: %v\n", method,
-			err))
+// MustRegister performs the same function as Register except it panics if there
+// is an error.  This should only be called from package init functions.
+//
+// See Register for more details about correct usage.
+func MustRegister(method interface{}, cmd interface{}, flags UsageFlag) {
+	if err := Register(method, cmd, flags); err != nil {
+		panic(err)
 	}
 }
 
-// RegisteredCmdMethods returns a sorted list of methods for all registered
+// RegisteredMethods returns a sorted list of methods for all registered
 // commands.
-func RegisteredCmdMethods() []string {
+func RegisteredMethods(methodType interface{}) []string {
 	registerLock.Lock()
 	defer registerLock.Unlock()
 
+	typ := reflect.TypeOf(methodType)
+
 	methods := make([]string, 0, len(methodToInfo))
 	for k := range methodToInfo {
-		methods = append(methods, k)
+		if typ == reflect.TypeOf(k) {
+			methods = append(methods, reflect.ValueOf(k).String())
+		}
 	}
 
 	sort.Strings(methods)

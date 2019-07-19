@@ -6,50 +6,52 @@
 // NOTE: This file is intended to house the RPC websocket notifications that are
 // supported by a chain server.
 
-package dcrjson
+package types
+
+import "github.com/decred/dcrd/dcrjson/v3"
 
 const (
 	// BlockConnectedNtfnMethod is the method used for notifications from
 	// the chain server that a block has been connected.
-	BlockConnectedNtfnMethod = "blockconnected"
+	BlockConnectedNtfnMethod Method = "blockconnected"
 
 	// BlockDisconnectedNtfnMethod is the method used for notifications from
 	// the chain server that a block has been disconnected.
-	BlockDisconnectedNtfnMethod = "blockdisconnected"
+	BlockDisconnectedNtfnMethod Method = "blockdisconnected"
 
 	// NewTicketsNtfnMethod is the method of the daemon newtickets notification.
-	NewTicketsNtfnMethod = "newtickets"
+	NewTicketsNtfnMethod Method = "newtickets"
 
 	// ReorganizationNtfnMethod is the method used for notifications that the
 	// block chain is in the process of a reorganization.
-	ReorganizationNtfnMethod = "reorganization"
+	ReorganizationNtfnMethod Method = "reorganization"
 
 	// TxAcceptedNtfnMethod is the method used for notifications from the
 	// chain server that a transaction has been accepted into the mempool.
-	TxAcceptedNtfnMethod = "txaccepted"
+	TxAcceptedNtfnMethod Method = "txaccepted"
 
 	// TxAcceptedVerboseNtfnMethod is the method used for notifications from
 	// the chain server that a transaction has been accepted into the
 	// mempool.  This differs from TxAcceptedNtfnMethod in that it provides
 	// more details in the notification.
-	TxAcceptedVerboseNtfnMethod = "txacceptedverbose"
+	TxAcceptedVerboseNtfnMethod Method = "txacceptedverbose"
 
 	// RelevantTxAcceptedNtfnMethod is the method used for notifications
 	// from the chain server that inform a client that a relevant
 	// transaction was accepted by the mempool.
-	RelevantTxAcceptedNtfnMethod = "relevanttxaccepted"
+	RelevantTxAcceptedNtfnMethod Method = "relevanttxaccepted"
 
 	// SpentAndMissedTicketsNtfnMethod is the method of the daemon
 	// spentandmissedtickets notification.
-	SpentAndMissedTicketsNtfnMethod = "spentandmissedtickets"
+	SpentAndMissedTicketsNtfnMethod Method = "spentandmissedtickets"
 
 	// StakeDifficultyNtfnMethod is the method of the daemon stakedifficulty
 	// notification.
-	StakeDifficultyNtfnMethod = "stakedifficulty"
+	StakeDifficultyNtfnMethod Method = "stakedifficulty"
 
 	// WinningTicketsNtfnMethod is the method of the daemon winningtickets
 	// notification.
-	WinningTicketsNtfnMethod = "winningtickets"
+	WinningTicketsNtfnMethod Method = "winningtickets"
 )
 
 // BlockConnectedNtfn defines the blockconnected JSON-RPC notification.
@@ -215,16 +217,16 @@ func NewWinningTicketsNtfn(hash string, height int32, tickets map[string]string)
 func init() {
 	// The commands in this file are only usable by websockets and are
 	// notifications.
-	flags := UFWebsocketOnly | UFNotification
+	flags := dcrjson.UFWebsocketOnly | dcrjson.UFNotification
 
-	MustRegisterCmd(BlockConnectedNtfnMethod, (*BlockConnectedNtfn)(nil), flags)
-	MustRegisterCmd(BlockDisconnectedNtfnMethod, (*BlockDisconnectedNtfn)(nil), flags)
-	MustRegisterCmd(NewTicketsNtfnMethod, (*NewTicketsNtfn)(nil), flags)
-	MustRegisterCmd(ReorganizationNtfnMethod, (*ReorganizationNtfn)(nil), flags)
-	MustRegisterCmd(TxAcceptedNtfnMethod, (*TxAcceptedNtfn)(nil), flags)
-	MustRegisterCmd(TxAcceptedVerboseNtfnMethod, (*TxAcceptedVerboseNtfn)(nil), flags)
-	MustRegisterCmd(RelevantTxAcceptedNtfnMethod, (*RelevantTxAcceptedNtfn)(nil), flags)
-	MustRegisterCmd(SpentAndMissedTicketsNtfnMethod, (*SpentAndMissedTicketsNtfn)(nil), flags)
-	MustRegisterCmd(StakeDifficultyNtfnMethod, (*StakeDifficultyNtfn)(nil), flags)
-	MustRegisterCmd(WinningTicketsNtfnMethod, (*WinningTicketsNtfn)(nil), flags)
+	dcrjson.MustRegister(BlockConnectedNtfnMethod, (*BlockConnectedNtfn)(nil), flags)
+	dcrjson.MustRegister(BlockDisconnectedNtfnMethod, (*BlockDisconnectedNtfn)(nil), flags)
+	dcrjson.MustRegister(NewTicketsNtfnMethod, (*NewTicketsNtfn)(nil), flags)
+	dcrjson.MustRegister(ReorganizationNtfnMethod, (*ReorganizationNtfn)(nil), flags)
+	dcrjson.MustRegister(TxAcceptedNtfnMethod, (*TxAcceptedNtfn)(nil), flags)
+	dcrjson.MustRegister(TxAcceptedVerboseNtfnMethod, (*TxAcceptedVerboseNtfn)(nil), flags)
+	dcrjson.MustRegister(RelevantTxAcceptedNtfnMethod, (*RelevantTxAcceptedNtfn)(nil), flags)
+	dcrjson.MustRegister(SpentAndMissedTicketsNtfnMethod, (*SpentAndMissedTicketsNtfn)(nil), flags)
+	dcrjson.MustRegister(StakeDifficultyNtfnMethod, (*StakeDifficultyNtfn)(nil), flags)
+	dcrjson.MustRegister(WinningTicketsNtfnMethod, (*WinningTicketsNtfn)(nil), flags)
 }

@@ -16,12 +16,12 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/decred/dcrd/dcrjson/v2"
+	"github.com/decred/dcrd/dcrjson/v3"
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/dcrd/internal/version"
 
-	// Register wallet dcrjson types so they're available.
-	_ "github.com/decred/dcrwallet/rpc/jsonrpc/types"
+	dcrdtypes "github.com/decred/dcrd/rpc/jsonrpc/types"
+	wallettypes "github.com/decred/dcrwallet/rpc/jsonrpc/types"
 
 	flags "github.com/jessevdk/go-flags"
 )
@@ -47,50 +47,56 @@ var (
 // listCommands categorizes and lists all of the usable commands along with
 // their one-line usage.
 func listCommands() {
-	const (
-		categoryChain uint8 = iota
-		categoryWallet
-		numCategories
-	)
+	var categories = []struct {
+		Header string
+		Method interface{}
+		Usages []string
+	}{{
+		Header: "Chain Server Commands:",
+		Method: dcrdtypes.Method(""),
+	}, {
+		Header: "Wallet Server Commands (--wallet):",
+		Method: wallettypes.Method(""),
+	}}
 
-	// Get a list of registered commands and categorize and filter them.
-	cmdMethods := dcrjson.RegisteredCmdMethods()
-	categorized := make([][]string, numCategories)
-	for _, method := range cmdMethods {
-		flags, err := dcrjson.MethodUsageFlags(method)
-		if err != nil {
-			// This should never happen since the method was just
-			// returned from the package, but be safe.
-			continue
-		}
+	for i := range categories {
+		method := categories[i].Method
+		methods := dcrjson.RegisteredMethods(method)
+		for _, methodStr := range methods {
+			switch method.(type) {
+			case dcrdtypes.Method:
+				method = dcrdtypes.Method(methodStr)
+			case wallettypes.Method:
+				method = wallettypes.Method(methodStr)
+			}
 
-		// Skip the commands that aren't usable from this utility.
-		if flags&unusableFlags != 0 {
-			continue
-		}
+			flags, err := dcrjson.MethodUsageFlags(method)
+			if err != nil {
+				// This should never happen since the method was just
+				// returned from the package, but be safe.
+				continue
+			}
 
-		usage, err := dcrjson.MethodUsageText(method)
-		if err != nil {
-			// This should never happen since the method was just
-			// returned from the package, but be safe.
-			continue
-		}
+			// Skip the commands that aren't usable from this utility.
+			if flags&unusableFlags != 0 {
+				continue
+			}
 
-		// Categorize the command based on the usage flags.
-		category := categoryChain
-		if flags&dcrjson.UFWalletOnly != 0 {
-			category = categoryWallet
+			usage, err := dcrjson.MethodUsageText(method)
+			if err != nil {
+				// This should never happen since the method was just
+				// returned from the package, but be safe.
+				continue
+			}
+
+			categories[i].Usages = append(categories[i].Usages, usage)
 		}
-		categorized[category] = append(categorized[category], usage)
 	}
 
 	// Display the command according to their categories.
-	categoryTitles := make([]string, numCategories)
-	categoryTitles[categoryChain] = "Chain Server Commands:"
-	categoryTitles[categoryWallet] = "Wallet Server Commands (--wallet):"
-	for category := uint8(0); category < numCategories; category++ {
-		fmt.Println(categoryTitles[category])
-		for _, usage := range categorized[category] {
+	for i := range categories {
+		fmt.Println(categories[i].Header)
+		for _, usage := range categories[i].Usages {
 			fmt.Println(usage)
 		}
 		fmt.Println()

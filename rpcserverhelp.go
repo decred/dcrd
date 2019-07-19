@@ -11,7 +11,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/decred/dcrd/dcrjson/v2"
+	"github.com/decred/dcrd/dcrjson/v3"
+	"github.com/decred/dcrd/rpc/jsonrpc/types"
 )
 
 // helpDescsEnUS defines the English descriptions used for the help strings.
@@ -169,14 +170,14 @@ var helpDescsEnUS = map[string]string{
 	"existsaddresses--result0":  "Bitset of bools showing if addresses exist or not",
 
 	// ExitsMissedTicketsCmd help.
-	"existsmissedtickets--synopsis":  "Test for the existence of the provided tickets in the missed ticket map",
-	"existsmissedtickets-txhashblob": "Blob containing the hashes to check",
-	"existsmissedtickets--result0":   "Bool blob showing if the ticket exists in the missed ticket database or not",
+	"existsmissedtickets--synopsis": "Test for the existence of the provided tickets in the missed ticket map",
+	"existsmissedtickets-txhashes":  "Array of hashes to check",
+	"existsmissedtickets--result0":  "Bool blob showing if the ticket exists in the missed ticket database or not",
 
 	// ExistsExpiredTicketsCmd help.
-	"existsexpiredtickets--synopsis":  "Test for the existence of the provided tickets in the expired ticket map",
-	"existsexpiredtickets-txhashblob": "Blob containing the hashes to check",
-	"existsexpiredtickets--result0":   "Bool blob showing if ticket exists in the expired ticket database or not",
+	"existsexpiredtickets--synopsis": "Test for the existence of the provided tickets in the expired ticket map",
+	"existsexpiredtickets-txhashes":  "Array of hashes to check",
+	"existsexpiredtickets--result0":  "Bool blob showing if ticket exists in the expired ticket database or not",
 
 	// ExistsLiveTicketCmd help.
 	"existsliveticket--synopsis": "Test for the existence of the provided ticket",
@@ -184,14 +185,14 @@ var helpDescsEnUS = map[string]string{
 	"existsliveticket--result0":  "Bool showing if address exists in the live ticket database or not",
 
 	// ExistsLiveTicketsCmd help.
-	"existslivetickets--synopsis":  "Test for the existence of the provided tickets in the live ticket map",
-	"existslivetickets-txhashblob": "Blob containing the hashes to check",
-	"existslivetickets--result0":   "Bool blob showing if ticket exists in the live ticket database or not",
+	"existslivetickets--synopsis": "Test for the existence of the provided tickets in the live ticket map",
+	"existslivetickets-txhashes":  "Array of hashes to check",
+	"existslivetickets--result0":  "Bool blob showing if ticket exists in the live ticket database or not",
 
 	// ExistsMempoolTxsCmd help.
-	"existsmempooltxs--synopsis":  "Test for the existence of the provided txs in the mempool",
-	"existsmempooltxs-txhashblob": "Blob containing the hashes to check",
-	"existsmempooltxs--result0":   "Bool blob showing if txs exist in the mempool or not",
+	"existsmempooltxs--synopsis": "Test for the existence of the provided txs in the mempool",
+	"existsmempooltxs-txhashes":  "Array of hashes to check",
+	"existsmempooltxs--result0":  "Bool blob showing if txs exist in the mempool or not",
 
 	// GenerateCmd help
 	"generate--synopsis": "Generates a set number of blocks (simnet or regtest only) and returns a JSON\n" +
@@ -571,7 +572,7 @@ var helpDescsEnUS = map[string]string{
 
 	// GetHeadersCmd help.
 	"getheaders--synopsis":     "Returns block headers starting with the first known block hash from the request",
-	"getheaders-blocklocators": "Concatenated hashes of blocks.  Headers are returned starting from the first known hash in this list",
+	"getheaders-blocklocators": "Array of block locator hashes.  Headers are returned starting from the first known hash in this list",
 	"getheaders-hashstop":      "Optional block hash to stop including block headers for",
 	"getheadersresult-headers": "Serialized block headers of all located blocks, limited to some arbitrary maximum number of hashes (currently 2000, which matches the wire protocol headers message, but this is not guaranteed)",
 
@@ -827,7 +828,7 @@ var helpDescsEnUS = map[string]string{
 
 	// Rescan help.
 	"rescan--synopsis":   "Rescan blocks for transactions matching the loaded transaction filter.",
-	"rescan-blockhashes": "Concatenated block hashes to rescan.  Each next block must be a child of the previous.",
+	"rescan-blockhashes": "Array of block hashes to rescan.  Each next block must be a child of the previous.",
 
 	// -------- Decred-specific help --------
 
@@ -943,17 +944,17 @@ var helpDescsEnUS = map[string]string{
 // rpcResultTypes specifies the result types that each RPC command can return.
 // This information is used to generate the help.  Each result type must be a
 // pointer to the type (or nil to indicate no return value).
-var rpcResultTypes = map[string][]interface{}{
+var rpcResultTypes = map[types.Method][]interface{}{
 	"addnode":               nil,
 	"createrawsstx":         {(*string)(nil)},
 	"createrawssrtx":        {(*string)(nil)},
 	"createrawtransaction":  {(*string)(nil)},
 	"debuglevel":            {(*string)(nil), (*string)(nil)},
-	"decoderawtransaction":  {(*dcrjson.TxRawDecodeResult)(nil)},
-	"decodescript":          {(*dcrjson.DecodeScriptResult)(nil)},
+	"decoderawtransaction":  {(*types.TxRawDecodeResult)(nil)},
+	"decodescript":          {(*types.DecodeScriptResult)(nil)},
 	"estimatefee":           {(*float64)(nil)},
 	"estimatesmartfee":      {(*float64)(nil)},
-	"estimatestakediff":     {(*dcrjson.EstimateStakeDiffResult)(nil)},
+	"estimatestakediff":     {(*types.EstimateStakeDiffResult)(nil)},
 	"existsaddress":         {(*bool)(nil)},
 	"existsaddresses":       {(*string)(nil)},
 	"existsmissedtickets":   {(*string)(nil)},
@@ -961,66 +962,66 @@ var rpcResultTypes = map[string][]interface{}{
 	"existsliveticket":      {(*bool)(nil)},
 	"existslivetickets":     {(*string)(nil)},
 	"existsmempooltxs":      {(*string)(nil)},
-	"getaddednodeinfo":      {(*[]string)(nil), (*[]dcrjson.GetAddedNodeInfoResult)(nil)},
-	"getbestblock":          {(*dcrjson.GetBestBlockResult)(nil)},
+	"getaddednodeinfo":      {(*[]string)(nil), (*[]types.GetAddedNodeInfoResult)(nil)},
+	"getbestblock":          {(*types.GetBestBlockResult)(nil)},
 	"generate":              {(*[]string)(nil)},
 	"getbestblockhash":      {(*string)(nil)},
-	"getblock":              {(*string)(nil), (*dcrjson.GetBlockVerboseResult)(nil)},
-	"getblockchaininfo":     {(*dcrjson.GetBlockChainInfoResult)(nil)},
+	"getblock":              {(*string)(nil), (*types.GetBlockVerboseResult)(nil)},
+	"getblockchaininfo":     {(*types.GetBlockChainInfoResult)(nil)},
 	"getblockcount":         {(*int64)(nil)},
 	"getblockhash":          {(*string)(nil)},
-	"getblockheader":        {(*string)(nil), (*dcrjson.GetBlockHeaderVerboseResult)(nil)},
-	"getblocksubsidy":       {(*dcrjson.GetBlockSubsidyResult)(nil)},
-	"getblocktemplate":      {(*dcrjson.GetBlockTemplateResult)(nil), (*string)(nil), nil},
+	"getblockheader":        {(*string)(nil), (*types.GetBlockHeaderVerboseResult)(nil)},
+	"getblocksubsidy":       {(*types.GetBlockSubsidyResult)(nil)},
+	"getblocktemplate":      {(*types.GetBlockTemplateResult)(nil), (*string)(nil), nil},
 	"getcfilter":            {(*string)(nil)},
 	"getcfilterheader":      {(*string)(nil)},
-	"getchaintips":          {(*[]dcrjson.GetChainTipsResult)(nil)},
+	"getchaintips":          {(*[]types.GetChainTipsResult)(nil)},
 	"getconnectioncount":    {(*int32)(nil)},
 	"getcurrentnet":         {(*uint32)(nil)},
 	"getdifficulty":         {(*float64)(nil)},
-	"getstakedifficulty":    {(*dcrjson.GetStakeDifficultyResult)(nil)},
-	"getstakeversioninfo":   {(*dcrjson.GetStakeVersionInfoResult)(nil)},
-	"getstakeversions":      {(*dcrjson.GetStakeVersionsResult)(nil)},
+	"getstakedifficulty":    {(*types.GetStakeDifficultyResult)(nil)},
+	"getstakeversioninfo":   {(*types.GetStakeVersionInfoResult)(nil)},
+	"getstakeversions":      {(*types.GetStakeVersionsResult)(nil)},
 	"getgenerate":           {(*bool)(nil)},
 	"gethashespersec":       {(*float64)(nil)},
-	"getheaders":            {(*dcrjson.GetHeadersResult)(nil)},
-	"getinfo":               {(*dcrjson.InfoChainResult)(nil)},
-	"getmempoolinfo":        {(*dcrjson.GetMempoolInfoResult)(nil)},
-	"getmininginfo":         {(*dcrjson.GetMiningInfoResult)(nil)},
-	"getnettotals":          {(*dcrjson.GetNetTotalsResult)(nil)},
+	"getheaders":            {(*types.GetHeadersResult)(nil)},
+	"getinfo":               {(*types.InfoChainResult)(nil)},
+	"getmempoolinfo":        {(*types.GetMempoolInfoResult)(nil)},
+	"getmininginfo":         {(*types.GetMiningInfoResult)(nil)},
+	"getnettotals":          {(*types.GetNetTotalsResult)(nil)},
 	"getnetworkhashps":      {(*int64)(nil)},
-	"getpeerinfo":           {(*[]dcrjson.GetPeerInfoResult)(nil)},
-	"getrawmempool":         {(*[]string)(nil), (*dcrjson.GetRawMempoolVerboseResult)(nil)},
-	"getrawtransaction":     {(*string)(nil), (*dcrjson.TxRawResult)(nil)},
+	"getpeerinfo":           {(*[]types.GetPeerInfoResult)(nil)},
+	"getrawmempool":         {(*[]string)(nil), (*types.GetRawMempoolVerboseResult)(nil)},
+	"getrawtransaction":     {(*string)(nil), (*types.TxRawResult)(nil)},
 	"getticketpoolvalue":    {(*float64)(nil)},
-	"gettxout":              {(*dcrjson.GetTxOutResult)(nil)},
-	"getvoteinfo":           {(*dcrjson.GetVoteInfoResult)(nil)},
-	"getwork":               {(*dcrjson.GetWorkResult)(nil), (*bool)(nil)},
+	"gettxout":              {(*types.GetTxOutResult)(nil)},
+	"getvoteinfo":           {(*types.GetVoteInfoResult)(nil)},
+	"getwork":               {(*types.GetWorkResult)(nil), (*bool)(nil)},
 	"getcoinsupply":         {(*int64)(nil)},
 	"help":                  {(*string)(nil), (*string)(nil)},
-	"livetickets":           {(*dcrjson.LiveTicketsResult)(nil)},
-	"missedtickets":         {(*dcrjson.MissedTicketsResult)(nil)},
+	"livetickets":           {(*types.LiveTicketsResult)(nil)},
+	"missedtickets":         {(*types.MissedTicketsResult)(nil)},
 	"node":                  nil,
 	"ping":                  nil,
 	"rebroadcastmissed":     nil,
 	"rebroadcastwinners":    nil,
-	"searchrawtransactions": {(*string)(nil), (*[]dcrjson.SearchRawTransactionsResult)(nil)},
+	"searchrawtransactions": {(*string)(nil), (*[]types.SearchRawTransactionsResult)(nil)},
 	"sendrawtransaction":    {(*string)(nil)},
 	"setgenerate":           nil,
 	"stop":                  {(*string)(nil)},
 	"submitblock":           {nil, (*string)(nil)},
-	"ticketfeeinfo":         {(*dcrjson.TicketFeeInfoResult)(nil)},
-	"ticketsforaddress":     {(*dcrjson.TicketsForAddressResult)(nil)},
+	"ticketfeeinfo":         {(*types.TicketFeeInfoResult)(nil)},
+	"ticketsforaddress":     {(*types.TicketsForAddressResult)(nil)},
 	"ticketvwap":            {(*float64)(nil)},
-	"txfeeinfo":             {(*dcrjson.TxFeeInfoResult)(nil)},
-	"validateaddress":       {(*dcrjson.ValidateAddressChainResult)(nil)},
+	"txfeeinfo":             {(*types.TxFeeInfoResult)(nil)},
+	"validateaddress":       {(*types.ValidateAddressChainResult)(nil)},
 	"verifychain":           {(*bool)(nil)},
 	"verifymessage":         {(*bool)(nil)},
-	"version":               {(*map[string]dcrjson.VersionResult)(nil)},
+	"version":               {(*map[string]types.VersionResult)(nil)},
 
 	// Websocket commands.
 	"loadtxfilter":                nil,
-	"session":                     {(*dcrjson.SessionResult)(nil)},
+	"session":                     {(*types.SessionResult)(nil)},
 	"notifywinningtickets":        nil,
 	"notifyspentandmissedtickets": nil,
 	"notifynewtickets":            nil,
@@ -1041,13 +1042,13 @@ var rpcResultTypes = map[string][]interface{}{
 type helpCacher struct {
 	sync.Mutex
 	usage      string
-	methodHelp map[string]string
+	methodHelp map[types.Method]string
 }
 
 // rpcMethodHelp returns an RPC help string for the provided method.
 //
 // This function is safe for concurrent access.
-func (c *helpCacher) rpcMethodHelp(method string) (string, error) {
+func (c *helpCacher) rpcMethodHelp(method types.Method) (string, error) {
 	c.Lock()
 	defer c.Unlock()
 
@@ -1060,7 +1061,7 @@ func (c *helpCacher) rpcMethodHelp(method string) (string, error) {
 	resultTypes, ok := rpcResultTypes[method]
 	if !ok {
 		return "", errors.New("no result types specified for method " +
-			method)
+			string(method))
 	}
 
 	// Generate, cache, and return the help.
@@ -1114,6 +1115,6 @@ func (c *helpCacher) rpcUsage(includeWebsockets bool) (string, error) {
 // usage for the RPC server commands and caches the results for future calls.
 func newHelpCacher() *helpCacher {
 	return &helpCacher{
-		methodHelp: make(map[string]string),
+		methodHelp: make(map[types.Method]string),
 	}
 }

@@ -6,11 +6,13 @@
 // NOTE: This file is intended to house the RPC commands that are supported by
 // a chain server.
 
-package dcrjson
+package types
 
 import (
 	"encoding/json"
 	"fmt"
+
+	"github.com/decred/dcrd/dcrjson/v3"
 )
 
 // AddNodeSubCmd defines the type used in the addnode JSON-RPC command for the
@@ -268,27 +270,27 @@ func NewExistsAddressesCmd(addresses []string) *ExistsAddressesCmd {
 
 // ExistsMissedTicketsCmd defines the existsmissedtickets JSON-RPC command.
 type ExistsMissedTicketsCmd struct {
-	TxHashBlob string
+	TxHashes []string
 }
 
 // NewExistsMissedTicketsCmd returns a new instance which can be used to issue an
 // existsmissedtickets JSON-RPC command.
-func NewExistsMissedTicketsCmd(txHashBlob string) *ExistsMissedTicketsCmd {
+func NewExistsMissedTicketsCmd(txHashes []string) *ExistsMissedTicketsCmd {
 	return &ExistsMissedTicketsCmd{
-		TxHashBlob: txHashBlob,
+		TxHashes: txHashes,
 	}
 }
 
 // ExistsExpiredTicketsCmd defines the existsexpiredtickets JSON-RPC command.
 type ExistsExpiredTicketsCmd struct {
-	TxHashBlob string
+	TxHashes []string
 }
 
 // NewExistsExpiredTicketsCmd returns a new instance which can be used to issue an
 // existsexpiredtickets JSON-RPC command.
-func NewExistsExpiredTicketsCmd(txHashBlob string) *ExistsExpiredTicketsCmd {
+func NewExistsExpiredTicketsCmd(txHashes []string) *ExistsExpiredTicketsCmd {
 	return &ExistsExpiredTicketsCmd{
-		TxHashBlob: txHashBlob,
+		TxHashes: txHashes,
 	}
 }
 
@@ -307,27 +309,27 @@ func NewExistsLiveTicketCmd(txHash string) *ExistsLiveTicketCmd {
 
 // ExistsLiveTicketsCmd defines the existslivetickets JSON-RPC command.
 type ExistsLiveTicketsCmd struct {
-	TxHashBlob string
+	TxHashes []string
 }
 
 // NewExistsLiveTicketsCmd returns a new instance which can be used to issue an
 // existslivetickets JSON-RPC command.
-func NewExistsLiveTicketsCmd(txHashBlob string) *ExistsLiveTicketsCmd {
+func NewExistsLiveTicketsCmd(txHashes []string) *ExistsLiveTicketsCmd {
 	return &ExistsLiveTicketsCmd{
-		TxHashBlob: txHashBlob,
+		TxHashes: txHashes,
 	}
 }
 
 // ExistsMempoolTxsCmd defines the existsmempooltxs JSON-RPC command.
 type ExistsMempoolTxsCmd struct {
-	TxHashBlob string
+	TxHashes []string
 }
 
 // NewExistsMempoolTxsCmd returns a new instance which can be used to issue an
 // existslivetickets JSON-RPC command.
-func NewExistsMempoolTxsCmd(txHashBlob string) *ExistsMempoolTxsCmd {
+func NewExistsMempoolTxsCmd(txHashes []string) *ExistsMempoolTxsCmd {
 	return &ExistsMempoolTxsCmd{
-		TxHashBlob: txHashBlob,
+		TxHashes: txHashes,
 	}
 }
 
@@ -502,7 +504,7 @@ func convertTemplateRequestField(fieldName string, iface interface{}) (interface
 
 	str := fmt.Sprintf("the %s field must be unspecified, a boolean, or "+
 		"a 64-bit integer", fieldName)
-	return nil, makeError(ErrInvalidType, str)
+	return nil, dcrjson.Error{Code: dcrjson.ErrInvalidType, Message: str}
 }
 
 // UnmarshalJSON provides a custom Unmarshal method for TemplateRequest.  This
@@ -653,13 +655,13 @@ func NewGetInfoCmd() *GetInfoCmd {
 
 // GetHeadersCmd defines the getheaders JSON-RPC command.
 type GetHeadersCmd struct {
-	BlockLocators string `json:"blocklocators"`
-	HashStop      string `json:"hashstop"`
+	BlockLocators []string `json:"blocklocators"`
+	HashStop      string   `json:"hashstop"`
 }
 
 // NewGetHeadersCmd returns a new instance which can be used to issue a
 // getheaders JSON-RPC command.
-func NewGetHeadersCmd(blockLocators string, hashStop string) *GetHeadersCmd {
+func NewGetHeadersCmd(blockLocators []string, hashStop string) *GetHeadersCmd {
 	return &GetHeadersCmd{
 		BlockLocators: blockLocators,
 		HashStop:      hashStop,
@@ -1195,81 +1197,81 @@ func NewVersionCmd() *VersionCmd { return new(VersionCmd) }
 
 func init() {
 	// No special flags for commands in this file.
-	flags := UsageFlag(0)
+	flags := dcrjson.UsageFlag(0)
 
-	MustRegisterCmd("addnode", (*AddNodeCmd)(nil), flags)
-	MustRegisterCmd("createrawssrtx", (*CreateRawSSRtxCmd)(nil), flags)
-	MustRegisterCmd("createrawsstx", (*CreateRawSStxCmd)(nil), flags)
-	MustRegisterCmd("createrawtransaction", (*CreateRawTransactionCmd)(nil), flags)
-	MustRegisterCmd("debuglevel", (*DebugLevelCmd)(nil), flags)
-	MustRegisterCmd("decoderawtransaction", (*DecodeRawTransactionCmd)(nil), flags)
-	MustRegisterCmd("decodescript", (*DecodeScriptCmd)(nil), flags)
-	MustRegisterCmd("estimatefee", (*EstimateFeeCmd)(nil), flags)
-	MustRegisterCmd("estimatesmartfee", (*EstimateSmartFeeCmd)(nil), flags)
-	MustRegisterCmd("estimatestakediff", (*EstimateStakeDiffCmd)(nil), flags)
-	MustRegisterCmd("existsaddress", (*ExistsAddressCmd)(nil), flags)
-	MustRegisterCmd("existsaddresses", (*ExistsAddressesCmd)(nil), flags)
-	MustRegisterCmd("existsmissedtickets", (*ExistsMissedTicketsCmd)(nil), flags)
-	MustRegisterCmd("existsexpiredtickets", (*ExistsExpiredTicketsCmd)(nil), flags)
-	MustRegisterCmd("existsliveticket", (*ExistsLiveTicketCmd)(nil), flags)
-	MustRegisterCmd("existslivetickets", (*ExistsLiveTicketsCmd)(nil), flags)
-	MustRegisterCmd("existsmempooltxs", (*ExistsMempoolTxsCmd)(nil), flags)
-	MustRegisterCmd("generate", (*GenerateCmd)(nil), flags)
-	MustRegisterCmd("getaddednodeinfo", (*GetAddedNodeInfoCmd)(nil), flags)
-	MustRegisterCmd("getbestblock", (*GetBestBlockCmd)(nil), flags)
-	MustRegisterCmd("getbestblockhash", (*GetBestBlockHashCmd)(nil), flags)
-	MustRegisterCmd("getblock", (*GetBlockCmd)(nil), flags)
-	MustRegisterCmd("getblockchaininfo", (*GetBlockChainInfoCmd)(nil), flags)
-	MustRegisterCmd("getblockcount", (*GetBlockCountCmd)(nil), flags)
-	MustRegisterCmd("getblockhash", (*GetBlockHashCmd)(nil), flags)
-	MustRegisterCmd("getblockheader", (*GetBlockHeaderCmd)(nil), flags)
-	MustRegisterCmd("getblocksubsidy", (*GetBlockSubsidyCmd)(nil), flags)
-	MustRegisterCmd("getblocktemplate", (*GetBlockTemplateCmd)(nil), flags)
-	MustRegisterCmd("getcfilter", (*GetCFilterCmd)(nil), flags)
-	MustRegisterCmd("getcfilterheader", (*GetCFilterHeaderCmd)(nil), flags)
-	MustRegisterCmd("getchaintips", (*GetChainTipsCmd)(nil), flags)
-	MustRegisterCmd("getcoinsupply", (*GetCoinSupplyCmd)(nil), flags)
-	MustRegisterCmd("getconnectioncount", (*GetConnectionCountCmd)(nil), flags)
-	MustRegisterCmd("getcurrentnet", (*GetCurrentNetCmd)(nil), flags)
-	MustRegisterCmd("getdifficulty", (*GetDifficultyCmd)(nil), flags)
-	MustRegisterCmd("getgenerate", (*GetGenerateCmd)(nil), flags)
-	MustRegisterCmd("gethashespersec", (*GetHashesPerSecCmd)(nil), flags)
-	MustRegisterCmd("getheaders", (*GetHeadersCmd)(nil), flags)
-	MustRegisterCmd("getinfo", (*GetInfoCmd)(nil), flags)
-	MustRegisterCmd("getmempoolinfo", (*GetMempoolInfoCmd)(nil), flags)
-	MustRegisterCmd("getmininginfo", (*GetMiningInfoCmd)(nil), flags)
-	MustRegisterCmd("getnetworkinfo", (*GetNetworkInfoCmd)(nil), flags)
-	MustRegisterCmd("getnettotals", (*GetNetTotalsCmd)(nil), flags)
-	MustRegisterCmd("getnetworkhashps", (*GetNetworkHashPSCmd)(nil), flags)
-	MustRegisterCmd("getpeerinfo", (*GetPeerInfoCmd)(nil), flags)
-	MustRegisterCmd("getrawmempool", (*GetRawMempoolCmd)(nil), flags)
-	MustRegisterCmd("getrawtransaction", (*GetRawTransactionCmd)(nil), flags)
-	MustRegisterCmd("getstakedifficulty", (*GetStakeDifficultyCmd)(nil), flags)
-	MustRegisterCmd("getstakeversioninfo", (*GetStakeVersionInfoCmd)(nil), flags)
-	MustRegisterCmd("getstakeversions", (*GetStakeVersionsCmd)(nil), flags)
-	MustRegisterCmd("getticketpoolvalue", (*GetTicketPoolValueCmd)(nil), flags)
-	MustRegisterCmd("gettxout", (*GetTxOutCmd)(nil), flags)
-	MustRegisterCmd("gettxoutsetinfo", (*GetTxOutSetInfoCmd)(nil), flags)
-	MustRegisterCmd("getvoteinfo", (*GetVoteInfoCmd)(nil), flags)
-	MustRegisterCmd("getwork", (*GetWorkCmd)(nil), flags)
-	MustRegisterCmd("help", (*HelpCmd)(nil), flags)
-	MustRegisterCmd("livetickets", (*LiveTicketsCmd)(nil), flags)
-	MustRegisterCmd("missedtickets", (*MissedTicketsCmd)(nil), flags)
-	MustRegisterCmd("node", (*NodeCmd)(nil), flags)
-	MustRegisterCmd("ping", (*PingCmd)(nil), flags)
-	MustRegisterCmd("rebroadcastmissed", (*RebroadcastMissedCmd)(nil), flags)
-	MustRegisterCmd("rebroadcastwinners", (*RebroadcastWinnersCmd)(nil), flags)
-	MustRegisterCmd("searchrawtransactions", (*SearchRawTransactionsCmd)(nil), flags)
-	MustRegisterCmd("sendrawtransaction", (*SendRawTransactionCmd)(nil), flags)
-	MustRegisterCmd("setgenerate", (*SetGenerateCmd)(nil), flags)
-	MustRegisterCmd("stop", (*StopCmd)(nil), flags)
-	MustRegisterCmd("submitblock", (*SubmitBlockCmd)(nil), flags)
-	MustRegisterCmd("ticketfeeinfo", (*TicketFeeInfoCmd)(nil), flags)
-	MustRegisterCmd("ticketsforaddress", (*TicketsForAddressCmd)(nil), flags)
-	MustRegisterCmd("ticketvwap", (*TicketVWAPCmd)(nil), flags)
-	MustRegisterCmd("txfeeinfo", (*TxFeeInfoCmd)(nil), flags)
-	MustRegisterCmd("validateaddress", (*ValidateAddressCmd)(nil), flags)
-	MustRegisterCmd("verifychain", (*VerifyChainCmd)(nil), flags)
-	MustRegisterCmd("verifymessage", (*VerifyMessageCmd)(nil), flags)
-	MustRegisterCmd("version", (*VersionCmd)(nil), flags)
+	dcrjson.MustRegister(Method("addnode"), (*AddNodeCmd)(nil), flags)
+	dcrjson.MustRegister(Method("createrawssrtx"), (*CreateRawSSRtxCmd)(nil), flags)
+	dcrjson.MustRegister(Method("createrawsstx"), (*CreateRawSStxCmd)(nil), flags)
+	dcrjson.MustRegister(Method("createrawtransaction"), (*CreateRawTransactionCmd)(nil), flags)
+	dcrjson.MustRegister(Method("debuglevel"), (*DebugLevelCmd)(nil), flags)
+	dcrjson.MustRegister(Method("decoderawtransaction"), (*DecodeRawTransactionCmd)(nil), flags)
+	dcrjson.MustRegister(Method("decodescript"), (*DecodeScriptCmd)(nil), flags)
+	dcrjson.MustRegister(Method("estimatefee"), (*EstimateFeeCmd)(nil), flags)
+	dcrjson.MustRegister(Method("estimatesmartfee"), (*EstimateSmartFeeCmd)(nil), flags)
+	dcrjson.MustRegister(Method("estimatestakediff"), (*EstimateStakeDiffCmd)(nil), flags)
+	dcrjson.MustRegister(Method("existsaddress"), (*ExistsAddressCmd)(nil), flags)
+	dcrjson.MustRegister(Method("existsaddresses"), (*ExistsAddressesCmd)(nil), flags)
+	dcrjson.MustRegister(Method("existsmissedtickets"), (*ExistsMissedTicketsCmd)(nil), flags)
+	dcrjson.MustRegister(Method("existsexpiredtickets"), (*ExistsExpiredTicketsCmd)(nil), flags)
+	dcrjson.MustRegister(Method("existsliveticket"), (*ExistsLiveTicketCmd)(nil), flags)
+	dcrjson.MustRegister(Method("existslivetickets"), (*ExistsLiveTicketsCmd)(nil), flags)
+	dcrjson.MustRegister(Method("existsmempooltxs"), (*ExistsMempoolTxsCmd)(nil), flags)
+	dcrjson.MustRegister(Method("generate"), (*GenerateCmd)(nil), flags)
+	dcrjson.MustRegister(Method("getaddednodeinfo"), (*GetAddedNodeInfoCmd)(nil), flags)
+	dcrjson.MustRegister(Method("getbestblock"), (*GetBestBlockCmd)(nil), flags)
+	dcrjson.MustRegister(Method("getbestblockhash"), (*GetBestBlockHashCmd)(nil), flags)
+	dcrjson.MustRegister(Method("getblock"), (*GetBlockCmd)(nil), flags)
+	dcrjson.MustRegister(Method("getblockchaininfo"), (*GetBlockChainInfoCmd)(nil), flags)
+	dcrjson.MustRegister(Method("getblockcount"), (*GetBlockCountCmd)(nil), flags)
+	dcrjson.MustRegister(Method("getblockhash"), (*GetBlockHashCmd)(nil), flags)
+	dcrjson.MustRegister(Method("getblockheader"), (*GetBlockHeaderCmd)(nil), flags)
+	dcrjson.MustRegister(Method("getblocksubsidy"), (*GetBlockSubsidyCmd)(nil), flags)
+	dcrjson.MustRegister(Method("getblocktemplate"), (*GetBlockTemplateCmd)(nil), flags)
+	dcrjson.MustRegister(Method("getcfilter"), (*GetCFilterCmd)(nil), flags)
+	dcrjson.MustRegister(Method("getcfilterheader"), (*GetCFilterHeaderCmd)(nil), flags)
+	dcrjson.MustRegister(Method("getchaintips"), (*GetChainTipsCmd)(nil), flags)
+	dcrjson.MustRegister(Method("getcoinsupply"), (*GetCoinSupplyCmd)(nil), flags)
+	dcrjson.MustRegister(Method("getconnectioncount"), (*GetConnectionCountCmd)(nil), flags)
+	dcrjson.MustRegister(Method("getcurrentnet"), (*GetCurrentNetCmd)(nil), flags)
+	dcrjson.MustRegister(Method("getdifficulty"), (*GetDifficultyCmd)(nil), flags)
+	dcrjson.MustRegister(Method("getgenerate"), (*GetGenerateCmd)(nil), flags)
+	dcrjson.MustRegister(Method("gethashespersec"), (*GetHashesPerSecCmd)(nil), flags)
+	dcrjson.MustRegister(Method("getheaders"), (*GetHeadersCmd)(nil), flags)
+	dcrjson.MustRegister(Method("getinfo"), (*GetInfoCmd)(nil), flags)
+	dcrjson.MustRegister(Method("getmempoolinfo"), (*GetMempoolInfoCmd)(nil), flags)
+	dcrjson.MustRegister(Method("getmininginfo"), (*GetMiningInfoCmd)(nil), flags)
+	dcrjson.MustRegister(Method("getnetworkinfo"), (*GetNetworkInfoCmd)(nil), flags)
+	dcrjson.MustRegister(Method("getnettotals"), (*GetNetTotalsCmd)(nil), flags)
+	dcrjson.MustRegister(Method("getnetworkhashps"), (*GetNetworkHashPSCmd)(nil), flags)
+	dcrjson.MustRegister(Method("getpeerinfo"), (*GetPeerInfoCmd)(nil), flags)
+	dcrjson.MustRegister(Method("getrawmempool"), (*GetRawMempoolCmd)(nil), flags)
+	dcrjson.MustRegister(Method("getrawtransaction"), (*GetRawTransactionCmd)(nil), flags)
+	dcrjson.MustRegister(Method("getstakedifficulty"), (*GetStakeDifficultyCmd)(nil), flags)
+	dcrjson.MustRegister(Method("getstakeversioninfo"), (*GetStakeVersionInfoCmd)(nil), flags)
+	dcrjson.MustRegister(Method("getstakeversions"), (*GetStakeVersionsCmd)(nil), flags)
+	dcrjson.MustRegister(Method("getticketpoolvalue"), (*GetTicketPoolValueCmd)(nil), flags)
+	dcrjson.MustRegister(Method("gettxout"), (*GetTxOutCmd)(nil), flags)
+	dcrjson.MustRegister(Method("gettxoutsetinfo"), (*GetTxOutSetInfoCmd)(nil), flags)
+	dcrjson.MustRegister(Method("getvoteinfo"), (*GetVoteInfoCmd)(nil), flags)
+	dcrjson.MustRegister(Method("getwork"), (*GetWorkCmd)(nil), flags)
+	dcrjson.MustRegister(Method("help"), (*HelpCmd)(nil), flags)
+	dcrjson.MustRegister(Method("livetickets"), (*LiveTicketsCmd)(nil), flags)
+	dcrjson.MustRegister(Method("missedtickets"), (*MissedTicketsCmd)(nil), flags)
+	dcrjson.MustRegister(Method("node"), (*NodeCmd)(nil), flags)
+	dcrjson.MustRegister(Method("ping"), (*PingCmd)(nil), flags)
+	dcrjson.MustRegister(Method("rebroadcastmissed"), (*RebroadcastMissedCmd)(nil), flags)
+	dcrjson.MustRegister(Method("rebroadcastwinners"), (*RebroadcastWinnersCmd)(nil), flags)
+	dcrjson.MustRegister(Method("searchrawtransactions"), (*SearchRawTransactionsCmd)(nil), flags)
+	dcrjson.MustRegister(Method("sendrawtransaction"), (*SendRawTransactionCmd)(nil), flags)
+	dcrjson.MustRegister(Method("setgenerate"), (*SetGenerateCmd)(nil), flags)
+	dcrjson.MustRegister(Method("stop"), (*StopCmd)(nil), flags)
+	dcrjson.MustRegister(Method("submitblock"), (*SubmitBlockCmd)(nil), flags)
+	dcrjson.MustRegister(Method("ticketfeeinfo"), (*TicketFeeInfoCmd)(nil), flags)
+	dcrjson.MustRegister(Method("ticketsforaddress"), (*TicketsForAddressCmd)(nil), flags)
+	dcrjson.MustRegister(Method("ticketvwap"), (*TicketVWAPCmd)(nil), flags)
+	dcrjson.MustRegister(Method("txfeeinfo"), (*TxFeeInfoCmd)(nil), flags)
+	dcrjson.MustRegister(Method("validateaddress"), (*ValidateAddressCmd)(nil), flags)
+	dcrjson.MustRegister(Method("verifychain"), (*VerifyChainCmd)(nil), flags)
+	dcrjson.MustRegister(Method("verifymessage"), (*VerifyMessageCmd)(nil), flags)
+	dcrjson.MustRegister(Method("version"), (*VersionCmd)(nil), flags)
 }

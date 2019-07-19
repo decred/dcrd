@@ -3,7 +3,7 @@
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
-package dcrjson
+package types
 
 import (
 	"bytes"
@@ -11,6 +11,8 @@ import (
 	"fmt"
 	"reflect"
 	"testing"
+
+	"github.com/decred/dcrd/dcrjson/v3"
 )
 
 // TestChainSvrWsCmds tests all of the chain server websocket-specific commands
@@ -31,7 +33,7 @@ func TestChainSvrWsCmds(t *testing.T) {
 		{
 			name: "authenticate",
 			newCmd: func() (interface{}, error) {
-				return NewCmd("authenticate", "user", "pass")
+				return dcrjson.NewCmd(Method("authenticate"), "user", "pass")
 			},
 			staticCmd: func() interface{} {
 				return NewAuthenticateCmd("user", "pass")
@@ -42,7 +44,7 @@ func TestChainSvrWsCmds(t *testing.T) {
 		{
 			name: "notifywinningtickets",
 			newCmd: func() (interface{}, error) {
-				return NewCmd("notifywinningtickets")
+				return dcrjson.NewCmd(Method("notifywinningtickets"))
 			},
 			staticCmd: func() interface{} {
 				return NewNotifyWinningTicketsCmd()
@@ -53,7 +55,7 @@ func TestChainSvrWsCmds(t *testing.T) {
 		{
 			name: "notifyspentandmissedtickets",
 			newCmd: func() (interface{}, error) {
-				return NewCmd("notifyspentandmissedtickets")
+				return dcrjson.NewCmd(Method("notifyspentandmissedtickets"))
 			},
 			staticCmd: func() interface{} {
 				return NewNotifySpentAndMissedTicketsCmd()
@@ -64,7 +66,7 @@ func TestChainSvrWsCmds(t *testing.T) {
 		{
 			name: "notifynewtickets",
 			newCmd: func() (interface{}, error) {
-				return NewCmd("notifynewtickets")
+				return dcrjson.NewCmd(Method("notifynewtickets"))
 			},
 			staticCmd: func() interface{} {
 				return NewNotifyNewTicketsCmd()
@@ -75,7 +77,7 @@ func TestChainSvrWsCmds(t *testing.T) {
 		{
 			name: "notifystakedifficulty",
 			newCmd: func() (interface{}, error) {
-				return NewCmd("notifystakedifficulty")
+				return dcrjson.NewCmd(Method("notifystakedifficulty"))
 			},
 			staticCmd: func() interface{} {
 				return NewNotifyStakeDifficultyCmd()
@@ -86,7 +88,7 @@ func TestChainSvrWsCmds(t *testing.T) {
 		{
 			name: "notifyblocks",
 			newCmd: func() (interface{}, error) {
-				return NewCmd("notifyblocks")
+				return dcrjson.NewCmd(Method("notifyblocks"))
 			},
 			staticCmd: func() interface{} {
 				return NewNotifyBlocksCmd()
@@ -97,7 +99,7 @@ func TestChainSvrWsCmds(t *testing.T) {
 		{
 			name: "stopnotifyblocks",
 			newCmd: func() (interface{}, error) {
-				return NewCmd("stopnotifyblocks")
+				return dcrjson.NewCmd(Method("stopnotifyblocks"))
 			},
 			staticCmd: func() interface{} {
 				return NewStopNotifyBlocksCmd()
@@ -108,33 +110,33 @@ func TestChainSvrWsCmds(t *testing.T) {
 		{
 			name: "notifynewtransactions",
 			newCmd: func() (interface{}, error) {
-				return NewCmd("notifynewtransactions")
+				return dcrjson.NewCmd(Method("notifynewtransactions"))
 			},
 			staticCmd: func() interface{} {
 				return NewNotifyNewTransactionsCmd(nil)
 			},
 			marshalled: `{"jsonrpc":"1.0","method":"notifynewtransactions","params":[],"id":1}`,
 			unmarshalled: &NotifyNewTransactionsCmd{
-				Verbose: Bool(false),
+				Verbose: dcrjson.Bool(false),
 			},
 		},
 		{
 			name: "notifynewtransactions optional",
 			newCmd: func() (interface{}, error) {
-				return NewCmd("notifynewtransactions", true)
+				return dcrjson.NewCmd(Method("notifynewtransactions"), true)
 			},
 			staticCmd: func() interface{} {
-				return NewNotifyNewTransactionsCmd(Bool(true))
+				return NewNotifyNewTransactionsCmd(dcrjson.Bool(true))
 			},
 			marshalled: `{"jsonrpc":"1.0","method":"notifynewtransactions","params":[true],"id":1}`,
 			unmarshalled: &NotifyNewTransactionsCmd{
-				Verbose: Bool(true),
+				Verbose: dcrjson.Bool(true),
 			},
 		},
 		{
 			name: "stopnotifynewtransactions",
 			newCmd: func() (interface{}, error) {
-				return NewCmd("stopnotifynewtransactions")
+				return dcrjson.NewCmd(Method("stopnotifynewtransactions"))
 			},
 			staticCmd: func() interface{} {
 				return NewStopNotifyNewTransactionsCmd()
@@ -145,14 +147,14 @@ func TestChainSvrWsCmds(t *testing.T) {
 		{
 			name: "rescan",
 			newCmd: func() (interface{}, error) {
-				return NewCmd("rescan", "0000000000000000000000000000000000000000000000000000000000000123")
+				return dcrjson.NewCmd(Method("rescan"), []string{"0000000000000000000000000000000000000000000000000000000000000123"})
 			},
 			staticCmd: func() interface{} {
-				return NewRescanCmd("0000000000000000000000000000000000000000000000000000000000000123")
+				return NewRescanCmd([]string{"0000000000000000000000000000000000000000000000000000000000000123"})
 			},
-			marshalled: `{"jsonrpc":"1.0","method":"rescan","params":["0000000000000000000000000000000000000000000000000000000000000123"],"id":1}`,
+			marshalled: `{"jsonrpc":"1.0","method":"rescan","params":[["0000000000000000000000000000000000000000000000000000000000000123"]],"id":1}`,
 			unmarshalled: &RescanCmd{
-				BlockHashes: "0000000000000000000000000000000000000000000000000000000000000123",
+				BlockHashes: []string{"0000000000000000000000000000000000000000000000000000000000000123"},
 			},
 		},
 	}
@@ -161,7 +163,7 @@ func TestChainSvrWsCmds(t *testing.T) {
 	for i, test := range tests {
 		// Marshal the command as created by the new static command
 		// creation function.
-		marshalled, err := MarshalCmd("1.0", testID, test.staticCmd())
+		marshalled, err := dcrjson.MarshalCmd("1.0", testID, test.staticCmd())
 		if err != nil {
 			t.Errorf("MarshalCmd #%d (%s) unexpected error: %v", i,
 				test.name, err)
@@ -179,13 +181,13 @@ func TestChainSvrWsCmds(t *testing.T) {
 		// new command creation function.
 		cmd, err := test.newCmd()
 		if err != nil {
-			t.Errorf("Test #%d (%s) unexpected NewCmd error: %v ",
+			t.Errorf("Test #%d (%s) unexpected dcrjson.NewCmd error: %v ",
 				i, test.name, err)
 		}
 
 		// Marshal the command as created by the generic new command
 		// creation function.
-		marshalled, err = MarshalCmd("1.0", testID, cmd)
+		marshalled, err = dcrjson.MarshalCmd("1.0", testID, cmd)
 		if err != nil {
 			t.Errorf("MarshalCmd #%d (%s) unexpected error: %v", i,
 				test.name, err)
@@ -199,7 +201,7 @@ func TestChainSvrWsCmds(t *testing.T) {
 			continue
 		}
 
-		var request Request
+		var request dcrjson.Request
 		if err := json.Unmarshal(marshalled, &request); err != nil {
 			t.Errorf("Test #%d (%s) unexpected error while "+
 				"unmarshalling JSON-RPC request: %v", i,
@@ -207,9 +209,9 @@ func TestChainSvrWsCmds(t *testing.T) {
 			continue
 		}
 
-		cmd, err = UnmarshalCmd(&request)
+		cmd, err = dcrjson.ParseParams(Method(request.Method), request.Params)
 		if err != nil {
-			t.Errorf("UnmarshalCmd #%d (%s) unexpected error: %v", i,
+			t.Errorf("ParseParams #%d (%s) unexpected error: %v", i,
 				test.name, err)
 			continue
 		}

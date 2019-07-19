@@ -28,12 +28,12 @@ func TestCmdMethod(t *testing.T) {
 		},
 		{
 			name:   "nil pointer of registered type",
-			cmd:    (*GetBlockCmd)(nil),
+			cmd:    (*testGetBlockCmd)(nil),
 			method: "getblock",
 		},
 		{
-			name:   "nil instance of registered type",
-			cmd:    &GetBlockCountCmd{},
+			name:   "zero instance of registered type",
+			cmd:    &testGetBlockCountCmd{},
 			method: "getblockcount",
 		},
 	}

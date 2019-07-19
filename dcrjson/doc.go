@@ -1,19 +1,16 @@
 // Copyright (c) 2015 The btcsuite developers
-// Copyright (c) 2015-2016 The Decred developers
+// Copyright (c) 2015-2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
 /*
-Package dcrjson provides primitives for working with the Decred JSON-RPC API.
+Package dcrjson provides infrastructure for working with the Decred JSON-RPC APIs.
 
 Overview
 
-When communicating via the JSON-RPC protocol, all of the commands need to be
+When communicating via the JSON-RPC protocol, all requests and responses must be
 marshalled to and from the the wire in the appropriate format.  This package
-provides data structures and primitives to ease this process.
-
-In addition, it also provides some additional features such as custom command
-registration, command categorization, and reflection-based help generation.
+provides infrastructure and primitives to ease this process.
 
 JSON-RPC Protocol Overview
 
@@ -37,7 +34,7 @@ method (a.k.a. command) being sent.  Each parameter can be as simple as an int
 or a complex structure containing many nested fields.  The id field is used to
 identify a request and will be included in the associated response.
 
-When working with asynchronous transports, such as websockets, spontaneous
+When working with streamed RPC transports, such as websockets, spontaneous
 notifications are also possible.  As indicated, they are the same as a request
 object, except they have the id field set to null.  Therefore, servers will
 ignore requests with the id field set to null, while clients can choose to
@@ -50,24 +47,16 @@ for the most part, the error field will be set as described on failure.
 
 Marshalling and Unmarshalling
 
-Based upon the discussion above, it should be easy to see how the types of this
-package map into the required parts of the protocol
-
-  - Request Objects (type Request)
-    - Commands (type <Foo>Cmd)
-    - Notifications (type <Foo>Ntfn)
-  - Response Objects (type Response)
-    - Result (type <Foo>Result)
-
 To simplify the marshalling of the requests and responses, the MarshalCmd and
 MarshalResponse functions are provided.  They return the raw bytes ready to be
 sent across the wire.
 
 Unmarshalling a received Request object is a two step process:
   1) Unmarshal the raw bytes into a Request struct instance via json.Unmarshal
-  2) Use UnmarshalCmd on the Result field of the unmarshalled Request to create
-     a concrete command or notification instance with all struct fields set
-     accordingly
+  2) Use ParseParams on the Method and Params fields of the unmarshalled Request
+     to create a concrete command or notification instance with all struct fields
+     set accordingly.  The concrete types must have been registered for the method
+     by an external package
 
 This approach is used since it provides the caller with access to the additional
 fields in the request that are not part of the command such as the ID.
@@ -82,17 +71,15 @@ fields in the response such as the ID and Error.
 
 Command Creation
 
-This package provides two approaches for creating a new command.  This first,
-and preferred, method is to use one of the New<Foo>Cmd functions.  This allows
-static compile-time checking to help ensure the parameters stay in sync with
-the struct definitions.
-
-The second approach is the NewCmd function which takes a method (command) name
+This package provides the NewCmd function which takes a method (command) name
 and variable arguments.  The function includes full checking to ensure the
 parameters are accurate according to provided method, however these checks are,
 obviously, run-time which means any mistakes won't be found until the code is
 actually executed.  However, it is quite useful for user-supplied commands
 that are intentionally dynamic.
+
+External packages can and should implement types implementing Command for use
+with MarshalCmd/ParseParams.
 
 Custom Command Registration
 
@@ -117,8 +104,7 @@ Help Generation
 
 To facilitate providing consistent help to users of the RPC server, this package
 exposes the GenerateHelp and function which uses reflection on registered
-commands or notifications, as well as the provided expected result types, to
-generate the final help text.
+commands or notifications to generate the final help text.
 
 In addition, the MethodUsageText function is provided to generate consistent
 one-line usage for registered commands and notifications using reflection.

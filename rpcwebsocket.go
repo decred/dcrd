@@ -25,8 +25,9 @@ import (
 	"github.com/decred/dcrd/blockchain"
 	"github.com/decred/dcrd/blockchain/stake"
 	"github.com/decred/dcrd/chaincfg/chainhash"
-	"github.com/decred/dcrd/dcrjson/v2"
+	"github.com/decred/dcrd/dcrjson/v3"
 	"github.com/decred/dcrd/dcrutil"
+	"github.com/decred/dcrd/rpc/jsonrpc/types"
 	"github.com/decred/dcrd/txscript"
 	"github.com/decred/dcrd/wire"
 )
@@ -60,8 +61,8 @@ type wsCommandHandler func(*wsClient, interface{}) (interface{}, error)
 // wsHandlers maps RPC command strings to appropriate websocket handler
 // functions.  This is set by init because help references wsHandlers and thus
 // causes a dependency loop.
-var wsHandlers map[string]wsCommandHandler
-var wsHandlersBeforeInit = map[string]wsCommandHandler{
+var wsHandlers map[types.Method]wsCommandHandler
+var wsHandlersBeforeInit = map[types.Method]wsCommandHandler{
 	"loadtxfilter":                handleLoadTxFilter,
 	"notifyblocks":                handleNotifyBlocks,
 	"notifywinningtickets":        handleWinningTickets,
@@ -712,7 +713,7 @@ func (m *wsNotificationManager) notifyBlockConnected(clients map[chan struct{}]*
 		// just accepted, there should be no issues serializing it.
 		panic(err)
 	}
-	ntfn := dcrjson.BlockConnectedNtfn{
+	ntfn := types.BlockConnectedNtfn{
 		Header:        hex.EncodeToString(headerBytes),
 		SubscribedTxs: nil, // Set individually for each client
 	}
@@ -774,7 +775,7 @@ func (*wsNotificationManager) notifyBlockDisconnected(clients map[chan struct{}]
 		// it.
 		panic(err)
 	}
-	ntfn := dcrjson.BlockDisconnectedNtfn{
+	ntfn := types.BlockDisconnectedNtfn{
 		Header: hex.EncodeToString(headerBytes),
 	}
 	marshalledJSON, err := dcrjson.MarshalCmd("1.0", nil, &ntfn)
@@ -798,7 +799,7 @@ func (m *wsNotificationManager) notifyReorganization(clients map[chan struct{}]*
 	}
 
 	// Notify interested websocket clients about the disconnected block.
-	ntfn := dcrjson.NewReorganizationNtfn(rd.OldHash.String(),
+	ntfn := types.NewReorganizationNtfn(rd.OldHash.String(),
 		int32(rd.OldHeight),
 		rd.NewHash.String(),
 		int32(rd.NewHeight))
@@ -837,7 +838,7 @@ func (*wsNotificationManager) notifyWinningTickets(
 	}
 
 	// Notify interested websocket clients about the connected block.
-	ntfn := dcrjson.NewWinningTicketsNtfn(wtnd.BlockHash.String(),
+	ntfn := types.NewWinningTicketsNtfn(wtnd.BlockHash.String(),
 		int32(wtnd.BlockHeight), ticketMap)
 
 	marshalledJSON, err := dcrjson.MarshalCmd("1.0", nil, ntfn)
@@ -877,7 +878,7 @@ func (*wsNotificationManager) notifySpentAndMissedTickets(clients map[chan struc
 	}
 
 	// Notify interested websocket clients about the connected block.
-	ntfn := dcrjson.NewSpentAndMissedTicketsNtfn(tnd.Hash.String(),
+	ntfn := types.NewSpentAndMissedTicketsNtfn(tnd.Hash.String(),
 		int32(tnd.Height), tnd.StakeDifficulty, ticketMap)
 
 	marshalledJSON, err := dcrjson.MarshalCmd("1.0", nil, ntfn)
@@ -926,7 +927,7 @@ func (*wsNotificationManager) notifyNewTickets(clients map[chan struct{}]*wsClie
 	}
 
 	// Notify interested websocket clients about the connected block.
-	ntfn := dcrjson.NewNewTicketsNtfn(tnd.Hash.String(), int32(tnd.Height),
+	ntfn := types.NewNewTicketsNtfn(tnd.Hash.String(), int32(tnd.Height),
 		tnd.StakeDifficulty, tickets)
 
 	marshalledJSON, err := dcrjson.MarshalCmd("1.0", nil, ntfn)
@@ -944,7 +945,7 @@ func (*wsNotificationManager) notifyNewTickets(clients map[chan struct{}]*wsClie
 // maturing ticket updates.
 func (*wsNotificationManager) notifyStakeDifficulty(clients map[chan struct{}]*wsClient, sdnd *StakeDifficultyNtfnData) {
 	// Notify interested websocket clients about the connected block.
-	ntfn := dcrjson.NewStakeDifficultyNtfn(sdnd.BlockHash.String(),
+	ntfn := types.NewStakeDifficultyNtfn(sdnd.BlockHash.String(),
 		int32(sdnd.BlockHeight),
 		sdnd.StakeDifficulty)
 
@@ -982,7 +983,7 @@ func (m *wsNotificationManager) notifyForNewTx(clients map[chan struct{}]*wsClie
 		amount += txOut.Value
 	}
 
-	ntfn := dcrjson.NewTxAcceptedNtfn(txHashStr,
+	ntfn := types.NewTxAcceptedNtfn(txHashStr,
 		dcrutil.Amount(amount).ToCoin())
 	marshalledJSON, err := dcrjson.MarshalCmd("1.0", nil, ntfn)
 	if err != nil {
@@ -991,7 +992,7 @@ func (m *wsNotificationManager) notifyForNewTx(clients map[chan struct{}]*wsClie
 		return
 	}
 
-	var verboseNtfn *dcrjson.TxAcceptedVerboseNtfn
+	var verboseNtfn *types.TxAcceptedVerboseNtfn
 	var marshalledJSONVerbose []byte
 	for _, wsc := range clients {
 		if wsc.verboseTxUpdates {
@@ -1007,7 +1008,7 @@ func (m *wsNotificationManager) notifyForNewTx(clients map[chan struct{}]*wsClie
 				return
 			}
 
-			verboseNtfn = dcrjson.NewTxAcceptedVerboseNtfn(*rawTx)
+			verboseNtfn = types.NewTxAcceptedVerboseNtfn(*rawTx)
 			marshalledJSONVerbose, err = dcrjson.MarshalCmd("1.0", nil,
 				verboseNtfn)
 			if err != nil {
@@ -1087,7 +1088,7 @@ func (m *wsNotificationManager) notifyRelevantTxAccepted(tx *dcrutil.Tx,
 	}
 
 	if len(clientsToNotify) != 0 {
-		n := dcrjson.NewRelevantTxAcceptedNtfn(txHexString(msgTx))
+		n := types.NewRelevantTxAcceptedNtfn(txHexString(msgTx))
 		marshalled, err := dcrjson.MarshalCmd("1.0", nil, n)
 		if err != nil {
 			rpcsLog.Errorf("Failed to marshal notification: %v", err)
@@ -1307,7 +1308,7 @@ out:
 			// the authenticate request, an authenticate request is received
 			// when the client is already authenticated, or incorrect
 			// authentication credentials are provided in the request.
-			switch authCmd, ok := cmd.cmd.(*dcrjson.AuthenticateCmd); {
+			switch authCmd, ok := cmd.params.(*types.AuthenticateCmd); {
 			case c.authenticated && ok:
 				rpcsLog.Warnf("Websocket client %s is already authenticated",
 					c.addr)
@@ -1544,7 +1545,7 @@ out:
 						// the authenticate request, an authenticate request is received
 						// when the client is already authenticated, or incorrect
 						// authentication credentials are provided in the request.
-						switch authCmd, ok := cmd.cmd.(*dcrjson.AuthenticateCmd); {
+						switch authCmd, ok := cmd.params.(*types.AuthenticateCmd); {
 						case c.authenticated && ok:
 							rpcsLog.Warnf("Websocket client %s is already authenticated",
 								c.addr)
@@ -1610,7 +1611,7 @@ out:
 						var resp interface{}
 						wsHandler, ok := wsHandlers[cmd.method]
 						if ok {
-							resp, err = wsHandler(c, cmd.cmd)
+							resp, err = wsHandler(c, cmd.params)
 						} else {
 							resp, err = c.server.standardCmdResult(cmd, nil)
 						}
@@ -1681,7 +1682,7 @@ func (c *wsClient) serviceRequest(r *parsedRPCCmd) {
 	// exist fallback to handling the command as a standard command.
 	wsHandler, ok := wsHandlers[r.method]
 	if ok {
-		result, err = wsHandler(c, r.cmd)
+		result, err = wsHandler(c, r.params)
 	} else {
 		result, err = c.server.standardCmdResult(r, nil)
 	}
@@ -1924,18 +1925,18 @@ func newWebsocketClient(server *rpcServer, conn *websocket.Conn,
 
 // handleWebsocketHelp implements the help command for websocket connections.
 func handleWebsocketHelp(wsc *wsClient, icmd interface{}) (interface{}, error) {
-	cmd, ok := icmd.(*dcrjson.HelpCmd)
+	cmd, ok := icmd.(*types.HelpCmd)
 	if !ok {
 		return nil, dcrjson.ErrRPCInternal
 	}
 
 	// Provide a usage overview of all commands when no specific command
 	// was specified.
-	var command string
+	var method types.Method
 	if cmd.Command != nil {
-		command = *cmd.Command
+		method = types.Method(*cmd.Command)
 	}
-	if command == "" {
+	if method == "" {
 		usage, err := wsc.server.helpCacher.rpcUsage(true)
 		if err != nil {
 			context := "Failed to generate RPC usage"
@@ -1947,21 +1948,19 @@ func handleWebsocketHelp(wsc *wsClient, icmd interface{}) (interface{}, error) {
 	// Check that the command asked for is supported and implemented.
 	// Search the list of websocket handlers as well as the main list of
 	// handlers since help should only be provided for those cases.
-	valid := true
-	if _, ok := rpcHandlers[command]; !ok {
-		if _, ok := wsHandlers[command]; !ok {
-			valid = false
-		}
+	_, valid := rpcHandlers[method]
+	if !valid {
+		_, valid = wsHandlers[method]
 	}
 	if !valid {
 		return nil, &dcrjson.RPCError{
 			Code:    dcrjson.ErrRPCInvalidParameter,
-			Message: "Unknown command: " + command,
+			Message: "Unknown method: " + string(method),
 		}
 	}
 
 	// Get the help for the command.
-	help, err := wsc.server.helpCacher.rpcMethodHelp(command)
+	help, err := wsc.server.helpCacher.rpcMethodHelp(method)
 	if err != nil {
 		context := "Failed to generate help"
 		return nil, rpcInternalError(err.Error(), context)
@@ -1972,7 +1971,7 @@ func handleWebsocketHelp(wsc *wsClient, icmd interface{}) (interface{}, error) {
 // handleLoadTxFilter implements the loadtxfilter command extension for
 // websocket connections.
 func handleLoadTxFilter(wsc *wsClient, icmd interface{}) (interface{}, error) {
-	cmd := icmd.(*dcrjson.LoadTxFilterCmd)
+	cmd := icmd.(*types.LoadTxFilterCmd)
 
 	outPoints := make([]*wire.OutPoint, len(cmd.OutPoints))
 	for i := range cmd.OutPoints {
@@ -2021,7 +2020,7 @@ func handleNotifyBlocks(wsc *wsClient, icmd interface{}) (interface{}, error) {
 // handleSession implements the session command extension for websocket
 // connections.
 func handleSession(wsc *wsClient, icmd interface{}) (interface{}, error) {
-	return &dcrjson.SessionResult{SessionID: wsc.sessionID}, nil
+	return &types.SessionResult{SessionID: wsc.sessionID}, nil
 }
 
 // handleWinningTickets implements the notifywinningtickets command
@@ -2062,7 +2061,7 @@ func handleStopNotifyBlocks(wsc *wsClient, icmd interface{}) (interface{}, error
 // handleNotifyNewTransations implements the notifynewtransactions command
 // extension for websocket connections.
 func handleNotifyNewTransactions(wsc *wsClient, icmd interface{}) (interface{}, error) {
-	cmd, ok := icmd.(*dcrjson.NotifyNewTransactionsCmd)
+	cmd, ok := icmd.(*types.NotifyNewTransactionsCmd)
 	if !ok {
 		return nil, dcrjson.ErrRPCInternal
 	}
@@ -2165,7 +2164,7 @@ func rescanBlock(filter *wsClientFilter, block *dcrutil.Block) []string {
 // handleRescan implements the rescan command extension for websocket
 // connections.
 func handleRescan(wsc *wsClient, icmd interface{}) (interface{}, error) {
-	cmd, ok := icmd.(*dcrjson.RescanCmd)
+	cmd, ok := icmd.(*types.RescanCmd)
 	if !ok {
 		return nil, dcrjson.ErrRPCInternal
 	}
@@ -2181,12 +2180,12 @@ func handleRescan(wsc *wsClient, icmd interface{}) (interface{}, error) {
 		}
 	}
 
-	blockHashes, err := dcrjson.DecodeConcatenatedHashes(cmd.BlockHashes)
+	blockHashes, err := decodeHashes(cmd.BlockHashes)
 	if err != nil {
 		return nil, err
 	}
 
-	discoveredData := make([]dcrjson.RescannedBlock, 0, len(blockHashes))
+	discoveredData := make([]types.RescannedBlock, 0, len(blockHashes))
 
 	// Iterate over each block in the request and rescan.  When a block
 	// contains relevant transactions, add it to the response.
@@ -2211,14 +2210,14 @@ func handleRescan(wsc *wsClient, icmd interface{}) (interface{}, error) {
 
 		transactions := rescanBlock(filter, block)
 		if len(transactions) != 0 {
-			discoveredData = append(discoveredData, dcrjson.RescannedBlock{
+			discoveredData = append(discoveredData, types.RescannedBlock{
 				Hash:         blockHashes[i].String(),
 				Transactions: transactions,
 			})
 		}
 	}
 
-	return &dcrjson.RescanResult{DiscoveredData: discoveredData}, nil
+	return &types.RescanResult{DiscoveredData: discoveredData}, nil
 }
 
 func init() {

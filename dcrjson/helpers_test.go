@@ -100,16 +100,6 @@ func TestHelpers(t *testing.T) {
 				return &val
 			}(),
 		},
-		{
-			name: "estimatesmartfeemode",
-			f: func() interface{} {
-				return EstimateSmartFeeModeAddr("abc")
-			},
-			expected: func() interface{} {
-				val := EstimateSmartFeeMode("abc")
-				return &val
-			}(),
-		},
 	}
 
 	t.Logf("Running %d tests", len(tests))
