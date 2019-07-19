@@ -26,7 +26,7 @@ require (
 	github.com/decred/dcrd/mempool/v2 v2.0.0
 	github.com/decred/dcrd/mining v1.1.0
 	github.com/decred/dcrd/peer v1.1.0
-	github.com/decred/dcrd/rpc/jsonrpc/types v0.0.0
+	github.com/decred/dcrd/rpc/jsonrpc/types v1.0.0
 	github.com/decred/dcrd/rpcclient/v2 v2.0.0
 	github.com/decred/dcrd/txscript v1.1.0
 	github.com/decred/dcrd/wire v1.2.0
@@ -64,7 +64,3 @@ replace (
 	github.com/decred/dcrd/txscript/v2 => ./txscript
 	github.com/decred/dcrd/wire => ./wire
 )
-
-replace github.com/decred/dcrd/dcrjson/v2 v2.2.0 => github.com/jrick/btcd/dcrjson/v2 v2.0.0-20190715200557-9fffa6c80ab0
-
-replace github.com/decred/dcrwallet/rpc/jsonrpc/types v1.1.0 => github.com/jrick/btcwallet/rpc/jsonrpc/types v0.0.0-20190715193601-785bca9161e7
