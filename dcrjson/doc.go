@@ -4,7 +4,7 @@
 // license that can be found in the LICENSE file.
 
 /*
-Package dcrjson provides infrastructure for working with the Decred JSON-RPC APIs.
+Package dcrjson provides infrastructure for working with Decred JSON-RPC APIs.
 
 Overview
 
@@ -62,7 +62,7 @@ This approach is used since it provides the caller with access to the additional
 fields in the request that are not part of the command such as the ID.
 
 Unmarshalling a received Response object is also a two step process:
-  1) Unmarhsal the raw bytes into a Response struct instance via json.Unmarshal
+  1) Unmarshal the raw bytes into a Response struct instance via json.Unmarshal
   2) Depending on the ID, unmarshal the Result field of the unmarshalled
      Response to create a concrete type instance
 

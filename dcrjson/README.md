@@ -5,13 +5,13 @@ dcrjson
 [![ISC License](https://img.shields.io/badge/license-ISC-blue.svg)](http://copyfree.org)
 [![GoDoc](https://img.shields.io/badge/godoc-reference-blue.svg)](https://godoc.org/github.com/decred/dcrd/dcrjson)
 
-Package dcrjson implements concrete types for marshalling to and from the
-decred JSON-RPC API.  A comprehensive suite of tests is provided to ensure
-proper functionality.
+Package dcrjson implements infrastructure for marshalling to and from the decred
+JSON-RPC API via concrete types.  A comprehensive suite of tests is provided to
+ensure proper functionality.
 
-Although this package was primarily written for the decred, it has
-intentionally been designed so it can be used as a standalone package for any
-projects needing to marshal to and from decred JSON-RPC requests and responses.
+Although this package was primarily written for the decred, it has intentionally
+been designed so it can be used as a standalone package for any projects needing
+to marshal to and from decred JSON-RPC requests and responses.
 
 Note that although it's possible to use this package directly to implement an
 RPC client, it is not recommended since it is only intended as an infrastructure
@@ -33,9 +33,9 @@ $ go get -u github.com/decred/dcrd/dcrjson
 * [Marshal Command](https://godoc.org/github.com/decred/dcrd/dcrjson#example-MarshalCmd)
   Demonstrates how to create and marshal a command into a JSON-RPC request.
 
-* [Unmarshal Command](https://godoc.org/github.com/decred/dcrd/dcrjson#example-UnmarshalCmd)
-  Demonstrates how to unmarshal a JSON-RPC request and then unmarshal the
-  concrete request into a concrete command.
+* [Parse Command](https://godoc.org/github.com/decred/dcrd/dcrjson#example-ParseParams)
+  Demonstrates how to unmarshal a JSON-RPC request and then parse the params
+  of the concrete request into a concrete command.
 
 * [Marshal Response](https://godoc.org/github.com/decred/dcrd/dcrjson#example-MarshalResponse)
   Demonstrates how to marshal a JSON-RPC response.
@@ -43,26 +43,6 @@ $ go get -u github.com/decred/dcrd/dcrjson
 * [Unmarshal Response](https://godoc.org/github.com/decred/dcrd/dcrjson#example-package--UnmarshalResponse)
   Demonstrates how to unmarshal a JSON-RPC response and then unmarshal the
   result field in the response to a concrete type.
-
-## GPG Verification Key
-
-All official release tags are signed by Conformal so users can ensure the code
-has not been tampered with and is coming from the Decred developers.  To
-verify the signature perform the following:
-
-- Download the public key from the Conformal website at
-  https://opensource.conformal.com/GIT-GPG-KEY-conformal.txt
-
-- Import the public key into your GPG keyring:
-  ```bash
-  gpg --import GIT-GPG-KEY-conformal.txt
-  ```
-
-- Verify the release tag with the following command where `TAG_NAME` is a
-  placeholder for the specific tag:
-  ```bash
-  git tag -v TAG_NAME
-  ```
 
 ## License
 

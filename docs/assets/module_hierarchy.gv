@@ -4,7 +4,8 @@ digraph {
 
 	certgen [label="certgen" fillcolor=darkkhaki]
 	chainhash [label="chaincfg/chainhash" fillcolor=aquamarine]
-	dcrjson [label="dcrjson/v2" fillcolor=indianred]
+	dcrjson [label="dcrjson/v3" fillcolor=indianred]
+	types [label="rpc/jsonrpc/types" fillcolor=tomato]
 	wire [label="wire" fillcolor=coral]
 	addrmgr [label="addrmgr" fillcolor=lightsalmon]
 	chaincfg [label="chaincfg/v2" fillcolor=cadetblue]
@@ -52,7 +53,8 @@ digraph {
 	lru -> peer [dir=back color=royalblue3]
 	blockchain -> peer [dir=back color=orchid]
 	blockchain -> rpcclient [dir=back color=orchid]
-	dcrjson -> rpcclient [dir=back color=indianred]
+	dcrjson -> types [dir=back color=tomato]
+	types -> rpcclient [dir=back color=indianred]
 
 	fees -> dcrd [dir=back color=darkolivegreen2]
 	mempool -> dcrd [dir=back color=slategray]
