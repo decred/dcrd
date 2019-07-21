@@ -27,7 +27,8 @@ import (
 
 	"github.com/gorilla/websocket"
 
-	"github.com/decred/dcrd/dcrjson/v2"
+	"github.com/decred/dcrd/dcrjson/v3"
+	chainjson "github.com/decred/dcrd/rpc/jsonrpc/types"
 	"github.com/decred/go-socks/socks"
 )
 
@@ -260,22 +261,22 @@ func (c *Client) trackRegisteredNtfns(cmd interface{}) {
 	defer c.ntfnStateLock.Unlock()
 
 	switch bcmd := cmd.(type) {
-	case *dcrjson.NotifyWinningTicketsCmd:
+	case *chainjson.NotifyWinningTicketsCmd:
 		c.ntfnState.notifyWinningTickets = true
 
-	case *dcrjson.NotifySpentAndMissedTicketsCmd:
+	case *chainjson.NotifySpentAndMissedTicketsCmd:
 		c.ntfnState.notifySpentAndMissedTickets = true
 
-	case *dcrjson.NotifyNewTicketsCmd:
+	case *chainjson.NotifyNewTicketsCmd:
 		c.ntfnState.notifyNewTickets = true
 
-	case *dcrjson.NotifyStakeDifficultyCmd:
+	case *chainjson.NotifyStakeDifficultyCmd:
 		c.ntfnState.notifyStakeDifficulty = true
 
-	case *dcrjson.NotifyBlocksCmd:
+	case *chainjson.NotifyBlocksCmd:
 		c.ntfnState.notifyBlocks = true
 
-	case *dcrjson.NotifyNewTransactionsCmd:
+	case *chainjson.NotifyNewTransactionsCmd:
 		if bcmd.Verbose != nil && *bcmd.Verbose {
 			c.ntfnState.notifyNewTxVerbose = true
 		} else {

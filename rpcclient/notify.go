@@ -13,8 +13,8 @@ import (
 	"strconv"
 
 	"github.com/decred/dcrd/chaincfg/chainhash"
-	"github.com/decred/dcrd/dcrjson/v2"
 	"github.com/decred/dcrd/dcrutil"
+	chainjson "github.com/decred/dcrd/rpc/jsonrpc/types"
 	"github.com/decred/dcrd/wire"
 	walletjson "github.com/decred/dcrwallet/rpc/jsonrpc/types"
 )
@@ -151,7 +151,7 @@ type NotificationHandlers struct {
 	// memory pool.  It will only be invoked if a preceding call to
 	// NotifyNewTransactions with the verbose flag set to true has been
 	// made to register for the notification and the function is non-nil.
-	OnTxAcceptedVerbose func(txDetails *dcrjson.TxRawResult)
+	OnTxAcceptedVerbose func(txDetails *chainjson.TxRawResult)
 
 	// OnDcrdConnected is invoked when a wallet connects or disconnects from
 	// dcrd.
@@ -214,9 +214,11 @@ func (c *Client) handleNotification(ntfn *rawNotification) {
 		return
 	}
 
-	switch ntfn.Method {
+	// Handle chain notifications.
+	var unhandled bool
+	switch chainjson.Method(ntfn.Method) {
 	// OnBlockConnected
-	case dcrjson.BlockConnectedNtfnMethod:
+	case chainjson.BlockConnectedNtfnMethod:
 		// Ignore the notification if the client is not interested in
 		// it.
 		if c.ntfnHandlers.OnBlockConnected == nil {
@@ -233,7 +235,7 @@ func (c *Client) handleNotification(ntfn *rawNotification) {
 		c.ntfnHandlers.OnBlockConnected(blockHeader, transactions)
 
 	// OnBlockDisconnected
-	case dcrjson.BlockDisconnectedNtfnMethod:
+	case chainjson.BlockDisconnectedNtfnMethod:
 		// Ignore the notification if the client is not interested in
 		// it.
 		if c.ntfnHandlers.OnBlockDisconnected == nil {
@@ -249,7 +251,8 @@ func (c *Client) handleNotification(ntfn *rawNotification) {
 
 		c.ntfnHandlers.OnBlockDisconnected(blockHeader)
 
-	case dcrjson.RelevantTxAcceptedNtfnMethod:
+	// OnRelevantTxAccepted
+	case chainjson.RelevantTxAcceptedNtfnMethod:
 		// Ignore the notification if the client is not interested in
 		// it.
 		if c.ntfnHandlers.OnRelevantTxAccepted == nil {
@@ -265,7 +268,8 @@ func (c *Client) handleNotification(ntfn *rawNotification) {
 
 		c.ntfnHandlers.OnRelevantTxAccepted(transaction)
 
-	case dcrjson.ReorganizationNtfnMethod:
+	// OnReorganization
+	case chainjson.ReorganizationNtfnMethod:
 		// Ignore the notification if the client is not interested in
 		// it.
 		if c.ntfnHandlers.OnReorganization == nil {
@@ -283,7 +287,7 @@ func (c *Client) handleNotification(ntfn *rawNotification) {
 		c.ntfnHandlers.OnReorganization(oldHash, oldHeight, newHash, newHeight)
 
 	// OnWinningTickets
-	case dcrjson.WinningTicketsNtfnMethod:
+	case chainjson.WinningTicketsNtfnMethod:
 		// Ignore the notification if the client is not interested in
 		// it.
 		if c.ntfnHandlers.OnWinningTickets == nil {
@@ -298,12 +302,10 @@ func (c *Client) handleNotification(ntfn *rawNotification) {
 			return
 		}
 
-		c.ntfnHandlers.OnWinningTickets(blockHash,
-			blockHeight,
-			tickets)
+		c.ntfnHandlers.OnWinningTickets(blockHash, blockHeight, tickets)
 
 	// OnSpentAndMissedTickets
-	case dcrjson.SpentAndMissedTicketsNtfnMethod:
+	case chainjson.SpentAndMissedTicketsNtfnMethod:
 		// Ignore the notification if the client is not interested in
 		// it.
 		if c.ntfnHandlers.OnSpentAndMissedTickets == nil {
@@ -324,7 +326,7 @@ func (c *Client) handleNotification(ntfn *rawNotification) {
 			tickets)
 
 	// OnNewTickets
-	case dcrjson.NewTicketsNtfnMethod:
+	case chainjson.NewTicketsNtfnMethod:
 		// Ignore the notification if the client is not interested in
 		// it.
 		if c.ntfnHandlers.OnNewTickets == nil {
@@ -345,7 +347,7 @@ func (c *Client) handleNotification(ntfn *rawNotification) {
 			tickets)
 
 	// OnStakeDifficulty
-	case dcrjson.StakeDifficultyNtfnMethod:
+	case chainjson.StakeDifficultyNtfnMethod:
 		// Ignore the notification if the client is not interested in
 		// it.
 		if c.ntfnHandlers.OnStakeDifficulty == nil {
@@ -365,7 +367,7 @@ func (c *Client) handleNotification(ntfn *rawNotification) {
 			stakeDiff)
 
 	// OnTxAccepted
-	case dcrjson.TxAcceptedNtfnMethod:
+	case chainjson.TxAcceptedNtfnMethod:
 		// Ignore the notification if the client is not interested in
 		// it.
 		if c.ntfnHandlers.OnTxAccepted == nil {
@@ -382,7 +384,7 @@ func (c *Client) handleNotification(ntfn *rawNotification) {
 		c.ntfnHandlers.OnTxAccepted(hash, amt)
 
 	// OnTxAcceptedVerbose
-	case dcrjson.TxAcceptedVerboseNtfnMethod:
+	case chainjson.TxAcceptedVerboseNtfnMethod:
 		// Ignore the notification if the client is not interested in
 		// it.
 		if c.ntfnHandlers.OnTxAcceptedVerbose == nil {
@@ -398,7 +400,18 @@ func (c *Client) handleNotification(ntfn *rawNotification) {
 
 		c.ntfnHandlers.OnTxAcceptedVerbose(rawTx)
 
-		// OnDcrdConnected
+	default:
+		unhandled = true
+	}
+
+	// No need to check for wallet notifications if already handled.
+	if !unhandled {
+		return
+	}
+
+	// Handle wallet notifications.
+	switch ntfn.Method {
+	// OnDcrdConnected
 	case walletjson.DcrdConnectedNtfnMethod:
 		// Ignore the notification if the client is not interested in
 		// it.
@@ -900,7 +913,7 @@ func parseTxAcceptedNtfnParams(params []json.RawMessage) (*chainhash.Hash,
 
 // parseTxAcceptedVerboseNtfnParams parses out details about a raw transaction
 // from the parameters of a txacceptedverbose notification.
-func parseTxAcceptedVerboseNtfnParams(params []json.RawMessage) (*dcrjson.TxRawResult,
+func parseTxAcceptedVerboseNtfnParams(params []json.RawMessage) (*chainjson.TxRawResult,
 	error) {
 
 	if len(params) != 1 {
@@ -908,7 +921,7 @@ func parseTxAcceptedVerboseNtfnParams(params []json.RawMessage) (*dcrjson.TxRawR
 	}
 
 	// Unmarshal first parameter as a raw transaction result object.
-	var rawTx dcrjson.TxRawResult
+	var rawTx chainjson.TxRawResult
 	err := json.Unmarshal(params[0], &rawTx)
 	if err != nil {
 		return nil, err
@@ -1157,7 +1170,7 @@ func (c *Client) NotifyBlocksAsync() FutureNotifyBlocksResult {
 		return newNilFutureResult()
 	}
 
-	cmd := dcrjson.NewNotifyBlocksCmd()
+	cmd := chainjson.NewNotifyBlocksCmd()
 	return c.sendCmd(cmd)
 }
 
@@ -1205,7 +1218,7 @@ func (c *Client) NotifyWinningTicketsAsync() FutureNotifyWinningTicketsResult {
 		return newNilFutureResult()
 	}
 
-	cmd := dcrjson.NewNotifyWinningTicketsCmd()
+	cmd := chainjson.NewNotifyWinningTicketsCmd()
 
 	return c.sendCmd(cmd)
 }
@@ -1255,7 +1268,7 @@ func (c *Client) NotifySpentAndMissedTicketsAsync() FutureNotifySpentAndMissedTi
 		return newNilFutureResult()
 	}
 
-	cmd := dcrjson.NewNotifySpentAndMissedTicketsCmd()
+	cmd := chainjson.NewNotifySpentAndMissedTicketsCmd()
 
 	return c.sendCmd(cmd)
 }
@@ -1305,7 +1318,7 @@ func (c *Client) NotifyNewTicketsAsync() FutureNotifyNewTicketsResult {
 		return newNilFutureResult()
 	}
 
-	cmd := dcrjson.NewNotifyNewTicketsCmd()
+	cmd := chainjson.NewNotifyNewTicketsCmd()
 
 	return c.sendCmd(cmd)
 }
@@ -1353,7 +1366,7 @@ func (c *Client) NotifyStakeDifficultyAsync() FutureNotifyStakeDifficultyResult 
 		return newNilFutureResult()
 	}
 
-	cmd := dcrjson.NewNotifyStakeDifficultyCmd()
+	cmd := chainjson.NewNotifyStakeDifficultyCmd()
 
 	return c.sendCmd(cmd)
 }
@@ -1403,7 +1416,7 @@ func (c *Client) NotifyNewTransactionsAsync(verbose bool) FutureNotifyNewTransac
 		return newNilFutureResult()
 	}
 
-	cmd := dcrjson.NewNotifyNewTransactionsCmd(&verbose)
+	cmd := chainjson.NewNotifyNewTransactionsCmd(&verbose)
 	return c.sendCmd(cmd)
 }
 
@@ -1447,16 +1460,16 @@ func (c *Client) LoadTxFilterAsync(reload bool, addresses []dcrutil.Address,
 	for i, a := range addresses {
 		addrStrs[i] = a.EncodeAddress()
 	}
-	outPointObjects := make([]dcrjson.OutPoint, len(outPoints))
+	outPointObjects := make([]chainjson.OutPoint, len(outPoints))
 	for i := range outPoints {
-		outPointObjects[i] = dcrjson.OutPoint{
+		outPointObjects[i] = chainjson.OutPoint{
 			Hash:  outPoints[i].Hash.String(),
 			Index: outPoints[i].Index,
 			Tree:  outPoints[i].Tree,
 		}
 	}
 
-	cmd := dcrjson.NewLoadTxFilterCmd(reload, addrStrs, outPointObjects)
+	cmd := chainjson.NewLoadTxFilterCmd(reload, addrStrs, outPointObjects)
 	return c.sendCmd(cmd)
 }
 

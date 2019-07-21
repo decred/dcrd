@@ -10,9 +10,10 @@ import (
 	"encoding/json"
 
 	"github.com/decred/dcrd/chaincfg/chainhash"
-	"github.com/decred/dcrd/dcrjson/v2"
+	"github.com/decred/dcrd/dcrjson/v3"
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/dcrd/hdkeychain/v2"
+	chainjson "github.com/decred/dcrd/rpc/jsonrpc/types"
 	"github.com/decred/dcrd/wire"
 	walletjson "github.com/decred/dcrwallet/rpc/jsonrpc/types"
 )
@@ -335,9 +336,9 @@ func (r FutureLockUnspentResult) Receive() error {
 //
 // See LockUnspent for the blocking version and more details.
 func (c *Client) LockUnspentAsync(unlock bool, ops []*wire.OutPoint) FutureLockUnspentResult {
-	outputs := make([]dcrjson.TransactionInput, len(ops))
+	outputs := make([]chainjson.TransactionInput, len(ops))
 	for i, op := range ops {
-		outputs[i] = dcrjson.TransactionInput{
+		outputs[i] = chainjson.TransactionInput{
 			Txid: op.Hash.String(),
 			Vout: op.Index,
 			Tree: op.Tree,
@@ -381,7 +382,7 @@ func (r FutureListLockUnspentResult) Receive() ([]*wire.OutPoint, error) {
 	}
 
 	// Unmarshal as an array of transaction inputs.
-	var inputs []dcrjson.TransactionInput
+	var inputs []chainjson.TransactionInput
 	err = json.Unmarshal(res, &inputs)
 	if err != nil {
 		return nil, err
@@ -1250,7 +1251,7 @@ func (r FutureValidateAddressResult) Receive() (*walletjson.ValidateAddressWalle
 // See ValidateAddress for the blocking version and more details.
 func (c *Client) ValidateAddressAsync(address dcrutil.Address) FutureValidateAddressResult {
 	addr := address.EncodeAddress()
-	cmd := dcrjson.NewValidateAddressCmd(addr)
+	cmd := chainjson.NewValidateAddressCmd(addr)
 	return c.sendCmd(cmd)
 }
 
@@ -1977,7 +1978,7 @@ func (r FutureVerifyMessageResult) Receive() (bool, error) {
 // See VerifyMessage for the blocking version and more details.
 func (c *Client) VerifyMessageAsync(address dcrutil.Address, signature, message string) FutureVerifyMessageResult {
 	addr := address.EncodeAddress()
-	cmd := dcrjson.NewVerifyMessageCmd(addr, signature, message)
+	cmd := chainjson.NewVerifyMessageCmd(addr, signature, message)
 	return c.sendCmd(cmd)
 }
 
@@ -2444,7 +2445,7 @@ func (r FutureGetInfoResult) Receive() (*walletjson.InfoWalletResult, error) {
 //
 // See GetInfo for the blocking version and more details.
 func (c *Client) GetInfoAsync() FutureGetInfoResult {
-	cmd := dcrjson.NewGetInfoCmd()
+	cmd := chainjson.NewGetInfoCmd()
 	return c.sendCmd(cmd)
 }
 
@@ -2749,14 +2750,14 @@ type FutureTicketsForAddressResult chan *response
 
 // Receive waits for the response promised by the future and returns the info
 // provided by the server.
-func (r FutureTicketsForAddressResult) Receive() (*dcrjson.TicketsForAddressResult, error) {
+func (r FutureTicketsForAddressResult) Receive() (*chainjson.TicketsForAddressResult, error) {
 	res, err := receiveFuture(r)
 	if err != nil {
 		return nil, err
 	}
 
 	// Unmarshal result as a ticketsforaddress result object.
-	var infoRes dcrjson.TicketsForAddressResult
+	var infoRes chainjson.TicketsForAddressResult
 	err = json.Unmarshal(res, &infoRes)
 	if err != nil {
 		return nil, err
@@ -2771,7 +2772,7 @@ func (r FutureTicketsForAddressResult) Receive() (*dcrjson.TicketsForAddressResu
 //
 // See GetInfo for the blocking version and more details.
 func (c *Client) TicketsForAddressAsync(addr dcrutil.Address) FutureTicketsForAddressResult {
-	cmd := dcrjson.NewTicketsForAddressCmd(addr.EncodeAddress())
+	cmd := chainjson.NewTicketsForAddressCmd(addr.EncodeAddress())
 	return c.sendCmd(cmd)
 }
 
@@ -2779,7 +2780,7 @@ func (c *Client) TicketsForAddressAsync(addr dcrutil.Address) FutureTicketsForAd
 // If the daemon server is queried, it returns a search of tickets in the
 // live ticket pool. If the wallet server is queried, it searches all tickets
 // owned by the wallet.
-func (c *Client) TicketsForAddress(addr dcrutil.Address) (*dcrjson.TicketsForAddressResult, error) {
+func (c *Client) TicketsForAddress(addr dcrutil.Address) (*chainjson.TicketsForAddressResult, error) {
 	return c.TicketsForAddressAsync(addr).Receive()
 }
 

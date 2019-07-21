@@ -7,13 +7,13 @@ package rpcclient
 
 import (
 	"encoding/base64"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 
 	"github.com/decred/dcrd/chaincfg/chainhash"
-	"github.com/decred/dcrd/dcrjson/v2"
+	"github.com/decred/dcrd/dcrjson/v3"
 	"github.com/decred/dcrd/dcrutil"
+	chainjson "github.com/decred/dcrd/rpc/jsonrpc/types"
 	"github.com/decred/dcrd/wire"
 	walletjson "github.com/decred/dcrwallet/rpc/jsonrpc/types"
 )
@@ -87,7 +87,7 @@ func (r FutureDebugLevelResult) Receive() (string, error) {
 //
 // NOTE: This is a dcrd extension.
 func (c *Client) DebugLevelAsync(levelSpec string) FutureDebugLevelResult {
-	cmd := dcrjson.NewDebugLevelCmd(levelSpec)
+	cmd := chainjson.NewDebugLevelCmd(levelSpec)
 	return c.sendCmd(cmd)
 }
 
@@ -111,14 +111,14 @@ type FutureEstimateStakeDiffResult chan *response
 
 // Receive waits for the response promised by the future and returns the hash
 // and height of the block in the longest (best) chain.
-func (r FutureEstimateStakeDiffResult) Receive() (*dcrjson.EstimateStakeDiffResult, error) {
+func (r FutureEstimateStakeDiffResult) Receive() (*chainjson.EstimateStakeDiffResult, error) {
 	res, err := receiveFuture(r)
 	if err != nil {
 		return nil, err
 	}
 
 	// Unmarsal result as a estimatestakediff result object.
-	var est dcrjson.EstimateStakeDiffResult
+	var est chainjson.EstimateStakeDiffResult
 	err = json.Unmarshal(res, &est)
 	if err != nil {
 		return nil, err
@@ -135,7 +135,7 @@ func (r FutureEstimateStakeDiffResult) Receive() (*dcrjson.EstimateStakeDiffResu
 //
 // NOTE: This is a dcrd extension.
 func (c *Client) EstimateStakeDiffAsync(tickets *uint32) FutureEstimateStakeDiffResult {
-	cmd := dcrjson.NewEstimateStakeDiffCmd(tickets)
+	cmd := chainjson.NewEstimateStakeDiffCmd(tickets)
 	return c.sendCmd(cmd)
 }
 
@@ -143,7 +143,7 @@ func (c *Client) EstimateStakeDiffAsync(tickets *uint32) FutureEstimateStakeDiff
 // difficulty.
 //
 // NOTE: This is a dcrd extension.
-func (c *Client) EstimateStakeDiff(tickets *uint32) (*dcrjson.EstimateStakeDiffResult, error) {
+func (c *Client) EstimateStakeDiff(tickets *uint32) (*chainjson.EstimateStakeDiffResult, error) {
 	return c.EstimateStakeDiffAsync(tickets).Receive()
 }
 
@@ -172,7 +172,7 @@ func (r FutureExistsAddressResult) Receive() (bool, error) {
 // result of the RPC at some future time by invoking the Receive function on the
 // returned instance.
 func (c *Client) ExistsAddressAsync(address dcrutil.Address) FutureExistsAddressResult {
-	cmd := dcrjson.NewExistsAddressCmd(address.EncodeAddress())
+	cmd := chainjson.NewExistsAddressCmd(address.EncodeAddress())
 	return c.sendCmd(cmd)
 }
 
@@ -215,7 +215,7 @@ func (c *Client) ExistsAddressesAsync(addresses []dcrutil.Address) FutureExistsA
 		addrsStr[i] = addresses[i].EncodeAddress()
 	}
 
-	cmd := dcrjson.NewExistsAddressesCmd(addrsStr)
+	cmd := chainjson.NewExistsAddressesCmd(addrsStr)
 	return c.sendCmd(cmd)
 }
 
@@ -252,12 +252,11 @@ func (r FutureExistsMissedTicketsResult) Receive() (string, error) {
 // get the result of the RPC at some future time by invoking the Receive
 // function on the returned instance.
 func (c *Client) ExistsMissedTicketsAsync(hashes []*chainhash.Hash) FutureExistsMissedTicketsResult {
-	hashBlob := make([]byte, len(hashes)*chainhash.HashSize)
-	for i, hash := range hashes {
-		copy(hashBlob[i*chainhash.HashSize:(i+1)*chainhash.HashSize],
-			hash[:])
+	strHashes := make([]string, len(hashes))
+	for i := range hashes {
+		strHashes[i] = hashes[i].String()
 	}
-	cmd := dcrjson.NewExistsMissedTicketsCmd(hex.EncodeToString(hashBlob))
+	cmd := chainjson.NewExistsMissedTicketsCmd(strHashes)
 	return c.sendCmd(cmd)
 }
 
@@ -293,12 +292,11 @@ func (r FutureExistsExpiredTicketsResult) Receive() (string, error) {
 // result of the RPC at some future time by invoking the Receive function on the
 // returned instance.
 func (c *Client) ExistsExpiredTicketsAsync(hashes []*chainhash.Hash) FutureExistsExpiredTicketsResult {
-	hashBlob := make([]byte, len(hashes)*chainhash.HashSize)
-	for i, hash := range hashes {
-		copy(hashBlob[i*chainhash.HashSize:(i+1)*chainhash.HashSize],
-			hash[:])
+	strHashes := make([]string, len(hashes))
+	for i := range hashes {
+		strHashes[i] = hashes[i].String()
 	}
-	cmd := dcrjson.NewExistsExpiredTicketsCmd(hex.EncodeToString(hashBlob))
+	cmd := chainjson.NewExistsExpiredTicketsCmd(strHashes)
 	return c.sendCmd(cmd)
 }
 
@@ -336,7 +334,7 @@ func (r FutureExistsLiveTicketResult) Receive() (bool, error) {
 // result of the RPC at some future time by invoking the Receive function on the
 // returned instance.
 func (c *Client) ExistsLiveTicketAsync(hash *chainhash.Hash) FutureExistsLiveTicketResult {
-	cmd := dcrjson.NewExistsLiveTicketCmd(hash.String())
+	cmd := chainjson.NewExistsLiveTicketCmd(hash.String())
 	return c.sendCmd(cmd)
 }
 
@@ -374,12 +372,11 @@ func (r FutureExistsLiveTicketsResult) Receive() (string, error) {
 // result of the RPC at some future time by invoking the Receive function on the
 // returned instance.
 func (c *Client) ExistsLiveTicketsAsync(hashes []*chainhash.Hash) FutureExistsLiveTicketsResult {
-	hashBlob := make([]byte, len(hashes)*chainhash.HashSize)
-	for i, hash := range hashes {
-		copy(hashBlob[i*chainhash.HashSize:(i+1)*chainhash.HashSize],
-			hash[:])
+	strHashes := make([]string, len(hashes))
+	for i := range hashes {
+		strHashes[i] = hashes[i].String()
 	}
-	cmd := dcrjson.NewExistsLiveTicketsCmd(hex.EncodeToString(hashBlob))
+	cmd := chainjson.NewExistsLiveTicketsCmd(strHashes)
 	return c.sendCmd(cmd)
 }
 
@@ -417,12 +414,11 @@ func (r FutureExistsMempoolTxsResult) Receive() (string, error) {
 // result of the RPC at some future time by invoking the Receive function on the
 // returned instance.
 func (c *Client) ExistsMempoolTxsAsync(hashes []*chainhash.Hash) FutureExistsMempoolTxsResult {
-	hashBlob := make([]byte, len(hashes)*chainhash.HashSize)
-	for i, hash := range hashes {
-		copy(hashBlob[i*chainhash.HashSize:(i+1)*chainhash.HashSize],
-			hash[:])
+	strHashes := make([]string, len(hashes))
+	for i := range hashes {
+		strHashes[i] = hashes[i].String()
 	}
-	cmd := dcrjson.NewExistsMempoolTxsCmd(hex.EncodeToString(hashBlob))
+	cmd := chainjson.NewExistsMempoolTxsCmd(strHashes)
 	return c.sendCmd(cmd)
 }
 
@@ -516,7 +512,7 @@ func (r FutureGetBestBlockResult) Receive() (*chainhash.Hash, int64, error) {
 	}
 
 	// Unmarshal result as a getbestblock result object.
-	var bestBlock dcrjson.GetBestBlockResult
+	var bestBlock chainjson.GetBestBlockResult
 	err = json.Unmarshal(res, &bestBlock)
 	if err != nil {
 		return nil, 0, err
@@ -539,7 +535,7 @@ func (r FutureGetBestBlockResult) Receive() (*chainhash.Hash, int64, error) {
 //
 // NOTE: This is a dcrd extension.
 func (c *Client) GetBestBlockAsync() FutureGetBestBlockResult {
-	cmd := dcrjson.NewGetBestBlockCmd()
+	cmd := chainjson.NewGetBestBlockCmd()
 	return c.sendCmd(cmd)
 }
 
@@ -581,7 +577,7 @@ func (r FutureGetCurrentNetResult) Receive() (wire.CurrencyNet, error) {
 //
 // NOTE: This is a dcrd extension.
 func (c *Client) GetCurrentNetAsync() FutureGetCurrentNetResult {
-	cmd := dcrjson.NewGetCurrentNetCmd()
+	cmd := chainjson.NewGetCurrentNetCmd()
 	return c.sendCmd(cmd)
 }
 
@@ -598,14 +594,14 @@ type FutureGetHeadersResult chan *response
 
 // Receive waits for the response promised by the future and returns the
 // getheaders result.
-func (r FutureGetHeadersResult) Receive() (*dcrjson.GetHeadersResult, error) {
+func (r FutureGetHeadersResult) Receive() (*chainjson.GetHeadersResult, error) {
 	res, err := receiveFuture(r)
 	if err != nil {
 		return nil, err
 	}
 
 	// Unmarsal result as a getheaders result object.
-	var vr dcrjson.GetHeadersResult
+	var vr chainjson.GetHeadersResult
 	err = json.Unmarshal(res, &vr)
 	if err != nil {
 		return nil, err
@@ -619,19 +615,24 @@ func (r FutureGetHeadersResult) Receive() (*dcrjson.GetHeadersResult, error) {
 //
 // See GetHeaders for the blocking version and more details.
 func (c *Client) GetHeadersAsync(blockLocators []*chainhash.Hash, hashStop *chainhash.Hash) FutureGetHeadersResult {
-	concatenatedLocators := make([]byte, chainhash.HashSize*len(blockLocators))
+	locators := make([]string, len(blockLocators))
 	for i := range blockLocators {
-		copy(concatenatedLocators[i*chainhash.HashSize:], blockLocators[i][:])
+		locators[i] = blockLocators[i].String()
 	}
-	cmd := dcrjson.NewGetHeadersCmd(hex.EncodeToString(concatenatedLocators),
-		hashStop.String())
+
+	var hashStopString string
+	if hashStop != nil {
+		hashStopString = hashStop.String()
+	}
+
+	cmd := chainjson.NewGetHeadersCmd(locators, hashStopString)
 	return c.sendCmd(cmd)
 }
 
 // GetHeaders mimics the wire protocol getheaders and headers messages by
 // returning all headers on the main chain after the first known block in the
 // locators, up until a block hash matches hashStop.
-func (c *Client) GetHeaders(blockLocators []*chainhash.Hash, hashStop *chainhash.Hash) (*dcrjson.GetHeadersResult, error) {
+func (c *Client) GetHeaders(blockLocators []*chainhash.Hash, hashStop *chainhash.Hash) (*chainjson.GetHeadersResult, error) {
 	return c.GetHeadersAsync(blockLocators, hashStop).Receive()
 }
 
@@ -641,14 +642,14 @@ type FutureGetStakeDifficultyResult chan *response
 
 // Receive waits for the response promised by the future and returns the network
 // the server is running on.
-func (r FutureGetStakeDifficultyResult) Receive() (*dcrjson.GetStakeDifficultyResult, error) {
+func (r FutureGetStakeDifficultyResult) Receive() (*chainjson.GetStakeDifficultyResult, error) {
 	res, err := receiveFuture(r)
 	if err != nil {
 		return nil, err
 	}
 
-	// Unmarshal result as a dcrjson.GetStakeDifficultyResult.
-	var gsdr dcrjson.GetStakeDifficultyResult
+	// Unmarshal result as a getstakedifficult result object.
+	var gsdr chainjson.GetStakeDifficultyResult
 	err = json.Unmarshal(res, &gsdr)
 	if err != nil {
 		return nil, err
@@ -665,14 +666,14 @@ func (r FutureGetStakeDifficultyResult) Receive() (*dcrjson.GetStakeDifficultyRe
 //
 // NOTE: This is a dcrd extension.
 func (c *Client) GetStakeDifficultyAsync() FutureGetStakeDifficultyResult {
-	cmd := dcrjson.NewGetStakeDifficultyCmd()
+	cmd := chainjson.NewGetStakeDifficultyCmd()
 	return c.sendCmd(cmd)
 }
 
 // GetStakeDifficulty returns the current and next stake difficulty.
 //
 // NOTE: This is a dcrd extension.
-func (c *Client) GetStakeDifficulty() (*dcrjson.GetStakeDifficultyResult, error) {
+func (c *Client) GetStakeDifficulty() (*chainjson.GetStakeDifficultyResult, error) {
 	return c.GetStakeDifficultyAsync().Receive()
 }
 
@@ -682,14 +683,14 @@ type FutureGetStakeVersionsResult chan *response
 
 // Receive waits for the response promised by the future and returns the network
 // the server is running on.
-func (r FutureGetStakeVersionsResult) Receive() (*dcrjson.GetStakeVersionsResult, error) {
+func (r FutureGetStakeVersionsResult) Receive() (*chainjson.GetStakeVersionsResult, error) {
 	res, err := receiveFuture(r)
 	if err != nil {
 		return nil, err
 	}
 
-	// Unmarshal result as a dcrjson.GetStakeVersionsResult.
-	var gsvr dcrjson.GetStakeVersionsResult
+	// Unmarshal result as a getstakeversions result object.
+	var gsvr chainjson.GetStakeVersionsResult
 	err = json.Unmarshal(res, &gsvr)
 	if err != nil {
 		return nil, err
@@ -706,14 +707,14 @@ func (r FutureGetStakeVersionsResult) Receive() (*dcrjson.GetStakeVersionsResult
 //
 // NOTE: This is a dcrd extension.
 func (c *Client) GetStakeVersionInfoAsync(count int32) FutureGetStakeVersionInfoResult {
-	cmd := dcrjson.NewGetStakeVersionInfoCmd(count)
+	cmd := chainjson.NewGetStakeVersionInfoCmd(count)
 	return c.sendCmd(cmd)
 }
 
 // GetStakeVersionInfo returns the stake versions results for past requested intervals (count).
 //
 // NOTE: This is a dcrd extension.
-func (c *Client) GetStakeVersionInfo(count int32) (*dcrjson.GetStakeVersionInfoResult, error) {
+func (c *Client) GetStakeVersionInfo(count int32) (*chainjson.GetStakeVersionInfoResult, error) {
 	return c.GetStakeVersionInfoAsync(count).Receive()
 }
 
@@ -723,14 +724,14 @@ type FutureGetStakeVersionInfoResult chan *response
 
 // Receive waits for the response promised by the future and returns the network
 // the server is running on.
-func (r FutureGetStakeVersionInfoResult) Receive() (*dcrjson.GetStakeVersionInfoResult, error) {
+func (r FutureGetStakeVersionInfoResult) Receive() (*chainjson.GetStakeVersionInfoResult, error) {
 	res, err := receiveFuture(r)
 	if err != nil {
 		return nil, err
 	}
 
-	// Unmarshal result as a dcrjson.GetStakeVersionInfoResult.
-	var gsvr dcrjson.GetStakeVersionInfoResult
+	// Unmarshal result as a getstakeversioninfo result object.
+	var gsvr chainjson.GetStakeVersionInfoResult
 	err = json.Unmarshal(res, &gsvr)
 	if err != nil {
 		return nil, err
@@ -747,14 +748,14 @@ func (r FutureGetStakeVersionInfoResult) Receive() (*dcrjson.GetStakeVersionInfo
 //
 // NOTE: This is a dcrd extension.
 func (c *Client) GetStakeVersionsAsync(hash string, count int32) FutureGetStakeVersionsResult {
-	cmd := dcrjson.NewGetStakeVersionsCmd(hash, count)
+	cmd := chainjson.NewGetStakeVersionsCmd(hash, count)
 	return c.sendCmd(cmd)
 }
 
 // GetStakeVersions returns the stake versions and vote versions of past requested blocks.
 //
 // NOTE: This is a dcrd extension.
-func (c *Client) GetStakeVersions(hash string, count int32) (*dcrjson.GetStakeVersionsResult, error) {
+func (c *Client) GetStakeVersions(hash string, count int32) (*chainjson.GetStakeVersionsResult, error) {
 	return c.GetStakeVersionsAsync(hash, count).Receive()
 }
 
@@ -794,7 +795,7 @@ func (r FutureGetTicketPoolValueResult) Receive() (dcrutil.Amount, error) {
 //
 // NOTE: This is a dcrd extension.
 func (c *Client) GetTicketPoolValueAsync() FutureGetTicketPoolValueResult {
-	cmd := dcrjson.NewGetTicketPoolValueCmd()
+	cmd := chainjson.NewGetTicketPoolValueCmd()
 	return c.sendCmd(cmd)
 }
 
@@ -811,14 +812,14 @@ type FutureGetVoteInfoResult chan *response
 
 // Receive waits for the response promised by the future and returns the network
 // the server is running on.
-func (r FutureGetVoteInfoResult) Receive() (*dcrjson.GetVoteInfoResult, error) {
+func (r FutureGetVoteInfoResult) Receive() (*chainjson.GetVoteInfoResult, error) {
 	res, err := receiveFuture(r)
 	if err != nil {
 		return nil, err
 	}
 
-	// Unmarshal result as a dcrjson.GetVoteInfoResult.
-	var gsvr dcrjson.GetVoteInfoResult
+	// Unmarshal result getvoteinfo result object.
+	var gsvr chainjson.GetVoteInfoResult
 	err = json.Unmarshal(res, &gsvr)
 	if err != nil {
 		return nil, err
@@ -835,7 +836,7 @@ func (r FutureGetVoteInfoResult) Receive() (*dcrjson.GetVoteInfoResult, error) {
 //
 // NOTE: This is a dcrd extension.
 func (c *Client) GetVoteInfoAsync(version uint32) FutureGetVoteInfoResult {
-	cmd := dcrjson.NewGetVoteInfoCmd(version)
+	cmd := chainjson.NewGetVoteInfoCmd(version)
 	return c.sendCmd(cmd)
 }
 
@@ -843,7 +844,7 @@ func (c *Client) GetVoteInfoAsync(version uint32) FutureGetVoteInfoResult {
 // includes current voting window, quorum, total votes and agendas.
 //
 // NOTE: This is a dcrd extension.
-func (c *Client) GetVoteInfo(version uint32) (*dcrjson.GetVoteInfoResult, error) {
+func (c *Client) GetVoteInfo(version uint32) (*chainjson.GetVoteInfoResult, error) {
 	return c.GetVoteInfoAsync(version).Receive()
 }
 
@@ -905,8 +906,8 @@ func (r FutureLiveTicketsResult) Receive() ([]*chainhash.Hash, error) {
 		return nil, err
 	}
 
-	// Unmarshal the result as a dcrjson.LiveTicketsResult.
-	var container dcrjson.LiveTicketsResult
+	// Unmarshal result as a live tickets result object.
+	var container chainjson.LiveTicketsResult
 	err = json.Unmarshal(res, &container)
 	if err != nil {
 		return nil, err
@@ -928,7 +929,7 @@ func (r FutureLiveTicketsResult) Receive() ([]*chainhash.Hash, error) {
 // result of the RPC at some future time by invoking the Receive function on the
 // returned instance.
 func (c *Client) LiveTicketsAsync() FutureLiveTicketsResult {
-	cmd := dcrjson.NewLiveTicketsCmd()
+	cmd := chainjson.NewLiveTicketsCmd()
 	return c.sendCmd(cmd)
 }
 
@@ -952,8 +953,8 @@ func (r FutureMissedTicketsResult) Receive() ([]*chainhash.Hash, error) {
 		return nil, err
 	}
 
-	// Unmarshal the result as a dcrjson.MissedTicketsResult.
-	var container dcrjson.MissedTicketsResult
+	// Unmarshal result as a missed tickets result object.
+	var container chainjson.MissedTicketsResult
 	err = json.Unmarshal(res, &container)
 	if err != nil {
 		return nil, err
@@ -975,7 +976,7 @@ func (r FutureMissedTicketsResult) Receive() ([]*chainhash.Hash, error) {
 // result of the RPC at some future time by invoking the Receive function on the
 // returned instance.
 func (c *Client) MissedTicketsAsync() FutureMissedTicketsResult {
-	cmd := dcrjson.NewMissedTicketsCmd()
+	cmd := chainjson.NewMissedTicketsCmd()
 	return c.sendCmd(cmd)
 }
 
@@ -993,14 +994,14 @@ type FutureSessionResult chan *response
 
 // Receive waits for the response promised by the future and returns the
 // session result.
-func (r FutureSessionResult) Receive() (*dcrjson.SessionResult, error) {
+func (r FutureSessionResult) Receive() (*chainjson.SessionResult, error) {
 	res, err := receiveFuture(r)
 	if err != nil {
 		return nil, err
 	}
 
 	// Unmarshal result as a session result object.
-	var session dcrjson.SessionResult
+	var session chainjson.SessionResult
 	err = json.Unmarshal(res, &session)
 	if err != nil {
 		return nil, err
@@ -1022,7 +1023,7 @@ func (c *Client) SessionAsync() FutureSessionResult {
 		return newFutureError(ErrWebsocketsRequired)
 	}
 
-	cmd := dcrjson.NewSessionCmd()
+	cmd := chainjson.NewSessionCmd()
 	return c.sendCmd(cmd)
 }
 
@@ -1031,7 +1032,7 @@ func (c *Client) SessionAsync() FutureSessionResult {
 // This RPC requires the client to be running in websocket mode.
 //
 // NOTE: This is a Decred extension.
-func (c *Client) Session() (*dcrjson.SessionResult, error) {
+func (c *Client) Session() (*chainjson.SessionResult, error) {
 	return c.SessionAsync().Receive()
 }
 
@@ -1041,14 +1042,14 @@ type FutureTicketFeeInfoResult chan *response
 
 // Receive waits for the response promised by the future and returns the
 // ticketfeeinfo result.
-func (r FutureTicketFeeInfoResult) Receive() (*dcrjson.TicketFeeInfoResult, error) {
+func (r FutureTicketFeeInfoResult) Receive() (*chainjson.TicketFeeInfoResult, error) {
 	res, err := receiveFuture(r)
 	if err != nil {
 		return nil, err
 	}
 
 	// Unmarsal result as a ticketfeeinfo result object.
-	var tfir dcrjson.TicketFeeInfoResult
+	var tfir chainjson.TicketFeeInfoResult
 	err = json.Unmarshal(res, &tfir)
 	if err != nil {
 		return nil, err
@@ -1079,7 +1080,7 @@ func (c *Client) TicketFeeInfoAsync(blocks *uint32, windows *uint32) FutureTicke
 		windows = &zeroUint32
 	}
 
-	cmd := dcrjson.NewTicketFeeInfoCmd(blocks, windows)
+	cmd := chainjson.NewTicketFeeInfoCmd(blocks, windows)
 	return c.sendCmd(cmd)
 }
 
@@ -1088,7 +1089,7 @@ func (c *Client) TicketFeeInfoAsync(blocks *uint32, windows *uint32) FutureTicke
 // This RPC requires the client to be running in websocket mode.
 //
 // NOTE: This is a Decred extension.
-func (c *Client) TicketFeeInfo(blocks *uint32, windows *uint32) (*dcrjson.TicketFeeInfoResult, error) {
+func (c *Client) TicketFeeInfo(blocks *uint32, windows *uint32) (*chainjson.TicketFeeInfoResult, error) {
 	return c.TicketFeeInfoAsync(blocks, windows).Receive()
 }
 
@@ -1132,7 +1133,7 @@ func (c *Client) TicketVWAPAsync(start *uint32, end *uint32) FutureTicketVWAPRes
 		return newFutureError(ErrWebsocketsRequired)
 	}
 
-	cmd := dcrjson.NewTicketVWAPCmd(start, end)
+	cmd := chainjson.NewTicketVWAPCmd(start, end)
 	return c.sendCmd(cmd)
 }
 
@@ -1151,14 +1152,14 @@ type FutureTxFeeInfoResult chan *response
 
 // Receive waits for the response promised by the future and returns the
 // txfeeinfo result.
-func (r FutureTxFeeInfoResult) Receive() (*dcrjson.TxFeeInfoResult, error) {
+func (r FutureTxFeeInfoResult) Receive() (*chainjson.TxFeeInfoResult, error) {
 	res, err := receiveFuture(r)
 	if err != nil {
 		return nil, err
 	}
 
 	// Unmarsal result as a txfeeinfo result object.
-	var tfir dcrjson.TxFeeInfoResult
+	var tfir chainjson.TxFeeInfoResult
 	err = json.Unmarshal(res, &tfir)
 	if err != nil {
 		return nil, err
@@ -1180,7 +1181,7 @@ func (c *Client) TxFeeInfoAsync(blocks *uint32, start *uint32, end *uint32) Futu
 		return newFutureError(ErrWebsocketsRequired)
 	}
 
-	cmd := dcrjson.NewTxFeeInfoCmd(blocks, start, end)
+	cmd := chainjson.NewTxFeeInfoCmd(blocks, start, end)
 	return c.sendCmd(cmd)
 }
 
@@ -1189,7 +1190,7 @@ func (c *Client) TxFeeInfoAsync(blocks *uint32, start *uint32, end *uint32) Futu
 // This RPC requires the client to be running in websocket mode.
 //
 // NOTE: This is a Decred extension.
-func (c *Client) TxFeeInfo(blocks *uint32, start *uint32, end *uint32) (*dcrjson.TxFeeInfoResult, error) {
+func (c *Client) TxFeeInfo(blocks *uint32, start *uint32, end *uint32) (*chainjson.TxFeeInfoResult, error) {
 	return c.TxFeeInfoAsync(blocks, start, end).Receive()
 }
 
@@ -1199,14 +1200,14 @@ type FutureVersionResult chan *response
 
 // Receive waits for the response promised by the future and returns the version
 // result.
-func (r FutureVersionResult) Receive() (map[string]dcrjson.VersionResult, error) {
+func (r FutureVersionResult) Receive() (map[string]chainjson.VersionResult, error) {
 	res, err := receiveFuture(r)
 	if err != nil {
 		return nil, err
 	}
 
 	// Unmarsal result as a version result object.
-	var vr map[string]dcrjson.VersionResult
+	var vr map[string]chainjson.VersionResult
 	err = json.Unmarshal(res, &vr)
 	if err != nil {
 		return nil, err
@@ -1220,11 +1221,11 @@ func (r FutureVersionResult) Receive() (map[string]dcrjson.VersionResult, error)
 //
 // See Version for the blocking version and more details.
 func (c *Client) VersionAsync() FutureVersionResult {
-	cmd := dcrjson.NewVersionCmd()
+	cmd := chainjson.NewVersionCmd()
 	return c.sendCmd(cmd)
 }
 
 // Version returns information about the server's JSON-RPC API versions.
-func (c *Client) Version() (map[string]dcrjson.VersionResult, error) {
+func (c *Client) Version() (map[string]chainjson.VersionResult, error) {
 	return c.VersionAsync().Receive()
 }

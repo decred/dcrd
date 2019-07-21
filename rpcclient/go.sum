@@ -52,8 +52,6 @@ github.com/decred/dcrd/dcrec/secp256k1 v1.0.1 h1:EFWVd1p0t0Y5tnsm/dJujgV0ORogRJ6
 github.com/decred/dcrd/dcrec/secp256k1 v1.0.1/go.mod h1:lhu4eZFSfTJWUnR3CFRcpD+Vta0KUAqnhTsTksHXgy0=
 github.com/decred/dcrd/dcrec/secp256k1 v1.0.2 h1:awk7sYJ4pGWmtkiGHFfctztJjHMKGLV8jctGQhAbKe0=
 github.com/decred/dcrd/dcrec/secp256k1 v1.0.2/go.mod h1:CHTUIVfmDDd0KFVFpNX1pFVCBUegxW387nN0IGwNKR0=
-github.com/decred/dcrd/dcrjson/v2 v2.2.0 h1:u0ON3IZ8/fqoA624HPNBsWYjIgBtC82DGMtq35bthhI=
-github.com/decred/dcrd/dcrjson/v2 v2.2.0/go.mod h1:/vbjikqJR0MVih59iOMtPjRyN5lVRDzJHHfqzHAln2Y=
 github.com/decred/dcrd/dcrjson/v3 v3.0.0 h1:yDrNFvyn2l/557iZHB236jTqQjAmhZnVaFgMb2vm0UM=
 github.com/decred/dcrd/dcrjson/v3 v3.0.0/go.mod h1:pWYlHJ3VFidPwqD5HHiJXjfGaplif8uspAL2qFdifkY=
 github.com/decred/dcrd/dcrutil v1.1.1 h1:zOkGiumN/JkobhAgpG/zfFgUoolGKVGYT5na1hbYUoE=
