@@ -21,7 +21,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/btcsuite/go-socks/socks"
 	"github.com/decred/dcrd/connmgr"
 	"github.com/decred/dcrd/database"
 	_ "github.com/decred/dcrd/database/ffldb"
@@ -30,6 +29,7 @@ import (
 	"github.com/decred/dcrd/mempool/v2"
 	"github.com/decred/dcrd/rpc/jsonrpc/types"
 	"github.com/decred/dcrd/sampleconfig"
+	"github.com/decred/go-socks/socks"
 	"github.com/decred/slog"
 	flags "github.com/jessevdk/go-flags"
 )

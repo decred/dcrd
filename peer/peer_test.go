@@ -15,10 +15,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/btcsuite/go-socks/socks"
 	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/wire"
+	"github.com/decred/go-socks/socks"
 )
 
 // conn mocks a network connection by implementing the net.Conn interface.  It

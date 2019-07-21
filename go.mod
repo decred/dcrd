@@ -3,7 +3,6 @@ module github.com/decred/dcrd
 go 1.11
 
 require (
-	github.com/btcsuite/go-socks v0.0.0-20170105172521-4720035b7bfd
 	github.com/btcsuite/winsvc v1.0.0
 	github.com/decred/base58 v1.0.0
 	github.com/decred/dcrd/addrmgr v1.0.2
@@ -31,6 +30,7 @@ require (
 	github.com/decred/dcrd/txscript v1.1.0
 	github.com/decred/dcrd/wire v1.2.0
 	github.com/decred/dcrwallet/rpc/jsonrpc/types v1.1.0
+	github.com/decred/go-socks v1.0.0
 	github.com/decred/slog v1.0.0
 	github.com/gorilla/websocket v1.4.0
 	github.com/jessevdk/go-flags v1.4.0

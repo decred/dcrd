@@ -25,10 +25,10 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/btcsuite/go-socks/socks"
 	"github.com/gorilla/websocket"
 
 	"github.com/decred/dcrd/dcrjson/v2"
+	"github.com/decred/go-socks/socks"
 )
 
 var (
