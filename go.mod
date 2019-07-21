@@ -26,7 +26,7 @@ require (
 	github.com/decred/dcrd/mining v1.1.0
 	github.com/decred/dcrd/peer v1.1.0
 	github.com/decred/dcrd/rpc/jsonrpc/types v1.0.0
-	github.com/decred/dcrd/rpcclient/v2 v2.1.0
+	github.com/decred/dcrd/rpcclient/v3 v3.0.0
 	github.com/decred/dcrd/txscript v1.1.0
 	github.com/decred/dcrd/wire v1.2.0
 	github.com/decred/dcrwallet/rpc/jsonrpc/types v1.1.0
@@ -60,6 +60,7 @@ replace (
 	github.com/decred/dcrd/mining => ./mining
 	github.com/decred/dcrd/peer => ./peer
 	github.com/decred/dcrd/rpc/jsonrpc/types => ./rpc/jsonrpc/types
+	github.com/decred/dcrd/rpcclient/v3 => ./rpcclient
 	github.com/decred/dcrd/txscript/v2 => ./txscript
 	github.com/decred/dcrd/wire => ./wire
 )

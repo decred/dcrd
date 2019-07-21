@@ -38,8 +38,8 @@ github.com/decred/dcrd/dcrutil v1.3.0 h1:LtKIiDnq925yJT/4OpIKKiU9/WaxfD9LfhxrpLS
 github.com/decred/dcrd/dcrutil v1.3.0/go.mod h1:7fUT70QAarhDwQK62g92uDbbYpjXlXngpy5RBiecufo=
 github.com/decred/dcrd/dcrutil v1.4.0 h1:xD5aUqysGQnsnP1c9J0kGeW8lDIwFGC3ja/gE3HnpCs=
 github.com/decred/dcrd/dcrutil v1.4.0/go.mod h1:Bs74gm1jQ9ZAbmEh9FWOEZ1HQzlMg5iPATDMzMnCMlQ=
-github.com/decred/dcrd/rpcclient/v2 v2.1.0 h1:oaHR2ZIe6TyINbLgmrRkS8xddLr5gDmkX6BkWwSFy6Q=
-github.com/decred/dcrd/rpcclient/v2 v2.1.0/go.mod h1:tVaa1C6a0Cqdcpi393nm2AQZeZdxKwrCfToashLIv8w=
+github.com/decred/dcrd/rpcclient/v3 v3.0.0 h1:doabWkWWd8O6ccYqaLamE1mkQ5p8YoO5UJhkl5pAGpQ=
+github.com/decred/dcrd/rpcclient/v3 v3.0.0/go.mod h1:OQ361/iQMrJtWIg+S0XpZT4/AA6mU/46oOkBRWp/P/s=
 github.com/decred/dcrd/txscript v1.0.2/go.mod h1:hmUOHFlOjU7H6T/czt6kurWwXJvGPGKKGtXoft6w/qY=
 github.com/decred/dcrd/txscript v1.1.0 h1:MwkLXdc4Yq83oeNNEQJdlBTkNlorKXn8Nd5W2JXyMZg=
 github.com/decred/dcrd/txscript v1.1.0/go.mod h1:gbcq6gpGfKddPmZSKp+17ils2cLzUqHopXf8H5rCY7Y=
