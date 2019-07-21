@@ -24,7 +24,7 @@ digraph {
 	mining [label="mining" fillcolor=chartreuse]
 	lru  [label="lru" fillcolor=royalblue3]
 	peer [label="peer" fillcolor=khaki]
-	rpcclient [label="rpcclient/v2" fillcolor=mediumseagreen]
+	rpcclient [label="rpcclient/v3" fillcolor=mediumseagreen]
 	fees [label="fees" fillcolor=darkolivegreen2]
 	dcrd [label="dcrd" fillcolor=chocolate]
 
