@@ -1,5 +1,5 @@
 // Copyright (c) 2015-2016 The btcsuite developers
-// Copyright (c) 2016 The Decred developers
+// Copyright (c) 2016-2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -10,7 +10,6 @@ package database
 
 import (
 	"github.com/decred/dcrd/chaincfg/chainhash"
-	"github.com/decred/dcrd/dcrutil"
 )
 
 // Cursor represents a cursor over key/value pairs and nested buckets of a
@@ -204,6 +203,18 @@ type BlockRegion struct {
 	Len    uint32
 }
 
+// BlockSerializer defines an interface that represents a block to be serialized
+// and stored into the database.
+type BlockSerializer interface {
+	// Hash returns the block identifier hash for the block.
+	Hash() *chainhash.Hash
+
+	// Bytes returns the serialized bytes for the block.    This is expected
+	// to return the raw bytes in the format returned by Serialize on a
+	// wire.MsgBlock.
+	Bytes() ([]byte, error)
+}
+
 // Tx represents a database transaction.  It can either by read-only or
 // read-write.  The transaction provides a metadata bucket against which all
 // read and writes occur.
@@ -228,7 +239,7 @@ type Tx interface {
 	//   - ErrTxClosed if the transaction has already been closed
 	//
 	// Other errors are possible depending on the implementation.
-	StoreBlock(block *dcrutil.Block) error
+	StoreBlock(block BlockSerializer) error
 
 	// HasBlock returns whether or not a block with the given hash exists
 	// in the database.
