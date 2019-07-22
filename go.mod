@@ -36,7 +36,10 @@ require (
 	github.com/jessevdk/go-flags v1.4.0
 	github.com/jrick/bitset v1.0.0
 	github.com/jrick/logrotate v1.0.0
+	github.com/kr/pretty v0.1.0 // indirect
 	golang.org/x/crypto v0.0.0-20190611184440-5c40567a22f8
+	golang.org/x/sync v0.0.0-20181108010431-42b317875d0f // indirect
+	gopkg.in/check.v1 v1.0.0-20180628173108-788fd7840127 // indirect
 )
 
 replace (
@@ -47,7 +50,6 @@ replace (
 	github.com/decred/dcrd/chaincfg/chainhash => ./chaincfg/chainhash
 	github.com/decred/dcrd/chaincfg/v2 => ./chaincfg
 	github.com/decred/dcrd/connmgr => ./connmgr
-	github.com/decred/dcrd/database => ./database
 	github.com/decred/dcrd/dcrec => ./dcrec
 	github.com/decred/dcrd/dcrjson/v3 => ./dcrjson
 	github.com/decred/dcrd/dcrutil/v2 => ./dcrutil
