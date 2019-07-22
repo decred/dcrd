@@ -1,4 +1,4 @@
-module github.com/decred/dcrd/database
+module github.com/decred/dcrd/database/v2
 
 go 1.11
 

@@ -1,5 +1,5 @@
 // Copyright (c) 2015-2016 The btcsuite developers
-// Copyright (c) 2016 The Decred developers
+// Copyright (c) 2016-2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -12,7 +12,7 @@ The functions are only exported while the tests are being run.
 
 package ffldb
 
-import "github.com/decred/dcrd/database"
+import "github.com/decred/dcrd/database/v2"
 
 // TstRunWithMaxBlockFileSize runs the passed function with the maximum allowed
 // file size for the database set to the provided value.  The value will be set

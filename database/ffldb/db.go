@@ -23,8 +23,8 @@ import (
 	"github.com/btcsuite/goleveldb/leveldb/opt"
 	"github.com/btcsuite/goleveldb/leveldb/util"
 	"github.com/decred/dcrd/chaincfg/chainhash"
-	"github.com/decred/dcrd/database"
-	"github.com/decred/dcrd/database/internal/treap"
+	"github.com/decred/dcrd/database/v2"
+	"github.com/decred/dcrd/database/v2/internal/treap"
 	"github.com/decred/dcrd/wire"
 )
 
