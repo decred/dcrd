@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2014 The btcsuite developers
-// Copyright (c) 2015-2018 The Decred developers
+// Copyright (c) 2015-2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -9,9 +9,9 @@ import (
 	"fmt"
 
 	"github.com/decred/dcrd/chaincfg/chainhash"
-	"github.com/decred/dcrd/database"
-	"github.com/decred/dcrd/dcrutil"
-	"github.com/decred/dcrd/txscript"
+	"github.com/decred/dcrd/database/v2"
+	"github.com/decred/dcrd/dcrutil/v2"
+	"github.com/decred/dcrd/txscript/v2"
 )
 
 // NextLotteryData returns the next tickets eligible for spending as SSGen
@@ -122,12 +122,12 @@ func (b *BlockChain) TicketsWithAddress(address dcrutil.Address) ([]chainhash.Ha
 			}
 
 			_, addrs, _, err :=
-				txscript.ExtractPkScriptAddrs(txscript.DefaultScriptVersion,
+				txscript.ExtractPkScriptAddrs(utxo.ScriptVersionByIndex(0),
 					utxo.PkScriptByIndex(0), b.chainParams)
 			if err != nil {
 				return err
 			}
-			if addrs[0].EncodeAddress() == address.EncodeAddress() {
+			if addrs[0].Address() == address.Address() {
 				ticketsWithAddr = append(ticketsWithAddr, hash)
 			}
 		}

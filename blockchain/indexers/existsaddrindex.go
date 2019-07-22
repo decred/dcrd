@@ -1,4 +1,4 @@
-// Copyright (c) 2016-2017 The Decred developers
+// Copyright (c) 2016-2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -8,11 +8,11 @@ import (
 	"sync"
 
 	"github.com/decred/dcrd/blockchain"
-	"github.com/decred/dcrd/blockchain/stake"
-	"github.com/decred/dcrd/chaincfg"
-	"github.com/decred/dcrd/database"
-	"github.com/decred/dcrd/dcrutil"
-	"github.com/decred/dcrd/txscript"
+	"github.com/decred/dcrd/blockchain/stake/v2"
+	"github.com/decred/dcrd/chaincfg/v2"
+	"github.com/decred/dcrd/database/v2"
+	"github.com/decred/dcrd/dcrutil/v2"
+	"github.com/decred/dcrd/txscript/v2"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -145,7 +145,7 @@ func (idx *ExistsAddrIndex) existsAddress(bucket internalBucket, k [addrKeySize]
 // ExistsAddress is the concurrency safe, exported function that returns
 // whether or not an address has been seen before.
 func (idx *ExistsAddrIndex) ExistsAddress(addr dcrutil.Address) (bool, error) {
-	k, err := addrToKey(addr, idx.chainParams)
+	k, err := addrToKey(addr)
 	if err != nil {
 		return false, err
 	}
@@ -179,7 +179,7 @@ func (idx *ExistsAddrIndex) ExistsAddresses(addrs []dcrutil.Address) ([]bool, er
 	addrKeys := make([][addrKeySize]byte, len(addrs))
 	for i := range addrKeys {
 		var err error
-		addrKeys[i], err = addrToKey(addrs[i], idx.chainParams)
+		addrKeys[i], err = addrToKey(addrs[i])
 		if err != nil {
 			return nil, err
 		}
@@ -236,16 +236,15 @@ func (idx *ExistsAddrIndex) ConnectBlock(dbTx database.Tx, block, parent *dcruti
 		msgTx := tx.MsgTx()
 		isSStx := stake.IsSStx(msgTx)
 		for _, txIn := range msgTx.TxIn {
+			// Note that the functions used here require v0 scripts.  Hence it
+			// is used for the script version.  This will ultimately need to
+			// updated to support new script versions.
+			const scriptVersion = 0
 			if txscript.IsMultisigSigScript(txIn.SignatureScript) {
-				rs, err :=
-					txscript.MultisigRedeemScriptFromScriptSig(
-						txIn.SignatureScript)
-				if err != nil {
-					continue
-				}
-
+				rs := txscript.MultisigRedeemScriptFromScriptSig(
+					txIn.SignatureScript)
 				class, addrs, _, err := txscript.ExtractPkScriptAddrs(
-					txscript.DefaultScriptVersion, rs, idx.chainParams)
+					scriptVersion, rs, idx.chainParams)
 				if err != nil {
 					// Non-standard outputs are skipped.
 					continue
@@ -256,7 +255,7 @@ func (idx *ExistsAddrIndex) ConnectBlock(dbTx database.Tx, block, parent *dcruti
 				}
 
 				for _, addr := range addrs {
-					k, err := addrToKey(addr, idx.chainParams)
+					k, err := addrToKey(addr)
 					if err != nil {
 						continue
 					}
@@ -286,7 +285,7 @@ func (idx *ExistsAddrIndex) ConnectBlock(dbTx database.Tx, block, parent *dcruti
 			}
 
 			for _, addr := range addrs {
-				k, err := addrToKey(addr, idx.chainParams)
+				k, err := addrToKey(addr)
 				if err != nil {
 					// Ignore unsupported address types.
 					continue
@@ -357,15 +356,14 @@ func (idx *ExistsAddrIndex) addUnconfirmedTx(tx *wire.MsgTx) {
 	isSStx := stake.IsSStx(tx)
 	for _, txIn := range tx.TxIn {
 		if txscript.IsMultisigSigScript(txIn.SignatureScript) {
-			rs, err :=
-				txscript.MultisigRedeemScriptFromScriptSig(
-					txIn.SignatureScript)
-			if err != nil {
-				continue
-			}
-
+			// Note that the functions used here require v0 scripts.  Hence it
+			// is used for the script version.  This will ultimately need to
+			// updated to support new script versions.
+			const scriptVersion = 0
+			rs := txscript.MultisigRedeemScriptFromScriptSig(
+				txIn.SignatureScript)
 			class, addrs, _, err := txscript.ExtractPkScriptAddrs(
-				txscript.DefaultScriptVersion, rs, idx.chainParams)
+				scriptVersion, rs, idx.chainParams)
 			if err != nil {
 				// Non-standard outputs are skipped.
 				continue
@@ -376,7 +374,7 @@ func (idx *ExistsAddrIndex) addUnconfirmedTx(tx *wire.MsgTx) {
 			}
 
 			for _, addr := range addrs {
-				k, err := addrToKey(addr, idx.chainParams)
+				k, err := addrToKey(addr)
 				if err != nil {
 					continue
 				}
@@ -408,7 +406,7 @@ func (idx *ExistsAddrIndex) addUnconfirmedTx(tx *wire.MsgTx) {
 		}
 
 		for _, addr := range addrs {
-			k, err := addrToKey(addr, idx.chainParams)
+			k, err := addrToKey(addr)
 			if err != nil {
 				// Ignore unsupported address types.
 				continue

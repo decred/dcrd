@@ -8,11 +8,11 @@ package blockchain
 import (
 	"testing"
 
-	"github.com/decred/dcrd/chaincfg"
+	"github.com/decred/dcrd/chaincfg/v2"
 )
 
 func TestBlockSubsidy(t *testing.T) {
-	mainnet := &chaincfg.MainNetParams
+	mainnet := chaincfg.MainNetParams()
 	reductionInterval := mainnet.SubsidyReductionInterval
 	stakeValidationHeight := mainnet.StakeValidationHeight
 	votesPerBlock := mainnet.TicketsPerBlock
@@ -67,7 +67,7 @@ func TestBlockSubsidy(t *testing.T) {
 }
 
 func TestCachedCalcBlockSubsidy(t *testing.T) {
-	mainnet := &chaincfg.MainNetParams
+	mainnet := chaincfg.MainNetParams()
 
 	cacheA := NewSubsidyCache(0, mainnet)
 	_ = cacheA.CalcBlockSubsidy(mainnet.SubsidyReductionInterval + 1)

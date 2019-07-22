@@ -9,11 +9,10 @@ import (
 	"bytes"
 	"fmt"
 
-	"github.com/decred/dcrd/blockchain/stake"
+	"github.com/decred/dcrd/blockchain/stake/v2"
 	"github.com/decred/dcrd/blockchain/standalone"
-	"github.com/decred/dcrd/chaincfg"
-	"github.com/decred/dcrd/dcrutil"
-	"github.com/decred/dcrd/txscript"
+	"github.com/decred/dcrd/chaincfg/v2"
+	"github.com/decred/dcrd/dcrutil/v2"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -28,94 +27,13 @@ const subsidyCacheInitWidth = 4
 // Deprecated: Use standalone.SubsidyCache instead.
 type SubsidyCache = standalone.SubsidyCache
 
-// subsidyParams adapts v1 chaincfg.Params to implement the
-// standalone.SubsidyParams interface.  It is already implemented by the v2
-// chaincfg.Params, but updating to those requires a major version bump since
-// the type is used in the public API.
-type subsidyParams struct {
-	*chaincfg.Params
-}
-
-// BaseSubsidyValue returns the starting base max potential subsidy amount for
-// mined blocks.
-//
-// This is part of the standalone.SubsidyParams interface.
-func (p *subsidyParams) BaseSubsidyValue() int64 {
-	return p.BaseSubsidy
-}
-
-// SubsidyReductionMultiplier returns the multiplier to use when performing the
-// exponential subsidy reduction.
-//
-// This is part of the standalone.SubsidyParams interface.
-func (p *subsidyParams) SubsidyReductionMultiplier() int64 {
-	return p.MulSubsidy
-}
-
-// SubsidyReductionDivisor returns the divisor to use when performing the
-// exponential subsidy reduction.
-//
-// This is part of the standalone.SubsidyParams interface.
-func (p *subsidyParams) SubsidyReductionDivisor() int64 {
-	return p.DivSubsidy
-}
-
-// SubsidyReductionIntervalBlocks returns the reduction interval in number of
-// blocks.
-//
-// This is part of the standalone.SubsidyParams interface.
-func (p *subsidyParams) SubsidyReductionIntervalBlocks() int64 {
-	return p.SubsidyReductionInterval
-}
-
-// WorkSubsidyProportion returns the comparative proportion of the subsidy
-// generated for creating a block (PoW).
-//
-// This is part of the standalone.SubsidyParams interface.
-func (p *subsidyParams) WorkSubsidyProportion() uint16 {
-	return p.WorkRewardProportion
-}
-
-// StakeSubsidyProportion returns the comparative proportion of the subsidy
-// generated for casting stake votes (collectively, per block).
-//
-// This is part of the standalone.SubsidyParams interface.
-func (p *subsidyParams) StakeSubsidyProportion() uint16 {
-	return p.StakeRewardProportion
-}
-
-// TreasurySubsidyProportion returns the comparative proportion of the subsidy
-// allocated to the project treasury.
-//
-// This is part of the standalone.SubsidyParams interface.
-func (p *subsidyParams) TreasurySubsidyProportion() uint16 {
-	return p.BlockTaxProportion
-}
-
-// VotesPerBlock returns the maximum number of votes a block must contain to
-// receive full subsidy.
-//
-// This is part of the standalone.SubsidyParams interface.
-func (p *subsidyParams) VotesPerBlock() uint16 {
-	return p.TicketsPerBlock
-}
-
-// StakeValidationBeginHeight returns the height at which votes become required
-// to extend a block.  This height is the first that will be voted on, but will
-// not include any votes itself.
-//
-// This is part of the standalone.SubsidyParams interface.
-func (p *subsidyParams) StakeValidationBeginHeight() int64 {
-	return p.StakeValidationHeight
-}
-
 // NewSubsidyCache initializes a new subsidy cache for a given height. It
 // precalculates the values of the subsidy that are most likely to be seen by
 // the client when it connects to the network.
 //
 // Deprecated: Use standalone.NewSubsidyCache instead.
 func NewSubsidyCache(height int64, params *chaincfg.Params) *SubsidyCache {
-	return standalone.NewSubsidyCache(&subsidyParams{params})
+	return standalone.NewSubsidyCache(params)
 }
 
 // CalcBlockWorkSubsidy calculates the proof of work subsidy for a block as a
@@ -149,78 +67,59 @@ func CalcBlockTaxSubsidy(subsidyCache *SubsidyCache, height int64, voters uint16
 // blockOneCoinbasePaysTokens checks to see if the first block coinbase pays
 // out to the network initial token ledger.
 func blockOneCoinbasePaysTokens(tx *dcrutil.Tx, params *chaincfg.Params) error {
-	// If no ledger is specified, just return true.
+	// Nothing to do when there is no ledger specified.
 	if len(params.BlockOneLedger) == 0 {
 		return nil
 	}
 
 	if tx.MsgTx().LockTime != 0 {
-		errStr := fmt.Sprintf("block 1 coinbase has invalid locktime")
-		return ruleError(ErrBlockOneTx, errStr)
+		str := fmt.Sprintf("block 1 coinbase has invalid locktime")
+		return ruleError(ErrBlockOneTx, str)
 	}
 
 	if tx.MsgTx().Expiry != wire.NoExpiryValue {
-		errStr := fmt.Sprintf("block 1 coinbase has invalid expiry")
-		return ruleError(ErrBlockOneTx, errStr)
+		str := fmt.Sprintf("block 1 coinbase has invalid expiry")
+		return ruleError(ErrBlockOneTx, str)
 	}
 
 	if tx.MsgTx().TxIn[0].Sequence != wire.MaxTxInSequenceNum {
-		errStr := fmt.Sprintf("block 1 coinbase not finalized")
-		return ruleError(ErrBlockOneInputs, errStr)
+		str := fmt.Sprintf("block 1 coinbase not finalized")
+		return ruleError(ErrBlockOneInputs, str)
 	}
 
 	if len(tx.MsgTx().TxOut) == 0 {
-		errStr := fmt.Sprintf("coinbase outputs empty in block 1")
-		return ruleError(ErrBlockOneOutputs, errStr)
+		str := fmt.Sprintf("coinbase outputs empty in block 1")
+		return ruleError(ErrBlockOneOutputs, str)
 	}
 
 	ledger := params.BlockOneLedger
 	if len(ledger) != len(tx.MsgTx().TxOut) {
-		errStr := fmt.Sprintf("wrong number of outputs in block 1 coinbase; "+
+		str := fmt.Sprintf("wrong number of outputs in block 1 coinbase; "+
 			"got %v, expected %v", len(tx.MsgTx().TxOut), len(ledger))
-		return ruleError(ErrBlockOneOutputs, errStr)
+		return ruleError(ErrBlockOneOutputs, str)
 	}
 
 	// Check the addresses and output amounts against those in the ledger.
 	const consensusScriptVersion = 0
-	for i, txout := range tx.MsgTx().TxOut {
-		if txout.Version != consensusScriptVersion {
+	for i, txOut := range tx.MsgTx().TxOut {
+		ledgerEntry := &ledger[i]
+		if txOut.Version != ledgerEntry.ScriptVersion {
 			str := fmt.Sprintf("block one output %d script version %d is not %d",
-				i, txout.Version, consensusScriptVersion)
+				i, txOut.Version, consensusScriptVersion)
 			return ruleError(ErrBlockOneOutputs, str)
 		}
 
-		// There should only be one address.
-		_, addrs, _, err :=
-			txscript.ExtractPkScriptAddrs(txout.Version, txout.PkScript, params)
-		if err != nil {
-			return ruleError(ErrBlockOneOutputs, err.Error())
-		}
-		if len(addrs) != 1 {
-			errStr := fmt.Sprintf("too many addresses in output")
-			return ruleError(ErrBlockOneOutputs, errStr)
+		if !bytes.Equal(txOut.PkScript, ledgerEntry.Script) {
+			str := fmt.Sprintf("block one output %d script %x is not %x", i,
+				txOut.PkScript, ledgerEntry.Script)
+			return ruleError(ErrBlockOneOutputs, str)
 		}
 
-		addrLedger, err := dcrutil.DecodeAddress(ledger[i].Address)
-		if err != nil {
-			return err
-		}
-
-		if !bytes.Equal(addrs[0].ScriptAddress(), addrLedger.ScriptAddress()) {
-			errStr := fmt.Sprintf("address in output %v has non matching "+
-				"address; got %v (hash160 %x), want %v (hash160 %x)",
-				i,
-				addrs[0].EncodeAddress(),
-				addrs[0].ScriptAddress(),
-				addrLedger.EncodeAddress(),
-				addrLedger.ScriptAddress())
-			return ruleError(ErrBlockOneOutputs, errStr)
-		}
-
-		if txout.Value != ledger[i].Amount {
-			errStr := fmt.Sprintf("address in output %v has non matching "+
-				"amount; got %v, want %v", i, txout.Value, ledger[i].Amount)
-			return ruleError(ErrBlockOneOutputs, errStr)
+		if txOut.Value != ledgerEntry.Amount {
+			str := fmt.Sprintf("block one output %d generates %v instead of "+
+				"required %v", i, dcrutil.Amount(txOut.Value),
+				dcrutil.Amount(ledgerEntry.Amount))
+			return ruleError(ErrBlockOneOutputs, str)
 		}
 	}
 

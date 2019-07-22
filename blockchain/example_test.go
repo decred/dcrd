@@ -1,5 +1,5 @@
 // Copyright (c) 2014-2016 The btcsuite developers
-// Copyright (c) 2015-2016 The Decred developers
+// Copyright (c) 2015-2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -12,10 +12,10 @@ import (
 	"path/filepath"
 
 	"github.com/decred/dcrd/blockchain"
-	"github.com/decred/dcrd/chaincfg"
-	"github.com/decred/dcrd/database"
-	_ "github.com/decred/dcrd/database/ffldb"
-	"github.com/decred/dcrd/dcrutil"
+	"github.com/decred/dcrd/chaincfg/v2"
+	"github.com/decred/dcrd/database/v2"
+	_ "github.com/decred/dcrd/database/v2/ffldb"
+	"github.com/decred/dcrd/dcrutil/v2"
 )
 
 // This example demonstrates how to create a new chain instance and use
@@ -29,9 +29,10 @@ func ExampleBlockChain_ProcessBlock() {
 	// and creating a new database like this, but it is done here so this is
 	// a complete working example and does not leave temporary files laying
 	// around.
+	mainNetParams := chaincfg.MainNetParams()
 	dbPath := filepath.Join(os.TempDir(), "exampleprocessblock")
 	_ = os.RemoveAll(dbPath)
-	db, err := database.Create("ffldb", dbPath, chaincfg.MainNetParams.Net)
+	db, err := database.Create("ffldb", dbPath, mainNetParams.Net)
 	if err != nil {
 		fmt.Printf("Failed to create database: %v\n", err)
 		return
@@ -48,7 +49,7 @@ func ExampleBlockChain_ProcessBlock() {
 	// adjusted to be in agreement with other peers.
 	chain, err := blockchain.New(&blockchain.Config{
 		DB:          db,
-		ChainParams: &chaincfg.MainNetParams,
+		ChainParams: mainNetParams,
 		TimeSource:  blockchain.NewMedianTime(),
 	})
 	if err != nil {
@@ -59,7 +60,7 @@ func ExampleBlockChain_ProcessBlock() {
 	// Process a block.  For this example, we are going to intentionally
 	// cause an error by trying to process the genesis block which already
 	// exists.
-	genesisBlock := dcrutil.NewBlock(chaincfg.MainNetParams.GenesisBlock)
+	genesisBlock := dcrutil.NewBlock(mainNetParams.GenesisBlock)
 	forkLen, isOrphan, err := chain.ProcessBlock(genesisBlock,
 		blockchain.BFNone)
 	if err != nil {

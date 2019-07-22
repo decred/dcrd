@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/decred/dcrd/chaincfg"
+	"github.com/decred/dcrd/chaincfg/v2"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -78,7 +78,7 @@ func TestEstimateSupply(t *testing.T) {
 	t.Parallel()
 
 	// The parameters used for the supply estimation.
-	params := &chaincfg.MainNetParams
+	params := chaincfg.MainNetParams()
 	baseSubsidy := params.BaseSubsidy
 	reduxInterval := params.SubsidyReductionInterval
 	blockOneSubsidy := params.BlockOneSubsidy()
@@ -210,7 +210,7 @@ func TestCalcNextRequiredStakeDiffV2(t *testing.T) {
 	// used by the tests are the expected ones.  All of the test values will
 	// need to be updated if these parameters change since they are manually
 	// calculated based on them.
-	params := &chaincfg.MainNetParams
+	params := chaincfg.MainNetParams()
 	assertStakeDiffParamsMainNet(t, params)
 	minStakeDiff := params.MinimumStakeDiff
 	ticketMaturity := uint32(params.TicketMaturity)
@@ -516,8 +516,8 @@ func TestEstimateNextStakeDiffV2(t *testing.T) {
 	// Assert the param values directly used by the tests are the expected
 	// ones.  All of the test values will need to be updated if these
 	// parameters change since they are manually calculated based on them.
-	mainNetParams := &chaincfg.MainNetParams
-	testNetParams := &chaincfg.TestNet3Params
+	mainNetParams := chaincfg.MainNetParams()
+	testNetParams := chaincfg.TestNet3Params()
 	assertStakeDiffParamsMainNet(t, mainNetParams)
 	assertStakeDiffParamsTestNet(t, testNetParams)
 	minStakeDiffMainNet := mainNetParams.MinimumStakeDiff
@@ -1056,7 +1056,7 @@ nextTest:
 func TestMinDifficultyReduction(t *testing.T) {
 	// Create chain params based on regnet params, but set the fields related to
 	// proof-of-work difficulty to specific values expected by the tests.
-	params := chaincfg.RegNetParams
+	params := chaincfg.RegNetParams()
 	params.ReduceMinDifficulty = true
 	params.TargetTimePerBlock = time.Minute * 2
 	params.MinDiffReductionTime = time.Minute * 10 // ~99.3% chance to be mined
@@ -1181,7 +1181,7 @@ func TestMinDifficultyReduction(t *testing.T) {
 		},
 	}
 
-	bc := newFakeChain(&params)
+	bc := newFakeChain(params)
 	node := bc.bestChain.Tip()
 	blockTime := time.Unix(node.timestamp, 0)
 	for _, test := range tests {

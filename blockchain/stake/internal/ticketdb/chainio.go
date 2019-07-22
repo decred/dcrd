@@ -250,9 +250,9 @@ type BestChainState struct {
 // corruption.
 func serializeBestChainState(state BestChainState) []byte {
 	if int(state.PerBlock) < len(state.NextWinners) {
-		errStr := fmt.Sprintf("PerBlock:%d < NextWinners:%d",
+		str := fmt.Sprintf("PerBlock:%d < NextWinners:%d",
 			state.PerBlock, len(state.NextWinners))
-		panic(errStr)
+		panic(str)
 	}
 
 	serializedDataLen := minimumBestChainStateSize +

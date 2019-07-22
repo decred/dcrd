@@ -11,13 +11,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/decred/dcrd/blockchain/stake"
+	"github.com/decred/dcrd/blockchain/stake/v2"
 	"github.com/decred/dcrd/blockchain/standalone"
-	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrd/chaincfg/chainhash"
-	"github.com/decred/dcrd/database"
-	"github.com/decred/dcrd/dcrutil"
-	"github.com/decred/dcrd/txscript"
+	"github.com/decred/dcrd/chaincfg/v2"
+	"github.com/decred/dcrd/database/v2"
+	"github.com/decred/dcrd/dcrutil/v2"
+	"github.com/decred/dcrd/txscript/v2"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -2130,7 +2130,7 @@ func New(config *Config) (*BlockChain, error) {
 		}
 	}
 
-	b.subsidyCache = standalone.NewSubsidyCache(&subsidyParams{b.chainParams})
+	b.subsidyCache = standalone.NewSubsidyCache(b.chainParams)
 	b.pruner = newChainPruner(&b)
 
 	// The version 5 database upgrade requires a full reindex.  Perform, or

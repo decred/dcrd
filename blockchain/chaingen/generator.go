@@ -14,10 +14,10 @@ import (
 	"sort"
 	"time"
 
-	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrd/chaincfg/chainhash"
-	"github.com/decred/dcrd/dcrutil"
-	"github.com/decred/dcrd/txscript"
+	"github.com/decred/dcrd/chaincfg/v2"
+	"github.com/decred/dcrd/dcrutil/v2"
+	"github.com/decred/dcrd/txscript/v2"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -1089,7 +1089,7 @@ func (g *Generator) CalcNextRequiredStakeDifficulty() int64 {
 	return g.CalcNextReqStakeDifficulty(g.tip)
 }
 
-// hash256prng is a determinstic pseudorandom number generator that uses a
+// hash256prng is a deterministic pseudorandom number generator that uses a
 // 256-bit secure hashing function to generate random uint32s starting from
 // an initial seed.
 type hash256prng struct {
@@ -2274,7 +2274,7 @@ func (g *Generator) NextBlock(blockName string, spend *SpendableOut, ticketSpend
 	// Update generator state and return the block.
 	blockHash := block.BlockHash()
 	if block.Header.PrevBlock != prevHash {
-		// Save the orignal block this one was built from if it was
+		// Save the original block this one was built from if it was
 		// manually changed in a munger so the code which deals with
 		// updating the live tickets when changing the tip has access to
 		// it.
@@ -2292,11 +2292,11 @@ func (g *Generator) NextBlock(blockName string, spend *SpendableOut, ticketSpend
 	return &block
 }
 
-// CreatePremineBlock generates the first block of the chain with the required
-// premine payouts.  The additional amount parameter can be used to create a
-// block that is otherwise a completely valid premine block except it adds the
-// extra amount to each payout and thus create a block that violates consensus.
-func (g *Generator) CreatePremineBlock(blockName string, additionalAmount dcrutil.Amount, mungers ...func(*wire.MsgBlock)) *wire.MsgBlock {
+// CreateBlockOne generates the first block of the chain with the required
+// payouts.  The additional amount parameter can be used to create a block that
+// is otherwise a completely valid block one except it adds the extra amount to
+// each payout and thus create a block that violates consensus.
+func (g *Generator) CreateBlockOne(blockName string, additionalAmount dcrutil.Amount, mungers ...func(*wire.MsgBlock)) *wire.MsgBlock {
 	coinbaseTx := wire.NewMsgTx()
 	coinbaseTx.AddTxIn(&wire.TxIn{
 		PreviousOutPoint: *wire.NewOutPoint(&chainhash.Hash{},
@@ -2312,18 +2312,10 @@ func (g *Generator) CreatePremineBlock(blockName string, additionalAmount dcruti
 	// in order to set the input value appropriately.
 	var totalSubsidy dcrutil.Amount
 	for _, payout := range g.params.BlockOneLedger {
-		payoutAddr, err := dcrutil.DecodeAddress(payout.Address)
-		if err != nil {
-			panic(err)
-		}
-		pkScript, err := txscript.PayToAddrScript(payoutAddr)
-		if err != nil {
-			panic(err)
-		}
 		coinbaseTx.AddTxOut(&wire.TxOut{
 			Value:    payout.Amount + int64(additionalAmount),
-			Version:  0,
-			PkScript: pkScript,
+			Version:  payout.ScriptVersion,
+			PkScript: payout.Script,
 		})
 
 		totalSubsidy += dcrutil.Amount(payout.Amount)

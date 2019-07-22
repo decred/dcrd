@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/decred/dcrd/blockchain/stake"
-	"github.com/decred/dcrd/chaincfg"
+	"github.com/decred/dcrd/blockchain/stake/v2"
+	"github.com/decred/dcrd/chaincfg/v2"
 )
 
 var (
@@ -99,7 +99,7 @@ var (
 // defaultParams returns net parameters modified to have a single known
 // deployment that is used throughout the various votebit tests.
 func defaultParams(vote chaincfg.Vote) chaincfg.Params {
-	params := chaincfg.RegNetParams
+	params := chaincfg.RegNetParams()
 	params.Deployments = make(map[uint32][]chaincfg.ConsensusDeployment)
 	params.Deployments[posVersion] = []chaincfg.ConsensusDeployment{{
 		Vote: vote,
@@ -109,7 +109,7 @@ func defaultParams(vote chaincfg.Vote) chaincfg.Params {
 		ExpireTime: uint64(time.Now().Add(24 * time.Hour).Unix()),
 	}}
 
-	return params
+	return *params
 }
 
 // TestNoQuorum ensures that the quorum behavior works as expected with no
@@ -1501,7 +1501,7 @@ func TestVoting(t *testing.T) {
 // defaultParallelParams returns net parameters modified to have two known
 // deployments that are used throughout the parallel votebit tests.
 func defaultParallelParams() chaincfg.Params {
-	params := chaincfg.RegNetParams
+	params := chaincfg.RegNetParams()
 	params.Deployments = make(map[uint32][]chaincfg.ConsensusDeployment)
 	params.Deployments[posVersion] = []chaincfg.ConsensusDeployment{
 		{
@@ -1518,7 +1518,7 @@ func defaultParallelParams() chaincfg.Params {
 		},
 	}
 
-	return params
+	return *params
 }
 
 // TestParallelVoting ensures that two agendas running at the same time progress

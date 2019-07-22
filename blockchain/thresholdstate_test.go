@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/decred/dcrd/blockchain/chaingen"
-	"github.com/decred/dcrd/chaincfg"
+	"github.com/decred/dcrd/chaincfg/v2"
 )
 
 const (
@@ -117,7 +117,7 @@ func TestThresholdState(t *testing.T) {
 	// size to a really large number so that the test chain can be generated
 	// more quickly.
 	posVersion := uint32(4)
-	params := cloneParams(&chaincfg.RegNetParams)
+	params := chaincfg.RegNetParams()
 	params.WorkDiffWindowSize = 200000
 	params.WorkDiffWindows = 1
 	params.TargetTimespan = params.TargetTimePerBlock *
@@ -165,7 +165,7 @@ func TestThresholdState(t *testing.T) {
 	// Add the required initial block.
 	//
 	//   genesis -> bfb
-	g.CreatePremineBlock("bfb", 0)
+	g.CreateBlockOne("bfb", 0)
 	g.AssertTipHeight(1)
 	g.AcceptTipBlock()
 	g.TestThresholdStateChoice(testDummy1ID, ThresholdDefined, invalidChoice)

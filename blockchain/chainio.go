@@ -14,10 +14,10 @@ import (
 	"time"
 
 	"github.com/decred/dcrd/blockchain/internal/dbnamespace"
-	"github.com/decred/dcrd/blockchain/stake"
+	"github.com/decred/dcrd/blockchain/stake/v2"
 	"github.com/decred/dcrd/chaincfg/chainhash"
-	"github.com/decred/dcrd/database"
-	"github.com/decred/dcrd/dcrutil"
+	"github.com/decred/dcrd/database/v2"
+	"github.com/decred/dcrd/dcrutil/v2"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -1514,7 +1514,8 @@ func (b *BlockChain) createChainState() error {
 
 		// Initialize the stake buckets in the database, along with
 		// the best state for the stake database.
-		_, err = stake.InitDatabaseState(dbTx, b.chainParams)
+		_, err = stake.InitDatabaseState(dbTx, b.chainParams,
+			&b.chainParams.GenesisHash)
 		if err != nil {
 			return err
 		}
@@ -1677,7 +1678,7 @@ func (b *BlockChain) initChainState() error {
 			var parent *blockNode
 			if lastNode == nil {
 				blockHash := header.BlockHash()
-				if blockHash != *b.chainParams.GenesisHash {
+				if blockHash != b.chainParams.GenesisHash {
 					return AssertError(fmt.Sprintf("initChainState: expected "+
 						"first entry in block index to be genesis block, "+
 						"found %s", blockHash))

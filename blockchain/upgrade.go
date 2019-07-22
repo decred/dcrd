@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2018 The Decred developers
+// Copyright (c) 2015-2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -13,12 +13,12 @@ import (
 	"time"
 
 	"github.com/decred/dcrd/blockchain/internal/progresslog"
-	"github.com/decred/dcrd/blockchain/stake"
+	"github.com/decred/dcrd/blockchain/stake/v2"
 	"github.com/decred/dcrd/blockchain/standalone"
-	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrd/chaincfg/chainhash"
-	"github.com/decred/dcrd/database"
-	"github.com/decred/dcrd/dcrutil"
+	"github.com/decred/dcrd/chaincfg/v2"
+	"github.com/decred/dcrd/database/v2"
+	"github.com/decred/dcrd/dcrutil/v2"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -171,7 +171,8 @@ func upgradeToVersion2(db database.DB, chainParams *chaincfg.Params, dbInfo *dat
 			return err
 		}
 
-		bestStakeNode, errLocal := stake.InitDatabaseState(dbTx, chainParams)
+		bestStakeNode, errLocal := stake.InitDatabaseState(dbTx, chainParams,
+			&chainParams.GenesisHash)
 		if errLocal != nil {
 			return errLocal
 		}
@@ -585,7 +586,8 @@ func upgradeToVersion5(db database.DB, chainParams *chaincfg.Params, dbInfo *dat
 	err = db.Update(func(dbTx database.Tx) error {
 		// Reset the ticket database to the genesis block.
 		log.Infof("Resetting the ticket database.  This might take a while...")
-		if err := stake.ResetDatabase(dbTx, chainParams); err != nil {
+		err := stake.ResetDatabase(dbTx, chainParams, &chainParams.GenesisHash)
+		if err != nil {
 			return err
 		}
 

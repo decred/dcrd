@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018 The Decred developers
+// Copyright (c) 2017-2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/decred/dcrd/chaincfg"
-	"github.com/decred/dcrd/dcrutil"
+	"github.com/decred/dcrd/chaincfg/v2"
+	"github.com/decred/dcrd/dcrutil/v2"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -34,7 +34,7 @@ func TestCalcSequenceLock(t *testing.T) {
 	// Generate a synthetic simnet chain with enough nodes to properly test
 	// the sequence lock functionality.
 	numBlocks := uint32(20)
-	params := &chaincfg.RegNetParams
+	params := chaincfg.RegNetParams()
 	bc := newFakeChain(params)
 	node := bc.bestChain.Tip()
 	blockTime := time.Unix(node.timestamp, 0)

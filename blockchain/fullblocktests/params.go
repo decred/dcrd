@@ -10,8 +10,8 @@ import (
 	"math/big"
 	"time"
 
-	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrd/chaincfg/chainhash"
+	"github.com/decred/dcrd/chaincfg/v2"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -107,7 +107,7 @@ var regNetParams = &chaincfg.Params{
 
 	// Chain parameters
 	GenesisBlock:             &regNetGenesisBlock,
-	GenesisHash:              newHashFromStr("2ced94b4ae95bba344cfa043268732d230649c640f92dce2d9518823d3057cb0"),
+	GenesisHash:              *newHashFromStr("2ced94b4ae95bba344cfa043268732d230649c640f92dce2d9518823d3057cb0"),
 	PowLimit:                 regNetPowLimit,
 	PowLimitBits:             0x207fffff,
 	ReduceMinDifficulty:      false,
@@ -312,9 +312,20 @@ var regNetParams = &chaincfg.Params{
 	// Decred organization related parameters
 	OrganizationPkScript:        fromHex("a9146913bcc838bd0087fb3f6b3c868423d5e300078d87"),
 	OrganizationPkScriptVersion: 0,
-	BlockOneLedger: []*chaincfg.TokenPayout{
-		{Address: "RsKrWb7Vny1jnzL1sDLgKTAteh9RZcRr5g6", Amount: 100000 * 1e8},
-		{Address: "Rs8ca5cDALtsMVD4PV3xvFTC7dmuU1juvLv", Amount: 100000 * 1e8},
-		{Address: "RsHzbGt6YajuHpurtpqXXHz57LmYZK8w9tX", Amount: 100000 * 1e8},
-	},
+	BlockOneLedger: []chaincfg.TokenPayout{{
+		// RsKrWb7Vny1jnzL1sDLgKTAteh9RZcRr5g6
+		ScriptVersion: 0,
+		Script:        fromHex("76a9147e4765ae88ba9ad5c9e4715c484e90b34d358d5188ac"),
+		Amount:        100000 * 1e8,
+	}, {
+		// Rs8ca5cDALtsMVD4PV3xvFTC7dmuU1juvLv
+		ScriptVersion: 0,
+		Script:        fromHex("76a91402fb1ac0137666d79165e13cecd403883615270788ac"),
+		Amount:        100000 * 1e8,
+	}, {
+		// RsHzbGt6YajuHpurtpqXXHz57LmYZK8w9tX
+		ScriptVersion: 0,
+		Script:        fromHex("76a91469de627d3231b14228653dd09cba75eeb872754288ac"),
+		Amount:        100000 * 1e8,
+	}},
 }

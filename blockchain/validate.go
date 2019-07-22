@@ -13,13 +13,13 @@ import (
 	"math/big"
 	"time"
 
-	"github.com/decred/dcrd/blockchain/stake"
+	"github.com/decred/dcrd/blockchain/stake/v2"
 	"github.com/decred/dcrd/blockchain/standalone"
-	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrd/chaincfg/chainhash"
-	"github.com/decred/dcrd/database"
-	"github.com/decred/dcrd/dcrutil"
-	"github.com/decred/dcrd/txscript"
+	"github.com/decred/dcrd/chaincfg/v2"
+	"github.com/decred/dcrd/database/v2"
+	"github.com/decred/dcrd/dcrutil/v2"
+	"github.com/decred/dcrd/txscript/v2"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -85,6 +85,13 @@ const (
 	// submissionOutputIdx is the index of the stake submission output of a
 	// ticket transaction.
 	submissionOutputIdx = 0
+
+	// checkForDuplicateHashes checks for duplicate hashes when validating
+	// blocks.  Because of the rule inserting the height into the second (nonce)
+	// txOut, there should never be a duplicate transaction hash that overwrites
+	// another. However, because there is a 2^128 chance of a collision, the
+	// paranoid user may wish to turn this feature on.
+	checkForDuplicateHashes = false
 )
 
 var (
@@ -1451,7 +1458,7 @@ func (b *BlockChain) checkBlockContext(block *dcrutil.Block, prevNode *blockNode
 // Decred: Check the stake transactions to make sure they don't have this txid
 // too.
 func (b *BlockChain) checkDupTxs(txSet []*dcrutil.Tx, view *UtxoViewpoint) error {
-	if !chaincfg.CheckForDuplicateHashes {
+	if !checkForDuplicateHashes {
 		return nil
 	}
 
@@ -2462,8 +2469,7 @@ func CountP2SHSigOps(tx *dcrutil.Tx, isCoinBaseTx bool, isStakeBaseTx bool, view
 		// Count the precise number of signature operations in the
 		// referenced public key script.
 		sigScript := txIn.SignatureScript
-		numSigOps := txscript.GetPreciseSigOpCount(sigScript, pkScript,
-			true)
+		numSigOps := txscript.GetPreciseSigOpCount(sigScript, pkScript)
 
 		// We could potentially overflow the accumulator so check for
 		// overflow.
