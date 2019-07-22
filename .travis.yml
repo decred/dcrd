@@ -9,25 +9,25 @@ matrix:
       cache:
         directories:
           - $HOME/.cache/go-build
-          - $HOME/gopath/pkg/mod
+          - $HOME/go/pkg/mod
     - os: linux
       go: 1.11.x
       cache:
         directories:
           - $HOME/.cache/go-build
-          - $HOME/gopath/pkg/mod
+          - $HOME/go/pkg/mod
     - os: osx
       go: 1.12.x
       cache:
         directories:
           - $HOME/.cache/go-build
-          - $HOME/gopath/pkg/mod
+          - $HOME/go/pkg/mod
     - os: osx
       go: 1.11.x
       cache:
         directories:
           - $HOME/Library/Caches/go-build
-          - $HOME/gopath/pkg/mod
+          - $HOME/go/pkg/mod
 install:
   - go get -v github.com/golangci/golangci-lint/cmd/golangci-lint
 script:

@@ -37,6 +37,7 @@ for module in $MODPATHS; do
     MODNAME=.
   fi
   (cd $MODNAME && \
+    go mod download && \
     golangci-lint run --build-tags=rpctest --disable-all --deadline=10m \
       --enable=gofmt \
       --enable=gosimple \
