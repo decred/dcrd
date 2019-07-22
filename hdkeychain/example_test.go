@@ -8,9 +8,9 @@ package hdkeychain_test
 import (
 	"fmt"
 
-	"github.com/decred/dcrd/chaincfg"
+	"github.com/decred/dcrd/chaincfg/v2"
 	"github.com/decred/dcrd/dcrec"
-	"github.com/decred/dcrd/dcrutil"
+	"github.com/decred/dcrd/dcrutil/v2"
 	"github.com/decred/dcrd/hdkeychain/v2"
 )
 
@@ -25,7 +25,8 @@ func Example_newMaster() {
 	}
 
 	// Generate a new master node using the seed.
-	key, err := hdkeychain.NewMaster(seed, &chaincfg.MainNetParams)
+	net := chaincfg.MainNetParams()
+	key, err := hdkeychain.NewMaster(seed, net)
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -66,7 +67,7 @@ func Example_defaultWalletLayout() {
 	// Start by getting an extended key instance for the master node.
 	// This gives the path:
 	//   m
-	net := &chaincfg.MainNetParams
+	net := chaincfg.MainNetParams()
 	masterKey, err := hdkeychain.NewKeyFromString(master, net)
 	if err != nil {
 		fmt.Println(err)
@@ -180,8 +181,8 @@ func Example_audits() {
 	// Start by getting an extended key instance for the master node.
 	// This gives the path:
 	//   m
-	masterKey, err := hdkeychain.NewKeyFromString(master,
-		&chaincfg.MainNetParams)
+	net := chaincfg.MainNetParams()
+	masterKey, err := hdkeychain.NewKeyFromString(master, net)
 	if err != nil {
 		fmt.Println(err)
 		return
