@@ -193,7 +193,7 @@ The following versioned modules are provided by dcrd repository:
     Implements the secp256k1 elliptic curve
   * [edwards/v2](https://github.com/decred/dcrd/tree/master/dcrec/edwards) -
     Implements the edwards25519 twisted Edwards curve
-* [database](https://github.com/decred/dcrd/tree/master/database) -
+* [database/v2](https://github.com/decred/dcrd/tree/master/database) -
   Provides a database interface for the Decred block chain
 * [mempool/v2](https://github.com/decred/dcrd/tree/master/mempool) - Provides a
   policy-enforced pool of unmined Decred transactions
