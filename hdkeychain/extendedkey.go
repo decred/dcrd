@@ -172,6 +172,16 @@ func (k *ExtendedKey) pubKeyBytes() []byte {
 	return k.pubKey
 }
 
+// ChildNum returns the child number of the extended key.
+func (k *ExtendedKey) ChildNum() uint32 {
+	return k.childNum
+}
+
+// Depth returns the depth of the extended key.
+func (k *ExtendedKey) Depth() uint16 {
+	return k.depth
+}
+
 // IsPrivate returns whether or not the extended key is a private extended key.
 //
 // A private extended key can be used to derive both hardened and non-hardened
