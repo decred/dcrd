@@ -16,7 +16,6 @@ import (
 	"math/big"
 
 	"github.com/decred/dcrd/chaincfg/chainhash"
-	"github.com/decred/dcrd/chaincfg/v2"
 	"github.com/decred/dcrd/dcrec"
 	"github.com/decred/dcrd/dcrutil/v2"
 	"github.com/decred/dcrd/txscript/v2"
@@ -348,34 +347,34 @@ func TxSStxStakeOutputInfo(tx *wire.MsgTx) ([]bool, [][]byte, []int64, []int64,
 	return SStxStakeOutputInfo(ConvertToMinimalOutputs(tx))
 }
 
-// AddrFromSStxPkScrCommitment extracts a P2SH or P2PKH address from a
-// ticket commitment pkScript.
-func AddrFromSStxPkScrCommitment(pkScript []byte,
-	params *chaincfg.Params) (dcrutil.Address, error) {
+// AddrFromSStxPkScrCommitment extracts a P2SH or P2PKH address from a ticket
+// commitment pkScript.
+func AddrFromSStxPkScrCommitment(pkScript []byte, params dcrutil.AddressParams) (dcrutil.Address, error) {
 	if len(pkScript) < SStxPKHMinOutSize {
 		return nil, stakeRuleError(ErrSStxBadCommitAmount, "short read "+
 			"of sstx commit pkscript")
 	}
 
-	// The MSB (sign), not used ever normally, encodes whether
-	// or not it is a P2PKH or P2SH for the input.
-	amtEncoded := make([]byte, 8)
-	copy(amtEncoded, pkScript[22:30])
-	isP2SH := !(amtEncoded[7]&(1<<7) == 0) // MSB set?
+	// The MSB of the encoded amount specifies if the output is P2SH.  Since
+	// it is encoded with little endian, the MSB is in final byte in the encoded
+	// amount.
+	//
+	// This is a faster equivalent of:
+	//
+	//	amtBytes := script[22:30]
+	//	amtEncoded := binary.LittleEndian.Uint64(amtBytes)
+	//	isP2SH := (amtEncoded & uint64(1<<63)) != 0
+	isP2SH := pkScript[29]&0x80 != 0
 
 	// The 20 byte PKH or SH.
 	hashBytes := pkScript[2:22]
 
-	var err error
-	var addr dcrutil.Address
+	// Return the correct address type.
 	if isP2SH {
-		addr, err = dcrutil.NewAddressScriptHashFromHash(hashBytes, params)
-	} else {
-		addr, err = dcrutil.NewAddressPubKeyHash(hashBytes, params,
-			dcrec.STEcdsaSecp256k1)
+		return dcrutil.NewAddressScriptHashFromHash(hashBytes, params)
 	}
-
-	return addr, err
+	return dcrutil.NewAddressPubKeyHash(hashBytes, params,
+		dcrec.STEcdsaSecp256k1)
 }
 
 // AmountFromSStxPkScrCommitment extracts a commitment amount from a
