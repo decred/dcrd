@@ -502,6 +502,31 @@ func (p *Params) AddrIDScriptHashV0() [2]byte {
 	return p.ScriptHashAddrID
 }
 
+// VotesPerBlock returns the maximum number of votes a block must contain to
+// receive full subsidy.
+func (p *Params) VotesPerBlock() uint16 {
+	return p.TicketsPerBlock
+}
+
+// StakeValidationBeginHeight returns the height at which votes become required
+// to extend a block.  This height is the first that will be voted on, but will
+// not include any votes itself.
+func (p *Params) StakeValidationBeginHeight() int64 {
+	return p.StakeValidationHeight
+}
+
+// StakeEnableHeight returns the height at which the first ticket could possibly
+// mature.
+func (p *Params) StakeEnableHeight() int64 {
+	return p.StakeEnabledHeight
+}
+
+// TicketExpiryBlocks returns the number of blocks after maturity that tickets
+// expire. This will be >= (StakeEnableHeight() + StakeValidationBeginHeight()).
+func (p *Params) TicketExpiryBlocks() uint32 {
+	return p.TicketExpiry
+}
+
 // newHashFromStr converts the passed big-endian hex string into a
 // chainhash.Hash.  It only differs from the one available in chainhash in that
 // it panics on an error since it will only (and must only) be called with
