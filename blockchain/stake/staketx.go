@@ -436,52 +436,6 @@ func SSGenVersion(tx *wire.MsgTx) uint32 {
 	return binary.LittleEndian.Uint32(tx.TxOut[1].PkScript[4:8])
 }
 
-// TxSSRtxStakeOutputInfo takes an SSRtx tx as input and scans through its
-// outputs, returning the amount of the output and the pkh that it was sent to.
-func TxSSRtxStakeOutputInfo(tx *wire.MsgTx, params *chaincfg.Params) ([]bool,
-	[][]byte, []int64, error) {
-	numOutputsInSSRtx := len(tx.TxOut)
-
-	isP2SH := make([]bool, numOutputsInSSRtx)
-	addresses := make([][]byte, numOutputsInSSRtx)
-	amounts := make([]int64, numOutputsInSSRtx)
-
-	// Cycle through the inputs and generate
-	for idx, out := range tx.TxOut {
-		// Get the PKH or SH it's going to, and what type of
-		// script it is.
-		class, addr, _, err :=
-			txscript.ExtractPkScriptAddrs(out.Version, out.PkScript, params)
-		if err != nil {
-			return nil, nil, nil, err
-		}
-		if class != txscript.StakeRevocationTy {
-			return nil, nil, nil, fmt.Errorf("ssrtx output included non "+
-				"ssrtx tagged output in idx %v", idx)
-		}
-		subClass, err := txscript.GetStakeOutSubclass(out.PkScript)
-		if err != nil {
-			return nil, nil, nil, err
-		}
-		if !(subClass == txscript.PubKeyHashTy ||
-			subClass == txscript.ScriptHashTy) {
-			return nil, nil, nil, fmt.Errorf("bad script type")
-		}
-		isP2SH[idx] = false
-		if subClass == txscript.ScriptHashTy {
-			isP2SH[idx] = true
-		}
-
-		// Get the amount that was sent.
-		amt := out.Value
-
-		addresses[idx] = addr[0].ScriptAddress()
-		amounts[idx] = amt
-	}
-
-	return isP2SH, addresses, amounts, nil
-}
-
 // SStxNullOutputAmounts takes an array of input amounts, change amounts, and a
 // ticket purchase amount, calculates the adjusted proportion from the purchase
 // amount, stores it in an array, then returns the array.  That is, for any given

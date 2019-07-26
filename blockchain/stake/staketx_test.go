@@ -10,7 +10,6 @@ import (
 	"testing"
 
 	"github.com/decred/dcrd/blockchain/stake"
-	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/dcrutil"
 	"github.com/decred/dcrd/txscript"
@@ -912,44 +911,6 @@ func TestGetSSGenVersion(t *testing.T) {
 	if version != expectedVersion {
 		t.Errorf("Error thrown on TestGetSSGenVersion: Looking for "+
 			"version % x, got version % x", expectedVersion, version)
-	}
-}
-
-func TestGetSSRtxStakeOutputInfo(t *testing.T) {
-	var ssrtx = dcrutil.NewTx(ssrtxMsgTx)
-	ssrtx.SetTree(wire.TxTreeStake)
-	ssrtx.SetIndex(0)
-
-	correctTyp := false
-
-	correctPkh := []byte{0xc3, 0x98, 0xef, 0xa9,
-		0xc3, 0x92, 0xba, 0x60,
-		0x13, 0xc5, 0xe0, 0x4e,
-		0xe7, 0x29, 0x75, 0x5e,
-		0xf7, 0xf5, 0x8b, 0x33,
-	}
-
-	correctAmt := int64(0x2122e300)
-
-	typs, pkhs, amts, err := stake.TxSSRtxStakeOutputInfo(ssrtx.MsgTx(),
-		&chaincfg.RegNetParams)
-	if err != nil {
-		t.Errorf("Got unexpected error: %v", err.Error())
-	}
-
-	if typs[0] != correctTyp {
-		t.Errorf("Error thrown on TestGetSStxStakeOutputInfo: Looking for "+
-			"type %v, got type %v", correctTyp, typs[0])
-	}
-
-	if !reflect.DeepEqual(pkhs[0], correctPkh) {
-		t.Errorf("Error thrown on TestGetSStxStakeOutputInfo: Looking for "+
-			"pkh %v, got pkh %v", correctPkh, pkhs[0])
-	}
-
-	if amts[0] != correctAmt {
-		t.Errorf("Error thrown on TestGetSStxStakeOutputInfo: Looking for "+
-			"amount %v, got amount %v", correctAmt, amts[0])
 	}
 }
 
