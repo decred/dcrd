@@ -7,7 +7,7 @@ require (
 	github.com/decred/base58 v1.0.0
 	github.com/decred/dcrd/addrmgr v1.0.2
 	github.com/decred/dcrd/blockchain v1.1.1
-	github.com/decred/dcrd/blockchain/stake v1.1.0
+	github.com/decred/dcrd/blockchain/stake v1.2.0
 	github.com/decred/dcrd/certgen v1.0.2
 	github.com/decred/dcrd/chaincfg v1.5.1
 	github.com/decred/dcrd/chaincfg/chainhash v1.0.1
@@ -36,16 +36,12 @@ require (
 	github.com/jessevdk/go-flags v1.4.0
 	github.com/jrick/bitset v1.0.0
 	github.com/jrick/logrotate v1.0.0
-	github.com/kr/pretty v0.1.0 // indirect
 	golang.org/x/crypto v0.0.0-20190611184440-5c40567a22f8
-	golang.org/x/sync v0.0.0-20181108010431-42b317875d0f // indirect
-	gopkg.in/check.v1 v1.0.0-20180628173108-788fd7840127 // indirect
 )
 
 replace (
 	github.com/decred/dcrd/addrmgr => ./addrmgr
 	github.com/decred/dcrd/blockchain => ./blockchain
-	github.com/decred/dcrd/blockchain/stake => ./blockchain/stake
 	github.com/decred/dcrd/certgen => ./certgen
 	github.com/decred/dcrd/chaincfg/chainhash => ./chaincfg/chainhash
 	github.com/decred/dcrd/chaincfg/v2 => ./chaincfg
