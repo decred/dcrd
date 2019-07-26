@@ -12,7 +12,7 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/decred/dcrd/blockchain/stake/internal/tickettreap"
+	"github.com/decred/dcrd/blockchain/stake/v2/internal/tickettreap"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 )
 
