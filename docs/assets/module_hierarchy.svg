@@ -187,13 +187,13 @@
 </g>
 <!-- stake -->
 <g id="node16" class="node"><title>stake</title>
-<path fill="bisque" stroke="black" d="M487.5,-396C487.5,-396 401.5,-396 401.5,-396 395.5,-396 389.5,-390 389.5,-384 389.5,-384 389.5,-372 389.5,-372 389.5,-366 395.5,-360 401.5,-360 401.5,-360 487.5,-360 487.5,-360 493.5,-360 499.5,-366 499.5,-372 499.5,-372 499.5,-384 499.5,-384 499.5,-390 493.5,-396 487.5,-396"/>
-<text text-anchor="middle" x="444.5" y="-374.3" font-family="Times New Roman,serif" font-size="14.00">blockchain/stake</text>
+<path fill="bisque" stroke="black" d="M496,-396C496,-396 393,-396 393,-396 387,-396 381,-390 381,-384 381,-384 381,-372 381,-372 381,-366 387,-360 393,-360 393,-360 496,-360 496,-360 502,-360 508,-366 508,-372 508,-372 508,-384 508,-384 508,-390 502,-396 496,-396"/>
+<text text-anchor="middle" x="444.5" y="-374.3" font-family="Times New Roman,serif" font-size="14.00">blockchain/stake/v2</text>
 </g>
 <!-- database&#45;&gt;stake -->
 <g id="edge14" class="edge"><title>database&#45;&gt;stake</title>
-<path fill="none" stroke="dodgerblue" d="M395.75,-421.831C395.75,-421.831 395.75,-396.413 395.75,-396.413"/>
-<polygon fill="dodgerblue" stroke="dodgerblue" points="392.25,-421.831 395.75,-431.831 399.25,-421.831 392.25,-421.831"/>
+<path fill="none" stroke="dodgerblue" d="M391.5,-421.831C391.5,-421.831 391.5,-396.413 391.5,-396.413"/>
+<polygon fill="dodgerblue" stroke="dodgerblue" points="388,-421.831 391.5,-431.831 395,-421.831 388,-421.831"/>
 </g>
 <!-- hdkeychain&#45;&gt;dcrd -->
 <g id="edge29" class="edge"><title>hdkeychain&#45;&gt;dcrd</title>
