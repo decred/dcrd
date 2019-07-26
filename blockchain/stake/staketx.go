@@ -958,19 +958,6 @@ func DetermineTxType(tx *wire.MsgTx) TxType {
 	return TxTypeRegular
 }
 
-// SetTxTree analyzes the embedded MsgTx and sets the transaction tree
-// accordingly.
-func SetTxTree(tx *dcrutil.Tx) {
-	txType := DetermineTxType(tx.MsgTx())
-
-	indicatedTree := wire.TxTreeRegular
-	if txType != TxTypeRegular {
-		indicatedTree = wire.TxTreeStake
-	}
-
-	tx.SetTree(indicatedTree)
-}
-
 // IsStakeSubmissionTxOut indicates whether the txOut identified by the
 // given index is a stake submission output. Stake Submission outputs are
 // the odd-numbered outputs of an SStx transaction.
