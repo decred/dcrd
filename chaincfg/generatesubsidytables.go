@@ -64,7 +64,10 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	io.Copy(out, buf)
+	_, err = io.Copy(out, buf)
+	if err != nil {
+		log.Fatal(err)
+	}
 }
 
 func defs(p printer, paramsName string, tokenPayouts []chaincfg.TokenPayout) {
