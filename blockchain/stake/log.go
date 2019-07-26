@@ -15,14 +15,6 @@ import (
 // The default amount of logging is none.
 var log = slog.Disabled
 
-// DisableLog disables all library log output.  Logging output is disabled
-// by default until UseLogger is called.
-//
-// Deprecated: Use UseLogger(slog.Disabled) instead.
-func DisableLog() {
-	log = slog.Disabled
-}
-
 // UseLogger uses a specified Logger to output package logging info.
 func UseLogger(logger slog.Logger) {
 	log = logger
