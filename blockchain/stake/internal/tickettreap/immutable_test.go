@@ -1,5 +1,5 @@
 // Copyright (c) 2015-2016 The btcsuite developers
-// Copyright (c) 2016-2017 The Decred developers
+// Copyright (c) 2016-2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -13,8 +13,8 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrd/chaincfg/chainhash"
+	"github.com/decred/dcrd/chaincfg/v2"
 )
 
 // assertPanic tests that code correctly panics, and will raise a testing error
@@ -628,12 +628,11 @@ func randHash(r rand.Source) *chainhash.Hash {
 
 // pickRandWinners picks tickets per block many random "winners" and returns
 // their indexes.
-func pickRandWinners(sz int, r rand.Source) []int {
+func pickRandWinners(sz int, r rand.Source, perBlock int) []int {
 	if sz == 0 {
 		panic("bad sz!")
 	}
 
-	perBlock := int(chaincfg.MainNetParams.TicketsPerBlock)
 	winners := make([]int, perBlock)
 	for i := 0; i < perBlock; i++ {
 		winners[i] = int(r.Int63() % int64(sz))
@@ -672,6 +671,7 @@ func TestImmutableMemory(t *testing.T) {
 	// Start populating the "nodes". Ignore expiring tickets for the
 	// sake of testing. For each node, remove 5 "random" tickets and
 	// insert 5 "random" tickets.
+	perBlock := int(chaincfg.MainNetParams().TicketsPerBlock)
 	maxHeight := uint32(0xFFFFFFFF)
 	lastTreap := nodeTreaps[0]
 	lastTotal := initTotal
@@ -679,13 +679,12 @@ func TestImmutableMemory(t *testing.T) {
 	for i := 1; i < numNodes; i++ {
 		treapCopy := lastTreap
 		sz := treapCopy.Len()
-		winnerIdxs := pickRandWinners(sz, randSource)
+		winnerIdxs := pickRandWinners(sz, randSource, perBlock)
 		winners, _ := treapCopy.FetchWinnersAndExpired(winnerIdxs, maxHeight)
 		for _, k := range winners {
 			treapCopy = treapCopy.Delete(*k)
 		}
 
-		perBlock := int(chaincfg.MainNetParams.TicketsPerBlock)
 		for j := 0; j < perBlock; j++ {
 			randomHash := randHash(randSource)
 			treapCopy = treapCopy.Put(Key(*randomHash),

@@ -15,8 +15,8 @@ import (
 
 	"github.com/decred/dcrd/blockchain/stake/internal/dbnamespace"
 	"github.com/decred/dcrd/blockchain/stake/internal/tickettreap"
-	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrd/chaincfg/chainhash"
+	"github.com/decred/dcrd/chaincfg/v2"
 	"github.com/decred/dcrd/database"
 	_ "github.com/decred/dcrd/database/ffldb"
 )
@@ -425,7 +425,8 @@ func TestLiveDatabase(t *testing.T) {
 		t.Fatalf("unable to create test db path: %v", err)
 	}
 	defer os.RemoveAll(dbPath)
-	testDb, err := database.Create(testDbType, dbPath, chaincfg.RegNetParams.Net)
+	net := chaincfg.RegNetParams().Net
+	testDb, err := database.Create(testDbType, dbPath, net)
 	if err != nil {
 		t.Fatalf("error creating db: %v", err)
 	}

@@ -16,11 +16,11 @@ import (
 	"testing"
 
 	"github.com/decred/dcrd/blockchain/stake/internal/tickettreap"
-	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrd/chaincfg/chainhash"
+	"github.com/decred/dcrd/chaincfg/v2"
 	"github.com/decred/dcrd/database"
 	_ "github.com/decred/dcrd/database/ffldb"
-	"github.com/decred/dcrd/dcrutil"
+	"github.com/decred/dcrd/dcrutil/v2"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -80,7 +80,7 @@ func (s *mockStakeParams) TicketExpiryBlocks() uint32 {
 // throughout the tests.  They match the Decred regression test network params
 // as of the time this comment was written.
 func mockRegNetParams() *mockStakeParams {
-	return (*mockStakeParams)(&chaincfg.RegNetParams)
+	return (*mockStakeParams)(chaincfg.RegNetParams())
 }
 
 // copyNode copies a stake node so that it can be manipulated for tests.
@@ -680,7 +680,7 @@ func TestTicketDBGeneral(t *testing.T) {
 	var bestNode *Node
 	err = testDb.Update(func(dbTx database.Tx) error {
 		var errLocal error
-		bestNode, errLocal = InitDatabaseState(dbTx, params, params.GenesisHash)
+		bestNode, errLocal = InitDatabaseState(dbTx, params, &params.GenesisHash)
 		return errLocal
 	})
 	if err != nil {
