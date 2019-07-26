@@ -40,6 +40,49 @@ func calcHash256PRNGIVFromHeader(header *wire.BlockHeader) (chainhash.Hash, erro
 	return CalcHash256PRNGIV(hB), nil
 }
 
+// mockStakeParams implements the StakeParams interface and is used throughout
+// the tests to mock networks.
+type mockStakeParams chaincfg.Params
+
+// VotesPerBlock returns the value associated with the mock params for the
+// maximum number of votes a block must contain to receive full subsidy
+//
+// This is part of the StakeParams interface.
+func (s *mockStakeParams) VotesPerBlock() uint16 {
+	return s.TicketsPerBlock
+}
+
+// StakeValidationBeginHeight returns the value associated with the mock params
+// for the height at which votes become required to extend a block.
+//
+// This is part of the StakeParams interface.
+func (s *mockStakeParams) StakeValidationBeginHeight() int64 {
+	return s.StakeValidationHeight
+}
+
+// StakeEnableHeight returns the value associated with the mock params for the
+// height at which the first ticket could possibly mature.
+//
+// This is part of the StakeParams interface.
+func (s *mockStakeParams) StakeEnableHeight() int64 {
+	return s.StakeEnabledHeight
+}
+
+// TicketExpiryBlocks returns the value associated with the mock params for the
+// number of blocks after maturity that tickets expire.
+//
+// This is part of the StakeParams interface.
+func (s *mockStakeParams) TicketExpiryBlocks() uint32 {
+	return s.TicketExpiry
+}
+
+// mockRegNetParams returns mock regression test stake parameters to use
+// throughout the tests.  They match the Decred regression test network params
+// as of the time this comment was written.
+func mockRegNetParams() *mockStakeParams {
+	return (*mockStakeParams)(&chaincfg.RegNetParams)
+}
+
 // copyNode copies a stake node so that it can be manipulated for tests.
 func copyNode(n *Node) *Node {
 	liveTickets := new(tickettreap.Immutable)
@@ -208,7 +251,7 @@ func nodesEqual(a *Node, b *Node) error {
 
 func TestTicketDBLongChain(t *testing.T) {
 	// Declare some useful variables.
-	params := &chaincfg.RegNetParams
+	params := mockRegNetParams()
 	testBCHeight := int64(1001)
 	filename := filepath.Join("testdata", "testexpiry.bz2")
 	fi, err := os.Open(filename)
@@ -417,7 +460,7 @@ func TestTicketDBLongChain(t *testing.T) {
 		// Load the genesis block and begin testing exported functions.
 		err = testDb.Update(func(dbTx database.Tx) error {
 			var errLocal error
-			bestNode, errLocal = InitDatabaseState(dbTx, params)
+			bestNode, errLocal = InitDatabaseState(dbTx, params, &params.GenesisHash)
 			if errLocal != nil {
 				return errLocal
 			}
@@ -588,7 +631,7 @@ func TestTicketDBLongChain(t *testing.T) {
 
 func TestTicketDBGeneral(t *testing.T) {
 	// Declare some useful variables.
-	params := &chaincfg.RegNetParams
+	params := mockRegNetParams()
 	testBCHeight := int64(168)
 	filename := filepath.Join("testdata", "blocks0to168.bz2")
 	fi, err := os.Open(filename)
@@ -637,7 +680,7 @@ func TestTicketDBGeneral(t *testing.T) {
 	var bestNode *Node
 	err = testDb.Update(func(dbTx database.Tx) error {
 		var errLocal error
-		bestNode, errLocal = InitDatabaseState(dbTx, params)
+		bestNode, errLocal = InitDatabaseState(dbTx, params, params.GenesisHash)
 		return errLocal
 	})
 	if err != nil {
