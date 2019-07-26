@@ -1,4 +1,4 @@
-// Copyright (c) 2015-2018 The Decred developers
+// Copyright (c) 2015-2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -872,44 +872,6 @@ func TestGetSStxStakeOutputInfo(t *testing.T) {
 	if limits[1][0] != correctLimit {
 		t.Errorf("Error thrown on TestGetSStxStakeOutputInfo: Looking for "+
 			"limit %v, got limit %v", correctLimit, rules[1][0])
-	}
-}
-
-func TestGetSSGenStakeOutputInfo(t *testing.T) {
-	var ssgen = dcrutil.NewTx(ssgenMsgTx)
-	ssgen.SetTree(wire.TxTreeStake)
-	ssgen.SetIndex(0)
-
-	correctTyp := false
-
-	correctpkh := []byte{0xc3, 0x98, 0xef, 0xa9,
-		0xc3, 0x92, 0xba, 0x60,
-		0x13, 0xc5, 0xe0, 0x4e,
-		0xe7, 0x29, 0x75, 0x5e,
-		0xf7, 0xf5, 0x8b, 0x32,
-	}
-
-	correctamt := int64(0x2123e300)
-
-	typs, pkhs, amts, err := stake.TxSSGenStakeOutputInfo(ssgen.MsgTx(),
-		&chaincfg.RegNetParams)
-	if err != nil {
-		t.Errorf("Got unexpected error: %v", err.Error())
-	}
-
-	if typs[0] != correctTyp {
-		t.Errorf("Error thrown on TestGetSSGenStakeOutputInfo: Looking for "+
-			"type %v, got type %v", correctamt, amts[0])
-	}
-
-	if !reflect.DeepEqual(pkhs[0], correctpkh) {
-		t.Errorf("Error thrown on TestGetSSGenStakeOutputInfo: Looking for "+
-			"pkh %v, got pkh %v", correctpkh, pkhs[0])
-	}
-
-	if amts[0] != correctamt {
-		t.Errorf("Error thrown on TestGetSSGenStakeOutputInfo: Looking for "+
-			"amount %v, got amount %v", correctamt, amts[0])
 	}
 }
 

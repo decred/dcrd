@@ -1,4 +1,4 @@
-// Copyright (c) 2015-2016 The Decred developers
+// Copyright (c) 2015-2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 //
@@ -393,56 +393,6 @@ func AmountFromSStxPkScrCommitment(pkScript []byte) (dcrutil.Amount, error) {
 	amtEncoded[7] &= ^uint8(1 << 7) // Clear bit for P2SH flag
 
 	return dcrutil.Amount(binary.LittleEndian.Uint64(amtEncoded)), nil
-}
-
-// TxSSGenStakeOutputInfo takes an SSGen tx as input and scans through its
-// outputs, returning the amount of the output and the PKH or SH that it was
-// sent to.
-func TxSSGenStakeOutputInfo(tx *wire.MsgTx, params *chaincfg.Params) ([]bool,
-	[][]byte, []int64, error) {
-	numOutputsInSSGen := len(tx.TxOut)
-
-	isP2SH := make([]bool, numOutputsInSSGen-2)
-	addresses := make([][]byte, numOutputsInSSGen-2)
-	amounts := make([]int64, numOutputsInSSGen-2)
-
-	// Cycle through the inputs and generate
-	for idx, out := range tx.TxOut {
-		// We only care about the outputs where we get proportional
-		// amounts and the PKHs they were sent to.
-		if (idx > 1) && (idx < numOutputsInSSGen) {
-			// Get the PKH or SH it's going to, and what type of
-			// script it is.
-			class, addr, _, err :=
-				txscript.ExtractPkScriptAddrs(out.Version, out.PkScript, params)
-			if err != nil {
-				return nil, nil, nil, err
-			}
-			if class != txscript.StakeGenTy {
-				return nil, nil, nil, fmt.Errorf("ssgen output included non "+
-					"ssgen tagged output in idx %v", idx)
-			}
-			subClass, err := txscript.GetStakeOutSubclass(out.PkScript)
-			if err != nil {
-				return nil, nil, nil, err
-			}
-			if !(subClass == txscript.PubKeyHashTy ||
-				subClass == txscript.ScriptHashTy) {
-				return nil, nil, nil, fmt.Errorf("bad script type")
-			}
-			isP2SH[idx-2] = false
-			if subClass == txscript.ScriptHashTy {
-				isP2SH[idx-2] = true
-			}
-
-			// Get the amount that was sent.
-			amt := out.Value
-			addresses[idx-2] = addr[0].ScriptAddress()
-			amounts[idx-2] = amt
-		}
-	}
-
-	return isP2SH, addresses, amounts, nil
 }
 
 // SSGenBlockVotedOn takes an SSGen tx and returns the block voted on in the
