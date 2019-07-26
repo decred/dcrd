@@ -18,8 +18,8 @@ import (
 	"github.com/decred/dcrd/blockchain/stake/internal/tickettreap"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/chaincfg/v2"
-	"github.com/decred/dcrd/database"
-	_ "github.com/decred/dcrd/database/ffldb"
+	"github.com/decred/dcrd/database/v2"
+	_ "github.com/decred/dcrd/database/v2/ffldb"
 	"github.com/decred/dcrd/dcrutil/v2"
 	"github.com/decred/dcrd/wire"
 )
