@@ -203,10 +203,6 @@ func SimNetParams() *Params {
 		// Organization address is ScuQxvveKGfpG1ypt6u27F99Anf7EW3cqhq
 		OrganizationPkScript:        hexDecode("a914cbb08d6ca783b533b2c7d24a51fbca92d937bf9987"),
 		OrganizationPkScriptVersion: 0,
-		BlockOneLedger: []TokenPayout{
-			mustPayout("76a91494ff37a0ee4d48abc45f70474f9b86f9da69a70988ac", 100000*1e8),
-			mustPayout("76a914a6753ebbc08e2553e7dd6d64bdead4bcbff4fcf188ac", 100000*1e8),
-			mustPayout("76a9147aa3211c2ead810bbf5911c275c69cc196202bd888ac", 100000*1e8),
-		},
+		BlockOneLedger:              tokenPayouts_SimNetParams(),
 	}
 }

@@ -318,10 +318,6 @@ func RegNetParams() *Params {
 		// Organization address is RcQR65gasxuzf7mUeBXeAux6Z37joPuUwUN
 		OrganizationPkScript:        hexDecode("a9146913bcc838bd0087fb3f6b3c868423d5e300078d87"),
 		OrganizationPkScriptVersion: 0,
-		BlockOneLedger: []TokenPayout{
-			mustPayout("76a9147e4765ae88ba9ad5c9e4715c484e90b34d358d5188ac", 100000*1e8),
-			mustPayout("76a91402fb1ac0137666d79165e13cecd403883615270788ac", 100000*1e8),
-			mustPayout("76a91469de627d3231b14228653dd09cba75eeb872754288ac", 100000*1e8),
-		},
+		BlockOneLedger:              tokenPayouts_RegNetParams(),
 	}
 }
