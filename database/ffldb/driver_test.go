@@ -154,7 +154,7 @@ func TestPersistence(t *testing.T) {
 	t.Parallel()
 
 	// Create a new database to run tests against.
-	dbPath := filepath.Join(os.TempDir(), "ffldb-persistencetest")
+	dbPath := filepath.Join(os.TempDir(), "ffldb-persistencetest-v2")
 	_ = os.RemoveAll(dbPath)
 	db, err := database.Create(dbType, dbPath, blockDataNet)
 	if err != nil {
@@ -261,7 +261,7 @@ func TestInterface(t *testing.T) {
 	t.Parallel()
 
 	// Create a new database to run tests against.
-	dbPath := filepath.Join(os.TempDir(), "ffldb-interfacetest")
+	dbPath := filepath.Join(os.TempDir(), "ffldb-interfacetest-v2")
 	_ = os.RemoveAll(dbPath)
 	db, err := database.Create(dbType, dbPath, blockDataNet)
 	if err != nil {
@@ -274,7 +274,7 @@ func TestInterface(t *testing.T) {
 	// Ensure the driver type is the expected value.
 	gotDbType := db.Type()
 	if gotDbType != dbType {
-		t.Errorf("Type: unepxected driver type - got %v, want %v",
+		t.Errorf("Type: unexpected driver type - got %v, want %v",
 			gotDbType, dbType)
 		return
 	}

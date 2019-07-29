@@ -143,7 +143,7 @@ func TestCornerCases(t *testing.T) {
 	t.Parallel()
 
 	// Create a file at the datapase path to force the open below to fail.
-	dbPath := filepath.Join(os.TempDir(), "ffldb-errors")
+	dbPath := filepath.Join(os.TempDir(), "ffldb-errors-v2")
 	_ = os.RemoveAll(dbPath)
 	fi, err := os.Create(dbPath)
 	if err != nil {
@@ -580,7 +580,7 @@ func testCorruption(tc *testContext) bool {
 // correctly.
 func TestFailureScenarios(t *testing.T) {
 	// Create a new database to run tests against.
-	dbPath := filepath.Join(os.TempDir(), "ffldb-failurescenarios")
+	dbPath := filepath.Join(os.TempDir(), "ffldb-failurescenarios-v2")
 	_ = os.RemoveAll(dbPath)
 	idb, err := database.Create(dbType, dbPath, blockDataNet)
 	if err != nil {
