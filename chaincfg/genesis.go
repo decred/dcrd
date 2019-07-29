@@ -157,11 +157,6 @@ var simNetGenesisCoinbaseTx = wire.MsgTx{
 	Expiry:   0,
 }
 
-// simNetGenesisMerkleRoot is the hash of the first transaction in the genesis
-// block for the simulation test network.  It is the same as the merkle root for
-// the main network.
-var simNetGenesisMerkleRoot = genesisMerkleRoot
-
 // simNetGenesisBlock defines the genesis block of the block chain which serves
 // as the public transaction ledger for the simulation test network.
 var simNetGenesisBlock = wire.MsgBlock{
@@ -173,7 +168,7 @@ var simNetGenesisBlock = wire.MsgBlock{
 			0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 			0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 		}),
-		MerkleRoot: simNetGenesisMerkleRoot,
+		MerkleRoot: simNetGenesisCoinbaseTx.TxHashFull(),
 		StakeRoot: chainhash.Hash([chainhash.HashSize]byte{ // Make go vet happy.
 			0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 			0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
