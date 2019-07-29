@@ -62,10 +62,24 @@ func (e *Entries) AddStakePkScript(script []byte) {
 
 // AddSigScript adds any data pushes of a signature script to an entries slice.
 func (e *Entries) AddSigScript(script []byte) {
-	// Ignore errors and add pushed data, if any
-	pushes, err := txscript.PushedData(script)
-	if err == nil && len(pushes) != 0 {
-		*e = append(*e, pushes...)
+	const scriptVersion = 0
+
+	// Don't add anything if the script does not fully parse without error.
+	tokenizer := txscript.MakeScriptTokenizer(scriptVersion, script)
+	for tokenizer.Next() {
+		// Nothing to do.
+	}
+	if tokenizer.Err() != nil {
+		return
+	}
+
+	// Add any non-empty pushed data.
+	tokenizer = txscript.MakeScriptTokenizer(scriptVersion, script)
+	for tokenizer.Next() {
+		data := tokenizer.Data()
+		if len(data) != 0 {
+			*e = append(*e, data)
+		}
 	}
 }
 
