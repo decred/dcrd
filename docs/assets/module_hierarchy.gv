@@ -24,7 +24,7 @@ digraph {
 	mining [label="mining" fillcolor=chartreuse]
 	lru  [label="lru" fillcolor=royalblue3]
 	peer [label="peer" fillcolor=khaki]
-	rpcclient [label="rpcclient/v3" fillcolor=mediumseagreen]
+	rpcclient [label="rpcclient/v4" fillcolor=mediumseagreen]
 	fees [label="fees" fillcolor=darkolivegreen2]
 	dcrd [label="dcrd" fillcolor=chocolate]
 
@@ -48,11 +48,11 @@ digraph {
 	txscript -> stake [dir=back color=mediumspringgreen]
 	stake -> gcs [dir=back color=bisque]
 	gcs -> blockchain [dir=back color=gold]
+	gcs -> rpcclient [dir=back color=gold]
 	blockchain -> mining [dir=back color=orchid]
 	mining -> mempool [dir=back color=chartreuse]
 	lru -> peer [dir=back color=royalblue3]
 	blockchain -> peer [dir=back color=orchid]
-	blockchain -> rpcclient [dir=back color=orchid]
 	dcrjson -> types [dir=back color=tomato]
 	types -> rpcclient [dir=back color=indianred]
 
