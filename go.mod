@@ -60,7 +60,6 @@ replace (
 	github.com/decred/dcrd/mining => ./mining
 	github.com/decred/dcrd/peer => ./peer
 	github.com/decred/dcrd/rpc/jsonrpc/types => ./rpc/jsonrpc/types
-	github.com/decred/dcrd/rpcclient/v3 => ./rpcclient
 	github.com/decred/dcrd/txscript/v2 => ./txscript
 	github.com/decred/dcrd/wire => ./wire
 )
