@@ -11,7 +11,7 @@ import (
 
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/dcrjson/v3"
-	"github.com/decred/dcrd/dcrutil"
+	"github.com/decred/dcrd/dcrutil/v2"
 	"github.com/decred/dcrd/hdkeychain/v2"
 	chainjson "github.com/decred/dcrd/rpc/jsonrpc/types"
 	"github.com/decred/dcrd/wire"
@@ -208,7 +208,7 @@ func (c *Client) ListUnspentMinMaxAsync(minConf, maxConf int) FutureListUnspentR
 func (c *Client) ListUnspentMinMaxAddressesAsync(minConf, maxConf int, addrs []dcrutil.Address) FutureListUnspentResult {
 	addrStrs := make([]string, 0, len(addrs))
 	for _, a := range addrs {
-		addrStrs = append(addrStrs, a.EncodeAddress())
+		addrStrs = append(addrStrs, a.Address())
 	}
 
 	cmd := walletjson.NewListUnspentCmd(&minConf, &maxConf, &addrStrs)
@@ -446,7 +446,7 @@ func (r FutureSendToAddressResult) Receive() (*chainhash.Hash, error) {
 //
 // See SendToAddress for the blocking version and more details.
 func (c *Client) SendToAddressAsync(address dcrutil.Address, amount dcrutil.Amount) FutureSendToAddressResult {
-	addr := address.EncodeAddress()
+	addr := address.Address()
 	cmd := walletjson.NewSendToAddressCmd(addr, amount.ToCoin(), nil, nil)
 	return c.sendCmd(cmd)
 }
@@ -472,7 +472,7 @@ func (c *Client) SendToAddressCommentAsync(address dcrutil.Address,
 	amount dcrutil.Amount, comment,
 	commentTo string) FutureSendToAddressResult {
 
-	addr := address.EncodeAddress()
+	addr := address.Address()
 	cmd := walletjson.NewSendToAddressCmd(addr, amount.ToCoin(), &comment,
 		&commentTo)
 	return c.sendCmd(cmd)
@@ -525,7 +525,7 @@ func (r FutureSendFromResult) Receive() (*chainhash.Hash, error) {
 //
 // See SendFrom for the blocking version and more details.
 func (c *Client) SendFromAsync(fromAccount string, toAddress dcrutil.Address, amount dcrutil.Amount) FutureSendFromResult {
-	addr := toAddress.EncodeAddress()
+	addr := toAddress.Address()
 	cmd := walletjson.NewSendFromCmd(fromAccount, addr, amount.ToCoin(), nil,
 		nil, nil)
 	return c.sendCmd(cmd)
@@ -549,7 +549,7 @@ func (c *Client) SendFrom(fromAccount string, toAddress dcrutil.Address, amount 
 //
 // See SendFromMinConf for the blocking version and more details.
 func (c *Client) SendFromMinConfAsync(fromAccount string, toAddress dcrutil.Address, amount dcrutil.Amount, minConfirms int) FutureSendFromResult {
-	addr := toAddress.EncodeAddress()
+	addr := toAddress.Address()
 	cmd := walletjson.NewSendFromCmd(fromAccount, addr, amount.ToCoin(),
 		&minConfirms, nil, nil)
 	return c.sendCmd(cmd)
@@ -578,7 +578,7 @@ func (c *Client) SendFromCommentAsync(fromAccount string,
 	toAddress dcrutil.Address, amount dcrutil.Amount, minConfirms int,
 	comment, commentTo string) FutureSendFromResult {
 
-	addr := toAddress.EncodeAddress()
+	addr := toAddress.Address()
 	cmd := walletjson.NewSendFromCmd(fromAccount, addr, amount.ToCoin(),
 		&minConfirms, &comment, &commentTo)
 	return c.sendCmd(cmd)
@@ -635,7 +635,7 @@ func (r FutureSendManyResult) Receive() (*chainhash.Hash, error) {
 func (c *Client) SendManyAsync(fromAccount string, amounts map[dcrutil.Address]dcrutil.Amount) FutureSendManyResult {
 	convertedAmounts := make(map[string]float64, len(amounts))
 	for addr, amount := range amounts {
-		convertedAmounts[addr.EncodeAddress()] = amount.ToCoin()
+		convertedAmounts[addr.Address()] = amount.ToCoin()
 	}
 	cmd := walletjson.NewSendManyCmd(fromAccount, convertedAmounts, nil, nil)
 	return c.sendCmd(cmd)
@@ -664,7 +664,7 @@ func (c *Client) SendManyMinConfAsync(fromAccount string,
 
 	convertedAmounts := make(map[string]float64, len(amounts))
 	for addr, amount := range amounts {
-		convertedAmounts[addr.EncodeAddress()] = amount.ToCoin()
+		convertedAmounts[addr.Address()] = amount.ToCoin()
 	}
 	cmd := walletjson.NewSendManyCmd(fromAccount, convertedAmounts,
 		&minConfirms, nil)
@@ -698,7 +698,7 @@ func (c *Client) SendManyCommentAsync(fromAccount string,
 
 	convertedAmounts := make(map[string]float64, len(amounts))
 	for addr, amount := range amounts {
-		convertedAmounts[addr.EncodeAddress()] = amount.ToCoin()
+		convertedAmounts[addr.Address()] = amount.ToCoin()
 	}
 	cmd := walletjson.NewSendManyCmd(fromAccount, convertedAmounts,
 		&minConfirms, &comment)
@@ -778,7 +778,7 @@ func (c *Client) PurchaseTicketAsync(fromAccount string,
 
 	ticketAddrStr := ""
 	if ticketAddress != nil {
-		ticketAddrStr = ticketAddress.EncodeAddress()
+		ticketAddrStr = ticketAddress.Address()
 	}
 
 	numTicketsVal := 1
@@ -788,7 +788,7 @@ func (c *Client) PurchaseTicketAsync(fromAccount string,
 
 	poolAddrStr := ""
 	if poolAddress != nil {
-		poolAddrStr = poolAddress.EncodeAddress()
+		poolAddrStr = poolAddress.Address()
 	}
 
 	poolFeesFloat := 0.0
@@ -837,7 +837,7 @@ type FutureAddMultisigAddressResult chan *response
 // Receive waits for the response promised by the future and returns the
 // multisignature address that requires the specified number of signatures for
 // the provided addresses.
-func (r FutureAddMultisigAddressResult) Receive() (dcrutil.Address, error) {
+func (r FutureAddMultisigAddressResult) Receive(net dcrutil.AddressParams) (dcrutil.Address, error) {
 	res, err := receiveFuture(r)
 	if err != nil {
 		return nil, err
@@ -850,7 +850,7 @@ func (r FutureAddMultisigAddressResult) Receive() (dcrutil.Address, error) {
 		return nil, err
 	}
 
-	return dcrutil.DecodeAddress(addr)
+	return dcrutil.DecodeAddress(addr, net)
 }
 
 // AddMultisigAddressAsync returns an instance of a type that can be used to get
@@ -870,9 +870,9 @@ func (c *Client) AddMultisigAddressAsync(requiredSigs int, addresses []dcrutil.A
 
 // AddMultisigAddress adds a multisignature address that requires the specified
 // number of signatures for the provided addresses to the wallet.
-func (c *Client) AddMultisigAddress(requiredSigs int, addresses []dcrutil.Address, account string) (dcrutil.Address, error) {
+func (c *Client) AddMultisigAddress(requiredSigs int, addresses []dcrutil.Address, account string, net dcrutil.AddressParams) (dcrutil.Address, error) {
 	return c.AddMultisigAddressAsync(requiredSigs, addresses,
-		account).Receive()
+		account).Receive(net)
 }
 
 // FutureCreateMultisigResult is a future promise to deliver the result of a
@@ -951,7 +951,7 @@ type FutureGetNewAddressResult chan *response
 
 // Receive waits for the response promised by the future and returns a new
 // address.
-func (r FutureGetNewAddressResult) Receive() (dcrutil.Address, error) {
+func (r FutureGetNewAddressResult) Receive(net dcrutil.AddressParams) (dcrutil.Address, error) {
 	res, err := receiveFuture(r)
 	if err != nil {
 		return nil, err
@@ -964,7 +964,7 @@ func (r FutureGetNewAddressResult) Receive() (dcrutil.Address, error) {
 		return nil, err
 	}
 
-	return dcrutil.DecodeAddress(addr)
+	return dcrutil.DecodeAddress(addr, net)
 }
 
 // GapPolicy defines the policy to use when the BIP0044 unused address gap limit
@@ -1000,14 +1000,14 @@ func (c *Client) GetNewAddressGapPolicyAsync(account string, gapPolicy GapPolicy
 }
 
 // GetNewAddress returns a new address.
-func (c *Client) GetNewAddress(account string) (dcrutil.Address, error) {
-	return c.GetNewAddressAsync(account).Receive()
+func (c *Client) GetNewAddress(account string, net dcrutil.AddressParams) (dcrutil.Address, error) {
+	return c.GetNewAddressAsync(account).Receive(net)
 }
 
 // GetNewAddressGapPolicy returns a new address while allowing callers to
 // control the BIP0044 unused address gap limit policy.
-func (c *Client) GetNewAddressGapPolicy(account string, gapPolicy GapPolicy) (dcrutil.Address, error) {
-	return c.GetNewAddressGapPolicyAsync(account, gapPolicy).Receive()
+func (c *Client) GetNewAddressGapPolicy(account string, gapPolicy GapPolicy, net dcrutil.AddressParams) (dcrutil.Address, error) {
+	return c.GetNewAddressGapPolicyAsync(account, gapPolicy).Receive(net)
 }
 
 // FutureGetRawChangeAddressResult is a future promise to deliver the result of
@@ -1017,7 +1017,7 @@ type FutureGetRawChangeAddressResult chan *response
 // Receive waits for the response promised by the future and returns a new
 // address for receiving change that will be associated with the provided
 // account.  Note that this is only for raw transactions and NOT for normal use.
-func (r FutureGetRawChangeAddressResult) Receive() (dcrutil.Address, error) {
+func (r FutureGetRawChangeAddressResult) Receive(net dcrutil.AddressParams) (dcrutil.Address, error) {
 	res, err := receiveFuture(r)
 	if err != nil {
 		return nil, err
@@ -1030,7 +1030,7 @@ func (r FutureGetRawChangeAddressResult) Receive() (dcrutil.Address, error) {
 		return nil, err
 	}
 
-	return dcrutil.DecodeAddress(addr)
+	return dcrutil.DecodeAddress(addr, net)
 }
 
 // GetRawChangeAddressAsync returns an instance of a type that can be used to
@@ -1046,8 +1046,8 @@ func (c *Client) GetRawChangeAddressAsync(account string) FutureGetRawChangeAddr
 // GetRawChangeAddress returns a new address for receiving change that will be
 // associated with the provided account.  Note that this is only for raw
 // transactions and NOT for normal use.
-func (c *Client) GetRawChangeAddress(account string) (dcrutil.Address, error) {
-	return c.GetRawChangeAddressAsync(account).Receive()
+func (c *Client) GetRawChangeAddress(account string, net dcrutil.AddressParams) (dcrutil.Address, error) {
+	return c.GetRawChangeAddressAsync(account).Receive(net)
 }
 
 // FutureGetAccountAddressResult is a future promise to deliver the result of a
@@ -1056,7 +1056,7 @@ type FutureGetAccountAddressResult chan *response
 
 // Receive waits for the response promised by the future and returns the current
 // Decred address for receiving payments to the specified account.
-func (r FutureGetAccountAddressResult) Receive() (dcrutil.Address, error) {
+func (r FutureGetAccountAddressResult) Receive(net dcrutil.AddressParams) (dcrutil.Address, error) {
 	res, err := receiveFuture(r)
 	if err != nil {
 		return nil, err
@@ -1069,7 +1069,7 @@ func (r FutureGetAccountAddressResult) Receive() (dcrutil.Address, error) {
 		return nil, err
 	}
 
-	return dcrutil.DecodeAddress(addr)
+	return dcrutil.DecodeAddress(addr, net)
 }
 
 // GetAccountAddressAsync returns an instance of a type that can be used to get
@@ -1084,8 +1084,8 @@ func (c *Client) GetAccountAddressAsync(account string) FutureGetAccountAddressR
 
 // GetAccountAddress returns the current Decred address for receiving payments
 // to the specified account.
-func (c *Client) GetAccountAddress(account string) (dcrutil.Address, error) {
-	return c.GetAccountAddressAsync(account).Receive()
+func (c *Client) GetAccountAddress(account string, net dcrutil.AddressParams) (dcrutil.Address, error) {
+	return c.GetAccountAddressAsync(account).Receive(net)
 }
 
 // FutureGetAccountResult is a future promise to deliver the result of a
@@ -1116,7 +1116,7 @@ func (r FutureGetAccountResult) Receive() (string, error) {
 //
 // See GetAccount for the blocking version and more details.
 func (c *Client) GetAccountAsync(address dcrutil.Address) FutureGetAccountResult {
-	addr := address.EncodeAddress()
+	addr := address.Address()
 	cmd := walletjson.NewGetAccountCmd(addr)
 	return c.sendCmd(cmd)
 }
@@ -1132,7 +1132,7 @@ type FutureGetAddressesByAccountResult chan *response
 
 // Receive waits for the response promised by the future and returns the list of
 // addresses associated with the passed account.
-func (r FutureGetAddressesByAccountResult) Receive() ([]dcrutil.Address, error) {
+func (r FutureGetAddressesByAccountResult) Receive(net dcrutil.AddressParams) ([]dcrutil.Address, error) {
 	res, err := receiveFuture(r)
 	if err != nil {
 		return nil, err
@@ -1147,7 +1147,7 @@ func (r FutureGetAddressesByAccountResult) Receive() ([]dcrutil.Address, error) 
 
 	addrs := make([]dcrutil.Address, 0, len(addrStrings))
 	for _, addrStr := range addrStrings {
-		addr, err := dcrutil.DecodeAddress(addrStr)
+		addr, err := dcrutil.DecodeAddress(addrStr, net)
 		if err != nil {
 			return nil, err
 		}
@@ -1169,8 +1169,8 @@ func (c *Client) GetAddressesByAccountAsync(account string) FutureGetAddressesBy
 
 // GetAddressesByAccount returns the list of addresses associated with the
 // passed account.
-func (c *Client) GetAddressesByAccount(account string) ([]dcrutil.Address, error) {
-	return c.GetAddressesByAccountAsync(account).Receive()
+func (c *Client) GetAddressesByAccount(account string, net dcrutil.AddressParams) ([]dcrutil.Address, error) {
+	return c.GetAddressesByAccountAsync(account).Receive(net)
 }
 
 // FutureMoveResult is a future promise to deliver the result of a MoveAsync,
@@ -1250,7 +1250,7 @@ func (r FutureValidateAddressResult) Receive() (*walletjson.ValidateAddressWalle
 //
 // See ValidateAddress for the blocking version and more details.
 func (c *Client) ValidateAddressAsync(address dcrutil.Address) FutureValidateAddressResult {
-	addr := address.EncodeAddress()
+	addr := address.Address()
 	cmd := chainjson.NewValidateAddressCmd(addr)
 	return c.sendCmd(cmd)
 }
@@ -1626,7 +1626,7 @@ func (r FutureGetReceivedByAddressResult) Receive() (dcrutil.Amount, error) {
 //
 // See GetReceivedByAddress for the blocking version and more details.
 func (c *Client) GetReceivedByAddressAsync(address dcrutil.Address) FutureGetReceivedByAddressResult {
-	addr := address.EncodeAddress()
+	addr := address.Address()
 	cmd := walletjson.NewGetReceivedByAddressCmd(addr, nil)
 	return c.sendCmd(cmd)
 
@@ -1647,7 +1647,7 @@ func (c *Client) GetReceivedByAddress(address dcrutil.Address) (dcrutil.Amount, 
 //
 // See GetReceivedByAddressMinConf for the blocking version and more details.
 func (c *Client) GetReceivedByAddressMinConfAsync(address dcrutil.Address, minConfirms int) FutureGetReceivedByAddressResult {
-	addr := address.EncodeAddress()
+	addr := address.Address()
 	cmd := walletjson.NewGetReceivedByAddressCmd(addr, &minConfirms)
 	return c.sendCmd(cmd)
 }
@@ -1936,7 +1936,7 @@ func (r FutureSignMessageResult) Receive() (string, error) {
 //
 // See SignMessage for the blocking version and more details.
 func (c *Client) SignMessageAsync(address dcrutil.Address, message string) FutureSignMessageResult {
-	addr := address.EncodeAddress()
+	addr := address.Address()
 	cmd := walletjson.NewSignMessageCmd(addr, message)
 	return c.sendCmd(cmd)
 }
@@ -1977,7 +1977,7 @@ func (r FutureVerifyMessageResult) Receive() (bool, error) {
 //
 // See VerifyMessage for the blocking version and more details.
 func (c *Client) VerifyMessageAsync(address dcrutil.Address, signature, message string) FutureVerifyMessageResult {
-	addr := address.EncodeAddress()
+	addr := address.Address()
 	cmd := chainjson.NewVerifyMessageCmd(addr, signature, message)
 	return c.sendCmd(cmd)
 }
@@ -2001,7 +2001,7 @@ type FutureDumpPrivKeyResult chan *response
 // Receive waits for the response promised by the future and returns the private
 // key corresponding to the passed address encoded in the wallet import format
 // (WIF)
-func (r FutureDumpPrivKeyResult) Receive() (*dcrutil.WIF, error) {
+func (r FutureDumpPrivKeyResult) Receive(net [2]byte) (*dcrutil.WIF, error) {
 	res, err := receiveFuture(r)
 	if err != nil {
 		return nil, err
@@ -2014,7 +2014,7 @@ func (r FutureDumpPrivKeyResult) Receive() (*dcrutil.WIF, error) {
 		return nil, err
 	}
 
-	return dcrutil.DecodeWIF(privKeyWIF)
+	return dcrutil.DecodeWIF(privKeyWIF, net)
 }
 
 // DumpPrivKeyAsync returns an instance of a type that can be used to get the
@@ -2023,7 +2023,7 @@ func (r FutureDumpPrivKeyResult) Receive() (*dcrutil.WIF, error) {
 //
 // See DumpPrivKey for the blocking version and more details.
 func (c *Client) DumpPrivKeyAsync(address dcrutil.Address) FutureDumpPrivKeyResult {
-	addr := address.EncodeAddress()
+	addr := address.Address()
 	cmd := walletjson.NewDumpPrivKeyCmd(addr)
 	return c.sendCmd(cmd)
 }
@@ -2033,8 +2033,8 @@ func (c *Client) DumpPrivKeyAsync(address dcrutil.Address) FutureDumpPrivKeyResu
 //
 // NOTE: This function requires to the wallet to be unlocked.  See the
 // WalletPassphrase function for more details.
-func (c *Client) DumpPrivKey(address dcrutil.Address) (*dcrutil.WIF, error) {
-	return c.DumpPrivKeyAsync(address).Receive()
+func (c *Client) DumpPrivKey(address dcrutil.Address, net [2]byte) (*dcrutil.WIF, error) {
+	return c.DumpPrivKeyAsync(address).Receive(net)
 }
 
 // FutureImportPrivKeyResult is a future promise to deliver the result of an
@@ -2734,7 +2734,7 @@ func (r FutureStakePoolUserInfoResult) Receive() (*walletjson.StakePoolUserInfoR
 //
 // See GetInfo for the blocking version and more details.
 func (c *Client) StakePoolUserInfoAsync(addr dcrutil.Address) FutureStakePoolUserInfoResult {
-	cmd := walletjson.NewStakePoolUserInfoCmd(addr.EncodeAddress())
+	cmd := walletjson.NewStakePoolUserInfoCmd(addr.Address())
 	return c.sendCmd(cmd)
 }
 
@@ -2772,7 +2772,7 @@ func (r FutureTicketsForAddressResult) Receive() (*chainjson.TicketsForAddressRe
 //
 // See GetInfo for the blocking version and more details.
 func (c *Client) TicketsForAddressAsync(addr dcrutil.Address) FutureTicketsForAddressResult {
-	cmd := chainjson.NewTicketsForAddressCmd(addr.EncodeAddress())
+	cmd := chainjson.NewTicketsForAddressCmd(addr.Address())
 	return c.sendCmd(cmd)
 }
 

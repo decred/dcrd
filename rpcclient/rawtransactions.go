@@ -12,7 +12,7 @@ import (
 
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/dcrjson/v3"
-	"github.com/decred/dcrd/dcrutil"
+	"github.com/decred/dcrd/dcrutil/v2"
 	chainjson "github.com/decred/dcrd/rpc/jsonrpc/types"
 	"github.com/decred/dcrd/wire"
 	walletjson "github.com/decred/dcrwallet/rpc/jsonrpc/types"
@@ -721,7 +721,7 @@ func (c *Client) SearchRawTransactionsAsync(address dcrutil.Address, skip,
 	count int, reverse bool,
 	filterAddrs []string) FutureSearchRawTransactionsResult {
 
-	addr := address.EncodeAddress()
+	addr := address.Address()
 	verbose := dcrjson.Int(0)
 	prevOut := dcrjson.Int(0)
 	cmd := chainjson.NewSearchRawTransactionsCmd(addr, verbose, &skip, &count,
@@ -775,7 +775,7 @@ func (c *Client) SearchRawTransactionsVerboseAsync(address dcrutil.Address, skip
 	count int, includePrevOut bool, reverse bool,
 	filterAddrs *[]string) FutureSearchRawTransactionsVerboseResult {
 
-	addr := address.EncodeAddress()
+	addr := address.Address()
 	verbose := dcrjson.Int(1)
 	prevOut := dcrjson.Int(0)
 	if includePrevOut {

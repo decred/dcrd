@@ -12,7 +12,7 @@ import (
 
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/dcrjson/v3"
-	"github.com/decred/dcrd/dcrutil"
+	"github.com/decred/dcrd/dcrutil/v2"
 	chainjson "github.com/decred/dcrd/rpc/jsonrpc/types"
 	"github.com/decred/dcrd/wire"
 	walletjson "github.com/decred/dcrwallet/rpc/jsonrpc/types"
@@ -172,7 +172,7 @@ func (r FutureExistsAddressResult) Receive() (bool, error) {
 // result of the RPC at some future time by invoking the Receive function on the
 // returned instance.
 func (c *Client) ExistsAddressAsync(address dcrutil.Address) FutureExistsAddressResult {
-	cmd := chainjson.NewExistsAddressCmd(address.EncodeAddress())
+	cmd := chainjson.NewExistsAddressCmd(address.Address())
 	return c.sendCmd(cmd)
 }
 
@@ -212,7 +212,7 @@ func (r FutureExistsAddressesResult) Receive() (string, error) {
 func (c *Client) ExistsAddressesAsync(addresses []dcrutil.Address) FutureExistsAddressesResult {
 	addrsStr := make([]string, len(addresses))
 	for i := range addresses {
-		addrsStr[i] = addresses[i].EncodeAddress()
+		addrsStr[i] = addresses[i].Address()
 	}
 
 	cmd := chainjson.NewExistsAddressesCmd(addrsStr)
@@ -880,7 +880,7 @@ func (c *Client) ListAddressTransactionsAsync(addresses []dcrutil.Address, accou
 	// Convert addresses to strings.
 	addrs := make([]string, 0, len(addresses))
 	for _, addr := range addresses {
-		addrs = append(addrs, addr.EncodeAddress())
+		addrs = append(addrs, addr.Address())
 	}
 	cmd := walletjson.NewListAddressTransactionsCmd(addrs, &account)
 	return c.sendCmd(cmd)

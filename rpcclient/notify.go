@@ -13,7 +13,7 @@ import (
 	"strconv"
 
 	"github.com/decred/dcrd/chaincfg/chainhash"
-	"github.com/decred/dcrd/dcrutil"
+	"github.com/decred/dcrd/dcrutil/v2"
 	chainjson "github.com/decred/dcrd/rpc/jsonrpc/types"
 	"github.com/decred/dcrd/wire"
 	walletjson "github.com/decred/dcrwallet/rpc/jsonrpc/types"
@@ -1458,7 +1458,7 @@ func (c *Client) LoadTxFilterAsync(reload bool, addresses []dcrutil.Address,
 
 	addrStrs := make([]string, len(addresses))
 	for i, a := range addresses {
-		addrStrs[i] = a.EncodeAddress()
+		addrStrs[i] = a.Address()
 	}
 	outPointObjects := make([]chainjson.OutPoint, len(outPoints))
 	for i := range outPoints {
