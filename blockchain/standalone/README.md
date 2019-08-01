@@ -26,7 +26,9 @@ The provided functions fall into the following categories:
   - Calculating work values based on the compact target difficulty
   - Checking a block hash satisfies a target difficulty and that target
     difficulty is within a valid range
-- Merkle root calculation (WIP - not yet available)
+- Merkle root calculation
+  - Calculation from individual leaf hashes
+  - Calculation from a slice of transactions
 - Subsidy calculation  (WIP - not yet available)
 - Coinbase transaction identification (WIP - not yet available)
 
@@ -48,8 +50,11 @@ $ go get -u github.com/decred/dcrd/blockchain/standalone
   block header which represent that target difficulty.
 
 * [CheckProofOfWork Example](https://godoc.org/github.com/decred/dcrd/blockchain/standalone#example-CheckProofOfWork)  
-  Demonstrates checking the proof of work of a block hash against
-  a target difficulty.
+  Demonstrates checking the proof of work of a block hash against a target
+  difficulty.
+
+* [CalcMerkleRoot Example](https://godoc.org/github.com/decred/dcrd/blockchain/standalone#example-CalcMerkleRoot)  
+  Demonstrates calculating a merkle root from a slice of leaf hashes.
 
 ## License
 

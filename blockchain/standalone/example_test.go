@@ -76,3 +76,22 @@ func ExampleCheckProofOfWork() {
 	// Output:
 	//
 }
+
+// This example demonstrates calculating a merkle root from a slice of leaf
+// hashes.
+func ExampleCalcMerkleRoot() {
+	// Create a slice of the leaf hashes.
+	leaves := make([]chainhash.Hash, 3)
+	for i := range leaves {
+		// The hash would ordinarily be calculated from the TxHashFull function
+		// on a transaction, however, it's left as a zero hash for the purposes
+		// of this example.
+		leaves[i] = chainhash.Hash{}
+	}
+
+	merkleRoot := standalone.CalcMerkleRoot(leaves)
+	fmt.Printf("Result: %s", merkleRoot)
+
+	// Output:
+	// Result: 5fdfcaba377aefc1bfc4af5ef8e0c2a61656e10e8105c4db7656ae5d58f8b77f
+}

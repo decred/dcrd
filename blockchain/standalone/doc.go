@@ -24,7 +24,9 @@ The provided functions fall into the following categories:
    - Calculating work values based on the compact target difficulty
    - Checking a block hash satisfies a target difficulty and that target
      difficulty is within a valid range
- - Merkle root calculation (WIP - not yet available)
+ - Merkle root calculation
+   - Calculation from individual leaf hashes
+   - Calculation from a slice of transactions
  - Subsidy calculation  (WIP - not yet available)
  - Coinbase transaction identification (WIP - not yet available)
 
