@@ -11,7 +11,7 @@ import (
 	"hash"
 	"testing"
 
-	"github.com/teknico/blake256"
+	"github.com/decred/dcrd/crypto/blake256"
 )
 
 func Test256C(t *testing.T) {
