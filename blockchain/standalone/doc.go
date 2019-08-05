@@ -27,7 +27,10 @@ The provided functions fall into the following categories:
  - Merkle root calculation
    - Calculation from individual leaf hashes
    - Calculation from a slice of transactions
- - Subsidy calculation  (WIP - not yet available)
+ - Subsidy calculation
+   - Proof-of-work subsidy for a given height and number of votes
+   - Stake vote subsidy for a given height
+   - Treasury subsidy for a given height and number of votes
  - Coinbase transaction identification (WIP - not yet available)
 
 Errors

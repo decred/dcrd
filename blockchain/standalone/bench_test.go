@@ -56,3 +56,23 @@ func BenchmarkCalcMerkleRoot(b *testing.B) {
 		})
 	}
 }
+
+// BenchmarkCalcSubsidyCacheSparse benchmarks calculating the subsidy for
+// various heights with a sparse access pattern.
+func BenchmarkCalcSubsidyCacheSparse(b *testing.B) {
+	mockParams := mockMainNetParams()
+	reductionInterval := mockParams.SubsidyReductionIntervalBlocks()
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		cache := NewSubsidyCache(mockParams)
+		for j := int64(0); j < 10; j++ {
+			cache.CalcBlockSubsidy(reductionInterval * (10000 + j))
+			cache.CalcBlockSubsidy(reductionInterval * 1)
+			cache.CalcBlockSubsidy(reductionInterval * 5)
+			cache.CalcBlockSubsidy(reductionInterval * 25)
+			cache.CalcBlockSubsidy(reductionInterval * 13)
+		}
+	}
+}
