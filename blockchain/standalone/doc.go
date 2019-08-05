@@ -31,7 +31,7 @@ The provided functions fall into the following categories:
    - Proof-of-work subsidy for a given height and number of votes
    - Stake vote subsidy for a given height
    - Treasury subsidy for a given height and number of votes
- - Coinbase transaction identification (WIP - not yet available)
+ - Coinbase transaction identification
 
 Errors
 

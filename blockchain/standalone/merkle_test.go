@@ -186,7 +186,6 @@ func TestCalcTxTreeMerkleRoot(t *testing.T) {
 				t.Errorf("%q: unexpected err parsing tx hex %q: %v", test.name,
 					txHex, err)
 				continue
-
 			}
 
 			var tx wire.MsgTx
