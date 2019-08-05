@@ -283,7 +283,9 @@ type Params struct {
 	// 1     subsidy *= MulSubsidy
 	// 2     subsidy /= DivSubsidy
 	//
-	// Caveat: Don't overflow the int64 register!!
+	// NOTE: BaseSubsidy must be a max of 140,739,635,871,744 atoms or incorrect
+	// results will occur due to int64 overflow.  This value comes from
+	// MaxInt64/MaxUint16 = (2^63 - 1)/(2^16 - 1) = 2^47 + 2^31 + 2^15.
 
 	// BaseSubsidy is the starting subsidy amount for mined blocks.
 	BaseSubsidy int64
@@ -500,6 +502,64 @@ func (p *Params) AddrIDPubKeyHashSchnorrV0() [2]byte {
 // pay-to-script-hash addresses.
 func (p *Params) AddrIDScriptHashV0() [2]byte {
 	return p.ScriptHashAddrID
+}
+
+// BaseSubsidyValue returns the starting base max potential subsidy amount for
+// mined blocks.  This value is reduced over time and then split proportionally
+// between PoW, PoS, and the Treasury.  The reduction is controlled by the
+// SubsidyReductionInterval, SubsidyReductionMultiplier, and
+// SubsidyReductionDivisor parameters.
+func (p *Params) BaseSubsidyValue() int64 {
+	return p.BaseSubsidy
+}
+
+// SubsidyReductionMultiplier returns the multiplier to use when performing
+// the exponential subsidy reduction.
+func (p *Params) SubsidyReductionMultiplier() int64 {
+	return p.MulSubsidy
+}
+
+// SubsidyReductionDivisor returns the divisor to use when performing the
+// exponential subsidy reduction.
+func (p *Params) SubsidyReductionDivisor() int64 {
+	return p.DivSubsidy
+}
+
+// SubsidyReductionIntervalBlocks returns the reduction interval in number of
+// blocks.
+func (p *Params) SubsidyReductionIntervalBlocks() int64 {
+	return p.SubsidyReductionInterval
+}
+
+// WorkSubsidyProportion returns the comparative proportion of the subsidy
+// generated for creating a block (PoW).
+//
+// The proportional split between PoW, PoS, and the Treasury is calculated
+// by treating each of the proportional parameters as a ratio to the sum of
+// the three proportional parameters: WorkSubsidyProportion,
+// StakeSubsidyProportion, and TreasurySubsidyProportion.
+//
+// For example:
+// WorkSubsidyProportion:     6 => 6 / (6+3+1) => 6/10 => 60%
+// StakeSubsidyProportion:    3 => 3 / (6+3+1) => 3/10 => 30%
+// TreasurySubsidyProportion: 1 => 1 / (6+3+1) => 1/10 => 10%
+func (p *Params) WorkSubsidyProportion() uint16 {
+	return p.WorkRewardProportion
+}
+
+// StakeSubsidyProportion returns the comparative proportion of the subsidy
+// generated for casting stake votes (collectively, per block).  See the
+// documentation for WorkSubsidyProportion for more details on how the
+// parameter is used.
+func (p *Params) StakeSubsidyProportion() uint16 {
+	return p.StakeRewardProportion
+}
+
+// TreasurySubsidyProportion returns the comparative proportion of the
+// subsidy allocated to the project treasury.  See the documentation for
+// WorkSubsidyProportion for more details on how the parameter is used.
+func (p *Params) TreasurySubsidyProportion() uint16 {
+	return p.BlockTaxProportion
 }
 
 // VotesPerBlock returns the maximum number of votes a block must contain to
