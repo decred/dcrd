@@ -30,6 +30,8 @@ func nextPowerOfTwo(n int) int {
 // HashMerkleBranches takes two hashes, treated as the left and right tree
 // nodes, and returns the hash of their concatenation.  This is a helper
 // function used to aid in the generation of a merkle tree.
+//
+// Deprecated: Use standalone.CalcMerkleRoot instead.
 func HashMerkleBranches(left *chainhash.Hash, right *chainhash.Hash) *chainhash.Hash {
 	// Concatenate the left and right nodes.
 	var hash [chainhash.HashSize * 2]byte
@@ -96,6 +98,8 @@ func populateMerkleStore(offset int, merkles []*chainhash.Hash) {
 // are calculated by concatenating the left node with itself before hashing.
 // Since this function uses nodes that are pointers to the hashes, empty nodes
 // will be nil.
+//
+// Deprecated: Use standalone.CalcTxTreeMerkleRoot instead.
 func BuildMerkleTreeStore(transactions []*dcrutil.Tx) []*chainhash.Hash {
 	// If there's an empty stake tree, return totally zeroed out merkle tree root
 	// only.
@@ -125,6 +129,8 @@ func BuildMerkleTreeStore(transactions []*dcrutil.Tx) []*chainhash.Hash {
 // BuildMsgTxMerkleTreeStore is identical to BuildMerkleTreeStore but takes a
 // slice of the wire.MsgTx transaction type instead of the dcrutil.Tx wrapper.
 // See BuildMerkleTreeStore for more details.
+//
+// Deprecated: Use standalone.CalcTxTreeMerkleRoot instead.
 func BuildMsgTxMerkleTreeStore(transactions []*wire.MsgTx) []*chainhash.Hash {
 	// If there's an empty stake tree, return totally zeroed out merkle tree root
 	// only.

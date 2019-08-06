@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/decred/dcrd/blockchain/stake"
+	"github.com/decred/dcrd/blockchain/standalone"
 	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/database"
@@ -841,22 +842,20 @@ func checkBlockSanity(block *dcrutil.Block, timeSource MedianTimeSource, flags B
 	// checks.  Bitcoind builds the tree here and checks the merkle root
 	// after the following checks, but there is no reason not to check the
 	// merkle root matches here.
-	merkles := BuildMerkleTreeStore(block.Transactions())
-	calculatedMerkleRoot := merkles[len(merkles)-1]
-	if !header.MerkleRoot.IsEqual(calculatedMerkleRoot) {
+	wantMerkleRoot := standalone.CalcTxTreeMerkleRoot(msgBlock.Transactions)
+	if header.MerkleRoot != wantMerkleRoot {
 		str := fmt.Sprintf("block merkle root is invalid - block "+
 			"header indicates %v, but calculated value is %v",
-			header.MerkleRoot, calculatedMerkleRoot)
+			header.MerkleRoot, wantMerkleRoot)
 		return ruleError(ErrBadMerkleRoot, str)
 	}
 
 	// Build the stake tx tree merkle root too and check it.
-	merkleStake := BuildMerkleTreeStore(block.STransactions())
-	calculatedStakeMerkleRoot := merkleStake[len(merkleStake)-1]
-	if !header.StakeRoot.IsEqual(calculatedStakeMerkleRoot) {
+	wantStakeRoot := standalone.CalcTxTreeMerkleRoot(msgBlock.STransactions)
+	if header.StakeRoot != wantStakeRoot {
 		str := fmt.Sprintf("block stake merkle root is invalid - block"+
 			" header indicates %v, but calculated value is %v",
-			header.StakeRoot, calculatedStakeMerkleRoot)
+			header.StakeRoot, wantStakeRoot)
 		return ruleError(ErrBadMerkleRoot, str)
 	}
 
