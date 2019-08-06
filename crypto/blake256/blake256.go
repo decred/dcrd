@@ -1,4 +1,4 @@
-// Copyright (c) 2015-2019 The Decred developers
+// Copyright (c) 2019 The Decred developers
 // Originally written in 2011-2012 by Dmitry Chestnykh.
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
