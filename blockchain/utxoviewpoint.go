@@ -1,5 +1,5 @@
 // Copyright (c) 2015-2016 The btcsuite developers
-// Copyright (c) 2015-2018 The Decred developers
+// Copyright (c) 2015-2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -9,6 +9,7 @@ import (
 	"fmt"
 
 	"github.com/decred/dcrd/blockchain/stake"
+	"github.com/decred/dcrd/blockchain/standalone"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/database"
 	"github.com/decred/dcrd/dcrutil"
@@ -288,7 +289,8 @@ func (view *UtxoViewpoint) AddTxOuts(tx *dcrutil.Tx, blockHeight int64, blockInd
 		msgTx := tx.MsgTx()
 		txType := stake.DetermineTxType(msgTx)
 		entry = newUtxoEntry(msgTx.Version, uint32(blockHeight),
-			blockIndex, IsCoinBaseTx(msgTx), msgTx.Expiry != 0, txType)
+			blockIndex, standalone.IsCoinBaseTx(msgTx), msgTx.Expiry != 0,
+			txType)
 		if txType == stake.TxTypeSStx {
 			stakeExtra := make([]byte, serializeSizeForMinimalOutputs(tx))
 			putTxToMinimalOutputs(stakeExtra, tx)
@@ -341,7 +343,8 @@ func (view *UtxoViewpoint) AddTxOuts(tx *dcrutil.Tx, blockHeight int64, blockInd
 // view does not contain the required utxos.
 func (view *UtxoViewpoint) connectTransaction(tx *dcrutil.Tx, blockHeight int64, blockIndex uint32, stxos *[]spentTxOut) error {
 	// Coinbase transactions don't have any inputs to spend.
-	if IsCoinBase(tx) {
+	msgTx := tx.MsgTx()
+	if standalone.IsCoinBaseTx(msgTx) {
 		// Add the transaction's outputs as available utxos.
 		view.AddTxOuts(tx, blockHeight, blockIndex)
 		return nil
@@ -350,7 +353,6 @@ func (view *UtxoViewpoint) connectTransaction(tx *dcrutil.Tx, blockHeight int64,
 	// Spend the referenced utxos by marking them spent in the view and,
 	// if a slice was provided for the spent txout details, append an entry
 	// to it.
-	msgTx := tx.MsgTx()
 	isVote := stake.IsSSGen(msgTx)
 	for txInIdx, txIn := range msgTx.TxIn {
 		// Ignore stakebase since it has no input.
@@ -939,7 +941,7 @@ func (b *BlockChain) FetchUtxoView(tx *dcrutil.Tx, includePrevRegularTxns bool) 
 	filteredSet := make(viewFilteredSet)
 	filteredSet.add(view, tx.Hash())
 	msgTx := tx.MsgTx()
-	if !IsCoinBaseTx(msgTx) {
+	if !standalone.IsCoinBaseTx(msgTx) {
 		isVote := stake.IsSSGen(msgTx)
 		for txInIdx, txIn := range msgTx.TxIn {
 			// Ignore stakebase since it has no input.

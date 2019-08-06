@@ -143,20 +143,10 @@ func isNullFraudProof(txIn *wire.TxIn) bool {
 //
 // This function only differs from IsCoinBase in that it works with a raw wire
 // transaction as opposed to a higher level util transaction.
+//
+// Deprecated: Use standalone.IsCoinBaseTx instead.
 func IsCoinBaseTx(msgTx *wire.MsgTx) bool {
-	// A coin base must only have one transaction input.
-	if len(msgTx.TxIn) != 1 {
-		return false
-	}
-
-	// The previous output of a coin base must have a max value index and a
-	// zero hash.
-	prevOut := &msgTx.TxIn[0].PreviousOutPoint
-	if prevOut.Index != math.MaxUint32 || !prevOut.Hash.IsEqual(zeroHash) {
-		return false
-	}
-
-	return true
+	return standalone.IsCoinBaseTx(msgTx)
 }
 
 // IsCoinBase determines whether or not a transaction is a coinbase.  A
@@ -167,8 +157,10 @@ func IsCoinBaseTx(msgTx *wire.MsgTx) bool {
 //
 // This function only differs from IsCoinBaseTx in that it works with a higher
 // level util transaction as opposed to a raw wire transaction.
+//
+// Deprecated: Use standalone.IsCoinBaseTx instead.
 func IsCoinBase(tx *dcrutil.Tx) bool {
-	return IsCoinBaseTx(tx.MsgTx())
+	return standalone.IsCoinBaseTx(tx.MsgTx())
 }
 
 // IsExpiredTx returns where or not the passed transaction is expired according
@@ -265,7 +257,7 @@ func CheckTransactionSanity(tx *wire.MsgTx, params *chaincfg.Params) error {
 
 	// Coinbase script length must be between min and max length.
 	isVote := stake.IsSSGen(tx)
-	if IsCoinBaseTx(tx) {
+	if standalone.IsCoinBaseTx(tx) {
 		// The referenced outpoint must be null.
 		if !isNullOutpoint(&tx.TxIn[0].PreviousOutPoint) {
 			str := fmt.Sprintf("coinbase transaction did not use " +
@@ -657,14 +649,14 @@ func checkBlockSanity(block *dcrutil.Block, timeSource MedianTimeSource, flags B
 
 	// The first transaction in a block's regular tree must be a coinbase.
 	transactions := block.Transactions()
-	if !IsCoinBaseTx(transactions[0].MsgTx()) {
+	if !standalone.IsCoinBaseTx(transactions[0].MsgTx()) {
 		return ruleError(ErrFirstTxNotCoinbase, "first transaction in "+
 			"block is not a coinbase")
 	}
 
 	// A block must not have more than one coinbase.
 	for i, tx := range transactions[1:] {
-		if IsCoinBaseTx(tx.MsgTx()) {
+		if standalone.IsCoinBaseTx(tx.MsgTx()) {
 			str := fmt.Sprintf("block contains second coinbase at "+
 				"index %d", i+1)
 			return ruleError(ErrMultipleCoinbases, str)
@@ -885,7 +877,7 @@ func checkBlockSanity(block *dcrutil.Block, timeSource MedianTimeSource, flags B
 		lastSigOps := totalSigOps
 
 		msgTx := tx.MsgTx()
-		isCoinBase := IsCoinBaseTx(msgTx)
+		isCoinBase := standalone.IsCoinBaseTx(msgTx)
 		isSSGen := stake.IsSSGen(msgTx)
 		totalSigOps += CountSigOps(tx, isCoinBase, isSSGen)
 		if totalSigOps < lastSigOps || totalSigOps > MaxSigOpsPerBlock {
@@ -2109,7 +2101,8 @@ func checkRevocationInputs(tx *dcrutil.Tx, txHeight int64, view *UtxoViewpoint, 
 // CheckTransactionSanity function prior to calling this function.
 func CheckTransactionInputs(subsidyCache *SubsidyCache, tx *dcrutil.Tx, txHeight int64, view *UtxoViewpoint, checkFraudProof bool, chainParams *chaincfg.Params) (int64, error) {
 	// Coinbase transactions have no inputs.
-	if IsCoinBase(tx) {
+	msgTx := tx.MsgTx()
+	if standalone.IsCoinBaseTx(msgTx) {
 		return 0, nil
 	}
 
@@ -2120,7 +2113,6 @@ func CheckTransactionInputs(subsidyCache *SubsidyCache, tx *dcrutil.Tx, txHeight
 	// Perform additional checks on ticket purchase transactions such as
 	// ensuring the input type requirements are met and the output commitments
 	// coincide with the inputs.
-	msgTx := tx.MsgTx()
 	isTicket := stake.IsSStx(msgTx)
 	if isTicket {
 		if err := checkTicketPurchaseInputs(msgTx, view); err != nil {
