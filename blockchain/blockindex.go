@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/decred/dcrd/blockchain/stake"
+	"github.com/decred/dcrd/blockchain/standalone"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/database"
 	"github.com/decred/dcrd/wire"
@@ -137,7 +138,7 @@ type blockNode struct {
 func initBlockNode(node *blockNode, blockHeader *wire.BlockHeader, parent *blockNode) {
 	*node = blockNode{
 		hash:         blockHeader.BlockHash(),
-		workSum:      CalcWork(blockHeader.Bits),
+		workSum:      standalone.CalcWork(blockHeader.Bits),
 		height:       int64(blockHeader.Height),
 		blockVersion: blockHeader.Version,
 		voteBits:     blockHeader.VoteBits,

@@ -433,6 +433,25 @@ func CheckProofOfStake(block *dcrutil.Block, posLimit int64) error {
 	return checkProofOfStake(block, posLimit)
 }
 
+// standaloneToChainRuleError attempts to convert the passed error from a
+// standalone.RuleError to a blockchain.RuleError with the equivalent code.  The
+// error is simply passed through without modification if it is not a
+// standalone.RuleError, not one of the specifically recognized error codes, or
+// nil.
+func standaloneToChainRuleError(err error) error {
+	// Convert standalone package rule errors to blockchain rule errors.
+	if rErr, ok := err.(standalone.RuleError); ok {
+		switch rErr.ErrorCode {
+		case standalone.ErrUnexpectedDifficulty:
+			return ruleError(ErrUnexpectedDifficulty, rErr.Description)
+		case standalone.ErrHighHash:
+			return ruleError(ErrHighHash, rErr.Description)
+		}
+	}
+
+	return err
+}
+
 // checkProofOfWork ensures the block header bits which indicate the target
 // difficulty is in min/max range and that the block hash is less than the
 // target difficulty as claimed.
@@ -441,40 +460,30 @@ func CheckProofOfStake(block *dcrutil.Block, posLimit int64) error {
 //  - BFNoPoWCheck: The check to ensure the block hash is less than the target
 //    difficulty is not performed.
 func checkProofOfWork(header *wire.BlockHeader, powLimit *big.Int, flags BehaviorFlags) error {
-	// The target difficulty must be larger than zero.
-	target := CompactToBig(header.Bits)
-	if target.Sign() <= 0 {
-		str := fmt.Sprintf("block target difficulty of %064x is too "+
-			"low", target)
-		return ruleError(ErrUnexpectedDifficulty, str)
+	// Only ensure the target difficulty bits are in the valid range when the
+	// the flag to avoid proof of work checks is set.
+	if flags&BFNoPoWCheck == BFNoPoWCheck {
+		err := standalone.CheckProofOfWorkRange(header.Bits, powLimit)
+		return standaloneToChainRuleError(err)
 	}
 
-	// The target difficulty must be less than the maximum allowed.
-	if target.Cmp(powLimit) > 0 {
-		str := fmt.Sprintf("block target difficulty of %064x is "+
-			"higher than max of %064x", target, powLimit)
-		return ruleError(ErrUnexpectedDifficulty, str)
-	}
-
-	// The block hash must be less than the claimed target unless the flag
-	// to avoid proof of work checks is set.
-	if flags&BFNoPoWCheck != BFNoPoWCheck {
-		// The block hash must be less than the claimed target.
-		hash := header.BlockHash()
-		hashNum := HashToBig(&hash)
-		if hashNum.Cmp(target) > 0 {
-			str := fmt.Sprintf("block hash of %064x is higher than"+
-				" expected max of %064x", hashNum, target)
-			return ruleError(ErrHighHash, str)
-		}
-	}
-
-	return nil
+	// Perform all proof of work checks when the flag is not set:
+	//
+	// - The target difficulty must be larger than zero.
+	// - The target difficulty must be less than the maximum allowed.
+	// - The block hash must be less than the claimed target.
+	blockHash := header.BlockHash()
+	err := standalone.CheckProofOfWork(&blockHash, header.Bits, powLimit)
+	return standaloneToChainRuleError(err)
 }
 
 // CheckProofOfWork ensures the block header bits which indicate the target
 // difficulty is in min/max range and that the block hash is less than the
-// target difficulty as claimed.
+// target difficulty as claimed.  This is equivalent to the function in the
+// standalone package with the exception that that any error is converted to a
+// RuleError.
+//
+// Deprecated: Use standalone.CheckProofOfWork instead.
 func CheckProofOfWork(header *wire.BlockHeader, powLimit *big.Int) error {
 	return checkProofOfWork(header, powLimit, BFNone)
 }

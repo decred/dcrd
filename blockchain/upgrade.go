@@ -14,6 +14,7 @@ import (
 
 	"github.com/decred/dcrd/blockchain/internal/progresslog"
 	"github.com/decred/dcrd/blockchain/stake"
+	"github.com/decred/dcrd/blockchain/standalone"
 	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/database"
@@ -609,7 +610,7 @@ func upgradeToVersion5(db database.DB, chainParams *chaincfg.Params, dbInfo *dat
 			height:       0,
 			totalTxns:    numTxns,
 			totalSubsidy: 0,
-			workSum:      CalcWork(genesisBlock.Header.Bits),
+			workSum:      standalone.CalcWork(genesisBlock.Header.Bits),
 		})
 		err = meta.Put(chainStateKeyName, serializedData)
 		if err != nil {

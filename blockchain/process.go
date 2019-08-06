@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/decred/dcrd/blockchain/standalone"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/dcrutil"
 )
@@ -167,9 +168,9 @@ func (b *BlockChain) ProcessBlock(block *dcrutil.Block, flags BehaviorFlags) (in
 			// expected based on elapsed time since the last checkpoint and
 			// maximum adjustment allowed by the retarget rules.
 			duration := blockHeader.Timestamp.Sub(checkpointTime)
-			requiredTarget := CompactToBig(b.calcEasiestDifficulty(
+			requiredTarget := standalone.CompactToBig(b.calcEasiestDifficulty(
 				checkpointNode.bits, duration))
-			currentTarget := CompactToBig(blockHeader.Bits)
+			currentTarget := standalone.CompactToBig(blockHeader.Bits)
 			if currentTarget.Cmp(requiredTarget) > 0 {
 				str := fmt.Sprintf("block target difficulty of %064x "+
 					"is too low when compared to the previous "+
