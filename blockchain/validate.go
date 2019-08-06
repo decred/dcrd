@@ -142,34 +142,6 @@ func isNullFraudProof(txIn *wire.TxIn) bool {
 	return true
 }
 
-// IsCoinBaseTx determines whether or not a transaction is a coinbase.  A
-// coinbase is a special transaction created by miners that has no inputs.
-// This is represented in the block chain by a transaction with a single input
-// that has a previous output transaction index set to the maximum value along
-// with a zero hash.
-//
-// This function only differs from IsCoinBase in that it works with a raw wire
-// transaction as opposed to a higher level util transaction.
-//
-// Deprecated: Use standalone.IsCoinBaseTx instead.
-func IsCoinBaseTx(msgTx *wire.MsgTx) bool {
-	return standalone.IsCoinBaseTx(msgTx)
-}
-
-// IsCoinBase determines whether or not a transaction is a coinbase.  A
-// coinbase is a special transaction created by miners that has no inputs.
-// This is represented in the block chain by a transaction with a single input
-// that has a previous output transaction index set to the maximum value along
-// with a zero hash.
-//
-// This function only differs from IsCoinBaseTx in that it works with a higher
-// level util transaction as opposed to a raw wire transaction.
-//
-// Deprecated: Use standalone.IsCoinBaseTx instead.
-func IsCoinBase(tx *dcrutil.Tx) bool {
-	return standalone.IsCoinBaseTx(tx.MsgTx())
-}
-
 // IsExpiredTx returns where or not the passed transaction is expired according
 // to the given block height.
 //
@@ -482,17 +454,6 @@ func checkProofOfWork(header *wire.BlockHeader, powLimit *big.Int, flags Behavio
 	blockHash := header.BlockHash()
 	err := standalone.CheckProofOfWork(&blockHash, header.Bits, powLimit)
 	return standaloneToChainRuleError(err)
-}
-
-// CheckProofOfWork ensures the block header bits which indicate the target
-// difficulty is in min/max range and that the block hash is less than the
-// target difficulty as claimed.  This is equivalent to the function in the
-// standalone package with the exception that that any error is converted to a
-// RuleError.
-//
-// Deprecated: Use standalone.CheckProofOfWork instead.
-func CheckProofOfWork(header *wire.BlockHeader, powLimit *big.Int) error {
-	return checkProofOfWork(header, powLimit, BFNone)
 }
 
 // checkBlockHeaderSanity performs some preliminary checks on a block header to

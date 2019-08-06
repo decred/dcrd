@@ -352,24 +352,6 @@ func (b *BlockChain) DisableVerify(disable bool) {
 	b.chainLock.Unlock()
 }
 
-// TotalSubsidy returns the total subsidy mined so far in the best chain.
-//
-// This function is safe for concurrent access.
-func (b *BlockChain) TotalSubsidy() int64 {
-	b.chainLock.RLock()
-	ts := b.BestSnapshot().TotalSubsidy
-	b.chainLock.RUnlock()
-
-	return ts
-}
-
-// FetchSubsidyCache returns the current subsidy cache from the blockchain.
-//
-// This function is safe for concurrent access.
-func (b *BlockChain) FetchSubsidyCache() *SubsidyCache {
-	return b.subsidyCache
-}
-
 // HaveBlock returns whether or not the chain instance has the block represented
 // by the passed hash.  This includes checking the various places a block can
 // be like part of the main chain, on a side chain, or in the orphan pool.
@@ -642,21 +624,6 @@ func (b *BlockChain) pruneStakeNodes() {
 			node.ticketsRevoked = nil
 		}
 	}
-}
-
-// BestPrevHash returns the hash of the previous block of the block at HEAD.
-//
-// This function is safe for concurrent access.
-func (b *BlockChain) BestPrevHash() chainhash.Hash {
-	b.chainLock.Lock()
-	defer b.chainLock.Unlock()
-
-	var prevHash chainhash.Hash
-	tip := b.bestChain.Tip()
-	if tip.parent != nil {
-		prevHash = tip.parent.hash
-	}
-	return prevHash
 }
 
 // isMajorityVersion determines if a previous number of blocks in the chain

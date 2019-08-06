@@ -16,54 +16,6 @@ import (
 	"github.com/decred/dcrd/wire"
 )
 
-// The number of values to precalculate on initialization of the subsidy
-// cache.
-const subsidyCacheInitWidth = 4
-
-// SubsidyCache is a structure that caches calculated values of subsidy so that
-// they're not constantly recalculated. The blockchain struct itself possesses a
-// pointer to a preinitialized SubsidyCache.
-//
-// Deprecated: Use standalone.SubsidyCache instead.
-type SubsidyCache = standalone.SubsidyCache
-
-// NewSubsidyCache initializes a new subsidy cache for a given height. It
-// precalculates the values of the subsidy that are most likely to be seen by
-// the client when it connects to the network.
-//
-// Deprecated: Use standalone.NewSubsidyCache instead.
-func NewSubsidyCache(height int64, params *chaincfg.Params) *SubsidyCache {
-	return standalone.NewSubsidyCache(params)
-}
-
-// CalcBlockWorkSubsidy calculates the proof of work subsidy for a block as a
-// proportion of the total subsidy.
-//
-// Deprecated: Use standalone.SubsidyCache.CalcWorkSubsidy instead.
-func CalcBlockWorkSubsidy(subsidyCache *SubsidyCache, height int64, voters uint16, params *chaincfg.Params) int64 {
-	return subsidyCache.CalcWorkSubsidy(height, voters)
-}
-
-// CalcStakeVoteSubsidy calculates the subsidy for a stake vote based on the height
-// of its input SStx.
-//
-// Safe for concurrent access.
-//
-// Deprecated: Use standalone.SubsidyCache.CalcStakeVoteSubsidy instead.
-func CalcStakeVoteSubsidy(subsidyCache *SubsidyCache, height int64, params *chaincfg.Params) int64 {
-	return subsidyCache.CalcStakeVoteSubsidy(height)
-}
-
-// CalcBlockTaxSubsidy calculates the subsidy for the organization address in the
-// coinbase.
-//
-// Safe for concurrent access.
-//
-// Deprecated: Use standalone.SubsidyCache.CalcTreasurySubsidy instead.
-func CalcBlockTaxSubsidy(subsidyCache *SubsidyCache, height int64, voters uint16, params *chaincfg.Params) int64 {
-	return subsidyCache.CalcTreasurySubsidy(height, voters)
-}
-
 // blockOneCoinbasePaysTokens checks to see if the first block coinbase pays
 // out to the network initial token ledger.
 func blockOneCoinbasePaysTokens(tx *dcrutil.Tx, params *chaincfg.Params) error {
@@ -126,14 +78,6 @@ func blockOneCoinbasePaysTokens(tx *dcrutil.Tx, params *chaincfg.Params) error {
 	return nil
 }
 
-// BlockOneCoinbasePaysTokens checks to see if the first block coinbase pays
-// out to the network initial token ledger.
-//
-// Deprecated: This will be removed in the next major version bump.
-func BlockOneCoinbasePaysTokens(tx *dcrutil.Tx, params *chaincfg.Params) error {
-	return blockOneCoinbasePaysTokens(tx, params)
-}
-
 // coinbasePaysTreasury checks to see if a given block's coinbase correctly pays
 // the treasury.
 func coinbasePaysTreasury(subsidyCache *standalone.SubsidyCache, tx *dcrutil.Tx, height int64, voters uint16, params *chaincfg.Params) error {
@@ -176,14 +120,6 @@ func coinbasePaysTreasury(subsidyCache *standalone.SubsidyCache, tx *dcrutil.Tx,
 	return nil
 }
 
-// CoinbasePaysTax checks to see if a given block's coinbase correctly pays
-// tax to the developer organization.
-//
-// Deprecated:  This will be removed in the next major version.
-func CoinbasePaysTax(subsidyCache *SubsidyCache, tx *dcrutil.Tx, height int64, voters uint16, params *chaincfg.Params) error {
-	return coinbasePaysTreasury(subsidyCache, tx, height, voters, params)
-}
-
 // calculateAddedSubsidy calculates the amount of subsidy added by a block
 // and its parent. The blocks passed to this function MUST be valid blocks
 // that have already been confirmed to abide by the consensus rules of the
@@ -201,14 +137,4 @@ func calculateAddedSubsidy(block, parent *dcrutil.Block) int64 {
 	}
 
 	return subsidy
-}
-
-// CalculateAddedSubsidy calculates the amount of subsidy added by a block
-// and its parent. The blocks passed to this function MUST be valid blocks
-// that have already been confirmed to abide by the consensus rules of the
-// network, or the function might panic.
-//
-// Deprecated:  This will no longer be exported in the next major version.
-func CalculateAddedSubsidy(block, parent *dcrutil.Block) int64 {
-	return calculateAddedSubsidy(block, parent)
 }

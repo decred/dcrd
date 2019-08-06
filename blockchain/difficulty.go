@@ -30,69 +30,6 @@ var (
 	oneLsh256 = new(big.Int).Lsh(bigOne, 256)
 )
 
-// HashToBig converts a chainhash.Hash into a big.Int that can be used to
-// perform math comparisons.
-//
-// Deprecated: Use standalone.HashToBig instead.
-func HashToBig(hash *chainhash.Hash) *big.Int {
-	return standalone.HashToBig(hash)
-}
-
-// CompactToBig converts a compact representation of a whole number N to an
-// unsigned 32-bit number.  The representation is similar to IEEE754 floating
-// point numbers.
-//
-// Like IEEE754 floating point, there are three basic components: the sign,
-// the exponent, and the mantissa.  They are broken out as follows:
-//
-//	* the most significant 8 bits represent the unsigned base 256 exponent
-// 	* bit 23 (the 24th bit) represents the sign bit
-//	* the least significant 23 bits represent the mantissa
-//
-//	-------------------------------------------------
-//	|   Exponent     |    Sign    |    Mantissa     |
-//	-------------------------------------------------
-//	| 8 bits [31-24] | 1 bit [23] | 23 bits [22-00] |
-//	-------------------------------------------------
-//
-// The formula to calculate N is:
-// 	N = (-1^sign) * mantissa * 256^(exponent-3)
-//
-// This compact form is only used in Decred to encode unsigned 256-bit numbers
-// which represent difficulty targets, thus there really is not a need for a
-// sign bit, but it is implemented here to stay consistent with bitcoind.
-//
-// Deprecated: Use standalone.CompactToBig instead.
-func CompactToBig(compact uint32) *big.Int {
-	return standalone.CompactToBig(compact)
-}
-
-// BigToCompact converts a whole number N to a compact representation using
-// an unsigned 32-bit number.  The compact representation only provides 23 bits
-// of precision, so values larger than (2^23 - 1) only encode the most
-// significant digits of the number.  See CompactToBig for details.
-//
-// Deprecated: Use standalone.BigToCompact instead.
-func BigToCompact(n *big.Int) uint32 {
-	return standalone.BigToCompact(n)
-}
-
-// CalcWork calculates a work value from difficulty bits.  Decred increases
-// the difficulty for generating a block by decreasing the value which the
-// generated hash must be less than.  This difficulty target is stored in each
-// block header using a compact representation as described in the documentation
-// for CompactToBig.  The main chain is selected by choosing the chain that has
-// the most proof of work (highest difficulty).  Since a lower target difficulty
-// value equates to higher actual difficulty, the work value which will be
-// accumulated must be the inverse of the difficulty.  Also, in order to avoid
-// potential division by zero and really small floating point numbers, the
-// result adds 1 to the denominator and multiplies the numerator by 2^256.
-//
-// Deprecated: Use standalone.CalcWork instead.
-func CalcWork(bits uint32) *big.Int {
-	return standalone.CalcWork(bits)
-}
-
 // calcEasiestDifficulty calculates the easiest possible difficulty that a block
 // can have given starting difficulty bits and a duration.  It is mainly used to
 // verify that claimed proof of work by a block is sane as compared to a

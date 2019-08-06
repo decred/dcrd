@@ -128,7 +128,7 @@ func TestBlockchainFunctions(t *testing.T) {
 			"TicketsWithAddress; want %v, got %v", expectedLen, len(hs))
 	}
 
-	totalSubsidy := chain.TotalSubsidy()
+	totalSubsidy := chain.BestSnapshot().TotalSubsidy
 	expectedSubsidy := int64(35783267326630)
 	if expectedSubsidy != totalSubsidy {
 		t.Errorf("Failed to get correct total subsidy for "+
