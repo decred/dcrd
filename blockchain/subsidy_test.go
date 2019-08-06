@@ -13,41 +13,52 @@ import (
 
 func TestBlockSubsidy(t *testing.T) {
 	mainnet := &chaincfg.MainNetParams
-	subsidyCache := NewSubsidyCache(0, mainnet)
+	reductionInterval := mainnet.SubsidyReductionInterval
+	stakeValidationHeight := mainnet.StakeValidationHeight
+	votesPerBlock := mainnet.TicketsPerBlock
 
+	// subsidySum returns the sum of the individual subsidy types for the given
+	// height.  Note that this value is not exactly the same as the full subsidy
+	// originally used to calculate the individual proportions due to the use
+	// of integer math.
+	cache := NewSubsidyCache(0, mainnet)
+	subsidySum := func(height int64) int64 {
+		work := CalcBlockWorkSubsidy(cache, height, votesPerBlock, mainnet)
+		vote := CalcStakeVoteSubsidy(cache, height, mainnet) * int64(votesPerBlock)
+		treasury := CalcBlockTaxSubsidy(cache, height, votesPerBlock, mainnet)
+		return work + vote + treasury
+	}
+
+	// Calculate the total possible subsidy.
 	totalSubsidy := mainnet.BlockOneSubsidy()
-	for i := int64(0); ; i++ {
-		// Genesis block or first block.
-		if i == 0 || i == 1 {
+	for reductionNum := int64(0); ; reductionNum++ {
+		// The first interval contains a few special cases:
+		// 1) Block 0 does not produce any subsidy
+		// 2) Block 1 consists of a special initial coin distribution
+		// 3) Votes do not produce subsidy until voting begins
+		if reductionNum == 0 {
+			// Account for the block up to the point voting begins ignoring the
+			// first two special blocks.
+			subsidyCalcHeight := int64(2)
+			nonVotingBlocks := stakeValidationHeight - subsidyCalcHeight
+			totalSubsidy += subsidySum(subsidyCalcHeight) * nonVotingBlocks
+
+			// Account for the blocks remaining in the interval once voting
+			// begins.
+			subsidyCalcHeight = stakeValidationHeight
+			votingBlocks := reductionInterval - subsidyCalcHeight
+			totalSubsidy += subsidySum(subsidyCalcHeight) * votingBlocks
 			continue
 		}
 
-		if i%mainnet.SubsidyReductionInterval == 0 {
-			numBlocks := mainnet.SubsidyReductionInterval
-			// First reduction internal, which is reduction interval - 2
-			// to skip the genesis block and block one.
-			if i == mainnet.SubsidyReductionInterval {
-				numBlocks -= 2
-			}
-			height := i - numBlocks
-
-			work := CalcBlockWorkSubsidy(subsidyCache, height,
-				mainnet.TicketsPerBlock, mainnet)
-			stake := CalcStakeVoteSubsidy(subsidyCache, height,
-				mainnet) * int64(mainnet.TicketsPerBlock)
-			tax := CalcBlockTaxSubsidy(subsidyCache, height,
-				mainnet.TicketsPerBlock, mainnet)
-			if (work + stake + tax) == 0 {
-				break
-			}
-			totalSubsidy += ((work + stake + tax) * numBlocks)
-
-			// First reduction internal, subtract the stake subsidy for
-			// blocks before the staking system is enabled.
-			if i == mainnet.SubsidyReductionInterval {
-				totalSubsidy -= stake * (mainnet.StakeValidationHeight - 2)
-			}
+		// Account for the all other reduction intervals until all subsidy has
+		// been produced.
+		subsidyCalcHeight := reductionNum * reductionInterval
+		sum := subsidySum(subsidyCalcHeight)
+		if sum == 0 {
+			break
 		}
+		totalSubsidy += sum * reductionInterval
 	}
 
 	if totalSubsidy != 2099999999800912 {

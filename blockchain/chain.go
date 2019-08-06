@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/decred/dcrd/blockchain/stake"
+	"github.com/decred/dcrd/blockchain/standalone"
 	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/database"
@@ -150,7 +151,7 @@ type BlockChain struct {
 
 	// subsidyCache is the cache that provides quick lookup of subsidy
 	// values.
-	subsidyCache *SubsidyCache
+	subsidyCache *standalone.SubsidyCache
 
 	// chainLock protects concurrent access to the vast majority of the
 	// fields in this struct below this point.
@@ -749,7 +750,7 @@ func (b *BlockChain) connectBlock(node *blockNode, block, parent *dcrutil.Block,
 	curTotalTxns := b.stateSnapshot.TotalTxns
 	curTotalSubsidy := b.stateSnapshot.TotalSubsidy
 	b.stateLock.RUnlock()
-	subsidy := CalculateAddedSubsidy(block, parent)
+	subsidy := calculateAddedSubsidy(block, parent)
 	numTxns := uint64(len(block.Transactions()) + len(block.STransactions()))
 	blockSize := uint64(block.MsgBlock().Header.Size)
 	state := newBestState(node, blockSize, numTxns, curTotalTxns+numTxns,
@@ -921,7 +922,7 @@ func (b *BlockChain) disconnectBlock(node *blockNode, block, parent *dcrutil.Blo
 	numParentTxns := uint64(len(parent.Transactions()) + len(parent.STransactions()))
 	numBlockTxns := uint64(len(block.Transactions()) + len(block.STransactions()))
 	newTotalTxns := curTotalTxns - numBlockTxns
-	subsidy := CalculateAddedSubsidy(block, parent)
+	subsidy := calculateAddedSubsidy(block, parent)
 	newTotalSubsidy := curTotalSubsidy - subsidy
 	prevNode := node.parent
 	state := newBestState(prevNode, parentBlockSize, numParentTxns,
@@ -2129,7 +2130,7 @@ func New(config *Config) (*BlockChain, error) {
 		}
 	}
 
-	b.subsidyCache = NewSubsidyCache(b.bestChain.Tip().height, b.chainParams)
+	b.subsidyCache = standalone.NewSubsidyCache(&subsidyParams{b.chainParams})
 	b.pruner = newChainPruner(&b)
 
 	// The version 5 database upgrade requires a full reindex.  Perform, or
