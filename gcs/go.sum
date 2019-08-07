@@ -22,6 +22,8 @@ github.com/decred/dcrd/chaincfg/v2 v2.0.2 h1:VeGY52lHuYT01tIGbvYj+OO0GaGxGaJmnh+
 github.com/decred/dcrd/chaincfg/v2 v2.0.2/go.mod h1:hpKvhLCDAD/xDZ3V1Pqpv9fIKVYYi11DyxETguazyvg=
 github.com/decred/dcrd/chaincfg/v2 v2.1.0 h1:2S7TL9YWnKDDiH5bTpp3xcBo+1gl1IXFi5KU4QwSIDk=
 github.com/decred/dcrd/chaincfg/v2 v2.1.0/go.mod h1:hpKvhLCDAD/xDZ3V1Pqpv9fIKVYYi11DyxETguazyvg=
+github.com/decred/dcrd/crypto/blake256 v1.0.0 h1:/8DMNYp9SGi5f0w7uCm6d6M4OU2rGFK09Y2A4Xv7EE0=
+github.com/decred/dcrd/crypto/blake256 v1.0.0/go.mod h1:sQl2p6Y26YV+ZOcSTP6thNdn47hh8kt6rqSlvmrXFAc=
 github.com/decred/dcrd/database v1.0.1 h1:BSIerNf4RhSA0iDhiE/320RYqD2y9T+SCj99Pv7svgo=
 github.com/decred/dcrd/database v1.0.1/go.mod h1:ILCeyOHFew3fZ7K2B9jl+tp5qFOap/pEGoo6Yy6Wk0g=
 github.com/decred/dcrd/database/v2 v2.0.0 h1:KWiyZHk+QyNKQvvxm/KpIejhTqYJqH9ssz1+9sT9nVA=
