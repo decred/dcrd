@@ -4,6 +4,7 @@ go 1.11
 
 require (
 	github.com/btcsuite/winsvc v1.0.0
+	github.com/dchest/blake256 v1.1.0 // indirect
 	github.com/decred/base58 v1.0.0
 	github.com/decred/dcrd/addrmgr v1.0.2
 	github.com/decred/dcrd/blockchain v1.1.1
