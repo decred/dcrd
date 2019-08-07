@@ -180,7 +180,7 @@ The following versioned modules are provided by dcrd repository:
   Decred wire protocol
 * [peer](https://github.com/decred/dcrd/tree/master/peer) - Provides a common
   base for creating and managing Decred network peers
-* [blockchain](https://github.com/decred/dcrd/tree/master/blockchain) -
+* [blockchain/v2](https://github.com/decred/dcrd/tree/master/blockchain) -
   Implements Decred block handling and chain selection rules
   * [stake/v2](https://github.com/decred/dcrd/tree/master/blockchain/stake) -
     Provides an API for working with stake transactions and other portions

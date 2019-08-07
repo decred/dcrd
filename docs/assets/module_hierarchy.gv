@@ -20,7 +20,7 @@ digraph {
 	stake [label="blockchain/stake/v2" fillcolor=bisque]
 	standalone [label="blockchain/standalone" fillcolor=firebrick4]
 	gcs [label="gcs" fillcolor=gold]
-	blockchain [label="blockchain" fillcolor=orchid]
+	blockchain [label="blockchain/v2" fillcolor=orchid]
 	mempool [label="mempool/v2" fillcolor=slategray]
 	mining [label="mining" fillcolor=chartreuse]
 	lru  [label="lru" fillcolor=royalblue3]

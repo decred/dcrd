@@ -222,8 +222,8 @@
 </g>
 <!-- blockchain -->
 <g id="node19" class="node"><title>blockchain</title>
-<path fill="orchid" stroke="black" d="M438,-252C438,-252 385,-252 385,-252 379,-252 373,-246 373,-240 373,-240 373,-228 373,-228 373,-222 379,-216 385,-216 385,-216 438,-216 438,-216 444,-216 450,-222 450,-228 450,-228 450,-240 450,-240 450,-246 444,-252 438,-252"/>
-<text text-anchor="middle" x="411.5" y="-230.3" font-family="Times New Roman,serif" font-size="14.00">blockchain</text>
+<path fill="orchid" stroke="black" d="M447,-252C447,-252 376,-252 376,-252 370,-252 364,-246 364,-240 364,-240 364,-228 364,-228 364,-222 370,-216 376,-216 376,-216 447,-216 447,-216 453,-216 459,-222 459,-228 459,-228 459,-240 459,-240 459,-246 453,-252 447,-252"/>
+<text text-anchor="middle" x="411.5" y="-230.3" font-family="Times New Roman,serif" font-size="14.00">blockchain/v2</text>
 </g>
 <!-- standalone&#45;&gt;blockchain -->
 <g id="edge17" class="edge"><title>standalone&#45;&gt;blockchain</title>
@@ -232,8 +232,8 @@
 </g>
 <!-- gcs&#45;&gt;blockchain -->
 <g id="edge18" class="edge"><title>gcs&#45;&gt;blockchain</title>
-<path fill="none" stroke="gold" d="M502,-277.909C502,-277.909 502,-228 502,-228 502,-228 474.74,-228 450.143,-228"/>
-<polygon fill="gold" stroke="gold" points="498.5,-277.909 502,-287.909 505.5,-277.909 498.5,-277.909"/>
+<path fill="none" stroke="gold" d="M502,-277.831C502,-277.831 502,-234 502,-234 502,-234 480.938,-234 459.135,-234"/>
+<polygon fill="gold" stroke="gold" points="498.5,-277.831 502,-287.831 505.5,-277.831 498.5,-277.831"/>
 </g>
 <!-- gcs&#45;&gt;rpcclient -->
 <g id="edge19" class="edge"><title>gcs&#45;&gt;rpcclient</title>
@@ -247,8 +247,8 @@
 </g>
 <!-- blockchain&#45;&gt;mining -->
 <g id="edge20" class="edge"><title>blockchain&#45;&gt;mining</title>
-<path fill="none" stroke="orchid" d="M389.25,-205.831C389.25,-205.831 389.25,-180.413 389.25,-180.413"/>
-<polygon fill="orchid" stroke="orchid" points="385.75,-205.831 389.25,-215.831 392.75,-205.831 385.75,-205.831"/>
+<path fill="none" stroke="orchid" d="M384.75,-205.831C384.75,-205.831 384.75,-180.413 384.75,-180.413"/>
+<polygon fill="orchid" stroke="orchid" points="381.25,-205.831 384.75,-215.831 388.25,-205.831 381.25,-205.831"/>
 </g>
 <!-- peer -->
 <g id="node23" class="node"><title>peer</title>
@@ -257,8 +257,8 @@
 </g>
 <!-- blockchain&#45;&gt;peer -->
 <g id="edge23" class="edge"><title>blockchain&#45;&gt;peer</title>
-<path fill="none" stroke="orchid" d="M455.207,-240C455.207,-240 455.75,-240 455.75,-240 455.75,-240 455.75,-90 455.75,-90 455.75,-90 458.061,-90 461.455,-90"/>
-<polygon fill="orchid" stroke="orchid" points="460.324,-236.5 450.324,-240 460.324,-243.5 460.324,-236.5"/>
+<path fill="none" stroke="orchid" d="M451.25,-205.762C451.25,-205.762 451.25,-90 451.25,-90 451.25,-90 455.652,-90 461.429,-90"/>
+<polygon fill="orchid" stroke="orchid" points="447.75,-205.762 451.25,-215.762 454.75,-205.762 447.75,-205.762"/>
 </g>
 <!-- mempool -->
 <g id="node20" class="node"><title>mempool</title>
