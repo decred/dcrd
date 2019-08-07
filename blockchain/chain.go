@@ -2013,14 +2013,21 @@ type Config struct {
 	// notifications.
 	Notifications NotificationCallback
 
-	// SigCache defines a signature cache to use when when validating
-	// signatures.  This is typically most useful when individual
-	// transactions are already being validated prior to their inclusion in
-	// a block such as what is usually done via a transaction memory pool.
+	// SigCache defines a signature cache to use when validating signatures.
+	// This is typically most useful when individual transactions are
+	// already being validated prior to their inclusion in a block such as
+	// what is usually done via a transaction memory pool.
 	//
 	// This field can be nil if the caller is not interested in using a
 	// signature cache.
 	SigCache *txscript.SigCache
+
+	// SubsidyCache defines a subsidy cache to use when calculating and
+	// validating block and vote subsidies.
+	//
+	// This field can be nil if the caller is not interested in using a
+	// subsidy cache.
+	SubsidyCache *standalone.SubsidyCache
 
 	// IndexManager defines an index manager to use when initializing the
 	// chain and connecting and disconnecting blocks.
@@ -2097,7 +2104,13 @@ func New(config *Config) (*BlockChain, error) {
 		}
 	}
 
-	b.subsidyCache = standalone.NewSubsidyCache(b.chainParams)
+	// Either use the subsidy cache provided by the caller or create a new
+	// one when one was not provided.
+	subsidyCache := config.SubsidyCache
+	if subsidyCache == nil {
+		subsidyCache = standalone.NewSubsidyCache(b.chainParams)
+	}
+	b.subsidyCache = subsidyCache
 	b.pruner = newChainPruner(&b)
 
 	// The version 5 database upgrade requires a full reindex.  Perform, or
