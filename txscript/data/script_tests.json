@@ -1622,7 +1622,7 @@
 ["-1 3", "RSHIFT -1 EQUAL", "NONE", "OK", "RSHIFT of negative number must shift 1s into the high bits (0xffffffff >> 3)"],
 ["-2147483647 1", "RSHIFT -1073741824 EQUAL", "NONE", "OK", "RSHIFT of negative number must shift 1s into the high bits (0x80000001 >> 1)"],
 ["-2147483647 3", "RSHIFT -268435456 EQUAL", "NONE", "OK", "RSHIFT of negative number must shift 1s into the high bits (0x80000001 >> 3)"],
-["-1431655766 1", "RSHIFT -715827883 EQUAL", "NONE", "OK", "RSHIFT of negative number must shit 1s into the high bits (0xaaaaaaaa >> 1)"],
+["-1431655766 1", "RSHIFT -715827883 EQUAL", "NONE", "OK", "RSHIFT of negative number must shift 1s into the high bits (0xaaaaaaaa >> 1)"],
 ["1431655765 1", "RSHIFT 715827882 EQUAL", "NONE", "OK", "RSHIFT 0x55555555 >> 1"],
 ["", "RSHIFT NOT", "NONE", "ERR_INVALID_STACK_OPERATION", "RSHIFT requires an input value"],
 ["1", "RSHIFT TRUE", "NONE", "ERR_INVALID_STACK_OPERATION", "RSHIFT requires a shift count"],
