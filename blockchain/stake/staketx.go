@@ -706,10 +706,10 @@ func CheckSSGen(tx *wire.MsgTx) error {
 			"many outputs")
 	}
 
-	// Check to make sure there are some outputs.
-	if len(tx.TxOut) == 0 {
-		return stakeRuleError(ErrSSGenNoOutputs, "SSgen tx no "+
-			"many outputs")
+	// Check to make sure there are enough outputs.
+	if len(tx.TxOut) < 2 {
+		return stakeRuleError(ErrSSGenNoOutputs, "SSgen tx does not "+
+			"have enough outputs")
 	}
 
 	// Ensure that the first input is a stake base null input.

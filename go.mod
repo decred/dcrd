@@ -4,11 +4,11 @@ go 1.11
 
 require (
 	github.com/btcsuite/winsvc v1.0.0
-	github.com/dchest/blake256 v1.1.0 // indirect
 	github.com/decred/base58 v1.0.0
 	github.com/decred/dcrd/addrmgr v1.0.2
 	github.com/decred/dcrd/blockchain v1.1.1
 	github.com/decred/dcrd/blockchain/stake v1.2.0
+	github.com/decred/dcrd/blockchain/standalone v1.0.0
 	github.com/decred/dcrd/certgen v1.0.2
 	github.com/decred/dcrd/chaincfg v1.5.1
 	github.com/decred/dcrd/chaincfg/chainhash v1.0.1
@@ -45,6 +45,7 @@ require (
 replace (
 	github.com/decred/dcrd/addrmgr => ./addrmgr
 	github.com/decred/dcrd/blockchain => ./blockchain
+	github.com/decred/dcrd/blockchain/standalone => ./blockchain/standalone
 	github.com/decred/dcrd/certgen => ./certgen
 	github.com/decred/dcrd/chaincfg/chainhash => ./chaincfg/chainhash
 	github.com/decred/dcrd/chaincfg/v2 => ./chaincfg
