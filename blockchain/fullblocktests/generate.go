@@ -13,8 +13,8 @@ import (
 	"math"
 	"time"
 
-	"github.com/decred/dcrd/blockchain"
-	"github.com/decred/dcrd/blockchain/chaingen"
+	"github.com/decred/dcrd/blockchain/v2"
+	"github.com/decred/dcrd/blockchain/v2/chaingen"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/dcrec"
 	"github.com/decred/dcrd/dcrec/secp256k1"

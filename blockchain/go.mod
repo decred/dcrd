@@ -1,4 +1,4 @@
-module github.com/decred/dcrd/blockchain
+module github.com/decred/dcrd/blockchain/v2
 
 go 1.11
 

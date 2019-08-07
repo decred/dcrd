@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/decred/dcrd/blockchain/chaingen"
+	"github.com/decred/dcrd/blockchain/v2/chaingen"
 	"github.com/decred/dcrd/chaincfg/v2"
 )
 
