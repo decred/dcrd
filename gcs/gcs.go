@@ -13,9 +13,9 @@ import (
 	"sort"
 	"sync"
 
+	"github.com/dchest/blake256"
 	"github.com/dchest/siphash"
 	"github.com/decred/dcrd/chaincfg/chainhash"
-	"github.com/decred/dcrd/crypto/blake256"
 )
 
 // Inspired by https://github.com/rasky/gcs
