@@ -653,9 +653,9 @@ func decodeCompressedTxOut(serialized []byte, compressionVersion uint32,
 		// remaining for the compressed script.
 		var compressedAmount uint64
 		compressedAmount, bytesRead = deserializeVLQ(serialized)
-		if bytesRead >= len(serialized) {
+		if bytesRead == 0 {
 			return 0, 0, nil, bytesRead, errDeserialize("unexpected end of " +
-				"data after compressed amount")
+				"data during decoding (compressed amount)")
 		}
 		amount = int64(decompressTxOutAmount(compressedAmount))
 		offset += bytesRead
@@ -664,12 +664,17 @@ func decodeCompressedTxOut(serialized []byte, compressionVersion uint32,
 	// Decode the script version.
 	var scriptVersion uint64
 	scriptVersion, bytesRead = deserializeVLQ(serialized[offset:])
+	if bytesRead == 0 {
+		return 0, 0, nil, offset, errDeserialize("unexpected end of " +
+			"data during decoding (script version)")
+	}
 	offset += bytesRead
 
 	// Decode the compressed script size and ensure there are enough bytes
 	// left in the slice for it.
 	scriptSize := decodeCompressedScriptSize(serialized[offset:],
 		compressionVersion)
+	// Note: scriptSize == 0 is OK (an empty compressed script is valid)
 	if scriptSize < 0 {
 		return 0, 0, nil, offset, errDeserialize("negative script size")
 	}
