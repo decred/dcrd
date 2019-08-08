@@ -4,14 +4,17 @@ go 1.11
 
 require (
 	github.com/btcsuite/winsvc v1.0.0
+	github.com/dchest/blake256 v1.1.0 // indirect
 	github.com/decred/base58 v1.0.0
 	github.com/decred/dcrd/addrmgr v1.0.2
 	github.com/decred/dcrd/blockchain v1.1.1
-	github.com/decred/dcrd/blockchain/stake v1.2.0
+	github.com/decred/dcrd/blockchain/stake v1.2.1
+	github.com/decred/dcrd/blockchain/stake/v2 v2.0.1
 	github.com/decred/dcrd/blockchain/standalone v1.0.0
-	github.com/decred/dcrd/certgen v1.0.2
-	github.com/decred/dcrd/chaincfg v1.5.1
-	github.com/decred/dcrd/chaincfg/chainhash v1.0.1
+	github.com/decred/dcrd/certgen v1.1.0
+	github.com/decred/dcrd/chaincfg v1.5.2
+	github.com/decred/dcrd/chaincfg/chainhash v1.0.2
+	github.com/decred/dcrd/chaincfg/v2 v2.2.0
 	github.com/decred/dcrd/connmgr v1.0.2
 	github.com/decred/dcrd/crypto/blake256 v1.0.0
 	github.com/decred/dcrd/database v1.1.0
@@ -21,9 +24,10 @@ require (
 	github.com/decred/dcrd/dcrjson/v2 v2.2.0
 	github.com/decred/dcrd/dcrjson/v3 v3.0.0
 	github.com/decred/dcrd/dcrutil v1.4.0
+	github.com/decred/dcrd/dcrutil/v2 v2.0.0
 	github.com/decred/dcrd/fees v1.0.0
-	github.com/decred/dcrd/gcs v1.0.2
-	github.com/decred/dcrd/hdkeychain/v2 v2.0.0
+	github.com/decred/dcrd/gcs v1.1.0
+	github.com/decred/dcrd/hdkeychain/v2 v2.0.1
 	github.com/decred/dcrd/lru v1.0.0
 	github.com/decred/dcrd/mempool/v2 v2.0.0
 	github.com/decred/dcrd/mining v1.1.0
@@ -31,8 +35,9 @@ require (
 	github.com/decred/dcrd/rpc/jsonrpc/types v1.0.0
 	github.com/decred/dcrd/rpcclient/v3 v3.0.0
 	github.com/decred/dcrd/txscript v1.1.0
+	github.com/decred/dcrd/txscript/v2 v2.0.0
 	github.com/decred/dcrd/wire v1.2.0
-	github.com/decred/dcrwallet/rpc/jsonrpc/types v1.1.0
+	github.com/decred/dcrwallet/rpc/jsonrpc/types v1.2.0
 	github.com/decred/go-socks v1.0.0
 	github.com/decred/slog v1.0.0
 	github.com/gorilla/websocket v1.4.0

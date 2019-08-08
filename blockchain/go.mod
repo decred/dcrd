@@ -9,8 +9,8 @@ require (
 	github.com/decred/dcrd/chaincfg/chainhash v1.0.1
 	github.com/decred/dcrd/database v1.0.3
 	github.com/decred/dcrd/dcrec v1.0.0
-	github.com/decred/dcrd/dcrec/secp256k1 v1.0.1
-	github.com/decred/dcrd/dcrutil v1.2.0
+	github.com/decred/dcrd/dcrec/secp256k1 v1.0.2
+	github.com/decred/dcrd/dcrutil v1.3.0
 	github.com/decred/dcrd/gcs v1.0.2
 	github.com/decred/dcrd/txscript v1.1.0
 	github.com/decred/dcrd/wire v1.2.0
