@@ -213,8 +213,8 @@ The following versioned modules are provided by dcrd repository:
   encrypting RPC and websocket communications
 * [addrmgr](https://github.com/decred/dcrd/tree/master/addrmgr) - Provides a
   concurrency safe Decred network address manager
-* [connmgr](https://github.com/decred/dcrd/tree/master/connmgr) - Implements a
-  generic Decred network connection manager
+* [connmgr/v2](https://github.com/decred/dcrd/tree/master/connmgr) - Implements
+  a generic Decred network connection manager
 * [hdkeychain/v2](https://github.com/decred/dcrd/tree/master/hdkeychain) -
   Provides an API for working with  Decred hierarchical deterministic extended
   keys
