@@ -1,4 +1,5 @@
 // Copyright (c) 2016 The btcsuite developers
+// Copyright (c) 2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -8,10 +9,8 @@ import (
 	"fmt"
 	mrand "math/rand"
 	"net"
-	"strconv"
 	"time"
 
-	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -23,20 +22,18 @@ const (
 )
 
 // OnSeed is the signature of the callback function which is invoked when DNS
-// seeding is succesfull.
+// seeding is successful.
 type OnSeed func(addrs []*wire.NetAddress)
 
 // LookupFunc is the signature of the DNS lookup function.
 type LookupFunc func(string) ([]net.IP, error)
 
 // SeedFromDNS uses DNS seeding to populate the address manager with peers.
-func SeedFromDNS(chainParams *chaincfg.Params, reqServices wire.ServiceFlag, lookupFn LookupFunc, seedFn OnSeed) {
-	for _, dnsseed := range chainParams.DNSSeeds {
-		var host string
-		if !dnsseed.HasFiltering || reqServices == wire.SFNodeNetwork {
-			host = dnsseed.Host
-		} else {
-			host = fmt.Sprintf("x%x.%s", uint64(reqServices), dnsseed.Host)
+func SeedFromDNS(dnsSeeds []string, defaultPort uint16, reqServices wire.ServiceFlag, lookupFn LookupFunc, seedFn OnSeed) {
+	for _, seed := range dnsSeeds {
+		host := seed
+		if reqServices != wire.SFNodeNetwork {
+			host = fmt.Sprintf("x%x.%s", uint64(reqServices), seed)
 		}
 
 		go func(host string) {
@@ -56,7 +53,6 @@ func SeedFromDNS(chainParams *chaincfg.Params, reqServices wire.ServiceFlag, loo
 			}
 			addresses := make([]*wire.NetAddress, len(seedpeers))
 			// if this errors then we have *real* problems
-			intPort, _ := strconv.Atoi(chainParams.DefaultPort)
 			for i, peer := range seedpeers {
 				addresses[i] = wire.NewNetAddressTimestamp(
 					// bitcoind seeds with addresses from
@@ -64,7 +60,7 @@ func SeedFromDNS(chainParams *chaincfg.Params, reqServices wire.ServiceFlag, loo
 					// and 7 days ago.
 					time.Now().Add(-1*time.Second*time.Duration(secondsIn3Days+
 						randSource.Int31n(secondsIn4Days))),
-					0, peer, uint16(intPort))
+					0, peer, defaultPort)
 			}
 
 			seedFn(addresses)
