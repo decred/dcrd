@@ -33,6 +33,8 @@ github.com/decred/dcrd/chaincfg v1.5.1 h1:u1Xbq0VTnAXIHW5ECqrWe0VYSgf5vWHqpSiwoL
 github.com/decred/dcrd/chaincfg v1.5.1/go.mod h1:FukMzTjkwzjPU+hK7CqDMQe3NMbSZAYU5PAcsx1wlv0=
 github.com/decred/dcrd/chaincfg v1.5.2 h1:dd6l9rqcpxg2GF5neBmE2XxRc5Lqda45fWmN4XOJRW8=
 github.com/decred/dcrd/chaincfg v1.5.2/go.mod h1:FukMzTjkwzjPU+hK7CqDMQe3NMbSZAYU5PAcsx1wlv0=
+github.com/decred/dcrd/connmgr v1.1.0 h1:JtKI3XjHOlJktaoZupxz8FKEKj/dqGFYJOF+vD/4ydQ=
+github.com/decred/dcrd/connmgr v1.1.0/go.mod h1:LepSJ1qu+cnY6nmUdiVUsX/NTFcd73FNEegrY7wuEpU=
 github.com/decred/dcrd/database v1.0.1/go.mod h1:ILCeyOHFew3fZ7K2B9jl+tp5qFOap/pEGoo6Yy6Wk0g=
 github.com/decred/dcrd/database v1.0.3/go.mod h1:TLxRwIV8x85+dxPTLAWu4mHg45TkKrrza5xzwOS1QtA=
 github.com/decred/dcrd/database v1.1.0 h1:A9doThqEjOiE8NicDbMmRwr74itM47rcOzzWpy+keYU=
