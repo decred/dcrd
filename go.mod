@@ -16,6 +16,7 @@ require (
 	github.com/decred/dcrd/chaincfg/chainhash v1.0.2
 	github.com/decred/dcrd/chaincfg/v2 v2.2.0
 	github.com/decred/dcrd/connmgr v1.1.0
+	github.com/decred/dcrd/connmgr/v2 v2.0.0-00010101000000-000000000000
 	github.com/decred/dcrd/crypto/blake256 v1.0.0
 	github.com/decred/dcrd/database v1.1.0
 	github.com/decred/dcrd/database/v2 v2.0.0
@@ -56,6 +57,7 @@ replace (
 	github.com/decred/dcrd/certgen => ./certgen
 	github.com/decred/dcrd/chaincfg/chainhash => ./chaincfg/chainhash
 	github.com/decred/dcrd/chaincfg/v2 => ./chaincfg
+	github.com/decred/dcrd/connmgr/v2 => ./connmgr
 	github.com/decred/dcrd/crypto/blake256 => ./crypto/blake256
 	github.com/decred/dcrd/database/v2 => ./database
 	github.com/decred/dcrd/dcrec => ./dcrec
