@@ -60,6 +60,8 @@ github.com/decred/dcrd/dcrutil v1.4.0/go.mod h1:Bs74gm1jQ9ZAbmEh9FWOEZ1HQzlMg5iP
 github.com/decred/dcrd/mining v1.1.0/go.mod h1:NQEtX604XgNwKcPFId1hVTTiBqmVQDlnqV1yNqGl4oU=
 github.com/decred/dcrd/mining v1.1.1 h1:kZvXfq6rE7HQUJqtbS9TmZM+B2Gs0DuzBvNzaw9meGI=
 github.com/decred/dcrd/mining v1.1.1/go.mod h1:0/vByjMDaXR3VRCoONgzqORV0mplgQ2mDWyiVXroc6Q=
+github.com/decred/dcrd/peer v1.2.0 h1:PGAeufm/GAa7wscnDGWEwAtkjjo3giZ1E887eb6j3XA=
+github.com/decred/dcrd/peer v1.2.0/go.mod h1:zuojGD0m0s1KG5dwaS402Y+8oZA0S+0C1XNg5EpMPwc=
 github.com/decred/dcrd/rpcclient/v3 v3.0.0 h1:doabWkWWd8O6ccYqaLamE1mkQ5p8YoO5UJhkl5pAGpQ=
 github.com/decred/dcrd/rpcclient/v3 v3.0.0/go.mod h1:OQ361/iQMrJtWIg+S0XpZT4/AA6mU/46oOkBRWp/P/s=
 github.com/decred/dcrd/txscript v1.0.1/go.mod h1:FqUX07Y+u3cJ1eIGPoyWbJg+Wk1NTllln/TyDpx9KnY=
