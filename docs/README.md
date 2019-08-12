@@ -178,7 +178,7 @@ The following versioned modules are provided by dcrd repository:
   return values, and notifications
 * [wire](https://github.com/decred/dcrd/tree/master/wire) - Implements the
   Decred wire protocol
-* [peer](https://github.com/decred/dcrd/tree/master/peer) - Provides a common
+* [peer/v2](https://github.com/decred/dcrd/tree/master/peer) - Provides a common
   base for creating and managing Decred network peers
 * [blockchain/v2](https://github.com/decred/dcrd/tree/master/blockchain) -
   Implements Decred block handling and chain selection rules
