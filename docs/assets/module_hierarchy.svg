@@ -242,13 +242,13 @@
 </g>
 <!-- mining -->
 <g id="node21" class="node"><title>mining</title>
-<path fill="chartreuse" stroke="black" d="M393.5,-180C393.5,-180 363.5,-180 363.5,-180 357.5,-180 351.5,-174 351.5,-168 351.5,-168 351.5,-156 351.5,-156 351.5,-150 357.5,-144 363.5,-144 363.5,-144 393.5,-144 393.5,-144 399.5,-144 405.5,-150 405.5,-156 405.5,-156 405.5,-168 405.5,-168 405.5,-174 399.5,-180 393.5,-180"/>
-<text text-anchor="middle" x="378.5" y="-158.3" font-family="Times New Roman,serif" font-size="14.00">mining</text>
+<path fill="chartreuse" stroke="black" d="M393,-180C393,-180 346,-180 346,-180 340,-180 334,-174 334,-168 334,-168 334,-156 334,-156 334,-150 340,-144 346,-144 346,-144 393,-144 393,-144 399,-144 405,-150 405,-156 405,-156 405,-168 405,-168 405,-174 399,-180 393,-180"/>
+<text text-anchor="middle" x="369.5" y="-158.3" font-family="Times New Roman,serif" font-size="14.00">mining/v2</text>
 </g>
 <!-- blockchain&#45;&gt;mining -->
 <g id="edge20" class="edge"><title>blockchain&#45;&gt;mining</title>
-<path fill="none" stroke="orchid" d="M384.75,-205.831C384.75,-205.831 384.75,-180.413 384.75,-180.413"/>
-<polygon fill="orchid" stroke="orchid" points="381.25,-205.831 384.75,-215.831 388.25,-205.831 381.25,-205.831"/>
+<path fill="none" stroke="orchid" d="M384.5,-205.831C384.5,-205.831 384.5,-180.413 384.5,-180.413"/>
+<polygon fill="orchid" stroke="orchid" points="381,-205.831 384.5,-215.831 388,-205.831 381,-205.831"/>
 </g>
 <!-- peer -->
 <g id="node23" class="node"><title>peer</title>
@@ -272,8 +272,8 @@
 </g>
 <!-- mining&#45;&gt;mempool -->
 <g id="edge21" class="edge"><title>mining&#45;&gt;mempool</title>
-<path fill="none" stroke="chartreuse" d="M381.5,-133.831C381.5,-133.831 381.5,-108.413 381.5,-108.413"/>
-<polygon fill="chartreuse" stroke="chartreuse" points="378,-133.831 381.5,-143.831 385,-133.831 378,-133.831"/>
+<path fill="none" stroke="chartreuse" d="M381.25,-133.831C381.25,-133.831 381.25,-108.413 381.25,-108.413"/>
+<polygon fill="chartreuse" stroke="chartreuse" points="377.75,-133.831 381.25,-143.831 384.75,-133.831 377.75,-133.831"/>
 </g>
 <!-- lru -->
 <g id="node22" class="node"><title>lru</title>
