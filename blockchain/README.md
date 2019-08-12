@@ -67,17 +67,7 @@ is by no means exhaustive:
   attempts to insert a duplicate genesis block to illustrate how an invalid
   block is handled.
 
-* [CompactToBig Example](https://godoc.org/github.com/decred/dcrd/blockchain#example-CompactToBig)
-  Demonstrates how to convert the compact "bits" in a block header which
-  represent the target difficulty to a big integer and display it using the
-  typical hex notation.
-
-* [BigToCompact Example](https://godoc.org/github.com/decred/dcrd/blockchain#example-BigToCompact)
-  Demonstrates how to convert how to convert a target difficulty into the
-  compact "bits" in a block header which represent that target difficulty.
-
 ## License
-
 
 Package blockchain is licensed under the [copyfree](http://copyfree.org) ISC
 License.

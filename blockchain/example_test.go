@@ -7,7 +7,6 @@ package blockchain_test
 
 import (
 	"fmt"
-	"math/big"
 	"os"
 	"path/filepath"
 
@@ -75,38 +74,4 @@ func ExampleBlockChain_ProcessBlock() {
 	// updated if the mainnet genesis block is updated.
 	// Output:
 	// Failed to process block: already have block 267a53b5ee86c24a48ec37aee4f4e7c0c4004892b7259e695e9f5b321f1ab9d2
-}
-
-// This example demonstrates how to convert the compact "bits" in a block header
-// which represent the target difficulty to a big integer and display it using
-// the typical hex notation.
-func ExampleCompactToBig() {
-	// Convert the bits from block 300000 in the main Decred block chain.
-	bits := uint32(419465580)
-	targetDifficulty := blockchain.CompactToBig(bits)
-
-	// Display it in hex.
-	fmt.Printf("%064x\n", targetDifficulty.Bytes())
-
-	// Output:
-	// 0000000000000000896c00000000000000000000000000000000000000000000
-}
-
-// This example demonstrates how to convert a target difficulty into the compact
-// "bits" in a block header which represent that target difficulty .
-func ExampleBigToCompact() {
-	// Convert the target difficulty from block 300000 in the main block
-	// chain to compact form.
-	t := "0000000000000000896c00000000000000000000000000000000000000000000"
-	targetDifficulty, success := new(big.Int).SetString(t, 16)
-	if !success {
-		fmt.Println("invalid target difficulty")
-		return
-	}
-	bits := blockchain.BigToCompact(targetDifficulty)
-
-	fmt.Println(bits)
-
-	// Output:
-	// 419465580
 }
