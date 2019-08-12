@@ -263,7 +263,7 @@
 <!-- mempool -->
 <g id="node20" class="node"><title>mempool</title>
 <path fill="slategray" stroke="black" d="M448.5,-108C448.5,-108 386.5,-108 386.5,-108 380.5,-108 374.5,-102 374.5,-96 374.5,-96 374.5,-84 374.5,-84 374.5,-78 380.5,-72 386.5,-72 386.5,-72 448.5,-72 448.5,-72 454.5,-72 460.5,-78 460.5,-84 460.5,-84 460.5,-96 460.5,-96 460.5,-102 454.5,-108 448.5,-108"/>
-<text text-anchor="middle" x="417.5" y="-86.3" font-family="Times New Roman,serif" font-size="14.00">mempool/v2</text>
+<text text-anchor="middle" x="417.5" y="-86.3" font-family="Times New Roman,serif" font-size="14.00">mempool/v3</text>
 </g>
 <!-- mempool&#45;&gt;dcrd -->
 <g id="edge27" class="edge"><title>mempool&#45;&gt;dcrd</title>

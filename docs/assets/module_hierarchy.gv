@@ -21,7 +21,7 @@ digraph {
 	standalone [label="blockchain/standalone" fillcolor=firebrick4]
 	gcs [label="gcs" fillcolor=gold]
 	blockchain [label="blockchain/v2" fillcolor=orchid]
-	mempool [label="mempool/v2" fillcolor=slategray]
+	mempool [label="mempool/v3" fillcolor=slategray]
 	mining [label="mining/v2" fillcolor=chartreuse]
 	lru  [label="lru" fillcolor=royalblue3]
 	peer [label="peer/v2" fillcolor=khaki]
