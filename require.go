@@ -19,5 +19,6 @@ import (
 	_ "github.com/decred/dcrd/crypto/blake256"
 	_ "github.com/decred/dcrd/database/v2"
 	_ "github.com/decred/dcrd/dcrutil/v2"
+	_ "github.com/decred/dcrd/peer/v2"
 	_ "github.com/decred/dcrd/txscript/v2"
 )

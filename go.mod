@@ -4,7 +4,6 @@ go 1.11
 
 require (
 	github.com/btcsuite/winsvc v1.0.0
-	github.com/dchest/blake256 v1.1.0 // indirect
 	github.com/decred/base58 v1.0.0
 	github.com/decred/dcrd/addrmgr v1.0.2
 	github.com/decred/dcrd/blockchain v1.2.0
@@ -33,6 +32,7 @@ require (
 	github.com/decred/dcrd/mempool/v2 v2.0.0
 	github.com/decred/dcrd/mining v1.1.1
 	github.com/decred/dcrd/peer v1.2.0
+	github.com/decred/dcrd/peer/v2 v2.0.0
 	github.com/decred/dcrd/rpc/jsonrpc/types v1.0.0
 	github.com/decred/dcrd/rpcclient/v3 v3.0.0
 	github.com/decred/dcrd/txscript v1.1.0
@@ -69,6 +69,7 @@ replace (
 	github.com/decred/dcrd/limits => ./limits
 	github.com/decred/dcrd/lru => ./lru
 	github.com/decred/dcrd/mempool/v2 => ./mempool
+	github.com/decred/dcrd/peer/v2 => ./peer
 	github.com/decred/dcrd/rpc/jsonrpc/types => ./rpc/jsonrpc/types
 	github.com/decred/dcrd/txscript/v2 => ./txscript
 	github.com/decred/dcrd/wire => ./wire
