@@ -15,7 +15,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/wire"
 	"github.com/decred/go-socks/socks"
@@ -763,25 +762,13 @@ func TestNetFallback(t *testing.T) {
 		Services:         0,
 	}
 
-	// Ensure testnet is used when neither params nor network is specified.
+	// Ensure testnet is used when the network is not specified.
 	p := NewInboundPeer(&cfg)
 	if p.cfg.Net != wire.TestNet3 {
 		t.Fatalf("default network is %v instead of testnet3", p.cfg.Net)
 	}
 
-	// Ensure network is set to the value associated with chain params when
-	// they are specified and there is no network override specified.
-	chainParams := &chaincfg.MainNetParams
-	cfg.ChainParams = chainParams
-	p = NewInboundPeer(&cfg)
-	if p.cfg.Net != chainParams.Net {
-		t.Fatalf("chainparams fallbase network is %v instead of %v", p.cfg.Net,
-			chainParams.Net)
-	}
-
-	// Ensure network is set to the explicitly specified value even when there
-	// are also different chain params specified.
-	cfg.ChainParams = chainParams
+	// Ensure network is set to the explicitly specified value.
 	cfg.Net = wire.SimNet
 	p = NewInboundPeer(&cfg)
 	if p.cfg.Net != wire.SimNet {
