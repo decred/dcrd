@@ -141,7 +141,6 @@ type memPoolTxDesc struct {
 	addedHeight int64
 	bucketIndex int32
 	fees        feeRate
-	isTicket    bool
 }
 
 // Estimator tracks historical data for published and mined transactions in
@@ -802,7 +801,6 @@ func (stats *Estimator) AddMemPoolTransaction(txHash *chainhash.Hash, fee, size 
 		addedHeight: stats.bestHeight,
 		bucketIndex: stats.lowerBucket(rate),
 		fees:        rate,
-		isTicket:    txType == stake.TxTypeSStx,
 	}
 	stats.memPoolTxs[*txHash] = tx
 	stats.newMemPoolTx(tx.bucketIndex, rate)
@@ -858,18 +856,6 @@ func (stats *Estimator) processMinedTransaction(blockHeight int64, txh *chainhas
 	}
 
 	mineDelay := int32(blockHeight - desc.addedHeight)
-
-	if desc.isTicket && mineDelay > 1 {
-		// This is needed due to tickets being published along with a split
-		// transaction which causes them to take one additional block to confirm
-		// after entering the mempool. Technically, the mempool should have been
-		// tracking tickets (and other chains of dependent transactions) in such
-		// a way as to not make them part of the mempool until the conditions
-		// for them being mineable were met. Once this is fixed in the mempool
-		// code, this can be dropped.
-		mineDelay--
-	}
-
 	log.Debugf("Processing mined tx %s (rate %.8f, delay %d)", txh,
 		desc.fees/1e8, mineDelay)
 	stats.newMinedTx(mineDelay, desc.fees)

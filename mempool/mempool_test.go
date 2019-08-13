@@ -813,7 +813,14 @@ func testPoolMembership(tc *testContext, tx *dcrutil.Tx, inOrphanPool, inTxPool 
 
 	gotHaveTx := tc.harness.txPool.HaveTransaction(txHash)
 	wantHaveTx := inOrphanPool || inTxPool
-	if wantHaveTx != gotHaveTx {
+	gotTxStaged := tc.harness.txPool.isTransactionStaged(txHash)
+	if gotTxStaged && (gotOrphanPool || gotTxPool) {
+		_, file, line, _ := runtime.Caller(1)
+		tc.t.Fatalf("%s:%d -- HaveTransaction: tx exists "+
+			"in multiple pools. staged: %v, txpool: %v, orphan: %v",
+			file, line, gotTxStaged, gotTxPool, gotOrphanPool)
+	}
+	if wantHaveTx != gotHaveTx && !gotTxStaged {
 		_, file, line, _ := runtime.Caller(1)
 		tc.t.Fatalf("%s:%d -- HaveTransaction: want %v, got %v", file,
 			line, wantHaveTx, gotHaveTx)
@@ -934,7 +941,29 @@ func TestTicketPurchaseOrphan(t *testing.T) {
 			err)
 	}
 	testPoolMembership(tc, tx, false, true)
+	testPoolMembership(tc, ticket, false, false)
+
+	// Remove the transaction from the mempool. This causes the ticket
+	// in the stage pool to enter the mempool.
+	harness.AddFakeUTXO(tx, int64(ticket.MsgTx().TxIn[0].BlockHeight))
+	harness.txPool.RemoveTransaction(tx, false)
+	harness.txPool.MaybeAcceptDependents(tx)
+
+	testPoolMembership(tc, tx, false, false)
 	testPoolMembership(tc, ticket, false, true)
+
+	// Add the transaction back to the mempool to ensure it
+	// kicks the ticket out to the stage pool.
+	harness.AddFakeUTXO(tx, int64(mining.UnminedHeight))
+	harness.chain.utxos.LookupEntry(tx.Hash()).SpendOutput(0)
+	_, err = harness.txPool.MaybeAcceptTransaction(tx, false, false)
+	if err != nil {
+		t.Fatalf("ProcessTransaction: failed to accept valid transaction %v",
+			err)
+	}
+
+	testPoolMembership(tc, tx, false, true)
+	testPoolMembership(tc, ticket, false, false)
 }
 
 // TestVoteOrphan ensures that votes are orphaned when referenced outputs
@@ -1003,7 +1032,7 @@ func TestVoteOrphan(t *testing.T) {
 			err)
 	}
 	testPoolMembership(tc, tx, false, true)
-	testPoolMembership(tc, ticket, false, true)
+	testPoolMembership(tc, ticket, false, false)
 	testPoolMembership(tc, vote, false, true)
 }
 
@@ -1076,7 +1105,7 @@ func TestRevocationOrphan(t *testing.T) {
 			err)
 	}
 	testPoolMembership(tc, tx, false, true)
-	testPoolMembership(tc, ticket, false, true)
+	testPoolMembership(tc, ticket, false, false)
 	testPoolMembership(tc, revocation, false, true)
 }
 
@@ -1136,6 +1165,7 @@ func TestOrphanReject(t *testing.T) {
 
 		// Ensure the transaction is not in the orphan pool, not in the
 		// transaction pool, and not reported as available
+		testPoolMembership(tc, tx, false, false)
 		testPoolMembership(tc, tx, false, false)
 	}
 }
@@ -2130,4 +2160,125 @@ func TestMempoolDoubleSpend(t *testing.T) {
 	}
 	testPoolMembership(tc, tx, false, true)
 	testPoolMembership(tc, doubleSpendTx, false, false)
+}
+
+// TestFetchTransaction ensures that a ticket which spends an output in the
+// mempool is returned by FetchTransaction.
+func TestFetchTransaction(t *testing.T) {
+	t.Parallel()
+
+	harness, spendableOuts, err := newPoolHarness(chaincfg.MainNetParams())
+	if err != nil {
+		t.Fatalf("unable to create test pool: %v", err)
+	}
+	tc := &testContext{t, harness}
+
+	// Create a regular transaction from the first spendable output provided by
+	// the harness.
+	tx, err := harness.CreateTx(spendableOuts[0])
+	if err != nil {
+		t.Fatalf("unable to create transaction: %v", err)
+	}
+
+	// Ensure the transaction is accepted to the pool.
+	_, err = harness.txPool.ProcessTransaction(tx, true, false, true, 0)
+	if err != nil {
+		t.Fatalf("ProcessTransaction: failed to accept initial tx: %v", err)
+	}
+
+	// Create a ticket purchase transaction spending the outputs of the
+	// prior regular transaction.
+	ticket, err := harness.CreateTicketPurchase(tx, 40000)
+	if err != nil {
+		t.Fatalf("unable to create ticket purchase transaction %v", err)
+	}
+
+	// Ensure the ticket purchase is accepted into the stage pool.
+	_, err = harness.txPool.ProcessTransaction(ticket, true,
+		false, true, 0)
+	if err != nil {
+		t.Fatalf("ProcessTransaction: failed to accept valid ticket %v", err)
+	}
+
+	// ticket should have been accepted but not exist in orphan or main pool.
+	testPoolMembership(tc, ticket, false, false)
+
+	// FetchTransaction should still find the ticket, despite it not
+	// existing in either pool.
+	foundTx, err := harness.txPool.FetchTransaction(ticket.Hash())
+	if err != nil {
+		t.Fatalf("FetchTransaction: failed to retrieve tx: %v", err)
+	}
+
+	if ticket.Hash() != foundTx.Hash() {
+		t.Fatalf("FetchTransaction: expected ticket %v "+
+			"but got %v", ticket.Hash(), foundTx.Hash())
+	}
+}
+
+// TestRemoveDoubleSpends verifies that a ticket in the stage pool that has a
+// double-spent input due to a reorg is removed from the stage pool.
+func TestRemoveDoubleSpends(t *testing.T) {
+	t.Parallel()
+
+	harness, spendableOuts, err := newPoolHarness(chaincfg.MainNetParams())
+	if err != nil {
+		t.Fatalf("unable to create test pool: %v", err)
+	}
+	tc := &testContext{t, harness}
+
+	// Create a regular transaction from the first spendable output provided by
+	// the harness.
+	baseTx, err := harness.CreateTx(spendableOuts[0])
+	if err != nil {
+		t.Fatalf("unable to create transaction: %v", err)
+	}
+
+	// Ensure the transaction is accepted to the pool.
+	_, err = harness.txPool.ProcessTransaction(baseTx, true, false, true, 0)
+	if err != nil {
+		t.Fatalf("ProcessTransaction: failed to accept initial tx: %v", err)
+	}
+
+	// Create a regular transaction that spends from an input in the
+	// baseTx and add it to the mempool.
+	baseTxOut := txOutToSpendableOut(baseTx, 0, wire.TxTreeRegular)
+	doubleSpendTx, err := harness.CreateTx(baseTxOut)
+	if err != nil {
+		t.Fatalf("unable to create transaction: %v", err)
+	}
+
+	// Create a ticket purchase transaction spending the outputs of the
+	// base regular transaction.
+	ticket, err := harness.CreateTicketPurchase(baseTx, 40000)
+	if err != nil {
+		t.Fatalf("unable to create ticket purchase transaction %v", err)
+	}
+
+	// Ensure the ticket purchase is accepted as staged.
+	_, err = harness.txPool.ProcessTransaction(ticket, true,
+		false, true, 0)
+	if err != nil {
+		t.Fatalf("ProcessTransaction: failed to accept valid ticket %v", err)
+	}
+
+	testPoolMembership(tc, ticket, false, false)
+
+	// FetchTransaction should find the ticket, despite it not
+	// existing in either the main or orphan pool.
+	_, err = harness.txPool.FetchTransaction(ticket.Hash())
+	if err != nil {
+		t.Fatalf("FetchTransaction: failed to retrieve tx: %v", err)
+	}
+
+	// If a staged transaction double-spends an input due to a reorg,
+	// it should be removed from the stage pool.
+	tc.harness.txPool.RemoveDoubleSpends(doubleSpendTx)
+
+	// FetchTransaction should not be able to retrieve the ticket anymore.
+	_, err = harness.txPool.FetchTransaction(ticket.Hash())
+	if err == nil {
+		t.Fatalf("FetchTransaction: expected dependent transaction %v to not "+
+			"exist in pool.", ticket.Hash())
+	}
 }
