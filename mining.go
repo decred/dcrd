@@ -16,13 +16,14 @@ import (
 	"sync"
 	"time"
 
-	"github.com/decred/dcrd/blockchain"
-	"github.com/decred/dcrd/blockchain/stake"
-	"github.com/decred/dcrd/chaincfg"
+	"github.com/decred/dcrd/blockchain/stake/v2"
+	"github.com/decred/dcrd/blockchain/standalone"
+	"github.com/decred/dcrd/blockchain/v2"
 	"github.com/decred/dcrd/chaincfg/chainhash"
-	"github.com/decred/dcrd/dcrutil"
-	"github.com/decred/dcrd/mining"
-	"github.com/decred/dcrd/txscript"
+	"github.com/decred/dcrd/chaincfg/v2"
+	"github.com/decred/dcrd/dcrutil/v2"
+	"github.com/decred/dcrd/mining/v2"
+	"github.com/decred/dcrd/txscript/v2"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -501,8 +502,7 @@ func UpdateExtraNonce(msgBlock *wire.MsgBlock, blockHeight int64, extraNonce uin
 
 	// Recalculate the merkle root with the updated extra nonce.
 	block := dcrutil.NewBlockDeepCopyCoinbase(msgBlock)
-	merkles := blockchain.BuildMerkleTreeStore(block.Transactions())
-	msgBlock.Header.MerkleRoot = *merkles[len(merkles)-1]
+	msgBlock.Header.MerkleRoot = calcTxTreeMerkleRoot(block.Transactions())
 	return nil
 }
 
@@ -512,7 +512,7 @@ func UpdateExtraNonce(msgBlock *wire.MsgBlock, blockHeight int64, extraNonce uin
 //
 // See the comment for NewBlockTemplate for more information about why the nil
 // address handling is useful.
-func createCoinbaseTx(subsidyCache *blockchain.SubsidyCache, coinbaseScript []byte, opReturnPkScript []byte, nextBlockHeight int64, addr dcrutil.Address, voters uint16, params *chaincfg.Params) (*dcrutil.Tx, error) {
+func createCoinbaseTx(subsidyCache *standalone.SubsidyCache, coinbaseScript []byte, opReturnPkScript []byte, nextBlockHeight int64, addr dcrutil.Address, voters uint16, params *chaincfg.Params) (*dcrutil.Tx, error) {
 	tx := wire.NewMsgTx()
 	tx.AddTxIn(&wire.TxIn{
 		// Coinbase transactions have no inputs, so previous outpoint is
@@ -527,25 +527,11 @@ func createCoinbaseTx(subsidyCache *blockchain.SubsidyCache, coinbaseScript []by
 
 	// Block one is a special block that might pay out tokens to a ledger.
 	if nextBlockHeight == 1 && len(params.BlockOneLedger) != 0 {
-		// Convert the addresses in the ledger into useable format.
-		addrs := make([]dcrutil.Address, len(params.BlockOneLedger))
-		for i, payout := range params.BlockOneLedger {
-			addr, err := dcrutil.DecodeAddress(payout.Address)
-			if err != nil {
-				return nil, err
-			}
-			addrs[i] = addr
-		}
-
-		for i, payout := range params.BlockOneLedger {
-			// Make payout to this address.
-			pks, err := txscript.PayToAddrScript(addrs[i])
-			if err != nil {
-				return nil, err
-			}
+		for _, payout := range params.BlockOneLedger {
 			tx.AddTxOut(&wire.TxOut{
 				Value:    payout.Amount,
-				PkScript: pks,
+				Version:  payout.ScriptVersion,
+				PkScript: payout.Script,
 			})
 		}
 
@@ -555,30 +541,24 @@ func createCoinbaseTx(subsidyCache *blockchain.SubsidyCache, coinbaseScript []by
 	}
 
 	// Create a coinbase with correct block subsidy and extranonce.
-	subsidy := blockchain.CalcBlockWorkSubsidy(subsidyCache,
-		nextBlockHeight,
-		voters,
-		activeNetParams.Params)
-	tax := blockchain.CalcBlockTaxSubsidy(subsidyCache,
-		nextBlockHeight,
-		voters,
-		activeNetParams.Params)
+	workSubsidy := subsidyCache.CalcWorkSubsidy(nextBlockHeight, voters)
+	treasurySubsidy := subsidyCache.CalcTreasurySubsidy(nextBlockHeight, voters)
 
-	// Tax output.
+	// Treasury output.
 	if params.BlockTaxProportion > 0 {
 		tx.AddTxOut(&wire.TxOut{
-			Value:    tax,
+			Value:    treasurySubsidy,
 			PkScript: params.OrganizationPkScript,
 		})
 	} else {
-		// Tax disabled.
+		// Treasury disabled.
 		scriptBuilder := txscript.NewScriptBuilder()
 		trueScript, err := scriptBuilder.AddOp(txscript.OP_TRUE).Script()
 		if err != nil {
 			return nil, err
 		}
 		tx.AddTxOut(&wire.TxOut{
-			Value:    tax,
+			Value:    treasurySubsidy,
 			PkScript: trueScript,
 		})
 	}
@@ -588,7 +568,7 @@ func createCoinbaseTx(subsidyCache *blockchain.SubsidyCache, coinbaseScript []by
 		PkScript: opReturnPkScript,
 	})
 	// ValueIn.
-	tx.TxIn[0].ValueIn = subsidy + tax
+	tx.TxIn[0].ValueIn = workSubsidy + treasurySubsidy
 
 	// Create the script to pay to the provided payment address if one was
 	// specified.  Otherwise create a script that allows the coinbase to be
@@ -610,7 +590,7 @@ func createCoinbaseTx(subsidyCache *blockchain.SubsidyCache, coinbaseScript []by
 	}
 	// Subsidy paid to miner.
 	tx.AddTxOut(&wire.TxOut{
-		Value:    subsidy,
+		Value:    workSubsidy,
 		PkScript: pksSubsidy,
 	})
 
@@ -775,7 +755,7 @@ func deepCopyBlockTemplate(blockTemplate *BlockTemplate) *BlockTemplate {
 // work off of is present, it will return a copy of that template to pass to the
 // miner.
 // Safe for concurrent access.
-func handleTooFewVoters(subsidyCache *blockchain.SubsidyCache, nextHeight int64, miningAddress dcrutil.Address, bm *blockManager) (*BlockTemplate, error) {
+func handleTooFewVoters(subsidyCache *standalone.SubsidyCache, nextHeight int64, miningAddress dcrutil.Address, bm *blockManager) (*BlockTemplate, error) {
 	timeSource := bm.cfg.TimeSource
 	stakeValidationHeight := bm.cfg.ChainParams.StakeValidationHeight
 	curTemplate := bm.GetCurrentTemplate()
@@ -924,12 +904,9 @@ func handleTooFewVoters(subsidyCache *blockchain.SubsidyCache, nextHeight int64,
 			// Recalculate the merkle roots. Use a temporary 'immutable'
 			// block object as we're changing the header contents.
 			btBlockTemp := dcrutil.NewBlockDeepCopyCoinbase(btMsgBlock)
-			merkles :=
-				blockchain.BuildMerkleTreeStore(btBlockTemp.Transactions())
-			merklesStake :=
-				blockchain.BuildMerkleTreeStore(btBlockTemp.STransactions())
-			btMsgBlock.Header.MerkleRoot = *merkles[len(merkles)-1]
-			btMsgBlock.Header.StakeRoot = *merklesStake[len(merklesStake)-1]
+			header := &btMsgBlock.Header
+			header.MerkleRoot = calcTxTreeMerkleRoot(btBlockTemp.Transactions())
+			header.StakeRoot = calcTxTreeMerkleRoot(btBlockTemp.STransactions())
 
 			// Make sure the block validates.
 			btBlock := dcrutil.NewBlockDeepCopyCoinbase(btMsgBlock)
@@ -966,6 +943,7 @@ type BlkTmplGenerator struct {
 	policy       *mining.Policy
 	txSource     mining.TxSource
 	sigCache     *txscript.SigCache
+	subsidyCache *standalone.SubsidyCache
 	chainParams  *chaincfg.Params
 	chain        *blockchain.BlockChain
 	blockManager *blockManager
@@ -976,12 +954,15 @@ type BlkTmplGenerator struct {
 // policy using transactions from the provided transaction source.
 func newBlkTmplGenerator(policy *mining.Policy, txSource mining.TxSource,
 	timeSource blockchain.MedianTimeSource, sigCache *txscript.SigCache,
-	chainParams *chaincfg.Params, chain *blockchain.BlockChain,
+	subsidyCache *standalone.SubsidyCache, chainParams *chaincfg.Params,
+	chain *blockchain.BlockChain,
 	blockManager *blockManager) *BlkTmplGenerator {
+
 	return &BlkTmplGenerator{
 		policy:       policy,
 		txSource:     txSource,
 		sigCache:     sigCache,
+		subsidyCache: subsidyCache,
 		chainParams:  chainParams,
 		chain:        chain,
 		blockManager: blockManager,
@@ -1071,8 +1052,6 @@ func newBlkTmplGenerator(policy *mining.Policy, txSource mining.TxSource,
 //  This function returns nil, nil if there are not enough voters on any of
 //  the current top blocks to create a new block template.
 func (g *BlkTmplGenerator) NewBlockTemplate(payToAddress dcrutil.Address) (*BlockTemplate, error) {
-	subsidyCache := g.chain.FetchSubsidyCache()
-
 	// All transaction scripts are verified using the more strict standarad
 	// flags.
 	scriptFlags, err := standardScriptVerifyFlags(g.chain)
@@ -1122,7 +1101,7 @@ func (g *BlkTmplGenerator) NewBlockTemplate(payToAddress dcrutil.Address) (*Bloc
 		if len(eligibleParents) == 0 {
 			minrLog.Debugf("Too few voters found on any HEAD block, " +
 				"recycling a parent block to mine on")
-			return handleTooFewVoters(subsidyCache, nextBlockHeight,
+			return handleTooFewVoters(g.subsidyCache, nextBlockHeight,
 				payToAddress, g.blockManager)
 		}
 
@@ -1209,7 +1188,7 @@ mempoolLoop:
 		// non-finalized transactions.
 		tx := txDesc.Tx
 		msgTx := tx.MsgTx()
-		if blockchain.IsCoinBaseTx(msgTx) {
+		if standalone.IsCoinBaseTx(msgTx) {
 			minrLog.Tracef("Skipping coinbase tx %s", tx.Hash())
 			continue
 		}
@@ -1495,7 +1474,7 @@ mempoolLoop:
 		// preconditions before allowing it to be added to the block.
 		// The fraud proof is not checked because it will be filled in
 		// by the miner.
-		_, err = blockchain.CheckTransactionInputs(subsidyCache, tx,
+		_, err = blockchain.CheckTransactionInputs(g.subsidyCache, tx,
 			nextBlockHeight, blockUtxos, false, g.chainParams)
 		if err != nil {
 			minrLog.Tracef("Skipping tx %s due to error in "+
@@ -1742,7 +1721,7 @@ mempoolLoop:
 	if err != nil {
 		return nil, err
 	}
-	coinbaseTx, err := createCoinbaseTx(subsidyCache,
+	coinbaseTx, err := createCoinbaseTx(g.subsidyCache,
 		coinbaseScript,
 		opReturnPkScript,
 		nextBlockHeight,
@@ -1849,7 +1828,7 @@ mempoolLoop:
 		voters < minimumVotesRequired {
 		minrLog.Warnf("incongruent number of voters in mempool " +
 			"vs mempool.voters; not enough voters found")
-		return handleTooFewVoters(subsidyCache, nextBlockHeight, payToAddress,
+		return handleTooFewVoters(g.subsidyCache, nextBlockHeight, payToAddress,
 			g.blockManager)
 	}
 
@@ -1934,22 +1913,18 @@ mempoolLoop:
 	}
 
 	// Figure out stake version.
-	generatedStakeVersion, err :=
-		g.chain.CalcStakeVersionByHash(&prevHash)
+	generatedStakeVersion, err := g.chain.CalcStakeVersionByHash(&prevHash)
 	if err != nil {
 		return nil, err
 	}
 
 	// Create a new block ready to be solved.
-	merkles := blockchain.BuildMerkleTreeStore(blockTxnsRegular)
-	merklesStake := blockchain.BuildMerkleTreeStore(blockTxnsStake)
-
 	var msgBlock wire.MsgBlock
 	msgBlock.Header = wire.BlockHeader{
 		Version:      blockVersion,
 		PrevBlock:    prevHash,
-		MerkleRoot:   *merkles[len(merkles)-1],
-		StakeRoot:    *merklesStake[len(merklesStake)-1],
+		MerkleRoot:   calcTxTreeMerkleRoot(blockTxnsRegular),
+		StakeRoot:    calcTxTreeMerkleRoot(blockTxnsStake),
 		VoteBits:     votebits,
 		FinalState:   best.NextFinalState,
 		Voters:       uint16(voters),
@@ -1995,7 +1970,7 @@ mempoolLoop:
 		"%d bytes, target difficulty %064x, stake difficulty %v)",
 		len(msgBlock.Transactions), len(msgBlock.STransactions),
 		totalFees, blockSigOps, blockSize,
-		blockchain.CompactToBig(msgBlock.Header.Bits),
+		standalone.CompactToBig(msgBlock.Header.Bits),
 		dcrutil.Amount(msgBlock.Header.SBits).ToCoin())
 
 	blockTemplate := &BlockTemplate{

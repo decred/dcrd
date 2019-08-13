@@ -16,14 +16,15 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/decred/dcrd/blockchain"
-	"github.com/decred/dcrd/blockchain/stake"
-	"github.com/decred/dcrd/chaincfg"
+	"github.com/decred/dcrd/blockchain/stake/v2"
+	"github.com/decred/dcrd/blockchain/standalone"
+	"github.com/decred/dcrd/blockchain/v2"
 	"github.com/decred/dcrd/chaincfg/chainhash"
-	"github.com/decred/dcrd/database"
-	"github.com/decred/dcrd/dcrutil"
-	"github.com/decred/dcrd/fees"
-	"github.com/decred/dcrd/mempool/v2"
+	"github.com/decred/dcrd/chaincfg/v2"
+	"github.com/decred/dcrd/database/v2"
+	"github.com/decred/dcrd/dcrutil/v2"
+	"github.com/decred/dcrd/fees/v2"
+	"github.com/decred/dcrd/mempool/v3"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -319,8 +320,9 @@ type blockManagerConfig struct {
 	TimeSource   blockchain.MedianTimeSource
 
 	// The following fields are for accessing the chain and its configuration.
-	Chain       *blockchain.BlockChain
-	ChainParams *chaincfg.Params
+	Chain        *blockchain.BlockChain
+	ChainParams  *chaincfg.Params
+	SubsidyCache *standalone.SubsidyCache
 
 	// The following fields provide access to the fee estimator, mempool and
 	// the background block template generator.
@@ -433,6 +435,20 @@ func (b *blockManager) findNextHeaderCheckpoint(height int64) *chaincfg.Checkpoi
 	return nextCheckpoint
 }
 
+// chainBlockLocatorToHashes converts a block locator from chain to a slice
+// of hashes.
+func chainBlockLocatorToHashes(locator blockchain.BlockLocator) []chainhash.Hash {
+	if len(locator) == 0 {
+		return nil
+	}
+
+	result := make([]chainhash.Hash, 0, len(locator))
+	for _, hash := range locator {
+		result = append(result, *hash)
+	}
+	return result
+}
+
 // startSync will choose the best peer among the available candidate peers to
 // download/sync the blockchain from.  When syncing is already running, it
 // simply returns.  It also examines the candidates for any which are no longer
@@ -477,12 +493,13 @@ func (b *blockManager) startSync(peers *list.List) {
 		// to send.
 		b.requestedBlocks = make(map[chainhash.Hash]struct{})
 
-		locator, err := b.chain.LatestBlockLocator()
+		blkLocator, err := b.chain.LatestBlockLocator()
 		if err != nil {
 			bmgrLog.Errorf("Failed to get block locator for the "+
 				"latest block: %v", err)
 			return
 		}
+		locator := chainBlockLocatorToHashes(blkLocator)
 
 		bmgrLog.Infof("Syncing to block height %d from peer %v",
 			bestPeer.LastBlock(), bestPeer.Addr())
@@ -542,8 +559,8 @@ func (b *blockManager) isSyncCandidate(sp *serverPeer) bool {
 	return sp.Services()&wire.SFNodeNetwork == wire.SFNodeNetwork
 }
 
-// syncMiningStateAfterSync polls the blockMananger for the current sync
-// state; if the mananger is synced, it executes a call to the peer to
+// syncMiningStateAfterSync polls the blockManager for the current sync
+// state; if the manager is synced, it executes a call to the peer to
 // sync the mining state to the network.
 func (b *blockManager) syncMiningStateAfterSync(sp *serverPeer) {
 	go func() {
@@ -716,12 +733,32 @@ func (b *blockManager) current() bool {
 	return true
 }
 
+// calcTxTreeMerkleRoot calculates and returns the merkle root for the provided
+// transactions.  The full (including witness data) hashes for the transactions
+// are used as required for merkle roots.
+func calcTxTreeMerkleRoot(transactions []*dcrutil.Tx) chainhash.Hash {
+	if len(transactions) == 0 {
+		// All zero.
+		return chainhash.Hash{}
+	}
+
+	// Note that the backing array is provided with space for one additional
+	// item when the number of leaves is odd as an optimization for the in-place
+	// calculation to avoid the need grow the backing array.
+	allocLen := len(transactions) + len(transactions)&1
+	leaves := make([]chainhash.Hash, 0, allocLen)
+	for _, tx := range transactions {
+		leaves = append(leaves, tx.MsgTx().TxHashFull())
+	}
+	return standalone.CalcMerkleRootInPlace(leaves)
+}
+
 // checkBlockForHiddenVotes checks to see if a newly added block contains
 // any votes that were previously unknown to our daemon. If it does, it
 // adds these votes to the cached parent block template.
 //
 // This is UNSAFE for concurrent access. It must be called in single threaded
-// access through the block mananger. All template access must also be routed
+// access through the block manager. All template access must also be routed
 // through the block manager.
 func (b *blockManager) checkBlockForHiddenVotes(block *dcrutil.Block) {
 	// Identify the cached parent template; it's possible that
@@ -855,7 +892,7 @@ func (b *blockManager) checkBlockForHiddenVotes(block *dcrutil.Block) {
 			"block with extra found voters")
 		return
 	}
-	coinbase, err := createCoinbaseTx(b.chain.FetchSubsidyCache(),
+	coinbase, err := createCoinbaseTx(b.cfg.SubsidyCache,
 		template.Block.Transactions[0].TxIn[0].SignatureScript,
 		opReturnPkScript, int64(template.Block.Header.Height),
 		cfg.miningAddrs[rand.Intn(len(cfg.miningAddrs))],
@@ -880,11 +917,10 @@ func (b *blockManager) checkBlockForHiddenVotes(block *dcrutil.Block) {
 		tx := dcrutil.NewTx(mtx)
 		updatedTxTreeRegular = append(updatedTxTreeRegular, tx)
 	}
-	merkles := blockchain.BuildMerkleTreeStore(updatedTxTreeRegular)
-	template.Block.Header.StakeRoot = *merkles[len(merkles)-1]
-	smerkles := blockchain.BuildMerkleTreeStore(updatedTxTreeStake)
+
+	template.Block.Header.StakeRoot = calcTxTreeMerkleRoot(updatedTxTreeRegular)
 	template.Block.Header.Voters = uint16(votesTotal)
-	template.Block.Header.StakeRoot = *smerkles[len(smerkles)-1]
+	template.Block.Header.StakeRoot = calcTxTreeMerkleRoot(updatedTxTreeStake)
 	template.Block.Header.Size = uint32(template.Block.SerializeSize())
 }
 
@@ -959,14 +995,14 @@ func (b *blockManager) handleBlockMsg(bmsg *blockMsg) {
 	}
 
 	// Meta-data about the new block this peer is reporting. We use this
-	// below to update this peer's lastest block height and the heights of
+	// below to update this peer's latest block height and the heights of
 	// other peers based on their last announced block hash. This allows us
 	// to dynamically update the block heights of peers, avoiding stale
 	// heights when looking for a new sync peer. Upon acceptance of a block
 	// or recognition of an orphan, we also use this information to update
 	// the block heights over other peers who's invs may have been ignored
 	// if we are actively syncing while the chain is not yet current or
-	// who may have lost the lock announcment race.
+	// who may have lost the lock announcement race.
 	var heightUpdate int64
 	var blkHashUpdate *chainhash.Hash
 
@@ -983,11 +1019,12 @@ func (b *blockManager) handleBlockMsg(bmsg *blockMsg) {
 		blkHashUpdate = blockHash
 
 		orphanRoot := b.chain.GetOrphanRoot(blockHash)
-		locator, err := b.chain.LatestBlockLocator()
+		blkLocator, err := b.chain.LatestBlockLocator()
 		if err != nil {
 			bmgrLog.Warnf("Failed to get block locator for the "+
 				"latest block: %v", err)
 		} else {
+			locator := chainBlockLocatorToHashes(blkLocator)
 			err = bmsg.peer.PushGetBlocksMsg(locator, orphanRoot)
 			if err != nil {
 				bmgrLog.Warnf("Failed to push getblocksmsg for the "+
@@ -1080,7 +1117,7 @@ func (b *blockManager) handleBlockMsg(bmsg *blockMsg) {
 	prevHash := b.nextCheckpoint.Hash
 	b.nextCheckpoint = b.findNextHeaderCheckpoint(prevHeight)
 	if b.nextCheckpoint != nil {
-		locator := blockchain.BlockLocator([]*chainhash.Hash{prevHash})
+		locator := []chainhash.Hash{*prevHash}
 		err := bmsg.peer.PushGetHeadersMsg(locator, b.nextCheckpoint.Hash)
 		if err != nil {
 			bmgrLog.Warnf("Failed to send getheaders message to "+
@@ -1099,7 +1136,7 @@ func (b *blockManager) handleBlockMsg(bmsg *blockMsg) {
 	b.headersFirstMode = false
 	b.headerList.Init()
 	bmgrLog.Infof("Reached the final checkpoint -- switching to normal mode")
-	locator := blockchain.BlockLocator([]*chainhash.Hash{blockHash})
+	locator := []chainhash.Hash{*blockHash}
 	err = bmsg.peer.PushGetBlocksMsg(locator, &zeroHash)
 	if err != nil {
 		bmgrLog.Warnf("Failed to send getblocks message to peer %s: %v",
@@ -1248,7 +1285,7 @@ func (b *blockManager) handleHeadersMsg(hmsg *headersMsg) {
 	// This header is not a checkpoint, so request the next batch of
 	// headers starting from the latest known header and ending with the
 	// next checkpoint.
-	locator := blockchain.BlockLocator([]*chainhash.Hash{finalHash})
+	locator := []chainhash.Hash{*finalHash}
 	err := hmsg.peer.PushGetHeadersMsg(locator, b.nextCheckpoint.Hash)
 	if err != nil {
 		bmgrLog.Warnf("Failed to send getheaders message to "+
@@ -1389,13 +1426,14 @@ func (b *blockManager) handleInvMsg(imsg *invMsg) {
 				// up to the root of the orphan that just came
 				// in.
 				orphanRoot := b.chain.GetOrphanRoot(&iv.Hash)
-				locator, err := b.chain.LatestBlockLocator()
+				blkLocator, err := b.chain.LatestBlockLocator()
 				if err != nil {
 					bmgrLog.Errorf("PEER: Failed to get block "+
 						"locator for the latest block: "+
 						"%v", err)
 					continue
 				}
+				locator := chainBlockLocatorToHashes(blkLocator)
 				err = imsg.peer.PushGetBlocksMsg(locator, orphanRoot)
 				if err != nil {
 					bmgrLog.Errorf("PEER: Failed to push getblocksmsg "+
@@ -1412,7 +1450,8 @@ func (b *blockManager) handleInvMsg(imsg *invMsg) {
 				// Request blocks after this one up to the
 				// final one the remote peer knows about (zero
 				// stop hash).
-				locator := b.chain.BlockLocatorFromHash(&iv.Hash)
+				blkLocator := b.chain.BlockLocatorFromHash(&iv.Hash)
+				locator := chainBlockLocatorToHashes(blkLocator)
 				err = imsg.peer.PushGetBlocksMsg(locator, &zeroHash)
 				if err != nil {
 					bmgrLog.Errorf("PEER: Failed to push getblocksmsg: "+

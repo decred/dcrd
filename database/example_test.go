@@ -24,7 +24,7 @@ func ExampleCreate() {
 	//
 	// import (
 	// 	"github.com/decred/dcrd/database2"
-	// 	_ "github.com/decred/dcrd/database/ffldb"
+	// 	_ "github.com/decred/dcrd/database/v2/ffldb"
 	// )
 
 	// Create a database and schedule it to be closed and removed on exit.

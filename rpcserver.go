@@ -35,28 +35,29 @@ import (
 
 	"github.com/gorilla/websocket"
 
-	"github.com/decred/dcrd/blockchain"
-	"github.com/decred/dcrd/blockchain/stake"
+	"github.com/decred/dcrd/blockchain/stake/v2"
+	"github.com/decred/dcrd/blockchain/standalone"
+	"github.com/decred/dcrd/blockchain/v2"
 	"github.com/decred/dcrd/certgen"
-	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrd/chaincfg/chainhash"
-	"github.com/decred/dcrd/database"
+	"github.com/decred/dcrd/chaincfg/v2"
+	"github.com/decred/dcrd/database/v2"
 	"github.com/decred/dcrd/dcrec/secp256k1"
 	"github.com/decred/dcrd/dcrjson/v3"
-	"github.com/decred/dcrd/dcrutil"
+	"github.com/decred/dcrd/dcrutil/v2"
 	"github.com/decred/dcrd/internal/version"
-	"github.com/decred/dcrd/mempool/v2"
+	"github.com/decred/dcrd/mempool/v3"
 	"github.com/decred/dcrd/rpc/jsonrpc/types"
-	"github.com/decred/dcrd/txscript"
+	"github.com/decred/dcrd/txscript/v2"
 	"github.com/decred/dcrd/wire"
 	"github.com/jrick/bitset"
 )
 
 // API version constants
 const (
-	jsonrpcSemverString = "6.0.0"
+	jsonrpcSemverString = "6.1.0"
 	jsonrpcSemverMajor  = 6
-	jsonrpcSemverMinor  = 0
+	jsonrpcSemverMinor  = 1
 	jsonrpcSemverPatch  = 0
 )
 
@@ -673,25 +674,19 @@ func handleCreateRawTransaction(s *rpcServer, cmd interface{}, closeChan <-chan 
 				"> %v", amount, dcrutil.MaxAmount)
 		}
 
-		// Decode the provided address.
-		addr, err := dcrutil.DecodeAddress(encodedAddr)
+		// Decode the provided address.  This also ensures the network encoded
+		// with the address matches the network the server is currently on.
+		addr, err := dcrutil.DecodeAddress(encodedAddr, s.server.chainParams)
 		if err != nil {
-			return nil, rpcAddressKeyError("Could not decode "+
-				"address: %v", err)
+			return nil, rpcAddressKeyError("Could not decode address: %v", err)
 		}
 
-		// Ensure the address is one of the supported types and that
-		// the network encoded with the address matches the network the
-		// server is currently on.
+		// Ensure the address is one of the supported types.
 		switch addr.(type) {
 		case *dcrutil.AddressPubKeyHash:
 		case *dcrutil.AddressScriptHash:
 		default:
 			return nil, rpcAddressKeyError("Invalid type: %T", addr)
-		}
-		if !addr.IsForNet(s.server.chainParams) {
-			return nil, rpcAddressKeyError("Wrong network: %v",
-				addr)
 		}
 
 		// Create a new script which pays to the provided address.
@@ -783,26 +778,19 @@ func handleCreateRawSStx(s *rpcServer, cmd interface{}, closeChan <-chan struct{
 				dcrutil.MaxAmount)
 		}
 
-		// Decode the provided address.
-		addr, err := dcrutil.DecodeAddress(encodedAddr)
+		// Decode the provided address.  This also ensures the network encoded
+		// with the address matches the network the server is currently on.
+		addr, err := dcrutil.DecodeAddress(encodedAddr, s.server.chainParams)
 		if err != nil {
-			return nil, rpcAddressKeyError("Could not decode "+
-				"address: %v", err)
+			return nil, rpcAddressKeyError("Could not decode address: %v", err)
 		}
 
-		// Ensure the address is one of the supported types and that
-		// the network encoded with the address matches the network the
-		// server is currently on.
+		// Ensure the address is one of the supported types.
 		switch addr.(type) {
 		case *dcrutil.AddressPubKeyHash:
 		case *dcrutil.AddressScriptHash:
 		default:
-			return nil, rpcAddressKeyError("Invalid address type: "+
-				"%T", addr)
-		}
-		if !addr.IsForNet(s.server.chainParams) {
-			return nil, rpcAddressKeyError("Wrong network: %v",
-				addr)
+			return nil, rpcAddressKeyError("Invalid address type: %T", addr)
 		}
 
 		// Create a new script which pays to the provided address with an
@@ -849,16 +837,15 @@ func handleCreateRawSStx(s *rpcServer, cmd interface{}, closeChan <-chan struct{
 	}
 
 	for i, cout := range c.COuts {
-		// 1. Append future commitment output.
-		addr, err := dcrutil.DecodeAddress(cout.Addr)
+		// Append future commitment output.  This also ensures the network
+		// encoded with the address matches the network the server is currently
+		// on.
+		addr, err := dcrutil.DecodeAddress(cout.Addr, s.server.chainParams)
 		if err != nil {
-			return nil, rpcAddressKeyError("Could not decode "+
-				"address: %v", err)
+			return nil, rpcAddressKeyError("Could not decode address: %v", err)
 		}
 
-		// Ensure the address is one of the supported types and that
-		// the network encoded with the address matches the network the
-		// server is currently on.
+		// Ensure the address is one of the supported types.
 		switch addr.(type) {
 		case *dcrutil.AddressPubKeyHash:
 			break
@@ -866,10 +853,6 @@ func handleCreateRawSStx(s *rpcServer, cmd interface{}, closeChan <-chan struct{
 			break
 		default:
 			return nil, rpcAddressKeyError("Invalid type: %T", addr)
-		}
-		if !addr.IsForNet(s.server.chainParams) {
-			return nil, rpcAddressKeyError("Wrong network: %v",
-				addr)
 		}
 
 		// Create an OP_RETURN push containing the pubkeyhash to send
@@ -892,8 +875,9 @@ func handleCreateRawSStx(s *rpcServer, cmd interface{}, closeChan <-chan struct{
 				"> %v > %v", cout.ChangeAmt, dcrutil.MaxAmount)
 		}
 
-		// Decode the provided address.
-		addr, err = dcrutil.DecodeAddress(cout.ChangeAddr)
+		// Decode the provided address.  This also ensures the network encoded
+		// with the address matches the network the server is currently on.
+		addr, err = dcrutil.DecodeAddress(cout.ChangeAddr, s.server.chainParams)
 		if err != nil {
 			return nil, rpcAddressKeyError("Wrong network: %v",
 				addr)
@@ -909,10 +893,6 @@ func handleCreateRawSStx(s *rpcServer, cmd interface{}, closeChan <-chan struct{
 			break
 		default:
 			return nil, rpcAddressKeyError("Invalid type: %T", addr)
-		}
-		if !addr.IsForNet(s.server.chainParams) {
-			return nil, rpcAddressKeyError("Wrong network: %v",
-				addr)
 		}
 
 		// Create a new script which pays to the provided address with
@@ -1100,7 +1080,7 @@ func handleDebugLevel(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) 
 func createVinList(mtx *wire.MsgTx) []types.Vin {
 	// Coinbase transactions only have a single txin by definition.
 	vinList := make([]types.Vin, len(mtx.TxIn))
-	if blockchain.IsCoinBaseTx(mtx) {
+	if standalone.IsCoinBaseTx(mtx) {
 		txIn := mtx.TxIn[0]
 		vinEntry := &vinList[0]
 		vinEntry.Coinbase = hex.EncodeToString(txIn.SignatureScript)
@@ -1202,7 +1182,7 @@ func createVoutList(mtx *wire.MsgTx, chainParams *chaincfg.Params, filterAddrMap
 		passesFilter := len(filterAddrMap) == 0
 		encodedAddrs := make([]string, len(addrs))
 		for j, addr := range addrs {
-			encodedAddr := addr.EncodeAddress()
+			encodedAddr := addr.Address()
 			encodedAddrs[j] = encodedAddr
 
 			// No need to check the map again if the filter already
@@ -1338,7 +1318,7 @@ func handleDecodeScript(s *rpcServer, cmd interface{}, closeChan <-chan struct{}
 		scriptVersion, script, s.server.chainParams)
 	addresses := make([]string, len(addrs))
 	for i, addr := range addrs {
-		addresses[i] = addr.EncodeAddress()
+		addresses[i] = addr.Address()
 	}
 
 	// Convert the script itself to a pay-to-script-hash address.
@@ -1356,7 +1336,7 @@ func handleDecodeScript(s *rpcServer, cmd interface{}, closeChan <-chan struct{}
 		Addresses: addresses,
 	}
 	if scriptClass != txscript.ScriptHashTy {
-		reply.P2sh = p2sh.EncodeAddress()
+		reply.P2sh = p2sh.Address()
 	}
 	return reply, nil
 }
@@ -1471,8 +1451,9 @@ func handleExistsAddress(s *rpcServer, cmd interface{}, closeChan <-chan struct{
 
 	c := cmd.(*types.ExistsAddressCmd)
 
-	// Attempt to decode the supplied address.
-	addr, err := dcrutil.DecodeAddress(c.Address)
+	// Decode the provided address.  This also ensures the network encoded with
+	// the address matches the network the server is currently on.
+	addr, err := dcrutil.DecodeAddress(c.Address, s.server.chainParams)
 	if err != nil {
 		return nil, rpcAddressKeyError("Could not decode address: %v",
 			err)
@@ -1497,11 +1478,11 @@ func handleExistsAddresses(s *rpcServer, cmd interface{}, closeChan <-chan struc
 	c := cmd.(*types.ExistsAddressesCmd)
 	addresses := make([]dcrutil.Address, len(c.Addresses))
 	for i := range c.Addresses {
-		// Attempt to decode the supplied address.
-		addr, err := dcrutil.DecodeAddress(c.Addresses[i])
+		// Decode the provided address.  This also ensures the network encoded
+		// with the address matches the network the server is currently on.
+		addr, err := dcrutil.DecodeAddress(c.Addresses[i], s.server.chainParams)
 		if err != nil {
-			return nil, rpcAddressKeyError("Could not decode "+
-				"address: %v", err)
+			return nil, rpcAddressKeyError("Could not decode address: %v", err)
 		}
 		addresses[i] = addr
 	}
@@ -1805,8 +1786,8 @@ func getDifficultyRatio(bits uint32) float64 {
 	// converted back to a number.  Note this is not the same as the proof
 	// of work limit directly because the block difficulty is encoded in a
 	// block with the compact form which loses precision.
-	max := blockchain.CompactToBig(activeNetParams.PowLimitBits)
-	target := blockchain.CompactToBig(bits)
+	max := standalone.CompactToBig(activeNetParams.PowLimitBits)
+	target := standalone.CompactToBig(bits)
 
 	difficulty := new(big.Rat).SetFrac(max, target)
 	outString := difficulty.FloatString(8)
@@ -2138,17 +2119,9 @@ func handleGetBlockSubsidy(s *rpcServer, cmd interface{}, closeChan <-chan struc
 	height := c.Height
 	voters := c.Voters
 
-	cache := s.chain.FetchSubsidyCache()
-	if cache == nil {
-		return nil, rpcInternalError("empty subsidy cache", "")
-	}
-
-	dev := blockchain.CalcBlockTaxSubsidy(cache, height, voters,
-		s.server.chainParams)
-	pos := blockchain.CalcStakeVoteSubsidy(cache, height,
-		s.server.chainParams) * int64(voters)
-	pow := blockchain.CalcBlockWorkSubsidy(cache, height, voters,
-		s.server.chainParams)
+	dev := s.subsidyCache.CalcTreasurySubsidy(height, voters)
+	pos := s.subsidyCache.CalcStakeVoteSubsidy(height-1) * int64(voters)
+	pow := s.subsidyCache.CalcWorkSubsidy(height, voters)
 	total := dev + pos + pow
 
 	rep := types.GetBlockSubsidyResult{
@@ -2365,7 +2338,7 @@ func (state *gbtWorkState) updateBlockTemplate(s *rpcServer, useCoinbaseValue bo
 		template = blkTemplate
 		msgBlock = template.Block
 		targetDifficulty = fmt.Sprintf("%064x",
-			blockchain.CompactToBig(msgBlock.Header.Bits))
+			standalone.CompactToBig(msgBlock.Header.Bits))
 
 		// Find the minimum allowed timestamp for the block based on the
 		// median timestamp of the last several blocks per the chain
@@ -2416,15 +2389,15 @@ func (state *gbtWorkState) updateBlockTemplate(s *rpcServer, useCoinbaseValue bo
 			template.ValidPayAddress = true
 
 			// Update the merkle root.
-			block := dcrutil.NewBlock(template.Block)
-			merkles := blockchain.BuildMerkleTreeStore(block.Transactions())
-			template.Block.Header.MerkleRoot = *merkles[len(merkles)-1]
+			tplHeader := &template.Block.Header
+			tplTxns := template.Block.Transactions
+			tplHeader.MerkleRoot = standalone.CalcTxTreeMerkleRoot(tplTxns)
 		}
 
 		// Set locals for convenience.
 		msgBlock = template.Block
 		targetDifficulty = fmt.Sprintf("%064x",
-			blockchain.CompactToBig(msgBlock.Header.Bits))
+			standalone.CompactToBig(msgBlock.Header.Bits))
 
 		// Update the time of the block template to the current time
 		// while accounting for the median time of the past several
@@ -2611,7 +2584,7 @@ func (state *gbtWorkState) blockTemplateResult(bm *blockManager, useCoinbaseValu
 	// are implied by the included or omission of fields:
 	//  Including MinTime -> time/decrement
 	//  Omitting CoinbaseTxn -> coinbase, generation
-	targetDifficulty := fmt.Sprintf("%064x", blockchain.CompactToBig(header.Bits))
+	targetDifficulty := fmt.Sprintf("%064x", standalone.CompactToBig(header.Bits))
 	templateID := encodeTemplateID(state.prevHash, state.lastGenerated)
 	reply := types.GetBlockTemplateResult{
 		Header:        hex.EncodeToString(headerBytes),
@@ -3039,7 +3012,7 @@ func handleGetChainTips(s *rpcServer, cmd interface{}, closeChan <-chan struct{}
 
 // handleGetCoinSupply implements the getcoinsupply command.
 func handleGetCoinSupply(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) (interface{}, error) {
-	return s.chain.TotalSubsidy(), nil
+	return s.chain.BestSnapshot().TotalSubsidy, nil
 }
 
 // handleGetConnectionCount implements the getconnectioncount command.
@@ -3144,7 +3117,7 @@ func handleGetCFilterHeader(s *rpcServer, cmd interface{}, closeChan <-chan stru
 		return "", rpcInternalError(err.Error(), context)
 	}
 	if bytes.Equal(headerBytes, zeroHash[:]) && *hash !=
-		*s.server.chainParams.GenesisHash {
+		s.server.chainParams.GenesisHash {
 
 		return nil, &dcrjson.RPCError{
 			Code:    dcrjson.ErrRPCBlockNotFound,
@@ -3363,7 +3336,7 @@ func handleGetNetworkHashPS(s *rpcServer, cmd interface{}, closeChan <-chan stru
 			minTimestamp = header.Timestamp
 			maxTimestamp = minTimestamp
 		} else {
-			totalWork.Add(totalWork, blockchain.CalcWork(header.Bits))
+			totalWork.Add(totalWork, standalone.CalcWork(header.Bits))
 
 			if minTimestamp.After(header.Timestamp) {
 				minTimestamp = header.Timestamp
@@ -3975,7 +3948,7 @@ func handleGetTxOut(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) (i
 		value = txOut.Value
 		scriptVersion = txOut.Version
 		pkScript = txOut.PkScript
-		isCoinbase = blockchain.IsCoinBaseTx(mtx)
+		isCoinbase = standalone.IsCoinBaseTx(mtx)
 	} else {
 		entry, err := s.chain.FetchUtxoEntry(txHash)
 		if err != nil {
@@ -4014,7 +3987,7 @@ func handleGetTxOut(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) (i
 		script, s.server.chainParams)
 	addresses := make([]string, len(addrs))
 	for i, addr := range addrs {
-		addresses[i] = addr.EncodeAddress()
+		addresses[i] = addr.Address()
 	}
 
 	txOutReply := &types.GetTxOutResult{
@@ -4113,7 +4086,7 @@ func handleGetWorkRequest(s *rpcServer) (interface{}, error) {
 		rpcsLog.Debugf("Generated block template (timestamp %v, extra "+
 			"nonce %d, target %064x, merkle root %s)",
 			msgBlock.Header.Timestamp, state.extraNonce,
-			blockchain.CompactToBig(msgBlock.Header.Bits),
+			standalone.CompactToBig(msgBlock.Header.Bits),
 			msgBlock.Header.MerkleRoot)
 	} else {
 		// At this point, there is a saved block template and a new
@@ -4155,7 +4128,7 @@ func handleGetWorkRequest(s *rpcServer) (interface{}, error) {
 			"nonce %d, target %064x, merkle root %s)",
 			msgBlock.Header.Timestamp,
 			state.extraNonce,
-			blockchain.CompactToBig(msgBlock.Header.Bits),
+			standalone.CompactToBig(msgBlock.Header.Bits),
 			msgBlock.Header.MerkleRoot)
 	}
 
@@ -4214,7 +4187,7 @@ func handleGetWorkRequest(s *rpcServer) (interface{}, error) {
 	// The fact the fields are reversed in this way is rather odd and likey
 	// an artifact of some legacy internal state in the reference
 	// implementation, but it is required for compatibility.
-	target := bigToLEUint256(blockchain.CompactToBig(msgBlock.Header.Bits))
+	target := bigToLEUint256(standalone.CompactToBig(msgBlock.Header.Bits))
 	reply := &types.GetWorkResult{
 		Data:   hex.EncodeToString(data),
 		Target: hex.EncodeToString(target[:]),
@@ -4286,7 +4259,8 @@ func handleGetWorkSubmission(s *rpcServer, hexData string) (interface{}, error) 
 	block := dcrutil.NewBlock(&msgBlock)
 
 	// Ensure the submitted block hash is less than the target difficulty.
-	err = blockchain.CheckProofOfWork(&block.MsgBlock().Header,
+	blockHash := block.Hash()
+	err = standalone.CheckProofOfWork(blockHash, msgBlock.Header.Bits,
 		activeNetParams.PowLimit)
 	if err != nil {
 		// Anything other than a rule violation is an unexpected error,
@@ -4611,7 +4585,7 @@ func fetchInputTxos(s *rpcServer, tx *wire.MsgTx) (map[wire.OutPoint]wire.TxOut,
 // passed transaction.
 func createVinListPrevOut(s *rpcServer, mtx *wire.MsgTx, chainParams *chaincfg.Params, vinExtra bool, filterAddrMap map[string]struct{}) ([]types.VinPrevOut, error) {
 	// Coinbase transactions only have a single txin by definition.
-	if blockchain.IsCoinBaseTx(mtx) {
+	if standalone.IsCoinBaseTx(mtx) {
 		// Only include the transaction if the filter map is empty
 		// because a coinbase input has no addresses and so would never
 		// match a non-empty filter.
@@ -4710,7 +4684,7 @@ func createVinListPrevOut(s *rpcServer, mtx *wire.MsgTx, chainParams *chaincfg.P
 		// the filter when needed.
 		encodedAddrs := make([]string, len(addrs))
 		for j, addr := range addrs {
-			encodedAddr := addr.EncodeAddress()
+			encodedAddr := addr.Address()
 			encodedAddrs[j] = encodedAddr
 
 			// No need to check the map again if the filter already
@@ -4794,8 +4768,9 @@ func handleSearchRawTransactions(s *rpcServer, cmd interface{}, closeChan <-chan
 			"enabled (--txindex)", "Configuration")
 	}
 
-	// Attempt to decode the supplied address.
-	addr, err := dcrutil.DecodeAddress(c.Address)
+	// Attempt to decode the supplied address.  This also ensures the network
+	// encoded with the address matches the network the server is currently on.
+	addr, err := dcrutil.DecodeAddress(c.Address, s.server.chainParams)
 	if err != nil {
 		return nil, rpcAddressKeyError("Could not decode address: %v",
 			err)
@@ -5475,7 +5450,9 @@ func handleTicketFeeInfo(s *rpcServer, cmd interface{}, closeChan <-chan struct{
 func handleTicketsForAddress(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) (interface{}, error) {
 	c := cmd.(*types.TicketsForAddressCmd)
 
-	addr, err := dcrutil.DecodeAddress(c.Address)
+	// Decode the provided address.  This also ensures the network encoded
+	// with the address matches the network the server is currently on.
+	addr, err := dcrutil.DecodeAddress(c.Address, s.server.chainParams)
 	if err != nil {
 		return nil, rpcInvalidError("Invalid address: %v", err)
 	}
@@ -5645,13 +5622,13 @@ func handleTxFeeInfo(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) (
 func handleValidateAddress(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) (interface{}, error) {
 	c := cmd.(*types.ValidateAddressCmd)
 	result := types.ValidateAddressChainResult{}
-	addr, err := dcrutil.DecodeAddress(c.Address)
-	if err != nil || !addr.IsForNet(s.server.chainParams) {
+	addr, err := dcrutil.DecodeAddress(c.Address, s.server.chainParams)
+	if err != nil {
 		// Return the default value (false) for IsValid.
 		return result, nil
 	}
 
-	result.Address = addr.EncodeAddress()
+	result.Address = addr.Address()
 	result.IsValid = true
 	return result, nil
 }
@@ -5712,8 +5689,9 @@ func handleVerifyChain(s *rpcServer, cmd interface{}, closeChan <-chan struct{})
 func handleVerifyMessage(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) (interface{}, error) {
 	c := cmd.(*types.VerifyMessageCmd)
 
-	// Decode the provided address.
-	addr, err := dcrutil.DecodeAddress(c.Address)
+	// Decode the provided address.  This also ensures the network encoded with
+	// the address matches the network the server is currently on.
+	addr, err := dcrutil.DecodeAddress(c.Address, s.server.chainParams)
 	if err != nil {
 		return nil, rpcAddressKeyError("Could not decode address: %v",
 			err)
@@ -5767,7 +5745,7 @@ func handleVerifyMessage(s *rpcServer, cmd interface{}, closeChan <-chan struct{
 	}
 
 	// Return boolean if addresses match.
-	return address.EncodeAddress() == c.Address, nil
+	return address.Address() == c.Address, nil
 }
 
 // handleVersion implements the version command.
@@ -5805,6 +5783,7 @@ type rpcServer struct {
 	generator              *BlkTmplGenerator
 	server                 *server
 	chain                  *blockchain.BlockChain
+	subsidyCache           *standalone.SubsidyCache
 	authsha                [sha256.Size]byte
 	limitauthsha           [sha256.Size]byte
 	ntfnMgr                *wsNotificationManager
@@ -6449,6 +6428,7 @@ func newRPCServer(listenAddrs []string, generator *BlkTmplGenerator, s *server) 
 		server:                 s,
 		generator:              generator,
 		chain:                  s.chain,
+		subsidyCache:           s.subsidyCache,
 		statusLines:            make(map[int]string),
 		workState:              newWorkState(),
 		templatePool:           make(map[[merkleRootPairSize]byte]*workStateBlockInfo),

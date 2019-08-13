@@ -1150,7 +1150,7 @@ out:
 				}
 
 			case sccHandlerStart:
-				// Warn on unbalanced callback signalling.
+				// Warn on unbalanced callback signaling.
 				if handlerActive {
 					log.Warn("Received handler start " +
 						"control command while a " +
@@ -1162,7 +1162,7 @@ out:
 				handlersStartTime = time.Now()
 
 			case sccHandlerDone:
-				// Warn on unbalanced callback signalling.
+				// Warn on unbalanced callback signaling.
 				if !handlerActive {
 					log.Warn("Received handler done " +
 						"control command when a " +

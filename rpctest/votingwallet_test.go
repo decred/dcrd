@@ -11,8 +11,8 @@ import (
 	"os"
 	"testing"
 
-	"github.com/decred/dcrd/chaincfg"
-	"github.com/decred/dcrd/rpcclient/v3"
+	"github.com/decred/dcrd/chaincfg/v2"
+	"github.com/decred/dcrd/rpcclient/v4"
 )
 
 // testCanPassSVH tests whether the wallet can maintain the chain going past SVH
@@ -60,7 +60,7 @@ func TestMinimalVotingWallet(t *testing.T) {
 	}
 
 	var handlers *rpcclient.NotificationHandlers
-	net := &chaincfg.SimNetParams
+	net := chaincfg.SimNetParams()
 
 	logDir := "./dcrdlogs"
 	extraArgs := []string{
