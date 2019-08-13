@@ -256,6 +256,9 @@ type TxPool struct {
 	orphansByPrev map[wire.OutPoint]map[chainhash.Hash]*dcrutil.Tx
 	outpoints     map[wire.OutPoint]*dcrutil.Tx
 
+	staged          map[chainhash.Hash]*dcrutil.Tx
+	stagedOutpoints map[wire.OutPoint]*dcrutil.Tx
+
 	// Votes on blocks.
 	votesMtx sync.RWMutex
 	votes    map[chainhash.Hash][]mining.VoteDesc
@@ -605,12 +608,123 @@ func (mp *TxPool) IsOrphanInPool(hash *chainhash.Hash) bool {
 	return inPool
 }
 
+// isTransactionStaged determines if the transaction exists in the
+// stage pool.
+func (mp *TxPool) isTransactionStaged(hash *chainhash.Hash) bool {
+	_, exists := mp.staged[*hash]
+	return exists
+}
+
+// stageTransaction creates an entry for the provided
+// transaction in the stage pool.
+func (mp *TxPool) stageTransaction(tx *dcrutil.Tx) {
+	mp.staged[*tx.Hash()] = tx
+	for _, txIn := range tx.MsgTx().TxIn {
+		mp.stagedOutpoints[txIn.PreviousOutPoint] = tx
+	}
+}
+
+// removeStagedTransaction removes the provided transaction
+// from the stage pool.
+func (mp *TxPool) removeStagedTransaction(stagedTx *dcrutil.Tx) {
+	delete(mp.staged, *stagedTx.Hash())
+	for _, txIn := range stagedTx.MsgTx().TxIn {
+		delete(mp.stagedOutpoints, txIn.PreviousOutPoint)
+	}
+}
+
+// hasMempoolInput returns true if the provided transaction
+// has an input in the main pool.
+func (mp *TxPool) hasMempoolInput(tx *dcrutil.Tx) bool {
+	for _, txIn := range tx.MsgTx().TxIn {
+		if mp.isTransactionInPool(&txIn.PreviousOutPoint.Hash) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// fetchRedeemers returns all transactions that reference an outpoint for
+// the provided regular transaction `tx`. Returns nil if a non-regular
+// transaction is provided.
+func (mp *TxPool) fetchRedeemers(outpoints map[wire.OutPoint]*dcrutil.Tx, tx *dcrutil.Tx) []*dcrutil.Tx {
+	txType := stake.DetermineTxType(tx.MsgTx())
+	if txType != stake.TxTypeRegular {
+		return nil
+	}
+
+	tree := wire.TxTreeRegular
+	seen := map[chainhash.Hash]struct{}{}
+	redeemers := make([]*dcrutil.Tx, 0)
+	prevOut := wire.OutPoint{Hash: *tx.Hash(), Tree: tree}
+	for i := uint32(0); i < uint32(len(tx.MsgTx().TxOut)); i++ {
+		prevOut.Index = i
+		txRedeemer, exists := outpoints[prevOut]
+		if !exists {
+			continue
+		}
+		if _, exists := seen[*txRedeemer.Hash()]; exists {
+			continue
+		}
+
+		seen[*txRedeemer.Hash()] = struct{}{}
+		redeemers = append(redeemers, txRedeemer)
+	}
+
+	return redeemers
+}
+
+// MaybeAcceptDependents determines if there are any staged dependents of the
+// passed transaction and potentially accepts them to the memory pool.
+//
+// It returns a slice of transactions added to the mempool.  A nil slice means
+// no transactions were moved from the stage pool to the mempool.
+//
+// This function is safe for concurrent access.
+func (mp *TxPool) MaybeAcceptDependents(tx *dcrutil.Tx) []*dcrutil.Tx {
+	mp.mtx.RLock()
+	defer mp.mtx.RUnlock()
+
+	var acceptedTxns []*dcrutil.Tx
+	for _, redeemer := range mp.fetchRedeemers(mp.stagedOutpoints, tx) {
+		redeemerTxType := stake.DetermineTxType(redeemer.MsgTx())
+		if redeemerTxType == stake.TxTypeSStx {
+			// Quick check to skip tickets with mempool inputs.
+			if mp.hasMempoolInput(redeemer) {
+				continue
+			}
+
+			// Remove the dependent transaction and attempt to add it to the
+			// mempool or back to the stage pool. In the event of an error, the
+			// transaction will be discarded.
+			log.Tracef("Removing ticket %v with no mempool dependencies from "+
+				"stage pool", *redeemer.Hash())
+			mp.removeStagedTransaction(redeemer)
+			_, err := mp.maybeAcceptTransaction(
+				redeemer, true, true, true, true)
+
+			if err != nil {
+				log.Debugf("Failed to add previously staged "+
+					"ticket %v to pool. %v", *redeemer.Hash(), err)
+			}
+
+			if mp.isTransactionInPool(redeemer.Hash()) {
+				acceptedTxns = append(acceptedTxns, redeemer)
+			}
+		}
+	}
+
+	return acceptedTxns
+}
+
 // haveTransaction returns whether or not the passed transaction already exists
 // in the main pool or in the orphan pool.
 //
 // This function MUST be called with the mempool lock held (for reads).
 func (mp *TxPool) haveTransaction(hash *chainhash.Hash) bool {
-	return mp.isTransactionInPool(hash) || mp.isOrphanInPool(hash)
+	return mp.isTransactionInPool(hash) || mp.isOrphanInPool(hash) ||
+		mp.isTransactionStaged(hash)
 }
 
 // HaveTransaction returns whether or not the passed transaction already exists
@@ -686,6 +800,11 @@ func (mp *TxPool) removeTransaction(tx *dcrutil.Tx, removeRedeemers bool) {
 			prevOut.Index = i
 			if txRedeemer, exists := mp.outpoints[prevOut]; exists {
 				mp.removeTransaction(txRedeemer, true)
+				continue
+			}
+			if txRedeemer, exists := mp.stagedOutpoints[prevOut]; exists {
+				log.Tracef("Removing staged transaction %v", prevOut.Hash)
+				mp.removeStagedTransaction(txRedeemer)
 			}
 		}
 	}
@@ -742,6 +861,13 @@ func (mp *TxPool) RemoveDoubleSpends(tx *dcrutil.Tx) {
 		if txRedeemer, ok := mp.outpoints[txIn.PreviousOutPoint]; ok {
 			if !txRedeemer.Hash().IsEqual(tx.Hash()) {
 				mp.removeTransaction(txRedeemer, true)
+			}
+		}
+		if txRedeemer, ok := mp.stagedOutpoints[txIn.PreviousOutPoint]; ok {
+			if !txRedeemer.Hash().IsEqual(tx.Hash()) {
+				log.Debugf("Removing double spend transaction %v "+
+					"from stage pool", tx.Hash())
+				mp.removeStagedTransaction(txRedeemer)
 			}
 		}
 	}
@@ -811,6 +937,12 @@ func (mp *TxPool) checkPoolDoubleSpend(tx *dcrutil.Tx, txType stake.TxType) erro
 
 		if txR, exists := mp.outpoints[txIn.PreviousOutPoint]; exists {
 			str := fmt.Sprintf("transaction %v in the pool "+
+				"already spends the same coins", txR.Hash())
+			return txRuleError(wire.RejectDuplicate, ErrMempoolDoubleSpend, str)
+		}
+
+		if txR, exists := mp.stagedOutpoints[txIn.PreviousOutPoint]; exists {
+			str := fmt.Sprintf("staged transaction %v in the pool "+
 				"already spends the same coins", txR.Hash())
 			return txRuleError(wire.RejectDuplicate, ErrMempoolDoubleSpend, str)
 		}
@@ -911,6 +1043,11 @@ func (mp *TxPool) fetchInputUtxos(tx *dcrutil.Tx) (*blockchain.UtxoViewpoint, er
 			utxoView.AddTxOuts(poolTxDesc.Tx, mining.UnminedHeight,
 				wire.NullBlockIndex)
 		}
+
+		if stagedTx, exists := mp.staged[originHash]; exists {
+			utxoView.AddTxOuts(stagedTx, mining.UnminedHeight,
+				wire.NullBlockIndex)
+		}
 	}
 
 	return utxoView, nil
@@ -922,13 +1059,21 @@ func (mp *TxPool) fetchInputUtxos(tx *dcrutil.Tx) (*blockchain.UtxoViewpoint, er
 //
 // This function is safe for concurrent access.
 func (mp *TxPool) FetchTransaction(txHash *chainhash.Hash) (*dcrutil.Tx, error) {
+	var tx *dcrutil.Tx
+
 	// Protect concurrent access.
 	mp.mtx.RLock()
 	txDesc, exists := mp.pool[*txHash]
+	if exists {
+		tx = txDesc.Tx
+	} else {
+		// Check if the transaction is in the stage pool.
+		tx, exists = mp.staged[*txHash]
+	}
 	mp.mtx.RUnlock()
 
 	if exists {
-		return txDesc.Tx, nil
+		return tx, nil
 	}
 
 	return nil, fmt.Errorf("transaction is not in the pool")
@@ -951,7 +1096,8 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 	// applies to orphan transactions as well when the reject duplicate
 	// orphans flag is set.  This check is intended to be a quick check to
 	// weed out duplicates.
-	if mp.isTransactionInPool(txHash) || (rejectDupOrphans && mp.isOrphanInPool(txHash)) {
+	if mp.isTransactionInPool(txHash) || mp.isTransactionStaged(txHash) ||
+		(rejectDupOrphans && mp.isOrphanInPool(txHash)) {
 		str := fmt.Sprintf("already have transaction %v", txHash)
 		return nil, txRuleError(wire.RejectDuplicate, ErrDuplicate, str)
 	}
@@ -1386,8 +1532,40 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 		return nil, err
 	}
 
+	// Tickets cannot be included in a block until all inputs have
+	// been approved by stakeholders. Consensus rules dictate that stake
+	// transactions must precede regular transactions, and that inputs for any
+	// transaction must precede its redeemer. As a result, tickets with mempool
+	// inputs are placed in a separate `stage` pool rather than the main tx
+	// pool since they cannot be included in the next block.
+	//
+	// Note: The scenario where a mempool ticket spends from a known-disapproved
+	// regular transaction that is not in the mempool is accounted for during
+	// block template generation.
+	if isTicket && mp.hasMempoolInput(tx) {
+		mp.stageTransaction(tx)
+		log.Debugf("Accepted ticket %v with mempool dependency "+
+			"into stage pool", txHash)
+		return nil, nil
+	}
+
 	// Add to transaction pool.
 	mp.addTransaction(utxoView, tx, txType, bestHeight, txFee)
+
+	// A regular transaction that is added back to the mempool causes
+	// any mempool tickets that redeem it to leave the main pool and enter the
+	// `stage` pool.
+	if !isNew && txType == stake.TxTypeRegular {
+		for _, redeemer := range mp.fetchRedeemers(mp.outpoints, tx) {
+			redeemerDesc, exists := mp.pool[*redeemer.Hash()]
+			if exists && redeemerDesc.Type == stake.TxTypeSStx {
+				mp.removeTransaction(redeemer, true)
+				mp.stageTransaction(redeemer)
+				log.Debugf("Moved ticket %v dependent on %v into stage pool",
+					redeemer.Hash(), tx.Hash())
+			}
+		}
+	}
 
 	// Keep track of votes separately.
 	if isVote {
@@ -1449,7 +1627,7 @@ func (mp *TxPool) processOrphans(acceptedTx *dcrutil.Tx) []*dcrutil.Tx {
 			// pool would allow this since there can only possibly
 			// ultimately be a single redeemer, it's important to
 			// track it this way to prevent malicious actors from
-			// being able to purposely constructing orphans that
+			// being able to purposely construct orphans that
 			// would otherwise make outputs unspendable.
 			//
 			// Skip to the next available output if there are none.
@@ -1537,6 +1715,15 @@ func (mp *TxPool) pruneStakeTx(requiredStakeDifficulty, height int64) {
 			mp.removeTransaction(tx.Tx, true)
 		}
 	}
+	for _, tx := range mp.staged {
+		txType := stake.DetermineTxType(tx.MsgTx())
+		if txType == stake.TxTypeSStx &&
+			tx.MsgTx().TxOut[0].Value < requiredStakeDifficulty {
+			log.Debugf("Pruning ticket %v with insufficient stake difficulty "+
+				"from stage pool", tx.Hash())
+			mp.removeStagedTransaction(tx)
+		}
+	}
 }
 
 // pruneExpiredTx prunes expired transactions from the mempool that are no
@@ -1551,6 +1738,14 @@ func (mp *TxPool) pruneExpiredTx() {
 			log.Debugf("Pruning expired transaction %v from the mempool",
 				tx.Tx.Hash())
 			mp.removeTransaction(tx.Tx, true)
+		}
+	}
+
+	for _, tx := range mp.staged {
+		if blockchain.IsExpired(tx, nextBlockHeight) {
+			log.Debugf("Pruning expired transaction %v from the stage pool",
+				tx.Hash())
+			mp.removeStagedTransaction(tx)
 		}
 	}
 }
@@ -1774,12 +1969,14 @@ func (mp *TxPool) LastUpdated() time.Time {
 // transactions until they are mined into a block.
 func New(cfg *Config) *TxPool {
 	return &TxPool{
-		cfg:            *cfg,
-		pool:           make(map[chainhash.Hash]*TxDesc),
-		orphans:        make(map[chainhash.Hash]*orphanTx),
-		orphansByPrev:  make(map[wire.OutPoint]map[chainhash.Hash]*dcrutil.Tx),
-		outpoints:      make(map[wire.OutPoint]*dcrutil.Tx),
-		votes:          make(map[chainhash.Hash][]mining.VoteDesc),
-		nextExpireScan: time.Now().Add(orphanExpireScanInterval),
+		cfg:             *cfg,
+		pool:            make(map[chainhash.Hash]*TxDesc),
+		orphans:         make(map[chainhash.Hash]*orphanTx),
+		orphansByPrev:   make(map[wire.OutPoint]map[chainhash.Hash]*dcrutil.Tx),
+		outpoints:       make(map[wire.OutPoint]*dcrutil.Tx),
+		votes:           make(map[chainhash.Hash][]mining.VoteDesc),
+		nextExpireScan:  time.Now().Add(orphanExpireScanInterval),
+		staged:          make(map[chainhash.Hash]*dcrutil.Tx),
+		stagedOutpoints: make(map[wire.OutPoint]*dcrutil.Tx),
 	}
 }

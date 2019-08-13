@@ -1936,6 +1936,7 @@ func (b *blockManager) handleBlockchainNotification(notification *blockchain.Not
 		handleConnectedBlockTxns := func(txns []*dcrutil.Tx) {
 			for _, tx := range txns {
 				txMemPool.RemoveTransaction(tx, false)
+				txMemPool.MaybeAcceptDependents(tx)
 				txMemPool.RemoveDoubleSpends(tx)
 				txMemPool.RemoveOrphan(tx)
 				acceptedTxs := txMemPool.ProcessOrphans(tx)
@@ -1964,7 +1965,7 @@ func (b *blockManager) handleBlockchainNotification(notification *blockchain.Not
 		// Finally, if transactions fail to add to the pool for some reason
 		// other than the pool already having it (a duplicate) or now being a
 		// double spend, remove all transactions that depend on it as well.
-		// The dependencies are not removed for double spends because the only
+		// The dependents are not removed for double spends because the only
 		// way a transaction which was not a double spend in the previous block
 		// to now be one is due to some transaction in the current block
 		// (probably the same one) also spending those outputs, and, in that
@@ -2043,6 +2044,7 @@ func (b *blockManager) handleBlockchainNotification(notification *blockchain.Not
 		if !headerApprovesParent(&block.MsgBlock().Header) {
 			for _, tx := range parentBlock.Transactions()[1:] {
 				txMemPool.RemoveTransaction(tx, false)
+				txMemPool.MaybeAcceptDependents(tx)
 				txMemPool.RemoveDoubleSpends(tx)
 				txMemPool.RemoveOrphan(tx)
 				txMemPool.ProcessOrphans(tx)
@@ -2065,7 +2067,7 @@ func (b *blockManager) handleBlockchainNotification(notification *blockchain.Not
 		// Finally, if transactions fail to add to the pool for some reason
 		// other than the pool already having it (a duplicate) or now being a
 		// double spend, remove all transactions that depend on it as well.
-		// The dependencies are not removed for double spends because the only
+		// The dependents are not removed for double spends because the only
 		// way a transaction which was not a double spend in the block being
 		// disconnected to now be one is due to some transaction in the previous
 		// block (probably the same one), which was disapproved, also spending
