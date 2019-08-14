@@ -24,8 +24,13 @@ github.com/decred/dcrd/dcrec/edwards v1.0.0/go.mod h1:HblVh1OfMt7xSxUL1ufjToaEvp
 github.com/decred/dcrd/dcrec/secp256k1 v1.0.1/go.mod h1:lhu4eZFSfTJWUnR3CFRcpD+Vta0KUAqnhTsTksHXgy0=
 github.com/decred/dcrd/dcrec/secp256k1 v1.0.2 h1:awk7sYJ4pGWmtkiGHFfctztJjHMKGLV8jctGQhAbKe0=
 github.com/decred/dcrd/dcrec/secp256k1 v1.0.2/go.mod h1:CHTUIVfmDDd0KFVFpNX1pFVCBUegxW387nN0IGwNKR0=
+github.com/decred/dcrd/dcrec/secp256k1/v2 v2.0.0-20190813162237-25c14e046a6f h1:2RPtwbeosxMHckapLw+oxz4Aw2iPyDfoc7ZgFNZtcHw=
+github.com/decred/dcrd/dcrec/secp256k1/v2 v2.0.0-20190813162237-25c14e046a6f/go.mod h1:LB2m792y6gsEiwiVPw2JPxAsYS5qN9t4vDctVq1/vVA=
+github.com/decred/dcrd/gcs v1.1.0 h1:djuYzaFUzUTJR+6ulMSRZOQ+P9rxtIyuxQeViAEfB8s=
 github.com/decred/dcrd/rpc/jsonrpc/types v1.0.0 h1:d5ptnjuSADTQMa3i83VpeJNoMRTOJZZBqk7P+E41VXM=
 github.com/decred/dcrd/rpc/jsonrpc/types v1.0.0/go.mod h1:0dwmpIP21tJxjg/UuUHWIFMbfoLv2ifCBMokNKlOxpo=
+github.com/decred/dcrd/rpcclient/v4 v4.0.0 h1:8C3lNs2mvfu9CDjFzz1BOiDDbWBG9aTH82PCiGMP3FE=
+github.com/decred/dcrd/rpcclient/v4 v4.0.0/go.mod h1:DNGwfiL5H+K/pk3hVB0z5ypRdiDXMssR+YEqDUEXCQo=
 github.com/decred/dcrwallet/rpc/jsonrpc/types v1.1.0 h1:ZOMpbSK/Cz8D8Yfrt7/yNfS+myBUWMNOdgAg31ND7bM=
 github.com/decred/dcrwallet/rpc/jsonrpc/types v1.1.0/go.mod h1:xUT7XXATLOzE0pwwmvgfRWtZdrB+PsWFilo+jkH5/Ig=
 github.com/decred/dcrwallet/rpc/jsonrpc/types v1.2.0 h1:k17F1rYmYRqX3iO8nQBrSacbB8A50qNU+HT3gfNo4dw=

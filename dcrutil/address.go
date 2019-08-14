@@ -15,8 +15,8 @@ import (
 	"github.com/decred/dcrd/chaincfg/v2/chainec"
 	"github.com/decred/dcrd/dcrec"
 	"github.com/decred/dcrd/dcrec/edwards"
-	"github.com/decred/dcrd/dcrec/secp256k1"
-	"github.com/decred/dcrd/dcrec/secp256k1/schnorr"
+	"github.com/decred/dcrd/dcrec/secp256k1/v2"
+	"github.com/decred/dcrd/dcrec/secp256k1/v2/schnorr"
 )
 
 var (
@@ -561,7 +561,7 @@ type AddressSecSchnorrPubKey struct {
 // pay-to-pubkey address, using a secp256k1 pubkey.  The serializedPubKey
 // parameter must be a valid pubkey and must be compressed.
 func NewAddressSecSchnorrPubKey(serializedPubKey []byte, net AddressParams) (*AddressSecSchnorrPubKey, error) {
-	pubKey, err := schnorr.ParsePubKey(secp256k1.S256(), serializedPubKey)
+	pubKey, err := schnorr.ParsePubKey(serializedPubKey)
 	if err != nil {
 		return nil, err
 	}

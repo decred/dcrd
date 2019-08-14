@@ -19,8 +19,8 @@ import (
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/dcrec"
 	"github.com/decred/dcrd/dcrec/edwards"
-	"github.com/decred/dcrd/dcrec/secp256k1"
-	"github.com/decred/dcrd/dcrec/secp256k1/schnorr"
+	"github.com/decred/dcrd/dcrec/secp256k1/v2"
+	"github.com/decred/dcrd/dcrec/secp256k1/v2/schnorr"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -2864,7 +2864,7 @@ func opcodeCheckSigAlt(op *opcode, data []byte, vm *Engine) error {
 		vm.dstack.PushBool(ok)
 		return nil
 	case dcrec.STSchnorrSecp256k1:
-		pubKeySec, err := schnorr.ParsePubKey(secp256k1.S256(), pkBytes)
+		pubKeySec, err := schnorr.ParsePubKey(pkBytes)
 		if err != nil {
 			vm.dstack.PushBool(false)
 			return nil
