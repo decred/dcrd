@@ -1013,19 +1013,44 @@ func (a *AddrManager) AddLocalAddress(na *wire.NetAddress, priority AddressPrior
 	return nil
 }
 
+// HasLocalAddress asserts if the manager has the provided local address.
+func (a *AddrManager) HasLocalAddress(na *wire.NetAddress) bool {
+	key := NetAddressKey(na)
+	a.lamtx.Lock()
+	_, ok := a.localAddresses[key]
+	a.lamtx.Unlock()
+	return ok
+}
+
+const (
+	// Unreachable represents a publicly unreachable connection state
+	// between two addresses.
+	Unreachable = 0
+
+	// Default represents the default connection state between
+	// two addresses.
+	Default = iota
+
+	// Teredo represents a connection state between two RFC4380 addresses.
+	Teredo
+
+	// Ipv6Weak represents a weak IPV6 connection state between two
+	// addresses.
+	Ipv6Weak
+
+	// Ipv4 represents an IPV4 connection state between two addreses.
+	Ipv4
+
+	// Ipv6Strong represents a connection state between two IPV6 addresses.
+	Ipv6Strong
+
+	// Private reprsents a connection state connect between two Tor addresses.
+	Private
+)
+
 // getReachabilityFrom returns the relative reachability of the provided local
 // address to the provided remote address.
 func getReachabilityFrom(localAddr, remoteAddr *wire.NetAddress) int {
-	const (
-		Unreachable = 0
-		Default     = iota
-		Teredo
-		Ipv6Weak
-		Ipv4
-		Ipv6Strong
-		Private
-	)
-
 	if !IsRoutable(remoteAddr) {
 		return Unreachable
 	}
@@ -1128,6 +1153,15 @@ func (a *AddrManager) GetBestLocalAddress(remoteAddr *wire.NetAddress) *wire.Net
 	}
 
 	return bestAddress
+}
+
+// IsPeerNaValid asserts if the the provided local address is routable
+// and reachable from the peer that suggested it.
+func (a *AddrManager) IsPeerNaValid(localAddr, remoteAddr *wire.NetAddress) bool {
+	net := getNetwork(localAddr)
+	reach := getReachabilityFrom(localAddr, remoteAddr)
+	return (net == IPv4Address && reach == Ipv4) || (net == IPv6Address &&
+		(reach == Ipv6Weak || reach == Ipv6Strong || reach == Teredo))
 }
 
 // New returns a new Decred address manager.

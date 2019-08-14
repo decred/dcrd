@@ -118,6 +118,33 @@ func isOnionCatTor(na *wire.NetAddress) bool {
 	return onionCatNet.Contains(na.IP)
 }
 
+// NetworkAddress type is used to classify a network address.
+type NetworkAddress int
+
+const (
+	LocalAddress NetworkAddress = iota
+	IPv4Address
+	IPv6Address
+	OnionAddress
+)
+
+// getNetwork returns the network address type of the provided network address.
+func getNetwork(na *wire.NetAddress) NetworkAddress {
+	switch {
+	case isLocal(na):
+		return LocalAddress
+
+	case isIPv4(na):
+		return IPv4Address
+
+	case isOnionCatTor(na):
+		return OnionAddress
+
+	default:
+		return IPv6Address
+	}
+}
+
 // isRFC1918 returns whether or not the passed address is part of the IPv4
 // private network address space as defined by RFC1918 (10.0.0.0/8,
 // 172.16.0.0/12, or 192.168.0.0/16).
