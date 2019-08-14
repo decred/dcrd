@@ -16,10 +16,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/decred/dcrd/blockchain/chaingen"
-	"github.com/decred/dcrd/chaincfg"
+	"github.com/decred/dcrd/blockchain/v2/chaingen"
 	"github.com/decred/dcrd/chaincfg/chainhash"
-	"github.com/decred/dcrd/dcrutil"
+	"github.com/decred/dcrd/chaincfg/v2"
+	"github.com/decred/dcrd/dcrutil/v2"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -42,20 +42,27 @@ func cloneParams(params *chaincfg.Params) *chaincfg.Params {
 // functionality.
 func TestBlockchainFunctions(t *testing.T) {
 	// Update parameters to reflect what is expected by the legacy data.
-	params := cloneParams(&chaincfg.RegNetParams)
+	params := chaincfg.RegNetParams()
 	params.GenesisBlock.Header.MerkleRoot = *mustParseHash("a216ea043f0d481a072424af646787794c32bcefd3ed181a090319bbf8a37105")
 	params.GenesisBlock.Header.Timestamp = time.Unix(1401292357, 0)
 	params.GenesisBlock.Transactions[0].TxIn[0].ValueIn = 0
 	params.PubKeyHashAddrID = [2]byte{0x0e, 0x91}
 	params.StakeBaseSigScript = []byte{0xde, 0xad, 0xbe, 0xef}
 	params.OrganizationPkScript = hexToBytes("a914cbb08d6ca783b533b2c7d24a51fbca92d937bf9987")
-	params.BlockOneLedger = []*chaincfg.TokenPayout{
-		{Address: "Sshw6S86G2bV6W32cbc7EhtFy8f93rU6pae", Amount: 100000 * 1e8},
-		{Address: "SsjXRK6Xz6CFuBt6PugBvrkdAa4xGbcZ18w", Amount: 100000 * 1e8},
-		{Address: "SsfXiYkYkCoo31CuVQw428N6wWKus2ZEw5X", Amount: 100000 * 1e8},
-	}
-	genesisHash := params.GenesisBlock.BlockHash()
-	params.GenesisHash = &genesisHash
+	params.BlockOneLedger = []chaincfg.TokenPayout{{
+		ScriptVersion: 0,
+		Script:        hexToBytes("76a91494ff37a0ee4d48abc45f70474f9b86f9da69a70988ac"),
+		Amount:        100000 * 1e8,
+	}, {
+		ScriptVersion: 0,
+		Script:        hexToBytes("76a914a6753ebbc08e2553e7dd6d64bdead4bcbff4fcf188ac"),
+		Amount:        100000 * 1e8,
+	}, {
+		ScriptVersion: 0,
+		Script:        hexToBytes("76a9147aa3211c2ead810bbf5911c275c69cc196202bd888ac"),
+		Amount:        100000 * 1e8,
+	}}
+	params.GenesisHash = params.GenesisBlock.BlockHash()
 
 	// Create a new database and chain instance to run tests against.
 	chain, teardownFunc, err := chainSetup("validateunittests", params)
@@ -110,7 +117,7 @@ func TestBlockchainFunctions(t *testing.T) {
 			"want %v, got %v", expectedVal, val)
 	}
 
-	a, _ := dcrutil.DecodeAddress("SsbKpMkPnadDcZFFZqRPY8nvdFagrktKuzB")
+	a, _ := dcrutil.DecodeAddress("SsbKpMkPnadDcZFFZqRPY8nvdFagrktKuzB", params)
 	hs, err := chain.TicketsWithAddress(a)
 	if err != nil {
 		t.Errorf("Failed to do TicketsWithAddress: %v", err)
@@ -121,7 +128,7 @@ func TestBlockchainFunctions(t *testing.T) {
 			"TicketsWithAddress; want %v, got %v", expectedLen, len(hs))
 	}
 
-	totalSubsidy := chain.TotalSubsidy()
+	totalSubsidy := chain.BestSnapshot().TotalSubsidy
 	expectedSubsidy := int64(35783267326630)
 	if expectedSubsidy != totalSubsidy {
 		t.Errorf("Failed to get correct total subsidy for "+
@@ -133,7 +140,7 @@ func TestBlockchainFunctions(t *testing.T) {
 // TestForceHeadReorg ensures forcing header reorganization works as expected.
 func TestForceHeadReorg(t *testing.T) {
 	// Create a test harness initialized with the genesis block as the tip.
-	params := &chaincfg.RegNetParams
+	params := chaincfg.RegNetParams()
 	g, teardownFunc := newChaingenHarness(t, params, "forceheadreorgtest")
 	defer teardownFunc()
 
@@ -450,7 +457,7 @@ func TestLocateInventory(t *testing.T) {
 	// 	genesis -> 1 -> 2 -> ... -> 15 -> 16  -> 17  -> 18
 	// 	                              \-> 16a -> 17a
 	tip := branchTip
-	chain := newFakeChain(&chaincfg.MainNetParams)
+	chain := newFakeChain(chaincfg.MainNetParams())
 	branch0Nodes := chainedFakeNodes(chain.bestChain.Genesis(), 18)
 	branch1Nodes := chainedFakeNodes(branch0Nodes[14], 2)
 	for _, node := range branch0Nodes {

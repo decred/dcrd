@@ -8,11 +8,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/decred/dcrd/blockchain/chaingen"
-	"github.com/decred/dcrd/blockchain/stake"
-	"github.com/decred/dcrd/chaincfg"
-	"github.com/decred/dcrd/dcrutil"
-	"github.com/decred/dcrd/txscript"
+	"github.com/decred/dcrd/blockchain/stake/v2"
+	"github.com/decred/dcrd/blockchain/v2/chaingen"
+	"github.com/decred/dcrd/chaincfg/v2"
+	"github.com/decred/dcrd/dcrutil/v2"
+	"github.com/decred/dcrd/txscript/v2"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -165,8 +165,8 @@ func testLNFeaturesDeployment(t *testing.T, params *chaincfg.Params) {
 // TestLNFeaturesDeployment ensures the deployment of the LN features agenda
 // activate the expected changes.
 func TestLNFeaturesDeployment(t *testing.T) {
-	testLNFeaturesDeployment(t, &chaincfg.MainNetParams)
-	testLNFeaturesDeployment(t, &chaincfg.RegNetParams)
+	testLNFeaturesDeployment(t, chaincfg.MainNetParams())
+	testLNFeaturesDeployment(t, chaincfg.RegNetParams())
 }
 
 // testFixSeqLocksDeployment ensures the deployment of the fix sequence locks
@@ -288,8 +288,8 @@ func testFixSeqLocksDeployment(t *testing.T, params *chaincfg.Params) {
 // TestFixSeqLocksDeployment ensures the deployment of the fix sequence locks
 // agenda activates as expected.
 func TestFixSeqLocksDeployment(t *testing.T) {
-	testFixSeqLocksDeployment(t, &chaincfg.MainNetParams)
-	testFixSeqLocksDeployment(t, &chaincfg.RegNetParams)
+	testFixSeqLocksDeployment(t, chaincfg.MainNetParams())
+	testFixSeqLocksDeployment(t, chaincfg.RegNetParams())
 }
 
 // TestFixedSequenceLocks ensures that sequence locks within blocks behave as

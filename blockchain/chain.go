@@ -11,12 +11,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/decred/dcrd/blockchain/stake"
-	"github.com/decred/dcrd/chaincfg"
+	"github.com/decred/dcrd/blockchain/stake/v2"
+	"github.com/decred/dcrd/blockchain/standalone"
 	"github.com/decred/dcrd/chaincfg/chainhash"
-	"github.com/decred/dcrd/database"
-	"github.com/decred/dcrd/dcrutil"
-	"github.com/decred/dcrd/txscript"
+	"github.com/decred/dcrd/chaincfg/v2"
+	"github.com/decred/dcrd/database/v2"
+	"github.com/decred/dcrd/dcrutil/v2"
+	"github.com/decred/dcrd/txscript/v2"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -150,7 +151,7 @@ type BlockChain struct {
 
 	// subsidyCache is the cache that provides quick lookup of subsidy
 	// values.
-	subsidyCache *SubsidyCache
+	subsidyCache *standalone.SubsidyCache
 
 	// chainLock protects concurrent access to the vast majority of the
 	// fields in this struct below this point.
@@ -349,24 +350,6 @@ func (b *BlockChain) DisableVerify(disable bool) {
 	b.chainLock.Lock()
 	b.noVerify = disable
 	b.chainLock.Unlock()
-}
-
-// TotalSubsidy returns the total subsidy mined so far in the best chain.
-//
-// This function is safe for concurrent access.
-func (b *BlockChain) TotalSubsidy() int64 {
-	b.chainLock.RLock()
-	ts := b.BestSnapshot().TotalSubsidy
-	b.chainLock.RUnlock()
-
-	return ts
-}
-
-// FetchSubsidyCache returns the current subsidy cache from the blockchain.
-//
-// This function is safe for concurrent access.
-func (b *BlockChain) FetchSubsidyCache() *SubsidyCache {
-	return b.subsidyCache
 }
 
 // HaveBlock returns whether or not the chain instance has the block represented
@@ -643,21 +626,6 @@ func (b *BlockChain) pruneStakeNodes() {
 	}
 }
 
-// BestPrevHash returns the hash of the previous block of the block at HEAD.
-//
-// This function is safe for concurrent access.
-func (b *BlockChain) BestPrevHash() chainhash.Hash {
-	b.chainLock.Lock()
-	defer b.chainLock.Unlock()
-
-	var prevHash chainhash.Hash
-	tip := b.bestChain.Tip()
-	if tip.parent != nil {
-		prevHash = tip.parent.hash
-	}
-	return prevHash
-}
-
 // isMajorityVersion determines if a previous number of blocks in the chain
 // starting with startNode are at least the minimum passed version.
 //
@@ -749,7 +717,7 @@ func (b *BlockChain) connectBlock(node *blockNode, block, parent *dcrutil.Block,
 	curTotalTxns := b.stateSnapshot.TotalTxns
 	curTotalSubsidy := b.stateSnapshot.TotalSubsidy
 	b.stateLock.RUnlock()
-	subsidy := CalculateAddedSubsidy(block, parent)
+	subsidy := calculateAddedSubsidy(block, parent)
 	numTxns := uint64(len(block.Transactions()) + len(block.STransactions()))
 	blockSize := uint64(block.MsgBlock().Header.Size)
 	state := newBestState(node, blockSize, numTxns, curTotalTxns+numTxns,
@@ -921,7 +889,7 @@ func (b *BlockChain) disconnectBlock(node *blockNode, block, parent *dcrutil.Blo
 	numParentTxns := uint64(len(parent.Transactions()) + len(parent.STransactions()))
 	numBlockTxns := uint64(len(block.Transactions()) + len(block.STransactions()))
 	newTotalTxns := curTotalTxns - numBlockTxns
-	subsidy := CalculateAddedSubsidy(block, parent)
+	subsidy := calculateAddedSubsidy(block, parent)
 	newTotalSubsidy := curTotalSubsidy - subsidy
 	prevNode := node.parent
 	state := newBestState(prevNode, parentBlockSize, numParentTxns,
@@ -2045,14 +2013,21 @@ type Config struct {
 	// notifications.
 	Notifications NotificationCallback
 
-	// SigCache defines a signature cache to use when when validating
-	// signatures.  This is typically most useful when individual
-	// transactions are already being validated prior to their inclusion in
-	// a block such as what is usually done via a transaction memory pool.
+	// SigCache defines a signature cache to use when validating signatures.
+	// This is typically most useful when individual transactions are
+	// already being validated prior to their inclusion in a block such as
+	// what is usually done via a transaction memory pool.
 	//
 	// This field can be nil if the caller is not interested in using a
 	// signature cache.
 	SigCache *txscript.SigCache
+
+	// SubsidyCache defines a subsidy cache to use when calculating and
+	// validating block and vote subsidies.
+	//
+	// This field can be nil if the caller is not interested in using a
+	// subsidy cache.
+	SubsidyCache *standalone.SubsidyCache
 
 	// IndexManager defines an index manager to use when initializing the
 	// chain and connecting and disconnecting blocks.
@@ -2129,7 +2104,13 @@ func New(config *Config) (*BlockChain, error) {
 		}
 	}
 
-	b.subsidyCache = NewSubsidyCache(b.bestChain.Tip().height, b.chainParams)
+	// Either use the subsidy cache provided by the caller or create a new
+	// one when one was not provided.
+	subsidyCache := config.SubsidyCache
+	if subsidyCache == nil {
+		subsidyCache = standalone.NewSubsidyCache(b.chainParams)
+	}
+	b.subsidyCache = subsidyCache
 	b.pruner = newChainPruner(&b)
 
 	// The version 5 database upgrade requires a full reindex.  Perform, or

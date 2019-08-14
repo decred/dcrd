@@ -1,4 +1,4 @@
-// Copyright (c) 2018 The Decred developers
+// Copyright (c) 2018-2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrd/chaincfg/chainhash"
+	"github.com/decred/dcrd/chaincfg/v2"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -32,7 +32,7 @@ func mustParseHash(s string) *chainhash.Hash {
 func TestBlockNodeHeader(t *testing.T) {
 	// Create a fake chain and block header with all fields set to nondefault
 	// values.
-	params := &chaincfg.RegNetParams
+	params := chaincfg.RegNetParams()
 	bc := newFakeChain(params)
 	tip := bc.bestChain.Tip()
 	testHeader := wire.BlockHeader{
@@ -154,10 +154,9 @@ func TestCalcPastMedianTime(t *testing.T) {
 	// data.  Also, clone the provided parameters first to avoid mutating them.
 	//
 	// The timestamp corresponds to 2018-01-01 00:00:00 +0000 UTC.
-	params := cloneParams(&chaincfg.RegNetParams)
+	params := chaincfg.RegNetParams()
 	params.GenesisBlock.Header.Timestamp = time.Unix(1514764800, 0)
-	genesisHash := params.GenesisBlock.BlockHash()
-	params.GenesisHash = &genesisHash
+	params.GenesisHash = params.GenesisBlock.BlockHash()
 
 	for _, test := range tests {
 		// Create a synthetic chain with the correct number of nodes and the
@@ -184,7 +183,7 @@ func TestCalcPastMedianTime(t *testing.T) {
 // TestChainTips ensures the chain tip tracking in the block index works
 // as expected.
 func TestChainTips(t *testing.T) {
-	params := &chaincfg.RegNetParams
+	params := chaincfg.RegNetParams()
 	bc := newFakeChain(params)
 	genesis := bc.bestChain.NodeByHeight(0)
 

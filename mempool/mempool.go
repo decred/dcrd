@@ -12,14 +12,15 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/decred/dcrd/blockchain"
-	"github.com/decred/dcrd/blockchain/indexers"
-	"github.com/decred/dcrd/blockchain/stake"
-	"github.com/decred/dcrd/chaincfg"
+	"github.com/decred/dcrd/blockchain/stake/v2"
+	"github.com/decred/dcrd/blockchain/standalone"
+	"github.com/decred/dcrd/blockchain/v2"
+	"github.com/decred/dcrd/blockchain/v2/indexers"
 	"github.com/decred/dcrd/chaincfg/chainhash"
-	"github.com/decred/dcrd/dcrutil"
-	"github.com/decred/dcrd/mining"
-	"github.com/decred/dcrd/txscript"
+	"github.com/decred/dcrd/chaincfg/v2"
+	"github.com/decred/dcrd/dcrutil/v2"
+	"github.com/decred/dcrd/mining/v2"
+	"github.com/decred/dcrd/txscript/v2"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -100,7 +101,7 @@ type Config struct {
 	CalcSequenceLock func(*dcrutil.Tx, *blockchain.UtxoViewpoint) (*blockchain.SequenceLock, error)
 
 	// SubsidyCache defines a subsidy cache to use.
-	SubsidyCache *blockchain.SubsidyCache
+	SubsidyCache *standalone.SubsidyCache
 
 	// SigCache defines a signature cache to use.
 	SigCache *txscript.SigCache
@@ -437,7 +438,7 @@ func (mp *TxPool) maybeAddOrphan(tx *dcrutil.Tx) error {
 	// Ignore orphan transactions that are too large.  This helps avoid
 	// a memory exhaustion attack based on sending a lot of really large
 	// orphans.  In the case there is a valid transaction larger than this,
-	// it will ultimtely be rebroadcast after the parent transactions
+	// it will ultimately be rebroadcast after the parent transactions
 	// have been mined or otherwise received.
 	//
 	// Note that the number of orphan transactions in the orphan pool is
@@ -887,7 +888,7 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 	}
 
 	// A standalone transaction must not be a coinbase transaction.
-	if blockchain.IsCoinBase(tx) {
+	if standalone.IsCoinBaseTx(msgTx) {
 		str := fmt.Sprintf("transaction %v is an individual coinbase",
 			txHash)
 		return nil, txRuleError(wire.RejectInvalid, str)
@@ -1271,7 +1272,7 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 
 	// Check that tickets also pay the minimum of the relay fee.  This fee is
 	// also performed on regular transactions above, but fees lower than the
-	// miniumum may be allowed when there is sufficient priority, and these
+	// minimum may be allowed when there is sufficient priority, and these
 	// checks aren't desired for ticket purchases.
 	if isTicket {
 		minTicketFee := calcMinRequiredTxRelayFee(serializedSize,
@@ -1517,8 +1518,8 @@ func (mp *TxPool) ProcessOrphans(acceptedTx *dcrutil.Tx) []*dcrutil.Tx {
 //
 // It returns a slice of transactions added to the mempool.  When the
 // error is nil, the list will include the passed transaction itself along
-// with any additional orphan transaactions that were added as a result of
-// the passed one being accepted.
+// with any additional orphan transactions that were added as a result of the
+// passed one being accepted.
 //
 // This function is safe for concurrent access.
 func (mp *TxPool) ProcessTransaction(tx *dcrutil.Tx, allowOrphan, rateLimit, allowHighFees bool) ([]*dcrutil.Tx, error) {

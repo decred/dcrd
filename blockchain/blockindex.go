@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2017 The btcsuite developers
-// Copyright (c) 2018 The Decred developers
+// Copyright (c) 2018-2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -12,9 +12,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/decred/dcrd/blockchain/stake"
+	"github.com/decred/dcrd/blockchain/stake/v2"
+	"github.com/decred/dcrd/blockchain/standalone"
 	"github.com/decred/dcrd/chaincfg/chainhash"
-	"github.com/decred/dcrd/database"
+	"github.com/decred/dcrd/database/v2"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -137,7 +138,7 @@ type blockNode struct {
 func initBlockNode(node *blockNode, blockHeader *wire.BlockHeader, parent *blockNode) {
 	*node = blockNode{
 		hash:         blockHeader.BlockHash(),
-		workSum:      CalcWork(blockHeader.Bits),
+		workSum:      standalone.CalcWork(blockHeader.Bits),
 		height:       int64(blockHeader.Height),
 		blockVersion: blockHeader.Version,
 		voteBits:     blockHeader.VoteBits,
@@ -221,7 +222,7 @@ func (node *blockNode) lotteryIV() chainhash.Hash {
 	return stake.CalcHash256PRNGIV(buf.Bytes())
 }
 
-// populateTicketInfo sets prunable ticket information in the provided block
+// populateTicketInfo sets pruneable ticket information in the provided block
 // node.
 //
 // This function is NOT safe for concurrent access.  It must only be called when

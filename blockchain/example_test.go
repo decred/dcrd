@@ -1,5 +1,5 @@
 // Copyright (c) 2014-2016 The btcsuite developers
-// Copyright (c) 2015-2016 The Decred developers
+// Copyright (c) 2015-2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -7,15 +7,14 @@ package blockchain_test
 
 import (
 	"fmt"
-	"math/big"
 	"os"
 	"path/filepath"
 
-	"github.com/decred/dcrd/blockchain"
-	"github.com/decred/dcrd/chaincfg"
-	"github.com/decred/dcrd/database"
-	_ "github.com/decred/dcrd/database/ffldb"
-	"github.com/decred/dcrd/dcrutil"
+	"github.com/decred/dcrd/blockchain/v2"
+	"github.com/decred/dcrd/chaincfg/v2"
+	"github.com/decred/dcrd/database/v2"
+	_ "github.com/decred/dcrd/database/v2/ffldb"
+	"github.com/decred/dcrd/dcrutil/v2"
 )
 
 // This example demonstrates how to create a new chain instance and use
@@ -29,9 +28,10 @@ func ExampleBlockChain_ProcessBlock() {
 	// and creating a new database like this, but it is done here so this is
 	// a complete working example and does not leave temporary files laying
 	// around.
+	mainNetParams := chaincfg.MainNetParams()
 	dbPath := filepath.Join(os.TempDir(), "exampleprocessblock")
 	_ = os.RemoveAll(dbPath)
-	db, err := database.Create("ffldb", dbPath, chaincfg.MainNetParams.Net)
+	db, err := database.Create("ffldb", dbPath, mainNetParams.Net)
 	if err != nil {
 		fmt.Printf("Failed to create database: %v\n", err)
 		return
@@ -48,7 +48,7 @@ func ExampleBlockChain_ProcessBlock() {
 	// adjusted to be in agreement with other peers.
 	chain, err := blockchain.New(&blockchain.Config{
 		DB:          db,
-		ChainParams: &chaincfg.MainNetParams,
+		ChainParams: mainNetParams,
 		TimeSource:  blockchain.NewMedianTime(),
 	})
 	if err != nil {
@@ -59,7 +59,7 @@ func ExampleBlockChain_ProcessBlock() {
 	// Process a block.  For this example, we are going to intentionally
 	// cause an error by trying to process the genesis block which already
 	// exists.
-	genesisBlock := dcrutil.NewBlock(chaincfg.MainNetParams.GenesisBlock)
+	genesisBlock := dcrutil.NewBlock(mainNetParams.GenesisBlock)
 	forkLen, isOrphan, err := chain.ProcessBlock(genesisBlock,
 		blockchain.BFNone)
 	if err != nil {
@@ -74,38 +74,4 @@ func ExampleBlockChain_ProcessBlock() {
 	// updated if the mainnet genesis block is updated.
 	// Output:
 	// Failed to process block: already have block 267a53b5ee86c24a48ec37aee4f4e7c0c4004892b7259e695e9f5b321f1ab9d2
-}
-
-// This example demonstrates how to convert the compact "bits" in a block header
-// which represent the target difficulty to a big integer and display it using
-// the typical hex notation.
-func ExampleCompactToBig() {
-	// Convert the bits from block 300000 in the main Decred block chain.
-	bits := uint32(419465580)
-	targetDifficulty := blockchain.CompactToBig(bits)
-
-	// Display it in hex.
-	fmt.Printf("%064x\n", targetDifficulty.Bytes())
-
-	// Output:
-	// 0000000000000000896c00000000000000000000000000000000000000000000
-}
-
-// This example demonstrates how to convert a target difficulty into the compact
-// "bits" in a block header which represent that target difficulty .
-func ExampleBigToCompact() {
-	// Convert the target difficulty from block 300000 in the main block
-	// chain to compact form.
-	t := "0000000000000000896c00000000000000000000000000000000000000000000"
-	targetDifficulty, success := new(big.Int).SetString(t, 16)
-	if !success {
-		fmt.Println("invalid target difficulty")
-		return
-	}
-	bits := blockchain.BigToCompact(targetDifficulty)
-
-	fmt.Println(bits)
-
-	// Output:
-	// 419465580
 }

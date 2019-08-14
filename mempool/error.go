@@ -1,12 +1,12 @@
 // Copyright (c) 2014-2016 The btcsuite developers
-// Copyright (c) 2015-2016 The Decred developers
+// Copyright (c) 2015-2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
 package mempool
 
 import (
-	"github.com/decred/dcrd/blockchain"
+	"github.com/decred/dcrd/blockchain/v2"
 	"github.com/decred/dcrd/wire"
 )
 

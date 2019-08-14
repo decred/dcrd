@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2018 The Decred developers
+// Copyright (c) 2015-2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -8,9 +8,9 @@ package blockchain
 import (
 	"fmt"
 
-	"github.com/decred/dcrd/blockchain/stake"
-	"github.com/decred/dcrd/database"
-	"github.com/decred/dcrd/dcrutil"
+	"github.com/decred/dcrd/blockchain/stake/v2"
+	"github.com/decred/dcrd/database/v2"
+	"github.com/decred/dcrd/dcrutil/v2"
 )
 
 // maybeAcceptBlock potentially accepts a block into the block chain and, if
@@ -104,7 +104,7 @@ func (b *BlockChain) maybeAcceptBlock(block *dcrutil.Block, flags BehaviorFlags)
 	// connection checks, because even though the block might still fail
 	// to connect and becomes the new main chain tip, that is quite rare in
 	// practice since a lot of work was expended to create a block that
-	// satisifies the proof of work requirement.
+	// satisfies the proof of work requirement.
 	//
 	// Notice that the chain lock is not released before sending the
 	// notification.  This is intentional and must not be changed without

@@ -22,23 +22,24 @@ import (
 	"time"
 
 	"github.com/decred/dcrd/addrmgr"
-	"github.com/decred/dcrd/blockchain"
-	"github.com/decred/dcrd/blockchain/indexers"
-	"github.com/decred/dcrd/blockchain/stake"
-	"github.com/decred/dcrd/chaincfg"
+	"github.com/decred/dcrd/blockchain/stake/v2"
+	"github.com/decred/dcrd/blockchain/standalone"
+	"github.com/decred/dcrd/blockchain/v2"
+	"github.com/decred/dcrd/blockchain/v2/indexers"
 	"github.com/decred/dcrd/chaincfg/chainhash"
-	"github.com/decred/dcrd/connmgr"
-	"github.com/decred/dcrd/database"
-	"github.com/decred/dcrd/dcrutil"
-	"github.com/decred/dcrd/fees"
+	"github.com/decred/dcrd/chaincfg/v2"
+	"github.com/decred/dcrd/connmgr/v2"
+	"github.com/decred/dcrd/database/v2"
+	"github.com/decred/dcrd/dcrutil/v2"
+	"github.com/decred/dcrd/fees/v2"
 	"github.com/decred/dcrd/gcs"
 	"github.com/decred/dcrd/gcs/blockcf"
 	"github.com/decred/dcrd/internal/version"
 	"github.com/decred/dcrd/lru"
-	"github.com/decred/dcrd/mempool/v2"
-	"github.com/decred/dcrd/mining"
-	"github.com/decred/dcrd/peer"
-	"github.com/decred/dcrd/txscript"
+	"github.com/decred/dcrd/mempool/v3"
+	"github.com/decred/dcrd/mining/v2"
+	"github.com/decred/dcrd/peer/v2"
+	"github.com/decred/dcrd/txscript/v2"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -191,6 +192,7 @@ type server struct {
 	addrManager          *addrmgr.AddrManager
 	connManager          *connmgr.ConnManager
 	sigCache             *txscript.SigCache
+	subsidyCache         *standalone.SubsidyCache
 	rpcServer            *rpcServer
 	blockManager         *blockManager
 	bg                   *BgBlkTmplGenerator
@@ -1771,14 +1773,21 @@ func (s *server) peerHandler() {
 
 	if !cfg.DisableDNSSeed {
 		// Add peers discovered through DNS to the address manager.
-		connmgr.SeedFromDNS(activeNetParams.Params, defaultRequiredServices, dcrdLookup, func(addrs []*wire.NetAddress) {
-			// Bitcoind uses a lookup of the dns seeder here. This
-			// is rather strange since the values looked up by the
-			// DNS seed lookups will vary quite a lot.
-			// to replicate this behaviour we put all addresses as
-			// having come from the first one.
-			s.addrManager.AddAddresses(addrs, addrs[0])
-		})
+		params := activeNetParams.Params
+		seeds := make([]string, 0, len(params.DNSSeeds))
+		for _, seed := range params.DNSSeeds {
+			seeds = append(seeds, seed.Host)
+		}
+		defaultPort, _ := strconv.Atoi(params.DefaultPort)
+		connmgr.SeedFromDNS(seeds, uint16(defaultPort), defaultRequiredServices,
+			dcrdLookup, func(addrs []*wire.NetAddress) {
+				// Bitcoind uses a lookup of the dns seeder here. This
+				// is rather strange since the values looked up by the
+				// DNS seed lookups will vary quite a lot.
+				// to replicate this behaviour we put all addresses as
+				// having come from the first one.
+				s.addrManager.AddAddresses(addrs, addrs[0])
+			})
 	}
 	go s.connManager.Start()
 
@@ -2478,6 +2487,7 @@ func newServer(listenAddrs []string, db database.DB, chainParams *chaincfg.Param
 		timeSource:           blockchain.NewMedianTime(),
 		services:             services,
 		sigCache:             txscript.NewSigCache(cfg.SigCacheMaxSize),
+		subsidyCache:         standalone.NewSubsidyCache(chainParams),
 		context:              ctx,
 		cancel:               cancel,
 	}
@@ -2557,6 +2567,7 @@ func newServer(listenAddrs []string, db database.DB, chainParams *chaincfg.Param
 			}
 		},
 		SigCache:     s.sigCache,
+		SubsidyCache: s.subsidyCache,
 		IndexManager: indexManager,
 	})
 	if err != nil {
@@ -2588,7 +2599,7 @@ func newServer(listenAddrs []string, db database.DB, chainParams *chaincfg.Param
 		BestHash:         func() *chainhash.Hash { return &s.chain.BestSnapshot().Hash },
 		BestHeight:       func() int64 { return s.chain.BestSnapshot().Height },
 		CalcSequenceLock: s.chain.CalcSequenceLock,
-		SubsidyCache:     s.chain.FetchSubsidyCache(),
+		SubsidyCache:     s.subsidyCache,
 		SigCache:         s.sigCache,
 		PastMedianTime: func() time.Time {
 			return s.chain.BestSnapshot().MedianTime
@@ -2608,6 +2619,7 @@ func newServer(listenAddrs []string, db database.DB, chainParams *chaincfg.Param
 		PeerNotifier:       &s,
 		Chain:              s.chain,
 		ChainParams:        s.chainParams,
+		SubsidyCache:       s.subsidyCache,
 		TimeSource:         s.timeSource,
 		FeeEstimator:       s.feeEstimator,
 		TxMemPool:          s.txMemPool,
@@ -2638,7 +2650,7 @@ func newServer(listenAddrs []string, db database.DB, chainParams *chaincfg.Param
 		TxMinFreeFee:      cfg.minRelayTxFee,
 	}
 	tg := newBlkTmplGenerator(&policy, s.txMemPool, s.timeSource, s.sigCache,
-		s.chainParams, s.chain, s.blockManager)
+		s.subsidyCache, s.chainParams, s.chain, s.blockManager)
 
 	// Create the background block template generator if the config has a
 	// mining address.

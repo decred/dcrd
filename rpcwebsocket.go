@@ -22,13 +22,14 @@ import (
 	"github.com/gorilla/websocket"
 	"golang.org/x/crypto/ripemd160"
 
-	"github.com/decred/dcrd/blockchain"
-	"github.com/decred/dcrd/blockchain/stake"
+	"github.com/decred/dcrd/blockchain/stake/v2"
+	"github.com/decred/dcrd/blockchain/standalone"
+	"github.com/decred/dcrd/blockchain/v2"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/dcrjson/v3"
-	"github.com/decred/dcrd/dcrutil"
+	"github.com/decred/dcrd/dcrutil/v2"
 	"github.com/decred/dcrd/rpc/jsonrpc/types"
-	"github.com/decred/dcrd/txscript"
+	"github.com/decred/dcrd/txscript/v2"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -333,6 +334,9 @@ type StakeDifficultyNtfnData struct {
 type wsClientFilter struct {
 	mu sync.Mutex
 
+	// Parameter for address decoding.
+	params dcrutil.AddressParams
+
 	// Implemented fast paths for address lookup.
 	pubKeyHashes        map[[ripemd160.Size]byte]struct{}
 	scriptHashes        map[[ripemd160.Size]byte]struct{}
@@ -348,8 +352,9 @@ type wsClientFilter struct {
 	unspent map[wire.OutPoint]struct{}
 }
 
-func makeWSClientFilter(addresses []string, unspentOutPoints []*wire.OutPoint) *wsClientFilter {
+func makeWSClientFilter(addresses []string, unspentOutPoints []*wire.OutPoint, params dcrutil.AddressParams) *wsClientFilter {
 	filter := &wsClientFilter{
+		params:              params,
 		pubKeyHashes:        map[[ripemd160.Size]byte]struct{}{},
 		scriptHashes:        map[[ripemd160.Size]byte]struct{}{},
 		compressedPubKeys:   map[[33]byte]struct{}{},
@@ -392,11 +397,11 @@ func (f *wsClientFilter) addAddress(a dcrutil.Address) {
 		}
 	}
 
-	f.otherAddresses[a.EncodeAddress()] = struct{}{}
+	f.otherAddresses[a.Address()] = struct{}{}
 }
 
 func (f *wsClientFilter) addAddressStr(s string) {
-	a, err := dcrutil.DecodeAddress(s)
+	a, err := dcrutil.DecodeAddress(s, f.params)
 	// If address can't be decoded, no point in saving it since it should also
 	// impossible to create the address from an inspected transaction output
 	// script.
@@ -436,7 +441,7 @@ func (f *wsClientFilter) existsAddress(a dcrutil.Address) bool {
 		}
 	}
 
-	_, ok := f.otherAddresses[a.EncodeAddress()]
+	_, ok := f.otherAddresses[a.Address()]
 	return ok
 }
 
@@ -674,8 +679,7 @@ func (m *wsNotificationManager) subscribedClients(tx *dcrutil.Tx, clients map[ch
 		}
 
 		for i, output := range msgTx.TxOut {
-			_, addrs, _, err := txscript.ExtractPkScriptAddrs(
-				txscript.DefaultScriptVersion,
+			_, addrs, _, err := txscript.ExtractPkScriptAddrs(output.Version,
 				output.PkScript, m.server.server.chainParams)
 			if err != nil {
 				// Clients are not able to subscribe to
@@ -1991,7 +1995,8 @@ func handleLoadTxFilter(wsc *wsClient, icmd interface{}) (interface{}, error) {
 
 	wsc.Lock()
 	if cmd.Reload || wsc.filterData == nil {
-		wsc.filterData = makeWSClientFilter(cmd.Addresses, outPoints)
+		wsc.filterData = makeWSClientFilter(cmd.Addresses, outPoints,
+			wsc.server.server.chainParams)
 		wsc.Unlock()
 	} else {
 		filter := wsc.filterData
@@ -2100,7 +2105,7 @@ func rescanBlock(filter *wsClientFilter, block *dcrutil.Block) []string {
 		if tree == wire.TxTreeRegular {
 			// Skip previous output checks for coinbase inputs.  These do
 			// not reference a previous output.
-			if blockchain.IsCoinBaseTx(tx) {
+			if standalone.IsCoinBaseTx(tx) {
 				goto LoopOutputs
 			}
 		} else {

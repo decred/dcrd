@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2017 The btcsuite developers
-// Copyright (c) 2015-2018 The Decred developers
+// Copyright (c) 2015-2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -11,15 +11,15 @@ import (
 	"path/filepath"
 
 	"github.com/decred/dcrd/addrmgr"
-	"github.com/decred/dcrd/blockchain"
-	"github.com/decred/dcrd/blockchain/indexers"
-	"github.com/decred/dcrd/blockchain/stake"
-	"github.com/decred/dcrd/connmgr"
-	"github.com/decred/dcrd/database"
-	"github.com/decred/dcrd/fees"
-	"github.com/decred/dcrd/mempool/v2"
-	"github.com/decred/dcrd/peer"
-	"github.com/decred/dcrd/txscript"
+	"github.com/decred/dcrd/blockchain/stake/v2"
+	"github.com/decred/dcrd/blockchain/v2"
+	"github.com/decred/dcrd/blockchain/v2/indexers"
+	"github.com/decred/dcrd/connmgr/v2"
+	"github.com/decred/dcrd/database/v2"
+	"github.com/decred/dcrd/fees/v2"
+	"github.com/decred/dcrd/mempool/v3"
+	"github.com/decred/dcrd/peer/v2"
+	"github.com/decred/dcrd/txscript/v2"
 	"github.com/decred/slog"
 	"github.com/jrick/logrotate/rotator"
 )

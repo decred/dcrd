@@ -178,13 +178,16 @@ The following versioned modules are provided by dcrd repository:
   return values, and notifications
 * [wire](https://github.com/decred/dcrd/tree/master/wire) - Implements the
   Decred wire protocol
-* [peer](https://github.com/decred/dcrd/tree/master/peer) - Provides a common
+* [peer/v2](https://github.com/decred/dcrd/tree/master/peer) - Provides a common
   base for creating and managing Decred network peers
-* [blockchain](https://github.com/decred/dcrd/tree/master/blockchain) -
+* [blockchain/v2](https://github.com/decred/dcrd/tree/master/blockchain) -
   Implements Decred block handling and chain selection rules
   * [stake/v2](https://github.com/decred/dcrd/tree/master/blockchain/stake) -
     Provides an API for working with stake transactions and other portions
     related to the Proof-of-Stake (PoS) system
+  * [standalone](https://github.com/decred/dcrd/tree/master/blockchain/standalone) -
+    Provides standalone functions useful for working with the Decred blockchain
+    consensus rules
 * [txscript/v2](https://github.com/decred/dcrd/tree/master/txscript) -
   Implements the Decred transaction scripting language
 * [dcrec](https://github.com/decred/dcrd/tree/master/dcrec) - Provides constants
@@ -195,7 +198,7 @@ The following versioned modules are provided by dcrd repository:
     Implements the edwards25519 twisted Edwards curve
 * [database/v2](https://github.com/decred/dcrd/tree/master/database) -
   Provides a database interface for the Decred block chain
-* [mempool/v2](https://github.com/decred/dcrd/tree/master/mempool) - Provides a
+* [mempool/v3](https://github.com/decred/dcrd/tree/master/mempool) - Provides a
   policy-enforced pool of unmined Decred transactions
 * [dcrutil/v2](https://github.com/decred/dcrd/tree/master/dcrutil) - Provides
   Decred-specific convenience functions and types
@@ -210,8 +213,8 @@ The following versioned modules are provided by dcrd repository:
   encrypting RPC and websocket communications
 * [addrmgr](https://github.com/decred/dcrd/tree/master/addrmgr) - Provides a
   concurrency safe Decred network address manager
-* [connmgr](https://github.com/decred/dcrd/tree/master/connmgr) - Implements a
-  generic Decred network connection manager
+* [connmgr/v2](https://github.com/decred/dcrd/tree/master/connmgr) - Implements
+  a generic Decred network connection manager
 * [hdkeychain/v2](https://github.com/decred/dcrd/tree/master/hdkeychain) -
   Provides an API for working with  Decred hierarchical deterministic extended
   keys

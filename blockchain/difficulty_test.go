@@ -6,71 +6,13 @@
 package blockchain
 
 import (
-	"math/big"
 	"runtime"
 	"testing"
 	"time"
 
-	"github.com/decred/dcrd/chaincfg"
+	"github.com/decred/dcrd/chaincfg/v2"
 	"github.com/decred/dcrd/wire"
 )
-
-func TestBigToCompact(t *testing.T) {
-	tests := []struct {
-		in  int64
-		out uint32
-	}{
-		{0, 0},
-		{-1, 25231360},
-	}
-
-	for x, test := range tests {
-		n := big.NewInt(test.in)
-		r := BigToCompact(n)
-		if r != test.out {
-			t.Errorf("TestBigToCompact test #%d failed: got %d want %d\n",
-				x, r, test.out)
-			return
-		}
-	}
-}
-
-func TestCompactToBig(t *testing.T) {
-	tests := []struct {
-		in  uint32
-		out int64
-	}{
-		{10000000, 0},
-	}
-
-	for x, test := range tests {
-		n := CompactToBig(test.in)
-		want := big.NewInt(test.out)
-		if n.Cmp(want) != 0 {
-			t.Errorf("TestCompactToBig test #%d failed: got %d want %d\n",
-				x, n.Int64(), want.Int64())
-			return
-		}
-	}
-}
-
-func TestCalcWork(t *testing.T) {
-	tests := []struct {
-		in  uint32
-		out int64
-	}{
-		{10000000, 0},
-	}
-
-	for x, test := range tests {
-		r := CalcWork(test.in)
-		if r.Int64() != test.out {
-			t.Errorf("TestCalcWork test #%d failed: got %v want %d\n",
-				x, r.Int64(), test.out)
-			return
-		}
-	}
-}
 
 // TestEstimateSupply ensures the supply estimation function used in the stake
 // difficulty algorithm defined by DCP0001 works as expected.
@@ -78,7 +20,7 @@ func TestEstimateSupply(t *testing.T) {
 	t.Parallel()
 
 	// The parameters used for the supply estimation.
-	params := &chaincfg.MainNetParams
+	params := chaincfg.MainNetParams()
 	baseSubsidy := params.BaseSubsidy
 	reduxInterval := params.SubsidyReductionInterval
 	blockOneSubsidy := params.BlockOneSubsidy()
@@ -210,7 +152,7 @@ func TestCalcNextRequiredStakeDiffV2(t *testing.T) {
 	// used by the tests are the expected ones.  All of the test values will
 	// need to be updated if these parameters change since they are manually
 	// calculated based on them.
-	params := &chaincfg.MainNetParams
+	params := chaincfg.MainNetParams()
 	assertStakeDiffParamsMainNet(t, params)
 	minStakeDiff := params.MinimumStakeDiff
 	ticketMaturity := uint32(params.TicketMaturity)
@@ -516,8 +458,8 @@ func TestEstimateNextStakeDiffV2(t *testing.T) {
 	// Assert the param values directly used by the tests are the expected
 	// ones.  All of the test values will need to be updated if these
 	// parameters change since they are manually calculated based on them.
-	mainNetParams := &chaincfg.MainNetParams
-	testNetParams := &chaincfg.TestNet3Params
+	mainNetParams := chaincfg.MainNetParams()
+	testNetParams := chaincfg.TestNet3Params()
 	assertStakeDiffParamsMainNet(t, mainNetParams)
 	assertStakeDiffParamsTestNet(t, testNetParams)
 	minStakeDiffMainNet := mainNetParams.MinimumStakeDiff
@@ -1056,7 +998,7 @@ nextTest:
 func TestMinDifficultyReduction(t *testing.T) {
 	// Create chain params based on regnet params, but set the fields related to
 	// proof-of-work difficulty to specific values expected by the tests.
-	params := chaincfg.RegNetParams
+	params := chaincfg.RegNetParams()
 	params.ReduceMinDifficulty = true
 	params.TargetTimePerBlock = time.Minute * 2
 	params.MinDiffReductionTime = time.Minute * 10 // ~99.3% chance to be mined
@@ -1181,7 +1123,7 @@ func TestMinDifficultyReduction(t *testing.T) {
 		},
 	}
 
-	bc := newFakeChain(&params)
+	bc := newFakeChain(params)
 	node := bc.bestChain.Tip()
 	blockTime := time.Unix(node.timestamp, 0)
 	for _, test := range tests {

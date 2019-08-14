@@ -9,8 +9,8 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/decred/dcrd/dcrjson/v2"
-	"github.com/decred/dcrd/rpcclient/v3"
+	dcrdtypes "github.com/decred/dcrd/rpc/jsonrpc/types"
+	"github.com/decred/dcrd/rpcclient/v4"
 )
 
 // JoinType is an enum representing a particular type of "node join". A node
@@ -50,7 +50,7 @@ func syncMempools(nodes []*Harness) error {
 
 	for !poolsMatch {
 	retry:
-		firstPool, err := nodes[0].Node.GetRawMempool(dcrjson.GRMAll)
+		firstPool, err := nodes[0].Node.GetRawMempool(dcrdtypes.GRMAll)
 		if err != nil {
 			return err
 		}
@@ -59,7 +59,7 @@ func syncMempools(nodes []*Harness) error {
 		// first node, then we're done. Otherwise, drop back to the top
 		// of the loop and retry after a short wait period.
 		for _, node := range nodes[1:] {
-			nodePool, err := node.Node.GetRawMempool(dcrjson.GRMAll)
+			nodePool, err := node.Node.GetRawMempool(dcrdtypes.GRMAll)
 			if err != nil {
 				return err
 			}

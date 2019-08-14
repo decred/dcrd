@@ -8,15 +8,15 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/decred/dcrd/blockchain/chaingen"
-	"github.com/decred/dcrd/chaincfg"
+	"github.com/decred/dcrd/blockchain/v2/chaingen"
+	"github.com/decred/dcrd/chaincfg/v2"
 )
 
 // TestStakeVersion ensures that the stake version field in the block header is
 // enforced properly.
 func TestStakeVersion(t *testing.T) {
 	// Create a test harness initialized with the genesis block as the tip.
-	params := &chaincfg.RegNetParams
+	params := chaincfg.RegNetParams()
 	g, teardownFunc := newChaingenHarness(t, params, "stakeversiontest")
 	defer teardownFunc()
 

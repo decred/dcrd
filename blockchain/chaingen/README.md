@@ -28,7 +28,7 @@ functions.
 * [Basic Usage Example]
   (https://godoc.org/github.com/decred/dcrd/blockchain/chaingen#example-package--BasicUsage)
   Demonstrates creating a new generator instance and using it to generate the
-  required premine block and enough blocks to have mature coinbase outputs to
+  required first block and enough blocks to have mature coinbase outputs to
   work with along with asserting the generator state along the way.
 
 ## Installation

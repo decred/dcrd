@@ -1,12 +1,12 @@
-// Copyright (c) 2017-2018 The Decred developers
 // Copyright (c) 2016 The btcsuite developers
+// Copyright (c) 2017-2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
 package blockchain
 
 import (
-	"github.com/decred/dcrd/chaincfg"
+	"github.com/decred/dcrd/chaincfg/v2"
 )
 
 // deploymentChecker provides a thresholdConditionChecker which can be used to

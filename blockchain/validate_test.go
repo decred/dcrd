@@ -16,11 +16,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/decred/dcrd/blockchain/chaingen"
-	"github.com/decred/dcrd/chaincfg"
+	"github.com/decred/dcrd/blockchain/v2/chaingen"
 	"github.com/decred/dcrd/chaincfg/chainhash"
-	"github.com/decred/dcrd/database"
-	"github.com/decred/dcrd/dcrutil"
+	"github.com/decred/dcrd/chaincfg/v2"
+	"github.com/decred/dcrd/database/v2"
+	"github.com/decred/dcrd/dcrutil/v2"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -28,20 +28,27 @@ import (
 // written to disk correctly on a live blockchain.
 func TestBlockchainSpendJournal(t *testing.T) {
 	// Update parameters to reflect what is expected by the legacy data.
-	params := cloneParams(&chaincfg.RegNetParams)
+	params := chaincfg.RegNetParams()
 	params.GenesisBlock.Header.MerkleRoot = *mustParseHash("a216ea043f0d481a072424af646787794c32bcefd3ed181a090319bbf8a37105")
 	params.GenesisBlock.Header.Timestamp = time.Unix(1401292357, 0)
 	params.GenesisBlock.Transactions[0].TxIn[0].ValueIn = 0
 	params.PubKeyHashAddrID = [2]byte{0x0e, 0x91}
 	params.StakeBaseSigScript = []byte{0xde, 0xad, 0xbe, 0xef}
 	params.OrganizationPkScript = hexToBytes("a914cbb08d6ca783b533b2c7d24a51fbca92d937bf9987")
-	params.BlockOneLedger = []*chaincfg.TokenPayout{
-		{Address: "Sshw6S86G2bV6W32cbc7EhtFy8f93rU6pae", Amount: 100000 * 1e8},
-		{Address: "SsjXRK6Xz6CFuBt6PugBvrkdAa4xGbcZ18w", Amount: 100000 * 1e8},
-		{Address: "SsfXiYkYkCoo31CuVQw428N6wWKus2ZEw5X", Amount: 100000 * 1e8},
-	}
-	genesisHash := params.GenesisBlock.BlockHash()
-	params.GenesisHash = &genesisHash
+	params.BlockOneLedger = []chaincfg.TokenPayout{{
+		ScriptVersion: 0,
+		Script:        hexToBytes("76a91494ff37a0ee4d48abc45f70474f9b86f9da69a70988ac"),
+		Amount:        100000 * 1e8,
+	}, {
+		ScriptVersion: 0,
+		Script:        hexToBytes("76a914a6753ebbc08e2553e7dd6d64bdead4bcbff4fcf188ac"),
+		Amount:        100000 * 1e8,
+	}, {
+		ScriptVersion: 0,
+		Script:        hexToBytes("76a9147aa3211c2ead810bbf5911c275c69cc196202bd888ac"),
+		Amount:        100000 * 1e8,
+	}}
+	params.GenesisHash = params.GenesisBlock.BlockHash()
 
 	// Create a new database and chain instance to run tests against.
 	chain, teardownFunc, err := chainSetup("spendjournalunittest", params)
@@ -221,7 +228,7 @@ func TestSequenceLocksActive(t *testing.T) {
 // validation heights, the proof-of-work block version upgrade window, the stake
 // version interval, and the rule change activation interval.
 func quickVoteActivationParams() *chaincfg.Params {
-	params := cloneParams(&chaincfg.RegNetParams)
+	params := chaincfg.RegNetParams()
 	params.WorkDiffWindowSize = 200000
 	params.WorkDiffWindows = 1
 	params.TargetTimespan = params.TargetTimePerBlock *
@@ -519,7 +526,7 @@ func TestLegacySequenceLocks(t *testing.T) {
 // TestCheckBlockSanity tests the context free block sanity checks with blocks
 // not on a chain.
 func TestCheckBlockSanity(t *testing.T) {
-	params := &chaincfg.RegNetParams
+	params := chaincfg.RegNetParams()
 	timeSource := NewMedianTime()
 	block := dcrutil.NewBlock(&badBlock)
 	err := CheckBlockSanity(block, timeSource, params)
@@ -532,7 +539,7 @@ func TestCheckBlockSanity(t *testing.T) {
 // because its parent is nil.
 func TestCheckBlockHeaderContext(t *testing.T) {
 	// Create a new database for the blocks.
-	params := &chaincfg.RegNetParams
+	params := chaincfg.RegNetParams()
 	dbPath := filepath.Join(os.TempDir(), "examplecheckheadercontext")
 	_ = os.RemoveAll(dbPath)
 	db, err := database.Create("ffldb", dbPath, params.Net)
@@ -590,7 +597,7 @@ func TestTxValidationErrors(t *testing.T) {
 	}
 
 	// Ensure transaction is rejected due to being too large.
-	err := CheckTransactionSanity(tx, &chaincfg.MainNetParams)
+	err := CheckTransactionSanity(tx, chaincfg.MainNetParams())
 	rerr, ok := err.(RuleError)
 	if !ok {
 		t.Fatalf("CheckTransactionSanity: unexpected error type for "+
@@ -608,7 +615,7 @@ func TestTxValidationErrors(t *testing.T) {
 var badBlock = wire.MsgBlock{
 	Header: wire.BlockHeader{
 		Version:      1,
-		MerkleRoot:   chaincfg.RegNetParams.GenesisBlock.Header.MerkleRoot,
+		MerkleRoot:   *newHashFromStr("66aa7491b9adce110585ccab7e3fb5fe280de174530cca10eba2c6c3df01c10d"),
 		VoteBits:     uint16(0x0000),
 		FinalState:   [6]byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
 		Voters:       uint16(0x0000),
@@ -630,7 +637,7 @@ var badBlock = wire.MsgBlock{
 // checking block templates works as expected.
 func TestCheckConnectBlockTemplate(t *testing.T) {
 	// Create a test harness initialized with the genesis block as the tip.
-	params := &chaincfg.RegNetParams
+	params := chaincfg.RegNetParams()
 	g, teardownFunc := newChaingenHarness(t, params, "connectblktemplatetest")
 	defer teardownFunc()
 
@@ -714,7 +721,7 @@ func TestCheckConnectBlockTemplate(t *testing.T) {
 	//
 	//   genesis
 	//          \-> bfbbad
-	g.CreatePremineBlock("bfbbad", 1)
+	g.CreateBlockOne("bfbbad", 1)
 	g.AssertTipHeight(1)
 	rejectedBlockTemplate(ErrBadCoinbaseValue)
 
@@ -724,7 +731,7 @@ func TestCheckConnectBlockTemplate(t *testing.T) {
 	//   genesis
 	//          \-> bfbunsolved
 	g.SetTip("genesis")
-	bfbunsolved := g.CreatePremineBlock("bfbunsolved", 0, changeNonce)
+	bfbunsolved := g.CreateBlockOne("bfbunsolved", 0, changeNonce)
 	// Since the difficulty is so low in the tests, the block might still
 	// end up being inadvertently solved.  It can't be checked inside the
 	// munger because the block is finalized after the function returns and
@@ -747,7 +754,7 @@ func TestCheckConnectBlockTemplate(t *testing.T) {
 	//
 	//   genesis -> bfb
 	g.SetTip("genesis")
-	g.CreatePremineBlock("bfb", 0)
+	g.CreateBlockOne("bfb", 0)
 	g.AssertTipHeight(1)
 	g.AcceptTipBlock()
 

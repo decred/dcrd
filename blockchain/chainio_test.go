@@ -1,5 +1,5 @@
 // Copyright (c) 2015-2016 The btcsuite developers
-// Copyright (c) 2015-2018 The Decred developers
+// Copyright (c) 2015-2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -14,9 +14,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/decred/dcrd/blockchain/stake"
+	"github.com/decred/dcrd/blockchain/stake/v2"
+	"github.com/decred/dcrd/blockchain/standalone"
 	"github.com/decred/dcrd/chaincfg/chainhash"
-	"github.com/decred/dcrd/database"
+	"github.com/decred/dcrd/database/v2"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -1385,7 +1386,7 @@ func TestBestChainStateSerialization(t *testing.T) {
 				totalTxns:    1,
 				totalSubsidy: 0,
 				workSum: func() *big.Int {
-					workSum.Add(workSum, CalcWork(486604799))
+					workSum.Add(workSum, standalone.CalcWork(486604799))
 					return new(big.Int).Set(workSum)
 				}(), // 0x0100010001
 			},
@@ -1399,7 +1400,7 @@ func TestBestChainStateSerialization(t *testing.T) {
 				totalTxns:    2,
 				totalSubsidy: 123456789,
 				workSum: func() *big.Int {
-					workSum.Add(workSum, CalcWork(486604799))
+					workSum.Add(workSum, standalone.CalcWork(486604799))
 					return new(big.Int).Set(workSum)
 				}(), // 0x0200020002,
 			},

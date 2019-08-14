@@ -426,7 +426,7 @@ const (
 	ErrBadBlockHeight
 
 	// ErrBlockOneTx indicates that block height 1 failed to correct generate
-	// the block one premine transaction.
+	// the block one initial payout transaction.
 	ErrBlockOneTx
 
 	// ErrBlockOneTx indicates that block height 1 coinbase transaction in

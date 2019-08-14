@@ -11,14 +11,14 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/decred/dcrd/blockchain"
-	"github.com/decred/dcrd/chaincfg"
+	"github.com/decred/dcrd/blockchain/standalone"
 	"github.com/decred/dcrd/chaincfg/chainhash"
+	"github.com/decred/dcrd/chaincfg/v2"
 	"github.com/decred/dcrd/dcrec/secp256k1"
-	"github.com/decred/dcrd/dcrutil"
+	"github.com/decred/dcrd/dcrutil/v2"
 	"github.com/decred/dcrd/hdkeychain/v2"
-	"github.com/decred/dcrd/rpcclient/v3"
-	"github.com/decred/dcrd/txscript"
+	"github.com/decred/dcrd/rpcclient/v4"
+	"github.com/decred/dcrd/txscript/v2"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -235,7 +235,7 @@ func (m *memWallet) chainSyncer() {
 		}
 		for _, tx := range update.filteredTxns {
 			mtx := tx.MsgTx()
-			isCoinbase := blockchain.IsCoinBaseTx(mtx)
+			isCoinbase := standalone.IsCoinBaseTx(mtx)
 			txHash := mtx.TxHash()
 			m.evalOutputs(mtx.TxOut, &txHash, isCoinbase, undo)
 			m.evalInputs(mtx.TxIn, undo)

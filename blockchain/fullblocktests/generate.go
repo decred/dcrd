@@ -1,5 +1,5 @@
 // Copyright (c) 2016 The btcsuite developers
-// Copyright (c) 2016-2018 The Decred developers
+// Copyright (c) 2016-2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -13,13 +13,13 @@ import (
 	"math"
 	"time"
 
-	"github.com/decred/dcrd/blockchain"
-	"github.com/decred/dcrd/blockchain/chaingen"
+	"github.com/decred/dcrd/blockchain/v2"
+	"github.com/decred/dcrd/blockchain/v2/chaingen"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/dcrec"
 	"github.com/decred/dcrd/dcrec/secp256k1"
-	"github.com/decred/dcrd/dcrutil"
-	"github.com/decred/dcrd/txscript"
+	"github.com/decred/dcrd/dcrutil/v2"
+	"github.com/decred/dcrd/txscript/v2"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -476,74 +476,76 @@ func Generate(includeLargeReorg bool) (tests [][]TestInstance, err error) {
 	ticketsPerBlock := g.Params().TicketsPerBlock
 
 	// ---------------------------------------------------------------------
-	// Premine tests.
+	// First block tests.
 	// ---------------------------------------------------------------------
 
-	// Attempt to insert an initial premine block that does not conform to
-	// the required premine payouts by adding one atom too many to each
-	// payout.
+	// Attempt to insert an initial block that does not conform to the required
+	// payouts by adding one atom too many to each payout.
 	//
 	//   genesis
-	//          \-> bpbad0
-	g.CreatePremineBlock("bpbad0", 1)
+	//          \-> bfbbad0
+	g.CreateBlockOne("bfbbad0", 1)
 	rejected(blockchain.ErrBadCoinbaseValue)
 
-	// Create a premine block with one premine output removed.
+	// Create first block with one required output removed.
 	//
-	//   genesis -> bpbad1
+	//   genesis
+	//          \-> bfbbad1
 	g.SetTip("genesis")
-	g.CreatePremineBlock("bpbad1", 0, func(b *wire.MsgBlock) {
+	g.CreateBlockOne("bfbbad1", 0, func(b *wire.MsgBlock) {
 		b.Transactions[0].TxOut = b.Transactions[0].TxOut[:2]
 	})
 	rejected(blockchain.ErrBlockOneOutputs)
 
-	// Create a premine block with a bad spend script.
+	// Create first block with a bad spend script.
 	//
-	//   genesis -> bpbad2
+	//   genesis
+	//          \-> bfbbad2
 	g.SetTip("genesis")
-	g.CreatePremineBlock("bpbad2", 0, func(b *wire.MsgBlock) {
+	g.CreateBlockOne("bfbbad2", 0, func(b *wire.MsgBlock) {
 		scriptSize := len(b.Transactions[0].TxOut[0].PkScript)
 		badScript := repeatOpcode(txscript.OP_0, scriptSize)
 		b.Transactions[0].TxOut[0].PkScript = badScript
 	})
 	rejected(blockchain.ErrBlockOneOutputs)
 
-	// Create a premine block with an incorrect pay to amount.
+	// Create first block with an incorrect pay to amount.
 	//
-	//   genesis -> bpbad3
+	//   genesis
+	//          \-> bfbbad3
 	g.SetTip("genesis")
-	g.CreatePremineBlock("bpbad3", 0, func(b *wire.MsgBlock) {
+	g.CreateBlockOne("bfbbad3", 0, func(b *wire.MsgBlock) {
 		b.Transactions[0].TxOut[0].Value--
 	})
 	rejected(blockchain.ErrBlockOneOutputs)
 
-	// Add the required premine block.
+	// Add the required first block.
 	//
-	//   genesis -> bp
+	//   genesis -> bfb
 	g.SetTip("genesis")
-	g.CreatePremineBlock("bp", 0)
+	g.CreateBlockOne("bfb", 0)
 	g.AssertTipHeight(1)
 	accepted()
 
-	// Create block that tries to spend premine output before
-	// maturity in the regular tree
+	// Create block that tries to spend an initial payout output before maturity
+	// in the regular tree.
 	//
-	// genesis -> bp
-	//              \-> bpi0
-	g.NextBlock("bpi0", nil, nil, func(b *wire.MsgBlock) {
+	// genesis -> bfb
+	//               \-> bfbi0
+	g.NextBlock("bfbi0", nil, nil, func(b *wire.MsgBlock) {
 		spendOut := chaingen.MakeSpendableOut(g.Tip(), 0, 0)
 		tx := g.CreateSpendTx(&spendOut, lowFee)
 		b.AddTransaction(tx)
 	})
 	rejected(blockchain.ErrImmatureSpend)
 
-	// Create block that tries to spend premine output before
-	// maturity in the stake tree by creating a ticket purchase
+	// Create block that tries to spend an initial payout output before maturity
+	// in the stake tree by creating a ticket purchase.
 	//
-	// genesis -> bp
-	//              \-> bpi1
-	g.SetTip("bp")
-	g.NextBlock("bpi1", nil, nil, func(b *wire.MsgBlock) {
+	// genesis -> bfb
+	//               \-> bfbi1
+	g.SetTip("bfb")
+	g.NextBlock("bfbi1", nil, nil, func(b *wire.MsgBlock) {
 		spendOut := chaingen.MakeSpendableOut(g.Tip(), 0, 0)
 		ticketPrice := dcrutil.Amount(g.CalcNextRequiredStakeDifficulty())
 		tx := g.CreateTicketPurchaseTx(&spendOut, ticketPrice, lowFee)
@@ -555,10 +557,10 @@ func Generate(includeLargeReorg bool) (tests [][]TestInstance, err error) {
 	// ---------------------------------------------------------------------
 	// Generate enough blocks to have mature coinbase outputs to work with.
 	//
-	//   genesis -> bp -> bm0 -> bm1 -> ... -> bm#
+	//   genesis -> bfb -> bm0 -> bm1 -> ... -> bm#
 	// ---------------------------------------------------------------------
 
-	g.SetTip("bp")
+	g.SetTip("bfb")
 	var testInstances []TestInstance
 	for i := uint16(0); i < coinbaseMaturity; i++ {
 		blockName := fmt.Sprintf("bm%d", i)

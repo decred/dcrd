@@ -8,345 +8,123 @@ package blockchain
 import (
 	"bytes"
 	"fmt"
-	"sync"
 
-	"github.com/decred/dcrd/blockchain/stake"
-	"github.com/decred/dcrd/chaincfg"
-	"github.com/decred/dcrd/dcrutil"
-	"github.com/decred/dcrd/txscript"
+	"github.com/decred/dcrd/blockchain/stake/v2"
+	"github.com/decred/dcrd/blockchain/standalone"
+	"github.com/decred/dcrd/chaincfg/v2"
+	"github.com/decred/dcrd/dcrutil/v2"
 	"github.com/decred/dcrd/wire"
 )
-
-// The number of values to precalculate on initialization of the subsidy
-// cache.
-const subsidyCacheInitWidth = 4
-
-// SubsidyCache is a structure that caches calculated values of subsidy so that
-// they're not constantly recalculated. The blockchain struct itself possesses a
-// pointer to a preinitialized SubsidyCache.
-type SubsidyCache struct {
-	subsidyCache     map[uint64]int64
-	subsidyCacheLock sync.RWMutex
-
-	params *chaincfg.Params
-}
-
-// NewSubsidyCache initializes a new subsidy cache for a given height. It
-// precalculates the values of the subsidy that are most likely to be seen by
-// the client when it connects to the network.
-func NewSubsidyCache(height int64, params *chaincfg.Params) *SubsidyCache {
-	scm := make(map[uint64]int64)
-	sc := SubsidyCache{
-		subsidyCache: scm,
-		params:       params,
-	}
-
-	iteration := uint64(height / params.SubsidyReductionInterval)
-	if iteration < subsidyCacheInitWidth {
-		return &sc
-	}
-
-	for i := iteration - 4; i <= iteration; i++ {
-		sc.CalcBlockSubsidy(int64(iteration) * params.SubsidyReductionInterval)
-	}
-
-	return &sc
-}
-
-// CalcBlockSubsidy returns the subsidy amount a block at the provided height
-// should have. This is mainly used for determining how much the coinbase for
-// newly generated blocks awards as well as validating the coinbase for blocks
-// has the expected value.
-//
-// Subsidy calculation for exponential reductions:
-// 0 for i in range (0, height / SubsidyReductionInterval):
-// 1     subsidy *= MulSubsidy
-// 2     subsidy /= DivSubsidy
-//
-// Safe for concurrent access.
-func (s *SubsidyCache) CalcBlockSubsidy(height int64) int64 {
-	// Block height 1 subsidy is 'special' and used to
-	// distribute initial tokens, if any.
-	if height == 1 {
-		return s.params.BlockOneSubsidy()
-	}
-
-	iteration := uint64(height / s.params.SubsidyReductionInterval)
-
-	if iteration == 0 {
-		return s.params.BaseSubsidy
-	}
-
-	// First, check the cache.
-	s.subsidyCacheLock.RLock()
-	cachedValue, existsInCache := s.subsidyCache[iteration]
-	s.subsidyCacheLock.RUnlock()
-	if existsInCache {
-		return cachedValue
-	}
-
-	// If a cached block subsidy for the provided height is not found
-	// fetch the last cached block subsidy and generate the requested
-	// subsidy from that.
-	var lastCachedIter uint64
-	s.subsidyCacheLock.RLock()
-	for k := iteration - 1; k > 0; k-- {
-		cachedValue, existsInCache = s.subsidyCache[k]
-		if existsInCache {
-			lastCachedIter = k
-			break
-		}
-	}
-	s.subsidyCacheLock.RUnlock()
-
-	if lastCachedIter != 0 {
-		// Calculate the requested block subsidy using the last cached
-		// block subsidy.
-		diff := iteration - lastCachedIter
-		for i := uint64(0); i < diff; i++ {
-			cachedValue *= s.params.MulSubsidy
-			cachedValue /= s.params.DivSubsidy
-		}
-
-		s.subsidyCacheLock.Lock()
-		s.subsidyCache[iteration] = cachedValue
-		s.subsidyCacheLock.Unlock()
-
-		return cachedValue
-	}
-
-	// Calculate the subsidy from scratch and store in the cache.
-	subsidy := s.params.BaseSubsidy
-	for i := uint64(0); i < iteration; i++ {
-		subsidy *= s.params.MulSubsidy
-		subsidy /= s.params.DivSubsidy
-	}
-
-	s.subsidyCacheLock.Lock()
-	s.subsidyCache[iteration] = subsidy
-	s.subsidyCacheLock.Unlock()
-
-	return subsidy
-}
-
-// CalcBlockWorkSubsidy calculates the proof of work subsidy for a block as a
-// proportion of the total subsidy.
-func CalcBlockWorkSubsidy(subsidyCache *SubsidyCache, height int64, voters uint16, params *chaincfg.Params) int64 {
-	subsidy := subsidyCache.CalcBlockSubsidy(height)
-
-	proportionWork := int64(params.WorkRewardProportion)
-	proportions := int64(params.TotalSubsidyProportions())
-	subsidy *= proportionWork
-	subsidy /= proportions
-
-	// Ignore the voters field of the header before we're at a point
-	// where there are any voters.
-	if height < params.StakeValidationHeight {
-		return subsidy
-	}
-
-	// If there are no voters, subsidy is 0. The block will fail later anyway.
-	if voters == 0 {
-		return 0
-	}
-
-	// Adjust for the number of voters. This shouldn't ever overflow if you start
-	// with 50 * 10^8 Atoms and voters and potentialVoters are uint16.
-	potentialVoters := params.TicketsPerBlock
-	actual := (int64(voters) * subsidy) / int64(potentialVoters)
-
-	return actual
-}
-
-// CalcStakeVoteSubsidy calculates the subsidy for a stake vote based on the height
-// of its input SStx.
-//
-// Safe for concurrent access.
-func CalcStakeVoteSubsidy(subsidyCache *SubsidyCache, height int64, params *chaincfg.Params) int64 {
-	// Calculate the actual reward for this block, then further reduce reward
-	// proportional to StakeRewardProportion.
-	// Note that voters/potential voters is 1, so that vote reward is calculated
-	// irrespective of block reward.
-	subsidy := subsidyCache.CalcBlockSubsidy(height)
-
-	proportionStake := int64(params.StakeRewardProportion)
-	proportions := int64(params.TotalSubsidyProportions())
-	subsidy *= proportionStake
-	subsidy /= (proportions * int64(params.TicketsPerBlock))
-
-	return subsidy
-}
-
-// CalcBlockTaxSubsidy calculates the subsidy for the organization address in the
-// coinbase.
-//
-// Safe for concurrent access.
-func CalcBlockTaxSubsidy(subsidyCache *SubsidyCache, height int64, voters uint16, params *chaincfg.Params) int64 {
-	if params.BlockTaxProportion == 0 {
-		return 0
-	}
-
-	subsidy := subsidyCache.CalcBlockSubsidy(height)
-
-	proportionTax := int64(params.BlockTaxProportion)
-	proportions := int64(params.TotalSubsidyProportions())
-	subsidy *= proportionTax
-	subsidy /= proportions
-
-	// Assume all voters 'present' before stake voting is turned on.
-	if height < params.StakeValidationHeight {
-		voters = 5
-	}
-
-	// If there are no voters, subsidy is 0. The block will fail later anyway.
-	if voters == 0 && height >= params.StakeValidationHeight {
-		return 0
-	}
-
-	// Adjust for the number of voters. This shouldn't ever overflow if you start
-	// with 50 * 10^8 Atoms and voters and potentialVoters are uint16.
-	potentialVoters := params.TicketsPerBlock
-	adjusted := (int64(voters) * subsidy) / int64(potentialVoters)
-
-	return adjusted
-}
 
 // blockOneCoinbasePaysTokens checks to see if the first block coinbase pays
 // out to the network initial token ledger.
 func blockOneCoinbasePaysTokens(tx *dcrutil.Tx, params *chaincfg.Params) error {
-	// If no ledger is specified, just return true.
+	// Nothing to do when there is no ledger specified.
 	if len(params.BlockOneLedger) == 0 {
 		return nil
 	}
 
 	if tx.MsgTx().LockTime != 0 {
-		errStr := fmt.Sprintf("block 1 coinbase has invalid locktime")
-		return ruleError(ErrBlockOneTx, errStr)
+		str := fmt.Sprintf("block 1 coinbase has invalid locktime")
+		return ruleError(ErrBlockOneTx, str)
 	}
 
 	if tx.MsgTx().Expiry != wire.NoExpiryValue {
-		errStr := fmt.Sprintf("block 1 coinbase has invalid expiry")
-		return ruleError(ErrBlockOneTx, errStr)
+		str := fmt.Sprintf("block 1 coinbase has invalid expiry")
+		return ruleError(ErrBlockOneTx, str)
 	}
 
 	if tx.MsgTx().TxIn[0].Sequence != wire.MaxTxInSequenceNum {
-		errStr := fmt.Sprintf("block 1 coinbase not finalized")
-		return ruleError(ErrBlockOneInputs, errStr)
+		str := fmt.Sprintf("block 1 coinbase not finalized")
+		return ruleError(ErrBlockOneInputs, str)
 	}
 
 	if len(tx.MsgTx().TxOut) == 0 {
-		errStr := fmt.Sprintf("coinbase outputs empty in block 1")
-		return ruleError(ErrBlockOneOutputs, errStr)
+		str := fmt.Sprintf("coinbase outputs empty in block 1")
+		return ruleError(ErrBlockOneOutputs, str)
 	}
 
 	ledger := params.BlockOneLedger
 	if len(ledger) != len(tx.MsgTx().TxOut) {
-		errStr := fmt.Sprintf("wrong number of outputs in block 1 coinbase; "+
+		str := fmt.Sprintf("wrong number of outputs in block 1 coinbase; "+
 			"got %v, expected %v", len(tx.MsgTx().TxOut), len(ledger))
-		return ruleError(ErrBlockOneOutputs, errStr)
+		return ruleError(ErrBlockOneOutputs, str)
 	}
 
 	// Check the addresses and output amounts against those in the ledger.
 	const consensusScriptVersion = 0
-	for i, txout := range tx.MsgTx().TxOut {
-		if txout.Version != consensusScriptVersion {
+	for i, txOut := range tx.MsgTx().TxOut {
+		ledgerEntry := &ledger[i]
+		if txOut.Version != ledgerEntry.ScriptVersion {
 			str := fmt.Sprintf("block one output %d script version %d is not %d",
-				i, txout.Version, consensusScriptVersion)
+				i, txOut.Version, consensusScriptVersion)
 			return ruleError(ErrBlockOneOutputs, str)
 		}
 
-		// There should only be one address.
-		_, addrs, _, err :=
-			txscript.ExtractPkScriptAddrs(txout.Version, txout.PkScript, params)
-		if err != nil {
-			return ruleError(ErrBlockOneOutputs, err.Error())
-		}
-		if len(addrs) != 1 {
-			errStr := fmt.Sprintf("too many addresses in output")
-			return ruleError(ErrBlockOneOutputs, errStr)
+		if !bytes.Equal(txOut.PkScript, ledgerEntry.Script) {
+			str := fmt.Sprintf("block one output %d script %x is not %x", i,
+				txOut.PkScript, ledgerEntry.Script)
+			return ruleError(ErrBlockOneOutputs, str)
 		}
 
-		addrLedger, err := dcrutil.DecodeAddress(ledger[i].Address)
-		if err != nil {
-			return err
-		}
-
-		if !bytes.Equal(addrs[0].ScriptAddress(), addrLedger.ScriptAddress()) {
-			errStr := fmt.Sprintf("address in output %v has non matching "+
-				"address; got %v (hash160 %x), want %v (hash160 %x)",
-				i,
-				addrs[0].EncodeAddress(),
-				addrs[0].ScriptAddress(),
-				addrLedger.EncodeAddress(),
-				addrLedger.ScriptAddress())
-			return ruleError(ErrBlockOneOutputs, errStr)
-		}
-
-		if txout.Value != ledger[i].Amount {
-			errStr := fmt.Sprintf("address in output %v has non matching "+
-				"amount; got %v, want %v", i, txout.Value, ledger[i].Amount)
-			return ruleError(ErrBlockOneOutputs, errStr)
+		if txOut.Value != ledgerEntry.Amount {
+			str := fmt.Sprintf("block one output %d generates %v instead of "+
+				"required %v", i, dcrutil.Amount(txOut.Value),
+				dcrutil.Amount(ledgerEntry.Amount))
+			return ruleError(ErrBlockOneOutputs, str)
 		}
 	}
 
 	return nil
 }
 
-// BlockOneCoinbasePaysTokens checks to see if the first block coinbase pays
-// out to the network initial token ledger.
-//
-// DEPRECATED.  This will be removed in the next major version bump.
-func BlockOneCoinbasePaysTokens(tx *dcrutil.Tx, params *chaincfg.Params) error {
-	return blockOneCoinbasePaysTokens(tx, params)
-}
-
-// CoinbasePaysTax checks to see if a given block's coinbase correctly pays
-// tax to the developer organization.
-func CoinbasePaysTax(subsidyCache *SubsidyCache, tx *dcrutil.Tx, height int64, voters uint16, params *chaincfg.Params) error {
-	// Taxes only apply from block 2 onwards.
+// coinbasePaysTreasury checks to see if a given block's coinbase correctly pays
+// the treasury.
+func coinbasePaysTreasury(subsidyCache *standalone.SubsidyCache, tx *dcrutil.Tx, height int64, voters uint16, params *chaincfg.Params) error {
+	// Treasury subsidy only applies from block 2 onwards.
 	if height <= 1 {
 		return nil
 	}
 
-	// Tax is disabled.
+	// Treasury subsidy is disabled.
 	if params.BlockTaxProportion == 0 {
 		return nil
 	}
 
 	if len(tx.MsgTx().TxOut) == 0 {
-		errStr := fmt.Sprintf("invalid coinbase (no outputs)")
-		return ruleError(ErrNoTxOutputs, errStr)
+		str := fmt.Sprintf("invalid coinbase (no outputs)")
+		return ruleError(ErrNoTxOutputs, str)
 	}
 
-	taxOutput := tx.MsgTx().TxOut[0]
-	if taxOutput.Version != params.OrganizationPkScriptVersion {
-		return ruleError(ErrNoTax,
-			"coinbase tax output uses incorrect script version")
+	treasuryOutput := tx.MsgTx().TxOut[0]
+	if treasuryOutput.Version != params.OrganizationPkScriptVersion {
+		str := fmt.Sprintf("treasury output version %d is instead of %d",
+			treasuryOutput.Version, params.OrganizationPkScriptVersion)
+		return ruleError(ErrNoTax, str)
 	}
-	if !bytes.Equal(taxOutput.PkScript, params.OrganizationPkScript) {
-		return ruleError(ErrNoTax,
-			"coinbase tax output script does not match the "+
-				"required script")
+	if !bytes.Equal(treasuryOutput.PkScript, params.OrganizationPkScript) {
+		str := fmt.Sprintf("treasury output script is %x instead of %x",
+			treasuryOutput.PkScript, params.OrganizationPkScript)
+		return ruleError(ErrNoTax, str)
 	}
 
-	// Get the amount of subsidy that should have been paid out to
-	// the organization, then check it.
-	orgSubsidy := CalcBlockTaxSubsidy(subsidyCache, height, voters, params)
-	if orgSubsidy != taxOutput.Value {
-		errStr := fmt.Sprintf("amount in output 0 has non matching org "+
-			"calculated amount; got %v, want %v", taxOutput.Value,
-			orgSubsidy)
-		return ruleError(ErrNoTax, errStr)
+	// Calculate the amount of subsidy that should have been paid out to the
+	// Treasury and ensure the subsidy generated is correct.
+	orgSubsidy := subsidyCache.CalcTreasurySubsidy(height, voters)
+	if orgSubsidy != treasuryOutput.Value {
+		str := fmt.Sprintf("treasury output amount is %s instead of %s",
+			dcrutil.Amount(treasuryOutput.Value), dcrutil.Amount(orgSubsidy))
+		return ruleError(ErrNoTax, str)
 	}
 
 	return nil
 }
 
-// CalculateAddedSubsidy calculates the amount of subsidy added by a block
+// calculateAddedSubsidy calculates the amount of subsidy added by a block
 // and its parent. The blocks passed to this function MUST be valid blocks
 // that have already been confirmed to abide by the consensus rules of the
 // network, or the function might panic.
-func CalculateAddedSubsidy(block, parent *dcrutil.Block) int64 {
+func calculateAddedSubsidy(block, parent *dcrutil.Block) int64 {
 	var subsidy int64
 	if headerApprovesParent(&block.MsgBlock().Header) {
 		subsidy += parent.MsgBlock().Transactions[0].TxIn[0].ValueIn

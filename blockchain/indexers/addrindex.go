@@ -1,5 +1,5 @@
 // Copyright (c) 2016 The btcsuite developers
-// Copyright (c) 2016-2017 The Decred developers
+// Copyright (c) 2016-2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -10,14 +10,14 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/decred/dcrd/blockchain"
-	"github.com/decred/dcrd/blockchain/stake"
-	"github.com/decred/dcrd/chaincfg"
+	"github.com/decred/dcrd/blockchain/stake/v2"
+	"github.com/decred/dcrd/blockchain/v2"
 	"github.com/decred/dcrd/chaincfg/chainhash"
-	"github.com/decred/dcrd/database"
+	"github.com/decred/dcrd/chaincfg/v2"
+	"github.com/decred/dcrd/database/v2"
 	"github.com/decred/dcrd/dcrec"
-	"github.com/decred/dcrd/dcrutil"
-	"github.com/decred/dcrd/txscript"
+	"github.com/decred/dcrd/dcrutil/v2"
+	"github.com/decred/dcrd/txscript/v2"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -535,10 +535,10 @@ func dbRemoveAddrIndexEntries(bucket internalBucket, addrKey [addrKeySize]byte, 
 
 // addrToKey converts known address types to an addrindex key.  An error is
 // returned for unsupported types.
-func addrToKey(addr dcrutil.Address, params *chaincfg.Params) ([addrKeySize]byte, error) {
+func addrToKey(addr dcrutil.Address) ([addrKeySize]byte, error) {
 	switch addr := addr.(type) {
 	case *dcrutil.AddressPubKeyHash:
-		switch addr.DSA(params) {
+		switch addr.DSA() {
 		case dcrec.STEcdsaSecp256k1:
 			var result [addrKeySize]byte
 			result[0] = addrKeyTypePubKeyHash
@@ -704,7 +704,7 @@ func (idx *AddrIndex) indexPkScript(data writeIndexData, scriptVersion uint16, p
 	}
 
 	for _, addr := range addrs {
-		addrKey, err := addrToKey(addr, idx.chainParams)
+		addrKey, err := addrToKey(addr)
 		if err != nil {
 			// Ignore unsupported address types.
 			continue
@@ -893,7 +893,7 @@ func (idx *AddrIndex) DisconnectBlock(dbTx database.Tx, block, parent *dcrutil.B
 //
 // This function is safe for concurrent access.
 func (idx *AddrIndex) EntriesForAddress(dbTx database.Tx, addr dcrutil.Address, numToSkip, numRequested uint32, reverse bool) ([]TxIndexEntry, uint32, error) {
-	addrKey, err := addrToKey(addr, idx.chainParams)
+	addrKey, err := addrToKey(addr)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -943,7 +943,7 @@ func (idx *AddrIndex) indexUnconfirmedAddresses(scriptVersion uint16, pkScript [
 
 	for _, addr := range addresses {
 		// Ignore unsupported address types.
-		addrKey, err := addrToKey(addr, idx.chainParams)
+		addrKey, err := addrToKey(addr)
 		if err != nil {
 			continue
 		}
@@ -1042,7 +1042,7 @@ func (idx *AddrIndex) RemoveUnconfirmedTx(hash *chainhash.Hash) {
 // This function is safe for concurrent access.
 func (idx *AddrIndex) UnconfirmedTxnsForAddress(addr dcrutil.Address) []*dcrutil.Tx {
 	// Ignore unsupported address types.
-	addrKey, err := addrToKey(addr, idx.chainParams)
+	addrKey, err := addrToKey(addr)
 	if err != nil {
 		return nil
 	}

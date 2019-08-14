@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrd/chaincfg/chainhash"
+	"github.com/decred/dcrd/chaincfg/v2"
 )
 
 // isVoterMajorityVersion determines if minVer requirement is met based on
@@ -67,6 +67,10 @@ func TestCalcWantHeight(t *testing.T) {
 	// windows start at 13 + (11 * 2) 25 and are as follows: 24-34, 35-45, 46-56 ...
 	// If height comes in at 35 we use the 24-34 window, up to height 45.
 	// If height comes in at 46 we use the 35-45 window, up to height 56 etc.
+	mainNetParams := chaincfg.MainNetParams()
+	testNet3Params := chaincfg.TestNet3Params()
+	simNetParams := chaincfg.SimNetParams()
+	regNetParams := chaincfg.RegNetParams()
 	tests := []struct {
 		name       string
 		skip       int64
@@ -88,32 +92,32 @@ func TestCalcWantHeight(t *testing.T) {
 		},
 		{
 			name:       "mainnet params",
-			skip:       chaincfg.MainNetParams.StakeValidationHeight,
-			interval:   chaincfg.MainNetParams.StakeVersionInterval,
+			skip:       mainNetParams.StakeValidationHeight,
+			interval:   mainNetParams.StakeVersionInterval,
 			multiplier: 5000,
 		},
 		{
 			name:       "testnet3 params",
-			skip:       chaincfg.TestNet3Params.StakeValidationHeight,
-			interval:   chaincfg.TestNet3Params.StakeVersionInterval,
+			skip:       testNet3Params.StakeValidationHeight,
+			interval:   testNet3Params.StakeVersionInterval,
 			multiplier: 1000,
 		},
 		{
 			name:       "simnet params",
-			skip:       chaincfg.SimNetParams.StakeValidationHeight,
-			interval:   chaincfg.SimNetParams.StakeVersionInterval,
+			skip:       simNetParams.StakeValidationHeight,
+			interval:   simNetParams.StakeVersionInterval,
 			multiplier: 10000,
 		},
 		{
 			name:       "regnet params",
-			skip:       chaincfg.RegNetParams.StakeValidationHeight,
-			interval:   chaincfg.RegNetParams.StakeVersionInterval,
+			skip:       regNetParams.StakeValidationHeight,
+			interval:   regNetParams.StakeVersionInterval,
 			multiplier: 10000,
 		},
 		{
 			name:       "negative mainnet params",
-			skip:       chaincfg.MainNetParams.StakeValidationHeight,
-			interval:   chaincfg.MainNetParams.StakeVersionInterval,
+			skip:       mainNetParams.StakeValidationHeight,
+			interval:   mainNetParams.StakeVersionInterval,
 			multiplier: 1000,
 			negative:   1,
 		},
@@ -147,7 +151,7 @@ func TestCalcWantHeight(t *testing.T) {
 // TestCalcStakeVersionCorners ensures that stake version calculation works as
 // intended under various corner cases such as attempting to go back backwards.
 func TestCalcStakeVersionCorners(t *testing.T) {
-	params := &chaincfg.SimNetParams
+	params := chaincfg.SimNetParams()
 	svh := params.StakeValidationHeight
 	svi := params.StakeVersionInterval
 
@@ -312,7 +316,7 @@ func TestCalcStakeVersionCorners(t *testing.T) {
 // TestCalcStakeVersion ensures that stake version calculation works as
 // intended when
 func TestCalcStakeVersion(t *testing.T) {
-	params := &chaincfg.SimNetParams
+	params := chaincfg.SimNetParams()
 	svh := params.StakeValidationHeight
 	svi := params.StakeVersionInterval
 	tpb := params.TicketsPerBlock
@@ -370,7 +374,7 @@ func TestCalcStakeVersion(t *testing.T) {
 // TestIsStakeMajorityVersion ensures that determining the current majority
 // stake version works as intended under a wide variety of scenarios.
 func TestIsStakeMajorityVersion(t *testing.T) {
-	params := &chaincfg.RegNetParams
+	params := chaincfg.RegNetParams()
 	svh := params.StakeValidationHeight
 	svi := params.StakeVersionInterval
 	tpb := params.TicketsPerBlock
@@ -715,7 +719,7 @@ func TestIsStakeMajorityVersion(t *testing.T) {
 }
 
 func TestLarge(t *testing.T) {
-	params := &chaincfg.MainNetParams
+	params := chaincfg.MainNetParams()
 
 	numRuns := 5
 	numBlocks := params.StakeVersionInterval * 100

@@ -10,16 +10,16 @@ import (
 	"strings"
 	"time"
 
-	"github.com/decred/dcrd/blockchain"
-	"github.com/decred/dcrd/blockchain/stake"
-	"github.com/decred/dcrd/chaincfg"
+	"github.com/decred/dcrd/blockchain/stake/v2"
+	"github.com/decred/dcrd/blockchain/standalone"
 	"github.com/decred/dcrd/chaincfg/chainhash"
+	"github.com/decred/dcrd/chaincfg/v2"
 	"github.com/decred/dcrd/dcrec"
 	"github.com/decred/dcrd/dcrec/secp256k1"
-	"github.com/decred/dcrd/dcrjson/v2"
-	"github.com/decred/dcrd/dcrutil"
-	"github.com/decred/dcrd/rpcclient/v3"
-	"github.com/decred/dcrd/txscript"
+	"github.com/decred/dcrd/dcrutil/v2"
+	dcrdtypes "github.com/decred/dcrd/rpc/jsonrpc/types"
+	"github.com/decred/dcrd/rpcclient/v4"
+	"github.com/decred/dcrd/txscript/v2"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -111,7 +111,7 @@ type VotingWallet struct {
 	// the underlying harness' Generate().
 	miner func(uint32) ([]*chainhash.Hash, error)
 
-	subsidyCache *blockchain.SubsidyCache
+	subsidyCache *standalone.SubsidyCache
 
 	// utxos are the unspent outpoints not yet locked into a ticket.
 	utxos []utxoInfo
@@ -185,7 +185,7 @@ func NewVotingWallet(hn *Harness) (*VotingWallet, error) {
 		commitmentScript:       commitmentScript,
 		voteScript:             voteScript,
 		voteReturnScript:       voteReturnScript,
-		subsidyCache:           blockchain.NewSubsidyCache(0, hn.ActiveNet),
+		subsidyCache:           standalone.NewSubsidyCache(hn.ActiveNet),
 		tickets:                make(map[chainhash.Hash]ticketInfo, hintTicketsCap),
 		maturingVotes:          make(map[int64][]utxoInfo, hintMaturingVotesCap),
 		blockConnectedNtfnChan: make(chan blockConnectedNtfn, bufferLen),
@@ -328,8 +328,8 @@ func (w *VotingWallet) GenerateBlocks(nb uint32) ([]*chainhash.Hash, error) {
 		for !gotAllReqs {
 			select {
 			case <-timeout:
-				mempoolTickets, _ := w.c.GetRawMempool(dcrjson.GRMTickets)
-				mempoolVotes, _ := w.c.GetRawMempool(dcrjson.GRMVotes)
+				mempoolTickets, _ := w.c.GetRawMempool(dcrdtypes.GRMTickets)
+				mempoolVotes, _ := w.c.GetRawMempool(dcrdtypes.GRMVotes)
 				var notGot []string
 				if len(mempoolVotes) != nbVotes {
 					notGot = append(notGot, "votes")
@@ -343,8 +343,8 @@ func (w *VotingWallet) GenerateBlocks(nb uint32) ([]*chainhash.Hash, error) {
 			case <-w.quitChan:
 				return nil, fmt.Errorf("wallet is stopping")
 			case <-testTimeout:
-				mempoolTickets, _ := w.c.GetRawMempool(dcrjson.GRMTickets)
-				mempoolVotes, _ := w.c.GetRawMempool(dcrjson.GRMVotes)
+				mempoolTickets, _ := w.c.GetRawMempool(dcrdtypes.GRMTickets)
+				mempoolVotes, _ := w.c.GetRawMempool(dcrdtypes.GRMVotes)
 
 				gotAllReqs = (!needsTickets || (len(mempoolTickets) >= nbVotes)) &&
 					(!needsVotes || (len(mempoolVotes) >= nbVotes))
@@ -474,9 +474,7 @@ func (w *VotingWallet) handleWinningTicketsNtfn(ntfn *winningTicketsNtfn) {
 
 	voteScript := w.voteScript
 	voteReturnScript := w.voteReturnScript
-	stakebaseValue := blockchain.CalcStakeVoteSubsidy(
-		w.subsidyCache, ntfn.blockHeight, w.hn.ActiveNet,
-	)
+	stakebaseValue := w.subsidyCache.CalcStakeVoteSubsidy(ntfn.blockHeight)
 
 	// Create the votes. nbVotes is the number of tickets from the wallet that
 	// voted.

@@ -1,5 +1,6 @@
 // Copyright (c) 2016 The btcsuite developers
-// Copyright (c) 2017 The Decred developers
+// Copyright (c) 2017-2019 The Decred developers
+
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -15,7 +16,7 @@ import (
 	"runtime/debug"
 	"testing"
 
-	"github.com/decred/dcrd/chaincfg"
+	"github.com/decred/dcrd/chaincfg/v2"
 	"github.com/decred/dcrd/rpctest"
 )
 
@@ -108,7 +109,7 @@ func TestMain(m *testing.M) {
 	// ensure that non-standard transactions aren't accepted into the
 	// mempool or relayed.
 	args := []string{"--rejectnonstd"}
-	harness, err := rpctest.New(&chaincfg.RegNetParams, nil, args)
+	harness, err := rpctest.New(chaincfg.RegNetParams(), nil, args)
 	if err != nil {
 		fmt.Println("unable to create primary harness: ", err)
 		os.Exit(1)

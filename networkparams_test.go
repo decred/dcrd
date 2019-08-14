@@ -1,4 +1,4 @@
-// Copyright (c) 2018 The Decred developers
+// Copyright (c) 2018-2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -10,8 +10,8 @@ import (
 	"testing"
 
 	"github.com/decred/base58"
-	"github.com/decred/dcrd/blockchain"
-	"github.com/decred/dcrd/chaincfg"
+	"github.com/decred/dcrd/blockchain/standalone"
+	"github.com/decred/dcrd/chaincfg/v2"
 )
 
 // checkPowLimitsAreConsistent ensures PowLimit and PowLimitBits are consistent
@@ -23,8 +23,8 @@ func checkPowLimitsAreConsistent(t *testing.T, params *chaincfg.Params) {
 	powLimitBigInt := params.PowLimit
 	powLimitCompact := params.PowLimitBits
 
-	toBig := blockchain.CompactToBig(powLimitCompact)
-	toCompact := blockchain.BigToCompact(powLimitBigInt)
+	toBig := standalone.CompactToBig(powLimitCompact)
+	toCompact := standalone.BigToCompact(powLimitBigInt)
 
 	// Check params.PowLimitBits matches params.PowLimit converted
 	// into the compact form
@@ -56,7 +56,7 @@ func checkGenesisBlockRespectsNetworkPowLimit(t *testing.T, params *chaincfg.Par
 	bits := genesis.Header.Bits
 
 	// Header bits as big.Int
-	bitsAsBigInt := blockchain.CompactToBig(bits)
+	bitsAsBigInt := standalone.CompactToBig(bits)
 
 	// network PoW limit
 	powLimitBigInt := params.PowLimit
@@ -125,18 +125,23 @@ func checkAddressPrefixesAreConsistent(t *testing.T, privateKeyPrefix string, pa
 
 // TestDecredNetworkSettings checks Network-specific settings
 func TestDecredNetworkSettings(t *testing.T) {
-	checkPowLimitsAreConsistent(t, &chaincfg.MainNetParams)
-	checkPowLimitsAreConsistent(t, &chaincfg.TestNet3Params)
-	checkPowLimitsAreConsistent(t, &chaincfg.SimNetParams)
-	checkPowLimitsAreConsistent(t, &chaincfg.RegNetParams)
+	mainNetParams := chaincfg.MainNetParams()
+	testNet3Params := chaincfg.TestNet3Params()
+	simNetParams := chaincfg.SimNetParams()
+	regNetParams := chaincfg.RegNetParams()
 
-	checkGenesisBlockRespectsNetworkPowLimit(t, &chaincfg.MainNetParams)
-	checkGenesisBlockRespectsNetworkPowLimit(t, &chaincfg.TestNet3Params)
-	checkGenesisBlockRespectsNetworkPowLimit(t, &chaincfg.SimNetParams)
-	checkGenesisBlockRespectsNetworkPowLimit(t, &chaincfg.RegNetParams)
+	checkPowLimitsAreConsistent(t, mainNetParams)
+	checkPowLimitsAreConsistent(t, testNet3Params)
+	checkPowLimitsAreConsistent(t, simNetParams)
+	checkPowLimitsAreConsistent(t, regNetParams)
 
-	checkAddressPrefixesAreConsistent(t, "Pm", &chaincfg.MainNetParams)
-	checkAddressPrefixesAreConsistent(t, "Pt", &chaincfg.TestNet3Params)
-	checkAddressPrefixesAreConsistent(t, "Ps", &chaincfg.SimNetParams)
-	checkAddressPrefixesAreConsistent(t, "Pr", &chaincfg.RegNetParams)
+	checkGenesisBlockRespectsNetworkPowLimit(t, mainNetParams)
+	checkGenesisBlockRespectsNetworkPowLimit(t, testNet3Params)
+	checkGenesisBlockRespectsNetworkPowLimit(t, simNetParams)
+	checkGenesisBlockRespectsNetworkPowLimit(t, regNetParams)
+
+	checkAddressPrefixesAreConsistent(t, "Pm", mainNetParams)
+	checkAddressPrefixesAreConsistent(t, "Pt", testNet3Params)
+	checkAddressPrefixesAreConsistent(t, "Ps", simNetParams)
+	checkAddressPrefixesAreConsistent(t, "Pr", regNetParams)
 }

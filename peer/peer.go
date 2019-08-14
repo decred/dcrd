@@ -18,8 +18,6 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
-	"github.com/decred/dcrd/blockchain"
-	"github.com/decred/dcrd/chaincfg"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/lru"
 	"github.com/decred/dcrd/wire"
@@ -233,19 +231,9 @@ type Config struct {
 	// semantic alphabet [a-zA-Z0-9-].
 	UserAgentComments []string
 
-	// ChainParams identifies which chain parameters the peer is associated
-	// with.  It is highly recommended to specify this field, however it can
-	// be omitted in which case the test network will be used.
-	//
-	// DEPRECATED.  This is  will be removed in the next major API bump.
-	// Use Net instead.
-	ChainParams *chaincfg.Params
-
-	// Net identifies the network the peer is associated with.  It is highly
-	// recommended to specify this field, but it can be omitted in which
-	// case the network associated with the chain parameters specified in
-	// the ChainParams field (or the test network fallback if that also was
-	// not specified) will be used.
+	// Net identifies the network the peer is associated with.  It is
+	// highly recommended to specify this field, but it can be omitted in
+	// which case the test network will be used.
 	Net wire.CurrencyNet
 
 	// Services specifies which services to advertise as supported by the
@@ -795,7 +783,6 @@ func (p *Peer) WantsHeaders() bool {
 //
 // This function is safe for concurrent access.
 func (p *Peer) PushAddrMsg(addresses []*wire.NetAddress) ([]*wire.NetAddress, error) {
-
 	// Nothing to send.
 	if len(addresses) == 0 {
 		return nil, nil
@@ -825,12 +812,12 @@ func (p *Peer) PushAddrMsg(addresses []*wire.NetAddress) ([]*wire.NetAddress, er
 // and stop hash.  It will ignore back-to-back duplicate requests.
 //
 // This function is safe for concurrent access.
-func (p *Peer) PushGetBlocksMsg(locator blockchain.BlockLocator, stopHash *chainhash.Hash) error {
+func (p *Peer) PushGetBlocksMsg(locator []chainhash.Hash, stopHash *chainhash.Hash) error {
 	// Extract the begin hash from the block locator, if one was specified,
 	// to use for filtering duplicate getblocks requests.
 	var beginHash *chainhash.Hash
 	if len(locator) > 0 {
-		beginHash = locator[0]
+		beginHash = &locator[0]
 	}
 
 	// Filter duplicate getblocks requests.
@@ -848,8 +835,8 @@ func (p *Peer) PushGetBlocksMsg(locator blockchain.BlockLocator, stopHash *chain
 
 	// Construct the getblocks request and queue it to be sent.
 	msg := wire.NewMsgGetBlocks(stopHash)
-	for _, hash := range locator {
-		err := msg.AddBlockLocatorHash(hash)
+	for i := range locator {
+		err := msg.AddBlockLocatorHash(&locator[i])
 		if err != nil {
 			return err
 		}
@@ -869,12 +856,12 @@ func (p *Peer) PushGetBlocksMsg(locator blockchain.BlockLocator, stopHash *chain
 // and stop hash.  It will ignore back-to-back duplicate requests.
 //
 // This function is safe for concurrent access.
-func (p *Peer) PushGetHeadersMsg(locator blockchain.BlockLocator, stopHash *chainhash.Hash) error {
+func (p *Peer) PushGetHeadersMsg(locator []chainhash.Hash, stopHash *chainhash.Hash) error {
 	// Extract the begin hash from the block locator, if one was specified,
 	// to use for filtering duplicate getheaders requests.
 	var beginHash *chainhash.Hash
 	if len(locator) > 0 {
-		beginHash = locator[0]
+		beginHash = &locator[0]
 	}
 
 	// Filter duplicate getheaders requests.
@@ -893,8 +880,8 @@ func (p *Peer) PushGetHeadersMsg(locator blockchain.BlockLocator, stopHash *chai
 	// Construct the getheaders request and queue it to be sent.
 	msg := wire.NewMsgGetHeaders()
 	msg.HashStop = *stopHash
-	for _, hash := range locator {
-		err := msg.AddBlockLocatorHash(hash)
+	for i := range locator {
+		err := msg.AddBlockLocatorHash(&locator[i])
 		if err != nil {
 			return err
 		}
@@ -1163,7 +1150,7 @@ out:
 				}
 
 			case sccHandlerStart:
-				// Warn on unbalanced callback signalling.
+				// Warn on unbalanced callback signaling.
 				if handlerActive {
 					log.Warn("Received handler start " +
 						"control command while a " +
@@ -1175,7 +1162,7 @@ out:
 				handlersStartTime = time.Now()
 
 			case sccHandlerDone:
-				// Warn on unbalanced callback signalling.
+				// Warn on unbalanced callback signaling.
 				if !handlerActive {
 					log.Warn("Received handler done " +
 						"control command when a " +
@@ -2064,13 +2051,9 @@ func newPeerBase(cfgOrig *Config, inbound bool) *Peer {
 	}
 
 	// Set the network if the caller did not specify one.  The default is
-	// testnet unless chain parameters were specified in which case the
-	// network associated with the chain parameters is used.
+	// testnet.
 	if cfg.Net == 0 {
 		cfg.Net = wire.TestNet3
-		if cfg.ChainParams != nil {
-			cfg.Net = cfg.ChainParams.Net
-		}
 	}
 
 	p := Peer{

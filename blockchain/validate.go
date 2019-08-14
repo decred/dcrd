@@ -13,12 +13,13 @@ import (
 	"math/big"
 	"time"
 
-	"github.com/decred/dcrd/blockchain/stake"
-	"github.com/decred/dcrd/chaincfg"
+	"github.com/decred/dcrd/blockchain/stake/v2"
+	"github.com/decred/dcrd/blockchain/standalone"
 	"github.com/decred/dcrd/chaincfg/chainhash"
-	"github.com/decred/dcrd/database"
-	"github.com/decred/dcrd/dcrutil"
-	"github.com/decred/dcrd/txscript"
+	"github.com/decred/dcrd/chaincfg/v2"
+	"github.com/decred/dcrd/database/v2"
+	"github.com/decred/dcrd/dcrutil/v2"
+	"github.com/decred/dcrd/txscript/v2"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -84,6 +85,13 @@ const (
 	// submissionOutputIdx is the index of the stake submission output of a
 	// ticket transaction.
 	submissionOutputIdx = 0
+
+	// checkForDuplicateHashes checks for duplicate hashes when validating
+	// blocks.  Because of the rule inserting the height into the second (nonce)
+	// txOut, there should never be a duplicate transaction hash that overwrites
+	// another. However, because there is a 2^128 chance of a collision, the
+	// paranoid user may wish to turn this feature on.
+	checkForDuplicateHashes = false
 )
 
 var (
@@ -132,42 +140,6 @@ func isNullFraudProof(txIn *wire.TxIn) bool {
 	}
 
 	return true
-}
-
-// IsCoinBaseTx determines whether or not a transaction is a coinbase.  A
-// coinbase is a special transaction created by miners that has no inputs.
-// This is represented in the block chain by a transaction with a single input
-// that has a previous output transaction index set to the maximum value along
-// with a zero hash.
-//
-// This function only differs from IsCoinBase in that it works with a raw wire
-// transaction as opposed to a higher level util transaction.
-func IsCoinBaseTx(msgTx *wire.MsgTx) bool {
-	// A coin base must only have one transaction input.
-	if len(msgTx.TxIn) != 1 {
-		return false
-	}
-
-	// The previous output of a coin base must have a max value index and a
-	// zero hash.
-	prevOut := &msgTx.TxIn[0].PreviousOutPoint
-	if prevOut.Index != math.MaxUint32 || !prevOut.Hash.IsEqual(zeroHash) {
-		return false
-	}
-
-	return true
-}
-
-// IsCoinBase determines whether or not a transaction is a coinbase.  A
-// coinbase is a special transaction created by miners that has no inputs.
-// This is represented in the block chain by a transaction with a single input
-// that has a previous output transaction index set to the maximum value along
-// with a zero hash.
-//
-// This function only differs from IsCoinBaseTx in that it works with a higher
-// level util transaction as opposed to a raw wire transaction.
-func IsCoinBase(tx *dcrutil.Tx) bool {
-	return IsCoinBaseTx(tx.MsgTx())
 }
 
 // IsExpiredTx returns where or not the passed transaction is expired according
@@ -264,7 +236,7 @@ func CheckTransactionSanity(tx *wire.MsgTx, params *chaincfg.Params) error {
 
 	// Coinbase script length must be between min and max length.
 	isVote := stake.IsSSGen(tx)
-	if IsCoinBaseTx(tx) {
+	if standalone.IsCoinBaseTx(tx) {
 		// The referenced outpoint must be null.
 		if !isNullOutpoint(&tx.TxIn[0].PreviousOutPoint) {
 			str := fmt.Sprintf("coinbase transaction did not use " +
@@ -440,6 +412,25 @@ func CheckProofOfStake(block *dcrutil.Block, posLimit int64) error {
 	return checkProofOfStake(block, posLimit)
 }
 
+// standaloneToChainRuleError attempts to convert the passed error from a
+// standalone.RuleError to a blockchain.RuleError with the equivalent code.  The
+// error is simply passed through without modification if it is not a
+// standalone.RuleError, not one of the specifically recognized error codes, or
+// nil.
+func standaloneToChainRuleError(err error) error {
+	// Convert standalone package rule errors to blockchain rule errors.
+	if rErr, ok := err.(standalone.RuleError); ok {
+		switch rErr.ErrorCode {
+		case standalone.ErrUnexpectedDifficulty:
+			return ruleError(ErrUnexpectedDifficulty, rErr.Description)
+		case standalone.ErrHighHash:
+			return ruleError(ErrHighHash, rErr.Description)
+		}
+	}
+
+	return err
+}
+
 // checkProofOfWork ensures the block header bits which indicate the target
 // difficulty is in min/max range and that the block hash is less than the
 // target difficulty as claimed.
@@ -448,42 +439,21 @@ func CheckProofOfStake(block *dcrutil.Block, posLimit int64) error {
 //  - BFNoPoWCheck: The check to ensure the block hash is less than the target
 //    difficulty is not performed.
 func checkProofOfWork(header *wire.BlockHeader, powLimit *big.Int, flags BehaviorFlags) error {
-	// The target difficulty must be larger than zero.
-	target := CompactToBig(header.Bits)
-	if target.Sign() <= 0 {
-		str := fmt.Sprintf("block target difficulty of %064x is too "+
-			"low", target)
-		return ruleError(ErrUnexpectedDifficulty, str)
+	// Only ensure the target difficulty bits are in the valid range when the
+	// the flag to avoid proof of work checks is set.
+	if flags&BFNoPoWCheck == BFNoPoWCheck {
+		err := standalone.CheckProofOfWorkRange(header.Bits, powLimit)
+		return standaloneToChainRuleError(err)
 	}
 
-	// The target difficulty must be less than the maximum allowed.
-	if target.Cmp(powLimit) > 0 {
-		str := fmt.Sprintf("block target difficulty of %064x is "+
-			"higher than max of %064x", target, powLimit)
-		return ruleError(ErrUnexpectedDifficulty, str)
-	}
-
-	// The block hash must be less than the claimed target unless the flag
-	// to avoid proof of work checks is set.
-	if flags&BFNoPoWCheck != BFNoPoWCheck {
-		// The block hash must be less than the claimed target.
-		hash := header.BlockHash()
-		hashNum := HashToBig(&hash)
-		if hashNum.Cmp(target) > 0 {
-			str := fmt.Sprintf("block hash of %064x is higher than"+
-				" expected max of %064x", hashNum, target)
-			return ruleError(ErrHighHash, str)
-		}
-	}
-
-	return nil
-}
-
-// CheckProofOfWork ensures the block header bits which indicate the target
-// difficulty is in min/max range and that the block hash is less than the
-// target difficulty as claimed.
-func CheckProofOfWork(header *wire.BlockHeader, powLimit *big.Int) error {
-	return checkProofOfWork(header, powLimit, BFNone)
+	// Perform all proof of work checks when the flag is not set:
+	//
+	// - The target difficulty must be larger than zero.
+	// - The target difficulty must be less than the maximum allowed.
+	// - The block hash must be less than the claimed target.
+	blockHash := header.BlockHash()
+	err := standalone.CheckProofOfWork(&blockHash, header.Bits, powLimit)
+	return standaloneToChainRuleError(err)
 }
 
 // checkBlockHeaderSanity performs some preliminary checks on a block header to
@@ -656,14 +626,14 @@ func checkBlockSanity(block *dcrutil.Block, timeSource MedianTimeSource, flags B
 
 	// The first transaction in a block's regular tree must be a coinbase.
 	transactions := block.Transactions()
-	if !IsCoinBaseTx(transactions[0].MsgTx()) {
+	if !standalone.IsCoinBaseTx(transactions[0].MsgTx()) {
 		return ruleError(ErrFirstTxNotCoinbase, "first transaction in "+
 			"block is not a coinbase")
 	}
 
 	// A block must not have more than one coinbase.
 	for i, tx := range transactions[1:] {
-		if IsCoinBaseTx(tx.MsgTx()) {
+		if standalone.IsCoinBaseTx(tx.MsgTx()) {
 			str := fmt.Sprintf("block contains second coinbase at "+
 				"index %d", i+1)
 			return ruleError(ErrMultipleCoinbases, str)
@@ -841,22 +811,20 @@ func checkBlockSanity(block *dcrutil.Block, timeSource MedianTimeSource, flags B
 	// checks.  Bitcoind builds the tree here and checks the merkle root
 	// after the following checks, but there is no reason not to check the
 	// merkle root matches here.
-	merkles := BuildMerkleTreeStore(block.Transactions())
-	calculatedMerkleRoot := merkles[len(merkles)-1]
-	if !header.MerkleRoot.IsEqual(calculatedMerkleRoot) {
+	wantMerkleRoot := standalone.CalcTxTreeMerkleRoot(msgBlock.Transactions)
+	if header.MerkleRoot != wantMerkleRoot {
 		str := fmt.Sprintf("block merkle root is invalid - block "+
 			"header indicates %v, but calculated value is %v",
-			header.MerkleRoot, calculatedMerkleRoot)
+			header.MerkleRoot, wantMerkleRoot)
 		return ruleError(ErrBadMerkleRoot, str)
 	}
 
 	// Build the stake tx tree merkle root too and check it.
-	merkleStake := BuildMerkleTreeStore(block.STransactions())
-	calculatedStakeMerkleRoot := merkleStake[len(merkleStake)-1]
-	if !header.StakeRoot.IsEqual(calculatedStakeMerkleRoot) {
+	wantStakeRoot := standalone.CalcTxTreeMerkleRoot(msgBlock.STransactions)
+	if header.StakeRoot != wantStakeRoot {
 		str := fmt.Sprintf("block stake merkle root is invalid - block"+
 			" header indicates %v, but calculated value is %v",
-			header.StakeRoot, calculatedStakeMerkleRoot)
+			header.StakeRoot, wantStakeRoot)
 		return ruleError(ErrBadMerkleRoot, str)
 	}
 
@@ -886,7 +854,7 @@ func checkBlockSanity(block *dcrutil.Block, timeSource MedianTimeSource, flags B
 		lastSigOps := totalSigOps
 
 		msgTx := tx.MsgTx()
-		isCoinBase := IsCoinBaseTx(msgTx)
+		isCoinBase := standalone.IsCoinBaseTx(msgTx)
 		isSSGen := stake.IsSSGen(msgTx)
 		totalSigOps += CountSigOps(tx, isCoinBase, isSSGen)
 		if totalSigOps < lastSigOps || totalSigOps > MaxSigOpsPerBlock {
@@ -1451,7 +1419,7 @@ func (b *BlockChain) checkBlockContext(block *dcrutil.Block, prevNode *blockNode
 // Decred: Check the stake transactions to make sure they don't have this txid
 // too.
 func (b *BlockChain) checkDupTxs(txSet []*dcrutil.Tx, view *UtxoViewpoint) error {
-	if !chaincfg.CheckForDuplicateHashes {
+	if !checkForDuplicateHashes {
 		return nil
 	}
 
@@ -1901,7 +1869,7 @@ func checkTicketRedeemerCommitments(ticketHash *chainhash.Hash, ticketOuts []*st
 //
 // NOTE: The caller MUST have already determined that the provided transaction
 // is a vote.
-func checkVoteInputs(subsidyCache *SubsidyCache, tx *dcrutil.Tx, txHeight int64, view *UtxoViewpoint, params *chaincfg.Params) error {
+func checkVoteInputs(subsidyCache *standalone.SubsidyCache, tx *dcrutil.Tx, txHeight int64, view *UtxoViewpoint, params *chaincfg.Params) error {
 	ticketMaturity := int64(params.TicketMaturity)
 	voteHash := tx.Hash()
 	msgTx := tx.MsgTx()
@@ -1914,8 +1882,7 @@ func checkVoteInputs(subsidyCache *SubsidyCache, tx *dcrutil.Tx, txHeight int64,
 	// is voting on.  Unfortunately, this is now part of consensus, so changing
 	// it requires a hard fork vote.
 	_, heightVotingOn := stake.SSGenBlockVotedOn(msgTx)
-	voteSubsidy := CalcStakeVoteSubsidy(subsidyCache, int64(heightVotingOn),
-		params)
+	voteSubsidy := subsidyCache.CalcStakeVoteSubsidy(int64(heightVotingOn))
 
 	// The input amount specified by the stakebase must commit to the subsidy
 	// generated by the vote.
@@ -2108,9 +2075,10 @@ func checkRevocationInputs(tx *dcrutil.Tx, txHeight int64, view *UtxoViewpoint, 
 //
 // NOTE: The transaction MUST have already been sanity checked with the
 // CheckTransactionSanity function prior to calling this function.
-func CheckTransactionInputs(subsidyCache *SubsidyCache, tx *dcrutil.Tx, txHeight int64, view *UtxoViewpoint, checkFraudProof bool, chainParams *chaincfg.Params) (int64, error) {
+func CheckTransactionInputs(subsidyCache *standalone.SubsidyCache, tx *dcrutil.Tx, txHeight int64, view *UtxoViewpoint, checkFraudProof bool, chainParams *chaincfg.Params) (int64, error) {
 	// Coinbase transactions have no inputs.
-	if IsCoinBase(tx) {
+	msgTx := tx.MsgTx()
+	if standalone.IsCoinBaseTx(msgTx) {
 		return 0, nil
 	}
 
@@ -2121,7 +2089,6 @@ func CheckTransactionInputs(subsidyCache *SubsidyCache, tx *dcrutil.Tx, txHeight
 	// Perform additional checks on ticket purchase transactions such as
 	// ensuring the input type requirements are met and the output commitments
 	// coincide with the inputs.
-	msgTx := tx.MsgTx()
 	isTicket := stake.IsSStx(msgTx)
 	if isTicket {
 		if err := checkTicketPurchaseInputs(msgTx, view); err != nil {
@@ -2169,8 +2136,8 @@ func CheckTransactionInputs(subsidyCache *SubsidyCache, tx *dcrutil.Tx, txHeight
 		if isVote && idx == 0 {
 			// However, do add the reward amount.
 			_, heightVotingOn := stake.SSGenBlockVotedOn(msgTx)
-			stakeVoteSubsidy := CalcStakeVoteSubsidy(subsidyCache,
-				int64(heightVotingOn), chainParams)
+			stakeVoteSubsidy := subsidyCache.CalcStakeVoteSubsidy(
+				int64(heightVotingOn))
 			totalAtomIn += stakeVoteSubsidy
 			continue
 		}
@@ -2463,8 +2430,7 @@ func CountP2SHSigOps(tx *dcrutil.Tx, isCoinBaseTx bool, isStakeBaseTx bool, view
 		// Count the precise number of signature operations in the
 		// referenced public key script.
 		sigScript := txIn.SignatureScript
-		numSigOps := txscript.GetPreciseSigOpCount(sigScript, pkScript,
-			true)
+		numSigOps := txscript.GetPreciseSigOpCount(sigScript, pkScript)
 
 		// We could potentially overflow the accumulator so check for
 		// overflow.
@@ -2577,7 +2543,7 @@ func checkNumSigOps(tx *dcrutil.Tx, view *UtxoViewpoint, index int, txTree bool,
 // checkStakeBaseAmounts calculates the total amount given as subsidy from
 // single stakebase transactions (votes) within a block.  This function skips a
 // ton of checks already performed by CheckTransactionInputs.
-func checkStakeBaseAmounts(subsidyCache *SubsidyCache, height int64, params *chaincfg.Params, txs []*dcrutil.Tx, view *UtxoViewpoint) error {
+func checkStakeBaseAmounts(subsidyCache *standalone.SubsidyCache, height int64, params *chaincfg.Params, txs []*dcrutil.Tx, view *UtxoViewpoint) error {
 	for _, tx := range txs {
 		msgTx := tx.MsgTx()
 		if stake.IsSSGen(msgTx) {
@@ -2603,8 +2569,7 @@ func checkStakeBaseAmounts(subsidyCache *SubsidyCache, height int64, params *cha
 
 			// Subsidy aligns with the height we're voting on, not
 			// with the height of the current block.
-			calcSubsidy := CalcStakeVoteSubsidy(subsidyCache,
-				height-1, params)
+			calcSubsidy := subsidyCache.CalcStakeVoteSubsidy(height - 1)
 
 			if difference > calcSubsidy {
 				str := fmt.Sprintf("ssgen tx %v spent more "+
@@ -2653,7 +2618,7 @@ func getStakeBaseAmounts(txs []*dcrutil.Tx, view *UtxoViewpoint) (int64, error) 
 
 // getStakeTreeFees determines the amount of fees for in the stake tx tree of
 // some node given a transaction store.
-func getStakeTreeFees(subsidyCache *SubsidyCache, height int64, params *chaincfg.Params, txs []*dcrutil.Tx, view *UtxoViewpoint) (dcrutil.Amount, error) {
+func getStakeTreeFees(subsidyCache *standalone.SubsidyCache, height int64, params *chaincfg.Params, txs []*dcrutil.Tx, view *UtxoViewpoint) (dcrutil.Amount, error) {
 	totalInputs := int64(0)
 	totalOutputs := int64(0)
 	for _, tx := range txs {
@@ -2689,8 +2654,7 @@ func getStakeTreeFees(subsidyCache *SubsidyCache, height int64, params *chaincfg
 		if isSSGen {
 			// Subsidy aligns with the height we're voting on, not
 			// with the height of the current block.
-			totalOutputs -= CalcStakeVoteSubsidy(subsidyCache,
-				height-1, params)
+			totalOutputs -= subsidyCache.CalcStakeVoteSubsidy(height - 1)
 		}
 	}
 
@@ -2707,7 +2671,7 @@ func getStakeTreeFees(subsidyCache *SubsidyCache, height int64, params *chaincfg
 // transaction inputs for a transaction list given a predetermined TxStore.
 // After ensuring the transaction is valid, the transaction is connected to the
 // UTXO viewpoint.  TxTree true == Regular, false == Stake
-func (b *BlockChain) checkTransactionsAndConnect(subsidyCache *SubsidyCache, inputFees dcrutil.Amount, node *blockNode, txs []*dcrutil.Tx, view *UtxoViewpoint, stxos *[]spentTxOut, txTree bool) error {
+func (b *BlockChain) checkTransactionsAndConnect(inputFees dcrutil.Amount, node *blockNode, txs []*dcrutil.Tx, view *UtxoViewpoint, stxos *[]spentTxOut, txTree bool) error {
 	// Perform several checks on the inputs for each transaction.  Also
 	// accumulate the total fees.  This could technically be combined with
 	// the loop above instead of running another loop over the
@@ -2776,12 +2740,12 @@ func (b *BlockChain) checkTransactionsAndConnect(subsidyCache *SubsidyCache, inp
 
 		var expAtomOut int64
 		if node.height == 1 {
-			expAtomOut = subsidyCache.CalcBlockSubsidy(node.height)
+			expAtomOut = b.subsidyCache.CalcBlockSubsidy(node.height)
 		} else {
-			subsidyWork := CalcBlockWorkSubsidy(subsidyCache,
-				node.height, node.voters, b.chainParams)
-			subsidyTax := CalcBlockTaxSubsidy(subsidyCache,
-				node.height, node.voters, b.chainParams)
+			subsidyWork := b.subsidyCache.CalcWorkSubsidy(node.height,
+				node.voters)
+			subsidyTax := b.subsidyCache.CalcTreasurySubsidy(node.height,
+				node.voters)
 			expAtomOut = subsidyWork + subsidyTax + totalFees
 		}
 
@@ -2815,7 +2779,7 @@ func (b *BlockChain) checkTransactionsAndConnect(subsidyCache *SubsidyCache, inp
 			return ruleError(ErrNoStakeTx, str)
 		}
 
-		err := checkStakeBaseAmounts(subsidyCache, node.height,
+		err := checkStakeBaseAmounts(b.subsidyCache, node.height,
 			b.chainParams, txs, view)
 		if err != nil {
 			return err
@@ -2830,8 +2794,7 @@ func (b *BlockChain) checkTransactionsAndConnect(subsidyCache *SubsidyCache, inp
 		if node.height >= b.chainParams.StakeValidationHeight {
 			// Subsidy aligns with the height we're voting on, not
 			// with the height of the current block.
-			expAtomOut = CalcStakeVoteSubsidy(subsidyCache,
-				node.height-1, b.chainParams) *
+			expAtomOut = b.subsidyCache.CalcStakeVoteSubsidy(node.height-1) *
 				int64(node.voters)
 		} else {
 			expAtomOut = totalFees
@@ -2902,9 +2865,9 @@ func (b *BlockChain) checkConnectBlock(node *blockNode, block, parent *dcrutil.B
 			"of expected %v", view.BestHash(), parentHash))
 	}
 
-	// Check that the coinbase pays the tax, if applicable.
-	err := CoinbasePaysTax(b.subsidyCache, block.Transactions()[0], node.height,
-		node.voters, b.chainParams)
+	// Check that the coinbase pays the treasury, if applicable.
+	err := coinbasePaysTreasury(b.subsidyCache, block.Transactions()[0],
+		node.height, node.voters, b.chainParams)
 	if err != nil {
 		return err
 	}
@@ -2977,8 +2940,8 @@ func (b *BlockChain) checkConnectBlock(node *blockNode, block, parent *dcrutil.B
 		return err
 	}
 
-	err = b.checkTransactionsAndConnect(b.subsidyCache, 0, node,
-		block.STransactions(), view, stxos, false)
+	err = b.checkTransactionsAndConnect(0, node, block.STransactions(),
+		view, stxos, false)
 	if err != nil {
 		log.Tracef("checkTransactionsAndConnect failed for "+
 			"TxTreeStake: %v", err)
@@ -3036,7 +2999,7 @@ func (b *BlockChain) checkConnectBlock(node *blockNode, block, parent *dcrutil.B
 		return err
 	}
 
-	err = b.checkTransactionsAndConnect(b.subsidyCache, stakeTreeFees, node,
+	err = b.checkTransactionsAndConnect(stakeTreeFees, node,
 		block.Transactions(), view, stxos, true)
 	if err != nil {
 		log.Tracef("checkTransactionsAndConnect failed for cur "+
