@@ -163,7 +163,7 @@ func readDeserializeSizeOfMinimalOutputs(serialized []byte) (int, error) {
 		}
 		offset += bytesRead
 
-		if len(serialized[offset:]) < int(scriptSize) {
+		if uint64(len(serialized[offset:])) < scriptSize {
 			return offset, errDeserialize("unexpected end of " +
 				"data during decoding (output script)")
 		}
