@@ -1328,6 +1328,7 @@ func (g *BlkTmplGenerator) NewBlockTemplate(payToAddress dcrutil.Address) (*Bloc
 	// Tracks the total number of transactions that depend on another
 	// from the tx source.
 	totalDescendentTxns := 0
+	prioItemMap := make(map[chainhash.Hash]*txPrioItem, len(sourceTxns))
 
 mempoolLoop:
 	for _, txDesc := range sourceTxns {
@@ -1415,6 +1416,8 @@ mempoolLoop:
 		prioItem.feePerKB = (float64(txDesc.Fee) * float64(kilobyte)) /
 			float64(txSize)
 		prioItem.fee = txDesc.Fee
+
+		prioItemMap[*prioItem.tx.Hash()] = prioItem
 
 		// Add the transaction to the priority queue to mark it ready
 		// for inclusion in the block unless it has dependencies.
@@ -1737,8 +1740,9 @@ mempoolLoop:
 		for _, item := range deps {
 			// Add the transaction to the priority queue if there
 			// are no more dependencies after this one.
-			if !miningView.HasParents(item.Tx.Hash()) {
-				heap.Push(priorityQueue, item)
+			txHash := item.Tx.Hash()
+			if !miningView.HasParents(txHash) {
+				heap.Push(priorityQueue, prioItemMap[*txHash])
 			}
 		}
 	}
