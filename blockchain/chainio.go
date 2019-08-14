@@ -130,27 +130,48 @@ func deserializeToMinimalOutputs(serialized []byte) ([]*stake.MinimalOutput, int
 }
 
 // readDeserializeSizeOfMinimalOutputs reads the size of the stored set of
-// minimal outputs without allocating memory for the structs themselves. It
-// will panic if the function reads outside of memory bounds.
-func readDeserializeSizeOfMinimalOutputs(serialized []byte) int {
+// minimal outputs without allocating memory for the structs themselves.
+func readDeserializeSizeOfMinimalOutputs(serialized []byte) (int, error) {
 	numOutputs, offset := deserializeVLQ(serialized)
+	if offset == 0 {
+		return offset, errDeserialize("unexpected end of " +
+			"data during decoding (num outputs)")
+	}
 	for i := 0; i < int(numOutputs); i++ {
 		// Amount
 		_, bytesRead := deserializeVLQ(serialized[offset:])
+		if bytesRead == 0 {
+			return offset, errDeserialize("unexpected end of " +
+				"data during decoding (output amount)")
+		}
 		offset += bytesRead
 
 		// Script version
 		_, bytesRead = deserializeVLQ(serialized[offset:])
+		if bytesRead == 0 {
+			return offset, errDeserialize("unexpected end of " +
+				"data during decoding (output script version)")
+		}
 		offset += bytesRead
 
 		// Script
 		var scriptSize uint64
 		scriptSize, bytesRead = deserializeVLQ(serialized[offset:])
+		if bytesRead == 0 {
+			return offset, errDeserialize("unexpected end of " +
+				"data during decoding (output script size)")
+		}
 		offset += bytesRead
+
+		if uint64(len(serialized[offset:])) < scriptSize {
+			return offset, errDeserialize("unexpected end of " +
+				"data during decoding (output script)")
+		}
+
 		offset += int(scriptSize)
 	}
 
-	return offset
+	return offset, nil
 }
 
 // ConvertUtxosToMinimalOutputs converts the contents of a UTX to a series of
@@ -565,27 +586,11 @@ func putSpentTxOut(target []byte, stxo *spentTxOut) int {
 // An error will be returned if the version is not serialized as a part of the
 // stxo and is also not provided to the function.
 func decodeSpentTxOut(serialized []byte, stxo *spentTxOut, amount int64, height uint32, index uint32) (int, error) {
-	// Ensure there are bytes to decode.
-	if len(serialized) == 0 {
-		return 0, errDeserialize("no serialized bytes")
-	}
-
-	// Deserialize the header code.
+	// Deserialize the flags.
 	flags, offset := deserializeVLQ(serialized)
-	if offset >= len(serialized) {
-		return offset, errDeserialize("unexpected end of data after " +
-			"spent tx out flags")
-	}
-
-	// Decode the flags. If the flags are non-zero, it means that the
-	// transaction was fully spent at this spend.
-	if decodeFlagsFullySpent(byte(flags)) {
-		isCoinBase, hasExpiry, txType, _ := decodeFlags(byte(flags))
-
-		stxo.isCoinBase = isCoinBase
-		stxo.hasExpiry = hasExpiry
-		stxo.txType = txType
-		stxo.txFullySpent = true
+	if offset == 0 {
+		return 0, errDeserialize("unexpected end of data during " +
+			"decoding (flags)")
 	}
 
 	// Decode the compressed txout. We pass false for the amount flag,
@@ -609,22 +614,28 @@ func decodeSpentTxOut(serialized []byte, stxo *spentTxOut, amount int64, height 
 	// Deserialize the containing transaction if the flags indicate that
 	// the transaction has been fully spent.
 	if decodeFlagsFullySpent(byte(flags)) {
+		isCoinBase, hasExpiry, txType, _ := decodeFlags(byte(flags))
+
+		stxo.isCoinBase = isCoinBase
+		stxo.hasExpiry = hasExpiry
+		stxo.txType = txType
+		stxo.txFullySpent = true
+
 		txVersion, bytesRead := deserializeVLQ(serialized[offset:])
-		offset += bytesRead
-		if offset == 0 || offset > len(serialized) {
-			return offset, errDeserialize("unexpected end of data " +
-				"after version")
+		if bytesRead == 0 {
+			return offset, errDeserialize("unexpected end of " +
+				"data during decoding (tx version)")
 		}
+		offset += bytesRead
 
 		stxo.txVersion = uint16(txVersion)
 
 		if stxo.txType == stake.TxTypeSStx {
-			sz := readDeserializeSizeOfMinimalOutputs(serialized[offset:])
-			if sz == 0 || sz > len(serialized[offset:]) {
-				return offset, errDeserialize("corrupt data for ticket " +
-					"fully spent stxo stakeextra")
+			sz, err := readDeserializeSizeOfMinimalOutputs(serialized[offset:])
+			if err != nil {
+				return offset + sz, errDeserialize(fmt.Sprintf("unable to decode "+
+					"ticket outputs: %v", err))
 			}
-
 			stakeExtra := make([]byte, sz)
 			copy(stakeExtra, serialized[offset:offset+sz])
 			stxo.stakeExtra = stakeExtra

@@ -493,53 +493,81 @@ func TestStxoDecodeErrors(t *testing.T) {
 	tests := []struct {
 		name       string
 		stxo       spentTxOut
-		txVersion  int32 // When the txout is not fully spent.
 		serialized []byte
-		bytesRead  int // Expected number of bytes read.
 		errType    error
+		bytesRead  int // Expected number of bytes read.
 	}{
 		{
-			name:       "nothing serialized",
+			// [EOF]
+			name:       "nothing serialized (no flags)",
 			stxo:       spentTxOut{},
 			serialized: hexToBytes(""),
 			errType:    errDeserialize(""),
 			bytesRead:  0,
 		},
 		{
-			name:       "no data after flags w/o version",
+			// [<flags 00> EOF]
+			name:       "no compressed txout script version",
 			stxo:       spentTxOut{},
 			serialized: hexToBytes("00"),
 			errType:    errDeserialize(""),
 			bytesRead:  1,
 		},
 		{
-			name:       "no data after flags code",
+			// [<flags 10> <script version 00> EOF]
+			name:       "no tx version data after empty script for a fully spent regular stxo",
 			stxo:       spentTxOut{},
-			serialized: hexToBytes("14"),
+			serialized: hexToBytes("1000"),
 			errType:    errDeserialize(""),
-			bytesRead:  1,
+			bytesRead:  2,
 		},
 		{
-			name:       "no tx version data after script",
+			// [<flags 10> <script version 00> <compressed pk script 01 6e ...> EOF]
+			name:       "no tx version data after a pay-to-script-hash script for a fully spent regular stxo",
 			stxo:       spentTxOut{},
-			serialized: hexToBytes("1400016edbc6c4d31bae9f1ccc38538a114bf42de65e86"),
+			serialized: hexToBytes("1000016edbc6c4d31bae9f1ccc38538a114bf42de65e86"),
 			errType:    errDeserialize(""),
 			bytesRead:  23,
 		},
 		{
-			name:       "no stakeextra data after script for ticket",
+			// [<flags 14> <script version 00> <compressed pk script 01 6e ...> <tx version 01> EOF]
+			name:       "no stakeextra data after script for a fully spent ticket stxo",
 			stxo:       spentTxOut{},
 			serialized: hexToBytes("1400016edbc6c4d31bae9f1ccc38538a114bf42de65e8601"),
 			errType:    errDeserialize(""),
 			bytesRead:  24,
 		},
 		{
-			name:       "incomplete compressed txout",
+			// [<flags 14> <script version 00> <compressed pk script 01 6e ...> <tx version 01> <stakeextra {num outputs 01}> EOF]
+			name:       "truncated stakeextra data after script for a fully spent ticket stxo (num outputs only)",
 			stxo:       spentTxOut{},
-			txVersion:  1,
-			serialized: hexToBytes("1432"),
+			serialized: hexToBytes("1400016edbc6c4d31bae9f1ccc38538a114bf42de65e860101"),
 			errType:    errDeserialize(""),
-			bytesRead:  2,
+			bytesRead:  25,
+		},
+		{
+			// [<flags 14> <script version 00> <compressed pk script 01 6e ...> <tx version 01> <stakeextra {num outputs 01} {amount 0f}> EOF]
+			name:       "truncated stakeextra data after script for a fully spent ticket stxo (num outputs and amount only)",
+			stxo:       spentTxOut{},
+			serialized: hexToBytes("1400016edbc6c4d31bae9f1ccc38538a114bf42de65e8601010f"),
+			errType:    errDeserialize(""),
+			bytesRead:  26,
+		},
+		{
+			// [<flags 14> <script version 00> <compressed pk script 01 6e ...> <tx version 01> <stakeextra {num outputs 01} {amount 0f} {script version 00}> EOF]
+			name:       "truncated stakeextra data after script for a fully spent ticket stxo (num outputs, amount, and script version only)",
+			stxo:       spentTxOut{},
+			serialized: hexToBytes("1400016edbc6c4d31bae9f1ccc38538a114bf42de65e8601010f00"),
+			errType:    errDeserialize(""),
+			bytesRead:  27,
+		},
+		{
+			// [<flags 14> <script version 00> <compressed pk script 01 6e ...> <tx version 01> <stakeextra {num outputs 01} {amount 0f} {script version 00} {script size 1a} {25 bytes of script instead of 26}> EOF]
+			name:       "truncated stakeextra data after script for a fully spent ticket stxo (script size specified as 0x1a, but only 0x19 bytes provided)",
+			stxo:       spentTxOut{},
+			serialized: hexToBytes("1400016edbc6c4d31bae9f1ccc38538a114bf42de65e8601010f001aba76a9140cdf9941c0c221243cb8672cd1ad2c4c0933850588"),
+			errType:    errDeserialize(""),
+			bytesRead:  28,
 		},
 	}
 
