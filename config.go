@@ -129,6 +129,7 @@ type config struct {
 	OnionProxyUser       string        `long:"onionuser" description:"Username for onion proxy server"`
 	OnionProxyPass       string        `long:"onionpass" default-mask:"-" description:"Password for onion proxy server"`
 	NoOnion              bool          `long:"noonion" description:"Disable connecting to tor hidden services"`
+	NoDiscoverIP         bool          `long:"nodiscoverip" description:"Disable automatic network address discovery"`
 	TorIsolation         bool          `long:"torisolation" description:"Enable Tor stream isolation by randomizing user credentials for each connection."`
 	TestNet              bool          `long:"testnet" description:"Use the test network"`
 	SimNet               bool          `long:"simnet" description:"Use the simulation test network"`

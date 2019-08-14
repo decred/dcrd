@@ -129,6 +129,11 @@ type peerState struct {
 	persistentPeers map[int32]*serverPeer
 	banned          map[string]time.Time
 	outboundGroups  map[string]int
+
+	// suggestions represents public network address suggestions from outbound
+	// peers.
+	suggestions    map[addrmgr.NetworkAddress]map[string]int32
+	suggestionsMtx sync.Mutex
 }
 
 // ConnectionsWithIP returns the number of connections with the given IP.
@@ -176,6 +181,46 @@ func (ps *peerState) forAllPeers(closure func(sp *serverPeer)) {
 		closure(e)
 	}
 	ps.forAllOutboundPeers(closure)
+}
+
+// ResolveLocalAddress picks the best suggested network address from available
+// options, per the network interface key provided. The best suggestion, if
+// found, is added as a local address.
+func (ps *peerState) ResolveLocalAddress(netKey addrmgr.NetworkAddress, addrMgr *addrmgr.AddrManager, services wire.ServiceFlag, port uint16) {
+	ps.suggestionsMtx.Lock()
+	count := len(ps.suggestions[netKey])
+	if count == 0 {
+		ps.suggestionsMtx.Unlock()
+		return
+	}
+
+	var bestSuggestion string
+	var bestTally int32
+	for suggestion, tally := range ps.suggestions[netKey] {
+		switch {
+		case bestSuggestion == "", tally > bestTally:
+			bestSuggestion = suggestion
+			bestTally = tally
+		}
+	}
+	ps.suggestionsMtx.Unlock()
+
+	// A valid best address suggestion must have at least two outbound peers
+	// concluding on the same result.
+	if bestTally < 2 {
+		return
+	}
+
+	na, err := addrMgr.HostToNetAddress(bestSuggestion, port, services)
+	if err != nil {
+		amgrLog.Errorf("unable to generate network address using host %v: "+
+			"%v", bestSuggestion, err)
+		return
+	}
+
+	if !addrMgr.HasLocalAddress(na) {
+		addrMgr.AddLocalAddress(na, addrmgr.ManualPrio)
+	}
 }
 
 // server provides a Decred server for handling communications to and from
@@ -254,6 +299,10 @@ type serverPeer struct {
 	// The following chans are used to sync blockmanager and server.
 	txProcessed    chan struct{}
 	blockProcessed chan struct{}
+
+	// peerNa is network address of the peer connected to.
+	peerNa    *wire.NetAddress
+	peerNaMtx sync.Mutex
 }
 
 // newServerPeer returns a new serverPeer instance. The peer needs to be set by
@@ -440,6 +489,12 @@ func (sp *serverPeer) OnVersion(p *peer.Peer, msg *wire.MsgVersion) *wire.MsgRej
 
 		// Mark the address as a known good address.
 		addrManager.Good(remoteAddr)
+	}
+
+	if !sp.Inbound() {
+		sp.peerNaMtx.Lock()
+		sp.peerNa = &msg.AddrYou
+		sp.peerNaMtx.Unlock()
 	}
 
 	// Choose whether or not to relay transactions.
@@ -1361,6 +1416,68 @@ func (s *server) handleAddPeerMsg(state *peerState, sp *serverPeer) bool {
 		} else {
 			state.outboundPeers[sp.ID()] = sp
 		}
+
+		// Fetch the suggested public ip from the outbound peer if
+		// there are no prevailing conditions to disable automatic
+		// network address discovery.
+		//
+		// The conditions to disable automatic network address
+		// discovery are:
+		//	- If there is a proxy set (--proxy, --onion).
+		//	- If automatic network address discovery is explicitly
+		//		disabled (--nodiscoverip).
+		//	- If there is an external ip explicitly set (--externalip).
+		//	- If listening has been disabled (--nolisten, listen
+		//	disabled because of --connect, etc).
+		//	- If Universal Plug and Play is enabled (--upnp).
+		//	- If the active network is simnet or regnet.
+		if (cfg.Proxy != "" || cfg.OnionProxy != "") ||
+			cfg.NoDiscoverIP || len(cfg.ExternalIPs) > 0 ||
+			(cfg.DisableListen || len(cfg.Listeners) == 0) || cfg.Upnp ||
+			activeNetParams.Name == simNetParams.Name ||
+			activeNetParams.Name == regNetParams.Name {
+			return true
+		}
+
+		sp.peerNaMtx.Lock()
+		na := sp.peerNa
+		sp.peerNaMtx.Unlock()
+
+		if na == nil {
+			return true
+		}
+
+		if !s.addrManager.IsPeerNaValid(na, sp.NA()) {
+			return true
+		}
+
+		port, err := strconv.ParseUint(activeNetParams.DefaultPort, 10, 16)
+		if err != nil {
+			srvrLog.Errorf("unabled to parse active network port: %v", err)
+			return true
+		}
+
+		id := na.IP.String()
+		switch {
+		case na.IP.To4() != nil:
+			state.suggestionsMtx.Lock()
+			state.suggestions[addrmgr.IPv4Address][id]++
+			state.suggestionsMtx.Unlock()
+
+			state.ResolveLocalAddress(addrmgr.IPv4Address, s.addrManager,
+				s.services, uint16(port))
+
+		case na.IP.To16() != nil:
+			state.suggestionsMtx.Lock()
+			state.suggestions[addrmgr.IPv6Address][id]++
+			state.suggestionsMtx.Unlock()
+
+			state.ResolveLocalAddress(addrmgr.IPv6Address, s.addrManager,
+				s.services, uint16(port))
+
+		default:
+			return true
+		}
 	}
 
 	return true
@@ -1769,6 +1886,10 @@ func (s *server) peerHandler() {
 		outboundPeers:   make(map[int32]*serverPeer),
 		banned:          make(map[string]time.Time),
 		outboundGroups:  make(map[string]int),
+		suggestions: map[addrmgr.NetworkAddress]map[string]int32{
+			addrmgr.IPv4Address: make(map[string]int32),
+			addrmgr.IPv6Address: make(map[string]int32),
+		},
 	}
 
 	if !cfg.DisableDNSSeed {
