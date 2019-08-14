@@ -74,6 +74,13 @@ type localAddress struct {
 	score AddressPriority
 }
 
+// LocalAddr represents network address information for a local address.
+type LocalAddr struct {
+	Address string
+	Port    uint16
+	Score   int32
+}
+
 // AddressPriority type is used to describe the hierarchy of local address
 // discovery methods.
 type AddressPriority int
@@ -536,7 +543,7 @@ func (a *AddrManager) deserializePeers(filePath string) error {
 
 		if v.refs > 0 && v.tried {
 			return fmt.Errorf("address %s after serialisation "+
-				"which is both new and tried!", k)
+				"which is both new and tried", k)
 		}
 	}
 
@@ -1020,6 +1027,25 @@ func (a *AddrManager) HasLocalAddress(na *wire.NetAddress) bool {
 	_, ok := a.localAddresses[key]
 	a.lamtx.Unlock()
 	return ok
+}
+
+// FetchLocalAddresses fetches a summary of local addresses information for
+// the getnetworkinfo rpc.
+func (a *AddrManager) FetchLocalAddresses() []LocalAddr {
+	a.lamtx.Lock()
+	defer a.lamtx.Unlock()
+
+	addrs := make([]LocalAddr, 0, len(a.localAddresses))
+	for _, addr := range a.localAddresses {
+		la := LocalAddr{
+			Address: addr.na.IP.String(),
+			Port:    addr.na.Port,
+		}
+
+		addrs = append(addrs, la)
+	}
+
+	return addrs
 }
 
 const (

@@ -202,6 +202,10 @@ the method name for further details such as parameter and return information.
 |Y
 |Returns the estimated network hashes per second for the block heights provided by the parameters.
 |-
+|[[#getnetworkinfo|getnetworkinfo]]
+|Y
+|Returns a JSON object containing network-related information.
+|-
 |[[#getpeerinfo|getpeerinfo]]
 |N
 |Returns information about each connected network peer as an array of json objects.
@@ -946,6 +950,45 @@ the method name for further details such as parameter and return information.
 |-
 !Example Return
 |<code>6573971939</code>
+|}
+
+----
+
+====getnetworkinfo====
+{|
+!Method
+|getnetworkinfo
+|-
+!Parameters
+|None
+|-
+!Description
+|Returns a JSON object containing network-related information.
+|-
+!Returns
+|<code>(json object)</code>
+: <code>address</code>: <code>(string)</code> The local address being listened on.
+: <code>port</code>: <code>(numeric)</code> The port being listened on for the associated local address.
+: <code>score</code>: <code>(numeric)</code> Reserved.
+: <code>name</code>: <code>(string)</code> The name of the network interface.
+: <code>limited</code>: <code>(boolean)</code> True if only connections to the network are allowed.
+: <code>proxy</code>: <code>(string)</code> The proxy set for the network.
+: <code>proxyrandomizecredentials</code>: <code>(boolean)</code> True if randomized credentials are set for the proxy.
+: <code>reachable</code>: <code>(boolean)</code> True if connections can be made to or from the network.
+: <code>version</code>: <code>(numeric)</code> The version of the node as a numeric.
+: <code>subversion</code>: <code>(string)</code> The subversion of the node, as advertised to peers.
+: <code>protocolversion</code>: <code>(numeric)</code> The protocol version of the node.
+: <code>timeoffset</code>: <code>(numeric)</code> The node clock offset in seconds.
+: <code>connections</code>: <code>(numeric)</code> The total number of open connections for the node.
+: <code>networks</code>: <code>(json array)</code> An array of objects describing IPV4, IPV6 and Onion network interface states.
+: <code>relayfee</code>: <code>(numeric)</code> The minimum required transaction fee for the node.
+: <code>localaddresses</code>: <code>(json array)</code> An array of objects describing local addresses being listened on by the node.
+: <code>localservices</code>: <code>(string)</code> The services supported by the node, as advertised in its version message.
+
+<code>{"version": n, "subversion": "major.minor.patch", "protocolversion": n, "timeoffset": n, "connections": n, "networks": [{"name": "network", "limited": true or false, "reachable": true or false, "proxy": "host:port","proxyrandomizecredentials": true or false }, ...], "relayfee": n.nn., "localaddresses": [{ "address": "ip", "port": n, "score": n }, ...], "localservices": "services"}</code>
+|-
+!Example Return
+|<code>{"version": 1050000, "subversion": "1.5.0", "protocolversion": 6, "timeoffset": 0, "connections": 4, "networks": [{"name": "IPV4", "limited": true, "reachable": true, "proxy": "127.0.0.1:9050", "proxyrandomizecredentials": false}, {"name": "IPV6", "limited": false, "reachable": false, "proxy": "", "proxyrandomizecredentials": false}, {"name": "Onion", "limited": false, "reachable": false, "proxy": "", "proxyrandomizecredentials": false}], "relayfee": 0.0001, "localaddresses": [{"address": "fd87:d87e:eb43:d208:593b:4305:c8e5:2e77", "port": 9108, "score": 0}], "localservices": "0000000000000005"}</code>
 |}
 
 ----

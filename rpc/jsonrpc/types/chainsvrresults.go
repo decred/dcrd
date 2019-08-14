@@ -287,12 +287,14 @@ type NetworksResult struct {
 // command.
 type GetNetworkInfoResult struct {
 	Version         int32                  `json:"version"`
+	SubVersion      string                 `json:"subversion"`
 	ProtocolVersion int32                  `json:"protocolversion"`
 	TimeOffset      int64                  `json:"timeoffset"`
 	Connections     int32                  `json:"connections"`
 	Networks        []NetworksResult       `json:"networks"`
 	RelayFee        float64                `json:"relayfee"`
 	LocalAddresses  []LocalAddressesResult `json:"localaddresses"`
+	LocalServices   string                 `json:"localservices"`
 }
 
 // GetNetTotalsResult models the data returned from the getnettotals command.

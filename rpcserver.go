@@ -210,6 +210,7 @@ var rpcHandlersBeforeInit = map[types.Method]commandHandler{
 	"getmininginfo":         handleGetMiningInfo,
 	"getnettotals":          handleGetNetTotals,
 	"getnetworkhashps":      handleGetNetworkHashPS,
+	"getnetworkinfo":        handleGetNetworkInfo,
 	"getpeerinfo":           handleGetPeerInfo,
 	"getrawmempool":         handleGetRawMempool,
 	"getrawtransaction":     handleGetRawTransaction,
@@ -299,7 +300,6 @@ var rpcAskWallet = map[string]struct{}{
 var rpcUnimplemented = map[string]struct{}{
 	"estimatepriority": {},
 	"getblocktemplate": {},
-	"getnetworkinfo":   {},
 }
 
 // Commands that are available to a limited user
@@ -331,6 +331,7 @@ var rpcLimited = map[string]struct{}{
 	"getinfo":               {},
 	"getnettotals":          {},
 	"getnetworkhashps":      {},
+	"getnetworkinfo":        {},
 	"getrawmempool":         {},
 	"getrawtransaction":     {},
 	"gettxout":              {},
@@ -3357,6 +3358,35 @@ func handleGetNetworkHashPS(s *rpcServer, cmd interface{}, closeChan <-chan stru
 
 	hashesPerSec := new(big.Int).Div(totalWork, big.NewInt(timeDiff))
 	return hashesPerSec.Int64(), nil
+}
+
+// handleGetNetworkInfo implements the getnetworkinfo command.
+func handleGetNetworkInfo(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) (interface{}, error) {
+	networks := cfg.generateNetworkInfo()
+	lAddrs := s.server.addrManager.FetchLocalAddresses()
+	localAddrs := make([]types.LocalAddressesResult, len(lAddrs))
+	for idx, entry := range lAddrs {
+		addr := types.LocalAddressesResult{
+			Address: entry.Address,
+			Port:    entry.Port,
+		}
+		localAddrs[idx] = addr
+	}
+
+	info := types.GetNetworkInfoResult{
+		Version: int32(1000000*version.Major + 10000*version.Minor +
+			100*version.Patch),
+		SubVersion:      userAgentVersion,
+		ProtocolVersion: int32(maxProtocolVersion),
+		TimeOffset:      int64(s.server.timeSource.Offset().Seconds()),
+		Connections:     s.server.ConnectedCount(),
+		RelayFee:        cfg.minRelayTxFee.ToCoin(),
+		Networks:        networks,
+		LocalAddresses:  localAddrs,
+		LocalServices:   fmt.Sprintf("%016x", uint64(s.server.services)),
+	}
+
+	return info, nil
 }
 
 // handleGetPeerInfo implements the getpeerinfo command.

@@ -609,6 +609,32 @@ var helpDescsEnUS = map[string]string{
 	"getnetworkhashps-height":    "Perform estimate ending with this height or -1 for current best chain block height",
 	"getnetworkhashps--result0":  "Estimated hashes per second",
 
+	// GetNetworkInfoCmd help.
+	"getnetworkinfo--synopsis": "Returns a JSON object containing network-related information.",
+
+	// LocalAddressesResult help.
+	"localaddressesresult-address": "The local address being listened on",
+	"localaddressesresult-port":    "The port being listened on for the associated local address",
+	"localaddressesresult-score":   "Reserved",
+
+	// NetworksResult help.
+	"networksresult-name":                      "The name of the network interface",
+	"networksresult-limited":                   "True if only connections to the network are allowed",
+	"networksresult-proxy":                     "The proxy set for the network",
+	"networksresult-proxyrandomizecredentials": "True if randomized credentials are set for the proxy",
+	"networksresult-reachable":                 "True if connections can be made to or from the network",
+
+	// GetNetworkInfoResult help.
+	"getnetworkinforesult-version":         "The version of the node as a numeric",
+	"getnetworkinforesult-subversion":      "The subversion of the node, as advertised to peers",
+	"getnetworkinforesult-protocolversion": "The protocol version of the node",
+	"getnetworkinforesult-timeoffset":      "The node clock offset in seconds",
+	"getnetworkinforesult-connections":     "The total number of open connections for the node",
+	"getnetworkinforesult-networks":        "An array of objects describing IPV4, IPV6 and Onion network interface states",
+	"getnetworkinforesult-relayfee":        "The minimum required transaction fee for the node.",
+	"getnetworkinforesult-localaddresses":  "An array of objects describing local addresses being listened on by the node",
+	"getnetworkinforesult-localservices":   "The services supported by the node, as advertised in its version message",
+
 	// GetNetTotalsCmd help.
 	"getnettotals--synopsis": "Returns a JSON object containing network traffic statistics.",
 
@@ -990,6 +1016,7 @@ var rpcResultTypes = map[types.Method][]interface{}{
 	"getmininginfo":         {(*types.GetMiningInfoResult)(nil)},
 	"getnettotals":          {(*types.GetNetTotalsResult)(nil)},
 	"getnetworkhashps":      {(*int64)(nil)},
+	"getnetworkinfo":        {(*[]types.GetNetworkInfoResult)(nil)},
 	"getpeerinfo":           {(*[]types.GetPeerInfoResult)(nil)},
 	"getrawmempool":         {(*[]string)(nil), (*types.GetRawMempoolVerboseResult)(nil)},
 	"getrawtransaction":     {(*string)(nil), (*types.TxRawResult)(nil)},
