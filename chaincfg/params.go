@@ -95,7 +95,7 @@ type Choice struct {
 	// (abstain) and exist only once in the Vote.Choices array.
 	IsAbstain bool
 
-	// This coince indicates a hard No Vote.  By convention this must exist
+	// This choice indicates a hard No Vote.  By convention this must exist
 	// only once in the Vote.Choices array.
 	IsNo bool
 }
@@ -114,7 +114,7 @@ func (v *Vote) VoteIndex(vote uint16) int {
 }
 
 const (
-	// VoteIDMaxBlockSize is the vote ID for the the maximum block size
+	// VoteIDMaxBlockSize is the vote ID for the maximum block size
 	// increase agenda used for the hard fork demo.
 	VoteIDMaxBlockSize = "maxblocksize"
 
@@ -364,7 +364,7 @@ type Params struct {
 
 	// SLIP-0044 registered coin type used for BIP44, used in the hierarchical
 	// deterministic path for address generation.
-	// All SLIP-0044 registered coin types are are defined here:
+	// All SLIP-0044 registered coin types are defined here:
 	// https://github.com/satoshilabs/slips/blob/master/slip-0044.md
 	SLIP0044CoinType uint32
 

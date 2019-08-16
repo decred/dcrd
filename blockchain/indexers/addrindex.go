@@ -42,7 +42,8 @@ const (
 	// consumes.  It consists of the address key + 1 byte for the level.
 	levelKeySize = addrKeySize + 1
 
-	// levelOffset is the offset in the level key which identifes the level.
+	// levelOffset is the offset in the level key which identifies the
+	// level.
 	levelOffset = levelKeySize - 1
 
 	// addrKeyTypePubKeyHash is the address type in an address key which
@@ -159,7 +160,7 @@ func serializeAddrIndexEntry(blockID uint32, txLoc wire.TxLoc, blockIndex uint32
 
 // deserializeAddrIndexEntry decodes the passed serialized byte slice into the
 // provided region struct according to the format described in detail above and
-// uses the passed block hash fetching function in order to conver the block ID
+// uses the passed block hash fetching function in order to convert the block ID
 // to the associated block hash.
 func deserializeAddrIndexEntry(serialized []byte, entry *TxIndexEntry, fetchBlockHash fetchBlockHashFunc) error {
 	// Ensure there are enough bytes to decode.
@@ -361,7 +362,7 @@ func maxEntriesForLevel(level uint8) int {
 	return numEntries
 }
 
-// dbRemoveAddrIndexEntries removes the specified number of entries from from
+// dbRemoveAddrIndexEntries removes the specified number of entries from
 // the address index for the provided key.  An assertion error will be returned
 // if the count exceeds the total number of entries in the index.
 func dbRemoveAddrIndexEntries(bucket internalBucket, addrKey [addrKeySize]byte, count int) error {
@@ -503,7 +504,7 @@ func dbRemoveAddrIndexEntries(bucket internalBucket, addrKey [addrKeySize]byte, 
 		// be half full.  When that is the case, move it up a level to
 		// simplify the code below which backfills all lower levels that
 		// are still empty.  This also means the current level will be
-		// empty, so the loop will perform another another iteration to
+		// empty, so the loop will perform another iteration to
 		// potentially backfill this level with data from the next one.
 		curLevelMaxEntries := maxEntriesForLevel(level)
 		if len(levelData)/txEntrySize != curLevelMaxEntries {

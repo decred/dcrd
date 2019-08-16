@@ -123,7 +123,7 @@ func TestScriptTokenizer(t *testing.T) {
 		})
 	}
 
-	// Add various positive and negative tests for  multi-opcode scripts.
+	// Add various positive and negative tests for multi-opcode scripts.
 	tests = append(tests, []tokenizerTest{{
 		name:   "pay-to-pubkey-hash",
 		script: mustParseShortForm("DUP HASH160 DATA_20 0x01{20} EQUAL CHECKSIG"),

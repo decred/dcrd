@@ -98,7 +98,7 @@ func (b *BlockChain) processOrphans(hash *chainhash.Hash, flags BehaviorFlags) e
 // the block chain along with best chain selection and reorganization.
 //
 // When no errors occurred during processing, the first return value indicates
-// the length of the fork the block extended.  In the case it either exteneded
+// the length of the fork the block extended.  In the case it either extended
 // the best chain or is now the tip of the best chain due to causing a
 // reorganize, the fork length will be 0.  The second return value indicates
 // whether or not the block is an orphan, in which case the fork length will

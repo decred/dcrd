@@ -19,7 +19,7 @@ func TestCFTypes(t *testing.T) {
 
 	// MsgCFTypes can use more than one filter, in here we are testing
 	// a combination of more than one filter at wire level, whether
-	// these filters be compatible whit each other must be checked at
+	// these filters be compatible with each other must be checked at
 	// higher level.
 	filters := []FilterType{GCSFilterRegular, GCSFilterExtended}
 

@@ -134,10 +134,10 @@ type blockStore struct {
 	// lruMutex protects concurrent access to the least recently used list
 	// and lookup map.
 	//
-	// openBlocksLRU tracks how the open files are refenced by pushing the
+	// openBlocksLRU tracks how the open files are referenced by pushing the
 	// most recently used files to the front of the list thereby trickling
 	// the least recently used files to end of the list.  When a file needs
-	// to be closed due to exceeding the the max number of allowed open
+	// to be closed due to exceeding the max number of allowed open
 	// files, the one at the end of the list is closed.
 	//
 	// fileNumToLRUElem is a mapping between a specific block file number
@@ -744,7 +744,7 @@ func scanBlockFiles(dbPath string) (int, uint32) {
 // and offset set and all fields initialized.
 func newBlockStore(basePath string, network wire.CurrencyNet) *blockStore {
 	// Look for the end of the latest block to file to determine what the
-	// write cursor position is from the viewpoing of the block files on
+	// write cursor position is from the viewpoint of the block files on
 	// disk.
 	fileNum, fileOff := scanBlockFiles(basePath)
 	if fileNum == -1 {

@@ -1252,7 +1252,7 @@ func TestChainSvrCmds(t *testing.T) {
 }
 
 // TestChainSvrCmdErrors ensures any errors that occur in the command during
-// custom mashal and unmarshal are as expected.
+// custom marshal and unmarshal are as expected.
 func TestChainSvrCmdErrors(t *testing.T) {
 	t.Parallel()
 

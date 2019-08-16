@@ -32,7 +32,7 @@ const (
 	// of work was expended to create a block which satisifies the proof of
 	// work requirement.
 	//
-	// Finally, this notification is only sent if the the chain is believed
+	// Finally, this notification is only sent if the chain is believed
 	// to be current and the chain lock is NOT released, so consumers must
 	// take care to avoid calling blockchain functions to avoid potential
 	// deadlock.

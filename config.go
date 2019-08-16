@@ -149,7 +149,7 @@ type config struct {
 	MaxOrphanTxs         int           `long:"maxorphantx" description:"Max number of orphan transactions to keep in memory"`
 	Generate             bool          `long:"generate" description:"Generate (mine) coins using the CPU"`
 	MiningAddrs          []string      `long:"miningaddr" description:"Add the specified payment address to the list of addresses to use for generated blocks -- At least one address is required if the generate option is set"`
-	BlockMinSize         uint32        `long:"blockminsize" description:"Mininum block size in bytes to be used when creating a block"`
+	BlockMinSize         uint32        `long:"blockminsize" description:"Minimum block size in bytes to be used when creating a block"`
 	BlockMaxSize         uint32        `long:"blockmaxsize" description:"Maximum block size in bytes to be used when creating a block"`
 	BlockPrioritySize    uint32        `long:"blockprioritysize" description:"Size in bytes for high-priority/low-fee transactions when creating a block"`
 	SigCacheMaxSize      uint          `long:"sigcachemaxsize" description:"The maximum number of entries in the signature verification cache"`
@@ -267,7 +267,7 @@ func supportedSubsystems() []string {
 // the levels accordingly.  An appropriate error is returned if anything is
 // invalid.
 func parseAndSetDebugLevels(debugLevel string) error {
-	// When the specified string doesn't have any delimters, treat it as
+	// When the specified string doesn't have any delimiters, treat it as
 	// the log level for all subsystems.
 	if !strings.Contains(debugLevel, ",") && !strings.Contains(debugLevel, "=") {
 		// Validate debug log level.
@@ -298,7 +298,7 @@ func parseAndSetDebugLevels(debugLevel string) error {
 		// Validate subsystem.
 		if _, exists := subsystemLoggers[subsysID]; !exists {
 			str := "the specified subsystem [%v] is invalid -- " +
-				"supported subsytems %v"
+				"supported subsystems %v"
 			return fmt.Errorf(str, subsysID, supportedSubsystems())
 		}
 
@@ -899,7 +899,7 @@ func loadConfig() (*config, []string, error) {
 		return nil, nil, err
 	}
 
-	// Validate the the minrelaytxfee.
+	// Validate the minrelaytxfee.
 	cfg.minRelayTxFee, err = dcrutil.NewAmount(cfg.MinRelayTxFee)
 	if err != nil {
 		str := "%s: invalid minrelaytxfee: %v"
@@ -924,7 +924,7 @@ func loadConfig() (*config, []string, error) {
 		return nil, nil, err
 	}
 
-	// Limit the max orphan count to a sane vlue.
+	// Limit the max orphan count to a sane value.
 	if cfg.MaxOrphanTxs < 0 {
 		str := "%s: the maxorphantx option may not be less than 0 " +
 			"-- parsed [%d]"
@@ -981,7 +981,7 @@ func loadConfig() (*config, []string, error) {
 
 	// !--nocfilters and --dropcfindex do not mix.
 	if !cfg.NoCFilters && cfg.DropCFIndex {
-		err := errors.New("dropcfindex cannot be actived without nocfilters")
+		err := errors.New("dropcfindex cannot be activated without nocfilters")
 		fmt.Fprintln(os.Stderr, err)
 		fmt.Fprintln(os.Stderr, usageMessage)
 		return nil, nil, err

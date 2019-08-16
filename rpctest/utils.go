@@ -31,7 +31,7 @@ const (
 // JoinNodes is a synchronization tool used to block until all passed nodes are
 // fully synced with respect to an attribute. This function will block for a
 // period of time, finally returning once all nodes are synced according to the
-// passed JoinType. This function be used to to ensure all active test
+// passed JoinType. This function be used to ensure all active test
 // harnesses are at a consistent state before proceeding to an assertion or
 // check within rpc tests.
 func JoinNodes(nodes []*Harness, joinType JoinType) error {

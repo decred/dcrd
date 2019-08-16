@@ -11,7 +11,7 @@ set -ex
 # 5. go vet        (https://golang.org/cmd/vet)
 # 6. misspell      (https://github.com/client9/misspell)
 
-# golangci-lint (github.com/golangci/golangci-lint) is used to run each each
+# golangci-lint (github.com/golangci/golangci-lint) is used to run each
 # static checker.
 
 REPO=dcrd

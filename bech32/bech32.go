@@ -163,7 +163,7 @@ func DecodeNoLimit(bech string) (string, []byte, error) {
 		return "", nil, ErrInvalidLength(len(bech))
 	}
 
-	// Only	ASCII characters between 33 and 126 are allowed.
+	// Only ASCII characters between 33 and 126 are allowed.
 	var hasLower, hasUpper bool
 	for i := 0; i < len(bech); i++ {
 		if bech[i] < 33 || bech[i] > 126 {

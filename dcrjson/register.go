@@ -25,7 +25,7 @@ const (
 	// UFWebsocketOnly indicates that the command can only be used when
 	// communicating with an RPC server over websockets.  This typically
 	// applies to notifications and notification registration functions
-	// since neiher makes since when using a single-shot HTTP-POST request.
+	// since neither makes sense when using a single-shot HTTP-POST request.
 	UFWebsocketOnly
 
 	// UFNotification indicates that the command is actually a notification.
@@ -245,7 +245,7 @@ func Register(method interface{}, params interface{}, flags UsageFlag) error {
 			}
 		}
 
-		// Ensure the default value can be unsmarshalled into the type
+		// Ensure the default value can be unmarshalled into the type
 		// and that defaults are only specified for optional fields.
 		if tag := rtf.Tag.Get("jsonrpcdefault"); tag != "" {
 			if !isOptional {

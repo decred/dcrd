@@ -118,8 +118,8 @@ const (
 	minTxPayload = 4 + 1 + 1 + 1 + 4 + 4
 
 	// freeListMaxScriptSize is the size of each buffer in the free list
-	// that	is used for deserializing scripts from the wire before they are
-	// concatenated into a single contiguous buffers.  This value was chosen
+	// that is used for deserializing scripts from the wire before they are
+	// concatenated into a single contiguous buffer.  This value was chosen
 	// because it is slightly more than twice the size of the vast majority
 	// of all "standard" scripts.  Larger scripts are still deserialized
 	// properly as the free list will simply be bypassed for them.

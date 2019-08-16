@@ -449,7 +449,7 @@ type DB interface {
 	//
 	// NOTE: The transaction must be closed by calling Rollback or Commit on
 	// it when it is no longer needed.  Failure to do so can result in
-	// unclaimed memory and/or inablity to close the database due to locks
+	// unclaimed memory and/or inability to close the database due to locks
 	// depending on the specific database implementation.
 	Begin(writable bool) (Tx, error)
 

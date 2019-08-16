@@ -36,7 +36,7 @@ func (e ErrWrongWIFNetwork) Error() string {
 
 // WIF contains the individual components described by the Wallet Import Format
 // (WIF).  A WIF string is typically used to represent a private key and its
-// associated address in a way that  may be easily copied and imported into or
+// associated address in a way that may be easily copied and imported into or
 // exported from wallet software.  WIF strings may be decoded into this
 // structure by calling DecodeWIF or created with a user-provided private key
 // by calling NewWIF.

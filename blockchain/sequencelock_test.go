@@ -223,7 +223,7 @@ func TestCalcSequenceLock(t *testing.T) {
 		{
 			// A transaction with a single input.  The input's
 			// sequence number encodes a relative locktime in blocks
-			// (3 blocks).  The sequence lock should  have a value
+			// (3 blocks).  The sequence lock should have a value
 			// of -1 for seconds, but a height of 2 meaning it can
 			// be included at height 3.
 			name:      "3 blocks",
@@ -381,7 +381,7 @@ func TestCalcSequenceLock(t *testing.T) {
 		// Ensure both the returned sequence lock seconds and block
 		// height match the expected values.
 		if seqLock.MinTime != test.want.MinTime {
-			t.Errorf("%s: mistmached seconds - got %v, want %v",
+			t.Errorf("%s: mismatched seconds - got %v, want %v",
 				test.name, seqLock.MinTime, test.want.MinTime)
 			continue
 		}

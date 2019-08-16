@@ -122,7 +122,8 @@ type jsonRequest struct {
 type Client struct {
 	id uint64 // atomic, so must stay 64-bit aligned
 
-	// config holds the connection configuration assoiated with this client.
+	// config holds the connection configuration associated with this
+	// client.
 	config *ConnConfig
 
 	// wsConn is the underlying websocket connection when not in HTTP POST
@@ -328,7 +329,7 @@ func futureError(err error) chan *response {
 // result checks whether the unmarshaled response contains a non-nil error,
 // returning an unmarshaled dcrjson.RPCError (or an unmarshaling error) if so.
 // If the response is not an error, the raw bytes of the request are
-// returned for further unmashaling into specific result types.
+// returned for further unmarshalling into specific result types.
 func (r rawResponse) result() (result []byte, err error) {
 	if r.Error != nil {
 		return nil, r.Error
@@ -408,7 +409,7 @@ func (c *Client) handleMessage(msg []byte) {
 // to have come from reading from the websocket connection in wsInHandler,
 // should be logged.
 func (c *Client) shouldLogReadError(err error) bool {
-	// No logging when the connetion is being forcibly disconnected.
+	// No logging when the connection is being forcibly disconnected.
 	select {
 	case <-c.shutdown:
 		return false

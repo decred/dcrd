@@ -120,7 +120,7 @@ func main() {
 	cmd, err := dcrjson.NewCmd(method, params...)
 	if err != nil {
 		// Show the error along with its error code when it's a
-		// dcrjson.Error as it reallistcally will always be since the
+		// dcrjson.Error as it realistically will always be since the
 		// NewCmd function is only supposed to return errors of that
 		// type.
 		if jerr, ok := err.(dcrjson.Error); ok {

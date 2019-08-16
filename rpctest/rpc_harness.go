@@ -354,7 +354,7 @@ func (h *Harness) CreateTransaction(targetOutputs []*wire.TxOut, feeRate dcrutil
 }
 
 // UnlockOutputs unlocks any outputs which were previously marked as
-// unspendabe due to being selected to fund a transaction via the
+// unspendable due to being selected to fund a transaction via the
 // CreateTransaction method.
 //
 // This function is safe for concurrent access.

@@ -263,7 +263,7 @@ func (s *fakeChain) SetStandardVerifyFlags(flags txscript.ScriptFlags) {
 }
 
 // FakeUxtoMedianTime returns the median time associated with the requested utxo
-// from the cake chain instance.
+// from the fake chain instance.
 func (s *fakeChain) FakeUxtoMedianTime(prevOut *wire.OutPoint) int64 {
 	s.RLock()
 	medianTime := s.utxoTimes[*prevOut]
@@ -1273,7 +1273,7 @@ func TestExpirationPruning(t *testing.T) {
 }
 
 // TestBasicOrphanRemoval ensure that orphan removal works as expected when an
-// orphan that doesn't exist is removed  both when there is another orphan that
+// orphan that doesn't exist is removed both when there is another orphan that
 // redeems it and when there is not.
 func TestBasicOrphanRemoval(t *testing.T) {
 	t.Parallel()

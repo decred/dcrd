@@ -132,7 +132,7 @@ func makeDbErr(c database.ErrorCode, desc string, err error) database.Error {
 }
 
 // convertErr converts the passed leveldb error into a database error with an
-// equivalent error code  and the passed description.  It also sets the passed
+// equivalent error code and the passed description.  It also sets the passed
 // error as the underlying error.
 func convertErr(desc string, ldbErr error) database.Error {
 	// Use the driver-specific error code by default.  The code below will
@@ -1015,7 +1015,7 @@ func (tx *transaction) notifyActiveIters() {
 	tx.activeIterLock.RUnlock()
 }
 
-// checkClosed returns an error if the the database or transaction is closed.
+// checkClosed returns an error if the database or transaction is closed.
 func (tx *transaction) checkClosed() error {
 	// The transaction is no longer valid if it has been closed.
 	if tx.closed {
@@ -1090,7 +1090,7 @@ func (tx *transaction) deleteKey(key []byte, notifyIterators bool) {
 	// transaction commit if needed.
 	tx.pendingKeys.Delete(key)
 
-	// Add the key to the list to be deleted on transaction	commit.
+	// Add the key to the list to be deleted on transaction commit.
 	tx.pendingRemove.Put(key, nil)
 
 	// Notify the active iterators about the change if the flag is set.

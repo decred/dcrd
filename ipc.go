@@ -29,7 +29,7 @@ var outgoingPipeMessages = make(chan pipeMessage)
 
 // serviceControlPipeRx reads from the file descriptor fd of a read end pipe.
 // This is intended to be used as a simple control mechanism for parent
-// processes to communicate with and and manage the lifetime of a dcrd child
+// processes to communicate with and manage the lifetime of a dcrd child
 // process using a unidirectional pipe (on Windows, this is an anonymous pipe,
 // not a named pipe).
 //

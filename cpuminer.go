@@ -91,7 +91,7 @@ type cpuminerConfig struct {
 	// block chain is current.  This is used by the automatic persistent
 	// mining routine to determine whether or it should attempt mining.
 	// This is useful because there is no point in mining if the chain is
-	// not current since any solved blocks would be on a side chain and and
+	// not current since any solved blocks would be on a side chain and
 	// up orphaned anyways.
 	IsCurrent func() bool
 }

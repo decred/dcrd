@@ -463,7 +463,7 @@ func TestImmutableDuplicatePut(t *testing.T) {
 		testTreap = testTreap.Put(key, value)
 		expectedSize += nodeFieldsSize + uint64(len(key)) + nodeValueSize
 
-		// Put a duplicate key with the the expected final value.
+		// Put a duplicate key with the expected final value.
 		testTreap = testTreap.Put(key, expectedVal)
 
 		// Ensure the key still exists and is the new value.

@@ -46,7 +46,7 @@ func checkPowLimitsAreConsistent(t *testing.T, params *chaincfg.Params) {
 // Header bits of each block define target difficulty of the subsequent block.
 //
 // The first few solved blocks of the network will inherit the genesis block
-// bits value before the difficulty reajustment takes place.
+// bits value before the difficulty readjustment takes place.
 //
 // Solved block shouldn't be rejected due to the PoW limit check.
 //

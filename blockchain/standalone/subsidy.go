@@ -190,7 +190,7 @@ func (c *SubsidyCache) CalcBlockSubsidy(height int64) int64 {
 	// subsidy for the requested interval.
 	if reqInterval > lastCachedInterval {
 		// Return zero for all intervals after the subsidy reaches zero.  This
-		// enforces an upper bound on the the number of entries in the cache.
+		// enforces an upper bound on the number of entries in the cache.
 		if lastCachedSubsidy == 0 {
 			return 0
 		}

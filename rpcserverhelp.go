@@ -226,7 +226,7 @@ var helpDescsEnUS = map[string]string{
 	"getbestblock--result0":  "Get block height and hash of best block in the main chain.",
 
 	// GetBestBlockHashCmd help.
-	"getbestblockhash--synopsis": "Returns the hash of the of the best (most recent) block in the longest block chain.",
+	"getbestblockhash--synopsis": "Returns the hash of the best (most recent) block in the longest block chain.",
 	"getbestblockhash--result0":  "The hex-encoded block hash",
 
 	// GetBlockCmd help.
@@ -526,7 +526,7 @@ var helpDescsEnUS = map[string]string{
 	"agenda-choices":                  "All choices in this agenda.",
 	"choice-id":                       "Unique identifier of this choice.",
 	"choice-description":              "Description of this choice.",
-	"choice-bits":                     "Bits that dentify this choice.",
+	"choice-bits":                     "Bits that identify this choice.",
 	"choice-isabstain":                "This choice is to abstain from change.",
 	"choice-isno":                     "Hard no choice (1 and only 1 per agenda).",
 	"choice-count":                    "How many votes received.",

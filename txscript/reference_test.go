@@ -77,7 +77,7 @@ func parseHex(tok string) ([]byte, error) {
 // parsing.  It is declared here so it only needs to be created once.
 var shortFormOps map[string]byte
 
-// parseShortForm parses a string as as used in the reference tests into the
+// parseShortForm parses a string as used in the reference tests into the
 // script it came from.
 //
 // The format used for these tests is pretty simple if ad-hoc:
@@ -504,7 +504,7 @@ func TestScripts(t *testing.T) {
 // test data to unsigned 32-bit integers.  This is necessary because some of the
 // test data uses -1 as a shortcut to mean max uint32 and direct conversion of a
 // negative float to an unsigned int is implementation dependent and therefore
-// doesn't result in the expected value on all platforms.  This function woks
+// doesn't result in the expected value on all platforms.  This function works
 // around that limitation by converting to a 32-bit signed integer first and
 // then to a 32-bit unsigned integer which results in the expected behavior on
 // all platforms.

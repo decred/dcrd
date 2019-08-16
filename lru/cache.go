@@ -58,7 +58,7 @@ func (m *Cache) Add(item interface{}) {
 		return
 	}
 
-	// Evict the least recently used entry (back of the list) if the the new
+	// Evict the least recently used entry (back of the list) if the new
 	// entry would exceed the size limit for the cache.  Also reuse the list
 	// node so a new one doesn't have to be allocated.
 	if uint(len(m.cache))+1 > m.limit {

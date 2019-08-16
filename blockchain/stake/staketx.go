@@ -65,12 +65,12 @@ const (
 	// hash of the block in which voting was missed.
 	MaxOutputsPerSSRtx = MaxInputsPerSStx
 
-	// SStxPKHMinOutSize is the minimum size of of an OP_RETURN commitment output
+	// SStxPKHMinOutSize is the minimum size of an OP_RETURN commitment output
 	// for an SStx tx.
 	// 20 bytes P2SH/P2PKH + 8 byte amount + 4 byte fee range limits
 	SStxPKHMinOutSize = 32
 
-	// SStxPKHMaxOutSize is the maximum size of of an OP_RETURN commitment output
+	// SStxPKHMaxOutSize is the maximum size of an OP_RETURN commitment output
 	// for an SStx tx.
 	SStxPKHMaxOutSize = 77
 

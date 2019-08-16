@@ -34,7 +34,7 @@ func TestCache(t *testing.T) {
 testLoop:
 	for i, test := range tests {
 		// Create a new lru cache limited by the specified test limit and add
-		// all of the test vectors.  This will cause evicition since there are
+		// all of the test vectors.  This will cause eviction since there are
 		// more test items than the limits.
 		cache := NewCache(uint(test.limit))
 		for j := 0; j < numNonces; j++ {

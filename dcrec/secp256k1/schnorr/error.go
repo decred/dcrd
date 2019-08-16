@@ -55,7 +55,7 @@ const (
 	// unusable.
 	ErrBadNonce
 
-	// ErrZeroSigS indates a zero signature S value, which is invalid.
+	// ErrZeroSigS indicates a zero signature S value, which is invalid.
 	ErrZeroSigS
 
 	// ErrNonmatchingR indicates that all signatures to be combined in a

@@ -2139,7 +2139,7 @@ type BgBlkTmplGenerator struct {
 	prng *rand.Rand
 
 	// These fields are provided by the caller when the generator is created and
-	// are either indepedently safe for concurrent access or do not change after
+	// are either independently safe for concurrent access or do not change after
 	// initialization.
 	//
 	// chain is the blockchain instance that is used to build the block and
@@ -2472,9 +2472,9 @@ type regenHandlerState struct {
 	// been received in order to give the minimum number of required votes
 	// needed to build a block template on it an opportunity to propagate before
 	// attempting to find any other variants that extend the same parent as the
-	// current tip with enough votes to force a reorganation.  This ensures the
+	// current tip with enough votes to force a reorganization.  This ensures the
 	// first block that is seen is chosen to build templates on so long as it
-	// receives the mininum required votes in order to prevent PoW miners from
+	// receives the minimum required votes in order to prevent PoW miners from
 	// being able to gain an advantage through vote withholding.  It is disabled
 	// if the minimum number of votes is received prior to the timeout.
 	awaitingSideChainMinVotes map[chainhash.Hash]struct{}
@@ -2699,7 +2699,7 @@ func (g *BgBlkTmplGenerator) handleBlockConnected(ctx context.Context, state *re
 	// them an opportunity to propagate before attempting to find any other
 	// variants that extend the same parent with enough votes to force a
 	// reorganization.  This ensures the first block that is seen is chosen to
-	// build templates on so long as it receives the mininum required votes in
+	// build templates on so long as it receives the minimum required votes in
 	// order to prevent PoW miners from being able to gain an advantage through
 	// vote withholding.
 	//
@@ -2776,7 +2776,7 @@ func (g *BgBlkTmplGenerator) handleBlockAccepted(ctx context.Context, state *reg
 
 	// Ignore side chain blocks when the current tip already has enough votes
 	// for a template to be built on it.  This ensures the first block that is
-	// seen is chosen to build templates on so long as it receives the mininum
+	// seen is chosen to build templates on so long as it receives the minimum
 	// required votes in order to prevent PoW miners from being able to gain an
 	// advantage through vote withholding.
 	if state.awaitingMinVotesHash == nil {
@@ -2840,7 +2840,7 @@ func (g *BgBlkTmplGenerator) handleVote(ctx context.Context, state *regenHandler
 			voteTx.Hash(), minVotesHash, numVotes)
 		if numVotes >= g.minVotesRequired {
 			// Ensure the next template generated builds on the tip and clear
-			// all vote tracking to lock the current current tip in now that it
+			// all vote tracking to lock the current tip in now that it
 			// has the minimum required votes.
 			state.stopRegenTimer()
 			state.failedGenRetryTimeout = nil
@@ -3078,7 +3078,7 @@ func (g *BgBlkTmplGenerator) tipSiblingsSortedByVotes(state *regenHandlerState) 
 }
 
 // handleTrackSideChainsTimeout handles potentially reorganizing the chain to a
-// side chain block with the most votes in the case the the minimum number of
+// side chain block with the most votes in the case the minimum number of
 // votes needed to build a block template on the current tip have not been
 // received within a certain timeout.
 //
@@ -3185,7 +3185,7 @@ func (g *BgBlkTmplGenerator) regenHandler(ctx context.Context) {
 		// find any other variants that extend the same parent as the current
 		// tip with enough votes to force a reorganization.  This ensures the
 		// first block that is seen is chosen to build templates on so long as
-		// it receives the mininum required votes in order to prevent PoW miners
+		// it receives the minimum required votes in order to prevent PoW miners
 		// from being able to gain an advantage through vote withholding.  It is
 		// disabled if the minimum number of votes is received prior to the
 		// timeout.
@@ -3270,7 +3270,7 @@ func (g *BgBlkTmplGenerator) BlockDisconnected(block *dcrutil.Block) {
 }
 
 // VoteReceived informs the background block template generator that a new vote
-// has been received.  It is the caller's reponsibility to ensure this is only
+// has been received.  It is the caller's responsibility to ensure this is only
 // invoked with valid votes.
 //
 // This function is safe for concurrent access.

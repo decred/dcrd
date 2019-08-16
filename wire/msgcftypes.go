@@ -48,7 +48,7 @@ func (msg *MsgCFTypes) BtcDecode(r io.Reader, pver uint32) error {
 	}
 
 	if count > MaxFilterTypesPerMsg {
-		str := fmt.Sprintf("too many filter types for for message "+
+		str := fmt.Sprintf("too many filter types for message "+
 			"[count %v, max %v]", count, MaxFilterTypesPerMsg)
 		return messageError("MsgCFTypes.BtcDecode", str)
 	}

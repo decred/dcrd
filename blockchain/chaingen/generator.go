@@ -1152,7 +1152,7 @@ func (hp *hash256prng) Hash256Rand() uint32 {
 	}
 
 	// Roll over the entire PRNG by re-hashing the seed when the hash
-	// iterator index overlows a uint32.
+	// iterator index overflows a uint32.
 	if hp.idx > math.MaxUint32 {
 		hp.seed = chainhash.HashH(hp.seed[:])
 		hp.cachedHash = hp.seed
@@ -1568,7 +1568,7 @@ func (g *Generator) ReplaceVoteBitsN(voteNum int, voteBits uint16) func(*wire.Ms
 		stx := b.STransactions[voteNum]
 		if !isVoteTx(stx) {
 			panic(fmt.Sprintf("attempt to replace non-vote "+
-				"transaction #%d for for block %s", voteNum,
+				"transaction #%d for block %s", voteNum,
 				b.BlockHash()))
 		}
 
@@ -2458,7 +2458,7 @@ func (g *Generator) AssertTipBlockSigOpsCount(expected int) {
 	}
 }
 
-// AssertTipBlockSize panics if the if the current tip block associated with the
+// AssertTipBlockSize panics if the current tip block associated with the
 // generator does not have the specified size when serialized.
 func (g *Generator) AssertTipBlockSize(expected int) {
 	serializeSize := g.tip.SerializeSize()

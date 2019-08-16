@@ -260,7 +260,7 @@ func TestExtractPkScriptAddrs(t *testing.T) {
 		// works with standard PkScripts, this should not return any
 		// addresses.
 		{
-			name: "valid sigscript to reedeem p2pk - no addresses",
+			name: "valid sigscript to redeem p2pk - no addresses",
 			script: hexToBytes("493046022100ddc69738bf2336318e4e0" +
 				"41a5a77f305da87428ab1606f023260017854350ddc0" +
 				"22100817af09d2eec36862d16009852b7e3a0f6dd765" +
@@ -1293,7 +1293,7 @@ func TestExtractAtomicSwapDataPushes(t *testing.T) {
 			continue
 		}
 
-		// Ensure the invidual fields of the extracted data is accurate.  The
+		// Ensure the individual fields of the extracted data is accurate.  The
 		// two structs could be directly compared, but testing them individually
 		// allows nicer error reporting in the case of failure.
 		if data.RecipientHash160 != test.data.RecipientHash160 {

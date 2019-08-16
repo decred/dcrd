@@ -347,12 +347,12 @@ func recoverKeyFromSignature(sig *Signature, msg []byte,
 }
 
 // SignCompact produces a compact signature of the data in hash with the given
-// private key on the given koblitz curve. The isCompressed  parameter should
+// private key on the given koblitz curve. The isCompressed parameter should
 // be used to detail if the given signature should reference a compressed
 // public key or not. If successful the bytes of the compact signature will be
 // returned in the format:
 // <(byte of 27+public key solution)+4 if compressed >< padded bytes for signature R><padded bytes for signature S>
-// where the R and S parameters are padde up to the bitlengh of the curve.
+// where the R and S parameters are padded up to the bitlengh of the curve.
 func SignCompact(key *PrivateKey,
 	hash []byte, isCompressedKey bool) ([]byte, error) {
 	sig, err := key.Sign(hash)

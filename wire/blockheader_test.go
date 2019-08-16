@@ -40,7 +40,7 @@ func TestBlockHeader(t *testing.T) {
 	extraData := [32]byte{}
 
 	bh := NewBlockHeader(
-		1, // verision
+		1, // version
 		&hash,
 		&merkleHash,
 		&merkleHash, // stakeRoot

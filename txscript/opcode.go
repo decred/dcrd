@@ -2432,7 +2432,7 @@ func opcodeCheckSig(op *opcode, data []byte, vm *Engine) error {
 		return err
 	}
 
-	// The signature actually needs needs to be longer than this, but at
+	// The signature actually needs to be longer than this, but at
 	// least 1 byte is needed for the hash type below.  The full length is
 	// checked depending on the script flags and upon parsing the signature.
 	if len(fullSigBytes) < 1 {
@@ -2793,7 +2793,7 @@ func opcodeCheckSigAlt(op *opcode, data []byte, vm *Engine) error {
 	}
 
 	// Schnorr signatures are 65 bytes in length (64 bytes for [r,s] and
-	// 1 byte appened to the end for hashType).
+	// 1 byte appended to the end for hashType).
 	switch sigType {
 	case dcrec.STEd25519:
 		if len(fullSigBytes) != 65 {

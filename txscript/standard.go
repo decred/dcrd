@@ -283,7 +283,7 @@ func extractPubKeyAltDetails(script []byte) ([]byte, dcrec.SignatureType) {
 	//  OP_DATA_32 <32-byte pubkey> <1-byte ed25519 sigtype> OP_CHECKSIGALT
 	//  OP_DATA_33 <33-byte pubkey> <1-byte schnorr+secp sigtype> OP_CHECKSIGALT
 
-	// The script can't possibly be a a pay-to-alt-pubkey script if it doesn't
+	// The script can't possibly be a pay-to-alt-pubkey script if it doesn't
 	// end with OP_CHECKSIGALT or have at least two small integer pushes
 	// preceding it (although any reasonable pubkey will certainly be larger).
 	// Fail fast to avoid more work below.
@@ -403,7 +403,7 @@ func isNullDataScript(scriptVersion uint16, script []byte) bool {
 	// Thus, it can either be a single OP_RETURN or an OP_RETURN followed by a
 	// data push up to MaxDataCarrierSize bytes.
 
-	// The script can't possibly be a a null data script if it doesn't start
+	// The script can't possibly be a null data script if it doesn't start
 	// with OP_RETURN.  Fail fast to avoid more work below.
 	if len(script) < 1 || script[0] != OP_RETURN {
 		return false
@@ -624,7 +624,7 @@ func expectedInputs(script []byte, class ScriptClass, subclass ScriptClass) int 
 
 	case MultiSigTy:
 		// Standard multisig has a small number push for the number of sigs and
-		// number of keys.  Check the first push instruction to to see how many
+		// number of keys.  Check the first push instruction to see how many
 		// arguments are expected. typeOfScript already checked this so we know
 		// it'll be a small int.
 		return asSmallInt(script[0])
@@ -1476,7 +1476,7 @@ func ExtractAtomicSwapDataPushes(version uint16, pkScript []byte) (*AtomicSwapDa
 	}
 
 	// At this point, the script appears to be an atomic swap, so populate and
-	// return the extacted data.
+	// return the extracted data.
 	pushes := AtomicSwapDataPushes{
 		SecretSize: template[2].extractedInt,
 		LockTime:   template[11].extractedInt,

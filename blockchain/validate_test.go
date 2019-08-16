@@ -215,7 +215,7 @@ func TestSequenceLocksActive(t *testing.T) {
 		got := SequenceLockActive(&seqLock, test.blockHeight,
 			time.Unix(test.medianTime, 0))
 		if got != test.want {
-			t.Errorf("%s: mismatched seqence lock status - got %v, "+
+			t.Errorf("%s: mismatched sequence lock status - got %v, "+
 				"want %v", test.name, got, test.want)
 			continue
 		}

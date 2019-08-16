@@ -383,7 +383,7 @@ func (c *Client) CreateRawSSRtxAsync(inputs []chainjson.TransactionInput, fee dc
 	return c.sendCmd(cmd)
 }
 
-// CreateRawSSRtx returns a new SSR transactionm (revoking an sstx).
+// CreateRawSSRtx returns a new SSR transaction (revoking an sstx).
 func (c *Client) CreateRawSSRtx(inputs []chainjson.TransactionInput, fee dcrutil.Amount) (*wire.MsgTx, error) {
 	return c.CreateRawSSRtxAsync(inputs, fee).Receive()
 }

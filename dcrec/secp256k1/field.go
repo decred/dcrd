@@ -29,7 +29,7 @@ package secp256k1
 // arithmetic between each array element which would lead to expensive carry
 // propagation.
 //
-// Given the above, this implementation represents the the field elements as
+// Given the above, this implementation represents the field elements as
 // 10 uint32s with each word (array entry) treated as base 2^26.  This was
 // chosen for the following reasons:
 // 1) Most systems at the current time are 64-bit (or at least have 64-bit
@@ -37,7 +37,7 @@ package secp256k1
 //    intermediate results can typically be done using a native register (and
 //    using uint64s to avoid the need for additional half-word arithmetic)
 // 2) In order to allow addition of the internal words without having to
-//    propagate the the carry, the max normalized value for each register must
+//    propagate the carry, the max normalized value for each register must
 //    be less than the number of bits available in the register
 // 3) Since we're dealing with 32-bit values, 64-bits of overflow is a
 //    reasonable choice for #2
@@ -478,8 +478,8 @@ func (f *fieldVal) NegateVal(val *fieldVal, magnitude uint32) *fieldVal {
 	// already larger than the modulus and congruent to 7 (mod 12).  When a
 	// value is already in the desired range, its magnitude is 1.  Since 19
 	// is an additional "step", its magnitude (mod 12) is 2.  Since any
-	// multiple of the modulus is conguent to zero (mod m), the answer can
-	// be shortcut by simply mulplying the magnitude by the modulus and
+	// multiple of the modulus is congruent to zero (mod m), the answer can
+	// be shortcut by simply multiplying the magnitude by the modulus and
 	// subtracting.  Keeping with the example, this would be (2*12)-19 = 5.
 	f.n[0] = (magnitude+1)*fieldPrimeWordZero - val.n[0]
 	f.n[1] = (magnitude+1)*fieldPrimeWordOne - val.n[1]
@@ -891,7 +891,7 @@ func (f *fieldVal) Square() *fieldVal {
 // SquareVal squares the passed value and stores the result in f.  Note that
 // this function can overflow if multiplying any of the individual words
 // exceeds a max uint32.  In practice, this means the magnitude of the field
-// being squred must be a max of 8 to prevent overflow.
+// being squared must be a max of 8 to prevent overflow.
 //
 // The field value is returned to support chaining.  This enables syntax like:
 // f3.SquareVal(f).Mul(f) so that f3 = f^2 * f = f^3.
@@ -1117,14 +1117,14 @@ func (f *fieldVal) SquareVal(val *fieldVal) *fieldVal {
 // f.Inverse().Mul(f2) so that f = f^-1 * f2.
 func (f *fieldVal) Inverse() *fieldVal {
 	// Fermat's little theorem states that for a nonzero number a and prime
-	// prime p, a^(p-1) = 1 (mod p).  Since the multipliciative inverse is
+	// prime p, a^(p-1) = 1 (mod p).  Since the multiplicative inverse is
 	// a*b = 1 (mod p), it follows that b = a*a^(p-2) = a^(p-1) = 1 (mod p).
 	// Thus, a^(p-2) is the multiplicative inverse.
 	//
 	// In order to efficiently compute a^(p-2), p-2 needs to be split into
-	// a sequence of squares and multipications that minimizes the number of
-	// multiplications needed (since they are more costly than squarings).
-	// Intermediate results are saved and reused as well.
+	// a sequence of squares and multiplications that minimizes the number
+	// of multiplications needed (since they are more costly than
+	// squarings). Intermediate results are saved and reused as well.
 	//
 	// The secp256k1 prime - 2 is 2^256 - 4294968275.
 	//

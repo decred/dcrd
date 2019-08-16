@@ -160,9 +160,10 @@ func p2pkSignatureScriptAlt(tx *wire.MsgTx, idx int, subScript []byte,
 }
 
 // signMultiSig signs as many of the outputs in the provided multisig script as
-// possible. It returns the generated script and a boolean if the script fulfils
-// the contract (i.e. nrequired signatures are provided).  Since it is arguably
-// legal to not be able to sign any of the outputs, no error is returned.
+// possible. It returns the generated script and a boolean if the script
+// fulfills the contract (i.e. nrequired signatures are provided).  Since it is
+// arguably legal to not be able to sign any of the outputs, no error is
+// returned.
 func signMultiSig(tx *wire.MsgTx, idx int, subScript []byte, hashType SigHashType,
 	addresses []dcrutil.Address, nRequired int, kdb KeyDB) ([]byte, bool) {
 	// No need to add dummy in Decred.
@@ -539,7 +540,7 @@ func mergeScripts(chainParams dcrutil.AddressParams, tx *wire.MsgTx, idx int,
 		return mergeMultiSig(tx, idx, addresses, nRequired, pkScript,
 			sigScript, prevScript)
 
-	// It doesn't actually make sense to merge anything other than multiig
+	// It doesn't actually make sense to merge anything other than multisig
 	// and scripthash (because it could contain multisig). Everything else
 	// has either zero signature, can't be spent, or has a single signature
 	// which is either present or not. The other two cases are handled

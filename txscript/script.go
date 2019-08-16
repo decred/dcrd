@@ -210,7 +210,7 @@ func isCanonicalPush(opcode byte, data []byte) bool {
 // removeOpcodeByData will return the script minus any opcodes that perform a
 // canonical push of data that contains the passed data to remove.  This
 // function assumes it is provided a version 0 script as any future version of
-// script should avoid this functionality since it is unncessary due to the
+// script should avoid this functionality since it is unnecessary due to the
 // signature scripts not being part of the witness-free transaction hash.
 //
 // WARNING: This will return the passed script unmodified unless a modification
@@ -306,7 +306,7 @@ func countSigOpsV0(script []byte, precise bool) int {
 			// allowed pubkeys.  This was inherited from bitcoin and is,
 			// unfortunately, now part of the consensus rules.  This could be
 			// made more correct with a new script version, however, ideally all
-			// multisignaure operations in new script versions should move to
+			// multisignature operations in new script versions should move to
 			// aggregated schemes such as Schnorr instead.
 			if precise && prevOp >= OP_1 && prevOp <= OP_16 {
 				numSigOps += asSmallInt(prevOp)

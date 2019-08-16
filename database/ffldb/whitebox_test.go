@@ -84,7 +84,7 @@ func loadBlocks(t *testing.T, dataFile string, network wire.CurrencyNet) ([]*dcr
 }
 
 // checkDbError ensures the passed error is a database.Error with an error code
-// that matches the passed  error code.
+// that matches the passed error code.
 func checkDbError(t *testing.T, testName string, gotErr error, wantErrCode database.ErrorCode) bool {
 	dbErr, ok := gotErr.(database.Error)
 	if !ok {
@@ -142,7 +142,7 @@ func TestConvertErr(t *testing.T) {
 func TestCornerCases(t *testing.T) {
 	t.Parallel()
 
-	// Create a file at the datapase path to force the open below to fail.
+	// Create a file at the database path to force the open below to fail.
 	dbPath := filepath.Join(os.TempDir(), "ffldb-errors-v2")
 	_ = os.RemoveAll(dbPath)
 	fi, err := os.Create(dbPath)

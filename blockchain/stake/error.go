@@ -38,7 +38,7 @@ const (
 	// OP_RETURNs were missing or contained invalid addresses.
 	ErrSStxInvalidOutputs
 
-	// ErrSStxInOutProportions indicates the the number of inputs in an SStx
+	// ErrSStxInOutProportions indicates the number of inputs in an SStx
 	// was not equal to the number of output minus one.
 	ErrSStxInOutProportions
 

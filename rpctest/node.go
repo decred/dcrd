@@ -197,7 +197,7 @@ func (n *node) start() error {
 	return pid.Close()
 }
 
-// stop interrupts the running dcrd process process, and waits until it exits
+// stop interrupts the running dcrd process, and waits until it exits
 // properly. On windows, interrupt is not supported, so a kill signal is used
 // instead
 func (n *node) stop() error {

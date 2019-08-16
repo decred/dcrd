@@ -188,7 +188,7 @@ func (c *thresholdStateCache) Update(hash chainhash.Hash, state ThresholdStateTu
 	c.entries[hash] = state
 }
 
-// MarkFlushed marks all of the current udpates as flushed to the database.
+// MarkFlushed marks all of the current updates as flushed to the database.
 // This is useful so the caller can ensure the needed database updates are not
 // lost until they have successfully been written to the database.
 func (c *thresholdStateCache) MarkFlushed() {
@@ -666,9 +666,9 @@ func (b *BlockChain) isFixSeqLocksAgendaActive(prevNode *blockNode) (bool, error
 	return state.State == ThresholdActive, nil
 }
 
-// IsFixSeqLocksAgendaActive returns whether or not whether or not the fix
-// sequence locks agenda vote, as defined in DCP0004 has passed and is now
-// active for the block AFTER the current best chain block.
+// IsFixSeqLocksAgendaActive returns whether or not the fix sequence locks
+// agenda vote, as defined in DCP0004 has passed and is now active for the
+// block AFTER the current best chain block.
 //
 // This function is safe for concurrent access.
 func (b *BlockChain) IsFixSeqLocksAgendaActive() (bool, error) {

@@ -641,7 +641,7 @@ func (stats *Estimator) removeFromMemPool(blocksInMemPool int32, rate feeRate) {
 // all higher fee buckets have >= successPct transactions confirmed in at most
 // `targetConfs` confirmations.
 // Note that sometimes the requested combination of targetConfs and successPct is
-// not achieveable (hypothetical example: 99% of txs confirmed within 1 block)
+// not achievable (hypothetical example: 99% of txs confirmed within 1 block)
 // or there are not enough recorded statistics to derive a successful estimate
 // (eg: confirmation tracking has only started or there was a period of very few
 // transactions). In those situations, the appropriate error is returned.

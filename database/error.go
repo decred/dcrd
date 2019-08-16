@@ -82,14 +82,14 @@ const (
 	// ErrKeyRequired indicates at attempt to insert a zero-length key.
 	ErrKeyRequired
 
-	// ErrKeyTooLarge indicates an attmempt to insert a key that is larger
+	// ErrKeyTooLarge indicates an attempt to insert a key that is larger
 	// than the max allowed key size.  The max key size depends on the
 	// specific backend driver being used.  As a general rule, key sizes
 	// should be relatively, so this should rarely be an issue.
 	ErrKeyTooLarge
 
-	// ErrValueTooLarge indicates an attmpt to insert a value that is larger
-	// than max allowed value size.  The max key size depends on the
+	// ErrValueTooLarge indicates an attempt to insert a value that is
+	// larger than max allowed value size.  The max key size depends on the
 	// specific backend driver being used.
 	ErrValueTooLarge
 

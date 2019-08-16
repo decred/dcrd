@@ -1209,7 +1209,7 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 	// calculated below on its own would encourage several small
 	// transactions to avoid fees rather than one single larger transaction
 	// which is more desirable.  Therefore, as long as the size of the
-	// transaction does not exceeed 1000 less than the reserved space for
+	// transaction does not exceed 1000 less than the reserved space for
 	// high-priority transactions, don't require a fee for it.
 	// This applies to non-stake transactions only.
 	serializedSize := int64(msgTx.SerializeSize())

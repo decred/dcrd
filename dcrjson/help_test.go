@@ -713,8 +713,8 @@ func TestGenerateHelpErrors(t *testing.T) {
 }
 
 // TestGenerateHelp performs a very basic test to ensure GenerateHelp is working
-// as expected.  The internal are testd much more thoroughly in other tests, so
-// there is no need to add more tests here.
+// as expected.  The internals are tested much more thoroughly in other tests,
+// so there is no need to add more tests here.
 func TestGenerateHelp(t *testing.T) {
 	t.Parallel()
 

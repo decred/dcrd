@@ -59,7 +59,7 @@ const (
 //     v: height
 //
 // 4. BlockUndo
-//     Block removal data, for reverting the the first 3 database buckets to
+//     Block removal data, for reverting the first 3 database buckets to
 //     a previous state.
 //
 //     k: height

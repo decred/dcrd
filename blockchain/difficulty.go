@@ -640,7 +640,7 @@ func calcNextStakeDiffV2(params *chaincfg.Params, nextHeight, curDiff, prevPoolS
 	//   nextDiff = -----------------------------------
 	//              prevPoolSizeAll * targetPoolSizeAll
 	//
-	// Further, the Sub parameter must calculate the denomitor first using
+	// Further, the Sub parameter must calculate the denominator first using
 	// integer math.
 	targetPoolSizeAll := votesPerBlock * (ticketPoolSize + ticketMaturity)
 	curPoolSizeAllBig := big.NewInt(curPoolSizeAll)

@@ -723,7 +723,7 @@ const (
 	// from the flags byte.
 	txTypeBitmask = 0x0c
 
-	// txTypeShift is the number of bits to shift falgs to the right to yield the
+	// txTypeShift is the number of bits to shift flags to the right to yield the
 	// correct integer value after applying the bitmask with AND.
 	txTypeShift = 2
 )
