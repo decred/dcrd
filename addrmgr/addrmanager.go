@@ -140,7 +140,7 @@ const (
 	newBucketsPerAddress = 8
 
 	// numMissingDays is the number of days before which we assume an
-	// address has vanished if we have not seen it announced  in that long.
+	// address has vanished if we have not seen it announced in that long.
 	numMissingDays = 30
 
 	// numRetries is the number of tried without a single success before
@@ -382,7 +382,7 @@ func (a *AddrManager) savePeers() {
 		return
 	}
 
-	// First we make a serialisable datastructure so we can encode it to JSON.
+	// First we make a serialisable data structure so we can encode it to JSON.
 	sam := new(serializedAddrManager)
 	sam.Version = serialisationVersion
 	copy(sam.Key[:], a.key[:])
@@ -753,7 +753,7 @@ func (a *AddrManager) HostToNetAddress(host string, port uint16, services wire.S
 // the relevant .onion address.
 func ipString(na *wire.NetAddress) string {
 	if isOnionCatTor(na) {
-		// We know now that na.IP is long enogh.
+		// We know now that na.IP is long enough.
 		base32 := base32.StdEncoding.EncodeToString(na.IP[6:])
 		return strings.ToLower(base32) + ".onion"
 	}
@@ -902,7 +902,7 @@ func (a *AddrManager) Good(addr *wire.NetAddress) {
 	ka.lastattempt = now
 	ka.attempts = 0
 
-	// move to tried set, optionally evicting other addresses if neeed.
+	// move to tried set, optionally evicting other addresses if needed.
 	if ka.tried {
 		return
 	}
@@ -974,7 +974,7 @@ func (a *AddrManager) Good(addr *wire.NetAddress) {
 	a.addrNew[newBucket][rmkey] = rmka
 }
 
-// SetServices sets the services for the giiven address to the provided value.
+// SetServices sets the services for the given address to the provided value.
 func (a *AddrManager) SetServices(addr *wire.NetAddress, services wire.ServiceFlag) {
 	a.mtx.Lock()
 	defer a.mtx.Unlock()
@@ -1070,7 +1070,7 @@ const (
 	// Ipv6Strong represents a connection state between two IPV6 addresses.
 	Ipv6Strong
 
-	// Private reprsents a connection state connect between two Tor addresses.
+	// Private represents a connection state connect between two Tor addresses.
 	Private
 )
 
@@ -1181,7 +1181,7 @@ func (a *AddrManager) GetBestLocalAddress(remoteAddr *wire.NetAddress) *wire.Net
 	return bestAddress
 }
 
-// IsPeerNaValid asserts if the the provided local address is routable
+// IsPeerNaValid asserts if the provided local address is routable
 // and reachable from the peer that suggested it.
 func (a *AddrManager) IsPeerNaValid(localAddr, remoteAddr *wire.NetAddress) bool {
 	net := getNetwork(localAddr)

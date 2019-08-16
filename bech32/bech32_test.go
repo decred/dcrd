@@ -115,7 +115,7 @@ func TestCanDecodeUnlimtedBech32(t *testing.T) {
 }
 
 // BenchmarkEncodeDecodeCycle performs a benchmark for a full encode/decode
-// cycle of a bech32 string. It also  reports the allocation count, which we
+// cycle of a bech32 string. It also reports the allocation count, which we
 // expect to be 2 for a fully optimized cycle.
 func BenchmarkEncodeDecodeCycle(b *testing.B) {
 

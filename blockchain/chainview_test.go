@@ -375,7 +375,7 @@ testLoop:
 // TestChainViewNil ensures that creating and accessing a nil chain view behaves
 // as expected.
 func TestChainViewNil(t *testing.T) {
-	// Ensure two unininitialized views are considered equal.
+	// Ensure two uninitialized views are considered equal.
 	view := newChainView(nil)
 	if !view.Equals(newChainView(nil)) {
 		t.Fatal("uninitialized nil views unequal")

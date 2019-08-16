@@ -725,7 +725,7 @@ func checkBlockSanity(block *dcrutil.Block, timeSource MedianTimeSource, flags B
 		return ruleError(ErrTooManyRevocations, errStr)
 	}
 
-	// A block must only contain stake transactions of the the allowed
+	// A block must only contain stake transactions of the allowed
 	// types.
 	//
 	// NOTE: This is not possible to hit at the time this comment was
@@ -752,7 +752,7 @@ func checkBlockSanity(block *dcrutil.Block, timeSource MedianTimeSource, flags B
 		return ruleError(ErrFreshStakeMismatch, errStr)
 	}
 
-	// A block header must commit to the the actual number of votes that are
+	// A block header must commit to the actual number of votes that are
 	// in the block.
 	if int64(header.Voters) != totalVotes {
 		errStr := fmt.Sprintf("block header commitment to %d votes "+
@@ -1027,7 +1027,7 @@ func (b *BlockChain) checkBlockHeaderPositional(header *wire.BlockHeader, prevNo
 //
 // The flags modify the behavior of this function as follows:
 //  - BFFastAdd: The transactions are not checked to see if they are expired and
-//    the coinbae height check is not performed.
+//    the coinbase height check is not performed.
 //
 // The flags are also passed to checkBlockHeaderPositional.  See its
 // documentation for how the flags modify its behavior.
@@ -1794,7 +1794,7 @@ func checkTicketRedeemerCommitments(ticketHash *chainhash.Hash, ticketOuts []*st
 		// revocations).
 		//
 		// It should be noted that, due to the scaling, the sum of the generated
-		// amounts for mult-participant votes might be a few atoms less than
+		// amounts for multi-participant votes might be a few atoms less than
 		// the full amount and the difference is treated as a standard
 		// transaction fee.
 		commitmentAmt := extractTicketCommitAmount(commitmentScript)
@@ -1803,7 +1803,7 @@ func checkTicketRedeemerCommitments(ticketHash *chainhash.Hash, ticketOuts []*st
 
 		// Ensure the amount paid adheres to the commitment while taking into
 		// account any fee limits that might be imposed.  The output amount must
-		// exactly match the calculated amount when when not encumbered with a
+		// exactly match the calculated amount when not encumbered with a
 		// fee limit.  On the other hand, when it is encumbered, it must be
 		// between the minimum amount imposed by the fee limit and the
 		// calculated amount.
@@ -2096,7 +2096,7 @@ func CheckTransactionInputs(subsidyCache *standalone.SubsidyCache, tx *dcrutil.T
 		}
 	}
 
-	// Perform additional checks on vote transactions such as verying that the
+	// Perform additional checks on vote transactions such as verifying that the
 	// referenced ticket exists, the stakebase input commits to correct subsidy,
 	// the output amounts adhere to the commitments of the referenced ticket,
 	// and the ticket maturity requirements are met.

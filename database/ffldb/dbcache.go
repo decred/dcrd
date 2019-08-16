@@ -468,9 +468,9 @@ func (c *dbCache) commitTreaps(pendingKeys, pendingRemove TreapForEacher) error 
 	})
 }
 
-// flush flushes the database cache to persistent storage.  This involes syncing
-// the block store and replaying all transactions that have been applied to the
-// cache to the underlying database.
+// flush flushes the database cache to persistent storage.  This involves
+// syncing the block store and replaying all transactions that have been
+// applied to the cache to the underlying database.
 //
 // This function MUST be called with the database write lock held.
 func (c *dbCache) flush() error {

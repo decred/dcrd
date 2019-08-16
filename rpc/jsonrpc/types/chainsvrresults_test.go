@@ -11,7 +11,7 @@ import (
 )
 
 // TestChainSvrCustomResults ensures any results that have custom marshalling
-// work as inteded.
+// work as intended.
 // and unmarshal code of results are as expected.
 func TestChainSvrCustomResults(t *testing.T) {
 	t.Parallel()
@@ -79,7 +79,7 @@ func TestChainSvrCustomResults(t *testing.T) {
 			continue
 		}
 		if string(marshalled) != test.expected {
-			t.Errorf("Test #%d (%s) unexpected marhsalled data - "+
+			t.Errorf("Test #%d (%s) unexpected marshalled data - "+
 				"got %s, want %s", i, test.name, marshalled,
 				test.expected)
 			continue

@@ -391,7 +391,7 @@ func rpcRuleError(fmtStr string, args ...interface{}) *dcrjson.RPCError {
 }
 
 // rpcDuplicateTxError is a convenience function to convert a
-// rejected duplicate tx  error to an RPC error with the appropriate code set.
+// rejected duplicate tx error to an RPC error with the appropriate code set.
 func rpcDuplicateTxError(fmtStr string, args ...interface{}) *dcrjson.RPCError {
 	return dcrjson.NewRPCError(dcrjson.ErrRPCDuplicateTx,
 		fmt.Sprintf(fmtStr, args...))
@@ -1314,7 +1314,7 @@ func handleDecodeScript(s *rpcServer, cmd interface{}, closeChan <-chan struct{}
 
 	// Get information about the script.
 	// Ignore the error here since an error means the script couldn't parse
-	// and there is no additinal information about it anyways.
+	// and there is no additional information about it anyways.
 	scriptClass, addrs, reqSigs, _ := txscript.ExtractPkScriptAddrs(
 		scriptVersion, script, s.server.chainParams)
 	addresses := make([]string, len(addrs))
@@ -1342,7 +1342,7 @@ func handleDecodeScript(s *rpcServer, cmd interface{}, closeChan <-chan struct{}
 	return reply, nil
 }
 
-// handleEstimateFee implenents the estimatefee command.
+// handleEstimateFee implements the estimatefee command.
 // TODO this is a very basic implementation.  It should be
 // modified to match the bitcoin-core one.
 func handleEstimateFee(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) (interface{}, error) {
@@ -1935,7 +1935,7 @@ func handleGetBlock(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) (i
 func handleGetBlockchainInfo(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) (interface{}, error) {
 	best := s.chain.BestSnapshot()
 
-	// Fetch the current chain work using the the best block hash.
+	// Fetch the current chain work using the best block hash.
 	chainWork, err := s.chain.ChainWork(&best.Hash)
 	if err != nil {
 		return nil, rpcInternalError(err.Error(), "Could not fetch chain work.")
@@ -2522,7 +2522,7 @@ func (state *gbtWorkState) blockTemplateResult(bm *blockManager, useCoinbaseValu
 		// depends on.  This is necessary since the created block must
 		// ensure proper ordering of the dependencies.  A map is used
 		// before creating the final array to prevent duplicate entries
-		// when mutiple inputs reference the same transaction.
+		// when multiple inputs reference the same transaction.
 		dependsMap := make(map[int64]struct{})
 		for _, txIn := range stx.TxIn {
 			if idx, ok := stxIndex[txIn.PreviousOutPoint.Hash]; ok {
@@ -2572,7 +2572,7 @@ func (state *gbtWorkState) blockTemplateResult(bm *blockManager, useCoinbaseValu
 		return nil, rpcInternalError(err.Error(), context)
 	}
 
-	// Choose the correct maximum block size as defined by the  network
+	// Choose the correct maximum block size as defined by the network
 	// parameters and the current status of any hard fork votes to change
 	// it when serialized.
 	maxBlockSize, err := bm.chain.MaxBlockSize()
@@ -2716,7 +2716,7 @@ func handleGetBlockTemplateLongPoll(s *rpcServer, longPollID string, useCoinbase
 		// Fallthrough
 	}
 
-	// Get the lastest block template
+	// Get the latest block template
 	state.Lock()
 	defer state.Unlock()
 
@@ -3150,7 +3150,7 @@ func handleGetHeaders(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) 
 	// Until wire.MsgGetHeaders uses []Hash instead of the []*Hash, this
 	// conversion is necessary.  The wire protocol getheaders is (probably)
 	// called much more often than this RPC, so chain.LocateHeaders is
-	// optimized for that and this is given the performance penality.
+	// optimized for that and this is given the performance penalty.
 	locators := make(blockchain.BlockLocator, len(blockLocators))
 	for i := range blockLocators {
 		locators[i] = &blockLocators[i]
@@ -4214,8 +4214,8 @@ func handleGetWorkRequest(s *rpcServer) (interface{}, error) {
 	// also in big endian, but it is treated as a uint256 and byte swapped
 	// to little endian accordingly.
 	//
-	// The fact the fields are reversed in this way is rather odd and likey
-	// an artifact of some legacy internal state in the reference
+	// The fact the fields are reversed in this way is rather odd and
+	// likely an artifact of some legacy internal state in the reference
 	// implementation, but it is required for compatibility.
 	target := bigToLEUint256(standalone.CompactToBig(msgBlock.Header.Bits))
 	reply := &types.GetWorkResult{
@@ -4547,7 +4547,7 @@ func fetchInputTxos(s *rpcServer, tx *wire.MsgTx) (map[wire.OutPoint]wire.TxOut,
 	voteTx := stake.IsSSGen(tx)
 	for txInIndex, txIn := range tx.TxIn {
 		// vote tx have null input for vin[0],
-		// skip since it resolvces to an invalid transaction
+		// skip since it resolves to an invalid transaction
 		if voteTx && txInIndex == 0 {
 			continue
 		}
@@ -4908,8 +4908,8 @@ func handleSearchRawTransactions(s *rpcServer, cmd interface{}, closeChan <-chan
 	// order and the number of results is still under the number requested.
 	if !reverse && len(addressTxns) < numRequested {
 		// Transactions in the mempool are not in a block header yet,
-		// so the block header field in the retieved transaction struct
-		// is left nil.
+		// so the block header field in the retrieved transaction
+		// struct is left nil.
 		mpTxns, mpSkipped := fetchMempoolTxnsForAddress(s, addr,
 			uint32(numToSkip)-numSkipped, uint32(numRequested-
 				len(addressTxns)))
@@ -5446,7 +5446,7 @@ func handleTicketFeeInfo(s *rpcServer, cmd interface{}, closeChan <-chan struct{
 
 		// We need data on windows from before this. Start from
 		// the last adjustment and move backwards through window
-		// lengths, calulating the fees data and appending it
+		// lengths, calculating the fees data and appending it
 		// each time.
 		if windows > 1 {
 			// Go down to the last height requested, except
@@ -6145,7 +6145,7 @@ func (s *rpcServer) jsonRPCRead(w http.ResponseWriter, r *http.Request, isAdmin 
 	// the read deadline for the new connection and having one breaks long
 	// polling.  However, not having a read deadline on the initial
 	// connection would mean clients can connect and idle forever.  Thus,
-	// hijack the connecton from the HTTP server, clear the read deadline,
+	// hijack the connection from the HTTP server, clear the read deadline,
 	// and handle writing the response manually.
 	hj, ok := w.(http.Hijacker)
 	if !ok {

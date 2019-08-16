@@ -444,7 +444,7 @@ func (sp *serverPeer) OnVersion(p *peer.Peer, msg *wire.MsgVersion) *wire.MsgRej
 		addrManager.SetServices(remoteAddr, msg.Services)
 	}
 
-	// Ignore peers that have a protcol version that is too old.  The peer
+	// Ignore peers that have a protocol version that is too old.  The peer
 	// negotiation logic will disconnect it after this callback returns.
 	if msg.ProtocolVersion < int32(wire.InitialProcotolVersion) {
 		return nil
@@ -612,9 +612,9 @@ func (sp *serverPeer) OnGetMiningState(p *peer.Peer, msg *wire.MsgGetMiningState
 		return
 	}
 
-	// Get the list of blocks of blocks that are eligible to built on and
-	// limit the list to the maximum number of allowed eligible block hashes
-	// per mining state message.  There is nothing to send when there are no
+	// Get the list of blocks that are eligible to build on and limit the
+	// list to the maximum number of allowed eligible block hashes per
+	// mining state message.  There is nothing to send when there are no
 	// eligible blocks.
 	blockHashes := SortParentsByVotes(mp, best.Hash, children,
 		bm.cfg.ChainParams)
@@ -1755,7 +1755,7 @@ func (s *server) handleQuery(state *peerState, querymsg interface{}) {
 	}
 }
 
-// disconnectPeer attempts to drop the connection of a tageted peer in the
+// disconnectPeer attempts to drop the connection of a targeted peer in the
 // passed peer list. Targets are identified via usage of the passed
 // `compareFunc`, which should return `true` if the passed peer is the target
 // peer. This function returns true on success and false if the peer is unable
@@ -1872,7 +1872,7 @@ func (s *server) peerDoneHandler(sp *serverPeer) {
 func (s *server) peerHandler() {
 	// Start the address manager and block manager, both of which are needed
 	// by peers.  This is done here since their lifecycle is closely tied
-	// to this handler and rather than adding more channels to sychronize
+	// to this handler and rather than adding more channels to synchronize
 	// things, it's easier and slightly faster to simply start and stop them
 	// in this handler.
 	s.addrManager.Start()
@@ -2119,7 +2119,7 @@ func (s *server) NetTotals() (uint64, uint64) {
 		atomic.LoadUint64(&s.bytesSent)
 }
 
-// UpdatePeerHeights updates the heights of all peers who have have announced
+// UpdatePeerHeights updates the heights of all peers who have announced
 // the latest connected main chain block, or a recognized orphan. These height
 // updates allow us to dynamically refresh peer heights, ensuring sync peer
 // selection has access to the latest block heights for each peer.
@@ -2386,7 +2386,7 @@ out:
 	for {
 		select {
 		case <-timer.C:
-			// TODO: pick external port  more cleverly
+			// TODO: pick external port more cleverly
 			// TODO: know which ports we are listening to on an external net.
 			// TODO: if specific listen port doesn't work then ask for wildcard
 			// listen port?

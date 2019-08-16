@@ -108,7 +108,7 @@ Application Options:
                             addresses to use for generated blocks -- At least
                             one address is required if the generate option is
                             set
-      --blockminsize=       Mininum block size in bytes to be used when creating
+      --blockminsize=       Minimum block size in bytes to be used when creating
                             a block
       --blockmaxsize=       Maximum block size in bytes to be used when creating
                             a block (375000)

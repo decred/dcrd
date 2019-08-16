@@ -9,7 +9,7 @@ Package dcrjson provides infrastructure for working with Decred JSON-RPC APIs.
 Overview
 
 When communicating via the JSON-RPC protocol, all requests and responses must be
-marshalled to and from the the wire in the appropriate format.  This package
+marshalled to and from the wire in the appropriate format.  This package
 provides infrastructure and primitives to ease this process.
 
 JSON-RPC Protocol Overview

@@ -19,7 +19,7 @@ import (
 //        negative or not. Remember, in affine EC space, the negative
 //        is P - positiveX. The rest of the 255 bits then represent
 //        the Y-value in little endian.
-//   2) For high effiency, 40 byte field elements (10x int32s) are
+//   2) For high efficiency, 40 byte field elements (10x int32s) are
 //        often used to represent integers.
 //   3) For further increases in efficiency, the affine (cartesian)
 //        coordinates are converted into projective (extended or non-

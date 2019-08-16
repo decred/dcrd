@@ -274,7 +274,7 @@ func calcSignatureHash(signScript []byte, hashType SigHashType, tx *wire.MsgTx, 
 	//   set, commits to all inputs.
 	//
 	// With the relevant inputs and outputs selected and the aforementioned
-	// substitions, the prefix hash consists of the hash of the
+	// substitutions, the prefix hash consists of the hash of the
 	// serialization of the following fields:
 	//
 	// 1) txversion|(SigHashSerializePrefix<<16) (as little-endian uint32)

@@ -584,7 +584,7 @@ func (b *BlockChain) fetchBlockByNode(node *blockNode) (*dcrutil.Block, error) {
 // pruneStakeNodes removes references to old stake nodes which should no
 // longer be held in memory so as to keep the maximum memory usage down.
 // It proceeds from the bestNode back to the determined minimum height node,
-// finds all the relevant children, and then drops the the stake nodes from
+// finds all the relevant children, and then drops the stake nodes from
 // them by assigning nil and allowing the memory to be recovered by GC.
 //
 // This function MUST be called with the chain state lock held (for writes).
@@ -914,7 +914,7 @@ func (b *BlockChain) disconnectBlock(node *blockNode, block, parent *dcrutil.Blo
 		}
 
 		// Update the transaction spend journal by removing the record
-		// that contains all txos spent by the block .
+		// that contains all txos spent by the block.
 		err = dbRemoveSpendJournalEntry(dbTx, block.Hash())
 		if err != nil {
 			return err
@@ -1118,7 +1118,7 @@ func (b *BlockChain) reorganizeChainInternal(targetTip *blockNode) error {
 		tip = n.parent
 	}
 
-	// Load the fork block if there are blocks to attach and its not already
+	// Load the fork block if there are blocks to attach and it's not already
 	// loaded which will be the case if no nodes were detached.  The fork block
 	// is used as the parent to the first node to be attached below.
 	forkBlock := nextBlockToDetach
@@ -1437,7 +1437,7 @@ func (b *BlockChain) connectBestChain(node *blockNode, block, parent *dcrutil.Bl
 		// In the fast add case the code to check the block connection
 		// was skipped, so the utxo view needs to load the referenced
 		// utxos, spend them, and add the new utxos being created by
-		// this block.  Also, in the case the the block votes against
+		// this block.  Also, in the case the block votes against
 		// the parent, its regular transaction tree must be
 		// disconnected.
 		if fastAdd {

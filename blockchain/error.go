@@ -110,8 +110,8 @@ const (
 
 	// ErrUnexpectedDifficulty indicates specified bits do not align with
 	// the expected value either because it doesn't match the calculated
-	// valued based on difficulty regarted rules or it is out of the valid
-	// range.
+	// value based on difficulty regarding the rules or it is out of the
+	// valid range.
 	ErrUnexpectedDifficulty
 
 	// ErrHighHash indicates the block does not hash to a value which is
@@ -390,7 +390,7 @@ const (
 	ErrRegTxCreateStakeOut
 
 	// ErrInvalidFinalState indicates that the final state of the PRNG included
-	// in the the block differed from the calculated final state.
+	// in the block differed from the calculated final state.
 	ErrInvalidFinalState
 
 	// ErrPoolSize indicates an error in the ticket pool size for this block.

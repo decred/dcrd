@@ -1200,7 +1200,7 @@ func (r FutureNotifyWinningTicketsResult) Receive() error {
 }
 
 // NotifyWinningTicketsAsync returns an instance of a type that can be used
-// to  get the result of the RPC at some future time by invoking the Receive
+// to get the result of the RPC at some future time by invoking the Receive
 // function on the returned instance.
 //
 // See NotifyWinningTickets for the blocking version and more details.
@@ -1250,7 +1250,7 @@ func (r FutureNotifySpentAndMissedTicketsResult) Receive() error {
 }
 
 // NotifySpentAndMissedTicketsAsync returns an instance of a type that can be used
-// to  get the result of the RPC at some future time by invoking the Receive
+// to get the result of the RPC at some future time by invoking the Receive
 // function on the returned instance.
 //
 // See NotifySpentAndMissedTickets for the blocking version and more details.

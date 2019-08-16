@@ -35,7 +35,7 @@
 ["'12'", "12 EQUAL", "NONE", "ERR_EVAL_FALSE", "Single quoted numeric strings are pushed as data"],
 ["'abc'{3}", "'abcabcabc' EQUAL", "NONE", "OK", "Single quoted strings with brace suffix are repeated"],
 ["0x02aabb{2}", "DATA_2 0xaabb EQUALVERIFY DATA_2 0xaabb EQUAL", "NONE", "OK", "Raw bytes in hex notation with brace suffix are repeated"],
-["<DATA_3 0xaabbcc>{2}", "DATA_3 0xaabbcc EQUALVERIFY DATA_3 0xaabbcc EQUAL", "NONE", "OK", "Multiple tokens in angular brackets with with brace suffix are repeated"],
+["<DATA_3 0xaabbcc>{2}", "DATA_3 0xaabbcc EQUALVERIFY DATA_3 0xaabbcc EQUAL", "NONE", "OK", "Multiple tokens in angular brackets with brace suffix are repeated"],
 ["<'abc'{3}>{2}", "<'abcabcabc'>{2} EQUALVERIFY EQUAL", "NONE", "OK", "'abc'{3} results in a single push of 9 bytes while <'abcabcabc'>{2} is 2 pushes of 9 bytes each"],
 ["0x00", "SIZE 0 EQUAL", "NONE", "OK", "Basic OP_0 execution"],
 
@@ -824,7 +824,7 @@
 ["", "2SWAP 1", "NONE", "ERR_INVALID_STACK_OPERATION", "2SWAP requires four items on the stack, the stack has no items"],
 ["NOP", "2SWAP 1", "NONE", "ERR_INVALID_STACK_OPERATION", "2SWAP requires four items on the stack and NOP must not be treated as one"],
 ["1", "2 3 2SWAP 1", "NONE", "ERR_INVALID_STACK_OPERATION", "2SWAP requires four items on the stack, the stack has one item"],
-["0 1", "2SWAP 1", "NONE", "ERR_INVALID_STACK_OPERATION", "2SWAP requires four items on the stack, the stack has has two items"],
+["0 1", "2SWAP 1", "NONE", "ERR_INVALID_STACK_OPERATION", "2SWAP requires four items on the stack, the stack has two items"],
 ["1 1 1", "2SWAP", "NONE", "ERR_INVALID_STACK_OPERATION", "2SWAP requires four items on the stack, the stack has three items"],
 ["0 1 0 0", "2SWAP <2DROP>{2} 1", "CLEANSTACK", "OK"],
 ["DATA_8 0 1 0 0 2SWAP <2DROP>{2} 1", " HASH160 DATA_20 0xb3e4f3da89ffc239d6958d5a20a69852ae603f81 EQUAL", "CLEANSTACK", "OK", "2SWAP P2SH"],
@@ -1877,7 +1877,7 @@
 ["0 0 0x02 0x0000", "WITHIN DROP 1", "NONE", "ERR_MINIMAL_DATA"],
 
 ["RIPEMD160 test coverage"],
-["NOP", "RIPEMD160", "NONE", "ERR_INVALID_STACK_OPERATION", "RIPEMD160 requires an an item on the stack and NOP must not be treated as one"],
+["NOP", "RIPEMD160", "NONE", "ERR_INVALID_STACK_OPERATION", "RIPEMD160 requires an item on the stack and NOP must not be treated as one"],
 ["", "RIPEMD160", "NONE", "ERR_INVALID_STACK_OPERATION", "RIPEMD160 requires an item on the stack, stack has no items"],
 ["''", "RIPEMD160 0x14 0x9c1185a5c5e9fc54612808977ee8f548b2258d31 EQUAL", "NONE", "OK"],
 ["'a'", "RIPEMD160 0x14 0x0bdc9d2d256b3ee9daae347be6f4dc835a467ffe EQUAL", "NONE", "OK"],
@@ -1930,7 +1930,7 @@
 
 ["HASH256 test coverage"],
 ["NOP", "HASH256", "NONE", "ERR_INVALID_STACK_OPERATION", "HASH256 requires an item on the stack and NOP must not be treated as one"],
-["", "HASH256", "NONE", "ERR_INVALID_STACK_OPERATION", "HASH256 requires an item on the stack , stack has no items"],
+["", "HASH256", "NONE", "ERR_INVALID_STACK_OPERATION", "HASH256 requires an item on the stack, stack has no items"],
 ["''", "HASH256 0x20 0xd8ee5f957b78a961fb729098b4efb56440a14e05e3c55890f5edbc626380aaa6 EQUAL", "NONE", "OK"],
 ["'a'", "HASH256 0x20 0x8a298a038c1a85591aa7abda75a8a393b742ee3f6b759ff15a3b5a8edff78532 EQUAL", "NONE", "OK"],
 ["0", "HASH256", "NONE", "OK"],
@@ -2367,7 +2367,7 @@
     "0x47 0x304402205550606a87650619f98b261adde6d343aad0c3fdd526c68d5ed718819ee59a7e0220335af6a47a18064681a77f8387c95934439bdf74b61e290a3353528311b8c99301 0x23 0x210279be337ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798ac",
     "HASH160 0x14 0xe57d091fa806258280dc78a1d8544a47a5b16a19 EQUAL",
     "NONE", "ERR_EVAL_FALSE",
-    "P2SH execution must push false on mistmatched hash from corrupted compressed P2PK redeem script (redeem script invalidated via 5th byte ^= 0x55)"
+    "P2SH execution must push false on mismatched hash from corrupted compressed P2PK redeem script (redeem script invalidated via 5th byte ^= 0x55)"
 ],
 [
     "0x48 0x3045022100f5353150d31a63f4a0d06d1f5a01ac65f7267a719e49f2a1ac584fd546bef074022030e09575e7a1541aa018876a4003cefe1b061a90556b5140c63e0ef84813524801 NOP",

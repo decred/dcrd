@@ -23,7 +23,7 @@ const (
 )
 
 // PrivateKey wraps an ecdsa.PrivateKey as a convenience mainly for signing
-// things with the the private key without having to directly import the ecdsa
+// things with the private key without having to directly import the ecdsa
 // package.
 type PrivateKey struct {
 	ecPk   *ecdsa.PrivateKey

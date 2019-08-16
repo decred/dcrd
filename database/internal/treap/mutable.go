@@ -19,7 +19,7 @@ type Mutable struct {
 	root  *treapNode
 	count int
 
-	// totalSize is the best estimate of the total size of of all data in
+	// totalSize is the best estimate of the total size of all data in
 	// the treap including the keys, values, and node sizes.
 	totalSize uint64
 }

@@ -592,7 +592,7 @@ func TestStack(t *testing.T) {
 		},
 		{
 			"all tucked up",
-			nil, // too few arguments  for tuck
+			nil, // too few arguments for tuck
 			func(s *stack) error {
 				return s.Tuck()
 			},

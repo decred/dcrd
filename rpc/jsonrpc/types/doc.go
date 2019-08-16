@@ -9,7 +9,7 @@ JSON-RPC commands, return values, and notifications.
 Overview
 
 When communicating via the JSON-RPC protocol, all requests and responses must be
-marshalled to and from the the wire in the appropriate format.  This package
+marshalled to and from the wire in the appropriate format.  This package
 provides data structures and primitives that are registered with dcrjson to ease
 this process.  An overview specific to this package is provided here, however it
 is also instructive to read the documentation for the dcrjson package
@@ -18,7 +18,7 @@ is also instructive to read the documentation for the dcrjson package
 Marshalling and Unmarshalling
 
 The types in this package map to the required parts of the protocol as discussed
-in the dcrjson documention
+in the dcrjson documentation
 
   - Request Objects (type Request)
     - Commands (type <Foo>Cmd)

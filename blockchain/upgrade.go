@@ -242,7 +242,7 @@ func upgradeToVersion2(db database.DB, chainParams *chaincfg.Params, dbInfo *dat
 }
 
 // migrateBlockIndex migrates all block entries from the v1 block index bucket
-// manged by ffldb to the v2 bucket managed by this package.  The v1 bucket
+// managed by ffldb to the v2 bucket managed by this package.  The v1 bucket
 // stored all block entries keyed by block hash, whereas the v2 bucket stores
 // them keyed by block height + hash.  Also, the old block index only stored the
 // header, while the new one stores all info needed to recreate block nodes.

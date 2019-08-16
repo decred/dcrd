@@ -51,7 +51,7 @@ var (
 	// commitAmountMultiplier is a multiplier for the minimum stake difficulty,
 	// used to fund inputs used in purchasing tickets. This needs to be high
 	// enough that (minimumStakeDifficulty*commitAmountMultiplier) -
-	// minimumStakeDifficulty is grater than the dust limit and will allow the
+	// minimumStakeDifficulty is greater than the dust limit and will allow the
 	// ticket to be relayed on the network.
 	commitAmountMultiplier = int64(4)
 )

@@ -254,7 +254,7 @@ func checkMinimalDataPush(op *opcode, data []byte) error {
 	return nil
 }
 
-// executeOpcode peforms execution on the passed opcode.  It takes into account
+// executeOpcode performs execution on the passed opcode.  It takes into account
 // whether or not it is hidden by conditionals, but some rules still must be
 // tested in this case.
 func (vm *Engine) executeOpcode(op *opcode, data []byte) error {
@@ -378,7 +378,7 @@ func (vm *Engine) DisasmScript(idx int) (string, error) {
 }
 
 // CheckErrorCondition returns nil if the running script has ended and was
-// successful, leaving a a true boolean on the stack.  An error otherwise,
+// successful, leaving a true boolean on the stack.  An error otherwise,
 // including if the script has not finished.
 func (vm *Engine) CheckErrorCondition(finalScript bool) error {
 	// Check execution is actually done by ensuring the script index is after

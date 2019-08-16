@@ -224,7 +224,7 @@ func (c *Client) ListUnspent() ([]walletjson.ListUnspentResult, error) {
 
 // ListUnspentMin returns all unspent transaction outputs known to a wallet,
 // using the specified number of minimum conformations and default number of
-// maximum confiramtions (9999999) as a filter.
+// maximum confirmations (9999999) as a filter.
 func (c *Client) ListUnspentMin(minConf int) ([]walletjson.ListUnspentResult, error) {
 	return c.ListUnspentMinAsync(minConf).Receive()
 }
@@ -617,7 +617,7 @@ func (r FutureSendManyResult) Receive() (*chainhash.Hash, error) {
 		return nil, err
 	}
 
-	// Unmashal result as a string.
+	// Unmarshal result as a string.
 	var txHash string
 	err = json.Unmarshal(res, &txHash)
 	if err != nil {
@@ -739,7 +739,7 @@ func (r FuturePurchaseTicketResult) Receive() ([]*chainhash.Hash, error) {
 		return nil, err
 	}
 
-	// Unmashal result as a string slice.
+	// Unmarshal result as a string slice.
 	var txHashesStr []string
 	err = json.Unmarshal(res, &txHashesStr)
 	if err != nil {
@@ -814,7 +814,7 @@ func (c *Client) PurchaseTicketAsync(fromAccount string,
 }
 
 // PurchaseTicket takes an account and a spending limit and calls the async
-// puchasetickets command.
+// purchasetickets command.
 func (c *Client) PurchaseTicket(fromAccount string,
 	spendLimit dcrutil.Amount, minConf *int, ticketAddress dcrutil.Address,
 	numTickets *int, poolAddress dcrutil.Address, poolFees *dcrutil.Amount,
@@ -1138,7 +1138,7 @@ func (r FutureGetAddressesByAccountResult) Receive(net dcrutil.AddressParams) ([
 		return nil, err
 	}
 
-	// Unmashal result as an array of string.
+	// Unmarshal result as an array of string.
 	var addrStrings []string
 	err = json.Unmarshal(res, &addrStrings)
 	if err != nil {
@@ -1313,7 +1313,7 @@ func (c *Client) KeyPoolRefillSize(newSize uint) error {
 // applicable error).
 type FutureListAccountsResult chan *response
 
-// Receive waits for the response promised by the future and returns returns a
+// Receive waits for the response promised by the future and returns a
 // map of account names and their associated balances.
 func (r FutureListAccountsResult) Receive() (map[string]dcrutil.Amount, error) {
 	res, err := receiveFuture(r)
@@ -1553,7 +1553,7 @@ func (c *Client) GetReceivedByAccountMinConf(account string, minConfirms int) (d
 // of a GetUnconfirmedBalanceAsync RPC invocation (or an applicable error).
 type FutureGetUnconfirmedBalanceResult chan *response
 
-// Receive waits for the response promised by the future and returns returns the
+// Receive waits for the response promised by the future and returns the
 // unconfirmed balance from the server for the specified account.
 func (r FutureGetUnconfirmedBalanceResult) Receive() (dcrutil.Amount, error) {
 	res, err := receiveFuture(r)

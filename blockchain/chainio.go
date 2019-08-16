@@ -489,7 +489,7 @@ func dbMaybeStoreBlock(dbTx database.Tx, block *dcrutil.Block) error {
 //   NOTE: The transaction version and flags are only encoded when the spent
 //   txout was the final unspent output of the containing transaction.
 //   Otherwise, the header code will be 0 and the version is not serialized at
-//   all. This is  done because that information is only needed when the utxo
+//   all. This is done because that information is only needed when the utxo
 //   set no longer has it.
 //
 // Example:
@@ -511,7 +511,7 @@ type spentTxOut struct {
 
 	amount        int64        // The amount of the output.
 	txType        stake.TxType // The stake type of the transaction.
-	height        uint32       // Height of the the block containing the tx.
+	height        uint32       // Height of the block containing the tx.
 	index         uint32       // Index in the block of the transaction.
 	scriptVersion uint16       // The version of the scripting language.
 	txVersion     uint16       // The version of creating tx.

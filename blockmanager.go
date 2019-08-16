@@ -301,7 +301,7 @@ type PeerNotifier interface {
 	// the passed transactions.
 	AnnounceNewTransactions(txns []*dcrutil.Tx)
 
-	// UpdatePeerHeights updates the heights of all peers who have have
+	// UpdatePeerHeights updates the heights of all peers who have
 	// announced the latest connected main chain block, or a recognized orphan.
 	UpdatePeerHeights(latestBlkHash *chainhash.Hash, latestHeight int64, updateSource *serverPeer)
 
@@ -1322,7 +1322,7 @@ func (b *blockManager) haveInventory(invVect *wire.InvVect) (bool, error) {
 		return entry != nil && !entry.IsFullySpent(), nil
 	}
 
-	// The requested inventory is is an unsupported type, so just claim
+	// The requested inventory is an unsupported type, so just claim
 	// it is known to avoid requesting it.
 	return true, nil
 }
@@ -1754,7 +1754,7 @@ func (b *blockManager) handleBlockchainNotification(notification *blockchain.Not
 		// which could result in a deadlock.
 		block, ok := notification.Data.(*dcrutil.Block)
 		if !ok {
-			bmgrLog.Warnf("New tip block checkedd notification is not a block.")
+			bmgrLog.Warnf("New tip block checked notification is not a block.")
 			break
 		}
 
@@ -1806,7 +1806,7 @@ func (b *blockManager) handleBlockchainNotification(notification *blockchain.Not
 		// other words, it is extending the shorter side chain.  The reorg depth
 		// would be 106 - (103 - 3) = 6.  This should intuitively make sense,
 		// because if the side chain were to be extended enough to become the
-		// best chain, it would result in a a reorg that would remove 6 blocks,
+		// best chain, it would result in a reorg that would remove 6 blocks,
 		// namely blocks 101, 102, 103, 104, 105, and 106.
 		blockHash := block.Hash()
 		bestHeight := band.BestHeight

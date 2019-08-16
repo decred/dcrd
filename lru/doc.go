@@ -10,7 +10,7 @@ LRU Cache
 A least-recently-used (LRU) cache is a cache that holds a limited number of
 items with an eviction policy such that when the capacity of the cache is
 exceeded, the least-recently-used item is automatically removed when inserting a
-new item.  The meaining of used in this implementation is either accessing the
+new item.  The meaning of used in this implementation is either accessing the
 item via a lookup or adding the item into the cache, including when the item
 already exists.
 

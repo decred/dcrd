@@ -22,7 +22,7 @@ var (
 )
 
 // checkDbError ensures the passed error is a database.Error with an error code
-// that matches the passed  error code.
+// that matches the passed error code.
 func checkDbError(t *testing.T, testName string, gotErr error, wantErrCode database.ErrorCode) bool {
 	dbErr, ok := gotErr.(database.Error)
 	if !ok {

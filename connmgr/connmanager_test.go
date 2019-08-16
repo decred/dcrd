@@ -459,7 +459,7 @@ func TestNetworkFailure(t *testing.T) {
 // TestStopFailed tests that failed connections are ignored after connmgr is
 // stopped.
 //
-// We have a dailer which sets the stop flag on the conn manager and returns an
+// We have a dialer which sets the stop flag on the conn manager and returns an
 // err so that the handler assumes that the conn manager is stopped and ignores
 // the failure.
 func TestStopFailed(t *testing.T) {

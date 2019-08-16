@@ -36,7 +36,7 @@ type Driver struct {
 var drivers = make(map[string]*Driver)
 
 // RegisterDriver adds a backend database driver to available interfaces.
-// ErrDbTypeRegistered will be retruned if the database type for the driver has
+// ErrDbTypeRegistered will be returned if the database type for the driver has
 // already been registered.
 func RegisterDriver(driver Driver) error {
 	if _, exists := drivers[driver.DbType]; exists {
@@ -63,7 +63,7 @@ func SupportedDrivers() []string {
 // arguments are specific to the database type driver.  See the documentation
 // for the database driver for further details.
 //
-// ErrDbUnknownType will be returned if the the database type is not registered.
+// ErrDbUnknownType will be returned if the database type is not registered.
 func Create(dbType string, args ...interface{}) (DB, error) {
 	drv, exists := drivers[dbType]
 	if !exists {
@@ -78,7 +78,7 @@ func Create(dbType string, args ...interface{}) (DB, error) {
 // specific to the database type driver.  See the documentation for the database
 // driver for further details.
 //
-// ErrDbUnknownType will be returned if the the database type is not registered.
+// ErrDbUnknownType will be returned if the database type is not registered.
 func Open(dbType string, args ...interface{}) (DB, error) {
 	drv, exists := drivers[dbType]
 	if !exists {

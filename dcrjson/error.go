@@ -31,7 +31,7 @@ const (
 	// embedded type which is not not supported.
 	ErrEmbeddedType
 
-	// ErrUnexportedField indiciates the provided command struct contains an
+	// ErrUnexportedField indicates the provided command struct contains an
 	// unexported field which is not supported.
 	ErrUnexportedField
 
@@ -59,7 +59,7 @@ const (
 	// help is missing.
 	ErrMissingDescription
 
-	// ErrNumParams inidcates the number of params supplied do not
+	// ErrNumParams indicates the number of params supplied do not
 	// match the requirements of the associated command.
 	ErrNumParams
 

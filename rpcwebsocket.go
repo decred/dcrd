@@ -296,7 +296,7 @@ func (m *wsNotificationManager) NotifyStakeDifficulty(
 
 // NotifyMempoolTx passes a transaction accepted by mempool to the
 // notification manager for transaction notification processing.  If
-// isNew is true, the tx is is a new transaction, rather than one
+// isNew is true, the tx is a new transaction, rather than one
 // added to the mempool during a reorg.
 func (m *wsNotificationManager) NotifyMempoolTx(tx *dcrutil.Tx, isNew bool) {
 	n := &notificationTxAcceptedByMempool{
@@ -1903,7 +1903,7 @@ func (c *wsClient) WaitForShutdown() {
 // has already been authenticated (via HTTP Basic access authentication).  The
 // returned client is ready to start.  Once started, the client will process
 // incoming and outgoing messages in separate goroutines complete with queuing
-// and asynchrous handling for long-running operations.
+// and asynchronous handling for long-running operations.
 func newWebsocketClient(server *rpcServer, conn *websocket.Conn,
 	remoteAddr string, authenticated bool, isAdmin bool) (*wsClient, error) {
 

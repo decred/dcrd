@@ -185,7 +185,7 @@ func TestConversion(t *testing.T) {
 			t.Fatalf("expected %v, got %v", true, cmp)
 		}
 
-		// Asert our results.
+		// Assert our results.
 		encodedNumStr := encodedNumToStrSet[encodedNumToStrIdx]
 		cmp = encodedNumStr == big.String()
 		if !cmp {

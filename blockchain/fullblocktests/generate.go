@@ -272,7 +272,7 @@ func replaceStakeSigScript(sigScript []byte) func(*wire.MsgBlock) {
 }
 
 // additionalPoWTx returns a function that itself takes a block and modifies it
-// by adding the the provided transaction to the regular transaction tree.
+// by adding the provided transaction to the regular transaction tree.
 func additionalPoWTx(tx *wire.MsgTx) func(*wire.MsgBlock) {
 	return func(b *wire.MsgBlock) {
 		b.AddTransaction(tx)
@@ -307,8 +307,8 @@ func encodeNonCanonicalBlock(b *wire.MsgBlock) []byte {
 	return buf.Bytes()
 }
 
-// assertTipsNonCanonicalBlockSize panics if the if the current tip block
-// associated with the generator does not have the specified non-canonical size
+// assertTipsNonCanonicalBlockSize panics if the current tip block associated
+// with the generator does not have the specified non-canonical size
 // when serialized.
 func assertTipNonCanonicalBlockSize(g *chaingen.Generator, expected int) {
 	tip := g.Tip()
@@ -726,7 +726,7 @@ func Generate(includeLargeReorg bool) (tests [][]TestInstance, err error) {
 	// ---------------------------------------------------------------------
 	// The comments below identify the structure of the chain being built.
 	//
-	// The values in parenthesis repesent which outputs are being spent.
+	// The values in parenthesis represent which outputs are being spent.
 	//
 	// For example, b1(0) indicates the first collected spendable output
 	// which, due to the code above to create the correct number of blocks,
@@ -1879,8 +1879,8 @@ func Generate(includeLargeReorg bool) (tests [][]TestInstance, err error) {
 	// Create block with duplicate transactions in the regular transaction
 	// tree.
 	//
-	// This test relies on the shape of the shape of the merkle tree to test
-	// the intended condition.  That is the reason for the assertion.
+	// This test relies on the shape of the merkle tree to test the
+	// intended condition.  That is the reason for the assertion.
 	//
 	//   ... -> brs3(14)
 	//                  \-> bmf14(15)
