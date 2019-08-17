@@ -40,7 +40,7 @@ func (msg *MsgGetCFHeaders) BtcDecode(r io.Reader, pver uint32) error {
 	if pver < NodeCFVersion {
 		str := fmt.Sprintf("getcfheaders message invalid for protocol "+
 			"version %d", pver)
-		return messageError("MsgCFHeaders.BtcDecode", str)
+		return messageError("MsgGetCFHeaders.BtcDecode", str)
 	}
 
 	// Read num block locator hashes and limit to max.
@@ -51,7 +51,7 @@ func (msg *MsgGetCFHeaders) BtcDecode(r io.Reader, pver uint32) error {
 	if count > MaxBlockLocatorsPerMsg {
 		str := fmt.Sprintf("too many block locator hashes for message "+
 			"[count %v, max %v]", count, MaxBlockLocatorsPerMsg)
-		return messageError("MsgGetHeaders.BtcDecode", str)
+		return messageError("MsgGetCFHeaders.BtcDecode", str)
 	}
 
 	// Create a contiguous slice of hashes to deserialize into in order to
@@ -81,7 +81,7 @@ func (msg *MsgGetCFHeaders) BtcEncode(w io.Writer, pver uint32) error {
 	if pver < NodeCFVersion {
 		str := fmt.Sprintf("getcfheaders message invalid for protocol "+
 			"version %d", pver)
-		return messageError("MsgCFHeaders.BtcEncode", str)
+		return messageError("MsgGetCFHeaders.BtcEncode", str)
 	}
 
 	// Limit to max block locator hashes per message.
@@ -89,7 +89,7 @@ func (msg *MsgGetCFHeaders) BtcEncode(w io.Writer, pver uint32) error {
 	if count > MaxBlockLocatorsPerMsg {
 		str := fmt.Sprintf("too many block locator hashes for message "+
 			"[count %v, max %v]", count, MaxBlockLocatorsPerMsg)
-		return messageError("MsgGetHeaders.BtcEncode", str)
+		return messageError("MsgGetCFHeaders.BtcEncode", str)
 	}
 
 	err := WriteVarInt(w, pver, uint64(count))

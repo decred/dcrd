@@ -61,7 +61,7 @@ func (msg *MsgCFilter) BtcEncode(w io.Writer, pver uint32) error {
 	if pver < NodeCFVersion {
 		str := fmt.Sprintf("cfilter message invalid for protocol "+
 			"version %d", pver)
-		return messageError("MsgCFHeaders.BtcEncode", str)
+		return messageError("MsgCFilter.BtcEncode", str)
 	}
 
 	size := len(msg.Data)
