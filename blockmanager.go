@@ -1036,6 +1036,14 @@ func (b *blockManager) handleBlockMsg(bmsg *blockMsg) {
 		// update the chain state.
 		b.progressLogger.logBlockHeight(bmsg.block)
 
+		// When the blockchain sync is complete, log information about the
+		// blocks processed (regardless of time passed), and log a sync
+		// completion message.
+		if bmsg.block.Height() == b.syncHeight {
+			b.progressLogger.logBlockHeightForce(bmsg.block)
+			bmgrLog.Infof("Blockchain Sync Complete")
+		}
+
 		onMainChain := !isOrphan && forkLen == 0
 		if onMainChain {
 			// A new block is connected, however, this new block may have
