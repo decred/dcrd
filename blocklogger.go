@@ -99,7 +99,7 @@ func (b *blockProgressLogger) logBlockHeight(block *dcrutil.Block) {
 
 // logBlockHeightForce logs a new block height as an information message to show
 // progress to the user. It is identical to the logBlockHeight above, except
-// it does NOT limit logging to one message every 10 seconds with duration and 
+// it does NOT limit logging to one message every 10 seconds with duration and
 // totals included.
 func (b *blockProgressLogger) logBlockHeightForce(block *dcrutil.Block) {
 	b.Lock()
