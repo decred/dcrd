@@ -1,6 +1,6 @@
 // Copyright (c) 2016-2017 The btcsuite developers
 // Copyright (c) 2016-2017 The Lightning Network Developers
-// Copyright (c) 2018 The Decred developers
+// Copyright (c) 2018-2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -8,7 +8,7 @@ package gcs
 
 import (
 	"encoding/binary"
-	"errors"
+	"fmt"
 	"math"
 	"sort"
 	"sync"
@@ -19,19 +19,6 @@ import (
 )
 
 // Inspired by https://github.com/rasky/gcs
-
-var (
-	// ErrNTooBig signifies that the filter can't handle N items.
-	ErrNTooBig = errors.New("N does not fit in uint32")
-
-	// ErrPTooBig signifies that the filter can't handle `1/2**P`
-	// collision probability.
-	ErrPTooBig = errors.New("P is too large")
-
-	// ErrMisserialized signifies a filter was misserialized and is missing the
-	// N and/or P parameters of a serialized filter.
-	ErrMisserialized = errors.New("misserialized filter")
-)
 
 // KeySize is the size of the byte array required for key material for the
 // SipHash keyed hash function.
@@ -66,10 +53,13 @@ func NewFilter(P uint8, key [KeySize]byte, data [][]byte) (*Filter, error) {
 	// build the filter, and make sure our parameters will fit the hash
 	// function we're using.
 	if len(data) > math.MaxInt32 {
-		return nil, ErrNTooBig
+		str := fmt.Sprintf("unable to create filter with %d entries greater "+
+			"than max allowed %d", len(data), math.MaxInt32)
+		return nil, makeError(ErrNTooBig, str)
 	}
 	if P > 32 {
-		return nil, ErrPTooBig
+		str := fmt.Sprintf("P value of %d is greater than max allowed 32", P)
+		return nil, makeError(ErrPTooBig, str)
 	}
 
 	// Create the filter object and insert metadata.
@@ -141,7 +131,8 @@ func NewFilter(P uint8, key [KeySize]byte, data [][]byte) (*Filter, error) {
 func FromBytes(N uint32, P uint8, d []byte) (*Filter, error) {
 	// Basic sanity check.
 	if P > 32 {
-		return nil, ErrPTooBig
+		str := fmt.Sprintf("P value of %d is greater than max allowed 32", P)
+		return nil, makeError(ErrPTooBig, str)
 	}
 
 	// Save the filter data internally as n + filter bytes
@@ -165,7 +156,8 @@ func FromNBytes(P uint8, d []byte) (*Filter, error) {
 	if len(d) >= 4 {
 		n = binary.BigEndian.Uint32(d[:4])
 	} else if len(d) < 4 && len(d) != 0 {
-		return nil, ErrMisserialized
+		str := "number of items serialization missing"
+		return nil, makeError(ErrMisserialized, str)
 	}
 
 	f := &Filter{

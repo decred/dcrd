@@ -327,20 +327,20 @@ func TestFilterCorners(t *testing.T) {
 	const largeP = 33
 	var key [KeySize]byte
 	_, err := NewFilter(largeP, key, nil)
-	if err != ErrPTooBig {
+	if !IsErrorCode(err, ErrPTooBig) {
 		t.Fatalf("did not receive expected err for P too big -- got %v, want %v",
 			err, ErrPTooBig)
 	}
 	_, err = FromBytes(0, largeP, nil)
-	if err != ErrPTooBig {
+	if !IsErrorCode(err, ErrPTooBig) {
 		t.Fatalf("did not receive expected err for P too big -- got %v, want %v",
 			err, ErrPTooBig)
 	}
 
 	// Attempt to decode a filter without the N value serialized properly.
 	_, err = FromNBytes(20, []byte{0x00})
-	if err != ErrMisserialized {
-		t.Fatalf("did not receive expected err -- got %v, want %v",
-			err, ErrMisserialized)
+	if !IsErrorCode(err, ErrMisserialized) {
+		t.Fatalf("did not receive expected err -- got %v, want %v", err,
+			ErrMisserialized)
 	}
 }
