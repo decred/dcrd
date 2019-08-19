@@ -1865,6 +1865,11 @@ type removeNodeMsg struct {
 	reply chan error
 }
 
+type cancelPendingMsg struct {
+	addr  string
+	reply chan error
+}
+
 // handleQuery is the central handler for all queries and commands from other
 // goroutines related to peer state.
 func (s *server) handleQuery(state *peerState, querymsg interface{}) {
@@ -1940,6 +1945,14 @@ func (s *server) handleQuery(state *peerState, querymsg interface{}) {
 		} else {
 			msg.reply <- errors.New("peer not found")
 		}
+	case cancelPendingMsg:
+		netAddr, err := addrStringToNetAddr(msg.addr)
+		if err != nil {
+			msg.reply <- err
+			return
+		}
+		s.connManager.CancelPending(netAddr)
+		msg.reply <- nil
 	case getOutboundGroup:
 		count, ok := state.outboundGroups[msg.key]
 		if ok {
@@ -2313,6 +2326,24 @@ func (s *server) RemoveNodeByAddr(addr string) error {
 
 	s.query <- removeNodeMsg{
 		cmp:   func(sp *serverPeer) bool { return sp.Addr() == addr },
+		reply: replyChan,
+	}
+
+	err := <-replyChan
+	if err != nil {
+		// This connection may still be pending, cancel it.
+		return s.cancelPendingConnection(addr)
+	}
+	return nil
+}
+
+// cancelPendingConnection removes an address from the list of
+// pending connections.
+func (s *server) cancelPendingConnection(addr string) error {
+	replyChan := make(chan error)
+
+	s.query <- cancelPendingMsg{
+		addr:  addr,
 		reply: replyChan,
 	}
 
