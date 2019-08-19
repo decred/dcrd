@@ -127,6 +127,9 @@ func (b *bitReader) readNBits(n uint) (uint64, error) {
 	if n > 64 {
 		panic("gcs: cannot read more than 64 bits as a uint64")
 	}
+	if n == 0 {
+		return 0, nil
+	}
 
 	if len(b.bytes) == 0 {
 		return 0, io.EOF
@@ -175,14 +178,6 @@ func (b *bitReader) readNBits(n uint) (uint64, error) {
 
 	// Read the remaining bits.
 	for n > 0 {
-		if b.next == 0 {
-			b.bytes = b.bytes[1:]
-			if len(b.bytes) == 0 {
-				return 0, io.EOF
-			}
-			b.next = 1 << 7
-		}
-
 		n--
 		if b.bytes[0]&b.next != 0 {
 			value |= 1 << n

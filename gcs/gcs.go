@@ -161,11 +161,13 @@ func FromBytes(N uint32, P uint8, d []byte) (*Filter, error) {
 // FromNBytes deserializes a GCS filter from a known P, and serialized N and
 // filter as returned by NBytes().
 func FromNBytes(P uint8, d []byte) (*Filter, error) {
-	if len(d) < 4 {
+	var n uint32
+	if len(d) >= 4 {
+		n = binary.BigEndian.Uint32(d[:4])
+	} else if len(d) < 4 && len(d) != 0 {
 		return nil, ErrMisserialized
 	}
 
-	n := binary.BigEndian.Uint32(d[:4])
 	f := &Filter{
 		n:           n,
 		p:           P,
