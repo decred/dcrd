@@ -500,7 +500,11 @@ func handleAddNode(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) (in
 	case "add":
 		err = s.server.ConnectNode(addr, true)
 	case "remove":
-		err = s.server.RemoveNodeByAddr(addr)
+		rerr := s.server.RemoveNodeByAddr(addr)
+		// This connection is still pending, cancel it.
+		if rerr != nil {
+			err = s.server.CancelPendingConnection(addr)
+		}
 	case "onetry":
 		err = s.server.ConnectNode(addr, false)
 	default:
