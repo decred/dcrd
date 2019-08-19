@@ -11,6 +11,8 @@ import (
 	"encoding/binary"
 	"math/rand"
 	"testing"
+
+	"github.com/decred/dcrd/chaincfg/chainhash"
 )
 
 var (
@@ -169,5 +171,56 @@ func TestGCSFilterMatchAny(t *testing.T) {
 	}
 	if !filter2.MatchAny(key, contents2) {
 		t.Fatal("Filter didn't match any when it should have!")
+	}
+}
+
+// TestEmptyFilter ensures that empty filters are handled properly.
+func TestEmptyFilter(t *testing.T) {
+	// Ensure an empty filter can be constructed without error.
+	f, err := NewFilter(P, key, nil)
+	if err != nil {
+		t.Fatalf("unexpected err: %v", err)
+	}
+
+	// Ensure empty filters do not have any serialization.
+	gotBytes := f.Bytes()
+	if gotBytes != nil {
+		t.Fatalf("filter bytes not empty -- got %x", gotBytes)
+	}
+	gotBytes = f.NBytes()
+	if gotBytes != nil {
+		t.Fatalf("filter nbytes not empty -- got %x", gotBytes)
+	}
+
+	// Ensure the hash of empty filters is all zeroes.
+	gotHash := f.Hash()
+	expectedHash := chainhash.Hash{}
+	if gotHash != expectedHash {
+		t.Fatalf("unexpected filter hash -- got %s, want %s", gotHash,
+			expectedHash)
+	}
+
+	// Ensure an empty filter does not match empty data or arbitrary data.
+	if f.Match(key, nil) {
+		t.Fatal("unexpected match of nil data")
+	}
+	if f.Match(key, []byte("test")) {
+		t.Fatal("unexpected match of data")
+	}
+	if f.MatchAny(key, nil) {
+		t.Fatal("unexpected match of nil data")
+	}
+	if f.MatchAny(key, [][]byte{[]byte("test")}) {
+		t.Fatal("unexpected match of data")
+	}
+
+	// Ensure empty filter returns correct parameters.
+	gotN := f.N()
+	if gotN != 0 {
+		t.Fatalf("unexpected N -- got %d, want %d", gotN, 0)
+	}
+	gotP := f.P()
+	if gotP != P {
+		t.Fatalf("unexpected P -- got %d, want %d", gotP, P)
 	}
 }

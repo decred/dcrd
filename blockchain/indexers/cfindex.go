@@ -215,7 +215,7 @@ func storeFilter(dbTx database.Tx, block *dcrutil.Block, f *gcs.Filter, filterTy
 // every passed block. This is part of the Indexer interface.
 func (idx *CFIndex) ConnectBlock(dbTx database.Tx, block, parent *dcrutil.Block, view *blockchain.UtxoViewpoint) error {
 	f, err := blockcf.Regular(block.MsgBlock())
-	if err != nil && err != gcs.ErrNoData {
+	if err != nil {
 		return err
 	}
 
@@ -225,7 +225,7 @@ func (idx *CFIndex) ConnectBlock(dbTx database.Tx, block, parent *dcrutil.Block,
 	}
 
 	f, err = blockcf.Extended(block.MsgBlock())
-	if err != nil && err != gcs.ErrNoData {
+	if err != nil {
 		return err
 	}
 

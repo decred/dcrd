@@ -28,9 +28,6 @@ var (
 	// collision probability.
 	ErrPTooBig = errors.New("P is too large")
 
-	// ErrNoData signifies that an empty slice was passed.
-	ErrNoData = errors.New("no data provided")
-
 	// ErrMisserialized signifies a filter was misserialized and is missing the
 	// N and/or P parameters of a serialized filter.
 	ErrMisserialized = errors.New("misserialized filter")
@@ -68,9 +65,6 @@ func NewFilter(P uint8, key [KeySize]byte, data [][]byte) (*Filter, error) {
 	// Some initial parameter checks: make sure we have data from which to
 	// build the filter, and make sure our parameters will fit the hash
 	// function we're using.
-	if len(data) == 0 {
-		return nil, ErrNoData
-	}
 	if len(data) > math.MaxInt32 {
 		return nil, ErrNTooBig
 	}
@@ -85,6 +79,11 @@ func NewFilter(P uint8, key [KeySize]byte, data [][]byte) (*Filter, error) {
 		n:         uint32(len(data)),
 		p:         P,
 		modulusNP: uint64(len(data)) * modP,
+	}
+
+	// Nothing to do for an empty filter.
+	if len(data) == 0 {
+		return &f, nil
 	}
 
 	// Allocate filter data.
@@ -179,6 +178,9 @@ func FromNBytes(P uint8, d []byte) (*Filter, error) {
 // Bytes returns the serialized format of the GCS filter, which does not
 // include N or P (returned by separate methods) or the key used by SipHash.
 func (f *Filter) Bytes() []byte {
+	if len(f.filterNData) == 0 {
+		return nil
+	}
 	return f.filterNData[4:]
 }
 
@@ -202,6 +204,11 @@ func (f *Filter) N() uint32 {
 // Match checks whether a []byte value is likely (within collision probability)
 // to be a member of the set represented by the filter.
 func (f *Filter) Match(key [KeySize]byte, data []byte) bool {
+	// An empty filter or empty data can't possibly match anything.
+	if len(f.filterNData) == 0 || len(data) == 0 {
+		return false
+	}
+
 	// Create a filter bitstream.
 	b := newBitReader(f.filterNData[4:])
 
@@ -239,7 +246,8 @@ var matchPool sync.Pool
 // probability) to be a member of the set represented by the filter faster than
 // calling Match() for each value individually.
 func (f *Filter) MatchAny(key [KeySize]byte, data [][]byte) bool {
-	if len(data) == 0 {
+	// An empty filter or empty data can't possibly match anything.
+	if len(f.filterNData) == 0 || len(data) == 0 {
 		return false
 	}
 
@@ -318,6 +326,11 @@ func (f *Filter) readFullUint64(b *bitReader) (uint64, error) {
 
 // Hash returns the BLAKE256 hash of the filter.
 func (f *Filter) Hash() chainhash.Hash {
+	// Empty filters have a hash of all zeroes.
+	if len(f.filterNData) == 0 {
+		return chainhash.Hash{}
+	}
+
 	h := blake256.New()
 	h.Write(f.filterNData)
 
