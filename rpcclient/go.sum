@@ -22,6 +22,8 @@ github.com/decred/dcrd/chaincfg/v2 v2.0.2 h1:VeGY52lHuYT01tIGbvYj+OO0GaGxGaJmnh+
 github.com/decred/dcrd/chaincfg/v2 v2.0.2/go.mod h1:hpKvhLCDAD/xDZ3V1Pqpv9fIKVYYi11DyxETguazyvg=
 github.com/decred/dcrd/chaincfg/v2 v2.1.0 h1:2S7TL9YWnKDDiH5bTpp3xcBo+1gl1IXFi5KU4QwSIDk=
 github.com/decred/dcrd/chaincfg/v2 v2.1.0/go.mod h1:hpKvhLCDAD/xDZ3V1Pqpv9fIKVYYi11DyxETguazyvg=
+github.com/decred/dcrd/crypto/blake256 v1.0.0 h1:/8DMNYp9SGi5f0w7uCm6d6M4OU2rGFK09Y2A4Xv7EE0=
+github.com/decred/dcrd/crypto/blake256 v1.0.0/go.mod h1:sQl2p6Y26YV+ZOcSTP6thNdn47hh8kt6rqSlvmrXFAc=
 github.com/decred/dcrd/database/v2 v2.0.0 h1:KWiyZHk+QyNKQvvxm/KpIejhTqYJqH9ssz1+9sT9nVA=
 github.com/decred/dcrd/database/v2 v2.0.0/go.mod h1:Sj2lvTRB0mfSu9uD7ObfwCY/eJ954GFU/X+AndJIyfE=
 github.com/decred/dcrd/dcrec v1.0.0 h1:W+z6Es+Rai3MXYVoPAxYr5U1DGis0Co33scJ6uH2J6o=
@@ -36,8 +38,6 @@ github.com/decred/dcrd/dcrjson/v3 v3.0.0 h1:yDrNFvyn2l/557iZHB236jTqQjAmhZnVaFgM
 github.com/decred/dcrd/dcrjson/v3 v3.0.0/go.mod h1:pWYlHJ3VFidPwqD5HHiJXjfGaplif8uspAL2qFdifkY=
 github.com/decred/dcrd/dcrutil/v2 v2.0.0 h1:HTqn2tZ8eqBF4y3hJwjyKBmJt16y7/HjzpE82E/crhY=
 github.com/decred/dcrd/dcrutil/v2 v2.0.0/go.mod h1:gUshVAXpd51DlcEhr51QfWL2HJGkMDM1U8chY+9VvQg=
-github.com/decred/dcrd/gcs v1.1.0 h1:djuYzaFUzUTJR+6ulMSRZOQ+P9rxtIyuxQeViAEfB8s=
-github.com/decred/dcrd/gcs v1.1.0/go.mod h1:yBjhj217Vw5lw3aKnCdHip7fYb9zwMos8bCy5s79M9w=
 github.com/decred/dcrd/hdkeychain/v2 v2.0.1 h1:LnMLuPDx6j1/7ywGdfX5onPOsa98yObzBIJrp+nK4Qo=
 github.com/decred/dcrd/hdkeychain/v2 v2.0.1/go.mod h1:qPv+vTla19liVHFuXVnQ70dMI4ERPCniDXbV5RzwQiM=
 github.com/decred/dcrd/rpc/jsonrpc/types v1.0.0 h1:d5ptnjuSADTQMa3i83VpeJNoMRTOJZZBqk7P+E41VXM=

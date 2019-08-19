@@ -11,8 +11,10 @@ require (
 	github.com/decred/dcrd/dcrec v1.0.0
 	github.com/decred/dcrd/dcrec/secp256k1 v1.0.2
 	github.com/decred/dcrd/dcrutil/v2 v2.0.0
-	github.com/decred/dcrd/gcs v1.1.0
+	github.com/decred/dcrd/gcs/v2 v2.0.0-00010101000000-000000000000
 	github.com/decred/dcrd/txscript/v2 v2.0.0
 	github.com/decred/dcrd/wire v1.2.0
 	github.com/decred/slog v1.0.0
 )
+
+replace github.com/decred/dcrd/gcs/v2 => ../gcs

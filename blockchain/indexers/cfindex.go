@@ -14,8 +14,8 @@ import (
 	"github.com/decred/dcrd/chaincfg/v2"
 	"github.com/decred/dcrd/database/v2"
 	"github.com/decred/dcrd/dcrutil/v2"
-	"github.com/decred/dcrd/gcs"
-	"github.com/decred/dcrd/gcs/blockcf"
+	"github.com/decred/dcrd/gcs/v2"
+	"github.com/decred/dcrd/gcs/v2/blockcf"
 	"github.com/decred/dcrd/wire"
 )
 

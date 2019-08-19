@@ -176,24 +176,6 @@ func FromNBytes(P uint8, d []byte) (*Filter, error) {
 	return f, nil
 }
 
-// FromPBytes deserializes a GCS filter from a known N, and serialized P and
-// filter as returned by NBytes().
-func FromPBytes(N uint32, d []byte) (*Filter, error) {
-	if len(d) < 1 {
-		return nil, ErrMisserialized
-	}
-	return FromBytes(N, d[0], d[1:])
-}
-
-// FromNPBytes deserializes a GCS filter from a serialized N, P, and filter as
-// returned by NPBytes().
-func FromNPBytes(d []byte) (*Filter, error) {
-	if len(d) < 5 {
-		return nil, ErrMisserialized
-	}
-	return FromBytes(binary.BigEndian.Uint32(d[:4]), d[4], d[5:])
-}
-
 // Bytes returns the serialized format of the GCS filter, which does not
 // include N or P (returned by separate methods) or the key used by SipHash.
 func (f *Filter) Bytes() []byte {
@@ -204,25 +186,6 @@ func (f *Filter) Bytes() []byte {
 // not include P (returned by a separate method) or the key used by SipHash.
 func (f *Filter) NBytes() []byte {
 	return f.filterNData
-}
-
-// PBytes returns the serialized format of the GCS filter with P, which does
-// not include N (returned by a separate method) or the key used by SipHash.
-func (f *Filter) PBytes() []byte {
-	filterData := make([]byte, len(f.filterNData)-3)
-	filterData[0] = f.p
-	copy(filterData[1:], f.filterNData[4:])
-	return filterData
-}
-
-// NPBytes returns the serialized format of the GCS filter with N and P, which
-// does not include the key used by SipHash.
-func (f *Filter) NPBytes() []byte {
-	filterData := make([]byte, len(f.filterNData)+1)
-	copy(filterData[:4], f.filterNData)
-	filterData[4] = f.p
-	copy(filterData[5:], f.filterNData[4:])
-	return filterData
 }
 
 // P returns the filter's collision probability as a negative power of 2 (that
