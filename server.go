@@ -2086,7 +2086,13 @@ func (s *server) RemoveNodeByAddr(addr string) error {
 		reply: replyChan,
 	}
 
-	return <-replyChan
+	err := <-replyChan
+	if err != nil {
+		// This connection may still be pending, cancel it.
+		return s.CancelPendingConnection(addr)
+	} else {
+		return nil
+	}
 }
 
 // CancelPendingConnection removes an address from the list of

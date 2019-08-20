@@ -356,9 +356,11 @@ out:
 			case handleCancelPending:
 				found := false
 				var idToRemove uint64
+				connReq := &ConnReq{}
 				for id, req := range pending {
 					if msg.addr.String() == req.Addr.String() {
 						idToRemove = id
+						connReq = req
 						found = true
 						break
 					}
@@ -366,9 +368,10 @@ out:
 				}
 				if found {
 					delete(pending, idToRemove)
+					connReq.updateState(ConnCanceled)
 					log.Debugf("Canceled pending connection to %v", msg.addr)
 				} else {
-					log.Debugf("Did not find connection to cancel")
+					log.Errorf("Did not find connection to cancel at address %v", msg.addr)
 				}
 				close(msg.done)
 			}
@@ -530,8 +533,9 @@ func (cm *ConnManager) CancelPending(addr net.Addr) {
 	case cm.requests <- handleCancelPending{addr, done}:
 	case <-cm.quit:
 	}
-	// Wait for the registration to successfully add the pending conn req to
-	// the conn manager's internal state.
+
+	// Wait for the connection to be removed from the conn manager's
+	// internal state.
 	select {
 	case <-done:
 	case <-cm.quit:
