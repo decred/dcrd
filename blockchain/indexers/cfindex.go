@@ -174,7 +174,7 @@ func (idx *CFIndex) Create(dbTx database.Tx) error {
 
 // storeFilter stores a given filter, and performs the steps needed to
 // generate the filter's header.
-func storeFilter(dbTx database.Tx, block *dcrutil.Block, f *gcs.Filter, filterType wire.FilterType) error {
+func storeFilter(dbTx database.Tx, block *dcrutil.Block, f *gcs.FilterV1, filterType wire.FilterType) error {
 	if uint8(filterType) > maxFilterType {
 		return errors.New("unsupported filter type")
 	}

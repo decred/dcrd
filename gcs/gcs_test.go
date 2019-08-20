@@ -50,6 +50,7 @@ func TestFilter(t *testing.T) {
 
 	tests := []struct {
 		name        string        // test description
+		version     uint16        // filter version
 		p           uint8         // collision probability
 		matchKey    [KeySize]byte // random filter key for matches
 		contents    [][]byte      // data to include in the filter
@@ -60,6 +61,7 @@ func TestFilter(t *testing.T) {
 		wantHash    string        // expected filter hash
 	}{{
 		name:        "empty filter",
+		version:     1,
 		p:           20,
 		matchKey:    randKey,
 		contents:    nil,
@@ -70,6 +72,7 @@ func TestFilter(t *testing.T) {
 		wantHash:    "0000000000000000000000000000000000000000000000000000000000000000",
 	}, {
 		name:        "contents1 with P=20",
+		version:     1,
 		p:           20,
 		matchKey:    randKey,
 		contents:    contents1,
@@ -80,6 +83,7 @@ func TestFilter(t *testing.T) {
 		wantHash:    "a802fbe6f06991877cde8f3d770d8da8cf195816f04874cab045ffccaddd880d",
 	}, {
 		name:        "contents1 with P=19",
+		version:     1,
 		p:           19,
 		matchKey:    randKey,
 		contents:    contents1,
@@ -90,6 +94,7 @@ func TestFilter(t *testing.T) {
 		wantHash:    "be9ba34f03ced957e6f5c4d583ddfd34c136b486fbec2a42b4c7588a2d7813c1",
 	}, {
 		name:        "contents2 with P=19",
+		version:     1,
 		p:           19,
 		matchKey:    randKey,
 		contents:    contents2,
@@ -100,6 +105,7 @@ func TestFilter(t *testing.T) {
 		wantHash:    "dcbaf452f6de4c82ea506fa551d75876c4979ef388f785509b130de62eeaec23",
 	}, {
 		name:        "contents2 with P=10",
+		version:     1,
 		p:           10,
 		matchKey:    randKey,
 		contents:    contents2,
@@ -113,7 +119,7 @@ func TestFilter(t *testing.T) {
 	for _, test := range tests {
 		// Create a filter with the match key for all tests not related to
 		// testing serialization.
-		f, err := NewFilter(test.p, test.matchKey, test.contents)
+		f, err := newFilter(test.version, test.p, test.matchKey, test.contents)
 		if err != nil {
 			t.Errorf("%q: unexpected err: %v", test.name, err)
 			continue
@@ -198,7 +204,8 @@ func TestFilter(t *testing.T) {
 		}
 
 		// Recreate the filter with a fixed key for serialization testing.
-		fixedFilter, err := NewFilter(test.p, test.fixedKey, test.contents)
+		fixedFilter, err := newFilter(test.version, test.p, test.fixedKey,
+			test.contents)
 		if err != nil {
 			t.Errorf("%q: unexpected err: %v", test.name, err)
 			continue
@@ -247,10 +254,26 @@ func TestFilter(t *testing.T) {
 			continue
 		}
 
+		// filterMatcher allows different versions of the filter types to be
+		// used for the match testing below.
+		type filterMatcher interface {
+			Match([KeySize]byte, []byte) bool
+		}
+
 		// Deserialize the filter from bytes.
-		f2, err := FromBytes(uint32(len(test.contents)), test.p, wantBytes)
-		if err != nil {
-			t.Errorf("%q: unexpected err: %v", test.name, err)
+		var f2 filterMatcher
+		switch test.version {
+		case 1:
+			tf2, err := FromBytesV1(uint32(len(test.contents)), test.p, wantBytes)
+			if err != nil {
+				t.Errorf("%q: unexpected err: %v", test.name, err)
+				continue
+			}
+			f2 = tf2
+
+		default:
+			t.Errorf("%q: unsupported filter version: %d", test.name,
+				test.version)
 			continue
 		}
 
@@ -263,10 +286,15 @@ func TestFilter(t *testing.T) {
 		}
 
 		// Deserialize the filter from bytes with N parameter.
-		f3, err := FromNBytes(test.p, wantNBytes)
-		if err != nil {
-			t.Errorf("%q: unexpected err: %v", test.name, err)
-			continue
+		var f3 filterMatcher
+		switch test.version {
+		case 1:
+			tf3, err := FromNBytesV1(test.p, wantNBytes)
+			if err != nil {
+				t.Errorf("%q: unexpected err: %v", test.name, err)
+				continue
+			}
+			f3 = tf3
 		}
 
 		// Ensure all of the expected matches occur on the deserialized filter.
@@ -285,7 +313,7 @@ func TestFilterMisses(t *testing.T) {
 	// Create a filter with the lowest supported false positive rate to reduce
 	// the chances of a false positive as much as possible.
 	var key [KeySize]byte
-	f, err := NewFilter(32, key, [][]byte{[]byte("entry")})
+	f, err := NewFilterV1(32, key, [][]byte{[]byte("entry")})
 	if err != nil {
 		t.Fatalf("unexpected err: %v", err)
 	}
@@ -326,19 +354,19 @@ func TestFilterCorners(t *testing.T) {
 	// Attempt to construct filter with parameters too large.
 	const largeP = 33
 	var key [KeySize]byte
-	_, err := NewFilter(largeP, key, nil)
+	_, err := NewFilterV1(largeP, key, nil)
 	if !IsErrorCode(err, ErrPTooBig) {
 		t.Fatalf("did not receive expected err for P too big -- got %v, want %v",
 			err, ErrPTooBig)
 	}
-	_, err = FromBytes(0, largeP, nil)
+	_, err = FromBytesV1(0, largeP, nil)
 	if !IsErrorCode(err, ErrPTooBig) {
 		t.Fatalf("did not receive expected err for P too big -- got %v, want %v",
 			err, ErrPTooBig)
 	}
 
 	// Attempt to decode a filter without the N value serialized properly.
-	_, err = FromNBytes(20, []byte{0x00})
+	_, err = FromNBytesV1(20, []byte{0x00})
 	if !IsErrorCode(err, ErrMisserialized) {
 		t.Fatalf("did not receive expected err -- got %v, want %v", err,
 			ErrMisserialized)

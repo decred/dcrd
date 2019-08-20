@@ -957,7 +957,7 @@ func (sp *serverPeer) OnGetCFilter(p *peer.Peer, msg *wire.MsgGetCFilter) {
 			return
 		}
 
-		var f *gcs.Filter
+		var f *gcs.FilterV1
 		switch msg.FilterType {
 		case wire.GCSFilterRegular:
 			f, err = blockcf.Regular(block.MsgBlock())

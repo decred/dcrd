@@ -46,7 +46,7 @@ func BenchmarkFilterBuild50000(b *testing.B) {
 	b.ResetTimer()
 	var key [KeySize]byte
 	for i := 0; i < b.N; i++ {
-		_, err := NewFilter(P, key, contents)
+		_, err := NewFilterV1(P, key, contents)
 		if err != nil {
 			b.Fatalf("unable to generate filter: %v", err)
 		}
@@ -66,7 +66,7 @@ func BenchmarkFilterBuild100000(b *testing.B) {
 	b.ResetTimer()
 	var key [KeySize]byte
 	for i := 0; i < b.N; i++ {
-		_, err := NewFilter(P, key, contents)
+		_, err := NewFilterV1(P, key, contents)
 		if err != nil {
 			b.Fatalf("unable to generate filter: %v", err)
 		}
@@ -83,7 +83,7 @@ func BenchmarkFilterMatch(b *testing.B) {
 	}
 
 	var key [KeySize]byte
-	filter, err := NewFilter(P, key, contents)
+	filter, err := NewFilterV1(P, key, contents)
 	if err != nil {
 		b.Fatalf("Failed to build filter")
 	}
@@ -114,7 +114,7 @@ func BenchmarkFilterMatchAny(b *testing.B) {
 	}
 
 	var key [KeySize]byte
-	filter, err := NewFilter(P, key, contents)
+	filter, err := NewFilterV1(P, key, contents)
 	if err != nil {
 		b.Fatalf("Failed to build filter")
 	}

@@ -28,8 +28,10 @@ import (
 	"github.com/decred/dcrd/wire"
 )
 
-// P is the collision probability used for block committed filters (2^-20)
-const P = 20
+const (
+	// P is the collision probability used for block committed filters (2^-20)
+	P = 20
+)
 
 // Entries describes all of the filter entries used to create a GCS filter and
 // provides methods for appending data structures found in blocks.
@@ -95,7 +97,7 @@ func Key(hash *chainhash.Hash) [gcs.KeySize]byte {
 // contain all the previous regular outpoints spent within a block, as well as
 // the data pushes within all the outputs created within a block which can be
 // spent by regular transactions.
-func Regular(block *wire.MsgBlock) (*gcs.Filter, error) {
+func Regular(block *wire.MsgBlock) (*gcs.FilterV1, error) {
 	var data Entries
 
 	// Add "regular" data from stake transactions.  For each class of stake
@@ -163,14 +165,14 @@ func Regular(block *wire.MsgBlock) (*gcs.Filter, error) {
 	blockHash := block.BlockHash()
 	key := Key(&blockHash)
 
-	return gcs.NewFilter(P, key, data)
+	return gcs.NewFilterV1(P, key, data)
 }
 
 // Extended builds an extended GCS filter from a block.  An extended filter
 // supplements a regular basic filter by including all transaction hashes of
 // regular and stake transactions, and adding the witness data (a.k.a. the
 // signature script) found within every non-coinbase regular transaction.
-func Extended(block *wire.MsgBlock) (*gcs.Filter, error) {
+func Extended(block *wire.MsgBlock) (*gcs.FilterV1, error) {
 	var data Entries
 
 	// For each stake transaction, commit the transaction hash.  If the
@@ -207,5 +209,5 @@ func Extended(block *wire.MsgBlock) (*gcs.Filter, error) {
 	blockHash := block.BlockHash()
 	key := Key(&blockHash)
 
-	return gcs.NewFilter(P, key, data)
+	return gcs.NewFilterV1(P, key, data)
 }

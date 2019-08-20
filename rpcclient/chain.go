@@ -787,7 +787,7 @@ type FutureGetCFilterResult chan *response
 
 // Receive waits for the response promised by the future and returns the
 // discovered rescan data.
-func (r FutureGetCFilterResult) Receive() (*gcs.Filter, error) {
+func (r FutureGetCFilterResult) Receive() (*gcs.FilterV1, error) {
 	res, err := receiveFuture(r)
 	if err != nil {
 		return nil, err
@@ -803,7 +803,7 @@ func (r FutureGetCFilterResult) Receive() (*gcs.Filter, error) {
 		return nil, err
 	}
 
-	return gcs.FromNBytes(blockcf.P, filterNBytes)
+	return gcs.FromNBytesV1(blockcf.P, filterNBytes)
 }
 
 // GetCFilterAsync returns an instance of a type that can be used to get the
@@ -827,7 +827,7 @@ func (c *Client) GetCFilterAsync(blockHash *chainhash.Hash, filterType wire.Filt
 }
 
 // GetCFilter returns the committed filter of type filterType for a block.
-func (c *Client) GetCFilter(blockHash *chainhash.Hash, filterType wire.FilterType) (*gcs.Filter, error) {
+func (c *Client) GetCFilter(blockHash *chainhash.Hash, filterType wire.FilterType) (*gcs.FilterV1, error) {
 	return c.GetCFilterAsync(blockHash, filterType).Receive()
 }
 
