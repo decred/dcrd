@@ -17,6 +17,7 @@ func TestErrorCodeStringer(t *testing.T) {
 		{ErrNTooBig, "ErrNTooBig"},
 		{ErrPTooBig, "ErrPTooBig"},
 		{ErrMisserialized, "ErrMisserialized"},
+		{ErrUnsupportedVersion, "ErrUnsupportedVersion"},
 		{0xffff, "Unknown ErrorCode (65535)"},
 	}
 

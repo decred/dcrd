@@ -42,11 +42,12 @@ func BenchmarkFilterBuild50000(b *testing.B) {
 		b.Fatalf("unable to generate random item: %v", err)
 	}
 
+	const filterVersion = 1
 	b.ReportAllocs()
 	b.ResetTimer()
 	var key [KeySize]byte
 	for i := 0; i < b.N; i++ {
-		_, err := NewFilter(P, key, contents)
+		_, err := NewFilter(filterVersion, P, key, contents)
 		if err != nil {
 			b.Fatalf("unable to generate filter: %v", err)
 		}
@@ -62,11 +63,12 @@ func BenchmarkFilterBuild100000(b *testing.B) {
 		b.Fatalf("unable to generate random item: %v", err)
 	}
 
+	const filterVersion = 1
 	b.ReportAllocs()
 	b.ResetTimer()
 	var key [KeySize]byte
 	for i := 0; i < b.N; i++ {
-		_, err := NewFilter(P, key, contents)
+		_, err := NewFilter(filterVersion, P, key, contents)
 		if err != nil {
 			b.Fatalf("unable to generate filter: %v", err)
 		}
@@ -82,8 +84,9 @@ func BenchmarkFilterMatch(b *testing.B) {
 		b.Fatalf("unable to generate random item: %v", err)
 	}
 
+	const filterVersion = 1
 	var key [KeySize]byte
-	filter, err := NewFilter(P, key, contents)
+	filter, err := NewFilter(filterVersion, P, key, contents)
 	if err != nil {
 		b.Fatalf("Failed to build filter")
 	}
@@ -113,8 +116,9 @@ func BenchmarkFilterMatchAny(b *testing.B) {
 		b.Fatalf("unable to generate random item: %v", err)
 	}
 
+	const filterVersion = 1
 	var key [KeySize]byte
-	filter, err := NewFilter(P, key, contents)
+	filter, err := NewFilter(filterVersion, P, key, contents)
 	if err != nil {
 		b.Fatalf("Failed to build filter")
 	}

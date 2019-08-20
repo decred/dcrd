@@ -28,8 +28,13 @@ import (
 	"github.com/decred/dcrd/wire"
 )
 
-// P is the collision probability used for block committed filters (2^-20)
-const P = 20
+const (
+	// P is the collision probability used for block committed filters (2^-20)
+	P = 20
+
+	// filterVersion is the version of the gcs filter.
+	filterVersion = 1
+)
 
 // Entries describes all of the filter entries used to create a GCS filter and
 // provides methods for appending data structures found in blocks.
@@ -163,7 +168,7 @@ func Regular(block *wire.MsgBlock) (*gcs.Filter, error) {
 	blockHash := block.BlockHash()
 	key := Key(&blockHash)
 
-	return gcs.NewFilter(P, key, data)
+	return gcs.NewFilter(filterVersion, P, key, data)
 }
 
 // Extended builds an extended GCS filter from a block.  An extended filter
@@ -207,5 +212,5 @@ func Extended(block *wire.MsgBlock) (*gcs.Filter, error) {
 	blockHash := block.BlockHash()
 	key := Key(&blockHash)
 
-	return gcs.NewFilter(P, key, data)
+	return gcs.NewFilter(filterVersion, P, key, data)
 }

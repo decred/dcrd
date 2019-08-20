@@ -24,15 +24,20 @@ const (
 	// N and/or P parameters of a serialized filter.
 	ErrMisserialized
 
+	// ErrUnsupportedVersion is returned when a filter version that is not
+	// supported has been specified.
+	ErrUnsupportedVersion
+
 	// numErrorCodes is the maximum error code number used in tests.
 	numErrorCodes
 )
 
 // Map of ErrorCode values back to their constant names for pretty printing.
 var errorCodeStrings = map[ErrorCode]string{
-	ErrNTooBig:       "ErrNTooBig",
-	ErrPTooBig:       "ErrPTooBig",
-	ErrMisserialized: "ErrMisserialized",
+	ErrNTooBig:            "ErrNTooBig",
+	ErrPTooBig:            "ErrPTooBig",
+	ErrMisserialized:      "ErrMisserialized",
+	ErrUnsupportedVersion: "ErrUnsupportedVersion",
 }
 
 // String returns the ErrorCode as a human-readable name.

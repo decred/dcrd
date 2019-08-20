@@ -39,19 +39,35 @@ func (s *uint64s) Swap(i, j int)      { (*s)[i], (*s)[j] = (*s)[j], (*s)[i] }
 // in building the filter is required in order to match filter values and is
 // not included in the serialized form.
 type Filter struct {
+	version     uint16
 	n           uint32
 	p           uint8
 	modulusNP   uint64
 	filterNData []byte // 4 bytes n big endian, remainder is filter data
 }
 
+// checkFilterVersion returns ErrUnsupportedVersion if the provided version is
+// not supported.
+func checkFilterVersion(version uint16) error {
+	switch version {
+	case 1:
+		return nil
+	}
+
+	str := fmt.Sprintf("filter version %d is not supported", version)
+	return makeError(ErrUnsupportedVersion, str)
+}
+
 // NewFilter builds a new GCS filter with the collision probability of
 // `1/(2**P)`, key `key`, and including every `[]byte` in `data` as a member of
 // the set.
-func NewFilter(P uint8, key [KeySize]byte, data [][]byte) (*Filter, error) {
-	// Some initial parameter checks: make sure we have data from which to
-	// build the filter, and make sure our parameters will fit the hash
-	// function we're using.
+func NewFilter(version uint16, P uint8, key [KeySize]byte, data [][]byte) (*Filter, error) {
+	// Some initial parameter checks: make sure the version is supported, we
+	// have data from which to build the filter, and the parameters will fit the
+	// hash function we're using.
+	if err := checkFilterVersion(version); err != nil {
+		return nil, err
+	}
 	if len(data) > math.MaxInt32 {
 		str := fmt.Sprintf("unable to create filter with %d entries greater "+
 			"than max allowed %d", len(data), math.MaxInt32)
@@ -66,6 +82,7 @@ func NewFilter(P uint8, key [KeySize]byte, data [][]byte) (*Filter, error) {
 	modP := uint64(1 << P)
 	modPMask := modP - 1
 	f := Filter{
+		version:   version,
 		n:         uint32(len(data)),
 		p:         P,
 		modulusNP: uint64(len(data)) * modP,
@@ -128,7 +145,12 @@ func NewFilter(P uint8, key [KeySize]byte, data [][]byte) (*Filter, error) {
 
 // FromBytes deserializes a GCS filter from a known N, P, and serialized filter
 // as returned by Bytes().
-func FromBytes(N uint32, P uint8, d []byte) (*Filter, error) {
+func FromBytes(version uint16, N uint32, P uint8, d []byte) (*Filter, error) {
+	// Ensure the filter version is supported.
+	if err := checkFilterVersion(version); err != nil {
+		return nil, err
+	}
+
 	// Basic sanity check.
 	if P > 32 {
 		str := fmt.Sprintf("P value of %d is greater than max allowed 32", P)
@@ -141,6 +163,7 @@ func FromBytes(N uint32, P uint8, d []byte) (*Filter, error) {
 	copy(ndata[4:], d)
 
 	f := &Filter{
+		version:     version,
 		n:           N,
 		p:           P,
 		modulusNP:   uint64(N) * uint64(1<<P),
@@ -151,7 +174,12 @@ func FromBytes(N uint32, P uint8, d []byte) (*Filter, error) {
 
 // FromNBytes deserializes a GCS filter from a known P, and serialized N and
 // filter as returned by NBytes().
-func FromNBytes(P uint8, d []byte) (*Filter, error) {
+func FromNBytes(version uint16, P uint8, d []byte) (*Filter, error) {
+	// Ensure the filter version is supported.
+	if err := checkFilterVersion(version); err != nil {
+		return nil, err
+	}
+
 	var n uint32
 	if len(d) >= 4 {
 		n = binary.BigEndian.Uint32(d[:4])
@@ -161,6 +189,7 @@ func FromNBytes(P uint8, d []byte) (*Filter, error) {
 	}
 
 	f := &Filter{
+		version:     version,
 		n:           n,
 		p:           P,
 		modulusNP:   uint64(n) * uint64(1<<P),
