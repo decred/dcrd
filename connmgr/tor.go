@@ -6,6 +6,7 @@
 package connmgr
 
 import (
+	"context"
 	"encoding/binary"
 	"errors"
 	"net"
@@ -49,11 +50,17 @@ var (
 	}
 )
 
-// TorLookupIP uses Tor to resolve DNS via the SOCKS extension they provide for
-// resolution over the Tor network. Tor itself doesn't support ipv6 so this
-// doesn't either.
+// TorLookupIP uses Tor to resolve DNS via the passed SOCKS proxy.
+//
+// Deprecated: use TorLookupIPContext instead.
 func TorLookupIP(host, proxy string) ([]net.IP, error) {
-	conn, err := net.Dial("tcp", proxy)
+	return TorLookupIPContext(context.Background(), host, proxy)
+}
+
+// TorLookupIPContext uses Tor to resolve DNS via the passed SOCKS proxy.
+func TorLookupIPContext(ctx context.Context, host, proxy string) ([]net.IP, error) {
+	var dialer net.Dialer
+	conn, err := dialer.DialContext(ctx, "tcp", proxy)
 	if err != nil {
 		return nil, err
 	}
