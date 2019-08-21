@@ -20,6 +20,10 @@ const (
 	// collision probability.
 	ErrPTooBig
 
+	// ErrBTooBig signifies that the provided Golomb coding bin size is larger
+	// than the maximum allowed value.
+	ErrBTooBig
+
 	// ErrMisserialized signifies a filter was misserialized and is missing the
 	// N and/or P parameters of a serialized filter.
 	ErrMisserialized
@@ -32,6 +36,7 @@ const (
 var errorCodeStrings = map[ErrorCode]string{
 	ErrNTooBig:       "ErrNTooBig",
 	ErrPTooBig:       "ErrPTooBig",
+	ErrBTooBig:       "ErrBTooBig",
 	ErrMisserialized: "ErrMisserialized",
 }
 

@@ -16,6 +16,13 @@ import (
 	"github.com/decred/dcrd/chaincfg/chainhash"
 )
 
+// filterMatcher allows different versions of the filter types to be used for
+// match testing.
+type filterMatcher interface {
+	Match([KeySize]byte, []byte) bool
+	MatchAny([KeySize]byte, [][]byte) bool
+}
+
 // TestFilter ensures the filters and all associated methods work as expected by
 // using various known parameters and contents along with random keys for
 // matching purposes.
@@ -115,6 +122,72 @@ func TestFilter(t *testing.T) {
 		fixedKey:    [KeySize]byte{},
 		wantBytes:   "000000111ca3aafb023074dc5bf2498df791b7d6e846e9f5016006d600",
 		wantHash:    "afa181cd5c4b08eb9c16d1c97c95df1ca7b82e5e444a396cec5e02f2804fbd1a",
+	}, {
+		name:        "v2 empty filter",
+		version:     2,
+		b:           19,
+		m:           784931,
+		matchKey:    randKey,
+		contents:    nil,
+		wantMatches: nil,
+		fixedKey:    [KeySize]byte{},
+		wantBytes:   "",
+		wantHash:    "0000000000000000000000000000000000000000000000000000000000000000",
+	}, {
+		name:        "v2 filter contents1 with B=19, M=784931",
+		version:     2,
+		b:           19,
+		m:           784931,
+		matchKey:    randKey,
+		contents:    contents1,
+		wantMatches: contents1,
+		fixedKey:    [KeySize]byte{},
+		wantBytes:   "1189af70ad5baf9da83c64e99b18e96a06cd7295a58b324e81f09c85d093f1e33dcd6f40f18cfcbe2aeb771d8390",
+		wantHash:    "b616838c6090d3e732e775cc2f336ce0b836895f3e0f22d6c3ee4485a6ea5018",
+	}, {
+		name:        "v2 filter contents2 with B=19, M=784931",
+		version:     2,
+		b:           19,
+		m:           784931,
+		matchKey:    randKey,
+		contents:    contents2,
+		wantMatches: contents2,
+		fixedKey:    [KeySize]byte{},
+		wantBytes:   "118d4be5372d2f4731c7e1681aefd23028be12306b4d90701a46b472ee80ad60f9fa86c4d6430cfb495ced604362",
+		wantHash:    "f3028f42909209120c8bf649fbbc5a70fb907d8997a02c2c1f2eef0e6402cb15",
+	}, {
+		name:        "v2 filter contents1 with B=20, M=1569862",
+		version:     2,
+		b:           20,
+		m:           1569862,
+		matchKey:    randKey,
+		contents:    contents1,
+		wantMatches: contents1,
+		fixedKey:    [KeySize]byte{},
+		wantBytes:   "1189af7056adebe769078c9e99b1774b509b35c52b4b0b324f40f83f2174227e3c33dcd67a078c33f2f855d6ef1d8390",
+		wantHash:    "10d6c29ba756301e42b97a103de601f604f1cd3150e44ac7cb8cdf63222d93d3",
+	}, {
+		name:        "v2 filter contents2 with B=20, M=1569862",
+		version:     2,
+		b:           20,
+		m:           1569862,
+		matchKey:    randKey,
+		contents:    contents2,
+		wantMatches: contents2,
+		fixedKey:    [KeySize]byte{},
+		wantBytes:   "118d4be69b968bd1cc38fc2d01aefc918142f847e0d69b9070192359fcbba015ac1f9fa86a26b1fc33ed32b9da604361",
+		wantHash:    "cb23a266bf136103cbfedb33041d4f4324106ed1539b9ec5d1cb4e71bc3cbdec",
+	}, {
+		name:        "v2 filter contents2 with B=10, M=1534",
+		version:     2,
+		b:           10,
+		m:           1534,
+		matchKey:    randKey,
+		contents:    contents2,
+		wantMatches: contents2,
+		fixedKey:    [KeySize]byte{},
+		wantBytes:   "118d5a6fbd3e3fc1aa472f983790848fcbcd6b9fb89cc34caf6048",
+		wantHash:    "d7c5f91d6490ec4d66e6db825ad1a628ec7367dc9a47c31bcde31eb5a6ba194b",
 	}}
 
 	for _, test := range tests {
@@ -140,12 +213,22 @@ func TestFilter(t *testing.T) {
 				resultN, uint32(len(test.contents)))
 			continue
 		}
-		if test.version == 1 {
+		switch test.version {
+		case 1:
 			v1Filter := &FilterV1{filter: *f}
 			resultP := v1Filter.P()
 			if resultP != test.b {
 				t.Errorf("%q: unexpected P -- got %d, want %d", test.name,
 					resultP, test.b)
+				continue
+			}
+
+		case 2:
+			v2Filter := &FilterV2{filter: *f}
+			resultB := v2Filter.B()
+			if resultB != test.b {
+				t.Errorf("%q: unexpected B -- got %d, want %d", test.name,
+					resultB, test.b)
 				continue
 			}
 		}
@@ -250,17 +333,19 @@ func TestFilter(t *testing.T) {
 			continue
 		}
 
-		// filterMatcher allows different versions of the filter types to be
-		// used for the match testing below.
-		type filterMatcher interface {
-			Match([KeySize]byte, []byte) bool
-		}
-
 		// Deserialize the filter from bytes.
 		var f2 filterMatcher
 		switch test.version {
 		case 1:
 			tf2, err := FromBytesV1(test.b, wantBytes)
+			if err != nil {
+				t.Errorf("%q: unexpected err: %v", test.name, err)
+				continue
+			}
+			f2 = tf2
+
+		case 2:
+			tf2, err := FromBytesV2(test.b, test.m, wantBytes)
 			if err != nil {
 				t.Errorf("%q: unexpected err: %v", test.name, err)
 				continue
@@ -283,16 +368,10 @@ func TestFilter(t *testing.T) {
 	}
 }
 
-// TestFilterMisses ensures the filter does not match entries with a rate that
-// far exceeds the false positive rate.
-func TestFilterMisses(t *testing.T) {
-	// Create a filter with the lowest supported false positive rate to reduce
-	// the chances of a false positive as much as possible.
-	var key [KeySize]byte
-	f, err := NewFilterV1(32, key, [][]byte{[]byte("entry")})
-	if err != nil {
-		t.Fatalf("unexpected err: %v", err)
-	}
+// testFilterMisses ensures the provided filter does not match entries with a
+// rate that far exceeds the false positive rate.
+func testFilterMisses(t *testing.T, key [KeySize]byte, f filterMatcher) {
+	t.Helper()
 
 	// Since the filter may have false positives, try several queries and track
 	// how many matches there are.  Something is very wrong if the filter
@@ -324,10 +403,33 @@ func TestFilterMisses(t *testing.T) {
 	}
 }
 
+// TestFilterMisses ensures the filter does not match entries with a rate that
+// far exceeds the false positive rate.
+func TestFilterMisses(t *testing.T) {
+	// Create a version 1 filter with the lowest supported false positive rate
+	// to reduce the chances of a false positive as much as possible and test
+	// it for misses.
+	const b = 32
+	var key [KeySize]byte
+	f, err := NewFilterV1(b, key, [][]byte{[]byte("entry")})
+	if err != nil {
+		t.Fatalf("unexpected err: %v", err)
+	}
+	testFilterMisses(t, key, f)
+
+	// Do the same for a version 2 filter.
+	const m = 6430154453
+	f2, err := NewFilterV2(b, m, key, [][]byte{[]byte("entry")})
+	if err != nil {
+		t.Fatalf("unexpected err: %v", err)
+	}
+	testFilterMisses(t, key, f2)
+}
+
 // TestFilterCorners ensures a few negative corner cases such as specifying
 // parameters that are too large behave as expected.
 func TestFilterCorners(t *testing.T) {
-	// Attempt to construct filter with parameters too large.
+	// Attempt to construct v1 filter with parameters too large.
 	const largeP = 33
 	var key [KeySize]byte
 	_, err := NewFilterV1(largeP, key, nil)
@@ -341,7 +443,21 @@ func TestFilterCorners(t *testing.T) {
 			err, ErrPTooBig)
 	}
 
-	// Attempt to decode a filter without the N value serialized properly.
+	// Attempt to construct v2 filter with parameters too large.
+	const largeB = 33
+	const smallM = 1 << 10
+	_, err = NewFilterV2(largeB, smallM, key, nil)
+	if !IsErrorCode(err, ErrBTooBig) {
+		t.Fatalf("did not receive expected err for B too big -- got %v, want %v",
+			err, ErrBTooBig)
+	}
+	_, err = FromBytesV2(largeB, smallM, nil)
+	if !IsErrorCode(err, ErrBTooBig) {
+		t.Fatalf("did not receive expected err for B too big -- got %v, want %v",
+			err, ErrBTooBig)
+	}
+
+	// Attempt to decode a v1 filter without the N value serialized properly.
 	_, err = FromBytesV1(20, []byte{0x00})
 	if !IsErrorCode(err, ErrMisserialized) {
 		t.Fatalf("did not receive expected err -- got %v, want %v", err,

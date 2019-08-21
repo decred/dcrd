@@ -17,9 +17,16 @@ var (
 
 	// globalHashResult is used to ensure the benchmarks do not elide code.
 	globalHashResult chainhash.Hash
+)
 
-	// Collision probability for the benchmarks (1/2**20).
-	P = uint8(20)
+const (
+	// benchB is used as the B parameter when creating new filters throughout
+	// the benchmarks.
+	benchB = uint8(19)
+
+	// benchM is used as the M parameter when creating new filters throughout
+	// the benchmarks.
+	benchM = 784931
 )
 
 // genFilterElements generates the given number of elements using the provided
@@ -51,7 +58,7 @@ func BenchmarkFilterBuild50000(b *testing.B) {
 	b.ResetTimer()
 	var key [KeySize]byte
 	for i := 0; i < b.N; i++ {
-		_, err := NewFilterV1(P, key, contents)
+		_, err := NewFilterV2(benchB, benchM, key, contents)
 		if err != nil {
 			b.Fatalf("unable to generate filter: %v", err)
 		}
@@ -71,7 +78,7 @@ func BenchmarkFilterBuild100000(b *testing.B) {
 	b.ResetTimer()
 	var key [KeySize]byte
 	for i := 0; i < b.N; i++ {
-		_, err := NewFilterV1(P, key, contents)
+		_, err := NewFilterV2(benchB, benchM, key, contents)
 		if err != nil {
 			b.Fatalf("unable to generate filter: %v", err)
 		}
@@ -88,7 +95,7 @@ func BenchmarkFilterMatch(b *testing.B) {
 	}
 
 	var key [KeySize]byte
-	filter, err := NewFilterV1(P, key, contents)
+	filter, err := NewFilterV2(benchB, benchM, key, contents)
 	if err != nil {
 		b.Fatalf("Failed to build filter")
 	}
@@ -96,7 +103,7 @@ func BenchmarkFilterMatch(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		globalMatch = filter.Match(key, []byte("Nate"))
+		globalMatch = filter.Match(key, []byte("Something"))
 		globalMatch = filter.Match(key, []byte("Nates"))
 	}
 }
@@ -119,7 +126,7 @@ func BenchmarkFilterMatchAny(b *testing.B) {
 	}
 
 	var key [KeySize]byte
-	filter, err := NewFilterV1(P, key, contents)
+	filter, err := NewFilterV2(benchB, benchM, key, contents)
 	if err != nil {
 		b.Fatalf("Failed to build filter")
 	}
@@ -141,7 +148,7 @@ func BenchmarkHash(b *testing.B) {
 	}
 
 	var key [KeySize]byte
-	filter, err := NewFilterV1(P, key, contents)
+	filter, err := NewFilterV2(benchB, benchM, key, contents)
 	if err != nil {
 		b.Fatalf("Failed to build filter")
 	}
