@@ -328,29 +328,19 @@ func (f *filter) Hash() chainhash.Hash {
 		return chainhash.Hash{}
 	}
 
-	h := blake256.New()
-	h.Write(f.filterNData)
-
-	var hash chainhash.Hash
-	copy(hash[:], h.Sum(nil))
-	return hash
+	return chainhash.Hash(blake256.Sum256(f.filterNData))
 }
 
 // MakeHeaderForFilter makes a filter chain header for a filter, given the
 // filter and the previous filter chain header.
 func MakeHeaderForFilter(filter *FilterV1, prevHeader *chainhash.Hash) chainhash.Hash {
-	filterTip := make([]byte, 2*chainhash.HashSize)
-	filterHash := filter.Hash()
-
 	// In the buffer we created above we'll compute hash || prevHash as an
 	// intermediate value.
-	copy(filterTip, filterHash[:])
+	var filterTip [2 * chainhash.HashSize]byte
+	filterHash := filter.Hash()
+	copy(filterTip[:], filterHash[:])
 	copy(filterTip[chainhash.HashSize:], prevHeader[:])
 
 	// The final filter hash is the blake256 of the hash computed above.
-	h := blake256.New()
-	h.Write(filterTip)
-	var hash chainhash.Hash
-	copy(hash[:], h.Sum(nil))
-	return hash
+	return chainhash.Hash(blake256.Sum256(filterTip[:]))
 }
