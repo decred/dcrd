@@ -43,7 +43,7 @@ func newBlockProgressLogger(progressMessage string, logger slog.Logger) *blockPr
 // logBlockHeight logs a new block height as an information message to show
 // progress to the user. In order to prevent spam, it limits logging to one
 // message every 10 seconds with duration and totals included.
-func (b *blockProgressLogger) logBlockHeight(block *dcrutil.Block) {
+func (b *blockProgressLogger) logBlockHeight(block *dcrutil.Block, lastBlockHeight int64) {
 	b.Lock()
 	defer b.Unlock()
 	b.receivedLogBlocks++
@@ -53,7 +53,9 @@ func (b *blockProgressLogger) logBlockHeight(block *dcrutil.Block) {
 	b.receivedLogTickets += int64(block.MsgBlock().Header.FreshStake)
 	now := time.Now()
 	duration := now.Sub(b.lastBlockLogTime)
-	if duration < time.Second*10 {
+
+	syncComplete := block.Height() == lastBlockHeight
+	if (duration < time.Second*10) && !syncComplete {
 		return
 	}
 
@@ -89,60 +91,9 @@ func (b *blockProgressLogger) logBlockHeight(block *dcrutil.Block) {
 		b.receivedLogVotes, voteStr, b.receivedLogRevocations,
 		revocationStr, block.Height(), block.MsgBlock().Header.Timestamp)
 
-	b.receivedLogBlocks = 0
-	b.receivedLogTx = 0
-	b.receivedLogVotes = 0
-	b.receivedLogTickets = 0
-	b.receivedLogRevocations = 0
-	b.lastBlockLogTime = now
-}
-
-// logBlockHeightForce logs a new block height as an information message to show
-// progress to the user. It is identical to the logBlockHeight above, except
-// it does NOT limit logging to one message every 10 seconds with duration and
-// totals included.
-func (b *blockProgressLogger) logBlockHeightForce(block *dcrutil.Block) {
-	b.Lock()
-	defer b.Unlock()
-	b.receivedLogBlocks++
-	b.receivedLogTx += int64(len(block.MsgBlock().Transactions))
-	b.receivedLogVotes += int64(block.MsgBlock().Header.Voters)
-	b.receivedLogRevocations += int64(block.MsgBlock().Header.Revocations)
-	b.receivedLogTickets += int64(block.MsgBlock().Header.FreshStake)
-	now := time.Now()
-	duration := now.Sub(b.lastBlockLogTime)
-
-	// Truncate the duration to 10s of milliseconds.
-	durationMillis := int64(duration / time.Millisecond)
-	tDuration := 10 * time.Millisecond * time.Duration(durationMillis/10)
-
-	// Log information about new block height.
-	blockStr := "blocks"
-	if b.receivedLogBlocks == 1 {
-		blockStr = "block"
+	if syncComplete {
+		b.subsystemLogger.Infof("Blockchain sync complete")
 	}
-	txStr := "transactions"
-	if b.receivedLogTx == 1 {
-		txStr = "transaction"
-	}
-	ticketStr := "tickets"
-	if b.receivedLogTickets == 1 {
-		ticketStr = "ticket"
-	}
-	revocationStr := "revocations"
-	if b.receivedLogRevocations == 1 {
-		revocationStr = "revocation"
-	}
-	voteStr := "votes"
-	if b.receivedLogVotes == 1 {
-		voteStr = "vote"
-	}
-	b.subsystemLogger.Infof("%s %d %s in the last %s (%d %s, %d %s, %d %s, %d %s, height "+
-		"%d, %s)",
-		b.progressAction, b.receivedLogBlocks, blockStr, tDuration,
-		b.receivedLogTx, txStr, b.receivedLogTickets, ticketStr,
-		b.receivedLogVotes, voteStr, b.receivedLogRevocations,
-		revocationStr, block.Height(), block.MsgBlock().Header.Timestamp)
 
 	b.receivedLogBlocks = 0
 	b.receivedLogTx = 0
@@ -150,6 +101,7 @@ func (b *blockProgressLogger) logBlockHeightForce(block *dcrutil.Block) {
 	b.receivedLogTickets = 0
 	b.receivedLogRevocations = 0
 	b.lastBlockLogTime = now
+
 }
 
 func (b *blockProgressLogger) SetLastLogTime(time time.Time) {

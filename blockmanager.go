@@ -1034,15 +1034,7 @@ func (b *blockManager) handleBlockMsg(bmsg *blockMsg) {
 	} else {
 		// When the block is not an orphan, log information about it and
 		// update the chain state.
-		b.progressLogger.logBlockHeight(bmsg.block)
-
-		// When the blockchain sync is complete, log information about the
-		// blocks processed (regardless of time passed), and log a sync
-		// completion message.
-		if bmsg.block.Height() == b.syncHeight {
-			b.progressLogger.logBlockHeightForce(bmsg.block)
-			bmgrLog.Infof("Blockchain Sync Complete")
-		}
+		b.progressLogger.logBlockHeight(bmsg.block, b.syncPeer.LastBlock())
 
 		onMainChain := !isOrphan && forkLen == 0
 		if onMainChain {
@@ -2651,7 +2643,9 @@ func dumpBlockChain(b *blockchain.BlockChain, height int64) error {
 			return err
 		}
 
-		progressLogger.logBlockHeight(bl)
+		// Sync complete message is not desired, hence the second
+		// parameter is -1
+		progressLogger.logBlockHeight(bl, -1)
 	}
 
 	bmgrLog.Infof("Successfully dumped the blockchain (%v blocks) to %v.",
