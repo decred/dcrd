@@ -46,17 +46,6 @@ type filter struct {
 	filterData  []byte // Slice into filterNData with raw filter bytes.
 }
 
-// Filter describes an immutable filter that can be built from a set of data
-// elements, serialized, deserialized, and queried in a thread-safe manner. The
-// serialized form is compressed as a Golomb Coded Set (GCS), but does not
-// include N or P to allow the user to encode the metadata separately if
-// necessary. The hash function used is SipHash, a keyed function; the key used
-// in building the filter is required in order to match filter values and is
-// not included in the serialized form.
-type FilterV1 struct {
-	filter
-}
-
 // newFilter builds a new GCS filter of the specified version with the collision
 // probability of `1/(2**P)`, key `key`, and including every `[]byte` in `data`
 // as a member of the set.
@@ -137,47 +126,6 @@ func newFilter(version uint16, P uint8, key [KeySize]byte, data [][]byte) (*filt
 	return &f, nil
 }
 
-// NewFilter builds a new version 1 GCS filter with the collision probability of
-// `1/(2**P)`, key `key`, and including every `[]byte` in `data` as a member of
-// the set.
-func NewFilterV1(P uint8, key [KeySize]byte, data [][]byte) (*FilterV1, error) {
-	filter, err := newFilter(1, P, key, data)
-	if err != nil {
-		return nil, err
-	}
-	return &FilterV1{filter: *filter}, nil
-}
-
-// FromBytesV1 deserializes a version 1 GCS filter from a known P and serialized
-// filter as returned by Bytes().
-func FromBytesV1(P uint8, d []byte) (*FilterV1, error) {
-	// Basic sanity check.
-	if P > 32 {
-		str := fmt.Sprintf("P value of %d is greater than max allowed 32", P)
-		return nil, makeError(ErrPTooBig, str)
-	}
-
-	var n uint32
-	var filterData []byte
-	if len(d) >= 4 {
-		n = binary.BigEndian.Uint32(d[:4])
-		filterData = d[4:]
-	} else if len(d) < 4 && len(d) != 0 {
-		str := "number of items serialization missing"
-		return nil, makeError(ErrMisserialized, str)
-	}
-
-	f := filter{
-		version:     1,
-		n:           n,
-		p:           P,
-		modulusNP:   uint64(n) * uint64(1<<P),
-		filterNData: d,
-		filterData:  filterData,
-	}
-	return &FilterV1{filter: f}, nil
-}
-
 // Bytes returns the serialized format of the GCS filter which includes N, but
 // does not include P (returned by a separate method) or the key used by
 // SipHash.
@@ -194,6 +142,23 @@ func (f *filter) P() uint8 {
 // N returns the size of the data set used to build the filter.
 func (f *filter) N() uint32 {
 	return f.n
+}
+
+// readFullUint64 reads a value represented by the sum of a unary multiple of
+// the filter's P modulus (`2**P`) and a big-endian P-bit remainder.
+func (f *filter) readFullUint64(b *bitReader) (uint64, error) {
+	v, err := b.readUnary()
+	if err != nil {
+		return 0, err
+	}
+
+	rem, err := b.readNBits(uint(f.p))
+	if err != nil {
+		return 0, err
+	}
+
+	// Add the multiple and the remainder.
+	return v<<f.p + rem, nil
 }
 
 // Match checks whether a []byte value is likely (within collision probability)
@@ -304,23 +269,6 @@ nextFilterVal:
 	return false
 }
 
-// readFullUint64 reads a value represented by the sum of a unary multiple of
-// the filter's P modulus (`2**P`) and a big-endian P-bit remainder.
-func (f *filter) readFullUint64(b *bitReader) (uint64, error) {
-	v, err := b.readUnary()
-	if err != nil {
-		return 0, err
-	}
-
-	rem, err := b.readNBits(uint(f.p))
-	if err != nil {
-		return 0, err
-	}
-
-	// Add the multiple and the remainder.
-	return v<<f.p + rem, nil
-}
-
 // Hash returns the BLAKE256 hash of the filter.
 func (f *filter) Hash() chainhash.Hash {
 	// Empty filters have a hash of all zeroes.
@@ -329,6 +277,58 @@ func (f *filter) Hash() chainhash.Hash {
 	}
 
 	return chainhash.Hash(blake256.Sum256(f.filterNData))
+}
+
+// Filter describes an immutable filter that can be built from a set of data
+// elements, serialized, deserialized, and queried in a thread-safe manner. The
+// serialized form is compressed as a Golomb Coded Set (GCS), but does not
+// include N or P to allow the user to encode the metadata separately if
+// necessary. The hash function used is SipHash, a keyed function; the key used
+// in building the filter is required in order to match filter values and is
+// not included in the serialized form.
+type FilterV1 struct {
+	filter
+}
+
+// NewFilter builds a new version 1 GCS filter with the collision probability of
+// `1/(2**P)`, key `key`, and including every `[]byte` in `data` as a member of
+// the set.
+func NewFilterV1(P uint8, key [KeySize]byte, data [][]byte) (*FilterV1, error) {
+	filter, err := newFilter(1, P, key, data)
+	if err != nil {
+		return nil, err
+	}
+	return &FilterV1{filter: *filter}, nil
+}
+
+// FromBytesV1 deserializes a version 1 GCS filter from a known P and serialized
+// filter as returned by Bytes().
+func FromBytesV1(P uint8, d []byte) (*FilterV1, error) {
+	// Basic sanity check.
+	if P > 32 {
+		str := fmt.Sprintf("P value of %d is greater than max allowed 32", P)
+		return nil, makeError(ErrPTooBig, str)
+	}
+
+	var n uint32
+	var filterData []byte
+	if len(d) >= 4 {
+		n = binary.BigEndian.Uint32(d[:4])
+		filterData = d[4:]
+	} else if len(d) < 4 && len(d) != 0 {
+		str := "number of items serialization missing"
+		return nil, makeError(ErrMisserialized, str)
+	}
+
+	f := filter{
+		version:     1,
+		n:           n,
+		p:           P,
+		modulusNP:   uint64(n) * uint64(1<<P),
+		filterNData: d,
+		filterData:  filterData,
+	}
+	return &FilterV1{filter: f}, nil
 }
 
 // MakeHeaderForFilter makes a filter chain header for a filter, given the
