@@ -979,7 +979,7 @@ func (sp *serverPeer) OnGetCFilter(p *peer.Peer, msg *wire.MsgGetCFilter) {
 			return
 		}
 
-		filterBytes = f.NBytes()
+		filterBytes = f.Bytes()
 	}
 
 	peerLog.Tracef("Obtained CF for %v", &msg.BlockHash)

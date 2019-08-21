@@ -42,7 +42,8 @@ type filter struct {
 	n           uint32
 	p           uint8
 	modulusNP   uint64
-	filterNData []byte // 4 bytes n big endian, remainder is filter data
+	filterNData []byte
+	filterData  []byte // Slice into filterNData with raw filter bytes.
 }
 
 // Filter describes an immutable filter that can be built from a set of data
@@ -131,6 +132,7 @@ func newFilter(version uint16, P uint8, key [KeySize]byte, data [][]byte) (*filt
 	binary.BigEndian.PutUint32(ndata, f.n)
 	copy(ndata[4:], b.bytes)
 	f.filterNData = ndata
+	f.filterData = ndata[4:]
 
 	return &f, nil
 }
@@ -146,67 +148,40 @@ func NewFilterV1(P uint8, key [KeySize]byte, data [][]byte) (*FilterV1, error) {
 	return &FilterV1{filter: *filter}, nil
 }
 
-// FromBytesV1 deserializes a version 1 GCS filter from a known N, P, and
-// serialized filter as returned by Bytes().
-func FromBytesV1(N uint32, P uint8, d []byte) (*FilterV1, error) {
+// FromBytesV1 deserializes a version 1 GCS filter from a known P and serialized
+// filter as returned by Bytes().
+func FromBytesV1(P uint8, d []byte) (*FilterV1, error) {
 	// Basic sanity check.
 	if P > 32 {
 		str := fmt.Sprintf("P value of %d is greater than max allowed 32", P)
 		return nil, makeError(ErrPTooBig, str)
 	}
 
-	// Save the filter data internally as n + filter bytes
-	ndata := make([]byte, 4+len(d))
-	binary.BigEndian.PutUint32(ndata, N)
-	copy(ndata[4:], d)
-
-	f := &FilterV1{
-		filter: filter{
-			version:     1,
-			n:           N,
-			p:           P,
-			modulusNP:   uint64(N) * uint64(1<<P),
-			filterNData: ndata,
-		},
-	}
-	return f, nil
-}
-
-// FromNBytesV1 deserializes a version 1 GCS filter from a known P, and
-// serialized N and filter as returned by NBytes().
-func FromNBytesV1(P uint8, d []byte) (*FilterV1, error) {
 	var n uint32
+	var filterData []byte
 	if len(d) >= 4 {
 		n = binary.BigEndian.Uint32(d[:4])
+		filterData = d[4:]
 	} else if len(d) < 4 && len(d) != 0 {
 		str := "number of items serialization missing"
 		return nil, makeError(ErrMisserialized, str)
 	}
 
-	f := &FilterV1{
-		filter: filter{
-			version:     1,
-			n:           n,
-			p:           P,
-			modulusNP:   uint64(n) * uint64(1<<P),
-			filterNData: d,
-		},
+	f := filter{
+		version:     1,
+		n:           n,
+		p:           P,
+		modulusNP:   uint64(n) * uint64(1<<P),
+		filterNData: d,
+		filterData:  filterData,
 	}
-	return f, nil
+	return &FilterV1{filter: f}, nil
 }
 
-// Bytes returns the serialized format of the GCS filter, which does not
-// include N or P (returned by separate methods) or the key used by SipHash.
+// Bytes returns the serialized format of the GCS filter which includes N, but
+// does not include P (returned by a separate method) or the key used by
+// SipHash.
 func (f *filter) Bytes() []byte {
-	if len(f.filterNData) == 0 {
-		return nil
-	}
-	return f.filterNData[4:]
-}
-
-// NBytes returns the serialized format of the GCS filter with N, which does
-// not include P (returned by a separate method) or the key used by SipHash.
-func (f *filter) NBytes() []byte {
 	return f.filterNData
 }
 
@@ -225,12 +200,12 @@ func (f *filter) N() uint32 {
 // to be a member of the set represented by the filter.
 func (f *filter) Match(key [KeySize]byte, data []byte) bool {
 	// An empty filter or empty data can't possibly match anything.
-	if len(f.filterNData) == 0 || len(data) == 0 {
+	if len(f.filterData) == 0 || len(data) == 0 {
 		return false
 	}
 
 	// Create a filter bitstream.
-	b := newBitReader(f.filterNData[4:])
+	b := newBitReader(f.filterData)
 
 	// Hash our search term with the same parameters as the filter.
 	k0 := binary.LittleEndian.Uint64(key[0:8])
@@ -267,12 +242,12 @@ var matchPool sync.Pool
 // calling Match() for each value individually.
 func (f *filter) MatchAny(key [KeySize]byte, data [][]byte) bool {
 	// An empty filter or empty data can't possibly match anything.
-	if len(f.filterNData) == 0 || len(data) == 0 {
+	if len(f.filterData) == 0 || len(data) == 0 {
 		return false
 	}
 
 	// Create a filter bitstream.
-	b := newBitReader(f.filterNData[4:])
+	b := newBitReader(f.filterData)
 
 	// Create an uncompressed filter of the search values.
 	var values *[]uint64

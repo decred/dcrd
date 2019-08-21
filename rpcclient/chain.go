@@ -798,12 +798,12 @@ func (r FutureGetCFilterResult) Receive() (*gcs.FilterV1, error) {
 	if err != nil {
 		return nil, err
 	}
-	filterNBytes, err := hex.DecodeString(filterHex)
+	filterBytes, err := hex.DecodeString(filterHex)
 	if err != nil {
 		return nil, err
 	}
 
-	return gcs.FromNBytesV1(blockcf.P, filterNBytes)
+	return gcs.FromBytesV1(blockcf.P, filterBytes)
 }
 
 // GetCFilterAsync returns an instance of a type that can be used to get the

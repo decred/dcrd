@@ -58,7 +58,6 @@ func TestFilter(t *testing.T) {
 		wantMatches [][]byte      // expected matches
 		fixedKey    [KeySize]byte // fixed filter key for testing serialization
 		wantBytes   string        // expected serialized bytes
-		wantNBytes  string        // expected serialized bytes with N param
 		wantHash    string        // expected filter hash
 	}{{
 		name:        "empty filter",
@@ -69,7 +68,6 @@ func TestFilter(t *testing.T) {
 		wantMatches: nil,
 		fixedKey:    [KeySize]byte{},
 		wantBytes:   "",
-		wantNBytes:  "",
 		wantHash:    "0000000000000000000000000000000000000000000000000000000000000000",
 	}, {
 		name:        "contents1 with P=20",
@@ -79,8 +77,7 @@ func TestFilter(t *testing.T) {
 		contents:    contents1,
 		wantMatches: contents1,
 		fixedKey:    [KeySize]byte{},
-		wantBytes:   "ce76b76760b54096a233d504ce55b80600fb072c74893cf306eb0c050f0b3c32e8c23436f8f5e67a986a46470790",
-		wantNBytes:  "00000011ce76b76760b54096a233d504ce55b80600fb072c74893cf306eb0c050f0b3c32e8c23436f8f5e67a986a46470790",
+		wantBytes:   "00000011ce76b76760b54096a233d504ce55b80600fb072c74893cf306eb0c050f0b3c32e8c23436f8f5e67a986a46470790",
 		wantHash:    "a802fbe6f06991877cde8f3d770d8da8cf195816f04874cab045ffccaddd880d",
 	}, {
 		name:        "contents1 with P=19",
@@ -90,8 +87,7 @@ func TestFilter(t *testing.T) {
 		contents:    contents1,
 		wantMatches: contents1,
 		fixedKey:    [KeySize]byte{},
-		wantBytes:   "2375937586050f0e9e19689983a3ab9b6f8f0cbc2f204b5233d5099ca0c9fbe9ec6a1f60e76fba3ad6835a28",
-		wantNBytes:  "000000112375937586050f0e9e19689983a3ab9b6f8f0cbc2f204b5233d5099ca0c9fbe9ec6a1f60e76fba3ad6835a28",
+		wantBytes:   "000000112375937586050f0e9e19689983a3ab9b6f8f0cbc2f204b5233d5099ca0c9fbe9ec6a1f60e76fba3ad6835a28",
 		wantHash:    "be9ba34f03ced957e6f5c4d583ddfd34c136b486fbec2a42b4c7588a2d7813c1",
 	}, {
 		name:        "contents2 with P=19",
@@ -101,8 +97,7 @@ func TestFilter(t *testing.T) {
 		contents:    contents2,
 		wantMatches: contents2,
 		fixedKey:    [KeySize]byte{},
-		wantBytes:   "4306259e36131a6c9bbd968a6c61dc110804d5ac91d20d6e9314a50332bffed877657c004e2366fcd34cda60",
-		wantNBytes:  "000000114306259e36131a6c9bbd968a6c61dc110804d5ac91d20d6e9314a50332bffed877657c004e2366fcd34cda60",
+		wantBytes:   "000000114306259e36131a6c9bbd968a6c61dc110804d5ac91d20d6e9314a50332bffed877657c004e2366fcd34cda60",
 		wantHash:    "dcbaf452f6de4c82ea506fa551d75876c4979ef388f785509b130de62eeaec23",
 	}, {
 		name:        "contents2 with P=10",
@@ -112,8 +107,7 @@ func TestFilter(t *testing.T) {
 		contents:    contents2,
 		wantMatches: contents2,
 		fixedKey:    [KeySize]byte{},
-		wantBytes:   "1ca3aafb023074dc5bf2498df791b7d6e846e9f5016006d600",
-		wantNBytes:  "000000111ca3aafb023074dc5bf2498df791b7d6e846e9f5016006d600",
+		wantBytes:   "000000111ca3aafb023074dc5bf2498df791b7d6e846e9f5016006d600",
 		wantHash:    "afa181cd5c4b08eb9c16d1c97c95df1ca7b82e5e444a396cec5e02f2804fbd1a",
 	}}
 
@@ -226,21 +220,6 @@ func TestFilter(t *testing.T) {
 			continue
 		}
 
-		// Parse the expected serialized bytes that include the N parameter and
-		// ensure they match.
-		wantNBytes, err := hex.DecodeString(test.wantNBytes)
-		if err != nil {
-			t.Errorf("%q: unexpected err parsing want nbytes hex: %v", test.name,
-				err)
-			continue
-		}
-		resultNBytes := fixedFilter.NBytes()
-		if !bytes.Equal(resultNBytes, wantNBytes) {
-			t.Errorf("%q: mismatched bytes -- got %x, want %x", test.name,
-				resultNBytes, wantNBytes)
-			continue
-		}
-
 		// Parse the expected hash and ensure it matches.
 		wantHash, err := chainhash.NewHashFromStr(test.wantHash)
 		if err != nil {
@@ -265,7 +244,7 @@ func TestFilter(t *testing.T) {
 		var f2 filterMatcher
 		switch test.version {
 		case 1:
-			tf2, err := FromBytesV1(uint32(len(test.contents)), test.p, wantBytes)
+			tf2, err := FromBytesV1(test.p, wantBytes)
 			if err != nil {
 				t.Errorf("%q: unexpected err: %v", test.name, err)
 				continue
@@ -281,26 +260,6 @@ func TestFilter(t *testing.T) {
 		// Ensure all of the expected matches occur on the deserialized filter.
 		for _, wantMatch := range test.wantMatches {
 			if !f2.Match(test.fixedKey, wantMatch) {
-				t.Errorf("%q: failed match for %q", test.name, wantMatch)
-				continue
-			}
-		}
-
-		// Deserialize the filter from bytes with N parameter.
-		var f3 filterMatcher
-		switch test.version {
-		case 1:
-			tf3, err := FromNBytesV1(test.p, wantNBytes)
-			if err != nil {
-				t.Errorf("%q: unexpected err: %v", test.name, err)
-				continue
-			}
-			f3 = tf3
-		}
-
-		// Ensure all of the expected matches occur on the deserialized filter.
-		for _, wantMatch := range test.wantMatches {
-			if !f3.Match(test.fixedKey, wantMatch) {
 				t.Errorf("%q: failed match for %q", test.name, wantMatch)
 				continue
 			}
@@ -360,14 +319,14 @@ func TestFilterCorners(t *testing.T) {
 		t.Fatalf("did not receive expected err for P too big -- got %v, want %v",
 			err, ErrPTooBig)
 	}
-	_, err = FromBytesV1(0, largeP, nil)
+	_, err = FromBytesV1(largeP, nil)
 	if !IsErrorCode(err, ErrPTooBig) {
 		t.Fatalf("did not receive expected err for P too big -- got %v, want %v",
 			err, ErrPTooBig)
 	}
 
 	// Attempt to decode a filter without the N value serialized properly.
-	_, err = FromNBytesV1(20, []byte{0x00})
+	_, err = FromBytesV1(20, []byte{0x00})
 	if !IsErrorCode(err, ErrMisserialized) {
 		t.Fatalf("did not receive expected err -- got %v, want %v", err,
 			ErrMisserialized)

@@ -187,7 +187,7 @@ func storeFilter(dbTx database.Tx, block *dcrutil.Block, f *gcs.FilterV1, filter
 	h := block.Hash()
 	var basicFilterBytes []byte
 	if f != nil {
-		basicFilterBytes = f.NBytes()
+		basicFilterBytes = f.Bytes()
 	}
 	err := dbStoreFilter(dbTx, fkey, h, basicFilterBytes)
 	if err != nil {
