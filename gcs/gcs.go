@@ -239,7 +239,7 @@ func (f *filter) Match(key [KeySize]byte, data []byte) bool {
 
 	// Go through the search filter and look for the desired value.
 	var lastValue uint64
-	for lastValue < term {
+	for lastValue <= term {
 		// Read the difference between previous and new value from
 		// bitstream.
 		value, err := f.readFullUint64(&b)
@@ -295,36 +295,38 @@ func (f *filter) MatchAny(key [KeySize]byte, data [][]byte) bool {
 	// Zip down the filters, comparing values until we either run out of
 	// values to compare in one of the filters or we reach a matching
 	// value.
-	var lastValue1, lastValue2 uint64
-	lastValue2 = (*values)[0]
-	i := 1
-	for lastValue1 != lastValue2 {
-		// Check which filter to advance to make sure we're comparing
-		// the right values.
-		switch {
-		case lastValue1 > lastValue2:
-			// Advance filter created from search terms or return
-			// false if we're at the end because nothing matched.
-			if i < len(*values) {
-				lastValue2 = (*values)[i]
-				i++
-			} else {
-				return false
-			}
-		case lastValue2 > lastValue1:
-			// Advance filter we're searching or return false if
-			// we're at the end because nothing matched.
-			value, err := f.readFullUint64(&b)
-			if err != nil {
-				return false
-			}
-			lastValue1 += value
+	searchSize := len(data)
+	var searchIdx int
+	var filterVal uint64
+nextFilterVal:
+	for i := uint32(0); i < f.n; i++ {
+		// Read the next item to compare from the filter.
+		delta, err := f.readFullUint64(&b)
+		if err != nil {
+			return false
 		}
+		filterVal += delta
+
+		// Iterate through the values to search until either a match is found
+		// or the search value exceeds the current filter value.
+		for ; searchIdx < searchSize; searchIdx++ {
+			searchVal := (*values)[searchIdx]
+			if searchVal == filterVal {
+				return true
+			}
+
+			// Move to the next filter item once the current search value
+			// exceeds it.
+			if searchVal > filterVal {
+				continue nextFilterVal
+			}
+		}
+
+		// Exit early when there are no more values to search for.
+		break
 	}
 
-	// If we've made it this far, an element matched between filters so we
-	// return true.
-	return true
+	return false
 }
 
 // readFullUint64 reads a value represented by the sum of a unary multiple of

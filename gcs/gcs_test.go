@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/dchest/siphash"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 )
 
@@ -370,5 +371,34 @@ func TestFilterCorners(t *testing.T) {
 	if !IsErrorCode(err, ErrMisserialized) {
 		t.Fatalf("did not receive expected err -- got %v, want %v", err,
 			ErrMisserialized)
+	}
+}
+
+// TestZeroHashMatches ensures that a filter matches search items when their
+// internal hash is zero.
+func TestZeroHashMatches(t *testing.T) {
+	// Choose an item that intentionally hashes to zero for a given set of
+	// filter parameters.
+	searchItem := []byte("testr")
+	contents := [][]byte{searchItem, []byte("test2")}
+	const highFPRate = 2
+	modVal := ((1 << highFPRate) * uint64(len(contents)))
+	var key [KeySize]byte
+	term := siphash.Hash(0, 0, searchItem) % modVal
+	if term != 0 {
+		t.Fatalf("search item must hash to zero -- got %x", term)
+	}
+
+	// Create a version 1 filter and ensure a match for the search item when
+	// that item hashes to zero with the filters parameters.
+	f, err := NewFilterV1(highFPRate, key, contents)
+	if err != nil {
+		t.Fatalf("unexpected err: %v", err)
+	}
+	if !f.Match(key, searchItem) {
+		t.Fatalf("failed to match key with 0 siphash")
+	}
+	if !f.MatchAny(key, [][]byte{searchItem}) {
+		t.Fatalf("failed to match key with 0 siphash")
 	}
 }
