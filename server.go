@@ -2089,15 +2089,14 @@ func (s *server) RemoveNodeByAddr(addr string) error {
 	err := <-replyChan
 	if err != nil {
 		// This connection may still be pending, cancel it.
-		return s.CancelPendingConnection(addr)
-	} else {
-		return nil
+		return s.cancelPendingConnection(addr)
 	}
+	return nil
 }
 
-// CancelPendingConnection removes an address from the list of
+// cancelPendingConnection removes an address from the list of
 // pending connections.
-func (s *server) CancelPendingConnection(addr string) error {
+func (s *server) cancelPendingConnection(addr string) error {
 	replyChan := make(chan error)
 
 	s.query <- cancelPendingMsg{
