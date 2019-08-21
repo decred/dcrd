@@ -7,11 +7,16 @@ package gcs
 import (
 	"math/rand"
 	"testing"
+
+	"github.com/decred/dcrd/chaincfg/chainhash"
 )
 
 var (
 	// globalMatch is used to ensure the benchmarks do not elide code.
 	globalMatch bool
+
+	// globalHashResult is used to ensure the benchmarks do not elide code.
+	globalHashResult chainhash.Hash
 
 	// Collision probability for the benchmarks (1/2**20).
 	P = uint8(20)
@@ -123,5 +128,27 @@ func BenchmarkFilterMatchAny(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		globalMatch = filter.MatchAny(key, matchList)
+	}
+}
+
+// BenchmarkHash benchmarks performance of hashing a filter.
+func BenchmarkHash(b *testing.B) {
+	// Use a fixed prng seed for stable benchmarks.
+	prng := rand.New(rand.NewSource(0))
+	contents, err := genFilterElements(100, prng)
+	if err != nil {
+		b.Fatalf("unable to generate random item: %v", err)
+	}
+
+	var key [KeySize]byte
+	filter, err := NewFilterV1(P, key, contents)
+	if err != nil {
+		b.Fatalf("Failed to build filter")
+	}
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		globalHashResult = filter.Hash()
 	}
 }
