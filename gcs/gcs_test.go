@@ -52,7 +52,8 @@ func TestFilter(t *testing.T) {
 	tests := []struct {
 		name        string        // test description
 		version     uint16        // filter version
-		p           uint8         // collision probability
+		b           uint8         // golomb coding bin size
+		m           uint64        // inverse of false positive rate
 		matchKey    [KeySize]byte // random filter key for matches
 		contents    [][]byte      // data to include in the filter
 		wantMatches [][]byte      // expected matches
@@ -62,7 +63,8 @@ func TestFilter(t *testing.T) {
 	}{{
 		name:        "empty filter",
 		version:     1,
-		p:           20,
+		b:           20,
+		m:           1 << 20,
 		matchKey:    randKey,
 		contents:    nil,
 		wantMatches: nil,
@@ -70,9 +72,10 @@ func TestFilter(t *testing.T) {
 		wantBytes:   "",
 		wantHash:    "0000000000000000000000000000000000000000000000000000000000000000",
 	}, {
-		name:        "contents1 with P=20",
+		name:        "contents1 with B=20, M=1<<20",
 		version:     1,
-		p:           20,
+		b:           20,
+		m:           1 << 20,
 		matchKey:    randKey,
 		contents:    contents1,
 		wantMatches: contents1,
@@ -80,9 +83,10 @@ func TestFilter(t *testing.T) {
 		wantBytes:   "00000011ce76b76760b54096a233d504ce55b80600fb072c74893cf306eb0c050f0b3c32e8c23436f8f5e67a986a46470790",
 		wantHash:    "a802fbe6f06991877cde8f3d770d8da8cf195816f04874cab045ffccaddd880d",
 	}, {
-		name:        "contents1 with P=19",
+		name:        "contents1 with B=19, M=1<<19",
 		version:     1,
-		p:           19,
+		b:           19,
+		m:           1 << 19,
 		matchKey:    randKey,
 		contents:    contents1,
 		wantMatches: contents1,
@@ -90,9 +94,10 @@ func TestFilter(t *testing.T) {
 		wantBytes:   "000000112375937586050f0e9e19689983a3ab9b6f8f0cbc2f204b5233d5099ca0c9fbe9ec6a1f60e76fba3ad6835a28",
 		wantHash:    "be9ba34f03ced957e6f5c4d583ddfd34c136b486fbec2a42b4c7588a2d7813c1",
 	}, {
-		name:        "contents2 with P=19",
+		name:        "contents2 with B=19, M=1<<19",
 		version:     1,
-		p:           19,
+		b:           19,
+		m:           1 << 19,
 		matchKey:    randKey,
 		contents:    contents2,
 		wantMatches: contents2,
@@ -100,9 +105,10 @@ func TestFilter(t *testing.T) {
 		wantBytes:   "000000114306259e36131a6c9bbd968a6c61dc110804d5ac91d20d6e9314a50332bffed877657c004e2366fcd34cda60",
 		wantHash:    "dcbaf452f6de4c82ea506fa551d75876c4979ef388f785509b130de62eeaec23",
 	}, {
-		name:        "contents2 with P=10",
+		name:        "contents2 with B=10, M=1<<10",
 		version:     1,
-		p:           10,
+		b:           10,
+		m:           1 << 10,
 		matchKey:    randKey,
 		contents:    contents2,
 		wantMatches: contents2,
@@ -114,17 +120,18 @@ func TestFilter(t *testing.T) {
 	for _, test := range tests {
 		// Create a filter with the match key for all tests not related to
 		// testing serialization.
-		f, err := newFilter(test.version, test.p, test.matchKey, test.contents)
+		f, err := newFilter(test.version, test.b, test.m, test.matchKey,
+			test.contents)
 		if err != nil {
 			t.Errorf("%q: unexpected err: %v", test.name, err)
 			continue
 		}
 
 		// Ensure the parameter values are returned properly.
-		resultP := f.P()
-		if resultP != test.p {
-			t.Errorf("%q: unexpected P -- got %d, want %d", test.name,
-				resultP, test.p)
+		resultB := f.b
+		if resultB != test.b {
+			t.Errorf("%q: unexpected B -- got %d, want %d", test.name,
+				resultB, test.b)
 			continue
 		}
 		resultN := f.N()
@@ -132,6 +139,15 @@ func TestFilter(t *testing.T) {
 			t.Errorf("%q: unexpected N -- got %d, want %d", test.name,
 				resultN, uint32(len(test.contents)))
 			continue
+		}
+		if test.version == 1 {
+			v1Filter := &FilterV1{filter: *f}
+			resultP := v1Filter.P()
+			if resultP != test.b {
+				t.Errorf("%q: unexpected P -- got %d, want %d", test.name,
+					resultP, test.b)
+				continue
+			}
 		}
 
 		// Ensure empty data never matches.
@@ -199,8 +215,8 @@ func TestFilter(t *testing.T) {
 		}
 
 		// Recreate the filter with a fixed key for serialization testing.
-		fixedFilter, err := newFilter(test.version, test.p, test.fixedKey,
-			test.contents)
+		fixedFilter, err := newFilter(test.version, test.b, test.m,
+			test.fixedKey, test.contents)
 		if err != nil {
 			t.Errorf("%q: unexpected err: %v", test.name, err)
 			continue
@@ -244,7 +260,7 @@ func TestFilter(t *testing.T) {
 		var f2 filterMatcher
 		switch test.version {
 		case 1:
-			tf2, err := FromBytesV1(test.p, wantBytes)
+			tf2, err := FromBytesV1(test.b, wantBytes)
 			if err != nil {
 				t.Errorf("%q: unexpected err: %v", test.name, err)
 				continue
@@ -359,5 +375,43 @@ func TestZeroHashMatches(t *testing.T) {
 	}
 	if !f.MatchAny(key, [][]byte{searchItem}) {
 		t.Fatalf("failed to match key with 0 siphash")
+	}
+}
+
+// TestPanics ensures various internal functions panic when called improperly.
+func TestPanics(t *testing.T) {
+	testPanic := func(fn func()) (paniced bool) {
+		// Setup a defer to catch the expected panic and update the
+		// return variable.
+		defer func() {
+			if err := recover(); err != nil {
+				paniced = true
+			}
+		}()
+
+		fn()
+		return false
+	}
+
+	// Ensure attempting to create a filter with parameters too large panics.
+	paniced := testPanic(func() {
+		const largeB = 33
+		const smallM = 1 << 10
+		var key [KeySize]byte
+		newFilter(1, largeB, smallM, key, nil)
+	})
+	if !paniced {
+		t.Fatal("newFilter did not panic with too large parameter")
+	}
+
+	// Ensure attempting to create and unsupported filter version panics.
+	paniced = testPanic(func() {
+		const normalB = 19
+		const normalM = 784931
+		var key [KeySize]byte
+		newFilter(65535, normalB, normalM, key, nil)
+	})
+	if !paniced {
+		t.Fatal("newFilter did not panic with unsupported version")
 	}
 }

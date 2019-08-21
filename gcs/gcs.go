@@ -18,8 +18,6 @@ import (
 	"github.com/decred/dcrd/crypto/blake256"
 )
 
-// Inspired by https://github.com/rasky/gcs
-
 // KeySize is the size of the byte array required for key material for the
 // SipHash keyed hash function.
 const KeySize = 16
@@ -40,34 +38,62 @@ func (s *uint64s) Swap(i, j int)      { (*s)[i], (*s)[j] = (*s)[j], (*s)[i] }
 type filter struct {
 	version     uint16
 	n           uint32
-	p           uint8
-	modulusNP   uint64
+	b           uint8
+	modulusNM   uint64
 	filterNData []byte
 	filterData  []byte // Slice into filterNData with raw filter bytes.
 }
 
-// newFilter builds a new GCS filter of the specified version with the collision
-// probability of `1/(2**P)`, key `key`, and including every `[]byte` in `data`
-// as a member of the set.
-func newFilter(version uint16, P uint8, key [KeySize]byte, data [][]byte) (*filter, error) {
-	if len(data) > math.MaxInt32 {
+// newFilter builds a new GCS filter with the specified version and provided
+// tunable parameters that contains every item of the passed data as a member of
+// the set.
+//
+// B is the tunable bits parameter for constructing the filter that is used as
+// the bin size in the underlying Golomb coding with a value of 2^B.  The
+// optimal value of B to minimize the size of the filter for a given false
+// positive rate 1/M is floor(log_2(M) - 0.055256).  The maximum allowed value
+// for B is 32.
+//
+// M is the inverse of the target false positive rate for the filter.  The
+// optimal value of M to minimize the size of the filter for a given B is
+// ceil(1.497137 * 2^B).
+//
+// key is a key used in the SipHash function used to hash each data element
+// prior to inclusion in the filter.  This helps thwart would be attackers
+// attempting to choose elements that intentionally cause false positives.
+//
+// The general process for determining optimal parameters for B and M to
+// minimize the size of the filter is to start with the desired false positive
+// rate and calculate B per the aforementioned formula accordingly.  Then, if
+// the application permits the false positive rate to be varied, calculate the
+// optimal value of M via the formula provided under the description of M.
+//
+// NOTE: Since this function must only be used internally, it will panic if
+// called with a value of B greater than 32.
+func newFilter(version uint16, B uint8, M uint64, key [KeySize]byte, data [][]byte) (*filter, error) {
+	if B > 32 {
+		panic(fmt.Sprintf("B value of %d is greater than max allowed 32", B))
+	}
+	switch version {
+	case 1:
+	default:
+		panic(fmt.Sprintf("version %d filters are not supported", version))
+	}
+
+	numEntries := uint64(len(data))
+	if numEntries > math.MaxInt32 {
 		str := fmt.Sprintf("unable to create filter with %d entries greater "+
 			"than max allowed %d", len(data), math.MaxInt32)
 		return nil, makeError(ErrNTooBig, str)
 	}
-	if P > 32 {
-		str := fmt.Sprintf("P value of %d is greater than max allowed 32", P)
-		return nil, makeError(ErrPTooBig, str)
-	}
 
 	// Create the filter object and insert metadata.
-	modP := uint64(1 << P)
-	modPMask := modP - 1
+	modBMask := uint64(1<<B) - 1
 	f := filter{
 		version:   version,
-		n:         uint32(len(data)),
-		p:         P,
-		modulusNP: uint64(len(data)) * modP,
+		n:         uint32(numEntries),
+		b:         B,
+		modulusNM: numEntries * M,
 	}
 
 	// Nothing to do for an empty filter.
@@ -75,45 +101,62 @@ func newFilter(version uint16, P uint8, key [KeySize]byte, data [][]byte) (*filt
 		return &f, nil
 	}
 
-	// Allocate filter data.
-	values := make([]uint64, 0, len(data))
-
-	// Insert the hash (modulo N*P) of each data element into a slice and
-	// sort the slice.
+	// Insert the hash of each data element reduced to the range [0,N*M) into
+	// slice and sort it.
+	values := make([]uint64, 0, numEntries)
 	k0 := binary.LittleEndian.Uint64(key[0:8])
 	k1 := binary.LittleEndian.Uint64(key[8:16])
 	for _, d := range data {
-		v := siphash.Hash(k0, k1, d) % f.modulusNP
+		v := siphash.Hash(k0, k1, d) % f.modulusNM
 		values = append(values, v)
 	}
 	sort.Sort((*uint64s)(&values))
 
+	// Every entry will have f.b bits for the remainder portion and a quotient
+	// that is expected to be 1 on average with an exponentially decreasing
+	// probability for each subsequent value with reasonably optimal parameters.
+	// A quotient of 1 takes 2 bits in unary to encode and a quotient of 2 takes
+	// 3 bits.  Since the first two terms dominate, a reasonable expected size
+	// in bytes is:
+	//   (NB + 2N/2 + 3N/2) / 8
 	var b bitWriter
+	sizeHint := (numEntries*uint64(f.b) + numEntries + 3*numEntries>>1) >> 3
+	b.bytes = make([]byte, 0, sizeHint)
 
-	// Write the sorted list of values into the filter bitstream,
-	// compressing it using Golomb coding.
-	var value, lastValue, remainder uint64
+	// Write the sorted list of values into the filter bitstream using Golomb
+	// coding.
+	var quotient, prevValue, remainder uint64
 	for _, v := range values {
-		// Calculate the difference between this value and the last,
-		// modulo P.
-		remainder = (v - lastValue) & modPMask
+		delta := v - prevValue
+		prevValue = v
 
-		// Calculate the difference between this value and the last,
-		// divided by P.
-		value = (v - lastValue - remainder) >> f.p
-		lastValue = v
+		// Calculate the remainder of the difference between this value and the
+		// previous when dividing by 2^B.
+		//
+		// r = d % 2^B
+		remainder = delta & modBMask
 
-		// Write the P multiple into the bitstream in unary; the
-		// average should be around 1 (2 bits - 0b10).
-		for value > 0 {
+		// Calculate the quotient of the difference between this value and the
+		// previous when dividing by 2^B.
+		//
+		// q = floor(d / 2^B)
+		quotient = (delta - remainder) >> f.b
+
+		// Write the quotient into the bitstream in unary.  The average value
+		// will be around 1 for reasonably optimal parameters (which is encoded
+		// as 2 bits - 0b10).
+		for quotient > 0 {
 			b.writeOne()
-			value--
+			quotient--
 		}
 		b.writeZero()
 
-		// Write the remainder as a big-endian integer with enough bits
-		// to represent the appropriate collision probability.
-		b.writeNBits(remainder, uint(f.p))
+		// Write the remainder into the bitstream as a big-endian integer with
+		// B bits.  Note that Golomb coding typically uses truncated binary
+		// encoding in order to support arbitrary bin sizes, however, since 2^B
+		// is necessarily fixed to a power of 2, it is equivalent to a regular
+		// binary code.
+		b.writeNBits(remainder, uint(f.b))
 	}
 
 	// Save the filter data internally as n + filter bytes
@@ -127,16 +170,9 @@ func newFilter(version uint16, P uint8, key [KeySize]byte, data [][]byte) (*filt
 }
 
 // Bytes returns the serialized format of the GCS filter which includes N, but
-// does not include P (returned by a separate method) or the key used by
-// SipHash.
+// does not include other parameters such as the false positive rate or the key.
 func (f *filter) Bytes() []byte {
 	return f.filterNData
-}
-
-// P returns the filter's collision probability as a negative power of 2 (that
-// is, a collision probability of `1/2**20` is represented as 20).
-func (f *filter) P() uint8 {
-	return f.p
 }
 
 // N returns the size of the data set used to build the filter.
@@ -145,20 +181,20 @@ func (f *filter) N() uint32 {
 }
 
 // readFullUint64 reads a value represented by the sum of a unary multiple of
-// the filter's P modulus (`2**P`) and a big-endian P-bit remainder.
+// the Golomb coding bin size (2^B) and a big-endian B-bit remainder.
 func (f *filter) readFullUint64(b *bitReader) (uint64, error) {
 	v, err := b.readUnary()
 	if err != nil {
 		return 0, err
 	}
 
-	rem, err := b.readNBits(uint(f.p))
+	rem, err := b.readNBits(uint(f.b))
 	if err != nil {
 		return 0, err
 	}
 
 	// Add the multiple and the remainder.
-	return v<<f.p + rem, nil
+	return v<<f.b + rem, nil
 }
 
 // Match checks whether a []byte value is likely (within collision probability)
@@ -175,7 +211,7 @@ func (f *filter) Match(key [KeySize]byte, data []byte) bool {
 	// Hash our search term with the same parameters as the filter.
 	k0 := binary.LittleEndian.Uint64(key[0:8])
 	k1 := binary.LittleEndian.Uint64(key[8:16])
-	term := siphash.Hash(k0, k1, data) % f.modulusNP
+	term := siphash.Hash(k0, k1, data) % f.modulusNM
 
 	// Go through the search filter and look for the desired value.
 	var lastValue uint64
@@ -227,7 +263,7 @@ func (f *filter) MatchAny(key [KeySize]byte, data [][]byte) bool {
 	k0 := binary.LittleEndian.Uint64(key[0:8])
 	k1 := binary.LittleEndian.Uint64(key[8:16])
 	for _, d := range data {
-		v := siphash.Hash(k0, k1, d) % f.modulusNP
+		v := siphash.Hash(k0, k1, d) % f.modulusNM
 		*values = append(*values, v)
 	}
 	sort.Sort((*uint64s)(values))
@@ -279,22 +315,32 @@ func (f *filter) Hash() chainhash.Hash {
 	return chainhash.Hash(blake256.Sum256(f.filterNData))
 }
 
-// Filter describes an immutable filter that can be built from a set of data
-// elements, serialized, deserialized, and queried in a thread-safe manner. The
-// serialized form is compressed as a Golomb Coded Set (GCS), but does not
-// include N or P to allow the user to encode the metadata separately if
-// necessary. The hash function used is SipHash, a keyed function; the key used
-// in building the filter is required in order to match filter values and is
-// not included in the serialized form.
+// FilterV1 describes an immutable filter that can be built from a set of data
+// elements, serialized, deserialized, and queried in a thread-safe manner.  The
+// serialized form is compressed as a Golomb Coded Set (GCS) along with the
+// number of members of the set.  The hash function used is SipHash, a keyed
+// function.  The key used in building the filter is required in order to match
+// filter values and is not included in the serialized form.
 type FilterV1 struct {
 	filter
 }
 
-// NewFilter builds a new version 1 GCS filter with the collision probability of
-// `1/(2**P)`, key `key`, and including every `[]byte` in `data` as a member of
-// the set.
+// P returns the filter's collision probability as a negative power of 2.  For
+// example, a collision probability of 1 / 2^20 is represented as 20.
+func (f *FilterV1) P() uint8 {
+	return f.b
+}
+
+// NewFilter builds a new version 1 GCS filter with a collision probability of
+// 1 / 2^P for the given key and data.
 func NewFilterV1(P uint8, key [KeySize]byte, data [][]byte) (*FilterV1, error) {
-	filter, err := newFilter(1, P, key, data)
+	// Basic sanity check.
+	if P > 32 {
+		str := fmt.Sprintf("P value of %d is greater than max allowed 32", P)
+		return nil, makeError(ErrPTooBig, str)
+	}
+
+	filter, err := newFilter(1, P, 1<<P, key, data)
 	if err != nil {
 		return nil, err
 	}
@@ -323,8 +369,8 @@ func FromBytesV1(P uint8, d []byte) (*FilterV1, error) {
 	f := filter{
 		version:     1,
 		n:           n,
-		p:           P,
-		modulusNP:   uint64(n) * uint64(1<<P),
+		b:           P,
+		modulusNM:   uint64(n) * uint64(1<<P),
 		filterNData: d,
 		filterData:  filterData,
 	}
