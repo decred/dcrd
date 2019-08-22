@@ -1023,13 +1023,13 @@ func handleCreateRawSSRtx(s *rpcServer, cmd interface{}, closeChan <-chan struct
 			ssrtxOutScript, err = txscript.PayToSSRtxPKHDirect(ssrtxPkh)
 			if err != nil {
 				return nil, rpcInvalidError("Could not "+
-					"generate PKH script: %v", err)
+					"generate P2PKH script: %v", err)
 			}
 		case true: // P2SH
 			ssrtxOutScript, err = txscript.PayToSSRtxSHDirect(ssrtxPkh)
 			if err != nil {
 				return nil, rpcInvalidError("Could not "+
-					"generate SHD script: %v", err)
+					"generate P2SH script: %v", err)
 			}
 		}
 
