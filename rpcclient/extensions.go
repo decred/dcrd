@@ -117,7 +117,7 @@ func (r FutureEstimateStakeDiffResult) Receive() (*chainjson.EstimateStakeDiffRe
 		return nil, err
 	}
 
-	// Unmarsal result as a estimatestakediff result object.
+	// Unmarshal result as an estimatestakediff result object.
 	var est chainjson.EstimateStakeDiffResult
 	err = json.Unmarshal(res, &est)
 	if err != nil {
@@ -600,7 +600,7 @@ func (r FutureGetHeadersResult) Receive() (*chainjson.GetHeadersResult, error) {
 		return nil, err
 	}
 
-	// Unmarsal result as a getheaders result object.
+	// Unmarshal result as a getheaders result object.
 	var vr chainjson.GetHeadersResult
 	err = json.Unmarshal(res, &vr)
 	if err != nil {
@@ -1048,7 +1048,7 @@ func (r FutureTicketFeeInfoResult) Receive() (*chainjson.TicketFeeInfoResult, er
 		return nil, err
 	}
 
-	// Unmarsal result as a ticketfeeinfo result object.
+	// Unmarshal result as a ticketfeeinfo result object.
 	var tfir chainjson.TicketFeeInfoResult
 	err = json.Unmarshal(res, &tfir)
 	if err != nil {
@@ -1105,7 +1105,7 @@ func (r FutureTicketVWAPResult) Receive() (dcrutil.Amount, error) {
 		return 0, err
 	}
 
-	// Unmarsal result as a ticketvwap result object.
+	// Unmarshal result as a ticketvwap result object.
 	var vwap float64
 	err = json.Unmarshal(res, &vwap)
 	if err != nil {
@@ -1158,7 +1158,7 @@ func (r FutureTxFeeInfoResult) Receive() (*chainjson.TxFeeInfoResult, error) {
 		return nil, err
 	}
 
-	// Unmarsal result as a txfeeinfo result object.
+	// Unmarshal result as a txfeeinfo result object.
 	var tfir chainjson.TxFeeInfoResult
 	err = json.Unmarshal(res, &tfir)
 	if err != nil {
@@ -1206,7 +1206,7 @@ func (r FutureVersionResult) Receive() (map[string]chainjson.VersionResult, erro
 		return nil, err
 	}
 
-	// Unmarsal result as a version result object.
+	// Unmarshal result as a version result object.
 	var vr map[string]chainjson.VersionResult
 	err = json.Unmarshal(res, &vr)
 	if err != nil {

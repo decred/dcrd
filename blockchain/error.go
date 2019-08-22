@@ -615,7 +615,7 @@ func (e RuleError) Error() string {
 	return e.Description
 }
 
-// ruleError creates an RuleError given a set of arguments.
+// ruleError creates a RuleError given a set of arguments.
 func ruleError(c ErrorCode, desc string) RuleError {
 	return RuleError{ErrorCode: c, Description: desc}
 }

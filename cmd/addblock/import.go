@@ -139,7 +139,7 @@ func (bi *blockImporter) processBlock(serializedBlock []byte) (bool, error) {
 	}
 	isMainChain := !isOrphan && forkLen == 0
 	if !isMainChain {
-		return false, fmt.Errorf("import file contains an block that "+
+		return false, fmt.Errorf("import file contains a block that "+
 			"does not extend the main chain: %v", blockHash)
 	}
 	if isOrphan {

@@ -481,7 +481,7 @@ func (c *Client) SendToAddressCommentAsync(address dcrutil.Address,
 // SendToAddressComment sends the passed amount to the given address and stores
 // the provided comment and comment to in the wallet.  The comment parameter is
 // intended to be used for the purpose of the transaction while the commentTo
-// parameter is indended to be used for who the transaction is being sent to.
+// parameter is intended to be used for who the transaction is being sent to.
 //
 // The comments are not part of the transaction and are only internal
 // to the wallet.
@@ -587,7 +587,7 @@ func (c *Client) SendFromCommentAsync(fromAccount string,
 // SendFromComment sends the passed amount to the given address using the
 // provided account as a source of funds and stores the provided comment and
 // comment to in the wallet.  The comment parameter is intended to be used for
-// the purpose of the transaction while the commentTo parameter is indended to
+// the purpose of the transaction while the commentTo parameter is intended to
 // be used for who the transaction is being sent to.  Only funds with the passed
 // number of minimum confirmations will be used.
 //
@@ -2226,7 +2226,7 @@ func (r FutureAccountAddressIndexResult) Receive() (int, error) {
 		return 0, err
 	}
 
-	// Unmarshal result as a accountaddressindex result object.
+	// Unmarshal result as an accountaddressindex result object.
 	var index int
 	err = json.Unmarshal(res, &index)
 	if err != nil {

@@ -66,7 +66,7 @@ var (
 			},
 			{
 				Id:          "Vote against",
-				Description: "Vote against all multiple ",
+				Description: "Vote against all multiple",
 				Bits:        0x20, // 0b0010 0000
 				IsAbstain:   false,
 				IsNo:        true,

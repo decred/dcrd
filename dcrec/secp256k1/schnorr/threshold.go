@@ -56,7 +56,7 @@ func combinePubkeys(pks []*secp256k1.PublicKey) *secp256k1.PublicKey {
 	return secp256k1.NewPublicKey(pkSumX, pkSumY)
 }
 
-// nonceRFC6979 is a local instatiation of deterministic nonce generation
+// nonceRFC6979 is a local instantiation of deterministic nonce generation
 // by the standards of RFC6979.
 func nonceRFC6979(privkey []byte, hash []byte, extra []byte,
 	version []byte) []byte {
@@ -69,7 +69,7 @@ func nonceRFC6979(privkey []byte, hash []byte, extra []byte,
 }
 
 // generateNoncePair deterministically generate a nonce pair for use in
-// partial signing of a message. Returns a public key (nonce to dissemanate)
+// partial signing of a message. Returns a public key (nonce to disseminate)
 // and a private nonce to keep as a secret for the signer.
 func generateNoncePair(msg []byte, priv []byte,
 	nonceFunction func([]byte, []byte, []byte, []byte) []byte, extra []byte,

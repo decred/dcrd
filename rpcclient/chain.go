@@ -707,7 +707,7 @@ func (r FutureGetTxOutResult) Receive() (*chainjson.GetTxOutResult, error) {
 		return nil, nil
 	}
 
-	// Unmarshal result as an gettxout result object.
+	// Unmarshal result as a gettxout result object.
 	var txOutInfo *chainjson.GetTxOutResult
 	err = json.Unmarshal(res, &txOutInfo)
 	if err != nil {

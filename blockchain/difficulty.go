@@ -614,7 +614,7 @@ func calcNextStakeDiffV2(params *chaincfg.Params, nextHeight, curDiff, prevPoolS
 	// Calculate the difficulty by multiplying the old stake difficulty
 	// with two ratios that represent a force to counteract the relative
 	// change in the pool size (Fc) and a restorative force to push the pool
-	// size  towards the target value (Fr).
+	// size towards the target value (Fr).
 	//
 	// Per DCP0001, the generalized equation is:
 	//

@@ -311,7 +311,7 @@ func TestMutableReverseSequential(t *testing.T) {
 }
 
 // TestMutableUnordered ensures that putting keys into a mutable treap in no
-// paritcular order works as expected.
+// particular order works as expected.
 func TestMutableUnordered(t *testing.T) {
 	t.Parallel()
 

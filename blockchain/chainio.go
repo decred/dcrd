@@ -652,7 +652,7 @@ func decodeSpentTxOut(serialized []byte, stxo *spentTxOut, amount int64, height 
 // Since the serialization format is not self describing, as noted in the
 // format comments, this function also requires the transactions that spend the
 // txouts and a utxo view that contains any remaining existing utxos in the
-// transactions referenced by the inputs to the passed transasctions.
+// transactions referenced by the inputs to the passed transactions.
 func deserializeSpendJournalEntry(serialized []byte, txns []*wire.MsgTx) ([]spentTxOut, error) {
 	// Calculate the total number of stxos.
 	var numStxos int
@@ -1659,7 +1659,7 @@ func (b *BlockChain) initChainState() error {
 
 		// Determine how many blocks will be loaded into the index in order to
 		// allocate the right amount as a single alloc versus a whole bunch of
-		// littles ones to reduce pressure on the GC.
+		// little ones to reduce pressure on the GC.
 		blockIndexBucket := meta.Bucket(dbnamespace.BlockIndexBucketName)
 		var blockCount int32
 		cursor := blockIndexBucket.Cursor()

@@ -1496,7 +1496,7 @@ func isStakeScriptHash(script []byte, stakeOpcode byte) bool {
 }
 
 // isAllowedTicketInputScriptForm returns whether or not the passed public key
-// script is a one of the allowed forms for a ticket input.
+// script is one of the allowed forms for a ticket input.
 func isAllowedTicketInputScriptForm(script []byte) bool {
 	return isPubKeyHash(script) || isScriptHash(script) ||
 		isStakePubKeyHash(script, txscript.OP_SSGEN) ||
@@ -1726,7 +1726,7 @@ func checkTicketRedeemerCommitments(ticketHash *chainhash.Hash, ticketOuts []*st
 	}
 	contributionSumBig := big.NewInt(contributionSum)
 
-	// The outputs that satisify the commitments of the ticket start at offset
+	// The outputs that satisfy the commitments of the ticket start at offset
 	// 2 for votes while they start at 0 for revocations.  Also, the payments
 	// must be tagged with the appropriate stake opcode depending on whether it
 	// is a vote or a revocation.  Finally, the fee limits in the original
@@ -1908,7 +1908,7 @@ func checkVoteInputs(subsidyCache *standalone.SubsidyCache, tx *dcrutil.Tx, txHe
 	ticketHash := &ticketIn.PreviousOutPoint.Hash
 	ticketUtxo := view.LookupEntry(ticketHash)
 	if ticketUtxo == nil || ticketUtxo.IsFullySpent() {
-		str := fmt.Sprintf("ticket output %v referenced by vote %s:%d  either "+
+		str := fmt.Sprintf("ticket output %v referenced by vote %s:%d either "+
 			"does not exist or has already been spent",
 			ticketIn.PreviousOutPoint, voteHash, ticketInIdx)
 		return ruleError(ErrMissingTxOut, str)

@@ -249,7 +249,7 @@ func (e RuleError) GetCode() ErrorCode {
 	return e.ErrorCode
 }
 
-// stakeRuleError creates an RuleError given a set of arguments.
+// stakeRuleError creates a RuleError given a set of arguments.
 func stakeRuleError(c ErrorCode, desc string) RuleError {
 	return RuleError{ErrorCode: c, Description: desc}
 }

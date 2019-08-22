@@ -208,12 +208,12 @@ type Config struct {
 	NewestBlock HashFunc
 
 	// HostToNetAddress returns the netaddress for the given host. This can be
-	// nil in  which case the host will be parsed as an IP address.
+	// nil in which case the host will be parsed as an IP address.
 	HostToNetAddress HostToNetAddrFunc
 
 	// Proxy indicates a proxy is being used for connections.  The only
 	// effect this has is to prevent leaking the tor proxy address, so it
-	// only needs to specified if using a tor proxy.
+	// only needs to be specified if using a tor proxy.
 	Proxy string
 
 	// UserAgentName specifies the user agent name to advertise.  It is
@@ -1057,7 +1057,7 @@ func (p *Peer) maybeAddDeadline(pendingResponses map[string]time.Time, msgCmd st
 	// Setup a deadline for each message being sent that expects a response.
 	//
 	// NOTE: Pings are intentionally ignored here since they are typically
-	// sent asynchronously and as a result of a long backlock of messages,
+	// sent asynchronously and as a result of a long backlog of messages,
 	// such as is typical in the case of initial block download, the
 	// response won't be received in time.
 	log.Debugf("Adding deadline for command %s for peer %s", msgCmd, p.addr)

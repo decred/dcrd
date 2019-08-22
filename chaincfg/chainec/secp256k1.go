@@ -154,7 +154,7 @@ func (sp secp256k1DSA) Decrypt(privkey []byte, in []byte) ([]byte,
 	return sp.decrypt(privkey, in)
 }
 
-// newSecp256k1DSA instatiates a function DSA subsystem over the secp256k1
+// newSecp256k1DSA instantiates a function DSA subsystem over the secp256k1
 // curve. A caveat for the functions below is that they're all routed through
 // interfaces, and nil returns from the library itself for interfaces must
 // ALWAYS be checked by checking the return value by attempted dereference

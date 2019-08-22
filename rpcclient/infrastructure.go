@@ -816,8 +816,8 @@ func (c *Client) sendPostRequest(httpReq *http.Request, jReq *jsonRequest) {
 }
 
 // newFutureError returns a new future result channel that already has the
-// passed error waitin on the channel with the reply set to nil.  This is useful
-// to easily return errors from the various Async functions.
+// passed error waiting on the channel with the reply set to nil.  This is
+// useful to easily return errors from the various Async functions.
 func newFutureError(err error) chan *response {
 	responseChan := make(chan *response, 1)
 	responseChan <- &response{err: err}

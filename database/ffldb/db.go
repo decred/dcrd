@@ -1086,7 +1086,7 @@ func (tx *transaction) fetchKey(key []byte) []byte {
 // NOTE: This function must only be called on a writable transaction.  Since it
 // is an internal helper function, it does not check.
 func (tx *transaction) deleteKey(key []byte, notifyIterators bool) {
-	// Remove the key from the list of pendings keys to be written on
+	// Remove the key from the list of pending keys to be written on
 	// transaction commit if needed.
 	tx.pendingKeys.Delete(key)
 
@@ -1999,7 +1999,7 @@ func (db *db) Close() error {
 	return closeErr
 }
 
-// filesExists reports whether the named file or directory exists.
+// fileExists reports whether the named file or directory exists.
 func fileExists(name string) bool {
 	if _, err := os.Stat(name); err != nil {
 		if os.IsNotExist(err) {

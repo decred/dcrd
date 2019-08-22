@@ -118,7 +118,7 @@ func (b *addrIndexBucket) sanityCheck(addrKey [addrKeySize]byte, expectedTotal i
 	var totalEntries int
 	maxEntries := level0MaxEntries
 	for level := uint8(0); level <= highestLevel; level++ {
-		// Level 0 can'have more entries than the max allowed if the
+		// Level 0 can't have more entries than the max allowed if the
 		// levels after it have data and it can't be empty.  All other
 		// levels must either be half full or full.
 		data := b.levels[keyForLevel(addrKey, level)]

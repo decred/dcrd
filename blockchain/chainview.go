@@ -259,7 +259,7 @@ func (c *chainView) next(node *blockNode) *blockNode {
 }
 
 // Next returns the successor to the provided node for the chain view.  It will
-// return nil if there is no successfor or the provided node is not part of the
+// return nil if there is no successor or the provided node is not part of the
 // view.
 //
 // For example, assume a block chain with a side chain as depicted below:

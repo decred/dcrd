@@ -153,7 +153,7 @@ func (e edwardsDSA) Decrypt(privkey []byte, in []byte) ([]byte,
 	return e.decrypt(privkey, in)
 }
 
-// newEdwardsDSA instatiates a function DSA subsystem over the edwards 25519
+// newEdwardsDSA instantiates a function DSA subsystem over the edwards 25519
 // curve. A caveat for the functions below is that they're all routed through
 // interfaces, and nil returns from the library itself for interfaces must
 // ALWAYS be checked by checking the return value by attempted dereference

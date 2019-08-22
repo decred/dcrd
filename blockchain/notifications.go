@@ -29,7 +29,7 @@ const (
 	// It should be noted that the block might still ultimately fail to
 	// become the new main chain tip if it contains invalid scripts, double
 	// spends, etc.  However, this is quite rare in practice because a lot
-	// of work was expended to create a block which satisifies the proof of
+	// of work was expended to create a block which satisfies the proof of
 	// work requirement.
 	//
 	// Finally, this notification is only sent if the chain is believed

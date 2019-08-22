@@ -157,7 +157,7 @@ var (
 	}
 
 	// ErrInvalidLongPoll is an internal error code to indicate that
-	// longpollid is not formated properly.
+	// longpollid is not formatted properly.
 	ErrInvalidLongPoll = errors.New("invalid longpollid format")
 )
 
@@ -425,7 +425,7 @@ func rpcNoTxInfoError(txHash *chainhash.Hash) *dcrjson.RPCError {
 }
 
 // rpcMiscError is a convenience function for returning a nicely formatted RPC
-// error which indicates there is a unquantifiable error.  Use this sparingly;
+// error which indicates there is an unquantifiable error.  Use this sparingly;
 // misc return codes are a cop out.
 func rpcMiscError(message string) *dcrjson.RPCError {
 	return dcrjson.NewRPCError(dcrjson.ErrRPCMisc, message)
@@ -2280,7 +2280,7 @@ func (state *gbtWorkState) templateUpdateChan(prevHash *chainhash.Hash, lastGene
 // changed or the transactions in the memory pool have been updated and it has
 // been long enough since the last template was generated.  Otherwise, the
 // timestamp for the existing block template is updated (and possibly the
-// difficulty on testnet per the consesus rules).  Finally, if the
+// difficulty on testnet per the consensus rules).  Finally, if the
 // useCoinbaseValue flag is false and the existing block template does not
 // already contain a valid payment address, the block template will be updated
 // with a randomly selected payment address from the list of configured
@@ -2813,7 +2813,7 @@ func handleGetBlockTemplateRequest(s *rpcServer, request *types.TemplateRequest,
 	// transactions in the memory pool have been updated and it has been at
 	// least five seconds since the last template was generated.
 	// Otherwise, the timestamp for the existing block template is updated
-	// (and possibly the difficulty on testnet per the consesus rules).
+	// (and possibly the difficulty on testnet per the consensus rules).
 	if err := state.updateBlockTemplate(s, useCoinbaseValue); err != nil {
 		return nil, err
 	}
@@ -4188,7 +4188,7 @@ func handleGetWorkRequest(s *rpcServer) (interface{}, error) {
 
 	// Serialize the block header into a buffer large enough to hold the
 	// the block header and the internal blake256 padding that is added and
-	// retuned as part of the data below.  For reference:
+	// returned as part of the data below.  For reference:
 	// data[116] --> nBits
 	// data[136] --> Timestamp
 	// data[140] --> nonce
@@ -6170,7 +6170,7 @@ func (s *rpcServer) jsonRPCRead(w http.ResponseWriter, r *http.Request, isAdmin 
 	defer buf.Flush()
 	conn.SetReadDeadline(timeZeroVal)
 	// Setup a close notifier.  Since the connection is hijacked,
-	// the CloseNotifer on the ResponseWriter is not available.
+	// the CloseNotifier on the ResponseWriter is not available.
 	closeChan := make(chan struct{}, 1)
 	go func() {
 		_, err := conn.Read(make([]byte, 1))

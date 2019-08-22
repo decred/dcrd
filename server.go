@@ -327,7 +327,7 @@ func (sp *serverPeer) newestBlock() (*chainhash.Hash, int64, error) {
 	return &best.Hash, best.Height, nil
 }
 
-// addKnownAddresses adds the given addresses to the set of known addreses to
+// addKnownAddresses adds the given addresses to the set of known addresses to
 // the peer to prevent sending duplicate addresses.
 func (sp *serverPeer) addKnownAddresses(addresses []*wire.NetAddress) {
 	for _, na := range addresses {
@@ -1453,7 +1453,7 @@ func (s *server) handleAddPeerMsg(state *peerState, sp *serverPeer) bool {
 
 		port, err := strconv.ParseUint(activeNetParams.DefaultPort, 10, 16)
 		if err != nil {
-			srvrLog.Errorf("unabled to parse active network port: %v", err)
+			srvrLog.Errorf("unable to parse active network port: %v", err)
 			return true
 		}
 
@@ -1853,7 +1853,7 @@ func (s *server) outboundPeerConnected(c *connmgr.ConnReq, conn net.Conn) {
 	s.addrManager.Attempt(sp.NA())
 }
 
-// peerDoneHandler handles peer disconnects by notifiying the server that it's
+// peerDoneHandler handles peer disconnects by notifying the server that it's
 // done.
 func (s *server) peerDoneHandler(sp *serverPeer) {
 	sp.WaitForDisconnect()

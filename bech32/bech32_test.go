@@ -76,7 +76,7 @@ func TestBech32(t *testing.T) {
 				str, encoded)
 		}
 
-		// Flip a bit in the string an make sure it is caught.
+		// Flip a bit in the string and make sure it is caught.
 		pos := strings.LastIndexAny(str, "1")
 		flipped := str[:pos+1] + string((str[pos+1] ^ 1)) + str[pos+2:]
 		_, _, err = Decode(flipped)

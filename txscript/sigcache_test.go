@@ -79,7 +79,7 @@ func TestSigCacheAddEvictEntry(t *testing.T) {
 		sigCopy, _ := secp256k1.ParseSignature(sig.Serialize())
 		keyCopy, _ := secp256k1.ParsePubKey(key.SerializeCompressed())
 		if !sigCache.Exists(*msg, sigCopy, keyCopy) {
-			t.Errorf("previously added item not found in signature" +
+			t.Errorf("previously added item not found in signature " +
 				"cache")
 		}
 	}
@@ -131,13 +131,13 @@ func TestSigCacheAddMaxEntriesZeroOrNegative(t *testing.T) {
 	sig1Copy, _ := secp256k1.ParseSignature(sig1.Serialize())
 	key1Copy, _ := secp256k1.ParsePubKey(key1.SerializeCompressed())
 	if sigCache.Exists(*msg1, sig1Copy, key1Copy) {
-		t.Errorf("previously added signature found in sigcache, but" +
+		t.Errorf("previously added signature found in sigcache, but " +
 			"shouldn't have been")
 	}
 
 	// There shouldn't be any entries in the sigCache.
 	if len(sigCache.validSigs) != 0 {
-		t.Errorf("%v items found in sigcache, no items should have"+
+		t.Errorf("%v items found in sigcache, no items should have "+
 			"been added", len(sigCache.validSigs))
 	}
 }

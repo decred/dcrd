@@ -842,7 +842,7 @@ func CheckSSGen(tx *wire.MsgTx) error {
 }
 
 // IsSSGen returns whether or not a transaction is a stake submission generation
-// transaction.  There are also known as votes.
+// transaction.  These are also known as votes.
 func IsSSGen(tx *wire.MsgTx) bool {
 	return CheckSSGen(tx) == nil
 }
@@ -937,7 +937,7 @@ func CheckSSRtx(tx *wire.MsgTx) error {
 }
 
 // IsSSRtx returns whether or not a transaction is a stake submission revocation
-// transaction.  There are also known as revocations.
+// transaction.  These are also known as revocations.
 func IsSSRtx(tx *wire.MsgTx) bool {
 	return CheckSSRtx(tx) == nil
 }

@@ -375,7 +375,7 @@ func (n *upnpNAT) AddPortMapping(protocol string, externalPort, internalPort int
 	}
 
 	// TODO: check response to see if the port was forwarded
-	// If the port was not wildcard we don't get an reply with the port in
+	// If the port was not wildcard we don't get a reply with the port in
 	// it. Not sure about wildcard yet. miniupnpc just checks for error
 	// codes here.
 	mappedExternalPort = externalPort

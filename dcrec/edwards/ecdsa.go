@@ -82,7 +82,7 @@ func SignFromSecretNoReader(priv *PrivateKey, hash []byte) (r, s *big.Int, err e
 	return
 }
 
-// nonceRFC6979 is a local instatiation of deterministic nonce generation
+// nonceRFC6979 is a local instantiation of deterministic nonce generation
 // by the standards of RFC6979.
 func nonceRFC6979(privkey []byte, hash []byte, extra []byte, version []byte) []byte {
 	pkD := new(big.Int).SetBytes(privkey)

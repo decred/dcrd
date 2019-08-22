@@ -255,7 +255,7 @@ func TestImmutableReverseSequential(t *testing.T) {
 }
 
 // TestImmutableUnordered ensures that putting keys into an immutable treap in
-// no paritcular order works as expected.
+// no particular order works as expected.
 func TestImmutableUnordered(t *testing.T) {
 	t.Parallel()
 
