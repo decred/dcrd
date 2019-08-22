@@ -387,7 +387,6 @@ func (w *VotingWallet) handleBlockConnectedNtfn(ntfn *blockConnectedNtfn) {
 	// Purchase TicketsPerBlock tickets.
 	nbTickets := int(w.hn.ActiveNet.TicketsPerBlock)
 	if len(w.utxos) < nbTickets {
-		fmt.Println("errrr len utxos < nbTickets")
 		w.logError(fmt.Errorf("number of available utxos (%d) less than "+
 			"number of tickets to purchase (%d)", len(w.utxos), nbTickets))
 		return
