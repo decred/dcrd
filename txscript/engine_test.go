@@ -304,7 +304,7 @@ func TestCheckSignatureEncoding(t *testing.T) {
 			isValid: false,
 		},
 		{
-			name: "X == N ",
+			name: "X == N",
 			sig: hexToBytes("30440220fffffffffffffffffffffffffffff" +
 				"ffebaaedce6af48a03bbfd25e8cd0364141022018152" +
 				"2ec8eca07de4860a4acdd12909d831cc56cbbac46220" +
@@ -312,7 +312,7 @@ func TestCheckSignatureEncoding(t *testing.T) {
 			isValid: false,
 		},
 		{
-			name: "X == N ",
+			name: "X > N",
 			sig: hexToBytes("30440220fffffffffffffffffffffffffffff" +
 				"ffebaaedce6af48a03bbfd25e8cd0364142022018152" +
 				"2ec8eca07de4860a4acdd12909d831cc56cbbac46220" +
