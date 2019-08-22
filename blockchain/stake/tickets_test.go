@@ -256,7 +256,7 @@ func TestTicketDBLongChain(t *testing.T) {
 	filename := filepath.Join("testdata", "testexpiry.bz2")
 	fi, err := os.Open(filename)
 	if err != nil {
-		t.Fatalf("failed ot open test data: %v", err)
+		t.Fatalf("failed to open test data: %v", err)
 	}
 	bcStream := bzip2.NewReader(fi)
 	defer fi.Close()

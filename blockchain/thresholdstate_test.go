@@ -250,7 +250,7 @@ func TestThresholdState(t *testing.T) {
 	// version 3.
 	//
 	// This will result in triggering enforcement of the stake version and
-	// that the stake version is 3.  The treshold state for the test dummy
+	// that the stake version is 3.  The threshold state for the test dummy
 	// deployments must still be defined since a v4 majority proof-of-work
 	// and proof-of-stake upgrade are required before moving to started.
 	// ---------------------------------------------------------------------
@@ -308,7 +308,7 @@ func TestThresholdState(t *testing.T) {
 	//
 	// This will result in achieving stake version 4 enforcement.
 	//
-	// The treshold state for the dummy deployments must still be defined
+	// The threshold state for the dummy deployments must still be defined
 	// since it can only change on a rule change boundary and it still
 	// requires a v4 majority proof-of-work upgrade before moving to
 	// started.
@@ -338,7 +338,7 @@ func TestThresholdState(t *testing.T) {
 	// the final two blocks to block version 4 so that majority version 4
 	// is not achieved, but the final block in the interval is version 4.
 	//
-	// The treshold state for the dummy deployments must still be defined
+	// The threshold state for the dummy deployments must still be defined
 	// since it still requires a v4 majority proof-of-work upgrade before
 	// moving to started.
 	// ---------------------------------------------------------------------
@@ -375,7 +375,7 @@ func TestThresholdState(t *testing.T) {
 	// achieved and this will achieve v4 majority proof-of-work upgrade,
 	// voting can begin at the next rule change interval.
 	//
-	// The treshold state for the dummy deployments must still be defined
+	// The threshold state for the dummy deployments must still be defined
 	// since even though all required upgrade conditions are met, the state
 	// change must not happen until the start of the next rule change
 	// interval.
@@ -405,7 +405,7 @@ func TestThresholdState(t *testing.T) {
 	// vote bits to include yes votes for the first test dummy agenda and
 	// no for the second test dummy agenda to ensure they aren't counted.
 	//
-	// The treshold state for the dummy deployments must move to started.
+	// The threshold state for the dummy deployments must move to started.
 	// Even though the majority of the votes have already been voting yes
 	// for the first test dummy agenda, and no for the second one, they must
 	// not count, otherwise it would move straight to lockedin or failed,
@@ -437,7 +437,7 @@ func TestThresholdState(t *testing.T) {
 	// vote bits to include yes votes for the first test dummy agenda and
 	// no for the second test dummy agenda to ensure they aren't counted.
 	//
-	// The treshold state for the dummy deployments must remain in started
+	// The threshold state for the dummy deployments must remain in started
 	// because the votes are an old version and thus have a different
 	// definition and don't apply to version 4.
 	// ---------------------------------------------------------------------
@@ -468,7 +468,7 @@ func TestThresholdState(t *testing.T) {
 	// votes for the first test dummy agenda and a majority no for the
 	// second test dummy agenda.
 	//
-	// The treshold state for the dummy deployments must remain in started
+	// The threshold state for the dummy deployments must remain in started
 	// because quorum was not reached.
 	// ---------------------------------------------------------------------
 
@@ -504,7 +504,7 @@ func TestThresholdState(t *testing.T) {
 	// majority yes for the first test dummy agenda and a few votes shy of a
 	// majority no for the second test dummy agenda.
 	//
-	// The treshold state for the dummy deployments must remain in started
+	// The threshold state for the dummy deployments must remain in started
 	// because even though quorum was reached, a required majority was not.
 	// ---------------------------------------------------------------------
 
@@ -547,7 +547,7 @@ func TestThresholdState(t *testing.T) {
 	// vote bits to yes for the first test dummy agenda and no to the second
 	// one.
 	//
-	// The treshold state for the first dummy deployment must move to
+	// The threshold state for the first dummy deployment must move to
 	// lockedin since a majority yes vote was achieved while the second
 	// dummy deployment must move to failed since a majority no vote was
 	// achieved.
@@ -578,12 +578,12 @@ func TestThresholdState(t *testing.T) {
 	// vote bits to include no votes for the first test dummy agenda and
 	// yes votes for the second one.
 	//
-	// The treshold state for the first dummy deployment must move to active
-	// since even though the interval had a majority no votes, lockedin
-	// status has already been achieved and can't be undone without a new
-	// agenda.  Similarly, the second one must remain in failed even though
-	// the interval had a majority yes votes since a failed state can't be
-	// undone.
+	// The threshold state for the first dummy deployment must move to
+	// active since even though the interval had a majority no votes,
+	// lockedin status has already been achieved and can't be undone without
+	// a new agenda.  Similarly, the second one must remain in failed even
+	// though the interval had a majority yes votes since a failed state
+	// can't be undone.
 	// ---------------------------------------------------------------------
 
 	blocksNeeded = stakeValidationHeight + ruleChangeInterval*8 - 1 -

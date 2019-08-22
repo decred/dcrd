@@ -1413,7 +1413,7 @@ func (b *BlockChain) connectBestChain(node *blockNode, block, parent *dcrutil.Bl
 		// and flush the status changes to the database.  It is safe to
 		// ignore any errors when flushing here as the changes will be
 		// flushed when a valid block is connected, and the worst case
-		// scenario if a block a invalid is it would need to be
+		// scenario if a block is invalid is it would need to be
 		// revalidated after a restart.
 		view := NewUtxoViewpoint()
 		view.SetBestHash(parentHash)

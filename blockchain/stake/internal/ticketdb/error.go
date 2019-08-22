@@ -70,7 +70,7 @@ func (e ErrorCode) String() string {
 	return fmt.Sprintf("Unknown ErrorCode (%d)", int(e))
 }
 
-// DBError identifies a an error in the stake database for tickets.
+// DBError identifies an error in the stake database for tickets.
 // The caller can use type assertions to determine if a failure was
 // specifically due to a rule violation and access the ErrorCode field to
 // ascertain the specific reason for the rule violation.

@@ -102,7 +102,7 @@ func (b *BlockChain) processOrphans(hash *chainhash.Hash, flags BehaviorFlags) e
 // the best chain or is now the tip of the best chain due to causing a
 // reorganize, the fork length will be 0.  The second return value indicates
 // whether or not the block is an orphan, in which case the fork length will
-// also be zero as expected, because it, by definition, does not connect ot the
+// also be zero as expected, because it, by definition, does not connect to the
 // best chain.
 //
 // This function is safe for concurrent access.

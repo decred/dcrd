@@ -221,7 +221,7 @@ func (s *fakeChain) CalcSequenceLock(tx *dcrutil.Tx, view *blockchain.UtxoViewpo
 			// in order to facilitate testing the fake chain instance instead
 			// allows callers to directly set median times associated with fake
 			// utxos and looks up those values here.
-			medianTime := s.FakeUxtoMedianTime(&txIn.PreviousOutPoint)
+			medianTime := s.FakeUtxoMedianTime(&txIn.PreviousOutPoint)
 
 			// Calculate the minimum required timestamp based on the sum of the
 			// past median time and required relative number of seconds.  Since
@@ -262,9 +262,9 @@ func (s *fakeChain) SetStandardVerifyFlags(flags txscript.ScriptFlags) {
 	s.scriptFlags = flags
 }
 
-// FakeUxtoMedianTime returns the median time associated with the requested utxo
+// FakeUtxoMedianTime returns the median time associated with the requested utxo
 // from the fake chain instance.
-func (s *fakeChain) FakeUxtoMedianTime(prevOut *wire.OutPoint) int64 {
+func (s *fakeChain) FakeUtxoMedianTime(prevOut *wire.OutPoint) int64 {
 	s.RLock()
 	medianTime := s.utxoTimes[*prevOut]
 	s.RUnlock()
@@ -349,7 +349,7 @@ func (p *poolHarness) GetKey(addr dcrutil.Address) (chainec.PrivateKey, bool, er
 	return p.signKey, true, nil
 }
 
-// AddFakeUTXO creates a fake mined uxto for the provided transaction.
+// AddFakeUTXO creates a fake mined utxo for the provided transaction.
 func (p *poolHarness) AddFakeUTXO(tx *dcrutil.Tx, blockHeight int64) {
 	p.chain.utxos.AddTxOuts(tx, blockHeight, wire.NullBlockIndex)
 }
@@ -1333,7 +1333,7 @@ func TestBasicOrphanRemoval(t *testing.T) {
 		testPoolMembership(tc, tx, true, false)
 	}
 
-	// Attempt to remove an orphan that has a existing redeemer but itself
+	// Attempt to remove an orphan that has an existing redeemer but itself
 	// is not present and ensure the state of all other orphans (including
 	// the one that redeems it) are unaffected.
 	harness.txPool.RemoveOrphan(chainedTxns[0])
@@ -1599,14 +1599,14 @@ func TestSequenceLockAcceptance(t *testing.T) {
 			valid:      true,
 		},
 		{
-			name:       "By-time lock with unsatisifed seq == 1024",
+			name:       "By-time lock with unsatisfied seq == 1024",
 			txVersion:  2,
 			sequence:   mustLockTimeToSeq(true, seqIntervalToSecs(2)),
 			secsOffset: int64(seqIntervalToSecs(1)),
 			valid:      false,
 		},
 		{
-			name:       "By-time lock with unsatisifed masked max sequence",
+			name:       "By-time lock with unsatisfied masked max sequence",
 			txVersion:  2,
 			sequence:   0xffffffff &^ seqLockTimeDisabled,
 			secsOffset: int64(seqIntervalToSecs(65534)),
@@ -1620,7 +1620,7 @@ func TestSequenceLockAcceptance(t *testing.T) {
 			valid:        true,
 		},
 		{
-			name:         "Disabled by-height lock with unsatisified sequence",
+			name:         "Disabled by-height lock with unsatisfied sequence",
 			txVersion:    2,
 			sequence:     mustLockTimeToSeq(false, 2) | seqLockTimeDisabled,
 			heightOffset: 0,
@@ -1634,7 +1634,7 @@ func TestSequenceLockAcceptance(t *testing.T) {
 			valid:      true,
 		},
 		{
-			name:      "Disabled by-time lock with unsatisifed seq == 1024",
+			name:      "Disabled by-time lock with unsatisfied seq == 1024",
 			txVersion: 2,
 			sequence: mustLockTimeToSeq(true, seqIntervalToSecs(2)) |
 				seqLockTimeDisabled,
@@ -1666,7 +1666,7 @@ func TestSequenceLockAcceptance(t *testing.T) {
 			valid:      true,
 		},
 		{
-			name:       "By-time lock with unsatisifed seq == 1024 (v1)",
+			name:       "By-time lock with unsatisfied seq == 1024 (v1)",
 			txVersion:  1,
 			sequence:   mustLockTimeToSeq(true, seqIntervalToSecs(2)),
 			secsOffset: int64(seqIntervalToSecs(1)),
@@ -1680,7 +1680,7 @@ func TestSequenceLockAcceptance(t *testing.T) {
 			valid:        true,
 		},
 		{
-			name:         "Disabled by-height lock with unsatisified seq (v1)",
+			name:         "Disabled by-height lock with unsatisfied seq (v1)",
 			txVersion:    1,
 			sequence:     mustLockTimeToSeq(false, 2) | seqLockTimeDisabled,
 			heightOffset: 0,
@@ -1694,7 +1694,7 @@ func TestSequenceLockAcceptance(t *testing.T) {
 			valid:      true,
 		},
 		{
-			name:      "Disabled by-time lock with unsatisifed seq == 1024 (v1)",
+			name:      "Disabled by-time lock with unsatisfied seq == 1024 (v1)",
 			txVersion: 1,
 			sequence: mustLockTimeToSeq(true, seqIntervalToSecs(2)) |
 				seqLockTimeDisabled,

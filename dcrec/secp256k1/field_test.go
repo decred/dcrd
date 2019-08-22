@@ -655,7 +655,7 @@ func TestMulInt(t *testing.T) {
 	}
 }
 
-// TestMul ensures that multiplying two field valuess via Mul works as expected.
+// TestMul ensures that multiplying two field values via Mul works as expected.
 func TestMul(t *testing.T) {
 	tests := []struct {
 		in1      string // first hex encoded value

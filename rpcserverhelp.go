@@ -379,7 +379,7 @@ var helpDescsEnUS = map[string]string{
 	// TemplateRequest help.
 	"templaterequest-mode":         "This is 'template', 'proposal', or omitted",
 	"templaterequest-capabilities": "List of capabilities",
-	"templaterequest-longpollid":   "The long poll ID of a job to monitor for expiration; required and valid only for long poll requests ",
+	"templaterequest-longpollid":   "The long poll ID of a job to monitor for expiration; required and valid only for long poll requests",
 	"templaterequest-sigoplimit":   "Number of signature operations allowed in blocks (this parameter is ignored)",
 	"templaterequest-sizelimit":    "Number of bytes allowed in blocks (this parameter is ignored)",
 	"templaterequest-maxversion":   "Highest supported block version number (this parameter is ignored)",
@@ -403,7 +403,7 @@ var helpDescsEnUS = map[string]string{
 	"getblocktemplateresult-curtime":           "Current time as seen by the server (recommended for block time); must fall within mintime/maxtime rules",
 	"getblocktemplateresult-height":            "Height of the block to be solved",
 	"getblocktemplateresult-previousblockhash": "Hex-encoded big-endian hash of the previous block",
-	"getblocktemplateresult-sigoplimit":        "Number of sigops allowed in blocks ",
+	"getblocktemplateresult-sigoplimit":        "Number of sigops allowed in blocks",
 	"getblocktemplateresult-sizelimit":         "Number of bytes allowed in blocks",
 	"getblocktemplateresult-transactions":      "Array of transactions as JSON objects",
 	"getblocktemplateresult-version":           "The block version",

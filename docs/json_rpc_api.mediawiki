@@ -2071,7 +2071,7 @@ The recvtx notification for the same txout, after the transaction was mined into
 # <code>Block details</code>: <code>(object, optional)</code> details about a block and the index of the transaction within a block, if the transaction is mined.
 |-
 !Description
-|Notifies a client when an registered outpoint is spent by a transaction accepted to mempool and/or mined into a block.
+|Notifies a client when a registered outpoint is spent by a transaction accepted to mempool and/or mined into a block.
 |-
 !Example
 |Example redeemingtx notification for mainnet outpoint <code>61d3696de4c888730cbe06b0ad8ecb6d72d6108e893895aa9bc067bd7eba3fad:0</code> after being spent by transaction <code>4ad0c16ac973ff675dec1f3e5f1273f1c45be2a63554343f21b70240a1e43ece</code>:

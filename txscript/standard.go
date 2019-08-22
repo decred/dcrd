@@ -221,7 +221,7 @@ func IsMultisigSigScript(script []byte) bool {
 // will return nil otherwise.
 func extractCompressedPubKey(script []byte) []byte {
 	// A pay-to-compressed-pubkey script is of the form:
-	//  OP_DATA_33 <33-byte compresed pubkey> OP_CHECKSIG
+	//  OP_DATA_33 <33-byte compressed pubkey> OP_CHECKSIG
 
 	// All compressed secp256k1 public keys must start with 0x02 or 0x03.
 	if len(script) == 35 &&
@@ -252,8 +252,8 @@ func extractUncompressedPubKey(script []byte) []byte {
 	return nil
 }
 
-// extractPubKey extracts either compressed or uncompressed public key from the
-// passed script if it is a either a standard pay-to-compressed-secp256k1-pubkey
+// extractPubKey extracts either a compressed or uncompressed public key from the
+// passed script if it is either a standard pay-to-compressed-secp256k1-pubkey
 // or pay-to-uncompressed-secp256k1-pubkey script, respectively.  It will return
 // nil otherwise.
 func extractPubKey(script []byte) []byte {

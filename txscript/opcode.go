@@ -2879,7 +2879,7 @@ func opcodeCheckSigAlt(op *opcode, data []byte, vm *Engine) error {
 		return nil
 	}
 
-	// Fallthrough of somekind automatically results in false, but
+	// Fallthrough of some kind automatically results in false, but
 	// this should never be hit.
 	vm.dstack.PushBool(false)
 	return nil

@@ -1308,7 +1308,7 @@ out:
 			rpcsLog.Debugf("Received command <%s> from %s", cmd.method, c.addr)
 
 			// Check auth.  The client is immediately disconnected if the
-			// first request of an unauthentiated websocket client is not
+			// first request of an unauthenticated websocket client is not
 			// the authenticate request, an authenticate request is received
 			// when the client is already authenticated, or incorrect
 			// authentication credentials are provided in the request.
@@ -1545,7 +1545,7 @@ out:
 						rpcsLog.Debugf("Received command <%s> from %s", cmd.method, c.addr)
 
 						// Check auth.  The client is immediately disconnected if the
-						// first request of an unauthentiated websocket client is not
+						// first request of an unauthenticated websocket client is not
 						// the authenticate request, an authenticate request is received
 						// when the client is already authenticated, or incorrect
 						// authentication credentials are provided in the request.

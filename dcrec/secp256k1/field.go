@@ -166,7 +166,7 @@ func (f *fieldVal) Set(val *fieldVal) *fieldVal {
 }
 
 // SetInt sets the field value to the passed integer.  This is a convenience
-// function since it is fairly common to perform some arithemetic with small
+// function since it is fairly common to perform some arithmetic with small
 // native integers.
 //
 // The field value is returned to support chaining.  This enables syntax such
@@ -506,7 +506,7 @@ func (f *fieldVal) Negate(magnitude uint32) *fieldVal {
 
 // AddInt adds the passed integer to the existing field value and stores the
 // result in f.  This is a convenience function since it is fairly common to
-// perform some arithemetic with small native integers.
+// perform some arithmetic with small native integers.
 //
 // The field value is returned to support chaining.  This enables syntax like:
 // f.AddInt(1).Add(f2) so that f = f + 1 + f2.

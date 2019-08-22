@@ -169,7 +169,7 @@ func TestCFTypesWireErrors(t *testing.T) {
 	oldPver := NodeCFVersion - 1
 	wireErr := &MessageError{}
 
-	// Valid MsgCFTypes with it's encoded format.
+	// Valid MsgCFTypes with its encoded format.
 	baseCf := NewMsgCFTypes([]FilterType{GCSFilterExtended})
 	baseCfEncoded := []byte{
 		0x01, // Varint for number of filter types

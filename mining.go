@@ -833,7 +833,7 @@ func handleTooFewVoters(subsidyCache *standalone.SubsidyCache, nextHeight int64,
 			// Fetch the latest block and head and begin working
 			// off of it with an empty transaction tree regular
 			// and the contents of that stake tree. In the future
-			// we should have the option of readding some
+			// we should have the option of reading some
 			// transactions from this block, too.
 			topBlock, err := bm.chain.BlockByHash(&best.Hash)
 			if err != nil {
@@ -1050,7 +1050,7 @@ func newBlkTmplGenerator(policy *mining.Policy, txSource mining.TxSource,
 //  This function returns nil, nil if there are not enough voters on any of
 //  the current top blocks to create a new block template.
 func (g *BlkTmplGenerator) NewBlockTemplate(payToAddress dcrutil.Address) (*BlockTemplate, error) {
-	// All transaction scripts are verified using the more strict standarad
+	// All transaction scripts are verified using the more strict standard
 	// flags.
 	scriptFlags, err := standardScriptVerifyFlags(g.chain)
 	if err != nil {
@@ -1455,7 +1455,7 @@ mempoolLoop:
 			priorityQueue.SetLessFunc(txPQByStakeAndFee)
 
 			// Put the transaction back into the priority queue and
-			// skip it so it is re-priortized by fees if it won't
+			// skip it so it is re-prioritized by fees if it won't
 			// fit into the high-priority section or the priority is
 			// too low.  Otherwise this transaction will be the
 			// final one in the high-priority section, so just fall
@@ -1518,7 +1518,7 @@ mempoolLoop:
 			prioItem.tx.Hash(), prioItem.priority, prioItem.feePerKB)
 
 		// Add transactions which depend on this one (and also do not
-		// have any other unsatisified dependencies) to the priority
+		// have any other unsatisfied dependencies) to the priority
 		// queue.
 		for _, item := range deps {
 			// Add the transaction to the priority queue if there
@@ -2423,7 +2423,7 @@ type regenHandlerState struct {
 	// can be reset at any time without needing to create a new one and the
 	// associated extra garbage.
 	//
-	// regenTimer is a underlying timer that is used to implement the timeout.
+	// regenTimer is an underlying timer that is used to implement the timeout.
 	//
 	// regenChanDrained indicates whether or not the channel for the regen timer
 	// has already been read and is used when resetting the timer to ensure the
@@ -2926,7 +2926,7 @@ func (g *BgBlkTmplGenerator) handleVote(ctx context.Context, state *regenHandler
 	}
 }
 
-// handleTemplateUpdate handles the rtTemlateUpdate event by updating the state
+// handleTemplateUpdate handles the rtTemplateUpdate event by updating the state
 // accordingly.
 //
 // This function is only intended for use by the regen handler goroutine.

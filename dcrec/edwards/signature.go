@@ -95,7 +95,7 @@ func parseSig(sigStr []byte, der bool) (*Signature, error) {
 }
 
 // ParseSignature parses a signature in BER format for the curve type `curve'
-// into a Signature type, perfoming some basic sanity checks.
+// into a Signature type, performing some basic sanity checks.
 func ParseSignature(sigStr []byte) (*Signature, error) {
 	return parseSig(sigStr, false)
 }

@@ -998,7 +998,7 @@ func TestGenerateProvablyPruneableOut(t *testing.T) {
 	for i, test := range tests {
 		script, err := GenerateProvablyPruneableOut(test.data)
 		if e := tstCheckScriptError(err, test.err); e != nil {
-			t.Errorf("GenerateProvablyPruneableOut: #%d (%s) %v: ",
+			t.Errorf("GenerateProvablyPruneableOut: #%d (%s) %v",
 				i, test.name, e)
 			continue
 

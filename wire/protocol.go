@@ -48,7 +48,7 @@ const (
 	// SFNodeNetwork is a flag used to indicate a peer is a full node.
 	SFNodeNetwork ServiceFlag = 1 << iota
 
-	// SFNodeBloom is a flag used to indiciate a peer supports bloom
+	// SFNodeBloom is a flag used to indicate a peer supports bloom
 	// filtering.
 	SFNodeBloom
 

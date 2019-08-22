@@ -82,7 +82,7 @@ func ExampleAmount_unitConversions() {
 }
 
 // This example demonstrates decoding addresses, determining their underlying
-// type, and displaying their associated underlying hash160 and digitial
+// type, and displaying their associated underlying hash160 and digital
 // signature algorithm.
 func ExampleDecodeAddress() {
 	// Ordinarily addresses would be read from the user or the result of a
@@ -105,7 +105,7 @@ func ExampleDecodeAddress() {
 		// algorithms, so this code is limited to that type
 		switch a := addr.(type) {
 		case *dcrutil.AddressPubKeyHash:
-			// Determine and display the digitial signature algorithm.
+			// Determine and display the digital signature algorithm.
 			algo := "unknown"
 			switch a.DSA() {
 			case dcrec.STEcdsaSecp256k1:

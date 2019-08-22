@@ -24,7 +24,7 @@ import (
 // encountered.
 var ErrMalformedPrivateKey = errors.New("malformed private key")
 
-// ErrWrongWIFNetwork desribes an error in which the provided WIF is not for
+// ErrWrongWIFNetwork describes an error in which the provided WIF is not for
 // the expected network.
 type ErrWrongWIFNetwork [2]byte
 

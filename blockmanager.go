@@ -330,7 +330,7 @@ type blockManagerConfig struct {
 	TxMemPool          *mempool.TxPool
 	BgBlkTmplGenerator *BgBlkTmplGenerator
 
-	// The following fields are blockManger callbacks.
+	// The following fields are blockManager callbacks.
 	NotifyWinningTickets      func(*WinningTicketsNtfnData)
 	PruneRebroadcastInventory func()
 	RpcServer                 func() *rpcServer
@@ -468,7 +468,7 @@ func (b *blockManager) startSync(peers *list.List) {
 
 		// Remove sync candidate peers that are no longer candidates due
 		// to passing their latest known block.  NOTE: The < is
-		// intentional as opposed to <=.  While techcnically the peer
+		// intentional as opposed to <=.  While technically the peer
 		// doesn't have a later block when it's equal, it will likely
 		// have one soon so it is a reasonable choice.  It also allows
 		// the case where both are at 0 such as during regression test.
@@ -1065,7 +1065,7 @@ func (b *blockManager) handleBlockMsg(bmsg *blockMsg) {
 			b.cfg.TxMemPool.PruneExpiredTx()
 
 			// Update this peer's latest block height, for future
-			// potential sync node candidancy.
+			// potential sync node candidacy.
 			heightUpdate = best.Height
 			blkHashUpdate = &best.Hash
 
@@ -1223,7 +1223,7 @@ func (b *blockManager) handleHeadersMsg(hmsg *headersMsg) {
 		prevNodeEl := b.headerList.Back()
 		if prevNodeEl == nil {
 			bmgrLog.Warnf("Header list does not contain a previous" +
-				"element as expected -- disconnecting peer")
+				" element as expected -- disconnecting peer")
 			hmsg.peer.Disconnect()
 			return
 		}
@@ -1889,7 +1889,7 @@ func (b *blockManager) handleBlockchainNotification(notification *blockchain.Not
 		// TODO: In the case the new tip disapproves the previous block, any
 		// transactions the previous block contains in its regular tree which
 		// double spend the same inputs as transactions in either tree of the
-		// current tip should ideally be tracked in the pool as eligibile for
+		// current tip should ideally be tracked in the pool as eligible for
 		// inclusion in an alternative tip (side chain block) in case the
 		// current tip block does not get enough votes.  However, the
 		// transaction pool currently does not provide any way to distinguish

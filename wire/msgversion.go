@@ -48,7 +48,7 @@ type MsgVersion struct {
 	// connections.
 	Nonce uint64
 
-	// The user agent that generated messsage.  This is a encoded as a varString
+	// The user agent that generated message.  This is encoded as a varString
 	// on the wire.  This has a max length of MaxUserAgentLen.
 	UserAgent string
 

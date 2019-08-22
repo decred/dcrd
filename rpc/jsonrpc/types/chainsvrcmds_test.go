@@ -1206,7 +1206,7 @@ func TestChainSvrCmds(t *testing.T) {
 		// new command creation function.
 		cmd, err := test.newCmd()
 		if err != nil {
-			t.Errorf("Test #%d (%s) unexpected dcrjson.NewCmd error: %v ",
+			t.Errorf("Test #%d (%s) unexpected dcrjson.NewCmd error: %v",
 				i, test.name, err)
 		}
 

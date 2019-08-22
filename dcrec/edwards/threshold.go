@@ -54,7 +54,7 @@ func combinePubkeys(pks []*PublicKey) *PublicKey {
 }
 
 // generateNoncePair deterministically generate a nonce pair for use in
-// partial signing of a message. Returns a public key (nonce to dissemanate)
+// partial signing of a message. Returns a public key (nonce to disseminate)
 // and a private nonce to keep as a secret for the signer.
 func generateNoncePair(msg []byte, priv []byte,
 	nonceFunction func([]byte, []byte, []byte,

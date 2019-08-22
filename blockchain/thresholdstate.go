@@ -531,7 +531,7 @@ func (b *BlockChain) StateLastChangedHeight(hash *chainhash.Hash, version uint32
 		return 0, HashError(hash.String())
 	}
 
-	// Fetch the treshold state cache for the provided deployment id as well as
+	// Fetch the threshold state cache for the provided deployment id as well as
 	// the condition checker.
 	var cache *thresholdStateCache
 	var checker thresholdConditionChecker

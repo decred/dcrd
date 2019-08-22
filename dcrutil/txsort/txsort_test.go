@@ -76,7 +76,7 @@ func TestSort(t *testing.T) {
 			sortedHash:   "bb5f9b338c0244e51182b10f36b5ca4c6eeaa2eae98a7bfc106d1f108f154525",
 		},
 		{
-			name:         "block 150626 tx[24] - sorts outputs only, based on amount and output script ",
+			name:         "block 150626 tx[24] - sorts outputs only, based on amount and output script",
 			hexFile:      "tx150626-24.hex",
 			isSorted:     false,
 			unsortedHash: "60542bf8ff4acd9ddb28fd9a2df33d23dd2b70a9aaca1f3dd5fe737879205e56",

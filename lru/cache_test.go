@@ -73,7 +73,7 @@ testLoop:
 			cache.Add(uint64(numNonces) + 1)
 
 			// Ensure the original lru entry still exists since it was updated
-			// and should've have become the lru entry.
+			// and should have become the lru entry.
 			if !cache.Contains(nonces[origLruIndex]) {
 				t.Errorf("Contains #%d (%s) entry %d does not exist", i, test.name,
 					nonces[origLruIndex])

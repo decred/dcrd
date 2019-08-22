@@ -24,7 +24,7 @@ func (s sortableInputSlice) Len() int {
 	return len(s)
 }
 
-// Swap swaps the transaction intputs at the passed indices.  It is part of the
+// Swap swaps the transaction inputs at the passed indices.  It is part of the
 // sort.Interface implementation.
 func (s sortableInputSlice) Swap(i, j int) {
 	s[i], s[j] = s[j], s[i]

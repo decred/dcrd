@@ -210,7 +210,7 @@ func parseSig(sigStr []byte, der bool) (*Signature, error) {
 }
 
 // ParseSignature parses a signature in BER format for the curve type `curve'
-// into a Signature type, perfoming some basic sanity checks.  If parsing
+// into a Signature type, performing some basic sanity checks.  If parsing
 // according to the more strict DER format is needed, use ParseDERSignature.
 func ParseSignature(sigStr []byte) (*Signature, error) {
 	return parseSig(sigStr, false)
@@ -352,7 +352,7 @@ func recoverKeyFromSignature(sig *Signature, msg []byte,
 // public key or not. If successful the bytes of the compact signature will be
 // returned in the format:
 // <(byte of 27+public key solution)+4 if compressed >< padded bytes for signature R><padded bytes for signature S>
-// where the R and S parameters are padded up to the bitlengh of the curve.
+// where the R and S parameters are padded up to the bitlength of the curve.
 func SignCompact(key *PrivateKey,
 	hash []byte, isCompressedKey bool) ([]byte, error) {
 	sig, err := key.Sign(hash)
@@ -399,7 +399,7 @@ func SignCompact(key *PrivateKey,
 
 // RecoverCompact verifies the compact signature "signature" of "hash" for the
 // Koblitz curve in "curve". If the signature matches then the recovered public
-// key will be returned as well as a boolen if the original key was compressed
+// key will be returned as well as a boolean if the original key was compressed
 // or not, else an error will be returned.
 func RecoverCompact(signature,
 	hash []byte) (*PublicKey, bool, error) {

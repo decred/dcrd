@@ -199,7 +199,7 @@ func TestHeadersWireErrors(t *testing.T) {
 	bits := uint32(0x1d00ffff)
 	nonce := uint32(0x9962e301)
 	bh := NewBlockHeader(
-		int32(pver),    // Verision
+		int32(pver),    // Version
 		&hash,          // PrevHash
 		&merkleHash,    // MerkleRootHash
 		&merkleHash,    // StakeRoot
@@ -271,7 +271,7 @@ func TestHeadersWireErrors(t *testing.T) {
 	// Intentionally invalid block header that has a transaction count used
 	// to force errors.
 	bhTrans := NewBlockHeader(
-		int32(0),       // Verision
+		int32(0),       // Version
 		&hash,          // PrevHash
 		&merkleHash,    // MerkleRootHash
 		&merkleHash,    // StakeRoot

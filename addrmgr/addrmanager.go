@@ -1064,7 +1064,7 @@ const (
 	// addresses.
 	Ipv6Weak
 
-	// Ipv4 represents an IPV4 connection state between two addreses.
+	// Ipv4 represents an IPV4 connection state between two addresses.
 	Ipv4
 
 	// Ipv6Strong represents a connection state between two IPV6 addresses.

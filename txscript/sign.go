@@ -433,7 +433,7 @@ sigLoop:
 		}
 
 		for _, addr := range addresses {
-			// All multisig addresses should be pubkey addreses
+			// All multisig addresses should be pubkey addresses
 			// it is an error to call this internal function with
 			// bad input.
 			pkaddr := addr.(*dcrutil.AddressSecpPubKey)
@@ -569,7 +569,7 @@ func (kc KeyClosure) GetKey(address dcrutil.Address) (chainec.PrivateKey, bool, 
 }
 
 // ScriptDB is an interface type provided to SignTxOutput, it encapsulates any
-// user state required to get the scripts for an pay-to-script-hash address.
+// user state required to get the scripts for a pay-to-script-hash address.
 type ScriptDB interface {
 	GetScript(dcrutil.Address) ([]byte, error)
 }

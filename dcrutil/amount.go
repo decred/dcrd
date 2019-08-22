@@ -102,7 +102,7 @@ func (a Amount) ToCoin() float64 {
 
 // Format formats a monetary amount counted in coin base units as a
 // string for a given unit.  The conversion will succeed for any unit,
-// however, known units will be formated with an appended label describing
+// however, known units will be formatted with an appended label describing
 // the units with SI notation, or "atom" for the base unit.
 func (a Amount) Format(u AmountUnit) string {
 	units := " " + u.String()

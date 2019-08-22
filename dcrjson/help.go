@@ -197,7 +197,7 @@ func reflectTypeToJSONExample(xT descLookupFunc, rt reflect.Type, indentLevel in
 			// previous field to house the opening array bracket, so
 			// replace the opening object brace with the array
 			// syntax.  Also, replace the final closing object brace
-			// with the variadiac array closing syntax.
+			// with the variadic array closing syntax.
 			indent := strings.Repeat(" ", indentLevel)
 			if indentLevel == 0 {
 				results[0] = indent + "[{"
@@ -209,7 +209,7 @@ func reflectTypeToJSONExample(xT descLookupFunc, rt reflect.Type, indentLevel in
 			// the opening array bracket and object brace are
 			// already a part of the previous field.  However, the
 			// closing entry is a simple object brace, so replace it
-			// with the variadiac array closing syntax.  The final
+			// with the variadic array closing syntax.  The final
 			// tabs are necessary so the tab writer lines things up
 			// properly.
 			results[len(results)-1] = indent + "},...],\t\t"
@@ -537,7 +537,7 @@ func GenerateHelp(method interface{}, descs map[string]string, resultTypes ...in
 	}
 
 	// Create a closure for the description lookup function which falls back
-	// to the base help descritptions map for unrecognized keys and tracks
+	// to the base help descriptions map for unrecognized keys and tracks
 	// and missing keys.
 	var missingKey string
 	xT := func(key string) string {
