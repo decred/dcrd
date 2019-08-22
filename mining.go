@@ -600,7 +600,7 @@ func createCoinbaseTx(subsidyCache *standalone.SubsidyCache, coinbaseScript []by
 // spendTransaction updates the passed view by marking the inputs to the passed
 // transaction as spent.  It also adds all outputs in the passed transaction
 // which are not provably unspendable as available unspent transaction outputs.
-func spendTransaction(utxoView *blockchain.UtxoViewpoint, tx *dcrutil.Tx, height int64) error {
+func spendTransaction(utxoView *blockchain.UtxoViewpoint, tx *dcrutil.Tx, height int64) {
 	for _, txIn := range tx.MsgTx().TxIn {
 		originHash := &txIn.PreviousOutPoint.Hash
 		originIndex := txIn.PreviousOutPoint.Index
@@ -608,11 +608,9 @@ func spendTransaction(utxoView *blockchain.UtxoViewpoint, tx *dcrutil.Tx, height
 		if entry != nil {
 			entry.SpendOutput(originIndex)
 		}
-
 	}
 
 	utxoView.AddTxOuts(tx, height, wire.NullBlockIndex)
-	return nil
 }
 
 // logSkippedDeps logs any dependencies which are also skipped as a result of
@@ -1495,12 +1493,7 @@ mempoolLoop:
 		// an entry for it to ensure any transactions which reference
 		// this one have it available as an input and can ensure they
 		// aren't double spending.
-		err = spendTransaction(blockUtxos, tx, nextBlockHeight)
-		if err != nil {
-			minrLog.Warnf("Unable to spend transaction %v in the preliminary "+
-				"UTXO view for the block template: %v",
-				tx.Hash(), err)
-		}
+		spendTransaction(blockUtxos, tx, nextBlockHeight)
 
 		// Add the transaction to the block, increment counters, and
 		// save the fees and signature operation counts to the block
