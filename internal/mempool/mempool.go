@@ -208,11 +208,6 @@ type Policy struct {
 	// applies when the AllowOldVotes option is false.
 	MaxVoteAge uint16
 
-	// FeeDecayRate defines the rate at which a transaction's fees will be
-	// scaled by, if it spends from other transactions in the pool.
-	// TODO: Verify that this is a value in the range [0, 1)
-	FeeDecayRate float64
-
 	// StandardVerifyFlags defines the function to retrieve the flags to
 	// use for verifying scripts for the block after the current best block.
 	// It must set the verification flags properly depending on the result
@@ -2190,11 +2185,10 @@ func New(cfg *Config) *TxPool {
 	}
 
 	mp.miningView = &txMiningView{
-		feeDecayRate: mp.cfg.Policy.FeeDecayRate,
-		rejected:     make(map[chainhash.Hash]struct{}),
-		txGraph:      mp.newTxDescGraph(),
-		txDescs:      []*mining.TxDesc{},
-		bundleStats:  make(map[chainhash.Hash]*mining.TxBundleStats),
+		rejected:    make(map[chainhash.Hash]struct{}),
+		txGraph:     mp.newTxDescGraph(),
+		txDescs:     []*mining.TxDesc{},
+		bundleStats: make(map[chainhash.Hash]*mining.TxBundleStats),
 	}
 
 	return mp
@@ -2220,10 +2214,6 @@ type txMiningView struct {
 	txGraph     *txDescGraph
 	txDescs     []*mining.TxDesc
 	bundleStats map[chainhash.Hash]*mining.TxBundleStats
-
-	// used to scale the fees of a transaction based on the number of
-	// ancestors it has.
-	feeDecayRate float64
 }
 
 // newTxDescGraph returns a new instance of txDescGraph. The graph is provided
@@ -2266,11 +2256,10 @@ func (mp *TxPool) MiningView() mining.TxMiningView {
 		len(mp.miningView.bundleStats))
 
 	view := &txMiningView{
-		feeDecayRate: mp.cfg.Policy.FeeDecayRate,
-		rejected:     make(map[chainhash.Hash]struct{}),
-		txGraph:      mp.miningView.txGraph.clone(mp.findTx),
-		txDescs:      mp.miningDescs(),
-		bundleStats:  statsCopy,
+		rejected:    make(map[chainhash.Hash]struct{}),
+		txGraph:     mp.miningView.txGraph.clone(mp.findTx),
+		txDescs:     mp.miningDescs(),
+		bundleStats: statsCopy,
 	}
 
 	for key, value := range mp.miningView.bundleStats {
@@ -2605,33 +2594,10 @@ func (mv *txMiningView) notifyDescendentsRemoved(txDesc *mining.TxDesc) {
 	}
 }
 
-// scaleFee reduces the perceived fee of a tx based on the number of ancestors.
-// This encourages users to pay higher fees for large unconfirmed transaction
-// chains, increasing the cost of complexity attacks during mining when sorting
-// transactions by the fee of their ancestors from a large mempool.
-func (mv *txMiningView) scaleFee(fee int64, numAncestors int) int64 {
-	return int64(float64(fee) *
-		math.Pow(1-mv.feeDecayRate, float64(numAncestors)))
-}
-
 // BundleStats returns the view's cached statistics for all of the provided
 // transaction's ancestors.
 func (mv *txMiningView) BundleStats(txHash *chainhash.Hash) *mining.TxBundleStats {
-	cachedStats := mv.bundleStats[*txHash]
-	if cachedStats == nil {
-		return nil
-	}
-
-	// Return a new instance so that scaling modifications do not affect the
-	// cached reference.
-	// TODO: To reduce allocations, the consumer of this could handle scaling.
-	scaledFee := mv.scaleFee(cachedStats.Fees, cachedStats.NumAncestors)
-	return &mining.TxBundleStats{
-		Fees:         scaledFee,
-		SizeBytes:    cachedStats.SizeBytes,
-		NumSigOps:    cachedStats.NumSigOps,
-		NumAncestors: cachedStats.NumAncestors,
-	}
+	return mv.bundleStats[*txHash]
 }
 
 // Ancestors returns a collection of all transactions in the graph that the
@@ -2642,17 +2608,7 @@ func (mv *txMiningView) Ancestors(txHash *chainhash.Hash) ([]*mining.TxDesc, *mi
 
 	// Update the cache.
 	mv.bundleStats[*txHash] = stats
-
-	// Modify the fee based on the number of ancestors, and return a new
-	// instance to avoid modifying the cached reference.
-	// TODO: To reduce allocations, the consumer of this could handle scaling.
-	scaledFee := mv.scaleFee(stats.Fees, stats.NumAncestors)
-	return ancestors, &mining.TxBundleStats{
-		Fees:         scaledFee,
-		SizeBytes:    stats.SizeBytes,
-		NumSigOps:    stats.NumSigOps,
-		NumAncestors: stats.NumAncestors,
-	}
+	return ancestors, stats
 }
 
 // HasParents returns true if the provided transaction hash spends from another

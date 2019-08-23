@@ -783,7 +783,6 @@ func newPoolHarness(chainParams *chaincfg.Params) (*poolHarness, []spendableOutp
 		chain: chain,
 		txPool: New(&Config{
 			Policy: Policy{
-				FeeDecayRate:         0,
 				MaxTxVersion:         wire.TxVersionTreasury,
 				DisableRelayPriority: true,
 				FreeTxRelayLimit:     15.0,
