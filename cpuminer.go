@@ -250,8 +250,10 @@ func (m *CPUMiner) solveBlock(msgBlock *wire.MsgBlock, ticker *time.Ticker, quit
 
 	// Note that the entire extra nonce range is iterated and the offset is
 	// added relying on the fact that overflow will wrap around 0 as
-	// provided by the Go spec.
-	for extraNonce := uint64(0); extraNonce < maxExtraNonce; extraNonce++ {
+	// provided by the Go spec.  Furthermore, the break condition has been
+	// intentionally omitted such that the loop will continue forever until
+	// a solution is found.
+	for extraNonce := uint64(0); ; extraNonce++ {
 		// Update the extra nonce in the block template header with the
 		// new value.
 		littleEndian.PutUint64(header.ExtraData[:], extraNonce+enOffset)
@@ -259,7 +261,15 @@ func (m *CPUMiner) solveBlock(msgBlock *wire.MsgBlock, ticker *time.Ticker, quit
 		// Search through the entire nonce range for a solution while
 		// periodically checking for early quit and stale block
 		// conditions along with updates to the speed monitor.
-		for i := uint32(0); i <= maxNonce; i++ {
+		//
+		// This loop differs from the outer one in that it does not run
+		// forever, thus allowing the extraNonce field to be updated
+		// between each successive iteration of the regular nonce
+		// space.  Note that this is achieved by placing the break
+		// condition at the end of the code block, as this prevents the
+		// infinite loop that would otherwise occur if we let the for
+		// statement overflow the nonce value back to 0.
+		for nonce := uint32(0); ; nonce++ {
 			select {
 			case <-quit:
 				return false
@@ -294,7 +304,7 @@ func (m *CPUMiner) solveBlock(msgBlock *wire.MsgBlock, ticker *time.Ticker, quit
 			}
 
 			// Update the nonce and hash the block header.
-			header.Nonce = i
+			header.Nonce = nonce
 			hash := header.BlockHash()
 			hashesCompleted++
 
@@ -307,10 +317,12 @@ func (m *CPUMiner) solveBlock(msgBlock *wire.MsgBlock, ticker *time.Ticker, quit
 				}
 				return true
 			}
+
+			if nonce == maxNonce {
+				break
+			}
 		}
 	}
-
-	return false
 }
 
 // generateBlocks is a worker that is controlled by the miningWorkerController.
