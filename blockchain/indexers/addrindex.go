@@ -11,7 +11,6 @@ import (
 	"sync"
 
 	"github.com/decred/dcrd/blockchain/stake/v3"
-	"github.com/decred/dcrd/blockchain/v3"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/chaincfg/v2"
 	"github.com/decred/dcrd/database/v2"
@@ -725,10 +724,10 @@ func (idx *AddrIndex) indexPkScript(data writeIndexData, scriptVersion uint16, p
 	}
 }
 
-// indexBlock extracts all of the standard addresses from all of the
-// regular and stake transactions in the passed block and maps each of them to
-// the associated transaction using the passed map.
-func (idx *AddrIndex) indexBlock(data writeIndexData, block *dcrutil.Block, view *blockchain.UtxoViewpoint) {
+// indexBlock extracts all of the standard addresses from all of the regular and
+// stake transactions in the passed block and maps each of them to the
+// associated transaction using the passed map.
+func (idx *AddrIndex) indexBlock(data writeIndexData, block *dcrutil.Block, prevScripts PrevScripter) {
 	regularTxns := block.Transactions()
 	for txIdx, tx := range regularTxns {
 		// Coinbases do not reference any inputs.  Since the block is
@@ -737,23 +736,19 @@ func (idx *AddrIndex) indexBlock(data writeIndexData, block *dcrutil.Block, view
 		// is a coinbase.
 		if txIdx != 0 {
 			for _, txIn := range tx.MsgTx().TxIn {
-				// The view should always have the input since
-				// the index contract requires it, however, be
-				// safe and simply ignore any missing entries.
+				// The input should always be available since the index contract
+				// requires it, however, be safe and simply ignore any missing
+				// entries.
 				origin := &txIn.PreviousOutPoint
-				entry := view.LookupEntry(&origin.Hash)
-				if entry == nil {
-					log.Warnf("Missing input %v for tx %v while "+
-						"indexing block %v (height %v)\n", origin.Hash,
+				version, pkScript, ok := prevScripts.PrevScript(origin)
+				if !ok {
+					log.Warnf("Missing input %v:%d for tx %v while indexing "+
+						"block %v (height %v)\n", origin, origin.Tree,
 						tx.Hash(), block.Hash(), block.Height())
 					continue
 				}
 
-				version := entry.ScriptVersionByIndex(origin.Index)
-				pkScript := entry.PkScriptByIndex(origin.Index)
-				txType := entry.TransactionType()
-				idx.indexPkScript(data, version, pkScript, txIdx,
-					txType == stake.TxTypeSStx)
+				idx.indexPkScript(data, version, pkScript, txIdx, false)
 			}
 		}
 
@@ -774,23 +769,19 @@ func (idx *AddrIndex) indexBlock(data writeIndexData, block *dcrutil.Block, view
 				continue
 			}
 
-			// The view should always have the input since
-			// the index contract requires it, however, be
-			// safe and simply ignore any missing entries.
+			// The input should always be available since the index contract
+			// requires it, however, be safe and simply ignore any missing
+			// entries.
 			origin := &txIn.PreviousOutPoint
-			entry := view.LookupEntry(&origin.Hash)
-			if entry == nil {
-				log.Warnf("Missing input %v for tx %v while "+
-					"indexing block %v (height %v)\n", origin.Hash,
+			version, pkScript, ok := prevScripts.PrevScript(origin)
+			if !ok {
+				log.Warnf("Missing input %v:%d for tx %v while indexing "+
+					"block %v (height %v)\n", origin, origin.Tree,
 					tx.Hash(), block.Hash(), block.Height())
 				continue
 			}
 
-			version := entry.ScriptVersionByIndex(origin.Index)
-			pkScript := entry.PkScriptByIndex(origin.Index)
-			txType := entry.TransactionType()
-			idx.indexPkScript(data, version, pkScript, thisTxOffset,
-				txType == stake.TxTypeSStx)
+			idx.indexPkScript(data, version, pkScript, thisTxOffset, false)
 		}
 
 		isSStx := stake.IsSStx(msgTx)
@@ -806,7 +797,7 @@ func (idx *AddrIndex) indexBlock(data writeIndexData, block *dcrutil.Block, view
 // the transactions in the block involve.
 //
 // This is part of the Indexer interface.
-func (idx *AddrIndex) ConnectBlock(dbTx database.Tx, block, parent *dcrutil.Block, view *blockchain.UtxoViewpoint) error {
+func (idx *AddrIndex) ConnectBlock(dbTx database.Tx, block, parent *dcrutil.Block, prevScripts PrevScripter) error {
 	// NOTE: The fact that the block can disapprove the regular tree of the
 	// previous block is ignored for this index because even though the
 	// disapproved transactions no longer apply spend semantics, they still
@@ -827,7 +818,7 @@ func (idx *AddrIndex) ConnectBlock(dbTx database.Tx, block, parent *dcrutil.Bloc
 
 	// Build all of the address to transaction mappings in a local map.
 	addrsToTxns := make(writeIndexData)
-	idx.indexBlock(addrsToTxns, block, view)
+	idx.indexBlock(addrsToTxns, block, prevScripts)
 
 	// Add all of the index entries for each address.
 	stakeIdxsStart := len(txLocs)
@@ -859,7 +850,7 @@ func (idx *AddrIndex) ConnectBlock(dbTx database.Tx, block, parent *dcrutil.Bloc
 // each transaction in the block involve.
 //
 // This is part of the Indexer interface.
-func (idx *AddrIndex) DisconnectBlock(dbTx database.Tx, block, parent *dcrutil.Block, view *blockchain.UtxoViewpoint) error {
+func (idx *AddrIndex) DisconnectBlock(dbTx database.Tx, block, parent *dcrutil.Block, prevScripts PrevScripter) error {
 	// NOTE: The fact that the block can disapprove the regular tree of the
 	// previous block is ignored for this index because even though the
 	// disapproved transactions no longer apply spend semantics, they still
@@ -868,7 +859,7 @@ func (idx *AddrIndex) DisconnectBlock(dbTx database.Tx, block, parent *dcrutil.B
 
 	// Build all of the address to transaction mappings in a local map.
 	addrsToTxns := make(writeIndexData)
-	idx.indexBlock(addrsToTxns, block, view)
+	idx.indexBlock(addrsToTxns, block, prevScripts)
 
 	// Remove all of the index entries for each address.
 	bucket := dbTx.Metadata().Bucket(addrIndexKey)
@@ -973,12 +964,12 @@ func (idx *AddrIndex) indexUnconfirmedAddresses(scriptVersion uint16, pkScript [
 // unconfirmed (memory-only) address index.
 //
 // NOTE: This transaction MUST have already been validated by the memory pool
-// before calling this function with it and have all of the inputs available in
-// the provided utxo view.  Failure to do so could result in some or all
-// addresses not being indexed.
+// before calling this function with it and have all of the inputs available via
+// the provided previous scripter interface.  Failure to do so could result in
+// some or all addresses not being indexed.
 //
 // This function is safe for concurrent access.
-func (idx *AddrIndex) AddUnconfirmedTx(tx *dcrutil.Tx, utxoView *blockchain.UtxoViewpoint) {
+func (idx *AddrIndex) AddUnconfirmedTx(tx *dcrutil.Tx, prevScripts PrevScripter) {
 	// Index addresses of all referenced previous transaction outputs.
 	//
 	// The existence checks are elided since this is only called after the
@@ -992,18 +983,14 @@ func (idx *AddrIndex) AddUnconfirmedTx(tx *dcrutil.Tx, utxoView *blockchain.Utxo
 			continue
 		}
 
-		entry := utxoView.LookupEntry(&txIn.PreviousOutPoint.Hash)
-		if entry == nil {
-			// Ignore missing entries.  This should never happen
-			// in practice since the function comments specifically
-			// call out all inputs must be available.
+		version, pkScript, ok := prevScripts.PrevScript(&txIn.PreviousOutPoint)
+		if !ok {
+			// Ignore missing entries.  This should never happen in practice
+			// since the function comments specifically call out all inputs must
+			// be available.
 			continue
 		}
-		version := entry.ScriptVersionByIndex(txIn.PreviousOutPoint.Index)
-		pkScript := entry.PkScriptByIndex(txIn.PreviousOutPoint.Index)
-		txType := entry.TransactionType()
-		idx.indexUnconfirmedAddresses(version, pkScript, tx,
-			txType == stake.TxTypeSStx)
+		idx.indexUnconfirmedAddresses(version, pkScript, tx, false)
 	}
 
 	// Index addresses of all created outputs.

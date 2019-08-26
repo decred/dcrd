@@ -8,7 +8,6 @@ import (
 	"sync"
 
 	"github.com/decred/dcrd/blockchain/stake/v3"
-	"github.com/decred/dcrd/blockchain/v3"
 	"github.com/decred/dcrd/chaincfg/v2"
 	"github.com/decred/dcrd/database/v2"
 	"github.com/decred/dcrd/dcrutil/v3"
@@ -215,7 +214,7 @@ func (idx *ExistsAddrIndex) ExistsAddresses(addrs []dcrutil.Address) ([]bool, er
 // the transactions in the block involve.
 //
 // This is part of the Indexer interface.
-func (idx *ExistsAddrIndex) ConnectBlock(dbTx database.Tx, block, parent *dcrutil.Block, view *blockchain.UtxoViewpoint) error {
+func (idx *ExistsAddrIndex) ConnectBlock(dbTx database.Tx, block, parent *dcrutil.Block, _ PrevScripter) error {
 	// NOTE: The fact that the block can disapprove the regular tree of the
 	// previous block is ignored for this index because even though technically
 	// the address might become unused again if its only use was in a
@@ -332,7 +331,7 @@ func (idx *ExistsAddrIndex) ConnectBlock(dbTx database.Tx, block, parent *dcruti
 // never removes addresses.
 //
 // This is part of the Indexer interface.
-func (idx *ExistsAddrIndex) DisconnectBlock(dbTx database.Tx, block, parent *dcrutil.Block, view *blockchain.UtxoViewpoint) error {
+func (idx *ExistsAddrIndex) DisconnectBlock(dbTx database.Tx, block, parent *dcrutil.Block, _ PrevScripter) error {
 	// The primary purpose of this index is to track whether or not addresses
 	// have ever been seen, so even if they ultimately end up technically
 	// becoming unused due to being in a block that was disconnected and the

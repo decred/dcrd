@@ -2940,7 +2940,7 @@ func newServer(listenAddrs []string, db database.DB, chainParams *chaincfg.Param
 	s.feeEstimator = fe
 
 	// Create an index manager if any of the optional indexes are enabled.
-	var indexManager blockchain.IndexManager
+	var indexManager indexers.IndexManager
 	if len(indexes) > 0 {
 		indexManager = indexers.NewManager(db, indexes, chainParams)
 	}

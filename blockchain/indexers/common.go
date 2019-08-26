@@ -12,9 +12,10 @@ import (
 	"encoding/binary"
 	"errors"
 
-	"github.com/decred/dcrd/blockchain/v3"
+	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/database/v2"
 	"github.com/decred/dcrd/dcrutil/v3"
+	"github.com/decred/dcrd/wire"
 )
 
 var (
@@ -31,6 +32,15 @@ var (
 // requires the ability to look up inputs for a transaction.
 type NeedsInputser interface {
 	NeedsInputs() bool
+}
+
+// PrevScripter defines an interface that provides access to scripts and their
+// associated version keyed by an outpoint.  It is used within this package as a
+// generic means to provide the scripts referenced by the inputs to transactions
+// within a block that are needed to index it.  The boolean return indicates
+// whether or not the script and version for the provided outpoint was found.
+type PrevScripter interface {
+	PrevScript(*wire.OutPoint) (uint16, []byte, bool)
 }
 
 // Indexer provides a generic interface for an indexer that is managed by an
@@ -56,11 +66,49 @@ type Indexer interface {
 
 	// ConnectBlock is invoked when the index manager is notified that a new
 	// block has been connected to the main chain.
-	ConnectBlock(dbTx database.Tx, block, parent *dcrutil.Block, view *blockchain.UtxoViewpoint) error
+	ConnectBlock(dbTx database.Tx, block, parent *dcrutil.Block, prevScripts PrevScripter) error
 
 	// DisconnectBlock is invoked when the index manager is notified that a
 	// block has been disconnected from the main chain.
-	DisconnectBlock(dbTx database.Tx, block, parent *dcrutil.Block, view *blockchain.UtxoViewpoint) error
+	DisconnectBlock(dbTx database.Tx, block, parent *dcrutil.Block, prevScripts PrevScripter) error
+}
+
+// ChainQueryer provides a generic interface that is used to provide access to
+// the chain details required to by the index manager to initialize and sync
+// the various indexes.
+//
+// All function MUST be safe for concurrent access.
+type ChainQueryer interface {
+	// MainChainHasBlock returns whether or not the block with the given hash is
+	// in the main chain.
+	MainChainHasBlock(*chainhash.Hash) bool
+
+	// BestHeight returns the height of the current best block.
+	BestHeight() int64
+
+	// BlockHashByHeight returns the hash of the block at the given height in
+	// the main chain.
+	BlockHashByHeight(int64) (*chainhash.Hash, error)
+}
+
+// IndexManager provides a generic interface that is called when blocks are
+// connected and disconnected to and from the tip of the main chain for the
+// purpose of supporting optional indexes.
+type IndexManager interface {
+	// Init is invoked during chain initialize in order to allow the index
+	// manager to initialize itself and any indexes it is managing.  The channel
+	// parameter specifies a channel the caller can close to signal that the
+	// process should be interrupted.  It can be nil if that behavior is not
+	// desired.
+	Init(ChainQueryer, <-chan struct{}) error
+
+	// ConnectBlock is invoked when a new block has been connected to the main
+	// chain.
+	ConnectBlock(database.Tx, *dcrutil.Block, *dcrutil.Block, PrevScripter) error
+
+	// DisconnectBlock is invoked when a block has been disconnected from the
+	// main chain.
+	DisconnectBlock(database.Tx, *dcrutil.Block, *dcrutil.Block, PrevScripter) error
 }
 
 // IndexDropper provides a method to remove an index from the database. Indexers

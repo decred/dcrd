@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/decred/dcrd/blockchain/v3"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/chaincfg/v2"
 	"github.com/decred/dcrd/database/v2"
@@ -213,7 +212,7 @@ func storeFilter(dbTx database.Tx, block *dcrutil.Block, f *gcs.FilterV1, filter
 // ConnectBlock is invoked by the index manager when a new block has been
 // connected to the main chain. This indexer adds a hash-to-cf mapping for
 // every passed block. This is part of the Indexer interface.
-func (idx *CFIndex) ConnectBlock(dbTx database.Tx, block, parent *dcrutil.Block, view *blockchain.UtxoViewpoint) error {
+func (idx *CFIndex) ConnectBlock(dbTx database.Tx, block, parent *dcrutil.Block, _ PrevScripter) error {
 	f, err := blockcf.Regular(block.MsgBlock())
 	if err != nil {
 		return err
@@ -235,7 +234,7 @@ func (idx *CFIndex) ConnectBlock(dbTx database.Tx, block, parent *dcrutil.Block,
 // DisconnectBlock is invoked by the index manager when a block has been
 // disconnected from the main chain.  This indexer removes the hash-to-cf
 // mapping for every passed block. This is part of the Indexer interface.
-func (idx *CFIndex) DisconnectBlock(dbTx database.Tx, block, parent *dcrutil.Block, view *blockchain.UtxoViewpoint) error {
+func (idx *CFIndex) DisconnectBlock(dbTx database.Tx, block, parent *dcrutil.Block, _ PrevScripter) error {
 	for _, key := range cfIndexKeys {
 		err := dbDeleteFilter(dbTx, key, block.Hash())
 		if err != nil {

@@ -13,6 +13,7 @@ import (
 
 	"github.com/decred/dcrd/blockchain/stake/v3"
 	"github.com/decred/dcrd/blockchain/standalone"
+	"github.com/decred/dcrd/blockchain/v3/indexers"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/chaincfg/v2"
 	"github.com/decred/dcrd/database/v2"
@@ -148,7 +149,7 @@ type BlockChain struct {
 	timeSource          MedianTimeSource
 	notifications       NotificationCallback
 	sigCache            *txscript.SigCache
-	indexManager        IndexManager
+	indexManager        indexers.IndexManager
 	interrupt           <-chan struct{}
 
 	// subsidyCache is the cache that provides quick lookup of subsidy
@@ -2022,24 +2023,20 @@ func extractDeploymentIDVersions(params *chaincfg.Params) (map[string]uint32, er
 	return deploymentVers, nil
 }
 
-// IndexManager provides a generic interface that the is called when blocks are
-// connected and disconnected to and from the tip of the main chain for the
-// purpose of supporting optional indexes.
-type IndexManager interface {
-	// Init is invoked during chain initialize in order to allow the index
-	// manager to initialize itself and any indexes it is managing.  The
-	// channel parameter specifies a channel the caller can close to signal
-	// that the process should be interrupted.  It can be nil if that
-	// behavior is not desired.
-	Init(*BlockChain, <-chan struct{}) error
+// chainQueryerAdapter provides an adapter from a BlockChain instance to the
+// indexers.ChainQueryer interface.
+type chainQueryerAdapter struct {
+	*BlockChain
+}
 
-	// ConnectBlock is invoked when a new block has been connected to the
-	// main chain.
-	ConnectBlock(database.Tx, *dcrutil.Block, *dcrutil.Block, *UtxoViewpoint) error
-
-	// DisconnectBlock is invoked when a block has been disconnected from
-	// the main chain.
-	DisconnectBlock(database.Tx, *dcrutil.Block, *dcrutil.Block, *UtxoViewpoint) error
+// BestHeight returns the height of the current best block.  It is equivalent to
+// the Height field of the BestSnapshot method, however, it is needed to satisfy
+// the indexers.ChainQueryer interface.
+//
+// It is defined via a separate internal struct to avoid polluting the public
+// API of the BlockChain type itself.
+func (q *chainQueryerAdapter) BestHeight() int64 {
+	return q.BestSnapshot().Height
 }
 
 // Config is a descriptor which specifies the blockchain instance configuration.
@@ -2101,7 +2098,7 @@ type Config struct {
 	//
 	// This field can be nil if the caller does not wish to make use of an
 	// index manager.
-	IndexManager IndexManager
+	IndexManager indexers.IndexManager
 }
 
 // New returns a BlockChain instance using the provided configuration details.
@@ -2173,8 +2170,9 @@ func New(config *Config) (*BlockChain, error) {
 
 	// Initialize and catch up all of the currently active optional indexes
 	// as needed.
+	queryAdapter := chainQueryerAdapter{BlockChain: &b}
 	if config.IndexManager != nil {
-		err := config.IndexManager.Init(&b, config.Interrupt)
+		err := config.IndexManager.Init(&queryAdapter, config.Interrupt)
 		if err != nil {
 			return nil, err
 		}
