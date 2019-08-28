@@ -68,4 +68,5 @@ replace (
 	github.com/decred/dcrd/rpcclient/v5 => ./rpcclient
 	github.com/decred/dcrd/txscript/v2 => ./txscript
 	github.com/decred/dcrd/wire => ./wire
+	github.com/decred/dcrwallet/rpc/jsonrpc/types => github.com/jrick/btcwallet/rpc/jsonrpc/types v0.0.0-20190916132041-beef8628a232
 )
