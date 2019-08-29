@@ -440,6 +440,15 @@ var helpDescsEnUS = map[string]string{
 	"getcfilter-hash":       "The block hash of the filter being queried",
 	"getcfilter-filtertype": "The type of committed filter to return",
 
+	// GetCFiltersCmd help.
+	"getcfilters--synopsis":      "Returns a collection of committed filters",
+	"getcfilters-filterrequests": "A collection of committed filter requests",
+
+	// CFiltersResult help.
+	"cfilterresult-hash":       "The block hash",
+	"cfilterresult-filtertype": "The committed filter type requested",
+	"cfilterresult-data":       "The hex encoded committed filter",
+
 	// GetCFilterHeaderCmd help.
 	"getcfilterheader--synopsis":  "Returns the filter header hash committing to all filters in the chain up through a block",
 	"getcfilterheader--result0":   "The filter header commitment hash",
@@ -1000,6 +1009,7 @@ var rpcResultTypes = map[types.Method][]interface{}{
 	"getblocksubsidy":       {(*types.GetBlockSubsidyResult)(nil)},
 	"getblocktemplate":      {(*types.GetBlockTemplateResult)(nil), (*string)(nil), nil},
 	"getcfilter":            {(*string)(nil)},
+	"getcfilters":           {(*[]types.CFilterResult)(nil)},
 	"getcfilterheader":      {(*string)(nil)},
 	"getchaintips":          {(*[]types.GetChainTipsResult)(nil)},
 	"getconnectioncount":    {(*int32)(nil)},

@@ -203,6 +203,7 @@ var rpcHandlersBeforeInit = map[types.Method]commandHandler{
 	"getgenerate":           handleGetGenerate,
 	"gethashespersec":       handleGetHashesPerSec,
 	"getcfilter":            handleGetCFilter,
+	"getcfilters":           handleGetCFilters,
 	"getcfilterheader":      handleGetCFilterHeader,
 	"getheaders":            handleGetHeaders,
 	"getinfo":               handleGetInfo,
@@ -3083,6 +3084,57 @@ func handleGetCFilter(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) 
 
 	rpcsLog.Debugf("Found committed filter for %v", hash)
 	return hex.EncodeToString(filterBytes), nil
+}
+
+// handleGetCFilters implements the getcfilters command.
+func handleGetCFilters(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) (interface{}, error) {
+	if s.server.cfIndex == nil {
+		return nil, dcrjson.RPCError{
+			Code:    dcrjson.ErrRPCNoCFIndex,
+			Message: "Compact filters must be enabled for this command",
+		}
+	}
+
+	c := cmd.(*types.GetCFiltersCmd)
+	cFilters := make([]types.CFilterResult, 0)
+	for _, gcf := range c.FilterRequests {
+		hash, err := chainhash.NewHashFromStr(gcf.Hash)
+		if err != nil {
+			rpcsLog.Debugf("NewHashFromStr: %v", rpcDecodeHexError(gcf.Hash))
+			continue
+		}
+
+		var filterType wire.FilterType
+		switch gcf.FilterType {
+		case "regular":
+			filterType = wire.GCSFilterRegular
+		case "extended":
+			filterType = wire.GCSFilterExtended
+		default:
+			rpcsLog.Debugf("Unknown filter type %s", gcf.FilterType)
+			continue
+		}
+
+		filterBytes, err := s.server.cfIndex.FilterByBlockHash(hash, filterType)
+		if err != nil {
+			rpcsLog.Debugf("Failed to load %v filter for block %v",
+				filterType, hash)
+			continue
+		}
+
+		if len(filterBytes) == 0 {
+			rpcsLog.Debugf("No filter data found for block %v", hash)
+			continue
+		}
+
+		cFilters = append(cFilters, types.CFilterResult{
+			Hash:       gcf.Hash,
+			FilterType: gcf.FilterType,
+			Data:       hex.EncodeToString(filterBytes),
+		})
+	}
+
+	return cFilters, nil
 }
 
 // handleGetCFilterHeader implements the getcfilterheader command.

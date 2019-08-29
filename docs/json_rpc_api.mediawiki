@@ -162,6 +162,10 @@ the method name for further details such as parameter and return information.
 |Y
 |Returns the block header of the block.
 |-
+|[[#getcfilters|getcfilters]]
+|Y
+|Returns a collection of committed filters.
+|-
 |[[#getchaintips|getchaintips]]
 |Y
 |Returns information about all known chain tips the in the block tree.
@@ -666,6 +670,37 @@ the method name for further details such as parameter and return information.
 |-
 !Example Return (verbose=true)
 |<code>{"hash": "00000000000004289d9a7b0f7a332fb60a1c221faae89a107ce3ab93eead2f93", "confirmations": 183291, "version": 1, "merkleroot": "2549a4ef697c4a5e067b752bc06a32e74e56e6eddc7a6cb3e299f072469d6b26", "stakeroot":"9f40e23afeb9645f3762170a4469c812f717c71aea543ed073af02968ecc5c82", "votebits": 1, "finalstate": "8b736885bab7", "voters": 5, "freshstake": 0, "revocations": 0, "poolsize": 42567, "bits": "1a1194b4", "sbits": 86.73331302, "height": 100000, "size": 3168, "time": 1484890112, "nonce": 59487578, "stakeversion": 0, "difficulty": 954273.50809769, "chainwork": "00000000000000000000000000000000000000000000001060ad4432c4d6eff1", "previousblockhash": "00000000000000dab92a8a0c0e706eb74115f0f373669c01ffb4882f9555f494",  "nextblockhash": "0000000000000578b08f22fd2bdf5f7fe5b0af1bb4928de5053a3f906b3c8f6b"}</code>
+|}
+
+----
+====getcfilters====
+{|
+!Method
+|getcfilters
+|-
+!Parameters
+|
+<code>(json array of objects)</code>
+: <code>hash</code>: <code>(string)</code> The hash of the block.
+: <code>filtertype</code>: <code>(string)</code> The commitment filter type.
+
+<code>[{"hash": "hash", "filtertype": "type"}, ...]</code>
+|-
+!Description
+|
+: Returns a collection of committed filters.
+|-
+!Returns
+|
+<code>(json array of objects)</code>
+: <code>hash</code>: <code>(numeric)</code> The hash of the block (same as provided).
+: <code>filtertype</code>: <code>(string)</code> The block hash of the chain tip (same as provided).
+: <code>data</code>: <code>(string)</code> The hex encoded commited filter.
+
+<code>[{"hash": "hash", "filtertype": "type", "data": "cfdata"}, ...]</code>
+|-
+!Example Return
+|<code>[{"hash": "000000000000000009d70ca6a62dc7b55cbc3a8122e31f9e01f515abc4df5747","filtertype": "regular","data": "0000000ac984131a598c568f21f68b6c11f42b1d19b21eca37f65a7e60ad2180"}]</code>
 |}
 
 ----

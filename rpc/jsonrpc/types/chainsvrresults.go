@@ -214,6 +214,13 @@ type GetBlockTemplateResult struct {
 	RejectReasion string   `json:"reject-reason,omitempty"`
 }
 
+// CFilterResult models an item from the data returned by the getcfilters command.
+type CFilterResult struct {
+	Hash       string `json:"hash"`
+	FilterType string `json:"filtertype"`
+	Data       string `json:"data"`
+}
+
 // GetChainTipsResult models the data returns from the getchaintips command.
 type GetChainTipsResult struct {
 	Height    int64  `json:"height"`
