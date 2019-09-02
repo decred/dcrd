@@ -1450,6 +1450,16 @@ func dbPutBestState(dbTx database.Tx, snapshot *BestState, workSum *big.Int) err
 	return dbTx.Metadata().Put(dbnamespace.ChainStateKeyName, serializedData)
 }
 
+// dbFetchBestState uses an existing database transaction to fetch the best
+// chain state.
+func dbFetchBestState(dbTx database.Tx) (bestChainState, error) {
+	// Fetch the stored chain state from the database metadata.
+	meta := dbTx.Metadata()
+	serializedData := meta.Get(dbnamespace.ChainStateKeyName)
+	log.Tracef("Serialized chain state: %x", serializedData)
+	return deserializeBestChainState(serializedData)
+}
+
 // createChainState initializes both the database and the chain state to the
 // genesis block.  This includes creating the necessary buckets and inserting
 // the genesis block, so it must only be called on an uninitialized database.
@@ -1535,6 +1545,76 @@ func (b *BlockChain) createChainState() error {
 		return dbTx.StoreBlock(genesisBlock)
 	})
 	return err
+}
+
+// loadBlockIndex loads all of the block index entries from the database and
+// constructs the block index into the provided index parameter.  It is not safe
+// for concurrent access as it is only intended to be used during initialization
+// and database migration.
+func loadBlockIndex(dbTx database.Tx, genesisHash *chainhash.Hash, index *blockIndex) error {
+	// Determine how many blocks will be loaded into the index in order to
+	// allocate the right amount as a single alloc versus a whole bunch of
+	// little ones to reduce pressure on the GC.
+	meta := dbTx.Metadata()
+	blockIndexBucket := meta.Bucket(dbnamespace.BlockIndexBucketName)
+	var blockCount int32
+	cursor := blockIndexBucket.Cursor()
+	for ok := cursor.First(); ok; ok = cursor.Next() {
+		blockCount++
+	}
+	blockNodes := make([]blockNode, blockCount)
+
+	// Load all of the block index entries and construct the block index
+	// accordingly.
+	//
+	// NOTE: No locks are used on the block index here since this is
+	// initialization code.
+	var i int32
+	var lastNode *blockNode
+	cursor = blockIndexBucket.Cursor()
+	for ok := cursor.First(); ok; ok = cursor.Next() {
+		entry, err := deserializeBlockIndexEntry(cursor.Value())
+		if err != nil {
+			return err
+		}
+		header := &entry.header
+
+		// Determine the parent block node.  Since the block headers are
+		// iterated in order of height, there is a very good chance the
+		// previous header processed is the parent.
+		var parent *blockNode
+		if lastNode == nil {
+			blockHash := header.BlockHash()
+			if blockHash != *genesisHash {
+				return AssertError(fmt.Sprintf("loadBlockIndex: expected "+
+					"first entry in block index to be genesis block, "+
+					"found %s", blockHash))
+			}
+		} else if header.PrevBlock == lastNode.hash {
+			parent = lastNode
+		} else {
+			parent = index.lookupNode(&header.PrevBlock)
+			if parent == nil {
+				return AssertError(fmt.Sprintf("loadBlockIndex: could not "+
+					"find parent for block %s", header.BlockHash()))
+			}
+		}
+
+		// Initialize the block node, connect it, and add it to the block
+		// index.
+		node := &blockNodes[i]
+		initBlockNode(node, header, parent)
+		node.status = entry.status
+		node.ticketsVoted = entry.ticketsVoted
+		node.ticketsRevoked = entry.ticketsRevoked
+		node.votes = entry.voteInfo
+		index.addNode(node)
+
+		lastNode = node
+		i++
+	}
+
+	return nil
 }
 
 // initChainState attempts to load and initialize the chain state from the
@@ -1639,17 +1719,8 @@ func (b *BlockChain) initChainState() error {
 
 	// Attempt to load the chain state from the database.
 	err = b.db.View(func(dbTx database.Tx) error {
-		// Fetch the stored chain state from the database metadata.
-		// When it doesn't exist, it means the database hasn't been
-		// initialized for use with chain yet, so break out now to allow
-		// that to happen under a writable database transaction.
-		meta := dbTx.Metadata()
-		serializedData := meta.Get(dbnamespace.ChainStateKeyName)
-		if serializedData == nil {
-			return nil
-		}
-		log.Tracef("Serialized chain state: %x", serializedData)
-		state, err := deserializeBestChainState(serializedData)
+		// Fetch the stored best chain state from the database.
+		state, err := dbFetchBestState(dbTx)
 		if err != nil {
 			return err
 		}
@@ -1657,65 +1728,11 @@ func (b *BlockChain) initChainState() error {
 		log.Infof("Loading block index...")
 		bidxStart := time.Now()
 
-		// Determine how many blocks will be loaded into the index in order to
-		// allocate the right amount as a single alloc versus a whole bunch of
-		// little ones to reduce pressure on the GC.
-		blockIndexBucket := meta.Bucket(dbnamespace.BlockIndexBucketName)
-		var blockCount int32
-		cursor := blockIndexBucket.Cursor()
-		for ok := cursor.First(); ok; ok = cursor.Next() {
-			blockCount++
-		}
-		blockNodes := make([]blockNode, blockCount)
-
-		// Load all of the block index entries and construct the block index
-		// accordingly.
-		//
-		// NOTE: No locks are used on the block index here since this is
-		// initialization code.
-		var i int32
-		var lastNode *blockNode
-		cursor = blockIndexBucket.Cursor()
-		for ok := cursor.First(); ok; ok = cursor.Next() {
-			entry, err := deserializeBlockIndexEntry(cursor.Value())
-			if err != nil {
-				return err
-			}
-			header := &entry.header
-
-			// Determine the parent block node.  Since the block headers are
-			// iterated in order of height, there is a very good chance the
-			// previous header processed is the parent.
-			var parent *blockNode
-			if lastNode == nil {
-				blockHash := header.BlockHash()
-				if blockHash != b.chainParams.GenesisHash {
-					return AssertError(fmt.Sprintf("initChainState: expected "+
-						"first entry in block index to be genesis block, "+
-						"found %s", blockHash))
-				}
-			} else if header.PrevBlock == lastNode.hash {
-				parent = lastNode
-			} else {
-				parent = b.index.lookupNode(&header.PrevBlock)
-				if parent == nil {
-					return AssertError(fmt.Sprintf("initChainState: could "+
-						"not find parent for block %s", header.BlockHash()))
-				}
-			}
-
-			// Initialize the block node, connect it, and add it to the block
-			// index.
-			node := &blockNodes[i]
-			initBlockNode(node, header, parent)
-			node.status = entry.status
-			node.ticketsVoted = entry.ticketsVoted
-			node.ticketsRevoked = entry.ticketsRevoked
-			node.votes = entry.voteInfo
-			b.index.addNode(node)
-
-			lastNode = node
-			i++
+		// Load all of the block index entries from the database and
+		// construct the block index.
+		err = loadBlockIndex(dbTx, &b.chainParams.GenesisHash, b.index)
+		if err != nil {
+			return err
 		}
 
 		// Set the best chain to the stored best state.
