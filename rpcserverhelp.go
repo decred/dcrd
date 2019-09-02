@@ -52,16 +52,16 @@ var helpDescsEnUS = map[string]string{
 		"The transaction inputs are not signed in the created transaction.\n" +
 		"The signrawtransaction RPC command provided by wallet must be used to sign the resulting transaction.",
 	"createrawsstx--result0":      "Hex-encoded bytes of the serialized transaction",
-	"createrawsstx-inputs":        "The inputs to the transaction of type sstxinput",
+	"createrawsstx-inputs":        "The inputs to the transaction",
 	"sstxinput-txid":              "Unspent tx output hash",
-	"sstxinput-vout":              "Amount of utxo",
-	"sstxinput-amt":               "Amount of utxu",
+	"sstxinput-vout":              "Index of the output being redeemed",
+	"sstxinput-amt":               "Amount of utxo",
 	"sstxinput-tree":              "Which tree utxo is located",
 	"createrawsstx-amount":        "JSON object with the destination addresses as keys and amounts as values",
 	"createrawsstx-amount--key":   "address",
 	"createrawsstx-amount--value": "n.nnn",
 	"createrawsstx-amount--desc":  "The destination address as the key and the amount in DCR as the value",
-	"createrawsstx-couts":         "Array of sstx commit outs to use of type SSTxCommitOut",
+	"createrawsstx-couts":         "Array of sstx commit outs to use",
 	"sstxcommitout-addr":          "Address to send sstx commit",
 	"sstxcommitout-commitamt":     "Amount to commit",
 	"sstxcommitout-changeamt":     "Amount for change",
@@ -72,7 +72,7 @@ var helpDescsEnUS = map[string]string{
 		"The transaction inputs are not signed in the created transaction.\n" +
 		"The signrawtransaction RPC command provided by wallet must be used to sign the resulting transaction.",
 	"createrawssrtx--result0": "Hex-encoded bytes of the serialized transaction",
-	"createrawssrtx-inputs":   "The inputs to the transaction of type sstxinput",
+	"createrawssrtx-inputs":   "The inputs to the transaction",
 	"createrawssrtx-fee":      "The fee to apply to the revocation in Coins",
 
 	// CreateRawTransactionCmd help.
@@ -519,9 +519,9 @@ var helpDescsEnUS = map[string]string{
 	"agenda-id":                       "Unique identifier of this agenda.",
 	"agenda-description":              "Description of this agenda.",
 	"agenda-mask":                     "Agenda mask.",
-	"agenda-starttime":                "Time aganda becomes valid.",
-	"agenda-expiretime":               "Time aganda becomes invalid.",
-	"agenda-status":                   "Aganda status.",
+	"agenda-starttime":                "Time agenda becomes valid.",
+	"agenda-expiretime":               "Time agenda becomes invalid.",
+	"agenda-status":                   "Agenda status.",
 	"agenda-quorumprogress":           "Progress of quorum reached.",
 	"agenda-choices":                  "All choices in this agenda.",
 	"choice-id":                       "Unique identifier of this choice.",
@@ -573,7 +573,7 @@ var helpDescsEnUS = map[string]string{
 	// GetHeadersCmd help.
 	"getheaders--synopsis":     "Returns block headers starting with the first known block hash from the request",
 	"getheaders-blocklocators": "Array of block locator hashes.  Headers are returned starting from the first known hash in this list",
-	"getheaders-hashstop":      "Optional block hash to stop including block headers for",
+	"getheaders-hashstop":      "Block hash to stop including block headers for. Set to zero to get as many blocks as possible",
 	"getheadersresult-headers": "Serialized block headers of all located blocks, limited to some arbitrary maximum number of hashes (currently 2000, which matches the wire protocol headers message, but this is not guaranteed)",
 
 	// GetInfoCmd help.
@@ -706,7 +706,7 @@ var helpDescsEnUS = map[string]string{
 	"gettxoutresult-coinbase":      "Whether or not the transaction is a coinbase",
 
 	// GetTxOutCmd help.
-	"gettxout--synopsis":      "Returns information about an unspent transaction output..",
+	"gettxout--synopsis":      "Returns information about an unspent transaction output.",
 	"gettxout-txid":           "The hash of the transaction",
 	"gettxout-vout":           "The index of the output",
 	"gettxout-includemempool": "Include the mempool when true",
@@ -882,11 +882,11 @@ var helpDescsEnUS = map[string]string{
 	"getcoinsupply--result0":  "Current coin supply in atoms",
 
 	// LiveTickets help.
-	"livetickets--synopsis":     "Request tickets the live ticket hashes from the ticket database",
+	"livetickets--synopsis":     "Returns live ticket hashes from the ticket database",
 	"liveticketsresult-tickets": "List of live tickets",
 
 	// MissedTickets help.
-	"missedtickets--synopsis":     "Request tickets the client missed",
+	"missedtickets--synopsis":     "Returns missed ticket hashes from the ticket database",
 	"missedticketsresult-tickets": "List of missed tickets",
 
 	// TicketBuckets help.
@@ -960,7 +960,7 @@ var helpDescsEnUS = map[string]string{
 	"feeinforange-median": "Median of transaction fees in the window",
 	"feeinforange-stddev": "Standard deviation of transaction fees in the window",
 
-	// Version help
+	// Version help.
 	"version--synopsis":       "Returns the JSON-RPC API version (semver)",
 	"version--result0--desc":  "Version objects keyed by the program or API name",
 	"version--result0--key":   "Program or API name",
