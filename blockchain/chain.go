@@ -2064,6 +2064,13 @@ func New(config *Config) (*BlockChain, error) {
 		return nil, err
 	}
 
+	// Either use the subsidy cache provided by the caller or create a new
+	// one when one was not provided.
+	subsidyCache := config.SubsidyCache
+	if subsidyCache == nil {
+		subsidyCache = standalone.NewSubsidyCache(params)
+	}
+
 	b := BlockChain{
 		checkpointsByHeight:           checkpointsByHeight,
 		deploymentVers:                deploymentVers,
@@ -2074,6 +2081,7 @@ func New(config *Config) (*BlockChain, error) {
 		sigCache:                      config.SigCache,
 		indexManager:                  config.IndexManager,
 		interrupt:                     config.Interrupt,
+		subsidyCache:                  subsidyCache,
 		index:                         newBlockIndex(config.DB),
 		bestChain:                     newChainView(nil),
 		orphans:                       make(map[chainhash.Hash]*orphanBlock),
@@ -2087,6 +2095,7 @@ func New(config *Config) (*BlockChain, error) {
 		calcVoterVersionIntervalCache: make(map[[chainhash.HashSize]byte]uint32),
 		calcStakeVersionCache:         make(map[[chainhash.HashSize]byte]uint32),
 	}
+	b.pruner = newChainPruner(&b)
 
 	// Initialize the chain state from the passed database.  When the db
 	// does not yet contain any chain state, both it and the chain state
@@ -2103,15 +2112,6 @@ func New(config *Config) (*BlockChain, error) {
 			return nil, err
 		}
 	}
-
-	// Either use the subsidy cache provided by the caller or create a new
-	// one when one was not provided.
-	subsidyCache := config.SubsidyCache
-	if subsidyCache == nil {
-		subsidyCache = standalone.NewSubsidyCache(b.chainParams)
-	}
-	b.subsidyCache = subsidyCache
-	b.pruner = newChainPruner(&b)
 
 	// The version 5 database upgrade requires a full reindex.  Perform, or
 	// resume, the reindex as needed.
