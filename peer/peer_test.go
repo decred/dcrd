@@ -426,9 +426,16 @@ func TestPeerListeners(t *testing.T) {
 		select {
 		case <-verack:
 		case <-time.After(time.Second * 1):
-			t.Errorf("TestPeerListeners: verack timeout\n")
+			t.Error("TestPeerListeners: verack timeout\n")
 			return
 		}
+	}
+
+	select {
+	case <-ok:
+	case <-time.After(time.Second * 1):
+		t.Error("TestPeerListeners: version timeout")
+		return
 	}
 
 	tests := []struct {
