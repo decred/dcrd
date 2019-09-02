@@ -122,9 +122,21 @@ the method name for further details such as parameter and return information.
 |N
 |Attempts to add or remove a persistent peer.
 |-
+|[[#createrawsstx|createrawsstx]]
+|Y
+|Returns a new unsigned ticket spending the provided inputs.
+|-
+|[[#createrawssrtx|createrawssrtx]]
+|Y
+|Returns a new unsigned revocation spending the provided inputs.
+|-
 |[[#createrawtransaction|createrawtransaction]]
 |Y
 |Returns a new transaction spending the provided inputs and sending to the provided addresses.
+|-
+|[[#debuglevel|debuglevel]]
+|N
+|Dynamically changes the debug logging level.
 |-
 |[[#decoderawtransaction|decoderawtransaction]]
 |Y
@@ -134,9 +146,57 @@ the method name for further details such as parameter and return information.
 |Y
 |Returns a JSON object with information about the provided hex-encoded script.
 |-
+|[[#estimatefee|estimatefee]]
+|N
+|Returns the estimated fee in dcr/kb.
+|-
+|[[#estimatesmartfee|estimatesmartfee]]
+|N
+|Returns the estimated fee using the historical fee data in dcr/kb.
+|-
+|[[#estimatestakediff|estimatestakediff]]
+|N
+|Returns the estimated next minimum, maximum, expected, and user-specified stake difficulty.
+|-
+|[[#existsaddress|existsaddress]]
+|N
+|Returns the existence of the provided address.
+|-
+|[[#existsaddresses|existsaddresses]]
+|N
+|Returns the existence of the provided addresses.
+|-
+|[[#existsexpiredtickets|existsexpiredtickets]]
+|N
+|Returns the existence of the provided tickets in the expired ticket map.
+|-
+|[[#existsliveticket|existsliveticket]]
+|N
+|Returns the existence of the provided ticket.
+|-
+|[[#existslivetickets|existslivetickets]]
+|N
+|Returns the existence of the provided tickets in the live ticket map.
+|-
+|[[#existsmempooltxs|existsmempooltxs]]
+|N
+|Returns the existence of the provided txs in the mempool.
+|-
+|[[#existsmissedtickets|existsmissedtickets]]
+|N
+|Returns the existence of the provided tickets in the missed ticket map.
+|-
+|[[#generate|generate]]
+|N
+|When in simnet or regtest mode, generate a set number of blocks.
+|-
 |[[#getaddednodeinfo|getaddednodeinfo]]
 |N
 |Returns information about manually added (persistent) peers.
+|-
+|[[#getbestblock|getbestblock]]
+|Y
+|Get block height and hash of best block in the main chain.
 |-
 |[[#getbestblockhash|getbestblockhash]]
 |Y
@@ -159,16 +219,32 @@ the method name for further details such as parameter and return information.
 |Returns hash of the block in best block chain at the given height.
 |-
 |[[#getblockheader|getblockheader]]
-|Y
+|N
 |Returns the block header of the block.
+|-
+|[[#getblocksubsidy|getblocksubsidy]]
+|N
+|Returns information regarding subsidy amounts.
+|-
+|[[#getcfilter|getcfilter]]
+|N
+|Returns the committed filter for a block.
 |-
 |[[#getchaintips|getchaintips]]
 |Y
 |Returns information about all known chain tips the in the block tree.
 |-
+|[[#getcoinsupply|getcoinsupply]]
+|N
+|Returns current total coin supply in atoms.
+|-
 |[[#getconnectioncount|getconnectioncount]]
 |N
 |Returns the number of active connections to other peers.
+|-
+|[[#getcurrentnet|getcurrentnet]]
+|Y
+|Get Decred network dcrd is running on.
 |-
 |[[#getdifficulty|getdifficulty]]
 |Y
@@ -181,6 +257,10 @@ the method name for further details such as parameter and return information.
 |[[#gethashespersec|gethashespersec]]
 |N
 |Returns a recent hashes per second performance measurement while generating coins (mining).
+|-
+|[[#getheaders|getheaders]]
+|N
+|Returns block headers starting with the first known block hash from the request.
 |-
 |[[#getinfo|getinfo]]
 |Y
@@ -218,6 +298,30 @@ the method name for further details such as parameter and return information.
 |Y
 |Returns information about a transaction given its hash.
 |-
+|[[#getstakedifficulty|getstakedifficulty]]
+|N
+|Returns the proof-of-stake difficulty.
+|-
+|[[#getstakeversioninfo|getstakeversioninfo]]
+|N
+|Returns stake version statistics for one or more stake version intervals.
+|-
+|[[#getstakeversions|getstakeversions]]
+|N
+|Get stake versions per block. 
+|-
+|[[#getticketpoolvalue|getticketpoolvalue]]
+|N
+|Returns the current value of all locked funds in the ticket pool.
+|-
+|[[#gettxout|gettxout]]
+|Y
+|Returns information about an unspent transaction output.
+|-
+|[[#getvoteinfo|getvoteinfo]]
+|N
+|Returns the vote info statistics.
+|-
 |[[#getwork|getwork]]
 |N
 |Returns formatted hash data to work on or checks and submits solved data. NOTE: Since dcrd does not have the wallet integrated to provide payment addresses, dcrd must be configured via the <code>--miningaddr</code> option to provide which payment addresses to pay created blocks to for this RPC to function.
@@ -226,9 +330,33 @@ the method name for further details such as parameter and return information.
 |Y
 |Returns a list of all commands or help for a specified command.
 |-
+|[[#livetickets|livetickets]]
+|N
+|Returns live ticket hashes from the ticket database.
+|-
+|[[#missedtickets|missedtickets]]
+|N
+|Returns missed ticket hashes from the ticket database.
+|-
+|[[#node|node]]
+|N
+|Attempts to add or remove a peer. 
+|-
 |[[#ping|ping]]
 |N
 |Queues a ping to be sent to each connected peer.
+|-
+|[[#rebroadcastmissed|rebroadcastmissed]]
+|N
+|Asks the daemon to rebroadcast missed votes.
+|-
+|[[#rebroadcastwinners|rebroadcastwinners]]
+|N
+|Asks the daemon to rebroadcast the winners of the voting lottery.
+|-
+|[[#searchrawtransactions|searchrawtransactions]]
+|Y
+|Query for transactions related to a particular address. 
 |-
 |[[#sendrawtransaction|sendrawtransaction]]
 |Y
@@ -246,6 +374,22 @@ the method name for further details such as parameter and return information.
 |Y
 |Attempts to submit a new serialized, hex-encoded block to the network.
 |-
+|[[#ticketfeeinfo|ticketfeeinfo]]
+|N
+|Get various information about ticket fees from the mempool, blocks, and difficulty windows (units: DCR/kB).
+|-
+|[[#ticketsforaddress|ticketsforaddress]]
+|N
+|Request all the tickets for an address.
+|-
+|[[#ticketvwap|ticketvwap]]
+|N
+|Calculate the volume weighted average price of tickets for a range of blocks (default: full PoS difficulty adjustment depth).
+|-
+|[[#txfeeinfo|txfeeinfo]]
+|N
+|Get various information about regular transaction fees from the mempool, blocks, and difficulty windows.
+|-
 |[[#validateaddress|validateaddress]]
 |Y
 |Verifies the given address is valid.  NOTE: Since dcrd does not have a wallet integrated, dcrd will only return whether the address is valid or not.
@@ -254,34 +398,13 @@ the method name for further details such as parameter and return information.
 |N
 |Verifies the block chain database.
 |-
-|[[#debuglevel|debuglevel]]
-|N
-|Dynamically changes the debug logging level.
-|-
-|[[#getbestblock|getbestblock]]
+|[[#verifymessage|verifymessage]]
 |Y
-|Get block height and hash of best block in the main chain.
+|Verifies a signed message.
 |-
-|[[#getcurrentnet|getcurrentnet]]
+|[[#version|version]]
 |Y
-|Get Decred network dcrd is running on.
-|-
-|[[#searchrawtransactions|searchrawtransactions]]
-|Y
-|Query for transactions related to a particular address.
-|-
-|[[#node|node]]
-|N
-|Attempts to add or remove a peer. 
-|-
-|[[#generate|generate]]
-|N
-|When in simnet or regtest mode, generate a set number of blocks. 
-|-
-|[[#getstakeversions|getstakeversions]]
-|Y
-|Get stake versions per block. 
-|-
+|Returns the JSON-RPC API version (semver).
 |}
 
 ===5.2 Method Details===
@@ -301,6 +424,58 @@ the method name for further details such as parameter and return information.
 |-
 !Returns
 |Nothing
+|}
+
+----
+
+====createrawsstx====
+{|
+!Method
+|createrawsstx
+|-
+!Parameters
+|
+# <code>inputs</code>: <code>(json array, required)</code> The inputs to the transaction of type.
+#: <code>txid</code>: <code>(string)</code> Unspent tx output hash.
+#: <code>vout</code>: <code><numeric></code> Index of the output being redeemed.
+#: <code>amt</code>: <code><numeric></code> Amount of utxo.
+#: <code>tree</code>: <code><numeric></code> Which tree utxo is located.
+# <code>amount</code>: <code>(json object, required)</code> json object with the destination addresses as keys and amounts as values.
+#: <code>{"desaddr":"amount", ...}</code>
+# <code>couts</code>: <code>(json array, required)</code> Array of sstx commit outs to use.
+#: <code>addr</code>: <code>(string)</code> Address to send sstx commit.
+#: <code>commitamt</code>: <code>(string)</code> Amount to commit.
+#: <code>changeamt</code>: <code>(string)</code> Amount for change.
+#: <code>changeaddr</code>: <code>(string)</code> Address for change.
+|-
+!Description
+|Returns a new unsigned ticket spending the provided inputs.
+|-
+!Returns
+|<code>(string)</code> Hex-encoded bytes of the serialized transaction.
+|}
+
+----
+
+====createrawssrtx====
+{|
+!Method
+|createrawssrtx
+|-
+!Parameters
+|
+# <code>inputs</code>: <code>(json array, required)</code> The inputs to the transaction.
+#: <code>amount</code>: <code>(numeric)</code> Amount of the uxto.
+#: <code>txid</code>: <code>(string)</code> Unspent ticket output hash.
+#: <code>vout</code>: <code>(numeric)</code> Index of the ticket output being redeemed.
+#: <code>tree</code>: <code>(numeric)</code>  Which tree utxo is located.
+# <code>fee</code>: <code>(numeric)</code> The fee to apply to the revocation in atoms.
+|-
+!Description
+|Returns a new unsigned revocation spending the provided inputs.
+|-
+!Returns
+|<code>(string)</code> Hex-encoded bytes of the serialized transaction
 |}
 
 ----
@@ -340,6 +515,35 @@ the method name for further details such as parameter and return information.
 : <code>010000000118c057d3bfd3024628e9a6b18c105e4bb035053d1a378fce08856b7ade89dae6010000</code>
 : <code>0000ffffffff0199efee02000000001976a9141cb013db35ecccc156fdfd81d03a11c51998f99388</code>
 : <code>ac00000000</code>
+|}
+
+----
+
+====debuglevel====
+{|
+!Method
+|debuglevel
+|-
+!Parameters
+|
+# <code>levelspec</code>: <code>(string, required)</code> the debug level specification.
+|-
+!Description
+|
+: Dynamically changes the debug logging level.
+: The levelspec can either be a debug level or of the form <code><subsystem>=<level>,<subsystem2>=<level2>,...</code>
+: The valid debug levels are <code>trace</code>, <code>debug</code>, <code>info</code>, <code>warn</code>, <code>error</code>, and <code>critical</code>.
+: The valid subsystems are <code>AMGR</code>, <code>ADXR</code>, <code>BCDB</code>, <code>BMGR</code>, <code>DCRD</code>, <code>CHAN</code>, <code>DISC</code>, <code>PEER</code>, <code>RPCS</code>, <code>SCRP</code>, <code>SRVR</code>, and <code>TXMP</code>.
+: Additionally, the special keyword <code>show</code> can be used to get a list of the available subsystems.
+|-
+!Returns
+|<code>string</code>
+|-
+!Example Return
+|<code>Done.</code>
+|-
+!Example <code>show</code> Return
+|<code>Supported subsystems [AMGR ADXR BCDB BMGR DCRD CHAN DISC PEER RPCS SCRP SRVR TXMP]</code>
 |}
 
 ----
@@ -447,6 +651,245 @@ the method name for further details such as parameter and return information.
 
 ----
 
+====estimatefee====
+{|
+!Method
+|estimatefee
+|-
+!Parameters
+|
+# <code>numblocks</code>: <code>(numeric, required)</code> unused.
+|-
+!Description
+|Returns the estimated fee in dcr/kb.
+|-
+!Returns
+|<code>numeric</code>
+|-
+!Example Return
+|<code>0.0001</code>
+|}
+
+----
+
+====estimatesmartfee====
+{|
+!Method
+|estimatesmartfee
+|-
+!Parameters
+|
+# <code>confirmations</code>: <code>(numeric, required)</code> Estimate the fee rate a transaction requires so that it is mined in up to this number of blocks.
+# <code>mode</code>: <code>(string)</code> The only supported mode for the moment is 'conservative'.
+|-
+!Description
+|Returns the estimated fee using the historical fee data in dcr/kb.
+|-
+!Returns
+|<code>numeric</code>
+|-
+!Example Return
+|
+: <code>0.0001</code>
+|}
+
+----
+
+====estimatestakediff====
+{|
+!Method
+|estimatestakediff
+|-
+!Parameters
+|
+# <code>tickets</code>: <code>(numeric)</code> Use this number of new tickets in blocks to estimate the next difficulty.
+|-
+!Description
+|Returns the estimated next minimum, maximum, expected, and user-specified stake difficulty.
+|-
+!Returns
+|
+<code>(json object)</code>
+: <code>min</code>: <code>(numeric)</code> Minimum estimate for stake difficulty.
+: <code>max</code>: <code>(numeric)</code> Maximum estimate for stake difficulty.
+: <code>expected</code>: <code>(numeric)</code> Expected estimate for stake difficulty.
+: <code>user</code>: <code>(numeric)</code> Estimate for stake difficulty with the passed user amount of tickets.
+|-
+!Example Return
+|<code>{"min": 128.13311397, "max": 137.30522474, "expected": 130.85145872, "user": 128.16965817}</code>
+|}
+
+----
+
+====existsaddress====
+{|
+!Method
+|existsaddress
+|-
+!Parameters
+|
+# <code>address</code>: <code>(string, required)</code> The address to check.
+|-
+!Description
+|Returns the existence of the provided address.
+|-
+!Returns
+|<code>boolean</code>
+|-
+!Example Return
+|<code>true</code>
+|}
+
+----
+
+====existsaddresses====
+{|
+!Method
+|existsaddresses
+|-
+!Parameters
+|
+# <code>addresses</code>: <code>(json array, required)</code> The addresses to check.
+|-
+!Description
+|Returns the existence of the provided address.
+|-
+!Returns
+|<code>bitset</code> Bitset of bools showing if addresses exist or not.
+|-
+!Example Return
+|<code>07</code>
+|}
+
+----
+
+====existsexpiredtickets====
+{|
+!Method
+|existsexpiredtickets
+|-
+!Parameters
+|
+# <code>txhashes</code>: <code>(json array, required)</code> The array of tx hashes to check.
+|-
+!Description
+|Returns the existence of the provided tickets in the expired ticket map.
+|-
+!Returns
+|<code>bitset</code> Bitset of bools showing if tx hashes exist or not as expired tickets.
+|-
+!Example Return
+|<code>00</code>
+|}
+
+----
+
+
+====existsliveticket====
+{|
+!Method
+|existsliveticket
+|-
+!Parameters
+|
+# <code>txhash</code>: <code>(string, required)</code> The ticket hash to check.
+|-
+!Description
+|Returns the existence of the provided ticket.
+|-
+!Returns
+|<code>boolean</code>
+|-
+!Example Return
+|<code>true</code>
+|}
+
+----
+
+====existslivetickets====
+{|
+!Method
+|existslivetickets
+|-
+!Parameters
+|
+# <code>txhashes</code>: <code>(json array, required)</code> The array of tx hashes to check.
+|-
+!Description
+|Returns the existence of the provided tickets in the live ticket map.
+|-
+!Returns
+|<code>bitset</code> Bitset of bools showing if tx hashes exist or not as live tickets.
+|-
+!Example Return
+|<code>00</code>
+|}
+
+----
+
+====existsmempooltxs====
+{|
+!Method
+|existsmempooltxs
+|-
+!Parameters
+|
+# <code>txhashes</code>: <code>(json array, required)</code> The array of tx hashes to check.
+|-
+!Description
+|Returns the existence of the provided txs in the mempool.
+|-
+!Returns
+|<code>bitset</code> Bitset of bools showing if tx hashes exist or not in the mempool.
+|-
+!Example Return
+|<code>00</code>
+|}
+
+----
+
+====existsmissedtickets====
+{|
+!Method
+|existsmissedtickets
+|-
+!Parameters
+|
+# <code>txhashes</code>: <code>(json array, required)</code> The array of tx hashes to check.
+|-
+!Description
+|Returns the existence of the provided tickets in the missed ticket map.
+|-
+!Returns
+|<code>bitset</code> Bitset of bools showing if tx hashes exist or not as missed tickets.
+|-
+!Example Return
+|<code>00</code>
+|}
+
+----
+
+====generate====
+{|
+!Method
+|generate
+|-
+!Parameters
+|
+# <code>numblocks</code>: <code>(int, required)</code> The number of blocks to generate. 
+|-
+!Description
+|When in simnet or regtest mode, generates <code>numblocks</code> blocks. If blocks arrive from elsewhere, they are built upon but don't count toward the number of blocks to generate. Only generated blocks are returned. This RPC call will exit with an error if the server is already CPU mining, and will prevent the server from CPU mining for another command while it runs. 
+|-
+!Returns
+|<code>(json array of strings)</code>
+: <code>blockhash</code>: hash of the generated block.
+<code>["blockhash", ...]</code> 
+|-
+|}
+
+----
+
 ====getaddednodeinfo====
 {|
 !Method
@@ -477,6 +920,29 @@ the method name for further details such as parameter and return information.
 |-
 !Example Return (dns=true)
 |<code>[{"addednode": "mydomain.org:9108", "connected": true, "addresses": [{"address": "1.2.3.4", "connected": "outbound"}, {"address": "5.6.7.8", "connected": "false"}]}]</code>
+|}
+
+----
+
+====getbestblock====
+{|
+!Method
+|getbestblock
+|-
+!Parameters
+|None
+|-
+!Description
+|Get block height and hash of best block in the main chain.
+|-
+!Returns
+|
+<code>(json object)</code>
+: <code>hash</code>: <code>(string)</code> the hex-encoded bytes of the best block hash.
+: <code>height</code>: <code>(numeric)</code> the block height 
+of the best block.
+
+<code>{"hash": "data", "height": n}</code>
 |}
 
 ----
@@ -566,6 +1032,44 @@ the method name for further details such as parameter and return information.
 |-
 !Example Return (verbose=true, verbosetx=false)
 |<code>"hash": "000000000000c41019872ff7db8fd2e9bfa05f42d3f8fee8e895e8c1e5b8dcba", "confirmations": 283285,"size": 382, "height": 2, "version": 1, "merkleroot": "c867d085c96604812854399bf6df63d35d857484fedfd147759ed94c3cdeca35", "stakeroot": "000000000000000000000000000000000000000000000000000000000000000", tx": ["ba8d2fcb5c705a1e5cbeda0db9dd30a521e360efd3aef75e862b2b69e0a673af", ...], "time": 1454954624, "nonce": 837992634, "votebits": 1, "finalstate": "000000000000", "voters": 0, "freshstake": 0, "revocations": 0, "poolsize": 0, "bits": "1d00ffff", "sbits": 2, "difficulty": 32767.74999809, "chainwork": "00000000000000000000000000000000000000000000000000018000c0006000", "extradata": "c84e3a6b6ad536d3010000000000000000000000000000000000000000000000", "stakeversion": 0, "previousblockhash": "000000000000437482b6d47f82f374cde539440ddb108b0a76886f0d87d126b9", "nextblockhash": "00000000000108ac3e3f51a0f4424dd757a3b0485da0ec96592f637f27bd1cf5"}</code>
+|}
+
+----
+
+====getblockchaininfo====
+{|
+!Method
+|getblockchaininfo
+|-
+!Parameters
+|None
+|-
+!Description
+|Returns information about the current state of the block chain.
+|-
+!Returns
+|<code>(json object)</code>
+: <code>chain</code>: <code>(string)</code> The current network name.
+: <code>blocks</code>: <code>(numeric)</code> The number of blocks in the current best chain.
+: <code>headers</code>: <code>(numeric)</code> The number of validated block headers that comprise the target best chain.
+: <code>syncheight</code>: <code>(numeric)</code> The latest known block height being synced to.
+: <code>bestblockhash</code>: <code>(string)</code> The block hash of the current best chain tip.
+: <code>difficulty</code>: <code>(numeric)</code> (DEPRECATED) The current network difficulty.
+: <code>difficultyratio</code>: <code>(numeric)</code> The current proof-of-work difficulty as a multiple of the minimum difficulty.
+: <code>verificationprogress</code>: <code>(numeric)</code> The chain verification progress estimate.
+: <code>chainwork</code>: <code>(string)</code> Hex encoded total work done for the chain.
+: <code>initialblockdownload</code>: <code>(boolean)</code> Best guess of whether this node is in the initial block download mode used to catch up the chain when it is far behind.
+: <code>maxblocksize</code>: <code>(numeric)</code> The maximum allowed block size.
+: <code>deployments</code>: <code>(json array of objects)</code> Network consensus deployments.
+: <code>status</code>: <code>(string)</code> The deployment agenda's current status.
+: <code>since</code>: <code>(numeric)</code> The blockheight of the first block to which the status applies.
+: <code>starttime</code>: <code>(numeric)</code> The start time of the voting period for the agenda.
+: <code>expiretime</code>: <code>(numeric)</code> The expiry time of the voting period for the agenda.
+
+<code>{ "chain": "name", "blocks": n, "headers": n, "syncheight": n, "bestblockhash": "hash", "difficulty": n, "difficultyratio": n, "verificationprogress": n, "chainwork": "n", "initialblockdownload": bool, "maxblocksize": n, "deployments": {"agenda": { "status": "status", "since": n, "starttime": n, "expiretime": n}, ...}}</code>
+|-
+!Example Return
+|<code>{"chain": "simnet", "blocks": 463, "headers": 463, "syncheight": 0, "bestblockhash": "000043c89f6e227c9d90a5460aff98b662e503b9a394818942bdd60709cbb8aa", "difficulty": 520127421, "difficultyratio": 1180923195.260000, "verificationprogress": 0, "chainwork": "0x23c0e40", "initialblockdownload": false, "maxblocksize": 1000000, "deployments": {"lnfeatures": {"status": "started", "since": 463, "starttime": 0, "expiretime": 9223372036854775807}, "maxblocksize": {"status": "started", "since": 463, "starttime": 0, "expiretime": 9223372036854775807}, "sdiffalgorithm": {"status": "started", "since": 463, "starttime": 0, "expiretime": 9223372036854775807}}}</code>
 |}
 
 ----
@@ -670,6 +1174,58 @@ the method name for further details such as parameter and return information.
 
 ----
 
+====getblocksubsidy====
+{|
+!Method
+|getblocksubsidy
+|-
+!Parameters
+|
+# <code>height</code>: <code>(numeric, required)</code> The block height.
+# <code>voters</code>: <code>(numeric, required)</code> The number of voters.
+|-
+!Description
+|Returns information regarding subsidy amounts.
+|-
+!Returns
+|<code>(json object)</code>
+: <code>developer</code>: <code>(nuneric)</code> The developer subsidy.
+: <code>pos</code>: <code>(numeric)</code> The Proof-of-Stake subsidy.
+: <code>pow</code>: <code>(numeric)</code> The Proof-of-Work subsidy.
+: <code>total</code>: <code>(numeric)</code> The total subsidy.
+|-
+!Example Return
+|<code>{"developer": 171717305, "pos": 515151915, "pow": 1030303833, "total": 1717173053}</code>
+|}
+
+----
+
+====getcfilter====
+{|
+!Method
+|getcfilter
+|-
+!Parameters
+|
+# <code>hash</code>: <code>(string, required)</code> The block hash of the filter being queried.
+# <code>filtertype</code>: <code>(string, required)</code> The type of committed filter to return.
+|-
+!Description
+|Returns the committed filter for a block.
+|-
+!Returns
+|<code>string</code> The hex encoded committed filter.
+|-
+!Example Return
+|
+: Newlines added for display purposes.  The actual return does not contain newlines.
+:<code>0000002305d72c4c0f6e3d19783a59f26cef1fab1ec21585f8016a22a43762cd2edbda7a1fba</code>
+:<code>596d06e092c6ec2f651d5242074fd063918741f4492dd0dd889f6909fd3028e04fa1e84259c4</code>
+:<code>1088aea6fa0cd0cb162daaa4afb05de43718914a7e04</code>
+|}
+
+----
+
 ====getchaintips====
 {|
 !Method
@@ -704,40 +1260,22 @@ the method name for further details such as parameter and return information.
 
 ----
 
-====getblockchaininfo====
+====getcoinsupply====
 {|
 !Method
-|getblockchaininfo
+|getcoinsupply
 |-
 !Parameters
 |None
 |-
 !Description
-|Returns information about the current state of the block chain.
+|Returns current total coin supply in atoms.
 |-
 !Returns
-|<code>(json object)</code>
-: <code>chain</code>: <code>(string)</code> The current network name.
-: <code>blocks</code>: <code>(numeric)</code> The number of blocks in the current best chain.
-: <code>headers</code>: <code>(numeric)</code> The number of validated block headers that comprise the target best chain.
-: <code>syncheight</code>: <code>(numeric)</code> The latest known block height being synced to.
-: <code>bestblockhash</code>: <code>(string)</code> The block hash of the current best chain tip.
-: <code>difficulty</code>: <code>(numeric)</code> (DEPRECATED) The current network difficulty.
-: <code>difficultyratio</code>: <code>(numeric)</code> The current proof-of-work difficulty as a multiple of the minimum difficulty.
-: <code>verificationprogress</code>: <code>(numeric)</code> The chain verification progress estimate.
-: <code>chainwork</code>: <code>(string)</code> Hex encoded total work done for the chain.
-: <code>initialblockdownload</code>: <code>(boolean)</code> Best guess of whether this node is in the initial block download mode used to catch up the chain when it is far behind.
-: <code>maxblocksize</code>: <code>(numeric)</code> The maximum allowed block size.
-: <code>deployments</code>: <code>(json array of objects)</code> Network consensus deployments.
-: <code>status</code>: <code>(string)</code> The deployment agenda's current status.
-: <code>since</code>: <code>(numeric)</code> The blockheight of the first block to which the status applies.
-: <code>starttime</code>: <code>(numeric)</code> The start time of the voting period for the agenda.
-: <code>expiretime</code>: <code>(numeric)</code> The expiry time of the voting period for the agenda.
-
-<code>{ "chain": "name", "blocks": n, "headers": n, "syncheight": n, "bestblockhash": "hash", "difficulty": n, "difficultyratio": n, "verificationprogress": n, "chainwork": "n", "initialblockdownload": bool, "maxblocksize": n, "deployments": {"agenda": { "status": "status", "since": n, "starttime": n, "expiretime": n}, ...}}</code>
+|<code>numeric</code> Current coin supply in atoms.
 |-
 !Example Return
-|<code>{"chain": "simnet", "blocks": 463, "headers": 463, "syncheight": 0, "bestblockhash": "000043c89f6e227c9d90a5460aff98b662e503b9a394818942bdd60709cbb8aa", "difficulty": 520127421, "difficultyratio": 1180923195.260000, "verificationprogress": 0, "chainwork": "0x23c0e40", "initialblockdownload": false, "maxblocksize": 1000000, "deployments": {"lnfeatures": {"status": "started", "since": 463, "starttime": 0, "expiretime": 9223372036854775807}, "maxblocksize": {"status": "started", "since": 463, "starttime": 0, "expiretime": 9223372036854775807}, "sdiffalgorithm": {"status": "started", "since": 463, "starttime": 0, "expiretime": 9223372036854775807}}}</code>
+|<code>1029794286558577</code>
 |}
 
 ----
@@ -758,6 +1296,29 @@ the method name for further details such as parameter and return information.
 |-
 !Example Return
 |<code>8</code>
+|}
+
+----
+
+====getcurrentnet====
+{|
+!Method
+|getcurrentnet
+|-
+!Parameters
+|None
+|-
+!Description
+|Get Decred network dcrd is running on.
+|-
+!Returns
+|<code>numeric</code>
+|-
+!Example Return
+|
+: <code>(mainnet)</code> <code>3652501241</code>
+: <code>(testnet3)</code> <code>2979310197</code>
+: 
 |}
 
 ----
@@ -812,6 +1373,29 @@ the method name for further details such as parameter and return information.
 |-
 !Returns
 |<code>0</code> (numeric)
+|}
+
+----
+
+====getheaders====
+{|
+!Method
+|getheaders
+|-
+!Parameters
+|
+# <code>blocklocators</code>: <code>(json array, required)</code> Array of block locator hashes.
+# <code>hashstop</code>: <code>(string, required)</code> Block hash to stop including block headers for, set to zero to get as many blocks as possible.
+|-
+!Description
+|Returns block headers starting with the first known block hash from the request.
+|-
+!Returns
+|<code>(json object)</code>
+: <code>headers</code>: <code>(json array)</code> Serialized block headers of all located blocks, limited to some arbitrary maximum number of hashes (currently 2000, which matches the wire protocol headers message, but this is not guaranteed).
+|-
+!Example Return
+|<code>{"headers": ["060000001abfc354ad9f714fad8f8ec8ae0aecac8a660d...",...]}</code>
 |}
 
 ----
@@ -1030,6 +1614,52 @@ the method name for further details such as parameter and return information.
 
 ----
 
+====getrawmempool====
+{|
+!Method
+|getrawmempool
+|-
+!Parameters
+|
+# <code>verbose</code> <code>(boolean, optional, default=false)</code>
+|-
+!Description
+|
+:Returns an array of hashes for all of the transactions currently in the memory pool.
+:The <code>verbose</code> flag specifies that each transaction is returned as a JSON object.
+|-
+!Notes
+|Since dcrd does not perform any mining, the priority related fields <code>startingpriority</code> and <code>currentpriority</code> that are available when the <code>verbose</code> flag is set are always 0.
+|-
+!Returns (verbose=false)
+|
+<code>(json array of string)</code>
+: <code>transactionhash</code>: <code>(string)</code> hash of the transaction.
+<code>["transactionhash", ...]</code>
+|-
+!Returns (verbose=true)
+|
+<code>(json object)</code>
+: <code>size</code>: <code>(numeric)</code> transaction size in bytes.
+: <code>fee</code> : <code>(numeric)</code> transaction fee in DCR.
+: <code>time</code>:  <code>(numeric)</code> local time transaction entered pool in seconds since 1 Jan 1970 GMT.
+: <code>height</code>: <code>(numeric)</code> block height when transaction entered the pool.
+: <code>startingpriority</code>: <code>(numeric)</code> priority when transaction entered the pool.
+: <code>currentpriority</code>: <code>(numeric)</code> current priority.
+: <code>depends</code>:  <code>(json array)</code> unconfirmed transactions used as inputs for this transaction.
+: <code>transactionhash</code>: <code>(string)</code> hash of the parent transaction.
+
+<code>{"transactionhash": {"size": n,"fee" : n, "time": n,"height": n, "startingpriority": n, "currentpriority": n, "depends": ["transactionhash", ...]}, ...}</code>
+|-
+!Example Return (verbose=false)
+|<code>["3480058a397b6ffcc60f7e3345a61370fded1ca6bef4b58156ed17987f20d4e7","cbfe7c056a358c3a1dbced5a22b06d74b8650055d5195c1c2469e6b63a41514a"]</code>
+|-
+!Example Return (verbose=true)
+|<code>{"1697a19cede08694278f19584e8dcc87945f40c6b59a942dd8906f133ad3f9cc": {"size": 226, "fee" : 0.0001, "time": 1387992789, "height": 276836, "startingpriority": 0, "currentpriority": 0, "depends": ["aa96f672fcc5a1ec6a08a94aa46d6b789799c87bd6542967da25a96b2dee0afb", ...]}</code>
+|}
+
+----
+
 ====getrawtransaction====
 {|
 !Method
@@ -1111,6 +1741,179 @@ the method name for further details such as parameter and return information.
 
 ----
 
+====getstakedifficulty====
+{|
+!Method
+|getstakedifficulty
+|-
+!Parameters
+|None
+|-
+!Description
+|Returns the proof-of-stake difficulty.
+|-version
+!Returns
+|<code>(json object)</code>
+: <code>current</code>: <code>(numeric)</code> The current top block's stake difficulty.
+: <code>next</code>: <code>(numeric)</code> The calculated stake difficulty of the next block.
+|-
+!Example Return
+|<code>{"current": 131.13416327,"next": 131.13416327}</code>
+|}
+
+----
+
+====getstakeversioninfo====
+{|
+!Method
+|getstakeversioninfo
+|-
+!Parameters
+|
+# <code>count</code>: <code>(numeric)</code> Number of intervals to return.
+|-
+!Description
+|Returns stake version statistics for one or more stake version intervals.
+|-
+!Returns
+|<code>(json object)</code>
+: <code>currentheight</code>: <code>(numeric)</code> Top of the chain height.
+: <code>hash</code>: <code>(string)</code> Top of the chain hash.
+: <code>intervals</code>: <code>(json array)</code> Array of total stake and vote counts.
+:: <code>startingheight</code>: <code>(numeric)</code> Start of the interval.
+:: <code>endheight</code>: <code>(numeric)</code> End of the interval.
+:: <code>posversions</code>: <code>(numeric)</code> Tally of all stake versions.
+:: <code>voteversions</code>: <code>(numeric)</code> Tally of all vote versions.
+:: <code>count</code>: <code>(numeric)</code> Number of votes.
+:: <code>version</code>: <code>(numeric)</code> Version of the vote.
+|-
+!Example Return
+|<code>{"currentheight": 374702,"hash": "000000000000000002dc20112532524e9224949c2e5ac94b418532552e3e9a26","intervals": [{"startheight": 373024,"endheight": 374702,"posversions": [{"version": 6,"count": 1679}],"voteversions": [{"version": 5,"count": 390},{"version": 6,"count": 7912}]}]}</code>
+|}
+
+----
+
+====getstakeversions====
+{|
+!Method
+|getstakeversions
+|-
+!Parameters
+|
+# <code>hash</code>: <code>(string, required)</code> The start block hash. 
+# <code>count</code>: <code>(numeric, required)</code> The number of blocks that will be returned. 
+|-
+!Description
+| Returns the stake versions statistics. 
+|-
+!Returns
+|
+<code>stakeversions</code>: <code>(array of object)</code> Array of stake versions per block.
+: <code>hash</code>: <code>(string)</code> hash of the block. 
+: <code>height</code>: <code>(numeric)</code> Height of the block. 
+: <code>blockversion</code>: <code>(numeric)</code> the block version. 
+: <code>stakeversion</code>: <code>(numeric)</code> the stake version of the block. 
+: <code>votes</code>: <code>(array of object)</code> the version and bits of each vote in the block. 
+: <code>version</code>: <code>(numeric)</code> the version of the vote. 
+: <code>bits</code>: <code>(numeric)</code> the bits assigned by the vote. 
+<code>{"stakeversions": [{ "hash": "value", "height": n, "blockversion": n, "stakeversion": n,"votes": [{ "version": n, "bits": n },...]},...]}</code> 
+|}
+
+----
+
+====getticketpoolvalue====
+{|
+!Method
+|getticketpoolvalue
+|-
+!Parameters
+|None
+|-
+!Description
+| Returns the current value of all locked funds in the ticket pool.
+|-
+!Returns
+|<code>numeric</code>
+|-
+!Example Return
+|<code>5214124.18608402</code>
+|}
+
+----
+
+====gettxout====
+{|
+!Method
+|gettxout
+|-
+!Parameters
+|
+# <code>txid</code>: <code>(string, required)</code> The hash of the transaction.
+# <code>vout</code>: <code>(numeric, required)</code> The index of the output.
+# <code>includemempool</code>: <code>(string,default=true)</code> Include the mempool when true.
+|-
+!Description
+| Returns information about an unspent transaction output.
+|-
+!Returns
+|<code>(json object)</code>
+: <code>bestblock</code>: <code>(string)</code> The block hash that contains the transaction output.
+: <code>confirmations</code>: <code>(numeric)</code> The number of confirmations.
+: <code>value</code>: <code>(numeric)</code> The transaction amount in DCR.
+: <code>scriptpubkey</code>: <code>(json object)</code> The public key script used to pay coins as a JSON object.
+: <code>version</code>: <code>(numeric)</code> The transaction version.
+: <code>coinbase</code>: <code>(numeric)</code> Whether or not the transaction is a coinbase.
+|-
+!Example Return
+|<code>{"bestblock": "00000000000000001914563fe4f93addae64cd2808a81835ae03b0947034843b","confirmations": 19,"value": 4.63835862,"scriptPubKey": {"asm": "OP_DUP OP_HASH160 f127302adf84741d28fa705a995dc827030077e5 OP_EQUALVERIFY OP_CHECKSIG","hex": "76a914f127302adf84741d28fa705a995dc827030077e588ac","reqSigs": 1,"type": "pubkeyhash","addresses": ["Dsnx1HW62otMif9zFyLzDnQdKuaV9cRNoyr"]},"version": 1,"coinbase": false}</code>
+|}
+
+----
+
+====getvoteinfo====
+{|
+!Method
+|getvoteinfo
+|-
+!Parameters
+|
+# <code>version</code>: <code>(numeric)</code> The stake version.
+|-
+!Description
+| Returns the vote info statistics.
+|-
+!Returns
+|<code>(json array)</code>
+: <code>currentheight</code>: <code>(numeric)</code> Top of the chain height.
+: <code>startheight</code>: <code>(numeric)</code> The start height of the voting window.
+: <code>endheight</code>: <code>(numeric)</code> The end height of the voting window.
+: <code>hash</code>: <code>(string)</code> The hash of the current height block.
+: <code>voteversion</code>: <code>(numeric)</code> The selected vote version.
+: <code>quorum</code>: <code>(numeric)</code> The minimum amount of votes required.
+: <code>totalvotes</code>: <code>(numeric)</code> Total votes.
+: <code>agendas</code>: <code>(json array)</code> All agendas for this stake version.
+:: <code>id</code>: <code>(string)</code> Unique identifier of the agenda.
+:: <code>description</code>: <code>(string)</code> Description of this agenda.
+:: <code>mask</code>: <code>(numeric)</code> Agenda mask.
+:: <code>starttime</code>: <code>(numeric)</code> Time agenda becomes valid.
+:: <code>expiretime</code>: <code>(numeric)</code> Time agenda becomes invalid.
+:: <code>status</code>: <code>(string)</code> Agenda status.
+:: <code>quorumprogress</code>: <code>(numeric)</code> Progress of quorum reached.
+:: <code>choices</code>: <code>(json array)</code> All choices in the agenda.
+::: <code>id</code>: <code>(string)</code> Unique identifier of the choice.
+::: <code>description</code>: <code>(string)</code> Unique identifier of the choice.
+::: <code>bits</code>: <code>(numeric)</code> Bits that identify the choice.
+::: <code>isabstain</code>: <code>(boolean)</code> This choice is to abstain from change.
+::: <code>isno</code>: <code>(boolean)</code> Hard no choice (1 and only 1 per agenda).
+::: <code>count</code>: <code>(numeric)</code> How many votes received.
+::: <code>progress</code>: <code>(numeric)</code> Progress of the overall count.
+|-
+!Example Return
+|<code>{"currentheight": 374709,"startheight": 366976,"endheight": 375039,"hash": "00000000000000001ff9abe7300929d1a0ce8cca0d3a57e201336af82be3330e","voteversion": 5,"quorum": 4032,"totalvotes": 1835,"agendas": [{"id": "lnfeatures","description": "Enable features defined in DCP0002 and DCP0003 necessary to support Lightning Network (LN)","mask": 6,"starttime": 1505260800,"expiretime": 1536796800,"status": "active","quorumprogress": 0,"choices": [{"id": "abstain","description": "abstain voting for change","bits": 0,"isabstain": true,"isno": false,"count": 0,"progress": 0},{"id": "no","description": "keep the existing consensus rules","bits": 2,"isabstain": false,"isno": true,"count": 0,"progress": 0},{"id": "yes","description": "change to the new consensus rules","bits": 4,"isabstain": false,"isno": false,"count": 0,"progress": 0}]}]}</code>
+|}
+
+----
+
 ====getwork====
 {|
 !Method
@@ -1174,6 +1977,68 @@ the method name for further details such as parameter and return information.
 
 ----
 
+====livetickets====
+{|
+!Method
+|livetickets
+|-
+!Parameters
+|None
+|-
+!Description
+| Returns live ticket hashes from the ticket database.
+|-
+!Returns
+|<code>(json object)</code>
+: <code>tickets</code>: <code>(json array)</code> List of live tickets.
+|-
+!Example Return
+|<code>{"tickets": ["12ce6a03ce0d449cd88f2c0b6796d746be2f2902aedcc2829b9279ce27020ef4","325742e8037cfa2f76e32ed337978cc845001c9a0aeccb387186a6119ea510f4",...]}</code>
+|}
+
+----
+
+====missedtickets====
+{|
+!Method
+|missedtickets
+|-
+!Parameters
+|None
+|-
+!Description
+| Returns missed ticket hashes from the ticket database.
+|-
+!Returns
+|<code>(json object)</code>
+: <code>tickets</code>: <code>(json array)</code> List of missed tickets.
+|-
+!Example Return
+|<code>{"tickets": ["f56cd8250ac399773bd0a5461587fd1512193476278c4e4b05efc3eca35ca3fe","071c140969f6d74b90e98df5713e07f83f246a92b4f13f365952b83e3922c6fe",...]}</code>
+|}
+
+----
+
+====node====
+{|
+!Method
+|node
+|-
+!Parameters
+|
+# <code>command</code>: <code>(string, required)</code>  <code>connect</code> to add a peer (defaults to temporary), <code>remove</code> to remove a persistent peer, or <code>disconnect</code> to remove all matching non-persistent peers.
+# <code>peer</code>: <code>(string, required)</code> ip address and port, or ID of the peer to operate on.
+# <code>connection type</code>: <code>(string)</code> <code>perm</code> indicates the peer should be added as a permanent peer, <code>temp</code> indicates a connection should only be attempted once. 
+|-
+!Description
+|Attempts to add or remove a peer.
+|-
+!Returns
+|Nothing
+|}
+
+----
+
 ====ping====
 {|
 !Method
@@ -1194,67 +2059,16 @@ the method name for further details such as parameter and return information.
 
 ----
 
-====getrawmempool====
+====rebroadcastmissed====
 {|
 !Method
-|getrawmempool
+|rebroadcastmissed
 |-
 !Parameters
-|
-# <code>verbose</code> <code>(boolean, optional, default=false)</code>
+|None
 |-
 !Description
-|
-:Returns an array of hashes for all of the transactions currently in the memory pool.
-:The <code>verbose</code> flag specifies that each transaction is returned as a JSON object.
-|-
-!Notes
-|Since dcrd does not perform any mining, the priority related fields <code>startingpriority</code> and <code>currentpriority</code> that are available when the <code>verbose</code> flag is set are always 0.
-|-
-!Returns (verbose=false)
-|
-<code>(json array of string)</code>
-: <code>transactionhash</code>: <code>(string)</code> hash of the transaction.
-<code>["transactionhash", ...]</code>
-|-
-!Returns (verbose=true)
-|
-<code>(json object)</code>
-: <code>size</code>: <code>(numeric)</code> transaction size in bytes.
-: <code>fee</code> : <code>(numeric)</code> transaction fee in DCR.
-: <code>time</code>:  <code>(numeric)</code> local time transaction entered pool in seconds since 1 Jan 1970 GMT.
-: <code>height</code>: <code>(numeric)</code> block height when transaction entered the pool.
-: <code>startingpriority</code>: <code>(numeric)</code> priority when transaction entered the pool.
-: <code>currentpriority</code>: <code>(numeric)</code> current priority.
-: <code>depends</code>:  <code>(json array)</code> unconfirmed transactions used as inputs for this transaction.
-: <code>transactionhash</code>: <code>(string)</code> hash of the parent transaction.
-
-<code>{"transactionhash": {"size": n,"fee" : n, "time": n,"height": n, "startingpriority": n, "currentpriority": n, "depends": ["transactionhash", ...]}, ...}</code>
-|-
-!Example Return (verbose=false)
-|<code>["3480058a397b6ffcc60f7e3345a61370fded1ca6bef4b58156ed17987f20d4e7","cbfe7c056a358c3a1dbced5a22b06d74b8650055d5195c1c2469e6b63a41514a"]</code>
-|-
-!Example Return (verbose=true)
-|<code>{"1697a19cede08694278f19584e8dcc87945f40c6b59a942dd8906f133ad3f9cc": {"size": 226, "fee" : 0.0001, "time": 1387992789, "height": 276836, "startingpriority": 0, "currentpriority": 0, "depends": ["aa96f672fcc5a1ec6a08a94aa46d6b789799c87bd6542967da25a96b2dee0afb", ...]}</code>
-|}
-
-----
-
-====setgenerate====
-{|
-!Method
-|setgenerate
-|-
-!Parameters
-|
-# <code>generate</code>: <code>(boolean, required)</code> set to <code>true</code> to enable generation, <code>false</code> to disable it.
-# <code>genproclimit</code>: <code>(numeric, optional)</code> the number of processors (cores) to limit generation to or <code>-1</code> for default.
-|-
-!Description
-|Set the server to generate coins (mine) or not.
-|-
-!Notes
-|NOTE: Since dcrd does not have the wallet integrated to provide payment addresses, dcrd must be configured via the <code>--miningaddr</code> option to provide which payment addresses to pay created blocks to for this RPC to function.
+|Asks the daemon to rebroadcast missed votes.
 |-
 !Returns
 |Nothing
@@ -1263,190 +2077,20 @@ the method name for further details such as parameter and return information.
 
 ----
 
-====sendrawtransaction====
+====rebroadcastwinners====
 {|
 !Method
-|sendrawtransaction
-|-
-!Parameters
-|
-# <code>signedhex</code>: <code>(string, required)</code> serialized, hex-encoded signed transaction.
-# <code>allowhighfees</code>: <code>(boolean, optional, default=false)</code> whether or not to allow insanely high fees.
-|-
-!Description
-|Submits the serialized, hex-encoded transaction to the local peer and relays it to the network.
-|-
-!Returns
-|<code>"hash" (string) the hash of the transaction</code>
-|-
-!Example Return
-|<code>"1697a19cede08694278f19584e8dcc87945f40c6b59a942dd8906f133ad3f9cc"</code>
-|}
-
-----
-
-====submitblock====
-{|
-!Method
-|submitblock
-|-
-!Parameters
-|
-# <code>data</code>: <code>(string, required)</code> serialized, hex-encoded block.
-# <code>params</code>: <code>(json object, optional, default=nil)</code> this parameter is currently ignored.
-|-
-!Description
-|Attempts to submit a new serialized, hex-encoded block to the network.
-|-
-!Returns
-|
-: <code>Success</code>: Nothing.
-: <code>Failure</code>: <code>(string)</code> <code>"rejected: reason"</code>
-|-
-|}
-
-----
-
-====stop====
-{|
-!Method
-|stop
+|rebroadcastwinners
 |-
 !Parameters
 |None
 |-
 !Description
-|Shutdown dcrd.
+|Asks the daemon to rebroadcast the winners of the voting lottery.
 |-
 !Returns
-|<code>"dcrd stopping."</code> <code>(string)</code>
+|Nothing
 |-
-|}
-
-----
-
-====validateaddress====
-{|
-!Method
-|validateaddress
-|-
-!Parameters
-|
-# <code>address</code>: <code>(string, required)</code> Decred address.
-|-
-!Description
-|Verify an address is valid.
-|-
-!Returns
-|<code>(json object)</code>
-: <code>isvalid</code>: <code>(bool)</code> whether or not the address is valid.
-: <code>address</code>: <code>(string)</code> the Decred address validated.
-
-<code>{"isvalid": true or false,"address": "decredaddress"}</code>
-|}
-
-----
-
-====verifychain====
-{|
-!Method
-|verifychain
-|-
-!Parameters
-|
-# <code>checklevel</code>: <code>(numeric, optional, default=3)</code> how in-depth the verification is (0=least amount of checks, higher levels are clamped to the highest supported level).
-# <code>numblocks</code>: <code>(numeric, optional, default=288)</code> the number of blocks starting from the end of the chain to verify.
-|-
-!Description
-|
-:Verifies the block chain database. The actual checks performed by the <code>checklevel</code> parameter is implementation specific. 
-:For dcrd this is: 
-:: <code>checklevel=0</code> - Look up each block and ensure it can be loaded from the database.
-:: <code>checklevel=1</code> - Perform basic context-free sanity checks on each block.
-|-
-!Notes
-|dcrd currently only supports <code>checklevel</code> 0 and 1, but the default is still 3 for compatibility.  Per the information in the Parameters section above, higher levels are automatically clamped to the highest supported level, so this means the default is effectively 1 for dcrd.
-|-
-!Returns
-|<code>(boolean)</code> <code>true</code> or <code>false</code>
-|-
-!Example Return
-|<code>true</code>
-|}
-
-----
-
-====debuglevel====
-{|
-!Method
-|debuglevel
-|-
-!Parameters
-|
-# <code>levelspec</code>: <code>(string)</code> the debug level specification.
-|-
-!Description
-|
-: Dynamically changes the debug logging level.
-: The levelspec can either a debug level or of the form <code><subsystem>=<level>,<subsystem2>=<level2>,...</code>
-: The valid debug levels are <code>trace</code>, <code>debug</code>, <code>info</code>, <code>warn</code>, <code>error</code>, and <code>critical</code>.
-: The valid subsystems are <code>AMGR</code>, <code>ADXR</code>, <code>BCDB</code>, <code>BMGR</code>, <code>DCRD</code>, <code>CHAN</code>, <code>DISC</code>, <code>PEER</code>, <code>RPCS</code>, <code>SCRP</code>, <code>SRVR</code>, and <code>TXMP</code>.
-: Additionally, the special keyword <code>show</code> can be used to get a list of the available subsystems.
-|-
-!Returns
-|<code>string</code>
-|-
-!Example Return
-|<code>Done.</code>
-|-
-!Example <code>show</code> Return
-|<code>Supported subsystems [AMGR ADXR BCDB BMGR DCRD CHAN DISC PEER RPCS SCRP SRVR TXMP]</code>
-|}
-
-----
-
-====getbestblock====
-{|
-!Method
-|getbestblock
-|-
-!Parameters
-|None
-|-
-!Description
-|Get block height and hash of best block in the main chain.
-|-
-!Returns
-|
-<code>(json object)</code>
-: <code>hash</code>: <code>(string)</code> the hex-encoded bytes of the best block hash.
-: <code>height</code>: <code>(numeric)</code> the block height 
-of the best block.
-
-<code>{"hash": "data", "height": n}</code>
-|}
-
-----
-
-====getcurrentnet====
-{|
-!Method
-|getcurrentnet
-|-
-!Parameters
-|None
-|-
-!Description
-|Get Decred network dcrd is running on.
-|-
-!Returns
-|<code>numeric</code>
-|-
-!Example Return
-|
-: <code>(mainnet)</code> <code>3652501241</code>
-: <code>(testnet)</code> <code>118034699</code>
-: <code>(testnet2)</code> <code>1223139429</code> 
 |}
 
 ----
@@ -1523,72 +2167,300 @@ of the best block.
 
 ----
 
-====node====
+====sendrawtransaction====
 {|
 !Method
-|node
+|sendrawtransaction
 |-
 !Parameters
 |
-# <code>command</code>: <code>(string, required)</code>  <code>connect</code> to add a peer (defaults to temporary), <code>remove</code> to remove a persistent peer, or <code>disconnect</code> to remove all matching non-persistent peers.
-# <code>peer</code>: <code>(string, required)</code> ip address and port, or ID of the peer to operate on.
-# <code>connection type</code>: <code>(string, optional)</code> <code>perm</code> indicates the peer should be added as a permanent peer, <code>temp</code> indicates a connection should only be attempted once. 
+# <code>signedhex</code>: <code>(string, required)</code> serialized, hex-encoded signed transaction.
+# <code>allowhighfees</code>: <code>(boolean, optional, default=false)</code> whether or not to allow insanely high fees.
 |-
 !Description
-|Attempts to add or remove a peer.
+|Submits the serialized, hex-encoded transaction to the local peer and relays it to the network.
+|-
+!Returns
+|<code>"hash" (string) the hash of the transaction</code>
+|-
+!Example Return
+|<code>"1697a19cede08694278f19584e8dcc87945f40c6b59a942dd8906f133ad3f9cc"</code>
+|}
+
+----
+
+====setgenerate====
+{|
+!Method
+|setgenerate
+|-
+!Parameters
+|
+# <code>generate</code>: <code>(boolean, required)</code> set to <code>true</code> to enable generation, <code>false</code> to disable it.
+# <code>genproclimit</code>: <code>(numeric, optional)</code> the number of processors (cores) to limit generation to or <code>-1</code> for default.
+|-
+!Description
+|Set the server to generate coins (mine) or not.
+|-
+!Notes
+|NOTE: Since dcrd does not have the wallet integrated to provide payment addresses, dcrd must be configured via the <code>--miningaddr</code> option to provide which payment addresses to pay created blocks to for this RPC to function.
 |-
 !Returns
 |Nothing
-|}
-
-----
-
-====generate====
-{|
-!Method
-|generate
-|-
-!Parameters
-|
-# <code>numblocks</code>: <code>(int, required)</code> The number of blocks to generate. 
-|-
-!Description
-|When in simnet or regtest mode, generates <code>numblocks</code> blocks. If blocks arrive from elsewhere, they are built upon but don't count toward the number of blocks to generate. Only generated blocks are returned. This RPC call will exit with an error if the server is already CPU mining, and will prevent the server from CPU mining for another command while it runs. 
-|-
-!Returns
-|<code>(json array of strings)</code>
-: <code>blockhash</code>: hash of the generated block.
-<code>["blockhash", ...]</code> 
 |-
 |}
 
 ----
 
-====getstakeversions====
+====stop====
 {|
 !Method
-|getstakeversions
+|stop
+|-
+!Parameters
+|None
+|-
+!Description
+|Shutdown dcrd.
+|-
+!Returns
+|<code>"dcrd stopping."</code> <code>(string)</code>
+|-
+|}
+
+----
+
+====submitblock====
+{|
+!Method
+|submitblock
 |-
 !Parameters
 |
-# <code>hash</code>: <code>(string, required)</code> The start block hash. 
-# <code>count</code>: <code>(numeric, required)</code> The number of blocks that will be returned. 
+# <code>data</code>: <code>(string, required)</code> serialized, hex-encoded block.
+# <code>params</code>: <code>(json object, optional, default=nil)</code> this parameter is currently ignored.
 |-
 !Description
-| Returns the stake versions statistics. 
+|Attempts to submit a new serialized, hex-encoded block to the network.
 |-
 !Returns
 |
-<code>stakeversions</code>: <code>(array of object)</code> Array of stake versions per block.
-: <code>hash</code>: <code>(string)</code> hash of the block. 
-: <code>height</code>: <code>(numeric)</code> Height of the block. 
-: <code>blockversion</code>: <code>(numeric)</code> the block version. 
-: <code>stakeversion</code>: <code>(numeric)</code> the stake version of the block. 
-: <code>votes</code>: <code>(array of object)</code> the version and bits of each vote in the block. 
-: <code>version</code>: <code>(numeric)</code> the version of the vote. 
-: <code>bits</code>: <code>(numeric)</code> the bits assigned by the vote. 
-<code>{"stakeversions": [{ "hash": "value", "height": n, "blockversion": n, "stakeversion": n,"votes": [{ "version": n, "bits": n },...]},...]}</code> 
+: <code>Success</code>: Nothing.
+: <code>Failure</code>: <code>(string)</code> <code>"rejected: reason"</code>
+|-
 |}
+
+----
+
+====ticketfeeinfo====
+{|
+!Method
+|ticketfeeinfo
+|-
+!Parameters
+|
+# <code>blocks</code>: <code>(numeric)</code> The number of blocks, starting from the chain tip and descending, to return fee information about.
+# <code>windows</code>: <code>(numeric)</code> The number of difficulty windows to return ticket fee information about.
+|-
+!Description
+| Returns various information about ticket fees from the mempool, blocks, and difficulty windows (units: DCR/kB).
+|-
+!Returns
+|<code>(json object)</code>
+: <code>feeinfomempool</code>: <code>(json object)</code> Ticket fee information for all tickets in the mempool (units: DCR/kB).
+:: <code>number</code>: <code>(numeric)</code> Number of transactions in the mempool.
+:: <code>min</code>: <code>(numeric)</code> Minimum transaction fee in the mempool.
+:: <code>max</code>: <code>(numeric)</code> Minimum transaction fee in the mempool.
+:: <code>mean</code>: <code>(numeric)</code> Mean of transaction fees in the mempool.
+:: <code>median</code>: <code>(numeric)</code> Median of transaction fees in the mempool.
+:: <code>stddev</code>: <code>(numeric)</code> Standard deviation of transaction fees in the mempool.
+: <code>feeinfoblocks</code>: <code>(json array)</code> Ticket fee information for a given list of blocks descending from the chain tip (units: DCR/kB).
+:: <code>height</code>: <code>(numeric)</code> Height of the block.
+:: <code>number</code>: <code>(numeric)</code> Number of transactions in the block.
+:: <code>min</code>: <code>(numeric)</code> Minimum transaction fee in the block.
+:: <code>max</code>: <code>(numeric)</code> Minimum transaction fee in the block.
+:: <code>mean</code>: <code>(numeric)</code> Mean of transaction fees in the block.
+:: <code>median</code>: <code>(numeric)</code> Median of transaction fees in the block.
+:: <code>stddev</code>: <code>(numeric)</code> Standard deviation of transaction fees in the block.
+: <code>feeinfowindows</code>: <code>(json array)</code> Ticket fee information for a window period where the stake difficulty was the same (units: DCR/kB).
+:: <code>startheight</code>: <code>(numeric)</code> First block in the window (inclusive).
+:: <code>endheight</code>: <code>(numeric)</code> Last block in the window (exclusive).
+:: <code>number</code>: <code>(numeric)</code> Number of transactions in the window.
+:: <code>min</code>: <code>(numeric)</code> Minimum transaction fee in the window.
+:: <code>max</code>: <code>(numeric)</code> Minimum transaction fee in the window.
+:: <code>mean</code>: <code>(numeric)</code> Mean of transaction fees in the window.
+:: <code>median</code>: <code>(numeric)</code> Median of transaction fees in the window.
+:: <code>stddev</code>: <code>(numeric)</code> Standard deviation of transaction fees in the window.
+|-
+!Example Return
+|<code>{"feeinfomempool": {"number": 8,"min": 0.00010033,"max": 0.00100675,"mean": 0.00021377,"median": 0.00010052,"stddev": 0.00032041},"feeinfoblocks": [{"height": 374776,"number": 4,"min": 0.00010033,"max": 0.00100336,"mean": 0.00032619,"median": 0.00010055,"stddev": 0.00045144}],"feeinfowindows": [{"startheight": 374688,"endheight": 374777,"number": 474,"min": 0.00010033,"max": 0.00103381,"mean": 0.00011589,"median": 0.00010055,"stddev": 0.0001172}]}</code>
+|}
+
+----
+
+====ticketsforaddress====
+{|
+!Method
+|ticketsforaddress
+|-
+!Parameters
+|
+# <code>address</code>: <code>(string, required)</code> Address to look for.
+|-
+!Description
+|Request all the tickets for an address.
+|-
+!Returns
+|<code>(json object)</code>
+: <code>tickets</code>: <code>(json array)</code> Tickets owned by the specified address.
+|-
+!Example Return
+|<code>{"tickets":["f93c7fc34f72d546eabac791ea6b11d0fcaf7ec42e14045d8a837e4445a5b7ff","312a741b3c4a6bf8ead9071ddd16e539bcb0b2b13d6443dae617af35eec5cdff",...]}</code>
+|}
+
+----
+
+====ticketvwap====
+{|
+!Method
+|ticketvwap
+|-
+!Parameters
+|
+# <code>start</code>: <code>(numeric)</code> The start height to begin calculating the VWAP from.
+# <code>end</code>: <code>(numeric)</code> The end height to begin calculating the VWAP from.
+|-
+!Description
+|Calculate the volume weighted average price of tickets for a range of blocks (default: full PoS difficulty adjustment depth).
+|-
+!Returns
+|<code>numeric</code> The volume weighted average price.
+|-
+!Example Return
+|<code>129.59443029</code>
+|}
+
+----
+
+====txfeeinfo====
+{|
+!Method
+|txfeeinfo
+|-
+!Parameters
+|
+# <code>blocks</code>: <code>(numeric)</code> The number of blocks to calculate transaction fees for, starting from the end of the tip moving backwards.
+# <code>rangestart</code>: <code>(numeric)</code> The start height of the block range to calculate transaction fees for.
+# <code>rangeend</code>: <code>(numeric)</code> The end height of the block range to calculate transaction fees for.
+|-
+!Description
+|Get various information about regular transaction fees from the mempool, blocks, and difficulty windows.
+|-
+!Returns
+|<code>(json object)</code>
+: <code>feeinfomempool</code>: <code>(json object)</code> Transaction fee information for all regular transactions in the mempool.
+: <code>feeinfoblocks</code>: <code>(json array)</code> Transaction fee information for a given list of blocks descending from the chain tip.
+: <code>feeinforange</code>: <code>(json object)</code> Transaction fee information for a window period where the stake difficulty was the same.
+|-
+!Example Return
+|<code>{"feeinfomempool": {"number": 7,"min": 0.00010047,"max": 0.00010387,"mean": 0.00010166,"median": 0.00010096,"stddev": 0.00000146},"feeinfoblocks": [{"height": 374851,"number": 0,"min": 0,"max": 0,"mean": 0,"median": 0,"stddev": 0},{"height": 374850,"number": 7,"min": 0.00010038,"max": 0.00364651,"mean": 0.00060713,"median": 0.00010072,"stddev": 0.00134024}],"feeinforange": {"number": 670,"min": 0.00010018,"max": 0.03968253,"mean": 0.00033239,"median": 0.00010072,"stddev": 0.00235464}}</code>
+|}
+
+----
+
+====validateaddress====
+{|
+!Method
+|validateaddress
+|-
+!Parameters
+|
+# <code>address</code>: <code>(string, required)</code> Decred address.
+|-
+!Description
+|Verify an address is valid.
+|-
+!Returns
+|<code>(json object)</code>
+: <code>isvalid</code>: <code>(bool)</code> whether or not the address is valid.
+: <code>address</code>: <code>(string)</code> the Decred address validated.
+
+<code>{"isvalid": true or false,"address": "decredaddress"}</code>
+|}
+
+----
+
+====verifychain====
+{|
+!Method
+|verifychain
+|-
+!Parameters
+|
+# <code>checklevel</code>: <code>(numeric, optional, default=3)</code> how in-depth the verification is (0=least amount of checks, higher levels are clamped to the highest supported level).
+# <code>numblocks</code>: <code>(numeric, optional, default=288)</code> the number of blocks starting from the end of the chain to verify.
+|-
+!Description
+|
+:Verifies the block chain database. The actual checks performed by the <code>checklevel</code> parameter is implementation specific. 
+:For dcrd this is: 
+:: <code>checklevel=0</code> - Look up each block and ensure it can be loaded from the database.
+:: <code>checklevel=1</code> - Perform basic context-free sanity checks on each block.
+|-
+!Notes
+|dcrd currently only supports <code>checklevel</code> 0 and 1, but the default is still 3 for compatibility.  Per the information in the Parameters section above, higher levels are automatically clamped to the highest supported level, so this means the default is effectively 1 for dcrd.
+|-
+!Returns
+|<code>(boolean)</code> <code>true</code> or <code>false</code>
+|-
+!Example Return
+|<code>true</code>
+|}
+
+----
+
+====verifymessage====
+{|
+!Method
+|verifymessage
+|-
+!Parameters
+|
+# <code>address</code>: <code>(string, required)</code> The Decred address to use for the signature.
+# <code>signature</code>: <code>(string, required)</code> The base-64 encoded signature provided by the signer.
+# <code>message</code>: <code>(string, required)</code> The signed message.
+|-
+!Description
+|Verify an address is valid.
+|-
+!Returns
+|<code>(boolean)</code> Whether or not the signature verified.
+|-
+!Example Return
+|<code>true</code>
+|}
+
+----
+
+====version====
+{|
+!Method
+|version
+|-
+!Parameters
+|None
+|-
+!Description
+|Returns the JSON-RPC API version (semver)
+|-
+!Returns
+|<code>(json object)</code> Object containing the semantic versions of programs and API versions.
+|-
+!Example Return
+|<code>{"dcrd": {"versionstring": "1.5.0-pre+dev","major": 1,"minor": 5,"patch": 0,"prerelease": "pre","buildmetadata": "dev.go1-12-9"},"dcrdjsonrpcapi": {"versionstring": "6.1.0","major": 6,"minor": 1,"patch": 0,"prerelease": "","buildmetadata": ""}}</code>
+|}
+
+----
 
 ==6. Websocket Methods (Websocket-specific)==
 
