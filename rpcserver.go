@@ -226,8 +226,6 @@ var rpcHandlersBeforeInit = map[types.Method]commandHandler{
 	"missedtickets":         handleMissedTickets,
 	"node":                  handleNode,
 	"ping":                  handlePing,
-	"rebroadcastmissed":     handleRebroadcastMissed,
-	"rebroadcastwinners":    handleRebroadcastWinners,
 	"searchrawtransactions": handleSearchRawTransactions,
 	"sendrawtransaction":    handleSendRawTransaction,
 	"setgenerate":           handleSetGenerate,
@@ -4492,67 +4490,6 @@ func handlePing(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) (inter
 			"generate nonce: "+err.Error(), "")
 	}
 	s.server.BroadcastMessage(wire.NewMsgPing(nonce))
-
-	return nil, nil
-}
-
-// handleRebroadcastMissed implements the rebroadcastmissed command.
-//
-// TODO make this a websocket only command.
-func handleRebroadcastMissed(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) (interface{}, error) {
-	best := s.server.chain.BestSnapshot()
-	mt, err := s.server.chain.MissedTickets()
-	if err != nil {
-		return nil, rpcInternalError("Could not get missed tickets "+
-			err.Error(), "")
-	}
-
-	stakeDiff, err := s.server.blockManager.CalcNextRequiredStakeDifficulty()
-	if err != nil {
-		return nil, rpcInternalError("Could not calculate next stake "+
-			"difficulty "+err.Error(), "")
-	}
-
-	missedTicketsNtfn := &blockchain.TicketNotificationsData{
-		Hash:            best.Hash,
-		Height:          best.Height,
-		StakeDifficulty: stakeDiff,
-		TicketsSpent:    []chainhash.Hash{},
-		TicketsMissed:   mt,
-		TicketsNew:      []chainhash.Hash{},
-	}
-
-	s.ntfnMgr.NotifySpentAndMissedTickets(missedTicketsNtfn)
-
-	return nil, nil
-}
-
-// handleRebroadcastWinners implements the rebroadcastwinners command.
-//
-// TODO make this a websocket only command.
-func handleRebroadcastWinners(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) (interface{}, error) {
-	bestHeight := s.server.chain.BestSnapshot().Height
-	blocks, err := s.server.blockManager.TipGeneration()
-	if err != nil {
-		return nil, rpcInternalError("Could not get generation "+
-			err.Error(), "")
-	}
-
-	for i := range blocks {
-		winningTickets, _, _, err :=
-			s.server.chain.LotteryDataForBlock(&blocks[i])
-		if err != nil {
-			return nil, rpcInternalError("Lottery data for block "+
-				"failed: "+err.Error(), "")
-		}
-		ntfnData := &WinningTicketsNtfnData{
-			BlockHash:   blocks[i],
-			BlockHeight: bestHeight,
-			Tickets:     winningTickets,
-		}
-
-		s.ntfnMgr.NotifyWinningTickets(ntfnData)
-	}
 
 	return nil, nil
 }
