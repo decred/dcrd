@@ -1030,8 +1030,6 @@ var rpcResultTypes = map[types.Method][]interface{}{
 	"missedtickets":         {(*types.MissedTicketsResult)(nil)},
 	"node":                  nil,
 	"ping":                  nil,
-	"rebroadcastmissed":     nil,
-	"rebroadcastwinners":    nil,
 	"searchrawtransactions": {(*string)(nil), (*[]types.SearchRawTransactionsResult)(nil)},
 	"sendrawtransaction":    {(*string)(nil)},
 	"setgenerate":           nil,
@@ -1048,7 +1046,6 @@ var rpcResultTypes = map[types.Method][]interface{}{
 
 	// Websocket commands.
 	"loadtxfilter":                nil,
-	"session":                     {(*types.SessionResult)(nil)},
 	"notifywinningtickets":        nil,
 	"notifyspentandmissedtickets": nil,
 	"notifynewtickets":            nil,
@@ -1057,7 +1054,10 @@ var rpcResultTypes = map[types.Method][]interface{}{
 	"notifynewtransactions":       nil,
 	"notifyreceived":              nil,
 	"notifyspent":                 nil,
+	"rebroadcastmissed":           nil,
+	"rebroadcastwinners":          nil,
 	"rescan":                      nil,
+	"session":                     {(*types.SessionResult)(nil)},
 	"stopnotifyblocks":            nil,
 	"stopnotifynewtransactions":   nil,
 	"stopnotifyreceived":          nil,
