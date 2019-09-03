@@ -311,6 +311,8 @@ var rpcLimited = map[string]struct{}{
 	"notifyspent":           {},
 	"rescan":                {},
 	"session":               {},
+	"rebroadcastmissed":     {},
+	"rebroadcastwinners":    {},
 
 	// Websockets AND HTTP/S commands
 	"help": {},
@@ -321,25 +323,50 @@ var rpcLimited = map[string]struct{}{
 	"createrawtransaction":  {},
 	"decoderawtransaction":  {},
 	"decodescript":          {},
+	"estimatefee":           {},
+	"estimatesmartfee":      {},
+	"estimatestakediff":     {},
+	"existsaddress":         {},
+	"existsaddresses":       {},
+	"existsexpiredtickets":  {},
+	"existsliveticket":      {},
+	"existslivetickets":     {},
+	"existsmempooltxs":      {},
+	"existsmissedtickets":   {},
 	"getbestblock":          {},
 	"getbestblockhash":      {},
 	"getblock":              {},
 	"getblockchaininfo":     {},
 	"getblockcount":         {},
 	"getblockhash":          {},
+	"getblockheader":        {},
+	"getblocksubsidy":       {},
+	"getcfilter":            {},
 	"getchaintips":          {},
+	"getcoinsupply":         {},
 	"getcurrentnet":         {},
 	"getdifficulty":         {},
+	"getheaders":            {},
 	"getinfo":               {},
 	"getnettotals":          {},
 	"getnetworkhashps":      {},
 	"getnetworkinfo":        {},
 	"getrawmempool":         {},
+	"getstakedifficulty":    {},
+	"getstakeversioninfo":   {},
+	"getstakeversions":      {},
 	"getrawtransaction":     {},
 	"gettxout":              {},
+	"getvoteinfo":           {},
+	"livetickets":           {},
+	"missedtickets":         {},
 	"searchrawtransactions": {},
 	"sendrawtransaction":    {},
 	"submitblock":           {},
+	"ticketfeeinfo":         {},
+	"ticketsforaddress":     {},
+	"ticketvwap":            {},
+	"txfeeinfo":             {},
 	"validateaddress":       {},
 	"verifymessage":         {},
 	"version":               {},
@@ -4470,6 +4497,8 @@ func handlePing(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) (inter
 }
 
 // handleRebroadcastMissed implements the rebroadcastmissed command.
+//
+// TODO make this a websocket only command.
 func handleRebroadcastMissed(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) (interface{}, error) {
 	best := s.server.chain.BestSnapshot()
 	mt, err := s.server.chain.MissedTickets()
@@ -4499,6 +4528,8 @@ func handleRebroadcastMissed(s *rpcServer, cmd interface{}, closeChan <-chan str
 }
 
 // handleRebroadcastWinners implements the rebroadcastwinners command.
+//
+// TODO make this a websocket only command.
 func handleRebroadcastWinners(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) (interface{}, error) {
 	bestHeight := s.server.chain.BestSnapshot().Height
 	blocks, err := s.server.blockManager.TipGeneration()

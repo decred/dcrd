@@ -147,43 +147,43 @@ the method name for further details such as parameter and return information.
 |Returns a JSON object with information about the provided hex-encoded script.
 |-
 |[[#estimatefee|estimatefee]]
-|N
+|Y
 |Returns the estimated fee in dcr/kb.
 |-
 |[[#estimatesmartfee|estimatesmartfee]]
-|N
+|Y
 |Returns the estimated fee using the historical fee data in dcr/kb.
 |-
 |[[#estimatestakediff|estimatestakediff]]
-|N
+|Y
 |Returns the estimated next minimum, maximum, expected, and user-specified stake difficulty.
 |-
 |[[#existsaddress|existsaddress]]
-|N
+|Y
 |Returns the existence of the provided address.
 |-
 |[[#existsaddresses|existsaddresses]]
-|N
+|Y
 |Returns the existence of the provided addresses.
 |-
 |[[#existsexpiredtickets|existsexpiredtickets]]
-|N
+|Y
 |Returns the existence of the provided tickets in the expired ticket map.
 |-
 |[[#existsliveticket|existsliveticket]]
-|N
+|Y
 |Returns the existence of the provided ticket.
 |-
 |[[#existslivetickets|existslivetickets]]
-|N
+|Y
 |Returns the existence of the provided tickets in the live ticket map.
 |-
 |[[#existsmempooltxs|existsmempooltxs]]
-|N
+|Y
 |Returns the existence of the provided txs in the mempool.
 |-
 |[[#existsmissedtickets|existsmissedtickets]]
-|N
+|Y
 |Returns the existence of the provided tickets in the missed ticket map.
 |-
 |[[#generate|generate]]
@@ -223,11 +223,11 @@ the method name for further details such as parameter and return information.
 |Returns the block header of the block.
 |-
 |[[#getblocksubsidy|getblocksubsidy]]
-|N
+|Y
 |Returns information regarding subsidy amounts.
 |-
 |[[#getcfilter|getcfilter]]
-|N
+|Y
 |Returns the committed filter for a block.
 |-
 |[[#getchaintips|getchaintips]]
@@ -235,7 +235,7 @@ the method name for further details such as parameter and return information.
 |Returns information about all known chain tips the in the block tree.
 |-
 |[[#getcoinsupply|getcoinsupply]]
-|N
+|Y
 |Returns current total coin supply in atoms.
 |-
 |[[#getconnectioncount|getconnectioncount]]
@@ -259,7 +259,7 @@ the method name for further details such as parameter and return information.
 |Returns a recent hashes per second performance measurement while generating coins (mining).
 |-
 |[[#getheaders|getheaders]]
-|N
+|Y
 |Returns block headers starting with the first known block hash from the request.
 |-
 |[[#getinfo|getinfo]]
@@ -299,15 +299,15 @@ the method name for further details such as parameter and return information.
 |Returns information about a transaction given its hash.
 |-
 |[[#getstakedifficulty|getstakedifficulty]]
-|N
+|Y
 |Returns the proof-of-stake difficulty.
 |-
 |[[#getstakeversioninfo|getstakeversioninfo]]
-|N
+|Y
 |Returns stake version statistics for one or more stake version intervals.
 |-
 |[[#getstakeversions|getstakeversions]]
-|N
+|Y
 |Get stake versions per block. 
 |-
 |[[#getticketpoolvalue|getticketpoolvalue]]
@@ -319,7 +319,7 @@ the method name for further details such as parameter and return information.
 |Returns information about an unspent transaction output.
 |-
 |[[#getvoteinfo|getvoteinfo]]
-|N
+|Y
 |Returns the vote info statistics.
 |-
 |[[#getwork|getwork]]
@@ -331,11 +331,11 @@ the method name for further details such as parameter and return information.
 |Returns a list of all commands or help for a specified command.
 |-
 |[[#livetickets|livetickets]]
-|N
+|Y
 |Returns live ticket hashes from the ticket database.
 |-
 |[[#missedtickets|missedtickets]]
-|N
+|Y
 |Returns missed ticket hashes from the ticket database.
 |-
 |[[#node|node]]
@@ -347,11 +347,11 @@ the method name for further details such as parameter and return information.
 |Queues a ping to be sent to each connected peer.
 |-
 |[[#rebroadcastmissed|rebroadcastmissed]]
-|N
+|Y
 |Asks the daemon to rebroadcast missed votes.
 |-
 |[[#rebroadcastwinners|rebroadcastwinners]]
-|N
+|Y
 |Asks the daemon to rebroadcast the winners of the voting lottery.
 |-
 |[[#searchrawtransactions|searchrawtransactions]]
@@ -375,19 +375,19 @@ the method name for further details such as parameter and return information.
 |Attempts to submit a new serialized, hex-encoded block to the network.
 |-
 |[[#ticketfeeinfo|ticketfeeinfo]]
-|N
+|Y
 |Get various information about ticket fees from the mempool, blocks, and difficulty windows (units: DCR/kB).
 |-
 |[[#ticketsforaddress|ticketsforaddress]]
-|N
+|Y
 |Request all the tickets for an address.
 |-
 |[[#ticketvwap|ticketvwap]]
-|N
+|Y
 |Calculate the volume weighted average price of tickets for a range of blocks (default: full PoS difficulty adjustment depth).
 |-
 |[[#txfeeinfo|txfeeinfo]]
-|N
+|Y
 |Get various information about regular transaction fees from the mempool, blocks, and difficulty windows.
 |-
 |[[#validateaddress|validateaddress]]
