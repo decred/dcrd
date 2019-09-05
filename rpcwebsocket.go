@@ -664,7 +664,11 @@ func (m *wsNotificationManager) subscribedClients(tx *dcrutil.Tx, clients map[ch
 	// multiple inputs and/or outputs are relevant to the client.
 	subscribed := make(map[chan struct{}]struct{})
 
+	// Reusable backing array for a slice of a single address.
+	var scratchAddress [1]dcrutil.Address
+
 	msgTx := tx.MsgTx()
+	var isTicket bool // lazily set
 	for q, c := range clients {
 		c.Lock()
 		f := c.filterData
@@ -681,22 +685,43 @@ func (m *wsNotificationManager) subscribedClients(tx *dcrutil.Tx, clients map[ch
 		}
 
 		for i, output := range msgTx.TxOut {
-			_, addrs, _, err := txscript.ExtractPkScriptAddrs(output.Version,
+			watchOutput := true
+			sc, addrs, _, err := txscript.ExtractPkScriptAddrs(output.Version,
 				output.PkScript, m.server.server.chainParams)
 			if err != nil {
 				// Clients are not able to subscribe to
 				// nonstandard or non-address outputs.
 				continue
 			}
+			if sc == txscript.NullDataTy && i&1 == 1 &&
+				(isTicket || stake.DetermineTxType(msgTx) == stake.TxTypeSStx) {
+				isTicket = true
+				// OP_RETURN ticket commitments may contain relevant
+				// P2PKH or P2SH HASH160s.
+				// These outputs cannot be spent and do not need to
+				// be watched.
+				addr, err := stake.AddrFromSStxPkScrCommitment(
+					output.PkScript, activeNetParams.Params)
+				if err != nil {
+					rpcsLog.Errorf("Failed to read commitment from "+
+						"previously-validated ticket: %v", err)
+					continue
+				}
+				scratchAddress[0] = addr
+				addrs = scratchAddress[:]
+				watchOutput = false
+			}
 			for _, a := range addrs {
 				if f.existsAddress(a) {
 					subscribed[q] = struct{}{}
-					op := wire.OutPoint{
-						Hash:  *tx.Hash(),
-						Index: uint32(i),
-						Tree:  tx.Tree(),
+					if watchOutput {
+						op := wire.OutPoint{
+							Hash:  *tx.Hash(),
+							Index: uint32(i),
+							Tree:  tx.Tree(),
+						}
+						f.addUnspentOutPoint(&op)
 					}
-					f.addUnspentOutPoint(&op)
 				}
 			}
 		}
