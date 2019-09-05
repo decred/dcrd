@@ -10,6 +10,7 @@ require (
 	github.com/decred/dcrd/gcs/v2 v2.0.0-00010101000000-000000000000
 	github.com/decred/dcrd/hdkeychain/v2 v2.0.1
 	github.com/decred/dcrd/rpc/jsonrpc/types v1.0.0
+	github.com/decred/dcrd/rpc/jsonrpc/types/v2 v2.0.0-00010101000000-000000000000
 	github.com/decred/dcrd/wire v1.2.0
 	github.com/decred/dcrwallet/rpc/jsonrpc/types v1.1.0
 	github.com/decred/go-socks v1.0.0
@@ -17,4 +18,7 @@ require (
 	github.com/gorilla/websocket v1.4.0
 )
 
-replace github.com/decred/dcrd/gcs/v2 => ../gcs
+replace (
+	github.com/decred/dcrd/gcs/v2 => ../gcs
+	github.com/decred/dcrd/rpc/jsonrpc/types/v2 => ../rpc/jsonrpc/types
+)

@@ -1213,9 +1213,8 @@ func (s *server) PruneRebroadcastInventory() {
 }
 
 // AnnounceNewTransactions generates and relays inventory vectors and notifies
-// both websocket and getblocktemplate long poll clients of the passed
-// transactions.  This function should be called whenever new transactions
-// are added to the mempool.
+// websocket clients of the passed transactions.  This function should be
+// called whenever new transactions are added to the mempool.
 func (s *server) AnnounceNewTransactions(txns []*dcrutil.Tx) {
 	// Generate and relay inventory vectors for all newly accepted
 	// transactions into the memory pool due to the original being
@@ -1228,10 +1227,6 @@ func (s *server) AnnounceNewTransactions(txns []*dcrutil.Tx) {
 		if s.rpcServer != nil {
 			// Notify websocket clients about mempool transactions.
 			s.rpcServer.ntfnMgr.NotifyMempoolTx(tx, true)
-
-			// Potentially notify any getblocktemplate long poll clients
-			// about stale block templates due to the new transaction.
-			s.rpcServer.gbtWorkState.NotifyMempoolTx(s.txMemPool.LastUpdated())
 		}
 	}
 }

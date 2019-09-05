@@ -27,7 +27,7 @@ import (
 	"github.com/decred/dcrd/dcrutil/v2"
 	"github.com/decred/dcrd/internal/version"
 	"github.com/decred/dcrd/mempool/v3"
-	"github.com/decred/dcrd/rpc/jsonrpc/types"
+	"github.com/decred/dcrd/rpc/jsonrpc/types/v2"
 	"github.com/decred/dcrd/sampleconfig"
 	"github.com/decred/go-socks/socks"
 	"github.com/decred/slog"

@@ -297,8 +297,7 @@ type headerNode struct {
 // PeerNotifier provides an interface for server peer notifications.
 type PeerNotifier interface {
 	// AnnounceNewTransactions generates and relays inventory vectors and
-	// notifies both websocket and getblocktemplate long poll clients of
-	// the passed transactions.
+	// notifies websocket clients of the passed transactions.
 	AnnounceNewTransactions(txns []*dcrutil.Tx)
 
 	// UpdatePeerHeights updates the heights of all peers who have
@@ -1071,13 +1070,6 @@ func (b *blockManager) handleBlockMsg(bmsg *blockMsg) {
 
 			// Clear the rejected transactions.
 			b.rejectedTxns = make(map[chainhash.Hash]struct{})
-
-			// Allow any clients performing long polling via the
-			// getblocktemplate RPC to be notified when the new block causes
-			// their old block template to become stale.
-			if r := b.cfg.RpcServer(); r != nil {
-				r.gbtWorkState.NotifyBlockConnected(blockHash)
-			}
 		}
 	}
 
@@ -1644,13 +1636,6 @@ out:
 					b.cfg.TxMemPool.PruneStakeTx(best.NextStakeDiff,
 						best.Height)
 					b.cfg.TxMemPool.PruneExpiredTx()
-				}
-
-				// Allow any clients performing long polling via the
-				// getblocktemplate RPC to be notified when the new block causes
-				// their old block template to become stale.
-				if r != nil {
-					r.gbtWorkState.NotifyBlockConnected(msg.block.Hash())
 				}
 
 				msg.reply <- processBlockResponse{
