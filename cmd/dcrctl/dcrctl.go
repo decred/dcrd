@@ -16,7 +16,7 @@ import (
 	"strings"
 
 	"github.com/decred/dcrd/dcrjson/v3"
-	dcrdtypes "github.com/decred/dcrd/rpc/jsonrpc/types"
+	dcrdtypes "github.com/decred/dcrd/rpc/jsonrpc/types/v2"
 	wallettypes "github.com/decred/dcrwallet/rpc/jsonrpc/types"
 )
 

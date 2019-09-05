@@ -25,7 +25,7 @@ require (
 	github.com/decred/dcrd/mempool/v3 v3.0.0
 	github.com/decred/dcrd/mining/v2 v2.0.0
 	github.com/decred/dcrd/peer/v2 v2.0.0
-	github.com/decred/dcrd/rpc/jsonrpc/types v1.0.0
+	github.com/decred/dcrd/rpc/jsonrpc/types/v2 v2.0.0
 	github.com/decred/dcrd/rpcclient/v5 v5.0.0
 	github.com/decred/dcrd/txscript/v2 v2.0.0
 	github.com/decred/dcrd/wire v1.2.0
@@ -36,12 +36,10 @@ require (
 	github.com/jessevdk/go-flags v1.4.0
 	github.com/jrick/bitset v1.0.0
 	github.com/jrick/logrotate v1.0.0
-	github.com/kr/pretty v0.1.0 // indirect
 	github.com/onsi/ginkgo v1.7.0 // indirect
 	github.com/onsi/gomega v1.4.3 // indirect
 	golang.org/x/crypto v0.0.0-20190611184440-5c40567a22f8
 	golang.org/x/sync v0.0.0-20181221193216-37e7f081c4d4 // indirect
-	gopkg.in/check.v1 v1.0.0-20180628173108-788fd7840127 // indirect
 	gopkg.in/yaml.v2 v2.2.2 // indirect
 )
 
@@ -66,7 +64,7 @@ replace (
 	github.com/decred/dcrd/mempool/v3 => ./mempool
 	github.com/decred/dcrd/mining/v2 => ./mining
 	github.com/decred/dcrd/peer/v2 => ./peer
-	github.com/decred/dcrd/rpc/jsonrpc/types => ./rpc/jsonrpc/types
+	github.com/decred/dcrd/rpc/jsonrpc/types/v2 => ./rpc/jsonrpc/types
 	github.com/decred/dcrd/rpcclient/v5 => ./rpcclient
 	github.com/decred/dcrd/txscript/v2 => ./txscript
 	github.com/decred/dcrd/wire => ./wire

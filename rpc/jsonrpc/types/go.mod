@@ -1,4 +1,4 @@
-module github.com/decred/dcrd/rpc/jsonrpc/types
+module github.com/decred/dcrd/rpc/jsonrpc/types/v2
 
 go 1.11
 

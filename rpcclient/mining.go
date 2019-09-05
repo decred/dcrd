@@ -12,7 +12,7 @@ import (
 
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/dcrutil/v2"
-	chainjson "github.com/decred/dcrd/rpc/jsonrpc/types"
+	chainjson "github.com/decred/dcrd/rpc/jsonrpc/types/v2"
 )
 
 // FutureGenerateResult is a future promise to deliver the result of a
@@ -362,45 +362,6 @@ func (c *Client) GetWorkSubmitAsync(data string) FutureGetWorkSubmit {
 // See GetWork to request data to work on.
 func (c *Client) GetWorkSubmit(data string) (bool, error) {
 	return c.GetWorkSubmitAsync(data).Receive()
-}
-
-// FutureGetBlockTemplate is a future promise to deliver the result of a
-// GetBlockTemplateAsync RPC invocation (or an applicable error).
-type FutureGetBlockTemplate chan *response
-
-// Receive waits for the response promised by the future and returns an error if
-// any occurred while generating the block template.
-func (r FutureGetBlockTemplate) Receive() (*chainjson.GetBlockTemplateResult, error) {
-	res, err := receiveFuture(r)
-	if err != nil {
-		return nil, err
-	}
-
-	// Unmarshal result.
-	var gbt chainjson.GetBlockTemplateResult
-	err = json.Unmarshal(res, &gbt)
-	if err != nil {
-		return nil, err
-	}
-
-	return &gbt, nil
-}
-
-// GetBlockTemplateAsync returns an instance of a type that can be used to get
-// the result of the RPC at some future time by invoking the Receive function on
-// on the returned instance.
-//
-// See GetBlockTemplate for the blocking version and more details.
-func (c *Client) GetBlockTemplateAsync(req *chainjson.TemplateRequest) FutureGetBlockTemplate {
-	cmd := chainjson.NewGetBlockTemplateCmd(req)
-	return c.sendCmd(cmd)
-}
-
-// GetBlockTemplate returns a block template to work on.
-//
-// See SubmitBlock to submit the found solution.
-func (c *Client) GetBlockTemplate(req *chainjson.TemplateRequest) (*chainjson.GetBlockTemplateResult, error) {
-	return c.GetBlockTemplateAsync(req).Receive()
 }
 
 // FutureSubmitBlockResult is a future promise to deliver the result of a

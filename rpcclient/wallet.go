@@ -13,7 +13,8 @@ import (
 	"github.com/decred/dcrd/dcrjson/v3"
 	"github.com/decred/dcrd/dcrutil/v2"
 	"github.com/decred/dcrd/hdkeychain/v2"
-	chainjson "github.com/decred/dcrd/rpc/jsonrpc/types"
+	chainjsonv1 "github.com/decred/dcrd/rpc/jsonrpc/types"
+	chainjson "github.com/decred/dcrd/rpc/jsonrpc/types/v2"
 	"github.com/decred/dcrd/wire"
 	walletjson "github.com/decred/dcrwallet/rpc/jsonrpc/types"
 )
@@ -336,9 +337,9 @@ func (r FutureLockUnspentResult) Receive() error {
 //
 // See LockUnspent for the blocking version and more details.
 func (c *Client) LockUnspentAsync(unlock bool, ops []*wire.OutPoint) FutureLockUnspentResult {
-	outputs := make([]chainjson.TransactionInput, len(ops))
+	outputs := make([]chainjsonv1.TransactionInput, len(ops))
 	for i, op := range ops {
-		outputs[i] = chainjson.TransactionInput{
+		outputs[i] = chainjsonv1.TransactionInput{
 			Txid: op.Hash.String(),
 			Vout: op.Index,
 			Tree: op.Tree,
