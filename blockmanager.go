@@ -341,7 +341,6 @@ type blockManager struct {
 	cfg             *blockManagerConfig
 	started         int32
 	shutdown        int32
-	chain           *blockchain.BlockChain
 	rejectedTxns    map[chainhash.Hash]struct{}
 	requestedTxns   map[chainhash.Hash]struct{}
 	requestedBlocks map[chainhash.Hash]struct{}
@@ -411,7 +410,7 @@ func (b *blockManager) findNextHeaderCheckpoint(height int64) *chaincfg.Checkpoi
 	if cfg.DisableCheckpoints {
 		return nil
 	}
-	checkpoints := b.chain.Checkpoints()
+	checkpoints := b.cfg.Chain.Checkpoints()
 	if len(checkpoints) == 0 {
 		return nil
 	}
@@ -458,7 +457,7 @@ func (b *blockManager) startSync(peers *list.List) {
 		return
 	}
 
-	best := b.chain.BestSnapshot()
+	best := b.cfg.Chain.BestSnapshot()
 	var bestPeer *serverPeer
 	var enext *list.Element
 	for e := peers.Front(); e != nil; e = enext {
@@ -492,7 +491,7 @@ func (b *blockManager) startSync(peers *list.List) {
 		// to send.
 		b.requestedBlocks = make(map[chainhash.Hash]struct{})
 
-		blkLocator, err := b.chain.LatestBlockLocator()
+		blkLocator, err := b.cfg.Chain.LatestBlockLocator()
 		if err != nil {
 			bmgrLog.Errorf("Failed to get block locator for the "+
 				"latest block: %v", err)
@@ -640,7 +639,7 @@ func (b *blockManager) handleDonePeerMsg(peers *list.List, sp *serverPeer) {
 	if b.syncPeer != nil && b.syncPeer == sp {
 		b.syncPeer = nil
 		if b.headersFirstMode {
-			best := b.chain.BestSnapshot()
+			best := b.cfg.Chain.BestSnapshot()
 			b.resetHeaderState(&best.Hash, best.Height)
 		}
 		b.startSync(peers)
@@ -713,7 +712,7 @@ func (b *blockManager) handleTxMsg(tmsg *txMsg) {
 // current returns true if we believe we are synced with our peers, false if we
 // still have blocks to check
 func (b *blockManager) current() bool {
-	if !b.chain.IsCurrent() {
+	if !b.cfg.Chain.IsCurrent() {
 		return false
 	}
 
@@ -725,7 +724,7 @@ func (b *blockManager) current() bool {
 
 	// No matter what chain thinks, if we are below the block we are syncing
 	// to we are not current.
-	if b.chain.BestSnapshot().Height < b.syncPeer.LastBlock() {
+	if b.cfg.Chain.BestSnapshot().Height < b.syncPeer.LastBlock() {
 		return false
 	}
 
@@ -966,7 +965,7 @@ func (b *blockManager) handleBlockMsg(bmsg *blockMsg) {
 
 	// Process the block to include validation, best chain selection, orphan
 	// handling, etc.
-	forkLen, isOrphan, err := b.chain.ProcessBlock(bmsg.block,
+	forkLen, isOrphan, err := b.cfg.Chain.ProcessBlock(bmsg.block,
 		behaviorFlags)
 	if err != nil {
 		// When the error is a rule error, it means the block was simply
@@ -1017,8 +1016,8 @@ func (b *blockManager) handleBlockMsg(bmsg *blockMsg) {
 		heightUpdate = int64(cbHeight)
 		blkHashUpdate = blockHash
 
-		orphanRoot := b.chain.GetOrphanRoot(blockHash)
-		blkLocator, err := b.chain.LatestBlockLocator()
+		orphanRoot := b.cfg.Chain.GetOrphanRoot(blockHash)
+		blkLocator, err := b.cfg.Chain.LatestBlockLocator()
 		if err != nil {
 			bmgrLog.Warnf("Failed to get block locator for the "+
 				"latest block: %v", err)
@@ -1048,7 +1047,7 @@ func (b *blockManager) handleBlockMsg(bmsg *blockMsg) {
 
 			// Notify stake difficulty subscribers and prune invalidated
 			// transactions.
-			best := b.chain.BestSnapshot()
+			best := b.cfg.Chain.BestSnapshot()
 			r := b.cfg.RpcServer()
 			if r != nil {
 				// Update registered websocket clients on the
@@ -1296,7 +1295,7 @@ func (b *blockManager) haveInventory(invVect *wire.InvVect) (bool, error) {
 	case wire.InvTypeBlock:
 		// Ask chain if the block is known to it in any form (main
 		// chain, side chain, or orphan).
-		return b.chain.HaveBlock(&invVect.Hash)
+		return b.cfg.Chain.HaveBlock(&invVect.Hash)
 
 	case wire.InvTypeTx:
 		// Ask the transaction memory pool if the transaction is known
@@ -1307,7 +1306,7 @@ func (b *blockManager) haveInventory(invVect *wire.InvVect) (bool, error) {
 
 		// Check if the transaction exists from the point of view of the
 		// end of the main chain.
-		entry, err := b.chain.FetchUtxoEntry(&invVect.Hash)
+		entry, err := b.cfg.Chain.FetchUtxoEntry(&invVect.Hash)
 		if err != nil {
 			return false, err
 		}
@@ -1354,7 +1353,7 @@ func (b *blockManager) handleInvMsg(imsg *invMsg) {
 	// If our chain is current and a peer announces a block we already
 	// know of, then update their current block height.
 	if lastBlock != -1 && isCurrent {
-		blkHeight, err := b.chain.BlockHeightByHash(&invVects[lastBlock].Hash)
+		blkHeight, err := b.cfg.Chain.BlockHeightByHash(&invVects[lastBlock].Hash)
 		if err == nil {
 			imsg.peer.UpdateLastBlockHeight(blkHeight)
 		}
@@ -1413,12 +1412,12 @@ func (b *blockManager) handleInvMsg(imsg *invMsg) {
 			// resending the orphan block as an available block
 			// to signal there are more missing blocks that need to
 			// be requested.
-			if b.chain.IsKnownOrphan(&iv.Hash) {
+			if b.cfg.Chain.IsKnownOrphan(&iv.Hash) {
 				// Request blocks starting at the latest known
 				// up to the root of the orphan that just came
 				// in.
-				orphanRoot := b.chain.GetOrphanRoot(&iv.Hash)
-				blkLocator, err := b.chain.LatestBlockLocator()
+				orphanRoot := b.cfg.Chain.GetOrphanRoot(&iv.Hash)
+				blkLocator, err := b.cfg.Chain.LatestBlockLocator()
 				if err != nil {
 					bmgrLog.Errorf("PEER: Failed to get block "+
 						"locator for the latest block: "+
@@ -1442,7 +1441,7 @@ func (b *blockManager) handleInvMsg(imsg *invMsg) {
 				// Request blocks after this one up to the
 				// final one the remote peer knows about (zero
 				// stop hash).
-				blkLocator := b.chain.BlockLocatorFromHash(&iv.Hash)
+				blkLocator := b.cfg.Chain.BlockLocatorFromHash(&iv.Hash)
 				locator := chainBlockLocatorToHashes(blkLocator)
 				err = imsg.peer.PushGetBlocksMsg(locator, &zeroHash)
 				if err != nil {
@@ -1560,7 +1559,7 @@ out:
 
 			case calcNextReqDiffNodeMsg:
 				difficulty, err :=
-					b.chain.CalcNextRequiredDiffFromNode(msg.hash,
+					b.cfg.Chain.CalcNextRequiredDiffFromNode(msg.hash,
 						msg.timestamp)
 				msg.reply <- calcNextReqDifficultyResponse{
 					difficulty: difficulty,
@@ -1568,20 +1567,20 @@ out:
 				}
 
 			case calcNextReqStakeDifficultyMsg:
-				stakeDiff, err := b.chain.CalcNextRequiredStakeDifficulty()
+				stakeDiff, err := b.cfg.Chain.CalcNextRequiredStakeDifficulty()
 				msg.reply <- calcNextReqStakeDifficultyResponse{
 					stakeDifficulty: stakeDiff,
 					err:             err,
 				}
 
 			case forceReorganizationMsg:
-				err := b.chain.ForceHeadReorganization(
+				err := b.cfg.Chain.ForceHeadReorganization(
 					msg.formerBest, msg.newBest)
 
 				if err == nil {
 					// Notify stake difficulty subscribers and prune
 					// invalidated transactions.
-					best := b.chain.BestSnapshot()
+					best := b.cfg.Chain.BestSnapshot()
 					r := b.cfg.RpcServer()
 					if r != nil {
 						r.ntfnMgr.NotifyStakeDifficulty(
@@ -1601,14 +1600,14 @@ out:
 				}
 
 			case tipGenerationMsg:
-				g, err := b.chain.TipGeneration()
+				g, err := b.cfg.Chain.TipGeneration()
 				msg.reply <- tipGenerationResponse{
 					hashes: g,
 					err:    err,
 				}
 
 			case processBlockMsg:
-				forkLen, isOrphan, err := b.chain.ProcessBlock(
+				forkLen, isOrphan, err := b.cfg.Chain.ProcessBlock(
 					msg.block, msg.flags)
 				if err != nil {
 					msg.reply <- processBlockResponse{
@@ -1624,7 +1623,7 @@ out:
 				if onMainChain {
 					// Notify stake difficulty subscribers and prune
 					// invalidated transactions.
-					best := b.chain.BestSnapshot()
+					best := b.cfg.Chain.BestSnapshot()
 					if r != nil {
 						r.ntfnMgr.NotifyStakeDifficulty(
 							&StakeDifficultyNtfnData{
@@ -1806,7 +1805,7 @@ func (b *blockManager) handleBlockchainNotification(notification *blockchain.Not
 			// Obtain the winning tickets for this block.  handleNotifyMsg
 			// should be safe for concurrent access of things contained
 			// within blockchain.
-			wt, _, _, err := b.chain.LotteryDataForBlock(blockHash)
+			wt, _, _, err := b.cfg.Chain.LotteryDataForBlock(blockHash)
 			if err != nil {
 				bmgrLog.Errorf("Couldn't calculate winning tickets for "+
 					"accepted block %v: %v", blockHash, err.Error())
@@ -2215,7 +2214,7 @@ func (b *blockManager) requestFromPeer(p *serverPeer, blocks, txs []*chainhash.H
 
 		// Check to see if we already have this block, too.
 		// If so, skip.
-		exists, err := b.chain.HaveBlock(bh)
+		exists, err := b.cfg.Chain.HaveBlock(bh)
 		if err != nil {
 			return err
 		}
@@ -2252,7 +2251,7 @@ func (b *blockManager) requestFromPeer(p *serverPeer, blocks, txs []*chainhash.H
 
 		// Check if the transaction exists from the point of view of the
 		// end of the main chain.
-		entry, err := b.chain.FetchUtxoEntry(vh)
+		entry, err := b.cfg.Chain.FetchUtxoEntry(vh)
 		if err != nil {
 			return err
 		}
@@ -2374,7 +2373,7 @@ func (b *blockManager) IsCurrent() bool {
 // TicketPoolValue returns the current value of the total stake in the ticket
 // pool.
 func (b *blockManager) TicketPoolValue() (dcrutil.Amount, error) {
-	return b.chain.TicketPoolValue()
+	return b.cfg.Chain.TicketPoolValue()
 }
 
 // GetCurrentTemplate gets the current block template for mining.
@@ -2412,7 +2411,6 @@ func (b *blockManager) SetParentTemplate(bt *BlockTemplate) {
 func newBlockManager(config *blockManagerConfig) (*blockManager, error) {
 	bm := blockManager{
 		cfg:              config,
-		chain:            config.Chain,
 		rejectedTxns:     make(map[chainhash.Hash]struct{}),
 		requestedTxns:    make(map[chainhash.Hash]struct{}),
 		requestedBlocks:  make(map[chainhash.Hash]struct{}),
@@ -2423,8 +2421,8 @@ func newBlockManager(config *blockManagerConfig) (*blockManager, error) {
 		quit:             make(chan struct{}),
 	}
 
-	best := bm.chain.BestSnapshot()
-	bm.chain.DisableCheckpoints(cfg.DisableCheckpoints)
+	best := bm.cfg.Chain.BestSnapshot()
+	bm.cfg.Chain.DisableCheckpoints(cfg.DisableCheckpoints)
 	if !cfg.DisableCheckpoints {
 		// Initialize the next checkpoint based on the current height.
 		bm.nextCheckpoint = bm.findNextHeaderCheckpoint(best.Height)
@@ -2437,7 +2435,7 @@ func newBlockManager(config *blockManagerConfig) (*blockManager, error) {
 
 	// Dump the blockchain here if asked for it, and quit.
 	if cfg.DumpBlockchain != "" {
-		err := dumpBlockChain(bm.chain, best.Height)
+		err := dumpBlockChain(bm.cfg.Chain, best.Height)
 		if err != nil {
 			return nil, err
 		}
