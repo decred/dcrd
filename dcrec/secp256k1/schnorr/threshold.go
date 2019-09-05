@@ -68,33 +68,6 @@ func nonceRFC6979(privkey []byte, hash []byte, extra []byte,
 	return k[:]
 }
 
-// generateNoncePair deterministically generate a nonce pair for use in
-// partial signing of a message. Returns a public key (nonce to disseminate)
-// and a private nonce to keep as a secret for the signer.
-func generateNoncePair(msg []byte, priv []byte,
-	nonceFunction func([]byte, []byte, []byte, []byte) []byte, extra []byte,
-	version []byte) ([]byte, *secp256k1.PublicKey, error) {
-	k := nonceFunction(priv, msg, extra, version)
-	bigK := new(big.Int).SetBytes(k)
-	curve := secp256k1.S256()
-
-	// k scalar sanity checks.
-	if bigK.Cmp(bigZero) == 0 {
-		str := fmt.Sprintf("k scalar is zero")
-		return nil, nil, schnorrError(ErrBadNonce, str)
-	}
-	if bigK.Cmp(curve.N) >= 0 {
-		str := fmt.Sprintf("k scalar is >= curve.N")
-		return nil, nil, schnorrError(ErrBadNonce, str)
-	}
-	bigK.SetInt64(0)
-
-	pubx, puby := curve.ScalarBaseMult(k)
-	pubnonce := secp256k1.NewPublicKey(pubx, puby)
-
-	return k, pubnonce, nil
-}
-
 // schnorrPartialSign creates a partial Schnorr signature which may be combined
 // with other Schnorr signatures to create a valid signature for a group pubkey.
 func schnorrPartialSign(msg []byte, priv []byte, privNonce []byte,

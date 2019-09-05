@@ -453,11 +453,10 @@ func TestParseParamsErrors(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name    string
-		method  string
-		params  []json.RawMessage
-		request Request
-		err     Error
+		name   string
+		method string
+		params []json.RawMessage
+		err    Error
 	}{
 		{
 			name:   "unregistered type",
