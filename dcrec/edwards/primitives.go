@@ -84,13 +84,6 @@ func copyBytes64(aB []byte) *[64]byte {
 	return s
 }
 
-// zeroSlice zeroes the memory of a scalar byte slice.
-func zeroSlice(s []byte) {
-	for i := 0; i < PrivScalarSize; i++ {
-		s[i] = 0x00
-	}
-}
-
 // bigIntToEncodedBytes converts a big integer into its corresponding
 // 32 byte little endian representation.
 func bigIntToEncodedBytes(a *big.Int) *[32]byte {
@@ -186,21 +179,6 @@ func encodedBytesToBigInt(s *[32]byte) *big.Int {
 		sCopy[i] = s[i]
 	}
 	reverse(sCopy)
-
-	bi := new(big.Int).SetBytes(sCopy[:])
-
-	return bi
-}
-
-// encodedBytesToBigIntNoReverse converts a 32 byte big endian representation of
-// an integer into a big little endian integer.
-func encodedBytesToBigIntNoReverse(s *[32]byte) *big.Int {
-	// Use a copy so we don't screw up our original
-	// memory.
-	sCopy := new([32]byte)
-	for i := 0; i < fieldIntSize; i++ {
-		sCopy[i] = s[i]
-	}
 
 	bi := new(big.Int).SetBytes(sCopy[:])
 

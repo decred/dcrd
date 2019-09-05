@@ -577,65 +577,6 @@ func GetScriptClass(version uint16, script []byte) ScriptClass {
 	return typeOfScript(version, script)
 }
 
-// expectedInputs returns the number of arguments required by a script.  A value
-// of -1 is returned if the script is of unknown type such that the number can
-// not be determined.  This is an internal function and thus assumes that both
-// class and subclass are correct for the script (and can thus assume things
-// that were determined while finding out the type).
-//
-// NOTE: This function is only valid for version 0 scripts.  Since the function
-// does not accept a script version, the results are undefined for other script
-// versions.
-func expectedInputs(script []byte, class ScriptClass, subclass ScriptClass) int {
-	switch class {
-	case PubKeyTy:
-		return 1
-
-	case PubKeyHashTy:
-		return 2
-
-	case StakeSubmissionTy:
-		if subclass == PubKeyHashTy {
-			return 2
-		}
-		return 1 // P2SH
-
-	case StakeGenTy:
-		if subclass == PubKeyHashTy {
-			return 2
-		}
-		return 1 // P2SH
-
-	case StakeRevocationTy:
-		if subclass == PubKeyHashTy {
-			return 2
-		}
-		return 1 // P2SH
-
-	case StakeSubChangeTy:
-		if subclass == PubKeyHashTy {
-			return 2
-		}
-		return 1 // P2SH
-
-	case ScriptHashTy:
-		// Not including script, handled below.
-		return 1
-
-	case MultiSigTy:
-		// Standard multisig has a small number push for the number of sigs and
-		// number of keys.  Check the first push instruction to see how many
-		// arguments are expected. typeOfScript already checked this so we know
-		// it'll be a small int.
-		return asSmallInt(script[0])
-
-	case NullDataTy:
-		fallthrough
-	default:
-		return -1
-	}
-}
-
 // isStakeOutput returns true is a script output is a stake type.
 //
 // NOTE: This function is only valid for version 0 scripts.  Since the function
@@ -676,12 +617,6 @@ func GetStakeOutSubclass(pkScript []byte) (ScriptClass, error) {
 	}
 
 	return subClass, nil
-}
-
-// getStakeOutSubscript extracts the subscript (P2PKH or P2SH)
-// from a stake output.
-func getStakeOutSubscript(pkScript []byte) []byte {
-	return pkScript[1:]
 }
 
 // ContainsStakeOpCodes returns whether or not a pkScript contains stake tagging

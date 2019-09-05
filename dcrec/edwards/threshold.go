@@ -53,33 +53,6 @@ func combinePubkeys(pks []*PublicKey) *PublicKey {
 	return NewPublicKey(pkSumX, pkSumY)
 }
 
-// generateNoncePair deterministically generate a nonce pair for use in
-// partial signing of a message. Returns a public key (nonce to disseminate)
-// and a private nonce to keep as a secret for the signer.
-func generateNoncePair(msg []byte, priv []byte,
-	nonceFunction func([]byte, []byte, []byte,
-		[]byte) []byte, extra []byte, version []byte) ([]byte, *PublicKey, error) {
-
-	curve := Edwards()
-	k := nonceFunction(priv, msg, extra, version)
-	bigK := new(big.Int).SetBytes(k)
-	bigK.Mod(bigK, curve.N)
-
-	// k scalar sanity checks.
-	if bigK.Cmp(zero) == 0 {
-		return nil, nil, fmt.Errorf("k scalar is zero")
-	}
-	if bigK.Cmp(curve.N) >= 0 {
-		return nil, nil, fmt.Errorf("k scalar is >= curve.N")
-	}
-	bigK.SetInt64(0)
-
-	pubx, puby := curve.ScalarBaseMult(k)
-	pubnonce := NewPublicKey(pubx, puby)
-
-	return k, pubnonce, nil
-}
-
 // schnorrPartialSign creates a partial Schnorr signature which may be combined
 // with other Schnorr signatures to create a valid signature for a group pubkey.
 func schnorrPartialSign(msg []byte, priv []byte,
