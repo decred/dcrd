@@ -479,33 +479,6 @@ func extractCoinbaseExtraNonce(msgBlock *wire.MsgBlock) uint64 {
 	return extractCoinbaseTxExtraNonce(msgBlock.Transactions[0])
 }
 
-// UpdateExtraNonce updates the extra nonce in the coinbase script of the passed
-// block by regenerating the coinbase script with the passed value and block
-// height.  It also recalculates and updates the new merkle root that results
-// from changing the coinbase script.
-func UpdateExtraNonce(msgBlock *wire.MsgBlock, blockHeight int64, extraNonce uint64) error {
-	// First block has no extranonce.
-	if blockHeight == 1 {
-		return nil
-	}
-
-	coinbaseOpReturn, err := standardCoinbaseOpReturn(uint32(blockHeight),
-		extraNonce)
-	if err != nil {
-		return err
-	}
-	msgBlock.Transactions[0].TxOut[1].PkScript = coinbaseOpReturn
-
-	// TODO(davec): A dcrutil.Block should use saved in the state to avoid
-	// recalculating all of the other transaction hashes.
-	// block.Transactions[0].InvalidateCache()
-
-	// Recalculate the merkle root with the updated extra nonce.
-	block := dcrutil.NewBlockDeepCopyCoinbase(msgBlock)
-	msgBlock.Header.MerkleRoot = calcTxTreeMerkleRoot(block.Transactions())
-	return nil
-}
-
 // createCoinbaseTx returns a coinbase transaction paying an appropriate subsidy
 // based on the passed block height to the provided address.  When the address
 // is nil, the coinbase transaction will instead be redeemable by anyone.

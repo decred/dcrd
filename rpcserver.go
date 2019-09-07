@@ -3227,20 +3227,6 @@ func handleGetWorkRequest(s *rpcServer) (interface{}, error) {
 				"Failed to update block time")
 		}
 
-		if templateCopy.Height > 1 {
-			// Increment the extra nonce and update the block template
-			// with the new value by regenerating the coinbase script and
-			// setting the merkle root to the new value.
-			en := extractCoinbaseExtraNonce(msgBlock) + 1
-			state.extraNonce++
-			err := UpdateExtraNonce(msgBlock, best.Height+1, en)
-			if err != nil {
-				errStr := fmt.Sprintf("Failed to update extra nonce: "+
-					"%v", err)
-				return nil, rpcInternalError(errStr, "")
-			}
-		}
-
 		rpcsLog.Debugf("Updated block template (timestamp %v, extra "+
 			"nonce %d, target %064x, merkle root %s)",
 			msgBlock.Header.Timestamp,
