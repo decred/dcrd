@@ -9,14 +9,12 @@ import (
 	"container/list"
 	"encoding/binary"
 	"fmt"
-	"math/rand"
 	"os"
 	"path/filepath"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	"github.com/decred/dcrd/blockchain/stake/v2"
 	"github.com/decred/dcrd/blockchain/standalone"
 	"github.com/decred/dcrd/blockchain/v2"
 	"github.com/decred/dcrd/chaincfg/chainhash"
@@ -240,53 +238,6 @@ type isCurrentMsg struct {
 	reply chan bool
 }
 
-// getCurrentTemplateMsg handles a request for the current mining block template.
-type getCurrentTemplateMsg struct {
-	reply chan getCurrentTemplateResponse
-}
-
-// getCurrentTemplateResponse is a response sent to the reply channel of a
-// getCurrentTemplateMsg.
-type getCurrentTemplateResponse struct {
-	Template *BlockTemplate
-}
-
-// setCurrentTemplateMsg handles a request to change the current mining block
-// template.
-type setCurrentTemplateMsg struct {
-	Template *BlockTemplate
-	reply    chan setCurrentTemplateResponse
-}
-
-// setCurrentTemplateResponse is a response sent to the reply channel of a
-// setCurrentTemplateMsg.
-type setCurrentTemplateResponse struct {
-}
-
-// getParentTemplateMsg handles a request for the current parent mining block
-// template.
-type getParentTemplateMsg struct {
-	reply chan getParentTemplateResponse
-}
-
-// getParentTemplateResponse is a response sent to the reply channel of a
-// getParentTemplateMsg.
-type getParentTemplateResponse struct {
-	Template *BlockTemplate
-}
-
-// setParentTemplateMsg handles a request to change the parent mining block
-// template.
-type setParentTemplateMsg struct {
-	Template *BlockTemplate
-	reply    chan setParentTemplateResponse
-}
-
-// setParentTemplateResponse is a response sent to the reply channel of a
-// setParentTemplateMsg.
-type setParentTemplateResponse struct {
-}
-
 // headerNode is used as a node in a list of headers that are linked together
 // between checkpoints.
 type headerNode struct {
@@ -363,9 +314,7 @@ type blockManager struct {
 	lotteryDataBroadcast      map[chainhash.Hash]struct{}
 	lotteryDataBroadcastMutex sync.RWMutex
 
-	cachedCurrentTemplate *BlockTemplate
-	cachedParentTemplate  *BlockTemplate
-	AggressiveMining      bool
+	AggressiveMining bool
 
 	// The following fields are used to filter duplicate block announcements.
 	announcedBlockMtx sync.Mutex
@@ -751,177 +700,6 @@ func calcTxTreeMerkleRoot(transactions []*dcrutil.Tx) chainhash.Hash {
 	return standalone.CalcMerkleRootInPlace(leaves)
 }
 
-// checkBlockForHiddenVotes checks to see if a newly added block contains
-// any votes that were previously unknown to our daemon. If it does, it
-// adds these votes to the cached parent block template.
-//
-// This is UNSAFE for concurrent access. It must be called in single threaded
-// access through the block manager. All template access must also be routed
-// through the block manager.
-func (b *blockManager) checkBlockForHiddenVotes(block *dcrutil.Block) {
-	// Identify the cached parent template; it's possible that
-	// the parent template hasn't yet been updated, so we may
-	// need to use the current template.
-	var template *BlockTemplate
-	if b.cachedCurrentTemplate != nil {
-		if b.cachedCurrentTemplate.Height ==
-			block.Height() {
-			template = b.cachedCurrentTemplate
-		}
-	}
-	if template == nil &&
-		b.cachedParentTemplate != nil {
-		if b.cachedParentTemplate.Height ==
-			block.Height() {
-			template = b.cachedParentTemplate
-		}
-	}
-
-	// No template to alter.
-	if template == nil {
-		return
-	}
-
-	// Make sure that the template has the same parent
-	// as the new block.
-	if template.Block.Header.PrevBlock !=
-		block.MsgBlock().Header.PrevBlock {
-		bmgrLog.Warnf("error found while trying to check incoming " +
-			"block for hidden votes: template did not have the " +
-			"same parent as the incoming block")
-		return
-	}
-
-	votesFromBlock := make([]*dcrutil.Tx, 0,
-		activeNetParams.TicketsPerBlock)
-	for _, stx := range block.STransactions() {
-		if stake.IsSSGen(stx.MsgTx()) {
-			votesFromBlock = append(votesFromBlock, stx)
-		}
-	}
-
-	// Now that we have the template, grab the votes and compare
-	// them with those found in the newly added block. If we don't
-	// the votes, they will need to be added to our block template.
-	// Here we map the vote by their ticket hashes, since the vote
-	// hash itself varies with the settings of voteBits.
-	var newVotes []*dcrutil.Tx
-	var oldTickets []*dcrutil.Tx
-	var oldRevocations []*dcrutil.Tx
-	oldVoteMap := make(map[chainhash.Hash]struct{},
-		int(b.cfg.ChainParams.TicketsPerBlock))
-	templateBlock := dcrutil.NewBlock(template.Block)
-
-	// Add all the votes found in our template. Keep their
-	// hashes in a map for easy lookup in the next loop.
-	for _, stx := range templateBlock.STransactions() {
-		mstx := stx.MsgTx()
-		txType := stake.DetermineTxType(mstx)
-		if txType == stake.TxTypeSSGen {
-			ticketH := mstx.TxIn[1].PreviousOutPoint.Hash
-			oldVoteMap[ticketH] = struct{}{}
-			newVotes = append(newVotes, stx)
-		}
-
-		// Create a list of old tickets and revocations
-		// while we're in this loop.
-		if txType == stake.TxTypeSStx {
-			oldTickets = append(oldTickets, stx)
-		}
-		if txType == stake.TxTypeSSRtx {
-			oldRevocations = append(oldRevocations, stx)
-		}
-	}
-
-	// Check the votes seen in the block. If the votes
-	// are new, append them.
-	for _, vote := range votesFromBlock {
-		ticketH := vote.MsgTx().TxIn[1].PreviousOutPoint.Hash
-		if _, exists := oldVoteMap[ticketH]; !exists {
-			newVotes = append(newVotes, vote)
-		}
-	}
-
-	// Check the length of the reconstructed voter list for
-	// integrity.
-	votesTotal := len(newVotes)
-	if votesTotal > int(b.cfg.ChainParams.TicketsPerBlock) {
-		bmgrLog.Warnf("error found while adding hidden votes "+
-			"from block %v to the old block template: %v max "+
-			"votes expected but %v votes found", block.Hash(),
-			int(b.cfg.ChainParams.TicketsPerBlock), votesTotal)
-		return
-	}
-
-	// Clear the old stake transactions and begin inserting the
-	// new vote list along with all the old transactions. Do this
-	// for both the underlying template msgBlock and a new slice
-	// of transaction pointers so that a new merkle root can be
-	// calculated.
-	template.Block.ClearSTransactions()
-	updatedTxTreeStake := make([]*dcrutil.Tx, 0,
-		len(newVotes)+len(oldTickets)+len(oldRevocations))
-	for _, vote := range newVotes {
-		updatedTxTreeStake = append(updatedTxTreeStake, vote)
-		template.Block.AddSTransaction(vote.MsgTx())
-	}
-	for _, ticket := range oldTickets {
-		updatedTxTreeStake = append(updatedTxTreeStake, ticket)
-		template.Block.AddSTransaction(ticket.MsgTx())
-	}
-	for _, revocation := range oldRevocations {
-		updatedTxTreeStake = append(updatedTxTreeStake, revocation)
-		template.Block.AddSTransaction(revocation.MsgTx())
-	}
-
-	// Create a new coinbase and update the coinbase pointer
-	// in the underlying template msgBlock.
-	random, err := wire.RandomUint64()
-	if err != nil {
-		return
-	}
-	height := block.MsgBlock().Header.Height
-	opReturnPkScript, err := standardCoinbaseOpReturn(height, random)
-	if err != nil {
-		// Stopping at this step will lead to a corrupted block template
-		// because the stake tree has already been manipulated, so throw
-		// an error.
-		bmgrLog.Errorf("failed to create coinbase OP_RETURN while generating " +
-			"block with extra found voters")
-		return
-	}
-	coinbase, err := createCoinbaseTx(b.cfg.SubsidyCache,
-		template.Block.Transactions[0].TxIn[0].SignatureScript,
-		opReturnPkScript, int64(template.Block.Header.Height),
-		cfg.miningAddrs[rand.Intn(len(cfg.miningAddrs))],
-		uint16(votesTotal), b.cfg.ChainParams)
-	if err != nil {
-		bmgrLog.Errorf("failed to create coinbase while generating " +
-			"block with extra found voters")
-		return
-	}
-	template.Block.Transactions[0] = coinbase.MsgTx()
-
-	// Patch the header. First, reconstruct the merkle trees, then
-	// correct the number of voters, and finally recalculate the size.
-	updatedTxTreeRegular := make([]*dcrutil.Tx, 0,
-		len(template.Block.Transactions))
-	updatedTxTreeRegular = append(updatedTxTreeRegular, coinbase)
-	for i, mtx := range template.Block.Transactions {
-		// Coinbase
-		if i == 0 {
-			continue
-		}
-		tx := dcrutil.NewTx(mtx)
-		updatedTxTreeRegular = append(updatedTxTreeRegular, tx)
-	}
-
-	template.Block.Header.StakeRoot = calcTxTreeMerkleRoot(updatedTxTreeRegular)
-	template.Block.Header.Voters = uint16(votesTotal)
-	template.Block.Header.StakeRoot = calcTxTreeMerkleRoot(updatedTxTreeStake)
-	template.Block.Header.Size = uint32(template.Block.SerializeSize())
-}
-
 // handleBlockMsg handles block messages from all peers.
 func (b *blockManager) handleBlockMsg(bmsg *blockMsg) {
 	// If we didn't ask for this block then the peer is misbehaving.
@@ -1036,15 +814,6 @@ func (b *blockManager) handleBlockMsg(bmsg *blockMsg) {
 
 		onMainChain := !isOrphan && forkLen == 0
 		if onMainChain {
-			// A new block is connected, however, this new block may have
-			// votes in it that were hidden from the network and which
-			// validate our parent block. We should bolt these new votes
-			// into the tx tree stake of the old block template on parent.
-			svl := b.cfg.ChainParams.StakeValidationHeight
-			if b.AggressiveMining && bmsg.block.Height() >= svl {
-				b.checkBlockForHiddenVotes(bmsg.block)
-			}
-
 			// Notify stake difficulty subscribers and prune invalidated
 			// transactions.
 			best := b.cfg.Chain.BestSnapshot()
@@ -1653,26 +1422,6 @@ out:
 			case isCurrentMsg:
 				msg.reply <- b.current()
 
-			case getCurrentTemplateMsg:
-				cur := deepCopyBlockTemplate(b.cachedCurrentTemplate)
-				msg.reply <- getCurrentTemplateResponse{
-					Template: cur,
-				}
-
-			case setCurrentTemplateMsg:
-				b.cachedCurrentTemplate = deepCopyBlockTemplate(msg.Template)
-				msg.reply <- setCurrentTemplateResponse{}
-
-			case getParentTemplateMsg:
-				par := deepCopyBlockTemplate(b.cachedParentTemplate)
-				msg.reply <- getParentTemplateResponse{
-					Template: par,
-				}
-
-			case setParentTemplateMsg:
-				b.cachedParentTemplate = deepCopyBlockTemplate(msg.Template)
-				msg.reply <- setParentTemplateResponse{}
-
 			default:
 				bmgrLog.Warnf("Invalid message type in block handler: %T", msg)
 			}
@@ -2081,10 +1830,6 @@ func (b *blockManager) handleBlockchainNotification(notification *blockchain.Not
 		if r := b.cfg.RpcServer(); r != nil {
 			r.ntfnMgr.NotifyReorganization(rd)
 		}
-
-		// Drop the associated mining template from the old chain, since it
-		// will be no longer valid.
-		b.cachedCurrentTemplate = nil
 	}
 }
 
@@ -2374,36 +2119,6 @@ func (b *blockManager) IsCurrent() bool {
 // pool.
 func (b *blockManager) TicketPoolValue() (dcrutil.Amount, error) {
 	return b.cfg.Chain.TicketPoolValue()
-}
-
-// GetCurrentTemplate gets the current block template for mining.
-func (b *blockManager) GetCurrentTemplate() *BlockTemplate {
-	reply := make(chan getCurrentTemplateResponse)
-	b.msgChan <- getCurrentTemplateMsg{reply: reply}
-	response := <-reply
-	return response.Template
-}
-
-// SetCurrentTemplate sets the current block template for mining.
-func (b *blockManager) SetCurrentTemplate(bt *BlockTemplate) {
-	reply := make(chan setCurrentTemplateResponse)
-	b.msgChan <- setCurrentTemplateMsg{Template: bt, reply: reply}
-	<-reply
-}
-
-// GetParentTemplate gets the current parent block template for mining.
-func (b *blockManager) GetParentTemplate() *BlockTemplate {
-	reply := make(chan getParentTemplateResponse)
-	b.msgChan <- getParentTemplateMsg{reply: reply}
-	response := <-reply
-	return response.Template
-}
-
-// SetParentTemplate sets the current parent block template for mining.
-func (b *blockManager) SetParentTemplate(bt *BlockTemplate) {
-	reply := make(chan setParentTemplateResponse)
-	b.msgChan <- setParentTemplateMsg{Template: bt, reply: reply}
-	<-reply
 }
 
 // newBlockManager returns a new Decred block manager.

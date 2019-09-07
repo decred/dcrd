@@ -756,77 +756,12 @@ func deepCopyBlockTemplate(blockTemplate *BlockTemplate) *BlockTemplate {
 func handleTooFewVoters(subsidyCache *standalone.SubsidyCache, nextHeight int64, miningAddress dcrutil.Address, bm *blockManager) (*BlockTemplate, error) {
 	timeSource := bm.cfg.TimeSource
 	stakeValidationHeight := bm.cfg.ChainParams.StakeValidationHeight
-	curTemplate := bm.GetCurrentTemplate()
-
-	// Check to see if we've fallen off the chain, for example if a
-	// reorganization had recently occurred. If this is the case,
-	// nuke the templates.
-	best := bm.cfg.Chain.BestSnapshot()
-	if curTemplate != nil {
-		if !best.PrevHash.IsEqual(
-			&curTemplate.Block.Header.PrevBlock) {
-			minrLog.Debugf("Cached mining templates are no longer current, " +
-				"resetting.")
-			bm.SetCurrentTemplate(nil)
-			bm.SetParentTemplate(nil)
-		}
-	}
 
 	// Handle not enough voters being present if we're set to mine aggressively
 	// (default behaviour).
+	best := bm.cfg.Chain.BestSnapshot()
 	if nextHeight >= stakeValidationHeight {
 		if bm.AggressiveMining {
-			if curTemplate != nil {
-				cptCopy := deepCopyBlockTemplate(curTemplate)
-
-				// Update the timestamp of the old template.
-				ts := medianAdjustedTime(best, timeSource)
-				cptCopy.Block.Header.Timestamp = ts
-
-				// If we're on testnet, the time since this last block
-				// listed as the parent must be taken into consideration.
-				if bm.cfg.ChainParams.ReduceMinDifficulty {
-					parentHash := cptCopy.Block.Header.PrevBlock
-
-					requiredDifficulty, err :=
-						bm.CalcNextRequiredDiffNode(&parentHash, ts)
-					if err != nil {
-						return nil, miningRuleError(ErrGettingDifficulty,
-							err.Error())
-					}
-
-					cptCopy.Block.Header.Bits = requiredDifficulty
-				}
-
-				// Choose a new extra nonce value that is one greater
-				// than the previous extra nonce, so we don't remine the
-				// same block and choose the same winners as before.
-				en := cptCopy.extractCoinbaseExtraNonce() + 1
-				err := UpdateExtraNonce(cptCopy.Block, cptCopy.Height, en)
-				if err != nil {
-					return nil, err
-				}
-
-				// Update extranonce of the original template too, so
-				// we keep getting unique numbers.
-				err = UpdateExtraNonce(curTemplate.Block, curTemplate.Height, en)
-				if err != nil {
-					return nil, err
-				}
-
-				// Make sure the block validates.
-				block := dcrutil.NewBlockDeepCopyCoinbase(cptCopy.Block)
-				err = bm.cfg.Chain.CheckConnectBlockTemplate(block)
-				if err != nil {
-					minrLog.Errorf("failed to check template while "+
-						"duplicating a parent: %v", err.Error())
-					return nil, miningRuleError(ErrCheckConnectBlock,
-						err.Error())
-				}
-
-				return cptCopy, nil
-			}
-
 			// We may have just started mining and stored the
 			// current block template, so we don't have a parent.
 			//
