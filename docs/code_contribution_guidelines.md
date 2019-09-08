@@ -72,7 +72,7 @@ security and performance implications.
 - [Effective Go](https://golang.org/doc/effective_go.html) - The entire dcrd
   suite follows the guidelines in this document.  For your code to be accepted,
   it must follow the guidelines therein.
-- [Original Satoshi Whitepaper](https://bitcoin.org/bitcoin.pdf) - This is the
+- [Original Satoshi Whitepaper](https://decred.org/research/nakamoto2008.pdf) - This is the
   white paper that started it all.  Having a solid foundation to build on will
   make the code much more comprehensible.
 
