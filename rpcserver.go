@@ -448,7 +448,7 @@ func handleAskWallet(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) (
 func handleAddNode(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) (interface{}, error) {
 	c := cmd.(*types.AddNodeCmd)
 
-	addr := normalizeAddress(c.Addr, activeNetParams.DefaultPort)
+	addr := normalizeAddress(c.Addr, s.server.chainParams.DefaultPort)
 	var err error
 	switch c.SubCmd {
 	case "add":
@@ -476,6 +476,7 @@ func handleNode(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) (inter
 	var addr string
 	var nodeID uint64
 	var errN, err error
+	params := s.server.chainParams
 	switch c.SubCmd {
 	case "disconnect":
 		// If we have a valid uint disconnect by node id. Otherwise,
@@ -486,7 +487,7 @@ func handleNode(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) (inter
 		} else {
 			if _, _, errP := net.SplitHostPort(c.Target); errP == nil ||
 				net.ParseIP(c.Target) != nil {
-				addr = normalizeAddress(c.Target, activeNetParams.DefaultPort)
+				addr = normalizeAddress(c.Target, params.DefaultPort)
 				err = s.server.DisconnectNodeByAddr(addr)
 			} else {
 				return nil, rpcInvalidError("%v: Invalid "+
@@ -507,7 +508,7 @@ func handleNode(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) (inter
 		} else {
 			if _, _, errP := net.SplitHostPort(c.Target); errP == nil ||
 				net.ParseIP(c.Target) != nil {
-				addr = normalizeAddress(c.Target, activeNetParams.DefaultPort)
+				addr = normalizeAddress(c.Target, params.DefaultPort)
 				err = s.server.RemoveNodeByAddr(addr)
 			} else {
 				return nil, rpcInvalidError("%v: invalid "+
@@ -520,7 +521,7 @@ func handleNode(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) (inter
 				"peer, use disconnect")
 		}
 	case "connect":
-		addr = normalizeAddress(c.Target, activeNetParams.DefaultPort)
+		addr = normalizeAddress(c.Target, params.DefaultPort)
 
 		// Default to temporary connections.
 		subCmd := "temp"
@@ -1325,7 +1326,7 @@ func handleEstimateStakeDiff(s *rpcServer, cmd interface{}, closeChan <-chan str
 	c := cmd.(*types.EstimateStakeDiffCmd)
 
 	// Minimum possible stake difficulty.
-	chain := s.server.chain
+	chain := s.chain
 	min, err := chain.EstimateNextStakeDifficulty(0, false)
 	if err != nil {
 		return nil, rpcInternalError(err.Error(), "Could not "+
@@ -1342,11 +1343,12 @@ func handleEstimateStakeDiff(s *rpcServer, cmd interface{}, closeChan <-chan str
 	// The expected stake difficulty. Average the number of fresh stake
 	// since the last retarget to get the number of tickets per block,
 	// then use that to estimate the next stake difficulty.
+	params := s.server.chainParams
 	bestHeight := chain.BestSnapshot().Height
-	lastAdjustment := (bestHeight / activeNetParams.StakeDiffWindowSize) *
-		activeNetParams.StakeDiffWindowSize
-	nextAdjustment := ((bestHeight / activeNetParams.StakeDiffWindowSize) +
-		1) * activeNetParams.StakeDiffWindowSize
+	lastAdjustment := (bestHeight / params.StakeDiffWindowSize) *
+		params.StakeDiffWindowSize
+	nextAdjustment := ((bestHeight / params.StakeDiffWindowSize) + 1) *
+		params.StakeDiffWindowSize
 	totalTickets := 0
 	for i := lastAdjustment; i <= bestHeight; i++ {
 		bh, err := chain.HeaderByHeight(i)
@@ -1728,12 +1730,12 @@ func handleGetBestBlockHash(s *rpcServer, cmd interface{}, closeChan <-chan stru
 
 // getDifficultyRatio returns the proof-of-work difficulty as a multiple of the
 // minimum difficulty using the passed bits field from the header of a block.
-func getDifficultyRatio(bits uint32) float64 {
+func getDifficultyRatio(bits uint32, params *chaincfg.Params) float64 {
 	// The minimum difficulty is the max possible proof-of-work limit bits
 	// converted back to a number.  Note this is not the same as the proof
 	// of work limit directly because the block difficulty is encoded in a
 	// block with the compact form which loses precision.
-	max := standalone.CompactToBig(activeNetParams.PowLimitBits)
+	max := standalone.CompactToBig(params.PowLimitBits)
 	target := standalone.CompactToBig(bits)
 
 	difficulty := new(big.Rat).SetFrac(max, target)
@@ -1820,7 +1822,7 @@ func handleGetBlock(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) (i
 		Size:          int32(blk.MsgBlock().Header.Size),
 		Bits:          strconv.FormatInt(int64(blockHeader.Bits), 16),
 		SBits:         sbitsFloat,
-		Difficulty:    getDifficultyRatio(blockHeader.Bits),
+		Difficulty:    getDifficultyRatio(blockHeader.Bits, s.server.chainParams),
 		ChainWork:     fmt.Sprintf("%064x", chainWork),
 		ExtraData:     hex.EncodeToString(blockHeader.ExtraData[:]),
 		NextHash:      nextHashString,
@@ -1945,7 +1947,7 @@ func handleGetBlockchainInfo(s *rpcServer, cmd interface{}, closeChan <-chan str
 		VerificationProgress: verifyProgress,
 		BestBlockHash:        best.Hash.String(),
 		Difficulty:           best.Bits,
-		DifficultyRatio:      getDifficultyRatio(best.Bits),
+		DifficultyRatio:      getDifficultyRatio(best.Bits, s.server.chainParams),
 		MaxBlockSize:         maxBlockSize,
 		Deployments:          dInfo,
 	}
@@ -2049,7 +2051,7 @@ func handleGetBlockHeader(s *rpcServer, cmd interface{}, closeChan <-chan struct
 		Nonce:         blockHeader.Nonce,
 		ExtraData:     hex.EncodeToString(blockHeader.ExtraData[:]),
 		StakeVersion:  blockHeader.StakeVersion,
-		Difficulty:    getDifficultyRatio(blockHeader.Bits),
+		Difficulty:    getDifficultyRatio(blockHeader.Bits, s.server.chainParams),
 		ChainWork:     fmt.Sprintf("%064x", chainWork),
 		PreviousHash:  blockHeader.PrevBlock.String(),
 		NextHash:      nextHashString,
@@ -2114,7 +2116,7 @@ func handleGetCurrentNet(s *rpcServer, cmd interface{}, closeChan <-chan struct{
 // handleGetDifficulty implements the getdifficulty command.
 func handleGetDifficulty(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) (interface{}, error) {
 	best := s.chain.BestSnapshot()
-	return getDifficultyRatio(best.Bits), nil
+	return getDifficultyRatio(best.Bits, s.server.chainParams), nil
 }
 
 // handleGetGenerate implements the getgenerate command.
@@ -2272,7 +2274,7 @@ func handleGetInfo(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) (in
 		TimeOffset:      int64(s.server.timeSource.Offset().Seconds()),
 		Connections:     s.server.ConnectedCount(),
 		Proxy:           cfg.Proxy,
-		Difficulty:      getDifficultyRatio(best.Bits),
+		Difficulty:      getDifficultyRatio(best.Bits, s.server.chainParams),
 		TestNet:         cfg.TestNet,
 		RelayFee:        cfg.minRelayTxFee.ToCoin(),
 	}
@@ -2326,7 +2328,7 @@ func handleGetMiningInfo(s *rpcServer, cmd interface{}, closeChan <-chan struct{
 		Blocks:           best.Height,
 		CurrentBlockSize: best.BlockSize,
 		CurrentBlockTx:   best.NumTxns,
-		Difficulty:       getDifficultyRatio(best.Bits),
+		Difficulty:       getDifficultyRatio(best.Bits, s.server.chainParams),
 		StakeDifficulty:  nextStakeDiff,
 		Generate:         s.server.cpuMiner.IsMining(),
 		GenProcLimit:     s.server.cpuMiner.NumWorkers(),
@@ -3376,7 +3378,7 @@ func handleGetWorkSubmission(s *rpcServer, hexData string) (interface{}, error) 
 	// Ensure the submitted block hash is less than the target difficulty.
 	blockHash := block.Hash()
 	err = standalone.CheckProofOfWork(blockHash, msgBlock.Header.Bits,
-		activeNetParams.PowLimit)
+		s.server.chainParams.PowLimit)
 	if err != nil {
 		// Anything other than a rule violation is an unexpected error,
 		// so return that error as an internal error.
@@ -4012,7 +4014,7 @@ func handleSearchRawTransactions(s *rpcServer, cmd interface{}, closeChan <-chan
 		result := &srtList[i]
 		result.Hex = hexTxns[i]
 		result.Txid = mtx.TxHash().String()
-		result.Vin, err = createVinListPrevOut(s, mtx, chainParams,
+		result.Vin, err = createVinListPrevOut(s, mtx, s.server.chainParams,
 			vinExtra, filterAddrMap)
 		if err != nil {
 			return nil, rpcInternalError(err.Error(),
@@ -4542,8 +4544,8 @@ func handleTicketVWAP(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) 
 	bestHeight := s.server.chain.BestSnapshot().Height
 	var start uint32
 	if c.Start == nil {
-		toEval := activeNetParams.WorkDiffWindows *
-			activeNetParams.WorkDiffWindowSize
+		params := s.server.chainParams
+		toEval := params.WorkDiffWindows * params.WorkDiffWindowSize
 		startI64 := bestHeight - toEval
 
 		// Use 1 as the first block if there aren't enough blocks.
@@ -4627,7 +4629,7 @@ func handleTxFeeInfo(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) (
 
 	var start uint32
 	if c.RangeStart == nil {
-		toEval := activeNetParams.WorkDiffWindowSize
+		toEval := s.server.chainParams.WorkDiffWindowSize
 		startI64 := bestHeight - toEval
 
 		// Use 1 as the first block if there aren't enough blocks.
@@ -4711,9 +4713,8 @@ func verifyChain(s *rpcServer, level, depth int64) error {
 
 		// Level 1 does basic chain sanity checks.
 		if level > 0 {
-			err := blockchain.CheckBlockSanity(block,
-				s.server.timeSource,
-				activeNetParams.Params)
+			err := blockchain.CheckBlockSanity(block, s.server.timeSource,
+				s.server.chainParams)
 			if err != nil {
 				rpcsLog.Errorf("Verify is unable to validate "+
 					"block at hash %v height %d: %v",
@@ -4795,7 +4796,7 @@ func handleVerifyMessage(s *rpcServer, cmd interface{}, closeChan <-chan struct{
 		serializedPK = dcrPK.SerializeUncompressed()
 	}
 	address, err := dcrutil.NewAddressSecpPubKey(serializedPK,
-		activeNetParams.Params)
+		s.server.chainParams)
 	if err != nil {
 		// Again mirror Bitcoin Core behavior, which treats error in
 		// public key reconstruction as invalid signature.
