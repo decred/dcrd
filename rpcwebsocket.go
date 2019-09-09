@@ -26,6 +26,7 @@ import (
 	"github.com/decred/dcrd/blockchain/standalone"
 	"github.com/decred/dcrd/blockchain/v2"
 	"github.com/decred/dcrd/chaincfg/chainhash"
+	"github.com/decred/dcrd/chaincfg/v2"
 	"github.com/decred/dcrd/dcrjson/v3"
 	"github.com/decred/dcrd/dcrutil/v2"
 	"github.com/decred/dcrd/rpc/jsonrpc/types/v2"
@@ -2170,7 +2171,7 @@ func handleStopNotifyNewTransactions(wsc *wsClient, icmd interface{}) (interface
 // rescanBlock rescans a block for any relevant transactions for the passed
 // lookup keys.  Any discovered transactions are returned hex encoded as a
 // string slice.
-func rescanBlock(filter *wsClientFilter, block *dcrutil.Block) []string {
+func rescanBlock(filter *wsClientFilter, block *dcrutil.Block, params *chaincfg.Params) []string {
 	var transactions []string
 
 	// Need to iterate over both the stake and regular transactions in a
@@ -2212,8 +2213,7 @@ func rescanBlock(filter *wsClientFilter, block *dcrutil.Block) []string {
 	LoopOutputs:
 		for i, output := range tx.TxOut {
 			_, addrs, _, err := txscript.ExtractPkScriptAddrs(
-				output.Version, output.PkScript,
-				activeNetParams.Params)
+				output.Version, output.PkScript, params)
 			if err != nil {
 				continue
 			}
@@ -2297,7 +2297,7 @@ func handleRescan(wsc *wsClient, icmd interface{}) (interface{}, error) {
 		}
 		lastBlockHash = &blockHashes[i]
 
-		transactions := rescanBlock(filter, block)
+		transactions := rescanBlock(filter, block, wsc.rpcServer.server.chainParams)
 		if len(transactions) != 0 {
 			discoveredData = append(discoveredData, types.RescannedBlock{
 				Hash:         blockHashes[i].String(),
