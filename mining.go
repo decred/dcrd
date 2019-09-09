@@ -731,104 +731,93 @@ func handleTooFewVoters(subsidyCache *standalone.SubsidyCache, nextHeight int64,
 	stakeValidationHeight := bm.cfg.ChainParams.StakeValidationHeight
 
 	// Handle not enough voters being present if we're set to mine aggressively
-	// (default behaviour).
+	// (default behavior).
 	best := bm.cfg.Chain.BestSnapshot()
-	if nextHeight >= stakeValidationHeight {
-		if bm.AggressiveMining {
-			// We may have just started mining and stored the
-			// current block template, so we don't have a parent.
-			//
-			// Fetch the latest block and head and begin working
-			// off of it with an empty transaction tree regular
-			// and the contents of that stake tree. In the future
-			// we should have the option of reading some
-			// transactions from this block, too.
-			topBlock, err := bm.cfg.Chain.BlockByHash(&best.Hash)
-			if err != nil {
-				str := fmt.Sprintf("unable to get tip block %s",
-					best.PrevHash)
-				return nil, miningRuleError(ErrGetTopBlock, str)
-			}
-			btMsgBlock := new(wire.MsgBlock)
-			rand, err := wire.RandomUint64()
-			if err != nil {
-				return nil, err
-			}
-			coinbaseScript := make([]byte, len(coinbaseFlags)+2)
-			copy(coinbaseScript[2:], coinbaseFlags)
-			opReturnPkScript, err :=
-				standardCoinbaseOpReturn(topBlock.MsgBlock().Header.Height,
-					rand)
-			if err != nil {
-				return nil, err
-			}
-			coinbaseTx, err := createCoinbaseTx(subsidyCache, coinbaseScript,
-				opReturnPkScript, topBlock.Height(), miningAddress,
-				topBlock.MsgBlock().Header.Voters, bm.cfg.ChainParams)
-			if err != nil {
-				return nil, err
-			}
-			btMsgBlock.AddTransaction(coinbaseTx.MsgTx())
-
-			for _, stx := range topBlock.STransactions() {
-				btMsgBlock.AddSTransaction(stx.MsgTx())
-			}
-
-			// Copy the rest of the header.
-			btMsgBlock.Header = topBlock.MsgBlock().Header
-
-			// Set a fresh timestamp.
-			ts := medianAdjustedTime(best, timeSource)
-			btMsgBlock.Header.Timestamp = ts
-
-			// If we're on testnet, the time since this last block
-			// listed as the parent must be taken into consideration.
-			if bm.cfg.ChainParams.ReduceMinDifficulty {
-				parentHash := topBlock.MsgBlock().Header.PrevBlock
-
-				requiredDifficulty, err :=
-					bm.CalcNextRequiredDiffNode(&parentHash, ts)
-				if err != nil {
-					return nil, miningRuleError(ErrGettingDifficulty,
-						err.Error())
-				}
-
-				btMsgBlock.Header.Bits = requiredDifficulty
-			}
-
-			// Recalculate the size.
-			btMsgBlock.Header.Size = uint32(btMsgBlock.SerializeSize())
-
-			bt := &BlockTemplate{
-				Block:           btMsgBlock,
-				Fees:            []int64{0},
-				SigOpCounts:     []int64{0},
-				Height:          int64(topBlock.MsgBlock().Header.Height),
-				ValidPayAddress: miningAddress != nil,
-			}
-
-			// Recalculate the merkle roots. Use a temporary 'immutable'
-			// block object as we're changing the header contents.
-			btBlockTemp := dcrutil.NewBlockDeepCopyCoinbase(btMsgBlock)
-			header := &btMsgBlock.Header
-			header.MerkleRoot = calcTxTreeMerkleRoot(btBlockTemp.Transactions())
-			header.StakeRoot = calcTxTreeMerkleRoot(btBlockTemp.STransactions())
-
-			// Make sure the block validates.
-			btBlock := dcrutil.NewBlockDeepCopyCoinbase(btMsgBlock)
-			err = bm.cfg.Chain.CheckConnectBlockTemplate(btBlock)
-			if err != nil {
-				str := fmt.Sprintf("failed to check template: %v while "+
-					"constructing a new parent", err.Error())
-				return nil, miningRuleError(ErrCheckConnectBlock,
-					str)
-			}
-
-			// Make a copy to return.
-			cptCopy := deepCopyBlockTemplate(bt)
-
-			return cptCopy, nil
+	if nextHeight >= stakeValidationHeight && bm.AggressiveMining {
+		// Fetch the latest block and head and begin working off of it with an
+		// empty transaction tree regular and the contents of that stake tree.
+		// In the future we should have the option of reading some transactions
+		// from this block, too.
+		topBlock, err := bm.cfg.Chain.BlockByHash(&best.Hash)
+		if err != nil {
+			str := fmt.Sprintf("unable to get tip block %s", best.PrevHash)
+			return nil, miningRuleError(ErrGetTopBlock, str)
 		}
+		tipHeader := &topBlock.MsgBlock().Header
+
+		// Start with a copy of the tip block header.
+		var block wire.MsgBlock
+		block.Header = *tipHeader
+
+		// Create and populate a new coinbase.
+		rand, err := wire.RandomUint64()
+		if err != nil {
+			return nil, err
+		}
+		coinbaseScript := make([]byte, len(coinbaseFlags)+2)
+		copy(coinbaseScript[2:], coinbaseFlags)
+		opReturnPkScript, err := standardCoinbaseOpReturn(tipHeader.Height, rand)
+		if err != nil {
+			return nil, err
+		}
+		coinbaseTx, err := createCoinbaseTx(subsidyCache, coinbaseScript,
+			opReturnPkScript, topBlock.Height(), miningAddress,
+			tipHeader.Voters, bm.cfg.ChainParams)
+		if err != nil {
+			return nil, err
+		}
+		block.AddTransaction(coinbaseTx.MsgTx())
+
+		// Copy all of the stake transactions over.
+		for _, stx := range topBlock.STransactions() {
+			block.AddSTransaction(stx.MsgTx())
+		}
+
+		// Set a fresh timestamp.
+		ts := medianAdjustedTime(best, timeSource)
+		block.Header.Timestamp = ts
+
+		// If we're on testnet, the time since this last block listed as the
+		// parent must be taken into consideration.
+		if bm.cfg.ChainParams.ReduceMinDifficulty {
+			parentHash := topBlock.MsgBlock().Header.PrevBlock
+
+			requiredDifficulty, err :=
+				bm.CalcNextRequiredDiffNode(&parentHash, ts)
+			if err != nil {
+				return nil, miningRuleError(ErrGettingDifficulty,
+					err.Error())
+			}
+
+			block.Header.Bits = requiredDifficulty
+		}
+
+		// Recalculate the size.
+		block.Header.Size = uint32(block.SerializeSize())
+
+		bt := &BlockTemplate{
+			Block:           &block,
+			Fees:            []int64{0},
+			SigOpCounts:     []int64{0},
+			Height:          int64(tipHeader.Height),
+			ValidPayAddress: miningAddress != nil,
+		}
+
+		// Recalculate the merkle roots.
+		header := &block.Header
+		header.MerkleRoot = standalone.CalcTxTreeMerkleRoot(block.Transactions)
+		header.StakeRoot = standalone.CalcTxTreeMerkleRoot(block.STransactions)
+
+		// Make sure the block validates.
+		btBlock := dcrutil.NewBlockDeepCopyCoinbase(&block)
+		err = bm.cfg.Chain.CheckConnectBlockTemplate(btBlock)
+		if err != nil {
+			str := fmt.Sprintf("failed to check template: %v while "+
+				"constructing a new parent", err.Error())
+			return nil, miningRuleError(ErrCheckConnectBlock, str)
+		}
+
+		return bt, nil
 	}
 
 	bmgrLog.Debugf("Not enough voters on top block to generate " +
