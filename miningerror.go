@@ -21,21 +21,9 @@ const (
 	// a block could not be obtained from blockchain.
 	ErrFailedToGetGeneration
 
-	// ErrGetStakeDifficulty indicates that the current stake difficulty
-	// could not be obtained.
-	ErrGetStakeDifficulty
-
 	// ErrGetStakeDifficulty indicates that the current top block of the
 	// blockchain could not be obtained.
 	ErrGetTopBlock
-
-	// ErrCreatingCoinbase indicates that there was a problem generating
-	// the coinbase.
-	ErrCreatingCoinbase
-
-	// ErrGettingMedianTime indicates that the server was unable to get the
-	// median adjusted time for the network.
-	ErrGettingMedianTime
 
 	// ErrGettingDifficulty indicates that there was an error getting the
 	// PoW difficulty.
@@ -46,16 +34,8 @@ const (
 	ErrTransactionAppend
 
 	// ErrCheckConnectBlock indicates that a newly created block template
-	// failed blockchain.CheckBlockSanity.
-	ErrCheckBlockSanity
-
-	// ErrCheckConnectBlock indicates that a newly created block template
 	// failed blockchain.CheckConnectBlock.
 	ErrCheckConnectBlock
-
-	// ErrCoinbaseLengthOverflow indicates that a coinbase length was overflowed,
-	// probably of a result of incrementing extranonce.
-	ErrCoinbaseLengthOverflow
 
 	// ErrFraudProofIndex indicates that there was an error finding the index
 	// for a fraud proof.
@@ -67,19 +47,14 @@ const (
 
 // Map of MiningErrorCode values back to their constant names for pretty printing.
 var miningErrorCodeStrings = map[MiningErrorCode]string{
-	ErrNotEnoughVoters:        "ErrNotEnoughVoters",
-	ErrFailedToGetGeneration:  "ErrFailedToGetGeneration",
-	ErrGetStakeDifficulty:     "ErrGetStakeDifficulty",
-	ErrGetTopBlock:            "ErrGetTopBlock",
-	ErrCreatingCoinbase:       "ErrCreatingCoinbase",
-	ErrGettingMedianTime:      "ErrGettingMedianTime",
-	ErrGettingDifficulty:      "ErrGettingDifficulty",
-	ErrTransactionAppend:      "ErrTransactionAppend",
-	ErrCheckBlockSanity:       "ErrCheckBlockSanity",
-	ErrCheckConnectBlock:      "ErrCheckConnectBlock",
-	ErrCoinbaseLengthOverflow: "ErrCoinbaseLengthOverflow",
-	ErrFraudProofIndex:        "ErrFraudProofIndex",
-	ErrFetchTxStore:           "ErrFetchTxStore",
+	ErrNotEnoughVoters:       "ErrNotEnoughVoters",
+	ErrFailedToGetGeneration: "ErrFailedToGetGeneration",
+	ErrGetTopBlock:           "ErrGetTopBlock",
+	ErrGettingDifficulty:     "ErrGettingDifficulty",
+	ErrTransactionAppend:     "ErrTransactionAppend",
+	ErrCheckConnectBlock:     "ErrCheckConnectBlock",
+	ErrFraudProofIndex:       "ErrFraudProofIndex",
+	ErrFetchTxStore:          "ErrFetchTxStore",
 }
 
 // String returns the MiningErrorCode as a human-readable name.
