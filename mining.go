@@ -2504,10 +2504,10 @@ func (g *BgBlkTmplGenerator) curTplHasNumVotes(votedOnHash *chainhash.Hash, numV
 	if template == nil || err != nil {
 		return false
 	}
-	if g.template.Block.Header.PrevBlock != *votedOnHash {
+	if template.Block.Header.PrevBlock != *votedOnHash {
 		return false
 	}
-	return g.template.Block.Header.Voters == numVotes
+	return template.Block.Header.Voters == numVotes
 }
 
 // numVotesForBlock returns the number of votes on the provided block hash that
