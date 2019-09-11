@@ -2025,8 +2025,7 @@ type regenEvent struct {
 //   - Block while generating new templates that will make the current template
 //     stale (e.g. new parent or new votes)
 type BgBlkTmplGenerator struct {
-	wg   sync.WaitGroup
-	prng *rand.Rand
+	wg sync.WaitGroup
 
 	// These fields are provided by the caller when the generator is created and
 	// are either independently safe for concurrent access or do not change after
@@ -2113,7 +2112,6 @@ type BgBlkTmplGenerator struct {
 // method to allowing processing.
 func newBgBlkTmplGenerator(tg *BlkTmplGenerator, addrs []dcrutil.Address, allowUnsynced bool) *BgBlkTmplGenerator {
 	return &BgBlkTmplGenerator{
-		prng:                rand.New(rand.NewSource(time.Now().Unix())),
 		chain:               tg.chain,
 		tg:                  tg,
 		allowUnsyncedMining: allowUnsynced,
@@ -2470,7 +2468,8 @@ func (g *BgBlkTmplGenerator) genTemplateAsync(ctx context.Context, reason templa
 
 		// Pick a mining address at random and generate a block template that
 		// pays to it.
-		payToAddr := g.miningAddrs[g.prng.Intn(len(g.miningAddrs))]
+		prng := rand.New(rand.NewSource(time.Now().Unix()))
+		payToAddr := g.miningAddrs[prng.Intn(len(g.miningAddrs))]
 		template, err := g.tg.NewBlockTemplate(payToAddr)
 		// NOTE: err is handled below.
 
