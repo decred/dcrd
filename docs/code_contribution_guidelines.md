@@ -7,6 +7,7 @@
 4.2. [Testing](#Testing)<br />
 4.3. [Code Documentation and Commenting](#CodeDocumentation)<br />
 4.4. [Model Git Commit Messages](#ModelGitCommitMessages)<br />
+4.5. [Handling Module Breaking Changes](#HandlingModuleBreakingChanges)<br />
 5. [Code Approval Process](#CodeApproval)<br />
 5.1 [Code Review](#CodeReview)<br />
 5.2 [Rework Code (if needed)](#CodeRework)<br />
@@ -268,6 +269,31 @@ a good thing.
   using the messages for the message body.  Good email netiquette dictates we
   wrap our plain text emails such that there’s room for a few levels of nested
   reply indicators without overflow in an 80 column terminal.
+
+<a name="HandlingModuleBreakingChanges" />
+
+### 4.5 Handling Module Breaking Changes
+
+Pull requests that introduce breaking changes to modules must ensure dependent 
+modules on the change are updated to referrence newly bumped module versions.  
+The purpose of this is to improve the release process by handling version 
+updates with the pull request that introduces it instead of waiting until 
+release.
+
+The request submitter should ensure the following steps are covered whenever a 
+new breaking change to a module's API is introduced:
+
+- Bump the major version in the `go.mod` of the affected module if not already 
+  done since the last release tag. Note that v1 modules are stablilized even 
+  without a release, breaking changes to such modules will require a major 
+  version bump as well.
+- Add a replacement to the `go.mod` in the main module if not already done since 
+  the last release tag.
+- Update all imports in the repo to use the new major version as necessary.
+  - Make necessary modifications to allow all other modules to use the new 
+  version in the same commit.
+- Repeat the process for any other modules the require a new major as a result 
+  of consuming the new major(s).
 
 <a name="CodeApproval" />
 
