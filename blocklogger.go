@@ -43,7 +43,7 @@ func newBlockProgressLogger(progressMessage string, logger slog.Logger) *blockPr
 // logBlockHeight logs a new block height as an information message to show
 // progress to the user. In order to prevent spam, it limits logging to one
 // message every 10 seconds with duration and totals included.
-func (b *blockProgressLogger) logBlockHeight(block *dcrutil.Block, lastBlockHeight int64) {
+func (b *blockProgressLogger) logBlockHeight(block *dcrutil.Block, syncComplete bool) {
 	b.Lock()
 	defer b.Unlock()
 	b.receivedLogBlocks++
@@ -54,7 +54,6 @@ func (b *blockProgressLogger) logBlockHeight(block *dcrutil.Block, lastBlockHeig
 	now := time.Now()
 	duration := now.Sub(b.lastBlockLogTime)
 
-	syncComplete := block.Height() == lastBlockHeight
 	if (duration < time.Second*10) && !syncComplete {
 		return
 	}

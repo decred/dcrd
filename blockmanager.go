@@ -377,6 +377,8 @@ type blockManager struct {
 	// peers.
 	syncHeightMtx sync.Mutex
 	syncHeight    int64
+
+	syncCompletionHelper int64
 }
 
 // resetHeaderState sets the headers-first mode state to values appropriate for
@@ -1008,6 +1010,13 @@ func (b *blockManager) handleBlockMsg(bmsg *blockMsg) {
 
 	// Request the parents for the orphan block from the peer that sent it.
 	if isOrphan {
+
+		// Modifies syncCompletionHelper for more accuratly delivered
+		// sync completion message.
+		if bmsg.block.Height() >= b.syncPeer.LastBlock() - b.syncCompletionHelper{
+			b.syncCompletionHelper += 1
+		}
+		
 		// We've just received an orphan block from a peer. In order
 		// to update the height of the peer, we try to extract the
 		// block height from the scriptSig of the coinbase transaction.
@@ -1034,7 +1043,7 @@ func (b *blockManager) handleBlockMsg(bmsg *blockMsg) {
 	} else {
 		// When the block is not an orphan, log information about it and
 		// update the chain state.
-		b.progressLogger.logBlockHeight(bmsg.block, b.syncPeer.LastBlock())
+		b.progressLogger.logBlockHeight(bmsg.block, bmsg.block.Height() == (b.syncPeer.LastBlock() - b.syncCompletionHelper))
 
 		onMainChain := !isOrphan && forkLen == 0
 		if onMainChain {
@@ -2644,8 +2653,8 @@ func dumpBlockChain(b *blockchain.BlockChain, height int64) error {
 		}
 
 		// Sync complete message is not desired, hence the second
-		// parameter is -1
-		progressLogger.logBlockHeight(bl, -1)
+		// parameter is false
+		progressLogger.logBlockHeight(bl, false)
 	}
 
 	bmgrLog.Infof("Successfully dumped the blockchain (%v blocks) to %v.",
