@@ -1013,10 +1013,10 @@ func (b *blockManager) handleBlockMsg(bmsg *blockMsg) {
 
 		// Modifies syncCompletionHelper for more accuratly delivered
 		// sync completion message.
-		if bmsg.block.Height() >= b.syncPeer.LastBlock() - b.syncCompletionHelper{
+		if bmsg.block.Height() >= b.syncPeer.LastBlock()-b.syncCompletionHelper {
 			b.syncCompletionHelper += 1
 		}
-		
+
 		// We've just received an orphan block from a peer. In order
 		// to update the height of the peer, we try to extract the
 		// block height from the scriptSig of the coinbase transaction.
@@ -1043,7 +1043,7 @@ func (b *blockManager) handleBlockMsg(bmsg *blockMsg) {
 	} else {
 		// When the block is not an orphan, log information about it and
 		// update the chain state.
-		b.progressLogger.logBlockHeight(bmsg.block, bmsg.block.Height() == (b.syncPeer.LastBlock() - b.syncCompletionHelper))
+		b.progressLogger.logBlockHeight(bmsg.block, bmsg.block.Height() == (b.syncPeer.LastBlock()-b.syncCompletionHelper))
 
 		onMainChain := !isOrphan && forkLen == 0
 		if onMainChain {
