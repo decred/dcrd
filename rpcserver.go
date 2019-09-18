@@ -4111,9 +4111,9 @@ func handleSendRawTransaction(s *rpcServer, cmd interface{}, closeChan <-chan st
 			err = fmt.Errorf("rejected transaction %v: %v", tx.Hash(),
 				err)
 			rpcsLog.Debugf("%v", err)
-			txRuleErr, ok := rErr.Err.(mempool.TxRuleError)
-			if ok && txRuleErr.RejectCode == wire.RejectDuplicate {
-				// return a duplicate tx error
+			if mempool.IsErrorCode(rErr, mempool.ErrDuplicate) {
+				// This is an actual exact duplicate tx, so
+				// return the specific duplicate tx error.
 				return nil, rpcDuplicateTxError("%v", err)
 			}
 

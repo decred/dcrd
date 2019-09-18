@@ -6,6 +6,7 @@
 package mempool
 
 import (
+	"fmt"
 	"github.com/decred/dcrd/blockchain/v2"
 	"github.com/decred/dcrd/wire"
 )
@@ -28,14 +29,50 @@ func (e RuleError) Error() string {
 	return e.Err.Error()
 }
 
+// ErrorCode identifies the kind of error.
+type ErrorCode int
+
+const (
+	ErrOther ErrorCode = iota
+	ErrInvalid
+	ErrOrphanPolicyViolation
+	ErrMempoolDoubleSpend
+	ErrAlreadyVoted
+	ErrDuplicate
+	ErrCoinbase
+	ErrExpired
+	ErrNonStandard
+	ErrDustOutput
+	ErrInsufficientFee
+	ErrTooManyVotes
+	ErrDuplicateRevocation
+	ErrOldVote
+	ErrAlreadyExists
+	ErrSeqLockUnmet
+	ErrInsufficientPriority
+	ErrFeeTooHigh
+	ErrOrphan
+)
+
 // TxRuleError identifies a rule violation.  It is used to indicate that
 // processing of a transaction failed due to one of the many validation
 // rules.  The caller can use type assertions to determine if a failure was
 // specifically due to a rule violation and access the ErrorCode field to
 // ascertain the specific reason for the rule violation.
 type TxRuleError struct {
-	RejectCode  wire.RejectCode // The code to send with reject messages
-	Description string          // Human readable description of the issue
+	// RejectCode is the corresponding rejection code to send when
+	// reporting the error via 'reject' wire protocol messages.
+	//
+	// Deprecated: This will be removed in the next major version. Use
+	// ErrorCode instead.
+	RejectCode wire.RejectCode
+
+	// ErrorCode is the mempool package error code ID.
+	ErrorCode ErrorCode
+
+	// Description is an additional human readable description of the
+	// error.
+	Description string
 }
 
 // Error satisfies the error interface and prints human-readable errors.
@@ -45,9 +82,9 @@ func (e TxRuleError) Error() string {
 
 // txRuleError creates an underlying TxRuleError with the given a set of
 // arguments and returns a RuleError that encapsulates it.
-func txRuleError(c wire.RejectCode, desc string) RuleError {
+func txRuleError(c wire.RejectCode, code ErrorCode, desc string) RuleError {
 	return RuleError{
-		Err: TxRuleError{RejectCode: c, Description: desc},
+		Err: TxRuleError{RejectCode: c, ErrorCode: code, Description: desc},
 	}
 }
 
@@ -57,6 +94,46 @@ func chainRuleError(chainErr blockchain.RuleError) RuleError {
 	return RuleError{
 		Err: chainErr,
 	}
+}
+
+// IsErrorCode returns true if the passed error encodes a TxRuleError with the
+// given ErrorCode, either directly or embedded in an outer RuleError.
+func IsErrorCode(err error, code ErrorCode) bool {
+	// Unwrap RuleError if necessary.
+	if rerr, ok := err.(RuleError); ok {
+		err = rerr.Err
+	}
+
+	if trerr, ok := err.(TxRuleError); ok {
+		return trerr.ErrorCode == code
+	}
+
+	return false
+}
+
+// wrapTxRuleError returns a new RuleError with an underlying TxRuleError,
+// replacing the description with the provided one while retaining both the
+// error code and rejection code from the original error if they can be
+// determined.
+func wrapTxRuleError(rejectCode wire.RejectCode, errorCode ErrorCode, desc string, err error) error {
+	// Unwrap the underlying error if err is a RuleError
+	if rerr, ok := err.(RuleError); ok {
+		err = rerr.Err
+	}
+
+	// Override the passed rejectCode and errorCode with the ones from the
+	// error, if it is a TxRuleError
+	if txerr, ok := err.(TxRuleError); ok {
+		rejectCode = txerr.RejectCode
+		errorCode = txerr.ErrorCode
+	}
+
+	// Fill a default error description if empty.
+	if desc == "" {
+		desc = fmt.Sprintf("rejected: %v", err)
+	}
+
+	return txRuleError(rejectCode, errorCode, desc)
 }
 
 // extractRejectCode attempts to return a relevant reject code for a given error
@@ -110,6 +187,8 @@ func extractRejectCode(err error) (wire.RejectCode, bool) {
 
 // ErrToRejectErr examines the underlying type of the error and returns a reject
 // code and string appropriate to be sent in a wire.MsgReject message.
+//
+// Deprecated: This will be removed in the next major version of this package.
 func ErrToRejectErr(err error) (wire.RejectCode, string) {
 	// Return the reject code along with the error text if it can be
 	// extracted from the error.

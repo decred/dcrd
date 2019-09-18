@@ -967,9 +967,8 @@ func TestVoteOrphan(t *testing.T) {
 
 	// Ensure the vote is rejected because it is an orphan.
 	_, err = harness.txPool.ProcessTransaction(vote, false, false, true)
-	if err == nil {
-		t.Fatalf("ProcessTransaction: accepted transaction references " +
-			"outputs of unknown or fully-spent transaction")
+	if !IsErrorCode(err, ErrOrphan) {
+		t.Fatalf("Process Transaction: did not get expected ErrOrphan")
 	}
 	testPoolMembership(tc, vote, false, false)
 
@@ -1038,9 +1037,9 @@ func TestRevocationOrphan(t *testing.T) {
 
 	// Ensure the vote is rejected because it is an orphan.
 	_, err = harness.txPool.ProcessTransaction(revocation, false, false, true)
-	if err == nil {
-		t.Fatalf("ProcessTransaction: accepted transaction references " +
-			"outputs of unknown or fully-spent transaction")
+	if !IsErrorCode(err, ErrOrphan) {
+		t.Fatalf("Process Transaction: did not get expected " +
+			"ErrTooManyVotes error code")
 	}
 	testPoolMembership(tc, revocation, false, false)
 
@@ -1115,6 +1114,11 @@ func TestOrphanReject(t *testing.T) {
 		if code != wire.RejectDuplicate {
 			t.Fatalf("ProcessTransaction: unexpected reject code "+
 				"-- got %v, want %v", code, wire.RejectDuplicate)
+		}
+
+		if !IsErrorCode(err, ErrOrphan) {
+			t.Fatalf("ProcessTransaction: unexpected error code "+
+				"-- got %v, want %v", code, ErrOrphan)
 		}
 
 		// Ensure no transactions were reported as accepted.
@@ -1769,6 +1773,10 @@ func TestSequenceLockAcceptance(t *testing.T) {
 
 			case acceptSeqLocks && !test.valid && err == nil:
 				t.Fatalf("%s: did not reject tx", test.name)
+
+			case acceptSeqLocks && !test.valid && !IsErrorCode(err, ErrSeqLockUnmet):
+				t.Fatalf("%s: did not get expected ErrSeqLockUnmet",
+					test.name)
 			}
 
 			// Ensure the number of reported accepted transactions and pool
@@ -1882,6 +1890,10 @@ func TestMaxVoteDoubleSpendRejection(t *testing.T) {
 			t.Fatalf("ProcessTransaction: accepted double-spending vote with " +
 				"more than max allowed")
 		}
+		if !IsErrorCode(err, ErrTooManyVotes) {
+			t.Fatalf("Process Transaction: did not get expected " +
+				"ErrTooManyVotes error code")
+		}
 
 		// Ensure no transactions were reported as accepted.
 		if len(acceptedTxns) != 0 {
@@ -1916,9 +1928,9 @@ func TestMaxVoteDoubleSpendRejection(t *testing.T) {
 	// in the transaction pool, and not reported as available.
 	vote = votes[maxVoteDoubleSpends+1]
 	_, err = harness.txPool.ProcessTransaction(vote, false, false, true)
-	if err == nil {
-		t.Fatalf("ProcessTransaction: accepted double-spending vote with " +
-			"more than max allowed")
+	if !IsErrorCode(err, ErrTooManyVotes) {
+		t.Fatalf("Process Transaction: did not get expected " +
+			"ErrTooManyVotes error code")
 	}
 	testPoolMembership(tc, vote, false, false)
 }
@@ -1988,9 +2000,9 @@ func TestDuplicateVoteRejection(t *testing.T) {
 	// ensure it is not in the orphan pool, not in the transaction pool, and not
 	// reported as available.
 	_, err = harness.txPool.ProcessTransaction(dupVote, false, false, true)
-	if err == nil {
-		t.Fatalf("ProcessTransaction: accepted duplicate vote with different " +
-			"hash")
+	if !IsErrorCode(err, ErrAlreadyVoted) {
+		t.Fatalf("Process Transaction: did not get expected " +
+			"ErrTooManyVotes error code")
 	}
 	testPoolMembership(tc, dupVote, false, false)
 
@@ -2007,4 +2019,108 @@ func TestDuplicateVoteRejection(t *testing.T) {
 		t.Fatalf("ProcessTransaction: failed to accept valid vote %v", err)
 	}
 	testPoolMembership(tc, dupVote, false, true)
+}
+
+// TestDuplicateTxError ensures that attempting to add a transaction to the
+// pool which is an exact duplicate of another transaction fails with the
+// appropriate error.
+func TestDuplicateTxError(t *testing.T) {
+	t.Parallel()
+
+	harness, spendableOuts, err := newPoolHarness(chaincfg.MainNetParams())
+	if err != nil {
+		t.Fatalf("unable to create test pool: %v", err)
+	}
+	tc := &testContext{t, harness}
+
+	// Create a regular transaction from the first spendable output provided by
+	// the harness.
+	tx, err := harness.CreateTx(spendableOuts[0])
+	if err != nil {
+		t.Fatalf("unable to create transaction: %v", err)
+	}
+
+	// Ensure the transaction is accepted to the pool.
+	_, err = harness.txPool.ProcessTransaction(tx, true, false, true)
+	if err != nil {
+		t.Fatalf("ProcessTransaction: failed to accept initial tx: %v", err)
+	}
+	testPoolMembership(tc, tx, false, true)
+
+	// Ensure a second attempt to process the tx is rejected with the
+	// correct error code and that the transaction remains in the pool.
+	_, err = harness.txPool.ProcessTransaction(tx, true, false, true)
+	if !IsErrorCode(err, ErrDuplicate) {
+		t.Fatalf("ProcessTransaction: did get the expected ErrDuplicate")
+	}
+	testPoolMembership(tc, tx, false, true)
+
+	// Create an orphan transaction to perform the same test but this time
+	// in the orphan pool. The orphan tx is the second one in the created
+	// chain.
+	txs, err := harness.CreateTxChain(txOutToSpendableOut(tx, 0, 0), 2)
+	if err != nil {
+		t.Fatalf("unable to create orphan chain: %v", err)
+	}
+	orphan := txs[1]
+
+	// The first call to ProcessTransaction should succeed when enabling
+	// orphans.
+	_, err = harness.txPool.ProcessTransaction(orphan, true, false, true)
+	if err != nil {
+		t.Fatalf("ProcessTransaction: failed to accept orphan tx: %v", err)
+	}
+	testPoolMembership(tc, orphan, true, false)
+
+	// The second call should fail with the expected ErrDuplicate error.
+	_, err = harness.txPool.ProcessTransaction(orphan, true, false, true)
+	if !IsErrorCode(err, ErrDuplicate) {
+		t.Fatalf("ProcessTransaction: did not get expected ErrDuplicate")
+	}
+	testPoolMembership(tc, orphan, true, false)
+}
+
+// TestMempoolDoubleSpend ensures that attempting to add a transaction to the
+// pool which spends an output already in the mempool fails for the correct
+// reason.
+func TestMempoolDoubleSpend(t *testing.T) {
+	t.Parallel()
+
+	harness, spendableOuts, err := newPoolHarness(chaincfg.MainNetParams())
+	if err != nil {
+		t.Fatalf("unable to create test pool: %v", err)
+	}
+	tc := &testContext{t, harness}
+
+	// Create a regular transaction from the first spendable output provided by
+	// the harness.
+	tx, err := harness.CreateTx(spendableOuts[0])
+	if err != nil {
+		t.Fatalf("unable to create transaction: %v", err)
+	}
+
+	// Ensure the transaction is accepted to the pool.
+	_, err = harness.txPool.ProcessTransaction(tx, true, false, true)
+	if err != nil {
+		t.Fatalf("ProcessTransaction: failed to accept initial tx: %v", err)
+	}
+	testPoolMembership(tc, tx, false, true)
+
+	// Create a second transaction, spending the same outputs. Create with
+	// 2 outputs so that it is a different transaction than the original
+	// one.
+	doubleSpendTx, err := harness.CreateSignedTx(spendableOuts, 2)
+	if err != nil {
+		t.Fatalf("unable to create double spend tx: %v", err)
+	}
+
+	// Ensure a second attempt to process the tx is rejected with the
+	// correct error code, that the original transaction remains in the
+	// pool and the double spend is not added to the pool.
+	_, err = harness.txPool.ProcessTransaction(doubleSpendTx, true, false, true)
+	if !IsErrorCode(err, ErrMempoolDoubleSpend) {
+		t.Fatalf("ProcessTransaction: did not get expected ErrMempoolDoubleSpend")
+	}
+	testPoolMembership(tc, tx, false, true)
+	testPoolMembership(tc, doubleSpendTx, false, false)
 }
