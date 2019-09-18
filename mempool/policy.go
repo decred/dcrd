@@ -103,6 +103,9 @@ func calcMinRequiredTxRelayFee(serializedSize int64, minRelayTxFee dcrutil.Amoun
 // not perform those checks because the script engine already does this more
 // accurately and concisely via the txscript.ScriptVerifyCleanStack and
 // txscript.ScriptVerifySigPushOnly flags.
+//
+// Note: all non-nil errors MUST be RuleError with an underlying TxRuleError
+// instance.
 func checkInputsStandard(tx *dcrutil.Tx, txType stake.TxType, utxoView *blockchain.UtxoViewpoint) error {
 	// NOTE: The reference implementation also does a coinbase check here,
 	// but coinbases have already been rejected prior to calling this
@@ -129,13 +132,13 @@ func checkInputsStandard(tx *dcrutil.Tx, txType stake.TxType, utxoView *blockcha
 					"%d signature operations which is more "+
 					"than the allowed max amount of %d",
 					i, numSigOps, maxStandardP2SHSigOps)
-				return txRuleError(wire.RejectNonstandard, str)
+				return txRuleError(wire.RejectNonstandard, ErrNonStandard, str)
 			}
 
 		case txscript.NonStandardTy:
 			str := fmt.Sprintf("transaction input #%d has a "+
 				"non-standard script form", i)
-			return txRuleError(wire.RejectNonstandard, str)
+			return txRuleError(wire.RejectNonstandard, ErrNonStandard, str)
 		}
 	}
 
@@ -147,6 +150,9 @@ func checkInputsStandard(tx *dcrutil.Tx, txType stake.TxType, utxoView *blockcha
 // A standard public key script is one that is a recognized form, and for
 // multi-signature scripts, only contains from 1 to maxStandardMultiSigKeys
 // public keys.
+//
+// Note: all non-nil errors MUST be RuleError with an underlying TxRuleError
+// instance.
 func checkPkScriptStandard(version uint16, pkScript []byte,
 	scriptClass txscript.ScriptClass) error {
 	// Only default Bitcoin-style script is standard except for
@@ -155,7 +161,7 @@ func checkPkScriptStandard(version uint16, pkScript []byte,
 		str := fmt.Sprintf("versions other than default pkscript version " +
 			"are currently non-standard except for provably unspendable " +
 			"outputs")
-		return txRuleError(wire.RejectNonstandard, str)
+		return txRuleError(wire.RejectNonstandard, ErrNonStandard, str)
 	}
 
 	switch scriptClass {
@@ -164,38 +170,38 @@ func checkPkScriptStandard(version uint16, pkScript []byte,
 		if err != nil {
 			str := fmt.Sprintf("multi-signature script parse "+
 				"failure: %v", err)
-			return txRuleError(wire.RejectNonstandard, str)
+			return txRuleError(wire.RejectNonstandard, ErrNonStandard, str)
 		}
 
 		// A standard multi-signature public key script must contain
 		// from 1 to maxStandardMultiSigKeys public keys.
 		if numPubKeys < 1 {
 			str := "multi-signature script with no pubkeys"
-			return txRuleError(wire.RejectNonstandard, str)
+			return txRuleError(wire.RejectNonstandard, ErrNonStandard, str)
 		}
 		if numPubKeys > maxStandardMultiSigKeys {
 			str := fmt.Sprintf("multi-signature script with %d "+
 				"public keys which is more than the allowed "+
 				"max of %d", numPubKeys, maxStandardMultiSigKeys)
-			return txRuleError(wire.RejectNonstandard, str)
+			return txRuleError(wire.RejectNonstandard, ErrNonStandard, str)
 		}
 
 		// A standard multi-signature public key script must have at
 		// least 1 signature and no more signatures than available
 		// public keys.
 		if numSigs < 1 {
-			return txRuleError(wire.RejectNonstandard,
+			return txRuleError(wire.RejectNonstandard, ErrNonStandard,
 				"multi-signature script with no signatures")
 		}
 		if numSigs > numPubKeys {
 			str := fmt.Sprintf("multi-signature script with %d "+
 				"signatures which is more than the available "+
 				"%d public keys", numSigs, numPubKeys)
-			return txRuleError(wire.RejectNonstandard, str)
+			return txRuleError(wire.RejectNonstandard, ErrNonStandard, str)
 		}
 
 	case txscript.NonStandardTy:
-		return txRuleError(wire.RejectNonstandard,
+		return txRuleError(wire.RejectNonstandard, ErrNonStandard,
 			"non-standard script form")
 	}
 
@@ -282,6 +288,9 @@ func isDust(txOut *wire.TxOut, minRelayTxFee dcrutil.Amount) bool {
 // finalized, conforming to more stringent size constraints, having scripts
 // of recognized forms, and not containing "dust" outputs (those that are
 // so small it costs more to process them than they are worth).
+//
+// Note: all non-nil errors MUST be RuleError with an underlying TxRuleError
+// instance.
 func checkTransactionStandard(tx *dcrutil.Tx, txType stake.TxType, height int64,
 	medianTime time.Time, minRelayTxFee dcrutil.Amount,
 	maxTxVersion uint16) error {
@@ -292,18 +301,18 @@ func checkTransactionStandard(tx *dcrutil.Tx, txType stake.TxType, height int64,
 	if msgTx.SerType != wire.TxSerializeFull {
 		str := fmt.Sprintf("transaction is not serialized with all "+
 			"required data -- type %v", msgTx.SerType)
-		return txRuleError(wire.RejectNonstandard, str)
+		return txRuleError(wire.RejectNonstandard, ErrNonStandard, str)
 	}
 	if msgTx.Version > maxTxVersion || msgTx.Version < 1 {
 		str := fmt.Sprintf("transaction version %d is not in the "+
 			"valid range of %d-%d", msgTx.Version, 1, maxTxVersion)
-		return txRuleError(wire.RejectNonstandard, str)
+		return txRuleError(wire.RejectNonstandard, ErrNonStandard, str)
 	}
 
 	// The transaction must be finalized to be standard and therefore
 	// considered for inclusion in a block.
 	if !blockchain.IsFinalizedTransaction(tx, height, medianTime) {
-		return txRuleError(wire.RejectNonstandard,
+		return txRuleError(wire.RejectNonstandard, ErrNonStandard,
 			"transaction is not finalized")
 	}
 
@@ -315,7 +324,7 @@ func checkTransactionStandard(tx *dcrutil.Tx, txType stake.TxType, height int64,
 	if serializedLen > maxStandardTxSize {
 		str := fmt.Sprintf("transaction size of %v is larger than max "+
 			"allowed size of %v", serializedLen, maxStandardTxSize)
-		return txRuleError(wire.RejectNonstandard, str)
+		return txRuleError(wire.RejectNonstandard, ErrNonStandard, str)
 	}
 
 	for i, txIn := range msgTx.TxIn {
@@ -328,7 +337,7 @@ func checkTransactionStandard(tx *dcrutil.Tx, txType stake.TxType, height int64,
 				"script size of %d bytes is large than max "+
 				"allowed size of %d bytes", i, sigScriptLen,
 				maxStandardSigScriptSize)
-			return txRuleError(wire.RejectNonstandard, str)
+			return txRuleError(wire.RejectNonstandard, ErrNonStandard, str)
 		}
 
 		// Each transaction input signature script must only contain
@@ -336,7 +345,7 @@ func checkTransactionStandard(tx *dcrutil.Tx, txType stake.TxType, height int64,
 		if !txscript.IsPushOnlyScript(txIn.SignatureScript) {
 			str := fmt.Sprintf("transaction input %d: signature "+
 				"script is not push only", i)
-			return txRuleError(wire.RejectNonstandard, str)
+			return txRuleError(wire.RejectNonstandard, ErrNonStandard, str)
 		}
 
 	}
@@ -348,15 +357,9 @@ func checkTransactionStandard(tx *dcrutil.Tx, txType stake.TxType, height int64,
 		scriptClass := txscript.GetScriptClass(txOut.Version, txOut.PkScript)
 		err := checkPkScriptStandard(txOut.Version, txOut.PkScript, scriptClass)
 		if err != nil {
-			// Attempt to extract a reject code from the error so
-			// it can be retained.  When not possible, fall back to
-			// a non standard error.
-			rejectCode, found := extractRejectCode(err)
-			if !found {
-				rejectCode = wire.RejectNonstandard
-			}
 			str := fmt.Sprintf("transaction output %d: %v", i, err)
-			return txRuleError(rejectCode, str)
+			return wrapTxRuleError(wire.RejectNonstandard,
+				ErrNonStandard, str, err)
 		}
 
 		// Accumulate the number of outputs which only carry data.  For
@@ -367,7 +370,7 @@ func checkTransactionStandard(tx *dcrutil.Tx, txType stake.TxType, height int64,
 		} else if txType == stake.TxTypeRegular && isDust(txOut, minRelayTxFee) {
 			str := fmt.Sprintf("transaction output %d: payment "+
 				"of %d is dust", i, txOut.Value)
-			return txRuleError(wire.RejectDust, str)
+			return txRuleError(wire.RejectDust, ErrDustOutput, str)
 		}
 	}
 
@@ -378,7 +381,7 @@ func checkTransactionStandard(tx *dcrutil.Tx, txType stake.TxType, height int64,
 	if numNullDataOutputs > maxNullDataOutputs && txType == stake.TxTypeRegular {
 		str := "more than one transaction output in a nulldata script for a " +
 			"regular type tx"
-		return txRuleError(wire.RejectNonstandard, str)
+		return txRuleError(wire.RejectNonstandard, ErrNonStandard, str)
 	}
 
 	return nil

@@ -450,7 +450,7 @@ func (mp *TxPool) maybeAddOrphan(tx *dcrutil.Tx) error {
 		str := fmt.Sprintf("orphan transaction size of %d bytes is "+
 			"larger than max allowed size of %d bytes",
 			serializedLen, mp.cfg.Policy.MaxOrphanTxSize)
-		return txRuleError(wire.RejectNonstandard, str)
+		return txRuleError(wire.RejectNonstandard, ErrOrphanPolicyViolation, str)
 	}
 
 	// Add the orphan if the none of the above disqualified it.
@@ -732,7 +732,7 @@ func (mp *TxPool) checkPoolDoubleSpend(tx *dcrutil.Tx, txType stake.TxType) erro
 		if txR, exists := mp.outpoints[txIn.PreviousOutPoint]; exists {
 			str := fmt.Sprintf("transaction %v in the pool "+
 				"already spends the same coins", txR.Hash())
-			return txRuleError(wire.RejectDuplicate, str)
+			return txRuleError(wire.RejectDuplicate, ErrMempoolDoubleSpend, str)
 		}
 	}
 
@@ -771,7 +771,7 @@ func (mp *TxPool) checkVoteDoubleSpend(vote *dcrutil.Tx) error {
 			str := fmt.Sprintf("vote %v spending ticket %v already votes on "+
 				"block %s (height %d)", vote.Hash(), ticketSpent, hashVotedOn,
 				heightVotedOn)
-			return txRuleError(wire.RejectDuplicate, str)
+			return txRuleError(wire.RejectDuplicate, ErrAlreadyVoted, str)
 		}
 	}
 	mp.votesMtx.RUnlock()
@@ -873,7 +873,7 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 	// weed out duplicates.
 	if mp.isTransactionInPool(txHash) || (rejectDupOrphans && mp.isOrphanInPool(txHash)) {
 		str := fmt.Sprintf("already have transaction %v", txHash)
-		return nil, txRuleError(wire.RejectDuplicate, str)
+		return nil, txRuleError(wire.RejectDuplicate, ErrDuplicate, str)
 	}
 
 	// Perform preliminary sanity checks on the transaction.  This makes
@@ -891,7 +891,7 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 	if standalone.IsCoinBaseTx(msgTx) {
 		str := fmt.Sprintf("transaction %v is an individual coinbase",
 			txHash)
-		return nil, txRuleError(wire.RejectInvalid, str)
+		return nil, txRuleError(wire.RejectInvalid, ErrCoinbase, str)
 	}
 
 	// Get the current height of the main chain.  A standalone transaction
@@ -904,7 +904,7 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 	if blockchain.IsExpired(tx, nextBlockHeight) {
 		str := fmt.Sprintf("transaction %v expired at height %d",
 			txHash, msgTx.Expiry)
-		return nil, txRuleError(wire.RejectInvalid, str)
+		return nil, txRuleError(wire.RejectInvalid, ErrExpired, str)
 	}
 
 	// Determine what type of transaction we're dealing with (regular or stake).
@@ -938,7 +938,7 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 				}
 
 				str := "violates sequence lock consensus bug"
-				return nil, txRuleError(wire.RejectInvalid, str)
+				return nil, txRuleError(wire.RejectInvalid, ErrInvalid, str)
 			}
 		}
 	}
@@ -948,7 +948,7 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 	if isVote && nextBlockHeight < stakeValidationHeight {
 		str := fmt.Sprintf("votes are not valid until block height %d (next "+
 			"block height %d)", stakeValidationHeight, nextBlockHeight)
-		return nil, txRuleError(wire.RejectInvalid, str)
+		return nil, txRuleError(wire.RejectInvalid, ErrInvalid, str)
 	}
 
 	// Reject revocations before they can possibly be valid.  A vote must be
@@ -959,7 +959,7 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 	if isRevocation && nextBlockHeight < stakeValidationHeight+1 {
 		str := fmt.Sprintf("revocations are not valid until block height %d "+
 			"(next block height %d)", stakeValidationHeight+1, nextBlockHeight)
-		return nil, txRuleError(wire.RejectInvalid, str)
+		return nil, txRuleError(wire.RejectInvalid, ErrInvalid, str)
 	}
 
 	// Don't allow non-standard transactions if the mempool config forbids
@@ -970,16 +970,10 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 			medianTime, mp.cfg.Policy.MinRelayTxFee,
 			mp.cfg.Policy.MaxTxVersion)
 		if err != nil {
-			// Attempt to extract a reject code from the error so
-			// it can be retained.  When not possible, fall back to
-			// a non standard error.
-			rejectCode, found := extractRejectCode(err)
-			if !found {
-				rejectCode = wire.RejectNonstandard
-			}
 			str := fmt.Sprintf("transaction %v is not standard: %v",
 				txHash, err)
-			return nil, txRuleError(rejectCode, str)
+			return nil, wrapTxRuleError(wire.RejectNonstandard,
+				ErrNonStandard, str, err)
 		}
 	}
 
@@ -998,7 +992,8 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 			str := fmt.Sprintf("transaction %v has not enough funds "+
 				"to meet stake difficulty (ticket diff %v < next diff %v)",
 				txHash, msgTx.TxOut[0].Value, sDiff)
-			return nil, txRuleError(wire.RejectInsufficientFee, str)
+			return nil, txRuleError(wire.RejectInsufficientFee,
+				ErrInsufficientFee, str)
 		}
 	}
 
@@ -1039,7 +1034,7 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 				str := fmt.Sprintf("transaction %v in the pool with more than "+
 					"%v votes", msgTx.TxIn[1].PreviousOutPoint,
 					maxVoteDoubleSpends)
-				return nil, txRuleError(wire.RejectDuplicate, str)
+				return nil, txRuleError(wire.RejectDuplicate, ErrTooManyVotes, str)
 			}
 		}
 
@@ -1051,7 +1046,7 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 					str := fmt.Sprintf("transaction %v in the pool as a "+
 						"revocation. Only one revocation is allowed.",
 						msgTx.TxIn[0].PreviousOutPoint)
-					return nil, txRuleError(wire.RejectDuplicate, str)
+					return nil, txRuleError(wire.RejectDuplicate, ErrDuplicateRevocation, str)
 				}
 			}
 		}
@@ -1067,7 +1062,7 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 				"block height of %v which is before the "+
 				"current cutoff height of %v",
 				tx.Hash(), voteHeight, nextBlockHeight-maximumVoteAgeDelta)
-			return nil, txRuleError(wire.RejectNonstandard, str)
+			return nil, txRuleError(wire.RejectNonstandard, ErrOldVote, str)
 		}
 	}
 
@@ -1087,7 +1082,7 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 	// already fully spent.
 	txEntry := utxoView.LookupEntry(txHash)
 	if txEntry != nil && !txEntry.IsFullySpent() {
-		return nil, txRuleError(wire.RejectDuplicate,
+		return nil, txRuleError(wire.RejectDuplicate, ErrAlreadyExists,
 			"transaction already exists")
 	}
 	delete(utxoView.Entries(), *txHash)
@@ -1139,7 +1134,7 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 		return nil, err
 	}
 	if !blockchain.SequenceLockActive(seqLock, nextBlockHeight, medianTime) {
-		return nil, txRuleError(wire.RejectNonstandard,
+		return nil, txRuleError(wire.RejectNonstandard, ErrSeqLockUnmet,
 			"transaction sequence locks on inputs not met")
 	}
 
@@ -1162,16 +1157,10 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 	if !mp.cfg.Policy.AcceptNonStd {
 		err := checkInputsStandard(tx, txType, utxoView)
 		if err != nil {
-			// Attempt to extract a reject code from the error so
-			// it can be retained.  When not possible, fall back to
-			// a non standard error.
-			rejectCode, found := extractRejectCode(err)
-			if !found {
-				rejectCode = wire.RejectNonstandard
-			}
 			str := fmt.Sprintf("transaction %v has a non-standard "+
 				"input: %v", txHash, err)
-			return nil, txRuleError(rejectCode, str)
+			return nil, wrapTxRuleError(wire.RejectNonstandard,
+				ErrNonStandard, str, err)
 		}
 	}
 
@@ -1197,7 +1186,7 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 	if numSigOps > mp.cfg.Policy.MaxSigOpsPerTx {
 		str := fmt.Sprintf("transaction %v has too many sigops: %d > %d",
 			txHash, numSigOps, mp.cfg.Policy.MaxSigOpsPerTx)
-		return nil, txRuleError(wire.RejectNonstandard, str)
+		return nil, txRuleError(wire.RejectNonstandard, ErrNonStandard, str)
 	}
 
 	// Don't allow transactions with fees too low to get into a mined block.
@@ -1222,7 +1211,8 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 			str := fmt.Sprintf("transaction %v has %v fees which "+
 				"is under the required amount of %v", txHash,
 				txFee, minFee)
-			return nil, txRuleError(wire.RejectInsufficientFee, str)
+			return nil, txRuleError(wire.RejectInsufficientFee,
+				ErrInsufficientFee, str)
 		}
 	}
 
@@ -1241,7 +1231,8 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 			str := fmt.Sprintf("transaction %v has insufficient "+
 				"priority (%g <= %g)", txHash,
 				currentPriority, mining.MinHighPriority)
-			return nil, txRuleError(wire.RejectInsufficientFee, str)
+			return nil, txRuleError(wire.RejectInsufficientFee,
+				ErrInsufficientPriority, str)
 		}
 	}
 
@@ -1260,7 +1251,8 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 		if mp.pennyTotal >= mp.cfg.Policy.FreeTxRelayLimit*10*1000 {
 			str := fmt.Sprintf("transaction %v has been rejected "+
 				"by the rate limiter due to low fees", txHash)
-			return nil, txRuleError(wire.RejectInsufficientFee, str)
+			return nil, txRuleError(wire.RejectInsufficientFee,
+				ErrInsufficientFee, str)
 		}
 		oldTotal := mp.pennyTotal
 
@@ -1281,7 +1273,8 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 			str := fmt.Sprintf("ticket purchase transaction %v has a %v "+
 				"fee which is under the required threshold amount of %d",
 				txHash, txFee, minTicketFee)
-			return nil, txRuleError(wire.RejectInsufficientFee, str)
+			return nil, txRuleError(wire.RejectInsufficientFee,
+				ErrInsufficientFee, str)
 		}
 	}
 
@@ -1292,10 +1285,10 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 		maxFee := calcMinRequiredTxRelayFee(serializedSize*maxRelayFeeMultiplier,
 			mp.cfg.Policy.MinRelayTxFee)
 		if txFee > maxFee {
-			err = fmt.Errorf("transaction %v has %v fee which is above the "+
+			str := fmt.Sprintf("transaction %v has %v fee which is above the "+
 				"allowHighFee check threshold amount of %v", txHash,
 				txFee, maxFee)
-			return nil, err
+			return nil, txRuleError(wire.RejectInvalid, ErrFeeTooHigh, str)
 		}
 	}
 
@@ -1573,7 +1566,7 @@ func (mp *TxPool) ProcessTransaction(tx *dcrutil.Tx, allowOrphan, rateLimit, all
 		str := fmt.Sprintf("orphan transaction %v references "+
 			"outputs of unknown or fully-spent "+
 			"transaction %v", tx.Hash(), missingParents[0])
-		return nil, txRuleError(wire.RejectDuplicate, str)
+		return nil, txRuleError(wire.RejectDuplicate, ErrOrphan, str)
 	}
 
 	// Potentially add the orphan transaction to the orphan pool.

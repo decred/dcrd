@@ -595,6 +595,83 @@ func (b *blockManager) handleDonePeerMsg(peers *list.List, sp *serverPeer) {
 	}
 }
 
+// errToWireRejectCode determines the wire rejection code and description for a
+// given error. This function can convert some select blockchain and mempool
+// error types to the historical rejection codes used on the p2p wire protocol.
+func errToWireRejectCode(err error) (wire.RejectCode, string) {
+	// Unwrap mempool errors.
+	if rerr, ok := err.(mempool.RuleError); ok {
+		err = rerr.Err
+	}
+
+	// The default reason to reject a transaction/block is due to it being
+	// invalid somehow.
+	code := wire.RejectInvalid
+	var reason string
+
+	switch err := err.(type) {
+	case blockchain.RuleError:
+		// Convert the chain error to a reject code.
+		switch err.ErrorCode {
+		// Rejected due to duplicate.
+		case blockchain.ErrDuplicateBlock:
+			code = wire.RejectDuplicate
+
+		// Rejected due to obsolete version.
+		case blockchain.ErrBlockVersionTooOld:
+			code = wire.RejectObsolete
+
+		// Rejected due to checkpoint.
+		case blockchain.ErrCheckpointTimeTooOld,
+			blockchain.ErrDifficultyTooLow,
+			blockchain.ErrBadCheckpoint,
+			blockchain.ErrForkTooOld:
+
+			code = wire.RejectCheckpoint
+		}
+
+		reason = err.Error()
+	case mempool.TxRuleError:
+		switch err.ErrorCode {
+		// Error codes which map to a duplicate transaction already
+		// mined or in the mempool.
+		case mempool.ErrMempoolDoubleSpend,
+			mempool.ErrAlreadyVoted,
+			mempool.ErrDuplicate,
+			mempool.ErrTooManyVotes,
+			mempool.ErrDuplicateRevocation,
+			mempool.ErrAlreadyExists,
+			mempool.ErrOrphan:
+
+			code = wire.RejectDuplicate
+
+		// Error codes which map to a non-standard transaction being
+		// relayed.
+		case mempool.ErrOrphanPolicyViolation,
+			mempool.ErrOldVote,
+			mempool.ErrSeqLockUnmet,
+			mempool.ErrNonStandard:
+
+			code = wire.RejectNonstandard
+
+		// Error codes which map to an insufficient fee being paid.
+		case mempool.ErrInsufficientFee,
+			mempool.ErrInsufficientPriority:
+
+			code = wire.RejectInsufficientFee
+
+		// Error codes which map to an attempt to create dust outputs.
+		case mempool.ErrDustOutput:
+			code = wire.RejectDust
+		}
+
+		reason = err.Error()
+	default:
+		reason = fmt.Sprintf("rejected: %v", err)
+	}
+	return code, reason
+}
+
 // handleTxMsg handles transaction messages from all peers.
 func (b *blockManager) handleTxMsg(tmsg *txMsg) {
 	// NOTE:  BitcoinJ, and possibly other wallets, don't follow the spec of
@@ -649,7 +726,7 @@ func (b *blockManager) handleTxMsg(tmsg *txMsg) {
 
 		// Convert the error into an appropriate reject message and
 		// send it.
-		code, reason := mempool.ErrToRejectErr(err)
+		code, reason := errToWireRejectCode(err)
 		tmsg.peer.PushRejectMsg(wire.CmdTx, code, reason, txHash,
 			false)
 		return
@@ -764,7 +841,7 @@ func (b *blockManager) handleBlockMsg(bmsg *blockMsg) {
 
 		// Convert the error into an appropriate reject message and
 		// send it.
-		code, reason := mempool.ErrToRejectErr(err)
+		code, reason := errToWireRejectCode(err)
 		bmsg.peer.PushRejectMsg(wire.CmdBlock, code, reason,
 			blockHash, false)
 		return
@@ -1461,8 +1538,15 @@ func isDoubleSpendOrDuplicateError(err error) bool {
 	}
 
 	rerr, ok := merr.Err.(mempool.TxRuleError)
-	if ok && rerr.RejectCode == wire.RejectDuplicate {
-		return true
+	if ok {
+		switch rerr.ErrorCode {
+		case mempool.ErrDuplicate:
+			return true
+		case mempool.ErrAlreadyExists:
+			return true
+		default:
+			return false
+		}
 	}
 
 	cerr, ok := merr.Err.(blockchain.RuleError)
