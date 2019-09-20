@@ -20,7 +20,7 @@ go version
 
 # binary needed for RPC tests
 env CC=gcc go build
-cp "$REPO" "$GOPATH/bin/"
+cp "$REPO" "$(go env GOPATH)/bin/"
 
 # run tests on all modules
 ROOTPATH=$(go list -m)
