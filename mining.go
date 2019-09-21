@@ -34,11 +34,11 @@ const (
 	// will require changes to the generated block.  Using the wire constant
 	// for generated block version could allow creation of invalid blocks
 	// for the updated version.
-	generatedBlockVersion = 6
+	generatedBlockVersion = 7
 
 	// generatedBlockVersionTest is the version of the block being generated
 	// for networks other than the main and simulation networks.
-	generatedBlockVersionTest = 7
+	generatedBlockVersionTest = 8
 
 	// blockHeaderOverhead is the max number of bytes it takes to serialize
 	// a block header and max possible transaction count.
@@ -479,6 +479,19 @@ func extractCoinbaseExtraNonce(msgBlock *wire.MsgBlock) uint64 {
 	return extractCoinbaseTxExtraNonce(msgBlock.Transactions[0])
 }
 
+// calcBlockMerkleRoot calculates and returns a merkle root depending on the
+// result of the header commitments agenda vote.  In particular, before the
+// agenda is active, it returns the merkle root of the regular transaction tree.
+// Once the agenda is active, it returns the combined merkle root for the
+// regular and stake transaction trees in accordance with DCP0005.
+func calcBlockMerkleRoot(regularTxns, stakeTxns []*wire.MsgTx, hdrCmtActive bool) chainhash.Hash {
+	if !hdrCmtActive {
+		return standalone.CalcTxTreeMerkleRoot(regularTxns)
+	}
+
+	return standalone.CalcCombinedTxTreeMerkleRoot(regularTxns, stakeTxns)
+}
+
 // createCoinbaseTx returns a coinbase transaction paying an appropriate subsidy
 // based on the passed block height to the provided address.  When the address
 // is nil, the coinbase transaction will instead be redeemable by anyone.
@@ -804,8 +817,14 @@ func handleTooFewVoters(subsidyCache *standalone.SubsidyCache, nextHeight int64,
 		}
 
 		// Recalculate the merkle roots.
+		prevHash := &tipHeader.PrevBlock
+		hdrCmtActive, err := bm.cfg.Chain.IsHeaderCommitmentsAgendaActive(prevHash)
+		if err != nil {
+			return nil, err
+		}
 		header := &block.Header
-		header.MerkleRoot = standalone.CalcTxTreeMerkleRoot(block.Transactions)
+		header.MerkleRoot = calcBlockMerkleRoot(block.Transactions,
+			block.STransactions, hdrCmtActive)
 		header.StakeRoot = standalone.CalcTxTreeMerkleRoot(block.STransactions)
 
 		// Make sure the block validates.
@@ -1811,9 +1830,9 @@ mempoolLoop:
 	// Create a new block ready to be solved.
 	var msgBlock wire.MsgBlock
 	msgBlock.Header = wire.BlockHeader{
-		Version:      blockVersion,
-		PrevBlock:    prevHash,
-		MerkleRoot:   calcTxTreeMerkleRoot(blockTxnsRegular),
+		Version:   blockVersion,
+		PrevBlock: prevHash,
+		// MerkleRoot set below.
 		StakeRoot:    calcTxTreeMerkleRoot(blockTxnsStake),
 		VoteBits:     votebits,
 		FinalState:   best.NextFinalState,
@@ -1840,6 +1859,15 @@ mempoolLoop:
 			return nil, miningRuleError(ErrTransactionAppend, err.Error())
 		}
 	}
+
+	// Calculate the merkle root depending on the result of the header
+	// commitments agenda vote.
+	hdrCmtActive, err := g.chain.IsHeaderCommitmentsAgendaActive(&prevHash)
+	if err != nil {
+		return nil, err
+	}
+	msgBlock.Header.MerkleRoot = calcBlockMerkleRoot(msgBlock.Transactions,
+		msgBlock.STransactions, hdrCmtActive)
 
 	msgBlock.Header.Size = uint32(msgBlock.SerializeSize())
 

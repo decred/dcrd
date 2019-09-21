@@ -125,3 +125,37 @@ func CalcTxTreeMerkleRoot(transactions []*wire.MsgTx) chainhash.Hash {
 	}
 	return CalcMerkleRootInPlace(leaves)
 }
+
+// CalcCombinedTxTreeMerkleRoot calculates and returns the combined merkle root
+// for the provided regular and stake transaction trees in accordance with
+// DCP0005.
+//
+// In particular, the final merkle root is the result of a merkle tree that
+// itself has the individual merkle roots of the two transaction trees as
+// leaves.  The full (including witness data) hashes for the transactions are
+// used as required for merkle roots.
+//
+// A diagram depicting this follows:
+//
+//	  root = blake256(regularTreeRoot || stakeTreeRoot)
+//	            /                           \
+//	     regularTreeRoot               stakeTreeRoot
+//
+// It is also worth noting that it also happens to be exactly equivalent to the
+// blake256 hash of the concatenation of the two individual merkle roots due to
+// the way two leaf merkle trees are calculated:
+//
+//   blake256(regularTreeRoot || stakeTreeRoot)
+func CalcCombinedTxTreeMerkleRoot(regularTxns, stakeTxns []*wire.MsgTx) chainhash.Hash {
+	regularRoot := CalcTxTreeMerkleRoot(regularTxns)
+	stakeRoot := CalcTxTreeMerkleRoot(stakeTxns)
+
+	// Return the hash of the concatenation of the individual merkle roots.
+	//
+	// This is a slightly faster equivalent of calling CalcMerkleRoot with the
+	// two individual merkle roots.
+	var both [chainhash.HashSize * 2]byte
+	copy(both[:chainhash.HashSize], regularRoot[:])
+	copy(both[chainhash.HashSize:], stakeRoot[:])
+	return chainhash.HashH(both[:])
+}

@@ -805,29 +805,6 @@ func checkBlockSanity(block *dcrutil.Block, timeSource MedianTimeSource, flags B
 		}
 	}
 
-	// Build merkle tree and ensure the calculated merkle root matches the
-	// entry in the block header.  This also has the effect of caching all
-	// of the transaction hashes in the block to speed up future hash
-	// checks.  Bitcoind builds the tree here and checks the merkle root
-	// after the following checks, but there is no reason not to check the
-	// merkle root matches here.
-	wantMerkleRoot := standalone.CalcTxTreeMerkleRoot(msgBlock.Transactions)
-	if header.MerkleRoot != wantMerkleRoot {
-		str := fmt.Sprintf("block merkle root is invalid - block "+
-			"header indicates %v, but calculated value is %v",
-			header.MerkleRoot, wantMerkleRoot)
-		return ruleError(ErrBadMerkleRoot, str)
-	}
-
-	// Build the stake tx tree merkle root too and check it.
-	wantStakeRoot := standalone.CalcTxTreeMerkleRoot(msgBlock.STransactions)
-	if header.StakeRoot != wantStakeRoot {
-		str := fmt.Sprintf("block stake merkle root is invalid - block"+
-			" header indicates %v, but calculated value is %v",
-			header.StakeRoot, wantStakeRoot)
-		return ruleError(ErrBadMerkleRoot, str)
-	}
-
 	// Check for duplicate transactions.  This check will be fairly quick
 	// since the transaction hashes are already cached due to building the
 	// merkle trees above.
@@ -1300,6 +1277,65 @@ func (b *BlockChain) checkAllowedRevocations(parentStakeNode *stake.Node, block 
 	return nil
 }
 
+// checkMerkleRoots validates the merkle root(s) in the block header match the
+// calculated value(s).
+//
+// Prior to the activation of the header commitments agenda, the regular
+// transaction tree must match the merkle root field and the stake transaction
+// tree must match the stake root field.
+//
+// Conversely, when the header commitments agenda is active, the merkle root
+// field of the header is required to be the root of a merkle tree that has the
+// individual merkle roots of the two transaction trees as leaves.
+//
+// This function MUST be called with the chain state lock held (for writes).
+func (b *BlockChain) checkMerkleRoots(block *wire.MsgBlock, prevNode *blockNode) error {
+	header := &block.Header
+
+	hdrCommitmentsActive, err := b.isHeaderCommitmentsAgendaActive(prevNode)
+	if err != nil {
+		return err
+	}
+	if hdrCommitmentsActive {
+		// Build the two merkle trees and use their calculated merkle roots as
+		// leaves to another merkle tree and ensure the final calculated merkle
+		// root matches the entry in the block header.
+		wantMerkleRoot := standalone.CalcCombinedTxTreeMerkleRoot(
+			block.Transactions, block.STransactions)
+		if header.MerkleRoot != wantMerkleRoot {
+			str := fmt.Sprintf("block merkle root is invalid - block header "+
+				"indicates %v, but calculated value is %v", header.MerkleRoot,
+				wantMerkleRoot)
+			return ruleError(ErrBadMerkleRoot, str)
+		}
+
+		return nil
+	}
+
+	// Fall back to the old behavior.
+
+	// Build merkle tree and ensure the calculated merkle root matches the
+	// entry in the block header.
+	wantMerkleRoot := standalone.CalcTxTreeMerkleRoot(block.Transactions)
+	if header.MerkleRoot != wantMerkleRoot {
+		str := fmt.Sprintf("block merkle root is invalid - block header "+
+			"indicates %v, but calculated value is %v", header.MerkleRoot,
+			wantMerkleRoot)
+		return ruleError(ErrBadMerkleRoot, str)
+	}
+
+	// Build the stake tx tree merkle root too and check it.
+	wantStakeRoot := standalone.CalcTxTreeMerkleRoot(block.STransactions)
+	if header.StakeRoot != wantStakeRoot {
+		str := fmt.Sprintf("block stake merkle root is invalid - block header "+
+			"indicates %v, but calculated value is %v", header.StakeRoot,
+			wantStakeRoot)
+		return ruleError(ErrBadMerkleRoot, str)
+	}
+
+	return nil
+}
+
 // checkBlockContext performs several validation checks on the block which depend
 // on having the full block data for all of its ancestors available.  This
 // includes checks which depend on tallying the results of votes, because votes
@@ -1349,6 +1385,13 @@ func (b *BlockChain) checkBlockContext(block *dcrutil.Block, prevNode *blockNode
 				"got %d, max %d", serializedSize,
 				maxBlockSize)
 			return ruleError(ErrBlockTooBig, str)
+		}
+
+		// The calculated merkle root(s) of the transaction trees must match
+		// the associated entries in the header.
+		err = b.checkMerkleRoots(block.MsgBlock(), prevNode)
+		if err != nil {
+			return err
 		}
 
 		// Switch to using the past median time of the block prior to

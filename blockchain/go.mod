@@ -19,6 +19,7 @@ require (
 )
 
 replace (
+	github.com/decred/dcrd/blockchain/standalone => ./standalone
 	github.com/decred/dcrd/chaincfg/v2 => ../chaincfg
 	github.com/decred/dcrd/gcs/v2 => ../gcs
 )
