@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"math/rand"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/decred/dcrd/blockchain/standalone"
@@ -99,10 +100,11 @@ type cpuminerConfig struct {
 // function, but the default is based on the number of processor cores in the
 // system which is typically sufficient.
 type CPUMiner struct {
+	numWorkers uint32 // update atomically
+
 	sync.Mutex
 	g                 *BlkTmplGenerator
 	cfg               *cpuminerConfig
-	numWorkers        uint32
 	started           bool
 	discreteMining    bool
 	submitBlockLock   sync.Mutex
@@ -116,8 +118,7 @@ type CPUMiner struct {
 	// This is a map that keeps track of how many blocks have
 	// been mined on each parent by the CPUMiner. It is only
 	// for use in simulation networks, to diminish memory
-	// exhaustion. It should not race because it's only
-	// accessed in a single threaded loop below.
+	// exhaustion.
 	minedOnParents map[chainhash.Hash]uint8
 }
 
@@ -392,8 +393,11 @@ out:
 		// This prevents you from causing memory exhaustion issues
 		// when mining aggressively in a simulation network.
 		if m.cfg.PermitConnectionlessMining {
-			if m.minedOnParents[template.Block.Header.PrevBlock] >=
-				maxSimnetToMine {
+			prevBlock := template.Block.Header.PrevBlock
+			m.Lock()
+			maxBlocksOnParent := m.minedOnParents[prevBlock] >= maxSimnetToMine
+			m.Unlock()
+			if maxBlocksOnParent {
 				minrLog.Tracef("too many blocks mined on parent, stopping " +
 					"until there are enough votes on these to make a new " +
 					"block")
@@ -408,7 +412,10 @@ out:
 		if m.solveBlock(template.Block, ticker, quit) {
 			block := dcrutil.NewBlock(template.Block)
 			m.submitBlock(block)
+
+			m.Lock()
 			m.minedOnParents[template.Block.Header.PrevBlock]++
+			m.Unlock()
 		}
 	}
 
@@ -436,28 +443,31 @@ func (m *CPUMiner) miningWorkerController() {
 	}
 
 	// Launch the current number of workers by default.
-	runningWorkers = make([]chan struct{}, 0, m.numWorkers)
-	launchWorkers(m.numWorkers)
+	numWorkers := atomic.LoadUint32(&m.numWorkers)
+	runningWorkers = make([]chan struct{}, 0, numWorkers)
+	launchWorkers(numWorkers)
 
 out:
 	for {
 		select {
 		// Update the number of running workers.
 		case <-m.updateNumWorkers:
-			// No change.
 			numRunning := uint32(len(runningWorkers))
-			if m.numWorkers == numRunning {
+			numWorkers := atomic.LoadUint32(&m.numWorkers)
+
+			// No change.
+			if numWorkers == numRunning {
 				continue
 			}
 
 			// Add new workers.
-			if m.numWorkers > numRunning {
-				launchWorkers(m.numWorkers - numRunning)
+			if numWorkers > numRunning {
+				launchWorkers(numWorkers - numRunning)
 				continue
 			}
 
 			// Signal the most recently created goroutines to exit.
-			for i := numRunning - 1; i >= m.numWorkers; i-- {
+			for i := numRunning - 1; i >= numWorkers; i-- {
 				close(runningWorkers[i])
 				runningWorkers[i] = nil
 				runningWorkers = runningWorkers[:i]
@@ -559,16 +569,11 @@ func (m *CPUMiner) SetNumWorkers(numWorkers int32) {
 		m.Stop()
 	}
 
-	// Don't lock until after the first check since Stop does its own
-	// locking.
-	m.Lock()
-	defer m.Unlock()
-
 	// Use default if provided value is negative.
 	if numWorkers < 0 {
-		m.numWorkers = defaultNumWorkers
+		atomic.StoreUint32(&m.numWorkers, defaultNumWorkers)
 	} else {
-		m.numWorkers = uint32(numWorkers)
+		atomic.StoreUint32(&m.numWorkers, uint32(numWorkers))
 	}
 
 	// When the miner is already running, notify the controller about the
@@ -582,10 +587,7 @@ func (m *CPUMiner) SetNumWorkers(numWorkers int32) {
 //
 // This function is safe for concurrent access.
 func (m *CPUMiner) NumWorkers() int32 {
-	m.Lock()
-	defer m.Unlock()
-
-	return int32(m.numWorkers)
+	return int32(atomic.LoadUint32(&m.numWorkers))
 }
 
 // GenerateNBlocks generates the requested number of blocks. It is self
