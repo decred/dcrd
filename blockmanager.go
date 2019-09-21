@@ -757,26 +757,6 @@ func (b *blockManager) current() bool {
 	return true
 }
 
-// calcTxTreeMerkleRoot calculates and returns the merkle root for the provided
-// transactions.  The full (including witness data) hashes for the transactions
-// are used as required for merkle roots.
-func calcTxTreeMerkleRoot(transactions []*dcrutil.Tx) chainhash.Hash {
-	if len(transactions) == 0 {
-		// All zero.
-		return chainhash.Hash{}
-	}
-
-	// Note that the backing array is provided with space for one additional
-	// item when the number of leaves is odd as an optimization for the in-place
-	// calculation to avoid the need grow the backing array.
-	allocLen := len(transactions) + len(transactions)&1
-	leaves := make([]chainhash.Hash, 0, allocLen)
-	for _, tx := range transactions {
-		leaves = append(leaves, tx.MsgTx().TxHashFull())
-	}
-	return standalone.CalcMerkleRootInPlace(leaves)
-}
-
 // handleBlockMsg handles block messages from all peers.
 func (b *blockManager) handleBlockMsg(bmsg *blockMsg) {
 	// If we didn't ask for this block then the peer is misbehaving.

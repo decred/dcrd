@@ -132,6 +132,10 @@ const (
 	// the expected value.
 	ErrBadMerkleRoot
 
+	// ErrBadCommitmentRoot indicates the calculated commitment root does
+	// not match the expected value.
+	ErrBadCommitmentRoot
+
 	// ErrBadCheckpoint indicates a block that is expected to be at a
 	// checkpoint height does not match the expected one.
 	ErrBadCheckpoint
@@ -513,6 +517,7 @@ var errorCodeStrings = map[ErrorCode]string{
 	ErrUnexpectedDifficulty:   "ErrUnexpectedDifficulty",
 	ErrHighHash:               "ErrHighHash",
 	ErrBadMerkleRoot:          "ErrBadMerkleRoot",
+	ErrBadCommitmentRoot:      "ErrBadCommitmentRoot",
 	ErrBadCheckpoint:          "ErrBadCheckpoint",
 	ErrForkTooOld:             "ErrForkTooOld",
 	ErrCheckpointTimeTooOld:   "ErrCheckpointTimeTooOld",

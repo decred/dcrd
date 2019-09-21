@@ -17,6 +17,7 @@ import (
 	"github.com/decred/dcrd/chaincfg/v2"
 	"github.com/decred/dcrd/database/v2"
 	"github.com/decred/dcrd/dcrutil/v2"
+	"github.com/decred/dcrd/gcs/v2"
 	"github.com/decred/dcrd/gcs/v2/blockcf2"
 	"github.com/decred/dcrd/txscript/v2"
 	"github.com/decred/dcrd/wire"
@@ -674,7 +675,7 @@ func (b *BlockChain) pushMainChainBlockCache(block *dcrutil.Block) {
 // it would be inefficient to repeat it.
 //
 // This function MUST be called with the chain state lock held (for writes).
-func (b *BlockChain) connectBlock(node *blockNode, block, parent *dcrutil.Block, view *UtxoViewpoint, stxos []spentTxOut) error {
+func (b *BlockChain) connectBlock(node *blockNode, block, parent *dcrutil.Block, view *UtxoViewpoint, stxos []spentTxOut, hdrCommitments *headerCommitmentData) error {
 	// Make sure it's extending the end of the best chain.
 	prevHash := block.MsgBlock().Header.PrevBlock
 	tip := b.bestChain.Tip()
@@ -712,13 +713,14 @@ func (b *BlockChain) connectBlock(node *blockNode, block, parent *dcrutil.Block,
 		return err
 	}
 
-	// This ultimately will need to be created earlier in the validation so the
-	// header commitment root can be validated.  However, it is here for now in
-	// order to add support for filter storage and retrieval independently.
-	filter, err := blockcf2.Regular(block.MsgBlock(), view)
-	if err != nil {
-		return ruleError(ErrMissingTxOut, err.Error())
-	}
+	// NOTE: When more header commitments are added, the inclusion proofs
+	// will need to be generated and stored to the database here (when not
+	// already stored).  There is no need to store them currently because
+	// there is only a single commitment which means there are no sibling
+	// hashes that typically form the inclusion proofs due to the fact a
+	// single leaf merkle tree reduces to having the same root as the leaf
+	// and therefore the proof only consists of checking the leaf hash
+	// itself against the commitment root.
 
 	// Generate a new best state snapshot that will be used to update the
 	// database and later memory if all database updates are successful.
@@ -765,7 +767,7 @@ func (b *BlockChain) connectBlock(node *blockNode, block, parent *dcrutil.Block,
 		}
 
 		// Insert the GCS filter for the block into the database.
-		err = dbPutGCSFilter(dbTx, block.Hash(), filter)
+		err = dbPutGCSFilter(dbTx, block.Hash(), hdrCommitments.filter)
 		if err != nil {
 			return err
 		}
@@ -1023,6 +1025,35 @@ func countSpentOutputs(block *dcrutil.Block) int {
 	return countSpentRegularOutputs(block) + countSpentStakeOutputs(block)
 }
 
+// loadOrCreateFilter attempts to load and return the version 2 GCS filter for
+// the given block from the database and falls back to creating a new one in
+// the case one has not previously been stored.
+func (b *BlockChain) loadOrCreateFilter(block *dcrutil.Block, view *UtxoViewpoint) (*gcs.FilterV2, error) {
+	// Attempt to load and return the version 2 block filter for the given block
+	// from the database.
+	var filter *gcs.FilterV2
+	err := b.db.View(func(dbTx database.Tx) error {
+		var err error
+		filter, err = dbFetchGCSFilter(dbTx, block.Hash())
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	if filter != nil {
+		return filter, nil
+	}
+
+	// At this point the version 2 block filter has not been stored in the
+	// database for the block, so create and return one.
+	filter, err = blockcf2.Regular(block.MsgBlock(), view)
+	if err != nil {
+		return nil, ruleError(ErrMissingTxOut, err.Error())
+	}
+
+	return filter, nil
+}
+
 // reorganizeChainInternal attempts to reorganize the block chain to the
 // provided tip without attempting to undo failed reorgs.
 //
@@ -1177,9 +1208,10 @@ func (b *BlockChain) reorganizeChainInternal(targetTip *blockNode) error {
 		prevBlockAttached = block
 
 		// Skip validation if the block is already known to be valid.  However,
-		// the utxo view still needs to be updated and the stxos are still
-		// needed.
+		// the utxo view still needs to be updated and the stxos and header
+		// commitment data are still needed.
 		stxos := make([]spentTxOut, 0, countSpentOutputs(block))
+		var hdrCommitments headerCommitmentData
 		if b.index.NodeStatus(n).KnownValid() {
 			// Update the view to mark all utxos referenced by the block as
 			// spent and add all transactions being created by this block to it.
@@ -1190,11 +1222,18 @@ func (b *BlockChain) reorganizeChainInternal(targetTip *blockNode) error {
 			if err != nil {
 				return err
 			}
+
+			filter, err := b.loadOrCreateFilter(block, view)
+			if err != nil {
+				return err
+			}
+			hdrCommitments.filter = filter
 		} else {
 			// In the case the block is determined to be invalid due to a rule
 			// violation, mark it as invalid and mark all of its descendants as
 			// having an invalid ancestor.
-			err = b.checkConnectBlock(n, block, parent, view, &stxos)
+			err = b.checkConnectBlock(n, block, parent, view, &stxos,
+				&hdrCommitments)
 			if err != nil {
 				if _, ok := err.(RuleError); ok {
 					b.index.SetStatusFlags(n, statusValidateFailed)
@@ -1208,7 +1247,7 @@ func (b *BlockChain) reorganizeChainInternal(targetTip *blockNode) error {
 		}
 
 		// Update the database and chain state.
-		err = b.connectBlock(n, block, parent, view, stxos)
+		err = b.connectBlock(n, block, parent, view, stxos, &hdrCommitments)
 		if err != nil {
 			return err
 		}
@@ -1437,9 +1476,10 @@ func (b *BlockChain) connectBestChain(node *blockNode, block, parent *dcrutil.Bl
 		view := NewUtxoViewpoint()
 		view.SetBestHash(parentHash)
 		var stxos []spentTxOut
+		var hdrCommitments headerCommitmentData
 		if !fastAdd {
-			err := b.checkConnectBlock(node, block, parent, view,
-				&stxos)
+			err := b.checkConnectBlock(node, block, parent, view, &stxos,
+				&hdrCommitments)
 			if err != nil {
 				if _, ok := err.(RuleError); ok {
 					b.index.SetStatusFlags(node, statusValidateFailed)
@@ -1464,10 +1504,18 @@ func (b *BlockChain) connectBestChain(node *blockNode, block, parent *dcrutil.Bl
 			if err != nil {
 				return 0, err
 			}
+
+			// Create a version 2 block filter for the block and store it into
+			// the header commitment data.
+			filter, err := blockcf2.Regular(block.MsgBlock(), view)
+			if err != nil {
+				return 0, ruleError(ErrMissingTxOut, err.Error())
+			}
+			hdrCommitments.filter = filter
 		}
 
 		// Connect the block to the main chain.
-		err := b.connectBlock(node, block, parent, view, stxos)
+		err := b.connectBlock(node, block, parent, view, stxos, &hdrCommitments)
 		if err != nil {
 			return 0, err
 		}

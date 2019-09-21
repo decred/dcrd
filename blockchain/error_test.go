@@ -28,6 +28,7 @@ func TestErrorCodeStringer(t *testing.T) {
 		{ErrUnexpectedDifficulty, "ErrUnexpectedDifficulty"},
 		{ErrHighHash, "ErrHighHash"},
 		{ErrBadMerkleRoot, "ErrBadMerkleRoot"},
+		{ErrBadCommitmentRoot, "ErrBadCommitmentRoot"},
 		{ErrBadCheckpoint, "ErrBadCheckpoint"},
 		{ErrForkTooOld, "ErrForkTooOld"},
 		{ErrCheckpointTimeTooOld, "ErrCheckpointTimeTooOld"},

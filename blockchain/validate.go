@@ -19,6 +19,7 @@ import (
 	"github.com/decred/dcrd/chaincfg/v2"
 	"github.com/decred/dcrd/database/v2"
 	"github.com/decred/dcrd/dcrutil/v2"
+	"github.com/decred/dcrd/gcs/v2/blockcf2"
 	"github.com/decred/dcrd/txscript/v2"
 	"github.com/decred/dcrd/wire"
 )
@@ -2883,6 +2884,11 @@ func (b *BlockChain) consensusScriptVerifyFlags(node *blockNode) (txscript.Scrip
 // connected and consequently the best hash for the view is also updated to
 // passed block.
 //
+// When the header commitments parameter is not nil, it will be updated with the
+// commitment data created by the function in order to perform validation so
+// the caller is able to reuse it without having to recreate it.  The caller may
+// specify nil if the data is not desired.
+//
 // An example of some of the checks performed are ensuring connecting the block
 // would not cause any duplicate transaction hashes for old transactions that
 // aren't already fully spent, double spends, exceeding the maximum allowed
@@ -2893,7 +2899,7 @@ func (b *BlockChain) consensusScriptVerifyFlags(node *blockNode) (txscript.Scrip
 // the bulk of its work.
 //
 // This function MUST be called with the chain state lock held (for writes).
-func (b *BlockChain) checkConnectBlock(node *blockNode, block, parent *dcrutil.Block, view *UtxoViewpoint, stxos *[]spentTxOut) error {
+func (b *BlockChain) checkConnectBlock(node *blockNode, block, parent *dcrutil.Block, view *UtxoViewpoint, stxos *[]spentTxOut, hdrCommitments *headerCommitmentData) error {
 	// If the side chain blocks end up in the database, a call to
 	// CheckBlockSanity should be done here in case a previous version
 	// allowed a block that is no longer valid.  However, since the
@@ -3072,6 +3078,48 @@ func (b *BlockChain) checkConnectBlock(node *blockNode, block, parent *dcrutil.B
 		}
 	}
 
+	// Create a version 2 GCS filter for the block and set the filter into the
+	// caller provided header commitment data when requested.
+	//
+	// This approach is used because the filter creation requires the state of
+	// the utxo set after all transactions in the block have been added to it
+	// since some of the referenced scripts might be outputs of transactions
+	// earlier in the block which will typically not already be available in the
+	// view for the caller until after this function returns.  That means the
+	// caller would have to perform duplicate work that this function already
+	// performs to be able to create the filter.  Since the filter is is needed
+	// at this point to verify the header commitments, a good option is to
+	// simply create it here and allow the caller to request the filter be
+	// retuned to it.
+	filter, err := blockcf2.Regular(block.MsgBlock(), view)
+	if err != nil {
+		return ruleError(ErrMissingTxOut, err.Error())
+	}
+	if hdrCommitments != nil {
+		hdrCommitments.filter = filter
+	}
+
+	// The calculated commitment root must match the associated entry in the
+	// header once the vote for the header commitments agenda is active.
+	//
+	// The header commitments agenda combines the existing stake tree merkle
+	// root header field with the regular merkle root field and repurposes the
+	// stake root field to house the commitment root instead.
+	hdrCommitmentsActive, err := b.isHeaderCommitmentsAgendaActive(node.parent)
+	if err != nil {
+		return err
+	}
+	if hdrCommitmentsActive {
+		wantCommitmentRoot := CalcCommitmentRootV1(filter.Hash())
+		header := &block.MsgBlock().Header
+		if header.StakeRoot != wantCommitmentRoot {
+			str := fmt.Sprintf("block commitment root is invalid - block "+
+				"header indicates %v, but calculated value is %v",
+				header.StakeRoot, wantCommitmentRoot)
+			return ruleError(ErrBadCommitmentRoot, str)
+		}
+	}
+
 	if runScripts {
 		err = checkBlockScripts(block, view, true, scriptFlags,
 			b.sigCache)
@@ -3170,7 +3218,7 @@ func (b *BlockChain) CheckConnectBlockTemplate(block *dcrutil.Block) error {
 		view := NewUtxoViewpoint()
 		view.SetBestHash(&tip.hash)
 
-		return b.checkConnectBlock(newNode, block, parent, view, nil)
+		return b.checkConnectBlock(newNode, block, parent, view, nil, nil)
 	}
 
 	// At this point, the block template must be building on the parent of the
@@ -3209,5 +3257,5 @@ func (b *BlockChain) CheckConnectBlockTemplate(block *dcrutil.Block) error {
 	// The view is now from the point of view of the parent of the current tip
 	// block.  Ensure the block template can be connected without violating any
 	// rules.
-	return b.checkConnectBlock(newNode, block, parent, view, nil)
+	return b.checkConnectBlock(newNode, block, parent, view, nil, nil)
 }

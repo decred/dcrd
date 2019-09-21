@@ -22,6 +22,7 @@ import (
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/chaincfg/v2"
 	"github.com/decred/dcrd/dcrutil/v2"
+	"github.com/decred/dcrd/gcs/v2/blockcf2"
 	"github.com/decred/dcrd/mining/v2"
 	"github.com/decred/dcrd/txscript/v2"
 	"github.com/decred/dcrd/wire"
@@ -492,6 +493,16 @@ func calcBlockMerkleRoot(regularTxns, stakeTxns []*wire.MsgTx, hdrCmtActive bool
 	return standalone.CalcCombinedTxTreeMerkleRoot(regularTxns, stakeTxns)
 }
 
+// calcBlockCommitmentRootV1 calculates and returns the required v1 block and
+// the previous output scripts it references as inputs.
+func calcBlockCommitmentRootV1(block *wire.MsgBlock, prevScripts blockcf2.PrevScripter) (chainhash.Hash, error) {
+	filter, err := blockcf2.Regular(block, prevScripts)
+	if err != nil {
+		return chainhash.Hash{}, err
+	}
+	return blockchain.CalcCommitmentRootV1(filter.Hash()), nil
+}
+
 // createCoinbaseTx returns a coinbase transaction paying an appropriate subsidy
 // based on the passed block height to the provided address.  When the address
 // is nil, the coinbase transaction will instead be redeemable by anyone.
@@ -816,16 +827,39 @@ func handleTooFewVoters(subsidyCache *standalone.SubsidyCache, nextHeight int64,
 			ValidPayAddress: miningAddress != nil,
 		}
 
-		// Recalculate the merkle roots.
+		// Calculate the merkle root depending on the result of the header
+		// commitments agenda vote.
 		prevHash := &tipHeader.PrevBlock
 		hdrCmtActive, err := bm.cfg.Chain.IsHeaderCommitmentsAgendaActive(prevHash)
 		if err != nil {
 			return nil, err
 		}
 		header := &block.Header
-		header.MerkleRoot = calcBlockMerkleRoot(block.Transactions,
-			block.STransactions, hdrCmtActive)
-		header.StakeRoot = standalone.CalcTxTreeMerkleRoot(block.STransactions)
+		header.MerkleRoot = calcBlockMerkleRoot(block.Transactions, block.STransactions, hdrCmtActive)
+
+		// Calculate the stake root or commitment root depending on the result
+		// of the header commitments agenda vote.
+		var cmtRoot chainhash.Hash
+		if hdrCmtActive {
+			// Load all of the previous output scripts the block references as
+			// inputs since they are needed to create the filter commitment.
+			blockUtxos, err := bm.cfg.Chain.FetchUtxoViewParentTemplate(&block)
+			if err != nil {
+				str := fmt.Sprintf("failed to fetch inputs when making new "+
+					"block template: %v", err)
+				return nil, miningRuleError(ErrFetchTxStore, str)
+			}
+
+			cmtRoot, err = calcBlockCommitmentRootV1(&block, blockUtxos)
+			if err != nil {
+				str := fmt.Sprintf("failed to calculate commitment root for "+
+					"block when making new block template: %v", err)
+				return nil, miningRuleError(ErrCalcCommitmentRoot, str)
+			}
+		} else {
+			cmtRoot = standalone.CalcTxTreeMerkleRoot(block.STransactions)
+		}
+		header.StakeRoot = cmtRoot
 
 		// Make sure the block validates.
 		btBlock := dcrutil.NewBlockDeepCopyCoinbase(&block)
@@ -1832,8 +1866,7 @@ mempoolLoop:
 	msgBlock.Header = wire.BlockHeader{
 		Version:   blockVersion,
 		PrevBlock: prevHash,
-		// MerkleRoot set below.
-		StakeRoot:    calcTxTreeMerkleRoot(blockTxnsStake),
+		// MerkleRoot and StakeRoot set below.
 		VoteBits:     votebits,
 		FinalState:   best.NextFinalState,
 		Voters:       uint16(voters),
@@ -1868,6 +1901,21 @@ mempoolLoop:
 	}
 	msgBlock.Header.MerkleRoot = calcBlockMerkleRoot(msgBlock.Transactions,
 		msgBlock.STransactions, hdrCmtActive)
+
+	// Calculate the stake root or commitment root depending on the result of
+	// the header commitments agenda vote.
+	var cmtRoot chainhash.Hash
+	if hdrCmtActive {
+		cmtRoot, err = calcBlockCommitmentRootV1(&msgBlock, blockUtxos)
+		if err != nil {
+			str := fmt.Sprintf("failed to calculate commitment root for block "+
+				"when making new block template: %v", err)
+			return nil, miningRuleError(ErrCalcCommitmentRoot, str)
+		}
+	} else {
+		cmtRoot = standalone.CalcTxTreeMerkleRoot(msgBlock.STransactions)
+	}
+	msgBlock.Header.StakeRoot = cmtRoot
 
 	msgBlock.Header.Size = uint32(msgBlock.SerializeSize())
 

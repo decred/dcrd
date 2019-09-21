@@ -43,6 +43,11 @@ const (
 
 	// ErrFetchTxStore indicates a transaction store failed to fetch.
 	ErrFetchTxStore
+
+	// ErrCalcCommitmentRoot indicates that creating the header commitments and
+	// calculating the associated commitment root for a newly created block
+	// template failed.
+	ErrCalcCommitmentRoot
 )
 
 // Map of MiningErrorCode values back to their constant names for pretty printing.
@@ -55,6 +60,7 @@ var miningErrorCodeStrings = map[MiningErrorCode]string{
 	ErrCheckConnectBlock:     "ErrCheckConnectBlock",
 	ErrFraudProofIndex:       "ErrFraudProofIndex",
 	ErrFetchTxStore:          "ErrFetchTxStore",
+	ErrCalcCommitmentRoot:    "ErrCalcCommitmentRoot",
 }
 
 // String returns the MiningErrorCode as a human-readable name.
