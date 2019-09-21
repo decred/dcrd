@@ -14,6 +14,7 @@ import (
 	"github.com/decred/dcrd/database/v2"
 	"github.com/decred/dcrd/dcrutil/v2"
 	"github.com/decred/dcrd/txscript/v2"
+	"github.com/decred/dcrd/wire"
 )
 
 // utxoOutput houses details about an individual unspent transaction output such
@@ -275,6 +276,21 @@ func (view *UtxoViewpoint) LookupEntry(txHash *chainhash.Hash) *UtxoEntry {
 	}
 
 	return entry
+}
+
+// PrevScript returns the script and script version associated with the provided
+// previous outpoint along with a bool that indicates whether or not the
+// requested entry exists.  This ensures the caller is able to distinguish
+// between missing entry and empty v0 scripts.
+func (view *UtxoViewpoint) PrevScript(prevOut *wire.OutPoint) (uint16, []byte, bool) {
+	entry := view.LookupEntry(&prevOut.Hash)
+	if entry == nil {
+		return 0, nil, false
+	}
+
+	version := entry.ScriptVersionByIndex(prevOut.Index)
+	pkScript := entry.PkScriptByIndex(prevOut.Index)
+	return version, pkScript, true
 }
 
 // AddTxOuts adds all outputs in the passed transaction which are not provably

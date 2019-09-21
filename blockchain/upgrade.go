@@ -19,6 +19,8 @@ import (
 	"github.com/decred/dcrd/chaincfg/v2"
 	"github.com/decred/dcrd/database/v2"
 	"github.com/decred/dcrd/dcrutil/v2"
+	"github.com/decred/dcrd/gcs/v2"
+	"github.com/decred/dcrd/gcs/v2/blockcf2"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -721,6 +723,312 @@ func (b *BlockChain) maybeFinishV5Upgrade() error {
 	return nil
 }
 
+// scriptSourceEntry houses a script and its associated version.
+type scriptSourceEntry struct {
+	version uint16
+	script  []byte
+}
+
+// scriptSource provides a source of transaction output scripts and their
+// associated script version for given outpoints and implements the PrevScripter
+// interface so it may be used in cases that require access to said scripts.
+type scriptSource map[wire.OutPoint]scriptSourceEntry
+
+// PrevScript returns the script and script version associated with the provided
+// previous outpoint along with a bool that indicates whether or not the
+// requested entry exists.  This ensures the caller is able to distinguish
+// between missing entry and empty v0 scripts.
+func (s scriptSource) PrevScript(prevOut *wire.OutPoint) (uint16, []byte, bool) {
+	entry, ok := s[*prevOut]
+	if !ok {
+		return 0, nil, false
+	}
+	return entry.version, entry.script, true
+}
+
+// stxosToScriptSource uses the provided block and spent txo information to
+// create a source of previous transaction scripts and versions spent by the
+// block.
+func stxosToScriptSource(block *dcrutil.Block, stxos []spentTxOut, compressionVersion uint32) scriptSource {
+	source := make(scriptSource)
+
+	// Loop through all of the transaction inputs in the stake transaction tree
+	// (except for the stakebases which have no inputs) and add the scripts and
+	// associated script versions from the referenced txos to the script source.
+	//
+	// Note that transactions in the stake tree are spent before transactions in
+	// the regular tree when originally creating the spend journal entry, thus
+	// the spent txous need to be processed in the same order.
+	var stxoIdx int
+	for _, tx := range block.MsgBlock().STransactions {
+		isVote := stake.IsSSGen(tx)
+		for txInIdx, txIn := range tx.TxIn {
+			// Ignore stakebase since it has no input.
+			if isVote && txInIdx == 0 {
+				continue
+			}
+
+			// Ensure the spent txout index is incremented to stay in sync with
+			// the transaction input.
+			stxo := &stxos[stxoIdx]
+			stxoIdx++
+
+			// Create an output for the referenced script and version using the
+			// stxo data from the spend journal if it doesn't already exist in
+			// the view.
+			prevOut := &txIn.PreviousOutPoint
+			source[*prevOut] = scriptSourceEntry{
+				version: stxo.scriptVersion,
+				script:  decompressScript(stxo.pkScript, compressionVersion),
+			}
+		}
+	}
+
+	// Loop through all of the transaction inputs in the regular transaction
+	// tree (except for the coinbase which has no inputs) and add the scripts
+	// and associated script versions from the referenced txos to the script
+	// source.
+	for _, tx := range block.MsgBlock().Transactions[1:] {
+		for _, txIn := range tx.TxIn {
+			// Ensure the spent txout index is incremented to stay in sync with
+			// the transaction input.
+			stxo := &stxos[stxoIdx]
+			stxoIdx++
+
+			// Create an output for the referenced script and version using the
+			// stxo data from the spend journal if it doesn't already exist in
+			// the view.
+			prevOut := &txIn.PreviousOutPoint
+			source[*prevOut] = scriptSourceEntry{
+				version: stxo.scriptVersion,
+				script:  decompressScript(stxo.pkScript, compressionVersion),
+			}
+		}
+	}
+
+	return source
+}
+
+// clearFailedBlockFlags unmarks all blocks previously marked failed so they are
+// eligible for validation again under new consensus rules.  This ensures
+// clients that did not update prior to new rules activating are able to
+// automatically recover under the new rules without having to download the
+// entire chain again.
+func clearFailedBlockFlags(index *blockIndex, interrupt <-chan struct{}) error {
+	for _, node := range index.index {
+		index.UnsetStatusFlags(node, statusValidateFailed|statusInvalidAncestor)
+	}
+
+	return index.flush()
+}
+
+// initializeGCSFilters creates and stores version 2 GCS filters for all blocks
+// in the main chain.  This ensures they are immediately available to clients
+// and simplifies the rest of the related code since it can rely on the filters
+// being available once the upgrade completes.
+//
+// The database is  guaranteed to have a filter entry for every block in the
+// main chain if this returns without failure.
+func initializeGCSFilters(db database.DB, index *blockIndex, bestChain *chainView, interrupt <-chan struct{}) error {
+	// Hardcoded values so updates to the global values do not affect old
+	// upgrades.
+	gcsBucketName := []byte("gcsfilters")
+	const compressionVersion = 1
+
+	log.Info("Creating and storing GCS filters.  This will take a while...")
+	start := time.Now()
+
+	// Create the new filter bucket as needed.
+	err := db.Update(func(dbTx database.Tx) error {
+		_, err := dbTx.Metadata().CreateBucketIfNotExists(gcsBucketName)
+		return err
+	})
+	if err != nil {
+		return err
+	}
+
+	// newFilter loads the full block for the provided node from the db along
+	// with its spend journal information and uses it to create a v2 GCS filter.
+	newFilter := func(dbTx database.Tx, node *blockNode) (*gcs.FilterV2, error) {
+		// Load the full block from the database.
+		block, err := dbFetchBlockByNode(dbTx, node)
+		if err != nil {
+			return nil, err
+		}
+
+		// Load all of the spent transaction output data from the database.
+		stxos, err := dbFetchSpendJournalEntry(dbTx, block)
+		if err != nil {
+			return nil, err
+		}
+
+		// Use the combination of the block and the stxos to create a source
+		// of previous scripts spent by the block needed to create the
+		// filter.
+		prevScripts := stxosToScriptSource(block, stxos, compressionVersion)
+
+		// Create the filter from the block and referenced previous output
+		// scripts.
+		filter, err := blockcf2.Regular(block.MsgBlock(), prevScripts)
+		if err != nil {
+			return nil, err
+		}
+
+		return filter, nil
+	}
+
+	// doBatch contains the primary logic for creating the GCS filters when
+	// moving from database version 5 to 6 in batches.  This is done because
+	// attempting to create them all in a single database transaction could
+	// result in massive memory usage and could potentially crash on many
+	// systems due to ulimits.
+	//
+	// It returns the number of entries processed as well as the total number
+	// bytes occupied by all of the processed filters.
+	const maxEntries = 20000
+	node := bestChain.Genesis()
+	doBatch := func(dbTx database.Tx) (uint64, uint64, error) {
+		filterBucket := dbTx.Metadata().Bucket(gcsBucketName)
+		if filterBucket == nil {
+			return 0, 0, fmt.Errorf("bucket %s does not exist", gcsBucketName)
+		}
+
+		var numCreated, totalBytes uint64
+		for ; node != nil; node = bestChain.Next(node) {
+			if numCreated >= maxEntries {
+				break
+			}
+
+			// Create the filter from the block and referenced previous output
+			// scripts.
+			filter, err := newFilter(dbTx, node)
+			if err != nil {
+				return numCreated, totalBytes, err
+			}
+
+			// Store the filter to the database.
+			serialized := filter.Bytes()
+			err = filterBucket.Put(node.hash[:], serialized)
+			if err != nil {
+				return numCreated, totalBytes, err
+			}
+			totalBytes += uint64(len(serialized))
+
+			numCreated++
+
+			if interruptRequested(interrupt) {
+				return numCreated, totalBytes, errInterruptRequested
+			}
+		}
+
+		return numCreated, totalBytes, nil
+	}
+
+	// Migrate all entries in batches for the reasons mentioned above.
+	var totalCreated, totalFilterBytes uint64
+	for {
+		var numCreated, numFilterBytes uint64
+		err := db.Update(func(dbTx database.Tx) error {
+			var err error
+			numCreated, numFilterBytes, err = doBatch(dbTx)
+			if err == errInterruptRequested {
+				// No error here so the database transaction is not cancelled
+				// and therefore outstanding work is written to disk.  The
+				// outer function will exit with an interrupted error below due
+				// to another interrupted check.
+				err = nil
+			}
+			return err
+		})
+		if err != nil {
+			return err
+		}
+
+		if interruptRequested(interrupt) {
+			return errInterruptRequested
+		}
+
+		if numCreated == 0 {
+			break
+		}
+
+		totalCreated += numCreated
+		totalFilterBytes += numFilterBytes
+		log.Infof("Created %d entries (%d total)", numCreated, totalCreated)
+	}
+
+	elapsed := time.Since(start).Round(time.Millisecond)
+	log.Infof("Done creating GCS filters in %v.  Total entries: %d (%d bytes)",
+		elapsed, totalCreated, totalFilterBytes)
+	return nil
+}
+
+// upgradeToVersion6 upgrades a version 5 blockchain database to version 6.
+func upgradeToVersion6(db database.DB, chainParams *chaincfg.Params, dbInfo *databaseInfo, interrupt <-chan struct{}) error {
+	if interruptRequested(interrupt) {
+		return errInterruptRequested
+	}
+
+	log.Info("Upgrading database to version 6...")
+	start := time.Now()
+
+	// Load the chain state and block index from the database.
+	bestChain := newChainView(nil)
+	index := newBlockIndex(db)
+	err := db.View(func(dbTx database.Tx) error {
+		// Fetch the stored best chain state from the database.
+		state, err := dbFetchBestState(dbTx)
+		if err != nil {
+			return err
+		}
+
+		// Load all of the block index entries from the database and
+		// construct the block index.
+		err = loadBlockIndex(dbTx, &chainParams.GenesisHash, index)
+		if err != nil {
+			return err
+		}
+
+		// Set the best chain to the stored best state.
+		tip := index.lookupNode(&state.hash)
+		if tip == nil {
+			return AssertError(fmt.Sprintf("initChainState: cannot find "+
+				"chain tip %s in block index", state.hash))
+		}
+		bestChain.SetTip(tip)
+
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+
+	// Unmark all blocks previously marked failed so they are eligible for
+	// validation again under the new consensus rules.
+	if err := clearFailedBlockFlags(index, interrupt); err != nil {
+		return err
+	}
+
+	// Create and store version 2 GCS filters for all blocks in the main chain.
+	err = initializeGCSFilters(db, index, bestChain, interrupt)
+	if err != nil {
+		return err
+	}
+
+	err = db.Update(func(dbTx database.Tx) error {
+		// Update and persist the updated database versions.
+		dbInfo.version = 6
+		return dbPutDatabaseInfo(dbTx, dbInfo)
+	})
+	if err != nil {
+		return err
+	}
+
+	elapsed := time.Since(start).Round(time.Millisecond)
+	log.Infof("Done upgrading database in %v.", elapsed)
+	return nil
+}
+
 // upgradeDB upgrades old database versions to the newest version by applying
 // all possible upgrades iteratively.
 //
@@ -752,6 +1060,17 @@ func upgradeDB(db database.DB, chainParams *chaincfg.Params, dbInfo *databaseInf
 	// the genesis block, and mark that a v5 reindex is required if needed.
 	if dbInfo.version == 4 {
 		err := upgradeToVersion5(db, chainParams, dbInfo, interrupt)
+		if err != nil {
+			return err
+		}
+	}
+
+	// Update to a version 6 database if needed.  This entails unmarking all
+	// blocks previously marked failed so they are eligible for validation again
+	// under the new consensus rules and creating and storing version 2 GCS
+	// filters for all blocks in the main chain.
+	if dbInfo.version == 5 {
+		err := upgradeToVersion6(db, chainParams, dbInfo, interrupt)
 		if err != nil {
 			return err
 		}

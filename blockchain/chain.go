@@ -17,6 +17,7 @@ import (
 	"github.com/decred/dcrd/chaincfg/v2"
 	"github.com/decred/dcrd/database/v2"
 	"github.com/decred/dcrd/dcrutil/v2"
+	"github.com/decred/dcrd/gcs/v2/blockcf2"
 	"github.com/decred/dcrd/txscript/v2"
 	"github.com/decred/dcrd/wire"
 )
@@ -711,6 +712,14 @@ func (b *BlockChain) connectBlock(node *blockNode, block, parent *dcrutil.Block,
 		return err
 	}
 
+	// This ultimately will need to be created earlier in the validation so the
+	// header commitment root can be validated.  However, it is here for now in
+	// order to add support for filter storage and retrieval independently.
+	filter, err := blockcf2.Regular(block.MsgBlock(), view)
+	if err != nil {
+		return ruleError(ErrMissingTxOut, err.Error())
+	}
+
 	// Generate a new best state snapshot that will be used to update the
 	// database and later memory if all database updates are successful.
 	b.stateLock.RLock()
@@ -751,6 +760,12 @@ func (b *BlockChain) connectBlock(node *blockNode, block, parent *dcrutil.Block,
 
 		// Insert the block into the stake database.
 		err = stake.WriteConnectedBestNode(dbTx, stakeNode, node.hash)
+		if err != nil {
+			return err
+		}
+
+		// Insert the GCS filter for the block into the database.
+		err = dbPutGCSFilter(dbTx, block.Hash(), filter)
 		if err != nil {
 			return err
 		}
@@ -925,6 +940,10 @@ func (b *BlockChain) disconnectBlock(node *blockNode, block, parent *dcrutil.Blo
 		if err != nil {
 			return err
 		}
+
+		// NOTE: The GCS filter is intentionally not removed on disconnect to
+		// ensure that lightweight clients still have access to them if they
+		// happen to be on a side chain after coming back online after a reorg.
 
 		// Allow the index manager to call each of the currently active
 		// optional indexes with the block being disconnected so they

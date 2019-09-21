@@ -18,13 +18,15 @@ import (
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/database/v2"
 	"github.com/decred/dcrd/dcrutil/v2"
+	"github.com/decred/dcrd/gcs/v2"
+	"github.com/decred/dcrd/gcs/v2/blockcf2"
 	"github.com/decred/dcrd/wire"
 )
 
 const (
 	// currentDatabaseVersion indicates what the current database
 	// version is.
-	currentDatabaseVersion = 5
+	currentDatabaseVersion = 6
 
 	// currentBlockIndexVersion indicates what the current block index
 	// database version.
@@ -1217,6 +1219,59 @@ func dbPutUtxoView(dbTx database.Tx, view *UtxoViewpoint) error {
 }
 
 // -----------------------------------------------------------------------------
+// The GCS filter journal consists of an entry for each block connected to the
+// main chain (or has ever been connected to it) which consists of a serialized
+// GCS filter.
+//
+// The serialized key format is:
+//
+//   <block hash>
+//
+//   Field           Type              Size
+//   block hash      chainhash.Hash    chainhash.HashSize
+//
+// The serialized value format is:
+//
+//   <serialized filter>
+//
+//   Field           Type                     Size
+//   filter          []byte (gcs.FilterV2)    variable
+//
+// -----------------------------------------------------------------------------
+
+// dbFetchGCSFilter fetches the GCS filter for the passed block and deserializes
+// it into a slice of spent txout entries.
+//
+// When there is no entry for the provided hash, nil will be returned for both
+// the filter and the error.
+func dbFetchGCSFilter(dbTx database.Tx, blockHash *chainhash.Hash) (*gcs.FilterV2, error) {
+	filterBucket := dbTx.Metadata().Bucket(dbnamespace.GCSFilterBucketName)
+	serialized := filterBucket.Get(blockHash[:])
+	if serialized == nil {
+		return nil, nil
+	}
+
+	filter, err := gcs.FromBytesV2(blockcf2.B, blockcf2.M, serialized)
+	if err != nil {
+		return nil, database.Error{
+			ErrorCode: database.ErrCorruption,
+			Description: fmt.Sprintf("corrupt filter for %v: %v", blockHash,
+				err),
+		}
+	}
+
+	return filter, nil
+}
+
+// dbPutGCSFilter uses an existing database transaction to update the GCS filter
+// for the given block hash using the provided filter.
+func dbPutGCSFilter(dbTx database.Tx, blockHash *chainhash.Hash, filter *gcs.FilterV2) error {
+	filterBucket := dbTx.Metadata().Bucket(dbnamespace.GCSFilterBucketName)
+	serialized := filter.Bytes()
+	return filterBucket.Put(blockHash[:], serialized)
+}
+
+// -----------------------------------------------------------------------------
 // The database information contains information about the version and date
 // of the blockchain database.
 //
@@ -1542,7 +1597,23 @@ func (b *BlockChain) createChainState() error {
 		}
 
 		// Store the genesis block into the database.
-		return dbTx.StoreBlock(genesisBlock)
+		err = dbTx.StoreBlock(genesisBlock)
+		if err != nil {
+			return err
+		}
+
+		// Create the bucket that houses the gcs filters.
+		_, err = meta.CreateBucket(dbnamespace.GCSFilterBucketName)
+		if err != nil {
+			return err
+		}
+
+		// Store the (empty) GCS filter for the genesis block.
+		genesisFilter, err := blockcf2.Regular(genesisBlock.MsgBlock(), nil)
+		if err != nil {
+			return err
+		}
+		return dbPutGCSFilter(dbTx, &b.chainParams.GenesisHash, genesisFilter)
 	})
 	return err
 }

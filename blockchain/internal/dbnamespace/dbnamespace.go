@@ -52,4 +52,8 @@ var (
 	// block index which consists of metadata for all known blocks both in
 	// the main chain and on side chains.
 	BlockIndexBucketName = []byte("blockidx")
+
+	// GCSFilterBucketName is the name of the db bucket used to house GCS
+	// filters.
+	GCSFilterBucketName = []byte("gcsfilters")
 )
