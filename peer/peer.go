@@ -26,7 +26,7 @@ import (
 
 const (
 	// MaxProtocolVersion is the max protocol version the peer supports.
-	MaxProtocolVersion = wire.NodeCFVersion
+	MaxProtocolVersion = wire.CFilterV2Version
 
 	// outputBufferSize is the number of elements the output channels use.
 	outputBufferSize = 5000
@@ -126,6 +126,9 @@ type MessageListeners struct {
 	// OnCFilter is invoked when a peer receives a cfilter wire message.
 	OnCFilter func(p *Peer, msg *wire.MsgCFilter)
 
+	// OnCFilterV2 is invoked when a peer receives a cfilterv2 wire message.
+	OnCFilterV2 func(p *Peer, msg *wire.MsgCFilterV2)
+
 	// OnCFHeaders is invoked when a peer receives a cfheaders wire
 	// message.
 	OnCFHeaders func(p *Peer, msg *wire.MsgCFHeaders)
@@ -155,6 +158,10 @@ type MessageListeners struct {
 	// OnGetCFilter is invoked when a peer receives a getcfilter wire
 	// message.
 	OnGetCFilter func(p *Peer, msg *wire.MsgGetCFilter)
+
+	// OnGetCFilterV2 is invoked when a peer receives a getcfilterv2 wire
+	// message.
+	OnGetCFilterV2 func(p *Peer, msg *wire.MsgGetCFilterV2)
 
 	// OnGetCFHeaders is invoked when a peer receives a getcfheaders
 	// wire message.
@@ -1434,6 +1441,16 @@ out:
 
 			if p.cfg.Listeners.OnSendHeaders != nil {
 				p.cfg.Listeners.OnSendHeaders(p, msg)
+			}
+
+		case *wire.MsgGetCFilterV2:
+			if p.cfg.Listeners.OnGetCFilterV2 != nil {
+				p.cfg.Listeners.OnGetCFilterV2(p, msg)
+			}
+
+		case *wire.MsgCFilterV2:
+			if p.cfg.Listeners.OnCFilterV2 != nil {
+				p.cfg.Listeners.OnCFilterV2(p, msg)
 			}
 
 		default:

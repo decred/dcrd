@@ -397,6 +397,12 @@ func TestPeerListeners(t *testing.T) {
 			OnSendHeaders: func(p *Peer, msg *wire.MsgSendHeaders) {
 				ok <- msg
 			},
+			OnGetCFilterV2: func(p *Peer, msg *wire.MsgGetCFilterV2) {
+				ok <- msg
+			},
+			OnCFilterV2: func(p *Peer, msg *wire.MsgCFilterV2) {
+				ok <- msg
+			},
 		},
 		UserAgentName:    "peer",
 		UserAgentVersion: "1.0",
@@ -527,6 +533,14 @@ func TestPeerListeners(t *testing.T) {
 		{
 			"OnFeeFilter",
 			wire.NewMsgFeeFilter(15000),
+		},
+		{
+			"OnGetCFilterV2",
+			wire.NewMsgGetCFilterV2(&chainhash.Hash{}),
+		},
+		{
+			"OnCFilterV2",
+			wire.NewMsgCFilterV2(&chainhash.Hash{}, nil, 0, nil),
 		},
 		// only one version message is allowed
 		// only one verack message is allowed
