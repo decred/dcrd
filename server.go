@@ -62,7 +62,7 @@ const (
 	connectionRetryInterval = time.Second * 5
 
 	// maxProtocolVersion is the max protocol version the server supports.
-	maxProtocolVersion = wire.NodeCFVersion
+	maxProtocolVersion = wire.CFilterV2Version
 
 	// maxKnownAddrsPerPeer is the maximum number of items to keep in the
 	// per-peer known address cache.
@@ -989,6 +989,33 @@ func (sp *serverPeer) OnGetCFilter(p *peer.Peer, msg *wire.MsgGetCFilter) {
 	sp.QueueMessage(filterMsg, nil)
 }
 
+// OnGetCFilterV2 is invoked when a peer receives a getcfilterv2 wire message.
+func (sp *serverPeer) OnGetCFilterV2(_ *peer.Peer, msg *wire.MsgGetCFilterV2) {
+	// Ignore request if the chain is not yet synced.
+	if !sp.server.blockManager.IsCurrent() {
+		return
+	}
+
+	// Attempt to obtain the requested filter.
+	//
+	// Ignore request for unknown block or otherwise missing filters.
+	chain := sp.server.chain
+	filter, err := chain.FilterByBlockHash(&msg.BlockHash)
+	if err != nil {
+		return
+	}
+
+	// NOTE: When more header commitments are added, this will need to load the
+	// inclusion proof for the filter from the database.  However, since there
+	// is only currently a single commitment, there is only a single leaf in the
+	// commitment merkle tree, and hence the proof hashes will always be empty
+	// given there are no siblings.  Adding an additional header commitment will
+	// require a consensus vote anyway and this can be updated at that time.
+	cfilterMsg := wire.NewMsgCFilterV2(&msg.BlockHash, filter.Bytes(),
+		blockchain.HeaderCmtFilterIndex, nil)
+	sp.QueueMessage(cfilterMsg, nil)
+}
+
 // OnGetCFHeaders is invoked when a peer receives a getcfheader wire message.
 func (sp *serverPeer) OnGetCFHeaders(p *peer.Peer, msg *wire.MsgGetCFHeaders) {
 	// Disconnect and/or ban depending on the node cf services flag and
@@ -1795,6 +1822,7 @@ func newPeerConfig(sp *serverPeer) *peer.Config {
 			OnGetBlocks:      sp.OnGetBlocks,
 			OnGetHeaders:     sp.OnGetHeaders,
 			OnGetCFilter:     sp.OnGetCFilter,
+			OnGetCFilterV2:   sp.OnGetCFilterV2,
 			OnGetCFHeaders:   sp.OnGetCFHeaders,
 			OnGetCFTypes:     sp.OnGetCFTypes,
 			OnGetAddr:        sp.OnGetAddr,
