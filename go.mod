@@ -11,7 +11,7 @@ require (
 	github.com/decred/dcrd/blockchain/v2 v2.0.2
 	github.com/decred/dcrd/certgen v1.1.0
 	github.com/decred/dcrd/chaincfg/chainhash v1.0.2
-	github.com/decred/dcrd/chaincfg/v2 v2.2.0
+	github.com/decred/dcrd/chaincfg/v2 v2.3.0
 	github.com/decred/dcrd/connmgr/v2 v2.0.0
 	github.com/decred/dcrd/crypto/ripemd160 v1.0.0
 	github.com/decred/dcrd/database/v2 v2.0.0

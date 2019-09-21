@@ -135,6 +135,11 @@ const (
 	// sequence lock functionality needed for Lightning Network (among other
 	// uses) defined by DCP0004.
 	VoteIDFixLNSeqLocks = "fixlnseqlocks"
+
+	// VoteIDHeaderCommitments is the vote ID for the agenda that repurposes
+	// the stake root header field to support header commitments and provides
+	// an initial commitment to version 2 GCS filters defined by DCP0005.
+	VoteIDHeaderCommitments = "headercommitments"
 )
 
 // ConsensusDeployment defines details related to a specific consensus rule

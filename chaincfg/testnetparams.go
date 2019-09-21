@@ -146,6 +146,34 @@ func TestNet3Params() *Params {
 				StartTime:  1548633600, // Jan 28th, 2019
 				ExpireTime: 1580169600, // Jan 28th, 2020
 			}},
+			8: {{
+				Vote: Vote{
+					Id:          VoteIDHeaderCommitments,
+					Description: "Enable header commitments as defined in DCP0005",
+					Mask:        0x0006, // Bits 1 and 2
+					Choices: []Choice{{
+						Id:          "abstain",
+						Description: "abstain voting for change",
+						Bits:        0x0000,
+						IsAbstain:   true,
+						IsNo:        false,
+					}, {
+						Id:          "no",
+						Description: "keep the existing consensus rules",
+						Bits:        0x0002, // Bit 1
+						IsAbstain:   false,
+						IsNo:        true,
+					}, {
+						Id:          "yes",
+						Description: "change to the new consensus rules",
+						Bits:        0x0004, // Bit 2
+						IsAbstain:   false,
+						IsNo:        false,
+					}},
+				},
+				StartTime:  1567641600, // Sep 5th, 2019
+				ExpireTime: 1599264000, // Sep 5th, 2020
+			}},
 		},
 
 		// Enforce current block version once majority of the network has
