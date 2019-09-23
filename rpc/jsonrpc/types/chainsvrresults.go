@@ -167,6 +167,14 @@ type GetChainTipsResult struct {
 	Status    string `json:"status"`
 }
 
+// GetCFilterV2Result models the data returned from the getcfilterv2 command.
+type GetCFilterV2Result struct {
+	BlockHash   string   `json:"blockhash"`
+	Data        string   `json:"data"`
+	ProofIndex  uint32   `json:"proofindex"`
+	ProofHashes []string `json:"proofhashes"`
+}
+
 // GetHeadersResult models the data returned by the chain server getheaders
 // command.
 type GetHeadersResult struct {

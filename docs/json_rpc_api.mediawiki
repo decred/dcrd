@@ -230,6 +230,10 @@ the method name for further details such as parameter and return information.
 |Y
 |Returns the committed filter for a block.
 |-
+|[[#getcfilterv2|getcfilterv2]]
+|Y
+|Returns the version 2 block filter for the given block along with a proof that can be used to prove the filter is committed to by the block header.
+|-
 |[[#getchaintips|getchaintips]]
 |Y
 |Returns information about all known chain tips the in the block tree.
@@ -1222,6 +1226,31 @@ of the best block.
 :<code>0000002305d72c4c0f6e3d19783a59f26cef1fab1ec21585f8016a22a43762cd2edbda7a1fba</code>
 :<code>596d06e092c6ec2f651d5242074fd063918741f4492dd0dd889f6909fd3028e04fa1e84259c4</code>
 :<code>1088aea6fa0cd0cb162daaa4afb05de43718914a7e04</code>
+|}
+
+----
+
+====getcfilterv2====
+{|
+!Method
+|getcfilterv2
+|-
+!Parameters
+|
+# <code>hash</code>: <code>(string, required)</code> The block hash of the filter to retrieve.
+|-
+!Description
+|Returns the version 2 block filter for the given block along with a proof that can be used to prove the filter is committed to by the block header.
+|-
+!Returns
+|<code>(json object)</code>
+: <code>blockhash</code>: <code>(string)</code> The block hash associated with the filter.
+: <code>data</code>: <code>(string)</code> Hex-encoded bytes of the serialized filter.
+: <code>proofindex</code>: <code>(numeric)</code> The index of the leaf that represents the filter hash in the header commitment.
+: <code>proofhashes</code>: <code>(array of string)</code> The hashes needed to prove the filter is committed to by the header commitment.
+|-
+!Example Return
+|<code>{"blockhash": "000000000000c41019872ff7db8fd2e9bfa05f42d3f8fee8e895e8c1e5b8dcba", "data": "035ba13b533cb5a848", "proofindex": 0, "proofhashes": null}</code>
 |}
 
 ----

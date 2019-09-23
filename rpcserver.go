@@ -159,6 +159,7 @@ var rpcHandlersBeforeInit = map[types.Method]commandHandler{
 	"getblocksubsidy":       handleGetBlockSubsidy,
 	"getcfilter":            handleGetCFilter,
 	"getcfilterheader":      handleGetCFilterHeader,
+	"getcfilterv2":          handleGetCFilterV2,
 	"getchaintips":          handleGetChainTips,
 	"getcoinsupply":         handleGetCoinSupply,
 	"getconnectioncount":    handleGetConnectionCount,
@@ -319,6 +320,7 @@ var rpcLimited = map[string]struct{}{
 	"getblockheader":        {},
 	"getblocksubsidy":       {},
 	"getcfilter":            {},
+	"getcfilterv2":          {},
 	"getchaintips":          {},
 	"getcoinsupply":         {},
 	"getcurrentnet":         {},
@@ -2278,6 +2280,42 @@ func handleGetHeaders(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) 
 		buf.Reset()
 	}
 	return &types.GetHeadersResult{Headers: hexBlockHeaders}, nil
+}
+
+// handleGetCFilterV2 implements the getcfilterv2 command.
+func handleGetCFilterV2(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) (interface{}, error) {
+	c := cmd.(*types.GetCFilterV2Cmd)
+	hash, err := chainhash.NewHashFromStr(c.BlockHash)
+	if err != nil {
+		return nil, rpcDecodeHexError(c.BlockHash)
+	}
+
+	filter, err := s.chain.FilterByBlockHash(hash)
+	if err != nil {
+		if _, ok := err.(blockchain.NoFilterError); ok {
+			return nil, &dcrjson.RPCError{
+				Code:    dcrjson.ErrRPCBlockNotFound,
+				Message: fmt.Sprintf("Block not found: %v", hash),
+			}
+		}
+
+		context := fmt.Sprintf("Failed to load filter for block %s", hash)
+		return nil, rpcInternalError(err.Error(), context)
+	}
+
+	// NOTE: When more header commitments are added, this will need to load the
+	// inclusion proof for the filter from the database.  However, since there
+	// is only currently a single commitment, there is only a single leaf in the
+	// commitment merkle tree, and hence the proof hashes will always be empty
+	// given there are no siblings.  Adding an additional header commitment will
+	// require a consensus vote anyway and this can be updated at that time.
+	result := &types.GetCFilterV2Result{
+		BlockHash:   c.BlockHash,
+		Data:        hex.EncodeToString(filter.Bytes()),
+		ProofIndex:  blockchain.HeaderCmtFilterIndex,
+		ProofHashes: nil,
+	}
+	return result, nil
 }
 
 // handleGetInfo implements the getinfo command. We only return the fields

@@ -490,6 +490,19 @@ func NewGetCFilterHeaderCmd(hash string, filterType string) *GetCFilterHeaderCmd
 	}
 }
 
+// GetCFilterV2Cmd defines the getcfilterv2 JSON-RPC command.
+type GetCFilterV2Cmd struct {
+	BlockHash string
+}
+
+// NewGetCFilterV2Cmd returns a new instance which can be used to issue a
+// getcfilterv2 JSON-RPC command.
+func NewGetCFilterV2Cmd(hash string) *GetCFilterV2Cmd {
+	return &GetCFilterV2Cmd{
+		BlockHash: hash,
+	}
+}
+
 // GetChainTipsCmd defines the getchaintips JSON-RPC command.
 type GetChainTipsCmd struct{}
 
@@ -1137,6 +1150,7 @@ func init() {
 	dcrjson.MustRegister(Method("getblocksubsidy"), (*GetBlockSubsidyCmd)(nil), flags)
 	dcrjson.MustRegister(Method("getcfilter"), (*GetCFilterCmd)(nil), flags)
 	dcrjson.MustRegister(Method("getcfilterheader"), (*GetCFilterHeaderCmd)(nil), flags)
+	dcrjson.MustRegister(Method("getcfilterv2"), (*GetCFilterV2Cmd)(nil), flags)
 	dcrjson.MustRegister(Method("getchaintips"), (*GetChainTipsCmd)(nil), flags)
 	dcrjson.MustRegister(Method("getcoinsupply"), (*GetCoinSupplyCmd)(nil), flags)
 	dcrjson.MustRegister(Method("getconnectioncount"), (*GetConnectionCountCmd)(nil), flags)

@@ -388,6 +388,16 @@ var helpDescsEnUS = map[string]string{
 	"getcfilterheader-hash":       "The block hash of the filter header being queried",
 	"getcfilterheader-filtertype": "The type of committed filter to return the header commitment for",
 
+	// GetCFilterV2Cmd help.
+	"getcfilterv2--synopsis": "Returns the version 2 block filter for the given block along with a proof that can be used to prove the filter is committed to by the block header",
+	"getcfilterv2-blockhash": "The block hash of the filter to retrieve",
+
+	// GetCFilterV2Result help.
+	"getcfilterv2result-blockhash":   "The block hash for which the filter includes data",
+	"getcfilterv2result-data":        "Hex-encoded bytes of the serialized filter",
+	"getcfilterv2result-proofindex":  "The index of the leaf that represents the filter hash in the header commitment",
+	"getcfilterv2result-proofhashes": "The hashes needed to prove the filter is committed to by the header commitment",
+
 	// GetChainTips help.
 	"getchaintips--synopsis": "Returns information about all known chain tips the in the block tree.\n\n" +
 		"The statuses in the result have the following meanings:\n" +
@@ -942,6 +952,7 @@ var rpcResultTypes = map[types.Method][]interface{}{
 	"getblocksubsidy":       {(*types.GetBlockSubsidyResult)(nil)},
 	"getcfilter":            {(*string)(nil)},
 	"getcfilterheader":      {(*string)(nil)},
+	"getcfilterv2":          {(*types.GetCFilterV2Result)(nil)},
 	"getchaintips":          {(*[]types.GetChainTipsResult)(nil)},
 	"getconnectioncount":    {(*int32)(nil)},
 	"getcurrentnet":         {(*uint32)(nil)},
