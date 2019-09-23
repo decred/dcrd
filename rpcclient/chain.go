@@ -16,6 +16,7 @@ import (
 	"github.com/decred/dcrd/dcrutil/v2"
 	"github.com/decred/dcrd/gcs/v2"
 	"github.com/decred/dcrd/gcs/v2/blockcf"
+	"github.com/decred/dcrd/gcs/v2/blockcf2"
 	chainjson "github.com/decred/dcrd/rpc/jsonrpc/types/v2"
 	"github.com/decred/dcrd/wire"
 )
@@ -876,6 +877,81 @@ func (c *Client) GetCFilterHeaderAsync(blockHash *chainhash.Hash, filterType wir
 // for a block.
 func (c *Client) GetCFilterHeader(blockHash *chainhash.Hash, filterType wire.FilterType) (*chainhash.Hash, error) {
 	return c.GetCFilterHeaderAsync(blockHash, filterType).Receive()
+}
+
+// CFilterV2Result is the result of calling the GetCFilterV2 and
+// GetCFilterV2Async methods.
+type CFilterV2Result struct {
+	BlockHash   chainhash.Hash
+	Filter      *gcs.FilterV2
+	ProofIndex  uint32
+	ProofHashes []chainhash.Hash
+}
+
+// FutureGetCFilterV2Result is a future promise to deliver the result of a
+// GetCFilterV2Async RPC invocation (or an applicable error).
+type FutureGetCFilterV2Result chan *response
+
+// Receive waits for the response promised by the future and returns the
+// discovered rescan data.
+func (r FutureGetCFilterV2Result) Receive() (*CFilterV2Result, error) {
+	res, err := receiveFuture(r)
+	if err != nil {
+		return nil, err
+	}
+
+	var filterResult chainjson.GetCFilterV2Result
+	err = json.Unmarshal(res, &filterResult)
+	if err != nil {
+		return nil, err
+	}
+
+	blockHash, err := chainhash.NewHashFromStr(filterResult.BlockHash)
+	if err != nil {
+		return nil, err
+	}
+
+	filterBytes, err := hex.DecodeString(filterResult.Data)
+	if err != nil {
+		return nil, err
+	}
+	filter, err := gcs.FromBytesV2(blockcf2.B, blockcf2.M, filterBytes)
+	if err != nil {
+		return nil, err
+	}
+
+	proofHashes := make([]chainhash.Hash, 0, len(filterResult.ProofHashes))
+	for _, proofHashStr := range filterResult.ProofHashes {
+		proofHash, err := chainhash.NewHashFromStr(proofHashStr)
+		if err != nil {
+			return nil, err
+		}
+		proofHashes = append(proofHashes, *proofHash)
+	}
+
+	return &CFilterV2Result{
+		BlockHash:   *blockHash,
+		Filter:      filter,
+		ProofIndex:  filterResult.ProofIndex,
+		ProofHashes: proofHashes,
+	}, nil
+}
+
+// GetCFilterV2Async returns an instance of a type that can be used to get the
+// result of the RPC at some future time by invoking the Receive function on the
+// returned instance.
+//
+// See GetCFilterV2 for the blocking version and more details.
+func (c *Client) GetCFilterV2Async(blockHash *chainhash.Hash) FutureGetCFilterV2Result {
+	cmd := chainjson.NewGetCFilterV2Cmd(blockHash.String())
+	return c.sendCmd(cmd)
+}
+
+// GetCFilterV2 returns the version 2 block filter for the given block along
+// with a proof that can be used to prove the filter is committed to by the
+// block header.
+func (c *Client) GetCFilterV2(blockHash *chainhash.Hash) (*CFilterV2Result, error) {
+	return c.GetCFilterV2Async(blockHash).Receive()
 }
 
 // FutureEstimateSmartFeeResult is a future promise to deliver the result of a
