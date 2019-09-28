@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2017 The Decred developers
+// Copyright (c) 2015-2019 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -22,6 +22,12 @@ const (
 	torTTLExpired        = 0x06
 	torCmdNotSupported   = 0x07
 	torAddrNotSupported  = 0x08
+
+	torATypeIPv4       = 1
+	torATypeDomainName = 3
+	torATypeIPv6       = 4
+
+	torCmdResolve = 240
 )
 
 var (
@@ -66,7 +72,7 @@ func TorLookupIPContext(ctx context.Context, host, proxy string) ([]net.IP, erro
 	}
 	defer conn.Close()
 
-	buf := []byte{'\x05', '\x01', '\x00'}
+	buf := []byte{0x05, 0x01, 0x00}
 	_, err = conn.Write(buf)
 	if err != nil {
 		return nil, err
@@ -77,18 +83,18 @@ func TorLookupIPContext(ctx context.Context, host, proxy string) ([]net.IP, erro
 	if err != nil {
 		return nil, err
 	}
-	if buf[0] != '\x05' {
+	if buf[0] != 0x05 {
 		return nil, ErrTorInvalidProxyResponse
 	}
-	if buf[1] != '\x00' {
+	if buf[1] != 0x00 {
 		return nil, ErrTorUnrecognizedAuthMethod
 	}
 
 	buf = make([]byte, 7+len(host))
-	buf[0] = 5      // protocol version
-	buf[1] = '\xF0' // Tor Resolve
-	buf[2] = 0      // reserved
-	buf[3] = 3      // Tor Resolve
+	buf[0] = 5 // socks protocol version
+	buf[1] = torCmdResolve
+	buf[2] = 0 // reserved
+	buf[3] = torATypeDomainName
 	buf[4] = byte(len(host))
 	copy(buf[5:], host)
 	buf[5+len(host)] = 0 // Port 0
@@ -107,34 +113,39 @@ func TorLookupIPContext(ctx context.Context, host, proxy string) ([]net.IP, erro
 		return nil, ErrTorInvalidProxyResponse
 	}
 	if buf[1] != 0 {
-		if int(buf[1]) > len(torStatusErrors) {
+		err, exists := torStatusErrors[buf[1]]
+		if !exists {
 			err = ErrTorInvalidProxyResponse
-		} else {
-			err = torStatusErrors[buf[1]]
-			if err == nil {
-				err = ErrTorInvalidProxyResponse
-			}
 		}
 		return nil, err
 	}
-	if buf[3] != 1 {
-		err := torStatusErrors[torGeneralError]
-		return nil, err
-	}
-
-	buf = make([]byte, 4)
-	bytes, err := conn.Read(buf)
-	if err != nil {
-		return nil, err
-	}
-	if bytes != 4 {
+	if buf[3] != torATypeIPv4 && buf[3] != torATypeIPv6 {
 		return nil, ErrTorInvalidAddressResponse
 	}
 
-	r := binary.BigEndian.Uint32(buf)
+	var reply [32 + 2]byte
+	replyLen, err := conn.Read(reply[:])
+	if err != nil {
+		return nil, err
+	}
 
-	addr := make([]net.IP, 1)
-	addr[0] = net.IPv4(byte(r>>24), byte(r>>16), byte(r>>8), byte(r))
+	var addr net.IP
+	switch buf[3] {
+	case torATypeIPv4:
+		if replyLen != 4+2 {
+			return nil, ErrTorInvalidAddressResponse
+		}
+		r := binary.BigEndian.Uint32(reply[0:4])
+		addr = net.IPv4(byte(r>>24), byte(r>>16),
+			byte(r>>8), byte(r))
+	case torATypeIPv6:
+		if replyLen <= 4+2 {
+			return nil, ErrTorInvalidAddressResponse
+		}
+		addr = net.IP(reply[0 : replyLen-2])
+	default:
+		return nil, ErrTorInvalidAddressResponse
+	}
 
-	return addr, nil
+	return []net.IP{addr}, nil
 }
