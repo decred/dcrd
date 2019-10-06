@@ -134,6 +134,28 @@ func TestFilter(t *testing.T) {
 		wantBytes:   "",
 		wantHash:    "0000000000000000000000000000000000000000000000000000000000000000",
 	}, {
+		name:        "v2 filter single nil item produces empty filter",
+		version:     2,
+		b:           19,
+		m:           784931,
+		matchKey:    randKey,
+		contents:    [][]byte{nil},
+		wantMatches: nil,
+		fixedKey:    [KeySize]byte{},
+		wantBytes:   "",
+		wantHash:    "0000000000000000000000000000000000000000000000000000000000000000",
+	}, {
+		name:        "v2 filter contents1 with nil item with B=19, M=784931",
+		version:     2,
+		b:           19,
+		m:           784931,
+		matchKey:    randKey,
+		contents:    append([][]byte{nil}, contents1...),
+		wantMatches: contents1,
+		fixedKey:    [KeySize]byte{},
+		wantBytes:   "1189af70ad5baf9da83c64e99b18e96a06cd7295a58b324e81f09c85d093f1e33dcd6f40f18cfcbe2aeb771d8390",
+		wantHash:    "b616838c6090d3e732e775cc2f336ce0b836895f3e0f22d6c3ee4485a6ea5018",
+	}, {
 		name:        "v2 filter contents1 with B=19, M=784931",
 		version:     2,
 		b:           19,
@@ -208,9 +230,15 @@ func TestFilter(t *testing.T) {
 			continue
 		}
 		resultN := f.N()
-		if resultN != uint32(len(test.contents)) {
+		wantN := uint32(len(test.contents))
+		for _, d := range test.contents {
+			if len(d) == 0 {
+				wantN--
+			}
+		}
+		if resultN != wantN {
 			t.Errorf("%q: unexpected N -- got %d, want %d", test.name,
-				resultN, uint32(len(test.contents)))
+				resultN, wantN)
 			continue
 		}
 		switch test.version {
@@ -242,6 +270,10 @@ func TestFilter(t *testing.T) {
 			t.Errorf("%q: unexpected match any of nil data", test.name)
 			continue
 		}
+		if f.MatchAny(test.matchKey, [][]byte{nil}) {
+			t.Errorf("%q: unexpected match any of nil data", test.name)
+			continue
+		}
 
 		// Ensure empty filter never matches data.
 		if len(test.contents) == 0 {
@@ -268,17 +300,17 @@ func TestFilter(t *testing.T) {
 
 		// Ensure a subset of the expected matches works in various orders when
 		// matching any.
-		if len(test.contents) > 0 {
+		if len(test.wantMatches) > 0 {
 			// Create set of data to attempt to match such that only the final
 			// item is an element in the filter.
-			matches := make([][]byte, 0, len(test.contents))
-			for _, data := range test.contents {
+			matches := make([][]byte, 0, len(test.wantMatches))
+			for _, data := range test.wantMatches {
 				mutated := make([]byte, len(data))
 				copy(mutated, data)
 				mutated[0] ^= 0x55
 				matches = append(matches, mutated)
 			}
-			matches[len(matches)-1] = test.contents[len(test.contents)-1]
+			matches[len(matches)-1] = test.wantMatches[len(test.wantMatches)-1]
 
 			if !f.MatchAny(test.matchKey, matches) {
 				t.Errorf("%q: failed match for %q", test.name, matches)

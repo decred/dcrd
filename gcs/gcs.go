@@ -122,6 +122,9 @@ func newFilter(version uint16, B uint8, M uint64, key [KeySize]byte, data [][]by
 	case version > 1:
 		seen := make(map[uint64]struct{}, numEntries*2)
 		for _, d := range data {
+			if len(d) == 0 {
+				continue
+			}
 			v := siphash.Hash(k0, k1, d)
 			if _, ok := seen[v]; ok {
 				continue
