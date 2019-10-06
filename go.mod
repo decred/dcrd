@@ -39,7 +39,7 @@ require (
 	github.com/onsi/ginkgo v1.7.0 // indirect
 	github.com/onsi/gomega v1.4.3 // indirect
 	golang.org/x/crypto v0.0.0-20190611184440-5c40567a22f8
-	golang.org/x/sync v0.0.0-20181221193216-37e7f081c4d4 // indirect
+	golang.org/x/sync v0.0.0-20181221193216-37e7f081c4d4
 	gopkg.in/yaml.v2 v2.2.2 // indirect
 )
 
