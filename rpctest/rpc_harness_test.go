@@ -20,6 +20,8 @@ import (
 	dcrdtypes "github.com/decred/dcrd/rpc/jsonrpc/types/v2"
 	"github.com/decred/dcrd/txscript/v2"
 	"github.com/decred/dcrd/wire"
+
+	"golang.org/x/sync/errgroup"
 )
 
 const (
@@ -368,11 +370,12 @@ func testJoinMempools(r *Harness, t *testing.T) {
 	// Wait until the transaction shows up to ensure the two mempools are
 	// not the same.
 	harnessSynced := make(chan struct{})
-	go func() {
+	var eg errgroup.Group
+	eg.Go(func() error {
 		for {
 			poolHashes, err := r.Node.GetRawMempool(dcrdtypes.GRMAll)
 			if err != nil {
-				t.Fatalf("failed to retrieve harness mempool: %v", err)
+				return fmt.Errorf("failed to retrieve harness mempool: %v", err)
 			}
 			if len(poolHashes) > 0 {
 				break
@@ -380,7 +383,12 @@ func testJoinMempools(r *Harness, t *testing.T) {
 			time.Sleep(time.Millisecond * 100)
 		}
 		harnessSynced <- struct{}{}
-	}()
+		return nil
+	})
+	if err := eg.Wait(); err != nil {
+		t.Fatal(err)
+	}
+
 	select {
 	case <-harnessSynced:
 	case <-time.After(time.Minute):
@@ -390,12 +398,16 @@ func testJoinMempools(r *Harness, t *testing.T) {
 	// This select case should fall through to the default as the goroutine
 	// should be blocked on the JoinNodes call.
 	poolsSynced := make(chan struct{})
-	go func() {
+	eg.Go(func() error {
 		if err := JoinNodes(nodeSlice, Mempools); err != nil {
-			t.Fatalf("unable to join node on mempools: %v", err)
+			return fmt.Errorf("unable to join node on mempools: %v", err)
 		}
 		poolsSynced <- struct{}{}
-	}()
+		return nil
+	})
+	if err := eg.Wait(); err != nil {
+		t.Fatal(err)
+	}
 	select {
 	case <-poolsSynced:
 		t.Fatalf("mempools detected as synced yet harness has a new tx")
@@ -443,12 +455,17 @@ func testJoinBlocks(r *Harness, t *testing.T) {
 
 	nodeSlice := []*Harness{r, harness}
 	blocksSynced := make(chan struct{})
-	go func() {
+	var eg errgroup.Group
+	eg.Go(func() error {
 		if err := JoinNodes(nodeSlice, Blocks); err != nil {
-			t.Fatalf("unable to join node on blocks: %v", err)
+			return fmt.Errorf("unable to join node on blocks: %v", err)
 		}
 		blocksSynced <- struct{}{}
-	}()
+		return nil
+	})
+	if err := eg.Wait(); err != nil {
+		t.Fatal(err)
+	}
 
 	// This select case should fall through to the default as the goroutine
 	// should be blocked on the JoinNodes calls.
