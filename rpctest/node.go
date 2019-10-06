@@ -166,12 +166,12 @@ type node struct {
 // newNode creates a new node instance according to the passed config. dataDir
 // will be used to hold a file recording the pid of the launched process, and
 // as the base for the log and data directories for dcrd.
-func newNode(config *nodeConfig, dataDir string) (*node, error) {
+func newNode(config *nodeConfig, dataDir string) *node {
 	return &node{
 		config:  config,
 		dataDir: dataDir,
 		cmd:     config.command(),
-	}, nil
+	}
 }
 
 // start creates a new dcrd process, and writes its pid in a file reserved for
