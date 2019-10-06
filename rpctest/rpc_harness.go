@@ -149,11 +149,7 @@ func New(activeNet *chaincfg.Params, handlers *rpcclient.NotificationHandlers, e
 	config.listen, config.rpcListen = generateListeningAddresses()
 
 	// Create the testing node bounded to the simnet.
-	node, err := newNode(config, nodeTestData)
-	if err != nil {
-		return nil, err
-	}
-
+	node := newNode(config, nodeTestData)
 	nodeNum := numTestInstances
 	numTestInstances++
 
