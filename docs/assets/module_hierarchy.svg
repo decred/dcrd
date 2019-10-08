@@ -32,13 +32,13 @@
 </g>
 <!-- dcrjson -->
 <g id="node3" class="node"><title>dcrjson</title>
-<path fill="indianred" stroke="black" d="M614.5,-684C614.5,-684 562.5,-684 562.5,-684 556.5,-684 550.5,-678 550.5,-672 550.5,-672 550.5,-660 550.5,-660 550.5,-654 556.5,-648 562.5,-648 562.5,-648 614.5,-648 614.5,-648 620.5,-648 626.5,-654 626.5,-660 626.5,-660 626.5,-672 626.5,-672 626.5,-678 620.5,-684 614.5,-684"/>
-<text text-anchor="middle" x="588.5" y="-662.3" font-family="Times New Roman,serif" font-size="14.00">dcrjson/v3</text>
+<path fill="indianred" stroke="black" d="M622.5,-684C622.5,-684 570.5,-684 570.5,-684 564.5,-684 558.5,-678 558.5,-672 558.5,-672 558.5,-660 558.5,-660 558.5,-654 564.5,-648 570.5,-648 570.5,-648 622.5,-648 622.5,-648 628.5,-648 634.5,-654 634.5,-660 634.5,-660 634.5,-672 634.5,-672 634.5,-678 628.5,-684 622.5,-684"/>
+<text text-anchor="middle" x="596.5" y="-662.3" font-family="Times New Roman,serif" font-size="14.00">dcrjson/v3</text>
 </g>
 <!-- chainhash&#45;&gt;dcrjson -->
 <g id="edge1" class="edge"><title>chainhash&#45;&gt;dcrjson</title>
-<path fill="none" stroke="aquamarine" d="M545.505,-738C545.505,-738 588.5,-738 588.5,-738 588.5,-738 588.5,-705.498 588.5,-684.169"/>
-<polygon fill="aquamarine" stroke="aquamarine" points="545.505,-734.5 535.505,-738 545.505,-741.5 545.505,-734.5"/>
+<path fill="none" stroke="aquamarine" d="M545.5,-738C545.5,-738 596.5,-738 596.5,-738 596.5,-738 596.5,-705.498 596.5,-684.169"/>
+<polygon fill="aquamarine" stroke="aquamarine" points="545.5,-734.5 535.5,-738 545.5,-741.5 545.5,-734.5"/>
 </g>
 <!-- wire -->
 <g id="node5" class="node"><title>wire</title>
@@ -52,8 +52,8 @@
 </g>
 <!-- secp256k1 -->
 <g id="node11" class="node"><title>secp256k1</title>
-<path fill="mediumvioletred" stroke="black" d="M518.5,-684C518.5,-684 430.5,-684 430.5,-684 424.5,-684 418.5,-678 418.5,-672 418.5,-672 418.5,-660 418.5,-660 418.5,-654 424.5,-648 430.5,-648 430.5,-648 518.5,-648 518.5,-648 524.5,-648 530.5,-654 530.5,-660 530.5,-660 530.5,-672 530.5,-672 530.5,-678 524.5,-684 518.5,-684"/>
-<text text-anchor="middle" x="474.5" y="-662.3" font-family="Times New Roman,serif" font-size="14.00">dcrec/secp256k1</text>
+<path fill="mediumvioletred" stroke="black" d="M527,-684C527,-684 422,-684 422,-684 416,-684 410,-678 410,-672 410,-672 410,-660 410,-660 410,-654 416,-648 422,-648 422,-648 527,-648 527,-648 533,-648 539,-654 539,-660 539,-660 539,-672 539,-672 539,-678 533,-684 527,-684"/>
+<text text-anchor="middle" x="474.5" y="-662.3" font-family="Times New Roman,serif" font-size="14.00">dcrec/secp256k1/v2</text>
 </g>
 <!-- chainhash&#45;&gt;secp256k1 -->
 <g id="edge6" class="edge"><title>chainhash&#45;&gt;secp256k1</title>
@@ -62,13 +62,13 @@
 </g>
 <!-- types -->
 <g id="node4" class="node"><title>types</title>
-<path fill="tomato" stroke="black" d="M644,-540C644,-540 553,-540 553,-540 547,-540 541,-534 541,-528 541,-528 541,-516 541,-516 541,-510 547,-504 553,-504 553,-504 644,-504 644,-504 650,-504 656,-510 656,-516 656,-516 656,-528 656,-528 656,-534 650,-540 644,-540"/>
-<text text-anchor="middle" x="598.5" y="-518.3" font-family="Times New Roman,serif" font-size="14.00">rpc/jsonrpc/types</text>
+<path fill="tomato" stroke="black" d="M645,-540C645,-540 554,-540 554,-540 548,-540 542,-534 542,-528 542,-528 542,-516 542,-516 542,-510 548,-504 554,-504 554,-504 645,-504 645,-504 651,-504 657,-510 657,-516 657,-516 657,-528 657,-528 657,-534 651,-540 645,-540"/>
+<text text-anchor="middle" x="599.5" y="-518.3" font-family="Times New Roman,serif" font-size="14.00">rpc/jsonrpc/types</text>
 </g>
 <!-- dcrjson&#45;&gt;types -->
 <g id="edge24" class="edge"><title>dcrjson&#45;&gt;types</title>
-<path fill="none" stroke="tomato" d="M588.5,-637.762C588.5,-637.762 588.5,-540.09 588.5,-540.09"/>
-<polygon fill="tomato" stroke="tomato" points="585,-637.762 588.5,-647.762 592,-637.762 585,-637.762"/>
+<path fill="none" stroke="tomato" d="M596.5,-637.762C596.5,-637.762 596.5,-540.09 596.5,-540.09"/>
+<polygon fill="tomato" stroke="tomato" points="593,-637.762 596.5,-647.762 600,-637.762 593,-637.762"/>
 </g>
 <!-- rpcclient -->
 <g id="node24" class="node"><title>rpcclient</title>

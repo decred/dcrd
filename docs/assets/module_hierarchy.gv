@@ -12,7 +12,7 @@ digraph {
 	connmgr [label="connmgr/v2" fillcolor=mistyrose]
 	dcrec [label="dcrec" fillcolor=mediumpurple]
 	edwards [label="dcrec/edwards/v2" fillcolor=lightseagreen]
-	secp256k1 [label="dcrec/secp256k1" fillcolor=mediumvioletred]
+	secp256k1 [label="dcrec/secp256k1/v2" fillcolor=mediumvioletred]
 	dcrutil [label="dcrutil/v2" fillcolor=burlywood]
 	database [label="database/v2" fillcolor=dodgerblue]
 	hdkeychain [label="hdkeychain/v2" fillcolor=deepskyblue]
