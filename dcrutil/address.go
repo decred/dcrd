@@ -13,7 +13,7 @@ import (
 	"github.com/decred/dcrd/chaincfg/v2/chainec"
 	"github.com/decred/dcrd/crypto/ripemd160"
 	"github.com/decred/dcrd/dcrec"
-	"github.com/decred/dcrd/dcrec/edwards"
+	"github.com/decred/dcrd/dcrec/edwards/v2"
 	"github.com/decred/dcrd/dcrec/secp256k1/v2"
 	"github.com/decred/dcrd/dcrec/secp256k1/v2/schnorr"
 )
@@ -480,7 +480,7 @@ type AddressEdwardsPubKey struct {
 // pay-to-pubkey address, using an Ed25519 pubkey.  The serializedPubKey
 // parameter must be a valid 32 byte serialized public key.
 func NewAddressEdwardsPubKey(serializedPubKey []byte, net AddressParams) (*AddressEdwardsPubKey, error) {
-	pubKey, err := edwards.ParsePubKey(edwards.Edwards(), serializedPubKey)
+	pubKey, err := edwards.ParsePubKey(serializedPubKey)
 	if err != nil {
 		return nil, err
 	}

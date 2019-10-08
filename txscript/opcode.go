@@ -17,7 +17,7 @@ import (
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/crypto/ripemd160"
 	"github.com/decred/dcrd/dcrec"
-	"github.com/decred/dcrd/dcrec/edwards"
+	"github.com/decred/dcrd/dcrec/edwards/v2"
 	"github.com/decred/dcrd/dcrec/secp256k1/v2"
 	"github.com/decred/dcrd/dcrec/secp256k1/v2/schnorr"
 	"github.com/decred/dcrd/wire"
@@ -2849,12 +2849,12 @@ func opcodeCheckSigAlt(op *opcode, data []byte, vm *Engine) error {
 	// Get the public key from bytes.
 	switch sigType {
 	case dcrec.STEd25519:
-		pubKeyEd, err := edwards.ParsePubKey(edwards.Edwards(), pkBytes)
+		pubKeyEd, err := edwards.ParsePubKey(pkBytes)
 		if err != nil {
 			vm.dstack.PushBool(false)
 			return nil
 		}
-		sigEd, err := edwards.ParseSignature(edwards.Edwards(), sigBytes)
+		sigEd, err := edwards.ParseSignature(sigBytes)
 		if err != nil {
 			vm.dstack.PushBool(false)
 			return nil
