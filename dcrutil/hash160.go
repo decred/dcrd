@@ -8,9 +8,8 @@ package dcrutil
 import (
 	"hash"
 
-	"golang.org/x/crypto/ripemd160"
-
 	"github.com/decred/dcrd/chaincfg/chainhash"
+	"github.com/decred/dcrd/crypto/ripemd160"
 )
 
 // Calculate the hash of hasher over buf.

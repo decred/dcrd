@@ -14,9 +14,8 @@ import (
 	"hash"
 	"strings"
 
-	"golang.org/x/crypto/ripemd160"
-
 	"github.com/decred/dcrd/chaincfg/chainhash"
+	"github.com/decred/dcrd/crypto/ripemd160"
 	"github.com/decred/dcrd/dcrec"
 	"github.com/decred/dcrd/dcrec/edwards"
 	"github.com/decred/dcrd/dcrec/secp256k1/v2"

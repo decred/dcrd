@@ -14,9 +14,9 @@ import (
 
 	"github.com/decred/base58"
 	"github.com/decred/dcrd/chaincfg/v2/chainec"
+	"github.com/decred/dcrd/crypto/ripemd160"
 	"github.com/decred/dcrd/dcrec"
 	"github.com/decred/dcrd/dcrec/secp256k1/v2"
-	"golang.org/x/crypto/ripemd160"
 )
 
 // mockAddrParams implements the AddressParams interface and is used throughout
