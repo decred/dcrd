@@ -54,6 +54,24 @@ var (
 	littleEndian = binary.LittleEndian
 )
 
+// speedStats houses tracking information used to monitor the hashing speed of
+// the CPU miner.
+type speedStats struct {
+	sync.Mutex
+	totalHashes uint64
+}
+
+// AddTotalHashes increments the total number of hashes by the provided number
+// of hashes.  It is primarily intended for use by the individual worker
+// goroutines to contribute to the overall total number of hashes done.
+//
+// This function is safe for concurrent access.
+func (s *speedStats) AddTotalHashes(numHashes uint64) {
+	s.Lock()
+	s.totalHashes += numHashes
+	s.Unlock()
+}
+
 // cpuminerConfig is a descriptor containing the cpu miner configuration.
 type cpuminerConfig struct {
 	// ChainParams identifies which chain parameters the cpu miner is
@@ -112,7 +130,7 @@ type CPUMiner struct {
 	workerWg          sync.WaitGroup
 	updateNumWorkers  chan struct{}
 	queryHashesPerSec chan float64
-	updateHashes      chan uint64
+	speedStats        speedStats
 	quit              chan struct{}
 
 	// This is a map that keeps track of how many blocks have
@@ -128,26 +146,24 @@ func (m *CPUMiner) speedMonitor() {
 	minrLog.Tracef("CPU miner speed monitor started")
 
 	var hashesPerSec float64
-	var totalHashes uint64
 	ticker := time.NewTicker(time.Second * hpsUpdateSecs)
 	defer ticker.Stop()
 
 out:
 	for {
 		select {
-		// Periodic updates from the workers with how many hashes they
-		// have performed.
-		case numHashes := <-m.updateHashes:
-			totalHashes += numHashes
-
 		// Time to update the hashes per second.
 		case <-ticker.C:
+			stats := &m.speedStats
+			stats.Lock()
+			totalHashes := stats.totalHashes
+			stats.totalHashes = 0
+			stats.Unlock()
 			curHashesPerSec := float64(totalHashes) / hpsUpdateSecs
 			if hashesPerSec == 0 {
 				hashesPerSec = curHashesPerSec
 			}
 			hashesPerSec = (hashesPerSec + curHashesPerSec) / 2
-			totalHashes = 0
 			if hashesPerSec != 0 {
 				minrLog.Debugf("Hash speed: %6.0f kilohashes/s",
 					hashesPerSec/1000)
@@ -226,7 +242,7 @@ func (m *CPUMiner) submitBlock(block *dcrutil.Block) bool {
 // This function will return early with false when conditions that trigger a
 // stale block such as a new block showing up or periodically when there are
 // new transactions and enough time has elapsed without finding a solution.
-func (m *CPUMiner) solveBlock(msgBlock *wire.MsgBlock, ticker *time.Ticker, quit chan struct{}) bool {
+func (m *CPUMiner) solveBlock(msgBlock *wire.MsgBlock, stats *speedStats, ticker *time.Ticker, quit chan struct{}) bool {
 	// Choose a random extra nonce offset for this block template and
 	// worker.
 	enOffset, err := wire.RandomUint64()
@@ -272,11 +288,8 @@ func (m *CPUMiner) solveBlock(msgBlock *wire.MsgBlock, ticker *time.Ticker, quit
 				return false
 
 			case <-ticker.C:
-				select {
-				case m.updateHashes <- hashesCompleted:
-					hashesCompleted = 0
-				default:
-				}
+				stats.AddTotalHashes(hashesCompleted)
+				hashesCompleted = 0
 
 				// The current block is stale if the memory pool
 				// has been updated since the block template was
@@ -308,10 +321,7 @@ func (m *CPUMiner) solveBlock(msgBlock *wire.MsgBlock, ticker *time.Ticker, quit
 			// The block is solved when the new block hash is less
 			// than the target difficulty.  Yay!
 			if standalone.HashToBig(&hash).Cmp(targetDifficulty) <= 0 {
-				select {
-				case m.updateHashes <- hashesCompleted:
-				default:
-				}
+				stats.AddTotalHashes(hashesCompleted)
 				return true
 			}
 
@@ -409,7 +419,7 @@ out:
 		// with false when conditions that trigger a stale block, so
 		// a new block template can be generated.  When the return is
 		// true a solution was found, so submit the solved block.
-		if m.solveBlock(template.Block, ticker, quit) {
+		if m.solveBlock(template.Block, &m.speedStats, ticker, quit) {
 			block := dcrutil.NewBlock(template.Block)
 			m.submitBlock(block)
 
@@ -664,7 +674,8 @@ func (m *CPUMiner) GenerateNBlocks(n uint32) ([]*chainhash.Hash, error) {
 		// with false when conditions that trigger a stale block, so
 		// a new block template can be generated.  When the return is
 		// true a solution was found, so submit the solved block.
-		if m.solveBlock(template.Block, ticker, nil) {
+		var stats speedStats
+		if m.solveBlock(template.Block, &stats, ticker, nil) {
 			block := dcrutil.NewBlock(template.Block)
 			m.submitBlock(block)
 			blockHashes[i] = block.Hash()
@@ -692,7 +703,6 @@ func newCPUMiner(cfg *cpuminerConfig) *CPUMiner {
 		numWorkers:        defaultNumWorkers,
 		updateNumWorkers:  make(chan struct{}),
 		queryHashesPerSec: make(chan float64),
-		updateHashes:      make(chan uint64),
 		minedOnParents:    make(map[chainhash.Hash]uint8),
 	}
 }
