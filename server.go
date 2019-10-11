@@ -2767,7 +2767,7 @@ func newServer(listenAddrs []string, db database.DB, chainParams *chaincfg.Param
 		TimeSource:         s.timeSource,
 		FeeEstimator:       s.feeEstimator,
 		TxMemPool:          s.txMemPool,
-		BgBlkTmplGenerator: s.bg,
+		BgBlkTmplGenerator: nil, // Created later.
 		NotifyWinningTickets: func(wtnd *WinningTicketsNtfnData) {
 			if s.rpcServer != nil {
 				s.rpcServer.ntfnMgr.NotifyWinningTickets(wtnd)
@@ -2800,6 +2800,7 @@ func newServer(listenAddrs []string, db database.DB, chainParams *chaincfg.Param
 	// mining address.
 	if len(cfg.miningAddrs) > 0 {
 		s.bg = newBgBlkTmplGenerator(tg, cfg.miningAddrs, cfg.SimNet)
+		s.blockManager.cfg.BgBlkTmplGenerator = s.bg
 	}
 
 	s.cpuMiner = newCPUMiner(&cpuminerConfig{

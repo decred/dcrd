@@ -427,28 +427,20 @@ func rpcMiscError(message string) *dcrjson.RPCError {
 	return dcrjson.NewRPCError(dcrjson.ErrRPCMisc, message)
 }
 
-// workStateBlockInfo houses information about how to reconstruct a block given
-// its template and signature script.
-type workStateBlockInfo struct {
-	msgBlock *wire.MsgBlock
-	pkScript []byte
-}
-
 // workState houses state that is used in between multiple RPC invocations to
 // getwork.
 type workState struct {
 	sync.Mutex
-	lastTxUpdate  time.Time
-	lastGenerated time.Time
-	prevHash      *chainhash.Hash
-	msgBlock      *wire.MsgBlock
-	extraNonce    uint64
+	prevHash     *chainhash.Hash
+	templatePool map[[merkleRootPairSize]byte]*wire.MsgBlock
 }
 
 // newWorkState returns a new instance of a workState with all internal fields
 // initialized and ready to use.
 func newWorkState() *workState {
-	return &workState{}
+	return &workState{
+		templatePool: make(map[[merkleRootPairSize]byte]*wire.MsgBlock),
+	}
 }
 
 // handleUnimplemented is the handler for commands that should ultimately be
@@ -2783,8 +2775,8 @@ func handleGetStakeDifficulty(s *rpcServer, cmd interface{}, closeChan <-chan st
 
 	nextSdiff, err := s.server.blockManager.CalcNextRequiredStakeDifficulty()
 	if err != nil {
-		return nil, rpcInternalError("Could not calculate next stake "+
-			"difficulty "+err.Error(), "")
+		context := "Could not calculate next stake difficulty"
+		return nil, rpcInternalError(err.Error(), context)
 	}
 	nextSdiffAmount := dcrutil.Amount(nextSdiff)
 
@@ -3181,15 +3173,31 @@ func handleGetTxOut(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) (i
 }
 
 // pruneOldBlockTemplates prunes all old block templates from the templatePool
-// map. Must be called with the RPC workstate locked to avoid races to the map.
-func pruneOldBlockTemplates(s *rpcServer, bestHeight int64) {
-	pool := s.templatePool
-	for rootHash, blkData := range pool {
-		height := int64(blkData.msgBlock.Header.Height)
-		if height < bestHeight-getworkExpirationDiff {
-			delete(pool, rootHash)
+// map.
+//
+// This function MUST be called with the RPC workstate locked.
+func (s *workState) pruneOldBlockTemplates(bestHeight int64) {
+	pruneHeight := bestHeight - getworkExpirationDiff
+	for key, block := range s.templatePool {
+		height := int64(block.Header.Height)
+		if height < pruneHeight {
+			delete(s.templatePool, key)
 		}
 	}
+}
+
+// getWorkTemplateKey returns the key to use for the template pool that houses
+// the information necessary to construct full blocks from getwork submissions.
+func getWorkTemplateKey(header *wire.BlockHeader) [merkleRootPairSize]byte {
+	// Create the new template key which is the MerkleRoot + StakeRoot fields.
+	// Note that with DCP0005 active, the stake root field will be merged with
+	// the merkle root field and the stake root field will be a commitment
+	// root.  Since the commitment root changes with the contents of the block
+	// it will still be a good piece of information to add to the key.
+	var merkleRootPair [merkleRootPairSize]byte
+	copy(merkleRootPair[:chainhash.HashSize], header.MerkleRoot[:])
+	copy(merkleRootPair[chainhash.HashSize:], header.StakeRoot[:])
+	return merkleRootPair
 }
 
 // handleGetWorkRequest is a helper for handleGetWork which deals with
@@ -3197,137 +3205,81 @@ func pruneOldBlockTemplates(s *rpcServer, bestHeight int64) {
 //
 // This function MUST be called with the RPC workstate locked.
 func handleGetWorkRequest(s *rpcServer) (interface{}, error) {
+	// Prune old templates and wait for updated templates when the current best
+	// chain changes.
 	state := s.workState
-
-	// Generate a new block template when the current best block has
-	// changed or the transactions in the memory pool have been updated and
-	// it has been at least one minute since the last template was
-	// generated.
-	lastTxUpdate := s.server.txMemPool.LastUpdated()
-	best := s.server.chain.BestSnapshot()
-	msgBlock := state.msgBlock
-
-	// The current code pulls down a new template every second, however
-	// with a large mempool this will be pretty excruciating sometimes. It
-	// should examine whether or not a new template needs to be created
-	// based on the votes present every second or so, and then, if needed,
-	// generate a new block template. TODO cj
-	if msgBlock == nil || state.prevHash == nil ||
-		!state.prevHash.IsEqual(&best.Hash) ||
-		(state.lastTxUpdate != lastTxUpdate &&
-			time.Now().After(state.lastGenerated.Add(time.Second))) {
-		// Reset the extra nonce and clear all expired cached template
-		// variations if the best block changed.
-		if state.prevHash != nil && !state.prevHash.IsEqual(&best.Hash) {
-			state.extraNonce = 0
-			pruneOldBlockTemplates(s, best.Height)
-		}
-
-		// Reset the previous best hash the block template was
-		// generated against so any errors below cause the next
-		// invocation to try again.
-		state.prevHash = nil
-
-		// Choose a payment address at random.
-		payToAddr := cfg.miningAddrs[rand.Intn(len(cfg.miningAddrs))]
-
-		template, err := s.generator.NewBlockTemplate(payToAddr)
-		if err != nil {
-			context := "Failed to create new block template"
-			return nil, rpcInternalError(err.Error(), context)
-		}
-		if template == nil {
-			// This happens if the template is returned nil because
-			// there are not enough voters on HEAD and there is
-			// currently an unsuitable parent cached template to
-			// try building off of.
-			context := "Failed to create new block template: not " +
-				"enough voters and failed to find a suitable " +
-				"parent template to build from"
-			return nil, rpcInternalError("internal error", context)
-		}
-		templateCopy := deepCopyBlockTemplate(template)
-		msgBlock = templateCopy.Block
-
-		// Update work state to ensure another block template isn't
-		// generated until needed.
-		state.msgBlock = msgBlock
-		state.lastGenerated = time.Now()
-		state.lastTxUpdate = lastTxUpdate
+	best := s.chain.BestSnapshot()
+	var template *BlockTemplate
+	if state.prevHash == nil || *state.prevHash != best.Hash {
+		// Prune old templates from the pool when the best block changes.
+		state.pruneOldBlockTemplates(best.Height)
 		state.prevHash = &best.Hash
 
-		rpcsLog.Debugf("Generated block template (timestamp %v, extra "+
-			"nonce %d, target %064x, merkle root %s)",
-			msgBlock.Header.Timestamp, state.extraNonce,
-			standalone.CompactToBig(msgBlock.Header.Bits),
-			msgBlock.Header.MerkleRoot)
-	} else {
-		// At this point, there is a saved block template and a new
-		// request for work was made, but either the available
-		// transactions haven't change or it hasn't been long enough to
-		// trigger a new block template to be generated.  So, update the
-		// existing block template and track the variations so each
-		// variation can be regenerated if a caller finds an answer and
-		// makes a submission against it.
-		templateCopy := deepCopyBlockTemplate(&BlockTemplate{
-			Block: msgBlock,
-		})
-		msgBlock = templateCopy.Block
-
-		// Update the time of the block template to the current time
-		// while accounting for the median time of the past several
-		// blocks per the chain consensus rules.
-		err := s.generator.UpdateBlockTime(&msgBlock.Header)
-		if err != nil {
-			return nil, rpcInternalError(err.Error(),
-				"Failed to update block time")
+		// Wait until a new template is generated.  Since the subscription
+		// immediately sends the current template, the template might not have
+		// been updated yet (for example, it might be waiting on votes).  In
+		// that case, wait for the updated template with an eventual timeout
+		// in case the new tip never gets enough votes and no other events
+		// that trigger a new template have happened.
+		templateSub := s.server.bg.Subscribe()
+		template = <-templateSub.C()
+		templateKey := getWorkTemplateKey(&template.Block.Header)
+		if _, ok := state.templatePool[templateKey]; ok {
+			const maxTemplateTimeoutDuration = time.Millisecond * 5500
+			select {
+			case template = <-templateSub.C():
+			case <-time.After(maxTemplateTimeoutDuration):
+				template = nil
+			}
 		}
-
-		rpcsLog.Debugf("Updated block template (timestamp %v, extra "+
-			"nonce %d, target %064x, merkle root %s)",
-			msgBlock.Header.Timestamp,
-			state.extraNonce,
-			standalone.CompactToBig(msgBlock.Header.Bits),
-			msgBlock.Header.MerkleRoot)
+		templateSub.Stop()
 	}
 
-	// In order to efficiently store the variations of block templates that
-	// have been provided to callers, save a pointer to the block as well
-	// as the modified signature script keyed by the merkle root.  This
-	// information, along with the data that is included in a work
-	// submission, is used to rebuild the block before checking the
-	// submitted solution.
-	coinbaseTx := msgBlock.Transactions[0]
-
-	// Create the new merkleRootPair key which is MerkleRoot + StakeRoot
-	var merkleRootPair [merkleRootPairSize]byte
-	copy(merkleRootPair[:chainhash.HashSize], msgBlock.Header.MerkleRoot[:])
-	copy(merkleRootPair[chainhash.HashSize:], msgBlock.Header.StakeRoot[:])
-
-	if msgBlock.Header.Height > 1 {
-		s.templatePool[merkleRootPair] = &workStateBlockInfo{
-			msgBlock: msgBlock,
-			pkScript: coinbaseTx.TxOut[1].PkScript,
+	// Grab the current template from the background generator immediately when
+	// it was not already obtained above.  Return any errors that might have
+	// happened when generating the template.
+	if template == nil {
+		var err error
+		template, err = s.server.bg.CurrentTemplate()
+		if err != nil || template == nil {
+			context := "Unable to retrieve work due to invalid template"
+			return nil, rpcInternalError(err.Error(), context)
 		}
-	} else {
-		s.templatePool[merkleRootPair] = &workStateBlockInfo{
-			msgBlock: msgBlock,
-		}
+	}
+
+	// Update the time of the block template to the current time while
+	// accounting for the median time of the past several blocks per the chain
+	// consensus rules.  Note that the header is copied to avoid mutating the
+	// shared block template.
+	headerCopy := template.Block.Header
+	err := s.generator.UpdateBlockTime(&headerCopy)
+	if err != nil {
+		context := "Failed to update block time"
+		return nil, rpcInternalError(err.Error(), context)
 	}
 
 	// Serialize the block header into a buffer large enough to hold the
 	// the block header and the internal blake256 padding that is added and
-	// returned as part of the data below.  For reference:
-	// data[116] --> nBits
-	// data[136] --> Timestamp
-	// data[140] --> nonce
+	// retuned as part of the data below.
+	//
+	// For reference (0-index based, end value is exclusive):
+	// data[115:119] --> Bits
+	// data[135:139] --> Timestamp
+	// data[139:143] --> Nonce
+	// data[143:151] --> ExtraNonce
 	data := make([]byte, 0, getworkDataLen)
 	buf := bytes.NewBuffer(data)
-	err := msgBlock.Header.Serialize(buf)
+	err = headerCopy.Serialize(buf)
 	if err != nil {
-		errStr := fmt.Sprintf("Failed to serialize data: %v", err)
-		return nil, rpcInternalError(errStr, "")
+		context := "Failed to serialize data"
+		return nil, rpcInternalError(err.Error(), context)
 	}
+
+	// Add the template to the template pool.  Since the key is a combination
+	// of the merkle and stake root fields, this will not add duplicate entries
+	// for the templates with modified timestamps and/or difficulty bits.
+	templateKey := getWorkTemplateKey(&headerCopy)
+	state.templatePool[templateKey] = template.Block
 
 	// Expand the data slice to include the full data buffer and apply the
 	// internal blake256 padding.  This makes the data ready for callers to
@@ -3336,17 +3288,11 @@ func handleGetWorkRequest(s *rpcServer) (interface{}, error) {
 	data = data[:getworkDataLen]
 	copy(data[wire.MaxBlockHeaderPayload:], blake256Pad)
 
-	// The final result reverses each of the fields to little endian.  In
-	// particular, the data, hash1, and midstate fields are treated as
-	// arrays of uint32s (per the internal sha256 hashing state) which are
-	// in big endian, and thus each 4 bytes is byte swapped.  The target is
-	// also in big endian, but it is treated as a uint256 and byte swapped
-	// to little endian accordingly.
-	//
-	// The fact the fields are reversed in this way is rather odd and
-	// likely an artifact of some legacy internal state in the reference
-	// implementation, but it is required for compatibility.
-	target := bigToLEUint256(standalone.CompactToBig(msgBlock.Header.Bits))
+	// The target is in big endian, but it is treated as a uint256 and byte
+	// swapped to little endian in the final result.  Even though there is
+	// really no reason for it to be swapped, it is a holdover from legacy code
+	// and is now required for compatibility.
+	target := bigToLEUint256(standalone.CompactToBig(headerCopy.Bits))
 	reply := &types.GetWorkResult{
 		Data:   hex.EncodeToString(data),
 		Target: hex.EncodeToString(target[:]),
@@ -3380,60 +3326,41 @@ func handleGetWorkSubmission(s *rpcServer, hexData string) (interface{}, error) 
 		return false, rpcInvalidError("Invalid block header: %v", err)
 	}
 
-	// Create the new merkleRootPair key which is MerkleRoot + StakeRoot
-	var merkleRootPair [merkleRootPairSize]byte
-	copy(merkleRootPair[:chainhash.HashSize], submittedHeader.MerkleRoot[:])
-	copy(merkleRootPair[chainhash.HashSize:], submittedHeader.StakeRoot[:])
-
-	// Look up the full block for the provided data based on the merkle
-	// root.  Return false to indicate the solve failed if it's not
-	// available.
-	blockInfo, ok := s.templatePool[merkleRootPair]
-	if !ok {
-		rpcsLog.Errorf("Block submitted via getwork has no matching "+
-			"template for merkle root %s",
-			submittedHeader.MerkleRoot)
-		return false, nil
-	}
-
-	// Reconstruct the block using the submitted header stored block info.
-	// The MsgBlock is copied here because it could be accessed
-	// outside of the GW workstate mutexes once it gets submitted to the
-	// blockchain.
-
-	msgBlockB, err := blockInfo.msgBlock.Bytes()
-	if err != nil {
-		return false, rpcInternalError("Unexpected error "+
-			"while serializing MsgBlock: "+err.Error(), "")
-	}
-
-	var msgBlock wire.MsgBlock
-	err = msgBlock.FromBytes(msgBlockB)
-	if err != nil {
-		return false, rpcInternalError("Unexpected error "+
-			"while creating MsgBlock from bytes: "+err.Error(), "")
-	}
-
-	msgBlock.Header = submittedHeader
-	block := dcrutil.NewBlock(&msgBlock)
-
 	// Ensure the submitted block hash is less than the target difficulty.
-	blockHash := block.Hash()
-	err = standalone.CheckProofOfWork(blockHash, msgBlock.Header.Bits,
+	blockHash := submittedHeader.BlockHash()
+	err = standalone.CheckProofOfWork(&blockHash, submittedHeader.Bits,
 		s.server.chainParams.PowLimit)
 	if err != nil {
-		// Anything other than a rule violation is an unexpected error,
-		// so return that error as an internal error.
+		// Anything other than a rule violation is an unexpected error, so
+		// return that error as an internal error.
 		if _, ok := err.(blockchain.RuleError); !ok {
-			return false, rpcInternalError("Unexpected error "+
-				"while checking proof of work: "+err.Error(),
-				"")
+			context := "Unexpected error while checking proof of work"
+			return false, rpcInternalError(err.Error(), context)
 		}
 
-		rpcsLog.Errorf("Block submitted via getwork does not meet "+
-			"the required proof of work: %v", err)
+		rpcsLog.Errorf("Block submitted via getwork does not meet the "+
+			"required proof of work: %v", err)
 		return false, nil
 	}
+
+	// Look up the full block for the provided data based on the merkle and
+	// stake roots.  Return false to indicate the solve failed if it's not
+	// available.
+	templateKey := getWorkTemplateKey(&submittedHeader)
+	templateBlock, ok := s.workState.templatePool[templateKey]
+	if !ok || templateBlock == nil {
+		rpcsLog.Errorf("Block submitted via getwork has no matching template "+
+			"for merkle root %s, stake root %s",
+			submittedHeader.MerkleRoot, submittedHeader.StakeRoot)
+		return false, nil
+	}
+
+	// Reconstruct the block using the submitted header stored block info.  Note
+	// that the block template is shallow copied to avoid mutating the header
+	// of the shared block template.
+	msgBlock := *templateBlock
+	msgBlock.Header = submittedHeader
+	block := dcrutil.NewBlock(&msgBlock)
 
 	// Process this block using the same rules as blocks coming from other
 	// nodes.  This will in turn relay it to the network like normal.
@@ -3443,8 +3370,8 @@ func handleGetWorkSubmission(s *rpcServer, hexData string) (interface{}, error) 
 		// Anything other than a rule violation is an unexpected error,
 		// so return that error as an internal error.
 		if _, ok := err.(blockchain.RuleError); !ok {
-			return false, rpcInternalError("Unexpected error "+
-				"while processing block: "+err.Error(), "")
+			context := "Unexpected error while processing block"
+			return false, rpcInternalError(err.Error(), context)
 		}
 
 		rpcsLog.Infof("Block submitted via getwork rejected: %v", err)
@@ -3452,13 +3379,14 @@ func handleGetWorkSubmission(s *rpcServer, hexData string) (interface{}, error) 
 	}
 
 	if isOrphan {
-		rpcsLog.Infof("Block submitted via getwork rejected: an orphan building "+
-			"on parent %v", block.MsgBlock().Header.PrevBlock)
+		rpcsLog.Infof("Block submitted via getwork rejected: an orphan "+
+			"building on parent %v", block.MsgBlock().Header.PrevBlock)
 		return false, nil
 	}
 
 	// The block was accepted.
-	rpcsLog.Infof("Block submitted via getwork accepted: %s", block.Hash())
+	rpcsLog.Infof("Block submitted via getwork accepted: %s (height %d)",
+		block.Hash(), msgBlock.Header.Height)
 	return true, nil
 }
 
@@ -4894,7 +4822,6 @@ type rpcServer struct {
 	wg                     sync.WaitGroup
 	listeners              []net.Listener
 	workState              *workState
-	templatePool           map[[merkleRootPairSize]byte]*workStateBlockInfo
 	helpCacher             *helpCacher
 	requestProcessShutdown chan struct{}
 }
@@ -5531,7 +5458,6 @@ func newRPCServer(listenAddrs []string, generator *BlkTmplGenerator, s *server) 
 		subsidyCache:           s.subsidyCache,
 		statusLines:            make(map[int]string),
 		workState:              newWorkState(),
-		templatePool:           make(map[[merkleRootPairSize]byte]*workStateBlockInfo),
 		helpCacher:             newHelpCacher(),
 		requestProcessShutdown: make(chan struct{}),
 	}

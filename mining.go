@@ -453,33 +453,6 @@ func standardCoinbaseOpReturn(height uint32, extraNonce uint64) ([]byte, error) 
 	return extraNonceScript, nil
 }
 
-// extractCoinbaseTxExtraNonce extracts the extra nonce from a standard coinbase
-// OP_RETURN output.  It will return 0 if either the provided transaction does
-// not have the relevant output or the script is not large enough to perform the
-// extraction.
-func extractCoinbaseTxExtraNonce(coinbaseTx *wire.MsgTx) uint64 {
-	if len(coinbaseTx.TxOut) < 2 {
-		return 0
-	}
-	script := coinbaseTx.TxOut[1].PkScript
-	if len(script) < 14 {
-		return 0
-	}
-	return binary.LittleEndian.Uint64(script[6:14])
-}
-
-// extractCoinbaseExtraNonce extracts the extra nonce from a block template's
-// coinbase transaction.
-func (bt *BlockTemplate) extractCoinbaseExtraNonce() uint64 {
-	return extractCoinbaseTxExtraNonce(bt.Block.Transactions[0])
-}
-
-// extractCoinbaseExtraNonce extracts the extra nonce from a block template's
-// coinbase transaction.
-func extractCoinbaseExtraNonce(msgBlock *wire.MsgBlock) uint64 {
-	return extractCoinbaseTxExtraNonce(msgBlock.Transactions[0])
-}
-
 // calcBlockMerkleRoot calculates and returns a merkle root depending on the
 // result of the header commitments agenda vote.  In particular, before the
 // agenda is active, it returns the merkle root of the regular transaction tree.
@@ -692,57 +665,6 @@ func maybeInsertStakeTx(bm *blockManager, stx *dcrutil.Tx, treeValid bool) bool 
 		}
 	}
 	return !missingInput
-}
-
-// deepCopyBlockTemplate returns a deeply copied block template that copies all
-// data except a block's references to transactions, which are kept as pointers
-// in the block. This is considered safe because transaction data is generally
-// immutable, with the exception of coinbases which we alternatively also
-// deep copy.
-func deepCopyBlockTemplate(blockTemplate *BlockTemplate) *BlockTemplate {
-	if blockTemplate == nil {
-		return nil
-	}
-
-	// Deep copy the header, which we hash on.
-	headerCopy := blockTemplate.Block.Header
-
-	// Copy transactions pointers. Duplicate the coinbase
-	// transaction, because it might update it by modifying
-	// the extra nonce.
-	transactionsCopy := make([]*wire.MsgTx, len(blockTemplate.Block.Transactions))
-	coinbaseCopy :=
-		dcrutil.NewTxDeep(blockTemplate.Block.Transactions[0])
-	for i, mtx := range blockTemplate.Block.Transactions {
-		if i == 0 {
-			transactionsCopy[i] = coinbaseCopy.MsgTx()
-		} else {
-			transactionsCopy[i] = mtx
-		}
-	}
-
-	sTransactionsCopy := make([]*wire.MsgTx, len(blockTemplate.Block.STransactions))
-	copy(sTransactionsCopy, blockTemplate.Block.STransactions)
-
-	msgBlockCopy := &wire.MsgBlock{
-		Header:        headerCopy,
-		Transactions:  transactionsCopy,
-		STransactions: sTransactionsCopy,
-	}
-
-	fees := make([]int64, len(blockTemplate.Fees))
-	copy(fees, blockTemplate.Fees)
-
-	sigOps := make([]int64, len(blockTemplate.SigOpCounts))
-	copy(sigOps, blockTemplate.SigOpCounts)
-
-	return &BlockTemplate{
-		Block:           msgBlockCopy,
-		Fees:            fees,
-		SigOpCounts:     sigOps,
-		Height:          blockTemplate.Height,
-		ValidPayAddress: blockTemplate.ValidPayAddress,
-	}
 }
 
 // handleTooFewVoters handles the situation in which there are too few voters on
