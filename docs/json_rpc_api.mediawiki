@@ -2515,6 +2515,14 @@ user.  Click the method name for further details such as parameter and return in
 |Cancel registered notifications for whenever a block is connected or disconnected from the main (best) chain. 
 |None
 |-
+|[[#notifywork|notifywork]]
+|Send notifications when a new block template is generated.
+|[[#work|work]]
+|-
+|[[#stopnotifywork|stopnotifywork]]
+|Cancel registered notifications for whenever when a new block template is generated. 
+|None
+|-
 |[[#notifyreceived|notifyreceived]]
 |Send notifications when a txout spends to an address.
 |[[#recvtx|recvtx]] and [[#redeemingtx|redeemingtx]]
@@ -2609,6 +2617,46 @@ NOTE: This is only required if an HTTP Authorization header is not being used.
 |-
 !Description
 |Cancel sending notifications for whenever a block is connected or disconnected from the main (best) chain.
+|-
+!Returns
+|Nothing
+|}
+
+----
+
+====notifywork====
+{|
+!Method
+|notifywork
+|-
+!Notifications
+|[[#work|work]]
+|-
+!Parameters
+|None
+|-
+!Description
+|Send notifications when a new block template is generated.
+|-
+!Returns
+|Nothing
+|}
+
+----
+
+====stopnotifywork====
+{|
+!Method
+|stopnotifywork
+|-
+!Notifications
+|None
+|-
+!Parameters
+|None
+|-
+!Description
+|Cancel sending notifications for whenever a new block template is generated.
 |-
 !Returns
 |Nothing
@@ -2857,6 +2905,10 @@ The following is an overview of the JSON-RPC notifications used for Websocket co
 |Processed a transaction output spending to a wallet address.
 |[[#notifyreceived|notifyreceived]] and [[#rescan|rescan]]
 |-
+|[[#work|work]]
+|New generated block template.
+|[[#notifywork|notifywork]]
+|-
 |[[#redeemingtx|redeemingtx]]
 |Processed a transaction that spends a registered outpoint.
 |[[#notifyspent|notifyspent]] and [[#rescan|rescan]]
@@ -2954,6 +3006,30 @@ The following is an overview of the JSON-RPC notifications used for Websocket co
 The recvtx notification for the same txout, after the transaction was mined into block 276425:
 
 : <code>{"jsonrpc": "1.0","method": "recvtx", "params": ["010000000114d9ff358894c486b4ae11c2a8cf7851b1df64c53d2e511278eff17c22fb737300000000...", {"height": 276425, "hash": "000000000000000325474bb799b9e591f965ca4461b72cb7012b808db92bb2fc", "index": 684, "time": 1387737310 }], "id": null }</code>
+|}
+
+----
+
+====work====
+{|
+!Method
+|work
+|-
+!Request
+|[[#notifywork|notifywork]]
+|-
+!Parameters
+|
+# <code>Data</code>: <code>(string)</code> hex-encoded block data.
+# <code>Target</code>: <code>(string)</code> the hex-encoded little-endian hash target.
+|-
+!Description
+|Notifies a client when a new block template has been generated.
+|-
+!Example
+|Example work notification  on testnet:
+
+: <code>{"jsonrpc":"1.0","method":"work","params":["06000000c9ee7cd5b14b72e41195891a9617f80049eaac06a0dfe063479523060000000088087dbb59923da4faf632a29777805a7632efbd680b86f3c6cbbe3fddf905d45045d61784ad0810749cc045d03a7b9d5e8f6b2ed3ed767c9827f1dad4925771010082ebc7097cf5050007003b1400003b84061cff2d333700000000322400003f10000070b67b5b3bc400803b057900c5575400000000000000000000000000000000000000000000000000060000008000000100000000000005a0","000000000000000000000000000000000000000000000000003b840600000000"],"id":null}</code>
 |}
 
 ----

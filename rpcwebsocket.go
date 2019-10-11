@@ -68,6 +68,7 @@ var wsHandlersBeforeInit = map[types.Method]wsCommandHandler{
 	"help":                        handleWebsocketHelp,
 	"loadtxfilter":                handleLoadTxFilter,
 	"notifyblocks":                handleNotifyBlocks,
+	"notifywork":                  handleNotifyWork,
 	"notifywinningtickets":        handleWinningTickets,
 	"notifyspentandmissedtickets": handleSpentAndMissedTickets,
 	"notifynewtickets":            handleNewTickets,
@@ -78,6 +79,7 @@ var wsHandlersBeforeInit = map[types.Method]wsCommandHandler{
 	"rescan":                      handleRescan,
 	"session":                     handleSession,
 	"stopnotifyblocks":            handleStopNotifyBlocks,
+	"stopnotifywork":              handleStopNotifyWork,
 	"stopnotifynewtransactions":   handleStopNotifyNewTransactions,
 }
 
@@ -223,6 +225,19 @@ func (m *wsNotificationManager) NotifyBlockDisconnected(block *dcrutil.Block) {
 	// server has begun shutting down.
 	select {
 	case m.queueNotification <- (*notificationBlockDisconnected)(block):
+	case <-m.quit:
+	}
+}
+
+// NotifyWork passes new mining work to the notification manager
+// for block notification processing.
+func (m *wsNotificationManager) NotifyWork(work *wire.BlockHeader) {
+	// As NotifyWork will be called by the block manager and the
+	// RPC server may no longer be running, use a select statement
+	// to unblock enqueuing the notification once the RPC server
+	// has begun shutting down.
+	select {
+	case m.queueNotification <- (*notificationWork)(work):
 	case <-m.quit:
 	}
 }
@@ -460,6 +475,7 @@ func (f *wsClientFilter) existsUnspentOutPoint(op *wire.OutPoint) bool {
 // Notification types
 type notificationBlockConnected dcrutil.Block
 type notificationBlockDisconnected dcrutil.Block
+type notificationWork wire.BlockHeader
 type notificationReorganization blockchain.ReorganizationNtfnsData
 type notificationWinningTickets WinningTicketsNtfnData
 type notificationSpentAndMissedTickets blockchain.TicketNotificationsData
@@ -475,6 +491,8 @@ type notificationRegisterClient wsClient
 type notificationUnregisterClient wsClient
 type notificationRegisterBlocks wsClient
 type notificationUnregisterBlocks wsClient
+type notificationRegisterWork wsClient
+type notificationUnregisterWork wsClient
 type notificationRegisterWinningTickets wsClient
 type notificationUnregisterWinningTickets wsClient
 type notificationRegisterSpentAndMissedTickets wsClient
@@ -500,6 +518,7 @@ func (m *wsNotificationManager) notificationHandler() {
 	// Where possible, the quit channel is used as the unique id for a client
 	// since it is quite a bit more efficient than using the entire struct.
 	blockNotifications := make(map[chan struct{}]*wsClient)
+	workNotifications := make(map[chan struct{}]*wsClient)
 	winningTicketNotifications := make(map[chan struct{}]*wsClient)
 	ticketSMNotifications := make(map[chan struct{}]*wsClient)
 	ticketNewNotifications := make(map[chan struct{}]*wsClient)
@@ -529,6 +548,9 @@ out:
 			case *notificationBlockDisconnected:
 				m.notifyBlockDisconnected(blockNotifications,
 					(*dcrutil.Block)(n))
+
+			case *notificationWork:
+				m.notifyWork(workNotifications, (*wire.BlockHeader)(n))
 
 			case *notificationReorganization:
 				m.notifyReorganization(blockNotifications,
@@ -563,6 +585,14 @@ out:
 			case *notificationUnregisterBlocks:
 				wsc := (*wsClient)(n)
 				delete(blockNotifications, wsc.quit)
+
+			case *notificationRegisterWork:
+				wsc := (*wsClient)(n)
+				workNotifications[wsc.quit] = wsc
+
+			case *notificationUnregisterWork:
+				wsc := (*wsClient)(n)
+				delete(workNotifications, wsc.quit)
 
 			case *notificationRegisterWinningTickets:
 				wsc := (*wsClient)(n)
@@ -605,6 +635,7 @@ out:
 				// Remove any requests made by the client as well as
 				// the client itself.
 				delete(blockNotifications, wsc.quit)
+				delete(workNotifications, wsc.quit)
 				delete(txNotifications, wsc.quit)
 				delete(clients, wsc.quit)
 
@@ -653,6 +684,18 @@ func (m *wsNotificationManager) RegisterBlockUpdates(wsc *wsClient) {
 // websocket client.
 func (m *wsNotificationManager) UnregisterBlockUpdates(wsc *wsClient) {
 	m.queueNotification <- (*notificationUnregisterBlocks)(wsc)
+}
+
+// RegisterWorkUpdates requests work update notifications to the passed
+// websocket client.
+func (m *wsNotificationManager) RegisterWorkUpdates(wsc *wsClient) {
+	m.queueNotification <- (*notificationRegisterWork)(wsc)
+}
+
+// UnregisterWorkUpdates removes work update notifications for the passed
+// websocket client.
+func (m *wsNotificationManager) UnregisterWorkUpdates(wsc *wsClient) {
+	m.queueNotification <- (*notificationUnregisterWork)(wsc)
 }
 
 // subscribedClients returns the set of all websocket client quit channels that
@@ -816,6 +859,64 @@ func (*wsNotificationManager) notifyBlockDisconnected(clients map[chan struct{}]
 			"notification: %v", err)
 		return
 	}
+	for _, wsc := range clients {
+		wsc.QueueNotification(marshalledJSON)
+	}
+}
+
+// notifyWork notifies websocket clients that have registered for template
+// updates when a new block template is generated.
+func (*wsNotificationManager) notifyWork(clients map[chan struct{}]*wsClient, header *wire.BlockHeader) {
+	// Skip notification creation if no clients have requested work
+	// notifications.
+	if len(clients) == 0 {
+		return
+	}
+
+	// Serialize the block header into a buffer large enough to hold the
+	// the block header and the internal blake256 padding that is added and
+	// retuned as part of the data below.  For reference:
+	// data[116] --> nBits
+	// data[136] --> Timestamp
+	// data[140] --> nonce
+	data := make([]byte, 0, getworkDataLen)
+	buf := bytes.NewBuffer(data)
+	err := header.Serialize(buf)
+	if err != nil {
+		rpcsLog.Errorf("Failed to serialize data: %v", err)
+		return
+	}
+
+	// Expand the data slice to include the full data buffer and apply the
+	// internal blake256 padding.  This makes the data ready for callers to
+	// make use of only the final chunk along with the midstate for the
+	// rest.
+	data = data[:getworkDataLen]
+	copy(data[wire.MaxBlockHeaderPayload:], blake256Pad)
+
+	// The final result reverses each of the fields to little endian.  In
+	// particular, the data, hash1, and midstate fields are treated as
+	// arrays of uint32s (per the internal sha256 hashing state) which are
+	// in big endian, and thus each 4 bytes is byte swapped.  The target is
+	// also in big endian, but it is treated as a uint256 and byte swapped
+	// to little endian accordingly.
+	//
+	// The fact the fields are reversed in this way is rather odd and likey
+	// an artifact of some legacy internal state in the reference
+	// implementation, but it is required for compatibility.
+	target := bigToLEUint256(standalone.CompactToBig(header.Bits))
+	ntfn := types.WorkNtfn{
+		Data:   hex.EncodeToString(data),
+		Target: hex.EncodeToString(target[:]),
+	}
+
+	// Notify interested websocket clients about new mining work.
+	marshalledJSON, err := dcrjson.MarshalCmd("1.0", nil, &ntfn)
+	if err != nil {
+		rpcsLog.Errorf("Failed to marshal new work notification: %v", err)
+		return
+	}
+
 	for _, wsc := range clients {
 		wsc.QueueNotification(marshalledJSON)
 	}
@@ -2107,6 +2208,13 @@ func handleRebroadcastWinners(wsc *wsClient, icmd interface{}) (interface{}, err
 	return nil, nil
 }
 
+// handleNotifyWork implements the notifywork command extension for
+// websocket connections.
+func handleNotifyWork(wsc *wsClient, icmd interface{}) (interface{}, error) {
+	wsc.rpcServer.ntfnMgr.RegisterWorkUpdates(wsc)
+	return nil, nil
+}
+
 // handleSession implements the session command extension for websocket
 // connections.
 func handleSession(wsc *wsClient, icmd interface{}) (interface{}, error) {
@@ -2145,6 +2253,13 @@ func handleStakeDifficulty(wsc *wsClient, icmd interface{}) (interface{}, error)
 // websocket connections.
 func handleStopNotifyBlocks(wsc *wsClient, icmd interface{}) (interface{}, error) {
 	wsc.rpcServer.ntfnMgr.UnregisterBlockUpdates(wsc)
+	return nil, nil
+}
+
+// handleStopNotifyWork implements the stopnotifywork command extension for
+// websocket connections.
+func handleStopNotifyWork(wsc *wsClient, icmd interface{}) (interface{}, error) {
+	wsc.rpcServer.ntfnMgr.UnregisterWorkUpdates(wsc)
 	return nil, nil
 }
 

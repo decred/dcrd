@@ -22,6 +22,10 @@ const (
 	// NewTicketsNtfnMethod is the method of the daemon newtickets notification.
 	NewTicketsNtfnMethod Method = "newtickets"
 
+	// WorkNtfnMethod is the method used for notifications from
+	// the chain server that a new block template has been generated.
+	WorkNtfnMethod = "work"
+
 	// ReorganizationNtfnMethod is the method used for notifications that the
 	// block chain is in the process of a reorganization.
 	ReorganizationNtfnMethod Method = "reorganization"
@@ -98,6 +102,21 @@ func NewNewTicketsNtfn(hash string, height int32, stakeDiff int64, tickets []str
 		Height:    height,
 		StakeDiff: stakeDiff,
 		Tickets:   tickets,
+	}
+}
+
+// WorkNtfn defines the work JSON-RPC notification.
+type WorkNtfn struct {
+	Data   string `json:"data"`
+	Target string `json:"target"`
+}
+
+// NewWorkNtfn returns a new instance which can be used to issue a
+// work JSON-RPC notification.
+func NewWorkNtfn(data string, target string) *WorkNtfn {
+	return &WorkNtfn{
+		Data:   data,
+		Target: target,
 	}
 }
 
@@ -221,6 +240,7 @@ func init() {
 
 	dcrjson.MustRegister(BlockConnectedNtfnMethod, (*BlockConnectedNtfn)(nil), flags)
 	dcrjson.MustRegister(BlockDisconnectedNtfnMethod, (*BlockDisconnectedNtfn)(nil), flags)
+	dcrjson.MustRegister(WorkNtfnMethod, (*WorkNtfn)(nil), flags)
 	dcrjson.MustRegister(NewTicketsNtfnMethod, (*NewTicketsNtfn)(nil), flags)
 	dcrjson.MustRegister(ReorganizationNtfnMethod, (*ReorganizationNtfn)(nil), flags)
 	dcrjson.MustRegister(TxAcceptedNtfnMethod, (*TxAcceptedNtfn)(nil), flags)

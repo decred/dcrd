@@ -783,8 +783,14 @@ var helpDescsEnUS = map[string]string{
 	// NotifyBlocksCmd help.
 	"notifyblocks--synopsis": "Request notifications for whenever a block is connected or disconnected from the main (best) chain.",
 
+	// NotifyWorkCmd help.
+	"notifywork--synopsis": "Request notifications for whenever a new block template is generated.",
+
 	// StopNotifyBlocksCmd help.
 	"stopnotifyblocks--synopsis": "Cancel registered notifications for whenever a block is connected or disconnected from the main (best) chain.",
+
+	// StopNotifyWorkCmd help.
+	"stopnotifywork--synopsis": "Cancel registered notifications for whenever a new block template is generated.",
 
 	// NotifyNewTransactionsCmd help.
 	"notifynewtransactions--synopsis": "Send either a txaccepted or a txacceptedverbose notification when a new transaction is accepted into the mempool.",
@@ -1003,6 +1009,7 @@ var rpcResultTypes = map[types.Method][]interface{}{
 	"notifynewtickets":            nil,
 	"notifystakedifficulty":       nil,
 	"notifyblocks":                nil,
+	"notifywork":                  nil,
 	"notifynewtransactions":       nil,
 	"notifyreceived":              nil,
 	"notifyspent":                 nil,
@@ -1011,6 +1018,7 @@ var rpcResultTypes = map[types.Method][]interface{}{
 	"rescan":                      nil,
 	"session":                     {(*types.SessionResult)(nil)},
 	"stopnotifyblocks":            nil,
+	"stopnotifywork":              nil,
 	"stopnotifynewtransactions":   nil,
 	"stopnotifyreceived":          nil,
 	"stopnotifyspent":             nil,
