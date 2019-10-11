@@ -545,6 +545,14 @@ func (c *Client) reregisterNtfns() error {
 		}
 	}
 
+	// Reregister notifywork if needed.
+	if stateCopy.notifyWork {
+		log.Debugf("Reregistering [notifywork]")
+		if err := c.NotifyWork(); err != nil {
+			return err
+		}
+	}
+
 	// Reregister notifywinningtickets if needed.
 	if stateCopy.notifyWinningTickets {
 		log.Debugf("Reregistering [notifywinningtickets]")

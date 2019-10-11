@@ -33,6 +33,7 @@ var (
 // reconnect.
 type notificationState struct {
 	notifyBlocks                bool
+	notifyWork                  bool
 	notifyWinningTickets        bool
 	notifySpentAndMissedTickets bool
 	notifyNewTickets            bool
@@ -45,6 +46,7 @@ type notificationState struct {
 func (s *notificationState) Copy() *notificationState {
 	var stateCopy notificationState
 	stateCopy.notifyBlocks = s.notifyBlocks
+	stateCopy.notifyWork = s.notifyWork
 	stateCopy.notifyWinningTickets = s.notifyWinningTickets
 	stateCopy.notifySpentAndMissedTickets = s.notifySpentAndMissedTickets
 	stateCopy.notifyNewTickets = s.notifyNewTickets
@@ -96,6 +98,11 @@ type NotificationHandlers struct {
 	// NotifyBlocks has been made to register for the notification and the
 	// function is non-nil.
 	OnBlockDisconnected func(blockHeader []byte)
+
+	// OnWork is invoked when a new block template is generated.
+	// It will only be invoked if a preceding call to NotifyWork has
+	// been made to register for the notification and the function is non-nil.
+	OnWork func(blockHeader string, target string)
 
 	// OnRelevantTxAccepted is invoked when an unmined transaction passes
 	// the client's transaction filter.
@@ -251,7 +258,22 @@ func (c *Client) handleNotification(ntfn *rawNotification) {
 
 		c.ntfnHandlers.OnBlockDisconnected(blockHeader)
 
-	// OnRelevantTxAccepted
+	// OnWork
+	case chainjson.WorkNtfnMethod:
+		// Ignore the notification if the client is not interested in
+		// it.
+		if c.ntfnHandlers.OnWork == nil {
+			return
+		}
+
+		blockHeader, target, err := parseWorkParams(ntfn.Params)
+		if err != nil {
+			log.Warnf("Received invalid work notification: %v", err)
+			return
+		}
+
+		c.ntfnHandlers.OnWork(blockHeader, target)
+
 	case chainjson.RelevantTxAcceptedNtfnMethod:
 		// Ignore the notification if the client is not interested in
 		// it.
@@ -519,6 +541,7 @@ func (c *Client) handleNotification(ntfn *rawNotification) {
 	// OnUnknownNotification
 	default:
 		if c.ntfnHandlers.OnUnknownNotification == nil {
+			log.Tracef("unknown notification received")
 			return
 		}
 
@@ -572,6 +595,28 @@ func parseBlockConnectedParams(params []json.RawMessage) (blockHeader []byte, tr
 	}
 
 	return blockHeader, transactions, nil
+}
+
+// parseWorkParams parses out the parameters included in a
+// newwork notification.
+func parseWorkParams(params []json.RawMessage) (blockHeader string, target string, err error) {
+	if len(params) != 2 {
+		return "", "", wrongNumParams(len(params))
+	}
+
+	// Unmarshal first parameter as a string.
+	err = json.Unmarshal(params[0], &blockHeader)
+	if err != nil {
+		return "", "", err
+	}
+
+	// Unmarshal first parameter as a string.
+	err = json.Unmarshal(params[1], &target)
+	if err != nil {
+		return "", "", err
+	}
+
+	return blockHeader, target, nil
 }
 
 // parseBlockDisconnectedParams parses out the parameters included in a
@@ -1151,6 +1196,17 @@ func (r FutureNotifyBlocksResult) Receive() error {
 	return err
 }
 
+// FutureNotifyWorkResult is a future promise to deliver the result of a
+// NotifyWorkAsync RPC invocation (or an applicable error).
+type FutureNotifyWorkResult chan *response
+
+// Receive waits for the response promised by the future and returns an error
+// if the registration was not successful.
+func (r FutureNotifyWorkResult) Receive() error {
+	_, err := receiveFuture(r)
+	return err
+}
+
 // NotifyBlocksAsync returns an instance of a type that can be used to get the
 // result of the RPC at some future time by invoking the Receive function on
 // the returned instance.
@@ -1174,6 +1230,29 @@ func (c *Client) NotifyBlocksAsync() FutureNotifyBlocksResult {
 	return c.sendCmd(cmd)
 }
 
+// NotifyWorkAsync returns an instance of a type that can be used to get the
+// result of the RPC at some future time by invoking the Receive function on
+// the returned instance.
+//
+// See NotifyWork for the blocking version and more details.
+//
+// NOTE: This is a dcrd extension and requires a websocket connection.
+func (c *Client) NotifyWorkAsync() FutureNotifyWorkResult {
+	// Not supported in HTTP POST mode.
+	if c.config.HTTPPostMode {
+		return newFutureError(ErrWebsocketsRequired)
+	}
+
+	// Ignore the notification if the client is not interested in
+	// notifications.
+	if c.ntfnHandlers == nil {
+		return newNilFutureResult()
+	}
+
+	cmd := chainjson.NewNotifyWorkCmd()
+	return c.sendCmd(cmd)
+}
+
 // NotifyBlocks registers the client to receive notifications when blocks are
 // connected and disconnected from the main chain.  The notifications are
 // delivered to the notification handlers associated with the client.  Calling
@@ -1186,6 +1265,17 @@ func (c *Client) NotifyBlocksAsync() FutureNotifyBlocksResult {
 // NOTE: This is a dcrd extension and requires a websocket connection.
 func (c *Client) NotifyBlocks() error {
 	return c.NotifyBlocksAsync().Receive()
+}
+
+// NotifyWork registers the client to receive notifications when a new block
+// template has been generated.
+//
+// The notifications delivered as a result of this call will be via one of
+// OnWork.
+//
+// NOTE: This is a dcrd extension and requires a websocket connection.
+func (c *Client) NotifyWork() error {
+	return c.NotifyWorkAsync().Receive()
 }
 
 // FutureNotifyWinningTicketsResult is a future promise to deliver the result of a

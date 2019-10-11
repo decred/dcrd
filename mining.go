@@ -2217,6 +2217,11 @@ func (g *BgBlkTmplGenerator) notifySubscribersHandler(ctx context.Context) {
 	for {
 		select {
 		case template := <-g.notifySubscribers:
+			if r := g.tg.blockManager.cfg.RpcServer(); r != nil {
+				header := template.Block.Header
+				r.ntfnMgr.NotifyWork(&header)
+			}
+
 			g.subscriptionMtx.Lock()
 			for subscription := range g.subscriptions {
 				subscription.publishTemplate(template)
