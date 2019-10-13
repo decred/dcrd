@@ -3022,14 +3022,19 @@ The recvtx notification for the same txout, after the transaction was mined into
 |
 # <code>Data</code>: <code>(string)</code> hex-encoded block data.
 # <code>Target</code>: <code>(string)</code> the hex-encoded little-endian hash target.
+# <code>Reason</code>: <code>(string)</code> the reason the new block template was generated.
 |-
 !Description
 |Notifies a client when a new block template has been generated.
+: The possible reasons are:
+: <code>newparent</code> - The template builds on a new block as compared to the previous one.
+: <code>newvotes</code> - A new vote for the block the template builds on has been received.
+: <code>newtxns</code> - New non-vote transactions are available and have potentially been included.
 |-
 !Example
 |Example work notification  on testnet:
 
-: <code>{"jsonrpc":"1.0","method":"work","params":["06000000c9ee7cd5b14b72e41195891a9617f80049eaac06a0dfe063479523060000000088087dbb59923da4faf632a29777805a7632efbd680b86f3c6cbbe3fddf905d45045d61784ad0810749cc045d03a7b9d5e8f6b2ed3ed767c9827f1dad4925771010082ebc7097cf5050007003b1400003b84061cff2d333700000000322400003f10000070b67b5b3bc400803b057900c5575400000000000000000000000000000000000000000000000000060000008000000100000000000005a0","000000000000000000000000000000000000000000000000003b840600000000"],"id":null}</code>
+: <code>{"jsonrpc":"1.0","method":"work","params":["06000000c9ee7cd5b14b72e41195891a9617f80049eaac06a0dfe063479523060000000088087dbb59923da4faf632a29777805a7632efbd680b86f3c6cbbe3fddf905d45045d61784ad0810749cc045d03a7b9d5e8f6b2ed3ed767c9827f1dad4925771010082ebc7097cf5050007003b1400003b84061cff2d333700000000322400003f10000070b67b5b3bc400803b057900c5575400000000000000000000000000000000000000000000000000060000008000000100000000000005a0","000000000000000000000000000000000000000000000000003b840600000000","newparent"],"id":null}</code>
 |}
 
 ----

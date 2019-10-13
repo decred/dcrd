@@ -3222,12 +3222,15 @@ func handleGetWorkRequest(s *rpcServer) (interface{}, error) {
 		// in case the new tip never gets enough votes and no other events
 		// that trigger a new template have happened.
 		templateSub := s.server.bg.Subscribe()
-		template = <-templateSub.C()
+		templateNtfn := <-templateSub.C()
+		template = templateNtfn.Template
 		templateKey := getWorkTemplateKey(&template.Block.Header)
 		if _, ok := state.templatePool[templateKey]; ok {
 			const maxTemplateTimeoutDuration = time.Millisecond * 5500
 			select {
-			case template = <-templateSub.C():
+			case templateNtfn = <-templateSub.C():
+				template = templateNtfn.Template
+
 			case <-time.After(maxTemplateTimeoutDuration):
 				template = nil
 			}

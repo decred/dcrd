@@ -109,6 +109,7 @@ func NewNewTicketsNtfn(hash string, height int32, stakeDiff int64, tickets []str
 type WorkNtfn struct {
 	Data   string `json:"data"`
 	Target string `json:"target"`
+	Reason string `json:"reason"`
 }
 
 // NewWorkNtfn returns a new instance which can be used to issue a

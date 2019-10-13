@@ -231,13 +231,13 @@ func (m *wsNotificationManager) NotifyBlockDisconnected(block *dcrutil.Block) {
 
 // NotifyWork passes new mining work to the notification manager
 // for block notification processing.
-func (m *wsNotificationManager) NotifyWork(work *wire.BlockHeader) {
+func (m *wsNotificationManager) NotifyWork(templateNtfn *TemplateNtfn) {
 	// As NotifyWork will be called by the block manager and the
 	// RPC server may no longer be running, use a select statement
 	// to unblock enqueuing the notification once the RPC server
 	// has begun shutting down.
 	select {
-	case m.queueNotification <- (*notificationWork)(work):
+	case m.queueNotification <- (*notificationWork)(templateNtfn):
 	case <-m.quit:
 	}
 }
@@ -475,7 +475,7 @@ func (f *wsClientFilter) existsUnspentOutPoint(op *wire.OutPoint) bool {
 // Notification types
 type notificationBlockConnected dcrutil.Block
 type notificationBlockDisconnected dcrutil.Block
-type notificationWork wire.BlockHeader
+type notificationWork TemplateNtfn
 type notificationReorganization blockchain.ReorganizationNtfnsData
 type notificationWinningTickets WinningTicketsNtfnData
 type notificationSpentAndMissedTickets blockchain.TicketNotificationsData
@@ -550,7 +550,7 @@ out:
 					(*dcrutil.Block)(n))
 
 			case *notificationWork:
-				m.notifyWork(workNotifications, (*wire.BlockHeader)(n))
+				m.notifyWork(workNotifications, (*TemplateNtfn)(n))
 
 			case *notificationReorganization:
 				m.notifyReorganization(blockNotifications,
@@ -864,9 +864,24 @@ func (*wsNotificationManager) notifyBlockDisconnected(clients map[chan struct{}]
 	}
 }
 
+// updateReasonToWorkNtfnString converts a template update reason to a string
+// which matches the reasons required return values for work notifications.
+func updateReasonToWorkNtfnString(reason TemplateUpdateReason) string {
+	switch reason {
+	case TURNewParent:
+		return "newparent"
+	case TURNewVotes:
+		return "newvotes"
+	case TURNewTxns:
+		return "newtxns"
+	}
+
+	return "unknown"
+}
+
 // notifyWork notifies websocket clients that have registered for template
 // updates when a new block template is generated.
-func (*wsNotificationManager) notifyWork(clients map[chan struct{}]*wsClient, header *wire.BlockHeader) {
+func (*wsNotificationManager) notifyWork(clients map[chan struct{}]*wsClient, templateNtfn *TemplateNtfn) {
 	// Skip notification creation if no clients have requested work
 	// notifications.
 	if len(clients) == 0 {
@@ -875,10 +890,14 @@ func (*wsNotificationManager) notifyWork(clients map[chan struct{}]*wsClient, he
 
 	// Serialize the block header into a buffer large enough to hold the
 	// the block header and the internal blake256 padding that is added and
-	// retuned as part of the data below.  For reference:
-	// data[116] --> nBits
-	// data[136] --> Timestamp
-	// data[140] --> nonce
+	// retuned as part of the data below.
+	//
+	// For reference (0-index based, end value is exclusive):
+	// data[115:119] --> Bits
+	// data[135:139] --> Timestamp
+	// data[139:143] --> Nonce
+	// data[143:151] --> ExtraNonce
+	header := &templateNtfn.Template.Block.Header
 	data := make([]byte, 0, getworkDataLen)
 	buf := bytes.NewBuffer(data)
 	err := header.Serialize(buf)
@@ -908,6 +927,7 @@ func (*wsNotificationManager) notifyWork(clients map[chan struct{}]*wsClient, he
 	ntfn := types.WorkNtfn{
 		Data:   hex.EncodeToString(data),
 		Target: hex.EncodeToString(target[:]),
+		Reason: updateReasonToWorkNtfnString(templateNtfn.Reason),
 	}
 
 	// Notify interested websocket clients about new mining work.

@@ -23,6 +23,7 @@ import (
 	"github.com/decred/dcrd/chaincfg/v2"
 	"github.com/decred/dcrd/dcrutil/v2"
 	"github.com/decred/dcrd/gcs/v2/blockcf2"
+	"github.com/decred/dcrd/lru"
 	"github.com/decred/dcrd/mining/v2"
 	"github.com/decred/dcrd/txscript/v2"
 	"github.com/decred/dcrd/wire"
@@ -1948,7 +1949,20 @@ const (
 	// TURNewTxns indicates the associated template has been updated because new
 	// non-vote transactions are available and have potentially been included.
 	TURNewTxns
+
+	// turUnknown indicates the associated template has either been updated due
+	// to an error or cleared for a chain reorg.  It is only used internally to
+	// the background template generator.
+	turUnknown
 )
+
+// TemplateNtfn represents a notification of a new template along with the
+// reason it was generated.  It is sent to subscribers on the channel obtained
+// from the TemplateSubscription instance returned by Subscribe.
+type TemplateNtfn struct {
+	Template *BlockTemplate
+	Reason   TemplateUpdateReason
+}
 
 // templateUpdate defines a type which is used to signal the regen event handler
 // that a new template and relevant error have been associated with the
@@ -2062,7 +2076,8 @@ type BgBlkTmplGenerator struct {
 	// notifications to all subscribers.
 	subscriptionMtx   sync.Mutex
 	subscriptions     map[*TemplateSubscription]struct{}
-	notifySubscribers chan *BlockTemplate
+	notifySubscribers chan *TemplateNtfn
+	notifiedParents   lru.Cache
 
 	// These fields deal with the template regeneration event queue.  This is
 	// implemented as a concurrent queue with immediate passthrough when
@@ -2089,9 +2104,10 @@ type BgBlkTmplGenerator struct {
 	// These fields track the current best template and are protected by the
 	// template mutex.  The template will be nil when there is a template error
 	// set.
-	templateMtx sync.Mutex
-	template    *BlockTemplate
-	templateErr error
+	templateMtx    sync.Mutex
+	template       *BlockTemplate
+	templateReason TemplateUpdateReason
+	templateErr    error
 
 	// These fields are used to provide the ability to cancel a template that
 	// is in the process of being asynchronously generated in favor of
@@ -2117,7 +2133,8 @@ func newBgBlkTmplGenerator(tg *BlkTmplGenerator, addrs []dcrutil.Address, allowU
 		maxVotesPerBlock:    tg.chainParams.TicketsPerBlock,
 		minVotesRequired:    (tg.chainParams.TicketsPerBlock / 2) + 1,
 		subscriptions:       make(map[*TemplateSubscription]struct{}),
-		notifySubscribers:   make(chan *BlockTemplate),
+		notifySubscribers:   make(chan *TemplateNtfn),
+		notifiedParents:     lru.NewCache(3),
 		queueRegenEvent:     make(chan regenEvent),
 		regenEventMsgs:      make(chan regenEvent),
 		cancelTemplate:      func() {},
@@ -2129,13 +2146,34 @@ func newBgBlkTmplGenerator(tg *BlkTmplGenerator, addrs []dcrutil.Address, allowU
 // about the update.
 //
 // This function is safe for concurrent access.
-func (g *BgBlkTmplGenerator) setCurrentTemplate(template *BlockTemplate, err error) {
+func (g *BgBlkTmplGenerator) setCurrentTemplate(template *BlockTemplate, reason TemplateUpdateReason, err error) {
 	g.templateMtx.Lock()
-	g.template, g.templateErr = template, err
+	g.template, g.templateReason, g.templateErr = template, reason, err
 	g.templateMtx.Unlock()
 
 	tplUpdate := templateUpdate{template: template, err: err}
 	g.queueRegenEvent <- regenEvent{rtTemplateUpdated, tplUpdate}
+}
+
+// currentTemplate returns the current template associated with the background
+// template generator along with the associated reason and error.
+//
+// NOTE: The returned template and block that it contains MUST be treated as
+// immutable since they are shared by all callers.
+//
+// NOTE: The returned template might be nil even if there is no error.  It is
+// the responsibility of the caller to properly handle nil templates.
+//
+// This function differs from the exported version in that it also returns the
+// reason associated with the template that is used in notifications.
+//
+// This function is safe for concurrent access.
+func (g *BgBlkTmplGenerator) currentTemplate() (*BlockTemplate, TemplateUpdateReason, error) {
+	g.staleTemplateWg.Wait()
+	g.templateMtx.Lock()
+	template, reason, err := g.template, g.templateReason, g.templateErr
+	g.templateMtx.Unlock()
+	return template, reason, err
 }
 
 // CurrentTemplate returns the current template associated with the background
@@ -2149,10 +2187,7 @@ func (g *BgBlkTmplGenerator) setCurrentTemplate(template *BlockTemplate, err err
 //
 // This function is safe for concurrent access.
 func (g *BgBlkTmplGenerator) CurrentTemplate() (*BlockTemplate, error) {
-	g.staleTemplateWg.Wait()
-	g.templateMtx.Lock()
-	template, err := g.template, g.templateErr
-	g.templateMtx.Unlock()
+	template, _, err := g.currentTemplate()
 	return template, err
 }
 
@@ -2169,7 +2204,7 @@ func (g *BgBlkTmplGenerator) CurrentTemplate() (*BlockTemplate, error) {
 // channel is always processed quickly.
 type TemplateSubscription struct {
 	g     *BgBlkTmplGenerator
-	privC chan *BlockTemplate
+	privC chan *TemplateNtfn
 }
 
 // C returns a channel that produces a stream of block templates as each new
@@ -2177,7 +2212,7 @@ type TemplateSubscription struct {
 //
 // NOTE: Notifications are dropped to make up for slow receivers.  See the
 // template subscription type documentation for more details.
-func (s *TemplateSubscription) C() <-chan *BlockTemplate {
+func (s *TemplateSubscription) C() <-chan *TemplateNtfn {
 	return s.privC
 }
 
@@ -2192,17 +2227,13 @@ func (s *TemplateSubscription) Stop() {
 	s.g.subscriptionMtx.Unlock()
 }
 
-// publishTemplate sends the provided template on the channel associated with
-// the subscription.  Nil templates are ignored.
-func (s *TemplateSubscription) publishTemplate(template *BlockTemplate) {
-	if template == nil {
-		return
-	}
-
+// publishTemplateNtfn sends the provided template notification on the channel
+// associated with the subscription.
+func (s *TemplateSubscription) publishTemplateNtfn(templateNtfn *TemplateNtfn) {
 	// Make use of a non-blocking send along with the buffered channel to allow
 	// notifications to be dropped to make up for slow receivers.
 	select {
-	case s.privC <- template:
+	case s.privC <- templateNtfn:
 	default:
 	}
 }
@@ -2214,15 +2245,14 @@ func (s *TemplateSubscription) publishTemplate(template *BlockTemplate) {
 func (g *BgBlkTmplGenerator) notifySubscribersHandler(ctx context.Context) {
 	for {
 		select {
-		case template := <-g.notifySubscribers:
+		case templateNtfn := <-g.notifySubscribers:
 			if r := g.tg.blockManager.cfg.RpcServer(); r != nil {
-				header := template.Block.Header
-				r.ntfnMgr.NotifyWork(&header)
+				r.ntfnMgr.NotifyWork(templateNtfn)
 			}
 
 			g.subscriptionMtx.Lock()
 			for subscription := range g.subscriptions {
-				subscription.publishTemplate(template)
+				subscription.publishTemplateNtfn(templateNtfn)
 			}
 			g.subscriptionMtx.Unlock()
 
@@ -2246,7 +2276,7 @@ func (g *BgBlkTmplGenerator) Subscribe() *TemplateSubscription {
 	// order to provide a reasonable amount of buffering before dropping
 	// notifications due to a slow receiver.
 	maxVoteInducedRegens := g.maxVotesPerBlock - g.minVotesRequired + 1
-	c := make(chan *BlockTemplate, maxVoteInducedRegens*2)
+	c := make(chan *TemplateNtfn, maxVoteInducedRegens*2)
 	subscription := &TemplateSubscription{
 		g:     g,
 		privC: c,
@@ -2256,9 +2286,9 @@ func (g *BgBlkTmplGenerator) Subscribe() *TemplateSubscription {
 	g.subscriptionMtx.Unlock()
 
 	// Send existing valid template immediately.
-	template, err := g.CurrentTemplate()
-	if err == nil {
-		subscription.publishTemplate(template)
+	template, reason, err := g.currentTemplate()
+	if err == nil && template != nil {
+		subscription.publishTemplateNtfn(&TemplateNtfn{template, reason})
 	}
 
 	return subscription
@@ -2484,14 +2514,32 @@ func (g *BgBlkTmplGenerator) genTemplateAsync(ctx context.Context, reason Templa
 
 		// Update the current template state with the results and notify
 		// subscribed clients of the new template so long as it's valid.
-		g.setCurrentTemplate(template, err)
+		if err != nil {
+			reason = turUnknown
+		}
+		g.setCurrentTemplate(template, reason, err)
 		if err == nil && template != nil {
+			// It is possible for a new vote to show up while the template for
+			// a new parent is still being generated which causes that template
+			// to be canceled in favor of the the new one with the vote.  So,
+			// ensure the first notification sent for a new parent has that
+			// reason.
+			header := &template.Block.Header
+			if reason == TURNewVotes {
+				if !g.notifiedParents.Contains(header.PrevBlock) {
+					reason = TURNewParent
+				}
+			}
+			if reason == TURNewParent {
+				g.notifiedParents.Add(header.PrevBlock)
+			}
+
 			// Ensure the goroutine exits cleanly during shutdown.
 			select {
 			case <-ctx.Done():
 				return
 
-			case g.notifySubscribers <- template:
+			case g.notifySubscribers <- &TemplateNtfn{template, reason}:
 			}
 		}
 	}(ctx, reason, blockRetrieval)
@@ -2877,7 +2925,7 @@ func (g *BgBlkTmplGenerator) handleRegenEvent(ctx context.Context, state *regenH
 
 		// Clear the current template and associated base block for the next
 		// generated template.
-		g.setCurrentTemplate(nil, nil)
+		g.setCurrentTemplate(nil, turUnknown, nil)
 		state.baseBlockHash = zeroHash
 		state.baseBlockHeight = 0
 		return
@@ -2893,7 +2941,7 @@ func (g *BgBlkTmplGenerator) handleRegenEvent(ctx context.Context, state *regenH
 		chainTip := g.chain.BestSnapshot()
 		tipBlock, err := g.chain.BlockByHash(&chainTip.Hash)
 		if err != nil {
-			g.setCurrentTemplate(nil, err)
+			g.setCurrentTemplate(nil, turUnknown, err)
 		} else {
 			g.handleBlockConnected(ctx, state, tipBlock, chainTip)
 		}
@@ -3052,7 +3100,7 @@ func (g *BgBlkTmplGenerator) regenHandler(ctx context.Context) {
 	// existing code paths are run.
 	tipBlock, err := g.chain.BlockByHash(&g.chain.BestSnapshot().Hash)
 	if err != nil {
-		g.setCurrentTemplate(nil, err)
+		g.setCurrentTemplate(nil, turUnknown, err)
 	} else {
 		g.queueRegenEvent <- regenEvent{rtBlockConnected, tipBlock}
 	}

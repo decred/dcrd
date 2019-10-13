@@ -102,7 +102,7 @@ type NotificationHandlers struct {
 	// OnWork is invoked when a new block template is generated.
 	// It will only be invoked if a preceding call to NotifyWork has
 	// been made to register for the notification and the function is non-nil.
-	OnWork func(blockHeader string, target string)
+	OnWork func(data []byte, target []byte, reason string)
 
 	// OnRelevantTxAccepted is invoked when an unmined transaction passes
 	// the client's transaction filter.
@@ -266,13 +266,13 @@ func (c *Client) handleNotification(ntfn *rawNotification) {
 			return
 		}
 
-		blockHeader, target, err := parseWorkParams(ntfn.Params)
+		data, target, reason, err := parseWorkParams(ntfn.Params)
 		if err != nil {
 			log.Warnf("Received invalid work notification: %v", err)
 			return
 		}
 
-		c.ntfnHandlers.OnWork(blockHeader, target)
+		c.ntfnHandlers.OnWork(data, target, reason)
 
 	case chainjson.RelevantTxAcceptedNtfnMethod:
 		// Ignore the notification if the client is not interested in
@@ -599,24 +599,27 @@ func parseBlockConnectedParams(params []json.RawMessage) (blockHeader []byte, tr
 
 // parseWorkParams parses out the parameters included in a
 // newwork notification.
-func parseWorkParams(params []json.RawMessage) (blockHeader string, target string, err error) {
-	if len(params) != 2 {
-		return "", "", wrongNumParams(len(params))
+func parseWorkParams(params []json.RawMessage) (data, target []byte, reason string, err error) {
+	if len(params) != 3 {
+		return nil, nil, "", wrongNumParams(len(params))
 	}
 
-	// Unmarshal first parameter as a string.
-	err = json.Unmarshal(params[0], &blockHeader)
+	data, err = parseHexParam(params[0])
 	if err != nil {
-		return "", "", err
+		return nil, nil, "", err
 	}
 
-	// Unmarshal first parameter as a string.
-	err = json.Unmarshal(params[1], &target)
+	target, err = parseHexParam(params[1])
 	if err != nil {
-		return "", "", err
+		return nil, nil, "", err
 	}
 
-	return blockHeader, target, nil
+	err = json.Unmarshal(params[2], &reason)
+	if err != nil {
+		return nil, nil, "", err
+	}
+
+	return data, target, reason, nil
 }
 
 // parseBlockDisconnectedParams parses out the parameters included in a
