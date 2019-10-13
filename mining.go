@@ -1931,23 +1931,23 @@ const (
 	rtTemplateUpdated
 )
 
-// templateUpdateReason represents the type of a reason why a template is
+// TemplateUpdateReason represents the type of a reason why a template is
 // being updated.
-type templateUpdateReason int
+type TemplateUpdateReason int
 
 // Constants for the type of template update reasons.
 const (
-	// turNewParent indicates the associated template has been updated because
+	// TURNewParent indicates the associated template has been updated because
 	// it builds on a new block as compared to the previous template.
-	turNewParent templateUpdateReason = iota
+	TURNewParent TemplateUpdateReason = iota
 
-	// turNewVotes indicates the associated template has been updated because a
+	// TURNewVotes indicates the associated template has been updated because a
 	// new vote for the block it builds on has been received.
-	turNewVotes
+	TURNewVotes
 
-	// turNewTxns indicates the associated template has been updated because new
+	// TURNewTxns indicates the associated template has been updated because new
 	// non-vote transactions are available and have potentially been included.
-	turNewTxns
+	TURNewTxns
 )
 
 // templateUpdate defines a type which is used to signal the regen event handler
@@ -2447,7 +2447,7 @@ func (state *regenHandlerState) clearSideChainTracking() {
 // current template and error associated with the generator with the results in
 // a concurrent safe fashion and, in the case a successful template is
 // generated, notifies the subscription handler goroutine with the new template.
-func (g *BgBlkTmplGenerator) genTemplateAsync(ctx context.Context, reason templateUpdateReason) {
+func (g *BgBlkTmplGenerator) genTemplateAsync(ctx context.Context, reason TemplateUpdateReason) {
 	// Cancel any other templates that might currently be in the process of
 	// being generated and create a new context that can be cancelled for the
 	// new template that is about to be generated.
@@ -2460,11 +2460,11 @@ func (g *BgBlkTmplGenerator) genTemplateAsync(ctx context.Context, reason templa
 	// new template is generated when it is because the parent has changed or
 	// new votes are available in order to avoid handing out a template that
 	// is guaranteed to be stale soon after.
-	blockRetrieval := reason == turNewParent || reason == turNewVotes
+	blockRetrieval := reason == TURNewParent || reason == TURNewVotes
 	if blockRetrieval {
 		g.staleTemplateWg.Add(1)
 	}
-	go func(ctx context.Context, reason templateUpdateReason, blockRetrieval bool) {
+	go func(ctx context.Context, reason TemplateUpdateReason, blockRetrieval bool) {
 		if blockRetrieval {
 			defer g.staleTemplateWg.Done()
 		}
@@ -2551,7 +2551,7 @@ func (g *BgBlkTmplGenerator) handleBlockConnected(ctx context.Context, state *re
 		state.failedGenRetryTimeout = nil
 		state.baseBlockHash = *blockHash
 		state.baseBlockHeight = blockHeight
-		g.genTemplateAsync(ctx, turNewParent)
+		g.genTemplateAsync(ctx, TURNewParent)
 		return
 	}
 
@@ -2567,7 +2567,7 @@ func (g *BgBlkTmplGenerator) handleBlockConnected(ctx context.Context, state *re
 		state.failedGenRetryTimeout = nil
 		state.baseBlockHash = *blockHash
 		state.baseBlockHeight = blockHeight
-		g.genTemplateAsync(ctx, turNewParent)
+		g.genTemplateAsync(ctx, TURNewParent)
 		return
 	}
 
@@ -2638,7 +2638,7 @@ func (g *BgBlkTmplGenerator) handleBlockDisconnected(ctx context.Context, state 
 	state.failedGenRetryTimeout = nil
 	state.baseBlockHash = *prevHash
 	state.baseBlockHeight = prevHeight
-	g.genTemplateAsync(ctx, turNewParent)
+	g.genTemplateAsync(ctx, TURNewParent)
 }
 
 // handleBlockAccepted handles the rtBlockAccepted event by establishing vote
@@ -2744,7 +2744,7 @@ func (g *BgBlkTmplGenerator) handleVote(ctx context.Context, state *regenHandler
 			// Generate a new template immediately when the maximum number of
 			// votes for the block are already known.
 			if numVotes >= g.maxVotesPerBlock {
-				g.genTemplateAsync(ctx, turNewParent)
+				g.genTemplateAsync(ctx, TURNewParent)
 				return
 			}
 
@@ -2785,9 +2785,9 @@ func (g *BgBlkTmplGenerator) handleVote(ctx context.Context, state *regenHandler
 			// time it is generated and due to new votes on subsequent votes.
 			// The max votes timeout is only non-nil before the first time it is
 			// generated.
-			tplUpdateReason := turNewVotes
+			tplUpdateReason := TURNewVotes
 			if state.maxVotesTimeout != nil {
-				tplUpdateReason = turNewParent
+				tplUpdateReason = TURNewParent
 			}
 
 			// Cancel the max votes timeout (if set).
@@ -3033,7 +3033,7 @@ func (g *BgBlkTmplGenerator) handleTrackSideChainsTimeout(ctx context.Context, s
 		state.failedGenRetryTimeout = nil
 		state.baseBlockHash = chainTip.PrevHash
 		state.baseBlockHeight = uint32(chainTip.Height - 1)
-		g.genTemplateAsync(ctx, turNewParent)
+		g.genTemplateAsync(ctx, TURNewParent)
 		return
 	}
 
@@ -3069,7 +3069,7 @@ func (g *BgBlkTmplGenerator) regenHandler(ctx context.Context) {
 		// are received prior to the timeout.
 		case <-state.maxVotesTimeout:
 			state.maxVotesTimeout = nil
-			g.genTemplateAsync(ctx, turNewParent)
+			g.genTemplateAsync(ctx, TURNewParent)
 
 		// This timeout is selectively enabled when a new block is connected in
 		// order to give the minimum number of required votes needed to build a
@@ -3098,7 +3098,7 @@ func (g *BgBlkTmplGenerator) regenHandler(ctx context.Context) {
 			// available.
 			if g.tg.txSource.LastUpdated().Unix() > state.lastGeneratedTime {
 				state.failedGenRetryTimeout = nil
-				g.genTemplateAsync(ctx, turNewTxns)
+				g.genTemplateAsync(ctx, TURNewTxns)
 				continue
 			}
 
@@ -3111,7 +3111,7 @@ func (g *BgBlkTmplGenerator) regenHandler(ctx context.Context) {
 		// to generate and disabled prior to attempts at generating a new one.
 		case <-state.failedGenRetryTimeout:
 			state.failedGenRetryTimeout = nil
-			g.genTemplateAsync(ctx, turNewParent)
+			g.genTemplateAsync(ctx, TURNewParent)
 
 		case <-ctx.Done():
 			g.wg.Done()
