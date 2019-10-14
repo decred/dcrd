@@ -130,6 +130,7 @@ func MainNetParams() *Params {
 			{214672, newHashFromStr("0000000000000021d5cbeead55cb7fd659f07e8127358929ffc34cd362209758")},
 			{259810, newHashFromStr("0000000000000000ee0fbf469a9f32477ffbb46ebd7a280a53c842ab4243f97c")},
 			{295940, newHashFromStr("0000000000000000148852c8a919addf4043f9f267b13c08df051d359f1622ca")},
+			{384170, newHashFromStr("00000000000000001704bbc6bda8c4864a71cd0febcc0b44d753c69d83840f04")},
 		},
 
 		// The miner confirmation window is defined as:
