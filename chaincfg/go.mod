@@ -7,5 +7,5 @@ require (
 	github.com/decred/dcrd/chaincfg/chainhash v1.0.2
 	github.com/decred/dcrd/dcrec/edwards/v2 v2.0.0
 	github.com/decred/dcrd/dcrec/secp256k1/v2 v2.0.0
-	github.com/decred/dcrd/wire v1.2.0
+	github.com/decred/dcrd/wire v1.3.0
 )
