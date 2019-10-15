@@ -321,9 +321,15 @@ func (f *filter) MatchAny(key [KeySize]byte, data [][]byte) bool {
 	k0 := binary.LittleEndian.Uint64(key[0:8])
 	k1 := binary.LittleEndian.Uint64(key[8:16])
 	for _, d := range data {
+		if len(d) == 0 {
+			continue
+		}
 		v := siphash.Hash(k0, k1, d)
 		v = reduceFn(v, f.modulusNM)
 		*values = append(*values, v)
+	}
+	if len(*values) == 0 {
+		return false
 	}
 	sort.Sort((*uint64s)(values))
 
