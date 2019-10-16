@@ -881,7 +881,7 @@ func updateReasonToWorkNtfnString(reason TemplateUpdateReason) string {
 
 // notifyWork notifies websocket clients that have registered for template
 // updates when a new block template is generated.
-func (*wsNotificationManager) notifyWork(clients map[chan struct{}]*wsClient, templateNtfn *TemplateNtfn) {
+func (m *wsNotificationManager) notifyWork(clients map[chan struct{}]*wsClient, templateNtfn *TemplateNtfn) {
 	// Skip notification creation if no clients have requested work
 	// notifications.
 	if len(clients) == 0 {
@@ -936,6 +936,15 @@ func (*wsNotificationManager) notifyWork(clients map[chan struct{}]*wsClient, te
 		rpcsLog.Errorf("Failed to marshal new work notification: %v", err)
 		return
 	}
+
+	// Add the template to the template pool.  Since the key is a combination
+	// of the merkle and stake root fields, this will not add duplicate entries
+	// for the templates with modified timestamps and/or difficulty bits.
+	templateKey := getWorkTemplateKey(header)
+	state := m.server.workState
+	state.Lock()
+	state.templatePool[templateKey] = templateNtfn.Template.Block
+	state.Unlock()
 
 	for _, wsc := range clients {
 		wsc.QueueNotification(marshalledJSON)
