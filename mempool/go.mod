@@ -11,7 +11,7 @@ require (
 	github.com/decred/dcrd/dcrec v1.0.0
 	github.com/decred/dcrd/dcrec/secp256k1/v2 v2.0.0
 	github.com/decred/dcrd/dcrutil/v3 v3.0.0-00010101000000-000000000000
-	github.com/decred/dcrd/mining/v2 v2.0.1
+	github.com/decred/dcrd/mining/v3 v3.0.0-00010101000000-000000000000
 	github.com/decred/dcrd/txscript/v3 v3.0.0-00010101000000-000000000000
 	github.com/decred/dcrd/wire v1.3.0
 	github.com/decred/slog v1.0.0
@@ -20,5 +20,6 @@ require (
 replace (
 	github.com/decred/dcrd/blockchain/v3 => ../blockchain
 	github.com/decred/dcrd/dcrutil/v3 => ../dcrutil
+	github.com/decred/dcrd/mining/v3 => ../mining
 	github.com/decred/dcrd/txscript/v3 => ../txscript
 )

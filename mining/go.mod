@@ -1,4 +1,4 @@
-module github.com/decred/dcrd/mining/v2
+module github.com/decred/dcrd/mining/v3
 
 go 1.11
 
