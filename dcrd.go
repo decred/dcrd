@@ -177,7 +177,7 @@ func dcrdMain() error {
 
 	// Create server and start it.
 	lifetimeNotifier.notifyStartupEvent(lifetimeEventP2PServer)
-	server, err := newServer(cfg.Listeners, db, activeNetParams.Params,
+	svr, err := newServer(cfg.Listeners, db, activeNetParams.Params,
 		cfg.DataDir, ctx.Done())
 	if err != nil {
 		// TODO(oga) this logging could do with some beautifying.
@@ -185,15 +185,16 @@ func dcrdMain() error {
 			cfg.Listeners, err)
 		return err
 	}
+	serverDone := make(chan struct{})
 	defer func() {
 		lifetimeNotifier.notifyShutdownEvent(lifetimeEventP2PServer)
-		dcrdLog.Infof("Gracefully shutting down the server...")
-		server.Stop()
-		server.WaitForShutdown()
+		<-serverDone
 		srvrLog.Infof("Server shutdown complete")
 	}()
-
-	server.Start()
+	go func(s *server) {
+		s.Run(ctx)
+		close(serverDone)
+	}(svr)
 
 	if shutdownRequested(ctx) {
 		return nil

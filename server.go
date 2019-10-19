@@ -231,7 +231,6 @@ type server struct {
 	// Putting the uint64s first makes them 64-bit aligned for 32-bit systems.
 	bytesReceived uint64 // Total bytes received from all peers since start.
 	bytesSent     uint64 // Total bytes sent by all peers since start.
-	started       int32
 	shutdown      int32
 
 	chainParams          *chaincfg.Params
@@ -255,13 +254,10 @@ type server struct {
 	broadcast            chan broadcastMsg
 	peerHeightsUpdate    chan updatePeerHeightsMsg
 	wg                   sync.WaitGroup
-	quit                 chan struct{}
 	nat                  NAT
 	db                   database.DB
 	timeSource           blockchain.MedianTimeSource
 	services             wire.ServiceFlag
-	context              context.Context
-	cancel               context.CancelFunc
 
 	// The following fields are used for optional indexes.  They will be nil
 	// if the associated index is not enabled.  These fields are set during
@@ -1893,7 +1889,7 @@ func (s *server) peerDoneHandler(sp *serverPeer) {
 // peerHandler is used to handle peer operations such as adding and removing
 // peers to and from the server, banning peers, and broadcasting messages to
 // peers.  It must be run in a goroutine.
-func (s *server) peerHandler() {
+func (s *server) peerHandler(ctx context.Context) {
 	// Start the address manager and block manager, both of which are needed
 	// by peers.  This is done here since their lifecycle is closely tied
 	// to this handler and rather than adding more channels to synchronize
@@ -1967,7 +1963,7 @@ out:
 		case qmsg := <-s.query:
 			s.handleQuery(state, qmsg)
 
-		case <-s.quit:
+		case <-ctx.Done():
 			// Disconnect all peers on server shutdown.
 			state.forAllPeers(func(sp *serverPeer) {
 				srvrLog.Tracef("Shutdown peer %s", sp)
@@ -1996,6 +1992,7 @@ cleanup:
 			break cleanup
 		}
 	}
+
 	s.wg.Done()
 	srvrLog.Tracef("Peer handler done")
 }
@@ -2158,15 +2155,13 @@ func (s *server) UpdatePeerHeights(latestBlkHash *chainhash.Hash, latestHeight i
 // rebroadcastHandler keeps track of user submitted inventories that we have
 // sent out but have not yet made it into a block. We periodically rebroadcast
 // them in case our peers restarted or otherwise lost track of them.
-func (s *server) rebroadcastHandler() {
+func (s *server) rebroadcastHandler(ctx context.Context) {
 	// Wait 5 min before first tx rebroadcast.
 	timer := time.NewTimer(5 * time.Minute)
 	pendingInvs := make(map[wire.InvVect]interface{})
-
 out:
 	for {
 		select {
-
 		case riv := <-s.modifyRebroadcastInv:
 			switch msg := riv.(type) {
 
@@ -2246,7 +2241,7 @@ out:
 			timer.Reset(time.Second *
 				time.Duration(randomUint16Number(1800)))
 
-		case <-s.quit:
+		case <-ctx.Done():
 			break out
 		}
 	}
@@ -2263,36 +2258,41 @@ cleanup:
 			break cleanup
 		}
 	}
+
 	s.wg.Done()
 }
 
-// Start begins accepting connections from peers.
-func (s *server) Start() {
-	// Already started?
-	if atomic.AddInt32(&s.started, 1) != 1 {
-		return
-	}
-
+// Run starts the server and blocks until the provided context is cancelled.
+// This entails accepting connections from peers.
+func (s *server) Run(ctx context.Context) {
 	srvrLog.Trace("Starting server")
+
+	// Create a child context with independent cancellation for the server.
+	// This is needed since not all of the subsystems support context.
+	serverCtx, shutdownServer := context.WithCancel(ctx)
 
 	// Start the peer handler which in turn starts the address and block
 	// managers.
 	s.wg.Add(1)
-	go s.peerHandler()
+	go s.peerHandler(serverCtx)
 
 	if s.nat != nil {
 		s.wg.Add(1)
-		go s.upnpUpdateThread()
+		go s.upnpUpdateThread(serverCtx)
 	}
 
 	if !cfg.DisableRPC {
-		s.wg.Add(1)
-
 		// Start the rebroadcastHandler, which ensures user tx received by
 		// the RPC server are rebroadcast until being included in a block.
-		go s.rebroadcastHandler()
+		s.wg.Add(1)
+		go s.rebroadcastHandler(serverCtx)
 
-		s.rpcServer.Start()
+		s.wg.Add(1)
+		go func(s *server) {
+			s.rpcServer.Start()
+			s.rpcServer.wg.Wait()
+			s.wg.Done()
+		}(s)
 	}
 
 	// Start the background block template generator if the config provides
@@ -2300,33 +2300,26 @@ func (s *server) Start() {
 	if len(cfg.MiningAddrs) > 0 {
 		s.wg.Add(1)
 		go func(s *server) {
-			s.bg.Run(s.context)
+			s.bg.Run(serverCtx)
 			s.wg.Done()
 		}(s)
 	}
 
 	// Start the CPU miner if generation is enabled.
 	if cfg.Generate {
-		s.cpuMiner.Start()
+		s.wg.Add(1)
+		go func(s *server) {
+			s.cpuMiner.Start()
+			s.cpuMiner.wg.Wait()
+			s.wg.Done()
+		}(s)
 	}
-}
 
-// Stop gracefully shuts down the server by stopping and disconnecting all
-// peers and the main listener.
-func (s *server) Stop() error {
-	// Make sure this only happens once.
-	if atomic.AddInt32(&s.shutdown, 1) != 1 {
-		srvrLog.Infof("Server is already in the process of shutting down")
-		return nil
-	}
+	// Wait until the server is signalled to shutdown.
+	<-ctx.Done()
+	atomic.AddInt32(&s.shutdown, 1)
 
 	srvrLog.Warnf("Server shutting down")
-
-	// Stop the background block template generator.
-	if len(cfg.miningAddrs) > 0 {
-		minrLog.Info("Background block template generator shutting down")
-		s.cancel()
-	}
 
 	// Stop the CPU miner if needed.
 	if cfg.Generate && s.cpuMiner != nil {
@@ -2340,13 +2333,9 @@ func (s *server) Stop() error {
 
 	s.feeEstimator.Close()
 
-	// Signal the remaining goroutines to quit.
-	close(s.quit)
-	return nil
-}
-
-// WaitForShutdown blocks until the main listener and peer handlers are stopped.
-func (s *server) WaitForShutdown() {
+	// Signal the remaining goroutines to quit and block until everything shuts
+	// down.
+	shutdownServer()
 	s.wg.Wait()
 }
 
@@ -2400,11 +2389,12 @@ func parseListeners(addrs []string) ([]string, []string, bool, error) {
 	return ipv4ListenAddrs, ipv6ListenAddrs, haveWildcard, nil
 }
 
-func (s *server) upnpUpdateThread() {
+func (s *server) upnpUpdateThread(ctx context.Context) {
 	// Go off immediately to prevent code duplication, thereafter we renew
 	// lease every 15 minutes.
 	timer := time.NewTimer(0 * time.Second)
 	lport, _ := strconv.ParseInt(activeNetParams.DefaultPort, 10, 16)
+
 	first := true
 out:
 	for {
@@ -2441,14 +2431,16 @@ out:
 				}
 			}
 			timer.Reset(time.Minute * 15)
-		case <-s.quit:
+
+		case <-ctx.Done():
 			break out
 		}
 	}
 
 	timer.Stop()
 
-	if err := s.nat.DeletePortMapping("tcp", int(lport), int(lport)); err != nil {
+	err := s.nat.DeletePortMapping("tcp", int(lport), int(lport))
+	if err != nil {
 		srvrLog.Warnf("unable to remove UPnP port mapping: %v", err)
 	} else {
 		srvrLog.Debugf("successfully disestablished UPnP port mapping")
@@ -2673,7 +2665,6 @@ func newServer(listenAddrs []string, db database.DB, chainParams *chaincfg.Param
 		}
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
 	s := server{
 		chainParams:          chainParams,
 		addrManager:          amgr,
@@ -2683,7 +2674,6 @@ func newServer(listenAddrs []string, db database.DB, chainParams *chaincfg.Param
 		query:                make(chan interface{}),
 		relayInv:             make(chan relayMsg, cfg.MaxPeers),
 		broadcast:            make(chan broadcastMsg, cfg.MaxPeers),
-		quit:                 make(chan struct{}),
 		modifyRebroadcastInv: make(chan interface{}),
 		peerHeightsUpdate:    make(chan updatePeerHeightsMsg),
 		nat:                  nat,
@@ -2692,8 +2682,6 @@ func newServer(listenAddrs []string, db database.DB, chainParams *chaincfg.Param
 		services:             services,
 		sigCache:             txscript.NewSigCache(cfg.SigCacheMaxSize),
 		subsidyCache:         standalone.NewSubsidyCache(chainParams),
-		context:              ctx,
-		cancel:               cancel,
 	}
 
 	// Create the transaction and address indexes if needed.
