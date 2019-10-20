@@ -37,7 +37,7 @@ import (
 	"github.com/decred/dcrd/gcs/v2/blockcf"
 	"github.com/decred/dcrd/internal/version"
 	"github.com/decred/dcrd/lru"
-	"github.com/decred/dcrd/mempool/v3"
+	"github.com/decred/dcrd/mempool/v4"
 	"github.com/decred/dcrd/mining/v3"
 	"github.com/decred/dcrd/peer/v2"
 	"github.com/decred/dcrd/txscript/v3"

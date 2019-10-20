@@ -22,7 +22,7 @@ import (
 	"github.com/decred/dcrd/database/v2"
 	"github.com/decred/dcrd/dcrutil/v3"
 	"github.com/decred/dcrd/fees/v2"
-	"github.com/decred/dcrd/mempool/v3"
+	"github.com/decred/dcrd/mempool/v4"
 	peerpkg "github.com/decred/dcrd/peer/v2"
 	"github.com/decred/dcrd/wire"
 )

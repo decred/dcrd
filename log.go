@@ -18,7 +18,7 @@ import (
 	"github.com/decred/dcrd/database/v2"
 	"github.com/decred/dcrd/fees/v2"
 	"github.com/decred/dcrd/internal/rpcserver"
-	"github.com/decred/dcrd/mempool/v3"
+	"github.com/decred/dcrd/mempool/v4"
 	"github.com/decred/dcrd/peer/v2"
 	"github.com/decred/dcrd/txscript/v3"
 	"github.com/decred/slog"

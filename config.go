@@ -26,7 +26,7 @@ import (
 	_ "github.com/decred/dcrd/database/v2/ffldb"
 	"github.com/decred/dcrd/dcrutil/v3"
 	"github.com/decred/dcrd/internal/version"
-	"github.com/decred/dcrd/mempool/v3"
+	"github.com/decred/dcrd/mempool/v4"
 	"github.com/decred/dcrd/rpc/jsonrpc/types/v2"
 	"github.com/decred/dcrd/sampleconfig"
 	"github.com/decred/go-socks/socks"

@@ -1,4 +1,4 @@
-module github.com/decred/dcrd/mempool/v3
+module github.com/decred/dcrd/mempool/v4
 
 go 1.11
 
