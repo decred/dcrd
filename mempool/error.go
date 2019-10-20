@@ -7,7 +7,7 @@ package mempool
 
 import (
 	"fmt"
-	"github.com/decred/dcrd/blockchain/v2"
+	"github.com/decred/dcrd/blockchain/v3"
 	"github.com/decred/dcrd/wire"
 )
 

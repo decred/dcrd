@@ -14,7 +14,7 @@ import (
 	"runtime/debug"
 	"runtime/pprof"
 
-	"github.com/decred/dcrd/blockchain/v2/indexers"
+	"github.com/decred/dcrd/blockchain/v3/indexers"
 	"github.com/decred/dcrd/internal/limits"
 	"github.com/decred/dcrd/internal/version"
 )

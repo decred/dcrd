@@ -8,7 +8,7 @@ require (
 	github.com/decred/dcrd/addrmgr v1.1.0
 	github.com/decred/dcrd/blockchain/stake/v2 v2.0.2
 	github.com/decred/dcrd/blockchain/standalone v1.1.0
-	github.com/decred/dcrd/blockchain/v2 v2.1.0
+	github.com/decred/dcrd/blockchain/v3 v3.0.0-00010101000000-000000000000
 	github.com/decred/dcrd/certgen v1.1.0
 	github.com/decred/dcrd/chaincfg/chainhash v1.0.2
 	github.com/decred/dcrd/chaincfg/v2 v2.3.0
@@ -45,7 +45,7 @@ replace (
 	github.com/decred/dcrd/addrmgr => ./addrmgr
 	github.com/decred/dcrd/blockchain/stake/v2 => ./blockchain/stake
 	github.com/decred/dcrd/blockchain/standalone => ./blockchain/standalone
-	github.com/decred/dcrd/blockchain/v2 => ./blockchain
+	github.com/decred/dcrd/blockchain/v3 => ./blockchain
 	github.com/decred/dcrd/certgen => ./certgen
 	github.com/decred/dcrd/chaincfg/chainhash => ./chaincfg/chainhash
 	github.com/decred/dcrd/chaincfg/v2 => ./chaincfg

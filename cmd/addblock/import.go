@@ -12,8 +12,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/decred/dcrd/blockchain/v2"
-	"github.com/decred/dcrd/blockchain/v2/indexers"
+	"github.com/decred/dcrd/blockchain/v3"
+	"github.com/decred/dcrd/blockchain/v3/indexers"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/database/v2"
 	"github.com/decred/dcrd/dcrutil/v3"
