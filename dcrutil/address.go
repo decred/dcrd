@@ -10,7 +10,6 @@ import (
 	"fmt"
 
 	"github.com/decred/base58"
-	"github.com/decred/dcrd/chaincfg/v2/chainec"
 	"github.com/decred/dcrd/crypto/ripemd160"
 	"github.com/decred/dcrd/dcrec"
 	"github.com/decred/dcrd/dcrec/edwards/v2"
@@ -348,7 +347,7 @@ var ErrInvalidPubKeyFormat = errors.New("invalid pubkey format")
 // AddressSecpPubKey is an Address for a secp256k1 pay-to-pubkey transaction.
 type AddressSecpPubKey struct {
 	pubKeyFormat PubKeyFormat
-	pubKey       chainec.PublicKey
+	pubKey       *secp256k1.PublicKey
 	pubKeyID     [2]byte
 	pubKeyHashID [2]byte
 }
@@ -454,7 +453,7 @@ func (a *AddressSecpPubKey) AddressPubKeyHash() *AddressPubKeyHash {
 }
 
 // PubKey returns the underlying public key for the address.
-func (a *AddressSecpPubKey) PubKey() chainec.PublicKey {
+func (a *AddressSecpPubKey) PubKey() *secp256k1.PublicKey {
 	return a.pubKey
 }
 
@@ -465,13 +464,13 @@ func (a *AddressSecpPubKey) DSA() dcrec.SignatureType {
 }
 
 // NewAddressSecpPubKeyCompressed creates a new address using a compressed public key
-func NewAddressSecpPubKeyCompressed(pubkey chainec.PublicKey, params AddressParams) (*AddressSecpPubKey, error) {
+func NewAddressSecpPubKeyCompressed(pubkey *secp256k1.PublicKey, params AddressParams) (*AddressSecpPubKey, error) {
 	return NewAddressSecpPubKey(pubkey.SerializeCompressed(), params)
 }
 
 // AddressEdwardsPubKey is an Address for an Ed25519 pay-to-pubkey transaction.
 type AddressEdwardsPubKey struct {
-	pubKey       chainec.PublicKey
+	pubKey       *edwards.PublicKey
 	pubKeyID     [2]byte
 	pubKeyHashID [2]byte
 }
@@ -538,7 +537,7 @@ func (a *AddressEdwardsPubKey) AddressPubKeyHash() *AddressPubKeyHash {
 }
 
 // PubKey returns the underlying public key for the address.
-func (a *AddressEdwardsPubKey) PubKey() chainec.PublicKey {
+func (a *AddressEdwardsPubKey) PubKey() *edwards.PublicKey {
 	return a.pubKey
 }
 
@@ -551,7 +550,7 @@ func (a *AddressEdwardsPubKey) DSA() dcrec.SignatureType {
 // AddressSecSchnorrPubKey is an Address for a secp256k1 pay-to-pubkey
 // transaction.
 type AddressSecSchnorrPubKey struct {
-	pubKey       chainec.PublicKey
+	pubKey       *secp256k1.PublicKey
 	pubKeyID     [2]byte
 	pubKeyHashID [2]byte
 }
