@@ -731,7 +731,7 @@ func (m *wsNotificationManager) subscribedClients(tx *dcrutil.Tx, clients map[ch
 		for i, output := range msgTx.TxOut {
 			watchOutput := true
 			sc, addrs, _, err := txscript.ExtractPkScriptAddrs(output.Version,
-				output.PkScript, m.server.server.chainParams)
+				output.PkScript, m.server.cfg.ChainParams)
 			if err != nil {
 				// Clients are not able to subscribe to
 				// nonstandard or non-address outputs.
@@ -1163,7 +1163,7 @@ func (m *wsNotificationManager) notifyForNewTx(clients map[chan struct{}]*wsClie
 				continue
 			}
 
-			net := m.server.server.chainParams
+			net := m.server.cfg.ChainParams
 			rawTx, err := createTxRawResult(net, mtx, txHashStr,
 				wire.NullBlockIndex, nil, "", 0, 0)
 			if err != nil {
@@ -1223,9 +1223,8 @@ func (m *wsNotificationManager) notifyRelevantTxAccepted(tx *dcrutil.Tx,
 		}
 
 		for i, output := range msgTx.TxOut {
-			_, addrs, _, err := txscript.ExtractPkScriptAddrs(
-				output.Version, output.PkScript,
-				m.server.server.chainParams)
+			_, addrs, _, err := txscript.ExtractPkScriptAddrs(output.Version,
+				output.PkScript, m.server.cfg.ChainParams)
 			if err != nil {
 				continue
 			}
@@ -2154,7 +2153,7 @@ func handleLoadTxFilter(wsc *wsClient, icmd interface{}) (interface{}, error) {
 	wsc.Lock()
 	if cmd.Reload || wsc.filterData == nil {
 		wsc.filterData = makeWSClientFilter(cmd.Addresses, outPoints,
-			wsc.rpcServer.server.chainParams)
+			wsc.rpcServer.cfg.ChainParams)
 		wsc.Unlock()
 	} else {
 		filter := wsc.filterData
@@ -2182,14 +2181,15 @@ func handleNotifyBlocks(wsc *wsClient, icmd interface{}) (interface{}, error) {
 
 // handleRebroadcastMissed implements the rebroadcastmissed command.
 func handleRebroadcastMissed(wsc *wsClient, icmd interface{}) (interface{}, error) {
-	best := wsc.rpcServer.chain.BestSnapshot()
-	mt, err := wsc.rpcServer.chain.MissedTickets()
+	cfg := wsc.rpcServer.cfg
+	best := cfg.Chain.BestSnapshot()
+	mt, err := cfg.Chain.MissedTickets()
 	if err != nil {
 		return nil, rpcInternalError("Could not get missed tickets "+
 			err.Error(), "")
 	}
 
-	stakeDiff, err := wsc.rpcServer.server.blockManager.CalcNextRequiredStakeDifficulty()
+	stakeDiff, err := cfg.Chain.CalcNextRequiredStakeDifficulty()
 	if err != nil {
 		return nil, rpcInternalError("Could not calculate next stake "+
 			"difficulty "+err.Error(), "")
@@ -2211,16 +2211,16 @@ func handleRebroadcastMissed(wsc *wsClient, icmd interface{}) (interface{}, erro
 
 // handleRebroadcastWinners implements the rebroadcastwinners command.
 func handleRebroadcastWinners(wsc *wsClient, icmd interface{}) (interface{}, error) {
-	bestHeight := wsc.rpcServer.chain.BestSnapshot().Height
-	blocks, err := wsc.rpcServer.server.blockManager.TipGeneration()
+	cfg := wsc.rpcServer.cfg
+	bestHeight := cfg.Chain.BestSnapshot().Height
+	blocks, err := cfg.Chain.TipGeneration()
 	if err != nil {
 		return nil, rpcInternalError("Could not get generation "+
 			err.Error(), "")
 	}
 
 	for i := range blocks {
-		winningTickets, _, _, err :=
-			wsc.rpcServer.chain.LotteryDataForBlock(&blocks[i])
+		winningTickets, _, _, err := cfg.Chain.LotteryDataForBlock(&blocks[i])
 		if err != nil {
 			return nil, rpcInternalError("Lottery data for block "+
 				"failed: "+err.Error(), "")
@@ -2422,7 +2422,8 @@ func handleRescan(wsc *wsClient, icmd interface{}) (interface{}, error) {
 
 	// Iterate over each block in the request and rescan.  When a block
 	// contains relevant transactions, add it to the response.
-	bc := wsc.rpcServer.chain
+	cfg := wsc.rpcServer.cfg
+	bc := cfg.Chain
 	var lastBlockHash *chainhash.Hash
 	for i := range blockHashes {
 		block, err := bc.BlockByHash(&blockHashes[i])
@@ -2441,7 +2442,7 @@ func handleRescan(wsc *wsClient, icmd interface{}) (interface{}, error) {
 		}
 		lastBlockHash = &blockHashes[i]
 
-		transactions := rescanBlock(filter, block, wsc.rpcServer.server.chainParams)
+		transactions := rescanBlock(filter, block, cfg.ChainParams)
 		if len(transactions) != 0 {
 			discoveredData = append(discoveredData, types.RescannedBlock{
 				Hash:         blockHashes[i].String(),
