@@ -12,7 +12,6 @@ import (
 
 	"github.com/decred/base58"
 	"github.com/decred/dcrd/chaincfg/chainhash"
-	"github.com/decred/dcrd/chaincfg/v2/chainec"
 	"github.com/decred/dcrd/dcrec"
 	"github.com/decred/dcrd/dcrec/edwards/v2"
 	"github.com/decred/dcrd/dcrec/secp256k1/v2"
@@ -44,8 +43,11 @@ type WIF struct {
 	// ecType is the type of ECDSA used.
 	ecType dcrec.SignatureType
 
-	// PrivKey is the private key being imported or exported.
-	PrivKey chainec.PrivateKey
+	// privKey is the private key being imported or exported.
+	privKey []byte
+
+	// pubKey is the public key of the privKey
+	pubKey []byte
 
 	// netID is the network identifier byte used when
 	// WIF encoding the private key.
@@ -55,8 +57,23 @@ type WIF struct {
 // NewWIF creates a new WIF structure to export an address and its private key
 // as a string encoded in the Wallet Import Format.  The net parameter specifies
 // the magic bytes of the network for which the WIF string is intended.
-func NewWIF(privKey chainec.PrivateKey, net [2]byte, ecType dcrec.SignatureType) *WIF {
-	return &WIF{ecType, privKey, net}
+func NewWIF(privKey []byte, net [2]byte, ecType dcrec.SignatureType) (*WIF, error) {
+	var pubBytes []byte
+	switch ecType {
+	case dcrec.STEcdsaSecp256k1, dcrec.STSchnorrSecp256k1:
+		_, pub := secp256k1.PrivKeyFromBytes(privKey)
+		pubBytes = pub.SerializeCompressed()
+	case dcrec.STEd25519:
+		_, pub, err := edwards.PrivKeyFromScalar(privKey)
+		if err != nil {
+			return nil, err
+		}
+		pubBytes = pub.SerializeCompressed()
+	default:
+		return nil, fmt.Errorf("unsupported signature type '%v'", ecType)
+	}
+
+	return &WIF{ecType, privKey, pubBytes, net}, nil
 }
 
 // DecodeWIF creates a new WIF structure by decoding the string encoding of
@@ -95,25 +112,30 @@ func DecodeWIF(wif string, net [2]byte) (*WIF, error) {
 	if netID != net {
 		return nil, ErrWrongWIFNetwork(net)
 	}
-	var privKey chainec.PrivateKey
-
+	var privKeyBytes, pubKeyBytes []byte
 	var ecType dcrec.SignatureType
 	switch dcrec.SignatureType(decoded[2]) {
 	case dcrec.STEcdsaSecp256k1:
-		privKeyBytes := decoded[3 : 3+secp256k1.PrivKeyBytesLen]
-		privKey, _ = secp256k1.PrivKeyFromScalar(privKeyBytes)
+		privKeyBytes = decoded[3 : 3+secp256k1.PrivKeyBytesLen]
+		_, pubKey := secp256k1.PrivKeyFromScalar(privKeyBytes)
+		pubKeyBytes = pubKey.SerializeCompressed()
 		ecType = dcrec.STEcdsaSecp256k1
 	case dcrec.STEd25519:
-		privKeyBytes := decoded[3 : 3+edwards.PrivScalarSize]
-		privKey, _, _ = edwards.PrivKeyFromScalar(privKeyBytes)
+		privKeyBytes = decoded[3 : 3+edwards.PrivScalarSize]
+		_, pubKey, err := edwards.PrivKeyFromScalar(privKeyBytes)
+		if err != nil {
+			return nil, err
+		}
+		pubKeyBytes = pubKey.SerializeCompressed()
 		ecType = dcrec.STEd25519
 	case dcrec.STSchnorrSecp256k1:
-		privKeyBytes := decoded[3 : 3+secp256k1.PrivKeyBytesLen]
-		privKey, _ = secp256k1.PrivKeyFromScalar(privKeyBytes)
+		privKeyBytes = decoded[3 : 3+secp256k1.PrivKeyBytesLen]
+		_, pubKey := secp256k1.PrivKeyFromScalar(privKeyBytes)
+		pubKeyBytes = pubKey.SerializeCompressed()
 		ecType = dcrec.STSchnorrSecp256k1
 	}
 
-	return &WIF{ecType, privKey, netID}, nil
+	return &WIF{ecType, privKeyBytes, pubKeyBytes, netID}, nil
 }
 
 // String creates the Wallet Import Format string encoding of a WIF structure.
@@ -128,7 +150,7 @@ func (w *WIF) String() string {
 	a := make([]byte, 0, encodeLen)
 	a = append(a, w.netID[:]...)
 	a = append(a, byte(w.ecType))
-	a = append(a, w.PrivKey.Serialize()...)
+	a = append(a, w.privKey...)
 
 	cksum := chainhash.HashB(a)
 	a = append(a, cksum[:4]...)
@@ -139,19 +161,7 @@ func (w *WIF) String() string {
 // exported private key in compressed format.  The serialization format
 // chosen depends on the value of w.ecType.
 func (w *WIF) SerializePubKey() []byte {
-	pkx, pky := w.PrivKey.Public()
-	var pk chainec.PublicKey
-
-	switch w.ecType {
-	case dcrec.STEcdsaSecp256k1:
-		pk = secp256k1.NewPublicKey(pkx, pky)
-	case dcrec.STEd25519:
-		pk = edwards.NewPublicKey(pkx, pky)
-	case dcrec.STSchnorrSecp256k1:
-		pk = secp256k1.NewPublicKey(pkx, pky)
-	}
-
-	return pk.SerializeCompressed()
+	return w.pubKey
 }
 
 // DSA returns the ECDSA type for the private key.
