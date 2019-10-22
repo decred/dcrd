@@ -10,7 +10,6 @@ import (
 	"crypto/elliptic"
 	"crypto/sha256"
 	"crypto/subtle"
-	"crypto/tls"
 	"encoding/base64"
 	"encoding/binary"
 	"encoding/hex"
@@ -4831,7 +4830,6 @@ type rpcServer struct {
 	statusLines            map[int]string
 	statusLock             sync.RWMutex
 	wg                     sync.WaitGroup
-	listeners              []net.Listener
 	workState              *workState
 	helpCacher             *helpCacher
 	requestProcessShutdown chan struct{}
@@ -4900,7 +4898,7 @@ func (s *rpcServer) Stop() error {
 		return nil
 	}
 	rpcsLog.Warnf("RPC server shutting down")
-	for _, listener := range s.listeners {
+	for _, listener := range s.cfg.Listeners {
 		err := listener.Close()
 		if err != nil {
 			rpcsLog.Errorf("Problem shutting down rpc: %v", err)
@@ -5430,7 +5428,7 @@ func (s *rpcServer) Start() {
 		s.WebsocketHandler(ws, r.RemoteAddr, authenticated, isAdmin)
 	})
 
-	for _, listener := range s.listeners {
+	for _, listener := range s.cfg.Listeners {
 		s.wg.Add(1)
 		go func(listener net.Listener) {
 			rpcsLog.Infof("RPC server listening on %s",
@@ -5594,8 +5592,11 @@ type rpcserverSyncManager interface {
 
 // rpcserverConfig is a descriptor containing the RPC server configuration.
 type rpcserverConfig struct {
-	// ListenAddrs are the addresses the RPC server should listen on.
-	ListenAddrs []string
+	// Listeners defines a slice of listeners for which the RPC server will
+	// take ownership of and accept connections.  Since the RPC server takes
+	// ownership of these listeners, they will be closed when the RPC server
+	// is stopped.
+	Listeners []net.Listener
 
 	// StartupTime is the unix timestamp for when the server that is hosting
 	// the RPC server started.
@@ -5669,64 +5670,6 @@ func newRPCServer(config *rpcserverConfig) (*rpcServer, error) {
 		rpc.limitauthsha = sha256.Sum256([]byte(auth))
 	}
 	rpc.ntfnMgr = newWsNotificationManager(&rpc)
-
-	// Setup TLS if not disabled.
-	listenFunc := net.Listen
-	if !cfg.DisableRPC && !cfg.DisableTLS {
-		// Generate the TLS cert and key file if both don't already
-		// exist.
-		if !fileExists(cfg.RPCKey) && !fileExists(cfg.RPCCert) {
-			err := genCertPair(cfg.RPCCert, cfg.RPCKey, cfg.AltDNSNames)
-			if err != nil {
-				return nil, err
-			}
-		}
-		keypair, err := tls.LoadX509KeyPair(cfg.RPCCert, cfg.RPCKey)
-		if err != nil {
-			return nil, err
-		}
-
-		tlsConfig := tls.Config{
-			Certificates: []tls.Certificate{keypair},
-			MinVersion:   tls.VersionTLS12,
-		}
-
-		// Change the standard net.Listen function to the tls one.
-		listenFunc = func(net string, laddr string) (net.Listener, error) {
-			return tls.Listen(net, laddr, &tlsConfig)
-		}
-	}
-
-	// TODO(oga) this code is similar to that in server, should be
-	// factored into something shared.
-	ipv4ListenAddrs, ipv6ListenAddrs, _, err := parseListeners(config.ListenAddrs)
-	if err != nil {
-		return nil, err
-	}
-	listeners := make([]net.Listener, 0,
-		len(ipv6ListenAddrs)+len(ipv4ListenAddrs))
-	for _, addr := range ipv4ListenAddrs {
-		listener, err := listenFunc("tcp4", addr)
-		if err != nil {
-			rpcsLog.Warnf("Can't listen on %s: %v", addr, err)
-			continue
-		}
-		listeners = append(listeners, listener)
-	}
-
-	for _, addr := range ipv6ListenAddrs {
-		listener, err := listenFunc("tcp6", addr)
-		if err != nil {
-			rpcsLog.Warnf("Can't listen on %s: %v", addr, err)
-			continue
-		}
-		listeners = append(listeners, listener)
-	}
-	if len(listeners) == 0 {
-		return nil, errors.New("RPCS: No valid listen address")
-	}
-
-	rpc.listeners = listeners
 
 	return &rpc, nil
 }

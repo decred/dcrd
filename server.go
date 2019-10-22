@@ -8,6 +8,7 @@ package main
 import (
 	"context"
 	"crypto/rand"
+	"crypto/tls"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -2479,8 +2480,67 @@ func standardScriptVerifyFlags(chain *blockchain.BlockChain) (txscript.ScriptFla
 	return scriptFlags, nil
 }
 
+// setupRPCListeners returns a slice of listeners that are configured for use
+// with the RPC server depending on the configuration settings for listen
+// addresses and TLS.
+func setupRPCListeners() ([]net.Listener, error) {
+	// Setup TLS if not disabled.
+	listenFunc := net.Listen
+	if !cfg.DisableRPC && !cfg.DisableTLS {
+		// Generate the TLS cert and key file if both don't already
+		// exist.
+		if !fileExists(cfg.RPCKey) && !fileExists(cfg.RPCCert) {
+			err := genCertPair(cfg.RPCCert, cfg.RPCKey, cfg.AltDNSNames)
+			if err != nil {
+				return nil, err
+			}
+		}
+		keypair, err := tls.LoadX509KeyPair(cfg.RPCCert, cfg.RPCKey)
+		if err != nil {
+			return nil, err
+		}
+
+		tlsConfig := tls.Config{
+			Certificates: []tls.Certificate{keypair},
+			MinVersion:   tls.VersionTLS12,
+		}
+
+		// Change the standard net.Listen function to the tls one.
+		listenFunc = func(net string, laddr string) (net.Listener, error) {
+			return tls.Listen(net, laddr, &tlsConfig)
+		}
+	}
+
+	// TODO: This code is similar to the peer listener code.  It should be
+	// factored into something shared.
+	ipv4Addrs, ipv6Addrs, _, err := parseListeners(cfg.RPCListeners)
+	if err != nil {
+		return nil, err
+	}
+	listeners := make([]net.Listener, 0, len(ipv4Addrs)+len(ipv4Addrs))
+	for _, addr := range ipv4Addrs {
+		listener, err := listenFunc("tcp4", addr)
+		if err != nil {
+			rpcsLog.Warnf("Can't listen on %s: %v", addr, err)
+			continue
+		}
+		listeners = append(listeners, listener)
+	}
+
+	for _, addr := range ipv6Addrs {
+		listener, err := listenFunc("tcp6", addr)
+		if err != nil {
+			rpcsLog.Warnf("Can't listen on %s: %v", addr, err)
+			continue
+		}
+		listeners = append(listeners, listener)
+	}
+
+	return listeners, nil
+}
+
 // newServer returns a new dcrd server configured to listen on addr for the
-// Decred network type specified by chainParams.  Use start to begin accepting
+// decred network type specified by chainParams.  Use start to begin accepting
 // connections from peers.
 func newServer(listenAddrs []string, db database.DB, chainParams *chaincfg.Params, dataDir string, interrupt <-chan struct{}) (*server, error) {
 	services := defaultServices
@@ -2900,8 +2960,19 @@ func newServer(listenAddrs []string, db database.DB, chainParams *chaincfg.Param
 	}
 
 	if !cfg.DisableRPC {
+		// Setup listeners for the configured RPC listen addresses and
+		// TLS settings.
+		rpcListeners, err := setupRPCListeners()
+		if err != nil {
+			return nil, err
+		}
+
+		if len(rpcListeners) == 0 {
+			return nil, errors.New("no listening addresses provided")
+		}
+
 		s.rpcServer, err = newRPCServer(&rpcserverConfig{
-			ListenAddrs:  cfg.RPCListeners,
+			Listeners:    rpcListeners,
 			ConnMgr:      &rpcConnManager{&s},
 			SyncMgr:      &rpcSyncMgr{&s, s.blockManager},
 			PeerNotifier: &s,
