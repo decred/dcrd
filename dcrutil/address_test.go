@@ -13,7 +13,6 @@ import (
 	"testing"
 
 	"github.com/decred/base58"
-	"github.com/decred/dcrd/chaincfg/v2/chainec"
 	"github.com/decred/dcrd/crypto/ripemd160"
 	"github.com/decred/dcrd/dcrec"
 	"github.com/decred/dcrd/dcrec/secp256k1/v2"
@@ -121,7 +120,7 @@ func tstAddressPubKey(serializedPubKey []byte, pubKeyFormat PubKeyFormat, netID 
 	pubKey, _ := secp256k1.ParsePubKey(serializedPubKey)
 	return &AddressSecpPubKey{
 		pubKeyFormat: pubKeyFormat,
-		pubKey:       chainec.PublicKey(pubKey),
+		pubKey:       pubKey,
 		pubKeyHashID: netID,
 	}
 }
