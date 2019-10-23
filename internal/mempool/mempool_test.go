@@ -2751,6 +2751,17 @@ func TestHandlesTAdds(t *testing.T) {
 	acceptTAdd(tadd)
 }
 
+// descendents returns a collection of transactions in the graph that depend on
+// the provided transaction hash.
+func (g *txDescGraph) descendents(txHash *chainhash.Hash) []*chainhash.Hash {
+	seen := map[chainhash.Hash]struct{}{}
+	descendents := make([]*chainhash.Hash, 0)
+	g.forEachDescendent(txHash, seen, func(descendent *mining.TxDesc) {
+		descendents = append(descendents, descendent.Tx.Hash())
+	})
+	return descendents
+}
+
 // Tests the behavior of the mining view when returned from a mempool with
 // containing a transaction chain depicted as:
 //

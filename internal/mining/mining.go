@@ -103,13 +103,14 @@ type TxMiningView interface {
 	// ancestors known to the view.
 	HasParents(txHash *chainhash.Hash) bool
 
-	// Parents returns a unique set of transactions that the provided
-	// transaction hash spends from in the view. The order of elements is not
-	// guaranteed.
+	// Parents returns a set of transactions in the graph that the provided
+	// transaction hash spends from in the view. The order of elements
+	// returned is not guaranteed.
 	Parents(txHash *chainhash.Hash) []*TxDesc
 
-	// Children returns a unique set of transactions that spend from the
-	// provided transaction hash. The order of elements is not guaranteed.
+	// Children returns a set of transactions in the graph that spend
+	// from the provided transaction hash. The order of elements
+	// returned is not guaranteed.
 	Children(txHash *chainhash.Hash) []*TxDesc
 
 	// Remove causes the provided transaction to be removed from the view, if

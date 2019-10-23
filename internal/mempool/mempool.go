@@ -966,7 +966,7 @@ func (mp *TxPool) addTransaction(utxoView *blockchain.UtxoViewpoint, tx *dcrutil
 	}
 
 	mp.pool[*tx.Hash()] = poolTxDesc
-	mp.addTransactionToMiningView(&poolTxDesc.TxDesc)
+	mp.miningView.addTransaction(&poolTxDesc.TxDesc, mp.findTx)
 
 	for _, txIn := range msgTx.TxIn {
 		mp.outpoints[txIn.PreviousOutPoint] = tx
@@ -2194,8 +2194,8 @@ func New(cfg *Config) *TxPool {
 	return mp
 }
 
-// txDescGraph relates a txns to their descendents and ancestors
-// it only stores transactions that have at least one reference
+// txDescGraph relates a set of transactions to their respective descendents and
+// ancestors. It only stores transactions that have at least one edge relating
 // to another.
 type txDescGraph struct {
 	redeemers  func(tx *dcrutil.Tx) map[chainhash.Hash]*mining.TxDesc
@@ -2203,7 +2203,9 @@ type txDescGraph struct {
 	parentsOf  map[chainhash.Hash]map[chainhash.Hash]*mining.TxDesc
 }
 
-// txDescFind is used to inject a transaction repository into the view.
+// txDescFind is used to inject a transaction repository into the mining view.
+// This might either come from the mempool's outpoint map or from the mining
+// view itself.
 type txDescFind func(txHash *chainhash.Hash) *mining.TxDesc
 
 // txMiningView represents a snapshot of all transactions in mempool
@@ -2244,7 +2246,8 @@ func (mp *TxPool) newTxDescGraph() *txDescGraph {
 }
 
 // MiningView returns a slice of mining descriptors for all the transactions
-// in the pool in addition to a snapshot of the current pool's hierarchy.
+// in the pool in addition to a snapshot of the current pool's transaction
+// relationships.
 //
 // This is part of the mining.TxSource interface implementation and is safe for
 // concurrent access as required by the interface contract.
@@ -2274,19 +2277,22 @@ func (mp *TxPool) MiningView() mining.TxMiningView {
 	return view
 }
 
-func (mp *TxPool) addTransactionToMiningView(txDesc *mining.TxDesc) {
+// addTransaction inserts a TxDesc into the mining view if it has a parent
+// or child in the view, or has a relationship with another transaction through
+// findTx.
+func (mv *txMiningView) addTransaction(txDesc *mining.TxDesc, findTx txDescFind) {
 	// Track the txn in graph and attempt to relate to at least one other
 	// transaction.
-	mp.miningView.txGraph.insert(txDesc, mp.findTx)
+	mv.txGraph.insert(txDesc, findTx)
 
 	// Ensure that the statistics for this transaction are up to date
-	// given the current ancestors in the view
-	mp.miningView.updateBundleStats(txDesc)
+	// given the current ancestors in the view.
+	mv.updateBundleStats(txDesc)
 
 	// if a transaction is added back to the view,
 	// reconnect it with transactions already in the view.
 	// this is necessary to account for reorgs.
-	mp.miningView.notifyDescendentsAdded(txDesc)
+	mv.notifyDescendentsAdded(txDesc)
 }
 
 // TxDescs returns a collection of all transactions available in the view.
@@ -2294,8 +2300,8 @@ func (mv *txMiningView) TxDescs() []*mining.TxDesc {
 	return mv.txDescs
 }
 
-// findTx returns a element from the mempool.  If it does not exist, a nil
-// pointer is returned.
+// findTx returns a transaction from the mempool by hash.  If it does not exist
+// in the mempool, a nil pointer is returned.
 func (mp *TxPool) findTx(txHash *chainhash.Hash) *mining.TxDesc {
 	poolTx := mp.pool[*txHash]
 	if poolTx == nil {
@@ -2305,10 +2311,11 @@ func (mp *TxPool) findTx(txHash *chainhash.Hash) *mining.TxDesc {
 	return &poolTx.TxDesc
 }
 
-// find returns the txdesc stored in the graph. if the tx is not
-// in the graph, then a nil pointer is returned. Since each transaction in the
-// graph must be related to another, it's sufficient to walk relationships
-// to get a pointer for a known transaction hash.
+// find returns the TxDesc stored in the graph by its hash. If the transaction
+// is not in the graph, then a nil pointer is returned. Since each transaction
+// in the graph must have at least one edge connecting it to another
+// transaction, scanning for a known hash as a child or parent is sufficient
+// to recover its pointer.
 func (g *txDescGraph) find(txHash *chainhash.Hash) *mining.TxDesc {
 	for parentHash := range g.parentsOf[*txHash] {
 		return g.childrenOf[parentHash][*txHash]
@@ -2321,39 +2328,41 @@ func (g *txDescGraph) find(txHash *chainhash.Hash) *mining.TxDesc {
 	return nil
 }
 
-// calcBundleStats aggregates the stats for a set of transactions.
-// used to calculate the bundle stats for a transaction's ancestors.
-func (mv *txMiningView) calcBundleStats(ancestors []*mining.TxDesc) *mining.TxBundleStats {
-	stats := &mining.TxBundleStats{}
-	stats.NumAncestors = len(ancestors)
-	for _, txDesc := range ancestors {
-		stats.Fees += txDesc.Fee
-		stats.SizeBytes += int64(txDesc.Tx.MsgTx().SerializeSize())
-		stats.NumSigOps += int64(txDesc.NumSigOps)
-	}
-
-	return stats
+func aggregateStats(stats *mining.TxBundleStats, ancestor *mining.TxDesc) {
+	stats.NumAncestors++
+	stats.Fees += ancestor.Fee
+	stats.SizeBytes += int64(ancestor.Tx.MsgTx().SerializeSize())
+	stats.NumSigOps += int64(ancestor.NumSigOps)
 }
 
 // updateBundleStats ensures that the bundle stats for a given
-// transaction is always up to date.  It accounts for transactions added to any
-// edges in the txGraph, including ancestors and descendents.
+// transaction are up to date. It aggregates statistics for the provided
+// transaction based on its ancestors.
 func (mv *txMiningView) updateBundleStats(txDesc *mining.TxDesc) {
-	ancestors := mv.txGraph.ancestors(txDesc.Tx.Hash())
-	stats := mv.calcBundleStats(ancestors)
+	seen := make(map[chainhash.Hash]struct{})
+	txHash := txDesc.Tx.Hash()
+	stats := &mining.TxBundleStats{}
+	mv.txGraph.forEachAncestor(txHash, seen, func(txDesc *mining.TxDesc) {
+		aggregateStats(stats, txDesc)
+	})
+
 	mv.bundleStats[*txDesc.Tx.Hash()] = stats
 }
 
-// clone returns a copy of the current graph instance.
+// clone returns a copy of the current graph.
 func (g *txDescGraph) clone(fetchTx txDescFind) *txDescGraph {
+	// Source transactions from within the graph to decouple the cloned
+	// mining view instance from the mempool.
 	redeemers := func(tx *dcrutil.Tx) map[chainhash.Hash]*mining.TxDesc {
 		return g.childrenOf[*tx.Hash()]
 	}
 
 	graph := &txDescGraph{
-		redeemers:  redeemers,
-		childrenOf: make(map[chainhash.Hash]map[chainhash.Hash]*mining.TxDesc),
-		parentsOf:  make(map[chainhash.Hash]map[chainhash.Hash]*mining.TxDesc),
+		redeemers: redeemers,
+		parentsOf: make(map[chainhash.Hash]map[chainhash.Hash]*mining.TxDesc,
+			len(g.parentsOf)),
+		childrenOf: make(map[chainhash.Hash]map[chainhash.Hash]*mining.TxDesc,
+			len(g.childrenOf)),
 	}
 
 	// Copy parents and children. Anything tracked by the graph
@@ -2371,8 +2380,8 @@ func (g *txDescGraph) clone(fetchTx txDescFind) *txDescGraph {
 	return graph
 }
 
-// addChild adds a transaction to the graph as a child of the provided
-// transaction hash.
+// addChild adds a child transaction to the graph as a dependent of the
+// provided transaction tx.
 func (g *txDescGraph) addChild(tx *mining.TxDesc, child *mining.TxDesc) {
 	txHash := tx.Tx.Hash()
 	if _, exists := g.childrenOf[*txHash]; !exists {
@@ -2382,6 +2391,8 @@ func (g *txDescGraph) addChild(tx *mining.TxDesc, child *mining.TxDesc) {
 	g.childrenOf[*txHash][*child.Tx.Hash()] = child
 }
 
+// addParent adds a parent transaction to the graph as a dependency of the
+// provided transaction tx.
 func (g *txDescGraph) addParent(tx *mining.TxDesc, parent *mining.TxDesc) {
 	txHash := *tx.Tx.Hash()
 	if _, exists := g.parentsOf[txHash]; !exists {
@@ -2396,7 +2407,7 @@ func (g *txDescGraph) addParent(tx *mining.TxDesc, parent *mining.TxDesc) {
 func (g *txDescGraph) insert(txDesc *mining.TxDesc, findTx txDescFind) {
 	seen := make(map[chainhash.Hash]struct{})
 
-	// Fetch transactions that spend this one from the mempool.
+	// Fetch transactions that spend this one from the graph.
 	for _, child := range g.redeemers(txDesc.Tx) {
 		g.addChild(txDesc, child)
 		g.addParent(child, txDesc)
@@ -2419,9 +2430,11 @@ func (g *txDescGraph) insert(txDesc *mining.TxDesc, findTx txDescFind) {
 	}
 }
 
-// remove deletes the provided txn hash from the graph
+// remove deletes the provided txn hash from the graph. If it is the only
+// relationship held by a related transaction in the graph, that related
+// transaction is also removed.
 func (g *txDescGraph) remove(txHash *chainhash.Hash) {
-	// Remove reference to tx for all children
+	// Remove references to tx from all children.
 	for childHash := range g.childrenOf[*txHash] {
 		delete(g.parentsOf[childHash], *txHash)
 
@@ -2431,7 +2444,7 @@ func (g *txDescGraph) remove(txHash *chainhash.Hash) {
 		}
 	}
 
-	// Remove reference to tx for all parents.
+	// Remove references to tx from all parents.
 	for parentHash := range g.parentsOf[*txHash] {
 		delete(g.childrenOf[parentHash], *txHash)
 
@@ -2447,121 +2460,36 @@ func (g *txDescGraph) remove(txHash *chainhash.Hash) {
 	delete(g.childrenOf, *txHash)
 }
 
-// ancestors returns all ancestors of the provided transaction in mining order.
-func (g *txDescGraph) ancestors(txHash *chainhash.Hash) []*mining.TxDesc {
-	// dependencyCount tracks transactions enqueued to be walked
-	// and how many parents it has. It is used to prevent enqueuing the
-	// the same tx multiple times and for keeping count of how many
-	// parents remain unprocessed when sorting the graph in mining order.
-	dependencyCount := make(map[chainhash.Hash]int, len(g.parentsOf[*txHash]))
-
-	// Create buffer to walk all ancestors of the passed transaction.
-	ancestorBuffer := []*mining.TxDesc{}
-
-	// Used to store all seen mining descs
-	descs := make(map[chainhash.Hash]*mining.TxDesc)
-
-	// Add all parents
-	for parentHash, parentTx := range g.parentsOf[*txHash] {
-		if _, exists := dependencyCount[parentHash]; exists {
+// forEachAncestor iterates over all transactions in the graph that txHash
+// depends on and invokes the function f for each transaction,
+// in topological order.
+func (g *txDescGraph) forEachAncestor(txHash *chainhash.Hash,
+	seen map[chainhash.Hash]struct{}, f func(tx *mining.TxDesc)) {
+	for parent, parentDesc := range g.parentsOf[*txHash] {
+		if _, saw := seen[parent]; saw {
 			continue
 		}
 
-		descs[parentHash] = parentTx
-
-		// Count grandparents here to avoid tracking `tx` as its own ancestor.
-		numGrandparents := len(g.parentsOf[parentHash])
-		dependencyCount[parentHash] = numGrandparents
-		if numGrandparents > 0 {
-			ancestorBuffer = append(ancestorBuffer, parentTx)
-		}
+		seen[parent] = struct{}{}
+		g.forEachAncestor(&parent, seen, f)
+		f(parentDesc)
 	}
-
-	// Walk the tx graph and find a distinct set of all transactions that the
-	// provided `tx` depends on. also calculate how many direct dependencies
-	// each transaction has.
-	for len(ancestorBuffer) > 0 {
-		currTx := ancestorBuffer[len(ancestorBuffer)-1]
-		ancestorBuffer = ancestorBuffer[:len(ancestorBuffer)-1]
-		currTxHash := *currTx.Tx.Hash()
-
-		for parentHash, parentTx := range g.parentsOf[currTxHash] {
-			if _, exists := dependencyCount[parentHash]; exists {
-				continue
-			}
-
-			// Store map of all known descs
-			descs[parentHash] = parentTx
-
-			numGrandparents := len(g.parentsOf[parentHash])
-			dependencyCount[parentHash] = numGrandparents
-			if numGrandparents > 0 {
-				ancestorBuffer = append(ancestorBuffer, parentTx)
-			}
-		}
-	}
-
-	// Gather all elements that have no parents to seed the queue.
-	priorityQueue := make([]*mining.TxDesc, 0)
-	for txHash, numParents := range dependencyCount {
-		if numParents == 0 {
-			priorityQueue = append(priorityQueue, descs[txHash])
-		}
-	}
-
-	// Sort all transactions in mining order.
-	// priorityQueue only references transactions that have no unprocessed
-	// dependencies.
-	ancestors := []*mining.TxDesc{}
-	for len(priorityQueue) > 0 {
-		currTx := priorityQueue[len(priorityQueue)-1]
-		priorityQueue = priorityQueue[:len(priorityQueue)-1]
-		ancestors = append(ancestors, currTx)
-		currTxHash := *currTx.Tx.Hash()
-
-		delete(dependencyCount, currTxHash)
-
-		for childHash, childTx := range g.childrenOf[currTxHash] {
-			dependencyCount[childHash]--
-			if dependencyCount[childHash] == 0 {
-				priorityQueue = append(priorityQueue, childTx)
-			}
-		}
-	}
-
-	return ancestors
 }
 
-// descendents returns an unordered collection of all transactions that
-// depend on the provided transaction hash.
-func (g *txDescGraph) descendents(txHash *chainhash.Hash) []*chainhash.Hash {
-	descendents := make([]*chainhash.Hash, 0)
-	seen := make(map[chainhash.Hash]struct{})
-
-	for child := range g.childrenOf[*txHash] {
+// forEachDescendent iterates depth-first over all transactions that depend on
+// the provided transaction hash and invokes function f with each in no
+// guaranteed order.
+func (g *txDescGraph) forEachDescendent(txHash *chainhash.Hash,
+	seen map[chainhash.Hash]struct{}, f func(*mining.TxDesc)) {
+	for child, childDesc := range g.childrenOf[*txHash] {
 		if _, saw := seen[child]; saw {
 			continue
 		}
 
 		seen[child] = struct{}{}
-		childCopy := child
-		descendents = append(descendents, &childCopy)
+		g.forEachDescendent(&child, seen, f)
+		f(childDesc)
 	}
-
-	for index := 0; index < len(descendents); index++ {
-		currTxHash := descendents[index]
-		for child := range g.childrenOf[*currTxHash] {
-			if _, saw := seen[child]; saw {
-				continue
-			}
-
-			seen[child] = struct{}{}
-			childCopy := child
-			descendents = append(descendents, &childCopy)
-		}
-	}
-
-	return descendents
 }
 
 // notifyDescendentsAdded adds the provided transaction's stats
@@ -2570,13 +2498,14 @@ func (mv *txMiningView) notifyDescendentsAdded(txDesc *mining.TxDesc) {
 	txHash := txDesc.Tx.Hash()
 	txSize := int64(txDesc.Tx.MsgTx().SerializeSize())
 	sigOps := int64(txDesc.NumSigOps)
-	for _, child := range mv.txGraph.descendents(txHash) {
-		childDepInfo := mv.bundleStats[*child]
-		childDepInfo.Fees += txDesc.Fee
-		childDepInfo.SizeBytes += txSize
-		childDepInfo.NumSigOps += sigOps
-		childDepInfo.NumAncestors++
-	}
+	seen := make(map[chainhash.Hash]struct{})
+	mv.txGraph.forEachDescendent(txHash, seen, func(descendent *mining.TxDesc) {
+		descendentStats := mv.bundleStats[*descendent.Tx.Hash()]
+		descendentStats.Fees += txDesc.Fee
+		descendentStats.SizeBytes += txSize
+		descendentStats.NumSigOps += sigOps
+		descendentStats.NumAncestors++
+	})
 }
 
 // notifyDescendentsRemoved removes the provided transaction's stats
@@ -2585,13 +2514,14 @@ func (mv *txMiningView) notifyDescendentsRemoved(txDesc *mining.TxDesc) {
 	txHash := txDesc.Tx.Hash()
 	txSize := int64(txDesc.Tx.MsgTx().SerializeSize())
 	sigOps := int64(txDesc.NumSigOps)
-	for _, child := range mv.txGraph.descendents(txHash) {
-		childDepInfo := mv.bundleStats[*child]
-		childDepInfo.Fees -= txDesc.Fee
-		childDepInfo.SizeBytes -= txSize
-		childDepInfo.NumSigOps -= sigOps
-		childDepInfo.NumAncestors--
-	}
+	seen := make(map[chainhash.Hash]struct{})
+	mv.txGraph.forEachDescendent(txHash, seen, func(descendent *mining.TxDesc) {
+		descendentStats := mv.bundleStats[*descendent.Tx.Hash()]
+		descendentStats.Fees -= txDesc.Fee
+		descendentStats.SizeBytes -= txSize
+		descendentStats.NumSigOps -= sigOps
+		descendentStats.NumAncestors--
+	})
 }
 
 // BundleStats returns the view's cached statistics for all of the provided
@@ -2601,10 +2531,15 @@ func (mv *txMiningView) BundleStats(txHash *chainhash.Hash) *mining.TxBundleStat
 }
 
 // Ancestors returns a collection of all transactions in the graph that the
-// provided transaction hash depends on, and the ancestors' bundle stats.
+// provided transaction hash depends on, and its ancestors' bundle stats.
 func (mv *txMiningView) Ancestors(txHash *chainhash.Hash) ([]*mining.TxDesc, *mining.TxBundleStats) {
-	ancestors := mv.txGraph.ancestors(txHash)
-	stats := mv.calcBundleStats(ancestors)
+	stats := &mining.TxBundleStats{}
+	ancestors := make([]*mining.TxDesc, 0)
+	seen := make(map[chainhash.Hash]struct{})
+	mv.txGraph.forEachAncestor(txHash, seen, func(txDesc *mining.TxDesc) {
+		aggregateStats(stats, txDesc)
+		ancestors = append(ancestors, txDesc)
+	})
 
 	// Update the cache.
 	mv.bundleStats[*txHash] = stats
@@ -2612,13 +2547,14 @@ func (mv *txMiningView) Ancestors(txHash *chainhash.Hash) ([]*mining.TxDesc, *mi
 }
 
 // HasParents returns true if the provided transaction hash spends from another
-// transaction in the mempool.
+// transaction in the mining view.
 func (mv *txMiningView) HasParents(txHash *chainhash.Hash) bool {
 	return len(mv.txGraph.parentsOf[*txHash]) > 0
 }
 
-// Parents returns an array of transactions that the provided transaction hash
-// depends on, in mining order.
+// Parents returns a set of transactions in the graph that the provided
+// transaction hash spends from in the view. The order of elements
+// returned is not guaranteed.
 func (mv *txMiningView) Parents(txHash *chainhash.Hash) []*mining.TxDesc {
 	parentsOf := mv.txGraph.parentsOf[*txHash]
 	if len(parentsOf) == 0 {
@@ -2633,8 +2569,9 @@ func (mv *txMiningView) Parents(txHash *chainhash.Hash) []*mining.TxDesc {
 	return parents
 }
 
-// Children returns an array of direct descendent transactions that spend
-// from the provided transaction hash.
+// Children returns a set of transactions in the graph that spend
+// from the provided transaction hash. The order of elements
+// returned is not guaranteed.
 func (mv *txMiningView) Children(txHash *chainhash.Hash) []*mining.TxDesc {
 	childrenOf := mv.txGraph.childrenOf[*txHash]
 	if len(childrenOf) == 0 {
@@ -2649,7 +2586,10 @@ func (mv *txMiningView) Children(txHash *chainhash.Hash) []*mining.TxDesc {
 	return children
 }
 
-// Remove stops tracking the transaction in the miningView, if it exists.
+// Remove stops tracking the transaction in the miningView,
+// if it exists. If notifyFeeChange is true, then the
+// statistics for all descendent transactions are updated
+// to account for the removal of an ancestor.
 func (mv *txMiningView) Remove(txHash *chainhash.Hash, notifyFeeChange bool) {
 	if notifyFeeChange {
 		txDesc := mv.txGraph.find(txHash)
@@ -2663,12 +2603,14 @@ func (mv *txMiningView) Remove(txHash *chainhash.Hash, notifyFeeChange bool) {
 }
 
 // Reject stops tracking the transaction in the view, if it exists, and all
-// of its descendents.  Also flags the provided transaction as rejected.
+// of its descendents.  Also flags the provided transaction as rejected and
+// tracks the hash as rejected internally.
 func (mv *txMiningView) Reject(txHash *chainhash.Hash) {
-	for _, descHash := range mv.txGraph.descendents(txHash) {
-		mv.Remove(descHash, false)
-		mv.rejected[*descHash] = struct{}{}
-	}
+	seen := make(map[chainhash.Hash]struct{})
+	mv.txGraph.forEachDescendent(txHash, seen, func(descendent *mining.TxDesc) {
+		mv.Remove(descendent.Tx.Hash(), false)
+		mv.rejected[*descendent.Tx.Hash()] = struct{}{}
+	})
 
 	mv.Remove(txHash, false)
 	mv.rejected[*txHash] = struct{}{}
