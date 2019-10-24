@@ -18,7 +18,7 @@ require (
 	github.com/decred/dcrd/dcrec v1.0.0
 	github.com/decred/dcrd/dcrec/secp256k1/v2 v2.0.0
 	github.com/decred/dcrd/dcrjson/v3 v3.0.1
-	github.com/decred/dcrd/dcrutil/v2 v2.0.1
+	github.com/decred/dcrd/dcrutil/v3 v3.0.0-00010101000000-000000000000
 	github.com/decred/dcrd/fees/v2 v2.0.0
 	github.com/decred/dcrd/gcs/v2 v2.0.1
 	github.com/decred/dcrd/hdkeychain/v2 v2.1.0
@@ -56,7 +56,7 @@ replace (
 	github.com/decred/dcrd/dcrec => ./dcrec
 	github.com/decred/dcrd/dcrec/secp256k1/v2 => ./dcrec/secp256k1
 	github.com/decred/dcrd/dcrjson/v3 => ./dcrjson
-	github.com/decred/dcrd/dcrutil/v2 => ./dcrutil
+	github.com/decred/dcrd/dcrutil/v3 => ./dcrutil
 	github.com/decred/dcrd/fees/v2 => ./fees
 	github.com/decred/dcrd/gcs/v2 => ./gcs
 	github.com/decred/dcrd/hdkeychain/v2 => ./hdkeychain

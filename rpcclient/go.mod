@@ -6,7 +6,7 @@ require (
 	github.com/davecgh/go-spew v1.1.1
 	github.com/decred/dcrd/chaincfg/chainhash v1.0.2
 	github.com/decred/dcrd/dcrjson/v3 v3.0.1
-	github.com/decred/dcrd/dcrutil/v2 v2.0.1
+	github.com/decred/dcrd/dcrutil/v3 v3.0.0-00010101000000-000000000000
 	github.com/decred/dcrd/gcs/v2 v2.0.0
 	github.com/decred/dcrd/hdkeychain/v2 v2.1.0
 	github.com/decred/dcrd/rpc/jsonrpc/types v1.0.1
@@ -17,3 +17,5 @@ require (
 	github.com/decred/slog v1.0.0
 	github.com/gorilla/websocket v1.4.1
 )
+
+replace github.com/decred/dcrd/dcrutil/v3 => ../dcrutil
