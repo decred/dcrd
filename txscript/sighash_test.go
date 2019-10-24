@@ -98,15 +98,16 @@ func TestCalcSignatureHash(t *testing.T) {
 	want := hexToBytes("4ce2cd042d64e35b36fdbd16aff0d38a5abebff0e5e8f6b6b" +
 		"31fcd4ac6957905")
 	script := hexToBytes("51")
+	const scriptVersion = 0
 
 	// Test prefix caching.
-	msg1, err := CalcSignatureHash(script, SigHashAll, tx, 0, nil)
+	msg1, err := CalcSignatureHash(scriptVersion, script, SigHashAll, tx, 0, nil)
 	if err != nil {
 		t.Fatalf("unexpected error %v", err.Error())
 	}
 
 	prefixHash := tx.TxHash()
-	msg2, err := CalcSignatureHash(script, SigHashAll, tx, 0, &prefixHash)
+	msg2, err := CalcSignatureHash(scriptVersion, script, SigHashAll, tx, 0, &prefixHash)
 	if err != nil {
 		t.Fatalf("unexpected error %v", err.Error())
 	}
@@ -130,7 +131,8 @@ func TestCalcSignatureHash(t *testing.T) {
 
 	// Move the index and make sure that we get a whole new hash, despite
 	// using the same TxOuts.
-	msg3, err := CalcSignatureHash(script, SigHashAll, tx, 1, &prefixHash)
+	msg3, err := CalcSignatureHash(scriptVersion, script, SigHashAll, tx, 1,
+		&prefixHash)
 	if err != nil {
 		t.Fatalf("unexpected error %v", err.Error())
 	}

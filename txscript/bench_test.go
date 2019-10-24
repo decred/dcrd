@@ -39,10 +39,11 @@ func init() {
 // BenchmarkCalcSigHash benchmarks how long it takes to calculate the signature
 // hashes for all inputs of a transaction with many inputs.
 func BenchmarkCalcSigHash(b *testing.B) {
+	const scriptVersion = 0
 	for i := 0; i < b.N; i++ {
 		for j := 0; j < len(manyInputsBenchTx.TxIn); j++ {
-			_, err := CalcSignatureHash(prevOutScript, SigHashAll,
-				&manyInputsBenchTx, j, nil)
+			_, err := CalcSignatureHash(scriptVersion, prevOutScript,
+				SigHashAll, &manyInputsBenchTx, j, nil)
 			if err != nil {
 				b.Fatalf("failed to calc signature hash: %v", err)
 			}

@@ -13,3 +13,5 @@ require (
 	github.com/decred/dcrd/wire v1.3.0
 	github.com/decred/slog v1.0.0
 )
+
+replace github.com/decred/dcrd/dcrutil/v2 => ../dcrutil

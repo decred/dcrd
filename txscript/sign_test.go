@@ -14,8 +14,10 @@ import (
 
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/chaincfg/v2"
-	"github.com/decred/dcrd/chaincfg/v2/chainec"
 	"github.com/decred/dcrd/dcrec"
+	"github.com/decred/dcrd/dcrec/edwards/v2"
+	"github.com/decred/dcrd/dcrec/secp256k1/v2"
+	"github.com/decred/dcrd/dcrec/secp256k1/v2/schnorr"
 	"github.com/decred/dcrd/dcrutil/v2"
 	"github.com/decred/dcrd/wire"
 )
@@ -27,41 +29,41 @@ var testingParams = chaincfg.RegNetParams()
 const testValueIn = 12345
 
 type addressToKey struct {
-	key        *chainec.PrivateKey
+	key        []byte
 	compressed bool
 }
 
 func mkGetKey(keys map[string]addressToKey) KeyDB {
 	if keys == nil {
-		return KeyClosure(func(addr dcrutil.Address) (chainec.PrivateKey,
+		return KeyClosure(func(addr dcrutil.Address) ([]byte,
 			bool, error) {
 			return nil, false, errors.New("nope 1")
 		})
 	}
-	return KeyClosure(func(addr dcrutil.Address) (chainec.PrivateKey,
+	return KeyClosure(func(addr dcrutil.Address) ([]byte,
 		bool, error) {
 		a2k, ok := keys[addr.Address()]
 		if !ok {
 			return nil, false, errors.New("nope 2")
 		}
-		return *a2k.key, a2k.compressed, nil
+		return a2k.key, a2k.compressed, nil
 	})
 }
 
 func mkGetKeyPub(keys map[string]addressToKey) KeyDB {
 	if keys == nil {
-		return KeyClosure(func(addr dcrutil.Address) (chainec.PrivateKey,
+		return KeyClosure(func(addr dcrutil.Address) ([]byte,
 			bool, error) {
 			return nil, false, errors.New("nope 1")
 		})
 	}
-	return KeyClosure(func(addr dcrutil.Address) (chainec.PrivateKey,
+	return KeyClosure(func(addr dcrutil.Address) ([]byte,
 		bool, error) {
 		a2k, ok := keys[addr.String()]
 		if !ok {
 			return nil, false, errors.New("nope 2")
 		}
-		return *a2k.key, a2k.compressed, nil
+		return a2k.key, a2k.compressed, nil
 	})
 }
 
@@ -214,27 +216,23 @@ func TestSignTxOutput(t *testing.T) {
 	}
 
 	// Pay to Pubkey Hash (uncompressed)
-	secp256k1 := chainec.Secp256k1
 	for _, hashType := range hashTypes {
 		for _, suite := range signatureSuites {
 			for i := range tx.TxIn {
 				var keyDB, pkBytes []byte
-				var key chainec.PrivateKey
-				var pk chainec.PublicKey
 
 				switch suite {
 				case dcrec.STEcdsaSecp256k1:
 					keyDB, _, _, _ = secp256k1.GenerateKey(rand.Reader)
-					key, pk = secp256k1.PrivKeyFromBytes(keyDB)
+					_, pk := secp256k1.PrivKeyFromBytes(keyDB)
 					pkBytes = pk.SerializeUncompressed()
 				case dcrec.STEd25519:
-					keyDB, _, _, _ = chainec.Edwards.GenerateKey(rand.Reader)
-					key, pk = chainec.Edwards.PrivKeyFromBytes(keyDB)
+					keyDB, _, _, _ = edwards.GenerateKey(rand.Reader)
+					_, pk := edwards.PrivKeyFromBytes(keyDB)
 					pkBytes = pk.SerializeUncompressed()
 				case dcrec.STSchnorrSecp256k1:
-					keyDB, _, _, _ = chainec.SecSchnorr.GenerateKey(
-						rand.Reader)
-					key, pk = chainec.SecSchnorr.PrivKeyFromBytes(keyDB)
+					keyDB, _, _, _ = schnorr.GenerateKey(rand.Reader)
+					_, pk := secp256k1.PrivKeyFromBytes(keyDB)
 					pkBytes = pk.Serialize()
 				}
 
@@ -258,7 +256,7 @@ func TestSignTxOutput(t *testing.T) {
 
 				if err := signAndCheck(msg, tx, i, pkScript, hashType,
 					mkGetKey(map[string]addressToKey{
-						address.Address(): {&key, false},
+						address.Address(): {keyDB, false},
 					}), mkGetScript(nil), suite); err != nil {
 					t.Error(err)
 					break
@@ -266,7 +264,7 @@ func TestSignTxOutput(t *testing.T) {
 
 				if err := signBadAndCheck(msg, tx, i, pkScript, hashType,
 					mkGetKey(map[string]addressToKey{
-						address.Address(): {&key, false},
+						address.Address(): {keyDB, false},
 					}), mkGetScript(nil), suite); err == nil {
 					t.Errorf("corrupted signature validated %s: %v",
 						msg, err)
@@ -281,21 +279,19 @@ func TestSignTxOutput(t *testing.T) {
 		for _, suite := range signatureSuites {
 			for i := range tx.TxIn {
 				var keyDB, pkBytes []byte
-				var key chainec.PrivateKey
-				var pk chainec.PublicKey
 
 				switch suite {
 				case dcrec.STEcdsaSecp256k1:
 					keyDB, _, _, _ = secp256k1.GenerateKey(rand.Reader)
-					key, pk = secp256k1.PrivKeyFromBytes(keyDB)
+					_, pk := secp256k1.PrivKeyFromBytes(keyDB)
 					pkBytes = pk.SerializeUncompressed()
 				case dcrec.STEd25519:
-					keyDB, _, _, _ = chainec.Edwards.GenerateKey(rand.Reader)
-					key, pk = chainec.Edwards.PrivKeyFromBytes(keyDB)
+					keyDB, _, _, _ = edwards.GenerateKey(rand.Reader)
+					_, pk := edwards.PrivKeyFromBytes(keyDB)
 					pkBytes = pk.SerializeUncompressed()
 				case dcrec.STSchnorrSecp256k1:
-					keyDB, _, _, _ = chainec.SecSchnorr.GenerateKey(rand.Reader)
-					key, pk = chainec.SecSchnorr.PrivKeyFromBytes(keyDB)
+					keyDB, _, _, _ = schnorr.GenerateKey(rand.Reader)
+					_, pk := secp256k1.PrivKeyFromBytes(keyDB)
 					pkBytes = pk.Serialize()
 				}
 
@@ -319,7 +315,7 @@ func TestSignTxOutput(t *testing.T) {
 				sigScript, err := SignTxOutput(
 					testingParams, tx, i, pkScript,
 					hashType, mkGetKey(map[string]addressToKey{
-						address.Address(): {&key, false},
+						address.Address(): {keyDB, false},
 					}), mkGetScript(nil), nil, suite)
 				if err != nil {
 					t.Errorf("failed to sign output %s: %v", msg,
@@ -332,7 +328,7 @@ func TestSignTxOutput(t *testing.T) {
 				sigScript, err = SignTxOutput(
 					testingParams, tx, i, pkScript,
 					hashType, mkGetKey(map[string]addressToKey{
-						address.Address(): {&key, false},
+						address.Address(): {keyDB, false},
 					}), mkGetScript(nil), sigScript, suite)
 				if err != nil {
 					t.Errorf("failed to sign output %s a "+
@@ -355,21 +351,19 @@ func TestSignTxOutput(t *testing.T) {
 		for _, suite := range signatureSuites {
 			for i := range tx.TxIn {
 				var keyDB, pkBytes []byte
-				var key chainec.PrivateKey
-				var pk chainec.PublicKey
 
 				switch suite {
 				case dcrec.STEcdsaSecp256k1:
 					keyDB, _, _, _ = secp256k1.GenerateKey(rand.Reader)
-					key, pk = secp256k1.PrivKeyFromBytes(keyDB)
+					_, pk := secp256k1.PrivKeyFromBytes(keyDB)
 					pkBytes = pk.SerializeCompressed()
 				case dcrec.STEd25519:
-					keyDB, _, _, _ = chainec.Edwards.GenerateKey(rand.Reader)
-					key, pk = chainec.Edwards.PrivKeyFromBytes(keyDB)
+					keyDB, _, _, _ = edwards.GenerateKey(rand.Reader)
+					_, pk := edwards.PrivKeyFromBytes(keyDB)
 					pkBytes = pk.SerializeCompressed()
 				case dcrec.STSchnorrSecp256k1:
-					keyDB, _, _, _ = chainec.SecSchnorr.GenerateKey(rand.Reader)
-					key, pk = chainec.SecSchnorr.PrivKeyFromBytes(keyDB)
+					keyDB, _, _, _ = schnorr.GenerateKey(rand.Reader)
+					_, pk := secp256k1.PrivKeyFromBytes(keyDB)
 					pkBytes = pk.SerializeCompressed()
 				}
 
@@ -392,7 +386,7 @@ func TestSignTxOutput(t *testing.T) {
 
 				if err := signAndCheck(msg, tx, i, pkScript, hashType,
 					mkGetKey(map[string]addressToKey{
-						address.Address(): {&key, true},
+						address.Address(): {keyDB, true},
 					}), mkGetScript(nil), suite); err != nil {
 					t.Error(err)
 					break
@@ -400,7 +394,7 @@ func TestSignTxOutput(t *testing.T) {
 
 				if err := signBadAndCheck(msg, tx, i, pkScript, hashType,
 					mkGetKey(map[string]addressToKey{
-						address.Address(): {&key, true},
+						address.Address(): {keyDB, true},
 					}), mkGetScript(nil), suite); err == nil {
 					t.Errorf("corrupted signature validated %s: %v",
 						msg, err)
@@ -415,21 +409,19 @@ func TestSignTxOutput(t *testing.T) {
 		for _, suite := range signatureSuites {
 			for i := range tx.TxIn {
 				var keyDB, pkBytes []byte
-				var key chainec.PrivateKey
-				var pk chainec.PublicKey
 
 				switch suite {
 				case dcrec.STEcdsaSecp256k1:
 					keyDB, _, _, _ = secp256k1.GenerateKey(rand.Reader)
-					key, pk = secp256k1.PrivKeyFromBytes(keyDB)
+					_, pk := secp256k1.PrivKeyFromBytes(keyDB)
 					pkBytes = pk.SerializeCompressed()
 				case dcrec.STEd25519:
-					keyDB, _, _, _ = chainec.Edwards.GenerateKey(rand.Reader)
-					key, pk = chainec.Edwards.PrivKeyFromBytes(keyDB)
+					keyDB, _, _, _ = edwards.GenerateKey(rand.Reader)
+					_, pk := edwards.PrivKeyFromBytes(keyDB)
 					pkBytes = pk.SerializeCompressed()
 				case dcrec.STSchnorrSecp256k1:
-					keyDB, _, _, _ = chainec.SecSchnorr.GenerateKey(rand.Reader)
-					key, pk = chainec.SecSchnorr.PrivKeyFromBytes(keyDB)
+					keyDB, _, _, _ = schnorr.GenerateKey(rand.Reader)
+					_, pk := secp256k1.PrivKeyFromBytes(keyDB)
 					pkBytes = pk.SerializeCompressed()
 				}
 
@@ -453,7 +445,7 @@ func TestSignTxOutput(t *testing.T) {
 				sigScript, err := SignTxOutput(testingParams,
 					tx, i, pkScript, hashType,
 					mkGetKey(map[string]addressToKey{
-						address.Address(): {&key, true},
+						address.Address(): {keyDB, true},
 					}), mkGetScript(nil), nil, suite)
 				if err != nil {
 					t.Errorf("failed to sign output %s: %v", msg,
@@ -466,7 +458,7 @@ func TestSignTxOutput(t *testing.T) {
 				sigScript, err = SignTxOutput(testingParams,
 					tx, i, pkScript,
 					hashType, mkGetKey(map[string]addressToKey{
-						address.Address(): {&key, true},
+						address.Address(): {keyDB, true},
 					}), mkGetScript(nil), sigScript, suite)
 				if err != nil {
 					t.Errorf("failed to sign output %s a "+
@@ -494,7 +486,7 @@ func TestSignTxOutput(t *testing.T) {
 				t.Errorf("failed to generate key: %v", err)
 				break
 			}
-			key, pk := secp256k1.PrivKeyFromBytes(keyDB)
+			_, pk := secp256k1.PrivKeyFromBytes(keyDB)
 			pkBytes := pk.SerializeCompressed()
 
 			address, err := dcrutil.NewAddressPubKeyHash(
@@ -514,7 +506,7 @@ func TestSignTxOutput(t *testing.T) {
 
 			if err := signAndCheck(msg, tx, i, pkScript, hashType,
 				mkGetKey(map[string]addressToKey{
-					address.Address(): {&key, true},
+					address.Address(): {keyDB, true},
 				}), mkGetScript(nil),
 				dcrec.STEcdsaSecp256k1); err != nil {
 				t.Error(err)
@@ -523,7 +515,7 @@ func TestSignTxOutput(t *testing.T) {
 
 			if err := signBadAndCheck(msg, tx, i, pkScript, hashType,
 				mkGetKey(map[string]addressToKey{
-					address.Address(): {&key, true},
+					address.Address(): {keyDB, true},
 				}), mkGetScript(nil),
 				dcrec.STEcdsaSecp256k1); err == nil {
 				t.Errorf("corrupted signature validated %s: %v",
@@ -543,7 +535,7 @@ func TestSignTxOutput(t *testing.T) {
 				t.Errorf("failed to generate key: %v", err)
 				break
 			}
-			key, pk := secp256k1.PrivKeyFromBytes(keyDB)
+			_, pk := secp256k1.PrivKeyFromBytes(keyDB)
 			pkBytes := pk.SerializeCompressed()
 
 			address, err := dcrutil.NewAddressPubKeyHash(
@@ -563,7 +555,7 @@ func TestSignTxOutput(t *testing.T) {
 
 			if err := signAndCheck(msg, tx, i, pkScript, hashType,
 				mkGetKey(map[string]addressToKey{
-					address.Address(): {&key, true},
+					address.Address(): {keyDB, true},
 				}), mkGetScript(nil),
 				dcrec.STEcdsaSecp256k1); err != nil {
 				t.Error(err)
@@ -572,7 +564,7 @@ func TestSignTxOutput(t *testing.T) {
 
 			if err := signBadAndCheck(msg, tx, i, pkScript, hashType,
 				mkGetKey(map[string]addressToKey{
-					address.Address(): {&key, true},
+					address.Address(): {keyDB, true},
 				}), mkGetScript(nil),
 				dcrec.STEcdsaSecp256k1); err == nil {
 				t.Errorf("corrupted signature validated %s: %v",
@@ -592,7 +584,7 @@ func TestSignTxOutput(t *testing.T) {
 				t.Errorf("failed to generate key: %v", err)
 				break
 			}
-			key, pk := secp256k1.PrivKeyFromBytes(keyDB)
+			_, pk := secp256k1.PrivKeyFromBytes(keyDB)
 			pkBytes := pk.SerializeCompressed()
 
 			address, err := dcrutil.NewAddressPubKeyHash(
@@ -612,7 +604,7 @@ func TestSignTxOutput(t *testing.T) {
 
 			if err := signAndCheck(msg, tx, i, pkScript, hashType,
 				mkGetKey(map[string]addressToKey{
-					address.Address(): {&key, true},
+					address.Address(): {keyDB, true},
 				}), mkGetScript(nil),
 				dcrec.STEcdsaSecp256k1); err != nil {
 				t.Error(err)
@@ -621,7 +613,7 @@ func TestSignTxOutput(t *testing.T) {
 
 			if err := signBadAndCheck(msg, tx, i, pkScript, hashType,
 				mkGetKey(map[string]addressToKey{
-					address.Address(): {&key, true},
+					address.Address(): {keyDB, true},
 				}), mkGetScript(nil),
 				dcrec.STEcdsaSecp256k1); err == nil {
 				t.Errorf("corrupted signature validated %s: %v",
@@ -641,7 +633,7 @@ func TestSignTxOutput(t *testing.T) {
 				t.Errorf("failed to generate key: %v", err)
 				break
 			}
-			key, pk := secp256k1.PrivKeyFromBytes(keyDB)
+			_, pk := secp256k1.PrivKeyFromBytes(keyDB)
 			pkBytes := pk.SerializeCompressed()
 
 			address, err := dcrutil.NewAddressPubKeyHash(
@@ -661,7 +653,7 @@ func TestSignTxOutput(t *testing.T) {
 
 			if err := signAndCheck(msg, tx, i, pkScript, hashType,
 				mkGetKey(map[string]addressToKey{
-					address.Address(): {&key, true},
+					address.Address(): {keyDB, true},
 				}), mkGetScript(nil),
 				dcrec.STEcdsaSecp256k1); err != nil {
 				t.Error(err)
@@ -670,7 +662,7 @@ func TestSignTxOutput(t *testing.T) {
 
 			if err := signBadAndCheck(msg, tx, i, pkScript, hashType,
 				mkGetKey(map[string]addressToKey{
-					address.Address(): {&key, true},
+					address.Address(): {keyDB, true},
 				}), mkGetScript(nil),
 				dcrec.STEcdsaSecp256k1); err == nil {
 				t.Errorf("corrupted signature validated %s: %v",
@@ -684,58 +676,7 @@ func TestSignTxOutput(t *testing.T) {
 	for _, hashType := range hashTypes {
 		for _, suite := range signatureSuites {
 			for i := range tx.TxIn {
-				msg := fmt.Sprintf("%d:%d:%d", hashType, i, suite)
-
-				keyDB, _, _, err := secp256k1.GenerateKey(rand.Reader)
-				if err != nil {
-					t.Errorf("failed to generate key: %v", err)
-					break
-				}
-				key, pk := secp256k1.PrivKeyFromBytes(keyDB)
-				// For address generation, consensus rules require using
-				// a compressed public key. Look up ExtractPkScriptAddrs
-				// for more details
-				address, err := dcrutil.NewAddressSecpPubKeyCompressed(pk,
-					testingParams)
-				if err != nil {
-					t.Errorf("failed to make address for %s: %v",
-						msg, err)
-					break
-				}
-
-				pkScript, err := PayToAddrScript(address)
-				if err != nil {
-					t.Errorf("failed to make pkscript "+
-						"for %s: %v", msg, err)
-				}
-
-				if err := signAndCheck(msg, tx, i, pkScript, hashType,
-					mkGetKey(map[string]addressToKey{
-						address.Address(): {&key, false},
-					}), mkGetScript(nil), suite); err != nil {
-					t.Error(err)
-					break
-				}
-
-				if err := signBadAndCheck(msg, tx, i, pkScript, hashType,
-					mkGetKey(map[string]addressToKey{
-						address.Address(): {&key, false},
-					}), mkGetScript(nil), suite); err == nil {
-					t.Errorf("corrupted signature validated %s: %v",
-						msg, err)
-					break
-				}
-			}
-		}
-	}
-
-	// Pay to PubKey (uncompressed)
-	for _, hashType := range hashTypes {
-		for _, suite := range signatureSuites {
-			for i := range tx.TxIn {
 				var keyDB, pkBytes []byte
-				var key chainec.PrivateKey
-				var pk chainec.PublicKey
 				var address dcrutil.Address
 				var err error
 
@@ -744,7 +685,7 @@ func TestSignTxOutput(t *testing.T) {
 				switch suite {
 				case dcrec.STEcdsaSecp256k1:
 					keyDB, _, _, _ = secp256k1.GenerateKey(rand.Reader)
-					key, pk = secp256k1.PrivKeyFromBytes(keyDB)
+					_, pk := secp256k1.PrivKeyFromBytes(keyDB)
 					// For address generation, consensus rules require using
 					// a compressed public key. Look up ExtractPkScriptAddrs
 					// for more details
@@ -756,8 +697,8 @@ func TestSignTxOutput(t *testing.T) {
 					}
 
 				case dcrec.STEd25519:
-					keyDB, _, _, _ = chainec.Edwards.GenerateKey(rand.Reader)
-					key, pk = chainec.Edwards.PrivKeyFromBytes(keyDB)
+					keyDB, _, _, _ = edwards.GenerateKey(rand.Reader)
+					_, pk := edwards.PrivKeyFromBytes(keyDB)
 					pkBytes = pk.SerializeUncompressed()
 					address, err = dcrutil.NewAddressEdwardsPubKey(pkBytes,
 						testingParams)
@@ -767,8 +708,8 @@ func TestSignTxOutput(t *testing.T) {
 					}
 
 				case dcrec.STSchnorrSecp256k1:
-					keyDB, _, _, _ = chainec.SecSchnorr.GenerateKey(rand.Reader)
-					key, pk = chainec.SecSchnorr.PrivKeyFromBytes(keyDB)
+					keyDB, _, _, _ = schnorr.GenerateKey(rand.Reader)
+					_, pk := secp256k1.PrivKeyFromBytes(keyDB)
 					pkBytes = pk.Serialize()
 					address, err = dcrutil.NewAddressSecSchnorrPubKey(pkBytes,
 						testingParams)
@@ -787,7 +728,7 @@ func TestSignTxOutput(t *testing.T) {
 				sigScript, err := SignTxOutput(testingParams,
 					tx, i, pkScript, hashType,
 					mkGetKeyPub(map[string]addressToKey{
-						address.String(): {&key, false},
+						address.String(): {keyDB, false},
 					}), mkGetScript(nil), nil, suite)
 				if err != nil {
 					t.Errorf("failed to sign output %s: %v", msg,
@@ -799,7 +740,7 @@ func TestSignTxOutput(t *testing.T) {
 				sigScript, err = SignTxOutput(testingParams,
 					tx, i, pkScript, hashType,
 					mkGetKeyPub(map[string]addressToKey{
-						address.String(): {&key, false},
+						address.String(): {keyDB, false},
 					}), mkGetScript(nil), sigScript, suite)
 				if err != nil {
 					t.Errorf("failed to sign output %s a "+
@@ -820,8 +761,6 @@ func TestSignTxOutput(t *testing.T) {
 		for _, suite := range signatureSuites {
 			for i := range tx.TxIn {
 				var keyDB, pkBytes []byte
-				var key chainec.PrivateKey
-				var pk chainec.PublicKey
 				var address dcrutil.Address
 				var err error
 
@@ -830,7 +769,7 @@ func TestSignTxOutput(t *testing.T) {
 				switch suite {
 				case dcrec.STEcdsaSecp256k1:
 					keyDB, _, _, _ = secp256k1.GenerateKey(rand.Reader)
-					key, pk = secp256k1.PrivKeyFromBytes(keyDB)
+					_, pk := secp256k1.PrivKeyFromBytes(keyDB)
 					// For address generation, consensus rules require using
 					// a compressed public key. Look up ExtractPkScriptAddrs
 					// for more details
@@ -842,8 +781,8 @@ func TestSignTxOutput(t *testing.T) {
 					}
 
 				case dcrec.STEd25519:
-					keyDB, _, _, _ = chainec.Edwards.GenerateKey(rand.Reader)
-					key, pk = chainec.Edwards.PrivKeyFromBytes(keyDB)
+					keyDB, _, _, _ = edwards.GenerateKey(rand.Reader)
+					_, pk := edwards.PrivKeyFromBytes(keyDB)
 					pkBytes = pk.SerializeCompressed()
 					address, err = dcrutil.NewAddressEdwardsPubKey(pkBytes,
 						testingParams)
@@ -853,8 +792,8 @@ func TestSignTxOutput(t *testing.T) {
 					}
 
 				case dcrec.STSchnorrSecp256k1:
-					keyDB, _, _, _ = chainec.SecSchnorr.GenerateKey(rand.Reader)
-					key, pk = chainec.SecSchnorr.PrivKeyFromBytes(keyDB)
+					keyDB, _, _, _ = schnorr.GenerateKey(rand.Reader)
+					_, pk := secp256k1.PrivKeyFromBytes(keyDB)
 					pkBytes = pk.Serialize()
 					address, err = dcrutil.NewAddressSecSchnorrPubKey(pkBytes,
 						testingParams)
@@ -872,7 +811,7 @@ func TestSignTxOutput(t *testing.T) {
 
 				if err := signAndCheck(msg, tx, i, pkScript, hashType,
 					mkGetKeyPub(map[string]addressToKey{
-						address.String(): {&key, true},
+						address.String(): {keyDB, true},
 					}), mkGetScript(nil), suite); err != nil {
 					t.Error(err)
 					break
@@ -880,7 +819,7 @@ func TestSignTxOutput(t *testing.T) {
 
 				if err := signBadAndCheck(msg, tx, i, pkScript, hashType,
 					mkGetKeyPub(map[string]addressToKey{
-						address.String(): {&key, true},
+						address.String(): {keyDB, true},
 					}), mkGetScript(nil), suite); err == nil {
 					t.Errorf("corrupted signature validated %s: %v",
 						msg, err)
@@ -895,8 +834,6 @@ func TestSignTxOutput(t *testing.T) {
 		for _, suite := range signatureSuites {
 			for i := range tx.TxIn {
 				var keyDB, pkBytes []byte
-				var key chainec.PrivateKey
-				var pk chainec.PublicKey
 				var address dcrutil.Address
 				var err error
 
@@ -905,7 +842,7 @@ func TestSignTxOutput(t *testing.T) {
 				switch suite {
 				case dcrec.STEcdsaSecp256k1:
 					keyDB, _, _, _ = secp256k1.GenerateKey(rand.Reader)
-					key, pk = secp256k1.PrivKeyFromBytes(keyDB)
+					_, pk := secp256k1.PrivKeyFromBytes(keyDB)
 					address, err = dcrutil.NewAddressSecpPubKeyCompressed(pk,
 						testingParams)
 					if err != nil {
@@ -914,8 +851,8 @@ func TestSignTxOutput(t *testing.T) {
 					}
 
 				case dcrec.STEd25519:
-					keyDB, _, _, _ = chainec.Edwards.GenerateKey(rand.Reader)
-					key, pk = chainec.Edwards.PrivKeyFromBytes(keyDB)
+					keyDB, _, _, _ = edwards.GenerateKey(rand.Reader)
+					_, pk := edwards.PrivKeyFromBytes(keyDB)
 					pkBytes = pk.SerializeCompressed()
 					address, err = dcrutil.NewAddressEdwardsPubKey(pkBytes,
 						testingParams)
@@ -925,8 +862,8 @@ func TestSignTxOutput(t *testing.T) {
 					}
 
 				case dcrec.STSchnorrSecp256k1:
-					keyDB, _, _, _ = chainec.SecSchnorr.GenerateKey(rand.Reader)
-					key, pk = chainec.SecSchnorr.PrivKeyFromBytes(keyDB)
+					keyDB, _, _, _ = schnorr.GenerateKey(rand.Reader)
+					_, pk := secp256k1.PrivKeyFromBytes(keyDB)
 					pkBytes = pk.Serialize()
 					address, err = dcrutil.NewAddressSecSchnorrPubKey(pkBytes,
 						testingParams)
@@ -945,7 +882,7 @@ func TestSignTxOutput(t *testing.T) {
 				sigScript, err := SignTxOutput(testingParams,
 					tx, i, pkScript, hashType,
 					mkGetKey(map[string]addressToKey{
-						address.Address(): {&key, true},
+						address.Address(): {keyDB, true},
 					}), mkGetScript(nil), nil, suite)
 				if err != nil {
 					t.Errorf("failed to sign output %s: %v", msg,
@@ -958,7 +895,7 @@ func TestSignTxOutput(t *testing.T) {
 				sigScript, err = SignTxOutput(testingParams,
 					tx, i, pkScript, hashType,
 					mkGetKey(map[string]addressToKey{
-						address.Address(): {&key, true},
+						address.Address(): {keyDB, true},
 					}), mkGetScript(nil), sigScript, suite)
 				if err != nil {
 					t.Errorf("failed to sign output %s a "+
@@ -982,21 +919,19 @@ func TestSignTxOutput(t *testing.T) {
 		for _, suite := range signatureSuites {
 			for i := range tx.TxIn {
 				var keyDB, pkBytes []byte
-				var key chainec.PrivateKey
-				var pk chainec.PublicKey
 
 				switch suite {
 				case dcrec.STEcdsaSecp256k1:
 					keyDB, _, _, _ = secp256k1.GenerateKey(rand.Reader)
-					key, pk = secp256k1.PrivKeyFromBytes(keyDB)
+					_, pk := secp256k1.PrivKeyFromBytes(keyDB)
 					pkBytes = pk.SerializeUncompressed()
 				case dcrec.STEd25519:
-					keyDB, _, _, _ = chainec.Edwards.GenerateKey(rand.Reader)
-					key, pk = chainec.Edwards.PrivKeyFromBytes(keyDB)
+					keyDB, _, _, _ = edwards.GenerateKey(rand.Reader)
+					_, pk := edwards.PrivKeyFromBytes(keyDB)
 					pkBytes = pk.SerializeUncompressed()
 				case dcrec.STSchnorrSecp256k1:
-					keyDB, _, _, _ = chainec.SecSchnorr.GenerateKey(rand.Reader)
-					key, pk = chainec.SecSchnorr.PrivKeyFromBytes(keyDB)
+					keyDB, _, _, _ = schnorr.GenerateKey(rand.Reader)
+					_, pk := secp256k1.PrivKeyFromBytes(keyDB)
 					pkBytes = pk.Serialize()
 				}
 
@@ -1036,7 +971,7 @@ func TestSignTxOutput(t *testing.T) {
 				if err := signAndCheck(msg, tx, i, scriptPkScript,
 					hashType,
 					mkGetKey(map[string]addressToKey{
-						address.Address(): {&key, false},
+						address.Address(): {keyDB, false},
 					}), mkGetScript(map[string][]byte{
 						scriptAddr.Address(): pkScript,
 					}), suite); err != nil {
@@ -1046,7 +981,7 @@ func TestSignTxOutput(t *testing.T) {
 
 				if err := signBadAndCheck(msg, tx, i, pkScript, hashType,
 					mkGetKey(map[string]addressToKey{
-						address.Address(): {&key, false},
+						address.Address(): {keyDB, false},
 					}), mkGetScript(nil), suite); err == nil {
 					t.Errorf("corrupted signature validated %s: %v",
 						msg, err)
@@ -1061,21 +996,19 @@ func TestSignTxOutput(t *testing.T) {
 		for _, suite := range signatureSuites {
 			for i := range tx.TxIn {
 				var keyDB, pkBytes []byte
-				var key chainec.PrivateKey
-				var pk chainec.PublicKey
 
 				switch suite {
 				case dcrec.STEcdsaSecp256k1:
 					keyDB, _, _, _ = secp256k1.GenerateKey(rand.Reader)
-					key, pk = secp256k1.PrivKeyFromBytes(keyDB)
+					_, pk := secp256k1.PrivKeyFromBytes(keyDB)
 					pkBytes = pk.SerializeUncompressed()
 				case dcrec.STEd25519:
-					keyDB, _, _, _ = chainec.Edwards.GenerateKey(rand.Reader)
-					key, pk = chainec.Edwards.PrivKeyFromBytes(keyDB)
+					keyDB, _, _, _ = edwards.GenerateKey(rand.Reader)
+					_, pk := edwards.PrivKeyFromBytes(keyDB)
 					pkBytes = pk.SerializeUncompressed()
 				case dcrec.STSchnorrSecp256k1:
-					keyDB, _, _, _ = chainec.SecSchnorr.GenerateKey(rand.Reader)
-					key, pk = chainec.SecSchnorr.PrivKeyFromBytes(keyDB)
+					keyDB, _, _, _ = schnorr.GenerateKey(rand.Reader)
+					_, pk := secp256k1.PrivKeyFromBytes(keyDB)
 					pkBytes = pk.Serialize()
 				}
 
@@ -1115,7 +1048,7 @@ func TestSignTxOutput(t *testing.T) {
 				_, err = SignTxOutput(testingParams, tx, i,
 					scriptPkScript, hashType,
 					mkGetKey(map[string]addressToKey{
-						address.Address(): {&key, false},
+						address.Address(): {keyDB, false},
 					}), mkGetScript(map[string][]byte{
 						scriptAddr.Address(): pkScript,
 					}), nil, suite)
@@ -1130,7 +1063,7 @@ func TestSignTxOutput(t *testing.T) {
 				sigScript, err := SignTxOutput(testingParams,
 					tx, i, scriptPkScript, hashType,
 					mkGetKey(map[string]addressToKey{
-						address.Address(): {&key, false},
+						address.Address(): {keyDB, false},
 					}), mkGetScript(map[string][]byte{
 						scriptAddr.Address(): pkScript,
 					}), nil, suite)
@@ -1155,21 +1088,19 @@ func TestSignTxOutput(t *testing.T) {
 		for _, suite := range signatureSuites {
 			for i := range tx.TxIn {
 				var keyDB, pkBytes []byte
-				var key chainec.PrivateKey
-				var pk chainec.PublicKey
 
 				switch suite {
 				case dcrec.STEcdsaSecp256k1:
 					keyDB, _, _, _ = secp256k1.GenerateKey(rand.Reader)
-					key, pk = secp256k1.PrivKeyFromBytes(keyDB)
+					_, pk := secp256k1.PrivKeyFromBytes(keyDB)
 					pkBytes = pk.SerializeCompressed()
 				case dcrec.STEd25519:
-					keyDB, _, _, _ = chainec.Edwards.GenerateKey(rand.Reader)
-					key, pk = chainec.Edwards.PrivKeyFromBytes(keyDB)
+					keyDB, _, _, _ = edwards.GenerateKey(rand.Reader)
+					_, pk := edwards.PrivKeyFromBytes(keyDB)
 					pkBytes = pk.SerializeCompressed()
 				case dcrec.STSchnorrSecp256k1:
-					keyDB, _, _, _ = chainec.SecSchnorr.GenerateKey(rand.Reader)
-					key, pk = chainec.SecSchnorr.PrivKeyFromBytes(keyDB)
+					keyDB, _, _, _ = schnorr.GenerateKey(rand.Reader)
+					_, pk := secp256k1.PrivKeyFromBytes(keyDB)
 					pkBytes = pk.SerializeCompressed()
 				}
 
@@ -1208,7 +1139,7 @@ func TestSignTxOutput(t *testing.T) {
 				if err := signAndCheck(msg, tx, i, scriptPkScript,
 					hashType,
 					mkGetKey(map[string]addressToKey{
-						address.Address(): {&key, true},
+						address.Address(): {keyDB, true},
 					}), mkGetScript(map[string][]byte{
 						scriptAddr.Address(): pkScript,
 					}), suite); err != nil {
@@ -1218,7 +1149,7 @@ func TestSignTxOutput(t *testing.T) {
 
 				if err := signBadAndCheck(msg, tx, i, pkScript, hashType,
 					mkGetKey(map[string]addressToKey{
-						address.Address(): {&key, true},
+						address.Address(): {keyDB, true},
 					}), mkGetScript(nil), suite); err == nil {
 					t.Errorf("corrupted signature validated %s: %v",
 						msg, err)
@@ -1233,21 +1164,19 @@ func TestSignTxOutput(t *testing.T) {
 		for _, suite := range signatureSuites {
 			for i := range tx.TxIn {
 				var keyDB, pkBytes []byte
-				var key chainec.PrivateKey
-				var pk chainec.PublicKey
 
 				switch suite {
 				case dcrec.STEcdsaSecp256k1:
 					keyDB, _, _, _ = secp256k1.GenerateKey(rand.Reader)
-					key, pk = secp256k1.PrivKeyFromBytes(keyDB)
+					_, pk := secp256k1.PrivKeyFromBytes(keyDB)
 					pkBytes = pk.SerializeCompressed()
 				case dcrec.STEd25519:
-					keyDB, _, _, _ = chainec.Edwards.GenerateKey(rand.Reader)
-					key, pk = chainec.Edwards.PrivKeyFromBytes(keyDB)
+					keyDB, _, _, _ = edwards.GenerateKey(rand.Reader)
+					_, pk := edwards.PrivKeyFromBytes(keyDB)
 					pkBytes = pk.SerializeCompressed()
 				case dcrec.STSchnorrSecp256k1:
-					keyDB, _, _, _ = chainec.SecSchnorr.GenerateKey(rand.Reader)
-					key, pk = chainec.SecSchnorr.PrivKeyFromBytes(keyDB)
+					keyDB, _, _, _ = schnorr.GenerateKey(rand.Reader)
+					_, pk := secp256k1.PrivKeyFromBytes(keyDB)
 					pkBytes = pk.SerializeCompressed()
 				}
 
@@ -1286,7 +1215,7 @@ func TestSignTxOutput(t *testing.T) {
 				_, err = SignTxOutput(testingParams,
 					tx, i, scriptPkScript, hashType,
 					mkGetKey(map[string]addressToKey{
-						address.Address(): {&key, true},
+						address.Address(): {keyDB, true},
 					}), mkGetScript(map[string][]byte{
 						scriptAddr.Address(): pkScript,
 					}), nil, suite)
@@ -1301,7 +1230,7 @@ func TestSignTxOutput(t *testing.T) {
 				sigScript, err := SignTxOutput(testingParams,
 					tx, i, scriptPkScript, hashType,
 					mkGetKey(map[string]addressToKey{
-						address.Address(): {&key, true},
+						address.Address(): {keyDB, true},
 					}), mkGetScript(map[string][]byte{
 						scriptAddr.Address(): pkScript,
 					}), nil, suite)
@@ -1326,8 +1255,6 @@ func TestSignTxOutput(t *testing.T) {
 		for _, suite := range signatureSuites {
 			for i := range tx.TxIn {
 				var keyDB, pkBytes []byte
-				var key chainec.PrivateKey
-				var pk chainec.PublicKey
 				var address dcrutil.Address
 				var err error
 
@@ -1336,7 +1263,7 @@ func TestSignTxOutput(t *testing.T) {
 				switch suite {
 				case dcrec.STEcdsaSecp256k1:
 					keyDB, _, _, _ = secp256k1.GenerateKey(rand.Reader)
-					key, pk = secp256k1.PrivKeyFromBytes(keyDB)
+					_, pk := secp256k1.PrivKeyFromBytes(keyDB)
 					// For address generation, consensus rules require using
 					// a compressed public key. Look up ExtractPkScriptAddrs
 					// for more details
@@ -1348,8 +1275,8 @@ func TestSignTxOutput(t *testing.T) {
 					}
 
 				case dcrec.STEd25519:
-					keyDB, _, _, _ = chainec.Edwards.GenerateKey(rand.Reader)
-					key, pk = chainec.Edwards.PrivKeyFromBytes(keyDB)
+					keyDB, _, _, _ = edwards.GenerateKey(rand.Reader)
+					_, pk := edwards.PrivKeyFromBytes(keyDB)
 					pkBytes = pk.SerializeUncompressed()
 					address, err = dcrutil.NewAddressEdwardsPubKey(pkBytes,
 						testingParams)
@@ -1359,8 +1286,8 @@ func TestSignTxOutput(t *testing.T) {
 					}
 
 				case dcrec.STSchnorrSecp256k1:
-					keyDB, _, _, _ = chainec.SecSchnorr.GenerateKey(rand.Reader)
-					key, pk = chainec.SecSchnorr.PrivKeyFromBytes(keyDB)
+					keyDB, _, _, _ = schnorr.GenerateKey(rand.Reader)
+					_, pk := secp256k1.PrivKeyFromBytes(keyDB)
 					pkBytes = pk.Serialize()
 					address, err = dcrutil.NewAddressSecSchnorrPubKey(pkBytes,
 						testingParams)
@@ -1393,7 +1320,7 @@ func TestSignTxOutput(t *testing.T) {
 				if err := signAndCheck(msg, tx, i, scriptPkScript,
 					hashType,
 					mkGetKey(map[string]addressToKey{
-						address.Address(): {&key, false},
+						address.Address(): {keyDB, false},
 					}), mkGetScript(map[string][]byte{
 						scriptAddr.Address(): pkScript,
 					}), suite); err != nil {
@@ -1402,7 +1329,7 @@ func TestSignTxOutput(t *testing.T) {
 
 				if err := signBadAndCheck(msg, tx, i, pkScript, hashType,
 					mkGetKey(map[string]addressToKey{
-						address.Address(): {&key, false},
+						address.Address(): {keyDB, false},
 					}), mkGetScript(nil), suite); err == nil {
 					t.Errorf("corrupted signature validated %s: %v",
 						msg, err)
@@ -1417,8 +1344,6 @@ func TestSignTxOutput(t *testing.T) {
 		for _, suite := range signatureSuites {
 			for i := range tx.TxIn {
 				var keyDB, pkBytes []byte
-				var key chainec.PrivateKey
-				var pk chainec.PublicKey
 				var address dcrutil.Address
 				var err error
 
@@ -1427,7 +1352,7 @@ func TestSignTxOutput(t *testing.T) {
 				switch suite {
 				case dcrec.STEcdsaSecp256k1:
 					keyDB, _, _, _ = secp256k1.GenerateKey(rand.Reader)
-					key, pk = secp256k1.PrivKeyFromBytes(keyDB)
+					_, pk := secp256k1.PrivKeyFromBytes(keyDB)
 					// For address generation, consensus rules require using
 					// a compressed public key. Look up ExtractPkScriptAddrs
 					// for more details
@@ -1439,8 +1364,8 @@ func TestSignTxOutput(t *testing.T) {
 					}
 
 				case dcrec.STEd25519:
-					keyDB, _, _, _ = chainec.Edwards.GenerateKey(rand.Reader)
-					key, pk = chainec.Edwards.PrivKeyFromBytes(keyDB)
+					keyDB, _, _, _ = edwards.GenerateKey(rand.Reader)
+					_, pk := edwards.PrivKeyFromBytes(keyDB)
 					pkBytes = pk.SerializeUncompressed()
 					address, err = dcrutil.NewAddressEdwardsPubKey(pkBytes,
 						testingParams)
@@ -1450,8 +1375,8 @@ func TestSignTxOutput(t *testing.T) {
 					}
 
 				case dcrec.STSchnorrSecp256k1:
-					keyDB, _, _, _ = chainec.SecSchnorr.GenerateKey(rand.Reader)
-					key, pk = chainec.SecSchnorr.PrivKeyFromBytes(keyDB)
+					keyDB, _, _, _ = schnorr.GenerateKey(rand.Reader)
+					_, pk := secp256k1.PrivKeyFromBytes(keyDB)
 					pkBytes = pk.Serialize()
 					address, err = dcrutil.NewAddressSecSchnorrPubKey(pkBytes,
 						testingParams)
@@ -1484,7 +1409,7 @@ func TestSignTxOutput(t *testing.T) {
 				_, err = SignTxOutput(testingParams,
 					tx, i, scriptPkScript, hashType,
 					mkGetKey(map[string]addressToKey{
-						address.Address(): {&key, false},
+						address.Address(): {keyDB, false},
 					}), mkGetScript(map[string][]byte{
 						scriptAddr.Address(): pkScript,
 					}), nil, suite)
@@ -1499,7 +1424,7 @@ func TestSignTxOutput(t *testing.T) {
 				sigScript, err := SignTxOutput(testingParams,
 					tx, i, scriptPkScript, hashType,
 					mkGetKey(map[string]addressToKey{
-						address.Address(): {&key, false},
+						address.Address(): {keyDB, false},
 					}), mkGetScript(map[string][]byte{
 						scriptAddr.Address(): pkScript,
 					}), nil, suite)
@@ -1524,8 +1449,6 @@ func TestSignTxOutput(t *testing.T) {
 		for _, suite := range signatureSuites {
 			for i := range tx.TxIn {
 				var keyDB, pkBytes []byte
-				var key chainec.PrivateKey
-				var pk chainec.PublicKey
 				var address dcrutil.Address
 				var err error
 
@@ -1534,7 +1457,7 @@ func TestSignTxOutput(t *testing.T) {
 				switch suite {
 				case dcrec.STEcdsaSecp256k1:
 					keyDB, _, _, _ = secp256k1.GenerateKey(rand.Reader)
-					key, pk = secp256k1.PrivKeyFromBytes(keyDB)
+					_, pk := secp256k1.PrivKeyFromBytes(keyDB)
 					address, err = dcrutil.NewAddressSecpPubKeyCompressed(pk,
 						testingParams)
 					if err != nil {
@@ -1543,8 +1466,8 @@ func TestSignTxOutput(t *testing.T) {
 					}
 
 				case dcrec.STEd25519:
-					keyDB, _, _, _ = chainec.Edwards.GenerateKey(rand.Reader)
-					key, pk = chainec.Edwards.PrivKeyFromBytes(keyDB)
+					keyDB, _, _, _ = edwards.GenerateKey(rand.Reader)
+					_, pk := edwards.PrivKeyFromBytes(keyDB)
 					pkBytes = pk.SerializeCompressed()
 					address, err = dcrutil.NewAddressEdwardsPubKey(pkBytes,
 						testingParams)
@@ -1554,8 +1477,8 @@ func TestSignTxOutput(t *testing.T) {
 					}
 
 				case dcrec.STSchnorrSecp256k1:
-					keyDB, _, _, _ = chainec.SecSchnorr.GenerateKey(rand.Reader)
-					key, pk = chainec.SecSchnorr.PrivKeyFromBytes(keyDB)
+					keyDB, _, _, _ = schnorr.GenerateKey(rand.Reader)
+					_, pk := secp256k1.PrivKeyFromBytes(keyDB)
 					pkBytes = pk.Serialize()
 					address, err = dcrutil.NewAddressSecSchnorrPubKey(pkBytes,
 						testingParams)
@@ -1590,7 +1513,7 @@ func TestSignTxOutput(t *testing.T) {
 				if err := signAndCheck(msg, tx, i, scriptPkScript,
 					hashType,
 					mkGetKey(map[string]addressToKey{
-						address.Address(): {&key, true},
+						address.Address(): {keyDB, true},
 					}), mkGetScript(map[string][]byte{
 						scriptAddr.Address(): pkScript,
 					}), suite); err != nil {
@@ -1600,7 +1523,7 @@ func TestSignTxOutput(t *testing.T) {
 
 				if err := signBadAndCheck(msg, tx, i, pkScript, hashType,
 					mkGetKey(map[string]addressToKey{
-						address.Address(): {&key, false},
+						address.Address(): {keyDB, false},
 					}), mkGetScript(nil), suite); err == nil {
 					t.Errorf("corrupted signature validated %s: %v",
 						msg, err)
@@ -1615,8 +1538,6 @@ func TestSignTxOutput(t *testing.T) {
 		for _, suite := range signatureSuites {
 			for i := range tx.TxIn {
 				var keyDB, pkBytes []byte
-				var key chainec.PrivateKey
-				var pk chainec.PublicKey
 				var address dcrutil.Address
 				var err error
 
@@ -1625,7 +1546,7 @@ func TestSignTxOutput(t *testing.T) {
 				switch suite {
 				case dcrec.STEcdsaSecp256k1:
 					keyDB, _, _, _ = secp256k1.GenerateKey(rand.Reader)
-					key, pk = secp256k1.PrivKeyFromBytes(keyDB)
+					_, pk := secp256k1.PrivKeyFromBytes(keyDB)
 					address, err = dcrutil.NewAddressSecpPubKeyCompressed(pk,
 						testingParams)
 					if err != nil {
@@ -1634,8 +1555,8 @@ func TestSignTxOutput(t *testing.T) {
 					}
 
 				case dcrec.STEd25519:
-					keyDB, _, _, _ = chainec.Edwards.GenerateKey(rand.Reader)
-					key, pk = chainec.Edwards.PrivKeyFromBytes(keyDB)
+					keyDB, _, _, _ = edwards.GenerateKey(rand.Reader)
+					_, pk := edwards.PrivKeyFromBytes(keyDB)
 					pkBytes = pk.SerializeCompressed()
 					address, err = dcrutil.NewAddressEdwardsPubKey(pkBytes,
 						testingParams)
@@ -1645,8 +1566,8 @@ func TestSignTxOutput(t *testing.T) {
 					}
 
 				case dcrec.STSchnorrSecp256k1:
-					keyDB, _, _, _ = chainec.SecSchnorr.GenerateKey(rand.Reader)
-					key, pk = chainec.SecSchnorr.PrivKeyFromBytes(keyDB)
+					keyDB, _, _, _ = schnorr.GenerateKey(rand.Reader)
+					_, pk := secp256k1.PrivKeyFromBytes(keyDB)
 					pkBytes = pk.Serialize()
 					address, err = dcrutil.NewAddressSecSchnorrPubKey(pkBytes,
 						testingParams)
@@ -1681,7 +1602,7 @@ func TestSignTxOutput(t *testing.T) {
 				_, err = SignTxOutput(testingParams,
 					tx, i, scriptPkScript, hashType,
 					mkGetKey(map[string]addressToKey{
-						address.Address(): {&key, true},
+						address.Address(): {keyDB, true},
 					}), mkGetScript(map[string][]byte{
 						scriptAddr.Address(): pkScript,
 					}), nil, suite)
@@ -1696,7 +1617,7 @@ func TestSignTxOutput(t *testing.T) {
 				sigScript, err := SignTxOutput(testingParams,
 					tx, i, scriptPkScript, hashType,
 					mkGetKey(map[string]addressToKey{
-						address.Address(): {&key, true},
+						address.Address(): {keyDB, true},
 					}), mkGetScript(map[string][]byte{
 						scriptAddr.Address(): pkScript,
 					}), nil, suite)
@@ -1726,7 +1647,7 @@ func TestSignTxOutput(t *testing.T) {
 				t.Errorf("failed to generate key: %v", err)
 				break
 			}
-			key1, pk1 := secp256k1.PrivKeyFromBytes(keyDB1)
+			_, pk1 := secp256k1.PrivKeyFromBytes(keyDB1)
 
 			address1, err := dcrutil.NewAddressSecpPubKeyCompressed(pk1,
 				testingParams)
@@ -1741,7 +1662,7 @@ func TestSignTxOutput(t *testing.T) {
 				t.Errorf("failed to generate key: %v", err)
 				break
 			}
-			key2, pk2 := secp256k1.PrivKeyFromBytes(keyDB2)
+			_, pk2 := secp256k1.PrivKeyFromBytes(keyDB2)
 
 			address2, err := dcrutil.NewAddressSecpPubKeyCompressed(pk2,
 				testingParams)
@@ -1777,8 +1698,8 @@ func TestSignTxOutput(t *testing.T) {
 			if err := signAndCheck(msg, tx, i, scriptPkScript,
 				hashType,
 				mkGetKey(map[string]addressToKey{
-					address1.Address(): {&key1, true},
-					address2.Address(): {&key2, true},
+					address1.Address(): {keyDB1, true},
+					address2.Address(): {keyDB2, true},
 				}), mkGetScript(map[string][]byte{
 					scriptAddr.Address(): pkScript,
 				}), dcrec.STEcdsaSecp256k1); err != nil {
@@ -1788,8 +1709,8 @@ func TestSignTxOutput(t *testing.T) {
 
 			if err := signBadAndCheck(msg, tx, i, pkScript, hashType,
 				mkGetKey(map[string]addressToKey{
-					address1.Address(): {&key1, true},
-					address2.Address(): {&key2, true},
+					address1.Address(): {keyDB1, true},
+					address2.Address(): {keyDB2, true},
 				}), mkGetScript(nil),
 				dcrec.STEcdsaSecp256k1); err == nil {
 				t.Errorf("corrupted signature validated %s: %v",
@@ -1809,7 +1730,7 @@ func TestSignTxOutput(t *testing.T) {
 				t.Errorf("failed to generate key: %v", err)
 				break
 			}
-			key1, pk1 := secp256k1.PrivKeyFromBytes(keyDB1)
+			_, pk1 := secp256k1.PrivKeyFromBytes(keyDB1)
 
 			address1, err := dcrutil.NewAddressSecpPubKeyCompressed(pk1,
 				testingParams)
@@ -1824,7 +1745,7 @@ func TestSignTxOutput(t *testing.T) {
 				t.Errorf("failed to generate key: %v", err)
 				break
 			}
-			key2, pk2 := secp256k1.PrivKeyFromBytes(keyDB2)
+			_, pk2 := secp256k1.PrivKeyFromBytes(keyDB2)
 
 			address2, err := dcrutil.NewAddressSecpPubKeyCompressed(pk2,
 				testingParams)
@@ -1860,7 +1781,7 @@ func TestSignTxOutput(t *testing.T) {
 			sigScript, err := SignTxOutput(testingParams, tx, i,
 				scriptPkScript, hashType,
 				mkGetKey(map[string]addressToKey{
-					address1.Address(): {&key1, true},
+					address1.Address(): {keyDB1, true},
 				}), mkGetScript(map[string][]byte{
 					scriptAddr.Address(): pkScript,
 				}), nil, dcrec.STEcdsaSecp256k1)
@@ -1881,7 +1802,7 @@ func TestSignTxOutput(t *testing.T) {
 			sigScript, err = SignTxOutput(testingParams, tx, i,
 				scriptPkScript, hashType,
 				mkGetKey(map[string]addressToKey{
-					address2.Address(): {&key2, true},
+					address2.Address(): {keyDB2, true},
 				}), mkGetScript(map[string][]byte{
 					scriptAddr.Address(): pkScript,
 				}), sigScript, dcrec.STEcdsaSecp256k1)
@@ -1911,7 +1832,7 @@ func TestSignTxOutput(t *testing.T) {
 				t.Errorf("failed to generate key: %v", err)
 				break
 			}
-			key1, pk1 := secp256k1.PrivKeyFromBytes(keyDB1)
+			_, pk1 := secp256k1.PrivKeyFromBytes(keyDB1)
 
 			address1, err := dcrutil.NewAddressSecpPubKeyCompressed(pk1,
 				testingParams)
@@ -1926,7 +1847,7 @@ func TestSignTxOutput(t *testing.T) {
 				t.Errorf("failed to generate key: %v", err)
 				break
 			}
-			key2, pk2 := secp256k1.PrivKeyFromBytes(keyDB2)
+			_, pk2 := secp256k1.PrivKeyFromBytes(keyDB2)
 			address2, err := dcrutil.NewAddressSecpPubKeyCompressed(pk2,
 				testingParams)
 			if err != nil {
@@ -1961,7 +1882,7 @@ func TestSignTxOutput(t *testing.T) {
 			sigScript, err := SignTxOutput(testingParams, tx, i,
 				scriptPkScript, hashType,
 				mkGetKey(map[string]addressToKey{
-					address1.Address(): {&key1, true},
+					address1.Address(): {keyDB1, true},
 				}), mkGetScript(map[string][]byte{
 					scriptAddr.Address(): pkScript,
 				}), nil, dcrec.STEcdsaSecp256k1)
@@ -1982,8 +1903,8 @@ func TestSignTxOutput(t *testing.T) {
 			sigScript, err = SignTxOutput(testingParams, tx, i,
 				scriptPkScript, hashType,
 				mkGetKey(map[string]addressToKey{
-					address1.Address(): {&key1, true},
-					address2.Address(): {&key2, true},
+					address1.Address(): {keyDB1, true},
+					address2.Address(): {keyDB2, true},
 				}), mkGetScript(map[string][]byte{
 					scriptAddr.Address(): pkScript,
 				}), sigScript, dcrec.STEcdsaSecp256k1)
@@ -2030,7 +1951,7 @@ var (
 		0xb4, 0xfc, 0x4e, 0x55, 0xd4, 0x88, 0x42, 0xb3, 0xa1, 0x65,
 		0xac, 0x70, 0x7f, 0x3d, 0xa4, 0x39, 0x5e, 0xcb, 0x3b, 0xb0,
 		0xd6, 0x0e, 0x06, 0x92}
-	_, thisPubKey     = chainec.Secp256k1.PrivKeyFromBytes(privKeyD)
+	_, thisPubKey     = secp256k1.PrivKeyFromBytes(privKeyD)
 	thisAddressUnc, _ = dcrutil.NewAddressPubKeyHash(
 		dcrutil.Hash160(thisPubKey.SerializeUncompressed()),
 		testingParams, dcrec.STEcdsaSecp256k1)
@@ -2249,7 +2170,6 @@ var sigScriptTests = []tstSigScript{
 // and we don't have the private keys.
 func TestSignatureScript(t *testing.T) {
 	t.Parallel()
-	privKey, _ := chainec.Secp256k1.PrivKeyFromBytes(privKeyD)
 
 nexttest:
 	for i := range sigScriptTests {
@@ -2273,9 +2193,10 @@ nexttest:
 			} else {
 				idx = j
 			}
-			script, err = SignatureScript(tx, idx,
+			const scriptVersion = 0
+			script, err = SignatureScript(tx, scriptVersion, idx,
 				sigScriptTests[i].inputs[j].txout.PkScript,
-				sigScriptTests[i].hashType, privKey,
+				sigScriptTests[i].hashType, privKeyD, dcrec.STEcdsaSecp256k1,
 				sigScriptTests[i].compress)
 
 			if (err == nil) != sigScriptTests[i].inputs[j].sigscriptGenerates {

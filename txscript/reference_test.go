@@ -915,8 +915,9 @@ func TestCalcSignatureHashReference(t *testing.T) {
 			continue
 		}
 
+		const scriptVersion = 0
 		// Calculate the signature hash and verify expected result.
-		hash, err := CalcSignatureHash(subScript, hashType, &tx,
+		hash, err := CalcSignatureHash(scriptVersion, subScript, hashType, &tx,
 			int(inputIdxF64), nil)
 		if (err == nil) != (expectedErr == nil) ||
 			expectedErr != nil && !IsErrorCode(err, *expectedErr) {

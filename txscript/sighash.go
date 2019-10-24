@@ -448,8 +448,7 @@ func calcSignatureHash(signScript []byte, hashType SigHashType, tx *wire.MsgTx, 
 // NOTE: This function is only valid for version 0 scripts.  Since the function
 // does not accept a script version, the results are undefined for other script
 // versions.
-func CalcSignatureHash(script []byte, hashType SigHashType, tx *wire.MsgTx, idx int, cachedPrefix *chainhash.Hash) ([]byte, error) {
-	const scriptVersion = 0
+func CalcSignatureHash(scriptVersion uint16, script []byte, hashType SigHashType, tx *wire.MsgTx, idx int, cachedPrefix *chainhash.Hash) ([]byte, error) {
 	if err := checkScriptParses(scriptVersion, script); err != nil {
 		return nil, err
 	}
