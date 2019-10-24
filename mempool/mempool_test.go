@@ -21,7 +21,6 @@ import (
 	"github.com/decred/dcrd/blockchain/v2/chaingen"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/chaincfg/v2"
-	"github.com/decred/dcrd/chaincfg/v2/chainec"
 	"github.com/decred/dcrd/dcrec"
 	"github.com/decred/dcrd/dcrec/secp256k1/v2"
 	"github.com/decred/dcrd/dcrutil/v2"
@@ -327,7 +326,7 @@ type poolHarness struct {
 	//
 	// payAddr is the p2sh address for the signing key and is used for the
 	// payment address throughout the tests.
-	signKey     *secp256k1.PrivateKey
+	signKey     []byte
 	payAddr     dcrutil.Address
 	payScript   []byte
 	chainParams *chaincfg.Params
@@ -345,7 +344,7 @@ func (p *poolHarness) GetScript(addr dcrutil.Address) ([]byte, error) {
 
 // GetKey is the pool harness' implementation of the KeyDB interface.
 // It returns the pool harness' signature key for any address passed in.
-func (p *poolHarness) GetKey(addr dcrutil.Address) (chainec.PrivateKey, bool, error) {
+func (p *poolHarness) GetKey(addr dcrutil.Address) ([]byte, bool, error) {
 	return p.signKey, true, nil
 }
 
@@ -444,9 +443,11 @@ func (p *poolHarness) CreateSignedTx(inputs []spendableOutput, numOutputs uint32
 	}
 
 	// Sign the new transaction.
+	const scriptVersion = 0
 	for i := range tx.TxIn {
-		sigScript, err := txscript.SignatureScript(tx, i, p.payScript,
-			txscript.SigHashAll, p.signKey, true)
+		sigScript, err := txscript.SignatureScript(tx, scriptVersion,
+			i, p.payScript, txscript.SigHashAll, p.signKey,
+			dcrec.STEcdsaSecp256k1, true)
 		if err != nil {
 			return nil, err
 		}
@@ -481,8 +482,10 @@ func (p *poolHarness) CreateTxChain(firstOutput spendableOutput, numTxns uint32)
 		})
 
 		// Sign the new transaction.
-		sigScript, err := txscript.SignatureScript(tx, 0, p.payScript,
-			txscript.SigHashAll, p.signKey, true)
+		const scriptVersion = 0
+		sigScript, err := txscript.SignatureScript(tx, scriptVersion, 0,
+			p.payScript, txscript.SigHashAll, p.signKey,
+			dcrec.STEcdsaSecp256k1, true)
 		if err != nil {
 			return nil, err
 		}
@@ -545,8 +548,10 @@ func (p *poolHarness) CreateTicketPurchase(sourceTx *dcrutil.Tx, cost int64) (*d
 	tx.AddTxOut(wire.NewTxOut(int64(change), changeScript))
 
 	// Sign the ticket purchase.
-	sigScript, err := txscript.SignatureScript(tx, 0,
-		sourceTx.MsgTx().TxOut[0].PkScript, txscript.SigHashAll, p.signKey, true)
+	const scriptVersion = 0
+	sigScript, err := txscript.SignatureScript(tx, scriptVersion, 0,
+		sourceTx.MsgTx().TxOut[0].PkScript, txscript.SigHashAll,
+		p.signKey, dcrec.STEcdsaSecp256k1, true)
 	if err != nil {
 		return nil, err
 	}
@@ -698,7 +703,7 @@ func newPoolHarness(chainParams *chaincfg.Params) (*poolHarness, []spendableOutp
 	if err != nil {
 		return nil, nil, err
 	}
-	signKey, signPub := secp256k1.PrivKeyFromBytes(keyBytes)
+	_, signPub := secp256k1.PrivKeyFromBytes(keyBytes)
 
 	// Generate associated pay-to-script-hash address and resulting payment
 	// script.
@@ -723,7 +728,7 @@ func newPoolHarness(chainParams *chaincfg.Params) (*poolHarness, []spendableOutp
 		scriptFlags: BaseStandardVerifyFlags,
 	}
 	harness := poolHarness{
-		signKey:     signKey,
+		signKey:     keyBytes,
 		payAddr:     payAddr,
 		payScript:   pkScript,
 		chainParams: chainParams,
