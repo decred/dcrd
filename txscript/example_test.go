@@ -11,7 +11,6 @@ import (
 
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/chaincfg/v2"
-	"github.com/decred/dcrd/chaincfg/v2/chainec"
 	"github.com/decred/dcrd/dcrec"
 	"github.com/decred/dcrd/dcrec/secp256k1/v2"
 	"github.com/decred/dcrd/dcrutil/v3"
@@ -95,7 +94,7 @@ func ExampleSignTxOutput() {
 		fmt.Println(err)
 		return
 	}
-	privKey, pubKey := secp256k1.PrivKeyFromBytes(privKeyBytes)
+	_, pubKey := secp256k1.PrivKeyFromBytes(privKeyBytes)
 	pubKeyHash := dcrutil.Hash160(pubKey.SerializeCompressed())
 	mainNetParams := chaincfg.MainNetParams()
 	sigType := dcrec.STEcdsaSecp256k1
@@ -138,7 +137,7 @@ func ExampleSignTxOutput() {
 	redeemTx.AddTxOut(txOut)
 
 	// Sign the redeeming transaction.
-	lookupKey := func(a dcrutil.Address) (chainec.PrivateKey, dcrec.SignatureType, bool, error) {
+	lookupKey := func(a dcrutil.Address) ([]byte, dcrec.SignatureType, bool, error) {
 		// Ordinarily this function would involve looking up the private
 		// key for the provided address, but since the only thing being
 		// signed in this example uses the address associated with the
@@ -154,7 +153,7 @@ func ExampleSignTxOutput() {
 		//
 		// privKey.D.SetInt64(12345)
 		//
-		return privKey, sigType, true, nil
+		return privKeyBytes, sigType, true, nil
 	}
 	// Notice that the script database parameter is nil here since it isn't
 	// used.  It must be specified when pay-to-script-hash transactions are
