@@ -11,7 +11,7 @@ import (
 	"errors"
 
 	"github.com/decred/dcrd/chaincfg/chainhash"
-	"github.com/decred/dcrd/dcrutil/v2"
+	"github.com/decred/dcrd/dcrutil/v3"
 	chainjson "github.com/decred/dcrd/rpc/jsonrpc/types/v2"
 )
 

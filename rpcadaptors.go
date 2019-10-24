@@ -9,7 +9,7 @@ import (
 	"github.com/decred/dcrd/blockchain/v2"
 	"github.com/decred/dcrd/blockchain/v2/indexers"
 	"github.com/decred/dcrd/chaincfg/chainhash"
-	"github.com/decred/dcrd/dcrutil/v2"
+	"github.com/decred/dcrd/dcrutil/v3"
 	"github.com/decred/dcrd/peer/v2"
 	"github.com/decred/dcrd/wire"
 )

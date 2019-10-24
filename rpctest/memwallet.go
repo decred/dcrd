@@ -15,7 +15,7 @@ import (
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/chaincfg/v2"
 	"github.com/decred/dcrd/dcrec/secp256k1/v2"
-	"github.com/decred/dcrd/dcrutil/v2"
+	"github.com/decred/dcrd/dcrutil/v3"
 	"github.com/decred/dcrd/hdkeychain/v2"
 	"github.com/decred/dcrd/rpcclient/v5"
 	"github.com/decred/dcrd/txscript/v2"

@@ -7,7 +7,7 @@ package mining
 
 import (
 	"github.com/decred/dcrd/blockchain/v2"
-	"github.com/decred/dcrd/dcrutil/v2"
+	"github.com/decred/dcrd/dcrutil/v3"
 	"github.com/decred/dcrd/wire"
 )
 
