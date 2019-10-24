@@ -194,6 +194,7 @@ var rpcHandlersBeforeInit = map[types.Method]commandHandler{
 	"missedtickets":         handleMissedTickets,
 	"node":                  handleNode,
 	"ping":                  handlePing,
+	"regentemplate":         handleRegenTemplate,
 	"searchrawtransactions": handleSearchRawTransactions,
 	"sendrawtransaction":    handleSendRawTransaction,
 	"setgenerate":           handleSetGenerate,
@@ -344,6 +345,7 @@ var rpcLimited = map[string]struct{}{
 	"getvoteinfo":           {},
 	"livetickets":           {},
 	"missedtickets":         {},
+	"regentemplate":         {},
 	"searchrawtransactions": {},
 	"sendrawtransaction":    {},
 	"submitblock":           {},
@@ -3563,6 +3565,16 @@ func handlePing(_ context.Context, s *rpcServer, cmd interface{}) (interface{}, 
 	}
 	s.cfg.ConnMgr.BroadcastMessage(wire.NewMsgPing(nonce))
 
+	return nil, nil
+}
+
+// handleRegenTemplate implements the regentemplate command.
+func handleRegenTemplate(_ context.Context, s *rpcServer, cmd interface{}) (interface{}, error) {
+	bg := s.cfg.BgBlkTmplGenerator()
+	if bg == nil {
+		return nil, rpcInternalError("Node is not configured for mining", "")
+	}
+	bg.ForceRegen()
 	return nil, nil
 }
 

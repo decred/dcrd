@@ -1930,6 +1930,10 @@ const (
 	// rtTemplateUpdated indicates the current template associated with the
 	// generator has been updated.
 	rtTemplateUpdated
+
+	// rtForceRegen indicates the template should be regenerated even if
+	// it's not yet time for it to be regenerated.
+	rtForceRegen
 )
 
 // TemplateUpdateReason represents the type of a reason why a template is
@@ -2898,6 +2902,23 @@ func (g *BgBlkTmplGenerator) handleTemplateUpdate(state *regenHandlerState, tplU
 	state.resetRegenTimer(templateRegenSecs * time.Second)
 }
 
+// handleForceRegen handles the rtForceRegen event by initiating the generation
+// of a new template.
+//
+// This function is only intended for use by the regen handler goroutine.
+func (g *BgBlkTmplGenerator) handleForceRegen(ctx context.Context, state *regenHandlerState) {
+	// Ignore requests to force regeneration if the minimum amount of votes
+	// has been received and it's just waiting for the last ones to arrive.
+	// The template will be regenerated shortly in that case.
+	if state.maxVotesTimeout != nil {
+		return
+	}
+
+	state.stopRegenTimer()
+	state.failedGenRetryTimeout = nil
+	g.genTemplateAsync(ctx, turUnknown)
+}
+
 // handleRegenEvent handles all regen events by determining the event reason and
 // reacting accordingly.  For example, it calls the appropriate associated event
 // handler for the events that have one and prevents templates from being
@@ -2983,6 +3004,9 @@ func (g *BgBlkTmplGenerator) handleRegenEvent(ctx context.Context, state *regenH
 	case rtTemplateUpdated:
 		tplUpdate := event.value.(templateUpdate)
 		g.handleTemplateUpdate(state, tplUpdate)
+
+	case rtForceRegen:
+		g.handleForceRegen(ctx, state)
 	}
 }
 
@@ -3216,6 +3240,18 @@ func (g *BgBlkTmplGenerator) BlockDisconnected(block *dcrutil.Block) {
 // This function is safe for concurrent access.
 func (g *BgBlkTmplGenerator) VoteReceived(tx *dcrutil.Tx) {
 	g.queueRegenEvent <- regenEvent{rtVote, tx}
+}
+
+// ForceRegen asks the background block template generator to generate a new
+// template, independently of most of its internal timers.
+//
+// Note that there is no guarantee on whether a new template will actually be
+// generated or when. This function does _not_ block until a new template is
+// generated.
+//
+// This function is safe for concurrent access.
+func (g *BgBlkTmplGenerator) ForceRegen() {
+	g.queueRegenEvent <- regenEvent{rtForceRegen, nil}
 }
 
 // Run starts the background block template generator and all other goroutines
