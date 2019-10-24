@@ -362,6 +362,10 @@ the method name for further details such as parameter and return information.
 |Y
 |Asks the daemon to rebroadcast the winners of the voting lottery.
 |-
+|[[#regentemplate|regentemplate]]
+|Y
+|Asks the daemon to regenerate the mining block template.
+|-
 |[[#searchrawtransactions|searchrawtransactions]]
 |Y
 |Query for transactions related to a particular address. 
@@ -2147,6 +2151,24 @@ of the best block.
 |-
 !Description
 |Asks the daemon to rebroadcast the winners of the voting lottery.
+|-
+!Returns
+|Nothing
+|-
+|}
+
+----
+
+====regentemplate====
+{|
+!Method
+|regentemplate
+|-
+!Parameters
+|None
+|-
+!Description
+|Asks the daemon to regenerate the block mining template. Note that template generation is an asynchronous process and some situations (such as the node performing a reorg or waiting for remaining votes after a new block was connected to the main chain) might delay template regeneration.
 |-
 !Returns
 |Nothing

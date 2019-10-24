@@ -821,6 +821,15 @@ func NewGetWorkCmd(data *string) *GetWorkCmd {
 	}
 }
 
+// RegenTemplateCmd defines the regentemplate JSON-RPC command.
+type RegenTemplateCmd struct{}
+
+// NewRegenTemplateCmd returns a new instance which can be used to issue a
+// regentemplate JSON-RPC command.
+func NewRegenTemplateCmd() *RegenTemplateCmd {
+	return &RegenTemplateCmd{}
+}
+
 // HelpCmd defines the help JSON-RPC command.
 type HelpCmd struct {
 	Command *string
@@ -1183,6 +1192,7 @@ func init() {
 	dcrjson.MustRegister(Method("ping"), (*PingCmd)(nil), flags)
 	dcrjson.MustRegister(Method("rebroadcastmissed"), (*RebroadcastMissedCmd)(nil), flags)
 	dcrjson.MustRegister(Method("rebroadcastwinners"), (*RebroadcastWinnersCmd)(nil), flags)
+	dcrjson.MustRegister(Method("regentemplate"), (*RegenTemplateCmd)(nil), flags)
 	dcrjson.MustRegister(Method("searchrawtransactions"), (*SearchRawTransactionsCmd)(nil), flags)
 	dcrjson.MustRegister(Method("sendrawtransaction"), (*SendRawTransactionCmd)(nil), flags)
 	dcrjson.MustRegister(Method("setgenerate"), (*SetGenerateCmd)(nil), flags)

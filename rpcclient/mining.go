@@ -414,3 +414,30 @@ func (c *Client) SubmitBlockAsync(block *dcrutil.Block, options *chainjson.Submi
 func (c *Client) SubmitBlock(block *dcrutil.Block, options *chainjson.SubmitBlockOptions) error {
 	return c.SubmitBlockAsync(block, options).Receive()
 }
+
+// FutureRegenTemplateResult is a future promise to deliver the result of a
+// RegenTemplate RPC invocation (or an applicable error).
+type FutureRegenTemplateResult chan *response
+
+// Receive waits for the response and returns an error if any has occurred.
+func (r FutureRegenTemplateResult) Receive() error {
+	_, err := receiveFuture(r)
+	return err
+}
+
+// RegenTemplateAsync returns an instance of a type that can be used to get the
+// result of the RPC at some future time by invoking the Receive function on
+// the returned instance.
+//
+// See RegenTemplate for the blocking version and more details.
+func (c *Client) RegenTemplateAsync() FutureRegenTemplateResult {
+	cmd := chainjson.NewRegenTemplateCmd()
+	return c.sendCmd(cmd)
+}
+
+// RegenTemplate asks the node to regenerate its current block template. Note
+// that template generation is currently asynchronous, therefore no guarantees
+// are made for when or whether a new template will actually be available.
+func (c *Client) RegenTemplate() error {
+	return c.RegenTemplateAsync().Receive()
+}

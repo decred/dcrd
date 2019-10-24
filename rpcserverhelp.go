@@ -935,6 +935,9 @@ var helpDescsEnUS = map[string]string{
 	"version--result0--desc":  "Version objects keyed by the program or API name",
 	"version--result0--key":   "Program or API name",
 	"version--result0--value": "Object containing the semantic version",
+
+	// regentemplate help
+	"regentemplate--synopsis": "Asks the node to regenerate its block mining template.",
 }
 
 // rpcResultTypes specifies the result types that each RPC command can return.
@@ -1001,6 +1004,7 @@ var rpcResultTypes = map[types.Method][]interface{}{
 	"missedtickets":         {(*types.MissedTicketsResult)(nil)},
 	"node":                  nil,
 	"ping":                  nil,
+	"regentemplate":         nil,
 	"searchrawtransactions": {(*string)(nil), (*[]types.SearchRawTransactionsResult)(nil)},
 	"sendrawtransaction":    {(*string)(nil)},
 	"setgenerate":           nil,
