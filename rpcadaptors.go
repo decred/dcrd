@@ -253,12 +253,12 @@ func (b *rpcSyncMgr) SubmitBlock(block *dcrutil.Block, flags blockchain.Behavior
 	return b.blockMgr.ProcessBlock(block, flags)
 }
 
-// SyncPeer returns the peer that is currently the peer being used to sync from.
+// SyncPeer returns the id of the current peer being synced with.
 //
 // This function is safe for concurrent access and is part of the
 // rpcserverSyncManager interface implementation.
-func (b *rpcSyncMgr) SyncPeer() rpcserverPeer {
-	return (*rpcPeer)(b.blockMgr.SyncPeer())
+func (b *rpcSyncMgr) SyncPeerID() int32 {
+	return b.blockMgr.SyncPeerID()
 }
 
 // LocateBlocks returns the hashes of the blocks after the first known block in
