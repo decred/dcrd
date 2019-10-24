@@ -233,20 +233,20 @@ func (cm *rpcConnManager) AddedNodeInfo() []rpcserver.Peer {
 }
 
 // rpcSyncMgr provides a block manager for use with the RPC server and
-// implements the rpcserverSyncManager interface.
+// implements the rpcserver.SyncManager interface.
 type rpcSyncMgr struct {
 	server   *server
 	blockMgr *blockManager
 }
 
-// Ensure rpcSyncMgr implements the rpcserverSyncManager interface.
-var _ rpcserverSyncManager = (*rpcSyncMgr)(nil)
+// Ensure rpcSyncMgr implements the rpcserver.SyncManager interface.
+var _ rpcserver.SyncManager = (*rpcSyncMgr)(nil)
 
 // IsCurrent returns whether or not the sync manager believes the chain is
 // current as compared to the rest of the network.
 //
 // This function is safe for concurrent access and is part of the
-// rpcserverSyncManager interface implementation.
+// rpcserver.SyncManager interface implementation.
 func (b *rpcSyncMgr) IsCurrent() bool {
 	return b.blockMgr.IsCurrent()
 }
@@ -255,7 +255,7 @@ func (b *rpcSyncMgr) IsCurrent() bool {
 // locally.
 //
 // This function is safe for concurrent access and is part of the
-// rpcserverSyncManager interface implementation.
+// rpcserver.SyncManager interface implementation.
 func (b *rpcSyncMgr) SubmitBlock(block *dcrutil.Block, flags blockchain.BehaviorFlags) (bool, error) {
 	return b.blockMgr.ProcessBlock(block, flags)
 }
@@ -263,7 +263,7 @@ func (b *rpcSyncMgr) SubmitBlock(block *dcrutil.Block, flags blockchain.Behavior
 // SyncPeer returns the id of the current peer being synced with.
 //
 // This function is safe for concurrent access and is part of the
-// rpcserverSyncManager interface implementation.
+// rpcserver.SyncManager interface implementation.
 func (b *rpcSyncMgr) SyncPeerID() int32 {
 	return b.blockMgr.SyncPeerID()
 }
@@ -273,7 +273,7 @@ func (b *rpcSyncMgr) SyncPeerID() int32 {
 // max number of block hashes.
 //
 // This function is safe for concurrent access and is part of the
-// rpcserverSyncManager interface implementation.
+// rpcserver.SyncManager interface implementation.
 func (b *rpcSyncMgr) LocateBlocks(locator blockchain.BlockLocator, hashStop *chainhash.Hash, maxHashes uint32) []chainhash.Hash {
 	return b.server.chain.LocateBlocks(locator, hashStop, maxHashes)
 }
@@ -281,7 +281,7 @@ func (b *rpcSyncMgr) LocateBlocks(locator blockchain.BlockLocator, hashStop *cha
 // ExistsAddrIndex returns the address index.
 //
 // This function is safe for concurrent access and is part of the
-// rpcserverSyncManager interface implementation.
+// rpcserver.SyncManager interface implementation.
 func (b *rpcSyncMgr) ExistsAddrIndex() *indexers.ExistsAddrIndex {
 	return b.server.existsAddrIndex
 }
@@ -289,7 +289,7 @@ func (b *rpcSyncMgr) ExistsAddrIndex() *indexers.ExistsAddrIndex {
 // CFIndex returns the committed filter (cf) by hash index.
 //
 // This function is safe for concurrent access and is part of the
-// rpcserverSyncManager interface implementation.
+// rpcserver.SyncManager interface implementation.
 func (b *rpcSyncMgr) CFIndex() *indexers.CFIndex {
 	return b.server.cfIndex
 }

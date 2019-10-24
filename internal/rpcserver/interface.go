@@ -5,6 +5,9 @@
 package rpcserver
 
 import (
+	"github.com/decred/dcrd/blockchain/v3"
+	"github.com/decred/dcrd/blockchain/v3/indexers"
+	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/dcrutil/v3"
 	"github.com/decred/dcrd/peer/v2"
 	"github.com/decred/dcrd/wire"
@@ -88,4 +91,45 @@ type ConnManager interface {
 
 	// AddedNodeInfo returns information describing persistent (added) nodes.
 	AddedNodeInfo() []Peer
+}
+
+// SyncManager represents a sync manager for use with the RPC server.
+//
+// The interface contract requires that all of these methods are safe for
+// concurrent access.
+type SyncManager interface {
+	// IsCurrent returns whether or not the sync manager believes the chain
+	// is current as compared to the rest of the network.
+	IsCurrent() bool
+
+	// SubmitBlock submits the provided block to the network after
+	// processing it locally.
+	SubmitBlock(block *dcrutil.Block, flags blockchain.BehaviorFlags) (bool, error)
+
+	// SyncPeerID returns the id of the current peer being synced with.
+	SyncPeerID() int32
+
+	// LocateBlocks returns the hashes of the blocks after the first known block
+	// in the locator until the provided stop hash is reached, or up to the
+	// provided max number of block hashes.
+	LocateBlocks(locator blockchain.BlockLocator, hashStop *chainhash.Hash,
+		maxHashes uint32) []chainhash.Hash
+
+	// ExistsAddrIndex returns the address index.
+	ExistsAddrIndex() *indexers.ExistsAddrIndex
+
+	// CFIndex returns the committed filter (cf) by hash index.
+	CFIndex() *indexers.CFIndex
+
+	// TipGeneration returns the entire generation of blocks stemming from the
+	// parent of the current tip.
+	TipGeneration() ([]chainhash.Hash, error)
+
+	// SyncHeight returns latest known block being synced to.
+	SyncHeight() int64
+
+	// ProcessTransaction relays the provided transaction validation and
+	// insertion into the memory pool.
+	ProcessTransaction(tx *dcrutil.Tx, allowOrphans bool, rateLimit bool,
+		allowHighFees bool) ([]*dcrutil.Tx, error)
 }
