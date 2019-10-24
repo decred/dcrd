@@ -17,6 +17,7 @@ import (
 	"github.com/decred/dcrd/connmgr/v2"
 	"github.com/decred/dcrd/database/v2"
 	"github.com/decred/dcrd/fees/v2"
+	"github.com/decred/dcrd/internal/rpcserver"
 	"github.com/decred/dcrd/mempool/v3"
 	"github.com/decred/dcrd/peer/v2"
 	"github.com/decred/dcrd/txscript/v3"
@@ -83,6 +84,7 @@ func init() {
 	indexers.UseLogger(indxLog)
 	mempool.UseLogger(txmpLog)
 	peer.UseLogger(peerLog)
+	rpcserver.UseLogger(rpcsLog)
 	stake.UseLogger(stkeLog)
 	txscript.UseLogger(scrpLog)
 }
