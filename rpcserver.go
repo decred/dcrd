@@ -47,9 +47,9 @@ import (
 	"github.com/decred/dcrd/dcrjson/v3"
 	"github.com/decred/dcrd/dcrutil/v3"
 	"github.com/decred/dcrd/fees/v2"
+	"github.com/decred/dcrd/internal/rpcserver"
 	"github.com/decred/dcrd/internal/version"
 	"github.com/decred/dcrd/mempool/v3"
-	"github.com/decred/dcrd/peer/v2"
 	"github.com/decred/dcrd/rpc/jsonrpc/types/v2"
 	"github.com/decred/dcrd/txscript/v3"
 	"github.com/decred/dcrd/wire"
@@ -5468,23 +5468,6 @@ func genCertPair(certFile, keyFile string, altDNSNames []string) error {
 	return nil
 }
 
-// rpcserverPeer represents a peer for use with the RPC server.
-//
-// The interface contract requires that all of these methods are safe for
-// concurrent access.
-type rpcserverPeer interface {
-	// ToPeer returns the underlying peer instance.
-	ToPeer() *peer.Peer
-
-	// IsTxRelayDisabled returns whether or not the peer has disabled
-	// transaction relay.
-	IsTxRelayDisabled() bool
-
-	// BanScore returns the current integer value that represents how close
-	// the peer is to being banned.
-	BanScore() uint32
-}
-
 // rpcserverConnManager represents a connection manager for use with the RPC
 // server.
 //
@@ -5526,11 +5509,11 @@ type rpcserverConnManager interface {
 	NetTotals() (uint64, uint64)
 
 	// ConnectedPeers returns an array consisting of all connected peers.
-	ConnectedPeers() []rpcserverPeer
+	ConnectedPeers() []rpcserver.Peer
 
 	// PersistentPeers returns an array consisting of all the persistent
 	// peers.
-	PersistentPeers() []rpcserverPeer
+	PersistentPeers() []rpcserver.Peer
 
 	// BroadcastMessage sends the provided message to all currently
 	// connected peers.
@@ -5546,7 +5529,7 @@ type rpcserverConnManager interface {
 	RelayTransactions(txns []*dcrutil.Tx)
 
 	// AddedNodeInfo returns information describing persistent (added) nodes.
-	AddedNodeInfo() []rpcserverPeer
+	AddedNodeInfo() []rpcserver.Peer
 }
 
 // rpcserverSyncManager represents a sync manager for use with the RPC server.

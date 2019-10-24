@@ -10,20 +10,21 @@ import (
 	"github.com/decred/dcrd/blockchain/v3/indexers"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/dcrutil/v3"
+	"github.com/decred/dcrd/internal/rpcserver"
 	"github.com/decred/dcrd/peer/v2"
 	"github.com/decred/dcrd/wire"
 )
 
 // rpcPeer provides a peer for use with the RPC server and implements the
-// rpcserverPeer interface.
+// rpcserver.Peer interface.
 type rpcPeer serverPeer
 
-// Ensure rpcPeer implements the rpcserverPeer interface.
-var _ rpcserverPeer = (*rpcPeer)(nil)
+// Ensure rpcPeer implements the rpcserver.Peer interface.
+var _ rpcserver.Peer = (*rpcPeer)(nil)
 
 // ToPeer returns the underlying peer instance.
 //
-// This function is safe for concurrent access and is part of the rpcserverPeer
+// This function is safe for concurrent access and is part of the rpcserver.Peer
 // interface implementation.
 func (p *rpcPeer) ToPeer() *peer.Peer {
 	if p == nil {
@@ -35,7 +36,7 @@ func (p *rpcPeer) ToPeer() *peer.Peer {
 // IsTxRelayDisabled returns whether or not the peer has disabled transaction
 // relay.
 //
-// This function is safe for concurrent access and is part of the rpcserverPeer
+// This function is safe for concurrent access and is part of the rpcserver.Peer
 // interface implementation.
 func (p *rpcPeer) IsTxRelayDisabled() bool {
 	return (*serverPeer)(p).relayTxDisabled()
@@ -44,7 +45,7 @@ func (p *rpcPeer) IsTxRelayDisabled() bool {
 // BanScore returns the current integer value that represents how close the peer
 // is to being banned.
 //
-// This function is safe for concurrent access and is part of the rpcserverPeer
+// This function is safe for concurrent access and is part of the rpcserver.Peer
 // interface implementation.
 func (p *rpcPeer) BanScore() uint32 {
 	return (*serverPeer)(p).banScore.Int()
@@ -157,13 +158,13 @@ func (cm *rpcConnManager) NetTotals() (uint64, uint64) {
 //
 // This function is safe for concurrent access and is part of the
 // rpcserverConnManager interface implementation.
-func (cm *rpcConnManager) ConnectedPeers() []rpcserverPeer {
+func (cm *rpcConnManager) ConnectedPeers() []rpcserver.Peer {
 	replyChan := make(chan []*serverPeer)
 	cm.server.query <- getPeersMsg{reply: replyChan}
 	serverPeers := <-replyChan
 
 	// Convert to RPC server peers.
-	peers := make([]rpcserverPeer, 0, len(serverPeers))
+	peers := make([]rpcserver.Peer, 0, len(serverPeers))
 	for _, sp := range serverPeers {
 		peers = append(peers, (*rpcPeer)(sp))
 	}
@@ -175,13 +176,13 @@ func (cm *rpcConnManager) ConnectedPeers() []rpcserverPeer {
 //
 // This function is safe for concurrent access and is part of the
 // rpcserverConnManager interface implementation.
-func (cm *rpcConnManager) PersistentPeers() []rpcserverPeer {
+func (cm *rpcConnManager) PersistentPeers() []rpcserver.Peer {
 	replyChan := make(chan []*serverPeer)
 	cm.server.query <- getAddedNodesMsg{reply: replyChan}
 	serverPeers := <-replyChan
 
 	// Convert to generic peers.
-	peers := make([]rpcserverPeer, 0, len(serverPeers))
+	peers := make([]rpcserver.Peer, 0, len(serverPeers))
 	for _, sp := range serverPeers {
 		peers = append(peers, (*rpcPeer)(sp))
 	}
@@ -213,11 +214,11 @@ func (cm *rpcConnManager) RelayTransactions(txns []*dcrutil.Tx) {
 }
 
 // AddedNodeInfo returns information describing persistent (added) nodes.
-func (cm *rpcConnManager) AddedNodeInfo() []rpcserverPeer {
+func (cm *rpcConnManager) AddedNodeInfo() []rpcserver.Peer {
 	serverPeers := cm.server.AddedNodeInfo()
 
 	// Convert to RPC server peers.
-	peers := make([]rpcserverPeer, 0, len(serverPeers))
+	peers := make([]rpcserver.Peer, 0, len(serverPeers))
 	for _, sp := range serverPeers {
 		peers = append(peers, (*rpcPeer)(sp))
 	}
