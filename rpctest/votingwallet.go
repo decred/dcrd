@@ -90,7 +90,7 @@ type utxoInfo struct {
 // of blocks.
 type VotingWallet struct {
 	hn         *Harness
-	privateKey *secp256k1.PrivateKey
+	privateKey []byte
 	address    dcrutil.Address
 	c          *rpcclient.Client
 
@@ -130,7 +130,7 @@ type VotingWallet struct {
 // continuously buying tickets and voting on them.
 func NewVotingWallet(hn *Harness) (*VotingWallet, error) {
 
-	priv, pub := secp256k1.PrivKeyFromBytes(hardcodedPrivateKey)
+	_, pub := secp256k1.PrivKeyFromBytes(hardcodedPrivateKey)
 	serPub := pub.SerializeCompressed()
 	hashPub := dcrutil.Hash160(serPub)
 	addr, err := dcrutil.NewAddressPubKeyHash(hashPub, hn.ActiveNet,
@@ -178,7 +178,7 @@ func NewVotingWallet(hn *Harness) (*VotingWallet, error) {
 
 	w := &VotingWallet{
 		hn:                     hn,
-		privateKey:             priv,
+		privateKey:             hardcodedPrivateKey,
 		address:                addr,
 		p2sstx:                 p2sstx,
 		p2pkh:                  p2pkh,
@@ -419,7 +419,7 @@ func (w *VotingWallet) handleBlockConnectedNtfn(ntfn *blockConnectedNtfn) {
 		}
 
 		sig, err := txscript.SignatureScript(t, 0, prevScript, txscript.SigHashAll,
-			w.privateKey, true)
+			w.privateKey, dcrec.STEcdsaSecp256k1, true)
 		if err != nil {
 			w.logError(fmt.Errorf("failed to sign ticket tx: %v", err))
 			return
@@ -507,7 +507,7 @@ func (w *VotingWallet) handleWinningTicketsNtfn(ntfn *winningTicketsNtfn) {
 		vote.AddTxOut(wire.NewTxOut(voteReturnValue, voteReturnScript))
 
 		sig, err := txscript.SignatureScript(vote, 1, w.p2sstx, txscript.SigHashAll,
-			w.privateKey, true)
+			w.privateKey, dcrec.STEcdsaSecp256k1, true)
 		if err != nil {
 			w.logError(fmt.Errorf("failed to sign ticket tx: %v", err))
 			return

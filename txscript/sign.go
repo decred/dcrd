@@ -9,8 +9,10 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/decred/dcrd/chaincfg/v2/chainec"
 	"github.com/decred/dcrd/dcrec"
+	"github.com/decred/dcrd/dcrec/edwards/v2"
+	"github.com/decred/dcrd/dcrec/secp256k1/v2"
+	"github.com/decred/dcrd/dcrec/secp256k1/v2/schnorr"
 	"github.com/decred/dcrd/dcrutil/v3"
 	"github.com/decred/dcrd/wire"
 )
@@ -22,56 +24,44 @@ import (
 // does not accept a script version, the results are undefined for other script
 // versions.
 func RawTxInSignature(tx *wire.MsgTx, idx int, subScript []byte,
-	hashType SigHashType, key chainec.PrivateKey) ([]byte, error) {
+	hashType SigHashType, key []byte, sigType dcrec.SignatureType) ([]byte, error) {
 
 	hash, err := CalcSignatureHash(subScript, hashType, tx, idx, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	r, s, err := chainec.Secp256k1.Sign(key, hash)
-	if err != nil {
-		return nil, fmt.Errorf("cannot sign tx input: %s", err)
-	}
-	sig := chainec.Secp256k1.NewSignature(r, s)
-
-	return append(sig.Serialize(), byte(hashType)), nil
-}
-
-// RawTxInSignatureAlt returns the serialized ECDSA signature for the input idx of
-// the given transaction, with hashType appended to it.
-//
-// NOTE: This function is only valid for version 0 scripts.  Since the function
-// does not accept a script version, the results are undefined for other script
-// versions.
-func RawTxInSignatureAlt(tx *wire.MsgTx, idx int, subScript []byte,
-	hashType SigHashType, key chainec.PrivateKey, sigType dcrec.SignatureType) ([]byte,
-	error) {
-
-	hash, err := CalcSignatureHash(subScript, hashType, tx, idx, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	var sig chainec.Signature
+	var sigBytes []byte
 	switch sigType {
+	case dcrec.STEcdsaSecp256k1:
+		priv, _ := secp256k1.PrivKeyFromBytes(key)
+		sig, err := priv.Sign(hash)
+		if err != nil {
+			return nil, fmt.Errorf("cannot sign tx input: %v", err)
+		}
+		sigBytes = sig.Serialize()
 	case dcrec.STEd25519:
-		r, s, err := chainec.Edwards.Sign(key, hash)
+		priv, _ := edwards.PrivKeyFromBytes(key)
+		if priv == nil {
+			return nil, fmt.Errorf("invalid privkey")
+		}
+		sig, err := priv.Sign(hash)
 		if err != nil {
 			return nil, fmt.Errorf("cannot sign tx input: %s", err)
 		}
-		sig = chainec.Edwards.NewSignature(r, s)
+		sigBytes = sig.Serialize()
 	case dcrec.STSchnorrSecp256k1:
-		r, s, err := chainec.SecSchnorr.Sign(key, hash)
+		priv, _ := secp256k1.PrivKeyFromBytes(key)
+		r, s, err := schnorr.Sign(priv, hash)
 		if err != nil {
 			return nil, fmt.Errorf("cannot sign tx input: %s", err)
 		}
-		sig = chainec.SecSchnorr.NewSignature(r, s)
+		sigBytes = schnorr.NewSignature(r, s).Serialize()
 	default:
-		return nil, fmt.Errorf("unknown alt sig type %v", sigType)
+		return nil, fmt.Errorf("unknown signature type '%v'", sigType)
 	}
 
-	return append(sig.Serialize(), byte(hashType)), nil
+	return append(sigBytes, byte(hashType)), nil
 }
 
 // SignatureScript creates an input signature script for tx to spend coins sent
@@ -79,75 +69,44 @@ func RawTxInSignatureAlt(tx *wire.MsgTx, idx int, subScript []byte,
 // transaction inputs and outputs, however txin scripts are allowed to be filled
 // or empty. The returned script is calculated to be used as the idx'th txin
 // sigscript for tx. subscript is the PkScript of the previous output being used
-// as the idx'th input. privKey is serialized in either a compressed or
-// uncompressed format based on compress. This format must match the same format
-// used to generate the payment address, or the script validation will fail.
-func SignatureScript(tx *wire.MsgTx, idx int, subscript []byte,
-	hashType SigHashType, privKey chainec.PrivateKey, compress bool) ([]byte,
-	error) {
-	sig, err := RawTxInSignature(tx, idx, subscript, hashType, privKey)
-	if err != nil {
-		return nil, err
-	}
-
-	pubx, puby := privKey.Public()
-	pub := chainec.Secp256k1.NewPublicKey(pubx, puby)
-	var pkData []byte
-	if compress {
-		pkData = pub.SerializeCompressed()
-	} else {
-		pkData = pub.SerializeUncompressed()
-	}
-
-	return NewScriptBuilder().AddData(sig).AddData(pkData).Script()
-}
-
-// SignatureScriptAlt creates an input signature script for tx to spend coins sent
-// from a previous output to the owner of privKey. tx must include all
-// transaction inputs and outputs, however txin scripts are allowed to be filled
-// or empty. The returned script is calculated to be used as the idx'th txin
-// sigscript for tx. subscript is the PkScript of the previous output being used
 // as the idx'th input. privKey is serialized in the respective format for the
 // ECDSA type. This format must match the same format used to generate the payment
 // address, or the script validation will fail.
-func SignatureScriptAlt(tx *wire.MsgTx, idx int, subscript []byte,
-	hashType SigHashType, privKey chainec.PrivateKey, compress bool,
-	sigType dcrec.SignatureType) ([]byte,
-	error) {
-	sig, err := RawTxInSignatureAlt(tx, idx, subscript, hashType, privKey,
-		sigType)
+func SignatureScript(tx *wire.MsgTx, idx int, subscript []byte, hashType SigHashType,
+	privKey []byte, sigType dcrec.SignatureType, compress bool) ([]byte, error) {
+
+	sig, err := RawTxInSignature(tx, idx, subscript, hashType, privKey, sigType)
 	if err != nil {
 		return nil, err
 	}
 
-	pubx, puby := privKey.Public()
-	var pub chainec.PublicKey
+	var pkData []byte
 	switch sigType {
+	case dcrec.STEcdsaSecp256k1:
+		_, pub := secp256k1.PrivKeyFromBytes(privKey)
+		if compress {
+			pkData = pub.SerializeCompressed()
+		} else {
+			pkData = pub.SerializeUncompressed()
+		}
 	case dcrec.STEd25519:
-		pub = chainec.Edwards.NewPublicKey(pubx, puby)
+		_, pub := edwards.PrivKeyFromBytes(privKey)
+		pkData = pub.Serialize()
 	case dcrec.STSchnorrSecp256k1:
-		pub = chainec.SecSchnorr.NewPublicKey(pubx, puby)
+		_, pub := secp256k1.PrivKeyFromBytes(privKey)
+		pkData = pub.Serialize()
+	default:
+		return nil, fmt.Errorf("unsupported signature type '%v'", sigType)
 	}
-	pkData := pub.Serialize()
 
 	return NewScriptBuilder().AddData(sig).AddData(pkData).Script()
 }
 
 // p2pkSignatureScript constructs a pay-to-pubkey signature script.
 func p2pkSignatureScript(tx *wire.MsgTx, idx int, subScript []byte,
-	hashType SigHashType, privKey chainec.PrivateKey, sigType dcrec.SignatureType) ([]byte, error) {
+	hashType SigHashType, privKey []byte, sigType dcrec.SignatureType) ([]byte, error) {
 
-	var sig []byte
-	var err error
-	switch sigType {
-	case dcrec.STEcdsaSecp256k1:
-		sig, err = RawTxInSignature(tx, idx, subScript, hashType, privKey)
-	case dcrec.STEd25519, dcrec.STSchnorrSecp256k1:
-		sig, err = RawTxInSignatureAlt(tx, idx, subScript, hashType, privKey,
-			sigType)
-	default:
-		err = fmt.Errorf("unsupported signature type '%v'", sigType)
-	}
+	sig, err := RawTxInSignature(tx, idx, subScript, hashType, privKey, sigType)
 	if err != nil {
 		return nil, err
 	}
@@ -162,16 +121,17 @@ func p2pkSignatureScript(tx *wire.MsgTx, idx int, subScript []byte,
 // returned.
 func signMultiSig(tx *wire.MsgTx, idx int, subScript []byte, hashType SigHashType,
 	addresses []dcrutil.Address, nRequired int, kdb KeyDB) ([]byte, bool) {
+
 	// No need to add dummy in Decred.
 	builder := NewScriptBuilder()
 	signed := 0
 	for _, addr := range addresses {
-		key, _, _, err := kdb.GetKey(addr)
+		key, sigType, _, err := kdb.GetKey(addr)
 		if err != nil {
 			continue
 		}
 
-		sig, err := RawTxInSignature(tx, idx, subScript, hashType, key)
+		sig, err := RawTxInSignature(tx, idx, subScript, hashType, key, sigType)
 		if err != nil {
 			continue
 		}
@@ -197,12 +157,12 @@ func handleStakeOutSign(tx *wire.MsgTx, idx int, subScript []byte,
 	// look up key for address
 	switch subClass {
 	case PubKeyHashTy:
-		key, _, compressed, err := kdb.GetKey(addresses[0])
+		key, sigType, compressed, err := kdb.GetKey(addresses[0])
 		if err != nil {
 			return nil, class, nil, 0, err
 		}
 		txscript, err := SignatureScript(tx, idx, subScript, hashType,
-			key, compressed)
+			key, sigType, compressed)
 		if err != nil {
 			return nil, class, nil, 0, err
 		}
@@ -281,13 +241,13 @@ func sign(chainParams dcrutil.AddressParams, tx *wire.MsgTx, idx int,
 
 	case PubKeyHashTy:
 		// look up key for address
-		key, _, compressed, err := kdb.GetKey(addresses[0])
+		key, sigType, compressed, err := kdb.GetKey(addresses[0])
 		if err != nil {
 			return nil, class, nil, 0, err
 		}
 
 		script, err := SignatureScript(tx, idx, subScript, hashType,
-			key, compressed)
+			key, sigType, compressed)
 		if err != nil {
 			return nil, class, nil, 0, err
 		}
@@ -301,8 +261,8 @@ func sign(chainParams dcrutil.AddressParams, tx *wire.MsgTx, idx int,
 			return nil, class, nil, 0, err
 		}
 
-		script, err := SignatureScriptAlt(tx, idx, subScript, hashType,
-			key, compressed, sigType)
+		script, err := SignatureScript(tx, idx, subScript, hashType,
+			key, sigType, compressed)
 		if err != nil {
 			return nil, class, nil, 0, err
 		}
@@ -411,7 +371,7 @@ sigLoop:
 		tSig := sig[:len(sig)-1]
 		hashType := SigHashType(sig[len(sig)-1])
 
-		pSig, err := chainec.Secp256k1.ParseDERSignature(tSig)
+		pSig, err := secp256k1.ParseDERSignature(tSig)
 		if err != nil {
 			continue
 		}
@@ -441,7 +401,7 @@ sigLoop:
 			// already have one, we can throw this away.
 			r := pSig.GetR()
 			s := pSig.GetS()
-			if chainec.Secp256k1.Verify(pubKey, hash, r, s) {
+			if secp256k1.NewSignature(r, s).Verify(hash, pubKey) {
 				aStr := addr.Address()
 				if _, ok := addrToSig[aStr]; !ok {
 					addrToSig[aStr] = sig
@@ -553,14 +513,14 @@ func mergeScripts(chainParams dcrutil.AddressParams, tx *wire.MsgTx, idx int,
 // KeyDB is an interface type provided to SignTxOutput, it encapsulates
 // any user state required to get the private keys for an address.
 type KeyDB interface {
-	GetKey(dcrutil.Address) (chainec.PrivateKey, dcrec.SignatureType, bool, error)
+	GetKey(dcrutil.Address) ([]byte, dcrec.SignatureType, bool, error)
 }
 
 // KeyClosure implements KeyDB with a closure.
-type KeyClosure func(dcrutil.Address) (chainec.PrivateKey, dcrec.SignatureType, bool, error)
+type KeyClosure func(dcrutil.Address) ([]byte, dcrec.SignatureType, bool, error)
 
 // GetKey implements KeyDB by returning the result of calling the closure.
-func (kc KeyClosure) GetKey(address dcrutil.Address) (chainec.PrivateKey, dcrec.SignatureType, bool, error) {
+func (kc KeyClosure) GetKey(address dcrutil.Address) ([]byte, dcrec.SignatureType, bool, error) {
 	return kc(address)
 }
 
