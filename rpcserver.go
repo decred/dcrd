@@ -569,7 +569,7 @@ func handleNode(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) (inter
 // peerExists determines if a certain peer is currently connected given
 // information about all currently connected peers. Peer existence is
 // determined using either a target address or node id.
-func peerExists(connMgr rpcserverConnManager, addr string, nodeID int32) bool {
+func peerExists(connMgr rpcserver.ConnManager, addr string, nodeID int32) bool {
 	for _, p := range connMgr.ConnectedPeers() {
 		if p.ToPeer().ID() == nodeID || p.ToPeer().Addr() == addr {
 			return true
@@ -5468,70 +5468,6 @@ func genCertPair(certFile, keyFile string, altDNSNames []string) error {
 	return nil
 }
 
-// rpcserverConnManager represents a connection manager for use with the RPC
-// server.
-//
-// The interface contract requires that all of these methods are safe for
-// concurrent access.
-type rpcserverConnManager interface {
-	// Connect adds the provided address as a new outbound peer.  The
-	// permanent flag indicates whether or not to make the peer persistent
-	// and reconnect if the connection is lost.  Attempting to connect to an
-	// already existing peer will return an error.
-	Connect(addr string, permanent bool) error
-
-	// RemoveByID removes the peer associated with the provided id from the
-	// list of persistent peers.  Attempting to remove an id that does not
-	// exist will return an error.
-	RemoveByID(id int32) error
-
-	// RemoveByAddr removes the peer associated with the provided address
-	// from the list of persistent peers.  Attempting to remove an address
-	// that does not exist will return an error.
-	RemoveByAddr(addr string) error
-
-	// DisconnectByID disconnects the peer associated with the provided id.
-	// This applies to both inbound and outbound peers.  Attempting to
-	// remove an id that does not exist will return an error.
-	DisconnectByID(id int32) error
-
-	// DisconnectByAddr disconnects the peer associated with the provided
-	// address.  This applies to both inbound and outbound peers.
-	// Attempting to remove an address that does not exist will return an
-	// error.
-	DisconnectByAddr(addr string) error
-
-	// ConnectedCount returns the number of currently connected peers.
-	ConnectedCount() int32
-
-	// NetTotals returns the sum of all bytes received and sent across the
-	// network for all peers.
-	NetTotals() (uint64, uint64)
-
-	// ConnectedPeers returns an array consisting of all connected peers.
-	ConnectedPeers() []rpcserver.Peer
-
-	// PersistentPeers returns an array consisting of all the persistent
-	// peers.
-	PersistentPeers() []rpcserver.Peer
-
-	// BroadcastMessage sends the provided message to all currently
-	// connected peers.
-	BroadcastMessage(msg wire.Message)
-
-	// AddRebroadcastInventory adds the provided inventory to the list of
-	// inventories to be rebroadcast at random intervals until they show up
-	// in a block.
-	AddRebroadcastInventory(iv *wire.InvVect, data interface{})
-
-	// RelayTransactions generates and relays inventory vectors for all of
-	// the passed transactions to all connected peers.
-	RelayTransactions(txns []*dcrutil.Tx)
-
-	// AddedNodeInfo returns information describing persistent (added) nodes.
-	AddedNodeInfo() []rpcserver.Peer
-}
-
 // rpcserverSyncManager represents a sync manager for use with the RPC server.
 //
 // The interface contract requires that all of these methods are safe for
@@ -5588,7 +5524,7 @@ type rpcserverConfig struct {
 	// provides the RPC server with a means to do things such as add,
 	// remove, connect, disconnect, and query peers as well as other
 	// connection-related data and tasks.
-	ConnMgr rpcserverConnManager
+	ConnMgr rpcserver.ConnManager
 
 	// SyncMgr defines the sync manager for the RPC server to use.
 	SyncMgr rpcserverSyncManager
