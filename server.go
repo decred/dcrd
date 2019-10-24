@@ -119,7 +119,7 @@ type relayMsg struct {
 type updatePeerHeightsMsg struct {
 	newHash    *chainhash.Hash
 	newHeight  int64
-	originPeer *serverPeer
+	originPeer *peer.Peer
 }
 
 // peerState maintains state of inbound, persistent, outbound peers as well
@@ -278,18 +278,16 @@ type server struct {
 type serverPeer struct {
 	*peer.Peer
 
-	connReq         *connmgr.ConnReq
-	server          *server
-	persistent      bool
-	continueHash    *chainhash.Hash
-	relayMtx        sync.Mutex
-	disableRelayTx  bool
-	isWhitelisted   bool
-	requestedTxns   map[chainhash.Hash]struct{}
-	requestedBlocks map[chainhash.Hash]struct{}
-	knownAddresses  lru.Cache
-	banScore        connmgr.DynamicBanScore
-	quit            chan struct{}
+	connReq        *connmgr.ConnReq
+	server         *server
+	persistent     bool
+	continueHash   *chainhash.Hash
+	relayMtx       sync.Mutex
+	disableRelayTx bool
+	isWhitelisted  bool
+	knownAddresses lru.Cache
+	banScore       connmgr.DynamicBanScore
+	quit           chan struct{}
 
 	// addrsSent and getMiningStateSent both track whether or not the peer
 	// has already sent the respective request.  It is used to prevent more
@@ -310,14 +308,12 @@ type serverPeer struct {
 // the caller.
 func newServerPeer(s *server, isPersistent bool) *serverPeer {
 	return &serverPeer{
-		server:          s,
-		persistent:      isPersistent,
-		requestedTxns:   make(map[chainhash.Hash]struct{}),
-		requestedBlocks: make(map[chainhash.Hash]struct{}),
-		knownAddresses:  lru.NewCache(maxKnownAddrsPerPeer),
-		quit:            make(chan struct{}),
-		txProcessed:     make(chan struct{}, 1),
-		blockProcessed:  make(chan struct{}, 1),
+		server:         s,
+		persistent:     isPersistent,
+		knownAddresses: lru.NewCache(maxKnownAddrsPerPeer),
+		quit:           make(chan struct{}),
+		txProcessed:    make(chan struct{}, 1),
+		blockProcessed: make(chan struct{}, 1),
 	}
 }
 
@@ -506,7 +502,7 @@ func (sp *serverPeer) OnVersion(p *peer.Peer, msg *wire.MsgVersion) *wire.MsgRej
 	sp.server.timeSource.AddTimeSample(p.Addr(), msg.Timestamp)
 
 	// Signal the block manager this peer is a new sync candidate.
-	sp.server.blockManager.NewPeer(sp)
+	sp.server.blockManager.NewPeer(sp.Peer)
 
 	// Add valid peer to the server.
 	sp.server.AddPeer(sp)
@@ -652,7 +648,7 @@ func (sp *serverPeer) OnGetMiningState(p *peer.Peer, msg *wire.MsgGetMiningState
 // OnMiningState is invoked when a peer receives a miningstate wire message.  It
 // requests the data advertised in the message from the peer.
 func (sp *serverPeer) OnMiningState(p *peer.Peer, msg *wire.MsgMiningState) {
-	err := sp.server.blockManager.RequestFromPeer(sp, msg.BlockHashes,
+	err := sp.server.blockManager.RequestFromPeer(sp.Peer, msg.BlockHashes,
 		msg.VoteHashes)
 	if err != nil {
 		peerLog.Warnf("couldn't handle mining state message: %v",
@@ -683,7 +679,7 @@ func (sp *serverPeer) OnTx(p *peer.Peer, msg *wire.MsgTx) {
 	// processed and known good or bad.  This helps prevent a malicious peer
 	// from queuing up a bunch of bad transactions before disconnecting (or
 	// being disconnected) and wasting memory.
-	sp.server.blockManager.QueueTx(tx, sp)
+	sp.server.blockManager.QueueTx(tx, sp.Peer, sp.txProcessed)
 	<-sp.txProcessed
 }
 
@@ -707,7 +703,7 @@ func (sp *serverPeer) OnBlock(p *peer.Peer, msg *wire.MsgBlock, buf []byte) {
 	// reference implementation processes blocks in the same thread and
 	// therefore blocks further messages until the network block has been
 	// fully processed.
-	sp.server.blockManager.QueueBlock(block, sp)
+	sp.server.blockManager.QueueBlock(block, sp.Peer, sp.blockProcessed)
 	<-sp.blockProcessed
 }
 
@@ -718,7 +714,7 @@ func (sp *serverPeer) OnBlock(p *peer.Peer, msg *wire.MsgBlock, buf []byte) {
 func (sp *serverPeer) OnInv(p *peer.Peer, msg *wire.MsgInv) {
 	if !cfg.BlocksOnly {
 		if len(msg.InvList) > 0 {
-			sp.server.blockManager.QueueInv(msg, sp)
+			sp.server.blockManager.QueueInv(msg, sp.Peer)
 		}
 		return
 	}
@@ -739,14 +735,14 @@ func (sp *serverPeer) OnInv(p *peer.Peer, msg *wire.MsgInv) {
 	}
 
 	if len(newInv.InvList) > 0 {
-		sp.server.blockManager.QueueInv(newInv, sp)
+		sp.server.blockManager.QueueInv(newInv, sp.Peer)
 	}
 }
 
 // OnHeaders is invoked when a peer receives a headers wire message.  The
 // message is passed down to the block manager.
-func (sp *serverPeer) OnHeaders(p *peer.Peer, msg *wire.MsgHeaders) {
-	sp.server.blockManager.QueueHeaders(msg, sp)
+func (sp *serverPeer) OnHeaders(_ *peer.Peer, msg *wire.MsgHeaders) {
+	sp.server.blockManager.QueueHeaders(msg, sp.Peer)
 }
 
 // handleGetData is invoked when a peer receives a getdata wire message and is
@@ -1353,7 +1349,7 @@ func (s *server) pushBlockMsg(sp *serverPeer, hash *chainhash.Hash, doneChan cha
 func (s *server) handleUpdatePeerHeights(state *peerState, umsg updatePeerHeightsMsg) {
 	state.forAllPeers(func(sp *serverPeer) {
 		// The origin peer should already have the updated height.
-		if sp == umsg.originPeer {
+		if sp.Peer == umsg.originPeer {
 			return
 		}
 
@@ -1889,7 +1885,7 @@ func (s *server) peerDoneHandler(sp *serverPeer) {
 
 	// Only tell block manager we are gone if we ever told it we existed.
 	if sp.VersionKnown() {
-		s.blockManager.DonePeer(sp)
+		s.blockManager.DonePeer(sp.Peer)
 	}
 	close(sp.quit)
 }
@@ -2151,7 +2147,7 @@ func (s *server) NetTotals() (uint64, uint64) {
 // the latest connected main chain block, or a recognized orphan. These height
 // updates allow us to dynamically refresh peer heights, ensuring sync peer
 // selection has access to the latest block heights for each peer.
-func (s *server) UpdatePeerHeights(latestBlkHash *chainhash.Hash, latestHeight int64, updateSource *serverPeer) {
+func (s *server) UpdatePeerHeights(latestBlkHash *chainhash.Hash, latestHeight int64, updateSource *peer.Peer) {
 	s.peerHeightsUpdate <- updatePeerHeightsMsg{
 		newHash:    latestBlkHash,
 		newHeight:  latestHeight,
