@@ -14,6 +14,7 @@ import (
 	"github.com/decred/dcrd/blockchain/standalone"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/chaincfg/v2"
+	"github.com/decred/dcrd/dcrec"
 	"github.com/decred/dcrd/dcrec/secp256k1/v2"
 	"github.com/decred/dcrd/dcrutil/v2"
 	"github.com/decred/dcrd/hdkeychain/v2"
@@ -489,8 +490,10 @@ func (m *memWallet) CreateTransaction(outputs []*wire.TxOut, feeRate dcrutil.Amo
 			return nil, err
 		}
 
-		sigScript, err := txscript.SignatureScript(tx, i, utxo.pkScript,
-			txscript.SigHashAll, privKey, true)
+		const scriptVersion = 0
+		sigScript, err := txscript.SignatureScript(tx, scriptVersion, i,
+			utxo.pkScript, txscript.SigHashAll, privKey.Serialize(),
+			dcrec.STEcdsaSecp256k1, true)
 		if err != nil {
 			return nil, err
 		}
