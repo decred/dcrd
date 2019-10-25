@@ -51,7 +51,7 @@ import (
 	"github.com/decred/dcrd/mempool/v3"
 	"github.com/decred/dcrd/peer/v2"
 	"github.com/decred/dcrd/rpc/jsonrpc/types/v2"
-	"github.com/decred/dcrd/txscript/v2"
+	"github.com/decred/dcrd/txscript/v3"
 	"github.com/decred/dcrd/wire"
 	"github.com/jrick/bitset"
 )

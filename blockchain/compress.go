@@ -10,7 +10,7 @@ import (
 
 	"github.com/decred/dcrd/blockchain/stake/v2"
 	"github.com/decred/dcrd/dcrec/secp256k1/v2"
-	"github.com/decred/dcrd/txscript/v2"
+	"github.com/decred/dcrd/txscript/v3"
 )
 
 // currentCompressionVersion is the current script compression version of the
