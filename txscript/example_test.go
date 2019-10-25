@@ -98,8 +98,9 @@ func ExampleSignTxOutput() {
 	privKey, pubKey := secp256k1.PrivKeyFromBytes(privKeyBytes)
 	pubKeyHash := dcrutil.Hash160(pubKey.SerializeCompressed())
 	mainNetParams := chaincfg.MainNetParams()
+	sigType := dcrec.STEcdsaSecp256k1
 	addr, err := dcrutil.NewAddressPubKeyHash(pubKeyHash, mainNetParams,
-		dcrec.STEcdsaSecp256k1)
+		sigType)
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -137,7 +138,7 @@ func ExampleSignTxOutput() {
 	redeemTx.AddTxOut(txOut)
 
 	// Sign the redeeming transaction.
-	lookupKey := func(a dcrutil.Address) (chainec.PrivateKey, bool, error) {
+	lookupKey := func(a dcrutil.Address) (chainec.PrivateKey, dcrec.SignatureType, bool, error) {
 		// Ordinarily this function would involve looking up the private
 		// key for the provided address, but since the only thing being
 		// signed in this example uses the address associated with the
@@ -153,14 +154,14 @@ func ExampleSignTxOutput() {
 		//
 		// privKey.D.SetInt64(12345)
 		//
-		return privKey, true, nil
+		return privKey, sigType, true, nil
 	}
 	// Notice that the script database parameter is nil here since it isn't
 	// used.  It must be specified when pay-to-script-hash transactions are
 	// being signed.
 	sigScript, err := txscript.SignTxOutput(mainNetParams, redeemTx, 0,
 		originTx.TxOut[0].PkScript, txscript.SigHashAll,
-		txscript.KeyClosure(lookupKey), nil, nil, dcrec.STEcdsaSecp256k1)
+		txscript.KeyClosure(lookupKey), nil, nil)
 	if err != nil {
 		fmt.Println(err)
 		return
