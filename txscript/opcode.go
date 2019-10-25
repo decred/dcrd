@@ -16,10 +16,10 @@ import (
 
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/crypto/ripemd160"
-	"github.com/decred/dcrd/dcrec"
 	"github.com/decred/dcrd/dcrec/edwards/v2"
 	"github.com/decred/dcrd/dcrec/secp256k1/v2"
 	"github.com/decred/dcrd/dcrec/secp256k1/v2/schnorr"
+	"github.com/decred/dcrd/dcrec/v2"
 	"github.com/decred/dcrd/wire"
 )
 

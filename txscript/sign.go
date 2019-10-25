@@ -10,7 +10,7 @@ import (
 	"fmt"
 
 	"github.com/decred/dcrd/chaincfg/v2/chainec"
-	"github.com/decred/dcrd/dcrec"
+	"github.com/decred/dcrd/dcrec/v2"
 	"github.com/decred/dcrd/dcrutil/v3"
 	"github.com/decred/dcrd/wire"
 )
