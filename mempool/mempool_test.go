@@ -328,6 +328,7 @@ type poolHarness struct {
 	// payAddr is the p2sh address for the signing key and is used for the
 	// payment address throughout the tests.
 	signKey     *secp256k1.PrivateKey
+	sigType     dcrec.SignatureType
 	payAddr     dcrutil.Address
 	payScript   []byte
 	chainParams *chaincfg.Params
@@ -345,8 +346,8 @@ func (p *poolHarness) GetScript(addr dcrutil.Address) ([]byte, error) {
 
 // GetKey is the pool harness' implementation of the KeyDB interface.
 // It returns the pool harness' signature key for any address passed in.
-func (p *poolHarness) GetKey(addr dcrutil.Address) (chainec.PrivateKey, bool, error) {
-	return p.signKey, true, nil
+func (p *poolHarness) GetKey(addr dcrutil.Address) (chainec.PrivateKey, dcrec.SignatureType, bool, error) {
+	return p.signKey, p.sigType, true, nil
 }
 
 // AddFakeUTXO creates a fake mined utxo for the provided transaction.
@@ -630,7 +631,7 @@ func (p *poolHarness) CreateVote(ticket *dcrutil.Tx, mungers ...func(*wire.MsgTx
 	redeemTicketScript := ticket.MsgTx().TxOut[0].PkScript
 	signedScript, err := txscript.SignTxOutput(p.chainParams, vote, inputToSign,
 		redeemTicketScript, txscript.SigHashAll, p,
-		p, vote.TxIn[inputToSign].SignatureScript, dcrec.STEcdsaSecp256k1)
+		p, vote.TxIn[inputToSign].SignatureScript)
 	if err != nil {
 		return nil, err
 	}
@@ -676,7 +677,7 @@ func (p *poolHarness) CreateRevocation(ticket *dcrutil.Tx) (*dcrutil.Tx, error) 
 	redeemTicketScript := ticket.MsgTx().TxOut[0].PkScript
 	signedScript, err := txscript.SignTxOutput(p.chainParams, revocation, inputToSign,
 		redeemTicketScript, txscript.SigHashAll, p,
-		p, revocation.TxIn[inputToSign].SignatureScript, dcrec.STEcdsaSecp256k1)
+		p, revocation.TxIn[inputToSign].SignatureScript)
 	if err != nil {
 		return nil, err
 	}
@@ -724,6 +725,7 @@ func newPoolHarness(chainParams *chaincfg.Params) (*poolHarness, []spendableOutp
 	}
 	harness := poolHarness{
 		signKey:     signKey,
+		sigType:     dcrec.STEcdsaSecp256k1,
 		payAddr:     payAddr,
 		payScript:   pkScript,
 		chainParams: chainParams,

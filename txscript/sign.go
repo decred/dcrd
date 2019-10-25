@@ -135,23 +135,19 @@ func SignatureScriptAlt(tx *wire.MsgTx, idx int, subscript []byte,
 
 // p2pkSignatureScript constructs a pay-to-pubkey signature script.
 func p2pkSignatureScript(tx *wire.MsgTx, idx int, subScript []byte,
-	hashType SigHashType, privKey chainec.PrivateKey) ([]byte, error) {
-	sig, err := RawTxInSignature(tx, idx, subScript, hashType, privKey)
-	if err != nil {
-		return nil, err
+	hashType SigHashType, privKey chainec.PrivateKey, sigType dcrec.SignatureType) ([]byte, error) {
+
+	var sig []byte
+	var err error
+	switch sigType {
+	case dcrec.STEcdsaSecp256k1:
+		sig, err = RawTxInSignature(tx, idx, subScript, hashType, privKey)
+	case dcrec.STEd25519, dcrec.STSchnorrSecp256k1:
+		sig, err = RawTxInSignatureAlt(tx, idx, subScript, hashType, privKey,
+			sigType)
+	default:
+		err = fmt.Errorf("unsupported signature type '%v'", sigType)
 	}
-
-	return NewScriptBuilder().AddData(sig).Script()
-}
-
-// p2pkSignatureScriptAlt constructs a pay-to-pubkey signature script for
-// alternative ECDSA types.
-func p2pkSignatureScriptAlt(tx *wire.MsgTx, idx int, subScript []byte,
-	hashType SigHashType, privKey chainec.PrivateKey, sigType dcrec.SignatureType) ([]byte,
-	error) {
-
-	sig, err := RawTxInSignatureAlt(tx, idx, subScript, hashType, privKey,
-		sigType)
 	if err != nil {
 		return nil, err
 	}
@@ -170,10 +166,11 @@ func signMultiSig(tx *wire.MsgTx, idx int, subScript []byte, hashType SigHashTyp
 	builder := NewScriptBuilder()
 	signed := 0
 	for _, addr := range addresses {
-		key, _, err := kdb.GetKey(addr)
+		key, _, _, err := kdb.GetKey(addr)
 		if err != nil {
 			continue
 		}
+
 		sig, err := RawTxInSignature(tx, idx, subScript, hashType, key)
 		if err != nil {
 			continue
@@ -200,7 +197,7 @@ func handleStakeOutSign(tx *wire.MsgTx, idx int, subScript []byte,
 	// look up key for address
 	switch subClass {
 	case PubKeyHashTy:
-		key, compressed, err := kdb.GetKey(addresses[0])
+		key, _, compressed, err := kdb.GetKey(addresses[0])
 		if err != nil {
 			return nil, class, nil, 0, err
 		}
@@ -228,9 +225,8 @@ func handleStakeOutSign(tx *wire.MsgTx, idx int, subScript []byte,
 // about the type of signature and returns a signature, script class, the
 // addresses involved, and the number of signatures required.
 func sign(chainParams dcrutil.AddressParams, tx *wire.MsgTx, idx int,
-	subScript []byte, hashType SigHashType, kdb KeyDB, sdb ScriptDB,
-	sigType dcrec.SignatureType) ([]byte,
-	ScriptClass, []dcrutil.Address, int, error) {
+	subScript []byte, hashType SigHashType, kdb KeyDB,
+	sdb ScriptDB) ([]byte, ScriptClass, []dcrutil.Address, int, error) {
 
 	const scriptVersion = 0
 	class, addresses, nrequired, err := ExtractPkScriptAddrs(scriptVersion,
@@ -255,13 +251,13 @@ func sign(chainParams dcrutil.AddressParams, tx *wire.MsgTx, idx int,
 	switch class {
 	case PubKeyTy:
 		// look up key for address
-		key, _, err := kdb.GetKey(addresses[0])
+		key, sigType, _, err := kdb.GetKey(addresses[0])
 		if err != nil {
 			return nil, class, nil, 0, err
 		}
 
 		script, err := p2pkSignatureScript(tx, idx, subScript, hashType,
-			key)
+			key, sigType)
 		if err != nil {
 			return nil, class, nil, 0, err
 		}
@@ -270,12 +266,12 @@ func sign(chainParams dcrutil.AddressParams, tx *wire.MsgTx, idx int,
 
 	case PubkeyAltTy:
 		// look up key for address
-		key, _, err := kdb.GetKey(addresses[0])
+		key, sigType, _, err := kdb.GetKey(addresses[0])
 		if err != nil {
 			return nil, class, nil, 0, err
 		}
 
-		script, err := p2pkSignatureScriptAlt(tx, idx, subScript, hashType,
+		script, err := p2pkSignatureScript(tx, idx, subScript, hashType,
 			key, sigType)
 		if err != nil {
 			return nil, class, nil, 0, err
@@ -285,7 +281,7 @@ func sign(chainParams dcrutil.AddressParams, tx *wire.MsgTx, idx int,
 
 	case PubKeyHashTy:
 		// look up key for address
-		key, compressed, err := kdb.GetKey(addresses[0])
+		key, _, compressed, err := kdb.GetKey(addresses[0])
 		if err != nil {
 			return nil, class, nil, 0, err
 		}
@@ -300,7 +296,7 @@ func sign(chainParams dcrutil.AddressParams, tx *wire.MsgTx, idx int,
 
 	case PubkeyHashAltTy:
 		// look up key for address
-		key, compressed, err := kdb.GetKey(addresses[0])
+		key, sigType, compressed, err := kdb.GetKey(addresses[0])
 		if err != nil {
 			return nil, class, nil, 0, err
 		}
@@ -557,14 +553,14 @@ func mergeScripts(chainParams dcrutil.AddressParams, tx *wire.MsgTx, idx int,
 // KeyDB is an interface type provided to SignTxOutput, it encapsulates
 // any user state required to get the private keys for an address.
 type KeyDB interface {
-	GetKey(dcrutil.Address) (chainec.PrivateKey, bool, error)
+	GetKey(dcrutil.Address) (chainec.PrivateKey, dcrec.SignatureType, bool, error)
 }
 
 // KeyClosure implements KeyDB with a closure.
-type KeyClosure func(dcrutil.Address) (chainec.PrivateKey, bool, error)
+type KeyClosure func(dcrutil.Address) (chainec.PrivateKey, dcrec.SignatureType, bool, error)
 
 // GetKey implements KeyDB by returning the result of calling the closure.
-func (kc KeyClosure) GetKey(address dcrutil.Address) (chainec.PrivateKey, bool, error) {
+func (kc KeyClosure) GetKey(address dcrutil.Address) (chainec.PrivateKey, dcrec.SignatureType, bool, error) {
 	return kc(address)
 }
 
@@ -595,10 +591,10 @@ func (sc ScriptClosure) GetScript(address dcrutil.Address) ([]byte, error) {
 // versions.
 func SignTxOutput(chainParams dcrutil.AddressParams, tx *wire.MsgTx, idx int,
 	pkScript []byte, hashType SigHashType, kdb KeyDB, sdb ScriptDB,
-	previousScript []byte, sigType dcrec.SignatureType) ([]byte, error) {
+	previousScript []byte) ([]byte, error) {
 
 	sigScript, class, addresses, nrequired, err := sign(chainParams, tx,
-		idx, pkScript, hashType, kdb, sdb, sigType)
+		idx, pkScript, hashType, kdb, sdb)
 	if err != nil {
 		return nil, err
 	}
@@ -617,7 +613,7 @@ func SignTxOutput(chainParams dcrutil.AddressParams, tx *wire.MsgTx, idx int,
 	if class == ScriptHashTy {
 		// TODO keep the sub addressed and pass down to merge.
 		realSigScript, _, _, _, err := sign(chainParams, tx, idx,
-			sigScript, hashType, kdb, sdb, sigType)
+			sigScript, hashType, kdb, sdb)
 		if err != nil {
 			return nil, err
 		}
