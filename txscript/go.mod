@@ -1,4 +1,4 @@
-module github.com/decred/dcrd/txscript/v2
+module github.com/decred/dcrd/txscript/v3
 
 go 1.11
 
