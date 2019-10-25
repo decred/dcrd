@@ -6,7 +6,7 @@ require (
 	github.com/btcsuite/winsvc v1.0.0
 	github.com/decred/base58 v1.0.1
 	github.com/decred/dcrd/addrmgr v1.1.0
-	github.com/decred/dcrd/blockchain/stake/v2 v2.0.2
+	github.com/decred/dcrd/blockchain/stake/v3 v3.0.0-00010101000000-000000000000
 	github.com/decred/dcrd/blockchain/standalone v1.1.0
 	github.com/decred/dcrd/blockchain/v3 v3.0.0-00010101000000-000000000000
 	github.com/decred/dcrd/certgen v1.1.0
@@ -43,7 +43,7 @@ require (
 
 replace (
 	github.com/decred/dcrd/addrmgr => ./addrmgr
-	github.com/decred/dcrd/blockchain/stake/v2 => ./blockchain/stake
+	github.com/decred/dcrd/blockchain/stake/v3 => ./blockchain/stake
 	github.com/decred/dcrd/blockchain/standalone => ./blockchain/standalone
 	github.com/decred/dcrd/blockchain/v3 => ./blockchain
 	github.com/decred/dcrd/certgen => ./certgen

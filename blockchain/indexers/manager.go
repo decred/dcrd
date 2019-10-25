@@ -9,7 +9,7 @@ import (
 	"bytes"
 	"fmt"
 
-	"github.com/decred/dcrd/blockchain/stake/v2"
+	"github.com/decred/dcrd/blockchain/stake/v3"
 	"github.com/decred/dcrd/blockchain/v3"
 	"github.com/decred/dcrd/blockchain/v3/internal/progresslog"
 	"github.com/decred/dcrd/chaincfg/chainhash"

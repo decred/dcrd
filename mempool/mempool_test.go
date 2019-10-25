@@ -15,7 +15,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/decred/dcrd/blockchain/stake/v2"
+	"github.com/decred/dcrd/blockchain/stake/v3"
 	"github.com/decred/dcrd/blockchain/standalone"
 	"github.com/decred/dcrd/blockchain/v3"
 	"github.com/decred/dcrd/blockchain/v3/chaingen"
