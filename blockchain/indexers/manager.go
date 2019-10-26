@@ -9,7 +9,6 @@ import (
 	"bytes"
 	"fmt"
 
-	"github.com/decred/dcrd/blockchain/stake/v3"
 	"github.com/decred/dcrd/blockchain/v3/internal/progresslog"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/chaincfg/v2"
@@ -468,8 +467,7 @@ func (m *Manager) Init(chain ChainQueryer, interrupt <-chan struct{}) error {
 				var prevScripts PrevScripter
 				if indexNeedsInputs(indexer) {
 					var err error
-					prevScripts, err = makeScriptSource(dbTx, block,
-						interrupt)
+					prevScripts, err = chain.PrevScripts(dbTx, block)
 					if err != nil {
 						return err
 					}
@@ -608,8 +606,7 @@ func (m *Manager) Init(chain ChainQueryer, interrupt <-chan struct{}) error {
 				// index.
 				if prevScripts == nil && indexNeedsInputs(indexer) {
 					var errMakeView error
-					prevScripts, errMakeView = makeScriptSource(dbTx, block,
-						interrupt)
+					prevScripts, errMakeView = chain.PrevScripts(dbTx, block)
 					if errMakeView != nil {
 						return errMakeView
 					}
@@ -671,97 +668,6 @@ func dbFetchTx(dbTx database.Tx, hash *chainhash.Hash) (*wire.MsgTx, error) {
 	}
 
 	return &msgTx, nil
-}
-
-// scriptSourceEntry houses a script and its associated version.
-type scriptSourceEntry struct {
-	version uint16
-	script  []byte
-}
-
-// scriptSource provides a source of transaction output scripts and their
-// associated script version for given outpoints and implements the PrevScripter
-// interface so it may be used in cases that require access to said scripts.
-type scriptSource map[wire.OutPoint]scriptSourceEntry
-
-// PrevScript returns the script and script version associated with the provided
-// previous outpoint along with a bool that indicates whether or not the
-// requested entry exists.  This ensures the caller is able to distinguish
-// between missing entries and empty v0 scripts.
-func (s scriptSource) PrevScript(prevOut *wire.OutPoint) (uint16, []byte, bool) {
-	entry, ok := s[*prevOut]
-	if !ok {
-		return 0, nil, false
-	}
-	return entry.version, entry.script, true
-}
-
-// makeScriptSource creates a source of previous transaction scripts and their
-// associated versions for the given block by using the transaction index in
-// order to look up all inputs referenced by the transactions in the block.
-// This is sometimes needed when catching indexes up because many of the txouts
-// could actually already be spent however the associated scripts are still
-// required to index them.
-func makeScriptSource(dbTx database.Tx, block *dcrutil.Block, interrupt <-chan struct{}) (scriptSource, error) {
-	source := make(scriptSource)
-	processTxns := func(txns []*dcrutil.Tx, regularTree bool) error {
-		for txIdx, tx := range txns {
-			// Coinbases do not reference any inputs.  Since the block is
-			// required to have already gone through full validation, it has
-			// already been proven on the first transaction in the block is a
-			// coinbase.
-			if regularTree && txIdx == 0 {
-				continue
-			}
-			msgTx := tx.MsgTx()
-			isVote := !regularTree && stake.IsSSGen(msgTx)
-
-			// Use the transaction index to load all of the referenced inputs
-			// and add their outputs to the view.
-			for txInIdx, txIn := range msgTx.TxIn {
-				// Ignore stakebase since it has no input.
-				if isVote && txInIdx == 0 {
-					continue
-				}
-
-				// Skip already fetched outputs.
-				prevOut := &txIn.PreviousOutPoint
-				if _, ok := source[*prevOut]; ok {
-					continue
-				}
-
-				originTx, err := dbFetchTx(dbTx, &prevOut.Hash)
-				if err != nil {
-					return err
-				}
-
-				if prevOut.Index >= uint32(len(originTx.TxOut)) {
-					continue
-				}
-
-				prevTxOut := originTx.TxOut[prevOut.Index]
-				source[*prevOut] = scriptSourceEntry{
-					version: prevTxOut.Version,
-					script:  prevTxOut.PkScript,
-				}
-			}
-
-			if interruptRequested(interrupt) {
-				return errInterruptRequested
-			}
-		}
-
-		return nil
-	}
-
-	if err := processTxns(block.STransactions(), false); err != nil {
-		return nil, err
-	}
-	if err := processTxns(block.Transactions(), true); err != nil {
-		return nil, err
-	}
-
-	return source, nil
 }
 
 // ConnectBlock must be invoked when a block is extending the main chain.  It

@@ -2039,6 +2039,24 @@ func (q *chainQueryerAdapter) BestHeight() int64 {
 	return q.BestSnapshot().Height
 }
 
+// PrevScripts returns a source of previous transaction scripts and their
+// associated versions spent by the given block by using the spend journal.
+//
+// It is defined via a separate internal struct to avoid polluting the public
+// API of the BlockChain type itself.
+//
+// This is part of the indexers.ChainQueryer interface.
+func (q *chainQueryerAdapter) PrevScripts(dbTx database.Tx, block *dcrutil.Block) (indexers.PrevScripter, error) {
+	// Load all of the spent transaction output data from the database.
+	stxos, err := dbFetchSpendJournalEntry(dbTx, block)
+	if err != nil {
+		return nil, err
+	}
+
+	prevScripts := stxosToScriptSource(block, stxos, currentCompressionVersion)
+	return prevScripts, nil
+}
+
 // Config is a descriptor which specifies the blockchain instance configuration.
 type Config struct {
 	// DB defines the database which houses the blocks and will be used to

@@ -89,6 +89,10 @@ type ChainQueryer interface {
 	// BlockHashByHeight returns the hash of the block at the given height in
 	// the main chain.
 	BlockHashByHeight(int64) (*chainhash.Hash, error)
+
+	// PrevScripts returns a source of previous transaction scripts and their
+	// associated versions spent by the given block.
+	PrevScripts(database.Tx, *dcrutil.Block) (PrevScripter, error)
 }
 
 // IndexManager provides a generic interface that is called when blocks are
