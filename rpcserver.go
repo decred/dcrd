@@ -55,10 +55,10 @@ import (
 
 // API version constants
 const (
-	jsonrpcSemverString = "6.1.0"
+	jsonrpcSemverString = "6.1.1"
 	jsonrpcSemverMajor  = 6
 	jsonrpcSemverMinor  = 1
-	jsonrpcSemverPatch  = 0
+	jsonrpcSemverPatch  = 1
 )
 
 const (
@@ -2935,15 +2935,23 @@ func handleGetTicketPoolValue(s *rpcServer, cmd interface{}, closeChan <-chan st
 
 // handleGetVoteInfo implements the getvoteinfo command.
 func handleGetVoteInfo(s *rpcServer, cmd interface{}, closeChan <-chan struct{}) (interface{}, error) {
-	c, ok := cmd.(*types.GetVoteInfoCmd)
-	if !ok {
-		return nil, rpcInvalidError("Invalid type: %T", c)
-	}
+	c := cmd.(*types.GetVoteInfoCmd)
 
-	snapshot := s.chain.BestSnapshot()
-
+	// Shorter versions of some parameters for convenience.
 	interval := int64(s.server.chainParams.RuleChangeActivationInterval)
 	quorum := s.server.chainParams.RuleChangeActivationQuorum
+	chain := s.chain
+	snapshot := chain.BestSnapshot()
+
+	vi, err := chain.GetVoteInfo(&snapshot.Hash, c.Version)
+	if err != nil {
+		if _, ok := err.(blockchain.VoteVersionError); ok {
+			return nil, rpcInvalidError("%d: unrecognized vote version",
+				c.Version)
+		}
+		return nil, rpcInternalError(err.Error(), "could not obtain vote info")
+	}
+
 	// Assemble JSON result.
 	result := types.GetVoteInfoResult{
 		CurrentHeight: snapshot.Height,
@@ -2957,52 +2965,41 @@ func handleGetVoteInfo(s *rpcServer, cmd interface{}, closeChan <-chan struct{})
 	}
 
 	// We don't fail, we try to return the totals for this version.
-	var err error
-	result.TotalVotes, err = s.chain.CountVoteVersion(c.Version)
+	result.TotalVotes, err = chain.CountVoteVersion(c.Version)
 	if err != nil {
 		return nil, rpcInternalError(err.Error(),
 			"Could not count voter versions")
 	}
 
-	vi, err := s.chain.GetVoteInfo(&snapshot.Hash, c.Version)
-	if err != nil {
-		return nil, rpcInternalError(err.Error(),
-			"Could not obtain vote info")
-	}
-
 	result.Agendas = make([]types.Agenda, 0, len(vi.Agendas))
 	for _, agenda := range vi.Agendas {
-		a := types.Agenda{
-			ID:          agenda.Vote.Id,
-			Description: agenda.Vote.Description,
-			Mask:        agenda.Vote.Mask,
-			Choices: make([]types.Choice, 0,
-				len(agenda.Vote.Choices)),
-			StartTime:  agenda.StartTime,
-			ExpireTime: agenda.ExpireTime,
-		}
-
-		// Handle choices.
-		for _, choice := range agenda.Vote.Choices {
-			c := types.Choice{
-				ID:          choice.Id,
-				Description: choice.Description,
-				Bits:        choice.Bits,
-				IsAbstain:   choice.IsAbstain,
-				IsNo:        choice.IsNo,
-			}
-			a.Choices = append(a.Choices, c)
-		}
-
 		// Obtain status of agenda.
-		state, err := s.chain.NextThresholdState(&snapshot.Hash, c.Version,
+		state, err := chain.NextThresholdState(&snapshot.Hash, c.Version,
 			agenda.Vote.Id)
 		if err != nil {
 			return nil, err
 		}
 
-		// Save off status.
-		a.Status = state.String()
+		a := types.Agenda{
+			ID:          agenda.Vote.Id,
+			Description: agenda.Vote.Description,
+			Mask:        agenda.Vote.Mask,
+			Choices:     make([]types.Choice, 0, len(agenda.Vote.Choices)),
+			StartTime:   agenda.StartTime,
+			ExpireTime:  agenda.ExpireTime,
+			Status:      state.String(),
+		}
+
+		// Handle choices.
+		for _, choice := range agenda.Vote.Choices {
+			a.Choices = append(a.Choices, types.Choice{
+				ID:          choice.Id,
+				Description: choice.Description,
+				Bits:        choice.Bits,
+				IsAbstain:   choice.IsAbstain,
+				IsNo:        choice.IsNo,
+			})
+		}
 
 		if state.State != blockchain.ThresholdStarted {
 			// Append transformed agenda without progress.
