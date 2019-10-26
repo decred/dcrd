@@ -293,6 +293,21 @@ func (view *UtxoViewpoint) PrevScript(prevOut *wire.OutPoint) (uint16, []byte, b
 	return version, pkScript, true
 }
 
+// PriorityInput returns the block height and amount associated with the
+// provided previous outpoint along with a bool that indicates whether or not
+// the requested entry exists.  This ensures the caller is able to distinguish
+// missing entries from zero values.
+func (view *UtxoViewpoint) PriorityInput(prevOut *wire.OutPoint) (int64, int64, bool) {
+	originHash := &prevOut.Hash
+	originIndex := prevOut.Index
+	txEntry := view.LookupEntry(originHash)
+	if txEntry != nil && !txEntry.IsOutputSpent(originIndex) {
+		return txEntry.BlockHeight(), txEntry.AmountByIndex(originIndex), true
+	}
+
+	return 0, 0, false
+}
+
 // AddTxOuts adds all outputs in the passed transaction which are not provably
 // unspendable to the view.  When the view already has entries for any of the
 // outputs, they are simply marked unspent.  All fields will be updated for

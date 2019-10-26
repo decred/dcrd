@@ -6,7 +6,6 @@
 package mining
 
 import (
-	"github.com/decred/dcrd/blockchain/v3"
 	"github.com/decred/dcrd/dcrutil/v3"
 	"github.com/decred/dcrd/wire"
 )
@@ -49,27 +48,35 @@ func minInt(a, b int) int {
 	return b
 }
 
+// PriorityInputser defines an interface that provides access to information
+// about an transaction output needed to calculate a priority based on the input
+// age of a transaction.  It is used within this package as a generic means to
+// provide the block heights and amounts referenced by all of the inputs to a
+// transaction that are needed to calculate an input age.  The boolean return
+// indicates whether or not the information for the provided outpoint was found.
+type PriorityInputser interface {
+	PriorityInput(prevOut *wire.OutPoint) (blockHeight int64, amount int64, ok bool)
+}
+
 // calcInputValueAge is a helper function used to calculate the input age of
 // a transaction.  The input age for a txin is the number of confirmations
 // since the referenced txout multiplied by its output value.  The total input
 // age is the sum of this value for each txin.  Any inputs to the transaction
 // which are currently in the mempool and hence not mined into a block yet,
 // contribute no additional input age to the transaction.
-func calcInputValueAge(tx *wire.MsgTx, utxoView *blockchain.UtxoViewpoint, nextBlockHeight int64) float64 {
+func calcInputValueAge(tx *wire.MsgTx, prioInputs PriorityInputser, nextBlockHeight int64) float64 {
 	var totalInputAge float64
 	for _, txIn := range tx.TxIn {
 		// Don't attempt to accumulate the total input age if the
 		// referenced transaction output doesn't exist.
-		originHash := &txIn.PreviousOutPoint.Hash
-		originIndex := txIn.PreviousOutPoint.Index
-		txEntry := utxoView.LookupEntry(originHash)
-		if txEntry != nil && !txEntry.IsOutputSpent(originIndex) {
+		prevOut := &txIn.PreviousOutPoint
+		originHeight, inputValue, ok := prioInputs.PriorityInput(prevOut)
+		if ok {
 			// Inputs with dependencies currently in the mempool
 			// have their block height set to a special constant.
 			// Their input age should be computed as zero since
 			// their parent hasn't made it into a block yet.
 			var inputAge int64
-			originHeight := txEntry.BlockHeight()
 			if originHeight == UnminedHeight {
 				inputAge = 0
 			} else {
@@ -77,7 +84,6 @@ func calcInputValueAge(tx *wire.MsgTx, utxoView *blockchain.UtxoViewpoint, nextB
 			}
 
 			// Sum the input value times age.
-			inputValue := txEntry.AmountByIndex(originIndex)
 			totalInputAge += float64(inputValue * inputAge)
 		}
 	}
@@ -89,7 +95,7 @@ func calcInputValueAge(tx *wire.MsgTx, utxoView *blockchain.UtxoViewpoint, nextB
 // of each of its input values multiplied by their age (# of confirmations).
 // Thus, the final formula for the priority is:
 // sum(inputValue * inputAge) / adjustedTxSize
-func CalcPriority(tx *wire.MsgTx, utxoView *blockchain.UtxoViewpoint, nextBlockHeight int64) float64 {
+func CalcPriority(tx *wire.MsgTx, prioInputs PriorityInputser, nextBlockHeight int64) float64 {
 	// In order to encourage spending multiple old unspent transaction
 	// outputs thereby reducing the total set, don't count the constant
 	// overhead for each input as well as enough bytes of the signature
@@ -121,6 +127,6 @@ func CalcPriority(tx *wire.MsgTx, utxoView *blockchain.UtxoViewpoint, nextBlockH
 		return 0.0
 	}
 
-	inputValueAge := calcInputValueAge(tx, utxoView, nextBlockHeight)
+	inputValueAge := calcInputValueAge(tx, prioInputs, nextBlockHeight)
 	return inputValueAge / float64(serializedTxSize-overhead)
 }
