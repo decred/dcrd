@@ -103,11 +103,12 @@ func CalcPriority(tx *wire.MsgTx, prioInputs PriorityInputser, nextBlockHeight i
 	// pubkey.  This makes additional inputs free by boosting the priority
 	// of the transaction accordingly.  No more incentive is given to avoid
 	// encouraging gaming future transactions through the use of junk
-	// outputs.  This is the same logic used in the reference
-	// implementation.
+	// outputs.
 	//
-	// The constant overhead for a txin is 41 bytes since the previous
-	// outpoint is 36 bytes + 4 bytes for the sequence + 1 byte the
+	// The constant overhead for a txin is 58 bytes since the previous
+	// outpoint is 37 bytes + 4 bytes for the sequence + 8 bytes for the
+	// input value + 4 bytes for the block height of the referenced output +
+	// 4 bytes for the block index of the referenced output + 1 byte the
 	// signature script length.
 	//
 	// A compressed pubkey pay-to-script-hash redemption with a maximum len
@@ -119,7 +120,7 @@ func CalcPriority(tx *wire.MsgTx, prioInputs PriorityInputser, nextBlockHeight i
 	overhead := 0
 	for _, txIn := range tx.TxIn {
 		// Max inputs + size can't possibly overflow here.
-		overhead += 41 + minInt(110, len(txIn.SignatureScript))
+		overhead += 58 + minInt(110, len(txIn.SignatureScript))
 	}
 
 	serializedTxSize := tx.SerializeSize()
