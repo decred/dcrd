@@ -68,6 +68,10 @@ const (
 	// maxKnownAddrsPerPeer is the maximum number of items to keep in the
 	// per-peer known address cache.
 	maxKnownAddrsPerPeer = 10000
+
+	// maxCachedNaSubmissions is the maximum number of network address
+	// submissions cached.
+	maxCachedNaSubmissions = 20
 )
 
 var (
@@ -122,6 +126,119 @@ type updatePeerHeightsMsg struct {
 	originPeer *peer.Peer
 }
 
+// naSubmission represents a network address submission from an outbound peer.
+type naSubmission struct {
+	na           *wire.NetAddress
+	netType      addrmgr.NetworkAddress
+	reach        int
+	score        uint32
+	lastAccessed int64
+}
+
+// naSubmissionCache represents a bounded map for network address submisions.
+type naSubmissionCache struct {
+	cache map[string]*naSubmission
+	limit int
+	mtx   sync.Mutex
+}
+
+// add caches the provided address submission.
+func (sc *naSubmissionCache) add(sub *naSubmission) error {
+	if sub == nil {
+		return fmt.Errorf("submission cannot be nil")
+	}
+
+	key := sub.na.IP.String()
+	if key == "" {
+		return fmt.Errorf("submission key cannot be an empty string")
+	}
+
+	sc.mtx.Lock()
+	defer sc.mtx.Unlock()
+
+	// Remove the oldest submission if cache limit has been reached.
+	if len(sc.cache) == sc.limit {
+		var oldestSub *naSubmission
+		for _, sub := range sc.cache {
+			if oldestSub == nil {
+				oldestSub = sub
+				continue
+			}
+
+			if sub.lastAccessed < oldestSub.lastAccessed {
+				oldestSub = sub
+			}
+		}
+
+		if oldestSub != nil {
+			delete(sc.cache, oldestSub.na.IP.String())
+		}
+	}
+
+	sub.score = 1
+	sub.lastAccessed = time.Now().Unix()
+	sc.cache[key] = sub
+	return nil
+}
+
+// exists returns true if the provided key exist in the submissions cache.
+func (sc *naSubmissionCache) exists(key string) bool {
+	if key == "" {
+		return false
+	}
+
+	sc.mtx.Lock()
+	_, ok := sc.cache[key]
+	sc.mtx.Unlock()
+	return ok
+}
+
+// incrementScore increases the score of address submission referenced by
+// the provided key by one.
+func (sc *naSubmissionCache) incrementScore(key string) error {
+	if key == "" {
+		return fmt.Errorf("submission key cannot be an empty string")
+	}
+
+	sc.mtx.Lock()
+	defer sc.mtx.Unlock()
+
+	sub, ok := sc.cache[key]
+	if !ok {
+		return fmt.Errorf("submission key not found: %s", key)
+	}
+
+	sub.score++
+	sub.lastAccessed = time.Now().Unix()
+	sc.cache[key] = sub
+	return nil
+}
+
+// bestSubmission fetches the best scoring submission of the provided
+// network interface.
+func (sc *naSubmissionCache) bestSubmission(net addrmgr.NetworkAddress) *naSubmission {
+	sc.mtx.Lock()
+	defer sc.mtx.Unlock()
+
+	var best *naSubmission
+	for _, sub := range sc.cache {
+		if sub.netType != net {
+			continue
+		}
+
+		if best == nil {
+			best = sub
+			continue
+		}
+
+		if sub.score > best.score {
+			best = sub
+		}
+	}
+
+	return best
+}
+
 // peerState maintains state of inbound, persistent, outbound peers as well
 // as banned peers and outbound groups.
 type peerState struct {
@@ -130,11 +247,7 @@ type peerState struct {
 	persistentPeers map[int32]*serverPeer
 	banned          map[string]time.Time
 	outboundGroups  map[string]int
-
-	// suggestions represents public network address suggestions from outbound
-	// peers.
-	suggestions    map[addrmgr.NetworkAddress]map[string]int32
-	suggestionsMtx sync.Mutex
+	subCache        *naSubmissionCache
 }
 
 // ConnectionsWithIP returns the number of connections with the given IP.
@@ -187,40 +300,103 @@ func (ps *peerState) forAllPeers(closure func(sp *serverPeer)) {
 // ResolveLocalAddress picks the best suggested network address from available
 // options, per the network interface key provided. The best suggestion, if
 // found, is added as a local address.
-func (ps *peerState) ResolveLocalAddress(netKey addrmgr.NetworkAddress, addrMgr *addrmgr.AddrManager, services wire.ServiceFlag, port uint16) {
-	ps.suggestionsMtx.Lock()
-	count := len(ps.suggestions[netKey])
-	if count == 0 {
-		ps.suggestionsMtx.Unlock()
+func (ps *peerState) ResolveLocalAddress(netType addrmgr.NetworkAddress, addrMgr *addrmgr.AddrManager, services wire.ServiceFlag) {
+	best := ps.subCache.bestSubmission(netType)
+	if best == nil {
 		return
 	}
 
-	var bestSuggestion string
-	var bestTally int32
-	for suggestion, tally := range ps.suggestions[netKey] {
-		switch {
-		case bestSuggestion == "", tally > bestTally:
-			bestSuggestion = suggestion
-			bestTally = tally
+	targetOutbound := defaultTargetOutbound
+	if cfg.MaxPeers < targetOutbound {
+		targetOutbound = cfg.MaxPeers
+	}
+
+	// A valid best address suggestion must have a majority
+	// (60 percent majority) of outbound peers concluding on
+	// the same result.
+	if best.score < uint32(math.Ceil(float64(targetOutbound)*0.6)) {
+		return
+	}
+
+	addLocalAddress := func(bestSuggestion string, port uint16, services wire.ServiceFlag) {
+		na, err := addrMgr.HostToNetAddress(bestSuggestion, port, services)
+		if err != nil {
+			amgrLog.Errorf("unable to generate network address using host %v: "+
+				"%v", bestSuggestion, err)
+			return
+		}
+
+		if !addrMgr.HasLocalAddress(na) {
+			err := addrMgr.AddLocalAddress(na, addrmgr.ManualPrio)
+			if err != nil {
+				amgrLog.Errorf("unable to add local address: %v", err)
+				return
+			}
 		}
 	}
-	ps.suggestionsMtx.Unlock()
 
-	// A valid best address suggestion must have at least two outbound peers
-	// concluding on the same result.
-	if bestTally < 2 {
-		return
+	stripIPv6Zone := func(ip string) string {
+		// Strip IPv6 zone id if present.
+		zoneIndex := strings.LastIndex(ip, "%")
+		if zoneIndex > 0 {
+			return ip[:zoneIndex]
+		}
+
+		return ip
 	}
 
-	na, err := addrMgr.HostToNetAddress(bestSuggestion, port, services)
-	if err != nil {
-		amgrLog.Errorf("unable to generate network address using host %v: "+
-			"%v", bestSuggestion, err)
-		return
-	}
+	for _, listener := range cfg.Listeners {
+		host, portStr, err := net.SplitHostPort(listener)
+		if err != nil {
+			amgrLog.Errorf("unable to split network address: %v", err)
+			return
+		}
 
-	if !addrMgr.HasLocalAddress(na) {
-		addrMgr.AddLocalAddress(na, addrmgr.ManualPrio)
+		port, err := strconv.ParseUint(portStr, 10, 16)
+		if err != nil {
+			amgrLog.Errorf("unable to parse port: %v", err)
+			return
+		}
+
+		host = stripIPv6Zone(host)
+
+		// Add a local address if the best suggestion is referenced by a
+		// listener.
+		if best.na.IP.String() == host {
+			addLocalAddress(best.na.IP.String(), uint16(port), services)
+			continue
+		}
+
+		// Add a local address if the listener is generic (applies
+		// for both IPv4 and IPv6).
+		if host == "" || (host == "*" && runtime.GOOS == "plan9") {
+			addLocalAddress(best.na.IP.String(), uint16(port), services)
+			continue
+		}
+
+		listenerIP := net.ParseIP(host)
+		if listenerIP == nil {
+			amgrLog.Errorf("unable to parse listener: %v", host)
+			return
+		}
+
+		// Add a local address if the network address is a probable external
+		// endpoint of the listener.
+		lNa := wire.NewNetAddressIPPort(listenerIP, uint16(port), services)
+		lNet := addrmgr.IPv4Address
+		if lNa.IP.To4() == nil {
+			lNet = addrmgr.IPv6Address
+		}
+
+		validExternal := (lNet == addrmgr.IPv4Address &&
+			best.reach == addrmgr.Ipv4) || lNet == addrmgr.IPv6Address &&
+			(best.reach == addrmgr.Ipv6Weak || best.reach == addrmgr.Ipv6Strong ||
+				best.reach == addrmgr.Teredo)
+
+		if validExternal {
+			addLocalAddress(best.na.IP.String(), uint16(port), services)
+			continue
+		}
 	}
 }
 
@@ -488,11 +664,9 @@ func (sp *serverPeer) OnVersion(p *peer.Peer, msg *wire.MsgVersion) *wire.MsgRej
 		addrManager.Good(remoteAddr)
 	}
 
-	if !sp.Inbound() {
-		sp.peerNaMtx.Lock()
-		sp.peerNa = &msg.AddrYou
-		sp.peerNaMtx.Unlock()
-	}
+	sp.peerNaMtx.Lock()
+	sp.peerNa = &msg.AddrYou
+	sp.peerNaMtx.Unlock()
 
 	// Choose whether or not to relay transactions.
 	sp.setDisableRelayTx(msg.DisableRelayTx)
@@ -1428,10 +1602,34 @@ func (s *server) handleAddPeerMsg(state *peerState, sp *serverPeer) bool {
 		return false
 	}
 
+	sp.peerNaMtx.Lock()
+	na := sp.peerNa
+	sp.peerNaMtx.Unlock()
+
+	if na == nil {
+		return true
+	}
+
+	valid, reach := s.addrManager.ValidatePeerNa(na, sp.NA())
+	if !valid {
+		return true
+	}
+
+	id := na.IP.String()
+
 	// Add the new peer and start it.
 	srvrLog.Debugf("New peer %s", sp)
 	if sp.Inbound() {
 		state.inboundPeers[sp.ID()] = sp
+
+		// Inbound peers can only corroborate existing address submissions.
+		if state.subCache.exists(id) {
+			err := state.subCache.incrementScore(id)
+			if err != nil {
+				srvrLog.Errorf("unable to increment submission score: %v", err)
+				return true
+			}
+		}
 	} else {
 		state.outboundGroups[addrmgr.GroupKey(sp.NA())]++
 		if sp.persistent {
@@ -1462,45 +1660,36 @@ func (s *server) handleAddPeerMsg(state *peerState, sp *serverPeer) bool {
 			return true
 		}
 
-		sp.peerNaMtx.Lock()
-		na := sp.peerNa
-		sp.peerNaMtx.Unlock()
-
-		if na == nil {
-			return true
+		net := addrmgr.IPv4Address
+		if na.IP.To4() == nil {
+			net = addrmgr.IPv6Address
 		}
 
-		if !s.addrManager.IsPeerNaValid(na, sp.NA()) {
-			return true
+		if state.subCache.exists(id) {
+			// Increment the submission score if it already exists.
+			err := state.subCache.incrementScore(id)
+			if err != nil {
+				srvrLog.Errorf("unable to increment submission score: %v", err)
+				return true
+			}
+		} else {
+			// Create a cache entry for a new submission.
+			sub := &naSubmission{
+				na:      na,
+				netType: net,
+				reach:   reach,
+			}
+
+			err := state.subCache.add(sub)
+			if err != nil {
+				srvrLog.Errorf("unable to add submission: %v", err)
+				return true
+			}
 		}
 
-		port, err := strconv.ParseUint(activeNetParams.DefaultPort, 10, 16)
-		if err != nil {
-			srvrLog.Errorf("unable to parse active network port: %v", err)
-			return true
-		}
-
-		id := na.IP.String()
-		switch {
-		case na.IP.To4() != nil:
-			state.suggestionsMtx.Lock()
-			state.suggestions[addrmgr.IPv4Address][id]++
-			state.suggestionsMtx.Unlock()
-
-			state.ResolveLocalAddress(addrmgr.IPv4Address, s.addrManager,
-				s.services, uint16(port))
-
-		case na.IP.To16() != nil:
-			state.suggestionsMtx.Lock()
-			state.suggestions[addrmgr.IPv6Address][id]++
-			state.suggestionsMtx.Unlock()
-
-			state.ResolveLocalAddress(addrmgr.IPv6Address, s.addrManager,
-				s.services, uint16(port))
-
-		default:
-			return true
-		}
+		// Pick the local address for the provided network based on
+		// submission scores.
+		state.ResolveLocalAddress(net, s.addrManager, s.services)
 	}
 
 	return true
@@ -1910,9 +2099,9 @@ func (s *server) peerHandler() {
 		outboundPeers:   make(map[int32]*serverPeer),
 		banned:          make(map[string]time.Time),
 		outboundGroups:  make(map[string]int),
-		suggestions: map[addrmgr.NetworkAddress]map[string]int32{
-			addrmgr.IPv4Address: make(map[string]int32),
-			addrmgr.IPv6Address: make(map[string]int32),
+		subCache: &naSubmissionCache{
+			cache: make(map[string]*naSubmission, maxCachedNaSubmissions),
+			limit: maxCachedNaSubmissions,
 		},
 	}
 

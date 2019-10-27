@@ -1181,13 +1181,25 @@ func (a *AddrManager) GetBestLocalAddress(remoteAddr *wire.NetAddress) *wire.Net
 	return bestAddress
 }
 
-// IsPeerNaValid asserts if the provided local address is routable
-// and reachable from the peer that suggested it.
-func (a *AddrManager) IsPeerNaValid(localAddr, remoteAddr *wire.NetAddress) bool {
+// ValidatePeerNa returns the validity and reachability of the
+// provided local address based on its routablility and reachability
+// from the peer that suggested it.
+func (a *AddrManager) ValidatePeerNa(localAddr, remoteAddr *wire.NetAddress) (bool, int) {
 	net := getNetwork(localAddr)
 	reach := getReachabilityFrom(localAddr, remoteAddr)
-	return (net == IPv4Address && reach == Ipv4) || (net == IPv6Address &&
+	valid := (net == IPv4Address && reach == Ipv4) || (net == IPv6Address &&
 		(reach == Ipv6Weak || reach == Ipv6Strong || reach == Teredo))
+	return valid, reach
+}
+
+// IsPeerNaValid asserts if the provided local address is routable
+// and reachabile from the peer that suggested it.
+//
+// This function has been deprecated, to be removed in the next major version
+// bump.
+func (a *AddrManager) IsPeerNaValid(localAddr, remoteAddr *wire.NetAddress) bool {
+	valid, _ := a.ValidatePeerNa(localAddr, remoteAddr)
+	return valid
 }
 
 // New returns a new Decred address manager.
