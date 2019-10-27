@@ -215,10 +215,10 @@ func (cm *ConnManager) handleFailedConn(c *ConnReq) {
 				"-- retrying connection in: %v", maxFailedAttempts,
 				cm.cfg.RetryDuration)
 			time.AfterFunc(cm.cfg.RetryDuration, func() {
-				cm.NewConnReq()
+				cm.newConnReq()
 			})
 		} else {
-			go cm.NewConnReq()
+			go cm.newConnReq()
 		}
 	}
 }
@@ -357,9 +357,9 @@ out:
 	log.Trace("Connection handler done")
 }
 
-// NewConnReq creates a new connection request and connects to the
+// newConnReq creates a new connection request and connects to the
 // corresponding address.
-func (cm *ConnManager) NewConnReq() {
+func (cm *ConnManager) newConnReq() {
 	if atomic.LoadInt32(&cm.stop) != 0 {
 		return
 	}
@@ -534,7 +534,7 @@ func (cm *ConnManager) Start() {
 	}
 
 	for i := atomic.LoadUint64(&cm.connReqCount); i < uint64(cm.cfg.TargetOutbound); i++ {
-		go cm.NewConnReq()
+		go cm.newConnReq()
 	}
 }
 
