@@ -180,8 +180,7 @@ func dcrdMain() error {
 	svr, err := newServer(cfg.Listeners, db, activeNetParams.Params,
 		cfg.DataDir, ctx.Done())
 	if err != nil {
-		// TODO(oga) this logging could do with some beautifying.
-		dcrdLog.Errorf("Unable to start server on %v: %v",
+		dcrdLog.Errorf("Unable to start server with listeners %v: %v",
 			cfg.Listeners, err)
 		return err
 	}
