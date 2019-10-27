@@ -21,7 +21,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/decred/dcrd/connmgr/v2"
+	"github.com/decred/dcrd/connmgr/v3"
 	"github.com/decred/dcrd/database/v2"
 	_ "github.com/decred/dcrd/database/v2/ffldb"
 	"github.com/decred/dcrd/dcrutil/v3"

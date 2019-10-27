@@ -1,4 +1,4 @@
-module github.com/decred/dcrd/connmgr/v2
+module github.com/decred/dcrd/connmgr/v3
 
 go 1.11
 
