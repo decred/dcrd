@@ -14,7 +14,7 @@ import (
 	"github.com/decred/dcrd/blockchain/stake/v3"
 	"github.com/decred/dcrd/blockchain/v3"
 	"github.com/decred/dcrd/blockchain/v3/indexers"
-	"github.com/decred/dcrd/connmgr/v2"
+	"github.com/decred/dcrd/connmgr/v3"
 	"github.com/decred/dcrd/database/v2"
 	"github.com/decred/dcrd/fees/v2"
 	"github.com/decred/dcrd/internal/rpcserver"
