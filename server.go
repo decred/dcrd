@@ -1890,10 +1890,11 @@ func (s *server) handleQuery(state *peerState, querymsg interface{}) {
 		}
 
 		// TODO: if too many, nuke a non-perm peer.
-		go s.connManager.Connect(&connmgr.ConnReq{
-			Addr:      netAddr,
-			Permanent: msg.permanent,
-		})
+		go s.connManager.Connect(context.Background(),
+			&connmgr.ConnReq{
+				Addr:      netAddr,
+				Permanent: msg.permanent,
+			})
 		msg.reply <- nil
 	case removeNodeMsg:
 		found := disconnectPeer(state.persistentPeers, msg.cmp, func(sp *serverPeer) {
@@ -3134,10 +3135,11 @@ func newServer(listenAddrs []string, db database.DB, chainParams *chaincfg.Param
 			return nil, err
 		}
 
-		go s.connManager.Connect(&connmgr.ConnReq{
-			Addr:      tcpAddr,
-			Permanent: true,
-		})
+		go s.connManager.Connect(context.Background(),
+			&connmgr.ConnReq{
+				Addr:      tcpAddr,
+				Permanent: true,
+			})
 	}
 
 	if !cfg.DisableRPC {

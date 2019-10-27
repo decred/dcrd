@@ -6,6 +6,7 @@
 package main
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/base64"
 	"errors"
@@ -173,8 +174,8 @@ type config struct {
 	AltDNSNames          []string      `long:"altdnsnames" description:"Specify additional DNS names to use when generating the RPC server certificate" env:"DCRD_ALT_DNSNAMES" env-delim:","`
 	onionlookup          func(string) ([]net.IP, error)
 	lookup               func(string) ([]net.IP, error)
-	oniondial            func(string, string) (net.Conn, error)
-	dial                 func(string, string) (net.Conn, error)
+	oniondial            func(context.Context, string, string) (net.Conn, error)
+	dial                 func(context.Context, string, string) (net.Conn, error)
 	miningAddrs          []dcrutil.Address
 	minRelayTxFee        dcrutil.Amount
 	whitelists           []*net.IPNet
@@ -1075,7 +1076,8 @@ func loadConfig() (*config, []string, error) {
 	// specified, the dial function is set to the proxy specific dial
 	// function and the lookup is set to use tor (unless --noonion is
 	// specified in which case the system DNS resolver is used).
-	cfg.dial = net.Dial
+	var d net.Dialer
+	cfg.dial = d.DialContext
 	cfg.lookup = net.LookupIP
 	if cfg.Proxy != "" {
 		_, _, err := net.SplitHostPort(cfg.Proxy)
@@ -1099,7 +1101,7 @@ func loadConfig() (*config, []string, error) {
 			Password:     cfg.ProxyPass,
 			TorIsolation: cfg.TorIsolation,
 		}
-		cfg.dial = proxy.Dial
+		cfg.dial = proxy.DialContext
 		if !cfg.NoOnion {
 			cfg.lookup = func(host string) ([]net.IP, error) {
 				return connmgr.TorLookupIP(host, cfg.Proxy)
@@ -1132,14 +1134,14 @@ func loadConfig() (*config, []string, error) {
 				"credentials ")
 		}
 
-		cfg.oniondial = func(a, b string) (net.Conn, error) {
+		cfg.oniondial = func(ctx context.Context, a, b string) (net.Conn, error) {
 			proxy := &socks.Proxy{
 				Addr:         cfg.OnionProxy,
 				Username:     cfg.OnionProxyUser,
 				Password:     cfg.OnionProxyPass,
 				TorIsolation: cfg.TorIsolation,
 			}
-			return proxy.Dial(a, b)
+			return proxy.DialContext(ctx, a, b)
 		}
 		cfg.onionlookup = func(host string) ([]net.IP, error) {
 			return connmgr.TorLookupIP(host, cfg.OnionProxy)
@@ -1152,7 +1154,7 @@ func loadConfig() (*config, []string, error) {
 	// Specifying --noonion means the onion address dial and DNS resolution
 	// (lookup) functions result in an error.
 	if cfg.NoOnion {
-		cfg.oniondial = func(a, b string) (net.Conn, error) {
+		cfg.oniondial = func(ctx context.Context, a, b string) (net.Conn, error) {
 			return nil, errors.New("tor has been disabled")
 		}
 		cfg.onionlookup = func(a string) ([]net.IP, error) {
@@ -1190,11 +1192,11 @@ func loadConfig() (*config, []string, error) {
 // example, .onion addresses will be dialed using the onion specific proxy if
 // one was specified, but will otherwise use the normal dial function (which
 // could itself use a proxy or not).
-func dcrdDial(network, addr string) (net.Conn, error) {
+func dcrdDial(ctx context.Context, network, addr string) (net.Conn, error) {
 	if strings.Contains(addr, ".onion:") {
-		return cfg.oniondial(network, addr)
+		return cfg.oniondial(ctx, network, addr)
 	}
-	return cfg.dial(network, addr)
+	return cfg.dial(ctx, network, addr)
 }
 
 // dcrdLookup returns the correct DNS lookup function to use depending on the
