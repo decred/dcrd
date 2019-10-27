@@ -6,6 +6,7 @@
 package connmgr
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net"
@@ -140,12 +141,12 @@ type Config struct {
 
 	// Dial connects to the address on the named network. Either Dial or
 	// DialAddr need to be specified (but not both).
-	Dial func(network, addr string) (net.Conn, error)
+	Dial func(ctx context.Context, network, addr string) (net.Conn, error)
 
 	// DialAddr is an alternative to Dial which receives a full net.Addr instead
 	// of just the protocol family and address. Either DialAddr or Dial need
 	// to be specified (but not both).
-	DialAddr func(net.Addr) (net.Conn, error)
+	DialAddr func(context.Context, net.Addr) (net.Conn, error)
 }
 
 // registerPending is used to register a pending connection attempt. By
@@ -206,7 +207,7 @@ func (cm *ConnManager) handleFailedConn(c *ConnReq) {
 		}
 		log.Debugf("Retrying connection to %v in %v", c, d)
 		time.AfterFunc(d, func() {
-			cm.Connect(c)
+			cm.Connect(context.Background(), c)
 		})
 	} else if cm.cfg.GetNewAddress != nil {
 		cm.failedAttempts++
@@ -400,13 +401,16 @@ func (cm *ConnManager) newConnReq() {
 
 	c.Addr = addr
 
-	cm.Connect(c)
+	cm.Connect(context.Background(), c)
 }
 
 // Connect assigns an id and dials a connection to the address of the
 // connection request.
-func (cm *ConnManager) Connect(c *ConnReq) {
+func (cm *ConnManager) Connect(ctx context.Context, c *ConnReq) {
 	if atomic.LoadInt32(&cm.stop) != 0 {
+		return
+	}
+	if ctx.Err() != nil {
 		return
 	}
 
@@ -445,9 +449,9 @@ func (cm *ConnManager) Connect(c *ConnReq) {
 	var conn net.Conn
 	var err error
 	if cm.cfg.Dial != nil {
-		conn, err = cm.cfg.Dial(c.Addr.Network(), c.Addr.String())
+		conn, err = cm.cfg.Dial(ctx, c.Addr.Network(), c.Addr.String())
 	} else {
-		conn, err = cm.cfg.DialAddr(c.Addr)
+		conn, err = cm.cfg.DialAddr(ctx, c.Addr)
 	}
 	if err != nil {
 		select {
