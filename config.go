@@ -170,7 +170,7 @@ type config struct {
 	PipeRx               uint          `long:"piperx" description:"File descriptor of read end pipe to enable parent -> child process communication"`
 	PipeTx               uint          `long:"pipetx" description:"File descriptor of write end pipe to enable parent <- child process communication"`
 	LifetimeEvents       bool          `long:"lifetimeevents" description:"Send lifetime notifications over the TX pipe"`
-	AltDNSNames          []string      `long:"altdnsnames" description:"Specify additional dns names to use when generating the rpc server certificate" env:"DCRD_ALT_DNSNAMES" env-delim:","`
+	AltDNSNames          []string      `long:"altdnsnames" description:"Specify additional DNS names to use when generating the RPC server certificate" env:"DCRD_ALT_DNSNAMES" env-delim:","`
 	onionlookup          func(string) ([]net.IP, error)
 	lookup               func(string) ([]net.IP, error)
 	oniondial            func(string, string) (net.Conn, error)

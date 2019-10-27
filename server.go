@@ -2664,9 +2664,17 @@ func setupRPCListeners() ([]net.Listener, error) {
 	// Setup TLS if not disabled.
 	listenFunc := net.Listen
 	if !cfg.DisableRPC && !cfg.DisableTLS {
-		// Generate the TLS cert and key file if both don't already
-		// exist.
-		if !fileExists(cfg.RPCKey) && !fileExists(cfg.RPCCert) {
+		// Generate the TLS cert and key file if both don't already exist.
+		keyFileExists := fileExists(cfg.RPCKey)
+		certFileExists := fileExists(cfg.RPCCert)
+		if len(cfg.AltDNSNames) != 0 && (keyFileExists || certFileExists) {
+			rpcsLog.Warn("Additional DNS names specified when TLS " +
+				"certificates already exist will NOT be included:")
+			rpcsLog.Warnf("- In order to create TLS certs that include the "+
+				"additional DNS names, delete %q and %q and restart the server",
+				cfg.RPCKey, cfg.RPCCert)
+		}
+		if !keyFileExists && !certFileExists {
 			err := genCertPair(cfg.RPCCert, cfg.RPCKey, cfg.AltDNSNames)
 			if err != nil {
 				return nil, err
