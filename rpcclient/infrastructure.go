@@ -87,6 +87,10 @@ const (
 	// connectionRetryInterval is the amount of time to wait in between
 	// retries when automatically reconnecting to an RPC server.
 	connectionRetryInterval = time.Second * 5
+
+	// pingInterval is the amount of time between ping messages sent to
+	// the server.
+	pingInterval = time.Second * 10
 )
 
 // sendPostDetails houses an HTTP POST request to send to an RPC server as well
@@ -1258,6 +1262,28 @@ func dial(config *ConnConfig) (*websocket.Conn, error) {
 	return wsConn, nil
 }
 
+// keepAlive periodically sends ping messages to the server to keep the
+// established websocket connection alive.
+func (c *Client) keepAlive() {
+	ticker := time.NewTicker(pingInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-c.shutdown:
+			c.wg.Done()
+			return
+
+		case <-ticker.C:
+			err := c.wsConn.WriteControl(websocket.PingMessage, nil,
+				time.Now().Add(time.Second))
+			if err != nil {
+				log.Errorf("unable to write ping message: %v", err)
+			}
+		}
+	}
+}
+
 // New creates a new RPC client based on the provided connection configuration
 // details.  The notification handlers parameter may be nil if you are not
 // interested in receiving notifications and will be ignored if the
@@ -1306,13 +1332,13 @@ func New(config *ConnConfig, ntfnHandlers *NotificationHandlers) (*Client, error
 	}
 
 	if start {
-		log.Infof("Established connection to RPC server %s",
-			config.Host)
+		log.Infof("Established connection to RPC server %s", config.Host)
 		close(connEstablished)
 		client.start()
 		if !client.config.HTTPPostMode && !client.config.DisableAutoReconnect {
-			client.wg.Add(1)
+			client.wg.Add(2)
 			go client.wsReconnectHandler()
+			go client.keepAlive()
 		}
 	}
 
@@ -1372,8 +1398,9 @@ func (c *Client) Connect(ctx context.Context, retry bool) error {
 		close(c.connEstablished)
 		c.start()
 		if !c.config.DisableAutoReconnect {
-			c.wg.Add(1)
+			c.wg.Add(2)
 			go c.wsReconnectHandler()
+			go c.keepAlive()
 		}
 		return nil
 	}
