@@ -25,7 +25,7 @@ func (b *BlockChain) isVoterMajorityVersion(minVer uint32, prevNode *blockNode) 
 	// Walk blockchain backwards to calculate version.
 	node := b.findStakeVersionPriorNode(prevNode)
 	if node == nil {
-		return 0 >= minVer
+		return 0 == minVer
 	}
 
 	// Generate map key and look up cached result.
@@ -206,7 +206,6 @@ func TestCalcStakeVersionCorners(t *testing.T) {
 			t.Fatalf("invalid StakeVersion expected %d -> true",
 				version)
 		}
-
 	}
 	if bc.isStakeMajorityVersion(5, node) {
 		t.Fatalf("invalid StakeVersion expected 5 -> false")
@@ -231,7 +230,6 @@ func TestCalcStakeVersionCorners(t *testing.T) {
 			t.Fatalf("invalid StakeVersion expected %d -> true",
 				version)
 		}
-
 	}
 	if bc.isStakeMajorityVersion(5, node) {
 		t.Fatalf("invalid StakeVersion expected 5 -> false")
@@ -254,7 +252,6 @@ func TestCalcStakeVersionCorners(t *testing.T) {
 			t.Fatalf("invalid StakeVersion expected %d -> true",
 				version)
 		}
-
 	}
 	if bc.isStakeMajorityVersion(6, node) {
 		t.Fatalf("invalid StakeVersion expected 6 -> false")
@@ -268,7 +265,6 @@ func TestCalcStakeVersionCorners(t *testing.T) {
 		node = newFakeNode(node, 3, sv, 0, time.Now())
 		appendFakeVotes(node, params.TicketsPerBlock, 4, 0)
 		bc.bestChain.SetTip(node)
-
 	}
 
 	// Versions up to and including v5 should still be considered the
@@ -280,7 +276,6 @@ func TestCalcStakeVersionCorners(t *testing.T) {
 			t.Fatalf("invalid StakeVersion expected %d -> true",
 				version)
 		}
-
 	}
 	if bc.isStakeMajorityVersion(6, node) {
 		t.Fatalf("invalid StakeVersion expected 6 -> false")
@@ -294,7 +289,6 @@ func TestCalcStakeVersionCorners(t *testing.T) {
 		node = newFakeNode(node, 3, sv, 0, time.Now())
 		appendFakeVotes(node, params.TicketsPerBlock, 4, 0)
 		bc.bestChain.SetTip(node)
-
 	}
 
 	// Versions up to and including v5 should still be considered the
@@ -306,7 +300,6 @@ func TestCalcStakeVersionCorners(t *testing.T) {
 			t.Fatalf("invalid StakeVersion expected %d -> true",
 				version)
 		}
-
 	}
 	if bc.isStakeMajorityVersion(6, node) {
 		t.Fatalf("invalid StakeVersion expected 6 -> false")

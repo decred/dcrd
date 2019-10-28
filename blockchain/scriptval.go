@@ -216,7 +216,6 @@ func ValidateTransactionScripts(tx *dcrutil.Tx, utxoView *UtxoViewpoint, flags t
 
 	// Validate all of the inputs.
 	return newTxValidator(utxoView, flags, sigCache).Validate(txValItems)
-
 }
 
 // checkBlockScripts executes and validates the scripts for all transactions in

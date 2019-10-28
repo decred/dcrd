@@ -484,7 +484,6 @@ func TestLockTimeToSequence(t *testing.T) {
 		if err != nil && !test.invalid {
 			t.Errorf("%s: unexpected error: %v", test.name, err)
 			continue
-
 		}
 		if err == nil && test.invalid {
 			t.Errorf("%s: did not receive expected error", test.name)
@@ -496,6 +495,5 @@ func TestLockTimeToSequence(t *testing.T) {
 				test.name, gotSequence, test.expected)
 			continue
 		}
-
 	}
 }
