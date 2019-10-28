@@ -7,6 +7,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/base64"
@@ -1774,7 +1775,8 @@ out:
 						if ok {
 							resp, err = wsHandler(c, cmd.params)
 						} else {
-							resp, err = c.rpcServer.standardCmdResult(cmd, nil)
+							resp, err = c.rpcServer.standardCmdResult(context.TODO(),
+								cmd)
 						}
 
 						// Marshal request output.
@@ -1845,7 +1847,7 @@ func (c *wsClient) serviceRequest(r *parsedRPCCmd) {
 	if ok {
 		result, err = wsHandler(c, r.params)
 	} else {
-		result, err = c.rpcServer.standardCmdResult(r, nil)
+		result, err = c.rpcServer.standardCmdResult(context.TODO(), r)
 	}
 	reply, err := createMarshalledReply(r.jsonrpc, r.id, result, err)
 	if err != nil {
