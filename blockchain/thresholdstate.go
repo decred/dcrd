@@ -620,7 +620,6 @@ func (b *BlockChain) isLNFeaturesAgendaActive(prevNode *blockNode) (bool, error)
 	// here because there is only one possible choice that can be active for
 	// the agenda, which is yes, so there is no need to check it.
 	return state.State == ThresholdActive, nil
-
 }
 
 // IsLNFeaturesAgendaActive returns whether or not the LN features agenda vote,

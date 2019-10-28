@@ -2587,7 +2587,7 @@ func checkNumSigOps(tx *dcrutil.Tx, view *UtxoViewpoint, index int, txTree bool,
 // checkStakeBaseAmounts calculates the total amount given as subsidy from
 // single stakebase transactions (votes) within a block.  This function skips a
 // ton of checks already performed by CheckTransactionInputs.
-func checkStakeBaseAmounts(subsidyCache *standalone.SubsidyCache, height int64, params *chaincfg.Params, txs []*dcrutil.Tx, view *UtxoViewpoint) error {
+func checkStakeBaseAmounts(subsidyCache *standalone.SubsidyCache, height int64, txs []*dcrutil.Tx, view *UtxoViewpoint) error {
 	for _, tx := range txs {
 		msgTx := tx.MsgTx()
 		if stake.IsSSGen(msgTx) {
@@ -2662,7 +2662,7 @@ func getStakeBaseAmounts(txs []*dcrutil.Tx, view *UtxoViewpoint) (int64, error) 
 
 // getStakeTreeFees determines the amount of fees for in the stake tx tree of
 // some node given a transaction store.
-func getStakeTreeFees(subsidyCache *standalone.SubsidyCache, height int64, params *chaincfg.Params, txs []*dcrutil.Tx, view *UtxoViewpoint) (dcrutil.Amount, error) {
+func getStakeTreeFees(subsidyCache *standalone.SubsidyCache, height int64, txs []*dcrutil.Tx, view *UtxoViewpoint) (dcrutil.Amount, error) {
 	totalInputs := int64(0)
 	totalOutputs := int64(0)
 	for _, tx := range txs {
@@ -2824,7 +2824,7 @@ func (b *BlockChain) checkTransactionsAndConnect(inputFees dcrutil.Amount, node 
 		}
 
 		err := checkStakeBaseAmounts(b.subsidyCache, node.height,
-			b.chainParams, txs, view)
+			txs, view)
 		if err != nil {
 			return err
 		}
@@ -2998,7 +2998,7 @@ func (b *BlockChain) checkConnectBlock(node *blockNode, block, parent *dcrutil.B
 	}
 
 	stakeTreeFees, err := getStakeTreeFees(b.subsidyCache, node.height,
-		b.chainParams, block.STransactions(), view)
+		block.STransactions(), view)
 	if err != nil {
 		log.Tracef("getStakeTreeFees failed for TxTreeStake: %v", err)
 		return err

@@ -1303,7 +1303,6 @@ func TestUtxoSerialization(t *testing.T) {
 					"%v", i, test.name, outputIndex,
 					gotSpent, wantSpent)
 				continue
-
 			}
 		}
 		if len(utxoEntry.sparseOutputs) != numUnspent {
@@ -1459,7 +1458,6 @@ func TestBestChainStateSerialization(t *testing.T) {
 				"mismatched state - got %v, want %v", i,
 				test.name, state, test.state)
 			continue
-
 		}
 	}
 }

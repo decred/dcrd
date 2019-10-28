@@ -82,7 +82,7 @@ func (b *BlockChain) isStakeMajorityVersion(minVer uint32, prevNode *blockNode) 
 	// Walk blockchain backwards to calculate version.
 	node := b.findStakeVersionPriorNode(prevNode)
 	if node == nil {
-		return 0 >= minVer
+		return 0 == minVer
 	}
 
 	// Generate map key and look up cached result.
