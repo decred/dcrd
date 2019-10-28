@@ -2696,7 +2696,7 @@ func (g *BgBlkTmplGenerator) handleBlockDisconnected(ctx context.Context, state 
 // has already expired.
 //
 // This function is only intended for use by the regen handler goroutine.
-func (g *BgBlkTmplGenerator) handleBlockAccepted(ctx context.Context, state *regenHandlerState, block *dcrutil.Block, chainTip *blockchain.BestState) {
+func (g *BgBlkTmplGenerator) handleBlockAccepted(_ context.Context, state *regenHandlerState, block *dcrutil.Block, chainTip *blockchain.BestState) {
 	// Ignore side chain blocks while still waiting for the side chain tracking
 	// timeout to expire.  This provides a bias towards the first block that is
 	// seen in order to prevent PoW miners from being able to gain an advantage
