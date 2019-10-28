@@ -433,32 +433,44 @@ func (cfg *config) generateNetworkInfo() []types.NetworksResult {
 // parseNetworkInterfaces updates all network interface states based on the
 // provided configuration.
 func parseNetworkInterfaces(cfg *config) error {
-	v4Addrs, v6Addrs, _, err := parseListeners(cfg.Listeners)
+	var v4Addrs, v6Addrs uint32
+	listeners, err := parseListeners(cfg.Listeners)
 	if err != nil {
 		return err
 	}
 
+	for _, addr := range listeners {
+		if addr.Network() == "tcp4" {
+			v4Addrs++
+			continue
+		}
+
+		if addr.Network() == "tcp6" {
+			v6Addrs++
+		}
+	}
+
 	// Set IPV4 interface state.
-	if len(v4Addrs) > 0 {
+	if v4Addrs > 0 {
 		ipv4 := &cfg.ipv4NetInfo
 		ipv4.Reachable = !cfg.DisableListen
-		ipv4.Limited = len(v6Addrs) == 0
+		ipv4.Limited = v6Addrs == 0
 		ipv4.Proxy = cfg.Proxy
 	}
 
 	// Set IPV6 interface state.
-	if len(v6Addrs) > 0 {
+	if v6Addrs > 0 {
 		ipv6 := &cfg.ipv6NetInfo
 		ipv6.Reachable = !cfg.DisableListen
-		ipv6.Limited = len(v4Addrs) == 0
+		ipv6.Limited = v4Addrs == 0
 		ipv6.Proxy = cfg.Proxy
 	}
 
 	// Set Onion interface state.
-	if len(v6Addrs) > 0 && (cfg.Proxy != "" || cfg.OnionProxy != "") {
+	if v6Addrs > 0 && (cfg.Proxy != "" || cfg.OnionProxy != "") {
 		onion := &cfg.onionNetInfo
 		onion.Reachable = !cfg.DisableListen && !cfg.NoOnion
-		onion.Limited = len(v4Addrs) == 0
+		onion.Limited = v4Addrs == 0
 		onion.Proxy = cfg.Proxy
 		if cfg.OnionProxy != "" {
 			onion.Proxy = cfg.OnionProxy
