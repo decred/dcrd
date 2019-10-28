@@ -1372,7 +1372,7 @@ type wsClient struct {
 
 // inHandler handles all incoming messages for the websocket connection.  It
 // must be run as a goroutine.
-func (c *wsClient) inHandler() {
+func (c *wsClient) inHandler(ctx context.Context) {
 out:
 	for {
 		// Break out of the loop once the quit channel has been closed.
@@ -1546,7 +1546,7 @@ out:
 			// many requests to be waited on concurrently.
 			c.serviceRequestSem.acquire()
 			go func() {
-				c.serviceRequest(cmd)
+				c.serviceRequest(ctx, cmd)
 				c.serviceRequestSem.release()
 			}()
 		}
@@ -1775,7 +1775,7 @@ out:
 						if ok {
 							resp, err = wsHandler(c, cmd.params)
 						} else {
-							resp, err = c.rpcServer.standardCmdResult(context.TODO(),
+							resp, err = c.rpcServer.standardCmdResult(ctx,
 								cmd)
 						}
 
@@ -1835,7 +1835,7 @@ out:
 // serviceRequest services a parsed RPC request by looking up and executing the
 // appropriate RPC handler.  The response is marshalled and sent to the websocket
 // client.
-func (c *wsClient) serviceRequest(r *parsedRPCCmd) {
+func (c *wsClient) serviceRequest(ctx context.Context, r *parsedRPCCmd) {
 	var (
 		result interface{}
 		err    error
@@ -1847,7 +1847,7 @@ func (c *wsClient) serviceRequest(r *parsedRPCCmd) {
 	if ok {
 		result, err = wsHandler(c, r.params)
 	} else {
-		result, err = c.rpcServer.standardCmdResult(context.TODO(), r)
+		result, err = c.rpcServer.standardCmdResult(ctx, r)
 	}
 	reply, err := createMarshalledReply(r.jsonrpc, r.id, result, err)
 	if err != nil {
@@ -2046,7 +2046,7 @@ func (c *wsClient) Start() {
 
 	// Start processing input and output.
 	c.wg.Add(3)
-	go c.inHandler()
+	go c.inHandler(context.TODO())
 	go c.notificationQueueHandler()
 	go c.outHandler()
 }
