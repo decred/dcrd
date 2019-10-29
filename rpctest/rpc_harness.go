@@ -6,6 +6,7 @@
 package rpctest
 
 import (
+	"context"
 	"fmt"
 	"io/ioutil"
 	"net"
@@ -65,7 +66,7 @@ const (
 
 // HarnessTestCase represents a test-case which utilizes an instance of the
 // Harness to exercise functionality.
-type HarnessTestCase func(r *Harness, t *testing.T)
+type HarnessTestCase func(ctx context.Context, r *Harness, t *testing.T)
 
 // Harness fully encapsulates an active dcrd process to provide a unified
 // platform for creating rpc driven integration tests involving dcrd. The
@@ -214,19 +215,19 @@ func (h *Harness) SetUp(createTestChain bool, numMatureOutputs uint32) error {
 	if err := h.connectRPCClient(); err != nil {
 		return err
 	}
-
+	ctx := context.Background()
 	h.wallet.Start()
 
 	// Filter transactions that pay to the coinbase associated with the
 	// wallet.
 	filterAddrs := []dcrutil.Address{h.wallet.coinbaseAddr}
-	if err := h.Node.LoadTxFilter(true, filterAddrs, nil); err != nil {
+	if err := h.Node.LoadTxFilter(ctx, true, filterAddrs, nil); err != nil {
 		return err
 	}
 
 	// Ensure dcrd properly dispatches our registered call-back for each new
 	// block. Otherwise, the memWallet won't function properly.
-	if err := h.Node.NotifyBlocks(); err != nil {
+	if err := h.Node.NotifyBlocks(ctx); err != nil {
 		return err
 	}
 
@@ -236,7 +237,7 @@ func (h *Harness) SetUp(createTestChain bool, numMatureOutputs uint32) error {
 		// Include an extra block to account for the premine block.
 		numToGenerate := (uint32(h.ActiveNet.CoinbaseMaturity) +
 			numMatureOutputs) + 1
-		_, err := h.Node.Generate(numToGenerate)
+		_, err := h.Node.Generate(ctx, numToGenerate)
 		if err != nil {
 			return err
 		}
@@ -244,7 +245,7 @@ func (h *Harness) SetUp(createTestChain bool, numMatureOutputs uint32) error {
 
 	// Block until the wallet has fully synced up to the tip of the main
 	// chain.
-	_, height, err := h.Node.GetBestBlock()
+	_, height, err := h.Node.GetBestBlock(ctx)
 	if err != nil {
 		return err
 	}

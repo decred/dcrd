@@ -9,6 +9,7 @@
 package rpctest
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"testing"
@@ -28,7 +29,7 @@ const (
 	numMatureOutputs = 25
 )
 
-func testSendOutputs(r *Harness, t *testing.T) {
+func testSendOutputs(ctx context.Context, r *Harness, t *testing.T) {
 	genSpend := func(amt dcrutil.Amount) *chainhash.Hash {
 		// Grab a fresh address from the wallet.
 		addr, err := r.NewAddress()
@@ -50,8 +51,8 @@ func testSendOutputs(r *Harness, t *testing.T) {
 		return txid
 	}
 
-	assertTxMined := func(txid *chainhash.Hash, blockHash *chainhash.Hash) {
-		block, err := r.Node.GetBlock(blockHash)
+	assertTxMined := func(ctx context.Context, txid *chainhash.Hash, blockHash *chainhash.Hash) {
+		block, err := r.Node.GetBlock(ctx, blockHash)
 		if err != nil {
 			t.Fatalf("unable to get block: %v", err)
 		}
@@ -75,30 +76,30 @@ func testSendOutputs(r *Harness, t *testing.T) {
 
 	// Generate a single block, the transaction the wallet created should
 	// be found in this block.
-	blockHashes, err := r.Node.Generate(1)
+	blockHashes, err := r.Node.Generate(ctx, 1)
 	if err != nil {
 		t.Fatalf("unable to generate single block: %v", err)
 	}
-	assertTxMined(txid, blockHashes[0])
+	assertTxMined(ctx, txid, blockHashes[0])
 
 	// Next, generate a spend much greater than the block reward. This
 	// transaction should also have been mined properly.
 	txid = genSpend(dcrutil.Amount(5000 * dcrutil.AtomsPerCoin))
-	blockHashes, err = r.Node.Generate(1)
+	blockHashes, err = r.Node.Generate(ctx, 1)
 	if err != nil {
 		t.Fatalf("unable to generate single block: %v", err)
 	}
-	assertTxMined(txid, blockHashes[0])
+	assertTxMined(ctx, txid, blockHashes[0])
 
 	// Generate another block to ensure the transaction is removed from the
 	// mempool.
-	if _, err := r.Node.Generate(1); err != nil {
+	if _, err := r.Node.Generate(ctx, 1); err != nil {
 		t.Fatalf("unable to generate block: %v", err)
 	}
 }
 
-func assertConnectedTo(t *testing.T, nodeA *Harness, nodeB *Harness) {
-	nodeAPeers, err := nodeA.Node.GetPeerInfo()
+func assertConnectedTo(ctx context.Context, t *testing.T, nodeA *Harness, nodeB *Harness) {
+	nodeAPeers, err := nodeA.Node.GetPeerInfo(ctx)
 	if err != nil {
 		t.Fatalf("unable to get nodeA's peer info")
 	}
@@ -117,7 +118,7 @@ func assertConnectedTo(t *testing.T, nodeA *Harness, nodeB *Harness) {
 	}
 }
 
-func testConnectNode(r *Harness, t *testing.T) {
+func testConnectNode(ctx context.Context, r *Harness, t *testing.T) {
 	// Create a fresh test harness.
 	harness, err := New(chaincfg.RegNetParams(), nil, nil)
 	if err != nil {
@@ -136,11 +137,11 @@ func testConnectNode(r *Harness, t *testing.T) {
 
 	// The main harness should show up in our local harness' peer's list,
 	// and vice verse.
-	assertConnectedTo(t, harness, r)
+	assertConnectedTo(ctx, t, harness, r)
 }
 
-func assertNotConnectedTo(t *testing.T, nodeA *Harness, nodeB *Harness) {
-	nodeAPeers, err := nodeA.Node.GetPeerInfo()
+func assertNotConnectedTo(ctx context.Context, t *testing.T, nodeA *Harness, nodeB *Harness) {
+	nodeAPeers, err := nodeA.Node.GetPeerInfo(ctx)
 	if err != nil {
 		t.Fatalf("unable to get nodeA's peer info")
 	}
@@ -159,7 +160,7 @@ func assertNotConnectedTo(t *testing.T, nodeA *Harness, nodeB *Harness) {
 	}
 }
 
-func testDisconnectNode(r *Harness, t *testing.T) {
+func testDisconnectNode(ctx context.Context, r *Harness, t *testing.T) {
 	// Create a fresh test harness.
 	harness, err := New(chaincfg.RegNetParams(), nil, nil)
 	if err != nil {
@@ -177,14 +178,14 @@ func testDisconnectNode(r *Harness, t *testing.T) {
 	}
 
 	// Sanity check.
-	assertConnectedTo(t, harness, r)
+	assertConnectedTo(ctx, t, harness, r)
 
 	// Disconnect the nodes.
-	if err := RemoveNode(harness, r); err != nil {
+	if err := RemoveNode(ctx, harness, r); err != nil {
 		t.Fatalf("unable to disconnect local to main harness: %v", err)
 	}
 
-	assertNotConnectedTo(t, harness, r)
+	assertNotConnectedTo(ctx, t, harness, r)
 
 	// Re-connect the nodes. We'll perform the test in the reverse direction now
 	// and assert that the nodes remain connected and that RemoveNode() fails.
@@ -193,20 +194,20 @@ func testDisconnectNode(r *Harness, t *testing.T) {
 	}
 
 	// Sanity check.
-	assertConnectedTo(t, harness, r)
+	assertConnectedTo(ctx, t, harness, r)
 
 	// Try to disconnect the nodes in the reverse direction. This should fail,
 	// as the nodes are connected in the harness->r direction.
-	if err := RemoveNode(r, harness); err == nil {
+	if err := RemoveNode(ctx, r, harness); err == nil {
 		t.Fatalf("removeNode on unconnected peers should return an error")
 	}
 
 	// Ensure the nodes remain connected after trying to disconnect them in the
 	// reverse order.
-	assertConnectedTo(t, harness, r)
+	assertConnectedTo(ctx, t, harness, r)
 }
 
-func testNodesConnected(r *Harness, t *testing.T) {
+func testNodesConnected(ctx context.Context, r *Harness, t *testing.T) {
 	// Create a fresh test harness.
 	harness, err := New(chaincfg.RegNetParams(), nil, nil)
 	if err != nil {
@@ -224,10 +225,10 @@ func testNodesConnected(r *Harness, t *testing.T) {
 	}
 
 	// Sanity check.
-	assertConnectedTo(t, harness, r)
+	assertConnectedTo(ctx, t, harness, r)
 
 	// Ensure nodes are still connected.
-	assertConnectedTo(t, harness, r)
+	assertConnectedTo(ctx, t, harness, r)
 
 	testCases := []struct {
 		name         string
@@ -244,7 +245,7 @@ func testNodesConnected(r *Harness, t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		actual, err := NodesConnected(tc.from, tc.to, tc.allowReverse)
+		actual, err := NodesConnected(ctx, tc.from, tc.to, tc.allowReverse)
 		if err != nil {
 			t.Fatalf("unable to determine node connection: %v", err)
 		}
@@ -255,16 +256,16 @@ func testNodesConnected(r *Harness, t *testing.T) {
 	}
 
 	// Disconnect the nodes.
-	if err := RemoveNode(harness, r); err != nil {
+	if err := RemoveNode(ctx, harness, r); err != nil {
 		t.Fatalf("unable to disconnect local to main harness: %v", err)
 	}
 
 	// Sanity check.
-	assertNotConnectedTo(t, harness, r)
+	assertNotConnectedTo(ctx, t, harness, r)
 
 	// All test cases must return false now.
 	for _, tc := range testCases {
-		actual, err := NodesConnected(tc.from, tc.to, tc.allowReverse)
+		actual, err := NodesConnected(ctx, tc.from, tc.to, tc.allowReverse)
 		if err != nil {
 			t.Fatalf("unable to determine node connection: %v", err)
 		}
@@ -299,7 +300,7 @@ func testTearDownAll(t *testing.T) {
 	}
 }
 
-func testActiveHarnesses(r *Harness, t *testing.T) {
+func testActiveHarnesses(_ context.Context, r *Harness, t *testing.T) {
 	numInitialHarnesses := len(ActiveHarnesses())
 
 	// Create a single test harness.
@@ -318,9 +319,9 @@ func testActiveHarnesses(r *Harness, t *testing.T) {
 	}
 }
 
-func testJoinMempools(r *Harness, t *testing.T) {
+func testJoinMempools(ctx context.Context, r *Harness, t *testing.T) {
 	// Assert main test harness has no transactions in its mempool.
-	pooledHashes, err := r.Node.GetRawMempool(dcrdtypes.GRMAll)
+	pooledHashes, err := r.Node.GetRawMempool(ctx, dcrdtypes.GRMAll)
 	if err != nil {
 		t.Fatalf("unable to get mempool for main test harness: %v", err)
 	}
@@ -363,7 +364,7 @@ func testJoinMempools(r *Harness, t *testing.T) {
 	if err != nil {
 		t.Fatalf("coinbase spend failed: %v", err)
 	}
-	if _, err := r.Node.SendRawTransaction(testTx, true); err != nil {
+	if _, err := r.Node.SendRawTransaction(ctx, testTx, true); err != nil {
 		t.Fatalf("send transaction failed: %v", err)
 	}
 
@@ -373,7 +374,7 @@ func testJoinMempools(r *Harness, t *testing.T) {
 	var eg errgroup.Group
 	eg.Go(func() error {
 		for {
-			poolHashes, err := r.Node.GetRawMempool(dcrdtypes.GRMAll)
+			poolHashes, err := r.Node.GetRawMempool(ctx, dcrdtypes.GRMAll)
 			if err != nil {
 				return fmt.Errorf("failed to retrieve harness mempool: %v", err)
 			}
@@ -425,7 +426,7 @@ func testJoinMempools(r *Harness, t *testing.T) {
 
 	// Send the transaction to the local harness which will result in synced
 	// mempools.
-	if _, err := harness.Node.SendRawTransaction(testTx, true); err != nil {
+	if _, err := harness.Node.SendRawTransaction(ctx, testTx, true); err != nil {
 		t.Fatalf("send transaction failed: %v", err)
 	}
 
@@ -441,7 +442,7 @@ func testJoinMempools(r *Harness, t *testing.T) {
 	}
 }
 
-func testJoinBlocks(r *Harness, t *testing.T) {
+func testJoinBlocks(_ context.Context, r *Harness, t *testing.T) {
 	// Create a second harness with only the genesis block so it is behind
 	// the main harness.
 	harness, err := New(chaincfg.RegNetParams(), nil, nil)
@@ -493,7 +494,7 @@ func testJoinBlocks(r *Harness, t *testing.T) {
 	}
 }
 
-func testMemWalletReorg(r *Harness, t *testing.T) {
+func testMemWalletReorg(_ context.Context, r *Harness, t *testing.T) {
 	// Create a fresh harness, we'll be using the main harness to force a
 	// re-org on this local harness.
 	harness, err := New(chaincfg.RegNetParams(), nil, nil)
@@ -534,7 +535,7 @@ func testMemWalletReorg(r *Harness, t *testing.T) {
 	}
 }
 
-func testMemWalletLockedOutputs(r *Harness, t *testing.T) {
+func testMemWalletLockedOutputs(_ context.Context, r *Harness, t *testing.T) {
 	// Obtain the initial balance of the wallet at this point.
 	startingBalance := r.ConfirmedBalance()
 
@@ -634,7 +635,8 @@ func TestHarness(t *testing.T) {
 	// Current tip should be at a height of numMatureOutputs plus the
 	// required number of blocks for coinbase maturity plus an additional
 	// block for the premine block.
-	nodeInfo, err := mainHarness.Node.GetInfo()
+	ctx := context.TODO()
+	nodeInfo, err := mainHarness.Node.GetInfo(ctx)
 	if err != nil {
 		t.Fatalf("unable to execute getinfo on node: %v", err)
 	}
@@ -648,7 +650,7 @@ func TestHarness(t *testing.T) {
 	// Skip tests when running with -short
 	if !testing.Short() {
 		for _, testCase := range harnessTestCases {
-			testCase(mainHarness, t)
+			testCase(ctx, mainHarness, t)
 		}
 	}
 

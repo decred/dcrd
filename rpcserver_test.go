@@ -11,6 +11,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"os"
 	"runtime/debug"
@@ -20,19 +21,19 @@ import (
 	"github.com/decred/dcrd/rpctest"
 )
 
-func testGetBestBlock(r *rpctest.Harness, t *testing.T) {
-	_, prevbestHeight, err := r.Node.GetBestBlock()
+func testGetBestBlock(ctx context.Context, r *rpctest.Harness, t *testing.T) {
+	_, prevbestHeight, err := r.Node.GetBestBlock(ctx)
 	if err != nil {
 		t.Fatalf("Call to `getbestblock` failed: %v", err)
 	}
 
 	// Create a new block connecting to the current tip.
-	generatedBlockHashes, err := r.Node.Generate(1)
+	generatedBlockHashes, err := r.Node.Generate(ctx, 1)
 	if err != nil {
 		t.Fatalf("Unable to generate block: %v", err)
 	}
 
-	bestHash, bestHeight, err := r.Node.GetBestBlock()
+	bestHash, bestHeight, err := r.Node.GetBestBlock(ctx)
 	if err != nil {
 		t.Fatalf("Call to `getbestblock` failed: %v", err)
 	}
@@ -50,19 +51,19 @@ func testGetBestBlock(r *rpctest.Harness, t *testing.T) {
 	}
 }
 
-func testGetBlockCount(r *rpctest.Harness, t *testing.T) {
+func testGetBlockCount(ctx context.Context, r *rpctest.Harness, t *testing.T) {
 	// Save the current count.
-	currentCount, err := r.Node.GetBlockCount()
+	currentCount, err := r.Node.GetBlockCount(ctx)
 	if err != nil {
 		t.Fatalf("Unable to get block count: %v", err)
 	}
 
-	if _, err := r.Node.Generate(1); err != nil {
+	if _, err := r.Node.Generate(ctx, 1); err != nil {
 		t.Fatalf("Unable to generate block: %v", err)
 	}
 
 	// Count should have increased by one.
-	newCount, err := r.Node.GetBlockCount()
+	newCount, err := r.Node.GetBlockCount(ctx)
 	if err != nil {
 		t.Fatalf("Unable to get block count: %v", err)
 	}
@@ -72,19 +73,19 @@ func testGetBlockCount(r *rpctest.Harness, t *testing.T) {
 	}
 }
 
-func testGetBlockHash(r *rpctest.Harness, t *testing.T) {
+func testGetBlockHash(ctx context.Context, r *rpctest.Harness, t *testing.T) {
 	// Create a new block connecting to the current tip.
-	generatedBlockHashes, err := r.Node.Generate(1)
+	generatedBlockHashes, err := r.Node.Generate(ctx, 1)
 	if err != nil {
 		t.Fatalf("Unable to generate block: %v", err)
 	}
 
-	info, err := r.Node.GetInfo()
+	info, err := r.Node.GetInfo(ctx)
 	if err != nil {
 		t.Fatalf("call to getinfo failed: %v", err)
 	}
 
-	blockHash, err := r.Node.GetBlockHash(int64(info.Blocks))
+	blockHash, err := r.Node.GetBlockHash(ctx, int64(info.Blocks))
 	if err != nil {
 		t.Fatalf("Call to `getblockhash` failed: %v", err)
 	}
@@ -159,8 +160,9 @@ func TestRpcServer(t *testing.T) {
 		}
 	}()
 
+	ctx := context.Background()
 	for _, testCase := range rpcTestCases {
-		testCase(primaryHarness, t)
+		testCase(ctx, primaryHarness, t)
 
 		currentTestNum++
 	}

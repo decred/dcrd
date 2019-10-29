@@ -6,6 +6,7 @@
 package rpctest
 
 import (
+	"context"
 	"reflect"
 	"time"
 
@@ -46,11 +47,12 @@ func JoinNodes(nodes []*Harness, joinType JoinType) error {
 
 // syncMempools blocks until all nodes have identical mempools.
 func syncMempools(nodes []*Harness) error {
+	ctx := context.Background()
 	poolsMatch := false
 
 	for !poolsMatch {
 	retry:
-		firstPool, err := nodes[0].Node.GetRawMempool(dcrdtypes.GRMAll)
+		firstPool, err := nodes[0].Node.GetRawMempool(ctx, dcrdtypes.GRMAll)
 		if err != nil {
 			return err
 		}
@@ -59,7 +61,7 @@ func syncMempools(nodes []*Harness) error {
 		// first node, then we're done. Otherwise, drop back to the top
 		// of the loop and retry after a short wait period.
 		for _, node := range nodes[1:] {
-			nodePool, err := node.Node.GetRawMempool(dcrdtypes.GRMAll)
+			nodePool, err := node.Node.GetRawMempool(ctx, dcrdtypes.GRMAll)
 			if err != nil {
 				return err
 			}
@@ -79,13 +81,14 @@ func syncMempools(nodes []*Harness) error {
 // syncBlocks blocks until all nodes report the same block height.
 func syncBlocks(nodes []*Harness) error {
 	blocksMatch := false
+	ctx := context.Background()
 
 	for !blocksMatch {
 	retry:
 		blockHeights := make(map[int64]struct{})
 
 		for _, node := range nodes {
-			blockHeight, err := node.Node.GetBlockCount()
+			blockHeight, err := node.Node.GetBlockCount(ctx)
 			if err != nil {
 				return err
 			}
@@ -108,24 +111,25 @@ func syncBlocks(nodes []*Harness) error {
 // therefore in the case of disconnects, "from" will attempt to reestablish a
 // connection to the "to" harness.
 func ConnectNode(from *Harness, to *Harness) error {
-	peerInfo, err := from.Node.GetPeerInfo()
+	ctx := context.Background()
+	peerInfo, err := from.Node.GetPeerInfo(ctx)
 	if err != nil {
 		return err
 	}
 	numPeers := len(peerInfo)
 
 	targetAddr := to.node.config.listen
-	if err := from.Node.AddNode(targetAddr, rpcclient.ANAdd); err != nil {
+	if err := from.Node.AddNode(ctx, targetAddr, rpcclient.ANAdd); err != nil {
 		return err
 	}
 
 	// Block until a new connection has been established.
-	peerInfo, err = from.Node.GetPeerInfo()
+	peerInfo, err = from.Node.GetPeerInfo(ctx)
 	if err != nil {
 		return err
 	}
 	for len(peerInfo) <= numPeers {
-		peerInfo, err = from.Node.GetPeerInfo()
+		peerInfo, err = from.Node.GetPeerInfo(ctx)
 		if err != nil {
 			return err
 		}
@@ -139,16 +143,16 @@ func ConnectNode(from *Harness, to *Harness) error {
 // if the reverse connection exists, the nodes may still be connected.
 //
 // This function returns an error if the nodes were not previously connected.
-func RemoveNode(from *Harness, to *Harness) error {
+func RemoveNode(ctx context.Context, from *Harness, to *Harness) error {
 	targetAddr := to.node.config.listen
-	if err := from.Node.AddNode(targetAddr, rpcclient.ANRemove); err != nil {
+	if err := from.Node.AddNode(ctx, targetAddr, rpcclient.ANRemove); err != nil {
 		// AddNode(..., ANRemove) returns an error if the peer is not found
 		return err
 	}
 
 	// Block until this particular connection has been dropped.
 	for {
-		peerInfo, err := from.Node.GetPeerInfo()
+		peerInfo, err := from.Node.GetPeerInfo(ctx)
 		if err != nil {
 			return err
 		}
@@ -169,8 +173,8 @@ func RemoveNode(from *Harness, to *Harness) error {
 // NodesConnected verifies whether there is a connection via the p2p interface
 // between the specified nodes. If allowReverse is true, connectivity is also
 // checked in the reverse direction (to->from).
-func NodesConnected(from, to *Harness, allowReverse bool) (bool, error) {
-	peerInfo, err := from.Node.GetPeerInfo()
+func NodesConnected(ctx context.Context, from, to *Harness, allowReverse bool) (bool, error) {
+	peerInfo, err := from.Node.GetPeerInfo(ctx)
 	if err != nil {
 		return false, err
 	}
@@ -187,7 +191,7 @@ func NodesConnected(from, to *Harness, allowReverse bool) (bool, error) {
 	}
 
 	// Check in the reverse direction.
-	peerInfo, err = to.Node.GetPeerInfo()
+	peerInfo, err = to.Node.GetPeerInfo(ctx)
 	if err != nil {
 		return false, err
 	}

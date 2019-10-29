@@ -8,6 +8,7 @@
 package rpctest
 
 import (
+	"context"
 	"os"
 	"testing"
 
@@ -17,10 +18,10 @@ import (
 
 // testCanPassSVH tests whether the wallet can maintain the chain going past SVH
 // (stake validation height).
-func testCanPassSVH(t *testing.T, vw *VotingWallet) {
+func testCanPassSVH(ctx context.Context, t *testing.T, vw *VotingWallet) {
 
 	// Store the current (starting) height.
-	_, startHeight, err := vw.hn.Node.GetBestBlock()
+	_, startHeight, err := vw.hn.Node.GetBestBlock(ctx)
 	if err != nil {
 		t.Fatalf("unable to obtain best block: %v", err)
 	}
@@ -33,14 +34,14 @@ func testCanPassSVH(t *testing.T, vw *VotingWallet) {
 
 	for h := startHeight + 1; h <= targetHeight; h++ {
 		// Try and generate a block at this height.
-		_, err := vw.GenerateBlocks(1)
+		_, err := vw.GenerateBlocks(ctx, 1)
 		if err != nil {
 			t.Fatal(err)
 		}
 
 		// Verify whether a block was actually generated (after SVH, this will
 		// imply the wallet was successfully voting on blocks).
-		_, actualHeight, err := vw.hn.Node.GetBestBlock()
+		_, actualHeight, err := vw.hn.Node.GetBestBlock(ctx)
 		if err != nil {
 			t.Fatalf("unable to obtain best block: %v", err)
 		}
@@ -94,7 +95,7 @@ func TestMinimalVotingWallet(t *testing.T) {
 
 	type testCase struct {
 		name string
-		f    func(t *testing.T, vw *VotingWallet)
+		f    func(ctx context.Context, t *testing.T, vw *VotingWallet)
 	}
 
 	testCases := []testCase{
@@ -104,10 +105,11 @@ func TestMinimalVotingWallet(t *testing.T) {
 		},
 	}
 
+	ctx := context.Background()
 	for _, tc := range testCases {
 		var vw *VotingWallet
 		success := t.Run(tc.name, func(t1 *testing.T) {
-			vw, err = NewVotingWallet(hn)
+			vw, err = NewVotingWallet(ctx, hn)
 			if err != nil {
 				t1.Fatalf("unable to create voting wallet for test: %v", err)
 			}
@@ -121,7 +123,7 @@ func TestMinimalVotingWallet(t *testing.T) {
 				t.Fatalf("voting wallet errored: %v", vwerr)
 			})
 
-			tc.f(t1, vw)
+			tc.f(ctx, t1, vw)
 		})
 
 		if vw != nil {
