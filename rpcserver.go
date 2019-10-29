@@ -1625,6 +1625,17 @@ func handleGenerate(_ context.Context, s *rpcServer, cmd interface{}) (interface
 			"via --miningaddr", "Configuration")
 	}
 
+	// Respond with an error if there's virtually 0 chance of CPU-mining a block.
+	params := s.cfg.ChainParams
+	if !params.GenerateSupported {
+		return nil, &dcrjson.RPCError{
+			Code: dcrjson.ErrRPCDifficulty,
+			Message: fmt.Sprintf("No support for `generate` on the current "+
+				"network, %s, as it's unlikely to be possible to main a block "+
+				"with the CPU.", params.Net),
+		}
+	}
+
 	c := cmd.(*types.GenerateCmd)
 
 	// Respond with an error if the client is requesting 0 blocks to be generated.

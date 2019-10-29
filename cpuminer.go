@@ -606,13 +606,6 @@ func (m *CPUMiner) NumWorkers() int32 {
 // generating a new block template.  When a block is solved, it is submitted.
 // The function returns a list of the hashes of generated blocks.
 func (m *CPUMiner) GenerateNBlocks(n uint32) ([]*chainhash.Hash, error) {
-	// Respond with an error if there's virtually 0 chance of CPU-mining a block.
-	if !m.cfg.ChainParams.GenerateSupported {
-		return nil, errors.New("no support for `generate` on the current " +
-			"network, " + m.cfg.ChainParams.Net.String() +
-			", as it's unlikely to be possible to CPU-mine a block.")
-	}
-
 	// Respond with an error if server is already mining.
 	m.Lock()
 	if m.started || m.discreteMining {
