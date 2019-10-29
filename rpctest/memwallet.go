@@ -7,6 +7,7 @@ package rpctest
 
 import (
 	"bytes"
+	"context"
 	"encoding/binary"
 	"fmt"
 	"sync"
@@ -345,7 +346,8 @@ func (m *memWallet) newAddress() (dcrutil.Address, error) {
 		return nil, err
 	}
 
-	err = m.rpc.LoadTxFilter(false, []dcrutil.Address{addr}, nil)
+	err = m.rpc.LoadTxFilter(context.Background(), false,
+		[]dcrutil.Address{addr}, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -445,7 +447,7 @@ func (m *memWallet) SendOutputs(outputs []*wire.TxOut, feeRate dcrutil.Amount) (
 		return nil, err
 	}
 
-	return m.rpc.SendRawTransaction(tx, true)
+	return m.rpc.SendRawTransaction(context.Background(), tx, true)
 }
 
 // CreateTransaction returns a fully signed transaction paying to the specified
