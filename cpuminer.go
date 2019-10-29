@@ -6,6 +6,7 @@
 package main
 
 import (
+	"context"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -242,7 +243,7 @@ func (m *CPUMiner) submitBlock(block *dcrutil.Block) bool {
 // This function will return early with false when conditions that trigger a
 // stale block such as a new block showing up or periodically when there are
 // new transactions and enough time has elapsed without finding a solution.
-func (m *CPUMiner) solveBlock(msgBlock *wire.MsgBlock, stats *speedStats, ticker *time.Ticker, quit chan struct{}) bool {
+func (m *CPUMiner) solveBlock(ctx context.Context, msgBlock *wire.MsgBlock, stats *speedStats, ticker *time.Ticker) bool {
 	// Choose a random extra nonce offset for this block template and
 	// worker.
 	enOffset, err := wire.RandomUint64()
@@ -284,7 +285,7 @@ func (m *CPUMiner) solveBlock(msgBlock *wire.MsgBlock, stats *speedStats, ticker
 		// statement overflow the nonce value back to 0.
 		for nonce := uint32(0); ; nonce++ {
 			select {
-			case <-quit:
+			case <-ctx.Done():
 				return false
 
 			case <-ticker.C:
@@ -339,7 +340,7 @@ func (m *CPUMiner) solveBlock(msgBlock *wire.MsgBlock, stats *speedStats, ticker
 // is submitted.
 //
 // It must be run as a goroutine.
-func (m *CPUMiner) generateBlocks(quit chan struct{}) {
+func (m *CPUMiner) generateBlocks(ctx context.Context) {
 	minrLog.Tracef("Starting generate blocks worker")
 
 	// Start a ticker which is used to signal checks for stale work and
@@ -347,14 +348,10 @@ func (m *CPUMiner) generateBlocks(quit chan struct{}) {
 	ticker := time.NewTicker(333 * time.Millisecond)
 	defer ticker.Stop()
 
-out:
 	for {
 		// Quit when the miner is stopped.
-		select {
-		case <-quit:
-			break out
-		default:
-			// Non-blocking select to fall through
+		if ctx.Err() != nil {
+			break
 		}
 
 		// If not in connectionless mode, wait until there is a connection to
@@ -419,7 +416,7 @@ out:
 		// with false when conditions that trigger a stale block, so
 		// a new block template can be generated.  When the return is
 		// true a solution was found, so submit the solved block.
-		if m.solveBlock(template.Block, &m.speedStats, ticker, quit) {
+		if m.solveBlock(ctx, template.Block, &m.speedStats, ticker) {
 			block := dcrutil.NewBlock(template.Block)
 			m.submitBlock(block)
 
@@ -438,23 +435,23 @@ out:
 // dynamically adjust the number of running worker goroutines.
 //
 // It must be run as a goroutine.
-func (m *CPUMiner) miningWorkerController() {
+func (m *CPUMiner) miningWorkerController(ctx context.Context) {
 	// launchWorkers groups common code to launch a specified number of
 	// workers for generating blocks.
-	var runningWorkers []chan struct{}
+	var runningWorkers []context.CancelFunc
 	launchWorkers := func(numWorkers uint32) {
 		for i := uint32(0); i < numWorkers; i++ {
-			quit := make(chan struct{})
-			runningWorkers = append(runningWorkers, quit)
+			wCtx, wCancel := context.WithCancel(ctx)
+			runningWorkers = append(runningWorkers, wCancel)
 
 			m.workerWg.Add(1)
-			go m.generateBlocks(quit)
+			go m.generateBlocks(wCtx)
 		}
 	}
 
 	// Launch the current number of workers by default.
 	numWorkers := atomic.LoadUint32(&m.numWorkers)
-	runningWorkers = make([]chan struct{}, 0, numWorkers)
+	runningWorkers = make([]context.CancelFunc, 0, numWorkers)
 	launchWorkers(numWorkers)
 
 out:
@@ -478,14 +475,14 @@ out:
 
 			// Signal the most recently created goroutines to exit.
 			for i := numRunning - 1; i >= numWorkers; i-- {
-				close(runningWorkers[i])
+				runningWorkers[i]()
 				runningWorkers[i] = nil
 				runningWorkers = runningWorkers[:i]
 			}
 
 		case <-m.quit:
-			for _, quit := range runningWorkers {
-				close(quit)
+			for _, wCancel := range runningWorkers {
+				wCancel()
 			}
 			break out
 		}
@@ -514,7 +511,7 @@ func (m *CPUMiner) Start() {
 	m.quit = make(chan struct{})
 	m.wg.Add(2)
 	go m.speedMonitor()
-	go m.miningWorkerController()
+	go m.miningWorkerController(context.TODO())
 
 	m.started = true
 	minrLog.Infof("CPU miner started")
@@ -605,7 +602,7 @@ func (m *CPUMiner) NumWorkers() int32 {
 // detecting when it is performing stale work and reacting accordingly by
 // generating a new block template.  When a block is solved, it is submitted.
 // The function returns a list of the hashes of generated blocks.
-func (m *CPUMiner) GenerateNBlocks(n uint32) ([]*chainhash.Hash, error) {
+func (m *CPUMiner) GenerateNBlocks(ctx context.Context, n uint32) ([]*chainhash.Hash, error) {
 	// Respond with an error if server is already mining.
 	m.Lock()
 	if m.started || m.discreteMining {
@@ -668,7 +665,7 @@ func (m *CPUMiner) GenerateNBlocks(n uint32) ([]*chainhash.Hash, error) {
 		// a new block template can be generated.  When the return is
 		// true a solution was found, so submit the solved block.
 		var stats speedStats
-		if m.solveBlock(template.Block, &stats, ticker, nil) {
+		if m.solveBlock(ctx, template.Block, &stats, ticker) {
 			block := dcrutil.NewBlock(template.Block)
 			m.submitBlock(block)
 			blockHashes[i] = block.Hash()
