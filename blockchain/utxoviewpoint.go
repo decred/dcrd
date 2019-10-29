@@ -1014,3 +1014,27 @@ func (b *BlockChain) FetchUtxoEntry(txHash *chainhash.Hash) (*UtxoEntry, error) 
 
 	return entry, nil
 }
+
+// UtxoStats represents unspent output statistics on the current utxo set.
+type UtxoStats struct {
+	Utxos          int64
+	Transactions   int64
+	Size           int64
+	Total          int64
+	SerializedHash chainhash.Hash
+}
+
+// FetchUtxoStats returns statistics on the current utxo set.
+func (b *BlockChain) FetchUtxoStats() (*UtxoStats, error) {
+	var stats *UtxoStats
+	err := b.db.View(func(dbTx database.Tx) error {
+		var err error
+		stats, err = dbFetchUtxoStats(dbTx)
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return stats, nil
+}

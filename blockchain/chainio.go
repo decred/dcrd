@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/decred/dcrd/blockchain/stake/v3"
+	"github.com/decred/dcrd/blockchain/standalone"
 	"github.com/decred/dcrd/blockchain/v3/internal/dbnamespace"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/database/v2"
@@ -1172,6 +1173,62 @@ func dbFetchUtxoEntry(dbTx database.Tx, hash *chainhash.Hash) (*UtxoEntry, error
 	}
 
 	return entry, nil
+}
+
+// dbFetchUxtoStats fetches statistics on the current unspent trnsaction output set.
+func dbFetchUtxoStats(dbTx database.Tx) (*UtxoStats, error) {
+	utxoBucket := dbTx.Metadata().Bucket(dbnamespace.UtxoSetBucketName)
+
+	var stats UtxoStats
+	transactions := make(map[chainhash.Hash]int64)
+	leaves := make([]chainhash.Hash, 0)
+	cursor := utxoBucket.Cursor()
+
+	for ok := cursor.First(); ok; ok = cursor.Next() {
+		key := cursor.Key()
+		hash := chainhash.HashH(key)
+		serializedUtxo := cursor.Value()
+		entrySize := len(serializedUtxo)
+
+		// A non-nil zero-length entry means there is an entry in the database
+		// for a fully spent transaction which should never be the case.
+		if entrySize == 0 {
+			return nil, AssertError(fmt.Sprintf("database contains entry "+
+				"for fully spent tx %s", hash))
+		}
+
+		stats.Utxos++
+		stats.Size += int64(entrySize)
+		transactions[hash]++
+
+		leaves = append(leaves, chainhash.HashH(serializedUtxo))
+
+		// Deserialize the utxo entry and return it.
+		entry, err := deserializeUtxoEntry(serializedUtxo)
+		if err != nil {
+			// Ensure any deserialization errors are returned as database
+			// corruption errors.
+			if isDeserializeErr(err) {
+				return nil, database.Error{
+					ErrorCode: database.ErrCorruption,
+					Description: fmt.Sprintf("corrupt utxo entry "+
+						"for %v: %v", hash, err),
+				}
+			}
+
+			return nil, err
+		}
+
+		for _, out := range entry.sparseOutputs {
+			stats.Utxos++
+			stats.Total += out.amount
+		}
+	}
+
+	stats.SerializedHash = standalone.CalcMerkleRootInPlace(leaves)
+	stats.Transactions = int64(len(transactions))
+
+	return &stats, nil
 }
 
 // dbPutUtxoView uses an existing database transaction to update the utxo set

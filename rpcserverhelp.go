@@ -663,6 +663,18 @@ var helpDescsEnUS = map[string]string{
 	"gettxout-vout":           "The index of the output",
 	"gettxout-includemempool": "Include the mempool when true",
 
+	// GetTxOutSetInfoCmd help.
+	"gettxoutsetinfo--synopsis": "Returns statistics on current unspent transaction output set.",
+
+	// GetTxOutSetInfoResult help.
+	"gettxoutsetinforesult-height":         "The current block height.",
+	"gettxoutsetinforesult-bestblock":      "The hex encoded hash of the best block.",
+	"gettxoutsetinforesult-transactions":   "The number of unique transactions referenced by outputs.",
+	"gettxoutsetinforesult-txouts":         "The number of transaction outputs.",
+	"gettxoutsetinforesult-serializedhash": "The merklized hash of the utxo set.",
+	"gettxoutsetinforesult-disksize":       "The size of the utxo set on disk, in bytes.",
+	"gettxoutsetinforesult-totalamount":    "The total value of the utxo set.",
+
 	// GetWorkResult help.
 	"getworkresult-data":     "Hex-encoded block data",
 	"getworkresult-hash1":    "(DEPRECATED) Hex-encoded formatted hash buffer",
@@ -980,6 +992,7 @@ var rpcResultTypes = map[types.Method][]interface{}{
 	"getrawtransaction":     {(*string)(nil), (*types.TxRawResult)(nil)},
 	"getticketpoolvalue":    {(*float64)(nil)},
 	"gettxout":              {(*types.GetTxOutResult)(nil)},
+	"gettxoutsetinfo":       {(*types.GetTxOutSetInfoResult)(nil)},
 	"getvoteinfo":           {(*types.GetVoteInfoResult)(nil)},
 	"getwork":               {(*types.GetWorkResult)(nil), (*bool)(nil)},
 	"getcoinsupply":         {(*int64)(nil)},
