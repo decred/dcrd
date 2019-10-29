@@ -1617,7 +1617,7 @@ func handleExistsMempoolTxs(_ context.Context, s *rpcServer, cmd interface{}) (i
 }
 
 // handleGenerate handles generate commands.
-func handleGenerate(_ context.Context, s *rpcServer, cmd interface{}) (interface{}, error) {
+func handleGenerate(ctx context.Context, s *rpcServer, cmd interface{}) (interface{}, error) {
 	// Respond with an error if there are no addresses to pay the
 	// created blocks to.
 	if len(cfg.miningAddrs) == 0 {
@@ -1647,7 +1647,7 @@ func handleGenerate(_ context.Context, s *rpcServer, cmd interface{}) (interface
 	// Create a reply
 	reply := make([]string, c.NumBlocks)
 
-	blockHashes, err := s.cfg.CPUMiner.GenerateNBlocks(c.NumBlocks)
+	blockHashes, err := s.cfg.CPUMiner.GenerateNBlocks(ctx, c.NumBlocks)
 	if err != nil {
 		return nil, rpcInternalError(err.Error(), "Could not generate blocks")
 	}
