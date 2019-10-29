@@ -6,6 +6,7 @@
 package main
 
 import (
+	"context"
 	"io/ioutil"
 	"log"
 	"path/filepath"
@@ -48,7 +49,7 @@ func main() {
 
 	// Get the list of unspent transaction outputs (utxos) that the
 	// connected wallet has at least one private key for.
-	unspent, err := client.ListUnspent()
+	unspent, err := client.ListUnspent(context.Background())
 	if err != nil {
 		log.Fatal(err)
 	}

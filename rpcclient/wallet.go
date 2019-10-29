@@ -6,6 +6,7 @@
 package rpcclient
 
 import (
+	"context"
 	"encoding/hex"
 	"encoding/json"
 
@@ -50,21 +51,21 @@ func (r FutureGetTransactionResult) Receive() (*walletjson.GetTransactionResult,
 // the returned instance.
 //
 // See GetTransaction for the blocking version and more details.
-func (c *Client) GetTransactionAsync(txHash *chainhash.Hash) FutureGetTransactionResult {
+func (c *Client) GetTransactionAsync(ctx context.Context, txHash *chainhash.Hash) FutureGetTransactionResult {
 	hash := ""
 	if txHash != nil {
 		hash = txHash.String()
 	}
 
 	cmd := walletjson.NewGetTransactionCmd(hash, nil)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // GetTransaction returns detailed information about a wallet transaction.
 //
 // See GetRawTransaction to return the raw transaction instead.
-func (c *Client) GetTransaction(txHash *chainhash.Hash) (*walletjson.GetTransactionResult, error) {
-	return c.GetTransactionAsync(txHash).Receive()
+func (c *Client) GetTransaction(ctx context.Context, txHash *chainhash.Hash) (*walletjson.GetTransactionResult, error) {
+	return c.GetTransactionAsync(ctx, txHash).Receive()
 }
 
 // FutureListTransactionsResult is a future promise to deliver the result of a
@@ -95,17 +96,17 @@ func (r FutureListTransactionsResult) Receive() ([]walletjson.ListTransactionsRe
 // the returned instance.
 //
 // See ListTransactions for the blocking version and more details.
-func (c *Client) ListTransactionsAsync(account string) FutureListTransactionsResult {
+func (c *Client) ListTransactionsAsync(ctx context.Context, account string) FutureListTransactionsResult {
 	cmd := walletjson.NewListTransactionsCmd(&account, nil, nil, nil)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // ListTransactions returns a list of the most recent transactions.
 //
 // See the ListTransactionsCount and ListTransactionsCountFrom to control the
 // number of transactions returned and starting point, respectively.
-func (c *Client) ListTransactions(account string) ([]walletjson.ListTransactionsResult, error) {
-	return c.ListTransactionsAsync(account).Receive()
+func (c *Client) ListTransactions(ctx context.Context, account string) ([]walletjson.ListTransactionsResult, error) {
+	return c.ListTransactionsAsync(ctx, account).Receive()
 }
 
 // ListTransactionsCountAsync returns an instance of a type that can be used to
@@ -113,9 +114,9 @@ func (c *Client) ListTransactions(account string) ([]walletjson.ListTransactions
 // function on the returned instance.
 //
 // See ListTransactionsCount for the blocking version and more details.
-func (c *Client) ListTransactionsCountAsync(account string, count int) FutureListTransactionsResult {
+func (c *Client) ListTransactionsCountAsync(ctx context.Context, account string, count int) FutureListTransactionsResult {
 	cmd := walletjson.NewListTransactionsCmd(&account, &count, nil, nil)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // ListTransactionsCount returns a list of the most recent transactions up
@@ -123,8 +124,8 @@ func (c *Client) ListTransactionsCountAsync(account string, count int) FutureLis
 //
 // See the ListTransactions and ListTransactionsCountFrom functions for
 // different options.
-func (c *Client) ListTransactionsCount(account string, count int) ([]walletjson.ListTransactionsResult, error) {
-	return c.ListTransactionsCountAsync(account, count).Receive()
+func (c *Client) ListTransactionsCount(ctx context.Context, account string, count int) ([]walletjson.ListTransactionsResult, error) {
+	return c.ListTransactionsCountAsync(ctx, account, count).Receive()
 }
 
 // ListTransactionsCountFromAsync returns an instance of a type that can be used
@@ -132,17 +133,17 @@ func (c *Client) ListTransactionsCount(account string, count int) ([]walletjson.
 // function on the returned instance.
 //
 // See ListTransactionsCountFrom for the blocking version and more details.
-func (c *Client) ListTransactionsCountFromAsync(account string, count, from int) FutureListTransactionsResult {
+func (c *Client) ListTransactionsCountFromAsync(ctx context.Context, account string, count, from int) FutureListTransactionsResult {
 	cmd := walletjson.NewListTransactionsCmd(&account, &count, &from, nil)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // ListTransactionsCountFrom returns a list of the most recent transactions up
 // to the passed count while skipping the first 'from' transactions.
 //
 // See the ListTransactions and ListTransactionsCount functions to use defaults.
-func (c *Client) ListTransactionsCountFrom(account string, count, from int) ([]walletjson.ListTransactionsResult, error) {
-	return c.ListTransactionsCountFromAsync(account, count, from).Receive()
+func (c *Client) ListTransactionsCountFrom(ctx context.Context, account string, count, from int) ([]walletjson.ListTransactionsResult, error) {
+	return c.ListTransactionsCountFromAsync(ctx, account, count, from).Receive()
 }
 
 // FutureListUnspentResult is a future promise to deliver the result of a
@@ -176,9 +177,9 @@ func (r FutureListUnspentResult) Receive() ([]walletjson.ListUnspentResult, erro
 // on the returned instance.
 //
 // See ListUnspent for the blocking version and more details.
-func (c *Client) ListUnspentAsync() FutureListUnspentResult {
+func (c *Client) ListUnspentAsync(ctx context.Context) FutureListUnspentResult {
 	cmd := walletjson.NewListUnspentCmd(nil, nil, nil)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // ListUnspentMinAsync returns an instance of a type that can be used to get
@@ -186,9 +187,9 @@ func (c *Client) ListUnspentAsync() FutureListUnspentResult {
 // on the returned instance.
 //
 // See ListUnspentMin for the blocking version and more details.
-func (c *Client) ListUnspentMinAsync(minConf int) FutureListUnspentResult {
+func (c *Client) ListUnspentMinAsync(ctx context.Context, minConf int) FutureListUnspentResult {
 	cmd := walletjson.NewListUnspentCmd(&minConf, nil, nil)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // ListUnspentMinMaxAsync returns an instance of a type that can be used to get
@@ -196,9 +197,9 @@ func (c *Client) ListUnspentMinAsync(minConf int) FutureListUnspentResult {
 // on the returned instance.
 //
 // See ListUnspentMinMax for the blocking version and more details.
-func (c *Client) ListUnspentMinMaxAsync(minConf, maxConf int) FutureListUnspentResult {
+func (c *Client) ListUnspentMinMaxAsync(ctx context.Context, minConf, maxConf int) FutureListUnspentResult {
 	cmd := walletjson.NewListUnspentCmd(&minConf, &maxConf, nil)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // ListUnspentMinMaxAddressesAsync returns an instance of a type that can be
@@ -206,42 +207,42 @@ func (c *Client) ListUnspentMinMaxAsync(minConf, maxConf int) FutureListUnspentR
 // function on the returned instance.
 //
 // See ListUnspentMinMaxAddresses for the blocking version and more details.
-func (c *Client) ListUnspentMinMaxAddressesAsync(minConf, maxConf int, addrs []dcrutil.Address) FutureListUnspentResult {
+func (c *Client) ListUnspentMinMaxAddressesAsync(ctx context.Context, minConf, maxConf int, addrs []dcrutil.Address) FutureListUnspentResult {
 	addrStrs := make([]string, 0, len(addrs))
 	for _, a := range addrs {
 		addrStrs = append(addrStrs, a.Address())
 	}
 
 	cmd := walletjson.NewListUnspentCmd(&minConf, &maxConf, &addrStrs)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // ListUnspent returns all unspent transaction outputs known to a wallet, using
 // the default number of minimum and maximum number of confirmations as a
 // filter (1 and 9999999, respectively).
-func (c *Client) ListUnspent() ([]walletjson.ListUnspentResult, error) {
-	return c.ListUnspentAsync().Receive()
+func (c *Client) ListUnspent(ctx context.Context) ([]walletjson.ListUnspentResult, error) {
+	return c.ListUnspentAsync(ctx).Receive()
 }
 
 // ListUnspentMin returns all unspent transaction outputs known to a wallet,
 // using the specified number of minimum conformations and default number of
 // maximum confirmations (9999999) as a filter.
-func (c *Client) ListUnspentMin(minConf int) ([]walletjson.ListUnspentResult, error) {
-	return c.ListUnspentMinAsync(minConf).Receive()
+func (c *Client) ListUnspentMin(ctx context.Context, minConf int) ([]walletjson.ListUnspentResult, error) {
+	return c.ListUnspentMinAsync(ctx, minConf).Receive()
 }
 
 // ListUnspentMinMax returns all unspent transaction outputs known to a wallet,
 // using the specified number of minimum and maximum number of confirmations as
 // a filter.
-func (c *Client) ListUnspentMinMax(minConf, maxConf int) ([]walletjson.ListUnspentResult, error) {
-	return c.ListUnspentMinMaxAsync(minConf, maxConf).Receive()
+func (c *Client) ListUnspentMinMax(ctx context.Context, minConf, maxConf int) ([]walletjson.ListUnspentResult, error) {
+	return c.ListUnspentMinMaxAsync(ctx, minConf, maxConf).Receive()
 }
 
 // ListUnspentMinMaxAddresses returns all unspent transaction outputs that pay
 // to any of specified addresses in a wallet using the specified number of
 // minimum and maximum number of confirmations as a filter.
-func (c *Client) ListUnspentMinMaxAddresses(minConf, maxConf int, addrs []dcrutil.Address) ([]walletjson.ListUnspentResult, error) {
-	return c.ListUnspentMinMaxAddressesAsync(minConf, maxConf, addrs).Receive()
+func (c *Client) ListUnspentMinMaxAddresses(ctx context.Context, minConf, maxConf int, addrs []dcrutil.Address) ([]walletjson.ListUnspentResult, error) {
+	return c.ListUnspentMinMaxAddressesAsync(ctx, minConf, maxConf, addrs).Receive()
 }
 
 // FutureListSinceBlockResult is a future promise to deliver the result of a
@@ -273,14 +274,14 @@ func (r FutureListSinceBlockResult) Receive() (*walletjson.ListSinceBlockResult,
 // the returned instance.
 //
 // See ListSinceBlock for the blocking version and more details.
-func (c *Client) ListSinceBlockAsync(blockHash *chainhash.Hash) FutureListSinceBlockResult {
+func (c *Client) ListSinceBlockAsync(ctx context.Context, blockHash *chainhash.Hash) FutureListSinceBlockResult {
 	var hash *string
 	if blockHash != nil {
 		hash = dcrjson.String(blockHash.String())
 	}
 
 	cmd := walletjson.NewListSinceBlockCmd(hash, nil, nil)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // ListSinceBlock returns all transactions added in blocks since the specified
@@ -288,8 +289,8 @@ func (c *Client) ListSinceBlockAsync(blockHash *chainhash.Hash) FutureListSinceB
 // minimum confirmations as a filter.
 //
 // See ListSinceBlockMinConf to override the minimum number of confirmations.
-func (c *Client) ListSinceBlock(blockHash *chainhash.Hash) (*walletjson.ListSinceBlockResult, error) {
-	return c.ListSinceBlockAsync(blockHash).Receive()
+func (c *Client) ListSinceBlock(ctx context.Context, blockHash *chainhash.Hash) (*walletjson.ListSinceBlockResult, error) {
+	return c.ListSinceBlockAsync(ctx, blockHash).Receive()
 }
 
 // ListSinceBlockMinConfAsync returns an instance of a type that can be used to
@@ -297,14 +298,14 @@ func (c *Client) ListSinceBlock(blockHash *chainhash.Hash) (*walletjson.ListSinc
 // function on the returned instance.
 //
 // See ListSinceBlockMinConf for the blocking version and more details.
-func (c *Client) ListSinceBlockMinConfAsync(blockHash *chainhash.Hash, minConfirms int) FutureListSinceBlockResult {
+func (c *Client) ListSinceBlockMinConfAsync(ctx context.Context, blockHash *chainhash.Hash, minConfirms int) FutureListSinceBlockResult {
 	var hash *string
 	if blockHash != nil {
 		hash = dcrjson.String(blockHash.String())
 	}
 
 	cmd := walletjson.NewListSinceBlockCmd(hash, &minConfirms, nil)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // ListSinceBlockMinConf returns all transactions added in blocks since the
@@ -312,8 +313,8 @@ func (c *Client) ListSinceBlockMinConfAsync(blockHash *chainhash.Hash, minConfir
 // number of minimum confirmations as a filter.
 //
 // See ListSinceBlock to use the default minimum number of confirmations.
-func (c *Client) ListSinceBlockMinConf(blockHash *chainhash.Hash, minConfirms int) (*walletjson.ListSinceBlockResult, error) {
-	return c.ListSinceBlockMinConfAsync(blockHash, minConfirms).Receive()
+func (c *Client) ListSinceBlockMinConf(ctx context.Context, blockHash *chainhash.Hash, minConfirms int) (*walletjson.ListSinceBlockResult, error) {
+	return c.ListSinceBlockMinConfAsync(ctx, blockHash, minConfirms).Receive()
 }
 
 // **************************
@@ -336,7 +337,7 @@ func (r FutureLockUnspentResult) Receive() error {
 // returned instance.
 //
 // See LockUnspent for the blocking version and more details.
-func (c *Client) LockUnspentAsync(unlock bool, ops []*wire.OutPoint) FutureLockUnspentResult {
+func (c *Client) LockUnspentAsync(ctx context.Context, unlock bool, ops []*wire.OutPoint) FutureLockUnspentResult {
 	outputs := make([]chainjsonv1.TransactionInput, len(ops))
 	for i, op := range ops {
 		outputs[i] = chainjsonv1.TransactionInput{
@@ -346,7 +347,7 @@ func (c *Client) LockUnspentAsync(unlock bool, ops []*wire.OutPoint) FutureLockU
 		}
 	}
 	cmd := walletjson.NewLockUnspentCmd(unlock, outputs)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // LockUnspent marks outputs as locked or unlocked, depending on the value of
@@ -366,8 +367,8 @@ func (c *Client) LockUnspentAsync(unlock bool, ops []*wire.OutPoint) FutureLockU
 // reversed (that is, LockUnspent(true, ...) locked the outputs), it has been
 // left as unlock to keep compatibility with the reference client API and to
 // avoid confusion for those who are already familiar with the lockunspent RPC.
-func (c *Client) LockUnspent(unlock bool, ops []*wire.OutPoint) error {
-	return c.LockUnspentAsync(unlock, ops).Receive()
+func (c *Client) LockUnspent(ctx context.Context, unlock bool, ops []*wire.OutPoint) error {
+	return c.LockUnspentAsync(ctx, unlock, ops).Receive()
 }
 
 // FutureListLockUnspentResult is a future promise to deliver the result of a
@@ -407,16 +408,16 @@ func (r FutureListLockUnspentResult) Receive() ([]*wire.OutPoint, error) {
 // the returned instance.
 //
 // See ListLockUnspent for the blocking version and more details.
-func (c *Client) ListLockUnspentAsync() FutureListLockUnspentResult {
+func (c *Client) ListLockUnspentAsync(ctx context.Context) FutureListLockUnspentResult {
 	cmd := walletjson.NewListLockUnspentCmd()
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // ListLockUnspent returns a slice of outpoints for all unspent outputs marked
 // as locked by a wallet.  Unspent outputs may be marked locked using
 // LockOutput.
-func (c *Client) ListLockUnspent() ([]*wire.OutPoint, error) {
-	return c.ListLockUnspentAsync().Receive()
+func (c *Client) ListLockUnspent(ctx context.Context) ([]*wire.OutPoint, error) {
+	return c.ListLockUnspentAsync(ctx).Receive()
 }
 
 // FutureSendToAddressResult is a future promise to deliver the result of a
@@ -446,10 +447,10 @@ func (r FutureSendToAddressResult) Receive() (*chainhash.Hash, error) {
 // returned instance.
 //
 // See SendToAddress for the blocking version and more details.
-func (c *Client) SendToAddressAsync(address dcrutil.Address, amount dcrutil.Amount) FutureSendToAddressResult {
+func (c *Client) SendToAddressAsync(ctx context.Context, address dcrutil.Address, amount dcrutil.Amount) FutureSendToAddressResult {
 	addr := address.Address()
 	cmd := walletjson.NewSendToAddressCmd(addr, amount.ToCoin(), nil, nil)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // SendToAddress sends the passed amount to the given address.
@@ -460,8 +461,8 @@ func (c *Client) SendToAddressAsync(address dcrutil.Address, amount dcrutil.Amou
 //
 // NOTE: This function requires to the wallet to be unlocked.  See the
 // WalletPassphrase function for more details.
-func (c *Client) SendToAddress(address dcrutil.Address, amount dcrutil.Amount) (*chainhash.Hash, error) {
-	return c.SendToAddressAsync(address, amount).Receive()
+func (c *Client) SendToAddress(ctx context.Context, address dcrutil.Address, amount dcrutil.Amount) (*chainhash.Hash, error) {
+	return c.SendToAddressAsync(ctx, address, amount).Receive()
 }
 
 // SendToAddressCommentAsync returns an instance of a type that can be used to
@@ -469,14 +470,14 @@ func (c *Client) SendToAddress(address dcrutil.Address, amount dcrutil.Amount) (
 // function on the returned instance.
 //
 // See SendToAddressComment for the blocking version and more details.
-func (c *Client) SendToAddressCommentAsync(address dcrutil.Address,
+func (c *Client) SendToAddressCommentAsync(ctx context.Context, address dcrutil.Address,
 	amount dcrutil.Amount, comment,
 	commentTo string) FutureSendToAddressResult {
 
 	addr := address.Address()
 	cmd := walletjson.NewSendToAddressCmd(addr, amount.ToCoin(), &comment,
 		&commentTo)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // SendToAddressComment sends the passed amount to the given address and stores
@@ -491,8 +492,8 @@ func (c *Client) SendToAddressCommentAsync(address dcrutil.Address,
 //
 // NOTE: This function requires to the wallet to be unlocked.  See the
 // WalletPassphrase function for more details.
-func (c *Client) SendToAddressComment(address dcrutil.Address, amount dcrutil.Amount, comment, commentTo string) (*chainhash.Hash, error) {
-	return c.SendToAddressCommentAsync(address, amount, comment,
+func (c *Client) SendToAddressComment(ctx context.Context, address dcrutil.Address, amount dcrutil.Amount, comment, commentTo string) (*chainhash.Hash, error) {
+	return c.SendToAddressCommentAsync(ctx, address, amount, comment,
 		commentTo).Receive()
 }
 
@@ -525,11 +526,11 @@ func (r FutureSendFromResult) Receive() (*chainhash.Hash, error) {
 // returned instance.
 //
 // See SendFrom for the blocking version and more details.
-func (c *Client) SendFromAsync(fromAccount string, toAddress dcrutil.Address, amount dcrutil.Amount) FutureSendFromResult {
+func (c *Client) SendFromAsync(ctx context.Context, fromAccount string, toAddress dcrutil.Address, amount dcrutil.Amount) FutureSendFromResult {
 	addr := toAddress.Address()
 	cmd := walletjson.NewSendFromCmd(fromAccount, addr, amount.ToCoin(), nil,
 		nil, nil)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // SendFrom sends the passed amount to the given address using the provided
@@ -540,8 +541,8 @@ func (c *Client) SendFromAsync(fromAccount string, toAddress dcrutil.Address, am
 //
 // NOTE: This function requires to the wallet to be unlocked.  See the
 // WalletPassphrase function for more details.
-func (c *Client) SendFrom(fromAccount string, toAddress dcrutil.Address, amount dcrutil.Amount) (*chainhash.Hash, error) {
-	return c.SendFromAsync(fromAccount, toAddress, amount).Receive()
+func (c *Client) SendFrom(ctx context.Context, fromAccount string, toAddress dcrutil.Address, amount dcrutil.Amount) (*chainhash.Hash, error) {
+	return c.SendFromAsync(ctx, fromAccount, toAddress, amount).Receive()
 }
 
 // SendFromMinConfAsync returns an instance of a type that can be used to get
@@ -549,11 +550,11 @@ func (c *Client) SendFrom(fromAccount string, toAddress dcrutil.Address, amount 
 // the returned instance.
 //
 // See SendFromMinConf for the blocking version and more details.
-func (c *Client) SendFromMinConfAsync(fromAccount string, toAddress dcrutil.Address, amount dcrutil.Amount, minConfirms int) FutureSendFromResult {
+func (c *Client) SendFromMinConfAsync(ctx context.Context, fromAccount string, toAddress dcrutil.Address, amount dcrutil.Amount, minConfirms int) FutureSendFromResult {
 	addr := toAddress.Address()
 	cmd := walletjson.NewSendFromCmd(fromAccount, addr, amount.ToCoin(),
 		&minConfirms, nil, nil)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // SendFromMinConf sends the passed amount to the given address using the
@@ -565,8 +566,8 @@ func (c *Client) SendFromMinConfAsync(fromAccount string, toAddress dcrutil.Addr
 //
 // NOTE: This function requires to the wallet to be unlocked.  See the
 // WalletPassphrase function for more details.
-func (c *Client) SendFromMinConf(fromAccount string, toAddress dcrutil.Address, amount dcrutil.Amount, minConfirms int) (*chainhash.Hash, error) {
-	return c.SendFromMinConfAsync(fromAccount, toAddress, amount,
+func (c *Client) SendFromMinConf(ctx context.Context, fromAccount string, toAddress dcrutil.Address, amount dcrutil.Amount, minConfirms int) (*chainhash.Hash, error) {
+	return c.SendFromMinConfAsync(ctx, fromAccount, toAddress, amount,
 		minConfirms).Receive()
 }
 
@@ -575,14 +576,14 @@ func (c *Client) SendFromMinConf(fromAccount string, toAddress dcrutil.Address, 
 // the returned instance.
 //
 // See SendFromComment for the blocking version and more details.
-func (c *Client) SendFromCommentAsync(fromAccount string,
+func (c *Client) SendFromCommentAsync(ctx context.Context, fromAccount string,
 	toAddress dcrutil.Address, amount dcrutil.Amount, minConfirms int,
 	comment, commentTo string) FutureSendFromResult {
 
 	addr := toAddress.Address()
 	cmd := walletjson.NewSendFromCmd(fromAccount, addr, amount.ToCoin(),
 		&minConfirms, &comment, &commentTo)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // SendFromComment sends the passed amount to the given address using the
@@ -596,11 +597,11 @@ func (c *Client) SendFromCommentAsync(fromAccount string,
 //
 // NOTE: This function requires to the wallet to be unlocked.  See the
 // WalletPassphrase function for more details.
-func (c *Client) SendFromComment(fromAccount string, toAddress dcrutil.Address,
+func (c *Client) SendFromComment(ctx context.Context, fromAccount string, toAddress dcrutil.Address,
 	amount dcrutil.Amount, minConfirms int,
 	comment, commentTo string) (*chainhash.Hash, error) {
 
-	return c.SendFromCommentAsync(fromAccount, toAddress, amount,
+	return c.SendFromCommentAsync(ctx, fromAccount, toAddress, amount,
 		minConfirms, comment, commentTo).Receive()
 }
 
@@ -633,13 +634,13 @@ func (r FutureSendManyResult) Receive() (*chainhash.Hash, error) {
 // returned instance.
 //
 // See SendMany for the blocking version and more details.
-func (c *Client) SendManyAsync(fromAccount string, amounts map[dcrutil.Address]dcrutil.Amount) FutureSendManyResult {
+func (c *Client) SendManyAsync(ctx context.Context, fromAccount string, amounts map[dcrutil.Address]dcrutil.Amount) FutureSendManyResult {
 	convertedAmounts := make(map[string]float64, len(amounts))
 	for addr, amount := range amounts {
 		convertedAmounts[addr.Address()] = amount.ToCoin()
 	}
 	cmd := walletjson.NewSendManyCmd(fromAccount, convertedAmounts, nil, nil)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // SendMany sends multiple amounts to multiple addresses using the provided
@@ -650,8 +651,8 @@ func (c *Client) SendManyAsync(fromAccount string, amounts map[dcrutil.Address]d
 //
 // NOTE: This function requires to the wallet to be unlocked.  See the
 // WalletPassphrase function for more details.
-func (c *Client) SendMany(fromAccount string, amounts map[dcrutil.Address]dcrutil.Amount) (*chainhash.Hash, error) {
-	return c.SendManyAsync(fromAccount, amounts).Receive()
+func (c *Client) SendMany(ctx context.Context, fromAccount string, amounts map[dcrutil.Address]dcrutil.Amount) (*chainhash.Hash, error) {
+	return c.SendManyAsync(ctx, fromAccount, amounts).Receive()
 }
 
 // SendManyMinConfAsync returns an instance of a type that can be used to get
@@ -659,7 +660,7 @@ func (c *Client) SendMany(fromAccount string, amounts map[dcrutil.Address]dcruti
 // the returned instance.
 //
 // See SendManyMinConf for the blocking version and more details.
-func (c *Client) SendManyMinConfAsync(fromAccount string,
+func (c *Client) SendManyMinConfAsync(ctx context.Context, fromAccount string,
 	amounts map[dcrutil.Address]dcrutil.Amount,
 	minConfirms int) FutureSendManyResult {
 
@@ -669,7 +670,7 @@ func (c *Client) SendManyMinConfAsync(fromAccount string,
 	}
 	cmd := walletjson.NewSendManyCmd(fromAccount, convertedAmounts,
 		&minConfirms, nil)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // SendManyMinConf sends multiple amounts to multiple addresses using the
@@ -681,11 +682,11 @@ func (c *Client) SendManyMinConfAsync(fromAccount string,
 //
 // NOTE: This function requires to the wallet to be unlocked.  See the
 // WalletPassphrase function for more details.
-func (c *Client) SendManyMinConf(fromAccount string,
+func (c *Client) SendManyMinConf(ctx context.Context, fromAccount string,
 	amounts map[dcrutil.Address]dcrutil.Amount,
 	minConfirms int) (*chainhash.Hash, error) {
 
-	return c.SendManyMinConfAsync(fromAccount, amounts, minConfirms).Receive()
+	return c.SendManyMinConfAsync(ctx, fromAccount, amounts, minConfirms).Receive()
 }
 
 // SendManyCommentAsync returns an instance of a type that can be used to get
@@ -693,7 +694,7 @@ func (c *Client) SendManyMinConf(fromAccount string,
 // the returned instance.
 //
 // See SendManyComment for the blocking version and more details.
-func (c *Client) SendManyCommentAsync(fromAccount string,
+func (c *Client) SendManyCommentAsync(ctx context.Context, fromAccount string,
 	amounts map[dcrutil.Address]dcrutil.Amount, minConfirms int,
 	comment string) FutureSendManyResult {
 
@@ -703,7 +704,7 @@ func (c *Client) SendManyCommentAsync(fromAccount string,
 	}
 	cmd := walletjson.NewSendManyCmd(fromAccount, convertedAmounts,
 		&minConfirms, &comment)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // SendManyComment sends multiple amounts to multiple addresses using the
@@ -716,11 +717,11 @@ func (c *Client) SendManyCommentAsync(fromAccount string,
 //
 // NOTE: This function requires to the wallet to be unlocked.  See the
 // WalletPassphrase function for more details.
-func (c *Client) SendManyComment(fromAccount string,
+func (c *Client) SendManyComment(ctx context.Context, fromAccount string,
 	amounts map[dcrutil.Address]dcrutil.Amount, minConfirms int,
 	comment string) (*chainhash.Hash, error) {
 
-	return c.SendManyCommentAsync(fromAccount, amounts, minConfirms,
+	return c.SendManyCommentAsync(ctx, fromAccount, amounts, minConfirms,
 		comment).Receive()
 }
 
@@ -762,7 +763,7 @@ func (r FuturePurchaseTicketResult) Receive() ([]*chainhash.Hash, error) {
 // PurchaseTicketAsync takes an account and a spending limit and returns a
 // future chan to receive the transactions representing the purchased tickets
 // when they come.
-func (c *Client) PurchaseTicketAsync(fromAccount string,
+func (c *Client) PurchaseTicketAsync(ctx context.Context, fromAccount string,
 	spendLimit dcrutil.Amount, minConf *int, ticketAddress dcrutil.Address,
 	numTickets *int, poolAddress dcrutil.Address, poolFees *dcrutil.Amount,
 	expiry *int, ticketFee *dcrutil.Amount) FuturePurchaseTicketResult {
@@ -811,17 +812,17 @@ func (c *Client) PurchaseTicketAsync(fromAccount string,
 		&minConfVal, &ticketAddrStr, &numTicketsVal, &poolAddrStr,
 		&poolFeesFloat, &expiryVal, dcrjson.String(""), &ticketFeeFloat)
 
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // PurchaseTicket takes an account and a spending limit and calls the async
 // purchasetickets command.
-func (c *Client) PurchaseTicket(fromAccount string,
+func (c *Client) PurchaseTicket(ctx context.Context, fromAccount string,
 	spendLimit dcrutil.Amount, minConf *int, ticketAddress dcrutil.Address,
 	numTickets *int, poolAddress dcrutil.Address, poolFees *dcrutil.Amount,
 	expiry *int, ticketChange *bool, ticketFee *dcrutil.Amount) ([]*chainhash.Hash, error) {
 
-	return c.PurchaseTicketAsync(fromAccount, spendLimit, minConf, ticketAddress,
+	return c.PurchaseTicketAsync(ctx, fromAccount, spendLimit, minConf, ticketAddress,
 		numTickets, poolAddress, poolFees, expiry, ticketFee).Receive()
 }
 
@@ -859,20 +860,20 @@ func (r FutureAddMultisigAddressResult) Receive(net dcrutil.AddressParams) (dcru
 // the returned instance.
 //
 // See AddMultisigAddress for the blocking version and more details.
-func (c *Client) AddMultisigAddressAsync(requiredSigs int, addresses []dcrutil.Address, account string) FutureAddMultisigAddressResult {
+func (c *Client) AddMultisigAddressAsync(ctx context.Context, requiredSigs int, addresses []dcrutil.Address, account string) FutureAddMultisigAddressResult {
 	addrs := make([]string, 0, len(addresses))
 	for _, addr := range addresses {
 		addrs = append(addrs, addr.String())
 	}
 
 	cmd := walletjson.NewAddMultisigAddressCmd(requiredSigs, addrs, &account)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // AddMultisigAddress adds a multisignature address that requires the specified
 // number of signatures for the provided addresses to the wallet.
-func (c *Client) AddMultisigAddress(requiredSigs int, addresses []dcrutil.Address, account string, net dcrutil.AddressParams) (dcrutil.Address, error) {
-	return c.AddMultisigAddressAsync(requiredSigs, addresses,
+func (c *Client) AddMultisigAddress(ctx context.Context, requiredSigs int, addresses []dcrutil.Address, account string, net dcrutil.AddressParams) (dcrutil.Address, error) {
+	return c.AddMultisigAddressAsync(ctx, requiredSigs, addresses,
 		account).Receive(net)
 }
 
@@ -903,21 +904,21 @@ func (r FutureCreateMultisigResult) Receive() (*walletjson.CreateMultiSigResult,
 // the returned instance.
 //
 // See CreateMultisig for the blocking version and more details.
-func (c *Client) CreateMultisigAsync(requiredSigs int, addresses []dcrutil.Address) FutureCreateMultisigResult {
+func (c *Client) CreateMultisigAsync(ctx context.Context, requiredSigs int, addresses []dcrutil.Address) FutureCreateMultisigResult {
 	addrs := make([]string, 0, len(addresses))
 	for _, addr := range addresses {
 		addrs = append(addrs, addr.String())
 	}
 
 	cmd := walletjson.NewCreateMultisigCmd(requiredSigs, addrs)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // CreateMultisig creates a multisignature address that requires the specified
 // number of signatures for the provided addresses and returns the
 // multisignature address and script needed to redeem it.
-func (c *Client) CreateMultisig(requiredSigs int, addresses []dcrutil.Address) (*walletjson.CreateMultiSigResult, error) {
-	return c.CreateMultisigAsync(requiredSigs, addresses).Receive()
+func (c *Client) CreateMultisig(ctx context.Context, requiredSigs int, addresses []dcrutil.Address) (*walletjson.CreateMultiSigResult, error) {
+	return c.CreateMultisigAsync(ctx, requiredSigs, addresses).Receive()
 }
 
 // FutureCreateNewAccountResult is a future promise to deliver the result of a
@@ -936,14 +937,14 @@ func (r FutureCreateNewAccountResult) Receive() error {
 // returned instance.
 //
 // See CreateNewAccount for the blocking version and more details.
-func (c *Client) CreateNewAccountAsync(account string) FutureCreateNewAccountResult {
+func (c *Client) CreateNewAccountAsync(ctx context.Context, account string) FutureCreateNewAccountResult {
 	cmd := walletjson.NewCreateNewAccountCmd(account)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // CreateNewAccount creates a new wallet account.
-func (c *Client) CreateNewAccount(account string) error {
-	return c.CreateNewAccountAsync(account).Receive()
+func (c *Client) CreateNewAccount(ctx context.Context, account string) error {
+	return c.CreateNewAccountAsync(ctx, account).Receive()
 }
 
 // FutureGetNewAddressResult is a future promise to deliver the result of a
@@ -985,9 +986,9 @@ const (
 // returned instance.
 //
 // See GetNewAddress for the blocking version and more details.
-func (c *Client) GetNewAddressAsync(account string) FutureGetNewAddressResult {
+func (c *Client) GetNewAddressAsync(ctx context.Context, account string) FutureGetNewAddressResult {
 	cmd := walletjson.NewGetNewAddressCmd(&account, nil)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // GetNewAddressGapPolicyAsync returns an instance of a type that can be used to
@@ -995,20 +996,20 @@ func (c *Client) GetNewAddressAsync(account string) FutureGetNewAddressResult {
 // function on the returned instance.
 //
 // See GetNewAddressGapPolicy for the blocking version and more details.
-func (c *Client) GetNewAddressGapPolicyAsync(account string, gapPolicy GapPolicy) FutureGetNewAddressResult {
+func (c *Client) GetNewAddressGapPolicyAsync(ctx context.Context, account string, gapPolicy GapPolicy) FutureGetNewAddressResult {
 	cmd := walletjson.NewGetNewAddressCmd(&account, (*string)(&gapPolicy))
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // GetNewAddress returns a new address.
-func (c *Client) GetNewAddress(account string, net dcrutil.AddressParams) (dcrutil.Address, error) {
-	return c.GetNewAddressAsync(account).Receive(net)
+func (c *Client) GetNewAddress(ctx context.Context, account string, net dcrutil.AddressParams) (dcrutil.Address, error) {
+	return c.GetNewAddressAsync(ctx, account).Receive(net)
 }
 
 // GetNewAddressGapPolicy returns a new address while allowing callers to
 // control the BIP0044 unused address gap limit policy.
-func (c *Client) GetNewAddressGapPolicy(account string, gapPolicy GapPolicy, net dcrutil.AddressParams) (dcrutil.Address, error) {
-	return c.GetNewAddressGapPolicyAsync(account, gapPolicy).Receive(net)
+func (c *Client) GetNewAddressGapPolicy(ctx context.Context, account string, gapPolicy GapPolicy, net dcrutil.AddressParams) (dcrutil.Address, error) {
+	return c.GetNewAddressGapPolicyAsync(ctx, account, gapPolicy).Receive(net)
 }
 
 // FutureGetRawChangeAddressResult is a future promise to deliver the result of
@@ -1039,16 +1040,16 @@ func (r FutureGetRawChangeAddressResult) Receive(net dcrutil.AddressParams) (dcr
 // function on the returned instance.
 //
 // See GetRawChangeAddress for the blocking version and more details.
-func (c *Client) GetRawChangeAddressAsync(account string) FutureGetRawChangeAddressResult {
+func (c *Client) GetRawChangeAddressAsync(ctx context.Context, account string) FutureGetRawChangeAddressResult {
 	cmd := walletjson.NewGetRawChangeAddressCmd(&account)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // GetRawChangeAddress returns a new address for receiving change that will be
 // associated with the provided account.  Note that this is only for raw
 // transactions and NOT for normal use.
-func (c *Client) GetRawChangeAddress(account string, net dcrutil.AddressParams) (dcrutil.Address, error) {
-	return c.GetRawChangeAddressAsync(account).Receive(net)
+func (c *Client) GetRawChangeAddress(ctx context.Context, account string, net dcrutil.AddressParams) (dcrutil.Address, error) {
+	return c.GetRawChangeAddressAsync(ctx, account).Receive(net)
 }
 
 // FutureGetAccountAddressResult is a future promise to deliver the result of a
@@ -1078,15 +1079,15 @@ func (r FutureGetAccountAddressResult) Receive(net dcrutil.AddressParams) (dcrut
 // the returned instance.
 //
 // See GetAccountAddress for the blocking version and more details.
-func (c *Client) GetAccountAddressAsync(account string) FutureGetAccountAddressResult {
+func (c *Client) GetAccountAddressAsync(ctx context.Context, account string) FutureGetAccountAddressResult {
 	cmd := walletjson.NewGetAccountAddressCmd(account)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // GetAccountAddress returns the current Decred address for receiving payments
 // to the specified account.
-func (c *Client) GetAccountAddress(account string, net dcrutil.AddressParams) (dcrutil.Address, error) {
-	return c.GetAccountAddressAsync(account).Receive(net)
+func (c *Client) GetAccountAddress(ctx context.Context, account string, net dcrutil.AddressParams) (dcrutil.Address, error) {
+	return c.GetAccountAddressAsync(ctx, account).Receive(net)
 }
 
 // FutureGetAccountResult is a future promise to deliver the result of a
@@ -1116,15 +1117,15 @@ func (r FutureGetAccountResult) Receive() (string, error) {
 // returned instance.
 //
 // See GetAccount for the blocking version and more details.
-func (c *Client) GetAccountAsync(address dcrutil.Address) FutureGetAccountResult {
+func (c *Client) GetAccountAsync(ctx context.Context, address dcrutil.Address) FutureGetAccountResult {
 	addr := address.Address()
 	cmd := walletjson.NewGetAccountCmd(addr)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // GetAccount returns the account associated with the passed address.
-func (c *Client) GetAccount(address dcrutil.Address) (string, error) {
-	return c.GetAccountAsync(address).Receive()
+func (c *Client) GetAccount(ctx context.Context, address dcrutil.Address) (string, error) {
+	return c.GetAccountAsync(ctx, address).Receive()
 }
 
 // FutureGetAddressesByAccountResult is a future promise to deliver the result
@@ -1163,15 +1164,15 @@ func (r FutureGetAddressesByAccountResult) Receive(net dcrutil.AddressParams) ([
 // function on the returned instance.
 //
 // See GetAddressesByAccount for the blocking version and more details.
-func (c *Client) GetAddressesByAccountAsync(account string) FutureGetAddressesByAccountResult {
+func (c *Client) GetAddressesByAccountAsync(ctx context.Context, account string) FutureGetAddressesByAccountResult {
 	cmd := walletjson.NewGetAddressesByAccountCmd(account)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // GetAddressesByAccount returns the list of addresses associated with the
 // passed account.
-func (c *Client) GetAddressesByAccount(account string, net dcrutil.AddressParams) ([]dcrutil.Address, error) {
-	return c.GetAddressesByAccountAsync(account).Receive(net)
+func (c *Client) GetAddressesByAccount(ctx context.Context, account string, net dcrutil.AddressParams) ([]dcrutil.Address, error) {
+	return c.GetAddressesByAccountAsync(ctx, account).Receive(net)
 }
 
 // FutureMoveResult is a future promise to deliver the result of a MoveAsync,
@@ -1213,14 +1214,14 @@ func (r FutureRenameAccountResult) Receive() error {
 // returned instance.
 //
 // See RenameAccount for the blocking version and more details.
-func (c *Client) RenameAccountAsync(oldAccount, newAccount string) FutureRenameAccountResult {
+func (c *Client) RenameAccountAsync(ctx context.Context, oldAccount, newAccount string) FutureRenameAccountResult {
 	cmd := walletjson.NewRenameAccountCmd(oldAccount, newAccount)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // RenameAccount creates a new wallet account.
-func (c *Client) RenameAccount(oldAccount, newAccount string) error {
-	return c.RenameAccountAsync(oldAccount, newAccount).Receive()
+func (c *Client) RenameAccount(ctx context.Context, oldAccount, newAccount string) error {
+	return c.RenameAccountAsync(ctx, oldAccount, newAccount).Receive()
 }
 
 // FutureValidateAddressResult is a future promise to deliver the result of a
@@ -1250,15 +1251,15 @@ func (r FutureValidateAddressResult) Receive() (*walletjson.ValidateAddressWalle
 // the returned instance.
 //
 // See ValidateAddress for the blocking version and more details.
-func (c *Client) ValidateAddressAsync(address dcrutil.Address) FutureValidateAddressResult {
+func (c *Client) ValidateAddressAsync(ctx context.Context, address dcrutil.Address) FutureValidateAddressResult {
 	addr := address.Address()
 	cmd := chainjson.NewValidateAddressCmd(addr)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // ValidateAddress returns information about the given Decred address.
-func (c *Client) ValidateAddress(address dcrutil.Address) (*walletjson.ValidateAddressWalletResult, error) {
-	return c.ValidateAddressAsync(address).Receive()
+func (c *Client) ValidateAddress(ctx context.Context, address dcrutil.Address) (*walletjson.ValidateAddressWalletResult, error) {
+	return c.ValidateAddressAsync(ctx, address).Receive()
 }
 
 // FutureKeyPoolRefillResult is a future promise to deliver the result of a
@@ -1277,16 +1278,16 @@ func (r FutureKeyPoolRefillResult) Receive() error {
 // returned instance.
 //
 // See KeyPoolRefill for the blocking version and more details.
-func (c *Client) KeyPoolRefillAsync() FutureKeyPoolRefillResult {
+func (c *Client) KeyPoolRefillAsync(ctx context.Context) FutureKeyPoolRefillResult {
 	cmd := walletjson.NewKeyPoolRefillCmd(nil)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // KeyPoolRefill fills the key pool as necessary to reach the default size.
 //
 // See KeyPoolRefillSize to override the size of the key pool.
-func (c *Client) KeyPoolRefill() error {
-	return c.KeyPoolRefillAsync().Receive()
+func (c *Client) KeyPoolRefill(ctx context.Context) error {
+	return c.KeyPoolRefillAsync(ctx).Receive()
 }
 
 // KeyPoolRefillSizeAsync returns an instance of a type that can be used to get
@@ -1294,15 +1295,15 @@ func (c *Client) KeyPoolRefill() error {
 // the returned instance.
 //
 // See KeyPoolRefillSize for the blocking version and more details.
-func (c *Client) KeyPoolRefillSizeAsync(newSize uint) FutureKeyPoolRefillResult {
+func (c *Client) KeyPoolRefillSizeAsync(ctx context.Context, newSize uint) FutureKeyPoolRefillResult {
 	cmd := walletjson.NewKeyPoolRefillCmd(&newSize)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // KeyPoolRefillSize fills the key pool as necessary to reach the specified
 // size.
-func (c *Client) KeyPoolRefillSize(newSize uint) error {
-	return c.KeyPoolRefillSizeAsync(newSize).Receive()
+func (c *Client) KeyPoolRefillSize(ctx context.Context, newSize uint) error {
+	return c.KeyPoolRefillSizeAsync(ctx, newSize).Receive()
 }
 
 // ************************
@@ -1347,17 +1348,17 @@ func (r FutureListAccountsResult) Receive() (map[string]dcrutil.Amount, error) {
 // returned instance.
 //
 // See ListAccounts for the blocking version and more details.
-func (c *Client) ListAccountsAsync() FutureListAccountsResult {
+func (c *Client) ListAccountsAsync(ctx context.Context) FutureListAccountsResult {
 	cmd := walletjson.NewListAccountsCmd(nil)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // ListAccounts returns a map of account names and their associated balances
 // using the default number of minimum confirmations.
 //
 // See ListAccountsMinConf to override the minimum number of confirmations.
-func (c *Client) ListAccounts() (map[string]dcrutil.Amount, error) {
-	return c.ListAccountsAsync().Receive()
+func (c *Client) ListAccounts(ctx context.Context) (map[string]dcrutil.Amount, error) {
+	return c.ListAccountsAsync(ctx).Receive()
 }
 
 // ListAccountsMinConfAsync returns an instance of a type that can be used to
@@ -1365,17 +1366,17 @@ func (c *Client) ListAccounts() (map[string]dcrutil.Amount, error) {
 // function on the returned instance.
 //
 // See ListAccountsMinConf for the blocking version and more details.
-func (c *Client) ListAccountsMinConfAsync(minConfirms int) FutureListAccountsResult {
+func (c *Client) ListAccountsMinConfAsync(ctx context.Context, minConfirms int) FutureListAccountsResult {
 	cmd := walletjson.NewListAccountsCmd(&minConfirms)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // ListAccountsMinConf returns a map of account names and their associated
 // balances using the specified number of minimum confirmations.
 //
 // See ListAccounts to use the default minimum number of confirmations.
-func (c *Client) ListAccountsMinConf(minConfirms int) (map[string]dcrutil.Amount, error) {
-	return c.ListAccountsMinConfAsync(minConfirms).Receive()
+func (c *Client) ListAccountsMinConf(ctx context.Context, minConfirms int) (map[string]dcrutil.Amount, error) {
+	return c.ListAccountsMinConfAsync(ctx, minConfirms).Receive()
 }
 
 // FutureGetMasterPubkeyResult is a future promise to deliver the result of a
@@ -1411,16 +1412,16 @@ func (r FutureGetMasterPubkeyResult) Receive(net hdkeychain.NetworkParams) (*hdk
 // returned instance.
 //
 // See GetMasterPubkey for the blocking version and more details.
-func (c *Client) GetMasterPubkeyAsync(account string) FutureGetMasterPubkeyResult {
+func (c *Client) GetMasterPubkeyAsync(ctx context.Context, account string) FutureGetMasterPubkeyResult {
 	cmd := walletjson.NewGetMasterPubkeyCmd(&account)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // GetMasterPubkey returns a pointer to the master extended public key for account
 // and the network's hierarchical deterministic extended key magic versions
 // (e.g. MainNetParams)
-func (c *Client) GetMasterPubkey(account string, net hdkeychain.NetworkParams) (*hdkeychain.ExtendedKey, error) {
-	return c.GetMasterPubkeyAsync(account).Receive(net)
+func (c *Client) GetMasterPubkey(ctx context.Context, account string, net hdkeychain.NetworkParams) (*hdkeychain.ExtendedKey, error) {
+	return c.GetMasterPubkeyAsync(ctx, account).Receive(net)
 }
 
 // FutureGetBalanceResult is a future promise to deliver the result of a
@@ -1451,9 +1452,9 @@ func (r FutureGetBalanceResult) Receive() (*walletjson.GetBalanceResult, error) 
 // returned instance.
 //
 // See GetBalance for the blocking version and more details.
-func (c *Client) GetBalanceAsync(account string) FutureGetBalanceResult {
+func (c *Client) GetBalanceAsync(ctx context.Context, account string) FutureGetBalanceResult {
 	cmd := walletjson.NewGetBalanceCmd(&account, nil)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // GetBalance returns the available balance from the server for the specified
@@ -1461,8 +1462,8 @@ func (c *Client) GetBalanceAsync(account string) FutureGetBalanceResult {
 // be "*" for all accounts.
 //
 // See GetBalanceMinConf to override the minimum number of confirmations.
-func (c *Client) GetBalance(account string) (*walletjson.GetBalanceResult, error) {
-	return c.GetBalanceAsync(account).Receive()
+func (c *Client) GetBalance(ctx context.Context, account string) (*walletjson.GetBalanceResult, error) {
+	return c.GetBalanceAsync(ctx, account).Receive()
 }
 
 // GetBalanceMinConfAsync returns an instance of a type that can be used to get
@@ -1470,9 +1471,9 @@ func (c *Client) GetBalance(account string) (*walletjson.GetBalanceResult, error
 // the returned instance.
 //
 // See GetBalanceMinConf for the blocking version and more details.
-func (c *Client) GetBalanceMinConfAsync(account string, minConfirms int) FutureGetBalanceResult {
+func (c *Client) GetBalanceMinConfAsync(ctx context.Context, account string, minConfirms int) FutureGetBalanceResult {
 	cmd := walletjson.NewGetBalanceCmd(&account, &minConfirms)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // GetBalanceMinConf returns the available balance from the server for the
@@ -1480,8 +1481,8 @@ func (c *Client) GetBalanceMinConfAsync(account string, minConfirms int) FutureG
 // account may be "*" for all accounts.
 //
 // See GetBalance to use the default minimum number of confirmations.
-func (c *Client) GetBalanceMinConf(account string, minConfirms int) (*walletjson.GetBalanceResult, error) {
-	return c.GetBalanceMinConfAsync(account, minConfirms).Receive()
+func (c *Client) GetBalanceMinConf(ctx context.Context, account string, minConfirms int) (*walletjson.GetBalanceResult, error) {
+	return c.GetBalanceMinConfAsync(ctx, account, minConfirms).Receive()
 }
 
 // FutureGetReceivedByAccountResult is a future promise to deliver the result of
@@ -1517,9 +1518,9 @@ func (r FutureGetReceivedByAccountResult) Receive() (dcrutil.Amount, error) {
 // function on the returned instance.
 //
 // See GetReceivedByAccount for the blocking version and more details.
-func (c *Client) GetReceivedByAccountAsync(account string) FutureGetReceivedByAccountResult {
+func (c *Client) GetReceivedByAccountAsync(ctx context.Context, account string) FutureGetReceivedByAccountResult {
 	cmd := walletjson.NewGetReceivedByAccountCmd(account, nil)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // GetReceivedByAccount returns the total amount received with the specified
@@ -1527,8 +1528,8 @@ func (c *Client) GetReceivedByAccountAsync(account string) FutureGetReceivedByAc
 //
 // See GetReceivedByAccountMinConf to override the minimum number of
 // confirmations.
-func (c *Client) GetReceivedByAccount(account string) (dcrutil.Amount, error) {
-	return c.GetReceivedByAccountAsync(account).Receive()
+func (c *Client) GetReceivedByAccount(ctx context.Context, account string) (dcrutil.Amount, error) {
+	return c.GetReceivedByAccountAsync(ctx, account).Receive()
 }
 
 // GetReceivedByAccountMinConfAsync returns an instance of a type that can be
@@ -1536,9 +1537,9 @@ func (c *Client) GetReceivedByAccount(account string) (dcrutil.Amount, error) {
 // function on the returned instance.
 //
 // See GetReceivedByAccountMinConf for the blocking version and more details.
-func (c *Client) GetReceivedByAccountMinConfAsync(account string, minConfirms int) FutureGetReceivedByAccountResult {
+func (c *Client) GetReceivedByAccountMinConfAsync(ctx context.Context, account string, minConfirms int) FutureGetReceivedByAccountResult {
 	cmd := walletjson.NewGetReceivedByAccountCmd(account, &minConfirms)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // GetReceivedByAccountMinConf returns the total amount received with the
@@ -1546,8 +1547,8 @@ func (c *Client) GetReceivedByAccountMinConfAsync(account string, minConfirms in
 // confirmations.
 //
 // See GetReceivedByAccount to use the default minimum number of confirmations.
-func (c *Client) GetReceivedByAccountMinConf(account string, minConfirms int) (dcrutil.Amount, error) {
-	return c.GetReceivedByAccountMinConfAsync(account, minConfirms).Receive()
+func (c *Client) GetReceivedByAccountMinConf(ctx context.Context, account string, minConfirms int) (dcrutil.Amount, error) {
+	return c.GetReceivedByAccountMinConfAsync(ctx, account, minConfirms).Receive()
 }
 
 // FutureGetUnconfirmedBalanceResult is a future promise to deliver the result
@@ -1582,15 +1583,15 @@ func (r FutureGetUnconfirmedBalanceResult) Receive() (dcrutil.Amount, error) {
 // function on the returned instance.
 //
 // See GetUnconfirmedBalance for the blocking version and more details.
-func (c *Client) GetUnconfirmedBalanceAsync(account string) FutureGetUnconfirmedBalanceResult {
+func (c *Client) GetUnconfirmedBalanceAsync(ctx context.Context, account string) FutureGetUnconfirmedBalanceResult {
 	cmd := walletjson.NewGetUnconfirmedBalanceCmd(&account)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // GetUnconfirmedBalance returns the unconfirmed balance from the server for
 // the specified account.
-func (c *Client) GetUnconfirmedBalance(account string) (dcrutil.Amount, error) {
-	return c.GetUnconfirmedBalanceAsync(account).Receive()
+func (c *Client) GetUnconfirmedBalance(ctx context.Context, account string) (dcrutil.Amount, error) {
+	return c.GetUnconfirmedBalanceAsync(ctx, account).Receive()
 }
 
 // FutureGetReceivedByAddressResult is a future promise to deliver the result of
@@ -1626,10 +1627,10 @@ func (r FutureGetReceivedByAddressResult) Receive() (dcrutil.Amount, error) {
 // function on the returned instance.
 //
 // See GetReceivedByAddress for the blocking version and more details.
-func (c *Client) GetReceivedByAddressAsync(address dcrutil.Address) FutureGetReceivedByAddressResult {
+func (c *Client) GetReceivedByAddressAsync(ctx context.Context, address dcrutil.Address) FutureGetReceivedByAddressResult {
 	addr := address.Address()
 	cmd := walletjson.NewGetReceivedByAddressCmd(addr, nil)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 
 }
 
@@ -1638,8 +1639,8 @@ func (c *Client) GetReceivedByAddressAsync(address dcrutil.Address) FutureGetRec
 //
 // See GetReceivedByAddressMinConf to override the minimum number of
 // confirmations.
-func (c *Client) GetReceivedByAddress(address dcrutil.Address) (dcrutil.Amount, error) {
-	return c.GetReceivedByAddressAsync(address).Receive()
+func (c *Client) GetReceivedByAddress(ctx context.Context, address dcrutil.Address) (dcrutil.Amount, error) {
+	return c.GetReceivedByAddressAsync(ctx, address).Receive()
 }
 
 // GetReceivedByAddressMinConfAsync returns an instance of a type that can be
@@ -1647,18 +1648,18 @@ func (c *Client) GetReceivedByAddress(address dcrutil.Address) (dcrutil.Amount, 
 // function on the returned instance.
 //
 // See GetReceivedByAddressMinConf for the blocking version and more details.
-func (c *Client) GetReceivedByAddressMinConfAsync(address dcrutil.Address, minConfirms int) FutureGetReceivedByAddressResult {
+func (c *Client) GetReceivedByAddressMinConfAsync(ctx context.Context, address dcrutil.Address, minConfirms int) FutureGetReceivedByAddressResult {
 	addr := address.Address()
 	cmd := walletjson.NewGetReceivedByAddressCmd(addr, &minConfirms)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // GetReceivedByAddressMinConf returns the total amount received by the specified
 // address with at least the specified number of minimum confirmations.
 //
 // See GetReceivedByAddress to use the default minimum number of confirmations.
-func (c *Client) GetReceivedByAddressMinConf(address dcrutil.Address, minConfirms int) (dcrutil.Amount, error) {
-	return c.GetReceivedByAddressMinConfAsync(address, minConfirms).Receive()
+func (c *Client) GetReceivedByAddressMinConf(ctx context.Context, address dcrutil.Address, minConfirms int) (dcrutil.Amount, error) {
+	return c.GetReceivedByAddressMinConfAsync(ctx, address, minConfirms).Receive()
 }
 
 // FutureListReceivedByAccountResult is a future promise to deliver the result
@@ -1690,9 +1691,9 @@ func (r FutureListReceivedByAccountResult) Receive() ([]walletjson.ListReceivedB
 // function on the returned instance.
 //
 // See ListReceivedByAccount for the blocking version and more details.
-func (c *Client) ListReceivedByAccountAsync() FutureListReceivedByAccountResult {
+func (c *Client) ListReceivedByAccountAsync(ctx context.Context) FutureListReceivedByAccountResult {
 	cmd := walletjson.NewListReceivedByAccountCmd(nil, nil, nil)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // ListReceivedByAccount lists balances by account using the default number
@@ -1702,8 +1703,8 @@ func (c *Client) ListReceivedByAccountAsync() FutureListReceivedByAccountResult 
 // See ListReceivedByAccountMinConf to override the minimum number of
 // confirmations and ListReceivedByAccountIncludeEmpty to filter accounts that
 // haven't received any payments from the results.
-func (c *Client) ListReceivedByAccount() ([]walletjson.ListReceivedByAccountResult, error) {
-	return c.ListReceivedByAccountAsync().Receive()
+func (c *Client) ListReceivedByAccount(ctx context.Context) ([]walletjson.ListReceivedByAccountResult, error) {
+	return c.ListReceivedByAccountAsync(ctx).Receive()
 }
 
 // ListReceivedByAccountMinConfAsync returns an instance of a type that can be
@@ -1711,9 +1712,9 @@ func (c *Client) ListReceivedByAccount() ([]walletjson.ListReceivedByAccountResu
 // function on the returned instance.
 //
 // See ListReceivedByAccountMinConf for the blocking version and more details.
-func (c *Client) ListReceivedByAccountMinConfAsync(minConfirms int) FutureListReceivedByAccountResult {
+func (c *Client) ListReceivedByAccountMinConfAsync(ctx context.Context, minConfirms int) FutureListReceivedByAccountResult {
 	cmd := walletjson.NewListReceivedByAccountCmd(&minConfirms, nil, nil)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // ListReceivedByAccountMinConf lists balances by account using the specified
@@ -1723,8 +1724,8 @@ func (c *Client) ListReceivedByAccountMinConfAsync(minConfirms int) FutureListRe
 // See ListReceivedByAccount to use the default minimum number of confirmations
 // and ListReceivedByAccountIncludeEmpty to also filter accounts that haven't
 // received any payments from the results.
-func (c *Client) ListReceivedByAccountMinConf(minConfirms int) ([]walletjson.ListReceivedByAccountResult, error) {
-	return c.ListReceivedByAccountMinConfAsync(minConfirms).Receive()
+func (c *Client) ListReceivedByAccountMinConf(ctx context.Context, minConfirms int) ([]walletjson.ListReceivedByAccountResult, error) {
+	return c.ListReceivedByAccountMinConfAsync(ctx, minConfirms).Receive()
 }
 
 // ListReceivedByAccountIncludeEmptyAsync returns an instance of a type that can
@@ -1732,10 +1733,10 @@ func (c *Client) ListReceivedByAccountMinConf(minConfirms int) ([]walletjson.Lis
 // Receive function on the returned instance.
 //
 // See ListReceivedByAccountIncludeEmpty for the blocking version and more details.
-func (c *Client) ListReceivedByAccountIncludeEmptyAsync(minConfirms int, includeEmpty bool) FutureListReceivedByAccountResult {
+func (c *Client) ListReceivedByAccountIncludeEmptyAsync(ctx context.Context, minConfirms int, includeEmpty bool) FutureListReceivedByAccountResult {
 	cmd := walletjson.NewListReceivedByAccountCmd(&minConfirms, &includeEmpty,
 		nil)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // ListReceivedByAccountIncludeEmpty lists balances by account using the
@@ -1743,8 +1744,8 @@ func (c *Client) ListReceivedByAccountIncludeEmptyAsync(minConfirms int, include
 // haven't received any payments depending on specified flag.
 //
 // See ListReceivedByAccount and ListReceivedByAccountMinConf to use defaults.
-func (c *Client) ListReceivedByAccountIncludeEmpty(minConfirms int, includeEmpty bool) ([]walletjson.ListReceivedByAccountResult, error) {
-	return c.ListReceivedByAccountIncludeEmptyAsync(minConfirms,
+func (c *Client) ListReceivedByAccountIncludeEmpty(ctx context.Context, minConfirms int, includeEmpty bool) ([]walletjson.ListReceivedByAccountResult, error) {
+	return c.ListReceivedByAccountIncludeEmptyAsync(ctx, minConfirms,
 		includeEmpty).Receive()
 }
 
@@ -1777,9 +1778,9 @@ func (r FutureListReceivedByAddressResult) Receive() ([]walletjson.ListReceivedB
 // function on the returned instance.
 //
 // See ListReceivedByAddress for the blocking version and more details.
-func (c *Client) ListReceivedByAddressAsync() FutureListReceivedByAddressResult {
+func (c *Client) ListReceivedByAddressAsync(ctx context.Context) FutureListReceivedByAddressResult {
 	cmd := walletjson.NewListReceivedByAddressCmd(nil, nil, nil)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // ListReceivedByAddress lists balances by address using the default number
@@ -1789,8 +1790,8 @@ func (c *Client) ListReceivedByAddressAsync() FutureListReceivedByAddressResult 
 // See ListReceivedByAddressMinConf to override the minimum number of
 // confirmations and ListReceivedByAddressIncludeEmpty to also include addresses
 // that haven't received any payments in the results.
-func (c *Client) ListReceivedByAddress() ([]walletjson.ListReceivedByAddressResult, error) {
-	return c.ListReceivedByAddressAsync().Receive()
+func (c *Client) ListReceivedByAddress(ctx context.Context) ([]walletjson.ListReceivedByAddressResult, error) {
+	return c.ListReceivedByAddressAsync(ctx).Receive()
 }
 
 // ListReceivedByAddressMinConfAsync returns an instance of a type that can be
@@ -1798,9 +1799,9 @@ func (c *Client) ListReceivedByAddress() ([]walletjson.ListReceivedByAddressResu
 // function on the returned instance.
 //
 // See ListReceivedByAddressMinConf for the blocking version and more details.
-func (c *Client) ListReceivedByAddressMinConfAsync(minConfirms int) FutureListReceivedByAddressResult {
+func (c *Client) ListReceivedByAddressMinConfAsync(ctx context.Context, minConfirms int) FutureListReceivedByAddressResult {
 	cmd := walletjson.NewListReceivedByAddressCmd(&minConfirms, nil, nil)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // ListReceivedByAddressMinConf lists balances by address using the specified
@@ -1810,8 +1811,8 @@ func (c *Client) ListReceivedByAddressMinConfAsync(minConfirms int) FutureListRe
 // See ListReceivedByAddress to use the default minimum number of confirmations
 // and ListReceivedByAddressIncludeEmpty to also include addresses that haven't
 // received any payments in the results.
-func (c *Client) ListReceivedByAddressMinConf(minConfirms int) ([]walletjson.ListReceivedByAddressResult, error) {
-	return c.ListReceivedByAddressMinConfAsync(minConfirms).Receive()
+func (c *Client) ListReceivedByAddressMinConf(ctx context.Context, minConfirms int) ([]walletjson.ListReceivedByAddressResult, error) {
+	return c.ListReceivedByAddressMinConfAsync(ctx, minConfirms).Receive()
 }
 
 // ListReceivedByAddressIncludeEmptyAsync returns an instance of a type that can
@@ -1819,10 +1820,10 @@ func (c *Client) ListReceivedByAddressMinConf(minConfirms int) ([]walletjson.Lis
 // Receive function on the returned instance.
 //
 // See ListReceivedByAccountIncludeEmpty for the blocking version and more details.
-func (c *Client) ListReceivedByAddressIncludeEmptyAsync(minConfirms int, includeEmpty bool) FutureListReceivedByAddressResult {
+func (c *Client) ListReceivedByAddressIncludeEmptyAsync(ctx context.Context, minConfirms int, includeEmpty bool) FutureListReceivedByAddressResult {
 	cmd := walletjson.NewListReceivedByAddressCmd(&minConfirms, &includeEmpty,
 		nil)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // ListReceivedByAddressIncludeEmpty lists balances by address using the
@@ -1830,8 +1831,8 @@ func (c *Client) ListReceivedByAddressIncludeEmptyAsync(minConfirms int, include
 // haven't received any payments depending on specified flag.
 //
 // See ListReceivedByAddress and ListReceivedByAddressMinConf to use defaults.
-func (c *Client) ListReceivedByAddressIncludeEmpty(minConfirms int, includeEmpty bool) ([]walletjson.ListReceivedByAddressResult, error) {
-	return c.ListReceivedByAddressIncludeEmptyAsync(minConfirms,
+func (c *Client) ListReceivedByAddressIncludeEmpty(ctx context.Context, minConfirms int, includeEmpty bool) ([]walletjson.ListReceivedByAddressResult, error) {
+	return c.ListReceivedByAddressIncludeEmptyAsync(ctx, minConfirms,
 		includeEmpty).Receive()
 }
 
@@ -1855,9 +1856,9 @@ func (r FutureWalletLockResult) Receive() error {
 // returned instance.
 //
 // See WalletLock for the blocking version and more details.
-func (c *Client) WalletLockAsync() FutureWalletLockResult {
+func (c *Client) WalletLockAsync(ctx context.Context) FutureWalletLockResult {
 	cmd := walletjson.NewWalletLockCmd()
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // WalletLock locks the wallet by removing the encryption key from memory.
@@ -1865,16 +1866,16 @@ func (c *Client) WalletLockAsync() FutureWalletLockResult {
 // After calling this function, the WalletPassphrase function must be used to
 // unlock the wallet prior to calling any other function which requires the
 // wallet to be unlocked.
-func (c *Client) WalletLock() error {
-	return c.WalletLockAsync().Receive()
+func (c *Client) WalletLock(ctx context.Context) error {
+	return c.WalletLockAsync(ctx).Receive()
 }
 
 // WalletPassphrase unlocks the wallet by using the passphrase to derive the
 // decryption key which is then stored in memory for the specified timeout
 // (in seconds).
-func (c *Client) WalletPassphrase(passphrase string, timeoutSecs int64) error {
+func (c *Client) WalletPassphrase(ctx context.Context, passphrase string, timeoutSecs int64) error {
 	cmd := walletjson.NewWalletPassphraseCmd(passphrase, timeoutSecs)
-	_, err := c.sendCmdAndWait(cmd)
+	_, err := c.sendCmdAndWait(ctx, cmd)
 	return err
 }
 
@@ -1894,15 +1895,15 @@ func (r FutureWalletPassphraseChangeResult) Receive() error {
 // function on the returned instance.
 //
 // See WalletPassphraseChange for the blocking version and more details.
-func (c *Client) WalletPassphraseChangeAsync(old, new string) FutureWalletPassphraseChangeResult {
+func (c *Client) WalletPassphraseChangeAsync(ctx context.Context, old, new string) FutureWalletPassphraseChangeResult {
 	cmd := walletjson.NewWalletPassphraseChangeCmd(old, new)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // WalletPassphraseChange changes the wallet passphrase from the specified old
 // to new passphrase.
-func (c *Client) WalletPassphraseChange(old, new string) error {
-	return c.WalletPassphraseChangeAsync(old, new).Receive()
+func (c *Client) WalletPassphraseChange(ctx context.Context, old, new string) error {
+	return c.WalletPassphraseChangeAsync(ctx, old, new).Receive()
 }
 
 // *************************
@@ -1936,18 +1937,18 @@ func (r FutureSignMessageResult) Receive() (string, error) {
 // returned instance.
 //
 // See SignMessage for the blocking version and more details.
-func (c *Client) SignMessageAsync(address dcrutil.Address, message string) FutureSignMessageResult {
+func (c *Client) SignMessageAsync(ctx context.Context, address dcrutil.Address, message string) FutureSignMessageResult {
 	addr := address.Address()
 	cmd := walletjson.NewSignMessageCmd(addr, message)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // SignMessage signs a message with the private key of the specified address.
 //
 // NOTE: This function requires to the wallet to be unlocked.  See the
 // WalletPassphrase function for more details.
-func (c *Client) SignMessage(address dcrutil.Address, message string) (string, error) {
-	return c.SignMessageAsync(address, message).Receive()
+func (c *Client) SignMessage(ctx context.Context, address dcrutil.Address, message string) (string, error) {
+	return c.SignMessageAsync(ctx, address, message).Receive()
 }
 
 // FutureVerifyMessageResult is a future promise to deliver the result of a
@@ -1977,18 +1978,18 @@ func (r FutureVerifyMessageResult) Receive() (bool, error) {
 // returned instance.
 //
 // See VerifyMessage for the blocking version and more details.
-func (c *Client) VerifyMessageAsync(address dcrutil.Address, signature, message string) FutureVerifyMessageResult {
+func (c *Client) VerifyMessageAsync(ctx context.Context, address dcrutil.Address, signature, message string) FutureVerifyMessageResult {
 	addr := address.Address()
 	cmd := chainjson.NewVerifyMessageCmd(addr, signature, message)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // VerifyMessage verifies a signed message.
 //
 // NOTE: This function requires to the wallet to be unlocked.  See the
 // WalletPassphrase function for more details.
-func (c *Client) VerifyMessage(address dcrutil.Address, signature, message string) (bool, error) {
-	return c.VerifyMessageAsync(address, signature, message).Receive()
+func (c *Client) VerifyMessage(ctx context.Context, address dcrutil.Address, signature, message string) (bool, error) {
+	return c.VerifyMessageAsync(ctx, address, signature, message).Receive()
 }
 
 // *********************
@@ -2023,10 +2024,10 @@ func (r FutureDumpPrivKeyResult) Receive(net [2]byte) (*dcrutil.WIF, error) {
 // returned instance.
 //
 // See DumpPrivKey for the blocking version and more details.
-func (c *Client) DumpPrivKeyAsync(address dcrutil.Address) FutureDumpPrivKeyResult {
+func (c *Client) DumpPrivKeyAsync(ctx context.Context, address dcrutil.Address) FutureDumpPrivKeyResult {
 	addr := address.Address()
 	cmd := walletjson.NewDumpPrivKeyCmd(addr)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // DumpPrivKey gets the private key corresponding to the passed address encoded
@@ -2034,8 +2035,8 @@ func (c *Client) DumpPrivKeyAsync(address dcrutil.Address) FutureDumpPrivKeyResu
 //
 // NOTE: This function requires to the wallet to be unlocked.  See the
 // WalletPassphrase function for more details.
-func (c *Client) DumpPrivKey(address dcrutil.Address, net [2]byte) (*dcrutil.WIF, error) {
-	return c.DumpPrivKeyAsync(address).Receive(net)
+func (c *Client) DumpPrivKey(ctx context.Context, address dcrutil.Address, net [2]byte) (*dcrutil.WIF, error) {
+	return c.DumpPrivKeyAsync(ctx, address).Receive(net)
 }
 
 // FutureImportPrivKeyResult is a future promise to deliver the result of an
@@ -2055,20 +2056,20 @@ func (r FutureImportPrivKeyResult) Receive() error {
 // returned instance.
 //
 // See ImportPrivKey for the blocking version and more details.
-func (c *Client) ImportPrivKeyAsync(privKeyWIF *dcrutil.WIF) FutureImportPrivKeyResult {
+func (c *Client) ImportPrivKeyAsync(ctx context.Context, privKeyWIF *dcrutil.WIF) FutureImportPrivKeyResult {
 	wif := ""
 	if privKeyWIF != nil {
 		wif = privKeyWIF.String()
 	}
 
 	cmd := walletjson.NewImportPrivKeyCmd(wif, nil, nil, nil)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // ImportPrivKey imports the passed private key which must be the wallet import
 // format (WIF).
-func (c *Client) ImportPrivKey(privKeyWIF *dcrutil.WIF) error {
-	return c.ImportPrivKeyAsync(privKeyWIF).Receive()
+func (c *Client) ImportPrivKey(ctx context.Context, privKeyWIF *dcrutil.WIF) error {
+	return c.ImportPrivKeyAsync(ctx, privKeyWIF).Receive()
 }
 
 // ImportPrivKeyLabelAsync returns an instance of a type that can be used to get the
@@ -2076,20 +2077,20 @@ func (c *Client) ImportPrivKey(privKeyWIF *dcrutil.WIF) error {
 // returned instance.
 //
 // See ImportPrivKey for the blocking version and more details.
-func (c *Client) ImportPrivKeyLabelAsync(privKeyWIF *dcrutil.WIF, label string) FutureImportPrivKeyResult {
+func (c *Client) ImportPrivKeyLabelAsync(ctx context.Context, privKeyWIF *dcrutil.WIF, label string) FutureImportPrivKeyResult {
 	wif := ""
 	if privKeyWIF != nil {
 		wif = privKeyWIF.String()
 	}
 
 	cmd := walletjson.NewImportPrivKeyCmd(wif, &label, nil, nil)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // ImportPrivKeyLabel imports the passed private key which must be the wallet import
 // format (WIF). It sets the account label to the one provided.
-func (c *Client) ImportPrivKeyLabel(privKeyWIF *dcrutil.WIF, label string) error {
-	return c.ImportPrivKeyLabelAsync(privKeyWIF, label).Receive()
+func (c *Client) ImportPrivKeyLabel(ctx context.Context, privKeyWIF *dcrutil.WIF, label string) error {
+	return c.ImportPrivKeyLabelAsync(ctx, privKeyWIF, label).Receive()
 }
 
 // ImportPrivKeyRescanAsync returns an instance of a type that can be used to get the
@@ -2097,21 +2098,21 @@ func (c *Client) ImportPrivKeyLabel(privKeyWIF *dcrutil.WIF, label string) error
 // returned instance.
 //
 // See ImportPrivKey for the blocking version and more details.
-func (c *Client) ImportPrivKeyRescanAsync(privKeyWIF *dcrutil.WIF, label string, rescan bool) FutureImportPrivKeyResult {
+func (c *Client) ImportPrivKeyRescanAsync(ctx context.Context, privKeyWIF *dcrutil.WIF, label string, rescan bool) FutureImportPrivKeyResult {
 	wif := ""
 	if privKeyWIF != nil {
 		wif = privKeyWIF.String()
 	}
 
 	cmd := walletjson.NewImportPrivKeyCmd(wif, &label, &rescan, nil)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // ImportPrivKeyRescan imports the passed private key which must be the wallet import
 // format (WIF). It sets the account label to the one provided. When rescan is true,
 // the block history is scanned for transactions addressed to provided privKey.
-func (c *Client) ImportPrivKeyRescan(privKeyWIF *dcrutil.WIF, label string, rescan bool) error {
-	return c.ImportPrivKeyRescanAsync(privKeyWIF, label, rescan).Receive()
+func (c *Client) ImportPrivKeyRescan(ctx context.Context, privKeyWIF *dcrutil.WIF, label string, rescan bool) error {
+	return c.ImportPrivKeyRescanAsync(ctx, privKeyWIF, label, rescan).Receive()
 }
 
 // ImportPrivKeyRescanFromAsync returns an instance of a type that can be used to
@@ -2120,22 +2121,22 @@ func (c *Client) ImportPrivKeyRescan(privKeyWIF *dcrutil.WIF, label string, resc
 // returned instance.
 //
 // See ImportPrivKey for the blocking version and more details.
-func (c *Client) ImportPrivKeyRescanFromAsync(privKeyWIF *dcrutil.WIF, label string, rescan bool, scanFrom int) FutureImportPrivKeyResult {
+func (c *Client) ImportPrivKeyRescanFromAsync(ctx context.Context, privKeyWIF *dcrutil.WIF, label string, rescan bool, scanFrom int) FutureImportPrivKeyResult {
 	wif := ""
 	if privKeyWIF != nil {
 		wif = privKeyWIF.String()
 	}
 
 	cmd := walletjson.NewImportPrivKeyCmd(wif, &label, &rescan, &scanFrom)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // ImportPrivKeyRescanFrom imports the passed private key which must be the wallet
 // import format (WIF). It sets the account label to the one provided. When rescan
 // is true, the block history from block scanFrom is scanned for transactions
 // addressed to provided privKey.
-func (c *Client) ImportPrivKeyRescanFrom(privKeyWIF *dcrutil.WIF, label string, rescan bool, scanFrom int) error {
-	return c.ImportPrivKeyRescanFromAsync(privKeyWIF, label, rescan, scanFrom).Receive()
+func (c *Client) ImportPrivKeyRescanFrom(ctx context.Context, privKeyWIF *dcrutil.WIF, label string, rescan bool, scanFrom int) error {
+	return c.ImportPrivKeyRescanFromAsync(ctx, privKeyWIF, label, rescan, scanFrom).Receive()
 }
 
 // FutureImportScriptResult is a future promise to deliver the result
@@ -2153,19 +2154,19 @@ func (r FutureImportScriptResult) Receive() error {
 // the returned instance.
 //
 // See ImportScript for the blocking version and more details.
-func (c *Client) ImportScriptAsync(script []byte) FutureImportScriptResult {
+func (c *Client) ImportScriptAsync(ctx context.Context, script []byte) FutureImportScriptResult {
 	scriptStr := ""
 	if script != nil {
 		scriptStr = hex.EncodeToString(script)
 	}
 
 	cmd := walletjson.NewImportScriptCmd(scriptStr, nil, nil)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // ImportScript attempts to import a byte code script into wallet.
-func (c *Client) ImportScript(script []byte) error {
-	return c.ImportScriptAsync(script).Receive()
+func (c *Client) ImportScript(ctx context.Context, script []byte) error {
+	return c.ImportScriptAsync(ctx, script).Receive()
 }
 
 // ImportScriptRescanAsync returns an instance of a type that can be used to
@@ -2173,20 +2174,20 @@ func (c *Client) ImportScript(script []byte) error {
 // function on the returned instance.
 //
 // See ImportScript for the blocking version and more details.
-func (c *Client) ImportScriptRescanAsync(script []byte, rescan bool) FutureImportScriptResult {
+func (c *Client) ImportScriptRescanAsync(ctx context.Context, script []byte, rescan bool) FutureImportScriptResult {
 	scriptStr := ""
 	if script != nil {
 		scriptStr = hex.EncodeToString(script)
 	}
 
 	cmd := walletjson.NewImportScriptCmd(scriptStr, &rescan, nil)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // ImportScriptRescan attempts to import a byte code script into wallet. It also
 // allows the user to choose whether or not they do a rescan.
-func (c *Client) ImportScriptRescan(script []byte, rescan bool) error {
-	return c.ImportScriptRescanAsync(script, rescan).Receive()
+func (c *Client) ImportScriptRescan(ctx context.Context, script []byte, rescan bool) error {
+	return c.ImportScriptRescanAsync(ctx, script, rescan).Receive()
 }
 
 // ImportScriptRescanFromAsync returns an instance of a type that can be used to
@@ -2194,21 +2195,21 @@ func (c *Client) ImportScriptRescan(script []byte, rescan bool) error {
 // function on the returned instance.
 //
 // See ImportScript for the blocking version and more details.
-func (c *Client) ImportScriptRescanFromAsync(script []byte, rescan bool, scanFrom int) FutureImportScriptResult {
+func (c *Client) ImportScriptRescanFromAsync(ctx context.Context, script []byte, rescan bool, scanFrom int) FutureImportScriptResult {
 	scriptStr := ""
 	if script != nil {
 		scriptStr = hex.EncodeToString(script)
 	}
 
 	cmd := walletjson.NewImportScriptCmd(scriptStr, &rescan, &scanFrom)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // ImportScriptRescanFrom attempts to import a byte code script into wallet. It
 // also allows the user to choose whether or not they do a rescan, and which
 // height to rescan from.
-func (c *Client) ImportScriptRescanFrom(script []byte, rescan bool, scanFrom int) error {
-	return c.ImportScriptRescanFromAsync(script, rescan, scanFrom).Receive()
+func (c *Client) ImportScriptRescanFrom(ctx context.Context, script []byte, rescan bool, scanFrom int) error {
+	return c.ImportScriptRescanFromAsync(ctx, script, rescan, scanFrom).Receive()
 }
 
 // ***********************
@@ -2242,14 +2243,14 @@ func (r FutureAccountAddressIndexResult) Receive() (int, error) {
 // function on the returned instance.
 //
 // See AccountAddressIndex for the blocking version and more details.
-func (c *Client) AccountAddressIndexAsync(account string, branch uint32) FutureAccountAddressIndexResult {
+func (c *Client) AccountAddressIndexAsync(ctx context.Context, account string, branch uint32) FutureAccountAddressIndexResult {
 	cmd := walletjson.NewAccountAddressIndexCmd(account, int(branch))
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // AccountAddressIndex returns the address index for a given account's branch.
-func (c *Client) AccountAddressIndex(account string, branch uint32) (int, error) {
-	return c.AccountAddressIndexAsync(account, branch).Receive()
+func (c *Client) AccountAddressIndex(ctx context.Context, account string, branch uint32) (int, error) {
+	return c.AccountAddressIndexAsync(ctx, account, branch).Receive()
 }
 
 // FutureAccountSyncAddressIndexResult is a future promise to deliver the
@@ -2269,15 +2270,15 @@ func (r FutureAccountSyncAddressIndexResult) Receive() error {
 // function on the returned instance.
 //
 // See AccountSyncAddressIndex for the blocking version and more details.
-func (c *Client) AccountSyncAddressIndexAsync(account string, branch uint32, index int) FutureAccountSyncAddressIndexResult {
+func (c *Client) AccountSyncAddressIndexAsync(ctx context.Context, account string, branch uint32, index int) FutureAccountSyncAddressIndexResult {
 	cmd := walletjson.NewAccountSyncAddressIndexCmd(account, int(branch), index)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // AccountSyncAddressIndex synchronizes an account branch to the passed address
 // index.
-func (c *Client) AccountSyncAddressIndex(account string, branch uint32, index int) error {
-	return c.AccountSyncAddressIndexAsync(account, branch, index).Receive()
+func (c *Client) AccountSyncAddressIndex(ctx context.Context, account string, branch uint32, index int) error {
+	return c.AccountSyncAddressIndexAsync(ctx, account, branch, index).Receive()
 }
 
 // FutureRevokeTicketsResult is a future promise to deliver the result of a
@@ -2296,15 +2297,15 @@ func (r FutureRevokeTicketsResult) Receive() error {
 // returned instance.
 //
 // See RevokeTickets for the blocking version and more details.
-func (c *Client) RevokeTicketsAsync() FutureRevokeTicketsResult {
+func (c *Client) RevokeTicketsAsync(ctx context.Context) FutureRevokeTicketsResult {
 	cmd := walletjson.NewRevokeTicketsCmd()
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // RevokeTickets triggers the wallet to issue revocations for any missed tickets that
 // have not yet been revoked.
-func (c *Client) RevokeTickets() error {
-	return c.RevokeTicketsAsync().Receive()
+func (c *Client) RevokeTickets(ctx context.Context) error {
+	return c.RevokeTicketsAsync(ctx).Receive()
 }
 
 // FutureAddTicketResult is a future promise to deliver the result of a
@@ -2323,21 +2324,21 @@ func (r FutureAddTicketResult) Receive() error {
 // returned instance.
 //
 // See AddTicket for the blocking version and more details.
-func (c *Client) AddTicketAsync(rawHex string) FutureAddTicketResult {
+func (c *Client) AddTicketAsync(ctx context.Context, rawHex string) FutureAddTicketResult {
 	cmd := walletjson.NewAddTicketCmd(rawHex)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // AddTicket manually adds a new ticket to the wallet stake manager. This is used
 // to override normal security settings to insert tickets which would not
 // otherwise be added to the wallet.
-func (c *Client) AddTicket(ticket *dcrutil.Tx) error {
+func (c *Client) AddTicket(ctx context.Context, ticket *dcrutil.Tx) error {
 	ticketB, err := ticket.MsgTx().Bytes()
 	if err != nil {
 		return err
 	}
 
-	return c.AddTicketAsync(hex.EncodeToString(ticketB)).Receive()
+	return c.AddTicketAsync(ctx, hex.EncodeToString(ticketB)).Receive()
 }
 
 // FutureFundRawTransactionResult is a future promise to deliver the result of a
@@ -2367,15 +2368,15 @@ func (r FutureFundRawTransactionResult) Receive() (*walletjson.FundRawTransactio
 // returned instance.
 //
 // See FundRawTransaction for the blocking version and more details.
-func (c *Client) FundRawTransactionAsync(rawhex string, fundAccount string, options walletjson.FundRawTransactionOptions) FutureFundRawTransactionResult {
+func (c *Client) FundRawTransactionAsync(ctx context.Context, rawhex string, fundAccount string, options walletjson.FundRawTransactionOptions) FutureFundRawTransactionResult {
 	cmd := walletjson.NewFundRawTransactionCmd(rawhex, fundAccount, &options)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // FundRawTransaction Add inputs to a transaction until it has enough
 // in value to meet its out value.
-func (c *Client) FundRawTransaction(rawhex string, fundAccount string, options walletjson.FundRawTransactionOptions) (*walletjson.FundRawTransactionResult, error) {
-	return c.FundRawTransactionAsync(rawhex, fundAccount, options).Receive()
+func (c *Client) FundRawTransaction(ctx context.Context, rawhex string, fundAccount string, options walletjson.FundRawTransactionOptions) (*walletjson.FundRawTransactionResult, error) {
+	return c.FundRawTransactionAsync(ctx, rawhex, fundAccount, options).Receive()
 }
 
 // FutureGenerateVoteResult is a future promise to deliver the result of a
@@ -2405,14 +2406,14 @@ func (r FutureGenerateVoteResult) Receive() (*walletjson.GenerateVoteResult, err
 // returned instance.
 //
 // See GenerateVote for the blocking version and more details.
-func (c *Client) GenerateVoteAsync(blockHash *chainhash.Hash, height int64, sstxHash *chainhash.Hash, voteBits uint16, voteBitsExt string) FutureGenerateVoteResult {
+func (c *Client) GenerateVoteAsync(ctx context.Context, blockHash *chainhash.Hash, height int64, sstxHash *chainhash.Hash, voteBits uint16, voteBitsExt string) FutureGenerateVoteResult {
 	cmd := walletjson.NewGenerateVoteCmd(blockHash.String(), height, sstxHash.String(), voteBits, voteBitsExt)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // GenerateVote returns hex of an SSGen.
-func (c *Client) GenerateVote(blockHash *chainhash.Hash, height int64, sstxHash *chainhash.Hash, voteBits uint16, voteBitsExt string) (*walletjson.GenerateVoteResult, error) {
-	return c.GenerateVoteAsync(blockHash, height, sstxHash, voteBits, voteBitsExt).Receive()
+func (c *Client) GenerateVote(ctx context.Context, blockHash *chainhash.Hash, height int64, sstxHash *chainhash.Hash, voteBits uint16, voteBitsExt string) (*walletjson.GenerateVoteResult, error) {
+	return c.GenerateVoteAsync(ctx, blockHash, height, sstxHash, voteBits, voteBitsExt).Receive()
 }
 
 // NOTE: While getinfo is implemented here (in wallet.go), a dcrd chain server
@@ -2445,16 +2446,16 @@ func (r FutureGetInfoResult) Receive() (*walletjson.InfoWalletResult, error) {
 // returned instance.
 //
 // See GetInfo for the blocking version and more details.
-func (c *Client) GetInfoAsync() FutureGetInfoResult {
+func (c *Client) GetInfoAsync(ctx context.Context) FutureGetInfoResult {
 	cmd := chainjson.NewGetInfoCmd()
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // GetInfo returns miscellaneous info regarding the RPC server.  The returned
 // info object may be void of wallet information if the remote server does
 // not include wallet functionality.
-func (c *Client) GetInfo() (*walletjson.InfoWalletResult, error) {
-	return c.GetInfoAsync().Receive()
+func (c *Client) GetInfo(ctx context.Context) (*walletjson.InfoWalletResult, error) {
+	return c.GetInfoAsync(ctx).Receive()
 }
 
 // FutureGetStakeInfoResult is a future promise to deliver the result of a
@@ -2484,15 +2485,15 @@ func (r FutureGetStakeInfoResult) Receive() (*walletjson.GetStakeInfoResult, err
 // on the returned instance.
 //
 // See GetStakeInfo for the blocking version and more details.
-func (c *Client) GetStakeInfoAsync() FutureGetStakeInfoResult {
+func (c *Client) GetStakeInfoAsync(ctx context.Context) FutureGetStakeInfoResult {
 	cmd := walletjson.NewGetStakeInfoCmd()
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // GetStakeInfo returns stake mining info from a given wallet. This includes
 // various statistics on tickets it owns and votes it has produced.
-func (c *Client) GetStakeInfo() (*walletjson.GetStakeInfoResult, error) {
-	return c.GetStakeInfoAsync().Receive()
+func (c *Client) GetStakeInfo(ctx context.Context) (*walletjson.GetStakeInfoResult, error) {
+	return c.GetStakeInfoAsync(ctx).Receive()
 }
 
 // FutureGetTicketsResult is a future promise to deliver the result of a
@@ -2532,16 +2533,16 @@ func (r FutureGetTicketsResult) Receive() ([]*chainhash.Hash, error) {
 // function on the returned instance.
 //
 // See GetTicketsfor the blocking version and more details.
-func (c *Client) GetTicketsAsync(includeImmature bool) FutureGetTicketsResult {
+func (c *Client) GetTicketsAsync(ctx context.Context, includeImmature bool) FutureGetTicketsResult {
 	cmd := walletjson.NewGetTicketsCmd(includeImmature)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // GetTickets returns a list of the tickets owned by the wallet, partially
 // or in full. The flag includeImmature is used to indicate if non mature
 // tickets should also be returned.
-func (c *Client) GetTickets(includeImmature bool) ([]*chainhash.Hash, error) {
-	return c.GetTicketsAsync(includeImmature).Receive()
+func (c *Client) GetTickets(ctx context.Context, includeImmature bool) ([]*chainhash.Hash, error) {
+	return c.GetTicketsAsync(ctx, includeImmature).Receive()
 }
 
 // FutureListScriptsResult is a future promise to deliver the result of a
@@ -2583,15 +2584,15 @@ func (r FutureListScriptsResult) Receive() ([][]byte, error) {
 // function on the returned instance.
 //
 // See ListScripts for the blocking version and more details.
-func (c *Client) ListScriptsAsync() FutureListScriptsResult {
+func (c *Client) ListScriptsAsync(ctx context.Context) FutureListScriptsResult {
 	cmd := walletjson.NewListScriptsCmd()
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // ListScripts returns a list of the currently known redeemscripts from the
 // wallet as a slice of byte slices.
-func (c *Client) ListScripts() ([][]byte, error) {
-	return c.ListScriptsAsync().Receive()
+func (c *Client) ListScripts(ctx context.Context) ([][]byte, error) {
+	return c.ListScriptsAsync(ctx).Receive()
 }
 
 // FutureSetTicketFeeResult is a future promise to deliver the result of a
@@ -2610,14 +2611,14 @@ func (r FutureSetTicketFeeResult) Receive() error {
 // function on the returned instance.
 //
 // See SetTicketFee for the blocking version and more details.
-func (c *Client) SetTicketFeeAsync(fee dcrutil.Amount) FutureSetTicketFeeResult {
+func (c *Client) SetTicketFeeAsync(ctx context.Context, fee dcrutil.Amount) FutureSetTicketFeeResult {
 	cmd := walletjson.NewSetTicketFeeCmd(fee.ToCoin())
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // SetTicketFee sets the ticket fee per KB amount.
-func (c *Client) SetTicketFee(fee dcrutil.Amount) error {
-	return c.SetTicketFeeAsync(fee).Receive()
+func (c *Client) SetTicketFee(ctx context.Context, fee dcrutil.Amount) error {
+	return c.SetTicketFeeAsync(ctx, fee).Receive()
 }
 
 // FutureSetTxFeeResult is a future promise to deliver the result of a
@@ -2635,14 +2636,14 @@ func (r FutureSetTxFeeResult) Receive() error {
 // function on the returned instance.
 //
 // See SetTxFee for the blocking version and more details.
-func (c *Client) SetTxFeeAsync(fee dcrutil.Amount) FutureSetTxFeeResult {
+func (c *Client) SetTxFeeAsync(ctx context.Context, fee dcrutil.Amount) FutureSetTxFeeResult {
 	cmd := walletjson.NewSetTxFeeCmd(fee.ToCoin())
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // SetTxFee sets the transaction fee per KB amount.
-func (c *Client) SetTxFee(fee dcrutil.Amount) error {
-	return c.SetTxFeeAsync(fee).Receive()
+func (c *Client) SetTxFee(ctx context.Context, fee dcrutil.Amount) error {
+	return c.SetTxFeeAsync(ctx, fee).Receive()
 }
 
 // FutureGetVoteChoicesResult is a future promise to deliver the result of a
@@ -2671,15 +2672,15 @@ func (r FutureGetVoteChoicesResult) Receive() (*walletjson.GetVoteChoicesResult,
 // returned instance.
 //
 // See GetVoteChoices for the blocking version and more details.
-func (c *Client) GetVoteChoicesAsync() FutureGetVoteChoicesResult {
+func (c *Client) GetVoteChoicesAsync(ctx context.Context) FutureGetVoteChoicesResult {
 	cmd := walletjson.NewGetVoteChoicesCmd()
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // GetVoteChoices returns the currently-set vote choices for each agenda in the
 // latest supported stake version.
-func (c *Client) GetVoteChoices() (*walletjson.GetVoteChoicesResult, error) {
-	return c.GetVoteChoicesAsync().Receive()
+func (c *Client) GetVoteChoices(ctx context.Context) (*walletjson.GetVoteChoicesResult, error) {
+	return c.GetVoteChoicesAsync(ctx).Receive()
 }
 
 // FutureSetVoteChoiceResult is a future promise to deliver the result of a
@@ -2697,14 +2698,14 @@ func (r FutureSetVoteChoiceResult) Receive() error {
 // returned instance.
 //
 // See SetVoteChoice for the blocking version and more details.
-func (c *Client) SetVoteChoiceAsync(agendaID, choiceID string) FutureSetVoteChoiceResult {
+func (c *Client) SetVoteChoiceAsync(ctx context.Context, agendaID, choiceID string) FutureSetVoteChoiceResult {
 	cmd := walletjson.NewSetVoteChoiceCmd(agendaID, choiceID)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // SetVoteChoice sets a voting choice preference for an agenda.
-func (c *Client) SetVoteChoice(agendaID, choiceID string) error {
-	return c.SetVoteChoiceAsync(agendaID, choiceID).Receive()
+func (c *Client) SetVoteChoice(ctx context.Context, agendaID, choiceID string) error {
+	return c.SetVoteChoiceAsync(ctx, agendaID, choiceID).Receive()
 }
 
 // FutureStakePoolUserInfoResult is a future promise to deliver the result of a
@@ -2734,15 +2735,15 @@ func (r FutureStakePoolUserInfoResult) Receive() (*walletjson.StakePoolUserInfoR
 // function on the returned instance.
 //
 // See GetInfo for the blocking version and more details.
-func (c *Client) StakePoolUserInfoAsync(addr dcrutil.Address) FutureStakePoolUserInfoResult {
+func (c *Client) StakePoolUserInfoAsync(ctx context.Context, addr dcrutil.Address) FutureStakePoolUserInfoResult {
 	cmd := walletjson.NewStakePoolUserInfoCmd(addr.Address())
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // StakePoolUserInfo returns a list of tickets and information about them
 // that are paying to the passed address.
-func (c *Client) StakePoolUserInfo(addr dcrutil.Address) (*walletjson.StakePoolUserInfoResult, error) {
-	return c.StakePoolUserInfoAsync(addr).Receive()
+func (c *Client) StakePoolUserInfo(ctx context.Context, addr dcrutil.Address) (*walletjson.StakePoolUserInfoResult, error) {
+	return c.StakePoolUserInfoAsync(ctx, addr).Receive()
 }
 
 // FutureTicketsForAddressResult is a future promise to deliver the result of a
@@ -2772,17 +2773,17 @@ func (r FutureTicketsForAddressResult) Receive() (*chainjson.TicketsForAddressRe
 // function on the returned instance.
 //
 // See GetInfo for the blocking version and more details.
-func (c *Client) TicketsForAddressAsync(addr dcrutil.Address) FutureTicketsForAddressResult {
+func (c *Client) TicketsForAddressAsync(ctx context.Context, addr dcrutil.Address) FutureTicketsForAddressResult {
 	cmd := chainjson.NewTicketsForAddressCmd(addr.Address())
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // TicketsForAddress returns a list of tickets paying to the passed address.
 // If the daemon server is queried, it returns a search of tickets in the
 // live ticket pool. If the wallet server is queried, it searches all tickets
 // owned by the wallet.
-func (c *Client) TicketsForAddress(addr dcrutil.Address) (*chainjson.TicketsForAddressResult, error) {
-	return c.TicketsForAddressAsync(addr).Receive()
+func (c *Client) TicketsForAddress(ctx context.Context, addr dcrutil.Address) (*chainjson.TicketsForAddressResult, error) {
+	return c.TicketsForAddressAsync(ctx, addr).Receive()
 }
 
 // FutureWalletInfoResult is a future promise to deliver the result of a
@@ -2812,14 +2813,14 @@ func (r FutureWalletInfoResult) Receive() (*walletjson.WalletInfoResult, error) 
 // on the returned instance.
 //
 // See WalletInfo for the blocking version and more details.
-func (c *Client) WalletInfoAsync() FutureWalletInfoResult {
+func (c *Client) WalletInfoAsync(ctx context.Context) FutureWalletInfoResult {
 	cmd := walletjson.NewWalletInfoCmd()
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // WalletInfo returns wallet global state info for a given wallet.
-func (c *Client) WalletInfo() (*walletjson.WalletInfoResult, error) {
-	return c.WalletInfoAsync().Receive()
+func (c *Client) WalletInfo(ctx context.Context) (*walletjson.WalletInfoResult, error) {
+	return c.WalletInfoAsync(ctx).Receive()
 }
 
 // TODO(davec): Implement

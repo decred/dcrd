@@ -6,6 +6,7 @@
 package rpcclient
 
 import (
+	"context"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -1217,7 +1218,7 @@ func (r FutureNotifyWorkResult) Receive() error {
 // See NotifyBlocks for the blocking version and more details.
 //
 // NOTE: This is a dcrd extension and requires a websocket connection.
-func (c *Client) NotifyBlocksAsync() FutureNotifyBlocksResult {
+func (c *Client) NotifyBlocksAsync(ctx context.Context) FutureNotifyBlocksResult {
 	// Not supported in HTTP POST mode.
 	if c.config.HTTPPostMode {
 		return newFutureError(ErrWebsocketsRequired)
@@ -1230,7 +1231,7 @@ func (c *Client) NotifyBlocksAsync() FutureNotifyBlocksResult {
 	}
 
 	cmd := chainjson.NewNotifyBlocksCmd()
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // NotifyWorkAsync returns an instance of a type that can be used to get the
@@ -1240,7 +1241,7 @@ func (c *Client) NotifyBlocksAsync() FutureNotifyBlocksResult {
 // See NotifyWork for the blocking version and more details.
 //
 // NOTE: This is a dcrd extension and requires a websocket connection.
-func (c *Client) NotifyWorkAsync() FutureNotifyWorkResult {
+func (c *Client) NotifyWorkAsync(ctx context.Context) FutureNotifyWorkResult {
 	// Not supported in HTTP POST mode.
 	if c.config.HTTPPostMode {
 		return newFutureError(ErrWebsocketsRequired)
@@ -1253,7 +1254,7 @@ func (c *Client) NotifyWorkAsync() FutureNotifyWorkResult {
 	}
 
 	cmd := chainjson.NewNotifyWorkCmd()
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // NotifyBlocks registers the client to receive notifications when blocks are
@@ -1266,8 +1267,8 @@ func (c *Client) NotifyWorkAsync() FutureNotifyWorkResult {
 // OnBlockConnected or OnBlockDisconnected.
 //
 // NOTE: This is a dcrd extension and requires a websocket connection.
-func (c *Client) NotifyBlocks() error {
-	return c.NotifyBlocksAsync().Receive()
+func (c *Client) NotifyBlocks(ctx context.Context) error {
+	return c.NotifyBlocksAsync(ctx).Receive()
 }
 
 // NotifyWork registers the client to receive notifications when a new block
@@ -1277,8 +1278,8 @@ func (c *Client) NotifyBlocks() error {
 // OnWork.
 //
 // NOTE: This is a dcrd extension and requires a websocket connection.
-func (c *Client) NotifyWork() error {
-	return c.NotifyWorkAsync().Receive()
+func (c *Client) NotifyWork(ctx context.Context) error {
+	return c.NotifyWorkAsync(ctx).Receive()
 }
 
 // FutureNotifyWinningTicketsResult is a future promise to deliver the result of a
@@ -1299,7 +1300,7 @@ func (r FutureNotifyWinningTicketsResult) Receive() error {
 // See NotifyWinningTickets for the blocking version and more details.
 //
 // NOTE: This is a dcrd extension and requires a websocket connection.
-func (c *Client) NotifyWinningTicketsAsync() FutureNotifyWinningTicketsResult {
+func (c *Client) NotifyWinningTicketsAsync(ctx context.Context) FutureNotifyWinningTicketsResult {
 	// Not supported in HTTP POST mode.
 	if c.config.HTTPPostMode {
 		return newFutureError(ErrWebsocketsRequired)
@@ -1313,7 +1314,7 @@ func (c *Client) NotifyWinningTicketsAsync() FutureNotifyWinningTicketsResult {
 
 	cmd := chainjson.NewNotifyWinningTicketsCmd()
 
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // NotifyWinningTickets registers the client to receive notifications when
@@ -1327,8 +1328,8 @@ func (c *Client) NotifyWinningTicketsAsync() FutureNotifyWinningTicketsResult {
 // OnWinningTickets.
 //
 // NOTE: This is a dcrd extension and requires a websocket connection.
-func (c *Client) NotifyWinningTickets() error {
-	return c.NotifyWinningTicketsAsync().Receive()
+func (c *Client) NotifyWinningTickets(ctx context.Context) error {
+	return c.NotifyWinningTicketsAsync(ctx).Receive()
 }
 
 // FutureNotifySpentAndMissedTicketsResult is a future promise to deliver the result of a
@@ -1349,7 +1350,7 @@ func (r FutureNotifySpentAndMissedTicketsResult) Receive() error {
 // See NotifySpentAndMissedTickets for the blocking version and more details.
 //
 // NOTE: This is a dcrd extension and requires a websocket connection.
-func (c *Client) NotifySpentAndMissedTicketsAsync() FutureNotifySpentAndMissedTicketsResult {
+func (c *Client) NotifySpentAndMissedTicketsAsync(ctx context.Context) FutureNotifySpentAndMissedTicketsResult {
 	// Not supported in HTTP POST mode.
 	if c.config.HTTPPostMode {
 		return newFutureError(ErrWebsocketsRequired)
@@ -1363,7 +1364,7 @@ func (c *Client) NotifySpentAndMissedTicketsAsync() FutureNotifySpentAndMissedTi
 
 	cmd := chainjson.NewNotifySpentAndMissedTicketsCmd()
 
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // NotifySpentAndMissedTickets registers the client to receive notifications when
@@ -1377,8 +1378,8 @@ func (c *Client) NotifySpentAndMissedTicketsAsync() FutureNotifySpentAndMissedTi
 // OnSpentAndMissedTickets.
 //
 // NOTE: This is a dcrd extension and requires a websocket connection.
-func (c *Client) NotifySpentAndMissedTickets() error {
-	return c.NotifySpentAndMissedTicketsAsync().Receive()
+func (c *Client) NotifySpentAndMissedTickets(ctx context.Context) error {
+	return c.NotifySpentAndMissedTicketsAsync(ctx).Receive()
 }
 
 // FutureNotifyNewTicketsResult is a future promise to deliver the result of a
@@ -1399,7 +1400,7 @@ func (r FutureNotifyNewTicketsResult) Receive() error {
 // See NotifyNewTickets for the blocking version and more details.
 //
 // NOTE: This is a dcrd extension and requires a websocket connection.
-func (c *Client) NotifyNewTicketsAsync() FutureNotifyNewTicketsResult {
+func (c *Client) NotifyNewTicketsAsync(ctx context.Context) FutureNotifyNewTicketsResult {
 	// Not supported in HTTP POST mode.
 	if c.config.HTTPPostMode {
 		return newFutureError(ErrWebsocketsRequired)
@@ -1413,7 +1414,7 @@ func (c *Client) NotifyNewTicketsAsync() FutureNotifyNewTicketsResult {
 
 	cmd := chainjson.NewNotifyNewTicketsCmd()
 
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // NotifyNewTickets registers the client to receive notifications when blocks are
@@ -1425,8 +1426,8 @@ func (c *Client) NotifyNewTicketsAsync() FutureNotifyNewTicketsResult {
 // The notifications delivered as a result of this call will be via OnNewTickets.
 //
 // NOTE: This is a dcrd extension and requires a websocket connection.
-func (c *Client) NotifyNewTickets() error {
-	return c.NotifyNewTicketsAsync().Receive()
+func (c *Client) NotifyNewTickets(ctx context.Context) error {
+	return c.NotifyNewTicketsAsync(ctx).Receive()
 }
 
 // FutureNotifyStakeDifficultyResult is a future promise to deliver the result of a
@@ -1447,7 +1448,7 @@ func (r FutureNotifyStakeDifficultyResult) Receive() error {
 // See NotifyStakeDifficulty for the blocking version and more details.
 //
 // NOTE: This is a dcrd extension and requires a websocket connection.
-func (c *Client) NotifyStakeDifficultyAsync() FutureNotifyStakeDifficultyResult {
+func (c *Client) NotifyStakeDifficultyAsync(ctx context.Context) FutureNotifyStakeDifficultyResult {
 	// Not supported in HTTP POST mode.
 	if c.config.HTTPPostMode {
 		return newFutureError(ErrWebsocketsRequired)
@@ -1461,7 +1462,7 @@ func (c *Client) NotifyStakeDifficultyAsync() FutureNotifyStakeDifficultyResult 
 
 	cmd := chainjson.NewNotifyStakeDifficultyCmd()
 
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // NotifyStakeDifficulty registers the client to receive notifications when
@@ -1475,8 +1476,8 @@ func (c *Client) NotifyStakeDifficultyAsync() FutureNotifyStakeDifficultyResult 
 // OnStakeDifficulty.
 //
 // NOTE: This is a dcrd extension and requires a websocket connection.
-func (c *Client) NotifyStakeDifficulty() error {
-	return c.NotifyStakeDifficultyAsync().Receive()
+func (c *Client) NotifyStakeDifficulty(ctx context.Context) error {
+	return c.NotifyStakeDifficultyAsync(ctx).Receive()
 }
 
 // FutureNotifyNewTransactionsResult is a future promise to deliver the result
@@ -1497,7 +1498,7 @@ func (r FutureNotifyNewTransactionsResult) Receive() error {
 // See NotifyNewTransactionsAsync for the blocking version and more details.
 //
 // NOTE: This is a dcrd extension and requires a websocket connection.
-func (c *Client) NotifyNewTransactionsAsync(verbose bool) FutureNotifyNewTransactionsResult {
+func (c *Client) NotifyNewTransactionsAsync(ctx context.Context, verbose bool) FutureNotifyNewTransactionsResult {
 	// Not supported in HTTP POST mode.
 	if c.config.HTTPPostMode {
 		return newFutureError(ErrWebsocketsRequired)
@@ -1510,7 +1511,7 @@ func (c *Client) NotifyNewTransactionsAsync(verbose bool) FutureNotifyNewTransac
 	}
 
 	cmd := chainjson.NewNotifyNewTransactionsCmd(&verbose)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // NotifyNewTransactions registers the client to receive notifications every
@@ -1524,8 +1525,8 @@ func (c *Client) NotifyNewTransactionsAsync(verbose bool) FutureNotifyNewTransac
 // true).
 //
 // NOTE: This is a dcrd extension and requires a websocket connection.
-func (c *Client) NotifyNewTransactions(verbose bool) error {
-	return c.NotifyNewTransactionsAsync(verbose).Receive()
+func (c *Client) NotifyNewTransactions(ctx context.Context, verbose bool) error {
+	return c.NotifyNewTransactionsAsync(ctx, verbose).Receive()
 }
 
 // FutureLoadTxFilterResult is a future promise to deliver the result
@@ -1546,7 +1547,7 @@ func (r FutureLoadTxFilterResult) Receive() error {
 // See LoadTxFilter for the blocking version and more details.
 //
 // NOTE: This is a dcrd extension and requires a websocket connection.
-func (c *Client) LoadTxFilterAsync(reload bool, addresses []dcrutil.Address,
+func (c *Client) LoadTxFilterAsync(ctx context.Context, reload bool, addresses []dcrutil.Address,
 	outPoints []wire.OutPoint) FutureLoadTxFilterResult {
 
 	addrStrs := make([]string, len(addresses))
@@ -1563,7 +1564,7 @@ func (c *Client) LoadTxFilterAsync(reload bool, addresses []dcrutil.Address,
 	}
 
 	cmd := chainjson.NewLoadTxFilterCmd(reload, addrStrs, outPointObjects)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // LoadTxFilter loads, reloads, or adds data to a websocket client's transaction
@@ -1571,6 +1572,6 @@ func (c *Client) LoadTxFilterAsync(reload bool, addresses []dcrutil.Address,
 // during mempool acceptance, block acceptance, and for all rescanned blocks.
 //
 // NOTE: This is a dcrd extension and requires a websocket connection.
-func (c *Client) LoadTxFilter(reload bool, addresses []dcrutil.Address, outPoints []wire.OutPoint) error {
-	return c.LoadTxFilterAsync(reload, addresses, outPoints).Receive()
+func (c *Client) LoadTxFilter(ctx context.Context, reload bool, addresses []dcrutil.Address, outPoints []wire.OutPoint) error {
+	return c.LoadTxFilterAsync(ctx, reload, addresses, outPoints).Receive()
 }
