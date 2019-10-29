@@ -12,7 +12,7 @@ import (
 	"testing"
 
 	"github.com/decred/dcrd/chaincfg/v3"
-	"github.com/decred/dcrd/rpcclient/v5"
+	"github.com/decred/dcrd/rpcclient/v6"
 )
 
 // testCanPassSVH tests whether the wallet can maintain the chain going past SVH

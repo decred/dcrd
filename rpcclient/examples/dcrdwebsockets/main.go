@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/decred/dcrd/dcrutil/v3"
-	"github.com/decred/dcrd/rpcclient/v5"
+	"github.com/decred/dcrd/rpcclient/v6"
 )
 
 func main() {
