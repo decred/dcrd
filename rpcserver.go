@@ -187,6 +187,7 @@ var rpcHandlersBeforeInit = map[types.Method]commandHandler{
 	"getticketpoolvalue":    handleGetTicketPoolValue,
 	"getvoteinfo":           handleGetVoteInfo,
 	"gettxout":              handleGetTxOut,
+	"gettxoutsetinfo":       handleGetTxOutSetInfo,
 	"getwork":               handleGetWork,
 	"help":                  handleHelp,
 	"livetickets":           handleLiveTickets,
@@ -3178,6 +3179,25 @@ func handleGetTxOut(_ context.Context, s *rpcServer, cmd interface{}) (interface
 		Coinbase: isCoinbase,
 	}
 	return txOutReply, nil
+}
+
+// handleGetTxOutSetInfo returns statistics on the current unspent transaction output set.
+func handleGetTxOutSetInfo(_ context.Context, s *rpcServer, cmd interface{}) (interface{}, error) {
+	best := s.cfg.Chain.BestSnapshot()
+	stats, err := s.cfg.Chain.FetchUtxoStats()
+	if err != nil {
+		return nil, err
+	}
+
+	return types.GetTxOutSetInfoResult{
+		Height:         best.Height,
+		BestBlock:      best.Hash.String(),
+		Transactions:   stats.Transactions,
+		TxOuts:         stats.Utxos,
+		DiskSize:       stats.Size,
+		TotalAmount:    stats.Total,
+		SerializedHash: stats.SerializedHash.String(),
+	}, nil
 }
 
 // pruneOldBlockTemplates prunes all old block templates from the templatePool

@@ -371,6 +371,17 @@ type GetTxOutResult struct {
 	Coinbase      bool               `json:"coinbase"`
 }
 
+// GetTxOutSetInfoResult models the data from the gettxoutsetinfo command.
+type GetTxOutSetInfoResult struct {
+	Height         int64  `json:"height"`
+	BestBlock      string `json:"bestblock"`
+	Transactions   int64  `json:"transactions"`
+	TxOuts         int64  `json:"txouts"`
+	SerializedHash string `json:"serializedhash"`
+	DiskSize       int64  `json:"disksize"`
+	TotalAmount    int64  `json:"totalamount"`
+}
+
 // Choice models an individual choice inside an Agenda.
 type Choice struct {
 	ID          string  `json:"id"`

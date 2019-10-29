@@ -322,6 +322,10 @@ the method name for further details such as parameter and return information.
 |Y
 |Returns information about an unspent transaction output.
 |-
+|[[#gettxoutsetinfo|gettxoutsetinfo]]
+|N
+|Returns statistics on current unspent transaction output set.
+|-
 |[[#getvoteinfo|getvoteinfo]]
 |Y
 |Returns the vote info statistics.
@@ -1895,6 +1899,33 @@ of the best block.
 |-
 !Example Return
 |<code>{"bestblock": "00000000000000001914563fe4f93addae64cd2808a81835ae03b0947034843b","confirmations": 19,"value": 4.63835862,"scriptPubKey": {"asm": "OP_DUP OP_HASH160 f127302adf84741d28fa705a995dc827030077e5 OP_EQUALVERIFY OP_CHECKSIG","hex": "76a914f127302adf84741d28fa705a995dc827030077e588ac","reqSigs": 1,"type": "pubkeyhash","addresses": ["Dsnx1HW62otMif9zFyLzDnQdKuaV9cRNoyr"]},"version": 1,"coinbase": false}</code>
+|}
+
+----
+
+====gettxoutsetinfo====
+{|
+!Method
+|gettxoutsetinfo
+|-
+!Parameters
+|None
+|-
+!Description
+| Returns information about an unspent transaction output.
+|-
+!Returns
+|<code>(json object)</code>
+: <code>height</code>: <code>(numeric)</code> The current block height.
+: <code>bestblock</code>: <code>(numeric)</code> The hex encoded hash of the best block.
+: <code>transactions</code>: <code>(numeric)</code> The number of unique transactions referenced by outputs.
+: <code>txouts</code>: <code>(numeric)</code> The number of transaction outputs.
+: <code>serializedhash</code>: <code>(string)</code> The merklized hash of the utxo set.
+: <code>disksize</code>: <code>(numeric)</code> The size of the utxo set on disk, in bytes.
+: <code>totalamount</code>: <code>(numeric)</code> The total value of the utxo set.
+|-
+!Example Return
+|<code>{"height": 5,"bestblock": "00000f3ee4055640ac68e678351e96394e30807987aa769afcbe69200cd442d5","transactions": 5,"txouts": 16,"serializedhash": "34d660dd929fd7a7cefd43e8f0a24c1d32dc39a172c912594160817695159e9f","disksize": 293,"totalamount": 30140000000000}</code>
 |}
 
 ----
