@@ -523,7 +523,7 @@ func (c *Client) sendMessage(marshalledJSON []byte) {
 // reregisterNtfns creates and sends commands needed to re-establish the current
 // notification state associated with the client.  It should only be called on
 // on reconnect by the resendRequests function.
-func (c *Client) reregisterNtfns() error {
+func (c *Client) reregisterNtfns(ctx context.Context) error {
 	// Nothing to do if the caller is not interested in notifications.
 	if c.ntfnHandlers == nil {
 		return nil
@@ -544,7 +544,7 @@ func (c *Client) reregisterNtfns() error {
 	// Reregister notifyblocks if needed.
 	if stateCopy.notifyBlocks {
 		log.Debugf("Reregistering [notifyblocks]")
-		if err := c.NotifyBlocks(); err != nil {
+		if err := c.NotifyBlocks(ctx); err != nil {
 			return err
 		}
 	}
@@ -552,7 +552,7 @@ func (c *Client) reregisterNtfns() error {
 	// Reregister notifywork if needed.
 	if stateCopy.notifyWork {
 		log.Debugf("Reregistering [notifywork]")
-		if err := c.NotifyWork(); err != nil {
+		if err := c.NotifyWork(ctx); err != nil {
 			return err
 		}
 	}
@@ -560,7 +560,7 @@ func (c *Client) reregisterNtfns() error {
 	// Reregister notifywinningtickets if needed.
 	if stateCopy.notifyWinningTickets {
 		log.Debugf("Reregistering [notifywinningtickets]")
-		if err := c.NotifyWinningTickets(); err != nil {
+		if err := c.NotifyWinningTickets(ctx); err != nil {
 			return err
 		}
 	}
@@ -568,7 +568,7 @@ func (c *Client) reregisterNtfns() error {
 	// Reregister notifyspendandmissedtickets if needed.
 	if stateCopy.notifySpentAndMissedTickets {
 		log.Debugf("Reregistering [notifyspentandmissedtickets]")
-		if err := c.NotifySpentAndMissedTickets(); err != nil {
+		if err := c.NotifySpentAndMissedTickets(ctx); err != nil {
 			return err
 		}
 	}
@@ -576,7 +576,7 @@ func (c *Client) reregisterNtfns() error {
 	// Reregister notifynewtickets if needed.
 	if stateCopy.notifyNewTickets {
 		log.Debugf("Reregistering [notifynewtickets]")
-		if err := c.NotifyNewTickets(); err != nil {
+		if err := c.NotifyNewTickets(ctx); err != nil {
 			return err
 		}
 	}
@@ -584,7 +584,7 @@ func (c *Client) reregisterNtfns() error {
 	// Reregister notifystakedifficulty if needed.
 	if stateCopy.notifyStakeDifficulty {
 		log.Debugf("Reregistering [notifystakedifficulty]")
-		if err := c.NotifyStakeDifficulty(); err != nil {
+		if err := c.NotifyStakeDifficulty(ctx); err != nil {
 			return err
 		}
 	}
@@ -593,7 +593,7 @@ func (c *Client) reregisterNtfns() error {
 	if stateCopy.notifyNewTx || stateCopy.notifyNewTxVerbose {
 		log.Debugf("Reregistering [notifynewtransactions] (verbose=%v)",
 			stateCopy.notifyNewTxVerbose)
-		err := c.NotifyNewTransactions(stateCopy.notifyNewTxVerbose)
+		err := c.NotifyNewTransactions(ctx, stateCopy.notifyNewTxVerbose)
 		if err != nil {
 			return err
 		}
@@ -611,10 +611,10 @@ var ignoreResends = map[string]struct{}{
 // resendRequests resends any requests that had not completed when the client
 // disconnected.  It is intended to be called once the client has reconnected as
 // a separate goroutine.
-func (c *Client) resendRequests() {
+func (c *Client) resendRequests(ctx context.Context) {
 	// Set the notification state back up.  If anything goes wrong,
 	// disconnect the client.
-	if err := c.reregisterNtfns(); err != nil {
+	if err := c.reregisterNtfns(ctx); err != nil {
 		log.Warnf("Unable to re-establish notification state: %v", err)
 		c.Disconnect()
 		return
@@ -664,7 +664,7 @@ func (c *Client) resendRequests() {
 // options is set.
 //
 // This function must be run as a goroutine.
-func (c *Client) wsReconnectHandler() {
+func (c *Client) wsReconnectHandler(ctx context.Context) {
 out:
 	for {
 		select {
@@ -723,7 +723,7 @@ out:
 
 			// Reissue pending requests in another goroutine since
 			// the send can block.
-			go c.resendRequests()
+			go c.resendRequests(ctx)
 
 			// Break out of the reconnect loop back to wait for
 			// disconnect again.
@@ -851,7 +851,7 @@ func receiveFuture(f chan *response) ([]byte, error) {
 // connection is opened and closed for each command when using this method,
 // however, the underlying HTTP client might coalesce multiple commands
 // depending on several factors including the remote server configuration.
-func (c *Client) sendPost(jReq *jsonRequest) {
+func (c *Client) sendPost(ctx context.Context, jReq *jsonRequest) {
 	// Generate a request to the configured RPC server.
 	protocol := "http"
 	if !c.config.DisableTLS {
@@ -859,11 +859,12 @@ func (c *Client) sendPost(jReq *jsonRequest) {
 	}
 	url := protocol + "://" + c.config.Host
 	bodyReader := bytes.NewReader(jReq.marshalledJSON)
-	httpReq, err := http.NewRequest("POST", url, bodyReader)
+	httpReq, err := http.NewRequest(http.MethodPost, url, bodyReader)
 	if err != nil {
 		jReq.responseChan <- &response{result: nil, err: err}
 		return
 	}
+	httpReq = httpReq.WithContext(ctx)
 	httpReq.Close = true
 	httpReq.Header.Set("Content-Type", "application/json")
 
@@ -877,13 +878,13 @@ func (c *Client) sendPost(jReq *jsonRequest) {
 // sendRequest sends the passed json request to the associated server using the
 // provided response channel for the reply.  It handles both websocket and HTTP
 // POST mode depending on the configuration of the client.
-func (c *Client) sendRequest(jReq *jsonRequest) {
+func (c *Client) sendRequest(ctx context.Context, jReq *jsonRequest) {
 	// Choose which marshal and send function to use depending on whether
 	// the client running in HTTP POST mode or not.  When running in HTTP
 	// POST mode, the command is issued via an HTTP client.  Otherwise,
 	// the command is issued via the asynchronous websocket channels.
 	if c.config.HTTPPostMode {
-		c.sendPost(jReq)
+		c.sendPost(ctx, jReq)
 		return
 	}
 
@@ -912,7 +913,7 @@ func (c *Client) sendRequest(jReq *jsonRequest) {
 // response channel on which the reply will be delivered at some point in the
 // future.  It handles both websocket and HTTP POST mode depending on the
 // configuration of the client.
-func (c *Client) sendCmd(cmd interface{}) chan *response {
+func (c *Client) sendCmd(ctx context.Context, cmd interface{}) chan *response {
 	// Get the method associated with the command.
 	method, err := dcrjson.CmdMethod(cmd)
 	if err != nil {
@@ -935,7 +936,7 @@ func (c *Client) sendCmd(cmd interface{}) chan *response {
 		marshalledJSON: marshalledJSON,
 		responseChan:   responseChan,
 	}
-	c.sendRequest(jReq)
+	c.sendRequest(ctx, jReq)
 
 	return responseChan
 }
@@ -943,10 +944,10 @@ func (c *Client) sendCmd(cmd interface{}) chan *response {
 // sendCmdAndWait sends the passed command to the associated server, waits
 // for the reply, and returns the result from it.  It will return the error
 // field in the reply if there is one.
-func (c *Client) sendCmdAndWait(cmd interface{}) (interface{}, error) {
+func (c *Client) sendCmdAndWait(ctx context.Context, cmd interface{}) (interface{}, error) {
 	// Marshal the command to JSON-RPC, send it to the connected server, and
 	// wait for a response on the returned channel.
-	return receiveFuture(c.sendCmd(cmd))
+	return receiveFuture(c.sendCmd(ctx, cmd))
 }
 
 // Disconnected returns whether or not the server is disconnected.  If a
@@ -1337,7 +1338,7 @@ func New(config *ConnConfig, ntfnHandlers *NotificationHandlers) (*Client, error
 		client.start()
 		if !client.config.HTTPPostMode && !client.config.DisableAutoReconnect {
 			client.wg.Add(2)
-			go client.wsReconnectHandler()
+			go client.wsReconnectHandler(context.TODO())
 			go client.keepAlive()
 		}
 	}
@@ -1399,7 +1400,7 @@ func (c *Client) Connect(ctx context.Context, retry bool) error {
 		c.start()
 		if !c.config.DisableAutoReconnect {
 			c.wg.Add(2)
-			go c.wsReconnectHandler()
+			go c.wsReconnectHandler(ctx)
 			go c.keepAlive()
 		}
 		return nil

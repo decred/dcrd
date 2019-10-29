@@ -6,6 +6,7 @@
 package rpcclient
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 
@@ -27,7 +28,7 @@ func (r FutureRawResult) Receive() (json.RawMessage, error) {
 // function on the returned instance.
 //
 // See RawRequest for the blocking version and more details.
-func (c *Client) RawRequestAsync(method string, params []json.RawMessage) FutureRawResult {
+func (c *Client) RawRequestAsync(ctx context.Context, method string, params []json.RawMessage) FutureRawResult {
 	// Method may not be empty.
 	if method == "" {
 		return newFutureError(errors.New("no method"))
@@ -64,7 +65,7 @@ func (c *Client) RawRequestAsync(method string, params []json.RawMessage) Future
 		marshalledJSON: marshalledJSON,
 		responseChan:   responseChan,
 	}
-	c.sendRequest(jReq)
+	c.sendRequest(ctx, jReq)
 
 	return responseChan
 }
@@ -74,6 +75,6 @@ func (c *Client) RawRequestAsync(method string, params []json.RawMessage) Future
 // requests that are not handled by this client package, or to proxy partially
 // unmarshaled requests to another JSON-RPC server if a request cannot be
 // handled directly.
-func (c *Client) RawRequest(method string, params []json.RawMessage) (json.RawMessage, error) {
-	return c.RawRequestAsync(method, params).Receive()
+func (c *Client) RawRequest(ctx context.Context, method string, params []json.RawMessage) (json.RawMessage, error) {
+	return c.RawRequestAsync(ctx, method, params).Receive()
 }

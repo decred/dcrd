@@ -7,6 +7,7 @@ package rpcclient
 
 import (
 	"bytes"
+	"context"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -47,15 +48,15 @@ func (r FutureGetBestBlockHashResult) Receive() (*chainhash.Hash, error) {
 // the returned instance.
 //
 // See GetBestBlockHash for the blocking version and more details.
-func (c *Client) GetBestBlockHashAsync() FutureGetBestBlockHashResult {
+func (c *Client) GetBestBlockHashAsync(ctx context.Context) FutureGetBestBlockHashResult {
 	cmd := chainjson.NewGetBestBlockHashCmd()
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // GetBestBlockHash returns the hash of the best block in the longest block
 // chain.
-func (c *Client) GetBestBlockHash() (*chainhash.Hash, error) {
-	return c.GetBestBlockHashAsync().Receive()
+func (c *Client) GetBestBlockHash(ctx context.Context) (*chainhash.Hash, error) {
+	return c.GetBestBlockHashAsync(ctx).Receive()
 }
 
 // FutureGetBlockResult is a future promise to deliver the result of a
@@ -97,22 +98,22 @@ func (r FutureGetBlockResult) Receive() (*wire.MsgBlock, error) {
 // returned instance.
 //
 // See GetBlock for the blocking version and more details.
-func (c *Client) GetBlockAsync(blockHash *chainhash.Hash) FutureGetBlockResult {
+func (c *Client) GetBlockAsync(ctx context.Context, blockHash *chainhash.Hash) FutureGetBlockResult {
 	hash := ""
 	if blockHash != nil {
 		hash = blockHash.String()
 	}
 
 	cmd := chainjson.NewGetBlockCmd(hash, dcrjson.Bool(false), nil)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // GetBlock returns a raw block from the server given its hash.
 //
 // See GetBlockVerbose to retrieve a data structure with information about the
 // block instead.
-func (c *Client) GetBlock(blockHash *chainhash.Hash) (*wire.MsgBlock, error) {
-	return c.GetBlockAsync(blockHash).Receive()
+func (c *Client) GetBlock(ctx context.Context, blockHash *chainhash.Hash) (*wire.MsgBlock, error) {
+	return c.GetBlockAsync(ctx, blockHash).Receive()
 }
 
 // FutureGetBlockVerboseResult is a future promise to deliver the result of a
@@ -141,22 +142,22 @@ func (r FutureGetBlockVerboseResult) Receive() (*chainjson.GetBlockVerboseResult
 // the returned instance.
 //
 // See GetBlockVerbose for the blocking version and more details.
-func (c *Client) GetBlockVerboseAsync(blockHash *chainhash.Hash, verboseTx bool) FutureGetBlockVerboseResult {
+func (c *Client) GetBlockVerboseAsync(ctx context.Context, blockHash *chainhash.Hash, verboseTx bool) FutureGetBlockVerboseResult {
 	hash := ""
 	if blockHash != nil {
 		hash = blockHash.String()
 	}
 
 	cmd := chainjson.NewGetBlockCmd(hash, dcrjson.Bool(true), &verboseTx)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // GetBlockVerbose returns a data structure from the server with information
 // about a block given its hash.
 //
 // See GetBlock to retrieve a raw block instead.
-func (c *Client) GetBlockVerbose(blockHash *chainhash.Hash, verboseTx bool) (*chainjson.GetBlockVerboseResult, error) {
-	return c.GetBlockVerboseAsync(blockHash, verboseTx).Receive()
+func (c *Client) GetBlockVerbose(ctx context.Context, blockHash *chainhash.Hash, verboseTx bool) (*chainjson.GetBlockVerboseResult, error) {
+	return c.GetBlockVerboseAsync(ctx, blockHash, verboseTx).Receive()
 }
 
 // FutureGetBlockCountResult is a future promise to deliver the result of a
@@ -185,14 +186,14 @@ func (r FutureGetBlockCountResult) Receive() (int64, error) {
 // returned instance.
 //
 // See GetBlockCount for the blocking version and more details.
-func (c *Client) GetBlockCountAsync() FutureGetBlockCountResult {
+func (c *Client) GetBlockCountAsync(ctx context.Context) FutureGetBlockCountResult {
 	cmd := chainjson.NewGetBlockCountCmd()
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // GetBlockCount returns the number of blocks in the longest block chain.
-func (c *Client) GetBlockCount() (int64, error) {
-	return c.GetBlockCountAsync().Receive()
+func (c *Client) GetBlockCount(ctx context.Context) (int64, error) {
+	return c.GetBlockCountAsync(ctx).Receive()
 }
 
 // FutureGetDifficultyResult is a future promise to deliver the result of a
@@ -221,15 +222,15 @@ func (r FutureGetDifficultyResult) Receive() (float64, error) {
 // returned instance.
 //
 // See GetDifficulty for the blocking version and more details.
-func (c *Client) GetDifficultyAsync() FutureGetDifficultyResult {
+func (c *Client) GetDifficultyAsync(ctx context.Context) FutureGetDifficultyResult {
 	cmd := chainjson.NewGetDifficultyCmd()
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // GetDifficulty returns the proof-of-work difficulty as a multiple of the
 // minimum difficulty.
-func (c *Client) GetDifficulty() (float64, error) {
-	return c.GetDifficultyAsync().Receive()
+func (c *Client) GetDifficulty(ctx context.Context) (float64, error) {
+	return c.GetDifficultyAsync(ctx).Receive()
 }
 
 // FutureGetBlockChainInfoResult is a future promise to deliver the result of a
@@ -259,15 +260,15 @@ func (r FutureGetBlockChainInfoResult) Receive() (*chainjson.GetBlockChainInfoRe
 // the returned instance.
 //
 // See GetBlockChainInfo for the blocking version and more details.
-func (c *Client) GetBlockChainInfoAsync() FutureGetBlockChainInfoResult {
+func (c *Client) GetBlockChainInfoAsync(ctx context.Context) FutureGetBlockChainInfoResult {
 	cmd := chainjson.NewGetBlockChainInfoCmd()
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // GetBlockChainInfo returns information about the current state of the block
 // chain.
-func (c *Client) GetBlockChainInfo() (*chainjson.GetBlockChainInfoResult, error) {
-	return c.GetBlockChainInfoAsync().Receive()
+func (c *Client) GetBlockChainInfo(ctx context.Context) (*chainjson.GetBlockChainInfoResult, error) {
+	return c.GetBlockChainInfoAsync(ctx).Receive()
 }
 
 // FutureGetBlockHashResult is a future promise to deliver the result of a
@@ -296,15 +297,15 @@ func (r FutureGetBlockHashResult) Receive() (*chainhash.Hash, error) {
 // returned instance.
 //
 // See GetBlockHash for the blocking version and more details.
-func (c *Client) GetBlockHashAsync(blockHeight int64) FutureGetBlockHashResult {
+func (c *Client) GetBlockHashAsync(ctx context.Context, blockHeight int64) FutureGetBlockHashResult {
 	cmd := chainjson.NewGetBlockHashCmd(blockHeight)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // GetBlockHash returns the hash of the block in the best block chain at the
 // given height.
-func (c *Client) GetBlockHash(blockHeight int64) (*chainhash.Hash, error) {
-	return c.GetBlockHashAsync(blockHeight).Receive()
+func (c *Client) GetBlockHash(ctx context.Context, blockHeight int64) (*chainhash.Hash, error) {
+	return c.GetBlockHashAsync(ctx, blockHeight).Receive()
 }
 
 // FutureGetBlockHeaderResult is a future promise to deliver the result of a
@@ -346,15 +347,15 @@ func (r FutureGetBlockHeaderResult) Receive() (*wire.BlockHeader, error) {
 // returned instance.
 //
 // See GetBlockHeader for the blocking version and more details.
-func (c *Client) GetBlockHeaderAsync(hash *chainhash.Hash) FutureGetBlockHeaderResult {
+func (c *Client) GetBlockHeaderAsync(ctx context.Context, hash *chainhash.Hash) FutureGetBlockHeaderResult {
 	cmd := chainjson.NewGetBlockHeaderCmd(hash.String(), dcrjson.Bool(false))
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // GetBlockHeader returns the hash of the block in the best block chain at the
 // given height.
-func (c *Client) GetBlockHeader(hash *chainhash.Hash) (*wire.BlockHeader, error) {
-	return c.GetBlockHeaderAsync(hash).Receive()
+func (c *Client) GetBlockHeader(ctx context.Context, hash *chainhash.Hash) (*wire.BlockHeader, error) {
+	return c.GetBlockHeaderAsync(ctx, hash).Receive()
 }
 
 // FutureGetBlockHeaderVerboseResult is a future promise to deliver the result of a
@@ -383,17 +384,17 @@ func (r FutureGetBlockHeaderVerboseResult) Receive() (*chainjson.GetBlockHeaderV
 // function on the returned instance.
 //
 // See GetBlockHeaderVerbose for the blocking version and more details.
-func (c *Client) GetBlockHeaderVerboseAsync(hash *chainhash.Hash) FutureGetBlockHeaderVerboseResult {
+func (c *Client) GetBlockHeaderVerboseAsync(ctx context.Context, hash *chainhash.Hash) FutureGetBlockHeaderVerboseResult {
 	cmd := chainjson.NewGetBlockHeaderCmd(hash.String(), dcrjson.Bool(true))
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // GetBlockHeaderVerbose returns a data structure of the block header from the
 // server given its hash.
 //
 // See GetBlockHeader to retrieve a raw block header instead.
-func (c *Client) GetBlockHeaderVerbose(hash *chainhash.Hash) (*chainjson.GetBlockHeaderVerboseResult, error) {
-	return c.GetBlockHeaderVerboseAsync(hash).Receive()
+func (c *Client) GetBlockHeaderVerbose(ctx context.Context, hash *chainhash.Hash) (*chainjson.GetBlockHeaderVerboseResult, error) {
+	return c.GetBlockHeaderVerboseAsync(ctx, hash).Receive()
 }
 
 // FutureGetBlockSubsidyResult is a future promise to deliver the result of a
@@ -423,15 +424,15 @@ func (r FutureGetBlockSubsidyResult) Receive() (*chainjson.GetBlockSubsidyResult
 // function on the returned instance.
 //
 // See GetBlockSubsidy for the blocking version and more details.
-func (c *Client) GetBlockSubsidyAsync(height int64, voters uint16) FutureGetBlockSubsidyResult {
+func (c *Client) GetBlockSubsidyAsync(ctx context.Context, height int64, voters uint16) FutureGetBlockSubsidyResult {
 	cmd := chainjson.NewGetBlockSubsidyCmd(height, voters)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // GetBlockSubsidy returns a data structure of the block subsidy
 // from the server given its height and number of voters.
-func (c *Client) GetBlockSubsidy(height int64, voters uint16) (*chainjson.GetBlockSubsidyResult, error) {
-	return c.GetBlockSubsidyAsync(height, voters).Receive()
+func (c *Client) GetBlockSubsidy(ctx context.Context, height int64, voters uint16) (*chainjson.GetBlockSubsidyResult, error) {
+	return c.GetBlockSubsidyAsync(ctx, height, voters).Receive()
 }
 
 // FutureGetCoinSupplyResult is a future promise to deliver the result of a
@@ -460,14 +461,14 @@ func (r FutureGetCoinSupplyResult) Receive() (dcrutil.Amount, error) {
 // function on the returned instance.
 //
 // See GetCoinSupply for the blocking version and more details.
-func (c *Client) GetCoinSupplyAsync() FutureGetCoinSupplyResult {
+func (c *Client) GetCoinSupplyAsync(ctx context.Context) FutureGetCoinSupplyResult {
 	cmd := chainjson.NewGetCoinSupplyCmd()
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // GetCoinSupply returns the current coin supply
-func (c *Client) GetCoinSupply() (dcrutil.Amount, error) {
-	return c.GetCoinSupplyAsync().Receive()
+func (c *Client) GetCoinSupply(ctx context.Context) (dcrutil.Amount, error) {
+	return c.GetCoinSupplyAsync(ctx).Receive()
 }
 
 // FutureGetRawMempoolResult is a future promise to deliver the result of a
@@ -507,10 +508,10 @@ func (r FutureGetRawMempoolResult) Receive() ([]*chainhash.Hash, error) {
 // returned instance.
 //
 // See GetRawMempool for the blocking version and more details.
-func (c *Client) GetRawMempoolAsync(txType chainjson.GetRawMempoolTxTypeCmd) FutureGetRawMempoolResult {
+func (c *Client) GetRawMempoolAsync(ctx context.Context, txType chainjson.GetRawMempoolTxTypeCmd) FutureGetRawMempoolResult {
 	cmd := chainjson.NewGetRawMempoolCmd(dcrjson.Bool(false),
 		dcrjson.String(string(txType)))
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // GetRawMempool returns the hashes of all transactions in the memory pool for
@@ -518,8 +519,8 @@ func (c *Client) GetRawMempoolAsync(txType chainjson.GetRawMempoolTxTypeCmd) Fut
 //
 // See GetRawMempoolVerbose to retrieve data structures with information about
 // the transactions instead.
-func (c *Client) GetRawMempool(txType chainjson.GetRawMempoolTxTypeCmd) ([]*chainhash.Hash, error) {
-	return c.GetRawMempoolAsync(txType).Receive()
+func (c *Client) GetRawMempool(ctx context.Context, txType chainjson.GetRawMempoolTxTypeCmd) ([]*chainhash.Hash, error) {
+	return c.GetRawMempoolAsync(ctx, txType).Receive()
 }
 
 // FutureGetRawMempoolVerboseResult is a future promise to deliver the result of
@@ -550,10 +551,10 @@ func (r FutureGetRawMempoolVerboseResult) Receive() (map[string]chainjson.GetRaw
 // function on the returned instance.
 //
 // See GetRawMempoolVerbose for the blocking version and more details.
-func (c *Client) GetRawMempoolVerboseAsync(txType chainjson.GetRawMempoolTxTypeCmd) FutureGetRawMempoolVerboseResult {
+func (c *Client) GetRawMempoolVerboseAsync(ctx context.Context, txType chainjson.GetRawMempoolTxTypeCmd) FutureGetRawMempoolVerboseResult {
 	cmd := chainjson.NewGetRawMempoolCmd(dcrjson.Bool(true),
 		dcrjson.String(string(txType)))
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // GetRawMempoolVerbose returns a map of transaction hashes to an associated
@@ -561,8 +562,8 @@ func (c *Client) GetRawMempoolVerboseAsync(txType chainjson.GetRawMempoolTxTypeC
 // the memory pool.
 //
 // See GetRawMempool to retrieve only the transaction hashes instead.
-func (c *Client) GetRawMempoolVerbose(txType chainjson.GetRawMempoolTxTypeCmd) (map[string]chainjson.GetRawMempoolVerboseResult, error) {
-	return c.GetRawMempoolVerboseAsync(txType).Receive()
+func (c *Client) GetRawMempoolVerbose(ctx context.Context, txType chainjson.GetRawMempoolTxTypeCmd) (map[string]chainjson.GetRawMempoolVerboseResult, error) {
+	return c.GetRawMempoolVerboseAsync(ctx, txType).Receive()
 }
 
 // FutureVerifyChainResult is a future promise to deliver the result of a
@@ -614,14 +615,14 @@ func (r FutureGetChainTipsResult) Receive() ([]chainjson.GetChainTipsResult, err
 // returned instance.
 //
 // See GetChainTips for the blocking version and more details.
-func (c *Client) GetChainTipsAsync() FutureGetChainTipsResult {
+func (c *Client) GetChainTipsAsync(ctx context.Context) FutureGetChainTipsResult {
 	cmd := chainjson.NewGetChainTipsCmd()
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // GetChainTips returns all known tips in the block tree.
-func (c *Client) GetChainTips() ([]chainjson.GetChainTipsResult, error) {
-	return c.GetChainTipsAsync().Receive()
+func (c *Client) GetChainTips(ctx context.Context) ([]chainjson.GetChainTipsResult, error) {
+	return c.GetChainTipsAsync(ctx).Receive()
 }
 
 // VerifyChainAsync returns an instance of a type that can be used to get the
@@ -629,17 +630,17 @@ func (c *Client) GetChainTips() ([]chainjson.GetChainTipsResult, error) {
 // returned instance.
 //
 // See VerifyChain for the blocking version and more details.
-func (c *Client) VerifyChainAsync() FutureVerifyChainResult {
+func (c *Client) VerifyChainAsync(ctx context.Context) FutureVerifyChainResult {
 	cmd := chainjson.NewVerifyChainCmd(nil, nil)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // VerifyChain requests the server to verify the block chain database using
 // the default check level and number of blocks to verify.
 //
 // See VerifyChainLevel and VerifyChainBlocks to override the defaults.
-func (c *Client) VerifyChain() (bool, error) {
-	return c.VerifyChainAsync().Receive()
+func (c *Client) VerifyChain(ctx context.Context) (bool, error) {
+	return c.VerifyChainAsync(ctx).Receive()
 }
 
 // VerifyChainLevelAsync returns an instance of a type that can be used to get
@@ -647,9 +648,9 @@ func (c *Client) VerifyChain() (bool, error) {
 // the returned instance.
 //
 // See VerifyChainLevel for the blocking version and more details.
-func (c *Client) VerifyChainLevelAsync(checkLevel int64) FutureVerifyChainResult {
+func (c *Client) VerifyChainLevelAsync(ctx context.Context, checkLevel int64) FutureVerifyChainResult {
 	cmd := chainjson.NewVerifyChainCmd(&checkLevel, nil)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // VerifyChainLevel requests the server to verify the block chain database using
@@ -661,8 +662,8 @@ func (c *Client) VerifyChainLevelAsync(checkLevel int64) FutureVerifyChainResult
 //
 // See VerifyChain to use the default check level and VerifyChainBlocks to
 // override the number of blocks to verify.
-func (c *Client) VerifyChainLevel(checkLevel int64) (bool, error) {
-	return c.VerifyChainLevelAsync(checkLevel).Receive()
+func (c *Client) VerifyChainLevel(ctx context.Context, checkLevel int64) (bool, error) {
+	return c.VerifyChainLevelAsync(ctx, checkLevel).Receive()
 }
 
 // VerifyChainBlocksAsync returns an instance of a type that can be used to get
@@ -670,9 +671,9 @@ func (c *Client) VerifyChainLevel(checkLevel int64) (bool, error) {
 // the returned instance.
 //
 // See VerifyChainBlocks for the blocking version and more details.
-func (c *Client) VerifyChainBlocksAsync(checkLevel, numBlocks int64) FutureVerifyChainResult {
+func (c *Client) VerifyChainBlocksAsync(ctx context.Context, checkLevel, numBlocks int64) FutureVerifyChainResult {
 	cmd := chainjson.NewVerifyChainCmd(&checkLevel, &numBlocks)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // VerifyChainBlocks requests the server to verify the block chain database
@@ -686,8 +687,8 @@ func (c *Client) VerifyChainBlocksAsync(checkLevel, numBlocks int64) FutureVerif
 // current longest chain.
 //
 // See VerifyChain and VerifyChainLevel to use defaults.
-func (c *Client) VerifyChainBlocks(checkLevel, numBlocks int64) (bool, error) {
-	return c.VerifyChainBlocksAsync(checkLevel, numBlocks).Receive()
+func (c *Client) VerifyChainBlocks(ctx context.Context, checkLevel, numBlocks int64) (bool, error) {
+	return c.VerifyChainBlocksAsync(ctx, checkLevel, numBlocks).Receive()
 }
 
 // FutureGetTxOutResult is a future promise to deliver the result of a
@@ -723,20 +724,20 @@ func (r FutureGetTxOutResult) Receive() (*chainjson.GetTxOutResult, error) {
 // the returned instance.
 //
 // See GetTxOut for the blocking version and more details.
-func (c *Client) GetTxOutAsync(txHash *chainhash.Hash, index uint32, mempool bool) FutureGetTxOutResult {
+func (c *Client) GetTxOutAsync(ctx context.Context, txHash *chainhash.Hash, index uint32, mempool bool) FutureGetTxOutResult {
 	hash := ""
 	if txHash != nil {
 		hash = txHash.String()
 	}
 
 	cmd := chainjson.NewGetTxOutCmd(hash, index, &mempool)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // GetTxOut returns the transaction output info if it's unspent and
 // nil, otherwise.
-func (c *Client) GetTxOut(txHash *chainhash.Hash, index uint32, mempool bool) (*chainjson.GetTxOutResult, error) {
-	return c.GetTxOutAsync(txHash, index, mempool).Receive()
+func (c *Client) GetTxOut(ctx context.Context, txHash *chainhash.Hash, index uint32, mempool bool) (*chainjson.GetTxOutResult, error) {
+	return c.GetTxOutAsync(ctx, txHash, index, mempool).Receive()
 }
 
 // FutureRescanResult is a future promise to deliver the result of a
@@ -765,21 +766,21 @@ func (r FutureRescanResult) Receive() (*chainjson.RescanResult, error) {
 // returned instance.
 //
 // See Rescan for the blocking version and more details.
-func (c *Client) RescanAsync(blockHashes []chainhash.Hash) FutureRescanResult {
+func (c *Client) RescanAsync(ctx context.Context, blockHashes []chainhash.Hash) FutureRescanResult {
 	hashes := make([]string, len(blockHashes))
 	for i := range blockHashes {
 		hashes[i] = blockHashes[i].String()
 	}
 
 	cmd := chainjson.NewRescanCmd(hashes)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // Rescan rescans the blocks identified by blockHashes, in order, using the
 // client's loaded transaction filter.  The blocks do not need to be on the main
 // chain, but they do need to be adjacent to each other.
-func (c *Client) Rescan(blockHashes []chainhash.Hash) (*chainjson.RescanResult, error) {
-	return c.RescanAsync(blockHashes).Receive()
+func (c *Client) Rescan(ctx context.Context, blockHashes []chainhash.Hash) (*chainjson.RescanResult, error) {
+	return c.RescanAsync(ctx, blockHashes).Receive()
 }
 
 // FutureGetCFilterResult is a future promise to deliver the result of a
@@ -812,7 +813,7 @@ func (r FutureGetCFilterResult) Receive() (*gcs.FilterV1, error) {
 // returned instance.
 //
 // See GetCFilter for the blocking version and more details.
-func (c *Client) GetCFilterAsync(blockHash *chainhash.Hash, filterType wire.FilterType) FutureGetCFilterResult {
+func (c *Client) GetCFilterAsync(ctx context.Context, blockHash *chainhash.Hash, filterType wire.FilterType) FutureGetCFilterResult {
 	var ft string
 	switch filterType {
 	case wire.GCSFilterRegular:
@@ -824,12 +825,12 @@ func (c *Client) GetCFilterAsync(blockHash *chainhash.Hash, filterType wire.Filt
 	}
 
 	cmd := chainjson.NewGetCFilterCmd(blockHash.String(), ft)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // GetCFilter returns the committed filter of type filterType for a block.
-func (c *Client) GetCFilter(blockHash *chainhash.Hash, filterType wire.FilterType) (*gcs.FilterV1, error) {
-	return c.GetCFilterAsync(blockHash, filterType).Receive()
+func (c *Client) GetCFilter(ctx context.Context, blockHash *chainhash.Hash, filterType wire.FilterType) (*gcs.FilterV1, error) {
+	return c.GetCFilterAsync(ctx, blockHash, filterType).Receive()
 }
 
 // FutureGetCFilterHeaderResult is a future promise to deliver the result of a
@@ -858,7 +859,7 @@ func (r FutureGetCFilterHeaderResult) Receive() (*chainhash.Hash, error) {
 // the returned instance.
 //
 // See GetCFilterHeader for the blocking version and more details.
-func (c *Client) GetCFilterHeaderAsync(blockHash *chainhash.Hash, filterType wire.FilterType) FutureGetCFilterHeaderResult {
+func (c *Client) GetCFilterHeaderAsync(ctx context.Context, blockHash *chainhash.Hash, filterType wire.FilterType) FutureGetCFilterHeaderResult {
 	var ft string
 	switch filterType {
 	case wire.GCSFilterRegular:
@@ -870,13 +871,13 @@ func (c *Client) GetCFilterHeaderAsync(blockHash *chainhash.Hash, filterType wir
 	}
 
 	cmd := chainjson.NewGetCFilterHeaderCmd(blockHash.String(), ft)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // GetCFilterHeader returns the committed filter header hash of type filterType
 // for a block.
-func (c *Client) GetCFilterHeader(blockHash *chainhash.Hash, filterType wire.FilterType) (*chainhash.Hash, error) {
-	return c.GetCFilterHeaderAsync(blockHash, filterType).Receive()
+func (c *Client) GetCFilterHeader(ctx context.Context, blockHash *chainhash.Hash, filterType wire.FilterType) (*chainhash.Hash, error) {
+	return c.GetCFilterHeaderAsync(ctx, blockHash, filterType).Receive()
 }
 
 // CFilterV2Result is the result of calling the GetCFilterV2 and
@@ -942,16 +943,16 @@ func (r FutureGetCFilterV2Result) Receive() (*CFilterV2Result, error) {
 // returned instance.
 //
 // See GetCFilterV2 for the blocking version and more details.
-func (c *Client) GetCFilterV2Async(blockHash *chainhash.Hash) FutureGetCFilterV2Result {
+func (c *Client) GetCFilterV2Async(ctx context.Context, blockHash *chainhash.Hash) FutureGetCFilterV2Result {
 	cmd := chainjson.NewGetCFilterV2Cmd(blockHash.String())
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // GetCFilterV2 returns the version 2 block filter for the given block along
 // with a proof that can be used to prove the filter is committed to by the
 // block header.
-func (c *Client) GetCFilterV2(blockHash *chainhash.Hash) (*CFilterV2Result, error) {
-	return c.GetCFilterV2Async(blockHash).Receive()
+func (c *Client) GetCFilterV2(ctx context.Context, blockHash *chainhash.Hash) (*CFilterV2Result, error) {
+	return c.GetCFilterV2Async(ctx, blockHash).Receive()
 }
 
 // FutureEstimateSmartFeeResult is a future promise to deliver the result of a
@@ -980,9 +981,9 @@ func (r FutureEstimateSmartFeeResult) Receive() (float64, error) {
 // the returned instance.
 //
 // See EstimateSmartFee for the blocking version and more details.
-func (c *Client) EstimateSmartFeeAsync(confirmations int64, mode chainjson.EstimateSmartFeeMode) FutureEstimateSmartFeeResult {
+func (c *Client) EstimateSmartFeeAsync(ctx context.Context, confirmations int64, mode chainjson.EstimateSmartFeeMode) FutureEstimateSmartFeeResult {
 	cmd := chainjson.NewEstimateSmartFeeCmd(confirmations, &mode)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // EstimateSmartFee returns an estimation of a transaction fee rate (in dcr/KB)
@@ -995,6 +996,6 @@ func (c *Client) EstimateSmartFeeAsync(confirmations int64, mode chainjson.Estim
 // confirmation range and minimization of fees paid.
 //
 // As of 2019-01, only the default conservative mode is supported by dcrd.
-func (c *Client) EstimateSmartFee(confirmations int64, mode chainjson.EstimateSmartFeeMode) (float64, error) {
-	return c.EstimateSmartFeeAsync(confirmations, mode).Receive()
+func (c *Client) EstimateSmartFee(ctx context.Context, confirmations int64, mode chainjson.EstimateSmartFeeMode) (float64, error) {
+	return c.EstimateSmartFeeAsync(ctx, confirmations, mode).Receive()
 }

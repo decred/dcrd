@@ -7,6 +7,7 @@ package rpcclient
 
 import (
 	"bytes"
+	"context"
 	"encoding/hex"
 	"encoding/json"
 
@@ -99,22 +100,22 @@ func (r FutureGetRawTransactionResult) Receive() (*dcrutil.Tx, error) {
 // the returned instance.
 //
 // See GetRawTransaction for the blocking version and more details.
-func (c *Client) GetRawTransactionAsync(txHash *chainhash.Hash) FutureGetRawTransactionResult {
+func (c *Client) GetRawTransactionAsync(ctx context.Context, txHash *chainhash.Hash) FutureGetRawTransactionResult {
 	hash := ""
 	if txHash != nil {
 		hash = txHash.String()
 	}
 
 	cmd := chainjson.NewGetRawTransactionCmd(hash, dcrjson.Int(0))
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // GetRawTransaction returns a transaction given its hash.
 //
 // See GetRawTransactionVerbose to obtain additional information about the
 // transaction.
-func (c *Client) GetRawTransaction(txHash *chainhash.Hash) (*dcrutil.Tx, error) {
-	return c.GetRawTransactionAsync(txHash).Receive()
+func (c *Client) GetRawTransaction(ctx context.Context, txHash *chainhash.Hash) (*dcrutil.Tx, error) {
+	return c.GetRawTransactionAsync(ctx, txHash).Receive()
 }
 
 // FutureGetRawTransactionVerboseResult is a future promise to deliver the
@@ -145,22 +146,22 @@ func (r FutureGetRawTransactionVerboseResult) Receive() (*chainjson.TxRawResult,
 // function on the returned instance.
 //
 // See GetRawTransactionVerbose for the blocking version and more details.
-func (c *Client) GetRawTransactionVerboseAsync(txHash *chainhash.Hash) FutureGetRawTransactionVerboseResult {
+func (c *Client) GetRawTransactionVerboseAsync(ctx context.Context, txHash *chainhash.Hash) FutureGetRawTransactionVerboseResult {
 	hash := ""
 	if txHash != nil {
 		hash = txHash.String()
 	}
 
 	cmd := chainjson.NewGetRawTransactionCmd(hash, dcrjson.Int(1))
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // GetRawTransactionVerbose returns information about a transaction given
 // its hash.
 //
 // See GetRawTransaction to obtain only the transaction already deserialized.
-func (c *Client) GetRawTransactionVerbose(txHash *chainhash.Hash) (*chainjson.TxRawResult, error) {
-	return c.GetRawTransactionVerboseAsync(txHash).Receive()
+func (c *Client) GetRawTransactionVerbose(ctx context.Context, txHash *chainhash.Hash) (*chainjson.TxRawResult, error) {
+	return c.GetRawTransactionVerboseAsync(ctx, txHash).Receive()
 }
 
 // FutureDecodeRawTransactionResult is a future promise to deliver the result
@@ -190,16 +191,16 @@ func (r FutureDecodeRawTransactionResult) Receive() (*chainjson.TxRawResult, err
 // function on the returned instance.
 //
 // See DecodeRawTransaction for the blocking version and more details.
-func (c *Client) DecodeRawTransactionAsync(serializedTx []byte) FutureDecodeRawTransactionResult {
+func (c *Client) DecodeRawTransactionAsync(ctx context.Context, serializedTx []byte) FutureDecodeRawTransactionResult {
 	txHex := hex.EncodeToString(serializedTx)
 	cmd := chainjson.NewDecodeRawTransactionCmd(txHex)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // DecodeRawTransaction returns information about a transaction given its
 // serialized bytes.
-func (c *Client) DecodeRawTransaction(serializedTx []byte) (*chainjson.TxRawResult, error) {
-	return c.DecodeRawTransactionAsync(serializedTx).Receive()
+func (c *Client) DecodeRawTransaction(ctx context.Context, serializedTx []byte) (*chainjson.TxRawResult, error) {
+	return c.DecodeRawTransactionAsync(ctx, serializedTx).Receive()
 }
 
 // FutureCreateRawTransactionResult is a future promise to deliver the result
@@ -241,7 +242,7 @@ func (r FutureCreateRawTransactionResult) Receive() (*wire.MsgTx, error) {
 // function on the returned instance.
 //
 // See CreateRawTransaction for the blocking version and more details.
-func (c *Client) CreateRawTransactionAsync(inputs []chainjson.TransactionInput,
+func (c *Client) CreateRawTransactionAsync(ctx context.Context, inputs []chainjson.TransactionInput,
 	amounts map[dcrutil.Address]dcrutil.Amount, lockTime *int64, expiry *int64) FutureCreateRawTransactionResult {
 
 	convertedAmts := make(map[string]float64, len(amounts))
@@ -249,15 +250,15 @@ func (c *Client) CreateRawTransactionAsync(inputs []chainjson.TransactionInput,
 		convertedAmts[addr.String()] = amount.ToCoin()
 	}
 	cmd := chainjson.NewCreateRawTransactionCmd(inputs, convertedAmts, lockTime, expiry)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // CreateRawTransaction returns a new transaction spending the provided inputs
 // and sending to the provided addresses.
-func (c *Client) CreateRawTransaction(inputs []chainjson.TransactionInput,
+func (c *Client) CreateRawTransaction(ctx context.Context, inputs []chainjson.TransactionInput,
 	amounts map[dcrutil.Address]dcrutil.Amount, lockTime *int64, expiry *int64) (*wire.MsgTx, error) {
 
-	return c.CreateRawTransactionAsync(inputs, amounts, lockTime, expiry).Receive()
+	return c.CreateRawTransactionAsync(ctx, inputs, amounts, lockTime, expiry).Receive()
 }
 
 // FutureCreateRawSStxResult is a future promise to deliver the result
@@ -309,7 +310,7 @@ type SStxCommitOut struct {
 // function on the returned instance.
 //
 // See CreateRawSStx for the blocking version and more details.
-func (c *Client) CreateRawSStxAsync(inputs []chainjson.SStxInput,
+func (c *Client) CreateRawSStxAsync(ctx context.Context, inputs []chainjson.SStxInput,
 	amount map[dcrutil.Address]dcrutil.Amount,
 	couts []SStxCommitOut) FutureCreateRawSStxResult {
 
@@ -326,16 +327,16 @@ func (c *Client) CreateRawSStxAsync(inputs []chainjson.SStxInput,
 	}
 
 	cmd := chainjson.NewCreateRawSStxCmd(inputs, convertedAmt, convertedCouts)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // CreateRawSStx returns a new transaction spending the provided inputs
 // and sending to the provided addresses.
-func (c *Client) CreateRawSStx(inputs []chainjson.SStxInput,
+func (c *Client) CreateRawSStx(ctx context.Context, inputs []chainjson.SStxInput,
 	amount map[dcrutil.Address]dcrutil.Amount,
 	couts []SStxCommitOut) (*wire.MsgTx, error) {
 
-	return c.CreateRawSStxAsync(inputs, amount, couts).Receive()
+	return c.CreateRawSStxAsync(ctx, inputs, amount, couts).Receive()
 }
 
 // FutureCreateRawSSRtxResult is a future promise to deliver the result
@@ -377,15 +378,15 @@ func (r FutureCreateRawSSRtxResult) Receive() (*wire.MsgTx, error) {
 // function on the returned instance.
 //
 // See CreateRawSSRtx for the blocking version and more details.
-func (c *Client) CreateRawSSRtxAsync(inputs []chainjson.TransactionInput, fee dcrutil.Amount) FutureCreateRawSSRtxResult {
+func (c *Client) CreateRawSSRtxAsync(ctx context.Context, inputs []chainjson.TransactionInput, fee dcrutil.Amount) FutureCreateRawSSRtxResult {
 	feeF64 := fee.ToCoin()
 	cmd := chainjson.NewCreateRawSSRtxCmd(inputs, &feeF64)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // CreateRawSSRtx returns a new SSR transaction (revoking an sstx).
-func (c *Client) CreateRawSSRtx(inputs []chainjson.TransactionInput, fee dcrutil.Amount) (*wire.MsgTx, error) {
-	return c.CreateRawSSRtxAsync(inputs, fee).Receive()
+func (c *Client) CreateRawSSRtx(ctx context.Context, inputs []chainjson.TransactionInput, fee dcrutil.Amount) (*wire.MsgTx, error) {
+	return c.CreateRawSSRtxAsync(ctx, inputs, fee).Receive()
 }
 
 // FutureSendRawTransactionResult is a future promise to deliver the result
@@ -416,7 +417,7 @@ func (r FutureSendRawTransactionResult) Receive() (*chainhash.Hash, error) {
 // the returned instance.
 //
 // See SendRawTransaction for the blocking version and more details.
-func (c *Client) SendRawTransactionAsync(tx *wire.MsgTx, allowHighFees bool) FutureSendRawTransactionResult {
+func (c *Client) SendRawTransactionAsync(ctx context.Context, tx *wire.MsgTx, allowHighFees bool) FutureSendRawTransactionResult {
 	txHex := ""
 	if tx != nil {
 		// Serialize the transaction and convert to hex string.
@@ -428,13 +429,13 @@ func (c *Client) SendRawTransactionAsync(tx *wire.MsgTx, allowHighFees bool) Fut
 	}
 
 	cmd := chainjson.NewSendRawTransactionCmd(txHex, &allowHighFees)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // SendRawTransaction submits the encoded transaction to the server which will
 // then relay it to the network.
-func (c *Client) SendRawTransaction(tx *wire.MsgTx, allowHighFees bool) (*chainhash.Hash, error) {
-	return c.SendRawTransactionAsync(tx, allowHighFees).Receive()
+func (c *Client) SendRawTransaction(ctx context.Context, tx *wire.MsgTx, allowHighFees bool) (*chainhash.Hash, error) {
+	return c.SendRawTransactionAsync(ctx, tx, allowHighFees).Receive()
 }
 
 // FutureSignRawTransactionResult is a future promise to deliver the result
@@ -477,7 +478,7 @@ func (r FutureSignRawTransactionResult) Receive() (*wire.MsgTx, bool, error) {
 // the returned instance.
 //
 // See SignRawTransaction for the blocking version and more details.
-func (c *Client) SignRawTransactionAsync(tx *wire.MsgTx) FutureSignRawTransactionResult {
+func (c *Client) SignRawTransactionAsync(ctx context.Context, tx *wire.MsgTx) FutureSignRawTransactionResult {
 	txHex := ""
 	if tx != nil {
 		// Serialize the transaction and convert to hex string.
@@ -489,7 +490,7 @@ func (c *Client) SignRawTransactionAsync(tx *wire.MsgTx) FutureSignRawTransactio
 	}
 
 	cmd := walletjson.NewSignRawTransactionCmd(txHex, nil, nil, nil)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // SignRawTransaction signs inputs for the passed transaction and returns the
@@ -499,8 +500,8 @@ func (c *Client) SignRawTransactionAsync(tx *wire.MsgTx) FutureSignRawTransactio
 // private keys for the passed transaction which needs to be signed and uses the
 // default signature hash type.  Use one of the SignRawTransaction# variants to
 // specify that information if needed.
-func (c *Client) SignRawTransaction(tx *wire.MsgTx) (*wire.MsgTx, bool, error) {
-	return c.SignRawTransactionAsync(tx).Receive()
+func (c *Client) SignRawTransaction(ctx context.Context, tx *wire.MsgTx) (*wire.MsgTx, bool, error) {
+	return c.SignRawTransactionAsync(ctx, tx).Receive()
 }
 
 // SignRawTransaction2Async returns an instance of a type that can be used to
@@ -508,7 +509,7 @@ func (c *Client) SignRawTransaction(tx *wire.MsgTx) (*wire.MsgTx, bool, error) {
 // function on the returned instance.
 //
 // See SignRawTransaction2 for the blocking version and more details.
-func (c *Client) SignRawTransaction2Async(tx *wire.MsgTx, inputs []walletjson.RawTxInput) FutureSignRawTransactionResult {
+func (c *Client) SignRawTransaction2Async(ctx context.Context, tx *wire.MsgTx, inputs []walletjson.RawTxInput) FutureSignRawTransactionResult {
 	txHex := ""
 	if tx != nil {
 		// Serialize the transaction and convert to hex string.
@@ -520,7 +521,7 @@ func (c *Client) SignRawTransaction2Async(tx *wire.MsgTx, inputs []walletjson.Ra
 	}
 
 	cmd := walletjson.NewSignRawTransactionCmd(txHex, &inputs, nil, nil)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // SignRawTransaction2 signs inputs for the passed transaction given the list
@@ -533,8 +534,8 @@ func (c *Client) SignRawTransaction2Async(tx *wire.MsgTx, inputs []walletjson.Ra
 //
 // See SignRawTransaction if the RPC server already knows the input
 // transactions.
-func (c *Client) SignRawTransaction2(tx *wire.MsgTx, inputs []walletjson.RawTxInput) (*wire.MsgTx, bool, error) {
-	return c.SignRawTransaction2Async(tx, inputs).Receive()
+func (c *Client) SignRawTransaction2(ctx context.Context, tx *wire.MsgTx, inputs []walletjson.RawTxInput) (*wire.MsgTx, bool, error) {
+	return c.SignRawTransaction2Async(ctx, tx, inputs).Receive()
 }
 
 // SignRawTransaction3Async returns an instance of a type that can be used to
@@ -542,7 +543,7 @@ func (c *Client) SignRawTransaction2(tx *wire.MsgTx, inputs []walletjson.RawTxIn
 // function on the returned instance.
 //
 // See SignRawTransaction3 for the blocking version and more details.
-func (c *Client) SignRawTransaction3Async(tx *wire.MsgTx,
+func (c *Client) SignRawTransaction3Async(ctx context.Context, tx *wire.MsgTx,
 	inputs []walletjson.RawTxInput,
 	privKeysWIF []string) FutureSignRawTransactionResult {
 
@@ -558,7 +559,7 @@ func (c *Client) SignRawTransaction3Async(tx *wire.MsgTx,
 
 	cmd := walletjson.NewSignRawTransactionCmd(txHex, &inputs, &privKeysWIF,
 		nil)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // SignRawTransaction3 signs inputs for the passed transaction given the list
@@ -578,11 +579,11 @@ func (c *Client) SignRawTransaction3Async(tx *wire.MsgTx,
 // See SignRawTransaction if the RPC server already knows the input
 // transactions and private keys or SignRawTransaction2 if it already knows the
 // private keys.
-func (c *Client) SignRawTransaction3(tx *wire.MsgTx,
+func (c *Client) SignRawTransaction3(ctx context.Context, tx *wire.MsgTx,
 	inputs []walletjson.RawTxInput,
 	privKeysWIF []string) (*wire.MsgTx, bool, error) {
 
-	return c.SignRawTransaction3Async(tx, inputs, privKeysWIF).Receive()
+	return c.SignRawTransaction3Async(ctx, tx, inputs, privKeysWIF).Receive()
 }
 
 // SignRawTransaction4Async returns an instance of a type that can be used to
@@ -590,7 +591,7 @@ func (c *Client) SignRawTransaction3(tx *wire.MsgTx,
 // function on the returned instance.
 //
 // See SignRawTransaction4 for the blocking version and more details.
-func (c *Client) SignRawTransaction4Async(tx *wire.MsgTx,
+func (c *Client) SignRawTransaction4Async(ctx context.Context, tx *wire.MsgTx,
 	inputs []walletjson.RawTxInput, privKeysWIF []string,
 	hashType SigHashType) FutureSignRawTransactionResult {
 
@@ -606,7 +607,7 @@ func (c *Client) SignRawTransaction4Async(tx *wire.MsgTx,
 
 	cmd := walletjson.NewSignRawTransactionCmd(txHex, &inputs, &privKeysWIF,
 		dcrjson.String(string(hashType)))
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // SignRawTransaction4 signs inputs for the passed transaction using the
@@ -628,11 +629,11 @@ func (c *Client) SignRawTransaction4Async(tx *wire.MsgTx,
 // desired.  Otherwise, see SignRawTransaction if the RPC server already knows
 // the input transactions and private keys, SignRawTransaction2 if it already
 // knows the private keys, or SignRawTransaction3 if it does not know both.
-func (c *Client) SignRawTransaction4(tx *wire.MsgTx,
+func (c *Client) SignRawTransaction4(ctx context.Context, tx *wire.MsgTx,
 	inputs []walletjson.RawTxInput, privKeysWIF []string,
 	hashType SigHashType) (*wire.MsgTx, bool, error) {
 
-	return c.SignRawTransaction4Async(tx, inputs, privKeysWIF,
+	return c.SignRawTransaction4Async(ctx, tx, inputs, privKeysWIF,
 		hashType).Receive()
 }
 
@@ -641,7 +642,7 @@ func (c *Client) SignRawTransaction4(tx *wire.MsgTx,
 // function on the returned instance.
 //
 // See SignRawSSGenTx for the blocking version and more details.
-func (c *Client) SignRawSSGenTxAsync(tx *wire.MsgTx) FutureSignRawTransactionResult {
+func (c *Client) SignRawSSGenTxAsync(ctx context.Context, tx *wire.MsgTx) FutureSignRawTransactionResult {
 
 	txHex := ""
 	if tx != nil {
@@ -655,7 +656,7 @@ func (c *Client) SignRawSSGenTxAsync(tx *wire.MsgTx) FutureSignRawTransactionRes
 
 	cmd := walletjson.NewSignRawTransactionCmd(txHex, &[]walletjson.RawTxInput{},
 		nil, dcrjson.String("ssgen"))
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // SignRawSSGenTx signs inputs for the passed transaction using the
@@ -667,9 +668,9 @@ func (c *Client) SignRawSSGenTxAsync(tx *wire.MsgTx) FutureSignRawTransactionRes
 // The only input transactions that need to be specified are ones the RPC server
 // does not already know.  This means the list of transaction inputs can be nil
 // if the RPC server already knows them all.
-func (c *Client) SignRawSSGenTx(tx *wire.MsgTx) (*wire.MsgTx, bool, error) {
+func (c *Client) SignRawSSGenTx(ctx context.Context, tx *wire.MsgTx) (*wire.MsgTx, bool, error) {
 
-	return c.SignRawSSGenTxAsync(tx).Receive()
+	return c.SignRawSSGenTxAsync(ctx, tx).Receive()
 }
 
 // FutureSearchRawTransactionsResult is a future promise to deliver the result
@@ -717,8 +718,8 @@ func (r FutureSearchRawTransactionsResult) Receive() ([]*wire.MsgTx, error) {
 // function on the returned instance.
 //
 // See SearchRawTransactions for the blocking version and more details.
-func (c *Client) SearchRawTransactionsAsync(address dcrutil.Address, skip,
-	count int, reverse bool,
+func (c *Client) SearchRawTransactionsAsync(ctx context.Context,
+	address dcrutil.Address, skip, count int, reverse bool,
 	filterAddrs []string) FutureSearchRawTransactionsResult {
 
 	addr := address.Address()
@@ -726,7 +727,7 @@ func (c *Client) SearchRawTransactionsAsync(address dcrutil.Address, skip,
 	prevOut := dcrjson.Int(0)
 	cmd := chainjson.NewSearchRawTransactionsCmd(addr, verbose, &skip, &count,
 		prevOut, &reverse, &filterAddrs)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // SearchRawTransactions returns transactions that involve the passed address.
@@ -736,10 +737,11 @@ func (c *Client) SearchRawTransactionsAsync(address dcrutil.Address, skip,
 //
 // See SearchRawTransactionsVerbose to retrieve a list of data structures with
 // information about the transactions instead of the transactions themselves.
-func (c *Client) SearchRawTransactions(address dcrutil.Address, skip, count int,
+func (c *Client) SearchRawTransactions(ctx context.Context,
+	address dcrutil.Address, skip, count int,
 	reverse bool, filterAddrs []string) ([]*wire.MsgTx, error) {
 
-	return c.SearchRawTransactionsAsync(address, skip, count, reverse,
+	return c.SearchRawTransactionsAsync(ctx, address, skip, count, reverse,
 		filterAddrs).Receive()
 }
 
@@ -771,8 +773,8 @@ func (r FutureSearchRawTransactionsVerboseResult) Receive() ([]*chainjson.Search
 // function on the returned instance.
 //
 // See SearchRawTransactionsVerbose for the blocking version and more details.
-func (c *Client) SearchRawTransactionsVerboseAsync(address dcrutil.Address, skip,
-	count int, includePrevOut bool, reverse bool,
+func (c *Client) SearchRawTransactionsVerboseAsync(ctx context.Context,
+	address dcrutil.Address, skip, count int, includePrevOut bool, reverse bool,
 	filterAddrs *[]string) FutureSearchRawTransactionsVerboseResult {
 
 	addr := address.Address()
@@ -783,7 +785,7 @@ func (c *Client) SearchRawTransactionsVerboseAsync(address dcrutil.Address, skip
 	}
 	cmd := chainjson.NewSearchRawTransactionsCmd(addr, verbose, &skip, &count,
 		prevOut, &reverse, filterAddrs)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // SearchRawTransactionsVerbose returns a list of data structures that describe
@@ -793,10 +795,10 @@ func (c *Client) SearchRawTransactionsVerboseAsync(address dcrutil.Address, skip
 // specifically been enabled.
 //
 // See SearchRawTransactions to retrieve a list of raw transactions instead.
-func (c *Client) SearchRawTransactionsVerbose(address dcrutil.Address, skip,
-	count int, includePrevOut bool, reverse bool,
+func (c *Client) SearchRawTransactionsVerbose(ctx context.Context,
+	address dcrutil.Address, skip, count int, includePrevOut, reverse bool,
 	filterAddrs []string) ([]*chainjson.SearchRawTransactionsResult, error) {
 
-	return c.SearchRawTransactionsVerboseAsync(address, skip, count,
+	return c.SearchRawTransactionsVerboseAsync(ctx, address, skip, count,
 		includePrevOut, reverse, &filterAddrs).Receive()
 }

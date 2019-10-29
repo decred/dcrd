@@ -6,6 +6,7 @@
 package rpcclient
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -40,9 +41,9 @@ func (r FutureCreateEncryptedWalletResult) Receive() error {
 // See CreateEncryptedWallet for the blocking version and more details.
 //
 // NOTE: This is a dcrwallet extension.
-func (c *Client) CreateEncryptedWalletAsync(passphrase string) FutureCreateEncryptedWalletResult {
+func (c *Client) CreateEncryptedWalletAsync(ctx context.Context, passphrase string) FutureCreateEncryptedWalletResult {
 	cmd := walletjson.NewCreateEncryptedWalletCmd(passphrase)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // CreateEncryptedWallet requests the creation of an encrypted wallet.  Wallets
@@ -53,8 +54,8 @@ func (c *Client) CreateEncryptedWalletAsync(passphrase string) FutureCreateEncry
 // new wallet cannot be written to disk.
 //
 // NOTE: This is a dcrwallet extension.
-func (c *Client) CreateEncryptedWallet(passphrase string) error {
-	return c.CreateEncryptedWalletAsync(passphrase).Receive()
+func (c *Client) CreateEncryptedWallet(ctx context.Context, passphrase string) error {
+	return c.CreateEncryptedWalletAsync(ctx, passphrase).Receive()
 }
 
 // FutureDebugLevelResult is a future promise to deliver the result of a
@@ -86,9 +87,9 @@ func (r FutureDebugLevelResult) Receive() (string, error) {
 // See DebugLevel for the blocking version and more details.
 //
 // NOTE: This is a dcrd extension.
-func (c *Client) DebugLevelAsync(levelSpec string) FutureDebugLevelResult {
+func (c *Client) DebugLevelAsync(ctx context.Context, levelSpec string) FutureDebugLevelResult {
 	cmd := chainjson.NewDebugLevelCmd(levelSpec)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // DebugLevel dynamically sets the debug logging level to the passed level
@@ -101,8 +102,8 @@ func (c *Client) DebugLevelAsync(levelSpec string) FutureDebugLevelResult {
 // available subsystems.
 //
 // NOTE: This is a dcrd extension.
-func (c *Client) DebugLevel(levelSpec string) (string, error) {
-	return c.DebugLevelAsync(levelSpec).Receive()
+func (c *Client) DebugLevel(ctx context.Context, levelSpec string) (string, error) {
+	return c.DebugLevelAsync(ctx, levelSpec).Receive()
 }
 
 // FutureEstimateStakeDiffResult is a future promise to deliver the result of a
@@ -134,17 +135,17 @@ func (r FutureEstimateStakeDiffResult) Receive() (*chainjson.EstimateStakeDiffRe
 // See EstimateStakeDiff for the blocking version and more details.
 //
 // NOTE: This is a dcrd extension.
-func (c *Client) EstimateStakeDiffAsync(tickets *uint32) FutureEstimateStakeDiffResult {
+func (c *Client) EstimateStakeDiffAsync(ctx context.Context, tickets *uint32) FutureEstimateStakeDiffResult {
 	cmd := chainjson.NewEstimateStakeDiffCmd(tickets)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // EstimateStakeDiff returns the minimum, maximum, and expected next stake
 // difficulty.
 //
 // NOTE: This is a dcrd extension.
-func (c *Client) EstimateStakeDiff(tickets *uint32) (*chainjson.EstimateStakeDiffResult, error) {
-	return c.EstimateStakeDiffAsync(tickets).Receive()
+func (c *Client) EstimateStakeDiff(ctx context.Context, tickets *uint32) (*chainjson.EstimateStakeDiffResult, error) {
+	return c.EstimateStakeDiffAsync(ctx, tickets).Receive()
 }
 
 // FutureExistsAddressResult is a future promise to deliver the result
@@ -171,17 +172,17 @@ func (r FutureExistsAddressResult) Receive() (bool, error) {
 // ExistsAddressAsync returns an instance of a type that can be used to get the
 // result of the RPC at some future time by invoking the Receive function on the
 // returned instance.
-func (c *Client) ExistsAddressAsync(address dcrutil.Address) FutureExistsAddressResult {
+func (c *Client) ExistsAddressAsync(ctx context.Context, address dcrutil.Address) FutureExistsAddressResult {
 	cmd := chainjson.NewExistsAddressCmd(address.Address())
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // ExistsAddress returns information about whether or not an address has been
 // used on the main chain or in mempool.
 //
 // NOTE: This is a dcrd extension.
-func (c *Client) ExistsAddress(address dcrutil.Address) (bool, error) {
-	return c.ExistsAddressAsync(address).Receive()
+func (c *Client) ExistsAddress(ctx context.Context, address dcrutil.Address) (bool, error) {
+	return c.ExistsAddressAsync(ctx, address).Receive()
 }
 
 // FutureExistsAddressesResult is a future promise to deliver the result
@@ -209,22 +210,22 @@ func (r FutureExistsAddressesResult) Receive() (string, error) {
 // ExistsAddressesAsync returns an instance of a type that can be used to get the
 // result of the RPC at some future time by invoking the Receive function on the
 // returned instance.
-func (c *Client) ExistsAddressesAsync(addresses []dcrutil.Address) FutureExistsAddressesResult {
+func (c *Client) ExistsAddressesAsync(ctx context.Context, addresses []dcrutil.Address) FutureExistsAddressesResult {
 	addrsStr := make([]string, len(addresses))
 	for i := range addresses {
 		addrsStr[i] = addresses[i].Address()
 	}
 
 	cmd := chainjson.NewExistsAddressesCmd(addrsStr)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // ExistsAddresses returns information about whether or not an address exists
 // in the blockchain or memory pool.
 //
 // NOTE: This is a dcrd extension.
-func (c *Client) ExistsAddresses(addresses []dcrutil.Address) (string, error) {
-	return c.ExistsAddressesAsync(addresses).Receive()
+func (c *Client) ExistsAddresses(ctx context.Context, addresses []dcrutil.Address) (string, error) {
+	return c.ExistsAddressesAsync(ctx, addresses).Receive()
 }
 
 // FutureExistsMissedTicketsResult is a future promise to deliver the result of
@@ -251,19 +252,19 @@ func (r FutureExistsMissedTicketsResult) Receive() (string, error) {
 // ExistsMissedTicketsAsync returns an instance of a type that can be used to
 // get the result of the RPC at some future time by invoking the Receive
 // function on the returned instance.
-func (c *Client) ExistsMissedTicketsAsync(hashes []*chainhash.Hash) FutureExistsMissedTicketsResult {
+func (c *Client) ExistsMissedTicketsAsync(ctx context.Context, hashes []*chainhash.Hash) FutureExistsMissedTicketsResult {
 	strHashes := make([]string, len(hashes))
 	for i := range hashes {
 		strHashes[i] = hashes[i].String()
 	}
 	cmd := chainjson.NewExistsMissedTicketsCmd(strHashes)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // ExistsMissedTickets returns a hex-encoded bitset describing whether or not
 // ticket hashes exists in the missed ticket database.
-func (c *Client) ExistsMissedTickets(hashes []*chainhash.Hash) (string, error) {
-	return c.ExistsMissedTicketsAsync(hashes).Receive()
+func (c *Client) ExistsMissedTickets(ctx context.Context, hashes []*chainhash.Hash) (string, error) {
+	return c.ExistsMissedTicketsAsync(ctx, hashes).Receive()
 }
 
 // FutureExistsExpiredTicketsResult is a future promise to deliver the result
@@ -291,21 +292,21 @@ func (r FutureExistsExpiredTicketsResult) Receive() (string, error) {
 // ExistsExpiredTicketsAsync returns an instance of a type that can be used to get the
 // result of the RPC at some future time by invoking the Receive function on the
 // returned instance.
-func (c *Client) ExistsExpiredTicketsAsync(hashes []*chainhash.Hash) FutureExistsExpiredTicketsResult {
+func (c *Client) ExistsExpiredTicketsAsync(ctx context.Context, hashes []*chainhash.Hash) FutureExistsExpiredTicketsResult {
 	strHashes := make([]string, len(hashes))
 	for i := range hashes {
 		strHashes[i] = hashes[i].String()
 	}
 	cmd := chainjson.NewExistsExpiredTicketsCmd(strHashes)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // ExistsExpiredTickets returns information about whether or not a ticket hash exists
 // in the expired ticket database.
 //
 // NOTE: This is a dcrd extension.
-func (c *Client) ExistsExpiredTickets(hashes []*chainhash.Hash) (string, error) {
-	return c.ExistsExpiredTicketsAsync(hashes).Receive()
+func (c *Client) ExistsExpiredTickets(ctx context.Context, hashes []*chainhash.Hash) (string, error) {
+	return c.ExistsExpiredTicketsAsync(ctx, hashes).Receive()
 }
 
 // FutureExistsLiveTicketResult is a future promise to deliver the result
@@ -333,17 +334,17 @@ func (r FutureExistsLiveTicketResult) Receive() (bool, error) {
 // ExistsLiveTicketAsync returns an instance of a type that can be used to get the
 // result of the RPC at some future time by invoking the Receive function on the
 // returned instance.
-func (c *Client) ExistsLiveTicketAsync(hash *chainhash.Hash) FutureExistsLiveTicketResult {
+func (c *Client) ExistsLiveTicketAsync(ctx context.Context, hash *chainhash.Hash) FutureExistsLiveTicketResult {
 	cmd := chainjson.NewExistsLiveTicketCmd(hash.String())
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // ExistsLiveTicket returns information about whether or not a ticket hash exists
 // in the live ticket database.
 //
 // NOTE: This is a dcrd extension.
-func (c *Client) ExistsLiveTicket(hash *chainhash.Hash) (bool, error) {
-	return c.ExistsLiveTicketAsync(hash).Receive()
+func (c *Client) ExistsLiveTicket(ctx context.Context, hash *chainhash.Hash) (bool, error) {
+	return c.ExistsLiveTicketAsync(ctx, hash).Receive()
 }
 
 // FutureExistsLiveTicketsResult is a future promise to deliver the result
@@ -371,21 +372,21 @@ func (r FutureExistsLiveTicketsResult) Receive() (string, error) {
 // ExistsLiveTicketsAsync returns an instance of a type that can be used to get the
 // result of the RPC at some future time by invoking the Receive function on the
 // returned instance.
-func (c *Client) ExistsLiveTicketsAsync(hashes []*chainhash.Hash) FutureExistsLiveTicketsResult {
+func (c *Client) ExistsLiveTicketsAsync(ctx context.Context, hashes []*chainhash.Hash) FutureExistsLiveTicketsResult {
 	strHashes := make([]string, len(hashes))
 	for i := range hashes {
 		strHashes[i] = hashes[i].String()
 	}
 	cmd := chainjson.NewExistsLiveTicketsCmd(strHashes)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // ExistsLiveTickets returns information about whether or not a ticket hash exists
 // in the live ticket database.
 //
 // NOTE: This is a dcrd extension.
-func (c *Client) ExistsLiveTickets(hashes []*chainhash.Hash) (string, error) {
-	return c.ExistsLiveTicketsAsync(hashes).Receive()
+func (c *Client) ExistsLiveTickets(ctx context.Context, hashes []*chainhash.Hash) (string, error) {
+	return c.ExistsLiveTicketsAsync(ctx, hashes).Receive()
 }
 
 // FutureExistsMempoolTxsResult is a future promise to deliver the result
@@ -413,21 +414,21 @@ func (r FutureExistsMempoolTxsResult) Receive() (string, error) {
 // ExistsMempoolTxsAsync returns an instance of a type that can be used to get the
 // result of the RPC at some future time by invoking the Receive function on the
 // returned instance.
-func (c *Client) ExistsMempoolTxsAsync(hashes []*chainhash.Hash) FutureExistsMempoolTxsResult {
+func (c *Client) ExistsMempoolTxsAsync(ctx context.Context, hashes []*chainhash.Hash) FutureExistsMempoolTxsResult {
 	strHashes := make([]string, len(hashes))
 	for i := range hashes {
 		strHashes[i] = hashes[i].String()
 	}
 	cmd := chainjson.NewExistsMempoolTxsCmd(strHashes)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // ExistsMempoolTxs returns information about whether or not a ticket hash exists
 // in the live ticket database.
 //
 // NOTE: This is a dcrd extension.
-func (c *Client) ExistsMempoolTxs(hashes []*chainhash.Hash) (string, error) {
-	return c.ExistsMempoolTxsAsync(hashes).Receive()
+func (c *Client) ExistsMempoolTxs(ctx context.Context, hashes []*chainhash.Hash) (string, error) {
+	return c.ExistsMempoolTxsAsync(ctx, hashes).Receive()
 }
 
 // FutureExportWatchingWalletResult is a future promise to deliver the result of
@@ -484,9 +485,9 @@ func (r FutureExportWatchingWalletResult) Receive() ([]byte, []byte, error) {
 // See ExportWatchingWallet for the blocking version and more details.
 //
 // NOTE: This is a dcrwallet extension.
-func (c *Client) ExportWatchingWalletAsync(account string) FutureExportWatchingWalletResult {
+func (c *Client) ExportWatchingWalletAsync(ctx context.Context, account string) FutureExportWatchingWalletResult {
 	cmd := walletjson.NewExportWatchingWalletCmd(&account, dcrjson.Bool(true))
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // ExportWatchingWallet returns the raw bytes for a watching-only version of
@@ -495,8 +496,8 @@ func (c *Client) ExportWatchingWalletAsync(account string) FutureExportWatchingW
 // necessary to spend funds.
 //
 // NOTE: This is a dcrwallet extension.
-func (c *Client) ExportWatchingWallet(account string) ([]byte, []byte, error) {
-	return c.ExportWatchingWalletAsync(account).Receive()
+func (c *Client) ExportWatchingWallet(ctx context.Context, account string) ([]byte, []byte, error) {
+	return c.ExportWatchingWalletAsync(ctx, account).Receive()
 }
 
 // FutureGetBestBlockResult is a future promise to deliver the result of a
@@ -534,17 +535,17 @@ func (r FutureGetBestBlockResult) Receive() (*chainhash.Hash, int64, error) {
 // See GetBestBlock for the blocking version and more details.
 //
 // NOTE: This is a dcrd extension.
-func (c *Client) GetBestBlockAsync() FutureGetBestBlockResult {
+func (c *Client) GetBestBlockAsync(ctx context.Context) FutureGetBestBlockResult {
 	cmd := chainjson.NewGetBestBlockCmd()
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // GetBestBlock returns the hash and height of the block in the longest (best)
 // chain.
 //
 // NOTE: This is a dcrd extension.
-func (c *Client) GetBestBlock() (*chainhash.Hash, int64, error) {
-	return c.GetBestBlockAsync().Receive()
+func (c *Client) GetBestBlock(ctx context.Context) (*chainhash.Hash, int64, error) {
+	return c.GetBestBlockAsync(ctx).Receive()
 }
 
 // FutureGetCurrentNetResult is a future promise to deliver the result of a
@@ -576,16 +577,16 @@ func (r FutureGetCurrentNetResult) Receive() (wire.CurrencyNet, error) {
 // See GetCurrentNet for the blocking version and more details.
 //
 // NOTE: This is a dcrd extension.
-func (c *Client) GetCurrentNetAsync() FutureGetCurrentNetResult {
+func (c *Client) GetCurrentNetAsync(ctx context.Context) FutureGetCurrentNetResult {
 	cmd := chainjson.NewGetCurrentNetCmd()
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // GetCurrentNet returns the network the server is running on.
 //
 // NOTE: This is a dcrd extension.
-func (c *Client) GetCurrentNet() (wire.CurrencyNet, error) {
-	return c.GetCurrentNetAsync().Receive()
+func (c *Client) GetCurrentNet(ctx context.Context) (wire.CurrencyNet, error) {
+	return c.GetCurrentNetAsync(ctx).Receive()
 }
 
 // FutureGetHeadersResult is a future promise to deliver the result of a
@@ -614,7 +615,7 @@ func (r FutureGetHeadersResult) Receive() (*chainjson.GetHeadersResult, error) {
 // of the RPC at some future time by invoking the Receive function on the returned instance.
 //
 // See GetHeaders for the blocking version and more details.
-func (c *Client) GetHeadersAsync(blockLocators []*chainhash.Hash, hashStop *chainhash.Hash) FutureGetHeadersResult {
+func (c *Client) GetHeadersAsync(ctx context.Context, blockLocators []*chainhash.Hash, hashStop *chainhash.Hash) FutureGetHeadersResult {
 	locators := make([]string, len(blockLocators))
 	for i := range blockLocators {
 		locators[i] = blockLocators[i].String()
@@ -626,14 +627,14 @@ func (c *Client) GetHeadersAsync(blockLocators []*chainhash.Hash, hashStop *chai
 	}
 
 	cmd := chainjson.NewGetHeadersCmd(locators, hashStopString)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // GetHeaders mimics the wire protocol getheaders and headers messages by
 // returning all headers on the main chain after the first known block in the
 // locators, up until a block hash matches hashStop.
-func (c *Client) GetHeaders(blockLocators []*chainhash.Hash, hashStop *chainhash.Hash) (*chainjson.GetHeadersResult, error) {
-	return c.GetHeadersAsync(blockLocators, hashStop).Receive()
+func (c *Client) GetHeaders(ctx context.Context, blockLocators []*chainhash.Hash, hashStop *chainhash.Hash) (*chainjson.GetHeadersResult, error) {
+	return c.GetHeadersAsync(ctx, blockLocators, hashStop).Receive()
 }
 
 // FutureGetStakeDifficultyResult is a future promise to deliver the result of a
@@ -665,16 +666,16 @@ func (r FutureGetStakeDifficultyResult) Receive() (*chainjson.GetStakeDifficulty
 // See GetStakeDifficulty for the blocking version and more details.
 //
 // NOTE: This is a dcrd extension.
-func (c *Client) GetStakeDifficultyAsync() FutureGetStakeDifficultyResult {
+func (c *Client) GetStakeDifficultyAsync(ctx context.Context) FutureGetStakeDifficultyResult {
 	cmd := chainjson.NewGetStakeDifficultyCmd()
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // GetStakeDifficulty returns the current and next stake difficulty.
 //
 // NOTE: This is a dcrd extension.
-func (c *Client) GetStakeDifficulty() (*chainjson.GetStakeDifficultyResult, error) {
-	return c.GetStakeDifficultyAsync().Receive()
+func (c *Client) GetStakeDifficulty(ctx context.Context) (*chainjson.GetStakeDifficultyResult, error) {
+	return c.GetStakeDifficultyAsync(ctx).Receive()
 }
 
 // FutureGetStakeVersionsResult is a future promise to deliver the result of a
@@ -706,16 +707,16 @@ func (r FutureGetStakeVersionsResult) Receive() (*chainjson.GetStakeVersionsResu
 // See GetStakeVersionInfo for the blocking version and more details.
 //
 // NOTE: This is a dcrd extension.
-func (c *Client) GetStakeVersionInfoAsync(count int32) FutureGetStakeVersionInfoResult {
+func (c *Client) GetStakeVersionInfoAsync(ctx context.Context, count int32) FutureGetStakeVersionInfoResult {
 	cmd := chainjson.NewGetStakeVersionInfoCmd(count)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // GetStakeVersionInfo returns the stake versions results for past requested intervals (count).
 //
 // NOTE: This is a dcrd extension.
-func (c *Client) GetStakeVersionInfo(count int32) (*chainjson.GetStakeVersionInfoResult, error) {
-	return c.GetStakeVersionInfoAsync(count).Receive()
+func (c *Client) GetStakeVersionInfo(ctx context.Context, count int32) (*chainjson.GetStakeVersionInfoResult, error) {
+	return c.GetStakeVersionInfoAsync(ctx, count).Receive()
 }
 
 // FutureGetStakeVersionInfoResult is a future promise to deliver the result of a
@@ -747,16 +748,16 @@ func (r FutureGetStakeVersionInfoResult) Receive() (*chainjson.GetStakeVersionIn
 // See GetStakeVersions for the blocking version and more details.
 //
 // NOTE: This is a dcrd extension.
-func (c *Client) GetStakeVersionsAsync(hash string, count int32) FutureGetStakeVersionsResult {
+func (c *Client) GetStakeVersionsAsync(ctx context.Context, hash string, count int32) FutureGetStakeVersionsResult {
 	cmd := chainjson.NewGetStakeVersionsCmd(hash, count)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // GetStakeVersions returns the stake versions and vote versions of past requested blocks.
 //
 // NOTE: This is a dcrd extension.
-func (c *Client) GetStakeVersions(hash string, count int32) (*chainjson.GetStakeVersionsResult, error) {
-	return c.GetStakeVersionsAsync(hash, count).Receive()
+func (c *Client) GetStakeVersions(ctx context.Context, hash string, count int32) (*chainjson.GetStakeVersionsResult, error) {
+	return c.GetStakeVersionsAsync(ctx, hash, count).Receive()
 }
 
 // FutureGetTicketPoolValueResult is a future promise to deliver the result of a
@@ -794,16 +795,16 @@ func (r FutureGetTicketPoolValueResult) Receive() (dcrutil.Amount, error) {
 // See GetTicketPoolValue for the blocking version and more details.
 //
 // NOTE: This is a dcrd extension.
-func (c *Client) GetTicketPoolValueAsync() FutureGetTicketPoolValueResult {
+func (c *Client) GetTicketPoolValueAsync(ctx context.Context) FutureGetTicketPoolValueResult {
 	cmd := chainjson.NewGetTicketPoolValueCmd()
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // GetTicketPoolValue returns the value of the live ticket pool.
 //
 // NOTE: This is a dcrd extension.
-func (c *Client) GetTicketPoolValue() (dcrutil.Amount, error) {
-	return c.GetTicketPoolValueAsync().Receive()
+func (c *Client) GetTicketPoolValue(ctx context.Context) (dcrutil.Amount, error) {
+	return c.GetTicketPoolValueAsync(ctx).Receive()
 }
 
 // FutureGetVoteInfoResult is a future promise to deliver the result of a
@@ -835,17 +836,17 @@ func (r FutureGetVoteInfoResult) Receive() (*chainjson.GetVoteInfoResult, error)
 // See GetVoteInfo for the blocking version and more details.
 //
 // NOTE: This is a dcrd extension.
-func (c *Client) GetVoteInfoAsync(version uint32) FutureGetVoteInfoResult {
+func (c *Client) GetVoteInfoAsync(ctx context.Context, version uint32) FutureGetVoteInfoResult {
 	cmd := chainjson.NewGetVoteInfoCmd(version)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // GetVoteInfo returns voting information for the specified stake version. This
 // includes current voting window, quorum, total votes and agendas.
 //
 // NOTE: This is a dcrd extension.
-func (c *Client) GetVoteInfo(version uint32) (*chainjson.GetVoteInfoResult, error) {
-	return c.GetVoteInfoAsync(version).Receive()
+func (c *Client) GetVoteInfo(ctx context.Context, version uint32) (*chainjson.GetVoteInfoResult, error) {
+	return c.GetVoteInfoAsync(ctx, version).Receive()
 }
 
 // FutureListAddressTransactionsResult is a future promise to deliver the result
@@ -876,22 +877,22 @@ func (r FutureListAddressTransactionsResult) Receive() ([]walletjson.ListTransac
 // See ListAddressTransactions for the blocking version and more details.
 //
 // NOTE: This is a dcrd extension.
-func (c *Client) ListAddressTransactionsAsync(addresses []dcrutil.Address, account string) FutureListAddressTransactionsResult {
+func (c *Client) ListAddressTransactionsAsync(ctx context.Context, addresses []dcrutil.Address, account string) FutureListAddressTransactionsResult {
 	// Convert addresses to strings.
 	addrs := make([]string, 0, len(addresses))
 	for _, addr := range addresses {
 		addrs = append(addrs, addr.Address())
 	}
 	cmd := walletjson.NewListAddressTransactionsCmd(addrs, &account)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // ListAddressTransactions returns information about all transactions associated
 // with the provided addresses.
 //
 // NOTE: This is a dcrwallet extension.
-func (c *Client) ListAddressTransactions(addresses []dcrutil.Address, account string) ([]walletjson.ListTransactionsResult, error) {
-	return c.ListAddressTransactionsAsync(addresses, account).Receive()
+func (c *Client) ListAddressTransactions(ctx context.Context, addresses []dcrutil.Address, account string) ([]walletjson.ListTransactionsResult, error) {
+	return c.ListAddressTransactionsAsync(ctx, addresses, account).Receive()
 }
 
 // FutureLiveTicketsResult is a future promise to deliver the result
@@ -928,17 +929,17 @@ func (r FutureLiveTicketsResult) Receive() ([]*chainhash.Hash, error) {
 // LiveTicketsAsync returns an instance of a type that can be used to get the
 // result of the RPC at some future time by invoking the Receive function on the
 // returned instance.
-func (c *Client) LiveTicketsAsync() FutureLiveTicketsResult {
+func (c *Client) LiveTicketsAsync(ctx context.Context) FutureLiveTicketsResult {
 	cmd := chainjson.NewLiveTicketsCmd()
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // LiveTickets returns all currently missed tickets from the missed
 // ticket database in the daemon.
 //
 // NOTE: This is a dcrd extension.
-func (c *Client) LiveTickets() ([]*chainhash.Hash, error) {
-	return c.LiveTicketsAsync().Receive()
+func (c *Client) LiveTickets(ctx context.Context) ([]*chainhash.Hash, error) {
+	return c.LiveTicketsAsync(ctx).Receive()
 }
 
 // FutureMissedTicketsResult is a future promise to deliver the result
@@ -975,17 +976,17 @@ func (r FutureMissedTicketsResult) Receive() ([]*chainhash.Hash, error) {
 // MissedTicketsAsync returns an instance of a type that can be used to get the
 // result of the RPC at some future time by invoking the Receive function on the
 // returned instance.
-func (c *Client) MissedTicketsAsync() FutureMissedTicketsResult {
+func (c *Client) MissedTicketsAsync(ctx context.Context) FutureMissedTicketsResult {
 	cmd := chainjson.NewMissedTicketsCmd()
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // MissedTickets returns all currently missed tickets from the missed
 // ticket database in the daemon.
 //
 // NOTE: This is a dcrd extension.
-func (c *Client) MissedTickets() ([]*chainhash.Hash, error) {
-	return c.MissedTicketsAsync().Receive()
+func (c *Client) MissedTickets(ctx context.Context) ([]*chainhash.Hash, error) {
+	return c.MissedTicketsAsync(ctx).Receive()
 }
 
 // FutureSessionResult is a future promise to deliver the result of a
@@ -1017,14 +1018,14 @@ func (r FutureSessionResult) Receive() (*chainjson.SessionResult, error) {
 // See Session for the blocking version and more details.
 //
 // NOTE: This is a Decred extension.
-func (c *Client) SessionAsync() FutureSessionResult {
+func (c *Client) SessionAsync(ctx context.Context) FutureSessionResult {
 	// Not supported in HTTP POST mode.
 	if c.config.HTTPPostMode {
 		return newFutureError(ErrWebsocketsRequired)
 	}
 
 	cmd := chainjson.NewSessionCmd()
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // Session returns details regarding a websocket client's current connection.
@@ -1032,8 +1033,8 @@ func (c *Client) SessionAsync() FutureSessionResult {
 // This RPC requires the client to be running in websocket mode.
 //
 // NOTE: This is a Decred extension.
-func (c *Client) Session() (*chainjson.SessionResult, error) {
-	return c.SessionAsync().Receive()
+func (c *Client) Session(ctx context.Context) (*chainjson.SessionResult, error) {
+	return c.SessionAsync(ctx).Receive()
 }
 
 // FutureTicketFeeInfoResult is a future promise to deliver the result of a
@@ -1065,7 +1066,7 @@ func (r FutureTicketFeeInfoResult) Receive() (*chainjson.TicketFeeInfoResult, er
 // See TicketFeeInfo for the blocking version and more details.
 //
 // NOTE: This is a Decred extension.
-func (c *Client) TicketFeeInfoAsync(blocks *uint32, windows *uint32) FutureTicketFeeInfoResult {
+func (c *Client) TicketFeeInfoAsync(ctx context.Context, blocks *uint32, windows *uint32) FutureTicketFeeInfoResult {
 	// Not supported in HTTP POST mode.
 	if c.config.HTTPPostMode {
 		return newFutureError(ErrWebsocketsRequired)
@@ -1081,7 +1082,7 @@ func (c *Client) TicketFeeInfoAsync(blocks *uint32, windows *uint32) FutureTicke
 	}
 
 	cmd := chainjson.NewTicketFeeInfoCmd(blocks, windows)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // TicketFeeInfo returns information about ticket fees.
@@ -1089,8 +1090,8 @@ func (c *Client) TicketFeeInfoAsync(blocks *uint32, windows *uint32) FutureTicke
 // This RPC requires the client to be running in websocket mode.
 //
 // NOTE: This is a Decred extension.
-func (c *Client) TicketFeeInfo(blocks *uint32, windows *uint32) (*chainjson.TicketFeeInfoResult, error) {
-	return c.TicketFeeInfoAsync(blocks, windows).Receive()
+func (c *Client) TicketFeeInfo(ctx context.Context, blocks *uint32, windows *uint32) (*chainjson.TicketFeeInfoResult, error) {
+	return c.TicketFeeInfoAsync(ctx, blocks, windows).Receive()
 }
 
 // FutureTicketVWAPResult is a future promise to deliver the result of a
@@ -1127,14 +1128,14 @@ func (r FutureTicketVWAPResult) Receive() (dcrutil.Amount, error) {
 // See TicketVWAP for the blocking version and more details.
 //
 // NOTE: This is a Decred extension.
-func (c *Client) TicketVWAPAsync(start *uint32, end *uint32) FutureTicketVWAPResult {
+func (c *Client) TicketVWAPAsync(ctx context.Context, start *uint32, end *uint32) FutureTicketVWAPResult {
 	// Not supported in HTTP POST mode.
 	if c.config.HTTPPostMode {
 		return newFutureError(ErrWebsocketsRequired)
 	}
 
 	cmd := chainjson.NewTicketVWAPCmd(start, end)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // TicketVWAP returns the vwap weighted average price of tickets.
@@ -1142,8 +1143,8 @@ func (c *Client) TicketVWAPAsync(start *uint32, end *uint32) FutureTicketVWAPRes
 // This RPC requires the client to be running in websocket mode.
 //
 // NOTE: This is a Decred extension.
-func (c *Client) TicketVWAP(start *uint32, end *uint32) (dcrutil.Amount, error) {
-	return c.TicketVWAPAsync(start, end).Receive()
+func (c *Client) TicketVWAP(ctx context.Context, start *uint32, end *uint32) (dcrutil.Amount, error) {
+	return c.TicketVWAPAsync(ctx, start, end).Receive()
 }
 
 // FutureTxFeeInfoResult is a future promise to deliver the result of a
@@ -1175,14 +1176,14 @@ func (r FutureTxFeeInfoResult) Receive() (*chainjson.TxFeeInfoResult, error) {
 // See TxFeeInfo for the blocking version and more details.
 //
 // NOTE: This is a Decred extension.
-func (c *Client) TxFeeInfoAsync(blocks *uint32, start *uint32, end *uint32) FutureTxFeeInfoResult {
+func (c *Client) TxFeeInfoAsync(ctx context.Context, blocks *uint32, start *uint32, end *uint32) FutureTxFeeInfoResult {
 	// Not supported in HTTP POST mode.
 	if c.config.HTTPPostMode {
 		return newFutureError(ErrWebsocketsRequired)
 	}
 
 	cmd := chainjson.NewTxFeeInfoCmd(blocks, start, end)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // TxFeeInfo returns information about tx fees.
@@ -1190,8 +1191,8 @@ func (c *Client) TxFeeInfoAsync(blocks *uint32, start *uint32, end *uint32) Futu
 // This RPC requires the client to be running in websocket mode.
 //
 // NOTE: This is a Decred extension.
-func (c *Client) TxFeeInfo(blocks *uint32, start *uint32, end *uint32) (*chainjson.TxFeeInfoResult, error) {
-	return c.TxFeeInfoAsync(blocks, start, end).Receive()
+func (c *Client) TxFeeInfo(ctx context.Context, blocks *uint32, start *uint32, end *uint32) (*chainjson.TxFeeInfoResult, error) {
+	return c.TxFeeInfoAsync(ctx, blocks, start, end).Receive()
 }
 
 // FutureVersionResult is a future promise to deliver the result of a version
@@ -1220,12 +1221,12 @@ func (r FutureVersionResult) Receive() (map[string]chainjson.VersionResult, erro
 // of the RPC at some future time by invoking the Receive function on the returned instance.
 //
 // See Version for the blocking version and more details.
-func (c *Client) VersionAsync() FutureVersionResult {
+func (c *Client) VersionAsync(ctx context.Context) FutureVersionResult {
 	cmd := chainjson.NewVersionCmd()
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // Version returns information about the server's JSON-RPC API versions.
-func (c *Client) Version() (map[string]chainjson.VersionResult, error) {
-	return c.VersionAsync().Receive()
+func (c *Client) Version(ctx context.Context) (map[string]chainjson.VersionResult, error) {
+	return c.VersionAsync(ctx).Receive()
 }

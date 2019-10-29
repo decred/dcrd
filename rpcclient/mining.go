@@ -6,6 +6,7 @@
 package rpcclient
 
 import (
+	"context"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -52,14 +53,14 @@ func (r FutureGenerateResult) Receive() ([]*chainhash.Hash, error) {
 // the returned instance.
 //
 // See Generate for the blocking version and more details.
-func (c *Client) GenerateAsync(numBlocks uint32) FutureGenerateResult {
+func (c *Client) GenerateAsync(ctx context.Context, numBlocks uint32) FutureGenerateResult {
 	cmd := chainjson.NewGenerateCmd(numBlocks)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // Generate generates numBlocks blocks and returns their hashes.
-func (c *Client) Generate(numBlocks uint32) ([]*chainhash.Hash, error) {
-	return c.GenerateAsync(numBlocks).Receive()
+func (c *Client) Generate(ctx context.Context, numBlocks uint32) ([]*chainhash.Hash, error) {
+	return c.GenerateAsync(ctx, numBlocks).Receive()
 }
 
 // FutureGetGenerateResult is a future promise to deliver the result of a
@@ -89,14 +90,14 @@ func (r FutureGetGenerateResult) Receive() (bool, error) {
 // the returned instance.
 //
 // See GetGenerate for the blocking version and more details.
-func (c *Client) GetGenerateAsync() FutureGetGenerateResult {
+func (c *Client) GetGenerateAsync(ctx context.Context) FutureGetGenerateResult {
 	cmd := chainjson.NewGetGenerateCmd()
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // GetGenerate returns true if the server is set to mine, otherwise false.
-func (c *Client) GetGenerate() (bool, error) {
-	return c.GetGenerateAsync().Receive()
+func (c *Client) GetGenerate(ctx context.Context) (bool, error) {
+	return c.GetGenerateAsync(ctx).Receive()
 }
 
 // FutureSetGenerateResult is a future promise to deliver the result of a
@@ -115,14 +116,14 @@ func (r FutureSetGenerateResult) Receive() error {
 // returned instance.
 //
 // See SetGenerate for the blocking version and more details.
-func (c *Client) SetGenerateAsync(enable bool, numCPUs int) FutureSetGenerateResult {
+func (c *Client) SetGenerateAsync(ctx context.Context, enable bool, numCPUs int) FutureSetGenerateResult {
 	cmd := chainjson.NewSetGenerateCmd(enable, &numCPUs)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // SetGenerate sets the server to generate coins (mine) or not.
-func (c *Client) SetGenerate(enable bool, numCPUs int) error {
-	return c.SetGenerateAsync(enable, numCPUs).Receive()
+func (c *Client) SetGenerate(ctx context.Context, enable bool, numCPUs int) error {
+	return c.SetGenerateAsync(ctx, enable, numCPUs).Receive()
 }
 
 // FutureGetHashesPerSecResult is a future promise to deliver the result of a
@@ -153,16 +154,16 @@ func (r FutureGetHashesPerSecResult) Receive() (int64, error) {
 // the returned instance.
 //
 // See GetHashesPerSec for the blocking version and more details.
-func (c *Client) GetHashesPerSecAsync() FutureGetHashesPerSecResult {
+func (c *Client) GetHashesPerSecAsync(ctx context.Context) FutureGetHashesPerSecResult {
 	cmd := chainjson.NewGetHashesPerSecCmd()
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // GetHashesPerSec returns a recent hashes per second performance measurement
 // while generating coins (mining).  Zero is returned if the server is not
 // mining.
-func (c *Client) GetHashesPerSec() (int64, error) {
-	return c.GetHashesPerSecAsync().Receive()
+func (c *Client) GetHashesPerSec(ctx context.Context) (int64, error) {
+	return c.GetHashesPerSecAsync(ctx).Receive()
 }
 
 // FutureGetMiningInfoResult is a future promise to deliver the result of a
@@ -192,14 +193,14 @@ func (r FutureGetMiningInfoResult) Receive() (*chainjson.GetMiningInfoResult, er
 // the returned instance.
 //
 // See GetMiningInfo for the blocking version and more details.
-func (c *Client) GetMiningInfoAsync() FutureGetMiningInfoResult {
+func (c *Client) GetMiningInfoAsync(ctx context.Context) FutureGetMiningInfoResult {
 	cmd := chainjson.NewGetMiningInfoCmd()
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // GetMiningInfo returns mining information.
-func (c *Client) GetMiningInfo() (*chainjson.GetMiningInfoResult, error) {
-	return c.GetMiningInfoAsync().Receive()
+func (c *Client) GetMiningInfo(ctx context.Context) (*chainjson.GetMiningInfoResult, error) {
+	return c.GetMiningInfoAsync(ctx).Receive()
 }
 
 // FutureGetNetworkHashPS is a future promise to deliver the result of a
@@ -230,9 +231,9 @@ func (r FutureGetNetworkHashPS) Receive() (int64, error) {
 // the returned instance.
 //
 // See GetNetworkHashPS for the blocking version and more details.
-func (c *Client) GetNetworkHashPSAsync() FutureGetNetworkHashPS {
+func (c *Client) GetNetworkHashPSAsync(ctx context.Context) FutureGetNetworkHashPS {
 	cmd := chainjson.NewGetNetworkHashPSCmd(nil, nil)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // GetNetworkHashPS returns the estimated network hashes per second using the
@@ -240,8 +241,8 @@ func (c *Client) GetNetworkHashPSAsync() FutureGetNetworkHashPS {
 //
 // See GetNetworkHashPS2 to override the number of blocks to use and
 // GetNetworkHashPS3 to override the height at which to calculate the estimate.
-func (c *Client) GetNetworkHashPS() (int64, error) {
-	return c.GetNetworkHashPSAsync().Receive()
+func (c *Client) GetNetworkHashPS(ctx context.Context) (int64, error) {
+	return c.GetNetworkHashPSAsync(ctx).Receive()
 }
 
 // GetNetworkHashPS2Async returns an instance of a type that can be used to get
@@ -249,9 +250,9 @@ func (c *Client) GetNetworkHashPS() (int64, error) {
 // the returned instance.
 //
 // See GetNetworkHashPS2 for the blocking version and more details.
-func (c *Client) GetNetworkHashPS2Async(blocks int) FutureGetNetworkHashPS {
+func (c *Client) GetNetworkHashPS2Async(ctx context.Context, blocks int) FutureGetNetworkHashPS {
 	cmd := chainjson.NewGetNetworkHashPSCmd(&blocks, nil)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // GetNetworkHashPS2 returns the estimated network hashes per second for the
@@ -261,8 +262,8 @@ func (c *Client) GetNetworkHashPS2Async(blocks int) FutureGetNetworkHashPS {
 //
 // See GetNetworkHashPS to use defaults and GetNetworkHashPS3 to override the
 // height at which to calculate the estimate.
-func (c *Client) GetNetworkHashPS2(blocks int) (int64, error) {
-	return c.GetNetworkHashPS2Async(blocks).Receive()
+func (c *Client) GetNetworkHashPS2(ctx context.Context, blocks int) (int64, error) {
+	return c.GetNetworkHashPS2Async(ctx, blocks).Receive()
 }
 
 // GetNetworkHashPS3Async returns an instance of a type that can be used to get
@@ -270,9 +271,9 @@ func (c *Client) GetNetworkHashPS2(blocks int) (int64, error) {
 // the returned instance.
 //
 // See GetNetworkHashPS3 for the blocking version and more details.
-func (c *Client) GetNetworkHashPS3Async(blocks, height int) FutureGetNetworkHashPS {
+func (c *Client) GetNetworkHashPS3Async(ctx context.Context, blocks, height int) FutureGetNetworkHashPS {
 	cmd := chainjson.NewGetNetworkHashPSCmd(&blocks, &height)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // GetNetworkHashPS3 returns the estimated network hashes per second for the
@@ -281,8 +282,8 @@ func (c *Client) GetNetworkHashPS3Async(blocks, height int) FutureGetNetworkHash
 // of blocks since the last difficulty change will be used.
 //
 // See GetNetworkHashPS and GetNetworkHashPS2 to use defaults.
-func (c *Client) GetNetworkHashPS3(blocks, height int) (int64, error) {
-	return c.GetNetworkHashPS3Async(blocks, height).Receive()
+func (c *Client) GetNetworkHashPS3(ctx context.Context, blocks, height int) (int64, error) {
+	return c.GetNetworkHashPS3Async(ctx, blocks, height).Receive()
 }
 
 // FutureGetWork is a future promise to deliver the result of a
@@ -312,16 +313,16 @@ func (r FutureGetWork) Receive() (*chainjson.GetWorkResult, error) {
 // returned instance.
 //
 // See GetWork for the blocking version and more details.
-func (c *Client) GetWorkAsync() FutureGetWork {
+func (c *Client) GetWorkAsync(ctx context.Context) FutureGetWork {
 	cmd := chainjson.NewGetWorkCmd(nil)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // GetWork returns hash data to work on.
 //
 // See GetWorkSubmit to submit the found solution.
-func (c *Client) GetWork() (*chainjson.GetWorkResult, error) {
-	return c.GetWorkAsync().Receive()
+func (c *Client) GetWork(ctx context.Context) (*chainjson.GetWorkResult, error) {
+	return c.GetWorkAsync(ctx).Receive()
 }
 
 // FutureGetWorkSubmit is a future promise to deliver the result of a
@@ -351,17 +352,17 @@ func (r FutureGetWorkSubmit) Receive() (bool, error) {
 // returned instance.
 //
 // See GetWorkSubmit for the blocking version and more details.
-func (c *Client) GetWorkSubmitAsync(data string) FutureGetWorkSubmit {
+func (c *Client) GetWorkSubmitAsync(ctx context.Context, data string) FutureGetWorkSubmit {
 	cmd := chainjson.NewGetWorkCmd(&data)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // GetWorkSubmit submits a block header which is a solution to previously
 // requested data and returns whether or not the solution was accepted.
 //
 // See GetWork to request data to work on.
-func (c *Client) GetWorkSubmit(data string) (bool, error) {
-	return c.GetWorkSubmitAsync(data).Receive()
+func (c *Client) GetWorkSubmit(ctx context.Context, data string) (bool, error) {
+	return c.GetWorkSubmitAsync(ctx, data).Receive()
 }
 
 // FutureSubmitBlockResult is a future promise to deliver the result of a
@@ -395,7 +396,7 @@ func (r FutureSubmitBlockResult) Receive() error {
 // returned instance.
 //
 // See SubmitBlock for the blocking version and more details.
-func (c *Client) SubmitBlockAsync(block *dcrutil.Block, options *chainjson.SubmitBlockOptions) FutureSubmitBlockResult {
+func (c *Client) SubmitBlockAsync(ctx context.Context, block *dcrutil.Block, options *chainjson.SubmitBlockOptions) FutureSubmitBlockResult {
 	blockHex := ""
 	if block != nil {
 		blockBytes, err := block.Bytes()
@@ -407,12 +408,12 @@ func (c *Client) SubmitBlockAsync(block *dcrutil.Block, options *chainjson.Submi
 	}
 
 	cmd := chainjson.NewSubmitBlockCmd(blockHex, options)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // SubmitBlock attempts to submit a new block into the Decred network.
-func (c *Client) SubmitBlock(block *dcrutil.Block, options *chainjson.SubmitBlockOptions) error {
-	return c.SubmitBlockAsync(block, options).Receive()
+func (c *Client) SubmitBlock(ctx context.Context, block *dcrutil.Block, options *chainjson.SubmitBlockOptions) error {
+	return c.SubmitBlockAsync(ctx, block, options).Receive()
 }
 
 // FutureRegenTemplateResult is a future promise to deliver the result of a
@@ -430,14 +431,14 @@ func (r FutureRegenTemplateResult) Receive() error {
 // the returned instance.
 //
 // See RegenTemplate for the blocking version and more details.
-func (c *Client) RegenTemplateAsync() FutureRegenTemplateResult {
+func (c *Client) RegenTemplateAsync(ctx context.Context) FutureRegenTemplateResult {
 	cmd := chainjson.NewRegenTemplateCmd()
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // RegenTemplate asks the node to regenerate its current block template. Note
 // that template generation is currently asynchronous, therefore no guarantees
 // are made for when or whether a new template will actually be available.
-func (c *Client) RegenTemplate() error {
-	return c.RegenTemplateAsync().Receive()
+func (c *Client) RegenTemplate(ctx context.Context) error {
+	return c.RegenTemplateAsync(ctx).Receive()
 }

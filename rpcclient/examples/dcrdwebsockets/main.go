@@ -6,6 +6,7 @@
 package main
 
 import (
+	"context"
 	"io/ioutil"
 	"log"
 	"path/filepath"
@@ -48,13 +49,14 @@ func main() {
 	}
 
 	// Register for block connect and disconnect notifications.
-	if err := client.NotifyBlocks(); err != nil {
+	ctx := context.Background()
+	if err := client.NotifyBlocks(ctx); err != nil {
 		log.Fatal(err)
 	}
 	log.Println("NotifyBlocks: Registration Complete")
 
 	// Get the current block count.
-	blockCount, err := client.GetBlockCount()
+	blockCount, err := client.GetBlockCount(ctx)
 	if err != nil {
 		log.Fatal(err)
 	}

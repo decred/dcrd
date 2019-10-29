@@ -6,6 +6,7 @@
 package rpcclient
 
 import (
+	"context"
 	"encoding/json"
 
 	chainjson "github.com/decred/dcrd/rpc/jsonrpc/types/v2"
@@ -50,9 +51,9 @@ func (r FutureAddNodeResult) Receive() error {
 // returned instance.
 //
 // See AddNode for the blocking version and more details.
-func (c *Client) AddNodeAsync(host string, command AddNodeCommand) FutureAddNodeResult {
+func (c *Client) AddNodeAsync(ctx context.Context, host string, command AddNodeCommand) FutureAddNodeResult {
 	cmd := chainjson.NewAddNodeCmd(host, chainjson.AddNodeSubCmd(command))
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // AddNode attempts to perform the passed command on the passed persistent peer.
@@ -60,8 +61,8 @@ func (c *Client) AddNodeAsync(host string, command AddNodeCommand) FutureAddNode
 // a one time connection to a peer.
 //
 // It may not be used to remove non-persistent peers.
-func (c *Client) AddNode(host string, command AddNodeCommand) error {
-	return c.AddNodeAsync(host, command).Receive()
+func (c *Client) AddNode(ctx context.Context, host string, command AddNodeCommand) error {
+	return c.AddNodeAsync(ctx, host, command).Receive()
 }
 
 // FutureGetAddedNodeInfoResult is a future promise to deliver the result of a
@@ -91,17 +92,17 @@ func (r FutureGetAddedNodeInfoResult) Receive() ([]chainjson.GetAddedNodeInfoRes
 // the returned instance.
 //
 // See GetAddedNodeInfo for the blocking version and more details.
-func (c *Client) GetAddedNodeInfoAsync(peer string) FutureGetAddedNodeInfoResult {
+func (c *Client) GetAddedNodeInfoAsync(ctx context.Context, peer string) FutureGetAddedNodeInfoResult {
 	cmd := chainjson.NewGetAddedNodeInfoCmd(true, &peer)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // GetAddedNodeInfo returns information about manually added (persistent) peers.
 //
 // See GetAddedNodeInfoNoDNS to retrieve only a list of the added (persistent)
 // peers.
-func (c *Client) GetAddedNodeInfo(peer string) ([]chainjson.GetAddedNodeInfoResult, error) {
-	return c.GetAddedNodeInfoAsync(peer).Receive()
+func (c *Client) GetAddedNodeInfo(ctx context.Context, peer string) ([]chainjson.GetAddedNodeInfoResult, error) {
+	return c.GetAddedNodeInfoAsync(ctx, peer).Receive()
 }
 
 // FutureGetAddedNodeInfoNoDNSResult is a future promise to deliver the result
@@ -131,9 +132,9 @@ func (r FutureGetAddedNodeInfoNoDNSResult) Receive() ([]string, error) {
 // function on the returned instance.
 //
 // See GetAddedNodeInfoNoDNS for the blocking version and more details.
-func (c *Client) GetAddedNodeInfoNoDNSAsync(peer string) FutureGetAddedNodeInfoNoDNSResult {
+func (c *Client) GetAddedNodeInfoNoDNSAsync(ctx context.Context, peer string) FutureGetAddedNodeInfoNoDNSResult {
 	cmd := chainjson.NewGetAddedNodeInfoCmd(false, &peer)
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // GetAddedNodeInfoNoDNS returns a list of manually added (persistent) peers.
@@ -141,8 +142,8 @@ func (c *Client) GetAddedNodeInfoNoDNSAsync(peer string) FutureGetAddedNodeInfoN
 //
 // See GetAddedNodeInfo to obtain more information about each added (persistent)
 // peer.
-func (c *Client) GetAddedNodeInfoNoDNS(peer string) ([]string, error) {
-	return c.GetAddedNodeInfoNoDNSAsync(peer).Receive()
+func (c *Client) GetAddedNodeInfoNoDNS(ctx context.Context, peer string) ([]string, error) {
+	return c.GetAddedNodeInfoNoDNSAsync(ctx, peer).Receive()
 }
 
 // FutureGetConnectionCountResult is a future promise to deliver the result
@@ -172,14 +173,14 @@ func (r FutureGetConnectionCountResult) Receive() (int64, error) {
 // the returned instance.
 //
 // See GetConnectionCount for the blocking version and more details.
-func (c *Client) GetConnectionCountAsync() FutureGetConnectionCountResult {
+func (c *Client) GetConnectionCountAsync(ctx context.Context) FutureGetConnectionCountResult {
 	cmd := chainjson.NewGetConnectionCountCmd()
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // GetConnectionCount returns the number of active connections to other peers.
-func (c *Client) GetConnectionCount() (int64, error) {
-	return c.GetConnectionCountAsync().Receive()
+func (c *Client) GetConnectionCount(ctx context.Context) (int64, error) {
+	return c.GetConnectionCountAsync(ctx).Receive()
 }
 
 // FuturePingResult is a future promise to deliver the result of a PingAsync RPC
@@ -198,17 +199,17 @@ func (r FuturePingResult) Receive() error {
 // instance.
 //
 // See Ping for the blocking version and more details.
-func (c *Client) PingAsync() FuturePingResult {
+func (c *Client) PingAsync(ctx context.Context) FuturePingResult {
 	cmd := chainjson.NewPingCmd()
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // Ping queues a ping to be sent to each connected peer.
 //
 // Use the GetPeerInfo function and examine the PingTime and PingWait fields to
 // access the ping times.
-func (c *Client) Ping() error {
-	return c.PingAsync().Receive()
+func (c *Client) Ping(ctx context.Context) error {
+	return c.PingAsync(ctx).Receive()
 }
 
 // FutureGetPeerInfoResult is a future promise to deliver the result of a
@@ -238,14 +239,14 @@ func (r FutureGetPeerInfoResult) Receive() ([]chainjson.GetPeerInfoResult, error
 // returned instance.
 //
 // See GetPeerInfo for the blocking version and more details.
-func (c *Client) GetPeerInfoAsync() FutureGetPeerInfoResult {
+func (c *Client) GetPeerInfoAsync(ctx context.Context) FutureGetPeerInfoResult {
 	cmd := chainjson.NewGetPeerInfoCmd()
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // GetPeerInfo returns data about each connected network peer.
-func (c *Client) GetPeerInfo() ([]chainjson.GetPeerInfoResult, error) {
-	return c.GetPeerInfoAsync().Receive()
+func (c *Client) GetPeerInfo(ctx context.Context) ([]chainjson.GetPeerInfoResult, error) {
+	return c.GetPeerInfoAsync(ctx).Receive()
 }
 
 // FutureGetNetTotalsResult is a future promise to deliver the result of a
@@ -275,12 +276,12 @@ func (r FutureGetNetTotalsResult) Receive() (*chainjson.GetNetTotalsResult, erro
 // returned instance.
 //
 // See GetNetTotals for the blocking version and more details.
-func (c *Client) GetNetTotalsAsync() FutureGetNetTotalsResult {
+func (c *Client) GetNetTotalsAsync(ctx context.Context) FutureGetNetTotalsResult {
 	cmd := chainjson.NewGetNetTotalsCmd()
-	return c.sendCmd(cmd)
+	return c.sendCmd(ctx, cmd)
 }
 
 // GetNetTotals returns network traffic statistics.
-func (c *Client) GetNetTotals() (*chainjson.GetNetTotalsResult, error) {
-	return c.GetNetTotalsAsync().Receive()
+func (c *Client) GetNetTotals(ctx context.Context) (*chainjson.GetNetTotalsResult, error) {
+	return c.GetNetTotalsAsync(ctx).Receive()
 }
