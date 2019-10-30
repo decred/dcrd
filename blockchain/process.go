@@ -6,6 +6,7 @@
 package blockchain
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -43,7 +44,7 @@ const (
 // are needed to pass along to maybeAcceptBlock.
 //
 // This function MUST be called with the chain state lock held (for writes).
-func (b *BlockChain) processOrphans(hash *chainhash.Hash, flags BehaviorFlags) error {
+func (b *BlockChain) processOrphans(ctx context.Context, hash *chainhash.Hash, flags BehaviorFlags) error {
 	// Start with processing at least the passed hash.  Leave a little room
 	// for additional orphan blocks that need to be processed without
 	// needing to grow the array in the common case.
@@ -78,7 +79,7 @@ func (b *BlockChain) processOrphans(hash *chainhash.Hash, flags BehaviorFlags) e
 			i--
 
 			// Potentially accept the block into the block chain.
-			_, err := b.maybeAcceptBlock(orphan.block, flags)
+			_, err := b.maybeAcceptBlock(ctx, orphan.block, flags)
 			if err != nil {
 				return err
 			}
@@ -106,7 +107,7 @@ func (b *BlockChain) processOrphans(hash *chainhash.Hash, flags BehaviorFlags) e
 // best chain.
 //
 // This function is safe for concurrent access.
-func (b *BlockChain) ProcessBlock(block *dcrutil.Block, flags BehaviorFlags) (int64, bool, error) {
+func (b *BlockChain) ProcessBlock(ctx context.Context, block *dcrutil.Block, flags BehaviorFlags) (int64, bool, error) {
 	b.chainLock.Lock()
 	defer b.chainLock.Unlock()
 
@@ -194,7 +195,7 @@ func (b *BlockChain) ProcessBlock(block *dcrutil.Block, flags BehaviorFlags) (in
 
 	// The block has passed all context independent checks and appears sane
 	// enough to potentially accept it into the block chain.
-	forkLen, err := b.maybeAcceptBlock(block, flags)
+	forkLen, err := b.maybeAcceptBlock(ctx, block, flags)
 	if err != nil {
 		return 0, false, err
 	}
@@ -202,7 +203,7 @@ func (b *BlockChain) ProcessBlock(block *dcrutil.Block, flags BehaviorFlags) (in
 	// Accept any orphan blocks that depend on this block (they are no
 	// longer orphans) and repeat for those accepted blocks until there are
 	// no more.
-	err = b.processOrphans(blockHash, flags)
+	err = b.processOrphans(ctx, blockHash, flags)
 	if err != nil {
 		return 0, false, err
 	}

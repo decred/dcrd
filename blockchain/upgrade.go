@@ -696,7 +696,7 @@ func (b *BlockChain) maybeFinishV5Upgrade(ctx context.Context) error {
 				intermediateTip.height, targetTip.height,
 				float64(intermediateTip.height)/float64(targetTip.height)*100)
 			b.chainLock.Lock()
-			if err := b.reorganizeChainInternal(intermediateTip); err != nil {
+			if err := b.reorganizeChainInternal(ctx, intermediateTip); err != nil {
 				b.chainLock.Unlock()
 				return err
 			}

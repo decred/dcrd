@@ -8,6 +8,7 @@ package blockchain
 import (
 	"bytes"
 	"compress/bzip2"
+	"context"
 	"encoding/gob"
 	"fmt"
 	"os"
@@ -94,6 +95,7 @@ func TestBlockchainFunctions(t *testing.T) {
 		t.Errorf("error decoding test blockchain: %v", err.Error())
 	}
 
+	ctx := context.Background()
 	// Insert blocks 1 to 168 and perform various tests.
 	for i := 1; i <= 168; i++ {
 		bl, err := dcrutil.NewBlockFromBytes(blockChain[int64(i)])
@@ -101,7 +103,7 @@ func TestBlockchainFunctions(t *testing.T) {
 			t.Errorf("NewBlockFromBytes error: %v", err.Error())
 		}
 
-		_, _, err = chain.ProcessBlock(bl, BFNone)
+		_, _, err = chain.ProcessBlock(ctx, bl, BFNone)
 		if err != nil {
 			t.Fatalf("ProcessBlock error at height %v: %v", i, err.Error())
 		}
@@ -158,7 +160,8 @@ func TestForceHeadReorg(t *testing.T) {
 			from.BlockHash(), from.Header.Height, toTipName,
 			to.BlockHash(), to.Header.Height)
 
-		err := g.chain.ForceHeadReorganization(from.BlockHash(), to.BlockHash())
+		ctx := context.Background()
+		err := g.chain.ForceHeadReorganization(ctx, from.BlockHash(), to.BlockHash())
 		if err == nil {
 			t.Fatalf("forced header reorg from block %q (hash %s, "+
 				"height %d) to block %q (hash %s, height %d) "+
@@ -207,12 +210,13 @@ func TestForceHeadReorg(t *testing.T) {
 	//   ... -> bsv# -> bbm0 -> bbm1 -> ... -> bbm#
 	// ---------------------------------------------------------------------
 
+	ctx := context.TODO()
 	for i := uint16(0); i < coinbaseMaturity; i++ {
 		outs := g.OldestCoinbaseOuts()
 		blockName := fmt.Sprintf("bbm%d", i)
 		g.NextBlock(blockName, nil, outs[1:])
 		g.SaveTipCoinbaseOuts()
-		g.AcceptTipBlock()
+		g.AcceptTipBlock(ctx)
 	}
 	g.AssertTipHeight(uint32(stakeValidationHeight) + uint32(coinbaseMaturity))
 
@@ -237,7 +241,7 @@ func TestForceHeadReorg(t *testing.T) {
 	//
 	//   ... -> b1(0)
 	g.NextBlock("b1", outs[0], ticketOuts[0])
-	g.AcceptTipBlock()
+	g.AcceptTipBlock(ctx)
 
 	// Create a fork from b1 with an invalid block due to committing to an
 	// invalid number of votes.  Since verifying the header commitment is a
@@ -249,7 +253,7 @@ func TestForceHeadReorg(t *testing.T) {
 	g.NextBlock("b2bad0", outs[1], ticketOuts[1], func(b *wire.MsgBlock) {
 		b.Header.Voters++
 	})
-	g.RejectTipBlock(ErrTooManyVotes)
+	g.RejectTipBlock(ctx, ErrTooManyVotes)
 
 	// Create a fork from b1 with an invalid block due to committing to an
 	// invalid input amount.  Since verifying the fraud proof necessarily
@@ -264,7 +268,7 @@ func TestForceHeadReorg(t *testing.T) {
 	g.NextBlock("b2bad1", outs[1], ticketOuts[1], func(b *wire.MsgBlock) {
 		b.Transactions[1].TxIn[0].ValueIn--
 	})
-	g.RejectTipBlock(ErrFraudAmountIn)
+	g.RejectTipBlock(ctx, ErrFraudAmountIn)
 
 	// Create some forks from b1.  There should not be a reorg since b1 is
 	// the current tip and b2 is seen first.
@@ -277,19 +281,19 @@ func TestForceHeadReorg(t *testing.T) {
 	//               \-> b2bad1(1)
 	g.SetTip("b1")
 	g.NextBlock("b2", outs[1], ticketOuts[1])
-	g.AcceptTipBlock()
+	g.AcceptTipBlock(ctx)
 
 	g.SetTip("b1")
 	g.NextBlock("b3", outs[1], ticketOuts[1])
-	g.AcceptedToSideChainWithExpectedTip("b2")
+	g.AcceptedToSideChainWithExpectedTip(ctx, "b2")
 
 	g.SetTip("b1")
 	g.NextBlock("b4", outs[1], ticketOuts[1])
-	g.AcceptedToSideChainWithExpectedTip("b2")
+	g.AcceptedToSideChainWithExpectedTip(ctx, "b2")
 
 	g.SetTip("b1")
 	g.NextBlock("b5", outs[1], ticketOuts[1])
-	g.AcceptedToSideChainWithExpectedTip("b2")
+	g.AcceptedToSideChainWithExpectedTip(ctx, "b2")
 
 	// Create a fork from b1 with an invalid block due to committing to an
 	// invalid input amount.  Since verifying the fraud proof necessarily
@@ -310,7 +314,7 @@ func TestForceHeadReorg(t *testing.T) {
 	g.NextBlock("b2bad2", outs[1], ticketOuts[1], func(b *wire.MsgBlock) {
 		b.Transactions[1].TxIn[0].ValueIn--
 	})
-	g.AcceptedToSideChainWithExpectedTip("b2")
+	g.AcceptedToSideChainWithExpectedTip(ctx, "b2")
 
 	// Force tip reorganization to b3.
 	//
@@ -322,7 +326,7 @@ func TestForceHeadReorg(t *testing.T) {
 	//               \-> b2bad1(1)
 	//               \-> b2bad2(1)
 	g.SetTip("b1")
-	g.ForceTipReorg("b2", "b3")
+	g.ForceTipReorg(ctx, "b2", "b3")
 	g.ExpectTip("b3")
 
 	// Force tip reorganization to b4.
@@ -334,7 +338,7 @@ func TestForceHeadReorg(t *testing.T) {
 	//               \-> b2bad0(1)
 	//               \-> b2bad1(1)
 	//               \-> b2bad2(1)
-	g.ForceTipReorg("b3", "b4")
+	g.ForceTipReorg(ctx, "b3", "b4")
 	g.ExpectTip("b4")
 
 	// Force tip reorganization to b5.
@@ -346,7 +350,7 @@ func TestForceHeadReorg(t *testing.T) {
 	//               \-> b2bad0(1)
 	//               \-> b2bad1(1)
 	//               \-> b2bad2(1)
-	g.ForceTipReorg("b4", "b5")
+	g.ForceTipReorg(ctx, "b4", "b5")
 	g.ExpectTip("b5")
 
 	// Force tip reorganization back to b3 to ensure cached validation
@@ -359,7 +363,7 @@ func TestForceHeadReorg(t *testing.T) {
 	//               \-> b2bad0(1)
 	//               \-> b2bad1(1)
 	//               \-> b2bad2(1)
-	g.ForceTipReorg("b5", "b3")
+	g.ForceTipReorg(ctx, "b5", "b3")
 	g.ExpectTip("b3")
 
 	// Attempt to force tip reorganization from a block that is not the

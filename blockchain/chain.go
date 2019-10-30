@@ -1080,7 +1080,7 @@ func (b *BlockChain) loadOrCreateFilter(block *dcrutil.Block, view *UtxoViewpoin
 // block failing to connect.
 //
 // This function MUST be called with the chain state lock held (for writes).
-func (b *BlockChain) reorganizeChainInternal(targetTip *blockNode) error {
+func (b *BlockChain) reorganizeChainInternal(ctx context.Context, targetTip *blockNode) error {
 	// Find the fork point adding each block to a slice of blocks to attach
 	// below once the current best chain has been disconnected.  They are added
 	// to the slice from back to front so that so they are attached in the
@@ -1233,7 +1233,7 @@ func (b *BlockChain) reorganizeChainInternal(targetTip *blockNode) error {
 			// In the case the block is determined to be invalid due to a rule
 			// violation, mark it as invalid and mark all of its descendants as
 			// having an invalid ancestor.
-			err = b.checkConnectBlock(n, block, parent, view, &stxos,
+			err = b.checkConnectBlock(ctx, n, block, parent, view, &stxos,
 				&hdrCommitments)
 			if err != nil {
 				if _, ok := err.(RuleError); ok {
@@ -1276,7 +1276,7 @@ func (b *BlockChain) reorganizeChainInternal(targetTip *blockNode) error {
 // block failing to connect.
 //
 // This function MUST be called with the chain state lock held (for writes).
-func (b *BlockChain) reorganizeChain(targetTip *blockNode) error {
+func (b *BlockChain) reorganizeChain(ctx context.Context, targetTip *blockNode) error {
 	// Nothing to do if there is no target tip or the target tip is already the
 	// current tip.
 	if targetTip == nil {
@@ -1313,9 +1313,9 @@ func (b *BlockChain) reorganizeChain(targetTip *blockNode) error {
 	// chain lock, however, this will need to be reworked if that assumption is
 	// violated.
 	fork := b.bestChain.FindFork(targetTip)
-	reorgErr := b.reorganizeChainInternal(targetTip)
+	reorgErr := b.reorganizeChainInternal(ctx, targetTip)
 	if reorgErr != nil {
-		if err := b.reorganizeChainInternal(origTip); err != nil {
+		if err := b.reorganizeChainInternal(ctx, origTip); err != nil {
 			panicf("failed to reorganize back to known good chain tip %s "+
 				"(height %d): %v -- probable database corruption", origTip.hash,
 				origTip.height, err)
@@ -1352,7 +1352,7 @@ func (b *BlockChain) reorganizeChain(targetTip *blockNode) error {
 // without flushing.
 //
 // This function MUST be called with the chain state lock held (for writes).
-func (b *BlockChain) forceHeadReorganization(formerBest chainhash.Hash, newBest chainhash.Hash) error {
+func (b *BlockChain) forceHeadReorganization(ctx context.Context, formerBest chainhash.Hash, newBest chainhash.Hash) error {
 	if formerBest.IsEqual(&newBest) {
 		return fmt.Errorf("can't reorganize to the same block")
 	}
@@ -1382,7 +1382,7 @@ func (b *BlockChain) forceHeadReorganization(formerBest chainhash.Hash, newBest 
 	// block index to the database.  It is safe to ignore any flushing
 	// errors here as the only time the index will be modified is if the
 	// block failed to connect.
-	err := b.reorganizeChain(newBestNode)
+	err := b.reorganizeChain(ctx, newBestNode)
 	b.flushBlockIndexWarnOnly()
 	return err
 }
@@ -1392,9 +1392,9 @@ func (b *BlockChain) forceHeadReorganization(formerBest chainhash.Hash, newBest 
 // of the best chain.
 //
 // This function is safe for concurrent access.
-func (b *BlockChain) ForceHeadReorganization(formerBest chainhash.Hash, newBest chainhash.Hash) error {
+func (b *BlockChain) ForceHeadReorganization(ctx context.Context, formerBest chainhash.Hash, newBest chainhash.Hash) error {
 	b.chainLock.Lock()
-	err := b.forceHeadReorganization(formerBest, newBest)
+	err := b.forceHeadReorganization(ctx, formerBest, newBest)
 	b.chainLock.Unlock()
 	return err
 }
@@ -1444,7 +1444,7 @@ func (b *BlockChain) flushBlockIndexWarnOnly() {
 //    This is useful when using checkpoints.
 //
 // This function MUST be called with the chain state lock held (for writes).
-func (b *BlockChain) connectBestChain(node *blockNode, block, parent *dcrutil.Block, flags BehaviorFlags) (int64, error) {
+func (b *BlockChain) connectBestChain(ctx context.Context, node *blockNode, block, parent *dcrutil.Block, flags BehaviorFlags) (int64, error) {
 	fastAdd := flags&BFFastAdd == BFFastAdd
 
 	// Ensure the passed parent is actually the parent of the block.
@@ -1479,7 +1479,7 @@ func (b *BlockChain) connectBestChain(node *blockNode, block, parent *dcrutil.Bl
 		var stxos []spentTxOut
 		var hdrCommitments headerCommitmentData
 		if !fastAdd {
-			err := b.checkConnectBlock(node, block, parent, view, &stxos,
+			err := b.checkConnectBlock(ctx, node, block, parent, view, &stxos,
 				&hdrCommitments)
 			if err != nil {
 				if _, ok := err.(RuleError); ok {
@@ -1571,7 +1571,7 @@ func (b *BlockChain) connectBestChain(node *blockNode, block, parent *dcrutil.Bl
 	// errors here as the only time the index will be modified is if the
 	// block failed to connect.
 	log.Infof("REORGANIZE: Block %v is causing a reorganize.", node.hash)
-	err := b.reorganizeChain(node)
+	err := b.reorganizeChain(ctx, node)
 	b.flushBlockIndexWarnOnly()
 	if err != nil {
 		return 0, err

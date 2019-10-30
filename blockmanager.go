@@ -7,6 +7,7 @@ package main
 
 import (
 	"container/list"
+	"context"
 	"encoding/binary"
 	"fmt"
 	"os"
@@ -686,7 +687,7 @@ func errToWireRejectCode(err error) (wire.RejectCode, string) {
 }
 
 // handleTxMsg handles transaction messages from all peers.
-func (b *blockManager) handleTxMsg(tmsg *txMsg) {
+func (b *blockManager) handleTxMsg(ctx context.Context, tmsg *txMsg) {
 	peer := tmsg.peer
 	state, exists := b.peerStates[peer]
 	if !exists {
@@ -716,7 +717,7 @@ func (b *blockManager) handleTxMsg(tmsg *txMsg) {
 	// Process the transaction to include validation, insertion in the
 	// memory pool, orphan handling, etc.
 	allowOrphans := cfg.MaxOrphanTxs > 0
-	acceptedTxs, err := b.cfg.TxMemPool.ProcessTransaction(tmsg.tx,
+	acceptedTxs, err := b.cfg.TxMemPool.ProcessTransaction(ctx, tmsg.tx,
 		allowOrphans, true, true)
 
 	// Remove transaction from request maps. Either the mempool/chain
@@ -777,7 +778,7 @@ func (b *blockManager) current() bool {
 }
 
 // handleBlockMsg handles block messages from all peers.
-func (b *blockManager) handleBlockMsg(bmsg *blockMsg) {
+func (b *blockManager) handleBlockMsg(ctx context.Context, bmsg *blockMsg) {
 	peer := bmsg.peer
 	state, exists := b.peerStates[peer]
 	if !exists {
@@ -826,7 +827,7 @@ func (b *blockManager) handleBlockMsg(bmsg *blockMsg) {
 
 	// Process the block to include validation, best chain selection, orphan
 	// handling, etc.
-	forkLen, isOrphan, err := b.cfg.Chain.ProcessBlock(bmsg.block,
+	forkLen, isOrphan, err := b.cfg.Chain.ProcessBlock(ctx, bmsg.block,
 		behaviorFlags)
 	if err != nil {
 		// When the error is a rule error, it means the block was simply
@@ -1386,7 +1387,7 @@ func (b *blockManager) limitMap(m map[chainhash.Hash]struct{}, limit int) {
 // single thread without needing to lock memory data structures.  This is
 // important because the block manager controls which blocks are needed and how
 // the fetching should proceed.
-func (b *blockManager) blockHandler() {
+func (b *blockManager) blockHandler(ctx context.Context) {
 out:
 	for {
 		select {
@@ -1396,11 +1397,11 @@ out:
 				b.handleNewPeerMsg(msg.peer)
 
 			case *txMsg:
-				b.handleTxMsg(msg)
+				b.handleTxMsg(ctx, msg)
 				msg.reply <- struct{}{}
 
 			case *blockMsg:
-				b.handleBlockMsg(msg)
+				b.handleBlockMsg(ctx, msg)
 				msg.reply <- struct{}{}
 
 			case *invMsg:
@@ -1443,7 +1444,7 @@ out:
 
 			case forceReorganizationMsg:
 				err := b.cfg.Chain.ForceHeadReorganization(
-					msg.formerBest, msg.newBest)
+					ctx, msg.formerBest, msg.newBest)
 
 				if err == nil {
 					// Notify stake difficulty subscribers and prune
@@ -1476,7 +1477,7 @@ out:
 
 			case processBlockMsg:
 				forkLen, isOrphan, err := b.cfg.Chain.ProcessBlock(
-					msg.block, msg.flags)
+					ctx, msg.block, msg.flags)
 				if err != nil {
 					msg.reply <- processBlockResponse{
 						forkLen:  forkLen,
@@ -1511,8 +1512,8 @@ out:
 				}
 
 			case processTransactionMsg:
-				acceptedTxs, err := b.cfg.TxMemPool.ProcessTransaction(msg.tx,
-					msg.allowOrphans, msg.rateLimit, msg.allowHighFees)
+				acceptedTxs, err := b.cfg.TxMemPool.ProcessTransaction(ctx,
+					msg.tx, msg.allowOrphans, msg.rateLimit, msg.allowHighFees)
 				msg.reply <- processTransactionResponse{
 					acceptedTxs: acceptedTxs,
 					err:         err,
@@ -1582,7 +1583,7 @@ func isDoubleSpendOrDuplicateError(err error) bool {
 // handleBlockchainNotification handles notifications from blockchain.  It does
 // things such as request orphan block parents and relay accepted blocks to
 // connected peers.
-func (b *blockManager) handleBlockchainNotification(notification *blockchain.Notification) {
+func (b *blockManager) handleBlockchainNotification(ctx context.Context, notification *blockchain.Notification) {
 	switch notification.Type {
 	// A block that intends to extend the main chain has passed all sanity and
 	// contextual checks and the chain is believed to be current.  Relay it to
@@ -1755,7 +1756,7 @@ func (b *blockManager) handleBlockchainNotification(notification *blockchain.Not
 				txMemPool.RemoveTransaction(tx, false)
 				txMemPool.RemoveDoubleSpends(tx)
 				txMemPool.RemoveOrphan(tx)
-				acceptedTxs := txMemPool.ProcessOrphans(tx)
+				acceptedTxs := txMemPool.ProcessOrphans(ctx, tx)
 				b.cfg.PeerNotifier.AnnounceNewTransactions(acceptedTxs)
 
 				// Now that this block is in the blockchain, mark the
@@ -1789,7 +1790,7 @@ func (b *blockManager) handleBlockchainNotification(notification *blockchain.Not
 		// transaction is still valid.
 		if !headerApprovesParent(&block.MsgBlock().Header) {
 			for _, tx := range parentBlock.Transactions()[1:] {
-				_, err := txMemPool.MaybeAcceptTransaction(tx, false, true)
+				_, err := txMemPool.MaybeAcceptTransaction(ctx, tx, false, true)
 				if err != nil && !isDoubleSpendOrDuplicateError(err) {
 					txMemPool.RemoveTransaction(tx, true)
 				}
@@ -1862,7 +1863,7 @@ func (b *blockManager) handleBlockchainNotification(notification *blockchain.Not
 				txMemPool.RemoveTransaction(tx, false)
 				txMemPool.RemoveDoubleSpends(tx)
 				txMemPool.RemoveOrphan(tx)
-				txMemPool.ProcessOrphans(tx)
+				txMemPool.ProcessOrphans(ctx, tx)
 			}
 		}
 
@@ -1890,7 +1891,7 @@ func (b *blockManager) handleBlockchainNotification(notification *blockchain.Not
 		// pool which depends on the transaction is still valid.
 		handleDisconnectedBlockTxns := func(txns []*dcrutil.Tx) {
 			for _, tx := range txns {
-				_, err := txMemPool.MaybeAcceptTransaction(tx, false, true)
+				_, err := txMemPool.MaybeAcceptTransaction(ctx, tx, false, true)
 				if err != nil && !isDoubleSpendOrDuplicateError(err) {
 					txMemPool.RemoveTransaction(tx, true)
 				}
@@ -2013,7 +2014,7 @@ func (b *blockManager) Start() {
 
 	bmgrLog.Trace("Starting block manager")
 	b.wg.Add(1)
-	go b.blockHandler()
+	go b.blockHandler(context.TODO())
 }
 
 // Stop gracefully shuts down the block manager by stopping all asynchronous

@@ -673,7 +673,7 @@ func maybeInsertStakeTx(bm *blockManager, stx *dcrutil.Tx, treeValid bool) bool 
 // work off of is present, it will return a copy of that template to pass to the
 // miner.
 // Safe for concurrent access.
-func handleTooFewVoters(subsidyCache *standalone.SubsidyCache, nextHeight int64, miningAddress dcrutil.Address, bm *blockManager) (*BlockTemplate, error) {
+func handleTooFewVoters(ctx context.Context, subsidyCache *standalone.SubsidyCache, nextHeight int64, miningAddress dcrutil.Address, bm *blockManager) (*BlockTemplate, error) {
 	timeSource := bm.cfg.TimeSource
 	stakeValidationHeight := bm.cfg.ChainParams.StakeValidationHeight
 
@@ -786,7 +786,7 @@ func handleTooFewVoters(subsidyCache *standalone.SubsidyCache, nextHeight int64,
 
 		// Make sure the block validates.
 		btBlock := dcrutil.NewBlockDeepCopyCoinbase(&block)
-		err = bm.cfg.Chain.CheckConnectBlockTemplate(btBlock)
+		err = bm.cfg.Chain.CheckConnectBlockTemplate(ctx, btBlock)
 		if err != nil {
 			str := fmt.Sprintf("failed to check template: %v while "+
 				"constructing a new parent", err.Error())
@@ -922,7 +922,7 @@ func newBlkTmplGenerator(policy *mining.Policy, txSource mining.TxSource,
 //
 //  This function returns nil, nil if there are not enough voters on any of
 //  the current top blocks to create a new block template.
-func (g *BlkTmplGenerator) NewBlockTemplate(payToAddress dcrutil.Address) (*BlockTemplate, error) {
+func (g *BlkTmplGenerator) NewBlockTemplate(ctx context.Context, payToAddress dcrutil.Address) (*BlockTemplate, error) {
 	// All transaction scripts are verified using the more strict standard
 	// flags.
 	scriptFlags, err := standardScriptVerifyFlags(g.chain)
@@ -972,7 +972,7 @@ func (g *BlkTmplGenerator) NewBlockTemplate(payToAddress dcrutil.Address) (*Bloc
 		if len(eligibleParents) == 0 {
 			minrLog.Debugf("Too few voters found on any HEAD block, " +
 				"recycling a parent block to mine on")
-			return handleTooFewVoters(g.subsidyCache, nextBlockHeight,
+			return handleTooFewVoters(ctx, g.subsidyCache, nextBlockHeight,
 				payToAddress, g.blockManager)
 		}
 
@@ -1353,7 +1353,7 @@ mempoolLoop:
 			logSkippedDeps(tx, deps)
 			continue
 		}
-		err = blockchain.ValidateTransactionScripts(tx, blockUtxos,
+		err = blockchain.ValidateTransactionScripts(ctx, tx, blockUtxos,
 			scriptFlags, g.sigCache)
 		if err != nil {
 			minrLog.Tracef("Skipping tx %s due to error in "+
@@ -1694,7 +1694,7 @@ mempoolLoop:
 		voters < minimumVotesRequired {
 		minrLog.Warnf("incongruent number of voters in mempool " +
 			"vs mempool.voters; not enough voters found")
-		return handleTooFewVoters(g.subsidyCache, nextBlockHeight, payToAddress,
+		return handleTooFewVoters(ctx, g.subsidyCache, nextBlockHeight, payToAddress,
 			g.blockManager)
 	}
 
@@ -1846,7 +1846,7 @@ mempoolLoop:
 	// consensus rules to ensure it properly connects to the current best
 	// chain with no issues.
 	block := dcrutil.NewBlockDeepCopyCoinbase(&msgBlock)
-	err = g.chain.CheckConnectBlockTemplate(block)
+	err = g.chain.CheckConnectBlockTemplate(ctx, block)
 	if err != nil {
 		str := fmt.Sprintf("failed to do final check for check connect "+
 			"block when making new block template: %v",
@@ -2503,7 +2503,7 @@ func (g *BgBlkTmplGenerator) genTemplateAsync(ctx context.Context, reason Templa
 		// pays to it.
 		prng := rand.New(rand.NewSource(time.Now().Unix()))
 		payToAddr := g.miningAddrs[prng.Intn(len(g.miningAddrs))]
-		template, err := g.tg.NewBlockTemplate(payToAddr)
+		template, err := g.tg.NewBlockTemplate(ctx, payToAddr)
 		// NOTE: err is handled below.
 
 		// Don't update the state or notify subscribers when the template
@@ -2860,7 +2860,7 @@ func (g *BgBlkTmplGenerator) handleVote(ctx context.Context, state *regenHandler
 		minrLog.Debugf("Received vote %s for side chain block %s (%d total)",
 			voteTx.Hash(), votedOnHash, numVotes)
 		if numVotes >= g.minVotesRequired {
-			err := g.chain.ForceHeadReorganization(chainTip.Hash, votedOnHash)
+			err := g.chain.ForceHeadReorganization(ctx, chainTip.Hash, votedOnHash)
 			if err != nil {
 				return
 			}
@@ -3045,8 +3045,8 @@ func (g *BgBlkTmplGenerator) handleTrackSideChainsTimeout(ctx context.Context, s
 	sortedSiblings := g.tipSiblingsSortedByVotes(state)
 	for _, sibling := range sortedSiblings {
 		if sibling.NumVotes >= g.minVotesRequired {
-			err := g.chain.ForceHeadReorganization(*state.awaitingMinVotesHash,
-				sibling.Hash)
+			err := g.chain.ForceHeadReorganization(ctx,
+				*state.awaitingMinVotesHash, sibling.Hash)
 			if err != nil {
 				// Try the next block in the case of failure to reorg.
 				continue

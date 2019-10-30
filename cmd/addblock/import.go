@@ -133,8 +133,8 @@ func (bi *blockImporter) processBlock(serializedBlock []byte) (bool, error) {
 
 	// Ensure the blocks follows all of the chain rules and match up to the
 	// known checkpoints.
-	forkLen, isOrphan, err := bi.chain.ProcessBlock(block,
-		blockchain.BFFastAdd)
+	forkLen, isOrphan, err := bi.chain.ProcessBlock(context.Background(),
+		block, blockchain.BFFastAdd)
 	if err != nil {
 		return false, err
 	}

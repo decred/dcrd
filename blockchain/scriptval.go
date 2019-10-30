@@ -124,7 +124,7 @@ out:
 
 // Validate validates the scripts for all of the passed transaction inputs using
 // multiple goroutines.
-func (v *txValidator) Validate(items []*txValidateItem) error {
+func (v *txValidator) validate(ctx context.Context, items []*txValidateItem) error {
 	if len(items) == 0 {
 		return nil
 	}
@@ -142,6 +142,7 @@ func (v *txValidator) Validate(items []*txValidateItem) error {
 
 	// Start up validation handlers that are used to asynchronously
 	// validate each transaction input.
+
 	ctx, cancel := context.WithCancel(context.Background())
 	for i := 0; i < maxGoRoutines; i++ {
 		go v.validateHandler(ctx)
@@ -195,7 +196,7 @@ func newTxValidator(utxoView *UtxoViewpoint, flags txscript.ScriptFlags, sigCach
 
 // ValidateTransactionScripts validates the scripts for the passed transaction
 // using multiple goroutines.
-func ValidateTransactionScripts(tx *dcrutil.Tx, utxoView *UtxoViewpoint, flags txscript.ScriptFlags, sigCache *txscript.SigCache) error {
+func ValidateTransactionScripts(ctx context.Context, tx *dcrutil.Tx, utxoView *UtxoViewpoint, flags txscript.ScriptFlags, sigCache *txscript.SigCache) error {
 	// Collect all of the transaction inputs and required information for
 	// validation.
 	txIns := tx.MsgTx().TxIn
@@ -215,13 +216,13 @@ func ValidateTransactionScripts(tx *dcrutil.Tx, utxoView *UtxoViewpoint, flags t
 	}
 
 	// Validate all of the inputs.
-	return newTxValidator(utxoView, flags, sigCache).Validate(txValItems)
+	return newTxValidator(utxoView, flags, sigCache).validate(ctx, txValItems)
 }
 
 // checkBlockScripts executes and validates the scripts for all transactions in
 // the passed block using multiple goroutines.
 // txTree = true is TxTreeRegular, txTree = false is TxTreeStake.
-func checkBlockScripts(block *dcrutil.Block, utxoView *UtxoViewpoint, txTree bool,
+func checkBlockScripts(ctx context.Context, block *dcrutil.Block, utxoView *UtxoViewpoint, txTree bool,
 	scriptFlags txscript.ScriptFlags, sigCache *txscript.SigCache) error {
 
 	// Collect all of the transaction inputs and required information for
@@ -257,5 +258,5 @@ func checkBlockScripts(block *dcrutil.Block, utxoView *UtxoViewpoint, txTree boo
 	}
 
 	// Validate all of the inputs.
-	return newTxValidator(utxoView, scriptFlags, sigCache).Validate(txValItems)
+	return newTxValidator(utxoView, scriptFlags, sigCache).validate(ctx, txValItems)
 }

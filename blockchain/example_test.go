@@ -62,8 +62,8 @@ func ExampleBlockChain_ProcessBlock() {
 	// cause an error by trying to process the genesis block which already
 	// exists.
 	genesisBlock := dcrutil.NewBlock(mainNetParams.GenesisBlock)
-	forkLen, isOrphan, err := chain.ProcessBlock(genesisBlock,
-		blockchain.BFNone)
+	forkLen, isOrphan, err := chain.ProcessBlock(context.Background(),
+		genesisBlock, blockchain.BFNone)
 	if err != nil {
 		fmt.Printf("Failed to create chain instance: %v\n", err)
 		return

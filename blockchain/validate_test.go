@@ -82,6 +82,7 @@ func TestBlockchainSpendJournal(t *testing.T) {
 	}
 
 	// Load up the short chain
+	ctx := context.TODO()
 	finalIdx1 := 179
 	for i := 1; i < finalIdx1+1; i++ {
 		bl, err := dcrutil.NewBlockFromBytes(blockChain[int64(i)])
@@ -89,7 +90,7 @@ func TestBlockchainSpendJournal(t *testing.T) {
 			t.Fatalf("NewBlockFromBytes error: %v", err.Error())
 		}
 
-		forkLen, isOrphan, err := chain.ProcessBlock(bl, BFNone)
+		forkLen, isOrphan, err := chain.ProcessBlock(ctx, bl, BFNone)
 		if err != nil {
 			t.Fatalf("ProcessBlock error at height %v: %v", i, err.Error())
 		}
@@ -261,6 +262,7 @@ func TestLegacySequenceLocks(t *testing.T) {
 	// Use a set of test chain parameters which allow for quicker vote
 	// activation as compared to various existing network params.
 	params := quickVoteActivationParams()
+	ctx := context.TODO()
 
 	// Clone the parameters so they can be mutated, find the correct deployment
 	// for the LN features agenda, and, finally, ensure it is always available
@@ -341,7 +343,7 @@ func TestLegacySequenceLocks(t *testing.T) {
 			enableSeqLocks(tx, 0)
 		})
 	g.SaveTipCoinbaseOuts()
-	g.AcceptTipBlock()
+	g.AcceptTipBlock(ctx)
 
 	// ---------------------------------------------------------------------
 	// Create block that spends from an output created in the previous
@@ -358,7 +360,7 @@ func TestLegacySequenceLocks(t *testing.T) {
 			enableSeqLocks(tx, 0)
 			b.AddTransaction(tx)
 		})
-	g.AcceptTipBlock()
+	g.AcceptTipBlock(ctx)
 
 	// ---------------------------------------------------------------------
 	// Create block that involves reorganize to a sequence lock spending
@@ -371,7 +373,7 @@ func TestLegacySequenceLocks(t *testing.T) {
 	g.SetTip("b0")
 	g.NextBlock("b1", nil, outs[1:], replaceLNFeaturesVersions)
 	g.SaveTipCoinbaseOuts()
-	g.AcceptedToSideChainWithExpectedTip("b1a")
+	g.AcceptedToSideChainWithExpectedTip(ctx, "b1a")
 
 	outs = g.OldestCoinbaseOuts()
 	g.NextBlock("b2", nil, outs[1:], replaceLNFeaturesVersions,
@@ -382,7 +384,7 @@ func TestLegacySequenceLocks(t *testing.T) {
 			b.AddTransaction(tx)
 		})
 	g.SaveTipCoinbaseOuts()
-	g.AcceptTipBlock()
+	g.AcceptTipBlock(ctx)
 	g.ExpectTip("b2")
 
 	// ---------------------------------------------------------------------
@@ -397,7 +399,7 @@ func TestLegacySequenceLocks(t *testing.T) {
 			enableSeqLocks(b.STransactions[0], 0)
 		})
 	g.SaveTipCoinbaseOuts()
-	g.AcceptTipBlock()
+	g.AcceptTipBlock(ctx)
 
 	// ---------------------------------------------------------------------
 	// Create block that involves a sequence lock on a ticket.
@@ -411,7 +413,7 @@ func TestLegacySequenceLocks(t *testing.T) {
 			enableSeqLocks(b.STransactions[5], 0)
 		})
 	g.SaveTipCoinbaseOuts()
-	g.AcceptTipBlock()
+	g.AcceptTipBlock(ctx)
 
 	// ---------------------------------------------------------------------
 	// Create two blocks such that the tip block involves a sequence lock
@@ -429,7 +431,7 @@ func TestLegacySequenceLocks(t *testing.T) {
 			b.AddTransaction(tx)
 		})
 	g.SaveTipCoinbaseOuts()
-	g.AcceptTipBlock()
+	g.AcceptTipBlock(ctx)
 
 	outs = g.OldestCoinbaseOuts()
 	g.NextBlock("b6", nil, outs[1:], replaceLNFeaturesVersions,
@@ -440,7 +442,7 @@ func TestLegacySequenceLocks(t *testing.T) {
 			b.AddTransaction(tx)
 		})
 	g.SaveTipCoinbaseOuts()
-	g.AcceptTipBlock()
+	g.AcceptTipBlock(ctx)
 
 	// ---------------------------------------------------------------------
 	// Create block that involves a sequence lock spending from a regular
@@ -459,7 +461,7 @@ func TestLegacySequenceLocks(t *testing.T) {
 			enableSeqLocks(tx, 0)
 			b.AddTransaction(tx)
 		})
-	g.RejectTipBlock(ErrMissingTxOut)
+	g.RejectTipBlock(ctx, ErrMissingTxOut)
 
 	// ---------------------------------------------------------------------
 	// Create block that involves a sequence lock spending from a block
@@ -472,7 +474,7 @@ func TestLegacySequenceLocks(t *testing.T) {
 	g.SetTip("b6")
 	g.NextBlock("b8", nil, outs[1:], replaceLNFeaturesVersions)
 	g.SaveTipCoinbaseOuts()
-	g.AcceptTipBlock()
+	g.AcceptTipBlock(ctx)
 
 	outs = g.OldestCoinbaseOuts()
 	g.NextBlock("b9", nil, outs[1:], replaceLNFeaturesVersions,
@@ -482,7 +484,7 @@ func TestLegacySequenceLocks(t *testing.T) {
 			enableSeqLocks(tx, 0)
 			b.AddTransaction(tx)
 		})
-	g.RejectTipBlock(ErrMissingTxOut)
+	g.RejectTipBlock(ctx, ErrMissingTxOut)
 
 	// ---------------------------------------------------------------------
 	// Create two blocks such that the tip block involves a sequence lock
@@ -509,7 +511,7 @@ func TestLegacySequenceLocks(t *testing.T) {
 			b.AddTransaction(tx)
 		})
 	g.SaveTipCoinbaseOuts()
-	g.AcceptTipBlock()
+	g.AcceptTipBlock(ctx)
 
 	outs = g.OldestCoinbaseOuts()
 	g.NextBlock("b11", nil, outs[1:], replaceLNFeaturesVersions,
@@ -521,7 +523,7 @@ func TestLegacySequenceLocks(t *testing.T) {
 			enableSeqLocks(tx, 0)
 			b.AddTransaction(tx)
 		})
-	g.RejectTipBlock(ErrMissingTxOut)
+	g.RejectTipBlock(ctx, ErrMissingTxOut)
 }
 
 // TestCheckBlockSanity tests the context free block sanity checks with blocks
@@ -651,6 +653,7 @@ func TestCheckConnectBlockTemplate(t *testing.T) {
 	//
 	// rejectedBlockTemplate expects the block to be considered an invalid
 	// block template due to the provided error code.
+	ctx := context.TODO()
 	acceptedBlockTemplate := func() {
 		msgBlock := g.Tip()
 		blockHeight := msgBlock.Header.Height
@@ -658,7 +661,7 @@ func TestCheckConnectBlockTemplate(t *testing.T) {
 		t.Logf("Testing block template %s (hash %s, height %d)",
 			g.TipName(), block.Hash(), blockHeight)
 
-		err := g.chain.CheckConnectBlockTemplate(block)
+		err := g.chain.CheckConnectBlockTemplate(ctx, block)
 		if err != nil {
 			t.Fatalf("block template %q (hash %s, height %d) should "+
 				"have been accepted: %v", g.TipName(),
@@ -672,7 +675,7 @@ func TestCheckConnectBlockTemplate(t *testing.T) {
 		t.Logf("Testing block template %s (hash %s, height %d)",
 			g.TipName(), block.Hash(), blockHeight)
 
-		err := g.chain.CheckConnectBlockTemplate(block)
+		err := g.chain.CheckConnectBlockTemplate(ctx, block)
 		if err == nil {
 			t.Fatalf("block template %q (hash %s, height %d) should "+
 				"not have been accepted", g.TipName(), block.Hash(),
@@ -749,7 +752,7 @@ func TestCheckConnectBlockTemplate(t *testing.T) {
 	}
 	g.AssertTipHeight(1)
 	acceptedBlockTemplate()
-	g.RejectTipBlock(ErrHighHash)
+	g.RejectTipBlock(ctx, ErrHighHash)
 	g.ExpectTip("genesis")
 
 	// Produce a valid and solved initial block.
@@ -758,7 +761,7 @@ func TestCheckConnectBlockTemplate(t *testing.T) {
 	g.SetTip("genesis")
 	g.CreateBlockOne("bfb", 0)
 	g.AssertTipHeight(1)
-	g.AcceptTipBlock()
+	g.AcceptTipBlock(ctx)
 
 	// ---------------------------------------------------------------------
 	// Generate enough blocks to have mature coinbase outputs to work with.
@@ -775,7 +778,7 @@ func TestCheckConnectBlockTemplate(t *testing.T) {
 		g.NextBlock(blockName, nil, nil)
 		g.SaveTipCoinbaseOuts()
 		acceptedBlockTemplate()
-		g.AcceptTipBlock()
+		g.AcceptTipBlock(ctx)
 		tipName = blockName
 	}
 	g.AssertTipHeight(uint32(coinbaseMaturity) + 1)
@@ -824,7 +827,7 @@ func TestCheckConnectBlockTemplate(t *testing.T) {
 	g.NextBlock("bse0", nil, tempTicketOuts)
 	g.SaveTipCoinbaseOuts()
 	acceptedBlockTemplate()
-	g.AcceptTipBlock()
+	g.AcceptTipBlock(ctx)
 
 	var ticketsPurchased int
 	for i := int64(1); int64(g.Tip().Header.Height) < stakeEnabledHeight; i++ {
@@ -835,7 +838,7 @@ func TestCheckConnectBlockTemplate(t *testing.T) {
 		g.NextBlock(blockName, nil, ticketOuts)
 		g.SaveTipCoinbaseOuts()
 		acceptedBlockTemplate()
-		g.AcceptTipBlock()
+		g.AcceptTipBlock(ctx)
 	}
 	g.AssertTipHeight(uint32(stakeEnabledHeight))
 
@@ -870,7 +873,7 @@ func TestCheckConnectBlockTemplate(t *testing.T) {
 		g.NextBlock(blockName, nil, ticketOuts)
 		g.SaveTipCoinbaseOuts()
 		acceptedBlockTemplate()
-		g.AcceptTipBlock()
+		g.AcceptTipBlock(ctx)
 	}
 	g.AssertTipHeight(uint32(stakeValidationHeight))
 
@@ -891,7 +894,7 @@ func TestCheckConnectBlockTemplate(t *testing.T) {
 		g.NextBlock(blockName, nil, outs[1:])
 		g.SaveTipCoinbaseOuts()
 		acceptedBlockTemplate()
-		g.AcceptTipBlock()
+		g.AcceptTipBlock(ctx)
 	}
 	g.AssertTipHeight(uint32(stakeValidationHeight) + uint32(coinbaseMaturity))
 
@@ -916,13 +919,13 @@ func TestCheckConnectBlockTemplate(t *testing.T) {
 	//
 	//   ... -> b1(0) -> b2(1) -> b3(2)
 	g.NextBlock("b1", outs[0], ticketOuts[0])
-	g.AcceptTipBlock()
+	g.AcceptTipBlock(ctx)
 
 	g.NextBlock("b2", outs[1], ticketOuts[1])
-	g.AcceptTipBlock()
+	g.AcceptTipBlock(ctx)
 
 	g.NextBlock("b3", outs[2], ticketOuts[2])
-	g.AcceptTipBlock()
+	g.AcceptTipBlock(ctx)
 
 	// Create a block template that forks from b1.  It should not be allowed
 	// since it is not the current tip or its parent.
@@ -999,13 +1002,13 @@ func TestCheckConnectBlockTemplate(t *testing.T) {
 	//               \-> b3a(2)
 	g.SetTip("b2")
 	g.NextBlock("b3a", outs[2], ticketOuts[2])
-	g.AcceptedToSideChainWithExpectedTip("b3")
+	g.AcceptedToSideChainWithExpectedTip(ctx, "b3")
 
 	// Force tip reorganization to b3a.
 	//
 	//   ... -> b2(1) -> b3a(2)
 	//               \-> b3(2)
-	g.ForceTipReorg("b3", "b3a")
+	g.ForceTipReorg(ctx, "b3", "b3a")
 	g.ExpectTip("b3a")
 
 	// Create a block template that forks from b2 (the tip's parent) and

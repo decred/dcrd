@@ -7,6 +7,7 @@ package blockchain
 
 import (
 	"bytes"
+	"context"
 	"encoding/binary"
 	"fmt"
 	"math"
@@ -2899,7 +2900,7 @@ func (b *BlockChain) consensusScriptVerifyFlags(node *blockNode) (txscript.Scrip
 // the bulk of its work.
 //
 // This function MUST be called with the chain state lock held (for writes).
-func (b *BlockChain) checkConnectBlock(node *blockNode, block, parent *dcrutil.Block, view *UtxoViewpoint, stxos *[]spentTxOut, hdrCommitments *headerCommitmentData) error {
+func (b *BlockChain) checkConnectBlock(ctx context.Context, node *blockNode, block, parent *dcrutil.Block, view *UtxoViewpoint, stxos *[]spentTxOut, hdrCommitments *headerCommitmentData) error {
 	// If the side chain blocks end up in the database, a call to
 	// CheckBlockSanity should be done here in case a previous version
 	// allowed a block that is no longer valid.  However, since the
@@ -3031,7 +3032,7 @@ func (b *BlockChain) checkConnectBlock(node *blockNode, block, parent *dcrutil.B
 	}
 
 	if runScripts {
-		err = checkBlockScripts(block, view, false, scriptFlags,
+		err = checkBlockScripts(ctx, block, view, false, scriptFlags,
 			b.sigCache)
 		if err != nil {
 			log.Tracef("checkBlockScripts failed; error returned "+
@@ -3121,7 +3122,7 @@ func (b *BlockChain) checkConnectBlock(node *blockNode, block, parent *dcrutil.B
 	}
 
 	if runScripts {
-		err = checkBlockScripts(block, view, true, scriptFlags,
+		err = checkBlockScripts(ctx, block, view, true, scriptFlags,
 			b.sigCache)
 		if err != nil {
 			log.Tracef("checkBlockScripts failed; error returned "+
@@ -3152,7 +3153,7 @@ func (b *BlockChain) checkConnectBlock(node *blockNode, block, parent *dcrutil.B
 // the current tip of the main chain or its parent.
 //
 // This function is safe for concurrent access.
-func (b *BlockChain) CheckConnectBlockTemplate(block *dcrutil.Block) error {
+func (b *BlockChain) CheckConnectBlockTemplate(ctx context.Context, block *dcrutil.Block) error {
 	b.chainLock.Lock()
 	defer b.chainLock.Unlock()
 
@@ -3218,7 +3219,7 @@ func (b *BlockChain) CheckConnectBlockTemplate(block *dcrutil.Block) error {
 		view := NewUtxoViewpoint()
 		view.SetBestHash(&tip.hash)
 
-		return b.checkConnectBlock(newNode, block, parent, view, nil, nil)
+		return b.checkConnectBlock(ctx, newNode, block, parent, view, nil, nil)
 	}
 
 	// At this point, the block template must be building on the parent of the
@@ -3257,5 +3258,5 @@ func (b *BlockChain) CheckConnectBlockTemplate(block *dcrutil.Block) error {
 	// The view is now from the point of view of the parent of the current tip
 	// block.  Ensure the block template can be connected without violating any
 	// rules.
-	return b.checkConnectBlock(newNode, block, parent, view, nil, nil)
+	return b.checkConnectBlock(ctx, newNode, block, parent, view, nil, nil)
 }

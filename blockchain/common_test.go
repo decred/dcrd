@@ -311,7 +311,7 @@ func newChaingenHarness(t *testing.T, params *chaincfg.Params, dbName string) (*
 
 // AcceptBlock processes the block associated with the given name in the
 // harness generator and expects it to be accepted to the main chain.
-func (g *chaingenHarness) AcceptBlock(blockName string) {
+func (g *chaingenHarness) AcceptBlock(ctx context.Context, blockName string) {
 	g.t.Helper()
 
 	msgBlock := g.BlockByName(blockName)
@@ -320,7 +320,7 @@ func (g *chaingenHarness) AcceptBlock(blockName string) {
 	g.t.Logf("Testing block %s (hash %s, height %d)", blockName, block.Hash(),
 		blockHeight)
 
-	forkLen, isOrphan, err := g.chain.ProcessBlock(block, BFNone)
+	forkLen, isOrphan, err := g.chain.ProcessBlock(ctx, block, BFNone)
 	if err != nil {
 		g.t.Fatalf("block %q (hash %s, height %d) should have been accepted: %v",
 			blockName, block.Hash(), blockHeight, err)
@@ -343,15 +343,15 @@ func (g *chaingenHarness) AcceptBlock(blockName string) {
 
 // AcceptTipBlock processes the current tip block associated with the harness
 // generator and expects it to be accepted to the main chain.
-func (g *chaingenHarness) AcceptTipBlock() {
+func (g *chaingenHarness) AcceptTipBlock(ctx context.Context) {
 	g.t.Helper()
 
-	g.AcceptBlock(g.TipName())
+	g.AcceptBlock(ctx, g.TipName())
 }
 
 // RejectBlock expects the block associated with the given name in the harness
 // generator to be rejected with the provided error code.
-func (g *chaingenHarness) RejectBlock(blockName string, code ErrorCode) {
+func (g *chaingenHarness) RejectBlock(ctx context.Context, blockName string, code ErrorCode) {
 	g.t.Helper()
 
 	msgBlock := g.BlockByName(blockName)
@@ -360,7 +360,7 @@ func (g *chaingenHarness) RejectBlock(blockName string, code ErrorCode) {
 	g.t.Logf("Testing block %s (hash %s, height %d)", blockName, block.Hash(),
 		blockHeight)
 
-	_, _, err := g.chain.ProcessBlock(block, BFNone)
+	_, _, err := g.chain.ProcessBlock(ctx, block, BFNone)
 	if err == nil {
 		g.t.Fatalf("block %q (hash %s, height %d) should not have been accepted",
 			blockName, block.Hash(), blockHeight)
@@ -383,10 +383,10 @@ func (g *chaingenHarness) RejectBlock(blockName string, code ErrorCode) {
 
 // RejectTipBlock expects the current tip block associated with the harness
 // generator to be rejected with the provided error code.
-func (g *chaingenHarness) RejectTipBlock(code ErrorCode) {
+func (g *chaingenHarness) RejectTipBlock(ctx context.Context, code ErrorCode) {
 	g.t.Helper()
 
-	g.RejectBlock(g.TipName(), code)
+	g.RejectBlock(ctx, g.TipName(), code)
 }
 
 // ExpectTip expects the provided block to be the current tip of the main chain
@@ -408,7 +408,7 @@ func (g *chaingenHarness) ExpectTip(tipName string) {
 // AcceptedToSideChainWithExpectedTip expects the tip block associated with the
 // generator to be accepted to a side chain, but the current best chain tip to
 // be the provided value.
-func (g *chaingenHarness) AcceptedToSideChainWithExpectedTip(tipName string) {
+func (g *chaingenHarness) AcceptedToSideChainWithExpectedTip(ctx context.Context, tipName string) {
 	g.t.Helper()
 
 	msgBlock := g.Tip()
@@ -417,7 +417,7 @@ func (g *chaingenHarness) AcceptedToSideChainWithExpectedTip(tipName string) {
 	g.t.Logf("Testing block %s (hash %s, height %d)", g.TipName(), block.Hash(),
 		blockHeight)
 
-	forkLen, isOrphan, err := g.chain.ProcessBlock(block, BFNone)
+	forkLen, isOrphan, err := g.chain.ProcessBlock(ctx, block, BFNone)
 	if err != nil {
 		g.t.Fatalf("block %q (hash %s, height %d) should have been accepted: %v",
 			g.TipName(), block.Hash(), blockHeight, err)
@@ -524,7 +524,7 @@ func (g *chaingenHarness) TestThresholdStateChoice(id string, state ThresholdSta
 // reorganize the current tip of the main chain from the given block to the
 // given block.  An error will result if the provided from block is not actually
 // the current tip.
-func (g *chaingenHarness) ForceTipReorg(fromTipName, toTipName string) {
+func (g *chaingenHarness) ForceTipReorg(ctx context.Context, fromTipName, toTipName string) {
 	g.t.Helper()
 
 	from := g.BlockByName(fromTipName)
@@ -533,7 +533,7 @@ func (g *chaingenHarness) ForceTipReorg(fromTipName, toTipName string) {
 		"%s, height %d)", fromTipName, from.BlockHash(), from.Header.Height,
 		toTipName, to.BlockHash(), to.Header.Height)
 
-	err := g.chain.ForceHeadReorganization(from.BlockHash(), to.BlockHash())
+	err := g.chain.ForceHeadReorganization(ctx, from.BlockHash(), to.BlockHash())
 	if err != nil {
 		g.t.Fatalf("failed to force header reorg from block %q (hash %s, "+
 			"height %d) to block %q (hash %s, height %d): %v", fromTipName,
@@ -566,13 +566,14 @@ func (g *chaingenHarness) AdvanceToStakeValidationHeight() {
 	// ---------------------------------------------------------------------
 	// Block One.
 	// ---------------------------------------------------------------------
+	ctx := context.TODO()
 
 	// Add the required first block.
 	//
 	//   genesis -> bfb
 	g.CreateBlockOne("bfb", 0)
 	g.AssertTipHeight(1)
-	g.AcceptTipBlock()
+	g.AcceptTipBlock(ctx)
 
 	// ---------------------------------------------------------------------
 	// Generate enough blocks to have mature coinbase outputs to work with.
@@ -584,7 +585,7 @@ func (g *chaingenHarness) AdvanceToStakeValidationHeight() {
 		blockName := fmt.Sprintf("bm%d", i)
 		g.NextBlock(blockName, nil, nil)
 		g.SaveTipCoinbaseOuts()
-		g.AcceptTipBlock()
+		g.AcceptTipBlock(ctx)
 	}
 	g.AssertTipHeight(uint32(coinbaseMaturity) + 1)
 
@@ -604,7 +605,7 @@ func (g *chaingenHarness) AdvanceToStakeValidationHeight() {
 		blockName := fmt.Sprintf("bse%d", i)
 		g.NextBlock(blockName, nil, ticketOuts)
 		g.SaveTipCoinbaseOuts()
-		g.AcceptTipBlock()
+		g.AcceptTipBlock(ctx)
 	}
 	g.AssertTipHeight(uint32(stakeEnabledHeight))
 
@@ -635,7 +636,7 @@ func (g *chaingenHarness) AdvanceToStakeValidationHeight() {
 		blockName := fmt.Sprintf("bsv%d", i)
 		g.NextBlock(blockName, nil, ticketOuts)
 		g.SaveTipCoinbaseOuts()
-		g.AcceptTipBlock()
+		g.AcceptTipBlock(ctx)
 	}
 	g.AssertTipHeight(uint32(stakeValidationHeight))
 }
@@ -690,6 +691,7 @@ func (g *chaingenHarness) AdvanceFromSVHToActiveAgenda(voteID string) {
 	//   ... -> bsv# -> bvu0 -> bvu1 -> ... -> bvu#
 	// ---------------------------------------------------------------------
 
+	ctx := context.TODO()
 	blocksNeeded := stakeValidationHeight + stakeVerInterval*2 - 1 -
 		int64(g.Tip().Header.Height)
 	for i := int64(0); i < blocksNeeded; i++ {
@@ -699,7 +701,7 @@ func (g *chaingenHarness) AdvanceFromSVHToActiveAgenda(voteID string) {
 			chaingen.ReplaceBlockVersion(int32(deploymentVer)),
 			chaingen.ReplaceVoteVersions(deploymentVer))
 		g.SaveTipCoinbaseOuts()
-		g.AcceptTipBlock()
+		g.AcceptTipBlock(ctx)
 	}
 	g.TestThresholdState(voteID, ThresholdStarted)
 
@@ -724,7 +726,7 @@ func (g *chaingenHarness) AdvanceFromSVHToActiveAgenda(voteID string) {
 			chaingen.ReplaceStakeVersion(deploymentVer),
 			chaingen.ReplaceVotes(vbPrevBlockValid|yesChoice.Bits, deploymentVer))
 		g.SaveTipCoinbaseOuts()
-		g.AcceptTipBlock()
+		g.AcceptTipBlock(ctx)
 	}
 	g.AssertTipHeight(uint32(stakeValidationHeight + ruleChangeInterval*2 - 1))
 	g.AssertBlockVersion(int32(deploymentVer))
@@ -752,7 +754,7 @@ func (g *chaingenHarness) AdvanceFromSVHToActiveAgenda(voteID string) {
 			chaingen.ReplaceVoteVersions(deploymentVer),
 		)
 		g.SaveTipCoinbaseOuts()
-		g.AcceptTipBlock()
+		g.AcceptTipBlock(ctx)
 	}
 	g.AssertTipHeight(uint32(stakeValidationHeight + ruleChangeInterval*3 - 1))
 	g.AssertBlockVersion(int32(deploymentVer))

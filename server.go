@@ -2845,7 +2845,7 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB, chainP
 		TimeSource:  s.timeSource,
 		Notifications: func(notification *blockchain.Notification) {
 			if s.blockManager != nil {
-				s.blockManager.handleBlockchainNotification(notification)
+				s.blockManager.handleBlockchainNotification(ctx, notification)
 			}
 		},
 		SigCache:     s.sigCache,

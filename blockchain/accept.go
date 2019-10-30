@@ -6,6 +6,7 @@
 package blockchain
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/decred/dcrd/blockchain/stake/v3"
@@ -26,7 +27,7 @@ import (
 // behavior.
 //
 // This function MUST be called with the chain state lock held (for writes).
-func (b *BlockChain) maybeAcceptBlock(block *dcrutil.Block, flags BehaviorFlags) (int64, error) {
+func (b *BlockChain) maybeAcceptBlock(ctx context.Context, block *dcrutil.Block, flags BehaviorFlags) (int64, error) {
 	// This function should never be called with orphan blocks or the
 	// genesis block.
 	prevHash := &block.MsgBlock().Header.PrevBlock
@@ -132,7 +133,7 @@ func (b *BlockChain) maybeAcceptBlock(block *dcrutil.Block, flags BehaviorFlags)
 	// Connect the passed block to the chain while respecting proper chain
 	// selection according to the chain with the most proof of work.  This
 	// also handles validation of the transaction scripts.
-	forkLen, err := b.connectBestChain(newNode, block, parent, flags)
+	forkLen, err := b.connectBestChain(ctx, newNode, block, parent, flags)
 	if err != nil {
 		return 0, err
 	}

@@ -383,7 +383,7 @@ func (m *CPUMiner) generateBlocks(ctx context.Context) {
 		// Create a new block template using the available transactions
 		// in the memory pool as a source of transactions to potentially
 		// include in the block.
-		template, err := m.g.NewBlockTemplate(payToAddr)
+		template, err := m.g.NewBlockTemplate(ctx, payToAddr)
 		m.submitBlockLock.Unlock()
 		if err != nil {
 			errStr := fmt.Sprintf("Failed to create new block "+
@@ -645,7 +645,7 @@ func (m *CPUMiner) GenerateNBlocks(ctx context.Context, n uint32) ([]*chainhash.
 		// Create a new block template using the available transactions
 		// in the memory pool as a source of transactions to potentially
 		// include in the block.
-		template, err := m.g.NewBlockTemplate(payToAddr)
+		template, err := m.g.NewBlockTemplate(ctx, payToAddr)
 		m.submitBlockLock.Unlock()
 		if err != nil {
 			errStr := fmt.Sprintf("Failed to create new block "+

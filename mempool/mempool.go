@@ -6,6 +6,7 @@
 package mempool
 
 import (
+	"context"
 	"fmt"
 	"math"
 	"sync"
@@ -919,7 +920,7 @@ func (mp *TxPool) FetchTransaction(txHash *chainhash.Hash) (*dcrutil.Tx, error) 
 // so that we can easily pick different stake tx types from the mempool later.
 // This should probably be done at the bottom using "IsSStx" etc functions.
 // It should also set the dcrutil tree type for the tx as well.
-func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allowHighFees, rejectDupOrphans bool) ([]*chainhash.Hash, error) {
+func (mp *TxPool) maybeAcceptTransaction(ctx context.Context, tx *dcrutil.Tx, isNew, rateLimit, allowHighFees, rejectDupOrphans bool) ([]*chainhash.Hash, error) {
 	msgTx := tx.MsgTx()
 	txHash := tx.Hash()
 	// Don't accept the transaction if it already exists in the pool.  This
@@ -1353,7 +1354,7 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 	if err != nil {
 		return nil, err
 	}
-	err = blockchain.ValidateTransactionScripts(tx, utxoView, flags,
+	err = blockchain.ValidateTransactionScripts(ctx, tx, utxoView, flags,
 		mp.cfg.SigCache)
 	if err != nil {
 		if cerr, ok := err.(blockchain.RuleError); ok {
@@ -1386,10 +1387,10 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 // or not the transaction is an orphan.
 //
 // This function is safe for concurrent access.
-func (mp *TxPool) MaybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit bool) ([]*chainhash.Hash, error) {
+func (mp *TxPool) MaybeAcceptTransaction(ctx context.Context, tx *dcrutil.Tx, isNew, rateLimit bool) ([]*chainhash.Hash, error) {
 	// Protect concurrent access.
 	mp.mtx.Lock()
-	hashes, err := mp.maybeAcceptTransaction(tx, isNew, rateLimit, true, true)
+	hashes, err := mp.maybeAcceptTransaction(ctx, tx, isNew, rateLimit, true, true)
 	mp.mtx.Unlock()
 
 	return hashes, err
@@ -1399,7 +1400,7 @@ func (mp *TxPool) MaybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit bool) 
 // ProcessOrphans.  See the comment for ProcessOrphans for more details.
 //
 // This function MUST be called with the mempool lock held (for writes).
-func (mp *TxPool) processOrphans(acceptedTx *dcrutil.Tx) []*dcrutil.Tx {
+func (mp *TxPool) processOrphans(ctx context.Context, acceptedTx *dcrutil.Tx) []*dcrutil.Tx {
 	var acceptedTxns []*dcrutil.Tx
 
 	// Start with processing at least the passed transaction.
@@ -1438,7 +1439,7 @@ func (mp *TxPool) processOrphans(acceptedTx *dcrutil.Tx) []*dcrutil.Tx {
 			// Potentially accept an orphan into the tx pool.
 			for _, tx := range orphans {
 				missing, err := mp.maybeAcceptTransaction(
-					tx, true, true, true, false)
+					ctx, tx, true, true, true, false)
 				if err != nil {
 					// The orphan is now invalid, so there
 					// is no way any other orphans which
@@ -1552,9 +1553,9 @@ func (mp *TxPool) PruneExpiredTx() {
 // no transactions were moved from the orphan pool to the mempool.
 //
 // This function is safe for concurrent access.
-func (mp *TxPool) ProcessOrphans(acceptedTx *dcrutil.Tx) []*dcrutil.Tx {
+func (mp *TxPool) ProcessOrphans(ctx context.Context, acceptedTx *dcrutil.Tx) []*dcrutil.Tx {
 	mp.mtx.Lock()
-	acceptedTxns := mp.processOrphans(acceptedTx)
+	acceptedTxns := mp.processOrphans(ctx, acceptedTx)
 	mp.mtx.Unlock()
 	return acceptedTxns
 }
@@ -1570,7 +1571,7 @@ func (mp *TxPool) ProcessOrphans(acceptedTx *dcrutil.Tx) []*dcrutil.Tx {
 // passed one being accepted.
 //
 // This function is safe for concurrent access.
-func (mp *TxPool) ProcessTransaction(tx *dcrutil.Tx, allowOrphan, rateLimit, allowHighFees bool) ([]*dcrutil.Tx, error) {
+func (mp *TxPool) ProcessTransaction(ctx context.Context, tx *dcrutil.Tx, allowOrphan, rateLimit, allowHighFees bool) ([]*dcrutil.Tx, error) {
 	// Protect concurrent access.
 	mp.mtx.Lock()
 	defer mp.mtx.Unlock()
@@ -1583,8 +1584,8 @@ func (mp *TxPool) ProcessTransaction(tx *dcrutil.Tx, allowOrphan, rateLimit, all
 	}()
 
 	// Potentially accept the transaction to the memory pool.
-	missingParents, err := mp.maybeAcceptTransaction(tx, true, rateLimit,
-		allowHighFees, true)
+	missingParents, err := mp.maybeAcceptTransaction(ctx, tx, true,
+		rateLimit, allowHighFees, true)
 	if err != nil {
 		return nil, err
 	}
@@ -1595,7 +1596,7 @@ func (mp *TxPool) ProcessTransaction(tx *dcrutil.Tx, allowOrphan, rateLimit, all
 		// transaction (they may no longer be orphans if all inputs
 		// are now available) and repeat for those accepted
 		// transactions until there are no more.
-		newTxs := mp.processOrphans(tx)
+		newTxs := mp.processOrphans(ctx, tx)
 		acceptedTxs := make([]*dcrutil.Tx, len(newTxs)+1)
 
 		// Add the parent transaction first so remote nodes

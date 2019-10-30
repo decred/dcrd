@@ -5,6 +5,7 @@
 package blockchain
 
 import (
+	"context"
 	"fmt"
 	"math"
 	"testing"
@@ -161,13 +162,14 @@ func TestThresholdState(t *testing.T) {
 	// these tests since they need to manually test the threshold state at
 	// all key heights.
 	// ---------------------------------------------------------------------
+	ctx := context.TODO()
 
 	// Add the required initial block.
 	//
 	//   genesis -> bfb
 	g.CreateBlockOne("bfb", 0)
 	g.AssertTipHeight(1)
-	g.AcceptTipBlock()
+	g.AcceptTipBlock(ctx)
 	g.TestThresholdStateChoice(testDummy1ID, ThresholdDefined, invalidChoice)
 	g.TestThresholdStateChoice(testDummy2ID, ThresholdDefined, invalidChoice)
 
@@ -181,7 +183,7 @@ func TestThresholdState(t *testing.T) {
 		blockName := fmt.Sprintf("bm%d", i)
 		g.NextBlock(blockName, nil, nil)
 		g.SaveTipCoinbaseOuts()
-		g.AcceptTipBlock()
+		g.AcceptTipBlock(ctx)
 	}
 	g.AssertTipHeight(uint32(coinbaseMaturity) + 1)
 	g.TestThresholdStateChoice(testDummy1ID, ThresholdDefined, invalidChoice)
@@ -203,7 +205,7 @@ func TestThresholdState(t *testing.T) {
 		blockName := fmt.Sprintf("bse%d", i)
 		g.NextBlock(blockName, nil, ticketOuts)
 		g.SaveTipCoinbaseOuts()
-		g.AcceptTipBlock()
+		g.AcceptTipBlock(ctx)
 	}
 	g.AssertTipHeight(uint32(stakeEnabledHeight))
 	g.TestThresholdStateChoice(testDummy1ID, ThresholdDefined, invalidChoice)
@@ -238,7 +240,7 @@ func TestThresholdState(t *testing.T) {
 		g.NextBlock(blockName, nil, ticketOuts,
 			chaingen.ReplaceBlockVersion(3))
 		g.SaveTipCoinbaseOuts()
-		g.AcceptTipBlock()
+		g.AcceptTipBlock(ctx)
 	}
 	g.AssertTipHeight(uint32(stakeValidationHeight))
 	g.TestThresholdStateChoice(testDummy1ID, ThresholdDefined, invalidChoice)
@@ -265,7 +267,7 @@ func TestThresholdState(t *testing.T) {
 			chaingen.ReplaceStakeVersion(0),
 			chaingen.ReplaceVoteVersions(3))
 		g.SaveTipCoinbaseOuts()
-		g.AcceptTipBlock()
+		g.AcceptTipBlock(ctx)
 	}
 	g.AssertTipHeight(uint32(stakeValidationHeight + stakeVerInterval - 1))
 	g.AssertBlockVersion(3)
@@ -293,7 +295,7 @@ func TestThresholdState(t *testing.T) {
 			chaingen.ReplaceStakeVersion(3),
 			chaingen.ReplaceVoteVersions(3))
 		g.SaveTipCoinbaseOuts()
-		g.AcceptTipBlock()
+		g.AcceptTipBlock(ctx)
 	}
 	g.AssertTipHeight(uint32(stakeValidationHeight + ruleChangeInterval - 2))
 	g.AssertBlockVersion(3)
@@ -324,7 +326,7 @@ func TestThresholdState(t *testing.T) {
 			chaingen.ReplaceStakeVersion(3),
 			chaingen.ReplaceVoteVersions(4))
 		g.SaveTipCoinbaseOuts()
-		g.AcceptTipBlock()
+		g.AcceptTipBlock(ctx)
 	}
 	g.AssertTipHeight(uint32(stakeValidationHeight + stakeVerInterval*4 - 1))
 	g.AssertBlockVersion(3)
@@ -357,7 +359,7 @@ func TestThresholdState(t *testing.T) {
 			chaingen.ReplaceStakeVersion(4),
 			chaingen.ReplaceVoteVersions(4))
 		g.SaveTipCoinbaseOuts()
-		g.AcceptTipBlock()
+		g.AcceptTipBlock(ctx)
 	}
 	g.AssertTipHeight(uint32(stakeValidationHeight + ruleChangeInterval*2 - 1))
 	g.AssertBlockVersion(4)
@@ -390,7 +392,7 @@ func TestThresholdState(t *testing.T) {
 			chaingen.ReplaceVotes(vbPrevBlockValid|vbTestDummy1Yes|
 				vbTestDummy2No, 4))
 		g.SaveTipCoinbaseOuts()
-		g.AcceptTipBlock()
+		g.AcceptTipBlock(ctx)
 	}
 	g.AssertTipHeight(uint32(stakeValidationHeight + ruleChangeInterval*2 -
 		1 + powNumToCheck))
@@ -423,7 +425,7 @@ func TestThresholdState(t *testing.T) {
 			chaingen.ReplaceVotes(vbPrevBlockValid|vbTestDummy1Yes|
 				vbTestDummy2No, 4))
 		g.SaveTipCoinbaseOuts()
-		g.AcceptTipBlock()
+		g.AcceptTipBlock(ctx)
 	}
 	g.AssertTipHeight(uint32(stakeValidationHeight + ruleChangeInterval*3 - 1))
 	g.AssertBlockVersion(4)
@@ -453,7 +455,7 @@ func TestThresholdState(t *testing.T) {
 			chaingen.ReplaceVotes(vbPrevBlockValid|vbTestDummy1Yes|
 				vbTestDummy2No, 3))
 		g.SaveTipCoinbaseOuts()
-		g.AcceptTipBlock()
+		g.AcceptTipBlock(ctx)
 	}
 	g.AssertTipHeight(uint32(stakeValidationHeight + ruleChangeInterval*4 - 1))
 	g.AssertBlockVersion(4)
@@ -489,7 +491,7 @@ func TestThresholdState(t *testing.T) {
 			chaingen.ReplaceVotes(voteBits, 4))
 		totalVotes += ticketsPerBlock
 		g.SaveTipCoinbaseOuts()
-		g.AcceptTipBlock()
+		g.AcceptTipBlock(ctx)
 	}
 	g.AssertTipHeight(uint32(stakeValidationHeight + ruleChangeInterval*5 - 1))
 	g.AssertBlockVersion(4)
@@ -533,7 +535,7 @@ func TestThresholdState(t *testing.T) {
 			chaingen.ReplaceVotes(voteBits, 4))
 		totalVotes += ticketsPerBlock
 		g.SaveTipCoinbaseOuts()
-		g.AcceptTipBlock()
+		g.AcceptTipBlock(ctx)
 	}
 	g.AssertTipHeight(uint32(stakeValidationHeight + ruleChangeInterval*6 - 1))
 	g.AssertBlockVersion(4)
@@ -564,7 +566,7 @@ func TestThresholdState(t *testing.T) {
 			chaingen.ReplaceVotes(vbPrevBlockValid|vbTestDummy1Yes|
 				vbTestDummy2No, 4))
 		g.SaveTipCoinbaseOuts()
-		g.AcceptTipBlock()
+		g.AcceptTipBlock(ctx)
 	}
 	g.AssertTipHeight(uint32(stakeValidationHeight + ruleChangeInterval*7 - 1))
 	g.AssertBlockVersion(4)
@@ -597,7 +599,7 @@ func TestThresholdState(t *testing.T) {
 			chaingen.ReplaceVotes(vbPrevBlockValid|vbTestDummy1No|
 				vbTestDummy2Yes, 4))
 		g.SaveTipCoinbaseOuts()
-		g.AcceptTipBlock()
+		g.AcceptTipBlock(ctx)
 	}
 	g.AssertTipHeight(uint32(stakeValidationHeight + ruleChangeInterval*8 - 1))
 	g.AssertBlockVersion(4)
