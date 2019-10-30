@@ -6,6 +6,7 @@
 package indexers
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/decred/dcrd/blockchain/v3/internal/progresslog"
@@ -198,7 +199,7 @@ func indexDropKey(idxKey []byte) []byte {
 // of being dropped and finishes dropping them when the are.  This is necessary
 // because dropping and index has to be done in several atomic steps rather than
 // one big atomic step due to the massive number of entries.
-func (m *Manager) maybeFinishDrops(interrupt <-chan struct{}) error {
+func (m *Manager) maybeFinishDrops(ctx context.Context) error {
 	indexNeedsDrop := make([]bool, len(m.enabledIndexes))
 	err := m.db.View(func(dbTx database.Tx) error {
 		// None of the indexes needs to be dropped if the index tips
@@ -223,7 +224,7 @@ func (m *Manager) maybeFinishDrops(interrupt <-chan struct{}) error {
 		return err
 	}
 
-	if interruptRequested(interrupt) {
+	if interruptRequested(ctx) {
 		return errInterruptRequested
 	}
 
@@ -238,7 +239,7 @@ func (m *Manager) maybeFinishDrops(interrupt <-chan struct{}) error {
 
 		switch d := indexer.(type) {
 		case IndexDropper:
-			err := d.DropIndex(m.db, interrupt)
+			err := d.DropIndex(ctx, m.db)
 			if err != nil {
 				return err
 			}
@@ -299,7 +300,7 @@ func (m *Manager) maybeCreateIndexes() error {
 
 // upgradeIndexes determines if each of the enabled indexes need to be upgraded
 // and drops them when they do.
-func (m *Manager) upgradeIndexes(interrupt <-chan struct{}) error {
+func (m *Manager) upgradeIndexes(ctx context.Context) error {
 	indexNeedsDrop := make([]bool, len(m.enabledIndexes))
 	err := m.db.View(func(dbTx database.Tx) error {
 		// None of the indexes needs to be updated if the index tips bucket
@@ -328,7 +329,7 @@ func (m *Manager) upgradeIndexes(interrupt <-chan struct{}) error {
 		return err
 	}
 
-	if interruptRequested(interrupt) {
+	if interruptRequested(ctx) {
 		return errInterruptRequested
 	}
 
@@ -342,7 +343,7 @@ func (m *Manager) upgradeIndexes(interrupt <-chan struct{}) error {
 
 		switch d := indexer.(type) {
 		case IndexDropper:
-			err := d.DropIndex(m.db, interrupt)
+			err := d.DropIndex(ctx, m.db)
 			if err != nil {
 				return err
 			}
@@ -376,18 +377,18 @@ func dbFetchBlockByHash(dbTx database.Tx, hash *chainhash.Hash) (*dcrutil.Block,
 // catch up due to the I/O contention.
 //
 // This is part of the IndexManager interface.
-func (m *Manager) Init(chain ChainQueryer, interrupt <-chan struct{}) error {
+func (m *Manager) Init(ctx context.Context, chain ChainQueryer) error {
 	// Nothing to do when no indexes are enabled.
 	if len(m.enabledIndexes) == 0 {
 		return nil
 	}
 
-	if interruptRequested(interrupt) {
+	if interruptRequested(ctx) {
 		return errInterruptRequested
 	}
 
 	// Finish any drops that were previously interrupted.
-	if err := m.maybeFinishDrops(interrupt); err != nil {
+	if err := m.maybeFinishDrops(ctx); err != nil {
 		return err
 	}
 
@@ -397,7 +398,7 @@ func (m *Manager) Init(chain ChainQueryer, interrupt <-chan struct{}) error {
 	}
 
 	// Upgrade the indexes as needed.
-	if err := m.upgradeIndexes(interrupt); err != nil {
+	if err := m.upgradeIndexes(ctx); err != nil {
 		return err
 	}
 
@@ -487,7 +488,7 @@ func (m *Manager) Init(chain ChainQueryer, interrupt <-chan struct{}) error {
 				// elsewhere since it would cause the
 				// database transaction to rollback and
 				// undo all work that has been done.
-				if interruptRequested(interrupt) {
+				if interruptRequested(ctx) {
 					interrupted = true
 					break
 				}
@@ -553,7 +554,7 @@ func (m *Manager) Init(chain ChainQueryer, interrupt <-chan struct{}) error {
 
 	var cachedParent *dcrutil.Block
 	for height := lowestHeight + 1; height <= bestHeight; height++ {
-		if interruptRequested(interrupt) {
+		if interruptRequested(ctx) {
 			return errInterruptRequested
 		}
 
@@ -585,7 +586,7 @@ func (m *Manager) Init(chain ChainQueryer, interrupt <-chan struct{}) error {
 			}
 			cachedParent = block
 
-			if interruptRequested(interrupt) {
+			if interruptRequested(ctx) {
 				return errInterruptRequested
 			}
 
@@ -712,7 +713,7 @@ func markIndexDeletion(db database.DB, idxKey []byte) error {
 
 // incrementalFlatDrop uses multiple database updates to remove key/value pairs
 // saved to a flat index.
-func incrementalFlatDrop(db database.DB, idxKey []byte, idxName string, interrupt <-chan struct{}) error {
+func incrementalFlatDrop(ctx context.Context, db database.DB, idxKey []byte, idxName string) error {
 	const maxDeletions = 2000000
 	var totalDeleted uint64
 	for numDeleted := maxDeletions; numDeleted == maxDeletions; {
@@ -740,7 +741,7 @@ func incrementalFlatDrop(db database.DB, idxKey []byte, idxName string, interrup
 				numDeleted, totalDeleted, idxName)
 		}
 
-		if interruptRequested(interrupt) {
+		if interruptRequested(ctx) {
 			return errInterruptRequested
 		}
 	}
@@ -778,7 +779,7 @@ func dropIndexMetadata(db database.DB, idxKey []byte, idxName string) error {
 // algorithm to work, the index must be "flat" (have no nested buckets).  It
 // also marks the drop in progress so the drop can be resumed if it is stopped
 // before it is done before the index can be used again.
-func dropFlatIndex(db database.DB, idxKey []byte, idxName string, interrupt <-chan struct{}) error {
+func dropFlatIndex(ctx context.Context, db database.DB, idxKey []byte, idxName string) error {
 	// Nothing to do if the index doesn't already exist.
 	exists, err := existsIndex(db, idxKey, idxName)
 	if err != nil {
@@ -805,7 +806,7 @@ func dropFlatIndex(db database.DB, idxKey []byte, idxName string, interrupt <-ch
 	// memory usage and likely crash many systems due to ulimits.  In order
 	// to avoid this, use a cursor to delete a maximum number of entries out
 	// of the bucket at a time.
-	err = incrementalFlatDrop(db, idxKey, idxName, interrupt)
+	err = incrementalFlatDrop(ctx, db, idxKey, idxName)
 	if err != nil {
 		return err
 	}

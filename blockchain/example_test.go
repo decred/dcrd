@@ -6,6 +6,7 @@
 package blockchain_test
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -46,11 +47,12 @@ func ExampleBlockChain_ProcessBlock() {
 	// ordinarily keep a reference to the median time source and add time
 	// values obtained from other peers on the network so the local time is
 	// adjusted to be in agreement with other peers.
-	chain, err := blockchain.New(&blockchain.Config{
-		DB:          db,
-		ChainParams: mainNetParams,
-		TimeSource:  blockchain.NewMedianTime(),
-	})
+	chain, err := blockchain.New(context.Background(),
+		&blockchain.Config{
+			DB:          db,
+			ChainParams: mainNetParams,
+			TimeSource:  blockchain.NewMedianTime(),
+		})
 	if err != nil {
 		fmt.Printf("Failed to create chain instance: %v\n", err)
 		return

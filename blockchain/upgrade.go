@@ -7,6 +7,7 @@ package blockchain
 
 import (
 	"bytes"
+	"context"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -35,14 +36,8 @@ var errBatchFinished = errors.New("batch finished")
 // interruptRequested returns true when the provided channel has been closed.
 // This simplifies early shutdown slightly since the caller can just use an if
 // statement instead of a select.
-func interruptRequested(interrupted <-chan struct{}) bool {
-	select {
-	case <-interrupted:
-		return true
-	default:
-	}
-
-	return false
+func interruptRequested(ctx context.Context) bool {
+	return ctx.Err() != nil
 }
 
 // deserializeDatabaseInfoV2 deserializes a database information struct from the
@@ -251,7 +246,7 @@ func upgradeToVersion2(db database.DB, chainParams *chaincfg.Params, dbInfo *dat
 //
 // The new block index is guaranteed to be fully updated if this returns without
 // failure.
-func migrateBlockIndex(db database.DB, interrupt <-chan struct{}) error {
+func migrateBlockIndex(ctx context.Context, db database.DB) error {
 	// blkHdrOffset defines the offsets into a v1 block index row for the block
 	// header.
 	//
@@ -379,7 +374,7 @@ func migrateBlockIndex(db database.DB, interrupt <-chan struct{}) error {
 
 			numMigrated++
 
-			if interruptRequested(interrupt) {
+			if interruptRequested(ctx) {
 				return errInterruptRequested
 			}
 
@@ -408,7 +403,7 @@ func migrateBlockIndex(db database.DB, interrupt <-chan struct{}) error {
 			return err
 		}
 
-		if interruptRequested(interrupt) {
+		if interruptRequested(ctx) {
 			return errInterruptRequested
 		}
 
@@ -428,8 +423,8 @@ func migrateBlockIndex(db database.DB, interrupt <-chan struct{}) error {
 
 // upgradeToVersion3 upgrades a version 2 blockchain to version 3 along with
 // upgrading the block index to version 2.
-func upgradeToVersion3(db database.DB, dbInfo *databaseInfo, interrupt <-chan struct{}) error {
-	if err := migrateBlockIndex(db, interrupt); err != nil {
+func upgradeToVersion3(ctx context.Context, db database.DB, dbInfo *databaseInfo) error {
+	if err := migrateBlockIndex(ctx, db); err != nil {
 		return err
 	}
 
@@ -447,7 +442,7 @@ func upgradeToVersion3(db database.DB, dbInfo *databaseInfo, interrupt <-chan st
 //
 // The database is guaranteed to be fully updated if this returns without
 // failure.
-func removeMainChainIndex(db database.DB, interrupt <-chan struct{}) error {
+func removeMainChainIndex(ctx context.Context, db database.DB) error {
 	// Hardcoded bucket names so updates to the global values do not affect old
 	// upgrades.
 	hashIdxBucketName := []byte("hashidx")
@@ -468,7 +463,7 @@ func removeMainChainIndex(db database.DB, interrupt <-chan struct{}) error {
 			log.Infof("Removed hash index.")
 		}
 
-		if interruptRequested(interrupt) {
+		if interruptRequested(ctx) {
 			// No error here so the database transaction is not cancelled
 			// and therefore outstanding work is written to disk.  The
 			// outer function will exit with an interrupted error below due
@@ -491,7 +486,7 @@ func removeMainChainIndex(db database.DB, interrupt <-chan struct{}) error {
 		return err
 	}
 
-	if interruptRequested(interrupt) {
+	if interruptRequested(ctx) {
 		return errInterruptRequested
 	}
 
@@ -501,8 +496,8 @@ func removeMainChainIndex(db database.DB, interrupt <-chan struct{}) error {
 }
 
 // upgradeToVersion4 upgrades a version 3 blockchain database to version 4.
-func upgradeToVersion4(db database.DB, dbInfo *databaseInfo, interrupt <-chan struct{}) error {
-	if err := removeMainChainIndex(db, interrupt); err != nil {
+func upgradeToVersion4(ctx context.Context, db database.DB, dbInfo *databaseInfo) error {
+	if err := removeMainChainIndex(ctx, db); err != nil {
 		return err
 	}
 
@@ -515,7 +510,7 @@ func upgradeToVersion4(db database.DB, dbInfo *databaseInfo, interrupt <-chan st
 
 // incrementalFlatDrop uses multiple database updates to remove key/value pairs
 // saved to a flag bucket.
-func incrementalFlatDrop(db database.DB, bucketKey []byte, humanName string, interrupt <-chan struct{}) error {
+func incrementalFlatDrop(ctx context.Context, db database.DB, bucketKey []byte, humanName string) error {
 	const maxDeletions = 2000000
 	var totalDeleted uint64
 	for numDeleted := maxDeletions; numDeleted == maxDeletions; {
@@ -543,7 +538,7 @@ func incrementalFlatDrop(db database.DB, bucketKey []byte, humanName string, int
 				totalDeleted, humanName)
 		}
 
-		if interruptRequested(interrupt) {
+		if interruptRequested(ctx) {
 			return errInterruptRequested
 		}
 	}
@@ -551,7 +546,7 @@ func incrementalFlatDrop(db database.DB, bucketKey []byte, humanName string, int
 }
 
 // upgradeToVersion5 upgrades a version 4 blockchain database to version 5.
-func upgradeToVersion5(db database.DB, chainParams *chaincfg.Params, dbInfo *databaseInfo, interrupt <-chan struct{}) error {
+func upgradeToVersion5(ctx context.Context, db database.DB, chainParams *chaincfg.Params, dbInfo *databaseInfo) error {
 	// Hardcoded bucket and key names so updates to the global values do not
 	// affect old upgrades.
 	utxoSetBucketName := []byte("utxoset")
@@ -563,25 +558,24 @@ func upgradeToVersion5(db database.DB, chainParams *chaincfg.Params, dbInfo *dat
 	start := time.Now()
 
 	// Clear the utxoset.
-	err := incrementalFlatDrop(db, utxoSetBucketName, "utxoset", interrupt)
+	err := incrementalFlatDrop(ctx, db, utxoSetBucketName, "utxoset")
 	if err != nil {
 		return err
 	}
 	log.Infof("Cleared utxoset.")
 
-	if interruptRequested(interrupt) {
+	if interruptRequested(ctx) {
 		return errInterruptRequested
 	}
 
 	// Clear the spend journal.
-	err = incrementalFlatDrop(db, spendJournalBucketName, "spend journal",
-		interrupt)
+	err = incrementalFlatDrop(ctx, db, spendJournalBucketName, "spend journal")
 	if err != nil {
 		return err
 	}
 	log.Infof("Cleared spend journal.")
 
-	if interruptRequested(interrupt) {
+	if interruptRequested(ctx) {
 		return errInterruptRequested
 	}
 
@@ -636,7 +630,7 @@ func upgradeToVersion5(db database.DB, chainParams *chaincfg.Params, dbInfo *dat
 
 // maybeFinishV5Upgrade potentially reindexes the chain due to a version 5
 // database upgrade.  It will resume previously uncompleted attempts.
-func (b *BlockChain) maybeFinishV5Upgrade() error {
+func (b *BlockChain) maybeFinishV5Upgrade(ctx context.Context) error {
 	// Nothing to do if the database is not version 5.
 	if b.dbInfo.version != 5 {
 		return nil
@@ -686,7 +680,7 @@ func (b *BlockChain) maybeFinishV5Upgrade() error {
 
 		tip := b.bestChain.Tip()
 		for tip != targetTip {
-			if interruptRequested(b.interrupt) {
+			if interruptRequested(ctx) {
 				return errInterruptRequested
 			}
 
@@ -814,7 +808,7 @@ func stxosToScriptSource(block *dcrutil.Block, stxos []spentTxOut, compressionVe
 // clients that did not update prior to new rules activating are able to
 // automatically recover under the new rules without having to download the
 // entire chain again.
-func clearFailedBlockFlags(index *blockIndex, interrupt <-chan struct{}) error {
+func clearFailedBlockFlags(index *blockIndex) error {
 	for _, node := range index.index {
 		index.UnsetStatusFlags(node, statusValidateFailed|statusInvalidAncestor)
 	}
@@ -829,7 +823,7 @@ func clearFailedBlockFlags(index *blockIndex, interrupt <-chan struct{}) error {
 //
 // The database is  guaranteed to have a filter entry for every block in the
 // main chain if this returns without failure.
-func initializeGCSFilters(db database.DB, index *blockIndex, bestChain *chainView, interrupt <-chan struct{}) error {
+func initializeGCSFilters(ctx context.Context, db database.DB, index *blockIndex, bestChain *chainView) error {
 	// Hardcoded values so updates to the global values do not affect old
 	// upgrades.
 	gcsBucketName := []byte("gcsfilters")
@@ -916,7 +910,7 @@ func initializeGCSFilters(db database.DB, index *blockIndex, bestChain *chainVie
 
 			numCreated++
 
-			if interruptRequested(interrupt) {
+			if interruptRequested(ctx) {
 				return numCreated, totalBytes, errInterruptRequested
 			}
 		}
@@ -944,7 +938,7 @@ func initializeGCSFilters(db database.DB, index *blockIndex, bestChain *chainVie
 			return err
 		}
 
-		if interruptRequested(interrupt) {
+		if interruptRequested(ctx) {
 			return errInterruptRequested
 		}
 
@@ -964,8 +958,8 @@ func initializeGCSFilters(db database.DB, index *blockIndex, bestChain *chainVie
 }
 
 // upgradeToVersion6 upgrades a version 5 blockchain database to version 6.
-func upgradeToVersion6(db database.DB, chainParams *chaincfg.Params, dbInfo *databaseInfo, interrupt <-chan struct{}) error {
-	if interruptRequested(interrupt) {
+func upgradeToVersion6(ctx context.Context, db database.DB, chainParams *chaincfg.Params, dbInfo *databaseInfo) error {
+	if interruptRequested(ctx) {
 		return errInterruptRequested
 	}
 
@@ -1005,12 +999,12 @@ func upgradeToVersion6(db database.DB, chainParams *chaincfg.Params, dbInfo *dat
 
 	// Unmark all blocks previously marked failed so they are eligible for
 	// validation again under the new consensus rules.
-	if err := clearFailedBlockFlags(index, interrupt); err != nil {
+	if err := clearFailedBlockFlags(index); err != nil {
 		return err
 	}
 
 	// Create and store version 2 GCS filters for all blocks in the main chain.
-	err = initializeGCSFilters(db, index, bestChain, interrupt)
+	err = initializeGCSFilters(ctx, db, index, bestChain)
 	if err != nil {
 		return err
 	}
@@ -1033,7 +1027,7 @@ func upgradeToVersion6(db database.DB, chainParams *chaincfg.Params, dbInfo *dat
 // all possible upgrades iteratively.
 //
 // NOTE: The passed database info will be updated with the latest versions.
-func upgradeDB(db database.DB, chainParams *chaincfg.Params, dbInfo *databaseInfo, interrupt <-chan struct{}) error {
+func upgradeDB(ctx context.Context, db database.DB, chainParams *chaincfg.Params, dbInfo *databaseInfo) error {
 	if dbInfo.version == 1 {
 		if err := upgradeToVersion2(db, chainParams, dbInfo); err != nil {
 			return err
@@ -1044,14 +1038,14 @@ func upgradeDB(db database.DB, chainParams *chaincfg.Params, dbInfo *databaseInf
 	// version was bumped because prior versions of the software did not have
 	// a block index version.
 	if dbInfo.version == 2 && dbInfo.bidxVer < 2 {
-		if err := upgradeToVersion3(db, dbInfo, interrupt); err != nil {
+		if err := upgradeToVersion3(ctx, db, dbInfo); err != nil {
 			return err
 		}
 	}
 
 	// Remove the main chain index from the database if needed.
 	if dbInfo.version == 3 {
-		if err := upgradeToVersion4(db, dbInfo, interrupt); err != nil {
+		if err := upgradeToVersion4(ctx, db, dbInfo); err != nil {
 			return err
 		}
 	}
@@ -1059,7 +1053,7 @@ func upgradeDB(db database.DB, chainParams *chaincfg.Params, dbInfo *databaseInf
 	// Clear the utxoset, clear the spend journal, reset the best chain back to
 	// the genesis block, and mark that a v5 reindex is required if needed.
 	if dbInfo.version == 4 {
-		err := upgradeToVersion5(db, chainParams, dbInfo, interrupt)
+		err := upgradeToVersion5(ctx, db, chainParams, dbInfo)
 		if err != nil {
 			return err
 		}
@@ -1070,7 +1064,7 @@ func upgradeDB(db database.DB, chainParams *chaincfg.Params, dbInfo *databaseInf
 	// under the new consensus rules and creating and storing version 2 GCS
 	// filters for all blocks in the main chain.
 	if dbInfo.version == 5 {
-		err := upgradeToVersion6(db, chainParams, dbInfo, interrupt)
+		err := upgradeToVersion6(ctx, db, chainParams, dbInfo)
 		if err != nil {
 			return err
 		}

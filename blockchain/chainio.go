@@ -7,6 +7,7 @@ package blockchain
 
 import (
 	"bytes"
+	"context"
 	"encoding/binary"
 	"fmt"
 	"math/big"
@@ -1748,7 +1749,7 @@ func loadBlockIndex(dbTx database.Tx, genesisHash *chainhash.Hash, index *blockI
 // initChainState attempts to load and initialize the chain state from the
 // database.  When the db does not yet contain any chain state, both it and the
 // chain state are initialized to the genesis block.
-func (b *BlockChain) initChainState() error {
+func (b *BlockChain) initChainState(ctx context.Context) error {
 	// Update database versioning scheme if needed.
 	err := b.db.Update(func(dbTx database.Tx) error {
 		// No versioning upgrade is needed if the dbinfo bucket does not
@@ -1840,7 +1841,7 @@ func (b *BlockChain) initChainState() error {
 	}
 
 	// Upgrade the database as needed.
-	err = upgradeDB(b.db, b.chainParams, b.dbInfo, b.interrupt)
+	err = upgradeDB(ctx, b.db, b.chainParams, b.dbInfo)
 	if err != nil {
 		return err
 	}

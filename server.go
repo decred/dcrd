@@ -2850,20 +2850,20 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB, chainP
 	}
 
 	// Create a new block chain instance with the appropriate configuration.
-	s.chain, err = blockchain.New(&blockchain.Config{
-		DB:          s.db,
-		Interrupt:   interrupt,
-		ChainParams: s.chainParams,
-		TimeSource:  s.timeSource,
-		Notifications: func(notification *blockchain.Notification) {
-			if s.blockManager != nil {
-				s.blockManager.handleBlockchainNotification(notification)
-			}
-		},
-		SigCache:     s.sigCache,
-		SubsidyCache: s.subsidyCache,
-		IndexManager: indexManager,
-	})
+	s.chain, err = blockchain.New(ctx,
+		&blockchain.Config{
+			DB:          s.db,
+			ChainParams: s.chainParams,
+			TimeSource:  s.timeSource,
+			Notifications: func(notification *blockchain.Notification) {
+				if s.blockManager != nil {
+					s.blockManager.handleBlockchainNotification(notification)
+				}
+			},
+			SigCache:     s.sigCache,
+			SubsidyCache: s.subsidyCache,
+			IndexManager: indexManager,
+		})
 	if err != nil {
 		return nil, err
 	}

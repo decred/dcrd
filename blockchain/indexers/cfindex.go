@@ -6,6 +6,7 @@
 package indexers
 
 import (
+	"context"
 	"errors"
 	"fmt"
 
@@ -296,6 +297,6 @@ func NewCfIndex(db database.DB, chainParams *chaincfg.Params) *CFIndex {
 }
 
 // DropCfIndex drops the CF index from the provided database if exists.
-func DropCfIndex(db database.DB, interrupt <-chan struct{}) error {
+func DropCfIndex(ctx context.Context, db database.DB) error {
 	return dropIndexMetadata(db, cfIndexParentBucketKey, cfIndexName)
 }

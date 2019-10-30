@@ -6,6 +6,7 @@
 package indexers
 
 import (
+	"context"
 	"errors"
 	"fmt"
 
@@ -541,7 +542,7 @@ func dropBlockIDIndex(db database.DB) error {
 // DropTxIndex drops the transaction index from the provided database if it
 // exists.  Since the address index relies on it, the address index will also be
 // dropped when it exists.
-func DropTxIndex(db database.DB, interrupt <-chan struct{}) error {
+func DropTxIndex(ctx context.Context, db database.DB) error {
 	// Nothing to do if the index doesn't already exist.
 	exists, err := existsIndex(db, txIndexKey, txIndexName)
 	if err != nil {
@@ -562,7 +563,7 @@ func DropTxIndex(db database.DB, interrupt <-chan struct{}) error {
 
 	// Drop the address index if it exists, as it depends on the transaction
 	// index.
-	err = DropAddrIndex(db, interrupt)
+	err = DropAddrIndex(ctx, db)
 	if err != nil {
 		return err
 	}
@@ -575,7 +576,7 @@ func DropTxIndex(db database.DB, interrupt <-chan struct{}) error {
 	// memory usage and likely crash many systems due to ulimits.  In order
 	// to avoid this, use a cursor to delete a maximum number of entries out
 	// of the bucket at a time.
-	err = incrementalFlatDrop(db, txIndexKey, txIndexName, interrupt)
+	err = incrementalFlatDrop(ctx, db, txIndexKey, txIndexName)
 	if err != nil {
 		return err
 	}
@@ -600,6 +601,6 @@ func DropTxIndex(db database.DB, interrupt <-chan struct{}) error {
 // DropIndex drops the transaction index from the provided database if it
 // exists.  Since the address index relies on it, the address index will also be
 // dropped when it exists.
-func (*TxIndex) DropIndex(db database.DB, interrupt <-chan struct{}) error {
-	return DropTxIndex(db, interrupt)
+func (*TxIndex) DropIndex(ctx context.Context, db database.DB) error {
+	return DropTxIndex(ctx, db)
 }
