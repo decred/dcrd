@@ -5,6 +5,7 @@
 package main
 
 import (
+	"crypto/elliptic"
 	"crypto/x509"
 	"encoding/pem"
 	"io/ioutil"
@@ -31,7 +32,7 @@ func TestCertCreationWithHosts(t *testing.T) {
 
 	// Generate cert pair with extra hosts.
 	hostnames := []string{"hostname1", "hostname2"}
-	err = genCertPair(certFile.Name(), keyFile.Name(), hostnames)
+	err = genCertPair(certFile.Name(), keyFile.Name(), hostnames, elliptic.P521())
 	if err != nil {
 		t.Fatalf("Certificate was not created correctly: %s", err)
 	}
@@ -72,7 +73,7 @@ func TestCertCreationWithOutHosts(t *testing.T) {
 	defer os.Remove(keyFile.Name())
 
 	// Generate cert pair with no extra hosts.
-	err = genCertPair(certFile.Name(), keyFile.Name(), nil)
+	err = genCertPair(certFile.Name(), keyFile.Name(), nil, elliptic.P521())
 	if err != nil {
 		t.Fatalf("Certificate was not created correctly: %s", err)
 	}

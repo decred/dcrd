@@ -2693,7 +2693,11 @@ func setupRPCListeners() ([]net.Listener, error) {
 				cfg.RPCKey, cfg.RPCCert)
 		}
 		if !keyFileExists && !certFileExists {
-			err := genCertPair(cfg.RPCCert, cfg.RPCKey, cfg.AltDNSNames)
+			curve, err := tlsCurve(cfg.TLSCurve)
+			if err != nil {
+				return nil, err
+			}
+			err = genCertPair(cfg.RPCCert, cfg.RPCKey, cfg.AltDNSNames, curve)
 			if err != nil {
 				return nil, err
 			}
