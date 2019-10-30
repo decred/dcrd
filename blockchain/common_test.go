@@ -6,6 +6,7 @@
 package blockchain
 
 import (
+	"context"
 	"fmt"
 	"io/ioutil"
 	"math"
@@ -100,12 +101,13 @@ func chainSetup(dbName string, params *chaincfg.Params) (*BlockChain, func(), er
 	paramsCopy := *params
 
 	// Create the main chain instance.
-	chain, err := New(&Config{
-		DB:          db,
-		ChainParams: &paramsCopy,
-		TimeSource:  NewMedianTime(),
-		SigCache:    txscript.NewSigCache(1000),
-	})
+	chain, err := New(context.Background(),
+		&Config{
+			DB:          db,
+			ChainParams: &paramsCopy,
+			TimeSource:  NewMedianTime(),
+			SigCache:    txscript.NewSigCache(1000),
+		})
 
 	if err != nil {
 		teardown()

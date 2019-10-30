@@ -9,6 +9,7 @@ Package indexers implements optional block chain indexes.
 package indexers
 
 import (
+	"context"
 	"encoding/binary"
 	"errors"
 
@@ -104,7 +105,7 @@ type IndexManager interface {
 	// parameter specifies a channel the caller can close to signal that the
 	// process should be interrupted.  It can be nil if that behavior is not
 	// desired.
-	Init(ChainQueryer, <-chan struct{}) error
+	Init(context.Context, ChainQueryer) error
 
 	// ConnectBlock is invoked when a new block has been connected to the main
 	// chain.
@@ -119,7 +120,7 @@ type IndexManager interface {
 // may implement this for a more efficient way of deleting themselves from the
 // database rather than simply dropping a bucket.
 type IndexDropper interface {
-	DropIndex(db database.DB, interrupt <-chan struct{}) error
+	DropIndex(context.Context, database.DB) error
 }
 
 // AssertError identifies an error that indicates an internal code consistency
@@ -160,12 +161,6 @@ type internalBucket interface {
 // interruptRequested returns true when the provided channel has been closed.
 // This simplifies early shutdown slightly since the caller can just use an if
 // statement instead of a select.
-func interruptRequested(interrupted <-chan struct{}) bool {
-	select {
-	case <-interrupted:
-		return true
-	default:
-	}
-
-	return false
+func interruptRequested(ctx context.Context) bool {
+	return ctx.Err() != nil
 }

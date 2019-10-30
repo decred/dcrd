@@ -143,7 +143,7 @@ func dcrdMain() error {
 	// NOTE: The order is important here because dropping the tx index also
 	// drops the address index since it relies on it.
 	if cfg.DropAddrIndex {
-		if err := indexers.DropAddrIndex(db, ctx.Done()); err != nil {
+		if err := indexers.DropAddrIndex(ctx, db); err != nil {
 			dcrdLog.Errorf("%v", err)
 			return err
 		}
@@ -151,7 +151,7 @@ func dcrdMain() error {
 		return nil
 	}
 	if cfg.DropTxIndex {
-		if err := indexers.DropTxIndex(db, ctx.Done()); err != nil {
+		if err := indexers.DropTxIndex(ctx, db); err != nil {
 			dcrdLog.Errorf("%v", err)
 			return err
 		}
@@ -159,7 +159,7 @@ func dcrdMain() error {
 		return nil
 	}
 	if cfg.DropExistsAddrIndex {
-		if err := indexers.DropExistsAddrIndex(db, ctx.Done()); err != nil {
+		if err := indexers.DropExistsAddrIndex(ctx, db); err != nil {
 			dcrdLog.Errorf("%v", err)
 			return err
 		}
@@ -167,7 +167,7 @@ func dcrdMain() error {
 		return nil
 	}
 	if cfg.DropCFIndex {
-		if err := indexers.DropCfIndex(db, ctx.Done()); err != nil {
+		if err := indexers.DropCfIndex(ctx, db); err != nil {
 			dcrdLog.Errorf("%v", err)
 			return err
 		}

@@ -8,6 +8,7 @@ package blockchain
 import (
 	"bytes"
 	"compress/bzip2"
+	"context"
 	"encoding/gob"
 	"fmt"
 	mrand "math/rand"
@@ -552,11 +553,12 @@ func TestCheckBlockHeaderContext(t *testing.T) {
 
 	// Create a new BlockChain instance using the underlying database for
 	// the simnet network.
-	chain, err := New(&Config{
-		DB:          db,
-		ChainParams: params,
-		TimeSource:  NewMedianTime(),
-	})
+	chain, err := New(context.Background(),
+		&Config{
+			DB:          db,
+			ChainParams: params,
+			TimeSource:  NewMedianTime(),
+		})
 	if err != nil {
 		t.Fatalf("Failed to create chain instance: %v\n", err)
 		return
