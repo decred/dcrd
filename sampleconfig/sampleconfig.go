@@ -224,6 +224,12 @@ const FileContents = `[Application Options]
 ; server without having to remove credentials from the config file.
 ; norpc=1
 
+; Specify the curve to use when generating TLS keypairs for the rpc endpoint.
+; Note that after changing this the rpccert/rpckey files need to be deleted so
+; that they are recreated with the new curve.
+;
+; Supported curves: P-521, P-256.
+; tlscurve=P-521
 
 
 ; ------------------------------------------------------------------------------

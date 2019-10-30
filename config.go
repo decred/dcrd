@@ -7,6 +7,7 @@ package main
 
 import (
 	"context"
+	"crypto/elliptic"
 	"crypto/rand"
 	"encoding/base64"
 	"errors"
@@ -63,6 +64,7 @@ const (
 	defaultTxIndex               = false
 	defaultNoExistsAddrIndex     = false
 	defaultNoCFilters            = false
+	defaultTLSCurve              = "P-521"
 )
 
 var (
@@ -116,6 +118,7 @@ type config struct {
 	RPCListeners         []string      `long:"rpclisten" description:"Add an interface/port to listen for RPC connections (default port: 9109, testnet: 19109)"`
 	RPCCert              string        `long:"rpccert" description:"File containing the certificate file"`
 	RPCKey               string        `long:"rpckey" description:"File containing the certificate key"`
+	TLSCurve             string        `long:"tlscurve" description:"Curve to use when generating TLS keypairs"`
 	RPCMaxClients        int           `long:"rpcmaxclients" description:"Max number of RPC clients for standard connections"`
 	RPCMaxWebsockets     int           `long:"rpcmaxwebsockets" description:"Max number of RPC websocket connections"`
 	RPCMaxConcurrentReqs int           `long:"rpcmaxconcurrentreqs" description:"Max number of concurrent RPC requests that may be processed concurrently"`
@@ -510,6 +513,7 @@ func loadConfig() (*config, []string, error) {
 		LogDir:               defaultLogDir,
 		DbType:               defaultDbType,
 		RPCKey:               defaultRPCKeyFile,
+		TLSCurve:             defaultTLSCurve,
 		RPCCert:              defaultRPCCertFile,
 		MinRelayTxFee:        mempool.DefaultMinRelayTxFee.ToCoin(),
 		FreeTxRelayLimit:     defaultFreeTxRelayLimit,
@@ -1189,6 +1193,12 @@ func loadConfig() (*config, []string, error) {
 		return nil, nil, err
 	}
 
+	// Prevent using an unsupported curve.
+	if _, err := tlsCurve(cfg.TLSCurve); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return nil, nil, err
+	}
+
 	// Warn about missing config file only after all other configuration is
 	// done.  This prevents the warning on help messages and invalid
 	// options.  Note this should go directly before the return.
@@ -1223,4 +1233,17 @@ func dcrdLookup(host string) ([]net.IP, error) {
 		return cfg.onionlookup(host)
 	}
 	return cfg.lookup(host)
+}
+
+// tlsCurve returns the correct curve given a config option indicating the
+// curve to use or an error if the curve does not exist.
+func tlsCurve(curve string) (elliptic.Curve, error) {
+	switch curve {
+	case "P-521":
+		return elliptic.P521(), nil
+	case "P-256":
+		return elliptic.P256(), nil
+	default:
+		return nil, fmt.Errorf("unsupported curve %s", curve)
+	}
 }

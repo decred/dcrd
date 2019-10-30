@@ -53,6 +53,8 @@ Application Options:
                             (default port: 9109, testnet: 19109)
       --rpccert=            File containing the certificate file
       --rpckey=             File containing the certificate key
+      --tlscurve=           Curve to use when generating the TLS keypair
+                            (default: P-521)
       --rpcmaxclients=      Max number of RPC clients for standard connections
                             (10)
       --rpcmaxwebsockets=   Max number of RPC websocket connections (25)
