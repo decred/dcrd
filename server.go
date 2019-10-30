@@ -1624,28 +1624,21 @@ func (s *server) handleAddPeerMsg(state *peerState, sp *serverPeer) bool {
 	na := sp.peerNa
 	sp.peerNaMtx.Unlock()
 
-	if na == nil {
-		return true
-	}
-
-	valid, reach := s.addrManager.ValidatePeerNa(na, sp.NA())
-	if !valid {
-		return true
-	}
-
-	id := na.IP.String()
-
 	// Add the new peer and start it.
 	srvrLog.Debugf("New peer %s", sp)
 	if sp.Inbound() {
 		state.inboundPeers[sp.ID()] = sp
 
-		// Inbound peers can only corroborate existing address submissions.
-		if state.subCache.exists(id) {
-			err := state.subCache.incrementScore(id)
-			if err != nil {
-				srvrLog.Errorf("unable to increment submission score: %v", err)
-				return true
+		if na != nil {
+			id := na.IP.String()
+
+			// Inbound peers can only corroborate existing address submissions.
+			if state.subCache.exists(id) {
+				err := state.subCache.incrementScore(id)
+				if err != nil {
+					srvrLog.Errorf("unable to increment submission score: %v", err)
+					return true
+				}
 			}
 		}
 	} else {
@@ -1678,36 +1671,44 @@ func (s *server) handleAddPeerMsg(state *peerState, sp *serverPeer) bool {
 			return true
 		}
 
-		net := addrmgr.IPv4Address
-		if na.IP.To4() == nil {
-			net = addrmgr.IPv6Address
-		}
+		if na != nil {
+			net := addrmgr.IPv4Address
+			if na.IP.To4() == nil {
+				net = addrmgr.IPv6Address
+			}
 
-		if state.subCache.exists(id) {
-			// Increment the submission score if it already exists.
-			err := state.subCache.incrementScore(id)
-			if err != nil {
-				srvrLog.Errorf("unable to increment submission score: %v", err)
+			valid, reach := s.addrManager.ValidatePeerNa(na, sp.NA())
+			if !valid {
 				return true
 			}
-		} else {
-			// Create a cache entry for a new submission.
-			sub := &naSubmission{
-				na:      na,
-				netType: net,
-				reach:   reach,
+
+			id := na.IP.String()
+			if state.subCache.exists(id) {
+				// Increment the submission score if it already exists.
+				err := state.subCache.incrementScore(id)
+				if err != nil {
+					srvrLog.Errorf("unable to increment submission score: %v", err)
+					return true
+				}
+			} else {
+				// Create a cache entry for a new submission.
+				sub := &naSubmission{
+					na:      na,
+					netType: net,
+					reach:   reach,
+				}
+
+				err := state.subCache.add(sub)
+				if err != nil {
+					srvrLog.Errorf("unable to add submission: %v", err)
+					return true
+				}
 			}
 
-			err := state.subCache.add(sub)
-			if err != nil {
-				srvrLog.Errorf("unable to add submission: %v", err)
-				return true
-			}
+			// Pick the local address for the provided network based on
+			// submission scores.
+			state.ResolveLocalAddress(net, s.addrManager, s.services)
 		}
-
-		// Pick the local address for the provided network based on
-		// submission scores.
-		state.ResolveLocalAddress(net, s.addrManager, s.services)
 	}
 
 	return true
