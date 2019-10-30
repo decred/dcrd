@@ -151,7 +151,6 @@ type BlockChain struct {
 	notifications       NotificationCallback
 	sigCache            *txscript.SigCache
 	indexManager        indexers.IndexManager
-	interrupt           <-chan struct{}
 
 	// subsidyCache is the cache that provides quick lookup of subsidy
 	// values.
@@ -2066,13 +2065,6 @@ type Config struct {
 	// This field is required.
 	DB database.DB
 
-	// Interrupt specifies a channel the caller can close to signal that
-	// long running operations, such as catching up indexes or performing
-	// database migrations, should be interrupted.
-	//
-	// This field can be nil if the caller does not desire the behavior.
-	Interrupt <-chan struct{}
-
 	// ChainParams identifies which chain parameters the chain is associated
 	// with.
 	//
@@ -2163,7 +2155,6 @@ func New(ctx context.Context, config *Config) (*BlockChain, error) {
 		notifications:                 config.Notifications,
 		sigCache:                      config.SigCache,
 		indexManager:                  config.IndexManager,
-		interrupt:                     config.Interrupt,
 		subsidyCache:                  subsidyCache,
 		index:                         newBlockIndex(config.DB),
 		bestChain:                     newChainView(nil),
@@ -2183,7 +2174,7 @@ func New(ctx context.Context, config *Config) (*BlockChain, error) {
 	// Initialize the chain state from the passed database.  When the db
 	// does not yet contain any chain state, both it and the chain state
 	// will be initialized to contain only the genesis block.
-	if err := b.initChainState(); err != nil {
+	if err := b.initChainState(ctx); err != nil {
 		return nil, err
 	}
 
@@ -2199,7 +2190,7 @@ func New(ctx context.Context, config *Config) (*BlockChain, error) {
 
 	// The version 5 database upgrade requires a full reindex.  Perform, or
 	// resume, the reindex as needed.
-	if err := b.maybeFinishV5Upgrade(); err != nil {
+	if err := b.maybeFinishV5Upgrade(ctx); err != nil {
 		return nil, err
 	}
 
