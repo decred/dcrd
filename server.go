@@ -2735,7 +2735,7 @@ func setupRPCListeners() ([]net.Listener, error) {
 // newServer returns a new dcrd server configured to listen on addr for the
 // decred network type specified by chainParams.  Use start to begin accepting
 // connections from peers.
-func newServer(listenAddrs []string, db database.DB, chainParams *chaincfg.Params, dataDir string, interrupt <-chan struct{}) (*server, error) {
+func newServer(ctx context.Context, listenAddrs []string, db database.DB, chainParams *chaincfg.Params, dataDir string) (*server, error) {
 	services := defaultServices
 	if cfg.NoCFilters {
 		services &^= wire.SFNodeCF
@@ -2841,7 +2841,7 @@ func newServer(listenAddrs []string, db database.DB, chainParams *chaincfg.Param
 	// Create a new block chain instance with the appropriate configuration.
 	s.chain, err = blockchain.New(&blockchain.Config{
 		DB:          s.db,
-		Interrupt:   interrupt,
+		Interrupt:   ctx.Done(),
 		ChainParams: s.chainParams,
 		TimeSource:  s.timeSource,
 		Notifications: func(notification *blockchain.Notification) {

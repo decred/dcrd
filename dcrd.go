@@ -177,8 +177,8 @@ func dcrdMain() error {
 
 	// Create server and start it.
 	lifetimeNotifier.notifyStartupEvent(lifetimeEventP2PServer)
-	svr, err := newServer(cfg.Listeners, db, activeNetParams.Params,
-		cfg.DataDir, ctx.Done())
+	svr, err := newServer(ctx, cfg.Listeners, db, activeNetParams.Params,
+		cfg.DataDir)
 	if err != nil {
 		dcrdLog.Errorf("Unable to start server with listeners %v: %v",
 			cfg.Listeners, err)
