@@ -6,7 +6,6 @@
 package indexers
 
 import (
-	"bytes"
 	"fmt"
 
 	"github.com/decred/dcrd/blockchain/v3/internal/progresslog"
@@ -14,7 +13,6 @@ import (
 	"github.com/decred/dcrd/chaincfg/v2"
 	"github.com/decred/dcrd/database/v2"
 	"github.com/decred/dcrd/dcrutil/v3"
-	"github.com/decred/dcrd/wire"
 )
 
 var (
@@ -640,34 +638,6 @@ func indexNeedsInputs(index Indexer) bool {
 	}
 
 	return false
-}
-
-// dbFetchTx looks up the passed transaction hash in the transaction index and
-// loads it from the database.
-func dbFetchTx(dbTx database.Tx, hash *chainhash.Hash) (*wire.MsgTx, error) {
-	// Look up the location of the transaction.
-	entry, err := dbFetchTxIndexEntry(dbTx, hash)
-	if err != nil {
-		return nil, err
-	}
-	if entry == nil {
-		return nil, fmt.Errorf("transaction %v not found in the txindex", hash)
-	}
-
-	// Load the raw transaction bytes from the database.
-	txBytes, err := dbTx.FetchBlockRegion(&entry.BlockRegion)
-	if err != nil {
-		return nil, err
-	}
-
-	// Deserialize the transaction.
-	var msgTx wire.MsgTx
-	err = msgTx.Deserialize(bytes.NewReader(txBytes))
-	if err != nil {
-		return nil, err
-	}
-
-	return &msgTx, nil
 }
 
 // ConnectBlock must be invoked when a block is extending the main chain.  It
