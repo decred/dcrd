@@ -156,6 +156,7 @@ func initBlockNode(node *blockNode, blockHeader *wire.BlockHeader, parent *block
 		nonce:        blockHeader.Nonce,
 		extraData:    blockHeader.ExtraData,
 		stakeVersion: blockHeader.StakeVersion,
+		status:       statusNone,
 	}
 	if parent != nil {
 		node.parent = parent
