@@ -167,19 +167,6 @@ type TokenPayout struct {
 	Amount        int64
 }
 
-// mustPayout returns a token payout populated with script version 0, the
-// provided hex-encoded script string converted to bytes and the provided
-// amount.  It will panic if the specified script hex fails to parse so errors
-// in the source code be detected.  It will only (and must only) be called with
-// hard-coded, and therefore known good, hex-encoded scripts.
-func mustPayout(script string, amount int64) TokenPayout {
-	return TokenPayout{
-		ScriptVersion: 0,
-		Script:        hexDecode(script),
-		Amount:        amount,
-	}
-}
-
 // DNSSeed identifies a DNS seed.
 type DNSSeed struct {
 	// Host defines the hostname of the seed.

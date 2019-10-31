@@ -6,6 +6,19 @@
 
 package chaincfg
 
+// mustPayout returns a token payout populated with script version 0, the
+// provided hex-encoded script string converted to bytes and the provided
+// amount.  It will panic if the specified script hex fails to parse so errors
+// in the source code be detected.  It will only (and must only) be called with
+// hard-coded, and therefore known good, hex-encoded scripts.
+func mustPayout(script string, amount int64) TokenPayout {
+	return TokenPayout{
+		ScriptVersion: 0,
+		Script:        hexDecode(script),
+		Amount:        amount,
+	}
+}
+
 var MainNetSubsidyDefinition = []TokenPayout{
 	mustPayout("76a91464e20eb6075561d30c23a517c5b73badbc120f0588ac", 5000*1e8),
 	mustPayout("76a91464fd67aa8ffde6970c62383ce559bbfb0429b41e88ac", 5000*1e8),
