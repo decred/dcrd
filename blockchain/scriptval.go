@@ -6,6 +6,7 @@
 package blockchain
 
 import (
+	"context"
 	"fmt"
 	"math"
 	"runtime"
@@ -27,7 +28,6 @@ type txValidateItem struct {
 // function that is intended to be in run multiple goroutines.
 type txValidator struct {
 	validateChan chan *txValidateItem
-	quitChan     chan struct{}
 	resultChan   chan error
 	utxoView     *UtxoViewpoint
 	flags        txscript.ScriptFlags
@@ -35,23 +35,26 @@ type txValidator struct {
 }
 
 // sendResult sends the result of a script pair validation on the internal
-// result channel while respecting the quit channel.  The allows orderly
+// result channel while respecting the context.  The allows orderly
 // shutdown when the validation process is aborted early due to a validation
 // error in one of the other goroutines.
-func (v *txValidator) sendResult(result error) {
+func (v *txValidator) sendResult(ctx context.Context, result error) {
 	select {
 	case v.resultChan <- result:
-	case <-v.quitChan:
+	case <-ctx.Done():
 	}
 }
 
 // validateHandler consumes items to validate from the internal validate channel
 // and returns the result of the validation on the internal result channel. It
 // must be run as a goroutine.
-func (v *txValidator) validateHandler() {
+func (v *txValidator) validateHandler(ctx context.Context) {
 out:
 	for {
 		select {
+		case <-ctx.Done():
+			break out
+
 		case txVI := <-v.validateChan:
 			// Ensure the referenced input transaction is available.
 			txIn := txVI.txIn
@@ -64,7 +67,7 @@ out:
 					"transaction %v", originTxHash,
 					txVI.tx.Hash())
 				err := ruleError(ErrMissingTxOut, str)
-				v.sendResult(err)
+				v.sendResult(ctx, err)
 				break out
 			}
 
@@ -78,7 +81,7 @@ out:
 					txIn.PreviousOutPoint, txVI.tx.Hash(),
 					txVI.txInIndex)
 				err := ruleError(ErrBadTxInput, str)
-				v.sendResult(err)
+				v.sendResult(ctx, err)
 				break out
 			}
 
@@ -96,7 +99,7 @@ out:
 					txVI.txInIndex, originTxHash,
 					originTxIndex, err, sigScript, pkScript)
 				err := ruleError(ErrScriptMalformed, str)
-				v.sendResult(err)
+				v.sendResult(ctx, err)
 				break out
 			}
 
@@ -109,15 +112,12 @@ out:
 					txVI.txInIndex, originTxHash,
 					originTxIndex, err, sigScript, pkScript)
 				err := ruleError(ErrScriptValidation, str)
-				v.sendResult(err)
+				v.sendResult(ctx, err)
 				break out
 			}
 
 			// Validation succeeded.
-			v.sendResult(nil)
-
-		case <-v.quitChan:
-			break out
+			v.sendResult(ctx, nil)
 		}
 	}
 }
@@ -142,11 +142,12 @@ func (v *txValidator) Validate(items []*txValidateItem) error {
 
 	// Start up validation handlers that are used to asynchronously
 	// validate each transaction input.
+	ctx, cancel := context.WithCancel(context.Background())
 	for i := 0; i < maxGoRoutines; i++ {
-		go v.validateHandler()
+		go v.validateHandler(ctx)
 	}
 
-	// Validate each of the inputs.  The quit channel is closed when any
+	// Validate each of the inputs.  The context is canceled when any
 	// errors occur so all processing goroutines exit regardless of which
 	// input had the validation error.
 	numInputs := len(items)
@@ -170,13 +171,13 @@ func (v *txValidator) Validate(items []*txValidateItem) error {
 		case err := <-v.resultChan:
 			processedItems++
 			if err != nil {
-				close(v.quitChan)
+				cancel()
 				return err
 			}
 		}
 	}
 
-	close(v.quitChan)
+	cancel()
 	return nil
 }
 
@@ -185,7 +186,6 @@ func (v *txValidator) Validate(items []*txValidateItem) error {
 func newTxValidator(utxoView *UtxoViewpoint, flags txscript.ScriptFlags, sigCache *txscript.SigCache) *txValidator {
 	return &txValidator{
 		validateChan: make(chan *txValidateItem),
-		quitChan:     make(chan struct{}),
 		resultChan:   make(chan error),
 		utxoView:     utxoView,
 		sigCache:     sigCache,
