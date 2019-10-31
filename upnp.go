@@ -34,6 +34,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/xml"
 	"errors"
 	"net"
@@ -65,12 +66,13 @@ type upnpNAT struct {
 
 // Discover searches the local network for a UPnP router returning a NAT
 // for the network if so, nil if not.
-func Discover() (nat NAT, err error) {
+func Discover(ctx context.Context) (nat NAT, err error) {
 	ssdp, err := net.ResolveUDPAddr("udp4", "239.255.255.250:1900")
 	if err != nil {
 		return
 	}
-	conn, err := net.ListenPacket("udp4", ":0")
+	var l net.ListenConfig
+	conn, err := l.ListenPacket(ctx, "udp4", ":0")
 	if err != nil {
 		return
 	}

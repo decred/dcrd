@@ -2735,7 +2735,7 @@ func setupRPCListeners() ([]net.Listener, error) {
 // newServer returns a new dcrd server configured to listen on addr for the
 // decred network type specified by chainParams.  Use start to begin accepting
 // connections from peers.
-func newServer(listenAddrs []string, db database.DB, chainParams *chaincfg.Params, dataDir string, interrupt <-chan struct{}) (*server, error) {
+func newServer(ctx context.Context, listenAddrs []string, db database.DB, chainParams *chaincfg.Params, dataDir string, interrupt <-chan struct{}) (*server, error) {
 	services := defaultServices
 	if cfg.NoCFilters {
 		services &^= wire.SFNodeCF
@@ -2747,7 +2747,7 @@ func newServer(listenAddrs []string, db database.DB, chainParams *chaincfg.Param
 	var nat NAT
 	if !cfg.DisableListen {
 		var err error
-		listeners, nat, err = initListeners(amgr, listenAddrs, services)
+		listeners, nat, err = initListeners(ctx, amgr, listenAddrs, services)
 		if err != nil {
 			return nil, err
 		}
@@ -3085,7 +3085,7 @@ func newServer(listenAddrs []string, db database.DB, chainParams *chaincfg.Param
 // initListeners initializes the configured net listeners and adds any bound
 // addresses to the address manager. Returns the listeners and a NAT interface,
 // which is non-nil if UPnP is in use.
-func initListeners(amgr *addrmgr.AddrManager, listenAddrs []string, services wire.ServiceFlag) ([]net.Listener, NAT, error) {
+func initListeners(ctx context.Context, amgr *addrmgr.AddrManager, listenAddrs []string, services wire.ServiceFlag) ([]net.Listener, NAT, error) {
 	// Listen for TCP connections at the configured addresses
 	netAddrs, err := parseListeners(listenAddrs)
 	if err != nil {
@@ -3094,7 +3094,8 @@ func initListeners(amgr *addrmgr.AddrManager, listenAddrs []string, services wir
 
 	listeners := make([]net.Listener, 0, len(netAddrs))
 	for _, addr := range netAddrs {
-		listener, err := net.Listen(addr.Network(), addr.String())
+		var listenConfig net.ListenConfig
+		listener, err := listenConfig.Listen(ctx, addr.Network(), addr.String())
 		if err != nil {
 			srvrLog.Warnf("Can't listen on %s: %v", addr, err)
 			continue
@@ -3140,7 +3141,7 @@ func initListeners(amgr *addrmgr.AddrManager, listenAddrs []string, services wir
 	} else {
 		if cfg.Upnp {
 			var err error
-			nat, err = Discover()
+			nat, err = Discover(ctx)
 			if err != nil {
 				srvrLog.Warnf("Can't discover upnp: %v", err)
 			}
