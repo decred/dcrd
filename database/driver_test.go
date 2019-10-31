@@ -13,14 +13,6 @@ import (
 	_ "github.com/decred/dcrd/database/v2/ffldb"
 )
 
-var (
-	// ignoreDbTypes are types which should be ignored when running tests
-	// that iterate all supported DB types.  This allows some tests to add
-	// bogus drivers for testing purposes while still allowing other tests
-	// to easily iterate all supported drivers.
-	ignoreDbTypes = map[string]bool{"createopenfail": true}
-)
-
 // checkDbError ensures the passed error is a database.Error with an error code
 // that matches the passed error code.
 func checkDbError(t *testing.T, testName string, gotErr error, wantErrCode database.ErrorCode) bool {
