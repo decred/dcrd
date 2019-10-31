@@ -5454,6 +5454,22 @@ func (s *rpcServer) Start() {
 			http.Error(w, "400 Bad Request.", http.StatusBadRequest)
 			return
 		}
+		ws.SetPingHandler(func(payload string) error {
+			err := ws.WriteControl(websocket.PongMessage, []byte(payload),
+				time.Now().Add(time.Second))
+			rpcsLog.Debugf("ping received: len %d", len(payload))
+			rpcsLog.Tracef("ping payload: %s", payload)
+			if err != nil {
+				rpcsLog.Errorf("Failed to send pong: %v", err)
+				return err
+			}
+			return nil
+		})
+		ws.SetPongHandler(func(payload string) error {
+			rpcsLog.Debugf("pong received: len %d", len(payload))
+			rpcsLog.Tracef("pong payload: %s", payload)
+			return nil
+		})
 		s.WebsocketHandler(ws, r.RemoteAddr, authenticated, isAdmin)
 	})
 
