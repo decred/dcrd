@@ -5,6 +5,7 @@
 package indexers
 
 import (
+	"context"
 	"sync"
 
 	"github.com/decred/dcrd/blockchain/stake/v3"
@@ -430,13 +431,12 @@ func (idx *ExistsAddrIndex) AddUnconfirmedTx(tx *wire.MsgTx) {
 
 // DropExistsAddrIndex drops the exists address index from the provided database
 // if it exists.
-func DropExistsAddrIndex(db database.DB, interrupt <-chan struct{}) error {
-	return dropFlatIndex(db, existsAddrIndexKey, existsAddressIndexName,
-		interrupt)
+func DropExistsAddrIndex(ctx context.Context, db database.DB) error {
+	return dropFlatIndex(ctx, db, existsAddrIndexKey, existsAddressIndexName)
 }
 
 // DropIndex drops the exists address index from the provided database if it
 // exists.
-func (*ExistsAddrIndex) DropIndex(db database.DB, interrupt <-chan struct{}) error {
-	return DropExistsAddrIndex(db, interrupt)
+func (*ExistsAddrIndex) DropIndex(ctx context.Context, db database.DB) error {
+	return DropExistsAddrIndex(ctx, db)
 }

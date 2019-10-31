@@ -6,6 +6,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -151,10 +152,11 @@ func main() {
 
 	// Setup chain.  Ignore notifications since they aren't needed for this
 	// util.
-	chain, err := blockchain.New(&blockchain.Config{
-		DB:          db,
-		ChainParams: activeNetParams,
-	})
+	chain, err := blockchain.New(context.Background(),
+		&blockchain.Config{
+			DB:          db,
+			ChainParams: activeNetParams,
+		})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed to initialize chain: %v\n", err)
 		return

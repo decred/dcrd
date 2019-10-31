@@ -6,6 +6,7 @@
 package blockchain
 
 import (
+	"context"
 	"fmt"
 	"math/big"
 	"sync"
@@ -2120,7 +2121,7 @@ type Config struct {
 }
 
 // New returns a BlockChain instance using the provided configuration details.
-func New(config *Config) (*BlockChain, error) {
+func New(ctx context.Context, config *Config) (*BlockChain, error) {
 	// Enforce required config fields.
 	if config.DB == nil {
 		return nil, AssertError("blockchain.New database is nil")
@@ -2190,7 +2191,7 @@ func New(config *Config) (*BlockChain, error) {
 	// as needed.
 	queryAdapter := chainQueryerAdapter{BlockChain: &b}
 	if config.IndexManager != nil {
-		err := config.IndexManager.Init(&queryAdapter, config.Interrupt)
+		err := config.IndexManager.Init(ctx, &queryAdapter)
 		if err != nil {
 			return nil, err
 		}

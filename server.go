@@ -2839,7 +2839,7 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB, chainP
 	}
 
 	// Create a new block chain instance with the appropriate configuration.
-	s.chain, err = blockchain.New(&blockchain.Config{
+	s.chain, err = blockchain.New(ctx, &blockchain.Config{
 		DB:          s.db,
 		Interrupt:   ctx.Done(),
 		ChainParams: s.chainParams,

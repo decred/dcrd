@@ -6,6 +6,7 @@
 package main
 
 import (
+	"context"
 	"encoding/binary"
 	"fmt"
 	"io"
@@ -341,12 +342,13 @@ func newBlockImporter(db database.DB, r io.ReadSeeker) (*blockImporter, error) {
 		indexManager = indexers.NewManager(db, indexes, activeNetParams)
 	}
 
-	chain, err := blockchain.New(&blockchain.Config{
-		DB:           db,
-		ChainParams:  activeNetParams,
-		TimeSource:   blockchain.NewMedianTime(),
-		IndexManager: indexManager,
-	})
+	chain, err := blockchain.New(context.Background(),
+		&blockchain.Config{
+			DB:           db,
+			ChainParams:  activeNetParams,
+			TimeSource:   blockchain.NewMedianTime(),
+			IndexManager: indexManager,
+		})
 	if err != nil {
 		return nil, err
 	}

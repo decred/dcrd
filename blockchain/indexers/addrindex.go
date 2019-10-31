@@ -6,6 +6,7 @@
 package indexers
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"sync"
@@ -1070,11 +1071,11 @@ func NewAddrIndex(db database.DB, chainParams *chaincfg.Params) *AddrIndex {
 
 // DropAddrIndex drops the address index from the provided database if it
 // exists.
-func DropAddrIndex(db database.DB, interrupt <-chan struct{}) error {
-	return dropFlatIndex(db, addrIndexKey, addrIndexName, interrupt)
+func DropAddrIndex(ctx context.Context, db database.DB) error {
+	return dropFlatIndex(ctx, db, addrIndexKey, addrIndexName)
 }
 
 // DropIndex drops the address index from the provided database if it exists.
-func (*AddrIndex) DropIndex(db database.DB, interrupt <-chan struct{}) error {
-	return DropAddrIndex(db, interrupt)
+func (*AddrIndex) DropIndex(ctx context.Context, db database.DB) error {
+	return DropAddrIndex(ctx, db)
 }
