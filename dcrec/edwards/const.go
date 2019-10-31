@@ -32,11 +32,6 @@ var feOne = edwards25519.FieldElement{
 	0, 0, 0, 0, 0,
 }
 
-// feA is the field element representation of one.
-var feA = edwards25519.FieldElement{
-	486662, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-}
-
 // fed is the field element representation of D.
 var fed = edwards25519.FieldElement{
 	-10913610, 13857413, -15372611, 6949391, 114729,
