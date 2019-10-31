@@ -63,7 +63,7 @@ func NewEd25519TLSCertPair(organization string, validUntil time.Time, extraHosts
 
 	addIP := func(ipAddr net.IP) {
 		for _, ip := range ipAddresses {
-			if bytes.Equal(ip, ipAddr) {
+			if ip.Equal(ipAddr) {
 				return
 			}
 		}

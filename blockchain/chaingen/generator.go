@@ -1195,13 +1195,13 @@ func winningTickets(voteBlock *wire.MsgBlock, liveTickets []*stakeTicket, numVot
 	}
 
 	// Ensure the number of live tickets is within the allowable range.
-	numLiveTickets := uint32(len(liveTickets))
+	numLiveTickets := len(liveTickets)
 	if numLiveTickets > math.MaxUint32 {
 		return nil, chainhash.Hash{}, fmt.Errorf("live ticket pool "+
 			"has %d tickets which is more than the max allowed of "+
 			"%d", len(liveTickets), uint32(math.MaxUint32))
 	}
-	if uint32(numVotes) > numLiveTickets {
+	if uint32(numVotes) > uint32(numLiveTickets) {
 		return nil, chainhash.Hash{}, fmt.Errorf("live ticket pool "+
 			"has %d tickets, while %d are needed to vote",
 			len(liveTickets), numVotes)
@@ -1214,7 +1214,7 @@ func winningTickets(voteBlock *wire.MsgBlock, liveTickets []*stakeTicket, numVot
 	winners := make([]*stakeTicket, 0, numVotes)
 	usedOffsets := make(map[uint32]struct{})
 	for uint16(len(winners)) < numVotes {
-		ticketIndex := prng.uniformRandom(numLiveTickets)
+		ticketIndex := prng.uniformRandom(uint32(numLiveTickets))
 		if _, exists := usedOffsets[ticketIndex]; !exists {
 			usedOffsets[ticketIndex] = struct{}{}
 			winners = append(winners, liveTickets[ticketIndex])

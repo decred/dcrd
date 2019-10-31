@@ -219,6 +219,8 @@ func TestPeerConnection(t *testing.T) {
 					verack <- struct{}{}
 				}
 				pause.Lock()
+				// Needed to squash empty critical section lint errors.
+				_ = p
 				pause.Unlock()
 			},
 		},

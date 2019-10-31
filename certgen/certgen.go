@@ -61,7 +61,7 @@ func NewTLSCertPair(curve elliptic.Curve, organization string, validUntil time.T
 
 	addIP := func(ipAddr net.IP) {
 		for _, ip := range ipAddresses {
-			if bytes.Equal(ip, ipAddr) {
+			if ip.Equal(ipAddr) {
 				return
 			}
 		}
