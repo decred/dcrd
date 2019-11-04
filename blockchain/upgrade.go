@@ -351,7 +351,7 @@ func migrateBlockIndex(ctx context.Context, db database.DB) error {
 			// blocks were never validated.
 			status := statusDataStored
 			if hashIdxBucket.Get(blockHash[:]) != nil {
-				status |= statusValid
+				status |= statusValidated
 			}
 
 			// Write the serialized block index entry to the new bucket keyed by
@@ -665,7 +665,7 @@ func (b *BlockChain) maybeFinishV5Upgrade(ctx context.Context) error {
 		// valid.  This is necessary due to older software versions not marking
 		// nodes before the final checkpoint as valid.
 		for node := targetTip; node != nil; node = node.parent {
-			b.index.SetStatusFlags(node, statusValid)
+			b.index.SetStatusFlags(node, statusValidated)
 		}
 		if err := b.index.flush(); err != nil {
 			return err

@@ -274,7 +274,7 @@ func (b *BlockChain) GetStakeVersions(hash *chainhash.Hash, count int32) ([]Stak
 	// available, but there is not currently any tracking to be able to
 	// efficiently determine that state.
 	startNode := b.index.LookupNode(hash)
-	if startNode == nil || !b.index.NodeStatus(startNode).KnownValid() {
+	if startNode == nil || !b.index.NodeStatus(startNode).HasValidated() {
 		return nil, fmt.Errorf("block %s is not known", hash)
 	}
 
@@ -1216,7 +1216,7 @@ func (b *BlockChain) reorganizeChainInternal(targetTip *blockNode) error {
 		// commitment data are still needed.
 		stxos := make([]spentTxOut, 0, countSpentOutputs(block))
 		var hdrCommitments headerCommitmentData
-		if b.index.NodeStatus(n).KnownValid() {
+		if b.index.NodeStatus(n).HasValidated() {
 			// Update the view to mark all utxos referenced by the block as
 			// spent and add all transactions being created by this block to it.
 			// In the case the block votes against the parent, also disconnect
@@ -1247,7 +1247,7 @@ func (b *BlockChain) reorganizeChainInternal(targetTip *blockNode) error {
 				}
 				return err
 			}
-			b.index.SetStatusFlags(n, statusValid)
+			b.index.SetStatusFlags(n, statusValidated)
 		}
 
 		// Update the database and chain state.
@@ -1464,8 +1464,8 @@ func (b *BlockChain) connectBestChain(node *blockNode, block, parent *dcrutil.Bl
 	if *parentHash == tip.hash {
 		// Skip expensive checks if the block has already been fully
 		// validated.
-		isKnownValid := b.index.NodeStatus(node).KnownValid()
-		fastAdd = fastAdd || isKnownValid
+		hasValidated := b.index.NodeStatus(node).HasValidated()
+		fastAdd = fastAdd || hasValidated
 
 		// Perform several checks to verify the block can be connected
 		// to the main chain without violating any rules and without
@@ -1492,8 +1492,8 @@ func (b *BlockChain) connectBestChain(node *blockNode, block, parent *dcrutil.Bl
 				return 0, err
 			}
 		}
-		if !isKnownValid {
-			b.index.SetStatusFlags(node, statusValid)
+		if !hasValidated {
+			b.index.SetStatusFlags(node, statusValidated)
 			b.flushBlockIndexWarnOnly()
 		}
 

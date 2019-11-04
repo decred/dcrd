@@ -121,7 +121,7 @@ func (b *BlockChain) ChainTips() []ChainTipInfo {
 			result.Status = "invalid"
 		} else if !tipStatus.HaveData() {
 			result.Status = "headers-only"
-		} else if tipStatus.KnownValid() {
+		} else if tipStatus.HasValidated() {
 			result.Status = "valid-fork"
 		} else {
 			result.Status = "valid-headers"

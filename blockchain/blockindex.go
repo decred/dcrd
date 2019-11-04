@@ -33,9 +33,9 @@ const (
 	// statusDataStored indicates that the block's payload is stored on disk.
 	statusDataStored blockStatus = 1 << 0
 
-	// statusValid indicates that the block has been fully validated.  It also
-	// means that all of its ancestors have also been validated.
-	statusValid blockStatus = 1 << 1
+	// statusValidated indicates that the block has been fully validated.  It
+	// also means that all of its ancestors have also been validated.
+	statusValidated blockStatus = 1 << 1
 
 	// statusValidateFailed indicates that the block has failed validation.
 	statusValidateFailed blockStatus = 1 << 2
@@ -52,14 +52,26 @@ func (status blockStatus) HaveData() bool {
 	return status&statusDataStored != 0
 }
 
-// KnownValid returns whether the block is known to be valid.  This will return
-// false for a valid block that has not been fully validated yet.
-func (status blockStatus) KnownValid() bool {
-	return status&statusValid != 0
+// HasValidated returns whether the block is known to have been successfully
+// validated.  A return value of false in no way implies the block is invalid.
+// Thus, this will return false for a valid block that has not been fully
+// validated yet.
+//
+// NOTE: A block that is known to have been validated might also be marked as
+// known invalid as well if the block is manually invalidated.
+func (status blockStatus) HasValidated() bool {
+	return status&statusValidated != 0
 }
 
-// KnownInvalid returns whether the block is known to be invalid.  This will
-// return false for invalid blocks that have not been proven invalid yet.
+// KnownInvalid returns whether either the block itself is known to be invalid
+// or to have an invalid ancestor.  A return value of false in no way implies
+// the block is valid or only has valid ancestors.  Thus, this will return false
+// for invalid blocks that have not been proven invalid yet as well as return
+// false for blocks with invalid ancestors that have not been proven invalid
+// yet.
+//
+// NOTE: A block that is known invalid might also be marked as known to have
+// been successfully validated as well if the block is manually invalidated.
 func (status blockStatus) KnownInvalid() bool {
 	return status&(statusValidateFailed|statusInvalidAncestor) != 0
 }
@@ -108,7 +120,7 @@ type blockNode struct {
 	stakeVersion uint32
 
 	// status is a bitfield representing the validation state of the block.
-	// This field, unlike the other fields, may be changed after the block
+	// This field, unlike most other fields, may be changed after the block
 	// node is created, so it must only be accessed or updated using the
 	// concurrent-safe NodeStatus, SetStatusFlags, and UnsetStatusFlags
 	// methods on blockIndex once the node has been added to the index.

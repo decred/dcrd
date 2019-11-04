@@ -148,7 +148,7 @@ func TestBlockIndexSerialization(t *testing.T) {
 			name: "no votes, no revokes",
 			entry: blockIndexEntry{
 				header:         baseHeader,
-				status:         statusDataStored | statusValid,
+				status:         statusDataStored | statusValidated,
 				voteInfo:       nil,
 				ticketsVoted:   nil,
 				ticketsRevoked: nil,
@@ -159,7 +159,7 @@ func TestBlockIndexSerialization(t *testing.T) {
 			name: "1 vote, no revokes",
 			entry: blockIndexEntry{
 				header:         baseHeader,
-				status:         statusDataStored | statusValid,
+				status:         statusDataStored | statusValidated,
 				voteInfo:       baseVoteInfo[:1],
 				ticketsVoted:   baseTicketsVoted[:1],
 				ticketsRevoked: nil,
@@ -170,7 +170,7 @@ func TestBlockIndexSerialization(t *testing.T) {
 			name: "no votes, 1 revoke",
 			entry: blockIndexEntry{
 				header:         baseHeader,
-				status:         statusDataStored | statusValid,
+				status:         statusDataStored | statusValidated,
 				voteInfo:       nil,
 				ticketsVoted:   nil,
 				ticketsRevoked: baseTicketsRevoked[:1],
@@ -181,7 +181,7 @@ func TestBlockIndexSerialization(t *testing.T) {
 			name: "4 votes, same vote versions, different vote bits, 2 revokes",
 			entry: blockIndexEntry{
 				header:         baseHeader,
-				status:         statusDataStored | statusValid,
+				status:         statusDataStored | statusValidated,
 				voteInfo:       baseVoteInfo,
 				ticketsVoted:   baseTicketsVoted,
 				ticketsRevoked: baseTicketsRevoked,

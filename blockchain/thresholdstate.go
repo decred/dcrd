@@ -527,7 +527,7 @@ func (b *BlockChain) StateLastChangedHeight(hash *chainhash.Hash, version uint32
 	// available, but there is not currently any tracking to be able to
 	// efficiently determine that state.
 	node := b.index.LookupNode(hash)
-	if node == nil || !b.index.NodeStatus(node).KnownValid() {
+	if node == nil || !b.index.NodeStatus(node).HasValidated() {
 		return 0, HashError(hash.String())
 	}
 
@@ -577,7 +577,7 @@ func (b *BlockChain) NextThresholdState(hash *chainhash.Hash, version uint32, de
 	// available, but there is not currently any tracking to be able to
 	// efficiently determine that state.
 	node := b.index.LookupNode(hash)
-	if node == nil || !b.index.NodeStatus(node).KnownValid() {
+	if node == nil || !b.index.NodeStatus(node).HasValidated() {
 		invalidState := ThresholdStateTuple{
 			State:  ThresholdInvalid,
 			Choice: invalidChoice,
@@ -720,7 +720,7 @@ func (b *BlockChain) IsHeaderCommitmentsAgendaActive(prevHash *chainhash.Hash) (
 	// available, but there is not currently any tracking to be able to
 	// efficiently determine that state.
 	node := b.index.LookupNode(prevHash)
-	if node == nil || !b.index.NodeStatus(node).KnownValid() {
+	if node == nil || !b.index.NodeStatus(node).HasValidated() {
 		return false, HashError(prevHash.String())
 	}
 
