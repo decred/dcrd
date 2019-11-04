@@ -42,9 +42,13 @@ const (
 	// be at least the stake retarget interval.
 	minMemoryStakeNodes = 288
 
-	// mainchainBlockCacheSize is the number of mainchain blocks to
-	// keep in memory, by height from the tip of the mainchain.
-	mainchainBlockCacheSize = 12
+	// mainChainBlockCacheSize is the number of main chain blocks to keep in
+	// memory, by height from the tip of the main chain.  This value is set
+	// based on the target block time for the main network such that there is
+	// approximately one hour of blocks cached.  This could be made network
+	// independent and calculated based on the parameters, but that would
+	// result in larger caches than desired for other networks.
+	mainChainBlockCacheSize = 12
 )
 
 // panicf is a convenience function that formats according to the given format
@@ -184,11 +188,10 @@ type BlockChain struct {
 	prevOrphans  map[chainhash.Hash][]*orphanBlock
 	oldestOrphan *orphanBlock
 
-	// The block cache for mainchain blocks, to facilitate faster
-	// reorganizations.
-	mainchainBlockCacheLock sync.RWMutex
-	mainchainBlockCache     map[chainhash.Hash]*dcrutil.Block
-	mainchainBlockCacheSize int
+	// The block cache for main chain blocks to facilitate faster chain reorgs
+	// and more efficient recent block serving.
+	mainChainBlockCacheLock sync.RWMutex
+	mainChainBlockCache     map[chainhash.Hash]*dcrutil.Block
 
 	// These fields house a cached view that represents a block that votes
 	// against its parent and therefore contains all changes as a result
@@ -537,9 +540,9 @@ func (b *BlockChain) fetchMainChainBlockByNode(node *blockNode) (*dcrutil.Block,
 		return nil, errNotInMainChain(str)
 	}
 
-	b.mainchainBlockCacheLock.RLock()
-	block, ok := b.mainchainBlockCache[node.hash]
-	b.mainchainBlockCacheLock.RUnlock()
+	b.mainChainBlockCacheLock.RLock()
+	block, ok := b.mainChainBlockCache[node.hash]
+	b.mainChainBlockCacheLock.RUnlock()
 	if ok {
 		return block, nil
 	}
@@ -560,9 +563,9 @@ func (b *BlockChain) fetchMainChainBlockByNode(node *blockNode) (*dcrutil.Block,
 // This function is safe for concurrent access.
 func (b *BlockChain) fetchBlockByNode(node *blockNode) (*dcrutil.Block, error) {
 	// Check main chain cache.
-	b.mainchainBlockCacheLock.RLock()
-	block, ok := b.mainchainBlockCache[node.hash]
-	b.mainchainBlockCacheLock.RUnlock()
+	b.mainChainBlockCacheLock.RLock()
+	block, ok := b.mainChainBlockCache[node.hash]
+	b.mainChainBlockCacheLock.RUnlock()
 	if ok {
 		return block, nil
 	}
@@ -650,19 +653,19 @@ func (b *BlockChain) isMajorityVersion(minVer int32, startNode *blockNode, numRe
 	return numFound >= numRequired
 }
 
-// pushMainChainBlockCache pushes a block onto the main chain block cache,
-// and removes any old blocks from the cache that might be present.
+// pushMainChainBlockCache pushes a block onto the main chain block cache and
+// removes any old blocks from the cache that might be present.
 func (b *BlockChain) pushMainChainBlockCache(block *dcrutil.Block) {
-	curHeight := block.Height()
 	curHash := block.Hash()
-	b.mainchainBlockCacheLock.Lock()
-	b.mainchainBlockCache[*curHash] = block
-	for hash, bl := range b.mainchainBlockCache {
-		if bl.Height() <= curHeight-int64(b.mainchainBlockCacheSize) {
-			delete(b.mainchainBlockCache, hash)
+	pruneHeight := block.Height() - mainChainBlockCacheSize
+	b.mainChainBlockCacheLock.Lock()
+	b.mainChainBlockCache[*curHash] = block
+	for hash, bl := range b.mainChainBlockCache {
+		if bl.Height() <= pruneHeight {
+			delete(b.mainChainBlockCache, hash)
 		}
 	}
-	b.mainchainBlockCacheLock.Unlock()
+	b.mainChainBlockCacheLock.Unlock()
 }
 
 // connectBlock handles connecting the passed node/block to the end of the main
@@ -862,9 +865,9 @@ func (b *BlockChain) connectBlock(node *blockNode, block, parent *dcrutil.Block,
 // dropMainChainBlockCache drops a block from the main chain block cache.
 func (b *BlockChain) dropMainChainBlockCache(block *dcrutil.Block) {
 	curHash := block.Hash()
-	b.mainchainBlockCacheLock.Lock()
-	delete(b.mainchainBlockCache, *curHash)
-	b.mainchainBlockCacheLock.Unlock()
+	b.mainChainBlockCacheLock.Lock()
+	delete(b.mainChainBlockCache, *curHash)
+	b.mainChainBlockCacheLock.Unlock()
 }
 
 // disconnectBlock handles disconnecting the passed node/block from the end of
@@ -2168,8 +2171,7 @@ func New(config *Config) (*BlockChain, error) {
 		bestChain:                     newChainView(nil),
 		orphans:                       make(map[chainhash.Hash]*orphanBlock),
 		prevOrphans:                   make(map[chainhash.Hash][]*orphanBlock),
-		mainchainBlockCache:           make(map[chainhash.Hash]*dcrutil.Block),
-		mainchainBlockCacheSize:       mainchainBlockCacheSize,
+		mainChainBlockCache:           make(map[chainhash.Hash]*dcrutil.Block),
 		deploymentCaches:              newThresholdCaches(params),
 		isVoterMajorityVersionCache:   make(map[[stakeMajorityCacheKeySize]byte]bool),
 		isStakeMajorityVersionCache:   make(map[[stakeMajorityCacheKeySize]byte]bool),
