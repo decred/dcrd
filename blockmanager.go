@@ -853,30 +853,9 @@ func (b *blockManager) handleBlockMsg(bmsg *blockMsg) {
 		return
 	}
 
-	// Meta-data about the new block this peer is reporting. We use this
-	// below to update this peer's latest block height and the heights of
-	// other peers based on their last announced block hash. This allows us
-	// to dynamically update the block heights of peers, avoiding stale
-	// heights when looking for a new sync peer. Upon acceptance of a block
-	// or recognition of an orphan, we also use this information to update
-	// the block heights over other peers who's invs may have been ignored
-	// if we are actively syncing while the chain is not yet current or
-	// who may have lost the lock announcement race.
-	var heightUpdate int64
-	var blkHashUpdate *chainhash.Hash
-
 	// Request the parents for the orphan block from the peer that sent it.
+	onMainChain := !isOrphan && forkLen == 0
 	if isOrphan {
-		// We've just received an orphan block from a peer. In order
-		// to update the height of the peer, we try to extract the
-		// block height from the scriptSig of the coinbase transaction.
-		// Extraction is only attempted if the block's version is
-		// high enough (ver 2+).
-		header := &bmsg.block.MsgBlock().Header
-		cbHeight := header.Height
-		heightUpdate = int64(cbHeight)
-		blkHashUpdate = blockHash
-
 		orphanRoot := b.cfg.Chain.GetOrphanRoot(blockHash)
 		blkLocator, err := b.cfg.Chain.LatestBlockLocator()
 		if err != nil {
@@ -895,7 +874,6 @@ func (b *blockManager) handleBlockMsg(bmsg *blockMsg) {
 		// update the chain state.
 		b.progressLogger.logBlockHeight(bmsg.block)
 
-		onMainChain := !isOrphan && forkLen == 0
 		if onMainChain {
 			// Notify stake difficulty subscribers and prune invalidated
 			// transactions.
@@ -914,26 +892,23 @@ func (b *blockManager) handleBlockMsg(bmsg *blockMsg) {
 			b.cfg.TxMemPool.PruneStakeTx(best.NextStakeDiff, best.Height)
 			b.cfg.TxMemPool.PruneExpiredTx()
 
-			// Update this peer's latest block height, for future
-			// potential sync node candidacy.
-			heightUpdate = best.Height
-			blkHashUpdate = &best.Hash
-
 			// Clear the rejected transactions.
 			b.rejectedTxns = make(map[chainhash.Hash]struct{})
 		}
 	}
 
-	// Update the block height for this peer. But only send a message to
-	// the server for updating peer heights if this is an orphan or our
-	// chain is "current". This avoids sending a spammy amount of messages
-	// if we're syncing the chain from scratch.
-	if blkHashUpdate != nil && heightUpdate != 0 {
-		peer.UpdateLastBlockHeight(heightUpdate)
-		if isOrphan || b.current() {
-			go b.cfg.PeerNotifier.UpdatePeerHeights(blkHashUpdate, heightUpdate,
-				bmsg.peer)
-		}
+	// Update the latest block height for the peer to avoid stale heights when
+	// looking for future potential sync node candidacy.
+	//
+	// Also, when the block is an orphan or the chain is considered current and
+	// the block was accepted to the main chain, update the heights of other
+	// peers whose invs may have been ignored when actively syncing while the
+	// chain was not yet current or lost the lock announcement race.
+	blockHeight := int64(bmsg.block.MsgBlock().Header.Height)
+	peer.UpdateLastBlockHeight(blockHeight)
+	if isOrphan || (onMainChain && b.current()) {
+		go b.cfg.PeerNotifier.UpdatePeerHeights(blockHash, blockHeight,
+			bmsg.peer)
 	}
 
 	// Nothing more to do if we aren't in headers-first mode.
