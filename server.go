@@ -782,7 +782,7 @@ func (sp *serverPeer) OnGetMiningState(p *peer.Peer, msg *wire.MsgGetMiningState
 	best := sp.server.chain.BestSnapshot()
 
 	// Send out blank mining states if it's early in the blockchain.
-	if best.Height < activeNetParams.StakeValidationHeight-1 {
+	if best.Height < sp.server.chainParams.StakeValidationHeight-1 {
 		err := sp.pushMiningStateMsg(0, nil, nil)
 		if err != nil {
 			peerLog.Warnf("unexpected error while pushing data for "+
@@ -1666,8 +1666,8 @@ func (s *server) handleAddPeerMsg(state *peerState, sp *serverPeer) bool {
 		if (cfg.Proxy != "" || cfg.OnionProxy != "") ||
 			cfg.NoDiscoverIP || len(cfg.ExternalIPs) > 0 ||
 			(cfg.DisableListen || len(cfg.Listeners) == 0) || cfg.Upnp ||
-			activeNetParams.Name == simNetParams.Name ||
-			activeNetParams.Name == regNetParams.Name {
+			s.chainParams.Name == simNetParams.Name ||
+			s.chainParams.Name == regNetParams.Name {
 			return true
 		}
 
@@ -2134,7 +2134,7 @@ func (s *server) peerHandler(ctx context.Context) {
 
 	if !cfg.DisableDNSSeed {
 		// Add peers discovered through DNS to the address manager.
-		params := activeNetParams.Params
+		params := s.chainParams
 		seeds := make([]string, 0, len(params.DNSSeeds))
 		for _, seed := range params.DNSSeeds {
 			seeds = append(seeds, seed.Host)
@@ -2607,7 +2607,7 @@ func (s *server) upnpUpdateThread(ctx context.Context) {
 	// Go off immediately to prevent code duplication, thereafter we renew
 	// lease every 15 minutes.
 	timer := time.NewTimer(0 * time.Second)
-	lport, _ := strconv.ParseInt(activeNetParams.DefaultPort, 10, 16)
+	lport, _ := strconv.ParseInt(s.chainParams.DefaultPort, 10, 16)
 
 	first := true
 out:
@@ -2758,7 +2758,7 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB, chainP
 	var nat NAT
 	if !cfg.DisableListen {
 		var err error
-		listeners, nat, err = initListeners(ctx, amgr, listenAddrs, services)
+		listeners, nat, err = initListeners(ctx, chainParams, amgr, listenAddrs, services)
 		if err != nil {
 			return nil, err
 		}
@@ -2997,7 +2997,7 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB, chainP
 
 				// allow nondefault ports after 50 failed tries.
 				if fmt.Sprintf("%d", addr.NetAddress().Port) !=
-					activeNetParams.DefaultPort && tries < 50 {
+					s.chainParams.DefaultPort && tries < 50 {
 					continue
 				}
 
@@ -3096,7 +3096,7 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB, chainP
 // initListeners initializes the configured net listeners and adds any bound
 // addresses to the address manager. Returns the listeners and a NAT interface,
 // which is non-nil if UPnP is in use.
-func initListeners(ctx context.Context, amgr *addrmgr.AddrManager, listenAddrs []string, services wire.ServiceFlag) ([]net.Listener, NAT, error) {
+func initListeners(ctx context.Context, params *chaincfg.Params, amgr *addrmgr.AddrManager, listenAddrs []string, services wire.ServiceFlag) ([]net.Listener, NAT, error) {
 	// Listen for TCP connections at the configured addresses
 	netAddrs, err := parseListeners(listenAddrs)
 	if err != nil {
@@ -3116,10 +3116,10 @@ func initListeners(ctx context.Context, amgr *addrmgr.AddrManager, listenAddrs [
 
 	var nat NAT
 	if len(cfg.ExternalIPs) != 0 {
-		defaultPort, err := strconv.ParseUint(activeNetParams.DefaultPort, 10, 16)
+		defaultPort, err := strconv.ParseUint(params.DefaultPort, 10, 16)
 		if err != nil {
 			srvrLog.Errorf("Can not parse default port %s for active chain: %v",
-				activeNetParams.DefaultPort, err)
+				params.DefaultPort, err)
 			return nil, nil, err
 		}
 

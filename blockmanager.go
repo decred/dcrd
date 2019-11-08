@@ -2263,7 +2263,7 @@ func newBlockManager(config *blockManagerConfig) (*blockManager, error) {
 
 	// Dump the blockchain here if asked for it, and quit.
 	if cfg.DumpBlockchain != "" {
-		err := dumpBlockChain(bm.cfg.Chain, best.Height)
+		err := dumpBlockChain(bm.cfg.ChainParams, bm.cfg.Chain, best.Height)
 		if err != nil {
 			return nil, err
 		}
@@ -2356,7 +2356,7 @@ func warnMultipleDBs() {
 // contains additional logic such warning the user if there are multiple
 // databases which consume space on the file system and ensuring the regression
 // test database is clean when in regression test mode.
-func loadBlockDB() (database.DB, error) {
+func loadBlockDB(params *chaincfg.Params) (database.DB, error) {
 	// The memdb backend does not have a file path associated with it, so
 	// handle it uniquely.  We also don't want to worry about the multiple
 	// database type warnings when running with the memory database.
@@ -2379,7 +2379,7 @@ func loadBlockDB() (database.DB, error) {
 	removeRegressionDB(dbPath)
 
 	dcrdLog.Infof("Loading block database from '%s'", dbPath)
-	db, err := database.Open(cfg.DbType, dbPath, activeNetParams.Net)
+	db, err := database.Open(cfg.DbType, dbPath, params.Net)
 	if err != nil {
 		// Return the error if it's not because the database doesn't
 		// exist.
@@ -2394,7 +2394,7 @@ func loadBlockDB() (database.DB, error) {
 		if err != nil {
 			return nil, err
 		}
-		db, err = database.Create(cfg.DbType, dbPath, activeNetParams.Net)
+		db, err = database.Create(cfg.DbType, dbPath, params.Net)
 		if err != nil {
 			return nil, err
 		}
@@ -2405,7 +2405,7 @@ func loadBlockDB() (database.DB, error) {
 }
 
 // dumpBlockChain dumps a map of the blockchain blocks as serialized bytes.
-func dumpBlockChain(b *blockchain.BlockChain, height int64) error {
+func dumpBlockChain(params *chaincfg.Params, b *blockchain.BlockChain, height int64) error {
 	bmgrLog.Infof("Writing the blockchain to disk as a flat file, " +
 		"please wait...")
 
@@ -2419,7 +2419,7 @@ func dumpBlockChain(b *blockchain.BlockChain, height int64) error {
 
 	// Store the network ID in an array for later writing.
 	var net [4]byte
-	binary.LittleEndian.PutUint32(net[:], uint32(activeNetParams.Net))
+	binary.LittleEndian.PutUint32(net[:], uint32(params.Net))
 
 	// Write the blocks sequentially, excluding the genesis block.
 	var sz [4]byte

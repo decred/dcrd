@@ -9,10 +9,6 @@ import (
 	"github.com/decred/dcrd/chaincfg/v2"
 )
 
-// activeNetParams is a pointer to the parameters specific to the
-// currently active Decred network.
-var activeNetParams = &mainNetParams
-
 // params is used to group parameters for various networks such as the main
 // network and test networks.
 type params struct {

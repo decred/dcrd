@@ -121,7 +121,7 @@ func dcrdMain() error {
 
 	// Load the block database.
 	lifetimeNotifier.notifyStartupEvent(lifetimeEventDBOpen)
-	db, err := loadBlockDB()
+	db, err := loadBlockDB(cfg.params.Params)
 	if err != nil {
 		dcrdLog.Errorf("%v", err)
 		return err
@@ -177,7 +177,7 @@ func dcrdMain() error {
 
 	// Create server and start it.
 	lifetimeNotifier.notifyStartupEvent(lifetimeEventP2PServer)
-	svr, err := newServer(ctx, cfg.Listeners, db, activeNetParams.Params,
+	svr, err := newServer(ctx, cfg.Listeners, db, cfg.params.Params,
 		cfg.DataDir, ctx.Done())
 	if err != nil {
 		dcrdLog.Errorf("Unable to start server with listeners %v: %v",
