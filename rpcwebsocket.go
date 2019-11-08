@@ -746,7 +746,7 @@ func (m *wsNotificationManager) subscribedClients(tx *dcrutil.Tx, clients map[ch
 				// These outputs cannot be spent and do not need to
 				// be watched.
 				addr, err := stake.AddrFromSStxPkScrCommitment(
-					output.PkScript, activeNetParams.Params)
+					output.PkScript, m.server.cfg.ChainParams)
 				if err != nil {
 					rpcsLog.Errorf("Failed to read commitment from "+
 						"previously-validated ticket: %v", err)

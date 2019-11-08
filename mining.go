@@ -1888,7 +1888,7 @@ func (g *BlkTmplGenerator) UpdateBlockTime(header *wire.BlockHeader) error {
 
 	// If running on a network that requires recalculating the difficulty,
 	// do so now.
-	if activeNetParams.ReduceMinDifficulty {
+	if g.chainParams.ReduceMinDifficulty {
 		difficulty, err := g.chain.CalcNextRequiredDifficulty(newTimestamp)
 		if err != nil {
 			return miningRuleError(ErrGettingDifficulty, err.Error())

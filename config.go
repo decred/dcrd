@@ -185,6 +185,7 @@ type config struct {
 	ipv4NetInfo          types.NetworksResult
 	ipv6NetInfo          types.NetworksResult
 	onionNetInfo         types.NetworksResult
+	params               *params
 }
 
 // serviceOptions defines the configuration options for the daemon as a service on
@@ -533,6 +534,7 @@ func loadConfig() (*config, []string, error) {
 		ipv4NetInfo:          types.NetworksResult{Name: "IPV4"},
 		ipv6NetInfo:          types.NetworksResult{Name: "IPV6"},
 		onionNetInfo:         types.NetworksResult{Name: "Onion"},
+		params:               &mainNetParams,
 	}
 
 	// Service options which are only added on Windows.
@@ -679,17 +681,17 @@ func loadConfig() (*config, []string, error) {
 	numNets := 0
 	if cfg.TestNet {
 		numNets++
-		activeNetParams = &testNet3Params
+		cfg.params = &testNet3Params
 	}
 	if cfg.SimNet {
 		numNets++
 		// Also disable dns seeding on the simulation test network.
-		activeNetParams = &simNetParams
+		cfg.params = &simNetParams
 		cfg.DisableDNSSeed = true
 	}
 	if cfg.RegNet {
 		numNets++
-		activeNetParams = &regNetParams
+		cfg.params = &regNetParams
 	}
 	if numNets > 1 {
 		str := "%s: the testnet, regnet, and simnet params can't be " +
@@ -704,7 +706,7 @@ func loadConfig() (*config, []string, error) {
 	// according to the default of the active network. The set
 	// configuration value takes precedence over the default value for the
 	// selected network.
-	acceptNonStd := activeNetParams.AcceptNonStdTxs
+	acceptNonStd := cfg.params.AcceptNonStdTxs
 	switch {
 	case cfg.AcceptNonStd && cfg.RejectNonStd:
 		str := "%s: rejectnonstd and acceptnonstd cannot be used " +
@@ -733,13 +735,13 @@ func loadConfig() (*config, []string, error) {
 	var oldTestNets []string
 	oldTestNets = append(oldTestNets, filepath.Join(cfg.DataDir, "testnet"))
 	oldTestNets = append(oldTestNets, filepath.Join(cfg.DataDir, "testnet2"))
-	cfg.DataDir = filepath.Join(cfg.DataDir, activeNetParams.Name)
+	cfg.DataDir = filepath.Join(cfg.DataDir, cfg.params.Name)
 	logRotator = nil
 	if !cfg.NoFileLogging {
 		// Append the network type to the log directory so it is "namespaced"
 		// per network in the same fashion as the data directory.
 		cfg.LogDir = cleanAndExpandPath(cfg.LogDir)
-		cfg.LogDir = filepath.Join(cfg.LogDir, activeNetParams.Name)
+		cfg.LogDir = filepath.Join(cfg.LogDir, cfg.params.Name)
 
 		// Initialize log rotation.  After log rotation has been initialized, the
 		// logger variables may be used.
@@ -864,7 +866,7 @@ func loadConfig() (*config, []string, error) {
 	// we are to connect to.
 	if len(cfg.Listeners) == 0 {
 		cfg.Listeners = []string{
-			net.JoinHostPort("", activeNetParams.DefaultPort),
+			net.JoinHostPort("", cfg.params.DefaultPort),
 		}
 	}
 
@@ -902,7 +904,7 @@ func loadConfig() (*config, []string, error) {
 		}
 		cfg.RPCListeners = make([]string, 0, len(addrs))
 		for _, addr := range addrs {
-			addr = net.JoinHostPort(addr, activeNetParams.rpcPort)
+			addr = net.JoinHostPort(addr, cfg.params.rpcPort)
 			cfg.RPCListeners = append(cfg.RPCListeners, addr)
 		}
 	}
@@ -928,7 +930,7 @@ func loadConfig() (*config, []string, error) {
 
 	// Ensure the specified max block size is not larger than the network will
 	// allow.  1000 bytes is subtracted from the max to account for overhead.
-	blockMaxSizeMax := uint32(activeNetParams.MaximumBlockSizes[0]) - 1000
+	blockMaxSizeMax := uint32(cfg.params.MaximumBlockSizes[0]) - 1000
 	if cfg.BlockMaxSize < blockMaxSizeMin || cfg.BlockMaxSize >
 		blockMaxSizeMax {
 
@@ -1007,7 +1009,7 @@ func loadConfig() (*config, []string, error) {
 	// Check mining addresses are valid and saved parsed versions.
 	cfg.miningAddrs = make([]dcrutil.Address, 0, len(cfg.MiningAddrs))
 	for _, strAddr := range cfg.MiningAddrs {
-		addr, err := dcrutil.DecodeAddress(strAddr, activeNetParams.Params)
+		addr, err := dcrutil.DecodeAddress(strAddr, cfg.params.Params)
 		if err != nil {
 			str := "%s: mining address '%s' failed to decode: %v"
 			err := fmt.Errorf(str, funcName, strAddr, err)
@@ -1032,12 +1034,12 @@ func loadConfig() (*config, []string, error) {
 	// Add default port to all listener addresses if needed and remove
 	// duplicate addresses.
 	cfg.Listeners = normalizeAddresses(cfg.Listeners,
-		activeNetParams.DefaultPort)
+		cfg.params.DefaultPort)
 
 	// Add default port to all rpc listener addresses if needed and remove
 	// duplicate addresses.
 	cfg.RPCListeners = normalizeAddresses(cfg.RPCListeners,
-		activeNetParams.rpcPort)
+		cfg.params.rpcPort)
 
 	// Only allow TLS to be disabled if the RPC is bound to localhost
 	// addresses.
@@ -1072,9 +1074,9 @@ func loadConfig() (*config, []string, error) {
 	// Add default port to all added peer addresses if needed and remove
 	// duplicate addresses.
 	cfg.AddPeers = normalizeAddresses(cfg.AddPeers,
-		activeNetParams.DefaultPort)
+		cfg.params.DefaultPort)
 	cfg.ConnectPeers = normalizeAddresses(cfg.ConnectPeers,
-		activeNetParams.DefaultPort)
+		cfg.params.DefaultPort)
 
 	// Tor stream isolation requires either proxy or onion proxy to be set.
 	if cfg.TorIsolation && cfg.Proxy == "" && cfg.OnionProxy == "" {
