@@ -308,6 +308,11 @@ type Params struct {
 	// Checkpoints ordered from oldest to newest.
 	Checkpoints []Checkpoint
 
+	// MinKnownChainWork is the minimum amount of known total work for the chain
+	// at a given point in time.  This is intended to be updated periodically
+	// with new releases.  It may be nil for networks that do not require it.
+	MinKnownChainWork *big.Int
+
 	// These fields are related to voting on consensus rule changes as
 	// defined by BIP0009.
 	//
@@ -598,12 +603,28 @@ func newHashFromStr(hexStr string) *chainhash.Hash {
 	return hash
 }
 
+// hexDecode decodes the passed hex string and returns the resulting bytes.  It
+// panics if an error occurs. This is only provided for the hard-coded constants
+// so errors in the source code can be detected. It will only (and must only) be
+// called with hard-coded values.
 func hexDecode(hexStr string) []byte {
 	b, err := hex.DecodeString(hexStr)
 	if err != nil {
 		panic(err)
 	}
 	return b
+}
+
+// hexToBigInt converts the passed hex string into a big integer and will panic
+// if there is an error.  This is only provided for the hard-coded constants so
+// errors in the source code can be detected. It will only (and must only) be
+// called with hard-coded values.
+func hexToBigInt(hexStr string) *big.Int {
+	val, ok := new(big.Int).SetString(hexStr, 16)
+	if !ok {
+		panic("failed to parse big integer from hex: " + hexStr)
+	}
+	return val
 }
 
 // BlockOneSubsidy returns the total subsidy of block height 1 for the

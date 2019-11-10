@@ -112,6 +112,12 @@ func RegNetParams() *Params {
 		// Checkpoints ordered from oldest to newest.
 		Checkpoints: nil,
 
+		// MinKnownChainWork is the minimum amount of known total work for the
+		// chain at a given point in time.
+		//
+		// Not set for regression test network since its chain is dynamic.
+		MinKnownChainWork: nil,
+
 		// Consensus rule change deployments.
 		//
 		// The miner confirmation window is defined as:

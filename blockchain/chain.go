@@ -1588,16 +1588,17 @@ func (b *BlockChain) connectBestChain(node *blockNode, block, parent *dcrutil.Bl
 // isCurrent returns whether or not the chain believes it is current.  Several
 // factors are used to guess, but the key factors that allow the chain to
 // believe it is current are:
-//  - Latest block height is after the latest checkpoint (if enabled)
+//  - Total amount of cumulative work is more than the minimum known work
+//    specified by the parameters for the network
 //  - Latest block has a timestamp newer than 24 hours ago
 //
 // This function MUST be called with the chain state lock held (for reads).
 func (b *BlockChain) isCurrent() bool {
-	// Not current if the latest main (best) chain height is before the
-	// latest known good checkpoint (when checkpoints are enabled).
+	// Not current if the latest best block has a cumulative work less than the
+	// minimum known work specified by the network parameters.
 	tip := b.bestChain.Tip()
-	checkpoint := b.latestCheckpoint()
-	if checkpoint != nil && tip.height < checkpoint.Height {
+	minKnownWork := b.chainParams.MinKnownChainWork
+	if minKnownWork != nil && tip.workSum.Cmp(minKnownWork) < 0 {
 		return false
 	}
 
@@ -1613,7 +1614,8 @@ func (b *BlockChain) isCurrent() bool {
 // IsCurrent returns whether or not the chain believes it is current.  Several
 // factors are used to guess, but the key factors that allow the chain to
 // believe it is current are:
-//  - Latest block height is after the latest checkpoint (if enabled)
+//  - Total amount of cumulative work is more than the minimum known work
+//    specified by the parameters for the network
 //  - Latest block has a timestamp newer than 24 hours ago
 //
 // This function is safe for concurrent access.

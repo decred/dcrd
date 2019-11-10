@@ -110,6 +110,14 @@ func TestNet3Params() *Params {
 			{282340, newHashFromStr("0000001f538d6343316fe50709fa544b680a1be38141d003e755da8ad30f67a8")},
 		},
 
+		// MinKnownChainWork is the minimum amount of known total work for the
+		// chain at a given point in time.  This is intended to be updated
+		// periodically with new releases.
+		//
+		// Block 0000004ce20783706c005901e44b984d8d0f9d62855f266f064a25f8131f84e4
+		// Height: 301000
+		MinKnownChainWork: hexToBigInt("0000000000000000000000000000000000000000000000005df2701ec6263182"),
+
 		// Consensus rule change deployments.
 		//
 		// The miner confirmation window is defined as:

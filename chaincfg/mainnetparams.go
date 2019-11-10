@@ -133,6 +133,14 @@ func MainNetParams() *Params {
 			{384170, newHashFromStr("00000000000000001704bbc6bda8c4864a71cd0febcc0b44d753c69d83840f04")},
 		},
 
+		// MinKnownChainWork is the minimum amount of known total work for the
+		// chain at a given point in time.  This is intended to be updated
+		// periodically with new releases.
+		//
+		// Block 00000000000000001c654e2935e7722ddae8277da482e31557ac5c70ec101792
+		// Height: 395000
+		MinKnownChainWork: hexToBigInt("0000000000000000000000000000000000000000000ae01920a7ee4b769cc620"),
+
 		// The miner confirmation window is defined as:
 		//   target proof of work timespan / target proof of work spacing
 		RuleChangeActivationQuorum:     4032, // 10 % of RuleChangeActivationInterval * TicketsPerBlock
