@@ -16,8 +16,17 @@ github.com/decred/dcrd/dcrec/edwards/v2 v2.0.0 h1:E5KszxGgpjpmW8vN811G6rBAZg0/S/
 github.com/decred/dcrd/dcrec/edwards/v2 v2.0.0/go.mod h1:d0H8xGMWbiIQP7gN3v2rByWUcuZPm9YsgmnfoxgbINc=
 github.com/decred/dcrd/rpc/jsonrpc/types v1.0.1 h1:sWsGtWzdmrna6aysDCHwjANTJh+Lxt2xp6S10ahP79Y=
 github.com/decred/dcrd/rpc/jsonrpc/types v1.0.1/go.mod h1:dJUp9PoyFYklzmlImpVkVLOr6j4zKuUv66YgemP2sd8=
+github.com/decred/dcrwallet v1.2.2 h1:NdI13wxP+OsWKXPqjWQQ9VSGAl4VoSLBfAunzFreeJg=
+github.com/decred/dcrwallet/errors v1.0.0 h1:XjSILZ2mK5HqWYlhdBpsm+CimFDqDB+hY3tuX0Yh0Jo=
+github.com/decred/dcrwallet/errors v1.0.0/go.mod h1:XUm95dWmm9XmQGvneBXJkkIaFeRsQVBB6ni/KTy1hrY=
+github.com/decred/dcrwallet/errors/v2 v2.0.0 h1:b3QHoQNjKkrcO0GSpueeHvFKp5eqtRv9aw649MDyejA=
+github.com/decred/dcrwallet/errors/v2 v2.0.0/go.mod h1:2HYvtRuCE9XqDNCWhKmBuzLG364xUgcUIsJu02r0F5Q=
+github.com/decred/dcrwallet/pgpwordlist v1.0.0 h1:H7Y3+yRZq7PXMPfpKLMnY5TKTjTWhc0oJmyN7v8tC/M=
+github.com/decred/dcrwallet/pgpwordlist v1.0.0/go.mod h1:Fek3uYn+9DnEFIreA/8PnTIXUl2lBO64JpEBkL9BXtk=
 github.com/decred/dcrwallet/rpc/jsonrpc/types v1.3.0 h1:yCxtFqK7X6GvZWQzHXjCwoGCy9YVe3tGEwxCjW5rYQk=
 github.com/decred/dcrwallet/rpc/jsonrpc/types v1.3.0/go.mod h1:Xvekb43GtfMiRbyIY4ZJ9Uhd9HRIAcnp46f3q2eIExU=
+github.com/decred/dcrwallet/walletseed v1.0.2 h1:6K/90/i6YEQQEKSjeDcYa2zfc3vFMeFfrUfDouwzQfQ=
+github.com/decred/dcrwallet/walletseed v1.0.2/go.mod h1:4fmyRf4sZKRrU6pKuRAQ+Og9xJtHalydXUrvGGQ9+Ak=
 github.com/decred/go-socks v1.1.0 h1:dnENcc0KIqQo3HSXdgboXAHgqsCIutkqq6ntQjYtm2U=
 github.com/decred/go-socks v1.1.0/go.mod h1:sDhHqkZH0X4JjSa02oYOGhcGHYp12FsY1jQ/meV8md0=
 github.com/decred/slog v1.0.0 h1:Dl+W8O6/JH6n2xIFN2p3DNjCmjYwvrXsjlSJTQQ4MhE=
@@ -55,6 +64,8 @@ golang.org/x/sys v0.0.0-20191010194322-b09406accb47 h1:/XfQ9z7ib8eEJX2hdgFTZJ/nt
 golang.org/x/sys v0.0.0-20191010194322-b09406accb47/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=
 golang.org/x/text v0.3.0 h1:g61tztE5qeGQ89tm6NTjjM9VPIm088od1l6aSorWRWg=
 golang.org/x/text v0.3.0/go.mod h1:NqM8EUOU14njkJ3fqMW+pc6Ldnwhi/IjpwHt7yyuwOQ=
+golang.org/x/xerrors v0.0.0-20190717185122-a985d3407aa7 h1:9zdDQZ7Thm29KFXgAX/+yaf3eVbP7djjWp/dXAppNCc=
+golang.org/x/xerrors v0.0.0-20190717185122-a985d3407aa7/go.mod h1:I/5z698sn9Ka8TeJc9MKroUUfqBBauWjQqLJ2OPfmY0=
 gopkg.in/check.v1 v0.0.0-20161208181325-20d25e280405 h1:yhCVgyC4o1eVCa2tZl7eS0r+SDo693bJlVdllGtEeKM=
 gopkg.in/check.v1 v0.0.0-20161208181325-20d25e280405/go.mod h1:Co6ibVJAznAaIkqp8huTwlJQCZ016jof/cbN4VW5Yz0=
 gopkg.in/fsnotify.v1 v1.4.7 h1:xOHLXZwVvI9hhs+cLKq5+I5onOuwQLhQwiu63xxlHs4=
