@@ -350,3 +350,41 @@ const FileContents = `[Application Options]
 ; Listen on ipv6 loopback interface:
 ;   profile=[::1]:6061
 `
+
+// DcrctlSampleConfig is a string containing the commented example config for dcrctl.
+const DcrctlSampleConfig = `[Application Options]
+
+; ------------------------------------------------------------------------------
+; Network settings
+; ------------------------------------------------------------------------------
+
+; Use testnet (cannot be used with simnet=1).
+; testnet=1
+
+; Use simnet (cannot be used with testnet=1).
+; simnet=1
+
+
+; ------------------------------------------------------------------------------
+; RPC client settings
+; ------------------------------------------------------------------------------
+
+; Connect via a SOCKS5 proxy.
+; proxy=127.0.0.1:9050
+; proxyuser=
+; proxypass=
+
+; Username and password to authenticate connections to a Decred RPC server
+; (usually dcrd or dcrwallet)
+; rpcuser=
+; rpcpass=
+
+; RPC server to connect to
+; rpcserver=localhost
+
+; Wallet RPC server to connect to
+; walletrpcserver=localhost
+
+; RPC server certificate chain file for validation
+; rpccert=~/.dcrd/rpc.cert
+`
