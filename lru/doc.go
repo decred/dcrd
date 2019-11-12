@@ -3,7 +3,7 @@
 // license that can be found in the LICENSE file.
 
 /*
-Package lru implements a generic least-recently-used cache with near O(1) perf.
+Package lru implements generic least-recently-used caches with near O(1) perf.
 
 LRU Cache
 
