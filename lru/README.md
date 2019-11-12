@@ -5,7 +5,7 @@ lru
 [![ISC License](https://img.shields.io/badge/license-ISC-blue.svg)](http://copyfree.org)
 [![GoDoc](https://img.shields.io/badge/godoc-reference-blue.svg)](https://godoc.org/github.com/decred/dcrd/lru)
 
-Package lru implements a generic least-recently-used cache with near O(1) perf.
+Package lru implements generic least-recently-used caches with near O(1) perf.
 
 ## LRU Cache
 
@@ -19,8 +19,8 @@ already exists.
 ## External Use
 
 This package has intentionally been designed so it can be used as a standalone
-package for any projects needing to make use of a well-tested and concurrent
-safe least-recently-used cache with near O(1) performance characteristics for
+package for any projects needing to make use of well-tested and concurrent
+safe least-recently-used caches with near O(1) performance characteristics for
 lookups, inserts, and deletions.
 
 ## Installation and Updating
@@ -31,8 +31,12 @@ $ go get -u github.com/decred/dcrd/lru
 
 ## Examples
 
-* [Basic Usage](https://godoc.org/github.com/decred/dcrd/lru#example-package--BasicUsage)
+* [Basic Cache Usage](https://godoc.org/github.com/decred/dcrd/lru#example-package--BasicUsage)
   Demonstrates creating a new cache instance, inserting items into the cache,
+  causing an eviction of the least-recently-used item, and removing an item.
+
+* [Basic KV Cache Usage](https://godoc.org/github.com/decred/dcrd/lru#example-package--BasicKVUsage)
+  Demonstrates creating a new k/v cache instance, inserting items into the cache,
   causing an eviction of the least-recently-used item, and removing an item.
 
 ## License
