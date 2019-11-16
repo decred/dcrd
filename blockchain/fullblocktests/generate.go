@@ -432,9 +432,6 @@ func Generate(includeLargeReorg bool) (tests [][]TestInstance, err error) {
 	// rejectedNonCanonical creates and appends a single
 	// rejectNonCanonicalBlock test instance for the current tip.
 	//
-	// orphaned creates and appends a single acceptBlock test instance for
-	// the current tip which expects the block to be accepted as an orphan.
-	//
 	// orphanedOrRejected creates and appends a single orphanOrRejectBlock
 	// test instance for the current tip.
 	accepted := func() {
@@ -456,11 +453,6 @@ func Generate(includeLargeReorg bool) (tests [][]TestInstance, err error) {
 	rejectedNonCanonical := func() {
 		tests = append(tests, []TestInstance{
 			rejectNonCanonicalBlock(g.TipName(), g.Tip()),
-		})
-	}
-	orphaned := func() {
-		tests = append(tests, []TestInstance{
-			acceptBlock(g.TipName(), g.Tip(), false, true),
 		})
 	}
 	orphanedOrRejected := func() {
@@ -745,12 +737,6 @@ func Generate(includeLargeReorg bool) (tests [][]TestInstance, err error) {
 	g.NextBlock("bf2", outs[1], ticketOuts[1])
 	accepted()
 
-	// Ensure duplicate blocks are rejected.
-	//
-	//   ... -> bf1(0) -> bf2(1)
-	//                \-> bf2(1)
-	rejected(blockchain.ErrDuplicateBlock)
-
 	// Create a fork from bf1.  There should not be a reorg since bf2 was seen
 	// first.
 	//
@@ -821,24 +807,6 @@ func Generate(includeLargeReorg bool) (tests [][]TestInstance, err error) {
 	g.NextBlock("bpw3", outs[4], ticketOuts[4], additionalCoinbasePoW(1))
 	rejected(blockchain.ErrBadCoinbaseValue)
 
-	// Create a fork that ends with block that generates too much
-	// proof-of-work coinbase as before, but with a valid fork first.
-	//
-	//   ... -> bf1(0) -> bf2(1) -> bf5(2) -> bf6(3)
-	//               |                    \-> bpw4(3) -> bpw5(4) -> bpw6(5)
-	//               |                       (bpw4 added last)
-	//                \-> bf3(1) -> bf4(2)
-	g.SetTip("bf5")
-	bpw4 := g.NextBlock("bpw4", outs[3], ticketOuts[3])
-	bpw5 := g.NextBlock("bpw5", outs[4], ticketOuts[4])
-	bpw6 := g.NextBlock("bpw6", outs[5], ticketOuts[5], additionalCoinbasePoW(1))
-	tests = append(tests, []TestInstance{
-		acceptBlock("bpw5", bpw5, false, true),
-		acceptBlock("bpw6", bpw6, false, true),
-		rejectBlock("bpw4", bpw4, blockchain.ErrBadCoinbaseValue),
-		expectTipBlock("bpw5", bpw5),
-	})
-
 	// ---------------------------------------------------------------------
 	// Bad dev org output tests.
 	// ---------------------------------------------------------------------
@@ -847,11 +815,11 @@ func Generate(includeLargeReorg bool) (tests [][]TestInstance, err error) {
 	// address.  Test this by trying to pay to a secp256k1 P2PKH address
 	// using the same HASH160.
 	//
-	//   ... -> bf5(2) -> bpw4(3) -> bpw5(4)
-	//   \                                  \-> bbadtaxscript(5)
+	//   ... -> bf5(2) -> bf6(3)
+	//   \                      \-> bbadtaxscript(4)
 	//    \-> bf3(1) -> bf4(2)
-	g.SetTip("bpw5")
-	g.NextBlock("bbadtaxscript", outs[5], ticketOuts[5],
+	g.SetTip("bf6")
+	g.NextBlock("bbadtaxscript", outs[4], ticketOuts[4],
 		func(b *wire.MsgBlock) {
 			taxOutput := b.Transactions[0].TxOut[0]
 			_, addrs, _, _ := txscript.ExtractPkScriptAddrs(
@@ -875,11 +843,11 @@ func Generate(includeLargeReorg bool) (tests [][]TestInstance, err error) {
 	// Create a block that uses a newer output script version than is
 	// supported for the dev-org tax output.
 	//
-	//   ... -> bf5(2) -> bpw4(3) -> bpw5(4)
-	//   \                                  \-> bbadtaxscriptversion(5)
+	//   ... -> bf5(2) -> bf6(3)
+	//   \                      \-> bbadtaxscriptversion(4)
 	//    \-> bf3(1) -> bf4(2)
-	g.SetTip("bpw5")
-	g.NextBlock("bbadtaxscriptversion", outs[5], ticketOuts[5],
+	g.SetTip("bf6")
+	g.NextBlock("bbadtaxscriptversion", outs[4], ticketOuts[4],
 		func(b *wire.MsgBlock) {
 			b.Transactions[0].TxOut[0].Version = 1
 		})
@@ -891,44 +859,39 @@ func Generate(includeLargeReorg bool) (tests [][]TestInstance, err error) {
 
 	// Create a block that generates too much dev-org coinbase.
 	//
-	//   ... -> bf5(2) -> bpw4(3) -> bpw5(4)
-	//   \                                  \-> bdc1(5)
+	//   ... -> bf5(2) -> bf6(3)
+	//   \                      \-> bdc1(4)
 	//    \-> bf3(1) -> bf4(2)
-	g.SetTip("bpw5")
-	g.NextBlock("bdc1", outs[5], ticketOuts[5], additionalCoinbaseDev(1))
+	g.SetTip("bf6")
+	g.NextBlock("bdc1", outs[4], ticketOuts[4], additionalCoinbaseDev(1))
 	rejected(blockchain.ErrNoTax)
 
 	// Create a fork that ends with block that generates too much dev-org
 	// coinbase.
 	//
-	//   ... -> bf5(2) -> bpw4(3) -> bpw5(4)
-	//   \                       \-> bdc2(4) -> bdc3(5)
+	//   ... -> bf5(2) -> bf6(3)
+	//   \            \-> bdc2(3) -> bdc3(4)
 	//    \-> bf3(1) -> bf4(2)
-	g.SetTip("bpw4")
-	g.NextBlock("bdc2", outs[4], ticketOuts[4], additionalCoinbaseDev(1))
-	acceptedToSideChainWithExpectedTip("bpw5")
+	g.SetTip("bf5")
+	g.NextBlock("bdc2", outs[3], ticketOuts[3], additionalCoinbaseDev(1))
+	acceptedToSideChainWithExpectedTip("bf6")
 
-	g.NextBlock("bdc3", outs[5], ticketOuts[5], additionalCoinbaseDev(1))
+	g.NextBlock("bdc3", outs[4], ticketOuts[4], additionalCoinbaseDev(1))
 	rejected(blockchain.ErrNoTax)
 
-	// Create a fork that ends with block that generates too much dev-org
-	// coinbase as before, but with a valid fork first.
+	// There was originally some processing order related tests here which
+	// extended the chain, but they have since been separated into tests
+	// specifically for processing logic. So, rather than changing all of
+	// the offsets inthe remaining tests, just create a couple of blocks to
+	// keep the remaining test offsets the same.
 	//
-	//   ... -> bf5(2) -> bpw4(3) -> bpw5(4)
-	//   \                       \-> bdc4(4) -> bdc5(5) -> bdc6(6)
-	//   |                           (bdc4 added last)
-	//    \-> bf3(1) -> bf4(2)
-	//
-	g.SetTip("bpw4")
-	bdc4 := g.NextBlock("bdc4", outs[4], ticketOuts[4])
-	bdc5 := g.NextBlock("bdc5", outs[5], ticketOuts[5])
-	bdc6 := g.NextBlock("bdc6", outs[6], ticketOuts[6], additionalCoinbaseDev(1))
-	tests = append(tests, []TestInstance{
-		acceptBlock("bdc5", bdc5, false, true),
-		acceptBlock("bdc6", bdc6, false, true),
-		rejectBlock("bdc4", bdc4, blockchain.ErrNoTax),
-		expectTipBlock("bdc5", bdc5),
-	})
+	//   ... -> bf5(2) -> bf6(3) -> bdc4(4) -> bdc5(5)
+	//   \-> bf3(1) -> bf4(2)
+	g.SetTip("bf6")
+	g.NextBlock("bdc4", outs[4], ticketOuts[4])
+	accepted()
+	g.NextBlock("bdc5", outs[5], ticketOuts[5])
+	accepted()
 
 	// ---------------------------------------------------------------------
 	// Checksig signature operation count tests.
@@ -936,7 +899,7 @@ func Generate(includeLargeReorg bool) (tests [][]TestInstance, err error) {
 
 	// Add a block with max allowed signature operations.
 	//
-	//   ... -> bf5(2) -> bpw4(3) -> bdc4(4) -> bdc5(5) -> bcs1(6)
+	//   ... -> bf5(2) -> bf6(3) -> bdc4(4) -> bdc5(5) -> bcs1(6)
 	//   \-> bf3(1) -> bf4(2)
 	g.SetTip("bdc5")
 	manySigOps := repeatOpcode(txscript.OP_CHECKSIG, maxBlockSigOps)
@@ -946,8 +909,8 @@ func Generate(includeLargeReorg bool) (tests [][]TestInstance, err error) {
 
 	// Attempt to add block with more than max allowed signature operations.
 	//
-	//   ... -> bf5(2) -> bpw4(3) -> bdc4(4) -> bdc5(5) -> bcs1(6)
-	//   \                                                        \-> bcs2(7)
+	//   ... -> bf5(2) -> bf6(3) -> bdc4(4) -> bdc5(5) -> bcs1(6)
+	//   \                                                       \-> bcs2(7)
 	//    \-> bf3(1) -> bf4(2)
 	tooManySigOps := repeatOpcode(txscript.OP_CHECKSIG, maxBlockSigOps+1)
 	g.NextBlock("bcs2", outs[7], ticketOuts[7],
@@ -961,8 +924,8 @@ func Generate(includeLargeReorg bool) (tests [][]TestInstance, err error) {
 
 	// Create block that spends a tx created on a different fork.
 	//
-	//   ... -> bf5(2) -> bpw4(3) -> bdc4(4) -> bdc5(5) -> bcs1(6)
-	//   \                                                        \-> bcf1(b3.tx[1])
+	//   ... -> bf5(2) -> bf6(3) -> bdc4(4) -> bdc5(5) -> bcs1(6)
+	//   \                                                       \-> bcf1(b3.tx[1])
 	//    \-> bf3(1) -> bf4(2)
 	g.SetTip("bcs1")
 	g.NextBlock("bcf1", &bf3Tx1Out, nil)
@@ -970,8 +933,8 @@ func Generate(includeLargeReorg bool) (tests [][]TestInstance, err error) {
 
 	// Create block that forks and spends a tx created on a third fork.
 	//
-	//   ... -> bf5(2) -> bpw4(3) -> bdc4(4) -> bdc5(5) -> bcs1(6)
-	//   |                                             \-> bcf1(bf3.tx[1]) -> bcf2(6)
+	//   ... -> bf5(2) -> bf6(3) -> bdc4(4) -> bdc5(5) -> bcs1(6)
+	//   |                                            \-> bcf1(bf3.tx[1]) -> bcf2(6)
 	//    \-> bf3(1) -> bf4(2)
 	g.SetTip("bdc5")
 	g.NextBlock("bcf2", &bf3Tx1Out, nil)
@@ -1021,12 +984,9 @@ func Generate(includeLargeReorg bool) (tests [][]TestInstance, err error) {
 	g.AssertTipBlockSize(maxBlockSize)
 	accepted()
 
-	// Create block that is the one byte larger than max allowed size.  This
-	// is done on a fork and should be rejected regardless.
+	// Create block that is the one byte larger than max allowed size.
 	//
-	//   ... -> bcs1(6) -> bms1(7)
-	//                 \-> bms2(7) -> bms3(8)
-	g.SetTip("bcs1")
+	//   ... -> bcs1(6) -> bms1(7) -> bms2(7)
 	g.NextBlock("bms2", outs[7], ticketOuts[7], func(b *wire.MsgBlock) {
 		curScriptLen := len(b.Transactions[1].TxOut[0].PkScript)
 		bytesToMaxSize := maxBlockSize - b.SerializeSize() +
@@ -1041,32 +1001,6 @@ func Generate(includeLargeReorg bool) (tests [][]TestInstance, err error) {
 	// outright rejected due to an invalid parent.
 	g.NextBlock("bms3", outs[8], ticketOuts[8])
 	orphanedOrRejected()
-
-	// ---------------------------------------------------------------------
-	// Orphan tests.
-	// ---------------------------------------------------------------------
-
-	// Create valid orphan block with zero prev hash.
-	//
-	//   No previous block
-	//                    \-> borphan0(7)
-	g.SetTip("bcs1")
-	g.NextBlock("borphan0", outs[7], ticketOuts[7], func(b *wire.MsgBlock) {
-		b.Header.PrevBlock = chainhash.Hash{}
-	})
-	orphaned()
-
-	// Create valid orphan block.
-	//
-	//   ... -> bcs1(6) -> bms1(7)
-	//                 \-> borphanbase(7) -> borphan1(8)
-	g.SetTip("bcs1")
-	g.NextBlock("borphanbase", outs[7], ticketOuts[7])
-	g.NextBlock("borphan1", outs[8], ticketOuts[8])
-	orphaned()
-
-	// Ensure duplicate orphan blocks are rejected.
-	rejected(blockchain.ErrDuplicateBlock)
 
 	// ---------------------------------------------------------------------
 	// Coinbase script length limits tests.
