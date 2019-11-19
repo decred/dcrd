@@ -363,8 +363,8 @@ func (b *BlockChain) DisableVerify(disable bool) {
 // be like part of the main chain, on a side chain, or in the orphan pool.
 //
 // This function is safe for concurrent access.
-func (b *BlockChain) HaveBlock(hash *chainhash.Hash) (bool, error) {
-	return b.index.HaveBlock(hash) || b.IsKnownOrphan(hash), nil
+func (b *BlockChain) HaveBlock(hash *chainhash.Hash) bool {
+	return b.index.HaveBlock(hash) || b.IsKnownOrphan(hash)
 }
 
 // ChainWork returns the total work up to and including the block of the

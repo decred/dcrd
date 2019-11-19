@@ -1129,7 +1129,7 @@ func (b *blockManager) haveInventory(invVect *wire.InvVect) (bool, error) {
 	case wire.InvTypeBlock:
 		// Ask chain if the block is known to it in any form (main
 		// chain, side chain, or orphan).
-		return b.cfg.Chain.HaveBlock(&invVect.Hash)
+		return b.cfg.Chain.HaveBlock(&invVect.Hash), nil
 
 	case wire.InvTypeTx:
 		// Ask the transaction memory pool if the transaction is known
@@ -2046,15 +2046,12 @@ func (b *blockManager) requestFromPeer(p *peerpkg.Peer, blocks, txs []*chainhash
 
 		// Check to see if we already have this block, too.
 		// If so, skip.
-		exists, err := b.cfg.Chain.HaveBlock(bh)
-		if err != nil {
-			return err
-		}
+		exists := b.cfg.Chain.HaveBlock(bh)
 		if exists {
 			continue
 		}
 
-		err = msgResp.AddInvVect(wire.NewInvVect(wire.InvTypeBlock, bh))
+		err := msgResp.AddInvVect(wire.NewInvVect(wire.InvTypeBlock, bh))
 		if err != nil {
 			return fmt.Errorf("unexpected error encountered building request "+
 				"for mining state block %v: %v",
