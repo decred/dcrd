@@ -37,10 +37,6 @@ is by no means exhaustive:
    transaction amounts, script complexity, and merkle root calculations
  - Compare the block against predetermined checkpoints for expected timestamps
    and difficulty based on elapsed time since the checkpoint
- - Save the most recent orphan blocks for a limited time in case their parent
-   blocks become available
- - Stop processing if the block is an orphan as the rest of the processing
-   depends on the block's position within the block chain
  - Perform a series of more thorough checks that depend on the block's position
    within the block chain such as verifying block difficulties adhere to
    difficulty retarget rules, timestamps are after the median of the last

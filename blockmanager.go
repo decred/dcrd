@@ -33,6 +33,10 @@ const (
 	// more.
 	minInFlightBlocks = 10
 
+	// maxOrphanBlocks is the maximum number of orphan blocks that can be
+	// queued.
+	maxOrphanBlocks = 500
+
 	// blockDbNamePrefix is the prefix for the block database name.  The
 	// database type is appended to this value to form the full block
 	// database name.
@@ -298,6 +302,14 @@ type peerSyncState struct {
 	requestedBlocks map[chainhash.Hash]struct{}
 }
 
+// orphanBlock represents a block for which the parent is not yet available.  It
+// is a normal block plus an expiration time to prevent caching the orphan
+// forever.
+type orphanBlock struct {
+	block      *dcrutil.Block
+	expiration time.Time
+}
+
 // blockManager provides a concurrency safe block manager for handling all
 // incoming blocks.
 type blockManager struct {
@@ -319,6 +331,13 @@ type blockManager struct {
 	headerList       *list.List
 	startHeader      *list.Element
 	nextCheckpoint   *chaincfg.Checkpoint
+
+	// These fields are related to handling of orphan blocks.  They are
+	// protected by the orphan lock.
+	orphanLock   sync.RWMutex
+	orphans      map[chainhash.Hash]*orphanBlock
+	prevOrphans  map[chainhash.Hash][]*orphanBlock
+	oldestOrphan *orphanBlock
 
 	// lotteryDataBroadcastMutex is a mutex protecting the map
 	// that checks if block lottery data has been broadcasted
@@ -755,6 +774,226 @@ func (b *blockManager) handleTxMsg(tmsg *txMsg) {
 	b.cfg.PeerNotifier.AnnounceNewTransactions(acceptedTxs)
 }
 
+// isKnownOrphan returns whether the passed hash is currently a known orphan.
+// Keep in mind that only a limited number of orphans are held onto for a
+// limited amount of time, so this function must not be used as an absolute way
+// to test if a block is an orphan block.  A full block (as opposed to just its
+// hash) must be passed to ProcessBlock for that purpose.  This function
+// provides a mechanism for a caller to intelligently detect *recent* duplicate
+// orphans and react accordingly.
+//
+// This function is safe for concurrent access.
+func (b *blockManager) isKnownOrphan(hash *chainhash.Hash) bool {
+	// Protect concurrent access.  Using a read lock only so multiple readers
+	// can query without blocking each other.
+	b.orphanLock.RLock()
+	_, exists := b.orphans[*hash]
+	b.orphanLock.RUnlock()
+	return exists
+}
+
+// orphanRoot returns the head of the chain for the provided hash from the map
+// of orphan blocks.
+//
+// This function is safe for concurrent access.
+func (b *blockManager) orphanRoot(hash *chainhash.Hash) *chainhash.Hash {
+	// Protect concurrent access.  Using a read lock only so multiple
+	// readers can query without blocking each other.
+	b.orphanLock.RLock()
+	defer b.orphanLock.RUnlock()
+
+	// Keep looping while the parent of each orphaned block is known and is an
+	// orphan itself.
+	orphanRoot := hash
+	prevHash := hash
+	for {
+		orphan, exists := b.orphans[*prevHash]
+		if !exists {
+			break
+		}
+		orphanRoot = prevHash
+		prevHash = &orphan.block.MsgBlock().Header.PrevBlock
+	}
+
+	return orphanRoot
+}
+
+// removeOrphanBlock removes the passed orphan block from the orphan pool and
+// previous orphan index.
+func (b *blockManager) removeOrphanBlock(orphan *orphanBlock) {
+	// Protect concurrent access.
+	b.orphanLock.Lock()
+	defer b.orphanLock.Unlock()
+
+	// Remove the orphan block from the orphan pool.
+	orphanHash := orphan.block.Hash()
+	delete(b.orphans, *orphanHash)
+
+	// Remove the reference from the previous orphan index too.  An indexing
+	// for loop is intentionally used over a range here as range does not
+	// reevaluate the slice on each iteration nor does it adjust the index
+	// for the modified slice.
+	prevHash := &orphan.block.MsgBlock().Header.PrevBlock
+	orphans := b.prevOrphans[*prevHash]
+	for i := 0; i < len(orphans); i++ {
+		hash := orphans[i].block.Hash()
+		if hash.IsEqual(orphanHash) {
+			copy(orphans[i:], orphans[i+1:])
+			orphans[len(orphans)-1] = nil
+			orphans = orphans[:len(orphans)-1]
+			i--
+		}
+	}
+	b.prevOrphans[*prevHash] = orphans
+
+	// Remove the map entry altogether if there are no longer any orphans
+	// which depend on the parent hash.
+	if len(b.prevOrphans[*prevHash]) == 0 {
+		delete(b.prevOrphans, *prevHash)
+	}
+}
+
+// addOrphanBlock adds the passed block (which is already determined to be an
+// orphan prior calling this function) to the orphan pool.  It lazily cleans up
+// any expired blocks so a separate cleanup poller doesn't need to be run.  It
+// also imposes a maximum limit on the number of outstanding orphan blocks and
+// will remove the oldest received orphan block if the limit is exceeded.
+func (b *blockManager) addOrphanBlock(block *dcrutil.Block) {
+	// Remove expired orphan blocks.
+	for _, oBlock := range b.orphans {
+		if time.Now().After(oBlock.expiration) {
+			b.removeOrphanBlock(oBlock)
+			continue
+		}
+
+		// Update the oldest orphan block pointer so it can be discarded
+		// in case the orphan pool fills up.
+		if b.oldestOrphan == nil ||
+			oBlock.expiration.Before(b.oldestOrphan.expiration) {
+			b.oldestOrphan = oBlock
+		}
+	}
+
+	// Limit orphan blocks to prevent memory exhaustion.
+	if len(b.orphans)+1 > maxOrphanBlocks {
+		// Remove the oldest orphan to make room for the new one.
+		b.removeOrphanBlock(b.oldestOrphan)
+		b.oldestOrphan = nil
+	}
+
+	// Protect concurrent access.  This is intentionally done here instead
+	// of near the top since removeOrphanBlock does its own locking and
+	// the range iterator is not invalidated by removing map entries.
+	b.orphanLock.Lock()
+	defer b.orphanLock.Unlock()
+
+	// Insert the block into the orphan map with an expiration time
+	// 1 hour from now.
+	expiration := time.Now().Add(time.Hour)
+	oBlock := &orphanBlock{
+		block:      block,
+		expiration: expiration,
+	}
+	b.orphans[*block.Hash()] = oBlock
+
+	// Add to previous hash lookup index for faster dependency lookups.
+	prevHash := &block.MsgBlock().Header.PrevBlock
+	b.prevOrphans[*prevHash] = append(b.prevOrphans[*prevHash], oBlock)
+}
+
+// processOrphans determines if there are any orphans which depend on the passed
+// block hash (they are no longer orphans if true) and potentially accepts them.
+// It repeats the process for the newly accepted blocks (to detect further
+// orphans which may no longer be orphans) until there are no more.
+//
+// The flags do not modify the behavior of this function directly, however they
+// are needed to pass along to maybeAcceptBlock.
+func (b *blockManager) processOrphans(hash *chainhash.Hash, flags blockchain.BehaviorFlags) error {
+	// Start with processing at least the passed hash.  Leave a little room for
+	// additional orphan blocks that need to be processed without needing to
+	// grow the array in the common case.
+	processHashes := make([]*chainhash.Hash, 0, 10)
+	processHashes = append(processHashes, hash)
+	for len(processHashes) > 0 {
+		// Pop the first hash to process from the slice.
+		processHash := processHashes[0]
+		processHashes[0] = nil // Prevent GC leak.
+		processHashes = processHashes[1:]
+
+		// Look up all orphans that are parented by the block we just accepted.
+		// This will typically only be one, but it could be multiple if multiple
+		// blocks are mined and broadcast around the same time.  The one with
+		// the most proof of work will eventually win out.  An indexing for loop
+		// is intentionally used over a range here as range does not reevaluate
+		// the slice on each iteration nor does it adjust the index for the
+		// modified slice.
+		for i := 0; i < len(b.prevOrphans[*processHash]); i++ {
+			orphan := b.prevOrphans[*processHash][i]
+			if orphan == nil {
+				bmgrLog.Warnf("Found a nil entry at index %d in the orphan "+
+					"dependency list for block %v", i, processHash)
+				continue
+			}
+
+			// Remove the orphan from the orphan pool.
+			orphanHash := orphan.block.Hash()
+			b.removeOrphanBlock(orphan)
+			i--
+
+			// Potentially accept the block into the block chain.
+			_, err := b.cfg.Chain.ProcessBlock(orphan.block, flags)
+			if err != nil {
+				return err
+			}
+
+			// Add this block to the list of blocks to process so any orphan
+			// blocks that depend on this block are handled too.
+			processHashes = append(processHashes, orphanHash)
+		}
+	}
+	return nil
+}
+
+// processBlockAndOrphans processes the provided block using the internal chain
+// instance while keeping track of orphan blocks and also processing any orphans
+// that depend on the passed block to potentially accept as well.
+//
+// When no errors occurred during processing, the first return value indicates
+// the length of the fork the block extended.  In the case it either extended
+// the best chain or is now the tip of the best chain due to causing a
+// reorganize, the fork length will be 0.  The second return value indicates
+// whether or not the block is an orphan, in which case the fork length will
+// also be zero as expected, because it, by definition, does not connect to the
+// best chain.
+func (b *blockManager) processBlockAndOrphans(block *dcrutil.Block, flags blockchain.BehaviorFlags) (int64, bool, error) {
+	// Process the block to include validation, best chain selection, etc.
+	//
+	// Also, keep track of orphan blocks in the block manager when the error
+	// returned indicates the block is an orphan.
+	blockHash := block.Hash()
+	forkLen, err := b.cfg.Chain.ProcessBlock(block, flags)
+	if blockchain.IsErrorCode(err, blockchain.ErrMissingParent) {
+		bmgrLog.Infof("Adding orphan block %v with parent %v", blockHash,
+			block.MsgBlock().Header.PrevBlock)
+		b.addOrphanBlock(block)
+
+		// The fork length of orphans is unknown since they, by definition, do
+		// not connect to the best chain.
+		return 0, true, nil
+	}
+	if err != nil {
+		return 0, false, err
+	}
+
+	// Accept any orphan blocks that depend on this block (they are no longer
+	// orphans) and repeat for those accepted blocks until there are no more.
+	if err := b.processOrphans(blockHash, flags); err != nil {
+		return 0, false, err
+	}
+
+	return forkLen, false, nil
+}
+
 // current returns true if we believe we are synced with our peers, false if we
 // still have blocks to check
 func (b *blockManager) current() bool {
@@ -827,8 +1066,7 @@ func (b *blockManager) handleBlockMsg(bmsg *blockMsg) {
 
 	// Process the block to include validation, best chain selection, orphan
 	// handling, etc.
-	forkLen, isOrphan, err := b.cfg.Chain.ProcessBlock(bmsg.block,
-		behaviorFlags)
+	forkLen, isOrphan, err := b.processBlockAndOrphans(bmsg.block, behaviorFlags)
 	if err != nil {
 		// When the error is a rule error, it means the block was simply
 		// rejected as opposed to something actually going wrong, so log
@@ -856,7 +1094,7 @@ func (b *blockManager) handleBlockMsg(bmsg *blockMsg) {
 	// Request the parents for the orphan block from the peer that sent it.
 	onMainChain := !isOrphan && forkLen == 0
 	if isOrphan {
-		orphanRoot := b.cfg.Chain.GetOrphanRoot(blockHash)
+		orphanRoot := b.orphanRoot(blockHash)
 		blkLocator, err := b.cfg.Chain.LatestBlockLocator()
 		if err != nil {
 			bmgrLog.Warnf("Failed to get block locator for the "+
@@ -1127,9 +1365,10 @@ func (b *blockManager) handleHeadersMsg(hmsg *headersMsg) {
 func (b *blockManager) haveInventory(invVect *wire.InvVect) (bool, error) {
 	switch invVect.Type {
 	case wire.InvTypeBlock:
-		// Ask chain if the block is known to it in any form (main
-		// chain, side chain, or orphan).
-		return b.cfg.Chain.HaveBlock(&invVect.Hash), nil
+		// Determine if the block is known in any form (main chain, side
+		// chain, or orphan).
+		hash := &invVect.Hash
+		return b.isKnownOrphan(hash) || b.cfg.Chain.HaveBlock(hash), nil
 
 	case wire.InvTypeTx:
 		// Ask the transaction memory pool if the transaction is known
@@ -1253,11 +1492,11 @@ func (b *blockManager) handleInvMsg(imsg *invMsg) {
 			// resending the orphan block as an available block
 			// to signal there are more missing blocks that need to
 			// be requested.
-			if b.cfg.Chain.IsKnownOrphan(&iv.Hash) {
+			if b.isKnownOrphan(&iv.Hash) {
 				// Request blocks starting at the latest known
 				// up to the root of the orphan that just came
 				// in.
-				orphanRoot := b.cfg.Chain.GetOrphanRoot(&iv.Hash)
+				orphanRoot := b.orphanRoot(&iv.Hash)
 				blkLocator, err := b.cfg.Chain.LatestBlockLocator()
 				if err != nil {
 					bmgrLog.Errorf("PEER: Failed to get block "+
@@ -1451,8 +1690,8 @@ out:
 				}
 
 			case processBlockMsg:
-				forkLen, isOrphan, err := b.cfg.Chain.ProcessBlock(
-					msg.block, msg.flags)
+				forkLen, isOrphan, err := b.processBlockAndOrphans(msg.block,
+					msg.flags)
 				if err != nil {
 					msg.reply <- processBlockResponse{
 						forkLen:  forkLen,
@@ -2044,10 +2283,8 @@ func (b *blockManager) requestFromPeer(p *peerpkg.Peer, blocks, txs []*chainhash
 			continue
 		}
 
-		// Check to see if we already have this block, too.
-		// If so, skip.
-		exists := b.cfg.Chain.HaveBlock(bh)
-		if exists {
+		// Skip the block when it is already known.
+		if b.isKnownOrphan(bh) || b.cfg.Chain.HaveBlock(bh) {
 			continue
 		}
 
@@ -2219,6 +2456,8 @@ func newBlockManager(config *blockManagerConfig) (*blockManager, error) {
 		headerList:       list.New(),
 		AggressiveMining: !cfg.NonAggressive,
 		quit:             make(chan struct{}),
+		orphans:          make(map[chainhash.Hash]*orphanBlock),
+		prevOrphans:      make(map[chainhash.Hash][]*orphanBlock),
 	}
 
 	best := bm.cfg.Chain.BestSnapshot()

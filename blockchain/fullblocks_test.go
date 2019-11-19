@@ -140,12 +140,16 @@ func TestFullBlocks(t *testing.T) {
 		t.Logf("Testing block %s (hash %s, height %d)",
 			item.Name, block.Hash(), blockHeight)
 
-		forkLen, isOrphan, err := chain.ProcessBlock(block,
-			blockchain.BFNone)
+		var isOrphan bool
+		forkLen, err := chain.ProcessBlock(block, blockchain.BFNone)
+		if blockchain.IsErrorCode(err, blockchain.ErrMissingParent) {
+			isOrphan = true
+			err = nil
+		}
 		if err != nil {
-			t.Fatalf("block %q (hash %s, height %d) should "+
-				"have been accepted: %v", item.Name,
-				block.Hash(), blockHeight, err)
+			t.Fatalf("block %q (hash %s, height %d) should have "+
+				"been accepted: %v", item.Name, block.Hash(),
+				blockHeight, err)
 		}
 
 		// Ensure the main chain and orphan flags match the values
@@ -174,7 +178,7 @@ func TestFullBlocks(t *testing.T) {
 		t.Logf("Testing block %s (hash %s, height %d)",
 			item.Name, block.Hash(), blockHeight)
 
-		_, _, err := chain.ProcessBlock(block, blockchain.BFNone)
+		_, err := chain.ProcessBlock(block, blockchain.BFNone)
 		if err == nil {
 			t.Fatalf("block %q (hash %s, height %d) should not "+
 				"have been accepted", item.Name, block.Hash(),
@@ -231,9 +235,11 @@ func TestFullBlocks(t *testing.T) {
 		t.Logf("Testing block %s (hash %s, height %d)",
 			item.Name, block.Hash(), blockHeight)
 
-		_, isOrphan, err := chain.ProcessBlock(block, blockchain.BFNone)
+		_, err := chain.ProcessBlock(block, blockchain.BFNone)
 		if err != nil {
-			// Ensure the error code is of the expected type.
+			// Ensure the error code is of the expected type.  Note
+			// that orphans are rejected with ErrMissingParent, so
+			// this check covers both conditions.
 			if _, ok := err.(blockchain.RuleError); !ok {
 				t.Fatalf("block %q (hash %s, height %d) "+
 					"returned unexpected error type -- "+
@@ -241,12 +247,6 @@ func TestFullBlocks(t *testing.T) {
 					item.Name, block.Hash(), blockHeight,
 					err)
 			}
-		}
-
-		if !isOrphan {
-			t.Fatalf("block %q (hash %s, height %d) was accepted, "+
-				"but is not considered an orphan", item.Name,
-				block.Hash(), blockHeight)
 		}
 	}
 

@@ -15,13 +15,12 @@ extremely important that fully validating nodes agree on all rules.
 At a high level, this package provides support for inserting new blocks into the
 block chain according to the aforementioned rules.  It includes functionality
 such as rejecting duplicate blocks, ensuring blocks and transactions follow all
-rules, orphan handling, and best chain selection along with reorganization.
+rules, and best chain selection along with reorganization.
 
 Since this package does not deal with other Decred specifics such as network
 communication or wallets, it provides a notification system which gives the
 caller a high level of flexibility in how they want to react to certain events
-such as orphan blocks which need their parents requested and newly connected
-main chain blocks which might result in wallet updates.
+such as newly connected main chain blocks which might result in wallet updates.
 
 Decred Chain Processing Overview
 
@@ -36,10 +35,6 @@ is by no means exhaustive:
    transaction amounts, script complexity, and merkle root calculations
  - Compare the block against predetermined checkpoints for expected timestamps
    and difficulty based on elapsed time since the checkpoint
- - Save the most recent orphan blocks for a limited time in case their parent
-   blocks become available
- - Stop processing if the block is an orphan as the rest of the processing
-   depends on the block's position within the block chain
  - Perform a series of more thorough checks that depend on the block's position
    within the block chain such as verifying block difficulties adhere to
    difficulty retarget rules, timestamps are after the median of the last

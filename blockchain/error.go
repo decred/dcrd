@@ -634,3 +634,10 @@ func (e RuleError) Error() string {
 func ruleError(c ErrorCode, desc string) RuleError {
 	return RuleError{ErrorCode: c, Description: desc}
 }
+
+// IsErrorCode returns whether or not the provided error is a rule error with
+// the provided error code.
+func IsErrorCode(err error, c ErrorCode) bool {
+	e, ok := err.(RuleError)
+	return ok && e.ErrorCode == c
+}

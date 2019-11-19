@@ -89,11 +89,11 @@ func TestBlockchainSpendJournal(t *testing.T) {
 			t.Fatalf("NewBlockFromBytes error: %v", err.Error())
 		}
 
-		forkLen, isOrphan, err := chain.ProcessBlock(bl, BFNone)
+		forkLen, err := chain.ProcessBlock(bl, BFNone)
 		if err != nil {
 			t.Fatalf("ProcessBlock error at height %v: %v", i, err.Error())
 		}
-		isMainChain := !isOrphan && forkLen == 0
+		isMainChain := forkLen == 0
 		if !isMainChain {
 			t.Fatalf("block %s (height %d) should have been "+
 				"accepted to the main chain", bl.Hash(),

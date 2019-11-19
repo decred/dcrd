@@ -343,24 +343,19 @@ func (g *chaingenHarness) AcceptBlock(blockName string) {
 	g.t.Logf("Testing block %s (hash %s, height %d)", blockName, block.Hash(),
 		blockHeight)
 
-	forkLen, isOrphan, err := g.chain.ProcessBlock(block, BFNone)
+	forkLen, err := g.chain.ProcessBlock(block, BFNone)
 	if err != nil {
 		g.t.Fatalf("block %q (hash %s, height %d) should have been accepted: %v",
 			blockName, block.Hash(), blockHeight, err)
 	}
 
-	// Ensure the main chain and orphan flags match the values specified in the
-	// test.
-	isMainChain := !isOrphan && forkLen == 0
+	// Ensure the block was accepted to the main chain as indicated by a fork
+	// length of zero.
+	isMainChain := forkLen == 0
 	if !isMainChain {
 		g.t.Fatalf("block %q (hash %s, height %d) unexpected main chain flag "+
 			"-- got %v, want true", blockName, block.Hash(), blockHeight,
 			isMainChain)
-	}
-	if isOrphan {
-		g.t.Fatalf("block %q (hash %s, height %d) unexpected orphan flag -- "+
-			"got %v, want false", blockName, block.Hash(), blockHeight,
-			isOrphan)
 	}
 }
 
@@ -383,7 +378,7 @@ func (g *chaingenHarness) RejectBlock(blockName string, code ErrorCode) {
 	g.t.Logf("Testing block %s (hash %s, height %d)", blockName, block.Hash(),
 		blockHeight)
 
-	_, _, err := g.chain.ProcessBlock(block, BFNone)
+	_, err := g.chain.ProcessBlock(block, BFNone)
 	if err == nil {
 		g.t.Fatalf("block %q (hash %s, height %d) should not have been accepted",
 			blockName, block.Hash(), blockHeight)
@@ -440,24 +435,19 @@ func (g *chaingenHarness) AcceptedToSideChainWithExpectedTip(tipName string) {
 	g.t.Logf("Testing block %s (hash %s, height %d)", g.TipName(), block.Hash(),
 		blockHeight)
 
-	forkLen, isOrphan, err := g.chain.ProcessBlock(block, BFNone)
+	forkLen, err := g.chain.ProcessBlock(block, BFNone)
 	if err != nil {
 		g.t.Fatalf("block %q (hash %s, height %d) should have been accepted: %v",
 			g.TipName(), block.Hash(), blockHeight, err)
 	}
 
-	// Ensure the main chain and orphan flags match the values specified in
-	// the test.
-	isMainChain := !isOrphan && forkLen == 0
+	// Ensure the block was accepted to a side chain as indicated by a non-zero
+	// fork length.
+	isMainChain := forkLen == 0
 	if isMainChain {
 		g.t.Fatalf("block %q (hash %s, height %d) unexpected main chain flag "+
 			"-- got %v, want false", g.TipName(), block.Hash(), blockHeight,
 			isMainChain)
-	}
-	if isOrphan {
-		g.t.Fatalf("block %q (hash %s, height %d) unexpected orphan flag -- "+
-			"got %v, want false", g.TipName(), block.Hash(), blockHeight,
-			isOrphan)
 	}
 
 	g.ExpectTip(tipName)

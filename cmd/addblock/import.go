@@ -127,19 +127,19 @@ func (bi *blockImporter) processBlock(serializedBlock []byte) (bool, error) {
 
 	// Ensure the blocks follows all of the chain rules and match up to the
 	// known checkpoints.
-	forkLen, isOrphan, err := bi.chain.ProcessBlock(block,
-		blockchain.BFFastAdd)
+	forkLen, err := bi.chain.ProcessBlock(block, blockchain.BFFastAdd)
 	if err != nil {
+		if blockchain.IsErrorCode(err, blockchain.ErrMissingParent) {
+			return false, fmt.Errorf("import file contains an orphan block: %v",
+				blockHash)
+		}
+
 		return false, err
 	}
-	isMainChain := !isOrphan && forkLen == 0
+	isMainChain := forkLen == 0
 	if !isMainChain {
 		return false, fmt.Errorf("import file contains a block that "+
 			"does not extend the main chain: %v", blockHash)
-	}
-	if isOrphan {
-		return false, fmt.Errorf("import file contains an orphan "+
-			"block: %v", blockHash)
 	}
 
 	return true, nil

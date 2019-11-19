@@ -26,10 +26,6 @@ import (
 )
 
 const (
-	// maxOrphanBlocks is the maximum number of orphan blocks that can be
-	// queued.
-	maxOrphanBlocks = 500
-
 	// minMemoryNodes is the minimum number of consecutive nodes needed
 	// in memory in order to perform all necessary validation.  It is used
 	// to determine when it's safe to prune nodes from memory without
@@ -76,14 +72,6 @@ func panicf(format string, args ...interface{}) {
 // The block locator for block 17a would be the hashes of blocks:
 // [17a 16a 15 14 13 12 11 10 9 8 7 6 4 genesis]
 type BlockLocator []*chainhash.Hash
-
-// orphanBlock represents a block that we don't yet have the parent for.  It
-// is a normal block plus an expiration time to prevent caching the orphan
-// forever.
-type orphanBlock struct {
-	block      *dcrutil.Block
-	expiration time.Time
-}
 
 // BestState houses information about the current best block and other info
 // related to the state of the main chain as it exists from the point of view of
@@ -138,10 +126,10 @@ func newBestState(node *blockNode, blockSize, numTxns, totalTxns uint64,
 	}
 }
 
-// BlockChain provides functions for working with the Decred block chain.
-// It includes functionality such as rejecting duplicate blocks, ensuring blocks
-// follow all rules, orphan handling, checkpoint handling, and best chain
-// selection with reorganization.
+// BlockChain provides functions for working with the Decred block chain.  It
+// includes functionality such as rejecting duplicate blocks, ensuring blocks
+// follow all rules, checkpoint handling, and best chain selection with
+// reorganization.
 type BlockChain struct {
 	// The following fields are set when the instance is created and can't
 	// be changed afterwards, so there is no need to protect them with a
@@ -180,13 +168,6 @@ type BlockChain struct {
 	// efficient chain view into the block index.
 	index     *blockIndex
 	bestChain *chainView
-
-	// These fields are related to handling of orphan blocks.  They are
-	// protected by a combination of the chain lock and the orphan lock.
-	orphanLock   sync.RWMutex
-	orphans      map[chainhash.Hash]*orphanBlock
-	prevOrphans  map[chainhash.Hash][]*orphanBlock
-	oldestOrphan *orphanBlock
 
 	// The block cache for main chain blocks to facilitate faster chain reorgs
 	// and more efficient recent block serving.
@@ -360,11 +341,11 @@ func (b *BlockChain) DisableVerify(disable bool) {
 
 // HaveBlock returns whether or not the chain instance has the block represented
 // by the passed hash.  This includes checking the various places a block can
-// be like part of the main chain, on a side chain, or in the orphan pool.
+// be like part of the main chain or on a side chain.
 //
 // This function is safe for concurrent access.
 func (b *BlockChain) HaveBlock(hash *chainhash.Hash) bool {
-	return b.index.HaveBlock(hash) || b.IsKnownOrphan(hash)
+	return b.index.HaveBlock(hash)
 }
 
 // ChainWork returns the total work up to and including the block of the
@@ -376,136 +357,6 @@ func (b *BlockChain) ChainWork(hash *chainhash.Hash) (*big.Int, error) {
 	}
 
 	return node.workSum, nil
-}
-
-// IsKnownOrphan returns whether the passed hash is currently a known orphan.
-// Keep in mind that only a limited number of orphans are held onto for a
-// limited amount of time, so this function must not be used as an absolute
-// way to test if a block is an orphan block.  A full block (as opposed to just
-// its hash) must be passed to ProcessBlock for that purpose.  However, calling
-// ProcessBlock with an orphan that already exists results in an error, so this
-// function provides a mechanism for a caller to intelligently detect *recent*
-// duplicate orphans and react accordingly.
-//
-// This function is safe for concurrent access.
-func (b *BlockChain) IsKnownOrphan(hash *chainhash.Hash) bool {
-	// Protect concurrent access.  Using a read lock only so multiple
-	// readers can query without blocking each other.
-	b.orphanLock.RLock()
-	_, exists := b.orphans[*hash]
-	b.orphanLock.RUnlock()
-
-	return exists
-}
-
-// GetOrphanRoot returns the head of the chain for the provided hash from the
-// map of orphan blocks.
-//
-// This function is safe for concurrent access.
-func (b *BlockChain) GetOrphanRoot(hash *chainhash.Hash) *chainhash.Hash {
-	// Protect concurrent access.  Using a read lock only so multiple
-	// readers can query without blocking each other.
-	b.orphanLock.RLock()
-	defer b.orphanLock.RUnlock()
-
-	// Keep looping while the parent of each orphaned block is
-	// known and is an orphan itself.
-	orphanRoot := hash
-	prevHash := hash
-	for {
-		orphan, exists := b.orphans[*prevHash]
-		if !exists {
-			break
-		}
-		orphanRoot = prevHash
-		prevHash = &orphan.block.MsgBlock().Header.PrevBlock
-	}
-
-	return orphanRoot
-}
-
-// removeOrphanBlock removes the passed orphan block from the orphan pool and
-// previous orphan index.
-func (b *BlockChain) removeOrphanBlock(orphan *orphanBlock) {
-	// Protect concurrent access.
-	b.orphanLock.Lock()
-	defer b.orphanLock.Unlock()
-
-	// Remove the orphan block from the orphan pool.
-	orphanHash := orphan.block.Hash()
-	delete(b.orphans, *orphanHash)
-
-	// Remove the reference from the previous orphan index too.  An indexing
-	// for loop is intentionally used over a range here as range does not
-	// reevaluate the slice on each iteration nor does it adjust the index
-	// for the modified slice.
-	prevHash := &orphan.block.MsgBlock().Header.PrevBlock
-	orphans := b.prevOrphans[*prevHash]
-	for i := 0; i < len(orphans); i++ {
-		hash := orphans[i].block.Hash()
-		if hash.IsEqual(orphanHash) {
-			copy(orphans[i:], orphans[i+1:])
-			orphans[len(orphans)-1] = nil
-			orphans = orphans[:len(orphans)-1]
-			i--
-		}
-	}
-	b.prevOrphans[*prevHash] = orphans
-
-	// Remove the map entry altogether if there are no longer any orphans
-	// which depend on the parent hash.
-	if len(b.prevOrphans[*prevHash]) == 0 {
-		delete(b.prevOrphans, *prevHash)
-	}
-}
-
-// addOrphanBlock adds the passed block (which is already determined to be
-// an orphan prior calling this function) to the orphan pool.  It lazily cleans
-// up any expired blocks so a separate cleanup poller doesn't need to be run.
-// It also imposes a maximum limit on the number of outstanding orphan
-// blocks and will remove the oldest received orphan block if the limit is
-// exceeded.
-func (b *BlockChain) addOrphanBlock(block *dcrutil.Block) {
-	// Remove expired orphan blocks.
-	for _, oBlock := range b.orphans {
-		if time.Now().After(oBlock.expiration) {
-			b.removeOrphanBlock(oBlock)
-			continue
-		}
-
-		// Update the oldest orphan block pointer so it can be discarded
-		// in case the orphan pool fills up.
-		if b.oldestOrphan == nil ||
-			oBlock.expiration.Before(b.oldestOrphan.expiration) {
-			b.oldestOrphan = oBlock
-		}
-	}
-
-	// Limit orphan blocks to prevent memory exhaustion.
-	if len(b.orphans)+1 > maxOrphanBlocks {
-		// Remove the oldest orphan to make room for the new one.
-		b.removeOrphanBlock(b.oldestOrphan)
-		b.oldestOrphan = nil
-	}
-
-	// Protect concurrent access.  This is intentionally done here instead
-	// of near the top since removeOrphanBlock does its own locking and
-	// the range iterator is not invalidated by removing map entries.
-	b.orphanLock.Lock()
-	defer b.orphanLock.Unlock()
-
-	// Insert the block into the orphan map with an expiration time
-	// 1 hour from now.
-	expiration := time.Now().Add(time.Hour)
-	oBlock := &orphanBlock{
-		block:      block,
-		expiration: expiration,
-	}
-	b.orphans[*block.Hash()] = oBlock
-
-	// Add to previous hash lookup index for faster dependency lookups.
-	prevHash := &block.MsgBlock().Header.PrevBlock
-	b.prevOrphans[*prevHash] = append(b.prevOrphans[*prevHash], oBlock)
 }
 
 // TipGeneration returns the entire generation of blocks stemming from the
@@ -568,14 +419,6 @@ func (b *BlockChain) fetchBlockByNode(node *blockNode) (*dcrutil.Block, error) {
 	b.mainChainBlockCacheLock.RUnlock()
 	if ok {
 		return block, nil
-	}
-
-	// Check orphan cache.
-	b.orphanLock.RLock()
-	orphan, existsOrphans := b.orphans[node.hash]
-	b.orphanLock.RUnlock()
-	if existsOrphans {
-		return orphan.block, nil
 	}
 
 	// Load the block from the database.
@@ -2163,8 +2006,6 @@ func New(ctx context.Context, config *Config) (*BlockChain, error) {
 		subsidyCache:                  subsidyCache,
 		index:                         newBlockIndex(config.DB),
 		bestChain:                     newChainView(nil),
-		orphans:                       make(map[chainhash.Hash]*orphanBlock),
-		prevOrphans:                   make(map[chainhash.Hash][]*orphanBlock),
 		mainChainBlockCache:           make(map[chainhash.Hash]*dcrutil.Block),
 		deploymentCaches:              newThresholdCaches(params),
 		isVoterMajorityVersionCache:   make(map[[stakeMajorityCacheKeySize]byte]bool),
