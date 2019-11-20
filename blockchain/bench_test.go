@@ -15,9 +15,9 @@ func BenchmarkAncestor(b *testing.B) {
 	// 	0 -> 1 -> 2 -> ... -> 499997 -> 499998 -> 499999  -> 500000
 	// 	                                      \-> 499999a
 	// 	                            \-> 499998a
-	branch0Nodes := chainedFakeNodes(nil, 500001)
-	branch1Nodes := chainedFakeNodes(branch0Nodes[499998], 1)
-	branch2Nodes := chainedFakeNodes(branch0Nodes[499997], 1)
+	branch0Nodes := chainedFakeSkipListNodes(nil, 500001)
+	branch1Nodes := chainedFakeSkipListNodes(branch0Nodes[499998], 1)
+	branch2Nodes := chainedFakeSkipListNodes(branch0Nodes[499997], 1)
 
 	b.ReportAllocs()
 	b.ResetTimer()

@@ -5,6 +5,7 @@
 package blockchain
 
 import (
+	"math/rand"
 	"reflect"
 	"testing"
 	"time"
@@ -234,6 +235,64 @@ func TestChainTips(t *testing.T) {
 		if _, ok := chainTips[node]; !ok {
 			t.Fatalf("block index does not contain expected tip %s (height %d)",
 				node.hash, node.height)
+		}
+	}
+}
+
+// TestAncestorSkipList ensures the skip list functionality and ancestor
+// traversal that makes use of it works as expected.
+func TestAncestorSkipList(t *testing.T) {
+	// Create fake nodes to use for skip list traversal.
+	nodes := chainedFakeSkipListNodes(nil, 250000)
+
+	// Ensure the skip list is constructed correctly by checking that each node
+	// points to an ancestor with a lower height and that said ancestor is
+	// actually the node at that height.
+	for i, node := range nodes[1:] {
+		ancestorHeight := node.skipToAncestor.height
+		if ancestorHeight >= int64(i+1) {
+			t.Fatalf("height for skip list pointer %d is not lower than "+
+				"current node height %d", ancestorHeight, int64(i+1))
+		}
+
+		if node.skipToAncestor != nodes[ancestorHeight] {
+			t.Fatalf("unxpected node for skip list pointer for height %d",
+				ancestorHeight)
+		}
+	}
+
+	// Use a unique random seed each test instance and log it if the tests fail.
+	seed := time.Now().Unix()
+	rng := rand.New(rand.NewSource(seed))
+	defer func(t *testing.T, seed int64) {
+		if t.Failed() {
+			t.Logf("random seed: %d", seed)
+		}
+	}(t, seed)
+
+	for i := 0; i < 2500; i++ {
+		// Ensure obtaining the ancestor at a random starting height from the
+		// tip is the expected node.
+		startHeight := rng.Int63n(int64(len(nodes) - 1))
+		startNode := nodes[startHeight]
+		if branchTip(nodes).Ancestor(startHeight) != startNode {
+			t.Fatalf("unxpected ancestor for height %d from tip",
+				startHeight)
+		}
+
+		// Ensure obtaining the ancestor at height 0 starting from the node at
+		// the random starting height is the expected node.
+		if startNode.Ancestor(0) != nodes[0] {
+			t.Fatalf("unxpected ancestor for height 0 from start height %d",
+				startHeight)
+		}
+
+		// Ensure obtaining the ancestor from a random ending height starting
+		// from the node at the random starting height is the expected node.
+		endHeight := rng.Int63n(startHeight + 1)
+		if startNode.Ancestor(endHeight) != nodes[endHeight] {
+			t.Fatalf("unxpected ancestor for height %d from start height %d",
+				endHeight, startHeight)
 		}
 	}
 }

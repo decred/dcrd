@@ -305,8 +305,8 @@ func (c *chainView) findFork(node *blockNode) *blockNode {
 	// find the node as well, however, it is more efficient to avoid the
 	// contains check since it is already known that the common node can't
 	// possibly be past the end of the current chain view.  It also allows
-	// this code to take advantage of any potential future optimizations to
-	// the Ancestor function such as using an O(log n) skip list.
+	// this code to take advantage of the Ancestor function which uses a near
+	// O(log n) skip list.
 	chainHeight := c.height()
 	if node.height > chainHeight {
 		node = node.Ancestor(chainHeight)

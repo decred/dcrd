@@ -90,6 +90,10 @@ type blockNode struct {
 	// parent is the parent block for this node.
 	parent *blockNode
 
+	// skipToAncestor is used to provide a skip list to significantly speed up
+	// traversal to ancestors deep in history.
+	skipToAncestor *blockNode
+
 	// hash is the hash of the block this node represents.
 	hash chainhash.Hash
 
@@ -140,6 +144,38 @@ type blockNode struct {
 	votes []stake.VoteVersionTuple
 }
 
+// clearLowestOneBit clears the lowest set bit in the passed value.
+func clearLowestOneBit(n int64) int64 {
+	return n & (n - 1)
+}
+
+// calcSkipListHeight calculates the height of an ancestor block to use when
+// constructing the ancestor traversal skip list.
+func calcSkipListHeight(height int64) int64 {
+	if height < 0 {
+		return 0
+	}
+
+	// Traditional skip lists create multiple levels to achieve expected average
+	// search, insert, and delete costs of O(log n).  Since the blockchain is
+	// append only, there is no need to handle random insertions or deletions,
+	// so this takes advantage of that to effectively create a deterministic
+	// skip list with a single level that is reasonably close to O(log n) in
+	// order to reduce the number of pointers and implementation complexity.
+	//
+	// This calculation is definitely not the most optimal possible in terms of
+	// the number of steps in the worst case, however, it is predominantly
+	// logarithmic, easy to reason about, deterministic, blazing fast to
+	// calculate and can easily be shown to have a worst case performance of
+	// 420 steps for heights up to 4,294,967,296 (2^32) and 1580 steps for
+	// heights up to 2^63 - 1.
+	//
+	// Finally, it also satisfies the only real requirement for proper operation
+	// of the skip list which is for the calculated height to be less than the
+	// provided height.
+	return clearLowestOneBit(clearLowestOneBit(height))
+}
+
 // initBlockNode initializes a block node from the given header, initialization
 // vector for the ticket lottery, and parent node.  The workSum is calculated
 // based on the parent, or, in the case no parent is provided, it will just be
@@ -172,6 +208,7 @@ func initBlockNode(node *blockNode, blockHeader *wire.BlockHeader, parent *block
 	}
 	if parent != nil {
 		node.parent = parent
+		node.skipToAncestor = parent.Ancestor(calcSkipListHeight(node.height))
 		node.workSum = node.workSum.Add(parent.workSum, node.workSum)
 	}
 }
@@ -258,8 +295,15 @@ func (node *blockNode) Ancestor(height int64) *blockNode {
 	}
 
 	n := node
-	for ; n != nil && n.height != height; n = n.parent {
-		// Intentionally left blank
+	for n != nil && n.height != height {
+		// Skip to the linked ancestor when it won't overshoot the target
+		// height.
+		if n.skipToAncestor != nil && calcSkipListHeight(n.height) >= height {
+			n = n.skipToAncestor
+			continue
+		}
+
+		n = n.parent
 	}
 
 	return n

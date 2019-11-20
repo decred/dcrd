@@ -199,6 +199,29 @@ func chainedFakeNodes(parent *blockNode, numNodes int) []*blockNode {
 	return nodes
 }
 
+// chainedFakeSkipListNodes returns the specified number of nodes populated with
+// only the fields specifically needed to test the skip list functionality and
+// constructed such that each subsequent node points to the previous one to
+// create a chain.  The first node will point to the passed parent which can be
+// nil if desired.
+//
+// This is used over the chainedFakeNodes function for skip list testing because
+// the skip list tests involve large numbers of nodes which take much longer to
+// create with all of the other fields populated by said function.
+func chainedFakeSkipListNodes(parent *blockNode, numNodes int) []*blockNode {
+	nodes := make([]*blockNode, numNodes)
+	for i := 0; i < numNodes; i++ {
+		node := &blockNode{parent: parent, height: int64(i)}
+		if parent != nil {
+			node.skipToAncestor = nodes[calcSkipListHeight(int64(i))]
+		}
+		parent = node
+
+		nodes[i] = node
+	}
+	return nodes
+}
+
 // branchTip is a convenience function to grab the tip of a chain of block nodes
 // created via chainedFakeNodes.
 func branchTip(nodes []*blockNode) *blockNode {
