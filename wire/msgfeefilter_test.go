@@ -193,6 +193,5 @@ func TestFeeFilterWireErrors(t *testing.T) {
 				continue
 			}
 		}
-
 	}
 }

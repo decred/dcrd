@@ -214,7 +214,6 @@ func (m *CPUMiner) submitBlock(block *dcrutil.Block) bool {
 		// Other rule errors should be reported.
 		minrLog.Errorf("Block submitted via CPU miner rejected: %v", err)
 		return false
-
 	}
 	if isOrphan {
 		minrLog.Errorf("Block submitted via CPU miner is an orphan building "+

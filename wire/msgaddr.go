@@ -124,7 +124,6 @@ func (msg *MsgAddr) MaxPayloadLength(pver uint32) uint32 {
 	// addresses * max address size.
 	return uint32(VarIntSerializeSize(MaxAddrPerMsg)) +
 		(MaxAddrPerMsg * maxNetAddressPayload(pver))
-
 }
 
 // NewMsgAddr returns a new bitcoin addr message that conforms to the

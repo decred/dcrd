@@ -60,7 +60,6 @@ type MsgBlock struct {
 func (msg *MsgBlock) AddTransaction(tx *MsgTx) error {
 	msg.Transactions = append(msg.Transactions, tx)
 	return nil
-
 }
 
 // AddSTransaction adds a stake transaction to the message.

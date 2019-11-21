@@ -14,7 +14,6 @@ import (
 )
 
 func ExampleAmount() {
-
 	a := dcrutil.Amount(0)
 	fmt.Println("Zero Atom:", a)
 

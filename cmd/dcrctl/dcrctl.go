@@ -164,7 +164,6 @@ func main() {
 			os.Exit(1)
 		}
 		fmt.Println(dst.String())
-
 	} else if strings.HasPrefix(strResult, `"`) {
 		var str string
 		if err := json.Unmarshal(result, &str); err != nil {
@@ -173,7 +172,6 @@ func main() {
 			os.Exit(1)
 		}
 		fmt.Println(str)
-
 	} else if strResult != "null" {
 		fmt.Println(strResult)
 	}

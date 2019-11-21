@@ -319,7 +319,6 @@ func TestSSGen(t *testing.T) {
 	if !stake.IsSSGen(ssgen.MsgTx()) {
 		t.Errorf("IsSSGen claimed a valid ssgen is invalid")
 	}
-
 }
 
 // TestSSGenErrors ensures the CheckSSGen and IsSSGen functions correctly

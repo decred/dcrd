@@ -534,7 +534,6 @@ func TestNetAddressKey(t *testing.T) {
 			continue
 		}
 	}
-
 }
 
 func TestCorruptPeersFile(t *testing.T) {

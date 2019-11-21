@@ -177,7 +177,6 @@ func MakeScriptTokenizer(scriptVersion uint16, script []byte) ScriptTokenizer {
 	if scriptVersion != 0 {
 		str := fmt.Sprintf("script version %d is not supported", scriptVersion)
 		err = scriptError(ErrUnsupportedScriptVersion, str)
-
 	}
 	return ScriptTokenizer{version: scriptVersion, script: script, err: err}
 }

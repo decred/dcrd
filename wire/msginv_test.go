@@ -269,6 +269,5 @@ func TestInvWireErrors(t *testing.T) {
 				continue
 			}
 		}
-
 	}
 }

@@ -165,7 +165,6 @@ func TestGetPreciseSigOps(t *testing.T) {
 		if count != test.nSigOps {
 			t.Errorf("%s: expected count of %d, got %d", test.name,
 				test.nSigOps, count)
-
 		}
 	}
 }

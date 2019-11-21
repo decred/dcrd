@@ -574,7 +574,6 @@ func TestVarStringOverflowErrors(t *testing.T) {
 			continue
 		}
 	}
-
 }
 
 // TestVarBytesWire tests wire encode and decode for variable length byte array.
@@ -707,7 +706,6 @@ func TestVarBytesOverflowErrors(t *testing.T) {
 			continue
 		}
 	}
-
 }
 
 // TestRandomUint64 exercises the randomness of the random number generator on

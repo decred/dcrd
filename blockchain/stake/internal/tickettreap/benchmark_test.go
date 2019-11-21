@@ -87,5 +87,4 @@ func BenchmarkImmutableIterate(b *testing.B) {
 			return true
 		})
 	}
-
 }

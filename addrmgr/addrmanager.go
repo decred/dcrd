@@ -302,7 +302,6 @@ func (a *AddrManager) pickTried(bucket int) int {
 			oldest = ka
 			idx = i
 		}
-
 	}
 	return idx
 }
@@ -703,7 +702,6 @@ func (a *AddrManager) AddressCache() []*wire.NetAddress {
 // reset resets the address manager by reinitialising the random source
 // and allocating fresh empty bucket storage.
 func (a *AddrManager) reset() {
-
 	a.addrIndex = make(map[string]*KnownAddress)
 
 	// fill key with bytes from a good random source.

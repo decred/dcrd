@@ -543,7 +543,6 @@ testloop:
 		if len(test) != 3 {
 			t.Errorf("bad test (bad length) %d: %v", i, test)
 			continue
-
 		}
 		serializedhex, ok := test[1].(string)
 		if !ok {
@@ -650,7 +649,6 @@ testloop:
 			if err != nil {
 				continue testloop
 			}
-
 		}
 		t.Errorf("test (%d:%v) succeeded when should fail",
 			i, test)

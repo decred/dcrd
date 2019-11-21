@@ -1001,7 +1001,6 @@ func TestGenerateProvablyPruneableOut(t *testing.T) {
 			t.Errorf("GenerateProvablyPruneableOut: #%d (%s) %v",
 				i, test.name, e)
 			continue
-
 		}
 
 		// Check that the expected result was returned.

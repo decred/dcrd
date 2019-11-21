@@ -76,7 +76,6 @@ func TestScriptBuilderAddOp(t *testing.T) {
 			continue
 		}
 	}
-
 }
 
 // TestScriptBuilderAddInt64 tests that pushing signed integers to a script via

@@ -278,7 +278,6 @@ func (vm *Engine) executeOpcode(op *opcode, data []byte) error {
 				MaxOpsPerScript)
 			return scriptError(ErrTooManyOperations, str)
 		}
-
 	} else if len(data) > MaxScriptElementSize {
 		str := fmt.Sprintf("element size %d exceeds max allowed size %d",
 			len(data), MaxScriptElementSize)

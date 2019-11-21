@@ -1506,7 +1506,6 @@ func (tx *transaction) FetchBlockRegion(region *database.BlockRegion) ([]byte, e
 			"exceeds block length of %d", region.Hash,
 			region.Offset, region.Len, location.blockLen)
 		return nil, makeDbErr(database.ErrBlockRegionInvalid, str, nil)
-
 	}
 
 	// Read the region from the appropriate disk block file.
