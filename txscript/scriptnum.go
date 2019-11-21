@@ -152,7 +152,6 @@ func (n scriptNum) Bytes() []byte {
 			extraByte = 0x80
 		}
 		result = append(result, extraByte)
-
 	} else if isNegative {
 		result[len(result)-1] |= 0x80
 	}

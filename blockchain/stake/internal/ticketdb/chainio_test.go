@@ -187,7 +187,6 @@ func TestBestChainStateSerialization(t *testing.T) {
 				"mismatched state - got %v, want %v", i,
 				test.name, state, test.state)
 			continue
-
 		}
 	}
 }
@@ -281,7 +280,6 @@ func TestBlockUndoDataSerializing(t *testing.T) {
 				"mismatched state - got %v, want %v", i,
 				test.name, utds, test.utds)
 			continue
-
 		}
 	}
 }
@@ -371,7 +369,6 @@ func TestTicketHashesSerializing(t *testing.T) {
 				"mismatched state - got %v, want %v", i,
 				test.name, ths, test.ths)
 			continue
-
 		}
 	}
 }

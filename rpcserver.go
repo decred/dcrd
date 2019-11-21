@@ -2095,7 +2095,6 @@ func handleGetBlockHeader(_ context.Context, s *rpcServer, cmd interface{}) (int
 	}
 
 	return blockHeaderReply, nil
-
 }
 
 // handleGetBlockSubsidy implements the getblocksubsidy command.
@@ -3955,7 +3954,6 @@ func handleSearchRawTransactions(_ context.Context, s *rpcServer, cmd interface{
 			context := "Failed to load address index entries"
 			return nil, rpcInternalError(err.Error(), context)
 		}
-
 	}
 
 	// Add transactions from mempool last if client did not request reverse

@@ -131,7 +131,6 @@ func showCandidate(candidateNum int, checkpoint *chaincfg.Checkpoint) {
 
 	fmt.Printf("Candidate %d -- Height: %d, Hash: %v\n", candidateNum,
 		checkpoint.Height, checkpoint.Hash)
-
 }
 
 func main() {

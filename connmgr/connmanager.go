@@ -294,7 +294,6 @@ out:
 					log.Debugf("Canceling: %v", connReq)
 					delete(pending, msg.id)
 					continue
-
 				}
 
 				// An existing connection was located, mark as

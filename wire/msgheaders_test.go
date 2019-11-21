@@ -389,6 +389,5 @@ func TestHeadersWireErrors(t *testing.T) {
 				continue
 			}
 		}
-
 	}
 }

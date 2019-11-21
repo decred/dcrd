@@ -637,7 +637,6 @@ func TestCancelIgnoreDelayedConnection(t *testing.T) {
 		t.Fatalf("on-connect should not be called for canceled req")
 	case <-ctx.Done():
 	}
-
 }
 
 // mockListener implements the net.Listener interface and is used to test

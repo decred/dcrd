@@ -46,7 +46,6 @@ func TestChainSvrCmds(t *testing.T) {
 			newCmd: func() (interface{}, error) {
 				return dcrjson.NewCmd(Method("createrawtransaction"), `[{"amount":0.0123,"txid":"123","vout":1}]`,
 					`{"456":0.0123}`)
-
 			},
 			staticCmd: func() interface{} {
 				txInputs := []TransactionInput{
@@ -66,7 +65,6 @@ func TestChainSvrCmds(t *testing.T) {
 			newCmd: func() (interface{}, error) {
 				return dcrjson.NewCmd(Method("createrawtransaction"), `[{"amount":0.0123,"txid":"123","vout":1,"tree":0}]`,
 					`{"456":0.0123}`, int64(12312333333), int64(12312333333))
-
 			},
 			staticCmd: func() interface{} {
 				txInputs := []TransactionInput{

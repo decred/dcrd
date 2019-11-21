@@ -89,14 +89,12 @@ func TestVersion(t *testing.T) {
 	if _, ok := err.(*MessageError); !ok {
 		t.Errorf("AddUserAgent: expected error not received "+
 			"- got %v, want %T", err, MessageError{})
-
 	}
 
 	// Version message should not have any services set by default.
 	if msg.Services != 0 {
 		t.Errorf("NewMsgVersion: wrong default services - got %v, want %v",
 			msg.Services, 0)
-
 	}
 	if msg.HasService(SFNodeNetwork) {
 		t.Errorf("HasService: SFNodeNetwork service is set")

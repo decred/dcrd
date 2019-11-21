@@ -1398,7 +1398,6 @@ func testFetchBlockIO(tc *testContext, tx database.Tx) bool {
 	if err != nil {
 		tc.t.Errorf("FetchBlockRegions: unexpected error: %v", err)
 		return false
-
 	}
 	if len(allRegionBytes) != len(allBlockRegions) {
 		tc.t.Errorf("FetchBlockRegions: unexpected number of results "+
