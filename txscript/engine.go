@@ -60,6 +60,11 @@ const (
 
 	// MaxScriptSize is the maximum allowed length of a raw script.
 	MaxScriptSize = 16384
+
+	// noCondDisableDepth is the nesting depth which indicates that no
+	// conditional opcodes have been encountered that cause the current
+	// execution state to be disabled.
+	noCondDisableDepth = -1
 )
 
 // halforder is used to tame ECDSA malleability (see BIP0062).
@@ -129,9 +134,6 @@ type Engine struct {
 	// astack is the alternate data stack the various opcodes push and pop data
 	// to and from during execution.
 	//
-	// condStack tracks the conditional execution state with support for
-	// multiple nested conditional execution opcodes.
-	//
 	// numOps tracks the total number of non-push operations in a script and is
 	// primarily used to enforce maximum limits.
 	scripts         [][]byte
@@ -142,8 +144,52 @@ type Engine struct {
 	savedFirstStack [][]byte
 	dstack          stack
 	astack          stack
-	condStack       []int
 	numOps          int
+
+	// The following fields keep track of the current conditional execution
+	// state of the engine with support for multiple nested conditional
+	// execution opcodes.
+	//
+	// Each time a conditional opcode is encountered the conditional nesting
+	// depth is incremented.  This is the case even in an unexecuted branch so
+	// proper nesting is maintained.  On the other hand, when a conditional
+	// branch is terminated, the nesting depth is decremented.
+	//
+	// Whenever one of the aforementioned conditional opcodes that indicates
+	// branch execution needs to be disabled is encountered, execution of any
+	// opcodes in that branch, and any nested conditional branches, is disabled
+	// until the disabled conditional branch is terminated.
+	//
+	// In other words, only the current nesting depth and the nesting depth that
+	// caused branch execution to be disabled needs to be tracked and execution
+	// becomes enabled again once the nesting depth is reduced to that depth.
+	//
+	// For example, consider the following script and nesting depth diagram:
+	//
+	//  TRUE IF FALSE IF <opcodes> TRUE IF <opcodes> ENDIF ENDIF ENDIF <opcodes>
+	//  |      |        |                 |               |     |     |        |
+	//  |      |        |                  ----depth 3----      |     |        |
+	//  |      |         ----------depth 2----------------------      |        |
+	//  |       -------------------depth 1----------------------------         |
+	//   --------------------------depth 0-------------------------------------
+	//
+	// The first IF is TRUE, so branch execution is unchanged and the current
+	// nesting depth is increased from 0 to 1.  The second IF is FALSE, so
+	// branch execution is disabled at nesting depth 1 and the current nesting
+	// depth is increased from 1 to 2.  Branch execution is already disabled for
+	// the third IF, so its value has no effect, but the current nesting depth
+	// is increased from 2 to 3.  The first ENDIF reduces the current nesting
+	// depth from 3 to 2.  The second ENDIF reduces the current nesting depth
+	// from 2 to 1 and since the branch execution was disabled at depth 1,
+	// branch execution is enabled again.  The third ENDIF reduces the nesting
+	// depth from 1 to 0.
+	//
+	// condNestDepth is the current conditional execution nesting depth.
+	//
+	// condDisableDepth is the nesting depth that caused conditional branch
+	// execution to be disabled, or the value `noCondDisableDepth`.
+	condNestDepth    int32
+	condDisableDepth int32
 }
 
 // hasFlag returns whether the script engine instance has the passed flag set.
@@ -156,10 +202,7 @@ func (vm *Engine) hasFlag(flag ScriptFlags) bool {
 // and an OP_IF is encountered, the branch is inactive until an OP_ELSE or
 // OP_ENDIF is encountered.  It properly handles nested conditionals.
 func (vm *Engine) isBranchExecuting() bool {
-	if len(vm.condStack) == 0 {
-		return true
-	}
-	return vm.condStack[len(vm.condStack)-1] == OpCondTrue
+	return vm.condDisableDepth == noCondDisableDepth
 }
 
 // isOpcodeDisabled returns whether or not the opcode is disabled and thus is
@@ -472,7 +515,7 @@ func (vm *Engine) Step() (done bool, err error) {
 	vm.opcodeIdx++
 	if vm.tokenizer.Done() {
 		// Illegal to have a conditional that straddles two scripts.
-		if len(vm.condStack) != 0 {
+		if vm.condNestDepth != 0 {
 			return false, scriptError(ErrUnbalancedConditional,
 				"end of script reached in conditional execution")
 		}
@@ -957,6 +1000,7 @@ func NewEngine(scriptPubKey []byte, tx *wire.MsgTx, txIdx int, flags ScriptFlags
 
 	vm.tx = *tx
 	vm.txIdx = txIdx
+	vm.condDisableDepth = noCondDisableDepth
 
 	return &vm, nil
 }

@@ -308,6 +308,8 @@ const (
 )
 
 // Conditional execution constants.
+//
+// Deprecated: This will be removed in the next major version bump.
 const (
 	OpCondFalse = 0
 	OpCondTrue  = 1
@@ -782,21 +784,23 @@ func opcodeNop(op *opcode, data []byte, vm *Engine) error {
 // it is on a non-executing branch so proper nesting is maintained.
 //
 // Data stack transformation: [... bool] -> [...]
-// Conditional stack transformation: [...] -> [... OpCondValue]
 func opcodeIf(op *opcode, data []byte, vm *Engine) error {
-	condVal := OpCondFalse
 	if vm.isBranchExecuting() {
 		ok, err := vm.dstack.PopBool()
 		if err != nil {
 			return err
 		}
-		if ok {
-			condVal = OpCondTrue
+		if !ok {
+			// Branch execution is being disabled when it was not previously, so
+			// mark the current conditional nesting depth as the depth at which
+			// it was disabled.
+			vm.condDisableDepth = vm.condNestDepth
 		}
-	} else {
-		condVal = OpCondSkip
 	}
-	vm.condStack = append(vm.condStack, condVal)
+
+	// Increment the conditional execution nesting depth to account for the
+	// conditional opcode.
+	vm.condNestDepth++
 	return nil
 }
 
@@ -815,45 +819,51 @@ func opcodeIf(op *opcode, data []byte, vm *Engine) error {
 // it is on a non-executing branch so proper nesting is maintained.
 //
 // Data stack transformation: [... bool] -> [...]
-// Conditional stack transformation: [...] -> [... OpCondValue]
 func opcodeNotIf(op *opcode, data []byte, vm *Engine) error {
-	condVal := OpCondFalse
 	if vm.isBranchExecuting() {
 		ok, err := vm.dstack.PopBool()
 		if err != nil {
 			return err
 		}
-		if !ok {
-			condVal = OpCondTrue
+		if ok {
+			// Branch execution is being disabled when it was not previously, so
+			// mark the current conditional nesting depth as the depth at which
+			// it was disabled.
+			vm.condDisableDepth = vm.condNestDepth
 		}
-	} else {
-		condVal = OpCondSkip
 	}
-	vm.condStack = append(vm.condStack, condVal)
+
+	// Increment the conditional execution nesting depth to account for the
+	// conditional opcode.
+	vm.condNestDepth++
 	return nil
 }
 
 // opcodeElse inverts conditional execution for other half of if/else/endif.
 //
 // An error is returned if there has not already been a matching OP_IF.
-//
-// Conditional stack transformation: [... OpCondValue] -> [... !OpCondValue]
 func opcodeElse(op *opcode, data []byte, vm *Engine) error {
-	if len(vm.condStack) == 0 {
+	if vm.condNestDepth == 0 {
 		str := fmt.Sprintf("encountered opcode %s with no matching "+
 			"opcode to begin conditional execution", op.name)
 		return scriptError(ErrUnbalancedConditional, str)
 	}
 
-	conditionalIdx := len(vm.condStack) - 1
-	switch vm.condStack[conditionalIdx] {
-	case OpCondTrue:
-		vm.condStack[conditionalIdx] = OpCondFalse
-	case OpCondFalse:
-		vm.condStack[conditionalIdx] = OpCondTrue
-	case OpCondSkip:
-		// Value doesn't change in skip since it indicates this opcode
-		// is nested in a non-executed branch.
+	conditionalDepth := vm.condNestDepth - 1
+	switch {
+	case vm.isBranchExecuting():
+		// Branch execution is being disabled when it was not previously, so
+		// mark the most recent conditional nesting depth as the depth at which
+		// it was disabled.
+		vm.condDisableDepth = conditionalDepth
+
+	case vm.condDisableDepth == conditionalDepth:
+		// Enable branch execution when it was previously disabled as a result
+		// of the opcode at the depth that is being toggled.
+		vm.condDisableDepth = noCondDisableDepth
+
+	default:
+		// No effect since this opcode is nested in a non-executed branch.
 	}
 	return nil
 }
@@ -862,16 +872,20 @@ func opcodeElse(op *opcode, data []byte, vm *Engine) error {
 // conditional execution stack.
 //
 // An error is returned if there has not already been a matching OP_IF.
-//
-// Conditional stack transformation: [... OpCondValue] -> [...]
 func opcodeEndif(op *opcode, data []byte, vm *Engine) error {
-	if len(vm.condStack) == 0 {
+	if vm.condNestDepth == 0 {
 		str := fmt.Sprintf("encountered opcode %s with no matching "+
 			"opcode to begin conditional execution", op.name)
 		return scriptError(ErrUnbalancedConditional, str)
 	}
 
-	vm.condStack = vm.condStack[:len(vm.condStack)-1]
+	// Decrement the conditional execution nesting depth and enable branch
+	// execution if it was previously disabled as a result of the opcode at
+	// that depth.
+	vm.condNestDepth--
+	if vm.condDisableDepth == vm.condNestDepth {
+		vm.condDisableDepth = noCondDisableDepth
+	}
 	return nil
 }
 
