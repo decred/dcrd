@@ -2849,11 +2849,18 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB, chainP
 		indexManager = indexers.NewManager(db, indexes, chainParams)
 	}
 
+	// Only configure checkpoints when enabled.
+	var checkpoints []chaincfg.Checkpoint
+	if !cfg.DisableCheckpoints {
+		checkpoints = s.chainParams.Checkpoints
+	}
+
 	// Create a new block chain instance with the appropriate configuration.
 	s.chain, err = blockchain.New(ctx,
 		&blockchain.Config{
 			DB:          s.db,
 			ChainParams: s.chainParams,
+			Checkpoints: checkpoints,
 			TimeSource:  s.timeSource,
 			Notifications: func(notification *blockchain.Notification) {
 				if s.blockManager != nil {

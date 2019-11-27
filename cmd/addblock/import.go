@@ -340,6 +340,7 @@ func newBlockImporter(db database.DB, r io.ReadSeeker) (*blockImporter, error) {
 		&blockchain.Config{
 			DB:           db,
 			ChainParams:  activeNetParams,
+			Checkpoints:  activeNetParams.Checkpoints,
 			TimeSource:   blockchain.NewMedianTime(),
 			IndexManager: indexManager,
 		})

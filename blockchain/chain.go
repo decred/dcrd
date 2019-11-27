@@ -134,6 +134,7 @@ type BlockChain struct {
 	// The following fields are set when the instance is created and can't
 	// be changed afterwards, so there is no need to protect them with a
 	// separate mutex.
+	checkpoints         []chaincfg.Checkpoint
 	checkpointsByHeight map[int64]*chaincfg.Checkpoint
 	deploymentVers      map[string]uint32
 	db                  database.DB
@@ -152,10 +153,9 @@ type BlockChain struct {
 	// fields in this struct below this point.
 	chainLock sync.RWMutex
 
-	// These fields are configuration parameters that can be toggled at
-	// runtime.  They are protected by the chain lock.
-	noVerify      bool
-	noCheckpoints bool
+	// This field is a configuration parameter that can be toggled at runtime.
+	// It is protected by the chain lock.
+	noVerify bool
 
 	// These fields are related to the memory block index.  They both have
 	// their own locks, however they are often also protected by the chain
@@ -692,7 +692,11 @@ func (b *BlockChain) connectBlock(node *blockNode, block, parent *dcrutil.Block,
 
 	// Optimization: Before checkpoints, immediately dump the parent's stake
 	// node because we no longer need it.
-	if node.height < b.chainParams.LatestCheckpointHeight() {
+	var latestCheckpointHeight int64
+	if len(b.checkpoints) > 0 {
+		latestCheckpointHeight = b.checkpoints[len(b.checkpoints)-1].Height
+	}
+	if node.height < latestCheckpointHeight {
 		parent := b.bestChain.Tip().parent
 		parent.stakeNode = nil
 		parent.newTickets = nil
@@ -1919,6 +1923,14 @@ type Config struct {
 	// This field is required.
 	ChainParams *chaincfg.Params
 
+	// Checkpoints specifies caller-defined checkpoints that are typically the
+	// default checkpoints in ChainParams or additional checkpoints added to
+	// them.  Checkpoints must be sorted by height.
+	//
+	// This field can be nil if the caller does not wish to specify any
+	// checkpoints.
+	Checkpoints []chaincfg.Checkpoint
+
 	// TimeSource defines the median time source to use for things such as
 	// block processing and determining whether or not the chain is current.
 	//
@@ -1973,11 +1985,18 @@ func New(ctx context.Context, config *Config) (*BlockChain, error) {
 	// Generate a checkpoint by height map from the provided checkpoints.
 	params := config.ChainParams
 	var checkpointsByHeight map[int64]*chaincfg.Checkpoint
-	if len(params.Checkpoints) > 0 {
+	var prevCheckpointHeight int64
+	if len(config.Checkpoints) > 0 {
 		checkpointsByHeight = make(map[int64]*chaincfg.Checkpoint)
-		for i := range params.Checkpoints {
-			checkpoint := &params.Checkpoints[i]
+		for i := range config.Checkpoints {
+			checkpoint := &config.Checkpoints[i]
+			if checkpoint.Height <= prevCheckpointHeight {
+				return nil, AssertError("blockchain.New checkpoints are not " +
+					"sorted by height")
+			}
+
 			checkpointsByHeight[checkpoint.Height] = checkpoint
+			prevCheckpointHeight = checkpoint.Height
 		}
 	}
 
@@ -1995,6 +2014,7 @@ func New(ctx context.Context, config *Config) (*BlockChain, error) {
 	}
 
 	b := BlockChain{
+		checkpoints:                   config.Checkpoints,
 		checkpointsByHeight:           checkpointsByHeight,
 		deploymentVers:                deploymentVers,
 		db:                            config.DB,

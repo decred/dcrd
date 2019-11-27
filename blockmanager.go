@@ -2461,7 +2461,6 @@ func newBlockManager(config *blockManagerConfig) (*blockManager, error) {
 	}
 
 	best := bm.cfg.Chain.BestSnapshot()
-	bm.cfg.Chain.DisableCheckpoints(cfg.DisableCheckpoints)
 	if !cfg.DisableCheckpoints {
 		// Initialize the next checkpoint based on the current height.
 		bm.nextCheckpoint = bm.findNextHeaderCheckpoint(best.Height)
