@@ -1911,6 +1911,17 @@ func (b *BlockChain) initChainState(ctx context.Context) error {
 			return err
 		}
 
+		// Find the most recent checkpoint.
+		for i := len(b.checkpoints) - 1; i >= 0; i-- {
+			node := b.index.lookupNode(b.checkpoints[i].Hash)
+			if node != nil {
+				log.Debugf("Most recent checkpoint is %s (height %d)",
+					node.hash, node.height)
+				b.checkpointNode = node
+				break
+			}
+		}
+
 		b.stateSnapshot = newBestState(tip, blockSize, numTxns,
 			state.totalTxns, tip.CalcPastMedianTime(),
 			state.totalSubsidy, uint32(tip.stakeNode.PoolSize()),

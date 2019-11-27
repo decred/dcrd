@@ -183,9 +183,9 @@ type BlockChain struct {
 	disapprovedViewLock sync.Mutex
 	disapprovedView     *UtxoViewpoint
 
-	// These fields are related to checkpoint handling.  They are protected
-	// by the chain lock.
-	nextCheckpoint *chaincfg.Checkpoint
+	// checkpointNode tracks the most recently known checkpoint.  It will be nil
+	// when no checkpoints are known or are disabled.  It is protected by the
+	// chain lock.
 	checkpointNode *blockNode
 
 	// The state is used as a fairly efficient way to cache information

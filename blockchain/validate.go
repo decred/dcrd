@@ -918,18 +918,14 @@ func (b *BlockChain) checkBlockHeaderPositional(header *wire.BlockHeader, prevNo
 		return ruleError(ErrBadCheckpoint, str)
 	}
 
-	// Find the previous checkpoint and prevent blocks which fork the main
-	// chain before it.  This prevents storage of new, otherwise valid,
-	// blocks which build off of old blocks that are likely at a much easier
-	// difficulty and therefore could be used to waste cache and disk space.
-	checkpointNode, err := b.findPreviousCheckpoint()
-	if err != nil {
-		return err
-	}
-	if checkpointNode != nil && blockHeight < checkpointNode.height {
+	// Prevent blocks that fork the main chain before the most recently known
+	// checkpoint.  This prevents storage of new, otherwise valid, blocks which
+	// build off of old blocks that are likely at a much easier difficulty and
+	// therefore could be used to waste cache and disk space.
+	if b.checkpointNode != nil && blockHeight < b.checkpointNode.height {
 		str := fmt.Sprintf("block at height %d forks the main chain "+
 			"before the previous checkpoint at height %d",
-			blockHeight, checkpointNode.height)
+			blockHeight, b.checkpointNode.height)
 		return ruleError(ErrForkTooOld, str)
 	}
 

@@ -137,6 +137,9 @@ func (b *BlockChain) maybeAcceptBlock(block *dcrutil.Block, flags BehaviorFlags)
 		return 0, err
 	}
 
+	// Potentially update the most recently known checkpoint to this block.
+	b.maybeUpdateMostRecentCheckpoint(newNode)
+
 	// Notify the caller that the new block was accepted into the block
 	// chain.  The caller would typically want to react by relaying the
 	// inventory to other peers unless it was already relayed above
