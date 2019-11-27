@@ -22,43 +22,6 @@ var (
 	bigZero = big.NewInt(0)
 )
 
-// calcEasiestDifficulty calculates the easiest possible difficulty that a block
-// can have given starting difficulty bits and a duration.  It is mainly used to
-// verify that claimed proof of work by a block is sane as compared to a
-// known good checkpoint.
-func (b *BlockChain) calcEasiestDifficulty(bits uint32, duration time.Duration) uint32 {
-	// Convert types used in the calculations below.
-	durationVal := int64(duration)
-	adjustmentFactor := big.NewInt(b.chainParams.RetargetAdjustmentFactor)
-	maxRetargetTimespan := int64(b.chainParams.TargetTimespan) *
-		b.chainParams.RetargetAdjustmentFactor
-
-	// The test network rules allow minimum difficulty blocks once too much
-	// time has elapsed without mining a block.
-	if b.chainParams.ReduceMinDifficulty {
-		if durationVal > int64(b.chainParams.MinDiffReductionTime) {
-			return b.chainParams.PowLimitBits
-		}
-	}
-
-	// Since easier difficulty equates to higher numbers, the easiest
-	// difficulty for a given duration is the largest value possible given
-	// the number of retargets for the duration and starting difficulty
-	// multiplied by the max adjustment factor.
-	newTarget := standalone.CompactToBig(bits)
-	for durationVal > 0 && newTarget.Cmp(b.chainParams.PowLimit) < 0 {
-		newTarget.Mul(newTarget, adjustmentFactor)
-		durationVal -= maxRetargetTimespan
-	}
-
-	// Limit new value to the proof of work limit.
-	if newTarget.Cmp(b.chainParams.PowLimit) > 0 {
-		newTarget.Set(b.chainParams.PowLimit)
-	}
-
-	return standalone.BigToCompact(newTarget)
-}
-
 // findPrevTestNetDifficulty returns the difficulty of the previous block which
 // did not have the special testnet minimum difficulty rule applied.
 //

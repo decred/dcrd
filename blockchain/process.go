@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/decred/dcrd/blockchain/standalone"
 	"github.com/decred/dcrd/dcrutil/v3"
 )
 
@@ -51,8 +50,6 @@ func (b *BlockChain) ProcessBlock(block *dcrutil.Block, flags BehaviorFlags) (in
 	b.chainLock.Lock()
 	defer b.chainLock.Unlock()
 
-	fastAdd := flags&BFFastAdd == BFFastAdd
-
 	blockHash := block.Hash()
 	log.Tracef("Processing block %v", blockHash)
 	currentTime := time.Now()
@@ -74,48 +71,8 @@ func (b *BlockChain) ProcessBlock(block *dcrutil.Block, flags BehaviorFlags) (in
 		return 0, err
 	}
 
-	// Find the previous checkpoint and perform some additional checks based
-	// on the checkpoint.  This provides a few nice properties such as
-	// preventing old side chain blocks before the last checkpoint,
-	// rejecting easy to mine, but otherwise bogus, blocks that could be
-	// used to eat memory, and ensuring expected (versus claimed) proof of
-	// work requirements since the previous checkpoint are met.
-	blockHeader := &block.MsgBlock().Header
-	checkpointNode, err := b.findPreviousCheckpoint()
-	if err != nil {
-		return 0, err
-	}
-	if checkpointNode != nil {
-		// Ensure the block timestamp is after the checkpoint timestamp.
-		checkpointTime := time.Unix(checkpointNode.timestamp, 0)
-		if blockHeader.Timestamp.Before(checkpointTime) {
-			str := fmt.Sprintf("block %v has timestamp %v before "+
-				"last checkpoint timestamp %v", blockHash,
-				blockHeader.Timestamp, checkpointTime)
-			return 0, ruleError(ErrCheckpointTimeTooOld, str)
-		}
-
-		if !fastAdd {
-			// Even though the checks prior to now have already ensured the
-			// proof of work exceeds the claimed amount, the claimed amount
-			// is a field in the block header which could be forged.  This
-			// check ensures the proof of work is at least the minimum
-			// expected based on elapsed time since the last checkpoint and
-			// maximum adjustment allowed by the retarget rules.
-			duration := blockHeader.Timestamp.Sub(checkpointTime)
-			requiredTarget := standalone.CompactToBig(b.calcEasiestDifficulty(
-				checkpointNode.bits, duration))
-			currentTarget := standalone.CompactToBig(blockHeader.Bits)
-			if currentTarget.Cmp(requiredTarget) > 0 {
-				str := fmt.Sprintf("block target difficulty of %064x "+
-					"is too low when compared to the previous "+
-					"checkpoint", currentTarget)
-				return 0, ruleError(ErrDifficultyTooLow, str)
-			}
-		}
-	}
-
 	// This function should never be called with orphans or the genesis block.
+	blockHeader := &block.MsgBlock().Header
 	prevHash := &blockHeader.PrevBlock
 	if !b.index.HaveBlock(prevHash) {
 		// The fork length of orphans is unknown since they, by definition, do
