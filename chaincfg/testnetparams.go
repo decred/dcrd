@@ -242,5 +242,10 @@ func TestNet3Params() *Params {
 		OrganizationPkScript:        hexDecode("a914d585cd7426d25b4ea5faf1e6987aacfeda3db94287"),
 		OrganizationPkScriptVersion: 0,
 		BlockOneLedger:              tokenPayouts_TestNet3Params(),
+
+		seeders: []string{
+			"testnet-seed-1.decred.org",
+			"testnet-seed-2.decred.org",
+		},
 	}
 }
