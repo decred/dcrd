@@ -353,5 +353,7 @@ func RegNetParams() *Params {
 		OrganizationPkScript:        hexDecode("a9146913bcc838bd0087fb3f6b3c868423d5e300078d87"),
 		OrganizationPkScriptVersion: 0,
 		BlockOneLedger:              tokenPayouts_RegNetParams(),
+
+		seeders: nil, // NOTE: There must NOT be any seeds.
 	}
 }

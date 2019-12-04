@@ -454,6 +454,10 @@ type Params struct {
 	// block height 1. If there are no payouts to be given, set this
 	// to an empty slice.
 	BlockOneLedger []TokenPayout
+
+	// seeders defines a list of seeders for the network that are used
+	// as one method to discover peers.
+	seeders []string
 }
 
 // HDPrivKeyVersion returns the hierarchical deterministic extended private key
@@ -655,4 +659,9 @@ func (p *Params) LatestCheckpointHeight() int64 {
 		return 0
 	}
 	return p.Checkpoints[len(p.Checkpoints)-1].Height
+}
+
+// Seeders returns the list of HTTP seeders.
+func (p *Params) Seeders() []string {
+	return p.seeders
 }
