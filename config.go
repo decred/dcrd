@@ -125,7 +125,7 @@ type config struct {
 	RPCMaxConcurrentReqs int           `long:"rpcmaxconcurrentreqs" description:"Max number of concurrent RPC requests that may be processed concurrently"`
 	DisableRPC           bool          `long:"norpc" description:"Disable built-in RPC server -- NOTE: The RPC server is disabled by default if no rpcuser/rpcpass or rpclimituser/rpclimitpass is specified"`
 	DisableTLS           bool          `long:"notls" description:"Disable TLS for the RPC server -- NOTE: This is only allowed if the RPC server is bound to localhost"`
-	DisableDNSSeed       bool          `long:"nodnsseed" description:"Disable DNS seeding for peers"`
+	DisableSeeders       bool          `long:"noseeders" description:"Disable seeding for peer discovery"`
 	ExternalIPs          []string      `long:"externalip" description:"Add an ip to the list of local addresses we claim to listen on to peers"`
 	Proxy                string        `long:"proxy" description:"Connect via SOCKS5 proxy (eg. 127.0.0.1:9050)"`
 	ProxyUser            string        `long:"proxyuser" description:"Username for proxy server"`
@@ -188,6 +188,8 @@ type config struct {
 	ipv6NetInfo          types.NetworksResult
 	onionNetInfo         types.NetworksResult
 	params               *params
+
+	DisableDNSSeed bool `long:"nodnsseed" description:"DEPRECATED: use --noseeders"`
 }
 
 // serviceOptions defines the configuration options for the daemon as a service on
@@ -679,6 +681,11 @@ func loadConfig() (*config, []string, error) {
 		return nil, nil, err
 	}
 
+	if cfg.DisableDNSSeed {
+		cfg.DisableSeeders = true
+		fmt.Fprintln(os.Stderr, "The --nodnsseed is deprecated: use --noseeders")
+	}
+
 	// Multiple networks can't be selected simultaneously.  Count number of
 	// network flags passed and assign active network params.
 	numNets := 0
@@ -690,7 +697,7 @@ func loadConfig() (*config, []string, error) {
 		numNets++
 		// Also disable dns seeding on the simulation test network.
 		cfg.params = &simNetParams
-		cfg.DisableDNSSeed = true
+		cfg.DisableSeeders = true
 	}
 	if cfg.RegNet {
 		numNets++
@@ -859,9 +866,9 @@ func loadConfig() (*config, []string, error) {
 		cfg.DisableListen = true
 	}
 
-	// Connect means no DNS seeding.
+	// Connect means no seeding.
 	if len(cfg.ConnectPeers) > 0 {
-		cfg.DisableDNSSeed = true
+		cfg.DisableSeeders = true
 	}
 
 	// Add the default listener if none were specified. The default

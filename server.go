@@ -2132,7 +2132,7 @@ func (s *server) peerHandler(ctx context.Context) {
 		},
 	}
 
-	if !cfg.DisableDNSSeed {
+	if !cfg.DisableSeeders {
 		// Add peers discovered through DNS to the address manager.
 		seeds := s.chainParams.Seeders()
 		for _, seed := range seeds {
