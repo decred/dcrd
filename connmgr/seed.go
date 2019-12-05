@@ -19,13 +19,13 @@ import (
 )
 
 const (
-	// These constants are used by the DNS seed code to pick a random last
+	// These constants are used by the seed code to pick a random last
 	// seen time.
 	secondsIn3Days int32 = 24 * 60 * 60 * 3
 	secondsIn4Days int32 = 24 * 60 * 60 * 4
 )
 
-// OnSeed is the signature of the callback function which is invoked when DNS
+// OnSeed is the signature of the callback function which is invoked when
 // seeding is successful.
 type OnSeed func(addrs []*wire.NetAddress)
 
@@ -36,6 +36,8 @@ type LookupFunc func(string) ([]net.IP, error)
 type DialFunc func(context.Context, string, string) (net.Conn, error)
 
 // SeedFromDNS uses DNS seeding to populate the address manager with peers.
+//
+// Deprecated: This will be removed in the next major version bump.
 func SeedFromDNS(dnsSeeds []string, defaultPort uint16, reqServices wire.ServiceFlag, lookupFn LookupFunc, seedFn OnSeed) {
 	for _, seed := range dnsSeeds {
 		host := seed

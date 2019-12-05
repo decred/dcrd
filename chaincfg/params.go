@@ -168,6 +168,8 @@ type TokenPayout struct {
 }
 
 // DNSSeed identifies a DNS seed.
+//
+// Deprecated: This will be removed in the next major version bump.
 type DNSSeed struct {
 	// Host defines the hostname of the seed.
 	Host string
@@ -197,6 +199,8 @@ type Params struct {
 
 	// DNSSeeds defines a list of DNS seeds for the network that are used
 	// as one method to discover peers.
+	//
+	// Deprecated: This will be removed in the next major version bump.
 	DNSSeeds []DNSSeed
 
 	// GenesisBlock defines the first block of the chain.
