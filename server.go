@@ -2134,21 +2134,23 @@ func (s *server) peerHandler(ctx context.Context) {
 
 	if !cfg.DisableDNSSeed {
 		// Add peers discovered through DNS to the address manager.
-		params := s.chainParams
-		seeds := make([]string, 0, len(params.DNSSeeds))
-		for _, seed := range params.DNSSeeds {
-			seeds = append(seeds, seed.Host)
+		seeds := s.chainParams.Seeders()
+		for _, seed := range seeds {
+			go func(seed string) {
+				err := connmgr.SeedAddrs(ctx, seed, 0, 0, defaultRequiredServices,
+					dcrdDial, func(addrs []*wire.NetAddress) {
+						// Bitcoind uses a lookup of the dns seeder here. This
+						// is rather strange since the values looked up by the
+						// DNS seed lookups will vary quite a lot.
+						// to replicate this behaviour we put all addresses as
+						// having come from the first one.
+						s.addrManager.AddAddresses(addrs, addrs[0])
+					})
+				if err != nil {
+					srvrLog.Infof("seeder '%s' error: %v", seed, err)
+				}
+			}(seed)
 		}
-		defaultPort, _ := strconv.Atoi(params.DefaultPort)
-		connmgr.SeedFromDNS(seeds, uint16(defaultPort), defaultRequiredServices,
-			dcrdLookup, func(addrs []*wire.NetAddress) {
-				// Bitcoind uses a lookup of the dns seeder here. This
-				// is rather strange since the values looked up by the
-				// DNS seed lookups will vary quite a lot.
-				// to replicate this behaviour we put all addresses as
-				// having come from the first one.
-				s.addrManager.AddAddresses(addrs, addrs[0])
-			})
 	}
 	go s.connManager.Start()
 
