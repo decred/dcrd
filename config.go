@@ -1122,7 +1122,7 @@ func loadConfig() (*config, []string, error) {
 		cfg.dial = proxy.DialContext
 		if !cfg.NoOnion {
 			cfg.lookup = func(host string) ([]net.IP, error) {
-				return connmgr.TorLookupIP(host, cfg.Proxy)
+				return connmgr.TorLookupIPContext(context.Background(), host, cfg.Proxy)
 			}
 		}
 	}
@@ -1162,7 +1162,7 @@ func loadConfig() (*config, []string, error) {
 			return proxy.DialContext(ctx, a, b)
 		}
 		cfg.onionlookup = func(host string) ([]net.IP, error) {
-			return connmgr.TorLookupIP(host, cfg.OnionProxy)
+			return connmgr.TorLookupIPContext(context.Background(), host, cfg.OnionProxy)
 		}
 	} else {
 		cfg.oniondial = cfg.dial
