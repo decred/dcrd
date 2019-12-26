@@ -201,19 +201,6 @@ func (b *BlockChain) calcNextRequiredDifficulty(curNode *blockNode, newBlockTime
 	return nextDiffBits, nil
 }
 
-// CalcNextRequiredDiffFromNode calculates the required difficulty for the block
-// given with the passed hash along with the given timestamp.
-//
-// This function is NOT safe for concurrent access.
-func (b *BlockChain) CalcNextRequiredDiffFromNode(hash *chainhash.Hash, timestamp time.Time) (uint32, error) {
-	node := b.index.LookupNode(hash)
-	if node == nil {
-		return 0, fmt.Errorf("block %s is not known", hash)
-	}
-
-	return b.calcNextRequiredDifficulty(node, timestamp)
-}
-
 // CalcNextRequiredDifficulty calculates the required difficulty for the block
 // after the given block based on the difficulty retarget rules.
 //
