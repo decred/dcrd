@@ -730,7 +730,7 @@ func handleTooFewVoters(subsidyCache *standalone.SubsidyCache, nextHeight int64,
 			parentHash := topBlock.MsgBlock().Header.PrevBlock
 
 			requiredDifficulty, err :=
-				bm.CalcNextRequiredDiffNode(&parentHash, ts)
+				bm.cfg.Chain.CalcNextRequiredDifficulty(&parentHash, ts)
 			if err != nil {
 				return nil, miningRuleError(ErrGettingDifficulty,
 					err.Error())
@@ -1680,7 +1680,7 @@ mempoolLoop:
 	// is potentially adjusted to ensure it comes after the median time of
 	// the last several blocks per the chain consensus rules.
 	ts := medianAdjustedTime(best, g.timeSource)
-	reqDifficulty, err := g.chain.CalcNextRequiredDifficulty(ts)
+	reqDifficulty, err := g.chain.CalcNextRequiredDifficulty(&prevHash, ts)
 	if err != nil {
 		return nil, miningRuleError(ErrGettingDifficulty, err.Error())
 	}
@@ -1889,7 +1889,8 @@ func (g *BlkTmplGenerator) UpdateBlockTime(header *wire.BlockHeader) error {
 	// If running on a network that requires recalculating the difficulty,
 	// do so now.
 	if g.chainParams.ReduceMinDifficulty {
-		difficulty, err := g.chain.CalcNextRequiredDifficulty(newTimestamp)
+		difficulty, err := g.chain.CalcNextRequiredDifficulty(&header.PrevBlock,
+			newTimestamp)
 		if err != nil {
 			return miningRuleError(ErrGettingDifficulty, err.Error())
 		}

@@ -1642,7 +1642,7 @@ out:
 
 			case calcNextReqDiffNodeMsg:
 				difficulty, err :=
-					b.cfg.Chain.CalcNextRequiredDiffFromNode(msg.hash,
+					b.cfg.Chain.CalcNextRequiredDifficulty(msg.hash,
 						msg.timestamp)
 				msg.reply <- calcNextReqDifficultyResponse{
 					difficulty: difficulty,
