@@ -136,29 +136,6 @@ type requestFromPeerResponse struct {
 	err error
 }
 
-// calcNextReqDifficultyResponse is a response sent to the reply channel of a
-// calcNextReqDifficultyMsg query.
-type calcNextReqDifficultyResponse struct {
-	difficulty uint32
-	err        error
-}
-
-// calcNextReqDifficultyMsg is a message type to be sent across the message
-// channel for requesting the required difficulty of the next block.
-type calcNextReqDifficultyMsg struct {
-	timestamp time.Time
-	reply     chan calcNextReqDifficultyResponse
-}
-
-// calcNextReqDiffNodeMsg is a message type to be sent across the message
-// channel for requesting the required difficulty for some block building on
-// the given block hash.
-type calcNextReqDiffNodeMsg struct {
-	hash      *chainhash.Hash
-	timestamp time.Time
-	reply     chan calcNextReqDifficultyResponse
-}
-
 // calcNextReqStakeDifficultyResponse is a response sent to the reply channel of a
 // calcNextReqStakeDifficultyMsg query.
 type calcNextReqStakeDifficultyResponse struct {
@@ -1640,15 +1617,6 @@ out:
 					err: err,
 				}
 
-			case calcNextReqDiffNodeMsg:
-				difficulty, err :=
-					b.cfg.Chain.CalcNextRequiredDifficulty(msg.hash,
-						msg.timestamp)
-				msg.reply <- calcNextReqDifficultyResponse{
-					difficulty: difficulty,
-					err:        err,
-				}
-
 			case calcNextReqStakeDifficultyMsg:
 				stakeDiff, err := b.cfg.Chain.CalcNextRequiredStakeDifficulty()
 				msg.reply <- calcNextReqStakeDifficultyResponse{
@@ -2341,34 +2309,6 @@ func (b *blockManager) requestFromPeer(p *peerpkg.Peer, blocks, txs []*chainhash
 	}
 
 	return nil
-}
-
-// CalcNextRequiredDifficulty calculates the required difficulty for the next
-// block after the current main chain.  This function makes use of
-// CalcNextRequiredDifficulty on an internal instance of a block chain.  It is
-// funneled through the block manager since blockchain is not safe for concurrent
-// access.
-func (b *blockManager) CalcNextRequiredDifficulty(timestamp time.Time) (uint32, error) {
-	reply := make(chan calcNextReqDifficultyResponse)
-	b.msgChan <- calcNextReqDifficultyMsg{timestamp: timestamp, reply: reply}
-	response := <-reply
-	return response.difficulty, response.err
-}
-
-// CalcNextRequiredDiffNode calculates the required difficulty for the next
-// block after the passed block hash.  This function makes use of
-// CalcNextRequiredDiffFromNode on an internal instance of a block chain.  It is
-// funneled through the block manager since blockchain is not safe for concurrent
-// access.
-func (b *blockManager) CalcNextRequiredDiffNode(hash *chainhash.Hash, timestamp time.Time) (uint32, error) {
-	reply := make(chan calcNextReqDifficultyResponse)
-	b.msgChan <- calcNextReqDiffNodeMsg{
-		hash:      hash,
-		timestamp: timestamp,
-		reply:     reply,
-	}
-	response := <-reply
-	return response.difficulty, response.err
 }
 
 // CalcNextRequiredStakeDifficulty calculates the required Stake difficulty for
