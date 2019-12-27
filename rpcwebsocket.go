@@ -637,6 +637,10 @@ out:
 				delete(blockNotifications, wsc.quit)
 				delete(workNotifications, wsc.quit)
 				delete(txNotifications, wsc.quit)
+				delete(winningTicketNotifications, wsc.quit)
+				delete(ticketSMNotifications, wsc.quit)
+				delete(ticketNewNotifications, wsc.quit)
+				delete(stakeDifficultyNotifications, wsc.quit)
 				delete(clients, wsc.quit)
 
 			case *notificationRegisterNewMempoolTxs:
