@@ -203,6 +203,173 @@ func TestCanDecodeUnlimtedBech32(t *testing.T) {
 	}
 }
 
+// TestBech32Base256 ensures decoding and encoding various bech32, HRPs, and
+// data produces the expected results when using EncodeFromBase256 and
+// DecodeToBase256.  It includes tests for proper handling of case
+// manipulations.
+func TestBech32Base256(t *testing.T) {
+	tests := []struct {
+		name    string // test name
+		encoded string // bech32 string to decode
+		hrp     string // expected human-readable part
+		data    string // expected hex-encoded data
+		err     error  // expected error
+	}{{
+		name:    "all uppercase, no data",
+		encoded: "A12UEL5L",
+		hrp:     "a",
+		data:    "",
+	}, {
+		name:    "long hrp with separator and excluded chars, no data",
+		encoded: "an83characterlonghumanreadablepartthatcontainsthenumber1andtheexcludedcharactersbio1tt5tgs",
+		hrp:     "an83characterlonghumanreadablepartthatcontainsthenumber1andtheexcludedcharactersbio",
+		data:    "",
+	}, {
+		name:    "6 char hrp with data with leading zero",
+		encoded: "abcdef1qpzry9x8gf2tvdw0s3jn54khce6mua7lmqqqxw",
+		hrp:     "abcdef",
+		data:    "00443214c74254b635cf84653a56d7c675be77df",
+	}, {
+		name:    "hrp same as separator and max length encoded string",
+		encoded: "11qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqc8247j",
+		hrp:     "1",
+		data:    "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+	}, {
+		name:    "5 char hrp with data chosen to produce human-readable data part",
+		encoded: "split1checkupstagehandshakeupstreamerranterredcaperred2y9e3w",
+		hrp:     "split",
+		data:    "c5f38b70305f519bf66d85fb6cf03058f3dde463ecd7918f2dc743918f2d",
+	}, {
+		name:    "same as previous but with checksum invalidated",
+		encoded: "split1checkupstagehandshakeupstreamerranterredcaperred2y9e2w",
+		err:     ErrInvalidChecksum{"2y9e3w", "2y9e2w"},
+	}, {
+		name:    "hrp with invalid character (space)",
+		encoded: "s lit1checkupstagehandshakeupstreamerranterredcaperredp8hs2p",
+		err:     ErrInvalidCharacter(' '),
+	}, {
+		name:    "hrp with invalid character (DEL)",
+		encoded: "spl\x7ft1checkupstagehandshakeupstreamerranterredcaperred2y9e3w",
+		err:     ErrInvalidCharacter(127),
+	}, {
+		name:    "data part with invalid character (o)",
+		encoded: "split1cheo2y9e2w",
+		err:     ErrNonCharsetChar('o'),
+	}, {
+		name:    "data part too short",
+		encoded: "split1a2y9w",
+		err:     ErrInvalidSeparatorIndex(5),
+	}, {
+		name:    "empty hrp",
+		encoded: "1checkupstagehandshakeupstreamerranterredcaperred2y9e3w",
+		err:     ErrInvalidSeparatorIndex(0),
+	}, {
+		name:    "no separator",
+		encoded: "pzry9x0s0muk",
+		err:     ErrInvalidSeparatorIndex(-1),
+	}, {
+		name:    "too long by one char",
+		encoded: "11qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqsqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqc8247j",
+		err:     ErrInvalidLength(91),
+	}, {
+		name:    "invalid due to mixed case in hrp",
+		encoded: "aBcdef1qpzry9x8gf2tvdw0s3jn54khce6mua7lmqqqxw",
+		err:     ErrMixedCase{},
+	}, {
+		name:    "invalid due to mixed case in data part",
+		encoded: "abcdef1Qpzry9x8gf2tvdw0s3jn54khce6mua7lmqqqxw",
+		err:     ErrMixedCase{},
+	}}
+
+	for _, test := range tests {
+		// Ensure the decode either produces an error or not as expected.
+		str := test.encoded
+		gotHRP, gotData, err := DecodeToBase256(str)
+		if test.err != err {
+			t.Errorf("%q: unexpected decode error -- got %v, want %v",
+				test.name, err, test.err)
+			continue
+		}
+		if err != nil {
+			// End test case here if a decoding error was expected.
+			continue
+		}
+
+		// Ensure the expected HRP and original data are as expected.
+		if gotHRP != test.hrp {
+			t.Errorf("%q: mismatched decoded HRP -- got %q, want %q", test.name,
+				gotHRP, test.hrp)
+			continue
+		}
+		data, err := hex.DecodeString(test.data)
+		if err != nil {
+			t.Errorf("%q: invalid hex %q: %v", test.name, test.data, err)
+			continue
+		}
+		if !bytes.Equal(gotData, data) {
+			t.Errorf("%q: mismatched data -- got %x, want %x", test.name,
+				gotData, data)
+			continue
+		}
+
+		// Encode the same data with the HRP converted to all uppercase and
+		// ensure the result is the lowercase version of the original encoded
+		// bech32 string.
+		gotEncoded, err := EncodeFromBase256(strings.ToUpper(test.hrp), data)
+		if err != nil {
+			t.Errorf("%q: unexpected uppercase HRP encode error: %v", test.name,
+				err)
+		}
+		wantEncoded := strings.ToLower(str)
+		if gotEncoded != wantEncoded {
+			t.Errorf("%q: mismatched encoding -- got %q, want %q", test.name,
+				gotEncoded, wantEncoded)
+		}
+
+		// Encode the same data with the HRP converted to all lowercase and
+		// ensure the result is the lowercase version of the original encoded
+		// bech32 string.
+		gotEncoded, err = EncodeFromBase256(strings.ToLower(test.hrp), data)
+		if err != nil {
+			t.Errorf("%q: unexpected lowercase HRP encode error: %v", test.name,
+				err)
+		}
+		if gotEncoded != wantEncoded {
+			t.Errorf("%q: mismatched encoding -- got %q, want %q", test.name,
+				gotEncoded, wantEncoded)
+		}
+
+		// Encode the same data with the HRP converted to mixed upper and
+		// lowercase and ensure the result is the lowercase version of the
+		// original encoded bech32 string.
+		var mixedHRPBuilder strings.Builder
+		for i, r := range test.hrp {
+			if i%2 == 0 {
+				mixedHRPBuilder.WriteString(strings.ToUpper(string(r)))
+				continue
+			}
+			mixedHRPBuilder.WriteRune(r)
+		}
+		gotEncoded, err = EncodeFromBase256(mixedHRPBuilder.String(), data)
+		if err != nil {
+			t.Errorf("%q: unexpected lowercase HRP encode error: %v", test.name,
+				err)
+		}
+		if gotEncoded != wantEncoded {
+			t.Errorf("%q: mismatched encoding -- got %q, want %q", test.name,
+				gotEncoded, wantEncoded)
+		}
+
+		// Ensure a bit flip in the string is caught.
+		pos := strings.LastIndexAny(test.encoded, "1")
+		flipped := str[:pos+1] + string((str[pos+1] ^ 1)) + str[pos+2:]
+		_, _, err = DecodeToBase256(flipped)
+		if err == nil {
+			t.Error("expected decoding to fail")
+		}
+	}
+}
+
 // BenchmarkEncodeDecodeCycle performs a benchmark for a full encode/decode
 // cycle of a bech32 string. It also reports the allocation count, which we
 // expect to be 2 for a fully optimized cycle.

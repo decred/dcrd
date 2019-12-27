@@ -348,3 +348,31 @@ func ConvertBits(data []byte, fromBits, toBits uint8, pad bool) ([]byte, error) 
 
 	return regrouped, nil
 }
+
+// EncodeFromBase256 converts a base256-encoded byte slice into a base32-encoded
+// byte slice and then encodes it into a bech32 string with the given
+// human-readable part (HRP).  The HRP will be converted to lowercase if needed
+// since mixed cased encodings are not permitted and lowercase is used for
+// checksum purposes.
+func EncodeFromBase256(hrp string, data []byte) (string, error) {
+	converted, err := ConvertBits(data, 8, 5, true)
+	if err != nil {
+		return "", err
+	}
+	return Encode(hrp, converted)
+}
+
+// DecodeToBase256 decodes a bech32-encoded string into its associated
+// human-readable part (HRP) and base32-encoded data, converts that data to a
+// base256-encoded byte slice and returns it along with the lowercase HRP.
+func DecodeToBase256(bech string) (string, []byte, error) {
+	hrp, data, err := Decode(bech)
+	if err != nil {
+		return "", nil, err
+	}
+	converted, err := ConvertBits(data, 5, 8, false)
+	if err != nil {
+		return "", nil, err
+	}
+	return hrp, converted, nil
+}
