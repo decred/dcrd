@@ -150,12 +150,13 @@ func bech32VerifyChecksum(hrp string, data []byte) bool {
 }
 
 // DecodeNoLimit decodes a bech32 encoded string, returning the human-readable
-// part and the data part excluding the checksum. This function does NOT
+// part and the data part excluding the checksum.  This function does NOT
 // validate against the BIP-173 maximum length allowed for bech32 strings and
 // is meant for use in custom applications (such as lightning network payment
 // requests), NOT on-chain addresses.
 //
-// Note that the returned data is 5-bit (base32) encoded.
+// Note that the returned data is 5-bit (base32) encoded and the human-readable
+// part will be lowercase.
 func DecodeNoLimit(bech string) (string, []byte, error) {
 	// The minimum allowed size of a bech32 string is 8 characters, since it
 	// needs a non-empty HRP, a separator, and a 6 character checksum.
@@ -234,7 +235,8 @@ func DecodeNoLimit(bech string) (string, []byte, error) {
 // Decode decodes a bech32 encoded string, returning the human-readable part and
 // the data part excluding the checksum.
 //
-// Note that the returned data is 5-bit (base32) encoded.
+// Note that the returned data is 5-bit (base32) encoded and the human-readable
+// part will be lowercase.
 func Decode(bech string) (string, []byte, error) {
 	// The maximum allowed length for a bech32 string is 90.
 	if len(bech) > 90 {
@@ -244,13 +246,14 @@ func Decode(bech string) (string, []byte, error) {
 	return DecodeNoLimit(bech)
 }
 
-// Encode encodes a byte slice into a bech32 string with the
-// human-readable part hrb. Note that the bytes must each encode 5 bits
-// (base32).
+// Encode encodes a byte slice into a bech32 string with the given
+// human-readable part (HRP).  The HRP will be converted to lowercase if needed
+// since mixed cased encodings are not permitted and lowercase is used for
+// checksum purposes.  Note that the bytes must each encode 5 bits (base32).
 func Encode(hrp string, data []byte) (string, error) {
-
-	// The resulting bech32 string is the concatenation of the hrp, the
-	// separator 1, data and the 6-byte checksum.
+	// The resulting bech32 string is the concatenation of the lowercase hrp,
+	// the separator 1, data and the 6-byte checksum.
+	hrp = strings.ToLower(hrp)
 	var bldr strings.Builder
 	bldr.Grow(len(hrp) + 1 + len(data) + 6)
 	bldr.WriteString(hrp)

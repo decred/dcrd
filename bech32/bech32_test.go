@@ -86,6 +86,95 @@ func TestBech32(t *testing.T) {
 	}
 }
 
+// TestMixedCaseEncode ensures mixed case HRPs are converted to lowercase as
+// expected when encoding and that decoding the produced encoding when converted
+// to all uppercase produces the lowercase HRP and original data.
+func TestMixedCaseEncode(t *testing.T) {
+	tests := []struct {
+		name    string
+		hrp     string
+		data    string
+		encoded string
+	}{{
+		name:    "all uppercase HRP with no data",
+		hrp:     "A",
+		data:    "",
+		encoded: "a12uel5l",
+	}, {
+		name:    "all uppercase HRP with data",
+		hrp:     "UPPERCASE",
+		data:    "787878",
+		encoded: "uppercase10pu8sss7kmp",
+	}, {
+		name:    "mixed case HRP even offsets uppercase",
+		hrp:     "AbCdEf",
+		data:    "00443214c74254b635cf84653a56d7c675be77df",
+		encoded: "abcdef1qpzry9x8gf2tvdw0s3jn54khce6mua7lmqqqxw",
+	}, {
+		name:    "mixed case HRP odd offsets uppercase ",
+		hrp:     "aBcDeF",
+		data:    "00443214c74254b635cf84653a56d7c675be77df",
+		encoded: "abcdef1qpzry9x8gf2tvdw0s3jn54khce6mua7lmqqqxw",
+	}, {
+		name:    "all lowercase HRP",
+		hrp:     "abcdef",
+		data:    "00443214c74254b635cf84653a56d7c675be77df",
+		encoded: "abcdef1qpzry9x8gf2tvdw0s3jn54khce6mua7lmqqqxw",
+	}}
+
+	for _, test := range tests {
+		// Convert the text hex to bytes, convert those bytes from base256 to
+		// base32, then ensure the encoded result with the HRP provided in the
+		// test data is as expected.
+		data, err := hex.DecodeString(test.data)
+		if err != nil {
+			t.Errorf("%q: invalid hex %q: %v", test.name, test.data, err)
+			continue
+		}
+		convertedData, err := ConvertBits(data, 8, 5, true)
+		if err != nil {
+			t.Errorf("%q: unexpected convert bits error: %v", test.name,
+				err)
+			continue
+		}
+		gotEncoded, err := Encode(test.hrp, convertedData)
+		if err != nil {
+			t.Errorf("%q: unexpected encode error: %v", test.name, err)
+			continue
+		}
+		if gotEncoded != test.encoded {
+			t.Errorf("%q: mismatched encoding -- got %q, want %q", test.name,
+				gotEncoded, test.encoded)
+			continue
+		}
+
+		// Ensure the decoding the expected lowercase encoding converted to all
+		// uppercase produces the lowercase HRP and original data.
+		gotHRP, gotData, err := Decode(strings.ToUpper(test.encoded))
+		if err != nil {
+			t.Errorf("%q: unexpected decode error: %v", test.name, err)
+			continue
+		}
+		wantHRP := strings.ToLower(test.hrp)
+		if gotHRP != wantHRP {
+			t.Errorf("%q: mismatched decoded HRP -- got %q, want %q", test.name,
+				gotHRP, wantHRP)
+			continue
+		}
+		convertedGotData, err := ConvertBits(gotData, 5, 8, false)
+		if err != nil {
+			t.Errorf("%q: unexpected convert bits error: %v", test.name,
+				err)
+			continue
+		}
+		if !bytes.Equal(convertedGotData, data) {
+			t.Errorf("%q: mismatched data -- got %x, want %x", test.name,
+				convertedGotData, data)
+			continue
+		}
+	}
+}
+
 // TestCanDecodeUnlimtedBech32 tests whether decoding a large bech32 string works
 // when using the DecodeNoLimit version
 func TestCanDecodeUnlimtedBech32(t *testing.T) {
@@ -118,7 +207,6 @@ func TestCanDecodeUnlimtedBech32(t *testing.T) {
 // cycle of a bech32 string. It also reports the allocation count, which we
 // expect to be 2 for a fully optimized cycle.
 func BenchmarkEncodeDecodeCycle(b *testing.B) {
-
 	// Use a fixed, 49-byte raw data for testing.
 	inputData, err := hex.DecodeString("cbe6365ddbcda9a9915422c3f091c13f8c7b2f263b8d34067bd12c274408473fa764871c9dd51b1bb34873b3473b633ed1")
 	if err != nil {

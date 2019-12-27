@@ -55,5 +55,5 @@ func ExampleEncode() {
 	fmt.Println("Encoded Data:", encoded)
 
 	// Output:
-	// Encoded Data: customHrp!11111q123jhxapqv3shgcgumastr
+	// Encoded Data: customhrp!11111q123jhxapqv3shgcgkxpuhe
 }
