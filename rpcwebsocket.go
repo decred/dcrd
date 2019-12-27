@@ -1992,7 +1992,15 @@ func (c *wsClient) SendMessage(marshalledJSON []byte, doneChan chan bool) {
 		return
 	}
 
-	c.sendChan <- wsResponse{msg: marshalledJSON, doneChan: doneChan}
+	// Use select statement to unblock enqueuing the message once the client has
+	// begun shutting down.
+	select {
+	case c.sendChan <- wsResponse{msg: marshalledJSON, doneChan: doneChan}:
+	case <-c.quit:
+		if doneChan != nil {
+			doneChan <- false
+		}
+	}
 }
 
 // ErrClientQuit describes the error where a client send is not processed due
@@ -2014,7 +2022,14 @@ func (c *wsClient) QueueNotification(marshalledJSON []byte) error {
 		return ErrClientQuit
 	}
 
-	c.ntfnChan <- marshalledJSON
+	// Use select statement to unblock enqueuing the message once the client has
+	// begun shutting down.
+	select {
+	case c.ntfnChan <- marshalledJSON:
+	case <-c.quit:
+		return ErrClientQuit
+	}
+
 	return nil
 }
 
