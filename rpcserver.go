@@ -3448,20 +3448,20 @@ func handleGetWork(ctx context.Context, s *rpcServer, cmd interface{}) (interfac
 			"via --miningaddr", "Configuration")
 	}
 
-	// Return an error if there are no peers connected since there is no
-	// way to relay a found block or receive transactions to work on.
-	// However, allow this state when running in the regression test or
-	// simulation test mode.
-	if !cfg.SimNet && s.cfg.ConnMgr.ConnectedCount() == 0 {
+	// Return an error if there are no peers connected since there is no way to
+	// relay a found block or receive transactions to work on unless
+	// unsynchronized mining has specifically been allowed.
+	if !cfg.AllowUnsyncedMining && s.cfg.ConnMgr.ConnectedCount() == 0 {
 		return nil, &dcrjson.RPCError{
 			Code:    dcrjson.ErrRPCClientNotConnected,
 			Message: "Decred is not connected",
 		}
 	}
 
-	// No point in generating or accepting work before the chain is synced.
+	// No point in generating or accepting work before the chain is synced
+	// unless unsynchronized mining has specifically been allowed.
 	bestHeight := s.cfg.Chain.BestSnapshot().Height
-	if bestHeight != 0 && !s.cfg.Chain.IsCurrent() {
+	if !cfg.AllowUnsyncedMining && bestHeight != 0 && !s.cfg.Chain.IsCurrent() {
 		return nil, &dcrjson.RPCError{
 			Code:    dcrjson.ErrRPCClientInInitialDownload,
 			Message: "Decred is downloading blocks...",

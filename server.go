@@ -2956,7 +2956,7 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB, chainP
 	// Create the background block template generator if the config has a
 	// mining address.
 	if len(cfg.miningAddrs) > 0 {
-		s.bg = newBgBlkTmplGenerator(tg, cfg.miningAddrs, cfg.SimNet)
+		s.bg = newBgBlkTmplGenerator(tg, cfg.miningAddrs, cfg.AllowUnsyncedMining)
 		s.blockManager.cfg.BgBlkTmplGenerator = s.bg
 	}
 

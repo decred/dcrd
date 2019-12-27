@@ -119,8 +119,11 @@ Application Options:
       --nonaggressive       Disable mining off of the parent block of the blockchain
                             if there aren't enough voters
       --nominingstatesync   Disable synchronizing the mining state with other nodes
+      --allowunsyncedmining Allow block templates to be generated even when the
+                            chain is not considered synced on networks other
+                            than the main network -- This is automatically
+                            enabled when the simnet option is set
       --allowoldvotes       Enable the addition of very old votes to the mempool
-
       --sigcachemaxsize=    The maximum number of entries in the signature
                             verification cache.
       --blocksonly          Do not accept transactions from remote peers.

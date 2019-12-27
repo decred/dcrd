@@ -327,6 +327,15 @@ const FileContents = `[Application Options]
 ; by the blockmaxsize option and will be limited as needed.
 ; blockprioritysize=20000
 
+; Allow block templates to be generated even when the chain is not considered
+; synced and there are no connections to other nodes on networks other than the
+; main network.  Specifying this option with the main network will result in a
+; configuration parse error.  This option is automatically enabled when the
+; simulation network is active.
+;
+; NOTE: This is an advanced option and should not be used unless you understand
+; exactly why it exists and what it implications it carries.
+; allowunsyncedmining=0
 
 ; ------------------------------------------------------------------------------
 ; Debug

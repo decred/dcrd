@@ -57,6 +57,7 @@ const (
 	defaultAddrIndex             = false
 	defaultGenerate              = false
 	defaultNoMiningStateSync     = false
+	defaultAllowUnsyncedMining   = false
 	defaultAllowOldVotes         = false
 	defaultMaxOrphanTransactions = 100
 	defaultMaxOrphanTxSize       = mempool.MaxStandardTxSize
@@ -159,6 +160,7 @@ type config struct {
 	SigCacheMaxSize      uint          `long:"sigcachemaxsize" description:"The maximum number of entries in the signature verification cache"`
 	NonAggressive        bool          `long:"nonaggressive" description:"Disable mining off of the parent block of the blockchain if there aren't enough voters"`
 	NoMiningStateSync    bool          `long:"nominingstatesync" description:"Disable synchronizing the mining state with other nodes"`
+	AllowUnsyncedMining  bool          `long:"allowunsyncedmining" description:"Allow block templates to be generated even when the chain is not considered synced on networks other than the main network.  This is automatically enabled when the simnet option is set.  Don't do this unless you know what you're doing."`
 	AllowOldVotes        bool          `long:"allowoldvotes" description:"Enable the addition of very old votes to the mempool"`
 	BlocksOnly           bool          `long:"blocksonly" description:"Do not accept transactions from remote peers."`
 	AcceptNonStd         bool          `long:"acceptnonstd" description:"Accept and relay non-standard transactions to the network regardless of the default settings for the active network."`
@@ -525,6 +527,7 @@ func loadConfig() (*config, []string, error) {
 		SigCacheMaxSize:      defaultSigCacheMaxSize,
 		Generate:             defaultGenerate,
 		NoMiningStateSync:    defaultNoMiningStateSync,
+		AllowUnsyncedMining:  defaultAllowUnsyncedMining,
 		TxIndex:              defaultTxIndex,
 		AddrIndex:            defaultAddrIndex,
 		AllowOldVotes:        defaultAllowOldVotes,
@@ -1029,6 +1032,20 @@ func loadConfig() (*config, []string, error) {
 		fmt.Fprintln(os.Stderr, err)
 		fmt.Fprintln(os.Stderr, usageMessage)
 		return nil, nil, err
+	}
+
+	// Don't allow unsynchronized mining on mainnet.
+	if cfg.AllowUnsyncedMining && cfg.params == &mainNetParams {
+		str := "%s: allowunsyncedmining cannot be activated on mainnet"
+		err := fmt.Errorf(str, funcName)
+		fmt.Fprintln(os.Stderr, err)
+		fmt.Fprintln(os.Stderr, usageMessage)
+		return nil, nil, err
+	}
+
+	// Always allow unsynchronized mining on simnet.
+	if cfg.SimNet {
+		cfg.AllowUnsyncedMining = true
 	}
 
 	// Add default port to all listener addresses if needed and remove
