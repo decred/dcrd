@@ -19,7 +19,7 @@ func fastLog2Ceil(n uint32) uint8 {
 	// not a power of two.
 	rv := uint8(0)
 	if n&(n-1) != 0 {
-		rv += 1
+		rv++
 	}
 	exponent := uint8(16)
 	for i := 0; i < 5; i++ {

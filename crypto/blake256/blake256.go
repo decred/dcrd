@@ -9,13 +9,13 @@ package blake256
 
 import "hash"
 
-// The block size of the hash algorithm in bytes.
+// BlockSize is the block size of the hash algorithm in bytes.
 const BlockSize = 64
 
-// The size of BLAKE-256 hash in bytes.
+// Size is the size of BLAKE-256 hash in bytes.
 const Size = 32
 
-// The size of BLAKE-224 hash in bytes.
+// Size224 is the size of BLAKE-224 hash in bytes.
 const Size224 = 28
 
 type digest struct {
@@ -83,9 +83,9 @@ func (d *digest) Write(p []byte) (nn int, err error) {
 }
 
 // Sum returns the calculated checksum.
-func (d0 *digest) Sum(in []byte) []byte {
-	// Make a copy of d0 so that caller can keep writing and summing.
-	d := *d0
+func (d digest) Sum(in []byte) []byte {
+	// Note d is a copy so that the caller can keep writing and summing.
+
 	sum := d.checkSum()
 	if d.Size() == Size224 {
 		return append(in, sum[:Size224]...)

@@ -67,7 +67,7 @@ func makeError(c ErrorCode, desc string) Error {
 	return Error{ErrorCode: c, Description: desc}
 }
 
-// IsError returns whether err is an Error with a matching error code.
+// IsErrorCode returns whether err is an Error with a matching error code.
 func IsErrorCode(err error, c ErrorCode) bool {
 	e, ok := err.(Error)
 	return ok && e.ErrorCode == c

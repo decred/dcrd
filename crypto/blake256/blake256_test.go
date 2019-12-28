@@ -176,24 +176,24 @@ func TestTwoWrites(t *testing.T) {
 	}
 }
 
-var buf_in = make([]byte, 8<<10)
-var buf_out = make([]byte, 32)
+var bufIn = make([]byte, 8<<10)
+var bufOut = make([]byte, 32)
 
 func Benchmark1K(b *testing.B) {
 	b.SetBytes(1024)
 	for i := 0; i < b.N; i++ {
 		var bench = New()
-		bench.Write(buf_in[:1024])
-		_ = bench.Sum(buf_out[0:0])
+		bench.Write(bufIn[:1024])
+		_ = bench.Sum(bufOut[0:0])
 	}
 }
 
 func Benchmark8K(b *testing.B) {
-	b.SetBytes(int64(len(buf_in)))
+	b.SetBytes(int64(len(bufIn)))
 	for i := 0; i < b.N; i++ {
 		var bench = New()
-		bench.Write(buf_in)
-		_ = bench.Sum(buf_out[0:0])
+		bench.Write(bufIn)
+		_ = bench.Sum(bufOut[0:0])
 	}
 }
 
@@ -201,28 +201,28 @@ func Benchmark64(b *testing.B) {
 	b.SetBytes(64)
 	for i := 0; i < b.N; i++ {
 		var bench = New()
-		bench.Write(buf_in[:64])
-		_ = bench.Sum(buf_out[0:0])
+		bench.Write(bufIn[:64])
+		_ = bench.Sum(bufOut[0:0])
 	}
 }
 
 func Benchmark1KNoAlloc(b *testing.B) {
 	b.SetBytes(1024)
 	for i := 0; i < b.N; i++ {
-		_ = Sum256(buf_in[:1024])
+		_ = Sum256(bufIn[:1024])
 	}
 }
 
 func Benchmark8KNoAlloc(b *testing.B) {
-	b.SetBytes(int64(len(buf_in)))
+	b.SetBytes(int64(len(bufIn)))
 	for i := 0; i < b.N; i++ {
-		_ = Sum256(buf_in)
+		_ = Sum256(bufIn)
 	}
 }
 
 func Benchmark64NoAlloc(b *testing.B) {
 	b.SetBytes(64)
 	for i := 0; i < b.N; i++ {
-		_ = Sum256(buf_in[:64])
+		_ = Sum256(bufIn[:64])
 	}
 }

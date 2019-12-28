@@ -397,7 +397,7 @@ func (f *FilterV1) P() uint8 {
 	return f.b
 }
 
-// NewFilter builds a new version 1 GCS filter with a collision probability of
+// NewFilterV1 builds a new version 1 GCS filter with a collision probability of
 // 1 / 2^P for the given key and data.
 func NewFilterV1(P uint8, key [KeySize]byte, data [][]byte) (*FilterV1, error) {
 	// Basic sanity check.

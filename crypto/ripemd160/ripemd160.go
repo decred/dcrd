@@ -18,10 +18,10 @@ func init() {
 	crypto.RegisterHash(crypto.RIPEMD160, New)
 }
 
-// The size of the checksum in bytes.
+// Size is the size of the checksum in bytes.
 const Size = 20
 
-// The block size of the hash algorithm in bytes.
+// BlockSize is the block size of the hash algorithm in bytes.
 const BlockSize = 64
 
 const (
@@ -83,9 +83,8 @@ func (d *digest) Write(p []byte) (nn int, err error) {
 	return
 }
 
-func (d0 *digest) Sum(in []byte) []byte {
-	// Make a copy of d0 so that caller can keep writing and summing.
-	d := *d0
+func (d digest) Sum(in []byte) []byte {
+	// Note that d is a copy so that the caller can keep writing and summing.
 
 	// Padding.  Add a 1 bit and 0 bits until 56 bytes mod 64.
 	tc := d.tc

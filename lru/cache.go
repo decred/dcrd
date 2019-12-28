@@ -93,8 +93,8 @@ func (m *Cache) Delete(item interface{}) {
 	m.mtx.Unlock()
 }
 
-// Cache returns an initialized and empty LRU cache.  See the documentation for
-// Cache for more details.
+// NewCache returns an initialized and empty LRU cache.  See the documentation
+// for Cache for more details.
 func NewCache(limit uint) Cache {
 	return Cache{
 		cache: make(map[interface{}]*list.Element),

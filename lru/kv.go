@@ -31,7 +31,7 @@ type KVCache struct {
 
 // Lookup returns the associated value of the passed key, if it is a member of
 // the cache. Looking up an existing item makes it the most recently used item.
-
+//
 // This function is safe for concurrent access.
 func (m *KVCache) Lookup(key interface{}) (interface{}, bool) {
 	m.mtx.Lock()

@@ -124,7 +124,7 @@ func TestProcessOrder(t *testing.T) {
 	g.NextBlock("bpw2", outs[2], ticketOuts[2])
 	g.NextBlock("bpw3", outs[3], ticketOuts[3], func(b *wire.MsgBlock) {
 		// Increase the first proof-of-work coinbase subsidy.
-		b.Transactions[0].TxOut[2].Value += 1
+		b.Transactions[0].TxOut[2].Value++
 	})
 	g.AcceptBlock("bpw2")
 	g.RejectBlock("bpw3", ErrBadCoinbaseValue)
@@ -142,7 +142,7 @@ func TestProcessOrder(t *testing.T) {
 	g.NextBlock("bdc2", outs[3], ticketOuts[3])
 	g.NextBlock("bdc3", outs[4], ticketOuts[4], func(b *wire.MsgBlock) {
 		// Increase the proof-of-work dev subsidy by the provided amount.
-		b.Transactions[0].TxOut[0].Value += 1
+		b.Transactions[0].TxOut[0].Value++
 	})
 	g.AcceptBlock("bdc2")
 	g.RejectBlock("bdc3", ErrNoTax)
