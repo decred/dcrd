@@ -20,6 +20,7 @@ require (
 replace (
 	github.com/decred/dcrd/blockchain/stake/v3 => ../blockchain/stake
 	github.com/decred/dcrd/blockchain/v3 => ../blockchain
+	github.com/decred/dcrd/chaincfg/v2 => ../chaincfg
 	github.com/decred/dcrd/dcrutil/v3 => ../dcrutil
 	github.com/decred/dcrd/mining/v3 => ../mining
 	github.com/decred/dcrd/txscript/v3 => ../txscript
