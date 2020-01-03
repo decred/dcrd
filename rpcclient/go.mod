@@ -18,4 +18,7 @@ require (
 	github.com/gorilla/websocket v1.4.1
 )
 
-replace github.com/decred/dcrd/dcrutil/v3 => ../dcrutil
+replace (
+	github.com/decred/dcrd/dcrutil/v3 => ../dcrutil
+	github.com/decred/dcrd/rpc/jsonrpc/types/v2 => ../rpc/jsonrpc/types
+)
