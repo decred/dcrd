@@ -354,24 +354,20 @@ out:
 				cm.handleFailedConn(connReq)
 
 			case handleCancelPending:
-				found := false
+				pendingAddr := msg.addr.String()
 				var idToRemove uint64
-				connReq := &ConnReq{}
+				var connReq *ConnReq
 				for id, req := range pending {
-					if msg.addr.String() == req.Addr.String() {
-						idToRemove = id
-						connReq = req
-						found = true
+					if pendingAddr == req.Addr.String() {
+						idToRemove, connReq = id, req
 						break
 					}
 
 				}
-				if found {
+				if connReq != nil {
 					delete(pending, idToRemove)
 					connReq.updateState(ConnCanceled)
 					log.Debugf("Canceled pending connection to %v", msg.addr)
-				} else {
-					log.Errorf("Did not find connection to cancel at address %v", msg.addr)
 				}
 				close(msg.done)
 			}

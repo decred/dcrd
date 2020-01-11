@@ -105,7 +105,18 @@ func (cm *rpcConnManager) RemoveByAddr(addr string) error {
 		cmp:   func(sp *serverPeer) bool { return sp.Addr() == addr },
 		reply: replyChan,
 	}
-	return <-replyChan
+
+	// Cancel the connection if it could still be pending.
+	err := <-replyChan
+	if err != nil {
+		cm.server.query <- cancelPendingMsg{
+			addr:  addr,
+			reply: replyChan,
+		}
+
+		return <-replyChan
+	}
+	return nil
 }
 
 // DisconnectByID disconnects the peer associated with the provided id.  This
