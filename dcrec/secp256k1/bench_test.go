@@ -1,11 +1,14 @@
 // Copyright 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2019 The Decred developers
+// Copyright (c) 2015-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
 package secp256k1
 
-import "testing"
+import (
+	"math/big"
+	"testing"
+)
 
 // BenchmarkAddJacobian benchmarks the secp256k1 curve addJacobian function with
 // Z values of 1 so that the associated optimizations are used.
@@ -121,4 +124,29 @@ func BenchmarkFieldNormalize(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		f.Normalize()
 	}
+}
+
+// BenchmarkNonceRFC6979 benchmarks how long it takes to generate a
+// deterministic nonce according to RFC6979.
+func BenchmarkNonceRFC6979(b *testing.B) {
+	// Randomly generated keypair.
+	// Private key: 9e0699c91ca1e3b7e3c9ba71eb71c89890872be97576010fe593fbf3fd57e66d
+	// X: d2e670a19c6d753d1a6d8b20bd045df8a08fb162cf508956c31268c6d81ffdab
+	// Y: ab65528eefbb8057aa85d597258a3fbd481a24633bc9b47a9aa045c91371de52
+	privKeyStr := "9e0699c91ca1e3b7e3c9ba71eb71c89890872be97576010fe593fbf3fd57e66d"
+	privKey, ok := new(big.Int).SetString(privKeyStr, 16)
+	if !ok {
+		b.Fatal("Failed to parse private key")
+	}
+
+	// BLAKE-256 of []byte{0x01, 0x02, 0x03, 0x04}.
+	msgHash := decodeHex("c301ba9de5d6053caad9f5eb46523f007702add2c62fa39de03146a36b8026b7")
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	var noElideNonce *big.Int
+	for i := 0; i < b.N; i++ {
+		noElideNonce = NonceRFC6979(privKey, msgHash, nil, nil)
+	}
+	_ = noElideNonce
 }
