@@ -450,11 +450,13 @@ func signRFC6979(privateKey *PrivateKey, hash []byte) (*Signature, error) {
 	return &Signature{R: r, S: s}, nil
 }
 
-// NonceRFC6979 generates an ECDSA nonce (`k`) deterministically according to
-// RFC 6979. It takes a 32-byte hash as an input and returns 32-byte nonce to
-// be used in ECDSA algorithm.
-func NonceRFC6979(privkey *big.Int, hash []byte, extra []byte,
-	version []byte) *big.Int {
+// NonceRFC6979 generates a nonce deterministically according to RFC 6979 using
+// HMAC-SHA256 for the hashing function.  It takes a 32-byte hash as an input
+// and returns a 32-byte nonce to be used for deterministic signing.  The extra
+// and version arguments are optional, but allow additional data to be added to
+// the input of the HMAC.  When provided, the extra data must be 32-bytes and
+// version must be 16 bytes or they will be ignored.
+func NonceRFC6979(privkey *big.Int, hash []byte, extra []byte, version []byte) *big.Int {
 	curve := S256()
 	q := curve.Params().N
 	x := privkey
