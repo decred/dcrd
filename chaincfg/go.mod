@@ -1,4 +1,4 @@
-module github.com/decred/dcrd/chaincfg/v2
+module github.com/decred/dcrd/chaincfg/v3
 
 go 1.11
 
