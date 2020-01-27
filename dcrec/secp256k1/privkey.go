@@ -105,18 +105,3 @@ func (p PrivateKey) Serialize() []byte {
 	b := make([]byte, 0, PrivKeyBytesLen)
 	return paddedAppend(PrivKeyBytesLen, b, p.ToECDSA().D.Bytes())
 }
-
-// SerializeSecret satisfies the chainec PrivateKey interface.
-func (p PrivateKey) SerializeSecret() []byte {
-	return p.Serialize()
-}
-
-// GetD satisfies the chainec PrivateKey interface.
-func (p PrivateKey) GetD() *big.Int {
-	return p.D
-}
-
-// GetType satisfies the chainec PrivateKey interface.
-func (p PrivateKey) GetType() int {
-	return ecTypeSecp256k1
-}

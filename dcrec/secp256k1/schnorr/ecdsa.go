@@ -159,7 +159,7 @@ func schnorrSign(msg []byte, ps []byte, k []byte,
 func Sign(priv *secp256k1.PrivateKey,
 	hash []byte) (r, s *big.Int, err error) {
 	// Convert the private scalar to a 32 byte big endian number.
-	pA := bigIntToEncodedBytes(priv.GetD())
+	pA := bigIntToEncodedBytes(priv.D)
 	defer zeroArray(pA)
 
 	// Generate a 32-byte scalar to use as a nonce. Try RFC6979
@@ -170,8 +170,8 @@ func Sign(priv *secp256k1.PrivateKey,
 		sig, err := schnorrSign(hash, pA[:], kB, nil, nil,
 			chainhash.HashB)
 		if err == nil {
-			r = sig.GetR()
-			s = sig.GetS()
+			r = sig.R
+			s = sig.S
 			break
 		}
 
@@ -219,7 +219,7 @@ func schnorrVerify(sig []byte,
 		return false, schnorrError(ErrInputValue, str)
 	}
 
-	if !curve.IsOnCurve(pubkey.GetX(), pubkey.GetY()) {
+	if !curve.IsOnCurve(pubkey.X, pubkey.Y) {
 		str := fmt.Sprintf("pubkey point is not on curve")
 		return false, schnorrError(ErrPointNotOnCurve, str)
 	}
@@ -260,7 +260,7 @@ func schnorrVerify(sig []byte,
 	}
 
 	// r' = hQ + sG
-	lx, ly := curve.ScalarMult(pubkey.GetX(), pubkey.GetY(), h)
+	lx, ly := curve.ScalarMult(pubkey.X, pubkey.Y, h)
 	rx, ry := curve.ScalarBaseMult(sigS)
 	rlx, rly := curve.Add(lx, ly, rx, ry)
 
@@ -371,7 +371,7 @@ func schnorrRecover(sig, msg []byte,
 	sBig.Mod(sBig, curve.N)
 
 	// Q = h^(-1)R + s'G
-	lx, ly := curve.ScalarMult(rPoint.GetX(), rPoint.GetY(), hInv.Bytes())
+	lx, ly := curve.ScalarMult(rPoint.X, rPoint.Y, hInv.Bytes())
 	rx, ry := curve.ScalarBaseMult(sBig.Bytes())
 	pkx, pky := curve.Add(lx, ly, rx, ry)
 

@@ -574,7 +574,7 @@ func NewAddressSecSchnorrPubKey(serializedPubKey []byte, net AddressParams) (*Ad
 // serialize returns the serialization of the public key according to the
 // format associated with the address.
 func (a *AddressSecSchnorrPubKey) serialize() []byte {
-	return a.pubKey.Serialize()
+	return a.pubKey.SerializeCompressed()
 }
 
 // Address returns the string encoding of the public key as a
@@ -600,7 +600,7 @@ func (a *AddressSecSchnorrPubKey) ScriptAddress() []byte {
 // when an array is more appropriate than a slice (for example, when used as map
 // keys).
 func (a *AddressSecSchnorrPubKey) Hash160() *[ripemd160.Size]byte {
-	h160 := Hash160(a.pubKey.Serialize())
+	h160 := Hash160(a.pubKey.SerializeCompressed())
 	array := new([ripemd160.Size]byte)
 	copy(array[:], h160)
 

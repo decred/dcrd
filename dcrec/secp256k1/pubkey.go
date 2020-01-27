@@ -125,12 +125,6 @@ func (p PublicKey) ToECDSA() *ecdsa.PublicKey {
 	return &ecpk
 }
 
-// Serialize serializes a public key in a 33-byte compressed format.
-// It is the default serialization method.
-func (p PublicKey) Serialize() []byte {
-	return p.SerializeCompressed()
-}
-
 // SerializeUncompressed serializes a public key in a 65-byte uncompressed
 // format.
 func (p PublicKey) SerializeUncompressed() []byte {
@@ -167,24 +161,4 @@ func paddedAppend(size uint, dst, src []byte) []byte {
 		dst = append(dst, 0)
 	}
 	return append(dst, src...)
-}
-
-// GetCurve satisfies the chainec PublicKey interface.
-func (p PublicKey) GetCurve() interface{} {
-	return p.Curve
-}
-
-// GetX satisfies the chainec PublicKey interface.
-func (p PublicKey) GetX() *big.Int {
-	return p.X
-}
-
-// GetY satisfies the chainec PublicKey interface.
-func (p PublicKey) GetY() *big.Int {
-	return p.Y
-}
-
-// GetType satisfies the chainec PublicKey interface.
-func (p PublicKey) GetType() int {
-	return ecTypeSecp256k1
 }

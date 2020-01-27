@@ -83,7 +83,7 @@ func (sig *Signature) Serialize() []byte {
 // Verify calls ecdsa.Verify to verify the signature of hash using the public
 // key.  It returns true if the signature is valid, false otherwise.
 func (sig *Signature) Verify(hash []byte, pubKey *PublicKey) bool {
-	return ecdsa.Verify(pubKey.ToECDSA(), hash, sig.GetR(), sig.GetS())
+	return ecdsa.Verify(pubKey.ToECDSA(), hash, sig.R, sig.S)
 }
 
 // IsEqual compares this Signature instance to the one passed, returning true
@@ -553,19 +553,4 @@ func bits2octets(in []byte, rolen int) []byte {
 		return int2octets(z1, rolen)
 	}
 	return int2octets(z2, rolen)
-}
-
-// GetR satisfies the chainec PublicKey interface.
-func (sig Signature) GetR() *big.Int {
-	return sig.R
-}
-
-// GetS satisfies the chainec PublicKey interface.
-func (sig Signature) GetS() *big.Int {
-	return sig.S
-}
-
-// GetType satisfies the chainec Signature interface.
-func (sig Signature) GetType() int {
-	return ecTypeSecp256k1
 }

@@ -39,13 +39,11 @@ func combinePubkeys(pks []*secp256k1.PublicKey) *secp256k1.PublicKey {
 	var pkSumX *big.Int
 	var pkSumY *big.Int
 
-	pkSumX, pkSumY = curve.Add(pks[0].GetX(), pks[0].GetY(),
-		pks[1].GetX(), pks[1].GetY())
+	pkSumX, pkSumY = curve.Add(pks[0].X, pks[0].Y, pks[1].X, pks[1].Y)
 
 	if numPubKeys > 2 {
 		for i := 2; i < numPubKeys; i++ {
-			pkSumX, pkSumY = curve.Add(pkSumX, pkSumY,
-				pks[i].GetX(), pks[i].GetY())
+			pkSumX, pkSumY = curve.Add(pkSumX, pkSumY, pks[i].X, pks[i].Y)
 		}
 	}
 
@@ -116,13 +114,12 @@ func schnorrPartialSign(msg []byte, priv []byte, privNonce []byte,
 	}
 	privNonceBig.SetInt64(0)
 
-	if !curve.IsOnCurve(pubSum.GetX(), pubSum.GetY()) {
+	if !curve.IsOnCurve(pubSum.X, pubSum.Y) {
 		str := fmt.Sprintf("public key sum is off curve")
 		return nil, schnorrError(ErrInputValue, str)
 	}
 
-	return schnorrSign(msg, priv, privNonce, pubSum.GetX(),
-		pubSum.GetY(), hashFunc)
+	return schnorrSign(msg, priv, privNonce, pubSum.X, pubSum.Y, hashFunc)
 }
 
 // schnorrCombineSigs combines a list of partial Schnorr signatures s values

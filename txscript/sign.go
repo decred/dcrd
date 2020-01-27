@@ -94,7 +94,7 @@ func SignatureScript(tx *wire.MsgTx, idx int, subscript []byte, hashType SigHash
 		pkData = pub.Serialize()
 	case dcrec.STSchnorrSecp256k1:
 		_, pub := secp256k1.PrivKeyFromBytes(privKey)
-		pkData = pub.Serialize()
+		pkData = pub.SerializeCompressed()
 	default:
 		return nil, fmt.Errorf("unsupported signature type '%v'", sigType)
 	}
@@ -399,8 +399,8 @@ sigLoop:
 			// If it matches we put it in the map. We only
 			// can take one signature per public key so if we
 			// already have one, we can throw this away.
-			r := pSig.GetR()
-			s := pSig.GetS()
+			r := pSig.R
+			s := pSig.S
 			if secp256k1.NewSignature(r, s).Verify(hash, pubKey) {
 				aStr := addr.Address()
 				if _, ok := addrToSig[aStr]; !ok {

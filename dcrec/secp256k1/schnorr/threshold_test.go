@@ -226,13 +226,15 @@ func TestSchnorrThresholdRef(t *testing.T) {
 			}
 
 			_, pubkey := secp256k1.PrivKeyFromBytes(signer.privkey)
-			cmp = bytes.Equal(pubkey.Serialize()[:], signer.pubkey.Serialize()[:])
+			cmp = bytes.Equal(pubkey.SerializeCompressed()[:],
+				signer.pubkey.SerializeCompressed()[:])
 			if !cmp {
 				t.Fatalf("expected %v, got %v", true, cmp)
 			}
 
 			_, pubNonce := secp256k1.PrivKeyFromBytes(nonce)
-			cmp = bytes.Equal(pubNonce.Serialize()[:], signer.publicNonce.Serialize()[:])
+			cmp = bytes.Equal(pubNonce.SerializeCompressed()[:],
+				signer.publicNonce.SerializeCompressed()[:])
 			if !cmp {
 				t.Fatalf("expected %v, got %v", true, cmp)
 			}
@@ -242,15 +244,16 @@ func TestSchnorrThresholdRef(t *testing.T) {
 
 			itr := 0
 			for _, signer := range tv.signers {
-				if bytes.Equal(signer.publicNonce.Serialize(),
-					tv.signers[i].publicNonce.Serialize()) {
+				if bytes.Equal(signer.publicNonce.SerializeCompressed(),
+					tv.signers[i].publicNonce.SerializeCompressed()) {
 					continue
 				}
 				pubKeys[itr] = signer.publicNonce
 				itr++
 			}
 			publicNonceSum := combinePubkeys(pubKeys)
-			cmp = bytes.Equal(publicNonceSum.Serialize()[:], signer.pubKeySumLocal.Serialize()[:])
+			cmp = bytes.Equal(publicNonceSum.SerializeCompressed()[:],
+				signer.pubKeySumLocal.SerializeCompressed()[:])
 			if !cmp {
 				t.Fatalf("expected %v, got %v", true, cmp)
 			}
@@ -340,7 +343,8 @@ func TestSchnorrThreshold(t *testing.T) {
 			localPubNonces := make([]*secp256k1.PublicKey, numKeysForTest-1)
 			itr := 0
 			for _, pubNonce := range pubNoncesToUse {
-				if bytes.Equal(thisPubNonce.Serialize(), pubNonce.Serialize()) {
+				if bytes.Equal(thisPubNonce.SerializeCompressed(),
+					pubNonce.SerializeCompressed()) {
 					continue
 				}
 				localPubNonces[itr] = pubNonce
@@ -395,11 +399,11 @@ func TestSchnorrThreshold(t *testing.T) {
 		}
 		// Corrupt public key.
 		if corruptWhat == 1 {
-			pubXCorrupt := bigIntToEncodedBytes(pubKeysToUse[randItem].GetX())
+			pubXCorrupt := bigIntToEncodedBytes(pubKeysToUse[randItem].X)
 			pos := tRand.Intn(31)
 			bitPos := tRand.Intn(7)
 			pubXCorrupt[pos] ^= 1 << uint8(bitPos)
-			pubKeysToUse[randItem].GetX().SetBytes(pubXCorrupt[:])
+			pubKeysToUse[randItem].X.SetBytes(pubXCorrupt[:])
 		}
 		// Corrupt private nonce.
 		if corruptWhat == 2 {
@@ -411,11 +415,11 @@ func TestSchnorrThreshold(t *testing.T) {
 		}
 		// Corrupt public nonce.
 		if corruptWhat == 3 {
-			pubXCorrupt := bigIntToEncodedBytes(pubNoncesToUse[randItem].GetX())
+			pubXCorrupt := bigIntToEncodedBytes(pubNoncesToUse[randItem].X)
 			pos := tRand.Intn(31)
 			bitPos := tRand.Intn(7)
 			pubXCorrupt[pos] ^= 1 << uint8(bitPos)
-			pubNoncesToUse[randItem].GetX().SetBytes(pubXCorrupt[:])
+			pubNoncesToUse[randItem].X.SetBytes(pubXCorrupt[:])
 		}
 
 		for j := range keysToUse {
@@ -423,7 +427,8 @@ func TestSchnorrThreshold(t *testing.T) {
 			localPubNonces := make([]*secp256k1.PublicKey, numKeysForTest-1)
 			itr := 0
 			for _, pubNonce := range pubNoncesToUse {
-				if bytes.Equal(thisPubNonce.Serialize(), pubNonce.Serialize()) {
+				if bytes.Equal(thisPubNonce.SerializeCompressed(),
+					pubNonce.SerializeCompressed()) {
 					continue
 				}
 				localPubNonces[itr] = pubNonce

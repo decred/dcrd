@@ -152,7 +152,8 @@ func TestSchnorrSigning(t *testing.T) {
 			t.Fatalf("unexpected error %v", err)
 		}
 
-		cmp = bytes.Equal(pubkey.Serialize()[:], pkRecover.Serialize()[:])
+		cmp = bytes.Equal(pubkey.SerializeCompressed()[:],
+			pkRecover.SerializeCompressed()[:])
 		if !cmp {
 			t.Fatalf("expected %v, got %v", true, cmp)
 		}
@@ -173,7 +174,8 @@ func TestSchnorrSigning(t *testing.T) {
 		pkRecover, valid, err = schnorrRecover(sigBad, tv.msg,
 			testSchnorrHash)
 		if valid {
-			cmp = bytes.Equal(pubkey.Serialize()[:], pkRecover.Serialize()[:])
+			cmp = bytes.Equal(pubkey.SerializeCompressed()[:],
+				pkRecover.SerializeCompressed()[:])
 			if cmp {
 				t.Fatalf("expected %v, got %v", false, cmp)
 			}
@@ -310,7 +312,8 @@ func TestSignaturesAndRecovery(t *testing.T) {
 			t.Fatalf("unexpected error %s", err)
 		}
 
-		cmp := bytes.Equal(pubkey.Serialize()[:], pkRecover.Serialize()[:])
+		cmp := bytes.Equal(pubkey.SerializeCompressed()[:],
+			pkRecover.SerializeCompressed()[:])
 		if !cmp {
 			t.Fatalf("expected %v, got %v", true, cmp)
 		}
@@ -336,7 +339,8 @@ func TestSignaturesAndRecovery(t *testing.T) {
 		pkRecover, valid, err = schnorrRecover(sigBad, tv.msg,
 			testSchnorrHash)
 		if valid {
-			cmp := bytes.Equal(pubkey.Serialize()[:], pkRecover.Serialize()[:])
+			cmp := bytes.Equal(pubkey.SerializeCompressed()[:],
+				pkRecover.SerializeCompressed()[:])
 			if cmp {
 				t.Fatalf("expected %v, got %v", false, cmp)
 			}
