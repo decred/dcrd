@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2019 The Decred developers
+// Copyright (c) 2015-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -560,7 +560,7 @@ func TestRFC6979(t *testing.T) {
 		hash := sha256.Sum256([]byte(test.msg))
 
 		// Ensure deterministically generated nonce is the expected value.
-		gotNonce := NonceRFC6979(privKey.D, hash[:], nil, nil).Bytes()
+		gotNonce := NonceRFC6979(privKey.D, hash[:], nil, nil, 0).Bytes()
 		wantNonce := decodeHex(test.nonce)
 		if !bytes.Equal(gotNonce, wantNonce) {
 			t.Errorf("NonceRFC6979 #%d (%s): Nonce is incorrect: "+
@@ -570,12 +570,7 @@ func TestRFC6979(t *testing.T) {
 		}
 
 		// Ensure deterministically generated signature is the expected value.
-		gotSig, err := privKey.Sign(hash[:])
-		if err != nil {
-			t.Errorf("Sign #%d (%s): unexpected error: %v", i,
-				test.msg, err)
-			continue
-		}
+		gotSig := privKey.Sign(hash[:])
 		gotSigBytes := gotSig.Serialize()
 		wantSigBytes := decodeHex(test.signature)
 		if !bytes.Equal(gotSigBytes, wantSigBytes) {

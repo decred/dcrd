@@ -89,7 +89,7 @@ func (p *PrivateKey) ToECDSA() *ecdsa.PrivateKey {
 // result of hashing a larger message) using the private key. Produced signature
 // is deterministic (same message and same key yield the same signature) and
 // canonical in accordance with RFC6979 and BIP0062.
-func (p *PrivateKey) Sign(hash []byte) (*Signature, error) {
+func (p *PrivateKey) Sign(hash []byte) *Signature {
 	return signRFC6979(p, hash)
 }
 

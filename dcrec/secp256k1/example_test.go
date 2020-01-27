@@ -28,11 +28,7 @@ func Example_signMessage() {
 	// Sign a message using the private key.
 	message := "test message"
 	messageHash := chainhash.HashB([]byte(message))
-	signature, err := privKey.Sign(messageHash)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
+	signature := privKey.Sign(messageHash)
 
 	// Serialize and display the signature.
 	fmt.Printf("Serialized Signature: %x\n", signature.Serialize())

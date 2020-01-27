@@ -30,11 +30,7 @@ func genRandomSig() (*chainhash.Hash, *secp256k1.Signature, *secp256k1.PublicKey
 		return nil, nil, nil, err
 	}
 
-	sig, err := priv.Sign(msgHash[:])
-	if err != nil {
-		return nil, nil, nil, err
-	}
-
+	sig := priv.Sign(msgHash[:])
 	return &msgHash, sig, pub, nil
 }
 

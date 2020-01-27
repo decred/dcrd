@@ -35,10 +35,7 @@ func RawTxInSignature(tx *wire.MsgTx, idx int, subScript []byte,
 	switch sigType {
 	case dcrec.STEcdsaSecp256k1:
 		priv, _ := secp256k1.PrivKeyFromBytes(key)
-		sig, err := priv.Sign(hash)
-		if err != nil {
-			return nil, fmt.Errorf("cannot sign tx input: %v", err)
-		}
+		sig := priv.Sign(hash)
 		sigBytes = sig.Serialize()
 	case dcrec.STEd25519:
 		priv, _ := edwards.PrivKeyFromBytes(key)

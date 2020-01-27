@@ -6,7 +6,6 @@ package schnorr
 
 import (
 	"bytes"
-	"crypto/rand"
 	"fmt"
 	"io"
 	"math/big"
@@ -156,19 +155,15 @@ func schnorrSign(msg []byte, ps []byte, k []byte,
 
 // Sign is the exported version of sign. It uses RFC6979 and Blake256 to
 // produce a Schnorr signature.
-func Sign(priv *secp256k1.PrivateKey,
-	hash []byte) (r, s *big.Int, err error) {
+func Sign(priv *secp256k1.PrivateKey, hash []byte) (r, s *big.Int, err error) {
 	// Convert the private scalar to a 32 byte big endian number.
 	pA := bigIntToEncodedBytes(priv.D)
 	defer zeroArray(pA)
 
-	// Generate a 32-byte scalar to use as a nonce. Try RFC6979
-	// first.
-	kB := nonceRFC6979(priv.Serialize(), hash, nil, nil)
-
-	for {
-		sig, err := schnorrSign(hash, pA[:], kB, nil, nil,
-			chainhash.HashB)
+	for iteration := uint32(0); ; iteration++ {
+		// Generate a 32-byte scalar to use as a nonce via RFC6979.
+		kB := nonceRFC6979(priv.Serialize(), hash, nil, nil, iteration)
+		sig, err := schnorrSign(hash, pA[:], kB, nil, nil, chainhash.HashB)
 		if err == nil {
 			r = sig.R
 			s = sig.S
@@ -180,13 +175,6 @@ func Sign(priv *secp256k1.PrivateKey,
 			return nil, nil, fmt.Errorf("unknown error type")
 		}
 		if errTyped.GetCode() != ErrSchnorrHashValue {
-			return nil, nil, err
-		}
-
-		// We need to compute a new nonce, because the one we used
-		// didn't work. Compute a random nonce.
-		_, err = rand.Read(kB)
-		if err != nil {
 			return nil, nil, err
 		}
 	}

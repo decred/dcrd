@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2017 The Decred developers
+// Copyright (c) 2015-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -36,12 +36,7 @@ func TestPrivKeys(t *testing.T) {
 		}
 
 		hash := []byte{0x0, 0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8, 0x9}
-		sig, err := priv.Sign(hash)
-		if err != nil {
-			t.Errorf("%s could not sign: %v", test.name, err)
-			continue
-		}
-
+		sig := priv.Sign(hash)
 		if !sig.Verify(hash, pub) {
 			t.Errorf("%s could not verify: %v", test.name, err)
 			continue

@@ -364,10 +364,7 @@ func recoverKeyFromSignature(sig *Signature, msg []byte, iter int, doChecks bool
 // <(byte of 27+public key solution)+4 if compressed >< padded bytes for signature R><padded bytes for signature S>
 // where the R and S parameters are padded up to the bitlength of the curve.
 func SignCompact(key *PrivateKey, hash []byte, isCompressedKey bool) ([]byte, error) {
-	sig, err := key.Sign(hash)
-	if err != nil {
-		return nil, err
-	}
+	sig := key.Sign(hash)
 
 	curve := S256()
 	// bitcoind checks the bit length of R and S here. The ecdsa signature
@@ -434,31 +431,32 @@ func RecoverCompact(signature, hash []byte) (*PublicKey, bool, error) {
 
 // signRFC6979 generates a deterministic ECDSA signature according to RFC 6979
 // and BIP 62.
-func signRFC6979(privateKey *PrivateKey, hash []byte) (*Signature, error) {
+func signRFC6979(privateKey *PrivateKey, hash []byte) *Signature {
 	privkey := privateKey.ToECDSA()
 	N := order
-	k := NonceRFC6979(privkey.D, hash, nil, nil)
-	inv := new(big.Int).ModInverse(k, N)
-	r, _ := privkey.Curve.ScalarBaseMult(k.Bytes())
-	r.Mod(r, N)
+	for iteration := uint32(0); ; iteration++ {
+		k := NonceRFC6979(privkey.D, hash, nil, nil, iteration)
+		inv := new(big.Int).ModInverse(k, N)
+		r, _ := privkey.Curve.ScalarBaseMult(k.Bytes())
+		r.Mod(r, N)
+		if r.Sign() == 0 {
+			continue
+		}
 
-	if r.Sign() == 0 {
-		return nil, errors.New("calculated R is zero")
-	}
+		e := hashToInt(hash)
+		s := new(big.Int).Mul(privkey.D, r)
+		s.Add(s, e)
+		s.Mul(s, inv)
+		s.Mod(s, N)
 
-	e := hashToInt(hash)
-	s := new(big.Int).Mul(privkey.D, r)
-	s.Add(s, e)
-	s.Mul(s, inv)
-	s.Mod(s, N)
-
-	if s.Cmp(halforder) == 1 {
-		s.Sub(N, s)
+		if s.Cmp(halforder) == 1 {
+			s.Sub(N, s)
+		}
+		if s.Sign() == 0 {
+			continue
+		}
+		return &Signature{R: r, S: s}
 	}
-	if s.Sign() == 0 {
-		return nil, errors.New("calculated S is zero")
-	}
-	return &Signature{R: r, S: s}, nil
 }
 
 // hmacsha256 implements a resettable version of HMAC-SHA256.
@@ -530,7 +528,13 @@ func newHMACSHA256(key []byte) *hmacsha256 {
 // and version arguments are optional, but allow additional data to be added to
 // the input of the HMAC.  When provided, the extra data must be 32-bytes and
 // version must be 16 bytes or they will be ignored.
-func NonceRFC6979(privKey *big.Int, hash []byte, extra []byte, version []byte) *big.Int {
+//
+// Finally, the extraIterations parameter provides a method to produce a stream
+// of deterministic nonces to ensure the signing code is able to produce a nonce
+// that results in a valid signature in the extremely unlikely event the
+// original nonce produced results in an invalid signature (e.g. R == 0).
+// Signing code should start with 0 and increment it if necessary.
+func NonceRFC6979(privKey *big.Int, hash []byte, extra []byte, version []byte, extraIterations uint32) *big.Int {
 	// Input to HMAC is the 32-byte private key and the 32-byte hash.  In
 	// addition, it may include the optional 32-byte extra data and 16-byte
 	// version.  Create a fixed-size array to avoid extra allocs and slice it
@@ -633,6 +637,7 @@ func NonceRFC6979(privKey *big.Int, hash []byte, extra []byte, version []byte) *
 	// Repeat until the value is nonzero and less than the curve order.
 	curve := S256()
 	q := curve.Params().N
+	var generated uint32
 	for {
 		// Step H1 and H2.
 		//
@@ -660,7 +665,10 @@ func NonceRFC6979(privKey *big.Int, hash []byte, extra []byte, version []byte) *
 		// V = HMAC_K(V)
 		secret := hashToInt(v)
 		if secret.Cmp(bigOne) >= 0 && secret.Cmp(q) < 0 {
-			return secret
+			generated++
+			if generated > extraIterations {
+				return secret
+			}
 		}
 
 		// K = HMAC_K(V || 0x00)

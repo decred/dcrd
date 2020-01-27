@@ -146,7 +146,7 @@ func BenchmarkNonceRFC6979(b *testing.B) {
 	b.ResetTimer()
 	var noElideNonce *big.Int
 	for i := 0; i < b.N; i++ {
-		noElideNonce = NonceRFC6979(privKey, msgHash, nil, nil)
+		noElideNonce = NonceRFC6979(privKey, msgHash, nil, nil, 0)
 	}
 	_ = noElideNonce
 }

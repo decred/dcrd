@@ -1,5 +1,5 @@
 // Copyright 2011 The Go Authors. All rights reserved.
-// Copyright (c) 2015-2019 The Decred developers
+// Copyright (c) 2015-2020 The Decred developers
 // Copyright 2011 ThePiachu. All rights reserved.
 // Copyright 2013-2016 The btcsuite developers
 // Use of this source code is governed by an ISC
@@ -798,12 +798,7 @@ func testSignAndVerify(t *testing.T, c *KoblitzCurve, tag string) {
 	pub := NewPublicKey(pubx, puby)
 
 	hashed := []byte("testing")
-	sig, err := priv.Sign(hashed)
-	if err != nil {
-		t.Errorf("%s: error signing: %s", tag, err)
-		return
-	}
-
+	sig := priv.Sign(hashed)
 	if !sig.Verify(hashed, pub) {
 		t.Errorf("%s: Verify failed", tag)
 	}

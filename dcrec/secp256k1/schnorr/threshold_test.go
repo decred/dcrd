@@ -219,7 +219,7 @@ func TestSchnorrThresholdRef(t *testing.T) {
 		// Ensure all the pubkey and nonce derivation is correct.
 		for i, signer := range tv.signers {
 			nonce := nonceRFC6979(signer.privkey, tv.msg, nil,
-				Sha256VersionStringRFC6979)
+				Sha256VersionStringRFC6979, 0)
 			cmp := bytes.Equal(nonce[:], signer.privateNonce[:])
 			if !cmp {
 				t.Fatalf("expected %v, got %v", true, cmp)
@@ -329,7 +329,7 @@ func TestSchnorrThreshold(t *testing.T) {
 		pubNoncesToUse := make([]*secp256k1.PublicKey, numKeysForTest)
 		for j := 0; j < numKeysForTest; j++ {
 			nonce := nonceRFC6979(keysToUse[j].Serialize(), msg, nil,
-				BlakeVersionStringRFC6979)
+				BlakeVersionStringRFC6979, 0)
 			privNonce, pubNonce := secp256k1.PrivKeyFromBytes(nonce)
 			privNoncesToUse[j] = privNonce
 			pubNoncesToUse[j] = pubNonce
