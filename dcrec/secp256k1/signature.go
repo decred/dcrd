@@ -58,25 +58,24 @@ func NewSignature(r, s *big.Int) *Signature {
 }
 
 // Serialize returns the ECDSA signature in the more strict DER format.  Note
-// that the serialized bytes returned do not include the appended hash type
-// used in Decred signature scripts.
-//
-// encoding/asn1 is broken so we hand roll this output:
+// that the serialized bytes returned do not include the appended hash type used
+// in Decred signature scripts.
 //
 // 0x30 <length> 0x02 <length r> r 0x02 <length s> s
 func (sig *Signature) Serialize() []byte {
-	// low 'S' malleability breaker
+	// Low 'S' malleability breaker.
 	sigS := sig.S
 	if sigS.Cmp(halforder) == 1 {
 		sigS = new(big.Int).Sub(order, sigS)
 	}
-	// Ensure the encoded bytes for the r and s values are canonical and
-	// thus suitable for DER encoding.
+
+	// Ensure the encoded bytes for the R and S values are canonical and thus
+	// suitable for DER encoding.
 	rb := canonicalizeInt(sig.R)
 	sb := canonicalizeInt(sigS)
 
-	// total length of returned signature is 1 byte for each magic and
-	// length (6 total), plus lengths of r and s
+	// Total length of returned signature is 1 byte for each magic and length
+	// (6 total), plus lengths of R and S.
 	length := 6 + len(rb) + len(sb)
 	b := make([]byte, length)
 
@@ -91,20 +90,24 @@ func (sig *Signature) Serialize() []byte {
 	return b
 }
 
-// Verify calls ecdsa.Verify to verify the signature of hash using the public
-// key.  It returns true if the signature is valid, false otherwise.
+// Verify returns whether or not the signature is valid for the provided hash
+// and secp256k1 public key.
 func (sig *Signature) Verify(hash []byte, pubKey *PublicKey) bool {
 	return ecdsa.Verify(pubKey.ToECDSA(), hash, sig.R, sig.S)
 }
 
-// IsEqual compares this Signature instance to the one passed, returning true
-// if both Signatures are equivalent. A signature is equivalent to another, if
+// IsEqual compares this Signature instance to the one passed, returning true if
+// both Signatures are equivalent.  A signature is equivalent to another, if
 // they both have the same scalar value for R and S.
 func (sig *Signature) IsEqual(otherSig *Signature) bool {
 	return sig.R.Cmp(otherSig.R) == 0 &&
 		sig.S.Cmp(otherSig.S) == 0
 }
 
+// parseSig attempts to parse the provided raw signature bytes into a Signature
+// struct.  The der flag specifies whether or not to enforce the more strict
+// Distinguished Encoding Rules (DER) of the ASN.1 spec versus the more lax
+// Basic Encoding Rules (BER).
 func parseSig(sigStr []byte, der bool) (*Signature, error) {
 	// Originally this code used encoding/asn1 in order to parse the
 	// signature, but a number of problems were found with this approach.
@@ -220,16 +223,16 @@ func parseSig(sigStr []byte, der bool) (*Signature, error) {
 	return signature, nil
 }
 
-// ParseSignature parses a signature in BER format for the curve type `curve'
+// ParseSignature parses a signature in the Basic Encoding Rules (BER) format
 // into a Signature type, performing some basic sanity checks.  If parsing
 // according to the more strict DER format is needed, use ParseDERSignature.
 func ParseSignature(sigStr []byte) (*Signature, error) {
 	return parseSig(sigStr, false)
 }
 
-// ParseDERSignature parses a signature in DER format for the curve type
-// `curve` into a Signature type.  If parsing according to the less strict
-// BER format is needed, use ParseSignature.
+// ParseDERSignature parses a signature in the Distinguished Encoding Rules
+// (DER) format of the ASN.1 spec into a Signature type.  If parsing according
+// to the less strict BER format is needed, use ParseSignature.
 func ParseDERSignature(sigStr []byte) (*Signature, error) {
 	return parseSig(sigStr, true)
 }
@@ -357,10 +360,10 @@ func recoverKeyFromSignature(sig *Signature, msg []byte, iter int, doChecks bool
 }
 
 // SignCompact produces a compact signature of the data in hash with the given
-// private key on the given koblitz curve. The isCompressed parameter should
-// be used to detail if the given signature should reference a compressed
-// public key or not. If successful the bytes of the compact signature will be
-// returned in the format:
+// private key on the secp256k1 curve. The isCompressed parameter should be used
+// to detail if the given signature should reference a compressed public key or
+// not. If successful the bytes of the compact signature will be returned in the
+// format:
 // <(byte of 27+public key solution)+4 if compressed >< padded bytes for signature R><padded bytes for signature S>
 // where the R and S parameters are padded up to the bitlength of the curve.
 func SignCompact(key *PrivateKey, hash []byte, isCompressedKey bool) ([]byte, error) {
@@ -403,10 +406,10 @@ func SignCompact(key *PrivateKey, hash []byte, isCompressedKey bool) ([]byte, er
 	return nil, errors.New("no valid solution for pubkey found")
 }
 
-// RecoverCompact verifies the compact signature "signature" of "hash" for the
-// Koblitz curve in "curve". If the signature matches then the recovered public
-// key will be returned as well as a boolean if the original key was compressed
-// or not, else an error will be returned.
+// RecoverCompact attempts to recover the secp256k1 public key from the provided
+// signature and message hash.  It first verifies the signature, and, if the
+// signature matches then the recovered public key will be returned as well as a
+// boolean indicating whether or not the original key was compressed.
 func RecoverCompact(signature, hash []byte) (*PublicKey, bool, error) {
 	bitlen := (S256().BitSize + 7) / 8
 	if len(signature) != 1+bitlen*2 {
