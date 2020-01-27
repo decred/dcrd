@@ -20,6 +20,7 @@ require (
 
 replace (
 	github.com/decred/dcrd/chaincfg/v3 => ../chaincfg
+	github.com/decred/dcrd/dcrec/secp256k1/v3 => ../dcrec/secp256k1
 	github.com/decred/dcrd/dcrutil/v3 => ../dcrutil
 	github.com/decred/dcrd/rpc/jsonrpc/types/v2 => ../rpc/jsonrpc/types
 )

@@ -1,5 +1,5 @@
 // Copyright 2015 The btcsuite developers
-// Copyright (c) 2015-2019 The Decred developers
+// Copyright (c) 2015-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -18,7 +18,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/decred/dcrd/dcrec/secp256k1/v2"
+	"github.com/decred/dcrd/dcrec/secp256k1/v3"
 )
 
 func main() {
@@ -43,6 +43,7 @@ func main() {
 	base64.StdEncoding.Encode(encoded, compressed.Bytes())
 
 	fmt.Fprintln(fi, "// Copyright (c) 2015 The btcsuite developers")
+	fmt.Fprintln(fi, "// Copyright (c) 2015-2020 The Decred developers")
 	fmt.Fprintln(fi, "// Use of this source code is governed by an ISC")
 	fmt.Fprintln(fi, "// license that can be found in the LICENSE file.")
 	fmt.Fprintln(fi)

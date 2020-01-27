@@ -1,4 +1,4 @@
-// Copyright (c) 2019 The Decred developers
+// Copyright (c) 2019-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -13,6 +13,6 @@ package main
 
 import (
 	_ "github.com/decred/dcrd/bech32"
-	_ "github.com/decred/dcrd/dcrec/secp256k1/v2"
+	_ "github.com/decred/dcrd/dcrec/secp256k1/v3"
 	_ "github.com/decred/dcrd/fees/v2"
 )

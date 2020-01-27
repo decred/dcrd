@@ -14,6 +14,7 @@ require (
 replace (
 	github.com/decred/dcrd/blockchain/stake/v3 => ../blockchain/stake
 	github.com/decred/dcrd/chaincfg/v3 => ../chaincfg
+	github.com/decred/dcrd/dcrec/secp256k1/v3 => ../dcrec/secp256k1
 	github.com/decred/dcrd/dcrutil/v3 => ../dcrutil
 	github.com/decred/dcrd/txscript/v3 => ../txscript
 )
