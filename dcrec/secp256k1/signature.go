@@ -8,7 +8,6 @@ package secp256k1
 import (
 	"bytes"
 	"crypto/ecdsa"
-	"crypto/hmac"
 	"crypto/sha256"
 	"errors"
 	"fmt"
@@ -33,12 +32,24 @@ var (
 	order     = new(big.Int).Set(S256().N)
 	halforder = new(big.Int).Rsh(order, 1)
 
-	// Used in RFC6979 implementation when testing the nonce for correctness
-	one = big.NewInt(1)
+	// Used in RFC6979 implementation when testing the nonce for correctness.
+	bigOne = big.NewInt(1)
 
-	// oneInitializer is used to fill a byte slice with byte 0x01.  It is provided
+	// singleZero is used during RFC6979 nonce generation.  It is provided
 	// here to avoid the need to create it multiple times.
-	oneInitializer = []byte{0x01}
+	singleZero = []byte{0x00}
+
+	// zeroInitializer is used during RFC6979 nonce generation.  It is provided
+	// here to avoid the need to create it multiple times.
+	zeroInitializer = bytes.Repeat([]byte{0x00}, sha256.BlockSize)
+
+	// singleOne is used during RFC6979 nonce generation.  It is provided
+	// here to avoid the need to create it multiple times.
+	singleOne = []byte{0x01}
+
+	// oneInitializer is used during RFC6979 nonce generation.  It is provided
+	// here to avoid the need to create it multiple times.
+	oneInitializer = bytes.Repeat([]byte{0x01}, sha256.Size)
 )
 
 // NewSignature instantiates a new signature given some R,S values.
@@ -450,106 +461,217 @@ func signRFC6979(privateKey *PrivateKey, hash []byte) (*Signature, error) {
 	return &Signature{R: r, S: s}, nil
 }
 
+// hmacsha256 implements a resettable version of HMAC-SHA256.
+type hmacsha256 struct {
+	inner, outer hash.Hash
+	ipad, opad   [sha256.BlockSize]byte
+}
+
+// Write adds data to the running hash.
+func (h *hmacsha256) Write(p []byte) {
+	h.inner.Write(p)
+}
+
+// initKey initializes the HMAC-SHA256 instance to the provided key.
+func (h *hmacsha256) initKey(key []byte) {
+	// Hash the key if it is too large.
+	if len(key) > sha256.BlockSize {
+		h.outer.Write(key)
+		key = h.outer.Sum(nil)
+	}
+	copy(h.ipad[:], key)
+	copy(h.opad[:], key)
+	for i := range h.ipad {
+		h.ipad[i] ^= 0x36
+	}
+	for i := range h.opad {
+		h.opad[i] ^= 0x5c
+	}
+	h.inner.Write(h.ipad[:])
+}
+
+// ResetKey resets the HMAC-SHA256 to its initial state and then initializes it
+// with the provided key.  It is equivalent to creating a new instance with the
+// provided key without allocating more memory.
+func (h *hmacsha256) ResetKey(key []byte) {
+	h.inner.Reset()
+	h.outer.Reset()
+	copy(h.ipad[:], zeroInitializer)
+	copy(h.opad[:], zeroInitializer)
+	h.initKey(key)
+}
+
+// Resets the HMAC-SHA256 to its initial state using the current key.
+func (h *hmacsha256) Reset() {
+	h.inner.Reset()
+	h.inner.Write(h.ipad[:])
+}
+
+// Sum returns the hash of the written data.
+func (h *hmacsha256) Sum() []byte {
+	h.outer.Reset()
+	h.outer.Write(h.opad[:])
+	h.outer.Write(h.inner.Sum(nil))
+	return h.outer.Sum(nil)
+}
+
+// newHMACSHA256 returns a new HMAC-SHA256 hasher using the provided key.
+func newHMACSHA256(key []byte) *hmacsha256 {
+	h := new(hmacsha256)
+	h.inner = sha256.New()
+	h.outer = sha256.New()
+	h.initKey(key)
+	return h
+}
+
 // NonceRFC6979 generates a nonce deterministically according to RFC 6979 using
 // HMAC-SHA256 for the hashing function.  It takes a 32-byte hash as an input
 // and returns a 32-byte nonce to be used for deterministic signing.  The extra
 // and version arguments are optional, but allow additional data to be added to
 // the input of the HMAC.  When provided, the extra data must be 32-bytes and
 // version must be 16 bytes or they will be ignored.
-func NonceRFC6979(privkey *big.Int, hash []byte, extra []byte, version []byte) *big.Int {
+func NonceRFC6979(privKey *big.Int, hash []byte, extra []byte, version []byte) *big.Int {
+	// Input to HMAC is the 32-byte private key and the 32-byte hash.  In
+	// addition, it may include the optional 32-byte extra data and 16-byte
+	// version.  Create a fixed-size array to avoid extra allocs and slice it
+	// properly.
+	const (
+		privKeyLen = 32
+		hashLen    = 32
+		extraLen   = 32
+		versionLen = 16
+	)
+	var keyBuf [privKeyLen + hashLen + extraLen + versionLen]byte
+
+	// Drop most significant bytes of private key and hash if they are too long
+	// and leave left padding of zeros when they're too short.
+	privKeyBytes := privKey.Bytes()
+	if len(privKeyBytes) > privKeyLen {
+		copy(privKeyBytes, privKeyBytes[privKeyLen-len(privKeyBytes):])
+	}
+	if len(hash) > hashLen {
+		copy(hash, privKeyBytes[hashLen-len(hash):])
+	}
+	offset := privKeyLen - len(privKeyBytes) // Zero left padding if needed.
+	offset += copy(keyBuf[offset:], privKeyBytes)
+	offset += hashLen - len(hash) // Zero left padding if needed.
+	offset += copy(keyBuf[offset:], hash)
+	if len(extra) == extraLen {
+		offset += copy(keyBuf[offset:], extra)
+		if len(version) == versionLen {
+			offset += copy(keyBuf[offset:], version)
+		}
+	} else if len(version) == versionLen {
+		// When the version was specified, but not the extra data, leave the
+		// extra data portion all zero.
+		offset += privKeyLen
+		offset += copy(keyBuf[offset:], version)
+	}
+	key := keyBuf[:offset]
+
+	// Step B.
+	//
+	// V = 0x01 0x01 0x01 ... 0x01 such that the length of V, in bits, is
+	// equal to 8*ceil(hashLen/8).
+	//
+	// Note that since the hash length is a multiple of 8 for the chosen hash
+	// function in this optimized implementation, the result is just the hash
+	// length, so avoid the extra calculations.  Also, since it isn't modified,
+	// start with a global value.
+	v := oneInitializer
+
+	// Step C (Go zeroes all allocated memory).
+	//
+	// K = 0x00 0x00 0x00 ... 0x00 such that the length of K, in bits, is
+	// equal to 8*ceil(hashLen/8).
+	//
+	// As above, since the hash length is a multiple of 8 for the chosen hash
+	// function in this optimized implementation, the result is just the hash
+	// length, so avoid the extra calculations.
+	k := zeroInitializer[:hashLen]
+
+	// Step D.
+	//
+	// K = HMAC_K(V || 0x00 || int2octets(x) || bits2octets(h1))
+	//
+	// Note that key is the "int2octets(x) || bits2octets(h1)" portion along
+	// with potential additional data as described by section 3.6 of the RFC.
+	hasher := newHMACSHA256(k)
+	hasher.Write(oneInitializer)
+	hasher.Write(singleZero[:])
+	hasher.Write(key)
+	k = hasher.Sum()
+
+	// Step E.
+	//
+	// V = HMAC_K(V)
+	hasher.ResetKey(k)
+	hasher.Write(v)
+	v = hasher.Sum()
+
+	// Step F.
+	//
+	// K = HMAC_K(V || 0x01 || int2octets(x) || bits2octets(h1))
+	//
+	// Note that key is the "int2octets(x) || bits2octets(h1)" portion along
+	// with potential additional data as described by section 3.6 of the RFC.
+	hasher.Reset()
+	hasher.Write(v)
+	hasher.Write(singleOne[:])
+	hasher.Write(key[:])
+	k = hasher.Sum()
+
+	// Step G.
+	//
+	// V = HMAC_K(V)
+	hasher.ResetKey(k)
+	hasher.Write(v)
+	v = hasher.Sum()
+
+	// Step H.
+	//
+	// Repeat until the value is nonzero and less than the curve order.
 	curve := S256()
 	q := curve.Params().N
-	x := privkey
-	alg := sha256.New
-
-	qlen := q.BitLen()
-	holen := alg().Size()
-	rolen := (qlen + 7) >> 3
-	bx := append(int2octets(x, rolen), bits2octets(hash, rolen)...)
-	if len(extra) == 32 {
-		bx = append(bx, extra...)
-	}
-	if len(version) == 16 && len(extra) == 32 {
-		bx = append(bx, extra...)
-	}
-	if len(version) == 16 && len(extra) != 32 {
-		bx = append(bx, bytes.Repeat([]byte{0x00}, 32)...)
-		bx = append(bx, version...)
-	}
-
-	// Step B
-	v := bytes.Repeat(oneInitializer, holen)
-
-	// Step C (Go zeroes the all allocated memory)
-	k := make([]byte, holen)
-
-	// Step D
-	k = mac(alg, k, append(append(v, 0x00), bx...))
-
-	// Step E
-	v = mac(alg, k, v)
-
-	// Step F
-	k = mac(alg, k, append(append(v, 0x01), bx...))
-
-	// Step G
-	v = mac(alg, k, v)
-
-	// Step H
 	for {
-		// Step H1
-		var t []byte
+		// Step H1 and H2.
+		//
+		// Set T to the empty sequence.  The length of T (in bits) is denoted
+		// tlen; thus, at that point, tlen = 0.
+		//
+		// While tlen < qlen, do the following:
+		//   V = HMAC_K(V)
+		//   T = T || V
+		//
+		// Note that because the hash function output is the same length as the
+		// private key in this optimized implementation, there is no need to
+		// loop or create an intermediate T.
+		hasher.Reset()
+		hasher.Write(v)
+		v = hasher.Sum()
 
-		// Step H2
-		for len(t)*8 < qlen {
-			v = mac(alg, k, v)
-			t = append(t, v...)
-		}
-
-		// Step H3
-		secret := hashToInt(t)
-		if secret.Cmp(one) >= 0 && secret.Cmp(q) < 0 {
+		// Step H3.
+		//
+		// k = bits2int(T)
+		// If k is within the range [1,q-1], return it.
+		//
+		// Otherwise, compute:
+		// K = HMAC_K(V || 0x00)
+		// V = HMAC_K(V)
+		secret := hashToInt(v)
+		if secret.Cmp(bigOne) >= 0 && secret.Cmp(q) < 0 {
 			return secret
 		}
-		k = mac(alg, k, append(v, 0x00))
-		v = mac(alg, k, v)
+
+		// K = HMAC_K(V || 0x00)
+		hasher.Reset()
+		hasher.Write(v)
+		hasher.Write(singleZero[:])
+		k = hasher.Sum()
+
+		// V = HMAC_K(V)
+		hasher.ResetKey(k)
+		hasher.Write(v)
+		v = hasher.Sum()
 	}
-}
-
-// mac returns an HMAC of the given key and message.
-func mac(alg func() hash.Hash, k, m []byte) []byte {
-	h := hmac.New(alg, k)
-	h.Write(m)
-	return h.Sum(nil)
-}
-
-// https://tools.ietf.org/html/rfc6979#section-2.3.3
-func int2octets(v *big.Int, rolen int) []byte {
-	out := v.Bytes()
-
-	// left pad with zeros if it's too short
-	if len(out) < rolen {
-		out2 := make([]byte, rolen)
-		copy(out2[rolen-len(out):], out)
-		return out2
-	}
-
-	// drop most significant bytes if it's too long
-	if len(out) > rolen {
-		out2 := make([]byte, rolen)
-		copy(out2, out[len(out)-rolen:])
-		return out2
-	}
-
-	return out
-}
-
-// https://tools.ietf.org/html/rfc6979#section-2.3.4
-func bits2octets(in []byte, rolen int) []byte {
-	z1 := hashToInt(in)
-	z2 := new(big.Int).Sub(z1, S256().Params().N)
-	if z2.Sign() < 0 {
-		return int2octets(z1, rolen)
-	}
-	return int2octets(z2, rolen)
 }
