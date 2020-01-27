@@ -3127,7 +3127,12 @@ func (g *BgBlkTmplGenerator) regenHandler(ctx context.Context) {
 	if err != nil {
 		g.setCurrentTemplate(nil, turUnknown, err)
 	} else {
-		g.queueRegenEvent <- regenEvent{rtBlockConnected, tipBlock}
+		select {
+		case <-ctx.Done():
+			g.wg.Done()
+			return
+		case g.queueRegenEvent <- regenEvent{rtBlockConnected, tipBlock}:
+		}
 	}
 
 	state := makeRegenHandlerState()
