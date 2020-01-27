@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2014 The btcsuite developers
-// Copyright (c) 2015-2016 The Decred developers
+// Copyright (c) 2015-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -62,8 +62,7 @@ func NewPublicKey(x *big.Int, y *big.Int) *PublicKey {
 // ParsePubKey parses a public key for a koblitz curve from a bytestring into a
 // ecdsa.Publickey, verifying that it is valid. It supports compressed and
 // uncompressed signature formats, but not the hybrid format.
-func ParsePubKey(pubKeyStr []byte) (key *PublicKey,
-	err error) {
+func ParsePubKey(pubKeyStr []byte) (key *PublicKey, err error) {
 	pubkey := PublicKey{}
 	pubkey.Curve = S256()
 

@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2014 The btcsuite developers
-// Copyright (c) 2015-2016 The Decred developers
+// Copyright (c) 2015-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -28,8 +28,7 @@ func NewPrivateKey(d *big.Int) *PrivateKey {
 
 // PrivKeyFromBytes returns a private and public key for `curve' based on the
 // private key passed as an argument as a byte slice.
-func PrivKeyFromBytes(pk []byte) (*PrivateKey,
-	*PublicKey) {
+func PrivKeyFromBytes(pk []byte) (*PrivateKey, *PublicKey) {
 	curve := S256()
 	x, y := curve.ScalarBaseMult(pk)
 
@@ -46,8 +45,7 @@ func PrivKeyFromBytes(pk []byte) (*PrivateKey,
 }
 
 // PrivKeyFromScalar is the same as PrivKeyFromBytes in secp256k1.
-func PrivKeyFromScalar(s []byte) (*PrivateKey,
-	*PublicKey) {
+func PrivKeyFromScalar(s []byte) (*PrivateKey, *PublicKey) {
 	return PrivKeyFromBytes(s)
 }
 
@@ -63,8 +61,7 @@ func GeneratePrivateKey() (*PrivateKey, error) {
 
 // GenerateKey generates a key using a random number generator, returning
 // the private scalar and the corresponding public key points.
-func GenerateKey(rand io.Reader) (priv []byte, x,
-	y *big.Int, err error) {
+func GenerateKey(rand io.Reader) (priv []byte, x, y *big.Int, err error) {
 	key, err := ecdsa.GenerateKey(S256(), rand)
 	priv = key.D.Bytes()
 	x = key.PublicKey.X
