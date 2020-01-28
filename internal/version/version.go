@@ -44,7 +44,7 @@ var (
 	// '-ldflags "-X github.com/decred/dcrd/internal/version.BuildMetadata=foo"'
 	// if needed.  It MUST only contain characters from semanticBuildAlphabet
 	// per the semantic versioning spec.
-	BuildMetadata = "dev"
+	BuildMetadata = ""
 )
 
 // String returns the application version as a properly formed string per the
