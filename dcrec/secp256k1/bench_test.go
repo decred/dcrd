@@ -140,7 +140,7 @@ func BenchmarkNonceRFC6979(b *testing.B) {
 	}
 
 	// BLAKE-256 of []byte{0x01, 0x02, 0x03, 0x04}.
-	msgHash := decodeHex("c301ba9de5d6053caad9f5eb46523f007702add2c62fa39de03146a36b8026b7")
+	msgHash := hexToBytes("c301ba9de5d6053caad9f5eb46523f007702add2c62fa39de03146a36b8026b7")
 
 	b.ReportAllocs()
 	b.ResetTimer()
