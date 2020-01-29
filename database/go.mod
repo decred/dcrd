@@ -9,11 +9,10 @@ require (
 	github.com/decred/dcrd/wire v1.3.0
 	github.com/decred/slog v1.0.0
 	github.com/golang/protobuf v1.3.2 // indirect
-	github.com/golang/snappy v0.0.1 // indirect
 	github.com/jessevdk/go-flags v1.4.0
 	github.com/onsi/ginkgo v1.11.0 // indirect
 	github.com/onsi/gomega v1.8.1 // indirect
-	github.com/syndtr/goleveldb v0.0.0-20180708030551-c4c61651e9e3
+	github.com/syndtr/goleveldb v1.0.1-0.20190923125748-758128399b1d
 	golang.org/x/sys v0.0.0-20191010194322-b09406accb47 // indirect
 )
 
