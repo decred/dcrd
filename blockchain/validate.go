@@ -2285,11 +2285,9 @@ func CheckTransactionInputs(subsidyCache *standalone.SubsidyCache, tx *dcrutil.T
 		// from non votes and revocations and make sure that they spend no
 		// OP_SSTX tagged outputs.
 		if !(isVote || isRevocation) {
-			if txscript.GetScriptClass(
+			if stake.IsTicketPurchaseScript(
 				utxoEntry.ScriptVersionByIndex(originTxIndex),
-				utxoEntry.PkScriptByIndex(originTxIndex)) ==
-				txscript.StakeSubmissionTy {
-
+				utxoEntry.PkScriptByIndex(originTxIndex)) {
 				errSSGen := stake.CheckSSGen(msgTx)
 				errSSRtx := stake.CheckSSRtx(msgTx)
 				errStr := fmt.Sprintf("Tx %v attempted to "+
@@ -2304,11 +2302,12 @@ func CheckTransactionInputs(subsidyCache *standalone.SubsidyCache, tx *dcrutil.T
 
 		// OP_SSGEN and OP_SSRTX tagged outputs can only be spent after
 		// coinbase maturity many blocks.
-		scriptClass := txscript.GetScriptClass(
+		if stake.IsRevocationScript(
 			utxoEntry.ScriptVersionByIndex(originTxIndex),
-			utxoEntry.PkScriptByIndex(originTxIndex))
-		if scriptClass == txscript.StakeGenTy ||
-			scriptClass == txscript.StakeRevocationTy {
+			utxoEntry.PkScriptByIndex(originTxIndex)) ||
+			stake.IsVoteScript(
+				utxoEntry.ScriptVersionByIndex(originTxIndex),
+				utxoEntry.PkScriptByIndex(originTxIndex)) {
 			originHeight := utxoEntry.BlockHeight()
 			blocksSincePrev := txHeight - originHeight
 			if blocksSincePrev <
@@ -2325,7 +2324,9 @@ func CheckTransactionInputs(subsidyCache *standalone.SubsidyCache, tx *dcrutil.T
 
 		// Ticket change outputs may only be spent after ticket change
 		// maturity many blocks.
-		if scriptClass == txscript.StakeSubChangeTy {
+		if stake.IsStakeChangeScript(
+			utxoEntry.ScriptVersionByIndex(originTxIndex),
+			utxoEntry.PkScriptByIndex(originTxIndex)) {
 			originHeight := utxoEntry.BlockHeight()
 			blocksSincePrev := txHeight - originHeight
 			if blocksSincePrev <
