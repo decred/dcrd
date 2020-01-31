@@ -2542,8 +2542,7 @@ func (s *server) Run(ctx context.Context) {
 
 		s.wg.Add(1)
 		go func(s *server) {
-			s.rpcServer.Start()
-			s.rpcServer.wg.Wait()
+			s.rpcServer.Run(serverCtx)
 			s.wg.Done()
 		}(s)
 	}
@@ -2577,11 +2576,6 @@ func (s *server) Run(ctx context.Context) {
 	// Stop the CPU miner if needed.
 	if cfg.Generate && s.cpuMiner != nil {
 		s.cpuMiner.Stop()
-	}
-
-	// Shutdown the RPC server if it's not disabled.
-	if !cfg.DisableRPC && s.rpcServer != nil {
-		s.rpcServer.Stop()
 	}
 
 	s.feeEstimator.Close()
