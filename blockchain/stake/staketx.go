@@ -234,6 +234,50 @@ func isNullFraudProof(tx *wire.MsgTx) bool {
 	return true
 }
 
+// isSmallInt returns whether or not the opcode is considered a small integer,
+// which is an OP_0, or OP_1 through OP_16.
+//
+// NOTE: This function is only valid for version 0 opcodes.
+func isSmallInt(op byte) bool {
+	return op == txscript.OP_0 || (op >= txscript.OP_1 && op <= txscript.OP_16)
+}
+
+// IsNullDataScript returns whether or not the passed script is a null
+// data script.
+//
+// NOTE: This function is only valid for version 0 scripts.  It will always
+// return false for other script versions.
+func IsNullDataScript(scriptVersion uint16, script []byte) bool {
+	// The only supported script version is 0.
+	if scriptVersion != 0 {
+		return false
+	}
+
+	// A null script is of the form:
+	//  OP_RETURN <optional data>
+	//
+	// Thus, it can either be a single OP_RETURN or an OP_RETURN followed by a
+	// data push up to MaxDataCarrierSize bytes.
+
+	// The script can't possibly be a null data script if it doesn't start
+	// with OP_RETURN.  Fail fast to avoid more work below.
+	if len(script) < 1 || script[0] != txscript.OP_RETURN {
+		return false
+	}
+
+	// Single OP_RETURN.
+	if len(script) == 1 {
+		return true
+	}
+
+	// OP_RETURN followed by data push up to MaxDataCarrierSize bytes.
+	tokenizer := txscript.MakeScriptTokenizer(scriptVersion, script[1:])
+	return tokenizer.Next() && tokenizer.Done() &&
+		(isSmallInt(tokenizer.Opcode()) ||
+			tokenizer.Opcode() <= txscript.OP_PUSHDATA4) &&
+		len(tokenizer.Data()) <= txscript.MaxDataCarrierSize
+}
+
 // IsStakeBase returns whether or not a tx could be considered as having a
 // topically valid stake base present.
 func IsStakeBase(tx *wire.MsgTx) bool {
@@ -589,8 +633,7 @@ func CheckSStx(tx *wire.MsgTx) error {
 	}
 
 	// Ensure that the first output is tagged OP_SSTX.
-	if txscript.GetScriptClass(tx.TxOut[0].Version, tx.TxOut[0].PkScript) !=
-		txscript.StakeSubmissionTy {
+	if !IsTicketPurchaseScript(tx.TxOut[0].Version, tx.TxOut[0].PkScript) {
 		return stakeRuleError(ErrSStxInvalidOutputs, "First SStx output "+
 			"should have been OP_SSTX tagged, but it was not")
 	}
@@ -611,8 +654,7 @@ func CheckSStx(tx *wire.MsgTx) error {
 
 		// Check change outputs.
 		if outTxIndex%2 == 0 {
-			if txscript.GetScriptClass(scrVersion, rawScript) !=
-				txscript.StakeSubChangeTy {
+			if !IsStakeChangeScript(scrVersion, rawScript) {
 				str := fmt.Sprintf("SStx output at output index %d was not "+
 					"an sstx change output", outTxIndex)
 				return stakeRuleError(ErrSStxInvalidOutputs, str)
@@ -622,8 +664,7 @@ func CheckSStx(tx *wire.MsgTx) error {
 
 		// Else (odd) check commitment outputs.  The script should be a
 		// NullDataTy output.
-		if txscript.GetScriptClass(scrVersion, rawScript) !=
-			txscript.NullDataTy {
+		if !IsNullDataScript(scrVersion, rawScript) {
 			str := fmt.Sprintf("SStx output at output index %d was not "+
 				"a NullData (OP_RETURN) push", outTxIndex)
 			return stakeRuleError(ErrSStxInvalidOutputs, str)
@@ -757,8 +798,7 @@ func CheckSSGen(tx *wire.MsgTx) error {
 	// Ensure that the first output is an OP_RETURN push.
 	zeroethOutputVersion := tx.TxOut[0].Version
 	zeroethOutputScript := tx.TxOut[0].PkScript
-	if txscript.GetScriptClass(zeroethOutputVersion, zeroethOutputScript) !=
-		txscript.NullDataTy {
+	if !IsNullDataScript(zeroethOutputVersion, zeroethOutputScript) {
 		return stakeRuleError(ErrSSGenNoReference, "First SSGen output "+
 			"should have been an OP_RETURN data push, but was not")
 	}
@@ -787,8 +827,7 @@ func CheckSSGen(tx *wire.MsgTx) error {
 	// Ensure that the second output is an OP_RETURN push.
 	firstOutputVersion := tx.TxOut[1].Version
 	firstOutputScript := tx.TxOut[1].PkScript
-	if txscript.GetScriptClass(firstOutputVersion, firstOutputScript) !=
-		txscript.NullDataTy {
+	if !IsNullDataScript(firstOutputVersion, firstOutputScript) {
 		return stakeRuleError(ErrSSGenNoVotePush, "Second SSGen output "+
 			"should have been an OP_RETURN data push, but was not")
 	}
@@ -830,8 +869,7 @@ func CheckSSGen(tx *wire.MsgTx) error {
 		rawScript := tx.TxOut[outTxIndex].PkScript
 
 		// The script should be a OP_SSGEN tagged output.
-		if txscript.GetScriptClass(scrVersion, rawScript) !=
-			txscript.StakeGenTy {
+		if !IsVoteScript(scrVersion, rawScript) {
 			str := fmt.Sprintf("SSGen tx output at output index %d was not "+
 				"an OP_SSGEN tagged output", outTxIndex)
 			return stakeRuleError(ErrSSGenBadGenOuts, str)
@@ -921,8 +959,7 @@ func CheckSSRtx(tx *wire.MsgTx) error {
 		rawScript := tx.TxOut[outTxIndex].PkScript
 
 		// The script should be a OP_SSRTX tagged output.
-		if txscript.GetScriptClass(scrVersion, rawScript) !=
-			txscript.StakeRevocationTy {
+		if !IsRevocationScript(scrVersion, rawScript) {
 			str := fmt.Sprintf("SSRtx output at output index %d was not "+
 				"an OP_SSRTX tagged output", outTxIndex)
 			return stakeRuleError(ErrSSRtxBadOuts, str)
