@@ -4853,8 +4853,6 @@ func handleVersion(_ context.Context, s *rpcServer, cmd interface{}) (interface{
 
 // rpcServer provides a concurrent safe RPC server to a chain server.
 type rpcServer struct {
-	started                int32
-	shutdown               int32
 	cfg                    rpcserverConfig
 	authsha                [sha256.Size]byte
 	limitauthsha           [sha256.Size]byte
@@ -4923,13 +4921,8 @@ func (s *rpcServer) writeHTTPResponseHeaders(req *http.Request, headers http.Hea
 	return err
 }
 
-// Stop is used by server.go to stop the rpc listener.
-func (s *rpcServer) Stop() error {
-	if atomic.AddInt32(&s.shutdown, 1) != 1 {
-		rpcsLog.Infof("RPC server is already in the process of " +
-			"shutting down")
-		return nil
-	}
+// shutdown terminates the processes of the rpc server.
+func (s *rpcServer) shutdown() error {
 	rpcsLog.Warnf("RPC server shutting down")
 	for _, listener := range s.cfg.Listeners {
 		err := listener.Close()
@@ -4938,8 +4931,6 @@ func (s *rpcServer) Stop() error {
 			return err
 		}
 	}
-	s.ntfnMgr.Shutdown()
-	s.ntfnMgr.WaitForShutdown()
 	s.wg.Wait()
 	rpcsLog.Infof("RPC server shutdown complete")
 	return nil
@@ -5173,9 +5164,11 @@ func (s *rpcServer) processRequest(ctx context.Context, request *dcrjson.Request
 }
 
 // jsonRPCRead handles reading and responding to RPC messages.
-func (s *rpcServer) jsonRPCRead(w http.ResponseWriter, r *http.Request, isAdmin bool) {
-	if atomic.LoadInt32(&s.shutdown) != 0 {
+func (s *rpcServer) jsonRPCRead(sCtx context.Context, w http.ResponseWriter, r *http.Request, isAdmin bool) {
+	select {
+	case <-sCtx.Done():
 		return
+	default:
 	}
 
 	// Read and close the JSON-RPC request body from the caller.
@@ -5219,7 +5212,7 @@ func (s *rpcServer) jsonRPCRead(w http.ResponseWriter, r *http.Request, isAdmin 
 	conn.SetReadDeadline(timeZeroVal)
 	// Setup a close notifier.  Since the connection is hijacked,
 	// the CloseNotifier on the ResponseWriter is not available.
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(sCtx)
 	defer cancel()
 
 	go func() {
@@ -5402,13 +5395,8 @@ func jsonAuthFail(w http.ResponseWriter) {
 	http.Error(w, "401 Unauthorized.", http.StatusUnauthorized)
 }
 
-// Start is used by server.go to start the rpc listener.
-func (s *rpcServer) Start() {
-	if atomic.AddInt32(&s.started, 1) != 1 {
-		return
-	}
-
-	rpcsLog.Trace("Starting RPC server")
+// route sets up the endpoints of the rpc server.
+func (s *rpcServer) route(ctx context.Context) *http.Server {
 	rpcServeMux := http.NewServeMux()
 	httpServer := &http.Server{
 		Handler: rpcServeMux,
@@ -5437,7 +5425,7 @@ func (s *rpcServer) Start() {
 		}
 
 		// Read and respond to the request.
-		s.jsonRPCRead(w, r, isAdmin)
+		s.jsonRPCRead(ctx, w, r, isAdmin)
 	})
 
 	// Websocket endpoint.
@@ -5477,20 +5465,30 @@ func (s *rpcServer) Start() {
 		})
 		s.WebsocketHandler(ws, r.RemoteAddr, authenticated, isAdmin)
 	})
+	return httpServer
+}
 
+// Run starts the rpc server and its listeners. It blocks until the
+// provided context is cancelled.
+func (s *rpcServer) Run(ctx context.Context) {
+	rpcsLog.Trace("Starting RPC server")
+	server := s.route(ctx)
 	for _, listener := range s.cfg.Listeners {
 		s.wg.Add(1)
 		go func(listener net.Listener) {
-			rpcsLog.Infof("RPC server listening on %s",
-				listener.Addr())
-			httpServer.Serve(listener)
-			rpcsLog.Tracef("RPC listener done for %s",
-				listener.Addr())
+			rpcsLog.Infof("RPC server listening on %s", listener.Addr())
+			server.Serve(listener)
+			rpcsLog.Tracef("RPC listener done for %s", listener.Addr())
 			s.wg.Done()
 		}(listener)
 	}
 
-	s.ntfnMgr.Start()
+	s.ntfnMgr.Run(ctx)
+	err := s.shutdown()
+	if err != nil {
+		rpcsLog.Error(err)
+		return
+	}
 }
 
 // genCertPair generates a key/cert pair to the paths provided.
