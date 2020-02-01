@@ -222,17 +222,17 @@ func TestSignTxOutput(t *testing.T) {
 
 				switch suite {
 				case dcrec.STEcdsaSecp256k1:
-					keyDB, _, _, _ = secp256k1.GenerateKey(rand.Reader)
-					_, pk := secp256k1.PrivKeyFromBytes(keyDB)
-					pkBytes = pk.SerializeUncompressed()
+					privKey, _ := secp256k1.GeneratePrivateKey()
+					keyDB = privKey.D.Bytes()
+					pkBytes = privKey.PubKey().SerializeUncompressed()
 				case dcrec.STEd25519:
 					keyDB, _, _, _ = edwards.GenerateKey(rand.Reader)
 					_, pk := edwards.PrivKeyFromBytes(keyDB)
 					pkBytes = pk.SerializeUncompressed()
 				case dcrec.STSchnorrSecp256k1:
 					keyDB, _, _, _ = schnorr.GenerateKey(rand.Reader)
-					_, pk := secp256k1.PrivKeyFromBytes(keyDB)
-					pkBytes = pk.SerializeCompressed()
+					privKey := secp256k1.PrivKeyFromBytes(keyDB)
+					pkBytes = privKey.PubKey().SerializeCompressed()
 				}
 
 				msg := fmt.Sprintf("%d:%d:%d", hashType, i, suite)
@@ -281,17 +281,17 @@ func TestSignTxOutput(t *testing.T) {
 
 				switch suite {
 				case dcrec.STEcdsaSecp256k1:
-					keyDB, _, _, _ = secp256k1.GenerateKey(rand.Reader)
-					_, pk := secp256k1.PrivKeyFromBytes(keyDB)
-					pkBytes = pk.SerializeUncompressed()
+					privKey, _ := secp256k1.GeneratePrivateKey()
+					keyDB = privKey.D.Bytes()
+					pkBytes = privKey.PubKey().SerializeUncompressed()
 				case dcrec.STEd25519:
 					keyDB, _, _, _ = edwards.GenerateKey(rand.Reader)
 					_, pk := edwards.PrivKeyFromBytes(keyDB)
 					pkBytes = pk.SerializeUncompressed()
 				case dcrec.STSchnorrSecp256k1:
 					keyDB, _, _, _ = schnorr.GenerateKey(rand.Reader)
-					_, pk := secp256k1.PrivKeyFromBytes(keyDB)
-					pkBytes = pk.SerializeCompressed()
+					privKey := secp256k1.PrivKeyFromBytes(keyDB)
+					pkBytes = privKey.PubKey().SerializeCompressed()
 				}
 
 				msg := fmt.Sprintf("%d:%d:%d", hashType, i, suite)
@@ -353,17 +353,17 @@ func TestSignTxOutput(t *testing.T) {
 
 				switch suite {
 				case dcrec.STEcdsaSecp256k1:
-					keyDB, _, _, _ = secp256k1.GenerateKey(rand.Reader)
-					_, pk := secp256k1.PrivKeyFromBytes(keyDB)
-					pkBytes = pk.SerializeCompressed()
+					privKey, _ := secp256k1.GeneratePrivateKey()
+					keyDB = privKey.D.Bytes()
+					pkBytes = privKey.PubKey().SerializeCompressed()
 				case dcrec.STEd25519:
 					keyDB, _, _, _ = edwards.GenerateKey(rand.Reader)
 					_, pk := edwards.PrivKeyFromBytes(keyDB)
 					pkBytes = pk.SerializeCompressed()
 				case dcrec.STSchnorrSecp256k1:
 					keyDB, _, _, _ = schnorr.GenerateKey(rand.Reader)
-					_, pk := secp256k1.PrivKeyFromBytes(keyDB)
-					pkBytes = pk.SerializeCompressed()
+					privKey := secp256k1.PrivKeyFromBytes(keyDB)
+					pkBytes = privKey.PubKey().SerializeCompressed()
 				}
 
 				msg := fmt.Sprintf("%d:%d:%d", hashType, i, suite)
@@ -411,17 +411,17 @@ func TestSignTxOutput(t *testing.T) {
 
 				switch suite {
 				case dcrec.STEcdsaSecp256k1:
-					keyDB, _, _, _ = secp256k1.GenerateKey(rand.Reader)
-					_, pk := secp256k1.PrivKeyFromBytes(keyDB)
-					pkBytes = pk.SerializeCompressed()
+					privKey, _ := secp256k1.GeneratePrivateKey()
+					keyDB = privKey.D.Bytes()
+					pkBytes = privKey.PubKey().SerializeCompressed()
 				case dcrec.STEd25519:
 					keyDB, _, _, _ = edwards.GenerateKey(rand.Reader)
 					_, pk := edwards.PrivKeyFromBytes(keyDB)
 					pkBytes = pk.SerializeCompressed()
 				case dcrec.STSchnorrSecp256k1:
 					keyDB, _, _, _ = schnorr.GenerateKey(rand.Reader)
-					_, pk := secp256k1.PrivKeyFromBytes(keyDB)
-					pkBytes = pk.SerializeCompressed()
+					privKey := secp256k1.PrivKeyFromBytes(keyDB)
+					pkBytes = privKey.PubKey().SerializeCompressed()
 				}
 
 				msg := fmt.Sprintf("%d:%d:%d", hashType, i, suite)
@@ -480,13 +480,13 @@ func TestSignTxOutput(t *testing.T) {
 		for i := range tx.TxIn {
 			msg := fmt.Sprintf("%d:%d", hashType, i)
 
-			keyDB, _, _, err := secp256k1.GenerateKey(rand.Reader)
+			privKey, err := secp256k1.GeneratePrivateKey()
 			if err != nil {
 				t.Errorf("failed to generate key: %v", err)
 				break
 			}
-			_, pk := secp256k1.PrivKeyFromBytes(keyDB)
-			pkBytes := pk.SerializeCompressed()
+			keyDB := privKey.D.Bytes()
+			pkBytes := privKey.PubKey().SerializeCompressed()
 
 			suite := dcrec.STEcdsaSecp256k1
 			address, err := dcrutil.NewAddressPubKeyHash(
@@ -528,13 +528,13 @@ func TestSignTxOutput(t *testing.T) {
 		for i := range tx.TxIn {
 			msg := fmt.Sprintf("%d:%d", hashType, i)
 
-			keyDB, _, _, err := secp256k1.GenerateKey(rand.Reader)
+			privKey, err := secp256k1.GeneratePrivateKey()
 			if err != nil {
 				t.Errorf("failed to generate key: %v", err)
 				break
 			}
-			_, pk := secp256k1.PrivKeyFromBytes(keyDB)
-			pkBytes := pk.SerializeCompressed()
+			keyDB := privKey.D.Bytes()
+			pkBytes := privKey.PubKey().SerializeCompressed()
 
 			suite := dcrec.STEcdsaSecp256k1
 			address, err := dcrutil.NewAddressPubKeyHash(
@@ -576,13 +576,13 @@ func TestSignTxOutput(t *testing.T) {
 		for i := range tx.TxIn {
 			msg := fmt.Sprintf("%d:%d", hashType, i)
 
-			keyDB, _, _, err := secp256k1.GenerateKey(rand.Reader)
+			privKey, err := secp256k1.GeneratePrivateKey()
 			if err != nil {
 				t.Errorf("failed to generate key: %v", err)
 				break
 			}
-			_, pk := secp256k1.PrivKeyFromBytes(keyDB)
-			pkBytes := pk.SerializeCompressed()
+			keyDB := privKey.D.Bytes()
+			pkBytes := privKey.PubKey().SerializeCompressed()
 
 			suite := dcrec.STEcdsaSecp256k1
 			address, err := dcrutil.NewAddressPubKeyHash(
@@ -624,13 +624,13 @@ func TestSignTxOutput(t *testing.T) {
 		for i := range tx.TxIn {
 			msg := fmt.Sprintf("%d:%d", hashType, i)
 
-			keyDB, _, _, err := secp256k1.GenerateKey(rand.Reader)
+			privKey, err := secp256k1.GeneratePrivateKey()
 			if err != nil {
 				t.Errorf("failed to generate key: %v", err)
 				break
 			}
-			_, pk := secp256k1.PrivKeyFromBytes(keyDB)
-			pkBytes := pk.SerializeCompressed()
+			keyDB := privKey.D.Bytes()
+			pkBytes := privKey.PubKey().SerializeCompressed()
 
 			suite := dcrec.STEcdsaSecp256k1
 			address, err := dcrutil.NewAddressPubKeyHash(
@@ -673,12 +673,13 @@ func TestSignTxOutput(t *testing.T) {
 			for i := range tx.TxIn {
 				msg := fmt.Sprintf("%d:%d:%d", hashType, i, suite)
 
-				keyDB, _, _, err := secp256k1.GenerateKey(rand.Reader)
+				privKey, err := secp256k1.GeneratePrivateKey()
 				if err != nil {
 					t.Errorf("failed to generate key: %v", err)
 					break
 				}
-				_, pk := secp256k1.PrivKeyFromBytes(keyDB)
+				keyDB := privKey.D.Bytes()
+				pk := privKey.PubKey()
 				suite := dcrec.STEcdsaSecp256k1
 				// For address generation, consensus rules require using
 				// a compressed public key. Look up ExtractPkScriptAddrs
@@ -729,8 +730,9 @@ func TestSignTxOutput(t *testing.T) {
 
 				switch suite {
 				case dcrec.STEcdsaSecp256k1:
-					keyDB, _, _, _ = secp256k1.GenerateKey(rand.Reader)
-					_, pk := secp256k1.PrivKeyFromBytes(keyDB)
+					privKey, _ := secp256k1.GeneratePrivateKey()
+					keyDB = privKey.D.Bytes()
+					pk := privKey.PubKey()
 					// For address generation, consensus rules require using
 					// a compressed public key. Look up ExtractPkScriptAddrs
 					// for more details
@@ -754,8 +756,8 @@ func TestSignTxOutput(t *testing.T) {
 
 				case dcrec.STSchnorrSecp256k1:
 					keyDB, _, _, _ = schnorr.GenerateKey(rand.Reader)
-					_, pk := secp256k1.PrivKeyFromBytes(keyDB)
-					pkBytes = pk.SerializeCompressed()
+					privKey := secp256k1.PrivKeyFromBytes(keyDB)
+					pkBytes = privKey.PubKey().SerializeCompressed()
 					address, err = dcrutil.NewAddressSecSchnorrPubKey(pkBytes,
 						testingParams)
 					if err != nil {
@@ -813,8 +815,9 @@ func TestSignTxOutput(t *testing.T) {
 
 				switch suite {
 				case dcrec.STEcdsaSecp256k1:
-					keyDB, _, _, _ = secp256k1.GenerateKey(rand.Reader)
-					_, pk := secp256k1.PrivKeyFromBytes(keyDB)
+					privKey, _ := secp256k1.GeneratePrivateKey()
+					keyDB = privKey.D.Bytes()
+					pk := privKey.PubKey()
 					// For address generation, consensus rules require using
 					// a compressed public key. Look up ExtractPkScriptAddrs
 					// for more details
@@ -838,8 +841,8 @@ func TestSignTxOutput(t *testing.T) {
 
 				case dcrec.STSchnorrSecp256k1:
 					keyDB, _, _, _ = schnorr.GenerateKey(rand.Reader)
-					_, pk := secp256k1.PrivKeyFromBytes(keyDB)
-					pkBytes = pk.SerializeCompressed()
+					privKey := secp256k1.PrivKeyFromBytes(keyDB)
+					pkBytes = privKey.PubKey().SerializeCompressed()
 					address, err = dcrutil.NewAddressSecSchnorrPubKey(pkBytes,
 						testingParams)
 					if err != nil {
@@ -886,8 +889,9 @@ func TestSignTxOutput(t *testing.T) {
 
 				switch suite {
 				case dcrec.STEcdsaSecp256k1:
-					keyDB, _, _, _ = secp256k1.GenerateKey(rand.Reader)
-					_, pk := secp256k1.PrivKeyFromBytes(keyDB)
+					privKey, _ := secp256k1.GeneratePrivateKey()
+					keyDB = privKey.D.Bytes()
+					pk := privKey.PubKey()
 					address, err = dcrutil.NewAddressSecpPubKeyCompressed(pk,
 						testingParams)
 					if err != nil {
@@ -908,8 +912,8 @@ func TestSignTxOutput(t *testing.T) {
 
 				case dcrec.STSchnorrSecp256k1:
 					keyDB, _, _, _ = schnorr.GenerateKey(rand.Reader)
-					_, pk := secp256k1.PrivKeyFromBytes(keyDB)
-					pkBytes = pk.SerializeCompressed()
+					privKey := secp256k1.PrivKeyFromBytes(keyDB)
+					pkBytes = privKey.PubKey().SerializeCompressed()
 					address, err = dcrutil.NewAddressSecSchnorrPubKey(pkBytes,
 						testingParams)
 					if err != nil {
@@ -967,17 +971,17 @@ func TestSignTxOutput(t *testing.T) {
 
 				switch suite {
 				case dcrec.STEcdsaSecp256k1:
-					keyDB, _, _, _ = secp256k1.GenerateKey(rand.Reader)
-					_, pk := secp256k1.PrivKeyFromBytes(keyDB)
-					pkBytes = pk.SerializeUncompressed()
+					privKey, _ := secp256k1.GeneratePrivateKey()
+					keyDB = privKey.D.Bytes()
+					pkBytes = privKey.PubKey().SerializeUncompressed()
 				case dcrec.STEd25519:
 					keyDB, _, _, _ = edwards.GenerateKey(rand.Reader)
 					_, pk := edwards.PrivKeyFromBytes(keyDB)
 					pkBytes = pk.SerializeUncompressed()
 				case dcrec.STSchnorrSecp256k1:
 					keyDB, _, _, _ = schnorr.GenerateKey(rand.Reader)
-					_, pk := secp256k1.PrivKeyFromBytes(keyDB)
-					pkBytes = pk.SerializeCompressed()
+					privKey := secp256k1.PrivKeyFromBytes(keyDB)
+					pkBytes = privKey.PubKey().SerializeCompressed()
 				}
 
 				msg := fmt.Sprintf("%d:%d:%d", hashType, i, suite)
@@ -1044,17 +1048,17 @@ func TestSignTxOutput(t *testing.T) {
 
 				switch suite {
 				case dcrec.STEcdsaSecp256k1:
-					keyDB, _, _, _ = secp256k1.GenerateKey(rand.Reader)
-					_, pk := secp256k1.PrivKeyFromBytes(keyDB)
-					pkBytes = pk.SerializeUncompressed()
+					privKey, _ := secp256k1.GeneratePrivateKey()
+					keyDB = privKey.D.Bytes()
+					pkBytes = privKey.PubKey().SerializeUncompressed()
 				case dcrec.STEd25519:
 					keyDB, _, _, _ = edwards.GenerateKey(rand.Reader)
 					_, pk := edwards.PrivKeyFromBytes(keyDB)
 					pkBytes = pk.SerializeUncompressed()
 				case dcrec.STSchnorrSecp256k1:
 					keyDB, _, _, _ = schnorr.GenerateKey(rand.Reader)
-					_, pk := secp256k1.PrivKeyFromBytes(keyDB)
-					pkBytes = pk.SerializeCompressed()
+					privKey := secp256k1.PrivKeyFromBytes(keyDB)
+					pkBytes = privKey.PubKey().SerializeCompressed()
 				}
 
 				msg := fmt.Sprintf("%d:%d:%d", hashType, i, suite)
@@ -1136,17 +1140,17 @@ func TestSignTxOutput(t *testing.T) {
 
 				switch suite {
 				case dcrec.STEcdsaSecp256k1:
-					keyDB, _, _, _ = secp256k1.GenerateKey(rand.Reader)
-					_, pk := secp256k1.PrivKeyFromBytes(keyDB)
-					pkBytes = pk.SerializeCompressed()
+					privKey, _ := secp256k1.GeneratePrivateKey()
+					keyDB = privKey.D.Bytes()
+					pkBytes = privKey.PubKey().SerializeCompressed()
 				case dcrec.STEd25519:
 					keyDB, _, _, _ = edwards.GenerateKey(rand.Reader)
 					_, pk := edwards.PrivKeyFromBytes(keyDB)
 					pkBytes = pk.SerializeCompressed()
 				case dcrec.STSchnorrSecp256k1:
 					keyDB, _, _, _ = schnorr.GenerateKey(rand.Reader)
-					_, pk := secp256k1.PrivKeyFromBytes(keyDB)
-					pkBytes = pk.SerializeCompressed()
+					privKey := secp256k1.PrivKeyFromBytes(keyDB)
+					pkBytes = privKey.PubKey().SerializeCompressed()
 				}
 
 				msg := fmt.Sprintf("%d:%d:%d", hashType, i, suite)
@@ -1212,17 +1216,17 @@ func TestSignTxOutput(t *testing.T) {
 
 				switch suite {
 				case dcrec.STEcdsaSecp256k1:
-					keyDB, _, _, _ = secp256k1.GenerateKey(rand.Reader)
-					_, pk := secp256k1.PrivKeyFromBytes(keyDB)
-					pkBytes = pk.SerializeCompressed()
+					privKey, _ := secp256k1.GeneratePrivateKey()
+					keyDB = privKey.D.Bytes()
+					pkBytes = privKey.PubKey().SerializeCompressed()
 				case dcrec.STEd25519:
 					keyDB, _, _, _ = edwards.GenerateKey(rand.Reader)
 					_, pk := edwards.PrivKeyFromBytes(keyDB)
 					pkBytes = pk.SerializeCompressed()
 				case dcrec.STSchnorrSecp256k1:
 					keyDB, _, _, _ = schnorr.GenerateKey(rand.Reader)
-					_, pk := secp256k1.PrivKeyFromBytes(keyDB)
-					pkBytes = pk.SerializeCompressed()
+					privKey := secp256k1.PrivKeyFromBytes(keyDB)
+					pkBytes = privKey.PubKey().SerializeCompressed()
 				}
 
 				msg := fmt.Sprintf("%d:%d:%d", hashType, i, suite)
@@ -1307,8 +1311,9 @@ func TestSignTxOutput(t *testing.T) {
 
 				switch suite {
 				case dcrec.STEcdsaSecp256k1:
-					keyDB, _, _, _ = secp256k1.GenerateKey(rand.Reader)
-					_, pk := secp256k1.PrivKeyFromBytes(keyDB)
+					privKey, _ := secp256k1.GeneratePrivateKey()
+					keyDB = privKey.D.Bytes()
+					pk := privKey.PubKey()
 					// For address generation, consensus rules require using
 					// a compressed public key. Look up ExtractPkScriptAddrs
 					// for more details
@@ -1332,8 +1337,8 @@ func TestSignTxOutput(t *testing.T) {
 
 				case dcrec.STSchnorrSecp256k1:
 					keyDB, _, _, _ = schnorr.GenerateKey(rand.Reader)
-					_, pk := secp256k1.PrivKeyFromBytes(keyDB)
-					pkBytes = pk.SerializeCompressed()
+					privKey := secp256k1.PrivKeyFromBytes(keyDB)
+					pkBytes = privKey.PubKey().SerializeCompressed()
 					address, err = dcrutil.NewAddressSecSchnorrPubKey(pkBytes,
 						testingParams)
 					if err != nil {
@@ -1396,8 +1401,9 @@ func TestSignTxOutput(t *testing.T) {
 
 				switch suite {
 				case dcrec.STEcdsaSecp256k1:
-					keyDB, _, _, _ = secp256k1.GenerateKey(rand.Reader)
-					_, pk := secp256k1.PrivKeyFromBytes(keyDB)
+					privKey, _ := secp256k1.GeneratePrivateKey()
+					keyDB = privKey.D.Bytes()
+					pk := privKey.PubKey()
 					// For address generation, consensus rules require using
 					// a compressed public key. Look up ExtractPkScriptAddrs
 					// for more details
@@ -1421,8 +1427,8 @@ func TestSignTxOutput(t *testing.T) {
 
 				case dcrec.STSchnorrSecp256k1:
 					keyDB, _, _, _ = schnorr.GenerateKey(rand.Reader)
-					_, pk := secp256k1.PrivKeyFromBytes(keyDB)
-					pkBytes = pk.SerializeCompressed()
+					privKey := secp256k1.PrivKeyFromBytes(keyDB)
+					pkBytes = privKey.PubKey().SerializeCompressed()
 					address, err = dcrutil.NewAddressSecSchnorrPubKey(pkBytes,
 						testingParams)
 					if err != nil {
@@ -1501,8 +1507,9 @@ func TestSignTxOutput(t *testing.T) {
 
 				switch suite {
 				case dcrec.STEcdsaSecp256k1:
-					keyDB, _, _, _ = secp256k1.GenerateKey(rand.Reader)
-					_, pk := secp256k1.PrivKeyFromBytes(keyDB)
+					privKey, _ := secp256k1.GeneratePrivateKey()
+					keyDB = privKey.D.Bytes()
+					pk := privKey.PubKey()
 					address, err = dcrutil.NewAddressSecpPubKeyCompressed(pk,
 						testingParams)
 					if err != nil {
@@ -1523,8 +1530,8 @@ func TestSignTxOutput(t *testing.T) {
 
 				case dcrec.STSchnorrSecp256k1:
 					keyDB, _, _, _ = schnorr.GenerateKey(rand.Reader)
-					_, pk := secp256k1.PrivKeyFromBytes(keyDB)
-					pkBytes = pk.SerializeCompressed()
+					privKey := secp256k1.PrivKeyFromBytes(keyDB)
+					pkBytes = privKey.PubKey().SerializeCompressed()
 					address, err = dcrutil.NewAddressSecSchnorrPubKey(pkBytes,
 						testingParams)
 					if err != nil {
@@ -1590,8 +1597,9 @@ func TestSignTxOutput(t *testing.T) {
 
 				switch suite {
 				case dcrec.STEcdsaSecp256k1:
-					keyDB, _, _, _ = secp256k1.GenerateKey(rand.Reader)
-					_, pk := secp256k1.PrivKeyFromBytes(keyDB)
+					privKey, _ := secp256k1.GeneratePrivateKey()
+					keyDB = privKey.D.Bytes()
+					pk := privKey.PubKey()
 					address, err = dcrutil.NewAddressSecpPubKeyCompressed(pk,
 						testingParams)
 					if err != nil {
@@ -1612,8 +1620,8 @@ func TestSignTxOutput(t *testing.T) {
 
 				case dcrec.STSchnorrSecp256k1:
 					keyDB, _, _, _ = schnorr.GenerateKey(rand.Reader)
-					_, pk := secp256k1.PrivKeyFromBytes(keyDB)
-					pkBytes = pk.SerializeCompressed()
+					privKey := secp256k1.PrivKeyFromBytes(keyDB)
+					pkBytes = privKey.PubKey().SerializeCompressed()
 					address, err = dcrutil.NewAddressSecSchnorrPubKey(pkBytes,
 						testingParams)
 					if err != nil {
@@ -1687,12 +1695,13 @@ func TestSignTxOutput(t *testing.T) {
 		for i := range tx.TxIn {
 			msg := fmt.Sprintf("%d:%d", hashType, i)
 
-			keyDB1, _, _, err := secp256k1.GenerateKey(rand.Reader)
+			privKey1, err := secp256k1.GeneratePrivateKey()
 			if err != nil {
 				t.Errorf("failed to generate key: %v", err)
 				break
 			}
-			_, pk1 := secp256k1.PrivKeyFromBytes(keyDB1)
+			keyDB1 := privKey1.D.Bytes()
+			pk1 := privKey1.PubKey()
 			suite1 := dcrec.STEcdsaSecp256k1
 
 			address1, err := dcrutil.NewAddressSecpPubKeyCompressed(pk1,
@@ -1703,12 +1712,13 @@ func TestSignTxOutput(t *testing.T) {
 				break
 			}
 
-			keyDB2, _, _, err := secp256k1.GenerateKey(rand.Reader)
+			privKey2, err := secp256k1.GeneratePrivateKey()
 			if err != nil {
 				t.Errorf("failed to generate key: %v", err)
 				break
 			}
-			_, pk2 := secp256k1.PrivKeyFromBytes(keyDB2)
+			keyDB2 := privKey2.D.Bytes()
+			pk2 := privKey2.PubKey()
 			suite2 := dcrec.STEcdsaSecp256k1
 
 			address2, err := dcrutil.NewAddressSecpPubKeyCompressed(pk2,
@@ -1771,12 +1781,13 @@ func TestSignTxOutput(t *testing.T) {
 		for i := range tx.TxIn {
 			msg := fmt.Sprintf("%d:%d", hashType, i)
 
-			keyDB1, _, _, err := secp256k1.GenerateKey(rand.Reader)
+			privKey1, err := secp256k1.GeneratePrivateKey()
 			if err != nil {
 				t.Errorf("failed to generate key: %v", err)
 				break
 			}
-			_, pk1 := secp256k1.PrivKeyFromBytes(keyDB1)
+			keyDB1 := privKey1.D.Bytes()
+			pk1 := privKey1.PubKey()
 			suite1 := dcrec.STEcdsaSecp256k1
 
 			address1, err := dcrutil.NewAddressSecpPubKeyCompressed(pk1,
@@ -1787,12 +1798,13 @@ func TestSignTxOutput(t *testing.T) {
 				break
 			}
 
-			keyDB2, _, _, err := secp256k1.GenerateKey(rand.Reader)
+			privKey2, err := secp256k1.GeneratePrivateKey()
 			if err != nil {
 				t.Errorf("failed to generate key: %v", err)
 				break
 			}
-			_, pk2 := secp256k1.PrivKeyFromBytes(keyDB2)
+			keyDB2 := privKey2.D.Bytes()
+			pk2 := privKey2.PubKey()
 			suite2 := dcrec.STEcdsaSecp256k1
 
 			address2, err := dcrutil.NewAddressSecpPubKeyCompressed(pk2,
@@ -1875,12 +1887,13 @@ func TestSignTxOutput(t *testing.T) {
 		for i := range tx.TxIn {
 			msg := fmt.Sprintf("%d:%d", hashType, i)
 
-			keyDB1, _, _, err := secp256k1.GenerateKey(rand.Reader)
+			privKey1, err := secp256k1.GeneratePrivateKey()
 			if err != nil {
 				t.Errorf("failed to generate key: %v", err)
 				break
 			}
-			_, pk1 := secp256k1.PrivKeyFromBytes(keyDB1)
+			keyDB1 := privKey1.D.Bytes()
+			pk1 := privKey1.PubKey()
 			suite1 := dcrec.STEcdsaSecp256k1
 
 			address1, err := dcrutil.NewAddressSecpPubKeyCompressed(pk1,
@@ -1891,12 +1904,13 @@ func TestSignTxOutput(t *testing.T) {
 				break
 			}
 
-			keyDB2, _, _, err := secp256k1.GenerateKey(rand.Reader)
+			privKey2, err := secp256k1.GeneratePrivateKey()
 			if err != nil {
 				t.Errorf("failed to generate key: %v", err)
 				break
 			}
-			_, pk2 := secp256k1.PrivKeyFromBytes(keyDB2)
+			keyDB2 := privKey2.D.Bytes()
+			pk2 := privKey2.PubKey()
 			suite2 := dcrec.STEcdsaSecp256k1
 			address2, err := dcrutil.NewAddressSecpPubKeyCompressed(pk2,
 				testingParams)
@@ -2001,7 +2015,7 @@ var (
 		0xb4, 0xfc, 0x4e, 0x55, 0xd4, 0x88, 0x42, 0xb3, 0xa1, 0x65,
 		0xac, 0x70, 0x7f, 0x3d, 0xa4, 0x39, 0x5e, 0xcb, 0x3b, 0xb0,
 		0xd6, 0x0e, 0x06, 0x92}
-	_, thisPubKey     = secp256k1.PrivKeyFromBytes(privKeyD)
+	thisPubKey        = secp256k1.PrivKeyFromBytes(privKeyD).PubKey()
 	thisAddressUnc, _ = dcrutil.NewAddressPubKeyHash(
 		dcrutil.Hash160(thisPubKey.SerializeUncompressed()),
 		testingParams, dcrec.STEcdsaSecp256k1)

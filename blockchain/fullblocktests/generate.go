@@ -7,7 +7,6 @@ package fullblocktests
 
 import (
 	"bytes"
-	"crypto/rand"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -1510,11 +1509,12 @@ func Generate(includeLargeReorg bool) (tests [][]TestInstance, err error) {
 	// ---------------------------------------------------------------------
 
 	// Create a private/public key pair for signing transactions.
-	privKey, x, y, err := secp256k1.GenerateKey(rand.Reader)
+	privKey, err := secp256k1.GeneratePrivateKey()
 	if err != nil {
 		panic(err)
 	}
-	pubKey := secp256k1.NewPublicKey(x, y)
+	privKeyBytes := privKey.D.Bytes()
+	pubKey := privKey.PubKey()
 
 	// Create a pay-to-script-hash redeem script that consists of 9
 	// signature operations to be used in the next three blocks.
@@ -1565,7 +1565,7 @@ func Generate(includeLargeReorg bool) (tests [][]TestInstance, err error) {
 			spend := chaingen.MakeSpendableOut(bshso0, uint32(i+2), 2)
 			tx := g.CreateSpendTx(&spend, lowFee)
 			sig, err := txscript.RawTxInSignature(tx, 0,
-				redeemScript, txscript.SigHashAll, privKey,
+				redeemScript, txscript.SigHashAll, privKeyBytes,
 				dcrec.STEcdsaSecp256k1)
 			if err != nil {
 				panic(err)
@@ -1601,7 +1601,7 @@ func Generate(includeLargeReorg bool) (tests [][]TestInstance, err error) {
 			spend := chaingen.MakeSpendableOut(bshso0, uint32(i+2), 2)
 			tx := g.CreateSpendTx(&spend, lowFee)
 			sig, err := txscript.RawTxInSignature(tx, 0,
-				redeemScript, txscript.SigHashAll, privKey,
+				redeemScript, txscript.SigHashAll, privKeyBytes,
 				dcrec.STEcdsaSecp256k1)
 			if err != nil {
 				panic(err)

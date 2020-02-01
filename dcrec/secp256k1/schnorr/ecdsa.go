@@ -6,6 +6,7 @@ package schnorr
 
 import (
 	"bytes"
+	"crypto/ecdsa"
 	"fmt"
 	"io"
 	"math/big"
@@ -42,7 +43,11 @@ func zeroSlice(s []byte) {
 // GenerateKey generates a key using a random number generator, returning
 // the private scalar and the corresponding public key points.
 func GenerateKey(rand io.Reader) (priv []byte, x, y *big.Int, err error) {
-	return secp256k1.GenerateKey(rand)
+	key, err := ecdsa.GenerateKey(secp256k1.S256(), rand)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	return key.D.Bytes(), key.PublicKey.X, key.PublicKey.Y, nil
 }
 
 // schnorrSign signs a Schnorr signature using a specified hash function

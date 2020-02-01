@@ -23,12 +23,10 @@ func TestGenerateSharedSecret(t *testing.T) {
 		return
 	}
 
-	pk1x, pk1y := privKey1.Public()
-	pk1 := NewPublicKey(pk1x, pk1y)
-	pk2x, pk2y := privKey2.Public()
-	pk2 := NewPublicKey(pk2x, pk2y)
-	secret1 := GenerateSharedSecret(privKey1, pk2)
-	secret2 := GenerateSharedSecret(privKey2, pk1)
+	pubKey1 := privKey1.PubKey()
+	pubKey2 := privKey2.PubKey()
+	secret1 := GenerateSharedSecret(privKey1, pubKey2)
+	secret2 := GenerateSharedSecret(privKey2, pubKey1)
 	if !bytes.Equal(secret1, secret2) {
 		t.Errorf("ECDH failed, secrets mismatch - first: %x, second: %x",
 			secret1, secret2)
@@ -37,21 +35,20 @@ func TestGenerateSharedSecret(t *testing.T) {
 
 // Test 1: Encryption and decryption
 func TestCipheringBasic(t *testing.T) {
-	privkey, err := GeneratePrivateKey()
+	privKey, err := GeneratePrivateKey()
 	if err != nil {
 		t.Fatal("failed to generate private key")
 	}
 
 	in := []byte("Hey there dude. How are you doing? This is a test.")
 
-	pk1x, pk1y := privkey.Public()
-	pk1 := NewPublicKey(pk1x, pk1y)
+	pk1 := privKey.PubKey()
 	out, err := Encrypt(pk1, in)
 	if err != nil {
 		t.Fatal("failed to encrypt:", err)
 	}
 
-	dec, err := Decrypt(privkey, out)
+	dec, err := Decrypt(privKey, out)
 	if err != nil {
 		t.Fatal("failed to decrypt:", err)
 	}
@@ -65,7 +62,7 @@ func TestCipheringBasic(t *testing.T) {
 func TestCiphering(t *testing.T) {
 	pb, _ := hex.DecodeString("fe38240982f313ae5afb3e904fb8215fb11af1200592b" +
 		"fca26c96c4738e4bf8f")
-	privkey, _ := PrivKeyFromBytes(pb)
+	privkey := PrivKeyFromBytes(pb)
 
 	in := []byte("This is just a test.")
 	out, _ := hex.DecodeString("b0d66e5adaa5ed4e2f0ca68e17b8f2fc02ca002009e3" +

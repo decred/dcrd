@@ -27,7 +27,8 @@ func TestPrivKeys(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		priv, pub := PrivKeyFromBytes(test.key)
+		priv := PrivKeyFromBytes(test.key)
+		pub := priv.PubKey()
 
 		_, err := ParsePubKey(pub.SerializeUncompressed())
 		if err != nil {

@@ -103,7 +103,7 @@ func TestCheckPkScriptStandard(t *testing.T) {
 	var pubKeys [][]byte
 	for i := 0; i < 4; i++ {
 		pk := secp256k1.NewPrivateKey(big.NewInt(0))
-		pubKeys = append(pubKeys, (*secp256k1.PublicKey)(&pk.PublicKey).SerializeCompressed())
+		pubKeys = append(pubKeys, pk.PubKey().SerializeCompressed())
 	}
 
 	tests := []struct {

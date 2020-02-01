@@ -373,7 +373,7 @@ func (k *ExtendedKey) ECPrivKey() (*secp256k1.PrivateKey, error) {
 		return nil, ErrNotPrivExtKey
 	}
 
-	privKey, _ := secp256k1.PrivKeyFromBytes(k.key)
+	privKey := secp256k1.PrivKeyFromBytes(k.key)
 	return privKey, nil
 }
 

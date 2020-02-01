@@ -725,7 +725,8 @@ func testKeyGeneration(t *testing.T, c *KoblitzCurve, tag string) {
 		t.Errorf("%s: error: %s", tag, err)
 		return
 	}
-	if !c.IsOnCurve(priv.PublicKey.X, priv.PublicKey.Y) {
+	pub := priv.PubKey()
+	if !c.IsOnCurve(pub.X, pub.Y) {
 		t.Errorf("%s: public key invalid: %s", tag, err)
 	}
 }
@@ -736,8 +737,7 @@ func TestKeyGeneration(t *testing.T) {
 
 func testSignAndVerify(t *testing.T, c *KoblitzCurve, tag string) {
 	priv, _ := GeneratePrivateKey()
-	pubx, puby := priv.Public()
-	pub := NewPublicKey(pubx, puby)
+	pub := priv.PubKey()
 
 	hashed := []byte("testing")
 	sig := priv.Sign(hashed)

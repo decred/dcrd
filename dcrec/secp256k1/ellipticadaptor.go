@@ -179,7 +179,17 @@ func (p PublicKey) ToECDSA() *ecdsa.PublicKey {
 
 // ToECDSA returns the private key as a *ecdsa.PrivateKey.
 func (p *PrivateKey) ToECDSA() *ecdsa.PrivateKey {
-	return (*ecdsa.PrivateKey)(p)
+	fx, fy, fz := new(fieldVal), new(fieldVal), new(fieldVal)
+	scalarBaseMultJacobian(p.D.Bytes(), fx, fy, fz)
+	x, y := fieldJacobianToBigAffine(fx, fy, fz)
+	return &ecdsa.PrivateKey{
+		PublicKey: ecdsa.PublicKey{
+			Curve: S256(),
+			X:     x,
+			Y:     y,
+		},
+		D: p.D,
+	}
 }
 
 // fromHex converts the passed hex string into a big integer pointer and will

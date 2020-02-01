@@ -7,7 +7,6 @@ package txscript
 
 import (
 	"crypto/rand"
-	"math/big"
 	"testing"
 
 	"github.com/decred/dcrd/chaincfg/chainhash"
@@ -18,19 +17,18 @@ import (
 // public key and the public key. This function is used to generate randomized
 // test data.
 func genRandomSig() (*chainhash.Hash, *secp256k1.Signature, *secp256k1.PublicKey, error) {
-	privBytes, pubX, pubY, err := secp256k1.GenerateKey(rand.Reader)
+	privKey, err := secp256k1.GeneratePrivateKey()
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	priv := secp256k1.NewPrivateKey(new(big.Int).SetBytes(privBytes))
-	pub := secp256k1.NewPublicKey(pubX, pubY)
+	pub := privKey.PubKey()
 
 	var msgHash chainhash.Hash
 	if _, err := rand.Read(msgHash[:]); err != nil {
 		return nil, nil, nil, err
 	}
 
-	sig := priv.Sign(msgHash[:])
+	sig := privKey.Sign(msgHash[:])
 	return &msgHash, sig, pub, nil
 }
 

@@ -372,39 +372,38 @@ func recoverKeyFromSignature(sig *Signature, msg []byte, iter int, doChecks bool
 // where the R and S parameters are padded up to the bitlength of the curve.
 func SignCompact(key *PrivateKey, hash []byte, isCompressedKey bool) ([]byte, error) {
 	sig := key.Sign(hash)
+	signingPubKey := key.PubKey()
 
-	curve := S256()
-	// bitcoind checks the bit length of R and S here. The ecdsa signature
-	// algorithm returns R and S mod N therefore they will be the bitsize of
-	// the curve, and thus correctly sized.
-	for i := 0; i < (curve.H+1)*2; i++ {
-		pk, err := recoverKeyFromSignature(sig, hash, i, true)
-		if err == nil && pk.X.Cmp(key.X) == 0 && pk.Y.Cmp(key.Y) == 0 {
-			result := make([]byte, 1, 2*curve.byteSize+1)
-			result[0] = 27 + byte(i)
-			if isCompressedKey {
-				result[0] += 4
-			}
-			// Not sure this needs rounding but safer to do so.
-			curvelen := (curve.BitSize + 7) / 8
-
-			// Pad R and S to curvelen if needed.
-			bytelen := (sig.R.BitLen() + 7) / 8
-			if bytelen < curvelen {
-				result = append(result,
-					make([]byte, curvelen-bytelen)...)
-			}
-			result = append(result, sig.R.Bytes()...)
-
-			bytelen = (sig.S.BitLen() + 7) / 8
-			if bytelen < curvelen {
-				result = append(result,
-					make([]byte, curvelen-bytelen)...)
-			}
-			result = append(result, sig.S.Bytes()...)
-
-			return result, nil
+	for i := 0; i < (curveParams.H+1)*2; i++ {
+		recoveredPubKey, err := recoverKeyFromSignature(sig, hash, i, true)
+		if err != nil || !recoveredPubKey.IsEqual(signingPubKey) {
+			continue
 		}
+
+		result := make([]byte, 1, 2*curveParams.byteSize+1)
+		result[0] = 27 + byte(i)
+		if isCompressedKey {
+			result[0] += 4
+		}
+		// Not sure this needs rounding but safer to do so.
+		curvelen := (curveParams.BitSize + 7) / 8
+
+		// Pad R and S to curvelen if needed.
+		bytelen := (sig.R.BitLen() + 7) / 8
+		if bytelen < curvelen {
+			result = append(result,
+				make([]byte, curvelen-bytelen)...)
+		}
+		result = append(result, sig.R.Bytes()...)
+
+		bytelen = (sig.S.BitLen() + 7) / 8
+		if bytelen < curvelen {
+			result = append(result,
+				make([]byte, curvelen-bytelen)...)
+		}
+		result = append(result, sig.S.Bytes()...)
+
+		return result, nil
 	}
 
 	return nil, errors.New("no valid solution for pubkey found")

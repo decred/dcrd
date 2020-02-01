@@ -23,7 +23,7 @@ func Example_signMessage() {
 		fmt.Println(err)
 		return
 	}
-	privKey, pubKey := secp256k1.PrivKeyFromBytes(pkBytes)
+	privKey := secp256k1.PrivKeyFromBytes(pkBytes)
 
 	// Sign a message using the private key.
 	message := "test message"
@@ -34,6 +34,7 @@ func Example_signMessage() {
 	fmt.Printf("Serialized Signature: %x\n", signature.Serialize())
 
 	// Verify the signature for the message using the public key.
+	pubKey := privKey.PubKey()
 	verified := signature.Verify(messageHash, pubKey)
 	fmt.Printf("Signature Verified? %v\n", verified)
 
@@ -116,8 +117,7 @@ func Example_encryptMessage() {
 		fmt.Println(err)
 		return
 	}
-	// note that we already have corresponding pubKey
-	privKey, _ := secp256k1.PrivKeyFromBytes(pkBytes)
+	privKey := secp256k1.PrivKeyFromBytes(pkBytes)
 
 	// Try decrypting and verify if it's the same message.
 	plaintext, err := secp256k1.Decrypt(privKey, ciphertext)
@@ -142,8 +142,7 @@ func Example_decryptMessage() {
 		fmt.Println(err)
 		return
 	}
-
-	privKey, _ := secp256k1.PrivKeyFromBytes(pkBytes)
+	privKey := secp256k1.PrivKeyFromBytes(pkBytes)
 
 	ciphertext, err := hex.DecodeString("35f644fbfb208bc71e57684c3c8b437402ca" +
 		"002047a2f1b38aa1a8f1d5121778378414f708fe13ebf7b4a7bb74407288c1958969" +

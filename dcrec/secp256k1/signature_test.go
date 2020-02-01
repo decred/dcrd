@@ -292,6 +292,7 @@ func TestSignatureSerialize(t *testing.T) {
 // public key can be recovered.
 func testSignCompact(t *testing.T, tag string, data []byte, isCompressed bool) {
 	priv, _ := GeneratePrivateKey()
+	signingPubKey := priv.PubKey()
 
 	hashed := []byte("testing")
 	sig, err := SignCompact(priv, hashed, isCompressed)
@@ -305,9 +306,10 @@ func testSignCompact(t *testing.T, tag string, data []byte, isCompressed bool) {
 		t.Errorf("%s: error recovering: %s", tag, err)
 		return
 	}
-	if pk.X.Cmp(priv.X) != 0 || pk.Y.Cmp(priv.Y) != 0 {
+	if !pk.IsEqual(signingPubKey) {
 		t.Errorf("%s: recovered pubkey doesn't match original "+
-			"(%v,%v) vs (%v,%v) ", tag, pk.X, pk.Y, priv.X, priv.Y)
+			"(%v,%v) vs (%v,%v) ", tag, pk.X, pk.Y, signingPubKey.X,
+			signingPubKey.Y)
 		return
 	}
 	if wasCompressed != isCompressed {
@@ -329,9 +331,10 @@ func testSignCompact(t *testing.T, tag string, data []byte, isCompressed bool) {
 		t.Errorf("%s: error recovering (2): %s", tag, err)
 		return
 	}
-	if pk.X.Cmp(priv.X) != 0 || pk.Y.Cmp(priv.Y) != 0 {
+	if !pk.IsEqual(signingPubKey) {
 		t.Errorf("%s: recovered pubkey (2) doesn't match original "+
-			"(%v,%v) vs (%v,%v) ", tag, pk.X, pk.Y, priv.X, priv.Y)
+			"(%v,%v) vs (%v,%v) ", tag, pk.X, pk.Y, signingPubKey.X,
+			signingPubKey.Y)
 		return
 	}
 	if wasCompressed == isCompressed {
@@ -404,7 +407,7 @@ func TestRFC6979(t *testing.T) {
 	}}
 
 	for i, test := range tests {
-		privKey, _ := PrivKeyFromBytes(hexToBytes(test.key))
+		privKey := PrivKeyFromBytes(hexToBytes(test.key))
 		hash := sha256.Sum256([]byte(test.msg))
 
 		// Ensure deterministically generated nonce is the expected value.

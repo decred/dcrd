@@ -34,7 +34,7 @@ func RawTxInSignature(tx *wire.MsgTx, idx int, subScript []byte,
 	var sigBytes []byte
 	switch sigType {
 	case dcrec.STEcdsaSecp256k1:
-		priv, _ := secp256k1.PrivKeyFromBytes(key)
+		priv := secp256k1.PrivKeyFromBytes(key)
 		sig := priv.Sign(hash)
 		sigBytes = sig.Serialize()
 	case dcrec.STEd25519:
@@ -48,7 +48,7 @@ func RawTxInSignature(tx *wire.MsgTx, idx int, subScript []byte,
 		}
 		sigBytes = sig.Serialize()
 	case dcrec.STSchnorrSecp256k1:
-		priv, _ := secp256k1.PrivKeyFromBytes(key)
+		priv := secp256k1.PrivKeyFromBytes(key)
 		r, s, err := schnorr.Sign(priv, hash)
 		if err != nil {
 			return nil, fmt.Errorf("cannot sign tx input: %s", err)
@@ -80,18 +80,18 @@ func SignatureScript(tx *wire.MsgTx, idx int, subscript []byte, hashType SigHash
 	var pkData []byte
 	switch sigType {
 	case dcrec.STEcdsaSecp256k1:
-		_, pub := secp256k1.PrivKeyFromBytes(privKey)
+		priv := secp256k1.PrivKeyFromBytes(privKey)
 		if compress {
-			pkData = pub.SerializeCompressed()
+			pkData = priv.PubKey().SerializeCompressed()
 		} else {
-			pkData = pub.SerializeUncompressed()
+			pkData = priv.PubKey().SerializeUncompressed()
 		}
 	case dcrec.STEd25519:
 		_, pub := edwards.PrivKeyFromBytes(privKey)
 		pkData = pub.Serialize()
 	case dcrec.STSchnorrSecp256k1:
-		_, pub := secp256k1.PrivKeyFromBytes(privKey)
-		pkData = pub.SerializeCompressed()
+		priv := secp256k1.PrivKeyFromBytes(privKey)
+		pkData = priv.PubKey().SerializeCompressed()
 	default:
 		return nil, fmt.Errorf("unsupported signature type '%v'", sigType)
 	}

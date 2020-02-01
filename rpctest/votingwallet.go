@@ -131,8 +131,8 @@ type VotingWallet struct {
 // continuously buying tickets and voting on them.
 func NewVotingWallet(ctx context.Context, hn *Harness) (*VotingWallet, error) {
 
-	_, pub := secp256k1.PrivKeyFromBytes(hardcodedPrivateKey)
-	serPub := pub.SerializeCompressed()
+	privKey := secp256k1.PrivKeyFromBytes(hardcodedPrivateKey)
+	serPub := privKey.PubKey().SerializeCompressed()
 	hashPub := dcrutil.Hash160(serPub)
 	addr, err := dcrutil.NewAddressPubKeyHash(hashPub, hn.ActiveNet,
 		dcrec.STEcdsaSecp256k1)

@@ -123,7 +123,7 @@ func TestSchnorrSigning(t *testing.T) {
 	tRand := rand.New(rand.NewSource(54321))
 	tvs := GetSigningTestVectors()
 	for _, tv := range tvs {
-		_, pubkey := secp256k1.PrivKeyFromBytes(tv.priv)
+		pubkey := secp256k1.PrivKeyFromBytes(tv.priv).PubKey()
 
 		sig, err :=
 			schnorrSign(tv.msg, tv.priv, tv.nonce, nil, nil,
@@ -199,7 +199,7 @@ func randPrivKeyList(i int) []*secp256k1.PrivateKey {
 				bIn[k] = uint8(randByte)
 			}
 
-			pks, _ := secp256k1.PrivKeyFromBytes(bIn[:])
+			pks := secp256k1.PrivKeyFromBytes(bIn[:])
 			if pks == nil {
 				continue
 			}
@@ -237,7 +237,7 @@ func randSigList(i int) []*SignatureVerParams {
 				bIn[k] = uint8(randByte)
 			}
 
-			pks, _ := secp256k1.PrivKeyFromBytes(bIn[:])
+			pks := secp256k1.PrivKeyFromBytes(bIn[:])
 			if pks == nil {
 				continue
 			}
@@ -271,8 +271,7 @@ func randSigList(i int) []*SignatureVerParams {
 	sigStructList := make([]*SignatureVerParams, i)
 	for j := 0; j < i; j++ {
 		ss := new(SignatureVerParams)
-		pkx, pky := privKeyList[j].Public()
-		ss.pubkey = secp256k1.NewPublicKey(pkx, pky)
+		ss.pubkey = privKeyList[j].PubKey()
 		ss.msg = msgList[j]
 		ss.sig = sigsList[j]
 		sigStructList[j] = ss

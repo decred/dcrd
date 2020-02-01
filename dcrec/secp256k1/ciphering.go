@@ -86,8 +86,7 @@ func Encrypt(pubkey *PublicKey, in []byte) ([]byte, error) {
 		return nil, err
 	}
 	// start writing public key
-	pbk := NewPublicKey(ephemeral.PublicKey.X, ephemeral.PublicKey.Y)
-	pb := pbk.SerializeUncompressed()
+	pb := ephemeral.PubKey().SerializeUncompressed()
 	offset := aes.BlockSize
 
 	// curve and X length

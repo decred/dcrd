@@ -555,8 +555,7 @@ func (m *memWallet) ConfirmedBalance() dcrutil.Amount {
 
 // keyToAddr maps the passed private to corresponding p2pkh address.
 func keyToAddr(key *secp256k1.PrivateKey, net *chaincfg.Params) (dcrutil.Address, error) {
-	pubKey := (*secp256k1.PublicKey)(&key.PublicKey)
-	serializedKey := pubKey.SerializeCompressed()
+	serializedKey := key.PubKey().SerializeCompressed()
 	pubKeyAddr, err := dcrutil.NewAddressSecpPubKey(serializedKey, net)
 	if err != nil {
 		return nil, err

@@ -94,7 +94,7 @@ func ExampleSignTxOutput() {
 		fmt.Println(err)
 		return
 	}
-	_, pubKey := secp256k1.PrivKeyFromBytes(privKeyBytes)
+	pubKey := secp256k1.PrivKeyFromBytes(privKeyBytes).PubKey()
 	pubKeyHash := dcrutil.Hash160(pubKey.SerializeCompressed())
 	mainNetParams := chaincfg.MainNetParams()
 	sigType := dcrec.STEcdsaSecp256k1

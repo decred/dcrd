@@ -61,8 +61,8 @@ func NewWIF(privKey []byte, net [2]byte, ecType dcrec.SignatureType) (*WIF, erro
 	var pubBytes []byte
 	switch ecType {
 	case dcrec.STEcdsaSecp256k1, dcrec.STSchnorrSecp256k1:
-		_, pub := secp256k1.PrivKeyFromBytes(privKey)
-		pubBytes = pub.SerializeCompressed()
+		priv := secp256k1.PrivKeyFromBytes(privKey)
+		pubBytes = priv.PubKey().SerializeCompressed()
 	case dcrec.STEd25519:
 		_, pub, err := edwards.PrivKeyFromScalar(privKey)
 		if err != nil {
@@ -117,8 +117,8 @@ func DecodeWIF(wif string, net [2]byte) (*WIF, error) {
 	switch dcrec.SignatureType(decoded[2]) {
 	case dcrec.STEcdsaSecp256k1:
 		privKeyBytes = decoded[3 : 3+secp256k1.PrivKeyBytesLen]
-		_, pubKey := secp256k1.PrivKeyFromScalar(privKeyBytes)
-		pubKeyBytes = pubKey.SerializeCompressed()
+		privKey := secp256k1.PrivKeyFromBytes(privKeyBytes)
+		pubKeyBytes = privKey.PubKey().SerializeCompressed()
 		ecType = dcrec.STEcdsaSecp256k1
 	case dcrec.STEd25519:
 		privKeyBytes = decoded[3 : 3+edwards.PrivScalarSize]
@@ -130,8 +130,8 @@ func DecodeWIF(wif string, net [2]byte) (*WIF, error) {
 		ecType = dcrec.STEd25519
 	case dcrec.STSchnorrSecp256k1:
 		privKeyBytes = decoded[3 : 3+secp256k1.PrivKeyBytesLen]
-		_, pubKey := secp256k1.PrivKeyFromScalar(privKeyBytes)
-		pubKeyBytes = pubKey.SerializeCompressed()
+		privKey := secp256k1.PrivKeyFromBytes(privKeyBytes)
+		pubKeyBytes = privKey.PubKey().SerializeCompressed()
 		ecType = dcrec.STSchnorrSecp256k1
 	}
 
