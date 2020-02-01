@@ -111,13 +111,14 @@ func ParsePubKey(pubKeyStr []byte) (key *PublicKey, err error) {
 			len(pubKeyStr))
 	}
 
-	if pubkey.X.Cmp(pubkey.Curve.Params().P) >= 0 {
+	curve := S256()
+	if pubkey.X.Cmp(curveParams.P) >= 0 {
 		return nil, fmt.Errorf("pubkey X parameter is >= to P")
 	}
-	if pubkey.Y.Cmp(pubkey.Curve.Params().P) >= 0 {
+	if pubkey.Y.Cmp(curveParams.P) >= 0 {
 		return nil, fmt.Errorf("pubkey Y parameter is >= to P")
 	}
-	if !pubkey.Curve.IsOnCurve(pubkey.X, pubkey.Y) {
+	if !curve.IsOnCurve(pubkey.X, pubkey.Y) {
 		return nil, fmt.Errorf("pubkey [%v,%v] isn't on secp256k1 curve",
 			pubkey.X, pubkey.Y)
 	}

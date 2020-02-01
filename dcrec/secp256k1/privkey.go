@@ -34,7 +34,7 @@ func PrivKeyFromBytes(pk []byte) (*PrivateKey, *PublicKey) {
 
 	priv := &ecdsa.PrivateKey{
 		PublicKey: ecdsa.PublicKey{
-			Curve: S256(),
+			Curve: curve,
 			X:     x,
 			Y:     y,
 		},
