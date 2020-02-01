@@ -44,13 +44,13 @@ func PrivKeyFromBytes(pk []byte) (*PrivateKey, *PublicKey) {
 	return (*PrivateKey)(priv), (*PublicKey)(&priv.PublicKey)
 }
 
-// PrivKeyFromScalar is the same as PrivKeyFromBytes in secp256k1.
+// PrivKeyFromScalar is the same as PrivKeyFromBytes.
 func PrivKeyFromScalar(s []byte) (*PrivateKey, *PublicKey) {
 	return PrivKeyFromBytes(s)
 }
 
-// GeneratePrivateKey is a wrapper for ecdsa.GenerateKey that returns a PrivateKey
-// instead of the normal ecdsa.PrivateKey.
+// GeneratePrivateKey returns a private key that is suitable for use with
+// secp256k1.
 func GeneratePrivateKey() (*PrivateKey, error) {
 	key, err := ecdsa.GenerateKey(S256(), rand.Reader)
 	if err != nil {
@@ -78,11 +78,6 @@ func (p PrivateKey) Public() (*big.Int, *big.Int) {
 // PubKey returns the PublicKey corresponding to this private key.
 func (p *PrivateKey) PubKey() *PublicKey {
 	return (*PublicKey)(&p.PublicKey)
-}
-
-// ToECDSA returns the private key as a *ecdsa.PrivateKey.
-func (p *PrivateKey) ToECDSA() *ecdsa.PrivateKey {
-	return (*ecdsa.PrivateKey)(p)
 }
 
 // Sign generates an ECDSA signature for the provided hash (which should be the

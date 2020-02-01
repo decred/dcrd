@@ -59,9 +59,22 @@ func NewPublicKey(x *big.Int, y *big.Int) *PublicKey {
 	return &PublicKey{S256(), x, y}
 }
 
-// ParsePubKey parses a public key for a koblitz curve from a bytestring into a
-// ecdsa.Publickey, verifying that it is valid. It supports compressed and
-// uncompressed signature formats, but not the hybrid format.
+// ParsePubKey parses a secp256k1 public key encoded according to the format
+// specified by ANSI X9.62-1998, which means it is also compatible with the
+// SEC (Standards for Efficient Cryptography) specification which is a subset of
+// the former.  In other words, it supports the uncompressed, compressed, and
+// hybrid formats as follows:
+//
+// Compressed:
+//   <format byte = 0x02/0x03><32-byte X coordinate>
+// Uncompressed:
+//   <format byte = 0x04><32-byte X coordinate><32-byte Y coordinate>
+// Hybrid:
+//   <format byte = 0x05/0x06><32-byte X coordinate><32-byte Y coordinate>
+//
+// NOTE: The hybrid format makes little sense in practice an therefore this
+// package will not produce public keys serialized in this format.  However,
+// this function will properly parse them since they exist in the wild.
 func ParsePubKey(pubKeyStr []byte) (key *PublicKey, err error) {
 	pubkey := PublicKey{}
 	pubkey.Curve = S256()
@@ -117,12 +130,6 @@ func ParsePubKey(pubKeyStr []byte) (key *PublicKey, err error) {
 // PublicKey is an ecdsa.PublicKey with additional functions to
 // serialize in uncompressed and compressed formats.
 type PublicKey ecdsa.PublicKey
-
-// ToECDSA returns the public key as a *ecdsa.PublicKey.
-func (p PublicKey) ToECDSA() *ecdsa.PublicKey {
-	ecpk := ecdsa.PublicKey(p)
-	return &ecpk
-}
 
 // SerializeUncompressed serializes a public key in a 65-byte uncompressed
 // format.
