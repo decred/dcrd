@@ -7,13 +7,15 @@ package secp256k1
 
 import (
 	"bytes"
-	"crypto/ecdsa"
 	"crypto/sha256"
 	"errors"
 	"fmt"
 	"hash"
 	"math/big"
 )
+
+// References:
+//   [GECC]: Guide to Elliptic Curve Cryptography (Hankerson, Menezes, Vanstone)
 
 // Errors returned by canonicalPadding.
 var (
@@ -93,7 +95,80 @@ func (sig *Signature) Serialize() []byte {
 // Verify returns whether or not the signature is valid for the provided hash
 // and secp256k1 public key.
 func (sig *Signature) Verify(hash []byte, pubKey *PublicKey) bool {
-	return ecdsa.Verify(pubKey.ToECDSA(), hash, sig.R, sig.S)
+	// The algorithm for verifying an ECDSA signature is given as algorithm 4.30
+	// in [GECC].
+	//
+	// The following is a paraphrased version for reference:
+	//
+	// G = curve generator
+	// N = curve order
+	// Q = public key
+	// m = message
+	// R, S = signature
+	//
+	// 1. Fail if R and S are not in [1, N-1]
+	// 2. e = H(m)
+	// 3. w = S^-1 mod N
+	// 4. u1 = e * w mod N
+	//    u2 = R * w mod N
+	// 5. X = u1G + u2Q
+	// 6. Fail if X is the point at infinity
+	// 7. x = X.x mod N (X.x is the x coordinate of X)
+	// 8. Verified if x == R
+
+	// Step 1.
+	//
+	// Fail if R and S are not in [1, N-1].
+	N := curveParams.N
+	if sig.R.Sign() <= 0 || sig.S.Sign() <= 0 ||
+		sig.R.Cmp(N) >= 0 || sig.S.Cmp(N) >= 0 {
+
+		return false
+	}
+
+	// Step 2.
+	//
+	// e = H(m)
+	e := hashToInt(hash)
+
+	// Step 3.
+	//
+	// w = S^-1 mod N
+	w := new(big.Int).ModInverse(sig.S, N)
+
+	// Step 4.
+	//
+	// u1 = e * w mod N
+	// u2 = R * w mod N
+	u1 := e.Mul(e, w)
+	u1.Mod(u1, N)
+	u2 := w.Mul(w, sig.R)
+	u2.Mod(u2, N)
+
+	// Step 5.
+	//
+	// X = u1G + u2Q
+	curve := S256()
+	x1, y1 := curve.ScalarBaseMult(u1.Bytes())
+	x2, y2 := curve.ScalarMult(pubKey.X, pubKey.Y, u2.Bytes())
+	x, y := curve.Add(x1, y1, x2, y2)
+
+	// Step 6.
+	//
+	// Fail if X is the point at infinity
+	if x.Sign() == 0 || y.Sign() == 0 {
+		return false
+	}
+
+	// Step 7.
+	//
+	// x = X.x mod N (X.x is the x coordinate of X)
+	x.Mod(x, N)
+
+	// Step 8.
+	//
+	// Verified if x == R
+	return x.Cmp(sig.R) == 0
 }
 
 // IsEqual compares this Signature instance to the one passed, returning true if
