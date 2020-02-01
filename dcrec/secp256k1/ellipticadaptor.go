@@ -103,20 +103,14 @@ func (curve *KoblitzCurve) Params() *elliptic.CurveParams {
 	return curve.CurveParams.CurveParams
 }
 
-// IsOnCurve returns boolean if the point (x,y) is on the curve.
+// IsOnCurve returns whether or not the affine point (x,y) is on the curve.
 //
 // This is part of the elliptic.Curve interface implementation.  This function
 // differs from the crypto/elliptic algorithm since a = 0 not -3.
 func (curve *KoblitzCurve) IsOnCurve(x, y *big.Int) bool {
 	// Convert big ints to field values for faster arithmetic.
 	fx, fy := bigAffineToField(x, y)
-
-	// TODO(davec): Split to curve.go?
-
-	// Elliptic curve equation for secp256k1 is: y^2 = x^3 + 7
-	y2 := new(fieldVal).SquareVal(fy).Normalize()
-	result := new(fieldVal).SquareVal(fx).Mul(fx).AddInt(7).Normalize()
-	return y2.Equals(result)
+	return isOnCurve(fx, fy)
 }
 
 // Add returns the sum of (x1,y1) and (x2,y2).

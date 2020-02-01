@@ -514,13 +514,6 @@ func TestDoubleAffine(t *testing.T) {
 	}
 }
 
-func TestOnCurve(t *testing.T) {
-	s256 := S256()
-	if !s256.IsOnCurve(s256.Params().Gx, s256.Params().Gy) {
-		t.Errorf("FAIL S256")
-	}
-}
-
 type baseMultTest struct {
 	k    string
 	x, y string

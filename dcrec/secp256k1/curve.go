@@ -15,10 +15,7 @@ import "math/big"
 
 // All group operations are performed using Jacobian coordinates.  For a given
 // (x, y) position on the curve, the Jacobian coordinates are (x1, y1, z1)
-// where x = x1/z1^2 and y = y1/z1^3. The greatest speedups come when the whole
-// calculation can be performed within the transform (as in ScalarMult and
-// ScalarBaseMult). But even for Add and Double, it's faster to apply and
-// reverse the transform than to operate in affine coordinates.
+// where x = x1/z1^2 and y = y1/z1^3.
 
 var (
 	// fieldOne is simply the integer 1 in field representation.  It is
@@ -643,4 +640,12 @@ func naf(k []byte) ([]byte, []byte) {
 		return retPos, retNeg
 	}
 	return retPos[1:], retNeg[1:]
+}
+
+// isOnCurve returns whether or not the affine point (x,y) is on the curve.
+func isOnCurve(fx, fy *fieldVal) bool {
+	// Elliptic curve equation for secp256k1 is: y^2 = x^3 + 7
+	y2 := new(fieldVal).SquareVal(fy).Normalize()
+	result := new(fieldVal).SquareVal(fx).Mul(fx).AddInt(7).Normalize()
+	return y2.Equals(result)
 }
