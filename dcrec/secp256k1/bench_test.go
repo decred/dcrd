@@ -13,7 +13,6 @@ import (
 // BenchmarkAddJacobian benchmarks the secp256k1 curve addJacobian function with
 // Z values of 1 so that the associated optimizations are used.
 func BenchmarkAddJacobian(b *testing.B) {
-	b.StopTimer()
 	x1 := new(fieldVal).SetHex("34f9460f0e4f08393d192b3c5133a6ba099aa0ad9fd54ebccfacdfa239ff49c6")
 	y1 := new(fieldVal).SetHex("0b71ea9bd730fd8923f6d25a7a91e7dd7728a960686cb5a901bb419e0f2ca232")
 	z1 := new(fieldVal).SetHex("1")
@@ -21,10 +20,11 @@ func BenchmarkAddJacobian(b *testing.B) {
 	y2 := new(fieldVal).SetHex("0b71ea9bd730fd8923f6d25a7a91e7dd7728a960686cb5a901bb419e0f2ca232")
 	z2 := new(fieldVal).SetHex("1")
 	x3, y3, z3 := new(fieldVal), new(fieldVal), new(fieldVal)
-	curve := S256()
-	b.StartTimer()
+
+	b.ReportAllocs()
+	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		curve.addJacobian(x1, y1, z1, x2, y2, z2, x3, y3, z3)
+		addJacobian(x1, y1, z1, x2, y2, z2, x3, y3, z3)
 	}
 }
 
@@ -32,7 +32,6 @@ func BenchmarkAddJacobian(b *testing.B) {
 // function with Z values other than one so the optimizations associated with
 // Z=1 aren't used.
 func BenchmarkAddJacobianNotZOne(b *testing.B) {
-	b.StopTimer()
 	x1 := new(fieldVal).SetHex("d3e5183c393c20e4f464acf144ce9ae8266a82b67f553af33eb37e88e7fd2718")
 	y1 := new(fieldVal).SetHex("5b8f54deb987ec491fb692d3d48f3eebb9454b034365ad480dda0cf079651190")
 	z1 := new(fieldVal).SetHex("2")
@@ -40,10 +39,11 @@ func BenchmarkAddJacobianNotZOne(b *testing.B) {
 	y2 := new(fieldVal).SetHex("03fede65e30b4e7576a2abefc963ddbf9fdccbf791b77c29beadefe49951f7d1")
 	z2 := new(fieldVal).SetHex("3")
 	x3, y3, z3 := new(fieldVal), new(fieldVal), new(fieldVal)
-	curve := S256()
-	b.StartTimer()
+
+	b.ReportAllocs()
+	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		curve.addJacobian(x1, y1, z1, x2, y2, z2, x3, y3, z3)
+		addJacobian(x1, y1, z1, x2, y2, z2, x3, y3, z3)
 	}
 }
 

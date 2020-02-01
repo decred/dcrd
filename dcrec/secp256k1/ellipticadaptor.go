@@ -177,7 +177,7 @@ func (curve *KoblitzCurve) Add(x1, y1, x2, y2 *big.Int) (*big.Int, *big.Int) {
 	fx2, fy2 := bigAffineToField(x2, y2)
 	fx3, fy3, fz3 := new(fieldVal), new(fieldVal), new(fieldVal)
 	fOne := new(fieldVal).SetInt(1)
-	curve.addJacobian(fx1, fy1, fOne, fx2, fy2, fOne, fx3, fy3, fz3)
+	addJacobian(fx1, fy1, fOne, fx2, fy2, fOne, fx3, fy3, fz3)
 
 	// Convert the Jacobian coordinate field values back to affine big
 	// integers.
@@ -284,19 +284,15 @@ func (curve *KoblitzCurve) ScalarMult(Bx, By *big.Int, k []byte) (*big.Int, *big
 			doubleJacobian(qx, qy, qz, qx, qy, qz)
 
 			if k1BytePos&0x80 == 0x80 {
-				curve.addJacobian(qx, qy, qz, p1x, p1y, p1z,
-					qx, qy, qz)
+				addJacobian(qx, qy, qz, p1x, p1y, p1z, qx, qy, qz)
 			} else if k1ByteNeg&0x80 == 0x80 {
-				curve.addJacobian(qx, qy, qz, p1x, p1yNeg, p1z,
-					qx, qy, qz)
+				addJacobian(qx, qy, qz, p1x, p1yNeg, p1z, qx, qy, qz)
 			}
 
 			if k2BytePos&0x80 == 0x80 {
-				curve.addJacobian(qx, qy, qz, p2x, p2y, p2z,
-					qx, qy, qz)
+				addJacobian(qx, qy, qz, p2x, p2y, p2z, qx, qy, qz)
 			} else if k2ByteNeg&0x80 == 0x80 {
-				curve.addJacobian(qx, qy, qz, p2x, p2yNeg, p2z,
-					qx, qy, qz)
+				addJacobian(qx, qy, qz, p2x, p2yNeg, p2z, qx, qy, qz)
 			}
 			k1BytePos <<= 1
 			k1ByteNeg <<= 1
@@ -327,7 +323,7 @@ func (curve *KoblitzCurve) ScalarBaseMult(k []byte) (*big.Int, *big.Int) {
 	// and added together.
 	for i, byteVal := range newK {
 		p := curve.bytePoints[diff+i][byteVal]
-		curve.addJacobian(qx, qy, qz, &p[0], &p[1], &p[2], qx, qy, qz)
+		addJacobian(qx, qy, qz, &p[0], &p[1], &p[2], qx, qy, qz)
 	}
 	return fieldJacobianToBigAffine(qx, qy, qz)
 }

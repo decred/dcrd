@@ -254,7 +254,7 @@ func TestAddJacobian(t *testing.T) {
 
 		// Add the two points.
 		rx, ry, rz := new(fieldVal), new(fieldVal), new(fieldVal)
-		S256().addJacobian(x1, y1, z1, x2, y2, z2, rx, ry, rz)
+		addJacobian(x1, y1, z1, x2, y2, z2, rx, ry, rz)
 
 		// Ensure result matches expected.
 		if !rx.Equals(x3) || !ry.Equals(y3) || !rz.Equals(z3) {

@@ -33,7 +33,7 @@ var (
 // (x1, y1, 1) + (x2, y2, 1) = (x3, y3, z3).  It performs faster addition than
 // the generic add routine since less arithmetic is needed due to the ability to
 // avoid the z value multiplications.
-func (curve *KoblitzCurve) addZ1AndZ2EqualsOne(x1, y1, z1, x2, y2, x3, y3, z3 *fieldVal) {
+func addZ1AndZ2EqualsOne(x1, y1, z1, x2, y2, x3, y3, z3 *fieldVal) {
 	// To compute the point addition efficiently, this implementation splits
 	// the equation into intermediate elements which are used to minimize
 	// the number of field multiplications using the method shown at:
@@ -99,7 +99,7 @@ func (curve *KoblitzCurve) addZ1AndZ2EqualsOne(x1, y1, z1, x2, y2, x3, y3, z3 *f
 // (x1, y1, z1) + (x2, y2, z1) = (x3, y3, z3).  It performs faster addition than
 // the generic add routine since less arithmetic is needed due to the known
 // equivalence.
-func (curve *KoblitzCurve) addZ1EqualsZ2(x1, y1, z1, x2, y2, x3, y3, z3 *fieldVal) {
+func addZ1EqualsZ2(x1, y1, z1, x2, y2, x3, y3, z3 *fieldVal) {
 	// To compute the point addition efficiently, this implementation splits
 	// the equation into intermediate elements which are used to minimize
 	// the number of field multiplications using a slightly modified version
@@ -168,7 +168,7 @@ func (curve *KoblitzCurve) addZ1EqualsZ2(x1, y1, z1, x2, y2, x3, y3, z3 *fieldVa
 // (x2, y2, 1) = (x3, y3, z3).  It performs faster addition than the generic
 // add routine since less arithmetic is needed due to the ability to avoid
 // multiplications by the second point's z value.
-func (curve *KoblitzCurve) addZ2EqualsOne(x1, y1, z1, x2, y2, x3, y3, z3 *fieldVal) {
+func addZ2EqualsOne(x1, y1, z1, x2, y2, x3, y3, z3 *fieldVal) {
 	// To compute the point addition efficiently, this implementation splits
 	// the equation into intermediate elements which are used to minimize
 	// the number of field multiplications using the method shown at:
@@ -244,7 +244,7 @@ func (curve *KoblitzCurve) addZ2EqualsOne(x1, y1, z1, x2, y2, x3, y3, z3 *fieldV
 // assumptions about the z values of the two points and stores the result in
 // (x3, y3, z3).  That is to say (x1, y1, z1) + (x2, y2, z2) = (x3, y3, z3).  It
 // is the slowest of the add routines due to requiring the most arithmetic.
-func (curve *KoblitzCurve) addGeneric(x1, y1, z1, x2, y2, z2, x3, y3, z3 *fieldVal) {
+func addGeneric(x1, y1, z1, x2, y2, z2, x3, y3, z3 *fieldVal) {
 	// To compute the point addition efficiently, this implementation splits
 	// the equation into intermediate elements which are used to minimize
 	// the number of field multiplications using the method shown at:
@@ -317,7 +317,7 @@ func (curve *KoblitzCurve) addGeneric(x1, y1, z1, x2, y2, z2, x3, y3, z3 *fieldV
 
 // addJacobian adds the passed Jacobian points (x1, y1, z1) and (x2, y2, z2)
 // together and stores the result in (x3, y3, z3).
-func (curve *KoblitzCurve) addJacobian(x1, y1, z1, x2, y2, z2, x3, y3, z3 *fieldVal) {
+func addJacobian(x1, y1, z1, x2, y2, z2, x3, y3, z3 *fieldVal) {
 	// A point at infinity is the identity according to the group law for
 	// elliptic curve cryptography.  Thus, ∞ + P = P and P + ∞ = P.
 	if (x1.IsZero() && y1.IsZero()) || z1.IsZero() {
@@ -344,19 +344,19 @@ func (curve *KoblitzCurve) addJacobian(x1, y1, z1, x2, y2, z2, x3, y3, z3 *field
 	isZ2One := z2.Equals(fieldOne)
 	switch {
 	case isZ1One && isZ2One:
-		curve.addZ1AndZ2EqualsOne(x1, y1, z1, x2, y2, x3, y3, z3)
+		addZ1AndZ2EqualsOne(x1, y1, z1, x2, y2, x3, y3, z3)
 		return
 	case z1.Equals(z2):
-		curve.addZ1EqualsZ2(x1, y1, z1, x2, y2, x3, y3, z3)
+		addZ1EqualsZ2(x1, y1, z1, x2, y2, x3, y3, z3)
 		return
 	case isZ2One:
-		curve.addZ2EqualsOne(x1, y1, z1, x2, y2, x3, y3, z3)
+		addZ2EqualsOne(x1, y1, z1, x2, y2, x3, y3, z3)
 		return
 	}
 
 	// None of the above assumptions are true, so fall back to generic
 	// point addition.
-	curve.addGeneric(x1, y1, z1, x2, y2, z2, x3, y3, z3)
+	addGeneric(x1, y1, z1, x2, y2, z2, x3, y3, z3)
 }
 
 // doubleZ1EqualsOne performs point doubling on the passed Jacobian point when
