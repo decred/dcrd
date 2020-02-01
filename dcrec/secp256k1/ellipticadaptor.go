@@ -174,7 +174,7 @@ func (curve *KoblitzCurve) ScalarMult(Bx, By *big.Int, k []byte) (*big.Int, *big
 
 	// Decompose K into k1 and k2 in order to halve the number of EC ops.
 	// See Algorithm 3.74 in [GECC].
-	k1, k2, signK1, signK2 := splitK(curve.moduloReduce(k))
+	k1, k2, signK1, signK2 := splitK(moduloReduce(k))
 
 	// The main equation here to remember is:
 	//   k * P = k1 * P + k2 * ϕ(P)
@@ -271,7 +271,7 @@ func (curve *KoblitzCurve) ScalarMult(Bx, By *big.Int, k []byte) (*big.Int, *big
 //
 // This is part of the elliptic.Curve interface implementation.
 func (curve *KoblitzCurve) ScalarBaseMult(k []byte) (*big.Int, *big.Int) {
-	newK := curve.moduloReduce(k)
+	newK := moduloReduce(k)
 	diff := len(curve.bytePoints) - len(newK)
 
 	// Point Q = ∞ (point at infinity).

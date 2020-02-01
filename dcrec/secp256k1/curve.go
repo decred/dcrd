@@ -551,3 +551,19 @@ func splitK(k []byte) ([]byte, []byte, int, int) {
 	// back separately.
 	return k1.Bytes(), k2.Bytes(), k1.Sign(), k2.Sign()
 }
+
+// moduloReduce reduces k from more than 32 bytes to 32 bytes and under.  This
+// is done by doing a simple modulo curve.N.  We can do this since G^N = 1 and
+// thus any other valid point on the elliptic curve has the same order.
+func moduloReduce(k []byte) []byte {
+	// Since the order of G is curve.N, we can use a much smaller number
+	// by doing modulo curve.N
+	if len(k) > curveParams.byteSize {
+		// Reduce k by performing modulo curve.N.
+		tmpK := new(big.Int).SetBytes(k)
+		tmpK.Mod(tmpK, curveParams.N)
+		return tmpK.Bytes()
+	}
+
+	return k
+}

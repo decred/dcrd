@@ -17,26 +17,6 @@ package secp256k1
 // ScalarBaseMult). But even for Add and Double, it's faster to apply and
 // reverse the transform than to operate in affine coordinates.
 
-import (
-	"math/big"
-)
-
-// moduloReduce reduces k from more than 32 bytes to 32 bytes and under.  This
-// is done by doing a simple modulo curve.N.  We can do this since G^N = 1 and
-// thus any other valid point on the elliptic curve has the same order.
-func (curve *KoblitzCurve) moduloReduce(k []byte) []byte {
-	// Since the order of G is curve.N, we can use a much smaller number
-	// by doing modulo curve.N
-	if len(k) > curve.byteSize {
-		// Reduce k by performing modulo curve.N.
-		tmpK := new(big.Int).SetBytes(k)
-		tmpK.Mod(tmpK, curve.N)
-		return tmpK.Bytes()
-	}
-
-	return k
-}
-
 // naf takes a positive integer k and returns the Non-Adjacent Form (NAF) as two
 // byte slices.  The first is where 1s will be.  The second is where -1s will
 // be.  NAF is convenient in that on average, only 1/3rd of its values are
