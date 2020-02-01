@@ -57,6 +57,16 @@ func BenchmarkScalarBaseMult(b *testing.B) {
 	}
 }
 
+// BenchmarkScalarBaseMultJacobian benchmarks the scalarBaseMultJacobian
+// function.
+func BenchmarkScalarBaseMultJacobian(b *testing.B) {
+	k := fromHex("d74bf844b0862475103d96a611cf2d898447e288d34b360bc885cb8ce7c00575")
+	rx, ry, rz := new(fieldVal), new(fieldVal), new(fieldVal)
+	for i := 0; i < b.N; i++ {
+		scalarBaseMultJacobian(k.Bytes(), rx, ry, rz)
+	}
+}
+
 // BenchmarkScalarBaseMultLarge benchmarks the secp256k1 curve ScalarBaseMult
 // function with abnormally large k values.
 func BenchmarkScalarBaseMultLarge(b *testing.B) {

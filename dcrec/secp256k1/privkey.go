@@ -29,12 +29,13 @@ func NewPrivateKey(d *big.Int) *PrivateKey {
 // PrivKeyFromBytes returns a private and public key for `curve' based on the
 // private key passed as an argument as a byte slice.
 func PrivKeyFromBytes(pk []byte) (*PrivateKey, *PublicKey) {
-	curve := S256()
-	x, y := curve.ScalarBaseMult(pk)
+	fx, fy, fz := new(fieldVal), new(fieldVal), new(fieldVal)
+	scalarBaseMultJacobian(pk, fx, fy, fz)
+	x, y := fieldJacobianToBigAffine(fx, fy, fz)
 
 	priv := &ecdsa.PrivateKey{
 		PublicKey: ecdsa.PublicKey{
-			Curve: curve,
+			Curve: S256(),
 			X:     x,
 			Y:     y,
 		},

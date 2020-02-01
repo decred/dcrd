@@ -74,20 +74,7 @@ func bigAffineToField(x, y *big.Int) (*fieldVal, *fieldVal) {
 // fieldJacobianToBigAffine takes a Jacobian point (x, y, z) as field values and
 // converts it to an affine point as big integers.
 func fieldJacobianToBigAffine(x, y, z *fieldVal) (*big.Int, *big.Int) {
-	// Inversions are expensive and both point addition and point doubling
-	// are faster when working with points that have a z value of one.  So,
-	// if the point needs to be converted to affine, go ahead and normalize
-	// the point itself at the same time as the calculation is the same.
-	var zInv, tempZ fieldVal
-	zInv.Set(z).Inverse()   // zInv = Z^-1
-	tempZ.SquareVal(&zInv)  // tempZ = Z^-2
-	x.Mul(&tempZ)           // X = X/Z^2 (mag: 1)
-	y.Mul(tempZ.Mul(&zInv)) // Y = Y/Z^3 (mag: 1)
-	z.SetInt(1)             // Z = 1 (mag: 1)
-
-	// Normalize the x and y values.
-	x.Normalize()
-	y.Normalize()
+	fieldJacobianToAffine(x, y, z)
 
 	// Convert the field values for the now affine point to big.Ints.
 	x3, y3 := new(big.Int), new(big.Int)
@@ -163,101 +150,13 @@ func (curve *KoblitzCurve) Double(x1, y1 *big.Int) (*big.Int, *big.Int) {
 //
 // This is part of the elliptic.Curve interface implementation.
 func (curve *KoblitzCurve) ScalarMult(Bx, By *big.Int, k []byte) (*big.Int, *big.Int) {
-	// Point Q = ∞ (point at infinity).
-	qx, qy, qz := new(fieldVal), new(fieldVal), new(fieldVal)
-
-	// Decompose K into k1 and k2 in order to halve the number of EC ops.
-	// See Algorithm 3.74 in [GECC].
-	k1, k2, signK1, signK2 := splitK(moduloReduce(k))
-
-	// The main equation here to remember is:
-	//   k * P = k1 * P + k2 * ϕ(P)
-	//
-	// P1 below is P in the equation, P2 below is ϕ(P) in the equation
-	p1x, p1y := bigAffineToField(Bx, By)
-	p1yNeg := new(fieldVal).NegateVal(p1y, 1)
-	p1z := new(fieldVal).SetInt(1)
-
-	// NOTE: ϕ(x,y) = (βx,y).  The Jacobian z coordinate is 1, so this math
-	// goes through.
-	p2x := new(fieldVal).Mul2(p1x, endomorphismBeta)
-	p2y := new(fieldVal).Set(p1y)
-	p2yNeg := new(fieldVal).NegateVal(p2y, 1)
-	p2z := new(fieldVal).SetInt(1)
-
-	// Flip the positive and negative values of the points as needed
-	// depending on the signs of k1 and k2.  As mentioned in the equation
-	// above, each of k1 and k2 are multiplied by the respective point.
-	// Since -k * P is the same thing as k * -P, and the group law for
-	// elliptic curves states that P(x, y) = -P(x, -y), it's faster and
-	// simplifies the code to just make the point negative.
-	if signK1 == -1 {
-		p1y, p1yNeg = p1yNeg, p1y
-	}
-	if signK2 == -1 {
-		p2y, p2yNeg = p2yNeg, p2y
-	}
-
-	// NAF versions of k1 and k2 should have a lot more zeros.
-	//
-	// The Pos version of the bytes contain the +1s and the Neg versions
-	// contain the -1s.
-	k1PosNAF, k1NegNAF := naf(k1)
-	k2PosNAF, k2NegNAF := naf(k2)
-	k1Len := len(k1PosNAF)
-	k2Len := len(k2PosNAF)
-
-	m := k1Len
-	if m < k2Len {
-		m = k2Len
-	}
-
-	// Add left-to-right using the NAF optimization.  See algorithm 3.77
-	// from [GECC].  This should be faster overall since there will be a lot
-	// more instances of 0, hence reducing the number of Jacobian additions
-	// at the cost of 1 possible extra doubling.
-	var k1BytePos, k1ByteNeg, k2BytePos, k2ByteNeg byte
-	for i := 0; i < m; i++ {
-		// Since we're going left-to-right, pad the front with 0s.
-		if i < m-k1Len {
-			k1BytePos = 0
-			k1ByteNeg = 0
-		} else {
-			k1BytePos = k1PosNAF[i-(m-k1Len)]
-			k1ByteNeg = k1NegNAF[i-(m-k1Len)]
-		}
-		if i < m-k2Len {
-			k2BytePos = 0
-			k2ByteNeg = 0
-		} else {
-			k2BytePos = k2PosNAF[i-(m-k2Len)]
-			k2ByteNeg = k2NegNAF[i-(m-k2Len)]
-		}
-
-		for j := 7; j >= 0; j-- {
-			// Q = 2 * Q
-			doubleJacobian(qx, qy, qz, qx, qy, qz)
-
-			if k1BytePos&0x80 == 0x80 {
-				addJacobian(qx, qy, qz, p1x, p1y, p1z, qx, qy, qz)
-			} else if k1ByteNeg&0x80 == 0x80 {
-				addJacobian(qx, qy, qz, p1x, p1yNeg, p1z, qx, qy, qz)
-			}
-
-			if k2BytePos&0x80 == 0x80 {
-				addJacobian(qx, qy, qz, p2x, p2y, p2z, qx, qy, qz)
-			} else if k2ByteNeg&0x80 == 0x80 {
-				addJacobian(qx, qy, qz, p2x, p2yNeg, p2z, qx, qy, qz)
-			}
-			k1BytePos <<= 1
-			k1ByteNeg <<= 1
-			k2BytePos <<= 1
-			k2ByteNeg <<= 1
-		}
-	}
+	x, y := bigAffineToField(Bx, By)
+	z := new(fieldVal).SetInt(1)
+	rx, ry, rz := new(fieldVal), new(fieldVal), new(fieldVal)
+	scalarMultJacobian(x, y, z, k, rx, ry, rz)
 
 	// Convert the Jacobian coordinate field values back to affine big.Ints.
-	return fieldJacobianToBigAffine(qx, qy, qz)
+	return fieldJacobianToBigAffine(rx, ry, rz)
 }
 
 // ScalarBaseMult returns k*G where G is the base point of the group and k is a
@@ -265,22 +164,11 @@ func (curve *KoblitzCurve) ScalarMult(Bx, By *big.Int, k []byte) (*big.Int, *big
 //
 // This is part of the elliptic.Curve interface implementation.
 func (curve *KoblitzCurve) ScalarBaseMult(k []byte) (*big.Int, *big.Int) {
-	newK := moduloReduce(k)
-	diff := len(curve.bytePoints) - len(newK)
+	rx, ry, rz := new(fieldVal), new(fieldVal), new(fieldVal)
+	scalarBaseMultJacobian(k, rx, ry, rz)
 
-	// Point Q = ∞ (point at infinity).
-	qx, qy, qz := new(fieldVal), new(fieldVal), new(fieldVal)
-
-	// curve.bytePoints has all 256 byte points for each 8-bit window. The
-	// strategy is to add up the byte points. This is best understood by
-	// expressing k in base-256 which it already sort of is.
-	// Each "digit" in the 8-bit window can be looked up using bytePoints
-	// and added together.
-	for i, byteVal := range newK {
-		p := curve.bytePoints[diff+i][byteVal]
-		addJacobian(qx, qy, qz, &p[0], &p[1], &p[2], qx, qy, qz)
-	}
-	return fieldJacobianToBigAffine(qx, qy, qz)
+	// Convert the Jacobian coordinate field values back to affine big.Ints.
+	return fieldJacobianToBigAffine(rx, ry, rz)
 }
 
 // ToECDSA returns the public key as a *ecdsa.PublicKey.

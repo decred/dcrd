@@ -5,7 +5,9 @@
 
 package secp256k1
 
-import "math/big"
+import (
+	"math/big"
+)
 
 // References:
 //   [SECG]: Recommended Elliptic Curve Domain Parameters
@@ -48,6 +50,25 @@ var (
 	// endomorphismA2 = fromHex("3086D221A7D46BCDE86C90E49284EB15")
 	// endomorphismB2 = fromHex("114CA50F7A8E2F3F657C1108D9D44CFD8")
 )
+
+// fieldJacobianToAffine takes a Jacobian point (x, y, z) as field values and
+// converts it to an affine point.
+func fieldJacobianToAffine(x, y, z *fieldVal) {
+	// Inversions are expensive and both point addition and point doubling
+	// are faster when working with points that have a z value of one.  So,
+	// if the point needs to be converted to affine, go ahead and normalize
+	// the point itself at the same time as the calculation is the same.
+	var zInv, tempZ fieldVal
+	zInv.Set(z).Inverse()   // zInv = Z^-1
+	tempZ.SquareVal(&zInv)  // tempZ = Z^-2
+	x.Mul(&tempZ)           // X = X/Z^2 (mag: 1)
+	y.Mul(tempZ.Mul(&zInv)) // Y = Y/Z^3 (mag: 1)
+	z.SetInt(1)             // Z = 1 (mag: 1)
+
+	// Normalize the x and y values.
+	x.Normalize()
+	y.Normalize()
+}
 
 // addZ1AndZ2EqualsOne adds two Jacobian points that are already known to have
 // z values of 1 and stores the result in (x3, y3, z3).  That is to say
@@ -563,6 +584,131 @@ func moduloReduce(k []byte) []byte {
 	}
 
 	return k
+}
+
+// scalarMultJacobian multiplies k*(x1, y1, z1) where k is a big endian integer
+// and stores the result in Jacobian coordinates (x2, y2, z2).
+func scalarMultJacobian(x1, y1, z1 *fieldVal, k []byte, x2, y2, z2 *fieldVal) {
+	// Decompose K into k1 and k2 in order to halve the number of EC ops.
+	// See Algorithm 3.74 in [GECC].
+	k1, k2, signK1, signK2 := splitK(moduloReduce(k))
+
+	// The main equation here to remember is:
+	//   k * P = k1 * P + k2 * ϕ(P)
+	//
+	// P1 below is P in the equation, P2 below is ϕ(P) in the equation
+	p1x, p1y := new(fieldVal).Set(x1), new(fieldVal).Set(y1)
+	p1z := new(fieldVal).Set(z1)
+	p1yNeg := new(fieldVal).NegateVal(p1y, 1)
+
+	// NOTE: ϕ(x,y) = (βx,y).  The Jacobian z coordinates are the same, so this
+	// math goes through.
+	p2x := new(fieldVal).Mul2(p1x, endomorphismBeta)
+	p2y := new(fieldVal).Set(p1y)
+	p2yNeg := new(fieldVal).NegateVal(p2y, 1)
+	p2z := new(fieldVal).Set(p1z)
+
+	// Flip the positive and negative values of the points as needed
+	// depending on the signs of k1 and k2.  As mentioned in the equation
+	// above, each of k1 and k2 are multiplied by the respective point.
+	// Since -k * P is the same thing as k * -P, and the group law for
+	// elliptic curves states that P(x, y) = -P(x, -y), it's faster and
+	// simplifies the code to just make the point negative.
+	if signK1 == -1 {
+		p1y, p1yNeg = p1yNeg, p1y
+	}
+	if signK2 == -1 {
+		p2y, p2yNeg = p2yNeg, p2y
+	}
+
+	// NAF versions of k1 and k2 should have a lot more zeros.
+	//
+	// The Pos version of the bytes contain the +1s and the Neg versions
+	// contain the -1s.
+	k1PosNAF, k1NegNAF := naf(k1)
+	k2PosNAF, k2NegNAF := naf(k2)
+	k1Len := len(k1PosNAF)
+	k2Len := len(k2PosNAF)
+
+	m := k1Len
+	if m < k2Len {
+		m = k2Len
+	}
+
+	// Point Q = ∞ (point at infinity).
+	qx, qy, qz := new(fieldVal), new(fieldVal), new(fieldVal)
+
+	// Add left-to-right using the NAF optimization.  See algorithm 3.77
+	// from [GECC].  This should be faster overall since there will be a lot
+	// more instances of 0, hence reducing the number of Jacobian additions
+	// at the cost of 1 possible extra doubling.
+	var k1BytePos, k1ByteNeg, k2BytePos, k2ByteNeg byte
+	for i := 0; i < m; i++ {
+		// Since we're going left-to-right, pad the front with 0s.
+		if i < m-k1Len {
+			k1BytePos = 0
+			k1ByteNeg = 0
+		} else {
+			k1BytePos = k1PosNAF[i-(m-k1Len)]
+			k1ByteNeg = k1NegNAF[i-(m-k1Len)]
+		}
+		if i < m-k2Len {
+			k2BytePos = 0
+			k2ByteNeg = 0
+		} else {
+			k2BytePos = k2PosNAF[i-(m-k2Len)]
+			k2ByteNeg = k2NegNAF[i-(m-k2Len)]
+		}
+
+		for j := 7; j >= 0; j-- {
+			// Q = 2 * Q
+			doubleJacobian(qx, qy, qz, qx, qy, qz)
+
+			if k1BytePos&0x80 == 0x80 {
+				addJacobian(qx, qy, qz, p1x, p1y, p1z, qx, qy, qz)
+			} else if k1ByteNeg&0x80 == 0x80 {
+				addJacobian(qx, qy, qz, p1x, p1yNeg, p1z, qx, qy, qz)
+			}
+
+			if k2BytePos&0x80 == 0x80 {
+				addJacobian(qx, qy, qz, p2x, p2y, p2z, qx, qy, qz)
+			} else if k2ByteNeg&0x80 == 0x80 {
+				addJacobian(qx, qy, qz, p2x, p2yNeg, p2z, qx, qy, qz)
+			}
+			k1BytePos <<= 1
+			k1ByteNeg <<= 1
+			k2BytePos <<= 1
+			k2ByteNeg <<= 1
+		}
+	}
+
+	x2.Set(qx)
+	y2.Set(qy)
+	z2.Set(qz)
+}
+
+// scalarBaseMultJacobian multiplies k*G where G is the base point of the group
+// and k is a big endian integer.  The result is stored in Jacobian coordinates
+// (x1, y1, z1).
+func scalarBaseMultJacobian(k []byte, x1, y1, z1 *fieldVal) {
+	curve := S256()
+	newK := moduloReduce(k)
+	diff := len(curve.bytePoints) - len(newK)
+
+	// Point Q = ∞ (point at infinity).
+	qx, qy, qz := new(fieldVal), new(fieldVal), new(fieldVal)
+
+	// curve.bytePoints has all 256 byte points for each 8-bit window.  The
+	// strategy is to add up the byte points.  This is best understood by
+	// expressing k in base-256 which it already sort of is.  Each "digit" in
+	// the 8-bit window can be looked up using bytePoints and added together.
+	for i, byteVal := range newK {
+		p := curve.bytePoints[diff+i][byteVal]
+		addJacobian(qx, qy, qz, &p[0], &p[1], &p[2], qx, qy, qz)
+	}
+	x1.Set(qx)
+	y1.Set(qy)
+	z1.Set(qz)
 }
 
 // naf takes a positive integer k and returns the Non-Adjacent Form (NAF) as two
