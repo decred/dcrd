@@ -17,9 +17,8 @@ import (
 	"sync"
 )
 
-// KoblitzCurve provides an implementation for secp256k1 that fits the ECC Curve
-// interface from crypto/elliptic.
-type KoblitzCurve struct {
+// CurveParams contains the parameters for the secp256k1 curve.
+type CurveParams struct {
 	*elliptic.CurveParams
 	q *big.Int
 	H int // cofactor of the curve.
@@ -27,9 +26,6 @@ type KoblitzCurve struct {
 	// byteSize is simply the bit size / 8 and is provided for convenience
 	// since it is calculated repeatedly.
 	byteSize int
-
-	// bytePoints
-	bytePoints *[32][256][3]fieldVal
 
 	// The next 6 values are used specifically for endomorphism
 	// optimizations in ScalarMult.
@@ -49,11 +45,66 @@ type KoblitzCurve struct {
 	b2 *big.Int
 }
 
+// Curve parameters taken from [SECG] section 2.4.1.
+var fieldPrime = fromHex("fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2f")
+var curveParams = CurveParams{
+	CurveParams: &elliptic.CurveParams{
+		P:       fieldPrime,
+		N:       fromHex("fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141"),
+		B:       fromHex("0000000000000000000000000000000000000000000000000000000000000007"),
+		Gx:      fromHex("79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798"),
+		Gy:      fromHex("483ada7726a3c4655da4fbfc0e1108a8fd17b448a68554199c47d08ffb10d4b8"),
+		BitSize: 256,
+	},
+	H: 1,
+	q: new(big.Int).Div(new(big.Int).Add(fieldPrime, big.NewInt(1)),
+		big.NewInt(4)),
+
+	// Provided for convenience since this gets computed repeatedly.
+	byteSize: 256 / 8,
+
+	// Next 6 constants are from Hal Finney's bitcointalk.org post:
+	// https://bitcointalk.org/index.php?topic=3238.msg45565#msg45565
+	// May he rest in peace.
+	//
+	// They have also been independently derived from the code in the
+	// EndomorphismVectors function in gensecp256k1.go.
+	lambda: fromHex("5363ad4cc05c30e0a5261c028812645a122e22ea20816678df02967c1b23bd72"),
+	beta:   new(fieldVal).SetHex("7ae96a2b657c07106e64479eac3434e99cf0497512f58995c1396c28719501ee"),
+	a1:     fromHex("3086d221a7d46bcde86c90e49284eb15"),
+	b1:     fromHex("-e4437ed6010e88286f547fa90abfe4c3"),
+	a2:     fromHex("114ca50f7a8e2f3f657c1108d9d44cfd8"),
+	b2:     fromHex("3086d221a7d46bcde86c90e49284eb15"),
+
+	// Alternatively, we can use the parameters below, however, they seem
+	//  to be about 8% slower.
+	// secp256k1.lambda = fromHex("ac9c52b33fa3cf1f5ad9e3fd77ed9ba4a880b9fc8ec739c2e0cfc810b51283ce")
+	// secp256k1.beta = new(fieldVal).SetHex("851695d49a83f8ef919bb86153cbcb16630fb68aed0a766a3ec693d68e6afa40")
+	// secp256k1.a1 = fromHex("e4437ed6010e88286f547fa90abfe4c3")
+	// secp256k1.b1 = fromHex("-3086d221a7d46bcde86c90e49284eb15")
+	// secp256k1.a2 = fromHex("3086d221a7d46bcde86c90e49284eb15")
+	// secp256k1.b2 = fromHex("114ca50f7a8e2f3f657c1108d9d44cfd8")
+}
+
+// Params returns the secp256k1 curve parameters for convenience.
+func Params() *CurveParams {
+	return &curveParams
+}
+
+// KoblitzCurve provides an implementation for secp256k1 that fits the ECC Curve
+// interface from crypto/elliptic.
+type KoblitzCurve struct {
+	*CurveParams
+
+	// bytePoints
+	bytePoints *[32][256][3]fieldVal
+}
+
 // Params returns the parameters for the curve.
 //
 // This is part of the elliptic.Curve interface implementation.
 func (curve *KoblitzCurve) Params() *elliptic.CurveParams {
-	return curve.CurveParams
+	return curve.CurveParams.CurveParams
 }
 
 // IsOnCurve returns boolean if the point (x,y) is on the curve.
@@ -277,20 +328,7 @@ func initAll() {
 }
 
 func initS256() {
-	// Curve parameters taken from [SECG] section 2.4.1.
-	secp256k1.CurveParams = new(elliptic.CurveParams)
-	secp256k1.P = fromHex("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC2F")
-	secp256k1.N = fromHex("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141")
-	secp256k1.B = fromHex("0000000000000000000000000000000000000000000000000000000000000007")
-	secp256k1.Gx = fromHex("79BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798")
-	secp256k1.Gy = fromHex("483ADA7726A3C4655DA4FBFC0E1108A8FD17B448A68554199C47D08FFB10D4B8")
-	secp256k1.BitSize = 256
-	secp256k1.H = 1
-	secp256k1.q = new(big.Int).Div(new(big.Int).Add(secp256k1.P,
-		big.NewInt(1)), big.NewInt(4))
-
-	// Provided for convenience since this gets computed repeatedly.
-	secp256k1.byteSize = secp256k1.BitSize / 8
+	secp256k1.CurveParams = &curveParams
 
 	// Deserialize and set the pre-computed table used to accelerate scalar
 	// base multiplication.  This is hard-coded data, so any errors are
@@ -298,28 +336,6 @@ func initS256() {
 	if err := loadS256BytePoints(); err != nil {
 		panic(err)
 	}
-
-	// Next 6 constants are from Hal Finney's bitcointalk.org post:
-	// https://bitcointalk.org/index.php?topic=3238.msg45565#msg45565
-	// May he rest in peace.
-	//
-	// They have also been independently derived from the code in the
-	// EndomorphismVectors function in gensecp256k1.go.
-	secp256k1.lambda = fromHex("5363AD4CC05C30E0A5261C028812645A122E22EA20816678DF02967C1B23BD72")
-	secp256k1.beta = new(fieldVal).SetHex("7AE96A2B657C07106E64479EAC3434E99CF0497512F58995C1396C28719501EE")
-	secp256k1.a1 = fromHex("3086D221A7D46BCDE86C90E49284EB15")
-	secp256k1.b1 = fromHex("-E4437ED6010E88286F547FA90ABFE4C3")
-	secp256k1.a2 = fromHex("114CA50F7A8E2F3F657C1108D9D44CFD8")
-	secp256k1.b2 = fromHex("3086D221A7D46BCDE86C90E49284EB15")
-
-	// Alternatively, we can use the parameters below, however, they seem
-	//  to be about 8% slower.
-	// secp256k1.lambda = fromHex("AC9C52B33FA3CF1F5AD9E3FD77ED9BA4A880B9FC8EC739C2E0CFC810B51283CE")
-	// secp256k1.beta = new(fieldVal).SetHex("851695D49A83F8EF919BB86153CBCB16630FB68AED0A766A3EC693D68E6AFA40")
-	// secp256k1.a1 = fromHex("E4437ED6010E88286F547FA90ABFE4C3")
-	// secp256k1.b1 = fromHex("-3086D221A7D46BCDE86C90E49284EB15")
-	// secp256k1.a2 = fromHex("3086D221A7D46BCDE86C90E49284EB15")
-	// secp256k1.b2 = fromHex("114CA50F7A8E2F3F657C1108D9D44CFD8")
 }
 
 // S256 returns a Curve which implements secp256k1.
