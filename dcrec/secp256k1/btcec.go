@@ -42,20 +42,20 @@ func (curve *KoblitzCurve) splitK(k []byte) ([]byte, []byte, int, int) {
 	bigIntK.SetBytes(k)
 	// c1 = round(b2 * k / n) from step 4.
 	// Rounding isn't really necessary and costs too much, hence skipped
-	c1.Mul(curve.b2, bigIntK)
-	c1.Div(c1, curve.N)
+	c1.Mul(endomorphismB2, bigIntK)
+	c1.Div(c1, curveParams.N)
 	// c2 = round(b1 * k / n) from step 4 (sign reversed to optimize one step)
 	// Rounding isn't really necessary and costs too much, hence skipped
-	c2.Mul(curve.b1, bigIntK)
-	c2.Div(c2, curve.N)
+	c2.Mul(endomorphismB1, bigIntK)
+	c2.Div(c2, curveParams.N)
 	// k1 = k - c1 * a1 - c2 * a2 from step 5 (note c2's sign is reversed)
-	tmp1.Mul(c1, curve.a1)
-	tmp2.Mul(c2, curve.a2)
+	tmp1.Mul(c1, endomorphismA1)
+	tmp2.Mul(c2, endomorphismA2)
 	k1.Sub(bigIntK, tmp1)
 	k1.Add(k1, tmp2)
 	// k2 = - c1 * b1 - c2 * b2 from step 5 (note c2's sign is reversed)
-	tmp1.Mul(c1, curve.b1)
-	tmp2.Mul(c2, curve.b2)
+	tmp1.Mul(c1, endomorphismB1)
+	tmp2.Mul(c2, endomorphismB2)
 	k2.Sub(tmp2, tmp1)
 
 	// Note Bytes() throws out the sign of k1 and k2. This matters

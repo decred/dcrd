@@ -741,7 +741,7 @@ func TestSplitK(t *testing.T) {
 		k2Int := new(big.Int).SetBytes(k2)
 		k2SignInt := new(big.Int).SetInt64(int64(k2Sign))
 		k2Int.Mul(k2Int, k2SignInt)
-		gotK := new(big.Int).Mul(k2Int, s256.lambda)
+		gotK := new(big.Int).Mul(k2Int, endomorphismLambda)
 		gotK.Add(k1Int, gotK)
 		gotK.Mod(gotK, s256.N)
 		if k.Cmp(gotK) != 0 {
@@ -767,7 +767,7 @@ func TestSplitKRand(t *testing.T) {
 		k2Int := new(big.Int).SetBytes(k2)
 		k2SignInt := new(big.Int).SetInt64(int64(k2Sign))
 		k2Int.Mul(k2Int, k2SignInt)
-		gotK := new(big.Int).Mul(k2Int, s256.lambda)
+		gotK := new(big.Int).Mul(k2Int, endomorphismLambda)
 		gotK.Add(k1Int, gotK)
 		gotK.Mod(gotK, s256.N)
 		if k.Cmp(gotK) != 0 {

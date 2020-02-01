@@ -106,16 +106,16 @@ func sqrt(n *big.Int) *big.Int {
 // length-two representation of a multiplier such that k = k1 + k2λ (mod N) and
 // returns them.  Since the values will always be the same given the fact that N
 // and λ are fixed, the final results can be accelerated by storing the
-// precomputed values with the curve.
-func (curve *KoblitzCurve) EndomorphismVectors() (a1, b1, a2, b2 *big.Int) {
+// precomputed values.
+func EndomorphismVectors() (a1, b1, a2, b2 *big.Int) {
 	bigMinus1 := big.NewInt(-1)
 
 	// This section uses an extended Euclidean algorithm to generate a
 	// sequence of equations:
 	//  s[i] * N + t[i] * λ = r[i]
 
-	nSqrt := sqrt(curve.N)
-	u, v := new(big.Int).Set(curve.N), new(big.Int).Set(curve.lambda)
+	nSqrt := sqrt(curveParams.N)
+	u, v := new(big.Int).Set(curveParams.N), new(big.Int).Set(endomorphismLambda)
 	x1, y1 := big.NewInt(1), big.NewInt(0)
 	x2, y2 := big.NewInt(0), big.NewInt(1)
 	q, r := new(big.Int), new(big.Int)

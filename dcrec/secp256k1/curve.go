@@ -5,6 +5,10 @@
 
 package secp256k1
 
+// References:
+//   [SECG]: Recommended Elliptic Curve Domain Parameters
+//     https://www.secg.org/sec2-v2.pdf
+
 // All group operations are performed using Jacobian coordinates.  For a given
 // (x, y) position on the curve, the Jacobian coordinates are (x1, y1, z1)
 // where x = x1/z1^2 and y = y1/z1^3. The greatest speedups come when the whole
@@ -17,6 +21,31 @@ var (
 	// used to avoid needing to create it multiple times during the internal
 	// arithmetic.
 	fieldOne = new(fieldVal).SetInt(1)
+)
+
+var (
+	// Next 6 constants are from Hal Finney's bitcointalk.org post:
+	// https://bitcointalk.org/index.php?topic=3238.msg45565#msg45565
+	// May he rest in peace.
+	//
+	// They have also been independently derived from the code in the
+	// EndomorphismVectors function in genstatics.go.
+	endomorphismLambda = fromHex("5363ad4cc05c30e0a5261c028812645a122e22ea20816678df02967c1b23bd72")
+	endomorphismBeta   = new(fieldVal).SetHex("7ae96a2b657c07106e64479eac3434e99cf0497512f58995c1396c28719501ee")
+	endomorphismA1     = fromHex("3086d221a7d46bcde86c90e49284eb15")
+	endomorphismB1     = fromHex("-e4437ed6010e88286f547fa90abfe4c3")
+	endomorphismA2     = fromHex("114ca50f7a8e2f3f657c1108d9d44cfd8")
+	endomorphismB2     = fromHex("3086d221a7d46bcde86c90e49284eb15")
+
+	// Alternatively, the following parameters are valid as well, however, they
+	// seem to be about 8% slower in practice.
+	//
+	// endomorphismLambda = fromHex("AC9C52B33FA3CF1F5AD9E3FD77ED9BA4A880B9FC8EC739C2E0CFC810B51283CE")
+	// endomorphismBeta = new(fieldVal).SetHex("851695D49A83F8EF919BB86153CBCB16630FB68AED0A766A3EC693D68E6AFA40")
+	// endomorphismA1 = fromHex("E4437ED6010E88286F547FA90ABFE4C3")
+	// endomorphismB1 = fromHex("-3086D221A7D46BCDE86C90E49284EB15")
+	// endomorphismA2 = fromHex("3086D221A7D46BCDE86C90E49284EB15")
+	// endomorphismB2 = fromHex("114CA50F7A8E2F3F657C1108D9D44CFD8")
 )
 
 // addZ1AndZ2EqualsOne adds two Jacobian points that are already known to have

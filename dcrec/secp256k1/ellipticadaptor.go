@@ -26,23 +26,6 @@ type CurveParams struct {
 	// byteSize is simply the bit size / 8 and is provided for convenience
 	// since it is calculated repeatedly.
 	byteSize int
-
-	// The next 6 values are used specifically for endomorphism
-	// optimizations in ScalarMult.
-
-	// lambda must fulfill lambda^3 = 1 mod N where N is the order of G.
-	lambda *big.Int
-
-	// beta must fulfill beta^3 = 1 mod P where P is the prime field of the
-	// curve.
-	beta *fieldVal
-
-	// See the EndomorphismVectors in gensecp256k1.go to see how these are
-	// derived.
-	a1 *big.Int
-	b1 *big.Int
-	a2 *big.Int
-	b2 *big.Int
 }
 
 // Curve parameters taken from [SECG] section 2.4.1.
@@ -62,28 +45,6 @@ var curveParams = CurveParams{
 
 	// Provided for convenience since this gets computed repeatedly.
 	byteSize: 256 / 8,
-
-	// Next 6 constants are from Hal Finney's bitcointalk.org post:
-	// https://bitcointalk.org/index.php?topic=3238.msg45565#msg45565
-	// May he rest in peace.
-	//
-	// They have also been independently derived from the code in the
-	// EndomorphismVectors function in genstatics.go.
-	lambda: fromHex("5363ad4cc05c30e0a5261c028812645a122e22ea20816678df02967c1b23bd72"),
-	beta:   new(fieldVal).SetHex("7ae96a2b657c07106e64479eac3434e99cf0497512f58995c1396c28719501ee"),
-	a1:     fromHex("3086d221a7d46bcde86c90e49284eb15"),
-	b1:     fromHex("-e4437ed6010e88286f547fa90abfe4c3"),
-	a2:     fromHex("114ca50f7a8e2f3f657c1108d9d44cfd8"),
-	b2:     fromHex("3086d221a7d46bcde86c90e49284eb15"),
-
-	// Alternatively, we can use the parameters below, however, they seem
-	//  to be about 8% slower.
-	// secp256k1.lambda = fromHex("ac9c52b33fa3cf1f5ad9e3fd77ed9ba4a880b9fc8ec739c2e0cfc810b51283ce")
-	// secp256k1.beta = new(fieldVal).SetHex("851695d49a83f8ef919bb86153cbcb16630fb68aed0a766a3ec693d68e6afa40")
-	// secp256k1.a1 = fromHex("e4437ed6010e88286f547fa90abfe4c3")
-	// secp256k1.b1 = fromHex("-3086d221a7d46bcde86c90e49284eb15")
-	// secp256k1.a2 = fromHex("3086d221a7d46bcde86c90e49284eb15")
-	// secp256k1.b2 = fromHex("114ca50f7a8e2f3f657c1108d9d44cfd8")
 }
 
 // Params returns the secp256k1 curve parameters for convenience.
@@ -225,7 +186,7 @@ func (curve *KoblitzCurve) ScalarMult(Bx, By *big.Int, k []byte) (*big.Int, *big
 
 	// NOTE: ϕ(x,y) = (βx,y).  The Jacobian z coordinate is 1, so this math
 	// goes through.
-	p2x := new(fieldVal).Mul2(p1x, curve.beta)
+	p2x := new(fieldVal).Mul2(p1x, endomorphismBeta)
 	p2y := new(fieldVal).Set(p1y)
 	p2yNeg := new(fieldVal).NegateVal(p2y, 1)
 	p2z := new(fieldVal).SetInt(1)

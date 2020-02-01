@@ -54,7 +54,7 @@ func main() {
 	fmt.Fprintln(fi)
 	fmt.Fprintf(fi, "var compressedBytePoints = %q\n", string(encoded))
 
-	a1, b1, a2, b2 := secp256k1.S256().EndomorphismVectors()
+	a1, b1, a2, b2 := secp256k1.EndomorphismVectors()
 	fmt.Println("The following values are the computed linearly " +
 		"independent vectors needed to make use of the secp256k1 " +
 		"endomorphism:")
