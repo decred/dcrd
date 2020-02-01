@@ -6,7 +6,6 @@
 package secp256k1
 
 import (
-	"crypto/ecdsa"
 	"errors"
 	"fmt"
 	"math/big"
@@ -53,7 +52,10 @@ const (
 
 // NewPublicKey instantiates a new public key with the given X,Y coordinates.
 func NewPublicKey(x *big.Int, y *big.Int) *PublicKey {
-	return &PublicKey{S256(), x, y}
+	return &PublicKey{
+		X: x,
+		Y: y,
+	}
 }
 
 // ParsePubKey parses a secp256k1 public key encoded according to the format
@@ -74,7 +76,6 @@ func NewPublicKey(x *big.Int, y *big.Int) *PublicKey {
 // this function will properly parse them since they exist in the wild.
 func ParsePubKey(pubKeyStr []byte) (key *PublicKey, err error) {
 	pubkey := PublicKey{}
-	pubkey.Curve = S256()
 
 	if len(pubKeyStr) == 0 {
 		return nil, errors.New("pubkey string is empty")
@@ -125,9 +126,14 @@ func ParsePubKey(pubKeyStr []byte) (key *PublicKey, err error) {
 	return &pubkey, nil
 }
 
-// PublicKey is an ecdsa.PublicKey with additional functions to
-// serialize in uncompressed and compressed formats.
-type PublicKey ecdsa.PublicKey
+// PublicKey provides facilities for efficiently working with secp256k1 private
+// keys within this package and includes functions to serialize in both
+// uncompressed and compressed SEC (Standards for Efficient Cryptography)
+// formats.
+type PublicKey struct {
+	X *big.Int
+	Y *big.Int
+}
 
 // SerializeUncompressed serializes a public key in a 65-byte uncompressed
 // format.

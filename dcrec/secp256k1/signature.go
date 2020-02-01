@@ -356,11 +356,7 @@ func recoverKeyFromSignature(sig *Signature, msg []byte, iter int, doChecks bool
 
 	Qx, Qy := fieldJacobianToBigAffine(fQx, fQy, fQz)
 
-	return &PublicKey{
-		Curve: curve,
-		X:     Qx,
-		Y:     Qy,
-	}, nil
+	return NewPublicKey(Qx, Qy), nil
 }
 
 // SignCompact produces a compact signature of the data in hash with the given

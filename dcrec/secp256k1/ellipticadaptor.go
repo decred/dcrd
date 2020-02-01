@@ -173,8 +173,11 @@ func (curve *KoblitzCurve) ScalarBaseMult(k []byte) (*big.Int, *big.Int) {
 
 // ToECDSA returns the public key as a *ecdsa.PublicKey.
 func (p PublicKey) ToECDSA() *ecdsa.PublicKey {
-	ecpk := ecdsa.PublicKey(p)
-	return &ecpk
+	return &ecdsa.PublicKey{
+		Curve: S256(),
+		X:     p.X,
+		Y:     p.Y,
+	}
 }
 
 // ToECDSA returns the private key as a *ecdsa.PrivateKey.

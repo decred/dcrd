@@ -165,7 +165,7 @@ func (k *ExtendedKey) pubKeyBytes() []byte {
 	// key if needed.
 	if len(k.pubKey) == 0 {
 		pkx, pky := secp256k1.S256().ScalarBaseMult(k.key)
-		pubKey := secp256k1.PublicKey{Curve: secp256k1.S256(), X: pkx, Y: pky}
+		pubKey := secp256k1.NewPublicKey(pkx, pky)
 		k.pubKey = pubKey.SerializeCompressed()
 	}
 
@@ -326,7 +326,7 @@ func (k *ExtendedKey) Child(i uint32) (*ExtendedKey, error) {
 		//
 		// childKey = serP(point(parse256(Il)) + parentKey)
 		childX, childY := curve.Add(ilx, ily, pubKey.X, pubKey.Y)
-		pk := secp256k1.PublicKey{Curve: secp256k1.S256(), X: childX, Y: childY}
+		pk := secp256k1.NewPublicKey(childX, childY)
 		childKey = pk.SerializeCompressed()
 	}
 
