@@ -156,9 +156,3 @@ func naf(k []byte) ([]byte, []byte) {
 	}
 	return retPos[1:], retNeg[1:]
 }
-
-// QPlus1Div4 returns the Q+1/4 constant for the curve for use in calculating
-// square roots via exponention.
-func (curve *KoblitzCurve) QPlus1Div4() *big.Int {
-	return curve.q
-}
