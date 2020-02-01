@@ -51,31 +51,63 @@ var (
 	// endomorphismB2 = fromHex("114CA50F7A8E2F3F657C1108D9D44CFD8")
 )
 
-// fieldJacobianToAffine takes a Jacobian point (x, y, z) as field values and
-// converts it to an affine point.
-func fieldJacobianToAffine(x, y, z *fieldVal) {
+// jacobianPoint is an element of the group formed by the secp256k1 curve in
+// Jacobian projective coordinates and thus represents a point on the curve.
+type jacobianPoint struct {
+	// The X coordinate in Jacobian projective coordinates.  The affine point is
+	// x/z^2.
+	x fieldVal
+
+	// The Y coordinate in Jacobian projective coordinates.  The affine point is
+	// y/z^3.
+	y fieldVal
+
+	// The Z coordinate in Jacobian projective coordinates.
+	z fieldVal
+}
+
+// makeJacobianPoint returns a Jacobian point with the provided X, Y, and Z
+// coordinates.
+func makeJacobianPoint(x, y, z *fieldVal) jacobianPoint {
+	var p jacobianPoint
+	p.x.Set(x)
+	p.y.Set(y)
+	p.z.Set(z)
+	return p
+}
+
+// Set sets the Jacobian point to the provided point.
+func (p *jacobianPoint) Set(other *jacobianPoint) {
+	p.x.Set(&other.x)
+	p.y.Set(&other.y)
+	p.z.Set(&other.z)
+}
+
+// ToAffine reduces the Jacobian point Z value to 1 effectively making it an
+// affine coordinate.
+func (p *jacobianPoint) ToAffine() {
 	// Inversions are expensive and both point addition and point doubling
 	// are faster when working with points that have a z value of one.  So,
 	// if the point needs to be converted to affine, go ahead and normalize
 	// the point itself at the same time as the calculation is the same.
 	var zInv, tempZ fieldVal
-	zInv.Set(z).Inverse()   // zInv = Z^-1
-	tempZ.SquareVal(&zInv)  // tempZ = Z^-2
-	x.Mul(&tempZ)           // X = X/Z^2 (mag: 1)
-	y.Mul(tempZ.Mul(&zInv)) // Y = Y/Z^3 (mag: 1)
-	z.SetInt(1)             // Z = 1 (mag: 1)
+	zInv.Set(&p.z).Inverse()  // zInv = Z^-1
+	tempZ.SquareVal(&zInv)    // tempZ = Z^-2
+	p.x.Mul(&tempZ)           // X = X/Z^2 (mag: 1)
+	p.y.Mul(tempZ.Mul(&zInv)) // Y = Y/Z^3 (mag: 1)
+	p.z.SetInt(1)             // Z = 1 (mag: 1)
 
 	// Normalize the x and y values.
-	x.Normalize()
-	y.Normalize()
+	p.x.Normalize()
+	p.y.Normalize()
 }
 
 // addZ1AndZ2EqualsOne adds two Jacobian points that are already known to have
-// z values of 1 and stores the result in (x3, y3, z3).  That is to say
-// (x1, y1, 1) + (x2, y2, 1) = (x3, y3, z3).  It performs faster addition than
-// the generic add routine since less arithmetic is needed due to the ability to
-// avoid the z value multiplications.
-func addZ1AndZ2EqualsOne(x1, y1, z1, x2, y2, x3, y3, z3 *fieldVal) {
+// z values of 1 and stores the result in the provided result param.  That is to
+// say result = p1 + p2.  It performs faster addition than the generic add
+// routine since less arithmetic is needed due to the ability to avoid the z
+// value multiplications.
+func addZ1AndZ2EqualsOne(p1, p2, result *jacobianPoint) {
 	// To compute the point addition efficiently, this implementation splits
 	// the equation into intermediate elements which are used to minimize
 	// the number of field multiplications using the method shown at:
@@ -87,6 +119,9 @@ func addZ1AndZ2EqualsOne(x1, y1, z1, x2, y2, x3, y3, z3 *fieldVal) {
 	//
 	// This results in a cost of 4 field multiplications, 2 field squarings,
 	// 6 field additions, and 5 integer multiplications.
+	x1, y1 := &p1.x, &p1.y
+	x2, y2 := &p2.x, &p2.y
+	x3, y3, z3 := &result.x, &result.y, &result.z
 
 	// When the x coordinates are the same for two points on the curve, the
 	// y coordinates either must be the same, in which case it is point
@@ -101,7 +136,7 @@ func addZ1AndZ2EqualsOne(x1, y1, z1, x2, y2, x3, y3, z3 *fieldVal) {
 			// Since x1 == x2 and y1 == y2, point doubling must be
 			// done, otherwise the addition would end up dividing
 			// by zero.
-			doubleJacobian(x1, y1, z1, x3, y3, z3)
+			doubleJacobian(p1, result)
 			return
 		}
 
@@ -137,11 +172,10 @@ func addZ1AndZ2EqualsOne(x1, y1, z1, x2, y2, x3, y3, z3 *fieldVal) {
 }
 
 // addZ1EqualsZ2 adds two Jacobian points that are already known to have the
-// same z value and stores the result in (x3, y3, z3).  That is to say
-// (x1, y1, z1) + (x2, y2, z1) = (x3, y3, z3).  It performs faster addition than
-// the generic add routine since less arithmetic is needed due to the known
-// equivalence.
-func addZ1EqualsZ2(x1, y1, z1, x2, y2, x3, y3, z3 *fieldVal) {
+// same z value and stores the result in the provided result param.  That is to
+// say result = p1 + p2.  It performs faster addition than the generic add
+// routine since less arithmetic is needed due to the known equivalence.
+func addZ1EqualsZ2(p1, p2, result *jacobianPoint) {
 	// To compute the point addition efficiently, this implementation splits
 	// the equation into intermediate elements which are used to minimize
 	// the number of field multiplications using a slightly modified version
@@ -154,6 +188,9 @@ func addZ1EqualsZ2(x1, y1, z1, x2, y2, x3, y3, z3 *fieldVal) {
 	//
 	// This results in a cost of 5 field multiplications, 2 field squarings,
 	// 9 field additions, and 0 integer multiplications.
+	x1, y1, z1 := &p1.x, &p1.y, &p1.z
+	x2, y2 := &p2.x, &p2.y
+	x3, y3, z3 := &result.x, &result.y, &result.z
 
 	// When the x coordinates are the same for two points on the curve, the
 	// y coordinates either must be the same, in which case it is point
@@ -168,7 +205,7 @@ func addZ1EqualsZ2(x1, y1, z1, x2, y2, x3, y3, z3 *fieldVal) {
 			// Since x1 == x2 and y1 == y2, point doubling must be
 			// done, otherwise the addition would end up dividing
 			// by zero.
-			doubleJacobian(x1, y1, z1, x3, y3, z3)
+			doubleJacobian(p1, result)
 			return
 		}
 
@@ -206,11 +243,11 @@ func addZ1EqualsZ2(x1, y1, z1, x2, y2, x3, y3, z3 *fieldVal) {
 
 // addZ2EqualsOne adds two Jacobian points when the second point is already
 // known to have a z value of 1 (and the z value for the first point is not 1)
-// and stores the result in (x3, y3, z3).  That is to say (x1, y1, z1) +
-// (x2, y2, 1) = (x3, y3, z3).  It performs faster addition than the generic
-// add routine since less arithmetic is needed due to the ability to avoid
-// multiplications by the second point's z value.
-func addZ2EqualsOne(x1, y1, z1, x2, y2, x3, y3, z3 *fieldVal) {
+// and stores the result in the provided result param.  That is to say result =
+// p1 + p2.  It performs faster addition than the generic add routine since
+// less arithmetic is needed due to the ability to avoid multiplications by the
+// second point's z value.
+func addZ2EqualsOne(p1, p2, result *jacobianPoint) {
 	// To compute the point addition efficiently, this implementation splits
 	// the equation into intermediate elements which are used to minimize
 	// the number of field multiplications using the method shown at:
@@ -223,6 +260,9 @@ func addZ2EqualsOne(x1, y1, z1, x2, y2, x3, y3, z3 *fieldVal) {
 	//
 	// This results in a cost of 7 field multiplications, 4 field squarings,
 	// 9 field additions, and 4 integer multiplications.
+	x1, y1, z1 := &p1.x, &p1.y, &p1.z
+	x2, y2 := &p2.x, &p2.y
+	x3, y3, z3 := &result.x, &result.y, &result.z
 
 	// When the x coordinates are the same for two points on the curve, the
 	// y coordinates either must be the same, in which case it is point
@@ -243,7 +283,7 @@ func addZ2EqualsOne(x1, y1, z1, x2, y2, x3, y3, z3 *fieldVal) {
 			// Since x1 == x2 and y1 == y2, point doubling must be
 			// done, otherwise the addition would end up dividing
 			// by zero.
-			doubleJacobian(x1, y1, z1, x3, y3, z3)
+			doubleJacobian(p1, result)
 			return
 		}
 
@@ -282,11 +322,11 @@ func addZ2EqualsOne(x1, y1, z1, x2, y2, x3, y3, z3 *fieldVal) {
 	z3.Normalize()
 }
 
-// addGeneric adds two Jacobian points (x1, y1, z1) and (x2, y2, z2) without any
-// assumptions about the z values of the two points and stores the result in
-// (x3, y3, z3).  That is to say (x1, y1, z1) + (x2, y2, z2) = (x3, y3, z3).  It
-// is the slowest of the add routines due to requiring the most arithmetic.
-func addGeneric(x1, y1, z1, x2, y2, z2, x3, y3, z3 *fieldVal) {
+// addGeneric adds two Jacobian points without any assumptions about the z
+// values of the two points and stores the result in the provided result param.
+// That is to say result = p1 + p2.  It is the slowest of the add routines due
+// to requiring the most arithmetic.
+func addGeneric(p1, p2, result *jacobianPoint) {
 	// To compute the point addition efficiently, this implementation splits
 	// the equation into intermediate elements which are used to minimize
 	// the number of field multiplications using the method shown at:
@@ -300,6 +340,9 @@ func addGeneric(x1, y1, z1, x2, y2, z2, x3, y3, z3 *fieldVal) {
 	//
 	// This results in a cost of 11 field multiplications, 5 field squarings,
 	// 9 field additions, and 4 integer multiplications.
+	x1, y1, z1 := &p1.x, &p1.y, &p1.z
+	x2, y2, z2 := &p2.x, &p2.y, &p2.z
+	x3, y3, z3 := &result.x, &result.y, &result.z
 
 	// When the x coordinates are the same for two points on the curve, the
 	// y coordinates either must be the same, in which case it is point
@@ -319,7 +362,7 @@ func addGeneric(x1, y1, z1, x2, y2, z2, x3, y3, z3 *fieldVal) {
 			// Since x1 == x2 and y1 == y2, point doubling must be
 			// done, otherwise the addition would end up dividing
 			// by zero.
-			doubleJacobian(x1, y1, z1, x3, y3, z3)
+			doubleJacobian(p1, result)
 			return
 		}
 
@@ -357,21 +400,17 @@ func addGeneric(x1, y1, z1, x2, y2, z2, x3, y3, z3 *fieldVal) {
 	y3.Normalize()
 }
 
-// addJacobian adds the passed Jacobian points (x1, y1, z1) and (x2, y2, z2)
-// together and stores the result in (x3, y3, z3).
-func addJacobian(x1, y1, z1, x2, y2, z2, x3, y3, z3 *fieldVal) {
+// addJacobian adds the passed Jacobian points together and stores the result
+// in the provided result param.
+func addJacobian(p1, p2, result *jacobianPoint) {
 	// A point at infinity is the identity according to the group law for
 	// elliptic curve cryptography.  Thus, ∞ + P = P and P + ∞ = P.
-	if (x1.IsZero() && y1.IsZero()) || z1.IsZero() {
-		x3.Set(x2)
-		y3.Set(y2)
-		z3.Set(z2)
+	if (p1.x.IsZero() && p1.y.IsZero()) || p1.z.IsZero() {
+		result.Set(p2)
 		return
 	}
-	if (x2.IsZero() && y2.IsZero()) || z2.IsZero() {
-		x3.Set(x1)
-		y3.Set(y1)
-		z3.Set(z1)
+	if (p2.x.IsZero() && p2.y.IsZero()) || p2.z.IsZero() {
+		result.Set(p1)
 		return
 	}
 
@@ -380,33 +419,33 @@ func addJacobian(x1, y1, z1, x2, y2, z2, x3, y3, z3 *fieldVal) {
 	// on the z values can be avoided.  This section thus checks for these
 	// conditions and calls an appropriate add function which is accelerated
 	// by using those assumptions.
-	z1.Normalize()
-	z2.Normalize()
-	isZ1One := z1.Equals(fieldOne)
-	isZ2One := z2.Equals(fieldOne)
+	p1.z.Normalize()
+	p2.z.Normalize()
+	isZ1One := p1.z.Equals(fieldOne)
+	isZ2One := p2.z.Equals(fieldOne)
 	switch {
 	case isZ1One && isZ2One:
-		addZ1AndZ2EqualsOne(x1, y1, z1, x2, y2, x3, y3, z3)
+		addZ1AndZ2EqualsOne(p1, p2, result)
 		return
-	case z1.Equals(z2):
-		addZ1EqualsZ2(x1, y1, z1, x2, y2, x3, y3, z3)
+	case p1.z.Equals(&p2.z):
+		addZ1EqualsZ2(p1, p2, result)
 		return
 	case isZ2One:
-		addZ2EqualsOne(x1, y1, z1, x2, y2, x3, y3, z3)
+		addZ2EqualsOne(p1, p2, result)
 		return
 	}
 
 	// None of the above assumptions are true, so fall back to generic
 	// point addition.
-	addGeneric(x1, y1, z1, x2, y2, z2, x3, y3, z3)
+	addGeneric(p1, p2, result)
 }
 
 // doubleZ1EqualsOne performs point doubling on the passed Jacobian point when
 // the point is already known to have a z value of 1 and stores the result in
-// (x3, y3, z3).  That is to say (x3, y3, z3) = 2*(x1, y1, 1).  It performs
-// faster point doubling than the generic routine since less arithmetic is
-// needed due to the ability to avoid multiplication by the z value.
-func doubleZ1EqualsOne(x1, y1, x3, y3, z3 *fieldVal) {
+// the provided result param.  That is to say result = 2*p.  It performs faster
+// point doubling than the generic routine since less arithmetic is needed due
+// to the ability to avoid multiplication by the z value.
+func doubleZ1EqualsOne(p, result *jacobianPoint) {
 	// This function uses the assumptions that z1 is 1, thus the point
 	// doubling formulas reduce to:
 	//
@@ -430,6 +469,8 @@ func doubleZ1EqualsOne(x1, y1, x3, y3, z3 *fieldVal) {
 	//
 	// This results in a cost of 1 field multiplication, 5 field squarings,
 	// 6 field additions, and 5 integer multiplications.
+	x1, y1 := &p.x, &p.y
+	x3, y3, z3 := &result.x, &result.y, &result.z
 	var a, b, c, d, e, f fieldVal
 	z3.Set(y1).MulInt(2)                     // Z3 = 2*Y1 (mag: 2)
 	a.SquareVal(x1)                          // A = X1^2 (mag: 1)
@@ -453,10 +494,10 @@ func doubleZ1EqualsOne(x1, y1, x3, y3, z3 *fieldVal) {
 }
 
 // doubleGeneric performs point doubling on the passed Jacobian point without
-// any assumptions about the z value and stores the result in (x3, y3, z3).
-// That is to say (x3, y3, z3) = 2*(x1, y1, z1).  It is the slowest of the point
+// any assumptions about the z value and stores the result in the provided
+// result param.  That is to say result = 2*p.  It is the slowest of the point
 // doubling routines due to requiring the most arithmetic.
-func doubleGeneric(x1, y1, z1, x3, y3, z3 *fieldVal) {
+func doubleGeneric(p, result *jacobianPoint) {
 	// Point doubling formula for Jacobian coordinates for the secp256k1
 	// curve:
 	//
@@ -480,6 +521,8 @@ func doubleGeneric(x1, y1, z1, x3, y3, z3 *fieldVal) {
 	//
 	// This results in a cost of 1 field multiplication, 5 field squarings,
 	// 6 field additions, and 5 integer multiplications.
+	x1, y1, z1 := &p.x, &p.y, &p.z
+	x3, y3, z3 := &result.x, &result.y, &result.z
 	var a, b, c, d, e, f fieldVal
 	z3.Mul2(y1, z1).MulInt(2)                // Z3 = 2*Y1*Z1 (mag: 2)
 	a.SquareVal(x1)                          // A = X1^2 (mag: 1)
@@ -502,14 +545,14 @@ func doubleGeneric(x1, y1, z1, x3, y3, z3 *fieldVal) {
 	z3.Normalize()
 }
 
-// doubleJacobian doubles the passed Jacobian point (x1, y1, z1) and stores the
-// result in (x3, y3, z3).
-func doubleJacobian(x1, y1, z1, x3, y3, z3 *fieldVal) {
+// doubleJacobian doubles the passed Jacobian point and stores the result in the
+// provided result parameter.
+func doubleJacobian(p, result *jacobianPoint) {
 	// Doubling a point at infinity is still infinity.
-	if y1.IsZero() || z1.IsZero() {
-		x3.SetInt(0)
-		y3.SetInt(0)
-		z3.SetInt(0)
+	if p.y.IsZero() || p.z.IsZero() {
+		result.x.SetInt(0)
+		result.y.SetInt(0)
+		result.z.SetInt(0)
 		return
 	}
 
@@ -517,14 +560,14 @@ func doubleJacobian(x1, y1, z1, x3, y3, z3 *fieldVal) {
 	// by avoiding the multiplication on the z value.  This section calls
 	// a point doubling function which is accelerated by using that
 	// assumption when possible.
-	if z1.Normalize().Equals(fieldOne) {
-		doubleZ1EqualsOne(x1, y1, x3, y3, z3)
+	if p.z.Normalize().Equals(fieldOne) {
+		doubleZ1EqualsOne(p, result)
 		return
 	}
 
 	// Fall back to generic point doubling which works with arbitrary z
 	// values.
-	doubleGeneric(x1, y1, z1, x3, y3, z3)
+	doubleGeneric(p, result)
 }
 
 // splitK returns a balanced length-two representation of k and their signs.
@@ -586,9 +629,10 @@ func moduloReduce(k []byte) []byte {
 	return k
 }
 
-// scalarMultJacobian multiplies k*(x1, y1, z1) where k is a big endian integer
-// and stores the result in Jacobian coordinates (x2, y2, z2).
-func scalarMultJacobian(x1, y1, z1 *fieldVal, k []byte, x2, y2, z2 *fieldVal) {
+// scalarMultJacobian multiplies k*P where k is a big endian integer and P is a
+// point in Jacobian projective coordinates and stores the result in the
+// provided Jacobian point.
+func scalarMultJacobian(k []byte, point, result *jacobianPoint) {
 	// Decompose K into k1 and k2 in order to halve the number of EC ops.
 	// See Algorithm 3.74 in [GECC].
 	k1, k2, signK1, signK2 := splitK(moduloReduce(k))
@@ -597,16 +641,18 @@ func scalarMultJacobian(x1, y1, z1 *fieldVal, k []byte, x2, y2, z2 *fieldVal) {
 	//   k * P = k1 * P + k2 * ϕ(P)
 	//
 	// P1 below is P in the equation, P2 below is ϕ(P) in the equation
-	p1x, p1y := new(fieldVal).Set(x1), new(fieldVal).Set(y1)
-	p1z := new(fieldVal).Set(z1)
-	p1yNeg := new(fieldVal).NegateVal(p1y, 1)
+	p1, p1Neg := new(jacobianPoint), new(jacobianPoint)
+	p1.Set(point)
+	p1Neg.Set(p1)
+	p1Neg.y.Negate(1)
 
 	// NOTE: ϕ(x,y) = (βx,y).  The Jacobian z coordinates are the same, so this
 	// math goes through.
-	p2x := new(fieldVal).Mul2(p1x, endomorphismBeta)
-	p2y := new(fieldVal).Set(p1y)
-	p2yNeg := new(fieldVal).NegateVal(p2y, 1)
-	p2z := new(fieldVal).Set(p1z)
+	p2, p2Neg := new(jacobianPoint), new(jacobianPoint)
+	p2.Set(p1)
+	p2.x.Mul(endomorphismBeta)
+	p2Neg.Set(p2)
+	p2Neg.y.Negate(1)
 
 	// Flip the positive and negative values of the points as needed
 	// depending on the signs of k1 and k2.  As mentioned in the equation
@@ -615,10 +661,10 @@ func scalarMultJacobian(x1, y1, z1 *fieldVal, k []byte, x2, y2, z2 *fieldVal) {
 	// elliptic curves states that P(x, y) = -P(x, -y), it's faster and
 	// simplifies the code to just make the point negative.
 	if signK1 == -1 {
-		p1y, p1yNeg = p1yNeg, p1y
+		p1, p1Neg = p1Neg, p1
 	}
 	if signK2 == -1 {
-		p2y, p2yNeg = p2yNeg, p2y
+		p2, p2Neg = p2Neg, p2
 	}
 
 	// NAF versions of k1 and k2 should have a lot more zeros.
@@ -636,7 +682,7 @@ func scalarMultJacobian(x1, y1, z1 *fieldVal, k []byte, x2, y2, z2 *fieldVal) {
 	}
 
 	// Point Q = ∞ (point at infinity).
-	qx, qy, qz := new(fieldVal), new(fieldVal), new(fieldVal)
+	var q jacobianPoint
 
 	// Add left-to-right using the NAF optimization.  See algorithm 3.77
 	// from [GECC].  This should be faster overall since there will be a lot
@@ -662,18 +708,18 @@ func scalarMultJacobian(x1, y1, z1 *fieldVal, k []byte, x2, y2, z2 *fieldVal) {
 
 		for j := 7; j >= 0; j-- {
 			// Q = 2 * Q
-			doubleJacobian(qx, qy, qz, qx, qy, qz)
+			doubleJacobian(&q, &q)
 
 			if k1BytePos&0x80 == 0x80 {
-				addJacobian(qx, qy, qz, p1x, p1y, p1z, qx, qy, qz)
+				addJacobian(&q, p1, &q)
 			} else if k1ByteNeg&0x80 == 0x80 {
-				addJacobian(qx, qy, qz, p1x, p1yNeg, p1z, qx, qy, qz)
+				addJacobian(&q, p1Neg, &q)
 			}
 
 			if k2BytePos&0x80 == 0x80 {
-				addJacobian(qx, qy, qz, p2x, p2y, p2z, qx, qy, qz)
+				addJacobian(&q, p2, &q)
 			} else if k2ByteNeg&0x80 == 0x80 {
-				addJacobian(qx, qy, qz, p2x, p2yNeg, p2z, qx, qy, qz)
+				addJacobian(&q, p2Neg, &q)
 			}
 			k1BytePos <<= 1
 			k1ByteNeg <<= 1
@@ -682,33 +728,34 @@ func scalarMultJacobian(x1, y1, z1 *fieldVal, k []byte, x2, y2, z2 *fieldVal) {
 		}
 	}
 
-	x2.Set(qx)
-	y2.Set(qy)
-	z2.Set(qz)
+	result.Set(&q)
 }
 
 // scalarBaseMultJacobian multiplies k*G where G is the base point of the group
 // and k is a big endian integer.  The result is stored in Jacobian coordinates
 // (x1, y1, z1).
-func scalarBaseMultJacobian(k []byte, x1, y1, z1 *fieldVal) {
+func scalarBaseMultJacobian(k []byte, result *jacobianPoint) {
 	curve := S256()
 	newK := moduloReduce(k)
 	diff := len(curve.bytePoints) - len(newK)
 
 	// Point Q = ∞ (point at infinity).
-	qx, qy, qz := new(fieldVal), new(fieldVal), new(fieldVal)
+	var q jacobianPoint
 
 	// curve.bytePoints has all 256 byte points for each 8-bit window.  The
 	// strategy is to add up the byte points.  This is best understood by
 	// expressing k in base-256 which it already sort of is.  Each "digit" in
 	// the 8-bit window can be looked up using bytePoints and added together.
+	var pt jacobianPoint
 	for i, byteVal := range newK {
 		p := curve.bytePoints[diff+i][byteVal]
-		addJacobian(qx, qy, qz, &p[0], &p[1], &p[2], qx, qy, qz)
+		pt.x.Set(&p[0])
+		pt.y.Set(&p[1])
+		pt.z.Set(&p[2])
+		addJacobian(&q, &pt, &q)
 	}
-	x1.Set(qx)
-	y1.Set(qy)
-	z1.Set(qz)
+
+	result.Set(&q)
 }
 
 // naf takes a positive integer k and returns the Non-Adjacent Form (NAF) as two

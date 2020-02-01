@@ -49,9 +49,9 @@ func GeneratePrivateKey() (*PrivateKey, error) {
 // PubKey computes and returns the public key corresponding to this private key.
 // PubKey returns the PublicKey corresponding to this private key.
 func (p *PrivateKey) PubKey() *PublicKey {
-	fx, fy, fz := new(fieldVal), new(fieldVal), new(fieldVal)
-	scalarBaseMultJacobian(p.D.Bytes(), fx, fy, fz)
-	return NewPublicKey(fieldJacobianToBigAffine(fx, fy, fz))
+	var result jacobianPoint
+	scalarBaseMultJacobian(p.D.Bytes(), &result)
+	return NewPublicKey(jacobianToBigAffine(&result))
 }
 
 // Sign generates an ECDSA signature for the provided hash (which should be the

@@ -24,16 +24,16 @@ var compressedBytePoints = ""
 // getDoublingPoints returns all the possible G^(2^i) for i in
 // 0..n-1 where n is the curve's bit size (256 in the case of secp256k1)
 // the coordinates are recorded as Jacobian coordinates.
-func (curve *KoblitzCurve) getDoublingPoints() [][3]fieldVal {
-	doublingPoints := make([][3]fieldVal, curve.BitSize)
+func (curve *KoblitzCurve) getDoublingPoints() []jacobianPoint {
+	doublingPoints := make([]jacobianPoint, curve.BitSize)
 
-	// initialize px, py, pz to the Jacobian coordinates for the base point
-	px, py := bigAffineToField(curve.Gx, curve.Gy)
-	pz := new(fieldVal).SetInt(1)
+	// Initialize point to the Jacobian coordinates for the base point.
+	var point jacobianPoint
+	bigAffineToJacobian(curve.Gx, curve.Gy, &point)
 	for i := 0; i < curve.BitSize; i++ {
-		doublingPoints[i] = [3]fieldVal{*px, *py, *pz}
+		doublingPoints[i] = point
 		// P = 2*P
-		doubleJacobian(px, py, pz, px, py, pz)
+		doubleJacobian(&point, &point)
 	}
 	return doublingPoints
 }
@@ -54,23 +54,22 @@ func (curve *KoblitzCurve) SerializedBytePoints() []byte {
 
 		// Compute all points in this window and serialize them.
 		for i := 0; i < 256; i++ {
-			px, py, pz := new(fieldVal), new(fieldVal), new(fieldVal)
+			var point jacobianPoint
 			for j := 0; j < 8; j++ {
 				if i>>uint(j)&1 == 1 {
-					addJacobian(px, py, pz, &computingPoints[j][0],
-						&computingPoints[j][1], &computingPoints[j][2], px, py, pz)
+					addJacobian(&point, &computingPoints[j], &point)
 				}
 			}
 			for i := 0; i < 10; i++ {
-				binary.LittleEndian.PutUint32(serialized[offset:], px.n[i])
+				binary.LittleEndian.PutUint32(serialized[offset:], point.x.n[i])
 				offset += 4
 			}
 			for i := 0; i < 10; i++ {
-				binary.LittleEndian.PutUint32(serialized[offset:], py.n[i])
+				binary.LittleEndian.PutUint32(serialized[offset:], point.y.n[i])
 				offset += 4
 			}
 			for i := 0; i < 10; i++ {
-				binary.LittleEndian.PutUint32(serialized[offset:], pz.n[i])
+				binary.LittleEndian.PutUint32(serialized[offset:], point.z.n[i])
 				offset += 4
 			}
 		}

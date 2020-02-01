@@ -339,23 +339,21 @@ func recoverKeyFromSignature(sig *Signature, msg []byte, iter int, doChecks bool
 	// first term.
 	invrS := new(big.Int).Mul(invr, sig.S)
 	invrS.Mod(invrS, curve.Params().N)
-	fRx, fRy := bigAffineToField(Rx, Ry)
-	fRz := new(fieldVal).SetInt(1)
-	sRx, sRy, sRz := new(fieldVal), new(fieldVal), new(fieldVal)
-	scalarMultJacobian(fRx, fRy, fRz, invrS.Bytes(), sRx, sRy, sRz)
+	var fR, sR jacobianPoint
+	bigAffineToJacobian(Rx, Ry, &fR)
+	scalarMultJacobian(invrS.Bytes(), &fR, &sR)
 
 	// second term.
 	e.Neg(e)
 	e.Mod(e, curve.Params().N)
 	e.Mul(e, invr)
 	e.Mod(e, curve.Params().N)
-	minuseGx, minuseGy, minuseGz := new(fieldVal), new(fieldVal), new(fieldVal)
-	fQx, fQy, fQz := new(fieldVal), new(fieldVal), new(fieldVal)
-	scalarBaseMultJacobian(e.Bytes(), minuseGx, minuseGy, minuseGz)
-	addJacobian(sRx, sRy, sRz, minuseGx, minuseGy, minuseGz, fQx, fQy, fQz)
 
-	Qx, Qy := fieldJacobianToBigAffine(fQx, fQy, fQz)
+	var minusEG, q jacobianPoint
+	scalarBaseMultJacobian(e.Bytes(), &minusEG)
+	addJacobian(&sR, &minusEG, &q)
 
+	Qx, Qy := jacobianToBigAffine(&q)
 	return NewPublicKey(Qx, Qy), nil
 }
 
