@@ -435,19 +435,19 @@ func RecoverCompact(signature, hash []byte) (*PublicKey, bool, error) {
 // signRFC6979 generates a deterministic ECDSA signature according to RFC 6979
 // and BIP 62.
 func signRFC6979(privateKey *PrivateKey, hash []byte) *Signature {
-	privkey := privateKey.ToECDSA()
+	curve := S256()
 	N := order
 	for iteration := uint32(0); ; iteration++ {
-		k := NonceRFC6979(privkey.D, hash, nil, nil, iteration)
+		k := NonceRFC6979(privateKey.D, hash, nil, nil, iteration)
 		inv := new(big.Int).ModInverse(k, N)
-		r, _ := privkey.Curve.ScalarBaseMult(k.Bytes())
+		r, _ := curve.ScalarBaseMult(k.Bytes())
 		r.Mod(r, N)
 		if r.Sign() == 0 {
 			continue
 		}
 
 		e := hashToInt(hash)
-		s := new(big.Int).Mul(privkey.D, r)
+		s := new(big.Int).Mul(privateKey.D, r)
 		s.Add(s, e)
 		s.Mul(s, inv)
 		s.Mod(s, N)
