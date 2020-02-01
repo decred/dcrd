@@ -68,7 +68,7 @@ var curveParams = CurveParams{
 	// May he rest in peace.
 	//
 	// They have also been independently derived from the code in the
-	// EndomorphismVectors function in gensecp256k1.go.
+	// EndomorphismVectors function in genstatics.go.
 	lambda: fromHex("5363ad4cc05c30e0a5261c028812645a122e22ea20816678df02967c1b23bd72"),
 	beta:   new(fieldVal).SetHex("7ae96a2b657c07106e64479eac3434e99cf0497512f58995c1396c28719501ee"),
 	a1:     fromHex("3086d221a7d46bcde86c90e49284eb15"),
@@ -333,7 +333,7 @@ func initS256() {
 	// Deserialize and set the pre-computed table used to accelerate scalar
 	// base multiplication.  This is hard-coded data, so any errors are
 	// panics because it means something is wrong in the source code.
-	if err := loadS256BytePoints(); err != nil {
+	if err := loadBytePoints(); err != nil {
 		panic(err)
 	}
 }
