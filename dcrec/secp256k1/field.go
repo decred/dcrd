@@ -424,11 +424,28 @@ func (f *fieldVal) Bytes() *[32]byte {
 }
 
 // IsZero returns whether or not the field value is equal to zero.
+//
+// The field value must be normalized for this function to return correct
+// result.
 func (f *fieldVal) IsZero() bool {
 	// The value can only be zero if no bits are set in any of the words.
 	// This is a constant time implementation.
 	bits := f.n[0] | f.n[1] | f.n[2] | f.n[3] | f.n[4] |
 		f.n[5] | f.n[6] | f.n[7] | f.n[8] | f.n[9]
+
+	return bits == 0
+}
+
+// IsOne returns whether or not the field value is equal to one.
+//
+// The field value must be normalized for this function to return correct
+// result.
+func (f *fieldVal) IsOne() bool {
+	// The value can only be one if the single lowest significant bit is set in
+	// the the first word and no other bits are set in any of the other words.
+	// This is a constant time implementation.
+	bits := (f.n[0] ^ 1) | f.n[1] | f.n[2] | f.n[3] | f.n[4] | f.n[5] |
+		f.n[6] | f.n[7] | f.n[8] | f.n[9]
 
 	return bits == 0
 }

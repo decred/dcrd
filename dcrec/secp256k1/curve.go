@@ -20,13 +20,6 @@ import (
 // where x = x1/z1^2 and y = y1/z1^3.
 
 var (
-	// fieldOne is simply the integer 1 in field representation.  It is
-	// used to avoid needing to create it multiple times during the internal
-	// arithmetic.
-	fieldOne = new(fieldVal).SetInt(1)
-)
-
-var (
 	// Next 6 constants are from Hal Finney's bitcointalk.org post:
 	// https://bitcointalk.org/index.php?topic=3238.msg45565#msg45565
 	// May he rest in peace.
@@ -421,8 +414,8 @@ func addJacobian(p1, p2, result *jacobianPoint) {
 	// by using those assumptions.
 	p1.z.Normalize()
 	p2.z.Normalize()
-	isZ1One := p1.z.Equals(fieldOne)
-	isZ2One := p2.z.Equals(fieldOne)
+	isZ1One := p1.z.IsOne()
+	isZ2One := p2.z.IsOne()
 	switch {
 	case isZ1One && isZ2One:
 		addZ1AndZ2EqualsOne(p1, p2, result)
@@ -560,7 +553,7 @@ func doubleJacobian(p, result *jacobianPoint) {
 	// by avoiding the multiplication on the z value.  This section calls
 	// a point doubling function which is accelerated by using that
 	// assumption when possible.
-	if p.z.Normalize().Equals(fieldOne) {
+	if p.z.Normalize().IsOne() {
 		doubleZ1EqualsOne(p, result)
 		return
 	}

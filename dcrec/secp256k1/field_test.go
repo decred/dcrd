@@ -38,7 +38,7 @@ func TestSetInt(t *testing.T) {
 	}
 }
 
-// TestZero ensures that zeroing a field value zero works as expected.
+// TestZero ensures that zeroing a field value works as expected.
 func TestZero(t *testing.T) {
 	f := new(fieldVal).SetInt(2)
 	f.Zero()
@@ -50,7 +50,7 @@ func TestZero(t *testing.T) {
 	}
 }
 
-// TestIsZero ensures that checking if a field IsZero works as expected.
+// TestIsZero ensures that checking if a field is zero works as expected.
 func TestIsZero(t *testing.T) {
 	f := new(fieldVal)
 	if !f.IsZero() {
@@ -68,6 +68,104 @@ func TestIsZero(t *testing.T) {
 	if !f.IsZero() {
 		t.Errorf("field claims it's not zero when it is - got %v "+
 			"(raw rawints %x)", f, f.n)
+	}
+}
+
+// TestIsOne ensures that checking if a field is one works as expected.
+func TestIsOne(t *testing.T) {
+	tests := []struct {
+		name      string // test description
+		in        string // hex encoded test value
+		normalize bool   // whether or not to normalize the test value
+		expected  bool   // expected result
+	}{{
+		name:      "zero",
+		in:        "0",
+		normalize: true,
+		expected:  false,
+	}, {
+		name:      "one",
+		in:        "1",
+		normalize: true,
+		expected:  true,
+	}, {
+		name:      "secp256k1 prime NOT normalized (would be 0)",
+		in:        "fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2f",
+		normalize: false,
+		expected:  false,
+	}, {
+		name:      "secp256k1 prime normalized (aka 0)",
+		in:        "fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2f",
+		normalize: true,
+		expected:  false,
+	}, {
+		name:      "secp256k1 prime + 1 normalized (aka 1)",
+		in:        "fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc30",
+		normalize: true,
+		expected:  true,
+	}, {
+		name:      "secp256k1 prime + 1 NOT normalized (would be 1)",
+		in:        "fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc30",
+		normalize: false,
+		expected:  false,
+	}, {
+		name:      "2^26 (one bit in second internal field word",
+		in:        "4000000",
+		normalize: false,
+		expected:  false,
+	}, {
+		name:      "2^52 (one bit in third internal field word",
+		in:        "10000000000000",
+		normalize: false,
+		expected:  false,
+	}, {
+		name:      "2^78 (one bit in fourth internal field word",
+		in:        "40000000000000000000",
+		normalize: false,
+		expected:  false,
+	}, {
+		name:      "2^104 (one bit in fifth internal field word",
+		in:        "100000000000000000000000000",
+		normalize: false,
+		expected:  false,
+	}, {
+		name:      "2^130 (one bit in sixth internal field word",
+		in:        "400000000000000000000000000000000",
+		normalize: false,
+		expected:  false,
+	}, {
+		name:      "2^156 (one bit in seventh internal field word",
+		in:        "1000000000000000000000000000000000000000",
+		normalize: false,
+		expected:  false,
+	}, {
+		name:      "2^182 (one bit in eighth internal field word",
+		in:        "4000000000000000000000000000000000000000000000",
+		normalize: false,
+		expected:  false,
+	}, {
+		name:      "2^208 (one bit in ninth internal field word",
+		in:        "10000000000000000000000000000000000000000000000000000",
+		normalize: false,
+		expected:  false,
+	}, {
+		name:      "2^234 (one bit in tenth internal field word",
+		in:        "40000000000000000000000000000000000000000000000000000000000",
+		normalize: false,
+		expected:  false,
+	}}
+
+	for _, test := range tests {
+		f := new(fieldVal).SetHex(test.in)
+		if test.normalize {
+			f.Normalize()
+		}
+		result := f.IsOne()
+		if result != test.expected {
+			t.Errorf("%s: wrong result\ngot: %v\nwant: %v", test.name,
+				result, test.expected)
+			continue
+		}
 	}
 }
 
