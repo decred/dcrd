@@ -197,7 +197,7 @@ func (curve *KoblitzCurve) Double(x1, y1 *big.Int) (*big.Int, *big.Int) {
 	fx1, fy1 := bigAffineToField(x1, y1)
 	fx3, fy3, fz3 := new(fieldVal), new(fieldVal), new(fieldVal)
 	fOne := new(fieldVal).SetInt(1)
-	curve.doubleJacobian(fx1, fy1, fOne, fx3, fy3, fz3)
+	doubleJacobian(fx1, fy1, fOne, fx3, fy3, fz3)
 
 	// Convert the Jacobian coordinate field values back to affine big
 	// integers.
@@ -281,7 +281,7 @@ func (curve *KoblitzCurve) ScalarMult(Bx, By *big.Int, k []byte) (*big.Int, *big
 
 		for j := 7; j >= 0; j-- {
 			// Q = 2 * Q
-			curve.doubleJacobian(qx, qy, qz, qx, qy, qz)
+			doubleJacobian(qx, qy, qz, qx, qy, qz)
 
 			if k1BytePos&0x80 == 0x80 {
 				curve.addJacobian(qx, qy, qz, p1x, p1y, p1z,

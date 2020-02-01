@@ -59,7 +59,7 @@ func (curve *KoblitzCurve) addZ1AndZ2EqualsOne(x1, y1, z1, x2, y2, x3, y3, z3 *f
 			// Since x1 == x2 and y1 == y2, point doubling must be
 			// done, otherwise the addition would end up dividing
 			// by zero.
-			curve.doubleJacobian(x1, y1, z1, x3, y3, z3)
+			doubleJacobian(x1, y1, z1, x3, y3, z3)
 			return
 		}
 
@@ -126,7 +126,7 @@ func (curve *KoblitzCurve) addZ1EqualsZ2(x1, y1, z1, x2, y2, x3, y3, z3 *fieldVa
 			// Since x1 == x2 and y1 == y2, point doubling must be
 			// done, otherwise the addition would end up dividing
 			// by zero.
-			curve.doubleJacobian(x1, y1, z1, x3, y3, z3)
+			doubleJacobian(x1, y1, z1, x3, y3, z3)
 			return
 		}
 
@@ -201,7 +201,7 @@ func (curve *KoblitzCurve) addZ2EqualsOne(x1, y1, z1, x2, y2, x3, y3, z3 *fieldV
 			// Since x1 == x2 and y1 == y2, point doubling must be
 			// done, otherwise the addition would end up dividing
 			// by zero.
-			curve.doubleJacobian(x1, y1, z1, x3, y3, z3)
+			doubleJacobian(x1, y1, z1, x3, y3, z3)
 			return
 		}
 
@@ -277,7 +277,7 @@ func (curve *KoblitzCurve) addGeneric(x1, y1, z1, x2, y2, z2, x3, y3, z3 *fieldV
 			// Since x1 == x2 and y1 == y2, point doubling must be
 			// done, otherwise the addition would end up dividing
 			// by zero.
-			curve.doubleJacobian(x1, y1, z1, x3, y3, z3)
+			doubleJacobian(x1, y1, z1, x3, y3, z3)
 			return
 		}
 
@@ -359,12 +359,12 @@ func (curve *KoblitzCurve) addJacobian(x1, y1, z1, x2, y2, z2, x3, y3, z3 *field
 	curve.addGeneric(x1, y1, z1, x2, y2, z2, x3, y3, z3)
 }
 
-// doubleZ1EqualsOne performs point doubling on the passed Jacobian point
-// when the point is already known to have a z value of 1 and stores
-// the result in (x3, y3, z3).  That is to say (x3, y3, z3) = 2*(x1, y1, 1).  It
-// performs faster point doubling than the generic routine since less arithmetic
-// is needed due to the ability to avoid multiplication by the z value.
-func (curve *KoblitzCurve) doubleZ1EqualsOne(x1, y1, x3, y3, z3 *fieldVal) {
+// doubleZ1EqualsOne performs point doubling on the passed Jacobian point when
+// the point is already known to have a z value of 1 and stores the result in
+// (x3, y3, z3).  That is to say (x3, y3, z3) = 2*(x1, y1, 1).  It performs
+// faster point doubling than the generic routine since less arithmetic is
+// needed due to the ability to avoid multiplication by the z value.
+func doubleZ1EqualsOne(x1, y1, x3, y3, z3 *fieldVal) {
 	// This function uses the assumptions that z1 is 1, thus the point
 	// doubling formulas reduce to:
 	//
@@ -414,7 +414,7 @@ func (curve *KoblitzCurve) doubleZ1EqualsOne(x1, y1, x3, y3, z3 *fieldVal) {
 // any assumptions about the z value and stores the result in (x3, y3, z3).
 // That is to say (x3, y3, z3) = 2*(x1, y1, z1).  It is the slowest of the point
 // doubling routines due to requiring the most arithmetic.
-func (curve *KoblitzCurve) doubleGeneric(x1, y1, z1, x3, y3, z3 *fieldVal) {
+func doubleGeneric(x1, y1, z1, x3, y3, z3 *fieldVal) {
 	// Point doubling formula for Jacobian coordinates for the secp256k1
 	// curve:
 	// X3 = (3*X1^2)^2 - 8*X1*Y1^2
@@ -461,7 +461,7 @@ func (curve *KoblitzCurve) doubleGeneric(x1, y1, z1, x3, y3, z3 *fieldVal) {
 
 // doubleJacobian doubles the passed Jacobian point (x1, y1, z1) and stores the
 // result in (x3, y3, z3).
-func (curve *KoblitzCurve) doubleJacobian(x1, y1, z1, x3, y3, z3 *fieldVal) {
+func doubleJacobian(x1, y1, z1, x3, y3, z3 *fieldVal) {
 	// Doubling a point at infinity is still infinity.
 	if y1.IsZero() || z1.IsZero() {
 		x3.SetInt(0)
@@ -475,13 +475,13 @@ func (curve *KoblitzCurve) doubleJacobian(x1, y1, z1, x3, y3, z3 *fieldVal) {
 	// a point doubling function which is accelerated by using that
 	// assumption when possible.
 	if z1.Normalize().Equals(fieldOne) {
-		curve.doubleZ1EqualsOne(x1, y1, x3, y3, z3)
+		doubleZ1EqualsOne(x1, y1, x3, y3, z3)
 		return
 	}
 
 	// Fall back to generic point doubling which works with arbitrary z
 	// values.
-	curve.doubleGeneric(x1, y1, z1, x3, y3, z3)
+	doubleGeneric(x1, y1, z1, x3, y3, z3)
 }
 
 // splitK returns a balanced length-two representation of k and their signs.

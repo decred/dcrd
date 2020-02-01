@@ -33,7 +33,7 @@ func (curve *KoblitzCurve) getDoublingPoints() [][3]fieldVal {
 	for i := 0; i < curve.BitSize; i++ {
 		doublingPoints[i] = [3]fieldVal{*px, *py, *pz}
 		// P = 2*P
-		curve.doubleJacobian(px, py, pz, px, py, pz)
+		doubleJacobian(px, py, pz, px, py, pz)
 	}
 	return doublingPoints
 }

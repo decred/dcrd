@@ -431,7 +431,7 @@ func TestDoubleJacobian(t *testing.T) {
 
 		// Double the point.
 		rx, ry, rz := new(fieldVal), new(fieldVal), new(fieldVal)
-		S256().doubleJacobian(x1, y1, z1, rx, ry, rz)
+		doubleJacobian(x1, y1, z1, rx, ry, rz)
 
 		// Ensure result matches expected.
 		if !rx.Equals(x3) || !ry.Equals(y3) || !rz.Equals(z3) {
