@@ -28,7 +28,7 @@ func (curve *KoblitzCurve) getDoublingPoints() [][3]fieldVal {
 	doublingPoints := make([][3]fieldVal, curve.BitSize)
 
 	// initialize px, py, pz to the Jacobian coordinates for the base point
-	px, py := curve.bigAffineToField(curve.Gx, curve.Gy)
+	px, py := bigAffineToField(curve.Gx, curve.Gy)
 	pz := new(fieldVal).SetInt(1)
 	for i := 0; i < curve.BitSize; i++ {
 		doublingPoints[i] = [3]fieldVal{*px, *py, *pz}

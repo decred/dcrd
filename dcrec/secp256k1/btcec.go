@@ -28,41 +28,6 @@ var (
 	fieldOne = new(fieldVal).SetInt(1)
 )
 
-// bigAffineToField takes an affine point (x, y) as big integers and converts
-// it to an affine point as field values.
-func (curve *KoblitzCurve) bigAffineToField(x, y *big.Int) (*fieldVal, *fieldVal) {
-	x3, y3 := new(fieldVal), new(fieldVal)
-	x3.SetByteSlice(x.Bytes())
-	y3.SetByteSlice(y.Bytes())
-
-	return x3, y3
-}
-
-// fieldJacobianToBigAffine takes a Jacobian point (x, y, z) as field values and
-// converts it to an affine point as big integers.
-func (curve *KoblitzCurve) fieldJacobianToBigAffine(x, y, z *fieldVal) (*big.Int, *big.Int) {
-	// Inversions are expensive and both point addition and point doubling
-	// are faster when working with points that have a z value of one.  So,
-	// if the point needs to be converted to affine, go ahead and normalize
-	// the point itself at the same time as the calculation is the same.
-	var zInv, tempZ fieldVal
-	zInv.Set(z).Inverse()   // zInv = Z^-1
-	tempZ.SquareVal(&zInv)  // tempZ = Z^-2
-	x.Mul(&tempZ)           // X = X/Z^2 (mag: 1)
-	y.Mul(tempZ.Mul(&zInv)) // Y = Y/Z^3 (mag: 1)
-	z.SetInt(1)             // Z = 1 (mag: 1)
-
-	// Normalize the x and y values.
-	x.Normalize()
-	y.Normalize()
-
-	// Convert the field values for the now affine point to big.Ints.
-	x3, y3 := new(big.Int), new(big.Int)
-	x3.SetBytes(x.Bytes()[:])
-	y3.SetBytes(y.Bytes()[:])
-	return x3, y3
-}
-
 // addZ1AndZ2EqualsOne adds two Jacobian points that are already known to have
 // z values of 1 and stores the result in (x3, y3, z3).  That is to say
 // (x1, y1, 1) + (x2, y2, 1) = (x3, y3, z3).  It performs faster addition than
