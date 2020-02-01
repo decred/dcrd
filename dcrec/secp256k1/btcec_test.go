@@ -714,13 +714,12 @@ func TestSplitK(t *testing.T) {
 		},
 	}
 
-	s256 := S256()
 	for i, test := range tests {
 		k, ok := new(big.Int).SetString(test.k, 16)
 		if !ok {
 			t.Errorf("%d: bad value for k: %s", i, test.k)
 		}
-		k1, k2, k1Sign, k2Sign := s256.splitK(k.Bytes())
+		k1, k2, k1Sign, k2Sign := splitK(k.Bytes())
 		k1str := fmt.Sprintf("%064x", k1)
 		if test.k1 != k1str {
 			t.Errorf("%d: bad k1: got %v, want %v", i, k1str, test.k1)
@@ -743,7 +742,7 @@ func TestSplitK(t *testing.T) {
 		k2Int.Mul(k2Int, k2SignInt)
 		gotK := new(big.Int).Mul(k2Int, endomorphismLambda)
 		gotK.Add(k1Int, gotK)
-		gotK.Mod(gotK, s256.N)
+		gotK.Mod(gotK, curveParams.N)
 		if k.Cmp(gotK) != 0 {
 			t.Errorf("%d: bad k: got %X, want %X", i, gotK.Bytes(), k.Bytes())
 		}
@@ -751,7 +750,6 @@ func TestSplitK(t *testing.T) {
 }
 
 func TestSplitKRand(t *testing.T) {
-	s256 := S256()
 	for i := 0; i < 1024; i++ {
 		bytesK := make([]byte, 32)
 		_, err := rand.Read(bytesK)
@@ -760,7 +758,7 @@ func TestSplitKRand(t *testing.T) {
 			break
 		}
 		k := new(big.Int).SetBytes(bytesK)
-		k1, k2, k1Sign, k2Sign := s256.splitK(bytesK)
+		k1, k2, k1Sign, k2Sign := splitK(bytesK)
 		k1Int := new(big.Int).SetBytes(k1)
 		k1SignInt := new(big.Int).SetInt64(int64(k1Sign))
 		k1Int.Mul(k1Int, k1SignInt)
@@ -769,7 +767,7 @@ func TestSplitKRand(t *testing.T) {
 		k2Int.Mul(k2Int, k2SignInt)
 		gotK := new(big.Int).Mul(k2Int, endomorphismLambda)
 		gotK.Add(k1Int, gotK)
-		gotK.Mod(gotK, s256.N)
+		gotK.Mod(gotK, curveParams.N)
 		if k.Cmp(gotK) != 0 {
 			t.Errorf("%d: bad k: got %X, want %X", i, gotK.Bytes(), k.Bytes())
 		}

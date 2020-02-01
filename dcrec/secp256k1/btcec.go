@@ -21,49 +21,6 @@ import (
 	"math/big"
 )
 
-// splitK returns a balanced length-two representation of k and their signs.
-// This is algorithm 3.74 from [GECC].
-//
-// One thing of note about this algorithm is that no matter what c1 and c2 are,
-// the final equation of k = k1 + k2 * lambda (mod n) will hold.  This is
-// provable mathematically due to how a1/b1/a2/b2 are computed.
-//
-// c1 and c2 are chosen to minimize the max(k1,k2).
-func (curve *KoblitzCurve) splitK(k []byte) ([]byte, []byte, int, int) {
-	// All math here is done with big.Int, which is slow.
-	// At some point, it might be useful to write something similar to
-	// fieldVal but for N instead of P as the prime field if this ends up
-	// being a bottleneck.
-	bigIntK := new(big.Int)
-	c1, c2 := new(big.Int), new(big.Int)
-	tmp1, tmp2 := new(big.Int), new(big.Int)
-	k1, k2 := new(big.Int), new(big.Int)
-
-	bigIntK.SetBytes(k)
-	// c1 = round(b2 * k / n) from step 4.
-	// Rounding isn't really necessary and costs too much, hence skipped
-	c1.Mul(endomorphismB2, bigIntK)
-	c1.Div(c1, curveParams.N)
-	// c2 = round(b1 * k / n) from step 4 (sign reversed to optimize one step)
-	// Rounding isn't really necessary and costs too much, hence skipped
-	c2.Mul(endomorphismB1, bigIntK)
-	c2.Div(c2, curveParams.N)
-	// k1 = k - c1 * a1 - c2 * a2 from step 5 (note c2's sign is reversed)
-	tmp1.Mul(c1, endomorphismA1)
-	tmp2.Mul(c2, endomorphismA2)
-	k1.Sub(bigIntK, tmp1)
-	k1.Add(k1, tmp2)
-	// k2 = - c1 * b1 - c2 * b2 from step 5 (note c2's sign is reversed)
-	tmp1.Mul(c1, endomorphismB1)
-	tmp2.Mul(c2, endomorphismB2)
-	k2.Sub(tmp2, tmp1)
-
-	// Note Bytes() throws out the sign of k1 and k2. This matters
-	// since k1 and/or k2 can be negative. Hence, we pass that
-	// back separately.
-	return k1.Bytes(), k2.Bytes(), k1.Sign(), k2.Sign()
-}
-
 // moduloReduce reduces k from more than 32 bytes to 32 bytes and under.  This
 // is done by doing a simple modulo curve.N.  We can do this since G^N = 1 and
 // thus any other valid point on the elliptic curve has the same order.
