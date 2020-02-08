@@ -234,50 +234,6 @@ func isNullFraudProof(tx *wire.MsgTx) bool {
 	return true
 }
 
-// isSmallInt returns whether or not the opcode is considered a small integer,
-// which is an OP_0, or OP_1 through OP_16.
-//
-// NOTE: This function is only valid for version 0 opcodes.
-func isSmallInt(op byte) bool {
-	return op == txscript.OP_0 || (op >= txscript.OP_1 && op <= txscript.OP_16)
-}
-
-// IsNullDataScript returns whether or not the passed script is a null
-// data script.
-//
-// NOTE: This function is only valid for version 0 scripts.  It will always
-// return false for other script versions.
-func IsNullDataScript(scriptVersion uint16, script []byte) bool {
-	// The only supported script version is 0.
-	if scriptVersion != 0 {
-		return false
-	}
-
-	// A null script is of the form:
-	//  OP_RETURN <optional data>
-	//
-	// Thus, it can either be a single OP_RETURN or an OP_RETURN followed by a
-	// data push up to MaxDataCarrierSize bytes.
-
-	// The script can't possibly be a null data script if it doesn't start
-	// with OP_RETURN.  Fail fast to avoid more work below.
-	if len(script) < 1 || script[0] != txscript.OP_RETURN {
-		return false
-	}
-
-	// Single OP_RETURN.
-	if len(script) == 1 {
-		return true
-	}
-
-	// OP_RETURN followed by data push up to MaxDataCarrierSize bytes.
-	tokenizer := txscript.MakeScriptTokenizer(scriptVersion, script[1:])
-	return tokenizer.Next() && tokenizer.Done() &&
-		(isSmallInt(tokenizer.Opcode()) ||
-			tokenizer.Opcode() <= txscript.OP_PUSHDATA4) &&
-		len(tokenizer.Data()) <= txscript.MaxDataCarrierSize
-}
-
 // IsStakeBase returns whether or not a tx could be considered as having a
 // topically valid stake base present.
 func IsStakeBase(tx *wire.MsgTx) bool {

@@ -240,10 +240,10 @@ func (idx *ExistsAddrIndex) ConnectBlock(dbTx database.Tx, block, parent *dcruti
 			// is used for the script version.  This will ultimately need to
 			// updated to support new script versions.
 			const scriptVersion = 0
-			if txscript.IsMultisigSigScript(txIn.SignatureScript) {
-				rs := txscript.MultisigRedeemScriptFromScriptSig(
+			if stake.IsMultisigSigScript(scriptVersion, txIn.SignatureScript) {
+				rs := stake.MultisigRedeemScriptFromScriptSig(scriptVersion,
 					txIn.SignatureScript)
-				class, addrs, _, err := txscript.ExtractPkScriptAddrs(
+				class, addrs, _, err := stake.ExtractPkScriptAddrs(
 					scriptVersion, rs, idx.chainParams)
 				if err != nil {
 					// Non-standard outputs are skipped.
@@ -266,7 +266,7 @@ func (idx *ExistsAddrIndex) ConnectBlock(dbTx database.Tx, block, parent *dcruti
 		}
 
 		for _, txOut := range tx.MsgTx().TxOut {
-			class, addrs, _, err := txscript.ExtractPkScriptAddrs(
+			class, addrs, _, err := stake.ExtractPkScriptAddrs(
 				txOut.Version, txOut.PkScript, idx.chainParams)
 			if err != nil {
 				// Non-standard outputs are skipped.
@@ -355,14 +355,14 @@ func (idx *ExistsAddrIndex) DisconnectBlock(dbTx database.Tx, block, parent *dcr
 func (idx *ExistsAddrIndex) addUnconfirmedTx(tx *wire.MsgTx) {
 	isSStx := stake.IsSStx(tx)
 	for _, txIn := range tx.TxIn {
-		if txscript.IsMultisigSigScript(txIn.SignatureScript) {
-			// Note that the functions used here require v0 scripts.  Hence it
-			// is used for the script version.  This will ultimately need to
-			// updated to support new script versions.
-			const scriptVersion = 0
-			rs := txscript.MultisigRedeemScriptFromScriptSig(
+		// Note that the functions used here require v0 scripts.  Hence it
+		// is used for the script version.  This will ultimately need to
+		// updated to support new script versions.
+		const scriptVersion = 0
+		if stake.IsMultisigSigScript(scriptVersion, txIn.SignatureScript) {
+			rs := stake.MultisigRedeemScriptFromScriptSig(scriptVersion,
 				txIn.SignatureScript)
-			class, addrs, _, err := txscript.ExtractPkScriptAddrs(
+			class, addrs, _, err := stake.ExtractPkScriptAddrs(
 				scriptVersion, rs, idx.chainParams)
 			if err != nil {
 				// Non-standard outputs are skipped.
@@ -387,7 +387,7 @@ func (idx *ExistsAddrIndex) addUnconfirmedTx(tx *wire.MsgTx) {
 	}
 
 	for _, txOut := range tx.TxOut {
-		class, addrs, _, err := txscript.ExtractPkScriptAddrs(txOut.Version,
+		class, addrs, _, err := stake.ExtractPkScriptAddrs(txOut.Version,
 			txOut.PkScript, idx.chainParams)
 		if err != nil {
 			// Non-standard outputs are skipped.

@@ -8,10 +8,10 @@ package blockchain
 import (
 	"fmt"
 
+	"github.com/decred/dcrd/blockchain/stake/v3"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/database/v2"
 	"github.com/decred/dcrd/dcrutil/v3"
-	"github.com/decred/dcrd/txscript/v3"
 )
 
 // NextLotteryData returns the next tickets eligible for spending as SSGen
@@ -118,7 +118,7 @@ func (b *BlockChain) TicketsWithAddress(address dcrutil.Address) ([]chainhash.Ha
 			}
 
 			_, addrs, _, err :=
-				txscript.ExtractPkScriptAddrs(utxo.ScriptVersionByIndex(0),
+				stake.ExtractPkScriptAddrs(utxo.ScriptVersionByIndex(0),
 					utxo.PkScriptByIndex(0), b.chainParams)
 			if err != nil {
 				return err
