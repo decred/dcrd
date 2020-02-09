@@ -6,7 +6,6 @@
 package secp256k1
 
 import (
-	"math/big"
 	"testing"
 )
 
@@ -156,7 +155,7 @@ func BenchmarkNonceRFC6979(b *testing.B) {
 
 	b.ReportAllocs()
 	b.ResetTimer()
-	var noElideNonce *big.Int
+	var noElideNonce *ModNScalar
 	for i := 0; i < b.N; i++ {
 		noElideNonce = NonceRFC6979(privKey, msgHash, nil, nil, 0)
 	}

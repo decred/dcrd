@@ -34,9 +34,6 @@ var (
 	order     = new(big.Int).Set(S256().N)
 	halforder = new(big.Int).Rsh(order, 1)
 
-	// Used in RFC6979 implementation when testing the nonce for correctness.
-	bigOne = big.NewInt(1)
-
 	// singleZero is used during RFC6979 nonce generation.  It is provided
 	// here to avoid the need to create it multiple times.
 	singleZero = []byte{0x00}
@@ -504,36 +501,56 @@ func RecoverCompact(signature, hash []byte) (*PublicKey, bool, error) {
 	return key, ((signature[0] - 27) & 4) == 4, nil
 }
 
+// zeroBigInt zeroes the underlying memory used by the passed big integer.  The
+// big integer must not be used after calling this as it changes the internal
+// state out from under it which can lead to unpredictable results.
+func zeroBigInt(v *big.Int) {
+	words := v.Bits()
+	for i := 0; i < len(words); i++ {
+		words[i] = 0
+	}
+	v.SetInt64(0)
+}
+
 // signRFC6979 generates a deterministic ECDSA signature according to RFC 6979
 // and BIP 62.
 func signRFC6979(privateKey *PrivateKey, hash []byte) *Signature {
 	curve := S256()
 	N := order
+	var kBytes [32]byte
+	defer zeroArray32(&kBytes)
 	privKeyBytes := privateKey.key.Bytes()
 	bigPrivKey := new(big.Int).SetBytes(privKeyBytes[:])
 	defer zeroArray32(&privKeyBytes)
-	defer bigPrivKey.SetUint64(0)
+	defer zeroBigInt(bigPrivKey)
 	for iteration := uint32(0); ; iteration++ {
 		k := NonceRFC6979(privKeyBytes[:], hash, nil, nil, iteration)
-		inv := new(big.Int).ModInverse(k, N)
-		r, _ := curve.ScalarBaseMult(k.Bytes())
+		k.PutBytes(&kBytes)
+		bigK := new(big.Int).SetBytes(kBytes[:])
+		r, _ := curve.ScalarBaseMult(kBytes[:])
 		r.Mod(r, N)
 		if r.Sign() == 0 {
+			zeroBigInt(bigK)
 			continue
 		}
 
+		kInv := new(big.Int).ModInverse(bigK, N)
 		e := hashToInt(hash)
 		s := new(big.Int).Mul(bigPrivKey, r)
 		s.Add(s, e)
-		s.Mul(s, inv)
+		s.Mul(s, kInv)
 		s.Mod(s, N)
 
 		if s.Cmp(halforder) == 1 {
 			s.Sub(N, s)
 		}
 		if s.Sign() == 0 {
+			zeroBigInt(bigK)
+			zeroBigInt(kInv)
 			continue
 		}
+		zeroBigInt(bigK)
+		zeroBigInt(kInv)
 		return &Signature{R: r, S: s}
 	}
 }
@@ -613,7 +630,7 @@ func newHMACSHA256(key []byte) *hmacsha256 {
 // that results in a valid signature in the extremely unlikely event the
 // original nonce produced results in an invalid signature (e.g. R == 0).
 // Signing code should start with 0 and increment it if necessary.
-func NonceRFC6979(privKey []byte, hash []byte, extra []byte, version []byte, extraIterations uint32) *big.Int {
+func NonceRFC6979(privKey []byte, hash []byte, extra []byte, version []byte, extraIterations uint32) *ModNScalar {
 	// Input to HMAC is the 32-byte private key and the 32-byte hash.  In
 	// addition, it may include the optional 32-byte extra data and 16-byte
 	// version.  Create a fixed-size array to avoid extra allocs and slice it
@@ -713,8 +730,6 @@ func NonceRFC6979(privKey []byte, hash []byte, extra []byte, version []byte, ext
 	// Step H.
 	//
 	// Repeat until the value is nonzero and less than the curve order.
-	curve := S256()
-	q := curve.Params().N
 	var generated uint32
 	for {
 		// Step H1 and H2.
@@ -741,11 +756,12 @@ func NonceRFC6979(privKey []byte, hash []byte, extra []byte, version []byte, ext
 		// Otherwise, compute:
 		// K = HMAC_K(V || 0x00)
 		// V = HMAC_K(V)
-		secret := hashToInt(v)
-		if secret.Cmp(bigOne) >= 0 && secret.Cmp(q) < 0 {
+		var secret ModNScalar
+		overflow := secret.SetByteSlice(v)
+		if !overflow && !secret.IsZero() {
 			generated++
 			if generated > extraIterations {
-				return secret
+				return &secret
 			}
 		}
 

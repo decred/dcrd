@@ -161,11 +161,13 @@ func schnorrSign(msg []byte, ps []byte, k []byte,
 // nonceRFC6979 is a local instantiation of deterministic nonce generation
 // by the standards of RFC6979.
 func nonceRFC6979(privKey []byte, hash []byte, extra []byte, version []byte, extraIterations uint32) []byte {
-	bigK := secp256k1.NonceRFC6979(privKey, hash, extra, version,
-		extraIterations)
+	k := secp256k1.NonceRFC6979(privKey, hash, extra, version, extraIterations)
+	kBytes := k.Bytes()
+	defer zeroArray(&kBytes)
+	bigK := new(big.Int).SetBytes(kBytes[:])
 	defer bigK.SetInt64(0)
-	k := bigIntToEncodedBytes(bigK)
-	return k[:]
+	nonce := bigIntToEncodedBytes(bigK)
+	return nonce[:]
 }
 
 // Sign is the exported version of sign. It uses RFC6979 and Blake256 to
