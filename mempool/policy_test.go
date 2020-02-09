@@ -7,7 +7,6 @@ package mempool
 
 import (
 	"bytes"
-	"math/big"
 	"testing"
 	"time"
 
@@ -102,7 +101,7 @@ func TestCalcMinRequiredTxRelayFee(t *testing.T) {
 func TestCheckPkScriptStandard(t *testing.T) {
 	var pubKeys [][]byte
 	for i := 0; i < 4; i++ {
-		pk := secp256k1.NewPrivateKey(big.NewInt(0))
+		pk := secp256k1.NewPrivateKey(new(secp256k1.ModNScalar).SetInt(0))
 		pubKeys = append(pubKeys, pk.PubKey().SerializeCompressed())
 	}
 

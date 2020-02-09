@@ -89,6 +89,12 @@ const (
 	uint32Mask = 0xffffffff
 )
 
+var (
+	// zero32 is an array of 32 bytes used for the purposes of zeroing and is
+	// defined here to avoid extra allocations.
+	zero32 = [32]byte{}
+)
+
 // ModNScalar implements optimized 256-bit constant-time fixed-precision
 // arithmetic over the secp256k1 group order. This means all arithmetic is
 // performed modulo:
@@ -313,6 +319,11 @@ func (s *ModNScalar) SetBytes(b *[32]byte) bool {
 	return needsReduce != 0
 }
 
+// zeroArray32 zeroes the provided 32-byte buffer.
+func zeroArray32(b *[32]byte) {
+	copy(b[:], zero32[:])
+}
+
 // SetByteSlice interprets the provided slice as a 256-bit big-endian unsigned
 // integer (meaning it is truncated to the first 32 bytes), reduces it modulo
 // the group order, sets the scalar to the result, and returns whether or not
@@ -329,7 +340,9 @@ func (s *ModNScalar) SetByteSlice(b []byte) bool {
 	b = b[:constantTimeMin(uint32(len(b)), 32)]
 	copy(b32[:], b32[:32-len(b)])
 	copy(b32[32-len(b):], b)
-	return s.SetBytes(&b32)
+	result := s.SetBytes(&b32)
+	zeroArray32(&b32)
+	return result
 }
 
 // PutBytes unpacks the scalar to a 32-byte big-endian value using the passed

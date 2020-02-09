@@ -45,7 +45,9 @@ var (
 // public key using Diffie-Hellman key exchange (ECDH) (RFC 4753).
 // RFC5903 Section 9 states we should only return x.
 func GenerateSharedSecret(privkey *PrivateKey, pubkey *PublicKey) []byte {
-	x, _ := S256().ScalarMult(pubkey.X, pubkey.Y, privkey.D.Bytes())
+	privKeyBytes := privkey.key.Bytes()
+	x, _ := S256().ScalarMult(pubkey.X, pubkey.Y, privKeyBytes[:])
+	zeroArray32(&privKeyBytes)
 	return x.Bytes()
 }
 

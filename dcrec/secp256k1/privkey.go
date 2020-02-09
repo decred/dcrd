@@ -8,30 +8,36 @@ package secp256k1
 import (
 	"crypto/ecdsa"
 	"crypto/rand"
-	"math/big"
 )
 
 // PrivateKey provides facilities for working with secp256k1 private keys within
 // this package and includes functionality such as serializing and parsing them
 // as well as computing their associated public key.
 type PrivateKey struct {
-	D *big.Int
+	key ModNScalar
 }
 
 // NewPrivateKey instantiates a new private key from a scalar encoded as a
 // big integer.
-func NewPrivateKey(d *big.Int) *PrivateKey {
-	b := make([]byte, 0, PrivKeyBytesLen)
-	dB := paddedAppend(PrivKeyBytesLen, b, d.Bytes())
-	return PrivKeyFromBytes(dB)
+func NewPrivateKey(key *ModNScalar) *PrivateKey {
+	return &PrivateKey{key: *key}
 }
 
-// PrivKeyFromBytes returns a private and public key for `curve' based on the
-// private key passed as an argument as a byte slice.
-func PrivKeyFromBytes(pk []byte) *PrivateKey {
-	return &PrivateKey{
-		D: new(big.Int).SetBytes(pk),
-	}
+// PrivKeyFromBytes returns a private based on the provided byte slice which is
+// interpreted as an unsigned 256-bit big-endian integer in the range [0, N-1],
+// where N is the order of the curve.
+//
+// Note that this means passing a slice with more than 32 bytes is truncated and
+// that truncated value is reduced modulo N.  It is up to the caller to either
+// provide a value in the appropriate range or choose to accept the described
+// behavior.
+//
+// Typically callers should simply make use of GeneratePrivateKey when creating
+// private keys which properly handles generation of appropriate values.
+func PrivKeyFromBytes(privKeyBytes []byte) *PrivateKey {
+	var d ModNScalar
+	d.SetByteSlice(privKeyBytes)
+	return NewPrivateKey(&d)
 }
 
 // GeneratePrivateKey returns a private key that is suitable for use with
@@ -41,16 +47,15 @@ func GeneratePrivateKey() (*PrivateKey, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &PrivateKey{
-		D: key.D,
-	}, nil
+	return PrivKeyFromBytes(key.D.Bytes()), nil
 }
 
 // PubKey computes and returns the public key corresponding to this private key.
 // PubKey returns the PublicKey corresponding to this private key.
 func (p *PrivateKey) PubKey() *PublicKey {
+	privKeyBytes := p.key.Bytes()
 	var result jacobianPoint
-	scalarBaseMultJacobian(p.D.Bytes(), &result)
+	scalarBaseMultJacobian(privKeyBytes[:], &result)
 	return NewPublicKey(jacobianToBigAffine(&result))
 }
 
@@ -65,9 +70,9 @@ func (p *PrivateKey) Sign(hash []byte) *Signature {
 // PrivKeyBytesLen defines the length in bytes of a serialized private key.
 const PrivKeyBytesLen = 32
 
-// Serialize returns the private key as a big-endian binary-encoded number,
-// padded to a length of 32 bytes.
+// Serialize returns the private key as a 256-bit big-endian binary-encoded
+// number, padded to a length of 32 bytes.
 func (p PrivateKey) Serialize() []byte {
-	b := make([]byte, 0, PrivKeyBytesLen)
-	return paddedAppend(PrivKeyBytesLen, b, p.D.Bytes())
+	privKeyBytes := p.key.Bytes()
+	return privKeyBytes[:]
 }

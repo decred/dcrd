@@ -407,11 +407,13 @@ func TestRFC6979(t *testing.T) {
 	}}
 
 	for i, test := range tests {
-		privKey := PrivKeyFromBytes(hexToBytes(test.key))
+		privKeyBytes := hexToBytes(test.key)
+		privKey := PrivKeyFromBytes(privKeyBytes)
+		bigPrivKey := new(big.Int).SetBytes(privKeyBytes)
 		hash := sha256.Sum256([]byte(test.msg))
 
 		// Ensure deterministically generated nonce is the expected value.
-		gotNonce := NonceRFC6979(privKey.D, hash[:], nil, nil, 0).
+		gotNonce := NonceRFC6979(bigPrivKey, hash[:], nil, nil, 0).
 			Bytes()
 		wantNonce := hexToBytes(test.nonce)
 		if !bytes.Equal(gotNonce, wantNonce) {

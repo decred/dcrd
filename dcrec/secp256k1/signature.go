@@ -509,8 +509,12 @@ func RecoverCompact(signature, hash []byte) (*PublicKey, bool, error) {
 func signRFC6979(privateKey *PrivateKey, hash []byte) *Signature {
 	curve := S256()
 	N := order
+	privKeyBytes := privateKey.key.Bytes()
+	bigPrivKey := new(big.Int).SetBytes(privKeyBytes[:])
+	zeroArray32(&privKeyBytes)
+	defer bigPrivKey.SetUint64(0)
 	for iteration := uint32(0); ; iteration++ {
-		k := NonceRFC6979(privateKey.D, hash, nil, nil, iteration)
+		k := NonceRFC6979(bigPrivKey, hash, nil, nil, iteration)
 		inv := new(big.Int).ModInverse(k, N)
 		r, _ := curve.ScalarBaseMult(k.Bytes())
 		r.Mod(r, N)
@@ -519,7 +523,7 @@ func signRFC6979(privateKey *PrivateKey, hash []byte) *Signature {
 		}
 
 		e := hashToInt(hash)
-		s := new(big.Int).Mul(privateKey.D, r)
+		s := new(big.Int).Mul(bigPrivKey, r)
 		s.Add(s, e)
 		s.Mul(s, inv)
 		s.Mod(s, N)

@@ -1513,7 +1513,7 @@ func Generate(includeLargeReorg bool) (tests [][]TestInstance, err error) {
 	if err != nil {
 		panic(err)
 	}
-	privKeyBytes := privKey.D.Bytes()
+	privKeyBytes := privKey.Serialize()
 	pubKey := privKey.PubKey()
 
 	// Create a pay-to-script-hash redeem script that consists of 9

@@ -173,7 +173,8 @@ func nonceRFC6979(privkey []byte, hash []byte, extra []byte, version []byte, ext
 // produce a Schnorr signature.
 func Sign(priv *secp256k1.PrivateKey, hash []byte) (r, s *big.Int, err error) {
 	// Convert the private scalar to a 32 byte big endian number.
-	pA := bigIntToEncodedBytes(priv.D)
+	bigPriv := new(big.Int).SetBytes(priv.Serialize())
+	pA := bigIntToEncodedBytes(bigPriv)
 	defer zeroArray(pA)
 
 	for iteration := uint32(0); ; iteration++ {

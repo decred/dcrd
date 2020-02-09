@@ -223,7 +223,7 @@ func TestSignTxOutput(t *testing.T) {
 				switch suite {
 				case dcrec.STEcdsaSecp256k1:
 					privKey, _ := secp256k1.GeneratePrivateKey()
-					keyDB = privKey.D.Bytes()
+					keyDB = privKey.Serialize()
 					pkBytes = privKey.PubKey().SerializeUncompressed()
 				case dcrec.STEd25519:
 					keyDB, _, _, _ = edwards.GenerateKey(rand.Reader)
@@ -282,7 +282,7 @@ func TestSignTxOutput(t *testing.T) {
 				switch suite {
 				case dcrec.STEcdsaSecp256k1:
 					privKey, _ := secp256k1.GeneratePrivateKey()
-					keyDB = privKey.D.Bytes()
+					keyDB = privKey.Serialize()
 					pkBytes = privKey.PubKey().SerializeUncompressed()
 				case dcrec.STEd25519:
 					keyDB, _, _, _ = edwards.GenerateKey(rand.Reader)
@@ -354,7 +354,7 @@ func TestSignTxOutput(t *testing.T) {
 				switch suite {
 				case dcrec.STEcdsaSecp256k1:
 					privKey, _ := secp256k1.GeneratePrivateKey()
-					keyDB = privKey.D.Bytes()
+					keyDB = privKey.Serialize()
 					pkBytes = privKey.PubKey().SerializeCompressed()
 				case dcrec.STEd25519:
 					keyDB, _, _, _ = edwards.GenerateKey(rand.Reader)
@@ -412,7 +412,7 @@ func TestSignTxOutput(t *testing.T) {
 				switch suite {
 				case dcrec.STEcdsaSecp256k1:
 					privKey, _ := secp256k1.GeneratePrivateKey()
-					keyDB = privKey.D.Bytes()
+					keyDB = privKey.Serialize()
 					pkBytes = privKey.PubKey().SerializeCompressed()
 				case dcrec.STEd25519:
 					keyDB, _, _, _ = edwards.GenerateKey(rand.Reader)
@@ -485,7 +485,7 @@ func TestSignTxOutput(t *testing.T) {
 				t.Errorf("failed to generate key: %v", err)
 				break
 			}
-			keyDB := privKey.D.Bytes()
+			keyDB := privKey.Serialize()
 			pkBytes := privKey.PubKey().SerializeCompressed()
 
 			suite := dcrec.STEcdsaSecp256k1
@@ -533,7 +533,7 @@ func TestSignTxOutput(t *testing.T) {
 				t.Errorf("failed to generate key: %v", err)
 				break
 			}
-			keyDB := privKey.D.Bytes()
+			keyDB := privKey.Serialize()
 			pkBytes := privKey.PubKey().SerializeCompressed()
 
 			suite := dcrec.STEcdsaSecp256k1
@@ -581,7 +581,7 @@ func TestSignTxOutput(t *testing.T) {
 				t.Errorf("failed to generate key: %v", err)
 				break
 			}
-			keyDB := privKey.D.Bytes()
+			keyDB := privKey.Serialize()
 			pkBytes := privKey.PubKey().SerializeCompressed()
 
 			suite := dcrec.STEcdsaSecp256k1
@@ -629,7 +629,7 @@ func TestSignTxOutput(t *testing.T) {
 				t.Errorf("failed to generate key: %v", err)
 				break
 			}
-			keyDB := privKey.D.Bytes()
+			keyDB := privKey.Serialize()
 			pkBytes := privKey.PubKey().SerializeCompressed()
 
 			suite := dcrec.STEcdsaSecp256k1
@@ -678,7 +678,7 @@ func TestSignTxOutput(t *testing.T) {
 					t.Errorf("failed to generate key: %v", err)
 					break
 				}
-				keyDB := privKey.D.Bytes()
+				keyDB := privKey.Serialize()
 				pk := privKey.PubKey()
 				suite := dcrec.STEcdsaSecp256k1
 				// For address generation, consensus rules require using
@@ -731,7 +731,7 @@ func TestSignTxOutput(t *testing.T) {
 				switch suite {
 				case dcrec.STEcdsaSecp256k1:
 					privKey, _ := secp256k1.GeneratePrivateKey()
-					keyDB = privKey.D.Bytes()
+					keyDB = privKey.Serialize()
 					pk := privKey.PubKey()
 					// For address generation, consensus rules require using
 					// a compressed public key. Look up ExtractPkScriptAddrs
@@ -816,7 +816,7 @@ func TestSignTxOutput(t *testing.T) {
 				switch suite {
 				case dcrec.STEcdsaSecp256k1:
 					privKey, _ := secp256k1.GeneratePrivateKey()
-					keyDB = privKey.D.Bytes()
+					keyDB = privKey.Serialize()
 					pk := privKey.PubKey()
 					// For address generation, consensus rules require using
 					// a compressed public key. Look up ExtractPkScriptAddrs
@@ -890,7 +890,7 @@ func TestSignTxOutput(t *testing.T) {
 				switch suite {
 				case dcrec.STEcdsaSecp256k1:
 					privKey, _ := secp256k1.GeneratePrivateKey()
-					keyDB = privKey.D.Bytes()
+					keyDB = privKey.Serialize()
 					pk := privKey.PubKey()
 					address, err = dcrutil.NewAddressSecpPubKeyCompressed(pk,
 						testingParams)
@@ -972,7 +972,7 @@ func TestSignTxOutput(t *testing.T) {
 				switch suite {
 				case dcrec.STEcdsaSecp256k1:
 					privKey, _ := secp256k1.GeneratePrivateKey()
-					keyDB = privKey.D.Bytes()
+					keyDB = privKey.Serialize()
 					pkBytes = privKey.PubKey().SerializeUncompressed()
 				case dcrec.STEd25519:
 					keyDB, _, _, _ = edwards.GenerateKey(rand.Reader)
@@ -1049,7 +1049,7 @@ func TestSignTxOutput(t *testing.T) {
 				switch suite {
 				case dcrec.STEcdsaSecp256k1:
 					privKey, _ := secp256k1.GeneratePrivateKey()
-					keyDB = privKey.D.Bytes()
+					keyDB = privKey.Serialize()
 					pkBytes = privKey.PubKey().SerializeUncompressed()
 				case dcrec.STEd25519:
 					keyDB, _, _, _ = edwards.GenerateKey(rand.Reader)
@@ -1141,7 +1141,7 @@ func TestSignTxOutput(t *testing.T) {
 				switch suite {
 				case dcrec.STEcdsaSecp256k1:
 					privKey, _ := secp256k1.GeneratePrivateKey()
-					keyDB = privKey.D.Bytes()
+					keyDB = privKey.Serialize()
 					pkBytes = privKey.PubKey().SerializeCompressed()
 				case dcrec.STEd25519:
 					keyDB, _, _, _ = edwards.GenerateKey(rand.Reader)
@@ -1217,7 +1217,7 @@ func TestSignTxOutput(t *testing.T) {
 				switch suite {
 				case dcrec.STEcdsaSecp256k1:
 					privKey, _ := secp256k1.GeneratePrivateKey()
-					keyDB = privKey.D.Bytes()
+					keyDB = privKey.Serialize()
 					pkBytes = privKey.PubKey().SerializeCompressed()
 				case dcrec.STEd25519:
 					keyDB, _, _, _ = edwards.GenerateKey(rand.Reader)
@@ -1312,7 +1312,7 @@ func TestSignTxOutput(t *testing.T) {
 				switch suite {
 				case dcrec.STEcdsaSecp256k1:
 					privKey, _ := secp256k1.GeneratePrivateKey()
-					keyDB = privKey.D.Bytes()
+					keyDB = privKey.Serialize()
 					pk := privKey.PubKey()
 					// For address generation, consensus rules require using
 					// a compressed public key. Look up ExtractPkScriptAddrs
@@ -1402,7 +1402,7 @@ func TestSignTxOutput(t *testing.T) {
 				switch suite {
 				case dcrec.STEcdsaSecp256k1:
 					privKey, _ := secp256k1.GeneratePrivateKey()
-					keyDB = privKey.D.Bytes()
+					keyDB = privKey.Serialize()
 					pk := privKey.PubKey()
 					// For address generation, consensus rules require using
 					// a compressed public key. Look up ExtractPkScriptAddrs
@@ -1508,7 +1508,7 @@ func TestSignTxOutput(t *testing.T) {
 				switch suite {
 				case dcrec.STEcdsaSecp256k1:
 					privKey, _ := secp256k1.GeneratePrivateKey()
-					keyDB = privKey.D.Bytes()
+					keyDB = privKey.Serialize()
 					pk := privKey.PubKey()
 					address, err = dcrutil.NewAddressSecpPubKeyCompressed(pk,
 						testingParams)
@@ -1598,7 +1598,7 @@ func TestSignTxOutput(t *testing.T) {
 				switch suite {
 				case dcrec.STEcdsaSecp256k1:
 					privKey, _ := secp256k1.GeneratePrivateKey()
-					keyDB = privKey.D.Bytes()
+					keyDB = privKey.Serialize()
 					pk := privKey.PubKey()
 					address, err = dcrutil.NewAddressSecpPubKeyCompressed(pk,
 						testingParams)
@@ -1700,7 +1700,7 @@ func TestSignTxOutput(t *testing.T) {
 				t.Errorf("failed to generate key: %v", err)
 				break
 			}
-			keyDB1 := privKey1.D.Bytes()
+			keyDB1 := privKey1.Serialize()
 			pk1 := privKey1.PubKey()
 			suite1 := dcrec.STEcdsaSecp256k1
 
@@ -1717,7 +1717,7 @@ func TestSignTxOutput(t *testing.T) {
 				t.Errorf("failed to generate key: %v", err)
 				break
 			}
-			keyDB2 := privKey2.D.Bytes()
+			keyDB2 := privKey2.Serialize()
 			pk2 := privKey2.PubKey()
 			suite2 := dcrec.STEcdsaSecp256k1
 
@@ -1786,7 +1786,7 @@ func TestSignTxOutput(t *testing.T) {
 				t.Errorf("failed to generate key: %v", err)
 				break
 			}
-			keyDB1 := privKey1.D.Bytes()
+			keyDB1 := privKey1.Serialize()
 			pk1 := privKey1.PubKey()
 			suite1 := dcrec.STEcdsaSecp256k1
 
@@ -1803,7 +1803,7 @@ func TestSignTxOutput(t *testing.T) {
 				t.Errorf("failed to generate key: %v", err)
 				break
 			}
-			keyDB2 := privKey2.D.Bytes()
+			keyDB2 := privKey2.Serialize()
 			pk2 := privKey2.PubKey()
 			suite2 := dcrec.STEcdsaSecp256k1
 
@@ -1892,7 +1892,7 @@ func TestSignTxOutput(t *testing.T) {
 				t.Errorf("failed to generate key: %v", err)
 				break
 			}
-			keyDB1 := privKey1.D.Bytes()
+			keyDB1 := privKey1.Serialize()
 			pk1 := privKey1.PubKey()
 			suite1 := dcrec.STEcdsaSecp256k1
 
@@ -1909,7 +1909,7 @@ func TestSignTxOutput(t *testing.T) {
 				t.Errorf("failed to generate key: %v", err)
 				break
 			}
-			keyDB2 := privKey2.D.Bytes()
+			keyDB2 := privKey2.Serialize()
 			pk2 := privKey2.PubKey()
 			suite2 := dcrec.STEcdsaSecp256k1
 			address2, err := dcrutil.NewAddressSecpPubKeyCompressed(pk2,
