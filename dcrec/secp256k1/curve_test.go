@@ -598,7 +598,7 @@ func TestScalarMultRand(t *testing.T) {
 	var want jacobianPoint
 	var point jacobianPoint
 	bigAffineToJacobian(curveParams.Gx, curveParams.Gy, &point)
-	exponent := big.NewInt(1)
+	exponent := new(ModNScalar).SetInt(1)
 	for i := 0; i < 1024; i++ {
 		data := make([]byte, 32)
 		_, err := rand.Read(data)
@@ -606,9 +606,12 @@ func TestScalarMultRand(t *testing.T) {
 			t.Fatalf("failed to read random data at %d", i)
 			break
 		}
-		scalarMultJacobian(data, &point, &point)
-		exponent.Mul(exponent, new(big.Int).SetBytes(data))
-		scalarBaseMultJacobian(exponent.Bytes(), &want)
+		var k ModNScalar
+		k.SetByteSlice(data)
+		scalarMultJacobian(&k, &point, &point)
+
+		exponent.Mul(&k)
+		scalarBaseMultJacobian(exponent, &want)
 		point.ToAffine()
 		want.ToAffine()
 		if !point.IsStrictlyEqual(&want) {

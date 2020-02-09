@@ -53,9 +53,8 @@ func GeneratePrivateKey() (*PrivateKey, error) {
 // PubKey computes and returns the public key corresponding to this private key.
 // PubKey returns the PublicKey corresponding to this private key.
 func (p *PrivateKey) PubKey() *PublicKey {
-	privKeyBytes := p.key.Bytes()
 	var result jacobianPoint
-	scalarBaseMultJacobian(privKeyBytes[:], &result)
+	scalarBaseMultJacobian(&p.key, &result)
 	return NewPublicKey(jacobianToBigAffine(&result))
 }
 

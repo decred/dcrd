@@ -606,29 +606,15 @@ func splitK(k []byte) ([]byte, []byte, int, int) {
 	return k1.Bytes(), k2.Bytes(), k1.Sign(), k2.Sign()
 }
 
-// moduloReduce reduces k from more than 32 bytes to 32 bytes and under.  This
-// is done by doing a simple modulo curve.N.  We can do this since G^N = 1 and
-// thus any other valid point on the elliptic curve has the same order.
-func moduloReduce(k []byte) []byte {
-	// Since the order of G is curve.N, we can use a much smaller number
-	// by doing modulo curve.N
-	if len(k) > curveParams.byteSize {
-		// Reduce k by performing modulo curve.N.
-		tmpK := new(big.Int).SetBytes(k)
-		tmpK.Mod(tmpK, curveParams.N)
-		return tmpK.Bytes()
-	}
-
-	return k
-}
-
-// scalarMultJacobian multiplies k*P where k is a big endian integer and P is a
-// point in Jacobian projective coordinates and stores the result in the
-// provided Jacobian point.
-func scalarMultJacobian(k []byte, point, result *jacobianPoint) {
+// scalarMultJacobian multiplies k*P where k is a big endian integer modulo the
+// curve order and P is a point in Jacobian projective coordinates and stores
+// the result in the provided Jacobian point.
+func scalarMultJacobian(k *ModNScalar, point, result *jacobianPoint) {
 	// Decompose K into k1 and k2 in order to halve the number of EC ops.
 	// See Algorithm 3.74 in [GECC].
-	k1, k2, signK1, signK2 := splitK(moduloReduce(k))
+	kBytes := k.Bytes()
+	k1, k2, signK1, signK2 := splitK(kBytes[:])
+	zeroArray32(&kBytes)
 
 	// The main equation here to remember is:
 	//   k * P = k1 * P + k2 * ϕ(P)
@@ -727,10 +713,8 @@ func scalarMultJacobian(k []byte, point, result *jacobianPoint) {
 // scalarBaseMultJacobian multiplies k*G where G is the base point of the group
 // and k is a big endian integer.  The result is stored in Jacobian coordinates
 // (x1, y1, z1).
-func scalarBaseMultJacobian(k []byte, result *jacobianPoint) {
-	curve := S256()
-	newK := moduloReduce(k)
-	diff := len(curve.bytePoints) - len(newK)
+func scalarBaseMultJacobian(k *ModNScalar, result *jacobianPoint) {
+	bytePoints := S256().bytePoints
 
 	// Point Q = ∞ (point at infinity).
 	var q jacobianPoint
@@ -740,8 +724,8 @@ func scalarBaseMultJacobian(k []byte, result *jacobianPoint) {
 	// expressing k in base-256 which it already sort of is.  Each "digit" in
 	// the 8-bit window can be looked up using bytePoints and added together.
 	var pt jacobianPoint
-	for i, byteVal := range newK {
-		p := curve.bytePoints[diff+i][byteVal]
+	for i, byteVal := range k.Bytes() {
+		p := bytePoints[i][byteVal]
 		pt.x.Set(&p[0])
 		pt.y.Set(&p[1])
 		pt.z.Set(&p[2])

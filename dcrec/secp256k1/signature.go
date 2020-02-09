@@ -411,18 +411,22 @@ func recoverKeyFromSignature(sig *Signature, msg []byte, iter int, doChecks bool
 	// first term.
 	invrS := new(big.Int).Mul(invr, sig.S)
 	invrS.Mod(invrS, curve.Params().N)
+	var invrSModN ModNScalar
+	invrSModN.SetByteSlice(invrS.Bytes())
 	var fR, sR jacobianPoint
 	bigAffineToJacobian(Rx, Ry, &fR)
-	scalarMultJacobian(invrS.Bytes(), &fR, &sR)
+	scalarMultJacobian(&invrSModN, &fR, &sR)
 
 	// second term.
 	e.Neg(e)
 	e.Mod(e, curve.Params().N)
 	e.Mul(e, invr)
 	e.Mod(e, curve.Params().N)
+	var eModN ModNScalar
+	eModN.SetByteSlice(e.Bytes())
 
 	var minusEG, q jacobianPoint
-	scalarBaseMultJacobian(e.Bytes(), &minusEG)
+	scalarBaseMultJacobian(&eModN, &minusEG)
 	addJacobian(&sR, &minusEG, &q)
 
 	Qx, Qy := jacobianToBigAffine(&q)

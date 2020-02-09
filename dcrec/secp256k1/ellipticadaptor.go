@@ -139,6 +139,21 @@ func (curve *KoblitzCurve) Double(x1, y1 *big.Int) (*big.Int, *big.Int) {
 	return jacobianToBigAffine(&result)
 }
 
+// moduloReduce reduces k from more than 32 bytes to 32 bytes and under.  This
+// is done by doing a simple modulo curve.N.  We can do this since G^N = 1 and
+// thus any other valid point on the elliptic curve has the same order.
+func moduloReduce(k []byte) []byte {
+	// Since the order of G is curve.N, we can use a much smaller number by
+	// doing modulo curve.N
+	if len(k) > curveParams.byteSize {
+		tmpK := new(big.Int).SetBytes(k)
+		tmpK.Mod(tmpK, curveParams.N)
+		return tmpK.Bytes()
+	}
+
+	return k
+}
+
 // ScalarMult returns k*(Bx, By) where k is a big endian integer.
 //
 // This is part of the elliptic.Curve interface implementation.
@@ -146,9 +161,11 @@ func (curve *KoblitzCurve) ScalarMult(Bx, By *big.Int, k []byte) (*big.Int, *big
 	// Convert the affine coordinates from big integers to Jacobian points,
 	// do the multiplication in Jacobian projective space, and convert the
 	// Jacobian point back to affine big.Ints.
+	var kModN ModNScalar
+	kModN.SetByteSlice(moduloReduce(k))
 	var point, result jacobianPoint
 	bigAffineToJacobian(Bx, By, &point)
-	scalarMultJacobian(k, &point, &result)
+	scalarMultJacobian(&kModN, &point, &result)
 	return jacobianToBigAffine(&result)
 }
 
@@ -159,8 +176,10 @@ func (curve *KoblitzCurve) ScalarMult(Bx, By *big.Int, k []byte) (*big.Int, *big
 func (curve *KoblitzCurve) ScalarBaseMult(k []byte) (*big.Int, *big.Int) {
 	// Perform the multiplication and convert the Jacobian point back to affine
 	// big.Ints.
+	var kModN ModNScalar
+	kModN.SetByteSlice(moduloReduce(k))
 	var result jacobianPoint
-	scalarBaseMultJacobian(k, &result)
+	scalarBaseMultJacobian(&kModN, &result)
 	return jacobianToBigAffine(&result)
 }
 
@@ -177,7 +196,7 @@ func (p PublicKey) ToECDSA() *ecdsa.PublicKey {
 func (p *PrivateKey) ToECDSA() *ecdsa.PrivateKey {
 	privKeyBytes := p.key.Bytes()
 	var result jacobianPoint
-	scalarBaseMultJacobian(privKeyBytes[:], &result)
+	scalarBaseMultJacobian(&p.key, &result)
 	x, y := jacobianToBigAffine(&result)
 	newPrivKey := &ecdsa.PrivateKey{
 		PublicKey: ecdsa.PublicKey{
