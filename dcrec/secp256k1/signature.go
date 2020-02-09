@@ -511,10 +511,10 @@ func signRFC6979(privateKey *PrivateKey, hash []byte) *Signature {
 	N := order
 	privKeyBytes := privateKey.key.Bytes()
 	bigPrivKey := new(big.Int).SetBytes(privKeyBytes[:])
-	zeroArray32(&privKeyBytes)
+	defer zeroArray32(&privKeyBytes)
 	defer bigPrivKey.SetUint64(0)
 	for iteration := uint32(0); ; iteration++ {
-		k := NonceRFC6979(bigPrivKey, hash, nil, nil, iteration)
+		k := NonceRFC6979(privKeyBytes[:], hash, nil, nil, iteration)
 		inv := new(big.Int).ModInverse(k, N)
 		r, _ := curve.ScalarBaseMult(k.Bytes())
 		r.Mod(r, N)
@@ -613,7 +613,7 @@ func newHMACSHA256(key []byte) *hmacsha256 {
 // that results in a valid signature in the extremely unlikely event the
 // original nonce produced results in an invalid signature (e.g. R == 0).
 // Signing code should start with 0 and increment it if necessary.
-func NonceRFC6979(privKey *big.Int, hash []byte, extra []byte, version []byte, extraIterations uint32) *big.Int {
+func NonceRFC6979(privKey []byte, hash []byte, extra []byte, version []byte, extraIterations uint32) *big.Int {
 	// Input to HMAC is the 32-byte private key and the 32-byte hash.  In
 	// addition, it may include the optional 32-byte extra data and 16-byte
 	// version.  Create a fixed-size array to avoid extra allocs and slice it
@@ -626,17 +626,16 @@ func NonceRFC6979(privKey *big.Int, hash []byte, extra []byte, version []byte, e
 	)
 	var keyBuf [privKeyLen + hashLen + extraLen + versionLen]byte
 
-	// Drop most significant bytes of private key and hash if they are too long
-	// and leave left padding of zeros when they're too short.
-	privKeyBytes := privKey.Bytes()
-	if len(privKeyBytes) > privKeyLen {
-		copy(privKeyBytes, privKeyBytes[privKeyLen-len(privKeyBytes):])
+	// Truncate rightmost bytes of private key and hash if they are too long and
+	// leave left padding of zeros when they're too short.
+	if len(privKey) > privKeyLen {
+		privKey = privKey[:privKeyLen]
 	}
 	if len(hash) > hashLen {
-		copy(hash, privKeyBytes[hashLen-len(hash):])
+		hash = hash[:hashLen]
 	}
-	offset := privKeyLen - len(privKeyBytes) // Zero left padding if needed.
-	offset += copy(keyBuf[offset:], privKeyBytes)
+	offset := privKeyLen - len(privKey) // Zero left padding if needed.
+	offset += copy(keyBuf[offset:], privKey)
 	offset += hashLen - len(hash) // Zero left padding if needed.
 	offset += copy(keyBuf[offset:], hash)
 	if len(extra) == extraLen {

@@ -149,10 +149,7 @@ func BenchmarkNonceRFC6979(b *testing.B) {
 	// X: d2e670a19c6d753d1a6d8b20bd045df8a08fb162cf508956c31268c6d81ffdab
 	// Y: ab65528eefbb8057aa85d597258a3fbd481a24633bc9b47a9aa045c91371de52
 	privKeyStr := "9e0699c91ca1e3b7e3c9ba71eb71c89890872be97576010fe593fbf3fd57e66d"
-	privKey, ok := new(big.Int).SetString(privKeyStr, 16)
-	if !ok {
-		b.Fatal("Failed to parse private key")
-	}
+	privKey := hexToBytes(privKeyStr)
 
 	// BLAKE-256 of []byte{0x01, 0x02, 0x03, 0x04}.
 	msgHash := hexToBytes("c301ba9de5d6053caad9f5eb46523f007702add2c62fa39de03146a36b8026b7")
