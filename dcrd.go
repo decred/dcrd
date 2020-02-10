@@ -180,8 +180,7 @@ func dcrdMain() error {
 	svr, err := newServer(ctx, cfg.Listeners, db, cfg.params.Params,
 		cfg.DataDir, ctx.Done())
 	if err != nil {
-		dcrdLog.Errorf("Unable to start server with listeners %v: %v",
-			cfg.Listeners, err)
+		dcrdLog.Errorf("Unable to start server: %v", err)
 		return err
 	}
 	serverDone := make(chan struct{})

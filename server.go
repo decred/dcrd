@@ -3095,7 +3095,7 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB, chainP
 		}
 
 		if len(rpcListeners) == 0 {
-			return nil, errors.New("no listening addresses provided")
+			return nil, errors.New("no usable rpc listen addresses")
 		}
 
 		s.rpcServer, err = newRPCServer(&rpcserverConfig{
