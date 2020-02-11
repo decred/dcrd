@@ -42,7 +42,7 @@ var helpDescsEnUS = map[string]string{
 	"node-connectsubcmd": "'perm' to make the connected peer a permanent one, 'temp' to try a single connect to a peer",
 
 	// TransactionInput help.
-	"transactioninput-amount": "The previous output amount",
+	"transactioninput-amount": "The previous output amount in coins",
 	"transactioninput-txid":   "The hash of the input transaction",
 	"transactioninput-vout":   "The specific output of the input transaction to redeem",
 	"transactioninput-tree":   "The tree that the transaction input is located",
@@ -55,25 +55,25 @@ var helpDescsEnUS = map[string]string{
 	"createrawsstx-inputs":        "The inputs to the transaction",
 	"sstxinput-txid":              "Unspent tx output hash",
 	"sstxinput-vout":              "Index of the output being redeemed",
-	"sstxinput-amt":               "Amount of utxo",
+	"sstxinput-amt":               "Amount of utxo in atoms",
 	"sstxinput-tree":              "Which tree utxo is located",
-	"createrawsstx-amount":        "JSON object with the destination addresses as keys and amounts as values",
+	"createrawsstx-amount":        "JSON object with the destination address as key and amount as value",
 	"createrawsstx-amount--key":   "address",
-	"createrawsstx-amount--value": "n.nnn",
-	"createrawsstx-amount--desc":  "The destination address as the key and the amount in DCR as the value",
+	"createrawsstx-amount--value": "n",
+	"createrawsstx-amount--desc":  "The destination address as the key and the amount in atoms as the value",
 	"createrawsstx-couts":         "Array of sstx commit outs to use",
 	"sstxcommitout-addr":          "Address to send sstx commit",
-	"sstxcommitout-commitamt":     "Amount to commit",
-	"sstxcommitout-changeamt":     "Amount for change",
+	"sstxcommitout-commitamt":     "Amount to commit in atoms",
+	"sstxcommitout-changeamt":     "Amount for change in atoms",
 	"sstxcommitout-changeaddr":    "Address for change",
 
-	// CreateRawSSGenTxCmd help.
+	// CreateRawSSRTxCmd help.
 	"createrawssrtx--synopsis": "Returns a new transaction spending the provided inputs and sending to the provided addresses.\n" +
 		"The transaction inputs are not signed in the created transaction.\n" +
 		"The signrawtransaction RPC command provided by wallet must be used to sign the resulting transaction.",
 	"createrawssrtx--result0": "Hex-encoded bytes of the serialized transaction",
 	"createrawssrtx-inputs":   "The inputs to the transaction",
-	"createrawssrtx-fee":      "The fee to apply to the revocation in Coins",
+	"createrawssrtx-fee":      "The fee to apply to the revocation in coins",
 
 	// CreateRawTransactionCmd help.
 	"createrawtransaction--synopsis": "Returns a new transaction spending the provided inputs and sending to the provided addresses.\n" +
@@ -83,7 +83,7 @@ var helpDescsEnUS = map[string]string{
 	"createrawtransaction-amounts":        "JSON object with the destination addresses as keys and amounts as values",
 	"createrawtransaction-amounts--key":   "address",
 	"createrawtransaction-amounts--value": "n.nnn",
-	"createrawtransaction-amounts--desc":  "The destination address as the key and the amount in DCR as the value",
+	"createrawtransaction-amounts--desc":  "The destination address as the key and the amount in coins as the value",
 	"createrawtransaction-locktime":       "Locktime value; a non-zero value will also locktime-activate the inputs",
 	"createrawtransaction-expiry":         "Expiry value; a non-zero value when the transaction expiry",
 	"createrawtransaction--result0":       "Hex-encoded bytes of the serialized transaction",
