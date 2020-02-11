@@ -312,7 +312,7 @@ the method name for further details such as parameter and return information.
 |-
 |[[#getstakeversions|getstakeversions]]
 |Y
-|Get stake versions per block. 
+|Get stake versions per block.
 |-
 |[[#getticketpoolvalue|getticketpoolvalue]]
 |N
@@ -348,7 +348,7 @@ the method name for further details such as parameter and return information.
 |-
 |[[#node|node]]
 |N
-|Attempts to add or remove a peer. 
+|Attempts to add or remove a peer.
 |-
 |[[#ping|ping]]
 |N
@@ -368,7 +368,7 @@ the method name for further details such as parameter and return information.
 |-
 |[[#searchrawtransactions|searchrawtransactions]]
 |Y
-|Query for transactions related to a particular address. 
+|Query for transactions related to a particular address.
 |-
 |[[#sendrawtransaction|sendrawtransaction]]
 |Y
@@ -450,14 +450,14 @@ the method name for further details such as parameter and return information.
 # <code>inputs</code>: <code>(json array, required)</code> The inputs to the transaction of type.
 #: <code>txid</code>: <code>(string)</code> Unspent tx output hash.
 #: <code>vout</code>: <code><numeric></code> Index of the output being redeemed.
-#: <code>amt</code>: <code><numeric></code> Amount of utxo.
+#: <code>amt</code>: <code><numeric></code> Amount of utxo in atoms.
 #: <code>tree</code>: <code><numeric></code> Which tree utxo is located.
-# <code>amount</code>: <code>(json object, required)</code> json object with the destination addresses as keys and amounts as values.
-#: <code>{"desaddr":"amount", ...}</code>
+# <code>amount</code>: <code>(json object, required)</code> json object with the destination address as key and amount as value in atoms.
+#: <code>{"desaddr":"amount"}</code>
 # <code>couts</code>: <code>(json array, required)</code> Array of sstx commit outs to use.
 #: <code>addr</code>: <code>(string)</code> Address to send sstx commit.
-#: <code>commitamt</code>: <code>(string)</code> Amount to commit.
-#: <code>changeamt</code>: <code>(string)</code> Amount for change.
+#: <code>commitamt</code>: <code>(string)</code> Amount to commit in atoms.
+#: <code>changeamt</code>: <code>(string)</code> Amount for change in atoms.
 #: <code>changeaddr</code>: <code>(string)</code> Address for change.
 |-
 !Description
@@ -477,17 +477,17 @@ the method name for further details such as parameter and return information.
 !Parameters
 |
 # <code>inputs</code>: <code>(json array, required)</code> The inputs to the transaction.
-#: <code>amount</code>: <code>(numeric)</code> Amount of the uxto.
+#: <code>amount</code>: <code>(numeric)</code> Amount of the uxto in coins.
 #: <code>txid</code>: <code>(string)</code> Unspent ticket output hash.
 #: <code>vout</code>: <code>(numeric)</code> Index of the ticket output being redeemed.
 #: <code>tree</code>: <code>(numeric)</code>  Which tree utxo is located.
-# <code>fee</code>: <code>(numeric)</code> The fee to apply to the revocation in atoms.
+# <code>fee</code>: <code>(numeric)</code> The fee to apply to the revocation in coins.
 |-
 !Description
 |Returns a new unsigned revocation spending the provided inputs.
 |-
 !Returns
-|<code>(string)</code> Hex-encoded bytes of the serialized transaction
+|<code>(string)</code> Hex-encoded bytes of the serialized transaction.
 |}
 
 ----
@@ -499,22 +499,22 @@ the method name for further details such as parameter and return information.
 |-
 !Parameters
 |
-# <code>transaction inputs</code>:  <code>(JSON array, required)</code> json array of json objects.
-#: <code>amount</code>: <code>(numeric)</code> the previous output amount.
+# <code>transaction inputs</code>: <code>(JSON array, required)</code> json array of json objects.
+#: <code>amount</code>: <code>(numeric)</code> the previous output amount in coins.
 #: <code>hash</code>: <code>(string, required)</code> the hash of the input.
 #: <code>vout</code>: <code>(numeric, required)</code> the specific output of the input transaction to redeem transaction.
 #: <code>[{"amount": n.nnn, "txid": "hash", "vout": n}, ...]</code>
-# <code>addresses and amounts</code>: <code>(JSON object, required)</code> - json object with addresses as keys and output amounts as values.
+# <code>addresses and amounts</code>: <code>(JSON object, required)</code> - json object with addresses as keys and output amounts as values in coins.
 #: <code>address</code>: <code>(string, required)</code> the address to send the specified output amount to.
 #: <code>{"address": n.nnn, ...}</code>
 |-
 !Description
 |
-: Returns a new transaction spending the provided inputs and sending to the provided addresses.The transaction inputs are not signed in the created transaction.
+: Returns a new transaction spending the provided inputs and sending to the provided addresses. The transaction inputs are not signed in the created transaction.
 : The <code>signrawtransaction</code> RPC command provided by wallet must be used to sign the resulting transaction.
 |-
 !Returns
-|<code>transaction</code>: (string) - hex-encoded bytes of the serialized transaction
+|<code>transaction</code>: (string) - hex-encoded bytes of the serialized transaction.
 |-
 !Example Parameters
 |
@@ -523,7 +523,7 @@ the method name for further details such as parameter and return information.
 |-
 !Example Return
 |
-: Newlines added for display purposes.  The actual return does not contain newlines.
+: Newlines added for display purposes. The actual return does not contain newlines.
 : <code>010000000118c057d3bfd3024628e9a6b18c105e4bb035053d1a378fce08856b7ade89dae6010000</code>
 : <code>0000ffffffff0199efee02000000001976a9141cb013db35ecccc156fdfd81d03a11c51998f99388</code>
 : <code>ac00000000</code>
@@ -574,11 +574,11 @@ the method name for further details such as parameter and return information.
 !Returns
 |
 <code>(json object)</code>
-: <code>txid</code>: <code>(string)</code> the transaction id. 
-: <code>hash</code>: <code>(string)</code> the hash of the transaction. 
+: <code>txid</code>: <code>(string)</code> the transaction id.
+: <code>hash</code>: <code>(string)</code> the hash of the transaction.
 : <code>locktime</code>: <code>(numeric)</code> the transaction lock time.
-: <code>version</code>: <code>(numeric)</code> the block version. 
-: <code>expiry</code>: <code>(numeric)</code> the transaction expiry. 
+: <code>version</code>: <code>(numeric)</code> the block version.
+: <code>expiry</code>: <code>(numeric)</code> the transaction expiry.
 : <code>vin</code>: <code>(array of json objects)</code> the transaction inputs as json objects.
 : <code>vout</code>: <code>(array of json objects)</code> the transaction outputs as json objects.
 
@@ -891,12 +891,12 @@ the method name for further details such as parameter and return information.
 # <code>numblocks</code>: <code>(int, required)</code> The number of blocks to generate. 
 |-
 !Description
-|When in simnet or regtest mode, generates <code>numblocks</code> blocks. If blocks arrive from elsewhere, they are built upon but don't count toward the number of blocks to generate. Only generated blocks are returned. This RPC call will exit with an error if the server is already CPU mining, and will prevent the server from CPU mining for another command while it runs. 
+|When in simnet or regtest mode, generates <code>numblocks</code> blocks. If blocks arrive from elsewhere, they are built upon but don't count toward the number of blocks to generate. Only generated blocks are returned. This RPC call will exit with an error if the server is already CPU mining, and will prevent the server from CPU mining for another command while it runs.
 |-
 !Returns
 |<code>(json array of strings)</code>
 : <code>blockhash</code>: hash of the generated block.
-<code>["blockhash", ...]</code> 
+<code>["blockhash", ...]</code>
 |-
 |}
 
@@ -951,7 +951,7 @@ the method name for further details such as parameter and return information.
 |
 <code>(json object)</code>
 : <code>hash</code>: <code>(string)</code> the hex-encoded bytes of the best block hash.
-: <code>height</code>: <code>(numeric)</code> the block height 
+: <code>height</code>: <code>(numeric)</code> the block height
 of the best block.
 
 <code>{"hash": "data", "height": n}</code>
@@ -1837,23 +1837,23 @@ of the best block.
 |-
 !Parameters
 |
-# <code>hash</code>: <code>(string, required)</code> The start block hash. 
-# <code>count</code>: <code>(numeric, required)</code> The number of blocks that will be returned. 
+# <code>hash</code>: <code>(string, required)</code> The start block hash.
+# <code>count</code>: <code>(numeric, required)</code> The number of blocks that will be returned.
 |-
 !Description
-| Returns the stake versions statistics. 
+| Returns the stake versions statistics.
 |-
 !Returns
 |
 <code>stakeversions</code>: <code>(array of object)</code> Array of stake versions per block.
-: <code>hash</code>: <code>(string)</code> hash of the block. 
-: <code>height</code>: <code>(numeric)</code> Height of the block. 
-: <code>blockversion</code>: <code>(numeric)</code> the block version. 
-: <code>stakeversion</code>: <code>(numeric)</code> the stake version of the block. 
-: <code>votes</code>: <code>(array of object)</code> the version and bits of each vote in the block. 
-: <code>version</code>: <code>(numeric)</code> the version of the vote. 
-: <code>bits</code>: <code>(numeric)</code> the bits assigned by the vote. 
-<code>{"stakeversions": [{ "hash": "value", "height": n, "blockversion": n, "stakeversion": n,"votes": [{ "version": n, "bits": n },...]},...]}</code> 
+: <code>hash</code>: <code>(string)</code> hash of the block.
+: <code>height</code>: <code>(numeric)</code> Height of the block.
+: <code>blockversion</code>: <code>(numeric)</code> the block version.
+: <code>stakeversion</code>: <code>(numeric)</code> the stake version of the block.
+: <code>votes</code>: <code>(array of object)</code> the version and bits of each vote in the block.
+: <code>version</code>: <code>(numeric)</code> the version of the vote.
+: <code>bits</code>: <code>(numeric)</code> the bits assigned by the vote.
+<code>{"stakeversions": [{ "hash": "value", "height": n, "blockversion": n, "stakeversion": n,"votes": [{ "version": n, "bits": n },...]},...]}</code>
 |}
 
 ----
@@ -1997,8 +1997,8 @@ of the best block.
 |
 <code>(json object)</code>
 : <code>data</code>: <code>(string)</code> hex-encoded block data
-: <code>hash1</code>: <code>(string)</code> (DEPRECATED) hex-encoded formatted hash buffer 
-: <code>midstate</code>: <code>(string)</code> (DEPRECATED) hex-encoded precomputed hash state after hashing first half of the data 
+: <code>hash1</code>: <code>(string)</code> (DEPRECATED) hex-encoded formatted hash buffer
+: <code>midstate</code>: <code>(string)</code> (DEPRECATED) hex-encoded precomputed hash state after hashing first half of the data
 : <code>target</code>: <code>(string)</code> the hex-encoded little-endian hash target
 
 <code>{"data": "hex", "hash1": "hex", "midstate": "hex", "target": "hex"}</code>
@@ -2092,7 +2092,7 @@ of the best block.
 |
 # <code>command</code>: <code>(string, required)</code>  <code>connect</code> to add a peer (defaults to temporary), <code>remove</code> to remove a persistent peer, or <code>disconnect</code> to remove all matching non-persistent peers.
 # <code>peer</code>: <code>(string, required)</code> ip address and port, or ID of the peer to operate on.
-# <code>connection type</code>: <code>(string)</code> <code>perm</code> indicates the peer should be added as a permanent peer, <code>temp</code> indicates a connection should only be attempted once. 
+# <code>connection type</code>: <code>(string)</code> <code>perm</code> indicates the peer should be added as a permanent peer, <code>temp</code> indicates a connection should only be attempted once.
 |-
 !Description
 |Attempts to add or remove a peer.
@@ -2197,7 +2197,7 @@ of the best block.
 |
 <code>(json array of strings)</code>
 : <code>serializedtx</code>: <code>(string)</code> hex-encoded bytes of the serialized transaction.
-<code>["serializedtx", ... ]</code> 
+<code>["serializedtx", ... ]</code>
 |-
 !Returns (verbose=1)
 |
@@ -2484,8 +2484,8 @@ of the best block.
 |-
 !Description
 |
-:Verifies the block chain database. The actual checks performed by the <code>checklevel</code> parameter is implementation specific. 
-:For dcrd this is: 
+:Verifies the block chain database. The actual checks performed by the <code>checklevel</code> parameter is implementation specific.
+:For dcrd this is:
 :: <code>checklevel=0</code> - Look up each block and ensure it can be loaded from the database.
 :: <code>checklevel=1</code> - Perform basic context-free sanity checks on each block.
 |-
@@ -2565,7 +2565,7 @@ user.  Click the method name for further details such as parameter and return in
 |[[#blockconnected|blockconnected]] and [[#blockdisconnected|blockdisconnected]]
 |-
 |[[#stopnotifyblocks|stopnotifyblocks]]
-|Cancel registered notifications for whenever a block is connected or disconnected from the main (best) chain. 
+|Cancel registered notifications for whenever a block is connected or disconnected from the main (best) chain.
 |None
 |-
 |[[#notifywork|notifywork]]
@@ -2573,7 +2573,7 @@ user.  Click the method name for further details such as parameter and return in
 |[[#work|work]]
 |-
 |[[#stopnotifywork|stopnotifywork]]
-|Cancel registered notifications for whenever when a new block template is generated. 
+|Cancel registered notifications for whenever when a new block template is generated.
 |None
 |-
 |[[#notifyreceived|notifyreceived]]

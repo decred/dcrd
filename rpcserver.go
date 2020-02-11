@@ -645,8 +645,14 @@ func handleCreateRawTransaction(_ context.Context, s *rpcServer, cmd interface{}
 	// Add all transaction outputs to the transaction after performing
 	// some validity checks.
 	for encodedAddr, amount := range c.Amounts {
+		atoms, err := dcrutil.NewAmount(amount)
+		if err != nil {
+			return nil, rpcInternalError(err.Error(),
+				"New amount")
+		}
+
 		// Ensure amount is in the valid range for monetary amounts.
-		if amount <= 0 || amount > dcrutil.MaxAmount {
+		if atoms <= 0 || atoms > dcrutil.MaxAmount {
 			return nil, rpcInvalidError("Invalid amount: 0 >= %v "+
 				"> %v", amount, dcrutil.MaxAmount)
 		}
@@ -673,13 +679,7 @@ func handleCreateRawTransaction(_ context.Context, s *rpcServer, cmd interface{}
 				"Pay to address script")
 		}
 
-		atomic, err := dcrutil.NewAmount(amount)
-		if err != nil {
-			return nil, rpcInternalError(err.Error(),
-				"New amount")
-		}
-
-		txOut := wire.NewTxOut(int64(atomic), pkScript)
+		txOut := wire.NewTxOut(int64(atoms), pkScript)
 		mtx.AddTxOut(txOut)
 	}
 
@@ -919,9 +919,10 @@ func handleCreateRawSSRtx(_ context.Context, s *rpcServer, cmd interface{}) (int
 	// for the generation of the SSGen tx outputs.
 	//
 	// Convert the provided transaction hash hex to a chainhash.Hash.
-	txHash, err := chainhash.NewHashFromStr(c.Inputs[0].Txid)
+	input := c.Inputs[0]
+	txHash, err := chainhash.NewHashFromStr(input.Txid)
 	if err != nil {
-		return nil, rpcDecodeHexError(c.Inputs[0].Txid)
+		return nil, rpcDecodeHexError(input.Txid)
 	}
 
 	// Try to fetch the ticket from the block database.
@@ -943,30 +944,23 @@ func handleCreateRawSSRtx(_ context.Context, s *rpcServer, cmd interface{}) (int
 	// some validity checks; the only input for an SSRtx is an OP_SSTX tagged
 	// output.
 	mtx := wire.NewMsgTx()
-	for _, input := range c.Inputs {
-		txHash, err := chainhash.NewHashFromStr(input.Txid)
-		if err != nil {
-			return nil, rpcDecodeHexError(input.Txid)
-		}
 
-		if !(input.Tree == wire.TxTreeStake) {
-			return nil, rpcInvalidError("Input tree is not " +
-				"TxTreeStake type")
-		}
-
-		prevOutV := wire.NullValueIn
-		if input.Amount > 0 {
-			amt, err := dcrutil.NewAmount(input.Amount)
-			if err != nil {
-				return nil, rpcInvalidError(err.Error())
-			}
-			prevOutV = int64(amt)
-		}
-
-		prevOut := wire.NewOutPoint(txHash, input.Vout, input.Tree)
-		txIn := wire.NewTxIn(prevOut, prevOutV, []byte{})
-		mtx.AddTxIn(txIn)
+	if !(input.Tree == wire.TxTreeStake) {
+		return nil, rpcInvalidError("Input tree is not TxTreeStake type")
 	}
+
+	prevOutV := wire.NullValueIn
+	if input.Amount > 0 {
+		amt, err := dcrutil.NewAmount(input.Amount)
+		if err != nil {
+			return nil, rpcInvalidError(err.Error())
+		}
+		prevOutV = int64(amt)
+	}
+
+	prevOut := wire.NewOutPoint(txHash, input.Vout, input.Tree)
+	txIn := wire.NewTxIn(prevOut, prevOutV, []byte{})
+	mtx.AddTxIn(txIn)
 
 	// 3. Add all the OP_SSRTX tagged outputs.
 
