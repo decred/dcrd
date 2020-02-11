@@ -33,6 +33,10 @@ const FileContents = `[Application Options]
 ; Use simnet.
 ; simnet=1
 
+; Change how long to wait for TCP connection completion.  Valid time units are
+; {s, m, h}.  Minimum 1 second".
+; dialtimeout=30s
+
 ; Connect via a SOCKS5 proxy.  NOTE: Specifying a proxy will disable listening
 ; for incoming connections unless listen addresses are provided via the 'listen'
 ; option.
