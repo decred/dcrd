@@ -453,7 +453,7 @@ the method name for further details such as parameter and return information.
 #: <code>amt</code>: <code><numeric></code> Amount of utxo in atoms.
 #: <code>tree</code>: <code><numeric></code> Which tree utxo is located.
 # <code>amount</code>: <code>(json object, required)</code> json object with the destination address as key and amount as value in atoms.
-#: <code>{"desaddr":"amount"}</code>
+#: <code>{"address":"amount"}</code>
 # <code>couts</code>: <code>(json array, required)</code> Array of sstx commit outs to use.
 #: <code>addr</code>: <code>(string)</code> Address to send sstx commit.
 #: <code>commitamt</code>: <code>(string)</code> Amount to commit in atoms.
@@ -476,7 +476,7 @@ the method name for further details such as parameter and return information.
 |-
 !Parameters
 |
-# <code>inputs</code>: <code>(json array, required)</code> The inputs to the transaction.
+# <code>inputs</code>: <code>(json array, required)</code> The input to the transaction.
 #: <code>amount</code>: <code>(numeric)</code> Amount of the uxto in coins.
 #: <code>txid</code>: <code>(string)</code> Unspent ticket output hash.
 #: <code>vout</code>: <code>(numeric)</code> Index of the ticket output being redeemed.

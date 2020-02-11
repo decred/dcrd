@@ -72,7 +72,7 @@ var helpDescsEnUS = map[string]string{
 		"The transaction inputs are not signed in the created transaction.\n" +
 		"The signrawtransaction RPC command provided by wallet must be used to sign the resulting transaction.",
 	"createrawssrtx--result0": "Hex-encoded bytes of the serialized transaction",
-	"createrawssrtx-inputs":   "The inputs to the transaction",
+	"createrawssrtx-inputs":   "The input to the transaction",
 	"createrawssrtx-fee":      "The fee to apply to the revocation in coins",
 
 	// CreateRawTransactionCmd help.
