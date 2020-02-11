@@ -147,6 +147,10 @@ type Config struct {
 	// of just the protocol family and address. Either DialAddr or Dial need
 	// to be specified (but not both).
 	DialAddr func(context.Context, net.Addr) (net.Conn, error)
+
+	// Timeout specifies the amount of time to wait for a connection
+	// to complete before giving up.
+	Timeout time.Duration
 }
 
 // registerPending is used to register a pending connection attempt. By
@@ -469,6 +473,11 @@ func (cm *ConnManager) Connect(ctx context.Context, c *ConnReq) {
 
 	log.Debugf("Attempting to connect to %v", c)
 
+	if cm.cfg.Timeout != 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, cm.cfg.Timeout)
+		defer cancel()
+	}
 	var conn net.Conn
 	var err error
 	if cm.cfg.Dial != nil {
