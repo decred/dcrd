@@ -82,7 +82,7 @@ type SStxCommitOut struct {
 // unmarshaling of createrawsstx JSON RPC commands.
 type CreateRawSStxCmd struct {
 	Inputs []SStxInput
-	Amount map[string]int64
+	Amount map[string]int64 `jsonrpcusage:"{\"address\":amount}"` // in atoms
 	COuts  []SStxCommitOut
 }
 
@@ -99,7 +99,7 @@ func NewCreateRawSStxCmd(inputs []SStxInput, amount map[string]int64,
 // CreateRawSSRtxCmd is a type handling custom marshaling and
 // unmarshaling of createrawssrtx JSON RPC commands.
 type CreateRawSSRtxCmd struct {
-	Inputs []TransactionInput
+	Inputs []TransactionInput `jsonrpcusage:"[{\"amount\":n.nnn,\"txid\":\"value\",\"vout\":n,\"tree\":n}]"` // only one input is accepted
 	Fee    *float64
 }
 
