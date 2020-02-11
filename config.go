@@ -66,6 +66,7 @@ const (
 	defaultNoExistsAddrIndex     = false
 	defaultNoCFilters            = false
 	defaultTLSCurve              = "P-521"
+	defaultDialTimeout           = time.Second * 30
 )
 
 var (
@@ -125,6 +126,7 @@ type config struct {
 	RPCMaxConcurrentReqs int           `long:"rpcmaxconcurrentreqs" description:"Max number of concurrent RPC requests that may be processed concurrently"`
 	DisableRPC           bool          `long:"norpc" description:"Disable built-in RPC server -- NOTE: The RPC server is disabled by default if no rpcuser/rpcpass or rpclimituser/rpclimitpass is specified"`
 	DisableTLS           bool          `long:"notls" description:"Disable TLS for the RPC server -- NOTE: This is only allowed if the RPC server is bound to localhost"`
+	DialTimeout          time.Duration `long:"dialtimeout" description:"How long to wait for TCP connection completion.  Valid time units are {s, m, h}.  Minimum 1 second"`
 	DisableSeeders       bool          `long:"noseeders" description:"Disable seeding for peer discovery"`
 	ExternalIPs          []string      `long:"externalip" description:"Add an ip to the list of local addresses we claim to listen on to peers"`
 	Proxy                string        `long:"proxy" description:"Connect via SOCKS5 proxy (eg. 127.0.0.1:9050)"`
@@ -536,6 +538,7 @@ func loadConfig() (*config, []string, error) {
 		NoExistsAddrIndex:    defaultNoExistsAddrIndex,
 		NoCFilters:           defaultNoCFilters,
 		AltDNSNames:          defaultAltDNSNames,
+		DialTimeout:          defaultDialTimeout,
 		ipv4NetInfo:          types.NetworksResult{Name: "IPV4"},
 		ipv6NetInfo:          types.NetworksResult{Name: "IPV6"},
 		onionNetInfo:         types.NetworksResult{Name: "Onion"},
@@ -813,6 +816,15 @@ func loadConfig() (*config, []string, error) {
 	if cfg.BanDuration < time.Second {
 		str := "%s: the banduration option may not be less than 1s -- parsed [%v]"
 		err := fmt.Errorf(str, funcName, cfg.BanDuration)
+		fmt.Fprintln(os.Stderr, err)
+		fmt.Fprintln(os.Stderr, usageMessage)
+		return nil, nil, err
+	}
+
+	// Don't allow ban durations that are too short.
+	if cfg.DialTimeout < time.Second {
+		str := "%s: the dialtimeout option may not be less than 1s -- parsed [%v]"
+		err := fmt.Errorf(str, funcName, cfg.DialTimeout)
 		fmt.Fprintln(os.Stderr, err)
 		fmt.Fprintln(os.Stderr, usageMessage)
 		return nil, nil, err

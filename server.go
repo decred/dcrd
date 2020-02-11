@@ -3060,6 +3060,7 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB, chainP
 		RetryDuration:  connectionRetryInterval,
 		TargetOutbound: uint32(targetOutbound),
 		Dial:           dcrdDial,
+		Timeout:        cfg.DialTimeout,
 		OnConnection:   s.outboundPeerConnected,
 		GetNewAddress:  newAddressFunc,
 	})

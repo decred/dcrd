@@ -63,6 +63,9 @@ Application Options:
                             rpclimituser/rpclimitpass is specified
       --notls               Disable TLS for the RPC server -- NOTE: This is only
                             allowed if the RPC server is bound to localhost
+      --dialtimeout=        How long to wait for TCP connection completion.
+                            Valid time units are {s, m, h}.  Minimum 1 second
+                            (default: 30s)
       --nodnsseed           Disable DNS seeding for peers
       --externalip=         Add an ip to the list of local addresses we claim to
                             listen on to peers
