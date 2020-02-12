@@ -8,6 +8,7 @@ package blockchain
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"math"
 	"math/big"
@@ -420,7 +421,8 @@ func CheckProofOfStake(block *dcrutil.Block, posLimit int64) error {
 // nil.
 func standaloneToChainRuleError(err error) error {
 	// Convert standalone package rule errors to blockchain rule errors.
-	if rErr, ok := err.(standalone.RuleError); ok {
+	var rErr standalone.RuleError
+	if errors.As(err, &rErr) {
 		switch rErr.ErrorCode {
 		case standalone.ErrUnexpectedDifficulty:
 			return ruleError(ErrUnexpectedDifficulty, rErr.Description)

@@ -390,11 +390,13 @@ func migrateBlockIndex(ctx context.Context, db database.DB) error {
 		err := db.Update(func(dbTx database.Tx) error {
 			var err error
 			numMigrated, err = doBatch(dbTx)
-			if err == errInterruptRequested || err == errBatchFinished {
-				// No error here so the database transaction is not cancelled
-				// and therefore outstanding work is written to disk.  The
-				// outer function will exit with an interrupted error below due
-				// to another interrupted check.
+			if errors.Is(err, errInterruptRequested) ||
+				errors.Is(err, errBatchFinished) {
+				// No error here so the database transaction is
+				// not cancelled and therefore outstanding work
+				// is written to disk.  The outer function will
+				// exit with an interrupted error below due to
+				// another interrupted check.
 				err = nil
 			}
 			return err
@@ -925,7 +927,7 @@ func initializeGCSFilters(ctx context.Context, db database.DB, index *blockIndex
 		err := db.Update(func(dbTx database.Tx) error {
 			var err error
 			numCreated, numFilterBytes, err = doBatch(dbTx)
-			if err == errInterruptRequested {
+			if errors.Is(err, errInterruptRequested) {
 				// No error here so the database transaction is not cancelled
 				// and therefore outstanding work is written to disk.  The
 				// outer function will exit with an interrupted error below due

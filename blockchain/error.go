@@ -1,11 +1,12 @@
 // Copyright (c) 2014-2016 The btcsuite developers
-// Copyright (c) 2015-2019 The Decred developers
+// Copyright (c) 2015-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
 package blockchain
 
 import (
+	"errors"
 	"fmt"
 )
 
@@ -638,6 +639,6 @@ func ruleError(c ErrorCode, desc string) RuleError {
 // IsErrorCode returns whether or not the provided error is a rule error with
 // the provided error code.
 func IsErrorCode(err error, c ErrorCode) bool {
-	e, ok := err.(RuleError)
-	return ok && e.ErrorCode == c
+	var e RuleError
+	return errors.As(err, &e) && e.ErrorCode == c
 }

@@ -8,6 +8,7 @@ package blockchain_test
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -187,8 +188,8 @@ func TestFullBlocks(t *testing.T) {
 
 		// Ensure the error code is of the expected type and the reject
 		// code matches the value specified in the test instance.
-		rerr, ok := err.(blockchain.RuleError)
-		if !ok {
+		var rerr blockchain.RuleError
+		if !errors.As(err, &rerr) {
 			t.Fatalf("block %q (hash %s, height %d) returned "+
 				"unexpected error type -- got %T, want "+
 				"blockchain.RuleError", item.Name, block.Hash(),
@@ -219,7 +220,8 @@ func TestFullBlocks(t *testing.T) {
 		// Ensure there is an error due to deserializing the block.
 		var msgBlock wire.MsgBlock
 		err := msgBlock.BtcDecode(bytes.NewReader(item.RawBlock), 0)
-		if _, ok := err.(*wire.MessageError); !ok {
+		var werr *wire.MessageError
+		if !errors.As(err, &werr) {
 			t.Fatalf("block %q (hash %s, height %d) should have "+
 				"failed to decode", item.Name, blockHash,
 				blockHeight)
@@ -240,7 +242,8 @@ func TestFullBlocks(t *testing.T) {
 			// Ensure the error code is of the expected type.  Note
 			// that orphans are rejected with ErrMissingParent, so
 			// this check covers both conditions.
-			if _, ok := err.(blockchain.RuleError); !ok {
+			var rerr blockchain.RuleError
+			if !errors.As(err, &rerr) {
 				t.Fatalf("block %q (hash %s, height %d) "+
 					"returned unexpected error type -- "+
 					"got %T, want blockchain.RuleError",
