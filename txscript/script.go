@@ -111,38 +111,41 @@ func isAnyKindOfScriptHash(script []byte) bool {
 	return isScriptHashScript(script) || isStakeScriptHashScript(script)
 }
 
-// hasP2SHScriptSigStakeOpCodes returns an error is the p2sh script has either
-// stake opcodes or if the pkscript cannot be retrieved.
-func hasP2SHScriptSigStakeOpCodes(version uint16, scriptSig, scriptPubKey []byte) error {
-	class := GetScriptClass(version, scriptPubKey)
-	if isStakeOutput(scriptPubKey) {
-		class, _ = GetStakeOutSubclass(scriptPubKey)
+// hasP2SHRedeemScriptStakeOpCodes returns an error if the provided public key
+// script is a regular pay-to-script-hash or a stake-tagged pay-to-script and,
+// when it is, that the redeem script within the provided signature script
+// contains stake opcodes.  An error is also returned if the signature script is
+// malformed after determining the public key script is one of the
+// aforementioned cases.
+func hasP2SHRedeemScriptStakeOpCodes(version uint16, sigScript, pkScript []byte) error {
+	// The only stake scripts currently supported are version 0.
+	if version != 0 {
+		return nil
 	}
-	if class == ScriptHashTy {
-		// Obtain the embedded pkScript from the scriptSig of the
-		// current transaction. Then, ensure that it does not use
-		// any stake tagging OP codes.
-		pData, err := PushedData(scriptSig)
-		if err != nil {
-			return err
-		}
-		if len(pData) == 0 {
-			str := "script has no pushed data"
-			return scriptError(ErrNotPushOnly, str)
-		}
 
-		// The pay-to-hash-script is the final data push of the
-		// signature script.
-		shScript := pData[len(pData)-1]
+	// Nothing further to check if the public key script is not a normal
+	// pay-to-script-hash script or one tagged with a stake opcode.
+	if !(isScriptHashScript(pkScript) || isStakeScriptHashScript(pkScript)) {
+		return nil
+	}
 
-		hasStakeOpCodes, err := ContainsStakeOpCodes(shScript)
-		if err != nil {
-			return err
-		}
-		if hasStakeOpCodes {
-			str := "stake opcodes were found in a p2sh script"
-			return scriptError(ErrP2SHStakeOpCodes, str)
-		}
+	// Extract the redeem script from the signature script.
+	redeemScript := finalOpcodeData(version, sigScript)
+	if len(redeemScript) == 0 {
+		str := "p2sh signature script has no pushed data"
+		return scriptError(ErrNotPushOnly, str)
+	}
+
+	// Ensure the redeem script does not contain any stake opcodes as their use
+	// is prohibited outside of the very specific circumstances permitted by
+	// the staking system.
+	hasStakeOpCodes, err := ContainsStakeOpCodes(redeemScript)
+	if err != nil {
+		return err
+	}
+	if hasStakeOpCodes {
+		str := "stake opcodes were found in a p2sh script"
+		return scriptError(ErrP2SHStakeOpCodes, str)
 	}
 
 	return nil

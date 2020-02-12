@@ -527,7 +527,7 @@ func isStakeChangeScript(scriptVersion uint16, script []byte) bool {
 		extractStakeScriptHash(script, stakeOpcode) != nil
 }
 
-// scriptType returns the type of the script being inspected from the known
+// typeOfScript returns the type of the script being inspected from the known
 // standard types.
 //
 // NOTE:  All scripts that are not version 0 are currently considered non

@@ -937,7 +937,7 @@ func NewEngine(scriptPubKey []byte, tx *wire.MsgTx, txIdx int, flags ScriptFlags
 	// Redeem scripts for pay to script hash outputs are not allowed to use any
 	// stake tag opcodes if the script version is 0.
 	if scriptVersion == 0 {
-		err := hasP2SHScriptSigStakeOpCodes(scriptVersion, scriptSig,
+		err := hasP2SHRedeemScriptStakeOpCodes(scriptVersion, scriptSig,
 			scriptPubKey)
 		if err != nil {
 			return nil, err
