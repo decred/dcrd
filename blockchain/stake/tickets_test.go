@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"compress/bzip2"
 	"encoding/gob"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -883,9 +884,10 @@ func TestTicketDBGeneral(t *testing.T) {
 	// Best node missing ticket in live ticket bucket to spend.
 	n161Copy := copyNode(nodesForward[161])
 	n161Copy.liveTickets.Delete(tickettreap.Key(n162Test.SpentByBlock()[0]))
+	var rerr RuleError
 	_, err = n161Copy.ConnectNode(b162LotteryIV, n162Test.SpentByBlock(),
 		revokedTicketsInBlock(b162), n162Test.NewTickets())
-	if err == nil || err.(RuleError).GetCode() != ErrMissingTicket {
+	if !errors.As(err, &rerr) || rerr.GetCode() != ErrMissingTicket {
 		t.Errorf("unexpected wrong or no error for "+
 			"Best node missing ticket in live ticket bucket to spend: %v", err)
 	}
@@ -898,7 +900,7 @@ func TestTicketDBGeneral(t *testing.T) {
 	spentInBlock[0] = spentInBlock[1]
 	_, err = n161Copy.ConnectNode(b162LotteryIV, spentInBlock,
 		revokedTicketsInBlock(b162), n162Test.NewTickets())
-	if err == nil || err.(RuleError).GetCode() != ErrMissingTicket {
+	if !errors.As(err, &rerr) || rerr.GetCode() != ErrMissingTicket {
 		t.Errorf("unexpected wrong or no error for "+
 			"Best node missing ticket in live ticket bucket to spend: %v", err)
 	}
@@ -909,7 +911,7 @@ func TestTicketDBGeneral(t *testing.T) {
 	spentInBlock[4] = someHash
 	_, err = nodesForward[161].ConnectNode(b162LotteryIV, spentInBlock,
 		revokedTicketsInBlock(b162), n162Test.NewTickets())
-	if err == nil || err.(RuleError).GetCode() != ErrUnknownTicketSpent {
+	if !errors.As(err, &rerr) || rerr.GetCode() != ErrUnknownTicketSpent {
 		t.Errorf("unexpected wrong or no error for "+
 			"Test for corrupted spentInBlock: %v", err)
 	}
@@ -919,7 +921,7 @@ func TestTicketDBGeneral(t *testing.T) {
 	n161Copy.nextWinners[4] = someHash
 	_, err = n161Copy.ConnectNode(b162LotteryIV, spentInBlock,
 		revokedTicketsInBlock(b162), n162Test.NewTickets())
-	if err == nil || err.(RuleError).GetCode() != ErrMissingTicket {
+	if !errors.As(err, &rerr) || rerr.GetCode() != ErrMissingTicket {
 		t.Errorf("unexpected wrong or no error for "+
 			"Corrupt winners: %v", err)
 	}
@@ -929,7 +931,7 @@ func TestTicketDBGeneral(t *testing.T) {
 	spentInBlock = n162Copy.SpentByBlock()
 	_, err = nodesForward[161].ConnectNode(b162LotteryIV, spentInBlock,
 		append(revokedTicketsInBlock(b162), someHash), n162Copy.NewTickets())
-	if err == nil || err.(RuleError).GetCode() != ErrMissingTicket {
+	if !errors.As(err, &rerr) || rerr.GetCode() != ErrMissingTicket {
 		t.Errorf("unexpected wrong or no error for "+
 			"Unknown missed ticket: %v", err)
 	}
@@ -939,7 +941,7 @@ func TestTicketDBGeneral(t *testing.T) {
 	newTicketsDup := []chainhash.Hash{someHash, someHash}
 	_, err = nodesForward[161].ConnectNode(b162LotteryIV, spentInBlock,
 		revokedTicketsInBlock(b162), newTicketsDup)
-	if err == nil || err.(RuleError).GetCode() != ErrDuplicateTicket {
+	if !errors.As(err, &rerr) || rerr.GetCode() != ErrDuplicateTicket {
 		t.Errorf("unexpected wrong or no error for "+
 			"Insert a duplicate new ticket: %v", err)
 	}
@@ -980,7 +982,7 @@ func TestTicketDBGeneral(t *testing.T) {
 	n162Copy.databaseUndoUpdate[0].Revoked = false
 	_, err = n162Copy.DisconnectNode(b161LotteryIV, n161Copy.UndoData(),
 		n161Copy.NewTickets(), nil)
-	if err == nil || err.(RuleError).GetCode() != ErrMissingTicket {
+	if !errors.As(err, &rerr) || rerr.GetCode() != ErrMissingTicket {
 		t.Errorf("unexpected wrong or no error for "+
 			"Unknown undo data for disconnecting (missing): %v", err)
 	}
@@ -995,7 +997,7 @@ func TestTicketDBGeneral(t *testing.T) {
 	n162Copy.databaseUndoUpdate[0].Revoked = true
 	_, err = n162Copy.DisconnectNode(b161LotteryIV, n161Copy.UndoData(),
 		n161Copy.NewTickets(), nil)
-	if err == nil || err.(RuleError).GetCode() != ErrMissingTicket {
+	if !errors.As(err, &rerr) || rerr.GetCode() != ErrMissingTicket {
 		t.Errorf("unexpected wrong or no error for "+
 			"Unknown undo data for disconnecting (revoked): %v", err)
 	}
