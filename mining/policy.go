@@ -1,5 +1,5 @@
 // Copyright (c) 2014-2016 The btcsuite developers
-// Copyright (c) 2016-2019 The Decred developers
+// Copyright (c) 2016-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -7,6 +7,7 @@ package mining
 
 import (
 	"github.com/decred/dcrd/dcrutil/v3"
+	"github.com/decred/dcrd/txscript/v3"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -37,6 +38,16 @@ type Policy struct {
 	// required for a transaction to be treated as free for mining purposes
 	// (block template generation).
 	TxMinFreeFee dcrutil.Amount
+
+	AggressiveMining bool
+
+	// StandardVerifyFlags defines the function to retrieve the flags to
+	// use for verifying scripts for the block after the current best block.
+	// It must set the verification flags properly depending on the result
+	// of any agendas that affect them.
+	//
+	// This function must be safe for concurrent access.
+	StandardVerifyFlags func() (txscript.ScriptFlags, error)
 }
 
 // minInt is a helper function to return the minimum of two ints.  This avoids

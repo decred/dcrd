@@ -67,10 +67,6 @@ const (
 	// incoming non vote transactions before template regeneration
 	// is required.
 	templateRegenSecs = 30
-
-	// merkleRootPairSize is the size in bytes of the merkle root + stake root
-	// of a block.
-	merkleRootPairSize = 64
 )
 
 // txPrioItem houses a transaction along with extra information that allows the
@@ -608,7 +604,7 @@ func minimumMedianTime(best *blockchain.BestState) time.Time {
 // medianAdjustedTime returns the current time adjusted to ensure it is at least
 // one second after the median timestamp of the last several blocks per the
 // chain consensus rules.
-func medianAdjustedTime(best *blockchain.BestState, timeSource blockchain.MedianTimeSource) time.Time {
+func (g *BlkTmplGenerator) medianAdjustedTime(best *blockchain.BestState, timeSource blockchain.MedianTimeSource) time.Time {
 	// The timestamp for the block must not be before the median timestamp
 	// of the last several blocks.  Thus, choose the maximum between the
 	// current time and one second after the past median time.  The current
@@ -622,7 +618,7 @@ func medianAdjustedTime(best *blockchain.BestState, timeSource blockchain.Median
 
 	// Adjust by the amount requested from the command line argument.
 	newTimestamp = newTimestamp.Add(
-		time.Duration(-cfg.MiningTimeOffset) * time.Second)
+		time.Duration(-g.miningTimeOffset) * time.Second)
 
 	return newTimestamp
 }
@@ -631,10 +627,10 @@ func medianAdjustedTime(best *blockchain.BestState, timeSource blockchain.Median
 // valid from the perspective of the mainchain (not necessarily
 // the mempool or block) before inserting into a tx tree.
 // If it fails the check, it returns false; otherwise true.
-func maybeInsertStakeTx(bm *blockManager, stx *dcrutil.Tx, treeValid bool) bool {
+func (g *BlkTmplGenerator) maybeInsertStakeTx(stx *dcrutil.Tx, treeValid bool) bool {
 	missingInput := false
 
-	view, err := bm.cfg.Chain.FetchUtxoView(stx, treeValid)
+	view, err := g.chain.FetchUtxoView(stx, treeValid)
 	if err != nil {
 		minrLog.Warnf("Unable to fetch transaction store for "+
 			"stx %s: %v", stx.Hash(), err)
@@ -673,19 +669,19 @@ func maybeInsertStakeTx(bm *blockManager, stx *dcrutil.Tx, treeValid bool) bool 
 // work off of is present, it will return a copy of that template to pass to the
 // miner.
 // Safe for concurrent access.
-func handleTooFewVoters(subsidyCache *standalone.SubsidyCache, nextHeight int64, miningAddress dcrutil.Address, bm *blockManager) (*BlockTemplate, error) {
-	timeSource := bm.cfg.TimeSource
-	stakeValidationHeight := bm.cfg.ChainParams.StakeValidationHeight
+func (g *BlkTmplGenerator) handleTooFewVoters(subsidyCache *standalone.SubsidyCache, nextHeight int64, miningAddress dcrutil.Address) (*BlockTemplate, error) {
+	timeSource := g.timeSource
+	stakeValidationHeight := g.chainParams.StakeValidationHeight
 
 	// Handle not enough voters being present if we're set to mine aggressively
 	// (default behavior).
-	best := bm.cfg.Chain.BestSnapshot()
-	if nextHeight >= stakeValidationHeight && bm.AggressiveMining {
+	best := g.chain.BestSnapshot()
+	if nextHeight >= stakeValidationHeight && g.policy.AggressiveMining {
 		// Fetch the latest block and head and begin working off of it with an
 		// empty transaction tree regular and the contents of that stake tree.
 		// In the future we should have the option of reading some transactions
 		// from this block, too.
-		topBlock, err := bm.cfg.Chain.BlockByHash(&best.Hash)
+		topBlock, err := g.chain.BlockByHash(&best.Hash)
 		if err != nil {
 			str := fmt.Sprintf("unable to get tip block %s", best.PrevHash)
 			return nil, miningRuleError(ErrGetTopBlock, str)
@@ -709,7 +705,7 @@ func handleTooFewVoters(subsidyCache *standalone.SubsidyCache, nextHeight int64,
 		}
 		coinbaseTx, err := createCoinbaseTx(subsidyCache, coinbaseScript,
 			opReturnPkScript, topBlock.Height(), miningAddress,
-			tipHeader.Voters, bm.cfg.ChainParams)
+			tipHeader.Voters, g.chainParams)
 		if err != nil {
 			return nil, err
 		}
@@ -721,16 +717,16 @@ func handleTooFewVoters(subsidyCache *standalone.SubsidyCache, nextHeight int64,
 		}
 
 		// Set a fresh timestamp.
-		ts := medianAdjustedTime(best, timeSource)
+		ts := g.medianAdjustedTime(best, timeSource)
 		block.Header.Timestamp = ts
 
 		// If we're on testnet, the time since this last block listed as the
 		// parent must be taken into consideration.
-		if bm.cfg.ChainParams.ReduceMinDifficulty {
+		if g.chainParams.ReduceMinDifficulty {
 			parentHash := topBlock.MsgBlock().Header.PrevBlock
 
 			requiredDifficulty, err :=
-				bm.cfg.Chain.CalcNextRequiredDifficulty(&parentHash, ts)
+				g.chain.CalcNextRequiredDifficulty(&parentHash, ts)
 			if err != nil {
 				return nil, miningRuleError(ErrGettingDifficulty,
 					err.Error())
@@ -753,7 +749,7 @@ func handleTooFewVoters(subsidyCache *standalone.SubsidyCache, nextHeight int64,
 		// Calculate the merkle root depending on the result of the header
 		// commitments agenda vote.
 		prevHash := &tipHeader.PrevBlock
-		hdrCmtActive, err := bm.cfg.Chain.IsHeaderCommitmentsAgendaActive(prevHash)
+		hdrCmtActive, err := g.chain.IsHeaderCommitmentsAgendaActive(prevHash)
 		if err != nil {
 			return nil, err
 		}
@@ -766,7 +762,7 @@ func handleTooFewVoters(subsidyCache *standalone.SubsidyCache, nextHeight int64,
 		if hdrCmtActive {
 			// Load all of the previous output scripts the block references as
 			// inputs since they are needed to create the filter commitment.
-			blockUtxos, err := bm.cfg.Chain.FetchUtxoViewParentTemplate(&block)
+			blockUtxos, err := g.chain.FetchUtxoViewParentTemplate(&block)
 			if err != nil {
 				str := fmt.Sprintf("failed to fetch inputs when making new "+
 					"block template: %v", err)
@@ -786,7 +782,7 @@ func handleTooFewVoters(subsidyCache *standalone.SubsidyCache, nextHeight int64,
 
 		// Make sure the block validates.
 		btBlock := dcrutil.NewBlockDeepCopyCoinbase(&block)
-		err = bm.cfg.Chain.CheckConnectBlockTemplate(btBlock)
+		err = g.chain.CheckConnectBlockTemplate(btBlock)
 		if err != nil {
 			str := fmt.Sprintf("failed to check template: %v while "+
 				"constructing a new parent", err.Error())
@@ -796,7 +792,7 @@ func handleTooFewVoters(subsidyCache *standalone.SubsidyCache, nextHeight int64,
 		return bt, nil
 	}
 
-	bmgrLog.Debugf("Not enough voters on top block to generate " +
+	minrLog.Debugf("Not enough voters on top block to generate " +
 		"new block template")
 
 	return nil, nil
@@ -811,14 +807,15 @@ func handleTooFewVoters(subsidyCache *standalone.SubsidyCache, nextHeight int64,
 // See the NewBlockTemplate method for a detailed description of how the block
 // template is generated.
 type BlkTmplGenerator struct {
-	policy       *mining.Policy
-	txSource     mining.TxSource
-	sigCache     *txscript.SigCache
-	subsidyCache *standalone.SubsidyCache
-	chainParams  *chaincfg.Params
-	chain        *blockchain.BlockChain
-	blockManager *blockManager
-	timeSource   blockchain.MedianTimeSource
+	policy           *mining.Policy
+	txSource         mining.TxSource
+	sigCache         *txscript.SigCache
+	subsidyCache     *standalone.SubsidyCache
+	chainParams      *chaincfg.Params
+	chain            *blockchain.BlockChain
+	blockManager     *blockManager
+	timeSource       blockchain.MedianTimeSource
+	miningTimeOffset int
 }
 
 // newBlkTmplGenerator returns a new block template generator for the given
@@ -826,18 +823,19 @@ type BlkTmplGenerator struct {
 func newBlkTmplGenerator(policy *mining.Policy, txSource mining.TxSource,
 	timeSource blockchain.MedianTimeSource, sigCache *txscript.SigCache,
 	subsidyCache *standalone.SubsidyCache, chainParams *chaincfg.Params,
-	chain *blockchain.BlockChain,
-	blockManager *blockManager) *BlkTmplGenerator {
+	chain *blockchain.BlockChain, blockManager *blockManager,
+	miningTimeOffset int) *BlkTmplGenerator {
 
 	return &BlkTmplGenerator{
-		policy:       policy,
-		txSource:     txSource,
-		sigCache:     sigCache,
-		subsidyCache: subsidyCache,
-		chainParams:  chainParams,
-		chain:        chain,
-		blockManager: blockManager,
-		timeSource:   timeSource,
+		policy:           policy,
+		txSource:         txSource,
+		sigCache:         sigCache,
+		subsidyCache:     subsidyCache,
+		chainParams:      chainParams,
+		chain:            chain,
+		blockManager:     blockManager,
+		timeSource:       timeSource,
+		miningTimeOffset: miningTimeOffset,
 	}
 }
 
@@ -925,7 +923,7 @@ func newBlkTmplGenerator(policy *mining.Policy, txSource mining.TxSource,
 func (g *BlkTmplGenerator) NewBlockTemplate(payToAddress dcrutil.Address) (*BlockTemplate, error) {
 	// All transaction scripts are verified using the more strict standard
 	// flags.
-	scriptFlags, err := standardScriptVerifyFlags(g.chain)
+	scriptFlags, err := g.policy.StandardVerifyFlags()
 	if err != nil {
 		return nil, err
 	}
@@ -959,7 +957,7 @@ func (g *BlkTmplGenerator) NewBlockTemplate(payToAddress dcrutil.Address) (*Bloc
 
 	if nextBlockHeight >= stakeValidationHeight {
 		// Obtain the entire generation of blocks stemming from this parent.
-		children, err := g.blockManager.TipGeneration()
+		children, err := g.chain.TipGeneration()
 		if err != nil {
 			return nil, miningRuleError(ErrFailedToGetGeneration, err.Error())
 		}
@@ -972,8 +970,8 @@ func (g *BlkTmplGenerator) NewBlockTemplate(payToAddress dcrutil.Address) (*Bloc
 		if len(eligibleParents) == 0 {
 			minrLog.Debugf("Too few voters found on any HEAD block, " +
 				"recycling a parent block to mine on")
-			return handleTooFewVoters(g.subsidyCache, nextBlockHeight,
-				payToAddress, g.blockManager)
+			return g.handleTooFewVoters(g.subsidyCache, nextBlockHeight,
+				payToAddress)
 		}
 
 		minrLog.Debugf("Found eligible parent %v with enough votes to build "+
@@ -1422,7 +1420,7 @@ mempoolLoop:
 
 			if stake.IsSSGen(msgTx) {
 				txCopy := dcrutil.NewTxDeepTxIns(msgTx)
-				if maybeInsertStakeTx(g.blockManager, txCopy, !knownDisapproved) {
+				if g.maybeInsertStakeTx(txCopy, !knownDisapproved) {
 					vb := stake.SSGenVoteBits(txCopy.MsgTx())
 					voteBitsVoters = append(voteBitsVoters, vb)
 					blockTxnsStake = append(blockTxnsStake, txCopy)
@@ -1527,7 +1525,7 @@ mempoolLoop:
 			// Quick check for difficulty here.
 			if msgTx.TxOut[0].Value >= best.NextStakeDiff {
 				txCopy := dcrutil.NewTxDeepTxIns(msgTx)
-				if maybeInsertStakeTx(g.blockManager, txCopy, !knownDisapproved) {
+				if g.maybeInsertStakeTx(txCopy, !knownDisapproved) {
 					blockTxnsStake = append(blockTxnsStake, txCopy)
 					freshStake++
 				}
@@ -1550,7 +1548,7 @@ mempoolLoop:
 		msgTx := tx.MsgTx()
 		if tx.Tree() == wire.TxTreeStake && stake.IsSSRtx(msgTx) {
 			txCopy := dcrutil.NewTxDeepTxIns(msgTx)
-			if maybeInsertStakeTx(g.blockManager, txCopy, !knownDisapproved) {
+			if g.maybeInsertStakeTx(txCopy, !knownDisapproved) {
 				blockTxnsStake = append(blockTxnsStake, txCopy)
 				revocations++
 			}
@@ -1679,7 +1677,7 @@ mempoolLoop:
 	// Calculate the required difficulty for the block.  The timestamp
 	// is potentially adjusted to ensure it comes after the median time of
 	// the last several blocks per the chain consensus rules.
-	ts := medianAdjustedTime(best, g.timeSource)
+	ts := g.medianAdjustedTime(best, g.timeSource)
 	reqDifficulty, err := g.chain.CalcNextRequiredDifficulty(&prevHash, ts)
 	if err != nil {
 		return nil, miningRuleError(ErrGettingDifficulty, err.Error())
@@ -1694,8 +1692,8 @@ mempoolLoop:
 		voters < minimumVotesRequired {
 		minrLog.Warnf("incongruent number of voters in mempool " +
 			"vs mempool.voters; not enough voters found")
-		return handleTooFewVoters(g.subsidyCache, nextBlockHeight, payToAddress,
-			g.blockManager)
+		return g.handleTooFewVoters(g.subsidyCache, nextBlockHeight,
+			payToAddress)
 	}
 
 	// Correct transaction index fraud proofs for any transactions that
@@ -1883,7 +1881,7 @@ func (g *BlkTmplGenerator) UpdateBlockTime(header *wire.BlockHeader) error {
 	// The new timestamp is potentially adjusted to ensure it comes after
 	// the median time of the last several blocks per the chain consensus
 	// rules.
-	newTimestamp := medianAdjustedTime(g.chain.BestSnapshot(), g.timeSource)
+	newTimestamp := g.medianAdjustedTime(g.chain.BestSnapshot(), g.timeSource)
 	header.Timestamp = newTimestamp
 
 	// If running on a network that requires recalculating the difficulty,
@@ -1898,6 +1896,12 @@ func (g *BlkTmplGenerator) UpdateBlockTime(header *wire.BlockHeader) error {
 	}
 
 	return nil
+}
+
+// UpdateBlockTime invokes `UpdateBlockTime` on the underlying
+// BgBlkTmplGenerator.
+func (g *BgBlkTmplGenerator) UpdateBlockTime(header *wire.BlockHeader) error {
+	return g.tg.UpdateBlockTime(header)
 }
 
 // regenEventType represents the type of a template regeneration event message.
@@ -2263,9 +2267,7 @@ func (g *BgBlkTmplGenerator) notifySubscribersHandler(ctx context.Context) {
 	for {
 		select {
 		case templateNtfn := <-g.notifySubscribers:
-			if r := g.tg.blockManager.cfg.RpcServer(); r != nil {
-				r.ntfnMgr.NotifyWork(templateNtfn)
-			}
+			g.tg.blockManager.NotifyWork(templateNtfn)
 
 			g.subscriptionMtx.Lock()
 			for subscription := range g.subscriptions {

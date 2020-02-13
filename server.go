@@ -3115,9 +3115,14 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB, chainP
 		BlockMaxSize:      cfg.BlockMaxSize,
 		BlockPrioritySize: cfg.BlockPrioritySize,
 		TxMinFreeFee:      cfg.minRelayTxFee,
+		AggressiveMining:  !cfg.NonAggressive,
+		StandardVerifyFlags: func() (txscript.ScriptFlags, error) {
+			return standardScriptVerifyFlags(s.chain)
+		},
 	}
 	tg := newBlkTmplGenerator(&policy, s.txMemPool, s.timeSource, s.sigCache,
-		s.subsidyCache, s.chainParams, s.chain, s.blockManager)
+		s.subsidyCache, s.chainParams, s.chain, s.blockManager,
+		cfg.MiningTimeOffset)
 
 	// Create the background block template generator if the config has a
 	// mining address.

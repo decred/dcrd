@@ -331,8 +331,6 @@ type blockManager struct {
 	lotteryDataBroadcast      map[chainhash.Hash]struct{}
 	lotteryDataBroadcastMutex sync.RWMutex
 
-	AggressiveMining bool
-
 	// The following fields are used to filter duplicate block announcements.
 	announcedBlockMtx sync.Mutex
 	announcedBlock    *chainhash.Hash
@@ -356,6 +354,14 @@ func (b *blockManager) resetHeaderState(newestHash *chainhash.Hash, newestHeight
 	if b.nextCheckpoint != nil {
 		node := headerNode{height: newestHeight, hash: newestHash}
 		b.headerList.PushBack(&node)
+	}
+}
+
+// NotifyWork passes new mining work to the notification manager
+// for block notification processing.
+func (b *blockManager) NotifyWork(templateNtfn *TemplateNtfn) {
+	if r := b.cfg.RpcServer(); r != nil {
+		r.ntfnMgr.NotifyWork(templateNtfn)
 	}
 }
 
@@ -2438,18 +2444,17 @@ func (b *blockManager) TicketPoolValue() (dcrutil.Amount, error) {
 // Use Start to begin processing asynchronous block and inv updates.
 func newBlockManager(config *blockManagerConfig) (*blockManager, error) {
 	bm := blockManager{
-		cfg:              config,
-		rejectedTxns:     make(map[chainhash.Hash]struct{}),
-		requestedTxns:    make(map[chainhash.Hash]struct{}),
-		requestedBlocks:  make(map[chainhash.Hash]struct{}),
-		peerStates:       make(map[*peerpkg.Peer]*peerSyncState),
-		progressLogger:   newBlockProgressLogger("Processed", bmgrLog),
-		msgChan:          make(chan interface{}, cfg.MaxPeers*3),
-		headerList:       list.New(),
-		AggressiveMining: !cfg.NonAggressive,
-		quit:             make(chan struct{}),
-		orphans:          make(map[chainhash.Hash]*orphanBlock),
-		prevOrphans:      make(map[chainhash.Hash][]*orphanBlock),
+		cfg:             config,
+		rejectedTxns:    make(map[chainhash.Hash]struct{}),
+		requestedTxns:   make(map[chainhash.Hash]struct{}),
+		requestedBlocks: make(map[chainhash.Hash]struct{}),
+		peerStates:      make(map[*peerpkg.Peer]*peerSyncState),
+		progressLogger:  newBlockProgressLogger("Processed", bmgrLog),
+		msgChan:         make(chan interface{}, cfg.MaxPeers*3),
+		headerList:      list.New(),
+		quit:            make(chan struct{}),
+		orphans:         make(map[chainhash.Hash]*orphanBlock),
+		prevOrphans:     make(map[chainhash.Hash][]*orphanBlock),
 	}
 
 	best := bm.cfg.Chain.BestSnapshot()
