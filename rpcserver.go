@@ -735,7 +735,7 @@ func handleCreateRawSStx(_ context.Context, s *rpcServer, cmd interface{}) (inte
 		}
 
 		prevOut := wire.NewOutPoint(txHash, input.Vout, input.Tree)
-		txIn := wire.NewTxIn(prevOut, wire.NullValueIn, []byte{})
+		txIn := wire.NewTxIn(prevOut, input.Amt, nil)
 		mtx.AddTxIn(txIn)
 	}
 
