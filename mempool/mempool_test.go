@@ -742,8 +742,20 @@ func newPoolHarness(chainParams *chaincfg.Params) (*poolHarness, []spendableOutp
 				MaxOrphanTxSize:      1000,
 				MaxSigOpsPerTx:       blockchain.MaxSigOpsPerBlock / 5,
 				MinRelayTxFee:        1000, // 1 Satoshi per byte
-				StandardVerifyFlags:  chain.StandardVerifyFlags,
-				AcceptSequenceLocks:  chain.AcceptSequenceLocks,
+				MaxVoteAge: func() uint16 {
+					switch chainParams.Net {
+					case wire.MainNet, wire.SimNet, wire.RegNet:
+						return chainParams.CoinbaseMaturity
+
+					case wire.TestNet3:
+						return 1440 // defaultMaximumVoteAge
+
+					default:
+						return chainParams.CoinbaseMaturity
+					}
+				}(),
+				StandardVerifyFlags: chain.StandardVerifyFlags,
+				AcceptSequenceLocks: chain.AcceptSequenceLocks,
 			},
 			ChainParams:         chainParams,
 			NextStakeDifficulty: chain.NextStakeDifficulty,

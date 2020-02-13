@@ -49,10 +49,6 @@ const (
 	// of height before SSGen relating to that block are pruned.
 	heightDiffToPruneVotes = 10
 
-	// If a vote is on a block whose height is before tip minus this
-	// amount, reject it from being added to the mempool.
-	maximumVoteAgeDelta = 1440
-
 	// maxNullDataOutputs is the maximum number of OP_RETURN null data
 	// pushes in a transaction, after which it is considered non-standard.
 	maxNullDataOutputs = 4
@@ -188,6 +184,11 @@ type Policy struct {
 	// AllowOldVotes defines whether or not votes on old blocks will be
 	// admitted and relayed.
 	AllowOldVotes bool
+
+	// MaxVoteAge defines the number of blocks in history from the next block
+	// height of the best chain tip for which votes will be accepted.  This only
+	// applies when the AllowOldVotes option is false.
+	MaxVoteAge uint16
 
 	// StandardVerifyFlags defines the function to retrieve the flags to
 	// use for verifying scripts for the block after the current best block.
@@ -1134,13 +1135,12 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 	// Votes that are on too old of blocks are rejected.
 	if isVote {
 		_, voteHeight := stake.SSGenBlockVotedOn(msgTx)
-		if (int64(voteHeight) < nextBlockHeight-maximumVoteAgeDelta) &&
+		if int64(voteHeight) < nextBlockHeight-int64(mp.cfg.Policy.MaxVoteAge) &&
 			!mp.cfg.Policy.AllowOldVotes {
-
 			str := fmt.Sprintf("transaction %v votes on old "+
-				"block height of %v which is before the "+
-				"current cutoff height of %v",
-				tx.Hash(), voteHeight, nextBlockHeight-maximumVoteAgeDelta)
+				"block height of %d which is before the "+
+				"current cutoff height of %v", tx.Hash(),
+				voteHeight, nextBlockHeight-int64(mp.cfg.Policy.MaxVoteAge))
 			return nil, txRuleError(wire.RejectNonstandard, ErrOldVote, str)
 		}
 	}
