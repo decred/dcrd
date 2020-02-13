@@ -6,6 +6,7 @@ package secp256k1
 
 import (
 	"encoding/hex"
+	"math/big"
 )
 
 // References:
@@ -1009,6 +1010,30 @@ func (s *ModNScalar) NegateVal(val *ModNScalar) *ModNScalar {
 // s.Negate().AddInt(1) so that s = -s + 1.
 func (s *ModNScalar) Negate() *ModNScalar {
 	return s.NegateVal(s)
+}
+
+// InverseValNonConst finds the modular multiplicative inverse of the passed
+// scalar and stores result in s in *non-constant* time.
+//
+// The scalar is returned to support chaining.  This enables syntax like:
+// s3.InverseVal(s1).Mul(s2) so that s3 = s1^-1 * s2.
+func (s *ModNScalar) InverseValNonConst(val *ModNScalar) *ModNScalar {
+	// This is making use of big integers for now.  Ideally it will be replaced
+	// with an implementation that does not depend on big integers.
+	valBytes := val.Bytes()
+	bigVal := new(big.Int).SetBytes(valBytes[:])
+	bigVal.ModInverse(bigVal, curveParams.N)
+	s.SetByteSlice(bigVal.Bytes())
+	return s
+}
+
+// InverseNonConst finds the modular multiplicative inverse of the scalar in
+// *non-constant* time.  The existing scalar is modified.
+//
+// The scalar is returned to support chaining.  This enables syntax like:
+// s.Inverse().Mul(s2) so that s = s^-1 * s2.
+func (s *ModNScalar) InverseNonConst() *ModNScalar {
+	return s.InverseValNonConst(s)
 }
 
 // IsOverHalfOrder returns whether or not the scalar exceeds the group order

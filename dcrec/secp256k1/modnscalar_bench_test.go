@@ -233,6 +233,33 @@ func BenchmarkModNScalarNegate(b *testing.B) {
 	}
 }
 
+// BenchmarkBigIntInverseModN benchmarks calculating the multiplicative inverse
+// of an unsigned 256-bit big-endian integer modulo the group order is zero with
+// stdlib big integers.
+func BenchmarkBigIntInverseModN(b *testing.B) {
+	v1 := new(big.Int).SetBytes(benchmarkVals()[0])
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		new(big.Int).ModInverse(v1, curveParams.N)
+	}
+}
+
+// BenchmarkModNScalarInverse benchmarks calculating the multiplicative inverse
+// of an unsigned 256-bit big-endian integer modulo the group order is zero with
+// the specialized type.
+func BenchmarkModNScalarInverse(b *testing.B) {
+	var s1 ModNScalar
+	s1.SetByteSlice(benchmarkVals()[0])
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = new(ModNScalar).InverseValNonConst(&s1)
+	}
+}
+
 // BenchmarkBigIntIsOverHalfOrder benchmarks determining if an unsigned 256-bit
 // big-endian integer modulo the group order exceeds half the group order with
 // stdlib big integers.

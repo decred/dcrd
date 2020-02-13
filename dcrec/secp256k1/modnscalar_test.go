@@ -1002,6 +1002,118 @@ func TestModNScalarNegateRandom(t *testing.T) {
 	}
 }
 
+// TestModNScalarInverseNonConst ensures that calculating the multiplicative
+// inverse of scalars in *non-constant* time works as expected for edge cases.
+func TestModNScalarInverseNonConst(t *testing.T) {
+	tests := []struct {
+		name     string // test description
+		in       string // hex encoded test value
+		expected string // hex encoded expected result
+	}{{
+		name:     "zero",
+		in:       "0",
+		expected: "0",
+	}, {
+		name:     "one",
+		in:       "1",
+		expected: "1",
+	}, {
+		name:     "inverse carry in word one",
+		in:       "0000000000000000000000000000000000000000000000000000000100000000",
+		expected: "5588b13effffffffffffffffffffffff934e5b00ca8417bf50177f7ba415411a",
+	}, {
+		name:     "inverse carry in word two",
+		in:       "0000000000000000000000000000000000000000000000010000000000000000",
+		expected: "4b0dff665588b13effffffffffffffffa09f710af01555259d4ad302583de6dc",
+	}, {
+		name:     "inverse carry in word three",
+		in:       "0000000000000000000000000000000000000001000000000000000000000000",
+		expected: "34b9ec244b0dff665588b13effffffffbcff4127932a971a78274c9d74176b38",
+	}, {
+		name:     "inverse carry in word four",
+		in:       "0000000000000000000000000000000100000000000000000000000000000000",
+		expected: "50a51ac834b9ec244b0dff665588b13e9984d5b3cf80ef0fd6a23766a3ee9f22",
+	}, {
+		name:     "inverse carry in word five",
+		in:       "0000000000000000000000010000000000000000000000000000000000000000",
+		expected: "27cfab5e50a51ac834b9ec244b0dff6622f16e85b683d5a059bcd5a3b29d9dff",
+	}, {
+		name:     "inverse carry in word six",
+		in:       "0000000000000001000000000000000000000000000000000000000000000000",
+		expected: "897f30c127cfab5e50a51ac834b9ec239c53f268b4700c14f19b9499ac58d8ad",
+	}, {
+		name:     "inverse carry in word seven",
+		in:       "0000000100000000000000000000000000000000000000000000000000000000",
+		expected: "6494ef93897f30c127cfab5e50a51ac7b4e8f713e0cddd182234e907286ae6b3",
+	}, {
+		name:     "alternating bits",
+		in:       "a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+		expected: "cb6086e560b8597a85c934e46f5b6e8a445bf3f0a88e4160d7fa8d83fd10338d",
+	}, {
+		name:     "alternating bits 2",
+		in:       "5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a",
+		expected: "9f864ca486a74eb5f546364d76d24aa93716dc78f84847aa6c1c09fca2707d77",
+	}}
+
+	for _, test := range tests {
+		s := new(ModNScalar).SetHex(test.in)
+		expected := new(ModNScalar).SetHex(test.expected)
+
+		// Ensure calculating the multiplicative inverse of another value
+		// produces the expected result.
+		result := new(ModNScalar).InverseValNonConst(s)
+		if !result.Equals(expected) {
+			t.Errorf("%s: unexpected result -- got: %v, want: %v", test.name,
+				result, expected)
+			continue
+		}
+
+		// Ensure calculating the multiplicative inverse in place also produces
+		// the expected result.
+		result2 := new(ModNScalar).Set(s).InverseNonConst()
+		if !result2.Equals(expected) {
+			t.Errorf("%s: unexpected result -- got: %v, want: %v", test.name,
+				result2, expected)
+			continue
+		}
+	}
+}
+
+// TestModNScalarInverseNonConstRandom ensures that calculating the
+// multiplicative inverse of scalars in *non-constant* time for random values
+// works as expected by also performing the same operation with big ints and
+// comparing the results.
+func TestModNScalarInverseNonConstRandom(t *testing.T) {
+	// Use a unique random seed each test instance and log it if the tests fail.
+	seed := time.Now().Unix()
+	rng := rand.New(rand.NewSource(seed))
+	defer func(t *testing.T, seed int64) {
+		if t.Failed() {
+			t.Logf("random seed: %d", seed)
+		}
+	}(t, seed)
+
+	for i := 0; i < 100; i++ {
+		// Generate big integer and mod n scalar with the same random value.
+		bigIntVal, modNVal := randIntAndModNScalar(t, rng)
+
+		// Calculate the inverse of the value using big ints.
+		bigIntResult := new(big.Int).ModInverse(bigIntVal, curveParams.N)
+
+		// Calculate the inverse of the value using a mod n scalar.
+		modNValResult := new(ModNScalar).InverseValNonConst(modNVal)
+
+		// Ensure they match.
+		bigIntResultHex := fmt.Sprintf("%064x", bigIntResult)
+		modNResultHex := fmt.Sprintf("%v", modNValResult)
+		if bigIntResultHex != modNResultHex {
+			t.Fatalf("mismatched inverse\nbig int in: %x\nscalar in: %v\n"+
+				"big int result: %x\nscalar result %v", bigIntVal, modNVal,
+				bigIntResult, modNValResult)
+		}
+	}
+}
+
 // TestModNScalarIsOverHalfOrder ensures that scalars report whether or not they
 // exceeed the half order works as expected for edge cases.
 func TestModNScalarIsOverHalfOrder(t *testing.T) {
