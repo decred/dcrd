@@ -2689,7 +2689,7 @@ func (s *server) Run(ctx context.Context) {
 		s.wg.Add(1)
 		go func(s *server) {
 			s.cpuMiner.Start()
-			s.cpuMiner.wg.Wait()
+			s.cpuMiner.Wait()
 			s.wg.Done()
 		}(s)
 	}
