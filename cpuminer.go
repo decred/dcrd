@@ -516,6 +516,12 @@ func (m *CPUMiner) Start() {
 	minrLog.Infof("CPU miner started")
 }
 
+// Wait blocks until the WaitGroup counters added to by a call to
+// Start() are zero.
+func (m *CPUMiner) Wait() {
+	m.wg.Wait()
+}
+
 // Stop gracefully stops the mining process by signalling all workers, and the
 // speed monitor to quit.  Calling this function when the CPU miner has not
 // already been started will have no effect.
