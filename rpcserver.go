@@ -95,6 +95,10 @@ const (
 	// sstxCommitmentString is the string to insert when a verbose
 	// transaction output's pkscript type is a ticket commitment.
 	sstxCommitmentString = "sstxcommitment"
+
+	// merkleRootPairSize is the size in bytes of the merkle root + stake root
+	// of a block.
+	merkleRootPairSize = 64
 )
 
 var (
@@ -3313,7 +3317,7 @@ func handleGetWorkRequest(s *rpcServer) (interface{}, error) {
 	// consensus rules.  Note that the header is copied to avoid mutating the
 	// shared block template.
 	headerCopy := template.Block.Header
-	err := bgTmplGenerator.tg.UpdateBlockTime(&headerCopy)
+	err := bgTmplGenerator.UpdateBlockTime(&headerCopy)
 	if err != nil {
 		context := "Failed to update block time"
 		return nil, rpcInternalError(err.Error(), context)
