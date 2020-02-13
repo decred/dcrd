@@ -57,6 +57,10 @@ const (
 	// target.
 	defaultTargetOutbound = 8
 
+	// defaultMaximumVoteAge is the threshold of blocks before the tip
+	// that can be voted on.
+	defaultMaximumVoteAge = 1440
+
 	// connectionRetryInterval is the base amount of time to wait in between
 	// retries when connecting to persistent peers.  It is adjusted by the
 	// number of retries such that there is a retry backoff.
@@ -2913,6 +2917,18 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB, chainP
 			MaxSigOpsPerTx:       blockchain.MaxSigOpsPerBlock / 5,
 			MinRelayTxFee:        cfg.minRelayTxFee,
 			AllowOldVotes:        cfg.AllowOldVotes,
+			MaxVoteAge: func() uint16 {
+				switch chainParams.Net {
+				case wire.MainNet, wire.SimNet, wire.RegNet:
+					return chainParams.CoinbaseMaturity
+
+				case wire.TestNet3:
+					return defaultMaximumVoteAge
+
+				default:
+					return chainParams.CoinbaseMaturity
+				}
+			}(),
 			StandardVerifyFlags: func() (txscript.ScriptFlags, error) {
 				return standardScriptVerifyFlags(s.chain)
 			},
