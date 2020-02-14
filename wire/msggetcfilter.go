@@ -1,6 +1,6 @@
 // Copyright (c) 2017 The btcsuite developers
 // Copyright (c) 2017 The Lightning Network Developers
-// Copyright (c) 2018 The Decred developers
+// Copyright (c) 2018-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -23,10 +23,11 @@ type MsgGetCFilter struct {
 // BtcDecode decodes r using the wire protocol encoding into the receiver.
 // This is part of the Message interface implementation.
 func (msg *MsgGetCFilter) BtcDecode(r io.Reader, pver uint32) error {
+	const op = "MsgGetCFilter.BtcDecode"
 	if pver < NodeCFVersion {
-		str := fmt.Sprintf("getcfilter message invalid for protocol "+
+		msg := fmt.Sprintf("getcfilter message invalid for protocol "+
 			"version %d", pver)
-		return messageError("MsgGetCFilter.BtcDecode", str)
+		return messageError(op, ErrMsgInvalidForPVer, msg)
 	}
 
 	err := readElement(r, &msg.BlockHash)
@@ -39,10 +40,11 @@ func (msg *MsgGetCFilter) BtcDecode(r io.Reader, pver uint32) error {
 // BtcEncode encodes the receiver to w using the wire protocol encoding.
 // This is part of the Message interface implementation.
 func (msg *MsgGetCFilter) BtcEncode(w io.Writer, pver uint32) error {
+	const op = "MsgGetCFilter.BtcEncode"
 	if pver < NodeCFVersion {
-		str := fmt.Sprintf("getcfilter message invalid for protocol "+
+		msg := fmt.Sprintf("getcfilter message invalid for protocol "+
 			"version %d", pver)
-		return messageError("MsgGetCFilter.BtcEncode", str)
+		return messageError(op, ErrMsgInvalidForPVer, msg)
 	}
 
 	err := writeElement(w, &msg.BlockHash)

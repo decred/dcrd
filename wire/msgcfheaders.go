@@ -1,6 +1,6 @@
 // Copyright (c) 2017 The btcsuite developers
 // Copyright (c) 2017 The Lightning Network Developers
-// Copyright (c) 2018-2019 The Decred developers
+// Copyright (c) 2018-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -36,10 +36,11 @@ type MsgCFHeaders struct {
 
 // AddCFHeader adds a new committed filter header to the message.
 func (msg *MsgCFHeaders) AddCFHeader(headerHash *chainhash.Hash) error {
+	const op = "MsgCFHeaders.AddCFHeader"
 	if len(msg.HeaderHashes)+1 > MaxCFHeadersPerMsg {
-		str := fmt.Sprintf("too many block headers in message [max %v]",
+		msg := fmt.Sprintf("too many block headers in message [max %v]",
 			MaxBlockHeadersPerMsg)
-		return messageError("MsgCFHeaders.AddCFHeader", str)
+		return messageError(op, ErrTooManyHeaders, msg)
 	}
 
 	msg.HeaderHashes = append(msg.HeaderHashes, headerHash)
@@ -49,10 +50,10 @@ func (msg *MsgCFHeaders) AddCFHeader(headerHash *chainhash.Hash) error {
 // BtcDecode decodes r using the wire protocol encoding into the receiver.
 // This is part of the Message interface implementation.
 func (msg *MsgCFHeaders) BtcDecode(r io.Reader, pver uint32) error {
+	const op = "MsgCFHeaders.BtcDecode"
 	if pver < NodeCFVersion {
-		str := fmt.Sprintf("cfheaders message invalid for protocol "+
-			"version %d", pver)
-		return messageError("MsgCFHeaders.BtcDecode", str)
+		msg := fmt.Sprintf("cfheaders message invalid for protocol version %d", pver)
+		return messageError(op, ErrMsgInvalidForPVer, msg)
 	}
 
 	// Read stop hash
@@ -75,10 +76,9 @@ func (msg *MsgCFHeaders) BtcDecode(r io.Reader, pver uint32) error {
 
 	// Limit to max committed filter headers per message.
 	if count > MaxCFHeadersPerMsg {
-		str := fmt.Sprintf("too many committed filter headers for "+
-			"message [count %v, max %v]", count,
-			MaxBlockHeadersPerMsg)
-		return messageError("MsgCFHeaders.BtcDecode", str)
+		msg := fmt.Sprintf("too many committed filter headers for message "+
+			"[count %v, max %v]", count, MaxBlockHeadersPerMsg)
+		return messageError(op, ErrTooManyFilterHeaders, msg)
 	}
 
 	// Create a contiguous slice of headers to deserialize into in order to
@@ -99,10 +99,11 @@ func (msg *MsgCFHeaders) BtcDecode(r io.Reader, pver uint32) error {
 // BtcEncode encodes the receiver to w using the wire protocol encoding.
 // This is part of the Message interface implementation.
 func (msg *MsgCFHeaders) BtcEncode(w io.Writer, pver uint32) error {
+	const op = "MsgCFHeaders.BtcEncode"
 	if pver < NodeCFVersion {
-		str := fmt.Sprintf("cfheaders message invalid for protocol "+
+		msg := fmt.Sprintf("cfheaders message invalid for protocol "+
 			"version %d", pver)
-		return messageError("MsgCFHeaders.BtcEncode", str)
+		return messageError(op, ErrMsgInvalidForPVer, msg)
 	}
 
 	// Write stop hash
@@ -120,10 +121,9 @@ func (msg *MsgCFHeaders) BtcEncode(w io.Writer, pver uint32) error {
 	// Limit to max committed headers per message.
 	count := len(msg.HeaderHashes)
 	if count > MaxCFHeadersPerMsg {
-		str := fmt.Sprintf("too many committed filter headers for "+
-			"message [count %v, max %v]", count,
-			MaxBlockHeadersPerMsg)
-		return messageError("MsgCFHeaders.BtcEncode", str)
+		msg := fmt.Sprintf("too many committed filter headers for message "+
+			"[count %v, max %v]", count, MaxBlockHeadersPerMsg)
+		return messageError(op, ErrTooManyFilterHeaders, msg)
 	}
 
 	err = WriteVarInt(w, pver, uint64(count))

@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2016 The Decred developers
+// Copyright (c) 2015-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -174,8 +174,8 @@ var binarySerializer binaryFreeList = make(chan []byte, binaryFreeListMaxItems)
 
 // errNonCanonicalVarInt is the common format string used for non-canonically
 // encoded variable length integer errors.
-var errNonCanonicalVarInt = "non-canonical varint %x - discriminant %x must " +
-	"encode a value greater than %x"
+var nonCanonicalVarIntFormat = "non-canonical varint %x - discriminant " +
+	"%x must encode a value greater than %x"
 
 // uint32Time represents a unix timestamp encoded with a uint32.  It is used as
 // a way to signal the readElement function how to decode a timestamp into a Go
@@ -490,6 +490,7 @@ func writeElements(w io.Writer, elements ...interface{}) error {
 
 // ReadVarInt reads a variable length integer from r and returns it as a uint64.
 func ReadVarInt(r io.Reader, pver uint32) (uint64, error) {
+	const op = "ReadVarInt"
 	discriminant, err := binarySerializer.Uint8(r)
 	if err != nil {
 		return 0, err
@@ -508,8 +509,8 @@ func ReadVarInt(r io.Reader, pver uint32) (uint64, error) {
 		// encoded using fewer bytes.
 		min := uint64(0x100000000)
 		if rv < min {
-			return 0, messageError("ReadVarInt", fmt.Sprintf(
-				errNonCanonicalVarInt, rv, discriminant, min))
+			msg := fmt.Sprintf(nonCanonicalVarIntFormat, rv, discriminant, min)
+			return 0, messageError(op, ErrNonCanonicalVarInt, msg)
 		}
 
 	case 0xfe:
@@ -523,8 +524,8 @@ func ReadVarInt(r io.Reader, pver uint32) (uint64, error) {
 		// encoded using fewer bytes.
 		min := uint64(0x10000)
 		if rv < min {
-			return 0, messageError("ReadVarInt", fmt.Sprintf(
-				errNonCanonicalVarInt, rv, discriminant, min))
+			msg := fmt.Sprintf(nonCanonicalVarIntFormat, rv, discriminant, min)
+			return 0, messageError(op, ErrNonCanonicalVarInt, msg)
 		}
 
 	case 0xfd:
@@ -538,8 +539,8 @@ func ReadVarInt(r io.Reader, pver uint32) (uint64, error) {
 		// encoded using fewer bytes.
 		min := uint64(0xfd)
 		if rv < min {
-			return 0, messageError("ReadVarInt", fmt.Sprintf(
-				errNonCanonicalVarInt, rv, discriminant, min))
+			msg := fmt.Sprintf(nonCanonicalVarIntFormat, rv, discriminant, min)
+			return 0, messageError(op, ErrNonCanonicalVarInt, msg)
 		}
 
 	default:
@@ -609,6 +610,7 @@ func VarIntSerializeSize(val uint64) int {
 // maximum block payload size since it helps protect against memory exhaustion
 // attacks and forced panics through malformed messages.
 func ReadVarString(r io.Reader, pver uint32) (string, error) {
+	const op = "ReadVarString"
 	count, err := ReadVarInt(r, pver)
 	if err != nil {
 		return "", err
@@ -618,9 +620,9 @@ func ReadVarString(r io.Reader, pver uint32) (string, error) {
 	// message size.  It would be possible to cause memory exhaustion and
 	// panics without a sane upper bound on this count.
 	if count > MaxMessagePayload {
-		str := fmt.Sprintf("variable length string is too long "+
+		msg := fmt.Sprintf("variable length string is too long "+
 			"[count %d, max %d]", count, MaxMessagePayload)
-		return "", messageError("ReadVarString", str)
+		return "", messageError(op, ErrVarStringTooLong, msg)
 	}
 
 	buf := make([]byte, count)
@@ -652,7 +654,7 @@ func WriteVarString(w io.Writer, pver uint32, str string) error {
 // the error.
 func ReadVarBytes(r io.Reader, pver uint32, maxAllowed uint32,
 	fieldName string) ([]byte, error) {
-
+	const op = "ReadVarBytes"
 	count, err := ReadVarInt(r, pver)
 	if err != nil {
 		return nil, err
@@ -662,9 +664,9 @@ func ReadVarBytes(r io.Reader, pver uint32, maxAllowed uint32,
 	// be possible to cause memory exhaustion and panics without a sane
 	// upper bound on this count.
 	if count > uint64(maxAllowed) {
-		str := fmt.Sprintf("%s is larger than the max allowed size "+
+		msg := fmt.Sprintf("%s is larger than the max allowed size "+
 			"[count %d, max %d]", fieldName, count, maxAllowed)
-		return nil, messageError("ReadVarBytes", str)
+		return nil, messageError(op, ErrVarBytesTooLong, msg)
 	}
 
 	b := make([]byte, count)

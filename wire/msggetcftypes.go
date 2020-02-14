@@ -1,6 +1,6 @@
 // Copyright (c) 2017 The btcsuite developers
 // Copyright (c) 2017 The Lightning Network Developers
-// Copyright (c) 2018 The Decred developers
+// Copyright (c) 2018-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -17,10 +17,11 @@ type MsgGetCFTypes struct{}
 // BtcDecode decodes the receiver from w using the wire protocol encoding.
 // This is part of the Message interface implementation.
 func (msg *MsgGetCFTypes) BtcDecode(r io.Reader, pver uint32) error {
+	const op = "MsgGetCFTypes.BtcDecode"
 	if pver < NodeCFVersion {
-		str := fmt.Sprintf("getcftypes message invalid for protocol "+
+		msg := fmt.Sprintf("getcftypes message invalid for protocol "+
 			"version %d", pver)
-		return messageError("MsgGetCFTypes.BtcDecode", str)
+		return messageError(op, ErrMsgInvalidForPVer, msg)
 	}
 
 	return nil
@@ -29,10 +30,11 @@ func (msg *MsgGetCFTypes) BtcDecode(r io.Reader, pver uint32) error {
 // BtcEncode encodes the receiver to w using the wire protocol encoding. This is
 // part of the Message interface implementation.
 func (msg *MsgGetCFTypes) BtcEncode(w io.Writer, pver uint32) error {
+	const op = "MsgGetCFTypes.BtcEncode"
 	if pver < NodeCFVersion {
-		str := fmt.Sprintf("getcftypes message invalid for protocol "+
+		msg := fmt.Sprintf("getcftypes message invalid for protocol "+
 			"version %d", pver)
-		return messageError("MsgGetCFTypes.BtcEncode", str)
+		return messageError(op, ErrMsgInvalidForPVer, msg)
 	}
 
 	return nil

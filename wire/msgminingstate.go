@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2015 The btcsuite developers
-// Copyright (c) 2015-2019 The Decred developers
+// Copyright (c) 2015-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -33,10 +33,11 @@ type MsgMiningState struct {
 
 // AddBlockHash adds a new block hash to the message.
 func (msg *MsgMiningState) AddBlockHash(hash *chainhash.Hash) error {
+	const op = "MsgMiningState.AddBlockHash"
 	if len(msg.BlockHashes)+1 > MaxMSBlocksAtHeadPerMsg {
-		str := fmt.Sprintf("too many block hashes for message [max %v]",
+		msg := fmt.Sprintf("too many block hashes for message [max %v]",
 			MaxMSBlocksAtHeadPerMsg)
-		return messageError("MsgMiningState.AddBlockHash", str)
+		return messageError(op, ErrTooManyHeaders, msg)
 	}
 
 	msg.BlockHashes = append(msg.BlockHashes, hash)
@@ -45,10 +46,11 @@ func (msg *MsgMiningState) AddBlockHash(hash *chainhash.Hash) error {
 
 // AddVoteHash adds a new vote hash to the message.
 func (msg *MsgMiningState) AddVoteHash(hash *chainhash.Hash) error {
+	const op = "MsgMiningState.AddVoteHash"
 	if len(msg.VoteHashes)+1 > MaxMSVotesAtHeadPerMsg {
-		str := fmt.Sprintf("too many vote hashes for message [max %v]",
+		msg := fmt.Sprintf("too many vote hashes for message [max %v]",
 			MaxMSVotesAtHeadPerMsg)
-		return messageError("MsgMiningState.AddVoteHash", str)
+		return messageError(op, ErrTooManyVotes, msg)
 	}
 
 	msg.VoteHashes = append(msg.VoteHashes, hash)
@@ -58,6 +60,7 @@ func (msg *MsgMiningState) AddVoteHash(hash *chainhash.Hash) error {
 // BtcDecode decodes r using the protocol encoding into the receiver.
 // This is part of the Message interface implementation.
 func (msg *MsgMiningState) BtcDecode(r io.Reader, pver uint32) error {
+	const op = "MsgMiningState.BtcDecode"
 	err := readElement(r, &msg.Version)
 	if err != nil {
 		return err
@@ -74,9 +77,9 @@ func (msg *MsgMiningState) BtcDecode(r io.Reader, pver uint32) error {
 		return err
 	}
 	if count > MaxMSBlocksAtHeadPerMsg {
-		str := fmt.Sprintf("too many block hashes for message "+
+		msg := fmt.Sprintf("too many block hashes for message "+
 			"[count %v, max %v]", count, MaxMSBlocksAtHeadPerMsg)
-		return messageError("MsgMiningState.BtcDecode", str)
+		return messageError(op, ErrTooManyBlocks, msg)
 	}
 
 	msg.BlockHashes = make([]*chainhash.Hash, 0, count)
@@ -95,9 +98,9 @@ func (msg *MsgMiningState) BtcDecode(r io.Reader, pver uint32) error {
 		return err
 	}
 	if count > MaxMSVotesAtHeadPerMsg {
-		str := fmt.Sprintf("too many vote hashes for message "+
+		msg := fmt.Sprintf("too many vote hashes for message "+
 			"[count %v, max %v]", count, MaxMSVotesAtHeadPerMsg)
-		return messageError("MsgMiningState.BtcDecode", str)
+		return messageError(op, ErrTooManyVotes, msg)
 	}
 
 	msg.VoteHashes = make([]*chainhash.Hash, 0, count)
@@ -119,6 +122,7 @@ func (msg *MsgMiningState) BtcDecode(r io.Reader, pver uint32) error {
 // BtcEncode encodes the receiver to w using the protocol encoding.
 // This is part of the Message interface implementation.
 func (msg *MsgMiningState) BtcEncode(w io.Writer, pver uint32) error {
+	const op = "MsgMiningState.BtcEncode"
 	err := writeElement(w, msg.Version)
 	if err != nil {
 		return err
@@ -132,9 +136,9 @@ func (msg *MsgMiningState) BtcEncode(w io.Writer, pver uint32) error {
 	// Write block hashes.
 	count := len(msg.BlockHashes)
 	if count > MaxMSBlocksAtHeadPerMsg {
-		str := fmt.Sprintf("too many block hashes for message "+
+		msg := fmt.Sprintf("too many block hashes for message "+
 			"[count %v, max %v]", count, MaxMSBlocksAtHeadPerMsg)
-		return messageError("MsgMiningState.BtcEncode", str)
+		return messageError(op, ErrTooManyBlocks, msg)
 	}
 
 	err = WriteVarInt(w, pver, uint64(count))
@@ -152,9 +156,9 @@ func (msg *MsgMiningState) BtcEncode(w io.Writer, pver uint32) error {
 	// Write vote hashes.
 	count = len(msg.VoteHashes)
 	if count > MaxMSVotesAtHeadPerMsg {
-		str := fmt.Sprintf("too many vote hashes for message "+
+		msg := fmt.Sprintf("too many vote hashes for message "+
 			"[count %v, max %v]", count, MaxMSVotesAtHeadPerMsg)
-		return messageError("MsgMiningState.BtcEncode", str)
+		return messageError(op, ErrTooManyVotes, msg)
 	}
 
 	err = WriteVarInt(w, pver, uint64(count))

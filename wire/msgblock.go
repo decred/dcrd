@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2017 The Decred developers
+// Copyright (c) 2015-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -83,6 +83,7 @@ func (msg *MsgBlock) ClearSTransactions() {
 // See Deserialize for decoding blocks stored to disk, such as in a database, as
 // opposed to decoding blocks from the wire.
 func (msg *MsgBlock) BtcDecode(r io.Reader, pver uint32) error {
+	const op = "MsgBlock.BtcDecode"
 	err := readBlockHeader(r, pver, &msg.Header)
 	if err != nil {
 		return err
@@ -99,9 +100,9 @@ func (msg *MsgBlock) BtcDecode(r io.Reader, pver uint32) error {
 	// a sane upper bound on this count.
 	maxTxPerTree := MaxTxPerTxTree(pver)
 	if txCount > maxTxPerTree {
-		str := fmt.Sprintf("too many transactions to fit into a block "+
+		msg := fmt.Sprintf("too many transactions to fit into a block "+
 			"[count %d, max %d]", txCount, maxTxPerTree)
-		return messageError("MsgBlock.BtcDecode", str)
+		return messageError(op, ErrTooManyTxs, msg)
 	}
 
 	msg.Transactions = make([]*MsgTx, 0, txCount)
@@ -123,9 +124,9 @@ func (msg *MsgBlock) BtcDecode(r io.Reader, pver uint32) error {
 		return err
 	}
 	if stakeTxCount > maxTxPerTree {
-		str := fmt.Sprintf("too many stransactions to fit into a block "+
+		msg := fmt.Sprintf("too many stransactions to fit into a block "+
 			"[count %d, max %d]", stakeTxCount, maxTxPerTree)
-		return messageError("MsgBlock.BtcDecode", str)
+		return messageError(op, ErrTooManyTxs, msg)
 	}
 
 	msg.STransactions = make([]*MsgTx, 0, stakeTxCount)
@@ -168,6 +169,7 @@ func (msg *MsgBlock) FromBytes(b []byte) error {
 // start and length of each transaction within the raw data that is being
 // deserialized.
 func (msg *MsgBlock) DeserializeTxLoc(r *bytes.Buffer) ([]TxLoc, []TxLoc, error) {
+	const op = "MsgBlock.DeserializeTxLoc"
 	fullLen := r.Len()
 
 	// At the current time, there is no difference between the wire encoding
@@ -190,9 +192,9 @@ func (msg *MsgBlock) DeserializeTxLoc(r *bytes.Buffer) ([]TxLoc, []TxLoc, error)
 	// since it is in terms of the largest possible block size.
 	maxTxPerTree := MaxTxPerTxTree(ProtocolVersion)
 	if txCount > maxTxPerTree {
-		str := fmt.Sprintf("too many transactions to fit into a block "+
+		msg := fmt.Sprintf("too many transactions to fit into a block "+
 			"[count %d, max %d]", txCount, maxTxPerTree)
-		return nil, nil, messageError("MsgBlock.DeserializeTxLoc", str)
+		return nil, nil, messageError(op, ErrTooManyTxs, msg)
 	}
 
 	// Deserialize each transaction while keeping track of its location
@@ -222,9 +224,9 @@ func (msg *MsgBlock) DeserializeTxLoc(r *bytes.Buffer) ([]TxLoc, []TxLoc, error)
 	// NOTE: This is using the constant for the latest protocol version
 	// since it is in terms of the largest possible block size.
 	if stakeTxCount > maxTxPerTree {
-		str := fmt.Sprintf("too many transactions to fit into a stake tx tree "+
+		msg := fmt.Sprintf("too many transactions to fit into a stake tx tree "+
 			"[count %d, max %d]", stakeTxCount, maxTxPerTree)
-		return nil, nil, messageError("MsgBlock.DeserializeTxLoc", str)
+		return nil, nil, messageError(op, ErrTooManyTxs, msg)
 	}
 
 	// Deserialize each transaction while keeping track of its location
