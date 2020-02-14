@@ -1,4 +1,4 @@
-// Copyright (c) 2019 The Decred developers
+// Copyright (c) 2019-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -24,10 +24,11 @@ type MsgGetCFilterV2 struct {
 // BtcDecode decodes r using the Decred protocol encoding into the receiver.
 // This is part of the Message interface implementation.
 func (msg *MsgGetCFilterV2) BtcDecode(r io.Reader, pver uint32) error {
+	const op = "MsgGetCFilterV2.BtcDecode"
 	if pver < CFilterV2Version {
-		str := fmt.Sprintf("%s message invalid for protocol version %d",
+		msg := fmt.Sprintf("%s message invalid for protocol version %d",
 			msg.Command(), pver)
-		return messageError("MsgGetCFilterV2.BtcDecode", str)
+		return messageError(op, ErrMsgInvalidForPVer, msg)
 	}
 
 	return readElement(r, &msg.BlockHash)
@@ -36,10 +37,11 @@ func (msg *MsgGetCFilterV2) BtcDecode(r io.Reader, pver uint32) error {
 // BtcEncode encodes the receiver to w using the Decred protocol encoding.
 // This is part of the Message interface implementation.
 func (msg *MsgGetCFilterV2) BtcEncode(w io.Writer, pver uint32) error {
+	const op = "MsgGetCFilterV2.BtcEncode"
 	if pver < CFilterV2Version {
-		str := fmt.Sprintf("%s message invalid for protocol version %d",
+		msg := fmt.Sprintf("%s message invalid for protocol version %d",
 			msg.Command(), pver)
-		return messageError("MsgGetCFilterV2.BtcEncode", str)
+		return messageError(op, ErrMsgInvalidForPVer, msg)
 	}
 
 	return writeElement(w, &msg.BlockHash)

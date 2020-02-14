@@ -1,6 +1,6 @@
 // Copyright (c) 2017 The btcsuite developers
 // Copyright (c) 2017 The Lightning Network Developers
-// Copyright (c) 2018 The Decred developers
+// Copyright (c) 2018-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -31,10 +31,11 @@ type MsgCFilter struct {
 // BtcDecode decodes r using the wire protocol encoding into the receiver.
 // This is part of the Message interface implementation.
 func (msg *MsgCFilter) BtcDecode(r io.Reader, pver uint32) error {
+	const op = "MsgCFilter.BtcDecode"
 	if pver < NodeCFVersion {
-		str := fmt.Sprintf("cfilter message invalid for protocol "+
+		msg := fmt.Sprintf("cfilter message invalid for protocol "+
 			"version %d", pver)
-		return messageError("MsgCFilter.BtcDecode", str)
+		return messageError(op, ErrMsgInvalidForPVer, msg)
 	}
 
 	// Read the hash of the filter's block
@@ -50,25 +51,25 @@ func (msg *MsgCFilter) BtcDecode(r io.Reader, pver uint32) error {
 	}
 
 	// Read filter data
-	msg.Data, err = ReadVarBytes(r, pver, MaxCFilterDataSize,
-		"cfilter data")
+	msg.Data, err = ReadVarBytes(r, pver, MaxCFilterDataSize, "cfilter data")
 	return err
 }
 
 // BtcEncode encodes the receiver to w using the wire protocol encoding. This is
 // part of the Message interface implementation.
 func (msg *MsgCFilter) BtcEncode(w io.Writer, pver uint32) error {
+	const op = "MsgCFilter.BtcEncode"
 	if pver < NodeCFVersion {
-		str := fmt.Sprintf("cfilter message invalid for protocol "+
+		msg := fmt.Sprintf("cfilter message invalid for protocol "+
 			"version %d", pver)
-		return messageError("MsgCFilter.BtcEncode", str)
+		return messageError(op, ErrMsgInvalidForPVer, msg)
 	}
 
 	size := len(msg.Data)
 	if size > MaxCFilterDataSize {
-		str := fmt.Sprintf("cfilter size too large for message "+
+		msg := fmt.Sprintf("cfilter size too large for message "+
 			"[size %v, max %v]", size, MaxCFilterDataSize)
-		return messageError("MsgCFilter.BtcEncode", str)
+		return messageError(op, ErrFilterTooLarge, msg)
 	}
 
 	err := writeElement(w, &msg.BlockHash)

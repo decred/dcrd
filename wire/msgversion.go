@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2017 The Decred developers
+// Copyright (c) 2015-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -79,10 +79,10 @@ func (msg *MsgVersion) AddService(service ServiceFlag) {
 //
 // This is part of the Message interface implementation.
 func (msg *MsgVersion) BtcDecode(r io.Reader, pver uint32) error {
+	const op = "MsgVersion.BtcDecode"
 	buf, ok := r.(*bytes.Buffer)
 	if !ok {
-		return fmt.Errorf("in method MsgVersion.BtcDecode reader is not a " +
-			"*bytes.Buffer")
+		return messageError(op, ErrInvalidMsg, "reader is not a *bytes.Buffer")
 	}
 
 	err := readElements(buf, &msg.ProtocolVersion, &msg.Services,
@@ -254,10 +254,11 @@ func NewMsgVersionFromConn(conn net.Conn, nonce uint64,
 
 // validateUserAgent checks userAgent length against MaxUserAgentLen
 func validateUserAgent(userAgent string) error {
+	const op = "MsgVersion.validateUserAgent"
 	if len(userAgent) > MaxUserAgentLen {
-		str := fmt.Sprintf("user agent too long [len %v, max %v]",
+		msg := fmt.Sprintf("user agent too long [len %v, max %v]",
 			len(userAgent), MaxUserAgentLen)
-		return messageError("MsgVersion", str)
+		return messageError(op, ErrUserAgentTooLong, msg)
 	}
 	return nil
 }

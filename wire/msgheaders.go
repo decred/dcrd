@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2019 The Decred developers
+// Copyright (c) 2015-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -25,10 +25,11 @@ type MsgHeaders struct {
 
 // AddBlockHeader adds a new block header to the message.
 func (msg *MsgHeaders) AddBlockHeader(bh *BlockHeader) error {
+	const op = "MsgHeaders.AddBlockHeader"
 	if len(msg.Headers)+1 > MaxBlockHeadersPerMsg {
-		str := fmt.Sprintf("too many block headers in message [max %v]",
+		msg := fmt.Sprintf("too many block headers in message [max %v]",
 			MaxBlockHeadersPerMsg)
-		return messageError("MsgHeaders.AddBlockHeader", str)
+		return messageError(op, ErrTooManyHeaders, msg)
 	}
 
 	msg.Headers = append(msg.Headers, bh)
@@ -38,6 +39,7 @@ func (msg *MsgHeaders) AddBlockHeader(bh *BlockHeader) error {
 // BtcDecode decodes r using the Decred protocol encoding into the receiver.
 // This is part of the Message interface implementation.
 func (msg *MsgHeaders) BtcDecode(r io.Reader, pver uint32) error {
+	const op = "MsgHeaders.BtcDecode"
 	count, err := ReadVarInt(r, pver)
 	if err != nil {
 		return err
@@ -45,9 +47,9 @@ func (msg *MsgHeaders) BtcDecode(r io.Reader, pver uint32) error {
 
 	// Limit to max block headers per message.
 	if count > MaxBlockHeadersPerMsg {
-		str := fmt.Sprintf("too many block headers for message "+
+		msg := fmt.Sprintf("too many block headers for message "+
 			"[count %v, max %v]", count, MaxBlockHeadersPerMsg)
-		return messageError("MsgHeaders.BtcDecode", str)
+		return messageError(op, ErrTooManyHeaders, msg)
 	}
 
 	// Create a contiguous slice of headers to deserialize into in order to
@@ -68,9 +70,9 @@ func (msg *MsgHeaders) BtcDecode(r io.Reader, pver uint32) error {
 
 		// Ensure the transaction count is zero for headers.
 		if txCount > 0 {
-			str := fmt.Sprintf("block headers may not contain "+
-				"transactions [count %v]", txCount)
-			return messageError("MsgHeaders.BtcDecode", str)
+			msg := fmt.Sprintf("block headers may not contain transactions "+
+				"[count %v]", txCount)
+			return messageError(op, ErrHeaderContainsTxs, msg)
 		}
 		msg.AddBlockHeader(bh)
 	}
@@ -81,12 +83,14 @@ func (msg *MsgHeaders) BtcDecode(r io.Reader, pver uint32) error {
 // BtcEncode encodes the receiver to w using the Decred protocol encoding.
 // This is part of the Message interface implementation.
 func (msg *MsgHeaders) BtcEncode(w io.Writer, pver uint32) error {
+	const op = "MsgHeaders.BtcEncode"
+
 	// Limit to max block headers per message.
 	count := len(msg.Headers)
 	if count > MaxBlockHeadersPerMsg {
-		str := fmt.Sprintf("too many block headers for message "+
+		msg := fmt.Sprintf("too many block headers for message "+
 			"[count %v, max %v]", count, MaxBlockHeadersPerMsg)
-		return messageError("MsgHeaders.BtcEncode", str)
+		return messageError(op, ErrTooManyHeaders, msg)
 	}
 
 	err := WriteVarInt(w, pver, uint64(count))

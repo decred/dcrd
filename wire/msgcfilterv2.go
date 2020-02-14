@@ -1,4 +1,4 @@
-// Copyright (c) 2019 The Decred developers
+// Copyright (c) 2019-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -35,10 +35,11 @@ type MsgCFilterV2 struct {
 // BtcDecode decodes r using the Decred protocol encoding into the receiver.
 // This is part of the Message interface implementation.
 func (msg *MsgCFilterV2) BtcDecode(r io.Reader, pver uint32) error {
+	const op = "MsgCFilterV2.BtcDecode"
 	if pver < CFilterV2Version {
-		str := fmt.Sprintf("%s message invalid for protocol version %d",
+		msg := fmt.Sprintf("%s message invalid for protocol version %d",
 			msg.Command(), pver)
-		return messageError("MsgCFilterV2.BtcDecode", str)
+		return messageError(op, ErrMsgInvalidForPVer, msg)
 	}
 
 	err := readElement(r, &msg.BlockHash)
@@ -62,9 +63,9 @@ func (msg *MsgCFilterV2) BtcDecode(r io.Reader, pver uint32) error {
 		return err
 	}
 	if count > MaxHeaderProofHashes {
-		str := fmt.Sprintf("too many proof hashes for message [count %v, "+
-			"max %v]", count, MaxHeaderProofHashes)
-		return messageError("MsgCFilterV2.BtcDecode", str)
+		msg := fmt.Sprintf("too many proof hashes for message "+
+			"[count %v, max %v]", count, MaxHeaderProofHashes)
+		return messageError(op, ErrTooManyProofs, msg)
 	}
 
 	// Create a contiguous slice of hashes to deserialize into in order to
@@ -83,24 +84,25 @@ func (msg *MsgCFilterV2) BtcDecode(r io.Reader, pver uint32) error {
 // BtcEncode encodes the receiver to w using the Decred protocol encoding.
 // This is part of the Message interface implementation.
 func (msg *MsgCFilterV2) BtcEncode(w io.Writer, pver uint32) error {
+	const op = "MsgCFilterV2.BtcEncode"
 	if pver < CFilterV2Version {
-		str := fmt.Sprintf("%s message invalid for protocol version %d",
+		msg := fmt.Sprintf("%s message invalid for protocol version %d",
 			msg.Command(), pver)
-		return messageError("MsgCFilterV2.BtcEncode", str)
+		return messageError(op, ErrMsgInvalidForPVer, msg)
 	}
 
 	size := len(msg.Data)
 	if size > MaxCFilterDataSize {
-		str := fmt.Sprintf("filter size too large for message [size %v, "+
-			"max %v]", size, MaxCFilterDataSize)
-		return messageError("MsgCFilterV2.BtcEncode", str)
+		msg := fmt.Sprintf("filter size too large for message "+
+			"[size %v, max %v]", size, MaxCFilterDataSize)
+		return messageError(op, ErrFilterTooLarge, msg)
 	}
 
 	numHashes := len(msg.ProofHashes)
 	if numHashes > MaxHeaderProofHashes {
-		str := fmt.Sprintf("too many proof hashes for message [count %v, "+
-			"max %v]", numHashes, MaxHeaderProofHashes)
-		return messageError("MsgCFilterV2.BtcEncode", str)
+		msg := fmt.Sprintf("too many proof hashes for message "+
+			"[count %v, max %v]", numHashes, MaxHeaderProofHashes)
+		return messageError(op, ErrTooManyProofs, msg)
 	}
 
 	err := writeElement(w, &msg.BlockHash)

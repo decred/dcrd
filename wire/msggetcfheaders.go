@@ -1,6 +1,6 @@
 // Copyright (c) 2017 The btcsuite developers
 // Copyright (c) 2017 The Lightning Network Developers
-// Copyright (c) 2018-2019 The Decred developers
+// Copyright (c) 2018-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -24,10 +24,11 @@ type MsgGetCFHeaders struct {
 
 // AddBlockLocatorHash adds a new block locator hash to the message.
 func (msg *MsgGetCFHeaders) AddBlockLocatorHash(hash *chainhash.Hash) error {
+	const op = "MsgGetCFHeaders.AddBlockLocatorHash"
 	if len(msg.BlockLocatorHashes)+1 > MaxBlockLocatorsPerMsg {
-		str := fmt.Sprintf("too many block locator hashes for message [max %v]",
+		msg := fmt.Sprintf("too many block locator hashes for message [max %v]",
 			MaxBlockLocatorsPerMsg)
-		return messageError("MsgGetCFHeaders.AddBlockLocatorHash", str)
+		return messageError(op, ErrTooManyLocators, msg)
 	}
 
 	msg.BlockLocatorHashes = append(msg.BlockLocatorHashes, hash)
@@ -37,10 +38,11 @@ func (msg *MsgGetCFHeaders) AddBlockLocatorHash(hash *chainhash.Hash) error {
 // BtcDecode decodes r using the wire protocol encoding into the receiver.
 // This is part of the Message interface implementation.
 func (msg *MsgGetCFHeaders) BtcDecode(r io.Reader, pver uint32) error {
+	const op = "MsgGetCFHeaders.BtcDecode"
 	if pver < NodeCFVersion {
-		str := fmt.Sprintf("getcfheaders message invalid for protocol "+
+		msg := fmt.Sprintf("getcfheaders message invalid for protocol "+
 			"version %d", pver)
-		return messageError("MsgGetCFHeaders.BtcDecode", str)
+		return messageError(op, ErrTooManyAddrs, msg)
 	}
 
 	// Read num block locator hashes and limit to max.
@@ -49,9 +51,9 @@ func (msg *MsgGetCFHeaders) BtcDecode(r io.Reader, pver uint32) error {
 		return err
 	}
 	if count > MaxBlockLocatorsPerMsg {
-		str := fmt.Sprintf("too many block locator hashes for message "+
+		msg := fmt.Sprintf("too many block locator hashes for message "+
 			"[count %v, max %v]", count, MaxBlockLocatorsPerMsg)
-		return messageError("MsgGetCFHeaders.BtcDecode", str)
+		return messageError(op, ErrTooManyLocators, msg)
 	}
 
 	// Create a contiguous slice of hashes to deserialize into in order to
@@ -78,18 +80,19 @@ func (msg *MsgGetCFHeaders) BtcDecode(r io.Reader, pver uint32) error {
 // BtcEncode encodes the receiver to w using the wire protocol encoding.
 // This is part of the Message interface implementation.
 func (msg *MsgGetCFHeaders) BtcEncode(w io.Writer, pver uint32) error {
+	const op = "MsgGetCFHeaders.BtcEncode"
 	if pver < NodeCFVersion {
-		str := fmt.Sprintf("getcfheaders message invalid for protocol "+
+		msg := fmt.Sprintf("getcfheaders message invalid for protocol "+
 			"version %d", pver)
-		return messageError("MsgGetCFHeaders.BtcEncode", str)
+		return messageError(op, ErrMsgInvalidForPVer, msg)
 	}
 
 	// Limit to max block locator hashes per message.
 	count := len(msg.BlockLocatorHashes)
 	if count > MaxBlockLocatorsPerMsg {
-		str := fmt.Sprintf("too many block locator hashes for message "+
+		msg := fmt.Sprintf("too many block locator hashes for message "+
 			"[count %v, max %v]", count, MaxBlockLocatorsPerMsg)
-		return messageError("MsgGetCFHeaders.BtcEncode", str)
+		return messageError(op, ErrTooManyLocators, msg)
 	}
 
 	err := WriteVarInt(w, pver, uint64(count))

@@ -1,6 +1,6 @@
 // Copyright (c) 2017 The btcsuite developers
 // Copyright (c) 2017 The Lightning Network Developers
-// Copyright (c) 2018-2019 The Decred developers
+// Copyright (c) 2018-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -34,10 +34,11 @@ type MsgCFTypes struct {
 // BtcDecode decodes r using the wire protocol encoding into the receiver.
 // This is part of the Message interface implementation.
 func (msg *MsgCFTypes) BtcDecode(r io.Reader, pver uint32) error {
+	const op = "MsgCFTypes.BtcDecode"
 	if pver < NodeCFVersion {
-		str := fmt.Sprintf("cftypes message invalid for protocol "+
+		msg := fmt.Sprintf("cftypes message invalid for protocol "+
 			"version %d", pver)
-		return messageError("MsgCFTypes.BtcDecode", str)
+		return messageError(op, ErrMsgInvalidForPVer, msg)
 	}
 
 	// Read the number of filter types supported.  The count may not exceed the
@@ -48,9 +49,9 @@ func (msg *MsgCFTypes) BtcDecode(r io.Reader, pver uint32) error {
 	}
 
 	if count > MaxFilterTypesPerMsg {
-		str := fmt.Sprintf("too many filter types for message "+
+		msg := fmt.Sprintf("too many filter types for message "+
 			"[count %v, max %v]", count, MaxFilterTypesPerMsg)
-		return messageError("MsgCFTypes.BtcDecode", str)
+		return messageError(op, ErrTooManyFilterTypes, msg)
 	}
 
 	// Read each filter type.
@@ -68,16 +69,17 @@ func (msg *MsgCFTypes) BtcDecode(r io.Reader, pver uint32) error {
 // BtcEncode encodes the receiver to w using the wire protocol encoding. This is
 // part of the Message interface implementation.
 func (msg *MsgCFTypes) BtcEncode(w io.Writer, pver uint32) error {
+	const op = "MsgCFTypes.BtcEncode"
 	if pver < NodeCFVersion {
-		str := fmt.Sprintf("cftypes message invalid for protocol "+
+		msg := fmt.Sprintf("cftypes message invalid for protocol "+
 			"version %d", pver)
-		return messageError("MsgCFTypes.BtcEncode", str)
+		return messageError(op, ErrMsgInvalidForPVer, msg)
 	}
 
 	if len(msg.SupportedFilters) > MaxFilterTypesPerMsg {
-		str := fmt.Sprintf("too many filter types for message "+
+		msg := fmt.Sprintf("too many filter types for message "+
 			"[count %v, max %v]", len(msg.SupportedFilters), MaxFilterTypesPerMsg)
-		return messageError("MsgCFTypes.BtcEncode", str)
+		return messageError(op, ErrTooManyFilterTypes, msg)
 	}
 
 	// Write length of supported filters slice.
