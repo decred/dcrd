@@ -383,6 +383,10 @@ const DcrctlSampleConfig = `[Application Options]
 ; Use simnet (cannot be used with testnet=1).
 ; simnet=1
 
+; The duration of inactivity before a peer is timed out.
+; Valid time units are {s,m,h}. Minimum 15 seconds.
+; peeridletimeout=120s
+
 
 ; ------------------------------------------------------------------------------
 ; RPC client settings

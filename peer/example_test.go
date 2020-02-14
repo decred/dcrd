@@ -23,6 +23,7 @@ func mockRemotePeer() error {
 		UserAgentName:    "peer",  // User agent name to advertise.
 		UserAgentVersion: "1.0.0", // User agent version to advertise.
 		Net:              wire.SimNet,
+		IdleTimeout:      time.Second * 120,
 	}
 
 	// Accept connections on the simnet port.
@@ -78,6 +79,7 @@ func Example_newOutboundPeer() {
 				verack <- struct{}{}
 			},
 		},
+		IdleTimeout: time.Second * 120,
 	}
 	p, err := peer.NewOutboundPeer(peerCfg, "127.0.0.1:18555")
 	if err != nil {

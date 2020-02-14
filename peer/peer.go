@@ -47,9 +47,6 @@ const (
 	// peer that hasn't completed the initial version negotiation.
 	negotiateTimeout = 30 * time.Second
 
-	// idleTimeout is the duration of inactivity before we time out a peer.
-	idleTimeout = 5 * time.Minute
-
 	// stallTickInterval is the interval of time between each check for
 	// stalled peers.
 	stallTickInterval = 15 * time.Second
@@ -260,6 +257,10 @@ type Config struct {
 	// Listeners houses callback functions to be invoked on receiving peer
 	// messages.
 	Listeners MessageListeners
+
+	// IdleTimeout is the duration of inactivity before a peer is timed
+	// out in seconds.
+	IdleTimeout time.Duration
 }
 
 // minUint32 is a helper function to return the minimum of two uint32s.
@@ -966,6 +967,10 @@ func (p *Peer) handlePongMsg(msg *wire.MsgPong) {
 
 // readMessage reads the next wire message from the peer with logging.
 func (p *Peer) readMessage() (wire.Message, []byte, error) {
+	err := p.conn.SetReadDeadline(time.Now().Add(p.cfg.IdleTimeout))
+	if err != nil {
+		return nil, nil, err
+	}
 	n, msg, buf, err := wire.ReadMessageN(p.conn, p.ProtocolVersion(),
 		p.cfg.Net)
 	atomic.AddUint64(&p.bytesReceived, uint64(n))
@@ -1051,7 +1056,10 @@ func (p *Peer) shouldHandleReadError(err error) bool {
 	if err == io.EOF {
 		return false
 	}
-	if opErr, ok := err.(*net.OpError); ok && !opErr.Temporary() {
+
+	// Handle all temporary network errors besides timeout errors.
+	if opErr, ok := err.(*net.OpError); ok &&
+		(!opErr.Temporary() || opErr.Timeout()) {
 		return false
 	}
 
@@ -1254,21 +1262,12 @@ cleanup:
 // inHandler handles all incoming messages for the peer.  It must be run as a
 // goroutine.
 func (p *Peer) inHandler() {
-	// Peers must complete the initial version negotiation within a shorter
-	// timeframe than a general idle timeout.  The timer is then reset below
-	// to idleTimeout for all future messages.
-	idleTimer := time.AfterFunc(idleTimeout, func() {
-		log.Warnf("Peer %s no answer for %s -- disconnecting", p, idleTimeout)
-		p.Disconnect()
-	})
-
 out:
 	for atomic.LoadInt32(&p.disconnect) == 0 {
 		// Read a message and stop the idle timer as soon as the read
 		// is done.  The timer is reset below for the next iteration if
 		// needed.
 		rmsg, buf, err := p.readMessage()
-		idleTimer.Stop()
 		if err != nil {
 			// Only log the error and send reject message if the
 			// local peer is not forcibly disconnecting and the
@@ -1287,6 +1286,12 @@ out:
 				p.PushRejectMsg("malformed", wire.RejectMalformed, errMsg, nil,
 					true)
 			}
+
+			if nErr, ok := err.(net.Error); ok && nErr.Timeout() {
+				log.Warnf("Peer %s no answer for %s -- disconnecting",
+					p, p.cfg.IdleTimeout)
+			}
+
 			break out
 		}
 		atomic.StoreInt64(&p.lastRecv, time.Now().Unix())
@@ -1458,13 +1463,7 @@ out:
 				"from %v", rmsg.Command(), p)
 		}
 		p.stallControl <- stallControlMsg{sccHandlerDone, rmsg}
-
-		// A message was received so reset the idle timer.
-		idleTimer.Reset(idleTimeout)
 	}
-
-	// Ensure the idle timer is stopped to avoid leaking the resource.
-	idleTimer.Stop()
 
 	// Ensure connection is closed.
 	p.Disconnect()

@@ -67,6 +67,7 @@ const (
 	defaultNoCFilters            = false
 	defaultTLSCurve              = "P-521"
 	defaultDialTimeout           = time.Second * 30
+	defaultPeerIdleTimeout       = time.Second * 120
 )
 
 var (
@@ -179,6 +180,7 @@ type config struct {
 	PipeTx               uint          `long:"pipetx" description:"File descriptor of write end pipe to enable parent <- child process communication"`
 	LifetimeEvents       bool          `long:"lifetimeevents" description:"Send lifetime notifications over the TX pipe"`
 	AltDNSNames          []string      `long:"altdnsnames" description:"Specify additional DNS names to use when generating the RPC server certificate" env:"DCRD_ALT_DNSNAMES" env-delim:","`
+	PeerIdleTimeout      time.Duration `long:"peeridletimeout" description:"The duration of inactivity before a peer is timed out. Valid time units are {s,m,h}. Minimum 15 seconds."`
 	onionlookup          func(string) ([]net.IP, error)
 	lookup               func(string) ([]net.IP, error)
 	oniondial            func(context.Context, string, string) (net.Conn, error)
@@ -539,6 +541,7 @@ func loadConfig() (*config, []string, error) {
 		NoCFilters:           defaultNoCFilters,
 		AltDNSNames:          defaultAltDNSNames,
 		DialTimeout:          defaultDialTimeout,
+		PeerIdleTimeout:      defaultPeerIdleTimeout,
 		ipv4NetInfo:          types.NetworksResult{Name: "IPV4"},
 		ipv6NetInfo:          types.NetworksResult{Name: "IPV6"},
 		onionNetInfo:         types.NetworksResult{Name: "Onion"},
@@ -821,10 +824,20 @@ func loadConfig() (*config, []string, error) {
 		return nil, nil, err
 	}
 
-	// Don't allow ban durations that are too short.
+	// Don't allow dialtimeout durations that are too short.
 	if cfg.DialTimeout < time.Second {
 		str := "%s: the dialtimeout option may not be less than 1s -- parsed [%v]"
 		err := fmt.Errorf(str, funcName, cfg.DialTimeout)
+		fmt.Fprintln(os.Stderr, err)
+		fmt.Fprintln(os.Stderr, usageMessage)
+		return nil, nil, err
+	}
+
+	// Don't allow peeridletimeout durations that are too short.
+	if cfg.PeerIdleTimeout < time.Second*15 {
+		str := "%s: the peeridletimeout option may not be less " +
+			"than 15s -- parsed [%v]"
+		err := fmt.Errorf(str, funcName, cfg.PeerIdleTimeout)
 		fmt.Fprintln(os.Stderr, err)
 		fmt.Fprintln(os.Stderr, usageMessage)
 		return nil, nil, err
