@@ -1,4 +1,4 @@
-module github.com/decred/dcrd/hdkeychain/v2
+module github.com/decred/dcrd/hdkeychain/v3
 
 go 1.11
 

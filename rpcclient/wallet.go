@@ -13,7 +13,7 @@ import (
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/dcrjson/v3"
 	"github.com/decred/dcrd/dcrutil/v3"
-	"github.com/decred/dcrd/hdkeychain/v2"
+	"github.com/decred/dcrd/hdkeychain/v3"
 	chainjsonv1 "github.com/decred/dcrd/rpc/jsonrpc/types"
 	chainjson "github.com/decred/dcrd/rpc/jsonrpc/types/v2"
 	"github.com/decred/dcrd/wire"

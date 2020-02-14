@@ -11,7 +11,7 @@ import (
 	"github.com/decred/dcrd/chaincfg/v3"
 	"github.com/decred/dcrd/dcrec"
 	"github.com/decred/dcrd/dcrutil/v3"
-	"github.com/decred/dcrd/hdkeychain/v2"
+	"github.com/decred/dcrd/hdkeychain/v3"
 )
 
 // This example demonstrates how to generate a cryptographically random seed
