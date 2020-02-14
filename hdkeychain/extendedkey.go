@@ -364,6 +364,12 @@ func (k *ExtendedKey) ECPubKey() (*secp256k1.PublicKey, error) {
 	return secp256k1.ParsePubKey(k.pubKeyBytes())
 }
 
+// SerializedPubKey returns the compressed serialization of the secp256k1 public
+// key.  The bytes must not be modified.
+func (k *ExtendedKey) SerializedPubKey() []byte {
+	return k.pubKeyBytes()
+}
+
 // ECPrivKey converts the extended key to a dcrec private key and returns it.
 // As you might imagine this is only possible if the extended key is a private
 // extended key (as determined by the IsPrivate function).  The ErrNotPrivExtKey
