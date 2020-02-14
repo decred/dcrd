@@ -138,6 +138,9 @@ Application Options:
       --altdnsnames:        Specify additional dns names to use when
                             generating the rpc server certificate
                             [supports DCRD_ALT_DNSNAMES environment variable]
+      --peeridletimeout     The duration of inactivity before a peer is timed
+                            out. Valid time units are {s,m,h}.
+                            Minimum 15 seconds. (default: 120s)
 
 Help Options:
   -h, --help           Show this help message
