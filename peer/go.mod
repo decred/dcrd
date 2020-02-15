@@ -6,7 +6,7 @@ require (
 	github.com/davecgh/go-spew v1.1.1
 	github.com/decred/dcrd/chaincfg/chainhash v1.0.2
 	github.com/decred/dcrd/lru v1.0.0
-	github.com/decred/dcrd/txscript/v3 v3.0.0-20200215015031-3283587e6add
+	github.com/decred/dcrd/txscript/v3 v3.0.0-20200215023918-6247af01d5e3
 	github.com/decred/dcrd/wire v1.3.0
 	github.com/decred/go-socks v1.1.0
 	github.com/decred/slog v1.0.0

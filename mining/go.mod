@@ -3,9 +3,9 @@ module github.com/decred/dcrd/mining/v3
 go 1.11
 
 require (
-	github.com/decred/dcrd/blockchain/stake/v3 v3.0.0-20200215015031-3283587e6add
+	github.com/decred/dcrd/blockchain/stake/v3 v3.0.0-20200215023918-6247af01d5e3
 	github.com/decred/dcrd/chaincfg/chainhash v1.0.2
-	github.com/decred/dcrd/dcrutil/v3 v3.0.0-20200215015031-3283587e6add
+	github.com/decred/dcrd/dcrutil/v3 v3.0.0-20200215023918-6247af01d5e3
 	github.com/decred/dcrd/wire v1.3.0
 )
 
