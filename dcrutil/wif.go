@@ -159,13 +159,13 @@ func (w *WIF) String() string {
 
 // PrivKey returns the serialized private key described by the WIF.  The bytes
 // must not be modified.
-func (w *WIF) SerializePrivKey() []byte {
+func (w *WIF) PrivKey() []byte {
 	return w.privKey
 }
 
 // PubKey returns the compressed serialization of the associated public key for
 // the WIF's private key.
-func (w *WIF) SerializePubKey() []byte {
+func (w *WIF) PubKey() []byte {
 	return w.pubKey
 }
 
