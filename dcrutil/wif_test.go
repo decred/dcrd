@@ -192,8 +192,6 @@ func TestEncodeDecodeWIF(t *testing.T) {
 			if got := w.String(); got != test.encoded {
 				t.Errorf("NewWIF failed: want '%v', got '%v'", test.wif, got)
 			}
-
-			w.PubKey()
 		}
 	}
 }
