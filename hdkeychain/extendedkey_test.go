@@ -636,16 +636,17 @@ func TestExtendedKeyAPI(t *testing.T) {
 			continue
 		}
 
-		privKey, err := key.ECPrivKey()
+		privKey, err := key.SerializedPrivKey()
 		if !reflect.DeepEqual(err, test.privKeyErr) {
-			t.Errorf("ECPrivKey #%d (%s): mismatched error: want "+
-				"%v, got %v", i, test.name, test.privKeyErr, err)
+			t.Errorf("SerializedPrivKey #%d (%s): mismatched "+
+				"error: want %v, got %v", i, test.name,
+				test.privKeyErr, err)
 			continue
 		}
 		if test.privKeyErr == nil {
-			privKeyStr := hex.EncodeToString(privKey.Serialize())
+			privKeyStr := hex.EncodeToString(privKey)
 			if privKeyStr != test.privKey {
-				t.Errorf("ECPrivKey #%d (%s): mismatched "+
+				t.Errorf("SerializedPrivKey #%d (%s): mismatched "+
 					"private key -- want %s, got %s", i,
 					test.name, test.privKey, privKeyStr)
 				continue
@@ -812,10 +813,11 @@ func TestZero(t *testing.T) {
 		}
 
 		wantErr := ErrNotPrivExtKey
-		_, err := key.ECPrivKey()
+		_, err := key.SerializedPrivKey()
 		if !reflect.DeepEqual(err, wantErr) {
-			t.Errorf("ECPrivKey #%d (%s): mismatched error: want "+
-				"%v, got %v", i, testName, wantErr, err)
+			t.Errorf("SerializedPrivKey #%d (%s): mismatched "+
+				"error: want %v, got %v", i, testName, wantErr,
+				err)
 			return false
 		}
 
