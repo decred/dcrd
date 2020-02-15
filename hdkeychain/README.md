@@ -8,24 +8,22 @@ hdkeychain
 Package hdkeychain provides an API for Decred hierarchical deterministic
 extended keys (based on BIP0032).
 
-A comprehensive suite of tests is provided to ensure proper functionality.  See
-`test_coverage.txt` for the gocov coverage report.  Alternatively, if you are
-running a POSIX OS, you can run the `cov_report.sh` script for a real-time
-report.
+A comprehensive suite of tests is provided to ensure proper functionality.
 
 ## Feature Overview
 
 - Full BIP0032 implementation
 - Single type for private and public extended keys
-- Convenient cryptograpically secure seed generation
+- Convenient cryptographically secure seed generation
 - Simple creation of master nodes
 - Support for multi-layer derivation
 - Easy serialization and deserialization for both private and public extended
   keys
 - Support for custom networks by accepting a network parameters interface
-- Obtaining the underlying EC pubkeys and EC privkeys ties in seamlessly with
-  existing secp256k1 types which provide powerful tools for working with them to
-  do things like sign transactions and generate payment scripts
+- Allows obtaining the underlying serialized secp256k1 pubkeys and privkeys
+  directly so they can either be used directly or optionally converted to the
+  secp256k1 types which provide powerful tools for working with them to do
+  things like sign transactions and generate payment scripts
 - Uses the highly-optimized secp256k1 package
 - Code examples including:
   - Generating a cryptographically secure random seed and deriving a master node

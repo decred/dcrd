@@ -652,16 +652,10 @@ func TestExtendedKeyAPI(t *testing.T) {
 			}
 		}
 
-		pubKey, err := key.ECPubKey()
-		if err != nil {
-			t.Errorf("ECPubKey #%d (%s): unexpected error: %v", i,
-				test.name, err)
-			continue
-		}
-		pubKeyStr := hex.EncodeToString(pubKey.SerializeCompressed())
+		pubKeyStr := hex.EncodeToString(key.SerializedPubKey())
 		if pubKeyStr != test.pubKey {
-			t.Errorf("ECPubKey #%d (%s): mismatched public key -- "+
-				"want %s, got %s", i, test.name, test.pubKey,
+			t.Errorf("SerializedPubKey #%d (%s): mismatched public "+
+				"key -- want %s, got %s", i, test.name, test.pubKey,
 				pubKeyStr)
 			continue
 		}
@@ -825,11 +819,11 @@ func TestZero(t *testing.T) {
 			return false
 		}
 
-		wantErr = errors.New("pubkey string is empty")
-		_, err = key.ECPubKey()
-		if !reflect.DeepEqual(err, wantErr) {
-			t.Errorf("ECPubKey #%d (%s): mismatched error: want "+
-				"%v, got %v", i, testName, wantErr, err)
+		serializedPubKey := key.SerializedPubKey()
+		if len(serializedPubKey) != 0 {
+			t.Errorf("ECPubKey #%d (%s): mismatched serialized "+
+				"pubkey: want nil, got %x", i, testName,
+				serializedPubKey)
 			return false
 		}
 

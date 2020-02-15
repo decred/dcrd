@@ -127,11 +127,7 @@ func Example_defaultWalletLayout() {
 	// pubKeyHashAddr is a convenience function to convert an extended
 	// pubkey to a standard pay-to-pubkey-hash address.
 	pubKeyHashAddr := func(extKey *hdkeychain.ExtendedKey) (string, error) {
-		ecPubKey, err := extKey.ECPubKey()
-		if err != nil {
-			return "", err
-		}
-		pkHash := dcrutil.Hash160(ecPubKey.SerializeCompressed())
+		pkHash := dcrutil.Hash160(extKey.SerializedPubKey())
 		addr, err := dcrutil.NewAddressPubKeyHash(pkHash, net,
 			dcrec.STEcdsaSecp256k1)
 		if err != nil {

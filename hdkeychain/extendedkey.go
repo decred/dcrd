@@ -359,11 +359,6 @@ func (k *ExtendedKey) Neuter() (*ExtendedKey, error) {
 		k.parentFP, k.depth, k.childNum, false), nil
 }
 
-// ECPubKey converts the extended key to a dcrec public key and returns it.
-func (k *ExtendedKey) ECPubKey() (*secp256k1.PublicKey, error) {
-	return secp256k1.ParsePubKey(k.pubKeyBytes())
-}
-
 // SerializedPubKey returns the compressed serialization of the secp256k1 public
 // key.  The bytes must not be modified.
 func (k *ExtendedKey) SerializedPubKey() []byte {
