@@ -131,7 +131,7 @@ func newMemWallet(net *chaincfg.Params, harnessID uint32) (*memWallet, error) {
 	if err != nil {
 		return nil, err
 	}
-	coinbaseKey, err := coinbaseChild.ECPrivKey()
+	coinbaseKey, err := coinbaseChild.SerializedPrivKey()
 	if err != nil {
 		return nil, err
 	}
@@ -147,7 +147,7 @@ func newMemWallet(net *chaincfg.Params, harnessID uint32) (*memWallet, error) {
 
 	return &memWallet{
 		net:               net,
-		coinbaseKey:       coinbaseKey,
+		coinbaseKey:       secp256k1.PrivKeyFromBytes(coinbaseKey),
 		coinbaseAddr:      coinbaseAddr,
 		hdIndex:           1,
 		hdRoot:            hdRoot,
@@ -336,7 +336,7 @@ func (m *memWallet) newAddress() (dcrutil.Address, error) {
 	if err != nil {
 		return nil, err
 	}
-	privKey, err := childKey.ECPrivKey()
+	privKey, err := childKey.SerializedPrivKey()
 	if err != nil {
 		return nil, err
 	}
@@ -487,13 +487,13 @@ func (m *memWallet) CreateTransaction(outputs []*wire.TxOut, feeRate dcrutil.Amo
 			return nil, err
 		}
 
-		privKey, err := extendedKey.ECPrivKey()
+		privKey, err := extendedKey.SerializedPrivKey()
 		if err != nil {
 			return nil, err
 		}
 
 		sigScript, err := txscript.SignatureScript(tx, i, utxo.pkScript,
-			txscript.SigHashAll, privKey.Serialize(), dcrec.STEcdsaSecp256k1, true)
+			txscript.SigHashAll, privKey, dcrec.STEcdsaSecp256k1, true)
 		if err != nil {
 			return nil, err
 		}
@@ -554,7 +554,8 @@ func (m *memWallet) ConfirmedBalance() dcrutil.Amount {
 }
 
 // keyToAddr maps the passed private to corresponding p2pkh address.
-func keyToAddr(key *secp256k1.PrivateKey, net *chaincfg.Params) (dcrutil.Address, error) {
+func keyToAddr(serializedPrivKey []byte, net *chaincfg.Params) (dcrutil.Address, error) {
+	key := secp256k1.PrivKeyFromBytes(serializedPrivKey)
 	serializedKey := key.PubKey().SerializeCompressed()
 	pubKeyAddr, err := dcrutil.NewAddressSecpPubKey(serializedKey, net)
 	if err != nil {
