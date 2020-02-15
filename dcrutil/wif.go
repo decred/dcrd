@@ -40,8 +40,8 @@ func (e ErrWrongWIFNetwork) Error() string {
 // structure by calling DecodeWIF or created with a user-provided private key
 // by calling NewWIF.
 type WIF struct {
-	// ecType is the type of ECDSA used.
-	ecType dcrec.SignatureType
+	// scheme is the type of signature scheme used.
+	scheme dcrec.SignatureType
 
 	// privKey is the private key being imported or exported.
 	privKey []byte
@@ -57,9 +57,9 @@ type WIF struct {
 // NewWIF creates a new WIF structure to export an address and its private key
 // as a string encoded in the Wallet Import Format.  The net parameter specifies
 // the magic bytes of the network for which the WIF string is intended.
-func NewWIF(privKey []byte, net [2]byte, ecType dcrec.SignatureType) (*WIF, error) {
+func NewWIF(privKey []byte, net [2]byte, scheme dcrec.SignatureType) (*WIF, error) {
 	var pubBytes []byte
-	switch ecType {
+	switch scheme {
 	case dcrec.STEcdsaSecp256k1, dcrec.STSchnorrSecp256k1:
 		priv := secp256k1.PrivKeyFromBytes(privKey)
 		pubBytes = priv.PubKey().SerializeCompressed()
@@ -70,10 +70,10 @@ func NewWIF(privKey []byte, net [2]byte, ecType dcrec.SignatureType) (*WIF, erro
 		}
 		pubBytes = pub.SerializeCompressed()
 	default:
-		return nil, fmt.Errorf("unsupported signature type '%v'", ecType)
+		return nil, fmt.Errorf("unsupported signature type '%v'", scheme)
 	}
 
-	return &WIF{ecType, privKey, pubBytes, net}, nil
+	return &WIF{scheme, privKey, pubBytes, net}, nil
 }
 
 // DecodeWIF creates a new WIF structure by decoding the string encoding of
@@ -113,13 +113,13 @@ func DecodeWIF(wif string, net [2]byte) (*WIF, error) {
 		return nil, ErrWrongWIFNetwork(net)
 	}
 	var privKeyBytes, pubKeyBytes []byte
-	var ecType dcrec.SignatureType
+	var scheme dcrec.SignatureType
 	switch dcrec.SignatureType(decoded[2]) {
 	case dcrec.STEcdsaSecp256k1:
 		privKeyBytes = decoded[3 : 3+secp256k1.PrivKeyBytesLen]
 		privKey := secp256k1.PrivKeyFromBytes(privKeyBytes)
 		pubKeyBytes = privKey.PubKey().SerializeCompressed()
-		ecType = dcrec.STEcdsaSecp256k1
+		scheme = dcrec.STEcdsaSecp256k1
 	case dcrec.STEd25519:
 		privKeyBytes = decoded[3 : 3+edwards.PrivScalarSize]
 		_, pubKey, err := edwards.PrivKeyFromScalar(privKeyBytes)
@@ -127,15 +127,15 @@ func DecodeWIF(wif string, net [2]byte) (*WIF, error) {
 			return nil, err
 		}
 		pubKeyBytes = pubKey.SerializeCompressed()
-		ecType = dcrec.STEd25519
+		scheme = dcrec.STEd25519
 	case dcrec.STSchnorrSecp256k1:
 		privKeyBytes = decoded[3 : 3+secp256k1.PrivKeyBytesLen]
 		privKey := secp256k1.PrivKeyFromBytes(privKeyBytes)
 		pubKeyBytes = privKey.PubKey().SerializeCompressed()
-		ecType = dcrec.STSchnorrSecp256k1
+		scheme = dcrec.STSchnorrSecp256k1
 	}
 
-	return &WIF{ecType, privKeyBytes, pubKeyBytes, netID}, nil
+	return &WIF{scheme, privKeyBytes, pubKeyBytes, netID}, nil
 }
 
 // String creates the Wallet Import Format string encoding of a WIF structure.
@@ -149,7 +149,7 @@ func (w *WIF) String() string {
 
 	a := make([]byte, 0, encodeLen)
 	a = append(a, w.netID[:]...)
-	a = append(a, byte(w.ecType))
+	a = append(a, byte(w.scheme))
 	a = append(a, w.privKey...)
 
 	cksum := chainhash.HashB(a)
@@ -157,14 +157,19 @@ func (w *WIF) String() string {
 	return base58.Encode(a)
 }
 
-// SerializePubKey serializes the associated public key of the imported or
-// exported private key in compressed format.  The serialization format
-// chosen depends on the value of w.ecType.
+// PrivKey returns the serialized private key described by the WIF.  The bytes
+// must not be modified.
+func (w *WIF) SerializePrivKey() []byte {
+	return w.privKey
+}
+
+// PubKey returns the compressed serialization of the associated public key for
+// the WIF's private key.
 func (w *WIF) SerializePubKey() []byte {
 	return w.pubKey
 }
 
-// DSA returns the ECDSA type for the private key.
+// DSA describes the signature scheme of the key.
 func (w *WIF) DSA() dcrec.SignatureType {
-	return w.ecType
+	return w.scheme
 }
