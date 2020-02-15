@@ -4,10 +4,10 @@ go 1.11
 
 require (
 	github.com/dchest/siphash v1.2.1
-	github.com/decred/dcrd/blockchain/stake/v3 v3.0.0-20200214194519-928737b3e580
+	github.com/decred/dcrd/blockchain/stake/v3 v3.0.0-20200215015031-3283587e6add
 	github.com/decred/dcrd/chaincfg/chainhash v1.0.2
 	github.com/decred/dcrd/crypto/blake256 v1.0.0
-	github.com/decred/dcrd/txscript/v3 v3.0.0-20200214194519-928737b3e580
+	github.com/decred/dcrd/txscript/v3 v3.0.0-20200215015031-3283587e6add
 	github.com/decred/dcrd/wire v1.3.0
 )
 
