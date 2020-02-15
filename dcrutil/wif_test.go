@@ -193,7 +193,7 @@ func TestEncodeDecodeWIF(t *testing.T) {
 				t.Errorf("NewWIF failed: want '%v', got '%v'", test.wif, got)
 			}
 
-			w.SerializePubKey()
+			w.PubKey()
 		}
 	}
 }
