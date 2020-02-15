@@ -365,17 +365,18 @@ func (k *ExtendedKey) SerializedPubKey() []byte {
 	return k.pubKeyBytes()
 }
 
-// ECPrivKey converts the extended key to a dcrec private key and returns it.
+// SerializedPrivKey converts the extended key to a secp256k1 private key and
+// returns its serialization.  The returned bytes must not be modified.
+//
 // As you might imagine this is only possible if the extended key is a private
 // extended key (as determined by the IsPrivate function).  The ErrNotPrivExtKey
 // error will be returned if this function is called on a public extended key.
-func (k *ExtendedKey) ECPrivKey() (*secp256k1.PrivateKey, error) {
+func (k *ExtendedKey) SerializedPrivKey() ([]byte, error) {
 	if !k.isPrivate {
 		return nil, ErrNotPrivExtKey
 	}
 
-	privKey := secp256k1.PrivKeyFromBytes(k.key)
-	return privKey, nil
+	return k.key, nil
 }
 
 // paddedAppend appends the src byte slice to dst, returning the new slice.
