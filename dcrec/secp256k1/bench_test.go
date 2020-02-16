@@ -130,6 +130,22 @@ func BenchmarkSigVerify(b *testing.B) {
 	}
 }
 
+// BenchmarkSign benchmarks how long it takes to sign a message.
+func BenchmarkSign(b *testing.B) {
+	// Randomly generated keypair.
+	d := new(ModNScalar).SetHex("9e0699c91ca1e3b7e3c9ba71eb71c89890872be97576010fe593fbf3fd57e66d")
+	privKey := NewPrivateKey(d)
+
+	// blake256 of []byte{0x01, 0x02, 0x03, 0x04}.
+	msgHash := hexToBytes("c301ba9de5d6053caad9f5eb46523f007702add2c62fa39de03146a36b8026b7")
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		signRFC6979(privKey, msgHash)
+	}
+}
+
 // BenchmarkFieldNormalize benchmarks how long it takes the internal field
 // to perform normalization (which includes modular reduction).
 func BenchmarkFieldNormalize(b *testing.B) {
