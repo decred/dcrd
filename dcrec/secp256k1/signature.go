@@ -519,57 +519,97 @@ func RecoverCompact(signature, hash []byte) (*PublicKey, bool, error) {
 	return key, ((signature[0] - 27) & 4) == 4, nil
 }
 
-// zeroBigInt zeroes the underlying memory used by the passed big integer.  The
-// big integer must not be used after calling this as it changes the internal
-// state out from under it which can lead to unpredictable results.
-func zeroBigInt(v *big.Int) {
-	words := v.Bits()
-	for i := 0; i < len(words); i++ {
-		words[i] = 0
-	}
-	v.SetInt64(0)
-}
-
 // signRFC6979 generates a deterministic ECDSA signature according to RFC 6979
 // and BIP 62.
 func signRFC6979(privateKey *PrivateKey, hash []byte) *Signature {
-	curve := S256()
-	N := order
-	var kBytes [32]byte
-	defer zeroArray32(&kBytes)
+	// The algorithm for producing an ECDSA signature is given as algorithm 4.29
+	// in [GECC].
+	//
+	// The following is a paraphrased version for reference:
+	//
+	// G = curve generator
+	// N = curve order
+	// d = private key
+	// m = message
+	// r, s = signature
+	//
+	// 1. Select random nonce k in [1, N-1]
+	// 2. Compute kG
+	// 3. r = kG.x mod N (kG.x is the x coordinate of the point kG)
+	//    Repeat from step 1 if r = 0
+	// 4. e = H(m)
+	// 5. s = k^-1(e + dr) mod N
+	//    Repeat from step 1 if s = 0
+	// 6. Return (r,s)
+	//
+	// This is slightly modified here to conform to RFC6979 and BIP 62 as
+	// follows:
+	//
+	// A. Instead of selecting a random nonce in step 1, use RFC6979 to generate
+	//    a deterministic nonce in [1, N-1] parameterized by the private key,
+	//    message being signed, and an iteration count for the repeat cases
+	// B. Negate s calculated in step 5 if it is > N/2
+	//    This is done because both s and its negation are valid signatures
+	//    modulo the curve order N, so it forces a consistent choice to reduce
+	//    signature malleability
+
 	privKeyBytes := privateKey.key.Bytes()
-	bigPrivKey := new(big.Int).SetBytes(privKeyBytes[:])
 	defer zeroArray32(&privKeyBytes)
-	defer zeroBigInt(bigPrivKey)
 	for iteration := uint32(0); ; iteration++ {
+		// Step 1 with modification A.
+		//
+		// Generate a deterministic nonce in [1, N-1] parameterized by the
+		// private key, message being signed, and iteration count.
 		k := NonceRFC6979(privKeyBytes[:], hash, nil, nil, iteration)
-		k.PutBytes(&kBytes)
-		bigK := new(big.Int).SetBytes(kBytes[:])
-		r, _ := curve.ScalarBaseMult(kBytes[:])
-		r.Mod(r, N)
-		if r.Sign() == 0 {
-			zeroBigInt(bigK)
+
+		// Step 2.
+		//
+		// Compute kG
+		//
+		// Note that the algorithm expects the point in affine coordinates.
+		var kG jacobianPoint
+		scalarBaseMultJacobian(k, &kG)
+		kG.ToAffine()
+
+		// Step 3.
+		//
+		// r = kG.x mod N
+		// Repeat from step 1 if r = 0
+		r := fieldToModNScalar(&kG.x)
+		if r.IsZero() {
 			continue
 		}
 
-		kInv := new(big.Int).ModInverse(bigK, N)
-		e := hashToInt(hash)
-		s := new(big.Int).Mul(bigPrivKey, r)
-		s.Add(s, e)
-		s.Mul(s, kInv)
-		s.Mod(s, N)
+		// Step 4.
+		//
+		// e = H(m)
+		//
+		// Note that this actually sets e = H(m) mod N which is correct since
+		// it is only used in step 5 which itself is mod N.
+		var e ModNScalar
+		e.SetByteSlice(hash)
 
-		if s.Cmp(halforder) == 1 {
-			s.Sub(N, s)
-		}
-		if s.Sign() == 0 {
-			zeroBigInt(bigK)
-			zeroBigInt(kInv)
+		// Step 5 with modification B.
+		//
+		// s = k^-1(e + dr) mod N
+		// Repeat from step 1 if s = 0
+		// s = -s if s > N/2
+		kInv := new(ModNScalar).InverseValNonConst(k)
+		s := new(ModNScalar).Mul2(&privateKey.key, &r).Add(&e).Mul(kInv)
+		if s.IsZero() {
 			continue
 		}
-		zeroBigInt(bigK)
-		zeroBigInt(kInv)
-		return &Signature{r: r, s: s}
+		if s.IsOverHalfOrder() {
+			s.Negate()
+		}
+
+		// Step 6.
+		//
+		// Return (r,s)
+		rBytes, sBytes := r.Bytes(), s.Bytes()
+		bigR := new(big.Int).SetBytes(rBytes[:])
+		bigS := new(big.Int).SetBytes(sBytes[:])
+		return &Signature{r: bigR, s: bigS}
 	}
 }
 
