@@ -396,9 +396,7 @@ sigLoop:
 			// If it matches we put it in the map. We only
 			// can take one signature per public key so if we
 			// already have one, we can throw this away.
-			r := pSig.R
-			s := pSig.S
-			if secp256k1.NewSignature(r, s).Verify(hash, pubKey) {
+			if pSig.Verify(hash, pubKey) {
 				aStr := addr.Address()
 				if _, ok := addrToSig[aStr]; !ok {
 					addrToSig[aStr] = sig

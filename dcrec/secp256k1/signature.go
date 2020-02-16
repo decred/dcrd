@@ -23,10 +23,10 @@ var (
 	errExcessivelyPaddedValue = errors.New("value is excessively padded")
 )
 
-// Signature is a type representing an ecdsa signature.
+// Signature is a type representing an ECDSA signature.
 type Signature struct {
-	R *big.Int
-	S *big.Int
+	r *big.Int
+	s *big.Int
 }
 
 var (
@@ -63,14 +63,14 @@ func NewSignature(r, s *big.Int) *Signature {
 // 0x30 <length> 0x02 <length r> r 0x02 <length s> s
 func (sig *Signature) Serialize() []byte {
 	// Low 'S' malleability breaker.
-	sigS := sig.S
+	sigS := sig.s
 	if sigS.Cmp(halforder) == 1 {
 		sigS = new(big.Int).Sub(order, sigS)
 	}
 
 	// Ensure the encoded bytes for the R and S values are canonical and thus
 	// suitable for DER encoding.
-	rb := canonicalizeInt(sig.R)
+	rb := canonicalizeInt(sig.r)
 	sb := canonicalizeInt(sigS)
 
 	// Total length of returned signature is 1 byte for each magic and length
@@ -127,10 +127,10 @@ func (sig *Signature) Verify(hash []byte, pubKey *PublicKey) bool {
 	//
 	// Fail if R and S are not in [1, N-1].
 	var R, S ModNScalar
-	if overflow := R.SetByteSlice(sig.R.Bytes()); overflow || R.IsZero() {
+	if overflow := R.SetByteSlice(sig.r.Bytes()); overflow || R.IsZero() {
 		return false
 	}
-	if overflow := S.SetByteSlice(sig.S.Bytes()); overflow || S.IsZero() {
+	if overflow := S.SetByteSlice(sig.s.Bytes()); overflow || S.IsZero() {
 		return false
 	}
 
@@ -187,8 +187,7 @@ func (sig *Signature) Verify(hash []byte, pubKey *PublicKey) bool {
 // both Signatures are equivalent.  A signature is equivalent to another, if
 // they both have the same scalar value for R and S.
 func (sig *Signature) IsEqual(otherSig *Signature) bool {
-	return sig.R.Cmp(otherSig.R) == 0 &&
-		sig.S.Cmp(otherSig.S) == 0
+	return sig.r.Cmp(otherSig.r) == 0 && sig.s.Cmp(otherSig.s) == 0
 }
 
 // parseSig attempts to parse the provided raw signature bytes into a Signature
@@ -255,7 +254,7 @@ func parseSig(sigStr []byte, der bool) (*Signature, error) {
 			return nil, errors.New("signature R is excessively padded")
 		}
 	}
-	signature.R = new(big.Int).SetBytes(rBytes)
+	signature.r = new(big.Int).SetBytes(rBytes)
 	index += rLen
 	// 0x02. length already checked in previous if.
 	if sigStr[index] != 0x02 {
@@ -281,7 +280,7 @@ func parseSig(sigStr []byte, der bool) (*Signature, error) {
 			return nil, errors.New("signature S is excessively padded")
 		}
 	}
-	signature.S = new(big.Int).SetBytes(sBytes)
+	signature.s = new(big.Int).SetBytes(sBytes)
 	index += sLen
 
 	// sanity check length parsing
@@ -294,16 +293,16 @@ func parseSig(sigStr []byte, der bool) (*Signature, error) {
 	// correctly if we verify here too.
 	// FWIW the ecdsa spec states that R and S must be | 1, N - 1 |
 	// but crypto/ecdsa only checks for Sign != 0. Mirror that.
-	if signature.R.Sign() != 1 {
+	if signature.r.Sign() != 1 {
 		return nil, errors.New("signature R isn't 1 or more")
 	}
-	if signature.S.Sign() != 1 {
+	if signature.s.Sign() != 1 {
 		return nil, errors.New("signature S isn't 1 or more")
 	}
-	if signature.R.Cmp(curve.Params().N) >= 0 {
+	if signature.r.Cmp(curve.Params().N) >= 0 {
 		return nil, errors.New("signature R is >= curve.N")
 	}
-	if signature.S.Cmp(curve.Params().N) >= 0 {
+	if signature.s.Cmp(curve.Params().N) >= 0 {
 		return nil, errors.New("signature S is >= curve.N")
 	}
 
@@ -392,7 +391,7 @@ func recoverKeyFromSignature(sig *Signature, msg []byte, iter int, doChecks bool
 	curve := S256()
 	Rx := new(big.Int).Mul(curve.Params().N,
 		new(big.Int).SetInt64(int64(iter/2)))
-	Rx.Add(Rx, sig.R)
+	Rx.Add(Rx, sig.r)
 	if Rx.Cmp(curve.Params().P) != -1 {
 		return nil, errors.New("calculated Rx is larger than curve P")
 	}
@@ -421,10 +420,10 @@ func recoverKeyFromSignature(sig *Signature, msg []byte, iter int, doChecks bool
 	// We calculate the two terms sR and eG separately multiplied by the
 	// inverse of r (from the signature). We then add them to calculate
 	// Q = r^-1(sR-eG)
-	invr := new(big.Int).ModInverse(sig.R, curve.Params().N)
+	invr := new(big.Int).ModInverse(sig.r, curve.Params().N)
 
 	// first term.
-	invrS := new(big.Int).Mul(invr, sig.S)
+	invrS := new(big.Int).Mul(invr, sig.s)
 	invrS.Mod(invrS, curve.Params().N)
 	var invrSModN ModNScalar
 	invrSModN.SetByteSlice(invrS.Bytes())
@@ -474,19 +473,19 @@ func SignCompact(key *PrivateKey, hash []byte, isCompressedKey bool) ([]byte, er
 		curvelen := (curveParams.BitSize + 7) / 8
 
 		// Pad R and S to curvelen if needed.
-		bytelen := (sig.R.BitLen() + 7) / 8
+		bytelen := (sig.r.BitLen() + 7) / 8
 		if bytelen < curvelen {
 			result = append(result,
 				make([]byte, curvelen-bytelen)...)
 		}
-		result = append(result, sig.R.Bytes()...)
+		result = append(result, sig.r.Bytes()...)
 
-		bytelen = (sig.S.BitLen() + 7) / 8
+		bytelen = (sig.s.BitLen() + 7) / 8
 		if bytelen < curvelen {
 			result = append(result,
 				make([]byte, curvelen-bytelen)...)
 		}
-		result = append(result, sig.S.Bytes()...)
+		result = append(result, sig.s.Bytes()...)
 
 		return result, nil
 	}
@@ -508,8 +507,8 @@ func RecoverCompact(signature, hash []byte) (*PublicKey, bool, error) {
 
 	// format is <header byte><bitlen R><bitlen S>
 	sig := &Signature{
-		R: new(big.Int).SetBytes(signature[1 : bitlen+1]),
-		S: new(big.Int).SetBytes(signature[bitlen+1:]),
+		r: new(big.Int).SetBytes(signature[1 : bitlen+1]),
+		s: new(big.Int).SetBytes(signature[bitlen+1:]),
 	}
 	// The iteration used here was encoded
 	key, err := recoverKeyFromSignature(sig, hash, iteration, false)
@@ -570,7 +569,7 @@ func signRFC6979(privateKey *PrivateKey, hash []byte) *Signature {
 		}
 		zeroBigInt(bigK)
 		zeroBigInt(kInv)
-		return &Signature{R: r, S: s}
+		return &Signature{r: r, s: s}
 	}
 }
 
