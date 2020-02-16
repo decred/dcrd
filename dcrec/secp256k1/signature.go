@@ -89,6 +89,16 @@ func (sig *Signature) Serialize() []byte {
 	return b
 }
 
+// fieldToModNScalar converts a field value to scalar modulo the curve order.
+func fieldToModNScalar(v *fieldVal) ModNScalar {
+	var buf [32]byte
+	v.PutBytes(&buf)
+	var s ModNScalar
+	s.SetBytes(&buf)
+	zeroArray32(&buf)
+	return s
+}
+
 // Verify returns whether or not the signature is valid for the provided hash
 // and secp256k1 public key.
 func (sig *Signature) Verify(hash []byte, pubKey *PublicKey) bool {
@@ -116,56 +126,61 @@ func (sig *Signature) Verify(hash []byte, pubKey *PublicKey) bool {
 	// Step 1.
 	//
 	// Fail if R and S are not in [1, N-1].
-	N := curveParams.N
-	if sig.R.Sign() <= 0 || sig.S.Sign() <= 0 ||
-		sig.R.Cmp(N) >= 0 || sig.S.Cmp(N) >= 0 {
-
+	var R, S ModNScalar
+	if overflow := R.SetByteSlice(sig.R.Bytes()); overflow || R.IsZero() {
+		return false
+	}
+	if overflow := S.SetByteSlice(sig.S.Bytes()); overflow || S.IsZero() {
 		return false
 	}
 
 	// Step 2.
 	//
 	// e = H(m)
-	e := hashToInt(hash)
+	var e ModNScalar
+	e.SetByteSlice(hash)
 
 	// Step 3.
 	//
 	// w = S^-1 mod N
-	w := new(big.Int).ModInverse(sig.S, N)
+	w := new(ModNScalar).InverseValNonConst(&S)
 
 	// Step 4.
 	//
 	// u1 = e * w mod N
 	// u2 = R * w mod N
-	u1 := e.Mul(e, w)
-	u1.Mod(u1, N)
-	u2 := w.Mul(w, sig.R)
-	u2.Mod(u2, N)
+	u1 := new(ModNScalar).Mul2(&e, w)
+	u2 := new(ModNScalar).Mul2(&R, w)
 
 	// Step 5.
 	//
 	// X = u1G + u2Q
-	curve := S256()
-	x1, y1 := curve.ScalarBaseMult(u1.Bytes())
-	x2, y2 := curve.ScalarMult(pubKey.X, pubKey.Y, u2.Bytes())
-	x, y := curve.Add(x1, y1, x2, y2)
+	var X, Q, u1G, u2Q jacobianPoint
+	bigAffineToJacobian(pubKey.X, pubKey.Y, &Q)
+	scalarBaseMultJacobian(u1, &u1G)
+	scalarMultJacobian(u2, &Q, &u2Q)
+	addJacobian(&u1G, &u2Q, &X)
 
 	// Step 6.
 	//
 	// Fail if X is the point at infinity
-	if x.Sign() == 0 || y.Sign() == 0 {
+	if (X.x.IsZero() && X.y.IsZero()) || X.z.IsZero() {
 		return false
 	}
 
 	// Step 7.
 	//
 	// x = X.x mod N (X.x is the x coordinate of X)
-	x.Mod(x, N)
+	//
+	// Note that the point must be in affine coordinates since R is in affine
+	// coordinates.
+	X.ToAffine()
+	x := fieldToModNScalar(&X.x)
 
 	// Step 8.
 	//
 	// Verified if x == R
-	return x.Cmp(sig.R) == 0
+	return x.Equals(&R)
 }
 
 // IsEqual compares this Signature instance to the one passed, returning true if
