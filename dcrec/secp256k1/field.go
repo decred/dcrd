@@ -894,6 +894,165 @@ func (f *fieldVal) Mul2(val *fieldVal, val2 *fieldVal) *fieldVal {
 	return f
 }
 
+// SquareRootVal either calculates the square root of the passed value when it
+// exists or the square root of the negation of the value when it does not exist
+// and stores the result in f.  The return flag is true when the calculated
+// square root is for the passed value itself and false when it is for its
+// negation.
+//
+// Note that this function can overflow if multiplying any of the individual
+// words exceeds a max uint32.  In practice, this means the magnitude of the
+// field must be a max of 8 to prevent overflow.  The magnitude of the result
+// will be 1.
+func (f *fieldVal) SquareRootVal(val *fieldVal) bool {
+	// This uses the Tonelli-Shanks method for calculating the square root of
+	// the value when it exists.  The key principles of the method follow.
+	//
+	// Fermat's little theorem states that for a nonzero number 'a' and prime
+	// 'p', a^(p-1) ≡ 1 (mod p).
+	//
+	// Further, Euler's criterion states that an integer 'a' has a square root
+	// (aka is a quadratic residue) modulo a prime if a^((p-1)/2) ≡ 1 (mod p)
+	// and, conversely, when it does NOT have a square root (aka 'a' is a
+	// non-residue) a^((p-1)/2) ≡ -1 (mod p).
+	//
+	// This can be seen by considering that Fermat's little theorem can be
+	// written as (a^((p-1)/2) - 1)(a^((p-1)/2) + 1) ≡ 0 (mod p).  Therefore,
+	// one of the two factors must be 0.  Then, when a ≡ x^2 (aka 'a' is a
+	// quadratic residue), (x^2)^((p-1)/2) ≡ x^(p-1) ≡ 1 (mod p) which implies
+	// the first factor must be zero.  Finally, per Lagrange's theorem, the
+	// non-residues are the only remaining possible solutions and thus must make
+	// the second factor zero to satisfy Fermat's little theorem implying that
+	// a^((p-1)/2) ≡ -1 (mod p) for that case.
+	//
+	// The Tonelli-Shanks method uses these facts along with factoring out
+	// powers of two to solve a congruence that results in either the solution
+	// when the square root exists or the square root of the negation of the
+	// value when it does not.  In the case of primes that are ≡ 3 (mod 4), the
+	// possible solutions are r = ±a^((p+1)/4) (mod p).  Therefore, either r^2 ≡
+	// a (mod p) is true in which case ±r are the two solutions, or r^2 ≡ -a
+	// (mod p) in which case 'a' is a non-residue and there are no solutions.
+	//
+	// The secp256k1 prime is ≡ 3 (mod 4), so this result applies.
+	//
+	// In other words, calculate a^((p+1)/4) and then square it and check it
+	// against the original value to determine if it is actually the square
+	// root.
+	//
+	// In order to efficiently compute a^((p+1)/4), (p+1)/4 needs to be split
+	// into a sequence of squares and multiplications that minimizes the number
+	// of multiplications needed (since they are more costly than squarings).
+	//
+	// The secp256k1 prime + 1 / 4 is 2^254 - 2^30 - 244.  In binary, that is:
+	//
+	// 00111111 11111111 11111111 11111111
+	// 11111111 11111111 11111111 11111111
+	// 11111111 11111111 11111111 11111111
+	// 11111111 11111111 11111111 11111111
+	// 11111111 11111111 11111111 11111111
+	// 11111111 11111111 11111111 11111111
+	// 11111111 11111111 11111111 11111111
+	// 10111111 11111111 11111111 00001100
+	//
+	// Notice that can be broken up into three windows of consecutive 1s (in
+	// order of least to most signifcant) as:
+	//
+	//   6-bit window with two bits set (bits 4, 5, 6, 7 unset)
+	//   23-bit window with 22 bits set (bit 30 unset)
+	//   223-bit window with all 223 bits set
+	//
+	// Thus, the groups of 1 bits in each window forms the set:
+	// S = {2, 22, 223}.
+	//
+	// The strategy is to calculate a^(2^n - 1) for each grouping via an
+	// addition chain with a sliding window.
+	//
+	// The addition chain used is (credits to Peter Dettman):
+	// (0,0),(1,0),(2,2),(3,2),(4,1),(5,5),(6,6),(7,7),(8,8),(9,7),(10,2)
+	// => 2^1 2^[2] 2^3 2^6 2^9 2^11 2^[22] 2^44 2^88 2^176 2^220 2^[223]
+	//
+	// This has a cost of 254 field squarings and 13 field multiplications.
+	var a, a2, a3, a6, a9, a11, a22, a44, a88, a176, a220, a223 fieldVal
+	a.Set(val)
+	a2.SquareVal(&a).Mul(&a)                                  // a2 = a^(2^2 - 1)
+	a3.SquareVal(&a2).Mul(&a)                                 // a3 = a^(2^3 - 1)
+	a6.SquareVal(&a3).Square().Square()                       // a6 = a^(2^6 - 2^3)
+	a6.Mul(&a3)                                               // a6 = a^(2^6 - 1)
+	a9.SquareVal(&a6).Square().Square()                       // a9 = a^(2^9 - 2^3)
+	a9.Mul(&a3)                                               // a9 = a^(2^9 - 1)
+	a11.SquareVal(&a9).Square()                               // a11 = a^(2^11 - 2^2)
+	a11.Mul(&a2)                                              // a11 = a^(2^11 - 1)
+	a22.SquareVal(&a11).Square().Square().Square().Square()   // a22 = a^(2^16 - 2^5)
+	a22.Square().Square().Square().Square().Square()          // a22 = a^(2^21 - 2^10)
+	a22.Square()                                              // a22 = a^(2^22 - 2^11)
+	a22.Mul(&a11)                                             // a22 = a^(2^22 - 1)
+	a44.SquareVal(&a22).Square().Square().Square().Square()   // a44 = a^(2^27 - 2^5)
+	a44.Square().Square().Square().Square().Square()          // a44 = a^(2^32 - 2^10)
+	a44.Square().Square().Square().Square().Square()          // a44 = a^(2^37 - 2^15)
+	a44.Square().Square().Square().Square().Square()          // a44 = a^(2^42 - 2^20)
+	a44.Square().Square()                                     // a44 = a^(2^44 - 2^22)
+	a44.Mul(&a22)                                             // a44 = a^(2^44 - 1)
+	a88.SquareVal(&a44).Square().Square().Square().Square()   // a88 = a^(2^49 - 2^5)
+	a88.Square().Square().Square().Square().Square()          // a88 = a^(2^54 - 2^10)
+	a88.Square().Square().Square().Square().Square()          // a88 = a^(2^59 - 2^15)
+	a88.Square().Square().Square().Square().Square()          // a88 = a^(2^64 - 2^20)
+	a88.Square().Square().Square().Square().Square()          // a88 = a^(2^69 - 2^25)
+	a88.Square().Square().Square().Square().Square()          // a88 = a^(2^74 - 2^30)
+	a88.Square().Square().Square().Square().Square()          // a88 = a^(2^79 - 2^35)
+	a88.Square().Square().Square().Square().Square()          // a88 = a^(2^84 - 2^40)
+	a88.Square().Square().Square().Square()                   // a88 = a^(2^88 - 2^44)
+	a88.Mul(&a44)                                             // a88 = a^(2^88 - 1)
+	a176.SquareVal(&a88).Square().Square().Square().Square()  // a176 = a^(2^93 - 2^5)
+	a176.Square().Square().Square().Square().Square()         // a176 = a^(2^98 - 2^10)
+	a176.Square().Square().Square().Square().Square()         // a176 = a^(2^103 - 2^15)
+	a176.Square().Square().Square().Square().Square()         // a176 = a^(2^108 - 2^20)
+	a176.Square().Square().Square().Square().Square()         // a176 = a^(2^113 - 2^25)
+	a176.Square().Square().Square().Square().Square()         // a176 = a^(2^118 - 2^30)
+	a176.Square().Square().Square().Square().Square()         // a176 = a^(2^123 - 2^35)
+	a176.Square().Square().Square().Square().Square()         // a176 = a^(2^128 - 2^40)
+	a176.Square().Square().Square().Square().Square()         // a176 = a^(2^133 - 2^45)
+	a176.Square().Square().Square().Square().Square()         // a176 = a^(2^138 - 2^50)
+	a176.Square().Square().Square().Square().Square()         // a176 = a^(2^143 - 2^55)
+	a176.Square().Square().Square().Square().Square()         // a176 = a^(2^148 - 2^60)
+	a176.Square().Square().Square().Square().Square()         // a176 = a^(2^153 - 2^65)
+	a176.Square().Square().Square().Square().Square()         // a176 = a^(2^158 - 2^70)
+	a176.Square().Square().Square().Square().Square()         // a176 = a^(2^163 - 2^75)
+	a176.Square().Square().Square().Square().Square()         // a176 = a^(2^168 - 2^80)
+	a176.Square().Square().Square().Square().Square()         // a176 = a^(2^173 - 2^85)
+	a176.Square().Square().Square()                           // a176 = a^(2^176 - 2^88)
+	a176.Mul(&a88)                                            // a176 = a^(2^176 - 1)
+	a220.SquareVal(&a176).Square().Square().Square().Square() // a220 = a^(2^181 - 2^5)
+	a220.Square().Square().Square().Square().Square()         // a220 = a^(2^186 - 2^10)
+	a220.Square().Square().Square().Square().Square()         // a220 = a^(2^191 - 2^15)
+	a220.Square().Square().Square().Square().Square()         // a220 = a^(2^196 - 2^20)
+	a220.Square().Square().Square().Square().Square()         // a220 = a^(2^201 - 2^25)
+	a220.Square().Square().Square().Square().Square()         // a220 = a^(2^206 - 2^30)
+	a220.Square().Square().Square().Square().Square()         // a220 = a^(2^211 - 2^35)
+	a220.Square().Square().Square().Square().Square()         // a220 = a^(2^216 - 2^40)
+	a220.Square().Square().Square().Square()                  // a220 = a^(2^220 - 2^44)
+	a220.Mul(&a44)                                            // a220 = a^(2^220 - 1)
+	a223.SquareVal(&a220).Square().Square()                   // a223 = a^(2^223 - 2^3)
+	a223.Mul(&a3)                                             // a223 = a^(2^223 - 1)
+
+	f.SquareVal(&a223).Square().Square().Square().Square() // f = a^(2^228 - 2^5)
+	f.Square().Square().Square().Square().Square()         // f = a^(2^233 - 2^10)
+	f.Square().Square().Square().Square().Square()         // f = a^(2^238 - 2^15)
+	f.Square().Square().Square().Square().Square()         // f = a^(2^243 - 2^20)
+	f.Square().Square().Square()                           // f = a^(2^246 - 2^23)
+	f.Mul(&a22)                                            // f = a^(2^246 - 2^22 - 1)
+	f.Square().Square().Square().Square().Square()         // f = a^(2^251 - 2^27 - 2^5)
+	f.Square()                                             // f = a^(2^252 - 2^28 - 2^6)
+	f.Mul(&a2)                                             // f = a^(2^252 - 2^28 - 2^6 - 2^1 - 1)
+	f.Square().Square()                                    // f = a^(2^254 - 2^30 - 2^8 - 2^3 - 2^2)
+	//                                                     //   = a^(2^254 - 2^30 - 244)
+	//                                                     //   = a^((p+1)/4)
+
+	// Ensure the calculated result is actually the square root by squaring it
+	// and checking against the original value.
+	var sqr fieldVal
+	return sqr.SquareVal(f).Normalize().Equals(val.Normalize())
+}
+
 // Square squares the field value.  The existing field value is modified.  Note
 // that this function can overflow if multiplying any of the individual words
 // exceeds a max uint32.  In practice, this means the magnitude of the field

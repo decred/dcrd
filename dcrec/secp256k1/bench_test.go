@@ -164,16 +164,6 @@ func BenchmarkSigSerialize(b *testing.B) {
 	}
 }
 
-// BenchmarkFieldNormalize benchmarks how long it takes the internal field
-// to perform normalization (which includes modular reduction).
-func BenchmarkFieldNormalize(b *testing.B) {
-	// The normalize function is constant time so default value is fine.
-	f := new(fieldVal)
-	for i := 0; i < b.N; i++ {
-		f.Normalize()
-	}
-}
-
 // BenchmarkNonceRFC6979 benchmarks how long it takes to generate a
 // deterministic nonce according to RFC6979.
 func BenchmarkNonceRFC6979(b *testing.B) {

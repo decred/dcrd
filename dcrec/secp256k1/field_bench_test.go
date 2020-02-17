@@ -1,0 +1,52 @@
+// Copyright (c) 2020 The Decred developers
+// Use of this source code is governed by an ISC
+// license that can be found in the LICENSE file.
+
+package secp256k1
+
+import (
+	"math/big"
+	"testing"
+)
+
+// BenchmarkFieldNormalize benchmarks how long it takes the internal field
+// to perform normalization (which includes modular reduction).
+func BenchmarkFieldNormalize(b *testing.B) {
+	// The normalize function is constant time so default value is fine.
+	f := new(fieldVal)
+	for i := 0; i < b.N; i++ {
+		f.Normalize()
+	}
+}
+
+// BenchmarkFieldSqrt benchmarks calculating the square root of an unsigned
+// 256-bit big-endian integer modulo the field prime  with the specialized type.
+func BenchmarkFieldSqrt(b *testing.B) {
+	// The function is constant time so any value is fine.
+	valHex := "16fb970147a9acc73654d4be233cc48b875ce20a2122d24f073d29bd28805aca"
+	f := new(fieldVal).SetHex(valHex).Normalize()
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		var result fieldVal
+		_ = result.SquareRootVal(f)
+	}
+}
+
+// BenchmarkBigSqrt benchmarks calculating the square root of an an unsigned
+// 256-bit big-endian integer modulo the field prime with stdlib big integers.
+func BenchmarkBigSqrt(b *testing.B) {
+	// The function is constant time so any value is fine.
+	valHex := "16fb970147a9acc73654d4be233cc48b875ce20a2122d24f073d29bd28805aca"
+	val, ok := new(big.Int).SetString(valHex, 16)
+	if !ok {
+		b.Fatalf("failed to parse hex %s", valHex)
+	}
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = new(big.Int).ModSqrt(val, curveParams.P)
+	}
+}
