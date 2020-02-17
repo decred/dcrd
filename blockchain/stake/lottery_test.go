@@ -74,15 +74,15 @@ func TestLotteryNumSelection(t *testing.T) {
 	justEnoughTickets := 5
 	ticketsPerBlock := uint16(5)
 
-	_, err := FindTicketIdxs(tooFewTickets, ticketsPerBlock, prng)
+	_, err := findTicketIdxs(tooFewTickets, ticketsPerBlock, prng)
 	if err == nil {
-		t.Errorf("got unexpected no error for FindTicketIdxs too few tickets " +
+		t.Errorf("got unexpected no error for findTicketIdxs too few tickets " +
 			"test")
 	}
 
-	tickets, err := FindTicketIdxs(ticketsInPool, ticketsPerBlock, prng)
+	tickets, err := findTicketIdxs(ticketsInPool, ticketsPerBlock, prng)
 	if err != nil {
-		t.Errorf("got unexpected error for FindTicketIdxs 1 test")
+		t.Errorf("got unexpected error for findTicketIdxs 1 test")
 	}
 	ticketsExp := []int{34850, 8346, 27636, 54482, 25482}
 	if !reflect.DeepEqual(ticketsExp, tickets) {
@@ -92,9 +92,9 @@ func TestLotteryNumSelection(t *testing.T) {
 
 	// Ensure that it can find all suitable ticket numbers in a small
 	// bucket of tickets.
-	tickets, err = FindTicketIdxs(justEnoughTickets, ticketsPerBlock, prng)
+	tickets, err = findTicketIdxs(justEnoughTickets, ticketsPerBlock, prng)
 	if err != nil {
-		t.Errorf("got unexpected error for FindTicketIdxs 2 test")
+		t.Errorf("got unexpected error for findTicketIdxs 2 test")
 	}
 	ticketsExp = []int{3, 0, 4, 2, 1}
 	if !reflect.DeepEqual(ticketsExp, tickets) {
@@ -115,7 +115,7 @@ func TestLotteryNumErrors(t *testing.T) {
 	prng := NewHash256PRNG(seed)
 
 	// Too big pool.
-	_, err := FindTicketIdxs(1000000000000, 5, prng)
+	_, err := findTicketIdxs(1000000000000, 5, prng)
 	if err == nil {
 		t.Errorf("Expected pool size too big error")
 	}

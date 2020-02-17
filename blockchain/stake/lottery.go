@@ -178,11 +178,6 @@ func findTicketIdxs(size int, n uint16, prng *Hash256PRNG) ([]int, error) {
 	return list, nil
 }
 
-// FindTicketIdxs is the exported version of findTicketIdxs used for testing.
-func FindTicketIdxs(size int, n uint16, prng *Hash256PRNG) ([]int, error) {
-	return findTicketIdxs(size, n, prng)
-}
-
 // fetchWinners is a ticket database specific function which iterates over the
 // entire treap and finds winners at selected indexes.  These are returned
 // as a slice of pointers to keys, which can be recast as []*chainhash.Hash.
