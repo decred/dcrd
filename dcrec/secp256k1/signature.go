@@ -16,6 +16,10 @@ import (
 
 // References:
 //   [GECC]: Guide to Elliptic Curve Cryptography (Hankerson, Menezes, Vanstone)
+//
+//   [ISO/IEC 8825-1]: Information technology — ASN.1 encoding rules:
+//     Specification of Basic Encoding Rules (BER), Canonical Encoding Rules
+//     (CER) and Distinguished Encoding Rules (DER)
 
 // Errors returned by canonicalPadding.
 var (
@@ -30,10 +34,6 @@ type Signature struct {
 }
 
 var (
-	// Curve order and halforder, used to tame ECDSA malleability (see BIP-0062)
-	order     = new(big.Int).Set(S256().N)
-	halforder = new(big.Int).Rsh(order, 1)
-
 	// singleZero is used during RFC6979 nonce generation.  It is provided
 	// here to avoid the need to create it multiple times.
 	singleZero = []byte{0x00}
@@ -56,36 +56,84 @@ func NewSignature(r, s *big.Int) *Signature {
 	return &Signature{r, s}
 }
 
-// Serialize returns the ECDSA signature in the more strict DER format.  Note
-// that the serialized bytes returned do not include the appended hash type used
-// in Decred signature scripts.
+// Serialize returns the ECDSA signature in the Distinguished Encoding Rules
+// (DER) format per section 10 of [ISO/IEC 8825-1] and such that the S component
+// of the signature is less than or equal to the half order of the group.
 //
-// 0x30 <length> 0x02 <length r> r 0x02 <length s> s
+// Note that the serialized bytes returned do not include the appended hash type
+// used in Decred signature scripts.
 func (sig *Signature) Serialize() []byte {
-	// Low 'S' malleability breaker.
-	sigS := sig.s
-	if sigS.Cmp(halforder) == 1 {
-		sigS = new(big.Int).Sub(order, sigS)
+	// The format of a DER encoded signature is as follows:
+	//
+	// 0x30 <total length> 0x02 <length of R> <R> 0x02 <length of S> <S>
+	//   - 0x30 is the ASN.1 identifier for a sequence
+	//   - Total length is 1 byte and specifies length of all remaining data
+	//   - 0x02 is the ASN.1 identifier that specifies an integer follows
+	//   - Length of R is 1 byte and specifies how many bytes R occupies
+	//   - R is the arbitrary length big-endian encoded number which
+	//     represents the R value of the signature.  DER encoding dictates
+	//     that the value must be encoded using the minimum possible number
+	//     of bytes.  This implies the first byte can only be null if the
+	//     highest bit of the next byte is set in order to prevent it from
+	//     being interpreted as a negative number.
+	//   - 0x02 is once again the ASN.1 integer identifier
+	//   - Length of S is 1 byte and specifies how many bytes S occupies
+	//   - S is the arbitrary length big-endian encoded number which
+	//     represents the S value of the signature.  The encoding rules are
+	//     identical as those for R.
+	const (
+		asn1SequenceID = 0x30
+		asn1IntegerID  = 0x02
+	)
+
+	// Convert big ints to mod N scalars.  Ultimately the goal is to convert
+	// the signature type itself to use mod N scalars directly which will allow
+	// this step to be removed.
+	var r, s ModNScalar
+	r.SetByteSlice(sig.r.Bytes())
+	s.SetByteSlice(sig.s.Bytes())
+
+	// Ensure the S component of the signature is less than or equal to the half
+	// order of the group because both S and its negation are valid signatures
+	// modulo the order, so this forces a consistent choice to reduce signature
+	// malleability.
+	sigS := new(ModNScalar).Set(&s)
+	if sigS.IsOverHalfOrder() {
+		sigS.Negate()
 	}
 
-	// Ensure the encoded bytes for the R and S values are canonical and thus
-	// suitable for DER encoding.
-	rb := canonicalizeInt(sig.r)
-	sb := canonicalizeInt(sigS)
+	// Serialize the R and S components of the signature into their fixed
+	// 32-byte big-endian encoding.
+	var rBytes, sBytes [32]byte
+	r.PutBytes(&rBytes)
+	sigS.PutBytes(&sBytes)
+
+	// Ensure the encoded bytes for the R and S components are canonical per DER
+	// by trimming all leading zero bytes so long as the next byte does not have
+	// the high bit set and it's not the final byte.
+	var rBuf, sBuf [33]byte
+	copy(rBuf[1:], rBytes[:])
+	copy(sBuf[1:], sBytes[:])
+	canonR, canonS := rBuf[:], sBuf[:]
+	for len(canonR) > 1 && canonR[0] == 0x00 && canonR[1]&0x80 == 0 {
+		canonR = canonR[1:]
+	}
+	for len(canonS) > 1 && canonS[0] == 0x00 && canonS[1]&0x80 == 0 {
+		canonS = canonS[1:]
+	}
 
 	// Total length of returned signature is 1 byte for each magic and length
 	// (6 total), plus lengths of R and S.
-	length := 6 + len(rb) + len(sb)
-	b := make([]byte, length)
-
-	b[0] = 0x30
-	b[1] = byte(length - 2)
-	b[2] = 0x02
-	b[3] = byte(len(rb))
-	offset := copy(b[4:], rb) + 4
-	b[offset] = 0x02
-	b[offset+1] = byte(len(sb))
-	copy(b[offset+2:], sb)
+	totalLen := 6 + len(canonR) + len(canonS)
+	b := make([]byte, 0, totalLen)
+	b = append(b, asn1SequenceID)
+	b = append(b, byte(totalLen-2))
+	b = append(b, asn1IntegerID)
+	b = append(b, byte(len(canonR)))
+	b = append(b, canonR...)
+	b = append(b, asn1IntegerID)
+	b = append(b, byte(len(canonS)))
+	b = append(b, canonS...)
 	return b
 }
 
@@ -321,25 +369,6 @@ func ParseSignature(sigStr []byte) (*Signature, error) {
 // to the less strict BER format is needed, use ParseSignature.
 func ParseDERSignature(sigStr []byte) (*Signature, error) {
 	return parseSig(sigStr, true)
-}
-
-// canonicalizeInt returns the bytes for the passed big integer adjusted as
-// necessary to ensure that a big-endian encoded integer can't possibly be
-// misinterpreted as a negative number.  This can happen when the most
-// significant bit is set, so it is padded by a leading zero byte in this case.
-// Also, the returned bytes will have at least a single byte when the passed
-// value is 0.  This is required for DER encoding.
-func canonicalizeInt(val *big.Int) []byte {
-	b := val.Bytes()
-	if len(b) == 0 {
-		b = []byte{0x00}
-	}
-	if b[0]&0x80 != 0 {
-		paddedBytes := make([]byte, len(b)+1)
-		copy(paddedBytes[1:], b)
-		b = paddedBytes
-	}
-	return b
 }
 
 // canonicalPadding checks whether a big-endian encoded integer could

@@ -230,52 +230,51 @@ func TestSignatureSerialize(t *testing.T) {
 		name     string
 		ecsig    *Signature
 		expected []byte
-	}{
+	}{{
 		// signature from bitcoin blockchain tx
 		// 0437cd7f8525ceed2324359c2d0ba26006d92d85
-		{
-			"valid 1 - r and s most significant bits are zero",
-			&Signature{
-				r: hexToBigInt("4e45e16932b8af514961a1d3a1a25fdf3f4f7732e9d624c6c61548ab5fb8cd41"),
-				s: hexToBigInt("181522ec8eca07de4860a4acdd12909d831cc56cbbac4622082221a8768d1d09"),
-			},
-			hexToBytes("304402204e45e16932b8af514961a1d3a1a25fdf3f4f7732e9d62" +
-				"4c6c61548ab5fb8cd410220181522ec8eca07de4860a4acdd12909d831cc" +
-				"56cbbac4622082221a8768d1d09"),
+		"valid 1 - r and s most significant bits are zero",
+		&Signature{
+			r: hexToBigInt("4e45e16932b8af514961a1d3a1a25fdf3f4f7732e9d624c6c61548ab5fb8cd41"),
+			s: hexToBigInt("181522ec8eca07de4860a4acdd12909d831cc56cbbac4622082221a8768d1d09"),
 		},
+		hexToBytes("304402204e45e16932b8af514961a1d3a1a25fdf3f4f7732e9d62" +
+			"4c6c61548ab5fb8cd410220181522ec8eca07de4860a4acdd12909d831cc" +
+			"56cbbac4622082221a8768d1d09"),
+	}, {
 		// signature from bitcoin blockchain tx
 		// cb00f8a0573b18faa8c4f467b049f5d202bf1101d9ef2633bc611be70376a4b4
-		{
-			"valid 2 - r most significant bit is one",
-			&Signature{
-				r: hexToBigInt("0082235e21a2300022738dabb8e1bbd9d19cfb1e7ab8c30a23b0afbb8d178abcf3"),
-				s: hexToBigInt("24bf68e256c534ddfaf966bf908deb944305596f7bdcc38d69acad7f9c868724"),
-			},
-			hexToBytes("304502210082235e21a2300022738dabb8e1bbd9d19cfb1e7ab8c" +
-				"30a23b0afbb8d178abcf3022024bf68e256c534ddfaf966bf908deb94430" +
-				"5596f7bdcc38d69acad7f9c868724"),
+		"valid 2 - r most significant bit is one",
+		&Signature{
+			r: hexToBigInt("0082235e21a2300022738dabb8e1bbd9d19cfb1e7ab8c30a23b0afbb8d178abcf3"),
+			s: hexToBigInt("24bf68e256c534ddfaf966bf908deb944305596f7bdcc38d69acad7f9c868724"),
 		},
+		hexToBytes("304502210082235e21a2300022738dabb8e1bbd9d19cfb1e7ab8c" +
+			"30a23b0afbb8d178abcf3022024bf68e256c534ddfaf966bf908deb94430" +
+			"5596f7bdcc38d69acad7f9c868724"),
+	}, {
 		// signature from bitcoin blockchain tx
 		// fda204502a3345e08afd6af27377c052e77f1fefeaeb31bdd45f1e1237ca5470
-		{
-			"valid 3 - s most significant bit is one",
-			&Signature{
-				r: hexToBigInt("1cadddc2838598fee7dc35a12b340c6bde8b389f7bfd19a1252a17c4b5ed2d71"),
-				s: new(big.Int).Add(hexToBigInt("00c1a251bbecb14b058a8bd77f65de87e51c47e95904f4c0e9d52eddc21c1415ac"), S256().N),
-			},
-			hexToBytes("304502201cadddc2838598fee7dc35a12b340c6bde8b389f7bfd1" +
-				"9a1252a17c4b5ed2d71022100c1a251bbecb14b058a8bd77f65de87e51c4" +
-				"7e95904f4c0e9d52eddc21c1415ac"),
+		//
+		// Note that signatures with an S component that is > half the group
+		// order are neither allowed nor produced in Decred, so this has been
+		// modified to expect the equally valid low S signature variant.
+		"valid 3 - s most significant bit is one",
+		&Signature{
+			r: hexToBigInt("1cadddc2838598fee7dc35a12b340c6bde8b389f7bfd19a1252a17c4b5ed2d71"),
+			s: hexToBigInt("c1a251bbecb14b058a8bd77f65de87e51c47e95904f4c0e9d52eddc21c1415ac"),
 		},
-		{
-			"zero signature",
-			&Signature{
-				r: big.NewInt(0),
-				s: big.NewInt(0),
-			},
-			hexToBytes("3006020100020100"),
+		hexToBytes("304402201cadddc2838598fee7dc35a12b340c6bde8b389f7bfd1" +
+			"9a1252a17c4b5ed2d7102203e5dae44134eb4fa757428809a2178199e66f" +
+			"38daa53df51eaa380cab4222b95"),
+	}, {
+		"zero signature",
+		&Signature{
+			r: big.NewInt(0),
+			s: big.NewInt(0),
 		},
-	}
+		hexToBytes("3006020100020100"),
+	}}
 
 	for i, test := range tests {
 		result := test.ecsig.Serialize()
