@@ -1,6 +1,6 @@
 module github.com/decred/dcrd
 
-go 1.11
+go 1.13
 
 require (
 	github.com/btcsuite/winsvc v1.0.0

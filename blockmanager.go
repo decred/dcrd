@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2019 The Decred developers
+// Copyright (c) 2015-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -8,6 +8,7 @@ package main
 import (
 	"container/list"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -610,7 +611,8 @@ func (b *blockManager) handleDonePeerMsg(peer *peerpkg.Peer) {
 // error types to the historical rejection codes used on the p2p wire protocol.
 func errToWireRejectCode(err error) (wire.RejectCode, string) {
 	// Unwrap mempool errors.
-	if rerr, ok := err.(mempool.RuleError); ok {
+	var rerr mempool.RuleError
+	if errors.As(err, &rerr) {
 		err = rerr.Err
 	}
 
@@ -619,10 +621,12 @@ func errToWireRejectCode(err error) (wire.RejectCode, string) {
 	code := wire.RejectInvalid
 	var reason string
 
-	switch err := err.(type) {
-	case blockchain.RuleError:
+	var berr blockchain.RuleError
+	var terr mempool.TxRuleError
+	switch {
+	case errors.As(err, &berr):
 		// Convert the chain error to a reject code.
-		switch err.ErrorCode {
+		switch berr.ErrorCode {
 		// Rejected due to duplicate.
 		case blockchain.ErrDuplicateBlock:
 			code = wire.RejectDuplicate
@@ -640,9 +644,9 @@ func errToWireRejectCode(err error) (wire.RejectCode, string) {
 			code = wire.RejectCheckpoint
 		}
 
-		reason = err.Error()
-	case mempool.TxRuleError:
-		switch err.ErrorCode {
+		reason = berr.Error()
+	case errors.As(err, &terr):
+		switch terr.ErrorCode {
 		// Error codes which map to a duplicate transaction already
 		// mined or in the mempool.
 		case mempool.ErrMempoolDoubleSpend,
@@ -675,7 +679,7 @@ func errToWireRejectCode(err error) (wire.RejectCode, string) {
 			code = wire.RejectDust
 		}
 
-		reason = err.Error()
+		reason = terr.Error()
 	default:
 		reason = fmt.Sprintf("rejected: %v", err)
 	}
@@ -733,7 +737,8 @@ func (b *blockManager) handleTxMsg(tmsg *txMsg) {
 		// simply rejected as opposed to something actually going wrong,
 		// so log it as such.  Otherwise, something really did go wrong,
 		// so log it as an actual error.
-		if _, ok := err.(mempool.RuleError); ok {
+		var rErr mempool.RuleError
+		if errors.As(err, &rErr) {
 			bmgrLog.Debugf("Rejected transaction %v from %s: %v",
 				txHash, peer, err)
 		} else {
@@ -1049,14 +1054,16 @@ func (b *blockManager) handleBlockMsg(bmsg *blockMsg) {
 		// rejected as opposed to something actually going wrong, so log
 		// it as such.  Otherwise, something really did go wrong, so log
 		// it as an actual error.
-		if _, ok := err.(blockchain.RuleError); ok {
+		var rErr blockchain.RuleError
+		if errors.As(err, &rErr) {
 			bmgrLog.Infof("Rejected block %v from %s: %v", blockHash,
 				peer, err)
 		} else {
 			bmgrLog.Errorf("Failed to process block %v: %v",
 				blockHash, err)
 		}
-		if dbErr, ok := err.(database.Error); ok && dbErr.ErrorCode ==
+		var dbErr database.Error
+		if errors.As(err, &dbErr) && dbErr.ErrorCode ==
 			database.ErrCorruption {
 			bmgrLog.Errorf("Critical failure: %v", dbErr.Error())
 		}
@@ -1737,13 +1744,13 @@ func headerApprovesParent(header *wire.BlockHeader) bool {
 // is expected to have come from mempool, indicates a transaction was rejected
 // either due to containing a double spend or already existing in the pool.
 func isDoubleSpendOrDuplicateError(err error) bool {
-	merr, ok := err.(mempool.RuleError)
-	if !ok {
+	var merr mempool.RuleError
+	if !errors.As(err, &merr) {
 		return false
 	}
 
-	rerr, ok := merr.Err.(mempool.TxRuleError)
-	if ok {
+	var rerr mempool.TxRuleError
+	if errors.As(merr.Err, &rerr) {
 		switch rerr.ErrorCode {
 		case mempool.ErrDuplicate:
 			return true
@@ -1754,12 +1761,9 @@ func isDoubleSpendOrDuplicateError(err error) bool {
 		}
 	}
 
-	cerr, ok := merr.Err.(blockchain.RuleError)
-	if ok && cerr.ErrorCode == blockchain.ErrMissingTxOut {
-		return true
-	}
-
-	return false
+	var cerr blockchain.RuleError
+	return errors.As(merr.Err, &cerr) &&
+		cerr.ErrorCode == blockchain.ErrMissingTxOut
 }
 
 // handleBlockchainNotification handles notifications from blockchain.  It does
@@ -2535,7 +2539,8 @@ func loadBlockDB(params *chaincfg.Params) (database.DB, error) {
 	if err != nil {
 		// Return the error if it's not because the database doesn't
 		// exist.
-		if dbErr, ok := err.(database.Error); !ok || dbErr.ErrorCode !=
+		var dbErr database.Error
+		if !errors.As(err, &dbErr) || dbErr.ErrorCode !=
 			database.ErrDbDoesNotExist {
 
 			return nil, err

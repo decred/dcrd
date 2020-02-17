@@ -2303,7 +2303,8 @@ func handleGetCFilterV2(_ context.Context, s *rpcServer, cmd interface{}) (inter
 
 	filter, err := s.cfg.Chain.FilterByBlockHash(hash)
 	if err != nil {
-		if _, ok := err.(blockchain.NoFilterError); ok {
+		var nErr blockchain.NoFilterError
+		if errors.As(err, &nErr) {
 			return nil, &dcrjson.RPCError{
 				Code:    dcrjson.ErrRPCBlockNotFound,
 				Message: fmt.Sprintf("Block not found: %v", hash),
@@ -2965,7 +2966,8 @@ func handleGetVoteInfo(_ context.Context, s *rpcServer, cmd interface{}) (interf
 
 	vi, err := chain.GetVoteInfo(&snapshot.Hash, c.Version)
 	if err != nil {
-		if _, ok := err.(blockchain.VoteVersionError); ok {
+		var vErr blockchain.VoteVersionError
+		if errors.As(err, &vErr) {
 			return nil, rpcInvalidError("%d: unrecognized vote version",
 				c.Version)
 		}
@@ -3371,7 +3373,8 @@ func handleGetWorkSubmission(_ context.Context, s *rpcServer, hexData string) (i
 	if err != nil {
 		// Anything other than a rule violation is an unexpected error, so
 		// return that error as an internal error.
-		if _, ok := err.(blockchain.RuleError); !ok {
+		var rErr blockchain.RuleError
+		if !errors.As(err, &rErr) {
 			context := "Unexpected error while checking proof of work"
 			return false, rpcInternalError(err.Error(), context)
 		}
@@ -3406,7 +3409,8 @@ func handleGetWorkSubmission(_ context.Context, s *rpcServer, hexData string) (i
 	if err != nil {
 		// Anything other than a rule violation is an unexpected error,
 		// so return that error as an internal error.
-		if _, ok := err.(blockchain.RuleError); !ok {
+		var rErr blockchain.RuleError
+		if !errors.As(err, &rErr) {
 			context := "Unexpected error while processing block"
 			return false, rpcInternalError(err.Error(), context)
 		}
@@ -4120,7 +4124,8 @@ func handleSendRawTransaction(_ context.Context, s *rpcServer, cmd interface{}) 
 		// go wrong, so log it as an actual error.  In both cases, a
 		// JSON-RPC error is returned to the client with the
 		// deserialization error code (to match bitcoind behavior).
-		if rErr, ok := err.(mempool.RuleError); ok {
+		var rErr mempool.RuleError
+		if errors.As(err, &rErr) {
 			err = fmt.Errorf("rejected transaction %v: %v", tx.Hash(),
 				err)
 			rpcsLog.Debugf("%v", err)
@@ -5079,7 +5084,8 @@ func parseCmd(request *dcrjson.Request) *parsedRPCCmd {
 	if err != nil {
 		// When the error is because the method is not registered,
 		// produce a method not found RPC error.
-		if jerr, ok := err.(dcrjson.Error); ok &&
+		var jerr dcrjson.Error
+		if errors.As(err, &jerr) &&
 			jerr.Code == dcrjson.ErrUnregisteredMethod {
 			parsedCmd.err = dcrjson.ErrRPCMethodNotFound
 			return &parsedCmd
@@ -5100,12 +5106,8 @@ func parseCmd(request *dcrjson.Request) *parsedRPCCmd {
 // type *dcrjson.RPCError to the appropriate type as needed.
 func createMarshalledReply(rpcVersion string, id interface{}, result interface{}, replyErr error) ([]byte, error) {
 	var jsonErr *dcrjson.RPCError
-	if replyErr != nil {
-		if jErr, ok := replyErr.(*dcrjson.RPCError); ok {
-			jsonErr = jErr
-		} else {
-			jsonErr = rpcInternalError(replyErr.Error(), "")
-		}
+	if replyErr != nil && !errors.As(replyErr, &jsonErr) {
+		jsonErr = rpcInternalError(replyErr.Error(), "")
 	}
 
 	return dcrjson.MarshalResponse(rpcVersion, id, result, jsonErr)
@@ -5440,7 +5442,8 @@ func (s *rpcServer) route(ctx context.Context) *http.Server {
 		// using the default size for read/write buffers.
 		ws, err := websocket.Upgrade(w, r, nil, 0, 0)
 		if err != nil {
-			if _, ok := err.(websocket.HandshakeError); !ok {
+			var herr websocket.HandshakeError
+			if !errors.As(err, &herr) {
 				rpcsLog.Errorf("Unexpected websocket error: %v",
 					err)
 			}
