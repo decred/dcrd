@@ -146,6 +146,24 @@ func BenchmarkSign(b *testing.B) {
 	}
 }
 
+// BenchmarkSigSerialize benchmarks how long it takes to serialize a typical
+// signature with the strict DER encoding.
+func BenchmarkSigSerialize(b *testing.B) {
+	// Randomly generated keypair.
+	// Private key: 9e0699c91ca1e3b7e3c9ba71eb71c89890872be97576010fe593fbf3fd57e66d
+	// Signature for double sha256 of []byte{0x01, 0x02, 0x03, 0x04}.
+	sig := Signature{
+		r: fromHex("fef45d2892953aa5bbcdb057b5e98b208f1617a7498af7eb765574e29b5d9c2c"),
+		s: fromHex("d47563f52aac6b04b55de236b7c515eb9311757db01e02cff079c3ca6efb063f"),
+	}
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		sig.Serialize()
+	}
+}
+
 // BenchmarkFieldNormalize benchmarks how long it takes the internal field
 // to perform normalization (which includes modular reduction).
 func BenchmarkFieldNormalize(b *testing.B) {
