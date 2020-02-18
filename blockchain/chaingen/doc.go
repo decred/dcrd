@@ -5,8 +5,6 @@
 /*
 Package chaingen provides facilities for generating a full chain of blocks.
 
-Overview
-
 Many consensus-related tests require a full chain of valid blocks with several
 pieces of contextual information such as versions and votes.  Generating such a
 chain is not a trivial task due to things such as the fact that tickets must be

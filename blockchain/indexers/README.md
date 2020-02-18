@@ -3,7 +3,7 @@ indexers
 
 [![Build Status](https://github.com/decred/dcrd/workflows/Build%20and%20Test/badge.svg)](https://github.com/decred/dcrd/actions)
 [![ISC License](https://img.shields.io/badge/license-ISC-blue.svg)](http://copyfree.org)
-[![GoDoc](https://godoc.org/github.com/decred/dcrd/blockchain/indexers?status.png)](https://godoc.org/github.com/decred/dcrd/blockchain/indexers)
+[![Doc](https://img.shields.io/badge/doc-reference-blue.svg)](https://pkg.go.dev/github.com/decred/dcrd/blockchain/v3/indexers)
 
 Package indexers implements optional block chain indexes.
 

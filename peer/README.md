@@ -3,7 +3,7 @@ peer
 
 [![Build Status](https://github.com/decred/dcrd/workflows/Build%20and%20Test/badge.svg)](https://github.com/decred/dcrd/actions)
 [![ISC License](https://img.shields.io/badge/license-ISC-blue.svg)](http://copyfree.org)
-[![GoDoc](https://img.shields.io/badge/godoc-reference-blue.svg)](https://godoc.org/github.com/decred/dcrd/peer)
+[![Doc](https://img.shields.io/badge/doc-reference-blue.svg)](https://pkg.go.dev/github.com/decred/dcrd/peer/v2)
 
 Package peer provides a common base for creating and managing bitcoin network
 peers.
@@ -59,7 +59,7 @@ $ go get -u github.com/decred/dcrd/peer
 
 ## Examples
 
-* [New Outbound Peer Example](https://godoc.org/github.com/decred/dcrd/peer#example-package--NewOutboundPeer)  
+* [New Outbound Peer Example](https://pkg.go.dev/github.com/decred/dcrd/peer/v2#example-package-NewOutboundPeer)
   Demonstrates the basic process for initializing and creating an outbound peer.
   Peers negotiate by exchanging version and verack messages.  For demonstration,
   a simple handler for the version message is attached to the peer.

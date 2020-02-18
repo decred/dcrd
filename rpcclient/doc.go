@@ -6,8 +6,6 @@
 /*
 Package rpcclient implements a websocket-enabled Decred JSON-RPC client.
 
-Overview
-
 This client provides a robust and easy to use client for interfacing
 with a Decred RPC server that uses a mostly btcd/bitcoin core
 style Decred JSON-RPC API.  This client has been tested with dcrd

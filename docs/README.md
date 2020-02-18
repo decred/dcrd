@@ -48,7 +48,7 @@ The first step is to install dcrd.  The installation instructions can be found
 
 **2.2 Configuration**<br />
 
-dcrd has a number of [configuration](https://godoc.org/github.com/decred/dcrd)
+dcrd has a number of [configuration](https://pkg.go.dev/github.com/decred/dcrd)
 options, which can be viewed by running: `$ dcrd --help`.
 
 <a name="DcrctlConfig" />

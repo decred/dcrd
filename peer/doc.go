@@ -1,13 +1,11 @@
 // Copyright (c) 2015-2016 The btcsuite developers
-// Copyright (c) 2016-2018 The Decred developers
+// Copyright (c) 2016-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
 /*
 Package peer provides a common base for creating and managing Decred network
 peers.
-
-Overview
 
 This package builds upon the wire package, which provides the fundamental
 primitives necessary to speak the Decred wire protocol, in order to simplify
@@ -142,6 +140,6 @@ raw message bytes using a format similar to hexdump -C.
 Improvement Proposals
 
 This package supports all improvement proposals supported by the wire package.
-(https://godoc.org/github.com/decred/dcrd/wire#hdr-Bitcoin_Improvement_Proposals)
+(https://pkg.go.dev/github.com/decred/dcrd/wire#hdr-Bitcoin_Improvement_Proposals)
 */
 package peer

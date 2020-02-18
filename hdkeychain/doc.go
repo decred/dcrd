@@ -7,8 +7,6 @@
 Package hdkeychain provides an API for Decred hierarchical deterministic
 extended keys (based on BIP0032).
 
-Overview
-
 The ability to implement hierarchical deterministic wallets depends on the
 ability to create and derive hierarchical deterministic extended keys.
 

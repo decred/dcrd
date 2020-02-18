@@ -3,7 +3,7 @@ database
 
 [![Build Status](https://github.com/decred/dcrd/workflows/Build%20and%20Test/badge.svg)](https://github.com/decred/dcrd/actions)
 [![ISC License](https://img.shields.io/badge/license-ISC-blue.svg)](http://copyfree.org)
-[![GoDoc](https://img.shields.io/badge/godoc-reference-blue.svg)](https://godoc.org/github.com/decred/dcrd/database)
+[![Doc](https://img.shields.io/badge/doc-reference-blue.svg)](https://pkg.go.dev/github.com/decred/dcrd/database/v2)
 
 Package database provides a block and metadata storage database.
 
@@ -42,11 +42,11 @@ $ go get github.com/decred/dcrd/database2
 
 ## Examples
 
-* [Basic Usage Example](https://godoc.org/github.com/decred/dcrd/database2#example-package--BasicUsage)
+* [Basic Usage Example](https://pkg.go.dev/github.com/decred/dcrd/database/v2#example-package-BasicUsage)
   Demonstrates creating a new database and using a managed read-write
   transaction to store and retrieve metadata.
 
-* [Block Storage and Retrieval Example](https://godoc.org/github.com/decred/dcrd/database2#example-package--BlockStorageAndRetrieval)
+* [Block Storage and Retrieval Example](https://pkg.go.dev/github.com/decred/dcrd/database/v2#example-package-BlockStorageAndRetrieval)
   Demonstrates creating a new database, using a managed read-write transaction
   to store a block, and then using a managed read-only transaction to fetch the
   block.
