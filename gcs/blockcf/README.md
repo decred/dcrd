@@ -1,7 +1,9 @@
 blockcf
-==========
+=======
 
-[![GoDoc](https://godoc.org/github.com/decred/dcrd/gcs/blockcf?status.png)](https://godoc.org/github.com/decred/dcrd/gcs/blockcf)
+[![Doc](https://img.shields.io/badge/doc-reference-blue.svg)](https://pkg.go.dev/github.com/decred/dcrd/gcs/v2/blockcf)
+
+## Overview
 
 Package blockcf provides functions to build committed filters from blocks.
 Unlike the gcs package, which is a general implementation of golomb coded sets,

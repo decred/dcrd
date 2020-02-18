@@ -1,4 +1,4 @@
-// Copyright (c) 2019 The Decred developers
+// Copyright (c) 2019-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -6,14 +6,12 @@
 Package types implements concrete types for marshalling to and from the dcrd
 JSON-RPC commands, return values, and notifications.
 
-Overview
-
 When communicating via the JSON-RPC protocol, all requests and responses must be
 marshalled to and from the wire in the appropriate format.  This package
 provides data structures and primitives that are registered with dcrjson to ease
 this process.  An overview specific to this package is provided here, however it
 is also instructive to read the documentation for the dcrjson package
-(https://godoc.org/github.com/decred/dcrd/dcrjson).
+(https://pkg.go.dev/github.com/decred/dcrd/dcrjson/v3).
 
 Marshalling and Unmarshalling
 

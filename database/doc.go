@@ -6,8 +6,6 @@
 /*
 Package database provides a block and metadata storage database.
 
-Overview
-
 This package provides a database layer to store and retrieve block data and
 arbitrary metadata in a simple and efficient manner.
 

@@ -3,7 +3,7 @@ dcrjson
 
 [![Build Status](https://github.com/decred/dcrd/workflows/Build%20and%20Test/badge.svg)](https://github.com/decred/dcrd/actions)
 [![ISC License](https://img.shields.io/badge/license-ISC-blue.svg)](http://copyfree.org)
-[![GoDoc](https://img.shields.io/badge/godoc-reference-blue.svg)](https://godoc.org/github.com/decred/dcrd/dcrjson)
+[![Doc](https://img.shields.io/badge/doc-reference-blue.svg)](https://pkg.go.dev/github.com/decred/dcrd/dcrjson/v3)
 
 Package dcrjson implements infrastructure for marshalling to and from the decred
 JSON-RPC API via concrete types.  A comprehensive suite of tests is provided to
@@ -30,17 +30,17 @@ $ go get -u github.com/decred/dcrd/dcrjson
 
 ## Examples
 
-* [Marshal Command](https://godoc.org/github.com/decred/dcrd/dcrjson#example-MarshalCmd)
+* [Marshal Command](https://pkg.go.dev/github.com/decred/dcrd/dcrjson/v3#example-MarshalCmd)
   Demonstrates how to create and marshal a command into a JSON-RPC request.
 
-* [Parse Command](https://godoc.org/github.com/decred/dcrd/dcrjson#example-ParseParams)
+* [Parse Command](https://pkg.go.dev/github.com/decred/dcrd/dcrjson/v3#example-ParseParams)
   Demonstrates how to unmarshal a JSON-RPC request and then parse the params
   of the concrete request into a concrete command.
 
-* [Marshal Response](https://godoc.org/github.com/decred/dcrd/dcrjson#example-MarshalResponse)
+* [Marshal Response](https://pkg.go.dev/github.com/decred/dcrd/dcrjson/v3#example-MarshalResponse)
   Demonstrates how to marshal a JSON-RPC response.
 
-* [Unmarshal Response](https://godoc.org/github.com/decred/dcrd/dcrjson#example-package--UnmarshalResponse)
+* [Unmarshal Response](https://pkg.go.dev/github.com/decred/dcrd/dcrjson/v3#example-package-UnmarshalResponse)
   Demonstrates how to unmarshal a JSON-RPC response and then unmarshal the
   result field in the response to a concrete type.
 

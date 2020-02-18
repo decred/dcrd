@@ -6,8 +6,6 @@
 Package certgen includes a common base for creating a
 new TLS certificate key pair.
 
-Overview
-
 This package contains functions for creating self-signed TLS certificate from
 random new key pairs, typically used for encrypting RPC and websocket
 communications.

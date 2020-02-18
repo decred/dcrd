@@ -3,7 +3,7 @@ standalone
 
 [![Build Status](https://github.com/decred/dcrd/workflows/Build%20and%20Test/badge.svg)](https://github.com/decred/dcrd/actions)
 [![ISC License](https://img.shields.io/badge/license-ISC-blue.svg)](http://copyfree.org)
-[![GoDoc](https://img.shields.io/badge/godoc-reference-blue.svg)](https://godoc.org/github.com/decred/dcrd/blockchain/standalone)
+[![Doc](https://img.shields.io/badge/doc-reference-blue.svg)](https://pkg.go.dev/github.com/decred/dcrd/blockchain/standalone)
 
 Package standalone provides standalone functions useful for working with the
 Decred blockchain consensus rules.
@@ -43,20 +43,20 @@ $ go get -u github.com/decred/dcrd/blockchain/standalone
 
 ## Examples
 
-* [CompactToBig Example](https://godoc.org/github.com/decred/dcrd/blockchain/standalone#example-CompactToBig)  
+* [CompactToBig Example](https://pkg.go.dev/github.com/decred/dcrd/blockchain/standalone#example-CompactToBig)
   Demonstrates how to convert the compact "bits" in a block header which
   represent the target difficulty to a big integer and display it using the
   typical hex notation.
 
-* [BigToCompact Example](https://godoc.org/github.com/decred/dcrd/blockchain/standalone#example-BigToCompact)  
+* [BigToCompact Example](https://pkg.go.dev/github.com/decred/dcrd/blockchain/standalone#example-BigToCompact)
   Demonstrates how to convert a target difficulty into the compact "bits" in a
   block header which represent that target difficulty.
 
-* [CheckProofOfWork Example](https://godoc.org/github.com/decred/dcrd/blockchain/standalone#example-CheckProofOfWork)  
+* [CheckProofOfWork Example](https://pkg.go.dev/github.com/decred/dcrd/blockchain/standalone#example-CheckProofOfWork)
   Demonstrates checking the proof of work of a block hash against a target
   difficulty.
 
-* [CalcMerkleRoot Example](https://godoc.org/github.com/decred/dcrd/blockchain/standalone#example-CalcMerkleRoot)  
+* [CalcMerkleRoot Example](https://pkg.go.dev/github.com/decred/dcrd/blockchain/standalone#example-CalcMerkleRoot)
   Demonstrates calculating a merkle root from a slice of leaf hashes.
 
 ## License
