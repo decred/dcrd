@@ -6,7 +6,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        go: [1.12, 1.13]
+        go: [1.13, 1.14]
     steps:
       - name: Set up Go
         uses: actions/setup-go@v1
