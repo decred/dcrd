@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2017 The btcsuite developers
-// Copyright (c) 2015-2018 The Decred developers
+// Copyright (c) 2015-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -28,18 +28,18 @@ func tstCheckScriptError(gotErr, wantErr error) error {
 	}
 
 	// Ensure the want error type is a script error.
-	werr, ok := wantErr.(Error)
-	if !ok {
+	var werr Error
+	if !errors.As(wantErr, &werr) {
 		return fmt.Errorf("unexpected test error type %T", wantErr)
 	}
 
 	// Ensure the error codes match.  It's safe to use a raw type assert
 	// here since the code above already proved they are the same type and
 	// the want error is a script error.
-	gotErrorCode := gotErr.(Error).ErrorCode
-	if gotErrorCode != werr.ErrorCode {
+	var gerr Error
+	if !errors.As(gotErr, &gerr) || gerr.ErrorCode != werr.ErrorCode {
 		return fmt.Errorf("mismatched error code - got %v (%v), want %v",
-			gotErrorCode, gotErr, werr.ErrorCode)
+			gerr.ErrorCode, gotErr, werr.ErrorCode)
 	}
 
 	return nil

@@ -7,6 +7,7 @@ package txscript
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"reflect"
 	"testing"
@@ -1273,9 +1274,10 @@ func TestExtractAtomicSwapDataPushes(t *testing.T) {
 		if test.err == nil && err != nil {
 			t.Fatalf("%q: unexpected err -- got %v, want nil", test.name, err)
 		} else if test.err != nil {
-			if !IsErrorCode(err, test.err.(Error).ErrorCode) {
+			var e Error
+			if !errors.As(test.err, &e) || !IsErrorCode(err, e.ErrorCode) {
 				t.Fatalf("%q: unexpected err -- got %v, want %v",
-					test.name, err, test.err.(Error).ErrorCode)
+					test.name, err, e.ErrorCode)
 			}
 			continue
 		}
