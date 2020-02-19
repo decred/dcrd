@@ -6,6 +6,7 @@
 package mempool
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"sync"
@@ -1118,7 +1119,8 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 	// transactions are allowed into blocks.
 	err := blockchain.CheckTransactionSanity(msgTx, mp.cfg.ChainParams)
 	if err != nil {
-		if cerr, ok := err.(blockchain.RuleError); ok {
+		var cerr blockchain.RuleError
+		if errors.As(err, &cerr) {
 			return nil, chainRuleError(cerr)
 		}
 		return nil, err
@@ -1161,7 +1163,8 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 	// agenda vote.
 	acceptSeqLocks, err := mp.cfg.Policy.AcceptSequenceLocks()
 	if err != nil {
-		if cerr, ok := err.(blockchain.RuleError); ok {
+		var cerr blockchain.RuleError
+		if errors.As(err, &cerr) {
 			return nil, chainRuleError(cerr)
 		}
 		return nil, err
@@ -1308,7 +1311,8 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 	// without needing to do a separate lookup.
 	utxoView, err := mp.fetchInputUtxos(tx)
 	if err != nil {
-		if cerr, ok := err.(blockchain.RuleError); ok {
+		var cerr blockchain.RuleError
+		if errors.As(err, &cerr) {
 			return nil, chainRuleError(cerr)
 		}
 		return nil, err
@@ -1364,7 +1368,8 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 	// with respect to its defined relative lock times.
 	seqLock, err := mp.cfg.CalcSequenceLock(tx, utxoView)
 	if err != nil {
-		if cerr, ok := err.(blockchain.RuleError); ok {
+		var cerr blockchain.RuleError
+		if errors.As(err, &cerr) {
 			return nil, chainRuleError(cerr)
 		}
 		return nil, err
@@ -1382,7 +1387,8 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 	txFee, err := blockchain.CheckTransactionInputs(mp.cfg.SubsidyCache,
 		tx, nextBlockHeight, utxoView, false, mp.cfg.ChainParams)
 	if err != nil {
-		if cerr, ok := err.(blockchain.RuleError); ok {
+		var cerr blockchain.RuleError
+		if errors.As(err, &cerr) {
 			return nil, chainRuleError(cerr)
 		}
 		return nil, err
@@ -1412,7 +1418,8 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 	numSigOps, err := blockchain.CountP2SHSigOps(tx, false,
 		(txType == stake.TxTypeSSGen), utxoView)
 	if err != nil {
-		if cerr, ok := err.(blockchain.RuleError); ok {
+		var cerr blockchain.RuleError
+		if errors.As(err, &cerr) {
 			return nil, chainRuleError(cerr)
 		}
 		return nil, err
@@ -1537,7 +1544,8 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 	err = blockchain.ValidateTransactionScripts(tx, utxoView, flags,
 		mp.cfg.SigCache)
 	if err != nil {
-		if cerr, ok := err.(blockchain.RuleError); ok {
+		var cerr blockchain.RuleError
+		if errors.As(err, &cerr) {
 			return nil, chainRuleError(cerr)
 		}
 		return nil, err

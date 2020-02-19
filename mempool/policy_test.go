@@ -7,6 +7,7 @@ package mempool
 
 import (
 	"bytes"
+	"errors"
 	"testing"
 	"time"
 
@@ -550,14 +551,14 @@ func TestCheckTransactionStandard(t *testing.T) {
 		}
 
 		// Ensure error type is a TxRuleError inside of a RuleError.
-		rerr, ok := err.(RuleError)
-		if !ok {
+		var rerr RuleError
+		if !errors.As(err, &rerr) {
 			t.Errorf("checkTransactionStandard (%s): unexpected "+
 				"error type - got %T", test.name, err)
 			continue
 		}
-		txrerr, ok := rerr.Err.(TxRuleError)
-		if !ok {
+		var txrerr TxRuleError
+		if !errors.As(rerr.Err, &txrerr) {
 			t.Errorf("checkTransactionStandard (%s): unexpected "+
 				"error type - got %T", test.name, rerr.Err)
 			continue
