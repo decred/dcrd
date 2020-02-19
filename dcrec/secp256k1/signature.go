@@ -137,14 +137,20 @@ func (sig *Signature) Serialize() []byte {
 	return b
 }
 
-// fieldToModNScalar converts a field value to scalar modulo the curve order.
-func fieldToModNScalar(v *fieldVal) ModNScalar {
+// fieldToModNScalar converts a field value to scalar modulo the group order and
+// returns the scalar along with either 1 if it was reduced (aka it overflowed)
+// or 0 otherwise.
+//
+// Note that a bool is not used here because it is not possible in Go to convert
+// from a bool to numeric value in constant time and many constant-time
+// operations require a numeric value.
+func fieldToModNScalar(v *fieldVal) (ModNScalar, uint32) {
 	var buf [32]byte
 	v.PutBytes(&buf)
 	var s ModNScalar
-	s.SetBytes(&buf)
+	overflow := s.SetBytes(&buf)
 	zeroArray32(&buf)
-	return s
+	return s, overflow
 }
 
 // Verify returns whether or not the signature is valid for the provided hash
@@ -223,7 +229,7 @@ func (sig *Signature) Verify(hash []byte, pubKey *PublicKey) bool {
 	// Note that the point must be in affine coordinates since R is in affine
 	// coordinates.
 	X.ToAffine()
-	x := fieldToModNScalar(&X.x)
+	x, _ := fieldToModNScalar(&X.x)
 
 	// Step 8.
 	//
@@ -604,7 +610,7 @@ func signRFC6979(privateKey *PrivateKey, hash []byte) *Signature {
 		//
 		// r = kG.x mod N
 		// Repeat from step 1 if r = 0
-		r := fieldToModNScalar(&kG.x)
+		r, _ := fieldToModNScalar(&kG.x)
 		if r.IsZero() {
 			continue
 		}

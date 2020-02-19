@@ -243,7 +243,7 @@ func TestModNScalarSetBytes(t *testing.T) {
 			truncatedInBytes = truncatedInBytes[:32]
 		}
 		copy(b32[32-len(truncatedInBytes):], truncatedInBytes)
-		overflow = s2.SetBytes(&b32)
+		overflow = s2.SetBytes(&b32) != 0
 		if !reflect.DeepEqual(s2.n, test.expected) {
 			t.Errorf("%s: unexpected result\ngot: %x\nwant: %x", test.name,
 				s2.n, test.expected)

@@ -298,9 +298,13 @@ func (s *ModNScalar) reduce256(overflows uint32) {
 
 // SetBytes interprets the provided array as a 256-bit big-endian unsigned
 // integer, reduces it modulo the group order, sets the scalar to the result,
-// and returns whether or not it was reduced (aka it overflowed) in constant
-// time.
-func (s *ModNScalar) SetBytes(b *[32]byte) bool {
+// and returns either 1 if it was reduced (aka it overflowed) or 0 otherwise in
+// constant time.
+//
+// Note that a bool is not used here because it is not possible in Go to convert
+// from a bool to numeric value in constant time and many constant-time
+// operations require a numeric value.
+func (s *ModNScalar) SetBytes(b *[32]byte) uint32 {
 	// Pack the 256 total bits across the 8 uint32 words.  This could be done
 	// with a for loop, but benchmarks show this unrolled version is about 2
 	// times faster than the variant that uses a loop.
@@ -317,7 +321,7 @@ func (s *ModNScalar) SetBytes(b *[32]byte) bool {
 	// not it was reduced.
 	needsReduce := s.overflows()
 	s.reduce256(needsReduce)
-	return needsReduce != 0
+	return needsReduce
 }
 
 // zeroArray32 zeroes the provided 32-byte buffer.
@@ -343,7 +347,7 @@ func (s *ModNScalar) SetByteSlice(b []byte) bool {
 	copy(b32[32-len(b):], b)
 	result := s.SetBytes(&b32)
 	zeroArray32(&b32)
-	return result
+	return result != 0
 }
 
 // PutBytes unpacks the scalar to a 32-byte big-endian value using the passed
