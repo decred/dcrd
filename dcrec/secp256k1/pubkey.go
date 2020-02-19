@@ -17,6 +17,30 @@ const (
 	PubKeyBytesLenUncompressed = 65
 )
 
+// decompressY attempts to calculate the Y coordinate for the given X coordinate
+// such that the result pair is a point on the secp256k1 curve.  It adjusts Y
+// based on the desired oddness and returns whether or not it was successful
+// since not all X coordinates are valid.
+//
+// The magnitude of the provided X coordinate field val must be a max of 8 for a
+// correct result.  The resulting Y field val will have a max magnitude of 2.
+func decompressY(x *fieldVal, odd bool, resultY *fieldVal) bool {
+	// The curve equation for secp256k1 is: y^2 = x^3 + 7.  Thus
+	// y = +-sqrt(x^3 + 7).
+	//
+	// The x coordinate must be invalid if there is no square root for the
+	// calculated rhs because it means the X coordinate is not for a point on
+	// the curve.
+	x3PlusB := new(fieldVal).SquareVal(x).Mul(x).AddInt(7)
+	if hasSqrt := resultY.SquareRootVal(x3PlusB); !hasSqrt {
+		return false
+	}
+	if resultY.Normalize().IsOdd() != odd {
+		resultY.Negate(1)
+	}
+	return true
+}
+
 func isOdd(a *big.Int) bool {
 	return a.Bit(0) == 1
 }
@@ -24,25 +48,14 @@ func isOdd(a *big.Int) bool {
 // decompressPoint decompresses a point on the given curve given the X point and
 // the solution to use.
 func decompressPoint(x *big.Int, ybit bool) (*big.Int, error) {
-	curve := S256()
-	// Y = +-sqrt(x^3 + B)
-	x3 := new(big.Int).Mul(x, x)
-	x3.Mul(x3, x)
-	x3.Add(x3, curve.Params().B)
-
-	// now calculate sqrt mod p of x2 + B
-	// This code used to do a full sqrt based on tonelli/shanks,
-	// but this was replaced by the algorithms referenced in
-	// https://bitcointalk.org/index.php?topic=162805.msg1712294#msg1712294
-	y := new(big.Int).Exp(x3, curve.q, curve.P)
-
-	if ybit != isOdd(y) {
-		y.Sub(curve.P, y)
+	var fy fieldVal
+	fx := new(fieldVal).SetByteSlice(x.Bytes())
+	if !decompressY(fx, ybit, &fy) {
+		return nil, fmt.Errorf("invalid public key x coordinate")
 	}
-	if ybit != isOdd(y) {
-		return nil, fmt.Errorf("ybit doesn't match oddness")
-	}
-	return y, nil
+	fy.Normalize()
+
+	return new(big.Int).SetBytes(fy.Bytes()[:]), nil
 }
 
 const (

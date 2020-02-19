@@ -191,14 +191,12 @@ func BenchmarkNonceRFC6979(b *testing.B) {
 func BenchmarkPubKeyDecompress(b *testing.B) {
 	// Randomly generated keypair.
 	// Private key: 9e0699c91ca1e3b7e3c9ba71eb71c89890872be97576010fe593fbf3fd57e66d
-	pubKeyX := fromHex("d2e670a19c6d753d1a6d8b20bd045df8a08fb162cf508956c31268c6d81ffdab")
+	pubKeyX := new(fieldVal).SetHex("d2e670a19c6d753d1a6d8b20bd045df8a08fb162cf508956c31268c6d81ffdab")
 
 	b.ReportAllocs()
 	b.ResetTimer()
+	var y fieldVal
 	for i := 0; i < b.N; i++ {
-		_, err := decompressPoint(pubKeyX, false)
-		if err != nil {
-			b.Fatalf("unexpected err: %v", err)
-		}
+		_ = decompressY(pubKeyX, false, &y)
 	}
 }

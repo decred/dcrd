@@ -7,7 +7,9 @@ package secp256k1
 
 import (
 	"bytes"
+	"math/rand"
 	"testing"
+	"time"
 
 	"github.com/davecgh/go-spew/spew"
 )
@@ -275,5 +277,170 @@ func TestPublicKeyIsEqual(t *testing.T) {
 	if pubKey1.IsEqual(pubKey2) {
 		t.Fatalf("value of IsEqual is incorrect, %v is not "+
 			"equal to %v", pubKey1, pubKey2)
+	}
+}
+
+// TestDecompressY ensures that decompressY works as expected for some edge
+// cases.
+func TestDecompressY(t *testing.T) {
+	tests := []struct {
+		name      string // test description
+		x         string // hex encoded x coordinate
+		valid     bool   // expected decompress result
+		wantOddY  string // hex encoded expected odd y coordinate
+		wantEvenY string // hex encoded expected even y coordinate
+	}{{
+		name:      "x = 0 -- not a point on the curve",
+		x:         "0",
+		valid:     false,
+		wantOddY:  "",
+		wantEvenY: "",
+	}, {
+		name:      "x = 1",
+		x:         "1",
+		valid:     true,
+		wantOddY:  "bde70df51939b94c9c24979fa7dd04ebd9b3572da7802290438af2a681895441",
+		wantEvenY: "4218f20ae6c646b363db68605822fb14264ca8d2587fdd6fbc750d587e76a7ee",
+	}, {
+		name:      "x = secp256k1 prime (aka 0) -- not a point on the curve",
+		x:         "fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2f",
+		valid:     false,
+		wantOddY:  "",
+		wantEvenY: "",
+	}, {
+		name:      "x = secp256k1 prime - 1 -- not a point on the curve",
+		x:         "fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2e",
+		valid:     false,
+		wantOddY:  "",
+		wantEvenY: "",
+	}, {
+		name:      "x = secp256k1 group order",
+		x:         "fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141",
+		valid:     true,
+		wantOddY:  "670999be34f51e8894b9c14211c28801d9a70fde24b71d3753854b35d07c9a11",
+		wantEvenY: "98f66641cb0ae1776b463ebdee3d77fe2658f021db48e2c8ac7ab4c92f83621e",
+	}, {
+		name:      "x = secp256k1 group order - 1 -- not a point on the curve",
+		x:         "fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364140",
+		valid:     false,
+		wantOddY:  "",
+		wantEvenY: "",
+	}}
+
+	for _, test := range tests {
+		// Decompress the test odd y coordinate for the given test x coordinate
+		// and ensure the returned validity flag matches the expected result.
+		var oddY fieldVal
+		fx := new(fieldVal).SetHex(test.x)
+		valid := decompressY(fx, true, &oddY)
+		if valid != test.valid {
+			t.Errorf("%s: unexpected valid flag -- got: %v, want: %v",
+				test.name, valid, test.valid)
+			continue
+		}
+
+		// Decompress the test even y coordinate for the given test x coordinate
+		// and ensure the returned validity flag matches the expected result.
+		var evenY fieldVal
+		valid = decompressY(fx, false, &evenY)
+		if valid != test.valid {
+			t.Errorf("%s: unexpected valid flag -- got: %v, want: %v",
+				test.name, valid, test.valid)
+			continue
+		}
+
+		// Skip checks related to the y coordinate when there isn't one.
+		if !valid {
+			continue
+		}
+
+		// Ensure the decompressed odd Y coordinate is the expected value.
+		oddY.Normalize()
+		wantOddY := new(fieldVal).SetHex(test.wantOddY)
+		if !wantOddY.Equals(&oddY) {
+			t.Errorf("%s: mismatched odd y\ngot: %v, want: %v", test.name,
+				oddY, wantOddY)
+			continue
+		}
+
+		// Ensure the decompressed even Y coordinate is the expected value.
+		evenY.Normalize()
+		wantEvenY := new(fieldVal).SetHex(test.wantEvenY)
+		if !wantEvenY.Equals(&evenY) {
+			t.Errorf("%s: mismatched even y\ngot: %v, want: %v", test.name,
+				evenY, wantEvenY)
+			continue
+		}
+
+		// Ensure the decompressed odd y coordinate is actually odd.
+		if !oddY.IsOdd() {
+			t.Errorf("%s: odd y coordinate is even", test.name)
+			continue
+		}
+
+		// Ensure the decompressed even y coordinate is actually even.
+		if evenY.IsOdd() {
+			t.Errorf("%s: even y coordinate is odd", test.name)
+			continue
+		}
+	}
+}
+
+// TestDecompressYRandom ensures that decompressY works as expected with
+// randomly-generated x coordinates.
+func TestDecompressYRandom(t *testing.T) {
+	// Use a unique random seed each test instance and log it if the tests fail.
+	seed := time.Now().Unix()
+	rng := rand.New(rand.NewSource(seed))
+	defer func(t *testing.T, seed int64) {
+		if t.Failed() {
+			t.Logf("random seed: %d", seed)
+		}
+	}(t, seed)
+
+	for i := 0; i < 100; i++ {
+		origX := randFieldVal(t, rng)
+
+		// Calculate both corresponding y coordinates for the random x when it
+		// is a valid coordinate.
+		var oddY, evenY fieldVal
+		x := new(fieldVal).Set(origX)
+		oddSuccess := decompressY(x, true, &oddY)
+		evenSuccess := decompressY(x, false, &evenY)
+
+		// Ensure that the decompression success matches for both the even and
+		// odd cases depending on whether or not x is a valid coordinate.
+		if oddSuccess != evenSuccess {
+			t.Fatalf("mismatched decompress success for x = %v -- odd: %v, "+
+				"even: %v", x, oddSuccess, evenSuccess)
+		}
+		if !oddSuccess {
+			continue
+		}
+
+		// Ensure the x coordinate was not changed.
+		if !x.Equals(origX) {
+			t.Fatalf("x coordinate changed -- orig: %v, changed: %v", origX, x)
+		}
+
+		// Ensure that the resulting y coordinates match their respective
+		// expected oddness.
+		oddY.Normalize()
+		evenY.Normalize()
+		if !oddY.IsOdd() {
+			t.Fatalf("requested odd y is even for x = %v", x)
+		}
+		if evenY.IsOdd() {
+			t.Fatalf("requested even y is odd for x = %v", x)
+		}
+
+		// Ensure that the resulting x and y coordinates are actually on the
+		// curve for both cases.
+		if !isOnCurve(x, &oddY) {
+			t.Fatalf("(%v, %v) is not a valid point", x, oddY)
+		}
+		if !isOnCurve(x, &evenY) {
+			t.Fatalf("(%v, %v) is not a valid point", x, evenY)
+		}
 	}
 }
