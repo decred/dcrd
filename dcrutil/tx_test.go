@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2019 The Decred developers
+// Copyright (c) 2015-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -7,6 +7,7 @@ package dcrutil
 
 import (
 	"bytes"
+	"errors"
 	"io"
 	"reflect"
 	"testing"
@@ -116,7 +117,7 @@ func TestTxErrors(t *testing.T) {
 	// Truncate the transaction byte buffer to force errors.
 	shortBytes := testTxBytes[:4]
 	_, err = NewTxFromBytes(shortBytes)
-	if err != io.EOF {
+	if !errors.Is(err, io.EOF) {
 		t.Errorf("NewTxFromBytes: did not get expected error - "+
 			"got %v, want %v", err, io.EOF)
 	}
