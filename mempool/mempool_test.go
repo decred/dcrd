@@ -8,8 +8,8 @@ package mempool
 import (
 	"encoding/binary"
 	"encoding/hex"
+	"errors"
 	"fmt"
-	"reflect"
 	"runtime"
 	"sync"
 	"testing"
@@ -1148,8 +1148,8 @@ func TestOrphanReject(t *testing.T) {
 			t.Fatalf("ProcessTransaction: did not fail on orphan "+
 				"%v when allow orphans flag is false", tx.Hash())
 		}
-		expectedErr := RuleError{}
-		if reflect.TypeOf(err) != reflect.TypeOf(expectedErr) {
+		var expectedErr RuleError
+		if !errors.As(err, &expectedErr) {
 			t.Fatalf("ProcessTransaction: wrong error got: <%T> %v, "+
 				"want: <%T>", err, err, expectedErr)
 		}

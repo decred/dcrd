@@ -1,12 +1,14 @@
 // Copyright (c) 2014-2016 The btcsuite developers
-// Copyright (c) 2015-2019 The Decred developers
+// Copyright (c) 2015-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
 package mempool
 
 import (
+	"errors"
 	"fmt"
+
 	"github.com/decred/dcrd/blockchain/v3"
 	"github.com/decred/dcrd/wire"
 )
@@ -100,15 +102,14 @@ func chainRuleError(chainErr blockchain.RuleError) RuleError {
 // given ErrorCode, either directly or embedded in an outer RuleError.
 func IsErrorCode(err error, code ErrorCode) bool {
 	// Unwrap RuleError if necessary.
-	if rerr, ok := err.(RuleError); ok {
+	var rerr RuleError
+	if errors.As(err, &rerr) {
 		err = rerr.Err
 	}
 
-	if trerr, ok := err.(TxRuleError); ok {
-		return trerr.ErrorCode == code
-	}
-
-	return false
+	var trerr TxRuleError
+	return errors.As(err, &trerr) &&
+		trerr.ErrorCode == code
 }
 
 // wrapTxRuleError returns a new RuleError with an underlying TxRuleError,
@@ -117,13 +118,15 @@ func IsErrorCode(err error, code ErrorCode) bool {
 // determined.
 func wrapTxRuleError(rejectCode wire.RejectCode, errorCode ErrorCode, desc string, err error) error {
 	// Unwrap the underlying error if err is a RuleError
-	if rerr, ok := err.(RuleError); ok {
+	var rerr RuleError
+	if errors.As(err, &rerr) {
 		err = rerr.Err
 	}
 
 	// Override the passed rejectCode and errorCode with the ones from the
 	// error, if it is a TxRuleError
-	if txerr, ok := err.(TxRuleError); ok {
+	var txerr TxRuleError
+	if errors.As(err, &txerr) {
 		rejectCode = txerr.RejectCode
 		errorCode = txerr.ErrorCode
 	}
@@ -141,15 +144,18 @@ func wrapTxRuleError(rejectCode wire.RejectCode, errorCode ErrorCode, desc strin
 // was successfully extracted.
 func extractRejectCode(err error) (wire.RejectCode, bool) {
 	// Pull the underlying error out of a RuleError.
-	if rerr, ok := err.(RuleError); ok {
+	var rerr RuleError
+	if errors.As(err, &rerr) {
 		err = rerr.Err
 	}
 
-	switch err := err.(type) {
-	case blockchain.RuleError:
+	var berr blockchain.RuleError
+	var terr TxRuleError
+	switch {
+	case errors.As(err, &berr):
 		// Convert the chain error to a reject code.
 		var code wire.RejectCode
-		switch err.ErrorCode {
+		switch berr.ErrorCode {
 		// Rejected due to duplicate.
 		case blockchain.ErrDuplicateBlock:
 			code = wire.RejectDuplicate
@@ -175,10 +181,10 @@ func extractRejectCode(err error) (wire.RejectCode, bool) {
 
 		return code, true
 
-	case TxRuleError:
-		return err.RejectCode, true
+	case errors.As(err, &terr):
+		return terr.RejectCode, true
 
-	case nil:
+	case err == nil:
 		return wire.RejectInvalid, false
 	}
 
