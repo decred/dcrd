@@ -93,3 +93,19 @@ func BenchmarkNonceRFC6979(b *testing.B) {
 	}
 	_ = noElideNonce
 }
+
+// BenchmarkSignCompact benchmarks how long it takes to produce a compact
+// signature for a message.
+func BenchmarkSignCompact(b *testing.B) {
+	d := new(ModNScalar).SetHex("9e0699c91ca1e3b7e3c9ba71eb71c89890872be97576010fe593fbf3fd57e66d")
+	privKey := NewPrivateKey(d)
+
+	// blake256 of []byte{0x01, 0x02, 0x03, 0x04}.
+	msgHash := hexToBytes("c301ba9de5d6053caad9f5eb46523f007702add2c62fa39de03146a36b8026b7")
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, _ = SignCompact(privKey, msgHash, true)
+	}
+}
