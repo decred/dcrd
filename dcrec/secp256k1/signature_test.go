@@ -290,15 +290,14 @@ func TestSignatureSerialize(t *testing.T) {
 // data by creating a random private key, signing the data, and ensure the
 // public key can be recovered.
 func testSignCompact(t *testing.T, tag string, data []byte, isCompressed bool) {
-	priv, _ := GeneratePrivateKey()
+	priv, err := GeneratePrivateKey()
+	if err != nil {
+		t.Fatalf("failed to generate private key: %v", err)
+	}
 	signingPubKey := priv.PubKey()
 
 	hashed := []byte("testing")
-	sig, err := SignCompact(priv, hashed, isCompressed)
-	if err != nil {
-		t.Errorf("%s: error signing: %s", tag, err)
-		return
-	}
+	sig := SignCompact(priv, hashed, isCompressed)
 
 	pk, wasCompressed, err := RecoverCompact(sig, hashed)
 	if err != nil {

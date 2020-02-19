@@ -20,6 +20,9 @@ import (
 //   [ISO/IEC 8825-1]: Information technology — ASN.1 encoding rules:
 //     Specification of Basic Encoding Rules (BER), Canonical Encoding Rules
 //     (CER) and Distinguished Encoding Rules (DER)
+//
+//   [SEC1]: Elliptic Curve Cryptography (May 31, 2009, Version 2.0)
+//     https://www.secg.org/sec1-v2.pdf
 
 // Errors returned by canonicalPadding.
 var (
@@ -49,6 +52,11 @@ var (
 	// oneInitializer is used during RFC6979 nonce generation.  It is provided
 	// here to avoid the need to create it multiple times.
 	oneInitializer = bytes.Repeat([]byte{0x01}, sha256.Size)
+
+	// orderAsFieldVal is the order of the secp256k1 curve group stored as a
+	// field value.  It is provided here to avoid the need to create it multiple
+	// times.
+	orderAsFieldVal = new(fieldVal).SetByteSlice(curveParams.N.Bytes())
 )
 
 // NewSignature instantiates a new signature given some R,S values.
@@ -151,6 +159,15 @@ func fieldToModNScalar(v *fieldVal) (ModNScalar, uint32) {
 	overflow := s.SetBytes(&buf)
 	zeroArray32(&buf)
 	return s, overflow
+}
+
+// modNScalarToField converts a scalar modulo the group order to a field value.
+func modNScalarToField(v *ModNScalar) fieldVal {
+	var buf [32]byte
+	v.PutBytes(&buf)
+	var fv fieldVal
+	fv.SetBytes(&buf)
+	return fv
 }
 
 // Verify returns whether or not the signature is valid for the provided hash
@@ -392,171 +409,275 @@ func canonicalPadding(b []byte) error {
 	}
 }
 
-// hashToInt converts a hash value to an integer. There is some disagreement
-// about how this is done. [NSA] suggests that this is done in the obvious
-// manner, but [SECG] truncates the hash to the bit-length of the curve order
-// first. We follow [SECG] because that's what OpenSSL does. Additionally,
-// OpenSSL right shifts excess bits from the number if the hash is too large
-// and we mirror that too.
-// This is borrowed from crypto/ecdsa.
-func hashToInt(hash []byte) *big.Int {
-	orderBits := S256().Params().N.BitLen()
-	orderBytes := (orderBits + 7) / 8
-	if len(hash) > orderBytes {
-		hash = hash[:orderBytes]
-	}
+const (
+	// compactSigSize is the size of a compact signature.  It consists of a
+	// compact signature recovery code byte followed by the R and S components
+	// serialized as 32-byte big-endian values. 1+32*2 = 65.
+	// for the R and S components. 1+32+32=65.
+	compactSigSize = 65
 
-	ret := new(big.Int).SetBytes(hash)
-	excess := len(hash)*8 - orderBits
-	if excess > 0 {
-		ret.Rsh(ret, uint(excess))
-	}
-	return ret
-}
+	// compactSigMagicOffset is a value used when creating the compact signature
+	// recovery code inherited from Bitcoin and has no meaning, but has been
+	// retained for compatibility.  For historical purposes, it was originally
+	// picked to avoid a binary representation that would allow compact
+	// signatures to be mistaken for other components.
+	compactSigMagicOffset = 27
 
-// recoverKeyFromSignature recovers a public key from the signature "sig" on the
-// given message hash "msg". Based on the algorithm found in section 5.1.5 of
-// SEC 1 Ver 2.0, page 47-48 (53 and 54 in the pdf). This performs the details
-// in the inner loop in Step 1. The counter provided is actually the j parameter
-// of the loop * 2 - on the first iteration of j we do the R case, else the -R
-// case in step 1.6. This counter is used in the Decred compressed signature
-// format and thus we match bitcoind's behaviour here.
-func recoverKeyFromSignature(sig *Signature, msg []byte, iter int, doChecks bool) (*PublicKey, error) {
-	// 1.1 x = (n * i) + r
-	curve := S256()
-	Rx := new(big.Int).Mul(curve.Params().N,
-		new(big.Int).SetInt64(int64(iter/2)))
-	Rx.Add(Rx, sig.r)
-	if Rx.Cmp(curve.Params().P) != -1 {
-		return nil, errors.New("calculated Rx is larger than curve P")
-	}
+	// compactSigCompPubKey is a value used when creating the compact signature
+	// recovery code to indicate the original public key was compressed.
+	compactSigCompPubKey = 4
 
-	// convert 02<Rx> to point R. (step 1.2 and 1.3). If we are on an odd
-	// iteration then 1.6 will be done with -R, so we calculate the other
-	// term when uncompressing the point.
-	Ry, err := decompressPoint(Rx, iter%2 == 1)
-	if err != nil {
-		return nil, err
-	}
+	// pubKeyRecoveryCodeOddnessBit specifies the bit that indicates the oddess
+	// of the Y coordinate of the random point calculated when creating a
+	// signature.
+	pubKeyRecoveryCodeOddnessBit = 1 << 0
 
-	// 1.4 Check n*R is point at infinity
-	if doChecks {
-		nRx, nRy := curve.ScalarMult(Rx, Ry, curve.Params().N.Bytes())
-		if nRx.Sign() != 0 || nRy.Sign() != 0 {
-			return nil, errors.New("n*R does not equal the point at infinity")
-		}
-	}
-
-	// 1.5 calculate e from message using the same algorithm as ecdsa
-	// signature calculation.
-	e := hashToInt(msg)
-
-	// Step 1.6.1:
-	// We calculate the two terms sR and eG separately multiplied by the
-	// inverse of r (from the signature). We then add them to calculate
-	// Q = r^-1(sR-eG)
-	invr := new(big.Int).ModInverse(sig.r, curve.Params().N)
-
-	// first term.
-	invrS := new(big.Int).Mul(invr, sig.s)
-	invrS.Mod(invrS, curve.Params().N)
-	var invrSModN ModNScalar
-	invrSModN.SetByteSlice(invrS.Bytes())
-	var fR, sR jacobianPoint
-	bigAffineToJacobian(Rx, Ry, &fR)
-	scalarMultJacobian(&invrSModN, &fR, &sR)
-
-	// second term.
-	e.Neg(e)
-	e.Mod(e, curve.Params().N)
-	e.Mul(e, invr)
-	e.Mod(e, curve.Params().N)
-	var eModN ModNScalar
-	eModN.SetByteSlice(e.Bytes())
-
-	var minusEG, q jacobianPoint
-	scalarBaseMultJacobian(&eModN, &minusEG)
-	addJacobian(&sR, &minusEG, &q)
-
-	Qx, Qy := jacobianToBigAffine(&q)
-	return NewPublicKey(Qx, Qy), nil
-}
+	// pubKeyRecoveryCodeOverflowBit specifies the bit that indicates the X
+	// coordinate of the random point calculated when creating a signature was
+	// >= N, where N is the order of the group.
+	pubKeyRecoveryCodeOverflowBit = 1 << 1
+)
 
 // SignCompact produces a compact signature of the data in hash with the given
-// private key on the secp256k1 curve. The isCompressed parameter should be used
-// to detail if the given signature should reference a compressed public key or
-// not. If successful the bytes of the compact signature will be returned in the
-// format:
-// <(byte of 27+public key solution)+4 if compressed >< padded bytes for signature R><padded bytes for signature S>
-// where the R and S parameters are padded up to the bitlength of the curve.
-func SignCompact(key *PrivateKey, hash []byte, isCompressedKey bool) ([]byte, error) {
-	sig := key.Sign(hash)
-	signingPubKey := key.PubKey()
-
-	for i := 0; i < (curveParams.H+1)*2; i++ {
-		recoveredPubKey, err := recoverKeyFromSignature(sig, hash, i, true)
-		if err != nil || !recoveredPubKey.IsEqual(signingPubKey) {
-			continue
-		}
-
-		result := make([]byte, 1, 2*curveParams.byteSize+1)
-		result[0] = 27 + byte(i)
-		if isCompressedKey {
-			result[0] += 4
-		}
-		// Not sure this needs rounding but safer to do so.
-		curvelen := (curveParams.BitSize + 7) / 8
-
-		// Pad R and S to curvelen if needed.
-		bytelen := (sig.r.BitLen() + 7) / 8
-		if bytelen < curvelen {
-			result = append(result,
-				make([]byte, curvelen-bytelen)...)
-		}
-		result = append(result, sig.r.Bytes()...)
-
-		bytelen = (sig.s.BitLen() + 7) / 8
-		if bytelen < curvelen {
-			result = append(result,
-				make([]byte, curvelen-bytelen)...)
-		}
-		result = append(result, sig.s.Bytes()...)
-
-		return result, nil
+// private key on the secp256k1 curve. The isCompressedKey parameter specifies
+// if the given signature should reference a compressed public key or not.
+//
+// Compact signature format:
+// <1-byte compact sig recovery code><32-byte R><32-byte S>
+//
+// The compact sig recovery code is the value 27 + public key recovery code + 4
+// if the compact signature was created with a compressed public key.
+func SignCompact(key *PrivateKey, hash []byte, isCompressedKey bool) []byte {
+	// Create the signature and associated pubkey recovery code and calculate
+	// the compact signature recovery code.
+	sig, pubKeyRecoveryCode := signRFC6979(key, hash)
+	compactSigRecoveryCode := compactSigMagicOffset + pubKeyRecoveryCode
+	if isCompressedKey {
+		compactSigRecoveryCode += compactSigCompPubKey
 	}
 
-	return nil, errors.New("no valid solution for pubkey found")
+	// Convert big ints to mod N scalars.  Ultimately the goal is to convert
+	// the signature type itself to use mod N scalars directly which will allow
+	// this step to be removed.
+	var r, s ModNScalar
+	r.SetByteSlice(sig.r.Bytes())
+	s.SetByteSlice(sig.s.Bytes())
+
+	// Serialize the R and S components of the signature into their fixed
+	// 32-byte big-endian encoding.
+	var rBytes, sBytes [32]byte
+	r.PutBytes(&rBytes)
+	s.PutBytes(&sBytes)
+
+	// Output <compactSigRecoveryCode><32-byte R><32-byte S>.
+	var b [compactSigSize]byte
+	b[0] = compactSigRecoveryCode
+	copy(b[1:], rBytes[:])
+	copy(b[33:], sBytes[:])
+	return b[:]
 }
 
 // RecoverCompact attempts to recover the secp256k1 public key from the provided
-// signature and message hash.  It first verifies the signature, and, if the
-// signature matches then the recovered public key will be returned as well as a
-// boolean indicating whether or not the original key was compressed.
+// compact signature and message hash.  It first verifies the signature, and, if
+// the signature matches then the recovered public key will be returned as well
+// as a boolean indicating whether or not the original key was compressed.
 func RecoverCompact(signature, hash []byte) (*PublicKey, bool, error) {
-	bitlen := (S256().BitSize + 7) / 8
-	if len(signature) != 1+bitlen*2 {
+	// The following is very loosely based on the information and algorithm that
+	// describes recovering a public key from and ECDSA signature in section
+	// 4.1.6 of [SEC1].
+	//
+	// Given the following parameters:
+	//
+	// G = curve generator
+	// N = group order
+	// P = field prime
+	// Q = public key
+	// m = message
+	// e = hash of the message
+	// r, s = signature
+	// X = random point used when creating signature whose x coordinate is r
+	//
+	// The equation to recover a public key candidate from an ECDSA signature
+	// is:
+	// Q = r^-1(sX - eG).
+	//
+	// This can be verified by plugging it in for Q in the sig verification
+	// equation:
+	// X = s^-1(eG + rQ) (mod N)
+	//  => s^-1(eG + r(r^-1(sX - eG))) (mod N)
+	//  => s^-1(eG + sX - eG) (mod N)
+	//  => s^-1(sX) (mod N)
+	//  => X (mod N)
+	//
+	// However, note that since r is the x coordinate mod N from a random point
+	// that was originally mod P, and the cofactor of the secp256k1 curve is 1,
+	// there are four possible points that the original random point could have
+	// been to produce r: (r,y), (r,-y), (r+N,y), and (r+N,-y).  At least 2 of
+	// those points will successfully verify, and all 4 will successfully verify
+	// when the original x coordinate was in the range [N+1, P-1], but in any
+	// case, only one of them corresponds to the original private key used.
+	//
+	// The method described by section 4.1.6 of [SEC1] to determine which one is
+	// the correct one involves calculating each possibility as a candidate
+	// public key and comparing the candidate to the authentic public key.  It
+	// also hints that is is possible to generate the signature in a such a
+	// way that only one of the candidate public keys is viable.
+	//
+	// A more efficient approach that is specific to the secp256k1 curve is used
+	// here instead which is to produce a "pubkey recovery code" when signing
+	// that uniquely identifies which of the 4 possibilities is correct for the
+	// original random point and using that to recover the pubkey directly as
+	// follows:
+	//
+	// 1. Fail if r and s are not in [1, N-1]
+	// 2. Convert r to integer mod P
+	// 3. If pubkey recovery code overflow bit is set:
+	//    3.1 Fail if r + N >= P
+	//    3.2 r = r + N (mod P)
+	// 4. y = +sqrt(r^3 + 7) (mod P)
+	//    4.1 Fail if y does not exist
+	//    4.2 y = -y if needed to match pubkey recovery code oddness bit
+	// 5. X = (r, y)
+	// 6. e = H(m) mod N
+	// 7. w = r^-1 mod N
+	// 8. u1 = -(e * w) mod N
+	//    u2 = s * w mod N
+	// 9. Q = u1G + u2X
+	// 10. Fail if Q is the point at infinity
+
+	// A compact signature consists of a recovery byte followed by the R and
+	// S components serialized as 32-byte big-endian values.
+	if len(signature) != compactSigSize {
 		return nil, false, errors.New("invalid compact signature size")
 	}
 
-	iteration := int((signature[0] - 27) & ^byte(4))
-
-	// format is <header byte><bitlen R><bitlen S>
-	sig := &Signature{
-		r: new(big.Int).SetBytes(signature[1 : bitlen+1]),
-		s: new(big.Int).SetBytes(signature[bitlen+1:]),
+	// Parse and validate the compact signature recovery code.
+	const (
+		minValidCode = compactSigMagicOffset
+		maxValidCode = compactSigMagicOffset + compactSigCompPubKey + 3
+	)
+	sigRecoveryCode := signature[0]
+	if sigRecoveryCode < minValidCode || sigRecoveryCode > maxValidCode {
+		return nil, false, errors.New("invalid compact signature recovery code")
 	}
-	// The iteration used here was encoded
-	key, err := recoverKeyFromSignature(sig, hash, iteration, false)
-	if err != nil {
-		return nil, false, err
+	sigRecoveryCode -= compactSigMagicOffset
+	wasCompressed := sigRecoveryCode&compactSigCompPubKey != 0
+	pubKeyRecoveryCode := sigRecoveryCode & 3
+
+	// Step 1.
+	//
+	// Parse and validate the R and S signature components.
+	//
+	// Fail if r and s are not in [1, N-1].
+	var r, s ModNScalar
+	if overflow := r.SetByteSlice(signature[1:33]); overflow {
+		return nil, false, errors.New("signature R is >= curve order")
+	}
+	if r.IsZero() {
+		return nil, false, errors.New("signature R is 0")
+	}
+	if overflow := s.SetByteSlice(signature[33:]); overflow {
+		return nil, false, errors.New("signature S is >= curve order")
+	}
+	if s.IsZero() {
+		return nil, false, errors.New("signature S is 0")
 	}
 
-	return key, ((signature[0] - 27) & 4) == 4, nil
+	// Step 2.
+	//
+	// Convert r to integer mod P.
+	fieldR := modNScalarToField(&r)
+
+	// Step 3.
+	//
+	// If pubkey recovery code overflow bit is set:
+	if pubKeyRecoveryCode&pubKeyRecoveryCodeOverflowBit != 0 {
+		// Step 3.1.
+		//
+		// Fail if r + N >= P
+		//
+		// Either the signature or the recovery code must be invalid if the
+		// recovery code overflow bit is set and adding N to the R component
+		// would exceed the field prime since R originally came from the X
+		// coordinate of a random point on the curve.
+		if fieldR.IsGtOrEqPrimeMinusOrder() {
+			return nil, false, errors.New("signature R + N >= P")
+		}
+
+		// Step 3.2.
+		//
+		// r = r + N (mod P)
+		fieldR.Add(orderAsFieldVal)
+	}
+
+	// Step 4.
+	//
+	// y = +sqrt(r^3 + 7) (mod P)
+	// Fail if y does not exist.
+	// y = -y if needed to match pubkey recovery code oddness bit
+	//
+	// The signature must be invalid if the calculation fails because the X
+	// coord originally came from a random point on the curve which means there
+	// must be a Y coord that satisfies the equation for a valid signature.
+	oddY := pubKeyRecoveryCode&pubKeyRecoveryCodeOddnessBit != 0
+	var y fieldVal
+	if valid := decompressY(&fieldR, oddY, &y); !valid {
+		return nil, false, errors.New("signature is not for a valid curve point")
+	}
+
+	// Step 5.
+	//
+	// X = (r, y)
+	var X jacobianPoint
+	X.x.Set(&fieldR)
+	X.y.Set(&y)
+	X.z.SetInt(1)
+
+	// Step 6.
+	//
+	// e = H(m) mod N
+	var e ModNScalar
+	e.SetByteSlice(hash)
+
+	// Step 7.
+	//
+	// w = r^-1 mod N
+	w := new(ModNScalar).InverseValNonConst(&r)
+
+	// Step 8.
+	//
+	// u1 = -(e * w) mod N
+	// u2 = s * w mod N
+	u1 := new(ModNScalar).Mul2(&e, w).Negate()
+	u2 := new(ModNScalar).Mul2(&s, w)
+
+	// Step 9.
+	//
+	// Q = u1G + u2X
+	var Q, u1G, u2X jacobianPoint
+	scalarBaseMultJacobian(u1, &u1G)
+	scalarMultJacobian(u2, &X, &u2X)
+	addJacobian(&u1G, &u2X, &Q)
+
+	// Step 10.
+	//
+	// Fail if Q is the point at infinity.
+	//
+	// Either the signature or the pubkey recovery code must be invalid if the
+	// recovered pubkey is the point at infinity.
+	if (Q.x.IsZero() && Q.y.IsZero()) || Q.z.IsZero() {
+		return nil, false, errors.New("recovered pubkey is the point at infinity")
+	}
+
+	// Notice that the public key is in affine coordinates.
+	pubKey := NewPublicKey(jacobianToBigAffine(&Q))
+	return pubKey, wasCompressed, nil
 }
 
 // signRFC6979 generates a deterministic ECDSA signature according to RFC 6979
-// and BIP 62.
-func signRFC6979(privateKey *PrivateKey, hash []byte) *Signature {
+// and BIP 62 and returns it along with an additional public key recovery code
+// for efficiently recovering the public key from the signature.
+func signRFC6979(privateKey *PrivateKey, hash []byte) (*Signature, byte) {
 	// The algorithm for producing an ECDSA signature is given as algorithm 4.29
 	// in [GECC].
 	//
@@ -601,7 +722,7 @@ func signRFC6979(privateKey *PrivateKey, hash []byte) *Signature {
 		//
 		// Compute kG
 		//
-		// Note that the algorithm expects the point in affine coordinates.
+		// Note that the point must be in affine coordinates.
 		var kG jacobianPoint
 		scalarBaseMultJacobian(k, &kG)
 		kG.ToAffine()
@@ -610,10 +731,33 @@ func signRFC6979(privateKey *PrivateKey, hash []byte) *Signature {
 		//
 		// r = kG.x mod N
 		// Repeat from step 1 if r = 0
-		r, _ := fieldToModNScalar(&kG.x)
+		r, overflow := fieldToModNScalar(&kG.x)
 		if r.IsZero() {
 			continue
 		}
+
+		// Since the secp256k1 curve has a cofactor of 1, when recovering a
+		// public key from an ECDSA signature over it, there are four possible
+		// candidates corresponding to the following cases:
+		//
+		// 1) The X coord of the random point is < N and its Y coord even
+		// 2) The X coord of the random point is < N and its Y coord is odd
+		// 3) The X coord of the random point is >= N and its Y coord is even
+		// 4) The X coord of the random point is >= N and its Y coord is odd
+		//
+		// Rather than forcing the recovery procedure to check all possible
+		// cases, this creates a recovery code that uniquely identifies which of
+		// the cases apply by making use of 2 bits.  Bit 0 identifies the
+		// oddness case and Bit 1 identifies the overflow case (aka when the X
+		// coord >= N).
+		//
+		// It is also worth noting that making use of Hasse's theorem shows
+		// there are around log_2((p-n)/p) ~= -127.65 ~= 1 in 2^127 points where
+		// the X coordinate is >= N.  It is not possible to calculate these
+		// points since that would require breaking the ECDLP, but, in practice
+		// this strongly implies with extremely high probability that there are
+		// only a few actual points for which this case is true.
+		pubKeyRecoveryCode := byte(overflow<<1) | byte(kG.y.n[0]&0x01)
 
 		// Step 4.
 		//
@@ -636,6 +780,12 @@ func signRFC6979(privateKey *PrivateKey, hash []byte) *Signature {
 		}
 		if s.IsOverHalfOrder() {
 			s.Negate()
+
+			// Negating s corresponds to the random point that would have been
+			// generated by -k (mod N), which necessarily has the opposite
+			// oddness since N is prime, thus flip the pubkey recovery code
+			// oddness bit accordingly.
+			pubKeyRecoveryCode ^= 0x01
 		}
 
 		// Step 6.
@@ -644,7 +794,7 @@ func signRFC6979(privateKey *PrivateKey, hash []byte) *Signature {
 		rBytes, sBytes := r.Bytes(), s.Bytes()
 		bigR := new(big.Int).SetBytes(rBytes[:])
 		bigS := new(big.Int).SetBytes(sBytes[:])
-		return &Signature{r: bigR, s: bigS}
+		return &Signature{r: bigR, s: bigS}, pubKeyRecoveryCode
 	}
 }
 

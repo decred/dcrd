@@ -63,7 +63,8 @@ func (p *PrivateKey) PubKey() *PublicKey {
 // is deterministic (same message and same key yield the same signature) and
 // canonical in accordance with RFC6979 and BIP0062.
 func (p *PrivateKey) Sign(hash []byte) *Signature {
-	return signRFC6979(p, hash)
+	signature, _ := signRFC6979(p, hash)
+	return signature
 }
 
 // PrivKeyBytesLen defines the length in bytes of a serialized private key.
