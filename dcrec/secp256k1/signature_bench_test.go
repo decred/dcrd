@@ -109,3 +109,38 @@ func BenchmarkSignCompact(b *testing.B) {
 		_, _ = SignCompact(privKey, msgHash, true)
 	}
 }
+
+// BenchmarkSignCompact benchmarks how long it takes to recover a public key
+// given a compact signature and message.
+func BenchmarkRecoverCompact(b *testing.B) {
+	// Private key: 9e0699c91ca1e3b7e3c9ba71eb71c89890872be97576010fe593fbf3fd57e66d
+	wantPubKey := PublicKey{
+		X: fromHex("d2e670a19c6d753d1a6d8b20bd045df8a08fb162cf508956c31268c6d81ffdab"),
+		Y: fromHex("ab65528eefbb8057aa85d597258a3fbd481a24633bc9b47a9aa045c91371de52"),
+	}
+
+	compactSig := hexToBytes("205978b7896bc71676ba2e459882a8f52e1299449596c4f" +
+		"93c59bf1fbfa2f9d3b76ecd0c99406f61a6de2bb5a8937c061c176ecf381d0231e0d" +
+		"af73b922c8952c7")
+
+	// blake256 of []byte{0x01, 0x02, 0x03, 0x04}.
+	msgHash := hexToBytes("c301ba9de5d6053caad9f5eb46523f007702add2c62fa39de03146a36b8026b7")
+
+	// Ensure a valid compact signature is being benchmarked.
+	pubKey, wasCompressed, err := RecoverCompact(compactSig, msgHash)
+	if err != nil {
+		b.Fatalf("unexpected err: %v", err)
+	}
+	if !wasCompressed {
+		b.Fatal("recover claims uncompressed pubkey")
+	}
+	if !pubKey.IsEqual(&wantPubKey) {
+		b.Fatal("recover returned unexpected pubkey")
+	}
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, _, _ = RecoverCompact(compactSig, msgHash)
+	}
+}
