@@ -1082,3 +1082,115 @@ func TestInverse(t *testing.T) {
 		}
 	}
 }
+
+// TestFieldIsGtOrEqPrimeMinusOrder ensures that field values report whether or
+// not they are greater than or equal to the field prime minus the group order
+// as expected for edge cases.
+func TestFieldIsGtOrEqPrimeMinusOrder(t *testing.T) {
+	tests := []struct {
+		name     string // test description
+		in       string // hex encoded test value
+		expected bool   // expected result
+	}{{
+		name:     "zero",
+		in:       "0",
+		expected: false,
+	}, {
+		name:     "one",
+		in:       "1",
+		expected: false,
+	}, {
+		name:     "p - n - 1",
+		in:       "14551231950b75fc4402da1722fc9baed",
+		expected: false,
+	}, {
+		name:     "p - n",
+		in:       "14551231950b75fc4402da1722fc9baee",
+		expected: true,
+	}, {
+		name:     "p - n + 1",
+		in:       "14551231950b75fc4402da1722fc9baef",
+		expected: true,
+	}, {
+		name:     "over p - n word one",
+		in:       "14551231950b75fc4402da17233c9baee",
+		expected: true,
+	}, {
+		name:     "over p - n word two",
+		in:       "14551231950b75fc4403da1722fc9baee",
+		expected: true,
+	}, {
+		name:     "over p - n word three",
+		in:       "14551231950b79fc4402da1722fc9baee",
+		expected: true,
+	}, {
+		name:     "over p - n word four",
+		in:       "14551241950b75fc4402da1722fc9baee",
+		expected: true,
+	}, {
+		name:     "over p - n word five",
+		in:       "54551231950b75fc4402da1722fc9baee",
+		expected: true,
+	}, {
+		name:     "over p - n word six",
+		in:       "100000014551231950b75fc4402da1722fc9baee",
+		expected: true,
+	}, {
+		name:     "over p - n word seven",
+		in:       "000000000000000000400000000000014551231950b75fc4402da1722fc9baee",
+		expected: true,
+	}, {
+		name:     "over p - n word eight",
+		in:       "000000000001000000000000000000014551231950b75fc4402da1722fc9baee",
+		expected: true,
+	}, {
+		name:     "over p - n word nine",
+		in:       "000004000000000000000000000000014551231950b75fc4402da1722fc9baee",
+		expected: true,
+	}}
+
+	for _, test := range tests {
+		result := new(fieldVal).SetHex(test.in).IsGtOrEqPrimeMinusOrder()
+		if result != test.expected {
+			t.Errorf("%s: unexpected result -- got: %v, want: %v", test.name,
+				result, test.expected)
+			continue
+		}
+	}
+}
+
+// TestFieldIsGtOrEqPrimeMinusOrderRandom ensures that field values report
+// whether or not they are greater than or equal to the field prime minus the
+// group order as expected by also performing the same operation with big ints
+// and comparing the results.
+func TestFieldIsGtOrEqPrimeMinusOrderRandom(t *testing.T) {
+	// Use a unique random seed each test instance and log it if the tests fail.
+	seed := time.Now().Unix()
+	rng := rand.New(rand.NewSource(seed))
+	defer func(t *testing.T, seed int64) {
+		if t.Failed() {
+			t.Logf("random seed: %d", seed)
+		}
+	}(t, seed)
+
+	bigPMinusN := new(big.Int).Sub(curveParams.P, curveParams.N)
+	for i := 0; i < 100; i++ {
+		// Generate big integer and field value with the same random value.
+		bigIntVal, fVal := randIntAndFieldVal(t, rng)
+
+		// Determine the value is greater than or equal to the prime minus the
+		// order using big ints.
+		bigIntResult := bigIntVal.Cmp(bigPMinusN) >= 0
+
+		// Determine the value is greater than or equal to the prime minus the
+		// order using fieldVal.
+		fValResult := fVal.IsGtOrEqPrimeMinusOrder()
+
+		// Ensure they match.
+		if bigIntResult != fValResult {
+			t.Fatalf("mismatched is gt or eq prime minus order\nbig int in: "+
+				"%x\nscalar in: %v\nbig int result: %v\nscalar result %v",
+				bigIntVal, fVal, bigIntResult, fValResult)
+		}
+	}
+}

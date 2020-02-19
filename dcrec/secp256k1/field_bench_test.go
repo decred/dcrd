@@ -50,3 +50,40 @@ func BenchmarkBigSqrt(b *testing.B) {
 		_ = new(big.Int).ModSqrt(val, curveParams.P)
 	}
 }
+
+// BenchmarkFieldIsGtOrEqPrimeMinusOrder benchmarks determining whether a value
+// is greater than or equal to the field prime minus the group order with the
+// specialized type.
+func BenchmarkFieldIsGtOrEqPrimeMinusOrder(b *testing.B) {
+	// The function is constant time so any value is fine.
+	valHex := "16fb970147a9acc73654d4be233cc48b875ce20a2122d24f073d29bd28805aca"
+	f := new(fieldVal).SetHex(valHex).Normalize()
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = f.IsGtOrEqPrimeMinusOrder()
+	}
+}
+
+// BenchmarkBigIsGtOrEqPrimeMinusOrder benchmarks determining whether a value
+// is greater than or equal to the field prime minus the group order with stdlib
+// big integers.
+func BenchmarkBigIsGtOrEqPrimeMinusOrder(b *testing.B) {
+	// Same value used in field val version.
+	valHex := "16fb970147a9acc73654d4be233cc48b875ce20a2122d24f073d29bd28805aca"
+	val, ok := new(big.Int).SetString(valHex, 16)
+	if !ok {
+		b.Fatalf("failed to parse hex %s", valHex)
+	}
+	bigPMinusN := new(big.Int).Sub(curveParams.P, curveParams.N)
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		// In practice, the internal value to compare would have to be converted
+		// to a big integer from bytes, so it's a fair comparison to allocate a
+		// new big int here and set all bytes.
+		_ = new(big.Int).SetBytes(val.Bytes()).Cmp(bigPMinusN) >= 0
+	}
+}

@@ -1394,3 +1394,70 @@ func (f *fieldVal) Inverse() *fieldVal {
 	f.Square().Square().Square().Square().Square() // f = a^(2^256 - 4294968320)
 	return f.Mul(&a45)                             // f = a^(2^256 - 4294968275) = a^(p-2)
 }
+
+// IsGtOrEqPrimeMinusOrder returns whether or not the scalar exceeds the group order
+// divided by 2 in constant time.
+//
+// The field value must be normalized for this function to return the correct
+// result.
+func (f *fieldVal) IsGtOrEqPrimeMinusOrder() bool {
+	// The secp256k1 prime is equivalent to 2^256 - 4294968273 and the group
+	// order is 2^256 - 432420386565659656852420866394968145599.  Thus,
+	// the prime minus the group order is:
+	// 432420386565659656852420866390673177326
+	//
+	// In hex that is:
+	// 0x00000000 00000000 00000000 00000001 45512319 50b75fc4 402da172 2fc9baee
+	//
+	// Converting that to field representation (base 2^26) is:
+	//
+	// n[0] = 0x03c9baee
+	// n[1] = 0x03685c8b
+	// n[2] = 0x01fc4402
+	// n[3] = 0x006542dd
+	// n[4] = 0x01455123
+	//
+	// This can be verified with the following test code:
+	//   pMinusN := new(big.Int).Sub(curveParams.P, curveParams.N)
+	//   fv := new(fieldVal).SetByteSlice(pMinusN.Bytes())
+	//   t.Logf("%x", fv.n)
+	//
+	//   Outputs: [3c9baee 3685c8b 1fc4402 6542dd 1455123 0 0 0 0 0]
+	const (
+		pMinusNWordZero  = 0x03c9baee
+		pMinusNWordOne   = 0x03685c8b
+		pMinusNWordTwo   = 0x01fc4402
+		pMinusNWordThree = 0x006542dd
+		pMinusNWordFour  = 0x01455123
+		pMinusNWordFive  = 0x00000000
+		pMinusNWordSix   = 0x00000000
+		pMinusNWordSeven = 0x00000000
+		pMinusNWordEight = 0x00000000
+		pMinusNWordNine  = 0x00000000
+	)
+
+	// The intuition here is that the value is greater than field prime minus
+	// the group order if one of the higher individual words is greater than the
+	// corresponding word and all higher words in the value are equal.
+	result := constantTimeGreater(f.n[9], pMinusNWordNine)
+	highWordsEqual := constantTimeEq(f.n[9], pMinusNWordNine)
+	result |= highWordsEqual & constantTimeGreater(f.n[8], pMinusNWordEight)
+	highWordsEqual &= constantTimeEq(f.n[8], pMinusNWordEight)
+	result |= highWordsEqual & constantTimeGreater(f.n[7], pMinusNWordSeven)
+	highWordsEqual &= constantTimeEq(f.n[7], pMinusNWordSeven)
+	result |= highWordsEqual & constantTimeGreater(f.n[6], pMinusNWordSix)
+	highWordsEqual &= constantTimeEq(f.n[6], pMinusNWordSix)
+	result |= highWordsEqual & constantTimeGreater(f.n[5], pMinusNWordFive)
+	highWordsEqual &= constantTimeEq(f.n[5], pMinusNWordFive)
+	result |= highWordsEqual & constantTimeGreater(f.n[4], pMinusNWordFour)
+	highWordsEqual &= constantTimeEq(f.n[4], pMinusNWordFour)
+	result |= highWordsEqual & constantTimeGreater(f.n[3], pMinusNWordThree)
+	highWordsEqual &= constantTimeEq(f.n[3], pMinusNWordThree)
+	result |= highWordsEqual & constantTimeGreater(f.n[2], pMinusNWordTwo)
+	highWordsEqual &= constantTimeEq(f.n[2], pMinusNWordTwo)
+	result |= highWordsEqual & constantTimeGreater(f.n[1], pMinusNWordOne)
+	highWordsEqual &= constantTimeEq(f.n[1], pMinusNWordOne)
+	result |= highWordsEqual & constantTimeGreaterOrEq(f.n[0], pMinusNWordZero)
+
+	return result != 0
+}
