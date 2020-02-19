@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2019 The Decred developers
+// Copyright (c) 2015-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -7,6 +7,7 @@ package dcrutil
 
 import (
 	"bytes"
+	"errors"
 	"io"
 	"reflect"
 	"testing"
@@ -284,31 +285,32 @@ func TestBlockErrors(t *testing.T) {
 	// Truncate the block byte buffer to force errors.
 	shortBytes := block100000Bytes[:100]
 	_, err = NewBlockFromBytes(shortBytes)
-	if err != io.EOF {
+	if !errors.Is(err, io.EOF) {
 		t.Errorf("NewBlockFromBytes: did not get expected error - "+
 			"got %v, want %v", err, io.EOF)
 	}
 
 	// Ensure TxHash returns expected error on invalid indices.
+	var oErr OutOfRangeError
 	_, err = b.TxHash(-1)
-	if _, ok := err.(OutOfRangeError); !ok {
+	if !errors.As(err, &oErr) {
 		t.Errorf("TxHash: wrong error - got: %v <%T>, "+
 			"want: <%T>", err, err, OutOfRangeError(""))
 	}
 	_, err = b.TxHash(len(Block100000.Transactions) + 1)
-	if _, ok := err.(OutOfRangeError); !ok {
+	if !errors.As(err, &oErr) {
 		t.Errorf("TxHash: wrong error - got: %v <%T>, "+
 			"want: <%T>", err, err, OutOfRangeError(""))
 	}
 
 	// Ensure Tx returns expected error on invalid indices.
 	_, err = b.Tx(-1)
-	if _, ok := err.(OutOfRangeError); !ok {
+	if !errors.As(err, &oErr) {
 		t.Errorf("Tx: wrong error - got: %v <%T>, "+
 			"want: <%T>", err, err, OutOfRangeError(""))
 	}
 	_, err = b.Tx(len(Block100000.Transactions) + 1)
-	if _, ok := err.(OutOfRangeError); !ok {
+	if !errors.As(err, &oErr) {
 		t.Errorf("Tx: wrong error - got: %v <%T>, "+
 			"want: <%T>", err, err, OutOfRangeError(""))
 	}
@@ -316,7 +318,7 @@ func TestBlockErrors(t *testing.T) {
 	// Ensure TxLoc returns expected error with short byte buffer.
 	b.serializedBlock = shortBytes
 	_, _, err = b.TxLoc()
-	if err != io.EOF {
+	if !errors.Is(err, io.EOF) {
 		t.Errorf("TxLoc: did not get expected error - "+
 			"got %v, want %v", err, io.EOF)
 	}

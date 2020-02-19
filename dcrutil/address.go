@@ -167,7 +167,7 @@ func DecodeAddress(addr string, net AddressParams) (Address, error) {
 	// Switch on decoded length to determine the type.
 	decoded, netID, err := base58.CheckDecode(addr)
 	if err != nil {
-		if err == base58.ErrChecksum {
+		if errors.Is(err, base58.ErrChecksum) {
 			return nil, ErrChecksumMismatch
 		}
 		return nil, fmt.Errorf("decoded address is of unknown format: %v", err)
