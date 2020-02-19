@@ -1,5 +1,5 @@
 // Copyright (c) 2014-2016 The btcsuite developers
-// Copyright (c) 2015-2019 The Decred developers
+// Copyright (c) 2015-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -421,10 +421,11 @@ func (c *Client) shouldLogReadError(err error) bool {
 	}
 
 	// No logging when the connection has been disconnected.
-	if err == io.EOF {
+	if errors.Is(err, io.EOF) {
 		return false
 	}
-	if opErr, ok := err.(*net.OpError); ok && !opErr.Temporary() {
+	var opErr *net.OpError
+	if errors.As(err, &opErr) && !opErr.Temporary() {
 		return false
 	}
 
@@ -1239,7 +1240,7 @@ func dial(config *ConnConfig) (*websocket.Conn, error) {
 		resp.Body.Close()
 	}
 	if err != nil {
-		if err != websocket.ErrBadHandshake || resp == nil {
+		if !errors.Is(err, websocket.ErrBadHandshake) || resp == nil {
 			return nil, err
 		}
 
