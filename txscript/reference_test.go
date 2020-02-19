@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2017 The btcsuite developers
-// Copyright (c) 2015-2019 The Decred developers
+// Copyright (c) 2015-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -469,7 +469,8 @@ func testScripts(t *testing.T, tests [][]string, useSigCache bool) {
 			}
 		}
 		if !success {
-			if serr, ok := err.(Error); ok {
+			var serr Error
+			if errors.As(err, &serr) {
 				t.Errorf("%s: want error codes %v, got %v", name,
 					allowedErrorCodes, serr.ErrorCode)
 				continue
@@ -919,7 +920,8 @@ func TestCalcSignatureHashReference(t *testing.T) {
 		if (err == nil) != (expectedErr == nil) ||
 			expectedErr != nil && !IsErrorCode(err, *expectedErr) {
 
-			if serr, ok := err.(Error); ok {
+			var serr Error
+			if errors.As(err, &serr) {
 				t.Errorf("Test #%d: want error code %v, got %v", i, expectedErr,
 					serr.ErrorCode)
 				continue

@@ -1,4 +1,4 @@
-// Copyright (c) 2019 The Decred developers
+// Copyright (c) 2019-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -6,6 +6,7 @@ package txscript
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"testing"
 )
@@ -231,9 +232,10 @@ func TestScriptTokenizer(t *testing.T) {
 			t.Fatalf("%q: unexpected tokenizer err -- got %v, want nil",
 				test.name, tokenizer.Err())
 		} else if test.err != nil {
-			if !IsErrorCode(tokenizer.Err(), test.err.(Error).ErrorCode) {
+			var e Error
+			if !errors.As(test.err, &e) || !IsErrorCode(tokenizer.Err(), e.ErrorCode) {
 				t.Fatalf("%q: unexpected tokenizer err -- got %v, want %v",
-					test.name, tokenizer.Err(), test.err.(Error).ErrorCode)
+					test.name, tokenizer.Err(), e.ErrorCode)
 			}
 		}
 

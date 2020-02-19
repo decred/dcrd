@@ -1,11 +1,12 @@
 // Copyright (c) 2013-2017 The btcsuite developers
-// Copyright (c) 2015-2019 The Decred developers
+// Copyright (c) 2015-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
 package txscript
 
 import (
+	"errors"
 	"fmt"
 )
 
@@ -441,16 +442,16 @@ func scriptError(c ErrorCode, desc string) Error {
 // IsErrorCode returns whether or not the provided error is a script error with
 // the provided error code.
 func IsErrorCode(err error, c ErrorCode) bool {
-	serr, ok := err.(Error)
-	return ok && serr.ErrorCode == c
+	var serr Error
+	return errors.As(err, &serr) && serr.ErrorCode == c
 }
 
 // IsDERSigError returns whether or not the provided error is a script error
 // with one of the error codes which are caused due to encountering a signature
 // that is not a canonically-encoded DER signature.
 func IsDERSigError(err error) bool {
-	serr, ok := err.(Error)
-	if !ok {
+	var serr Error
+	if !errors.As(err, &serr) {
 		return false
 	}
 
