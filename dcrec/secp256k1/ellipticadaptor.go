@@ -187,8 +187,8 @@ func (curve *KoblitzCurve) ScalarBaseMult(k []byte) (*big.Int, *big.Int) {
 func (p PublicKey) ToECDSA() *ecdsa.PublicKey {
 	return &ecdsa.PublicKey{
 		Curve: S256(),
-		X:     p.X,
-		Y:     p.Y,
+		X:     p.x,
+		Y:     p.y,
 	}
 }
 

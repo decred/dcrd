@@ -340,7 +340,7 @@ func (k *ExtendedKey) Child(i uint32) (*ExtendedKey, error) {
 		// derive the final child key.
 		//
 		// childKey = serP(point(parse256(Il)) + parentKey)
-		childX, childY := curve.Add(ilx, ily, pubKey.X, pubKey.Y)
+		childX, childY := curve.Add(ilx, ily, pubKey.X(), pubKey.Y())
 		pk := secp256k1.NewPublicKey(childX, childY)
 		childKey = pk.SerializeCompressed()
 	}

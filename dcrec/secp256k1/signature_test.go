@@ -290,8 +290,8 @@ func testSignCompact(t *testing.T, tag string, data []byte, isCompressed bool) {
 	}
 	if !pk.IsEqual(signingPubKey) {
 		t.Errorf("%s: recovered pubkey doesn't match original "+
-			"(%v,%v) vs (%v,%v) ", tag, pk.X, pk.Y, signingPubKey.X,
-			signingPubKey.Y)
+			"(%v,%v) vs (%v,%v) ", tag, pk.x, pk.y, signingPubKey.x,
+			signingPubKey.y)
 		return
 	}
 	if wasCompressed != isCompressed {
@@ -315,8 +315,8 @@ func testSignCompact(t *testing.T, tag string, data []byte, isCompressed bool) {
 	}
 	if !pk.IsEqual(signingPubKey) {
 		t.Errorf("%s: recovered pubkey (2) doesn't match original "+
-			"(%v,%v) vs (%v,%v) ", tag, pk.X, pk.Y, signingPubKey.X,
-			signingPubKey.Y)
+			"(%v,%v) vs (%v,%v) ", tag, pk.x, pk.y, signingPubKey.x,
+			signingPubKey.y)
 		return
 	}
 	if wasCompressed == isCompressed {

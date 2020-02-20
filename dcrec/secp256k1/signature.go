@@ -217,7 +217,7 @@ func (sig *Signature) Verify(hash []byte, pubKey *PublicKey) bool {
 	//
 	// X = u1G + u2Q
 	var X, Q, u1G, u2Q jacobianPoint
-	bigAffineToJacobian(pubKey.X, pubKey.Y, &Q)
+	bigAffineToJacobian(pubKey.x, pubKey.y, &Q)
 	scalarBaseMultJacobian(u1, &u1G)
 	scalarMultJacobian(u2, &Q, &u2Q)
 	addJacobian(&u1G, &u2Q, &X)

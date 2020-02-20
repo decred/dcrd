@@ -46,7 +46,7 @@ var (
 // RFC5903 Section 9 states we should only return x.
 func GenerateSharedSecret(privkey *PrivateKey, pubkey *PublicKey) []byte {
 	privKeyBytes := privkey.key.Bytes()
-	x, _ := S256().ScalarMult(pubkey.X, pubkey.Y, privKeyBytes[:])
+	x, _ := S256().ScalarMult(pubkey.x, pubkey.y, privKeyBytes[:])
 	zeroArray32(&privKeyBytes)
 	return x.Bytes()
 }

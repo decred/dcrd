@@ -236,7 +236,7 @@ func schnorrVerify(sig []byte,
 		return false, schnorrError(ErrInputValue, str)
 	}
 
-	if !curve.IsOnCurve(pubkey.X, pubkey.Y) {
+	if !curve.IsOnCurve(pubkey.X(), pubkey.Y()) {
 		str := fmt.Sprintf("pubkey point is not on curve")
 		return false, schnorrError(ErrPointNotOnCurve, str)
 	}
@@ -277,7 +277,7 @@ func schnorrVerify(sig []byte,
 	}
 
 	// r' = hQ + sG
-	lx, ly := curve.ScalarMult(pubkey.X, pubkey.Y, h)
+	lx, ly := curve.ScalarMult(pubkey.X(), pubkey.Y(), h)
 	rx, ry := curve.ScalarBaseMult(sigS)
 	rlx, rly := curve.Add(lx, ly, rx, ry)
 
@@ -388,7 +388,7 @@ func schnorrRecover(sig, msg []byte,
 	sBig.Mod(sBig, curve.N)
 
 	// Q = h^(-1)R + s'G
-	lx, ly := curve.ScalarMult(rPoint.X, rPoint.Y, hInv.Bytes())
+	lx, ly := curve.ScalarMult(rPoint.X(), rPoint.Y(), hInv.Bytes())
 	rx, ry := curve.ScalarBaseMult(sBig.Bytes())
 	pkx, pky := curve.Add(lx, ly, rx, ry)
 

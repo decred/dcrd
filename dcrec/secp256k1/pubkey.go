@@ -17,6 +17,33 @@ const (
 	PubKeyBytesLenUncompressed = 65
 )
 
+// PublicKey provides facilities for efficiently working with secp256k1 private
+// keys within this package and includes functions to serialize in both
+// uncompressed and compressed SEC (Standards for Efficient Cryptography)
+// formats.
+type PublicKey struct {
+	x *big.Int
+	y *big.Int
+}
+
+// X returns the x coordinate of the public key.
+func (p *PublicKey) X() *big.Int {
+	return p.x
+}
+
+// Y returns the y coordinate of the public key.
+func (p *PublicKey) Y() *big.Int {
+	return p.y
+}
+
+// NewPublicKey instantiates a new public key with the given X,Y coordinates.
+func NewPublicKey(x *big.Int, y *big.Int) *PublicKey {
+	return &PublicKey{
+		x: x,
+		y: y,
+	}
+}
+
 // decompressY attempts to calculate the Y coordinate for the given X coordinate
 // such that the result pair is a point on the secp256k1 curve.  It adjusts Y
 // based on the desired oddness and returns whether or not it was successful
@@ -63,14 +90,6 @@ const (
 	pubkeyUncompressed byte = 0x4 // x coord + y coord
 )
 
-// NewPublicKey instantiates a new public key with the given X,Y coordinates.
-func NewPublicKey(x *big.Int, y *big.Int) *PublicKey {
-	return &PublicKey{
-		X: x,
-		Y: y,
-	}
-}
-
 // ParsePubKey parses a secp256k1 public key encoded according to the format
 // specified by ANSI X9.62-1998, which means it is also compatible with the
 // SEC (Standards for Efficient Cryptography) specification which is a subset of
@@ -105,8 +124,8 @@ func ParsePubKey(pubKeyStr []byte) (key *PublicKey, err error) {
 				"%d", pubKeyStr[0])
 		}
 
-		pubkey.X = new(big.Int).SetBytes(pubKeyStr[1:33])
-		pubkey.Y = new(big.Int).SetBytes(pubKeyStr[33:])
+		pubkey.x = new(big.Int).SetBytes(pubKeyStr[1:33])
+		pubkey.y = new(big.Int).SetBytes(pubKeyStr[33:])
 	case PubKeyBytesLenCompressed:
 		// format is 0x2 | solution, <X coordinate>
 		// solution determines which solution of the curve we use.
@@ -115,8 +134,8 @@ func ParsePubKey(pubKeyStr []byte) (key *PublicKey, err error) {
 			return nil, fmt.Errorf("invalid magic in compressed "+
 				"pubkey string: %d", pubKeyStr[0])
 		}
-		pubkey.X = new(big.Int).SetBytes(pubKeyStr[1:33])
-		pubkey.Y, err = decompressPoint(pubkey.X, ybit)
+		pubkey.x = new(big.Int).SetBytes(pubKeyStr[1:33])
+		pubkey.y, err = decompressPoint(pubkey.x, ybit)
 		if err != nil {
 			return nil, err
 		}
@@ -126,26 +145,17 @@ func ParsePubKey(pubKeyStr []byte) (key *PublicKey, err error) {
 	}
 
 	curve := S256()
-	if pubkey.X.Cmp(curveParams.P) >= 0 {
+	if pubkey.x.Cmp(curveParams.P) >= 0 {
 		return nil, fmt.Errorf("pubkey X parameter is >= to P")
 	}
-	if pubkey.Y.Cmp(curveParams.P) >= 0 {
+	if pubkey.y.Cmp(curveParams.P) >= 0 {
 		return nil, fmt.Errorf("pubkey Y parameter is >= to P")
 	}
-	if !curve.IsOnCurve(pubkey.X, pubkey.Y) {
+	if !curve.IsOnCurve(pubkey.x, pubkey.y) {
 		return nil, fmt.Errorf("pubkey [%v,%v] isn't on secp256k1 curve",
-			pubkey.X, pubkey.Y)
+			pubkey.x, pubkey.y)
 	}
 	return &pubkey, nil
-}
-
-// PublicKey provides facilities for efficiently working with secp256k1 private
-// keys within this package and includes functions to serialize in both
-// uncompressed and compressed SEC (Standards for Efficient Cryptography)
-// formats.
-type PublicKey struct {
-	X *big.Int
-	Y *big.Int
 }
 
 // SerializeUncompressed serializes a public key in a 65-byte uncompressed
@@ -153,27 +163,26 @@ type PublicKey struct {
 func (p PublicKey) SerializeUncompressed() []byte {
 	b := make([]byte, 0, PubKeyBytesLenUncompressed)
 	b = append(b, pubkeyUncompressed)
-	b = paddedAppend(32, b, p.X.Bytes())
-	return paddedAppend(32, b, p.Y.Bytes())
+	b = paddedAppend(32, b, p.x.Bytes())
+	return paddedAppend(32, b, p.y.Bytes())
 }
 
 // SerializeCompressed serializes a public key in a 33-byte compressed format.
 func (p PublicKey) SerializeCompressed() []byte {
 	b := make([]byte, 0, PubKeyBytesLenCompressed)
 	format := pubkeyCompressed
-	if isOdd(p.Y) {
+	if isOdd(p.y) {
 		format |= 0x1
 	}
 	b = append(b, format)
-	return paddedAppend(32, b, p.X.Bytes())
+	return paddedAppend(32, b, p.x.Bytes())
 }
 
 // IsEqual compares this PublicKey instance to the one passed, returning true if
 // both PublicKeys are equivalent. A PublicKey is equivalent to another, if they
 // both have the same X and Y coordinate.
 func (p *PublicKey) IsEqual(otherPubKey *PublicKey) bool {
-	return p.X.Cmp(otherPubKey.X) == 0 &&
-		p.Y.Cmp(otherPubKey.Y) == 0
+	return p.x.Cmp(otherPubKey.x) == 0 && p.y.Cmp(otherPubKey.y) == 0
 }
 
 // paddedAppend appends the src byte slice to dst, returning the new slice.

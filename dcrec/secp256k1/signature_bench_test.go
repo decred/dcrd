@@ -15,10 +15,10 @@ func BenchmarkSigVerify(b *testing.B) {
 	b.StopTimer()
 	// Randomly generated keypair.
 	// Private key: 9e0699c91ca1e3b7e3c9ba71eb71c89890872be97576010fe593fbf3fd57e66d
-	pubKey := PublicKey{
-		X: fromHex("d2e670a19c6d753d1a6d8b20bd045df8a08fb162cf508956c31268c6d81ffdab"),
-		Y: fromHex("ab65528eefbb8057aa85d597258a3fbd481a24633bc9b47a9aa045c91371de52"),
-	}
+	pubKey := NewPublicKey(
+		fromHex("d2e670a19c6d753d1a6d8b20bd045df8a08fb162cf508956c31268c6d81ffdab"),
+		fromHex("ab65528eefbb8057aa85d597258a3fbd481a24633bc9b47a9aa045c91371de52"),
+	)
 
 	// Double sha256 of []byte{0x01, 0x02, 0x03, 0x04}
 	msgHash := fromHex("8de472e2399610baaa7f84840547cd409434e31f5d3bd71e4d947f283874f9c0")
@@ -27,14 +27,14 @@ func BenchmarkSigVerify(b *testing.B) {
 		s: *new(ModNScalar).SetHex("d47563f52aac6b04b55de236b7c515eb9311757db01e02cff079c3ca6efb063f"),
 	}
 
-	if !sig.Verify(msgHash.Bytes(), &pubKey) {
+	if !sig.Verify(msgHash.Bytes(), pubKey) {
 		b.Errorf("Signature failed to verify")
 		return
 	}
 	b.StartTimer()
 
 	for i := 0; i < b.N; i++ {
-		sig.Verify(msgHash.Bytes(), &pubKey)
+		sig.Verify(msgHash.Bytes(), pubKey)
 	}
 }
 
@@ -114,10 +114,10 @@ func BenchmarkSignCompact(b *testing.B) {
 // given a compact signature and message.
 func BenchmarkRecoverCompact(b *testing.B) {
 	// Private key: 9e0699c91ca1e3b7e3c9ba71eb71c89890872be97576010fe593fbf3fd57e66d
-	wantPubKey := PublicKey{
-		X: fromHex("d2e670a19c6d753d1a6d8b20bd045df8a08fb162cf508956c31268c6d81ffdab"),
-		Y: fromHex("ab65528eefbb8057aa85d597258a3fbd481a24633bc9b47a9aa045c91371de52"),
-	}
+	wantPubKey := NewPublicKey(
+		fromHex("d2e670a19c6d753d1a6d8b20bd045df8a08fb162cf508956c31268c6d81ffdab"),
+		fromHex("ab65528eefbb8057aa85d597258a3fbd481a24633bc9b47a9aa045c91371de52"),
+	)
 
 	compactSig := hexToBytes("205978b7896bc71676ba2e459882a8f52e1299449596c4f" +
 		"93c59bf1fbfa2f9d3b76ecd0c99406f61a6de2bb5a8937c061c176ecf381d0231e0d" +
@@ -134,7 +134,7 @@ func BenchmarkRecoverCompact(b *testing.B) {
 	if !wasCompressed {
 		b.Fatal("recover claims uncompressed pubkey")
 	}
-	if !pubKey.IsEqual(&wantPubKey) {
+	if !pubKey.IsEqual(wantPubKey) {
 		b.Fatal("recover returned unexpected pubkey")
 	}
 

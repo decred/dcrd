@@ -741,7 +741,7 @@ func testKeyGeneration(t *testing.T, c *KoblitzCurve, tag string) {
 		return
 	}
 	pub := priv.PubKey()
-	if !c.IsOnCurve(pub.X, pub.Y) {
+	if !c.IsOnCurve(pub.x, pub.y) {
 		t.Errorf("%s: public key invalid: %s", tag, err)
 	}
 }
