@@ -23,8 +23,8 @@ func BenchmarkSigVerify(b *testing.B) {
 	// Double sha256 of []byte{0x01, 0x02, 0x03, 0x04}
 	msgHash := fromHex("8de472e2399610baaa7f84840547cd409434e31f5d3bd71e4d947f283874f9c0")
 	sig := Signature{
-		r: fromHex("fef45d2892953aa5bbcdb057b5e98b208f1617a7498af7eb765574e29b5d9c2c"),
-		s: fromHex("d47563f52aac6b04b55de236b7c515eb9311757db01e02cff079c3ca6efb063f"),
+		r: *new(ModNScalar).SetHex("fef45d2892953aa5bbcdb057b5e98b208f1617a7498af7eb765574e29b5d9c2c"),
+		s: *new(ModNScalar).SetHex("d47563f52aac6b04b55de236b7c515eb9311757db01e02cff079c3ca6efb063f"),
 	}
 
 	if !sig.Verify(msgHash.Bytes(), &pubKey) {
@@ -61,8 +61,8 @@ func BenchmarkSigSerialize(b *testing.B) {
 	// Private key: 9e0699c91ca1e3b7e3c9ba71eb71c89890872be97576010fe593fbf3fd57e66d
 	// Signature for double sha256 of []byte{0x01, 0x02, 0x03, 0x04}.
 	sig := Signature{
-		r: fromHex("fef45d2892953aa5bbcdb057b5e98b208f1617a7498af7eb765574e29b5d9c2c"),
-		s: fromHex("d47563f52aac6b04b55de236b7c515eb9311757db01e02cff079c3ca6efb063f"),
+		r: *new(ModNScalar).SetHex("fef45d2892953aa5bbcdb057b5e98b208f1617a7498af7eb765574e29b5d9c2c"),
+		s: *new(ModNScalar).SetHex("d47563f52aac6b04b55de236b7c515eb9311757db01e02cff079c3ca6efb063f"),
 	}
 
 	b.ReportAllocs()

@@ -11,7 +11,6 @@ import (
 	"errors"
 	"fmt"
 	"hash"
-	"math/big"
 )
 
 // References:
@@ -26,8 +25,8 @@ import (
 
 // Signature is a type representing an ECDSA signature.
 type Signature struct {
-	r *big.Int
-	s *big.Int
+	r ModNScalar
+	s ModNScalar
 }
 
 var (
@@ -66,8 +65,8 @@ const (
 )
 
 // NewSignature instantiates a new signature given some R,S values.
-func NewSignature(r, s *big.Int) *Signature {
-	return &Signature{r, s}
+func NewSignature(r, s *ModNScalar) *Signature {
+	return &Signature{*r, *s}
 }
 
 // Serialize returns the ECDSA signature in the Distinguished Encoding Rules
@@ -96,18 +95,11 @@ func (sig *Signature) Serialize() []byte {
 	//     represents the S value of the signature.  The encoding rules are
 	//     identical as those for R.
 
-	// Convert big ints to mod N scalars.  Ultimately the goal is to convert
-	// the signature type itself to use mod N scalars directly which will allow
-	// this step to be removed.
-	var r, s ModNScalar
-	r.SetByteSlice(sig.r.Bytes())
-	s.SetByteSlice(sig.s.Bytes())
-
 	// Ensure the S component of the signature is less than or equal to the half
 	// order of the group because both S and its negation are valid signatures
 	// modulo the order, so this forces a consistent choice to reduce signature
 	// malleability.
-	sigS := new(ModNScalar).Set(&s)
+	sigS := new(ModNScalar).Set(&sig.s)
 	if sigS.IsOverHalfOrder() {
 		sigS.Negate()
 	}
@@ -115,7 +107,7 @@ func (sig *Signature) Serialize() []byte {
 	// Serialize the R and S components of the signature into their fixed
 	// 32-byte big-endian encoding.
 	var rBytes, sBytes [32]byte
-	r.PutBytes(&rBytes)
+	sig.r.PutBytes(&rBytes)
 	sigS.PutBytes(&sBytes)
 
 	// Ensure the encoded bytes for the R and S components are canonical per DER
@@ -199,11 +191,7 @@ func (sig *Signature) Verify(hash []byte, pubKey *PublicKey) bool {
 	// Step 1.
 	//
 	// Fail if R and S are not in [1, N-1].
-	var R, S ModNScalar
-	if overflow := R.SetByteSlice(sig.r.Bytes()); overflow || R.IsZero() {
-		return false
-	}
-	if overflow := S.SetByteSlice(sig.s.Bytes()); overflow || S.IsZero() {
+	if sig.r.IsZero() || sig.s.IsZero() {
 		return false
 	}
 
@@ -216,14 +204,14 @@ func (sig *Signature) Verify(hash []byte, pubKey *PublicKey) bool {
 	// Step 3.
 	//
 	// w = S^-1 mod N
-	w := new(ModNScalar).InverseValNonConst(&S)
+	w := new(ModNScalar).InverseValNonConst(&sig.s)
 
 	// Step 4.
 	//
 	// u1 = e * w mod N
 	// u2 = R * w mod N
 	u1 := new(ModNScalar).Mul2(&e, w)
-	u2 := new(ModNScalar).Mul2(&R, w)
+	u2 := new(ModNScalar).Mul2(&sig.r, w)
 
 	// Step 5.
 	//
@@ -253,14 +241,14 @@ func (sig *Signature) Verify(hash []byte, pubKey *PublicKey) bool {
 	// Step 8.
 	//
 	// Verified if x == R
-	return x.Equals(&R)
+	return x.Equals(&sig.r)
 }
 
 // IsEqual compares this Signature instance to the one passed, returning true if
 // both Signatures are equivalent.  A signature is equivalent to another, if
 // they both have the same scalar value for R and S.
 func (sig *Signature) IsEqual(otherSig *Signature) bool {
-	return sig.r.Cmp(otherSig.r) == 0 && sig.s.Cmp(otherSig.s) == 0
+	return sig.r.Equals(&otherSig.r) && sig.s.Equals(&otherSig.s)
 }
 
 // ParseDERSignature parses a signature in the Distinguished Encoding Rules
@@ -500,9 +488,7 @@ func ParseDERSignature(sig []byte) (*Signature, error) {
 	}
 
 	// Create and return the signature.
-	bigR := new(big.Int).SetBytes(rBytes)
-	bigS := new(big.Int).SetBytes(sBytes)
-	return NewSignature(bigR, bigS), nil
+	return NewSignature(&r, &s), nil
 }
 
 const (
@@ -552,18 +538,11 @@ func SignCompact(key *PrivateKey, hash []byte, isCompressedKey bool) []byte {
 		compactSigRecoveryCode += compactSigCompPubKey
 	}
 
-	// Convert big ints to mod N scalars.  Ultimately the goal is to convert
-	// the signature type itself to use mod N scalars directly which will allow
-	// this step to be removed.
-	var r, s ModNScalar
-	r.SetByteSlice(sig.r.Bytes())
-	s.SetByteSlice(sig.s.Bytes())
-
 	// Serialize the R and S components of the signature into their fixed
 	// 32-byte big-endian encoding.
 	var rBytes, sBytes [32]byte
-	r.PutBytes(&rBytes)
-	s.PutBytes(&sBytes)
+	sig.r.PutBytes(&rBytes)
+	sig.s.PutBytes(&sBytes)
 
 	// Output <compactSigRecoveryCode><32-byte R><32-byte S>.
 	var b [compactSigSize]byte
@@ -887,10 +866,7 @@ func signRFC6979(privateKey *PrivateKey, hash []byte) (*Signature, byte) {
 		// Step 6.
 		//
 		// Return (r,s)
-		rBytes, sBytes := r.Bytes(), s.Bytes()
-		bigR := new(big.Int).SetBytes(rBytes[:])
-		bigS := new(big.Int).SetBytes(sBytes[:])
-		return &Signature{r: bigR, s: bigS}, pubKeyRecoveryCode
+		return NewSignature(&r, s), pubKeyRecoveryCode
 	}
 }
 
