@@ -40,6 +40,17 @@ func zeroSlice(s []byte) {
 	}
 }
 
+// zeroBigInt zeroes the underlying memory used by the passed big integer.  The
+// big integer must not be used after calling this as it changes the internal
+// state out from under it which can lead to unpredictable results.
+func zeroBigInt(v *big.Int) {
+	words := v.Bits()
+	for i := 0; i < len(words); i++ {
+		words[i] = 0
+	}
+	v.SetInt64(0)
+}
+
 // GenerateKey generates a key using a random number generator, returning
 // the private scalar and the corresponding public key points.
 func GenerateKey(rand io.Reader) (priv []byte, x, y *big.Int, err error) {
@@ -150,9 +161,9 @@ func schnorrSign(msg []byte, ps []byte, k []byte,
 	}
 
 	// Zero out the private key and nonce when we're done with it.
-	bigK.SetInt64(0)
+	zeroBigInt(bigK)
 	zeroSlice(k)
-	psBig.SetInt64(0)
+	zeroBigInt(psBig)
 	zeroSlice(ps)
 
 	return &Signature{Rpx, sBig}, nil
@@ -165,7 +176,7 @@ func nonceRFC6979(privKey []byte, hash []byte, extra []byte, version []byte, ext
 	kBytes := k.Bytes()
 	defer zeroArray(&kBytes)
 	bigK := new(big.Int).SetBytes(kBytes[:])
-	defer bigK.SetInt64(0)
+	defer zeroBigInt(bigK)
 	nonce := bigIntToEncodedBytes(bigK)
 	return nonce[:]
 }
