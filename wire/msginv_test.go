@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2019 The Decred developers
+// Copyright (c) 2015-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -7,6 +7,7 @@ package wire
 
 import (
 	"bytes"
+	"errors"
 	"io"
 	"reflect"
 	"testing"
@@ -242,8 +243,9 @@ func TestInvWireErrors(t *testing.T) {
 
 		// For errors which are not of type MessageError, check them for
 		// equality.
-		if _, ok := err.(*MessageError); !ok {
-			if err != test.writeErr {
+		var merr *MessageError
+		if !errors.As(err, &merr) {
+			if !errors.Is(err, test.writeErr) {
 				t.Errorf("BtcEncode #%d wrong error got: %v, "+
 					"want: %v", i, err, test.writeErr)
 				continue
@@ -262,8 +264,8 @@ func TestInvWireErrors(t *testing.T) {
 
 		// For errors which are not of type MessageError, check them for
 		// equality.
-		if _, ok := err.(*MessageError); !ok {
-			if err != test.readErr {
+		if !errors.As(err, &merr) {
+			if !errors.Is(err, test.readErr) {
 				t.Errorf("BtcDecode #%d wrong error got: %v, "+
 					"want: %v", i, err, test.readErr)
 				continue

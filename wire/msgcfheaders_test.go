@@ -1,4 +1,4 @@
-// Copyright (c) 2019 The Decred developers
+// Copyright (c) 2019-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -7,6 +7,7 @@ package wire
 import (
 	"bytes"
 	"encoding/hex"
+	"errors"
 	"io"
 	"reflect"
 	"testing"
@@ -277,8 +278,9 @@ func TestCFHeadersWireErrors(t *testing.T) {
 
 		// For errors which are not of type MessageError, check them for
 		// equality.
-		if _, ok := err.(*MessageError); !ok {
-			if err != test.writeErr {
+		var merr *MessageError
+		if !errors.As(err, &merr) {
+			if !errors.Is(err, test.writeErr) {
 				t.Errorf("BtcEncode #%d wrong error got: %v, "+
 					"want: %v", i, err, test.writeErr)
 				continue
@@ -298,8 +300,8 @@ func TestCFHeadersWireErrors(t *testing.T) {
 
 		// For errors which are not of type MessageError, check them for
 		// equality.
-		if _, ok := err.(*MessageError); !ok {
-			if err != test.readErr {
+		if !errors.As(err, &merr) {
+			if !errors.Is(err, test.readErr) {
 				t.Errorf("BtcDecode #%d wrong error got: %v, "+
 					"want: %v", i, err, test.readErr)
 				continue
@@ -357,8 +359,9 @@ func TestCFHeadersMalformedErrors(t *testing.T) {
 
 		// For errors which are not of type MessageError, check them for
 		// equality.
-		if _, ok := err.(*MessageError); !ok {
-			if err != test.err {
+		var merr *MessageError
+		if !errors.As(err, &merr) {
+			if !errors.Is(err, test.err) {
 				t.Errorf("BtcDecode #%d wrong error got: %v, "+
 					"want: %v %v", i, err, test.err, msg)
 				continue

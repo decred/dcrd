@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2019 The Decred developers
+// Copyright (c) 2015-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -7,6 +7,7 @@ package wire
 
 import (
 	"bytes"
+	"errors"
 	"io"
 	"net"
 	"reflect"
@@ -77,7 +78,7 @@ func TestNetAddress(t *testing.T) {
 	// Check for expected failure on wrong address type.
 	udpAddr := &net.UDPAddr{}
 	_, err = NewNetAddress(udpAddr, 0)
-	if err != ErrInvalidNetAddr {
+	if !errors.Is(err, ErrInvalidNetAddr) {
 		t.Errorf("NewNetAddress: expected error not received - "+
 			"got %v, want %v", err, ErrInvalidNetAddr)
 	}
@@ -222,7 +223,7 @@ func TestNetAddressWireErrors(t *testing.T) {
 		// Encode to wire format.
 		w := newFixedWriter(test.max)
 		err := writeNetAddress(w, test.pver, test.in, test.ts)
-		if err != test.writeErr {
+		if !errors.Is(err, test.writeErr) {
 			t.Errorf("writeNetAddress #%d wrong error got: %v, want: %v",
 				i, err, test.writeErr)
 			continue
@@ -232,7 +233,7 @@ func TestNetAddressWireErrors(t *testing.T) {
 		var na NetAddress
 		r := newFixedReader(test.max, test.buf)
 		err = readNetAddress(r, test.pver, &na, test.ts)
-		if err != test.readErr {
+		if !errors.Is(err, test.readErr) {
 			t.Errorf("readNetAddress #%d wrong error got: %v, want: %v",
 				i, err, test.readErr)
 			continue

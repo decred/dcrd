@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2019 The Decred developers
+// Copyright (c) 2015-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -7,6 +7,7 @@ package wire
 
 import (
 	"bytes"
+	"errors"
 	"io"
 	"reflect"
 	"testing"
@@ -280,7 +281,7 @@ func TestBlockWireErrors(t *testing.T) {
 		// Encode to wire format.
 		w := newFixedWriter(test.max)
 		err := test.in.BtcEncode(w, test.pver)
-		if err != test.writeErr {
+		if !errors.Is(err, test.writeErr) {
 			t.Errorf("BtcEncode #%d wrong error got: %v, want: %v",
 				i, err, test.writeErr)
 			continue
@@ -290,7 +291,7 @@ func TestBlockWireErrors(t *testing.T) {
 		var msg MsgBlock
 		r := newFixedReader(test.max, test.buf)
 		err = msg.BtcDecode(r, test.pver)
-		if err != test.readErr {
+		if !errors.Is(err, test.readErr) {
 			t.Errorf("BtcDecode #%d wrong error got: %v, want: %v",
 				i, err, test.readErr)
 			continue
@@ -424,7 +425,7 @@ func TestBlockSerializeErrors(t *testing.T) {
 		// Serialize the block.
 		w := newFixedWriter(test.max)
 		err := test.in.Serialize(w)
-		if err != test.writeErr {
+		if !errors.Is(err, test.writeErr) {
 			t.Errorf("Serialize #%d wrong error got: %v, want: %v",
 				i, err, test.writeErr)
 			continue
@@ -434,7 +435,7 @@ func TestBlockSerializeErrors(t *testing.T) {
 		var block MsgBlock
 		r := newFixedReader(test.max, test.buf)
 		err = block.Deserialize(r)
-		if err != test.readErr {
+		if !errors.Is(err, test.readErr) {
 			t.Errorf("Deserialize #%d wrong error got: %v, want: %v",
 				i, err, test.readErr)
 			continue
@@ -443,7 +444,7 @@ func TestBlockSerializeErrors(t *testing.T) {
 		var txLocBlock MsgBlock
 		br := bytes.NewBuffer(test.buf[0:test.max])
 		_, _, err = txLocBlock.DeserializeTxLoc(br)
-		if err != test.readErr {
+		if !errors.Is(err, test.readErr) {
 			t.Errorf("DeserializeTxLoc #%d wrong error got: %v, want: %v",
 				i, err, test.readErr)
 			continue
