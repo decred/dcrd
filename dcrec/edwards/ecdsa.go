@@ -82,13 +82,24 @@ func SignFromSecretNoReader(priv *PrivateKey, hash []byte) (r, s *big.Int, err e
 	return
 }
 
+// zeroBigInt zeroes the underlying memory used by the passed big integer.  The
+// big integer must not be used after calling this as it changes the internal
+// state out from under it which can lead to unpredictable results.
+func zeroBigInt(v *big.Int) {
+	words := v.Bits()
+	for i := 0; i < len(words); i++ {
+		words[i] = 0
+	}
+	v.SetInt64(0)
+}
+
 // nonceRFC6979 is a local instantiation of deterministic nonce generation
 // by the standards of RFC6979.
 func nonceRFC6979(privkey []byte, hash []byte, extra []byte, version []byte) []byte {
 	pkD := new(big.Int).SetBytes(privkey)
-	defer pkD.SetInt64(0)
+	defer zeroBigInt(pkD)
 	bigK := NonceRFC6979(pkD, hash, extra, version)
-	defer bigK.SetInt64(0)
+	defer zeroBigInt(bigK)
 	k := bigIntToEncodedBytesNoReverse(bigK)
 	return k[:]
 }

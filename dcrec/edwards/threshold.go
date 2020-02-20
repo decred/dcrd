@@ -97,7 +97,7 @@ func schnorrPartialSign(msg []byte, priv []byte,
 		str := fmt.Sprintf("priv scalar is out of bounds")
 		return nil, nil, fmt.Errorf("%v", str)
 	}
-	privBig.SetInt64(0)
+	zeroBigInt(privBig)
 
 	privNonceBig := new(big.Int).SetBytes(privNonce)
 	if privNonceBig.Cmp(zero) == 0 {
@@ -108,7 +108,7 @@ func schnorrPartialSign(msg []byte, priv []byte,
 		str := fmt.Sprintf("privNonce scalar is out of bounds")
 		return nil, nil, fmt.Errorf("%v", str)
 	}
-	privNonceBig.SetInt64(0)
+	zeroBigInt(privNonceBig)
 
 	gpkX, gpkY, err := curve.encodedBytesToBigIntPoint(copyBytes(groupPublicKey))
 	if err != nil {
