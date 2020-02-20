@@ -24,12 +24,6 @@ import (
 //   [SEC1]: Elliptic Curve Cryptography (May 31, 2009, Version 2.0)
 //     https://www.secg.org/sec1-v2.pdf
 
-// Errors returned by canonicalPadding.
-var (
-	errNegativeValue          = errors.New("value may be interpreted as negative")
-	errExcessivelyPaddedValue = errors.New("value is excessively padded")
-)
-
 // Signature is a type representing an ECDSA signature.
 type Signature struct {
 	r *big.Int
@@ -59,6 +53,18 @@ var (
 	orderAsFieldVal = new(fieldVal).SetByteSlice(curveParams.N.Bytes())
 )
 
+const (
+	// asn1SequenceID is the ASN.1 identifier for a sequence and is used when
+	// parsing and serializing signatures encoded with the Distinguished
+	// Encoding Rules (DER) format per section 10 of [ISO/IEC 8825-1].
+	asn1SequenceID = 0x30
+
+	// asn1IntegerID is the ASN.1 identifier for an integer and is used when
+	// parsing and serializing signatures encoded with the Distinguished
+	// Encoding Rules (DER) format per section 10 of [ISO/IEC 8825-1].
+	asn1IntegerID = 0x02
+)
+
 // NewSignature instantiates a new signature given some R,S values.
 func NewSignature(r, s *big.Int) *Signature {
 	return &Signature{r, s}
@@ -74,25 +80,21 @@ func (sig *Signature) Serialize() []byte {
 	// The format of a DER encoded signature is as follows:
 	//
 	// 0x30 <total length> 0x02 <length of R> <R> 0x02 <length of S> <S>
-	//   - 0x30 is the ASN.1 identifier for a sequence
-	//   - Total length is 1 byte and specifies length of all remaining data
-	//   - 0x02 is the ASN.1 identifier that specifies an integer follows
-	//   - Length of R is 1 byte and specifies how many bytes R occupies
+	//   - 0x30 is the ASN.1 identifier for a sequence.
+	//   - Total length is 1 byte and specifies length of all remaining data.
+	//   - 0x02 is the ASN.1 identifier that specifies an integer follows.
+	//   - Length of R is 1 byte and specifies how many bytes R occupies.
 	//   - R is the arbitrary length big-endian encoded number which
 	//     represents the R value of the signature.  DER encoding dictates
 	//     that the value must be encoded using the minimum possible number
 	//     of bytes.  This implies the first byte can only be null if the
 	//     highest bit of the next byte is set in order to prevent it from
 	//     being interpreted as a negative number.
-	//   - 0x02 is once again the ASN.1 integer identifier
-	//   - Length of S is 1 byte and specifies how many bytes S occupies
+	//   - 0x02 is once again the ASN.1 integer identifier.
+	//   - Length of S is 1 byte and specifies how many bytes S occupies.
 	//   - S is the arbitrary length big-endian encoded number which
 	//     represents the S value of the signature.  The encoding rules are
 	//     identical as those for R.
-	const (
-		asn1SequenceID = 0x30
-		asn1IntegerID  = 0x02
-	)
 
 	// Convert big ints to mod N scalars.  Ultimately the goal is to convert
 	// the signature type itself to use mod N scalars directly which will allow
@@ -261,137 +263,246 @@ func (sig *Signature) IsEqual(otherSig *Signature) bool {
 	return sig.r.Cmp(otherSig.r) == 0 && sig.s.Cmp(otherSig.s) == 0
 }
 
-// parseSig attempts to parse the provided raw signature bytes into a Signature
-// struct while enforcing the more strict Distinguished Encoding Rules (DER)
-// format per section 10 of [ISO/IEC 8825-1].
-func parseSig(sigStr []byte) (*Signature, error) {
-	// Originally this code used encoding/asn1 in order to parse the
-	// signature, but a number of problems were found with this approach.
-	// Despite the fact that signatures are stored as DER, the difference
-	// between go's idea of a bignum (and that they have sign) doesn't agree
-	// with the openssl one (where they do not). The above is true as of
-	// Go 1.1. In the end it was simpler to rewrite the code to explicitly
-	// understand the format which is this:
-	// 0x30 <length of whole message> <0x02> <length of R> <R> 0x2
-	// <length of S> <S>.
-
-	signature := &Signature{}
-	curve := S256()
-
-	// minimal message is when both numbers are 1 bytes. adding up to:
-	// 0x30 + len + 0x02 + 0x01 + <byte> + 0x2 + 0x01 + <byte>
-	if len(sigStr) < 8 {
-		return nil, errors.New("malformed signature: too short")
-	}
-	// 0x30
-	index := 0
-	if sigStr[index] != 0x30 {
-		return nil, errors.New("malformed signature: no header magic")
-	}
-	index++
-	// length of remaining message
-	siglen := sigStr[index]
-	index++
-	if int(siglen+2) != len(sigStr) {
-		return nil, errors.New("malformed signature: bad length")
-	}
-
-	// 0x02
-	if sigStr[index] != 0x02 {
-		return nil,
-			errors.New("malformed signature: no 1st int marker")
-	}
-	index++
-
-	// Length of signature R.
-	rLen := int(sigStr[index])
-	// must be positive, must be able to fit in another 0x2, <len> <s>
-	// hence the -3. We assume that the length must be at least one byte.
-	index++
-	if rLen <= 0 || rLen > len(sigStr)-index-3 {
-		return nil, errors.New("malformed signature: bogus R length")
-	}
-
-	// Then R itself.
-	rBytes := sigStr[index : index+rLen]
-	switch err := canonicalPadding(rBytes); err {
-	case errNegativeValue:
-		return nil, errors.New("signature R is negative")
-	case errExcessivelyPaddedValue:
-		return nil, errors.New("signature R is excessively padded")
-	}
-	signature.r = new(big.Int).SetBytes(rBytes)
-	index += rLen
-	// 0x02. length already checked in previous if.
-	if sigStr[index] != 0x02 {
-		return nil, errors.New("malformed signature: no 2nd int marker")
-	}
-	index++
-
-	// Length of signature S.
-	sLen := int(sigStr[index])
-	index++
-	// S should be the rest of the string.
-	if sLen <= 0 || sLen > len(sigStr)-index {
-		return nil, errors.New("malformed signature: bogus S length")
-	}
-
-	// Then S itself.
-	sBytes := sigStr[index : index+sLen]
-	switch err := canonicalPadding(sBytes); err {
-	case errNegativeValue:
-		return nil, errors.New("signature S is negative")
-	case errExcessivelyPaddedValue:
-		return nil, errors.New("signature S is excessively padded")
-	}
-	signature.s = new(big.Int).SetBytes(sBytes)
-	index += sLen
-
-	// sanity check length parsing
-	if index != len(sigStr) {
-		return nil, fmt.Errorf("malformed signature: bad final length %v != %v",
-			index, len(sigStr))
-	}
-
-	// Verify also checks this, but we can be more sure that we parsed
-	// correctly if we verify here too.
-	// FWIW the ecdsa spec states that R and S must be | 1, N - 1 |
-	// but crypto/ecdsa only checks for Sign != 0. Mirror that.
-	if signature.r.Sign() != 1 {
-		return nil, errors.New("signature R isn't 1 or more")
-	}
-	if signature.s.Sign() != 1 {
-		return nil, errors.New("signature S isn't 1 or more")
-	}
-	if signature.r.Cmp(curve.Params().N) >= 0 {
-		return nil, errors.New("signature R is >= curve.N")
-	}
-	if signature.s.Cmp(curve.Params().N) >= 0 {
-		return nil, errors.New("signature S is >= curve.N")
-	}
-
-	return signature, nil
-}
-
 // ParseDERSignature parses a signature in the Distinguished Encoding Rules
-// (DER) format per section 10 of [ISO/IEC 8825-1].
-func ParseDERSignature(sigStr []byte) (*Signature, error) {
-	return parseSig(sigStr)
-}
+// (DER) format per section 10 of [ISO/IEC 8825-1] and enforces the following
+// additional restrictions specific to secp256k1:
+//
+// - The R and S values must be in the valid range for secp256k1 scalars:
+//   - Negative values are rejected
+//   - Zero is rejected
+//   - Values greater than or equal to the secp256k1 group order are rejected
+func ParseDERSignature(sig []byte) (*Signature, error) {
+	// The format of a DER encoded signature for secp256k1 is as follows:
+	//
+	// 0x30 <total length> 0x02 <length of R> <R> 0x02 <length of S> <S>
+	//   - 0x30 is the ASN.1 identifier for a sequence
+	//   - Total length is 1 byte and specifies length of all remaining data
+	//   - 0x02 is the ASN.1 identifier that specifies an integer follows
+	//   - Length of R is 1 byte and specifies how many bytes R occupies
+	//   - R is the arbitrary length big-endian encoded number which
+	//     represents the R value of the signature.  DER encoding dictates
+	//     that the value must be encoded using the minimum possible number
+	//     of bytes.  This implies the first byte can only be null if the
+	//     highest bit of the next byte is set in order to prevent it from
+	//     being interpreted as a negative number.
+	//   - 0x02 is once again the ASN.1 integer identifier
+	//   - Length of S is 1 byte and specifies how many bytes S occupies
+	//   - S is the arbitrary length big-endian encoded number which
+	//     represents the S value of the signature.  The encoding rules are
+	//     identical as those for R.
+	//
+	// NOTE: The DER specification supports specifying lengths that can occupy
+	// more than 1 byte, however, since this is specific to secp256k1
+	// signatures, all lengths will be a single byte.
+	const (
+		// minSigLen is the minimum length of a DER encoded signature and is
+		// when both R and S are 1 byte each.
+		//
+		// 0x30 + <1-byte> + 0x02 + 0x01 + <byte> + 0x2 + 0x01 + <byte>
+		minSigLen = 8
 
-// canonicalPadding checks whether a big-endian encoded integer could
-// possibly be misinterpreted as a negative number (even though OpenSSL
-// treats all numbers as unsigned), or if there is any unnecessary
-// leading zero padding.
-func canonicalPadding(b []byte) error {
-	switch {
-	case b[0]&0x80 == 0x80:
-		return errNegativeValue
-	case len(b) > 1 && b[0] == 0x00 && b[1]&0x80 != 0x80:
-		return errExcessivelyPaddedValue
-	default:
-		return nil
+		// maxSigLen is the maximum length of a DER encoded signature and is
+		// when both R and S are 33 bytes each.  It is 33 bytes because a
+		// 256-bit integer requires 32 bytes and an additional leading null byte
+		// might be required if the high bit is set in the value.
+		//
+		// 0x30 + <1-byte> + 0x02 + 0x21 + <33 bytes> + 0x2 + 0x21 + <33 bytes>
+		maxSigLen = 72
+
+		// sequenceOffset is the byte offset within the signature of the
+		// expected ASN.1 sequence identifier.
+		sequenceOffset = 0
+
+		// dataLenOffset is the byte offset within the signature of the expected
+		// total length of all remaining data in the signature.
+		dataLenOffset = 1
+
+		// rTypeOffset is the byte offset within the signature of the ASN.1
+		// identifier for R and is expected to indicate an ASN.1 integer.
+		rTypeOffset = 2
+
+		// rLenOffset is the byte offset within the signature of the length of
+		// R.
+		rLenOffset = 3
+
+		// rOffset is the byte offset within the signature of R.
+		rOffset = 4
+	)
+
+	// The signature must adhere to the minimum and maximum allowed length.
+	sigLen := len(sig)
+	if sigLen < minSigLen {
+		str := fmt.Sprintf("malformed signature: too short: %d < %d", sigLen,
+			minSigLen)
+		return nil, signatureError(ErrSigTooShort, str)
 	}
+	if sigLen > maxSigLen {
+		str := fmt.Sprintf("malformed signature: too long: %d > %d", sigLen,
+			maxSigLen)
+		return nil, signatureError(ErrSigTooLong, str)
+	}
+
+	// The signature must start with the ASN.1 sequence identifier.
+	if sig[sequenceOffset] != asn1SequenceID {
+		str := fmt.Sprintf("malformed signature: format has wrong type: %#x",
+			sig[sequenceOffset])
+		return nil, signatureError(ErrSigInvalidSeqID, str)
+	}
+
+	// The signature must indicate the correct amount of data for all elements
+	// related to R and S.
+	if int(sig[dataLenOffset]) != sigLen-2 {
+		str := fmt.Sprintf("malformed signature: bad length: %d != %d",
+			sig[dataLenOffset], sigLen-2)
+		return nil, signatureError(ErrSigInvalidDataLen, str)
+	}
+
+	// Calculate the offsets of the elements related to S and ensure S is inside
+	// the signature.
+	//
+	// rLen specifies the length of the big-endian encoded number which
+	// represents the R value of the signature.
+	//
+	// sTypeOffset is the offset of the ASN.1 identifier for S and, like its R
+	// counterpart, is expected to indicate an ASN.1 integer.
+	//
+	// sLenOffset and sOffset are the byte offsets within the signature of the
+	// length of S and S itself, respectively.
+	rLen := int(sig[rLenOffset])
+	sTypeOffset := rOffset + rLen
+	sLenOffset := sTypeOffset + 1
+	if sTypeOffset >= sigLen {
+		str := "malformed signature: S type indicator missing"
+		return nil, signatureError(ErrSigMissingSTypeID, str)
+	}
+	if sLenOffset >= sigLen {
+		str := "malformed signature: S length missing"
+		return nil, signatureError(ErrSigMissingSLen, str)
+	}
+
+	// The lengths of R and S must match the overall length of the signature.
+	//
+	// sLen specifies the length of the big-endian encoded number which
+	// represents the S value of the signature.
+	sOffset := sLenOffset + 1
+	sLen := int(sig[sLenOffset])
+	if sOffset+sLen != sigLen {
+		str := "malformed signature: invalid S length"
+		return nil, signatureError(ErrSigInvalidSLen, str)
+	}
+
+	// R elements must be ASN.1 integers.
+	if sig[rTypeOffset] != asn1IntegerID {
+		str := fmt.Sprintf("malformed signature: R integer marker: %#x != %#x",
+			sig[rTypeOffset], asn1IntegerID)
+		return nil, signatureError(ErrSigInvalidRIntID, str)
+	}
+
+	// Zero-length integers are not allowed for R.
+	if rLen == 0 {
+		str := "malformed signature: R length is zero"
+		return nil, signatureError(ErrSigZeroRLen, str)
+	}
+
+	// R must not be negative.
+	if sig[rOffset]&0x80 != 0 {
+		str := "malformed signature: R is negative"
+		return nil, signatureError(ErrSigNegativeR, str)
+	}
+
+	// Null bytes at the start of R are not allowed, unless R would otherwise be
+	// interpreted as a negative number.
+	if rLen > 1 && sig[rOffset] == 0x00 && sig[rOffset+1]&0x80 == 0 {
+		str := "malformed signature: R value has too much padding"
+		return nil, signatureError(ErrSigTooMuchRPadding, str)
+	}
+
+	// S elements must be ASN.1 integers.
+	if sig[sTypeOffset] != asn1IntegerID {
+		str := fmt.Sprintf("malformed signature: S integer marker: %#x != %#x",
+			sig[sTypeOffset], asn1IntegerID)
+		return nil, signatureError(ErrSigInvalidSIntID, str)
+	}
+
+	// Zero-length integers are not allowed for S.
+	if sLen == 0 {
+		str := "malformed signature: S length is zero"
+		return nil, signatureError(ErrSigZeroSLen, str)
+	}
+
+	// S must not be negative.
+	if sig[sOffset]&0x80 != 0 {
+		str := "malformed signature: S is negative"
+		return nil, signatureError(ErrSigNegativeS, str)
+	}
+
+	// Null bytes at the start of S are not allowed, unless S would otherwise be
+	// interpreted as a negative number.
+	if sLen > 1 && sig[sOffset] == 0x00 && sig[sOffset+1]&0x80 == 0 {
+		str := "malformed signature: S value has too much padding"
+		return nil, signatureError(ErrSigTooMuchSPadding, str)
+	}
+
+	// The signature is validly encoded per DER at this point, however, enforce
+	// additional restrictions to ensure R and S are in the range [1, N-1] since
+	// valid ECDSA signatures are required to be in that range per spec.
+	//
+	// Also note that while the overflow checks are required to make use of the
+	// specialized mod N scalar type, rejecting zero here is not strictly
+	// required because it is also checked when verifying the signature, but
+	// there really isn't a good reason not to fail early here on signatures
+	// that do not conform to the ECDSA spec.
+
+	// Strip leading zeroes from R.
+	rBytes := sig[rOffset : rOffset+rLen]
+	for len(rBytes) > 0 && rBytes[0] == 0x00 {
+		rBytes = rBytes[1:]
+	}
+
+	// R must be in the range [1, N-1].  Notice the check for the maximum number
+	// of bytes is required because SetByteSlice truncates as noted in its
+	// comment so it could otherwise fail to detect the overflow.
+	var r ModNScalar
+	if len(rBytes) > 32 {
+		str := "invalid signature: R is larger than 256 bits"
+		return nil, signatureError(ErrSigRTooBig, str)
+	}
+	if overflow := r.SetByteSlice(rBytes); overflow {
+		str := "invalid signature: R >= group order"
+		return nil, signatureError(ErrSigRTooBig, str)
+	}
+	if r.IsZero() {
+		str := "invalid signature: R is 0"
+		return nil, signatureError(ErrSigRIsZero, str)
+	}
+
+	// Strip leading zeroes from S.
+	sBytes := sig[sOffset : sOffset+sLen]
+	for len(sBytes) > 0 && sBytes[0] == 0x00 {
+		sBytes = sBytes[1:]
+	}
+
+	// S must be in the range [1, N-1].  Notice the check for the maximum number
+	// of bytes is required because SetByteSlice truncates as noted in its
+	// comment so it could otherwise fail to detect the overflow.
+	var s ModNScalar
+	if len(sBytes) > 32 {
+		str := "invalid signature: S is larger than 256 bits"
+		return nil, signatureError(ErrSigSTooBig, str)
+	}
+	if overflow := s.SetByteSlice(sBytes); overflow {
+		str := "invalid signature: S >= group order"
+		return nil, signatureError(ErrSigSTooBig, str)
+	}
+	if s.IsZero() {
+		str := "invalid signature: S is 0"
+		return nil, signatureError(ErrSigSIsZero, str)
+	}
+
+	// Create and return the signature.
+	bigR := new(big.Int).SetBytes(rBytes)
+	bigS := new(big.Int).SetBytes(sBytes)
+	return NewSignature(bigR, bigS), nil
 }
 
 const (
