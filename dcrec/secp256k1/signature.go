@@ -262,10 +262,9 @@ func (sig *Signature) IsEqual(otherSig *Signature) bool {
 }
 
 // parseSig attempts to parse the provided raw signature bytes into a Signature
-// struct.  The der flag specifies whether or not to enforce the more strict
-// Distinguished Encoding Rules (DER) of the ASN.1 spec versus the more lax
-// Basic Encoding Rules (BER).
-func parseSig(sigStr []byte, der bool) (*Signature, error) {
+// struct while enforcing the more strict Distinguished Encoding Rules (DER)
+// format per section 10 of [ISO/IEC 8825-1].
+func parseSig(sigStr []byte) (*Signature, error) {
 	// Originally this code used encoding/asn1 in order to parse the
 	// signature, but a number of problems were found with this approach.
 	// Despite the fact that signatures are stored as DER, the difference
@@ -293,11 +292,9 @@ func parseSig(sigStr []byte, der bool) (*Signature, error) {
 	// length of remaining message
 	siglen := sigStr[index]
 	index++
-	if int(siglen+2) > len(sigStr) {
+	if int(siglen+2) != len(sigStr) {
 		return nil, errors.New("malformed signature: bad length")
 	}
-	// trim the slice we're working on so we only look at what matters.
-	sigStr = sigStr[:siglen+2]
 
 	// 0x02
 	if sigStr[index] != 0x02 {
@@ -317,13 +314,11 @@ func parseSig(sigStr []byte, der bool) (*Signature, error) {
 
 	// Then R itself.
 	rBytes := sigStr[index : index+rLen]
-	if der {
-		switch err := canonicalPadding(rBytes); err {
-		case errNegativeValue:
-			return nil, errors.New("signature R is negative")
-		case errExcessivelyPaddedValue:
-			return nil, errors.New("signature R is excessively padded")
-		}
+	switch err := canonicalPadding(rBytes); err {
+	case errNegativeValue:
+		return nil, errors.New("signature R is negative")
+	case errExcessivelyPaddedValue:
+		return nil, errors.New("signature R is excessively padded")
 	}
 	signature.r = new(big.Int).SetBytes(rBytes)
 	index += rLen
@@ -343,13 +338,11 @@ func parseSig(sigStr []byte, der bool) (*Signature, error) {
 
 	// Then S itself.
 	sBytes := sigStr[index : index+sLen]
-	if der {
-		switch err := canonicalPadding(sBytes); err {
-		case errNegativeValue:
-			return nil, errors.New("signature S is negative")
-		case errExcessivelyPaddedValue:
-			return nil, errors.New("signature S is excessively padded")
-		}
+	switch err := canonicalPadding(sBytes); err {
+	case errNegativeValue:
+		return nil, errors.New("signature S is negative")
+	case errExcessivelyPaddedValue:
+		return nil, errors.New("signature S is excessively padded")
 	}
 	signature.s = new(big.Int).SetBytes(sBytes)
 	index += sLen
@@ -380,18 +373,10 @@ func parseSig(sigStr []byte, der bool) (*Signature, error) {
 	return signature, nil
 }
 
-// ParseSignature parses a signature in the Basic Encoding Rules (BER) format
-// into a Signature type, performing some basic sanity checks.  If parsing
-// according to the more strict DER format is needed, use ParseDERSignature.
-func ParseSignature(sigStr []byte) (*Signature, error) {
-	return parseSig(sigStr, false)
-}
-
 // ParseDERSignature parses a signature in the Distinguished Encoding Rules
-// (DER) format of the ASN.1 spec into a Signature type.  If parsing according
-// to the less strict BER format is needed, use ParseSignature.
+// (DER) format per section 10 of [ISO/IEC 8825-1].
 func ParseDERSignature(sigStr []byte) (*Signature, error) {
-	return parseSig(sigStr, true)
+	return parseSig(sigStr)
 }
 
 // canonicalPadding checks whether a big-endian encoded integer could

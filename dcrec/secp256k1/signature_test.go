@@ -40,12 +40,11 @@ func hexToBytes(s string) []byte {
 }
 
 // TestSignatureParsing ensures that signatures are properly parsed according
-// to both BER and DER rules.  The error paths are tested as well.
+// to DER rules.  The error paths are tested as well.
 func TestSignatureParsing(t *testing.T) {
 	tests := []struct {
 		name    string
 		sig     []byte
-		der     bool
 		isValid bool
 	}{{
 		// signatures from bitcoin blockchain tx
@@ -54,7 +53,6 @@ func TestSignatureParsing(t *testing.T) {
 		sig: hexToBytes("304402204e45e16932b8af514961a1d3a1a25fdf3f4f7732e9d6" +
 			"24c6c61548ab5fb8cd410220181522ec8eca07de4860a4acdd12909d831cc56c" +
 			"bbac4622082221a8768d1d09"),
-		der:     true,
 		isValid: true,
 	}, {
 		name:    "empty",
@@ -65,152 +63,99 @@ func TestSignatureParsing(t *testing.T) {
 		sig: hexToBytes("314402204e45e16932b8af514961a1d3a1a25fdf3f4f7732e9d6" +
 			"24c6c61548ab5fb8cd410220181522ec8eca07de4860a4acdd12909d831cc56c" +
 			"bbac4622082221a8768d1d09"),
-		der:     true,
 		isValid: false,
 	}, {
 		name: "bad 1st int marker magic",
 		sig: hexToBytes("304403204e45e16932b8af514961a1d3a1a25fdf3f4f7732e9d6" +
 			"24c6c61548ab5fb8cd410220181522ec8eca07de4860a4acdd12909d831cc56c" +
 			"bbac4622082221a8768d1d09"),
-		der:     true,
 		isValid: false,
 	}, {
 		name: "bad 2nd int marker",
 		sig: hexToBytes("304402204e45e16932b8af514961a1d3a1a25fdf3f4f7732e9d6" +
 			"24c6c61548ab5fb8cd410320181522ec8eca07de4860a4acdd12909d831cc56c" +
 			"bbac4622082221a8768d1d09"),
-		der:     true,
 		isValid: false,
 	}, {
 		name: "short len",
 		sig: hexToBytes("304302204e45e16932b8af514961a1d3a1a25fdf3f4f7732e9d6" +
 			"24c6c61548ab5fb8cd410220181522ec8eca07de4860a4acdd12909d831cc56c" +
 			"bbac4622082221a8768d1d09"),
-		der:     true,
 		isValid: false,
 	}, {
 		name: "long len",
 		sig: hexToBytes("304502204e45e16932b8af514961a1d3a1a25fdf3f4f7732e9d6" +
 			"24c6c61548ab5fb8cd410220181522ec8eca07de4860a4acdd12909d831cc56c" +
 			"bbac4622082221a8768d1d09"),
-		der:     true,
 		isValid: false,
 	}, {
 		name: "long X",
 		sig: hexToBytes("304402424e45e16932b8af514961a1d3a1a25fdf3f4f7732e9d6" +
 			"24c6c61548ab5fb8cd410220181522ec8eca07de4860a4acdd12909d831cc56c" +
 			"bbac4622082221a8768d1d09"),
-		der:     true,
 		isValid: false,
 	}, {
 		name: "long Y",
 		sig: hexToBytes("304402204e45e16932b8af514961a1d3a1a25fdf3f4f7732e9d6" +
 			"24c6c61548ab5fb8cd410221181522ec8eca07de4860a4acdd12909d831cc56c" +
 			"bbac4622082221a8768d1d09"),
-		der:     true,
 		isValid: false,
 	}, {
 		name: "short Y",
 		sig: hexToBytes("304402204e45e16932b8af514961a1d3a1a25fdf3f4f7732e9d6" +
 			"24c6c61548ab5fb8cd410219181522ec8eca07de4860a4acdd12909d831cc56c" +
 			"bbac4622082221a8768d1d09"),
-		der:     true,
 		isValid: false,
 	}, {
 		name: "trailing crap",
 		sig: hexToBytes("304402204e45e16932b8af514961a1d3a1a25fdf3f4f7732e9d6" +
 			"24c6c61548ab5fb8cd410220181522ec8eca07de4860a4acdd12909d831cc56c" +
 			"bbac4622082221a8768d1d0901"),
-		der: true,
-
-		// This test is now passing (used to be failing) because there are
-		// signatures in the blockchain that have trailing zero bytes before
-		// the hashtype. So ParseSignature was fixed to permit buffers with
-		// trailing nonsense after the actual signature.
-		isValid: true,
+		isValid: false,
 	}, {
 		name: "X == N DER",
 		sig: hexToBytes("30440220fffffffffffffffffffffffffffffffebaaedce6af48" +
 			"a03bbfd25e8cd03641410220181522ec8eca07de4860a4acdd12909d831cc56c" +
 			"bbac4622082221a8768d1d09"),
-		der:     true,
-		isValid: false,
-	}, {
-		name: "X == N BER",
-		sig: hexToBytes("30440220fffffffffffffffffffffffffffffffebaaedce6af48" +
-			"a03bbfd25e8cd03641420220181522ec8eca07de4860a4acdd12909d831cc56c" +
-			"bbac4622082221a8768d1d09"),
-		der:     false,
 		isValid: false,
 	}, {
 		name: "Y == N",
 		sig: hexToBytes("304402204e45e16932b8af514961a1d3a1a25fdf3f4f7732e9d6" +
 			"24c6c61548ab5fb8cd410220fffffffffffffffffffffffffffffffebaaedce6" +
 			"af48a03bbfd25e8cd0364141"),
-		der:     true,
 		isValid: false,
 	}, {
 		name: "Y > N",
 		sig: hexToBytes("304402204e45e16932b8af514961a1d3a1a25fdf3f4f7732e9d6" +
 			"24c6c61548ab5fb8cd410220fffffffffffffffffffffffffffffffebaaedce6" +
 			"af48a03bbfd25e8cd0364142"),
-		der:     false,
 		isValid: false,
 	}, {
 		name: "0 len X",
 		sig: hexToBytes("302402000220181522ec8eca07de4860a4acdd12909d831cc56c" +
 			"bbac4622082221a8768d1d09"),
-		der:     true,
 		isValid: false,
 	}, {
 		name: "0 len Y",
 		sig: hexToBytes("302402204e45e16932b8af514961a1d3a1a25fdf3f4f7732e9d6" +
 			"24c6c61548ab5fb8cd410200"),
-		der:     true,
 		isValid: false,
 	}, {
 		name: "extra R padding",
 		sig: hexToBytes("30450221004e45e16932b8af514961a1d3a1a25fdf3f4f7732e9" +
 			"d624c6c61548ab5fb8cd410220181522ec8eca07de4860a4acdd12909d831cc5" +
 			"6cbbac4622082221a8768d1d09"),
-		der:     true,
 		isValid: false,
 	}, {
 		name: "extra S padding.",
 		sig: hexToBytes("304502204e45e16932b8af514961a1d3a1a25fdf3f4f7732e9d6" +
 			"24c6c61548ab5fb8cd41022100181522ec8eca07de4860a4acdd12909d831cc5" +
 			"6cbbac4622082221a8768d1d09"),
-		der:     true,
-		isValid: false,
-	}, {
-		// Standard checks (in BER format, without checking for 'canonical' DER
-		// signatures) don't test for negative numbers here because there isn't
-		// a way that is the same between openssl and go that will mark a number
-		// as negative. The Go ASN.1 parser marks numbers as negative when
-		// openssl does not (it doesn't handle negative numbers that I can tell
-		// at all. When not parsing DER signatures, which is done by by bitcoind
-		// when accepting transactions into its mempool, we otherwise only check
-		// for the coordinates being zero.
-		name: "X == 0",
-		sig: hexToBytes("30250201000220181522ec8eca07de4860a4acdd12909d831cc5" +
-			"6cbbac4622082221a8768d1d09"),
-		der:     false,
-		isValid: false,
-	}, {
-		name: "Y == 0",
-		sig: hexToBytes("302502204e45e16932b8af514961a1d3a1a25fdf3f4f7732e9d6" +
-			"24c6c61548ab5fb8cd41020100"),
-		der:     false,
 		isValid: false,
 	}}
 
 	for _, test := range tests {
-		var err error
-		if test.der {
-			_, err = ParseDERSignature(test.sig)
-		} else {
-			_, err = ParseSignature(test.sig)
-		}
+		_, err := ParseDERSignature(test.sig)
 		if err != nil {
 			if test.isValid {
 				t.Errorf("%s signature failed when shouldn't %v", test.name,
