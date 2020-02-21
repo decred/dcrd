@@ -10,6 +10,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"math/big"
 	"testing"
@@ -43,128 +44,179 @@ func hexToBytes(s string) []byte {
 // to DER rules.  The error paths are tested as well.
 func TestSignatureParsing(t *testing.T) {
 	tests := []struct {
-		name    string
-		sig     []byte
-		isValid bool
+		name string
+		sig  []byte
+		err  error
 	}{{
-		// signatures from bitcoin blockchain tx
-		// 0437cd7f8525ceed2324359c2d0ba26006d92d85
-		name: "valid signature",
-		sig: hexToBytes("304402204e45e16932b8af514961a1d3a1a25fdf3f4f7732e9d6" +
-			"24c6c61548ab5fb8cd410220181522ec8eca07de4860a4acdd12909d831cc56c" +
-			"bbac4622082221a8768d1d09"),
-		isValid: true,
+		// signature from Decred blockchain tx
+		// 76634e947f49dfc6228c3e8a09cd3e9e15893439fc06df7df0fc6f08d659856c:0
+		name: "valid signature 1",
+		sig: hexToBytes("3045022100cd496f2ab4fe124f977ffe3caa09f7576d8a34156" +
+			"b4e55d326b4dffc0399a094022013500a0510b5094bff220c74656879b8ca03" +
+			"69d3da78004004c970790862fc03"),
+		err: nil,
 	}, {
-		name:    "empty",
-		sig:     nil,
-		isValid: false,
+		// signature from Decred blockchain tx
+		// 76634e947f49dfc6228c3e8a09cd3e9e15893439fc06df7df0fc6f08d659856c:1
+		name: "valid signature 2",
+		sig: hexToBytes("3044022036334e598e51879d10bf9ce3171666bc2d1bbba6164" +
+			"cf46dd1d882896ba35d5d022056c39af9ea265c1b6d7eab5bc977f06f81e35c" +
+			"dcac16f3ec0fd218e30f2bad2a"),
+		err: nil,
 	}, {
-		name: "bad magic",
-		sig: hexToBytes("314402204e45e16932b8af514961a1d3a1a25fdf3f4f7732e9d6" +
-			"24c6c61548ab5fb8cd410220181522ec8eca07de4860a4acdd12909d831cc56c" +
-			"bbac4622082221a8768d1d09"),
-		isValid: false,
+		name: "empty",
+		sig:  nil,
+		err:  ErrSigTooShort,
 	}, {
-		name: "bad 1st int marker magic",
+		name: "too short",
+		sig:  hexToBytes("30050201000200"),
+		err:  ErrSigTooShort,
+	}, {
+		name: "too long",
+		sig: hexToBytes("3045022100f5353150d31a63f4a0d06d1f5a01ac65f7267a719e" +
+			"49f2a1ac584fd546bef074022030e09575e7a1541aa018876a4003cefe1b061a" +
+			"90556b5140c63e0ef8481352480101"),
+		err: ErrSigTooLong,
+	}, {
+		name: "bad ASN.1 sequence id",
+		sig: hexToBytes("3145022100f5353150d31a63f4a0d06d1f5a01ac65f7267a719e" +
+			"49f2a1ac584fd546bef074022030e09575e7a1541aa018876a4003cefe1b061a" +
+			"90556b5140c63e0ef848135248"),
+		err: ErrSigInvalidSeqID,
+	}, {
+		name: "mismatched data length (short one byte)",
+		sig: hexToBytes("3044022100f5353150d31a63f4a0d06d1f5a01ac65f7267a719e" +
+			"49f2a1ac584fd546bef074022030e09575e7a1541aa018876a4003cefe1b061a" +
+			"90556b5140c63e0ef848135248"),
+		err: ErrSigInvalidDataLen,
+	}, {
+		name: "mismatched data length (long one byte)",
+		sig: hexToBytes("3046022100f5353150d31a63f4a0d06d1f5a01ac65f7267a719e" +
+			"49f2a1ac584fd546bef074022030e09575e7a1541aa018876a4003cefe1b061a" +
+			"90556b5140c63e0ef848135248"),
+		err: ErrSigInvalidDataLen,
+	}, {
+		name: "bad R ASN.1 int marker",
 		sig: hexToBytes("304403204e45e16932b8af514961a1d3a1a25fdf3f4f7732e9d6" +
 			"24c6c61548ab5fb8cd410220181522ec8eca07de4860a4acdd12909d831cc56c" +
 			"bbac4622082221a8768d1d09"),
-		isValid: false,
+		err: ErrSigInvalidRIntID,
 	}, {
-		name: "bad 2nd int marker",
-		sig: hexToBytes("304402204e45e16932b8af514961a1d3a1a25fdf3f4f7732e9d6" +
-			"24c6c61548ab5fb8cd410320181522ec8eca07de4860a4acdd12909d831cc56c" +
-			"bbac4622082221a8768d1d09"),
-		isValid: false,
+		name: "zero R length",
+		sig: hexToBytes("30240200022030e09575e7a1541aa018876a4003cefe1b061a90" +
+			"556b5140c63e0ef848135248"),
+		err: ErrSigZeroRLen,
 	}, {
-		name: "short len",
-		sig: hexToBytes("304302204e45e16932b8af514961a1d3a1a25fdf3f4f7732e9d6" +
-			"24c6c61548ab5fb8cd410220181522ec8eca07de4860a4acdd12909d831cc56c" +
-			"bbac4622082221a8768d1d09"),
-		isValid: false,
+		name: "negative R (too little padding)",
+		sig: hexToBytes("30440220b2ec8d34d473c3aa2ab5eb7cc4a0783977e5db8c8daf" +
+			"777e0b6d7bfa6b6623f302207df6f09af2c40460da2c2c5778f636d3b2e27e20" +
+			"d10d90f5a5afb45231454700"),
+		err: ErrSigNegativeR,
 	}, {
-		name: "long len",
-		sig: hexToBytes("304502204e45e16932b8af514961a1d3a1a25fdf3f4f7732e9d6" +
-			"24c6c61548ab5fb8cd410220181522ec8eca07de4860a4acdd12909d831cc56c" +
-			"bbac4622082221a8768d1d09"),
-		isValid: false,
+		name: "too much R padding",
+		sig: hexToBytes("304402200077f6e93de5ed43cf1dfddaa79fca4b766e1a8fc879" +
+			"b0333d377f62538d7eb5022054fed940d227ed06d6ef08f320976503848ed1f5" +
+			"2d0dd6d17f80c9c160b01d86"),
+		err: ErrSigTooMuchRPadding,
 	}, {
-		name: "long X",
-		sig: hexToBytes("304402424e45e16932b8af514961a1d3a1a25fdf3f4f7732e9d6" +
-			"24c6c61548ab5fb8cd410220181522ec8eca07de4860a4acdd12909d831cc56c" +
-			"bbac4622082221a8768d1d09"),
-		isValid: false,
+		name: "bad S ASN.1 int marker",
+		sig: hexToBytes("3045022100f5353150d31a63f4a0d06d1f5a01ac65f7267a719e" +
+			"49f2a1ac584fd546bef074032030e09575e7a1541aa018876a4003cefe1b061a" +
+			"90556b5140c63e0ef848135248"),
+		err: ErrSigInvalidSIntID,
 	}, {
-		name: "long Y",
-		sig: hexToBytes("304402204e45e16932b8af514961a1d3a1a25fdf3f4f7732e9d6" +
-			"24c6c61548ab5fb8cd410221181522ec8eca07de4860a4acdd12909d831cc56c" +
-			"bbac4622082221a8768d1d09"),
-		isValid: false,
+		name: "missing S ASN.1 int marker",
+		sig: hexToBytes("3023022100f5353150d31a63f4a0d06d1f5a01ac65f7267a719e" +
+			"49f2a1ac584fd546bef074"),
+		err: ErrSigMissingSTypeID,
 	}, {
-		name: "short Y",
-		sig: hexToBytes("304402204e45e16932b8af514961a1d3a1a25fdf3f4f7732e9d6" +
-			"24c6c61548ab5fb8cd410219181522ec8eca07de4860a4acdd12909d831cc56c" +
-			"bbac4622082221a8768d1d09"),
-		isValid: false,
+		name: "S length missing",
+		sig: hexToBytes("3024022100f5353150d31a63f4a0d06d1f5a01ac65f7267a719e" +
+			"49f2a1ac584fd546bef07402"),
+		err: ErrSigMissingSLen,
 	}, {
-		name: "trailing crap",
-		sig: hexToBytes("304402204e45e16932b8af514961a1d3a1a25fdf3f4f7732e9d6" +
-			"24c6c61548ab5fb8cd410220181522ec8eca07de4860a4acdd12909d831cc56c" +
-			"bbac4622082221a8768d1d0901"),
-		isValid: false,
+		name: "invalid S length (short one byte)",
+		sig: hexToBytes("3045022100f5353150d31a63f4a0d06d1f5a01ac65f7267a719e" +
+			"49f2a1ac584fd546bef074021f30e09575e7a1541aa018876a4003cefe1b061a" +
+			"90556b5140c63e0ef848135248"),
+		err: ErrSigInvalidSLen,
 	}, {
-		name: "X == N DER",
-		sig: hexToBytes("30440220fffffffffffffffffffffffffffffffebaaedce6af48" +
-			"a03bbfd25e8cd03641410220181522ec8eca07de4860a4acdd12909d831cc56c" +
-			"bbac4622082221a8768d1d09"),
-		isValid: false,
+		name: "invalid S length (long one byte)",
+		sig: hexToBytes("3045022100f5353150d31a63f4a0d06d1f5a01ac65f7267a719e" +
+			"49f2a1ac584fd546bef074022130e09575e7a1541aa018876a4003cefe1b061a" +
+			"90556b5140c63e0ef848135248"),
+		err: ErrSigInvalidSLen,
 	}, {
-		name: "Y == N",
-		sig: hexToBytes("304402204e45e16932b8af514961a1d3a1a25fdf3f4f7732e9d6" +
-			"24c6c61548ab5fb8cd410220fffffffffffffffffffffffffffffffebaaedce6" +
-			"af48a03bbfd25e8cd0364141"),
-		isValid: false,
+		name: "zero S length",
+		sig: hexToBytes("3025022100f5353150d31a63f4a0d06d1f5a01ac65f7267a719e" +
+			"49f2a1ac584fd546bef0740200"),
+		err: ErrSigZeroSLen,
 	}, {
-		name: "Y > N",
-		sig: hexToBytes("304402204e45e16932b8af514961a1d3a1a25fdf3f4f7732e9d6" +
-			"24c6c61548ab5fb8cd410220fffffffffffffffffffffffffffffffebaaedce6" +
-			"af48a03bbfd25e8cd0364142"),
-		isValid: false,
+		name: "negative S (too little padding)",
+		sig: hexToBytes("304402204fc10344934662ca0a93a84d14d650d8a21cf2ab91f6" +
+			"08e8783d2999c955443202208441aacd6b17038ff3f6700b042934f9a6fea0ce" +
+			"c2051b51dc709e52a5bb7d61"),
+		err: ErrSigNegativeS,
 	}, {
-		name: "0 len X",
-		sig: hexToBytes("302402000220181522ec8eca07de4860a4acdd12909d831cc56c" +
-			"bbac4622082221a8768d1d09"),
-		isValid: false,
+		name: "too much S padding",
+		sig: hexToBytes("304402206ad2fdaf8caba0f2cb2484e61b81ced77474b4c2aa06" +
+			"9c852df1351b3314fe20022000695ad175b09a4a41cd9433f6b2e8e83253d6a7" +
+			"402096ba313a7be1f086dde5"),
+		err: ErrSigTooMuchSPadding,
 	}, {
-		name: "0 len Y",
-		sig: hexToBytes("302402204e45e16932b8af514961a1d3a1a25fdf3f4f7732e9d6" +
-			"24c6c61548ab5fb8cd410200"),
-		isValid: false,
-	}, {
-		name: "extra R padding",
-		sig: hexToBytes("30450221004e45e16932b8af514961a1d3a1a25fdf3f4f7732e9" +
-			"d624c6c61548ab5fb8cd410220181522ec8eca07de4860a4acdd12909d831cc5" +
+		name: "R == 0",
+		sig: hexToBytes("30250201000220181522ec8eca07de4860a4acdd12909d831cc5" +
 			"6cbbac4622082221a8768d1d09"),
-		isValid: false,
+		err: ErrSigRIsZero,
 	}, {
-		name: "extra S padding.",
-		sig: hexToBytes("304502204e45e16932b8af514961a1d3a1a25fdf3f4f7732e9d6" +
-			"24c6c61548ab5fb8cd41022100181522ec8eca07de4860a4acdd12909d831cc5" +
+		name: "R == N",
+		sig: hexToBytes("3045022100fffffffffffffffffffffffffffffffebaaedce6af" +
+			"48a03bbfd25e8cd03641410220181522ec8eca07de4860a4acdd12909d831cc5" +
 			"6cbbac4622082221a8768d1d09"),
-		isValid: false,
+		err: ErrSigRTooBig,
+	}, {
+		name: "R > N (>32 bytes)",
+		sig: hexToBytes("3045022101cd496f2ab4fe124f977ffe3caa09f756283910fc1a" +
+			"96f60ee6873e88d3cfe1d50220181522ec8eca07de4860a4acdd12909d831cc5" +
+			"6cbbac4622082221a8768d1d09"),
+		err: ErrSigRTooBig,
+	}, {
+		name: "R > N",
+		sig: hexToBytes("3045022100fffffffffffffffffffffffffffffffebaaedce6af" +
+			"48a03bbfd25e8cd03641420220181522ec8eca07de4860a4acdd12909d831cc5" +
+			"6cbbac4622082221a8768d1d09"),
+		err: ErrSigRTooBig,
+	}, {
+		name: "S == 0",
+		sig: hexToBytes("302502204e45e16932b8af514961a1d3a1a25fdf3f4f7732e9d6" +
+			"24c6c61548ab5fb8cd41020100"),
+		err: ErrSigSIsZero,
+	}, {
+		name: "S == N",
+		sig: hexToBytes("304502204e45e16932b8af514961a1d3a1a25fdf3f4f7732e9d6" +
+			"24c6c61548ab5fb8cd41022100fffffffffffffffffffffffffffffffebaaedc" +
+			"e6af48a03bbfd25e8cd0364141"),
+		err: ErrSigSTooBig,
+	}, {
+		name: "S > N (>32 bytes)",
+		sig: hexToBytes("304502204e45e16932b8af514961a1d3a1a25fdf3f4f7732e9d6" +
+			"24c6c61548ab5fb8cd4102210113500a0510b5094bff220c74656879b784b246" +
+			"ba89c0a07bc49bcf05d8993d44"),
+		err: ErrSigSTooBig,
+	}, {
+		name: "S > N",
+		sig: hexToBytes("304502204e45e16932b8af514961a1d3a1a25fdf3f4f7732e9d6" +
+			"24c6c61548ab5fb8cd41022100fffffffffffffffffffffffffffffffebaaedc" +
+			"e6af48a03bbfd25e8cd0364142"),
+		err: ErrSigSTooBig,
 	}}
 
 	for _, test := range tests {
 		_, err := ParseDERSignature(test.sig)
-		if err != nil {
-			if test.isValid {
-				t.Errorf("%s signature failed when shouldn't %v", test.name,
-					err)
-			}
+		if !errors.Is(err, test.err) {
+			t.Errorf("%s mismatched err -- got %v, want %v", test.name, err,
+				test.err)
 			continue
-		}
-		if !test.isValid {
-			t.Errorf("%s counted as valid when it should fail", test.name)
 		}
 	}
 }
