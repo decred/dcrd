@@ -860,12 +860,11 @@ func (c *Client) sendPost(ctx context.Context, jReq *jsonRequest) {
 	}
 	url := protocol + "://" + c.config.Host
 	bodyReader := bytes.NewReader(jReq.marshalledJSON)
-	httpReq, err := http.NewRequest(http.MethodPost, url, bodyReader)
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bodyReader)
 	if err != nil {
 		jReq.responseChan <- &response{result: nil, err: err}
 		return
 	}
-	httpReq = httpReq.WithContext(ctx)
 	httpReq.Close = true
 	httpReq.Header.Set("Content-Type", "application/json")
 
