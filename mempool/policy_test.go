@@ -215,11 +215,11 @@ func TestDust(t *testing.T) {
 		isDust   bool
 	}{
 		{
-			// Any value is allowed with a zero relay fee.
+			// Any value except 0 is not dust with zero relay fee.
 			"zero value with zero relay fee",
-			wire.TxOut{Value: 0, Version: 0, PkScript: pkScript},
+			wire.TxOut{Value: 1000, Version: 0, PkScript: pkScript},
 			0,
-			true,
+			false,
 		},
 		{
 			// Zero value is dust with any relay fee"
