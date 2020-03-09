@@ -6,6 +6,7 @@
 package connmgr
 
 import (
+	"fmt"
 	"math"
 	"testing"
 	"time"
@@ -65,5 +66,27 @@ func TestDynamicBanScoreReset(t *testing.T) {
 	bs.Reset()
 	if bs.Int() != 0 {
 		t.Errorf("Failed to reset ban score.")
+	}
+}
+
+// TestDynamicBanScoreStringer ensure the stringer for a dynamic ban score
+// produces the expected result.
+func TestDynamicBanScoreStringer(t *testing.T) {
+	var bs DynamicBanScore
+	persistent := uint32(100)
+	transient := uint32(50)
+	now := time.Now()
+	score := bs.increase(persistent, transient, now)
+	wantScore := persistent + transient
+	if score != wantScore {
+		t.Fatalf("Unexpected ban score increase -- got %v, want %v", score,
+			wantScore)
+	}
+
+	result := bs.String()
+	wantStr := fmt.Sprintf("persistent %v + transient %v at %v = %v as of now",
+		persistent, transient, now.Unix(), wantScore)
+	if result != wantStr {
+		t.Fatalf("Unexpected string result -- got %v, want %v", result, wantStr)
 	}
 }
