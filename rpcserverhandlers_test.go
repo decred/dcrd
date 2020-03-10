@@ -5,6 +5,7 @@
 package main
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/decred/dcrd/chaincfg/v3"
@@ -150,8 +151,8 @@ func TestHandleCreateRawTransaction(t *testing.T) {
 	for _, test := range tests {
 		result, err := handleCreateRawTransaction(nil, testServer, test.cmd)
 		if test.wantErr {
-			rpcErr := err.(*dcrjson.RPCError)
-			if rpcErr.Code != test.errCode {
+			var rpcErr *dcrjson.RPCError
+			if !errors.As(err, &rpcErr) || rpcErr.Code != test.errCode {
 				t.Fatalf("expected error code \"%v\" did not match actual \"%v\"for test \"%s\"", test.errCode, rpcErr.Code, test.name)
 			}
 			continue

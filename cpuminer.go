@@ -195,8 +195,8 @@ func (m *CPUMiner) submitBlock(block *dcrutil.Block) bool {
 	if err != nil {
 		// Anything other than a rule violation is an unexpected error,
 		// so log that error as an internal error.
-		rErr, ok := err.(blockchain.RuleError)
-		if !ok {
+		var rErr blockchain.RuleError
+		if !errors.As(err, &rErr) {
 			minrLog.Errorf("Unexpected error while processing "+
 				"block submitted via CPU miner: %v", err)
 			return false

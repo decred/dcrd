@@ -1476,7 +1476,7 @@ out:
 		_, msg, err := c.conn.ReadMessage()
 		if err != nil {
 			// Log the error if it's not due to disconnecting.
-			if err != io.EOF {
+			if !errors.Is(err, io.EOF) {
 				rpcsLog.Errorf("Websocket receive error from "+
 					"%s: %v", c.addr, err)
 			}
