@@ -1,4 +1,4 @@
-// Copyright (c) 2015-2019 The Decred developers
+// Copyright (c) 2015-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -6,6 +6,7 @@ package stake_test
 
 import (
 	"bytes"
+	"errors"
 	"math/rand"
 	"reflect"
 	"testing"
@@ -83,8 +84,9 @@ func TestSSTxErrors(t *testing.T) {
 	sstxExtraInputs.SetTree(wire.TxTreeStake)
 	sstxExtraInputs.SetIndex(0)
 
+	var serr stake.RuleError
 	err = stake.CheckSStx(sstxExtraInputs.MsgTx())
-	if err.(stake.RuleError).GetCode() != stake.ErrSStxTooManyInputs {
+	if !errors.As(err, &serr) || serr.GetCode() != stake.ErrSStxTooManyInputs {
 		t.Errorf("CheckSStx should have returned %v but instead returned %v",
 			stake.ErrSStxTooManyInputs, err)
 	}
@@ -100,7 +102,7 @@ func TestSSTxErrors(t *testing.T) {
 	sstxExtraOutputs.SetIndex(0)
 
 	err = stake.CheckSStx(sstxExtraOutputs.MsgTx())
-	if err.(stake.RuleError).GetCode() != stake.ErrSStxTooManyOutputs {
+	if !errors.As(err, &serr) || serr.GetCode() != stake.ErrSStxTooManyOutputs {
 		t.Errorf("CheckSStx should have returned %v but instead returned %v",
 			stake.ErrSStxTooManyOutputs, err)
 	}
@@ -131,7 +133,7 @@ func TestSSTxErrors(t *testing.T) {
 	sstxUntaggedOut.SetIndex(0)
 
 	err = stake.CheckSStx(sstxUntaggedOut.MsgTx())
-	if err.(stake.RuleError).GetCode() != stake.ErrSStxInvalidOutputs {
+	if !errors.As(err, &serr) || serr.GetCode() != stake.ErrSStxInvalidOutputs {
 		t.Errorf("CheckSStx should have returned %v but instead returned %v",
 			stake.ErrSStxInvalidOutputs, err)
 	}
@@ -147,7 +149,7 @@ func TestSSTxErrors(t *testing.T) {
 	sstxInsOutsMismatched.SetIndex(0)
 
 	err = stake.CheckSStx(sstxInsOutsMismatched.MsgTx())
-	if err.(stake.RuleError).GetCode() != stake.ErrSStxInOutProportions {
+	if !errors.As(err, &serr) || serr.GetCode() != stake.ErrSStxInOutProportions {
 		t.Errorf("CheckSStx should have returned %v but instead returned %v",
 			stake.ErrSStxInOutProportions, err)
 	}
@@ -162,7 +164,7 @@ func TestSSTxErrors(t *testing.T) {
 	sstxBadVerOut.SetIndex(0)
 
 	err = stake.CheckSStx(sstxBadVerOut.MsgTx())
-	if err.(stake.RuleError).GetCode() != stake.ErrSStxInvalidOutputs {
+	if !errors.As(err, &serr) || serr.GetCode() != stake.ErrSStxInvalidOutputs {
 		t.Errorf("CheckSStx should have returned %v but instead returned %v",
 			stake.ErrSStxInvalidOutputs, err)
 	}
@@ -178,7 +180,7 @@ func TestSSTxErrors(t *testing.T) {
 	sstxNoNullData.SetIndex(0)
 
 	err = stake.CheckSStx(sstxNoNullData.MsgTx())
-	if err.(stake.RuleError).GetCode() != stake.ErrSStxInvalidOutputs {
+	if !errors.As(err, &serr) || serr.GetCode() != stake.ErrSStxInvalidOutputs {
 		t.Errorf("CheckSStx should have returned %v but instead returned %v",
 			stake.ErrSStxInvalidOutputs, err)
 	}
@@ -194,7 +196,7 @@ func TestSSTxErrors(t *testing.T) {
 	sstxNullDataMis.SetIndex(0)
 
 	err = stake.CheckSStx(sstxNullDataMis.MsgTx())
-	if err.(stake.RuleError).GetCode() != stake.ErrSStxInvalidOutputs {
+	if !errors.As(err, &serr) || serr.GetCode() != stake.ErrSStxInvalidOutputs {
 		t.Errorf("CheckSStx should have returned %v but instead returned %v",
 			stake.ErrSStxInvalidOutputs, err)
 	}
@@ -230,7 +232,7 @@ func TestSSTxErrors(t *testing.T) {
 	sstxWrongPKHLength.SetIndex(0)
 
 	err = stake.CheckSStx(sstxWrongPKHLength.MsgTx())
-	if err.(stake.RuleError).GetCode() != stake.ErrSStxInvalidOutputs {
+	if !errors.As(err, &serr) || serr.GetCode() != stake.ErrSStxInvalidOutputs {
 		t.Errorf("CheckSStx should have returned %v but instead returned %v",
 			stake.ErrSStxInvalidOutputs, err)
 	}
@@ -267,7 +269,7 @@ func TestSSTxErrors(t *testing.T) {
 	sstxWrongPrefix.SetIndex(0)
 
 	err = stake.CheckSStx(sstxWrongPrefix.MsgTx())
-	if err.(stake.RuleError).GetCode() != stake.ErrSStxInvalidOutputs {
+	if !errors.As(err, &serr) || serr.GetCode() != stake.ErrSStxInvalidOutputs {
 		t.Errorf("CheckSStx should have returned %v but instead returned %v",
 			stake.ErrSStxInvalidOutputs, err)
 	}
@@ -342,8 +344,9 @@ func TestSSGenErrors(t *testing.T) {
 	ssgenExtraInputs.SetTree(wire.TxTreeStake)
 	ssgenExtraInputs.SetIndex(0)
 
+	var serr stake.RuleError
 	err = stake.CheckSSGen(ssgenExtraInputs.MsgTx())
-	if err.(stake.RuleError).GetCode() != stake.ErrSSGenWrongNumInputs {
+	if !errors.As(err, &serr) || serr.GetCode() != stake.ErrSSGenWrongNumInputs {
 		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
 			stake.ErrSSGenWrongNumInputs, err)
 	}
@@ -359,7 +362,7 @@ func TestSSGenErrors(t *testing.T) {
 	ssgenExtraOutputs.SetIndex(0)
 
 	err = stake.CheckSSGen(ssgenExtraOutputs.MsgTx())
-	if err.(stake.RuleError).GetCode() != stake.ErrSSGenTooManyOutputs {
+	if !errors.As(err, &serr) || serr.GetCode() != stake.ErrSSGenTooManyOutputs {
 		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
 			stake.ErrSSGenTooManyOutputs, err)
 	}
@@ -375,7 +378,7 @@ func TestSSGenErrors(t *testing.T) {
 	ssgenStakeBaseWrong.SetIndex(0)
 
 	err = stake.CheckSSGen(ssgenStakeBaseWrong.MsgTx())
-	if err.(stake.RuleError).GetCode() != stake.ErrSSGenNoStakebase {
+	if !errors.As(err, &serr) || serr.GetCode() != stake.ErrSSGenNoStakebase {
 		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
 			stake.ErrSSGenNoStakebase, err)
 	}
@@ -407,7 +410,7 @@ func TestSSGenErrors(t *testing.T) {
 	ssgenWrongTreeIns.SetIndex(0)
 
 	err = stake.CheckSSGen(ssgenWrongTreeIns.MsgTx())
-	if err.(stake.RuleError).GetCode() != stake.ErrSSGenWrongTxTree {
+	if !errors.As(err, &serr) || serr.GetCode() != stake.ErrSSGenWrongTxTree {
 		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
 			stake.ErrSSGenWrongTxTree, err)
 	}
@@ -422,7 +425,7 @@ func TestSSGenErrors(t *testing.T) {
 	ssgenTxBadVerOut.SetIndex(0)
 
 	err = stake.CheckSSGen(ssgenTxBadVerOut.MsgTx())
-	if err.(stake.RuleError).GetCode() != stake.ErrSSGenBadGenOuts {
+	if !errors.As(err, &serr) || serr.GetCode() != stake.ErrSSGenBadGenOuts {
 		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
 			stake.ErrSSGenBadGenOuts, err)
 	}
@@ -438,7 +441,7 @@ func TestSSGenErrors(t *testing.T) {
 	ssgenWrongZeroethOut.SetIndex(0)
 
 	err = stake.CheckSSGen(ssgenWrongZeroethOut.MsgTx())
-	if err.(stake.RuleError).GetCode() != stake.ErrSSGenNoReference {
+	if !errors.As(err, &serr) || serr.GetCode() != stake.ErrSSGenNoReference {
 		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
 			stake.ErrSSGenNoReference, err)
 	}
@@ -480,7 +483,7 @@ func TestSSGenErrors(t *testing.T) {
 	ssgenWrongDataPush0Length.SetIndex(0)
 
 	err = stake.CheckSSGen(ssgenWrongDataPush0Length.MsgTx())
-	if err.(stake.RuleError).GetCode() != stake.ErrSSGenBadReference {
+	if !errors.As(err, &serr) || serr.GetCode() != stake.ErrSSGenBadReference {
 		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
 			stake.ErrSSGenBadReference, err)
 	}
@@ -522,7 +525,7 @@ func TestSSGenErrors(t *testing.T) {
 	ssgenWrongNullData0Prefix.SetIndex(0)
 
 	err = stake.CheckSSGen(ssgenWrongNullData0Prefix.MsgTx())
-	if err.(stake.RuleError).GetCode() != stake.ErrSSGenBadReference {
+	if !errors.As(err, &serr) || serr.GetCode() != stake.ErrSSGenBadReference {
 		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
 			stake.ErrSSGenBadReference, err)
 	}
@@ -538,7 +541,7 @@ func TestSSGenErrors(t *testing.T) {
 	ssgenWrongFirstOut.SetIndex(0)
 
 	err = stake.CheckSSGen(ssgenWrongFirstOut.MsgTx())
-	if err.(stake.RuleError).GetCode() != stake.ErrSSGenNoVotePush {
+	if !errors.As(err, &serr) || serr.GetCode() != stake.ErrSSGenNoVotePush {
 		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
 			stake.ErrSSGenNoVotePush, err)
 	}
@@ -569,7 +572,7 @@ func TestSSGenErrors(t *testing.T) {
 	ssgenWrongDataPush1Length.SetIndex(0)
 
 	err = stake.CheckSSGen(ssgenWrongDataPush1Length.MsgTx())
-	if err.(stake.RuleError).GetCode() != stake.ErrSSGenBadVotePush {
+	if !errors.As(err, &serr) || serr.GetCode() != stake.ErrSSGenBadVotePush {
 		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
 			stake.ErrSSGenBadVotePush, err)
 	}
@@ -601,7 +604,7 @@ func TestSSGenErrors(t *testing.T) {
 	ssgenWrongNullData1Prefix.SetIndex(0)
 
 	err = stake.CheckSSGen(ssgenWrongNullData1Prefix.MsgTx())
-	if err.(stake.RuleError).GetCode() != stake.ErrSSGenBadVotePush {
+	if !errors.As(err, &serr) || serr.GetCode() != stake.ErrSSGenBadVotePush {
 		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
 			stake.ErrSSGenBadVotePush, err)
 	}
@@ -633,7 +636,7 @@ func TestSSGenErrors(t *testing.T) {
 	ssgentestGenOutputUntagged.SetIndex(0)
 
 	err = stake.CheckSSGen(ssgentestGenOutputUntagged.MsgTx())
-	if err.(stake.RuleError).GetCode() != stake.ErrSSGenBadGenOuts {
+	if !errors.As(err, &serr) || serr.GetCode() != stake.ErrSSGenBadGenOuts {
 		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
 			stake.ErrSSGenBadGenOuts, err)
 	}
@@ -680,8 +683,9 @@ func TestIsSSRtxErrors(t *testing.T) {
 	ssrtxTooManyInputs.SetTree(wire.TxTreeStake)
 	ssrtxTooManyInputs.SetIndex(0)
 
+	var serr stake.RuleError
 	err = stake.CheckSSRtx(ssrtxTooManyInputs.MsgTx())
-	if err.(stake.RuleError).GetCode() != stake.ErrSSRtxWrongNumInputs {
+	if !errors.As(err, &serr) || serr.GetCode() != stake.ErrSSRtxWrongNumInputs {
 		t.Errorf("CheckSSRtx should have returned %v but instead returned %v",
 			stake.ErrSSRtxWrongNumInputs, err)
 	}
@@ -697,7 +701,7 @@ func TestIsSSRtxErrors(t *testing.T) {
 	ssrtxTooManyOutputs.SetIndex(0)
 
 	err = stake.CheckSSRtx(ssrtxTooManyOutputs.MsgTx())
-	if err.(stake.RuleError).GetCode() != stake.ErrSSRtxTooManyOutputs {
+	if !errors.As(err, &serr) || serr.GetCode() != stake.ErrSSRtxTooManyOutputs {
 		t.Errorf("CheckSSRtx should have returned %v but instead returned %v",
 			stake.ErrSSRtxTooManyOutputs, err)
 	}
@@ -712,7 +716,7 @@ func TestIsSSRtxErrors(t *testing.T) {
 	ssrtxTxBadVerOut.SetIndex(0)
 
 	err = stake.CheckSSRtx(ssrtxTxBadVerOut.MsgTx())
-	if err.(stake.RuleError).GetCode() != stake.ErrSSRtxBadOuts {
+	if !errors.As(err, &serr) || serr.GetCode() != stake.ErrSSRtxBadOuts {
 		t.Errorf("CheckSSRtx should have returned %v but instead returned %v",
 			stake.ErrSSRtxBadOuts, err)
 	}
@@ -744,7 +748,7 @@ func TestIsSSRtxErrors(t *testing.T) {
 	ssrtxTestRevocOutputUntagged.SetIndex(0)
 
 	err = stake.CheckSSRtx(ssrtxTestRevocOutputUntagged.MsgTx())
-	if err.(stake.RuleError).GetCode() != stake.ErrSSRtxBadOuts {
+	if !errors.As(err, &serr) || serr.GetCode() != stake.ErrSSRtxBadOuts {
 		t.Errorf("CheckSSRtx should have returned %v but instead returned %v",
 			stake.ErrSSRtxBadOuts, err)
 	}
@@ -775,7 +779,7 @@ func TestIsSSRtxErrors(t *testing.T) {
 	ssrtxWrongTreeIns.SetIndex(0)
 
 	err = stake.CheckSSRtx(ssrtxWrongTreeIns.MsgTx())
-	if err.(stake.RuleError).GetCode() != stake.ErrSSRtxWrongTxTree {
+	if !errors.As(err, &serr) || serr.GetCode() != stake.ErrSSRtxWrongTxTree {
 		t.Errorf("CheckSSRtx should have returned %v but instead returned %v",
 			stake.ErrSSGenWrongTxTree, err)
 	}
@@ -959,12 +963,12 @@ func TestGetSStxNullOutputAmounts(t *testing.T) {
 		0x12300001,
 	}
 
+	var serr stake.RuleError
 	_, _, err = stake.SStxNullOutputAmounts(
 		commitAmts,
 		tooMuchChangeAmts,
 		int64(0x00000020))
-	if err == nil || err.(stake.RuleError).GetCode() !=
-		stake.ErrSStxBadChangeAmts {
+	if !errors.As(err, &serr) || serr.GetCode() != stake.ErrSStxBadChangeAmts {
 		t.Errorf("TestGetSStxNullOutputAmounts unexpected error: %v", err)
 	}
 
