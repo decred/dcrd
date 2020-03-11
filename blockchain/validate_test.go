@@ -10,6 +10,7 @@ import (
 	"compress/bzip2"
 	"context"
 	"encoding/gob"
+	"errors"
 	"fmt"
 	mrand "math/rand"
 	"os"
@@ -600,8 +601,8 @@ func TestTxValidationErrors(t *testing.T) {
 
 	// Ensure transaction is rejected due to being too large.
 	err := CheckTransactionSanity(tx, chaincfg.MainNetParams())
-	rerr, ok := err.(RuleError)
-	if !ok {
+	var rerr RuleError
+	if !errors.As(err, &rerr) {
 		t.Fatalf("CheckTransactionSanity: unexpected error type for "+
 			"transaction that is too large -- got %T", err)
 	}
@@ -681,8 +682,8 @@ func TestCheckConnectBlockTemplate(t *testing.T) {
 
 		// Ensure the error code is of the expected type and the reject
 		// code matches the value specified in the test instance.
-		rerr, ok := err.(RuleError)
-		if !ok {
+		var rerr RuleError
+		if !errors.As(err, &rerr) {
 			t.Fatalf("block template %q (hash %s, height %d) "+
 				"returned unexpected error type -- got %T, want "+
 				"blockchain.RuleError", g.TipName(),

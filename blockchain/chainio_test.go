@@ -1,5 +1,5 @@
 // Copyright (c) 2015-2016 The btcsuite developers
-// Copyright (c) 2015-2019 The Decred developers
+// Copyright (c) 2015-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -69,8 +69,8 @@ func hexToExtraData(s string) [32]byte {
 // isNotInMainChainErr returns whether or not the passed error is an
 // errNotInMainChain error.
 func isNotInMainChainErr(err error) bool {
-	_, ok := err.(errNotInMainChain)
-	return ok
+	var e errNotInMainChain
+	return errors.As(err, &e)
 }
 
 // TestErrNotInMainChain ensures the functions related to errNotInMainChain work
@@ -366,7 +366,7 @@ func TestBlockIndexDecodeErrors(t *testing.T) {
 		// Ensure the expected error type is returned.
 		gotBytesRead, err := decodeBlockIndexEntry(test.serialized,
 			&test.entry)
-		if reflect.TypeOf(err) != reflect.TypeOf(test.errType) {
+		if !errors.As(err, &test.errType) {
 			t.Errorf("decodeBlockIndexEntry (%s): expected error "+
 				"type does not match - got %T, want %T",
 				test.name, err, test.errType)
@@ -575,7 +575,7 @@ func TestStxoDecodeErrors(t *testing.T) {
 		// Ensure the expected error type is returned.
 		gotBytesRead, err := decodeSpentTxOut(test.serialized,
 			&test.stxo, test.stxo.amount, test.stxo.height, test.stxo.index)
-		if reflect.TypeOf(err) != reflect.TypeOf(test.errType) {
+		if !errors.As(err, &test.errType) {
 			t.Errorf("decodeSpentTxOut (%s): expected error type "+
 				"does not match - got %T, want %T", test.name,
 				err, test.errType)
@@ -915,7 +915,7 @@ func TestSpendJournalErrors(t *testing.T) {
 		// slice is nil.
 		stxos, err := deserializeSpendJournalEntry(test.serialized,
 			test.blockTxns)
-		if reflect.TypeOf(err) != reflect.TypeOf(test.errType) {
+		if !errors.As(err, &test.errType) {
 			t.Errorf("deserializeSpendJournalEntry (%s): expected "+
 				"error type does not match - got %T, want %T",
 				test.name, err, test.errType)
@@ -1380,7 +1380,7 @@ func TestUtxoEntryDeserializeErrors(t *testing.T) {
 		// Ensure the expected error type is returned and the returned
 		// entry is nil.
 		entry, err := deserializeUtxoEntry(test.serialized)
-		if reflect.TypeOf(err) != reflect.TypeOf(test.errType) {
+		if !errors.As(err, &test.errType) {
 			t.Errorf("deserializeUtxoEntry (%s): expected error "+
 				"type does not match - got %T, want %T",
 				test.name, err, test.errType)
@@ -1492,15 +1492,16 @@ func TestBestChainStateDeserializeErrors(t *testing.T) {
 	for _, test := range tests {
 		// Ensure the expected error type and code is returned.
 		_, err := deserializeBestChainState(test.serialized)
-		if reflect.TypeOf(err) != reflect.TypeOf(test.errType) {
+		if !errors.As(err, &test.errType) {
 			t.Errorf("deserializeBestChainState (%s): expected "+
 				"error type does not match - got %T, want %T",
 				test.name, err, test.errType)
 			continue
 		}
-		if derr, ok := err.(database.Error); ok {
-			tderr := test.errType.(database.Error)
-			if derr.ErrorCode != tderr.ErrorCode {
+		var derr database.Error
+		if errors.As(err, &derr) {
+			var tderr database.Error
+			if !errors.As(test.errType, &tderr) || derr.ErrorCode != tderr.ErrorCode {
 				t.Errorf("deserializeBestChainState (%s): "+
 					"wrong  error code got: %v, want: %v",
 					test.name, derr.ErrorCode,

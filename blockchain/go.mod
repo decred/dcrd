@@ -1,6 +1,6 @@
 module github.com/decred/dcrd/blockchain/v3
 
-go 1.11
+go 1.13
 
 require (
 	github.com/decred/dcrd/blockchain/stake/v3 v3.0.0-20200215031403-6b2ce76f0986

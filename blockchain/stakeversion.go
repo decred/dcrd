@@ -1,4 +1,4 @@
-// Copyright (c) 2016-2018 The Decred developers
+// Copyright (c) 2016-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -232,7 +232,7 @@ func (b *BlockChain) calcVoterVersion(prevNode *blockNode) (uint32, *blockNode) 
 		if err == nil {
 			return version, node
 		}
-		if err != errVoterVersionMajorityNotFound {
+		if !errors.Is(err, errVoterVersionMajorityNotFound) {
 			break
 		}
 

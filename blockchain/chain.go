@@ -7,6 +7,7 @@ package blockchain
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/big"
 	"sync"
@@ -1086,7 +1087,8 @@ func (b *BlockChain) reorganizeChainInternal(targetTip *blockNode) error {
 			err = b.checkConnectBlock(n, block, parent, view, &stxos,
 				&hdrCommitments)
 			if err != nil {
-				if _, ok := err.(RuleError); ok {
+				var rerr RuleError
+				if errors.As(err, &rerr) {
 					b.index.SetStatusFlags(n, statusValidateFailed)
 					for _, dn := range attachNodes[i+1:] {
 						b.index.SetStatusFlags(dn, statusInvalidAncestor)
@@ -1332,7 +1334,8 @@ func (b *BlockChain) connectBestChain(node *blockNode, block, parent *dcrutil.Bl
 			err := b.checkConnectBlock(node, block, parent, view, &stxos,
 				&hdrCommitments)
 			if err != nil {
-				if _, ok := err.(RuleError); ok {
+				var rerr RuleError
+				if errors.As(err, &rerr) {
 					b.index.SetStatusFlags(node, statusValidateFailed)
 					b.flushBlockIndexWarnOnly()
 				}

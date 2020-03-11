@@ -7,6 +7,7 @@ package blockchain
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"math"
@@ -386,8 +387,8 @@ func (g *chaingenHarness) RejectBlock(blockName string, code ErrorCode) {
 
 	// Ensure the error code is of the expected type and the reject code matches
 	// the value specified in the test instance.
-	rerr, ok := err.(RuleError)
-	if !ok {
+	var rerr RuleError
+	if !errors.As(err, &rerr) {
 		g.t.Fatalf("block %q (hash %s, height %d) returned unexpected error "+
 			"type -- got %T, want blockchain.RuleError", blockName,
 			block.Hash(), blockHeight, err)
