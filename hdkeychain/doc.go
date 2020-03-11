@@ -24,8 +24,8 @@ Transaction Signing Keys and Payment Addresses
 
 In order to create and sign transactions, or provide others with addresses to
 send funds to, the underlying key and address material must be accessible.  This
-package provides the ECPubKey and ECPrivKey functions for this purpose.  The
-caller may then create the desired address types.
+package provides the SerializedPubKey and SerializedPrivKey functions for this
+purpose.  The caller may then create the desired address types.
 
 The Master Node
 
