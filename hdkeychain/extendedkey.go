@@ -360,10 +360,10 @@ func (k *ExtendedKey) Child(i uint32) (*ExtendedKey, error) {
 // private key, so it is not capable of signing transactions or deriving
 // child extended private keys.  However, it is capable of deriving further
 // child extended public keys.
-func (k *ExtendedKey) Neuter() (*ExtendedKey, error) {
+func (k *ExtendedKey) Neuter() *ExtendedKey {
 	// Already an extended public key.
 	if !k.isPrivate {
-		return k, nil
+		return k
 	}
 
 	// Convert it to an extended public key.  The key for the new extended
@@ -371,7 +371,7 @@ func (k *ExtendedKey) Neuter() (*ExtendedKey, error) {
 	//
 	// This is the function N((k,c)) -> (K, c) from [BIP32].
 	return newExtendedKey(k.privVer, k.pubVer, k.pubKeyBytes(), k.chainCode,
-		k.parentFP, k.depth, k.childNum, false), nil
+		k.parentFP, k.depth, k.childNum, false)
 }
 
 // SerializedPubKey returns the compressed serialization of the secp256k1 public

@@ -187,11 +187,7 @@ func Example_audits() {
 	// Neuter the master key to generate a master public extended key.  This
 	// gives the path:
 	//   N(m/*)
-	masterPubKey, err := masterKey.Neuter()
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
+	masterPubKey := masterKey.Neuter()
 
 	// Share the master public extended key with the auditor.
 	fmt.Println("Audit key N(m/*):", masterPubKey)

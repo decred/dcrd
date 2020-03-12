@@ -263,18 +263,13 @@ tests:
 			continue
 		}
 
-		pubKey, err := extKey.Neuter()
-		if err != nil {
-			t.Errorf("Neuter #%d (%s): unexpected error: %v ", i,
-				test.name, err)
-			continue
-		}
+		pubKey := extKey.Neuter()
 
 		// Neutering a second time should have no effect.
-		pubKey, err = pubKey.Neuter()
-		if err != nil {
-			t.Errorf("Neuter #%d (%s): unexpected error: %v", i,
-				test.name, err)
+		// Test for referencial equality.
+		if pubKey != pubKey.Neuter() {
+			t.Errorf("Neuter of extended public key returned " +
+				"different object address")
 			return
 		}
 
@@ -692,11 +687,7 @@ func TestErrors(t *testing.T) {
 		t.Errorf("NewMaster: unexpected error: %v", err)
 		return
 	}
-	pubKey, err := extKey.Neuter()
-	if err != nil {
-		t.Errorf("Neuter: unexpected error: %v", err)
-		return
-	}
+	pubKey := extKey.Neuter()
 
 	// Deriving a hardened child extended key should fail from a public key.
 	_, err = pubKey.Child(HardenedKeyStart)
@@ -707,11 +698,9 @@ func TestErrors(t *testing.T) {
 
 	// NewKeyFromString failure tests.
 	tests := []struct {
-		name      string
-		key       string
-		err       error
-		neuter    bool
-		neuterErr error
+		name string
+		key  string
+		err  error
 	}{
 		{
 			name: "invalid key length",
@@ -737,22 +726,12 @@ func TestErrors(t *testing.T) {
 
 	mainNetParams := mockMainNetParams()
 	for i, test := range tests {
-		extKey, err := NewKeyFromString(test.key, mainNetParams)
+		_, err := NewKeyFromString(test.key, mainNetParams)
 		if !reflect.DeepEqual(err, test.err) {
 			t.Errorf("NewKeyFromString #%d (%s): mismatched error "+
 				"-- got: %v, want: %v", i, test.name, err,
 				test.err)
 			continue
-		}
-
-		if test.neuter {
-			_, err := extKey.Neuter()
-			if !reflect.DeepEqual(err, test.neuterErr) {
-				t.Errorf("Neuter #%d (%s): mismatched error "+
-					"-- got: %v, want: %v", i, test.name,
-					err, test.neuterErr)
-				continue
-			}
 		}
 	}
 }
@@ -847,12 +826,7 @@ func TestZero(t *testing.T) {
 				err)
 			continue
 		}
-		neuteredKey, err := key.Neuter()
-		if err != nil {
-			t.Errorf("Neuter #%d (%s): unexpected error: %v", i,
-				test.name, err)
-			continue
-		}
+		neuteredKey := key.Neuter()
 
 		// Ensure both non-neutered and neutered keys are zeroed
 		// properly.
@@ -872,12 +846,7 @@ func TestZero(t *testing.T) {
 				"error: %v", i, test.name, err)
 			continue
 		}
-		neuteredKey, err = key.Neuter()
-		if err != nil {
-			t.Errorf("Neuter #%d (%s): unexpected error: %v", i,
-				test.name, err)
-			continue
-		}
+		neuteredKey = key.Neuter()
 
 		// Ensure both non-neutered and neutered keys are zeroed
 		// properly.
