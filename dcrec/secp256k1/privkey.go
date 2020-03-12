@@ -67,6 +67,13 @@ func (p *PrivateKey) Sign(hash []byte) *Signature {
 	return signature
 }
 
+// Zero manually clears the memory associated with the private key.  This can be
+// used to explicitly clear key material from memory for enhanced security
+// against memory scraping.
+func (p *PrivateKey) Zero() {
+	p.key.Zero()
+}
+
 // PrivKeyBytesLen defines the length in bytes of a serialized private key.
 const PrivKeyBytesLen = 32
 

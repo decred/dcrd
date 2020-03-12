@@ -50,3 +50,24 @@ func TestPrivKeys(t *testing.T) {
 		}
 	}
 }
+
+// TestPrivateKeyZero ensures that zeroing a private key clears the memory
+// associated with it.
+func TestPrivateKeyZero(t *testing.T) {
+	// Create a new private key and zero the initial key material that is now
+	// copied into the private key.
+	key := new(ModNScalar).SetHex("eaf02ca348c524e6392655ba4d29603cd1a7347d9d65cfe93ce1ebffdca22694")
+	privKey := NewPrivateKey(key)
+	key.Zero()
+
+	// Ensure the private key is non zero.
+	if privKey.key.IsZero() {
+		t.Fatal("private key is zero when it should be non zero")
+	}
+
+	// Zero the private key and ensure it was properly zeroed.
+	privKey.Zero()
+	if !privKey.key.IsZero() {
+		t.Fatal("private key is non zero when it should be zero")
+	}
+}
