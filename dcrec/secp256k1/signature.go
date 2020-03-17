@@ -187,6 +187,41 @@ func (sig *Signature) Verify(hash []byte, pubKey *PublicKey) bool {
 	// 6. Fail if X is the point at infinity
 	// 7. x = X.x mod N (X.x is the x coordinate of X)
 	// 8. Verified if x == R
+	//
+	// However, since all group operations are done internally in Jacobian
+	// projective space, the algorithm is modified slightly here in order to
+	// avoid an expensive inversion back into affine coordinates at step 7.
+	// Credits to Greg Maxwell for originally suggesting this optimization.
+	//
+	// Ordinarily, step 7 involves converting the x coordinate to affine by
+	// calculating x = x / z^2 (mod P) and then calculating the remainder as
+	// x = x (mod N).  Then step 8 compares it to R.
+	//
+	// Note that since R is the x coordinate mod N from a random point that was
+	// originally mod P, and the cofactor of the secp256k1 curve is 1, there are
+	// only two possible x coordinates that the original random point could have
+	// been to produce R: x, where x < N, and x+N, where x+N < P.
+	//
+	// This implies that the signature is valid if either:
+	// a) R == X.x / X.z^2 (mod P)
+	//    => R * X.z^2 == X.x (mod P)
+	// --or--
+	// b) R + N < P && R + N == X.x / X.z^2 (mod P)
+	//    => R + N < P && (R + N) * X.z^2 == X.x (mod P)
+	//
+	// Therefore the following modified algorithm is used:
+	//
+	// 1. Fail if R and S are not in [1, N-1]
+	// 2. e = H(m)
+	// 3. w = S^-1 mod N
+	// 4. u1 = e * w mod N
+	//    u2 = R * w mod N
+	// 5. X = u1G + u2Q
+	// 6. Fail if X is the point at infinity
+	// 7. z = (X.z)^2 mod P (X.z is the z coordinate of X)
+	// 8. Verified if R * z == X.x (mod P)
+	// 9. Fail if R + N >= P
+	// 10. Verified if (R + N) * z == X.x (mod P)
 
 	// Step 1.
 	//
@@ -231,17 +266,31 @@ func (sig *Signature) Verify(hash []byte, pubKey *PublicKey) bool {
 
 	// Step 7.
 	//
-	// x = X.x mod N (X.x is the x coordinate of X)
-	//
-	// Note that the point must be in affine coordinates since R is in affine
-	// coordinates.
-	X.ToAffine()
-	x, _ := fieldToModNScalar(&X.x)
+	// z = (X.z)^2 mod P (X.z is the z coordinate of X)
+	z := new(fieldVal).SquareVal(&X.z)
 
 	// Step 8.
 	//
-	// Verified if x == R
-	return x.Equals(&sig.r)
+	// Verified if R * z == X.x (mod P)
+	sigRModP := modNScalarToField(&sig.r)
+	result := new(fieldVal).Mul2(&sigRModP, z).Normalize()
+	if result.Equals(&X.x) {
+		return true
+	}
+
+	// Step 9.
+	//
+	// Fail if R + N >= P
+	if sigRModP.IsGtOrEqPrimeMinusOrder() {
+		return false
+	}
+
+	// Step 10.
+	//
+	// Verified if (R + N) * z == X.x (mod P)
+	sigRModP.Add(orderAsFieldVal)
+	result.Mul2(&sigRModP, z).Normalize()
+	return result.Equals(&X.x)
 }
 
 // IsEqual compares this Signature instance to the one passed, returning true if
