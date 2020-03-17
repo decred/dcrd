@@ -144,20 +144,6 @@ func TestSchnorrSigning(t *testing.T) {
 			t.Fatalf("unexpected error %v", err)
 		}
 
-		// See if we can recover the public keys OK.
-		var pkRecover *secp256k1.PublicKey
-		pkRecover, _, err = schnorrRecover(sig.Serialize(), tv.msg,
-			testSchnorrHash)
-		if err != nil {
-			t.Fatalf("unexpected error %v", err)
-		}
-
-		cmp = bytes.Equal(pubkey.SerializeCompressed()[:],
-			pkRecover.SerializeCompressed()[:])
-		if !cmp {
-			t.Fatalf("expected %v, got %v", true, cmp)
-		}
-
 		// Screw up the signature at a random bit and make sure that breaks it.
 		sigBad := sig.Serialize()
 		pos := tRand.Intn(63)
@@ -167,22 +153,6 @@ func TestSchnorrSigning(t *testing.T) {
 			testSchnorrHash)
 		if err == nil {
 			t.Fatalf("expected an error, got %v", err)
-		}
-
-		// Make sure it breaks pubkey recovery too.
-		var valid bool
-		pkRecover, valid, err = schnorrRecover(sigBad, tv.msg,
-			testSchnorrHash)
-		if valid {
-			cmp = bytes.Equal(pubkey.SerializeCompressed()[:],
-				pkRecover.SerializeCompressed()[:])
-			if cmp {
-				t.Fatalf("expected %v, got %v", false, cmp)
-			}
-		} else {
-			if err == nil {
-				t.Fatalf("expected an error, got %v", err)
-			}
 		}
 	}
 }
@@ -281,7 +251,7 @@ func randSigList(i int) []*SignatureVerParams {
 }
 
 // Use our actual hashing algorithm here.
-func TestSignaturesAndRecovery(t *testing.T) {
+func TestSignatures(t *testing.T) {
 	r := rand.New(rand.NewSource(54321))
 
 	numSigs := 128
@@ -303,20 +273,6 @@ func TestSignaturesAndRecovery(t *testing.T) {
 			t.Fatalf("expected %v, got %v", true, ok)
 		}
 
-		// See if we can recover the public keys OK.
-		var pkRecover *secp256k1.PublicKey
-		pkRecover, _, err = schnorrRecover(sig.Serialize(), tv.msg,
-			chainhash.HashB)
-		if err != nil {
-			t.Fatalf("unexpected error %s", err)
-		}
-
-		cmp := bytes.Equal(pubkey.SerializeCompressed()[:],
-			pkRecover.SerializeCompressed()[:])
-		if !cmp {
-			t.Fatalf("expected %v, got %v", true, cmp)
-		}
-
 		// Screw up the signature at some random bits and make sure
 		// that breaks it.
 		numBadBits := r.Intn(2)
@@ -331,22 +287,6 @@ func TestSignaturesAndRecovery(t *testing.T) {
 			chainhash.HashB)
 		if err == nil {
 			t.Fatalf("expected an error, got %v", err)
-		}
-
-		// Make sure it breaks pubkey recovery too.
-		var valid bool
-		pkRecover, valid, err = schnorrRecover(sigBad, tv.msg,
-			testSchnorrHash)
-		if valid {
-			cmp := bytes.Equal(pubkey.SerializeCompressed()[:],
-				pkRecover.SerializeCompressed()[:])
-			if cmp {
-				t.Fatalf("expected %v, got %v", false, cmp)
-			}
-		} else {
-			if err == nil {
-				t.Fatalf("expected an error, got %v", err)
-			}
 		}
 	}
 }
