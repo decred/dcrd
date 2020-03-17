@@ -753,8 +753,8 @@ func RecoverCompact(signature, hash []byte) (*PublicKey, bool, error) {
 	//
 	// X = (r, y)
 	var X jacobianPoint
-	X.x.Set(&fieldR)
-	X.y.Set(&y)
+	X.x.Set(&fieldR).Normalize()
+	X.y.Set(&y).Normalize()
 	X.z.SetInt(1)
 
 	// Step 6.
