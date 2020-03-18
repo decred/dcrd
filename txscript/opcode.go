@@ -2886,7 +2886,7 @@ func opcodeCheckSigAlt(op *opcode, data []byte, vm *Engine) error {
 			vm.dstack.PushBool(false)
 			return nil
 		}
-		ok := schnorr.Verify(pubKeySec, hash, sigSec.R, sigSec.S)
+		ok := sigSec.Verify(hash, pubKeySec)
 		vm.dstack.PushBool(ok)
 		return nil
 	}

@@ -268,7 +268,7 @@ func TestSignatures(t *testing.T) {
 			t.Fatalf("expected an error, got %v", err)
 		}
 
-		ok := Verify(pubkey, tv.msg, sig.R, sig.S)
+		ok := sig.Verify(tv.msg, pubkey)
 		if !ok {
 			t.Fatalf("expected %v, got %v", true, ok)
 		}
@@ -325,13 +325,11 @@ func benchmarkVerification(b *testing.B) {
 	sigList := randSigList(numSigs)
 
 	for n := 0; n < b.N; n++ {
-		randIndex := r.Intn(numSigs - 1)
-		ver := Verify(sigList[randIndex].pubkey,
-			sigList[randIndex].msg,
-			sigList[randIndex].sig.R,
-			sigList[randIndex].sig.S)
-		if !ver {
-			panic("made invalid sig")
+		sigEntry := sigList[r.Intn(numSigs-1)]
+		sig := sigEntry.sig
+		verified := sig.Verify(sigEntry.msg, sigEntry.pubkey)
+		if !verified {
+			b.Fatalf("made invalid sig -- %x", sig.Serialize())
 		}
 	}
 }

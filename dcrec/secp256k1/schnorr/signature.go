@@ -73,8 +73,6 @@ func (sig Signature) IsEqual(otherSig *Signature) bool {
 // Verify is the generalized and exported function for the verification of a
 // secp256k1 Schnorr signature. BLAKE256 is used as the hashing function.
 func (sig Signature) Verify(msg []byte, pubkey *secp256k1.PublicKey) bool {
-	ok, _ := schnorrVerify(sig.Serialize(), pubkey, msg,
-		chainhash.HashB)
-
+	ok, _ := schnorrVerify(sig.Serialize(), pubkey, msg, chainhash.HashB)
 	return ok
 }

@@ -296,14 +296,3 @@ func schnorrVerify(sig []byte,
 
 	return true, nil
 }
-
-// Verify is the generalized and exported function for the verification of a
-// secp256k1 Schnorr signature. BLAKE256 is used as the hashing function.
-func Verify(pubkey *secp256k1.PublicKey,
-	msg []byte, r *big.Int, s *big.Int) bool {
-	sig := NewSignature(r, s)
-	ok, _ := schnorrVerify(sig.Serialize(), pubkey, msg,
-		chainhash.HashB)
-
-	return ok
-}
