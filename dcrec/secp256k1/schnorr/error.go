@@ -98,11 +98,6 @@ func (e Error) Error() string {
 	return e.Description
 }
 
-// GetCode satisfies the error interface and prints human-readable errors.
-func (e Error) GetCode() ErrorCode {
-	return e.ErrorCode
-}
-
 // schnorrError creates a Error given a set of arguments.
 func schnorrError(c ErrorCode, desc string) Error {
 	return Error{ErrorCode: c, Description: desc}

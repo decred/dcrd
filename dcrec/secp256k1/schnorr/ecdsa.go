@@ -200,7 +200,7 @@ func Sign(priv *secp256k1.PrivateKey, hash []byte) (r, s *big.Int, err error) {
 		if !ok {
 			return nil, nil, fmt.Errorf("unknown error type")
 		}
-		if errTyped.GetCode() != ErrSchnorrHashValue {
+		if errTyped.ErrorCode != ErrSchnorrHashValue {
 			return nil, nil, err
 		}
 	}
