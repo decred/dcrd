@@ -62,21 +62,6 @@ func ParseSignature(sigStr []byte) (*Signature, error) {
 	return parseSig(sigStr)
 }
 
-// GetR satisfies the chainec PublicKey interface.
-func (sig Signature) GetR() *big.Int {
-	return sig.R
-}
-
-// GetS satisfies the chainec PublicKey interface.
-func (sig Signature) GetS() *big.Int {
-	return sig.S
-}
-
-// GetType satisfies the chainec Signature interface.
-func (sig Signature) GetType() int {
-	return ecTypeSecSchnorr
-}
-
 // IsEqual compares this Signature instance to the one passed, returning true
 // if both Signatures are equivalent. A signature is equivalent to another, if
 // they both have the same scalar value for R and S.

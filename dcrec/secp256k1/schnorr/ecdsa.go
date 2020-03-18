@@ -21,9 +21,6 @@ const scalarSize = 32
 var (
 	// bigZero is the big representation of zero.
 	bigZero = new(big.Int).SetInt64(0)
-
-	// ecTypeSecSchnorr is the ECDSA type for the chainec interface.
-	ecTypeSecSchnorr = 2
 )
 
 // zeroArray zeroes the memory of a scalar array.
