@@ -15,8 +15,8 @@ import (
 
 // Signature is a type representing a Schnorr signature.
 type Signature struct {
-	R *big.Int
-	S *big.Int
+	r *big.Int
+	s *big.Int
 }
 
 // SignatureSize is the size of an encoded Schnorr signature.
@@ -34,8 +34,8 @@ func NewSignature(r, s *big.Int) *Signature {
 //   sig[32:64] S, scalar multiplication/addition results = (ab+c) mod l
 //     encoded also as big endian
 func (sig Signature) Serialize() []byte {
-	rBytes := bigIntToEncodedBytes(sig.R)
-	sBytes := bigIntToEncodedBytes(sig.S)
+	rBytes := bigIntToEncodedBytes(sig.r)
+	sBytes := bigIntToEncodedBytes(sig.s)
 
 	all := append(rBytes[:], sBytes[:]...)
 
@@ -66,8 +66,8 @@ func ParseSignature(sigStr []byte) (*Signature, error) {
 // if both Signatures are equivalent. A signature is equivalent to another, if
 // they both have the same scalar value for R and S.
 func (sig Signature) IsEqual(otherSig *Signature) bool {
-	return sig.R.Cmp(otherSig.R) == 0 &&
-		sig.S.Cmp(otherSig.S) == 0
+	return sig.r.Cmp(otherSig.r) == 0 &&
+		sig.s.Cmp(otherSig.s) == 0
 }
 
 // Verify is the generalized and exported function for the verification of a

@@ -191,8 +191,8 @@ func Sign(priv *secp256k1.PrivateKey, hash []byte) (r, s *big.Int, err error) {
 		kB := nonceRFC6979(priv.Serialize(), hash, nil, nil, iteration)
 		sig, err := schnorrSign(hash, pA[:], kB, nil, nil, chainhash.HashB)
 		if err == nil {
-			r = sig.R
-			s = sig.S
+			r = sig.r
+			s = sig.s
 			break
 		}
 
