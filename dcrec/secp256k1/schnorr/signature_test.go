@@ -157,38 +157,6 @@ func TestSchnorrSigning(t *testing.T) {
 	}
 }
 
-func randPrivKeyList(i int) []*secp256k1.PrivateKey {
-	r := rand.New(rand.NewSource(54321))
-
-	privKeyList := make([]*secp256k1.PrivateKey, i)
-	for j := 0; j < i; j++ {
-		for {
-			bIn := new([32]byte)
-			for k := 0; k < scalarSize; k++ {
-				randByte := r.Intn(255)
-				bIn[k] = uint8(randByte)
-			}
-
-			pks := secp256k1.PrivKeyFromBytes(bIn[:])
-			if pks == nil {
-				continue
-			}
-
-			// No duplicates allowed.
-			if j > 0 &&
-				(bytes.Equal(pks.Serialize(), privKeyList[j-1].Serialize())) {
-				r.Seed(int64(j) + r.Int63n(12345))
-				continue
-			}
-			privKeyList[j] = pks
-			r.Seed(int64(j) + 54321)
-			break
-		}
-	}
-
-	return privKeyList
-}
-
 type SignatureVerParams struct {
 	pubkey *secp256k1.PublicKey
 	msg    []byte
@@ -290,48 +258,3 @@ func TestSignatures(t *testing.T) {
 		}
 	}
 }
-
-func benchmarkSigning(b *testing.B) {
-	r := rand.New(rand.NewSource(54321))
-	msg := []byte{
-		0xbe, 0x13, 0xae, 0xf4,
-		0xe8, 0xa2, 0x00, 0xb6,
-		0x45, 0x81, 0xc4, 0xd1,
-		0x0c, 0xf4, 0x1b, 0x5b,
-		0xe1, 0xd1, 0x81, 0xa7,
-		0xd3, 0xdc, 0x37, 0x55,
-		0x58, 0xc1, 0xbd, 0xa2,
-		0x98, 0x2b, 0xd9, 0xfb,
-	}
-
-	numKeys := 1024
-	privKeyList := randPrivKeyList(numKeys)
-
-	for n := 0; n < b.N; n++ {
-		randIndex := r.Intn(numKeys - 1)
-		_, _, err := Sign(privKeyList[randIndex], msg)
-		if err != nil {
-			panic("sign failure")
-		}
-	}
-}
-
-func BenchmarkSigning(b *testing.B) { benchmarkSigning(b) }
-
-func benchmarkVerification(b *testing.B) {
-	r := rand.New(rand.NewSource(54321))
-
-	numSigs := 1024
-	sigList := randSigList(numSigs)
-
-	for n := 0; n < b.N; n++ {
-		sigEntry := sigList[r.Intn(numSigs-1)]
-		sig := sigEntry.sig
-		verified := sig.Verify(sigEntry.msg, sigEntry.pubkey)
-		if !verified {
-			b.Fatalf("made invalid sig -- %x", sig.Serialize())
-		}
-	}
-}
-
-func BenchmarkVerification(b *testing.B) { benchmarkVerification(b) }
