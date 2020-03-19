@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/decred/dcrd/chaincfg/chainhash"
+	"github.com/decred/dcrd/crypto/blake256"
 	"github.com/decred/dcrd/dcrec/secp256k1/v3"
 )
 
@@ -204,10 +204,10 @@ func TestSchnorrSignAndVerify(t *testing.T) {
 		// test data, but it's nice to have all of the calcuated values
 		// available in the test data for cross implementation testing and
 		// verification.
-		calcHash := chainhash.HashB(msg)
-		if !bytes.Equal(calcHash, hash) {
+		calcHash := blake256.Sum256(msg)
+		if !bytes.Equal(calcHash[:], hash) {
 			t.Errorf("%s: mismatched test hash -- expected: %x, given: %x",
-				test.name, calcHash, hash)
+				test.name, calcHash[:], hash)
 			continue
 		}
 		if test.rfc6979 {
@@ -221,7 +221,7 @@ func TestSchnorrSignAndVerify(t *testing.T) {
 		}
 
 		// Sign the hash of the message with the given private key and nonce.
-		gotSig, err := schnorrSign(hash, privKey, nonce, chainhash.HashB)
+		gotSig, err := schnorrSign(hash, privKey, nonce)
 		if err != nil {
 			t.Errorf("%s: unexpected error when signing: %v", test.name, err)
 			continue
@@ -237,7 +237,7 @@ func TestSchnorrSignAndVerify(t *testing.T) {
 
 		// Ensure the produced signature verifies as well.
 		pubKey := secp256k1.NewPrivateKey(hexToModNScalar(test.key)).PubKey()
-		ok, err := schnorrVerify(gotSig, pubKey, hash, chainhash.HashB)
+		ok, err := schnorrVerify(gotSig, pubKey, hash)
 		if err != nil {
 			t.Errorf("%s: signature failed to verify with error: %v", test.name,
 				err)

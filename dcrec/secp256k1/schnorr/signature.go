@@ -12,7 +12,7 @@ import (
 	"io"
 	"math/big"
 
-	"github.com/decred/dcrd/chaincfg/chainhash"
+	"github.com/decred/dcrd/crypto/blake256"
 	"github.com/decred/dcrd/dcrec/secp256k1/v3"
 )
 
@@ -84,9 +84,8 @@ func (sig Signature) IsEqual(otherSig *Signature) bool {
 }
 
 // schnorrVerify is the internal function for verification of a secp256k1
-// Schnorr signature. A secure hash function may be passed for the calculation
-// of r.
-func schnorrVerify(sig *Signature, pubkey *secp256k1.PublicKey, msg []byte, hashFunc func([]byte) []byte) (bool, error) {
+// Schnorr signature.
+func schnorrVerify(sig *Signature, pubkey *secp256k1.PublicKey, msg []byte) (bool, error) {
 	curve := secp256k1.S256()
 	if len(msg) != scalarSize {
 		str := fmt.Sprintf("wrong size for message (got %v, want %v)",
@@ -108,8 +107,8 @@ func schnorrVerify(sig *Signature, pubkey *secp256k1.PublicKey, msg []byte, hash
 	toHash := make([]byte, 0, len(msg)+scalarSize)
 	toHash = append(toHash, rBytes[:]...)
 	toHash = append(toHash, msg...)
-	h := hashFunc(toHash)
-	hBig := new(big.Int).SetBytes(h)
+	h := blake256.Sum256(toHash)
+	hBig := new(big.Int).SetBytes(h[:])
 
 	// If the hash ends up larger than the order of the curve, abort.
 	// Same thing for hash == 0 (as unlikely as that is...).
@@ -136,7 +135,7 @@ func schnorrVerify(sig *Signature, pubkey *secp256k1.PublicKey, msg []byte, hash
 
 	// r' = hQ + sG
 	sBytes := bigIntToEncodedBytes(sig.s)
-	lx, ly := curve.ScalarMult(pubkey.X(), pubkey.Y(), h)
+	lx, ly := curve.ScalarMult(pubkey.X(), pubkey.Y(), h[:])
 	rx, ry := curve.ScalarBaseMult(sBytes[:])
 	rlx, rly := curve.Add(lx, ly, rx, ry)
 
@@ -162,7 +161,7 @@ func schnorrVerify(sig *Signature, pubkey *secp256k1.PublicKey, msg []byte, hash
 // Verify is the generalized and exported function for the verification of a
 // secp256k1 Schnorr signature. BLAKE256 is used as the hashing function.
 func (sig *Signature) Verify(msg []byte, pubkey *secp256k1.PublicKey) bool {
-	ok, _ := schnorrVerify(sig, pubkey, msg, chainhash.HashB)
+	ok, _ := schnorrVerify(sig, pubkey, msg)
 	return ok
 }
 
@@ -212,7 +211,7 @@ func GenerateKey(rand io.Reader) (priv []byte, x, y *big.Int, err error) {
 // garbage collector runs.
 // TODO Use field elements with constant time algorithms to prevent said
 // attacks.
-func schnorrSign(msg []byte, ps []byte, k []byte, hashFunc func([]byte) []byte) (*Signature, error) {
+func schnorrSign(msg []byte, ps []byte, k []byte) (*Signature, error) {
 	curve := secp256k1.S256()
 	if len(msg) != scalarSize {
 		str := fmt.Sprintf("wrong size for message (got %v, want %v)",
@@ -266,8 +265,8 @@ func schnorrSign(msg []byte, ps []byte, k []byte, hashFunc func([]byte) []byte) 
 	hashInput := make([]byte, 0, scalarSize*2)
 	hashInput = append(hashInput, Rpxb[:]...)
 	hashInput = append(hashInput, msg...)
-	h := hashFunc(hashInput)
-	hBig := new(big.Int).SetBytes(h)
+	h := blake256.Sum256(hashInput)
+	hBig := new(big.Int).SetBytes(h[:])
 
 	// If the hash ends up larger than the order of the curve, abort.
 	if hBig.Cmp(curve.N) >= 0 {
@@ -324,7 +323,7 @@ func Sign(priv *secp256k1.PrivateKey, hash []byte) (r, s *big.Int, err error) {
 	for iteration := uint32(0); ; iteration++ {
 		// Generate a 32-byte scalar to use as a nonce via RFC6979.
 		kB := nonceRFC6979(priv.Serialize(), hash, nil, nil, iteration)
-		sig, err := schnorrSign(hash, pA[:], kB, chainhash.HashB)
+		sig, err := schnorrSign(hash, pA[:], kB)
 		if err == nil {
 			r = sig.r
 			s = sig.s
