@@ -221,7 +221,7 @@ func GenerateKey(rand io.Reader) (priv []byte, x, y *big.Int, err error) {
 // garbage collector runs.
 // TODO Use field elements with constant time algorithms to prevent said
 // attacks.
-func schnorrSign(msg []byte, ps []byte, k []byte, pubNonceX *big.Int, pubNonceY *big.Int, hashFunc func([]byte) []byte) (*Signature, error) {
+func schnorrSign(msg []byte, ps []byte, k []byte, hashFunc func([]byte) []byte) (*Signature, error) {
 	curve := secp256k1.S256()
 	if len(msg) != scalarSize {
 		str := fmt.Sprintf("wrong size for message (got %v, want %v)",
@@ -262,10 +262,6 @@ func schnorrSign(msg []byte, ps []byte, k []byte, pubNonceX *big.Int, pubNonceY 
 	// R = kG
 	var Rpx, Rpy *big.Int
 	Rpx, Rpy = curve.ScalarBaseMult(k)
-	if pubNonceX != nil && pubNonceY != nil {
-		// Optional: if k' exists then R = R+k'
-		Rpx, Rpy = curve.Add(Rpx, Rpy, pubNonceX, pubNonceY)
-	}
 
 	// Check if the field element that would be represented by Y is odd.
 	// If it is, just keep k in the group order.
@@ -337,7 +333,7 @@ func Sign(priv *secp256k1.PrivateKey, hash []byte) (r, s *big.Int, err error) {
 	for iteration := uint32(0); ; iteration++ {
 		// Generate a 32-byte scalar to use as a nonce via RFC6979.
 		kB := nonceRFC6979(priv.Serialize(), hash, nil, nil, iteration)
-		sig, err := schnorrSign(hash, pA[:], kB, nil, nil, chainhash.HashB)
+		sig, err := schnorrSign(hash, pA[:], kB, chainhash.HashB)
 		if err == nil {
 			r = sig.r
 			s = sig.s

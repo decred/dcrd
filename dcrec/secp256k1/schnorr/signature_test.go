@@ -125,9 +125,7 @@ func TestSchnorrSigning(t *testing.T) {
 	for _, tv := range tvs {
 		pubkey := secp256k1.PrivKeyFromBytes(tv.priv).PubKey()
 
-		sig, err :=
-			schnorrSign(tv.msg, tv.priv, tv.nonce, nil, nil,
-				testSchnorrHash)
+		sig, err := schnorrSign(tv.msg, tv.priv, tv.nonce, testSchnorrHash)
 		if err != nil {
 			t.Fatalf("unexpected error %v", err)
 		}
