@@ -7,9 +7,7 @@ package schnorr
 
 import (
 	"bytes"
-	"crypto/ecdsa"
 	"fmt"
-	"io"
 	"math/big"
 
 	"github.com/decred/dcrd/crypto/blake256"
@@ -188,16 +186,6 @@ func zeroBigInt(v *big.Int) {
 		words[i] = 0
 	}
 	v.SetInt64(0)
-}
-
-// GenerateKey generates a key using a random number generator, returning
-// the private scalar and the corresponding public key points.
-func GenerateKey(rand io.Reader) (priv []byte, x, y *big.Int, err error) {
-	key, err := ecdsa.GenerateKey(secp256k1.S256(), rand)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-	return key.D.Bytes(), key.PublicKey.X, key.PublicKey.Y, nil
 }
 
 // schnorrSign signs a Schnorr signature using a specified hash function
