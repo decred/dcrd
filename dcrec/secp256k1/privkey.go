@@ -35,9 +35,9 @@ func NewPrivateKey(key *ModNScalar) *PrivateKey {
 // Typically callers should simply make use of GeneratePrivateKey when creating
 // private keys which properly handles generation of appropriate values.
 func PrivKeyFromBytes(privKeyBytes []byte) *PrivateKey {
-	var d ModNScalar
-	d.SetByteSlice(privKeyBytes)
-	return NewPrivateKey(&d)
+	var privKey PrivateKey
+	privKey.key.SetByteSlice(privKeyBytes)
+	return &privKey
 }
 
 // GeneratePrivateKey returns a private key that is suitable for use with
@@ -80,6 +80,7 @@ const PrivKeyBytesLen = 32
 // Serialize returns the private key as a 256-bit big-endian binary-encoded
 // number, padded to a length of 32 bytes.
 func (p PrivateKey) Serialize() []byte {
-	privKeyBytes := p.key.Bytes()
+	var privKeyBytes [PrivKeyBytesLen]byte
+	p.key.PutBytes(&privKeyBytes)
 	return privKeyBytes[:]
 }
