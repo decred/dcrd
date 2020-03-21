@@ -822,7 +822,7 @@ func TestFieldMulInt(t *testing.T) {
 	tests := []struct {
 		name     string // test description
 		in1      string // hex encoded value
-		in2      uint   // unsigned integer to multiply with value above
+		in2      uint8  // unsigned integer to multiply with value above
 		expected string // expected hex encoded value
 	}{{
 		name:     "zero * zero",

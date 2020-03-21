@@ -590,7 +590,7 @@ func (f *fieldVal) Add2(val *fieldVal, val2 *fieldVal) *fieldVal {
 //
 // The field value is returned to support chaining.  This enables syntax like:
 // f.MulInt(2).Add(f2) so that f = 2 * f + f2.
-func (f *fieldVal) MulInt(val uint) *fieldVal {
+func (f *fieldVal) MulInt(val uint8) *fieldVal {
 	// Since each word of the field representation can hold up to
 	// 32 - fieldBase extra bits which will be normalized out, it's safe
 	// to multiply each word without using a larger type or carry
