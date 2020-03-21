@@ -171,7 +171,7 @@ func (f *fieldVal) Set(val *fieldVal) *fieldVal {
 //
 // The field value is returned to support chaining.  This enables syntax such
 // as f := new(fieldVal).SetInt(2).Mul(f2) so that f = 2 * f2.
-func (f *fieldVal) SetInt(ui uint) *fieldVal {
+func (f *fieldVal) SetInt(ui uint16) *fieldVal {
 	f.Zero()
 	f.n[0] = uint32(ui)
 	return f

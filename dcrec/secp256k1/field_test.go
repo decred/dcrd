@@ -54,24 +54,20 @@ func randIntAndFieldVal(t *testing.T, rng *rand.Rand) (*big.Int, *fieldVal) {
 func TestFieldSetInt(t *testing.T) {
 	tests := []struct {
 		name     string     // test description
-		in       uint       // test value
+		in       uint16     // test value
 		expected [10]uint32 // expected raw ints
 	}{{
+		name:     "one",
+		in:       1,
+		expected: [10]uint32{1, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+	}, {
 		name:     "five",
 		in:       5,
 		expected: [10]uint32{5, 0, 0, 0, 0, 0, 0, 0, 0, 0},
 	}, {
-		name:     "2^26",
-		in:       67108864,
-		expected: [10]uint32{67108864, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-	}, {
-		name:     "2^26 + 1",
-		in:       67108865,
-		expected: [10]uint32{67108865, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-	}, {
-		name:     "2^32 - 1",
-		in:       4294967295,
-		expected: [10]uint32{4294967295, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+		name:     "2^16 - 1",
+		in:       65535,
+		expected: [10]uint32{65535, 0, 0, 0, 0, 0, 0, 0, 0, 0},
 	}}
 
 	for _, test := range tests {
