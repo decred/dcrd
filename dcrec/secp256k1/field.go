@@ -527,7 +527,7 @@ func (f *fieldVal) Negate(magnitude uint32) *fieldVal {
 //
 // The field value is returned to support chaining.  This enables syntax like:
 // f.AddInt(1).Add(f2) so that f = f + 1 + f2.
-func (f *fieldVal) AddInt(ui uint) *fieldVal {
+func (f *fieldVal) AddInt(ui uint16) *fieldVal {
 	// Since the field representation intentionally provides overflow bits,
 	// it's ok to use carryless addition as the carry bit is safely part of
 	// the word and will be normalized out.

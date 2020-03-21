@@ -659,7 +659,7 @@ func TestFieldAddInt(t *testing.T) {
 	tests := []struct {
 		name     string // test description
 		in1      string // hex encoded value
-		in2      uint   // unsigned integer to add to the value above
+		in2      uint16 // unsigned integer to add to the value above
 		expected string // expected hex encoded value
 	}{{
 		name:     "zero + one",
@@ -694,18 +694,18 @@ func TestFieldAddInt(t *testing.T) {
 	}, {
 		name:     "random sampling #2",
 		in1:      "44bdae6b772e7987941f1ba314e6a5b7804a4c12c00961b57d20f41deea9cecf",
-		in2:      0x2cf11d41,
-		expected: "44bdae6b772e7987941f1ba314e6a5b7804a4c12c00961b57d20f41e1b9aec10",
+		in2:      0x3196,
+		expected: "44bdae6b772e7987941f1ba314e6a5b7804a4c12c00961b57d20f41deeaa0065",
 	}, {
 		name:     "random sampling #3",
 		in1:      "88c3ecae67b591935fb1f6a9499c35315ffad766adca665c50b55f7105122c9c",
-		in2:      0x4829aa2d,
-		expected: "88c3ecae67b591935fb1f6a9499c35315ffad766adca665c50b55f714d3bd6c9",
+		in2:      0x966f,
+		expected: "88c3ecae67b591935fb1f6a9499c35315ffad766adca665c50b55f710512c30b",
 	}, {
 		name:     "random sampling #4",
 		in1:      "8523e9edf360ca32a95aae4e57fcde5a542b471d08a974d94ea0ee09a015e2a6",
-		in2:      0xa21265a5,
-		expected: "8523e9edf360ca32a95aae4e57fcde5a542b471d08a974d94ea0ee0a4228484b",
+		in2:      0xc54,
+		expected: "8523e9edf360ca32a95aae4e57fcde5a542b471d08a974d94ea0ee09a015eefa",
 	}}
 
 	for _, test := range tests {
