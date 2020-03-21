@@ -226,19 +226,6 @@ func (f *fieldVal) SetByteSlice(b []byte) *fieldVal {
 	return f
 }
 
-// SetHex decodes the passed big-endian hex string into the internal field value
-// representation.  Only the first 32-bytes are used.
-//
-// The field value is returned to support chaining.  This enables syntax like:
-// f := new(fieldVal).SetHex("0abc").Add(1) so that f = 0x0abc + 1
-func (f *fieldVal) SetHex(hexString string) *fieldVal {
-	if len(hexString)%2 != 0 {
-		hexString = "0" + hexString
-	}
-	bytes, _ := hex.DecodeString(hexString)
-	return f.SetByteSlice(bytes)
-}
-
 // Normalize normalizes the internal field words into the desired range and
 // performs fast modular reduction over the secp256k1 prime by making use of the
 // special form of the prime.
