@@ -61,7 +61,7 @@ type KoblitzCurve struct {
 	*elliptic.CurveParams
 
 	// bytePoints
-	bytePoints *[32][256][3]fieldVal
+	bytePoints *[32][256][3]FieldVal
 }
 
 // bigAffineToJacobian takes an affine point (x, y) as big integers and converts

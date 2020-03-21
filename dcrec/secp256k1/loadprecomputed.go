@@ -42,7 +42,7 @@ func loadBytePoints() error {
 
 	// Deserialize the precomputed byte points and set the curve to them.
 	offset := 0
-	var bytePoints [32][256][3]fieldVal
+	var bytePoints [32][256][3]FieldVal
 	for byteNum := 0; byteNum < 32; byteNum++ {
 		// All points in this window.
 		for i := 0; i < 256; i++ {

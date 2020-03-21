@@ -13,7 +13,7 @@ import (
 // to perform normalization (which includes modular reduction).
 func BenchmarkFieldNormalize(b *testing.B) {
 	// The normalize function is constant time so default value is fine.
-	f := new(fieldVal)
+	f := new(FieldVal)
 	for i := 0; i < b.N; i++ {
 		f.Normalize()
 	}
@@ -24,12 +24,12 @@ func BenchmarkFieldNormalize(b *testing.B) {
 func BenchmarkFieldSqrt(b *testing.B) {
 	// The function is constant time so any value is fine.
 	valHex := "16fb970147a9acc73654d4be233cc48b875ce20a2122d24f073d29bd28805aca"
-	f := new(fieldVal).SetHex(valHex).Normalize()
+	f := new(FieldVal).SetHex(valHex).Normalize()
 
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		var result fieldVal
+		var result FieldVal
 		_ = result.SquareRootVal(f)
 	}
 }
@@ -57,7 +57,7 @@ func BenchmarkBigSqrt(b *testing.B) {
 func BenchmarkFieldIsGtOrEqPrimeMinusOrder(b *testing.B) {
 	// The function is constant time so any value is fine.
 	valHex := "16fb970147a9acc73654d4be233cc48b875ce20a2122d24f073d29bd28805aca"
-	f := new(fieldVal).SetHex(valHex).Normalize()
+	f := new(FieldVal).SetHex(valHex).Normalize()
 
 	b.ReportAllocs()
 	b.ResetTimer()

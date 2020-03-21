@@ -330,8 +330,8 @@ func TestDecompressY(t *testing.T) {
 	for _, test := range tests {
 		// Decompress the test odd y coordinate for the given test x coordinate
 		// and ensure the returned validity flag matches the expected result.
-		var oddY fieldVal
-		fx := new(fieldVal).SetHex(test.x)
+		var oddY FieldVal
+		fx := new(FieldVal).SetHex(test.x)
 		valid := decompressY(fx, true, &oddY)
 		if valid != test.valid {
 			t.Errorf("%s: unexpected valid flag -- got: %v, want: %v",
@@ -341,7 +341,7 @@ func TestDecompressY(t *testing.T) {
 
 		// Decompress the test even y coordinate for the given test x coordinate
 		// and ensure the returned validity flag matches the expected result.
-		var evenY fieldVal
+		var evenY FieldVal
 		valid = decompressY(fx, false, &evenY)
 		if valid != test.valid {
 			t.Errorf("%s: unexpected valid flag -- got: %v, want: %v",
@@ -356,7 +356,7 @@ func TestDecompressY(t *testing.T) {
 
 		// Ensure the decompressed odd Y coordinate is the expected value.
 		oddY.Normalize()
-		wantOddY := new(fieldVal).SetHex(test.wantOddY)
+		wantOddY := new(FieldVal).SetHex(test.wantOddY)
 		if !wantOddY.Equals(&oddY) {
 			t.Errorf("%s: mismatched odd y\ngot: %v, want: %v", test.name,
 				oddY, wantOddY)
@@ -365,7 +365,7 @@ func TestDecompressY(t *testing.T) {
 
 		// Ensure the decompressed even Y coordinate is the expected value.
 		evenY.Normalize()
-		wantEvenY := new(fieldVal).SetHex(test.wantEvenY)
+		wantEvenY := new(FieldVal).SetHex(test.wantEvenY)
 		if !wantEvenY.Equals(&evenY) {
 			t.Errorf("%s: mismatched even y\ngot: %v, want: %v", test.name,
 				evenY, wantEvenY)
@@ -403,8 +403,8 @@ func TestDecompressYRandom(t *testing.T) {
 
 		// Calculate both corresponding y coordinates for the random x when it
 		// is a valid coordinate.
-		var oddY, evenY fieldVal
-		x := new(fieldVal).Set(origX)
+		var oddY, evenY FieldVal
+		x := new(FieldVal).Set(origX)
 		oddSuccess := decompressY(x, true, &oddY)
 		evenSuccess := decompressY(x, false, &evenY)
 

@@ -21,7 +21,7 @@ func isJacobianOnS256Curve(point *jacobianPoint) bool {
 	// (y/z^3)^2 = (x/z^2)^3 + 7
 	// y^2/z^6 = x^3/z^6 + 7
 	// y^2 = x^3 + 7*z^6
-	var y2, z2, x3, result fieldVal
+	var y2, z2, x3, result FieldVal
 	y2.SquareVal(&point.y).Normalize()
 	z2.SquareVal(&point.z)
 	x3.SquareVal(&point.x).Mul(&point.x)

@@ -49,7 +49,7 @@ var (
 	// orderAsFieldVal is the order of the secp256k1 curve group stored as a
 	// field value.  It is provided here to avoid the need to create it multiple
 	// times.
-	orderAsFieldVal = new(fieldVal).SetByteSlice(curveParams.N.Bytes())
+	orderAsFieldVal = new(FieldVal).SetByteSlice(curveParams.N.Bytes())
 )
 
 const (
@@ -146,7 +146,7 @@ func (sig *Signature) Serialize() []byte {
 // Note that a bool is not used here because it is not possible in Go to convert
 // from a bool to numeric value in constant time and many constant-time
 // operations require a numeric value.
-func fieldToModNScalar(v *fieldVal) (ModNScalar, uint32) {
+func fieldToModNScalar(v *FieldVal) (ModNScalar, uint32) {
 	var buf [32]byte
 	v.PutBytes(&buf)
 	var s ModNScalar
@@ -156,10 +156,10 @@ func fieldToModNScalar(v *fieldVal) (ModNScalar, uint32) {
 }
 
 // modNScalarToField converts a scalar modulo the group order to a field value.
-func modNScalarToField(v *ModNScalar) fieldVal {
+func modNScalarToField(v *ModNScalar) FieldVal {
 	var buf [32]byte
 	v.PutBytes(&buf)
-	var fv fieldVal
+	var fv FieldVal
 	fv.SetBytes(&buf)
 	return fv
 }
@@ -267,13 +267,13 @@ func (sig *Signature) Verify(hash []byte, pubKey *PublicKey) bool {
 	// Step 7.
 	//
 	// z = (X.z)^2 mod P (X.z is the z coordinate of X)
-	z := new(fieldVal).SquareVal(&X.z)
+	z := new(FieldVal).SquareVal(&X.z)
 
 	// Step 8.
 	//
 	// Verified if R * z == X.x (mod P)
 	sigRModP := modNScalarToField(&sig.r)
-	result := new(fieldVal).Mul2(&sigRModP, z).Normalize()
+	result := new(FieldVal).Mul2(&sigRModP, z).Normalize()
 	if result.Equals(&X.x) {
 		return true
 	}
@@ -744,7 +744,7 @@ func RecoverCompact(signature, hash []byte) (*PublicKey, bool, error) {
 	// coord originally came from a random point on the curve which means there
 	// must be a Y coord that satisfies the equation for a valid signature.
 	oddY := pubKeyRecoveryCode&pubKeyRecoveryCodeOddnessBit != 0
-	var y fieldVal
+	var y FieldVal
 	if valid := decompressY(&fieldR, oddY, &y); !valid {
 		return nil, false, errors.New("signature is not for a valid curve point")
 	}

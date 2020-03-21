@@ -49,7 +49,7 @@ package secp256k1
 //
 // Since it is so important that the field arithmetic is extremely fast for high
 // performance crypto, this type does not perform any validation where it
-// ordinarily would.  See the documentation for fieldVal for more details.
+// ordinarily would.  See the documentation for FieldVal for more details.
 
 import (
 	"encoding/hex"
@@ -95,7 +95,7 @@ const (
 	fieldPrimeWordOne = 0x3ffffbf
 )
 
-// fieldVal implements optimized fixed-precision arithmetic over the
+// FieldVal implements optimized fixed-precision arithmetic over the
 // secp256k1 finite field.  This means all arithmetic is performed modulo
 // 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2f.
 //
@@ -133,7 +133,7 @@ const (
 // cause the magnitude of the result to exceed the max allowed value.
 //
 // IMPORTANT: The max allowed magnitude of a field value is 64.
-type fieldVal struct {
+type FieldVal struct {
 	// Each 256-bit value is represented as 10 32-bit integers in base 2^26.
 	// This provides 6 bits of overflow in each word (10 bits in the most
 	// significant word) for a total of 64 bits of overflow (9*6 + 10 = 64).  It
@@ -169,7 +169,7 @@ type fieldVal struct {
 // Preconditions: None
 // Output Normalized: Field is not modified -- same as input value
 // Output Max Magnitude: Field is not modified -- same as input value
-func (f fieldVal) String() string {
+func (f FieldVal) String() string {
 	// f is a copy, so it's safe to normalize it without mutating the original.
 	f.Normalize()
 	return hex.EncodeToString(f.Bytes()[:])
@@ -182,7 +182,7 @@ func (f fieldVal) String() string {
 // Preconditions: None
 // Output Normalized: Yes
 // Output Max Magnitude: 1
-func (f *fieldVal) Zero() {
+func (f *FieldVal) Zero() {
 	f.n[0] = 0
 	f.n[1] = 0
 	f.n[2] = 0
@@ -199,13 +199,13 @@ func (f *fieldVal) Zero() {
 // normalization and magnitude of the two fields will be identical.
 //
 // The field value is returned to support chaining.  This enables syntax like:
-// f := new(fieldVal).Set(f2).Add(1) so that f = f2 + 1 where f2 is not
+// f := new(FieldVal).Set(f2).Add(1) so that f = f2 + 1 where f2 is not
 // modified.
 //
 // Preconditions: None
 // Output Normalized: Same as input value
 // Output Max Magnitude: Same as input value
-func (f *fieldVal) Set(val *fieldVal) *fieldVal {
+func (f *FieldVal) Set(val *FieldVal) *FieldVal {
 	*f = *val
 	return f
 }
@@ -215,12 +215,12 @@ func (f *fieldVal) Set(val *fieldVal) *fieldVal {
 // with small native integers.
 //
 // The field value is returned to support chaining.  This enables syntax such
-// as f := new(fieldVal).SetInt(2).Mul(f2) so that f = 2 * f2.
+// as f := new(FieldVal).SetInt(2).Mul(f2) so that f = 2 * f2.
 //
 // Preconditions: None
 // Output Normalized: Yes
 // Output Max Magnitude: 1
-func (f *fieldVal) SetInt(ui uint16) *fieldVal {
+func (f *FieldVal) SetInt(ui uint16) *FieldVal {
 	f.Zero()
 	f.n[0] = uint32(ui)
 	return f
@@ -230,12 +230,12 @@ func (f *fieldVal) SetInt(ui uint16) *fieldVal {
 // value representation in constant time.
 //
 // The field value is returned to support chaining.  This enables syntax like:
-// f := new(fieldVal).SetBytes(byteArray).Mul(f2) so that f = ba * f2.
+// f := new(FieldVal).SetBytes(byteArray).Mul(f2) so that f = ba * f2.
 //
 // Preconditions: None
 // Output Normalized: Yes
 // Output Max Magnitude: 1
-func (f *fieldVal) SetBytes(b *[32]byte) *fieldVal {
+func (f *FieldVal) SetBytes(b *[32]byte) *FieldVal {
 	// Pack the 256 total bits across the 10 uint32 words with a max of
 	// 26-bits per word.  This could be done with a couple of for loops,
 	// but this unrolled version is significantly faster.  Benchmarks show
@@ -268,12 +268,12 @@ func (f *fieldVal) SetBytes(b *[32]byte) *fieldVal {
 // used or the value will be truncated.
 //
 // The field value is returned to support chaining.  This enables syntax like:
-// f := new(fieldVal).SetByteSlice(byteSlice)
+// f := new(FieldVal).SetByteSlice(byteSlice)
 //
 // Preconditions: None
 // Output Normalized: Yes
 // Output Max Magnitude: 1
-func (f *fieldVal) SetByteSlice(b []byte) *fieldVal {
+func (f *FieldVal) SetByteSlice(b []byte) *FieldVal {
 	var b32 [32]byte
 	b = b[:constantTimeMin(uint32(len(b)), 32)]
 	copy(b32[:], b32[:32-len(b)])
@@ -290,7 +290,7 @@ func (f *fieldVal) SetByteSlice(b []byte) *fieldVal {
 // Preconditions: None
 // Output Normalized: Yes
 // Output Max Magnitude: 1
-func (f *fieldVal) Normalize() *fieldVal {
+func (f *FieldVal) Normalize() *FieldVal {
 	// The field representation leaves 6 bits of overflow in each word so
 	// intermediate calculations can be performed without needing to
 	// propagate the carry to each higher word during the calculations.  In
@@ -419,7 +419,7 @@ func (f *fieldVal) Normalize() *fieldVal {
 //
 // Preconditions:
 //   - The field value MUST be normalized
-func (f *fieldVal) PutBytes(b *[32]byte) {
+func (f *FieldVal) PutBytes(b *[32]byte) {
 	// Unpack the 256 total bits from the 10 uint32 words with a max of
 	// 26-bits per word.  This could be done with a couple of for loops,
 	// but this unrolled version is a bit faster.  Benchmarks show this is
@@ -465,7 +465,7 @@ func (f *fieldVal) PutBytes(b *[32]byte) {
 //
 // Preconditions:
 //   - The field value MUST be normalized
-func (f *fieldVal) Bytes() *[32]byte {
+func (f *FieldVal) Bytes() *[32]byte {
 	b := new([32]byte)
 	f.PutBytes(b)
 	return b
@@ -476,7 +476,7 @@ func (f *fieldVal) Bytes() *[32]byte {
 //
 // Preconditions:
 //   - The field value MUST be normalized
-func (f *fieldVal) IsZero() bool {
+func (f *FieldVal) IsZero() bool {
 	// The value can only be zero if no bits are set in any of the words.
 	// This is a constant time implementation.
 	bits := f.n[0] | f.n[1] | f.n[2] | f.n[3] | f.n[4] |
@@ -490,7 +490,7 @@ func (f *fieldVal) IsZero() bool {
 //
 // Preconditions:
 //   - The field value MUST be normalized
-func (f *fieldVal) IsOne() bool {
+func (f *FieldVal) IsOne() bool {
 	// The value can only be one if the single lowest significant bit is set in
 	// the the first word and no other bits are set in any of the other words.
 	// This is a constant time implementation.
@@ -505,7 +505,7 @@ func (f *fieldVal) IsOne() bool {
 //
 // Preconditions:
 //   - The field value MUST be normalized
-func (f *fieldVal) IsOdd() bool {
+func (f *FieldVal) IsOdd() bool {
 	// Only odd numbers have the bottom bit set.
 	return f.n[0]&1 == 1
 }
@@ -515,7 +515,7 @@ func (f *fieldVal) IsOdd() bool {
 //
 // Preconditions:
 //   - Both field values being compared MUST be normalized
-func (f *fieldVal) Equals(val *fieldVal) bool {
+func (f *FieldVal) Equals(val *FieldVal) bool {
 	// Xor only sets bits when they are different, so the two field values
 	// can only be the same if no bits are set after xoring each word.
 	// This is a constant time implementation.
@@ -538,7 +538,7 @@ func (f *fieldVal) Equals(val *fieldVal) bool {
 //   - The max magnitude MUST be 63
 // Output Normalized: No
 // Output Max Magnitude: Input magnitude + 1
-func (f *fieldVal) NegateVal(val *fieldVal, magnitude uint32) *fieldVal {
+func (f *FieldVal) NegateVal(val *FieldVal, magnitude uint32) *FieldVal {
 	// Negation in the field is just the prime minus the value.  However,
 	// in order to allow negation against a field value without having to
 	// normalize/reduce it first, multiply by the magnitude (that is how
@@ -582,7 +582,7 @@ func (f *fieldVal) NegateVal(val *fieldVal, magnitude uint32) *fieldVal {
 //   - The max magnitude MUST be 63
 // Output Normalized: No
 // Output Max Magnitude: Input magnitude + 1
-func (f *fieldVal) Negate(magnitude uint32) *fieldVal {
+func (f *FieldVal) Negate(magnitude uint32) *FieldVal {
 	return f.NegateVal(f, magnitude)
 }
 
@@ -597,7 +597,7 @@ func (f *fieldVal) Negate(magnitude uint32) *fieldVal {
 //   - The field value MUST have a max magnitude of 63
 // Output Normalized: No
 // Output Max Magnitude: Existing field magnitude + 1
-func (f *fieldVal) AddInt(ui uint16) *fieldVal {
+func (f *FieldVal) AddInt(ui uint16) *FieldVal {
 	// Since the field representation intentionally provides overflow bits,
 	// it's ok to use carryless addition as the carry bit is safely part of
 	// the word and will be normalized out.
@@ -616,7 +616,7 @@ func (f *fieldVal) AddInt(ui uint16) *fieldVal {
 //   - The sum of the magnitudes of the two field values MUST be a max of 64
 // Output Normalized: No
 // Output Max Magnitude: Sum of the magnitude of the two individual field values
-func (f *fieldVal) Add(val *fieldVal) *fieldVal {
+func (f *FieldVal) Add(val *FieldVal) *FieldVal {
 	// Since the field representation intentionally provides overflow bits,
 	// it's ok to use carryless addition as the carry bit is safely part of
 	// each word and will be normalized out.  This could obviously be done
@@ -645,7 +645,7 @@ func (f *fieldVal) Add(val *fieldVal) *fieldVal {
 //   - The sum of the magnitudes of the two field values MUST be a max of 64
 // Output Normalized: No
 // Output Max Magnitude: Sum of the magnitude of the two field values
-func (f *fieldVal) Add2(val *fieldVal, val2 *fieldVal) *fieldVal {
+func (f *FieldVal) Add2(val *FieldVal, val2 *FieldVal) *FieldVal {
 	// Since the field representation intentionally provides overflow bits,
 	// it's ok to use carryless addition as the carry bit is safely part of
 	// each word and will be normalized out.  This could obviously be done
@@ -677,7 +677,7 @@ func (f *fieldVal) Add2(val *fieldVal, val2 *fieldVal) *fieldVal {
 //   - The field value magnitude multiplied by given val MUST be a max of 64
 // Output Normalized: No
 // Output Max Magnitude: Existing field magnitude times the provided integer val
-func (f *fieldVal) MulInt(val uint8) *fieldVal {
+func (f *FieldVal) MulInt(val uint8) *FieldVal {
 	// Since each word of the field representation can hold up to
 	// 32 - fieldBase extra bits which will be normalized out, it's safe
 	// to multiply each word without using a larger type or carry
@@ -712,7 +712,7 @@ func (f *fieldVal) MulInt(val uint8) *fieldVal {
 //   - Both field values MUST have a max magnitude of 8
 // Output Normalized: No
 // Output Max Magnitude: 1
-func (f *fieldVal) Mul(val *fieldVal) *fieldVal {
+func (f *FieldVal) Mul(val *FieldVal) *FieldVal {
 	return f.Mul2(f, val)
 }
 
@@ -729,7 +729,7 @@ func (f *fieldVal) Mul(val *fieldVal) *fieldVal {
 //   - Both input field values MUST have a max magnitude of 8
 // Output Normalized: No
 // Output Max Magnitude: 1
-func (f *fieldVal) Mul2(val *fieldVal, val2 *fieldVal) *fieldVal {
+func (f *FieldVal) Mul2(val *FieldVal, val2 *FieldVal) *FieldVal {
 	// This could be done with a couple of for loops and an array to store
 	// the intermediate terms, but this unrolled version is significantly
 	// faster.
@@ -1006,7 +1006,7 @@ func (f *fieldVal) Mul2(val *fieldVal, val2 *fieldVal) *fieldVal {
 //   - The input field value MUST have a max magnitude of 8
 // Output Normalized: No
 // Output Max Magnitude: 1
-func (f *fieldVal) SquareRootVal(val *fieldVal) bool {
+func (f *FieldVal) SquareRootVal(val *FieldVal) bool {
 	// This uses the Tonelli-Shanks method for calculating the square root of
 	// the value when it exists.  The key principles of the method follow.
 	//
@@ -1074,7 +1074,7 @@ func (f *fieldVal) SquareRootVal(val *fieldVal) bool {
 	// => 2^1 2^[2] 2^3 2^6 2^9 2^11 2^[22] 2^44 2^88 2^176 2^220 2^[223]
 	//
 	// This has a cost of 254 field squarings and 13 field multiplications.
-	var a, a2, a3, a6, a9, a11, a22, a44, a88, a176, a220, a223 fieldVal
+	var a, a2, a3, a6, a9, a11, a22, a44, a88, a176, a220, a223 FieldVal
 	a.Set(val)
 	a2.SquareVal(&a).Mul(&a)                                  // a2 = a^(2^2 - 1)
 	a3.SquareVal(&a2).Mul(&a)                                 // a3 = a^(2^3 - 1)
@@ -1151,7 +1151,7 @@ func (f *fieldVal) SquareRootVal(val *fieldVal) bool {
 
 	// Ensure the calculated result is actually the square root by squaring it
 	// and checking against the original value.
-	var sqr fieldVal
+	var sqr FieldVal
 	return sqr.SquareVal(f).Normalize().Equals(val.Normalize())
 }
 
@@ -1167,7 +1167,7 @@ func (f *fieldVal) SquareRootVal(val *fieldVal) bool {
 //   - The field value MUST have a max magnitude of 8
 // Output Normalized: No
 // Output Max Magnitude: 1
-func (f *fieldVal) Square() *fieldVal {
+func (f *FieldVal) Square() *FieldVal {
 	return f.SquareVal(f)
 }
 
@@ -1183,7 +1183,7 @@ func (f *fieldVal) Square() *fieldVal {
 //   - The input field value MUST have a max magnitude of 8
 // Output Normalized: No
 // Output Max Magnitude: 1
-func (f *fieldVal) SquareVal(val *fieldVal) *fieldVal {
+func (f *FieldVal) SquareVal(val *FieldVal) *FieldVal {
 	// This could be done with a couple of for loops and an array to store
 	// the intermediate terms, but this unrolled version is significantly
 	// faster.
@@ -1408,7 +1408,7 @@ func (f *fieldVal) SquareVal(val *fieldVal) *fieldVal {
 //   - The field value MUST have a max magnitude of 8
 // Output Normalized: No
 // Output Max Magnitude: 1
-func (f *fieldVal) Inverse() *fieldVal {
+func (f *FieldVal) Inverse() *FieldVal {
 	// Fermat's little theorem states that for a nonzero number a and prime
 	// prime p, a^(p-1) = 1 (mod p).  Since the multiplicative inverse is
 	// a*b = 1 (mod p), it follows that b = a*a^(p-2) = a^(p-1) = 1 (mod p).
@@ -1422,7 +1422,7 @@ func (f *fieldVal) Inverse() *fieldVal {
 	// The secp256k1 prime - 2 is 2^256 - 4294968275.
 	//
 	// This has a cost of 258 field squarings and 33 field multiplications.
-	var a2, a3, a4, a10, a11, a21, a42, a45, a63, a1019, a1023 fieldVal
+	var a2, a3, a4, a10, a11, a21, a42, a45, a63, a1019, a1023 FieldVal
 	a2.SquareVal(f)
 	a3.Mul2(&a2, f)
 	a4.SquareVal(&a2)
@@ -1517,7 +1517,7 @@ func (f *fieldVal) Inverse() *fieldVal {
 //
 // Preconditions:
 //   - The field value MUST be normalized
-func (f *fieldVal) IsGtOrEqPrimeMinusOrder() bool {
+func (f *FieldVal) IsGtOrEqPrimeMinusOrder() bool {
 	// The secp256k1 prime is equivalent to 2^256 - 4294968273 and the group
 	// order is 2^256 - 432420386565659656852420866394968145599.  Thus,
 	// the prime minus the group order is:
@@ -1536,7 +1536,7 @@ func (f *fieldVal) IsGtOrEqPrimeMinusOrder() bool {
 	//
 	// This can be verified with the following test code:
 	//   pMinusN := new(big.Int).Sub(curveParams.P, curveParams.N)
-	//   fv := new(fieldVal).SetByteSlice(pMinusN.Bytes())
+	//   fv := new(FieldVal).SetByteSlice(pMinusN.Bytes())
 	//   t.Logf("%x", fv.n)
 	//
 	//   Outputs: [3c9baee 3685c8b 1fc4402 6542dd 1455123 0 0 0 0 0]

@@ -20,16 +20,16 @@ import (
 // (x, y) position on the curve, the Jacobian coordinates are (x1, y1, z1)
 // where x = x1/z1^2 and y = y1/z1^3.
 
-// hexToFieldVal converts the passed hex string into a fieldVal and will panic
+// hexToFieldVal converts the passed hex string into a FieldVal and will panic
 // if there is an error.  This is only provided for the hard-coded constants so
 // errors in the source code can be detected. It will only (and must only) be
 // called with hard-coded values.
-func hexToFieldVal(s string) *fieldVal {
+func hexToFieldVal(s string) *FieldVal {
 	b, err := hex.DecodeString(s)
 	if err != nil {
 		panic("invalid hex in source file: " + s)
 	}
-	return new(fieldVal).SetByteSlice(b)
+	return new(FieldVal).SetByteSlice(b)
 }
 
 var (
@@ -62,19 +62,19 @@ var (
 type jacobianPoint struct {
 	// The X coordinate in Jacobian projective coordinates.  The affine point is
 	// x/z^2.
-	x fieldVal
+	x FieldVal
 
 	// The Y coordinate in Jacobian projective coordinates.  The affine point is
 	// y/z^3.
-	y fieldVal
+	y FieldVal
 
 	// The Z coordinate in Jacobian projective coordinates.
-	z fieldVal
+	z FieldVal
 }
 
 // makeJacobianPoint returns a Jacobian point with the provided X, Y, and Z
 // coordinates.
-func makeJacobianPoint(x, y, z *fieldVal) jacobianPoint {
+func makeJacobianPoint(x, y, z *FieldVal) jacobianPoint {
 	var p jacobianPoint
 	p.x.Set(x)
 	p.y.Set(y)
@@ -96,7 +96,7 @@ func (p *jacobianPoint) ToAffine() {
 	// are faster when working with points that have a z value of one.  So,
 	// if the point needs to be converted to affine, go ahead and normalize
 	// the point itself at the same time as the calculation is the same.
-	var zInv, tempZ fieldVal
+	var zInv, tempZ FieldVal
 	zInv.Set(&p.z).Inverse()  // zInv = Z^-1
 	tempZ.SquareVal(&zInv)    // tempZ = Z^-2
 	p.x.Mul(&tempZ)           // X = X/Z^2 (mag: 1)
@@ -155,8 +155,8 @@ func addZ1AndZ2EqualsOne(p1, p2, result *jacobianPoint) {
 
 	// Calculate X3, Y3, and Z3 according to the intermediate elements
 	// breakdown above.
-	var h, i, j, r, v fieldVal
-	var negJ, neg2V, negX3 fieldVal
+	var h, i, j, r, v FieldVal
+	var negJ, neg2V, negX3 FieldVal
 	h.Set(x1).Negate(1).Add(x2)                // H = X2-X1 (mag: 3)
 	i.SquareVal(&h).MulInt(4)                  // I = 4*H^2 (mag: 4)
 	j.Mul2(&h, &i)                             // J = H*I (mag: 1)
@@ -223,8 +223,8 @@ func addZ1EqualsZ2(p1, p2, result *jacobianPoint) {
 
 	// Calculate X3, Y3, and Z3 according to the intermediate elements
 	// breakdown above.
-	var a, b, c, d, e, f fieldVal
-	var negX1, negY1, negE, negX3 fieldVal
+	var a, b, c, d, e, f FieldVal
+	var negX1, negY1, negE, negX3 FieldVal
 	negX1.Set(x1).Negate(1)                // negX1 = -X1 (mag: 2)
 	negY1.Set(y1).Negate(1)                // negY1 = -Y1 (mag: 2)
 	a.Set(&negX1).Add(x2)                  // A = X2-X1 (mag: 3)
@@ -280,7 +280,7 @@ func addZ2EqualsOne(p1, p2, result *jacobianPoint) {
 	// point, the x and y values need to be converted to like terms.  Due to
 	// the assumption made for this function that the second point has a z
 	// value of 1 (z2=1), the first point is already "converted".
-	var z1z1, u2, s2 fieldVal
+	var z1z1, u2, s2 FieldVal
 	z1z1.SquareVal(z1)                        // Z1Z1 = Z1^2 (mag: 1)
 	u2.Set(x2).Mul(&z1z1).Normalize()         // U2 = X2*Z1Z1 (mag: 1)
 	s2.Set(y2).Mul(&z1z1).Mul(z1).Normalize() // S2 = Y2*Z1*Z1Z1 (mag: 1)
@@ -303,8 +303,8 @@ func addZ2EqualsOne(p1, p2, result *jacobianPoint) {
 
 	// Calculate X3, Y3, and Z3 according to the intermediate elements
 	// breakdown above.
-	var h, hh, i, j, r, rr, v fieldVal
-	var negX1, negY1, negX3 fieldVal
+	var h, hh, i, j, r, rr, v FieldVal
+	var negX1, negY1, negX3 FieldVal
 	negX1.Set(x1).Negate(1)                // negX1 = -X1 (mag: 2)
 	h.Add2(&u2, &negX1)                    // H = U2-X1 (mag: 3)
 	hh.SquareVal(&h)                       // HH = H^2 (mag: 1)
@@ -359,7 +359,7 @@ func addGeneric(p1, p2, result *jacobianPoint) {
 	// infinity.  Since any number of Jacobian coordinates can represent the
 	// same affine point, the x and y values need to be converted to like
 	// terms.
-	var z1z1, z2z2, u1, u2, s1, s2 fieldVal
+	var z1z1, z2z2, u1, u2, s1, s2 FieldVal
 	z1z1.SquareVal(z1)                        // Z1Z1 = Z1^2 (mag: 1)
 	z2z2.SquareVal(z2)                        // Z2Z2 = Z2^2 (mag: 1)
 	u1.Set(x1).Mul(&z2z2).Normalize()         // U1 = X1*Z2Z2 (mag: 1)
@@ -385,8 +385,8 @@ func addGeneric(p1, p2, result *jacobianPoint) {
 
 	// Calculate X3, Y3, and Z3 according to the intermediate elements
 	// breakdown above.
-	var h, i, j, r, rr, v fieldVal
-	var negU1, negS1, negX3 fieldVal
+	var h, i, j, r, rr, v FieldVal
+	var negU1, negS1, negX3 FieldVal
 	negU1.Set(&u1).Negate(1)               // negU1 = -U1 (mag: 2)
 	h.Add2(&u2, &negU1)                    // H = U2-U1 (mag: 3)
 	i.Set(&h).MulInt(2).Square()           // I = (2*H)^2 (mag: 2)
@@ -484,7 +484,7 @@ func doubleZ1EqualsOne(p, result *jacobianPoint) {
 	// 6 field additions, and 5 integer multiplications.
 	x1, y1 := &p.x, &p.y
 	x3, y3, z3 := &result.x, &result.y, &result.z
-	var a, b, c, d, e, f fieldVal
+	var a, b, c, d, e, f FieldVal
 	z3.Set(y1).MulInt(2)                     // Z3 = 2*Y1 (mag: 2)
 	a.SquareVal(x1)                          // A = X1^2 (mag: 1)
 	b.SquareVal(y1)                          // B = Y1^2 (mag: 1)
@@ -538,7 +538,7 @@ func doubleGeneric(p, result *jacobianPoint) {
 	// 6 field additions, and 5 integer multiplications.
 	x1, y1, z1 := &p.x, &p.y, &p.z
 	x3, y3, z3 := &result.x, &result.y, &result.z
-	var a, b, c, d, e, f fieldVal
+	var a, b, c, d, e, f FieldVal
 	z3.Mul2(y1, z1).MulInt(2)                // Z3 = 2*Y1*Z1 (mag: 2)
 	a.SquareVal(x1)                          // A = X1^2 (mag: 1)
 	b.SquareVal(y1)                          // B = Y1^2 (mag: 1)
@@ -599,7 +599,7 @@ func doubleJacobian(p, result *jacobianPoint) {
 func splitK(k []byte) ([]byte, []byte, int, int) {
 	// All math here is done with big.Int, which is slow.
 	// At some point, it might be useful to write something similar to
-	// fieldVal but for N instead of P as the prime field if this ends up
+	// FieldVal but for N instead of P as the prime field if this ends up
 	// being a bottleneck.
 	bigIntK := new(big.Int)
 	c1, c2 := new(big.Int), new(big.Int)
@@ -843,9 +843,9 @@ func naf(k []byte) ([]byte, []byte) {
 }
 
 // isOnCurve returns whether or not the affine point (x,y) is on the curve.
-func isOnCurve(fx, fy *fieldVal) bool {
+func isOnCurve(fx, fy *FieldVal) bool {
 	// Elliptic curve equation for secp256k1 is: y^2 = x^3 + 7
-	y2 := new(fieldVal).SquareVal(fy).Normalize()
-	result := new(fieldVal).SquareVal(fx).Mul(fx).AddInt(7).Normalize()
+	y2 := new(FieldVal).SquareVal(fy).Normalize()
+	result := new(FieldVal).SquareVal(fx).Mul(fx).AddInt(7).Normalize()
 	return y2.Equals(result)
 }
