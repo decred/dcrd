@@ -218,12 +218,12 @@ func (f *fieldVal) SetBytes(b *[32]byte) *fieldVal {
 // f := new(fieldVal).SetByteSlice(byteSlice)
 func (f *fieldVal) SetByteSlice(b []byte) *fieldVal {
 	var b32 [32]byte
-	for i := 0; i < len(b); i++ {
-		if i < 32 {
-			b32[i+(32-len(b))] = b[i]
-		}
-	}
-	return f.SetBytes(&b32)
+	b = b[:constantTimeMin(uint32(len(b)), 32)]
+	copy(b32[:], b32[:32-len(b)])
+	copy(b32[32-len(b):], b)
+	f.SetBytes(&b32)
+	zeroArray32(&b32)
+	return f
 }
 
 // SetHex decodes the passed big-endian hex string into the internal field value
