@@ -610,6 +610,8 @@ func (mp *TxPool) IsOrphanInPool(hash *chainhash.Hash) bool {
 
 // isTransactionStaged determines if the transaction exists in the
 // stage pool.
+//
+// This function MUST be called with the mempool lock held (for reads).
 func (mp *TxPool) isTransactionStaged(hash *chainhash.Hash) bool {
 	_, exists := mp.staged[*hash]
 	return exists
@@ -617,6 +619,8 @@ func (mp *TxPool) isTransactionStaged(hash *chainhash.Hash) bool {
 
 // stageTransaction creates an entry for the provided
 // transaction in the stage pool.
+//
+// This function MUST be called with the mempool lock held (for writes).
 func (mp *TxPool) stageTransaction(tx *dcrutil.Tx) {
 	mp.staged[*tx.Hash()] = tx
 	for _, txIn := range tx.MsgTx().TxIn {
@@ -626,6 +630,8 @@ func (mp *TxPool) stageTransaction(tx *dcrutil.Tx) {
 
 // removeStagedTransaction removes the provided transaction
 // from the stage pool.
+//
+// This function MUST be called with the mempool lock held (for writes).
 func (mp *TxPool) removeStagedTransaction(stagedTx *dcrutil.Tx) {
 	delete(mp.staged, *stagedTx.Hash())
 	for _, txIn := range stagedTx.MsgTx().TxIn {
@@ -635,6 +641,8 @@ func (mp *TxPool) removeStagedTransaction(stagedTx *dcrutil.Tx) {
 
 // hasMempoolInput returns true if the provided transaction
 // has an input in the main pool.
+//
+// This function MUST be called with the mempool lock held (for reads).
 func (mp *TxPool) hasMempoolInput(tx *dcrutil.Tx) bool {
 	for _, txIn := range tx.MsgTx().TxIn {
 		if mp.isTransactionInPool(&txIn.PreviousOutPoint.Hash) {
@@ -648,6 +656,8 @@ func (mp *TxPool) hasMempoolInput(tx *dcrutil.Tx) bool {
 // fetchRedeemers returns all transactions that reference an outpoint for
 // the provided regular transaction `tx`. Returns nil if a non-regular
 // transaction is provided.
+//
+// This function MUST be called with the mempool lock held (for reads).
 func (mp *TxPool) fetchRedeemers(outpoints map[wire.OutPoint]*dcrutil.Tx, tx *dcrutil.Tx) []*dcrutil.Tx {
 	txType := stake.DetermineTxType(tx.MsgTx())
 	if txType != stake.TxTypeRegular {
@@ -683,8 +693,8 @@ func (mp *TxPool) fetchRedeemers(outpoints map[wire.OutPoint]*dcrutil.Tx, tx *dc
 //
 // This function is safe for concurrent access.
 func (mp *TxPool) MaybeAcceptDependents(tx *dcrutil.Tx) []*dcrutil.Tx {
-	mp.mtx.RLock()
-	defer mp.mtx.RUnlock()
+	mp.mtx.Lock()
+	defer mp.mtx.Unlock()
 
 	var acceptedTxns []*dcrutil.Tx
 	for _, redeemer := range mp.fetchRedeemers(mp.stagedOutpoints, tx) {
@@ -1084,6 +1094,7 @@ func (mp *TxPool) FetchTransaction(txHash *chainhash.Hash) (*dcrutil.Tx, error) 
 // more details.
 //
 // This function MUST be called with the mempool lock held (for writes).
+//
 // DECRED - TODO
 // We need to make sure thing also assigns the TxType after it evaluates the tx,
 // so that we can easily pick different stake tx types from the mempool later.
