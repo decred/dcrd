@@ -20,7 +20,6 @@ import (
 // CurveParams contains the parameters for the secp256k1 curve.
 type CurveParams struct {
 	*elliptic.CurveParams
-	q *big.Int
 	H int // cofactor of the curve.
 
 	// byteSize is simply the bit size / 8 and is provided for convenience
@@ -29,10 +28,9 @@ type CurveParams struct {
 }
 
 // Curve parameters taken from [SECG] section 2.4.1.
-var fieldPrime = fromHex("fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2f")
 var curveParams = CurveParams{
 	CurveParams: &elliptic.CurveParams{
-		P:       fieldPrime,
+		P:       fromHex("fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2f"),
 		N:       fromHex("fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141"),
 		B:       fromHex("0000000000000000000000000000000000000000000000000000000000000007"),
 		Gx:      fromHex("79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798"),
@@ -40,8 +38,6 @@ var curveParams = CurveParams{
 		BitSize: 256,
 	},
 	H: 1,
-	q: new(big.Int).Div(new(big.Int).Add(fieldPrime, big.NewInt(1)),
-		big.NewInt(4)),
 
 	// Provided for convenience since this gets computed repeatedly.
 	byteSize: 256 / 8,
