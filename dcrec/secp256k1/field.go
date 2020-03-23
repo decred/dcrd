@@ -485,6 +485,26 @@ func (f *FieldVal) IsZero() bool {
 	return bits == 0
 }
 
+// IsOneBit returns 1 when the field value is equal to one or 0 otherwise in
+// constant time.
+//
+// Note that a bool is not used here because it is not possible in Go to convert
+// from a bool to numeric value in constant time and many constant-time
+// operations require a numeric value.  See IsOne for the version that returns a
+// bool.
+//
+// Preconditions:
+//   - The field value MUST be normalized
+func (f *FieldVal) IsOneBit() uint32 {
+	// The value can only be one if the single lowest significant bit is set in
+	// the the first word and no other bits are set in any of the other words.
+	// This is a constant time implementation.
+	bits := (f.n[0] ^ 1) | f.n[1] | f.n[2] | f.n[3] | f.n[4] | f.n[5] |
+		f.n[6] | f.n[7] | f.n[8] | f.n[9]
+
+	return constantTimeEq(bits, 0)
+}
+
 // IsOne returns whether or not the field value is equal to one in constant
 // time.
 //

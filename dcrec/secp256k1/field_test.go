@@ -134,7 +134,8 @@ func TestFieldIsZero(t *testing.T) {
 	}
 }
 
-// TestFieldIsOne ensures that checking if a field is one works as expected.
+// TestFieldIsOne ensures that checking if a field is one via IsOne and IsOneBit
+// works as expected.
 func TestFieldIsOne(t *testing.T) {
 	tests := []struct {
 		name      string // test description
@@ -225,8 +226,15 @@ func TestFieldIsOne(t *testing.T) {
 		}
 		result := f.IsOne()
 		if result != test.expected {
-			t.Errorf("%s: wrong result\ngot: %v\nwant: %v", test.name, result,
+			t.Errorf("%s: wrong result -- got: %v, want: %v", test.name, result,
 				test.expected)
+			continue
+		}
+
+		result2 := f.IsOneBit() == 1
+		if result2 != test.expected {
+			t.Errorf("%s: wrong result -- got: %v, want: %v", test.name,
+				result2, test.expected)
 			continue
 		}
 	}
