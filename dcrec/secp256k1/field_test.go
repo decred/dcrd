@@ -109,11 +109,14 @@ func TestFieldZero(t *testing.T) {
 	}
 }
 
-// TestFieldIsZero ensures that checking if a field is zero works as
-// expected.
+// TestFieldIsZero ensures that checking if a field is zero via IsZero and
+// IsZeroBit works as expected.
 func TestFieldIsZero(t *testing.T) {
 	f := new(FieldVal)
 	if !f.IsZero() {
+		t.Errorf("new field value is not zero - got %v (rawints %x)", f, f.n)
+	}
+	if f.IsZeroBit() != 1 {
 		t.Errorf("new field value is not zero - got %v (rawints %x)", f, f.n)
 	}
 
@@ -121,15 +124,24 @@ func TestFieldIsZero(t *testing.T) {
 	if f.IsZero() {
 		t.Errorf("claims zero for nonzero field - got %v (rawints %x)", f, f.n)
 	}
+	if f.IsZeroBit() == 1 {
+		t.Errorf("claims zero for nonzero field - got %v (rawints %x)", f, f.n)
+	}
 
 	f.Zero()
 	if !f.IsZero() {
+		t.Errorf("claims nonzero for zero field - got %v (rawints %x)", f, f.n)
+	}
+	if f.IsZeroBit() != 1 {
 		t.Errorf("claims nonzero for zero field - got %v (rawints %x)", f, f.n)
 	}
 
 	f.SetInt(1)
 	f.Zero()
 	if !f.IsZero() {
+		t.Errorf("claims zero for nonzero field - got %v (rawints %x)", f, f.n)
+	}
+	if f.IsZeroBit() != 1 {
 		t.Errorf("claims zero for nonzero field - got %v (rawints %x)", f, f.n)
 	}
 }

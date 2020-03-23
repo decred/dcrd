@@ -471,6 +471,25 @@ func (f *FieldVal) Bytes() *[32]byte {
 	return b
 }
 
+// IsZeroBit returns 1 when the field value is equal to zero or 0 otherwise in
+// constant time.
+//
+// Note that a bool is not used here because it is not possible in Go to convert
+// from a bool to numeric value in constant time and many constant-time
+// operations require a numeric value.  See IsZero for the version that returns
+// a bool.
+//
+// Preconditions:
+//   - The field value MUST be normalized
+func (f *FieldVal) IsZeroBit() uint32 {
+	// The value can only be zero if no bits are set in any of the words.
+	// This is a constant time implementation.
+	bits := f.n[0] | f.n[1] | f.n[2] | f.n[3] | f.n[4] |
+		f.n[5] | f.n[6] | f.n[7] | f.n[8] | f.n[9]
+
+	return constantTimeEq(bits, 0)
+}
+
 // IsZero returns whether or not the field value is equal to zero in constant
 // time.
 //
