@@ -490,8 +490,8 @@ func TestFieldNormalize(t *testing.T) {
 	}
 }
 
-// TestFieldIsOdd ensures that checking if a field value IsOdd works as
-// expected.
+// TestFieldIsOdd ensures that checking if a field value is odd via IsOdd and
+// IsOddBit works as expected.
 func TestFieldIsOdd(t *testing.T) {
 	tests := []struct {
 		name     string // test description
@@ -528,10 +528,18 @@ func TestFieldIsOdd(t *testing.T) {
 	}}
 
 	for _, test := range tests {
-		result := new(FieldVal).SetHex(test.in).IsOdd()
+		f := new(FieldVal).SetHex(test.in)
+		result := f.IsOdd()
 		if result != test.expected {
 			t.Errorf("%s: wrong result -- got: %v, want: %v", test.name,
 				result, test.expected)
+			continue
+		}
+
+		result2 := f.IsOddBit() == 1
+		if result2 != test.expected {
+			t.Errorf("%s: wrong result -- got: %v, want: %v", test.name,
+				result2, test.expected)
 			continue
 		}
 	}

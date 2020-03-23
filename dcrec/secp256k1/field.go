@@ -500,6 +500,21 @@ func (f *FieldVal) IsOne() bool {
 	return bits == 0
 }
 
+// IsOddBit returns 1 when the field value is an odd number or 0 otherwise in
+// constant time.
+//
+// Note that a bool is not used here because it is not possible in Go to convert
+// from a bool to numeric value in constant time and many constant-time
+// operations require a numeric value.  See IsOdd for the version that returns a
+// bool.
+//
+// Preconditions:
+//   - The field value MUST be normalized
+func (f *FieldVal) IsOddBit() uint32 {
+	// Only odd numbers have the bottom bit set.
+	return f.n[0] & 1
+}
+
 // IsOdd returns whether or not the field value is an odd number in constant
 // time.
 //

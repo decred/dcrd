@@ -881,7 +881,7 @@ func signRFC6979(privateKey *PrivateKey, hash []byte) (*Signature, byte) {
 		// points since that would require breaking the ECDLP, but, in practice
 		// this strongly implies with extremely high probability that there are
 		// only a few actual points for which this case is true.
-		pubKeyRecoveryCode := byte(overflow<<1) | byte(kG.y.n[0]&0x01)
+		pubKeyRecoveryCode := byte(overflow<<1) | byte(kG.y.IsOddBit())
 
 		// Step 4.
 		//
