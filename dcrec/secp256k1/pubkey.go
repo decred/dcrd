@@ -134,6 +134,16 @@ func ParsePubKey(pubKeyStr []byte) (key *PublicKey, err error) {
 	return &pubkey, nil
 }
 
+// paddedAppend appends the src byte slice to dst, returning the new slice.
+// If the length of the source is smaller than the passed size, leading zero
+// bytes are appended to the dst slice before appending src.
+func paddedAppend(size uint, dst, src []byte) []byte {
+	for i := 0; i < int(size)-len(src); i++ {
+		dst = append(dst, 0)
+	}
+	return append(dst, src...)
+}
+
 // SerializeUncompressed serializes a public key in a 65-byte uncompressed
 // format.
 func (p PublicKey) SerializeUncompressed() []byte {
@@ -161,12 +171,9 @@ func (p *PublicKey) IsEqual(otherPubKey *PublicKey) bool {
 	return p.x.Cmp(otherPubKey.x) == 0 && p.y.Cmp(otherPubKey.y) == 0
 }
 
-// paddedAppend appends the src byte slice to dst, returning the new slice.
-// If the length of the source is smaller than the passed size, leading zero
-// bytes are appended to the dst slice before appending src.
-func paddedAppend(size uint, dst, src []byte) []byte {
-	for i := 0; i < int(size)-len(src); i++ {
-		dst = append(dst, 0)
-	}
-	return append(dst, src...)
+// AsJacobian converts the public key into a Jacobian point with Z=1 and stores
+// the result in the provided result param.  This allows the public key to be
+// treated a Jacobian point in the secp256k1 group in calculations.
+func (p *PublicKey) AsJacobian(result *JacobianPoint) {
+	bigAffineToJacobian(p.x, p.y, result)
 }

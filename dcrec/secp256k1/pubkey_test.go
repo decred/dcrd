@@ -277,3 +277,62 @@ func TestPublicKeyIsEqual(t *testing.T) {
 			"equal to %v", pubKey1, pubKey2)
 	}
 }
+
+// TestPublicKeyAsJacobian ensures converting a public key to a jacobian point
+// with a Z coordinate of 1 works as expected.
+func TestPublicKeyAsJacobian(t *testing.T) {
+	tests := []struct {
+		name   string // test description
+		pubKey string // hex encoded serialized compressed pubkey
+		wantX  string // hex encoded expected X coordinate
+		wantY  string // hex encoded expected Y coordinate
+
+	}{{
+		name:   "public key for private key 0x01",
+		pubKey: "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+		wantX:  "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+		wantY:  "483ada7726a3c4655da4fbfc0e1108a8fd17b448a68554199c47d08ffb10d4b8",
+	}, {
+		name:   "public for private key 0x03",
+		pubKey: "02f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+		wantX:  "f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+		wantY:  "388f7b0f632de8140fe337e62a37f3566500a99934c2231b6cb9fd7584b8e672",
+	}, {
+		name:   "public for private key 0x06",
+		pubKey: "03fff97bd5755eeea420453a14355235d382f6472f8568a18b2f057a1460297556",
+		wantX:  "fff97bd5755eeea420453a14355235d382f6472f8568a18b2f057a1460297556",
+		wantY:  "ae12777aacfbb620f3be96017f45c560de80f0f6518fe4a03c870c36b075f297",
+	}}
+
+	for _, test := range tests {
+		// Parse the test data.
+		pubKeyBytes := hexToBytes(test.pubKey)
+		wantX := hexToFieldVal(test.wantX)
+		wantY := hexToFieldVal(test.wantY)
+		pubKey, err := ParsePubKey(pubKeyBytes)
+		if err != nil {
+			t.Errorf("%s: failed to parse public key: %v", test.name, err)
+			continue
+		}
+
+		// Convert the public key to a jacobian point and ensure the coordinates
+		// match the expected values.
+		var point JacobianPoint
+		pubKey.AsJacobian(&point)
+		if !point.Z.IsOne() {
+			t.Errorf("%s: invalid Z coordinate -- got %v, want 1", test.name,
+				point.Z)
+			continue
+		}
+		if !point.X.Equals(wantX) {
+			t.Errorf("%s: invalid X coordinate - got %v, want %v", test.name,
+				point.X, wantX)
+			continue
+		}
+		if !point.Y.Equals(wantY) {
+			t.Errorf("%s: invalid Y coordinate - got %v, want %v", test.name,
+				point.Y, wantY)
+			continue
+		}
+	}
+}
