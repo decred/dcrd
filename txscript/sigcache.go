@@ -11,6 +11,7 @@ import (
 
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/dcrec/secp256k1/v3"
+	"github.com/decred/dcrd/dcrec/secp256k1/v3/ecdsa"
 )
 
 // sigCacheEntry represents an entry in the SigCache. Entries within the
@@ -20,7 +21,7 @@ import (
 // match. In the occasion that two sigHashes collide, the newer sigHash will
 // simply overwrite the existing entry.
 type sigCacheEntry struct {
-	sig    *secp256k1.Signature
+	sig    *ecdsa.Signature
 	pubKey *secp256k1.PublicKey
 }
 
@@ -57,7 +58,7 @@ func NewSigCache(maxEntries uint) *SigCache {
 //
 // NOTE: This function is safe for concurrent access. Readers won't be blocked
 // unless there exists a writer, adding an entry to the SigCache.
-func (s *SigCache) Exists(sigHash chainhash.Hash, sig *secp256k1.Signature, pubKey *secp256k1.PublicKey) bool {
+func (s *SigCache) Exists(sigHash chainhash.Hash, sig *ecdsa.Signature, pubKey *secp256k1.PublicKey) bool {
 	s.RLock()
 	entry, ok := s.validSigs[sigHash]
 	s.RUnlock()
@@ -75,7 +76,7 @@ func (s *SigCache) Exists(sigHash chainhash.Hash, sig *secp256k1.Signature, pubK
 //
 // NOTE: This function is safe for concurrent access. Writers will block
 // simultaneous readers until function execution has concluded.
-func (s *SigCache) Add(sigHash chainhash.Hash, sig *secp256k1.Signature, pubKey *secp256k1.PublicKey) {
+func (s *SigCache) Add(sigHash chainhash.Hash, sig *ecdsa.Signature, pubKey *secp256k1.PublicKey) {
 	s.Lock()
 	defer s.Unlock()
 

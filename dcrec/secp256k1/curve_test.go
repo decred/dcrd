@@ -752,26 +752,6 @@ func TestKeyGeneration(t *testing.T) {
 	testKeyGeneration(t, S256(), "S256")
 }
 
-func testSignAndVerify(t *testing.T, c *KoblitzCurve, tag string) {
-	priv, _ := GeneratePrivateKey()
-	pub := priv.PubKey()
-
-	hashed := []byte("testing")
-	sig := priv.Sign(hashed)
-	if !sig.Verify(hashed, pub) {
-		t.Errorf("%s: Verify failed", tag)
-	}
-
-	hashed[0] ^= 0xff
-	if sig.Verify(hashed, pub) {
-		t.Errorf("%s: Verify always works!", tag)
-	}
-}
-
-func TestSignAndVerify(t *testing.T) {
-	testSignAndVerify(t, S256(), "S256")
-}
-
 func TestNAF(t *testing.T) {
 	tests := []string{
 		"6df2b5d30854069ccdec40ae022f5c948936324a4e9ebed8eb82cfd5a6b6d766",

@@ -12,6 +12,7 @@ import (
 	"github.com/decred/dcrd/dcrec"
 	"github.com/decred/dcrd/dcrec/edwards/v2"
 	"github.com/decred/dcrd/dcrec/secp256k1/v3"
+	"github.com/decred/dcrd/dcrec/secp256k1/v3/ecdsa"
 	"github.com/decred/dcrd/dcrec/secp256k1/v3/schnorr"
 	"github.com/decred/dcrd/dcrutil/v3"
 	"github.com/decred/dcrd/wire"
@@ -35,7 +36,7 @@ func RawTxInSignature(tx *wire.MsgTx, idx int, subScript []byte,
 	switch sigType {
 	case dcrec.STEcdsaSecp256k1:
 		priv := secp256k1.PrivKeyFromBytes(key)
-		sig := priv.Sign(hash)
+		sig := ecdsa.Sign(priv, hash)
 		sigBytes = sig.Serialize()
 	case dcrec.STEd25519:
 		priv, _ := edwards.PrivKeyFromBytes(key)
@@ -368,7 +369,7 @@ sigLoop:
 		tSig := sig[:len(sig)-1]
 		hashType := SigHashType(sig[len(sig)-1])
 
-		pSig, err := secp256k1.ParseDERSignature(tSig)
+		pSig, err := ecdsa.ParseDERSignature(tSig)
 		if err != nil {
 			continue
 		}

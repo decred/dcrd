@@ -2,18 +2,17 @@
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
-package secp256k1
+package ecdsa
 
 import (
 	"errors"
 	"testing"
 )
 
-// TestSignatureErrorCodeStringer tests the stringized output for the
-// SignatureErrorCode type.
-func TestSignatureErrorCodeStringer(t *testing.T) {
+// TestErrorCodeStringer tests the stringized output for the ErrorCode type.
+func TestErrorCodeStringer(t *testing.T) {
 	tests := []struct {
-		in   SignatureErrorCode
+		in   ErrorCode
 		want string
 	}{
 		{ErrSigTooShort, "ErrSigTooShort"},
@@ -35,7 +34,7 @@ func TestSignatureErrorCodeStringer(t *testing.T) {
 		{ErrSigTooMuchSPadding, "ErrSigTooMuchSPadding"},
 		{ErrSigSIsZero, "ErrSigSIsZero"},
 		{ErrSigSTooBig, "ErrSigSTooBig"},
-		{0xffff, "Unknown SignatureErrorCode (65535)"},
+		{0xffff, "Unknown ErrorCode (65535)"},
 	}
 
 	// Detect additional error codes that don't have the stringer added.
@@ -53,16 +52,16 @@ func TestSignatureErrorCodeStringer(t *testing.T) {
 	}
 }
 
-// TestSignatureError tests the error output for the SignatureError type.
-func TestSignatureError(t *testing.T) {
+// TestError tests the error output for the Error type.
+func TestError(t *testing.T) {
 	tests := []struct {
-		in   SignatureError
+		in   Error
 		want string
 	}{{
-		SignatureError{Description: "some error"},
+		Error{Description: "some error"},
 		"some error",
 	}, {
-		SignatureError{Description: "human-readable error"},
+		Error{Description: "human-readable error"},
 		"human-readable error",
 	}}
 
@@ -75,16 +74,15 @@ func TestSignatureError(t *testing.T) {
 	}
 }
 
-// TestSignatureErrorCodeIsAs ensures both SignatureErrorCode and SignatureError
-// can be identified as being a specific error code via errors.Is and unwrapped
-// via errors.As.
-func TestSignatureErrorCodeIsAs(t *testing.T) {
+// TestErrorCodeIsAs ensures both ErrorCode and Error can be identified as being
+// a specific error code via errors.Is and unwrapped via errors.As.
+func TestErrorCodeIsAs(t *testing.T) {
 	tests := []struct {
 		name      string
 		err       error
 		target    error
 		wantMatch bool
-		wantAs    SignatureErrorCode
+		wantAs    ErrorCode
 	}{{
 		name:      "ErrSigTooShort == ErrSigTooShort",
 		err:       ErrSigTooShort,
@@ -92,19 +90,19 @@ func TestSignatureErrorCodeIsAs(t *testing.T) {
 		wantMatch: true,
 		wantAs:    ErrSigTooShort,
 	}, {
-		name:      "SignatureError.ErrSigTooShort == ErrSigTooShort",
+		name:      "Error.ErrSigTooShort == ErrSigTooShort",
 		err:       signatureError(ErrSigTooShort, ""),
 		target:    ErrSigTooShort,
 		wantMatch: true,
 		wantAs:    ErrSigTooShort,
 	}, {
-		name:      "ErrSigTooShort == SignatureError.ErrSigTooShort",
+		name:      "ErrSigTooShort == Error.ErrSigTooShort",
 		err:       ErrSigTooShort,
 		target:    signatureError(ErrSigTooShort, ""),
 		wantMatch: true,
 		wantAs:    ErrSigTooShort,
 	}, {
-		name:      "SignatureError.ErrSigTooShort == SignatureError.ErrSigTooShort",
+		name:      "Error.ErrSigTooShort == Error.ErrSigTooShort",
 		err:       signatureError(ErrSigTooShort, ""),
 		target:    signatureError(ErrSigTooShort, ""),
 		wantMatch: true,
@@ -116,19 +114,19 @@ func TestSignatureErrorCodeIsAs(t *testing.T) {
 		wantMatch: false,
 		wantAs:    ErrSigTooLong,
 	}, {
-		name:      "SignatureError.ErrSigTooLong != ErrSigTooShort",
+		name:      "Error.ErrSigTooLong != ErrSigTooShort",
 		err:       signatureError(ErrSigTooLong, ""),
 		target:    ErrSigTooShort,
 		wantMatch: false,
 		wantAs:    ErrSigTooLong,
 	}, {
-		name:      "ErrSigTooLong != SignatureError.ErrSigTooShort",
+		name:      "ErrSigTooLong != Error.ErrSigTooShort",
 		err:       ErrSigTooLong,
 		target:    signatureError(ErrSigTooShort, ""),
 		wantMatch: false,
 		wantAs:    ErrSigTooLong,
 	}, {
-		name:      "SignatureError.ErrSigTooLong != SignatureError.ErrSigTooShort",
+		name:      "Error.ErrSigTooLong != Error.ErrSigTooShort",
 		err:       signatureError(ErrSigTooLong, ""),
 		target:    signatureError(ErrSigTooShort, ""),
 		wantMatch: false,
@@ -146,7 +144,7 @@ func TestSignatureErrorCodeIsAs(t *testing.T) {
 
 		// Ensure the underlying error code can be unwrapped is and is the
 		// expected code.
-		var code SignatureErrorCode
+		var code ErrorCode
 		if !errors.As(test.err, &code) {
 			t.Errorf("%s: unable to unwrap to error code", test.name)
 			continue

@@ -58,15 +58,6 @@ func (p *PrivateKey) PubKey() *PublicKey {
 	return NewPublicKey(jacobianToBigAffine(&result))
 }
 
-// Sign generates an ECDSA signature for the provided hash (which should be the
-// result of hashing a larger message) using the private key. Produced signature
-// is deterministic (same message and same key yield the same signature) and
-// canonical in accordance with RFC6979 and BIP0062.
-func (p *PrivateKey) Sign(hash []byte) *Signature {
-	signature, _ := signRFC6979(p, hash)
-	return signature
-}
-
 // Zero manually clears the memory associated with the private key.  This can be
 // used to explicitly clear key material from memory for enhanced security
 // against memory scraping.

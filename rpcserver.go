@@ -44,7 +44,7 @@ import (
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/chaincfg/v3"
 	"github.com/decred/dcrd/database/v2"
-	"github.com/decred/dcrd/dcrec/secp256k1/v3"
+	"github.com/decred/dcrd/dcrec/secp256k1/v3/ecdsa"
 	"github.com/decred/dcrd/dcrjson/v3"
 	"github.com/decred/dcrd/dcrutil/v3"
 	"github.com/decred/dcrd/fees/v2"
@@ -4801,7 +4801,7 @@ func handleVerifyMessage(_ context.Context, s *rpcServer, cmd interface{}) (inte
 	wire.WriteVarString(&buf, 0, "Decred Signed Message:\n")
 	wire.WriteVarString(&buf, 0, c.Message)
 	expectedMessageHash := chainhash.HashB(buf.Bytes())
-	pk, wasCompressed, err := secp256k1.RecoverCompact(sig,
+	pk, wasCompressed, err := ecdsa.RecoverCompact(sig,
 		expectedMessageHash)
 	if err != nil {
 		// Mirror Bitcoin Core behavior, which treats error in

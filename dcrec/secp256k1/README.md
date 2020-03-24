@@ -25,19 +25,11 @@ $ go get -u github.com/decred/dcrd/dcrec
 
 ## Examples
 
-* [Sign Message](https://pkg.go.dev/github.com/decred/dcrd/dcrec/secp256k1/v3#example-package-SignMessage)
-  Demonstrates signing a message with a secp256k1 private key that is first
-  parsed form raw bytes and serializing the generated signature.
-
-* [Verify Signature](https://pkg.go.dev/github.com/decred/dcrd/dcrec/secp256k1/v3#example-package-VerifySignature)
-  Demonstrates verifying a secp256k1 signature against a public key that is
-  first parsed from raw bytes.  The signature is also parsed from raw bytes.
-
-* [Encryption](https://pkg.go.dev/github.com/decred/dcrd/dcrec/secp256k1/v3#example-package-EncryptMessage)
+* [Encryption](https://pkg.go.dev/github.com/decred/dcrd/dcrec/secp256k1/v3#example-package-EncryptMessage)  
   Demonstrates encrypting a message for a public key that is first parsed from
   raw bytes, then decrypting it using the corresponding private key.
 
-* [Decryption](https://pkg.go.dev/github.com/decred/dcrd/dcrec/secp256k1/v3#example-package-DecryptMessage)
+* [Decryption](https://pkg.go.dev/github.com/decred/dcrd/dcrec/secp256k1/v3#example-package-DecryptMessage)  
   Demonstrates decrypting a message using a private key that is first parsed
   from raw bytes.
 

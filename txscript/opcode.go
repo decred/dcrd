@@ -19,6 +19,7 @@ import (
 	"github.com/decred/dcrd/dcrec"
 	"github.com/decred/dcrd/dcrec/edwards/v2"
 	"github.com/decred/dcrd/dcrec/secp256k1/v3"
+	"github.com/decred/dcrd/dcrec/secp256k1/v3/ecdsa"
 	"github.com/decred/dcrd/dcrec/secp256k1/v3/schnorr"
 	"github.com/decred/dcrd/wire"
 )
@@ -2499,7 +2500,7 @@ func opcodeCheckSig(op *opcode, data []byte, vm *Engine) error {
 		return nil
 	}
 
-	signature, err := secp256k1.ParseDERSignature(sigBytes)
+	signature, err := ecdsa.ParseDERSignature(sigBytes)
 	if err != nil {
 		vm.dstack.PushBool(false)
 		return nil
@@ -2541,7 +2542,7 @@ func opcodeCheckSigVerify(op *opcode, data []byte, vm *Engine) error {
 // the same signature multiple times when verifying a multisig.
 type parsedSigInfo struct {
 	signature       []byte
-	parsedSignature *secp256k1.Signature
+	parsedSignature *ecdsa.Signature
 	parsed          bool
 }
 
@@ -2659,7 +2660,7 @@ func opcodeCheckMultiSig(op *opcode, data []byte, vm *Engine) error {
 		signature := rawSig[:len(rawSig)-1]
 
 		// Only parse and check the signature encoding once.
-		var parsedSig *secp256k1.Signature
+		var parsedSig *ecdsa.Signature
 		if !sigInfo.parsed {
 			if err := vm.checkHashTypeEncoding(hashType); err != nil {
 				return err
@@ -2670,7 +2671,7 @@ func opcodeCheckMultiSig(op *opcode, data []byte, vm *Engine) error {
 
 			// Parse the signature.
 			var err error
-			parsedSig, err = secp256k1.ParseDERSignature(signature)
+			parsedSig, err = ecdsa.ParseDERSignature(signature)
 			sigInfo.parsed = true
 			if err != nil {
 				continue

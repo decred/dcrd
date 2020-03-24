@@ -2,22 +2,22 @@
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
-package secp256k1
+package ecdsa
 
 import (
 	"fmt"
 )
 
-// SignatureErrorCode identifies a kind of signature error.  It has full support
+// ErrorCode identifies a kind of signature error.  It has full support
 // for errors.Is and errors.As, so the caller can directly check against an
 // error code when determining the reason for an error.
-type SignatureErrorCode int
+type ErrorCode int
 
-// These constants are used to identify a specific SignatureError.
+// These constants are used to identify a specific Error.
 const (
 	// ErrSigTooShort is returned when a signature that should be a DER
 	// signature is too short.
-	ErrSigTooShort SignatureErrorCode = iota
+	ErrSigTooShort ErrorCode = iota
 
 	// ErrSigTooLong is returned when a signature that should be a DER signature
 	// is too long.
@@ -95,9 +95,8 @@ const (
 	numSigErrorCodes
 )
 
-// Map of SignatureErrorCode values back to their constant names for pretty
-// printing.
-var errorCodeStrings = map[SignatureErrorCode]string{
+// Map of ErrorCode values back to their constant names for pretty printing.
+var errorCodeStrings = map[ErrorCode]string{
 	ErrSigTooShort:        "ErrSigTooShort",
 	ErrSigTooLong:         "ErrSigTooLong",
 	ErrSigInvalidSeqID:    "ErrSigInvalidSeqID",
@@ -119,60 +118,60 @@ var errorCodeStrings = map[SignatureErrorCode]string{
 	ErrSigSTooBig:         "ErrSigSTooBig",
 }
 
-// String returns the SignatureErrorCode as a human-readable name.
-func (e SignatureErrorCode) String() string {
+// String returns the ErrorCode as a human-readable name.
+func (e ErrorCode) String() string {
 	if s := errorCodeStrings[e]; s != "" {
 		return s
 	}
-	return fmt.Sprintf("Unknown SignatureErrorCode (%d)", int(e))
+	return fmt.Sprintf("Unknown ErrorCode (%d)", int(e))
 }
 
 // Error implements the error interface.
-func (e SignatureErrorCode) Error() string {
+func (e ErrorCode) Error() string {
 	return e.String()
 }
 
 // Is implements the interface to work with the standard library's errors.Is.
 //
 // It returns true in the following cases:
-// - The target is a SignatureError and the error codes match
-// - The target is a SignatureErrorCode and the error codes match
-func (e SignatureErrorCode) Is(target error) bool {
+// - The target is a Error and the error codes match
+// - The target is a ErrorCode and the error codes match
+func (e ErrorCode) Is(target error) bool {
 	switch target := target.(type) {
-	case SignatureError:
+	case Error:
 		return e == target.ErrorCode
 
-	case SignatureErrorCode:
+	case ErrorCode:
 		return e == target
 	}
 
 	return false
 }
 
-// SignatureError identifies a signature-related error.  It has full support for
+// Error identifies a signature-related error.  It has full support for
 // errors.Is and errors.As, so the caller can ascertain the specific reason for
 // the error by checking the underlying error code.
-type SignatureError struct {
-	ErrorCode   SignatureErrorCode
+type Error struct {
+	ErrorCode   ErrorCode
 	Description string
 }
 
 // Error satisfies the error interface and prints human-readable errors.
-func (e SignatureError) Error() string {
+func (e Error) Error() string {
 	return e.Description
 }
 
 // Is implements the interface to work with the standard library's errors.Is.
 //
 // It returns true in the following cases:
-// - The target is a SignatureError and the error codes match
-// - The target is a SignatureErrorCode and it the error codes match
-func (e SignatureError) Is(target error) bool {
+// - The target is a Error and the error codes match
+// - The target is a ErrorCode and it the error codes match
+func (e Error) Is(target error) bool {
 	switch target := target.(type) {
-	case SignatureError:
+	case Error:
 		return e.ErrorCode == target.ErrorCode
 
-	case SignatureErrorCode:
+	case ErrorCode:
 		return target == e.ErrorCode
 	}
 
@@ -180,11 +179,11 @@ func (e SignatureError) Is(target error) bool {
 }
 
 // Unwrap returns the underlying wrapped error code.
-func (e SignatureError) Unwrap() error {
+func (e Error) Unwrap() error {
 	return e.ErrorCode
 }
 
-// signatureError creates a SignatureError given a set of arguments.
-func signatureError(c SignatureErrorCode, desc string) SignatureError {
-	return SignatureError{ErrorCode: c, Description: desc}
+// signatureError creates a Error given a set of arguments.
+func signatureError(c ErrorCode, desc string) Error {
+	return Error{ErrorCode: c, Description: desc}
 }

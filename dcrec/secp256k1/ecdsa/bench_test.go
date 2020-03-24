@@ -3,11 +3,43 @@
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
-package secp256k1
+package ecdsa
 
 import (
+	"encoding/hex"
+	"math/big"
 	"testing"
+
+	"github.com/decred/dcrd/dcrec/secp256k1/v3"
 )
+
+// hexToModNScalar converts the passed hex string into a ModNScalar and will
+// panic if there is an error.  This is only provided for the hard-coded
+// constants so errors in the source code can be detected. It will only (and
+// must only) be called with hard-coded values.
+func hexToModNScalar(s string) *secp256k1.ModNScalar {
+	b, err := hex.DecodeString(s)
+	if err != nil {
+		panic("invalid hex in source file: " + s)
+	}
+	var scalar secp256k1.ModNScalar
+	if overflow := scalar.SetByteSlice(b); overflow {
+		panic("hex in source file overflows mod N scalar: " + s)
+	}
+	return &scalar
+}
+
+// hexToBigInt converts the passed hex string into a big integer pointer and
+// will panic is there is an error.  This is only provided for the hard-coded
+// constants so errors in the source code can bet detected. It will only (and
+// must only) be called for initialization purposes.
+func hexToBigInt(s string) *big.Int {
+	r, ok := new(big.Int).SetString(s, 16)
+	if !ok {
+		panic("invalid hex in source file: " + s)
+	}
+	return r
+}
 
 // BenchmarkSigVerify benchmarks how long it takes the secp256k1 curve to
 // verify signatures.
@@ -15,16 +47,16 @@ func BenchmarkSigVerify(b *testing.B) {
 	b.StopTimer()
 	// Randomly generated keypair.
 	// Private key: 9e0699c91ca1e3b7e3c9ba71eb71c89890872be97576010fe593fbf3fd57e66d
-	pubKey := NewPublicKey(
-		fromHex("d2e670a19c6d753d1a6d8b20bd045df8a08fb162cf508956c31268c6d81ffdab"),
-		fromHex("ab65528eefbb8057aa85d597258a3fbd481a24633bc9b47a9aa045c91371de52"),
+	pubKey := secp256k1.NewPublicKey(
+		hexToBigInt("d2e670a19c6d753d1a6d8b20bd045df8a08fb162cf508956c31268c6d81ffdab"),
+		hexToBigInt("ab65528eefbb8057aa85d597258a3fbd481a24633bc9b47a9aa045c91371de52"),
 	)
 
 	// Double sha256 of []byte{0x01, 0x02, 0x03, 0x04}
-	msgHash := fromHex("8de472e2399610baaa7f84840547cd409434e31f5d3bd71e4d947f283874f9c0")
+	msgHash := hexToBigInt("8de472e2399610baaa7f84840547cd409434e31f5d3bd71e4d947f283874f9c0")
 	sig := Signature{
-		r: *new(ModNScalar).SetHex("fef45d2892953aa5bbcdb057b5e98b208f1617a7498af7eb765574e29b5d9c2c"),
-		s: *new(ModNScalar).SetHex("d47563f52aac6b04b55de236b7c515eb9311757db01e02cff079c3ca6efb063f"),
+		r: *hexToModNScalar("fef45d2892953aa5bbcdb057b5e98b208f1617a7498af7eb765574e29b5d9c2c"),
+		s: *hexToModNScalar("d47563f52aac6b04b55de236b7c515eb9311757db01e02cff079c3ca6efb063f"),
 	}
 
 	if !sig.Verify(msgHash.Bytes(), pubKey) {
@@ -41,8 +73,8 @@ func BenchmarkSigVerify(b *testing.B) {
 // BenchmarkSign benchmarks how long it takes to sign a message.
 func BenchmarkSign(b *testing.B) {
 	// Randomly generated keypair.
-	d := new(ModNScalar).SetHex("9e0699c91ca1e3b7e3c9ba71eb71c89890872be97576010fe593fbf3fd57e66d")
-	privKey := NewPrivateKey(d)
+	d := hexToModNScalar("9e0699c91ca1e3b7e3c9ba71eb71c89890872be97576010fe593fbf3fd57e66d")
+	privKey := secp256k1.NewPrivateKey(d)
 
 	// blake256 of []byte{0x01, 0x02, 0x03, 0x04}.
 	msgHash := hexToBytes("c301ba9de5d6053caad9f5eb46523f007702add2c62fa39de03146a36b8026b7")
@@ -61,8 +93,8 @@ func BenchmarkSigSerialize(b *testing.B) {
 	// Private key: 9e0699c91ca1e3b7e3c9ba71eb71c89890872be97576010fe593fbf3fd57e66d
 	// Signature for double sha256 of []byte{0x01, 0x02, 0x03, 0x04}.
 	sig := Signature{
-		r: *new(ModNScalar).SetHex("fef45d2892953aa5bbcdb057b5e98b208f1617a7498af7eb765574e29b5d9c2c"),
-		s: *new(ModNScalar).SetHex("d47563f52aac6b04b55de236b7c515eb9311757db01e02cff079c3ca6efb063f"),
+		r: *hexToModNScalar("fef45d2892953aa5bbcdb057b5e98b208f1617a7498af7eb765574e29b5d9c2c"),
+		s: *hexToModNScalar("d47563f52aac6b04b55de236b7c515eb9311757db01e02cff079c3ca6efb063f"),
 	}
 
 	b.ReportAllocs()
@@ -87,9 +119,9 @@ func BenchmarkNonceRFC6979(b *testing.B) {
 
 	b.ReportAllocs()
 	b.ResetTimer()
-	var noElideNonce *ModNScalar
+	var noElideNonce *secp256k1.ModNScalar
 	for i := 0; i < b.N; i++ {
-		noElideNonce = NonceRFC6979(privKey, msgHash, nil, nil, 0)
+		noElideNonce = secp256k1.NonceRFC6979(privKey, msgHash, nil, nil, 0)
 	}
 	_ = noElideNonce
 }
@@ -97,8 +129,8 @@ func BenchmarkNonceRFC6979(b *testing.B) {
 // BenchmarkSignCompact benchmarks how long it takes to produce a compact
 // signature for a message.
 func BenchmarkSignCompact(b *testing.B) {
-	d := new(ModNScalar).SetHex("9e0699c91ca1e3b7e3c9ba71eb71c89890872be97576010fe593fbf3fd57e66d")
-	privKey := NewPrivateKey(d)
+	d := hexToModNScalar("9e0699c91ca1e3b7e3c9ba71eb71c89890872be97576010fe593fbf3fd57e66d")
+	privKey := secp256k1.NewPrivateKey(d)
 
 	// blake256 of []byte{0x01, 0x02, 0x03, 0x04}.
 	msgHash := hexToBytes("c301ba9de5d6053caad9f5eb46523f007702add2c62fa39de03146a36b8026b7")
@@ -114,9 +146,9 @@ func BenchmarkSignCompact(b *testing.B) {
 // given a compact signature and message.
 func BenchmarkRecoverCompact(b *testing.B) {
 	// Private key: 9e0699c91ca1e3b7e3c9ba71eb71c89890872be97576010fe593fbf3fd57e66d
-	wantPubKey := NewPublicKey(
-		fromHex("d2e670a19c6d753d1a6d8b20bd045df8a08fb162cf508956c31268c6d81ffdab"),
-		fromHex("ab65528eefbb8057aa85d597258a3fbd481a24633bc9b47a9aa045c91371de52"),
+	wantPubKey := secp256k1.NewPublicKey(
+		hexToBigInt("d2e670a19c6d753d1a6d8b20bd045df8a08fb162cf508956c31268c6d81ffdab"),
+		hexToBigInt("ab65528eefbb8057aa85d597258a3fbd481a24633bc9b47a9aa045c91371de52"),
 	)
 
 	compactSig := hexToBytes("205978b7896bc71676ba2e459882a8f52e1299449596c4f" +
