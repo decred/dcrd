@@ -66,21 +66,21 @@ type KoblitzCurve struct {
 
 // bigAffineToJacobian takes an affine point (x, y) as big integers and converts
 // it to Jacobian point with Z=1.
-func bigAffineToJacobian(x, y *big.Int, result *jacobianPoint) {
-	result.x.SetByteSlice(x.Bytes())
-	result.y.SetByteSlice(y.Bytes())
-	result.z.SetInt(1)
+func bigAffineToJacobian(x, y *big.Int, result *JacobianPoint) {
+	result.X.SetByteSlice(x.Bytes())
+	result.Y.SetByteSlice(y.Bytes())
+	result.Z.SetInt(1)
 }
 
 // jacobianToBigAffine takes a Jacobian point (x, y, z) as field values and
 // converts it to an affine point as big integers.
-func jacobianToBigAffine(point *jacobianPoint) (*big.Int, *big.Int) {
+func jacobianToBigAffine(point *JacobianPoint) (*big.Int, *big.Int) {
 	point.ToAffine()
 
 	// Convert the field values for the now affine point to big.Ints.
 	x3, y3 := new(big.Int), new(big.Int)
-	x3.SetBytes(point.x.Bytes()[:])
-	y3.SetBytes(point.y.Bytes()[:])
+	x3.SetBytes(point.X.Bytes()[:])
+	y3.SetBytes(point.Y.Bytes()[:])
 	return x3, y3
 }
 
@@ -97,9 +97,9 @@ func (curve *KoblitzCurve) Params() *elliptic.CurveParams {
 // differs from the crypto/elliptic algorithm since a = 0 not -3.
 func (curve *KoblitzCurve) IsOnCurve(x, y *big.Int) bool {
 	// Convert big ints to a Jacobian point for faster arithmetic.
-	var point jacobianPoint
+	var point JacobianPoint
 	bigAffineToJacobian(x, y, &point)
-	return isOnCurve(&point.x, &point.y)
+	return isOnCurve(&point.X, &point.Y)
 }
 
 // Add returns the sum of (x1,y1) and (x2,y2).
@@ -118,7 +118,7 @@ func (curve *KoblitzCurve) Add(x1, y1, x2, y2 *big.Int) (*big.Int, *big.Int) {
 	// Convert the affine coordinates from big integers to Jacobian points,
 	// do the point addition in Jacobian projective space, and convert the
 	// Jacobian point back to affine big.Ints.
-	var p1, p2, result jacobianPoint
+	var p1, p2, result JacobianPoint
 	bigAffineToJacobian(x1, y1, &p1)
 	bigAffineToJacobian(x2, y2, &p2)
 	addJacobian(&p1, &p2, &result)
@@ -136,7 +136,7 @@ func (curve *KoblitzCurve) Double(x1, y1 *big.Int) (*big.Int, *big.Int) {
 	// Convert the affine coordinates from big integers to Jacobian points,
 	// do the point doubling in Jacobian projective space, and convert the
 	// Jacobian point back to affine big.Ints.
-	var point, result jacobianPoint
+	var point, result JacobianPoint
 	bigAffineToJacobian(x1, y1, &point)
 	doubleJacobian(&point, &result)
 	return jacobianToBigAffine(&result)
@@ -166,7 +166,7 @@ func (curve *KoblitzCurve) ScalarMult(Bx, By *big.Int, k []byte) (*big.Int, *big
 	// Jacobian point back to affine big.Ints.
 	var kModN ModNScalar
 	kModN.SetByteSlice(moduloReduce(k))
-	var point, result jacobianPoint
+	var point, result JacobianPoint
 	bigAffineToJacobian(Bx, By, &point)
 	scalarMultJacobian(&kModN, &point, &result)
 	return jacobianToBigAffine(&result)
@@ -181,7 +181,7 @@ func (curve *KoblitzCurve) ScalarBaseMult(k []byte) (*big.Int, *big.Int) {
 	// big.Ints.
 	var kModN ModNScalar
 	kModN.SetByteSlice(moduloReduce(k))
-	var result jacobianPoint
+	var result JacobianPoint
 	scalarBaseMultJacobian(&kModN, &result)
 	return jacobianToBigAffine(&result)
 }
@@ -198,7 +198,7 @@ func (p PublicKey) ToECDSA() *ecdsa.PublicKey {
 // ToECDSA returns the private key as a *ecdsa.PrivateKey.
 func (p *PrivateKey) ToECDSA() *ecdsa.PrivateKey {
 	privKeyBytes := p.key.Bytes()
-	var result jacobianPoint
+	var result JacobianPoint
 	scalarBaseMultJacobian(&p.key, &result)
 	x, y := jacobianToBigAffine(&result)
 	newPrivKey := &ecdsa.PrivateKey{

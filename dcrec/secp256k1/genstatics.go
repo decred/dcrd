@@ -24,11 +24,11 @@ var compressedBytePoints = ""
 // getDoublingPoints returns all the possible G^(2^i) for i in
 // 0..n-1 where n is the curve's bit size (256 in the case of secp256k1)
 // the coordinates are recorded as Jacobian coordinates.
-func (curve *KoblitzCurve) getDoublingPoints() []jacobianPoint {
-	doublingPoints := make([]jacobianPoint, curve.BitSize)
+func (curve *KoblitzCurve) getDoublingPoints() []JacobianPoint {
+	doublingPoints := make([]JacobianPoint, curve.BitSize)
 
 	// Initialize point to the Jacobian coordinates for the base point.
-	var point jacobianPoint
+	var point JacobianPoint
 	bigAffineToJacobian(curve.Gx, curve.Gy, &point)
 	for i := 0; i < curve.BitSize; i++ {
 		doublingPoints[i] = point
@@ -54,22 +54,22 @@ func (curve *KoblitzCurve) SerializedBytePoints() []byte {
 
 		// Compute all points in this window and serialize them.
 		for i := 0; i < 256; i++ {
-			var point jacobianPoint
+			var point JacobianPoint
 			for j := 0; j < 8; j++ {
 				if i>>uint(j)&1 == 1 {
 					addJacobian(&point, &computingPoints[j], &point)
 				}
 			}
 			for i := 0; i < 10; i++ {
-				binary.LittleEndian.PutUint32(serialized[offset:], point.x.n[i])
+				binary.LittleEndian.PutUint32(serialized[offset:], point.X.n[i])
 				offset += 4
 			}
 			for i := 0; i < 10; i++ {
-				binary.LittleEndian.PutUint32(serialized[offset:], point.y.n[i])
+				binary.LittleEndian.PutUint32(serialized[offset:], point.Y.n[i])
 				offset += 4
 			}
 			for i := 0; i < 10; i++ {
-				binary.LittleEndian.PutUint32(serialized[offset:], point.z.n[i])
+				binary.LittleEndian.PutUint32(serialized[offset:], point.Z.n[i])
 				offset += 4
 			}
 		}

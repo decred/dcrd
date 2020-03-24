@@ -251,7 +251,7 @@ func (sig *Signature) Verify(hash []byte, pubKey *PublicKey) bool {
 	// Step 5.
 	//
 	// X = u1G + u2Q
-	var X, Q, u1G, u2Q jacobianPoint
+	var X, Q, u1G, u2Q JacobianPoint
 	bigAffineToJacobian(pubKey.x, pubKey.y, &Q)
 	scalarBaseMultJacobian(u1, &u1G)
 	scalarMultJacobian(u2, &Q, &u2Q)
@@ -260,21 +260,21 @@ func (sig *Signature) Verify(hash []byte, pubKey *PublicKey) bool {
 	// Step 6.
 	//
 	// Fail if X is the point at infinity
-	if (X.x.IsZero() && X.y.IsZero()) || X.z.IsZero() {
+	if (X.X.IsZero() && X.Y.IsZero()) || X.Z.IsZero() {
 		return false
 	}
 
 	// Step 7.
 	//
 	// z = (X.z)^2 mod P (X.z is the z coordinate of X)
-	z := new(FieldVal).SquareVal(&X.z)
+	z := new(FieldVal).SquareVal(&X.Z)
 
 	// Step 8.
 	//
 	// Verified if R * z == X.x (mod P)
 	sigRModP := modNScalarToField(&sig.r)
 	result := new(FieldVal).Mul2(&sigRModP, z).Normalize()
-	if result.Equals(&X.x) {
+	if result.Equals(&X.X) {
 		return true
 	}
 
@@ -290,7 +290,7 @@ func (sig *Signature) Verify(hash []byte, pubKey *PublicKey) bool {
 	// Verified if (R + N) * z == X.x (mod P)
 	sigRModP.Add(orderAsFieldVal)
 	result.Mul2(&sigRModP, z).Normalize()
-	return result.Equals(&X.x)
+	return result.Equals(&X.X)
 }
 
 // IsEqual compares this Signature instance to the one passed, returning true if
@@ -752,10 +752,10 @@ func RecoverCompact(signature, hash []byte) (*PublicKey, bool, error) {
 	// Step 5.
 	//
 	// X = (r, y)
-	var X jacobianPoint
-	X.x.Set(&fieldR).Normalize()
-	X.y.Set(&y).Normalize()
-	X.z.SetInt(1)
+	var X JacobianPoint
+	X.X.Set(&fieldR).Normalize()
+	X.Y.Set(&y).Normalize()
+	X.Z.SetInt(1)
 
 	// Step 6.
 	//
@@ -778,7 +778,7 @@ func RecoverCompact(signature, hash []byte) (*PublicKey, bool, error) {
 	// Step 9.
 	//
 	// Q = u1G + u2X
-	var Q, u1G, u2X jacobianPoint
+	var Q, u1G, u2X JacobianPoint
 	scalarBaseMultJacobian(u1, &u1G)
 	scalarMultJacobian(u2, &X, &u2X)
 	addJacobian(&u1G, &u2X, &Q)
@@ -789,7 +789,7 @@ func RecoverCompact(signature, hash []byte) (*PublicKey, bool, error) {
 	//
 	// Either the signature or the pubkey recovery code must be invalid if the
 	// recovered pubkey is the point at infinity.
-	if (Q.x.IsZero() && Q.y.IsZero()) || Q.z.IsZero() {
+	if (Q.X.IsZero() && Q.Y.IsZero()) || Q.Z.IsZero() {
 		return nil, false, errors.New("recovered pubkey is the point at infinity")
 	}
 
@@ -847,7 +847,7 @@ func signRFC6979(privateKey *PrivateKey, hash []byte) (*Signature, byte) {
 		// Compute kG
 		//
 		// Note that the point must be in affine coordinates.
-		var kG jacobianPoint
+		var kG JacobianPoint
 		scalarBaseMultJacobian(k, &kG)
 		kG.ToAffine()
 
@@ -855,7 +855,7 @@ func signRFC6979(privateKey *PrivateKey, hash []byte) (*Signature, byte) {
 		//
 		// r = kG.x mod N
 		// Repeat from step 1 if r = 0
-		r, overflow := fieldToModNScalar(&kG.x)
+		r, overflow := fieldToModNScalar(&kG.X)
 		if r.IsZero() {
 			continue
 		}
@@ -881,7 +881,7 @@ func signRFC6979(privateKey *PrivateKey, hash []byte) (*Signature, byte) {
 		// points since that would require breaking the ECDLP, but, in practice
 		// this strongly implies with extremely high probability that there are
 		// only a few actual points for which this case is true.
-		pubKeyRecoveryCode := byte(overflow<<1) | byte(kG.y.IsOddBit())
+		pubKeyRecoveryCode := byte(overflow<<1) | byte(kG.Y.IsOddBit())
 
 		// Step 4.
 		//

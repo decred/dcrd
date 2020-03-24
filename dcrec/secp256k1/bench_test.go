@@ -25,7 +25,7 @@ func BenchmarkAddJacobian(b *testing.B) {
 
 	b.ReportAllocs()
 	b.ResetTimer()
-	var result jacobianPoint
+	var result JacobianPoint
 	for i := 0; i < b.N; i++ {
 		addJacobian(&p1, &p2, &result)
 	}
@@ -41,12 +41,12 @@ func BenchmarkAddJacobianNotZOne(b *testing.B) {
 	x2 := new(FieldVal).SetHex("91abba6a34b7481d922a4bd6a04899d5a686f6cf6da4e66a0cb427fb25c04bd4")
 	y2 := new(FieldVal).SetHex("03fede65e30b4e7576a2abefc963ddbf9fdccbf791b77c29beadefe49951f7d1")
 	z2 := new(FieldVal).SetHex("3")
-	p1 := makeJacobianPoint(x1, y1, z1)
-	p2 := makeJacobianPoint(x2, y2, z2)
+	p1 := MakeJacobianPoint(x1, y1, z1)
+	p2 := MakeJacobianPoint(x2, y2, z2)
 
 	b.ReportAllocs()
 	b.ResetTimer()
-	var result jacobianPoint
+	var result JacobianPoint
 	for i := 0; i < b.N; i++ {
 		addJacobian(&p1, &p2, &result)
 	}
@@ -66,7 +66,7 @@ func BenchmarkScalarBaseMult(b *testing.B) {
 // function.
 func BenchmarkScalarBaseMultJacobian(b *testing.B) {
 	k := new(ModNScalar).SetHex("d74bf844b0862475103d96a611cf2d898447e288d34b360bc885cb8ce7c00575")
-	var result jacobianPoint
+	var result JacobianPoint
 	for i := 0; i < b.N; i++ {
 		scalarBaseMultJacobian(k, &result)
 	}

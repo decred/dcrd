@@ -14,7 +14,7 @@ import (
 
 // isJacobianOnS256Curve returns boolean if the point (x,y,z) is on the
 // secp256k1 curve.
-func isJacobianOnS256Curve(point *jacobianPoint) bool {
+func isJacobianOnS256Curve(point *JacobianPoint) bool {
 	// Elliptic curve equation for secp256k1 is: y^2 = x^3 + 7
 	// In Jacobian coordinates, Y = y/z^3 and X = x/z^2
 	// Thus:
@@ -22,9 +22,9 @@ func isJacobianOnS256Curve(point *jacobianPoint) bool {
 	// y^2/z^6 = x^3/z^6 + 7
 	// y^2 = x^3 + 7*z^6
 	var y2, z2, x3, result FieldVal
-	y2.SquareVal(&point.y).Normalize()
-	z2.SquareVal(&point.z)
-	x3.SquareVal(&point.x).Mul(&point.x)
+	y2.SquareVal(&point.Y).Normalize()
+	z2.SquareVal(&point.Z)
+	x3.SquareVal(&point.X).Mul(&point.X)
 	result.SquareVal(&z2).Mul(&z2).MulInt(7).Add(&x3).Normalize()
 	return y2.Equals(&result)
 }
@@ -32,11 +32,11 @@ func isJacobianOnS256Curve(point *jacobianPoint) bool {
 // jacobianPointFromHex decodes the passed big-endian hex strings into a
 // Jacobian point with its internal fields set to the resulting values.  Only
 // the first 32-bytes are used.
-func jacobianPointFromHex(x, y, z string) jacobianPoint {
-	var p jacobianPoint
-	p.x.SetHex(x)
-	p.y.SetHex(y)
-	p.z.SetHex(z)
+func jacobianPointFromHex(x, y, z string) JacobianPoint {
+	var p JacobianPoint
+	p.X.SetHex(x)
+	p.Y.SetHex(y)
+	p.Z.SetHex(z)
 	return p
 }
 
@@ -45,8 +45,8 @@ func jacobianPointFromHex(x, y, z string) jacobianPoint {
 // in affine coordinates, while not having the same coordinates in projective
 // space, so the two points not being equal doesn't necessarily mean they aren't
 // actually the same affine point.
-func (p *jacobianPoint) IsStrictlyEqual(other *jacobianPoint) bool {
-	return p.x.Equals(&other.x) && p.y.Equals(&other.y) && p.z.Equals(&other.z)
+func (p *JacobianPoint) IsStrictlyEqual(other *JacobianPoint) bool {
+	return p.X.Equals(&other.X) && p.Y.Equals(&other.Y) && p.Z.Equals(&other.Z)
 }
 
 // TestAddJacobian tests addition of points projected in Jacobian coordinates.
@@ -248,30 +248,30 @@ func TestAddJacobian(t *testing.T) {
 
 		// Ensure the test data is using points that are actually on
 		// the curve (or the point at infinity).
-		if !p1.z.IsZero() && !isJacobianOnS256Curve(&p1) {
+		if !p1.Z.IsZero() && !isJacobianOnS256Curve(&p1) {
 			t.Errorf("#%d first point is not on the curve -- "+
 				"invalid test data", i)
 			continue
 		}
-		if !p2.z.IsZero() && !isJacobianOnS256Curve(&p2) {
+		if !p2.Z.IsZero() && !isJacobianOnS256Curve(&p2) {
 			t.Errorf("#%d second point is not on the curve -- "+
 				"invalid test data", i)
 			continue
 		}
-		if !want.z.IsZero() && !isJacobianOnS256Curve(&want) {
+		if !want.Z.IsZero() && !isJacobianOnS256Curve(&want) {
 			t.Errorf("#%d expected point is not on the curve -- "+
 				"invalid test data", i)
 			continue
 		}
 
 		// Add the two points.
-		var r jacobianPoint
+		var r JacobianPoint
 		addJacobian(&p1, &p2, &r)
 
 		// Ensure result matches expected.
 		if !r.IsStrictlyEqual(&want) {
 			t.Errorf("#%d wrong result\ngot: (%v, %v, %v)\n"+
-				"want: (%v, %v, %v)", i, r.x, r.y, r.z, want.x, want.y, want.z)
+				"want: (%v, %v, %v)", i, r.X, r.Y, r.Z, want.X, want.Y, want.Z)
 			continue
 		}
 	}
@@ -426,26 +426,26 @@ func TestDoubleJacobian(t *testing.T) {
 
 		// Ensure the test data is using points that are actually on
 		// the curve (or the point at infinity).
-		if !p1.z.IsZero() && !isJacobianOnS256Curve(&p1) {
+		if !p1.Z.IsZero() && !isJacobianOnS256Curve(&p1) {
 			t.Errorf("#%d first point is not on the curve -- "+
 				"invalid test data", i)
 			continue
 		}
-		if !want.z.IsZero() && !isJacobianOnS256Curve(&want) {
+		if !want.Z.IsZero() && !isJacobianOnS256Curve(&want) {
 			t.Errorf("#%d expected point is not on the curve -- "+
 				"invalid test data", i)
 			continue
 		}
 
 		// Double the point.
-		var result jacobianPoint
+		var result JacobianPoint
 		doubleJacobian(&p1, &result)
 
 		// Ensure result matches expected.
 		if !result.IsStrictlyEqual(&want) {
 			t.Errorf("#%d wrong result\ngot: (%v, %v, %v)\n"+
-				"want: (%v, %v, %v)", i, result.x, result.y, result.z,
-				want.x, want.y, want.z)
+				"want: (%v, %v, %v)", i, result.X, result.Y, result.Z,
+				want.X, want.Y, want.Z)
 			continue
 		}
 	}
@@ -595,8 +595,8 @@ func TestScalarMultRand(t *testing.T) {
 	// Use another random exponent on the new point.
 	// We use BaseMult to verify by multiplying the previous exponent
 	// and the new random exponent together (mod N)
-	var want jacobianPoint
-	var point jacobianPoint
+	var want JacobianPoint
+	var point JacobianPoint
 	bigAffineToJacobian(curveParams.Gx, curveParams.Gy, &point)
 	exponent := new(ModNScalar).SetInt(1)
 	for i := 0; i < 1024; i++ {
@@ -616,8 +616,8 @@ func TestScalarMultRand(t *testing.T) {
 		want.ToAffine()
 		if !point.IsStrictlyEqual(&want) {
 			t.Fatalf("%d: bad output for %x:\ngot (%x, %x, %x)\n"+
-				"want (%x, %x, %x)", i, data, point.x, point.y, point.z, want.x,
-				want.y, want.z)
+				"want (%x, %x, %x)", i, data, point.X, point.Y, point.Z, want.X,
+				want.Y, want.Z)
 			break
 		}
 	}
