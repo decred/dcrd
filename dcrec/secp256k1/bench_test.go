@@ -9,9 +9,9 @@ import (
 	"testing"
 )
 
-// BenchmarkAddJacobian benchmarks the secp256k1 curve addJacobian function with
+// BenchmarkAddNonConst benchmarks the secp256k1 curve AddNonConst function with
 // Z values of 1 so that the associated optimizations are used.
-func BenchmarkAddJacobian(b *testing.B) {
+func BenchmarkAddNonConst(b *testing.B) {
 	p1 := jacobianPointFromHex(
 		"34f9460f0e4f08393d192b3c5133a6ba099aa0ad9fd54ebccfacdfa239ff49c6",
 		"0b71ea9bd730fd8923f6d25a7a91e7dd7728a960686cb5a901bb419e0f2ca232",
@@ -27,14 +27,14 @@ func BenchmarkAddJacobian(b *testing.B) {
 	b.ResetTimer()
 	var result JacobianPoint
 	for i := 0; i < b.N; i++ {
-		addJacobian(&p1, &p2, &result)
+		AddNonConst(&p1, &p2, &result)
 	}
 }
 
-// BenchmarkAddJacobianNotZOne benchmarks the secp256k1 curve addJacobian
+// BenchmarkAddNonConstNotZOne benchmarks the secp256k1 curve AddNonConst
 // function with Z values other than one so the optimizations associated with
 // Z=1 aren't used.
-func BenchmarkAddJacobianNotZOne(b *testing.B) {
+func BenchmarkAddNonConstNotZOne(b *testing.B) {
 	x1 := new(FieldVal).SetHex("d3e5183c393c20e4f464acf144ce9ae8266a82b67f553af33eb37e88e7fd2718")
 	y1 := new(FieldVal).SetHex("5b8f54deb987ec491fb692d3d48f3eebb9454b034365ad480dda0cf079651190")
 	z1 := new(FieldVal).SetHex("2")
@@ -48,7 +48,7 @@ func BenchmarkAddJacobianNotZOne(b *testing.B) {
 	b.ResetTimer()
 	var result JacobianPoint
 	for i := 0; i < b.N; i++ {
-		addJacobian(&p1, &p2, &result)
+		AddNonConst(&p1, &p2, &result)
 	}
 }
 

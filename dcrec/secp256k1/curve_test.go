@@ -266,7 +266,7 @@ func TestAddJacobian(t *testing.T) {
 
 		// Add the two points.
 		var r JacobianPoint
-		addJacobian(&p1, &p2, &r)
+		AddNonConst(&p1, &p2, &r)
 
 		// Ensure result matches expected.
 		if !r.IsStrictlyEqual(&want) {

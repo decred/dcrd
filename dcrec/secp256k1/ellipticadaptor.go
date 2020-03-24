@@ -121,7 +121,7 @@ func (curve *KoblitzCurve) Add(x1, y1, x2, y2 *big.Int) (*big.Int, *big.Int) {
 	var p1, p2, result JacobianPoint
 	bigAffineToJacobian(x1, y1, &p1)
 	bigAffineToJacobian(x2, y2, &p2)
-	addJacobian(&p1, &p2, &result)
+	AddNonConst(&p1, &p2, &result)
 	return jacobianToBigAffine(&result)
 }
 

@@ -410,12 +410,12 @@ func addGeneric(p1, p2, result *JacobianPoint) {
 	z3.Normalize()
 }
 
-// addJacobian adds the passed Jacobian points together and stores the result
-// in the provided result param.
+// AddNonConst adds the passed Jacobian points together and stores the result in
+// the provided result param in *non-constant* time.
 //
 // NOTE: The points must be normalized for this function to return the correct
 // result.  The resulting point will be normalized.
-func addJacobian(p1, p2, result *JacobianPoint) {
+func AddNonConst(p1, p2, result *JacobianPoint) {
 	// A point at infinity is the identity according to the group law for
 	// elliptic curve cryptography.  Thus, ∞ + P = P and P + ∞ = P.
 	if (p1.X.IsZero() && p1.Y.IsZero()) || p1.Z.IsZero() {
@@ -718,15 +718,15 @@ func scalarMultJacobian(k *ModNScalar, point, result *JacobianPoint) {
 			doubleJacobian(&q, &q)
 
 			if k1BytePos&0x80 == 0x80 {
-				addJacobian(&q, p1, &q)
+				AddNonConst(&q, p1, &q)
 			} else if k1ByteNeg&0x80 == 0x80 {
-				addJacobian(&q, p1Neg, &q)
+				AddNonConst(&q, p1Neg, &q)
 			}
 
 			if k2BytePos&0x80 == 0x80 {
-				addJacobian(&q, p2, &q)
+				AddNonConst(&q, p2, &q)
 			} else if k2ByteNeg&0x80 == 0x80 {
-				addJacobian(&q, p2Neg, &q)
+				AddNonConst(&q, p2Neg, &q)
 			}
 			k1BytePos <<= 1
 			k1ByteNeg <<= 1
@@ -759,7 +759,7 @@ func scalarBaseMultJacobian(k *ModNScalar, result *JacobianPoint) {
 		pt.X.Set(&p[0])
 		pt.Y.Set(&p[1])
 		pt.Z.Set(&p[2])
-		addJacobian(&q, &pt, &q)
+		AddNonConst(&q, &pt, &q)
 	}
 
 	result.Set(&q)

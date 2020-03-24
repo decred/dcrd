@@ -57,7 +57,7 @@ func (curve *KoblitzCurve) SerializedBytePoints() []byte {
 			var point JacobianPoint
 			for j := 0; j < 8; j++ {
 				if i>>uint(j)&1 == 1 {
-					addJacobian(&point, &computingPoints[j], &point)
+					AddNonConst(&point, &computingPoints[j], &point)
 				}
 			}
 			for i := 0; i < 10; i++ {
