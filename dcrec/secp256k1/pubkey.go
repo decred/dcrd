@@ -44,30 +44,6 @@ func NewPublicKey(x *big.Int, y *big.Int) *PublicKey {
 	}
 }
 
-// decompressY attempts to calculate the Y coordinate for the given X coordinate
-// such that the result pair is a point on the secp256k1 curve.  It adjusts Y
-// based on the desired oddness and returns whether or not it was successful
-// since not all X coordinates are valid.
-//
-// The magnitude of the provided X coordinate field val must be a max of 8 for a
-// correct result.  The resulting Y field val will have a max magnitude of 2.
-func decompressY(x *FieldVal, odd bool, resultY *FieldVal) bool {
-	// The curve equation for secp256k1 is: y^2 = x^3 + 7.  Thus
-	// y = +-sqrt(x^3 + 7).
-	//
-	// The x coordinate must be invalid if there is no square root for the
-	// calculated rhs because it means the X coordinate is not for a point on
-	// the curve.
-	x3PlusB := new(FieldVal).SquareVal(x).Mul(x).AddInt(7)
-	if hasSqrt := resultY.SquareRootVal(x3PlusB); !hasSqrt {
-		return false
-	}
-	if resultY.Normalize().IsOdd() != odd {
-		resultY.Negate(1)
-	}
-	return true
-}
-
 func isOdd(a *big.Int) bool {
 	return a.Bit(0) == 1
 }
@@ -77,7 +53,7 @@ func isOdd(a *big.Int) bool {
 func decompressPoint(x *big.Int, ybit bool) (*big.Int, error) {
 	var fy FieldVal
 	fx := new(FieldVal).SetByteSlice(x.Bytes())
-	if !decompressY(fx, ybit, &fy) {
+	if !DecompressY(fx, ybit, &fy) {
 		return nil, fmt.Errorf("invalid public key x coordinate")
 	}
 	fy.Normalize()

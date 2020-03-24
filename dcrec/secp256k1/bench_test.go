@@ -112,6 +112,6 @@ func BenchmarkPubKeyDecompress(b *testing.B) {
 	b.ResetTimer()
 	var y FieldVal
 	for i := 0; i < b.N; i++ {
-		_ = decompressY(pubKeyX, false, &y)
+		_ = DecompressY(pubKeyX, false, &y)
 	}
 }

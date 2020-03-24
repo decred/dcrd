@@ -849,3 +849,27 @@ func isOnCurve(fx, fy *FieldVal) bool {
 	result := new(FieldVal).SquareVal(fx).Mul(fx).AddInt(7).Normalize()
 	return y2.Equals(result)
 }
+
+// DecompressY attempts to calculate the Y coordinate for the given X coordinate
+// such that the result pair is a point on the secp256k1 curve.  It adjusts Y
+// based on the desired oddness and returns whether or not it was successful
+// since not all X coordinates are valid.
+//
+// The magnitude of the provided X coordinate field val must be a max of 8 for a
+// correct result.  The resulting Y field val will have a max magnitude of 2.
+func DecompressY(x *FieldVal, odd bool, resultY *FieldVal) bool {
+	// The curve equation for secp256k1 is: y^2 = x^3 + 7.  Thus
+	// y = +-sqrt(x^3 + 7).
+	//
+	// The x coordinate must be invalid if there is no square root for the
+	// calculated rhs because it means the X coordinate is not for a point on
+	// the curve.
+	x3PlusB := new(FieldVal).SquareVal(x).Mul(x).AddInt(7)
+	if hasSqrt := resultY.SquareRootVal(x3PlusB); !hasSqrt {
+		return false
+	}
+	if resultY.Normalize().IsOdd() != odd {
+		resultY.Negate(1)
+	}
+	return true
+}

@@ -745,7 +745,7 @@ func RecoverCompact(signature, hash []byte) (*PublicKey, bool, error) {
 	// must be a Y coord that satisfies the equation for a valid signature.
 	oddY := pubKeyRecoveryCode&pubKeyRecoveryCodeOddnessBit != 0
 	var y FieldVal
-	if valid := decompressY(&fieldR, oddY, &y); !valid {
+	if valid := DecompressY(&fieldR, oddY, &y); !valid {
 		return nil, false, errors.New("signature is not for a valid curve point")
 	}
 
