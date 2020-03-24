@@ -253,7 +253,7 @@ func (sig *Signature) Verify(hash []byte, pubKey *PublicKey) bool {
 	// X = u1G + u2Q
 	var X, Q, u1G, u2Q JacobianPoint
 	bigAffineToJacobian(pubKey.x, pubKey.y, &Q)
-	scalarBaseMultJacobian(u1, &u1G)
+	ScalarBaseMultNonConst(u1, &u1G)
 	ScalarMultNonConst(u2, &Q, &u2Q)
 	AddNonConst(&u1G, &u2Q, &X)
 
@@ -779,7 +779,7 @@ func RecoverCompact(signature, hash []byte) (*PublicKey, bool, error) {
 	//
 	// Q = u1G + u2X
 	var Q, u1G, u2X JacobianPoint
-	scalarBaseMultJacobian(u1, &u1G)
+	ScalarBaseMultNonConst(u1, &u1G)
 	ScalarMultNonConst(u2, &X, &u2X)
 	AddNonConst(&u1G, &u2X, &Q)
 
@@ -848,7 +848,7 @@ func signRFC6979(privateKey *PrivateKey, hash []byte) (*Signature, byte) {
 		//
 		// Note that the point must be in affine coordinates.
 		var kG JacobianPoint
-		scalarBaseMultJacobian(k, &kG)
+		ScalarBaseMultNonConst(k, &kG)
 		kG.ToAffine()
 
 		// Step 3.

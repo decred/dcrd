@@ -62,13 +62,13 @@ func BenchmarkScalarBaseMult(b *testing.B) {
 	}
 }
 
-// BenchmarkScalarBaseMultJacobian benchmarks the scalarBaseMultJacobian
+// BenchmarkScalarBaseMultNonConst benchmarks the ScalarBaseMultNonConst
 // function.
-func BenchmarkScalarBaseMultJacobian(b *testing.B) {
+func BenchmarkScalarBaseMultNonConst(b *testing.B) {
 	k := new(ModNScalar).SetHex("d74bf844b0862475103d96a611cf2d898447e288d34b360bc885cb8ce7c00575")
 	var result JacobianPoint
 	for i := 0; i < b.N; i++ {
-		scalarBaseMultJacobian(k, &result)
+		ScalarBaseMultNonConst(k, &result)
 	}
 }
 

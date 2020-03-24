@@ -611,7 +611,7 @@ func TestScalarMultRand(t *testing.T) {
 		ScalarMultNonConst(&k, &point, &point)
 
 		exponent.Mul(&k)
-		scalarBaseMultJacobian(exponent, &want)
+		ScalarBaseMultNonConst(exponent, &want)
 		point.ToAffine()
 		want.ToAffine()
 		if !point.IsStrictlyEqual(&want) {

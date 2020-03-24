@@ -182,7 +182,7 @@ func (curve *KoblitzCurve) ScalarBaseMult(k []byte) (*big.Int, *big.Int) {
 	var kModN ModNScalar
 	kModN.SetByteSlice(moduloReduce(k))
 	var result JacobianPoint
-	scalarBaseMultJacobian(&kModN, &result)
+	ScalarBaseMultNonConst(&kModN, &result)
 	return jacobianToBigAffine(&result)
 }
 
@@ -199,7 +199,7 @@ func (p PublicKey) ToECDSA() *ecdsa.PublicKey {
 func (p *PrivateKey) ToECDSA() *ecdsa.PrivateKey {
 	privKeyBytes := p.key.Bytes()
 	var result JacobianPoint
-	scalarBaseMultJacobian(&p.key, &result)
+	ScalarBaseMultNonConst(&p.key, &result)
 	x, y := jacobianToBigAffine(&result)
 	newPrivKey := &ecdsa.PrivateKey{
 		PublicKey: ecdsa.PublicKey{

@@ -54,7 +54,7 @@ func GeneratePrivateKey() (*PrivateKey, error) {
 // PubKey returns the PublicKey corresponding to this private key.
 func (p *PrivateKey) PubKey() *PublicKey {
 	var result JacobianPoint
-	scalarBaseMultJacobian(&p.key, &result)
+	ScalarBaseMultNonConst(&p.key, &result)
 	return NewPublicKey(jacobianToBigAffine(&result))
 }
 

@@ -738,12 +738,12 @@ func ScalarMultNonConst(k *ModNScalar, point, result *JacobianPoint) {
 	result.Set(&q)
 }
 
-// scalarBaseMultJacobian multiplies k*G where G is the base point of the group
+// ScalarBaseMultNonConst multiplies k*G where G is the base point of the group
 // and k is a big endian integer.  The result is stored in Jacobian coordinates
 // (x1, y1, z1).
 //
 // NOTE: The resulting point will be normalized.
-func scalarBaseMultJacobian(k *ModNScalar, result *JacobianPoint) {
+func ScalarBaseMultNonConst(k *ModNScalar, result *JacobianPoint) {
 	bytePoints := S256().bytePoints
 
 	// Point Q = ∞ (point at infinity).
