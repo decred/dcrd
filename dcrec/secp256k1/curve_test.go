@@ -439,7 +439,7 @@ func TestDoubleJacobian(t *testing.T) {
 
 		// Double the point.
 		var result JacobianPoint
-		doubleJacobian(&p1, &result)
+		DoubleNonConst(&p1, &result)
 
 		// Ensure result matches expected.
 		if !result.IsStrictlyEqual(&want) {

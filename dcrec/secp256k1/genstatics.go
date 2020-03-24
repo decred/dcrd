@@ -33,7 +33,7 @@ func (curve *KoblitzCurve) getDoublingPoints() []JacobianPoint {
 	for i := 0; i < curve.BitSize; i++ {
 		doublingPoints[i] = point
 		// P = 2*P
-		doubleJacobian(&point, &point)
+		DoubleNonConst(&point, &point)
 	}
 	return doublingPoints
 }

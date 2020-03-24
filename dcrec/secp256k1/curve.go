@@ -141,7 +141,7 @@ func addZ1AndZ2EqualsOne(p1, p2, result *JacobianPoint) {
 			// Since x1 == x2 and y1 == y2, point doubling must be
 			// done, otherwise the addition would end up dividing
 			// by zero.
-			doubleJacobian(p1, result)
+			DoubleNonConst(p1, result)
 			return
 		}
 
@@ -209,7 +209,7 @@ func addZ1EqualsZ2(p1, p2, result *JacobianPoint) {
 			// Since x1 == x2 and y1 == y2, point doubling must be
 			// done, otherwise the addition would end up dividing
 			// by zero.
-			doubleJacobian(p1, result)
+			DoubleNonConst(p1, result)
 			return
 		}
 
@@ -289,7 +289,7 @@ func addZ2EqualsOne(p1, p2, result *JacobianPoint) {
 			// Since x1 == x2 and y1 == y2, point doubling must be
 			// done, otherwise the addition would end up dividing
 			// by zero.
-			doubleJacobian(p1, result)
+			DoubleNonConst(p1, result)
 			return
 		}
 
@@ -371,7 +371,7 @@ func addGeneric(p1, p2, result *JacobianPoint) {
 			// Since x1 == x2 and y1 == y2, point doubling must be
 			// done, otherwise the addition would end up dividing
 			// by zero.
-			doubleJacobian(p1, result)
+			DoubleNonConst(p1, result)
 			return
 		}
 
@@ -560,12 +560,12 @@ func doubleGeneric(p, result *JacobianPoint) {
 	z3.Normalize()
 }
 
-// doubleJacobian doubles the passed Jacobian point and stores the result in the
-// provided result parameter.
+// DoubleNonConst doubles the passed Jacobian point and stores the result in the
+// provided result parameter in *non-constant* time.
 //
 // NOTE: The point must be normalized for this function to return the correct
 // result.  The resulting point will be normalized.
-func doubleJacobian(p, result *JacobianPoint) {
+func DoubleNonConst(p, result *JacobianPoint) {
 	// Doubling a point at infinity is still infinity.
 	if p.Y.IsZero() || p.Z.IsZero() {
 		result.X.SetInt(0)
@@ -715,7 +715,7 @@ func scalarMultJacobian(k *ModNScalar, point, result *JacobianPoint) {
 
 		for j := 7; j >= 0; j-- {
 			// Q = 2 * Q
-			doubleJacobian(&q, &q)
+			DoubleNonConst(&q, &q)
 
 			if k1BytePos&0x80 == 0x80 {
 				AddNonConst(&q, p1, &q)

@@ -138,7 +138,7 @@ func (curve *KoblitzCurve) Double(x1, y1 *big.Int) (*big.Int, *big.Int) {
 	// Jacobian point back to affine big.Ints.
 	var point, result JacobianPoint
 	bigAffineToJacobian(x1, y1, &point)
-	doubleJacobian(&point, &result)
+	DoubleNonConst(&point, &result)
 	return jacobianToBigAffine(&result)
 }
 
