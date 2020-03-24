@@ -631,13 +631,13 @@ func splitK(k []byte) ([]byte, []byte, int, int) {
 	return k1.Bytes(), k2.Bytes(), k1.Sign(), k2.Sign()
 }
 
-// scalarMultJacobian multiplies k*P where k is a big endian integer modulo the
+// ScalarMultNonConst multiplies k*P where k is a big endian integer modulo the
 // curve order and P is a point in Jacobian projective coordinates and stores
 // the result in the provided Jacobian point.
 //
 // NOTE: The point must be normalized for this function to return the correct
 // result.  The resulting point will be normalized.
-func scalarMultJacobian(k *ModNScalar, point, result *JacobianPoint) {
+func ScalarMultNonConst(k *ModNScalar, point, result *JacobianPoint) {
 	// Decompose K into k1 and k2 in order to halve the number of EC ops.
 	// See Algorithm 3.74 in [GECC].
 	kBytes := k.Bytes()

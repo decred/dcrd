@@ -168,7 +168,7 @@ func (curve *KoblitzCurve) ScalarMult(Bx, By *big.Int, k []byte) (*big.Int, *big
 	kModN.SetByteSlice(moduloReduce(k))
 	var point, result JacobianPoint
 	bigAffineToJacobian(Bx, By, &point)
-	scalarMultJacobian(&kModN, &point, &result)
+	ScalarMultNonConst(&kModN, &point, &result)
 	return jacobianToBigAffine(&result)
 }
 

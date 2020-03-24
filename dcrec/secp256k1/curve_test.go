@@ -608,7 +608,7 @@ func TestScalarMultRand(t *testing.T) {
 		}
 		var k ModNScalar
 		k.SetByteSlice(data)
-		scalarMultJacobian(&k, &point, &point)
+		ScalarMultNonConst(&k, &point, &point)
 
 		exponent.Mul(&k)
 		scalarBaseMultJacobian(exponent, &want)
