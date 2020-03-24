@@ -14,13 +14,13 @@ import (
 // this package and includes functionality such as serializing and parsing them
 // as well as computing their associated public key.
 type PrivateKey struct {
-	key ModNScalar
+	Key ModNScalar
 }
 
 // NewPrivateKey instantiates a new private key from a scalar encoded as a
 // big integer.
 func NewPrivateKey(key *ModNScalar) *PrivateKey {
-	return &PrivateKey{key: *key}
+	return &PrivateKey{Key: *key}
 }
 
 // PrivKeyFromBytes returns a private based on the provided byte slice which is
@@ -36,7 +36,7 @@ func NewPrivateKey(key *ModNScalar) *PrivateKey {
 // private keys which properly handles generation of appropriate values.
 func PrivKeyFromBytes(privKeyBytes []byte) *PrivateKey {
 	var privKey PrivateKey
-	privKey.key.SetByteSlice(privKeyBytes)
+	privKey.Key.SetByteSlice(privKeyBytes)
 	return &privKey
 }
 
@@ -54,7 +54,7 @@ func GeneratePrivateKey() (*PrivateKey, error) {
 // PubKey returns the PublicKey corresponding to this private key.
 func (p *PrivateKey) PubKey() *PublicKey {
 	var result JacobianPoint
-	ScalarBaseMultNonConst(&p.key, &result)
+	ScalarBaseMultNonConst(&p.Key, &result)
 	return NewPublicKey(jacobianToBigAffine(&result))
 }
 
@@ -71,7 +71,7 @@ func (p *PrivateKey) Sign(hash []byte) *Signature {
 // used to explicitly clear key material from memory for enhanced security
 // against memory scraping.
 func (p *PrivateKey) Zero() {
-	p.key.Zero()
+	p.Key.Zero()
 }
 
 // PrivKeyBytesLen defines the length in bytes of a serialized private key.
@@ -81,6 +81,6 @@ const PrivKeyBytesLen = 32
 // number, padded to a length of 32 bytes.
 func (p PrivateKey) Serialize() []byte {
 	var privKeyBytes [PrivKeyBytesLen]byte
-	p.key.PutBytes(&privKeyBytes)
+	p.Key.PutBytes(&privKeyBytes)
 	return privKeyBytes[:]
 }

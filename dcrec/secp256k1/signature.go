@@ -833,7 +833,7 @@ func signRFC6979(privateKey *PrivateKey, hash []byte) (*Signature, byte) {
 	//    modulo the curve order N, so it forces a consistent choice to reduce
 	//    signature malleability
 
-	privKeyBytes := privateKey.key.Bytes()
+	privKeyBytes := privateKey.Key.Bytes()
 	defer zeroArray32(&privKeyBytes)
 	for iteration := uint32(0); ; iteration++ {
 		// Step 1 with modification A.
@@ -898,7 +898,7 @@ func signRFC6979(privateKey *PrivateKey, hash []byte) (*Signature, byte) {
 		// Repeat from step 1 if s = 0
 		// s = -s if s > N/2
 		kInv := new(ModNScalar).InverseValNonConst(k)
-		s := new(ModNScalar).Mul2(&privateKey.key, &r).Add(&e).Mul(kInv)
+		s := new(ModNScalar).Mul2(&privateKey.Key, &r).Add(&e).Mul(kInv)
 		if s.IsZero() {
 			continue
 		}

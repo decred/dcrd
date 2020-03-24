@@ -197,9 +197,10 @@ func (p PublicKey) ToECDSA() *ecdsa.PublicKey {
 
 // ToECDSA returns the private key as a *ecdsa.PrivateKey.
 func (p *PrivateKey) ToECDSA() *ecdsa.PrivateKey {
-	privKeyBytes := p.key.Bytes()
+	var privKeyBytes [PrivKeyBytesLen]byte
+	p.Key.PutBytes(&privKeyBytes)
 	var result JacobianPoint
-	ScalarBaseMultNonConst(&p.key, &result)
+	ScalarBaseMultNonConst(&p.Key, &result)
 	x, y := jacobianToBigAffine(&result)
 	newPrivKey := &ecdsa.PrivateKey{
 		PublicKey: ecdsa.PublicKey{

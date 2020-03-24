@@ -61,13 +61,13 @@ func TestPrivateKeyZero(t *testing.T) {
 	key.Zero()
 
 	// Ensure the private key is non zero.
-	if privKey.key.IsZero() {
+	if privKey.Key.IsZero() {
 		t.Fatal("private key is zero when it should be non zero")
 	}
 
 	// Zero the private key and ensure it was properly zeroed.
 	privKey.Zero()
-	if !privKey.key.IsZero() {
+	if !privKey.Key.IsZero() {
 		t.Fatal("private key is non zero when it should be zero")
 	}
 }
