@@ -83,22 +83,22 @@ func (sig Signature) IsEqual(otherSig *Signature) bool {
 
 // schnorrVerify is the internal function for verification of a secp256k1
 // Schnorr signature.
-func schnorrVerify(sig *Signature, pubkey *secp256k1.PublicKey, msg []byte) (bool, error) {
+func schnorrVerify(sig *Signature, pubkey *secp256k1.PublicKey, msg []byte) error {
 	curve := secp256k1.S256()
 	if len(msg) != scalarSize {
 		str := fmt.Sprintf("wrong size for message (got %v, want %v)",
 			len(msg), scalarSize)
-		return false, schnorrError(ErrBadInputSize, str)
+		return schnorrError(ErrBadInputSize, str)
 	}
 
 	if pubkey == nil {
 		str := "nil pubkey"
-		return false, schnorrError(ErrInputValue, str)
+		return schnorrError(ErrInputValue, str)
 	}
 
 	if !curve.IsOnCurve(pubkey.X(), pubkey.Y()) {
 		str := "pubkey point is not on curve"
-		return false, schnorrError(ErrPointNotOnCurve, str)
+		return schnorrError(ErrPointNotOnCurve, str)
 	}
 
 	rBytes := bigIntToEncodedBytes(sig.r)
@@ -112,23 +112,23 @@ func schnorrVerify(sig *Signature, pubkey *secp256k1.PublicKey, msg []byte) (boo
 	// Same thing for hash == 0 (as unlikely as that is...).
 	if hBig.Cmp(curve.N) >= 0 {
 		str := "hash of (R || m) too big"
-		return false, schnorrError(ErrSchnorrHashValue, str)
+		return schnorrError(ErrSchnorrHashValue, str)
 	}
 	if hBig.Cmp(bigZero) == 0 {
 		str := "hash of (R || m) is zero value"
-		return false, schnorrError(ErrSchnorrHashValue, str)
+		return schnorrError(ErrSchnorrHashValue, str)
 	}
 
 	// We also can't have s greater than the order of the curve.
 	if sig.s.Cmp(curve.N) >= 0 {
 		str := "s value is too big"
-		return false, schnorrError(ErrInputValue, str)
+		return schnorrError(ErrInputValue, str)
 	}
 
 	// r can't be larger than the curve prime.
 	if sig.r.Cmp(curve.P) == 1 {
 		str := "given R was greater than curve prime"
-		return false, schnorrError(ErrBadSigRNotOnCurve, str)
+		return schnorrError(ErrBadSigRNotOnCurve, str)
 	}
 
 	// r' = hQ + sG
@@ -139,28 +139,27 @@ func schnorrVerify(sig *Signature, pubkey *secp256k1.PublicKey, msg []byte) (boo
 
 	if rly.Bit(0) == 1 {
 		str := "calculated R y-value is odd"
-		return false, schnorrError(ErrBadSigRYValue, str)
+		return schnorrError(ErrBadSigRYValue, str)
 	}
 	if !curve.IsOnCurve(rlx, rly) {
 		str := "calculated R point is not on curve"
-		return false, schnorrError(ErrBadSigRNotOnCurve, str)
+		return schnorrError(ErrBadSigRNotOnCurve, str)
 	}
 	rlxB := bigIntToEncodedBytes(rlx)
 
 	// r == r' --> valid signature
 	if !bytes.Equal(rBytes[:], rlxB[:]) {
 		str := "calculated R point was not given R"
-		return false, schnorrError(ErrUnequalRValues, str)
+		return schnorrError(ErrUnequalRValues, str)
 	}
 
-	return true, nil
+	return nil
 }
 
 // Verify is the generalized and exported function for the verification of a
 // secp256k1 Schnorr signature. BLAKE256 is used as the hashing function.
 func (sig *Signature) Verify(msg []byte, pubkey *secp256k1.PublicKey) bool {
-	ok, _ := schnorrVerify(sig, pubkey, msg)
-	return ok
+	return schnorrVerify(sig, pubkey, msg) == nil
 }
 
 // zeroArray zeroes the memory of a scalar array.

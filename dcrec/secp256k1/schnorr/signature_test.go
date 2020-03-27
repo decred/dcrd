@@ -237,14 +237,9 @@ func TestSchnorrSignAndVerify(t *testing.T) {
 
 		// Ensure the produced signature verifies as well.
 		pubKey := secp256k1.NewPrivateKey(hexToModNScalar(test.key)).PubKey()
-		ok, err := schnorrVerify(gotSig, pubKey, hash)
+		err = schnorrVerify(gotSig, pubKey, hash)
 		if err != nil {
-			t.Errorf("%s: signature failed to verify with error: %v", test.name,
-				err)
-			continue
-		}
-		if !ok {
-			t.Errorf("%s: signature failed to verify", test.name)
+			t.Errorf("%s: signature failed to verify: %v", test.name, err)
 			continue
 		}
 	}
