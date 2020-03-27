@@ -1517,7 +1517,7 @@ out:
 			if req.Method == "" || req.Params == nil {
 				jsonErr := &dcrjson.RPCError{
 					Code:    dcrjson.ErrRPCInvalidRequest.Code,
-					Message: fmt.Sprintf("Invalid request: malformed"),
+					Message: "Invalid request: malformed",
 				}
 				reply, err := createMarshalledReply(req.Jsonrpc, req.ID, nil, jsonErr)
 				if err != nil {
@@ -1679,7 +1679,7 @@ out:
 
 					jsonErr := &dcrjson.RPCError{
 						Code:    dcrjson.ErrRPCInvalidRequest.Code,
-						Message: fmt.Sprint("Invalid request: empty batch"),
+						Message: "Invalid request: empty batch",
 					}
 					reply, err = dcrjson.MarshalResponse("2.0", nil, nil, jsonErr)
 					if err != nil {
@@ -1748,7 +1748,7 @@ out:
 						if req.Method == "" || req.Params == nil {
 							jsonErr := &dcrjson.RPCError{
 								Code:    dcrjson.ErrRPCInvalidRequest.Code,
-								Message: fmt.Sprintf("Invalid request: malformed"),
+								Message: "Invalid request: malformed",
 							}
 							reply, err := createMarshalledReply(req.Jsonrpc, req.ID, nil, jsonErr)
 							if err != nil {

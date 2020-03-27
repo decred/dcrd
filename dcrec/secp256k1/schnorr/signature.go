@@ -92,12 +92,12 @@ func schnorrVerify(sig *Signature, pubkey *secp256k1.PublicKey, msg []byte) (boo
 	}
 
 	if pubkey == nil {
-		str := fmt.Sprintf("nil pubkey")
+		str := "nil pubkey"
 		return false, schnorrError(ErrInputValue, str)
 	}
 
 	if !curve.IsOnCurve(pubkey.X(), pubkey.Y()) {
-		str := fmt.Sprintf("pubkey point is not on curve")
+		str := "pubkey point is not on curve"
 		return false, schnorrError(ErrPointNotOnCurve, str)
 	}
 
@@ -111,23 +111,23 @@ func schnorrVerify(sig *Signature, pubkey *secp256k1.PublicKey, msg []byte) (boo
 	// If the hash ends up larger than the order of the curve, abort.
 	// Same thing for hash == 0 (as unlikely as that is...).
 	if hBig.Cmp(curve.N) >= 0 {
-		str := fmt.Sprintf("hash of (R || m) too big")
+		str := "hash of (R || m) too big"
 		return false, schnorrError(ErrSchnorrHashValue, str)
 	}
 	if hBig.Cmp(bigZero) == 0 {
-		str := fmt.Sprintf("hash of (R || m) is zero value")
+		str := "hash of (R || m) is zero value"
 		return false, schnorrError(ErrSchnorrHashValue, str)
 	}
 
 	// We also can't have s greater than the order of the curve.
 	if sig.s.Cmp(curve.N) >= 0 {
-		str := fmt.Sprintf("s value is too big")
+		str := "s value is too big"
 		return false, schnorrError(ErrInputValue, str)
 	}
 
 	// r can't be larger than the curve prime.
 	if sig.r.Cmp(curve.P) == 1 {
-		str := fmt.Sprintf("given R was greater than curve prime")
+		str := "given R was greater than curve prime"
 		return false, schnorrError(ErrBadSigRNotOnCurve, str)
 	}
 
@@ -138,18 +138,18 @@ func schnorrVerify(sig *Signature, pubkey *secp256k1.PublicKey, msg []byte) (boo
 	rlx, rly := curve.Add(lx, ly, rx, ry)
 
 	if rly.Bit(0) == 1 {
-		str := fmt.Sprintf("calculated R y-value was odd")
+		str := "calculated R y-value is odd"
 		return false, schnorrError(ErrBadSigRYValue, str)
 	}
 	if !curve.IsOnCurve(rlx, rly) {
-		str := fmt.Sprintf("calculated R point was not on curve")
+		str := "calculated R point is not on curve"
 		return false, schnorrError(ErrBadSigRNotOnCurve, str)
 	}
 	rlxB := bigIntToEncodedBytes(rlx)
 
 	// r == r' --> valid signature
 	if !bytes.Equal(rBytes[:], rlxB[:]) {
-		str := fmt.Sprintf("calculated R point was not given R")
+		str := "calculated R point was not given R"
 		return false, schnorrError(ErrUnequalRValues, str)
 	}
 
@@ -221,19 +221,19 @@ func schnorrSign(msg []byte, ps []byte, k []byte) (*Signature, error) {
 	bigK := new(big.Int).SetBytes(k)
 
 	if psBig.Cmp(bigZero) == 0 {
-		str := fmt.Sprintf("secret scalar is zero")
+		str := "secret scalar is zero"
 		return nil, schnorrError(ErrInputValue, str)
 	}
 	if psBig.Cmp(curve.N) >= 0 {
-		str := fmt.Sprintf("secret scalar is out of bounds")
+		str := "secret scalar is out of bounds"
 		return nil, schnorrError(ErrInputValue, str)
 	}
 	if bigK.Cmp(bigZero) == 0 {
-		str := fmt.Sprintf("k scalar is zero")
+		str := "k scalar is zero"
 		return nil, schnorrError(ErrInputValue, str)
 	}
 	if bigK.Cmp(curve.N) >= 0 {
-		str := fmt.Sprintf("k scalar is out of bounds")
+		str := "k scalar is out of bounds"
 		return nil, schnorrError(ErrInputValue, str)
 	}
 
@@ -258,7 +258,7 @@ func schnorrSign(msg []byte, ps []byte, k []byte) (*Signature, error) {
 
 	// If the hash ends up larger than the order of the curve, abort.
 	if hBig.Cmp(curve.N) >= 0 {
-		str := fmt.Sprintf("hash of (R || m) too big")
+		str := "hash of (R || m) too big"
 		return nil, schnorrError(ErrSchnorrHashValue, str)
 	}
 

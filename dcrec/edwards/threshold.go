@@ -90,43 +90,43 @@ func schnorrPartialSign(msg []byte, priv []byte,
 	curve := Edwards()
 	privBig := new(big.Int).SetBytes(priv)
 	if privBig.Cmp(zero) == 0 {
-		str := fmt.Sprintf("priv scalar is zero")
+		str := "priv scalar is zero"
 		return nil, nil, fmt.Errorf("%v", str)
 	}
 	if privBig.Cmp(curve.N) >= 0 {
-		str := fmt.Sprintf("priv scalar is out of bounds")
+		str := "priv scalar is out of bounds"
 		return nil, nil, fmt.Errorf("%v", str)
 	}
 	zeroBigInt(privBig)
 
 	privNonceBig := new(big.Int).SetBytes(privNonce)
 	if privNonceBig.Cmp(zero) == 0 {
-		str := fmt.Sprintf("privNonce scalar is zero")
+		str := "privNonce scalar is zero"
 		return nil, nil, fmt.Errorf("%v", str)
 	}
 	if privNonceBig.Cmp(curve.N) >= 0 {
-		str := fmt.Sprintf("privNonce scalar is out of bounds")
+		str := "privNonce scalar is out of bounds"
 		return nil, nil, fmt.Errorf("%v", str)
 	}
 	zeroBigInt(privNonceBig)
 
 	gpkX, gpkY, err := curve.encodedBytesToBigIntPoint(copyBytes(groupPublicKey))
 	if err != nil {
-		str := fmt.Sprintf("public key point could not be decoded")
+		str := fmt.Sprintf("public key point could not be decoded: %v", err)
 		return nil, nil, fmt.Errorf("%v", str)
 	}
 	if !curve.IsOnCurve(gpkX, gpkY) {
-		str := fmt.Sprintf("public key sum is off curve")
+		str := "public key sum is off curve"
 		return nil, nil, fmt.Errorf("%v", str)
 	}
 
 	gpnX, gpnY, err := curve.encodedBytesToBigIntPoint(copyBytes(pubNonceSum))
 	if err != nil {
-		str := fmt.Sprintf("public key point could not be decoded")
+		str := fmt.Sprintf("public key point could not be decoded: %v", err)
 		return nil, nil, fmt.Errorf("%v", str)
 	}
 	if !curve.IsOnCurve(gpnX, gpnY) {
-		str := fmt.Sprintf("public key sum is off curve")
+		str := "public key sum is off curve"
 		return nil, nil, fmt.Errorf("%v", str)
 	}
 
