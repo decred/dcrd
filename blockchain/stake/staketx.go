@@ -497,7 +497,7 @@ func SStxNullOutputAmounts(amounts []int64,
 	}
 
 	if amountTicket <= 0 {
-		errStr := fmt.Sprintf("committed amount was too small!")
+		errStr := "committed amount was too small!"
 		return 0, nil, stakeRuleError(ErrSStxBadCommitAmount, errStr)
 	}
 

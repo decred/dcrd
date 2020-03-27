@@ -25,22 +25,22 @@ func blockOneCoinbasePaysTokens(tx *dcrutil.Tx, params *chaincfg.Params) error {
 	}
 
 	if tx.MsgTx().LockTime != 0 {
-		str := fmt.Sprintf("block 1 coinbase has invalid locktime")
+		str := "block 1 coinbase has invalid locktime"
 		return ruleError(ErrBlockOneTx, str)
 	}
 
 	if tx.MsgTx().Expiry != wire.NoExpiryValue {
-		str := fmt.Sprintf("block 1 coinbase has invalid expiry")
+		str := "block 1 coinbase has invalid expiry"
 		return ruleError(ErrBlockOneTx, str)
 	}
 
 	if tx.MsgTx().TxIn[0].Sequence != wire.MaxTxInSequenceNum {
-		str := fmt.Sprintf("block 1 coinbase not finalized")
+		str := "block 1 coinbase not finalized"
 		return ruleError(ErrBlockOneInputs, str)
 	}
 
 	if len(tx.MsgTx().TxOut) == 0 {
-		str := fmt.Sprintf("coinbase outputs empty in block 1")
+		str := "coinbase outputs empty in block 1"
 		return ruleError(ErrBlockOneOutputs, str)
 	}
 
@@ -92,7 +92,7 @@ func coinbasePaysTreasury(subsidyCache *standalone.SubsidyCache, tx *dcrutil.Tx,
 	}
 
 	if len(tx.MsgTx().TxOut) == 0 {
-		str := fmt.Sprintf("invalid coinbase (no outputs)")
+		str := "invalid coinbase (no outputs)"
 		return ruleError(ErrNoTxOutputs, str)
 	}
 

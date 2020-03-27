@@ -5130,7 +5130,7 @@ func (s *rpcServer) processRequest(ctx context.Context, request *dcrjson.Request
 		if request.Method == "" || request.Params == nil {
 			jsonErr = &dcrjson.RPCError{
 				Code:    dcrjson.ErrRPCInvalidRequest.Code,
-				Message: fmt.Sprintf("Invalid request: malformed"),
+				Message: "Invalid request: malformed",
 			}
 			msg, err := createMarshalledReply(request.Jsonrpc, request.ID, result, jsonErr)
 			if err != nil {
@@ -5285,7 +5285,7 @@ func (s *rpcServer) jsonRPCRead(sCtx context.Context, w http.ResponseWriter, r *
 			if len(batchedRequests) == 0 {
 				jsonErr := &dcrjson.RPCError{
 					Code:    dcrjson.ErrRPCInvalidRequest.Code,
-					Message: fmt.Sprint("Invalid request: empty batch"),
+					Message: "Invalid request: empty batch",
 				}
 				resp, err = dcrjson.MarshalResponse("2.0", nil, nil, jsonErr)
 				if err != nil {
