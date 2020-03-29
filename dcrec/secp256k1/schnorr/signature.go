@@ -31,6 +31,19 @@ const (
 var (
 	// bigZero is the big representation of zero.
 	bigZero = new(big.Int).SetInt64(0)
+
+	// rfc6979ExtraDataV0 is the extra data to feed to RFC6979 when generating
+	// the deterministic nonce for the EC-Schnorr-DCRv0 scheme.  This ensures
+	// the same nonce is not generated for the same message and key as for other
+	// signing algorithms such as ECDSA.
+	//
+	// It is equal to BLAKE-256([]byte("EC-Schnorr-DCRv0")).
+	rfc6979ExtraDataV0 = [32]byte{
+		0x0b, 0x75, 0xf9, 0x7b, 0x60, 0xe8, 0xa5, 0x76,
+		0x28, 0x76, 0xc0, 0x04, 0x82, 0x9e, 0xe9, 0xb9,
+		0x26, 0xfa, 0x6f, 0x0d, 0x2e, 0xea, 0xec, 0x3a,
+		0x4f, 0xd1, 0x44, 0x6a, 0x76, 0x83, 0x31, 0xcb,
+	}
 )
 
 // NewSignature instantiates a new signature given some R,S values.
@@ -309,7 +322,8 @@ func Sign(priv *secp256k1.PrivateKey, hash []byte) (r, s *big.Int, err error) {
 
 	for iteration := uint32(0); ; iteration++ {
 		// Generate a 32-byte scalar to use as a nonce via RFC6979.
-		kB := nonceRFC6979(priv.Serialize(), hash, nil, nil, iteration)
+		kB := nonceRFC6979(priv.Serialize(), hash, rfc6979ExtraDataV0[:], nil,
+			iteration)
 		sig, err := schnorrSign(hash, pA[:], kB)
 		if err == nil {
 			r = sig.r
