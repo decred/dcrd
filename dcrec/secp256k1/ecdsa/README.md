@@ -48,7 +48,6 @@ $ go get -u github.com/decred/dcrd/dcrec/secp25k1/v3/ecdsa
   Demonstrates verifying a secp256k1 signature against a public key that is
   first parsed from raw bytes.  The signature is also parsed from raw bytes.
 
-
 ## License
 
 Package ecdsa is licensed under the [copyfree](http://copyfree.org) ISC License.
