@@ -6,6 +6,7 @@ package schnorr
 
 import (
 	"bytes"
+	"errors"
 	"math/rand"
 	"testing"
 	"time"
@@ -321,6 +322,184 @@ func TestSchnorrSignAndVerifyRandom(t *testing.T) {
 			t.Fatalf("verified signature for bad hash\nsig: %x\nhash: %x\n"+
 				"pubkey: %x", sig.Serialize(), badHash,
 				pubKey.SerializeCompressed())
+		}
+	}
+}
+
+// TestVerifyErrors ensures several error paths in Schnorr verification are
+// detected as expected.  When possible, the signatures are otherwise valid with
+// the exception of the specific failure to ensure it's robust against things
+// like fault attacks.
+func TestVerifyErrors(t *testing.T) {
+	tests := []struct {
+		name string // test description
+		sigR string // hex encoded r component of signature to verify against
+		sigS string // hex encoded s component of signature to verify against
+		hash string // hex encoded hash of message to verify
+		pubX string // hex encoded x component of pubkey to verify against
+		pubY string //  hex encoded y component of pubkey to verify against
+		err  error  // expected error
+	}{{
+		// Signature created from private key 0x01, blake256(0x01020304) || 00.
+		// It is otherwise valid.
+		name: "hash too long",
+		sigR: "4c68976afe187ff0167919ad181cb30f187e2af1c8233b2cbebbbe0fc97fff61",
+		sigS: "e77c69035738000caed6ab0ce1eabe5f7e105498f84d0e8982e87ee4da21948e",
+		hash: "c301ba9de5d6053caad9f5eb46523f007702add2c62fa39de03146a36b8026b700",
+		pubX: "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+		pubY: "483ada7726a3c4655da4fbfc0e1108a8fd17b448a68554199c47d08ffb10d4b8",
+		err:  ErrBadInputSize,
+	}, {
+		// Signature created from private key 0x01, blake256(0x40) and removing
+		// the leading zero byte.  It is otherwise valid.
+		name: "hash too short",
+		sigR: "938de23d0785c7d4775f47bbcadaa2a56447dd98029c8196f2bbed0ab4b8457f",
+		sigS: "7de65bf205e14f81e5f75ad2fd80ea715a391f7b51e10fa43f0a1961039b1a6c",
+		hash: "0e0f08e2ee912478b77004ec62845b5e01418f03837b76cbdc8b1fb0480322",
+		pubX: "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+		pubY: "483ada7726a3c4655da4fbfc0e1108a8fd17b448a68554199c47d08ffb10d4b8",
+		err:  ErrBadInputSize,
+	}, {
+		// Signature created from private key 0x01, blake256(0x01020304) over
+		// the secp256r1 curve (note the r1 instead of k1).
+		name: "pubkey not on the curve, signature valid for secp256r1 instead",
+		sigR: "c6c62660176b3daa90dbf4d7e21d9406ce93895771a16c7c5c91258a9b522174",
+		sigS: "f5b5583956a6b30e18ff5e865c77a8c4adf47b147d11ea3822b4de63c9f7b909",
+		hash: "c301ba9de5d6053caad9f5eb46523f007702add2c62fa39de03146a36b8026b7",
+		pubX: "6b17d1f2e12c4247f8bce6e563a440f277037d812deb33a0f4a13945d898c296",
+		pubY: "4fe342e2fe1a7f9b8ee7eb4a7c0f9e162bce33576b315ececbb6406837bf51f5",
+		err:  ErrPointNotOnCurve,
+	}, {
+		// Signature created from private key 0x01, blake256(0x01020304).  It
+		// is valid if r component is truncated to 32 bytes.
+		name: "r > 32 bytes",
+		sigR: "4c68976afe187ff0167919ad181cb30f187e2af1c8233b2cbebbbe0fc97fff6100",
+		sigS: "e9ae2d0e306497236d4e328dc1a34244045745e87da69d806859348bc2a74525",
+		hash: "c301ba9de5d6053caad9f5eb46523f007702add2c62fa39de03146a36b8026b7",
+		pubX: "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+		pubY: "483ada7726a3c4655da4fbfc0e1108a8fd17b448a68554199c47d08ffb10d4b8",
+		err:  ErrBadSigRNotOnCurve,
+	}, {
+		// Signature invented since finding a signature with an r value that is
+		// exactly the field prime prior to the modular reduction is not
+		// calculable without breaking the underlying crypto.
+		name: "r == field prime",
+		sigR: "fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2f",
+		sigS: "e9ae2d0e306497236d4e328dc1a34244045745e87da69d806859348bc2a74525",
+		hash: "c301ba9de5d6053caad9f5eb46523f007702add2c62fa39de03146a36b8026b7",
+		pubX: "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+		pubY: "483ada7726a3c4655da4fbfc0e1108a8fd17b448a68554199c47d08ffb10d4b8",
+		err:  ErrBadSigRNotOnCurve,
+	}, {
+		// Likewise, signature invented since finding a signature with an r
+		// value that would be valid modulo the field prime and is still 32
+		// bytes is not calculable without breaking the underlying crypto.
+		name: "r > field prime (prime + 1)",
+		sigR: "fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc30",
+		sigS: "e9ae2d0e306497236d4e328dc1a34244045745e87da69d806859348bc2a74525",
+		hash: "c301ba9de5d6053caad9f5eb46523f007702add2c62fa39de03146a36b8026b7",
+		pubX: "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+		pubY: "483ada7726a3c4655da4fbfc0e1108a8fd17b448a68554199c47d08ffb10d4b8",
+		err:  ErrBadSigRNotOnCurve,
+	}, {
+		// Signature created from private key 0x01, blake256(0x01020304).  It
+		// is valid if s component is truncated to 32 bytes.
+		name: "s > 32 bytes",
+		sigR: "4c68976afe187ff0167919ad181cb30f187e2af1c8233b2cbebbbe0fc97fff61",
+		sigS: "e9ae2d0e306497236d4e328dc1a34244045745e87da69d806859348bc2a7452500",
+		hash: "c301ba9de5d6053caad9f5eb46523f007702add2c62fa39de03146a36b8026b7",
+		pubX: "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+		pubY: "483ada7726a3c4655da4fbfc0e1108a8fd17b448a68554199c47d08ffb10d4b8",
+		err:  ErrInputValue,
+	}, {
+		// Signature created from private key 0x01, blake256(0x01020304) and
+		// adding the group order to the resulting s.  Thus, it is valid if s is
+		// taken modulo the group order.
+		name: "s > group order (s + N)",
+		sigR: "4c68976afe187ff0167919ad181cb30f187e2af1c8233b2cbebbbe0fc97fff61",
+		sigS: "01e9ae2d0e306497236d4e328dc1a34242bf0622cf2cef3dbc282b931892dd8666",
+		hash: "c301ba9de5d6053caad9f5eb46523f007702add2c62fa39de03146a36b8026b7",
+		pubX: "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+		pubY: "483ada7726a3c4655da4fbfc0e1108a8fd17b448a68554199c47d08ffb10d4b8",
+		err:  ErrInputValue,
+	}, {
+		// Signature invented since finding a signature with an s value that is
+		// exactly the group order prior to the modular reduction is not
+		// calculable without breaking the underlying crypto.
+		name: "s == group order",
+		sigR: "4c68976afe187ff0167919ad181cb30f187e2af1c8233b2cbebbbe0fc97fff61",
+		sigS: "fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141",
+		hash: "c301ba9de5d6053caad9f5eb46523f007702add2c62fa39de03146a36b8026b7",
+		pubX: "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+		pubY: "483ada7726a3c4655da4fbfc0e1108a8fd17b448a68554199c47d08ffb10d4b8",
+		err:  ErrInputValue,
+	}, {
+		// Likewise, signature invented since finding a signature with an s
+		// value that would be valid modulo the group order and is still 32
+		// bytes is not calculable without breaking the underlying crypto.
+		name: "s > group order and still 32 bytes (order + 1)",
+		sigR: "4c68976afe187ff0167919ad181cb30f187e2af1c8233b2cbebbbe0fc97fff61",
+		sigS: "fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364142",
+		hash: "c301ba9de5d6053caad9f5eb46523f007702add2c62fa39de03146a36b8026b7",
+		pubX: "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+		pubY: "483ada7726a3c4655da4fbfc0e1108a8fd17b448a68554199c47d08ffb10d4b8",
+		err:  ErrInputValue,
+	}, {
+		// Signature created from private key 0x01, blake256(0x01020304) and
+		// manually setting s = -ed.
+		//
+		// Signature is otherwise invalid too since finding a signature where
+		// the two points add to infinity while still having a matching r is not
+		// calculable.
+		name: "calculated R point at infinity",
+		sigR: "4c68976afe187ff0167919ad181cb30f187e2af1c8233b2cbebbbe0fc97fff61",
+		sigS: "14cc9e0544dd8fe6baa7c20fd2a141d0ee60114c419377efc850a49bd5c1ed36",
+		hash: "c301ba9de5d6053caad9f5eb46523f007702add2c62fa39de03146a36b8026b7",
+		pubX: "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+		pubY: "483ada7726a3c4655da4fbfc0e1108a8fd17b448a68554199c47d08ffb10d4b8",
+		err:  ErrBadSigRNotOnCurve,
+	}, {
+		// Signature created from private key 0x01, blake256(0x01020304050607).
+		// It is otherwise valid.
+		name: "odd R",
+		sigR: "2c2c71f7bf3e183238b1f20d856e068dc6d37805c8b2d872d0f23d906bc95789",
+		sigS: "eb7670ca6ff95c1d5c6785bc72e0781f27c9778758317d82d3053fdbcc9c17b0",
+		hash: "ccf8c53a7631aad469d412963d495c729ff219dd2ae9a0c4de4bd1b4c777d49c",
+		pubX: "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+		pubY: "483ada7726a3c4655da4fbfc0e1108a8fd17b448a68554199c47d08ffb10d4b8",
+		err:  ErrBadSigRYValue,
+	}, {
+		// Signature created from private key 0x01, blake256(0x01020304).  Thus,
+		// it is valid for that message.  Attempting to verify wrong message
+		// blake256(0x01020307).
+		name: "mismatched R",
+		sigR: "4c68976afe187ff0167919ad181cb30f187e2af1c8233b2cbebbbe0fc97fff61",
+		sigS: "e9ae2d0e306497236d4e328dc1a34244045745e87da69d806859348bc2a74525",
+		hash: "d4f9aea8c329f57a81397f0418269a8bd495957ea56ae0af0dfa886fb5977046",
+		pubX: "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+		pubY: "483ada7726a3c4655da4fbfc0e1108a8fd17b448a68554199c47d08ffb10d4b8",
+		err:  ErrUnequalRValues,
+	}}
+	// NOTE: There is no test for e >= group order because it would require
+	// finding a preimage that hashes to the value range [n, 2^256) and n is
+	// close enough to 2^256 that there is only roughly a 1 in 2^128 chance of
+	// a given hash falling in that range.  In other words, it's not feasible
+	// to calculate.
+
+	for _, test := range tests {
+		// Parse test data into types.
+		sigR, sigS := hexToBigInt(test.sigR), hexToBigInt(test.sigS)
+		sig := NewSignature(sigR, sigS)
+		pubX, pubY := hexToBigInt(test.pubX), hexToBigInt(test.pubY)
+		pubKey := secp256k1.NewPublicKey(pubX, pubY)
+		hash := hexToBytes(test.hash)
+
+		// Ensure the expected error is hit.
+		err := schnorrVerify(sig, pubKey, hash)
+		if !errors.Is(err, test.err) {
+			t.Errorf("%s: mismatched err -- got %v, want %v", test.name, err,
+				test.err)
+			continue
 		}
 	}
 }

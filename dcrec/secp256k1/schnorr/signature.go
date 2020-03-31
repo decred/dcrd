@@ -134,7 +134,7 @@ func schnorrVerify(sig *Signature, pubkey *secp256k1.PublicKey, msg []byte) erro
 	}
 
 	// r can't be larger than the curve prime.
-	if sig.r.Cmp(curve.P) == 1 {
+	if sig.r.Cmp(curve.P) >= 0 {
 		str := "given R was greater than curve prime"
 		return signatureError(ErrBadSigRNotOnCurve, str)
 	}

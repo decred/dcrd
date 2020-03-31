@@ -135,8 +135,8 @@ func TestErrorCodeIsAs(t *testing.T) {
 			continue
 		}
 
-		// Ensure the underlying error code can be unwrapped is and is the
-		// expected code.
+		// Ensure the underlying error code can be unwrapped and is the expected
+		// code.
 		var code ErrorCode
 		if !errors.As(test.err, &code) {
 			t.Errorf("%s: unable to unwrap to error code", test.name)
