@@ -9,13 +9,15 @@ import (
 	"fmt"
 )
 
-// ErrorCode identifies a kind of error.
+// ErrorCode identifies a kind of signature-related error.  It has full support
+// for errors.Is and errors.As, so the caller can directly check against an
+// error code when determining the reason for an error.
 type ErrorCode int
 
 // These constants are used to identify a specific RuleError.
 const (
 	// ErrBadInputSize indicates that input to a signature was of the wrong size.
-	ErrBadInputSize = iota
+	ErrBadInputSize ErrorCode = iota
 
 	// ErrInputValue indicates that the value of an input was wrong (e.g. zero).
 	ErrInputValue
@@ -44,9 +46,6 @@ const (
 	// from r.
 	ErrRegenerateRPoint
 
-	// ErrPubKeyOffCurve indicates that a regenerated pubkey was off the curve.
-	ErrPubKeyOffCurve
-
 	// ErrRegenSig indicates that a regenerated pubkey could not be validated
 	// against the signature.
 	ErrRegenSig
@@ -61,18 +60,22 @@ const (
 	// ErrNonmatchingR indicates that all signatures to be combined in a
 	// threshold signature failed to have a matching R value.
 	ErrNonmatchingR
+
+	// numErrorCodes is the maximum error code number used in tests.  This entry
+	// MUST be the last entry in the enum.
+	numErrorCodes
 )
 
 // Map of ErrorCode values back to their constant names for pretty printing.
 var errorCodeStrings = map[ErrorCode]string{
-	ErrBadInputSize:      "BadInputSize",
+	ErrBadInputSize:      "ErrBadInputSize",
 	ErrInputValue:        "ErrInputValue",
 	ErrSchnorrHashValue:  "ErrSchnorrHashValue",
 	ErrPointNotOnCurve:   "ErrPointNotOnCurve",
 	ErrBadSigRYValue:     "ErrBadSigRYValue",
 	ErrBadSigRNotOnCurve: "ErrBadSigRNotOnCurve",
+	ErrUnequalRValues:    "ErrUnequalRValues",
 	ErrRegenerateRPoint:  "ErrRegenerateRPoint",
-	ErrPubKeyOffCurve:    "ErrPubKeyOffCurve",
 	ErrRegenSig:          "ErrRegenSig",
 	ErrBadNonce:          "ErrBadNonce",
 	ErrZeroSigS:          "ErrZeroSigS",
@@ -87,7 +90,31 @@ func (e ErrorCode) String() string {
 	return fmt.Sprintf("Unknown ErrorCode (%d)", int(e))
 }
 
-// Error identifies a violation.
+// Error implements the error interface.
+func (e ErrorCode) Error() string {
+	return e.String()
+}
+
+// Is implements the interface to work with the standard library's errors.Is.
+//
+// It returns true in the following cases:
+// - The target is an Error and the error codes match
+// - The target is an ErrorCode and the error codes match
+func (e ErrorCode) Is(target error) bool {
+	switch target := target.(type) {
+	case Error:
+		return e == target.ErrorCode
+
+	case ErrorCode:
+		return e == target
+	}
+
+	return false
+}
+
+// Error identifies a signature-related error.  It has full support for
+// errors.Is and errors.As, so the caller can ascertain the specific reason for
+// the error by checking the underlying error code.
 type Error struct {
 	ErrorCode   ErrorCode // Describes the kind of error
 	Description string    // Human readable description of the issue
@@ -98,7 +125,29 @@ func (e Error) Error() string {
 	return e.Description
 }
 
-// schnorrError creates a Error given a set of arguments.
-func schnorrError(c ErrorCode, desc string) Error {
+// Is implements the interface to work with the standard library's errors.Is.
+//
+// It returns true in the following cases:
+// - The target is an Error and the error codes match
+// - The target is an ErrorCode and the error codes match
+func (e Error) Is(target error) bool {
+	switch target := target.(type) {
+	case Error:
+		return e.ErrorCode == target.ErrorCode
+
+	case ErrorCode:
+		return target == e.ErrorCode
+	}
+
+	return false
+}
+
+// Unwrap returns the underlying wrapped error code.
+func (e Error) Unwrap() error {
+	return e.ErrorCode
+}
+
+// signatureError creates an Error given a set of arguments.
+func signatureError(c ErrorCode, desc string) Error {
 	return Error{ErrorCode: c, Description: desc}
 }

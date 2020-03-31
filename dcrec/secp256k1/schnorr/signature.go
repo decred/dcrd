@@ -101,17 +101,12 @@ func schnorrVerify(sig *Signature, pubkey *secp256k1.PublicKey, msg []byte) erro
 	if len(msg) != scalarSize {
 		str := fmt.Sprintf("wrong size for message (got %v, want %v)",
 			len(msg), scalarSize)
-		return schnorrError(ErrBadInputSize, str)
-	}
-
-	if pubkey == nil {
-		str := "nil pubkey"
-		return schnorrError(ErrInputValue, str)
+		return signatureError(ErrBadInputSize, str)
 	}
 
 	if !curve.IsOnCurve(pubkey.X(), pubkey.Y()) {
 		str := "pubkey point is not on curve"
-		return schnorrError(ErrPointNotOnCurve, str)
+		return signatureError(ErrPointNotOnCurve, str)
 	}
 
 	rBytes := bigIntToEncodedBytes(sig.r)
@@ -125,23 +120,23 @@ func schnorrVerify(sig *Signature, pubkey *secp256k1.PublicKey, msg []byte) erro
 	// Same thing for hash == 0 (as unlikely as that is...).
 	if hBig.Cmp(curve.N) >= 0 {
 		str := "hash of (R || m) too big"
-		return schnorrError(ErrSchnorrHashValue, str)
+		return signatureError(ErrSchnorrHashValue, str)
 	}
 	if hBig.Cmp(bigZero) == 0 {
 		str := "hash of (R || m) is zero value"
-		return schnorrError(ErrSchnorrHashValue, str)
+		return signatureError(ErrSchnorrHashValue, str)
 	}
 
 	// We also can't have s greater than the order of the curve.
 	if sig.s.Cmp(curve.N) >= 0 {
 		str := "s value is too big"
-		return schnorrError(ErrInputValue, str)
+		return signatureError(ErrInputValue, str)
 	}
 
 	// r can't be larger than the curve prime.
 	if sig.r.Cmp(curve.P) == 1 {
 		str := "given R was greater than curve prime"
-		return schnorrError(ErrBadSigRNotOnCurve, str)
+		return signatureError(ErrBadSigRNotOnCurve, str)
 	}
 
 	// r' = hQ + sG
@@ -152,18 +147,18 @@ func schnorrVerify(sig *Signature, pubkey *secp256k1.PublicKey, msg []byte) erro
 
 	if rly.Bit(0) == 1 {
 		str := "calculated R y-value is odd"
-		return schnorrError(ErrBadSigRYValue, str)
+		return signatureError(ErrBadSigRYValue, str)
 	}
 	if !curve.IsOnCurve(rlx, rly) {
 		str := "calculated R point is not on curve"
-		return schnorrError(ErrBadSigRNotOnCurve, str)
+		return signatureError(ErrBadSigRNotOnCurve, str)
 	}
 	rlxB := bigIntToEncodedBytes(rlx)
 
 	// r == r' --> valid signature
 	if !bytes.Equal(rBytes[:], rlxB[:]) {
 		str := "calculated R point was not given R"
-		return schnorrError(ErrUnequalRValues, str)
+		return signatureError(ErrUnequalRValues, str)
 	}
 
 	return nil
@@ -216,17 +211,17 @@ func schnorrSign(msg []byte, ps []byte, k []byte) (*Signature, error) {
 	if len(msg) != scalarSize {
 		str := fmt.Sprintf("wrong size for message (got %v, want %v)",
 			len(msg), scalarSize)
-		return nil, schnorrError(ErrBadInputSize, str)
+		return nil, signatureError(ErrBadInputSize, str)
 	}
 	if len(ps) != scalarSize {
 		str := fmt.Sprintf("wrong size for privkey (got %v, want %v)",
 			len(ps), scalarSize)
-		return nil, schnorrError(ErrBadInputSize, str)
+		return nil, signatureError(ErrBadInputSize, str)
 	}
 	if len(k) != scalarSize {
 		str := fmt.Sprintf("wrong size for nonce k (got %v, want %v)",
 			len(k), scalarSize)
-		return nil, schnorrError(ErrBadInputSize, str)
+		return nil, signatureError(ErrBadInputSize, str)
 	}
 
 	psBig := new(big.Int).SetBytes(ps)
@@ -234,19 +229,19 @@ func schnorrSign(msg []byte, ps []byte, k []byte) (*Signature, error) {
 
 	if psBig.Cmp(bigZero) == 0 {
 		str := "secret scalar is zero"
-		return nil, schnorrError(ErrInputValue, str)
+		return nil, signatureError(ErrInputValue, str)
 	}
 	if psBig.Cmp(curve.N) >= 0 {
 		str := "secret scalar is out of bounds"
-		return nil, schnorrError(ErrInputValue, str)
+		return nil, signatureError(ErrInputValue, str)
 	}
 	if bigK.Cmp(bigZero) == 0 {
 		str := "k scalar is zero"
-		return nil, schnorrError(ErrInputValue, str)
+		return nil, signatureError(ErrInputValue, str)
 	}
 	if bigK.Cmp(curve.N) >= 0 {
 		str := "k scalar is out of bounds"
-		return nil, schnorrError(ErrInputValue, str)
+		return nil, signatureError(ErrInputValue, str)
 	}
 
 	// R = kG
@@ -271,7 +266,7 @@ func schnorrSign(msg []byte, ps []byte, k []byte) (*Signature, error) {
 	// If the hash ends up larger than the order of the curve, abort.
 	if hBig.Cmp(curve.N) >= 0 {
 		str := "hash of (R || m) too big"
-		return nil, schnorrError(ErrSchnorrHashValue, str)
+		return nil, signatureError(ErrSchnorrHashValue, str)
 	}
 
 	// s = k - hx
@@ -288,7 +283,7 @@ func schnorrSign(msg []byte, ps []byte, k []byte) (*Signature, error) {
 
 	if sBig.Cmp(bigZero) == 0 {
 		str := fmt.Sprintf("sig s %v is zero", sBig)
-		return nil, schnorrError(ErrZeroSigS, str)
+		return nil, signatureError(ErrZeroSigS, str)
 	}
 
 	// Zero out the private key and nonce when we're done with it.
