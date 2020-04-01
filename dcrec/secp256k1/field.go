@@ -86,13 +86,19 @@ const (
 	// needed to represent the value.
 	fieldMSBMask = (1 << fieldMSBBits) - 1
 
-	// fieldPrimeWordZero is word zero of the secp256k1 prime in the
-	// internal field representation.  It is used during negation.
-	fieldPrimeWordZero = 0x3fffc2f
-
-	// fieldPrimeWordOne is word one of the secp256k1 prime in the
-	// internal field representation.  It is used during negation.
-	fieldPrimeWordOne = 0x3ffffbf
+	// These fields provide convenient access to each of the words of the
+	// secp256k1 prime in the internal field representation to improve code
+	// readability.
+	fieldPrimeWordZero  = 0x03fffc2f
+	fieldPrimeWordOne   = 0x03ffffbf
+	fieldPrimeWordTwo   = 0x03ffffff
+	fieldPrimeWordThree = 0x03ffffff
+	fieldPrimeWordFour  = 0x03ffffff
+	fieldPrimeWordFive  = 0x03ffffff
+	fieldPrimeWordSix   = 0x03ffffff
+	fieldPrimeWordSeven = 0x03ffffff
+	fieldPrimeWordEight = 0x03ffffff
+	fieldPrimeWordNine  = 0x003fffff
 )
 
 // FieldVal implements optimized fixed-precision arithmetic over the
@@ -227,15 +233,19 @@ func (f *FieldVal) SetInt(ui uint16) *FieldVal {
 }
 
 // SetBytes packs the passed 32-byte big-endian value into the internal field
-// value representation in constant time.
+// value representation in constant time.  SetBytes interprets the provided
+// array as a 256-bit big-endian unsigned integer, packs it into the internal
+// field value representation, and returns either 1 if it is greater than or
+// equal to the field prime (aka it overflowed) or 0 otherwise in constant time.
 //
-// The field value is returned to support chaining.  This enables syntax like:
-// f := new(FieldVal).SetBytes(byteArray).Mul(f2) so that f = ba * f2.
+// Note that a bool is not used here because it is not possible in Go to convert
+// from a bool to numeric value in constant time and many constant-time
+// operations require a numeric value.
 //
 // Preconditions: None
-// Output Normalized: Yes
+// Output Normalized: Yes if no overflow, no otherwise
 // Output Max Magnitude: 1
-func (f *FieldVal) SetBytes(b *[32]byte) *FieldVal {
+func (f *FieldVal) SetBytes(b *[32]byte) uint32 {
 	// Pack the 256 total bits across the 10 uint32 words with a max of
 	// 26-bits per word.  This could be done with a couple of for loops,
 	// but this unrolled version is significantly faster.  Benchmarks show
@@ -259,28 +269,59 @@ func (f *FieldVal) SetBytes(b *[32]byte) *FieldVal {
 	f.n[8] = uint32(b[5]) | uint32(b[4])<<8 | uint32(b[3])<<16 |
 		(uint32(b[2])&twoBitsMask)<<24
 	f.n[9] = uint32(b[2])>>2 | uint32(b[1])<<6 | uint32(b[0])<<14
-	return f
+
+	// The intuition here is that the field value is greater than the prime if
+	// one of the higher individual words is greater than corresponding word of
+	// the prime and all higher words in the field value are equal to their
+	// corresponding word of the prime.  Since this type is modulo the prime,
+	// being equal is also an overflow back to 0.
+	//
+	// Note that because the input is 32 bytes and it was just packed into the
+	// field representation, the only words that can possibly be greater are
+	// zero and one, because ceil(log_2(2^256 - 1 - P)) = 33 bits max and the
+	// internal field representation encodes 26 bits with each word.
+	//
+	// Thus, there is no need to test if the upper words of the field value
+	// exceeds them, hence, only equality is checked for them.
+	highWordsEq := constantTimeEq(f.n[9], fieldPrimeWordNine)
+	highWordsEq &= constantTimeEq(f.n[8], fieldPrimeWordEight)
+	highWordsEq &= constantTimeEq(f.n[7], fieldPrimeWordSeven)
+	highWordsEq &= constantTimeEq(f.n[6], fieldPrimeWordSix)
+	highWordsEq &= constantTimeEq(f.n[5], fieldPrimeWordFive)
+	highWordsEq &= constantTimeEq(f.n[4], fieldPrimeWordFour)
+	highWordsEq &= constantTimeEq(f.n[3], fieldPrimeWordThree)
+	highWordsEq &= constantTimeEq(f.n[2], fieldPrimeWordTwo)
+	overflow := highWordsEq & constantTimeGreater(f.n[1], fieldPrimeWordOne)
+	highWordsEq &= constantTimeEq(f.n[1], fieldPrimeWordOne)
+	overflow |= highWordsEq & constantTimeGreaterOrEq(f.n[0], fieldPrimeWordZero)
+
+	return overflow
 }
 
-// SetByteSlice packs the passed big-endian value into the internal field value
-// representation in constant time.  Only the first 32-bytes are used.  As a
-// result, it is up to the caller to ensure numbers of the appropriate size are
-// used or the value will be truncated.
+// SetByteSlice interprets the provided slice as a 256-bit big-endian unsigned
+// integer (meaning it is truncated to the first 32 bytes), packs it into the
+// internal field value representation, and returns whether or not the resulting
+// truncated 256-bit integer is greater than or equal to the field prime (aka it
+// overflowed) in constant time.
 //
-// The field value is returned to support chaining.  This enables syntax like:
-// f := new(FieldVal).SetByteSlice(byteSlice)
+// Note that since passing a slice with more than 32 bytes is truncated, it is
+// possible that the truncated value is less than the field prime and hence it
+// will not be reported as having overflowed in that case.  It is up to the
+// caller to decide whether it needs to provide numbers of the appropriate size
+// or it if is acceptable to use this function with the described truncation and
+// overflow behavior.
 //
 // Preconditions: None
-// Output Normalized: Yes
+// Output Normalized: Yes if no overflow, no otherwise
 // Output Max Magnitude: 1
-func (f *FieldVal) SetByteSlice(b []byte) *FieldVal {
+func (f *FieldVal) SetByteSlice(b []byte) bool {
 	var b32 [32]byte
 	b = b[:constantTimeMin(uint32(len(b)), 32)]
 	copy(b32[:], b32[:32-len(b)])
 	copy(b32[32-len(b):], b)
-	f.SetBytes(&b32)
+	result := f.SetBytes(&b32)
 	zeroArray32(&b32)
-	return f
+	return result != 0
 }
 
 // Normalize normalizes the internal field words into the desired range and
@@ -1590,7 +1631,8 @@ func (f *FieldVal) IsGtOrEqPrimeMinusOrder() bool {
 	//
 	// This can be verified with the following test code:
 	//   pMinusN := new(big.Int).Sub(curveParams.P, curveParams.N)
-	//   fv := new(FieldVal).SetByteSlice(pMinusN.Bytes())
+	//   var fv FieldVal
+	//   fv.SetByteSlice(pMinusN.Bytes())
 	//   t.Logf("%x", fv.n)
 	//
 	//   Outputs: [3c9baee 3685c8b 1fc4402 6542dd 1455123 0 0 0 0 0]

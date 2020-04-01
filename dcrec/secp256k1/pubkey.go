@@ -51,9 +51,11 @@ func isOdd(a *big.Int) bool {
 // decompressPoint decompresses a point on the given curve given the X point and
 // the solution to use.
 func decompressPoint(x *big.Int, ybit bool) (*big.Int, error) {
-	var fy FieldVal
-	fx := new(FieldVal).SetByteSlice(x.Bytes())
-	if !DecompressY(fx, ybit, &fy) {
+	var fx, fy FieldVal
+	if overflow := fx.SetByteSlice(x.Bytes()); overflow {
+		return nil, fmt.Errorf("invalid public key x coordinate")
+	}
+	if !DecompressY(&fx, ybit, &fy) {
 		return nil, fmt.Errorf("invalid public key x coordinate")
 	}
 	fy.Normalize()

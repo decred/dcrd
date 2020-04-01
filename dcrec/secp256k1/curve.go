@@ -29,7 +29,11 @@ func hexToFieldVal(s string) *FieldVal {
 	if err != nil {
 		panic("invalid hex in source file: " + s)
 	}
-	return new(FieldVal).SetByteSlice(b)
+	var f FieldVal
+	if overflow := f.SetByteSlice(b); overflow {
+		panic("hex in source file overflows mod P: " + s)
+	}
+	return &f
 }
 
 var (

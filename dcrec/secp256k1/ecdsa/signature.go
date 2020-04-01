@@ -28,13 +28,14 @@ var (
 	// defined here to avoid extra allocations.
 	zero32 = [32]byte{}
 
-	// orderBytes is the raw bytes for the order of the secp256k1 curve group.
-	orderBytes = secp256k1.Params().N.Bytes()
-
 	// orderAsFieldVal is the order of the secp256k1 curve group stored as a
 	// field value.  It is provided here to avoid the need to create it multiple
 	// times.
-	orderAsFieldVal = new(secp256k1.FieldVal).SetByteSlice(orderBytes)
+	orderAsFieldVal = func() *secp256k1.FieldVal {
+		var f secp256k1.FieldVal
+		f.SetByteSlice(secp256k1.Params().N.Bytes())
+		return &f
+	}()
 )
 
 const (
