@@ -66,24 +66,53 @@ func (sig Signature) Serialize() []byte {
 	return all
 }
 
-func parseSig(sigStr []byte) (*Signature, error) {
-	if len(sigStr) != SignatureSize {
-		return nil, fmt.Errorf("bad signature size; have %v, want %v",
-			len(sigStr), SignatureSize)
+// ParseSignature parses a signature according to the EC-Schnorr-DCRv0
+// specification and enforces the following additional restrictions specific to
+// secp256k1:
+//
+// - The r component must be in the valid range for secp256k1 field elements
+// - The s component must be in the valid range for secp256k1 scalars
+func ParseSignature(sig []byte) (*Signature, error) {
+	// The signature must be the correct length.
+	sigLen := len(sig)
+	if sigLen < SignatureSize {
+		str := fmt.Sprintf("malformed signature: too short: %d < %d", sigLen,
+			SignatureSize)
+		return nil, signatureError(ErrSigTooShort, str)
+	}
+	if sigLen > SignatureSize {
+		str := fmt.Sprintf("malformed signature: too long: %d > %d", sigLen,
+			SignatureSize)
+		return nil, signatureError(ErrSigTooLong, str)
 	}
 
-	rBytes := copyBytes(sigStr[0:32])
-	r := encodedBytesToBigInt(rBytes)
-	sBytes := copyBytes(sigStr[32:64])
-	s := encodedBytesToBigInt(sBytes)
+	// The signature is validly encoded at this point, however, enforce
+	// additional restrictions to ensure r is in the range [0, p-1], and s is in
+	// the range [0, n-1] since valid Schnorr signatures are required to be in
+	// that range per spec.
+	//
+	// Notice that rejecting these values here is not strictly required because
+	// they are also checked when verifying the signature, but there really
+	// isn't a good reason not to fail early here on signatures that do not
+	// conform to the spec.
+	var r secp256k1.FieldVal
+	if overflow := r.SetByteSlice(sig[0:32]); overflow {
+		str := "invalid signature: r >= field prime"
+		return nil, signatureError(ErrSigRTooBig, str)
+	}
+	var s secp256k1.ModNScalar
+	if overflow := s.SetByteSlice(sig[32:64]); overflow {
+		str := "invalid signature: s >= group order"
+		return nil, signatureError(ErrSigSTooBig, str)
+	}
 
-	return &Signature{r, s}, nil
-}
-
-// ParseSignature parses a signature in BER format for the curve type `curve'
-// into a Signature type, performing some basic sanity checks.
-func ParseSignature(sigStr []byte) (*Signature, error) {
-	return parseSig(sigStr)
+	// Return the signature.
+	var rBytes, sBytes [scalarSize]byte
+	r.PutBytes(&rBytes)
+	s.PutBytes(&sBytes)
+	rBig := encodedBytesToBigInt(&rBytes)
+	sBig := encodedBytesToBigInt(&sBytes)
+	return &Signature{rBig, sBig}, nil
 }
 
 // IsEqual compares this Signature instance to the one passed, returning true

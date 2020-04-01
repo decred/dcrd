@@ -27,6 +27,10 @@ func TestErrorCodeStringer(t *testing.T) {
 		{ErrBadNonce, "ErrBadNonce"},
 		{ErrZeroSigS, "ErrZeroSigS"},
 		{ErrNonmatchingR, "ErrNonmatchingR"},
+		{ErrSigTooShort, "ErrSigTooShort"},
+		{ErrSigTooLong, "ErrSigTooLong"},
+		{ErrSigRTooBig, "ErrSigRTooBig"},
+		{ErrSigSTooBig, "ErrSigSTooBig"},
 		{0xffff, "Unknown ErrorCode (65535)"},
 	}
 

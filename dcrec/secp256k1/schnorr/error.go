@@ -61,6 +61,22 @@ const (
 	// threshold signature failed to have a matching R value.
 	ErrNonmatchingR
 
+	// ErrSigTooShort is returned when a signature that should be a Schnorr
+	// signature is too short.
+	ErrSigTooShort
+
+	// ErrSigTooLong is returned when a signature that should be a Schnorr
+	// signature is too long.
+	ErrSigTooLong
+
+	// ErrSigRTooBig is returned when a signature has r with a value that is
+	// greater than or equal to the prime of the field underlying the group.
+	ErrSigRTooBig
+
+	// ErrSigSTooBig is returned when a signature has s with a value that is
+	// greater than or equal to the group order.
+	ErrSigSTooBig
+
 	// numErrorCodes is the maximum error code number used in tests.  This entry
 	// MUST be the last entry in the enum.
 	numErrorCodes
@@ -80,6 +96,10 @@ var errorCodeStrings = map[ErrorCode]string{
 	ErrBadNonce:          "ErrBadNonce",
 	ErrZeroSigS:          "ErrZeroSigS",
 	ErrNonmatchingR:      "ErrNonmatchingR",
+	ErrSigTooShort:       "ErrSigTooShort",
+	ErrSigTooLong:        "ErrSigTooLong",
+	ErrSigRTooBig:        "ErrSigRTooBig",
+	ErrSigSTooBig:        "ErrSigSTooBig",
 }
 
 // String returns the ErrorCode as a human-readable name.
