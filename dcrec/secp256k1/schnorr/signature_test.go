@@ -256,10 +256,10 @@ func TestSchnorrSignAndVerify(t *testing.T) {
 	}}
 
 	for _, test := range tests {
-		privKey := hexToBytes(test.key)
+		privKey := hexToModNScalar(test.key)
 		msg := hexToBytes(test.msg)
 		hash := hexToBytes(test.hash)
-		nonce := hexToBytes(test.nonce)
+		nonce := hexToModNScalar(test.nonce)
 		wantSig := hexToBytes(test.expected)
 
 		// Ensure the test data is sane by comparing the provided hashed message
@@ -275,18 +275,20 @@ func TestSchnorrSignAndVerify(t *testing.T) {
 			continue
 		}
 		if test.rfc6979 {
-			calcNonce := secp256k1.NonceRFC6979(privKey, hash,
+			privKeyBytes := hexToBytes(test.key)
+			nonceBytes := hexToBytes(test.nonce)
+			calcNonce := secp256k1.NonceRFC6979(privKeyBytes, hash,
 				rfc6979ExtraDataV0[:], nil, 0)
 			calcNonceBytes := calcNonce.Bytes()
-			if !bytes.Equal(calcNonceBytes[:], nonce) {
+			if !bytes.Equal(calcNonceBytes[:], nonceBytes) {
 				t.Errorf("%s: mismatched test nonce -- expected: %x, given: %x",
-					test.name, calcNonceBytes, nonce)
+					test.name, calcNonceBytes, nonceBytes)
 				continue
 			}
 		}
 
 		// Sign the hash of the message with the given private key and nonce.
-		gotSig, err := schnorrSign(hash, privKey, nonce)
+		gotSig, err := schnorrSign(privKey, nonce, hash)
 		if err != nil {
 			t.Errorf("%s: unexpected error when signing: %v", test.name, err)
 			continue
@@ -343,12 +345,11 @@ func TestSchnorrSignAndVerifyRandom(t *testing.T) {
 		// Sign the hash with the private key and then ensure the produced
 		// signature is valid for the hash and public key associated with the
 		// private key.
-		sigR, sigS, err := Sign(privKey, hash[:])
+		sig, err := Sign(privKey, hash[:])
 		if err != nil {
 			t.Fatalf("failed to sign\nprivate key: %x\nhash: %x",
 				privKey.Serialize(), hash)
 		}
-		sig := NewSignature(sigR, sigS)
 		pubKey := privKey.PubKey()
 		if !sig.Verify(hash[:], pubKey) {
 			t.Fatalf("failed to verify signature\nsig: %x\nhash: %x\n"+

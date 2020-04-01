@@ -82,8 +82,7 @@ func BenchmarkSigVerify(b *testing.B) {
 	msgHash := hexToBytes("c301ba9de5d6053caad9f5eb46523f007702add2c62fa39de03146a36b8026b7")
 
 	// Generate the signature.
-	r, s, _ := Sign(privKey, msgHash)
-	sig := NewSignature(r, s)
+	sig, _ := Sign(privKey, msgHash)
 
 	b.ReportAllocs()
 	b.ResetTimer()

@@ -25,7 +25,6 @@ func TestErrorCodeStringer(t *testing.T) {
 		{ErrRegenerateRPoint, "ErrRegenerateRPoint"},
 		{ErrRegenSig, "ErrRegenSig"},
 		{ErrBadNonce, "ErrBadNonce"},
-		{ErrZeroSigS, "ErrZeroSigS"},
 		{ErrNonmatchingR, "ErrNonmatchingR"},
 		{ErrSigTooShort, "ErrSigTooShort"},
 		{ErrSigTooLong, "ErrSigTooLong"},

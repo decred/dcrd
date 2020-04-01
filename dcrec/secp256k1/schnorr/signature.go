@@ -206,163 +206,176 @@ func zeroArray(a *[scalarSize]byte) {
 	}
 }
 
-// zeroSlice zeroes the memory of a scalar byte slice.
-func zeroSlice(s []byte) {
-	for i := 0; i < scalarSize; i++ {
-		s[i] = 0x00
-	}
-}
+// schnorrSign generates an EC-Schnorr-DCRv0 signature over the secp256k1 curve
+// for the provided hash (which should be the result of hashing a larger
+// message) using the given nonce and private key.  The produced signature is
+// deterministic (same message, nonce, and key yield the same signature) and
+// canonical.
+//
+// WARNING: The hash MUST be 32 bytes and both the nonce and private keys must
+// NOT be 0.  Since this is an internal use function, these preconditions MUST
+// be satisified by the caller.
+func schnorrSign(privKey, nonce *secp256k1.ModNScalar, hash []byte) (*Signature, error) {
+	// The algorithm for producing a EC-Schnorr-DCRv0 signature is described in
+	// README.md and is reproduced here for reference:
+	//
+	// G = curve generator
+	// n = curve order
+	// d = private key
+	// m = message
+	// r, s = signature
+	//
+	// 1. Fail if m is not 32 bytes
+	// 2. Fail if d = 0 or d >= n
+	// 3. Use RFC6979 to generate a deterministic nonce k in [1, n-1]
+	//    parameterized by the private key, message being signed, extra data
+	//    that identifies the scheme, and an iteration count
+	// 4. R = kG
+	// 5. Negate nonce k if R.y is odd (R.y is the y coordinate of the point R)
+	// 6. r = R.x (R.x is the x coordinate of the point R)
+	// 7. e = BLAKE-256(r || m) (Ensure r is padded to 32 bytes)
+	// 8. Repeat from step 3 (with iteration + 1) if e >= n
+	// 9. s = k - e*d mod n
+	// 10. Return (r, s)
 
-// zeroBigInt zeroes the underlying memory used by the passed big integer.  The
-// big integer must not be used after calling this as it changes the internal
-// state out from under it which can lead to unpredictable results.
-func zeroBigInt(v *big.Int) {
-	words := v.Bits()
-	for i := 0; i < len(words); i++ {
-		words[i] = 0
-	}
-	v.SetInt64(0)
-}
-
-// schnorrSign signs a Schnorr signature using a specified hash function
-// and the given nonce, private key, message, and optional public nonce.
-// CAVEAT: Lots of variable time algorithms using both the private key and
-// k, which can expose the signer to constant time attacks. You have been
-// warned! DO NOT use this algorithm where you might have the possibility
-// of someone having EM field/cache/etc access.
-// Memory management is also kind of sloppy and whether or not your keys
-// or nonces can be found in memory later is likely a product of when the
-// garbage collector runs.
-// TODO Use field elements with constant time algorithms to prevent said
-// attacks.
-func schnorrSign(msg []byte, ps []byte, k []byte) (*Signature, error) {
-	curve := secp256k1.S256()
-	if len(msg) != scalarSize {
-		str := fmt.Sprintf("wrong size for message (got %v, want %v)",
-			len(msg), scalarSize)
-		return nil, signatureError(ErrBadInputSize, str)
-	}
-	if len(ps) != scalarSize {
-		str := fmt.Sprintf("wrong size for privkey (got %v, want %v)",
-			len(ps), scalarSize)
-		return nil, signatureError(ErrBadInputSize, str)
-	}
-	if len(k) != scalarSize {
-		str := fmt.Sprintf("wrong size for nonce k (got %v, want %v)",
-			len(k), scalarSize)
-		return nil, signatureError(ErrBadInputSize, str)
-	}
-
-	psBig := new(big.Int).SetBytes(ps)
-	bigK := new(big.Int).SetBytes(k)
-
-	if psBig.Cmp(bigZero) == 0 {
-		str := "secret scalar is zero"
-		return nil, signatureError(ErrInputValue, str)
-	}
-	if psBig.Cmp(curve.N) >= 0 {
-		str := "secret scalar is out of bounds"
-		return nil, signatureError(ErrInputValue, str)
-	}
-	if bigK.Cmp(bigZero) == 0 {
-		str := "k scalar is zero"
-		return nil, signatureError(ErrInputValue, str)
-	}
-	if bigK.Cmp(curve.N) >= 0 {
-		str := "k scalar is out of bounds"
-		return nil, signatureError(ErrInputValue, str)
-	}
-
+	// NOTE: Steps 1-3 are performed by the caller.
+	//
+	// Step 4.
+	//
 	// R = kG
-	var Rpx, Rpy *big.Int
-	Rpx, Rpy = curve.ScalarBaseMult(k)
+	var R secp256k1.JacobianPoint
+	k := *nonce
+	secp256k1.ScalarBaseMultNonConst(&k, &R)
 
-	// Check if the field element that would be represented by Y is odd.
-	// If it is, just keep k in the group order.
-	if Rpy.Bit(0) == 1 {
-		bigK.Mod(bigK, curve.N)
-		bigK.Sub(curve.N, bigK)
+	// Step 5.
+	//
+	// Negate nonce k if R.y is odd (R.y is the y coordinate of the point R)
+	//
+	// Note that R must be in affine coordinates for this check.
+	R.ToAffine()
+	if R.Y.IsOdd() {
+		k.Negate()
 	}
 
-	// h = Hash(r || m)
-	Rpxb := bigIntToEncodedBytes(Rpx)
-	hashInput := make([]byte, 0, scalarSize*2)
-	hashInput = append(hashInput, Rpxb[:]...)
-	hashInput = append(hashInput, msg...)
-	h := blake256.Sum256(hashInput)
-	hBig := new(big.Int).SetBytes(h[:])
+	// Step 6.
+	//
+	// r = R.x (R.x is the x coordinate of the point R)
+	r := &R.X
 
-	// If the hash ends up larger than the order of the curve, abort.
-	if hBig.Cmp(curve.N) >= 0 {
+	// Step 7.
+	//
+	// e = BLAKE-256(r || m) (Ensure r is padded to 32 bytes)
+	var rBytes [scalarSize]byte
+	r.PutBytes(&rBytes)
+	var commitmentInput [scalarSize * 2]byte
+	copy(commitmentInput[:], rBytes[:])
+	copy(commitmentInput[scalarSize:], hash[:])
+	commitment := blake256.Sum256(commitmentInput[:])
+
+	// Step 8.
+	//
+	// Repeat from step 1 (with iteration + 1) if e >= N
+	var e secp256k1.ModNScalar
+	if overflow := e.SetBytes(&commitment); overflow != 0 {
+		k.Zero()
 		str := "hash of (R || m) too big"
 		return nil, signatureError(ErrSchnorrHashValue, str)
 	}
 
-	// s = k - hx
-	// TODO Speed this up a bunch by using field elements, not
-	// big ints. That we multiply the private scalar using big
-	// ints is also probably bad because we can only assume the
-	// math isn't in constant time, thus opening us up to side
-	// channel attacks. Using a constant time field element
-	// implementation will fix this.
-	sBig := new(big.Int)
-	sBig.Mul(hBig, psBig)
-	sBig.Sub(bigK, sBig)
-	sBig.Mod(sBig, curve.N)
+	// Step 9.
+	//
+	// s = k - e*d mod n
+	s := new(secp256k1.ModNScalar).Mul2(&e, privKey).Negate().Add(&k)
+	k.Zero()
 
-	if sBig.Cmp(bigZero) == 0 {
-		str := fmt.Sprintf("sig s %v is zero", sBig)
-		return nil, signatureError(ErrZeroSigS, str)
+	// Step 10.
+	//
+	// Return (r, s)
+	sBytes := s.Bytes()
+	rBig := new(big.Int).SetBytes(rBytes[:])
+	sBig := new(big.Int).SetBytes(sBytes[:])
+	return &Signature{rBig, sBig}, nil
+}
+
+// Sign generates an EC-Schnorr-DCRv0 signature over the secp256k1 curve for the
+// provided hash (which should be the result of hashing a larger message) using
+// the given private key.  The produced signature is deterministic (same message
+// and same key yield the same signature) and canonical.
+//
+// Note that the current signing implementation has a few remaining variable
+// time aspects which make use of the private key and the generated nonce, which
+// can expose the signer to constant time attacks.  As a result, this function
+// should not be used in situations where there is the possibility of someone
+// having EM field/cache/etc access.
+func Sign(privKey *secp256k1.PrivateKey, hash []byte) (*Signature, error) {
+	// The algorithm for producing a EC-Schnorr-DCRv0 signature is described in
+	// README.md and is reproduced here for reference:
+	//
+	// G = curve generator
+	// n = curve order
+	// d = private key
+	// m = message
+	// r, s = signature
+	//
+	// 1. Fail if m is not 32 bytes
+	// 2. Fail if d = 0 or d >= n
+	// 3. Use RFC6979 to generate a deterministic nonce k in [1, n-1]
+	//    parameterized by the private key, message being signed, extra data
+	//    that identifies the scheme, and an iteration count
+	// 4. R = kG
+	// 5. Negate nonce k if R.y is odd (R.y is the y coordinate of the point R)
+	// 6. r = R.x (R.x is the x coordinate of the point R)
+	// 7. e = BLAKE-256(r || m) (Ensure r is padded to 32 bytes)
+	// 8. Repeat from step 3 (with iteration + 1) if e >= n
+	// 9. s = k - e*d mod n
+	// 10. Return (r, s)
+
+	// Step 1.
+	//
+	// Fail if m is not 32 bytes
+	if len(hash) != scalarSize {
+		str := fmt.Sprintf("wrong size for message hash (got %v, want %v)",
+			len(hash), scalarSize)
+		return nil, signatureError(ErrBadInputSize, str)
 	}
 
-	// Zero out the private key and nonce when we're done with it.
-	zeroBigInt(bigK)
-	zeroSlice(k)
-	zeroBigInt(psBig)
-	zeroSlice(ps)
+	// Step 2.
+	//
+	// Fail if d = 0 or d >= n
+	privKeyScalar := &privKey.Key
+	if privKeyScalar.IsZero() {
+		str := "private key is zero"
+		return nil, signatureError(ErrInputValue, str)
+	}
 
-	return &Signature{Rpx, sBig}, nil
-}
-
-// nonceRFC6979 is a local instantiation of deterministic nonce generation
-// by the standards of RFC6979.
-func nonceRFC6979(privKey []byte, hash []byte, extra []byte, version []byte, extraIterations uint32) []byte {
-	k := secp256k1.NonceRFC6979(privKey, hash, extra, version, extraIterations)
-	kBytes := k.Bytes()
-	defer zeroArray(&kBytes)
-	bigK := new(big.Int).SetBytes(kBytes[:])
-	defer zeroBigInt(bigK)
-	nonce := bigIntToEncodedBytes(bigK)
-	return nonce[:]
-}
-
-// Sign is the exported version of sign. It uses RFC6979 and Blake256 to
-// produce a Schnorr signature.
-func Sign(priv *secp256k1.PrivateKey, hash []byte) (r, s *big.Int, err error) {
-	// Convert the private scalar to a 32 byte big endian number.
-	bigPriv := new(big.Int).SetBytes(priv.Serialize())
-	pA := bigIntToEncodedBytes(bigPriv)
-	defer zeroArray(pA)
-
+	var privKeyBytes [scalarSize]byte
+	privKeyScalar.PutBytes(&privKeyBytes)
+	defer zeroArray(&privKeyBytes)
 	for iteration := uint32(0); ; iteration++ {
-		// Generate a 32-byte scalar to use as a nonce via RFC6979.
-		kB := nonceRFC6979(priv.Serialize(), hash, rfc6979ExtraDataV0[:], nil,
-			iteration)
-		sig, err := schnorrSign(hash, pA[:], kB)
-		if err == nil {
-			r = sig.r
-			s = sig.s
-			break
+		// Step 3.
+		//
+		// Use RFC6979 to generate a deterministic nonce k in [1, n-1]
+		// parameterized by the private key, message being signed, extra data
+		// that identifies the scheme, and an iteration count
+		k := secp256k1.NonceRFC6979(privKeyBytes[:], hash, rfc6979ExtraDataV0[:],
+			nil, iteration)
+
+		// Steps 4-10.
+		sig, err := schnorrSign(privKeyScalar, k, hash)
+		k.Zero()
+		if err != nil {
+			e, ok := err.(Error)
+			if !ok {
+				return nil, fmt.Errorf("unknown error type")
+			}
+			switch e.ErrorCode {
+			case ErrSchnorrHashValue:
+				continue
+			}
+
+			return nil, err
 		}
 
-		errTyped, ok := err.(Error)
-		if !ok {
-			return nil, nil, fmt.Errorf("unknown error type")
-		}
-		if errTyped.ErrorCode != ErrSchnorrHashValue {
-			return nil, nil, err
-		}
+		return sig, nil
 	}
-
-	return r, s, nil
 }

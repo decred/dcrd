@@ -50,11 +50,11 @@ func RawTxInSignature(tx *wire.MsgTx, idx int, subScript []byte,
 		sigBytes = sig.Serialize()
 	case dcrec.STSchnorrSecp256k1:
 		priv := secp256k1.PrivKeyFromBytes(key)
-		r, s, err := schnorr.Sign(priv, hash)
+		sig, err := schnorr.Sign(priv, hash)
 		if err != nil {
 			return nil, fmt.Errorf("cannot sign tx input: %s", err)
 		}
-		sigBytes = schnorr.NewSignature(r, s).Serialize()
+		sigBytes = sig.Serialize()
 	default:
 		return nil, fmt.Errorf("unknown signature type '%v'", sigType)
 	}

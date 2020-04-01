@@ -54,9 +54,6 @@ const (
 	// unusable.
 	ErrBadNonce
 
-	// ErrZeroSigS indicates a zero signature S value, which is invalid.
-	ErrZeroSigS
-
 	// ErrNonmatchingR indicates that all signatures to be combined in a
 	// threshold signature failed to have a matching R value.
 	ErrNonmatchingR
@@ -94,7 +91,6 @@ var errorCodeStrings = map[ErrorCode]string{
 	ErrRegenerateRPoint:  "ErrRegenerateRPoint",
 	ErrRegenSig:          "ErrRegenSig",
 	ErrBadNonce:          "ErrBadNonce",
-	ErrZeroSigS:          "ErrZeroSigS",
 	ErrNonmatchingR:      "ErrNonmatchingR",
 	ErrSigTooShort:       "ErrSigTooShort",
 	ErrSigTooLong:        "ErrSigTooLong",
