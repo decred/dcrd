@@ -8,30 +8,6 @@ import (
 	"math/big"
 )
 
-// copyBytes copies a byte slice to a 32 byte array.
-func copyBytes(aB []byte) *[32]byte {
-	if aB == nil {
-		return nil
-	}
-	s := new([32]byte)
-
-	// If we have a short byte string, expand
-	// it so that it's long enough.
-	aBLen := len(aB)
-	if aBLen < scalarSize {
-		diff := scalarSize - aBLen
-		for i := 0; i < diff; i++ {
-			aB = append([]byte{0x00}, aB...)
-		}
-	}
-
-	for i := 0; i < scalarSize; i++ {
-		s[i] = aB[i]
-	}
-
-	return s
-}
-
 // bigIntToEncodedBytes converts a big integer into its corresponding
 // 32 byte little endian representation.
 func bigIntToEncodedBytes(a *big.Int) *[32]byte {
