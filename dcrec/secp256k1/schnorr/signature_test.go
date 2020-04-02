@@ -434,16 +434,6 @@ func TestVerifyErrors(t *testing.T) {
 		pubY: "4fe342e2fe1a7f9b8ee7eb4a7c0f9e162bce33576b315ececbb6406837bf51f5",
 		err:  ErrPointNotOnCurve,
 	}, {
-		// Signature created from private key 0x01, blake256(0x01020304).  It
-		// is valid if r component is truncated to 32 bytes.
-		name: "r > 32 bytes",
-		sigR: "4c68976afe187ff0167919ad181cb30f187e2af1c8233b2cbebbbe0fc97fff6100",
-		sigS: "e9ae2d0e306497236d4e328dc1a34244045745e87da69d806859348bc2a74525",
-		hash: "c301ba9de5d6053caad9f5eb46523f007702add2c62fa39de03146a36b8026b7",
-		pubX: "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
-		pubY: "483ada7726a3c4655da4fbfc0e1108a8fd17b448a68554199c47d08ffb10d4b8",
-		err:  ErrSigRTooBig,
-	}, {
 		// Signature invented since finding a signature with an r value that is
 		// exactly the field prime prior to the modular reduction is not
 		// calculable without breaking the underlying crypto.
@@ -465,27 +455,6 @@ func TestVerifyErrors(t *testing.T) {
 		pubX: "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
 		pubY: "483ada7726a3c4655da4fbfc0e1108a8fd17b448a68554199c47d08ffb10d4b8",
 		err:  ErrSigRTooBig,
-	}, {
-		// Signature created from private key 0x01, blake256(0x01020304).  It
-		// is valid if s component is truncated to 32 bytes.
-		name: "s > 32 bytes",
-		sigR: "4c68976afe187ff0167919ad181cb30f187e2af1c8233b2cbebbbe0fc97fff61",
-		sigS: "e9ae2d0e306497236d4e328dc1a34244045745e87da69d806859348bc2a7452500",
-		hash: "c301ba9de5d6053caad9f5eb46523f007702add2c62fa39de03146a36b8026b7",
-		pubX: "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
-		pubY: "483ada7726a3c4655da4fbfc0e1108a8fd17b448a68554199c47d08ffb10d4b8",
-		err:  ErrSigSTooBig,
-	}, {
-		// Signature created from private key 0x01, blake256(0x01020304) and
-		// adding the group order to the resulting s.  Thus, it is valid if s is
-		// taken modulo the group order.
-		name: "s > group order (s + N)",
-		sigR: "4c68976afe187ff0167919ad181cb30f187e2af1c8233b2cbebbbe0fc97fff61",
-		sigS: "01e9ae2d0e306497236d4e328dc1a34242bf0622cf2cef3dbc282b931892dd8666",
-		hash: "c301ba9de5d6053caad9f5eb46523f007702add2c62fa39de03146a36b8026b7",
-		pubX: "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
-		pubY: "483ada7726a3c4655da4fbfc0e1108a8fd17b448a68554199c47d08ffb10d4b8",
-		err:  ErrSigSTooBig,
 	}, {
 		// Signature invented since finding a signature with an s value that is
 		// exactly the group order prior to the modular reduction is not
@@ -552,14 +521,25 @@ func TestVerifyErrors(t *testing.T) {
 
 	for _, test := range tests {
 		// Parse test data into types.
-		sigR, sigS := hexToBigInt(test.sigR), hexToBigInt(test.sigS)
-		sig := NewSignature(sigR, sigS)
 		hash := hexToBytes(test.hash)
 		pubX, pubY := hexToBigInt(test.pubX), hexToBigInt(test.pubY)
 		pubKey := secp256k1.NewPublicKey(pubX, pubY)
 
+		// Create the serialized signature from the bytes and attempt to parse
+		// it to ensure the cases where the r and s components exceed the
+		// allowed range is caught.
+		sig, err := ParseSignature(hexToBytes(test.sigR + test.sigS))
+		if err != nil {
+			if !errors.Is(err, test.err) {
+				t.Errorf("%s: mismatched err -- got %v, want %v", test.name, err,
+					test.err)
+			}
+
+			continue
+		}
+
 		// Ensure the expected error is hit.
-		err := schnorrVerify(sig, hash, pubKey)
+		err = schnorrVerify(sig, hash, pubKey)
 		if !errors.Is(err, test.err) {
 			t.Errorf("%s: mismatched err -- got %v, want %v", test.name, err,
 				test.err)

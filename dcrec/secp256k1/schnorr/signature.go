@@ -7,17 +7,10 @@ package schnorr
 
 import (
 	"fmt"
-	"math/big"
 
 	"github.com/decred/dcrd/crypto/blake256"
 	"github.com/decred/dcrd/dcrec/secp256k1/v3"
 )
-
-// Signature is a type representing a Schnorr signature.
-type Signature struct {
-	r *big.Int
-	s *big.Int
-}
 
 const (
 	// SignatureSize is the size of an encoded Schnorr signature.
@@ -42,9 +35,18 @@ var (
 	}
 )
 
-// NewSignature instantiates a new signature given some R,S values.
-func NewSignature(r, s *big.Int) *Signature {
-	return &Signature{r, s}
+// Signature is a type representing a Schnorr signature.
+type Signature struct {
+	r secp256k1.FieldVal
+	s secp256k1.ModNScalar
+}
+
+// NewSignature instantiates a new signature given some r and s values.
+func NewSignature(r *secp256k1.FieldVal, s *secp256k1.ModNScalar) *Signature {
+	var sig Signature
+	sig.r.Set(r).Normalize()
+	sig.s.Set(s)
+	return &sig
 }
 
 // Serialize returns the Schnorr signature in the more strict format.
@@ -54,12 +56,15 @@ func NewSignature(r, s *big.Int) *Signature {
 //   sig[32:64] S, scalar multiplication/addition results = (ab+c) mod l
 //     encoded also as big endian
 func (sig Signature) Serialize() []byte {
-	rBytes := bigIntToEncodedBytes(sig.r)
-	sBytes := bigIntToEncodedBytes(sig.s)
+	var rBytes, sBytes [32]byte
+	sig.r.PutBytes(&rBytes)
+	sig.s.PutBytes(&sBytes)
 
-	all := append(rBytes[:], sBytes[:]...)
-
-	return all
+	// Total length of returned signature is the length of r and s.
+	b := make([]byte, 0, SignatureSize)
+	b = append(b, rBytes[:]...)
+	b = append(b, sBytes[:]...)
+	return b
 }
 
 // ParseSignature parses a signature according to the EC-Schnorr-DCRv0
@@ -86,11 +91,6 @@ func ParseSignature(sig []byte) (*Signature, error) {
 	// additional restrictions to ensure r is in the range [0, p-1], and s is in
 	// the range [0, n-1] since valid Schnorr signatures are required to be in
 	// that range per spec.
-	//
-	// Notice that rejecting these values here is not strictly required because
-	// they are also checked when verifying the signature, but there really
-	// isn't a good reason not to fail early here on signatures that do not
-	// conform to the spec.
 	var r secp256k1.FieldVal
 	if overflow := r.SetByteSlice(sig[0:32]); overflow {
 		str := "invalid signature: r >= field prime"
@@ -103,19 +103,14 @@ func ParseSignature(sig []byte) (*Signature, error) {
 	}
 
 	// Return the signature.
-	var rBytes, sBytes [scalarSize]byte
-	r.PutBytes(&rBytes)
-	s.PutBytes(&sBytes)
-	rBig := encodedBytesToBigInt(&rBytes)
-	sBig := encodedBytesToBigInt(&sBytes)
-	return &Signature{rBig, sBig}, nil
+	return NewSignature(&r, &s), nil
 }
 
 // IsEqual compares this Signature instance to the one passed, returning true
 // if both Signatures are equivalent. A signature is equivalent to another, if
 // they both have the same scalar value for R and S.
 func (sig Signature) IsEqual(otherSig *Signature) bool {
-	return sig.r.Cmp(otherSig.r) == 0 && sig.s.Cmp(otherSig.s) == 0
+	return sig.r.Equals(&otherSig.r) && sig.s.Equals(&otherSig.s)
 }
 
 // schnorrVerify attempt to verify the signature for the provided hash and
@@ -163,43 +158,19 @@ func schnorrVerify(sig *Signature, hash []byte, pubKey *secp256k1.PublicKey) err
 	//
 	// Fail if r >= p
 	//
-	// Notice the check for the maximum number of bytes is required because
-	// SetByteSlice truncates as noted in its comment so it could otherwise fail
-	// to detect the overflow.
-	rBytes := sig.r.Bytes()
-	var r secp256k1.FieldVal
-	if len(rBytes) > 32 {
-		str := "invalid signature: r is larger than 256 bits"
-		return signatureError(ErrSigRTooBig, str)
-	}
-	if overflow := r.SetByteSlice(rBytes); overflow {
-		str := "invalid signature: r >= field prime"
-		return signatureError(ErrSigRTooBig, str)
-	}
+	// Note this is already handled by the fact r is a field element.
 
 	// Step 4.
 	//
 	// Fail if s >= n
 	//
-	// Notice the check for the maximum number of bytes is required because
-	// SetByteSlice truncates as noted in its comment so it could otherwise fail
-	// to detect the overflow.
-	sBytes := sig.s.Bytes()
-	var s secp256k1.ModNScalar
-	if len(sBytes) > 32 {
-		str := "invalid signature: s is larger than 256 bits"
-		return signatureError(ErrSigSTooBig, str)
-	}
-	if overflow := s.SetByteSlice(sBytes); overflow {
-		str := "invalid signature: s >= group order"
-		return signatureError(ErrSigSTooBig, str)
-	}
+	// Note this is already handled by the fact s is a mod n scalar.
 
 	// Step 5.
 	//
 	// e = BLAKE-256(r || m) (Ensure r is padded to 32 bytes)
 	var rBytes32 [scalarSize]byte
-	r.PutBytes(&rBytes32)
+	sig.r.PutBytes(&rBytes32)
 	var commitmentInput [scalarSize * 2]byte
 	copy(commitmentInput[:], rBytes32[:])
 	copy(commitmentInput[scalarSize:], hash[:])
@@ -219,7 +190,7 @@ func schnorrVerify(sig *Signature, hash []byte, pubKey *secp256k1.PublicKey) err
 	// R = s*G + e*Q
 	var Q, R, sG, eQ secp256k1.JacobianPoint
 	pubKey.AsJacobian(&Q)
-	secp256k1.ScalarBaseMultNonConst(&s, &sG)
+	secp256k1.ScalarBaseMultNonConst(&sig.s, &sG)
 	secp256k1.ScalarMultNonConst(&e, &Q, &eQ)
 	secp256k1.AddNonConst(&sG, &eQ, &R)
 
@@ -247,7 +218,7 @@ func schnorrVerify(sig *Signature, hash []byte, pubKey *secp256k1.PublicKey) err
 	// Verified if R.x == r
 	//
 	// Note that R must be in affine coordinates for this check.
-	if !r.Equals(&R.X) {
+	if !sig.r.Equals(&R.X) {
 		str := "calculated R point was not given R"
 		return signatureError(ErrUnequalRValues, str)
 	}
@@ -353,10 +324,7 @@ func schnorrSign(privKey, nonce *secp256k1.ModNScalar, hash []byte) (*Signature,
 	// Step 10.
 	//
 	// Return (r, s)
-	sBytes := s.Bytes()
-	rBig := new(big.Int).SetBytes(rBytes[:])
-	sBig := new(big.Int).SetBytes(sBytes[:])
-	return &Signature{rBig, sBig}, nil
+	return NewSignature(r, s), nil
 }
 
 // Sign generates an EC-Schnorr-DCRv0 signature over the secp256k1 curve for the
@@ -426,16 +394,8 @@ func Sign(privKey *secp256k1.PrivateKey, hash []byte) (*Signature, error) {
 		sig, err := schnorrSign(privKeyScalar, k, hash)
 		k.Zero()
 		if err != nil {
-			e, ok := err.(Error)
-			if !ok {
-				return nil, fmt.Errorf("unknown error type")
-			}
-			switch e.ErrorCode {
-			case ErrSchnorrHashValue:
-				continue
-			}
-
-			return nil, err
+			// Try again with a new nonce.
+			continue
 		}
 
 		return sig, nil
