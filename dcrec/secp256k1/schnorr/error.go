@@ -42,22 +42,6 @@ const (
 	// signature was not the same as the given R value for the signature.
 	ErrUnequalRValues
 
-	// ErrRegenerateRPoint indicates that a point could not be regenerated
-	// from r.
-	ErrRegenerateRPoint
-
-	// ErrRegenSig indicates that a regenerated pubkey could not be validated
-	// against the signature.
-	ErrRegenSig
-
-	// ErrBadNonce indicates that a generated nonce from some algorithm was
-	// unusable.
-	ErrBadNonce
-
-	// ErrNonmatchingR indicates that all signatures to be combined in a
-	// threshold signature failed to have a matching R value.
-	ErrNonmatchingR
-
 	// ErrSigTooShort is returned when a signature that should be a Schnorr
 	// signature is too short.
 	ErrSigTooShort
@@ -88,10 +72,6 @@ var errorCodeStrings = map[ErrorCode]string{
 	ErrBadSigRYValue:     "ErrBadSigRYValue",
 	ErrBadSigRNotOnCurve: "ErrBadSigRNotOnCurve",
 	ErrUnequalRValues:    "ErrUnequalRValues",
-	ErrRegenerateRPoint:  "ErrRegenerateRPoint",
-	ErrRegenSig:          "ErrRegenSig",
-	ErrBadNonce:          "ErrBadNonce",
-	ErrNonmatchingR:      "ErrNonmatchingR",
 	ErrSigTooShort:       "ErrSigTooShort",
 	ErrSigTooLong:        "ErrSigTooLong",
 	ErrSigRTooBig:        "ErrSigRTooBig",
