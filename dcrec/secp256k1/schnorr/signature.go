@@ -142,7 +142,7 @@ func schnorrVerify(sig *Signature, hash []byte, pubKey *secp256k1.PublicKey) err
 	if len(hash) != scalarSize {
 		str := fmt.Sprintf("wrong size for message (got %v, want %v)",
 			len(hash), scalarSize)
-		return signatureError(ErrBadInputSize, str)
+		return signatureError(ErrInvalidHashLen, str)
 	}
 
 	// Step 2.
@@ -151,7 +151,7 @@ func schnorrVerify(sig *Signature, hash []byte, pubKey *secp256k1.PublicKey) err
 	curve := secp256k1.S256()
 	if !curve.IsOnCurve(pubKey.X(), pubKey.Y()) {
 		str := "pubkey point is not on curve"
-		return signatureError(ErrPointNotOnCurve, str)
+		return signatureError(ErrPubKeyNotOnCurve, str)
 	}
 
 	// Step 3.
@@ -199,7 +199,7 @@ func schnorrVerify(sig *Signature, hash []byte, pubKey *secp256k1.PublicKey) err
 	// Fail if R is the point at infinity
 	if (R.X.IsZero() && R.Y.IsZero()) || R.Z.IsZero() {
 		str := "calculated R point is the point at infinity"
-		return signatureError(ErrBadSigRNotOnCurve, str)
+		return signatureError(ErrSigRNotOnCurve, str)
 	}
 
 	// Step 9.
@@ -210,7 +210,7 @@ func schnorrVerify(sig *Signature, hash []byte, pubKey *secp256k1.PublicKey) err
 	R.ToAffine()
 	if R.Y.IsOdd() {
 		str := "calculated R y-value is odd"
-		return signatureError(ErrBadSigRYValue, str)
+		return signatureError(ErrSigRYIsOdd, str)
 	}
 
 	// Step 10.
@@ -366,7 +366,7 @@ func Sign(privKey *secp256k1.PrivateKey, hash []byte) (*Signature, error) {
 	if len(hash) != scalarSize {
 		str := fmt.Sprintf("wrong size for message hash (got %v, want %v)",
 			len(hash), scalarSize)
-		return nil, signatureError(ErrBadInputSize, str)
+		return nil, signatureError(ErrInvalidHashLen, str)
 	}
 
 	// Step 2.
@@ -375,7 +375,7 @@ func Sign(privKey *secp256k1.PrivateKey, hash []byte) (*Signature, error) {
 	privKeyScalar := &privKey.Key
 	if privKeyScalar.IsZero() {
 		str := "private key is zero"
-		return nil, signatureError(ErrInputValue, str)
+		return nil, signatureError(ErrPrivateKeyIsZero, str)
 	}
 
 	var privKeyBytes [scalarSize]byte

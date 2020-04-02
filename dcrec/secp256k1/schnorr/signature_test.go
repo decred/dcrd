@@ -412,7 +412,7 @@ func TestVerifyErrors(t *testing.T) {
 		hash: "c301ba9de5d6053caad9f5eb46523f007702add2c62fa39de03146a36b8026b700",
 		pubX: "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
 		pubY: "483ada7726a3c4655da4fbfc0e1108a8fd17b448a68554199c47d08ffb10d4b8",
-		err:  ErrBadInputSize,
+		err:  ErrInvalidHashLen,
 	}, {
 		// Signature created from private key 0x01, blake256(0x40) and removing
 		// the leading zero byte.  It is otherwise valid.
@@ -422,7 +422,7 @@ func TestVerifyErrors(t *testing.T) {
 		hash: "0e0f08e2ee912478b77004ec62845b5e01418f03837b76cbdc8b1fb0480322",
 		pubX: "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
 		pubY: "483ada7726a3c4655da4fbfc0e1108a8fd17b448a68554199c47d08ffb10d4b8",
-		err:  ErrBadInputSize,
+		err:  ErrInvalidHashLen,
 	}, {
 		// Signature created from private key 0x01, blake256(0x01020304) over
 		// the secp256r1 curve (note the r1 instead of k1).
@@ -432,7 +432,7 @@ func TestVerifyErrors(t *testing.T) {
 		hash: "c301ba9de5d6053caad9f5eb46523f007702add2c62fa39de03146a36b8026b7",
 		pubX: "6b17d1f2e12c4247f8bce6e563a440f277037d812deb33a0f4a13945d898c296",
 		pubY: "4fe342e2fe1a7f9b8ee7eb4a7c0f9e162bce33576b315ececbb6406837bf51f5",
-		err:  ErrPointNotOnCurve,
+		err:  ErrPubKeyNotOnCurve,
 	}, {
 		// Signature invented since finding a signature with an r value that is
 		// exactly the field prime prior to the modular reduction is not
@@ -490,7 +490,7 @@ func TestVerifyErrors(t *testing.T) {
 		hash: "c301ba9de5d6053caad9f5eb46523f007702add2c62fa39de03146a36b8026b7",
 		pubX: "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
 		pubY: "483ada7726a3c4655da4fbfc0e1108a8fd17b448a68554199c47d08ffb10d4b8",
-		err:  ErrBadSigRNotOnCurve,
+		err:  ErrSigRNotOnCurve,
 	}, {
 		// Signature created from private key 0x01, blake256(0x01020304050607).
 		// It is otherwise valid.
@@ -500,7 +500,7 @@ func TestVerifyErrors(t *testing.T) {
 		hash: "ccf8c53a7631aad469d412963d495c729ff219dd2ae9a0c4de4bd1b4c777d49c",
 		pubX: "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
 		pubY: "483ada7726a3c4655da4fbfc0e1108a8fd17b448a68554199c47d08ffb10d4b8",
-		err:  ErrBadSigRYValue,
+		err:  ErrSigRYIsOdd,
 	}, {
 		// Signature created from private key 0x01, blake256(0x01020304).  Thus,
 		// it is valid for that message.  Attempting to verify wrong message

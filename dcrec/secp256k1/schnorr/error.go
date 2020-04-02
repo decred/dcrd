@@ -1,5 +1,5 @@
 // Copyright (c) 2014 Conformal Systems LLC.
-// Copyright (c) 2015-2016 The Decred developers
+// Copyright (c) 2015-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -16,27 +16,28 @@ type ErrorCode int
 
 // These constants are used to identify a specific RuleError.
 const (
-	// ErrBadInputSize indicates that input to a signature was of the wrong size.
-	ErrBadInputSize ErrorCode = iota
+	// ErrInvalidHashLen indicates that the input hash to sign or verify is not
+	// the required length.
+	ErrInvalidHashLen ErrorCode = iota
 
-	// ErrInputValue indicates that the value of an input was wrong (e.g. zero).
-	ErrInputValue
+	// ErrPrivateKeyIsZero indicates an attempt was made to sign a message with
+	// a private key that is equal to zero.
+	ErrPrivateKeyIsZero
 
-	// ErrSchnorrHashValue indicates that the hash of (R || m) was too large
-	// and so a new k value (nonce) should be used.
+	// ErrSchnorrHashValue indicates that the hash of (R || m) was too large and
+	// so a new nonce should be used.
 	ErrSchnorrHashValue
 
-	// ErrPointNotOnCurve indicates that a point was not on the given
-	// elliptic curve.
-	ErrPointNotOnCurve
+	// ErrPubKeyNotOnCurve indicates that a point was not on the given elliptic
+	// curve.
+	ErrPubKeyNotOnCurve
 
-	// ErrBadSigRYValue indicates that the calculated Y value of R was odd,
-	// which is not allowed.
-	ErrBadSigRYValue
+	// ErrSigRYIsOdd indicates that the calculated Y value of R was odd.
+	ErrSigRYIsOdd
 
-	// ErrBadSigRNotOnCurve indicates that the calculated or given point R for some
+	// ErrSigRNotOnCurve indicates that the calculated or given point R for some
 	// signature was not on the curve.
-	ErrBadSigRNotOnCurve
+	ErrSigRNotOnCurve
 
 	// ErrUnequalRValues indicates that the calculated point R for some
 	// signature was not the same as the given R value for the signature.
@@ -65,17 +66,17 @@ const (
 
 // Map of ErrorCode values back to their constant names for pretty printing.
 var errorCodeStrings = map[ErrorCode]string{
-	ErrBadInputSize:      "ErrBadInputSize",
-	ErrInputValue:        "ErrInputValue",
-	ErrSchnorrHashValue:  "ErrSchnorrHashValue",
-	ErrPointNotOnCurve:   "ErrPointNotOnCurve",
-	ErrBadSigRYValue:     "ErrBadSigRYValue",
-	ErrBadSigRNotOnCurve: "ErrBadSigRNotOnCurve",
-	ErrUnequalRValues:    "ErrUnequalRValues",
-	ErrSigTooShort:       "ErrSigTooShort",
-	ErrSigTooLong:        "ErrSigTooLong",
-	ErrSigRTooBig:        "ErrSigRTooBig",
-	ErrSigSTooBig:        "ErrSigSTooBig",
+	ErrInvalidHashLen:   "ErrInvalidHashLen",
+	ErrPrivateKeyIsZero: "ErrPrivateKeyIsZero",
+	ErrSchnorrHashValue: "ErrSchnorrHashValue",
+	ErrPubKeyNotOnCurve: "ErrPubKeyNotOnCurve",
+	ErrSigRYIsOdd:       "ErrSigRYIsOdd",
+	ErrSigRNotOnCurve:   "ErrSigRNotOnCurve",
+	ErrUnequalRValues:   "ErrUnequalRValues",
+	ErrSigTooShort:      "ErrSigTooShort",
+	ErrSigTooLong:       "ErrSigTooLong",
+	ErrSigRTooBig:       "ErrSigRTooBig",
+	ErrSigSTooBig:       "ErrSigSTooBig",
 }
 
 // String returns the ErrorCode as a human-readable name.
