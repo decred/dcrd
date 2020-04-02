@@ -6,7 +6,6 @@
 package schnorr
 
 import (
-	"bytes"
 	"fmt"
 	"math/big"
 
@@ -29,9 +28,6 @@ const (
 )
 
 var (
-	// bigZero is the big representation of zero.
-	bigZero = new(big.Int).SetInt64(0)
-
 	// rfc6979ExtraDataV0 is the extra data to feed to RFC6979 when generating
 	// the deterministic nonce for the EC-Schnorr-DCRv0 scheme.  This ensures
 	// the same nonce is not generated for the same message and key as for other
@@ -119,73 +115,139 @@ func ParseSignature(sig []byte) (*Signature, error) {
 // if both Signatures are equivalent. A signature is equivalent to another, if
 // they both have the same scalar value for R and S.
 func (sig Signature) IsEqual(otherSig *Signature) bool {
-	return sig.r.Cmp(otherSig.r) == 0 &&
-		sig.s.Cmp(otherSig.s) == 0
+	return sig.r.Cmp(otherSig.r) == 0 && sig.s.Cmp(otherSig.s) == 0
 }
 
-// schnorrVerify is the internal function for verification of a secp256k1
-// Schnorr signature.
-func schnorrVerify(sig *Signature, pubkey *secp256k1.PublicKey, msg []byte) error {
-	curve := secp256k1.S256()
-	if len(msg) != scalarSize {
+// schnorrVerify attempt to verify the signature for the provided hash and
+// secp256k1 public key and either returns nil if successful or a specific error
+// indicating why it failed if not successful.
+//
+// This differs from the exported Verify method in that it returns a specific
+// error to support better testing while the exported method simply returns a
+// bool indicating success or failure.
+func schnorrVerify(sig *Signature, hash []byte, pubKey *secp256k1.PublicKey) error {
+	// The algorithm for producing a EC-Schnorr-DCRv0 signature is described in
+	// README.md and is reproduced here for reference:
+	//
+	//
+	// 1. Fail if m is not 32 bytes
+	// 2. Fail if Q is not a point on the curve
+	// 3. Fail if r >= p
+	// 4. Fail if s >= n
+	// 5. e = BLAKE-256(r || m) (Ensure r is padded to 32 bytes)
+	// 6. Fail if e >= n
+	// 7. R = s*G + e*Q
+	// 8. Fail if R is the point at infinity
+	// 9. Fail if R.y is odd
+	// 10. Verified if R.x == r
+
+	// Step 1.
+	//
+	// Fail if m is not 32 bytes
+	if len(hash) != scalarSize {
 		str := fmt.Sprintf("wrong size for message (got %v, want %v)",
-			len(msg), scalarSize)
+			len(hash), scalarSize)
 		return signatureError(ErrBadInputSize, str)
 	}
 
-	if !curve.IsOnCurve(pubkey.X(), pubkey.Y()) {
+	// Step 2.
+	//
+	// Fail if Q is not a point on the curve
+	curve := secp256k1.S256()
+	if !curve.IsOnCurve(pubKey.X(), pubKey.Y()) {
 		str := "pubkey point is not on curve"
 		return signatureError(ErrPointNotOnCurve, str)
 	}
 
-	rBytes := bigIntToEncodedBytes(sig.r)
-	toHash := make([]byte, 0, len(msg)+scalarSize)
-	toHash = append(toHash, rBytes[:]...)
-	toHash = append(toHash, msg...)
-	h := blake256.Sum256(toHash)
-	hBig := new(big.Int).SetBytes(h[:])
+	// Step 3.
+	//
+	// Fail if r >= p
+	//
+	// Notice the check for the maximum number of bytes is required because
+	// SetByteSlice truncates as noted in its comment so it could otherwise fail
+	// to detect the overflow.
+	rBytes := sig.r.Bytes()
+	var r secp256k1.FieldVal
+	if len(rBytes) > 32 {
+		str := "invalid signature: r is larger than 256 bits"
+		return signatureError(ErrSigRTooBig, str)
+	}
+	if overflow := r.SetByteSlice(rBytes); overflow {
+		str := "invalid signature: r >= field prime"
+		return signatureError(ErrSigRTooBig, str)
+	}
 
-	// If the hash ends up larger than the order of the curve, abort.
-	// Same thing for hash == 0 (as unlikely as that is...).
-	if hBig.Cmp(curve.N) >= 0 {
+	// Step 4.
+	//
+	// Fail if s >= n
+	//
+	// Notice the check for the maximum number of bytes is required because
+	// SetByteSlice truncates as noted in its comment so it could otherwise fail
+	// to detect the overflow.
+	sBytes := sig.s.Bytes()
+	var s secp256k1.ModNScalar
+	if len(sBytes) > 32 {
+		str := "invalid signature: s is larger than 256 bits"
+		return signatureError(ErrSigSTooBig, str)
+	}
+	if overflow := s.SetByteSlice(sBytes); overflow {
+		str := "invalid signature: s >= group order"
+		return signatureError(ErrSigSTooBig, str)
+	}
+
+	// Step 5.
+	//
+	// e = BLAKE-256(r || m) (Ensure r is padded to 32 bytes)
+	var rBytes32 [scalarSize]byte
+	r.PutBytes(&rBytes32)
+	var commitmentInput [scalarSize * 2]byte
+	copy(commitmentInput[:], rBytes32[:])
+	copy(commitmentInput[scalarSize:], hash[:])
+	commitment := blake256.Sum256(commitmentInput[:])
+
+	// Step 6.
+	//
+	// Fail if e >= n
+	var e secp256k1.ModNScalar
+	if overflow := e.SetBytes(&commitment); overflow != 0 {
 		str := "hash of (R || m) too big"
 		return signatureError(ErrSchnorrHashValue, str)
 	}
-	if hBig.Cmp(bigZero) == 0 {
-		str := "hash of (R || m) is zero value"
-		return signatureError(ErrSchnorrHashValue, str)
-	}
 
-	// We also can't have s greater than the order of the curve.
-	if sig.s.Cmp(curve.N) >= 0 {
-		str := "s value is too big"
-		return signatureError(ErrInputValue, str)
-	}
+	// Step 7.
+	//
+	// R = s*G + e*Q
+	var Q, R, sG, eQ secp256k1.JacobianPoint
+	pubKey.AsJacobian(&Q)
+	secp256k1.ScalarBaseMultNonConst(&s, &sG)
+	secp256k1.ScalarMultNonConst(&e, &Q, &eQ)
+	secp256k1.AddNonConst(&sG, &eQ, &R)
 
-	// r can't be larger than the curve prime.
-	if sig.r.Cmp(curve.P) >= 0 {
-		str := "given R was greater than curve prime"
+	// Step 8.
+	//
+	// Fail if R is the point at infinity
+	if (R.X.IsZero() && R.Y.IsZero()) || R.Z.IsZero() {
+		str := "calculated R point is the point at infinity"
 		return signatureError(ErrBadSigRNotOnCurve, str)
 	}
 
-	// r' = hQ + sG
-	sBytes := bigIntToEncodedBytes(sig.s)
-	lx, ly := curve.ScalarMult(pubkey.X(), pubkey.Y(), h[:])
-	rx, ry := curve.ScalarBaseMult(sBytes[:])
-	rlx, rly := curve.Add(lx, ly, rx, ry)
-
-	if rly.Bit(0) == 1 {
+	// Step 9.
+	//
+	// Fail if R.y is odd
+	//
+	// Note that R must be in affine coordinates for this check.
+	R.ToAffine()
+	if R.Y.IsOdd() {
 		str := "calculated R y-value is odd"
 		return signatureError(ErrBadSigRYValue, str)
 	}
-	if !curve.IsOnCurve(rlx, rly) {
-		str := "calculated R point is not on curve"
-		return signatureError(ErrBadSigRNotOnCurve, str)
-	}
-	rlxB := bigIntToEncodedBytes(rlx)
 
-	// r == r' --> valid signature
-	if !bytes.Equal(rBytes[:], rlxB[:]) {
+	// Step 10.
+	//
+	// Verified if R.x == r
+	//
+	// Note that R must be in affine coordinates for this check.
+	if !r.Equals(&R.X) {
 		str := "calculated R point was not given R"
 		return signatureError(ErrUnequalRValues, str)
 	}
@@ -193,10 +255,10 @@ func schnorrVerify(sig *Signature, pubkey *secp256k1.PublicKey, msg []byte) erro
 	return nil
 }
 
-// Verify is the generalized and exported function for the verification of a
-// secp256k1 Schnorr signature. BLAKE256 is used as the hashing function.
-func (sig *Signature) Verify(msg []byte, pubkey *secp256k1.PublicKey) bool {
-	return schnorrVerify(sig, pubkey, msg) == nil
+// Verify returns whether or not the signature is valid for the provided hash
+// and secp256k1 public key.
+func (sig *Signature) Verify(hash []byte, pubKey *secp256k1.PublicKey) bool {
+	return schnorrVerify(sig, hash, pubKey) == nil
 }
 
 // zeroArray zeroes the memory of a scalar array.

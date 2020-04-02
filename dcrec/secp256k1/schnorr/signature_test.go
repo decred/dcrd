@@ -304,7 +304,7 @@ func TestSchnorrSignAndVerify(t *testing.T) {
 
 		// Ensure the produced signature verifies as well.
 		pubKey := secp256k1.NewPrivateKey(hexToModNScalar(test.key)).PubKey()
-		err = schnorrVerify(gotSig, pubKey, hash)
+		err = schnorrVerify(gotSig, hash, pubKey)
 		if err != nil {
 			t.Errorf("%s: signature failed to verify: %v", test.name, err)
 			continue
@@ -442,7 +442,7 @@ func TestVerifyErrors(t *testing.T) {
 		hash: "c301ba9de5d6053caad9f5eb46523f007702add2c62fa39de03146a36b8026b7",
 		pubX: "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
 		pubY: "483ada7726a3c4655da4fbfc0e1108a8fd17b448a68554199c47d08ffb10d4b8",
-		err:  ErrBadSigRNotOnCurve,
+		err:  ErrSigRTooBig,
 	}, {
 		// Signature invented since finding a signature with an r value that is
 		// exactly the field prime prior to the modular reduction is not
@@ -453,7 +453,7 @@ func TestVerifyErrors(t *testing.T) {
 		hash: "c301ba9de5d6053caad9f5eb46523f007702add2c62fa39de03146a36b8026b7",
 		pubX: "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
 		pubY: "483ada7726a3c4655da4fbfc0e1108a8fd17b448a68554199c47d08ffb10d4b8",
-		err:  ErrBadSigRNotOnCurve,
+		err:  ErrSigRTooBig,
 	}, {
 		// Likewise, signature invented since finding a signature with an r
 		// value that would be valid modulo the field prime and is still 32
@@ -464,7 +464,7 @@ func TestVerifyErrors(t *testing.T) {
 		hash: "c301ba9de5d6053caad9f5eb46523f007702add2c62fa39de03146a36b8026b7",
 		pubX: "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
 		pubY: "483ada7726a3c4655da4fbfc0e1108a8fd17b448a68554199c47d08ffb10d4b8",
-		err:  ErrBadSigRNotOnCurve,
+		err:  ErrSigRTooBig,
 	}, {
 		// Signature created from private key 0x01, blake256(0x01020304).  It
 		// is valid if s component is truncated to 32 bytes.
@@ -474,7 +474,7 @@ func TestVerifyErrors(t *testing.T) {
 		hash: "c301ba9de5d6053caad9f5eb46523f007702add2c62fa39de03146a36b8026b7",
 		pubX: "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
 		pubY: "483ada7726a3c4655da4fbfc0e1108a8fd17b448a68554199c47d08ffb10d4b8",
-		err:  ErrInputValue,
+		err:  ErrSigSTooBig,
 	}, {
 		// Signature created from private key 0x01, blake256(0x01020304) and
 		// adding the group order to the resulting s.  Thus, it is valid if s is
@@ -485,7 +485,7 @@ func TestVerifyErrors(t *testing.T) {
 		hash: "c301ba9de5d6053caad9f5eb46523f007702add2c62fa39de03146a36b8026b7",
 		pubX: "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
 		pubY: "483ada7726a3c4655da4fbfc0e1108a8fd17b448a68554199c47d08ffb10d4b8",
-		err:  ErrInputValue,
+		err:  ErrSigSTooBig,
 	}, {
 		// Signature invented since finding a signature with an s value that is
 		// exactly the group order prior to the modular reduction is not
@@ -496,7 +496,7 @@ func TestVerifyErrors(t *testing.T) {
 		hash: "c301ba9de5d6053caad9f5eb46523f007702add2c62fa39de03146a36b8026b7",
 		pubX: "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
 		pubY: "483ada7726a3c4655da4fbfc0e1108a8fd17b448a68554199c47d08ffb10d4b8",
-		err:  ErrInputValue,
+		err:  ErrSigSTooBig,
 	}, {
 		// Likewise, signature invented since finding a signature with an s
 		// value that would be valid modulo the group order and is still 32
@@ -507,7 +507,7 @@ func TestVerifyErrors(t *testing.T) {
 		hash: "c301ba9de5d6053caad9f5eb46523f007702add2c62fa39de03146a36b8026b7",
 		pubX: "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
 		pubY: "483ada7726a3c4655da4fbfc0e1108a8fd17b448a68554199c47d08ffb10d4b8",
-		err:  ErrInputValue,
+		err:  ErrSigSTooBig,
 	}, {
 		// Signature created from private key 0x01, blake256(0x01020304) and
 		// manually setting s = -ed.
@@ -554,12 +554,12 @@ func TestVerifyErrors(t *testing.T) {
 		// Parse test data into types.
 		sigR, sigS := hexToBigInt(test.sigR), hexToBigInt(test.sigS)
 		sig := NewSignature(sigR, sigS)
+		hash := hexToBytes(test.hash)
 		pubX, pubY := hexToBigInt(test.pubX), hexToBigInt(test.pubY)
 		pubKey := secp256k1.NewPublicKey(pubX, pubY)
-		hash := hexToBytes(test.hash)
 
 		// Ensure the expected error is hit.
-		err := schnorrVerify(sig, pubKey, hash)
+		err := schnorrVerify(sig, hash, pubKey)
 		if !errors.Is(err, test.err) {
 			t.Errorf("%s: mismatched err -- got %v, want %v", test.name, err,
 				test.err)
