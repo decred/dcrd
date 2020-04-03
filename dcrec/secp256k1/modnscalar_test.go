@@ -261,9 +261,8 @@ func TestModNScalarSetBytes(t *testing.T) {
 }
 
 // TestModNScalarBytes ensures that retrieving the bytes for a 256-bit
-// big-endian unsigned integer via both the return copy and direct put methods
-// works as expected for edge cases.  Random cases are tested via the various
-// other tests.
+// big-endian unsigned integer via the various methods works as expected for
+// edge cases.  Random cases are tested via the various other tests.
 func TestModNScalarBytes(t *testing.T) {
 	tests := []struct {
 		name     string // test description
@@ -342,6 +341,15 @@ func TestModNScalarBytes(t *testing.T) {
 		if !bytes.Equal(b32[:], expected) {
 			t.Errorf("%s: unexpected result\ngot: %x\nwant: %x", test.name,
 				b32, expected)
+			continue
+		}
+
+		// Ensure getting the bytes directly into a slice works as expected.
+		var buffer [64]byte
+		s.PutBytesUnchecked(buffer[:])
+		if !bytes.Equal(buffer[:32], expected) {
+			t.Errorf("%s: unexpected result\ngot: %x\nwant: %x", test.name,
+				buffer[:32], expected)
 			continue
 		}
 	}

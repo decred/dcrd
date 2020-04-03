@@ -350,12 +350,18 @@ func (s *ModNScalar) SetByteSlice(b []byte) bool {
 	return result != 0
 }
 
-// PutBytes unpacks the scalar to a 32-byte big-endian value using the passed
-// byte array in constant time.  There is a similar function, Bytes, which
-// unpacks the scalar into a new array and returns that.  This version is
-// provided since it can be useful to cut down on the number of allocations by
-// allowing the caller to reuse a buffer.
-func (s *ModNScalar) PutBytes(b *[32]byte) {
+// PutBytesUnchecked unpacks the scalar to a 32-byte big-endian value directly
+// into the passed byte slice in constant time.  The target slice must must have
+// at least 32 bytes available or it will panic.
+//
+// There is a similar function, PutBytes, which unpacks the scalar into a
+// 32-byte array directly.  This version is provided since it can be useful to
+// write directly into part of a larger buffer without needing a separate
+// allocation.
+//
+// Preconditions:
+//   - The target slice MUST have at least 32 bytes available
+func (s *ModNScalar) PutBytesUnchecked(b []byte) {
 	// Unpack the 256 total bits from the 8 uint32 words.  This could be done
 	// with a for loop, but benchmarks show this unrolled version is about 2
 	// times faster than the variant which uses a loop.
@@ -393,13 +399,29 @@ func (s *ModNScalar) PutBytes(b *[32]byte) {
 	b[0] = byte(s.n[7] >> 24)
 }
 
-// Bytes unpacks the scalar to a 32-byte big-endian value in constant time.  See
-// PutBytes for a variant that allows a target byte array to be passed which can
-// be useful to to cut down on the number of allocations by allowing the caller
-// to reuse a buffer.
+// PutBytes unpacks the scalar to a 32-byte big-endian value using the passed
+// byte array in constant time.
+//
+// There is a similar function, PutBytesUnchecked, which unpacks the scalar into
+// a slice that must have at least 32 bytes available.  This version is provided
+// since it can be useful to write directly into an array that is type checked.
+//
+// Alternatively, there is also Bytes, which unpacks the scalar into a new array
+// and returns that which can sometimes be more ergonomic in applications that
+// aren't concerned about an additional copy.
+func (s *ModNScalar) PutBytes(b *[32]byte) {
+	s.PutBytesUnchecked(b[:])
+}
+
+// Bytes unpacks the scalar to a 32-byte big-endian value in constant time.
+//
+// See PutBytes and PutBytesUnchecked for variants that allow an array or slice
+// to be passed which can be useful to cut down on the number of allocations
+// by allowing the caller to reuse a buffer or write directly into part of a
+// larger buffer.
 func (s *ModNScalar) Bytes() [32]byte {
 	var b [32]byte
-	s.PutBytes(&b)
+	s.PutBytesUnchecked(b[:])
 	return b
 }
 
