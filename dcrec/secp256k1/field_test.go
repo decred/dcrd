@@ -7,6 +7,7 @@
 package secp256k1
 
 import (
+	"bytes"
 	"encoding/hex"
 	"fmt"
 	"math/big"
@@ -265,6 +266,104 @@ func TestFieldSetBytes(t *testing.T) {
 		if overflow != test.overflow {
 			t.Errorf("%s: unexpected overflow -- got: %v, want: %v", test.name,
 				overflow, test.overflow)
+			continue
+		}
+	}
+}
+
+// TestFieldBytes ensures that retrieving the bytes for a 256-bit big-endian
+// unsigned integer via the various methods works as expected for edge cases.
+// Random cases are tested via the various other tests.
+func TestFieldBytes(t *testing.T) {
+	tests := []struct {
+		name     string // test description
+		in       string // hex encoded test value
+		expected string // expected hex encoded bytes
+	}{{
+		name:     "zero",
+		in:       "0",
+		expected: "0000000000000000000000000000000000000000000000000000000000000000",
+	}, {
+		name:     "field prime (aka 0)",
+		in:       "fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2f",
+		expected: "0000000000000000000000000000000000000000000000000000000000000000",
+	}, {
+		name:     "field prime - 1",
+		in:       "fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2e",
+		expected: "fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2e",
+	}, {
+		name:     "field prime + 1 (aka 1, overflow in word zero)",
+		in:       "fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc30",
+		expected: "0000000000000000000000000000000000000000000000000000000000000001",
+	}, {
+		name:     "field prime first 32 bits",
+		in:       "fffffc2f",
+		expected: "00000000000000000000000000000000000000000000000000000000fffffc2f",
+	}, {
+		name:     "field prime word zero",
+		in:       "03fffc2f",
+		expected: "0000000000000000000000000000000000000000000000000000000003fffc2f",
+	}, {
+		name:     "field prime first 64 bits",
+		in:       "fffffffefffffc2f",
+		expected: "000000000000000000000000000000000000000000000000fffffffefffffc2f",
+	}, {
+		name:     "field prime word zero and one",
+		in:       "0ffffefffffc2f",
+		expected: "000000000000000000000000000000000000000000000000000ffffefffffc2f",
+	}, {
+		name:     "field prime first 96 bits",
+		in:       "fffffffffffffffefffffc2f",
+		expected: "0000000000000000000000000000000000000000fffffffffffffffefffffc2f",
+	}, {
+		name:     "field prime word zero, one, and two",
+		in:       "3ffffffffffefffffc2f",
+		expected: "000000000000000000000000000000000000000000003ffffffffffefffffc2f",
+	}, {
+		name:     "overflow in word one (prime + 1<<26)",
+		in:       "ffffffffffffffffffffffffffffffffffffffffffffffffffffffff03fffc2f",
+		expected: "0000000000000000000000000000000000000000000000000000000004000000",
+	}, {
+		name:     "2^256 - 1",
+		in:       "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+		expected: "00000000000000000000000000000000000000000000000000000001000003d0",
+	}, {
+		name:     "alternating bits",
+		in:       "a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+		expected: "a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+	}, {
+		name:     "alternating bits 2",
+		in:       "5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a",
+		expected: "5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a",
+	}}
+
+	for _, test := range tests {
+		f := new(FieldVal).SetHex(test.in).Normalize()
+		expected := hexToBytes(test.expected)
+
+		// Ensure getting the bytes works as expected.
+		gotBytes := f.Bytes()
+		if !bytes.Equal(gotBytes[:], expected) {
+			t.Errorf("%s: unexpected result\ngot: %x\nwant: %x", test.name,
+				*gotBytes, expected)
+			continue
+		}
+
+		// Ensure getting the bytes directly into an array works as expected.
+		var b32 [32]byte
+		f.PutBytes(&b32)
+		if !bytes.Equal(b32[:], expected) {
+			t.Errorf("%s: unexpected result\ngot: %x\nwant: %x", test.name,
+				b32, expected)
+			continue
+		}
+
+		// Ensure getting the bytes directly into a slice works as expected.
+		var buffer [64]byte
+		f.PutBytesUnchecked(buffer[:])
+		if !bytes.Equal(buffer[:32], expected) {
+			t.Errorf("%s: unexpected result\ngot: %x\nwant: %x", test.name,
+				buffer[:32], expected)
 			continue
 		}
 	}

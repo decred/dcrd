@@ -452,15 +452,19 @@ func (f *FieldVal) Normalize() *FieldVal {
 	return f
 }
 
-// PutBytes unpacks the field value to a 32-byte big-endian value using the
-// passed byte array in constant time.  There is a similar function, Bytes,
-// which unpacks the field value into a new array and returns that.  This
-// version is provided since it can be useful to cut down on the number of
-// allocations by allowing the caller to reuse a buffer.
+// PutBytesUnchecked unpacks the field value to a 32-byte big-endian value
+// directly into the passed byte slice in constant time.  The target slice must
+// must have at least 32 bytes available or it will panic.
+//
+// There is a similar function, PutBytes, which unpacks the field value into a
+// 32-byte array directly.  This version is provided since it can be useful
+// to write directly into part of a larger buffer without needing a separate
+// allocation.
 //
 // Preconditions:
 //   - The field value MUST be normalized
-func (f *FieldVal) PutBytes(b *[32]byte) {
+//   - The target slice MUST have at least 32 bytes available
+func (f *FieldVal) PutBytesUnchecked(b []byte) {
 	// Unpack the 256 total bits from the 10 uint32 words with a max of
 	// 26-bits per word.  This could be done with a couple of for loops,
 	// but this unrolled version is a bit faster.  Benchmarks show this is
@@ -499,16 +503,36 @@ func (f *FieldVal) PutBytes(b *[32]byte) {
 	b[0] = byte((f.n[9] >> 14) & eightBitsMask)
 }
 
-// Bytes unpacks the field value to a 32-byte big-endian value  in constant
-// time.  See PutBytes for a variant that allows the a buffer to be passed which
-// can be useful to to cut down on the number of allocations by allowing the
-// caller to reuse a buffer.
+// PutBytes unpacks the field value to a 32-byte big-endian value using the
+// passed byte array in constant time.
+//
+// There is a similar function, PutBytesUnchecked, which unpacks the field value
+// into a slice that must have at least 32 bytes available.  This version is
+// provided since it can be useful to write directly into an array that is type
+// checked.
+//
+// Alternatively, there is also Bytes, which unpacks the field value into a new
+// array and returns that which can sometimes be more ergonomic in applications
+// that aren't concerned about an additional copy.
+//
+// Preconditions:
+//   - The field value MUST be normalized
+func (f *FieldVal) PutBytes(b *[32]byte) {
+	f.PutBytesUnchecked(b[:])
+}
+
+// Bytes unpacks the field value to a 32-byte big-endian value in constant time.
+//
+// See PutBytes and PutBytesUnchecked for variants that allow an array or slice
+// to be passed which can be useful to cut down on the number of allocations by
+// allowing the caller to reuse a buffer or write directly into part of a larger
+// buffer.
 //
 // Preconditions:
 //   - The field value MUST be normalized
 func (f *FieldVal) Bytes() *[32]byte {
 	b := new([32]byte)
-	f.PutBytes(b)
+	f.PutBytesUnchecked(b[:])
 	return b
 }
 
