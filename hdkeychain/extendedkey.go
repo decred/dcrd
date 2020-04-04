@@ -164,9 +164,8 @@ func (k *ExtendedKey) pubKeyBytes() []byte {
 	// This is a private extended key, so calculate and memoize the public
 	// key if needed.
 	if len(k.pubKey) == 0 {
-		pkx, pky := secp256k1.S256().ScalarBaseMult(k.key)
-		pubKey := secp256k1.NewPublicKey(pkx, pky)
-		k.pubKey = pubKey.SerializeCompressed()
+		privKey := secp256k1.PrivKeyFromBytes(k.key)
+		k.pubKey = privKey.PubKey().SerializeCompressed()
 	}
 
 	return k.pubKey
