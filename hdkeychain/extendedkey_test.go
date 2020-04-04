@@ -64,8 +64,15 @@ func mockTestNetParams() *mockNetParams {
 // derivation works as intended.
 func TestBIP0032Vectors(t *testing.T) {
 	// The master seeds for each of the two test vectors in [BIP32].
+	//
+	// Note that the 3rd seed has been changed to ensure the condition it is
+	// intended to test applies with the modified hash function used in Decred.
+	//
+	// In particular, it results in hardened child 0 of the master key having
+	// a child key with leading zeroes.
 	testVec1MasterHex := "000102030405060708090a0b0c0d0e0f"
 	testVec2MasterHex := "fffcf9f6f3f0edeae7e4e1dedbd8d5d2cfccc9c6c3c0bdbab7b4b1aeaba8a5a29f9c999693908d8a8784817e7b7875726f6c696663605d5a5754514e4b484542"
+	testVec3MasterHex := "4b381541583be4423346c643850da4b320e46a87ae3d2a4e6da11eba819cd4acba45d239319ac14f863b8d5ab5a0d0c64d2e8a1e7d1457df2e5a3c5100005930"
 	hkStart := uint32(0x80000000)
 
 	mainNetParams := mockMainNetParams()
@@ -175,6 +182,32 @@ func TestBIP0032Vectors(t *testing.T) {
 			path:     []uint32{0, hkStart + 2147483647, 1, hkStart + 2147483646, 2},
 			wantPub:  "dpubZJoBFoQJ35zvEBgsfhJBssnAp8TY5gvruzQFLmyxcqRb7enVtGfSkLo2CkAZJMpa6T2fx6fUtvTgXtUvSVgAZ56bEwGxQsToeZfFV8VadE1",
 			wantPriv: "dprv3s15tfqzxhw8Kmo7RBEqMeyvC7uGekLniSmvbs3bckpxQ6ks1KKqfmH144Jgh3PLxkyZRcS367kp7DrtUmnG16NpnsoNhxSXRgKbJJ7MUQR",
+			net:      mainNetParams,
+		},
+
+		// Test vector 3
+		{
+			name:     "test vector 3 chain m",
+			master:   testVec3MasterHex,
+			path:     []uint32{},
+			wantPub:  "dpubZ9169KDAEUnynpjjLH5vXBfmaBym5MB4HsyZ4ZbsXtJh8DyFVRP8ucKKgNTNSyUZZC93dnJX5eSZxeURPmzHpnBDBieisUbaMJteHNHJpPK",
+			wantPriv: "dprv3hCznBesA6jBtQqy5m2ZzxsWxBRVeQaz6LMEKefWXoi4QfwccU3Xq2oJXgCZvgKQtRXKdgvkyt35PMhyavDyy95dTc1xjbMGd7vJ61LQan8",
+			net:      mainNetParams,
+		},
+		{
+			name:     "test vector 3 chain m/0H",
+			master:   testVec3MasterHex,
+			path:     []uint32{hkStart},
+			wantPub:  "dpubZB4aNJNxjimmDnmC3ZCo7zmSW9ue8i6fRMwpwyHzi15X7j2KHXWSDiPr4ymhbQWg6D3HAjSnqSG3PHDaLVAkUCuRU5ohX9y9z6KL768vYm6",
+			wantPriv: "dprv3jGV1ApffLhyKNsRo39SbmyBt9MNhmWbDpKWD4MdhvUtQAzgQaAq98spvFaUmYyNJSPGLJ9JzgVDNN9bQP62tUpLwVigWZMjXmojbERDmhk",
+			net:      mainNetParams,
+		},
+		{
+			name:     "test vector 3 chain m/0H/0H",
+			master:   testVec3MasterHex,
+			path:     []uint32{hkStart, hkStart},
+			wantPub:  "dpubZESpio8DE1w5E9h5cBwuER5dmfcqZzh19UTstEDJMTfTAbWPJQ8mCFKeqyVgTFL5n4VmrUgbidcH1FmJaPLEWcdyizsdHocfyJTn8Zw8tkB",
+			wantPriv: "dprv3nejMfZv9dsHKjoKMftYiCHP9f4a946vwvqZ9KGwMP4pT3UkRSoA7fodhGCqPVBqgC2wijajQYW9ZQKNMdZ7Ac2L5i7xqHcq4tPzcxzAxhf",
 			net:      mainNetParams,
 		},
 
