@@ -211,6 +211,18 @@ func doubleBlake256Cksum(v []byte) []byte {
 	return second[:4]
 }
 
+// jacobianToBigAffine takes a Jacobian point (x, y, z) as field values and
+// converts it to an affine point as big integers.
+func jacobianToBigAffine(point *secp256k1.JacobianPoint) (*big.Int, *big.Int) {
+	point.ToAffine()
+
+	// Convert the field values for the now affine point to big.Ints.
+	x, y := new(big.Int), new(big.Int)
+	x.SetBytes(point.X.Bytes()[:])
+	y.SetBytes(point.Y.Bytes()[:])
+	return x, y
+}
+
 // Child returns a derived child extended key at the given index.  When this
 // extended key is a private extended key (as determined by the IsPrivate
 // function), a private extended key will be derived.  Otherwise, the derived
@@ -291,9 +303,8 @@ func (k *ExtendedKey) Child(i uint32) (*ExtendedKey, error) {
 	// chance (< 1 in 2^127) this condition will not hold, and in that case,
 	// a child extended key can't be created for this index and the caller
 	// should simply increment to the next index.
-	curve := secp256k1.S256()
-	ilNum := new(big.Int).SetBytes(il)
-	if ilNum.Cmp(curve.N) >= 0 || ilNum.Sign() == 0 {
+	var ilModN secp256k1.ModNScalar
+	if overflow := ilModN.SetByteSlice(il); overflow || ilModN.IsZero() {
 		return nil, ErrInvalidChild
 	}
 
@@ -312,35 +323,49 @@ func (k *ExtendedKey) Child(i uint32) (*ExtendedKey, error) {
 		// Add the parent private key to the intermediate private key to
 		// derive the final child key.
 		//
-		// childKey = parse256(Il) + parenKey
-		keyNum := new(big.Int).SetBytes(k.key)
-		ilNum.Add(ilNum, keyNum)
-		ilNum.Mod(ilNum, curve.N)
-		childKey = ilNum.Bytes()
+		// childKey = parse256(Il) + parentKey
+		var parentPrivKeyModN secp256k1.ModNScalar
+		parentPrivKeyModN.SetByteSlice(k.key)
+		ilModN.Add(&parentPrivKeyModN)
+		childKeyBytes := ilModN.Bytes()
+		childKey = childKeyBytes[:]
+
+		// Strip leading zeroes to maintain legacy behavior.  Note that per
+		// [BIP32] this should be the fully zero-padded 32-bytes, however, the
+		// Decred variation strips leading zeros for legacy reasons and changing
+		// it now would break derivation for a lot of Decred wallets that rely
+		// on this behavior.
+		for len(childKey) > 0 && childKey[0] == 0x00 {
+			childKey = childKey[1:]
+		}
 		isPrivate = true
 	} else {
 		// Case #3.
 		// Calculate the corresponding intermediate public key for
 		// intermediate private key.
-		ilx, ily := curve.ScalarBaseMult(il)
-		if ilx.Sign() == 0 || ily.Sign() == 0 {
+		var imPubKey secp256k1.JacobianPoint
+		secp256k1.ScalarBaseMultNonConst(&ilModN, &imPubKey)
+		imPubKey.ToAffine()
+		if imPubKey.X.IsZero() || imPubKey.Y.IsZero() {
 			return nil, ErrInvalidChild
 		}
 
-		// Convert the serialized compressed parent public key into X
-		// and Y coordinates so it can be added to the intermediate
-		// public key.
+		// Convert the serialized compressed parent public key into a
+		// point so it can be added to the intermediate public key.
+		var parentPubKey secp256k1.JacobianPoint
 		pubKey, err := secp256k1.ParsePubKey(k.key)
 		if err != nil {
 			return nil, err
 		}
+		pubKey.AsJacobian(&parentPubKey)
 
 		// Add the intermediate public key to the parent public key to
 		// derive the final child key.
 		//
 		// childKey = serP(point(parse256(Il)) + parentKey)
-		childX, childY := curve.Add(ilx, ily, pubKey.X(), pubKey.Y())
-		pk := secp256k1.NewPublicKey(childX, childY)
+		var child secp256k1.JacobianPoint
+		secp256k1.AddNonConst(&imPubKey, &parentPubKey, &child)
+		pk := secp256k1.NewPublicKey(jacobianToBigAffine(&child))
 		childKey = pk.SerializeCompressed()
 	}
 
@@ -488,10 +513,9 @@ func NewMaster(seed []byte, net NetworkParams) (*ExtendedKey, error) {
 	secretKey := lr[:len(lr)/2]
 	chainCode := lr[len(lr)/2:]
 
-	// Ensure the key in usable.
-	secretKeyNum := new(big.Int).SetBytes(secretKey)
-	if secretKeyNum.Cmp(secp256k1.S256().N) >= 0 ||
-		secretKeyNum.Sign() == 0 {
+	// Ensure the key is usable.
+	var priv secp256k1.ModNScalar
+	if overflow := priv.SetByteSlice(secretKey); overflow || priv.IsZero() {
 		return nil, ErrUnusableSeed
 	}
 
@@ -546,8 +570,8 @@ func NewKeyFromString(key string, net NetworkParams) (*ExtendedKey, error) {
 		// Ensure the private key is valid.  It must be within the range
 		// of the order of the secp256k1 curve and not be 0.
 		keyData = keyData[1:]
-		keyNum := new(big.Int).SetBytes(keyData)
-		if keyNum.Cmp(secp256k1.S256().N) >= 0 || keyNum.Sign() == 0 {
+		var priv secp256k1.ModNScalar
+		if overflow := priv.SetByteSlice(keyData); overflow || priv.IsZero() {
 			return nil, ErrUnusableSeed
 		}
 	} else {
