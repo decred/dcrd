@@ -93,8 +93,9 @@ func (p *JacobianPoint) Set(other *JacobianPoint) {
 	p.Z.Set(&other.Z)
 }
 
-// ToAffine reduces the Jacobian point Z value to 1 effectively making it an
-// affine coordinate.
+// ToAffine reduces the Z value of the existing point to 1 effectively
+// making it an affine coordinate in constant time.  The point will be
+// normalized.
 func (p *JacobianPoint) ToAffine() {
 	// Inversions are expensive and both point addition and point doubling
 	// are faster when working with points that have a z value of one.  So,

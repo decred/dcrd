@@ -438,3 +438,47 @@ func TestPublicKeyAsJacobian(t *testing.T) {
 		}
 	}
 }
+
+// TestPublicKeyIsOnCurve ensures testing if a public key is on the curve works
+// as expected.
+func TestPublicKeyIsOnCurve(t *testing.T) {
+	tests := []struct {
+		name string // test description
+		pubX string // hex encoded x coordinate for pubkey to serialize
+		pubY string // hex encoded y coordinate for pubkey to serialize
+		want bool   // expected result
+	}{{
+		name: "valid with even y",
+		pubX: "11db93e1dcdb8a016b49840f8c53bc1eb68a382e97b1482ecad7b148a6909a5c",
+		pubY: "4d1f1522047b33068bbb9b07d1e9f40564749b062b3fc0666479bc08a94be98c",
+		want: true,
+	}, {
+		name: "valid with odd y",
+		pubX: "11db93e1dcdb8a016b49840f8c53bc1eb68a382e97b1482ecad7b148a6909a5c",
+		pubY: "b2e0eaddfb84ccf9744464f82e160bfa9b8b64f9d4c03f999b8643f656b412a3",
+		want: true,
+	}, {
+		name: "invalid due to x coord",
+		pubX: "15db93e1dcdb8a016b49840f8c53bc1eb68a382e97b1482ecad7b148a6909a5c",
+		pubY: "b2e0eaddfb84ccf9744464f82e160bfa9b8b64f9d4c03f999b8643f656b412a3",
+		want: false,
+	}, {
+		name: "invalid due to y coord",
+		pubX: "15db93e1dcdb8a016b49840f8c53bc1eb68a382e97b1482ecad7b148a6909a5c",
+		pubY: "b2e0eaddfb84ccf9744464f82e160bfa9b8b64f9d4c03f999b8643f656b412a4",
+		want: false,
+	}}
+
+	for _, test := range tests {
+		// Parse the test data.
+		x, y := hexToBigInt(test.pubX), hexToBigInt(test.pubY)
+		pubKey := NewPublicKey(x, y)
+
+		result := pubKey.IsOnCurve()
+		if result != test.want {
+			t.Errorf("%s: mismatched is on curve result -- got %v, want %v",
+				test.name, result, test.want)
+			continue
+		}
+	}
+}

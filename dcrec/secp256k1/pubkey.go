@@ -197,3 +197,11 @@ func (p *PublicKey) IsEqual(otherPubKey *PublicKey) bool {
 func (p *PublicKey) AsJacobian(result *JacobianPoint) {
 	bigAffineToJacobian(p.x, p.y, result)
 }
+
+// IsOnCurve returns whether or not the public key represents a point on the
+// secp256k1 curve.
+func (p *PublicKey) IsOnCurve() bool {
+	var point JacobianPoint
+	bigAffineToJacobian(p.x, p.y, &point)
+	return isOnCurve(&point.X, &point.Y)
+}
