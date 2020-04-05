@@ -97,17 +97,16 @@ func (sig *Signature) Serialize() []byte {
 	}
 
 	// Serialize the R and S components of the signature into their fixed
-	// 32-byte big-endian encoding.
-	var rBytes, sBytes [32]byte
-	sig.r.PutBytes(&rBytes)
-	sigS.PutBytes(&sBytes)
+	// 32-byte big-endian encoding.  Note that the extra leading zero byte is
+	// used to ensure it is canonical per DER and will be stripped if needed
+	// below.
+	var rBuf, sBuf [33]byte
+	sig.r.PutBytesUnchecked(rBuf[1:33])
+	sigS.PutBytesUnchecked(sBuf[1:33])
 
 	// Ensure the encoded bytes for the R and S components are canonical per DER
 	// by trimming all leading zero bytes so long as the next byte does not have
 	// the high bit set and it's not the final byte.
-	var rBuf, sBuf [33]byte
-	copy(rBuf[1:], rBytes[:])
-	copy(sBuf[1:], sBytes[:])
 	canonR, canonS := rBuf[:], sBuf[:]
 	for len(canonR) > 1 && canonR[0] == 0x00 && canonR[1]&0x80 == 0 {
 		canonR = canonR[1:]
@@ -732,17 +731,11 @@ func SignCompact(key *secp256k1.PrivateKey, hash []byte, isCompressedKey bool) [
 		compactSigRecoveryCode += compactSigCompPubKey
 	}
 
-	// Serialize the R and S components of the signature into their fixed
-	// 32-byte big-endian encoding.
-	var rBytes, sBytes [32]byte
-	sig.r.PutBytes(&rBytes)
-	sig.s.PutBytes(&sBytes)
-
 	// Output <compactSigRecoveryCode><32-byte R><32-byte S>.
 	var b [compactSigSize]byte
 	b[0] = compactSigRecoveryCode
-	copy(b[1:], rBytes[:])
-	copy(b[33:], sBytes[:])
+	sig.r.PutBytesUnchecked(b[1:33])
+	sig.s.PutBytesUnchecked(b[33:65])
 	return b[:]
 }
 
