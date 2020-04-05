@@ -66,6 +66,7 @@ func decompressPoint(x *big.Int, ybit bool) (*big.Int, error) {
 const (
 	pubkeyCompressed   byte = 0x2 // y_bit + x coord
 	pubkeyUncompressed byte = 0x4 // x coord + y coord
+	pubkeyHybrid       byte = 0x6 // y_bit + x coord + y coord
 )
 
 // ParsePubKey parses a secp256k1 public key encoded according to the format
@@ -97,13 +98,18 @@ func ParsePubKey(pubKeyStr []byte) (key *PublicKey, err error) {
 
 	switch len(pubKeyStr) {
 	case PubKeyBytesLenUncompressed:
-		if format != pubkeyUncompressed {
+		if format != pubkeyUncompressed && format != pubkeyHybrid {
 			return nil, fmt.Errorf("invalid magic in pubkey str: "+
 				"%d", pubKeyStr[0])
 		}
 
 		pubkey.x = new(big.Int).SetBytes(pubKeyStr[1:33])
 		pubkey.y = new(big.Int).SetBytes(pubKeyStr[33:])
+		// hybrid keys have extra information, make use of it.
+		if format == pubkeyHybrid && ybit != isOdd(pubkey.y) {
+			return nil, fmt.Errorf("ybit doesn't match oddness")
+		}
+
 	case PubKeyBytesLenCompressed:
 		// format is 0x2 | solution, <X coordinate>
 		// solution determines which solution of the curve we use.
@@ -117,6 +123,7 @@ func ParsePubKey(pubKeyStr []byte) (key *PublicKey, err error) {
 		if err != nil {
 			return nil, err
 		}
+
 	default: // wrong!
 		return nil, fmt.Errorf("invalid pub key length %d",
 			len(pubKeyStr))

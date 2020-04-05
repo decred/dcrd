@@ -7,274 +7,377 @@ package secp256k1
 
 import (
 	"bytes"
+	"math/big"
 	"testing"
-
-	"github.com/davecgh/go-spew/spew"
 )
 
-type pubKeyTest struct {
-	name    string
-	key     []byte
-	format  byte
-	isValid bool
+// hexToBigInt converts the passed hex string into a big integer pointer and
+// will panic is there is an error.  This is only provided for the hard-coded
+// constants so errors in the source code can bet detected. It will only (and
+// must only) be called for initialization purposes.
+func hexToBigInt(s string) *big.Int {
+	r, ok := new(big.Int).SetString(s, 16)
+	if !ok {
+		panic("invalid hex in source file: " + s)
+	}
+	return r
 }
 
-var pubKeyTests = []pubKeyTest{
-	// pubkey from bitcoin blockchain tx
-	// 0437cd7f8525ceed2324359c2d0ba26006d92d85
-	{
+// TestParsePubKey ensures that public keys are properly parsed according
+// to the spec including both the positive and negative cases.
+func TestParsePubKey(t *testing.T) {
+	tests := []struct {
+		name    string // test description
+		key     string // hex encoded public key
+		isValid bool   // expected validity
+		wantX   string // expected x coordinate
+		wantY   string // expected y coordinate
+	}{{
 		name: "uncompressed ok",
-		key: []byte{0x04, 0x11, 0xdb, 0x93, 0xe1, 0xdc, 0xdb, 0x8a,
-			0x01, 0x6b, 0x49, 0x84, 0x0f, 0x8c, 0x53, 0xbc, 0x1e,
-			0xb6, 0x8a, 0x38, 0x2e, 0x97, 0xb1, 0x48, 0x2e, 0xca,
-			0xd7, 0xb1, 0x48, 0xa6, 0x90, 0x9a, 0x5c, 0xb2, 0xe0,
-			0xea, 0xdd, 0xfb, 0x84, 0xcc, 0xf9, 0x74, 0x44, 0x64,
-			0xf8, 0x2e, 0x16, 0x0b, 0xfa, 0x9b, 0x8b, 0x64, 0xf9,
-			0xd4, 0xc0, 0x3f, 0x99, 0x9b, 0x86, 0x43, 0xf6, 0x56,
-			0xb4, 0x12, 0xa3,
-		},
+		key: "04" +
+			"11db93e1dcdb8a016b49840f8c53bc1eb68a382e97b1482ecad7b148a6909a5c" +
+			"b2e0eaddfb84ccf9744464f82e160bfa9b8b64f9d4c03f999b8643f656b412a3",
 		isValid: true,
-		format:  pubkeyUncompressed,
-	},
-	{
-		name: "uncompressed x changed",
-		key: []byte{0x04, 0x15, 0xdb, 0x93, 0xe1, 0xdc, 0xdb, 0x8a,
-			0x01, 0x6b, 0x49, 0x84, 0x0f, 0x8c, 0x53, 0xbc, 0x1e,
-			0xb6, 0x8a, 0x38, 0x2e, 0x97, 0xb1, 0x48, 0x2e, 0xca,
-			0xd7, 0xb1, 0x48, 0xa6, 0x90, 0x9a, 0x5c, 0xb2, 0xe0,
-			0xea, 0xdd, 0xfb, 0x84, 0xcc, 0xf9, 0x74, 0x44, 0x64,
-			0xf8, 0x2e, 0x16, 0x0b, 0xfa, 0x9b, 0x8b, 0x64, 0xf9,
-			0xd4, 0xc0, 0x3f, 0x99, 0x9b, 0x86, 0x43, 0xf6, 0x56,
-			0xb4, 0x12, 0xa3,
-		},
+		wantX:   "11db93e1dcdb8a016b49840f8c53bc1eb68a382e97b1482ecad7b148a6909a5c",
+		wantY:   "b2e0eaddfb84ccf9744464f82e160bfa9b8b64f9d4c03f999b8643f656b412a3",
+	}, {
+		name: "uncompressed x changed (not on curve)",
+		key: "04" +
+			"15db93e1dcdb8a016b49840f8c53bc1eb68a382e97b1482ecad7b148a6909a5c" +
+			"b2e0eaddfb84ccf9744464f82e160bfa9b8b64f9d4c03f999b8643f656b412a3",
 		isValid: false,
-	},
-	{
-		name: "uncompressed y changed",
-		key: []byte{0x04, 0x11, 0xdb, 0x93, 0xe1, 0xdc, 0xdb, 0x8a,
-			0x01, 0x6b, 0x49, 0x84, 0x0f, 0x8c, 0x53, 0xbc, 0x1e,
-			0xb6, 0x8a, 0x38, 0x2e, 0x97, 0xb1, 0x48, 0x2e, 0xca,
-			0xd7, 0xb1, 0x48, 0xa6, 0x90, 0x9a, 0x5c, 0xb2, 0xe0,
-			0xea, 0xdd, 0xfb, 0x84, 0xcc, 0xf9, 0x74, 0x44, 0x64,
-			0xf8, 0x2e, 0x16, 0x0b, 0xfa, 0x9b, 0x8b, 0x64, 0xf9,
-			0xd4, 0xc0, 0x3f, 0x99, 0x9b, 0x86, 0x43, 0xf6, 0x56,
-			0xb4, 0x12, 0xa4,
-		},
+	}, {
+		name: "uncompressed y changed (not on curve)",
+		key: "04" +
+			"11db93e1dcdb8a016b49840f8c53bc1eb68a382e97b1482ecad7b148a6909a5c" +
+			"b2e0eaddfb84ccf9744464f82e160bfa9b8b64f9d4c03f999b8643f656b412a4",
 		isValid: false,
-	},
-	{
+	}, {
 		name: "uncompressed claims compressed",
-		key: []byte{0x03, 0x11, 0xdb, 0x93, 0xe1, 0xdc, 0xdb, 0x8a,
-			0x01, 0x6b, 0x49, 0x84, 0x0f, 0x8c, 0x53, 0xbc, 0x1e,
-			0xb6, 0x8a, 0x38, 0x2e, 0x97, 0xb1, 0x48, 0x2e, 0xca,
-			0xd7, 0xb1, 0x48, 0xa6, 0x90, 0x9a, 0x5c, 0xb2, 0xe0,
-			0xea, 0xdd, 0xfb, 0x84, 0xcc, 0xf9, 0x74, 0x44, 0x64,
-			0xf8, 0x2e, 0x16, 0x0b, 0xfa, 0x9b, 0x8b, 0x64, 0xf9,
-			0xd4, 0xc0, 0x3f, 0x99, 0x9b, 0x86, 0x43, 0xf6, 0x56,
-			0xb4, 0x12, 0xa3,
-		},
+		key: "03" +
+			"11db93e1dcdb8a016b49840f8c53bc1eb68a382e97b1482ecad7b148a6909a5c" +
+			"b2e0eaddfb84ccf9744464f82e160bfa9b8b64f9d4c03f999b8643f656b412a3",
 		isValid: false,
-	},
-	{
-		name: "uncompressed as hybrid ok",
-		key: []byte{0x07, 0x11, 0xdb, 0x93, 0xe1, 0xdc, 0xdb, 0x8a,
-			0x01, 0x6b, 0x49, 0x84, 0x0f, 0x8c, 0x53, 0xbc, 0x1e,
-			0xb6, 0x8a, 0x38, 0x2e, 0x97, 0xb1, 0x48, 0x2e, 0xca,
-			0xd7, 0xb1, 0x48, 0xa6, 0x90, 0x9a, 0x5c, 0xb2, 0xe0,
-			0xea, 0xdd, 0xfb, 0x84, 0xcc, 0xf9, 0x74, 0x44, 0x64,
-			0xf8, 0x2e, 0x16, 0x0b, 0xfa, 0x9b, 0x8b, 0x64, 0xf9,
-			0xd4, 0xc0, 0x3f, 0x99, 0x9b, 0x86, 0x43, 0xf6, 0x56,
-			0xb4, 0x12, 0xa3,
-		},
+	}, {
+		name: "uncompressed as hybrid ok (ybit = 0)",
+		key: "06" +
+			"11db93e1dcdb8a016b49840f8c53bc1eb68a382e97b1482ecad7b148a6909a5c" +
+			"4d1f1522047b33068bbb9b07d1e9f40564749b062b3fc0666479bc08a94be98c",
+		isValid: true,
+		wantX:   "11db93e1dcdb8a016b49840f8c53bc1eb68a382e97b1482ecad7b148a6909a5c",
+		wantY:   "4d1f1522047b33068bbb9b07d1e9f40564749b062b3fc0666479bc08a94be98c",
+	}, {
+		name: "uncompressed as hybrid ok (ybit = 1)",
+		key: "07" +
+			"11db93e1dcdb8a016b49840f8c53bc1eb68a382e97b1482ecad7b148a6909a5c" +
+			"b2e0eaddfb84ccf9744464f82e160bfa9b8b64f9d4c03f999b8643f656b412a3",
+		isValid: true,
+		wantX:   "11db93e1dcdb8a016b49840f8c53bc1eb68a382e97b1482ecad7b148a6909a5c",
+		wantY:   "b2e0eaddfb84ccf9744464f82e160bfa9b8b64f9d4c03f999b8643f656b412a3",
+	}, {
+		name: "uncompressed as hybrid wrong oddness",
+		key: "06" +
+			"11db93e1dcdb8a016b49840f8c53bc1eb68a382e97b1482ecad7b148a6909a5c" +
+			"b2e0eaddfb84ccf9744464f82e160bfa9b8b64f9d4c03f999b8643f656b412a3",
 		isValid: false,
-	},
-	{
-		name: "uncompressed as hybrid wrong",
-		key: []byte{0x06, 0x11, 0xdb, 0x93, 0xe1, 0xdc, 0xdb, 0x8a,
-			0x01, 0x6b, 0x49, 0x84, 0x0f, 0x8c, 0x53, 0xbc, 0x1e,
-			0xb6, 0x8a, 0x38, 0x2e, 0x97, 0xb1, 0x48, 0x2e, 0xca,
-			0xd7, 0xb1, 0x48, 0xa6, 0x90, 0x9a, 0x5c, 0xb2, 0xe0,
-			0xea, 0xdd, 0xfb, 0x84, 0xcc, 0xf9, 0x74, 0x44, 0x64,
-			0xf8, 0x2e, 0x16, 0x0b, 0xfa, 0x9b, 0x8b, 0x64, 0xf9,
-			0xd4, 0xc0, 0x3f, 0x99, 0x9b, 0x86, 0x43, 0xf6, 0x56,
-			0xb4, 0x12, 0xa3,
-		},
-		isValid: false,
-	},
-	// from tx 0b09c51c51ff762f00fb26217269d2a18e77a4fa87d69b3c363ab4df16543f20
-	{
+	}, {
 		name: "compressed ok (ybit = 0)",
-		key: []byte{0x02, 0xce, 0x0b, 0x14, 0xfb, 0x84, 0x2b, 0x1b,
-			0xa5, 0x49, 0xfd, 0xd6, 0x75, 0xc9, 0x80, 0x75, 0xf1,
-			0x2e, 0x9c, 0x51, 0x0f, 0x8e, 0xf5, 0x2b, 0xd0, 0x21,
-			0xa9, 0xa1, 0xf4, 0x80, 0x9d, 0x3b, 0x4d,
-		},
+		key: "02" +
+			"ce0b14fb842b1ba549fdd675c98075f12e9c510f8ef52bd021a9a1f4809d3b4d",
 		isValid: true,
-		format:  pubkeyCompressed,
-	},
-	// from tx fdeb8e72524e8dab0da507ddbaf5f88fe4a933eb10a66bc4745bb0aa11ea393c
-	{
+		wantX:   "ce0b14fb842b1ba549fdd675c98075f12e9c510f8ef52bd021a9a1f4809d3b4d",
+		wantY:   "0890ff84d7999d878a57bee170e19ef4b4803b4bdede64503a6ac352b03c8032",
+	}, {
 		name: "compressed ok (ybit = 1)",
-		key: []byte{0x03, 0x26, 0x89, 0xc7, 0xc2, 0xda, 0xb1, 0x33,
-			0x09, 0xfb, 0x14, 0x3e, 0x0e, 0x8f, 0xe3, 0x96, 0x34,
-			0x25, 0x21, 0x88, 0x7e, 0x97, 0x66, 0x90, 0xb6, 0xb4,
-			0x7f, 0x5b, 0x2a, 0x4b, 0x7d, 0x44, 0x8e,
-		},
+		key: "03" +
+			"2689c7c2dab13309fb143e0e8fe396342521887e976690b6b47f5b2a4b7d448e",
 		isValid: true,
-		format:  pubkeyCompressed,
-	},
-	{
+		wantX:   "2689c7c2dab13309fb143e0e8fe396342521887e976690b6b47f5b2a4b7d448e",
+		wantY:   "499dd7852849a38aa23ed9f306f07794063fe7904e0f347bc209fdddaf37691f",
+	}, {
 		name: "compressed claims uncompressed (ybit = 0)",
-		key: []byte{0x04, 0xce, 0x0b, 0x14, 0xfb, 0x84, 0x2b, 0x1b,
-			0xa5, 0x49, 0xfd, 0xd6, 0x75, 0xc9, 0x80, 0x75, 0xf1,
-			0x2e, 0x9c, 0x51, 0x0f, 0x8e, 0xf5, 0x2b, 0xd0, 0x21,
-			0xa9, 0xa1, 0xf4, 0x80, 0x9d, 0x3b, 0x4d,
-		},
+		key: "04" +
+			"ce0b14fb842b1ba549fdd675c98075f12e9c510f8ef52bd021a9a1f4809d3b4d",
 		isValid: false,
-	},
-	{
+	}, {
 		name: "compressed claims uncompressed (ybit = 1)",
-		key: []byte{0x05, 0x26, 0x89, 0xc7, 0xc2, 0xda, 0xb1, 0x33,
-			0x09, 0xfb, 0x14, 0x3e, 0x0e, 0x8f, 0xe3, 0x96, 0x34,
-			0x25, 0x21, 0x88, 0x7e, 0x97, 0x66, 0x90, 0xb6, 0xb4,
-			0x7f, 0x5b, 0x2a, 0x4b, 0x7d, 0x44, 0x8e,
-		},
+		key: "04" +
+			"2689c7c2dab13309fb143e0e8fe396342521887e976690b6b47f5b2a4b7d448e",
 		isValid: false,
-	},
-	{
-		name:    "wrong length)",
-		key:     []byte{0x05},
+	}, {
+		name: "compressed claims hybrid (ybit = 0)",
+		key: "06" +
+			"ce0b14fb842b1ba549fdd675c98075f12e9c510f8ef52bd021a9a1f4809d3b4d",
 		isValid: false,
-	},
-	{
-		name: "X == P",
-		key: []byte{0x04, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-			0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-			0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-			0xFF, 0xFF, 0xFE, 0xFF, 0xFF, 0xFC, 0x2F, 0xb2, 0xe0,
-			0xea, 0xdd, 0xfb, 0x84, 0xcc, 0xf9, 0x74, 0x44, 0x64,
-			0xf8, 0x2e, 0x16, 0x0b, 0xfa, 0x9b, 0x8b, 0x64, 0xf9,
-			0xd4, 0xc0, 0x3f, 0x99, 0x9b, 0x86, 0x43, 0xf6, 0x56,
-			0xb4, 0x12, 0xa3,
-		},
+	}, {
+		name: "compressed claims hybrid (ybit = 1)",
+		key: "07" +
+			"2689c7c2dab13309fb143e0e8fe396342521887e976690b6b47f5b2a4b7d448e",
 		isValid: false,
-	},
-	{
-		name: "X > P",
-		key: []byte{0x04, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-			0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-			0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-			0xFF, 0xFF, 0xFE, 0xFF, 0xFF, 0xFD, 0x2F, 0xb2, 0xe0,
-			0xea, 0xdd, 0xfb, 0x84, 0xcc, 0xf9, 0x74, 0x44, 0x64,
-			0xf8, 0x2e, 0x16, 0x0b, 0xfa, 0x9b, 0x8b, 0x64, 0xf9,
-			0xd4, 0xc0, 0x3f, 0x99, 0x9b, 0x86, 0x43, 0xf6, 0x56,
-			0xb4, 0x12, 0xa3,
-		},
+	}, {
+		name: "compressed with invalid x coord (ybit = 0)",
+		key: "03" +
+			"ce0b14fb842b1ba549fdd675c98075f12e9c510f8ef52bd021a9a1f4809d3b4c",
 		isValid: false,
-	},
-	{
-		name: "Y == P",
-		key: []byte{0x04, 0x11, 0xdb, 0x93, 0xe1, 0xdc, 0xdb, 0x8a,
-			0x01, 0x6b, 0x49, 0x84, 0x0f, 0x8c, 0x53, 0xbc, 0x1e,
-			0xb6, 0x8a, 0x38, 0x2e, 0x97, 0xb1, 0x48, 0x2e, 0xca,
-			0xd7, 0xb1, 0x48, 0xa6, 0x90, 0x9a, 0x5c, 0xFF, 0xFF,
-			0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-			0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-			0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFE, 0xFF,
-			0xFF, 0xFC, 0x2F,
-		},
+	}, {
+		name: "compressed with invalid x coord (ybit = 1)",
+		key: "03" +
+			"2689c7c2dab13309fb143e0e8fe396342521887e976690b6b47f5b2a4b7d448d",
 		isValid: false,
-	},
-	{
-		name: "Y > P",
-		key: []byte{0x04, 0x11, 0xdb, 0x93, 0xe1, 0xdc, 0xdb, 0x8a,
-			0x01, 0x6b, 0x49, 0x84, 0x0f, 0x8c, 0x53, 0xbc, 0x1e,
-			0xb6, 0x8a, 0x38, 0x2e, 0x97, 0xb1, 0x48, 0x2e, 0xca,
-			0xd7, 0xb1, 0x48, 0xa6, 0x90, 0x9a, 0x5c, 0xFF, 0xFF,
-			0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-			0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-			0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFE, 0xFF,
-			0xFF, 0xFD, 0x2F,
-		},
+	}, {
+		name:    "empty",
+		key:     "",
 		isValid: false,
-	},
-	{
-		name: "hybrid",
-		key: []byte{0x06, 0x79, 0xbe, 0x66, 0x7e, 0xf9, 0xdc, 0xbb,
-			0xac, 0x55, 0xa0, 0x62, 0x95, 0xce, 0x87, 0x0b, 0x07,
-			0x02, 0x9b, 0xfc, 0xdb, 0x2d, 0xce, 0x28, 0xd9, 0x59,
-			0xf2, 0x81, 0x5b, 0x16, 0xf8, 0x17, 0x98, 0x48, 0x3a,
-			0xda, 0x77, 0x26, 0xa3, 0xc4, 0x65, 0x5d, 0xa4, 0xfb,
-			0xfc, 0x0e, 0x11, 0x08, 0xa8, 0xfd, 0x17, 0xb4, 0x48,
-			0xa6, 0x85, 0x54, 0x19, 0x9c, 0x47, 0xd0, 0x8f, 0xfb,
-			0x10, 0xd4, 0xb8,
-		},
+	}, {
+		name:    "wrong length",
+		key:     "05",
 		isValid: false,
-	},
-}
+	}, {
+		name: "uncompressed x == p",
+		key: "04" +
+			"fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2f" +
+			"b2e0eaddfb84ccf9744464f82e160bfa9b8b64f9d4c03f999b8643f656b412a3",
+		isValid: false,
+	}, {
+		// The y coordinate produces a valid point for x == 1 (mod p), but it
+		// should fail to parse instead of wrapping around.
+		name: "uncompressed x > p (p + 1 -- aka 1)",
+		key: "04" +
+			"fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc30" +
+			"bde70df51939b94c9c24979fa7dd04ebd9b3572da7802290438af2a681895441",
+		isValid: false,
+	}, {
+		name: "uncompressed y == p",
+		key: "04" +
+			"11db93e1dcdb8a016b49840f8c53bc1eb68a382e97b1482ecad7b148a6909a5c" +
+			"fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2f",
+		isValid: false,
+	}, {
+		// The x coordinate produces a valid point for y == 1 (mod p), but it
+		// should fail to parse instead of wrapping around.
+		name: "uncompressed y > p (p + 1 -- aka 1)",
+		key: "04" +
+			"1fe1e5ef3fceb5c135ab7741333ce5a6e80d68167653f6b2b24bcbcfaaaff507" +
+			"fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc30",
+		isValid: false,
+	}, {
+		name: "compressed x == p (ybit = 0)",
+		key: "02" +
+			"fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2f",
+		isValid: false,
+	}, {
+		name: "compressed x == p (ybit = 1)",
+		key: "03" +
+			"fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2f",
+		isValid: false,
+	}, {
+		// This would be valid for x == 2 (mod p), but it should fail to parse
+		// instead of wrapping around.
+		name: "compressed x > p (p + 2 -- aka 2) (ybit = 0)",
+		key: "02" +
+			"fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc31",
+		isValid: false,
+	}, {
+		// This would be valid for x == 1 (mod p), but it should fail to parse
+		// instead of wrapping around.
+		name: "compressed x > p (p + 1 -- aka 1) (ybit = 1)",
+		key: "03" +
+			"fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc30",
+		isValid: false,
+	}, {
+		name: "hybrid x == p (ybit = 1)",
+		key: "07" +
+			"fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2f" +
+			"b2e0eaddfb84ccf9744464f82e160bfa9b8b64f9d4c03f999b8643f656b412a3",
+		isValid: false,
+	}, {
+		// The y coordinate produces a valid point for x == 1 (mod p), but it
+		// should fail to parse instead of wrapping around.
+		name: "hybrid x > p (p + 1 -- aka 1) (ybit = 0)",
+		key: "06" +
+			"fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc30" +
+			"bde70df51939b94c9c24979fa7dd04ebd9b3572da7802290438af2a681895441",
+		isValid: false,
+	}, {
+		name: "hybrid y == p (ybit = 0 when mod p)",
+		key: "06" +
+			"11db93e1dcdb8a016b49840f8c53bc1eb68a382e97b1482ecad7b148a6909a5c" +
+			"fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2f",
+		isValid: false,
+	}, {
+		// The x coordinate produces a valid point for y == 1 (mod p), but it
+		// should fail to parse instead of wrapping around.
+		name: "hybrid y > p (p + 1 -- aka 1) (ybit = 1 when mod p)",
+		key: "07" +
+			"1fe1e5ef3fceb5c135ab7741333ce5a6e80d68167653f6b2b24bcbcfaaaff507" +
+			"fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc30",
+		isValid: false,
+	}}
 
-func TestPubKeys(t *testing.T) {
-	for _, test := range pubKeyTests {
-		pk, err := ParsePubKey(test.key)
+	for _, test := range tests {
+		pubKeyBytes := hexToBytes(test.key)
+		pubKey, err := ParsePubKey(pubKeyBytes)
 		if err != nil {
 			if test.isValid {
-				t.Errorf("%s pubkey failed when shouldn't %v",
-					test.name, err)
+				t.Errorf("%s: pubkey failed when shouldn't: %v", test.name, err)
 			}
 			continue
 		}
 		if !test.isValid {
-			t.Errorf("%s counted as valid when it should fail",
-				test.name)
+			t.Errorf("%s: counted as valid when it should fail", test.name)
 			continue
 		}
-		var pkStr []byte
-		switch test.format {
-		case pubkeyUncompressed:
-			pkStr = pk.SerializeUncompressed()
-		case pubkeyCompressed:
-			pkStr = pk.SerializeCompressed()
+
+		// Ensure the x and y coordinates match the expected values upon
+		// successful parse.
+		wantX, wantY := hexToBigInt(test.wantX), hexToBigInt(test.wantY)
+		if pubKey.x.Cmp(wantX) != 0 {
+			t.Errorf("%s: mismatched x coordinate -- got %v, want %v",
+				test.name, pubKey.x, wantX)
+			continue
 		}
-		if !bytes.Equal(test.key, pkStr) {
-			t.Errorf("%s pubkey: serialized keys do not match.",
-				test.name)
-			spew.Dump(test.key)
-			spew.Dump(pkStr)
+		if pubKey.y.Cmp(wantY) != 0 {
+			t.Errorf("%s: mismatched y coordinate -- got %v, want %v",
+				test.name, pubKey.y, wantY)
+			continue
 		}
 	}
 }
 
-func TestPublicKeyIsEqual(t *testing.T) {
-	pubKey1, err := ParsePubKey(
-		[]byte{0x03, 0x26, 0x89, 0xc7, 0xc2, 0xda, 0xb1, 0x33,
-			0x09, 0xfb, 0x14, 0x3e, 0x0e, 0x8f, 0xe3, 0x96, 0x34,
-			0x25, 0x21, 0x88, 0x7e, 0x97, 0x66, 0x90, 0xb6, 0xb4,
-			0x7f, 0x5b, 0x2a, 0x4b, 0x7d, 0x44, 0x8e,
-		},
-	)
-	if err != nil {
-		t.Fatalf("failed to parse raw bytes for pubKey1: %v", err)
-	}
+// TestPubKeySerialize ensures that serializing public keys works as expected
+// for both the compressed and uncompressed cases.
+func TestPubKeySerialize(t *testing.T) {
+	tests := []struct {
+		name     string // test description
+		pubX     string // hex encoded x coordinate for pubkey to serialize
+		pubY     string // hex encoded y coordinate for pubkey to serialize
+		compress bool   // whether to serialize compressed or uncompressed
+		expected string // hex encoded expected pubkey serialization
+	}{{
+		name:     "uncompressed (ybit = 0)",
+		pubX:     "11db93e1dcdb8a016b49840f8c53bc1eb68a382e97b1482ecad7b148a6909a5c",
+		pubY:     "4d1f1522047b33068bbb9b07d1e9f40564749b062b3fc0666479bc08a94be98c",
+		compress: false,
+		expected: "04" +
+			"11db93e1dcdb8a016b49840f8c53bc1eb68a382e97b1482ecad7b148a6909a5c" +
+			"4d1f1522047b33068bbb9b07d1e9f40564749b062b3fc0666479bc08a94be98c",
+	}, {
+		name:     "uncompressed (ybit = 1)",
+		pubX:     "11db93e1dcdb8a016b49840f8c53bc1eb68a382e97b1482ecad7b148a6909a5c",
+		pubY:     "b2e0eaddfb84ccf9744464f82e160bfa9b8b64f9d4c03f999b8643f656b412a3",
+		compress: false,
+		expected: "04" +
+			"11db93e1dcdb8a016b49840f8c53bc1eb68a382e97b1482ecad7b148a6909a5c" +
+			"b2e0eaddfb84ccf9744464f82e160bfa9b8b64f9d4c03f999b8643f656b412a3",
+	}, {
+		// It's invalid to parse pubkeys that are not on the curve, however it
+		// is possible to manually create them and they should serialize
+		// correctly.
+		name:     "uncompressed not on the curve due to x coord",
+		pubX:     "15db93e1dcdb8a016b49840f8c53bc1eb68a382e97b1482ecad7b148a6909a5c",
+		pubY:     "b2e0eaddfb84ccf9744464f82e160bfa9b8b64f9d4c03f999b8643f656b412a3",
+		compress: false,
+		expected: "04" +
+			"15db93e1dcdb8a016b49840f8c53bc1eb68a382e97b1482ecad7b148a6909a5c" +
+			"b2e0eaddfb84ccf9744464f82e160bfa9b8b64f9d4c03f999b8643f656b412a3",
+	}, {
+		// It's invalid to parse pubkeys that are not on the curve, however it
+		// is possible to manually create them and they should serialize
+		// correctly.
+		name:     "uncompressed not on the curve due to y coord",
+		pubX:     "15db93e1dcdb8a016b49840f8c53bc1eb68a382e97b1482ecad7b148a6909a5c",
+		pubY:     "b2e0eaddfb84ccf9744464f82e160bfa9b8b64f9d4c03f999b8643f656b412a4",
+		compress: false,
+		expected: "04" +
+			"15db93e1dcdb8a016b49840f8c53bc1eb68a382e97b1482ecad7b148a6909a5c" +
+			"b2e0eaddfb84ccf9744464f82e160bfa9b8b64f9d4c03f999b8643f656b412a4",
+	}, {
+		name:     "compressed (ybit = 0)",
+		pubX:     "ce0b14fb842b1ba549fdd675c98075f12e9c510f8ef52bd021a9a1f4809d3b4d",
+		pubY:     "0890ff84d7999d878a57bee170e19ef4b4803b4bdede64503a6ac352b03c8032",
+		compress: true,
+		expected: "02" +
+			"ce0b14fb842b1ba549fdd675c98075f12e9c510f8ef52bd021a9a1f4809d3b4d",
+	}, {
+		name:     "compressed (ybit = 1)",
+		pubX:     "2689c7c2dab13309fb143e0e8fe396342521887e976690b6b47f5b2a4b7d448e",
+		pubY:     "499dd7852849a38aa23ed9f306f07794063fe7904e0f347bc209fdddaf37691f",
+		compress: true,
+		expected: "03" +
+			"2689c7c2dab13309fb143e0e8fe396342521887e976690b6b47f5b2a4b7d448e",
+	}, {
+		// It's invalid to parse pubkeys that are not on the curve, however it
+		// is possible to manually create them and they should serialize
+		// correctly.
+		name:     "compressed not on curve (ybit = 0)",
+		pubX:     "ce0b14fb842b1ba549fdd675c98075f12e9c510f8ef52bd021a9a1f4809d3b4c",
+		pubY:     "0890ff84d7999d878a57bee170e19ef4b4803b4bdede64503a6ac352b03c8032",
+		compress: true,
+		expected: "02" +
+			"ce0b14fb842b1ba549fdd675c98075f12e9c510f8ef52bd021a9a1f4809d3b4c",
+	}, {
+		// It's invalid to parse pubkeys that are not on the curve, however it
+		// is possible to manually create them and they should serialize
+		// correctly.
+		name:     "compressed not on curve (ybit = 1)",
+		pubX:     "2689c7c2dab13309fb143e0e8fe396342521887e976690b6b47f5b2a4b7d448d",
+		pubY:     "499dd7852849a38aa23ed9f306f07794063fe7904e0f347bc209fdddaf37691f",
+		compress: true,
+		expected: "03" +
+			"2689c7c2dab13309fb143e0e8fe396342521887e976690b6b47f5b2a4b7d448d",
+	}}
 
-	pubKey2, err := ParsePubKey(
-		[]byte{0x02, 0xce, 0x0b, 0x14, 0xfb, 0x84, 0x2b, 0x1b,
-			0xa5, 0x49, 0xfd, 0xd6, 0x75, 0xc9, 0x80, 0x75, 0xf1,
-			0x2e, 0x9c, 0x51, 0x0f, 0x8e, 0xf5, 0x2b, 0xd0, 0x21,
-			0xa9, 0xa1, 0xf4, 0x80, 0x9d, 0x3b, 0x4d,
-		},
-	)
-	if err != nil {
-		t.Fatalf("failed to parse raw bytes for pubKey2: %v", err)
+	for _, test := range tests {
+		// Parse the test data.
+		x, _ := new(big.Int).SetString(test.pubX, 16)
+		y, _ := new(big.Int).SetString(test.pubY, 16)
+		pubKey := NewPublicKey(x, y)
+
+		// Serialize with the correct method and ensure the result matches the
+		// expected value.
+		var serialized []byte
+		if test.compress {
+			serialized = pubKey.SerializeCompressed()
+		} else {
+			serialized = pubKey.SerializeUncompressed()
+		}
+		expected := hexToBytes(test.expected)
+		if !bytes.Equal(serialized, expected) {
+			t.Errorf("%s: mismatched serialized public key -- got %x, want %x",
+				test.name, serialized, expected)
+			continue
+		}
+	}
+}
+
+// TestPublicKeyIsEqual ensures that equality testing between two public keys
+// works as expected.
+func TestPublicKeyIsEqual(t *testing.T) {
+	pubKey1 := &PublicKey{
+		x: hexToBigInt("2689c7c2dab13309fb143e0e8fe396342521887e976690b6b47f5b2a4b7d448e"),
+		y: hexToBigInt("499dd7852849a38aa23ed9f306f07794063fe7904e0f347bc209fdddaf37691f"),
+	}
+	pubKey1Copy := &PublicKey{
+		x: hexToBigInt("2689c7c2dab13309fb143e0e8fe396342521887e976690b6b47f5b2a4b7d448e"),
+		y: hexToBigInt("499dd7852849a38aa23ed9f306f07794063fe7904e0f347bc209fdddaf37691f"),
+	}
+	pubKey2 := &PublicKey{
+		x: hexToBigInt("ce0b14fb842b1ba549fdd675c98075f12e9c510f8ef52bd021a9a1f4809d3b4d"),
+		y: hexToBigInt("0890ff84d7999d878a57bee170e19ef4b4803b4bdede64503a6ac352b03c8032"),
 	}
 
 	if !pubKey1.IsEqual(pubKey1) {
-		t.Fatalf("value of IsEqual is incorrect, %v is "+
-			"equal to %v", pubKey1, pubKey1)
+		t.Fatalf("bad self public key equality check: (%v, %v)", pubKey1.x,
+			pubKey1.y)
+	}
+	if !pubKey1.IsEqual(pubKey1Copy) {
+		t.Fatalf("bad public key equality check: (%v, %v) == (%v, %v)",
+			pubKey1.x, pubKey1.y, pubKey1Copy.x, pubKey1Copy.y)
 	}
 
 	if pubKey1.IsEqual(pubKey2) {
-		t.Fatalf("value of IsEqual is incorrect, %v is not "+
-			"equal to %v", pubKey1, pubKey2)
+		t.Fatalf("bad public key equality check: (%v, %v) != (%v, %v)",
+			pubKey1.x, pubKey1.y, pubKey2.x, pubKey2.y)
 	}
 }
 
