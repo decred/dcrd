@@ -15,6 +15,8 @@ import (
 	"errors"
 	"reflect"
 	"testing"
+
+	"github.com/decred/dcrd/dcrec/secp256k1/v3"
 )
 
 // mockNetParams implements the NetworkParams interface and is used throughout
@@ -748,7 +750,10 @@ func TestErrors(t *testing.T) {
 		{
 			name: "pubkey not on curve",
 			key:  "dpubZ9169KDAEUnyoTzA7pDGtXbxpji5LuUk8johUPVGY2CDsz6S7hahGNL6QkeYrUeAPnaJD1MBmrsUnErXScGZdjL6b2gjCRX1Z1GNhLdVCjv",
-			err:  errors.New("invalid public key x coordinate"),
+			err: secp256k1.Error{
+				ErrorCode:   secp256k1.ErrPubKeyNotOnCurve,
+				Description: "invalid public key: x coordinate 0000000000000000000000000000000000000000000000000000000000000000 is not on the secp256k1 curve",
+			},
 		},
 		{
 			name: "unsupported version",

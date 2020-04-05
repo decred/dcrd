@@ -6,7 +6,6 @@
 package secp256k1
 
 import (
-	"errors"
 	"fmt"
 	"math/big"
 )
@@ -53,10 +52,13 @@ func isOdd(a *big.Int) bool {
 func decompressPoint(x *big.Int, ybit bool) (*big.Int, error) {
 	var fx, fy FieldVal
 	if overflow := fx.SetByteSlice(x.Bytes()); overflow {
-		return nil, fmt.Errorf("invalid public key x coordinate")
+		str := "invalid public key: x >= field prime"
+		return nil, makeError(ErrPubKeyXTooBig, str)
 	}
 	if !DecompressY(&fx, ybit, &fy) {
-		return nil, fmt.Errorf("invalid public key x coordinate")
+		str := fmt.Sprintf("invalid public key: x coordinate %v is not on the "+
+			"secp256k1 curve", fx)
+		return nil, makeError(ErrPubKeyNotOnCurve, str)
 	}
 	fy.Normalize()
 
@@ -89,7 +91,8 @@ func ParsePubKey(pubKeyStr []byte) (key *PublicKey, err error) {
 	pubkey := PublicKey{}
 
 	if len(pubKeyStr) == 0 {
-		return nil, errors.New("pubkey string is empty")
+		str := "invalid public key: empty"
+		return nil, makeError(ErrPubKeyInvalidLen, str)
 	}
 
 	format := pubKeyStr[0]
@@ -99,15 +102,18 @@ func ParsePubKey(pubKeyStr []byte) (key *PublicKey, err error) {
 	switch len(pubKeyStr) {
 	case PubKeyBytesLenUncompressed:
 		if format != pubkeyUncompressed && format != pubkeyHybrid {
-			return nil, fmt.Errorf("invalid magic in pubkey str: "+
-				"%d", pubKeyStr[0])
+			str := fmt.Sprintf("invalid public key: unsupported format: %x",
+				format)
+			return nil, makeError(ErrPubKeyInvalidFormat, str)
 		}
 
 		pubkey.x = new(big.Int).SetBytes(pubKeyStr[1:33])
 		pubkey.y = new(big.Int).SetBytes(pubKeyStr[33:])
 		// hybrid keys have extra information, make use of it.
 		if format == pubkeyHybrid && ybit != isOdd(pubkey.y) {
-			return nil, fmt.Errorf("ybit doesn't match oddness")
+			str := fmt.Sprintf("invalid public key: y oddness does not match "+
+				"specified value of %v", ybit)
+			return nil, makeError(ErrPubKeyMismatchedOddness, str)
 		}
 
 	case PubKeyBytesLenCompressed:
@@ -115,8 +121,9 @@ func ParsePubKey(pubKeyStr []byte) (key *PublicKey, err error) {
 		// solution determines which solution of the curve we use.
 		/// y^2 = x^3 + Curve.B
 		if format != pubkeyCompressed {
-			return nil, fmt.Errorf("invalid magic in compressed "+
-				"pubkey string: %d", pubKeyStr[0])
+			str := fmt.Sprintf("invalid public key: unsupported format: %x",
+				format)
+			return nil, makeError(ErrPubKeyInvalidFormat, str)
 		}
 		pubkey.x = new(big.Int).SetBytes(pubKeyStr[1:33])
 		pubkey.y, err = decompressPoint(pubkey.x, ybit)
@@ -125,20 +132,24 @@ func ParsePubKey(pubKeyStr []byte) (key *PublicKey, err error) {
 		}
 
 	default: // wrong!
-		return nil, fmt.Errorf("invalid pub key length %d",
+		str := fmt.Sprintf("malformed public key: invalid length: %d",
 			len(pubKeyStr))
+		return nil, makeError(ErrPubKeyInvalidLen, str)
 	}
 
 	curve := S256()
 	if pubkey.x.Cmp(curveParams.P) >= 0 {
-		return nil, fmt.Errorf("pubkey X parameter is >= to P")
+		str := "invalid public key: x >= field prime"
+		return nil, makeError(ErrPubKeyXTooBig, str)
 	}
 	if pubkey.y.Cmp(curveParams.P) >= 0 {
-		return nil, fmt.Errorf("pubkey Y parameter is >= to P")
+		str := "invalid public key: y >= field prime"
+		return nil, makeError(ErrPubKeyYTooBig, str)
 	}
 	if !curve.IsOnCurve(pubkey.x, pubkey.y) {
-		return nil, fmt.Errorf("pubkey [%v,%v] isn't on secp256k1 curve",
+		str := fmt.Sprintf("invalid public key: [%v,%v] not on secp256k1 curve",
 			pubkey.x, pubkey.y)
+		return nil, makeError(ErrPubKeyNotOnCurve, str)
 	}
 	return &pubkey, nil
 }
