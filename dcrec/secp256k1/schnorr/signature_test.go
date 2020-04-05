@@ -522,7 +522,7 @@ func TestVerifyErrors(t *testing.T) {
 	for _, test := range tests {
 		// Parse test data into types.
 		hash := hexToBytes(test.hash)
-		pubX, pubY := hexToBigInt(test.pubX), hexToBigInt(test.pubY)
+		pubX, pubY := hexToFieldVal(test.pubX), hexToFieldVal(test.pubY)
 		pubKey := secp256k1.NewPublicKey(pubX, pubY)
 
 		// Create the serialized signature from the bytes and attempt to parse

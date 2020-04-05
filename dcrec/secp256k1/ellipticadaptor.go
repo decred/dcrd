@@ -186,12 +186,22 @@ func (curve *KoblitzCurve) ScalarBaseMult(k []byte) (*big.Int, *big.Int) {
 	return jacobianToBigAffine(&result)
 }
 
+// X returns the x coordinate of the public key.
+func (p *PublicKey) X() *big.Int {
+	return new(big.Int).SetBytes(p.x.Bytes()[:])
+}
+
+// Y returns the y coordinate of the public key.
+func (p *PublicKey) Y() *big.Int {
+	return new(big.Int).SetBytes(p.y.Bytes()[:])
+}
+
 // ToECDSA returns the public key as a *ecdsa.PublicKey.
-func (p PublicKey) ToECDSA() *ecdsa.PublicKey {
+func (p *PublicKey) ToECDSA() *ecdsa.PublicKey {
 	return &ecdsa.PublicKey{
 		Curve: S256(),
-		X:     p.x,
-		Y:     p.y,
+		X:     p.X(),
+		Y:     p.Y(),
 	}
 }
 

@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2019 The Decred developers
+// Copyright (c) 2015-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -8,21 +8,8 @@ package secp256k1
 import (
 	"bytes"
 	"errors"
-	"math/big"
 	"testing"
 )
-
-// hexToBigInt converts the passed hex string into a big integer pointer and
-// will panic is there is an error.  This is only provided for the hard-coded
-// constants so errors in the source code can bet detected. It will only (and
-// must only) be called for initialization purposes.
-func hexToBigInt(s string) *big.Int {
-	r, ok := new(big.Int).SetString(s, 16)
-	if !ok {
-		panic("invalid hex in source file: " + s)
-	}
-	return r
-}
 
 // TestParsePubKey ensures that public keys are properly parsed according
 // to the spec including both the positive and negative cases.
@@ -198,13 +185,13 @@ func TestParsePubKey(t *testing.T) {
 		key: "06" +
 			"fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc30" +
 			"bde70df51939b94c9c24979fa7dd04ebd9b3572da7802290438af2a681895441",
-		err: ErrPubKeyMismatchedOddness,
+		err: ErrPubKeyXTooBig,
 	}, {
 		name: "hybrid y == p (ybit = 0 when mod p)",
 		key: "06" +
 			"11db93e1dcdb8a016b49840f8c53bc1eb68a382e97b1482ecad7b148a6909a5c" +
 			"fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2f",
-		err: ErrPubKeyMismatchedOddness,
+		err: ErrPubKeyYTooBig,
 	}, {
 		// The x coordinate produces a valid point for y == 1 (mod p), but it
 		// should fail to parse instead of wrapping around.
@@ -212,7 +199,7 @@ func TestParsePubKey(t *testing.T) {
 		key: "07" +
 			"1fe1e5ef3fceb5c135ab7741333ce5a6e80d68167653f6b2b24bcbcfaaaff507" +
 			"fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc30",
-		err: ErrPubKeyMismatchedOddness,
+		err: ErrPubKeyYTooBig,
 	}}
 
 	for _, test := range tests {
@@ -229,13 +216,13 @@ func TestParsePubKey(t *testing.T) {
 
 		// Ensure the x and y coordinates match the expected values upon
 		// successful parse.
-		wantX, wantY := hexToBigInt(test.wantX), hexToBigInt(test.wantY)
-		if pubKey.x.Cmp(wantX) != 0 {
+		wantX, wantY := hexToFieldVal(test.wantX), hexToFieldVal(test.wantY)
+		if !pubKey.x.Equals(wantX) {
 			t.Errorf("%s: mismatched x coordinate -- got %v, want %v",
 				test.name, pubKey.x, wantX)
 			continue
 		}
-		if pubKey.y.Cmp(wantY) != 0 {
+		if !pubKey.y.Equals(wantY) {
 			t.Errorf("%s: mismatched y coordinate -- got %v, want %v",
 				test.name, pubKey.y, wantY)
 			continue
@@ -328,8 +315,7 @@ func TestPubKeySerialize(t *testing.T) {
 
 	for _, test := range tests {
 		// Parse the test data.
-		x, _ := new(big.Int).SetString(test.pubX, 16)
-		y, _ := new(big.Int).SetString(test.pubY, 16)
+		x, y := hexToFieldVal(test.pubX), hexToFieldVal(test.pubY)
 		pubKey := NewPublicKey(x, y)
 
 		// Serialize with the correct method and ensure the result matches the
@@ -353,16 +339,16 @@ func TestPubKeySerialize(t *testing.T) {
 // works as expected.
 func TestPublicKeyIsEqual(t *testing.T) {
 	pubKey1 := &PublicKey{
-		x: hexToBigInt("2689c7c2dab13309fb143e0e8fe396342521887e976690b6b47f5b2a4b7d448e"),
-		y: hexToBigInt("499dd7852849a38aa23ed9f306f07794063fe7904e0f347bc209fdddaf37691f"),
+		x: *hexToFieldVal("2689c7c2dab13309fb143e0e8fe396342521887e976690b6b47f5b2a4b7d448e"),
+		y: *hexToFieldVal("499dd7852849a38aa23ed9f306f07794063fe7904e0f347bc209fdddaf37691f"),
 	}
 	pubKey1Copy := &PublicKey{
-		x: hexToBigInt("2689c7c2dab13309fb143e0e8fe396342521887e976690b6b47f5b2a4b7d448e"),
-		y: hexToBigInt("499dd7852849a38aa23ed9f306f07794063fe7904e0f347bc209fdddaf37691f"),
+		x: *hexToFieldVal("2689c7c2dab13309fb143e0e8fe396342521887e976690b6b47f5b2a4b7d448e"),
+		y: *hexToFieldVal("499dd7852849a38aa23ed9f306f07794063fe7904e0f347bc209fdddaf37691f"),
 	}
 	pubKey2 := &PublicKey{
-		x: hexToBigInt("ce0b14fb842b1ba549fdd675c98075f12e9c510f8ef52bd021a9a1f4809d3b4d"),
-		y: hexToBigInt("0890ff84d7999d878a57bee170e19ef4b4803b4bdede64503a6ac352b03c8032"),
+		x: *hexToFieldVal("ce0b14fb842b1ba549fdd675c98075f12e9c510f8ef52bd021a9a1f4809d3b4d"),
+		y: *hexToFieldVal("0890ff84d7999d878a57bee170e19ef4b4803b4bdede64503a6ac352b03c8032"),
 	}
 
 	if !pubKey1.IsEqual(pubKey1) {
@@ -471,7 +457,7 @@ func TestPublicKeyIsOnCurve(t *testing.T) {
 
 	for _, test := range tests {
 		// Parse the test data.
-		x, y := hexToBigInt(test.pubX), hexToBigInt(test.pubY)
+		x, y := hexToFieldVal(test.pubX), hexToFieldVal(test.pubY)
 		pubKey := NewPublicKey(x, y)
 
 		result := pubKey.IsOnCurve()

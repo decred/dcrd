@@ -17,7 +17,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"math/big"
 
 	"github.com/decred/base58"
 	"github.com/decred/dcrd/crypto/blake256"
@@ -211,18 +210,6 @@ func doubleBlake256Cksum(v []byte) []byte {
 	return second[:4]
 }
 
-// jacobianToBigAffine takes a Jacobian point (x, y, z) as field values and
-// converts it to an affine point as big integers.
-func jacobianToBigAffine(point *secp256k1.JacobianPoint) (*big.Int, *big.Int) {
-	point.ToAffine()
-
-	// Convert the field values for the now affine point to big.Ints.
-	x, y := new(big.Int), new(big.Int)
-	x.SetBytes(point.X.Bytes()[:])
-	y.SetBytes(point.Y.Bytes()[:])
-	return x, y
-}
-
 // Child returns a derived child extended key at the given index.  When this
 // extended key is a private extended key (as determined by the IsPrivate
 // function), a private extended key will be derived.  Otherwise, the derived
@@ -365,7 +352,8 @@ func (k *ExtendedKey) Child(i uint32) (*ExtendedKey, error) {
 		// childKey = serP(point(parse256(Il)) + parentKey)
 		var child secp256k1.JacobianPoint
 		secp256k1.AddNonConst(&imPubKey, &parentPubKey, &child)
-		pk := secp256k1.NewPublicKey(jacobianToBigAffine(&child))
+		child.ToAffine()
+		pk := secp256k1.NewPublicKey(&child.X, &child.Y)
 		childKey = pk.SerializeCompressed()
 	}
 

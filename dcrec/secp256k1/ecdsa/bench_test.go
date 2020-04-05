@@ -41,6 +41,22 @@ func hexToBigInt(s string) *big.Int {
 	return r
 }
 
+// hexToFieldVal converts the passed hex string into a FieldVal and will panic
+// if there is an error.  This is only provided for the hard-coded constants so
+// errors in the source code can be detected. It will only (and must only) be
+// called with hard-coded values.
+func hexToFieldVal(s string) *secp256k1.FieldVal {
+	b, err := hex.DecodeString(s)
+	if err != nil {
+		panic("invalid hex in source file: " + s)
+	}
+	var f secp256k1.FieldVal
+	if overflow := f.SetByteSlice(b); overflow {
+		panic("hex in source file overflows mod P: " + s)
+	}
+	return &f
+}
+
 // BenchmarkSigVerify benchmarks how long it takes the secp256k1 curve to
 // verify signatures.
 func BenchmarkSigVerify(b *testing.B) {
@@ -48,16 +64,16 @@ func BenchmarkSigVerify(b *testing.B) {
 	// Randomly generated keypair.
 	// Private key: 9e0699c91ca1e3b7e3c9ba71eb71c89890872be97576010fe593fbf3fd57e66d
 	pubKey := secp256k1.NewPublicKey(
-		hexToBigInt("d2e670a19c6d753d1a6d8b20bd045df8a08fb162cf508956c31268c6d81ffdab"),
-		hexToBigInt("ab65528eefbb8057aa85d597258a3fbd481a24633bc9b47a9aa045c91371de52"),
+		hexToFieldVal("d2e670a19c6d753d1a6d8b20bd045df8a08fb162cf508956c31268c6d81ffdab"),
+		hexToFieldVal("ab65528eefbb8057aa85d597258a3fbd481a24633bc9b47a9aa045c91371de52"),
 	)
 
 	// Double sha256 of []byte{0x01, 0x02, 0x03, 0x04}
 	msgHash := hexToBigInt("8de472e2399610baaa7f84840547cd409434e31f5d3bd71e4d947f283874f9c0")
-	sig := Signature{
-		r: *hexToModNScalar("fef45d2892953aa5bbcdb057b5e98b208f1617a7498af7eb765574e29b5d9c2c"),
-		s: *hexToModNScalar("d47563f52aac6b04b55de236b7c515eb9311757db01e02cff079c3ca6efb063f"),
-	}
+	sig := NewSignature(
+		hexToModNScalar("fef45d2892953aa5bbcdb057b5e98b208f1617a7498af7eb765574e29b5d9c2c"),
+		hexToModNScalar("d47563f52aac6b04b55de236b7c515eb9311757db01e02cff079c3ca6efb063f"),
+	)
 
 	if !sig.Verify(msgHash.Bytes(), pubKey) {
 		b.Errorf("Signature failed to verify")
@@ -92,10 +108,10 @@ func BenchmarkSigSerialize(b *testing.B) {
 	// Randomly generated keypair.
 	// Private key: 9e0699c91ca1e3b7e3c9ba71eb71c89890872be97576010fe593fbf3fd57e66d
 	// Signature for double sha256 of []byte{0x01, 0x02, 0x03, 0x04}.
-	sig := Signature{
-		r: *hexToModNScalar("fef45d2892953aa5bbcdb057b5e98b208f1617a7498af7eb765574e29b5d9c2c"),
-		s: *hexToModNScalar("d47563f52aac6b04b55de236b7c515eb9311757db01e02cff079c3ca6efb063f"),
-	}
+	sig := NewSignature(
+		hexToModNScalar("fef45d2892953aa5bbcdb057b5e98b208f1617a7498af7eb765574e29b5d9c2c"),
+		hexToModNScalar("d47563f52aac6b04b55de236b7c515eb9311757db01e02cff079c3ca6efb063f"),
+	)
 
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -147,8 +163,8 @@ func BenchmarkSignCompact(b *testing.B) {
 func BenchmarkRecoverCompact(b *testing.B) {
 	// Private key: 9e0699c91ca1e3b7e3c9ba71eb71c89890872be97576010fe593fbf3fd57e66d
 	wantPubKey := secp256k1.NewPublicKey(
-		hexToBigInt("d2e670a19c6d753d1a6d8b20bd045df8a08fb162cf508956c31268c6d81ffdab"),
-		hexToBigInt("ab65528eefbb8057aa85d597258a3fbd481a24633bc9b47a9aa045c91371de52"),
+		hexToFieldVal("d2e670a19c6d753d1a6d8b20bd045df8a08fb162cf508956c31268c6d81ffdab"),
+		hexToFieldVal("ab65528eefbb8057aa85d597258a3fbd481a24633bc9b47a9aa045c91371de52"),
 	)
 
 	compactSig := hexToBytes("205978b7896bc71676ba2e459882a8f52e1299449596c4f" +

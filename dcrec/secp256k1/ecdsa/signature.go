@@ -8,7 +8,6 @@ package ecdsa
 import (
 	"errors"
 	"fmt"
-	"math/big"
 
 	"github.com/decred/dcrd/dcrec/secp256k1/v3"
 )
@@ -158,18 +157,6 @@ func modNScalarToField(v *secp256k1.ModNScalar) secp256k1.FieldVal {
 	var fv secp256k1.FieldVal
 	fv.SetBytes(&buf)
 	return fv
-}
-
-// jacobianToBigAffine takes a Jacobian point (x, y, z) as field values and
-// converts it to an affine point as big integers.
-func jacobianToBigAffine(point *secp256k1.JacobianPoint) (*big.Int, *big.Int) {
-	point.ToAffine()
-
-	// Convert the field values for the now affine point to big.Ints.
-	x3, y3 := new(big.Int), new(big.Int)
-	x3.SetBytes(point.X.Bytes()[:])
-	y3.SetBytes(point.Y.Bytes()[:])
-	return x3, y3
 }
 
 // Verify returns whether or not the signature is valid for the provided hash
@@ -932,6 +919,7 @@ func RecoverCompact(signature, hash []byte) (*secp256k1.PublicKey, bool, error) 
 	}
 
 	// Notice that the public key is in affine coordinates.
-	pubKey := secp256k1.NewPublicKey(jacobianToBigAffine(&Q))
+	Q.ToAffine()
+	pubKey := secp256k1.NewPublicKey(&Q.X, &Q.Y)
 	return pubKey, wasCompressed, nil
 }

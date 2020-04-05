@@ -15,7 +15,7 @@ import (
 func TestIsOnCurveAdaptor(t *testing.T) {
 	s256 := S256()
 	if !s256.IsOnCurve(s256.Params().Gx, s256.Params().Gy) {
-		t.Fatalf("generator point does not claim to be on the curve")
+		t.Fatal("generator point does not claim to be on the curve")
 	}
 }
 

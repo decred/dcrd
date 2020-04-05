@@ -55,7 +55,8 @@ func GeneratePrivateKey() (*PrivateKey, error) {
 func (p *PrivateKey) PubKey() *PublicKey {
 	var result JacobianPoint
 	ScalarBaseMultNonConst(&p.Key, &result)
-	return NewPublicKey(jacobianToBigAffine(&result))
+	result.ToAffine()
+	return NewPublicKey(&result.X, &result.Y)
 }
 
 // Zero manually clears the memory associated with the private key.  This can be
