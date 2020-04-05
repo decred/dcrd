@@ -56,15 +56,11 @@ func NewSignature(r *secp256k1.FieldVal, s *secp256k1.ModNScalar) *Signature {
 //   sig[32:64] S, scalar multiplication/addition results = (ab+c) mod l
 //     encoded also as big endian
 func (sig Signature) Serialize() []byte {
-	var rBytes, sBytes [32]byte
-	sig.r.PutBytes(&rBytes)
-	sig.s.PutBytes(&sBytes)
-
 	// Total length of returned signature is the length of r and s.
-	b := make([]byte, 0, SignatureSize)
-	b = append(b, rBytes[:]...)
-	b = append(b, sBytes[:]...)
-	return b
+	var b [SignatureSize]byte
+	sig.r.PutBytesUnchecked(b[0:32])
+	sig.s.PutBytesUnchecked(b[32:64])
+	return b[:]
 }
 
 // ParseSignature parses a signature according to the EC-Schnorr-DCRv0
@@ -169,10 +165,8 @@ func schnorrVerify(sig *Signature, hash []byte, pubKey *secp256k1.PublicKey) err
 	// Step 5.
 	//
 	// e = BLAKE-256(r || m) (Ensure r is padded to 32 bytes)
-	var rBytes32 [scalarSize]byte
-	sig.r.PutBytes(&rBytes32)
 	var commitmentInput [scalarSize * 2]byte
-	copy(commitmentInput[:], rBytes32[:])
+	sig.r.PutBytesUnchecked(commitmentInput[0:scalarSize])
 	copy(commitmentInput[scalarSize:], hash[:])
 	commitment := blake256.Sum256(commitmentInput[:])
 
@@ -298,10 +292,8 @@ func schnorrSign(privKey, nonce *secp256k1.ModNScalar, hash []byte) (*Signature,
 	// Step 7.
 	//
 	// e = BLAKE-256(r || m) (Ensure r is padded to 32 bytes)
-	var rBytes [scalarSize]byte
-	r.PutBytes(&rBytes)
 	var commitmentInput [scalarSize * 2]byte
-	copy(commitmentInput[:], rBytes[:])
+	r.PutBytesUnchecked(commitmentInput[0:scalarSize])
 	copy(commitmentInput[scalarSize:], hash[:])
 	commitment := blake256.Sum256(commitmentInput[:])
 
