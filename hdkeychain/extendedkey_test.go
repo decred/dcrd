@@ -569,8 +569,6 @@ tests:
 
 // TestGenenerateSeed ensures the GenerateSeed function works as intended.
 func TestGenenerateSeed(t *testing.T) {
-	wantErr := errors.New("seed length must be between 128 and 512 bits")
-
 	tests := []struct {
 		name   string
 		length uint8
@@ -584,13 +582,13 @@ func TestGenenerateSeed(t *testing.T) {
 		{name: "64 bytes", length: 64},
 
 		// Test invalid lengths.
-		{name: "15 bytes", length: 15, err: wantErr},
-		{name: "65 bytes", length: 65, err: wantErr},
+		{name: "15 bytes", length: 15, err: ErrInvalidSeedLen},
+		{name: "65 bytes", length: 65, err: ErrInvalidSeedLen},
 	}
 
 	for i, test := range tests {
 		seed, err := GenerateSeed(test.length)
-		if !reflect.DeepEqual(err, test.err) {
+		if !errors.Is(err, test.err) {
 			t.Errorf("GenerateSeed #%d (%s): unexpected error -- "+
 				"want %v, got %v", i, test.name, test.err, err)
 			continue
@@ -667,7 +665,7 @@ func TestExtendedKeyAPI(t *testing.T) {
 		}
 
 		privKey, err := key.SerializedPrivKey()
-		if !reflect.DeepEqual(err, test.privKeyErr) {
+		if !errors.Is(err, test.privKeyErr) {
 			t.Errorf("SerializedPrivKey #%d (%s): mismatched "+
 				"error: want %v, got %v", i, test.name,
 				test.privKeyErr, err)
@@ -699,14 +697,14 @@ func TestErrors(t *testing.T) {
 	// Should get an error when seed has too few bytes.
 	net := mockMainNetParams()
 	_, err := NewMaster(bytes.Repeat([]byte{0x00}, 15), net)
-	if err != ErrInvalidSeedLen {
+	if !errors.Is(err, ErrInvalidSeedLen) {
 		t.Errorf("NewMaster: mismatched error -- got: %v, want: %v",
 			err, ErrInvalidSeedLen)
 	}
 
 	// Should get an error when seed has too many bytes.
 	_, err = NewMaster(bytes.Repeat([]byte{0x00}, 65), net)
-	if err != ErrInvalidSeedLen {
+	if !errors.Is(err, ErrInvalidSeedLen) {
 		t.Errorf("NewMaster: mismatched error -- got: %v, want: %v",
 			err, ErrInvalidSeedLen)
 	}
@@ -726,7 +724,7 @@ func TestErrors(t *testing.T) {
 
 	// Deriving a hardened child extended key should fail from a public key.
 	_, err = pubKey.Child(HardenedKeyStart)
-	if err != ErrDeriveHardFromPublic {
+	if !errors.Is(err, ErrDeriveHardFromPublic) {
 		t.Errorf("Child: mismatched error -- got: %v, want: %v",
 			err, ErrDeriveHardFromPublic)
 	}
@@ -750,10 +748,7 @@ func TestErrors(t *testing.T) {
 		{
 			name: "pubkey not on curve",
 			key:  "dpubZ9169KDAEUnyoTzA7pDGtXbxpji5LuUk8johUPVGY2CDsz6S7hahGNL6QkeYrUeAPnaJD1MBmrsUnErXScGZdjL6b2gjCRX1Z1GNhLdVCjv",
-			err: secp256k1.Error{
-				ErrorCode:   secp256k1.ErrPubKeyNotOnCurve,
-				Description: "invalid public key: x coordinate 0000000000000000000000000000000000000000000000000000000000000000 is not on the secp256k1 curve",
-			},
+			err:  secp256k1.ErrPubKeyNotOnCurve,
 		},
 		{
 			name: "unsupported version",
@@ -765,7 +760,7 @@ func TestErrors(t *testing.T) {
 	mainNetParams := mockMainNetParams()
 	for i, test := range tests {
 		_, err := NewKeyFromString(test.key, mainNetParams)
-		if !reflect.DeepEqual(err, test.err) {
+		if !errors.Is(err, test.err) {
 			t.Errorf("NewKeyFromString #%d (%s): mismatched error "+
 				"-- got: %v, want: %v", i, test.name, err,
 				test.err)
