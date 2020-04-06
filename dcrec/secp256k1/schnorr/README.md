@@ -3,7 +3,7 @@ schnorr
 
 [![Build Status](https://github.com/decred/dcrd/workflows/Build%20and%20Test/badge.svg)](https://github.com/decred/dcrd/actions)
 [![ISC License](https://img.shields.io/badge/license-ISC-blue.svg)](http://copyfree.org)
-[![GoDoc](https://img.shields.io/badge/godoc-reference-blue.svg)](https://godoc.org/github.com/decred/dcrd/dcrec/sec256pk1/v3/schnorr)
+[![GoDoc](https://img.shields.io/badge/godoc-reference-blue.svg)](https://pkg.go.dev/github.com/decred/dcrd/dcrec/secp256k1/v3/schnorr)
 
 Package schnorr provides custom Schnorr signing and verification via secp256k1.
 
@@ -317,6 +317,13 @@ standardization attempts:
 ```bash
 $ go get -u github.com/decred/dcrd/dcrec/secp25k1/v3/schnorr
 ```
+
+## Examples
+
+* [Sign Message](https://pkg.go.dev/github.com/decred/dcrd/dcrec/secp256k1/v3/schnorr#example-package-SignMessage)  
+  Demonstrates signing a message with the EC-Schnorr-DCRv0 scheme using a
+  secp256k1 private key that is first parsed from raw bytes and serializing the
+  generated signature.
 
 ## License
 
