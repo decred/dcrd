@@ -325,6 +325,10 @@ $ go get -u github.com/decred/dcrd/dcrec/secp25k1/v3/schnorr
   secp256k1 private key that is first parsed from raw bytes and serializing the
   generated signature.
 
+* [Verify Signature](https://pkg.go.dev/github.com/decred/dcrd/dcrec/secp256k1/v3/schnorr#example-Signature.Verify)  
+  Demonstrates verifying an EC-Schnorr-DCRv0 signature against a public key that
+  is first parsed from raw bytes.  The signature is also parsed from raw bytes.
+
 ## License
 
 Package schnorr is licensed under the [copyfree](http://copyfree.org) ISC

@@ -47,3 +47,44 @@ func ExampleSign() {
 	// Serialized Signature: 970603d8ccd2475b1ff66cfb3ce7e622c5938348304c5a7bc2e6015fb98e3b457d4e912fcca6ca87c04390aa5e6e0e613bbbba7ffd6f15bc59f95bbd92ba50f0
 	// Signature Verified? true
 }
+
+// This example demonstrates verifying an EC-Schnorr-DCRv0 signature against a
+// public key that is first parsed from raw bytes.  The signature is also parsed
+// from raw bytes.
+func ExampleSignature_Verify() {
+	// Decode hex-encoded serialized public key.
+	pubKeyBytes, err := hex.DecodeString("02a673638cb9587cb68ea08dbef685c6f2d" +
+		"2a751a8b3c6f2a7e9a4999e6e4bfaf5")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	pubKey, err := schnorr.ParsePubKey(pubKeyBytes)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	// Decode hex-encoded serialized signature.
+	sigBytes, err := hex.DecodeString("970603d8ccd2475b1ff66cfb3ce7e622c59383" +
+		"48304c5a7bc2e6015fb98e3b457d4e912fcca6ca87c04390aa5e6e0e613bbbba7ffd" +
+		"6f15bc59f95bbd92ba50f0")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	signature, err := schnorr.ParseSignature(sigBytes)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	// Verify the signature for the message using the public key.
+	message := "test message"
+	messageHash := chainhash.HashB([]byte(message))
+	verified := signature.Verify(messageHash, pubKey)
+	fmt.Println("Signature Verified?", verified)
+
+	// Output:
+	// Signature Verified? true
+}
