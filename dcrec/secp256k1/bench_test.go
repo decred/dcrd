@@ -129,3 +129,18 @@ func BenchmarkParsePubKeyCompressed(b *testing.B) {
 		ParsePubKey(pubKeyBytes)
 	}
 }
+
+// BenchmarkParsePubKeyUncompressed benchmarks how long it takes to parse an
+// uncompressed public key.
+func BenchmarkParsePubKeyUncompressed(b *testing.B) {
+	format := "04"
+	x := "11db93e1dcdb8a016b49840f8c53bc1eb68a382e97b1482ecad7b148a6909a5c"
+	y := "b2e0eaddfb84ccf9744464f82e160bfa9b8b64f9d4c03f999b8643f656b412a3"
+	pubKeyBytes := hexToBytes(format + x + y)
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		ParsePubKey(pubKeyBytes)
+	}
+}
