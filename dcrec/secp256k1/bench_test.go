@@ -115,3 +115,17 @@ func BenchmarkPubKeyDecompress(b *testing.B) {
 		_ = DecompressY(pubKeyX, false, &y)
 	}
 }
+
+// BenchmarkParsePubKeyCompressed benchmarks how long it takes to parse a
+// compressed public key with an even y coordinate.
+func BenchmarkParsePubKeyCompressed(b *testing.B) {
+	format := "02"
+	x := "ce0b14fb842b1ba549fdd675c98075f12e9c510f8ef52bd021a9a1f4809d3b4d"
+	pubKeyBytes := hexToBytes(format + x)
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		ParsePubKey(pubKeyBytes)
+	}
+}
