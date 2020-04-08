@@ -138,6 +138,13 @@ func ParsePubKey(serialized []byte) (key *PublicKey, err error) {
 			}
 		}
 
+		// Reject public keys that are not on the secp256k1 curve.
+		if !isOnCurve(&x, &y) {
+			str := fmt.Sprintf("invalid public key: [%v,%v] not on secp256k1 "+
+				"curve", x, y)
+			return nil, makeError(ErrPubKeyNotOnCurve, str)
+		}
+
 	case PubKeyBytesLenCompressed:
 		// Reject unsupported public key formats for the given length.
 		format := serialized[0]
@@ -162,7 +169,7 @@ func ParsePubKey(serialized []byte) (key *PublicKey, err error) {
 		wantOddY := format == PubKeyFormatCompressedOdd
 		if !DecompressY(&x, wantOddY, &y) {
 			str := fmt.Sprintf("invalid public key: x coordinate %v is not on "+
-				"the secp256k1 curve", &x)
+				"the secp256k1 curve", x)
 			return nil, makeError(ErrPubKeyNotOnCurve, str)
 		}
 		y.Normalize()
@@ -171,13 +178,6 @@ func ParsePubKey(serialized []byte) (key *PublicKey, err error) {
 		str := fmt.Sprintf("malformed public key: invalid length: %d",
 			len(serialized))
 		return nil, makeError(ErrPubKeyInvalidLen, str)
-	}
-
-	// Reject public keys that are not on the secp256k1 curve.
-	if !isOnCurve(&x, &y) {
-		str := fmt.Sprintf("invalid public key: [%v,%v] not on secp256k1 curve",
-			x, y)
-		return nil, makeError(ErrPubKeyNotOnCurve, str)
 	}
 
 	return NewPublicKey(&x, &y), nil
