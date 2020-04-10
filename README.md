@@ -77,11 +77,11 @@ and [Decrediton (GUI)](https://github.com/decred/decrediton).
 
 ## Minimum Recommended Specifications (dcrd only)
 
-* 10 GB disk space (as of September 2018, increases over time)
+* 12 GB disk space (as of April 2020, increases over time)
 * 1GB memory (RAM)
 * ~150MB/day download, ~1.5GB/day upload
   * Plus one-time initial download of the entire block chain
-* Windows 7/8.x/10 (server preferred), macOS, Linux
+* Windows 10 (server preferred), macOS, Linux
 * High uptime
 
 ## Getting Started
@@ -108,7 +108,7 @@ https://decred.org/downloads
 
 Building or updating from source requires the following build dependencies:
 
-- **Go 1.11 or 1.12**
+- **Go 1.13 or 1.14**
 
   Installation instructions can be found here: https://golang.org/doc/install.
   It is recommended to add `$GOPATH/bin` to your `PATH` at this point.
@@ -121,12 +121,8 @@ Building or updating from source requires the following build dependencies:
 To build and install from a checked-out repo, run `go install . ./cmd/...` in
 the repo's root directory.  Some notes:
 
-* Set the `GO111MODULE=on` environment variable if building from within
-  `GOPATH`.
-
 * The `dcrd` executable will be installed to `$GOPATH/bin`.  `GOPATH`
   defaults to `$HOME/go` (or `%USERPROFILE%\go` on Windows) if unset.
-
 
 ### Example of obtaining and building from source on Windows 10:
 
@@ -135,7 +131,6 @@ PS> git clone https://github.com/decred/dcrd $env:USERPROFILE\src\dcrd
 PS> cd $env:USERPROFILE\src\dcrd
 PS> go install . .\cmd\...
 PS> & "$(go env GOPATH)\bin\dcrd" -V
-
 ```
 
 ## Docker
@@ -161,7 +156,7 @@ You can then run the image using:
 docker run decred/dcrd
 ```
 
-You may wish to use an external volume to customise your config and persist the
+You may wish to use an external volume to customize your config and persist the
 data in an external volume:
 
 ```
@@ -171,7 +166,7 @@ docker run --rm -v /home/user/dcrdata:/root/.dcrd/data decred/dcrd
 For a minimal image, you can use the decred/dcrd:alpine tag.  This is typically
 a more secure option while also being a much smaller image.
 
-You can run dcrctl from inside the image.  For example, run an image (mounting
+You can run `dcrctl` from inside the image.  For example, run an image (mounting
 your data from externally) with:
 
 ```
@@ -179,7 +174,7 @@ docker run --rm -ti --name=dcrd-1 -v /home/user/.dcrd:/root/.dcrd \
   decred/dcrd:alpine
 ```
 
-And then run dcrctl commands against it.  For example:
+And then run `dcrctl` commands against it.  For example:
 
 ```
 docker exec -ti dcrd-1 dcrctl getbestblock
@@ -187,27 +182,11 @@ docker exec -ti dcrd-1 dcrctl getbestblock
 
 ### Running Tests
 
-All tests and linters may be run in a docker (or podman) container using the
-script `run_tests.sh` by specifying either `docker` or `podman` as the first
-parameter.  This script defaults to using the current latest supported version
-of Go, but it also respects the `GOVERSION` environment variable set to the
-major version of Go to allow testing on a previous version of Go.  Generally,
+All tests and linters may be run using the script `run_tests.sh`.  Generally,
 Decred only supports the current and previous major versions of Go.
 
 ```
-./run_tests.sh docker
-```
-
-To run the tests locally without docker on the latest supported version of Go:
-
-```
 ./run_tests.sh
-```
-
-To run the tests locally without docker on Go 1.11:
-
-```
-GOVERSION=1.11 ./run_tests.sh
 ```
 
 ## Contact
