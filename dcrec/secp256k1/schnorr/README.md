@@ -142,7 +142,7 @@ hand, when `R` is revealed, the verifier must calculate
 This is an important distinction because, while the first approach of revealing
 `e` does have the theoretical potential for smaller signatures, since it is the
 result of a hash function as opposed to encoding `R`, it also has a couple of
-important disadvantages that second approach does not:
+important disadvantages that the second approach does not:
 
 * It makes the implementation of secure joint multi-party and threshold
   signatures more difficult
@@ -277,7 +277,7 @@ r, s = signature
 6. Fail if e >= n
 7. R = s*G + e*Q
 8. Fail if R is the point at infinity
-9. Fail if R.y is even
+9. Fail if R.y is odd
 10. Verified if R.x == r
 
 ### EC-Schnorr-DCRv0 Signature Serialization Format
