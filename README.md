@@ -44,16 +44,9 @@ transactions to other Decred nodes around the world.
 This software is currently under active development.  It is extremely stable and
 has been in production use since February 2016.
 
-The software was originally forked from [btcd](https://github.com/btcsuite/btcd),
-which is a bitcoin full node implementation that is still under active
-development.  To gain the benefit of btcd's ongoing upgrades, including improved
-peer and connection handling, database optimization, and other blockchain
-related technology improvements, dcrd is continuously synced with the btcd
-codebase.
-
-Like btcd, dcrd does *NOT* include wallet functionality, and users who desire a
-wallet will need to use [dcrwallet (CLI)](https://github.com/decred/dcrwallet) or 
-[Decrediton (GUI)](https://github.com/decred/decrediton).
+It important to note that dcrd does *NOT* include wallet functionality.  Users
+who desire a wallet will need to use [dcrwallet(CLI)](https://github.com/decred/dcrwallet)
+or [Decrediton(GUI)](https://github.com/decred/decrediton).
 
 ## What is a full node?
 
