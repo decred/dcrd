@@ -198,6 +198,29 @@ out:
 	m.wg.Done()
 }
 
+// NotifyBlockAccepted passes a newly accepted block (which may or may not
+// extend the best chain) to the notification manager for block notification
+// processing.
+func (m *wsNotificationManager) NotifyBlockAccepted(blockData *blockchain.BlockAcceptedNtfnsData) {
+	m.mtx.RLock()
+	if m.ctx == nil {
+		// Notification manager not started yet.
+		m.mtx.RUnlock()
+		return
+	}
+	ctx := m.ctx
+	m.mtx.RUnlock()
+
+	// As NotifyBlockAccepted will be called by the block manager
+	// and the RPC server may no longer be running, use a select
+	// statement to unblock enqueuing the notification once the RPC
+	// server has begun shutting down.
+	select {
+	case m.queueNotification <- (*notificationBlockAccepted)(blockData):
+	case <-ctx.Done():
+	}
+}
+
 // NotifyBlockConnected passes a block newly-connected to the best chain
 // to the notification manager for block and transaction notification
 // processing.
@@ -549,6 +572,7 @@ func (f *wsClientFilter) existsUnspentOutPoint(op *wire.OutPoint) bool {
 }
 
 // Notification types
+type notificationBlockAccepted blockchain.BlockAcceptedNtfnsData
 type notificationBlockConnected dcrutil.Block
 type notificationBlockDisconnected dcrutil.Block
 type notificationWork TemplateNtfn
@@ -614,6 +638,10 @@ out:
 				break out
 			}
 			switch n := n.(type) {
+			case *notificationBlockAccepted:
+				m.notifyBlockAccepted(blockNotifications,
+					(*blockchain.BlockAcceptedNtfnsData)(n))
+
 			case *notificationBlockConnected:
 				block := (*dcrutil.Block)(n)
 
@@ -863,6 +891,39 @@ func (m *wsNotificationManager) subscribedClients(tx *dcrutil.Tx, clients map[ch
 	}
 
 	return subscribed
+}
+
+// notifyBlockAccepted notifies websocket clients that have registered for
+// block updates when a block is accepted into the block chain.
+func (*wsNotificationManager) notifyBlockAccepted(clients map[chan struct{}]*wsClient, bd *blockchain.BlockAcceptedNtfnsData) {
+	// Skip notification creation if no clients have requested block
+	// accepted notifications.
+	if len(clients) == 0 {
+		return
+	}
+
+	// Notify interested websocket clients about the accepted block.
+	headerBytes, err := bd.Block.MsgBlock().Header.Bytes()
+	if err != nil {
+		// This should never error.  The header is written to an
+		// in-memory expandable buffer, and given that the block has
+		// been accepted, there should be no issues serializing it.
+		panic(err)
+	}
+	ntfn := types.BlockAcceptedNtfn{
+		Header:     hex.EncodeToString(headerBytes),
+		ForkLen:    bd.ForkLen,
+		BestHeight: bd.BestHeight,
+	}
+	marshalledJSON, err := dcrjson.MarshalCmd("1.0", nil, &ntfn)
+	if err != nil {
+		rpcsLog.Errorf("Failed to marshal block accepted "+
+			"notification: %v", err)
+		return
+	}
+	for _, wsc := range clients {
+		wsc.QueueNotification(marshalledJSON)
+	}
 }
 
 // notifyBlockConnected notifies websocket clients that have registered for

@@ -88,6 +88,11 @@ type NotificationHandlers struct {
 	// notification handlers, and is safe for blocking client requests.
 	OnClientConnected func()
 
+	// OnBlockAccepted is invoked when a block is accepted into the block
+	// chain.  It will only be invoked if a preceding call to NotifyBlocks has
+	// been made to register for the notification and the function is non-nil.
+	OnBlockAccepted func(blockHeader []byte, forkLen, bestHeight int64)
+
 	// OnBlockConnected is invoked when a block is connected to the longest
 	// (best) chain.  It will only be invoked if a preceding call to
 	// NotifyBlocks has been made to register for the notification and the
@@ -225,6 +230,23 @@ func (c *Client) handleNotification(ntfn *rawNotification) {
 	// Handle chain notifications.
 	var unhandled bool
 	switch chainjson.Method(ntfn.Method) {
+	// OnBlockAccepted
+	case chainjson.BlockAcceptedNtfnMethod:
+		// Ignore the notification if the client is not interested in
+		// it.
+		if c.ntfnHandlers.OnBlockAccepted == nil {
+			return
+		}
+
+		blockHeader, forkLen, bestHeight, err := parseBlockAcceptedParams(ntfn.Params)
+		if err != nil {
+			log.Warnf("Received invalid blockaccepted "+
+				"notification: %v", err)
+			return
+		}
+
+		c.ntfnHandlers.OnBlockAccepted(blockHeader, forkLen, bestHeight)
+
 	// OnBlockConnected
 	case chainjson.BlockConnectedNtfnMethod:
 		// Ignore the notification if the client is not interested in
@@ -568,6 +590,31 @@ func parseHexParam(param json.RawMessage) ([]byte, error) {
 		return nil, err
 	}
 	return hex.DecodeString(s)
+}
+
+// parseBlockAcceptedParams parses out the parameters included in a
+// blockaccepted notification.
+func parseBlockAcceptedParams(params []json.RawMessage) (blockHeader []byte, forkLen, bestHeight int64, err error) {
+	if len(params) != 3 {
+		return nil, 0, 0, wrongNumParams(len(params))
+	}
+
+	blockHeader, err = parseHexParam(params[0])
+	if err != nil {
+		return nil, 0, 0, err
+	}
+
+	err = json.Unmarshal(params[1], &forkLen)
+	if err != nil {
+		return nil, 0, 0, err
+	}
+
+	err = json.Unmarshal(params[2], &bestHeight)
+	if err != nil {
+		return nil, 0, 0, err
+	}
+
+	return blockHeader, forkLen, bestHeight, nil
 }
 
 // parseBlockConnectedParams parses out the parameters included in a

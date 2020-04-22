@@ -11,6 +11,10 @@ package types
 import "github.com/decred/dcrd/dcrjson/v3"
 
 const (
+	// BlockAcceptedNtfnMethod is the method used for notifications from
+	// the chain server that a block has been accepted.
+	BlockAcceptedNtfnMethod Method = "blockaccepted"
+
 	// BlockConnectedNtfnMethod is the method used for notifications from
 	// the chain server that a block has been connected.
 	BlockConnectedNtfnMethod Method = "blockconnected"
@@ -57,6 +61,23 @@ const (
 	// notification.
 	WinningTicketsNtfnMethod Method = "winningtickets"
 )
+
+// BlockAcceptedNtfn defines the blockconnected JSON-RPC notification.
+type BlockAcceptedNtfn struct {
+	Header     string `json:"header"`
+	ForkLen    int64  `json:"forklen"`
+	BestHeight int64  `json:"bestheight"`
+}
+
+// NewBlockAcceptedNtfn returns a new instance which can be used to issue a
+// blockaccepted JSON-RPC notification.
+func NewBlockAcceptedNtfn(header string, forkLen, bestHeight int64) *BlockAcceptedNtfn {
+	return &BlockAcceptedNtfn{
+		Header:     header,
+		ForkLen:    forkLen,
+		BestHeight: bestHeight,
+	}
+}
 
 // BlockConnectedNtfn defines the blockconnected JSON-RPC notification.
 type BlockConnectedNtfn struct {
@@ -239,6 +260,7 @@ func init() {
 	// notifications.
 	flags := dcrjson.UFWebsocketOnly | dcrjson.UFNotification
 
+	dcrjson.MustRegister(BlockAcceptedNtfnMethod, (*BlockAcceptedNtfn)(nil), flags)
 	dcrjson.MustRegister(BlockConnectedNtfnMethod, (*BlockConnectedNtfn)(nil), flags)
 	dcrjson.MustRegister(BlockDisconnectedNtfnMethod, (*BlockDisconnectedNtfn)(nil), flags)
 	dcrjson.MustRegister(WorkNtfnMethod, (*WorkNtfn)(nil), flags)

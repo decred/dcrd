@@ -2561,11 +2561,11 @@ user.  Click the method name for further details such as parameter and return in
 |None
 |-
 |[[#notifyblocks|notifyblocks]]
-|Send notifications when a block is connected or disconnected from the best chain.
-|[[#blockconnected|blockconnected]] and [[#blockdisconnected|blockdisconnected]]
+|Send notifications when a block is accepted into the block chain and when a block is connected to or disconnected from the best chain.
+|[[#blockaccepted|blockaccepted]], [[#blockconnected|blockconnected]] and [[#blockdisconnected|blockdisconnected]]
 |-
 |[[#stopnotifyblocks|stopnotifyblocks]]
-|Cancel registered notifications for whenever a block is connected or disconnected from the main (best) chain.
+|Cancel registered notifications for whenever a block is accepted into the block chain and whenever a block is connected to or disconnected from the main (best) chain.
 |None
 |-
 |[[#notifywork|notifywork]]
@@ -2643,13 +2643,13 @@ NOTE: This is only required if an HTTP Authorization header is not being used.
 |notifyblocks
 |-
 !Notifications
-|[[#blockconnected|blockconnected]] and [[#blockdisconnected|blockdisconnected]]
+|[[#blockaccepted|blockaccepted]], [[#blockconnected|blockconnected]] and [[#blockdisconnected|blockdisconnected]]
 |-
 !Parameters
 |None
 |-
 !Description
-|Request notifications for whenever a block is connected or disconnected from the main (best) chain. NOTE: If a client subscribes to both block and transaction (recvtx and redeemingtx) notifications, the blockconnected notification will be sent after all transaction notifications have been sent.  This allows clients to know when all relevant transactions for a block have been received.
+|Request notifications for whenever a block is accepted into the block chain (i.e. accepted into the main chain or creates/extends a side chain) and whenever a block is connected or disconnected from the main (best) chain. NOTE: If a client subscribes to both block and transaction (recvtx and redeemingtx) notifications, the blockconnected notification will be sent after all transaction notifications have been sent.  This allows clients to know when all relevant transactions for a block have been received.
 |-
 !Returns
 |Nothing
@@ -2946,6 +2946,10 @@ The following is an overview of the JSON-RPC notifications used for Websocket co
 !Description
 !Request
 |-
+|[[#blockaccepted|blockaccepted]]
+|Block accepted to the block chain.
+|[[#notifyblocks|notifyblocks]]
+|-
 |[[#blockconnected|blockconnected]]
 |Block connected to the main chain.
 |[[#notifyblocks|notifyblocks]]
@@ -2984,6 +2988,34 @@ The following is an overview of the JSON-RPC notifications used for Websocket co
 |}
 
 ===7.2 Notification Details===
+
+====blockaccepted====
+{|
+!Method
+|blockaccepted
+|-
+!Request
+|[[#notifyblocks|notifyblocks]]
+|-
+!Parameters
+|
+# <code>BlockHash</code>: <code>(string)</code> hex-encoded bytes of the attached block hash.
+# <code>ForkLength</code>: <code>(numeric)</code> length of the side chain the block extended or zero in the case the block extended the main chain.
+# <code>BestHeight</code>: <code>(numeric)</code> height of the current best chain.
+|-
+!Description
+|Notifies when a block has been accepted to the block chain.  Notification is sent to all connected clients.
+: Note that the block that was accepted does not necessarily extend the best chain as it might have created or extended a side chain.
+: Also, since the accepted block might be on a side chain, the <code>BestHeight</code> is not necessarily the same as the height of the accepted block.
+: The <code>ForkLength</code> can be used in conjunction with the <code>BestHeight</code> to determine the height at which the side chain the block created or extended forked from the best chain.
+|-
+!Example
+|Example blockaccepted notification for testnet block 409148:
+
+: <code>{"jsonrpc": "1.0", "method": "blockaccepted", "params": ["0000000f26a0b1601fdd2eaed98fa148f3cb219473f4527cb4c52a5a239fd0b1", 1, 409148],"id": null}</code>
+|}
+
+----
 
 ====blockconnected====
 {|

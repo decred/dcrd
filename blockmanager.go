@@ -1877,6 +1877,11 @@ func (b *blockManager) handleBlockchainNotification(notification *blockchain.Not
 			b.cfg.PeerNotifier.RelayInventory(iv, block.MsgBlock().Header, true)
 		}
 
+		if r := b.cfg.RpcServer(); r != nil {
+			// Notify registered websocket clients of accepted block.
+			r.ntfnMgr.NotifyBlockAccepted(band)
+		}
+
 		// Inform the background block template generator about the accepted
 		// block.
 		if b.cfg.BgBlkTmplGenerator != nil {
