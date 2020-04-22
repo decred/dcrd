@@ -28,10 +28,10 @@ Core software:
 
 Bundles:
 
-* [Decrediton](https://github.com/decred/decrediton): a GUI bundle for `dcrd` 
-and `dcrwallet`.
-* [CLI app suite](https://github.com/decred/decred-release/releases/tag/v1.5.1): 
-a CLI bundle for `dcrd` and `dcrwallet`.
+* [Decrediton](https://github.com/decred/decrediton): a GUI bundle for `dcrd`
+  and `dcrwallet`
+* [CLI app suite](https://github.com/decred/decred-release/releases/tag/v1.5.1):
+  a CLI bundle for `dcrd` and `dcrwallet`
 
 ## What is dcrd?
 
@@ -110,9 +110,9 @@ Also, make sure your firewall is configured to allow inbound connections to port
 
 ### Binaries (Windows/Linux/macOS)
 
-Binary releases are provided for common operating systems and architectures. 
-The easiest method is to download Decrediton from the link below, which will 
-include dcrd. Advanced users may prefer the Command-line app suite, which 
+Binary releases are provided for common operating systems and architectures.
+The easiest method is to download Decrediton from the link below, which will
+include dcrd. Advanced users may prefer the Command-line app suite, which
 includes dcrd and dcrwallet.
 
 https://decred.org/downloads
@@ -133,10 +133,10 @@ https://decred.org/downloads
   $ go version
   $ go env GOROOT GOPATH
   ```
-  NOTE: `GOROOT` and `GOPATH` must not be on the same path. Since Go 1.8 (2016), 
-  `GOROOT` and `GOPATH` are set automatically, and you do not need to change 
-  them. However, you still need to add `$GOPATH/bin` to your `PATH` in order to 
-  run binaries installed by `go get` and `go install` (On Windows, this happens 
+  NOTE: `GOROOT` and `GOPATH` must not be on the same path. Since Go 1.8 (2016),
+  `GOROOT` and `GOPATH` are set automatically, and you do not need to change
+  them. However, you still need to add `$GOPATH/bin` to your `PATH` in order to
+  run binaries installed by `go get` and `go install` (On Windows, this happens
   automatically).
 
   Unix example -- add these lines to .profile:
@@ -168,7 +168,7 @@ https://decred.org/downloads
 </details>
 <details><summary><b>Unix Example</b></summary>
 
-  This assumes you have already added `$GOPATH/bin` to your `$PATH` as described 
+  This assumes you have already added `$GOPATH/bin` to your `$PATH` as described
   in dependencies.
 
   ```sh
