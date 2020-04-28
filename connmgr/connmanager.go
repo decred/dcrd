@@ -362,6 +362,9 @@ out:
 				var idToRemove uint64
 				var connReq *ConnReq
 				for id, req := range pending {
+					if req == nil || req.Addr == nil {
+						continue
+					}
 					if pendingAddr == req.Addr.String() {
 						idToRemove, connReq = id, req
 						break
