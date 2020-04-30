@@ -200,8 +200,6 @@ func (msg *MsgVersion) Command() string {
 // MaxPayloadLength returns the maximum length the payload can be for the
 // receiver.  This is part of the Message interface implementation.
 func (msg *MsgVersion) MaxPayloadLength(pver uint32) uint32 {
-	// XXX: <= 106 different
-
 	// Protocol version 4 bytes + services 8 bytes + timestamp 8 bytes +
 	// remote and local net addresses + nonce 8 bytes + length of user
 	// agent (varInt) + max allowed useragent length + last block 4 bytes +
@@ -252,7 +250,8 @@ func NewMsgVersionFromConn(conn net.Conn, nonce uint64,
 	return NewMsgVersion(lna, rna, nonce, lastBlock), nil
 }
 
-// validateUserAgent checks userAgent length against MaxUserAgentLen
+// validateUserAgent ensures the provided user agent conforms to the results
+// imposed by the protocol.
 func validateUserAgent(userAgent string) error {
 	const op = "MsgVersion.validateUserAgent"
 	if len(userAgent) > MaxUserAgentLen {
@@ -260,6 +259,12 @@ func validateUserAgent(userAgent string) error {
 			len(userAgent), MaxUserAgentLen)
 		return messageError(op, ErrUserAgentTooLong, msg)
 	}
+
+	if !isStrictAscii(userAgent) {
+		msg := "user agent is not strict ASCII"
+		return messageError(op, ErrMalformedStrictString, msg)
+	}
+
 	return nil
 }
 

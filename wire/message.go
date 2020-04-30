@@ -9,7 +9,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"unicode/utf8"
 
 	"github.com/decred/dcrd/chaincfg/chainhash"
 )
@@ -326,7 +325,7 @@ func ReadMessageN(r io.Reader, pver uint32, dcrnet CurrencyNet) (int, Message, [
 
 	// Check for malformed commands.
 	command := hdr.command
-	if !utf8.ValidString(command) {
+	if !isStrictAscii(command) {
 		discardInput(r, hdr.length)
 		msg := fmt.Sprintf("invalid command %v", []byte(command))
 		return totalBytes, nil, nil, messageError(op, ErrMalformedCmd, msg)

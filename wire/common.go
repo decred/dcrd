@@ -23,6 +23,12 @@ const (
 	// binaryFreeListMaxItems is the number of buffers to keep in the free
 	// list to use for binary serialization and deserialization.
 	binaryFreeListMaxItems = 1024
+
+	// strictAsciiRangeLower is the lower limit of the strict ASCII range.
+	strictAsciiRangeLower = 0x20
+
+	// strictAsciiRangeUpper is the upper limit of the strict ASCII range.
+	strictAsciiRangeUpper = 0x7e
 )
 
 var (
@@ -704,4 +710,16 @@ func randomUint64(r io.Reader) (uint64, error) {
 // RandomUint64 returns a cryptographically random uint64 value.
 func RandomUint64() (uint64, error) {
 	return randomUint64(rand.Reader)
+}
+
+// isStrictAscii determines returns true if the provided string only contains
+// runes that are within the strict ASCII range.
+func isStrictAscii(s string) bool {
+	for _, r := range s {
+		if r < strictAsciiRangeLower || r > strictAsciiRangeUpper {
+			return false
+		}
+	}
+
+	return true
 }

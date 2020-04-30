@@ -72,12 +72,39 @@ type MsgReject struct {
 	Hash chainhash.Hash
 }
 
+// validateRejectCommand ensures the provided reject command conforms to the
+// results imposed by the protocol.
+func validateRejectCommand(cmd string) error {
+	const op = "MsgReject.validateRejectCommand"
+	if !isStrictAscii(cmd) {
+		msg := "reject command is not strict ASCII"
+		return messageError(op, ErrMalformedStrictString, msg)
+	}
+
+	return nil
+}
+
+// validateRejectReason ensures the provided reject reason conforms to the
+// results imposed by the protocol.
+func validateRejectReason(reason string) error {
+	const op = "MsgReject.validateRejectReason"
+	if !isStrictAscii(reason) {
+		msg := "reject reason is not strict ASCII"
+		return messageError(op, ErrMalformedStrictString, msg)
+	}
+
+	return nil
+}
+
 // BtcDecode decodes r using the Decred protocol encoding into the receiver.
 // This is part of the Message interface implementation.
 func (msg *MsgReject) BtcDecode(r io.Reader, pver uint32) error {
 	// Command that was rejected.
 	cmd, err := ReadVarString(r, pver)
 	if err != nil {
+		return err
+	}
+	if err := validateRejectCommand(cmd); err != nil {
 		return err
 	}
 	msg.Cmd = cmd
@@ -92,6 +119,9 @@ func (msg *MsgReject) BtcDecode(r io.Reader, pver uint32) error {
 	// reject code above) about why the command was rejected.
 	reason, err := ReadVarString(r, pver)
 	if err != nil {
+		return err
+	}
+	if err := validateRejectReason(reason); err != nil {
 		return err
 	}
 	msg.Reason = reason
@@ -111,6 +141,13 @@ func (msg *MsgReject) BtcDecode(r io.Reader, pver uint32) error {
 // BtcEncode encodes the receiver to w using the Decred protocol encoding.
 // This is part of the Message interface implementation.
 func (msg *MsgReject) BtcEncode(w io.Writer, pver uint32) error {
+	if err := validateRejectCommand(msg.Cmd); err != nil {
+		return err
+	}
+	if err := validateRejectReason(msg.Reason); err != nil {
+		return err
+	}
+
 	// Command that was rejected.
 	err := WriteVarString(w, pver, msg.Cmd)
 	if err != nil {

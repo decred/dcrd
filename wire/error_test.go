@@ -6,6 +6,7 @@
 package wire
 
 import (
+	"errors"
 	"testing"
 )
 
@@ -45,6 +46,7 @@ func TestMessageErrorCodeStringer(t *testing.T) {
 		{ErrInvalidMsg, "ErrInvalidMsg"},
 		{ErrUserAgentTooLong, "ErrUserAgentTooLong"},
 		{ErrTooManyFilterHeaders, "ErrTooManyFilterHeaders"},
+		{ErrMalformedStrictString, "ErrMalformedStrictString"},
 		{0xffff, "Unknown ErrorCode (65535)"},
 	}
 
@@ -68,27 +70,103 @@ func TestMessageError(t *testing.T) {
 		want string
 	}{{
 		MessageError{Description: "some error"},
-		"Unknown ErrorCode (0): some error",
+		"some error",
 	}, {
-		MessageError{ErrorCode: ErrNonCanonicalVarInt,
-			Description: "human-readable error"},
-		"ErrNonCanonicalVarInt: human-readable error",
+		MessageError{Description: "human-readable error"},
+		"human-readable error",
 	}, {
-		MessageError{ErrorCode: ErrMsgInvalidForPVer,
-			Description: "something bad happened"},
-		"ErrMsgInvalidForPVer: something bad happened",
-	}, {
-		MessageError{Func: "foo", ErrorCode: ErrMsgInvalidForPVer,
-			Description: "something bad happened"},
-		"foo: [ErrMsgInvalidForPVer] something bad happened",
+		MessageError{Func: "foo", Description: "something bad happened"},
+		"foo: something bad happened",
 	}}
 
 	t.Logf("Running %d tests", len(tests))
 	for i, test := range tests {
 		result := test.in.Error()
 		if result != test.want {
-			t.Errorf("Error #%d\n got: %s want: %s", i, result,
-				test.want)
+			t.Errorf("#%d: got: %s want: %s", i, result, test.want)
+			continue
+		}
+	}
+}
+
+// TestErrorCodeIsAs ensures both ErrorCode and MessageError can be identified
+// as being a specific error code via errors.Is and unwrapped via errors.As.
+func TestErrorCodeIsAs(t *testing.T) {
+	tests := []struct {
+		name      string
+		err       error
+		target    error
+		wantMatch bool
+		wantAs    ErrorCode
+	}{{
+		name:      "ErrTooManyAddrs == ErrTooManyAddrs",
+		err:       ErrTooManyAddrs,
+		target:    ErrTooManyAddrs,
+		wantMatch: true,
+		wantAs:    ErrTooManyAddrs,
+	}, {
+		name:      "MessageError.ErrTooManyAddrs == ErrTooManyAddrs",
+		err:       messageError("", ErrTooManyAddrs, ""),
+		target:    ErrTooManyAddrs,
+		wantMatch: true,
+		wantAs:    ErrTooManyAddrs,
+	}, {
+		name:      "ErrTooManyAddrs == MessageError.ErrTooManyAddrs",
+		err:       ErrTooManyAddrs,
+		target:    messageError("", ErrTooManyAddrs, ""),
+		wantMatch: true,
+		wantAs:    ErrTooManyAddrs,
+	}, {
+		name:      "MessageError.ErrTooManyAddrs == MessageError.ErrTooManyAddrs",
+		err:       messageError("", ErrTooManyAddrs, ""),
+		target:    messageError("", ErrTooManyAddrs, ""),
+		wantMatch: true,
+		wantAs:    ErrTooManyAddrs,
+	}, {
+		name:      "ErrTooManyTxs != ErrTooManyAddrs",
+		err:       ErrTooManyTxs,
+		target:    ErrTooManyAddrs,
+		wantMatch: false,
+		wantAs:    ErrTooManyTxs,
+	}, {
+		name:      "MessageError.ErrTooManyTxs != ErrTooManyAddrs",
+		err:       messageError("", ErrTooManyTxs, ""),
+		target:    ErrTooManyAddrs,
+		wantMatch: false,
+		wantAs:    ErrTooManyTxs,
+	}, {
+		name:      "ErrTooManyTxs != MessageError.ErrTooManyAddrs",
+		err:       ErrTooManyTxs,
+		target:    messageError("", ErrTooManyAddrs, ""),
+		wantMatch: false,
+		wantAs:    ErrTooManyTxs,
+	}, {
+		name:      "MessageError.ErrTooManyTxs != MessageError.ErrTooManyAddrs",
+		err:       messageError("", ErrTooManyTxs, ""),
+		target:    messageError("", ErrTooManyAddrs, ""),
+		wantMatch: false,
+		wantAs:    ErrTooManyTxs,
+	}}
+
+	for _, test := range tests {
+		// Ensure the error matches or not depending on the expected result.
+		result := errors.Is(test.err, test.target)
+		if result != test.wantMatch {
+			t.Errorf("%s: incorrect error identification -- got %v, want %v",
+				test.name, result, test.wantMatch)
+			continue
+		}
+
+		// Ensure the underlying error code can be unwrapped and is the expected
+		// code.
+		var code ErrorCode
+		if !errors.As(test.err, &code) {
+			t.Errorf("%s: unable to unwrap to error code", test.name)
+			continue
+		}
+		if code != test.wantAs {
+			t.Errorf("%s: unexpected unwrapped error code -- got %v, want %v",
+				test.name, code, test.wantAs)
 			continue
 		}
 	}

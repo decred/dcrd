@@ -16,7 +16,7 @@ type ErrorCode int
 const (
 	// ErrNonCanonicalVarInt is returned when a variable length integer is
 	// not canonically encoded.
-	ErrNonCanonicalVarInt ErrorCode = iota + 1
+	ErrNonCanonicalVarInt ErrorCode = iota
 
 	// ErrVarStringTooLong is returned when a variable string exceeds the
 	// maximum message size allowed.
@@ -107,7 +107,7 @@ const (
 	// transaction input prefix from a witness only transaction.
 	ErrReadInPrefixFromWitnessOnlyTx
 
-	// ErrInvalidMsg is returned when for an invalid  message structure.
+	// ErrInvalidMsg is returned for an invalid message structure.
 	ErrInvalidMsg
 
 	// ErrUserAgentTooLong is returned when the provided user agent exceeds
@@ -117,6 +117,10 @@ const (
 	// ErrTooManyFilterHeaders is returned when the number of committed filter
 	// headers exceed the maximum allowed.
 	ErrTooManyFilterHeaders
+
+	// ErrMalformedStrictString is returned when a string that has strict
+	// formatting requirements does not conform to the requirements.
+	ErrMalformedStrictString
 )
 
 // Map of ErrorCode values back to their constant names for pretty printing.
@@ -148,6 +152,7 @@ var errorCodeStrings = map[ErrorCode]string{
 	ErrInvalidMsg:                    "ErrInvalidMsg",
 	ErrUserAgentTooLong:              "ErrUserAgentTooLong",
 	ErrTooManyFilterHeaders:          "ErrTooManyFilterHeaders",
+	ErrMalformedStrictString:         "ErrMalformedStrictString",
 }
 
 // String returns the ErrorCode as a human-readable name.
@@ -164,17 +169,20 @@ func (e ErrorCode) Error() string {
 }
 
 // Is implements the interface to work with the standard library's errors.Is.
-// It returns true if the error codes match for targets *MessageError and
-// ErrorCode. Else, Is returns false.
+//
+// It returns true in the following cases:
+// - The target is a *MessageError and the error codes match
+// - The target is an ErrorCode and it the error codes match
 func (e ErrorCode) Is(target error) bool {
 	switch target := target.(type) {
 	case *MessageError:
 		return e == target.ErrorCode
+
 	case ErrorCode:
 		return e == target
-	default:
-		return false
 	}
+
+	return false
 }
 
 // MessageError describes an issue with a message.
@@ -191,11 +199,11 @@ type MessageError struct {
 }
 
 // Error satisfies the error interface and prints human-readable errors.
-func (m *MessageError) Error() string {
+func (m MessageError) Error() string {
 	if m.Func != "" {
-		return fmt.Sprintf("%v: [%s] %v", m.Func, m.ErrorCode, m.Description)
+		return fmt.Sprintf("%v: %v", m.Func, m.Description)
 	}
-	return fmt.Sprintf("%v: %v", m.ErrorCode, m.Description)
+	return m.Description
 }
 
 // messageError creates an Error given a set of arguments.
@@ -204,25 +212,24 @@ func messageError(Func string, c ErrorCode, desc string) *MessageError {
 }
 
 // Is implements the interface to work with the standard library's errors.Is.
-// If target is a *MessageError, Is returns true if the error codes match.
-// If target is an ErrorCode, Is returns true if the error codes match.
-// Else, Is returns false.
+//
+// It returns true in the following cases:
+// - The target is a *MessageError and the error codes match
+// - The target is an ErrorCode and it the error codes match
 func (m *MessageError) Is(target error) bool {
 	switch target := target.(type) {
 	case *MessageError:
-		return m.ErrorCode != 0 && m.ErrorCode == target.ErrorCode
+		return m.ErrorCode == target.ErrorCode
+
 	case ErrorCode:
-		return m.ErrorCode != 0 && target == m.ErrorCode
-	default:
-		return false
+		return target == m.ErrorCode
 	}
+
+	return false
 }
 
 // Unwrap returns the underlying wrapped error if it is not ErrOther.
 // Unwrap returns the ErrorCode. Else, it returns nil.
 func (m *MessageError) Unwrap() error {
-	if m.ErrorCode != 0 {
-		return m.ErrorCode
-	}
-	return nil
+	return m.ErrorCode
 }
