@@ -82,7 +82,7 @@ func TestMinimalVotingWallet(t *testing.T) {
 		}
 	}
 
-	hn, err := New(net, handlers, extraArgs)
+	hn, err := New(t, net, handlers, extraArgs)
 	if err != nil {
 		t.Fatal(err)
 	}

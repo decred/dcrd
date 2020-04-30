@@ -30,6 +30,9 @@ const (
 )
 
 func testSendOutputs(ctx context.Context, r *Harness, t *testing.T) {
+	tracef(t, "testSendOutputs start")
+	defer tracef(t, "testSendOutputs end")
+
 	genSpend := func(amt dcrutil.Amount) *chainhash.Hash {
 		// Grab a fresh address from the wallet.
 		addr, err := r.NewAddress()
@@ -99,6 +102,9 @@ func testSendOutputs(ctx context.Context, r *Harness, t *testing.T) {
 }
 
 func assertConnectedTo(ctx context.Context, t *testing.T, nodeA *Harness, nodeB *Harness) {
+	tracef(t, "assertConnectedTo start")
+	defer tracef(t, "assertConnectedTo end")
+
 	nodeAPeers, err := nodeA.Node.GetPeerInfo(ctx)
 	if err != nil {
 		t.Fatalf("unable to get nodeA's peer info")
@@ -109,6 +115,7 @@ func assertConnectedTo(ctx context.Context, t *testing.T, nodeA *Harness, nodeB 
 	for _, peerInfo := range nodeAPeers {
 		if peerInfo.Addr == nodeAddr {
 			addrFound = true
+			tracef(t, "found %v", nodeAddr)
 			break
 		}
 	}
@@ -119,15 +126,21 @@ func assertConnectedTo(ctx context.Context, t *testing.T, nodeA *Harness, nodeB 
 }
 
 func testConnectNode(ctx context.Context, r *Harness, t *testing.T) {
+	tracef(t, "testConnectNode start")
+	defer tracef(t, "testConnectNode end")
+
 	// Create a fresh test harness.
-	harness, err := New(chaincfg.RegNetParams(), nil, nil)
+	harness, err := New(t, chaincfg.RegNetParams(), nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if err := harness.SetUp(false, 0); err != nil {
 		t.Fatalf("unable to complete rpctest setup: %v", err)
 	}
-	defer harness.TearDown()
+	defer func() {
+		tracef(t, "testConnectNode: calling harness.TearDown")
+		harness.TearDown()
+	}()
 
 	// Establish a p2p connection from our new local harness to the main
 	// harness.
@@ -141,6 +154,9 @@ func testConnectNode(ctx context.Context, r *Harness, t *testing.T) {
 }
 
 func assertNotConnectedTo(ctx context.Context, t *testing.T, nodeA *Harness, nodeB *Harness) {
+	tracef(t, "assertNotConnectedTo start")
+	defer tracef(t, "assertNotConnectedTo end")
+
 	nodeAPeers, err := nodeA.Node.GetPeerInfo(ctx)
 	if err != nil {
 		t.Fatalf("unable to get nodeA's peer info")
@@ -161,8 +177,11 @@ func assertNotConnectedTo(ctx context.Context, t *testing.T, nodeA *Harness, nod
 }
 
 func testDisconnectNode(ctx context.Context, r *Harness, t *testing.T) {
+	tracef(t, "testDisconnectNode start")
+	defer tracef(t, "testDisconnectNode end")
+
 	// Create a fresh test harness.
-	harness, err := New(chaincfg.RegNetParams(), nil, nil)
+	harness, err := New(t, chaincfg.RegNetParams(), nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -208,8 +227,11 @@ func testDisconnectNode(ctx context.Context, r *Harness, t *testing.T) {
 }
 
 func testNodesConnected(ctx context.Context, r *Harness, t *testing.T) {
+	tracef(t, "testNodesConnected start")
+	defer tracef(t, "testNodesConnected end")
+
 	// Create a fresh test harness.
-	harness, err := New(chaincfg.RegNetParams(), nil, nil)
+	harness, err := New(t, chaincfg.RegNetParams(), nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -277,6 +299,9 @@ func testNodesConnected(ctx context.Context, r *Harness, t *testing.T) {
 }
 
 func testTearDownAll(t *testing.T) {
+	tracef(t, "testTearDownAll start")
+	defer tracef(t, "testTearDownAll end")
+
 	// Grab a local copy of the currently active harnesses before
 	// attempting to tear them all down.
 	initialActiveHarnesses := ActiveHarnesses()
@@ -295,16 +320,21 @@ func testTearDownAll(t *testing.T) {
 	for _, harness := range initialActiveHarnesses {
 		// Ensure all test directories have been deleted.
 		if _, err := os.Stat(harness.testNodeDir); err == nil {
-			t.Errorf("created test datadir was not deleted.")
+			if !(debug || trace) {
+				t.Errorf("created test datadir was not deleted.")
+			}
 		}
 	}
 }
 
 func testActiveHarnesses(_ context.Context, r *Harness, t *testing.T) {
+	tracef(t, "testActiveHarnesses start")
+	defer tracef(t, "testActiveHarnesses end")
+
 	numInitialHarnesses := len(ActiveHarnesses())
 
 	// Create a single test harness.
-	harness1, err := New(chaincfg.RegNetParams(), nil, nil)
+	harness1, err := New(t, chaincfg.RegNetParams(), nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -320,6 +350,9 @@ func testActiveHarnesses(_ context.Context, r *Harness, t *testing.T) {
 }
 
 func testJoinMempools(ctx context.Context, r *Harness, t *testing.T) {
+	tracef(t, "testJoinMempools start")
+	defer tracef(t, "testJoinMempools end")
+
 	// Assert main test harness has no transactions in its mempool.
 	pooledHashes, err := r.Node.GetRawMempool(ctx, dcrdtypes.GRMAll)
 	if err != nil {
@@ -332,7 +365,7 @@ func testJoinMempools(ctx context.Context, r *Harness, t *testing.T) {
 	// Create a local test harness with only the genesis block.  The nodes
 	// will be synced below so the same transaction can be sent to both
 	// nodes without it being an orphan.
-	harness, err := New(chaincfg.RegNetParams(), nil, nil)
+	harness, err := New(t, chaincfg.RegNetParams(), nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -443,9 +476,12 @@ func testJoinMempools(ctx context.Context, r *Harness, t *testing.T) {
 }
 
 func testJoinBlocks(_ context.Context, r *Harness, t *testing.T) {
+	tracef(t, "testJoinBlocks start")
+	defer tracef(t, "testJoinBlocks end")
+
 	// Create a second harness with only the genesis block so it is behind
 	// the main harness.
-	harness, err := New(chaincfg.RegNetParams(), nil, nil)
+	harness, err := New(t, chaincfg.RegNetParams(), nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -495,9 +531,12 @@ func testJoinBlocks(_ context.Context, r *Harness, t *testing.T) {
 }
 
 func testMemWalletReorg(_ context.Context, r *Harness, t *testing.T) {
+	tracef(t, "testMemWalletReorg start")
+	defer tracef(t, "testMemWalletReorg end")
+
 	// Create a fresh harness, we'll be using the main harness to force a
 	// re-org on this local harness.
-	harness, err := New(chaincfg.RegNetParams(), nil, nil)
+	harness, err := New(t, chaincfg.RegNetParams(), nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -536,6 +575,9 @@ func testMemWalletReorg(_ context.Context, r *Harness, t *testing.T) {
 }
 
 func testMemWalletLockedOutputs(_ context.Context, r *Harness, t *testing.T) {
+	tracef(t, "testMemWalletLockedOutputs start")
+	defer tracef(t, "testMemWalletLockedOutputs end")
+
 	// Obtain the initial balance of the wallet at this point.
 	startingBalance := r.ConfirmedBalance()
 
@@ -574,56 +616,36 @@ func testMemWalletLockedOutputs(_ context.Context, r *Harness, t *testing.T) {
 	}
 }
 
-var harnessTestCases = []HarnessTestCase{
-	testSendOutputs,
-	testConnectNode,
-	testDisconnectNode,
-	testNodesConnected,
-	testActiveHarnesses,
-	testJoinBlocks,
-	testJoinMempools, // Depends on results of testJoinBlocks
-	testMemWalletReorg,
-	testMemWalletLockedOutputs,
-}
-
-var mainHarness *Harness
-
-func TestMain(m *testing.M) {
+func TestHarness(t *testing.T) {
 	var err error
-	mainHarness, err = New(chaincfg.RegNetParams(), nil, nil)
+	mainHarness, err := New(t, chaincfg.RegNetParams(), nil, nil)
 	if err != nil {
-		fmt.Println("unable to create main harness: ", err)
-		os.Exit(1)
+		t.Fatalf("unable to create main harness: %v", err)
 	}
 
 	// Initialize the main mining node with a chain of length 42, providing
 	// 25 mature coinbases to allow spending from for testing purposes.
 	if err = mainHarness.SetUp(true, numMatureOutputs); err != nil {
-		fmt.Println("unable to setup test chain: ", err)
-
 		// Even though the harness was not fully setup, it still needs
 		// to be torn down to ensure all resources such as temp
 		// directories are cleaned up.  The error is intentionally
 		// ignored since this is already an error path and nothing else
 		// could be done about it anyways.
 		_ = mainHarness.TearDown()
-		os.Exit(1)
+		t.Fatalf("unable to setup test chain: %v", err)
 	}
 
-	exitCode := m.Run()
-
-	// Clean up any active harnesses that are still currently running.
-	if len(ActiveHarnesses()) > 0 {
-		if err := TearDownAll(); err != nil {
-			fmt.Println("unable to tear down chain: ", err)
-			os.Exit(1)
+	// Cleanup when we exit.
+	defer func() {
+		// Clean up any active harnesses that are still currently
+		// running.
+		if len(ActiveHarnesses()) > 0 {
+			if err := TearDownAll(); err != nil {
+				t.Fatalf("unable to tear down chain: %v", err)
+			}
 		}
-	}
+	}()
 
-	os.Exit(exitCode)
-}
-
-func TestHarness(t *testing.T) {
 	// We should have the expected amount of mature unspent outputs.
 	expectedBalance := dcrutil.Amount(numMatureOutputs * 300 * dcrutil.AtomsPerCoin)
 	harnessBalance := mainHarness.ConfirmedBalance()
@@ -649,8 +671,65 @@ func TestHarness(t *testing.T) {
 
 	// Skip tests when running with -short
 	if !testing.Short() {
-		for _, testCase := range harnessTestCases {
-			testCase(ctx, mainHarness, t)
+		tests := []struct {
+			name string
+			f    func(context.Context, *Harness, *testing.T)
+		}{
+			{
+				f:    testSendOutputs,
+				name: "testSendOutputs",
+			},
+			{
+				f:    testConnectNode,
+				name: "testConnectNode",
+			},
+			{
+				f:    testDisconnectNode,
+				name: "testDisconnectNode",
+			},
+			{
+				f:    testNodesConnected,
+				name: "testNodesConnected",
+			},
+			{
+				f:    testActiveHarnesses,
+				name: "testActiveHarnesses",
+			},
+			{
+				f:    testJoinBlocks,
+				name: "testJoinBlocks",
+			},
+			{
+				f:    testJoinMempools, // Depends on results of testJoinBlocks
+				name: "testJoinMempools",
+			},
+			{
+				f:    testMemWalletReorg,
+				name: "testMemWalletReorg",
+			},
+			{
+				f:    testMemWalletLockedOutputs,
+				name: "testMemWalletLockedOutputs",
+			},
+		}
+
+		for _, testCase := range tests {
+			t.Logf("=== Running test: %v ===", testCase.name)
+
+			c := make(chan struct{})
+			go func() {
+				testCase.f(ctx, mainHarness, t)
+				c <- struct{}{}
+			}()
+
+			// Go wait for 10 seconds
+			select {
+			case <-c:
+			case <-time.After(10 * time.Second):
+				t.Logf("Test timeout, aborting running nodes")
+				PanicAll(t)
+				os.Exit(1)
+			}
 		}
 	}
 

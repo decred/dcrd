@@ -6,14 +6,18 @@
 package rpctest
 
 import (
+	"bufio"
 	"crypto/elliptic"
 	"fmt"
+	"io"
 	"io/ioutil"
-	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
+	"sync"
+	"testing"
 	"time"
 
 	"github.com/decred/dcrd/certgen"
@@ -159,18 +163,51 @@ type node struct {
 
 	cmd     *exec.Cmd
 	pidFile string
+	stderr  io.ReadCloser
+	stdout  io.ReadCloser
+	wg      sync.WaitGroup
+	pid     int
 
 	dataDir string
+
+	t *testing.T
+}
+
+// logf is identical to n.t.Logf but it prepends the pid of this  node.
+func (n *node) logf(format string, args ...interface{}) {
+	pid := strconv.Itoa(n.pid) + " "
+	logf(n.t, pid+format, args...)
+}
+
+// tracef is identical to debug.go.tracef but it prepends the pid of this
+// node.
+func (n *node) tracef(format string, args ...interface{}) {
+	if !trace {
+		return
+	}
+	pid := strconv.Itoa(n.pid) + " "
+	tracef(n.t, pid+format, args...)
+}
+
+// debugf is identical to debug.go.debugf but it prepends the pid of this
+// node.
+func (n *node) debugf(format string, args ...interface{}) {
+	if !debug {
+		return
+	}
+	pid := strconv.Itoa(n.pid) + " "
+	debugf(n.t, pid+format, args...)
 }
 
 // newNode creates a new node instance according to the passed config. dataDir
 // will be used to hold a file recording the pid of the launched process, and
 // as the base for the log and data directories for dcrd.
-func newNode(config *nodeConfig, dataDir string) *node {
+func newNode(t *testing.T, config *nodeConfig, dataDir string) *node {
 	return &node{
 		config:  config,
 		dataDir: dataDir,
 		cmd:     config.command(),
+		t:       t,
 	}
 }
 
@@ -180,46 +217,121 @@ func newNode(config *nodeConfig, dataDir string) *node {
 // test case, or panic, it is important that the process be stopped via stop(),
 // otherwise, it will persist unless explicitly killed.
 func (n *node) start() error {
+	var err error
+
+	var pid sync.WaitGroup
+	pid.Add(1)
+
+	// Redirect stderr.
+	n.stderr, err = n.cmd.StderrPipe()
+	if err != nil {
+		return err
+	}
+	n.wg.Add(1)
+	go func() {
+		defer n.wg.Done()
+		pid.Wait() // Block until pid is available
+		r := bufio.NewReader(n.stderr)
+		for {
+			line, err := r.ReadBytes('\n')
+			if err == io.EOF {
+				n.tracef("stderr: EOF")
+				return
+			}
+			n.logf("stderr: %s", line)
+		}
+	}()
+
+	// Redirect stdout.
+	n.stdout, err = n.cmd.StdoutPipe()
+	if err != nil {
+		return err
+	}
+	n.wg.Add(1)
+	go func() {
+		defer n.wg.Done()
+		pid.Wait() // Block until pid is available
+		r := bufio.NewReader(n.stdout)
+		for {
+			line, err := r.ReadBytes('\n')
+			if err == io.EOF {
+				n.tracef("stdout: EOF")
+				return
+			}
+			n.tracef("stdout: %s", line)
+		}
+	}()
+
+	// Launch command and store pid.
 	if err := n.cmd.Start(); err != nil {
 		return err
 	}
+	n.pid = n.cmd.Process.Pid
 
-	pid, err := os.Create(filepath.Join(n.config.String(), "dcrd.pid"))
+	// Unblock pipes now pid is available
+	pid.Done()
+
+	f, err := os.Create(filepath.Join(n.config.String(), "dcrd.pid"))
 	if err != nil {
 		return err
 	}
 
-	n.pidFile = pid.Name()
-	if _, err = fmt.Fprintf(pid, "%d\n", n.cmd.Process.Pid); err != nil {
+	n.pidFile = f.Name()
+	if _, err = fmt.Fprintf(f, "%d\n", n.cmd.Process.Pid); err != nil {
 		return err
 	}
 
-	return pid.Close()
+	return f.Close()
 }
 
 // stop interrupts the running dcrd process, and waits until it exits
 // properly. On windows, interrupt is not supported, so a kill signal is used
 // instead
 func (n *node) stop() error {
+	n.tracef("stop %p %p", n.cmd, n.cmd.Process)
+	defer n.tracef("stop done")
+
 	if n.cmd == nil || n.cmd.Process == nil {
 		// return if not properly initialized
 		// or error starting the process
 		return nil
 	}
-	defer n.cmd.Wait()
+
+	// Send kill command
+	n.tracef("stop send kill")
+	var err error
 	if runtime.GOOS == "windows" {
-		return n.cmd.Process.Signal(os.Kill)
+		err = n.cmd.Process.Signal(os.Kill)
+	} else {
+		err = n.cmd.Process.Signal(os.Interrupt)
 	}
-	return n.cmd.Process.Signal(os.Interrupt)
+	if err != nil {
+		n.t.Logf("stop Signal error: %v", err)
+	}
+
+	// Wait for pipes.
+	n.tracef("stop wg")
+	n.wg.Wait()
+
+	// Wait for command to exit.
+	n.tracef("stop cmd.Wait")
+	err = n.cmd.Wait()
+	if err != nil {
+		n.t.Logf("stop cmd.Wait error: %v", err)
+	}
+	return nil
 }
 
 // cleanup cleanups process and args files. The file housing the pid of the
 // created process will be deleted, as well as any directories created by the
 // process.
 func (n *node) cleanup() error {
+	n.tracef("cleanup")
+	defer n.tracef("cleanup done")
+
 	if n.pidFile != "" {
 		if err := os.Remove(n.pidFile); err != nil {
-			log.Printf("unable to remove file %s: %v", n.pidFile,
+			n.t.Logf("unable to remove file %s: %v", n.pidFile,
 				err)
 			return err
 		}
@@ -231,7 +343,11 @@ func (n *node) cleanup() error {
 // shutdown terminates the running dcrd process, and cleans up all
 // file/directories created by node.
 func (n *node) shutdown() error {
+	n.tracef("shutdown")
+	defer n.tracef("shutdown done")
+
 	if err := n.stop(); err != nil {
+		n.t.Logf("shutdown stop error: %v", err)
 		return err
 	}
 	return n.cleanup()
