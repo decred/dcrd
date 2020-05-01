@@ -85,7 +85,7 @@ func testGetBlockHash(ctx context.Context, r *rpctest.Harness, t *testing.T) {
 		t.Fatalf("call to getinfo failed: %v", err)
 	}
 
-	blockHash, err := r.Node.GetBlockHash(ctx, int64(info.Blocks))
+	blockHash, err := r.Node.GetBlockHash(ctx, info.Blocks)
 	if err != nil {
 		t.Fatalf("Call to `getblockhash` failed: %v", err)
 	}
