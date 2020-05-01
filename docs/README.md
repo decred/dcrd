@@ -55,10 +55,11 @@ options, which can be viewed by running: `$ dcrd --help`.
 
 **2.3 Controlling and Querying dcrd via dcrctl**<br />
 
-dcrctl is a command line utility that can be used to both control and query dcrd
-via [RPC](https://www.wikipedia.org/wiki/Remote_procedure_call).  dcrd does
-**not** enable its RPC server by default;  You must configure at minimum both an
-RPC username and password or both an RPC limited username and password:
+[dcrctl](https://github.com/decred/dcrctl) is a command line utility that can be
+used to both control and query dcrd via
+[RPC](https://www.wikipedia.org/wiki/Remote_procedure_call).  dcrd does **not**
+enable its RPC server by default; You must configure at minimum both an RPC
+username and password or both an RPC limited username and password:
 
 * dcrd.conf configuration file
 ```

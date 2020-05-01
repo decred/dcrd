@@ -37,7 +37,6 @@ _testmain.go
 dcrd
 cmd/addblock/addblock
 cmd/checkdevpremine/checkdevpremine
-cmd/dcrctl/dcrctl
 cmd/findcheckpoint/findcheckpoint
 cmd/gencerts/gencerts
 cmd/promptsecret/promptsecret
