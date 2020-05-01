@@ -100,11 +100,11 @@ authenticated will cause the websocket to be closed immediately.
 
 ==4. Command-line Utility==
 
-dcrd comes with a separate utility named <code>dcrctl</code> which can be used to issue
-these RPC commands via HTTP POST requests to dcrd after configuring it with the
-information in the [[#3-authentication|Authentication]] section above.  It can also
-be used to communicate with any server/daemon/service which provides a JSON-RPC
-API compatible with the original dcrd client.
+dcrd is built to work with [https://github.com/decred/dcrctl <code>dcrctl</code>]
+which can be used to issue these RPC commands via HTTP POST requests to dcrd
+after configuring it with the information in the [[#3-authentication|Authentication]]
+section above.  It can also be used to communicate with any server/daemon/service
+which provides a JSON-RPC API compatible with the original dcrd client.
 
 ==5. Standard Methods==
 

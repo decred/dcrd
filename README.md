@@ -24,6 +24,7 @@ Core software:
 
 * dcrd: a Decred full node daemon (this)
 * [dcrwallet](https://github.com/decred/dcrwallet): a CLI Decred wallet daemon
+* [dcrctl](https://github.com/decred/dcrctl): a CLI client for dcrd and dcrwallet
 
 Bundles:
 
@@ -179,8 +180,9 @@ https://decred.org/downloads
 
   ```sh
   $ git clone https://github.com/decred/dcrd $HOME/src/dcrd
-  $ cd $HOME/src/dcrd
-  $ go install . ./cmd/...
+  $ git clone https://github.com/decred/dcrctl $HOME/src/dcrctl
+  $ (cd $HOME/src/dcrd && go install . ./...)
+  $ (cd $HOME/src/dcrctl && go install)
   $ dcrd -V
   ```
 
