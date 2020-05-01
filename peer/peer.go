@@ -60,6 +60,11 @@ const (
 	// trickleTimeout is the duration of the ticker which trickles down the
 	// inventory to a peer.
 	trickleTimeout = 500 * time.Millisecond
+
+	// defaultIdleTimeout is the default duration of inactivity before a peer is
+	// timed out when a peer is created with the idle timeout configuration
+	// option set to 0.
+	defaultIdleTimeout = 120 * time.Second
 )
 
 var (
@@ -2070,6 +2075,11 @@ func newPeerBase(cfgOrig *Config, inbound bool) *Peer {
 	// testnet.
 	if cfg.Net == 0 {
 		cfg.Net = wire.TestNet3
+	}
+
+	// Set a default idle timeout if the caller did not specify one.
+	if cfg.IdleTimeout == 0 {
+		cfg.IdleTimeout = defaultIdleTimeout
 	}
 
 	p := Peer{
