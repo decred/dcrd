@@ -7,56 +7,18 @@ package rpcclient
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/json"
-	"fmt"
 
 	"github.com/decred/dcrd/chaincfg/chainhash"
-	"github.com/decred/dcrd/dcrjson/v3"
 	"github.com/decred/dcrd/dcrutil/v3"
 	chainjson "github.com/decred/dcrd/rpc/jsonrpc/types/v2"
 	"github.com/decred/dcrd/wire"
-	walletjson "github.com/decred/dcrwallet/rpc/jsonrpc/types"
 )
 
 var (
 	// zeroUint32 is the zero value for a uint32.
 	zeroUint32 = uint32(0)
 )
-
-// FutureCreateEncryptedWalletResult is a future promise to deliver the error
-// result of a CreateEncryptedWalletAsync RPC invocation.
-type FutureCreateEncryptedWalletResult chan *response
-
-// Receive waits for and returns the error response promised by the future.
-func (r FutureCreateEncryptedWalletResult) Receive() error {
-	_, err := receiveFuture(r)
-	return err
-}
-
-// CreateEncryptedWalletAsync returns an instance of a type that can be used to
-// get the result of the RPC at some future time by invoking the Receive
-// function on the returned instance.
-//
-// See CreateEncryptedWallet for the blocking version and more details.
-//
-// NOTE: This is a dcrwallet extension.
-func (c *Client) CreateEncryptedWalletAsync(ctx context.Context, passphrase string) FutureCreateEncryptedWalletResult {
-	cmd := walletjson.NewCreateEncryptedWalletCmd(passphrase)
-	return c.sendCmd(ctx, cmd)
-}
-
-// CreateEncryptedWallet requests the creation of an encrypted wallet.  Wallets
-// managed by dcrwallet are only written to disk with encrypted private keys,
-// and generating wallets on the fly is impossible as it requires user input for
-// the encryption passphrase.  This RPC specifies the passphrase and instructs
-// the wallet creation.  This may error if a wallet is already opened, or the
-// new wallet cannot be written to disk.
-//
-// NOTE: This is a dcrwallet extension.
-func (c *Client) CreateEncryptedWallet(ctx context.Context, passphrase string) error {
-	return c.CreateEncryptedWalletAsync(ctx, passphrase).Receive()
-}
 
 // FutureDebugLevelResult is a future promise to deliver the result of a
 // DebugLevelAsync RPC invocation (or an applicable error).
@@ -431,75 +393,6 @@ func (c *Client) ExistsMempoolTxs(ctx context.Context, hashes []*chainhash.Hash)
 	return c.ExistsMempoolTxsAsync(ctx, hashes).Receive()
 }
 
-// FutureExportWatchingWalletResult is a future promise to deliver the result of
-// an ExportWatchingWalletAsync RPC invocation (or an applicable error).
-type FutureExportWatchingWalletResult chan *response
-
-// Receive waits for the response promised by the future and returns the
-// exported wallet.
-func (r FutureExportWatchingWalletResult) Receive() ([]byte, []byte, error) {
-	res, err := receiveFuture(r)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	// Unmarshal result as a JSON object.
-	var obj map[string]interface{}
-	err = json.Unmarshal(res, &obj)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	// Check for the wallet and tx string fields in the object.
-	base64Wallet, ok := obj["wallet"].(string)
-	if !ok {
-		return nil, nil, fmt.Errorf("unexpected response type for "+
-			"exportwatchingwallet 'wallet' field: %T\n",
-			obj["wallet"])
-	}
-	base64TxStore, ok := obj["tx"].(string)
-	if !ok {
-		return nil, nil, fmt.Errorf("unexpected response type for "+
-			"exportwatchingwallet 'tx' field: %T\n",
-			obj["tx"])
-	}
-
-	walletBytes, err := base64.StdEncoding.DecodeString(base64Wallet)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	txStoreBytes, err := base64.StdEncoding.DecodeString(base64TxStore)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return walletBytes, txStoreBytes, nil
-
-}
-
-// ExportWatchingWalletAsync returns an instance of a type that can be used to
-// get the result of the RPC at some future time by invoking the Receive
-// function on the returned instance.
-//
-// See ExportWatchingWallet for the blocking version and more details.
-//
-// NOTE: This is a dcrwallet extension.
-func (c *Client) ExportWatchingWalletAsync(ctx context.Context, account string) FutureExportWatchingWalletResult {
-	cmd := walletjson.NewExportWatchingWalletCmd(&account, dcrjson.Bool(true))
-	return c.sendCmd(ctx, cmd)
-}
-
-// ExportWatchingWallet returns the raw bytes for a watching-only version of
-// wallet.bin and tx.bin, respectively, for the specified account that can be
-// used by dcrwallet to enable a wallet which does not have the private keys
-// necessary to spend funds.
-//
-// NOTE: This is a dcrwallet extension.
-func (c *Client) ExportWatchingWallet(ctx context.Context, account string) ([]byte, []byte, error) {
-	return c.ExportWatchingWalletAsync(ctx, account).Receive()
-}
-
 // FutureGetBestBlockResult is a future promise to deliver the result of a
 // GetBestBlockAsync RPC invocation (or an applicable error).
 type FutureGetBestBlockResult chan *response
@@ -847,52 +740,6 @@ func (c *Client) GetVoteInfoAsync(ctx context.Context, version uint32) FutureGet
 // NOTE: This is a dcrd extension.
 func (c *Client) GetVoteInfo(ctx context.Context, version uint32) (*chainjson.GetVoteInfoResult, error) {
 	return c.GetVoteInfoAsync(ctx, version).Receive()
-}
-
-// FutureListAddressTransactionsResult is a future promise to deliver the result
-// of a ListAddressTransactionsAsync RPC invocation (or an applicable error).
-type FutureListAddressTransactionsResult chan *response
-
-// Receive waits for the response promised by the future and returns information
-// about all transactions associated with the provided addresses.
-func (r FutureListAddressTransactionsResult) Receive() ([]walletjson.ListTransactionsResult, error) {
-	res, err := receiveFuture(r)
-	if err != nil {
-		return nil, err
-	}
-
-	// Unmarshal the result as an array of listtransactions objects.
-	var transactions []walletjson.ListTransactionsResult
-	err = json.Unmarshal(res, &transactions)
-	if err != nil {
-		return nil, err
-	}
-	return transactions, nil
-}
-
-// ListAddressTransactionsAsync returns an instance of a type that can be used
-// to get the result of the RPC at some future time by invoking the Receive
-// function on the returned instance.
-//
-// See ListAddressTransactions for the blocking version and more details.
-//
-// NOTE: This is a dcrd extension.
-func (c *Client) ListAddressTransactionsAsync(ctx context.Context, addresses []dcrutil.Address, account string) FutureListAddressTransactionsResult {
-	// Convert addresses to strings.
-	addrs := make([]string, 0, len(addresses))
-	for _, addr := range addresses {
-		addrs = append(addrs, addr.Address())
-	}
-	cmd := walletjson.NewListAddressTransactionsCmd(addrs, &account)
-	return c.sendCmd(ctx, cmd)
-}
-
-// ListAddressTransactions returns information about all transactions associated
-// with the provided addresses.
-//
-// NOTE: This is a dcrwallet extension.
-func (c *Client) ListAddressTransactions(ctx context.Context, addresses []dcrutil.Address, account string) ([]walletjson.ListTransactionsResult, error) {
-	return c.ListAddressTransactionsAsync(ctx, addresses, account).Receive()
 }
 
 // FutureLiveTicketsResult is a future promise to deliver the result

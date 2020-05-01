@@ -99,21 +99,37 @@ commands.
 The automatic reconnection can be disabled by setting the DisableAutoReconnect
 flag to true in the connection config when creating the client.
 
-Minor RPC Server Differences and Chain/Wallet Separation
+Interacting with Dcrwallet
 
-Some of the commands are extensions specific to a particular RPC server.  For
-example, the DebugLevel call is an extension only provided by dcrd (and
-dcrwallet passthrough).  Therefore if you call one of these commands against
-an RPC server that doesn't provide them, you will get an unimplemented error
-from the server.  An effort has been made to call out which commands are
-extensions in their documentation.
+This package only provides methods for dcrd RPCs.  Using the websocket
+connection and request-response mapping provided by rpcclient with arbitrary
+methods or different servers is possible through the generic RawRequest and
+RawRequestAsync methods (each of which deal with json.RawMessage for parameters
+and return results).
 
-Also, it is important to realize that dcrd intentionally separates the wallet
-functionality into a separate process named dcrwallet.  This means if you are
-connected to the dcrd RPC server directly, only the RPCs which are related to
-chain services will be available.  Depending on your application, you might only
-need chain-related RPCs.  In contrast, dcrwallet provides pass through treatment
-for chain-related RPCs, so it supports them in addition to wallet-related RPCs.
+Previous versions of this package provided methods for dcrwallet's JSON-RPC
+server in addition to dcrd.  These were removed in major version 6 of this
+module.  Projects depending on these calls are advised to use the
+decred.org/dcrwallet/rpc/client/dcrwallet package which is able to wrap
+rpcclient.Client using the aforementioned RawRequest method:
+
+  var _ *rpcclient.Client = client // Should be connected to dcrwallet
+  var _ *chaincfg.Params = params
+  var walletClient = dcrwallet.NewClient(dcrwallet.RawRequestCaller(client), params)
+
+Using struct embedding, it is possible to create a single variable with the
+combined method sets of both rpcclient.Client and dcrwallet.Client:
+
+  type WalletClient = dcrwallet.Client // Avoids naming clash for selectors
+  type MyClient struct {
+      *rpcclient.Client
+      *WalletClient
+  }
+  var myClient = MyClient{Client: client, WalletClient: walletClient}
+
+This technique is valuable as dcrwallet (syncing in RPC mode) will passthrough
+any unknown RPCs to the backing dcrd server, proxying requests and responses for
+the client.
 
 Errors
 
@@ -143,7 +159,7 @@ The third category of errors, that is errors returned by the server, can be
 detected by type asserting the error in a *dcrjson.RPCError.  For example, to
 detect if a command is unimplemented by the remote RPC server:
 
-  amount, err := client.GetBalance("")
+  block, err := client.GetBlock(ctx, blockHash)
   if err != nil {
   	if jerr, ok := err.(*dcrjson.RPCError); ok {
   		switch jerr.Code {
@@ -166,9 +182,5 @@ The following full-blown client examples are in the examples directory:
    Connects to a dcrd RPC server using TLS-secured websockets, registers for
    block connected and block disconnected notifications, and gets the current
    block count
- - dcrwalletwebsockets
-   Connects to a dcrwallet RPC server using TLS-secured websockets, registers
-   for notifications about changes to account balances, and gets a list of
-   unspent transaction outputs (utxos) the wallet can sign
 */
 package rpcclient
