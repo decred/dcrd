@@ -132,7 +132,6 @@ func TestFeeFilterWire(t *testing.T) {
 func TestFeeFilterWireErrors(t *testing.T) {
 	pver := ProtocolVersion
 	pverNoFeeFilter := FeeFilterVersion - 1
-	wireErr := &MessageError{}
 
 	baseFeeFilter := NewMsgFeeFilter(123123) // 0x1e0f3
 	baseFeeFilterEncoded := []byte{
@@ -151,7 +150,7 @@ func TestFeeFilterWireErrors(t *testing.T) {
 		// Force error in minfee.
 		{baseFeeFilter, baseFeeFilterEncoded, pver, 0, io.ErrShortWrite, io.EOF},
 		// Force error due to unsupported protocol version.
-		{baseFeeFilter, baseFeeFilterEncoded, pverNoFeeFilter, 4, wireErr, wireErr},
+		{baseFeeFilter, baseFeeFilterEncoded, pverNoFeeFilter, 4, ErrMsgInvalidForPVer, ErrMsgInvalidForPVer},
 	}
 
 	t.Logf("Running %d tests", len(tests))
@@ -159,41 +158,20 @@ func TestFeeFilterWireErrors(t *testing.T) {
 		// Encode to wire format.
 		w := newFixedWriter(test.max)
 		err := test.in.BtcEncode(w, test.pver)
-		if reflect.TypeOf(err) != reflect.TypeOf(test.writeErr) {
-			t.Errorf("BtcEncode #%d wrong error got: %v, want: %v",
-				i, err, test.writeErr)
+		if !errors.Is(err, test.writeErr) {
+			t.Errorf("BtcEncode #%d wrong error got: %v, want: %v", i, err,
+				test.writeErr)
 			continue
-		}
-
-		// For errors which are not of type MessageError, check them for
-		// equality.
-		var merr *MessageError
-		if !errors.As(err, &merr) {
-			if !errors.Is(err, test.writeErr) {
-				t.Errorf("BtcEncode #%d wrong error got: %v, "+
-					"want: %v", i, err, test.writeErr)
-				continue
-			}
 		}
 
 		// Decode from wire format.
 		var msg MsgFeeFilter
 		r := newFixedReader(test.max, test.buf)
 		err = msg.BtcDecode(r, test.pver)
-		if reflect.TypeOf(err) != reflect.TypeOf(test.readErr) {
-			t.Errorf("BtcDecode #%d wrong error got: %v, want: %v",
-				i, err, test.readErr)
+		if !errors.Is(err, test.readErr) {
+			t.Errorf("BtcDecode #%d wrong error got: %v, want: %v", i, err,
+				test.readErr)
 			continue
-		}
-
-		// For errors which are not of type MessageError, check them for
-		// equality.
-		if !errors.As(err, &merr) {
-			if !errors.Is(err, test.readErr) {
-				t.Errorf("BtcDecode #%d wrong error got: %v, "+
-					"want: %v", i, err, test.readErr)
-				continue
-			}
 		}
 	}
 }

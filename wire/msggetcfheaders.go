@@ -42,7 +42,7 @@ func (msg *MsgGetCFHeaders) BtcDecode(r io.Reader, pver uint32) error {
 	if pver < NodeCFVersion {
 		msg := fmt.Sprintf("getcfheaders message invalid for protocol "+
 			"version %d", pver)
-		return messageError(op, ErrTooManyAddrs, msg)
+		return messageError(op, ErrMsgInvalidForPVer, msg)
 	}
 
 	// Read num block locator hashes and limit to max.

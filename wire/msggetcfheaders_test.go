@@ -219,7 +219,6 @@ func TestGetCFHeadersWire(t *testing.T) {
 func TestGetCFHeadersWireErrors(t *testing.T) {
 	pver := ProtocolVersion
 	oldPver := NodeCFVersion - 1
-	wireErr := &MessageError{}
 
 	// Block 194,999 hash.
 	hashStr := "00000000000000258d61596292b8d2f0630923cdbf82678a43fb2b17a26e99f3"
@@ -274,9 +273,9 @@ func TestGetCFHeadersWireErrors(t *testing.T) {
 		readErr  error            // Expected read error
 	}{
 		// Error in old protocol version with and without enough buffer.
-		{getCFHeaders, getCFHeadersEncoded, oldPver, 0, wireErr, wireErr},
-		{getCFHeaders, getCFHeadersEncoded, oldPver, 33, wireErr, wireErr},
-		{getCFHeaders, getCFHeadersEncoded, oldPver, 98, wireErr, wireErr},
+		{getCFHeaders, getCFHeadersEncoded, oldPver, 0, ErrMsgInvalidForPVer, ErrMsgInvalidForPVer},
+		{getCFHeaders, getCFHeadersEncoded, oldPver, 33, ErrMsgInvalidForPVer, ErrMsgInvalidForPVer},
+		{getCFHeaders, getCFHeadersEncoded, oldPver, 98, ErrMsgInvalidForPVer, ErrMsgInvalidForPVer},
 
 		// Force error in block locator hash count.
 		{getCFHeaders, getCFHeadersEncoded, pver, 0, io.ErrShortWrite, io.EOF},
@@ -299,41 +298,20 @@ func TestGetCFHeadersWireErrors(t *testing.T) {
 		// Encode to wire format.
 		w := newFixedWriter(test.max)
 		err := test.in.BtcEncode(w, test.pver)
-		if reflect.TypeOf(err) != reflect.TypeOf(test.writeErr) {
-			t.Errorf("BtcEncode #%d wrong error got: %v, want: %v",
-				i, err, test.writeErr)
+		if !errors.Is(err, test.writeErr) {
+			t.Errorf("BtcEncode #%d wrong error got: %v, want: %v", i, err,
+				test.writeErr)
 			continue
-		}
-
-		// For errors which are not of type MessageError, check them for
-		// equality.
-		var merr *MessageError
-		if !errors.As(err, &merr) {
-			if !errors.Is(err, test.writeErr) {
-				t.Errorf("BtcEncode #%d wrong error got: %v, "+
-					"want: %v", i, err, test.writeErr)
-				continue
-			}
 		}
 
 		// Decode from wire format.
 		var msg MsgGetCFHeaders
 		r := newFixedReader(test.max, test.buf)
 		err = msg.BtcDecode(r, test.pver)
-		if reflect.TypeOf(err) != reflect.TypeOf(test.readErr) {
-			t.Errorf("BtcDecode #%d wrong error got: %v, want: %v",
-				i, err, test.readErr)
+		if !errors.Is(err, test.readErr) {
+			t.Errorf("BtcDecode #%d wrong error got: %v, want: %v", i, err,
+				test.readErr)
 			continue
-		}
-
-		// For errors which are not of type MessageError, check them for
-		// equality.
-		if !errors.As(err, &merr) {
-			if !errors.Is(err, test.readErr) {
-				t.Errorf("BtcDecode #%d wrong error got: %v, "+
-					"want: %v", i, err, test.readErr)
-				continue
-			}
 		}
 	}
 }
@@ -342,7 +320,6 @@ func TestGetCFHeadersWireErrors(t *testing.T) {
 // of MsgGetCFHeaders to confirm malformed encoded data doesn't pass through.
 func TestGetCFHeadersMalformedErrors(t *testing.T) {
 	pver := ProtocolVersion
-	wireErr := &MessageError{}
 
 	tests := []struct {
 		buf []byte // Wire malformed encoded data
@@ -356,15 +333,15 @@ func TestGetCFHeadersMalformedErrors(t *testing.T) {
 		// The count of block locator hashes is longer than what is allowed.
 		{
 			[]byte{
-				0xfd, 0xf5, 0x01, // Varint for number of filter types (501)
-			}, wireErr,
+				0xfd, 0xf5, 0x01, // Varint for number of block locators (501)
+			}, ErrTooManyLocators,
 		},
 
 		// Malformed varint.
 		{
 			[]byte{
 				0xfd, 0x10, 0x00, // Invalid varint
-			}, wireErr,
+			}, ErrNonCanonicalVarInt,
 		},
 
 		// Block locator hashes counter is greater than inserted hashes.
@@ -386,21 +363,10 @@ func TestGetCFHeadersMalformedErrors(t *testing.T) {
 		var msg MsgGetCFHeaders
 		rbuf := bytes.NewReader(test.buf)
 		err := msg.BtcDecode(rbuf, pver)
-		if reflect.TypeOf(err) != reflect.TypeOf(test.err) {
-			t.Errorf("BtcDecode #%d wrong error got: %v, want: %v",
-				i, err, test.err)
+		if !errors.Is(err, test.err) {
+			t.Errorf("BtcDecode #%d wrong error got: %v, want: %v", i, err,
+				test.err)
 			continue
-		}
-
-		// For errors which are not of type MessageError, check them for
-		// equality.
-		var merr *MessageError
-		if !errors.As(err, &merr) {
-			if !errors.Is(err, test.err) {
-				t.Errorf("BtcDecode #%d wrong error got: %v, "+
-					"want: %v %v", i, err, test.err, msg)
-				continue
-			}
 		}
 	}
 }

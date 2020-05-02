@@ -162,7 +162,6 @@ func TestGetCFilterWire(t *testing.T) {
 func TestGetCFilterWireErrors(t *testing.T) {
 	pver := ProtocolVersion
 	oldPver := NodeCFVersion - 1
-	wireErr := &MessageError{}
 
 	// Block 200,000 hash.
 	hashStr := "000000000000007a59f30586c1003752956a8b55e6f741fd5f24c800cd5e5e8c"
@@ -188,9 +187,9 @@ func TestGetCFilterWireErrors(t *testing.T) {
 		readErr  error          // Expected read error
 	}{
 		// Error in old protocol version with and without enough buffer.
-		{msgGetCFilter, msgGetCFilterEncoded, oldPver, 0, wireErr, wireErr},
-		{msgGetCFilter, msgGetCFilterEncoded, oldPver, 31, wireErr, wireErr},
-		{msgGetCFilter, msgGetCFilterEncoded, oldPver, 100, wireErr, wireErr},
+		{msgGetCFilter, msgGetCFilterEncoded, oldPver, 0, ErrMsgInvalidForPVer, ErrMsgInvalidForPVer},
+		{msgGetCFilter, msgGetCFilterEncoded, oldPver, 31, ErrMsgInvalidForPVer, ErrMsgInvalidForPVer},
+		{msgGetCFilter, msgGetCFilterEncoded, oldPver, 100, ErrMsgInvalidForPVer, ErrMsgInvalidForPVer},
 
 		// Latest protocol version with intentional read/write errors.
 		// Force error in start of block hash.
@@ -206,41 +205,20 @@ func TestGetCFilterWireErrors(t *testing.T) {
 		// Encode to wire format.
 		w := newFixedWriter(test.max)
 		err := test.in.BtcEncode(w, test.pver)
-		if reflect.TypeOf(err) != reflect.TypeOf(test.writeErr) {
-			t.Errorf("BtcEncode #%d wrong error got: %v, want: %v",
-				i, err, test.writeErr)
+		if !errors.Is(err, test.writeErr) {
+			t.Errorf("BtcEncode #%d wrong error got: %v, want: %v", i, err,
+				test.writeErr)
 			continue
-		}
-
-		// For errors which are not of type MessageError, check them for
-		// equality.
-		var merr *MessageError
-		if !errors.As(err, &merr) {
-			if !errors.Is(err, test.writeErr) {
-				t.Errorf("BtcEncode #%d wrong error got: %v, "+
-					"want: %v", i, err, test.writeErr)
-				continue
-			}
 		}
 
 		// Decode from wire format.
 		var msg MsgGetCFilter
 		r := newFixedReader(test.max, test.buf)
 		err = msg.BtcDecode(r, test.pver)
-		if reflect.TypeOf(err) != reflect.TypeOf(test.readErr) {
-			t.Errorf("BtcDecode #%d wrong error got: %v, want: %v",
-				i, err, test.readErr)
+		if !errors.Is(err, test.readErr) {
+			t.Errorf("BtcDecode #%d wrong error got: %v, want: %v", i, err,
+				test.readErr)
 			continue
-		}
-
-		// For errors which are not of type MessageError, check them for
-		// equality.
-		if !errors.As(err, &merr) {
-			if !errors.Is(err, test.readErr) {
-				t.Errorf("BtcDecode #%d wrong error got: %v, "+
-					"want: %v %v", i, err, test.readErr, msg)
-				continue
-			}
 		}
 	}
 }
@@ -284,21 +262,10 @@ func TestGetCFilterMalformedErrors(t *testing.T) {
 		var msg MsgGetCFilter
 		rbuf := bytes.NewReader(test.buf)
 		err := msg.BtcDecode(rbuf, pver)
-		if reflect.TypeOf(err) != reflect.TypeOf(test.err) {
-			t.Errorf("BtcDecode #%d wrong error got: %v, want: %v",
-				i, err, test.err)
+		if !errors.Is(err, test.err) {
+			t.Errorf("BtcDecode #%d wrong error got: %v, want: %v", i, err,
+				test.err)
 			continue
-		}
-
-		// For errors which are not of type MessageError, check them for
-		// equality.
-		var merr *MessageError
-		if !errors.As(err, &merr) {
-			if !errors.Is(err, test.err) {
-				t.Errorf("BtcDecode #%d wrong error got: %v, "+
-					"want: %v %v", i, err, test.err, msg)
-				continue
-			}
 		}
 	}
 }

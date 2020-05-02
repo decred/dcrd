@@ -215,7 +215,6 @@ func TestCFilterV2Wire(t *testing.T) {
 // decode of MsgCFilterV2 to confirm error paths work correctly.
 func TestCFilterV2WireErrors(t *testing.T) {
 	pver := ProtocolVersion
-	wireErr := &MessageError{}
 
 	// Message with valid mock values.
 	baseCFilterV2 := baseMsgCFilterV2(t)
@@ -297,9 +296,9 @@ func TestCFilterV2WireErrors(t *testing.T) {
 		// Force error in middle of first proof hash.
 		{baseCFilterV2, baseCFilterV2Encoded, pver, 77, io.ErrShortWrite, io.ErrUnexpectedEOF},
 		// Force error with greater than max filter data.
-		{maxDataCFilterV2, maxDataCFilterV2Encoded, pver, 37, wireErr, wireErr},
+		{maxDataCFilterV2, maxDataCFilterV2Encoded, pver, 37, ErrFilterTooLarge, ErrVarBytesTooLong},
 		// Force error with greater than max proof hashes.
-		{maxHashesCFilterV2, maxHashesCFilterV2Encoded, pver, 67, wireErr, wireErr},
+		{maxHashesCFilterV2, maxHashesCFilterV2Encoded, pver, 67, ErrTooManyProofs, ErrTooManyProofs},
 	}
 
 	t.Logf("Running %d tests", len(tests))
@@ -307,41 +306,20 @@ func TestCFilterV2WireErrors(t *testing.T) {
 		// Encode to wire format.
 		w := newFixedWriter(test.max)
 		err := test.in.BtcEncode(w, test.pver)
-		if reflect.TypeOf(err) != reflect.TypeOf(test.writeErr) {
+		if !errors.Is(err, test.writeErr) {
 			t.Errorf("BtcEncode #%d wrong error got: %v, want: %v", i, err,
 				test.writeErr)
 			continue
-		}
-
-		// For errors which are not of type MessageError, check them for
-		// equality.
-		var merr *MessageError
-		if !errors.As(err, &merr) {
-			if !errors.Is(err, test.writeErr) {
-				t.Errorf("BtcEncode #%d wrong error got: %v, want: %v", i, err,
-					test.writeErr)
-				continue
-			}
 		}
 
 		// Decode from wire format.
 		var msg MsgCFilterV2
 		r := newFixedReader(test.max, test.buf)
 		err = msg.BtcDecode(r, test.pver)
-		if reflect.TypeOf(err) != reflect.TypeOf(test.readErr) {
+		if !errors.Is(err, test.readErr) {
 			t.Errorf("BtcDecode #%d wrong error got: %v, want: %v", i, err,
 				test.readErr)
 			continue
-		}
-
-		// For errors which are not of type MessageError, check them for
-		// equality.
-		if !errors.As(err, &merr) {
-			if !errors.Is(err, test.readErr) {
-				t.Errorf("BtcDecode #%d wrong error got: %v, want: %v", i, err,
-					test.readErr)
-				continue
-			}
 		}
 	}
 }
