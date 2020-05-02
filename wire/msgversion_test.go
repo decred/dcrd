@@ -204,6 +204,12 @@ func TestVersionWire(t *testing.T) {
 			baseVersionBIP0037Encoded,
 			ProtocolVersion,
 		},
+		{
+			verRelayTxFalse,
+			verRelayTxFalse,
+			verRelayTxFalseEncoded,
+			ProtocolVersion,
+		},
 	}
 
 	t.Logf("Running %d tests", len(tests))
