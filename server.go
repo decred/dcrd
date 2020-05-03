@@ -2155,22 +2155,33 @@ func (s *server) peerHandler(ctx context.Context) {
 		seeds := s.chainParams.Seeders()
 		for _, seed := range seeds {
 			go func(seed string) {
-				err := connmgr.SeedAddrs(ctx, seed, 0, 0, defaultRequiredServices,
-					dcrdDial, func(addrs []*wire.NetAddress) {
-						// Bitcoind uses a lookup of the dns seeder here. This
-						// is rather strange since the values looked up by the
-						// DNS seed lookups will vary quite a lot.
-						// to replicate this behaviour we put all addresses as
-						// having come from the first one.
-						s.addrManager.AddAddresses(addrs, addrs[0])
-					})
+				addrs, err := connmgr.SeedAddrs(ctx, seed, dcrdDial,
+					connmgr.SeedFilterServices(defaultRequiredServices))
 				if err != nil {
 					srvrLog.Infof("seeder '%s' error: %v", seed, err)
+					return
 				}
+
+				// Nothing to do if the seeder didn't return any addresses.
+				if len(addrs) == 0 {
+					return
+				}
+
+				// Lookup the IP of the https seeder to use as the source of the
+				// seeded addresses.  In the incredibly rare event that the
+				// lookup fails after it just succeeded, fall back to using the
+				// first returned address as the source.
+				srcAddr := addrs[0]
+				srcIPs, err := dcrdLookup(seed)
+				if err == nil && len(srcIPs) > 0 {
+					const httpsPort = 443
+					srcAddr = wire.NewNetAddressIPPort(srcIPs[0], httpsPort, 0)
+				}
+				s.addrManager.AddAddresses(addrs, srcAddr)
 			}(seed)
 		}
 	}
-	go s.connManager.Start()
+	s.connManager.Start()
 
 out:
 	for {
