@@ -444,14 +444,23 @@ func TestMaxRetryDuration(t *testing.T) {
 // TestNetworkFailure tests that the connection manager handles a network
 // failure gracefully.
 func TestNetworkFailure(t *testing.T) {
+	var closeOnce sync.Once
+	const targetOutbound = 5
+	const retryTimeout = time.Millisecond * 5
 	var dials uint32
+	reachedMaxFailedAttempts := make(chan struct{})
+	connMgrDone := make(chan struct{})
 	errDialer := func(ctx context.Context, network, addr string) (net.Conn, error) {
-		atomic.AddUint32(&dials, 1)
+		totalDials := atomic.AddUint32(&dials, 1)
+		if totalDials >= maxFailedAttempts {
+			closeOnce.Do(func() { close(reachedMaxFailedAttempts) })
+			<-connMgrDone
+		}
 		return nil, errors.New("network down")
 	}
 	cmgr, err := New(&Config{
-		TargetOutbound: 5,
-		RetryDuration:  5 * time.Millisecond,
+		TargetOutbound: targetOutbound,
+		RetryDuration:  retryTimeout,
 		Dial:           errDialer,
 		GetNewAddress: func() (net.Addr, error) {
 			return &net.TCPAddr{
@@ -467,12 +476,24 @@ func TestNetworkFailure(t *testing.T) {
 		t.Fatalf("New error: %v", err)
 	}
 	cmgr.Start()
-	time.AfterFunc(10*time.Millisecond, cmgr.Stop)
+
+	// Shutdown the connection manager after the max failed attempts is reached
+	// and an additional retry duration has passed and then wait for the
+	// shutdown to complete.
+	<-reachedMaxFailedAttempts
+	time.Sleep(retryTimeout)
+	cmgr.Stop()
+	close(connMgrDone)
 	cmgr.Wait()
-	wantMaxDials := uint32(75)
-	if atomic.LoadUint32(&dials) > wantMaxDials {
-		t.Fatalf("network failure: unexpected number of dials - got %v, want < %v",
-			atomic.LoadUint32(&dials), wantMaxDials)
+
+	// Ensure the number of dial attempts does not exceed the max number of
+	// failed attempts plus the number of potential retries during the
+	// additional waiting period.
+	gotDials := atomic.LoadUint32(&dials)
+	wantMaxDials := uint32(maxFailedAttempts + targetOutbound)
+	if gotDials > wantMaxDials {
+		t.Fatalf("unexpected number of dials - got %v, want <= %v", gotDials,
+			wantMaxDials)
 	}
 }
 
