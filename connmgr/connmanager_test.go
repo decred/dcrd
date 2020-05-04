@@ -258,14 +258,17 @@ func TestTargetOutbound(t *testing.T) {
 		t.Fatalf("New error: %v", err)
 	}
 	cmgr.Start()
+
+	// Wait for the expected number of target outbound conns to be established.
 	for i := uint32(0); i < targetOutbound; i++ {
 		<-connected
 	}
 
+	// Ensure no additional connections are made.
 	select {
 	case c := <-connected:
 		t.Fatalf("target outbound: got unexpected connection - %v", c.Addr)
-	case <-time.After(time.Millisecond):
+	case <-time.After(time.Millisecond * 5):
 		break
 	}
 
