@@ -385,6 +385,13 @@ func TestRetryPermanent(t *testing.T) {
 // We have a timed dialer which initially returns err but after RetryDuration
 // hits maxRetryDuration returns a mock conn.
 func TestMaxRetryDuration(t *testing.T) {
+	// This test relies on the current value of the max retry duration defined
+	// in the tests, so assert it.
+	if maxRetryDuration != 2*time.Millisecond {
+		t.Fatalf("max retry duration of %v is not the required value for test",
+			maxRetryDuration)
+	}
+
 	networkUp := make(chan struct{})
 	time.AfterFunc(5*time.Millisecond, func() {
 		close(networkUp)
@@ -410,6 +417,7 @@ func TestMaxRetryDuration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New error: %v", err)
 	}
+	cmgr.Start()
 
 	cr := &ConnReq{
 		Addr: &net.TCPAddr{
@@ -418,21 +426,14 @@ func TestMaxRetryDuration(t *testing.T) {
 		},
 		Permanent: true,
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
-	defer cancel()
-	go cmgr.Connect(ctx, cr)
-	cmgr.Start()
+	go cmgr.Connect(context.Background(), cr)
 	// retry in 1ms
 	// retry in 2ms - max retry duration reached
 	// retry in 2ms - timedDialer returns mockDial
-out:
-	for {
-		select {
-		case <-connected:
-			break out
-		case <-ctx.Done():
-			t.Fatalf("max retry duration: connection timeout")
-		}
+	select {
+	case <-connected:
+	case <-time.After(20 * time.Millisecond):
+		t.Fatalf("max retry duration: connection timeout")
 	}
 
 	// Ensure clean shutdown of connection manager.
