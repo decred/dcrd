@@ -639,6 +639,53 @@ func TestCancelIgnoreDelayedConnection(t *testing.T) {
 	}
 }
 
+// TestDialTimeout ensure the Timeout configuration parameter works as intended
+// by creating a dialer that blocks for twice the configured dial timeout before
+// connecting and ensuring the connection fails as expected.
+func TestDialTimeout(t *testing.T) {
+	// Create a connection manager instance with a dialer that blocks for twice
+	// the configured dial timeout before connecting.
+	const dialTimeout = time.Millisecond * 2
+	timeoutDialer := func(ctx context.Context, network, addr string) (net.Conn, error) {
+		select {
+		case <-time.After(dialTimeout * 2):
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+
+		return mockDialer(ctx, network, addr)
+	}
+	cmgr, err := New(&Config{
+		Dial:    timeoutDialer,
+		Timeout: dialTimeout,
+	})
+	if err != nil {
+		t.Fatalf("New error: %v", err)
+	}
+	cmgr.Start()
+
+	// Establish a connection request to a localhost IP.
+	cr := &ConnReq{
+		Addr: &net.TCPAddr{
+			IP:   net.ParseIP("127.0.0.1"),
+			Port: 18555,
+		},
+	}
+	go cmgr.Connect(context.Background(), cr)
+
+	// Wait for the dial timeout to elapse and ensure the connection request is
+	// marked as failed after a short timeout to allow the transition to occur.
+	time.Sleep(dialTimeout)
+	time.Sleep(10 * time.Millisecond)
+	if cr.State() != ConnFailed {
+		t.Fatalf("request wasn't canceled, status is: %v", cr.State())
+	}
+
+	// Ensure clean shutdown of connection manager.
+	cmgr.Stop()
+	cmgr.Wait()
+}
+
 // mockListener implements the net.Listener interface and is used to test
 // code that deals with net.Listeners without having to actually make any real
 // connections.
