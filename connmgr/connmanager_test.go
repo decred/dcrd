@@ -150,9 +150,7 @@ func TestStartStop(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
 	defer cancel()
 	cmgr.Connect(ctx, cr)
-	if cr.ID() != 0 {
-		t.Fatalf("start/stop: got id: %v, want: 0", cr.ID())
-	}
+	assertConnReqID(t, cr, 0)
 	cmgr.Disconnect(gotConnReq.ID())
 	cmgr.Remove(gotConnReq.ID())
 out:
@@ -163,6 +161,27 @@ out:
 		case <-ctx.Done():
 			break out
 		}
+	}
+}
+
+// assertConnReqID ensures the provided connection request has the given ID.
+func assertConnReqID(t *testing.T, connReq *ConnReq, wantID uint64) {
+	t.Helper()
+
+	gotID := connReq.ID()
+	if gotID != wantID {
+		t.Fatalf("unexpected ID -- got %v, want %v", gotID, wantID)
+	}
+}
+
+// assertConnReqState ensures the provided connection request has the given
+// state.
+func assertConnReqState(t *testing.T, connReq *ConnReq, wantState ConnState) {
+	t.Helper()
+
+	gotState := connReq.State()
+	if gotState != wantState {
+		t.Fatalf("unexpected state -- got %v, want %v", gotState, wantState)
 	}
 }
 
@@ -194,16 +213,8 @@ func TestConnectMode(t *testing.T) {
 	defer cancel()
 	cmgr.Connect(ctx, cr)
 	gotConnReq := <-connected
-	wantID := cr.ID()
-	gotID := gotConnReq.ID()
-	if gotID != wantID {
-		t.Fatalf("connect mode: %v - want ID %v, got ID %v", cr.Addr, wantID, gotID)
-	}
-	gotState := cr.State()
-	wantState := ConnEstablished
-	if gotState != wantState {
-		t.Fatalf("connect mode: %v - want state %v, got state %v", cr.Addr, wantState, gotState)
-	}
+	assertConnReqID(t, gotConnReq, cr.ID())
+	assertConnReqState(t, cr, ConnEstablished)
 	select {
 	case c := <-connected:
 		t.Fatalf("connect mode: got unexpected connection - %v", c.Addr)
@@ -328,54 +339,23 @@ func TestRetryPermanent(t *testing.T) {
 	go cmgr.Connect(context.Background(), cr)
 	cmgr.Start()
 	gotConnReq := <-connected
-	wantID := cr.ID()
-	gotID := gotConnReq.ID()
-	if gotID != wantID {
-		t.Fatalf("retry: %v - want ID %v, got ID %v", cr.Addr, wantID, gotID)
-	}
-	gotState := cr.State()
-	wantState := ConnEstablished
-	if gotState != wantState {
-		t.Fatalf("retry: %v - want state %v, got state %v", cr.Addr, wantState, gotState)
-	}
+	assertConnReqID(t, gotConnReq, cr.ID())
+	assertConnReqState(t, cr, ConnEstablished)
 
 	cmgr.Disconnect(cr.ID())
 	gotConnReq = <-disconnected
-	wantID = cr.ID()
-	gotID = gotConnReq.ID()
-	if gotID != wantID {
-		t.Fatalf("retry: %v - want ID %v, got ID %v", cr.Addr, wantID, gotID)
-	}
-	gotState = cr.State()
-	wantState = ConnPending
-	if gotState != wantState {
-		t.Fatalf("retry: %v - want state %v, got state %v", cr.Addr, wantState, gotState)
-	}
+	assertConnReqID(t, gotConnReq, cr.ID())
+	assertConnReqState(t, cr, ConnPending)
 
 	gotConnReq = <-connected
-	wantID = cr.ID()
-	gotID = gotConnReq.ID()
-	if gotID != wantID {
-		t.Fatalf("retry: %v - want ID %v, got ID %v", cr.Addr, wantID, gotID)
-	}
-	gotState = cr.State()
-	wantState = ConnEstablished
-	if gotState != wantState {
-		t.Fatalf("retry: %v - want state %v, got state %v", cr.Addr, wantState, gotState)
-	}
+	assertConnReqID(t, gotConnReq, cr.ID())
+	assertConnReqState(t, cr, ConnEstablished)
 
 	cmgr.Remove(cr.ID())
 	gotConnReq = <-disconnected
-	wantID = cr.ID()
-	gotID = gotConnReq.ID()
-	if gotID != wantID {
-		t.Fatalf("retry: %v - want ID %v, got ID %v", cr.Addr, wantID, gotID)
-	}
-	gotState = cr.State()
-	wantState = ConnDisconnected
-	if gotState != wantState {
-		t.Fatalf("retry: %v - want state %v, got state %v", cr.Addr, wantState, gotState)
-	}
+	assertConnReqID(t, gotConnReq, cr.ID())
+	assertConnReqState(t, cr, ConnDisconnected)
+
 	cmgr.Stop()
 }
 
@@ -538,10 +518,7 @@ func TestRemovePendingConnection(t *testing.T) {
 
 	time.Sleep(10 * time.Millisecond)
 
-	if cr.State() != ConnPending {
-		t.Fatalf("pending request hasn't been registered, status: %v",
-			cr.State())
-	}
+	assertConnReqState(t, cr, ConnPending)
 
 	// The request launched above will actually never be able to establish
 	// a connection. So we'll cancel it _before_ it's able to be completed.
@@ -551,9 +528,7 @@ func TestRemovePendingConnection(t *testing.T) {
 
 	// Now examine the status of the connection request, it should read a
 	// status of failed.
-	if cr.State() != ConnCanceled {
-		t.Fatalf("request wasn't canceled, status is: %v", cr.State())
-	}
+	assertConnReqState(t, cr, ConnCanceled)
 
 	close(wait)
 	cmgr.Stop()
@@ -609,10 +584,7 @@ func TestCancelIgnoreDelayedConnection(t *testing.T) {
 
 	// Connection should be marked as failed, even after reattempting to
 	// connect.
-	if cr.State() != ConnFailed {
-		t.Fatalf("failing request should have status failed, status: %v",
-			cr.State())
-	}
+	assertConnReqState(t, cr, ConnFailed)
 
 	// Remove the connection, and then immediately allow the next connection
 	// to succeed.
@@ -624,9 +596,7 @@ func TestCancelIgnoreDelayedConnection(t *testing.T) {
 
 	// Now examine the status of the connection request, it should read a
 	// status of canceled.
-	if cr.State() != ConnCanceled {
-		t.Fatalf("request wasn't canceled, status is: %v", cr.State())
-	}
+	assertConnReqState(t, cr, ConnCanceled)
 
 	// Finally, the connection manager should not signal the on-connection
 	// callback, since we explicitly canceled this request. We give a
@@ -677,9 +647,7 @@ func TestDialTimeout(t *testing.T) {
 	// marked as failed after a short timeout to allow the transition to occur.
 	time.Sleep(dialTimeout)
 	time.Sleep(10 * time.Millisecond)
-	if cr.State() != ConnFailed {
-		t.Fatalf("request wasn't canceled, status is: %v", cr.State())
-	}
+	assertConnReqState(t, cr, ConnFailed)
 
 	// Ensure clean shutdown of connection manager.
 	cmgr.Stop()
@@ -724,18 +692,13 @@ func TestConnectContext(t *testing.T) {
 	case <-time.After(time.Millisecond * 20):
 		t.Fatal("timeout waiting for dial")
 	}
-	if cr.State() != ConnPending {
-		t.Fatalf("pending request hasn't been registered, status: %v",
-			cr.State())
-	}
+	assertConnReqState(t, cr, ConnPending)
 
 	// Cancel the connection context and ensure the connection request is marked
 	// as failed after a short timeout to allow the transition to occur.
 	cancelConnect()
 	time.Sleep(10 * time.Millisecond)
-	if cr.State() != ConnFailed {
-		t.Fatalf("request wasn't canceled, status is: %v", cr.State())
-	}
+	assertConnReqState(t, cr, ConnFailed)
 
 	// Ensure clean shutdown of connection manager.
 	cmgr.Stop()
