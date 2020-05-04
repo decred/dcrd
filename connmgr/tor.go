@@ -56,8 +56,8 @@ var (
 	}
 )
 
-// TorLookupIPContext uses Tor to resolve DNS via the passed SOCKS proxy.
-func TorLookupIPContext(ctx context.Context, host, proxy string) ([]net.IP, error) {
+// TorLookupIP uses Tor to resolve DNS via the passed SOCKS proxy.
+func TorLookupIP(ctx context.Context, host, proxy string) ([]net.IP, error) {
 	var dialer net.Dialer
 	conn, err := dialer.DialContext(ctx, "tcp", proxy)
 	if err != nil {
