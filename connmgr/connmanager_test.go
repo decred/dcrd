@@ -547,10 +547,12 @@ func TestShutdownFailedConns(t *testing.T) {
 func TestRemovePendingConnection(t *testing.T) {
 	// Create a ConnMgr instance with an instance of a dialer that'll never
 	// succeed.
+	dialed := make(chan struct{})
 	wait := make(chan struct{})
 	indefiniteDialer := func(ctx context.Context, addr net.Addr) (net.Conn, error) {
+		close(dialed)
 		<-wait
-		return nil, fmt.Errorf("error")
+		return nil, errors.New("error")
 	}
 	cmgr, err := New(&Config{
 		DialAddr: indefiniteDialer,
@@ -570,18 +572,23 @@ func TestRemovePendingConnection(t *testing.T) {
 	}
 	go cmgr.Connect(context.Background(), cr)
 
-	time.Sleep(10 * time.Millisecond)
-
+	// Wait for the connection manager to attempt to dial the connection request
+	// and ensure the connection is marked as pending while the dialer is
+	// blocked.
+	select {
+	case <-dialed:
+	case <-time.After(time.Millisecond * 20):
+		t.Fatal("timeout waiting for dial")
+	}
 	assertConnReqState(t, cr, ConnPending)
 
-	// The request launched above will actually never be able to establish
-	// a connection. So we'll cancel it _before_ it's able to be completed.
+	// The request launched above will never be able to establish a connection,
+	// so cancel it _before_ it's able to be completed.
 	cmgr.Remove(cr.ID())
 
+	// Ensure the connection request is now marked as canceled after a short
+	// timeout to allow the transition to occur.
 	time.Sleep(10 * time.Millisecond)
-
-	// Now examine the status of the connection request, it should read a
-	// status of failed.
 	assertConnReqState(t, cr, ConnCanceled)
 
 	// Ensure clean shutdown of connection manager.
