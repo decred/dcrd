@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -497,33 +498,37 @@ func TestNetworkFailure(t *testing.T) {
 	}
 }
 
-// TestStopFailed tests that failed connections are ignored after connmgr is
-// stopped.
+// TestShutdownFailedConns tests that failed connections are ignored after
+// connmgr is shutdown.
 //
 // We have a dialer which sets the stop flag on the conn manager and returns an
 // err so that the handler assumes that the conn manager is stopped and ignores
 // the failure.
-func TestStopFailed(t *testing.T) {
-	done := make(chan struct{}, 1)
+func TestShutdownFailedConns(t *testing.T) {
+	var closeOnce sync.Once
+	dialed := make(chan struct{})
 	waitDialer := func(ctx context.Context, network, addr string) (net.Conn, error) {
-		done <- struct{}{}
-		time.Sleep(time.Millisecond)
+		closeOnce.Do(func() { close(dialed) })
 		return nil, errors.New("network down")
 	}
 	cmgr, err := New(&Config{
-		Dial: waitDialer,
+		RetryDuration: maxRetryDuration,
+		Dial:          waitDialer,
 	})
 	if err != nil {
 		t.Fatalf("New error: %v", err)
 	}
 	cmgr.Start()
+
+	// Shutdown the connection manager during the retry timeout after a failed
+	// dial attempt.
 	go func() {
-		<-done
-		atomic.StoreInt32(&cmgr.stop, 1)
-		time.Sleep(2 * time.Millisecond)
-		atomic.StoreInt32(&cmgr.stop, 0)
+		<-dialed
+		time.Sleep(maxRetryDuration / 2)
 		cmgr.Stop()
 	}()
+
+	// Establish a connection request to a localhost IP.
 	cr := &ConnReq{
 		Addr: &net.TCPAddr{
 			IP:   net.ParseIP("127.0.0.1"),
