@@ -686,6 +686,62 @@ func TestDialTimeout(t *testing.T) {
 	cmgr.Wait()
 }
 
+// TestConnectContext ensures the Connect method works as intended when provided
+// with a context that times out before a dial attempt succeeds.
+func TestConnectContext(t *testing.T) {
+	// Create a connection manager instance with a dialer that blocks until its
+	// provided context is canceled.
+	dialed := make(chan struct{})
+	indefiniteDialer := func(ctx context.Context, network, addr string) (net.Conn, error) {
+		close(dialed)
+		<-ctx.Done()
+		return nil, ctx.Err()
+	}
+	cmgr, err := New(&Config{
+		Dial: indefiniteDialer,
+	})
+	if err != nil {
+		t.Fatalf("New error: %v", err)
+	}
+	cmgr.Start()
+
+	// Establish a connection request to a localhost IP with a separate context
+	// that can be canceled.
+	cr := &ConnReq{
+		Addr: &net.TCPAddr{
+			IP:   net.ParseIP("127.0.0.1"),
+			Port: 18555,
+		},
+	}
+	connectCtx, cancelConnect := context.WithCancel(context.Background())
+	go cmgr.Connect(connectCtx, cr)
+
+	// Wait for the connection manager to attempt to dial the connection request
+	// and ensure the connection is marked as pending while the dialer is
+	// blocked.
+	select {
+	case <-dialed:
+	case <-time.After(time.Millisecond * 20):
+		t.Fatal("timeout waiting for dial")
+	}
+	if cr.State() != ConnPending {
+		t.Fatalf("pending request hasn't been registered, status: %v",
+			cr.State())
+	}
+
+	// Cancel the connection context and ensure the connection request is marked
+	// as failed after a short timeout to allow the transition to occur.
+	cancelConnect()
+	time.Sleep(10 * time.Millisecond)
+	if cr.State() != ConnFailed {
+		t.Fatalf("request wasn't canceled, status is: %v", cr.State())
+	}
+
+	// Ensure clean shutdown of connection manager.
+	cmgr.Stop()
+	cmgr.Wait()
+}
+
 // mockListener implements the net.Listener interface and is used to test
 // code that deals with net.Listeners without having to actually make any real
 // connections.
