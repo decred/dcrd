@@ -201,6 +201,8 @@ func TestConnectMode(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New error: %v", err)
 	}
+	cmgr.Start()
+
 	cr := &ConnReq{
 		Addr: &net.TCPAddr{
 			IP:   net.ParseIP("127.0.0.1"),
@@ -208,18 +210,23 @@ func TestConnectMode(t *testing.T) {
 		},
 		Permanent: true,
 	}
-	cmgr.Start()
-	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond)
-	defer cancel()
-	cmgr.Connect(ctx, cr)
-	gotConnReq := <-connected
-	assertConnReqID(t, gotConnReq, cr.ID())
-	assertConnReqState(t, cr, ConnEstablished)
+	go cmgr.Connect(context.Background(), cr)
+
+	// Ensure that the connection was received.
+	select {
+	case gotConnReq := <-connected:
+		assertConnReqID(t, gotConnReq, cr.ID())
+		assertConnReqState(t, cr, ConnEstablished)
+
+	case <-time.After(time.Millisecond * 5):
+		t.Fatalf("connect mode: connection timeout - %v", cr.Addr)
+	}
+
+	// Ensure only a single connection was made.
 	select {
 	case c := <-connected:
 		t.Fatalf("connect mode: got unexpected connection - %v", c.Addr)
-	case <-ctx.Done():
-		break
+	case <-time.After(time.Millisecond * 5):
 	}
 
 	// Ensure clean shutdown of connection manager.
