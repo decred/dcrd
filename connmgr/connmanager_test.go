@@ -221,7 +221,10 @@ func TestConnectMode(t *testing.T) {
 	case <-ctx.Done():
 		break
 	}
+
+	// Ensure clean shutdown of connection manager.
 	cmgr.Stop()
+	cmgr.Wait()
 }
 
 // TestTargetOutbound tests the target number of outbound connections.
@@ -258,7 +261,10 @@ func TestTargetOutbound(t *testing.T) {
 	case <-time.After(time.Millisecond):
 		break
 	}
+
+	// Ensure clean shutdown of connection manager.
 	cmgr.Stop()
+	cmgr.Wait()
 }
 
 // TestPassAddrAlongDialAddr tests if when using the DialAddr config option,
@@ -304,7 +310,10 @@ func TestPassAddrAlongDialAddr(t *testing.T) {
 	case <-time.After(time.Millisecond * 5):
 		t.Fatalf("did not get connection to target address before timeout")
 	}
+
+	// Ensure clean shutdown of connection manager.
 	cmgr.Stop()
+	cmgr.Wait()
 }
 
 // TestRetryPermanent tests that permanent connection requests are retried.
@@ -356,7 +365,9 @@ func TestRetryPermanent(t *testing.T) {
 	assertConnReqID(t, gotConnReq, cr.ID())
 	assertConnReqState(t, cr, ConnDisconnected)
 
+	// Ensure clean shutdown of connection manager.
 	cmgr.Stop()
+	cmgr.Wait()
 }
 
 // TestMaxRetryDuration tests the maximum retry duration.
@@ -413,6 +424,10 @@ out:
 			t.Fatalf("max retry duration: connection timeout")
 		}
 	}
+
+	// Ensure clean shutdown of connection manager.
+	cmgr.Stop()
+	cmgr.Wait()
 }
 
 // TestNetworkFailure tests that the connection manager handles a network
@@ -485,6 +500,8 @@ func TestStopFailed(t *testing.T) {
 		Permanent: true,
 	}
 	go cmgr.Connect(context.Background(), cr)
+
+	// Ensure clean shutdown of connection manager.
 	cmgr.Wait()
 }
 
@@ -530,8 +547,10 @@ func TestRemovePendingConnection(t *testing.T) {
 	// status of failed.
 	assertConnReqState(t, cr, ConnCanceled)
 
+	// Ensure clean shutdown of connection manager.
 	close(wait)
 	cmgr.Stop()
+	cmgr.Wait()
 }
 
 // TestCancelIgnoreDelayedConnection tests that a canceled connection request
@@ -607,6 +626,10 @@ func TestCancelIgnoreDelayedConnection(t *testing.T) {
 		t.Fatalf("on-connect should not be called for canceled req")
 	case <-ctx.Done():
 	}
+
+	// Ensure clean shutdown of connection manager.
+	cmgr.Stop()
+	cmgr.Wait()
 }
 
 // TestDialTimeout ensure the Timeout configuration parameter works as intended
