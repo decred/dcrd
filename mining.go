@@ -2042,7 +2042,8 @@ type regenEvent struct {
 //   - Block while generating new templates that will make the current template
 //     stale (e.g. new parent or new votes)
 type BgBlkTmplGenerator struct {
-	wg sync.WaitGroup
+	wg   sync.WaitGroup
+	quit chan struct{}
 
 	// These fields are provided by the caller when the generator is created and
 	// are either independently safe for concurrent access or do not change after
@@ -2131,6 +2132,7 @@ type BgBlkTmplGenerator struct {
 // method to allowing processing.
 func newBgBlkTmplGenerator(tg *BlkTmplGenerator, addrs []dcrutil.Address, allowUnsynced bool) *BgBlkTmplGenerator {
 	return &BgBlkTmplGenerator{
+		quit:                make(chan struct{}),
 		chain:               tg.chain,
 		tg:                  tg,
 		allowUnsyncedMining: allowUnsynced,
@@ -2146,6 +2148,16 @@ func newBgBlkTmplGenerator(tg *BlkTmplGenerator, addrs []dcrutil.Address, allowU
 	}
 }
 
+// sendQueueRegenEvent sends the provided regen event on the internal queue
+// regen event channel while respecting the quit channel.  The allows orderly
+// shutdown when the generator is shutdown.
+func (g *BgBlkTmplGenerator) sendQueueRegenEvent(event regenEvent) {
+	select {
+	case g.queueRegenEvent <- event:
+	case <-g.quit:
+	}
+}
+
 // setCurrentTemplate sets the current template and error associated with the
 // background block template generator and notifies the regen event handler
 // about the update.
@@ -2157,7 +2169,7 @@ func (g *BgBlkTmplGenerator) setCurrentTemplate(template *BlockTemplate, reason 
 	g.templateMtx.Unlock()
 
 	tplUpdate := templateUpdate{template: template, err: err}
-	g.queueRegenEvent <- regenEvent{rtTemplateUpdated, tplUpdate}
+	g.sendQueueRegenEvent(regenEvent{rtTemplateUpdated, tplUpdate})
 }
 
 // currentTemplate returns the current template associated with the background
@@ -3202,14 +3214,14 @@ func (g *BgBlkTmplGenerator) regenHandler(ctx context.Context) {
 // chain reorganization has started.  It is caller's responsibility to ensure
 // this is only invoked as described.
 func (g *BgBlkTmplGenerator) ChainReorgStarted() {
-	g.queueRegenEvent <- regenEvent{rtReorgStarted, nil}
+	g.sendQueueRegenEvent(regenEvent{rtReorgStarted, nil})
 }
 
 // ChainReorgDone informs the background block template generator that a chain
 // reorganization has completed.  It is caller's responsibility to ensure this
 // is only invoked as described.
 func (g *BgBlkTmplGenerator) ChainReorgDone() {
-	g.queueRegenEvent <- regenEvent{rtReorgDone, nil}
+	g.sendQueueRegenEvent(regenEvent{rtReorgDone, nil})
 }
 
 // BlockAccepted informs the background block template generator that a block
@@ -3218,7 +3230,7 @@ func (g *BgBlkTmplGenerator) ChainReorgDone() {
 //
 // This function is safe for concurrent access.
 func (g *BgBlkTmplGenerator) BlockAccepted(block *dcrutil.Block) {
-	g.queueRegenEvent <- regenEvent{rtBlockAccepted, block}
+	g.sendQueueRegenEvent(regenEvent{rtBlockAccepted, block})
 }
 
 // BlockConnected informs the background block template generator that a block
@@ -3227,7 +3239,7 @@ func (g *BgBlkTmplGenerator) BlockAccepted(block *dcrutil.Block) {
 //
 // This function is safe for concurrent access.
 func (g *BgBlkTmplGenerator) BlockConnected(block *dcrutil.Block) {
-	g.queueRegenEvent <- regenEvent{rtBlockConnected, block}
+	g.sendQueueRegenEvent(regenEvent{rtBlockConnected, block})
 }
 
 // BlockDisconnected informs the background block template generator that a
@@ -3236,7 +3248,7 @@ func (g *BgBlkTmplGenerator) BlockConnected(block *dcrutil.Block) {
 //
 // This function is safe for concurrent access.
 func (g *BgBlkTmplGenerator) BlockDisconnected(block *dcrutil.Block) {
-	g.queueRegenEvent <- regenEvent{rtBlockDisconnected, block}
+	g.sendQueueRegenEvent(regenEvent{rtBlockDisconnected, block})
 }
 
 // VoteReceived informs the background block template generator that a new vote
@@ -3245,7 +3257,7 @@ func (g *BgBlkTmplGenerator) BlockDisconnected(block *dcrutil.Block) {
 //
 // This function is safe for concurrent access.
 func (g *BgBlkTmplGenerator) VoteReceived(tx *dcrutil.Tx) {
-	g.queueRegenEvent <- regenEvent{rtVote, tx}
+	g.sendQueueRegenEvent(regenEvent{rtVote, tx})
 }
 
 // ForceRegen asks the background block template generator to generate a new
@@ -3257,16 +3269,21 @@ func (g *BgBlkTmplGenerator) VoteReceived(tx *dcrutil.Tx) {
 //
 // This function is safe for concurrent access.
 func (g *BgBlkTmplGenerator) ForceRegen() {
-	g.queueRegenEvent <- regenEvent{rtForceRegen, nil}
+	g.sendQueueRegenEvent(regenEvent{rtForceRegen, nil})
 }
 
 // Run starts the background block template generator and all other goroutines
 // necessary for it to function properly and blocks until the provided context
 // is cancelled.
 func (g *BgBlkTmplGenerator) Run(ctx context.Context) {
-	g.wg.Add(3)
+	g.wg.Add(4)
 	go g.regenQueueHandler(ctx)
 	go g.regenHandler(ctx)
 	go g.notifySubscribersHandler(ctx)
+	go func() {
+		<-ctx.Done()
+		close(g.quit)
+		g.wg.Done()
+	}()
 	g.wg.Wait()
 }
