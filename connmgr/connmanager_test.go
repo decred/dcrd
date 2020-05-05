@@ -8,7 +8,6 @@ package connmgr
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"net"
 	"sync"
@@ -601,7 +600,7 @@ func TestRemovePendingConnection(t *testing.T) {
 // will not execute the on connection callback, even if an outstanding retry
 // succeeds.
 func TestCancelIgnoreDelayedConnection(t *testing.T) {
-	retryTimeout := 10 * time.Millisecond
+	const retryTimeout = 10 * time.Millisecond
 
 	// Setup a dialer that will continue to return an error until the
 	// connect chan is signaled. The dial attempt immediately after that
@@ -614,7 +613,7 @@ func TestCancelIgnoreDelayedConnection(t *testing.T) {
 		default:
 		}
 
-		return nil, fmt.Errorf("error")
+		return nil, errors.New("error")
 	}
 
 	connected := make(chan *ConnReq)
@@ -629,24 +628,21 @@ func TestCancelIgnoreDelayedConnection(t *testing.T) {
 		t.Fatalf("New error: %v", err)
 	}
 	cmgr.Start()
-	defer cmgr.Stop()
 
-	// Establish a connection request to a random IP we've chosen.
+	// Establish a connection request to a localhost IP.
 	cr := &ConnReq{
 		Addr: &net.TCPAddr{
 			IP:   net.ParseIP("127.0.0.1"),
 			Port: 18555,
 		},
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 5*retryTimeout)
-	defer cancel()
-	cmgr.Connect(ctx, cr)
+	cmgr.Connect(context.Background(), cr)
 
 	// Allow for the first retry timeout to elapse.
 	time.Sleep(2 * retryTimeout)
 
-	// Connection should be marked as failed, even after reattempting to
-	// connect.
+	// Ensure the status of the connection request is marked as failed, even
+	// after reattempting to connect.
 	assertConnReqState(t, cr, ConnFailed)
 
 	// Remove the connection, and then immediately allow the next connection
@@ -657,18 +653,17 @@ func TestCancelIgnoreDelayedConnection(t *testing.T) {
 	// Allow the connection manager to process the removal.
 	time.Sleep(5 * time.Millisecond)
 
-	// Now examine the status of the connection request, it should read a
-	// status of canceled.
+	// Ensure the status of the connection request is canceled.
 	assertConnReqState(t, cr, ConnCanceled)
 
-	// Finally, the connection manager should not signal the on-connection
-	// callback, since we explicitly canceled this request. We give a
-	// generous window to ensure the connection manager's linear backoff is
+	// Finally, the connection manager should not signal the OnConnection
+	// callback, since the request was explicitly canceled.  Give a generous
+	// timeout window to ensure the connection manager's linear backoff is
 	// allowed to properly elapse.
 	select {
 	case <-connected:
 		t.Fatalf("on-connect should not be called for canceled req")
-	case <-ctx.Done():
+	case <-time.After(5 * retryTimeout):
 	}
 
 	// Ensure clean shutdown of connection manager.
