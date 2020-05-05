@@ -1,5 +1,5 @@
 // Copyright (c) 2016 The btcsuite developers
-// Copyright (c) 2017-2019 The Decred developers
+// Copyright (c) 2017-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -15,11 +15,6 @@ import (
 	"time"
 )
 
-// maxFailedAttempts is the maximum number of successive failed connection
-// attempts after which network failure is assumed and new connections will
-// be delayed by the configured retry duration.
-const maxFailedAttempts = 25
-
 var (
 	// ErrDialNil is used to indicate that Dial cannot be nil in the configuration.
 	ErrDialNil = errors.New("config: dial cannot be nil")
@@ -33,6 +28,13 @@ var (
 	// logic uses a backoff mechanism which increases the interval base times
 	// the number of retries that have been done.
 	maxRetryDuration = time.Minute * 5
+)
+
+const (
+	// maxFailedAttempts is the maximum number of successive failed connection
+	// attempts after which network failure is assumed and new connections will
+	// be delayed by the configured retry duration.
+	maxFailedAttempts = 25
 
 	// defaultRetryDuration is the default duration of time for retrying
 	// persistent connections.
@@ -62,13 +64,32 @@ const (
 // connection will be retried on disconnection.
 type ConnReq struct {
 	// The following variables must only be used atomically.
+	//
+	// id is the unique identifier for this connection request.
+	//
+	// state is the current connection state for this connection request.
 	id    uint64
 	state uint32
 
+	// The following fields are owned by the connection handler and must not
+	// be accessed outside of it.
+	//
+	// retryCount is the number of times a permanent connection request that
+	// fails to connect has been retried since the last successful connection.
+	//
+	// conn is the underlying network connection.  It will be nil before a
+	// connection has been established.
 	retryCount uint32
 	conn       net.Conn
-	Addr       net.Addr
-	Permanent  bool
+
+	// Addr is the address to connect to.
+	Addr net.Addr
+
+	// Permanent specifies whether or not the connection request represents what
+	// should be treated as a permanent connection, meaning the connection
+	// manager will try to always maintain the connection including retries with
+	// increasing backoff timeouts.
+	Permanent bool
 }
 
 // updateState updates the state of the connection request.
@@ -189,15 +210,33 @@ type handleCancelPending struct {
 // ConnManager provides a manager to handle network connections.
 type ConnManager struct {
 	// The following variables must only be used atomically.
+	//
+	// connReqCount is the number of connection requests that have been made and
+	// is primarily used to assign unique connection request IDs.
 	connReqCount uint64
-	start        int32
-	stop         int32
 
-	cfg            Config
-	wg             sync.WaitGroup
+	// The following fields are used for lifecycle management of the connection
+	// manager.
+	wg   sync.WaitGroup
+	quit chan struct{}
+
+	// cfg specifies the configuration of the connection manager and is set at
+	// creating time and treated as immutable after that.
+	cfg Config
+
+	// failedAttempts tracks the total number of failed oubound connection
+	// attempts since the last successful connection made by the connection
+	// manager.  It is primarily used to detect network outages in order to
+	// impose a retry timeout on achieving the target number of outbound
+	// connections which prevents runaway failed connection attempt churn.
+	//
+	// This field is owned by the connection handler and must not be accessed
+	// outside of it.
 	failedAttempts uint64
-	requests       chan interface{}
-	quit           chan struct{}
+
+	// requests is used internally to interact with the connection handler
+	// goroutine.
+	requests chan interface{}
 }
 
 // handleFailedConn handles a connection failed due to a disconnect or any
@@ -205,10 +244,12 @@ type ConnManager struct {
 // retry duration. Otherwise, if required, it makes a new connection request.
 // After maxFailedConnectionAttempts new connections will be retried after the
 // configured retry duration.
-func (cm *ConnManager) handleFailedConn(c *ConnReq) {
-	if atomic.LoadInt32(&cm.stop) != 0 {
+func (cm *ConnManager) handleFailedConn(ctx context.Context, c *ConnReq) {
+	// Ignore during shutdown.
+	if ctx.Err() != nil {
 		return
 	}
+
 	if c.Permanent {
 		c.retryCount++
 		d := time.Duration(c.retryCount) * cm.cfg.RetryDuration
@@ -216,20 +257,26 @@ func (cm *ConnManager) handleFailedConn(c *ConnReq) {
 			d = maxRetryDuration
 		}
 		log.Debugf("Retrying connection to %v in %v", c, d)
-		time.AfterFunc(d, func() {
-			cm.Connect(context.Background(), c)
-		})
+		select {
+		case <-time.After(d):
+			go cm.Connect(ctx, c)
+		case <-cm.quit:
+			return
+		}
 	} else if cm.cfg.GetNewAddress != nil {
 		cm.failedAttempts++
 		if cm.failedAttempts >= maxFailedAttempts {
 			log.Debugf("Max failed connection attempts reached: [%d] "+
 				"-- retrying connection in: %v", maxFailedAttempts,
 				cm.cfg.RetryDuration)
-			time.AfterFunc(cm.cfg.RetryDuration, func() {
-				cm.newConnReq()
-			})
+			select {
+			case <-time.After(cm.cfg.RetryDuration):
+				go cm.newConnReq(ctx)
+			case <-cm.quit:
+				return
+			}
 		} else {
-			go cm.newConnReq()
+			go cm.newConnReq(ctx)
 		}
 	}
 }
@@ -240,7 +287,7 @@ func (cm *ConnManager) handleFailedConn(c *ConnReq) {
 // The connection handler makes sure that we maintain a pool of active outbound
 // connections so that we remain connected to the network.  Connection requests
 // are processed and mapped by their assigned ids.
-func (cm *ConnManager) connHandler() {
+func (cm *ConnManager) connHandler(ctx context.Context) {
 	var (
 		// pending holds all registered conn requests that have yet to
 		// succeed.
@@ -255,7 +302,6 @@ out:
 		select {
 		case req := <-cm.requests:
 			switch msg := req.(type) {
-
 			case registerPending:
 				connReq := msg.c
 				connReq.updateState(ConnPending)
@@ -341,7 +387,7 @@ out:
 					log.Debugf("Reconnecting to %v",
 						connReq)
 					pending[msg.id] = connReq
-					cm.handleFailedConn(connReq)
+					cm.handleFailedConn(ctx, connReq)
 				}
 
 			case handleFailed:
@@ -355,7 +401,7 @@ out:
 				connReq.updateState(ConnFailed)
 				log.Debugf("Failed to connect to %v: %v",
 					connReq, msg.err)
-				cm.handleFailedConn(connReq)
+				cm.handleFailedConn(ctx, connReq)
 
 			case handleCancelPending:
 				pendingAddr := msg.addr.String()
@@ -380,7 +426,7 @@ out:
 				}
 			}
 
-		case <-cm.quit:
+		case <-ctx.Done():
 			break out
 		}
 	}
@@ -391,11 +437,9 @@ out:
 
 // newConnReq creates a new connection request and connects to the
 // corresponding address.
-func (cm *ConnManager) newConnReq() {
-	if atomic.LoadInt32(&cm.stop) != 0 {
-		return
-	}
-	if cm.cfg.GetNewAddress == nil {
+func (cm *ConnManager) newConnReq(ctx context.Context) {
+	// Ignore during shutdown.
+	if ctx.Err() != nil {
 		return
 	}
 
@@ -432,14 +476,26 @@ func (cm *ConnManager) newConnReq() {
 
 	c.Addr = addr
 
-	cm.Connect(context.Background(), c)
+	cm.Connect(ctx, c)
 }
 
-// Connect assigns an id and dials a connection to the address of the
-// connection request.
+// Connect assigns an id and dials a connection to the address of the connection
+// request using the provided context and the dial function configured when
+// initially creating the the connection manager.
+//
+// The connection attempt will be ignored if the connection manager has been
+// shutdown by canceling the lifecycle context the Run method was invoked with
+// or the provided connection request is already in the failed state.
+//
+// Note that the context parameter to this function and the lifecycle context
+// may be independent.
 func (cm *ConnManager) Connect(ctx context.Context, c *ConnReq) {
-	if atomic.LoadInt32(&cm.stop) != 0 {
+	// Ignore during shutdown and when caller provided context is already
+	// canceled.
+	select {
+	case <-cm.quit:
 		return
+	default:
 	}
 	if ctx.Err() != nil {
 		return
@@ -507,10 +563,6 @@ func (cm *ConnManager) Connect(ctx context.Context, c *ConnReq) {
 // id. If permanent, the connection will be retried with an increasing backoff
 // duration.
 func (cm *ConnManager) Disconnect(id uint64) {
-	if atomic.LoadInt32(&cm.stop) != 0 {
-		return
-	}
-
 	select {
 	case cm.requests <- handleDisconnected{id, true}:
 	case <-cm.quit:
@@ -523,10 +575,6 @@ func (cm *ConnManager) Disconnect(id uint64) {
 // NOTE: This method can also be used to cancel a lingering connection attempt
 // that hasn't yet succeeded.
 func (cm *ConnManager) Remove(id uint64) {
-	if atomic.LoadInt32(&cm.stop) != 0 {
-		return
-	}
-
 	select {
 	case cm.requests <- handleDisconnected{id, false}:
 	case <-cm.quit:
@@ -535,14 +583,11 @@ func (cm *ConnManager) Remove(id uint64) {
 
 // CancelPending removes the connection corresponding to the given address
 // from the list of pending failed connections.
+//
 // Returns an error if the connection manager is stopped or there is no pending
 // connection for the given address.
 func (cm *ConnManager) CancelPending(addr net.Addr) error {
-	if atomic.LoadInt32(&cm.stop) != 0 {
-		return fmt.Errorf("connection manager stopped")
-	}
 	done := make(chan error, 1)
-
 	select {
 	case cm.requests <- handleCancelPending{addr, done}:
 	case <-cm.quit:
@@ -560,13 +605,13 @@ func (cm *ConnManager) CancelPending(addr net.Addr) error {
 
 // listenHandler accepts incoming connections on a given listener.  It must be
 // run as a goroutine.
-func (cm *ConnManager) listenHandler(listener net.Listener) {
+func (cm *ConnManager) listenHandler(ctx context.Context, listener net.Listener) {
 	log.Infof("Server listening on %s", listener.Addr())
-	for atomic.LoadInt32(&cm.stop) == 0 {
+	for ctx.Err() == nil {
 		conn, err := listener.Accept()
 		if err != nil {
 			// Only log the error if not forcibly shutting down.
-			if atomic.LoadInt32(&cm.stop) == 0 {
+			if ctx.Err() == nil {
 				log.Errorf("Can't accept connection: %v", err)
 			}
 			continue
@@ -578,57 +623,60 @@ func (cm *ConnManager) listenHandler(listener net.Listener) {
 	log.Tracef("Listener handler done for %s", listener.Addr())
 }
 
-// Start launches the connection manager and begins connecting to the network.
-func (cm *ConnManager) Start() {
-	// Already started?
-	if atomic.AddInt32(&cm.start, 1) != 1 {
-		return
+// Run starts the connection manager along with its configured listeners and
+// begin connecting to the network.  It blocks until the provided context is
+// cancelled.
+func (cm *ConnManager) Run(ctx context.Context) {
+	log.Trace("Starting connection manager")
+
+	// Start the connection handler goroutine.
+	cm.wg.Add(1)
+	go cm.connHandler(ctx)
+
+	// Start all the listeners so long as the caller requested them and provided
+	// a callback to be invoked when connections are accepted.
+	var listeners []net.Listener
+	if cm.cfg.OnAccept != nil {
+		listeners = cm.cfg.Listeners
+	}
+	for _, listener := range cm.cfg.Listeners {
+		cm.wg.Add(1)
+		go cm.listenHandler(ctx, listener)
 	}
 
-	log.Trace("Connection manager started")
-	cm.wg.Add(1)
-	go cm.connHandler()
-
-	// Start all the listeners so long as the caller requested them and
-	// provided a callback to be invoked when connections are accepted.
-	if cm.cfg.OnAccept != nil {
-		for _, listner := range cm.cfg.Listeners {
-			cm.wg.Add(1)
-			go cm.listenHandler(listner)
+	// Start enough outbound connections to reach the target number when not
+	// in manual connect mode.
+	if cm.cfg.GetNewAddress != nil {
+		curConnReqCount := atomic.LoadUint64(&cm.connReqCount)
+		for i := curConnReqCount; i < uint64(cm.cfg.TargetOutbound); i++ {
+			go cm.newConnReq(ctx)
 		}
 	}
 
-	for i := atomic.LoadUint64(&cm.connReqCount); i < uint64(cm.cfg.TargetOutbound); i++ {
-		go cm.newConnReq()
-	}
-}
+	// Shutdown the connection manager when the context is canceled.
+	cm.wg.Add(1)
+	go func(ctx context.Context, listeners []net.Listener) {
+		<-ctx.Done()
+		close(cm.quit)
 
-// Wait blocks until the connection manager halts gracefully.
-func (cm *ConnManager) Wait() {
+		// Stop all the listeners on shutdown.  There will not be any
+		// listeners if listening is disabled.
+		for _, listener := range listeners {
+			// Ignore the error since this is shutdown and there is no way
+			// to recover anyways.
+			_ = listener.Close()
+		}
+
+		cm.wg.Done()
+	}(ctx, listeners)
+
 	cm.wg.Wait()
-}
-
-// Stop gracefully shuts down the connection manager.
-func (cm *ConnManager) Stop() {
-	if atomic.AddInt32(&cm.stop, 1) != 1 {
-		log.Warnf("Connection manager already stopped")
-		return
-	}
-
-	// Stop all the listeners.  There will not be any listeners if
-	// listening is disabled.
-	for _, listener := range cm.cfg.Listeners {
-		// Ignore the error since this is shutdown and there is no way
-		// to recover anyways.
-		_ = listener.Close()
-	}
-
-	close(cm.quit)
 	log.Trace("Connection manager stopped")
 }
 
-// New returns a new connection manager.
-// Use Start to start connecting to the network.
+// New returns a new connection manager with the provided configuration.
+//
+// Use Run to start listening and/or connecting to the network.
 func New(cfg *Config) (*ConnManager, error) {
 	if cfg.Dial == nil && cfg.DialAddr == nil {
 		return nil, ErrDialNil
