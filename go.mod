@@ -19,7 +19,7 @@ require (
 	github.com/decred/dcrd/dcrec v1.0.0
 	github.com/decred/dcrd/dcrec/secp256k1/v3 v3.0.0-20200215031403-6b2ce76f0986
 	github.com/decred/dcrd/dcrjson/v3 v3.0.1
-	github.com/decred/dcrd/dcrutil/v3 v3.0.0-20200215031403-6b2ce76f0986
+	github.com/decred/dcrd/dcrutil/v3 v3.0.0-20200503044000-76f6906e50e5
 	github.com/decred/dcrd/fees/v2 v2.0.0
 	github.com/decred/dcrd/gcs/v2 v2.0.1
 	github.com/decred/dcrd/hdkeychain/v3 v3.0.0
@@ -27,13 +27,13 @@ require (
 	github.com/decred/dcrd/mempool/v4 v4.0.0-20200215031403-6b2ce76f0986
 	github.com/decred/dcrd/mining/v3 v3.0.0-20200215031403-6b2ce76f0986
 	github.com/decred/dcrd/peer/v2 v2.1.0
-	github.com/decred/dcrd/rpc/jsonrpc/types/v2 v2.0.0
+	github.com/decred/dcrd/rpc/jsonrpc/types/v2 v2.0.1-0.20200503044000-76f6906e50e5
 	github.com/decred/dcrd/rpcclient/v6 v6.0.0-20200215031403-6b2ce76f0986
 	github.com/decred/dcrd/txscript/v3 v3.0.0-20200215031403-6b2ce76f0986
 	github.com/decred/dcrd/wire v1.3.0
 	github.com/decred/go-socks v1.1.0
 	github.com/decred/slog v1.0.0
-	github.com/gorilla/websocket v1.4.1
+	github.com/gorilla/websocket v1.4.2
 	github.com/jessevdk/go-flags v1.4.0
 	github.com/jrick/bitset v1.0.0
 	github.com/jrick/logrotate v1.0.0
