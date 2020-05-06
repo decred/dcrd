@@ -1955,8 +1955,7 @@ func (s *server) handleQuery(state *peerState, querymsg interface{}) {
 			msg.reply <- err
 			return
 		}
-		s.connManager.CancelPending(netAddr)
-		msg.reply <- nil
+		msg.reply <- s.connManager.CancelPending(netAddr)
 	case getOutboundGroup:
 		count, ok := state.outboundGroups[msg.key]
 		if ok {
