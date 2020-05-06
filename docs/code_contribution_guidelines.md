@@ -216,8 +216,12 @@ comment can make.
 ### 4.4 Model Git Commit Messages
 
 This project prefers to keep a clean commit history with well-formed commit
-messages.  This section illustrates a model commit message and provides a bit
-of background for it.  This content was originally created by Tim Pope and made
+messages. Commit messages should usually be multi-line, fully descriptive, and
+self-contained. Further, since this project deliberately avoids relying on
+GitHub to store information permanently, good commit messages are required.
+
+This section illustrates a model commit message and provides a bit of
+background for it.  This content was originally created by Tim Pope and made
 available on his website, however that website is no longer active, so it is
 being provided here.
 
@@ -269,6 +273,13 @@ a good thing.
   using the messages for the message body.  Good email netiquette dictates we
   wrap our plain text emails such that there’s room for a few levels of nested
   reply indicators without overflow in an 80 column terminal.
+
+Since this repository will not necessarily be hosted permanently by GitHub,
+git commit messages should never link to other issues or PRs. They should only
+ever describe their own content.
+
+However, PR descriptions in GitHub can *and should* be edited to reference
+other issues, PRs, or discussion threads.
 
 <a name="HandlingModuleBreakingChanges" />
 
