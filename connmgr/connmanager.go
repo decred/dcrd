@@ -183,7 +183,7 @@ type handleFailed struct {
 // handleCancelPending is used to remove failing connections from retries.
 type handleCancelPending struct {
 	addr net.Addr
-	done chan struct{}
+	done chan error
 }
 
 // ConnManager provides a manager to handle network connections.
@@ -369,14 +369,15 @@ out:
 						idToRemove, connReq = id, req
 						break
 					}
-
 				}
 				if connReq != nil {
 					delete(pending, idToRemove)
 					connReq.updateState(ConnCanceled)
 					log.Debugf("Canceled pending connection to %v", msg.addr)
+					msg.done <- nil
+				} else {
+					msg.done <- fmt.Errorf("no pending connection to %v", msg.addr)
 				}
-				close(msg.done)
 			}
 
 		case <-cm.quit:
@@ -534,11 +535,13 @@ func (cm *ConnManager) Remove(id uint64) {
 
 // CancelPending removes the connection corresponding to the given address
 // from the list of pending failed connections.
-func (cm *ConnManager) CancelPending(addr net.Addr) {
+// Returns an error if the connection manager is stopped or there is no pending
+// connection for the given address.
+func (cm *ConnManager) CancelPending(addr net.Addr) error {
 	if atomic.LoadInt32(&cm.stop) != 0 {
-		return
+		return fmt.Errorf("connection manager stopped")
 	}
-	done := make(chan struct{})
+	done := make(chan error, 1)
 
 	select {
 	case cm.requests <- handleCancelPending{addr, done}:
@@ -548,9 +551,10 @@ func (cm *ConnManager) CancelPending(addr net.Addr) {
 	// Wait for the connection to be removed from the conn manager's
 	// internal state.
 	select {
-	case <-done:
+	case err := <-done:
+		return err
 	case <-cm.quit:
-		return
+		return fmt.Errorf("connection manager stopped")
 	}
 }
 
