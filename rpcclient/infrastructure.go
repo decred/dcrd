@@ -1355,7 +1355,8 @@ func New(config *ConnConfig, ntfnHandlers *NotificationHandlers) (*Client, error
 //
 // This method will error if the client is not configured for websockets, if the
 // connection has already been established, or if none of the connection
-// attempts were successful.
+// attempts were successful. The client will be shut down when the passed
+// context is terminated.
 func (c *Client) Connect(ctx context.Context, retry bool) error {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
@@ -1366,6 +1367,14 @@ func (c *Client) Connect(ctx context.Context, retry bool) error {
 	if c.wsConn != nil {
 		return ErrClientAlreadyConnected
 	}
+
+	// Shutdown the client on context cancellation.
+	c.wg.Add(1)
+	go func() {
+		<-ctx.Done()
+		c.Shutdown()
+		c.wg.Done()
+	}()
 
 	// Begin connection attempts.  Increase the backoff after each failed
 	// attempt, up to a maximum of one minute.
