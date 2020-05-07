@@ -908,10 +908,18 @@ func (sp *serverPeer) OnBlock(p *peer.Peer, msg *wire.MsgBlock, buf []byte) {
 // accordingly.  We pass the message down to blockmanager which will call
 // QueueMessage with any appropriate responses.
 func (sp *serverPeer) OnInv(p *peer.Peer, msg *wire.MsgInv) {
-	if !cfg.BlocksOnly {
-		if len(msg.InvList) > 0 {
-			sp.server.blockManager.QueueInv(msg, sp.Peer)
+	// Ban non-whitelisted peers sending empty inventory requests.
+	if len(msg.InvList) == 0 {
+		if !sp.isWhitelisted {
+			sp.server.BanPeer(sp)
+			sp.Disconnect()
 		}
+
+		return
+	}
+
+	if !cfg.BlocksOnly {
+		sp.server.blockManager.QueueInv(msg, sp.Peer)
 		return
 	}
 
@@ -930,22 +938,35 @@ func (sp *serverPeer) OnInv(p *peer.Peer, msg *wire.MsgInv) {
 		}
 	}
 
-	if len(newInv.InvList) > 0 {
-		sp.server.blockManager.QueueInv(newInv, sp.Peer)
-	}
+	sp.server.blockManager.QueueInv(newInv, sp.Peer)
 }
 
 // OnHeaders is invoked when a peer receives a headers wire message.  The
 // message is passed down to the block manager.
 func (sp *serverPeer) OnHeaders(_ *peer.Peer, msg *wire.MsgHeaders) {
+	// Ban non-whitelisted peers sending empty headers requests.
+	if len(msg.Headers) == 0 {
+		if !sp.isWhitelisted {
+			sp.server.BanPeer(sp)
+			sp.Disconnect()
+		}
+
+		return
+	}
+
 	sp.server.blockManager.QueueHeaders(msg, sp.Peer)
 }
 
 // handleGetData is invoked when a peer receives a getdata wire message and is
 // used to deliver block and transaction information.
 func (sp *serverPeer) OnGetData(p *peer.Peer, msg *wire.MsgGetData) {
-	// Ignore empty getdata messages.
+	// Ban non-whitelisted peers sending empty getdata requests.
 	if len(msg.InvList) == 0 {
+		if !sp.isWhitelisted {
+			sp.server.BanPeer(sp)
+			sp.Disconnect()
+		}
+
 		return
 	}
 
@@ -1129,6 +1150,13 @@ func (sp *serverPeer) OnGetCFilter(p *peer.Peer, msg *wire.MsgGetCFilter) {
 	default:
 		peerLog.Warnf("OnGetCFilter: unsupported filter type %v",
 			msg.FilterType)
+
+		// Ban non-whitelisted peers requesting unsupported filter types.
+		if !sp.isWhitelisted {
+			sp.server.BanPeer(sp)
+			sp.Disconnect()
+		}
+
 		return
 	}
 
@@ -1228,6 +1256,13 @@ func (sp *serverPeer) OnGetCFHeaders(p *peer.Peer, msg *wire.MsgGetCFHeaders) {
 	default:
 		peerLog.Warnf("OnGetCFilter: unsupported filter type %v",
 			msg.FilterType)
+
+		// Ban non-whitelisted peers requesting unsupported filter types.
+		if !sp.isWhitelisted {
+			sp.server.BanPeer(sp)
+			sp.Disconnect()
+		}
+
 		return
 	}
 
@@ -1339,7 +1374,13 @@ func (sp *serverPeer) OnAddr(p *peer.Peer, msg *wire.MsgAddr) {
 	if len(msg.AddrList) == 0 {
 		peerLog.Errorf("Command [%s] from %s does not contain any addresses",
 			msg.Command(), p)
-		p.Disconnect()
+
+		// Ban non-whitelisted peers sending empty address requests.
+		if !sp.isWhitelisted {
+			sp.server.BanPeer(sp)
+			sp.Disconnect()
+		}
+
 		return
 	}
 
@@ -1372,6 +1413,14 @@ func (sp *serverPeer) OnAddr(p *peer.Peer, msg *wire.MsgAddr) {
 // OnRead is invoked when a peer receives a message and it is used to update
 // the bytes received by the server.
 func (sp *serverPeer) OnRead(p *peer.Peer, bytesRead int, msg wire.Message, err error) {
+	// Ban peers sending messages that do not conform to the wire protocol.
+	var errCode wire.ErrorCode
+	if errors.As(err, &errCode) {
+		peerLog.Errorf("Unable to read wire message: %v", err)
+		sp.server.BanPeer(sp)
+		sp.Disconnect()
+	}
+
 	sp.server.AddBytesReceived(uint64(bytesRead))
 }
 
