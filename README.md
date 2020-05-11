@@ -18,7 +18,7 @@ https://decred.org
 
 ## Latest Downloads
 
-https://decred.org/downloads
+https://decred.org/downloads/
 
 Core software:
 
@@ -115,7 +115,7 @@ The easiest method is to download Decrediton from the link below, which will
 include dcrd. Advanced users may prefer the Command-line app suite, which
 includes dcrd and dcrwallet.
 
-https://decred.org/downloads
+https://decred.org/downloads/
 
 * How to verify binaries before installing: https://docs.decred.org/advanced/verifying-binaries/
 * How to install the CLI Suite: https://docs.decred.org/wallets/cli/cli-installation/
@@ -242,7 +242,7 @@ Decred only supports the current and previous major versions of Go.
 
 If you have any further questions you can find us at:
 
-https://decred.org/community
+https://decred.org/community/
 
 ## Issue Tracker
 

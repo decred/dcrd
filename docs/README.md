@@ -145,7 +145,7 @@ information.
 
 If you have any further questions you can find us at:
 
-https://decred.org/community
+https://decred.org/community/
 
 <a name="DeveloperResources" />
 
