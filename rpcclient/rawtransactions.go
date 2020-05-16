@@ -20,12 +20,12 @@ import (
 
 // FutureGetRawTransactionResult is a future promise to deliver the result of a
 // GetRawTransactionAsync RPC invocation (or an applicable error).
-type FutureGetRawTransactionResult chan *response
+type FutureGetRawTransactionResult cmdRes
 
 // Receive waits for the response promised by the future and returns a
 // transaction given its hash.
-func (r FutureGetRawTransactionResult) Receive() (*dcrutil.Tx, error) {
-	res, err := receiveFuture(r)
+func (r *FutureGetRawTransactionResult) Receive() (*dcrutil.Tx, error) {
+	res, err := receiveFuture(r.ctx, r.c)
 	if err != nil {
 		return nil, err
 	}
@@ -56,14 +56,14 @@ func (r FutureGetRawTransactionResult) Receive() (*dcrutil.Tx, error) {
 // the returned instance.
 //
 // See GetRawTransaction for the blocking version and more details.
-func (c *Client) GetRawTransactionAsync(ctx context.Context, txHash *chainhash.Hash) FutureGetRawTransactionResult {
+func (c *Client) GetRawTransactionAsync(ctx context.Context, txHash *chainhash.Hash) *FutureGetRawTransactionResult {
 	hash := ""
 	if txHash != nil {
 		hash = txHash.String()
 	}
 
 	cmd := chainjson.NewGetRawTransactionCmd(hash, dcrjson.Int(0))
-	return c.sendCmd(ctx, cmd)
+	return (*FutureGetRawTransactionResult)(c.sendCmd(ctx, cmd))
 }
 
 // GetRawTransaction returns a transaction given its hash.
@@ -77,12 +77,12 @@ func (c *Client) GetRawTransaction(ctx context.Context, txHash *chainhash.Hash) 
 // FutureGetRawTransactionVerboseResult is a future promise to deliver the
 // result of a GetRawTransactionVerboseAsync RPC invocation (or an applicable
 // error).
-type FutureGetRawTransactionVerboseResult chan *response
+type FutureGetRawTransactionVerboseResult cmdRes
 
 // Receive waits for the response promised by the future and returns information
 // about a transaction given its hash.
-func (r FutureGetRawTransactionVerboseResult) Receive() (*chainjson.TxRawResult, error) {
-	res, err := receiveFuture(r)
+func (r *FutureGetRawTransactionVerboseResult) Receive() (*chainjson.TxRawResult, error) {
+	res, err := receiveFuture(r.ctx, r.c)
 	if err != nil {
 		return nil, err
 	}
@@ -102,14 +102,14 @@ func (r FutureGetRawTransactionVerboseResult) Receive() (*chainjson.TxRawResult,
 // function on the returned instance.
 //
 // See GetRawTransactionVerbose for the blocking version and more details.
-func (c *Client) GetRawTransactionVerboseAsync(ctx context.Context, txHash *chainhash.Hash) FutureGetRawTransactionVerboseResult {
+func (c *Client) GetRawTransactionVerboseAsync(ctx context.Context, txHash *chainhash.Hash) *FutureGetRawTransactionVerboseResult {
 	hash := ""
 	if txHash != nil {
 		hash = txHash.String()
 	}
 
 	cmd := chainjson.NewGetRawTransactionCmd(hash, dcrjson.Int(1))
-	return c.sendCmd(ctx, cmd)
+	return (*FutureGetRawTransactionVerboseResult)(c.sendCmd(ctx, cmd))
 }
 
 // GetRawTransactionVerbose returns information about a transaction given
@@ -122,12 +122,12 @@ func (c *Client) GetRawTransactionVerbose(ctx context.Context, txHash *chainhash
 
 // FutureDecodeRawTransactionResult is a future promise to deliver the result
 // of a DecodeRawTransactionAsync RPC invocation (or an applicable error).
-type FutureDecodeRawTransactionResult chan *response
+type FutureDecodeRawTransactionResult cmdRes
 
 // Receive waits for the response promised by the future and returns information
 // about a transaction given its serialized bytes.
-func (r FutureDecodeRawTransactionResult) Receive() (*chainjson.TxRawResult, error) {
-	res, err := receiveFuture(r)
+func (r *FutureDecodeRawTransactionResult) Receive() (*chainjson.TxRawResult, error) {
+	res, err := receiveFuture(r.ctx, r.c)
 	if err != nil {
 		return nil, err
 	}
@@ -147,10 +147,10 @@ func (r FutureDecodeRawTransactionResult) Receive() (*chainjson.TxRawResult, err
 // function on the returned instance.
 //
 // See DecodeRawTransaction for the blocking version and more details.
-func (c *Client) DecodeRawTransactionAsync(ctx context.Context, serializedTx []byte) FutureDecodeRawTransactionResult {
+func (c *Client) DecodeRawTransactionAsync(ctx context.Context, serializedTx []byte) *FutureDecodeRawTransactionResult {
 	txHex := hex.EncodeToString(serializedTx)
 	cmd := chainjson.NewDecodeRawTransactionCmd(txHex)
-	return c.sendCmd(ctx, cmd)
+	return (*FutureDecodeRawTransactionResult)(c.sendCmd(ctx, cmd))
 }
 
 // DecodeRawTransaction returns information about a transaction given its
@@ -161,13 +161,13 @@ func (c *Client) DecodeRawTransaction(ctx context.Context, serializedTx []byte) 
 
 // FutureCreateRawTransactionResult is a future promise to deliver the result
 // of a CreateRawTransactionAsync RPC invocation (or an applicable error).
-type FutureCreateRawTransactionResult chan *response
+type FutureCreateRawTransactionResult cmdRes
 
 // Receive waits for the response promised by the future and returns a new
 // transaction spending the provided inputs and sending to the provided
 // addresses.
-func (r FutureCreateRawTransactionResult) Receive() (*wire.MsgTx, error) {
-	res, err := receiveFuture(r)
+func (r *FutureCreateRawTransactionResult) Receive() (*wire.MsgTx, error) {
+	res, err := receiveFuture(r.ctx, r.c)
 	if err != nil {
 		return nil, err
 	}
@@ -199,14 +199,14 @@ func (r FutureCreateRawTransactionResult) Receive() (*wire.MsgTx, error) {
 //
 // See CreateRawTransaction for the blocking version and more details.
 func (c *Client) CreateRawTransactionAsync(ctx context.Context, inputs []chainjson.TransactionInput,
-	amounts map[dcrutil.Address]dcrutil.Amount, lockTime *int64, expiry *int64) FutureCreateRawTransactionResult {
+	amounts map[dcrutil.Address]dcrutil.Amount, lockTime *int64, expiry *int64) *FutureCreateRawTransactionResult {
 
 	convertedAmts := make(map[string]float64, len(amounts))
 	for addr, amount := range amounts {
 		convertedAmts[addr.String()] = amount.ToCoin()
 	}
 	cmd := chainjson.NewCreateRawTransactionCmd(inputs, convertedAmts, lockTime, expiry)
-	return c.sendCmd(ctx, cmd)
+	return (*FutureCreateRawTransactionResult)(c.sendCmd(ctx, cmd))
 }
 
 // CreateRawTransaction returns a new transaction spending the provided inputs
@@ -219,13 +219,13 @@ func (c *Client) CreateRawTransaction(ctx context.Context, inputs []chainjson.Tr
 
 // FutureCreateRawSStxResult is a future promise to deliver the result
 // of a CreateRawSStxAsync RPC invocation (or an applicable error).
-type FutureCreateRawSStxResult chan *response
+type FutureCreateRawSStxResult cmdRes
 
 // Receive waits for the response promised by the future and returns a new
 // transaction spending the provided inputs and sending to the provided
 // addresses.
-func (r FutureCreateRawSStxResult) Receive() (*wire.MsgTx, error) {
-	res, err := receiveFuture(r)
+func (r *FutureCreateRawSStxResult) Receive() (*wire.MsgTx, error) {
+	res, err := receiveFuture(r.ctx, r.c)
 	if err != nil {
 		return nil, err
 	}
@@ -268,7 +268,7 @@ type SStxCommitOut struct {
 // See CreateRawSStx for the blocking version and more details.
 func (c *Client) CreateRawSStxAsync(ctx context.Context, inputs []chainjson.SStxInput,
 	amount map[dcrutil.Address]dcrutil.Amount,
-	couts []SStxCommitOut) FutureCreateRawSStxResult {
+	couts []SStxCommitOut) *FutureCreateRawSStxResult {
 
 	convertedAmt := make(map[string]int64, len(amount))
 	for addr, amt := range amount {
@@ -283,7 +283,7 @@ func (c *Client) CreateRawSStxAsync(ctx context.Context, inputs []chainjson.SStx
 	}
 
 	cmd := chainjson.NewCreateRawSStxCmd(inputs, convertedAmt, convertedCouts)
-	return c.sendCmd(ctx, cmd)
+	return (*FutureCreateRawSStxResult)(c.sendCmd(ctx, cmd))
 }
 
 // CreateRawSStx returns a new transaction spending the provided inputs
@@ -297,13 +297,13 @@ func (c *Client) CreateRawSStx(ctx context.Context, inputs []chainjson.SStxInput
 
 // FutureCreateRawSSRtxResult is a future promise to deliver the result
 // of a CreateRawSSRtxAsync RPC invocation (or an applicable error).
-type FutureCreateRawSSRtxResult chan *response
+type FutureCreateRawSSRtxResult cmdRes
 
 // Receive waits for the response promised by the future and returns a new
 // transaction spending the provided inputs and sending to the provided
 // addresses.
-func (r FutureCreateRawSSRtxResult) Receive() (*wire.MsgTx, error) {
-	res, err := receiveFuture(r)
+func (r *FutureCreateRawSSRtxResult) Receive() (*wire.MsgTx, error) {
+	res, err := receiveFuture(r.ctx, r.c)
 	if err != nil {
 		return nil, err
 	}
@@ -334,10 +334,10 @@ func (r FutureCreateRawSSRtxResult) Receive() (*wire.MsgTx, error) {
 // function on the returned instance.
 //
 // See CreateRawSSRtx for the blocking version and more details.
-func (c *Client) CreateRawSSRtxAsync(ctx context.Context, inputs []chainjson.TransactionInput, fee dcrutil.Amount) FutureCreateRawSSRtxResult {
+func (c *Client) CreateRawSSRtxAsync(ctx context.Context, inputs []chainjson.TransactionInput, fee dcrutil.Amount) *FutureCreateRawSSRtxResult {
 	feeF64 := fee.ToCoin()
 	cmd := chainjson.NewCreateRawSSRtxCmd(inputs, &feeF64)
-	return c.sendCmd(ctx, cmd)
+	return (*FutureCreateRawSSRtxResult)(c.sendCmd(ctx, cmd))
 }
 
 // CreateRawSSRtx returns a new SSR transaction (revoking an sstx).
@@ -347,13 +347,13 @@ func (c *Client) CreateRawSSRtx(ctx context.Context, inputs []chainjson.Transact
 
 // FutureSendRawTransactionResult is a future promise to deliver the result
 // of a SendRawTransactionAsync RPC invocation (or an applicable error).
-type FutureSendRawTransactionResult chan *response
+type FutureSendRawTransactionResult cmdRes
 
 // Receive waits for the response promised by the future and returns the result
 // of submitting the encoded transaction to the server which then relays it to
 // the network.
-func (r FutureSendRawTransactionResult) Receive() (*chainhash.Hash, error) {
-	res, err := receiveFuture(r)
+func (r *FutureSendRawTransactionResult) Receive() (*chainhash.Hash, error) {
+	res, err := receiveFuture(r.ctx, r.c)
 	if err != nil {
 		return nil, err
 	}
@@ -373,19 +373,19 @@ func (r FutureSendRawTransactionResult) Receive() (*chainhash.Hash, error) {
 // the returned instance.
 //
 // See SendRawTransaction for the blocking version and more details.
-func (c *Client) SendRawTransactionAsync(ctx context.Context, tx *wire.MsgTx, allowHighFees bool) FutureSendRawTransactionResult {
+func (c *Client) SendRawTransactionAsync(ctx context.Context, tx *wire.MsgTx, allowHighFees bool) *FutureSendRawTransactionResult {
 	txHex := ""
 	if tx != nil {
 		// Serialize the transaction and convert to hex string.
 		buf := bytes.NewBuffer(make([]byte, 0, tx.SerializeSize()))
 		if err := tx.Serialize(buf); err != nil {
-			return newFutureError(err)
+			return (*FutureSendRawTransactionResult)(newFutureError(ctx, err))
 		}
 		txHex = hex.EncodeToString(buf.Bytes())
 	}
 
 	cmd := chainjson.NewSendRawTransactionCmd(txHex, &allowHighFees)
-	return c.sendCmd(ctx, cmd)
+	return (*FutureSendRawTransactionResult)(c.sendCmd(ctx, cmd))
 }
 
 // SendRawTransaction submits the encoded transaction to the server which will
@@ -396,12 +396,12 @@ func (c *Client) SendRawTransaction(ctx context.Context, tx *wire.MsgTx, allowHi
 
 // FutureSearchRawTransactionsResult is a future promise to deliver the result
 // of the SearchRawTransactionsAsync RPC invocation (or an applicable error).
-type FutureSearchRawTransactionsResult chan *response
+type FutureSearchRawTransactionsResult cmdRes
 
 // Receive waits for the response promised by the future and returns the
 // found raw transactions.
-func (r FutureSearchRawTransactionsResult) Receive() ([]*wire.MsgTx, error) {
-	res, err := receiveFuture(r)
+func (r *FutureSearchRawTransactionsResult) Receive() ([]*wire.MsgTx, error) {
+	res, err := receiveFuture(r.ctx, r.c)
 	if err != nil {
 		return nil, err
 	}
@@ -441,14 +441,14 @@ func (r FutureSearchRawTransactionsResult) Receive() ([]*wire.MsgTx, error) {
 // See SearchRawTransactions for the blocking version and more details.
 func (c *Client) SearchRawTransactionsAsync(ctx context.Context,
 	address dcrutil.Address, skip, count int, reverse bool,
-	filterAddrs []string) FutureSearchRawTransactionsResult {
+	filterAddrs []string) *FutureSearchRawTransactionsResult {
 
 	addr := address.Address()
 	verbose := dcrjson.Int(0)
 	prevOut := dcrjson.Int(0)
 	cmd := chainjson.NewSearchRawTransactionsCmd(addr, verbose, &skip, &count,
 		prevOut, &reverse, &filterAddrs)
-	return c.sendCmd(ctx, cmd)
+	return (*FutureSearchRawTransactionsResult)(c.sendCmd(ctx, cmd))
 }
 
 // SearchRawTransactions returns transactions that involve the passed address.
@@ -469,12 +469,12 @@ func (c *Client) SearchRawTransactions(ctx context.Context,
 // FutureSearchRawTransactionsVerboseResult is a future promise to deliver the
 // result of the SearchRawTransactionsVerboseAsync RPC invocation (or an
 // applicable error).
-type FutureSearchRawTransactionsVerboseResult chan *response
+type FutureSearchRawTransactionsVerboseResult cmdRes
 
 // Receive waits for the response promised by the future and returns the
 // found raw transactions.
-func (r FutureSearchRawTransactionsVerboseResult) Receive() ([]*chainjson.SearchRawTransactionsResult, error) {
-	res, err := receiveFuture(r)
+func (r *FutureSearchRawTransactionsVerboseResult) Receive() ([]*chainjson.SearchRawTransactionsResult, error) {
+	res, err := receiveFuture(r.ctx, r.c)
 	if err != nil {
 		return nil, err
 	}
@@ -496,7 +496,7 @@ func (r FutureSearchRawTransactionsVerboseResult) Receive() ([]*chainjson.Search
 // See SearchRawTransactionsVerbose for the blocking version and more details.
 func (c *Client) SearchRawTransactionsVerboseAsync(ctx context.Context,
 	address dcrutil.Address, skip, count int, includePrevOut bool, reverse bool,
-	filterAddrs *[]string) FutureSearchRawTransactionsVerboseResult {
+	filterAddrs *[]string) *FutureSearchRawTransactionsVerboseResult {
 
 	addr := address.Address()
 	verbose := dcrjson.Int(1)
@@ -506,7 +506,7 @@ func (c *Client) SearchRawTransactionsVerboseAsync(ctx context.Context,
 	}
 	cmd := chainjson.NewSearchRawTransactionsCmd(addr, verbose, &skip, &count,
 		prevOut, &reverse, filterAddrs)
-	return c.sendCmd(ctx, cmd)
+	return (*FutureSearchRawTransactionsVerboseResult)(c.sendCmd(ctx, cmd))
 }
 
 // SearchRawTransactionsVerbose returns a list of data structures that describe

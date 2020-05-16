@@ -62,14 +62,14 @@ func newNotificationState() *notificationState {
 	return &notificationState{}
 }
 
-// newNilFutureResult returns a new future result channel that already has the
-// result waiting on the channel with the reply set to nil.  This is useful
-// to ignore things such as notifications when the caller didn't specify any
-// notification handlers.
-func newNilFutureResult() chan *response {
+// newNilFutureResult returns a new future result that already has the result
+// waiting on the channel with the reply set to nil.  This is useful to ignore
+// things such as notifications when the caller didn't specify any notification
+// handlers.
+func newNilFutureResult(ctx context.Context) *cmdRes {
 	responseChan := make(chan *response, 1)
 	responseChan <- &response{result: nil, err: nil}
-	return responseChan
+	return &cmdRes{ctx: ctx, c: responseChan}
 }
 
 // NotificationHandlers defines callback function pointers to invoke with
@@ -823,23 +823,23 @@ func parseTxAcceptedVerboseNtfnParams(params []json.RawMessage) (*chainjson.TxRa
 
 // FutureNotifyBlocksResult is a future promise to deliver the result of a
 // NotifyBlocksAsync RPC invocation (or an applicable error).
-type FutureNotifyBlocksResult chan *response
+type FutureNotifyBlocksResult cmdRes
 
 // Receive waits for the response promised by the future and returns an error
 // if the registration was not successful.
-func (r FutureNotifyBlocksResult) Receive() error {
-	_, err := receiveFuture(r)
+func (r *FutureNotifyBlocksResult) Receive() error {
+	_, err := receiveFuture(r.ctx, r.c)
 	return err
 }
 
 // FutureNotifyWorkResult is a future promise to deliver the result of a
 // NotifyWorkAsync RPC invocation (or an applicable error).
-type FutureNotifyWorkResult chan *response
+type FutureNotifyWorkResult cmdRes
 
 // Receive waits for the response promised by the future and returns an error
 // if the registration was not successful.
-func (r FutureNotifyWorkResult) Receive() error {
-	_, err := receiveFuture(r)
+func (r *FutureNotifyWorkResult) Receive() error {
+	_, err := receiveFuture(r.ctx, r.c)
 	return err
 }
 
@@ -850,20 +850,20 @@ func (r FutureNotifyWorkResult) Receive() error {
 // See NotifyBlocks for the blocking version and more details.
 //
 // NOTE: This is a dcrd extension and requires a websocket connection.
-func (c *Client) NotifyBlocksAsync(ctx context.Context) FutureNotifyBlocksResult {
+func (c *Client) NotifyBlocksAsync(ctx context.Context) *FutureNotifyBlocksResult {
 	// Not supported in HTTP POST mode.
 	if c.config.HTTPPostMode {
-		return newFutureError(ErrWebsocketsRequired)
+		return (*FutureNotifyBlocksResult)(newFutureError(ctx, ErrWebsocketsRequired))
 	}
 
 	// Ignore the notification if the client is not interested in
 	// notifications.
 	if c.ntfnHandlers == nil {
-		return newNilFutureResult()
+		return (*FutureNotifyBlocksResult)(newNilFutureResult(ctx))
 	}
 
 	cmd := chainjson.NewNotifyBlocksCmd()
-	return c.sendCmd(ctx, cmd)
+	return (*FutureNotifyBlocksResult)(c.sendCmd(ctx, cmd))
 }
 
 // NotifyWorkAsync returns an instance of a type that can be used to get the
@@ -873,20 +873,20 @@ func (c *Client) NotifyBlocksAsync(ctx context.Context) FutureNotifyBlocksResult
 // See NotifyWork for the blocking version and more details.
 //
 // NOTE: This is a dcrd extension and requires a websocket connection.
-func (c *Client) NotifyWorkAsync(ctx context.Context) FutureNotifyWorkResult {
+func (c *Client) NotifyWorkAsync(ctx context.Context) *FutureNotifyWorkResult {
 	// Not supported in HTTP POST mode.
 	if c.config.HTTPPostMode {
-		return newFutureError(ErrWebsocketsRequired)
+		return (*FutureNotifyWorkResult)(newFutureError(ctx, ErrWebsocketsRequired))
 	}
 
 	// Ignore the notification if the client is not interested in
 	// notifications.
 	if c.ntfnHandlers == nil {
-		return newNilFutureResult()
+		return (*FutureNotifyWorkResult)(newNilFutureResult(ctx))
 	}
 
 	cmd := chainjson.NewNotifyWorkCmd()
-	return c.sendCmd(ctx, cmd)
+	return (*FutureNotifyWorkResult)(c.sendCmd(ctx, cmd))
 }
 
 // NotifyBlocks registers the client to receive notifications when blocks are
@@ -916,12 +916,12 @@ func (c *Client) NotifyWork(ctx context.Context) error {
 
 // FutureNotifyWinningTicketsResult is a future promise to deliver the result of a
 // NotifyWinningTicketsAsync RPC invocation (or an applicable error).
-type FutureNotifyWinningTicketsResult chan *response
+type FutureNotifyWinningTicketsResult cmdRes
 
 // Receive waits for the response promised by the future and returns an error
 // if the registration was not successful.
-func (r FutureNotifyWinningTicketsResult) Receive() error {
-	_, err := receiveFuture(r)
+func (r *FutureNotifyWinningTicketsResult) Receive() error {
+	_, err := receiveFuture(r.ctx, r.c)
 	return err
 }
 
@@ -932,21 +932,21 @@ func (r FutureNotifyWinningTicketsResult) Receive() error {
 // See NotifyWinningTickets for the blocking version and more details.
 //
 // NOTE: This is a dcrd extension and requires a websocket connection.
-func (c *Client) NotifyWinningTicketsAsync(ctx context.Context) FutureNotifyWinningTicketsResult {
+func (c *Client) NotifyWinningTicketsAsync(ctx context.Context) *FutureNotifyWinningTicketsResult {
 	// Not supported in HTTP POST mode.
 	if c.config.HTTPPostMode {
-		return newFutureError(ErrWebsocketsRequired)
+		return (*FutureNotifyWinningTicketsResult)(newFutureError(ctx, ErrWebsocketsRequired))
 	}
 
 	// Ignore the notification if the client is not interested in
 	// notifications.
 	if c.ntfnHandlers == nil {
-		return newNilFutureResult()
+		return (*FutureNotifyWinningTicketsResult)(newNilFutureResult(ctx))
 	}
 
 	cmd := chainjson.NewNotifyWinningTicketsCmd()
 
-	return c.sendCmd(ctx, cmd)
+	return (*FutureNotifyWinningTicketsResult)(c.sendCmd(ctx, cmd))
 }
 
 // NotifyWinningTickets registers the client to receive notifications when
@@ -966,12 +966,12 @@ func (c *Client) NotifyWinningTickets(ctx context.Context) error {
 
 // FutureNotifySpentAndMissedTicketsResult is a future promise to deliver the result of a
 // NotifySpentAndMissedTicketsAsync RPC invocation (or an applicable error).
-type FutureNotifySpentAndMissedTicketsResult chan *response
+type FutureNotifySpentAndMissedTicketsResult cmdRes
 
 // Receive waits for the response promised by the future and returns an error
 // if the registration was not successful.
-func (r FutureNotifySpentAndMissedTicketsResult) Receive() error {
-	_, err := receiveFuture(r)
+func (r *FutureNotifySpentAndMissedTicketsResult) Receive() error {
+	_, err := receiveFuture(r.ctx, r.c)
 	return err
 }
 
@@ -982,21 +982,21 @@ func (r FutureNotifySpentAndMissedTicketsResult) Receive() error {
 // See NotifySpentAndMissedTickets for the blocking version and more details.
 //
 // NOTE: This is a dcrd extension and requires a websocket connection.
-func (c *Client) NotifySpentAndMissedTicketsAsync(ctx context.Context) FutureNotifySpentAndMissedTicketsResult {
+func (c *Client) NotifySpentAndMissedTicketsAsync(ctx context.Context) *FutureNotifySpentAndMissedTicketsResult {
 	// Not supported in HTTP POST mode.
 	if c.config.HTTPPostMode {
-		return newFutureError(ErrWebsocketsRequired)
+		return (*FutureNotifySpentAndMissedTicketsResult)(newFutureError(ctx, ErrWebsocketsRequired))
 	}
 
 	// Ignore the notification if the client is not interested in
 	// notifications.
 	if c.ntfnHandlers == nil {
-		return newNilFutureResult()
+		return (*FutureNotifySpentAndMissedTicketsResult)(newNilFutureResult(ctx))
 	}
 
 	cmd := chainjson.NewNotifySpentAndMissedTicketsCmd()
 
-	return c.sendCmd(ctx, cmd)
+	return (*FutureNotifySpentAndMissedTicketsResult)(c.sendCmd(ctx, cmd))
 }
 
 // NotifySpentAndMissedTickets registers the client to receive notifications when
@@ -1016,12 +1016,12 @@ func (c *Client) NotifySpentAndMissedTickets(ctx context.Context) error {
 
 // FutureNotifyNewTicketsResult is a future promise to deliver the result of a
 // NotifyNewTicketsAsync RPC invocation (or an applicable error).
-type FutureNotifyNewTicketsResult chan *response
+type FutureNotifyNewTicketsResult cmdRes
 
 // Receive waits for the response promised by the future and returns an error
 // if the registration was not successful.
-func (r FutureNotifyNewTicketsResult) Receive() error {
-	_, err := receiveFuture(r)
+func (r *FutureNotifyNewTicketsResult) Receive() error {
+	_, err := receiveFuture(r.ctx, r.c)
 	return err
 }
 
@@ -1032,21 +1032,21 @@ func (r FutureNotifyNewTicketsResult) Receive() error {
 // See NotifyNewTickets for the blocking version and more details.
 //
 // NOTE: This is a dcrd extension and requires a websocket connection.
-func (c *Client) NotifyNewTicketsAsync(ctx context.Context) FutureNotifyNewTicketsResult {
+func (c *Client) NotifyNewTicketsAsync(ctx context.Context) *FutureNotifyNewTicketsResult {
 	// Not supported in HTTP POST mode.
 	if c.config.HTTPPostMode {
-		return newFutureError(ErrWebsocketsRequired)
+		return (*FutureNotifyNewTicketsResult)(newFutureError(ctx, ErrWebsocketsRequired))
 	}
 
 	// Ignore the notification if the client is not interested in
 	// notifications.
 	if c.ntfnHandlers == nil {
-		return newNilFutureResult()
+		return (*FutureNotifyNewTicketsResult)(newNilFutureResult(ctx))
 	}
 
 	cmd := chainjson.NewNotifyNewTicketsCmd()
 
-	return c.sendCmd(ctx, cmd)
+	return (*FutureNotifyNewTicketsResult)(c.sendCmd(ctx, cmd))
 }
 
 // NotifyNewTickets registers the client to receive notifications when blocks are
@@ -1064,12 +1064,12 @@ func (c *Client) NotifyNewTickets(ctx context.Context) error {
 
 // FutureNotifyStakeDifficultyResult is a future promise to deliver the result of a
 // NotifyStakeDifficultyAsync RPC invocation (or an applicable error).
-type FutureNotifyStakeDifficultyResult chan *response
+type FutureNotifyStakeDifficultyResult cmdRes
 
 // Receive waits for the response promised by the future and returns an error
 // if the registration was not successful.
-func (r FutureNotifyStakeDifficultyResult) Receive() error {
-	_, err := receiveFuture(r)
+func (r *FutureNotifyStakeDifficultyResult) Receive() error {
+	_, err := receiveFuture(r.ctx, r.c)
 	return err
 }
 
@@ -1080,21 +1080,21 @@ func (r FutureNotifyStakeDifficultyResult) Receive() error {
 // See NotifyStakeDifficulty for the blocking version and more details.
 //
 // NOTE: This is a dcrd extension and requires a websocket connection.
-func (c *Client) NotifyStakeDifficultyAsync(ctx context.Context) FutureNotifyStakeDifficultyResult {
+func (c *Client) NotifyStakeDifficultyAsync(ctx context.Context) *FutureNotifyStakeDifficultyResult {
 	// Not supported in HTTP POST mode.
 	if c.config.HTTPPostMode {
-		return newFutureError(ErrWebsocketsRequired)
+		return (*FutureNotifyStakeDifficultyResult)(newFutureError(ctx, ErrWebsocketsRequired))
 	}
 
 	// Ignore the notification if the client is not interested in
 	// notifications.
 	if c.ntfnHandlers == nil {
-		return newNilFutureResult()
+		return (*FutureNotifyStakeDifficultyResult)(newNilFutureResult(ctx))
 	}
 
 	cmd := chainjson.NewNotifyStakeDifficultyCmd()
 
-	return c.sendCmd(ctx, cmd)
+	return (*FutureNotifyStakeDifficultyResult)(c.sendCmd(ctx, cmd))
 }
 
 // NotifyStakeDifficulty registers the client to receive notifications when
@@ -1114,12 +1114,12 @@ func (c *Client) NotifyStakeDifficulty(ctx context.Context) error {
 
 // FutureNotifyNewTransactionsResult is a future promise to deliver the result
 // of a NotifyNewTransactionsAsync RPC invocation (or an applicable error).
-type FutureNotifyNewTransactionsResult chan *response
+type FutureNotifyNewTransactionsResult cmdRes
 
 // Receive waits for the response promised by the future and returns an error
 // if the registration was not successful.
-func (r FutureNotifyNewTransactionsResult) Receive() error {
-	_, err := receiveFuture(r)
+func (r *FutureNotifyNewTransactionsResult) Receive() error {
+	_, err := receiveFuture(r.ctx, r.c)
 	return err
 }
 
@@ -1130,20 +1130,20 @@ func (r FutureNotifyNewTransactionsResult) Receive() error {
 // See NotifyNewTransactionsAsync for the blocking version and more details.
 //
 // NOTE: This is a dcrd extension and requires a websocket connection.
-func (c *Client) NotifyNewTransactionsAsync(ctx context.Context, verbose bool) FutureNotifyNewTransactionsResult {
+func (c *Client) NotifyNewTransactionsAsync(ctx context.Context, verbose bool) *FutureNotifyNewTransactionsResult {
 	// Not supported in HTTP POST mode.
 	if c.config.HTTPPostMode {
-		return newFutureError(ErrWebsocketsRequired)
+		return (*FutureNotifyNewTransactionsResult)(newFutureError(ctx, ErrWebsocketsRequired))
 	}
 
 	// Ignore the notification if the client is not interested in
 	// notifications.
 	if c.ntfnHandlers == nil {
-		return newNilFutureResult()
+		return (*FutureNotifyNewTransactionsResult)(newNilFutureResult(ctx))
 	}
 
 	cmd := chainjson.NewNotifyNewTransactionsCmd(&verbose)
-	return c.sendCmd(ctx, cmd)
+	return (*FutureNotifyNewTransactionsResult)(c.sendCmd(ctx, cmd))
 }
 
 // NotifyNewTransactions registers the client to receive notifications every
@@ -1163,12 +1163,12 @@ func (c *Client) NotifyNewTransactions(ctx context.Context, verbose bool) error 
 
 // FutureLoadTxFilterResult is a future promise to deliver the result
 // of a LoadTxFilterAsync RPC invocation (or an applicable error).
-type FutureLoadTxFilterResult chan *response
+type FutureLoadTxFilterResult cmdRes
 
 // Receive waits for the response promised by the future and returns an error
 // if the registration was not successful.
-func (r FutureLoadTxFilterResult) Receive() error {
-	_, err := receiveFuture(r)
+func (r *FutureLoadTxFilterResult) Receive() error {
+	_, err := receiveFuture(r.ctx, r.c)
 	return err
 }
 
@@ -1180,7 +1180,7 @@ func (r FutureLoadTxFilterResult) Receive() error {
 //
 // NOTE: This is a dcrd extension and requires a websocket connection.
 func (c *Client) LoadTxFilterAsync(ctx context.Context, reload bool, addresses []dcrutil.Address,
-	outPoints []wire.OutPoint) FutureLoadTxFilterResult {
+	outPoints []wire.OutPoint) *FutureLoadTxFilterResult {
 
 	addrStrs := make([]string, len(addresses))
 	for i, a := range addresses {
@@ -1196,7 +1196,7 @@ func (c *Client) LoadTxFilterAsync(ctx context.Context, reload bool, addresses [
 	}
 
 	cmd := chainjson.NewLoadTxFilterCmd(reload, addrStrs, outPointObjects)
-	return c.sendCmd(ctx, cmd)
+	return (*FutureLoadTxFilterResult)(c.sendCmd(ctx, cmd))
 }
 
 // LoadTxFilter loads, reloads, or adds data to a websocket client's transaction
