@@ -22,13 +22,13 @@ var (
 
 // FutureDebugLevelResult is a future promise to deliver the result of a
 // DebugLevelAsync RPC invocation (or an applicable error).
-type FutureDebugLevelResult chan *response
+type FutureDebugLevelResult cmdRes
 
 // Receive waits for the response promised by the future and returns the result
 // of setting the debug logging level to the passed level specification or the
 // list of the available subsystems for the special keyword 'show'.
-func (r FutureDebugLevelResult) Receive() (string, error) {
-	res, err := receiveFuture(r)
+func (r *FutureDebugLevelResult) Receive() (string, error) {
+	res, err := receiveFuture(r.ctx, r.c)
 	if err != nil {
 		return "", err
 	}
@@ -49,9 +49,9 @@ func (r FutureDebugLevelResult) Receive() (string, error) {
 // See DebugLevel for the blocking version and more details.
 //
 // NOTE: This is a dcrd extension.
-func (c *Client) DebugLevelAsync(ctx context.Context, levelSpec string) FutureDebugLevelResult {
+func (c *Client) DebugLevelAsync(ctx context.Context, levelSpec string) *FutureDebugLevelResult {
 	cmd := chainjson.NewDebugLevelCmd(levelSpec)
-	return c.sendCmd(ctx, cmd)
+	return (*FutureDebugLevelResult)(c.sendCmd(ctx, cmd))
 }
 
 // DebugLevel dynamically sets the debug logging level to the passed level
@@ -70,12 +70,12 @@ func (c *Client) DebugLevel(ctx context.Context, levelSpec string) (string, erro
 
 // FutureEstimateStakeDiffResult is a future promise to deliver the result of a
 // EstimateStakeDiffAsync RPC invocation (or an applicable error).
-type FutureEstimateStakeDiffResult chan *response
+type FutureEstimateStakeDiffResult cmdRes
 
 // Receive waits for the response promised by the future and returns the hash
 // and height of the block in the longest (best) chain.
-func (r FutureEstimateStakeDiffResult) Receive() (*chainjson.EstimateStakeDiffResult, error) {
-	res, err := receiveFuture(r)
+func (r *FutureEstimateStakeDiffResult) Receive() (*chainjson.EstimateStakeDiffResult, error) {
+	res, err := receiveFuture(r.ctx, r.c)
 	if err != nil {
 		return nil, err
 	}
@@ -97,9 +97,9 @@ func (r FutureEstimateStakeDiffResult) Receive() (*chainjson.EstimateStakeDiffRe
 // See EstimateStakeDiff for the blocking version and more details.
 //
 // NOTE: This is a dcrd extension.
-func (c *Client) EstimateStakeDiffAsync(ctx context.Context, tickets *uint32) FutureEstimateStakeDiffResult {
+func (c *Client) EstimateStakeDiffAsync(ctx context.Context, tickets *uint32) *FutureEstimateStakeDiffResult {
 	cmd := chainjson.NewEstimateStakeDiffCmd(tickets)
-	return c.sendCmd(ctx, cmd)
+	return (*FutureEstimateStakeDiffResult)(c.sendCmd(ctx, cmd))
 }
 
 // EstimateStakeDiff returns the minimum, maximum, and expected next stake
@@ -112,12 +112,12 @@ func (c *Client) EstimateStakeDiff(ctx context.Context, tickets *uint32) (*chain
 
 // FutureExistsAddressResult is a future promise to deliver the result
 // of a FutureExistsAddressResultAsync RPC invocation (or an applicable error).
-type FutureExistsAddressResult chan *response
+type FutureExistsAddressResult cmdRes
 
 // Receive waits for the response promised by the future and returns whether or
 // not an address exists in the blockchain or mempool.
-func (r FutureExistsAddressResult) Receive() (bool, error) {
-	res, err := receiveFuture(r)
+func (r *FutureExistsAddressResult) Receive() (bool, error) {
+	res, err := receiveFuture(r.ctx, r.c)
 	if err != nil {
 		return false, err
 	}
@@ -134,9 +134,9 @@ func (r FutureExistsAddressResult) Receive() (bool, error) {
 // ExistsAddressAsync returns an instance of a type that can be used to get the
 // result of the RPC at some future time by invoking the Receive function on the
 // returned instance.
-func (c *Client) ExistsAddressAsync(ctx context.Context, address dcrutil.Address) FutureExistsAddressResult {
+func (c *Client) ExistsAddressAsync(ctx context.Context, address dcrutil.Address) *FutureExistsAddressResult {
 	cmd := chainjson.NewExistsAddressCmd(address.Address())
-	return c.sendCmd(ctx, cmd)
+	return (*FutureExistsAddressResult)(c.sendCmd(ctx, cmd))
 }
 
 // ExistsAddress returns information about whether or not an address has been
@@ -150,12 +150,12 @@ func (c *Client) ExistsAddress(ctx context.Context, address dcrutil.Address) (bo
 // FutureExistsAddressesResult is a future promise to deliver the result
 // of a FutureExistsAddressesResultAsync RPC invocation (or an
 // applicable error).
-type FutureExistsAddressesResult chan *response
+type FutureExistsAddressesResult cmdRes
 
 // Receive waits for the response promised by the future and returns whether
 // or not the addresses exist.
-func (r FutureExistsAddressesResult) Receive() (string, error) {
-	res, err := receiveFuture(r)
+func (r *FutureExistsAddressesResult) Receive() (string, error) {
+	res, err := receiveFuture(r.ctx, r.c)
 	if err != nil {
 		return "", err
 	}
@@ -172,14 +172,14 @@ func (r FutureExistsAddressesResult) Receive() (string, error) {
 // ExistsAddressesAsync returns an instance of a type that can be used to get the
 // result of the RPC at some future time by invoking the Receive function on the
 // returned instance.
-func (c *Client) ExistsAddressesAsync(ctx context.Context, addresses []dcrutil.Address) FutureExistsAddressesResult {
+func (c *Client) ExistsAddressesAsync(ctx context.Context, addresses []dcrutil.Address) *FutureExistsAddressesResult {
 	addrsStr := make([]string, len(addresses))
 	for i := range addresses {
 		addrsStr[i] = addresses[i].Address()
 	}
 
 	cmd := chainjson.NewExistsAddressesCmd(addrsStr)
-	return c.sendCmd(ctx, cmd)
+	return (*FutureExistsAddressesResult)(c.sendCmd(ctx, cmd))
 }
 
 // ExistsAddresses returns information about whether or not an address exists
@@ -192,12 +192,12 @@ func (c *Client) ExistsAddresses(ctx context.Context, addresses []dcrutil.Addres
 
 // FutureExistsMissedTicketsResult is a future promise to deliver the result of
 // an ExistsMissedTicketsAsync RPC invocation (or an applicable error).
-type FutureExistsMissedTicketsResult chan *response
+type FutureExistsMissedTicketsResult cmdRes
 
 // Receive waits for the response promised by the future and returns whether
 // or not the ticket exists in the missed ticket database.
-func (r FutureExistsMissedTicketsResult) Receive() (string, error) {
-	res, err := receiveFuture(r)
+func (r *FutureExistsMissedTicketsResult) Receive() (string, error) {
+	res, err := receiveFuture(r.ctx, r.c)
 	if err != nil {
 		return "", err
 	}
@@ -214,13 +214,13 @@ func (r FutureExistsMissedTicketsResult) Receive() (string, error) {
 // ExistsMissedTicketsAsync returns an instance of a type that can be used to
 // get the result of the RPC at some future time by invoking the Receive
 // function on the returned instance.
-func (c *Client) ExistsMissedTicketsAsync(ctx context.Context, hashes []*chainhash.Hash) FutureExistsMissedTicketsResult {
+func (c *Client) ExistsMissedTicketsAsync(ctx context.Context, hashes []*chainhash.Hash) *FutureExistsMissedTicketsResult {
 	strHashes := make([]string, len(hashes))
 	for i := range hashes {
 		strHashes[i] = hashes[i].String()
 	}
 	cmd := chainjson.NewExistsMissedTicketsCmd(strHashes)
-	return c.sendCmd(ctx, cmd)
+	return (*FutureExistsMissedTicketsResult)(c.sendCmd(ctx, cmd))
 }
 
 // ExistsMissedTickets returns a hex-encoded bitset describing whether or not
@@ -232,12 +232,12 @@ func (c *Client) ExistsMissedTickets(ctx context.Context, hashes []*chainhash.Ha
 // FutureExistsExpiredTicketsResult is a future promise to deliver the result
 // of a FutureExistsExpiredTicketsResultAsync RPC invocation (or an
 // applicable error).
-type FutureExistsExpiredTicketsResult chan *response
+type FutureExistsExpiredTicketsResult cmdRes
 
 // Receive waits for the response promised by the future and returns whether
 // or not the ticket exists in the live ticket database.
-func (r FutureExistsExpiredTicketsResult) Receive() (string, error) {
-	res, err := receiveFuture(r)
+func (r *FutureExistsExpiredTicketsResult) Receive() (string, error) {
+	res, err := receiveFuture(r.ctx, r.c)
 	if err != nil {
 		return "", err
 	}
@@ -254,13 +254,13 @@ func (r FutureExistsExpiredTicketsResult) Receive() (string, error) {
 // ExistsExpiredTicketsAsync returns an instance of a type that can be used to get the
 // result of the RPC at some future time by invoking the Receive function on the
 // returned instance.
-func (c *Client) ExistsExpiredTicketsAsync(ctx context.Context, hashes []*chainhash.Hash) FutureExistsExpiredTicketsResult {
+func (c *Client) ExistsExpiredTicketsAsync(ctx context.Context, hashes []*chainhash.Hash) *FutureExistsExpiredTicketsResult {
 	strHashes := make([]string, len(hashes))
 	for i := range hashes {
 		strHashes[i] = hashes[i].String()
 	}
 	cmd := chainjson.NewExistsExpiredTicketsCmd(strHashes)
-	return c.sendCmd(ctx, cmd)
+	return (*FutureExistsExpiredTicketsResult)(c.sendCmd(ctx, cmd))
 }
 
 // ExistsExpiredTickets returns information about whether or not a ticket hash exists
@@ -274,12 +274,12 @@ func (c *Client) ExistsExpiredTickets(ctx context.Context, hashes []*chainhash.H
 // FutureExistsLiveTicketResult is a future promise to deliver the result
 // of a FutureExistsLiveTicketResultAsync RPC invocation (or an
 // applicable error).
-type FutureExistsLiveTicketResult chan *response
+type FutureExistsLiveTicketResult cmdRes
 
 // Receive waits for the response promised by the future and returns whether
 // or not the ticket exists in the live ticket database.
-func (r FutureExistsLiveTicketResult) Receive() (bool, error) {
-	res, err := receiveFuture(r)
+func (r *FutureExistsLiveTicketResult) Receive() (bool, error) {
+	res, err := receiveFuture(r.ctx, r.c)
 	if err != nil {
 		return false, err
 	}
@@ -296,9 +296,9 @@ func (r FutureExistsLiveTicketResult) Receive() (bool, error) {
 // ExistsLiveTicketAsync returns an instance of a type that can be used to get the
 // result of the RPC at some future time by invoking the Receive function on the
 // returned instance.
-func (c *Client) ExistsLiveTicketAsync(ctx context.Context, hash *chainhash.Hash) FutureExistsLiveTicketResult {
+func (c *Client) ExistsLiveTicketAsync(ctx context.Context, hash *chainhash.Hash) *FutureExistsLiveTicketResult {
 	cmd := chainjson.NewExistsLiveTicketCmd(hash.String())
-	return c.sendCmd(ctx, cmd)
+	return (*FutureExistsLiveTicketResult)(c.sendCmd(ctx, cmd))
 }
 
 // ExistsLiveTicket returns information about whether or not a ticket hash exists
@@ -312,12 +312,12 @@ func (c *Client) ExistsLiveTicket(ctx context.Context, hash *chainhash.Hash) (bo
 // FutureExistsLiveTicketsResult is a future promise to deliver the result
 // of a FutureExistsLiveTicketsResultAsync RPC invocation (or an
 // applicable error).
-type FutureExistsLiveTicketsResult chan *response
+type FutureExistsLiveTicketsResult cmdRes
 
 // Receive waits for the response promised by the future and returns whether
 // or not the ticket exists in the live ticket database.
-func (r FutureExistsLiveTicketsResult) Receive() (string, error) {
-	res, err := receiveFuture(r)
+func (r *FutureExistsLiveTicketsResult) Receive() (string, error) {
+	res, err := receiveFuture(r.ctx, r.c)
 	if err != nil {
 		return "", err
 	}
@@ -334,13 +334,13 @@ func (r FutureExistsLiveTicketsResult) Receive() (string, error) {
 // ExistsLiveTicketsAsync returns an instance of a type that can be used to get the
 // result of the RPC at some future time by invoking the Receive function on the
 // returned instance.
-func (c *Client) ExistsLiveTicketsAsync(ctx context.Context, hashes []*chainhash.Hash) FutureExistsLiveTicketsResult {
+func (c *Client) ExistsLiveTicketsAsync(ctx context.Context, hashes []*chainhash.Hash) *FutureExistsLiveTicketsResult {
 	strHashes := make([]string, len(hashes))
 	for i := range hashes {
 		strHashes[i] = hashes[i].String()
 	}
 	cmd := chainjson.NewExistsLiveTicketsCmd(strHashes)
-	return c.sendCmd(ctx, cmd)
+	return (*FutureExistsLiveTicketsResult)(c.sendCmd(ctx, cmd))
 }
 
 // ExistsLiveTickets returns information about whether or not a ticket hash exists
@@ -354,12 +354,12 @@ func (c *Client) ExistsLiveTickets(ctx context.Context, hashes []*chainhash.Hash
 // FutureExistsMempoolTxsResult is a future promise to deliver the result
 // of a FutureExistsMempoolTxsResultAsync RPC invocation (or an
 // applicable error).
-type FutureExistsMempoolTxsResult chan *response
+type FutureExistsMempoolTxsResult cmdRes
 
 // Receive waits for the response promised by the future and returns whether
 // or not the ticket exists in the mempool.
-func (r FutureExistsMempoolTxsResult) Receive() (string, error) {
-	res, err := receiveFuture(r)
+func (r *FutureExistsMempoolTxsResult) Receive() (string, error) {
+	res, err := receiveFuture(r.ctx, r.c)
 	if err != nil {
 		return "", err
 	}
@@ -376,13 +376,13 @@ func (r FutureExistsMempoolTxsResult) Receive() (string, error) {
 // ExistsMempoolTxsAsync returns an instance of a type that can be used to get the
 // result of the RPC at some future time by invoking the Receive function on the
 // returned instance.
-func (c *Client) ExistsMempoolTxsAsync(ctx context.Context, hashes []*chainhash.Hash) FutureExistsMempoolTxsResult {
+func (c *Client) ExistsMempoolTxsAsync(ctx context.Context, hashes []*chainhash.Hash) *FutureExistsMempoolTxsResult {
 	strHashes := make([]string, len(hashes))
 	for i := range hashes {
 		strHashes[i] = hashes[i].String()
 	}
 	cmd := chainjson.NewExistsMempoolTxsCmd(strHashes)
-	return c.sendCmd(ctx, cmd)
+	return (*FutureExistsMempoolTxsResult)(c.sendCmd(ctx, cmd))
 }
 
 // ExistsMempoolTxs returns information about whether or not a ticket hash exists
@@ -395,12 +395,12 @@ func (c *Client) ExistsMempoolTxs(ctx context.Context, hashes []*chainhash.Hash)
 
 // FutureGetBestBlockResult is a future promise to deliver the result of a
 // GetBestBlockAsync RPC invocation (or an applicable error).
-type FutureGetBestBlockResult chan *response
+type FutureGetBestBlockResult cmdRes
 
 // Receive waits for the response promised by the future and returns the hash
 // and height of the block in the longest (best) chain.
-func (r FutureGetBestBlockResult) Receive() (*chainhash.Hash, int64, error) {
-	res, err := receiveFuture(r)
+func (r *FutureGetBestBlockResult) Receive() (*chainhash.Hash, int64, error) {
+	res, err := receiveFuture(r.ctx, r.c)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -428,9 +428,9 @@ func (r FutureGetBestBlockResult) Receive() (*chainhash.Hash, int64, error) {
 // See GetBestBlock for the blocking version and more details.
 //
 // NOTE: This is a dcrd extension.
-func (c *Client) GetBestBlockAsync(ctx context.Context) FutureGetBestBlockResult {
+func (c *Client) GetBestBlockAsync(ctx context.Context) *FutureGetBestBlockResult {
 	cmd := chainjson.NewGetBestBlockCmd()
-	return c.sendCmd(ctx, cmd)
+	return (*FutureGetBestBlockResult)(c.sendCmd(ctx, cmd))
 }
 
 // GetBestBlock returns the hash and height of the block in the longest (best)
@@ -443,12 +443,12 @@ func (c *Client) GetBestBlock(ctx context.Context) (*chainhash.Hash, int64, erro
 
 // FutureGetCurrentNetResult is a future promise to deliver the result of a
 // GetCurrentNetAsync RPC invocation (or an applicable error).
-type FutureGetCurrentNetResult chan *response
+type FutureGetCurrentNetResult cmdRes
 
 // Receive waits for the response promised by the future and returns the network
 // the server is running on.
-func (r FutureGetCurrentNetResult) Receive() (wire.CurrencyNet, error) {
-	res, err := receiveFuture(r)
+func (r *FutureGetCurrentNetResult) Receive() (wire.CurrencyNet, error) {
+	res, err := receiveFuture(r.ctx, r.c)
 	if err != nil {
 		return 0, err
 	}
@@ -470,9 +470,9 @@ func (r FutureGetCurrentNetResult) Receive() (wire.CurrencyNet, error) {
 // See GetCurrentNet for the blocking version and more details.
 //
 // NOTE: This is a dcrd extension.
-func (c *Client) GetCurrentNetAsync(ctx context.Context) FutureGetCurrentNetResult {
+func (c *Client) GetCurrentNetAsync(ctx context.Context) *FutureGetCurrentNetResult {
 	cmd := chainjson.NewGetCurrentNetCmd()
-	return c.sendCmd(ctx, cmd)
+	return (*FutureGetCurrentNetResult)(c.sendCmd(ctx, cmd))
 }
 
 // GetCurrentNet returns the network the server is running on.
@@ -484,12 +484,12 @@ func (c *Client) GetCurrentNet(ctx context.Context) (wire.CurrencyNet, error) {
 
 // FutureGetHeadersResult is a future promise to deliver the result of a
 // getheaders RPC invocation (or an applicable error).
-type FutureGetHeadersResult chan *response
+type FutureGetHeadersResult cmdRes
 
 // Receive waits for the response promised by the future and returns the
 // getheaders result.
-func (r FutureGetHeadersResult) Receive() (*chainjson.GetHeadersResult, error) {
-	res, err := receiveFuture(r)
+func (r *FutureGetHeadersResult) Receive() (*chainjson.GetHeadersResult, error) {
+	res, err := receiveFuture(r.ctx, r.c)
 	if err != nil {
 		return nil, err
 	}
@@ -508,7 +508,7 @@ func (r FutureGetHeadersResult) Receive() (*chainjson.GetHeadersResult, error) {
 // of the RPC at some future time by invoking the Receive function on the returned instance.
 //
 // See GetHeaders for the blocking version and more details.
-func (c *Client) GetHeadersAsync(ctx context.Context, blockLocators []*chainhash.Hash, hashStop *chainhash.Hash) FutureGetHeadersResult {
+func (c *Client) GetHeadersAsync(ctx context.Context, blockLocators []*chainhash.Hash, hashStop *chainhash.Hash) *FutureGetHeadersResult {
 	locators := make([]string, len(blockLocators))
 	for i := range blockLocators {
 		locators[i] = blockLocators[i].String()
@@ -520,7 +520,7 @@ func (c *Client) GetHeadersAsync(ctx context.Context, blockLocators []*chainhash
 	}
 
 	cmd := chainjson.NewGetHeadersCmd(locators, hashStopString)
-	return c.sendCmd(ctx, cmd)
+	return (*FutureGetHeadersResult)(c.sendCmd(ctx, cmd))
 }
 
 // GetHeaders mimics the wire protocol getheaders and headers messages by
@@ -532,12 +532,12 @@ func (c *Client) GetHeaders(ctx context.Context, blockLocators []*chainhash.Hash
 
 // FutureGetStakeDifficultyResult is a future promise to deliver the result of a
 // GetStakeDifficultyAsync RPC invocation (or an applicable error).
-type FutureGetStakeDifficultyResult chan *response
+type FutureGetStakeDifficultyResult cmdRes
 
 // Receive waits for the response promised by the future and returns the network
 // the server is running on.
-func (r FutureGetStakeDifficultyResult) Receive() (*chainjson.GetStakeDifficultyResult, error) {
-	res, err := receiveFuture(r)
+func (r *FutureGetStakeDifficultyResult) Receive() (*chainjson.GetStakeDifficultyResult, error) {
+	res, err := receiveFuture(r.ctx, r.c)
 	if err != nil {
 		return nil, err
 	}
@@ -559,9 +559,9 @@ func (r FutureGetStakeDifficultyResult) Receive() (*chainjson.GetStakeDifficulty
 // See GetStakeDifficulty for the blocking version and more details.
 //
 // NOTE: This is a dcrd extension.
-func (c *Client) GetStakeDifficultyAsync(ctx context.Context) FutureGetStakeDifficultyResult {
+func (c *Client) GetStakeDifficultyAsync(ctx context.Context) *FutureGetStakeDifficultyResult {
 	cmd := chainjson.NewGetStakeDifficultyCmd()
-	return c.sendCmd(ctx, cmd)
+	return (*FutureGetStakeDifficultyResult)(c.sendCmd(ctx, cmd))
 }
 
 // GetStakeDifficulty returns the current and next stake difficulty.
@@ -573,12 +573,12 @@ func (c *Client) GetStakeDifficulty(ctx context.Context) (*chainjson.GetStakeDif
 
 // FutureGetStakeVersionsResult is a future promise to deliver the result of a
 // GetStakeVersionsAsync RPC invocation (or an applicable error).
-type FutureGetStakeVersionsResult chan *response
+type FutureGetStakeVersionsResult cmdRes
 
 // Receive waits for the response promised by the future and returns the network
 // the server is running on.
-func (r FutureGetStakeVersionsResult) Receive() (*chainjson.GetStakeVersionsResult, error) {
-	res, err := receiveFuture(r)
+func (r *FutureGetStakeVersionsResult) Receive() (*chainjson.GetStakeVersionsResult, error) {
+	res, err := receiveFuture(r.ctx, r.c)
 	if err != nil {
 		return nil, err
 	}
@@ -600,9 +600,9 @@ func (r FutureGetStakeVersionsResult) Receive() (*chainjson.GetStakeVersionsResu
 // See GetStakeVersionInfo for the blocking version and more details.
 //
 // NOTE: This is a dcrd extension.
-func (c *Client) GetStakeVersionInfoAsync(ctx context.Context, count int32) FutureGetStakeVersionInfoResult {
+func (c *Client) GetStakeVersionInfoAsync(ctx context.Context, count int32) *FutureGetStakeVersionInfoResult {
 	cmd := chainjson.NewGetStakeVersionInfoCmd(count)
-	return c.sendCmd(ctx, cmd)
+	return (*FutureGetStakeVersionInfoResult)(c.sendCmd(ctx, cmd))
 }
 
 // GetStakeVersionInfo returns the stake versions results for past requested intervals (count).
@@ -614,12 +614,12 @@ func (c *Client) GetStakeVersionInfo(ctx context.Context, count int32) (*chainjs
 
 // FutureGetStakeVersionInfoResult is a future promise to deliver the result of a
 // GetStakeVersionInfoAsync RPC invocation (or an applicable error).
-type FutureGetStakeVersionInfoResult chan *response
+type FutureGetStakeVersionInfoResult cmdRes
 
 // Receive waits for the response promised by the future and returns the network
 // the server is running on.
-func (r FutureGetStakeVersionInfoResult) Receive() (*chainjson.GetStakeVersionInfoResult, error) {
-	res, err := receiveFuture(r)
+func (r *FutureGetStakeVersionInfoResult) Receive() (*chainjson.GetStakeVersionInfoResult, error) {
+	res, err := receiveFuture(r.ctx, r.c)
 	if err != nil {
 		return nil, err
 	}
@@ -641,9 +641,9 @@ func (r FutureGetStakeVersionInfoResult) Receive() (*chainjson.GetStakeVersionIn
 // See GetStakeVersions for the blocking version and more details.
 //
 // NOTE: This is a dcrd extension.
-func (c *Client) GetStakeVersionsAsync(ctx context.Context, hash string, count int32) FutureGetStakeVersionsResult {
+func (c *Client) GetStakeVersionsAsync(ctx context.Context, hash string, count int32) *FutureGetStakeVersionsResult {
 	cmd := chainjson.NewGetStakeVersionsCmd(hash, count)
-	return c.sendCmd(ctx, cmd)
+	return (*FutureGetStakeVersionsResult)(c.sendCmd(ctx, cmd))
 }
 
 // GetStakeVersions returns the stake versions and vote versions of past requested blocks.
@@ -655,12 +655,12 @@ func (c *Client) GetStakeVersions(ctx context.Context, hash string, count int32)
 
 // FutureGetTicketPoolValueResult is a future promise to deliver the result of a
 // GetTicketPoolValueAsync RPC invocation (or an applicable error).
-type FutureGetTicketPoolValueResult chan *response
+type FutureGetTicketPoolValueResult cmdRes
 
 // Receive waits for the response promised by the future and returns the network
 // the server is running on.
-func (r FutureGetTicketPoolValueResult) Receive() (dcrutil.Amount, error) {
-	res, err := receiveFuture(r)
+func (r *FutureGetTicketPoolValueResult) Receive() (dcrutil.Amount, error) {
+	res, err := receiveFuture(r.ctx, r.c)
 	if err != nil {
 		return 0, err
 	}
@@ -688,9 +688,9 @@ func (r FutureGetTicketPoolValueResult) Receive() (dcrutil.Amount, error) {
 // See GetTicketPoolValue for the blocking version and more details.
 //
 // NOTE: This is a dcrd extension.
-func (c *Client) GetTicketPoolValueAsync(ctx context.Context) FutureGetTicketPoolValueResult {
+func (c *Client) GetTicketPoolValueAsync(ctx context.Context) *FutureGetTicketPoolValueResult {
 	cmd := chainjson.NewGetTicketPoolValueCmd()
-	return c.sendCmd(ctx, cmd)
+	return (*FutureGetTicketPoolValueResult)(c.sendCmd(ctx, cmd))
 }
 
 // GetTicketPoolValue returns the value of the live ticket pool.
@@ -702,12 +702,12 @@ func (c *Client) GetTicketPoolValue(ctx context.Context) (dcrutil.Amount, error)
 
 // FutureGetVoteInfoResult is a future promise to deliver the result of a
 // GetVoteInfoAsync RPC invocation (or an applicable error).
-type FutureGetVoteInfoResult chan *response
+type FutureGetVoteInfoResult cmdRes
 
 // Receive waits for the response promised by the future and returns the network
 // the server is running on.
-func (r FutureGetVoteInfoResult) Receive() (*chainjson.GetVoteInfoResult, error) {
-	res, err := receiveFuture(r)
+func (r *FutureGetVoteInfoResult) Receive() (*chainjson.GetVoteInfoResult, error) {
+	res, err := receiveFuture(r.ctx, r.c)
 	if err != nil {
 		return nil, err
 	}
@@ -729,9 +729,9 @@ func (r FutureGetVoteInfoResult) Receive() (*chainjson.GetVoteInfoResult, error)
 // See GetVoteInfo for the blocking version and more details.
 //
 // NOTE: This is a dcrd extension.
-func (c *Client) GetVoteInfoAsync(ctx context.Context, version uint32) FutureGetVoteInfoResult {
+func (c *Client) GetVoteInfoAsync(ctx context.Context, version uint32) *FutureGetVoteInfoResult {
 	cmd := chainjson.NewGetVoteInfoCmd(version)
-	return c.sendCmd(ctx, cmd)
+	return (*FutureGetVoteInfoResult)(c.sendCmd(ctx, cmd))
 }
 
 // GetVoteInfo returns voting information for the specified stake version. This
@@ -744,12 +744,12 @@ func (c *Client) GetVoteInfo(ctx context.Context, version uint32) (*chainjson.Ge
 
 // FutureLiveTicketsResult is a future promise to deliver the result
 // of a FutureLiveTicketsResultAsync RPC invocation (or an applicable error).
-type FutureLiveTicketsResult chan *response
+type FutureLiveTicketsResult cmdRes
 
 // Receive waits for the response promised by the future and returns all
 // currently missed tickets from the missed ticket database.
-func (r FutureLiveTicketsResult) Receive() ([]*chainhash.Hash, error) {
-	res, err := receiveFuture(r)
+func (r *FutureLiveTicketsResult) Receive() ([]*chainhash.Hash, error) {
+	res, err := receiveFuture(r.ctx, r.c)
 	if err != nil {
 		return nil, err
 	}
@@ -776,9 +776,9 @@ func (r FutureLiveTicketsResult) Receive() ([]*chainhash.Hash, error) {
 // LiveTicketsAsync returns an instance of a type that can be used to get the
 // result of the RPC at some future time by invoking the Receive function on the
 // returned instance.
-func (c *Client) LiveTicketsAsync(ctx context.Context) FutureLiveTicketsResult {
+func (c *Client) LiveTicketsAsync(ctx context.Context) *FutureLiveTicketsResult {
 	cmd := chainjson.NewLiveTicketsCmd()
-	return c.sendCmd(ctx, cmd)
+	return (*FutureLiveTicketsResult)(c.sendCmd(ctx, cmd))
 }
 
 // LiveTickets returns all currently missed tickets from the missed
@@ -791,12 +791,12 @@ func (c *Client) LiveTickets(ctx context.Context) ([]*chainhash.Hash, error) {
 
 // FutureMissedTicketsResult is a future promise to deliver the result
 // of a FutureMissedTicketsResultAsync RPC invocation (or an applicable error).
-type FutureMissedTicketsResult chan *response
+type FutureMissedTicketsResult cmdRes
 
 // Receive waits for the response promised by the future and returns all
 // currently missed tickets from the missed ticket database.
-func (r FutureMissedTicketsResult) Receive() ([]*chainhash.Hash, error) {
-	res, err := receiveFuture(r)
+func (r *FutureMissedTicketsResult) Receive() ([]*chainhash.Hash, error) {
+	res, err := receiveFuture(r.ctx, r.c)
 	if err != nil {
 		return nil, err
 	}
@@ -823,9 +823,9 @@ func (r FutureMissedTicketsResult) Receive() ([]*chainhash.Hash, error) {
 // MissedTicketsAsync returns an instance of a type that can be used to get the
 // result of the RPC at some future time by invoking the Receive function on the
 // returned instance.
-func (c *Client) MissedTicketsAsync(ctx context.Context) FutureMissedTicketsResult {
+func (c *Client) MissedTicketsAsync(ctx context.Context) *FutureMissedTicketsResult {
 	cmd := chainjson.NewMissedTicketsCmd()
-	return c.sendCmd(ctx, cmd)
+	return (*FutureMissedTicketsResult)(c.sendCmd(ctx, cmd))
 }
 
 // MissedTickets returns all currently missed tickets from the missed
@@ -838,12 +838,12 @@ func (c *Client) MissedTickets(ctx context.Context) ([]*chainhash.Hash, error) {
 
 // FutureSessionResult is a future promise to deliver the result of a
 // SessionAsync RPC invocation (or an applicable error).
-type FutureSessionResult chan *response
+type FutureSessionResult cmdRes
 
 // Receive waits for the response promised by the future and returns the
 // session result.
-func (r FutureSessionResult) Receive() (*chainjson.SessionResult, error) {
-	res, err := receiveFuture(r)
+func (r *FutureSessionResult) Receive() (*chainjson.SessionResult, error) {
+	res, err := receiveFuture(r.ctx, r.c)
 	if err != nil {
 		return nil, err
 	}
@@ -865,14 +865,14 @@ func (r FutureSessionResult) Receive() (*chainjson.SessionResult, error) {
 // See Session for the blocking version and more details.
 //
 // NOTE: This is a Decred extension.
-func (c *Client) SessionAsync(ctx context.Context) FutureSessionResult {
+func (c *Client) SessionAsync(ctx context.Context) *FutureSessionResult {
 	// Not supported in HTTP POST mode.
 	if c.config.HTTPPostMode {
-		return newFutureError(ErrWebsocketsRequired)
+		return (*FutureSessionResult)(newFutureError(ctx, ErrWebsocketsRequired))
 	}
 
 	cmd := chainjson.NewSessionCmd()
-	return c.sendCmd(ctx, cmd)
+	return (*FutureSessionResult)(c.sendCmd(ctx, cmd))
 }
 
 // Session returns details regarding a websocket client's current connection.
@@ -886,12 +886,12 @@ func (c *Client) Session(ctx context.Context) (*chainjson.SessionResult, error) 
 
 // FutureTicketFeeInfoResult is a future promise to deliver the result of a
 // TicketFeeInfoAsync RPC invocation (or an applicable error).
-type FutureTicketFeeInfoResult chan *response
+type FutureTicketFeeInfoResult cmdRes
 
 // Receive waits for the response promised by the future and returns the
 // ticketfeeinfo result.
-func (r FutureTicketFeeInfoResult) Receive() (*chainjson.TicketFeeInfoResult, error) {
-	res, err := receiveFuture(r)
+func (r *FutureTicketFeeInfoResult) Receive() (*chainjson.TicketFeeInfoResult, error) {
+	res, err := receiveFuture(r.ctx, r.c)
 	if err != nil {
 		return nil, err
 	}
@@ -913,10 +913,10 @@ func (r FutureTicketFeeInfoResult) Receive() (*chainjson.TicketFeeInfoResult, er
 // See TicketFeeInfo for the blocking version and more details.
 //
 // NOTE: This is a Decred extension.
-func (c *Client) TicketFeeInfoAsync(ctx context.Context, blocks *uint32, windows *uint32) FutureTicketFeeInfoResult {
+func (c *Client) TicketFeeInfoAsync(ctx context.Context, blocks *uint32, windows *uint32) *FutureTicketFeeInfoResult {
 	// Not supported in HTTP POST mode.
 	if c.config.HTTPPostMode {
-		return newFutureError(ErrWebsocketsRequired)
+		return (*FutureTicketFeeInfoResult)(newFutureError(ctx, ErrWebsocketsRequired))
 	}
 
 	// Avoid passing actual nil values, since they can cause arguments
@@ -929,7 +929,7 @@ func (c *Client) TicketFeeInfoAsync(ctx context.Context, blocks *uint32, windows
 	}
 
 	cmd := chainjson.NewTicketFeeInfoCmd(blocks, windows)
-	return c.sendCmd(ctx, cmd)
+	return (*FutureTicketFeeInfoResult)(c.sendCmd(ctx, cmd))
 }
 
 // TicketFeeInfo returns information about ticket fees.
@@ -943,12 +943,12 @@ func (c *Client) TicketFeeInfo(ctx context.Context, blocks *uint32, windows *uin
 
 // FutureTicketVWAPResult is a future promise to deliver the result of a
 // TicketVWAPAsync RPC invocation (or an applicable error).
-type FutureTicketVWAPResult chan *response
+type FutureTicketVWAPResult cmdRes
 
 // Receive waits for the response promised by the future and returns the
 // ticketvwap result.
-func (r FutureTicketVWAPResult) Receive() (dcrutil.Amount, error) {
-	res, err := receiveFuture(r)
+func (r *FutureTicketVWAPResult) Receive() (dcrutil.Amount, error) {
+	res, err := receiveFuture(r.ctx, r.c)
 	if err != nil {
 		return 0, err
 	}
@@ -975,14 +975,14 @@ func (r FutureTicketVWAPResult) Receive() (dcrutil.Amount, error) {
 // See TicketVWAP for the blocking version and more details.
 //
 // NOTE: This is a Decred extension.
-func (c *Client) TicketVWAPAsync(ctx context.Context, start *uint32, end *uint32) FutureTicketVWAPResult {
+func (c *Client) TicketVWAPAsync(ctx context.Context, start *uint32, end *uint32) *FutureTicketVWAPResult {
 	// Not supported in HTTP POST mode.
 	if c.config.HTTPPostMode {
-		return newFutureError(ErrWebsocketsRequired)
+		return (*FutureTicketVWAPResult)(newFutureError(ctx, ErrWebsocketsRequired))
 	}
 
 	cmd := chainjson.NewTicketVWAPCmd(start, end)
-	return c.sendCmd(ctx, cmd)
+	return (*FutureTicketVWAPResult)(c.sendCmd(ctx, cmd))
 }
 
 // TicketVWAP returns the vwap weighted average price of tickets.
@@ -996,12 +996,12 @@ func (c *Client) TicketVWAP(ctx context.Context, start *uint32, end *uint32) (dc
 
 // FutureTxFeeInfoResult is a future promise to deliver the result of a
 // TxFeeInfoAsync RPC invocation (or an applicable error).
-type FutureTxFeeInfoResult chan *response
+type FutureTxFeeInfoResult cmdRes
 
 // Receive waits for the response promised by the future and returns the
 // txfeeinfo result.
-func (r FutureTxFeeInfoResult) Receive() (*chainjson.TxFeeInfoResult, error) {
-	res, err := receiveFuture(r)
+func (r *FutureTxFeeInfoResult) Receive() (*chainjson.TxFeeInfoResult, error) {
+	res, err := receiveFuture(r.ctx, r.c)
 	if err != nil {
 		return nil, err
 	}
@@ -1023,14 +1023,14 @@ func (r FutureTxFeeInfoResult) Receive() (*chainjson.TxFeeInfoResult, error) {
 // See TxFeeInfo for the blocking version and more details.
 //
 // NOTE: This is a Decred extension.
-func (c *Client) TxFeeInfoAsync(ctx context.Context, blocks *uint32, start *uint32, end *uint32) FutureTxFeeInfoResult {
+func (c *Client) TxFeeInfoAsync(ctx context.Context, blocks *uint32, start *uint32, end *uint32) *FutureTxFeeInfoResult {
 	// Not supported in HTTP POST mode.
 	if c.config.HTTPPostMode {
-		return newFutureError(ErrWebsocketsRequired)
+		return (*FutureTxFeeInfoResult)(newFutureError(ctx, ErrWebsocketsRequired))
 	}
 
 	cmd := chainjson.NewTxFeeInfoCmd(blocks, start, end)
-	return c.sendCmd(ctx, cmd)
+	return (*FutureTxFeeInfoResult)(c.sendCmd(ctx, cmd))
 }
 
 // TxFeeInfo returns information about tx fees.
@@ -1044,12 +1044,12 @@ func (c *Client) TxFeeInfo(ctx context.Context, blocks *uint32, start *uint32, e
 
 // FutureVersionResult is a future promise to deliver the result of a version
 // RPC invocation (or an applicable error).
-type FutureVersionResult chan *response
+type FutureVersionResult cmdRes
 
 // Receive waits for the response promised by the future and returns the version
 // result.
-func (r FutureVersionResult) Receive() (map[string]chainjson.VersionResult, error) {
-	res, err := receiveFuture(r)
+func (r *FutureVersionResult) Receive() (map[string]chainjson.VersionResult, error) {
+	res, err := receiveFuture(r.ctx, r.c)
 	if err != nil {
 		return nil, err
 	}
@@ -1068,9 +1068,9 @@ func (r FutureVersionResult) Receive() (map[string]chainjson.VersionResult, erro
 // of the RPC at some future time by invoking the Receive function on the returned instance.
 //
 // See Version for the blocking version and more details.
-func (c *Client) VersionAsync(ctx context.Context) FutureVersionResult {
+func (c *Client) VersionAsync(ctx context.Context) *FutureVersionResult {
 	cmd := chainjson.NewVersionCmd()
-	return c.sendCmd(ctx, cmd)
+	return (*FutureVersionResult)(c.sendCmd(ctx, cmd))
 }
 
 // Version returns information about the server's JSON-RPC API versions.

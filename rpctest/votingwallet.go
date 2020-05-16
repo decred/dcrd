@@ -429,7 +429,7 @@ func (w *VotingWallet) handleBlockConnectedNtfn(ntfn *blockConnectedNtfn) {
 	}
 
 	// Submit all tickets to the network.
-	promises := make([]rpcclient.FutureSendRawTransactionResult, nbTickets)
+	promises := make([]*rpcclient.FutureSendRawTransactionResult, nbTickets)
 	for i := 0; i < nbTickets; i++ {
 		promises[i] = w.c.SendRawTransactionAsync(context.Background(), &tickets[i], true)
 	}
@@ -525,7 +525,7 @@ func (w *VotingWallet) handleWinningTicketsNtfn(ntfn *winningTicketsNtfn) {
 	newUtxos := make([]utxoInfo, nbVotes)
 
 	// Publish the votes.
-	promises := make([]rpcclient.FutureSendRawTransactionResult, nbVotes)
+	promises := make([]*rpcclient.FutureSendRawTransactionResult, nbVotes)
 	for i := 0; i < nbVotes; i++ {
 		promises[i] = w.c.SendRawTransactionAsync(context.Background(), &votes[i], true)
 	}

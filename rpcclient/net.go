@@ -37,12 +37,12 @@ func (cmd AddNodeCommand) String() string {
 
 // FutureAddNodeResult is a future promise to deliver the result of an
 // AddNodeAsync RPC invocation (or an applicable error).
-type FutureAddNodeResult chan *response
+type FutureAddNodeResult cmdRes
 
 // Receive waits for the response promised by the future and returns an error if
 // any occurred when performing the specified command.
-func (r FutureAddNodeResult) Receive() error {
-	_, err := receiveFuture(r)
+func (r *FutureAddNodeResult) Receive() error {
+	_, err := receiveFuture(r.ctx, r.c)
 	return err
 }
 
@@ -51,9 +51,9 @@ func (r FutureAddNodeResult) Receive() error {
 // returned instance.
 //
 // See AddNode for the blocking version and more details.
-func (c *Client) AddNodeAsync(ctx context.Context, host string, command AddNodeCommand) FutureAddNodeResult {
+func (c *Client) AddNodeAsync(ctx context.Context, host string, command AddNodeCommand) *FutureAddNodeResult {
 	cmd := chainjson.NewAddNodeCmd(host, chainjson.AddNodeSubCmd(command))
-	return c.sendCmd(ctx, cmd)
+	return (*FutureAddNodeResult)(c.sendCmd(ctx, cmd))
 }
 
 // AddNode attempts to perform the passed command on the passed persistent peer.
@@ -67,12 +67,12 @@ func (c *Client) AddNode(ctx context.Context, host string, command AddNodeComman
 
 // FutureGetAddedNodeInfoResult is a future promise to deliver the result of a
 // GetAddedNodeInfoAsync RPC invocation (or an applicable error).
-type FutureGetAddedNodeInfoResult chan *response
+type FutureGetAddedNodeInfoResult cmdRes
 
 // Receive waits for the response promised by the future and returns information
 // about manually added (persistent) peers.
-func (r FutureGetAddedNodeInfoResult) Receive() ([]chainjson.GetAddedNodeInfoResult, error) {
-	res, err := receiveFuture(r)
+func (r *FutureGetAddedNodeInfoResult) Receive() ([]chainjson.GetAddedNodeInfoResult, error) {
+	res, err := receiveFuture(r.ctx, r.c)
 	if err != nil {
 		return nil, err
 	}
@@ -92,9 +92,9 @@ func (r FutureGetAddedNodeInfoResult) Receive() ([]chainjson.GetAddedNodeInfoRes
 // the returned instance.
 //
 // See GetAddedNodeInfo for the blocking version and more details.
-func (c *Client) GetAddedNodeInfoAsync(ctx context.Context, peer string) FutureGetAddedNodeInfoResult {
+func (c *Client) GetAddedNodeInfoAsync(ctx context.Context, peer string) *FutureGetAddedNodeInfoResult {
 	cmd := chainjson.NewGetAddedNodeInfoCmd(true, &peer)
-	return c.sendCmd(ctx, cmd)
+	return (*FutureGetAddedNodeInfoResult)(c.sendCmd(ctx, cmd))
 }
 
 // GetAddedNodeInfo returns information about manually added (persistent) peers.
@@ -107,12 +107,12 @@ func (c *Client) GetAddedNodeInfo(ctx context.Context, peer string) ([]chainjson
 
 // FutureGetAddedNodeInfoNoDNSResult is a future promise to deliver the result
 // of a GetAddedNodeInfoNoDNSAsync RPC invocation (or an applicable error).
-type FutureGetAddedNodeInfoNoDNSResult chan *response
+type FutureGetAddedNodeInfoNoDNSResult cmdRes
 
 // Receive waits for the response promised by the future and returns a list of
 // manually added (persistent) peers.
-func (r FutureGetAddedNodeInfoNoDNSResult) Receive() ([]string, error) {
-	res, err := receiveFuture(r)
+func (r *FutureGetAddedNodeInfoNoDNSResult) Receive() ([]string, error) {
+	res, err := receiveFuture(r.ctx, r.c)
 	if err != nil {
 		return nil, err
 	}
@@ -132,9 +132,9 @@ func (r FutureGetAddedNodeInfoNoDNSResult) Receive() ([]string, error) {
 // function on the returned instance.
 //
 // See GetAddedNodeInfoNoDNS for the blocking version and more details.
-func (c *Client) GetAddedNodeInfoNoDNSAsync(ctx context.Context, peer string) FutureGetAddedNodeInfoNoDNSResult {
+func (c *Client) GetAddedNodeInfoNoDNSAsync(ctx context.Context, peer string) *FutureGetAddedNodeInfoNoDNSResult {
 	cmd := chainjson.NewGetAddedNodeInfoCmd(false, &peer)
-	return c.sendCmd(ctx, cmd)
+	return (*FutureGetAddedNodeInfoNoDNSResult)(c.sendCmd(ctx, cmd))
 }
 
 // GetAddedNodeInfoNoDNS returns a list of manually added (persistent) peers.
@@ -148,12 +148,12 @@ func (c *Client) GetAddedNodeInfoNoDNS(ctx context.Context, peer string) ([]stri
 
 // FutureGetConnectionCountResult is a future promise to deliver the result
 // of a GetConnectionCountAsync RPC invocation (or an applicable error).
-type FutureGetConnectionCountResult chan *response
+type FutureGetConnectionCountResult cmdRes
 
 // Receive waits for the response promised by the future and returns the number
 // of active connections to other peers.
-func (r FutureGetConnectionCountResult) Receive() (int64, error) {
-	res, err := receiveFuture(r)
+func (r *FutureGetConnectionCountResult) Receive() (int64, error) {
+	res, err := receiveFuture(r.ctx, r.c)
 	if err != nil {
 		return 0, err
 	}
@@ -173,9 +173,9 @@ func (r FutureGetConnectionCountResult) Receive() (int64, error) {
 // the returned instance.
 //
 // See GetConnectionCount for the blocking version and more details.
-func (c *Client) GetConnectionCountAsync(ctx context.Context) FutureGetConnectionCountResult {
+func (c *Client) GetConnectionCountAsync(ctx context.Context) *FutureGetConnectionCountResult {
 	cmd := chainjson.NewGetConnectionCountCmd()
-	return c.sendCmd(ctx, cmd)
+	return (*FutureGetConnectionCountResult)(c.sendCmd(ctx, cmd))
 }
 
 // GetConnectionCount returns the number of active connections to other peers.
@@ -185,12 +185,12 @@ func (c *Client) GetConnectionCount(ctx context.Context) (int64, error) {
 
 // FuturePingResult is a future promise to deliver the result of a PingAsync RPC
 // invocation (or an applicable error).
-type FuturePingResult chan *response
+type FuturePingResult cmdRes
 
 // Receive waits for the response promised by the future and returns the result
 // of queueing a ping to be sent to each connected peer.
-func (r FuturePingResult) Receive() error {
-	_, err := receiveFuture(r)
+func (r *FuturePingResult) Receive() error {
+	_, err := receiveFuture(r.ctx, r.c)
 	return err
 }
 
@@ -199,9 +199,9 @@ func (r FuturePingResult) Receive() error {
 // instance.
 //
 // See Ping for the blocking version and more details.
-func (c *Client) PingAsync(ctx context.Context) FuturePingResult {
+func (c *Client) PingAsync(ctx context.Context) *FuturePingResult {
 	cmd := chainjson.NewPingCmd()
-	return c.sendCmd(ctx, cmd)
+	return (*FuturePingResult)(c.sendCmd(ctx, cmd))
 }
 
 // Ping queues a ping to be sent to each connected peer.
@@ -214,12 +214,12 @@ func (c *Client) Ping(ctx context.Context) error {
 
 // FutureGetPeerInfoResult is a future promise to deliver the result of a
 // GetPeerInfoAsync RPC invocation (or an applicable error).
-type FutureGetPeerInfoResult chan *response
+type FutureGetPeerInfoResult cmdRes
 
 // Receive waits for the response promised by the future and returns data about
 // each connected network peer.
-func (r FutureGetPeerInfoResult) Receive() ([]chainjson.GetPeerInfoResult, error) {
-	res, err := receiveFuture(r)
+func (r *FutureGetPeerInfoResult) Receive() ([]chainjson.GetPeerInfoResult, error) {
+	res, err := receiveFuture(r.ctx, r.c)
 	if err != nil {
 		return nil, err
 	}
@@ -239,9 +239,9 @@ func (r FutureGetPeerInfoResult) Receive() ([]chainjson.GetPeerInfoResult, error
 // returned instance.
 //
 // See GetPeerInfo for the blocking version and more details.
-func (c *Client) GetPeerInfoAsync(ctx context.Context) FutureGetPeerInfoResult {
+func (c *Client) GetPeerInfoAsync(ctx context.Context) *FutureGetPeerInfoResult {
 	cmd := chainjson.NewGetPeerInfoCmd()
-	return c.sendCmd(ctx, cmd)
+	return (*FutureGetPeerInfoResult)(c.sendCmd(ctx, cmd))
 }
 
 // GetPeerInfo returns data about each connected network peer.
@@ -251,12 +251,12 @@ func (c *Client) GetPeerInfo(ctx context.Context) ([]chainjson.GetPeerInfoResult
 
 // FutureGetNetTotalsResult is a future promise to deliver the result of a
 // GetNetTotalsAsync RPC invocation (or an applicable error).
-type FutureGetNetTotalsResult chan *response
+type FutureGetNetTotalsResult cmdRes
 
 // Receive waits for the response promised by the future and returns network
 // traffic statistics.
-func (r FutureGetNetTotalsResult) Receive() (*chainjson.GetNetTotalsResult, error) {
-	res, err := receiveFuture(r)
+func (r *FutureGetNetTotalsResult) Receive() (*chainjson.GetNetTotalsResult, error) {
+	res, err := receiveFuture(r.ctx, r.c)
 	if err != nil {
 		return nil, err
 	}
@@ -276,9 +276,9 @@ func (r FutureGetNetTotalsResult) Receive() (*chainjson.GetNetTotalsResult, erro
 // returned instance.
 //
 // See GetNetTotals for the blocking version and more details.
-func (c *Client) GetNetTotalsAsync(ctx context.Context) FutureGetNetTotalsResult {
+func (c *Client) GetNetTotalsAsync(ctx context.Context) *FutureGetNetTotalsResult {
 	cmd := chainjson.NewGetNetTotalsCmd()
-	return c.sendCmd(ctx, cmd)
+	return (*FutureGetNetTotalsResult)(c.sendCmd(ctx, cmd))
 }
 
 // GetNetTotals returns network traffic statistics.

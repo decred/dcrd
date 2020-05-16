@@ -15,12 +15,12 @@ import (
 
 // FutureRawResult is a future promise to deliver the result of a RawRequest RPC
 // invocation (or an applicable error).
-type FutureRawResult chan *response
+type FutureRawResult cmdRes
 
 // Receive waits for the response promised by the future and returns the raw
 // response, or an error if the request was unsuccessful.
-func (r FutureRawResult) Receive() (json.RawMessage, error) {
-	return receiveFuture(r)
+func (r *FutureRawResult) Receive() (json.RawMessage, error) {
+	return receiveFuture(r.ctx, r.c)
 }
 
 // RawRequestAsync returns an instance of a type that can be used to get the
@@ -28,10 +28,10 @@ func (r FutureRawResult) Receive() (json.RawMessage, error) {
 // function on the returned instance.
 //
 // See RawRequest for the blocking version and more details.
-func (c *Client) RawRequestAsync(ctx context.Context, method string, params []json.RawMessage) FutureRawResult {
+func (c *Client) RawRequestAsync(ctx context.Context, method string, params []json.RawMessage) *FutureRawResult {
 	// Method may not be empty.
 	if method == "" {
-		return newFutureError(errors.New("no method"))
+		return (*FutureRawResult)(newFutureError(ctx, errors.New("no method")))
 	}
 
 	// Marshal parameters as "[]" instead of "null" when no parameters
@@ -53,7 +53,7 @@ func (c *Client) RawRequestAsync(ctx context.Context, method string, params []js
 	}
 	marshalledJSON, err := json.Marshal(rawRequest)
 	if err != nil {
-		return newFutureError(err)
+		return (*FutureRawResult)(newFutureError(ctx, err))
 	}
 
 	// Generate the request and send it along with a channel to respond on.
@@ -67,7 +67,7 @@ func (c *Client) RawRequestAsync(ctx context.Context, method string, params []js
 	}
 	c.sendRequest(ctx, jReq)
 
-	return responseChan
+	return &FutureRawResult{ctx: ctx, c: responseChan}
 }
 
 // RawRequest allows the caller to send a raw or custom request to the server.
