@@ -17,23 +17,23 @@ import (
 
 // VerifyMessage verifies that signature is a valid signature of message and was created
 // using the secp256k1 private key for address.
-func VerifyMessage(address string, signature string, message string, params AddressParams) (bool, error) {
+func VerifyMessage(address string, signature string, message string, params AddressParams) error {
 	// Decode the provided address.  This also ensures the network encoded with
 	// the address matches the network the server is currently on.
 	addr, err := DecodeAddress(address, params)
 	if err != nil {
-		return false, err
+		return err
 	}
 
 	// Only P2PKH addresses are valid for signing.
 	if _, ok := addr.(*AddressPubKeyHash); !ok {
-		return false, fmt.Errorf("address is not a pay-to-pubkey-hash address")
+		return fmt.Errorf("address is not a pay-to-pubkey-hash address")
 	}
 
 	// Decode base64 signature.
 	sig, err := base64.StdEncoding.DecodeString(signature)
 	if err != nil {
-		return false, fmt.Errorf("malformed base64 encoding: %v", err)
+		return fmt.Errorf("malformed base64 encoding: %v", err)
 	}
 
 	// Validate the signature - this just shows that it was valid for any pubkey
@@ -44,7 +44,7 @@ func VerifyMessage(address string, signature string, message string, params Addr
 	expectedMessageHash := chainhash.HashB(buf.Bytes())
 	pk, wasCompressed, err := ecdsa.RecoverCompact(sig, expectedMessageHash)
 	if err != nil {
-		return false, err
+		return err
 	}
 
 	// Reconstruct the address from the recovered pubkey.
@@ -56,9 +56,13 @@ func VerifyMessage(address string, signature string, message string, params Addr
 	}
 	recoveredAddr, err := NewAddressSecpPubKey(serializedPK, params)
 	if err != nil {
-		return false, err
+		return err
 	}
 
-	// Return whether addresses match.
-	return recoveredAddr.Address() == addr.Address(), nil
+	// Check whether addresses match.
+	if recoveredAddr.Address() != addr.Address() {
+		return fmt.Errorf("message not signed by address")
+	}
+
+	return nil
 }

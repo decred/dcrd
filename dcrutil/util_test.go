@@ -33,8 +33,8 @@ func TestVerifyMessage(t *testing.T) {
 	}
 
 	for i, test := range tests {
-		isValid, err := VerifyMessage(test.addr, test.sig, msg, test.params)
-		if (test.isValid && err != nil) || (test.isValid != isValid) {
+		err := VerifyMessage(test.addr, test.sig, msg, test.params)
+		if (test.isValid && err != nil) || (!test.isValid && err == nil) {
 			t.Fatalf("VerifyMessage test #%d failed", i+1)
 		}
 	}
