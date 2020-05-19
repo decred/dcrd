@@ -1094,7 +1094,7 @@ func (b *blockManager) handleBlockMsg(bmsg *blockMsg) {
 	} else {
 		// When the block is not an orphan, log information about it and
 		// update the chain state.
-		b.progressLogger.logBlockHeight(bmsg.block)
+		b.progressLogger.logBlockHeight(bmsg.block, b.SyncHeight())
 
 		if onMainChain {
 			// Notify stake difficulty subscribers and prune invalidated
@@ -2611,7 +2611,7 @@ func dumpBlockChain(params *chaincfg.Params, b *blockchain.BlockChain, height in
 			return err
 		}
 
-		progressLogger.logBlockHeight(bl)
+		progressLogger.logBlockHeight(bl, height)
 	}
 
 	bmgrLog.Infof("Successfully dumped the blockchain (%v blocks) to %v.",
