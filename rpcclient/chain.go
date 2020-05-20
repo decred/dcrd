@@ -603,6 +603,85 @@ func (c *Client) GetRawMempoolVerbose(ctx context.Context, txType chainjson.GetR
 	return c.GetRawMempoolVerboseAsync(ctx, txType).Receive()
 }
 
+// FutureValidateAddressResult is a future promise to deliver the result of a
+// ValidateAddressAsync RPC invocation (or an applicable error).
+type FutureValidateAddressResult chan *response
+
+// Receive waits for the response promised by the future and returns information
+// about the given Decred address.
+func (r FutureValidateAddressResult) Receive() (*chainjson.ValidateAddressChainResult, error) {
+	res, err := receiveFuture(r)
+	if err != nil {
+		return nil, err
+	}
+
+	// Unmarshal result as a validateaddress result object.
+	var addrResult chainjson.ValidateAddressChainResult
+	err = json.Unmarshal(res, &addrResult)
+	if err != nil {
+		return nil, err
+	}
+
+	return &addrResult, nil
+}
+
+// ValidateAddressAsync returns an instance of a type that can be used to get
+// the result of the RPC at some future time by invoking the Receive function on
+// the returned instance.
+//
+// See ValidateAddress for the blocking version and more details.
+func (c *Client) ValidateAddressAsync(ctx context.Context, address dcrutil.Address) FutureValidateAddressResult {
+	addr := address.Address()
+	cmd := chainjson.NewValidateAddressCmd(addr)
+	return c.sendCmd(ctx, cmd)
+}
+
+// ValidateAddress returns information about the given Decred address.
+func (c *Client) ValidateAddress(ctx context.Context, address dcrutil.Address) (*chainjson.ValidateAddressChainResult, error) {
+	return c.ValidateAddressAsync(ctx, address).Receive()
+}
+
+// FutureVerifyMessageResult is a future promise to deliver the result of a
+// VerifyMessageAsync RPC invocation (or an applicable error).
+type FutureVerifyMessageResult chan *response
+
+// Receive waits for the response promised by the future and returns whether or
+// not the message was successfully verified.
+func (r FutureVerifyMessageResult) Receive() (bool, error) {
+	res, err := receiveFuture(r)
+	if err != nil {
+		return false, err
+	}
+
+	// Unmarshal result as a boolean.
+	var verified bool
+	err = json.Unmarshal(res, &verified)
+	if err != nil {
+		return false, err
+	}
+
+	return verified, nil
+}
+
+// VerifyMessageAsync returns an instance of a type that can be used to get the
+// result of the RPC at some future time by invoking the Receive function on the
+// returned instance.
+//
+// See VerifyMessage for the blocking version and more details.
+func (c *Client) VerifyMessageAsync(ctx context.Context, address dcrutil.Address, signature, message string) FutureVerifyMessageResult {
+	addr := address.Address()
+	cmd := chainjson.NewVerifyMessageCmd(addr, signature, message)
+	return c.sendCmd(ctx, cmd)
+}
+
+// VerifyMessage verifies a signed message.
+//
+// NOTE: This function requires to the wallet to be unlocked.  See the
+// WalletPassphrase function for more details.
+func (c *Client) VerifyMessage(ctx context.Context, address dcrutil.Address, signature, message string) (bool, error) {
+	return c.VerifyMessageAsync(ctx, address, signature, message).Receive()
+}
+
 // FutureVerifyChainResult is a future promise to deliver the result of a
 // VerifyChainAsync, VerifyChainLevelAsyncRPC, or VerifyChainBlocksAsync
 // invocation (or an applicable error).
