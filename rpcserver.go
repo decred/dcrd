@@ -2345,6 +2345,8 @@ func handleGetInfo(_ context.Context, s *rpcServer, cmd interface{}) (interface{
 		Difficulty:      getDifficultyRatio(best.Bits, s.cfg.ChainParams),
 		TestNet:         cfg.TestNet,
 		RelayFee:        cfg.minRelayTxFee.ToCoin(),
+		AddrIndex:       cfg.AddrIndex,
+		TxIndex:         cfg.TxIndex,
 	}
 
 	return ret, nil
