@@ -193,6 +193,8 @@ type InfoChainResult struct {
 	TestNet         bool    `json:"testnet"`
 	RelayFee        float64 `json:"relayfee"`
 	Errors          string  `json:"errors"`
+	AddrIndex       bool    `json:"addrindex"`
+	TxIndex         bool    `json:"txindex"`
 }
 
 // GetMempoolInfoResult models the data returned from the getmempoolinfo

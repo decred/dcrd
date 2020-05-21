@@ -1463,7 +1463,9 @@ of the best block.
 : <code>difficulty</code>: <code>(numeric)</code> the current target difficulty.
 : <code>testnet</code>: <code>(boolean)</code> whether or not server is using testnet.
 : <code>relayfee</code>: <code>(numeric)</code> the minimum relay fee for non-free transactions in DCR/KB.
-<code>{"version": n,"protocolversion": n, "blocks": n, "timeoffset": n, "connections": n, "proxy": "host:port", "difficulty": n.nn, "testnet": true or false, "relayfee": n.nn}</code>
+: <code>addrindex</code>: <code>(boolean)</code> whether or not server has address index enabled.
+: <code>txindex</code>: <code>(boolean)</code> whether or not server has transaction index enabled.
+<code>{"version": n,"protocolversion": n, "blocks": n, "timeoffset": n, "connections": n, "proxy": "host:port", "difficulty": n.nn, "testnet": true or false, "relayfee": n.nn, "addrindex": true or false, "txindex": true or false}</code>
 |-
 !Example Return
 |<code>{"version": 70000, "protocolversion": 70001, "blocks": 298963, "timeoffset": 0, "connections": 17, "proxy": "", "difficulty": 8000872135.97, "testnet": false,"relayfee": 0.00001}</code>
