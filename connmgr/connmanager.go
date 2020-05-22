@@ -672,11 +672,11 @@ func (cm *ConnManager) Run(ctx context.Context) {
 // Use Run to start listening and/or connecting to the network.
 func New(cfg *Config) (*ConnManager, error) {
 	if cfg.Dial == nil && cfg.DialAddr == nil {
-		return nil, Error{"dial cannot be nil", ErrDialNil}
+		return nil, MakeError(ErrDialNil, "dial cannot be nil")
 	}
 	if cfg.Dial != nil && cfg.DialAddr != nil {
-		return nil, Error{"cannot specify both Dial and DialAddr",
-			ErrBothDialsFilled}
+		return nil, MakeError(ErrBothDialsFilled,
+			"cannot specify both Dial and DialAddr")
 	}
 	// Default to sane values
 	if cfg.RetryDuration <= 0 {

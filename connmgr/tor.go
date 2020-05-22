@@ -30,14 +30,14 @@ const (
 
 var (
 	torStatusErrors = map[byte]error{
-		torGeneralError:      Error{"tor general error", ErrTorGeneralError},
-		torNotAllowed:        Error{"tor not allowed", ErrTorNotAllowed},
-		torNetUnreachable:    Error{"tor network is unreachable", ErrTorNetUnreachable},
-		torHostUnreachable:   Error{"tor host is unreachable", ErrTorHostUnreachable},
-		torConnectionRefused: Error{"tor connection refused", ErrTorConnectionRefused},
-		torTTLExpired:        Error{"tor TTL expired", ErrTorTTLExpired},
-		torCmdNotSupported:   Error{"tor command not supported", ErrTorCmdNotSupported},
-		torAddrNotSupported:  Error{"tor address type not supported", ErrTorAddrNotSupported},
+		torGeneralError:      MakeError(ErrTorGeneralError, "tor general error"),
+		torNotAllowed:        MakeError(ErrTorNotAllowed, "tor not allowed"),
+		torNetUnreachable:    MakeError(ErrTorNetUnreachable, "tor network is unreachable"),
+		torHostUnreachable:   MakeError(ErrTorHostUnreachable, "tor host is unreachable"),
+		torConnectionRefused: MakeError(ErrTorConnectionRefused, "tor connection refused"),
+		torTTLExpired:        MakeError(ErrTorTTLExpired, "tor TTL expired"),
+		torCmdNotSupported:   MakeError(ErrTorCmdNotSupported, "tor command not supported"),
+		torAddrNotSupported:  MakeError(ErrTorAddrNotSupported, "tor address type not supported"),
 	}
 )
 
@@ -62,12 +62,12 @@ func TorLookupIP(ctx context.Context, host, proxy string) ([]net.IP, error) {
 		return nil, err
 	}
 	if buf[0] != 0x05 {
-		return nil, Error{"invalid SOCKS proxy version",
-			ErrTorInvalidProxyResponse}
+		return nil, MakeError(ErrTorInvalidProxyResponse,
+			"invalid SOCKS proxy version")
 	}
 	if buf[1] != 0x00 {
-		return nil, Error{"invalid proxy authentication method",
-			ErrTorUnrecognizedAuthMethod}
+		return nil, MakeError(ErrTorUnrecognizedAuthMethod,
+			"invalid proxy authentication method")
 	}
 
 	buf = make([]byte, 7+len(host))
@@ -90,19 +90,20 @@ func TorLookupIP(ctx context.Context, host, proxy string) ([]net.IP, error) {
 		return nil, err
 	}
 	if buf[0] != 5 {
-		return nil, Error{"invalid SOCKS proxy version",
-			ErrTorInvalidProxyResponse}
+		return nil, MakeError(ErrTorInvalidProxyResponse,
+			"invalid SOCKS proxy version")
 	}
 	if buf[1] != 0 {
 		err, exists := torStatusErrors[buf[1]]
 		if !exists {
-			err = Error{"invalid SOCKS proxy version",
-				ErrTorInvalidProxyResponse}
+			err = MakeError(ErrTorInvalidProxyResponse,
+				"invalid SOCKS proxy version")
 		}
 		return nil, err
 	}
 	if buf[3] != torATypeIPv4 && buf[3] != torATypeIPv6 {
-		return nil, Error{"invalid IP address", ErrTorInvalidAddressResponse}
+		return nil, MakeError(ErrTorInvalidAddressResponse,
+			"invalid IP address")
 	}
 
 	var reply [32 + 2]byte
@@ -115,18 +116,21 @@ func TorLookupIP(ctx context.Context, host, proxy string) ([]net.IP, error) {
 	switch buf[3] {
 	case torATypeIPv4:
 		if replyLen != 4+2 {
-			return nil, Error{"invalid IPV4 address", ErrTorInvalidAddressResponse}
+			return nil, MakeError(ErrTorInvalidAddressResponse,
+				"invalid IPV4 address")
 		}
 		r := binary.BigEndian.Uint32(reply[0:4])
 		addr = net.IPv4(byte(r>>24), byte(r>>16),
 			byte(r>>8), byte(r))
 	case torATypeIPv6:
 		if replyLen <= 4+2 {
-			return nil, Error{"invalid IPV6 address", ErrTorInvalidAddressResponse}
+			return nil, MakeError(ErrTorInvalidAddressResponse,
+				"invalid IPV6 address")
 		}
 		addr = net.IP(reply[0 : replyLen-2])
 	default:
-		return nil, Error{"unknown address type", ErrTorInvalidAddressResponse}
+		return nil, MakeError(ErrTorInvalidAddressResponse,
+			"unknown address type")
 	}
 
 	return []net.IP{addr}, nil
