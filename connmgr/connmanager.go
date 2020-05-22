@@ -7,7 +7,6 @@ package connmgr
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net"
 	"sync"
@@ -16,12 +15,6 @@ import (
 )
 
 var (
-	// ErrDialNil is used to indicate that Dial cannot be nil in the configuration.
-	ErrDialNil = errors.New("config: dial cannot be nil")
-
-	// ErrBothDialsFilled is used to indicate that Dial and DialAddr cannot both
-	// be specified in the configuration.
-	ErrBothDialsFilled = errors.New("config: cannot specify both Dial and DialAddr")
 
 	// maxRetryDuration is the max duration of time retrying of a persistent
 	// connection is allowed to grow to.  This is necessary since the retry
@@ -679,10 +672,11 @@ func (cm *ConnManager) Run(ctx context.Context) {
 // Use Run to start listening and/or connecting to the network.
 func New(cfg *Config) (*ConnManager, error) {
 	if cfg.Dial == nil && cfg.DialAddr == nil {
-		return nil, ErrDialNil
+		return nil, Error{"dial cannot be nil", ErrDialNil}
 	}
 	if cfg.Dial != nil && cfg.DialAddr != nil {
-		return nil, ErrBothDialsFilled
+		return nil, Error{"cannot specify both Dial and DialAddr",
+			ErrBothDialsFilled}
 	}
 	// Default to sane values
 	if cfg.RetryDuration <= 0 {
