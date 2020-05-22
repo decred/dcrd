@@ -3190,7 +3190,7 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB, chainP
 			Services:     s.services,
 			AddrManager:  s.addrManager,
 			SubsidyCache: s.subsidyCache,
-			Chain:        s.chain,
+			Chain:        &rpcChain{s.chain},
 			ChainParams:  chainParams,
 			DB:           db,
 			TxMemPool:    s.txMemPool,

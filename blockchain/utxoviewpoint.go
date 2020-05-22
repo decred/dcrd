@@ -71,8 +71,7 @@ type UtxoEntry struct {
 	modified   bool // Entry changed since load.
 }
 
-// TxVersion returns the transaction version of the transaction the
-// utxo represents.
+// TxVersion returns the version of the transaction the utxo represents.
 func (entry *UtxoEntry) TxVersion() uint16 {
 	return entry.txVersion
 }
@@ -101,7 +100,7 @@ func (entry *UtxoEntry) BlockIndex() uint32 {
 	return entry.index
 }
 
-// TransactionType returns the transaction type of the transaction the utxo entry
+// TransactionType returns the type of the transaction the utxo entry
 // represents.
 func (entry *UtxoEntry) TransactionType() stake.TxType {
 	return entry.txType

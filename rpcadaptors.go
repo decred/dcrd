@@ -6,6 +6,7 @@
 package main
 
 import (
+	"github.com/decred/dcrd/blockchain/stake/v3"
 	"github.com/decred/dcrd/blockchain/v3"
 	"github.com/decred/dcrd/blockchain/v3/indexers"
 	"github.com/decred/dcrd/chaincfg/chainhash"
@@ -59,7 +60,7 @@ type rpcConnManager struct {
 }
 
 // Ensure rpcConnManager implements the rpcserver.ConnManager interface.
-var _ rpcserver.ConnManager = &rpcConnManager{}
+var _ rpcserver.ConnManager = (*rpcConnManager)(nil)
 
 // Connect adds the provided address as a new outbound peer.  The permanent flag
 // indicates whether or not to make the peer persistent and reconnect if the
@@ -323,4 +324,49 @@ func (b *rpcSyncMgr) ProcessTransaction(tx *dcrutil.Tx, allowOrphans bool,
 	rateLimit bool, allowHighFees bool, tag mempool.Tag) ([]*dcrutil.Tx, error) {
 	return b.blockMgr.ProcessTransaction(tx, allowOrphans,
 		rateLimit, allowHighFees, tag)
+}
+
+// rpcUtxoEntry represents a utxo entry for use with the RPC server and
+// implements the rpcserver.UtxoEntry interface.
+type rpcUtxoEntry struct {
+	*blockchain.UtxoEntry
+}
+
+// Ensure rpcUtxoEntry implements the rpcserver.UtxoEntry interface.
+var _ rpcserver.UtxoEntry = (*rpcUtxoEntry)(nil)
+
+// ToUtxoEntry returns the underlying UtxoEntry instance.
+func (u *rpcUtxoEntry) ToUtxoEntry() *blockchain.UtxoEntry {
+	return u.UtxoEntry
+}
+
+// rpcChain provides a chain for use with the RPC server and
+// implements the rpcserver.Chain interface.
+type rpcChain struct {
+	*blockchain.BlockChain
+}
+
+// Ensure rpcChain implements the rpcserver.Chain interface.
+var _ rpcserver.Chain = (*rpcChain)(nil)
+
+// ConvertUtxosToMinimalOutputs converts the contents of a UTX to a series of
+// minimal outputs. It does this so that these can be passed to stake subpackage
+// functions, where they will be evaluated for correctness.
+func (c *rpcChain) ConvertUtxosToMinimalOutputs(entry rpcserver.UtxoEntry) []*stake.MinimalOutput {
+	return blockchain.ConvertUtxosToMinimalOutputs(entry.ToUtxoEntry())
+}
+
+// FetchUtxoEntry loads and returns the unspent transaction output entry for the
+// passed hash from the point of view of the end of the main chain.
+//
+// NOTE: Requesting a hash for which there is no data will NOT return an error.
+// Instead both the entry and the error will be nil.  This is done to allow
+// pruning of fully spent transactions.  In practice this means the caller must
+// check if the returned entry is nil before invoking methods on it.
+//
+// This function is safe for concurrent access however the returned entry (if
+// any) is NOT.
+func (c *rpcChain) FetchUtxoEntry(txHash *chainhash.Hash) (rpcserver.UtxoEntry, error) {
+	utxo, err := c.BlockChain.FetchUtxoEntry(txHash)
+	return &rpcUtxoEntry{UtxoEntry: utxo}, err
 }
