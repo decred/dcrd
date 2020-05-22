@@ -8,12 +8,10 @@ package connmgr
 import (
 	"context"
 	"encoding/binary"
-	"errors"
 	"net"
 )
 
 const (
-	torSucceeded         = 0x00
 	torGeneralError      = 0x01
 	torNotAllowed        = 0x02
 	torNetUnreachable    = 0x03
@@ -31,28 +29,15 @@ const (
 )
 
 var (
-	// ErrTorInvalidAddressResponse indicates an invalid address was
-	// returned by the Tor DNS resolver.
-	ErrTorInvalidAddressResponse = errors.New("invalid address response")
-
-	// ErrTorInvalidProxyResponse indicates the Tor proxy returned a
-	// response in an unexpected format.
-	ErrTorInvalidProxyResponse = errors.New("invalid proxy response")
-
-	// ErrTorUnrecognizedAuthMethod indicates the authentication method
-	// provided is not recognized.
-	ErrTorUnrecognizedAuthMethod = errors.New("invalid proxy authentication method")
-
 	torStatusErrors = map[byte]error{
-		torSucceeded:         errors.New("tor succeeded"),
-		torGeneralError:      errors.New("tor general error"),
-		torNotAllowed:        errors.New("tor not allowed"),
-		torNetUnreachable:    errors.New("tor network is unreachable"),
-		torHostUnreachable:   errors.New("tor host is unreachable"),
-		torConnectionRefused: errors.New("tor connection refused"),
-		torTTLExpired:        errors.New("tor TTL expired"),
-		torCmdNotSupported:   errors.New("tor command not supported"),
-		torAddrNotSupported:  errors.New("tor address type not supported"),
+		torGeneralError:      Error{"tor general error", ErrTorGeneralError},
+		torNotAllowed:        Error{"tor not allowed", ErrTorNotAllowed},
+		torNetUnreachable:    Error{"tor network is unreachable", ErrTorNetUnreachable},
+		torHostUnreachable:   Error{"tor host is unreachable", ErrTorHostUnreachable},
+		torConnectionRefused: Error{"tor connection refused", ErrTorConnectionRefused},
+		torTTLExpired:        Error{"tor TTL expired", ErrTorTTLExpired},
+		torCmdNotSupported:   Error{"tor command not supported", ErrTorCmdNotSupported},
+		torAddrNotSupported:  Error{"tor address type not supported", ErrTorAddrNotSupported},
 	}
 )
 
@@ -77,10 +62,12 @@ func TorLookupIP(ctx context.Context, host, proxy string) ([]net.IP, error) {
 		return nil, err
 	}
 	if buf[0] != 0x05 {
-		return nil, ErrTorInvalidProxyResponse
+		return nil, Error{"invalid SOCKS proxy version",
+			ErrTorInvalidProxyResponse}
 	}
 	if buf[1] != 0x00 {
-		return nil, ErrTorUnrecognizedAuthMethod
+		return nil, Error{"invalid proxy authentication method",
+			ErrTorUnrecognizedAuthMethod}
 	}
 
 	buf = make([]byte, 7+len(host))
@@ -103,17 +90,19 @@ func TorLookupIP(ctx context.Context, host, proxy string) ([]net.IP, error) {
 		return nil, err
 	}
 	if buf[0] != 5 {
-		return nil, ErrTorInvalidProxyResponse
+		return nil, Error{"invalid SOCKS proxy version",
+			ErrTorInvalidProxyResponse}
 	}
 	if buf[1] != 0 {
 		err, exists := torStatusErrors[buf[1]]
 		if !exists {
-			err = ErrTorInvalidProxyResponse
+			err = Error{"invalid SOCKS proxy version",
+				ErrTorInvalidProxyResponse}
 		}
 		return nil, err
 	}
 	if buf[3] != torATypeIPv4 && buf[3] != torATypeIPv6 {
-		return nil, ErrTorInvalidAddressResponse
+		return nil, Error{"invalid IP address", ErrTorInvalidAddressResponse}
 	}
 
 	var reply [32 + 2]byte
@@ -126,18 +115,18 @@ func TorLookupIP(ctx context.Context, host, proxy string) ([]net.IP, error) {
 	switch buf[3] {
 	case torATypeIPv4:
 		if replyLen != 4+2 {
-			return nil, ErrTorInvalidAddressResponse
+			return nil, Error{"invalid IPV4 address", ErrTorInvalidAddressResponse}
 		}
 		r := binary.BigEndian.Uint32(reply[0:4])
 		addr = net.IPv4(byte(r>>24), byte(r>>16),
 			byte(r>>8), byte(r))
 	case torATypeIPv6:
 		if replyLen <= 4+2 {
-			return nil, ErrTorInvalidAddressResponse
+			return nil, Error{"invalid IPV6 address", ErrTorInvalidAddressResponse}
 		}
 		addr = net.IP(reply[0 : replyLen-2])
 	default:
-		return nil, ErrTorInvalidAddressResponse
+		return nil, Error{"unknown address type", ErrTorInvalidAddressResponse}
 	}
 
 	return []net.IP{addr}, nil
