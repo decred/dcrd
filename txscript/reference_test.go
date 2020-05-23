@@ -249,110 +249,110 @@ func parseScriptFlags(flagStr string) (ScriptFlags, error) {
 }
 
 // parseExpectedResult parses the provided expected result string into allowed
-// script error codes.  An error is returned if the expected result string is
+// script error kinds.  An error is returned if the expected result string is
 // not supported.
-func parseExpectedResult(expected string) ([]ErrorCode, error) {
+func parseExpectedResult(expected string) ([]ErrorKind, error) {
 	switch expected {
 	case "OK":
 		return nil, nil
 	case "ERR_EARLY_RETURN":
-		return []ErrorCode{ErrEarlyReturn}, nil
+		return []ErrorKind{ErrEarlyReturn}, nil
 	case "ERR_EMPTY_STACK":
-		return []ErrorCode{ErrEmptyStack}, nil
+		return []ErrorKind{ErrEmptyStack}, nil
 	case "ERR_EVAL_FALSE":
-		return []ErrorCode{ErrEvalFalse}, nil
+		return []ErrorKind{ErrEvalFalse}, nil
 	case "ERR_SCRIPT_SIZE":
-		return []ErrorCode{ErrScriptTooBig}, nil
+		return []ErrorKind{ErrScriptTooBig}, nil
 	case "ERR_PUSH_SIZE":
-		return []ErrorCode{ErrElementTooBig}, nil
+		return []ErrorKind{ErrElementTooBig}, nil
 	case "ERR_OP_COUNT":
-		return []ErrorCode{ErrTooManyOperations}, nil
+		return []ErrorKind{ErrTooManyOperations}, nil
 	case "ERR_STACK_SIZE":
-		return []ErrorCode{ErrStackOverflow}, nil
+		return []ErrorKind{ErrStackOverflow}, nil
 	case "ERR_PUBKEY_COUNT":
-		return []ErrorCode{ErrInvalidPubKeyCount}, nil
+		return []ErrorKind{ErrInvalidPubKeyCount}, nil
 	case "ERR_SIG_COUNT":
-		return []ErrorCode{ErrInvalidSignatureCount}, nil
+		return []ErrorKind{ErrInvalidSignatureCount}, nil
 	case "ERR_OUT_OF_RANGE":
-		return []ErrorCode{ErrNumOutOfRange}, nil
+		return []ErrorKind{ErrNumOutOfRange}, nil
 	case "ERR_VERIFY":
-		return []ErrorCode{ErrVerify}, nil
+		return []ErrorKind{ErrVerify}, nil
 	case "ERR_EQUAL_VERIFY":
-		return []ErrorCode{ErrEqualVerify}, nil
+		return []ErrorKind{ErrEqualVerify}, nil
 	case "ERR_DISABLED_OPCODE":
-		return []ErrorCode{ErrDisabledOpcode}, nil
+		return []ErrorKind{ErrDisabledOpcode}, nil
 	case "ERR_RESERVED_OPCODE":
-		return []ErrorCode{ErrReservedOpcode}, nil
+		return []ErrorKind{ErrReservedOpcode}, nil
 	case "ERR_P2SH_STAKE_OPCODES":
-		return []ErrorCode{ErrP2SHStakeOpCodes}, nil
+		return []ErrorKind{ErrP2SHStakeOpCodes}, nil
 	case "ERR_MALFORMED_PUSH":
-		return []ErrorCode{ErrMalformedPush}, nil
+		return []ErrorKind{ErrMalformedPush}, nil
 	case "ERR_INVALID_STACK_OPERATION", "ERR_INVALID_ALTSTACK_OPERATION":
-		return []ErrorCode{ErrInvalidStackOperation}, nil
+		return []ErrorKind{ErrInvalidStackOperation}, nil
 	case "ERR_UNBALANCED_CONDITIONAL":
-		return []ErrorCode{ErrUnbalancedConditional}, nil
+		return []ErrorKind{ErrUnbalancedConditional}, nil
 	case "ERR_NEGATIVE_SUBSTR_INDEX":
-		return []ErrorCode{ErrNegativeSubstrIdx}, nil
+		return []ErrorKind{ErrNegativeSubstrIdx}, nil
 	case "ERR_OVERFLOW_SUBSTR_INDEX":
-		return []ErrorCode{ErrOverflowSubstrIdx}, nil
+		return []ErrorKind{ErrOverflowSubstrIdx}, nil
 	case "ERR_NEGATIVE_ROTATION":
-		return []ErrorCode{ErrNegativeRotation}, nil
+		return []ErrorKind{ErrNegativeRotation}, nil
 	case "ERR_OVERFLOW_ROTATION":
-		return []ErrorCode{ErrOverflowRotation}, nil
+		return []ErrorKind{ErrOverflowRotation}, nil
 	case "ERR_DIVIDE_BY_ZERO":
-		return []ErrorCode{ErrDivideByZero}, nil
+		return []ErrorKind{ErrDivideByZero}, nil
 	case "ERR_NEGATIVE_SHIFT":
-		return []ErrorCode{ErrNegativeShift}, nil
+		return []ErrorKind{ErrNegativeShift}, nil
 	case "ERR_OVERFLOW_SHIFT":
-		return []ErrorCode{ErrOverflowShift}, nil
+		return []ErrorKind{ErrOverflowShift}, nil
 	case "ERR_MINIMAL_DATA":
-		return []ErrorCode{ErrMinimalData}, nil
+		return []ErrorKind{ErrMinimalData}, nil
 	case "ERR_SIG_HASH_TYPE":
-		return []ErrorCode{ErrInvalidSigHashType}, nil
+		return []ErrorKind{ErrInvalidSigHashType}, nil
 	case "ERR_SIG_TOO_SHORT":
-		return []ErrorCode{ErrSigTooShort}, nil
+		return []ErrorKind{ErrSigTooShort}, nil
 	case "ERR_SIG_TOO_LONG":
-		return []ErrorCode{ErrSigTooLong}, nil
+		return []ErrorKind{ErrSigTooLong}, nil
 	case "ERR_SIG_INVALID_SEQ_ID":
-		return []ErrorCode{ErrSigInvalidSeqID}, nil
+		return []ErrorKind{ErrSigInvalidSeqID}, nil
 	case "ERR_SIG_INVALID_DATA_LEN":
-		return []ErrorCode{ErrSigInvalidDataLen}, nil
+		return []ErrorKind{ErrSigInvalidDataLen}, nil
 	case "ERR_SIG_MISSING_S_TYPE_ID":
-		return []ErrorCode{ErrSigMissingSTypeID}, nil
+		return []ErrorKind{ErrSigMissingSTypeID}, nil
 	case "ERR_SIG_MISSING_S_LEN":
-		return []ErrorCode{ErrSigMissingSLen}, nil
+		return []ErrorKind{ErrSigMissingSLen}, nil
 	case "ERR_SIG_INVALID_S_LEN":
-		return []ErrorCode{ErrSigInvalidSLen}, nil
+		return []ErrorKind{ErrSigInvalidSLen}, nil
 	case "ERR_SIG_INVALID_R_INT_ID":
-		return []ErrorCode{ErrSigInvalidRIntID}, nil
+		return []ErrorKind{ErrSigInvalidRIntID}, nil
 	case "ERR_SIG_ZERO_R_LEN":
-		return []ErrorCode{ErrSigZeroRLen}, nil
+		return []ErrorKind{ErrSigZeroRLen}, nil
 	case "ERR_SIG_NEGATIVE_R":
-		return []ErrorCode{ErrSigNegativeR}, nil
+		return []ErrorKind{ErrSigNegativeR}, nil
 	case "ERR_SIG_TOO_MUCH_R_PADDING":
-		return []ErrorCode{ErrSigTooMuchRPadding}, nil
+		return []ErrorKind{ErrSigTooMuchRPadding}, nil
 	case "ERR_SIG_INVALID_S_INT_ID":
-		return []ErrorCode{ErrSigInvalidSIntID}, nil
+		return []ErrorKind{ErrSigInvalidSIntID}, nil
 	case "ERR_SIG_ZERO_S_LEN":
-		return []ErrorCode{ErrSigZeroSLen}, nil
+		return []ErrorKind{ErrSigZeroSLen}, nil
 	case "ERR_SIG_NEGATIVE_S":
-		return []ErrorCode{ErrSigNegativeS}, nil
+		return []ErrorKind{ErrSigNegativeS}, nil
 	case "ERR_SIG_TOO_MUCH_S_PADDING":
-		return []ErrorCode{ErrSigTooMuchSPadding}, nil
+		return []ErrorKind{ErrSigTooMuchSPadding}, nil
 	case "ERR_SIG_HIGH_S":
-		return []ErrorCode{ErrSigHighS}, nil
+		return []ErrorKind{ErrSigHighS}, nil
 	case "ERR_SIG_PUSHONLY":
-		return []ErrorCode{ErrNotPushOnly}, nil
+		return []ErrorKind{ErrNotPushOnly}, nil
 	case "ERR_PUBKEY_TYPE":
-		return []ErrorCode{ErrPubKeyType}, nil
+		return []ErrorKind{ErrPubKeyType}, nil
 	case "ERR_CLEAN_STACK":
-		return []ErrorCode{ErrCleanStack}, nil
+		return []ErrorKind{ErrCleanStack}, nil
 	case "ERR_DISCOURAGE_UPGRADABLE_NOPS":
-		return []ErrorCode{ErrDiscourageUpgradableNOPs}, nil
+		return []ErrorKind{ErrDiscourageUpgradableNOPs}, nil
 	case "ERR_NEGATIVE_LOCKTIME":
-		return []ErrorCode{ErrNegativeLockTime}, nil
+		return []ErrorKind{ErrNegativeLockTime}, nil
 	case "ERR_UNSATISFIED_LOCKTIME":
-		return []ErrorCode{ErrUnsatisfiedLockTime}, nil
+		return []ErrorKind{ErrUnsatisfiedLockTime}, nil
 	}
 
 	return nil, fmt.Errorf("unrecognized expected result in test data: %v",
@@ -431,12 +431,12 @@ func testScripts(t *testing.T, tests [][]string, useSigCache bool) {
 
 		// Extract and parse the expected result from the test fields.
 		//
-		// Convert the expected result string into the allowed script error
-		// codes.  This allows txscript to be more fine grained with its errors
-		// than the reference test data by allowing some of the test data errors
-		// to map to more than one possibility.
+		// Convert the expected result string into the allowed script errors.
+		// This allows txscript to be more fine grained with its errors than the
+		// reference test data by allowing some of the test data errors to map
+		// to more than one possibility.
 		resultStr := test[3]
-		allowedErrorCodes, err := parseExpectedResult(resultStr)
+		allowErrorKinds, err := parseExpectedResult(resultStr)
 		if err != nil {
 			t.Errorf("%s: %v", name, err)
 			continue
@@ -462,8 +462,8 @@ func testScripts(t *testing.T, tests [][]string, useSigCache bool) {
 		// At this point an error was expected so ensure the result of the
 		// execution matches it.
 		success := false
-		for _, code := range allowedErrorCodes {
-			if IsErrorCode(err, code) {
+		for _, kind := range allowErrorKinds {
+			if errors.Is(err, kind) {
 				success = true
 				break
 			}
@@ -471,12 +471,12 @@ func testScripts(t *testing.T, tests [][]string, useSigCache bool) {
 		if !success {
 			var serr Error
 			if errors.As(err, &serr) {
-				t.Errorf("%s: want error codes %v, got %v", name,
-					allowedErrorCodes, serr.ErrorCode)
+				t.Errorf("%s: want error kinds %v, got %v", name,
+					allowErrorKinds, serr.Err)
 				continue
 			}
-			t.Errorf("%s: want error codes %v, got err: %v (%T)", name,
-				allowedErrorCodes, err, err)
+			t.Errorf("%s: want error kinds %v, got err: %v (%T)", name,
+				allowErrorKinds, err, err)
 			continue
 		}
 	}
@@ -798,15 +798,14 @@ testloop:
 }
 
 // parseSigHashExpectedResult parses the provided expected result string into
-// allowed error codes.  An error is returned if the expected result string is
+// allowed error kinds.  An error is returned if the expected result string is
 // not supported.
-func parseSigHashExpectedResult(expected string) (*ErrorCode, error) {
+func parseSigHashExpectedResult(expected string) (error, error) {
 	switch expected {
 	case "OK":
 		return nil, nil
 	case "SIGHASH_SINGLE_IDX":
-		code := ErrInvalidSigHashSingleIndex
-		return &code, nil
+		return ErrInvalidSigHashSingleIndex, nil
 	}
 
 	return nil, fmt.Errorf("unrecognized expected result in test data: %v",
@@ -865,8 +864,7 @@ func TestCalcSignatureHashReference(t *testing.T) {
 		}
 		subScript, err := hex.DecodeString(subScriptStr)
 		if err != nil {
-			t.Errorf("Test #%d: unable to decode script: %v", i,
-				err)
+			t.Errorf("Test #%d: unable to decode script: %v", i, err)
 			continue
 		}
 		err = checkScriptParses(scriptVersion, subScript)
@@ -917,16 +915,8 @@ func TestCalcSignatureHashReference(t *testing.T) {
 		// Calculate the signature hash and verify expected result.
 		hash, err := CalcSignatureHash(subScript, hashType, &tx,
 			int(inputIdxF64), nil)
-		if (err == nil) != (expectedErr == nil) ||
-			expectedErr != nil && !IsErrorCode(err, *expectedErr) {
-
-			var serr Error
-			if errors.As(err, &serr) {
-				t.Errorf("Test #%d: want error code %v, got %v", i, expectedErr,
-					serr.ErrorCode)
-				continue
-			}
-			t.Errorf("Test #%d: want error code %v, got err: %v (%T)", i,
+		if !errors.Is(err, expectedErr) {
+			t.Errorf("Test #%d: want error kind %v, got err: %v (%T)", i,
 				expectedErr, err, err)
 			continue
 		}

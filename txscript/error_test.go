@@ -6,18 +6,17 @@
 package txscript
 
 import (
+	"errors"
+	"io"
 	"testing"
 )
 
-// TestErrorCodeStringer tests the stringized output for the ErrorCode type.
-func TestErrorCodeStringer(t *testing.T) {
-	t.Parallel()
-
+// TestErrorKindStringer tests the stringized output for the ErrorKind type.
+func TestErrorKindStringer(t *testing.T) {
 	tests := []struct {
-		in   ErrorCode
+		in   ErrorKind
 		want string
 	}{
-		{ErrInternal, "ErrInternal"},
 		{ErrInvalidIndex, "ErrInvalidIndex"},
 		{ErrInvalidSigHashSingleIndex, "ErrInvalidSigHashSingleIndex"},
 		{ErrUnsupportedAddress, "ErrUnsupportedAddress"},
@@ -81,21 +80,12 @@ func TestErrorCodeStringer(t *testing.T) {
 		{ErrDiscourageUpgradableNOPs, "ErrDiscourageUpgradableNOPs"},
 		{ErrNegativeLockTime, "ErrNegativeLockTime"},
 		{ErrUnsatisfiedLockTime, "ErrUnsatisfiedLockTime"},
-		{0xffff, "Unknown ErrorCode (65535)"},
 	}
 
-	// Detect additional error codes that don't have the stringer added.
-	if len(tests)-1 != int(numErrorCodes) {
-		t.Errorf("It appears an error code was added without adding an " +
-			"associated stringer test")
-	}
-
-	t.Logf("Running %d tests", len(tests))
 	for i, test := range tests {
-		result := test.in.String()
+		result := test.in.Error()
 		if result != test.want {
-			t.Errorf("String #%d\n got: %s want: %s", i, result,
-				test.want)
+			t.Errorf("#%d: got: %s want: %s", i, result, test.want)
 			continue
 		}
 	}
@@ -123,18 +113,17 @@ func TestError(t *testing.T) {
 	for i, test := range tests {
 		result := test.in.Error()
 		if result != test.want {
-			t.Errorf("Error #%d\n got: %s want: %s", i, result,
-				test.want)
+			t.Errorf("#%d: got: %s want: %s", i, result, test.want)
 			continue
 		}
 	}
 }
 
-// TestIsDERSigError ensures IsDERSigError returns true for all error codes
-// that can be returned as a result of non-canonically-encoded DER signatures.
+// TestIsDERSigError ensures IsDERSigError returns true for all error kinds that
+// can be returned as a result of non-canonically-encoded DER signatures.
 func TestIsDERSigError(t *testing.T) {
 	tests := []struct {
-		code ErrorCode
+		kind ErrorKind
 		want bool
 	}{
 		{ErrSigTooShort, true},
@@ -157,10 +146,86 @@ func TestIsDERSigError(t *testing.T) {
 		{ErrInvalidIndex, false},
 	}
 	for _, test := range tests {
-		result := IsDERSigError(Error{ErrorCode: test.code})
+		result := IsDERSigError(Error{Err: test.kind})
 		if result != test.want {
-			t.Errorf("IsDERSigError(%v): unexpected result -- got: %v want: %v",
-				test.code, result, test.want)
+			t.Errorf("%v: unexpected result -- got: %v want: %v", test.kind,
+				result, test.want)
+		}
+	}
+}
+
+// TestErrorKindIsAs ensures both ErrorKind and Error can be identified as being
+// a specific error kind via errors.Is and unwrapped via errors.As.
+func TestErrorKindIsAs(t *testing.T) {
+	tests := []struct {
+		name      string
+		err       error
+		target    error
+		wantMatch bool
+		wantAs    ErrorKind
+	}{{
+		name:      "ErrInvalidIndex == ErrInvalidIndex",
+		err:       ErrInvalidIndex,
+		target:    ErrInvalidIndex,
+		wantMatch: true,
+		wantAs:    ErrInvalidIndex,
+	}, {
+		name:      "Error.ErrInvalidIndex == ErrInvalidIndex",
+		err:       scriptError(ErrInvalidIndex, ""),
+		target:    ErrInvalidIndex,
+		wantMatch: true,
+		wantAs:    ErrInvalidIndex,
+	}, {
+		name:      "ErrEarlyReturn != ErrInvalidIndex",
+		err:       ErrEarlyReturn,
+		target:    ErrInvalidIndex,
+		wantMatch: false,
+		wantAs:    ErrEarlyReturn,
+	}, {
+		name:      "Error.ErrEarlyReturn != ErrInvalidIndex",
+		err:       scriptError(ErrEarlyReturn, ""),
+		target:    ErrInvalidIndex,
+		wantMatch: false,
+		wantAs:    ErrEarlyReturn,
+	}, {
+		name:      "ErrEarlyReturn != Error.ErrInvalidIndex",
+		err:       ErrEarlyReturn,
+		target:    scriptError(ErrInvalidIndex, ""),
+		wantMatch: false,
+		wantAs:    ErrEarlyReturn,
+	}, {
+		name:      "Error.ErrEarlyReturn != Error.ErrInvalidIndex",
+		err:       scriptError(ErrEarlyReturn, ""),
+		target:    scriptError(ErrInvalidIndex, ""),
+		wantMatch: false,
+		wantAs:    ErrEarlyReturn,
+	}, {
+		name:      "Error.ErrEarlyReturn != io.EOF",
+		err:       scriptError(ErrEarlyReturn, ""),
+		target:    io.EOF,
+		wantMatch: false,
+		wantAs:    ErrEarlyReturn,
+	}}
+
+	for _, test := range tests {
+		// Ensure the error matches or not depending on the expected result.
+		result := errors.Is(test.err, test.target)
+		if result != test.wantMatch {
+			t.Errorf("%s: incorrect error identification -- got %v, want %v",
+				test.name, result, test.wantMatch)
+			continue
+		}
+
+		// Ensure the underlying error kind can be unwrapped is and is the
+		// expected kind.
+		var kind ErrorKind
+		if !errors.As(test.err, &kind) {
+			t.Errorf("%s: unable to unwrap to error kind", test.name)
+			continue
+		}
+		if kind != test.wantAs {
+			t.Errorf("%s: unexpected unwrapped error kind -- got %v, want %v",
+				test.name, kind, test.wantAs)
 			continue
 		}
 	}

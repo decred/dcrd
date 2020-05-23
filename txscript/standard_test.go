@@ -426,10 +426,6 @@ func TestPayToAddrScript(t *testing.T) {
 		"93e1dcdb8a016b49840f8c53bc1eb68a382e97b1482ecad7b148a6909a5cb2" +
 		"e0eaddfb84ccf9744464f82e160bfa9b8b64f9d4c03f999b8643f656b412a3"))
 
-	// Errors used in the tests below defined here for convenience and to
-	// keep the horizontal test size shorter.
-	errUnsupportedAddress := scriptError(ErrUnsupportedAddress, "")
-
 	tests := []struct {
 		in       dcrutil.Address
 		expected string
@@ -474,22 +470,22 @@ func TestPayToAddrScript(t *testing.T) {
 		},
 
 		// Supported address types with nil pointers.
-		{(*dcrutil.AddressPubKeyHash)(nil), "", errUnsupportedAddress},
-		{(*dcrutil.AddressScriptHash)(nil), "", errUnsupportedAddress},
-		{(*dcrutil.AddressSecpPubKey)(nil), "", errUnsupportedAddress},
-		{(*dcrutil.AddressEdwardsPubKey)(nil), "", errUnsupportedAddress},
-		{(*dcrutil.AddressSecSchnorrPubKey)(nil), "", errUnsupportedAddress},
+		{(*dcrutil.AddressPubKeyHash)(nil), "", ErrUnsupportedAddress},
+		{(*dcrutil.AddressScriptHash)(nil), "", ErrUnsupportedAddress},
+		{(*dcrutil.AddressSecpPubKey)(nil), "", ErrUnsupportedAddress},
+		{(*dcrutil.AddressEdwardsPubKey)(nil), "", ErrUnsupportedAddress},
+		{(*dcrutil.AddressSecSchnorrPubKey)(nil), "", ErrUnsupportedAddress},
 
 		// Unsupported address type.
-		{&bogusAddress{}, "", errUnsupportedAddress},
+		{&bogusAddress{}, "", ErrUnsupportedAddress},
 	}
 
 	t.Logf("Running %d tests", len(tests))
 	for i, test := range tests {
 		pkScript, err := PayToAddrScript(test.in)
-		if e := tstCheckScriptError(err, test.err); e != nil {
-			t.Errorf("PayToAddrScript #%d unexpected error - "+
-				"got %v, want %v", i, err, test.err)
+		if !errors.Is(err, test.err) {
+			t.Errorf("PayToAddrScript #%d unexpected error - got %v, want %v",
+				i, err, test.err)
 			continue
 		}
 
@@ -565,7 +561,7 @@ func TestMultiSigScript(t *testing.T) {
 			},
 			3,
 			"",
-			scriptError(ErrTooManyRequiredSigs, ""),
+			ErrTooManyRequiredSigs,
 		},
 		{
 			// By default compressed pubkeys are used in Decred.
@@ -583,15 +579,16 @@ func TestMultiSigScript(t *testing.T) {
 			},
 			2,
 			"",
-			scriptError(ErrTooManyRequiredSigs, ""),
+			ErrTooManyRequiredSigs,
 		},
 	}
 
 	t.Logf("Running %d tests", len(tests))
 	for i, test := range tests {
 		script, err := MultiSigScript(test.keys, test.nrequired)
-		if e := tstCheckScriptError(err, test.err); e != nil {
-			t.Errorf("MultiSigScript #%d: %v", i, e)
+		if !errors.Is(err, test.err) {
+			t.Errorf("MultiSigScript #%d: unexpected error - got %v, want %v",
+				i, err, test.err)
 			continue
 		}
 
@@ -618,14 +615,14 @@ func TestCalcMultiSigStats(t *testing.T) {
 			name: "short script",
 			script: "0x046708afdb0fe5548271967f1a67130b7105cd6a828" +
 				"e03909a67962e0ea1f61d",
-			err: scriptError(ErrNotMultisigScript, ""),
+			err: ErrNotMultisigScript,
 		},
 		{
 			name: "stack underflow",
 			script: "RETURN DATA_41 0x046708afdb0fe5548271967f1a" +
 				"67130b7105cd6a828e03909a67962e0ea1f61deb649f6" +
 				"bc3f4cef308",
-			err: scriptError(ErrNotMultisigScript, ""),
+			err: ErrNotMultisigScript,
 		},
 		{
 			name: "multisig script",
@@ -635,12 +632,12 @@ func TestCalcMultiSigStats(t *testing.T) {
 		},
 	}
 
-	for i, test := range tests {
+	for _, test := range tests {
 		script := mustParseShortForm(test.script)
 		_, _, err := CalcMultiSigStats(script)
-		if e := tstCheckScriptError(err, test.err); e != nil {
-			t.Errorf("CalcMultiSigStats #%d (%s): %v", i, test.name,
-				e)
+		if !errors.Is(err, test.err) {
+			t.Errorf("%s: unexpected error - got %v, want %v", test.name, err,
+				test.err)
 			continue
 		}
 	}
@@ -991,16 +988,16 @@ func TestGenerateProvablyPruneableOut(t *testing.T) {
 				"4a4b4c4d4e4f202122232425262728292a2b2c2d2e2f303132333435363738393" +
 				"a3b3c3d3e3f3f"),
 			expected: nil,
-			err:      scriptError(ErrTooMuchNullData, ""),
+			err:      ErrTooMuchNullData,
 			class:    NonStandardTy,
 		},
 	}
 
 	for i, test := range tests {
 		script, err := GenerateProvablyPruneableOut(test.data)
-		if e := tstCheckScriptError(err, test.err); e != nil {
-			t.Errorf("GenerateProvablyPruneableOut: #%d (%s) %v",
-				i, test.name, e)
+		if !errors.Is(err, test.err) {
+			t.Errorf("%s: unexpected error - got %v, want %v", test.name, err,
+				test.err)
 			continue
 		}
 
@@ -1262,7 +1259,7 @@ func TestExtractAtomicSwapDataPushes(t *testing.T) {
 			"EQUALVERIFY CHECKSIG", secret, recipient, refund),
 		scriptVersion: 65535,
 		data:          nil,
-		err:           scriptError(ErrUnsupportedScriptVersion, ""),
+		err:           ErrUnsupportedScriptVersion,
 	}}
 
 	for _, test := range tests {
@@ -1271,14 +1268,10 @@ func TestExtractAtomicSwapDataPushes(t *testing.T) {
 		// Attempt to extract the atomic swap data from the script and ensure
 		// the error is as expected.
 		data, err := ExtractAtomicSwapDataPushes(test.scriptVersion, script)
-		if test.err == nil && err != nil {
+		if !errors.Is(err, test.err) {
 			t.Fatalf("%q: unexpected err -- got %v, want nil", test.name, err)
-		} else if test.err != nil {
-			var e Error
-			if !errors.As(test.err, &e) || !IsErrorCode(err, e.ErrorCode) {
-				t.Fatalf("%q: unexpected err -- got %v, want %v",
-					test.name, err, e.ErrorCode)
-			}
+		}
+		if test.err != nil {
 			continue
 		}
 

@@ -7,121 +7,115 @@ package txscript
 
 import (
 	"errors"
-	"fmt"
 )
 
-// ErrorCode identifies a kind of script error.
-type ErrorCode int
+// ErrorKind identifies a kind of script error.
+type ErrorKind string
 
-// These constants are used to identify a specific Error.
+// These constants are used to identify a specific ErrorKind.
 const (
-	// ErrInternal is returned if internal consistency checks fail.  In
-	// practice this error should never be seen as it would mean there is an
-	// error in the engine logic.
-	ErrInternal ErrorCode = iota
-
 	// ---------------------------------------
 	// Failures related to improper API usage.
 	// ---------------------------------------
 
 	// ErrInvalidIndex is returned when an out-of-bounds index is passed to
 	// a function.
-	ErrInvalidIndex
+	ErrInvalidIndex = ErrorKind("ErrInvalidIndex")
 
 	// ErrInvalidSigHashSingleIndex is returned when an attempt is
 	// made to sign an input with the SigHashSingle hash type and an
 	// index that is greater than or equal to the number of outputs.
-	ErrInvalidSigHashSingleIndex
+	ErrInvalidSigHashSingleIndex = ErrorKind("ErrInvalidSigHashSingleIndex")
 
 	// ErrUnsupportedAddress is returned when a concrete type that
 	// implements a dcrutil.Address is not a supported type.
-	ErrUnsupportedAddress
+	ErrUnsupportedAddress = ErrorKind("ErrUnsupportedAddress")
 
 	// ErrNotMultisigScript is returned from CalcMultiSigStats when the
 	// provided script is not a multisig script.
-	ErrNotMultisigScript
+	ErrNotMultisigScript = ErrorKind("ErrNotMultisigScript")
 
 	// ErrTooManyRequiredSigs is returned from MultiSigScript when the
 	// specified number of required signatures is larger than the number of
 	// provided public keys.
-	ErrTooManyRequiredSigs
+	ErrTooManyRequiredSigs = ErrorKind("ErrTooManyRequiredSigs")
 
 	// ErrMalformedCoinbaseNullData is returned when the nulldata output
 	// of a coinbase transaction that is used to ensure the coinbase has a
 	// unique hash is not properly formed.
 	//
 	// Deprecated: This will be removed in the next major version bump.
-	ErrMalformedCoinbaseNullData
+	ErrMalformedCoinbaseNullData = ErrorKind("ErrMalformedCoinbaseNullData")
 
 	// ErrTooMuchNullData is returned from NullDataScript when the length of
 	// the provided data exceeds MaxDataCarrierSize.
-	ErrTooMuchNullData
+	ErrTooMuchNullData = ErrorKind("ErrTooMuchNullData")
 
 	// ErrUnsupportedScriptVersion is returned when an unsupported script
 	// version is passed to a function which deals with script analysis.
-	ErrUnsupportedScriptVersion
+	ErrUnsupportedScriptVersion = ErrorKind("ErrUnsupportedScriptVersion")
 
 	// ------------------------------------------
 	// Failures related to final execution state.
 	// ------------------------------------------
 
 	// ErrEarlyReturn is returned when OP_RETURN is executed in the script.
-	ErrEarlyReturn
+	ErrEarlyReturn = ErrorKind("ErrEarlyReturn")
 
 	// ErrEmptyStack is returned when the script evaluated without error,
 	// but terminated with an empty top stack element.
-	ErrEmptyStack
+	ErrEmptyStack = ErrorKind("ErrEmptyStack")
 
 	// ErrEvalFalse is returned when the script evaluated without error but
 	// terminated with a false top stack element.
-	ErrEvalFalse
+	ErrEvalFalse = ErrorKind("ErrEvalFalse")
 
 	// ErrScriptUnfinished is returned when CheckErrorCondition is called on
 	// a script that has not finished executing.
-	ErrScriptUnfinished
+	ErrScriptUnfinished = ErrorKind("ErrScriptUnfinished")
 
 	// ErrScriptDone is returned when an attempt to execute an opcode is
 	// made once all of them have already been executed.  This can happen
 	// due to things such as a second call to Execute or calling Step after
 	// all opcodes have already been executed.
-	ErrInvalidProgramCounter
+	ErrInvalidProgramCounter = ErrorKind("ErrInvalidProgramCounter")
 
 	// -----------------------------------------------------
 	// Failures related to exceeding maximum allowed limits.
 	// -----------------------------------------------------
 
 	// ErrScriptTooBig is returned if a script is larger than MaxScriptSize.
-	ErrScriptTooBig
+	ErrScriptTooBig = ErrorKind("ErrScriptTooBig")
 
 	// ErrElementTooBig is returned if the size of an element to be pushed
 	// to the stack is over MaxScriptElementSize.
-	ErrElementTooBig
+	ErrElementTooBig = ErrorKind("ErrElementTooBig")
 
 	// ErrTooManyOperations is returned if a script has more than
 	// MaxOpsPerScript opcodes that do not push data.
-	ErrTooManyOperations
+	ErrTooManyOperations = ErrorKind("ErrTooManyOperations")
 
 	// ErrStackOverflow is returned when stack and altstack combined depth
 	// is over the limit.
-	ErrStackOverflow
+	ErrStackOverflow = ErrorKind("ErrStackOverflow")
 
 	// ErrInvalidPubKeyCount is returned when the number of public keys
 	// specified for a multsig is either negative or greater than
 	// MaxPubKeysPerMultiSig.
-	ErrInvalidPubKeyCount
+	ErrInvalidPubKeyCount = ErrorKind("ErrInvalidPubKeyCount")
 
 	// ErrInvalidSignatureCount is returned when the number of signatures
 	// specified for a multisig is either negative or greater than the
 	// number of public keys.
-	ErrInvalidSignatureCount
+	ErrInvalidSignatureCount = ErrorKind("ErrInvalidSignatureCount")
 
 	// ErrNumOutOfRange is returned when the argument for an opcode that
 	// expects numeric input is larger than the expected maximum number of
 	// bytes.  For the most part, opcodes that deal with stack manipulation
 	// via offsets, arithmetic, numeric comparison, and boolean logic are
 	// those that this applies to.  However, any opcode that expects numeric
-	// input may fail with this code.
-	ErrNumOutOfRange
+	// input may fail with this error.
+	ErrNumOutOfRange = ErrorKind("ErrNumOutOfRange")
 
 	// --------------------------------------------
 	// Failures related to verification operations.
@@ -129,31 +123,31 @@ const (
 
 	// ErrVerify is returned when OP_VERIFY is encountered in a script and
 	// the top item on the data stack does not evaluate to true.
-	ErrVerify
+	ErrVerify = ErrorKind("ErrVerify")
 
 	// ErrEqualVerify is returned when OP_EQUALVERIFY is encountered in a
 	// script and the top item on the data stack does not evaluate to true.
-	ErrEqualVerify
+	ErrEqualVerify = ErrorKind("ErrEqualVerify")
 
 	// ErrNumEqualVerify is returned when OP_NUMEQUALVERIFY is encountered
 	// in a script and the top item on the data stack does not evaluate to
 	// true.
-	ErrNumEqualVerify
+	ErrNumEqualVerify = ErrorKind("ErrNumEqualVerify")
 
 	// ErrCheckSigVerify is returned when OP_CHECKSIGVERIFY is encountered
 	// in a script and the top item on the data stack does not evaluate to
 	// true.
-	ErrCheckSigVerify
+	ErrCheckSigVerify = ErrorKind("ErrCheckSigVerify")
 
 	// ErrCheckSigVerify is returned when OP_CHECKMULTISIGVERIFY is
 	// encountered in a script and the top item on the data stack does not
 	// evaluate to true.
-	ErrCheckMultiSigVerify
+	ErrCheckMultiSigVerify = ErrorKind("ErrCheckMultiSigVerify")
 
 	// ErrCheckSigAltVerify is returned when OP_CHECKSIGALTVERIFY is
 	// encountered in a script and the top item on the data stack does not
 	// evaluate to true.
-	ErrCheckSigAltVerify
+	ErrCheckSigAltVerify = ErrorKind("ErrCheckSigAltVerify")
 
 	// --------------------------------------------
 	// Failures related to improper use of opcodes.
@@ -161,61 +155,61 @@ const (
 
 	// ErrP2SHStakeOpCodes is returned when one or more stake opcodes are
 	// found in the redeem script of a pay-to-script-hash script.
-	ErrP2SHStakeOpCodes
+	ErrP2SHStakeOpCodes = ErrorKind("ErrP2SHStakeOpCodes")
 
 	// ErrDisabledOpcode is returned when a disabled opcode is encountered
 	// in a script.
-	ErrDisabledOpcode
+	ErrDisabledOpcode = ErrorKind("ErrDisabledOpcode")
 
 	// ErrReservedOpcode is returned when an opcode marked as reserved
 	// is encountered in a script.
-	ErrReservedOpcode
+	ErrReservedOpcode = ErrorKind("ErrReservedOpcode")
 
 	// ErrMalformedPush is returned when a data push opcode tries to push
 	// more bytes than are left in the script.
-	ErrMalformedPush
+	ErrMalformedPush = ErrorKind("ErrMalformedPush")
 
 	// ErrInvalidStackOperation is returned when a stack operation is
 	// attempted with a number that is invalid for the current stack size.
-	ErrInvalidStackOperation
+	ErrInvalidStackOperation = ErrorKind("ErrInvalidStackOperation")
 
 	// ErrUnbalancedConditional is returned when an OP_ELSE or OP_ENDIF is
 	// encountered in a script without first having an OP_IF or OP_NOTIF or
 	// the end of script is reached without encountering an OP_ENDIF when
 	// an OP_IF or OP_NOTIF was previously encountered.
-	ErrUnbalancedConditional
+	ErrUnbalancedConditional = ErrorKind("ErrUnbalancedConditional")
 
 	// ErrNegativeSubstrIdx is returned when an OP_SUBSTR, OP_LEFT, or
 	// OP_RIGHT opcode encounters a negative index.
-	ErrNegativeSubstrIdx
+	ErrNegativeSubstrIdx = ErrorKind("ErrNegativeSubstrIdx")
 
 	// ErrOverflowSubstrIdx is returned when an OP_SUBSTR, OP_LEFT, or
 	// OP_RIGHT opcode encounters an index that is larger than the max
 	// allowed index that can operate on the string or the start index
 	// is greater than the end index for OP_SUBSTR.
-	ErrOverflowSubstrIdx
+	ErrOverflowSubstrIdx = ErrorKind("ErrOverflowSubstrIdx")
 
 	// ErrNegativeRotation is returned when an OP_ROTL or OP_ROTR attempts
 	// to perform a rotation with a negative rotation count.
-	ErrNegativeRotation
+	ErrNegativeRotation = ErrorKind("ErrNegativeRotation")
 
 	// ErrOverflowRotation is returned when an OP_ROTL or OP_ROTR opcode
 	// encounters a rotation count that is larger than the maximum allowed
 	// value for a uint32 bit rotation.
-	ErrOverflowRotation
+	ErrOverflowRotation = ErrorKind("ErrOverflowRotation")
 
 	// ErrDivideByZero is returned when an OP_DIV of OP_MOD attempts to
 	// divide by zero.
-	ErrDivideByZero
+	ErrDivideByZero = ErrorKind("ErrDivideByZero")
 
 	// ErrNegativeRotation is returned when an OP_LSHIFT or OP_RSHIFT opcode
 	// attempts to perform a shift with a negative count.
-	ErrNegativeShift
+	ErrNegativeShift = ErrorKind("ErrNegativeShift")
 
 	// ErrOverflowShift is returned when an OP_LSHIFT or OP_RSHIFT opcode
 	// encounters a shift count that is larger than the maximum allowed value
 	// for a shift.
-	ErrOverflowShift
+	ErrOverflowShift = ErrorKind("ErrOverflowShift")
 
 	// ---------------------------------
 	// Failures related to malleability.
@@ -223,96 +217,96 @@ const (
 
 	// ErrMinimalData is returned when the script contains push operations
 	// that do not use the minimal opcode required.
-	ErrMinimalData
+	ErrMinimalData = ErrorKind("ErrMinimalData")
 
 	// ErrInvalidSigHashType is returned when a signature hash type is not
 	// one of the supported types.
-	ErrInvalidSigHashType
+	ErrInvalidSigHashType = ErrorKind("ErrInvalidSigHashType")
 
 	// ErrSigTooShort is returned when a signature that should be a
 	// canonically-encoded DER signature is too short.
-	ErrSigTooShort
+	ErrSigTooShort = ErrorKind("ErrSigTooShort")
 
 	// ErrSigTooLong is returned when a signature that should be a
 	// canonically-encoded DER signature is too long.
-	ErrSigTooLong
+	ErrSigTooLong = ErrorKind("ErrSigTooLong")
 
 	// ErrSigInvalidSeqID is returned when a signature that should be a
 	// canonically-encoded DER signature does not have the expected ASN.1
 	// sequence ID.
-	ErrSigInvalidSeqID
+	ErrSigInvalidSeqID = ErrorKind("ErrSigInvalidSeqID")
 
-	// ErrSigInvalidDataLen is returned a signature that should be a
+	// ErrSigInvalidDataLen is returned when a signature that should be a
 	// canonically-encoded DER signature does not specify the correct number
 	// of remaining bytes for the R and S portions.
-	ErrSigInvalidDataLen
+	ErrSigInvalidDataLen = ErrorKind("ErrSigInvalidDataLen")
 
-	// ErrSigMissingSTypeID is returned a signature that should be a
+	// ErrSigMissingSTypeID is returned when a signature that should be a
 	// canonically-encoded DER signature does not provide the ASN.1 type ID
 	// for S.
-	ErrSigMissingSTypeID
+	ErrSigMissingSTypeID = ErrorKind("ErrSigMissingSTypeID")
 
 	// ErrSigMissingSLen is returned when a signature that should be a
 	// canonically-encoded DER signature does not provide the length of S.
-	ErrSigMissingSLen
+	ErrSigMissingSLen = ErrorKind("ErrSigMissingSLen")
 
-	// ErrSigInvalidSLen is returned a signature that should be a
+	// ErrSigInvalidSLen is returned when a signature that should be a
 	// canonically-encoded DER signature does not specify the correct number
 	// of bytes for the S portion.
-	ErrSigInvalidSLen
+	ErrSigInvalidSLen = ErrorKind("ErrSigInvalidSLen")
 
 	// ErrSigInvalidRIntID is returned when a signature that should be a
 	// canonically-encoded DER signature does not have the expected ASN.1
 	// integer ID for R.
-	ErrSigInvalidRIntID
+	ErrSigInvalidRIntID = ErrorKind("ErrSigInvalidRIntID")
 
 	// ErrSigZeroRLen is returned when a signature that should be a
 	// canonically-encoded DER signature has an R length of zero.
-	ErrSigZeroRLen
+	ErrSigZeroRLen = ErrorKind("ErrSigZeroRLen")
 
 	// ErrSigNegativeR is returned when a signature that should be a
 	// canonically-encoded DER signature has a negative value for R.
-	ErrSigNegativeR
+	ErrSigNegativeR = ErrorKind("ErrSigNegativeR")
 
 	// ErrSigTooMuchRPadding is returned when a signature that should be a
 	// canonically-encoded DER signature has too much padding for R.
-	ErrSigTooMuchRPadding
+	ErrSigTooMuchRPadding = ErrorKind("ErrSigTooMuchRPadding")
 
 	// ErrSigInvalidSIntID is returned when a signature that should be a
 	// canonically-encoded DER signature does not have the expected ASN.1
 	// integer ID for S.
-	ErrSigInvalidSIntID
+	ErrSigInvalidSIntID = ErrorKind("ErrSigInvalidSIntID")
 
 	// ErrSigZeroSLen is returned when a signature that should be a
 	// canonically-encoded DER signature has an S length of zero.
-	ErrSigZeroSLen
+	ErrSigZeroSLen = ErrorKind("ErrSigZeroSLen")
 
 	// ErrSigNegativeS is returned when a signature that should be a
 	// canonically-encoded DER signature has a negative value for S.
-	ErrSigNegativeS
+	ErrSigNegativeS = ErrorKind("ErrSigNegativeS")
 
 	// ErrSigTooMuchSPadding is returned when a signature that should be a
 	// canonically-encoded DER signature has too much padding for S.
-	ErrSigTooMuchSPadding
+	ErrSigTooMuchSPadding = ErrorKind("ErrSigTooMuchSPadding")
 
 	// ErrSigHighS is returned when a signature that should be a
 	// canonically-encoded DER signature has an S value that is higher than
 	// the curve half order.
-	ErrSigHighS
+	ErrSigHighS = ErrorKind("ErrSigHighS")
 
 	// ErrNotPushOnly is returned when a script that is required to only
 	// push data to the stack performs other operations.  A couple of cases
 	// where this applies is for a pay-to-script-hash signature script when
 	// bip16 is active and when the ScriptVerifySigPushOnly flag is set.
-	ErrNotPushOnly
+	ErrNotPushOnly = ErrorKind("ErrNotPushOnly")
 
 	// ErrPubKeyType is returned when the script contains invalid public keys.
-	ErrPubKeyType
+	ErrPubKeyType = ErrorKind("ErrPubKeyType")
 
 	// ErrCleanStack is returned when the ScriptVerifyCleanStack flag
 	// is set, and after evaluation, the stack does not contain only a
 	// single element.
-	ErrCleanStack
+	ErrCleanStack = ErrorKind("ErrCleanStack")
 
 	// -------------------------------
 	// Failures related to soft forks.
@@ -321,96 +315,21 @@ const (
 	// ErrDiscourageUpgradableNOPs is returned when the
 	// ScriptDiscourageUpgradableNops flag is set and a NOP opcode is
 	// encountered in a script.
-	ErrDiscourageUpgradableNOPs
+	ErrDiscourageUpgradableNOPs = ErrorKind("ErrDiscourageUpgradableNOPs")
 
 	// ErrNegativeLockTime is returned when a script contains an opcode that
 	// interprets a negative lock time.
-	ErrNegativeLockTime
+	ErrNegativeLockTime = ErrorKind("ErrNegativeLockTime")
 
 	// ErrUnsatisfiedLockTime is returned when a script contains an opcode
 	// that involves a lock time and the required lock time has not been
 	// reached.
-	ErrUnsatisfiedLockTime
-
-	// numErrorCodes is the maximum error code number used in tests.  This
-	// entry MUST be the last entry in the enum.
-	numErrorCodes
+	ErrUnsatisfiedLockTime = ErrorKind("ErrUnsatisfiedLockTime")
 )
 
-// Map of ErrorCode values back to their constant names for pretty printing.
-var errorCodeStrings = map[ErrorCode]string{
-	ErrInternal:                  "ErrInternal",
-	ErrInvalidIndex:              "ErrInvalidIndex",
-	ErrInvalidSigHashSingleIndex: "ErrInvalidSigHashSingleIndex",
-	ErrUnsupportedAddress:        "ErrUnsupportedAddress",
-	ErrNotMultisigScript:         "ErrNotMultisigScript",
-	ErrTooManyRequiredSigs:       "ErrTooManyRequiredSigs",
-	ErrMalformedCoinbaseNullData: "ErrMalformedCoinbaseNullData",
-	ErrTooMuchNullData:           "ErrTooMuchNullData",
-	ErrUnsupportedScriptVersion:  "ErrUnsupportedScriptVersion",
-	ErrEarlyReturn:               "ErrEarlyReturn",
-	ErrEmptyStack:                "ErrEmptyStack",
-	ErrEvalFalse:                 "ErrEvalFalse",
-	ErrScriptUnfinished:          "ErrScriptUnfinished",
-	ErrInvalidProgramCounter:     "ErrInvalidProgramCounter",
-	ErrScriptTooBig:              "ErrScriptTooBig",
-	ErrElementTooBig:             "ErrElementTooBig",
-	ErrTooManyOperations:         "ErrTooManyOperations",
-	ErrStackOverflow:             "ErrStackOverflow",
-	ErrInvalidPubKeyCount:        "ErrInvalidPubKeyCount",
-	ErrInvalidSignatureCount:     "ErrInvalidSignatureCount",
-	ErrNumOutOfRange:             "ErrNumOutOfRange",
-	ErrVerify:                    "ErrVerify",
-	ErrEqualVerify:               "ErrEqualVerify",
-	ErrNumEqualVerify:            "ErrNumEqualVerify",
-	ErrCheckSigVerify:            "ErrCheckSigVerify",
-	ErrCheckMultiSigVerify:       "ErrCheckMultiSigVerify",
-	ErrCheckSigAltVerify:         "ErrCheckSigAltVerify",
-	ErrP2SHStakeOpCodes:          "ErrP2SHStakeOpCodes",
-	ErrDisabledOpcode:            "ErrDisabledOpcode",
-	ErrReservedOpcode:            "ErrReservedOpcode",
-	ErrMalformedPush:             "ErrMalformedPush",
-	ErrInvalidStackOperation:     "ErrInvalidStackOperation",
-	ErrUnbalancedConditional:     "ErrUnbalancedConditional",
-	ErrNegativeSubstrIdx:         "ErrNegativeSubstrIdx",
-	ErrSigTooMuchSPadding:        "ErrSigTooMuchSPadding",
-	ErrOverflowSubstrIdx:         "ErrOverflowSubstrIdx",
-	ErrNegativeRotation:          "ErrNegativeRotation",
-	ErrOverflowRotation:          "ErrOverflowRotation",
-	ErrDivideByZero:              "ErrDivideByZero",
-	ErrNegativeShift:             "ErrNegativeShift",
-	ErrOverflowShift:             "ErrOverflowShift",
-	ErrMinimalData:               "ErrMinimalData",
-	ErrInvalidSigHashType:        "ErrInvalidSigHashType",
-	ErrSigTooShort:               "ErrSigTooShort",
-	ErrSigTooLong:                "ErrSigTooLong",
-	ErrSigInvalidSeqID:           "ErrSigInvalidSeqID",
-	ErrSigInvalidDataLen:         "ErrSigInvalidDataLen",
-	ErrSigMissingSTypeID:         "ErrSigMissingSTypeID",
-	ErrSigMissingSLen:            "ErrSigMissingSLen",
-	ErrSigInvalidSLen:            "ErrSigInvalidSLen",
-	ErrSigInvalidRIntID:          "ErrSigInvalidRIntID",
-	ErrSigZeroRLen:               "ErrSigZeroRLen",
-	ErrSigNegativeR:              "ErrSigNegativeR",
-	ErrSigTooMuchRPadding:        "ErrSigTooMuchRPadding",
-	ErrSigInvalidSIntID:          "ErrSigInvalidSIntID",
-	ErrSigZeroSLen:               "ErrSigZeroSLen",
-	ErrSigNegativeS:              "ErrSigNegativeS",
-	ErrSigHighS:                  "ErrSigHighS",
-	ErrNotPushOnly:               "ErrNotPushOnly",
-	ErrPubKeyType:                "ErrPubKeyType",
-	ErrCleanStack:                "ErrCleanStack",
-	ErrDiscourageUpgradableNOPs:  "ErrDiscourageUpgradableNOPs",
-	ErrNegativeLockTime:          "ErrNegativeLockTime",
-	ErrUnsatisfiedLockTime:       "ErrUnsatisfiedLockTime",
-}
-
-// String returns the ErrorCode as a human-readable name.
-func (e ErrorCode) String() string {
-	if s := errorCodeStrings[e]; s != "" {
-		return s
-	}
-	return fmt.Sprintf("Unknown ErrorCode (%d)", int(e))
+// Error satisfies the error interface and prints human-readable errors.
+func (e ErrorKind) Error() string {
+	return string(e)
 }
 
 // Error identifies a script-related error.  It is used to indicate three
@@ -420,12 +339,10 @@ func (e ErrorCode) String() string {
 // 2) Improper API usage by callers
 // 3) Internal consistency check failures
 //
-// The caller can use type assertions on the returned errors to access the
-// ErrorCode field to ascertain the specific reason for the error.  As an
-// additional convenience, the caller may make use of the IsErrorCode function
-// to check for a specific error code.
+// It has full support for errors.Is and errors.As, so the caller can ascertain
+// the specific reason for the error by checking the underlying error.
 type Error struct {
-	ErrorCode   ErrorCode
+	Err         error
 	Description string
 }
 
@@ -434,28 +351,26 @@ func (e Error) Error() string {
 	return e.Description
 }
 
-// scriptError creates an Error given a set of arguments.
-func scriptError(c ErrorCode, desc string) Error {
-	return Error{ErrorCode: c, Description: desc}
+// Unwrap returns the underlying wrapped error.
+func (e Error) Unwrap() error {
+	return e.Err
 }
 
-// IsErrorCode returns whether or not the provided error is a script error with
-// the provided error code.
-func IsErrorCode(err error, c ErrorCode) bool {
-	var serr Error
-	return errors.As(err, &serr) && serr.ErrorCode == c
+// scriptError creates a ScriptError given a set of arguments.
+func scriptError(kind ErrorKind, desc string) Error {
+	return Error{Err: kind, Description: desc}
 }
 
-// IsDERSigError returns whether or not the provided error is a script error
-// with one of the error codes which are caused due to encountering a signature
-// that is not a canonically-encoded DER signature.
+// IsDERSigError returns whether or not the provided error is one of the error
+// kinds which are caused due to encountering a signature that is not a
+// canonically-encoded DER signature.
 func IsDERSigError(err error) bool {
-	var serr Error
-	if !errors.As(err, &serr) {
+	var kind ErrorKind
+	if !errors.As(err, &kind) {
 		return false
 	}
 
-	switch serr.ErrorCode {
+	switch kind {
 	case ErrSigTooShort, ErrSigTooLong, ErrSigInvalidSeqID,
 		ErrSigInvalidDataLen, ErrSigMissingSTypeID, ErrSigMissingSLen,
 		ErrSigInvalidSLen, ErrSigInvalidRIntID, ErrSigZeroRLen, ErrSigNegativeR,

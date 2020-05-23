@@ -999,9 +999,8 @@ func GenerateSSGenVotes(votebits uint16) ([]byte, error) {
 }
 
 // GenerateProvablyPruneableOut creates a provably-prunable script containing
-// OP_RETURN followed by the passed data.  An Error with the error code
-// ErrTooMuchNullData will be returned if the length of the passed data exceeds
-// MaxDataCarrierSize.
+// OP_RETURN followed by the passed data.  An Error with kind ErrTooMuchNullData
+// will be returned if the length of the passed data exceeds MaxDataCarrierSize.
 func GenerateProvablyPruneableOut(data []byte) ([]byte, error) {
 	if len(data) > MaxDataCarrierSize {
 		str := fmt.Sprintf("data size %d is larger than max "+
@@ -1066,8 +1065,8 @@ func PayToAddrScript(addr dcrutil.Address) ([]byte, error) {
 
 // MultiSigScript returns a valid script for a multisignature redemption where
 // nrequired of the keys in pubkeys are required to have signed the transaction
-// for success.  An Error with the error code ErrTooManyRequiredSigs will be
-// returned if nrequired is larger than the number of keys provided.
+// for success.  An Error with kind ErrTooManyRequiredSigs will be returned if
+// nrequired is larger than the number of keys provided.
 func MultiSigScript(pubkeys []*dcrutil.AddressSecpPubKey, nrequired int) ([]byte, error) {
 	if len(pubkeys) < nrequired {
 		str := fmt.Sprintf("unable to generate multisig script with "+

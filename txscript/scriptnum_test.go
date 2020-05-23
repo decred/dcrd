@@ -8,6 +8,7 @@ package txscript
 import (
 	"bytes"
 	"encoding/hex"
+	"errors"
 	"testing"
 )
 
@@ -92,11 +93,6 @@ func TestScriptNumBytes(t *testing.T) {
 func TestMakeScriptNum(t *testing.T) {
 	t.Parallel()
 
-	// Errors used in the tests below defined here for convenience and to
-	// keep the horizontal test size shorter.
-	errOutOfRange := scriptError(ErrNumOutOfRange, "")
-	errMinimalData := scriptError(ErrMinimalData, "")
-
 	tests := []struct {
 		serialized []byte
 		num        scriptNum
@@ -104,7 +100,7 @@ func TestMakeScriptNum(t *testing.T) {
 		err        error
 	}{
 		// Minimal encoding must reject negative 0.
-		{hexToBytes("80"), 0, mathOpCodeMaxScriptNumLen, errMinimalData},
+		{hexToBytes("80"), 0, mathOpCodeMaxScriptNumLen, ErrMinimalData},
 
 		// Minimally encoded valid values.  Should not error and return
 		// expected integral number.
@@ -144,43 +140,43 @@ func TestMakeScriptNum(t *testing.T) {
 
 		// Minimally encoded values that are out of range for data that
 		// is interpreted as script numbers.  Should error and return 0.
-		{hexToBytes("0000008000"), 0, mathOpCodeMaxScriptNumLen, errOutOfRange},
-		{hexToBytes("0000008080"), 0, mathOpCodeMaxScriptNumLen, errOutOfRange},
-		{hexToBytes("0000009000"), 0, mathOpCodeMaxScriptNumLen, errOutOfRange},
-		{hexToBytes("0000009080"), 0, mathOpCodeMaxScriptNumLen, errOutOfRange},
-		{hexToBytes("ffffffff00"), 0, mathOpCodeMaxScriptNumLen, errOutOfRange},
-		{hexToBytes("ffffffff80"), 0, mathOpCodeMaxScriptNumLen, errOutOfRange},
-		{hexToBytes("0000000001"), 0, mathOpCodeMaxScriptNumLen, errOutOfRange},
-		{hexToBytes("0000000081"), 0, mathOpCodeMaxScriptNumLen, errOutOfRange},
-		{hexToBytes("ffffffffffff00"), 0, mathOpCodeMaxScriptNumLen, errOutOfRange},
-		{hexToBytes("ffffffffffff80"), 0, mathOpCodeMaxScriptNumLen, errOutOfRange},
-		{hexToBytes("ffffffffffffff00"), 0, mathOpCodeMaxScriptNumLen, errOutOfRange},
-		{hexToBytes("ffffffffffffff80"), 0, mathOpCodeMaxScriptNumLen, errOutOfRange},
-		{hexToBytes("ffffffffffffff7f"), 0, mathOpCodeMaxScriptNumLen, errOutOfRange},
-		{hexToBytes("ffffffffffffffff"), 0, mathOpCodeMaxScriptNumLen, errOutOfRange},
+		{hexToBytes("0000008000"), 0, mathOpCodeMaxScriptNumLen, ErrNumOutOfRange},
+		{hexToBytes("0000008080"), 0, mathOpCodeMaxScriptNumLen, ErrNumOutOfRange},
+		{hexToBytes("0000009000"), 0, mathOpCodeMaxScriptNumLen, ErrNumOutOfRange},
+		{hexToBytes("0000009080"), 0, mathOpCodeMaxScriptNumLen, ErrNumOutOfRange},
+		{hexToBytes("ffffffff00"), 0, mathOpCodeMaxScriptNumLen, ErrNumOutOfRange},
+		{hexToBytes("ffffffff80"), 0, mathOpCodeMaxScriptNumLen, ErrNumOutOfRange},
+		{hexToBytes("0000000001"), 0, mathOpCodeMaxScriptNumLen, ErrNumOutOfRange},
+		{hexToBytes("0000000081"), 0, mathOpCodeMaxScriptNumLen, ErrNumOutOfRange},
+		{hexToBytes("ffffffffffff00"), 0, mathOpCodeMaxScriptNumLen, ErrNumOutOfRange},
+		{hexToBytes("ffffffffffff80"), 0, mathOpCodeMaxScriptNumLen, ErrNumOutOfRange},
+		{hexToBytes("ffffffffffffff00"), 0, mathOpCodeMaxScriptNumLen, ErrNumOutOfRange},
+		{hexToBytes("ffffffffffffff80"), 0, mathOpCodeMaxScriptNumLen, ErrNumOutOfRange},
+		{hexToBytes("ffffffffffffff7f"), 0, mathOpCodeMaxScriptNumLen, ErrNumOutOfRange},
+		{hexToBytes("ffffffffffffffff"), 0, mathOpCodeMaxScriptNumLen, ErrNumOutOfRange},
 
 		// Non-minimally encoded, but otherwise valid values.  Should
 		// error and return 0.
-		{hexToBytes("00"), 0, mathOpCodeMaxScriptNumLen, errMinimalData},       // 0
-		{hexToBytes("0100"), 0, mathOpCodeMaxScriptNumLen, errMinimalData},     // 1
-		{hexToBytes("7f00"), 0, mathOpCodeMaxScriptNumLen, errMinimalData},     // 127
-		{hexToBytes("800000"), 0, mathOpCodeMaxScriptNumLen, errMinimalData},   // 128
-		{hexToBytes("810000"), 0, mathOpCodeMaxScriptNumLen, errMinimalData},   // 129
-		{hexToBytes("000100"), 0, mathOpCodeMaxScriptNumLen, errMinimalData},   // 256
-		{hexToBytes("ff7f00"), 0, mathOpCodeMaxScriptNumLen, errMinimalData},   // 32767
-		{hexToBytes("00800000"), 0, mathOpCodeMaxScriptNumLen, errMinimalData}, // 32768
-		{hexToBytes("ffff0000"), 0, mathOpCodeMaxScriptNumLen, errMinimalData}, // 65535
-		{hexToBytes("00000800"), 0, mathOpCodeMaxScriptNumLen, errMinimalData}, // 524288
-		{hexToBytes("00007000"), 0, mathOpCodeMaxScriptNumLen, errMinimalData}, // 7340032
-		{hexToBytes("0009000100"), 0, 5, errMinimalData},                       // 16779520
+		{hexToBytes("00"), 0, mathOpCodeMaxScriptNumLen, ErrMinimalData},       // 0
+		{hexToBytes("0100"), 0, mathOpCodeMaxScriptNumLen, ErrMinimalData},     // 1
+		{hexToBytes("7f00"), 0, mathOpCodeMaxScriptNumLen, ErrMinimalData},     // 127
+		{hexToBytes("800000"), 0, mathOpCodeMaxScriptNumLen, ErrMinimalData},   // 128
+		{hexToBytes("810000"), 0, mathOpCodeMaxScriptNumLen, ErrMinimalData},   // 129
+		{hexToBytes("000100"), 0, mathOpCodeMaxScriptNumLen, ErrMinimalData},   // 256
+		{hexToBytes("ff7f00"), 0, mathOpCodeMaxScriptNumLen, ErrMinimalData},   // 32767
+		{hexToBytes("00800000"), 0, mathOpCodeMaxScriptNumLen, ErrMinimalData}, // 32768
+		{hexToBytes("ffff0000"), 0, mathOpCodeMaxScriptNumLen, ErrMinimalData}, // 65535
+		{hexToBytes("00000800"), 0, mathOpCodeMaxScriptNumLen, ErrMinimalData}, // 524288
+		{hexToBytes("00007000"), 0, mathOpCodeMaxScriptNumLen, ErrMinimalData}, // 7340032
+		{hexToBytes("0009000100"), 0, 5, ErrMinimalData},                       // 16779520
 	}
 
 	for _, test := range tests {
-		// Ensure the error code is of the expected type and the error
-		// code matches the value specified in the test instance.
+		// Ensure the error matches the value specified in the test instance.
 		gotNum, err := makeScriptNum(test.serialized, test.numLen)
-		if e := tstCheckScriptError(err, test.err); e != nil {
-			t.Errorf("makeScriptNum(%#x): %v", test.serialized, e)
+		if !errors.Is(err, test.err) {
+			t.Errorf("makeScriptNum(%#x): unexpected error - got %v, want %v",
+				test.serialized, err, test.err)
 			continue
 		}
 

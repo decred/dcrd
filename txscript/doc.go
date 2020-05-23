@@ -25,15 +25,15 @@ which proves the spender owns the associated private key.  This information
 is used to prove the spender is authorized to perform the transaction.
 
 One benefit of using a scripting language is added flexibility in specifying
-what conditions must be met in order to spend decreds.
+what conditions must be met in order to spend decred.
 
 Errors
 
-Errors returned by this package are of type txscript.Error.  This allows the
-caller to programmatically determine the specific error by examining the
-ErrorCode field of the type asserted txscript.Error while still providing rich
-error messages with contextual information.  A convenience function named
-IsErrorCode is also provided to allow callers to easily check for a specific
-error code.  See ErrorCode in the package documentation for a full list.
+Errors returned by this package are of type txscript.ErrorKind wrapped by
+txscript.Error which has full support for the standard library errors.Is and
+errors.As functions.  This allows the caller to programmatically determine the
+specific error while still providing rich error messages with contextual
+information.  See the constants defined with ErrorKind in the package
+documentation for a full list.
 */
 package txscript

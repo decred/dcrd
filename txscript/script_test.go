@@ -7,6 +7,7 @@ package txscript
 
 import (
 	"bytes"
+	"errors"
 	"reflect"
 	"testing"
 )
@@ -359,13 +360,13 @@ func TestRemoveOpcodeByData(t *testing.T) {
 			name:   "invalid length (instruction)",
 			before: []byte{OP_PUSHDATA1},
 			remove: []byte{1, 2, 3, 4},
-			err:    scriptError(ErrMalformedPush, ""),
+			err:    ErrMalformedPush,
 		},
 		{
 			name:   "invalid length (data)",
 			before: []byte{OP_PUSHDATA1, 255, 254},
 			remove: []byte{1, 2, 3, 4},
-			err:    scriptError(ErrMalformedPush, ""),
+			err:    ErrMalformedPush,
 		},
 	}
 
@@ -382,8 +383,9 @@ func TestRemoveOpcodeByData(t *testing.T) {
 
 	for _, test := range tests {
 		result, err := tstRemoveOpcodeByData(test.before, test.remove)
-		if e := tstCheckScriptError(err, test.err); e != nil {
-			t.Errorf("%s: %v", test.name, e)
+		if !errors.Is(err, test.err) {
+			t.Errorf("%s: unexpected error - got %v, want %v", test.name, err,
+				test.err)
 			continue
 		}
 

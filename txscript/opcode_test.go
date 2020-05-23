@@ -7,6 +7,7 @@ package txscript
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"math/rand"
 	"strconv"
@@ -38,7 +39,7 @@ func TestOpcodeDisabled(t *testing.T) {
 	for _, opcodeVal := range tests {
 		op := &opcodeArray[opcodeVal]
 		err := opcodeDisabled(op, nil, nil)
-		if !IsErrorCode(err, ErrDisabledOpcode) {
+		if !errors.Is(err, ErrDisabledOpcode) {
 			t.Errorf("opcodeDisabled: unexpected error - got %v, "+
 				"want %v", err, ErrDisabledOpcode)
 			continue

@@ -894,8 +894,8 @@ func opcodeEndif(op *opcode, data []byte, vm *Engine) error {
 // verifies it evaluates to true.  An error is returned either when there is no
 // item on the stack or when that item evaluates to false.  In the latter case
 // where the verification fails specifically due to the top item evaluating
-// to false, the returned error will use the passed error code.
-func abstractVerify(op *opcode, vm *Engine, c ErrorCode) error {
+// to false, the returned error will use the passed error kind.
+func abstractVerify(op *opcode, vm *Engine, kind ErrorKind) error {
 	verified, err := vm.dstack.PopBool()
 	if err != nil {
 		return err
@@ -903,7 +903,7 @@ func abstractVerify(op *opcode, vm *Engine, c ErrorCode) error {
 
 	if !verified {
 		str := fmt.Sprintf("%s failed", op.name)
-		return scriptError(c, str)
+		return scriptError(kind, str)
 	}
 	return nil
 }

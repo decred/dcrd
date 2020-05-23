@@ -6,6 +6,7 @@
 package txscript
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/decred/dcrd/chaincfg/chainhash"
@@ -130,7 +131,7 @@ func TestCheckErrorCondition(t *testing.T) {
 		}
 
 		err = vm.CheckErrorCondition(false)
-		if !IsErrorCode(err, ErrScriptUnfinished) {
+		if !errors.Is(err, ErrScriptUnfinished) {
 			t.Fatalf("got unexpected error %v on %dth iteration",
 				err, i)
 		}
