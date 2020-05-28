@@ -1471,8 +1471,11 @@ func handleExistsAddresses(_ context.Context, s *rpcServer, cmd interface{}) (in
 func decodeHashes(strs []string) ([]chainhash.Hash, error) {
 	hashes := make([]chainhash.Hash, len(strs))
 	for i, s := range strs {
-		l, err := hex.Decode(hashes[i][:], []byte(s))
-		if err != nil || l != 32 {
+		if len(s) != 2*chainhash.HashSize {
+			return nil, rpcDecodeHexError(s)
+		}
+		_, err := hex.Decode(hashes[i][:], []byte(s))
+		if err != nil {
 			return nil, rpcDecodeHexError(s)
 		}
 		// unreverse hash string bytes
