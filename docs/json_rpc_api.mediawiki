@@ -1892,7 +1892,9 @@ of the best block.
 # <code>includemempool</code>: <code>(string,default=true)</code> Include the mempool when true.
 |-
 !Description
-| Returns information about an unspent transaction output.
+|
+: Returns information about an unspent transaction output.
+: Returns <code>null</code> if the output is spent or never existed.
 |-
 !Returns
 |<code>(json object)</code>
