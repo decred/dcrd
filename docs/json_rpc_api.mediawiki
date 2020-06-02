@@ -1,6 +1,6 @@
 ==1. Overview==
 
-dcrd provides a [https://json-rpc.org/wiki/specification JSON-RPC] API that is
+dcrd provides a [https://jsonrpc.org/specification JSON-RPC] API that is
 fully compatible with the original bitcoind/bitcoin-qt.  There are a few key
 differences between dcrd and bitcoind as far as how RPCs are serviced:
 
