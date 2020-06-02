@@ -1514,7 +1514,7 @@ out:
 				continue
 			}
 
-			if req.Method == "" || req.Params == nil {
+			if req.Method == "" {
 				jsonErr := &dcrjson.RPCError{
 					Code:    dcrjson.ErrRPCInvalidRequest.Code,
 					Message: "Invalid request: malformed",
@@ -1643,7 +1643,7 @@ out:
 
 		// Process a batched request
 		if batchedRequest {
-			var batchedRequests []interface{}
+			var batchedRequests []json.RawMessage
 			var results []json.RawMessage
 			var batchSize int
 			var reply json.RawMessage
@@ -1695,33 +1695,8 @@ out:
 				if len(batchedRequests) > 0 {
 					batchSize = len(batchedRequests)
 					for _, entry := range batchedRequests {
-						var reqBytes []byte
-						reqBytes, err = json.Marshal(entry)
-						if err != nil {
-							// Only process requests from authenticated clients
-							if !c.authenticated {
-								break out
-							}
-
-							jsonErr := &dcrjson.RPCError{
-								Code: dcrjson.ErrRPCInvalidRequest.Code,
-								Message: fmt.Sprintf("Invalid request: %v",
-									err),
-							}
-							reply, err = dcrjson.MarshalResponse("2.0", nil, nil, jsonErr)
-							if err != nil {
-								rpcsLog.Errorf("Failed to create reply: %v", err)
-								continue
-							}
-
-							if reply != nil {
-								results = append(results, reply)
-							}
-							continue
-						}
-
 						var req dcrjson.Request
-						err := json.Unmarshal(reqBytes, &req)
+						err := json.Unmarshal(entry, &req)
 						if err != nil {
 							// Only process requests from authenticated clients
 							if !c.authenticated {

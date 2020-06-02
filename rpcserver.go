@@ -5134,7 +5134,7 @@ func (s *rpcServer) processRequest(ctx context.Context, request *dcrjson.Request
 	}
 
 	if jsonErr == nil {
-		if request.Method == "" || request.Params == nil {
+		if request.Method == "" {
 			jsonErr = &dcrjson.RPCError{
 				Code:    dcrjson.ErrRPCInvalidRequest.Code,
 				Message: "Invalid request: malformed",
@@ -5247,17 +5247,14 @@ func (s *rpcServer) jsonRPCRead(sCtx context.Context, w http.ResponseWriter, r *
 		err = json.Unmarshal(body, &req)
 		if err != nil {
 			jsonErr := &dcrjson.RPCError{
-				Code: dcrjson.ErrRPCParse.Code,
-				Message: fmt.Sprintf("Failed to parse request: %v",
-					err),
+				Code:    dcrjson.ErrRPCParse.Code,
+				Message: fmt.Sprintf("Failed to parse request: %v", err),
 			}
 			resp, err = dcrjson.MarshalResponse("1.0", nil, nil, jsonErr)
 			if err != nil {
 				rpcsLog.Errorf("Failed to create reply: %v", err)
 			}
-		}
-
-		if err == nil {
+		} else {
 			resp = s.processRequest(ctx, &req, isAdmin)
 		}
 
@@ -5268,14 +5265,13 @@ func (s *rpcServer) jsonRPCRead(sCtx context.Context, w http.ResponseWriter, r *
 
 	// Process a batched request
 	if batchedRequest {
-		var batchedRequests []interface{}
+		var batchedRequests []json.RawMessage
 		var resp json.RawMessage
 		err = json.Unmarshal(body, &batchedRequests)
 		if err != nil {
 			jsonErr := &dcrjson.RPCError{
-				Code: dcrjson.ErrRPCParse.Code,
-				Message: fmt.Sprintf("Failed to parse request: %v",
-					err),
+				Code:    dcrjson.ErrRPCParse.Code,
+				Message: fmt.Sprintf("Failed to parse request: %v", err),
 			}
 			resp, err = dcrjson.MarshalResponse("2.0", nil, nil, jsonErr)
 			if err != nil {
@@ -5309,27 +5305,8 @@ func (s *rpcServer) jsonRPCRead(sCtx context.Context, w http.ResponseWriter, r *
 				batchSize = len(batchedRequests)
 
 				for _, entry := range batchedRequests {
-					var reqBytes []byte
-					reqBytes, err = json.Marshal(entry)
-					if err != nil {
-						jsonErr := &dcrjson.RPCError{
-							Code: dcrjson.ErrRPCInvalidRequest.Code,
-							Message: fmt.Sprintf("Invalid request: %v",
-								err),
-						}
-						resp, err = dcrjson.MarshalResponse("2.0", nil, nil, jsonErr)
-						if err != nil {
-							rpcsLog.Errorf("Failed to create reply: %v", err)
-						}
-
-						if resp != nil {
-							results = append(results, resp)
-						}
-						continue
-					}
-
 					var req dcrjson.Request
-					err := json.Unmarshal(reqBytes, &req)
+					err := json.Unmarshal(entry, &req)
 					if err != nil {
 						jsonErr := &dcrjson.RPCError{
 							Code: dcrjson.ErrRPCInvalidRequest.Code,

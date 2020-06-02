@@ -74,51 +74,6 @@ type Request struct {
 	ID      interface{}       `json:"id"`
 }
 
-// UnmarshalJSON is a custom unmarshal func for the Request struct. The param
-// field defaults to an empty json.RawMessage array it is omitted by the request
-// or nil if the supplied value is invalid.
-func (request *Request) UnmarshalJSON(b []byte) error {
-	var data map[string]interface{}
-	err := json.Unmarshal(b, &data)
-	if err != nil {
-		return err
-	}
-
-	request.ID = data["id"]
-	methodValue, hasMethod := data["method"]
-	if hasMethod {
-		request.Method = methodValue.(string)
-	}
-	jsonrpcValue, hasJsonrpc := data["jsonrpc"]
-	if hasJsonrpc {
-		request.Jsonrpc = jsonrpcValue.(string)
-	}
-	paramsValue, hasParams := data["params"]
-	if !hasParams {
-		// set the request param to an empty array if it is omitted in the request
-		request.Params = []json.RawMessage{}
-	}
-	if hasParams {
-		// assert the request params is an array of data
-		params, paramsOk := paramsValue.([]interface{})
-		if paramsOk {
-			rawParams := make([]json.RawMessage, 0, len(params))
-			for _, param := range params {
-				marshalledParam, err := json.Marshal(param)
-				if err != nil {
-					return err
-				}
-				rawMessage := json.RawMessage(marshalledParam)
-				rawParams = append(rawParams, rawMessage)
-			}
-
-			request.Params = rawParams
-		}
-	}
-
-	return nil
-}
-
 // NewRequest returns a new JSON-RPC request object given the provided rpc
 // version, id, method, and parameters.  The parameters are marshalled into a
 // json.RawMessage for the Params field of the returned request object. This
