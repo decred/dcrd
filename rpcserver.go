@@ -2835,22 +2835,26 @@ func convertVersionMap(m map[int]int) []types.VersionCount {
 
 // handleGetStakeVersionInfo implements the getstakeversioninfo command.
 func handleGetStakeVersionInfo(_ context.Context, s *rpcServer, cmd interface{}) (interface{}, error) {
-	count := int32(1)
-	c, ok := cmd.(*types.GetStakeVersionInfoCmd)
-	if !ok {
-		return nil, rpcInvalidError("Invalid type: %T", c)
-	}
-	if c.Count != nil {
-		count = *c.Count
-		if count <= 0 {
-			return nil, rpcInvalidError("Count must be positive")
-		}
-	}
+	c := cmd.(*types.GetStakeVersionInfoCmd)
 
 	chain := s.cfg.Chain
 	snapshot := chain.BestSnapshot()
-
 	interval := s.cfg.ChainParams.StakeVersionInterval
+
+	count := int32(1)
+	if c.Count != nil {
+		count = *c.Count
+		if count <= 0 {
+			return nil, rpcInvalidError("Count must be > 0")
+		}
+
+		// Limit the count to the total possible available intervals.
+		totalIntervals := (snapshot.Height + interval - 1) / interval
+		if int64(count) > totalIntervals {
+			count = int32(totalIntervals)
+		}
+	}
+
 	// Assemble JSON result.
 	result := types.GetStakeVersionInfoResult{
 		CurrentHeight: snapshot.Height,
@@ -2870,8 +2874,9 @@ func handleGetStakeVersionInfo(_ context.Context, s *rpcServer, cmd interface{})
 		}
 		sv, err := chain.GetStakeVersions(hash, numBlocks+adjust)
 		if err != nil {
-			return nil, rpcInternalError(err.Error(),
-				"handleGetStakeVersionInfo")
+			context := fmt.Sprintf("Failed to get stake versions starting "+
+				"from hash %v", hash)
+			return nil, rpcInternalError(err.Error(), context)
 		}
 
 		posVersions := make(map[int]int)
@@ -2898,8 +2903,9 @@ func handleGetStakeVersionInfo(_ context.Context, s *rpcServer, cmd interface{})
 		// Get prior block hash.
 		hash, err = chain.BlockHashByHeight(startHeight - 1)
 		if err != nil {
-			return nil, rpcInternalError(err.Error(),
-				"handleGetStakeVersionInfo")
+			context := fmt.Sprintf("Failed to get block hash for height %d",
+				startHeight-1)
+			return nil, rpcInternalError(err.Error(), context)
 		}
 	}
 
