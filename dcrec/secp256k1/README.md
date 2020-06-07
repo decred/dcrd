@@ -63,13 +63,9 @@ $ go get -u github.com/decred/dcrd/dcrec/secp256k1/v3
 
 ## Examples
 
-* [Encryption](https://pkg.go.dev/github.com/decred/dcrd/dcrec/secp256k1/v3#example-package-EncryptMessage)  
-  Demonstrates encrypting a message for a public key that is first parsed from
-  raw bytes, then decrypting it using the corresponding private key.
-
-* [Decryption](https://pkg.go.dev/github.com/decred/dcrd/dcrec/secp256k1/v3#example-package-DecryptMessage)  
-  Demonstrates decrypting a message using a private key that is first parsed
-  from raw bytes.
+* [Encryption](https://pkg.go.dev/github.com/decred/dcrd/dcrec/secp256k1/v3#example-package-EncryptDecryptMessage)
+  Demonstrates encrypting and decrypting a message using a shared key derived
+  through ECDHE.
 
 ## License
 
