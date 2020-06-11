@@ -4,7 +4,7 @@ go 1.13
 
 require (
 	github.com/decred/dcrd/blockchain/stake/v3 v3.0.0-20200215031403-6b2ce76f0986
-	github.com/decred/dcrd/blockchain/standalone v1.1.0
+	github.com/decred/dcrd/blockchain/standalone/v2 v2.0.0
 	github.com/decred/dcrd/blockchain/v3 v3.0.0-20200215031403-6b2ce76f0986
 	github.com/decred/dcrd/chaincfg/chainhash v1.0.2
 	github.com/decred/dcrd/chaincfg/v3 v3.0.0-20200215031403-6b2ce76f0986
@@ -19,6 +19,7 @@ require (
 
 replace (
 	github.com/decred/dcrd/blockchain/stake/v3 => ../blockchain/stake
+	github.com/decred/dcrd/blockchain/standalone/v2 => ../blockchain/standalone
 	github.com/decred/dcrd/blockchain/v3 => ../blockchain
 	github.com/decred/dcrd/chaincfg/v3 => ../chaincfg
 	github.com/decred/dcrd/dcrec/secp256k1/v3 => ../dcrec/secp256k1
