@@ -731,7 +731,7 @@ func handleCreateRawSStx(_ context.Context, s *rpcServer, cmd interface{}) (inte
 
 		if !(input.Tree == wire.TxTreeRegular ||
 			input.Tree == wire.TxTreeStake) {
-			rpcInvalidError("Tx tree must be regular or stake")
+			return nil, rpcInvalidError("Tx tree must be regular or stake")
 		}
 
 		prevOut := wire.NewOutPoint(txHash, input.Vout, input.Tree)
@@ -936,7 +936,7 @@ func handleCreateRawSSRtx(_ context.Context, s *rpcServer, cmd interface{}) (int
 
 	// Store the sstx pubkeyhashes and amounts as found in the transaction
 	// outputs.
-	minimalOutputs := blockchain.ConvertUtxosToMinimalOutputs(ticketUtx)
+	minimalOutputs := s.cfg.Chain.ConvertUtxosToMinimalOutputs(ticketUtx)
 	ssrtxPayTypes, ssrtxPkhs, sstxAmts, _, _, _ :=
 		stake.SStxStakeOutputInfo(minimalOutputs)
 
@@ -5536,7 +5536,7 @@ type rpcserverConfig struct {
 	// These fields allow the RPC server to interface with the local block
 	// chain data and state.
 	TimeSource   blockchain.MedianTimeSource
-	Chain        *blockchain.BlockChain
+	Chain        rpcserver.Chain
 	ChainParams  *chaincfg.Params
 	DB           database.DB
 	FeeEstimator *fees.Estimator

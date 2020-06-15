@@ -516,8 +516,9 @@ func (b *BlockChain) stateLastChanged(version uint32, node *blockNode, checker t
 }
 
 // StateLastChangedHeight returns the height at which the provided consensus
-// deployment agenda last changed state.  Note that, unlike the ThresholdState
-// function, this function returns the information as of the passed block hash.
+// deployment agenda last changed state.  Note that, unlike the
+// NextThresholdState function, this function returns the information as of the
+// passed block hash.
 //
 // This function is safe for concurrent access.
 func (b *BlockChain) StateLastChangedHeight(hash *chainhash.Hash, version uint32, deploymentID string) (int64, error) {

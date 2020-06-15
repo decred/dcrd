@@ -148,8 +148,8 @@ func (b *BlockChain) CheckLiveTicket(hash chainhash.Hash) bool {
 	return sn.ExistsLiveTicket(hash)
 }
 
-// CheckLiveTickets returns whether or not a slice of tickets exist in the live
-// ticket treap of the best node.
+// CheckLiveTickets returns a slice of bools representing whether each ticket
+// exists in the live ticket treap of the best node.
 //
 // This function is safe for concurrent access.
 func (b *BlockChain) CheckLiveTickets(hashes []chainhash.Hash) []bool {
