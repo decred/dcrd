@@ -25,8 +25,7 @@ functions.
 
 ## Examples
 
-* [Basic Usage Example]
-  (https://pkg.go.dev/github.com/decred/dcrd/blockchain/v3/chaingen#example-package-BasicUsage)
+* [Basic Usage Example](https://pkg.go.dev/github.com/decred/dcrd/blockchain/v3/chaingen#example-package-BasicUsage)  
   Demonstrates creating a new generator instance and using it to generate the
   required first block and enough blocks to have mature coinbase outputs to
   work with along with asserting the generator state along the way.
