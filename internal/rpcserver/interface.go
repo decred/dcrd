@@ -6,7 +6,10 @@ package rpcserver
 
 import (
 	"math/big"
+	"net"
+	"time"
 
+	"github.com/decred/dcrd/addrmgr"
 	"github.com/decred/dcrd/blockchain/stake/v3"
 	"github.com/decred/dcrd/blockchain/v3"
 	"github.com/decred/dcrd/blockchain/v3/indexers"
@@ -23,8 +26,26 @@ import (
 // The interface contract requires that all of these methods are safe for
 // concurrent access.
 type Peer interface {
-	// ToPeer returns the underlying peer instance.
-	ToPeer() *peer.Peer
+	// Addr returns the peer address.
+	Addr() string
+
+	// Connected returns whether or not the peer is currently connected.
+	Connected() bool
+
+	// ID returns the peer id.
+	ID() int32
+
+	// Inbound returns whether the peer is inbound.
+	Inbound() bool
+
+	// StatsSnapshot returns a snapshot of the current peer flags and statistics.
+	StatsSnapshot() *peer.StatsSnap
+
+	// LocalAddr returns the local address of the connection.
+	LocalAddr() net.Addr
+
+	// LastPingNonce returns the last ping nonce of the remote peer.
+	LastPingNonce() uint64
 
 	// IsTxRelayDisabled returns whether or not the peer has disabled
 	// transaction relay.
@@ -33,6 +54,16 @@ type Peer interface {
 	// BanScore returns the current integer value that represents how close
 	// the peer is to being banned.
 	BanScore() uint32
+}
+
+// AddrManager represents an address manager for use with the RPC server.
+//
+// The interface contract requires that all of these methods are safe for
+// concurrent access.
+type AddrManager interface {
+	// LocalAddresses returns a summary of local addresses information for
+	// the getnetworkinfo rpc.
+	LocalAddresses() []addrmgr.LocalAddr
 }
 
 // ConnManager represents a connection manager for use with the RPC server.
@@ -379,4 +410,17 @@ type Chain interface {
 	// TipGeneration returns the entire generation of blocks stemming from the
 	// parent of the current tip.
 	TipGeneration() ([]chainhash.Hash, error)
+}
+
+// Clock represents a clock for use with the RPC server. The purpose of this
+// interface is to allow an alternative implementation to be used for testing.
+//
+// The interface contract requires that all of these methods are safe for
+// concurrent access.
+type Clock interface {
+	// Now returns the current local time.
+	Now() time.Time
+
+	// Since returns the time elapsed since t.
+	Since(t time.Time) time.Duration
 }

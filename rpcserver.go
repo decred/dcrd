@@ -35,7 +35,6 @@ import (
 
 	"github.com/gorilla/websocket"
 
-	"github.com/decred/dcrd/addrmgr"
 	"github.com/decred/dcrd/blockchain/stake/v3"
 	"github.com/decred/dcrd/blockchain/standalone/v2"
 	"github.com/decred/dcrd/blockchain/v3"
@@ -575,7 +574,7 @@ func handleNode(_ context.Context, s *rpcServer, cmd interface{}) (interface{}, 
 // determined using either a target address or node id.
 func peerExists(connMgr rpcserver.ConnManager, addr string, nodeID int32) bool {
 	for _, p := range connMgr.ConnectedPeers() {
-		if p.ToPeer().ID() == nodeID || p.ToPeer().Addr() == addr {
+		if p.ID() == nodeID || p.Addr() == addr {
 			return true
 		}
 	}
@@ -1670,7 +1669,7 @@ func handleGetAddedNodeInfo(_ context.Context, s *rpcServer, cmd interface{}) (i
 	if c.Node != nil {
 		found := false
 		for i, peer := range peers {
-			if peer.ToPeer().Addr() == *c.Node {
+			if peer.Addr() == *c.Node {
 				peers = peers[i : i+1]
 				found = true
 			}
@@ -1685,7 +1684,7 @@ func handleGetAddedNodeInfo(_ context.Context, s *rpcServer, cmd interface{}) (i
 	if !c.DNS {
 		results := make([]string, 0, len(peers))
 		for _, peer := range peers {
-			results = append(results, peer.ToPeer().Addr())
+			results = append(results, peer.Addr())
 		}
 		return results, nil
 	}
@@ -1697,15 +1696,15 @@ func handleGetAddedNodeInfo(_ context.Context, s *rpcServer, cmd interface{}) (i
 		// Set the "address" of the peer which could be an ip address
 		// or a domain name.
 		var result types.GetAddedNodeInfoResult
-		result.AddedNode = peer.ToPeer().Addr()
-		result.Connected = dcrjson.Bool(peer.ToPeer().Connected())
+		result.AddedNode = peer.Addr()
+		result.Connected = dcrjson.Bool(peer.Connected())
 
 		// Split the address into host and port portions so we can do a
 		// DNS lookup against the host.  When no port is specified in
 		// the address, just use the address as the host.
-		host, _, err := net.SplitHostPort(peer.ToPeer().Addr())
+		host, _, err := net.SplitHostPort(peer.Addr())
 		if err != nil {
-			host = peer.ToPeer().Addr()
+			host = peer.Addr()
 		}
 
 		// Do a DNS lookup for the address.  If the lookup fails, just
@@ -1729,8 +1728,8 @@ func handleGetAddedNodeInfo(_ context.Context, s *rpcServer, cmd interface{}) (i
 			var addr types.GetAddedNodeInfoResultAddr
 			addr.Address = ip
 			addr.Connected = "false"
-			if ip == host && peer.ToPeer().Connected() {
-				addr.Connected = directionString(peer.ToPeer().Inbound())
+			if ip == host && peer.Connected() {
+				addr.Connected = directionString(peer.Inbound())
 			}
 			addrs = append(addrs, addr)
 		}
@@ -2418,7 +2417,7 @@ func handleGetNetTotals(_ context.Context, s *rpcServer, cmd interface{}) (inter
 	reply := &types.GetNetTotalsResult{
 		TotalBytesRecv: totalBytesRecv,
 		TotalBytesSent: totalBytesSent,
-		TimeMillis:     time.Now().UTC().UnixNano() / int64(time.Millisecond),
+		TimeMillis:     s.cfg.Clock.Now().UTC().UnixNano() / int64(time.Millisecond),
 	}
 	return reply, nil
 }
@@ -2523,7 +2522,7 @@ func handleGetNetworkHashPS(_ context.Context, s *rpcServer, cmd interface{}) (i
 // handleGetNetworkInfo implements the getnetworkinfo command.
 func handleGetNetworkInfo(_ context.Context, s *rpcServer, cmd interface{}) (interface{}, error) {
 	networks := cfg.generateNetworkInfo()
-	lAddrs := s.cfg.AddrManager.FetchLocalAddresses()
+	lAddrs := s.cfg.AddrManager.LocalAddresses()
 	localAddrs := make([]types.LocalAddressesResult, len(lAddrs))
 	for idx, entry := range lAddrs {
 		addr := types.LocalAddressesResult{
@@ -2555,12 +2554,11 @@ func handleGetPeerInfo(_ context.Context, s *rpcServer, cmd interface{}) (interf
 	syncPeerID := s.cfg.SyncMgr.SyncPeerID()
 	infos := make([]*types.GetPeerInfoResult, 0, len(peers))
 	for _, p := range peers {
-		peer := p.ToPeer()
-		statsSnap := peer.StatsSnapshot()
+		statsSnap := p.StatsSnapshot()
 		info := &types.GetPeerInfoResult{
 			ID:             statsSnap.ID,
 			Addr:           statsSnap.Addr,
-			AddrLocal:      peer.LocalAddr().String(),
+			AddrLocal:      p.LocalAddr().String(),
 			Services:       fmt.Sprintf("%08d", uint64(statsSnap.Services)),
 			RelayTxes:      !p.IsTxRelayDisabled(),
 			LastSend:       statsSnap.LastSend.Unix(),
@@ -2576,10 +2574,10 @@ func handleGetPeerInfo(_ context.Context, s *rpcServer, cmd interface{}) (interf
 			StartingHeight: statsSnap.StartingHeight,
 			CurrentHeight:  statsSnap.LastBlock,
 			BanScore:       int32(p.BanScore()),
-			SyncNode:       peer.ID() == syncPeerID,
+			SyncNode:       p.ID() == syncPeerID,
 		}
-		if peer.LastPingNonce() != 0 {
-			wait := float64(time.Since(statsSnap.LastPingTime).Nanoseconds())
+		if p.LastPingNonce() != 0 {
+			wait := float64(s.cfg.Clock.Since(statsSnap.LastPingTime).Nanoseconds())
 			// We actually want microseconds.
 			info.PingWait = wait / 1000
 		}
@@ -5548,7 +5546,10 @@ type rpcserverConfig struct {
 
 	// AddrManager defines a concurrency safe address manager for caching
 	// potential peers on the network.
-	AddrManager *addrmgr.AddrManager
+	AddrManager rpcserver.AddrManager
+
+	// Clock defines the clock for the RPC server to use.
+	Clock rpcserver.Clock
 
 	// TxMemPool defines the transaction memory pool to interact with.
 	TxMemPool *mempool.TxPool

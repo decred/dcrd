@@ -9,17 +9,24 @@ import (
 	"fmt"
 	"math"
 	"math/big"
+	"net"
 	"reflect"
 	"testing"
+	"time"
 
+	"github.com/decred/dcrd/addrmgr"
 	"github.com/decred/dcrd/blockchain/stake/v3"
 	"github.com/decred/dcrd/blockchain/v3"
+	"github.com/decred/dcrd/blockchain/v3/indexers"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/chaincfg/v3"
 	"github.com/decred/dcrd/dcrjson/v3"
 	"github.com/decred/dcrd/dcrutil/v3"
 	"github.com/decred/dcrd/gcs/v2"
 	"github.com/decred/dcrd/internal/rpcserver"
+	"github.com/decred/dcrd/internal/version"
+	"github.com/decred/dcrd/mempool/v4"
+	"github.com/decred/dcrd/peer/v2"
 	"github.com/decred/dcrd/rpc/jsonrpc/types/v2"
 	"github.com/decred/dcrd/wire"
 )
@@ -336,14 +343,336 @@ func (c *testRPCChain) TipGeneration() ([]chainhash.Hash, error) {
 	return c.tipGeneration, nil
 }
 
+// testPeer provides a mock peer by implementing the Peer interface.
+type testPeer struct {
+	addr              string
+	connected         bool
+	id                int32
+	inbound           bool
+	localAddr         net.Addr
+	lastPingNonce     uint64
+	isTxRelayDisabled bool
+	banScore          uint32
+	statsSnapshot     *peer.StatsSnap
+}
+
+// Addr returns a mocked peer address.
+func (p *testPeer) Addr() string {
+	return p.addr
+}
+
+// Connected returns a mocked bool representing whether or not the peer is
+// currently connected.
+func (p *testPeer) Connected() bool {
+	return p.connected
+}
+
+// ID returns a mocked peer id.
+func (p *testPeer) ID() int32 {
+	return p.id
+}
+
+// Inbound returns a mocked bool representing whether the peer is inbound.
+func (p *testPeer) Inbound() bool {
+	return p.inbound
+}
+
+// StatsSnapshot returns a mocked snapshot of the current peer flags and
+// statistics.
+func (p *testPeer) StatsSnapshot() *peer.StatsSnap {
+	return p.statsSnapshot
+}
+
+// LocalAddr returns a mocked local address of the connection.
+func (p *testPeer) LocalAddr() net.Addr {
+	return p.localAddr
+}
+
+// LastPingNonce returns a mocked last ping nonce of the remote peer.
+func (p *testPeer) LastPingNonce() uint64 {
+	return p.lastPingNonce
+}
+
+// IsTxRelayDisabled returns a mocked bool representing whether or not the peer
+// has disabled transaction relay.
+func (p *testPeer) IsTxRelayDisabled() bool {
+	return p.isTxRelayDisabled
+}
+
+// BanScore returns a mocked current integer value that represents how close
+// the peer is to being banned.
+func (p *testPeer) BanScore() uint32 {
+	return p.banScore
+}
+
+// testAddrManager provides a mock address manager by implementing the
+// AddrManager interface.
+type testAddrManager struct {
+	localAddresses []addrmgr.LocalAddr
+}
+
+// LocalAddresses returns a mocked summary of local addresses information
+// for the getnetworkinfo rpc.
+func (c *testAddrManager) LocalAddresses() []addrmgr.LocalAddr {
+	return c.localAddresses
+}
+
+// testSyncManager provides a mock sync manager by implementing the
+// SyncManager interface.
+type testSyncManager struct {
+	isCurrent          bool
+	submitBlock        bool
+	syncPeerID         int32
+	locateBlocks       []chainhash.Hash
+	existsAddrIndex    *indexers.ExistsAddrIndex
+	cfIndex            *indexers.CFIndex
+	tipGeneration      []chainhash.Hash
+	syncHeight         int64
+	processTransaction []*dcrutil.Tx
+}
+
+// IsCurrent returns a mocked bool representing whether or not the sync manager
+// believes the chain is current as compared to the rest of the network.
+func (s *testSyncManager) IsCurrent() bool {
+	return s.isCurrent
+}
+
+// SubmitBlock provides a mock implementation for submitting the provided block
+// to the network after processing it locally.
+func (s *testSyncManager) SubmitBlock(block *dcrutil.Block, flags blockchain.BehaviorFlags) (bool, error) {
+	return s.submitBlock, nil
+}
+
+// SyncPeer returns a mocked id of the current peer being synced with.
+func (s *testSyncManager) SyncPeerID() int32 {
+	return s.syncPeerID
+}
+
+// LocateBlocks returns a mocked slice of hashes of the blocks after the first
+// known block in the locator until the provided stop hash is reached, or up to
+// the provided max number of block hashes.
+func (s *testSyncManager) LocateBlocks(locator blockchain.BlockLocator, hashStop *chainhash.Hash, maxHashes uint32) []chainhash.Hash {
+	return s.locateBlocks
+}
+
+// ExistsAddrIndex returns a mocked address index.
+func (s *testSyncManager) ExistsAddrIndex() *indexers.ExistsAddrIndex {
+	return s.existsAddrIndex
+}
+
+// CFIndex returns a mocked committed filter (cf) by hash index.
+func (s *testSyncManager) CFIndex() *indexers.CFIndex {
+	return s.cfIndex
+}
+
+// TipGeneration returns a mocked entire generation of blocks stemming from the
+// parent of the current tip.
+func (s *testSyncManager) TipGeneration() ([]chainhash.Hash, error) {
+	return s.tipGeneration, nil
+}
+
+// SyncHeight returns a mocked latest known block being synced to.
+func (s *testSyncManager) SyncHeight() int64 {
+	return s.syncHeight
+}
+
+// ProcessTransaction provides a mock implementation for relaying the provided
+// transaction validation and insertion into the memory pool.
+func (s *testSyncManager) ProcessTransaction(tx *dcrutil.Tx, allowOrphans bool,
+	rateLimit bool, allowHighFees bool, tag mempool.Tag) ([]*dcrutil.Tx, error) {
+	return s.processTransaction, nil
+}
+
+// testConnManager provides a mock connection manager by implementing the
+// ConnManager interface.
+type testConnManager struct {
+	connectErr          error
+	removeByIDErr       error
+	removeByAddrErr     error
+	disconnectByIDErr   error
+	disconnectByAddrErr error
+	connectedCount      int32
+	netTotalReceived    uint64
+	netTotalSent        uint64
+	connectedPeers      []rpcserver.Peer
+	persistentPeers     []rpcserver.Peer
+	addedNodeInfo       []rpcserver.Peer
+}
+
+// Connect provides a mock implementation for adding the provided address as a
+// new outbound peer.
+func (c *testConnManager) Connect(addr string, permanent bool) error {
+	return c.connectErr
+}
+
+// RemoveByID provides a mock implementation for removing the peer associated
+// with the provided id from the list of persistent peers.
+func (c *testConnManager) RemoveByID(id int32) error {
+	return c.removeByIDErr
+}
+
+// RemoveByAddr provides a mock implementation for removing the peer associated
+// with the provided address from the list of persistent peers.
+func (c *testConnManager) RemoveByAddr(addr string) error {
+	return c.removeByAddrErr
+}
+
+// DisconnectByID provides a mock implementation for disconnecting the peer
+// associated with the provided id.
+func (c *testConnManager) DisconnectByID(id int32) error {
+	return c.disconnectByIDErr
+}
+
+// DisconnectByAddr provides a mock implementation for disconnecting the peer
+// associated with the provided address.
+func (c *testConnManager) DisconnectByAddr(addr string) error {
+	return c.disconnectByAddrErr
+}
+
+// ConnectedCount returns a mocked number of currently connected peers.
+func (c *testConnManager) ConnectedCount() int32 {
+	return c.connectedCount
+}
+
+// NetTotals returns a mocked sum of all bytes received and sent across the
+// network for all peers.
+func (c *testConnManager) NetTotals() (uint64, uint64) {
+	return c.netTotalReceived, c.netTotalSent
+}
+
+// ConnectedPeers returns a mocked slice of all connected peers.
+func (c *testConnManager) ConnectedPeers() []rpcserver.Peer {
+	return c.connectedPeers
+}
+
+// PersistentPeers returns a mocked slice of all persistent peers.
+func (c *testConnManager) PersistentPeers() []rpcserver.Peer {
+	return c.persistentPeers
+}
+
+// BroadcastMessage provides a mock implementation for sending the provided
+// message to all currently connected peers.
+func (c *testConnManager) BroadcastMessage(msg wire.Message) {
+}
+
+// AddRebroadcastInventory provides a mock implementation for adding the
+// provided inventory to the list of inventories to be rebroadcast at random
+// intervals until they show up in a block.
+func (c *testConnManager) AddRebroadcastInventory(iv *wire.InvVect, data interface{}) {
+}
+
+// RelayTransactions provides a mock implementation for generating and relaying
+// inventory vectors for all of the passed transactions to all connected peers.
+func (c *testConnManager) RelayTransactions(txns []*dcrutil.Tx) {
+}
+
+// AddedNodeInfo returns a mocked slice of persistent (added) peers.
+func (c *testConnManager) AddedNodeInfo() []rpcserver.Peer {
+	return c.addedNodeInfo
+}
+
+// testAddr implements the net.Addr interface.
+type testAddr struct {
+	net, addr string
+}
+
+// String returns the address.
+func (a testAddr) String() string {
+	return a.addr
+}
+
+// Network returns the network.
+func (a testAddr) Network() string {
+	return a.net
+}
+
+// testClock provides a mock clock by implementing the Clock interface.
+type testClock struct {
+	now   time.Time
+	since time.Duration
+}
+
+// Now returns a mocked time.Time representing the current local time.
+func (c *testClock) Now() time.Time {
+	return c.now
+}
+
+// Since returns a mocked time.Duration representing the time elapsed since t.
+func (c *testClock) Since(t time.Time) time.Duration {
+	return c.since
+}
+
 type rpcTest struct {
-	name      string
-	handler   commandHandler
-	cmd       interface{}
-	mockChain *testRPCChain
-	result    interface{}
-	wantErr   bool
-	errCode   dcrjson.RPCErrorCode
+	name            string
+	handler         commandHandler
+	cmd             interface{}
+	mockChain       *testRPCChain
+	mockAddrManager *testAddrManager
+	mockSyncManager *testSyncManager
+	mockConnManager *testConnManager
+	mockClock       *testClock
+	mockCfg         *config
+	result          interface{}
+	wantErr         bool
+	errCode         dcrjson.RPCErrorCode
+}
+
+func TestHandleAddNode(t *testing.T) {
+	testRPCServerHandler(t, []rpcTest{{
+		name:    "handleAddNode: ok",
+		handler: handleAddNode,
+		cmd: &types.AddNodeCmd{
+			Addr:   "160.221.215.210:9108",
+			SubCmd: "add",
+		},
+		mockConnManager: &testConnManager{},
+		result:          nil,
+	}, {
+		name:    "handleAddNode: 'add' subcommand error",
+		handler: handleAddNode,
+		cmd: &types.AddNodeCmd{
+			Addr:   "160.221.215.210:9108",
+			SubCmd: "add",
+		},
+		mockConnManager: &testConnManager{
+			connectErr: errors.New("peer already connected"),
+		},
+		wantErr: true,
+		errCode: dcrjson.ErrRPCInvalidParameter,
+	}, {
+		name:    "handleAddNode: 'remove' subcommand error",
+		handler: handleAddNode,
+		cmd: &types.AddNodeCmd{
+			Addr:   "160.221.215.210:9108",
+			SubCmd: "remove",
+		},
+		mockConnManager: &testConnManager{
+			removeByAddrErr: errors.New("peer not found"),
+		},
+		wantErr: true,
+		errCode: dcrjson.ErrRPCInvalidParameter,
+	}, {
+		name:    "handleAddNode: 'onetry' subcommand error",
+		handler: handleAddNode,
+		cmd: &types.AddNodeCmd{
+			Addr:   "160.221.215.210:9108",
+			SubCmd: "onetry",
+		},
+		mockConnManager: &testConnManager{
+			connectErr: errors.New("peer already connected"),
+		},
+		wantErr: true,
+		errCode: dcrjson.ErrRPCInvalidParameter,
+	}, {
+		name:    "handleAddNode: invalid subcommand",
+		handler: handleAddNode,
+		cmd: &types.AddNodeCmd{
+			Addr:   "160.221.215.210:9108",
+			SubCmd: "",
+		},
+		wantErr: true,
+		errCode: dcrjson.ErrRPCInvalidParameter,
+	}})
 }
 
 func TestHandleCreateRawSStx(t *testing.T) {
@@ -1139,6 +1468,18 @@ func TestHandleDecodeRawTransaction(t *testing.T) {
 	}})
 }
 
+func TestHandleEstimateFee(t *testing.T) {
+	testRPCServerHandler(t, []rpcTest{{
+		name:    "handleEstimateFee: ok",
+		handler: handleEstimateFee,
+		cmd:     &types.EstimateFeeCmd{},
+		mockCfg: &config{
+			minRelayTxFee: dcrutil.Amount(int64(10000)),
+		},
+		result: float64(0.0001),
+	}})
+}
+
 func TestHandleExistsExpiredTickets(t *testing.T) {
 	defaultCmdTxHashes := []string{
 		"1189cbe656c2ef1e0fcb91f107624d9aa8f0db7b28e6a86f694a4cf49abc5e39",
@@ -1387,6 +1728,163 @@ func TestHandleExistsMissedTickets(t *testing.T) {
 	}})
 }
 
+func TestHandleGetAddedNodeInfo(t *testing.T) {
+	testPeer1 := &testPeer{
+		addr:      "160.221.215.210",
+		connected: true,
+		inbound:   true,
+	}
+	testPeer2 := &testPeer{
+		addr:      "160.221.215.211:9108",
+		connected: true,
+		inbound:   false,
+	}
+	testPeer3 := &testPeer{
+		addr:      "mydomain.org:9108",
+		connected: true,
+		inbound:   false,
+	}
+	testRPCServerHandler(t, []rpcTest{{
+		name:    "handleGetAddedNodeInfo: ok without DNS and without address filter",
+		handler: handleGetAddedNodeInfo,
+		cmd: &types.GetAddedNodeInfoCmd{
+			DNS: false,
+		},
+		mockConnManager: &testConnManager{
+			addedNodeInfo: []rpcserver.Peer{
+				testPeer1,
+				testPeer2,
+			},
+		},
+		result: []string{"160.221.215.210", "160.221.215.211:9108"},
+	}, {
+		name:    "handleGetAddedNodeInfo: found without DNS and with address filter",
+		handler: handleGetAddedNodeInfo,
+		cmd: &types.GetAddedNodeInfoCmd{
+			DNS:  false,
+			Node: dcrjson.String("160.221.215.211:9108"),
+		},
+		mockConnManager: &testConnManager{
+			addedNodeInfo: []rpcserver.Peer{
+				testPeer1,
+				testPeer2,
+			},
+		},
+		result: []string{"160.221.215.211:9108"},
+	}, {
+		name:    "handleGetAddedNodeInfo: node not found",
+		handler: handleGetAddedNodeInfo,
+		cmd: &types.GetAddedNodeInfoCmd{
+			DNS:  false,
+			Node: dcrjson.String("160.221.215.212:9108"),
+		},
+		mockConnManager: &testConnManager{
+			addedNodeInfo: []rpcserver.Peer{
+				testPeer1,
+				testPeer2,
+			},
+		},
+		wantErr: true,
+		errCode: dcrjson.ErrRPCInternal.Code,
+	}, {
+		name:    "handleGetAddedNodeInfo: ok with DNS and without address filter",
+		handler: handleGetAddedNodeInfo,
+		cmd: &types.GetAddedNodeInfoCmd{
+			DNS: true,
+		},
+		mockCfg: &config{
+			lookup: func(host string) ([]net.IP, error) {
+				if host == "mydomain.org" {
+					return []net.IP{net.ParseIP("160.221.215.211")}, nil
+				}
+				return nil, errors.New("host not found")
+			},
+		},
+		mockConnManager: &testConnManager{
+			addedNodeInfo: []rpcserver.Peer{
+				testPeer1,
+				testPeer3,
+			},
+		},
+		result: []*types.GetAddedNodeInfoResult{{
+			AddedNode: "160.221.215.210",
+			Connected: dcrjson.Bool(true),
+			Addresses: &[]types.GetAddedNodeInfoResultAddr{{
+				Address:   "160.221.215.210",
+				Connected: "inbound",
+			}},
+		}, {
+			AddedNode: "mydomain.org:9108",
+			Connected: dcrjson.Bool(true),
+			Addresses: &[]types.GetAddedNodeInfoResultAddr{{
+				Address:   "160.221.215.211",
+				Connected: "false",
+			}},
+		}},
+	}, {
+		name:    "handleGetAddedNodeInfo: found with DNS and with address filter",
+		handler: handleGetAddedNodeInfo,
+		cmd: &types.GetAddedNodeInfoCmd{
+			DNS:  true,
+			Node: dcrjson.String("mydomain.org:9108"),
+		},
+		mockCfg: &config{
+			lookup: func(host string) ([]net.IP, error) {
+				if host == "mydomain.org" {
+					return []net.IP{net.ParseIP("160.221.215.211")}, nil
+				}
+				return nil, errors.New("host not found")
+			},
+		},
+		mockConnManager: &testConnManager{
+			addedNodeInfo: []rpcserver.Peer{
+				testPeer1,
+				testPeer3,
+			},
+		},
+		result: []*types.GetAddedNodeInfoResult{{
+			AddedNode: "mydomain.org:9108",
+			Connected: dcrjson.Bool(true),
+			Addresses: &[]types.GetAddedNodeInfoResultAddr{{
+				Address:   "160.221.215.211",
+				Connected: "false",
+			}},
+		}},
+	}, {
+		name:    "handleGetAddedNodeInfo: ok with DNS lookup failed",
+		handler: handleGetAddedNodeInfo,
+		cmd: &types.GetAddedNodeInfoCmd{
+			DNS: true,
+		},
+		mockCfg: &config{
+			lookup: func(host string) ([]net.IP, error) {
+				return nil, errors.New("host not found")
+			},
+		},
+		mockConnManager: &testConnManager{
+			addedNodeInfo: []rpcserver.Peer{
+				testPeer1,
+				testPeer3,
+			},
+		},
+		result: []*types.GetAddedNodeInfoResult{{
+			AddedNode: "160.221.215.210",
+			Connected: dcrjson.Bool(true),
+			Addresses: &[]types.GetAddedNodeInfoResultAddr{{
+				Address:   "160.221.215.210",
+				Connected: "inbound",
+			}},
+		}, {
+			AddedNode: "mydomain.org:9108",
+			Connected: dcrjson.Bool(true),
+			Addresses: &[]types.GetAddedNodeInfoResultAddr{{
+				Address:   "mydomain.org",
+				Connected: "outbound",
+			}},
+		}},
+	}})
+}
+
 func TestHandleGetBestBlock(t *testing.T) {
 	hash, _ := chainhash.NewHashFromStr("000000000000000019e76d2f52f39f9245db35eab21741a61ed5bded310f0c87")
 	testRPCServerHandler(t, []rpcTest{{
@@ -1494,6 +1992,229 @@ func TestHandleGetCoinSupply(t *testing.T) {
 	}})
 }
 
+func TestHandleGetConnectionCount(t *testing.T) {
+	testRPCServerHandler(t, []rpcTest{{
+		name:    "handleGetConnectionCount: ok",
+		handler: handleGetConnectionCount,
+		cmd:     &types.GetConnectionCountCmd{},
+		mockConnManager: &testConnManager{
+			connectedCount: 7,
+		},
+		result: int32(7),
+	}})
+}
+
+func TestHandleGetCurrentNet(t *testing.T) {
+	testRPCServerHandler(t, []rpcTest{{
+		name:    "handleGetCurrentNet: ok",
+		handler: handleGetCurrentNet,
+		cmd:     &types.GetCurrentNetCmd{},
+		result:  wire.MainNet,
+	}})
+}
+
+func TestHandleGetInfo(t *testing.T) {
+	testRPCServerHandler(t, []rpcTest{{
+		name:    "handleGetInfo: ok",
+		handler: handleGetInfo,
+		cmd:     &types.GetInfoCmd{},
+		mockConnManager: &testConnManager{
+			connectedCount: 7,
+		},
+		mockChain: &testRPCChain{
+			bestSnapshot: &blockchain.BestState{
+				Bits:   493007795,
+				Height: 449708,
+			},
+		},
+		mockCfg: &config{
+			AddrIndex:     false,
+			Proxy:         "",
+			TestNet:       false,
+			TxIndex:       false,
+			minRelayTxFee: dcrutil.Amount(int64(10000)),
+		},
+		result: &types.InfoChainResult{
+			Version: int32(1000000*version.Major + 10000*version.Minor +
+				100*version.Patch),
+			ProtocolVersion: int32(maxProtocolVersion),
+			Blocks:          int64(449708),
+			TimeOffset:      int64(0),
+			Connections:     int32(7),
+			Proxy:           "",
+			Difficulty:      float64(0.01013136),
+			TestNet:         false,
+			RelayFee:        float64(0.0001),
+			AddrIndex:       false,
+			TxIndex:         false,
+		},
+	}})
+}
+
+func TestHandleGetNetTotals(t *testing.T) {
+	testRPCServerHandler(t, []rpcTest{{
+		name:    "handleGetNetTotals: ok",
+		handler: handleGetNetTotals,
+		cmd:     &types.GetNetTotalsCmd{},
+		mockConnManager: &testConnManager{
+			netTotalReceived: uint64(9598159),
+			netTotalSent:     uint64(4783802),
+		},
+		mockClock: &testClock{
+			now: time.Unix(1592931302, 0),
+		},
+		result: &types.GetNetTotalsResult{
+			TotalBytesRecv: uint64(9598159),
+			TotalBytesSent: uint64(4783802),
+			TimeMillis:     int64(1592931302000),
+		},
+	}})
+}
+
+func TestHandleGetNetworkInfo(t *testing.T) {
+	testRPCServerHandler(t, []rpcTest{{
+		name:    "handleGetNetworkInfo: ok",
+		handler: handleGetNetworkInfo,
+		cmd:     &types.GetNetworkInfoCmd{},
+		mockAddrManager: &testAddrManager{
+			localAddresses: []addrmgr.LocalAddr{{
+				Address: "45.56.142.184",
+				Port:    uint16(19108),
+				Score:   int32(0),
+			}},
+		},
+		mockConnManager: &testConnManager{
+			connectedCount: 7,
+		},
+		mockCfg: &config{
+			minRelayTxFee: dcrutil.Amount(int64(10000)),
+			ipv4NetInfo: types.NetworksResult{
+				Name:                      "IPV4",
+				Limited:                   false,
+				Reachable:                 true,
+				Proxy:                     "",
+				ProxyRandomizeCredentials: false,
+			},
+			ipv6NetInfo: types.NetworksResult{
+				Name:                      "IPV6",
+				Limited:                   false,
+				Reachable:                 true,
+				Proxy:                     "",
+				ProxyRandomizeCredentials: false,
+			},
+			onionNetInfo: types.NetworksResult{
+				Name:                      "Onion",
+				Limited:                   false,
+				Reachable:                 false,
+				Proxy:                     "",
+				ProxyRandomizeCredentials: false,
+			},
+		},
+		result: types.GetNetworkInfoResult{
+			Version: int32(1000000*version.Major + 10000*version.Minor +
+				100*version.Patch),
+			SubVersion:      userAgentVersion,
+			ProtocolVersion: int32(maxProtocolVersion),
+			TimeOffset:      int64(0),
+			Connections:     int32(7),
+			Networks: []types.NetworksResult{{
+				Name:                      "IPV4",
+				Limited:                   false,
+				Reachable:                 true,
+				Proxy:                     "",
+				ProxyRandomizeCredentials: false,
+			}, {
+				Name:                      "IPV6",
+				Limited:                   false,
+				Reachable:                 true,
+				Proxy:                     "",
+				ProxyRandomizeCredentials: false,
+			}, {
+				Name:                      "Onion",
+				Limited:                   false,
+				Reachable:                 false,
+				Proxy:                     "",
+				ProxyRandomizeCredentials: false,
+			}},
+			RelayFee: float64(0.0001),
+			LocalAddresses: []types.LocalAddressesResult{{
+				Address: "45.56.142.184",
+				Port:    uint16(19108),
+				Score:   int32(0),
+			}},
+			LocalServices: "0000000000000005",
+		},
+	}})
+}
+
+func TestHandleGetPeerInfo(t *testing.T) {
+	testRPCServerHandler(t, []rpcTest{{
+		name:            "handleGetPeerInfo: ok",
+		handler:         handleGetPeerInfo,
+		cmd:             &types.GetPeerInfoCmd{},
+		mockSyncManager: &testSyncManager{},
+		mockConnManager: &testConnManager{
+			connectedPeers: []rpcserver.Peer{
+				&testPeer{
+					localAddr: testAddr{
+						net:  "tcp",
+						addr: "172.17.0.2:51060",
+					},
+					isTxRelayDisabled: false,
+					banScore:          uint32(0),
+					id:                int32(5),
+					addr:              "106.14.238.184:19108",
+					lastPingNonce:     uint64(10),
+					statsSnapshot: &peer.StatsSnap{
+						ID:             int32(5),
+						Addr:           "106.14.238.184:19108",
+						Services:       wire.SFNodeNetwork | wire.SFNodeCF,
+						LastSend:       time.Unix(1592918788, 0),
+						LastRecv:       time.Unix(1592918788, 0),
+						BytesSent:      uint64(3406),
+						BytesRecv:      uint64(2498),
+						ConnTime:       time.Unix(1592918784, 0),
+						TimeOffset:     int64(-75),
+						Version:        uint32(6),
+						UserAgent:      "/dcrwire:0.3.0/dcrd:1.5.0(pre)/",
+						Inbound:        false,
+						StartingHeight: int64(323327),
+						LastBlock:      int64(323327),
+						LastPingNonce:  uint64(10),
+						LastPingTime:   time.Unix(1592918788, 0),
+						LastPingMicros: int64(0),
+					},
+				},
+			},
+		},
+		mockClock: &testClock{
+			since: time.Duration(2000),
+		},
+		result: []*types.GetPeerInfoResult{{
+			ID:             int32(5),
+			Addr:           "106.14.238.184:19108",
+			AddrLocal:      "172.17.0.2:51060",
+			Services:       "00000005",
+			RelayTxes:      true,
+			LastSend:       int64(1592918788),
+			LastRecv:       int64(1592918788),
+			BytesSent:      uint64(3406),
+			BytesRecv:      uint64(2498),
+			ConnTime:       int64(1592918784),
+			TimeOffset:     int64(-75),
+			PingTime:       float64(0),
+			PingWait:       float64(2),
+			Version:        uint32(6),
+			SubVer:         "/dcrwire:0.3.0/dcrd:1.5.0(pre)/",
+			Inbound:        false,
+			StartingHeight: int64(323327),
+			CurrentHeight:  int64(323327),
+			BanScore:       int32(0),
+			SyncNode:       false,
+		}},
+	}})
+}
+
 func TestHandleGetTxOutSetInfo(t *testing.T) {
 	hash, _ := chainhash.NewHashFromStr("000000000000000019e76d2f52f39f9245db35eab21741a61ed5bded310f0c87")
 	sHash, _ := chainhash.NewHashFromStr("fe7b32aa188800f07268b17f3bead5f3d8a1b6d18654182066436efce6effa86")
@@ -1526,14 +2247,216 @@ func TestHandleGetTxOutSetInfo(t *testing.T) {
 	}})
 }
 
+func TestHandleNode(t *testing.T) {
+	testRPCServerHandler(t, []rpcTest{{
+		name:    "handleNode: ok with disconnect by address",
+		handler: handleNode,
+		cmd: &types.NodeCmd{
+			SubCmd: "disconnect",
+			Target: "160.221.215.210:9108",
+		},
+		mockConnManager: &testConnManager{},
+		result:          nil,
+	}, {
+		name:    "handleNode: disconnect by address peer not found",
+		handler: handleNode,
+		cmd: &types.NodeCmd{
+			SubCmd: "disconnect",
+			Target: "160.221.215.210:9108",
+		},
+		mockConnManager: &testConnManager{
+			disconnectByAddrErr: errors.New("peer not found"),
+		},
+		wantErr: true,
+		errCode: dcrjson.ErrRPCInvalidParameter,
+	}, {
+		name:    "handleNode: ok with disconnect by id",
+		handler: handleNode,
+		cmd: &types.NodeCmd{
+			SubCmd: "disconnect",
+			Target: "28",
+		},
+		mockConnManager: &testConnManager{},
+		result:          nil,
+	}, {
+		name:    "handleNode: disconnect by id peer not found",
+		handler: handleNode,
+		cmd: &types.NodeCmd{
+			SubCmd: "disconnect",
+			Target: "28",
+		},
+		mockConnManager: &testConnManager{
+			disconnectByIDErr: errors.New("peer not found"),
+		},
+		wantErr: true,
+		errCode: dcrjson.ErrRPCInvalidParameter,
+	}, {
+		name:    "handleNode: disconnect invalid address",
+		handler: handleNode,
+		cmd: &types.NodeCmd{
+			SubCmd: "disconnect",
+			Target: "invalid_address",
+		},
+		mockConnManager: &testConnManager{},
+		wantErr:         true,
+		errCode:         dcrjson.ErrRPCInvalidParameter,
+	}, {
+		name:    "handleNode: can't disconnect a permanent peer",
+		handler: handleNode,
+		cmd: &types.NodeCmd{
+			SubCmd: "disconnect",
+			Target: "160.221.215.210:9108",
+		},
+		mockConnManager: &testConnManager{
+			disconnectByAddrErr: errors.New("peer not found"),
+			connectedPeers: []rpcserver.Peer{
+				&testPeer{
+					id:   28,
+					addr: "160.221.215.210:9108",
+				},
+			},
+		},
+		wantErr: true,
+		errCode: dcrjson.ErrRPCMisc,
+	}, {
+		name:    "handleNode: ok with remove by address",
+		handler: handleNode,
+		cmd: &types.NodeCmd{
+			SubCmd: "remove",
+			Target: "160.221.215.210:9108",
+		},
+		mockConnManager: &testConnManager{},
+		result:          nil,
+	}, {
+		name:    "handleNode: remove by address peer not found",
+		handler: handleNode,
+		cmd: &types.NodeCmd{
+			SubCmd: "remove",
+			Target: "160.221.215.210:9108",
+		},
+		mockConnManager: &testConnManager{
+			removeByAddrErr: errors.New("peer not found"),
+		},
+		wantErr: true,
+		errCode: dcrjson.ErrRPCInvalidParameter,
+	}, {
+		name:    "handleNode: ok with remove by id",
+		handler: handleNode,
+		cmd: &types.NodeCmd{
+			SubCmd: "remove",
+			Target: "28",
+		},
+		mockConnManager: &testConnManager{},
+		result:          nil,
+	}, {
+		name:    "handleNode: remove by id peer not found",
+		handler: handleNode,
+		cmd: &types.NodeCmd{
+			SubCmd: "remove",
+			Target: "28",
+		},
+		mockConnManager: &testConnManager{
+			removeByIDErr: errors.New("peer not found"),
+		},
+		wantErr: true,
+		errCode: dcrjson.ErrRPCInvalidParameter,
+	}, {
+		name:    "handleNode: remove invalid address",
+		handler: handleNode,
+		cmd: &types.NodeCmd{
+			SubCmd: "remove",
+			Target: "invalid_address",
+		},
+		mockConnManager: &testConnManager{},
+		wantErr:         true,
+		errCode:         dcrjson.ErrRPCInvalidParameter,
+	}, {
+		name:    "handleNode: can't remove a temporary peer",
+		handler: handleNode,
+		cmd: &types.NodeCmd{
+			SubCmd: "remove",
+			Target: "160.221.215.210:9108",
+		},
+		mockConnManager: &testConnManager{
+			removeByAddrErr: errors.New("peer not found"),
+			connectedPeers: []rpcserver.Peer{
+				&testPeer{
+					id:   28,
+					addr: "160.221.215.210:9108",
+				},
+			},
+		},
+		wantErr: true,
+		errCode: dcrjson.ErrRPCMisc,
+	}, {
+		name:    "handleNode: ok with connect perm",
+		handler: handleNode,
+		cmd: &types.NodeCmd{
+			SubCmd:        "connect",
+			Target:        "160.221.215.210:9108",
+			ConnectSubCmd: dcrjson.String("perm"),
+		},
+		mockConnManager: &testConnManager{},
+		result:          nil,
+	}, {
+		name:    "handleNode: ok with connect temp",
+		handler: handleNode,
+		cmd: &types.NodeCmd{
+			SubCmd:        "connect",
+			Target:        "160.221.215.210:9108",
+			ConnectSubCmd: dcrjson.String("temp"),
+		},
+		mockConnManager: &testConnManager{},
+		result:          nil,
+	}, {
+		name:    "handleNode: invalid connect sub cmd",
+		handler: handleNode,
+		cmd: &types.NodeCmd{
+			SubCmd:        "connect",
+			Target:        "160.221.215.210:9108",
+			ConnectSubCmd: dcrjson.String("invalid"),
+		},
+		mockConnManager: &testConnManager{},
+		wantErr:         true,
+		errCode:         dcrjson.ErrRPCInvalidParameter,
+	}, {
+		name:    "handleNode: invalid sub cmd",
+		handler: handleNode,
+		cmd: &types.NodeCmd{
+			SubCmd: "invalid",
+			Target: "160.221.215.210:9108",
+		},
+		mockConnManager: &testConnManager{},
+		wantErr:         true,
+		errCode:         dcrjson.ErrRPCInvalidParameter,
+	}})
+}
+
+func TestHandlePing(t *testing.T) {
+	testRPCServerHandler(t, []rpcTest{{
+		name:            "handlePing: ok",
+		handler:         handlePing,
+		cmd:             &types.PingCmd{},
+		mockConnManager: &testConnManager{},
+		result:          nil,
+	}})
+}
+
 func testRPCServerHandler(t *testing.T, tests []rpcTest) {
 	t.Helper()
 
 	for _, test := range tests {
+		cfg = test.mockCfg
 		testServer := &rpcServer{
 			cfg: rpcserverConfig{
 				ChainParams: chaincfg.MainNetParams(),
 				Chain:       test.mockChain,
+				AddrManager: test.mockAddrManager,
+				SyncMgr:     test.mockSyncManager,
+				ConnMgr:     test.mockConnManager,
+				Clock:       test.mockClock,
+				TimeSource:  blockchain.NewMedianTime(),
+				Services:    wire.SFNodeNetwork | wire.SFNodeCF,
 			},
 		}
 		result, err := test.handler(nil, testServer, test.cmd)

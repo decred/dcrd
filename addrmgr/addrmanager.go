@@ -1027,9 +1027,11 @@ func (a *AddrManager) HasLocalAddress(na *wire.NetAddress) bool {
 	return ok
 }
 
-// FetchLocalAddresses fetches a summary of local addresses information for
+// LocalAddresses returns a summary of local addresses information for
 // the getnetworkinfo rpc.
-func (a *AddrManager) FetchLocalAddresses() []LocalAddr {
+//
+// This function is safe for concurrent access.
+func (a *AddrManager) LocalAddresses() []LocalAddr {
 	a.lamtx.Lock()
 	defer a.lamtx.Unlock()
 
@@ -1044,6 +1046,15 @@ func (a *AddrManager) FetchLocalAddresses() []LocalAddr {
 	}
 
 	return addrs
+}
+
+// FetchLocalAddresses fetches a summary of local addresses information for
+// the getnetworkinfo rpc.
+//
+// Deprecated: This will be removed in the next major version bump.
+// Use LocalAddresses instead.
+func (a *AddrManager) FetchLocalAddresses() []LocalAddr {
+	return a.LocalAddresses()
 }
 
 const (
