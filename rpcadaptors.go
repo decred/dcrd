@@ -6,6 +6,10 @@
 package main
 
 import (
+	"net"
+	"time"
+
+	"github.com/decred/dcrd/addrmgr"
 	"github.com/decred/dcrd/blockchain/stake/v3"
 	"github.com/decred/dcrd/blockchain/v3"
 	"github.com/decred/dcrd/blockchain/v3/indexers"
@@ -24,15 +28,60 @@ type rpcPeer serverPeer
 // Ensure rpcPeer implements the rpcserver.Peer interface.
 var _ rpcserver.Peer = (*rpcPeer)(nil)
 
-// ToPeer returns the underlying peer instance.
+// Addr returns the peer address.
 //
 // This function is safe for concurrent access and is part of the rpcserver.Peer
 // interface implementation.
-func (p *rpcPeer) ToPeer() *peer.Peer {
-	if p == nil {
-		return nil
-	}
-	return (*serverPeer)(p).Peer
+func (p *rpcPeer) Addr() string {
+	return (*serverPeer)(p).Peer.Addr()
+}
+
+// Connected returns whether or not the peer is currently connected.
+//
+// This function is safe for concurrent access and is part of the rpcserver.Peer
+// interface implementation.
+func (p *rpcPeer) Connected() bool {
+	return (*serverPeer)(p).Peer.Connected()
+}
+
+// ID returns the peer id.
+//
+// This function is safe for concurrent access and is part of the rpcserver.Peer
+// interface implementation.
+func (p *rpcPeer) ID() int32 {
+	return (*serverPeer)(p).Peer.ID()
+}
+
+// Inbound returns whether the peer is inbound.
+//
+// This function is safe for concurrent access and is part of the rpcserver.Peer
+// interface implementation.
+func (p *rpcPeer) Inbound() bool {
+	return (*serverPeer)(p).Peer.Inbound()
+}
+
+// StatsSnapshot returns a snapshot of the current peer flags and statistics.
+//
+// This function is safe for concurrent access and is part of the rpcserver.Peer
+// interface implementation.
+func (p *rpcPeer) StatsSnapshot() *peer.StatsSnap {
+	return (*serverPeer)(p).Peer.StatsSnapshot()
+}
+
+// LocalAddr returns the local address of the connection.
+//
+// This function is safe for concurrent access and is part of the rpcserver.Peer
+// interface implementation.
+func (p *rpcPeer) LocalAddr() net.Addr {
+	return (*serverPeer)(p).Peer.LocalAddr()
+}
+
+// LastPingNonce returns the last ping nonce of the remote peer.
+//
+// This function is safe for concurrent access and is part of the rpcserver.Peer
+// interface implementation.
+func (p *rpcPeer) LastPingNonce() uint64 {
+	return (*serverPeer)(p).Peer.LastPingNonce()
 }
 
 // IsTxRelayDisabled returns whether or not the peer has disabled transaction
@@ -52,6 +101,15 @@ func (p *rpcPeer) IsTxRelayDisabled() bool {
 func (p *rpcPeer) BanScore() uint32 {
 	return (*serverPeer)(p).banScore.Int()
 }
+
+// rpcAddrManager provides an address manager for use with the RPC server and
+// implements the rpcserver.AddrManager interface.
+type rpcAddrManager struct {
+	*addrmgr.AddrManager
+}
+
+// Ensure rpcAddrManager implements the rpcserver.AddrManager interface.
+var _ rpcserver.AddrManager = (*rpcAddrManager)(nil)
 
 // rpcConnManager provides a connection manager for use with the RPC server and
 // implements the rpcserver.ConnManager interface.
@@ -372,4 +430,27 @@ func (c *rpcChain) FetchUtxoEntry(txHash *chainhash.Hash) (rpcserver.UtxoEntry, 
 		return nil, err
 	}
 	return &rpcUtxoEntry{UtxoEntry: utxo}, nil
+}
+
+// rpcClock provides a clock for use with the RPC server and
+// implements the rpcserver.Clock interface.
+type rpcClock struct{}
+
+// Ensure rpcClock implements the rpcserver.Clock interface.
+var _ rpcserver.Clock = (*rpcClock)(nil)
+
+// Now returns the current local time.
+//
+// This function is safe for concurrent access and is part of the
+// rpcserver.Clock interface implementation.
+func (*rpcClock) Now() time.Time {
+	return time.Now()
+}
+
+// Since returns the time elapsed since t.
+//
+// This function is safe for concurrent access and is part of the
+// rpcserver.Clock interface implementation.
+func (*rpcClock) Since(t time.Time) time.Duration {
+	return time.Since(t)
 }

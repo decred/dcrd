@@ -428,8 +428,8 @@ the method name for further details such as parameter and return information.
 |-
 !Parameters
 |
-# <code>peer</code>: <code>(string, required)</code> ip address and port of the peer to operate on.
-# <code>command</code>: <code>(string, required)</code> - <code>add</code> to add a persistent peer, <code>remove</code> to remove a persistent peer, or <code>onetry</code> to try a single connection to a peer.
+# <code>addr</code>: <code>(string, required)</code> IP address and port of the peer to operate on.
+# <code>subcmd</code>: <code>(string, required)</code> - <code>add</code> to add a persistent peer, <code>remove</code> to remove a persistent peer, or <code>onetry</code> to try a single connection to a peer.
 |-
 !Description
 |Attempts to add or remove a persistent peer.
@@ -888,7 +888,7 @@ the method name for further details such as parameter and return information.
 |-
 !Parameters
 |
-# <code>numblocks</code>: <code>(int, required)</code> The number of blocks to generate. 
+# <code>numblocks</code>: <code>(int, required)</code> The number of blocks to generate.
 |-
 !Description
 |When in simnet or regtest mode, generates <code>numblocks</code> blocks. If blocks arrive from elsewhere, they are built upon but don't count toward the number of blocks to generate. Only generated blocks are returned. This RPC call will exit with an error if the server is already CPU mining, and will prevent the server from CPU mining for another command while it runs.
@@ -1355,7 +1355,7 @@ of the best block.
 |
 : <code>(mainnet)</code> <code>3652501241</code>
 : <code>(testnet3)</code> <code>2979310197</code>
-: 
+:
 |}
 
 ----
@@ -2094,9 +2094,9 @@ of the best block.
 |-
 !Parameters
 |
-# <code>command</code>: <code>(string, required)</code>  <code>connect</code> to add a peer (defaults to temporary), <code>remove</code> to remove a persistent peer, or <code>disconnect</code> to remove all matching non-persistent peers.
-# <code>peer</code>: <code>(string, required)</code> ip address and port, or ID of the peer to operate on.
-# <code>connection type</code>: <code>(string)</code> <code>perm</code> indicates the peer should be added as a permanent peer, <code>temp</code> indicates a connection should only be attempted once.
+# <code>subcmd</code>: <code>(string, required)</code> <code>disconnect</code> to remove all matching non-persistent peers, <code>remove</code> to remove a persistent peer, or <code>connect</code> to connect to a peer.
+# <code>target</code>: <code>(string, required)</code> Either the IP address and port of the peer to operate on, or a valid peer ID.
+# <code>connectsubcmd</code>: <code>(string)</code> <code>perm</code> to make the connected peer a permanent one, <code>temp</code> to try a single connect to a peer.
 |-
 !Description
 |Attempts to add or remove a peer.
