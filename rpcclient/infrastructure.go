@@ -298,6 +298,9 @@ func (c *Client) trackRegisteredNtfns(cmd interface{}) {
 		} else {
 			c.ntfnState.notifyNewTx = true
 		}
+
+	case *chainjson.NotifyWorkCmd:
+		c.ntfnState.notifyWork = true
 	}
 }
 
