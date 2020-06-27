@@ -911,13 +911,13 @@ func NewUtxoViewpoint() *UtxoViewpoint {
 // FetchUtxoView loads utxo details about the input transactions referenced by
 // the passed transaction from the point of view of the end of the main chain
 // while taking into account whether or not the transactions in the regular tree
-// of the block just prior should be included or not depending on the provided
+// of the current tip block should be included or not depending on the provided
 // flag.  It also attempts to fetch the utxo details for the transaction itself
 // so the returned view can be examined for duplicate unspent transaction
 // outputs.
 //
 // This function is safe for concurrent access however the returned view is NOT.
-func (b *BlockChain) FetchUtxoView(tx *dcrutil.Tx, includePrevRegularTxns bool) (*UtxoViewpoint, error) {
+func (b *BlockChain) FetchUtxoView(tx *dcrutil.Tx, includeRegularTxns bool) (*UtxoViewpoint, error) {
 	b.chainLock.RLock()
 	defer b.chainLock.RUnlock()
 
@@ -932,24 +932,23 @@ func (b *BlockChain) FetchUtxoView(tx *dcrutil.Tx, includePrevRegularTxns bool) 
 		return view, nil
 	}
 
-	// Disconnect the transactions in the regular tree of the parent block if
-	// the caller requests it.  In order to avoid the overhead of repeated
-	// lookups, only create a view with the changes once and cache it.
-	if !includePrevRegularTxns {
+	// Disconnect the transactions in the regular tree of the tip block if the
+	// caller requests it.  In order to avoid the overhead of repeated lookups,
+	// only create a view with the changes once and cache it.
+	if !includeRegularTxns {
 		b.disapprovedViewLock.Lock()
 		if b.disapprovedView == nil || *b.disapprovedView.BestHash() !=
 			tip.hash {
 
-			// Grab the parent of the current block.
-			parent, err := b.fetchMainChainBlockByNode(tip.parent)
+			// Grab the current tip block.
+			tipBlock, err := b.fetchMainChainBlockByNode(tip)
 			if err != nil {
 				b.disapprovedViewLock.Unlock()
 				return nil, err
 			}
 
-			// Disconnect the transactions in the regular tree of the parent
-			// block.
-			err = view.disconnectDisapprovedBlock(b.db, parent)
+			// Disconnect the transactions in the regular tree of the tip block.
+			err = view.disconnectDisapprovedBlock(b.db, tipBlock)
 			if err != nil {
 				b.disapprovedViewLock.Unlock()
 				return nil, err
