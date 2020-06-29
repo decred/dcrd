@@ -368,5 +368,8 @@ func (c *rpcChain) ConvertUtxosToMinimalOutputs(entry rpcserver.UtxoEntry) []*st
 // any) is NOT.
 func (c *rpcChain) FetchUtxoEntry(txHash *chainhash.Hash) (rpcserver.UtxoEntry, error) {
 	utxo, err := c.BlockChain.FetchUtxoEntry(txHash)
-	return &rpcUtxoEntry{UtxoEntry: utxo}, err
+	if utxo == nil || err != nil {
+		return nil, err
+	}
+	return &rpcUtxoEntry{UtxoEntry: utxo}, nil
 }
