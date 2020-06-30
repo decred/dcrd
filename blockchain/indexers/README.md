@@ -20,9 +20,8 @@ via an RPC interface.
     or debit the address
   - Requires the transaction-by-hash index
 - Address-ever-seen (existsaddridx) Index
-  - Stores a key with an empty value for every address that has ever existed 
+  - Stores a key with an empty value for every address that has ever existed
     and was seen by the client
-  - Requires the transaction-by-hash index
 - Committed Filter (cfindexparentbucket) Index
   - Stores all committed filters and committed filter headers for all blocks in
     the main chain
