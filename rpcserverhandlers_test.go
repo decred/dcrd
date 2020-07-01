@@ -5,6 +5,8 @@
 package main
 
 import (
+	"bytes"
+	"encoding/gob"
 	"errors"
 	"fmt"
 	"math"
@@ -105,6 +107,7 @@ type testRPCChain struct {
 	calcWantHeight                  int64
 	chainTips                       []blockchain.ChainTipInfo
 	chainWork                       *big.Int
+	chainWorkErr                    error
 	checkExpiredTickets             []bool
 	checkLiveTicket                 bool
 	checkLiveTickets                []bool
@@ -127,9 +130,12 @@ type testRPCChain struct {
 	lotteryDataForBlock             []chainhash.Hash
 	mainChainHasBlock               bool
 	maxBlockSize                    int64
+	maxBlockSizeErr                 error
 	missedTickets                   []chainhash.Hash
 	nextThresholdState              blockchain.ThresholdStateTuple
+	nextThresholdStateErr           error
 	stateLastChangedHeight          int64
+	stateLastChangedHeightErr       error
 	ticketPoolValue                 dcrutil.Amount
 	ticketsWithAddress              []chainhash.Hash
 	tipGeneration                   []chainhash.Hash
@@ -179,7 +185,7 @@ func (c *testRPCChain) ChainTips() []blockchain.ChainTipInfo {
 // ChainWork returns returns a mocked total work up to and including the block
 // of the provided block hash.
 func (c *testRPCChain) ChainWork(hash *chainhash.Hash) (*big.Int, error) {
-	return c.chainWork, nil
+	return c.chainWork, c.chainWorkErr
 }
 
 // CheckExpiredTickets returns a mocked slice of bools representing
@@ -305,7 +311,7 @@ func (c *testRPCChain) MainChainHasBlock(hash *chainhash.Hash) bool {
 // MaxBlockSize returns a mocked maximum permitted block size for the block
 // AFTER the end of the current best chain.
 func (c *testRPCChain) MaxBlockSize() (int64, error) {
-	return c.maxBlockSize, nil
+	return c.maxBlockSize, c.maxBlockSizeErr
 }
 
 // MissedTickets returns a mocked slice of all currently missed tickets.
@@ -316,13 +322,13 @@ func (c *testRPCChain) MissedTickets() ([]chainhash.Hash, error) {
 // NextThresholdState returns a mocked current rule change threshold state of
 // the given deployment ID for the block AFTER the provided block hash.
 func (c *testRPCChain) NextThresholdState(hash *chainhash.Hash, version uint32, deploymentID string) (blockchain.ThresholdStateTuple, error) {
-	return c.nextThresholdState, nil
+	return c.nextThresholdState, c.nextThresholdStateErr
 }
 
 // StateLastChangedHeight returns a mocked height at which the provided
 // consensus deployment agenda last changed state.
 func (c *testRPCChain) StateLastChangedHeight(hash *chainhash.Hash, version uint32, deploymentID string) (int64, error) {
-	return c.stateLastChangedHeight, nil
+	return c.stateLastChangedHeight, c.stateLastChangedHeightErr
 }
 
 // TicketPoolValue returns a mocked current value of all the locked funds in the
@@ -602,10 +608,39 @@ func (c *testClock) Since(t time.Time) time.Duration {
 	return c.since
 }
 
+// mustParseHash converts the passed big-endian hex string into a
+// chainhash.Hash and will panic if there is an error.  It only differs from the
+// one available in chainhash in that it will panic so errors in the source code
+// be detected.  It will only (and must only) be called with hard-coded, and
+// therefore known good, hashes.
+func mustParseHash(s string) *chainhash.Hash {
+	hash, err := chainhash.NewHashFromStr(s)
+	if err != nil {
+		panic("invalid hash in source file: " + s)
+	}
+	return hash
+}
+
+// cloneParams returns a deep copy of the provided parameters so the caller is
+// free to modify them without worrying about interfering with other tests.
+func cloneParams(params *chaincfg.Params) *chaincfg.Params {
+	// Encode via gob.
+	buf := new(bytes.Buffer)
+	enc := gob.NewEncoder(buf)
+	enc.Encode(params)
+
+	// Decode via gob to make a deep copy.
+	var paramsCopy chaincfg.Params
+	dec := gob.NewDecoder(buf)
+	dec.Decode(&paramsCopy)
+	return &paramsCopy
+}
+
 type rpcTest struct {
 	name            string
 	handler         commandHandler
 	cmd             interface{}
+	mockChainParams *chaincfg.Params
 	mockChain       *testRPCChain
 	mockAddrManager *testAddrManager
 	mockSyncManager *testSyncManager
@@ -1886,7 +1921,7 @@ func TestHandleGetAddedNodeInfo(t *testing.T) {
 }
 
 func TestHandleGetBestBlock(t *testing.T) {
-	hash, _ := chainhash.NewHashFromStr("000000000000000019e76d2f52f39f9245db35eab21741a61ed5bded310f0c87")
+	hash := mustParseHash("000000000000000019e76d2f52f39f9245db35eab21741a61ed5bded310f0c87")
 	testRPCServerHandler(t, []rpcTest{{
 		name:    "handleGetBestBlock: ok",
 		handler: handleGetBestBlock,
@@ -1905,7 +1940,7 @@ func TestHandleGetBestBlock(t *testing.T) {
 }
 
 func TestHandleGetBestBlockHash(t *testing.T) {
-	hash, _ := chainhash.NewHashFromStr("000000000000000019e76d2f52f39f9245db35eab21741a61ed5bded310f0c87")
+	hash := mustParseHash("000000000000000019e76d2f52f39f9245db35eab21741a61ed5bded310f0c87")
 	testRPCServerHandler(t, []rpcTest{{
 		name:    "handleGetBestBlockHash: ok",
 		handler: handleGetBestBlockHash,
@@ -1916,6 +1951,222 @@ func TestHandleGetBestBlockHash(t *testing.T) {
 			},
 		},
 		result: "000000000000000019e76d2f52f39f9245db35eab21741a61ed5bded310f0c87",
+	}})
+}
+
+func TestHandleGetBlockchainInfo(t *testing.T) {
+	hash := mustParseHash("00000000000000001e6ec1501c858506de1de4703d1be8bab4061126e8f61480")
+	prevHash := mustParseHash("00000000000000001a1ec2becd0dd90bfbd0c65f42fdaf608dd9ceac2a3aee1d")
+	genesisHash := mustParseHash("298e5cc3d985bfe7f81dc135f360abe089edd4396b86d2de66b0cef42b21d980")
+	genesisPrevHash := mustParseHash("0000000000000000000000000000000000000000000000000000000000000000")
+
+	// Explicitly define the params that handleGetBlockchainInfo depends on so that
+	// the tests don't break when the values for these change.
+	testChainParams := cloneParams(chaincfg.MainNetParams())
+	testChainParams.Name = "mainnet"
+	testChainParams.Deployments = map[uint32][]chaincfg.ConsensusDeployment{
+		7: {{
+			Vote: chaincfg.Vote{
+				Id:          chaincfg.VoteIDHeaderCommitments,
+				Description: "Enable header commitments as defined in DCP0005",
+				Mask:        0x0006, // Bits 1 and 2
+				Choices: []chaincfg.Choice{{
+					Id:          "abstain",
+					Description: "abstain voting for change",
+					Bits:        0x0000,
+					IsAbstain:   true,
+					IsNo:        false,
+				}, {
+					Id:          "no",
+					Description: "keep the existing consensus rules",
+					Bits:        0x0002, // Bit 1
+					IsAbstain:   false,
+					IsNo:        true,
+				}, {
+					Id:          "yes",
+					Description: "change to the new consensus rules",
+					Bits:        0x0004, // Bit 2
+					IsAbstain:   false,
+					IsNo:        false,
+				}},
+			},
+			StartTime:  1567641600, // Sep 5th, 2019
+			ExpireTime: 1599264000, // Sep 5th, 2020
+		}},
+	}
+	testChainParams.PowLimitBits = 0x1d00ffff
+
+	testRPCServerHandler(t, []rpcTest{{
+		name:            "handleGetBlockchainInfo: ok",
+		handler:         handleGetBlockchainInfo,
+		cmd:             &types.GetBlockChainInfoCmd{},
+		mockChainParams: testChainParams,
+		mockChain: &testRPCChain{
+			bestSnapshot: &blockchain.BestState{
+				Height:   463073,
+				Bits:     404696953,
+				Hash:     *hash,
+				PrevHash: *prevHash,
+			},
+			chainWork: big.NewInt(0).SetBytes([]byte{0x11, 0x5d, 0x28, 0x33, 0x84,
+				0x90, 0x90, 0xb0, 0x02, 0x65, 0x06}),
+			isCurrent:    false,
+			maxBlockSize: 393216,
+			nextThresholdState: blockchain.ThresholdStateTuple{
+				State:  blockchain.ThresholdStarted,
+				Choice: uint32(0xffffffff),
+			},
+			stateLastChangedHeight: int64(149248),
+		},
+		mockSyncManager: &testSyncManager{
+			syncHeight: 463074,
+		},
+		result: types.GetBlockChainInfoResult{
+			Chain:                "mainnet",
+			Blocks:               int64(463073),
+			Headers:              int64(463073),
+			SyncHeight:           int64(463074),
+			ChainWork:            "000000000000000000000000000000000000000000115d2833849090b0026506",
+			InitialBlockDownload: true,
+			VerificationProgress: float64(0.9999978405179302),
+			BestBlockHash:        "00000000000000001e6ec1501c858506de1de4703d1be8bab4061126e8f61480",
+			Difficulty:           uint32(404696953),
+			DifficultyRatio:      float64(35256672611.3862),
+			MaxBlockSize:         int64(393216),
+			Deployments: map[string]types.AgendaInfo{
+				"headercommitments": {
+					Status:     "started",
+					Since:      int64(149248),
+					StartTime:  uint64(1567641600),
+					ExpireTime: uint64(1599264000),
+				},
+			},
+		},
+	}, {
+		name:            "handleGetBlockchainInfo: ok with empty blockchain",
+		handler:         handleGetBlockchainInfo,
+		cmd:             &types.GetBlockChainInfoCmd{},
+		mockChainParams: testChainParams,
+		mockChain: &testRPCChain{
+			bestSnapshot: &blockchain.BestState{
+				Height:   0,
+				Bits:     453115903,
+				Hash:     *genesisHash,
+				PrevHash: *genesisPrevHash,
+			},
+			chainWork: big.NewInt(0).SetBytes([]byte{0x80, 0x00, 0x40, 0x00, 0x20,
+				0x00}),
+			isCurrent:    false,
+			maxBlockSize: 393216,
+			nextThresholdState: blockchain.ThresholdStateTuple{
+				State:  blockchain.ThresholdDefined,
+				Choice: uint32(0xffffffff),
+			},
+			stateLastChangedHeight: int64(0),
+		},
+		mockSyncManager: &testSyncManager{
+			syncHeight: 0,
+		},
+		result: types.GetBlockChainInfoResult{
+			Chain:                "mainnet",
+			Blocks:               int64(0),
+			Headers:              int64(0),
+			SyncHeight:           int64(0),
+			ChainWork:            "0000000000000000000000000000000000000000000000000000800040002000",
+			InitialBlockDownload: true,
+			VerificationProgress: float64(0),
+			BestBlockHash:        "298e5cc3d985bfe7f81dc135f360abe089edd4396b86d2de66b0cef42b21d980",
+			Difficulty:           uint32(453115903),
+			DifficultyRatio:      float64(32767.74999809),
+			MaxBlockSize:         int64(393216),
+			Deployments: map[string]types.AgendaInfo{
+				"headercommitments": {
+					Status:     "defined",
+					Since:      int64(0),
+					StartTime:  uint64(1567641600),
+					ExpireTime: uint64(1599264000),
+				},
+			},
+		},
+	}, {
+		name:            "handleGetBlockchainInfo: could not fetch chain work",
+		handler:         handleGetBlockchainInfo,
+		cmd:             &types.GetBlockChainInfoCmd{},
+		mockChainParams: testChainParams,
+		mockChain: &testRPCChain{
+			bestSnapshot: &blockchain.BestState{
+				Hash: *hash,
+			},
+			chainWorkErr: errors.New("could not fetch chain work"),
+		},
+		wantErr: true,
+		errCode: dcrjson.ErrRPCInternal.Code,
+	}, {
+		name:            "handleGetBlockchainInfo: could not fetch max block size",
+		handler:         handleGetBlockchainInfo,
+		cmd:             &types.GetBlockChainInfoCmd{},
+		mockChainParams: testChainParams,
+		mockChain: &testRPCChain{
+			bestSnapshot: &blockchain.BestState{
+				Hash: *hash,
+			},
+			chainWork: big.NewInt(0).SetBytes([]byte{0x11, 0x5d, 0x28, 0x33, 0x84,
+				0x90, 0x90, 0xb0, 0x02, 0x65, 0x06}),
+			maxBlockSizeErr: errors.New("could not fetch max block size"),
+		},
+		mockSyncManager: &testSyncManager{
+			syncHeight: 463074,
+		},
+		wantErr: true,
+		errCode: dcrjson.ErrRPCInternal.Code,
+	}, {
+		name:            "handleGetBlockchainInfo: could not fetch threshold state",
+		handler:         handleGetBlockchainInfo,
+		cmd:             &types.GetBlockChainInfoCmd{},
+		mockChainParams: testChainParams,
+		mockChain: &testRPCChain{
+			bestSnapshot: &blockchain.BestState{
+				Height:   463073,
+				Bits:     404696953,
+				Hash:     *hash,
+				PrevHash: *prevHash,
+			},
+			chainWork: big.NewInt(0).SetBytes([]byte{0x11, 0x5d, 0x28, 0x33, 0x84,
+				0x90, 0x90, 0xb0, 0x02, 0x65, 0x06}),
+			maxBlockSize:          393216,
+			nextThresholdStateErr: errors.New("could not fetch threshold state"),
+		},
+		mockSyncManager: &testSyncManager{
+			syncHeight: 463074,
+		},
+		wantErr: true,
+		errCode: dcrjson.ErrRPCInternal.Code,
+	}, {
+		name:            "handleGetBlockchainInfo: could not fetch state last changed",
+		handler:         handleGetBlockchainInfo,
+		cmd:             &types.GetBlockChainInfoCmd{},
+		mockChainParams: testChainParams,
+		mockChain: &testRPCChain{
+			bestSnapshot: &blockchain.BestState{
+				Height:   463073,
+				Bits:     404696953,
+				Hash:     *hash,
+				PrevHash: *prevHash,
+			},
+			chainWork: big.NewInt(0).SetBytes([]byte{0x11, 0x5d, 0x28, 0x33, 0x84,
+				0x90, 0x90, 0xb0, 0x02, 0x65, 0x06}),
+			maxBlockSize: 393216,
+			nextThresholdState: blockchain.ThresholdStateTuple{
+				State:  blockchain.ThresholdStarted,
+				Choice: uint32(0xffffffff),
+			},
+			stateLastChangedHeightErr: errors.New("could not fetch state last changed"),
+		},
+		mockSyncManager: &testSyncManager{
+			syncHeight: 463074,
+		},
+		wantErr: true,
+		errCode: dcrjson.ErrRPCInternal.Code,
 	}})
 }
 
@@ -1934,9 +2185,9 @@ func TestHandleGetBlockCount(t *testing.T) {
 }
 
 func TestHandleGetChainTips(t *testing.T) {
-	h1, _ := chainhash.NewHashFromStr("000000000000000002e4e275720a511cc4c6e881ac7aa94f6786e496d0901e5c")
-	h2, _ := chainhash.NewHashFromStr("00000000000000000cc40fe6f2fe9a0c482281d79f1b49c3c77b976859edd963")
-	h3, _ := chainhash.NewHashFromStr("00000000000000000afa4a9c11c4106aac0c73f595182227e78688218f3516f1")
+	h1 := mustParseHash("000000000000000002e4e275720a511cc4c6e881ac7aa94f6786e496d0901e5c")
+	h2 := mustParseHash("00000000000000000cc40fe6f2fe9a0c482281d79f1b49c3c77b976859edd963")
+	h3 := mustParseHash("00000000000000000afa4a9c11c4106aac0c73f595182227e78688218f3516f1")
 	testRPCServerHandler(t, []rpcTest{{
 		name:    "handleGetChainTips: ok",
 		handler: handleGetChainTips,
@@ -2216,8 +2467,8 @@ func TestHandleGetPeerInfo(t *testing.T) {
 }
 
 func TestHandleGetTxOutSetInfo(t *testing.T) {
-	hash, _ := chainhash.NewHashFromStr("000000000000000019e76d2f52f39f9245db35eab21741a61ed5bded310f0c87")
-	sHash, _ := chainhash.NewHashFromStr("fe7b32aa188800f07268b17f3bead5f3d8a1b6d18654182066436efce6effa86")
+	hash := mustParseHash("000000000000000019e76d2f52f39f9245db35eab21741a61ed5bded310f0c87")
+	sHash := mustParseHash("fe7b32aa188800f07268b17f3bead5f3d8a1b6d18654182066436efce6effa86")
 	testRPCServerHandler(t, []rpcTest{{
 		name:    "handleGetTxOutSetInfo: ok",
 		handler: handleGetTxOutSetInfo,
@@ -2447,9 +2698,13 @@ func testRPCServerHandler(t *testing.T, tests []rpcTest) {
 
 	for _, test := range tests {
 		cfg = test.mockCfg
+		chainParams := chaincfg.MainNetParams()
+		if test.mockChainParams != nil {
+			chainParams = test.mockChainParams
+		}
 		testServer := &rpcServer{
 			cfg: rpcserverConfig{
-				ChainParams: chaincfg.MainNetParams(),
+				ChainParams: chainParams,
 				Chain:       test.mockChain,
 				AddrManager: test.mockAddrManager,
 				SyncMgr:     test.mockSyncManager,
