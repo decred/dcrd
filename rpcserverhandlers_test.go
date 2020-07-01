@@ -1503,6 +1503,102 @@ func TestHandleDecodeRawTransaction(t *testing.T) {
 	}})
 }
 
+func TestHandleDecodeScript(t *testing.T) {
+	// This is a pay to stake submission script hash script.
+	p2sstxsh := "ba76a914000000000000000000000000000000000000000088ac"
+	p2sstxshRes := types.DecodeScriptResult{
+		Asm: "OP_SSTX OP_DUP OP_HASH160 0000000000000000000000000000" +
+			"000000000000 OP_EQUALVERIFY OP_CHECKSIG",
+		ReqSigs:   1,
+		Type:      "stakesubmission",
+		Addresses: []string{"DsQxuVRvS4eaJ42dhQEsCXauMWjvopWgrVg"},
+		P2sh:      "DcaBW1ecMLBzXSS9Q8YRV3aBc5qQeaA1WPo",
+	}
+	aHex := "0A"
+	aHexRes := types.DecodeScriptResult{
+		Asm:       "[error]",
+		ReqSigs:   0,
+		Type:      "nonstandard",
+		Addresses: []string{},
+		P2sh:      "DcbuYCoW1nJZhFf1ZyGXjoPL6D3ezNwwWjj",
+	}
+	// This is a 2 of 2 multisig script.
+	multiSig := "5221030000000000000000000000000000000000000000000000000" +
+		"00000000000000121030000000000000000000000000000000000000000" +
+		"00000000000000000000000252ae"
+	multiSigRes := types.DecodeScriptResult{
+		Asm: "2 0300000000000000000000000000000000000000000000000000" +
+			"00000000000001 030000000000000000000000000000000000" +
+			"000000000000000000000000000002 2 OP_CHECKMULTISIG",
+		ReqSigs: 2,
+		Type:    "multisig",
+		Addresses: []string{"DsdvMfW6wGbGCXSNWidWtfP1tPmnCLNXQyC",
+			"DsSkAQDPhDW3foES4fcfmpkPYYZhnV3R4ws"},
+		P2sh: "DcexHKLpqiM49auD2jbxPH6enwm9u1ZFAo6",
+	}
+	// This is a pay to script hash script.
+	p2sh := "a914000000000000000000000000000000000000000087"
+	p2shRes := types.DecodeScriptResult{
+		Asm: "OP_HASH160 0000000000000000000000000000000000000000 " +
+			"OP_EQUAL",
+		ReqSigs:   1,
+		Type:      "scripthash",
+		Addresses: []string{"DcXTb4QtmnyRsnzUVViYQawqFE5PuYTdX2C"},
+	}
+	testRPCServerHandler(t, []rpcTest{{
+		name:    "handleDecodeScript: ok no version",
+		handler: handleDecodeScript,
+		cmd: &types.DecodeScriptCmd{
+			HexScript: p2sstxsh,
+		},
+		result: p2sstxshRes,
+	}, {
+		name:    "handleDecodeScript: ok version 0",
+		handler: handleDecodeScript,
+		cmd: &types.DecodeScriptCmd{
+			HexScript: p2sstxsh,
+			Version:   dcrjson.Uint16(0),
+		},
+		result: p2sstxshRes,
+	}, {
+		name:    "handleDecodeScript: ok asm error",
+		handler: handleDecodeScript,
+		cmd: &types.DecodeScriptCmd{
+			HexScript: aHex,
+		},
+		result: aHexRes,
+	}, {
+		name:    "handleDecodeScript: ok incomplete hex",
+		handler: handleDecodeScript,
+		cmd: &types.DecodeScriptCmd{
+			HexScript: aHex[1:],
+		},
+		result: aHexRes,
+	}, {
+		name:    "handleDecodeScript: ok multiple addresses",
+		handler: handleDecodeScript,
+		cmd: &types.DecodeScriptCmd{
+			HexScript: multiSig,
+		},
+		result: multiSigRes,
+	}, {
+		name:    "handleDecodeScript: ok no p2sh in return",
+		handler: handleDecodeScript,
+		cmd: &types.DecodeScriptCmd{
+			HexScript: p2sh,
+		},
+		result: p2shRes,
+	}, {
+		name:    "handleDecodeScript: invalid hex",
+		handler: handleDecodeScript,
+		cmd: &types.DecodeScriptCmd{
+			HexScript: "Q",
+		},
+		wantErr: true,
+		errCode: dcrjson.ErrRPCDecodeHexString,
+	}})
+}
+
 func TestHandleEstimateFee(t *testing.T) {
 	testRPCServerHandler(t, []rpcTest{{
 		name:    "handleEstimateFee: ok",
