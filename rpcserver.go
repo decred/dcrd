@@ -1939,11 +1939,22 @@ func handleGetBlockchainInfo(_ context.Context, s *rpcServer, cmd interface{}) (
 	// threshold states and state activation heights.
 	dInfo := make(map[string]types.AgendaInfo)
 	params := s.cfg.ChainParams
+	defaultStatus := blockchain.ThresholdStateTuple{
+		State: blockchain.ThresholdDefined,
+	}.String()
 	for version, deployments := range params.Deployments {
 		for _, agenda := range deployments {
 			aInfo := types.AgendaInfo{
 				StartTime:  agenda.StartTime,
 				ExpireTime: agenda.ExpireTime,
+				Status:     defaultStatus,
+			}
+
+			// If the best block is the genesis block, continue without attempting to
+			// query the threshold state or state changed height.
+			if best.PrevHash == zeroHash {
+				dInfo[agenda.Vote.Id] = aInfo
+				continue
 			}
 
 			state, err := chain.NextThresholdState(&best.PrevHash, version,
