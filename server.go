@@ -1006,8 +1006,8 @@ func (sp *serverPeer) OnGetData(p *peer.Peer, msg *wire.MsgGetData) {
 		case wire.InvTypeBlock:
 			err = sp.server.pushBlockMsg(sp, &iv.Hash, c, waitChan)
 		default:
-			peerLog.Warnf("Unknown type in inventory request %d",
-				iv.Type)
+			peerLog.Warnf("Unknown type '%d' in inventory request from %s",
+				iv.Type, sp)
 			continue
 		}
 		if err != nil {
@@ -1148,8 +1148,8 @@ func (sp *serverPeer) OnGetCFilter(p *peer.Peer, msg *wire.MsgGetCFilter) {
 	switch msg.FilterType {
 	case wire.GCSFilterRegular, wire.GCSFilterExtended:
 	default:
-		peerLog.Warnf("OnGetCFilter: unsupported filter type %v",
-			msg.FilterType)
+		peerLog.Warnf("OnGetCFilter: unsupported filter type '%v' from %s",
+			msg.FilterType, sp)
 
 		// Ban non-whitelisted peers requesting unsupported filter types.
 		if !sp.isWhitelisted {
@@ -1254,8 +1254,8 @@ func (sp *serverPeer) OnGetCFHeaders(p *peer.Peer, msg *wire.MsgGetCFHeaders) {
 	switch msg.FilterType {
 	case wire.GCSFilterRegular, wire.GCSFilterExtended:
 	default:
-		peerLog.Warnf("OnGetCFilter: unsupported filter type %v",
-			msg.FilterType)
+		peerLog.Warnf("OnGetCFilter: unsupported filter type '%v' from %s",
+			msg.FilterType, sp)
 
 		// Ban non-whitelisted peers requesting unsupported filter types.
 		if !sp.isWhitelisted {
@@ -1416,7 +1416,7 @@ func (sp *serverPeer) OnRead(p *peer.Peer, bytesRead int, msg wire.Message, err 
 	// Ban peers sending messages that do not conform to the wire protocol.
 	var errCode wire.ErrorCode
 	if errors.As(err, &errCode) {
-		peerLog.Errorf("Unable to read wire message: %v", err)
+		peerLog.Errorf("Unable to read wire message from %s: %v", sp, err)
 		sp.server.BanPeer(sp)
 		sp.Disconnect()
 	}
