@@ -1057,6 +1057,10 @@ func (sp *serverPeer) OnGetBlocks(p *peer.Peer, msg *wire.MsgGetBlocks) {
 	invMsg := wire.NewMsgInv()
 	for i := range hashList {
 		iv := wire.NewInvVect(wire.InvTypeBlock, &hashList[i])
+		if sp.IsKnownInventory(iv) {
+			// TODO: Increase ban score
+			continue
+		}
 		invMsg.AddInvVect(iv)
 	}
 

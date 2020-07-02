@@ -511,6 +511,14 @@ func (p *Peer) AddKnownInventory(invVect *wire.InvVect) {
 	p.knownInventory.Add(invVect)
 }
 
+// IsKnownInventory returns whether the passed inventory already exists in
+// the known inventory for the peer.
+//
+// This function is safe for concurrent access.
+func (p *Peer) IsKnownInventory(invVect *wire.InvVect) bool {
+	return p.knownInventory.Contains(invVect)
+}
+
 // StatsSnapshot returns a snapshot of the current peer flags and statistics.
 //
 // This function is safe for concurrent access.
