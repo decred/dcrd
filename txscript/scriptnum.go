@@ -17,7 +17,7 @@ const (
 	// interpreted as an integer may be for the majority of op codes.
 	MathOpCodeMaxScriptNumLen = 4
 
-	// cltvMaxScriptNumLen is the maximum number of bytes data being interpreted
+	// CltvMaxScriptNumLen is the maximum number of bytes data being interpreted
 	// as an integer may be for by-time and by-height locks as interpreted by
 	// CHECKLOCKTIMEVERIFY.
 	//
@@ -27,7 +27,7 @@ const (
 	// 4-byte ScriptNum would only support up to a maximum of 2^31-1 (the
 	// year 2038).  Thus, a 5-byte ScriptNum is needed since it will support
 	// up to 2^39-1 which allows dates beyond the current locktime limit.
-	cltvMaxScriptNumLen = 5
+	CltvMaxScriptNumLen = 5
 
 	// csvMaxScriptNumLen is the maximum number of bytes data being interpreted
 	// as an integer may be for by-time and by-height locks as interpreted by

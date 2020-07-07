@@ -1339,7 +1339,7 @@ func ExtractAtomicSwapDataPushes(version uint16, pkScript []byte) (*AtomicSwapDa
 		{opcode: OP_HASH160},
 		{opcode: OP_DATA_20},
 		{opcode: OP_ELSE},
-		{expectCanonicalInt: true, maxIntBytes: cltvMaxScriptNumLen},
+		{expectCanonicalInt: true, maxIntBytes: CltvMaxScriptNumLen},
 		{opcode: OP_CHECKLOCKTIMEVERIFY},
 		{opcode: OP_DROP},
 		{opcode: OP_DUP},

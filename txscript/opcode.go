@@ -963,7 +963,7 @@ func opcodeCheckLockTimeVerify(op *opcode, data []byte, vm *Engine) error {
 	// maximum of 2^31-1 (the year 2038).  Thus, a 5-byte ScriptNum is used
 	// here since it will support up to 2^39-1 which allows dates beyond the
 	// current locktime limit.
-	lockTime, err := vm.dstack.PeekInt(0, cltvMaxScriptNumLen)
+	lockTime, err := vm.dstack.PeekInt(0, CltvMaxScriptNumLen)
 	if err != nil {
 		return err
 	}
