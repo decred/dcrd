@@ -114,7 +114,7 @@ func extractMultisigScriptDetails(scriptVersion uint16, script []byte, extractPu
 	if !tokenizer.Next() || !IsSmallInt(tokenizer.Opcode()) {
 		return multiSigDetails{}
 	}
-	requiredSigs := asSmallInt(tokenizer.Opcode())
+	requiredSigs := AsSmallInt(tokenizer.Opcode())
 
 	// The next series of opcodes must either push public keys or be a small
 	// integer specifying the number of public keys.
@@ -140,7 +140,7 @@ func extractMultisigScriptDetails(scriptVersion uint16, script []byte, extractPu
 	// The next opcode must be a small integer specifying the number of public
 	// keys required.
 	op := tokenizer.Opcode()
-	if !IsSmallInt(op) || asSmallInt(op) != numPubKeys {
+	if !IsSmallInt(op) || AsSmallInt(op) != numPubKeys {
 		return multiSigDetails{}
 	}
 
@@ -292,14 +292,14 @@ func extractPubKeyAltDetails(script []byte) ([]byte, dcrec.SignatureType) {
 	}
 
 	if len(script) == 35 && script[0] == OP_DATA_32 &&
-		IsSmallInt(script[33]) && asSmallInt(script[33]) == dcrec.STEd25519 {
+		IsSmallInt(script[33]) && AsSmallInt(script[33]) == dcrec.STEd25519 {
 
 		return script[1:33], dcrec.STEd25519
 	}
 
 	if len(script) == 36 && script[0] == OP_DATA_33 &&
 		IsSmallInt(script[34]) &&
-		asSmallInt(script[34]) == dcrec.STSchnorrSecp256k1 &&
+		AsSmallInt(script[34]) == dcrec.STSchnorrSecp256k1 &&
 		isStrictPubKeyEncoding(script[1:34]) {
 
 		return script[1:34], dcrec.STSchnorrSecp256k1
@@ -346,7 +346,7 @@ func isStandardAltSignatureType(op byte) bool {
 		return false
 	}
 
-	sigType := asSmallInt(op)
+	sigType := AsSmallInt(op)
 	return sigType == dcrec.STEd25519 || sigType == dcrec.STSchnorrSecp256k1
 }
 
@@ -373,7 +373,7 @@ func extractPubKeyHashAltDetails(script []byte) ([]byte, dcrec.SignatureType) {
 		isStandardAltSignatureType(script[24]) &&
 		script[25] == OP_CHECKSIGALT {
 
-		return script[3:23], dcrec.SignatureType(asSmallInt(script[24]))
+		return script[3:23], dcrec.SignatureType(AsSmallInt(script[24]))
 	}
 
 	return nil, 0
@@ -1372,7 +1372,7 @@ func ExtractAtomicSwapDataPushes(version uint16, pkScript []byte) (*AtomicSwapDa
 				tplEntry.extractedInt = int64(val)
 
 			case IsSmallInt(op):
-				tplEntry.extractedInt = int64(asSmallInt(op))
+				tplEntry.extractedInt = int64(AsSmallInt(op))
 
 			// Not an atomic swap script if the opcode does not push an int.
 			default:

@@ -263,9 +263,14 @@ func removeOpcodeByData(script []byte, dataToRemove []byte) []byte {
 	return result
 }
 
-// asSmallInt returns the passed opcode, which must be true according to
-// isSmallInt(), as an integer.
-func asSmallInt(op byte) int {
+// AsSmallInt returns the passed opcode, which MUST be true according to the
+// IsSmallInt function, as an integer.
+//
+//
+// NOTE: This function is only valid for version 0 opcodes.  Since the function
+// does not accept a script version, the results are undefined for other script
+// versions.
+func AsSmallInt(op byte) int {
 	if op == OP_0 {
 		return 0
 	}
@@ -312,7 +317,7 @@ func countSigOpsV0(script []byte, precise bool) int {
 			// multisignature operations in new script versions should move to
 			// aggregated schemes such as Schnorr instead.
 			if precise && prevOp >= OP_1 && prevOp <= OP_16 {
-				numSigOps += asSmallInt(prevOp)
+				numSigOps += AsSmallInt(prevOp)
 			} else {
 				numSigOps += MaxPubKeysPerMultiSig
 			}
