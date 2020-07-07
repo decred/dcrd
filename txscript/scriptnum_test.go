@@ -1,5 +1,5 @@
 // Copyright (c) 2015-2017 The btcsuite developers
-// Copyright (c) 2015-2018 The Decred developers
+// Copyright (c) 2015-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -30,7 +30,7 @@ func TestScriptNumBytes(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		num        scriptNum
+		num        ScriptNum
 		serialized []byte
 	}{
 		{0, nil},
@@ -95,7 +95,7 @@ func TestMakeScriptNum(t *testing.T) {
 
 	tests := []struct {
 		serialized []byte
-		num        scriptNum
+		num        ScriptNum
 		numLen     int
 		err        error
 	}{
@@ -173,17 +173,16 @@ func TestMakeScriptNum(t *testing.T) {
 
 	for _, test := range tests {
 		// Ensure the error matches the value specified in the test instance.
-		gotNum, err := makeScriptNum(test.serialized, test.numLen)
+		gotNum, err := MakeScriptNum(test.serialized, test.numLen)
 		if !errors.Is(err, test.err) {
-			t.Errorf("makeScriptNum(%#x): unexpected error - got %v, want %v",
+			t.Errorf("MakeScriptNum(%#x): unexpected error - got %v, want %v",
 				test.serialized, err, test.err)
 			continue
 		}
 
 		if gotNum != test.num {
-			t.Errorf("makeScriptNum(%#x): did not get expected "+
-				"number - got %d, want %d", test.serialized,
-				gotNum, test.num)
+			t.Errorf("MakeScriptNum(%#x): did not get expected number - got "+
+				"%d, want %d", test.serialized, gotNum, test.num)
 			continue
 		}
 	}
@@ -195,7 +194,7 @@ func TestScriptNumInt32(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		in   scriptNum
+		in   ScriptNum
 		want int32
 	}{
 		// Values inside the valid int32 range are just the values

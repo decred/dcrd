@@ -1365,7 +1365,7 @@ func ExtractAtomicSwapDataPushes(version uint16, pkScript []byte) (*AtomicSwapDa
 		if tplEntry.expectCanonicalInt {
 			switch {
 			case data != nil:
-				val, err := makeScriptNum(data, tplEntry.maxIntBytes)
+				val, err := MakeScriptNum(data, tplEntry.maxIntBytes)
 				if err != nil {
 					return nil, err
 				}

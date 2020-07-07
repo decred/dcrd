@@ -306,7 +306,7 @@ func TestStack(t *testing.T) {
 			"PushInt 0",
 			nil,
 			func(s *stack) error {
-				s.PushInt(scriptNum(0))
+				s.PushInt(ScriptNum(0))
 				return nil
 			},
 			nil,
@@ -316,7 +316,7 @@ func TestStack(t *testing.T) {
 			"PushInt 1",
 			nil,
 			func(s *stack) error {
-				s.PushInt(scriptNum(1))
+				s.PushInt(ScriptNum(1))
 				return nil
 			},
 			nil,
@@ -326,7 +326,7 @@ func TestStack(t *testing.T) {
 			"PushInt -1",
 			nil,
 			func(s *stack) error {
-				s.PushInt(scriptNum(-1))
+				s.PushInt(ScriptNum(-1))
 				return nil
 			},
 			nil,
@@ -336,7 +336,7 @@ func TestStack(t *testing.T) {
 			"PushInt two bytes",
 			nil,
 			func(s *stack) error {
-				s.PushInt(scriptNum(256))
+				s.PushInt(ScriptNum(256))
 				return nil
 			},
 			nil,
@@ -348,7 +348,7 @@ func TestStack(t *testing.T) {
 			nil,
 			func(s *stack) error {
 				// this will have the highbit set
-				s.PushInt(scriptNum(128))
+				s.PushInt(ScriptNum(128))
 				return nil
 			},
 			nil,
@@ -470,7 +470,7 @@ func TestStack(t *testing.T) {
 			"PushInt PopBool",
 			nil,
 			func(s *stack) error {
-				s.PushInt(scriptNum(1))
+				s.PushInt(ScriptNum(1))
 				val, err := s.PopBool()
 				if err != nil {
 					return err
@@ -488,7 +488,7 @@ func TestStack(t *testing.T) {
 			"PushInt PopBool 2",
 			nil,
 			func(s *stack) error {
-				s.PushInt(scriptNum(0))
+				s.PushInt(ScriptNum(0))
 				val, err := s.PopBool()
 				if err != nil {
 					return err
@@ -894,7 +894,7 @@ func TestStack(t *testing.T) {
 			"pop int",
 			nil,
 			func(s *stack) error {
-				s.PushInt(scriptNum(1))
+				s.PushInt(ScriptNum(1))
 				val, err := s.PopInt(mathOpCodeMaxScriptNumLen)
 				if err != nil {
 					return err

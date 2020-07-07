@@ -726,7 +726,7 @@ func opcodePushData(op *opcode, data []byte, vm *Engine) error {
 
 // opcode1Negate pushes -1, encoded as a number, to the data stack.
 func opcode1Negate(op *opcode, data []byte, vm *Engine) error {
-	vm.dstack.PushInt(scriptNum(-1))
+	vm.dstack.PushInt(ScriptNum(-1))
 	return nil
 }
 
@@ -736,7 +736,7 @@ func opcode1Negate(op *opcode, data []byte, vm *Engine) error {
 func opcodeN(op *opcode, data []byte, vm *Engine) error {
 	// The opcodes are all defined consecutively, so the numeric value is
 	// the difference.
-	vm.dstack.PushInt(scriptNum((op.value - (OP_1 - 1))))
+	vm.dstack.PushInt(ScriptNum((op.value - (OP_1 - 1))))
 	return nil
 }
 
@@ -958,9 +958,9 @@ func opcodeCheckLockTimeVerify(op *opcode, data []byte, vm *Engine) error {
 	}
 
 	// The current transaction locktime is a uint32 resulting in a maximum
-	// locktime of 2^32-1 (the year 2106).  However, scriptNums are signed
-	// and therefore a standard 4-byte scriptNum would only support up to a
-	// maximum of 2^31-1 (the year 2038).  Thus, a 5-byte scriptNum is used
+	// locktime of 2^32-1 (the year 2106).  However, ScriptNums are signed
+	// and therefore a standard 4-byte ScriptNum would only support up to a
+	// maximum of 2^31-1 (the year 2038).  Thus, a 5-byte ScriptNum is used
 	// here since it will support up to 2^39-1 which allows dates beyond the
 	// current locktime limit.
 	lockTime, err := vm.dstack.PeekInt(0, cltvMaxScriptNumLen)
@@ -1025,9 +1025,9 @@ func opcodeCheckSequenceVerify(op *opcode, data []byte, vm *Engine) error {
 	}
 
 	// The current transaction sequence is a uint32 resulting in a maximum
-	// sequence of 2^32-1.  However, scriptNums are signed and therefore a
-	// standard 4-byte scriptNum would only support up to a maximum of
-	// 2^31-1.  Thus, a 5-byte scriptNum is used here since it will support
+	// sequence of 2^32-1.  However, ScriptNums are signed and therefore a
+	// standard 4-byte ScriptNum would only support up to a maximum of
+	// 2^31-1.  Thus, a 5-byte ScriptNum is used here since it will support
 	// up to 2^39-1 which allows sequences beyond the current sequence
 	// limit.
 	stackSequence, err := vm.dstack.PeekInt(0, csvMaxScriptNumLen)
@@ -1177,7 +1177,7 @@ func opcodeIfDup(op *opcode, data []byte, vm *Engine) error {
 // Example with 2 items: [x1 x2] -> [x1 x2 2]
 // Example with 3 items: [x1 x2 x3] -> [x1 x2 x3 3]
 func opcodeDepth(op *opcode, data []byte, vm *Engine) error {
-	vm.dstack.PushInt(scriptNum(vm.dstack.Depth()))
+	vm.dstack.PushInt(ScriptNum(vm.dstack.Depth()))
 	return nil
 }
 
@@ -1491,7 +1491,7 @@ func opcodeSize(op *opcode, data []byte, vm *Engine) error {
 		return err
 	}
 
-	vm.dstack.PushInt(scriptNum(len(so)))
+	vm.dstack.PushInt(ScriptNum(len(so)))
 	return nil
 }
 
@@ -1505,7 +1505,7 @@ func opcodeInvert(op *opcode, data []byte, vm *Engine) error {
 		return err
 	}
 
-	vm.dstack.PushInt(scriptNum(^v0.Int32()))
+	vm.dstack.PushInt(ScriptNum(^v0.Int32()))
 	return nil
 }
 
@@ -1524,7 +1524,7 @@ func opcodeAnd(op *opcode, data []byte, vm *Engine) error {
 		return err
 	}
 
-	vm.dstack.PushInt(scriptNum(v0.Int32() & v1.Int32()))
+	vm.dstack.PushInt(ScriptNum(v0.Int32() & v1.Int32()))
 	return nil
 }
 
@@ -1543,7 +1543,7 @@ func opcodeOr(op *opcode, data []byte, vm *Engine) error {
 		return err
 	}
 
-	vm.dstack.PushInt(scriptNum(v0.Int32() | v1.Int32()))
+	vm.dstack.PushInt(ScriptNum(v0.Int32() | v1.Int32()))
 	return nil
 }
 
@@ -1562,7 +1562,7 @@ func opcodeXor(op *opcode, data []byte, vm *Engine) error {
 		return err
 	}
 
-	vm.dstack.PushInt(scriptNum(v0.Int32() ^ v1.Int32()))
+	vm.dstack.PushInt(ScriptNum(v0.Int32() ^ v1.Int32()))
 	return nil
 }
 
@@ -1612,16 +1612,16 @@ func rotateRight(value int32, count int32) int32 {
 //
 // Stack transformation: [... x1 x2] -> [... rotr(x1, x2)]
 func opcodeRotr(op *opcode, data []byte, vm *Engine) error {
-	// WARNING: Since scriptNums are signed, a standard 4-byte scriptNum only
+	// WARNING: Since ScriptNums are signed, a standard 4-byte ScriptNum only
 	// supports up to a maximum of 2^31-1.  The value (v1) really should allow
-	// 5-byte scriptNums and have an overflow check later to clamp it to uint32,
+	// 5-byte ScriptNums and have an overflow check later to clamp it to uint32,
 	// so the full range of uint32 could be covered.  This has undesirable
 	// consequences on the semantics of right rotations such that attempting to
 	// do rotr(rotr(0x00000001, 1), 1) will fail due to the first rotation
 	// producing a value greater than the max int32 while rotr(0x00000001, 2)
 	// will work as expected.
 	//
-	// Unfortunately, a 4-byte scriptNum is now part of consensus, so changing
+	// Unfortunately, a 4-byte ScriptNum is now part of consensus, so changing
 	// it requires a consensus vote.
 	v0, err := vm.dstack.PopInt(mathOpCodeMaxScriptNumLen) // x2
 	if err != nil {
@@ -1647,7 +1647,7 @@ func opcodeRotr(op *opcode, data []byte, vm *Engine) error {
 		return scriptError(ErrOverflowRotation, str)
 	}
 
-	vm.dstack.PushInt(scriptNum(rotateRight(value, count)))
+	vm.dstack.PushInt(ScriptNum(rotateRight(value, count)))
 	return nil
 }
 
@@ -1664,16 +1664,16 @@ func rotateLeft(value int32, count int32) int32 {
 //
 // Stack transformation: [... x1 x2] -> [... rotl(x1, x2)]
 func opcodeRotl(op *opcode, data []byte, vm *Engine) error {
-	// WARNING: Since scriptNums are signed, a standard 4-byte scriptNum only
+	// WARNING: Since ScriptNums are signed, a standard 4-byte ScriptNum only
 	// supports up to a maximum of 2^31-1.  The value (v1) really should allow
-	// 5-byte scriptNums and have an overflow check later to clamp it to uint32,
+	// 5-byte ScriptNums and have an overflow check later to clamp it to uint32,
 	// so the full range of uint32 could be covered.  This has undesirable
 	// consequences on the semantics of left rotations such that attempting to
 	// do rotl(rotl(0x40000000, 1), 1) will fail due to the first rotation
 	// producing a value greater than the max int32 while rotl(0x40000000, 2)
 	// will work as expected.
 	//
-	// Unfortunately, a 4-byte scriptNum is now part of consensus, so changing
+	// Unfortunately, a 4-byte ScriptNum is now part of consensus, so changing
 	// it requires a consensus vote.
 	v0, err := vm.dstack.PopInt(mathOpCodeMaxScriptNumLen) // x2
 	if err != nil {
@@ -1699,7 +1699,7 @@ func opcodeRotl(op *opcode, data []byte, vm *Engine) error {
 		return scriptError(ErrOverflowRotation, str)
 	}
 
-	vm.dstack.PushInt(scriptNum(rotateLeft(value, count)))
+	vm.dstack.PushInt(ScriptNum(rotateLeft(value, count)))
 	return nil
 }
 
@@ -1781,9 +1781,9 @@ func opcodeNot(op *opcode, data []byte, vm *Engine) error {
 	}
 
 	if m == 0 {
-		vm.dstack.PushInt(scriptNum(1))
+		vm.dstack.PushInt(ScriptNum(1))
 	} else {
-		vm.dstack.PushInt(scriptNum(0))
+		vm.dstack.PushInt(ScriptNum(0))
 	}
 	return nil
 }
@@ -1864,7 +1864,7 @@ func opcodeMul(op *opcode, data []byte, vm *Engine) error {
 
 	v2 := v0.Int32() * v1.Int32()
 
-	vm.dstack.PushInt(scriptNum(v2))
+	vm.dstack.PushInt(ScriptNum(v2))
 	return nil
 }
 
@@ -1892,7 +1892,7 @@ func opcodeDiv(op *opcode, data []byte, vm *Engine) error {
 		return scriptError(ErrDivideByZero, "division by zero")
 	}
 
-	vm.dstack.PushInt(scriptNum(dividend / divisor))
+	vm.dstack.PushInt(ScriptNum(dividend / divisor))
 	return nil
 }
 
@@ -1923,7 +1923,7 @@ func opcodeMod(op *opcode, data []byte, vm *Engine) error {
 		return scriptError(ErrDivideByZero, "division by zero")
 	}
 
-	vm.dstack.PushInt(scriptNum(dividend % divisor))
+	vm.dstack.PushInt(ScriptNum(dividend % divisor))
 	return nil
 }
 
@@ -1934,16 +1934,16 @@ func opcodeMod(op *opcode, data []byte, vm *Engine) error {
 //
 // Stack transformation: [... x1 x2] -> [... x1 << x2]
 func opcodeLShift(op *opcode, data []byte, vm *Engine) error {
-	// WARNING: Since scriptNums are signed, a standard 4-byte scriptNum only
+	// WARNING: Since ScriptNums are signed, a standard 4-byte ScriptNum only
 	// supports up to a maximum of 2^31-1.  The value (v1) really should allow
-	// 5-byte scriptNums and have an overflow check later to clamp it to uint32,
+	// 5-byte ScriptNums and have an overflow check later to clamp it to uint32,
 	// so the full range of uint32 could be covered.  This has undesirable
 	// consequences on the semantics of left shift such that attempting to
 	// do ((0x40000000 << 1) << 1) will fail due to the first shift producing
 	// a value greater than the max int32 while (0x40000000 << 2) will work as
 	// expected.
 	//
-	// Unfortunately, a 4-byte scriptNum is now part of consensus, so changing
+	// Unfortunately, a 4-byte ScriptNum is now part of consensus, so changing
 	// it requires a consensus vote.
 	v0, err := vm.dstack.PopInt(mathOpCodeMaxScriptNumLen) // x2
 	if err != nil {
@@ -1969,7 +1969,7 @@ func opcodeLShift(op *opcode, data []byte, vm *Engine) error {
 		return scriptError(ErrOverflowShift, str)
 	}
 
-	vm.dstack.PushInt(scriptNum(value << uint(count)))
+	vm.dstack.PushInt(ScriptNum(value << uint(count)))
 	return nil
 }
 
@@ -1981,15 +1981,15 @@ func opcodeLShift(op *opcode, data []byte, vm *Engine) error {
 //
 // Stack transformation: [... x1 x2] -> [... x1 >> x2]
 func opcodeRShift(op *opcode, data []byte, vm *Engine) error {
-	// WARNING: Since scriptNums are signed, a standard 4-byte scriptNum only
+	// WARNING: Since ScriptNums are signed, a standard 4-byte ScriptNum only
 	// supports up to a maximum of 2^31-1.  The value (v1) really should allow
-	// 5-byte scriptNums and have an overflow check later to clamp it to uint32,
+	// 5-byte ScriptNums and have an overflow check later to clamp it to uint32,
 	// so the full range of uint32 could be covered.  This has undesirable
 	// consequences on the semantics of right shift such that attempting to
 	// do ((0x40000000 << 1) >> 1) will fail due to the first shift producing
 	// a value greater than the max int32.
 	//
-	// Unfortunately, a 4-byte scriptNum is now part of consensus, so changing
+	// Unfortunately, a 4-byte ScriptNum is now part of consensus, so changing
 	// it requires a consensus vote.
 	v0, err := vm.dstack.PopInt(mathOpCodeMaxScriptNumLen) // x2
 	if err != nil {
@@ -2015,7 +2015,7 @@ func opcodeRShift(op *opcode, data []byte, vm *Engine) error {
 		return scriptError(ErrOverflowShift, str)
 	}
 
-	vm.dstack.PushInt(scriptNum(value >> uint(count)))
+	vm.dstack.PushInt(ScriptNum(value >> uint(count)))
 	return nil
 }
 
@@ -2038,9 +2038,9 @@ func opcodeBoolAnd(op *opcode, data []byte, vm *Engine) error {
 	}
 
 	if v0 != 0 && v1 != 0 {
-		vm.dstack.PushInt(scriptNum(1))
+		vm.dstack.PushInt(ScriptNum(1))
 	} else {
-		vm.dstack.PushInt(scriptNum(0))
+		vm.dstack.PushInt(ScriptNum(0))
 	}
 
 	return nil
@@ -2065,9 +2065,9 @@ func opcodeBoolOr(op *opcode, data []byte, vm *Engine) error {
 	}
 
 	if v0 != 0 || v1 != 0 {
-		vm.dstack.PushInt(scriptNum(1))
+		vm.dstack.PushInt(ScriptNum(1))
 	} else {
-		vm.dstack.PushInt(scriptNum(0))
+		vm.dstack.PushInt(ScriptNum(0))
 	}
 
 	return nil
@@ -2090,9 +2090,9 @@ func opcodeNumEqual(op *opcode, data []byte, vm *Engine) error {
 	}
 
 	if v0 == v1 {
-		vm.dstack.PushInt(scriptNum(1))
+		vm.dstack.PushInt(ScriptNum(1))
 	} else {
-		vm.dstack.PushInt(scriptNum(0))
+		vm.dstack.PushInt(ScriptNum(0))
 	}
 
 	return nil
@@ -2131,9 +2131,9 @@ func opcodeNumNotEqual(op *opcode, data []byte, vm *Engine) error {
 	}
 
 	if v0 != v1 {
-		vm.dstack.PushInt(scriptNum(1))
+		vm.dstack.PushInt(ScriptNum(1))
 	} else {
-		vm.dstack.PushInt(scriptNum(0))
+		vm.dstack.PushInt(ScriptNum(0))
 	}
 
 	return nil
@@ -2156,9 +2156,9 @@ func opcodeLessThan(op *opcode, data []byte, vm *Engine) error {
 	}
 
 	if v1 < v0 {
-		vm.dstack.PushInt(scriptNum(1))
+		vm.dstack.PushInt(ScriptNum(1))
 	} else {
-		vm.dstack.PushInt(scriptNum(0))
+		vm.dstack.PushInt(ScriptNum(0))
 	}
 
 	return nil
@@ -2181,9 +2181,9 @@ func opcodeGreaterThan(op *opcode, data []byte, vm *Engine) error {
 	}
 
 	if v1 > v0 {
-		vm.dstack.PushInt(scriptNum(1))
+		vm.dstack.PushInt(ScriptNum(1))
 	} else {
-		vm.dstack.PushInt(scriptNum(0))
+		vm.dstack.PushInt(ScriptNum(0))
 	}
 	return nil
 }
@@ -2205,9 +2205,9 @@ func opcodeLessThanOrEqual(op *opcode, data []byte, vm *Engine) error {
 	}
 
 	if v1 <= v0 {
-		vm.dstack.PushInt(scriptNum(1))
+		vm.dstack.PushInt(ScriptNum(1))
 	} else {
-		vm.dstack.PushInt(scriptNum(0))
+		vm.dstack.PushInt(ScriptNum(0))
 	}
 	return nil
 }
@@ -2229,9 +2229,9 @@ func opcodeGreaterThanOrEqual(op *opcode, data []byte, vm *Engine) error {
 	}
 
 	if v1 >= v0 {
-		vm.dstack.PushInt(scriptNum(1))
+		vm.dstack.PushInt(ScriptNum(1))
 	} else {
-		vm.dstack.PushInt(scriptNum(0))
+		vm.dstack.PushInt(ScriptNum(0))
 	}
 
 	return nil
@@ -2310,9 +2310,9 @@ func opcodeWithin(op *opcode, data []byte, vm *Engine) error {
 	}
 
 	if x >= minVal && x < maxVal {
-		vm.dstack.PushInt(scriptNum(1))
+		vm.dstack.PushInt(ScriptNum(1))
 	} else {
-		vm.dstack.PushInt(scriptNum(0))
+		vm.dstack.PushInt(ScriptNum(0))
 	}
 	return nil
 }

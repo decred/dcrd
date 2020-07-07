@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2017 The btcsuite developers
-// Copyright (c) 2015-2019 The Decred developers
+// Copyright (c) 2015-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -52,11 +52,11 @@ func (s *stack) PushByteArray(so []byte) {
 	s.stk = append(s.stk, so)
 }
 
-// PushInt converts the provided scriptNum to a suitable byte array then pushes
+// PushInt converts the provided ScriptNum to a suitable byte array then pushes
 // it onto the top of the stack.
 //
 // Stack transformation: [... x1 x2] -> [... x1 x2 int]
-func (s *stack) PushInt(val scriptNum) {
+func (s *stack) PushInt(val ScriptNum) {
 	s.PushByteArray(val.Bytes())
 }
 
@@ -80,13 +80,13 @@ func (s *stack) PopByteArray() ([]byte, error) {
 // consensus rules imposed on data interpreted as numbers.
 //
 // Stack transformation: [... x1 x2 x3] -> [... x1 x2]
-func (s *stack) PopInt(maxScriptNumLen int) (scriptNum, error) {
+func (s *stack) PopInt(maxScriptNumLen int) (ScriptNum, error) {
 	so, err := s.PopByteArray()
 	if err != nil {
 		return 0, err
 	}
 
-	return makeScriptNum(so, maxScriptNumLen)
+	return MakeScriptNum(so, maxScriptNumLen)
 }
 
 // PopBool pops the value off the top of the stack, converts it into a bool, and
@@ -117,13 +117,13 @@ func (s *stack) PeekByteArray(idx int32) ([]byte, error) {
 // PeekInt returns the Nth item on the stack as a script num without removing
 // it.  The act of converting to a script num enforces the consensus rules
 // imposed on data interpreted as numbers.
-func (s *stack) PeekInt(idx int32, maxScriptNumLen int) (scriptNum, error) {
+func (s *stack) PeekInt(idx int32, maxScriptNumLen int) (ScriptNum, error) {
 	so, err := s.PeekByteArray(idx)
 	if err != nil {
 		return 0, err
 	}
 
-	return makeScriptNum(so, maxScriptNumLen)
+	return MakeScriptNum(so, maxScriptNumLen)
 }
 
 // PeekBool returns the Nth item on the stack as a bool without removing it.
