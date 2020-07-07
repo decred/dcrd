@@ -6,18 +6,24 @@ package main
 
 import (
 	"bytes"
+	"compress/bzip2"
 	"encoding/gob"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"math"
 	"math/big"
 	"net"
+	"os"
+	"path/filepath"
 	"reflect"
+	"strconv"
 	"testing"
 	"time"
 
 	"github.com/decred/dcrd/addrmgr"
 	"github.com/decred/dcrd/blockchain/stake/v3"
+	"github.com/decred/dcrd/blockchain/standalone/v2"
 	"github.com/decred/dcrd/blockchain/v3"
 	"github.com/decred/dcrd/blockchain/v3/indexers"
 	"github.com/decred/dcrd/chaincfg/chainhash"
@@ -32,6 +38,9 @@ import (
 	"github.com/decred/dcrd/rpc/jsonrpc/types/v2"
 	"github.com/decred/dcrd/wire"
 )
+
+// testDataPath is the path where all rpcserver test fixtures reside.
+var testDataPath = filepath.Join("internal", "rpcserver", "testdata")
 
 // testRPCUtxoEntry provides a mock utxo entry by implementing the UtxoEntry interface.
 type testRPCUtxoEntry struct {
@@ -100,8 +109,10 @@ func (u *testRPCUtxoEntry) IsCoinBase() bool {
 type testRPCChain struct {
 	bestSnapshot                    *blockchain.BestState
 	blockByHash                     *dcrutil.Block
+	blockByHashErr                  error
 	blockByHeight                   *dcrutil.Block
 	blockHashByHeight               *chainhash.Hash
+	blockHashByHeightErr            error
 	blockHeightByHash               int64
 	calcNextRequiredStakeDifficulty int64
 	calcWantHeight                  int64
@@ -122,6 +133,7 @@ type testRPCChain struct {
 	getVoteCounts                   blockchain.VoteCounts
 	getVoteInfo                     *blockchain.VoteInfo
 	headerByHash                    wire.BlockHeader
+	headerByHashErr                 error
 	headerByHeight                  wire.BlockHeader
 	heightRange                     []chainhash.Hash
 	isCurrent                       bool
@@ -148,7 +160,7 @@ func (c *testRPCChain) BestSnapshot() *blockchain.BestState {
 
 // BlockByHash returns a mocked block for the given hash.
 func (c *testRPCChain) BlockByHash(hash *chainhash.Hash) (*dcrutil.Block, error) {
-	return c.blockByHash, nil
+	return c.blockByHash, c.blockByHashErr
 }
 
 // BlockByHeight returns a mocked block at the given height.
@@ -158,7 +170,7 @@ func (c *testRPCChain) BlockByHeight(height int64) (*dcrutil.Block, error) {
 
 // BlockHashByHeight returns a mocked hash of the block at the given height.
 func (c *testRPCChain) BlockHashByHeight(height int64) (*chainhash.Hash, error) {
-	return c.blockHashByHeight, nil
+	return c.blockHashByHeight, c.blockHashByHeightErr
 }
 
 // BlockHeightByHash returns a mocked height of the block with the given hash.
@@ -264,7 +276,7 @@ func (c *testRPCChain) GetVoteInfo(hash *chainhash.Hash, version uint32) (*block
 
 // HeaderByHash returns a mocked block header identified by the given hash.
 func (c *testRPCChain) HeaderByHash(hash *chainhash.Hash) (wire.BlockHeader, error) {
-	return c.headerByHash, nil
+	return c.headerByHash, c.headerByHashErr
 }
 
 // HeaderByHeight returns a mocked block header at the given height.
@@ -428,6 +440,7 @@ func (c *testAddrManager) LocalAddresses() []addrmgr.LocalAddr {
 type testSyncManager struct {
 	isCurrent          bool
 	submitBlock        bool
+	submitBlockErr     error
 	syncPeerID         int32
 	locateBlocks       []chainhash.Hash
 	existsAddrIndex    *indexers.ExistsAddrIndex
@@ -446,7 +459,7 @@ func (s *testSyncManager) IsCurrent() bool {
 // SubmitBlock provides a mock implementation for submitting the provided block
 // to the network after processing it locally.
 func (s *testSyncManager) SubmitBlock(block *dcrutil.Block, flags blockchain.BehaviorFlags) (bool, error) {
-	return s.submitBlock, nil
+	return s.submitBlock, s.submitBlockErr
 }
 
 // SyncPeer returns a mocked id of the current peer being synced with.
@@ -635,6 +648,24 @@ func cloneParams(params *chaincfg.Params) *chaincfg.Params {
 	dec.Decode(&paramsCopy)
 	return &paramsCopy
 }
+
+// block432100 mocks block 432,100 of the block chain.  It is loaded and
+// deserialized immediately here and then can be used throughout the tests.
+var block432100 = func() wire.MsgBlock {
+	// Load and deserialize the test block.
+	blockDataFile := filepath.Join(testDataPath, "block432100.bz2")
+	fi, err := os.Open(blockDataFile)
+	if err != nil {
+		panic(err)
+	}
+	defer fi.Close()
+	var block wire.MsgBlock
+	err = block.Deserialize(bzip2.NewReader(fi))
+	if err != nil {
+		panic(err)
+	}
+	return block
+}()
 
 type rpcTest struct {
 	name            string
@@ -2284,6 +2315,228 @@ func TestHandleGetBlockchainInfo(t *testing.T) {
 	}})
 }
 
+func TestHandleGetBlock(t *testing.T) {
+	// Define variables related to block432100 to be used throughout the
+	// handleGetBlock tests.
+	blkHeader := block432100.Header
+	blk := dcrutil.NewBlock(&block432100)
+	blkHash := blk.Hash()
+	blkHashString := blkHash.String()
+	blkBytes, err := blk.Bytes()
+	if err != nil {
+		t.Fatalf("error serializing block: %+v", err)
+	}
+	blkHexString := hex.EncodeToString(blkBytes)
+	bestHeight := int64(432151)
+	confirmations := bestHeight - blk.Height() + 1
+	nextHash := mustParseHash("000000000000000002e63055e402c823cb86c8258806508d84d6dc2a0790bd49")
+	chainWork, _ := new(big.Int).SetString("0e805fb85284503581c57c", 16)
+
+	// Explicitly define the params that handleGetBlock depends on so that the
+	// tests don't break when the values for these change.
+	testChainParams := cloneParams(chaincfg.MainNetParams())
+	testChainParams.PowLimitBits = 0x1d00ffff
+
+	// Create raw transaction results. This uses createTxRawResult, so ideally
+	// createTxRawResult should be tested independently as well.
+	txns := blk.Transactions()
+	rawTxns := make([]types.TxRawResult, len(txns))
+	for i, tx := range txns {
+		rawTxn, err := createTxRawResult(testChainParams, tx.MsgTx(),
+			tx.Hash().String(), uint32(i), &blkHeader, blk.Hash().String(),
+			int64(blkHeader.Height), confirmations)
+		if err != nil {
+			t.Fatalf("error creating tx raw result: %+v", err)
+		}
+		rawTxns[i] = *rawTxn
+	}
+	stxns := blk.STransactions()
+	rawSTxns := make([]types.TxRawResult, len(stxns))
+	for i, tx := range stxns {
+		rawSTxn, err := createTxRawResult(testChainParams, tx.MsgTx(),
+			tx.Hash().String(), uint32(i), &blkHeader, blk.Hash().String(),
+			int64(blkHeader.Height), confirmations)
+		if err != nil {
+			t.Fatalf("error creating stx raw result: %+v", err)
+		}
+		rawSTxns[i] = *rawSTxn
+	}
+
+	testRPCServerHandler(t, []rpcTest{{
+		name:    "handleGetBlock: ok",
+		handler: handleGetBlock,
+		cmd: &types.GetBlockCmd{
+			Hash:      blkHashString,
+			Verbose:   dcrjson.Bool(false),
+			VerboseTx: dcrjson.Bool(false),
+		},
+		mockChainParams: testChainParams,
+		mockChain: &testRPCChain{
+			blockByHash: blk,
+		},
+		result: blkHexString,
+	}, {
+		name:    "handleGetBlock: ok verbose",
+		handler: handleGetBlock,
+		cmd: &types.GetBlockCmd{
+			Hash:      blkHashString,
+			Verbose:   dcrjson.Bool(true),
+			VerboseTx: dcrjson.Bool(false),
+		},
+		mockChainParams: testChainParams,
+		mockChain: &testRPCChain{
+			bestSnapshot: &blockchain.BestState{
+				Height: bestHeight,
+			},
+			blockByHash:       blk,
+			blockHashByHeight: nextHash,
+			chainWork:         chainWork,
+			mainChainHasBlock: true,
+		},
+		result: types.GetBlockVerboseResult{
+			Hash:          blkHashString,
+			Version:       blkHeader.Version,
+			MerkleRoot:    blkHeader.MerkleRoot.String(),
+			StakeRoot:     blkHeader.StakeRoot.String(),
+			PreviousHash:  blkHeader.PrevBlock.String(),
+			Nonce:         blkHeader.Nonce,
+			VoteBits:      blkHeader.VoteBits,
+			FinalState:    hex.EncodeToString(blkHeader.FinalState[:]),
+			Voters:        blkHeader.Voters,
+			FreshStake:    blkHeader.FreshStake,
+			Revocations:   blkHeader.Revocations,
+			PoolSize:      blkHeader.PoolSize,
+			Time:          blkHeader.Timestamp.Unix(),
+			StakeVersion:  blkHeader.StakeVersion,
+			Confirmations: confirmations,
+			Height:        int64(blkHeader.Height),
+			Size:          int32(blkHeader.Size),
+			Bits:          strconv.FormatInt(int64(blkHeader.Bits), 16),
+			SBits:         dcrutil.Amount(blkHeader.SBits).ToCoin(),
+			Difficulty:    float64(28147398026.656624),
+			ChainWork:     fmt.Sprintf("%064x", chainWork),
+			ExtraData:     hex.EncodeToString(blkHeader.ExtraData[:]),
+			NextHash:      nextHash.String(),
+			Tx: []string{
+				"349b3e23b64cb4b71d09b9be4652c9e02e73430daee1285ea03d92aa437dcf37",
+				"ea55dfc48f490b112d1e69d196aa47b068a122e0e45000791ebef41ef2f2918f",
+			},
+			STx: []string{
+				"761f22f637f8a7df8fbfa0b411c211e16c40f907afce562ccc6a95e9b992b166",
+				"439ea206a41a6d374f0fc88b68af434b58499579850b885e79bc657a2a5f88b8",
+				"9e8904d2012875724d35c6d448bda9b6fcdc12b4700806f26a0e50acf52fe7e9",
+				"9ce7b38320021d36d67dd68666e56be3d5187da734cee8f7fa8e378efbe17b57",
+				"343cfa39bb122171b758edfe378e222ab702d78ca8ac6ad4b797e8353fe70f34",
+			},
+		},
+	}, {
+		name:    "handleGetBlock: ok verbose transactions",
+		handler: handleGetBlock,
+		cmd: &types.GetBlockCmd{
+			Hash:      blkHashString,
+			Verbose:   dcrjson.Bool(true),
+			VerboseTx: dcrjson.Bool(true),
+		},
+		mockChainParams: testChainParams,
+		mockChain: &testRPCChain{
+			bestSnapshot: &blockchain.BestState{
+				Height: bestHeight,
+			},
+			blockByHash:       blk,
+			blockHashByHeight: nextHash,
+			chainWork:         chainWork,
+			mainChainHasBlock: true,
+		},
+		result: types.GetBlockVerboseResult{
+			Hash:          blkHashString,
+			Version:       blkHeader.Version,
+			MerkleRoot:    blkHeader.MerkleRoot.String(),
+			StakeRoot:     blkHeader.StakeRoot.String(),
+			PreviousHash:  blkHeader.PrevBlock.String(),
+			Nonce:         blkHeader.Nonce,
+			VoteBits:      blkHeader.VoteBits,
+			FinalState:    hex.EncodeToString(blkHeader.FinalState[:]),
+			Voters:        blkHeader.Voters,
+			FreshStake:    blkHeader.FreshStake,
+			Revocations:   blkHeader.Revocations,
+			PoolSize:      blkHeader.PoolSize,
+			Time:          blkHeader.Timestamp.Unix(),
+			StakeVersion:  blkHeader.StakeVersion,
+			Confirmations: confirmations,
+			Height:        int64(blkHeader.Height),
+			Size:          int32(blkHeader.Size),
+			Bits:          strconv.FormatInt(int64(blkHeader.Bits), 16),
+			SBits:         dcrutil.Amount(blkHeader.SBits).ToCoin(),
+			Difficulty:    float64(28147398026.656624),
+			ChainWork:     fmt.Sprintf("%064x", chainWork),
+			ExtraData:     hex.EncodeToString(blkHeader.ExtraData[:]),
+			NextHash:      nextHash.String(),
+			RawTx:         rawTxns,
+			RawSTx:        rawSTxns,
+		},
+	}, {
+		name:    "handleGetBlock: invalid hash",
+		handler: handleGetBlock,
+		cmd: &types.GetBlockCmd{
+			Hash:      "invalid",
+			Verbose:   dcrjson.Bool(false),
+			VerboseTx: dcrjson.Bool(false),
+		},
+		mockChainParams: testChainParams,
+		wantErr:         true,
+		errCode:         dcrjson.ErrRPCDecodeHexString,
+	}, {
+		name:    "handleGetBlock: block not found",
+		handler: handleGetBlock,
+		cmd: &types.GetBlockCmd{
+			Hash:      blkHashString,
+			Verbose:   dcrjson.Bool(false),
+			VerboseTx: dcrjson.Bool(false),
+		},
+		mockChainParams: testChainParams,
+		mockChain: &testRPCChain{
+			blockByHashErr: errors.New("block not found"),
+		},
+		wantErr: true,
+		errCode: dcrjson.ErrRPCBlockNotFound,
+	}, {
+		name:    "handleGetBlock: could not fetch chain work",
+		handler: handleGetBlock,
+		cmd: &types.GetBlockCmd{
+			Hash:      blkHashString,
+			Verbose:   dcrjson.Bool(true),
+			VerboseTx: dcrjson.Bool(false),
+		},
+		mockChainParams: testChainParams,
+		mockChain: &testRPCChain{
+			blockByHash:  blk,
+			chainWorkErr: errors.New("could not fetch chain work"),
+		},
+		wantErr: true,
+		errCode: dcrjson.ErrRPCInternal.Code,
+	}, {
+		name:    "handleGetBlock: no next block",
+		handler: handleGetBlock,
+		cmd: &types.GetBlockCmd{
+			Hash:      blkHashString,
+			Verbose:   dcrjson.Bool(true),
+			VerboseTx: dcrjson.Bool(false),
+		},
+		mockChainParams: testChainParams,
+		mockChain: &testRPCChain{
+			bestSnapshot: &blockchain.BestState{
+				Height: bestHeight,
+			},
+			blockByHash:          blk,
+			blockHashByHeightErr: errors.New("no next block"),
+			chainWork:            chainWork,
+			mainChainHasBlock:    true,
+		},
+		wantErr: true,
+		errCode: dcrjson.ErrRPCInternal.Code,
+	}})
+}
+
 func TestHandleGetBlockCount(t *testing.T) {
 	testRPCServerHandler(t, []rpcTest{{
 		name:    "handleGetBlockCount: ok",
@@ -2295,6 +2548,186 @@ func TestHandleGetBlockCount(t *testing.T) {
 			},
 		},
 		result: int64(451802),
+	}})
+}
+
+func TestHandleGetBlockHash(t *testing.T) {
+	blk := dcrutil.NewBlock(&block432100)
+	blkHash := blk.Hash()
+	blkHashString := blkHash.String()
+	testRPCServerHandler(t, []rpcTest{{
+		name:    "handleGetBlockHash: ok",
+		handler: handleGetBlockHash,
+		cmd: &types.GetBlockHashCmd{
+			Index: blk.Height(),
+		},
+		mockChain: &testRPCChain{
+			blockHashByHeight: blkHash,
+		},
+		result: blkHashString,
+	}, {
+		name:    "handleGetBlockHash: block number out of range",
+		handler: handleGetBlockHash,
+		cmd: &types.GetBlockHashCmd{
+			Index: -1,
+		},
+		mockChain: &testRPCChain{
+			blockHashByHeightErr: errors.New("block number out of range"),
+		},
+		wantErr: true,
+		errCode: dcrjson.ErrRPCOutOfRange,
+	}})
+}
+
+func TestHandleGetBlockHeader(t *testing.T) {
+	// Define variables related to block432100 to be used throughout the
+	// handleGetBlockHeader tests.
+	blkHeader := block432100.Header
+	blkHeaderBytes, err := blkHeader.Bytes()
+	if err != nil {
+		t.Fatalf("error serializing block header: %+v", err)
+	}
+	blkHeaderHexString := hex.EncodeToString(blkHeaderBytes)
+	blk := dcrutil.NewBlock(&block432100)
+	blkHash := blk.Hash()
+	blkHashString := blkHash.String()
+	bestHeight := int64(432151)
+	confirmations := bestHeight - blk.Height() + 1
+	nextHash := mustParseHash("000000000000000002e63055e402c823cb86c8258806508d84d6dc2a0790bd49")
+	chainWork, _ := new(big.Int).SetString("0e805fb85284503581c57c", 16)
+
+	// Explicitly define the params that handleGetBlockHeader depends on so that
+	// the tests don't break when the values for these change.
+	testChainParams := cloneParams(chaincfg.MainNetParams())
+	testChainParams.PowLimitBits = 0x1d00ffff
+
+	testRPCServerHandler(t, []rpcTest{{
+		name:    "handleGetBlockHeader: ok",
+		handler: handleGetBlockHeader,
+		cmd: &types.GetBlockHeaderCmd{
+			Hash:    blkHashString,
+			Verbose: dcrjson.Bool(false),
+		},
+		mockChainParams: testChainParams,
+		mockChain: &testRPCChain{
+			headerByHash: blkHeader,
+		},
+		result: blkHeaderHexString,
+	}, {
+		name:    "handleGetBlockHeader: ok verbose",
+		handler: handleGetBlockHeader,
+		cmd: &types.GetBlockHeaderCmd{
+			Hash:    blkHashString,
+			Verbose: dcrjson.Bool(true),
+		},
+		mockChainParams: testChainParams,
+		mockChain: &testRPCChain{
+			bestSnapshot: &blockchain.BestState{
+				Height: bestHeight,
+			},
+			blockHashByHeight: nextHash,
+			chainWork:         chainWork,
+			headerByHash:      blkHeader,
+			mainChainHasBlock: true,
+		},
+		result: types.GetBlockHeaderVerboseResult{
+			Hash:          blkHashString,
+			Confirmations: confirmations,
+			Version:       blkHeader.Version,
+			MerkleRoot:    blkHeader.MerkleRoot.String(),
+			StakeRoot:     blkHeader.StakeRoot.String(),
+			VoteBits:      blkHeader.VoteBits,
+			FinalState:    hex.EncodeToString(blkHeader.FinalState[:]),
+			Voters:        blkHeader.Voters,
+			FreshStake:    blkHeader.FreshStake,
+			Revocations:   blkHeader.Revocations,
+			PoolSize:      blkHeader.PoolSize,
+			Bits:          strconv.FormatInt(int64(blkHeader.Bits), 16),
+			SBits:         dcrutil.Amount(blkHeader.SBits).ToCoin(),
+			Height:        blkHeader.Height,
+			Size:          blkHeader.Size,
+			Time:          blkHeader.Timestamp.Unix(),
+			Nonce:         blkHeader.Nonce,
+			ExtraData:     hex.EncodeToString(blkHeader.ExtraData[:]),
+			StakeVersion:  blkHeader.StakeVersion,
+			Difficulty:    float64(28147398026.656624),
+			ChainWork:     fmt.Sprintf("%064x", chainWork),
+			PreviousHash:  blkHeader.PrevBlock.String(),
+			NextHash:      nextHash.String(),
+		},
+	}, {
+		name:    "handleGetBlockHeader: invalid hash",
+		handler: handleGetBlockHeader,
+		cmd: &types.GetBlockHeaderCmd{
+			Hash:    "invalid",
+			Verbose: dcrjson.Bool(false),
+		},
+		mockChainParams: testChainParams,
+		wantErr:         true,
+		errCode:         dcrjson.ErrRPCDecodeHexString,
+	}, {
+		name:    "handleGetBlockHeader: block not found",
+		handler: handleGetBlockHeader,
+		cmd: &types.GetBlockHeaderCmd{
+			Hash:    blkHashString,
+			Verbose: dcrjson.Bool(false),
+		},
+		mockChainParams: testChainParams,
+		mockChain: &testRPCChain{
+			headerByHashErr: errors.New("block not found"),
+		},
+		wantErr: true,
+		errCode: dcrjson.ErrRPCBlockNotFound,
+	}, {
+		name:    "handleGetBlockHeader: could not fetch chain work",
+		handler: handleGetBlockHeader,
+		cmd: &types.GetBlockHeaderCmd{
+			Hash:    blkHashString,
+			Verbose: dcrjson.Bool(true),
+		},
+		mockChainParams: testChainParams,
+		mockChain: &testRPCChain{
+			chainWorkErr: errors.New("could not fetch chain work"),
+			headerByHash: blkHeader,
+		},
+		wantErr: true,
+		errCode: dcrjson.ErrRPCInternal.Code,
+	}, {
+		name:    "handleGetBlockHeader: no next block",
+		handler: handleGetBlockHeader,
+		cmd: &types.GetBlockHeaderCmd{
+			Hash:    blkHashString,
+			Verbose: dcrjson.Bool(true),
+		},
+		mockChainParams: testChainParams,
+		mockChain: &testRPCChain{
+			bestSnapshot: &blockchain.BestState{
+				Height: bestHeight,
+			},
+			blockHashByHeightErr: errors.New("no next block"),
+			chainWork:            chainWork,
+			headerByHash:         blkHeader,
+			mainChainHasBlock:    true,
+		},
+		wantErr: true,
+		errCode: dcrjson.ErrRPCInternal.Code,
+	}})
+}
+
+func TestHandleGetBlockSubsidy(t *testing.T) {
+	testRPCServerHandler(t, []rpcTest{{
+		name:    "handleGetBlockSubsidy: ok",
+		handler: handleGetBlockSubsidy,
+		cmd: &types.GetBlockSubsidyCmd{
+			Height: 463073,
+			Voters: 5,
+		},
+		result: types.GetBlockSubsidyResult{
+			Developer: int64(147908610),
+			PoS:       int64(443725830),
+			PoW:       int64(887451661),
+			Total:     int64(1479086101),
+		},
 	}})
 }
 
@@ -2807,6 +3240,62 @@ func TestHandlePing(t *testing.T) {
 	}})
 }
 
+func TestHandleSubmitBlock(t *testing.T) {
+	blk := dcrutil.NewBlock(&block432100)
+	blkBytes, err := blk.Bytes()
+	if err != nil {
+		t.Fatalf("error serializing block: %+v", err)
+	}
+	blkHexString := hex.EncodeToString(blkBytes)
+	testRPCServerHandler(t, []rpcTest{{
+		name:    "handleSubmitBlock: ok",
+		handler: handleSubmitBlock,
+		cmd: &types.SubmitBlockCmd{
+			HexBlock: blkHexString,
+		},
+		mockSyncManager: &testSyncManager{
+			submitBlock: true,
+		},
+		result: nil,
+	}, {
+		name:    "handleSubmitBlock: ok with odd length hex",
+		handler: handleSubmitBlock,
+		cmd: &types.SubmitBlockCmd{
+			HexBlock: blkHexString[1:],
+		},
+		mockSyncManager: &testSyncManager{
+			submitBlock: true,
+		},
+		result: nil,
+	}, {
+		name:    "handleSubmitBlock: invalid hex",
+		handler: handleSubmitBlock,
+		cmd: &types.SubmitBlockCmd{
+			HexBlock: "invalid",
+		},
+		wantErr: true,
+		errCode: dcrjson.ErrRPCInternal.Code,
+	}, {
+		name:    "handleSubmitBlock: block decode error",
+		handler: handleSubmitBlock,
+		cmd: &types.SubmitBlockCmd{
+			HexBlock: "ffffffff",
+		},
+		wantErr: true,
+		errCode: dcrjson.ErrRPCInternal.Code,
+	}, {
+		name:    "handleSubmitBlock: block rejected",
+		handler: handleSubmitBlock,
+		cmd: &types.SubmitBlockCmd{
+			HexBlock: blkHexString,
+		},
+		mockSyncManager: &testSyncManager{
+			submitBlockErr: errors.New("block rejected"),
+		},
+		result: "rejected: block rejected",
+	}})
+}
+
 func testRPCServerHandler(t *testing.T, tests []rpcTest) {
 	t.Helper()
 
@@ -2819,14 +3308,15 @@ func testRPCServerHandler(t *testing.T, tests []rpcTest) {
 		// Create a default rpcserverConfig and override any configurations that are
 		// provided by the test.
 		rpcserverConfig := rpcserverConfig{
-			ChainParams: defaultChainParams,
-			Chain:       defaultRPCChain,
-			AddrManager: defaultAddrManager,
-			SyncMgr:     defaultSyncManager,
-			ConnMgr:     defaultConnManager,
-			Clock:       defaultClock,
-			TimeSource:  blockchain.NewMedianTime(),
-			Services:    wire.SFNodeNetwork | wire.SFNodeCF,
+			ChainParams:  defaultChainParams,
+			Chain:        defaultRPCChain,
+			AddrManager:  defaultAddrManager,
+			SyncMgr:      defaultSyncManager,
+			ConnMgr:      defaultConnManager,
+			Clock:        defaultClock,
+			TimeSource:   blockchain.NewMedianTime(),
+			Services:     wire.SFNodeNetwork | wire.SFNodeCF,
+			SubsidyCache: standalone.NewSubsidyCache(defaultChainParams),
 		}
 		if test.mockChainParams != nil {
 			rpcserverConfig.ChainParams = test.mockChainParams
