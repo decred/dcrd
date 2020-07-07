@@ -1030,7 +1030,7 @@ func opcodeCheckSequenceVerify(op *opcode, data []byte, vm *Engine) error {
 	// 2^31-1.  Thus, a 5-byte ScriptNum is used here since it will support
 	// up to 2^39-1 which allows sequences beyond the current sequence
 	// limit.
-	stackSequence, err := vm.dstack.PeekInt(0, csvMaxScriptNumLen)
+	stackSequence, err := vm.dstack.PeekInt(0, CsvMaxScriptNumLen)
 	if err != nil {
 		return err
 	}

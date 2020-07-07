@@ -29,7 +29,7 @@ const (
 	// up to 2^39-1 which allows dates beyond the current locktime limit.
 	CltvMaxScriptNumLen = 5
 
-	// csvMaxScriptNumLen is the maximum number of bytes data being interpreted
+	// CsvMaxScriptNumLen is the maximum number of bytes data being interpreted
 	// as an integer may be for by-time and by-height locks as interpreted by
 	// CHECKSEQUENCEVERIFY.
 	//
@@ -39,7 +39,7 @@ const (
 	// only support up to a maximum of 2^31-1.  Thus, a 5-byte ScriptNum is
 	// needed since it will support up to 2^39-1 which allows sequences
 	// beyond the current sequence limit.
-	csvMaxScriptNumLen = 5
+	CsvMaxScriptNumLen = 5
 
 	// altSigSuitesMaxscriptNumLen is the maximum number of bytes for the
 	// type of alternative signature suite
