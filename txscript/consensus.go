@@ -313,7 +313,7 @@ func IsStrictNullData(scriptVersion uint16, script []byte, requiredLen uint32) b
 	tokenizer := MakeScriptTokenizer(scriptVersion, script[1:])
 	return tokenizer.Next() && tokenizer.Done() &&
 		isCanonicalPush(tokenizer.Opcode(), tokenizer.Data()) &&
-		((isSmallInt(tokenizer.Opcode()) && requiredLen == 1) ||
+		((IsSmallInt(tokenizer.Opcode()) && requiredLen == 1) ||
 			(tokenizer.Opcode() <= OP_DATA_75 &&
 				uint32(len(tokenizer.Data())) == requiredLen))
 }

@@ -17,13 +17,13 @@ const (
 	MaxScriptElementSize  = 2048 // Max bytes pushable to the stack.
 )
 
-// isSmallInt returns whether or not the opcode is considered a small integer,
+// IsSmallInt returns whether or not the opcode is considered a small integer,
 // which is an OP_0, or OP_1 through OP_16.
 //
 // NOTE: This function is only valid for version 0 opcodes.  Since the function
 // does not accept a script version, the results are undefined for other script
 // versions.
-func isSmallInt(op byte) bool {
+func IsSmallInt(op byte) bool {
 	return op == OP_0 || (op >= OP_1 && op <= OP_16)
 }
 

@@ -111,7 +111,7 @@ func extractMultisigScriptDetails(scriptVersion uint16, script []byte, extractPu
 	// The first opcode must be a small integer specifying the number of
 	// signatures required.
 	tokenizer := MakeScriptTokenizer(scriptVersion, script)
-	if !tokenizer.Next() || !isSmallInt(tokenizer.Opcode()) {
+	if !tokenizer.Next() || !IsSmallInt(tokenizer.Opcode()) {
 		return multiSigDetails{}
 	}
 	requiredSigs := asSmallInt(tokenizer.Opcode())
@@ -140,7 +140,7 @@ func extractMultisigScriptDetails(scriptVersion uint16, script []byte, extractPu
 	// The next opcode must be a small integer specifying the number of public
 	// keys required.
 	op := tokenizer.Opcode()
-	if !isSmallInt(op) || asSmallInt(op) != numPubKeys {
+	if !IsSmallInt(op) || asSmallInt(op) != numPubKeys {
 		return multiSigDetails{}
 	}
 
@@ -292,13 +292,13 @@ func extractPubKeyAltDetails(script []byte) ([]byte, dcrec.SignatureType) {
 	}
 
 	if len(script) == 35 && script[0] == OP_DATA_32 &&
-		isSmallInt(script[33]) && asSmallInt(script[33]) == dcrec.STEd25519 {
+		IsSmallInt(script[33]) && asSmallInt(script[33]) == dcrec.STEd25519 {
 
 		return script[1:33], dcrec.STEd25519
 	}
 
 	if len(script) == 36 && script[0] == OP_DATA_33 &&
-		isSmallInt(script[34]) &&
+		IsSmallInt(script[34]) &&
 		asSmallInt(script[34]) == dcrec.STSchnorrSecp256k1 &&
 		isStrictPubKeyEncoding(script[1:34]) {
 
@@ -342,7 +342,7 @@ func isPubKeyHashScript(script []byte) bool {
 // isStandardAltSignatureType returns whether or not the provided opcode
 // represents a push of a standard alt signature type.
 func isStandardAltSignatureType(op byte) bool {
-	if !isSmallInt(op) {
+	if !IsSmallInt(op) {
 		return false
 	}
 
@@ -417,7 +417,7 @@ func isNullDataScript(scriptVersion uint16, script []byte) bool {
 	// OP_RETURN followed by data push up to MaxDataCarrierSize bytes.
 	tokenizer := MakeScriptTokenizer(scriptVersion, script[1:])
 	return tokenizer.Next() && tokenizer.Done() &&
-		(isSmallInt(tokenizer.Opcode()) || tokenizer.Opcode() <= OP_PUSHDATA4) &&
+		(IsSmallInt(tokenizer.Opcode()) || tokenizer.Opcode() <= OP_PUSHDATA4) &&
 		len(tokenizer.Data()) <= MaxDataCarrierSize
 }
 
@@ -1371,7 +1371,7 @@ func ExtractAtomicSwapDataPushes(version uint16, pkScript []byte) (*AtomicSwapDa
 				}
 				tplEntry.extractedInt = int64(val)
 
-			case isSmallInt(op):
+			case IsSmallInt(op):
 				tplEntry.extractedInt = int64(asSmallInt(op))
 
 			// Not an atomic swap script if the opcode does not push an int.
