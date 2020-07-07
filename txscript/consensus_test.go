@@ -1,179 +1,213 @@
-// Copyright (c) 2018 The Decred developers
+// Copyright (c) 2018-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
 package txscript
 
 import (
+	"errors"
 	"testing"
 )
 
-// TestCheckSignatureEncoding ensures the internal checkSignatureEncoding
-// function works as expected.
+// TestCheckSignatureEncoding ensures that checking strict signature encoding
+// works as expected.
 func TestCheckSignatureEncoding(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name    string
-		sig     []byte
-		isValid bool
-	}{
-		{
-			name: "valid signature",
-			sig: hexToBytes("304402204e45e16932b8af514961a1d3a1a25" +
-				"fdf3f4f7732e9d624c6c61548ab5fb8cd41022018152" +
-				"2ec8eca07de4860a4acdd12909d831cc56cbbac46220" +
-				"82221a8768d1d09"),
-			isValid: true,
-		},
-		{
-			name:    "empty.",
-			sig:     nil,
-			isValid: false,
-		},
-		{
-			name: "bad magic",
-			sig: hexToBytes("314402204e45e16932b8af514961a1d3a1a25" +
-				"fdf3f4f7732e9d624c6c61548ab5fb8cd41022018152" +
-				"2ec8eca07de4860a4acdd12909d831cc56cbbac46220" +
-				"82221a8768d1d09"),
-			isValid: false,
-		},
-		{
-			name: "bad 1st int marker magic",
-			sig: hexToBytes("304403204e45e16932b8af514961a1d3a1a25" +
-				"fdf3f4f7732e9d624c6c61548ab5fb8cd41022018152" +
-				"2ec8eca07de4860a4acdd12909d831cc56cbbac46220" +
-				"82221a8768d1d09"),
-			isValid: false,
-		},
-		{
-			name: "bad 2nd int marker",
-			sig: hexToBytes("304402204e45e16932b8af514961a1d3a1a25" +
-				"fdf3f4f7732e9d624c6c61548ab5fb8cd41032018152" +
-				"2ec8eca07de4860a4acdd12909d831cc56cbbac46220" +
-				"82221a8768d1d09"),
-			isValid: false,
-		},
-		{
-			name: "short len",
-			sig: hexToBytes("304302204e45e16932b8af514961a1d3a1a25" +
-				"fdf3f4f7732e9d624c6c61548ab5fb8cd41022018152" +
-				"2ec8eca07de4860a4acdd12909d831cc56cbbac46220" +
-				"82221a8768d1d09"),
-			isValid: false,
-		},
-		{
-			name: "long len",
-			sig: hexToBytes("304502204e45e16932b8af514961a1d3a1a25" +
-				"fdf3f4f7732e9d624c6c61548ab5fb8cd41022018152" +
-				"2ec8eca07de4860a4acdd12909d831cc56cbbac46220" +
-				"82221a8768d1d09"),
-			isValid: false,
-		},
-		{
-			name: "long X",
-			sig: hexToBytes("304402424e45e16932b8af514961a1d3a1a25" +
-				"fdf3f4f7732e9d624c6c61548ab5fb8cd41022018152" +
-				"2ec8eca07de4860a4acdd12909d831cc56cbbac46220" +
-				"82221a8768d1d09"),
-			isValid: false,
-		},
-		{
-			name: "long Y",
-			sig: hexToBytes("304402204e45e16932b8af514961a1d3a1a25" +
-				"fdf3f4f7732e9d624c6c61548ab5fb8cd41022118152" +
-				"2ec8eca07de4860a4acdd12909d831cc56cbbac46220" +
-				"82221a8768d1d09"),
-			isValid: false,
-		},
-		{
-			name: "short Y",
-			sig: hexToBytes("304402204e45e16932b8af514961a1d3a1a25" +
-				"fdf3f4f7732e9d624c6c61548ab5fb8cd41021918152" +
-				"2ec8eca07de4860a4acdd12909d831cc56cbbac46220" +
-				"82221a8768d1d09"),
-			isValid: false,
-		},
-		{
-			name: "trailing crap",
-			sig: hexToBytes("304402204e45e16932b8af514961a1d3a1a25" +
-				"fdf3f4f7732e9d624c6c61548ab5fb8cd41022018152" +
-				"2ec8eca07de4860a4acdd12909d831cc56cbbac46220" +
-				"82221a8768d1d0901"),
-			isValid: false,
-		},
-		{
-			name: "X == N",
-			sig: hexToBytes("30440220fffffffffffffffffffffffffffff" +
-				"ffebaaedce6af48a03bbfd25e8cd0364141022018152" +
-				"2ec8eca07de4860a4acdd12909d831cc56cbbac46220" +
-				"82221a8768d1d09"),
-			isValid: false,
-		},
-		{
-			name: "X > N",
-			sig: hexToBytes("30440220fffffffffffffffffffffffffffff" +
-				"ffebaaedce6af48a03bbfd25e8cd0364142022018152" +
-				"2ec8eca07de4860a4acdd12909d831cc56cbbac46220" +
-				"82221a8768d1d09"),
-			isValid: false,
-		},
-		{
-			name: "Y == N",
-			sig: hexToBytes("304402204e45e16932b8af514961a1d3a1a25" +
-				"fdf3f4f7732e9d624c6c61548ab5fb8cd410220fffff" +
-				"ffffffffffffffffffffffffffebaaedce6af48a03bb" +
-				"fd25e8cd0364141"),
-			isValid: false,
-		},
-		{
-			name: "Y > N",
-			sig: hexToBytes("304402204e45e16932b8af514961a1d3a1a25" +
-				"fdf3f4f7732e9d624c6c61548ab5fb8cd410220fffff" +
-				"ffffffffffffffffffffffffffebaaedce6af48a03bb" +
-				"fd25e8cd0364142"),
-			isValid: false,
-		},
-		{
-			name: "0 len X",
-			sig: hexToBytes("302402000220181522ec8eca07de4860a4acd" +
-				"d12909d831cc56cbbac4622082221a8768d1d09"),
-			isValid: false,
-		},
-		{
-			name: "0 len Y",
-			sig: hexToBytes("302402204e45e16932b8af514961a1d3a1a25" +
-				"fdf3f4f7732e9d624c6c61548ab5fb8cd410200"),
-			isValid: false,
-		},
-		{
-			name: "extra R padding",
-			sig: hexToBytes("30450221004e45e16932b8af514961a1d3a1a" +
-				"25fdf3f4f7732e9d624c6c61548ab5fb8cd410220181" +
-				"522ec8eca07de4860a4acdd12909d831cc56cbbac462" +
-				"2082221a8768d1d09"),
-			isValid: false,
-		},
-		{
-			name: "extra S padding",
-			sig: hexToBytes("304502204e45e16932b8af514961a1d3a1a25" +
-				"fdf3f4f7732e9d624c6c61548ab5fb8cd41022100181" +
-				"522ec8eca07de4860a4acdd12909d831cc56cbbac462" +
-				"2082221a8768d1d09"),
-			isValid: false,
-		},
-	}
+		name string
+		sig  []byte
+		err  error
+	}{{
+		// signature from Decred blockchain tx
+		// 76634e947f49dfc6228c3e8a09cd3e9e15893439fc06df7df0fc6f08d659856c:0
+		name: "valid signature 1",
+		sig: hexToBytes("3045022100cd496f2ab4fe124f977ffe3caa09f7576d8a34156" +
+			"b4e55d326b4dffc0399a094022013500a0510b5094bff220c74656879b8ca03" +
+			"69d3da78004004c970790862fc03"),
+		err: nil,
+	}, {
+		// signature from Decred blockchain tx
+		// 76634e947f49dfc6228c3e8a09cd3e9e15893439fc06df7df0fc6f08d659856c:1
+		name: "valid signature 2",
+		sig: hexToBytes("3044022036334e598e51879d10bf9ce3171666bc2d1bbba6164" +
+			"cf46dd1d882896ba35d5d022056c39af9ea265c1b6d7eab5bc977f06f81e35c" +
+			"dcac16f3ec0fd218e30f2bad2a"),
+		err: nil,
+	}, {
+		name: "empty",
+		sig:  nil,
+		err:  ErrSigTooShort,
+	}, {
+		name: "too short",
+		sig:  hexToBytes("30050201000200"),
+		err:  ErrSigTooShort,
+	}, {
+		name: "too long",
+		sig: hexToBytes("3045022100f5353150d31a63f4a0d06d1f5a01ac65f7267a719e" +
+			"49f2a1ac584fd546bef074022030e09575e7a1541aa018876a4003cefe1b061a" +
+			"90556b5140c63e0ef8481352480101"),
+		err: ErrSigTooLong,
+	}, {
+		name: "bad ASN.1 sequence id",
+		sig: hexToBytes("3145022100f5353150d31a63f4a0d06d1f5a01ac65f7267a719e" +
+			"49f2a1ac584fd546bef074022030e09575e7a1541aa018876a4003cefe1b061a" +
+			"90556b5140c63e0ef848135248"),
+		err: ErrSigInvalidSeqID,
+	}, {
+		name: "mismatched data length (short one byte)",
+		sig: hexToBytes("3044022100f5353150d31a63f4a0d06d1f5a01ac65f7267a719e" +
+			"49f2a1ac584fd546bef074022030e09575e7a1541aa018876a4003cefe1b061a" +
+			"90556b5140c63e0ef848135248"),
+		err: ErrSigInvalidDataLen,
+	}, {
+		name: "mismatched data length (long one byte)",
+		sig: hexToBytes("3046022100f5353150d31a63f4a0d06d1f5a01ac65f7267a719e" +
+			"49f2a1ac584fd546bef074022030e09575e7a1541aa018876a4003cefe1b061a" +
+			"90556b5140c63e0ef848135248"),
+		err: ErrSigInvalidDataLen,
+	}, {
+		name: "bad R ASN.1 int marker",
+		sig: hexToBytes("304403204e45e16932b8af514961a1d3a1a25fdf3f4f7732e9d6" +
+			"24c6c61548ab5fb8cd410220181522ec8eca07de4860a4acdd12909d831cc56c" +
+			"bbac4622082221a8768d1d09"),
+		err: ErrSigInvalidRIntID,
+	}, {
+		name: "zero R length",
+		sig: hexToBytes("30240200022030e09575e7a1541aa018876a4003cefe1b061a90" +
+			"556b5140c63e0ef848135248"),
+		err: ErrSigZeroRLen,
+	}, {
+		name: "negative R (too little padding)",
+		sig: hexToBytes("30440220b2ec8d34d473c3aa2ab5eb7cc4a0783977e5db8c8daf" +
+			"777e0b6d7bfa6b6623f302207df6f09af2c40460da2c2c5778f636d3b2e27e20" +
+			"d10d90f5a5afb45231454700"),
+		err: ErrSigNegativeR,
+	}, {
+		name: "too much R padding",
+		sig: hexToBytes("304402200077f6e93de5ed43cf1dfddaa79fca4b766e1a8fc879" +
+			"b0333d377f62538d7eb5022054fed940d227ed06d6ef08f320976503848ed1f5" +
+			"2d0dd6d17f80c9c160b01d86"),
+		err: ErrSigTooMuchRPadding,
+	}, {
+		name: "bad S ASN.1 int marker",
+		sig: hexToBytes("3045022100f5353150d31a63f4a0d06d1f5a01ac65f7267a719e" +
+			"49f2a1ac584fd546bef074032030e09575e7a1541aa018876a4003cefe1b061a" +
+			"90556b5140c63e0ef848135248"),
+		err: ErrSigInvalidSIntID,
+	}, {
+		name: "missing S ASN.1 int marker",
+		sig: hexToBytes("3023022100f5353150d31a63f4a0d06d1f5a01ac65f7267a719e" +
+			"49f2a1ac584fd546bef074"),
+		err: ErrSigMissingSTypeID,
+	}, {
+		name: "S length missing",
+		sig: hexToBytes("3024022100f5353150d31a63f4a0d06d1f5a01ac65f7267a719e" +
+			"49f2a1ac584fd546bef07402"),
+		err: ErrSigMissingSLen,
+	}, {
+		name: "invalid S length (short one byte)",
+		sig: hexToBytes("3045022100f5353150d31a63f4a0d06d1f5a01ac65f7267a719e" +
+			"49f2a1ac584fd546bef074021f30e09575e7a1541aa018876a4003cefe1b061a" +
+			"90556b5140c63e0ef848135248"),
+		err: ErrSigInvalidSLen,
+	}, {
+		name: "invalid S length (long one byte)",
+		sig: hexToBytes("3045022100f5353150d31a63f4a0d06d1f5a01ac65f7267a719e" +
+			"49f2a1ac584fd546bef074022130e09575e7a1541aa018876a4003cefe1b061a" +
+			"90556b5140c63e0ef848135248"),
+		err: ErrSigInvalidSLen,
+	}, {
+		name: "zero S length",
+		sig: hexToBytes("3025022100f5353150d31a63f4a0d06d1f5a01ac65f7267a719e" +
+			"49f2a1ac584fd546bef0740200"),
+		err: ErrSigZeroSLen,
+	}, {
+		name: "negative S (too little padding)",
+		sig: hexToBytes("304402204fc10344934662ca0a93a84d14d650d8a21cf2ab91f6" +
+			"08e8783d2999c955443202208441aacd6b17038ff3f6700b042934f9a6fea0ce" +
+			"c2051b51dc709e52a5bb7d61"),
+		err: ErrSigNegativeS,
+	}, {
+		name: "too much S padding",
+		sig: hexToBytes("304402206ad2fdaf8caba0f2cb2484e61b81ced77474b4c2aa06" +
+			"9c852df1351b3314fe20022000695ad175b09a4a41cd9433f6b2e8e83253d6a7" +
+			"402096ba313a7be1f086dde5"),
+		err: ErrSigTooMuchSPadding,
+	}, {
+		// Although signatures with R == 0 will ultimately be invalid, it is
+		// considered a valid encoding from the standpoint of preventing
+		// malleability.
+		name: "R == 0",
+		sig: hexToBytes("30250201000220181522ec8eca07de4860a4acdd12909d831cc5" +
+			"6cbbac4622082221a8768d1d09"),
+		err: nil,
+	}, {
+		// Although signatures with R == N will ultimately be invalid, it is
+		// considered a valid encoding from the standpoint of preventing
+		// malleability.
+		name: "R == N",
+		sig: hexToBytes("3045022100fffffffffffffffffffffffffffffffebaaedce6af" +
+			"48a03bbfd25e8cd03641410220181522ec8eca07de4860a4acdd12909d831cc5" +
+			"6cbbac4622082221a8768d1d09"),
+		err: nil,
+	}, {
+		// Although signatures with R > N will ultimately be invalid, it is
+		// considered a valid encoding from the standpoint of preventing
+		// malleability.
+		name: "R > N (>32 bytes)",
+		sig: hexToBytes("3045022101cd496f2ab4fe124f977ffe3caa09f756283910fc1a" +
+			"96f60ee6873e88d3cfe1d50220181522ec8eca07de4860a4acdd12909d831cc5" +
+			"6cbbac4622082221a8768d1d09"),
+		err: nil,
+	}, {
+		// Although signatures with R > N will ultimately be invalid, it is
+		// considered a valid encoding from the standpoint of preventing
+		// malleability.
+		name: "R > N",
+		sig: hexToBytes("3045022100fffffffffffffffffffffffffffffffebaaedce6af" +
+			"48a03bbfd25e8cd03641420220181522ec8eca07de4860a4acdd12909d831cc5" +
+			"6cbbac4622082221a8768d1d09"),
+		err: nil,
+	}, {
+		// Although signatures with S == 0 will ultimately be invalid, it is
+		// considered a valid encoding from the standpoint of preventing
+		// malleability.
+		name: "S == 0",
+		sig: hexToBytes("302502204e45e16932b8af514961a1d3a1a25fdf3f4f7732e9d6" +
+			"24c6c61548ab5fb8cd41020100"),
+		err: nil,
+	}, {
+		name: "S > N/2 (half order)",
+		sig: hexToBytes("304602210080e256f8a9df823ff0322c5515fc4d4538d65a3785" +
+			"fb6dd1b448af216864318d022100cfbf242e941d77555bd79fadd3d23b49d3ca" +
+			"929459fa114247e55ff8b4fcf832"),
+		err: ErrSigHighS,
+	}, {
+		name: "S == N",
+		sig: hexToBytes("304502204e45e16932b8af514961a1d3a1a25fdf3f4f7732e9d6" +
+			"24c6c61548ab5fb8cd41022100fffffffffffffffffffffffffffffffebaaedc" +
+			"e6af48a03bbfd25e8cd0364141"),
+		err: ErrSigHighS,
+	}, {
+		name: "S > N (>32 bytes)",
+		sig: hexToBytes("304502204e45e16932b8af514961a1d3a1a25fdf3f4f7732e9d6" +
+			"24c6c61548ab5fb8cd4102210113500a0510b5094bff220c74656879b784b246" +
+			"ba89c0a07bc49bcf05d8993d44"),
+		err: ErrSigHighS,
+	}, {
+		name: "S > N",
+		sig: hexToBytes("304502204e45e16932b8af514961a1d3a1a25fdf3f4f7732e9d6" +
+			"24c6c61548ab5fb8cd41022100fffffffffffffffffffffffffffffffebaaedc" +
+			"e6af48a03bbfd25e8cd0364142"),
+		err: ErrSigHighS,
+	}}
 
 	for _, test := range tests {
 		err := CheckSignatureEncoding(test.sig)
-		if err != nil && test.isValid {
-			t.Errorf("checkSignatureEncoding test '%s' failed "+
-				"when it should have succeeded: %v", test.name,
-				err)
-		} else if err == nil && !test.isValid {
-			t.Errorf("checkSignatureEncooding test '%s' succeeded "+
-				"when it should have failed", test.name)
+		if !errors.Is(err, test.err) {
+			t.Errorf("%s mismatched err -- got %v, want %v", test.name, err,
+				test.err)
 		}
 	}
 }
