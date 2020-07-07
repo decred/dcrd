@@ -289,10 +289,10 @@ func IsStrictCompressedPubKeyEncoding(pubKey []byte) bool {
 }
 
 // IsStrictNullData returns whether or not the passed data is an OP_RETURN
-// followed by specified length data push. It explicitly verifies that the
-// opcode is identical to the expected length. This function does not support
-// checks for data > 75 bytes.
-func IsStrictNullData(scriptVersion uint16, script []byte, expectedLength int) bool {
+// followed by specified length data push.  It explicitly verifies that the
+// opcode is identical to the required length.  This function will always return
+// false for required lengths > 75 bytes.
+func IsStrictNullData(scriptVersion uint16, script []byte, requiredLen uint32) bool {
 	// The only currently supported script version is 0.
 	if scriptVersion != 0 {
 		return false
@@ -304,18 +304,18 @@ func IsStrictNullData(scriptVersion uint16, script []byte, expectedLength int) b
 		return false
 	}
 
-	// Allow bare OP_RETURN when the expected length is 0.
-	if len(script) == 1 && expectedLength == 0 {
+	// Allow bare OP_RETURN when the required length is 0.
+	if len(script) == 1 && requiredLen == 0 {
 		return true
 	}
 
-	// OP_RETURN followed by data push of the expect size.
+	// OP_RETURN followed by data push of the required size.
 	tokenizer := MakeScriptTokenizer(scriptVersion, script[1:])
 	return tokenizer.Next() && tokenizer.Done() &&
 		isCanonicalPush(tokenizer.Opcode(), tokenizer.Data()) &&
-		((isSmallInt(tokenizer.Opcode()) && expectedLength == 1) ||
+		((isSmallInt(tokenizer.Opcode()) && requiredLen == 1) ||
 			(tokenizer.Opcode() <= OP_DATA_75 &&
-				len(tokenizer.Data()) == expectedLength))
+				uint32(len(tokenizer.Data())) == requiredLen))
 }
 
 // IsPubKeyHashScript returns whether or not the passed script is a standard
