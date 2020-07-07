@@ -1434,6 +1434,11 @@ func (sp *serverPeer) OnWrite(p *peer.Peer, bytesWritten int, msg wire.Message, 
 	sp.server.AddBytesSent(uint64(bytesWritten))
 }
 
+// OnNotFound is invoked when a peer sends a notfound message.
+func (sp *serverPeer) OnNotFound(p *peer.Peer, msg *wire.MsgNotFound) {
+	sp.server.blockManager.QueueNotFound(msg, p)
+}
+
 // randomUint16Number returns a random uint16 in a specified input range.  Note
 // that the range is in zeroth ordering; if you pass it 1800, you will get
 // values from 0 to 1800.
@@ -2108,6 +2113,7 @@ func newPeerConfig(sp *serverPeer) *peer.Config {
 			OnAddr:           sp.OnAddr,
 			OnRead:           sp.OnRead,
 			OnWrite:          sp.OnWrite,
+			OnNotFound:       sp.OnNotFound,
 		},
 		NewestBlock:       sp.newestBlock,
 		HostToNetAddress:  sp.server.addrManager.HostToNetAddress,

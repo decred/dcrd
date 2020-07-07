@@ -101,6 +101,13 @@ type headersMsg struct {
 	peer    *peerpkg.Peer
 }
 
+// notFoundMsg packages a Decred notfound message and the peer it came from
+// together so the block handler has access to that information.
+type notFoundMsg struct {
+	notFound *wire.MsgNotFound
+	peer     *peerpkg.Peer
+}
+
 // donePeerMsg signifies a newly disconnected peer to the block handler.
 type donePeerMsg struct {
 	peer *peerpkg.Peer
@@ -1341,6 +1348,32 @@ func (b *blockManager) handleHeadersMsg(hmsg *headersMsg) {
 	}
 }
 
+// handleNotFoundMsg handles notfound messages from all peers.
+func (b *blockManager) handleNotFoundMsg(nfmsg *notFoundMsg) {
+	peer := nfmsg.peer
+	state, exists := b.peerStates[peer]
+	if !exists {
+		bmgrLog.Warnf("Received notfound message from unknown peer %s", peer)
+		return
+	}
+	for _, inv := range nfmsg.notFound.InvList {
+		// verify the hash was actually announced by the peer
+		// before deleting from the global requested maps.
+		switch inv.Type {
+		case wire.InvTypeBlock:
+			if _, exists := state.requestedBlocks[inv.Hash]; exists {
+				delete(state.requestedBlocks, inv.Hash)
+				delete(b.requestedBlocks, inv.Hash)
+			}
+		case wire.InvTypeTx:
+			if _, exists := state.requestedTxns[inv.Hash]; exists {
+				delete(state.requestedTxns, inv.Hash)
+				delete(b.requestedTxns, inv.Hash)
+			}
+		}
+	}
+}
+
 // haveInventory returns whether or not the inventory represented by the passed
 // inventory vector is known.  This includes checking all of the various places
 // inventory can be when it is in different states such as blocks that are part
@@ -1607,6 +1640,9 @@ out:
 
 			case *headersMsg:
 				b.handleHeadersMsg(msg)
+
+			case *notFoundMsg:
+				b.handleNotFoundMsg(msg)
 
 			case *donePeerMsg:
 				b.handleDonePeerMsg(msg.peer)
@@ -2181,6 +2217,18 @@ func (b *blockManager) QueueHeaders(headers *wire.MsgHeaders, peer *peerpkg.Peer
 	}
 
 	b.msgChan <- &headersMsg{headers: headers, peer: peer}
+}
+
+// QueueNotFound adds the passed notfound message and peer to the block handling
+// queue.
+func (b *blockManager) QueueNotFound(notFound *wire.MsgNotFound, peer *peerpkg.Peer) {
+	// No channel handling here because peers do not need to block on
+	// reject messages.
+	if atomic.LoadInt32(&b.shutdown) != 0 {
+		return
+	}
+
+	b.msgChan <- &notFoundMsg{notFound: notFound, peer: peer}
 }
 
 // DonePeer informs the blockmanager that a peer has disconnected.
