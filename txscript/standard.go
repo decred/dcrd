@@ -452,7 +452,7 @@ func extractStakeScriptHash(script []byte, stakeOpcode byte) []byte {
 		return nil
 	}
 
-	return extractScriptHash(script[1:])
+	return ExtractScriptHash(script[1:])
 }
 
 // isStakeSubmissionScript returns whether or not the passed script is a
@@ -1156,7 +1156,7 @@ func ExtractPkScriptAddrs(version uint16, pkScript []byte,
 	}
 
 	// Check for pay-to-script-hash.
-	if hash := extractScriptHash(pkScript); hash != nil {
+	if hash := ExtractScriptHash(pkScript); hash != nil {
 		return ScriptHashTy, scriptHashToAddrs(hash, chainParams), 1, nil
 	}
 
