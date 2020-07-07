@@ -6,7 +6,8 @@ package txscript
 
 import (
 	"fmt"
-	"math/big"
+
+	"github.com/decred/dcrd/dcrec/secp256k1/v3"
 )
 
 const (
@@ -190,13 +191,31 @@ func CheckSignatureEncoding(sig []byte) error {
 		return scriptError(ErrSigTooMuchSPadding, str)
 	}
 
+	// Strip leading zeroes from S.
+	sBytes := sig[sOffset : sOffset+sLen]
+	for len(sBytes) > 0 && sBytes[0] == 0x00 {
+		sBytes = sBytes[1:]
+	}
+
 	// Verify the S value is <= half the order of the curve.  This check is done
 	// because when it is higher, the complement modulo the order can be used
 	// instead which is a shorter encoding by 1 byte.
-	sValue := new(big.Int).SetBytes(sig[sOffset : sOffset+sLen])
-	if sValue.Cmp(halfOrder) > 0 {
-		return scriptError(ErrSigHighS, "signature is not canonical due to "+
-			"unnecessarily high S value")
+	//
+	// Also notice the check for the maximum number of bytes is required because
+	// SetByteSlice truncates as noted in its comment so it could otherwise fail
+	// to detect the overflow.
+	var s secp256k1.ModNScalar
+	if len(sBytes) > 32 {
+		str := "non-canonical signature: S is larger than 256 bits"
+		return scriptError(ErrSigHighS, str)
+	}
+	if overflow := s.SetByteSlice(sBytes); overflow {
+		str := "non-canonical signature: S >= group order"
+		return scriptError(ErrSigHighS, str)
+	}
+	if s.IsOverHalfOrder() {
+		str := "non-canonical signature: S > group half order"
+		return scriptError(ErrSigHighS, str)
 	}
 
 	return nil

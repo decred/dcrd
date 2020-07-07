@@ -7,10 +7,8 @@ package txscript
 
 import (
 	"fmt"
-	"math/big"
 	"strings"
 
-	"github.com/decred/dcrd/dcrec/secp256k1/v3"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -66,9 +64,6 @@ const (
 	// execution state to be disabled.
 	noCondDisableDepth = -1
 )
-
-// halforder is used to tame ECDSA malleability (see BIP0062).
-var halfOrder = new(big.Int).Rsh(secp256k1.S256().N, 1)
 
 // Engine is the virtual machine that executes scripts.
 type Engine struct {
