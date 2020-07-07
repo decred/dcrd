@@ -212,59 +212,98 @@ func TestCheckSignatureEncoding(t *testing.T) {
 	}
 }
 
-// TestCheckPubKeyEncoding ensures the internal checkPubKeyEncoding function
+// TestCheckPubKeyEncoding ensures that checking strict public key encoding
 // works as expected.
 func TestCheckPubKeyEncoding(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name    string
-		key     []byte
-		isValid bool
-	}{
-		{
-			name: "uncompressed ok",
-			key: hexToBytes("0411db93e1dcdb8a016b49840f8c53bc1eb68" +
-				"a382e97b1482ecad7b148a6909a5cb2e0eaddfb84ccf" +
-				"9744464f82e160bfa9b8b64f9d4c03f999b8643f656b" +
-				"412a3"),
-			isValid: true,
-		},
-		{
-			name: "compressed ok",
-			key: hexToBytes("02ce0b14fb842b1ba549fdd675c98075f12e9" +
-				"c510f8ef52bd021a9a1f4809d3b4d"),
-			isValid: true,
-		},
-		{
-			name: "compressed ok",
-			key: hexToBytes("032689c7c2dab13309fb143e0e8fe39634252" +
-				"1887e976690b6b47f5b2a4b7d448e"),
-			isValid: true,
-		},
-		{
-			name: "hybrid",
-			key: hexToBytes("0679be667ef9dcbbac55a06295ce870b07029" +
-				"bfcdb2dce28d959f2815b16f81798483ada7726a3c46" +
-				"55da4fbfc0e1108a8fd17b448a68554199c47d08ffb1" +
-				"0d4b8"),
-			isValid: false,
-		},
-		{
-			name:    "empty",
-			key:     nil,
-			isValid: false,
-		},
-	}
+		name string
+		key  []byte
+		err  error
+	}{{
+		name: "uncompressed ok",
+		key: hexToBytes("04" +
+			"11db93e1dcdb8a016b49840f8c53bc1eb68a382e97b1482ecad7b148a6909a5c" +
+			"b2e0eaddfb84ccf9744464f82e160bfa9b8b64f9d4c03f999b8643f656b412a3"),
+		err: nil,
+	}, {
+		name: "compressed ok (ybit = 0)",
+		key: hexToBytes("02" +
+			"ce0b14fb842b1ba549fdd675c98075f12e9c510f8ef52bd021a9a1f4809d3b4d"),
+		err: nil,
+	}, {
+		name: "compressed ok (ybit = 1)",
+		key: hexToBytes("03" +
+			"2689c7c2dab13309fb143e0e8fe396342521887e976690b6b47f5b2a4b7d448e"),
+		err: nil,
+	}, {
+		// Although public keys not on the curve will ultimately be invalid, it
+		// is considered a valid encoding from the standpoint of preventing
+		// malleability.
+		name: "uncompressed x changed (not on curve)",
+		key: hexToBytes("04" +
+			"15db93e1dcdb8a016b49840f8c53bc1eb68a382e97b1482ecad7b148a6909a5c" +
+			"b2e0eaddfb84ccf9744464f82e160bfa9b8b64f9d4c03f999b8643f656b412a3"),
+		err: nil,
+	}, {
+		// Although public keys not on the curve will ultimately be invalid, it
+		// is considered a valid encoding from the standpoint of preventing
+		// malleability.
+		name: "uncompressed y changed (not on curve)",
+		key: hexToBytes("04" +
+			"11db93e1dcdb8a016b49840f8c53bc1eb68a382e97b1482ecad7b148a6909a5c" +
+			"b2e0eaddfb84ccf9744464f82e160bfa9b8b64f9d4c03f999b8643f656b412a4"),
+		err: nil,
+	}, {
+		name: "empty rejected",
+		key:  nil,
+		err:  ErrPubKeyType,
+	}, {
+		name: "hybrid rejected (ybit = 0)",
+		key: hexToBytes("06" +
+			"79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798" +
+			"483ada7726a3c4655da4fbfc0e1108a8fd17b448a68554199c47d08ffb10d4b8"),
+		err: ErrPubKeyType,
+	}, {
+		name: "hybrid rejected (ybit = 1)",
+		key: hexToBytes("07" +
+			"11db93e1dcdb8a016b49840f8c53bc1eb68a382e97b1482ecad7b148a6909a5c" +
+			"b2e0eaddfb84ccf9744464f82e160bfa9b8b64f9d4c03f999b8643f656b412a3"),
+		err: ErrPubKeyType,
+	}, {
+		name: "uncompressed claims compressed rejected",
+		key: hexToBytes("03" +
+			"11db93e1dcdb8a016b49840f8c53bc1eb68a382e97b1482ecad7b148a6909a5c" +
+			"b2e0eaddfb84ccf9744464f82e160bfa9b8b64f9d4c03f999b8643f656b412a3"),
+		err: ErrPubKeyType,
+	}, {
+		name: "compressed claims uncompressed rejected (ybit = 0)",
+		key: hexToBytes("04" +
+			"ce0b14fb842b1ba549fdd675c98075f12e9c510f8ef52bd021a9a1f4809d3b4d"),
+		err: ErrPubKeyType,
+	}, {
+		name: "compressed claims uncompressed rejected (ybit = 1)",
+		key: hexToBytes("04" +
+			"2689c7c2dab13309fb143e0e8fe396342521887e976690b6b47f5b2a4b7d448e"),
+		err: ErrPubKeyType,
+	}, {
+		name: "compressed claims hybrid rejected (ybit = 0)",
+		key: hexToBytes("06" +
+			"ce0b14fb842b1ba549fdd675c98075f12e9c510f8ef52bd021a9a1f4809d3b4d"),
+		err: ErrPubKeyType,
+	}, {
+		name: "compressed claims hybrid rejected (ybit = 1)",
+		key: hexToBytes("07" +
+			"2689c7c2dab13309fb143e0e8fe396342521887e976690b6b47f5b2a4b7d448e"),
+		err: ErrPubKeyType,
+	}}
 
 	for _, test := range tests {
 		err := CheckPubKeyEncoding(test.key)
-		if err != nil && test.isValid {
-			t.Errorf("checkPubKeyEncoding test '%s' failed when "+
-				"it should have succeeded: %v", test.name, err)
-		} else if err == nil && !test.isValid {
-			t.Errorf("checkPubKeyEncoding test '%s' succeeded "+
-				"when it should have failed", test.name)
+		if !errors.Is(err, test.err) {
+			t.Errorf("%s mismatched err -- got %v, want %v", test.name, err,
+				test.err)
 		}
 	}
 }
