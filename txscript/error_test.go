@@ -21,7 +21,6 @@ func TestErrorKindStringer(t *testing.T) {
 		{ErrInvalidSigHashSingleIndex, "ErrInvalidSigHashSingleIndex"},
 		{ErrUnsupportedAddress, "ErrUnsupportedAddress"},
 		{ErrTooManyRequiredSigs, "ErrTooManyRequiredSigs"},
-		{ErrMalformedCoinbaseNullData, "ErrMalformedCoinbaseNullData"},
 		{ErrTooMuchNullData, "ErrTooMuchNullData"},
 		{ErrUnsupportedScriptVersion, "ErrUnsupportedScriptVersion"},
 		{ErrNotMultisigScript, "ErrNotMultisigScript"},

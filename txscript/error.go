@@ -40,13 +40,6 @@ const (
 	// provided public keys.
 	ErrTooManyRequiredSigs = ErrorKind("ErrTooManyRequiredSigs")
 
-	// ErrMalformedCoinbaseNullData is returned when the nulldata output
-	// of a coinbase transaction that is used to ensure the coinbase has a
-	// unique hash is not properly formed.
-	//
-	// Deprecated: This will be removed in the next major version bump.
-	ErrMalformedCoinbaseNullData = ErrorKind("ErrMalformedCoinbaseNullData")
-
 	// ErrTooMuchNullData is returned from NullDataScript when the length of
 	// the provided data exceeds MaxDataCarrierSize.
 	ErrTooMuchNullData = ErrorKind("ErrTooMuchNullData")

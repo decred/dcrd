@@ -308,15 +308,6 @@ const (
 	OP_INVALIDOPCODE       = 0xff // 255 - bitcoin core internal
 )
 
-// Conditional execution constants.
-//
-// Deprecated: This will be removed in the next major version bump.
-const (
-	OpCondFalse = 0
-	OpCondTrue  = 1
-	OpCondSkip  = 2
-)
-
 // opcodeArray holds details about all possible opcodes such as how many bytes
 // the opcode and any associated data should take, its human-readable name, and
 // the handler function.
