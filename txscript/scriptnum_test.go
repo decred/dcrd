@@ -100,35 +100,35 @@ func TestMakeScriptNum(t *testing.T) {
 		err        error
 	}{
 		// Minimal encoding must reject negative 0.
-		{hexToBytes("80"), 0, mathOpCodeMaxScriptNumLen, ErrMinimalData},
+		{hexToBytes("80"), 0, MathOpCodeMaxScriptNumLen, ErrMinimalData},
 
 		// Minimally encoded valid values.  Should not error and return
 		// expected integral number.
-		{nil, 0, mathOpCodeMaxScriptNumLen, nil},
-		{hexToBytes("01"), 1, mathOpCodeMaxScriptNumLen, nil},
-		{hexToBytes("81"), -1, mathOpCodeMaxScriptNumLen, nil},
-		{hexToBytes("7f"), 127, mathOpCodeMaxScriptNumLen, nil},
-		{hexToBytes("ff"), -127, mathOpCodeMaxScriptNumLen, nil},
-		{hexToBytes("8000"), 128, mathOpCodeMaxScriptNumLen, nil},
-		{hexToBytes("8080"), -128, mathOpCodeMaxScriptNumLen, nil},
-		{hexToBytes("8100"), 129, mathOpCodeMaxScriptNumLen, nil},
-		{hexToBytes("8180"), -129, mathOpCodeMaxScriptNumLen, nil},
-		{hexToBytes("0001"), 256, mathOpCodeMaxScriptNumLen, nil},
-		{hexToBytes("0081"), -256, mathOpCodeMaxScriptNumLen, nil},
-		{hexToBytes("ff7f"), 32767, mathOpCodeMaxScriptNumLen, nil},
-		{hexToBytes("ffff"), -32767, mathOpCodeMaxScriptNumLen, nil},
-		{hexToBytes("008000"), 32768, mathOpCodeMaxScriptNumLen, nil},
-		{hexToBytes("008080"), -32768, mathOpCodeMaxScriptNumLen, nil},
-		{hexToBytes("ffff00"), 65535, mathOpCodeMaxScriptNumLen, nil},
-		{hexToBytes("ffff80"), -65535, mathOpCodeMaxScriptNumLen, nil},
-		{hexToBytes("000008"), 524288, mathOpCodeMaxScriptNumLen, nil},
-		{hexToBytes("000088"), -524288, mathOpCodeMaxScriptNumLen, nil},
-		{hexToBytes("000070"), 7340032, mathOpCodeMaxScriptNumLen, nil},
-		{hexToBytes("0000f0"), -7340032, mathOpCodeMaxScriptNumLen, nil},
-		{hexToBytes("00008000"), 8388608, mathOpCodeMaxScriptNumLen, nil},
-		{hexToBytes("00008080"), -8388608, mathOpCodeMaxScriptNumLen, nil},
-		{hexToBytes("ffffff7f"), 2147483647, mathOpCodeMaxScriptNumLen, nil},
-		{hexToBytes("ffffffff"), -2147483647, mathOpCodeMaxScriptNumLen, nil},
+		{nil, 0, MathOpCodeMaxScriptNumLen, nil},
+		{hexToBytes("01"), 1, MathOpCodeMaxScriptNumLen, nil},
+		{hexToBytes("81"), -1, MathOpCodeMaxScriptNumLen, nil},
+		{hexToBytes("7f"), 127, MathOpCodeMaxScriptNumLen, nil},
+		{hexToBytes("ff"), -127, MathOpCodeMaxScriptNumLen, nil},
+		{hexToBytes("8000"), 128, MathOpCodeMaxScriptNumLen, nil},
+		{hexToBytes("8080"), -128, MathOpCodeMaxScriptNumLen, nil},
+		{hexToBytes("8100"), 129, MathOpCodeMaxScriptNumLen, nil},
+		{hexToBytes("8180"), -129, MathOpCodeMaxScriptNumLen, nil},
+		{hexToBytes("0001"), 256, MathOpCodeMaxScriptNumLen, nil},
+		{hexToBytes("0081"), -256, MathOpCodeMaxScriptNumLen, nil},
+		{hexToBytes("ff7f"), 32767, MathOpCodeMaxScriptNumLen, nil},
+		{hexToBytes("ffff"), -32767, MathOpCodeMaxScriptNumLen, nil},
+		{hexToBytes("008000"), 32768, MathOpCodeMaxScriptNumLen, nil},
+		{hexToBytes("008080"), -32768, MathOpCodeMaxScriptNumLen, nil},
+		{hexToBytes("ffff00"), 65535, MathOpCodeMaxScriptNumLen, nil},
+		{hexToBytes("ffff80"), -65535, MathOpCodeMaxScriptNumLen, nil},
+		{hexToBytes("000008"), 524288, MathOpCodeMaxScriptNumLen, nil},
+		{hexToBytes("000088"), -524288, MathOpCodeMaxScriptNumLen, nil},
+		{hexToBytes("000070"), 7340032, MathOpCodeMaxScriptNumLen, nil},
+		{hexToBytes("0000f0"), -7340032, MathOpCodeMaxScriptNumLen, nil},
+		{hexToBytes("00008000"), 8388608, MathOpCodeMaxScriptNumLen, nil},
+		{hexToBytes("00008080"), -8388608, MathOpCodeMaxScriptNumLen, nil},
+		{hexToBytes("ffffff7f"), 2147483647, MathOpCodeMaxScriptNumLen, nil},
+		{hexToBytes("ffffffff"), -2147483647, MathOpCodeMaxScriptNumLen, nil},
 		{hexToBytes("ffffffff7f"), 549755813887, 5, nil},
 		{hexToBytes("ffffffffff"), -549755813887, 5, nil},
 		{hexToBytes("ffffffffffffff7f"), 9223372036854775807, 8, nil},
@@ -140,34 +140,34 @@ func TestMakeScriptNum(t *testing.T) {
 
 		// Minimally encoded values that are out of range for data that
 		// is interpreted as script numbers.  Should error and return 0.
-		{hexToBytes("0000008000"), 0, mathOpCodeMaxScriptNumLen, ErrNumOutOfRange},
-		{hexToBytes("0000008080"), 0, mathOpCodeMaxScriptNumLen, ErrNumOutOfRange},
-		{hexToBytes("0000009000"), 0, mathOpCodeMaxScriptNumLen, ErrNumOutOfRange},
-		{hexToBytes("0000009080"), 0, mathOpCodeMaxScriptNumLen, ErrNumOutOfRange},
-		{hexToBytes("ffffffff00"), 0, mathOpCodeMaxScriptNumLen, ErrNumOutOfRange},
-		{hexToBytes("ffffffff80"), 0, mathOpCodeMaxScriptNumLen, ErrNumOutOfRange},
-		{hexToBytes("0000000001"), 0, mathOpCodeMaxScriptNumLen, ErrNumOutOfRange},
-		{hexToBytes("0000000081"), 0, mathOpCodeMaxScriptNumLen, ErrNumOutOfRange},
-		{hexToBytes("ffffffffffff00"), 0, mathOpCodeMaxScriptNumLen, ErrNumOutOfRange},
-		{hexToBytes("ffffffffffff80"), 0, mathOpCodeMaxScriptNumLen, ErrNumOutOfRange},
-		{hexToBytes("ffffffffffffff00"), 0, mathOpCodeMaxScriptNumLen, ErrNumOutOfRange},
-		{hexToBytes("ffffffffffffff80"), 0, mathOpCodeMaxScriptNumLen, ErrNumOutOfRange},
-		{hexToBytes("ffffffffffffff7f"), 0, mathOpCodeMaxScriptNumLen, ErrNumOutOfRange},
-		{hexToBytes("ffffffffffffffff"), 0, mathOpCodeMaxScriptNumLen, ErrNumOutOfRange},
+		{hexToBytes("0000008000"), 0, MathOpCodeMaxScriptNumLen, ErrNumOutOfRange},
+		{hexToBytes("0000008080"), 0, MathOpCodeMaxScriptNumLen, ErrNumOutOfRange},
+		{hexToBytes("0000009000"), 0, MathOpCodeMaxScriptNumLen, ErrNumOutOfRange},
+		{hexToBytes("0000009080"), 0, MathOpCodeMaxScriptNumLen, ErrNumOutOfRange},
+		{hexToBytes("ffffffff00"), 0, MathOpCodeMaxScriptNumLen, ErrNumOutOfRange},
+		{hexToBytes("ffffffff80"), 0, MathOpCodeMaxScriptNumLen, ErrNumOutOfRange},
+		{hexToBytes("0000000001"), 0, MathOpCodeMaxScriptNumLen, ErrNumOutOfRange},
+		{hexToBytes("0000000081"), 0, MathOpCodeMaxScriptNumLen, ErrNumOutOfRange},
+		{hexToBytes("ffffffffffff00"), 0, MathOpCodeMaxScriptNumLen, ErrNumOutOfRange},
+		{hexToBytes("ffffffffffff80"), 0, MathOpCodeMaxScriptNumLen, ErrNumOutOfRange},
+		{hexToBytes("ffffffffffffff00"), 0, MathOpCodeMaxScriptNumLen, ErrNumOutOfRange},
+		{hexToBytes("ffffffffffffff80"), 0, MathOpCodeMaxScriptNumLen, ErrNumOutOfRange},
+		{hexToBytes("ffffffffffffff7f"), 0, MathOpCodeMaxScriptNumLen, ErrNumOutOfRange},
+		{hexToBytes("ffffffffffffffff"), 0, MathOpCodeMaxScriptNumLen, ErrNumOutOfRange},
 
 		// Non-minimally encoded, but otherwise valid values.  Should
 		// error and return 0.
-		{hexToBytes("00"), 0, mathOpCodeMaxScriptNumLen, ErrMinimalData},       // 0
-		{hexToBytes("0100"), 0, mathOpCodeMaxScriptNumLen, ErrMinimalData},     // 1
-		{hexToBytes("7f00"), 0, mathOpCodeMaxScriptNumLen, ErrMinimalData},     // 127
-		{hexToBytes("800000"), 0, mathOpCodeMaxScriptNumLen, ErrMinimalData},   // 128
-		{hexToBytes("810000"), 0, mathOpCodeMaxScriptNumLen, ErrMinimalData},   // 129
-		{hexToBytes("000100"), 0, mathOpCodeMaxScriptNumLen, ErrMinimalData},   // 256
-		{hexToBytes("ff7f00"), 0, mathOpCodeMaxScriptNumLen, ErrMinimalData},   // 32767
-		{hexToBytes("00800000"), 0, mathOpCodeMaxScriptNumLen, ErrMinimalData}, // 32768
-		{hexToBytes("ffff0000"), 0, mathOpCodeMaxScriptNumLen, ErrMinimalData}, // 65535
-		{hexToBytes("00000800"), 0, mathOpCodeMaxScriptNumLen, ErrMinimalData}, // 524288
-		{hexToBytes("00007000"), 0, mathOpCodeMaxScriptNumLen, ErrMinimalData}, // 7340032
+		{hexToBytes("00"), 0, MathOpCodeMaxScriptNumLen, ErrMinimalData},       // 0
+		{hexToBytes("0100"), 0, MathOpCodeMaxScriptNumLen, ErrMinimalData},     // 1
+		{hexToBytes("7f00"), 0, MathOpCodeMaxScriptNumLen, ErrMinimalData},     // 127
+		{hexToBytes("800000"), 0, MathOpCodeMaxScriptNumLen, ErrMinimalData},   // 128
+		{hexToBytes("810000"), 0, MathOpCodeMaxScriptNumLen, ErrMinimalData},   // 129
+		{hexToBytes("000100"), 0, MathOpCodeMaxScriptNumLen, ErrMinimalData},   // 256
+		{hexToBytes("ff7f00"), 0, MathOpCodeMaxScriptNumLen, ErrMinimalData},   // 32767
+		{hexToBytes("00800000"), 0, MathOpCodeMaxScriptNumLen, ErrMinimalData}, // 32768
+		{hexToBytes("ffff0000"), 0, MathOpCodeMaxScriptNumLen, ErrMinimalData}, // 65535
+		{hexToBytes("00000800"), 0, MathOpCodeMaxScriptNumLen, ErrMinimalData}, // 524288
+		{hexToBytes("00007000"), 0, MathOpCodeMaxScriptNumLen, ErrMinimalData}, // 7340032
 		{hexToBytes("0009000100"), 0, 5, ErrMinimalData},                       // 16779520
 	}
 

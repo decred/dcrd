@@ -13,9 +13,9 @@ const (
 	maxInt32 = 1<<31 - 1
 	minInt32 = -1 << 31
 
-	// mathOpCodeMaxScriptNumLen is the maximum number of bytes data being
+	// MathOpCodeMaxScriptNumLen is the maximum number of bytes data being
 	// interpreted as an integer may be for the majority of op codes.
-	mathOpCodeMaxScriptNumLen = 4
+	MathOpCodeMaxScriptNumLen = 4
 
 	// cltvMaxScriptNumLen is the maximum number of bytes data being interpreted
 	// as an integer may be for by-time and by-height locks as interpreted by

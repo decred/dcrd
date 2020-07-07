@@ -1330,7 +1330,7 @@ func ExtractAtomicSwapDataPushes(version uint16, pkScript []byte) (*AtomicSwapDa
 	var template = [20]templateMatch{
 		{opcode: OP_IF},
 		{opcode: OP_SIZE},
-		{expectCanonicalInt: true, maxIntBytes: mathOpCodeMaxScriptNumLen},
+		{expectCanonicalInt: true, maxIntBytes: MathOpCodeMaxScriptNumLen},
 		{opcode: OP_EQUALVERIFY},
 		{opcode: OP_SHA256},
 		{opcode: OP_DATA_32},

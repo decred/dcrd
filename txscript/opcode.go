@@ -1216,7 +1216,7 @@ func opcodeOver(op *opcode, data []byte, vm *Engine) error {
 // Example with n=1: [x2 x1 x0 1] -> [x2 x1 x0 x1]
 // Example with n=2: [x2 x1 x0 2] -> [x2 x1 x0 x2]
 func opcodePick(op *opcode, data []byte, vm *Engine) error {
-	val, err := vm.dstack.PopInt(mathOpCodeMaxScriptNumLen)
+	val, err := vm.dstack.PopInt(MathOpCodeMaxScriptNumLen)
 	if err != nil {
 		return err
 	}
@@ -1231,7 +1231,7 @@ func opcodePick(op *opcode, data []byte, vm *Engine) error {
 // Example with n=1: [x2 x1 x0 1] -> [x2 x0 x1]
 // Example with n=2: [x2 x1 x0 2] -> [x1 x0 x2]
 func opcodeRoll(op *opcode, data []byte, vm *Engine) error {
-	val, err := vm.dstack.PopInt(mathOpCodeMaxScriptNumLen)
+	val, err := vm.dstack.PopInt(MathOpCodeMaxScriptNumLen)
 	if err != nil {
 		return err
 	}
@@ -1315,11 +1315,11 @@ func opcodeCat(op *opcode, data []byte, vm *Engine) error {
 //
 // Stack transformation: [... x1 x2 x3] -> [... x1[x3:x2]]
 func opcodeSubstr(op *opcode, data []byte, vm *Engine) error {
-	v0, err := vm.dstack.PopInt(mathOpCodeMaxScriptNumLen) // x3
+	v0, err := vm.dstack.PopInt(MathOpCodeMaxScriptNumLen) // x3
 	if err != nil {
 		return err
 	}
-	v1, err := vm.dstack.PopInt(mathOpCodeMaxScriptNumLen) // x2
+	v1, err := vm.dstack.PopInt(MathOpCodeMaxScriptNumLen) // x2
 	if err != nil {
 		return err
 	}
@@ -1388,7 +1388,7 @@ func opcodeSubstr(op *opcode, data []byte, vm *Engine) error {
 //
 // Stack transformation: [... x1 x2] -> [... x1[0:x2]]
 func opcodeLeft(op *opcode, data []byte, vm *Engine) error {
-	v0, err := vm.dstack.PopInt(mathOpCodeMaxScriptNumLen) // x2
+	v0, err := vm.dstack.PopInt(MathOpCodeMaxScriptNumLen) // x2
 	if err != nil {
 		return err
 	}
@@ -1436,7 +1436,7 @@ func opcodeLeft(op *opcode, data []byte, vm *Engine) error {
 //
 // Stack transformation: [... x1 x2] -> [... x1[x2:]]
 func opcodeRight(op *opcode, data []byte, vm *Engine) error {
-	v0, err := vm.dstack.PopInt(mathOpCodeMaxScriptNumLen) // x2
+	v0, err := vm.dstack.PopInt(MathOpCodeMaxScriptNumLen) // x2
 	if err != nil {
 		return err
 	}
@@ -1500,7 +1500,7 @@ func opcodeSize(op *opcode, data []byte, vm *Engine) error {
 //
 // Stack transformation: [... x1] -> [... ~x1]
 func opcodeInvert(op *opcode, data []byte, vm *Engine) error {
-	v0, err := vm.dstack.PopInt(mathOpCodeMaxScriptNumLen)
+	v0, err := vm.dstack.PopInt(MathOpCodeMaxScriptNumLen)
 	if err != nil {
 		return err
 	}
@@ -1514,12 +1514,12 @@ func opcodeInvert(op *opcode, data []byte, vm *Engine) error {
 //
 // Stack transformation: [... x1 x2] -> [... x1 & x2]
 func opcodeAnd(op *opcode, data []byte, vm *Engine) error {
-	v0, err := vm.dstack.PopInt(mathOpCodeMaxScriptNumLen)
+	v0, err := vm.dstack.PopInt(MathOpCodeMaxScriptNumLen)
 	if err != nil {
 		return err
 	}
 
-	v1, err := vm.dstack.PopInt(mathOpCodeMaxScriptNumLen)
+	v1, err := vm.dstack.PopInt(MathOpCodeMaxScriptNumLen)
 	if err != nil {
 		return err
 	}
@@ -1533,12 +1533,12 @@ func opcodeAnd(op *opcode, data []byte, vm *Engine) error {
 //
 // Stack transformation: [... x1 x2] -> [... x1 | x2]
 func opcodeOr(op *opcode, data []byte, vm *Engine) error {
-	v0, err := vm.dstack.PopInt(mathOpCodeMaxScriptNumLen)
+	v0, err := vm.dstack.PopInt(MathOpCodeMaxScriptNumLen)
 	if err != nil {
 		return err
 	}
 
-	v1, err := vm.dstack.PopInt(mathOpCodeMaxScriptNumLen)
+	v1, err := vm.dstack.PopInt(MathOpCodeMaxScriptNumLen)
 	if err != nil {
 		return err
 	}
@@ -1552,12 +1552,12 @@ func opcodeOr(op *opcode, data []byte, vm *Engine) error {
 //
 // Stack transformation: [... x1 x2] -> [... x1 ^ x2]
 func opcodeXor(op *opcode, data []byte, vm *Engine) error {
-	v0, err := vm.dstack.PopInt(mathOpCodeMaxScriptNumLen)
+	v0, err := vm.dstack.PopInt(MathOpCodeMaxScriptNumLen)
 	if err != nil {
 		return err
 	}
 
-	v1, err := vm.dstack.PopInt(mathOpCodeMaxScriptNumLen)
+	v1, err := vm.dstack.PopInt(MathOpCodeMaxScriptNumLen)
 	if err != nil {
 		return err
 	}
@@ -1623,11 +1623,11 @@ func opcodeRotr(op *opcode, data []byte, vm *Engine) error {
 	//
 	// Unfortunately, a 4-byte ScriptNum is now part of consensus, so changing
 	// it requires a consensus vote.
-	v0, err := vm.dstack.PopInt(mathOpCodeMaxScriptNumLen) // x2
+	v0, err := vm.dstack.PopInt(MathOpCodeMaxScriptNumLen) // x2
 	if err != nil {
 		return err
 	}
-	v1, err := vm.dstack.PopInt(mathOpCodeMaxScriptNumLen) // x1
+	v1, err := vm.dstack.PopInt(MathOpCodeMaxScriptNumLen) // x1
 	if err != nil {
 		return err
 	}
@@ -1675,11 +1675,11 @@ func opcodeRotl(op *opcode, data []byte, vm *Engine) error {
 	//
 	// Unfortunately, a 4-byte ScriptNum is now part of consensus, so changing
 	// it requires a consensus vote.
-	v0, err := vm.dstack.PopInt(mathOpCodeMaxScriptNumLen) // x2
+	v0, err := vm.dstack.PopInt(MathOpCodeMaxScriptNumLen) // x2
 	if err != nil {
 		return err
 	}
-	v1, err := vm.dstack.PopInt(mathOpCodeMaxScriptNumLen) // x1
+	v1, err := vm.dstack.PopInt(MathOpCodeMaxScriptNumLen) // x1
 	if err != nil {
 		return err
 	}
@@ -1708,7 +1708,7 @@ func opcodeRotl(op *opcode, data []byte, vm *Engine) error {
 //
 // Stack transformation: [... x1 x2] -> [... x1 x2+1]
 func opcode1Add(op *opcode, data []byte, vm *Engine) error {
-	m, err := vm.dstack.PopInt(mathOpCodeMaxScriptNumLen)
+	m, err := vm.dstack.PopInt(MathOpCodeMaxScriptNumLen)
 	if err != nil {
 		return err
 	}
@@ -1722,7 +1722,7 @@ func opcode1Add(op *opcode, data []byte, vm *Engine) error {
 //
 // Stack transformation: [... x1 x2] -> [... x1 x2-1]
 func opcode1Sub(op *opcode, data []byte, vm *Engine) error {
-	m, err := vm.dstack.PopInt(mathOpCodeMaxScriptNumLen)
+	m, err := vm.dstack.PopInt(MathOpCodeMaxScriptNumLen)
 	if err != nil {
 		return err
 	}
@@ -1736,7 +1736,7 @@ func opcode1Sub(op *opcode, data []byte, vm *Engine) error {
 //
 // Stack transformation: [... x1 x2] -> [... x1 -x2]
 func opcodeNegate(op *opcode, data []byte, vm *Engine) error {
-	m, err := vm.dstack.PopInt(mathOpCodeMaxScriptNumLen)
+	m, err := vm.dstack.PopInt(MathOpCodeMaxScriptNumLen)
 	if err != nil {
 		return err
 	}
@@ -1750,7 +1750,7 @@ func opcodeNegate(op *opcode, data []byte, vm *Engine) error {
 //
 // Stack transformation: [... x1 x2] -> [... x1 abs(x2)]
 func opcodeAbs(op *opcode, data []byte, vm *Engine) error {
-	m, err := vm.dstack.PopInt(mathOpCodeMaxScriptNumLen)
+	m, err := vm.dstack.PopInt(MathOpCodeMaxScriptNumLen)
 	if err != nil {
 		return err
 	}
@@ -1775,7 +1775,7 @@ func opcodeAbs(op *opcode, data []byte, vm *Engine) error {
 // Stack transformation (x2!=0): [... x1 1] -> [... x1 0]
 // Stack transformation (x2!=0): [... x1 17] -> [... x1 0]
 func opcodeNot(op *opcode, data []byte, vm *Engine) error {
-	m, err := vm.dstack.PopInt(mathOpCodeMaxScriptNumLen)
+	m, err := vm.dstack.PopInt(MathOpCodeMaxScriptNumLen)
 	if err != nil {
 		return err
 	}
@@ -1795,7 +1795,7 @@ func opcodeNot(op *opcode, data []byte, vm *Engine) error {
 // Stack transformation (x2!=0): [... x1 1] -> [... x1 1]
 // Stack transformation (x2!=0): [... x1 17] -> [... x1 1]
 func opcode0NotEqual(op *opcode, data []byte, vm *Engine) error {
-	m, err := vm.dstack.PopInt(mathOpCodeMaxScriptNumLen)
+	m, err := vm.dstack.PopInt(MathOpCodeMaxScriptNumLen)
 	if err != nil {
 		return err
 	}
@@ -1812,12 +1812,12 @@ func opcode0NotEqual(op *opcode, data []byte, vm *Engine) error {
 //
 // Stack transformation: [... x1 x2] -> [... x1+x2]
 func opcodeAdd(op *opcode, data []byte, vm *Engine) error {
-	v0, err := vm.dstack.PopInt(mathOpCodeMaxScriptNumLen)
+	v0, err := vm.dstack.PopInt(MathOpCodeMaxScriptNumLen)
 	if err != nil {
 		return err
 	}
 
-	v1, err := vm.dstack.PopInt(mathOpCodeMaxScriptNumLen)
+	v1, err := vm.dstack.PopInt(MathOpCodeMaxScriptNumLen)
 	if err != nil {
 		return err
 	}
@@ -1832,12 +1832,12 @@ func opcodeAdd(op *opcode, data []byte, vm *Engine) error {
 //
 // Stack transformation: [... x1 x2] -> [... x1-x2]
 func opcodeSub(op *opcode, data []byte, vm *Engine) error {
-	v0, err := vm.dstack.PopInt(mathOpCodeMaxScriptNumLen)
+	v0, err := vm.dstack.PopInt(MathOpCodeMaxScriptNumLen)
 	if err != nil {
 		return err
 	}
 
-	v1, err := vm.dstack.PopInt(mathOpCodeMaxScriptNumLen)
+	v1, err := vm.dstack.PopInt(MathOpCodeMaxScriptNumLen)
 	if err != nil {
 		return err
 	}
@@ -1852,12 +1852,12 @@ func opcodeSub(op *opcode, data []byte, vm *Engine) error {
 //
 // Stack transformation: [... x1 x2] -> [... x1*x2]
 func opcodeMul(op *opcode, data []byte, vm *Engine) error {
-	v0, err := vm.dstack.PopInt(mathOpCodeMaxScriptNumLen)
+	v0, err := vm.dstack.PopInt(MathOpCodeMaxScriptNumLen)
 	if err != nil {
 		return err
 	}
 
-	v1, err := vm.dstack.PopInt(mathOpCodeMaxScriptNumLen)
+	v1, err := vm.dstack.PopInt(MathOpCodeMaxScriptNumLen)
 	if err != nil {
 		return err
 	}
@@ -1874,11 +1874,11 @@ func opcodeMul(op *opcode, data []byte, vm *Engine) error {
 //
 // Stack transformation: [... x1 x2] -> [... x1/x2]
 func opcodeDiv(op *opcode, data []byte, vm *Engine) error {
-	v0, err := vm.dstack.PopInt(mathOpCodeMaxScriptNumLen)
+	v0, err := vm.dstack.PopInt(MathOpCodeMaxScriptNumLen)
 	if err != nil {
 		return err
 	}
-	v1, err := vm.dstack.PopInt(mathOpCodeMaxScriptNumLen)
+	v1, err := vm.dstack.PopInt(MathOpCodeMaxScriptNumLen)
 	if err != nil {
 		return err
 	}
@@ -1905,11 +1905,11 @@ func opcodeDiv(op *opcode, data []byte, vm *Engine) error {
 //
 // Stack transformation: [... x1 x2] -> [... x1/x2]
 func opcodeMod(op *opcode, data []byte, vm *Engine) error {
-	v0, err := vm.dstack.PopInt(mathOpCodeMaxScriptNumLen)
+	v0, err := vm.dstack.PopInt(MathOpCodeMaxScriptNumLen)
 	if err != nil {
 		return err
 	}
-	v1, err := vm.dstack.PopInt(mathOpCodeMaxScriptNumLen)
+	v1, err := vm.dstack.PopInt(MathOpCodeMaxScriptNumLen)
 	if err != nil {
 		return err
 	}
@@ -1945,11 +1945,11 @@ func opcodeLShift(op *opcode, data []byte, vm *Engine) error {
 	//
 	// Unfortunately, a 4-byte ScriptNum is now part of consensus, so changing
 	// it requires a consensus vote.
-	v0, err := vm.dstack.PopInt(mathOpCodeMaxScriptNumLen) // x2
+	v0, err := vm.dstack.PopInt(MathOpCodeMaxScriptNumLen) // x2
 	if err != nil {
 		return err
 	}
-	v1, err := vm.dstack.PopInt(mathOpCodeMaxScriptNumLen) // x1
+	v1, err := vm.dstack.PopInt(MathOpCodeMaxScriptNumLen) // x1
 	if err != nil {
 		return err
 	}
@@ -1991,11 +1991,11 @@ func opcodeRShift(op *opcode, data []byte, vm *Engine) error {
 	//
 	// Unfortunately, a 4-byte ScriptNum is now part of consensus, so changing
 	// it requires a consensus vote.
-	v0, err := vm.dstack.PopInt(mathOpCodeMaxScriptNumLen) // x2
+	v0, err := vm.dstack.PopInt(MathOpCodeMaxScriptNumLen) // x2
 	if err != nil {
 		return err
 	}
-	v1, err := vm.dstack.PopInt(mathOpCodeMaxScriptNumLen) // x1
+	v1, err := vm.dstack.PopInt(MathOpCodeMaxScriptNumLen) // x1
 	if err != nil {
 		return err
 	}
@@ -2027,12 +2027,12 @@ func opcodeRShift(op *opcode, data []byte, vm *Engine) error {
 // Stack transformation (x1==0, x2!=0): [... 0 7] -> [... 0]
 // Stack transformation (x1!=0, x2!=0): [... 4 8] -> [... 1]
 func opcodeBoolAnd(op *opcode, data []byte, vm *Engine) error {
-	v0, err := vm.dstack.PopInt(mathOpCodeMaxScriptNumLen)
+	v0, err := vm.dstack.PopInt(MathOpCodeMaxScriptNumLen)
 	if err != nil {
 		return err
 	}
 
-	v1, err := vm.dstack.PopInt(mathOpCodeMaxScriptNumLen)
+	v1, err := vm.dstack.PopInt(MathOpCodeMaxScriptNumLen)
 	if err != nil {
 		return err
 	}
@@ -2054,12 +2054,12 @@ func opcodeBoolAnd(op *opcode, data []byte, vm *Engine) error {
 // Stack transformation (x1==0, x2!=0): [... 0 7] -> [... 1]
 // Stack transformation (x1!=0, x2!=0): [... 4 8] -> [... 1]
 func opcodeBoolOr(op *opcode, data []byte, vm *Engine) error {
-	v0, err := vm.dstack.PopInt(mathOpCodeMaxScriptNumLen)
+	v0, err := vm.dstack.PopInt(MathOpCodeMaxScriptNumLen)
 	if err != nil {
 		return err
 	}
 
-	v1, err := vm.dstack.PopInt(mathOpCodeMaxScriptNumLen)
+	v1, err := vm.dstack.PopInt(MathOpCodeMaxScriptNumLen)
 	if err != nil {
 		return err
 	}
@@ -2079,12 +2079,12 @@ func opcodeBoolOr(op *opcode, data []byte, vm *Engine) error {
 // Stack transformation (x1==x2): [... 5 5] -> [... 1]
 // Stack transformation (x1!=x2): [... 5 7] -> [... 0]
 func opcodeNumEqual(op *opcode, data []byte, vm *Engine) error {
-	v0, err := vm.dstack.PopInt(mathOpCodeMaxScriptNumLen)
+	v0, err := vm.dstack.PopInt(MathOpCodeMaxScriptNumLen)
 	if err != nil {
 		return err
 	}
 
-	v1, err := vm.dstack.PopInt(mathOpCodeMaxScriptNumLen)
+	v1, err := vm.dstack.PopInt(MathOpCodeMaxScriptNumLen)
 	if err != nil {
 		return err
 	}
@@ -2120,12 +2120,12 @@ func opcodeNumEqualVerify(op *opcode, data []byte, vm *Engine) error {
 // Stack transformation (x1==x2): [... 5 5] -> [... 0]
 // Stack transformation (x1!=x2): [... 5 7] -> [... 1]
 func opcodeNumNotEqual(op *opcode, data []byte, vm *Engine) error {
-	v0, err := vm.dstack.PopInt(mathOpCodeMaxScriptNumLen)
+	v0, err := vm.dstack.PopInt(MathOpCodeMaxScriptNumLen)
 	if err != nil {
 		return err
 	}
 
-	v1, err := vm.dstack.PopInt(mathOpCodeMaxScriptNumLen)
+	v1, err := vm.dstack.PopInt(MathOpCodeMaxScriptNumLen)
 	if err != nil {
 		return err
 	}
@@ -2145,12 +2145,12 @@ func opcodeNumNotEqual(op *opcode, data []byte, vm *Engine) error {
 //
 // Stack transformation: [... x1 x2] -> [... bool]
 func opcodeLessThan(op *opcode, data []byte, vm *Engine) error {
-	v0, err := vm.dstack.PopInt(mathOpCodeMaxScriptNumLen)
+	v0, err := vm.dstack.PopInt(MathOpCodeMaxScriptNumLen)
 	if err != nil {
 		return err
 	}
 
-	v1, err := vm.dstack.PopInt(mathOpCodeMaxScriptNumLen)
+	v1, err := vm.dstack.PopInt(MathOpCodeMaxScriptNumLen)
 	if err != nil {
 		return err
 	}
@@ -2170,12 +2170,12 @@ func opcodeLessThan(op *opcode, data []byte, vm *Engine) error {
 //
 // Stack transformation: [... x1 x2] -> [... bool]
 func opcodeGreaterThan(op *opcode, data []byte, vm *Engine) error {
-	v0, err := vm.dstack.PopInt(mathOpCodeMaxScriptNumLen)
+	v0, err := vm.dstack.PopInt(MathOpCodeMaxScriptNumLen)
 	if err != nil {
 		return err
 	}
 
-	v1, err := vm.dstack.PopInt(mathOpCodeMaxScriptNumLen)
+	v1, err := vm.dstack.PopInt(MathOpCodeMaxScriptNumLen)
 	if err != nil {
 		return err
 	}
@@ -2194,12 +2194,12 @@ func opcodeGreaterThan(op *opcode, data []byte, vm *Engine) error {
 //
 // Stack transformation: [... x1 x2] -> [... bool]
 func opcodeLessThanOrEqual(op *opcode, data []byte, vm *Engine) error {
-	v0, err := vm.dstack.PopInt(mathOpCodeMaxScriptNumLen)
+	v0, err := vm.dstack.PopInt(MathOpCodeMaxScriptNumLen)
 	if err != nil {
 		return err
 	}
 
-	v1, err := vm.dstack.PopInt(mathOpCodeMaxScriptNumLen)
+	v1, err := vm.dstack.PopInt(MathOpCodeMaxScriptNumLen)
 	if err != nil {
 		return err
 	}
@@ -2218,12 +2218,12 @@ func opcodeLessThanOrEqual(op *opcode, data []byte, vm *Engine) error {
 //
 // Stack transformation: [... x1 x2] -> [... bool]
 func opcodeGreaterThanOrEqual(op *opcode, data []byte, vm *Engine) error {
-	v0, err := vm.dstack.PopInt(mathOpCodeMaxScriptNumLen)
+	v0, err := vm.dstack.PopInt(MathOpCodeMaxScriptNumLen)
 	if err != nil {
 		return err
 	}
 
-	v1, err := vm.dstack.PopInt(mathOpCodeMaxScriptNumLen)
+	v1, err := vm.dstack.PopInt(MathOpCodeMaxScriptNumLen)
 	if err != nil {
 		return err
 	}
@@ -2242,12 +2242,12 @@ func opcodeGreaterThanOrEqual(op *opcode, data []byte, vm *Engine) error {
 //
 // Stack transformation: [... x1 x2] -> [... min(x1, x2)]
 func opcodeMin(op *opcode, data []byte, vm *Engine) error {
-	v0, err := vm.dstack.PopInt(mathOpCodeMaxScriptNumLen)
+	v0, err := vm.dstack.PopInt(MathOpCodeMaxScriptNumLen)
 	if err != nil {
 		return err
 	}
 
-	v1, err := vm.dstack.PopInt(mathOpCodeMaxScriptNumLen)
+	v1, err := vm.dstack.PopInt(MathOpCodeMaxScriptNumLen)
 	if err != nil {
 		return err
 	}
@@ -2266,12 +2266,12 @@ func opcodeMin(op *opcode, data []byte, vm *Engine) error {
 //
 // Stack transformation: [... x1 x2] -> [... max(x1, x2)]
 func opcodeMax(op *opcode, data []byte, vm *Engine) error {
-	v0, err := vm.dstack.PopInt(mathOpCodeMaxScriptNumLen)
+	v0, err := vm.dstack.PopInt(MathOpCodeMaxScriptNumLen)
 	if err != nil {
 		return err
 	}
 
-	v1, err := vm.dstack.PopInt(mathOpCodeMaxScriptNumLen)
+	v1, err := vm.dstack.PopInt(MathOpCodeMaxScriptNumLen)
 	if err != nil {
 		return err
 	}
@@ -2294,17 +2294,17 @@ func opcodeMax(op *opcode, data []byte, vm *Engine) error {
 //
 // Stack transformation: [... x1 min max] -> [... bool]
 func opcodeWithin(op *opcode, data []byte, vm *Engine) error {
-	maxVal, err := vm.dstack.PopInt(mathOpCodeMaxScriptNumLen)
+	maxVal, err := vm.dstack.PopInt(MathOpCodeMaxScriptNumLen)
 	if err != nil {
 		return err
 	}
 
-	minVal, err := vm.dstack.PopInt(mathOpCodeMaxScriptNumLen)
+	minVal, err := vm.dstack.PopInt(MathOpCodeMaxScriptNumLen)
 	if err != nil {
 		return err
 	}
 
-	x, err := vm.dstack.PopInt(mathOpCodeMaxScriptNumLen)
+	x, err := vm.dstack.PopInt(MathOpCodeMaxScriptNumLen)
 	if err != nil {
 		return err
 	}
@@ -2560,7 +2560,7 @@ type parsedSigInfo struct {
 // Stack transformation:
 // [... [sig ...] numsigs [pubkey ...] numpubkeys] -> [... bool]
 func opcodeCheckMultiSig(op *opcode, data []byte, vm *Engine) error {
-	numKeys, err := vm.dstack.PopInt(mathOpCodeMaxScriptNumLen)
+	numKeys, err := vm.dstack.PopInt(MathOpCodeMaxScriptNumLen)
 	if err != nil {
 		return err
 	}
@@ -2592,7 +2592,7 @@ func opcodeCheckMultiSig(op *opcode, data []byte, vm *Engine) error {
 		pubKeys = append(pubKeys, pubKey)
 	}
 
-	numSigs, err := vm.dstack.PopInt(mathOpCodeMaxScriptNumLen)
+	numSigs, err := vm.dstack.PopInt(MathOpCodeMaxScriptNumLen)
 	if err != nil {
 		return err
 	}
