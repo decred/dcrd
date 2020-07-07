@@ -590,3 +590,20 @@ func BenchmarkExtractAltSigType(b *testing.B) {
 		}
 	}
 }
+
+// BenchmarkCheckSignatureEncoding benchmarks how long it takes to check the
+// signature encoding for correctness of a typical DER-encoded ECDSA signature.
+func BenchmarkCheckSignatureEncoding(b *testing.B) {
+	sig := hexToBytes("3045022100cd496f2ab4fe124f977ffe3caa09f7576d8a34156b4e" +
+		"55d326b4dffc0399a094022013500a0510b5094bff220c74656879b8ca0369d3da78" +
+		"004004c970790862fc03")
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		err := CheckSignatureEncoding(sig)
+		if err != nil {
+			b.Fatalf("unexpected err: %v", err)
+		}
+	}
+}
