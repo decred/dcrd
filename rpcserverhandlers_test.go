@@ -652,6 +652,24 @@ type rpcTest struct {
 	errCode         dcrjson.RPCErrorCode
 }
 
+// Provide default configurations that can be overridden by tests as needed.
+var defaultCfg = &config{}
+var defaultChainParams = chaincfg.MainNetParams()
+var defaultRPCChain = &testRPCChain{
+	bestSnapshot: &blockchain.BestState{
+		Height: 463073,
+		Bits:   404696953,
+		Hash: *mustParseHash("00000000000000001e6ec1501c858506de1de4703d1be8bab4061" +
+			"126e8f61480"),
+		PrevHash: *mustParseHash("00000000000000001a1ec2becd0dd90bfbd0c65f42fdaf608" +
+			"dd9ceac2a3aee1d"),
+	},
+}
+var defaultAddrManager = &testAddrManager{}
+var defaultSyncManager = &testSyncManager{}
+var defaultConnManager = &testConnManager{}
+var defaultClock = &testClock{}
+
 func TestHandleAddNode(t *testing.T) {
 	testRPCServerHandler(t, []rpcTest{{
 		name:    "handleAddNode: ok",
@@ -2793,23 +2811,43 @@ func testRPCServerHandler(t *testing.T, tests []rpcTest) {
 	t.Helper()
 
 	for _, test := range tests {
-		cfg = test.mockCfg
-		chainParams := chaincfg.MainNetParams()
+		cfg = defaultCfg
+		if test.mockCfg != nil {
+			cfg = test.mockCfg
+		}
+
+		// Create a default rpcserverConfig and override any configurations that are
+		// provided by the test.
+		rpcserverConfig := rpcserverConfig{
+			ChainParams: defaultChainParams,
+			Chain:       defaultRPCChain,
+			AddrManager: defaultAddrManager,
+			SyncMgr:     defaultSyncManager,
+			ConnMgr:     defaultConnManager,
+			Clock:       defaultClock,
+			TimeSource:  blockchain.NewMedianTime(),
+			Services:    wire.SFNodeNetwork | wire.SFNodeCF,
+		}
 		if test.mockChainParams != nil {
-			chainParams = test.mockChainParams
+			rpcserverConfig.ChainParams = test.mockChainParams
 		}
-		testServer := &rpcServer{
-			cfg: rpcserverConfig{
-				ChainParams: chainParams,
-				Chain:       test.mockChain,
-				AddrManager: test.mockAddrManager,
-				SyncMgr:     test.mockSyncManager,
-				ConnMgr:     test.mockConnManager,
-				Clock:       test.mockClock,
-				TimeSource:  blockchain.NewMedianTime(),
-				Services:    wire.SFNodeNetwork | wire.SFNodeCF,
-			},
+		if test.mockChain != nil {
+			rpcserverConfig.Chain = test.mockChain
 		}
+		if test.mockAddrManager != nil {
+			rpcserverConfig.AddrManager = test.mockAddrManager
+		}
+		if test.mockSyncManager != nil {
+			rpcserverConfig.SyncMgr = test.mockSyncManager
+		}
+		if test.mockConnManager != nil {
+			rpcserverConfig.ConnMgr = test.mockConnManager
+		}
+		if test.mockClock != nil {
+			rpcserverConfig.Clock = test.mockClock
+		}
+
+		testServer := &rpcServer{cfg: rpcserverConfig}
 		result, err := test.handler(nil, testServer, test.cmd)
 		if test.wantErr {
 			var rpcErr *dcrjson.RPCError
