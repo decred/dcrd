@@ -737,8 +737,7 @@ func (b *blockManager) handleTxMsg(tmsg *txMsg) {
 	if err != nil {
 		// Do not request this transaction again until a new block
 		// has been processed.
-		b.rejectedTxns[*txHash] = struct{}{}
-		b.limitMap(b.rejectedTxns, maxRejectedTxns)
+		limitAdd(b.rejectedTxns, *txHash, maxRejectedTxns)
 
 		// When the error is a rule error, it means the transaction was
 		// simply rejected as opposed to something actually going wrong,
@@ -1558,9 +1557,8 @@ func (b *blockManager) handleInvMsg(imsg *invMsg) {
 			// Request the block if there is not already a pending
 			// request.
 			if _, exists := b.requestedBlocks[iv.Hash]; !exists {
-				b.requestedBlocks[iv.Hash] = struct{}{}
-				b.limitMap(b.requestedBlocks, maxRequestedBlocks)
-				state.requestedBlocks[iv.Hash] = struct{}{}
+				limitAdd(b.requestedBlocks, iv.Hash, maxRequestedBlocks)
+				limitAdd(state.requestedBlocks, iv.Hash, maxRequestedBlocks)
 				gdmsg.AddInvVect(iv)
 				numRequested++
 			}
@@ -1569,9 +1567,8 @@ func (b *blockManager) handleInvMsg(imsg *invMsg) {
 			// Request the transaction if there is not already a
 			// pending request.
 			if _, exists := b.requestedTxns[iv.Hash]; !exists {
-				b.requestedTxns[iv.Hash] = struct{}{}
-				b.limitMap(b.requestedTxns, maxRequestedTxns)
-				state.requestedTxns[iv.Hash] = struct{}{}
+				limitAdd(b.requestedTxns, iv.Hash, maxRequestedTxns)
+				limitAdd(state.requestedTxns, iv.Hash, maxRequestedTxns)
 				gdmsg.AddInvVect(iv)
 				numRequested++
 			}
@@ -1594,10 +1591,10 @@ func (b *blockManager) handleInvMsg(imsg *invMsg) {
 	}
 }
 
-// limitMap is a helper function for maps that require a maximum limit by
-// evicting a random transaction if adding a new value would cause it to
+// limitAdd is a helper function for maps that require a maximum limit by
+// evicting a random value if adding the new value would cause it to
 // overflow the maximum allowed.
-func (b *blockManager) limitMap(m map[chainhash.Hash]struct{}, limit int) {
+func limitAdd(m map[chainhash.Hash]struct{}, hash chainhash.Hash, limit int) {
 	if len(m)+1 > limit {
 		// Remove a random entry from the map.  For most compilers, Go's
 		// range statement iterates starting at a random item although
@@ -1607,9 +1604,10 @@ func (b *blockManager) limitMap(m map[chainhash.Hash]struct{}, limit int) {
 		// order to target eviction of specific entries anyways.
 		for txHash := range m {
 			delete(m, txHash)
-			return
+			break
 		}
 	}
+	m[hash] = struct{}{}
 }
 
 // blockHandler is the main handler for the block manager.  It must be run
