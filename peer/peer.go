@@ -1222,6 +1222,10 @@ out:
 			// Disconnect the peer if any of the pending responses
 			// don't arrive by their adjusted deadline.
 			for command, deadline := range pendingResponses {
+				if command == wire.CmdMiningState {
+					continue
+				}
+
 				if now.Before(deadline.Add(offset)) {
 					log.Debugf("Stall ticker rolling over for peer %s on "+
 						"cmd %s (deadline for data: %s)", p, command,
@@ -1229,12 +1233,10 @@ out:
 					continue
 				}
 
-				if command != wire.CmdMiningState {
-					log.Infof("Peer %s appears to be stalled or "+
-						"misbehaving, %s timeout -- "+
-						"disconnecting", p, command)
-					p.Disconnect()
-				}
+				log.Infof("Peer %s appears to be stalled or "+
+					"misbehaving, %s timeout -- "+
+					"disconnecting", p, command)
+				p.Disconnect()
 				break
 			}
 
