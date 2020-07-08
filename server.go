@@ -578,14 +578,14 @@ func (sp *serverPeer) pushAddrMsg(addresses []*wire.NetAddress) {
 // threshold, a warning is logged including the reason provided. Further, if
 // the score is above the ban threshold, the peer will be banned and
 // disconnected.
-func (sp *serverPeer) addBanScore(persistent, transient uint32, reason string) {
+func (sp *serverPeer) addBanScore(persistent, transient uint32, reason string) bool {
 	// No warning is logged and no score is calculated if banning is disabled.
 	if cfg.DisableBanning {
-		return
+		return false
 	}
 	if sp.isWhitelisted {
 		peerLog.Debugf("Misbehaving whitelisted peer %s: %s", sp, reason)
-		return
+		return false
 	}
 
 	warnThreshold := cfg.BanThreshold >> 1
@@ -597,7 +597,7 @@ func (sp *serverPeer) addBanScore(persistent, transient uint32, reason string) {
 			peerLog.Warnf("Misbehaving peer %s: %s -- ban score is %d, "+
 				"it was not increased this time", sp, reason, score)
 		}
-		return
+		return false
 	}
 	score := sp.banScore.Increase(persistent, transient)
 	if score > warnThreshold {
@@ -608,8 +608,10 @@ func (sp *serverPeer) addBanScore(persistent, transient uint32, reason string) {
 				sp)
 			sp.server.BanPeer(sp)
 			sp.Disconnect()
+			return true
 		}
 	}
+	return false
 }
 
 // hasServices returns whether or not the provided advertised service flags have
@@ -713,7 +715,9 @@ func (sp *serverPeer) OnMemPool(p *peer.Peer, msg *wire.MsgMemPool) {
 	// The ban score accumulates and passes the ban threshold if a burst of
 	// mempool messages comes from a peer. The score decays each minute to
 	// half of its value.
-	sp.addBanScore(0, 33, "mempool")
+	if sp.addBanScore(0, 33, "mempool") {
+		return
+	}
 
 	// Generate inventory message with the available transactions in the
 	// transaction memory pool.  Limit it to the max allowed inventory
@@ -981,7 +985,9 @@ func (sp *serverPeer) OnGetData(p *peer.Peer, msg *wire.MsgGetData) {
 	// bursts of small requests are not penalized as that would potentially ban
 	// peers performing IBD.
 	// This incremental score decays each minute to half of its value.
-	sp.addBanScore(0, uint32(length)*99/wire.MaxInvPerMsg, "getdata")
+	if sp.addBanScore(0, uint32(length)*99/wire.MaxInvPerMsg, "getdata") {
+		return
+	}
 
 	// We wait on this wait channel periodically to prevent queuing
 	// far more data than we can send in a reasonable time, wasting memory.
@@ -1457,12 +1463,16 @@ func (sp *serverPeer) OnNotFound(p *peer.Peer, msg *wire.MsgNotFound) {
 	if numBlocks > 0 {
 		blockStr := pickNoun(uint64(numBlocks), "block", "blocks")
 		reason := fmt.Sprintf("%d %v not found", numBlocks, blockStr)
-		sp.addBanScore(20*numBlocks, 0, reason)
+		if sp.addBanScore(20*numBlocks, 0, reason) {
+			return
+		}
 	}
 	if numTxns > 0 {
 		txStr := pickNoun(uint64(numTxns), "transaction", "transactions")
 		reason := fmt.Sprintf("%d %v not found", numBlocks, txStr)
-		sp.addBanScore(0, 10*numTxns, reason)
+		if sp.addBanScore(0, 10*numTxns, reason) {
+			return
+		}
 	}
 	sp.server.blockManager.QueueNotFound(msg, p)
 }
