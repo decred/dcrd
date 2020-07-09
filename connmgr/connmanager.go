@@ -250,24 +250,26 @@ func (cm *ConnManager) handleFailedConn(ctx context.Context, c *ConnReq) {
 			d = maxRetryDuration
 		}
 		log.Debugf("Retrying connection to %v in %v", c, d)
-		select {
-		case <-time.After(d):
-			go cm.Connect(ctx, c)
-		case <-cm.quit:
-			return
-		}
+		go func() {
+			select {
+			case <-time.After(d):
+				cm.Connect(ctx, c)
+			case <-cm.quit:
+			}
+		}()
 	} else if cm.cfg.GetNewAddress != nil {
 		cm.failedAttempts++
 		if cm.failedAttempts >= maxFailedAttempts {
 			log.Debugf("Max failed connection attempts reached: [%d] "+
 				"-- retrying connection in: %v", maxFailedAttempts,
 				cm.cfg.RetryDuration)
-			select {
-			case <-time.After(cm.cfg.RetryDuration):
-				go cm.newConnReq(ctx)
-			case <-cm.quit:
-				return
-			}
+			go func() {
+				select {
+				case <-time.After(cm.cfg.RetryDuration):
+					cm.newConnReq(ctx)
+				case <-cm.quit:
+				}
+			}()
 		} else {
 			go cm.newConnReq(ctx)
 		}

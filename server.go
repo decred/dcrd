@@ -2024,6 +2024,7 @@ func (s *server) handleQuery(state *peerState, querymsg interface{}) {
 				Permanent: msg.permanent,
 			})
 		msg.reply <- nil
+
 	case removeNodeMsg:
 		found := disconnectPeer(state.persistentPeers, msg.cmp, func(sp *serverPeer) {
 			// Keep group counts ok since we remove from
@@ -2045,6 +2046,7 @@ func (s *server) handleQuery(state *peerState, querymsg interface{}) {
 		} else {
 			msg.reply <- errors.New("peer not found")
 		}
+
 	case cancelPendingMsg:
 		netAddr, err := addrStringToNetAddr(msg.addr)
 		if err != nil {
@@ -2052,6 +2054,7 @@ func (s *server) handleQuery(state *peerState, querymsg interface{}) {
 			return
 		}
 		msg.reply <- s.connManager.CancelPending(netAddr)
+
 	case getOutboundGroup:
 		count, ok := state.outboundGroups[msg.key]
 		if ok {
@@ -2059,7 +2062,7 @@ func (s *server) handleQuery(state *peerState, querymsg interface{}) {
 		} else {
 			msg.reply <- 0
 		}
-	// Request a list of the persistent (added) peers.
+
 	case getAddedNodesMsg:
 		// Respond with a slice of the relevant peers.
 		peers := make([]*serverPeer, 0, len(state.persistentPeers))
@@ -2067,6 +2070,7 @@ func (s *server) handleQuery(state *peerState, querymsg interface{}) {
 			peers = append(peers, sp)
 		}
 		msg.reply <- peers
+
 	case disconnectNodeMsg:
 		// Check inbound peers. We pass a nil callback since we don't
 		// require any additional actions on disconnect for inbound peers.

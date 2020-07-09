@@ -8,6 +8,7 @@ package connmgr
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"sync"
@@ -452,6 +453,77 @@ func TestNetworkFailure(t *testing.T) {
 		t.Fatalf("unexpected number of dials - got %v, want <= %v", gotDials,
 			wantMaxDials)
 	}
+}
+
+// TestMultipleFailedConns ensures that the connection manager remains
+// responsive when there are multiple simultaneous failed connections for
+// persistent peers in the retry state.
+func TestMultipleFailedConns(t *testing.T) {
+	// Override the max retry duration for this test since it relies on having
+	// multiple connections in the retry state.
+	curMaxRetryDuration := maxRetryDuration
+	maxRetryDuration = 500 * time.Millisecond
+	defer func() {
+		maxRetryDuration = curMaxRetryDuration
+	}()
+
+	const targetFailed = 5
+	var dials uint32
+	var closeOnce sync.Once
+	hitTargetFailed := make(chan struct{})
+	errDialer := func(ctx context.Context, network, addr string) (net.Conn, error) {
+		totalDials := atomic.AddUint32(&dials, 1)
+		if totalDials >= targetFailed {
+			closeOnce.Do(func() { close(hitTargetFailed) })
+		}
+		return nil, errors.New("network down")
+	}
+	cmgr, err := New(&Config{
+		RetryDuration: maxRetryDuration,
+		Dial:          errDialer,
+	})
+	if err != nil {
+		t.Fatalf("New error: %v", err)
+	}
+	ctx, shutdown, wg := runConnMgrAsync(context.Background(), cmgr)
+
+	// Establish several connection requests to localhost IPs.
+	for i := 0; i < targetFailed; i++ {
+		cr := &ConnReq{
+			Addr: &net.TCPAddr{
+				IP:   net.ParseIP(fmt.Sprintf("127.0.0.%d", i+1)),
+				Port: 18555,
+			},
+			Permanent: true,
+		}
+		go cmgr.Connect(ctx, cr)
+	}
+
+	// Wait for the target number of dials and ensure they happen simultaneously
+	// by checking it happens before the retry timeout.
+	select {
+	case <-hitTargetFailed:
+	case <-time.After(20 * time.Millisecond):
+		t.Fatal("did not reach target number of dials before timeout")
+	}
+
+	// Ensure that the connection manager still responds to requests while the
+	// failed connections are still retrying.
+	disconnected := make(chan struct{})
+	go func() {
+		const badID = ^uint64(0)
+		cmgr.Disconnect(badID)
+		close(disconnected)
+	}()
+	select {
+	case <-disconnected:
+	case <-time.After(20 * time.Millisecond):
+		t.Fatal("timeout servicing connmgr requests")
+	}
+
+	// Ensure clean shutdown of connection manager.
+	shutdown()
+	wg.Wait()
 }
 
 // TestShutdownFailedConns tests that failed connections are ignored after
