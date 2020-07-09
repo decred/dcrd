@@ -99,7 +99,7 @@ func mockDialerAddr(ctx context.Context, addr net.Addr) (net.Conn, error) {
 func TestNewConfig(t *testing.T) {
 	_, err := New(&Config{})
 	if err == nil {
-		t.Fatalf("New expected error: 'Dial can't be nil', got nil")
+		t.Fatal("New expected error: 'Dial can't be nil', got nil")
 	}
 	_, err = New(&Config{
 		Dial: mockDialer,
@@ -113,7 +113,7 @@ func TestNewConfig(t *testing.T) {
 		DialAddr: mockDialerAddr,
 	})
 	if err == nil {
-		t.Fatalf("New expected error: 'Dial and DialAddr can't be both nil', got nil")
+		t.Fatal("New expected error: 'Dial and DialAddr can't be both nil', got nil")
 	}
 
 	_, err = New(&Config{
@@ -269,13 +269,13 @@ func TestPassAddrAlongDialAddr(t *testing.T) {
 	case c := <-connected:
 		receivedMock, isMockAddr := c.Addr.(mockAddr)
 		if !isMockAddr {
-			t.Fatalf("connected to an address that was not a mockAddr")
+			t.Fatal("connected to an address that was not a mockAddr")
 		}
 		if receivedMock != targetAddr {
-			t.Fatalf("connected to an address different than the expected target")
+			t.Fatal("connected to an address different than the expected target")
 		}
 	case <-time.After(time.Millisecond * 5):
-		t.Fatalf("did not get connection to target address before timeout")
+		t.Fatal("did not get connection to target address before timeout")
 	}
 
 	// Ensure clean shutdown of connection manager.
@@ -390,7 +390,7 @@ func TestMaxRetryDuration(t *testing.T) {
 	select {
 	case <-connected:
 	case <-time.After(20 * time.Millisecond):
-		t.Fatalf("max retry duration: connection timeout")
+		t.Fatal("max retry duration: connection timeout")
 	}
 
 	// Ensure clean shutdown of connection manager.
@@ -619,7 +619,7 @@ func TestCancelIgnoreDelayedConnection(t *testing.T) {
 	// allowed to properly elapse.
 	select {
 	case <-connected:
-		t.Fatalf("on-connect should not be called for canceled req")
+		t.Fatal("on-connect should not be called for canceled req")
 	case <-time.After(5 * retryTimeout):
 	}
 
