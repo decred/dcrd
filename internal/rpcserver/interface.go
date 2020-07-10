@@ -424,3 +424,16 @@ type Clock interface {
 	// Since returns the time elapsed since t.
 	Since(t time.Time) time.Duration
 }
+
+// FeeEstimator provides an interface that tracks historical data for published
+// and mined transactions in order to estimate fees to be used in new
+// transactions for confirmation within a target block window.
+//
+// The interface contract requires that all of these methods are safe for
+// concurrent access.
+type FeeEstimator interface {
+	// EstimateFee calculates the suggested fee for a transaction to be
+	// confirmed in at most `targetConfs` blocks after publishing with a
+	// high degree of certainty.
+	EstimateFee(targetConfs int32) (dcrutil.Amount, error)
+}

@@ -46,7 +46,6 @@ import (
 	"github.com/decred/dcrd/dcrec/secp256k1/v3/ecdsa"
 	"github.com/decred/dcrd/dcrjson/v3"
 	"github.com/decred/dcrd/dcrutil/v3"
-	"github.com/decred/dcrd/fees/v2"
 	"github.com/decred/dcrd/internal/rpcserver"
 	"github.com/decred/dcrd/internal/version"
 	"github.com/decred/dcrd/mempool/v4"
@@ -5548,7 +5547,7 @@ type rpcserverConfig struct {
 	Chain        rpcserver.Chain
 	ChainParams  *chaincfg.Params
 	DB           database.DB
-	FeeEstimator *fees.Estimator
+	FeeEstimator rpcserver.FeeEstimator
 	Services     wire.ServiceFlag
 
 	// SubsidyCache defines a cache for efficient access to consensus-critical

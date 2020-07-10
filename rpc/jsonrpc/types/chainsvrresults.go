@@ -28,6 +28,11 @@ type DecodeScriptResult struct {
 
 // EstimateSmartFeeResult models the data returned from the estimatesmartfee
 // command.
+//
+// NOTE: EstimateSmartFee currently returns a float. This result type is
+// unused.
+//
+// TODO: Rework EstimateSmartFee to return this result type.
 type EstimateSmartFeeResult struct {
 	FeeRate float64  `json:"feerate"`
 	Errors  []string `json:"errors"`

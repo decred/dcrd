@@ -3237,7 +3237,7 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB, chainP
 			ConnMgr:      &rpcConnManager{&s},
 			SyncMgr:      &rpcSyncMgr{&s, s.blockManager},
 			PeerNotifier: &s,
-			FeeEstimator: s.feeEstimator,
+			FeeEstimator: &rpcFeeEstimator{s.feeEstimator},
 			TimeSource:   s.timeSource,
 			Services:     s.services,
 			AddrManager:  &rpcAddrManager{s.addrManager},
