@@ -293,7 +293,7 @@ func (stats *Estimator) DumpBuckets() string {
 // possible to load from a different set of configuration parameters.
 //
 // The current code does not currently save mempool information, since saving
-// information in the estimator without the saving the corresponding data in the
+// information in the estimator without saving the corresponding data in the
 // mempool itself could result in transactions lingering in the mempool
 // estimator forever.
 func (stats *Estimator) loadFromDatabase(replaceBuckets bool) error {
@@ -756,10 +756,10 @@ func (stats *Estimator) IsEnabled() bool {
 	return enabled
 }
 
-// AddMemPoolTransaction to the estimator in order to account for it in the
-// estimations. It assumes that this transaction is entering the mempool at the
-// currently recorded best chain hash, using the total fee amount (in atoms) and
-// with the provided size (in bytes).
+// AddMemPoolTransaction adds a mempool transaction to the estimator in order to
+// account for it in the estimations. It assumes that this transaction is
+// entering the mempool at the currently recorded best chain hash, using the
+// total fee amount (in atoms) and with the provided size (in bytes).
 //
 // This is safe to be called from multiple goroutines.
 func (stats *Estimator) AddMemPoolTransaction(txHash *chainhash.Hash, fee, size int64, txType stake.TxType) {
@@ -806,7 +806,8 @@ func (stats *Estimator) AddMemPoolTransaction(txHash *chainhash.Hash, fee, size 
 	stats.newMemPoolTx(tx.bucketIndex, rate)
 }
 
-// RemoveMemPoolTransaction from statistics tracking.
+// RemoveMemPoolTransaction removes a mempool transaction from statistics
+// tracking.
 //
 // This is safe to be called from multiple goroutines.
 func (stats *Estimator) RemoveMemPoolTransaction(txHash *chainhash.Hash) {

@@ -15,6 +15,7 @@ import (
 	"github.com/decred/dcrd/blockchain/v3/indexers"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/dcrutil/v3"
+	"github.com/decred/dcrd/fees/v2"
 	"github.com/decred/dcrd/internal/rpcserver"
 	"github.com/decred/dcrd/mempool/v4"
 	"github.com/decred/dcrd/peer/v2"
@@ -453,4 +454,13 @@ func (*rpcClock) Now() time.Time {
 // rpcserver.Clock interface implementation.
 func (*rpcClock) Since(t time.Time) time.Duration {
 	return time.Since(t)
+}
+
+// Ensure rpcFeeEstimator implements the rpcserver.FeeEstimator interface.
+var _ rpcserver.FeeEstimator = (*rpcFeeEstimator)(nil)
+
+// rpcFeeEstimator provides a fee estimator for use with the RPC server and
+// implements the rpcserver.FeeEstimator interface.
+type rpcFeeEstimator struct {
+	*fees.Estimator
 }

@@ -622,6 +622,19 @@ func (c *testClock) Since(t time.Time) time.Duration {
 	return c.since
 }
 
+// testFeeEstimator provides a mock fee estimator by implementing the
+// rpcserver.FeeEstimator interface.
+type testFeeEstimator struct {
+	estimateFeeAmt dcrutil.Amount
+	estimateFeeErr error
+}
+
+// EstimateFee provides a mock implementation that calculates the
+// suggested fee for a transaction.
+func (e *testFeeEstimator) EstimateFee(targetConfs int32) (dcrutil.Amount, error) {
+	return e.estimateFeeAmt, e.estimateFeeErr
+}
+
 // mustParseHash converts the passed big-endian hex string into a
 // chainhash.Hash and will panic if there is an error.  It only differs from the
 // one available in chainhash in that it will panic so errors in the source code
@@ -681,18 +694,19 @@ var block432100 = func() wire.MsgBlock {
 }()
 
 type rpcTest struct {
-	name            string
-	handler         commandHandler
-	cmd             interface{}
-	mockChainParams *chaincfg.Params
-	mockChain       *testRPCChain
-	mockAddrManager *testAddrManager
-	mockSyncManager *testSyncManager
-	mockConnManager *testConnManager
-	mockClock       *testClock
-	result          interface{}
-	wantErr         bool
-	errCode         dcrjson.RPCErrorCode
+	name             string
+	handler          commandHandler
+	cmd              interface{}
+	mockChainParams  *chaincfg.Params
+	mockChain        *testRPCChain
+	mockAddrManager  *testAddrManager
+	mockFeeEstimator *testFeeEstimator
+	mockSyncManager  *testSyncManager
+	mockConnManager  *testConnManager
+	mockClock        *testClock
+	result           interface{}
+	wantErr          bool
+	errCode          dcrjson.RPCErrorCode
 }
 
 // setCfgOnce is used to set cfg once safely.
@@ -955,6 +969,15 @@ func defaultMockConnManager() *testConnManager {
 	}
 }
 
+// defaultMockFeeEstimator provides a default mock fee estimator to be used
+// throughout the tests. Tests can override these defaults by calling
+// defaultMockFeeEstimator, updating fields as necessary on the returned
+// *testFeeEstimator, and then setting rpcTest.mockFeeEstimator as that
+// *testFeeEstimator.
+func defaultMockFeeEstimator() *testFeeEstimator {
+	return &testFeeEstimator{}
+}
+
 // defaultMockConfig provides a default rpcserverConfig that is used throughout
 // the tests.  Defaults can be overridden by tests through the rpcTest struct.
 func defaultMockConfig(chainParams *chaincfg.Params) *rpcserverConfig {
@@ -962,6 +985,7 @@ func defaultMockConfig(chainParams *chaincfg.Params) *rpcserverConfig {
 		ChainParams:  chainParams,
 		Chain:        defaultMockRPCChain(),
 		AddrManager:  defaultMockAddrManager(),
+		FeeEstimator: defaultMockFeeEstimator(),
 		SyncMgr:      defaultMockSyncManager(),
 		ConnMgr:      defaultMockConnManager(),
 		Clock:        &testClock{},
@@ -1905,6 +1929,49 @@ func TestHandleEstimateFee(t *testing.T) {
 		handler: handleEstimateFee,
 		cmd:     &types.EstimateFeeCmd{},
 		result:  float64(0.0001),
+	}})
+}
+
+func TestHandleEstimateSmartFee(t *testing.T) {
+	conservative := types.EstimateSmartFeeConservative
+	economical := types.EstimateSmartFeeEconomical
+	validFeeEstimator := defaultMockFeeEstimator()
+	validFeeEstimator.estimateFeeAmt = 123456789
+	validFee := float64(1.23456789)
+	testRPCServerHandler(t, []rpcTest{{
+		name:    "handleEstimateSmartFee: ok with mode",
+		handler: handleEstimateSmartFee,
+		cmd: &types.EstimateSmartFeeCmd{
+			Confirmations: 0,
+			Mode:          &conservative,
+		},
+		mockFeeEstimator: validFeeEstimator,
+		result:           validFee,
+	}, {
+		name:             "handleEstimateSmartFee: ok no mode",
+		handler:          handleEstimateSmartFee,
+		cmd:              &types.EstimateSmartFeeCmd{},
+		mockFeeEstimator: validFeeEstimator,
+		result:           validFee,
+	}, {
+		name:    "handleEstimateSmartFee: not conservative mode",
+		handler: handleEstimateSmartFee,
+		cmd: &types.EstimateSmartFeeCmd{
+			Mode: &economical,
+		},
+		wantErr: true,
+		errCode: dcrjson.ErrRPCInvalidParameter,
+	}, {
+		name:    "handleEstimateSmartFee: estimate fee error",
+		handler: handleEstimateSmartFee,
+		cmd:     &types.EstimateSmartFeeCmd{},
+		mockFeeEstimator: func() *testFeeEstimator {
+			feeEstimator := defaultMockFeeEstimator()
+			feeEstimator.estimateFeeErr = errors.New("")
+			return feeEstimator
+		}(),
+		wantErr: true,
+		errCode: dcrjson.ErrRPCInternal.Code,
 	}})
 }
 
@@ -3363,6 +3430,9 @@ func testRPCServerHandler(t *testing.T, tests []rpcTest) {
 			}
 			if test.mockClock != nil {
 				rpcserverConfig.Clock = test.mockClock
+			}
+			if test.mockFeeEstimator != nil {
+				rpcserverConfig.FeeEstimator = test.mockFeeEstimator
 			}
 
 			testServer := &rpcServer{cfg: *rpcserverConfig}
