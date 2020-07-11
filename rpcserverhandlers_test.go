@@ -689,7 +689,6 @@ type rpcTest struct {
 	mockSyncManager *testSyncManager
 	mockConnManager *testConnManager
 	mockClock       *testClock
-	mockCfg         *config
 	result          interface{}
 	wantErr         bool
 	errCode         dcrjson.RPCErrorCode
@@ -976,8 +975,7 @@ func TestHandleAddNode(t *testing.T) {
 			Addr:   "127.0.0.210:9108",
 			SubCmd: "add",
 		},
-		mockConnManager: &testConnManager{},
-		result:          nil,
+		result: nil,
 	}, {
 		name:    "handleAddNode: 'add' subcommand error",
 		handler: handleAddNode,
@@ -985,9 +983,11 @@ func TestHandleAddNode(t *testing.T) {
 			Addr:   "127.0.0.210:9108",
 			SubCmd: "add",
 		},
-		mockConnManager: &testConnManager{
-			connectErr: errors.New("peer already connected"),
-		},
+		mockConnManager: func() *testConnManager {
+			connManager := defaultMockConnManager()
+			connManager.connectErr = errors.New("peer already connected")
+			return connManager
+		}(),
 		wantErr: true,
 		errCode: dcrjson.ErrRPCInvalidParameter,
 	}, {
@@ -997,9 +997,11 @@ func TestHandleAddNode(t *testing.T) {
 			Addr:   "127.0.0.210:9108",
 			SubCmd: "remove",
 		},
-		mockConnManager: &testConnManager{
-			removeByAddrErr: errors.New("peer not found"),
-		},
+		mockConnManager: func() *testConnManager {
+			connManager := defaultMockConnManager()
+			connManager.removeByAddrErr = errors.New("peer not found")
+			return connManager
+		}(),
 		wantErr: true,
 		errCode: dcrjson.ErrRPCInvalidParameter,
 	}, {
@@ -1009,9 +1011,11 @@ func TestHandleAddNode(t *testing.T) {
 			Addr:   "127.0.0.210:9108",
 			SubCmd: "onetry",
 		},
-		mockConnManager: &testConnManager{
-			connectErr: errors.New("peer already connected"),
-		},
+		mockConnManager: func() *testConnManager {
+			connManager := defaultMockConnManager()
+			connManager.connectErr = errors.New("peer already connected")
+			return connManager
+		}(),
 		wantErr: true,
 		errCode: dcrjson.ErrRPCInvalidParameter,
 	}, {
@@ -1327,52 +1331,12 @@ func TestHandleCreateRawSSRtx(t *testing.T) {
 		Tree:   1,
 	}}
 	defaultFee := dcrjson.Float64(1)
-	defaultMockFetchUtxoEntry := &testRPCUtxoEntry{
-		txType:     stake.TxTypeSStx,
-		height:     100000,
-		index:      0,
-		txVersion:  1,
-		isCoinBase: false,
-		hasExpiry:  true,
-		modified:   false,
-	}
 	testRPCServerHandler(t, []rpcTest{{
 		name:    "handleCreateRawSSRtx: ok",
 		handler: handleCreateRawSSRtx,
 		cmd: &types.CreateRawSSRtxCmd{
 			Inputs: defaultCmdInputs,
 			Fee:    defaultFee,
-		},
-		mockChain: &testRPCChain{
-			fetchUtxoEntry: defaultMockFetchUtxoEntry,
-			convertUtxosToMinimalOutputs: []*stake.MinimalOutput{{
-				PkScript: []byte{
-					0xBA, 0xA9, 0x14, 0x78, 0x02, 0x39, 0xEA, 0x12,
-					0x31, 0xBA, 0x67, 0xB0, 0xC5, 0xB8, 0x2E, 0x78,
-					0x6B, 0x51, 0xE2, 0x10, 0x72, 0x52, 0x21, 0x87,
-				},
-				Value:   100000000,
-				Version: 0,
-			}, {
-				PkScript: []byte{
-					0x6A, 0x1E, 0x35, 0x5C, 0x96, 0xF4, 0x86, 0x12,
-					0xD5, 0x75, 0x09, 0x14, 0x0E, 0x9A, 0x04, 0x99,
-					0x81, 0xD5, 0xF9, 0x97, 0x0F, 0x94,
-					0x5C, 0x77, 0x0D, 0x00, 0x00, 0x00, 0x00, 0x00, // commitamt
-					0x00, 0x58,
-				},
-				Value:   0,
-				Version: 0,
-			}, {
-				PkScript: []byte{
-					0xBD, 0x76, 0xA9, 0x14, 0x00, 0x00, 0x00, 0x00,
-					0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-					0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-					0x88, 0xAC,
-				},
-				Value:   0,
-				Version: 0,
-			}},
 		},
 		result: "0100000001395ebc9af44c4a696fa8e6287bdbf0a89a4d6207f191cb0f1eefc25" +
 			"6e6cb89110000000001ffffffff0100e1f5050000000000001abc76a914355c96" +
@@ -1385,9 +1349,9 @@ func TestHandleCreateRawSSRtx(t *testing.T) {
 			Inputs: defaultCmdInputs,
 			Fee:    defaultFee,
 		},
-		mockChain: &testRPCChain{
-			fetchUtxoEntry: defaultMockFetchUtxoEntry,
-			convertUtxosToMinimalOutputs: []*stake.MinimalOutput{{
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.convertUtxosToMinimalOutputs = []*stake.MinimalOutput{{
 				PkScript: []byte{
 					0xBA, 0xA9, 0x14, 0x78, 0x02, 0x39, 0xEA, 0x12,
 					0x31, 0xBA, 0x67, 0xB0, 0xC5, 0xB8, 0x2E, 0x78,
@@ -1414,8 +1378,9 @@ func TestHandleCreateRawSSRtx(t *testing.T) {
 				},
 				Value:   0,
 				Version: 0,
-			}},
-		},
+			}}
+			return chain
+		}(),
 		result: "0100000001395ebc9af44c4a696fa8e6287bdbf0a89a4d6207f191cb0f1eefc25" +
 			"6e6cb89110000000001ffffffff0100e1f50500000000000018bca914355c96f4" +
 			"8612d57509140e9a049981d5f9970f948700000000000000000100e40b5402000" +
@@ -1459,9 +1424,11 @@ func TestHandleCreateRawSSRtx(t *testing.T) {
 			Inputs: defaultCmdInputs,
 			Fee:    defaultFee,
 		},
-		mockChain: &testRPCChain{
-			fetchUtxoEntry: nil,
-		},
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.fetchUtxoEntry = nil
+			return chain
+		}(),
 		wantErr: true,
 		errCode: dcrjson.ErrRPCNoTxInfo,
 	}, {
@@ -1471,8 +1438,9 @@ func TestHandleCreateRawSSRtx(t *testing.T) {
 			Inputs: defaultCmdInputs,
 			Fee:    defaultFee,
 		},
-		mockChain: &testRPCChain{
-			fetchUtxoEntry: &testRPCUtxoEntry{
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.fetchUtxoEntry = &testRPCUtxoEntry{
 				txType:     stake.TxTypeRegular,
 				height:     100000,
 				index:      0,
@@ -1480,8 +1448,9 @@ func TestHandleCreateRawSSRtx(t *testing.T) {
 				isCoinBase: false,
 				hasExpiry:  true,
 				modified:   false,
-			},
-		},
+			}
+			return chain
+		}(),
 		wantErr: true,
 		errCode: dcrjson.ErrRPCDeserialization,
 	}, {
@@ -1495,9 +1464,6 @@ func TestHandleCreateRawSSRtx(t *testing.T) {
 				Tree:   0,
 			}},
 			Fee: defaultFee,
-		},
-		mockChain: &testRPCChain{
-			fetchUtxoEntry: defaultMockFetchUtxoEntry,
 		},
 		wantErr: true,
 		errCode: dcrjson.ErrRPCInvalidParameter,
@@ -1513,9 +1479,6 @@ func TestHandleCreateRawSSRtx(t *testing.T) {
 			}},
 			Fee: defaultFee,
 		},
-		mockChain: &testRPCChain{
-			fetchUtxoEntry: defaultMockFetchUtxoEntry,
-		},
 		wantErr: true,
 		errCode: dcrjson.ErrRPCInvalidParameter,
 	}, {
@@ -1525,9 +1488,9 @@ func TestHandleCreateRawSSRtx(t *testing.T) {
 			Inputs: defaultCmdInputs,
 			Fee:    defaultFee,
 		},
-		mockChain: &testRPCChain{
-			fetchUtxoEntry: defaultMockFetchUtxoEntry,
-			convertUtxosToMinimalOutputs: []*stake.MinimalOutput{{
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.convertUtxosToMinimalOutputs = []*stake.MinimalOutput{{
 				PkScript: []byte{
 					0xBA, 0xA9, 0x14, 0x78, 0x02, 0x39, 0xEA, 0x12,
 					0x31, 0xBA, 0x67, 0xB0, 0xC5, 0xB8, 0x2E, 0x78,
@@ -1554,8 +1517,9 @@ func TestHandleCreateRawSSRtx(t *testing.T) {
 				},
 				Value:   0,
 				Version: 0,
-			}},
-		},
+			}}
+			return chain
+		}(),
 		wantErr: true,
 		errCode: dcrjson.ErrRPCInvalidParameter,
 	}})
@@ -1920,10 +1884,7 @@ func TestHandleEstimateFee(t *testing.T) {
 		name:    "handleEstimateFee: ok",
 		handler: handleEstimateFee,
 		cmd:     &types.EstimateFeeCmd{},
-		mockCfg: &config{
-			minRelayTxFee: dcrutil.Amount(int64(10000)),
-		},
-		result: float64(0.0001),
+		result:  float64(0.0001),
 	}})
 }
 
@@ -1938,9 +1899,11 @@ func TestHandleExistsExpiredTickets(t *testing.T) {
 		cmd: &types.ExistsExpiredTicketsCmd{
 			TxHashes: defaultCmdTxHashes,
 		},
-		mockChain: &testRPCChain{
-			checkExpiredTickets: []bool{true, true},
-		},
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.checkExpiredTickets = []bool{true, true}
+			return chain
+		}(),
 		result: "03",
 	}, {
 		name:    "handleExistsExpiredTickets: only first ticket exists",
@@ -1948,9 +1911,11 @@ func TestHandleExistsExpiredTickets(t *testing.T) {
 		cmd: &types.ExistsExpiredTicketsCmd{
 			TxHashes: defaultCmdTxHashes,
 		},
-		mockChain: &testRPCChain{
-			checkExpiredTickets: []bool{true, false},
-		},
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.checkExpiredTickets = []bool{true, false}
+			return chain
+		}(),
 		result: "01",
 	}, {
 		name:    "handleExistsExpiredTickets: only second ticket exists",
@@ -1958,9 +1923,11 @@ func TestHandleExistsExpiredTickets(t *testing.T) {
 		cmd: &types.ExistsExpiredTicketsCmd{
 			TxHashes: defaultCmdTxHashes,
 		},
-		mockChain: &testRPCChain{
-			checkExpiredTickets: []bool{false, true},
-		},
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.checkExpiredTickets = []bool{false, true}
+			return chain
+		}(),
 		result: "02",
 	}, {
 		name:    "handleExistsExpiredTickets: none of the tickets exist",
@@ -1968,9 +1935,11 @@ func TestHandleExistsExpiredTickets(t *testing.T) {
 		cmd: &types.ExistsExpiredTicketsCmd{
 			TxHashes: defaultCmdTxHashes,
 		},
-		mockChain: &testRPCChain{
-			checkExpiredTickets: []bool{false, false},
-		},
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.checkExpiredTickets = []bool{false, false}
+			return chain
+		}(),
 		result: "00",
 	}, {
 		name:    "handleExistsExpiredTickets: invalid hash",
@@ -1980,9 +1949,11 @@ func TestHandleExistsExpiredTickets(t *testing.T) {
 				"g189cbe656c2ef1e0fcb91f107624d9aa8f0db7b28e6a86f694a4cf49abc5e39",
 			},
 		},
-		mockChain: &testRPCChain{
-			checkExpiredTickets: []bool{true, true},
-		},
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.checkExpiredTickets = []bool{true, true}
+			return chain
+		}(),
 		wantErr: true,
 		errCode: dcrjson.ErrRPCDecodeHexString,
 	}, {
@@ -1993,9 +1964,11 @@ func TestHandleExistsExpiredTickets(t *testing.T) {
 				"1189cbe656c2ef1e0fcb91f107624d9aa8f0db7b28e6a86f694a4cf49abc5e39",
 			},
 		},
-		mockChain: &testRPCChain{
-			checkExpiredTickets: []bool{true, true},
-		},
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.checkExpiredTickets = []bool{true, true}
+			return chain
+		}(),
 		wantErr: true,
 		errCode: dcrjson.ErrRPCInvalidParameter,
 	}})
@@ -2008,18 +1981,17 @@ func TestHandleExistsLiveTicket(t *testing.T) {
 		cmd: &types.ExistsLiveTicketCmd{
 			TxHash: "1189cbe656c2ef1e0fcb91f107624d9aa8f0db7b28e6a86f694a4cf49abc5e39",
 		},
-		mockChain: &testRPCChain{
-			checkLiveTicket: true,
-		},
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.checkLiveTicket = true
+			return chain
+		}(),
 		result: true,
 	}, {
 		name:    "handleExistsLiveTicket: ticket does not exist",
 		handler: handleExistsLiveTicket,
 		cmd: &types.ExistsLiveTicketCmd{
 			TxHash: "1189cbe656c2ef1e0fcb91f107624d9aa8f0db7b28e6a86f694a4cf49abc5e39",
-		},
-		mockChain: &testRPCChain{
-			checkLiveTicket: false,
 		},
 		result: false,
 	}, {
@@ -2044,9 +2016,11 @@ func TestHandleExistsLiveTickets(t *testing.T) {
 		cmd: &types.ExistsLiveTicketsCmd{
 			TxHashes: defaultCmdTxHashes,
 		},
-		mockChain: &testRPCChain{
-			checkLiveTickets: []bool{true, true},
-		},
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.checkLiveTickets = []bool{true, true}
+			return chain
+		}(),
 		result: "03",
 	}, {
 		name:    "handleExistsLiveTickets: only first ticket exists",
@@ -2054,9 +2028,11 @@ func TestHandleExistsLiveTickets(t *testing.T) {
 		cmd: &types.ExistsLiveTicketsCmd{
 			TxHashes: defaultCmdTxHashes,
 		},
-		mockChain: &testRPCChain{
-			checkLiveTickets: []bool{true, false},
-		},
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.checkLiveTickets = []bool{true, false}
+			return chain
+		}(),
 		result: "01",
 	}, {
 		name:    "handleExistsLiveTickets: only second ticket exists",
@@ -2064,9 +2040,11 @@ func TestHandleExistsLiveTickets(t *testing.T) {
 		cmd: &types.ExistsLiveTicketsCmd{
 			TxHashes: defaultCmdTxHashes,
 		},
-		mockChain: &testRPCChain{
-			checkLiveTickets: []bool{false, true},
-		},
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.checkLiveTickets = []bool{false, true}
+			return chain
+		}(),
 		result: "02",
 	}, {
 		name:    "handleExistsLiveTickets: none of the tickets exist",
@@ -2074,9 +2052,11 @@ func TestHandleExistsLiveTickets(t *testing.T) {
 		cmd: &types.ExistsLiveTicketsCmd{
 			TxHashes: defaultCmdTxHashes,
 		},
-		mockChain: &testRPCChain{
-			checkLiveTickets: []bool{false, false},
-		},
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.checkLiveTickets = []bool{false, false}
+			return chain
+		}(),
 		result: "00",
 	}, {
 		name:    "handleExistsLiveTickets: invalid hash",
@@ -2096,9 +2076,11 @@ func TestHandleExistsLiveTickets(t *testing.T) {
 				"1189cbe656c2ef1e0fcb91f107624d9aa8f0db7b28e6a86f694a4cf49abc5e39",
 			},
 		},
-		mockChain: &testRPCChain{
-			checkLiveTickets: []bool{true, true},
-		},
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.checkLiveTickets = []bool{true, true}
+			return chain
+		}(),
 		wantErr: true,
 		errCode: dcrjson.ErrRPCInvalidParameter,
 	}})
@@ -2115,9 +2097,11 @@ func TestHandleExistsMissedTickets(t *testing.T) {
 		cmd: &types.ExistsMissedTicketsCmd{
 			TxHashes: defaultCmdTxHashes,
 		},
-		mockChain: &testRPCChain{
-			checkMissedTickets: []bool{true, true},
-		},
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.checkMissedTickets = []bool{true, true}
+			return chain
+		}(),
 		result: "03",
 	}, {
 		name:    "handleExistsMissedTickets: only first ticket exists",
@@ -2125,9 +2109,11 @@ func TestHandleExistsMissedTickets(t *testing.T) {
 		cmd: &types.ExistsMissedTicketsCmd{
 			TxHashes: defaultCmdTxHashes,
 		},
-		mockChain: &testRPCChain{
-			checkMissedTickets: []bool{true, false},
-		},
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.checkMissedTickets = []bool{true, false}
+			return chain
+		}(),
 		result: "01",
 	}, {
 		name:    "handleExistsMissedTickets: only second ticket exists",
@@ -2135,9 +2121,11 @@ func TestHandleExistsMissedTickets(t *testing.T) {
 		cmd: &types.ExistsMissedTicketsCmd{
 			TxHashes: defaultCmdTxHashes,
 		},
-		mockChain: &testRPCChain{
-			checkMissedTickets: []bool{false, true},
-		},
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.checkMissedTickets = []bool{false, true}
+			return chain
+		}(),
 		result: "02",
 	}, {
 		name:    "handleExistsMissedTickets: none of the tickets exist",
@@ -2145,9 +2133,11 @@ func TestHandleExistsMissedTickets(t *testing.T) {
 		cmd: &types.ExistsMissedTicketsCmd{
 			TxHashes: defaultCmdTxHashes,
 		},
-		mockChain: &testRPCChain{
-			checkMissedTickets: []bool{false, false},
-		},
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.checkMissedTickets = []bool{false, false}
+			return chain
+		}(),
 		result: "00",
 	}, {
 		name:    "handleExistsMissedTickets: invalid hash",
@@ -2167,49 +2157,27 @@ func TestHandleExistsMissedTickets(t *testing.T) {
 				"1189cbe656c2ef1e0fcb91f107624d9aa8f0db7b28e6a86f694a4cf49abc5e39",
 			},
 		},
-		mockChain: &testRPCChain{
-			checkMissedTickets: []bool{true, true},
-		},
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.checkMissedTickets = []bool{true, true}
+			return chain
+		}(),
 		wantErr: true,
 		errCode: dcrjson.ErrRPCInvalidParameter,
 	}})
 }
 
 func TestHandleGetAddedNodeInfo(t *testing.T) {
-	testPeer1 := &testPeer{
-		addr:      "127.0.0.210",
-		connected: true,
-		inbound:   true,
-	}
-	testPeer2 := &testPeer{
-		addr:      "127.0.0.211:9108",
-		connected: true,
-		inbound:   false,
-	}
-	testPeer3 := &testPeer{
-		addr:      "mydomain.org:9108",
-		connected: true,
-		inbound:   false,
-	}
-	testPeer4 := &testPeer{
-		addr:      "nonexistentdomain.org:9108",
-		connected: true,
-		inbound:   false,
-		id:        31,
-	}
+	t.Parallel()
+
 	testRPCServerHandler(t, []rpcTest{{
 		name:    "handleGetAddedNodeInfo: ok without DNS and without address filter",
 		handler: handleGetAddedNodeInfo,
 		cmd: &types.GetAddedNodeInfoCmd{
 			DNS: false,
 		},
-		mockConnManager: &testConnManager{
-			addedNodeInfo: []rpcserver.Peer{
-				testPeer1,
-				testPeer2,
-			},
-		},
-		result: []string{"127.0.0.210", "127.0.0.211:9108"},
+		result: []string{"127.0.0.210:9108", "127.0.0.211:9108",
+			"mydomain.org:9108", "nonexistentdomain.org:9108"},
 	}, {
 		name:    "handleGetAddedNodeInfo: found without DNS and with address filter",
 		handler: handleGetAddedNodeInfo,
@@ -2217,25 +2185,13 @@ func TestHandleGetAddedNodeInfo(t *testing.T) {
 			DNS:  false,
 			Node: dcrjson.String("127.0.0.211:9108"),
 		},
-		mockConnManager: &testConnManager{
-			addedNodeInfo: []rpcserver.Peer{
-				testPeer1,
-				testPeer2,
-			},
-		},
 		result: []string{"127.0.0.211:9108"},
 	}, {
 		name:    "handleGetAddedNodeInfo: node not found",
 		handler: handleGetAddedNodeInfo,
 		cmd: &types.GetAddedNodeInfoCmd{
 			DNS:  false,
-			Node: dcrjson.String("160.221.215.212:9108"),
-		},
-		mockConnManager: &testConnManager{
-			addedNodeInfo: []rpcserver.Peer{
-				testPeer1,
-				testPeer2,
-			},
+			Node: dcrjson.String("127.0.0.212:9108"),
 		},
 		wantErr: true,
 		errCode: dcrjson.ErrRPCInternal.Code,
@@ -2245,26 +2201,19 @@ func TestHandleGetAddedNodeInfo(t *testing.T) {
 		cmd: &types.GetAddedNodeInfoCmd{
 			DNS: true,
 		},
-		mockCfg: &config{
-			lookup: func(host string) ([]net.IP, error) {
-				if host == "mydomain.org" {
-					return []net.IP{net.ParseIP("127.0.0.211")}, nil
-				}
-				return nil, errors.New("host not found")
-			},
-		},
-		mockConnManager: &testConnManager{
-			addedNodeInfo: []rpcserver.Peer{
-				testPeer1,
-				testPeer3,
-			},
-		},
 		result: []*types.GetAddedNodeInfoResult{{
-			AddedNode: "127.0.0.210",
+			AddedNode: "127.0.0.210:9108",
 			Connected: dcrjson.Bool(true),
 			Addresses: &[]types.GetAddedNodeInfoResultAddr{{
 				Address:   "127.0.0.210",
 				Connected: "inbound",
+			}},
+		}, {
+			AddedNode: "127.0.0.211:9108",
+			Connected: dcrjson.Bool(true),
+			Addresses: &[]types.GetAddedNodeInfoResultAddr{{
+				Address:   "127.0.0.211",
+				Connected: "outbound",
 			}},
 		}, {
 			AddedNode: "mydomain.org:9108",
@@ -2272,60 +2221,6 @@ func TestHandleGetAddedNodeInfo(t *testing.T) {
 			Addresses: &[]types.GetAddedNodeInfoResultAddr{{
 				Address:   "127.0.0.211",
 				Connected: "false",
-			}},
-		}},
-	}, {
-		name:    "handleGetAddedNodeInfo: found with DNS and with address filter",
-		handler: handleGetAddedNodeInfo,
-		cmd: &types.GetAddedNodeInfoCmd{
-			DNS:  true,
-			Node: dcrjson.String("mydomain.org:9108"),
-		},
-		mockCfg: &config{
-			lookup: func(host string) ([]net.IP, error) {
-				if host == "mydomain.org" {
-					return []net.IP{net.ParseIP("127.0.0.211")}, nil
-				}
-				return nil, errors.New("host not found")
-			},
-		},
-		mockConnManager: &testConnManager{
-			addedNodeInfo: []rpcserver.Peer{
-				testPeer1,
-				testPeer3,
-			},
-		},
-		result: []*types.GetAddedNodeInfoResult{{
-			AddedNode: "mydomain.org:9108",
-			Connected: dcrjson.Bool(true),
-			Addresses: &[]types.GetAddedNodeInfoResultAddr{{
-				Address:   "127.0.0.211",
-				Connected: "false",
-			}},
-		}},
-	}, {
-		name:    "handleGetAddedNodeInfo: ok with DNS lookup failed",
-		handler: handleGetAddedNodeInfo,
-		cmd: &types.GetAddedNodeInfoCmd{
-			DNS: true,
-		},
-		mockCfg: &config{
-			lookup: func(host string) ([]net.IP, error) {
-				return nil, errors.New("host not found")
-			},
-		},
-		mockConnManager: &testConnManager{
-			addedNodeInfo: []rpcserver.Peer{
-				testPeer1,
-				testPeer4,
-			},
-		},
-		result: []*types.GetAddedNodeInfoResult{{
-			AddedNode: "127.0.0.210",
-			Connected: dcrjson.Bool(true),
-			Addresses: &[]types.GetAddedNodeInfoResultAddr{{
-				Address:   "127.0.0.210",
-				Connected: "inbound",
 			}},
 		}, {
 			AddedNode: "nonexistentdomain.org:9108",
@@ -2335,40 +2230,42 @@ func TestHandleGetAddedNodeInfo(t *testing.T) {
 				Connected: "outbound",
 			}},
 		}},
+	}, {
+		name:    "handleGetAddedNodeInfo: found with DNS and with address filter",
+		handler: handleGetAddedNodeInfo,
+		cmd: &types.GetAddedNodeInfoCmd{
+			DNS:  true,
+			Node: dcrjson.String("mydomain.org:9108"),
+		},
+		result: []*types.GetAddedNodeInfoResult{{
+			AddedNode: "mydomain.org:9108",
+			Connected: dcrjson.Bool(true),
+			Addresses: &[]types.GetAddedNodeInfoResultAddr{{
+				Address:   "127.0.0.211",
+				Connected: "false",
+			}},
+		}},
 	}})
 }
 
 func TestHandleGetBestBlock(t *testing.T) {
-	hash := mustParseHash("000000000000000019e76d2f52f39f9245db35eab21741a61ed5bded310f0c87")
 	testRPCServerHandler(t, []rpcTest{{
 		name:    "handleGetBestBlock: ok",
 		handler: handleGetBestBlock,
 		cmd:     &types.GetBestBlockCmd{},
-		mockChain: &testRPCChain{
-			bestSnapshot: &blockchain.BestState{
-				Hash:   *hash,
-				Height: 451802,
-			},
-		},
 		result: &types.GetBestBlockResult{
-			Hash:   "000000000000000019e76d2f52f39f9245db35eab21741a61ed5bded310f0c87",
-			Height: 451802,
+			Hash:   block432100.BlockHash().String(),
+			Height: int64(block432100.Header.Height),
 		},
 	}})
 }
 
 func TestHandleGetBestBlockHash(t *testing.T) {
-	hash := mustParseHash("000000000000000019e76d2f52f39f9245db35eab21741a61ed5bded310f0c87")
 	testRPCServerHandler(t, []rpcTest{{
 		name:    "handleGetBestBlockHash: ok",
 		handler: handleGetBestBlockHash,
 		cmd:     &types.GetBestBlockHashCmd{},
-		mockChain: &testRPCChain{
-			bestSnapshot: &blockchain.BestState{
-				Hash: *hash,
-			},
-		},
-		result: "000000000000000019e76d2f52f39f9245db35eab21741a61ed5bded310f0c87",
+		result:  block432100.BlockHash().String(),
 	}})
 }
 
@@ -2377,68 +2274,25 @@ func TestHandleGetBlockchainInfo(t *testing.T) {
 	prevHash := mustParseHash("00000000000000001a1ec2becd0dd90bfbd0c65f42fdaf608dd9ceac2a3aee1d")
 	genesisHash := mustParseHash("298e5cc3d985bfe7f81dc135f360abe089edd4396b86d2de66b0cef42b21d980")
 	genesisPrevHash := mustParseHash("0000000000000000000000000000000000000000000000000000000000000000")
-
-	// Explicitly define the params that handleGetBlockchainInfo depends on so that
-	// the tests don't break when the values for these change.
-	testChainParams := cloneParams(chaincfg.MainNetParams())
-	testChainParams.Name = "mainnet"
-	testChainParams.Deployments = map[uint32][]chaincfg.ConsensusDeployment{
-		7: {{
-			Vote: chaincfg.Vote{
-				Id:          chaincfg.VoteIDHeaderCommitments,
-				Description: "Enable header commitments as defined in DCP0005",
-				Mask:        0x0006, // Bits 1 and 2
-				Choices: []chaincfg.Choice{{
-					Id:          "abstain",
-					Description: "abstain voting for change",
-					Bits:        0x0000,
-					IsAbstain:   true,
-					IsNo:        false,
-				}, {
-					Id:          "no",
-					Description: "keep the existing consensus rules",
-					Bits:        0x0002, // Bit 1
-					IsAbstain:   false,
-					IsNo:        true,
-				}, {
-					Id:          "yes",
-					Description: "change to the new consensus rules",
-					Bits:        0x0004, // Bit 2
-					IsAbstain:   false,
-					IsNo:        false,
-				}},
-			},
-			StartTime:  1567641600, // Sep 5th, 2019
-			ExpireTime: 1599264000, // Sep 5th, 2020
-		}},
-	}
-	testChainParams.PowLimitBits = 0x1d00ffff
-
 	testRPCServerHandler(t, []rpcTest{{
-		name:            "handleGetBlockchainInfo: ok",
-		handler:         handleGetBlockchainInfo,
-		cmd:             &types.GetBlockChainInfoCmd{},
-		mockChainParams: testChainParams,
-		mockChain: &testRPCChain{
-			bestSnapshot: &blockchain.BestState{
+		name:    "handleGetBlockchainInfo: ok",
+		handler: handleGetBlockchainInfo,
+		cmd:     &types.GetBlockChainInfoCmd{},
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.bestSnapshot = &blockchain.BestState{
 				Height:   463073,
 				Bits:     404696953,
 				Hash:     *hash,
 				PrevHash: *prevHash,
-			},
-			chainWork: big.NewInt(0).SetBytes([]byte{0x11, 0x5d, 0x28, 0x33, 0x84,
-				0x90, 0x90, 0xb0, 0x02, 0x65, 0x06}),
-			isCurrent:    false,
-			maxBlockSize: 393216,
-			nextThresholdState: blockchain.ThresholdStateTuple{
-				State:  blockchain.ThresholdStarted,
-				Choice: uint32(0xffffffff),
-			},
-			stateLastChangedHeight: int64(149248),
-		},
-		mockSyncManager: &testSyncManager{
-			syncHeight: 463074,
-		},
+			}
+			chain.chainWork = big.NewInt(0).SetBytes([]byte{0x11, 0x5d, 0x28, 0x33, 0x84,
+				0x90, 0x90, 0xb0, 0x02, 0x65, 0x06})
+			chain.isCurrent = false
+			chain.maxBlockSize = 393216
+			chain.stateLastChangedHeight = int64(149248)
+			return chain
+		}(),
 		result: types.GetBlockChainInfoResult{
 			Chain:                "mainnet",
 			Blocks:               int64(463073),
@@ -2461,30 +2315,33 @@ func TestHandleGetBlockchainInfo(t *testing.T) {
 			},
 		},
 	}, {
-		name:            "handleGetBlockchainInfo: ok with empty blockchain",
-		handler:         handleGetBlockchainInfo,
-		cmd:             &types.GetBlockChainInfoCmd{},
-		mockChainParams: testChainParams,
-		mockChain: &testRPCChain{
-			bestSnapshot: &blockchain.BestState{
+		name:    "handleGetBlockchainInfo: ok with empty blockchain",
+		handler: handleGetBlockchainInfo,
+		cmd:     &types.GetBlockChainInfoCmd{},
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.bestSnapshot = &blockchain.BestState{
 				Height:   0,
 				Bits:     453115903,
 				Hash:     *genesisHash,
 				PrevHash: *genesisPrevHash,
-			},
-			chainWork: big.NewInt(0).SetBytes([]byte{0x80, 0x00, 0x40, 0x00, 0x20,
-				0x00}),
-			isCurrent:    false,
-			maxBlockSize: 393216,
-			nextThresholdState: blockchain.ThresholdStateTuple{
+			}
+			chain.chainWork = big.NewInt(0).SetBytes([]byte{0x80, 0x00, 0x40, 0x00, 0x20,
+				0x00})
+			chain.isCurrent = false
+			chain.maxBlockSize = 393216
+			chain.nextThresholdState = blockchain.ThresholdStateTuple{
 				State:  blockchain.ThresholdDefined,
 				Choice: uint32(0xffffffff),
-			},
-			stateLastChangedHeight: int64(0),
-		},
-		mockSyncManager: &testSyncManager{
-			syncHeight: 0,
-		},
+			}
+			chain.stateLastChangedHeight = int64(0)
+			return chain
+		}(),
+		mockSyncManager: func() *testSyncManager {
+			syncManager := defaultMockSyncManager()
+			syncManager.syncHeight = 0
+			return syncManager
+		}(),
 		result: types.GetBlockChainInfoResult{
 			Chain:                "mainnet",
 			Blocks:               int64(0),
@@ -2507,82 +2364,74 @@ func TestHandleGetBlockchainInfo(t *testing.T) {
 			},
 		},
 	}, {
-		name:            "handleGetBlockchainInfo: could not fetch chain work",
-		handler:         handleGetBlockchainInfo,
-		cmd:             &types.GetBlockChainInfoCmd{},
-		mockChainParams: testChainParams,
-		mockChain: &testRPCChain{
-			bestSnapshot: &blockchain.BestState{
+		name:    "handleGetBlockchainInfo: could not fetch chain work",
+		handler: handleGetBlockchainInfo,
+		cmd:     &types.GetBlockChainInfoCmd{},
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.bestSnapshot = &blockchain.BestState{
 				Hash: *hash,
-			},
-			chainWorkErr: errors.New("could not fetch chain work"),
-		},
+			}
+			chain.chainWorkErr = errors.New("could not fetch chain work")
+			chain.stateLastChangedHeight = int64(149248)
+			return chain
+		}(),
 		wantErr: true,
 		errCode: dcrjson.ErrRPCInternal.Code,
 	}, {
-		name:            "handleGetBlockchainInfo: could not fetch max block size",
-		handler:         handleGetBlockchainInfo,
-		cmd:             &types.GetBlockChainInfoCmd{},
-		mockChainParams: testChainParams,
-		mockChain: &testRPCChain{
-			bestSnapshot: &blockchain.BestState{
+		name:    "handleGetBlockchainInfo: could not fetch max block size",
+		handler: handleGetBlockchainInfo,
+		cmd:     &types.GetBlockChainInfoCmd{},
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.bestSnapshot = &blockchain.BestState{
 				Hash: *hash,
-			},
-			chainWork: big.NewInt(0).SetBytes([]byte{0x11, 0x5d, 0x28, 0x33, 0x84,
-				0x90, 0x90, 0xb0, 0x02, 0x65, 0x06}),
-			maxBlockSizeErr: errors.New("could not fetch max block size"),
-		},
-		mockSyncManager: &testSyncManager{
-			syncHeight: 463074,
-		},
+			}
+			chain.chainWork = big.NewInt(0).SetBytes([]byte{0x11, 0x5d, 0x28, 0x33, 0x84,
+				0x90, 0x90, 0xb0, 0x02, 0x65, 0x06})
+			chain.maxBlockSizeErr = errors.New("could not fetch max block size")
+			return chain
+		}(),
 		wantErr: true,
 		errCode: dcrjson.ErrRPCInternal.Code,
 	}, {
-		name:            "handleGetBlockchainInfo: could not fetch threshold state",
-		handler:         handleGetBlockchainInfo,
-		cmd:             &types.GetBlockChainInfoCmd{},
-		mockChainParams: testChainParams,
-		mockChain: &testRPCChain{
-			bestSnapshot: &blockchain.BestState{
+		name:    "handleGetBlockchainInfo: could not fetch threshold state",
+		handler: handleGetBlockchainInfo,
+		cmd:     &types.GetBlockChainInfoCmd{},
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.bestSnapshot = &blockchain.BestState{
 				Height:   463073,
 				Bits:     404696953,
 				Hash:     *hash,
 				PrevHash: *prevHash,
-			},
-			chainWork: big.NewInt(0).SetBytes([]byte{0x11, 0x5d, 0x28, 0x33, 0x84,
-				0x90, 0x90, 0xb0, 0x02, 0x65, 0x06}),
-			maxBlockSize:          393216,
-			nextThresholdStateErr: errors.New("could not fetch threshold state"),
-		},
-		mockSyncManager: &testSyncManager{
-			syncHeight: 463074,
-		},
+			}
+			chain.chainWork = big.NewInt(0).SetBytes([]byte{0x11, 0x5d, 0x28, 0x33, 0x84,
+				0x90, 0x90, 0xb0, 0x02, 0x65, 0x06})
+			chain.maxBlockSize = 393216
+			chain.nextThresholdStateErr = errors.New("could not fetch threshold state")
+			return chain
+		}(),
 		wantErr: true,
 		errCode: dcrjson.ErrRPCInternal.Code,
 	}, {
-		name:            "handleGetBlockchainInfo: could not fetch state last changed",
-		handler:         handleGetBlockchainInfo,
-		cmd:             &types.GetBlockChainInfoCmd{},
-		mockChainParams: testChainParams,
-		mockChain: &testRPCChain{
-			bestSnapshot: &blockchain.BestState{
+		name:    "handleGetBlockchainInfo: could not fetch state last changed",
+		handler: handleGetBlockchainInfo,
+		cmd:     &types.GetBlockChainInfoCmd{},
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.bestSnapshot = &blockchain.BestState{
 				Height:   463073,
 				Bits:     404696953,
 				Hash:     *hash,
 				PrevHash: *prevHash,
-			},
-			chainWork: big.NewInt(0).SetBytes([]byte{0x11, 0x5d, 0x28, 0x33, 0x84,
-				0x90, 0x90, 0xb0, 0x02, 0x65, 0x06}),
-			maxBlockSize: 393216,
-			nextThresholdState: blockchain.ThresholdStateTuple{
-				State:  blockchain.ThresholdStarted,
-				Choice: uint32(0xffffffff),
-			},
-			stateLastChangedHeightErr: errors.New("could not fetch state last changed"),
-		},
-		mockSyncManager: &testSyncManager{
-			syncHeight: 463074,
-		},
+			}
+			chain.chainWork = big.NewInt(0).SetBytes([]byte{0x11, 0x5d, 0x28, 0x33, 0x84,
+				0x90, 0x90, 0xb0, 0x02, 0x65, 0x06})
+			chain.maxBlockSize = 393216
+			chain.stateLastChangedHeightErr = errors.New("could not fetch state last changed")
+			return chain
+		}(),
 		wantErr: true,
 		errCode: dcrjson.ErrRPCInternal.Code,
 	}})
@@ -2605,17 +2454,12 @@ func TestHandleGetBlock(t *testing.T) {
 	nextHash := mustParseHash("000000000000000002e63055e402c823cb86c8258806508d84d6dc2a0790bd49")
 	chainWork, _ := new(big.Int).SetString("0e805fb85284503581c57c", 16)
 
-	// Explicitly define the params that handleGetBlock depends on so that the
-	// tests don't break when the values for these change.
-	testChainParams := cloneParams(chaincfg.MainNetParams())
-	testChainParams.PowLimitBits = 0x1d00ffff
-
 	// Create raw transaction results. This uses createTxRawResult, so ideally
 	// createTxRawResult should be tested independently as well.
 	txns := blk.Transactions()
 	rawTxns := make([]types.TxRawResult, len(txns))
 	for i, tx := range txns {
-		rawTxn, err := createTxRawResult(testChainParams, tx.MsgTx(),
+		rawTxn, err := createTxRawResult(defaultChainParams, tx.MsgTx(),
 			tx.Hash().String(), uint32(i), &blkHeader, blk.Hash().String(),
 			int64(blkHeader.Height), confirmations)
 		if err != nil {
@@ -2626,7 +2470,7 @@ func TestHandleGetBlock(t *testing.T) {
 	stxns := blk.STransactions()
 	rawSTxns := make([]types.TxRawResult, len(stxns))
 	for i, tx := range stxns {
-		rawSTxn, err := createTxRawResult(testChainParams, tx.MsgTx(),
+		rawSTxn, err := createTxRawResult(defaultChainParams, tx.MsgTx(),
 			tx.Hash().String(), uint32(i), &blkHeader, blk.Hash().String(),
 			int64(blkHeader.Height), confirmations)
 		if err != nil {
@@ -2643,10 +2487,6 @@ func TestHandleGetBlock(t *testing.T) {
 			Verbose:   dcrjson.Bool(false),
 			VerboseTx: dcrjson.Bool(false),
 		},
-		mockChainParams: testChainParams,
-		mockChain: &testRPCChain{
-			blockByHash: blk,
-		},
 		result: blkHexString,
 	}, {
 		name:    "handleGetBlock: ok verbose",
@@ -2656,16 +2496,15 @@ func TestHandleGetBlock(t *testing.T) {
 			Verbose:   dcrjson.Bool(true),
 			VerboseTx: dcrjson.Bool(false),
 		},
-		mockChainParams: testChainParams,
-		mockChain: &testRPCChain{
-			bestSnapshot: &blockchain.BestState{
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.bestSnapshot = &blockchain.BestState{
 				Height: bestHeight,
-			},
-			blockByHash:       blk,
-			blockHashByHeight: nextHash,
-			chainWork:         chainWork,
-			mainChainHasBlock: true,
-		},
+			}
+			chain.blockByHash = blk
+			chain.blockHashByHeight = nextHash
+			return chain
+		}(),
 		result: types.GetBlockVerboseResult{
 			Hash:          blkHashString,
 			Version:       blkHeader.Version,
@@ -2710,16 +2549,15 @@ func TestHandleGetBlock(t *testing.T) {
 			Verbose:   dcrjson.Bool(true),
 			VerboseTx: dcrjson.Bool(true),
 		},
-		mockChainParams: testChainParams,
-		mockChain: &testRPCChain{
-			bestSnapshot: &blockchain.BestState{
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.bestSnapshot = &blockchain.BestState{
 				Height: bestHeight,
-			},
-			blockByHash:       blk,
-			blockHashByHeight: nextHash,
-			chainWork:         chainWork,
-			mainChainHasBlock: true,
-		},
+			}
+			chain.blockByHash = blk
+			chain.blockHashByHeight = nextHash
+			return chain
+		}(),
 		result: types.GetBlockVerboseResult{
 			Hash:          blkHashString,
 			Version:       blkHeader.Version,
@@ -2755,9 +2593,8 @@ func TestHandleGetBlock(t *testing.T) {
 			Verbose:   dcrjson.Bool(false),
 			VerboseTx: dcrjson.Bool(false),
 		},
-		mockChainParams: testChainParams,
-		wantErr:         true,
-		errCode:         dcrjson.ErrRPCDecodeHexString,
+		wantErr: true,
+		errCode: dcrjson.ErrRPCDecodeHexString,
 	}, {
 		name:    "handleGetBlock: block not found",
 		handler: handleGetBlock,
@@ -2766,10 +2603,11 @@ func TestHandleGetBlock(t *testing.T) {
 			Verbose:   dcrjson.Bool(false),
 			VerboseTx: dcrjson.Bool(false),
 		},
-		mockChainParams: testChainParams,
-		mockChain: &testRPCChain{
-			blockByHashErr: errors.New("block not found"),
-		},
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.blockByHashErr = errors.New("block not found")
+			return chain
+		}(),
 		wantErr: true,
 		errCode: dcrjson.ErrRPCBlockNotFound,
 	}, {
@@ -2780,11 +2618,11 @@ func TestHandleGetBlock(t *testing.T) {
 			Verbose:   dcrjson.Bool(true),
 			VerboseTx: dcrjson.Bool(false),
 		},
-		mockChainParams: testChainParams,
-		mockChain: &testRPCChain{
-			blockByHash:  blk,
-			chainWorkErr: errors.New("could not fetch chain work"),
-		},
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.chainWorkErr = errors.New("could not fetch chain work")
+			return chain
+		}(),
 		wantErr: true,
 		errCode: dcrjson.ErrRPCInternal.Code,
 	}, {
@@ -2795,16 +2633,14 @@ func TestHandleGetBlock(t *testing.T) {
 			Verbose:   dcrjson.Bool(true),
 			VerboseTx: dcrjson.Bool(false),
 		},
-		mockChainParams: testChainParams,
-		mockChain: &testRPCChain{
-			bestSnapshot: &blockchain.BestState{
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.bestSnapshot = &blockchain.BestState{
 				Height: bestHeight,
-			},
-			blockByHash:          blk,
-			blockHashByHeightErr: errors.New("no next block"),
-			chainWork:            chainWork,
-			mainChainHasBlock:    true,
-		},
+			}
+			chain.blockHashByHeightErr = errors.New("no next block")
+			return chain
+		}(),
 		wantErr: true,
 		errCode: dcrjson.ErrRPCInternal.Code,
 	}})
@@ -2815,38 +2651,29 @@ func TestHandleGetBlockCount(t *testing.T) {
 		name:    "handleGetBlockCount: ok",
 		handler: handleGetBlockCount,
 		cmd:     &types.GetBlockCountCmd{},
-		mockChain: &testRPCChain{
-			bestSnapshot: &blockchain.BestState{
-				Height: 451802,
-			},
-		},
-		result: int64(451802),
+		result:  int64(block432100.Header.Height),
 	}})
 }
 
 func TestHandleGetBlockHash(t *testing.T) {
-	blk := dcrutil.NewBlock(&block432100)
-	blkHash := blk.Hash()
-	blkHashString := blkHash.String()
 	testRPCServerHandler(t, []rpcTest{{
 		name:    "handleGetBlockHash: ok",
 		handler: handleGetBlockHash,
 		cmd: &types.GetBlockHashCmd{
-			Index: blk.Height(),
+			Index: int64(block432100.Header.Height),
 		},
-		mockChain: &testRPCChain{
-			blockHashByHeight: blkHash,
-		},
-		result: blkHashString,
+		result: block432100.BlockHash().String(),
 	}, {
 		name:    "handleGetBlockHash: block number out of range",
 		handler: handleGetBlockHash,
 		cmd: &types.GetBlockHashCmd{
 			Index: -1,
 		},
-		mockChain: &testRPCChain{
-			blockHashByHeightErr: errors.New("block number out of range"),
-		},
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.blockHashByHeightErr = errors.New("block number out of range")
+			return chain
+		}(),
 		wantErr: true,
 		errCode: dcrjson.ErrRPCOutOfRange,
 	}})
@@ -2869,21 +2696,12 @@ func TestHandleGetBlockHeader(t *testing.T) {
 	nextHash := mustParseHash("000000000000000002e63055e402c823cb86c8258806508d84d6dc2a0790bd49")
 	chainWork, _ := new(big.Int).SetString("0e805fb85284503581c57c", 16)
 
-	// Explicitly define the params that handleGetBlockHeader depends on so that
-	// the tests don't break when the values for these change.
-	testChainParams := cloneParams(chaincfg.MainNetParams())
-	testChainParams.PowLimitBits = 0x1d00ffff
-
 	testRPCServerHandler(t, []rpcTest{{
 		name:    "handleGetBlockHeader: ok",
 		handler: handleGetBlockHeader,
 		cmd: &types.GetBlockHeaderCmd{
 			Hash:    blkHashString,
 			Verbose: dcrjson.Bool(false),
-		},
-		mockChainParams: testChainParams,
-		mockChain: &testRPCChain{
-			headerByHash: blkHeader,
 		},
 		result: blkHeaderHexString,
 	}, {
@@ -2893,16 +2711,14 @@ func TestHandleGetBlockHeader(t *testing.T) {
 			Hash:    blkHashString,
 			Verbose: dcrjson.Bool(true),
 		},
-		mockChainParams: testChainParams,
-		mockChain: &testRPCChain{
-			bestSnapshot: &blockchain.BestState{
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.bestSnapshot = &blockchain.BestState{
 				Height: bestHeight,
-			},
-			blockHashByHeight: nextHash,
-			chainWork:         chainWork,
-			headerByHash:      blkHeader,
-			mainChainHasBlock: true,
-		},
+			}
+			chain.blockHashByHeight = nextHash
+			return chain
+		}(),
 		result: types.GetBlockHeaderVerboseResult{
 			Hash:          blkHashString,
 			Confirmations: confirmations,
@@ -2935,9 +2751,8 @@ func TestHandleGetBlockHeader(t *testing.T) {
 			Hash:    "invalid",
 			Verbose: dcrjson.Bool(false),
 		},
-		mockChainParams: testChainParams,
-		wantErr:         true,
-		errCode:         dcrjson.ErrRPCDecodeHexString,
+		wantErr: true,
+		errCode: dcrjson.ErrRPCDecodeHexString,
 	}, {
 		name:    "handleGetBlockHeader: block not found",
 		handler: handleGetBlockHeader,
@@ -2945,10 +2760,11 @@ func TestHandleGetBlockHeader(t *testing.T) {
 			Hash:    blkHashString,
 			Verbose: dcrjson.Bool(false),
 		},
-		mockChainParams: testChainParams,
-		mockChain: &testRPCChain{
-			headerByHashErr: errors.New("block not found"),
-		},
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.headerByHashErr = errors.New("block not found")
+			return chain
+		}(),
 		wantErr: true,
 		errCode: dcrjson.ErrRPCBlockNotFound,
 	}, {
@@ -2958,11 +2774,11 @@ func TestHandleGetBlockHeader(t *testing.T) {
 			Hash:    blkHashString,
 			Verbose: dcrjson.Bool(true),
 		},
-		mockChainParams: testChainParams,
-		mockChain: &testRPCChain{
-			chainWorkErr: errors.New("could not fetch chain work"),
-			headerByHash: blkHeader,
-		},
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.chainWorkErr = errors.New("could not fetch chain work")
+			return chain
+		}(),
 		wantErr: true,
 		errCode: dcrjson.ErrRPCInternal.Code,
 	}, {
@@ -2972,16 +2788,14 @@ func TestHandleGetBlockHeader(t *testing.T) {
 			Hash:    blkHashString,
 			Verbose: dcrjson.Bool(true),
 		},
-		mockChainParams: testChainParams,
-		mockChain: &testRPCChain{
-			bestSnapshot: &blockchain.BestState{
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.bestSnapshot = &blockchain.BestState{
 				Height: bestHeight,
-			},
-			blockHashByHeightErr: errors.New("no next block"),
-			chainWork:            chainWork,
-			headerByHash:         blkHeader,
-			mainChainHasBlock:    true,
-		},
+			}
+			chain.blockHashByHeightErr = errors.New("no next block")
+			return chain
+		}(),
 		wantErr: true,
 		errCode: dcrjson.ErrRPCInternal.Code,
 	}})
@@ -3005,46 +2819,15 @@ func TestHandleGetBlockSubsidy(t *testing.T) {
 }
 
 func TestHandleGetChainTips(t *testing.T) {
-	h1 := mustParseHash("000000000000000002e4e275720a511cc4c6e881ac7aa94f6786e496d0901e5c")
-	h2 := mustParseHash("00000000000000000cc40fe6f2fe9a0c482281d79f1b49c3c77b976859edd963")
-	h3 := mustParseHash("00000000000000000afa4a9c11c4106aac0c73f595182227e78688218f3516f1")
 	testRPCServerHandler(t, []rpcTest{{
 		name:    "handleGetChainTips: ok",
 		handler: handleGetChainTips,
 		cmd:     &types.GetChainTipsCmd{},
-		mockChain: &testRPCChain{
-			chainTips: []blockchain.ChainTipInfo{{
-				Height:    453336,
-				Hash:      *h1,
-				BranchLen: 0,
-				Status:    "active",
-			}, {
-				Height:    450576,
-				Hash:      *h2,
-				BranchLen: 1,
-				Status:    "valid-headers",
-			}, {
-				Height:    449982,
-				Hash:      *h3,
-				BranchLen: 1,
-				Status:    "valid-headers",
-			}},
-		},
 		result: []types.GetChainTipsResult{{
-			Height:    453336,
-			Hash:      "000000000000000002e4e275720a511cc4c6e881ac7aa94f6786e496d0901e5c",
-			BranchLen: 0,
+			Height:    int64(block432100.Header.Height),
+			Hash:      block432100.BlockHash().String(),
+			BranchLen: 500,
 			Status:    "active",
-		}, {
-			Height:    450576,
-			Hash:      "00000000000000000cc40fe6f2fe9a0c482281d79f1b49c3c77b976859edd963",
-			BranchLen: 1,
-			Status:    "valid-headers",
-		}, {
-			Height:    449982,
-			Hash:      "00000000000000000afa4a9c11c4106aac0c73f595182227e78688218f3516f1",
-			BranchLen: 1,
-			Status:    "valid-headers",
 		}},
 	}})
 }
@@ -3054,12 +2837,7 @@ func TestHandleGetCoinSupply(t *testing.T) {
 		name:    "handleGetCoinSupply: ok",
 		handler: handleGetCoinSupply,
 		cmd:     &types.GetCoinSupplyCmd{},
-		mockChain: &testRPCChain{
-			bestSnapshot: &blockchain.BestState{
-				TotalSubsidy: 1152286647709751,
-			},
-		},
-		result: int64(1152286647709751),
+		result:  int64(1122503888072909),
 	}})
 }
 
@@ -3068,10 +2846,7 @@ func TestHandleGetConnectionCount(t *testing.T) {
 		name:    "handleGetConnectionCount: ok",
 		handler: handleGetConnectionCount,
 		cmd:     &types.GetConnectionCountCmd{},
-		mockConnManager: &testConnManager{
-			connectedCount: 7,
-		},
-		result: int32(7),
+		result:  int32(4),
 	}})
 }
 
@@ -3089,31 +2864,15 @@ func TestHandleGetInfo(t *testing.T) {
 		name:    "handleGetInfo: ok",
 		handler: handleGetInfo,
 		cmd:     &types.GetInfoCmd{},
-		mockConnManager: &testConnManager{
-			connectedCount: 7,
-		},
-		mockChain: &testRPCChain{
-			bestSnapshot: &blockchain.BestState{
-				Bits:   493007795,
-				Height: 449708,
-			},
-		},
-		mockCfg: &config{
-			AddrIndex:     false,
-			Proxy:         "",
-			TestNet:       false,
-			TxIndex:       false,
-			minRelayTxFee: dcrutil.Amount(int64(10000)),
-		},
 		result: &types.InfoChainResult{
 			Version: int32(1000000*version.Major + 10000*version.Minor +
 				100*version.Patch),
 			ProtocolVersion: int32(maxProtocolVersion),
-			Blocks:          int64(449708),
+			Blocks:          int64(block432100.Header.Height),
 			TimeOffset:      int64(0),
-			Connections:     int32(7),
+			Connections:     int32(4),
 			Proxy:           "",
-			Difficulty:      float64(0.01013136),
+			Difficulty:      float64(28147398026.656624),
 			TestNet:         false,
 			RelayFee:        float64(0.0001),
 			AddrIndex:       false,
@@ -3127,10 +2886,6 @@ func TestHandleGetNetTotals(t *testing.T) {
 		name:    "handleGetNetTotals: ok",
 		handler: handleGetNetTotals,
 		cmd:     &types.GetNetTotalsCmd{},
-		mockConnManager: &testConnManager{
-			netTotalReceived: uint64(9598159),
-			netTotalSent:     uint64(4783802),
-		},
 		mockClock: &testClock{
 			now: time.Unix(1592931302, 0),
 		},
@@ -3143,51 +2898,19 @@ func TestHandleGetNetTotals(t *testing.T) {
 }
 
 func TestHandleGetNetworkInfo(t *testing.T) {
+	t.Parallel()
+
 	testRPCServerHandler(t, []rpcTest{{
 		name:    "handleGetNetworkInfo: ok",
 		handler: handleGetNetworkInfo,
 		cmd:     &types.GetNetworkInfoCmd{},
-		mockAddrManager: &testAddrManager{
-			localAddresses: []addrmgr.LocalAddr{{
-				Address: "127.0.0.184",
-				Port:    uint16(19108),
-				Score:   int32(0),
-			}},
-		},
-		mockConnManager: &testConnManager{
-			connectedCount: 7,
-		},
-		mockCfg: &config{
-			minRelayTxFee: dcrutil.Amount(int64(10000)),
-			ipv4NetInfo: types.NetworksResult{
-				Name:                      "IPV4",
-				Limited:                   false,
-				Reachable:                 true,
-				Proxy:                     "",
-				ProxyRandomizeCredentials: false,
-			},
-			ipv6NetInfo: types.NetworksResult{
-				Name:                      "IPV6",
-				Limited:                   false,
-				Reachable:                 true,
-				Proxy:                     "",
-				ProxyRandomizeCredentials: false,
-			},
-			onionNetInfo: types.NetworksResult{
-				Name:                      "Onion",
-				Limited:                   false,
-				Reachable:                 false,
-				Proxy:                     "",
-				ProxyRandomizeCredentials: false,
-			},
-		},
 		result: types.GetNetworkInfoResult{
 			Version: int32(1000000*version.Major + 10000*version.Minor +
 				100*version.Patch),
 			SubVersion:      userAgentVersion,
 			ProtocolVersion: int32(maxProtocolVersion),
 			TimeOffset:      int64(0),
-			Connections:     int32(7),
+			Connections:     int32(4),
 			Networks: []types.NetworksResult{{
 				Name:                      "IPV4",
 				Limited:                   false,
@@ -3220,12 +2943,12 @@ func TestHandleGetNetworkInfo(t *testing.T) {
 
 func TestHandleGetPeerInfo(t *testing.T) {
 	testRPCServerHandler(t, []rpcTest{{
-		name:            "handleGetPeerInfo: ok",
-		handler:         handleGetPeerInfo,
-		cmd:             &types.GetPeerInfoCmd{},
-		mockSyncManager: &testSyncManager{},
-		mockConnManager: &testConnManager{
-			connectedPeers: []rpcserver.Peer{
+		name:    "handleGetPeerInfo: ok",
+		handler: handleGetPeerInfo,
+		cmd:     &types.GetPeerInfoCmd{},
+		mockConnManager: func() *testConnManager {
+			connManager := defaultMockConnManager()
+			connManager.connectedPeers = []rpcserver.Peer{
 				&testPeer{
 					localAddr: testAddr{
 						net:  "tcp",
@@ -3256,8 +2979,9 @@ func TestHandleGetPeerInfo(t *testing.T) {
 						LastPingMicros: int64(0),
 					},
 				},
-			},
-		},
+			}
+			return connManager
+		}(),
 		mockClock: &testClock{
 			since: time.Duration(2000),
 		},
@@ -3287,28 +3011,13 @@ func TestHandleGetPeerInfo(t *testing.T) {
 }
 
 func TestHandleGetTxOutSetInfo(t *testing.T) {
-	hash := mustParseHash("000000000000000019e76d2f52f39f9245db35eab21741a61ed5bded310f0c87")
-	sHash := mustParseHash("fe7b32aa188800f07268b17f3bead5f3d8a1b6d18654182066436efce6effa86")
 	testRPCServerHandler(t, []rpcTest{{
 		name:    "handleGetTxOutSetInfo: ok",
 		handler: handleGetTxOutSetInfo,
 		cmd:     &types.GetTxOutSetInfoCmd{},
-		mockChain: &testRPCChain{
-			bestSnapshot: &blockchain.BestState{
-				Hash:   *hash,
-				Height: 451802,
-			},
-			fetchUtxoStats: &blockchain.UtxoStats{
-				Utxos:          1593879,
-				Transactions:   689819,
-				Size:           36441617,
-				Total:          1154067750680149,
-				SerializedHash: *sHash,
-			},
-		},
 		result: types.GetTxOutSetInfoResult{
-			Height:         451802,
-			BestBlock:      "000000000000000019e76d2f52f39f9245db35eab21741a61ed5bded310f0c87",
+			Height:         int64(block432100.Header.Height),
+			BestBlock:      block432100.BlockHash().String(),
 			Transactions:   689819,
 			TxOuts:         1593879,
 			SerializedHash: "fe7b32aa188800f07268b17f3bead5f3d8a1b6d18654182066436efce6effa86",
@@ -3319,6 +3028,8 @@ func TestHandleGetTxOutSetInfo(t *testing.T) {
 }
 
 func TestHandleNode(t *testing.T) {
+	t.Parallel()
+
 	testRPCServerHandler(t, []rpcTest{{
 		name:    "handleNode: ok with disconnect by address",
 		handler: handleNode,
@@ -3326,18 +3037,19 @@ func TestHandleNode(t *testing.T) {
 			SubCmd: "disconnect",
 			Target: "127.0.0.210:9108",
 		},
-		mockConnManager: &testConnManager{},
-		result:          nil,
+		result: nil,
 	}, {
 		name:    "handleNode: disconnect by address peer not found",
 		handler: handleNode,
 		cmd: &types.NodeCmd{
 			SubCmd: "disconnect",
-			Target: "127.0.0.210:9108",
+			Target: "127.0.0.299:9108",
 		},
-		mockConnManager: &testConnManager{
-			disconnectByAddrErr: errors.New("peer not found"),
-		},
+		mockConnManager: func() *testConnManager {
+			connManager := defaultMockConnManager()
+			connManager.disconnectByAddrErr = errors.New("peer not found")
+			return connManager
+		}(),
 		wantErr: true,
 		errCode: dcrjson.ErrRPCInvalidParameter,
 	}, {
@@ -3347,18 +3059,19 @@ func TestHandleNode(t *testing.T) {
 			SubCmd: "disconnect",
 			Target: "28",
 		},
-		mockConnManager: &testConnManager{},
-		result:          nil,
+		result: nil,
 	}, {
 		name:    "handleNode: disconnect by id peer not found",
 		handler: handleNode,
 		cmd: &types.NodeCmd{
 			SubCmd: "disconnect",
-			Target: "28",
+			Target: "99",
 		},
-		mockConnManager: &testConnManager{
-			disconnectByIDErr: errors.New("peer not found"),
-		},
+		mockConnManager: func() *testConnManager {
+			connManager := defaultMockConnManager()
+			connManager.disconnectByIDErr = errors.New("peer not found")
+			return connManager
+		}(),
 		wantErr: true,
 		errCode: dcrjson.ErrRPCInvalidParameter,
 	}, {
@@ -3368,9 +3081,8 @@ func TestHandleNode(t *testing.T) {
 			SubCmd: "disconnect",
 			Target: "invalid_address",
 		},
-		mockConnManager: &testConnManager{},
-		wantErr:         true,
-		errCode:         dcrjson.ErrRPCInvalidParameter,
+		wantErr: true,
+		errCode: dcrjson.ErrRPCInvalidParameter,
 	}, {
 		name:    "handleNode: can't disconnect a permanent peer",
 		handler: handleNode,
@@ -3378,15 +3090,11 @@ func TestHandleNode(t *testing.T) {
 			SubCmd: "disconnect",
 			Target: "127.0.0.210:9108",
 		},
-		mockConnManager: &testConnManager{
-			disconnectByAddrErr: errors.New("peer not found"),
-			connectedPeers: []rpcserver.Peer{
-				&testPeer{
-					id:   28,
-					addr: "127.0.0.210:9108",
-				},
-			},
-		},
+		mockConnManager: func() *testConnManager {
+			connManager := defaultMockConnManager()
+			connManager.disconnectByAddrErr = errors.New("peer not found")
+			return connManager
+		}(),
 		wantErr: true,
 		errCode: dcrjson.ErrRPCMisc,
 	}, {
@@ -3396,18 +3104,19 @@ func TestHandleNode(t *testing.T) {
 			SubCmd: "remove",
 			Target: "127.0.0.210:9108",
 		},
-		mockConnManager: &testConnManager{},
-		result:          nil,
+		result: nil,
 	}, {
 		name:    "handleNode: remove by address peer not found",
 		handler: handleNode,
 		cmd: &types.NodeCmd{
 			SubCmd: "remove",
-			Target: "127.0.0.210:9108",
+			Target: "127.0.0.299:9108",
 		},
-		mockConnManager: &testConnManager{
-			removeByAddrErr: errors.New("peer not found"),
-		},
+		mockConnManager: func() *testConnManager {
+			connManager := defaultMockConnManager()
+			connManager.removeByAddrErr = errors.New("peer not found")
+			return connManager
+		}(),
 		wantErr: true,
 		errCode: dcrjson.ErrRPCInvalidParameter,
 	}, {
@@ -3417,18 +3126,19 @@ func TestHandleNode(t *testing.T) {
 			SubCmd: "remove",
 			Target: "28",
 		},
-		mockConnManager: &testConnManager{},
-		result:          nil,
+		result: nil,
 	}, {
 		name:    "handleNode: remove by id peer not found",
 		handler: handleNode,
 		cmd: &types.NodeCmd{
 			SubCmd: "remove",
-			Target: "28",
+			Target: "99",
 		},
-		mockConnManager: &testConnManager{
-			removeByIDErr: errors.New("peer not found"),
-		},
+		mockConnManager: func() *testConnManager {
+			connManager := defaultMockConnManager()
+			connManager.removeByIDErr = errors.New("peer not found")
+			return connManager
+		}(),
 		wantErr: true,
 		errCode: dcrjson.ErrRPCInvalidParameter,
 	}, {
@@ -3438,9 +3148,8 @@ func TestHandleNode(t *testing.T) {
 			SubCmd: "remove",
 			Target: "invalid_address",
 		},
-		mockConnManager: &testConnManager{},
-		wantErr:         true,
-		errCode:         dcrjson.ErrRPCInvalidParameter,
+		wantErr: true,
+		errCode: dcrjson.ErrRPCInvalidParameter,
 	}, {
 		name:    "handleNode: can't remove a temporary peer",
 		handler: handleNode,
@@ -3448,15 +3157,12 @@ func TestHandleNode(t *testing.T) {
 			SubCmd: "remove",
 			Target: "127.0.0.210:9108",
 		},
-		mockConnManager: &testConnManager{
-			removeByAddrErr: errors.New("peer not found"),
-			connectedPeers: []rpcserver.Peer{
-				&testPeer{
-					id:   28,
-					addr: "127.0.0.210:9108",
-				},
-			},
-		},
+		mockConnManager: func() *testConnManager {
+			connManager := defaultMockConnManager()
+			connManager.removeByAddrErr = errors.New("peer not found")
+			return connManager
+		}(),
+
 		wantErr: true,
 		errCode: dcrjson.ErrRPCMisc,
 	}, {
@@ -3467,8 +3173,7 @@ func TestHandleNode(t *testing.T) {
 			Target:        "127.0.0.210:9108",
 			ConnectSubCmd: dcrjson.String("perm"),
 		},
-		mockConnManager: &testConnManager{},
-		result:          nil,
+		result: nil,
 	}, {
 		name:    "handleNode: ok with connect temp",
 		handler: handleNode,
@@ -3477,8 +3182,7 @@ func TestHandleNode(t *testing.T) {
 			Target:        "127.0.0.210:9108",
 			ConnectSubCmd: dcrjson.String("temp"),
 		},
-		mockConnManager: &testConnManager{},
-		result:          nil,
+		result: nil,
 	}, {
 		name:    "handleNode: invalid connect sub cmd",
 		handler: handleNode,
@@ -3487,9 +3191,8 @@ func TestHandleNode(t *testing.T) {
 			Target:        "127.0.0.210:9108",
 			ConnectSubCmd: dcrjson.String("invalid"),
 		},
-		mockConnManager: &testConnManager{},
-		wantErr:         true,
-		errCode:         dcrjson.ErrRPCInvalidParameter,
+		wantErr: true,
+		errCode: dcrjson.ErrRPCInvalidParameter,
 	}, {
 		name:    "handleNode: invalid sub cmd",
 		handler: handleNode,
@@ -3497,19 +3200,17 @@ func TestHandleNode(t *testing.T) {
 			SubCmd: "invalid",
 			Target: "127.0.0.210:9108",
 		},
-		mockConnManager: &testConnManager{},
-		wantErr:         true,
-		errCode:         dcrjson.ErrRPCInvalidParameter,
+		wantErr: true,
+		errCode: dcrjson.ErrRPCInvalidParameter,
 	}})
 }
 
 func TestHandlePing(t *testing.T) {
 	testRPCServerHandler(t, []rpcTest{{
-		name:            "handlePing: ok",
-		handler:         handlePing,
-		cmd:             &types.PingCmd{},
-		mockConnManager: &testConnManager{},
-		result:          nil,
+		name:    "handlePing: ok",
+		handler: handlePing,
+		cmd:     &types.PingCmd{},
+		result:  nil,
 	}})
 }
 
@@ -3526,18 +3227,12 @@ func TestHandleSubmitBlock(t *testing.T) {
 		cmd: &types.SubmitBlockCmd{
 			HexBlock: blkHexString,
 		},
-		mockSyncManager: &testSyncManager{
-			submitBlock: true,
-		},
 		result: nil,
 	}, {
 		name:    "handleSubmitBlock: ok with odd length hex",
 		handler: handleSubmitBlock,
 		cmd: &types.SubmitBlockCmd{
 			HexBlock: blkHexString[1:],
-		},
-		mockSyncManager: &testSyncManager{
-			submitBlock: true,
 		},
 		result: nil,
 	}, {
@@ -3562,9 +3257,11 @@ func TestHandleSubmitBlock(t *testing.T) {
 		cmd: &types.SubmitBlockCmd{
 			HexBlock: blkHexString,
 		},
-		mockSyncManager: &testSyncManager{
-			submitBlockErr: errors.New("block rejected"),
-		},
+		mockSyncManager: func() *testSyncManager {
+			syncManager := defaultMockSyncManager()
+			syncManager.submitBlockErr = errors.New("block rejected")
+			return syncManager
+		}(),
 		result: "rejected: block rejected",
 	}})
 }
