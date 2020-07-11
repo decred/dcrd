@@ -18,6 +18,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"strconv"
+	"sync"
 	"testing"
 	"time"
 
@@ -694,6 +695,9 @@ type rpcTest struct {
 	errCode         dcrjson.RPCErrorCode
 }
 
+// setCfgOnce is used to set cfg once safely.
+var setCfgOnce sync.Once
+
 // defaultCfg provides a default config that is used throughout the tests.
 func defaultCfg() *config {
 	return &config{
@@ -968,6 +972,8 @@ func defaultMockConfig(chainParams *chaincfg.Params) *rpcserverConfig {
 }
 
 func TestHandleAddNode(t *testing.T) {
+	t.Parallel()
+
 	testRPCServerHandler(t, []rpcTest{{
 		name:    "handleAddNode: ok",
 		handler: handleAddNode,
@@ -1031,6 +1037,8 @@ func TestHandleAddNode(t *testing.T) {
 }
 
 func TestHandleCreateRawSStx(t *testing.T) {
+	t.Parallel()
+
 	defaultCmdInputs := []types.SStxInput{{
 		Txid: "e02f03a25a57afdd402818fe5b13985a0731502ad8a8c93d1874900e84d3330d",
 		Vout: 0,
@@ -1324,6 +1332,8 @@ func TestHandleCreateRawSStx(t *testing.T) {
 }
 
 func TestHandleCreateRawSSRtx(t *testing.T) {
+	t.Parallel()
+
 	defaultCmdInputs := []types.TransactionInput{{
 		Amount: 100,
 		Txid:   "1189cbe656c2ef1e0fcb91f107624d9aa8f0db7b28e6a86f694a4cf49abc5e39",
@@ -1526,6 +1536,8 @@ func TestHandleCreateRawSSRtx(t *testing.T) {
 }
 
 func TestHandleCreateRawTransaction(t *testing.T) {
+	t.Parallel()
+
 	defaultCmdInputs := []types.TransactionInput{{
 		Amount: 1,
 		Txid:   "e02f03a25a57afdd402818fe5b13985a0731502ad8a8c93d1874900e84d3330d",
@@ -1648,6 +1660,8 @@ func TestHandleCreateRawTransaction(t *testing.T) {
 }
 
 func TestHandleDebugLevel(t *testing.T) {
+	t.Parallel()
+
 	testRPCServerHandler(t, []rpcTest{{
 		name:    "handleDebugLevel: show",
 		handler: handleDebugLevel,
@@ -1674,6 +1688,8 @@ func TestHandleDebugLevel(t *testing.T) {
 }
 
 func TestHandleDecodeRawTransaction(t *testing.T) {
+	t.Parallel()
+
 	testRPCServerHandler(t, []rpcTest{{
 		name:    "handleDecodeRawTransaction: ok",
 		handler: handleDecodeRawTransaction,
@@ -1784,6 +1800,8 @@ func TestHandleDecodeRawTransaction(t *testing.T) {
 }
 
 func TestHandleDecodeScript(t *testing.T) {
+	t.Parallel()
+
 	// This is a pay to stake submission script hash script.
 	p2sstxsh := "ba76a914000000000000000000000000000000000000000088ac"
 	p2sstxshRes := types.DecodeScriptResult{
@@ -1880,6 +1898,8 @@ func TestHandleDecodeScript(t *testing.T) {
 }
 
 func TestHandleEstimateFee(t *testing.T) {
+	t.Parallel()
+
 	testRPCServerHandler(t, []rpcTest{{
 		name:    "handleEstimateFee: ok",
 		handler: handleEstimateFee,
@@ -1889,6 +1909,8 @@ func TestHandleEstimateFee(t *testing.T) {
 }
 
 func TestHandleExistsExpiredTickets(t *testing.T) {
+	t.Parallel()
+
 	defaultCmdTxHashes := []string{
 		"1189cbe656c2ef1e0fcb91f107624d9aa8f0db7b28e6a86f694a4cf49abc5e39",
 		"2189cbe656c2ef1e0fcb91f107624d9aa8f0db7b28e6a86f694a4cf49abc5e39",
@@ -1975,6 +1997,8 @@ func TestHandleExistsExpiredTickets(t *testing.T) {
 }
 
 func TestHandleExistsLiveTicket(t *testing.T) {
+	t.Parallel()
+
 	testRPCServerHandler(t, []rpcTest{{
 		name:    "handleExistsLiveTicket: ticket exists",
 		handler: handleExistsLiveTicket,
@@ -2006,6 +2030,8 @@ func TestHandleExistsLiveTicket(t *testing.T) {
 }
 
 func TestHandleExistsLiveTickets(t *testing.T) {
+	t.Parallel()
+
 	defaultCmdTxHashes := []string{
 		"1189cbe656c2ef1e0fcb91f107624d9aa8f0db7b28e6a86f694a4cf49abc5e39",
 		"2189cbe656c2ef1e0fcb91f107624d9aa8f0db7b28e6a86f694a4cf49abc5e39",
@@ -2087,6 +2113,8 @@ func TestHandleExistsLiveTickets(t *testing.T) {
 }
 
 func TestHandleExistsMissedTickets(t *testing.T) {
+	t.Parallel()
+
 	defaultCmdTxHashes := []string{
 		"1189cbe656c2ef1e0fcb91f107624d9aa8f0db7b28e6a86f694a4cf49abc5e39",
 		"2189cbe656c2ef1e0fcb91f107624d9aa8f0db7b28e6a86f694a4cf49abc5e39",
@@ -2249,6 +2277,8 @@ func TestHandleGetAddedNodeInfo(t *testing.T) {
 }
 
 func TestHandleGetBestBlock(t *testing.T) {
+	t.Parallel()
+
 	testRPCServerHandler(t, []rpcTest{{
 		name:    "handleGetBestBlock: ok",
 		handler: handleGetBestBlock,
@@ -2261,6 +2291,8 @@ func TestHandleGetBestBlock(t *testing.T) {
 }
 
 func TestHandleGetBestBlockHash(t *testing.T) {
+	t.Parallel()
+
 	testRPCServerHandler(t, []rpcTest{{
 		name:    "handleGetBestBlockHash: ok",
 		handler: handleGetBestBlockHash,
@@ -2270,6 +2302,8 @@ func TestHandleGetBestBlockHash(t *testing.T) {
 }
 
 func TestHandleGetBlockchainInfo(t *testing.T) {
+	t.Parallel()
+
 	hash := mustParseHash("00000000000000001e6ec1501c858506de1de4703d1be8bab4061126e8f61480")
 	prevHash := mustParseHash("00000000000000001a1ec2becd0dd90bfbd0c65f42fdaf608dd9ceac2a3aee1d")
 	genesisHash := mustParseHash("298e5cc3d985bfe7f81dc135f360abe089edd4396b86d2de66b0cef42b21d980")
@@ -2438,6 +2472,8 @@ func TestHandleGetBlockchainInfo(t *testing.T) {
 }
 
 func TestHandleGetBlock(t *testing.T) {
+	t.Parallel()
+
 	// Define variables related to block432100 to be used throughout the
 	// handleGetBlock tests.
 	blkHeader := block432100.Header
@@ -2647,6 +2683,8 @@ func TestHandleGetBlock(t *testing.T) {
 }
 
 func TestHandleGetBlockCount(t *testing.T) {
+	t.Parallel()
+
 	testRPCServerHandler(t, []rpcTest{{
 		name:    "handleGetBlockCount: ok",
 		handler: handleGetBlockCount,
@@ -2656,6 +2694,8 @@ func TestHandleGetBlockCount(t *testing.T) {
 }
 
 func TestHandleGetBlockHash(t *testing.T) {
+	t.Parallel()
+
 	testRPCServerHandler(t, []rpcTest{{
 		name:    "handleGetBlockHash: ok",
 		handler: handleGetBlockHash,
@@ -2680,6 +2720,8 @@ func TestHandleGetBlockHash(t *testing.T) {
 }
 
 func TestHandleGetBlockHeader(t *testing.T) {
+	t.Parallel()
+
 	// Define variables related to block432100 to be used throughout the
 	// handleGetBlockHeader tests.
 	blkHeader := block432100.Header
@@ -2802,6 +2844,8 @@ func TestHandleGetBlockHeader(t *testing.T) {
 }
 
 func TestHandleGetBlockSubsidy(t *testing.T) {
+	t.Parallel()
+
 	testRPCServerHandler(t, []rpcTest{{
 		name:    "handleGetBlockSubsidy: ok",
 		handler: handleGetBlockSubsidy,
@@ -2819,6 +2863,8 @@ func TestHandleGetBlockSubsidy(t *testing.T) {
 }
 
 func TestHandleGetChainTips(t *testing.T) {
+	t.Parallel()
+
 	testRPCServerHandler(t, []rpcTest{{
 		name:    "handleGetChainTips: ok",
 		handler: handleGetChainTips,
@@ -2833,6 +2879,8 @@ func TestHandleGetChainTips(t *testing.T) {
 }
 
 func TestHandleGetCoinSupply(t *testing.T) {
+	t.Parallel()
+
 	testRPCServerHandler(t, []rpcTest{{
 		name:    "handleGetCoinSupply: ok",
 		handler: handleGetCoinSupply,
@@ -2842,6 +2890,8 @@ func TestHandleGetCoinSupply(t *testing.T) {
 }
 
 func TestHandleGetConnectionCount(t *testing.T) {
+	t.Parallel()
+
 	testRPCServerHandler(t, []rpcTest{{
 		name:    "handleGetConnectionCount: ok",
 		handler: handleGetConnectionCount,
@@ -2851,6 +2901,8 @@ func TestHandleGetConnectionCount(t *testing.T) {
 }
 
 func TestHandleGetCurrentNet(t *testing.T) {
+	t.Parallel()
+
 	testRPCServerHandler(t, []rpcTest{{
 		name:    "handleGetCurrentNet: ok",
 		handler: handleGetCurrentNet,
@@ -2860,6 +2912,8 @@ func TestHandleGetCurrentNet(t *testing.T) {
 }
 
 func TestHandleGetInfo(t *testing.T) {
+	t.Parallel()
+
 	testRPCServerHandler(t, []rpcTest{{
 		name:    "handleGetInfo: ok",
 		handler: handleGetInfo,
@@ -2882,6 +2936,8 @@ func TestHandleGetInfo(t *testing.T) {
 }
 
 func TestHandleGetNetTotals(t *testing.T) {
+	t.Parallel()
+
 	testRPCServerHandler(t, []rpcTest{{
 		name:    "handleGetNetTotals: ok",
 		handler: handleGetNetTotals,
@@ -2942,6 +2998,8 @@ func TestHandleGetNetworkInfo(t *testing.T) {
 }
 
 func TestHandleGetPeerInfo(t *testing.T) {
+	t.Parallel()
+
 	testRPCServerHandler(t, []rpcTest{{
 		name:    "handleGetPeerInfo: ok",
 		handler: handleGetPeerInfo,
@@ -3011,6 +3069,8 @@ func TestHandleGetPeerInfo(t *testing.T) {
 }
 
 func TestHandleGetTxOutSetInfo(t *testing.T) {
+	t.Parallel()
+
 	testRPCServerHandler(t, []rpcTest{{
 		name:    "handleGetTxOutSetInfo: ok",
 		handler: handleGetTxOutSetInfo,
@@ -3206,6 +3266,8 @@ func TestHandleNode(t *testing.T) {
 }
 
 func TestHandlePing(t *testing.T) {
+	t.Parallel()
+
 	testRPCServerHandler(t, []rpcTest{{
 		name:    "handlePing: ok",
 		handler: handlePing,
@@ -3215,6 +3277,8 @@ func TestHandlePing(t *testing.T) {
 }
 
 func TestHandleSubmitBlock(t *testing.T) {
+	t.Parallel()
+
 	blk := dcrutil.NewBlock(&block432100)
 	blkBytes, err := blk.Bytes()
 	if err != nil {
@@ -3269,45 +3333,53 @@ func TestHandleSubmitBlock(t *testing.T) {
 func testRPCServerHandler(t *testing.T, tests []rpcTest) {
 	t.Helper()
 
-	cfg = defaultCfg()
-	for _, test := range tests {
-		// Create a default rpcserverConfig and override any configurations that are
-		// provided by the test.
-		chainParams := defaultChainParams
-		if test.mockChainParams != nil {
-			chainParams = test.mockChainParams
-		}
-		rpcserverConfig := defaultMockConfig(chainParams)
-		if test.mockChain != nil {
-			rpcserverConfig.Chain = test.mockChain
-		}
-		if test.mockAddrManager != nil {
-			rpcserverConfig.AddrManager = test.mockAddrManager
-		}
-		if test.mockSyncManager != nil {
-			rpcserverConfig.SyncMgr = test.mockSyncManager
-		}
-		if test.mockConnManager != nil {
-			rpcserverConfig.ConnMgr = test.mockConnManager
-		}
-		if test.mockClock != nil {
-			rpcserverConfig.Clock = test.mockClock
-		}
+	setCfgOnce.Do(func() {
+		cfg = defaultCfg()
+	})
 
-		testServer := &rpcServer{cfg: *rpcserverConfig}
-		result, err := test.handler(nil, testServer, test.cmd)
-		if test.wantErr {
-			var rpcErr *dcrjson.RPCError
-			if !errors.As(err, &rpcErr) || rpcErr.Code != test.errCode {
-				t.Errorf("%s\nwant: %+v\n got: %+v\n", test.name, test.errCode, rpcErr.Code)
+	for _, test := range tests {
+		test := test // capture range variable
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Create a default rpcserverConfig and override any configurations that are
+			// provided by the test.
+			chainParams := defaultChainParams
+			if test.mockChainParams != nil {
+				chainParams = test.mockChainParams
 			}
-			continue
-		}
-		if err != nil {
-			t.Errorf("%s\nunexpected error: %+v\n", test.name, err)
-		}
-		if !reflect.DeepEqual(result, test.result) {
-			t.Errorf("%s\nwant: %+v\n got: %+v\n", test.name, test.result, result)
-		}
+			rpcserverConfig := defaultMockConfig(chainParams)
+			if test.mockChain != nil {
+				rpcserverConfig.Chain = test.mockChain
+			}
+			if test.mockAddrManager != nil {
+				rpcserverConfig.AddrManager = test.mockAddrManager
+			}
+			if test.mockSyncManager != nil {
+				rpcserverConfig.SyncMgr = test.mockSyncManager
+			}
+			if test.mockConnManager != nil {
+				rpcserverConfig.ConnMgr = test.mockConnManager
+			}
+			if test.mockClock != nil {
+				rpcserverConfig.Clock = test.mockClock
+			}
+
+			testServer := &rpcServer{cfg: *rpcserverConfig}
+			result, err := test.handler(nil, testServer, test.cmd)
+			if test.wantErr {
+				var rpcErr *dcrjson.RPCError
+				if !errors.As(err, &rpcErr) || rpcErr.Code != test.errCode {
+					t.Errorf("%s\nwant: %+v\n got: %+v\n", test.name, test.errCode, rpcErr.Code)
+				}
+				return
+			}
+			if err != nil {
+				t.Errorf("%s\nunexpected error: %+v\n", test.name, err)
+			}
+			if !reflect.DeepEqual(result, test.result) {
+				t.Errorf("%s\nwant: %+v\n got: %+v\n", test.name, test.result, result)
+			}
+		})
 	}
 }
