@@ -634,6 +634,18 @@ func mustParseHash(s string) *chainhash.Hash {
 	return hash
 }
 
+// hexToBytes converts the passed hex string into bytes and will panic if there
+// is an error.  This is only provided for the hard-coded constants so errors in
+// the source code can be detected. It will only (and must only) be called with
+// hard-coded values.
+func hexToBytes(s string) []byte {
+	b, err := hex.DecodeString(s)
+	if err != nil {
+		panic("invalid hex in source file: " + s)
+	}
+	return b
+}
+
 // cloneParams returns a deep copy of the provided parameters so the caller is
 // free to modify them without worrying about interfering with other tests.
 func cloneParams(params *chaincfg.Params) *chaincfg.Params {
@@ -683,30 +695,285 @@ type rpcTest struct {
 	errCode         dcrjson.RPCErrorCode
 }
 
-// Provide default configurations that can be overridden by tests as needed.
-var defaultCfg = &config{}
-var defaultChainParams = chaincfg.MainNetParams()
-var defaultRPCChain = &testRPCChain{
-	bestSnapshot: &blockchain.BestState{
-		Height: 463073,
-		Bits:   404696953,
-		Hash: *mustParseHash("00000000000000001e6ec1501c858506de1de4703d1be8bab4061" +
-			"126e8f61480"),
-		PrevHash: *mustParseHash("00000000000000001a1ec2becd0dd90bfbd0c65f42fdaf608" +
-			"dd9ceac2a3aee1d"),
-	},
+// defaultCfg provides a default config that is used throughout the tests.
+func defaultCfg() *config {
+	return &config{
+		ipv4NetInfo: types.NetworksResult{
+			Name:                      "IPV4",
+			Limited:                   false,
+			Reachable:                 true,
+			Proxy:                     "",
+			ProxyRandomizeCredentials: false,
+		},
+		ipv6NetInfo: types.NetworksResult{
+			Name:                      "IPV6",
+			Limited:                   false,
+			Reachable:                 true,
+			Proxy:                     "",
+			ProxyRandomizeCredentials: false,
+		},
+		onionNetInfo: types.NetworksResult{
+			Name:                      "Onion",
+			Limited:                   false,
+			Reachable:                 false,
+			Proxy:                     "",
+			ProxyRandomizeCredentials: false,
+		},
+		lookup: func(host string) ([]net.IP, error) {
+			if host == "mydomain.org" {
+				return []net.IP{net.ParseIP("127.0.0.211")}, nil
+			}
+			return nil, errors.New("host not found")
+		},
+		minRelayTxFee: dcrutil.Amount(int64(10000)),
+	}
 }
-var defaultAddrManager = &testAddrManager{}
-var defaultSyncManager = &testSyncManager{}
-var defaultConnManager = &testConnManager{}
-var defaultClock = &testClock{}
+
+// defaultChainParams provides a default chaincfg.Params to be used throughout
+// the tests.  It should be cloned using cloneParams, updated as necessary, and
+// then assigned to rpcTest.mockChainParams if it needs to be overridden by a
+// test.
+var defaultChainParams = func() *chaincfg.Params {
+	testChainParams := cloneParams(chaincfg.MainNetParams())
+	testChainParams.Name = "mainnet"
+	testChainParams.Deployments = map[uint32][]chaincfg.ConsensusDeployment{
+		7: {{
+			Vote: chaincfg.Vote{
+				Id:          chaincfg.VoteIDHeaderCommitments,
+				Description: "Enable header commitments as defined in DCP0005",
+				Mask:        0x0006, // Bits 1 and 2
+				Choices: []chaincfg.Choice{{
+					Id:          "abstain",
+					Description: "abstain voting for change",
+					Bits:        0x0000,
+					IsAbstain:   true,
+					IsNo:        false,
+				}, {
+					Id:          "no",
+					Description: "keep the existing consensus rules",
+					Bits:        0x0002, // Bit 1
+					IsAbstain:   false,
+					IsNo:        true,
+				}, {
+					Id:          "yes",
+					Description: "change to the new consensus rules",
+					Bits:        0x0004, // Bit 2
+					IsAbstain:   false,
+					IsNo:        false,
+				}},
+			},
+			StartTime:  1567641600, // Sep 5th, 2019
+			ExpireTime: 1599264000, // Sep 5th, 2020
+		}},
+	}
+	testChainParams.PowLimitBits = 0x1d00ffff
+	return testChainParams
+}()
+
+// defaultMockRPCChain provides a default mock chain to be used throughout
+// the tests.  Tests can override these defaults by calling defaultMockRPCChain,
+// updating fields as necessary on the returned *testRPCChain, and then setting
+// rpcTest.mockChain as that *testRPCChain.
+func defaultMockRPCChain() *testRPCChain {
+	// Define variables related to block432100 to be used as default values for the
+	// mock chain.
+	blk := dcrutil.NewBlock(&block432100)
+	blkHeader := block432100.Header
+	blkHash := blk.Hash()
+	blkHeight := blk.Height()
+	chainWork, _ := new(big.Int).SetString("0e805fb85284503581c57c", 16)
+	filter, _ := gcs.FromBytesV2(20, 1<<20, nil)
+
+	return &testRPCChain{
+		bestSnapshot: &blockchain.BestState{
+			Hash:           *blkHash,
+			PrevHash:       blkHeader.PrevBlock,
+			Height:         blkHeight,
+			Bits:           blkHeader.Bits,
+			NextPoolSize:   41135,
+			NextStakeDiff:  14428162590,
+			BlockSize:      uint64(blkHeader.Size),
+			NumTxns:        7,
+			TotalTxns:      7478697,
+			MedianTime:     time.Unix(1584246683, 0), // 2020-03-15 04:31:23 UTC
+			TotalSubsidy:   1122503888072909,
+			NextFinalState: [6]byte{0xdc, 0x2a, 0x4f, 0x6e, 0x60, 0xb3},
+		},
+		blockByHash:                     blk,
+		blockByHeight:                   blk,
+		blockHashByHeight:               blkHash,
+		blockHeightByHash:               blkHeight,
+		calcNextRequiredStakeDifficulty: 14428162590,
+		calcWantHeight:                  431487,
+		chainTips: []blockchain.ChainTipInfo{{
+			Height:    blkHeight,
+			Hash:      *blkHash,
+			BranchLen: 500,
+			Status:    "active",
+		}},
+		chainWork: chainWork,
+		convertUtxosToMinimalOutputs: []*stake.MinimalOutput{{
+			PkScript: hexToBytes("baa914780239ea1231ba67b0c5b82e786b51e21072522187"),
+			Value:    100000000,
+			Version:  0,
+		}, {
+			PkScript: hexToBytes("6a1e355c96f48612d57509140e9a049981d5f9970f945c770d00000000000058"),
+			Value:    0,
+			Version:  0,
+		}, {
+			PkScript: hexToBytes("bd76a914000000000000000000000000000000000000000088ac"),
+			Value:    0,
+			Version:  0,
+		}},
+		estimateNextStakeDifficulty: 14336790201,
+		fetchUtxoEntry: &testRPCUtxoEntry{
+			hasExpiry: true,
+			height:    100000,
+			txType:    stake.TxTypeSStx,
+			txVersion: 1,
+		},
+		fetchUtxoStats: &blockchain.UtxoStats{
+			Utxos:          1593879,
+			Transactions:   689819,
+			Size:           36441617,
+			Total:          1154067750680149,
+			SerializedHash: *mustParseHash("fe7b32aa188800f07268b17f3bead5f3d8a1b6d18654182066436efce6effa86"),
+		},
+		filterByBlockHash: filter,
+		getStakeVersions: []blockchain.StakeVersions{{
+			Hash:         *blkHash,
+			Height:       blkHeight,
+			BlockVersion: blkHeader.Version,
+			StakeVersion: blkHeader.StakeVersion,
+			Votes: []stake.VoteVersionTuple{{
+				Version: 7,
+				Bits:    1,
+			}},
+		}},
+		getVoteInfo: &blockchain.VoteInfo{
+			Agendas: defaultChainParams.Deployments[0],
+			AgendaStatus: []blockchain.ThresholdStateTuple{{
+				State:  blockchain.ThresholdStarted,
+				Choice: uint32(0xffffffff),
+			}},
+		},
+		headerByHash:      blkHeader,
+		headerByHeight:    blkHeader,
+		isCurrent:         true,
+		mainChainHasBlock: true,
+		maxBlockSize:      int64(393216),
+		nextThresholdState: blockchain.ThresholdStateTuple{
+			State:  blockchain.ThresholdStarted,
+			Choice: uint32(0xffffffff),
+		},
+		ticketPoolValue: 570678298669222,
+	}
+}
+
+// defaultMockAddrManager provides a default mock address manager to be used
+// throughout the tests. Tests can override these defaults by calling
+// defaultMockAddrManager, updating fields as necessary on the returned
+// *testAddrManager, and then setting rpcTest.mockAddrManager as that
+// *testAddrManager.
+func defaultMockAddrManager() *testAddrManager {
+	return &testAddrManager{
+		localAddresses: []addrmgr.LocalAddr{{
+			Address: "127.0.0.184",
+			Port:    uint16(19108),
+			Score:   int32(0),
+		}},
+	}
+}
+
+// defaultMockSyncManager provides a default mock sync manager to be used
+// throughout the tests. Tests can override these defaults by calling
+// defaultMockSyncManager, updating fields as necessary on the returned
+// *testSyncManager, and then setting rpcTest.mockSyncManager as that
+// *testSyncManager.
+func defaultMockSyncManager() *testSyncManager {
+	return &testSyncManager{
+		submitBlock: true,
+		syncHeight:  463074,
+	}
+}
+
+// defaultMockConnManager provides a default mock connection manager to be used
+// throughout the tests. Tests can override these defaults by calling
+// defaultMockConnManager, updating fields as necessary on the returned
+// *testConnManager, and then setting rpcTest.mockConnManager as that
+// *testConnManager.
+func defaultMockConnManager() *testConnManager {
+	testPeer1 := &testPeer{
+		addr:      "127.0.0.210:9108",
+		connected: true,
+		inbound:   true,
+		id:        28,
+	}
+	testPeer2 := &testPeer{
+		addr:      "127.0.0.211:9108",
+		connected: true,
+		inbound:   false,
+		id:        29,
+	}
+	testPeer3 := &testPeer{
+		addr:      "mydomain.org:9108",
+		connected: true,
+		inbound:   false,
+		id:        30,
+	}
+	testPeer4 := &testPeer{
+		addr:      "nonexistentdomain.org:9108",
+		connected: true,
+		inbound:   false,
+		id:        31,
+	}
+	return &testConnManager{
+		connectedCount:   4,
+		netTotalReceived: 9598159,
+		netTotalSent:     4783802,
+		connectedPeers: []rpcserver.Peer{
+			testPeer1,
+			testPeer2,
+			testPeer3,
+			testPeer4,
+		},
+		persistentPeers: []rpcserver.Peer{
+			testPeer1,
+			testPeer2,
+			testPeer3,
+			testPeer4,
+		},
+		addedNodeInfo: []rpcserver.Peer{
+			testPeer1,
+			testPeer2,
+			testPeer3,
+			testPeer4,
+		},
+	}
+}
+
+// defaultMockConfig provides a default rpcserverConfig that is used throughout
+// the tests.  Defaults can be overridden by tests through the rpcTest struct.
+func defaultMockConfig(chainParams *chaincfg.Params) *rpcserverConfig {
+	return &rpcserverConfig{
+		ChainParams:  chainParams,
+		Chain:        defaultMockRPCChain(),
+		AddrManager:  defaultMockAddrManager(),
+		SyncMgr:      defaultMockSyncManager(),
+		ConnMgr:      defaultMockConnManager(),
+		Clock:        &testClock{},
+		TimeSource:   blockchain.NewMedianTime(),
+		Services:     wire.SFNodeNetwork | wire.SFNodeCF,
+		SubsidyCache: standalone.NewSubsidyCache(chainParams),
+	}
+}
 
 func TestHandleAddNode(t *testing.T) {
 	testRPCServerHandler(t, []rpcTest{{
 		name:    "handleAddNode: ok",
 		handler: handleAddNode,
 		cmd: &types.AddNodeCmd{
-			Addr:   "160.221.215.210:9108",
+			Addr:   "127.0.0.210:9108",
 			SubCmd: "add",
 		},
 		mockConnManager: &testConnManager{},
@@ -715,7 +982,7 @@ func TestHandleAddNode(t *testing.T) {
 		name:    "handleAddNode: 'add' subcommand error",
 		handler: handleAddNode,
 		cmd: &types.AddNodeCmd{
-			Addr:   "160.221.215.210:9108",
+			Addr:   "127.0.0.210:9108",
 			SubCmd: "add",
 		},
 		mockConnManager: &testConnManager{
@@ -727,7 +994,7 @@ func TestHandleAddNode(t *testing.T) {
 		name:    "handleAddNode: 'remove' subcommand error",
 		handler: handleAddNode,
 		cmd: &types.AddNodeCmd{
-			Addr:   "160.221.215.210:9108",
+			Addr:   "127.0.0.210:9108",
 			SubCmd: "remove",
 		},
 		mockConnManager: &testConnManager{
@@ -739,7 +1006,7 @@ func TestHandleAddNode(t *testing.T) {
 		name:    "handleAddNode: 'onetry' subcommand error",
 		handler: handleAddNode,
 		cmd: &types.AddNodeCmd{
-			Addr:   "160.221.215.210:9108",
+			Addr:   "127.0.0.210:9108",
 			SubCmd: "onetry",
 		},
 		mockConnManager: &testConnManager{
@@ -751,7 +1018,7 @@ func TestHandleAddNode(t *testing.T) {
 		name:    "handleAddNode: invalid subcommand",
 		handler: handleAddNode,
 		cmd: &types.AddNodeCmd{
-			Addr:   "160.221.215.210:9108",
+			Addr:   "127.0.0.210:9108",
 			SubCmd: "",
 		},
 		wantErr: true,
@@ -1910,12 +2177,12 @@ func TestHandleExistsMissedTickets(t *testing.T) {
 
 func TestHandleGetAddedNodeInfo(t *testing.T) {
 	testPeer1 := &testPeer{
-		addr:      "160.221.215.210",
+		addr:      "127.0.0.210",
 		connected: true,
 		inbound:   true,
 	}
 	testPeer2 := &testPeer{
-		addr:      "160.221.215.211:9108",
+		addr:      "127.0.0.211:9108",
 		connected: true,
 		inbound:   false,
 	}
@@ -1923,6 +2190,12 @@ func TestHandleGetAddedNodeInfo(t *testing.T) {
 		addr:      "mydomain.org:9108",
 		connected: true,
 		inbound:   false,
+	}
+	testPeer4 := &testPeer{
+		addr:      "nonexistentdomain.org:9108",
+		connected: true,
+		inbound:   false,
+		id:        31,
 	}
 	testRPCServerHandler(t, []rpcTest{{
 		name:    "handleGetAddedNodeInfo: ok without DNS and without address filter",
@@ -1936,13 +2209,13 @@ func TestHandleGetAddedNodeInfo(t *testing.T) {
 				testPeer2,
 			},
 		},
-		result: []string{"160.221.215.210", "160.221.215.211:9108"},
+		result: []string{"127.0.0.210", "127.0.0.211:9108"},
 	}, {
 		name:    "handleGetAddedNodeInfo: found without DNS and with address filter",
 		handler: handleGetAddedNodeInfo,
 		cmd: &types.GetAddedNodeInfoCmd{
 			DNS:  false,
-			Node: dcrjson.String("160.221.215.211:9108"),
+			Node: dcrjson.String("127.0.0.211:9108"),
 		},
 		mockConnManager: &testConnManager{
 			addedNodeInfo: []rpcserver.Peer{
@@ -1950,7 +2223,7 @@ func TestHandleGetAddedNodeInfo(t *testing.T) {
 				testPeer2,
 			},
 		},
-		result: []string{"160.221.215.211:9108"},
+		result: []string{"127.0.0.211:9108"},
 	}, {
 		name:    "handleGetAddedNodeInfo: node not found",
 		handler: handleGetAddedNodeInfo,
@@ -1975,7 +2248,7 @@ func TestHandleGetAddedNodeInfo(t *testing.T) {
 		mockCfg: &config{
 			lookup: func(host string) ([]net.IP, error) {
 				if host == "mydomain.org" {
-					return []net.IP{net.ParseIP("160.221.215.211")}, nil
+					return []net.IP{net.ParseIP("127.0.0.211")}, nil
 				}
 				return nil, errors.New("host not found")
 			},
@@ -1987,17 +2260,17 @@ func TestHandleGetAddedNodeInfo(t *testing.T) {
 			},
 		},
 		result: []*types.GetAddedNodeInfoResult{{
-			AddedNode: "160.221.215.210",
+			AddedNode: "127.0.0.210",
 			Connected: dcrjson.Bool(true),
 			Addresses: &[]types.GetAddedNodeInfoResultAddr{{
-				Address:   "160.221.215.210",
+				Address:   "127.0.0.210",
 				Connected: "inbound",
 			}},
 		}, {
 			AddedNode: "mydomain.org:9108",
 			Connected: dcrjson.Bool(true),
 			Addresses: &[]types.GetAddedNodeInfoResultAddr{{
-				Address:   "160.221.215.211",
+				Address:   "127.0.0.211",
 				Connected: "false",
 			}},
 		}},
@@ -2011,7 +2284,7 @@ func TestHandleGetAddedNodeInfo(t *testing.T) {
 		mockCfg: &config{
 			lookup: func(host string) ([]net.IP, error) {
 				if host == "mydomain.org" {
-					return []net.IP{net.ParseIP("160.221.215.211")}, nil
+					return []net.IP{net.ParseIP("127.0.0.211")}, nil
 				}
 				return nil, errors.New("host not found")
 			},
@@ -2026,7 +2299,7 @@ func TestHandleGetAddedNodeInfo(t *testing.T) {
 			AddedNode: "mydomain.org:9108",
 			Connected: dcrjson.Bool(true),
 			Addresses: &[]types.GetAddedNodeInfoResultAddr{{
-				Address:   "160.221.215.211",
+				Address:   "127.0.0.211",
 				Connected: "false",
 			}},
 		}},
@@ -2044,21 +2317,21 @@ func TestHandleGetAddedNodeInfo(t *testing.T) {
 		mockConnManager: &testConnManager{
 			addedNodeInfo: []rpcserver.Peer{
 				testPeer1,
-				testPeer3,
+				testPeer4,
 			},
 		},
 		result: []*types.GetAddedNodeInfoResult{{
-			AddedNode: "160.221.215.210",
+			AddedNode: "127.0.0.210",
 			Connected: dcrjson.Bool(true),
 			Addresses: &[]types.GetAddedNodeInfoResultAddr{{
-				Address:   "160.221.215.210",
+				Address:   "127.0.0.210",
 				Connected: "inbound",
 			}},
 		}, {
-			AddedNode: "mydomain.org:9108",
+			AddedNode: "nonexistentdomain.org:9108",
 			Connected: dcrjson.Bool(true),
 			Addresses: &[]types.GetAddedNodeInfoResultAddr{{
-				Address:   "mydomain.org",
+				Address:   "nonexistentdomain.org",
 				Connected: "outbound",
 			}},
 		}},
@@ -2876,7 +3149,7 @@ func TestHandleGetNetworkInfo(t *testing.T) {
 		cmd:     &types.GetNetworkInfoCmd{},
 		mockAddrManager: &testAddrManager{
 			localAddresses: []addrmgr.LocalAddr{{
-				Address: "45.56.142.184",
+				Address: "127.0.0.184",
 				Port:    uint16(19108),
 				Score:   int32(0),
 			}},
@@ -2936,7 +3209,7 @@ func TestHandleGetNetworkInfo(t *testing.T) {
 			}},
 			RelayFee: float64(0.0001),
 			LocalAddresses: []types.LocalAddressesResult{{
-				Address: "45.56.142.184",
+				Address: "127.0.0.184",
 				Port:    uint16(19108),
 				Score:   int32(0),
 			}},
@@ -3051,7 +3324,7 @@ func TestHandleNode(t *testing.T) {
 		handler: handleNode,
 		cmd: &types.NodeCmd{
 			SubCmd: "disconnect",
-			Target: "160.221.215.210:9108",
+			Target: "127.0.0.210:9108",
 		},
 		mockConnManager: &testConnManager{},
 		result:          nil,
@@ -3060,7 +3333,7 @@ func TestHandleNode(t *testing.T) {
 		handler: handleNode,
 		cmd: &types.NodeCmd{
 			SubCmd: "disconnect",
-			Target: "160.221.215.210:9108",
+			Target: "127.0.0.210:9108",
 		},
 		mockConnManager: &testConnManager{
 			disconnectByAddrErr: errors.New("peer not found"),
@@ -3103,14 +3376,14 @@ func TestHandleNode(t *testing.T) {
 		handler: handleNode,
 		cmd: &types.NodeCmd{
 			SubCmd: "disconnect",
-			Target: "160.221.215.210:9108",
+			Target: "127.0.0.210:9108",
 		},
 		mockConnManager: &testConnManager{
 			disconnectByAddrErr: errors.New("peer not found"),
 			connectedPeers: []rpcserver.Peer{
 				&testPeer{
 					id:   28,
-					addr: "160.221.215.210:9108",
+					addr: "127.0.0.210:9108",
 				},
 			},
 		},
@@ -3121,7 +3394,7 @@ func TestHandleNode(t *testing.T) {
 		handler: handleNode,
 		cmd: &types.NodeCmd{
 			SubCmd: "remove",
-			Target: "160.221.215.210:9108",
+			Target: "127.0.0.210:9108",
 		},
 		mockConnManager: &testConnManager{},
 		result:          nil,
@@ -3130,7 +3403,7 @@ func TestHandleNode(t *testing.T) {
 		handler: handleNode,
 		cmd: &types.NodeCmd{
 			SubCmd: "remove",
-			Target: "160.221.215.210:9108",
+			Target: "127.0.0.210:9108",
 		},
 		mockConnManager: &testConnManager{
 			removeByAddrErr: errors.New("peer not found"),
@@ -3173,14 +3446,14 @@ func TestHandleNode(t *testing.T) {
 		handler: handleNode,
 		cmd: &types.NodeCmd{
 			SubCmd: "remove",
-			Target: "160.221.215.210:9108",
+			Target: "127.0.0.210:9108",
 		},
 		mockConnManager: &testConnManager{
 			removeByAddrErr: errors.New("peer not found"),
 			connectedPeers: []rpcserver.Peer{
 				&testPeer{
 					id:   28,
-					addr: "160.221.215.210:9108",
+					addr: "127.0.0.210:9108",
 				},
 			},
 		},
@@ -3191,7 +3464,7 @@ func TestHandleNode(t *testing.T) {
 		handler: handleNode,
 		cmd: &types.NodeCmd{
 			SubCmd:        "connect",
-			Target:        "160.221.215.210:9108",
+			Target:        "127.0.0.210:9108",
 			ConnectSubCmd: dcrjson.String("perm"),
 		},
 		mockConnManager: &testConnManager{},
@@ -3201,7 +3474,7 @@ func TestHandleNode(t *testing.T) {
 		handler: handleNode,
 		cmd: &types.NodeCmd{
 			SubCmd:        "connect",
-			Target:        "160.221.215.210:9108",
+			Target:        "127.0.0.210:9108",
 			ConnectSubCmd: dcrjson.String("temp"),
 		},
 		mockConnManager: &testConnManager{},
@@ -3211,7 +3484,7 @@ func TestHandleNode(t *testing.T) {
 		handler: handleNode,
 		cmd: &types.NodeCmd{
 			SubCmd:        "connect",
-			Target:        "160.221.215.210:9108",
+			Target:        "127.0.0.210:9108",
 			ConnectSubCmd: dcrjson.String("invalid"),
 		},
 		mockConnManager: &testConnManager{},
@@ -3222,7 +3495,7 @@ func TestHandleNode(t *testing.T) {
 		handler: handleNode,
 		cmd: &types.NodeCmd{
 			SubCmd: "invalid",
-			Target: "160.221.215.210:9108",
+			Target: "127.0.0.210:9108",
 		},
 		mockConnManager: &testConnManager{},
 		wantErr:         true,
@@ -3299,28 +3572,15 @@ func TestHandleSubmitBlock(t *testing.T) {
 func testRPCServerHandler(t *testing.T, tests []rpcTest) {
 	t.Helper()
 
+	cfg = defaultCfg()
 	for _, test := range tests {
-		cfg = defaultCfg
-		if test.mockCfg != nil {
-			cfg = test.mockCfg
-		}
-
 		// Create a default rpcserverConfig and override any configurations that are
 		// provided by the test.
-		rpcserverConfig := rpcserverConfig{
-			ChainParams:  defaultChainParams,
-			Chain:        defaultRPCChain,
-			AddrManager:  defaultAddrManager,
-			SyncMgr:      defaultSyncManager,
-			ConnMgr:      defaultConnManager,
-			Clock:        defaultClock,
-			TimeSource:   blockchain.NewMedianTime(),
-			Services:     wire.SFNodeNetwork | wire.SFNodeCF,
-			SubsidyCache: standalone.NewSubsidyCache(defaultChainParams),
-		}
+		chainParams := defaultChainParams
 		if test.mockChainParams != nil {
-			rpcserverConfig.ChainParams = test.mockChainParams
+			chainParams = test.mockChainParams
 		}
+		rpcserverConfig := defaultMockConfig(chainParams)
 		if test.mockChain != nil {
 			rpcserverConfig.Chain = test.mockChain
 		}
@@ -3337,7 +3597,7 @@ func testRPCServerHandler(t *testing.T, tests []rpcTest) {
 			rpcserverConfig.Clock = test.mockClock
 		}
 
-		testServer := &rpcServer{cfg: rpcserverConfig}
+		testServer := &rpcServer{cfg: *rpcserverConfig}
 		result, err := test.handler(nil, testServer, test.cmd)
 		if test.wantErr {
 			var rpcErr *dcrjson.RPCError
