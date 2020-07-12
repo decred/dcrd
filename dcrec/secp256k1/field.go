@@ -391,32 +391,12 @@ func (f *FieldVal) Normalize() *FieldVal {
 	// following determines if either or these conditions are true and does
 	// the final reduction in constant time.
 	//
-	// Note that the if/else statements here intentionally do the bitwise
-	// operators even when it won't change the value to ensure constant time
-	// between the branches.  Also note that 'm' will be zero when neither
-	// of the aforementioned conditions are true and the value will not be
-	// changed when 'm' is zero.
-	m = 1
-	if t9 == fieldMSBMask {
-		m &= 1
-	} else {
-		m &= 0
-	}
-	if t2&t3&t4&t5&t6&t7&t8 == fieldBaseMask {
-		m &= 1
-	} else {
-		m &= 0
-	}
-	if ((t0+977)>>fieldBase + t1 + 64) > fieldBaseMask {
-		m &= 1
-	} else {
-		m &= 0
-	}
-	if t9>>fieldMSBBits != 0 {
-		m |= 1
-	} else {
-		m |= 0
-	}
+	// Also note that 'm' will be zero when neither of the aforementioned
+	// conditions are true and the value will not be changed when 'm' is zero.
+	m = constantTimeEq(t9, fieldMSBMask)
+	m &= constantTimeEq(t8&t7&t6&t5&t4&t3&t2, fieldBaseMask)
+	m &= constantTimeGreater(t1+64+((t0+977)>>fieldBase), fieldBaseMask)
+	m |= t9 >> fieldMSBBits
 	t0 = t0 + m*977
 	t1 = (t0 >> fieldBase) + t1 + (m << 6)
 	t0 = t0 & fieldBaseMask

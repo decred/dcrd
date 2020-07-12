@@ -769,6 +769,73 @@ func TestFieldNormalize(t *testing.T) {
 		name:       "Value > P with redux > P at mag 1 due to 1st and 2nd words and carry to bit 256",
 		raw:        [10]uint32{0x03fffc30, 0x03ffffc0, 0x03ffffff, 0x03ffffff, 0x03ffffff, 0x03ffffff, 0x03ffffff, 0x03ffffff, 0x07ffffff, 0x003fffff},
 		normalized: [10]uint32{0x00000001, 0x00000001, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000001},
+	}, {
+		// ---------------------------------------------------------------------
+		// There are 3 main conditions that must be true if the final reduction
+		// is needed after the initial reduction to magnitude 1 when there was
+		// NOT a carry to bit 256 (in other words when the original value was <
+		// 2^256):
+		// 1) The final word of the reduced value is equal to the one of P
+		// 2) The 3rd through 9th words are equal to those of P
+		// 3) Either:
+		//    - The 2nd word is greater than the one of P; or
+		//    - The 2nd word is equal to that of P AND the 1st word is greater
+		//
+		// Therefore the eight possible combinations of those 3 main conditions
+		// can be thought of in binary where each bit starting from the left
+		// corresponds to the aforementioned conditions as such:
+		// 000, 001, 010, 011, 100, 101, 110, 111
+		//
+		// For example, combination 6 is when both conditons 1 and 2 are true,
+		// but condition 3 is NOT true.
+		//
+		// The following tests hit each of these combinations and refer to each
+		// by its decimal equivalent for ease of reference.
+		//
+		// NOTE: The final combination (7) is already tested above since it only
+		// happens when the original value is already the normalized
+		// representation of P.
+		// ---------------------------------------------------------------------
+
+		name:       "Value < 2^256 final reduction combination 0",
+		raw:        [10]uint32{0x03fff85e, 0x03ffffbf, 0x03ffffff, 0x03ffffff, 0x03ffffff, 0x03ffffff, 0x03ffffff, 0x03ffffff, 0x03fffffe, 0x003ffffe},
+		normalized: [10]uint32{0x03fff85e, 0x03ffffbf, 0x03ffffff, 0x03ffffff, 0x03ffffff, 0x03ffffff, 0x03ffffff, 0x03ffffff, 0x03fffffe, 0x003ffffe},
+	}, {
+		name:       "Value < 2^256 final reduction combination 1 via 2nd word",
+		raw:        [10]uint32{0x03fff85e, 0x03ffffc0, 0x03ffffff, 0x03ffffff, 0x03ffffff, 0x03ffffff, 0x03ffffff, 0x03ffffff, 0x03fffffe, 0x003ffffe},
+		normalized: [10]uint32{0x03fff85e, 0x03ffffc0, 0x03ffffff, 0x03ffffff, 0x03ffffff, 0x03ffffff, 0x03ffffff, 0x03ffffff, 0x03fffffe, 0x003ffffe},
+	}, {
+		name:       "Value < 2^256 final reduction combination 1 via 1st word",
+		raw:        [10]uint32{0x03fffc2f, 0x03ffffbf, 0x03ffffff, 0x03ffffff, 0x03ffffff, 0x03ffffff, 0x03ffffff, 0x03ffffff, 0x03fffffe, 0x003ffffe},
+		normalized: [10]uint32{0x03fffc2f, 0x03ffffbf, 0x03ffffff, 0x03ffffff, 0x03ffffff, 0x03ffffff, 0x03ffffff, 0x03ffffff, 0x03fffffe, 0x003ffffe},
+	}, {
+		name:       "Value < 2^256 final reduction combination 2",
+		raw:        [10]uint32{0x03fff85e, 0x03ffffbf, 0x03ffffff, 0x03ffffff, 0x03ffffff, 0x03ffffff, 0x03ffffff, 0x03ffffff, 0x03ffffff, 0x003ffffe},
+		normalized: [10]uint32{0x03fff85e, 0x03ffffbf, 0x03ffffff, 0x03ffffff, 0x03ffffff, 0x03ffffff, 0x03ffffff, 0x03ffffff, 0x03ffffff, 0x003ffffe},
+	}, {
+		name:       "Value < 2^256 final reduction combination 3 via 2nd word",
+		raw:        [10]uint32{0x03fff85e, 0x03ffffc0, 0x03ffffff, 0x03ffffff, 0x03ffffff, 0x03ffffff, 0x03ffffff, 0x03ffffff, 0x03ffffff, 0x003ffffe},
+		normalized: [10]uint32{0x03fff85e, 0x03ffffc0, 0x03ffffff, 0x03ffffff, 0x03ffffff, 0x03ffffff, 0x03ffffff, 0x03ffffff, 0x03ffffff, 0x003ffffe},
+	}, {
+		name:       "Value < 2^256 final reduction combination 3 via 1st word",
+		raw:        [10]uint32{0x03fffc2f, 0x03ffffbf, 0x03ffffff, 0x03ffffff, 0x03ffffff, 0x03ffffff, 0x03ffffff, 0x03ffffff, 0x03ffffff, 0x003ffffe},
+		normalized: [10]uint32{0x03fffc2f, 0x03ffffbf, 0x03ffffff, 0x03ffffff, 0x03ffffff, 0x03ffffff, 0x03ffffff, 0x03ffffff, 0x03ffffff, 0x003ffffe},
+	}, {
+		name:       "Value < 2^256 final reduction combination 4",
+		raw:        [10]uint32{0x03fff85e, 0x03ffffbf, 0x03ffffff, 0x03ffffff, 0x03ffffff, 0x03ffffff, 0x03ffffff, 0x03ffffff, 0x03fffffe, 0x003fffff},
+		normalized: [10]uint32{0x03fff85e, 0x03ffffbf, 0x03ffffff, 0x03ffffff, 0x03ffffff, 0x03ffffff, 0x03ffffff, 0x03ffffff, 0x03fffffe, 0x003fffff},
+	}, {
+		name:       "Value < 2^256 final reduction combination 5 via 2nd word",
+		raw:        [10]uint32{0x03fff85e, 0x03ffffc0, 0x03ffffff, 0x03ffffff, 0x03ffffff, 0x03ffffff, 0x03ffffff, 0x03ffffff, 0x03fffffe, 0x003fffff},
+		normalized: [10]uint32{0x03fff85e, 0x03ffffc0, 0x03ffffff, 0x03ffffff, 0x03ffffff, 0x03ffffff, 0x03ffffff, 0x03ffffff, 0x03fffffe, 0x003fffff},
+	}, {
+		name:       "Value < 2^256 final reduction combination 5 via 1st word",
+		raw:        [10]uint32{0x03fffc2f, 0x03ffffbf, 0x03ffffff, 0x03ffffff, 0x03ffffff, 0x03ffffff, 0x03ffffff, 0x03ffffff, 0x03fffffe, 0x003fffff},
+		normalized: [10]uint32{0x03fffc2f, 0x03ffffbf, 0x03ffffff, 0x03ffffff, 0x03ffffff, 0x03ffffff, 0x03ffffff, 0x03ffffff, 0x03fffffe, 0x003fffff},
+	}, {
+		name:       "Value < 2^256 final reduction combination 6",
+		raw:        [10]uint32{0x03fff85e, 0x03ffffbf, 0x03ffffff, 0x03ffffff, 0x03ffffff, 0x03ffffff, 0x03ffffff, 0x03ffffff, 0x03ffffff, 0x003fffff},
+		normalized: [10]uint32{0x03fff85e, 0x03ffffbf, 0x03ffffff, 0x03ffffff, 0x03ffffff, 0x03ffffff, 0x03ffffff, 0x03ffffff, 0x03ffffff, 0x003fffff},
 	}}
 
 	for _, test := range tests {

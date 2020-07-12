@@ -12,8 +12,11 @@ import (
 // BenchmarkFieldNormalize benchmarks how long it takes the internal field
 // to perform normalization (which includes modular reduction).
 func BenchmarkFieldNormalize(b *testing.B) {
-	// The normalize function is constant time so default value is fine.
-	f := new(FieldVal)
+	// The function is constant time so any value is fine.
+	f := &FieldVal{n: [10]uint32{
+		0x000148f6, 0x03ffffc0, 0x03ffffff, 0x03ffffff, 0x03ffffff,
+		0x03ffffff, 0x03ffffff, 0x03ffffff, 0x03ffffff, 0x00000007,
+	}}
 	for i := 0; i < b.N; i++ {
 		f.Normalize()
 	}
