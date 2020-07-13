@@ -3370,7 +3370,11 @@ func testRPCServerHandler(t *testing.T, tests []rpcTest) {
 			if test.wantErr {
 				var rpcErr *dcrjson.RPCError
 				if !errors.As(err, &rpcErr) || rpcErr.Code != test.errCode {
-					t.Errorf("%s\nwant: %+v\n got: %+v\n", test.name, test.errCode, rpcErr.Code)
+					if rpcErr != nil {
+						t.Errorf("%s\nwant: %+v\n got: %+v\n", test.name, test.errCode, rpcErr.Code)
+					} else {
+						t.Errorf("%s\nwant: %+v\n got: nil\n", test.name, test.errCode)
+					}
 				}
 				return
 			}
