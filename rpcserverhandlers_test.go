@@ -22,6 +22,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/decred/dcrd/addrmgr"
 	"github.com/decred/dcrd/blockchain/stake/v3"
 	"github.com/decred/dcrd/blockchain/standalone/v2"
@@ -126,7 +127,7 @@ type testRPCChain struct {
 	checkMissedTickets              []bool
 	convertUtxosToMinimalOutputs    []*stake.MinimalOutput
 	countVoteVersion                uint32
-	estimateNextStakeDifficulty     int64
+	estimateNextStakeDifficultyFn   func(newTickets int64, useMaxTickets bool) (diff int64, err error)
 	fetchUtxoEntry                  rpcserver.UtxoEntry
 	fetchUtxoStats                  *blockchain.UtxoStats
 	filterByBlockHash               *gcs.FilterV2
@@ -136,6 +137,7 @@ type testRPCChain struct {
 	headerByHash                    wire.BlockHeader
 	headerByHashErr                 error
 	headerByHeight                  wire.BlockHeader
+	headerByHeightErr               error
 	heightRange                     []chainhash.Hash
 	isCurrent                       bool
 	liveTickets                     []chainhash.Hash
@@ -236,9 +238,9 @@ func (c *testRPCChain) CountVoteVersion(version uint32) (uint32, error) {
 	return c.countVoteVersion, nil
 }
 
-// EstimateNextStakeDifficulty a mocked estimated next stake difficulty.
+// EstimateNextStakeDifficulty returns a mocked estimated next stake difficulty.
 func (c *testRPCChain) EstimateNextStakeDifficulty(newTickets int64, useMaxTickets bool) (int64, error) {
-	return c.estimateNextStakeDifficulty, nil
+	return c.estimateNextStakeDifficultyFn(newTickets, useMaxTickets)
 }
 
 // FetchUtxoEntry returns a mocked UtxoEntry.
@@ -282,7 +284,7 @@ func (c *testRPCChain) HeaderByHash(hash *chainhash.Hash) (wire.BlockHeader, err
 
 // HeaderByHeight returns a mocked block header at the given height.
 func (c *testRPCChain) HeaderByHeight(height int64) (wire.BlockHeader, error) {
-	return c.headerByHeight, nil
+	return c.headerByHeight, c.headerByHeightErr
 }
 
 // HeightRange returns a mocked range of block hashes for the given start and
@@ -784,6 +786,7 @@ var defaultChainParams = func() *chaincfg.Params {
 		}},
 	}
 	testChainParams.PowLimitBits = 0x1d00ffff
+	testChainParams.StakeDiffWindowSize = 144
 	return testChainParams
 }()
 
@@ -800,7 +803,6 @@ func defaultMockRPCChain() *testRPCChain {
 	blkHeight := blk.Height()
 	chainWork, _ := new(big.Int).SetString("0e805fb85284503581c57c", 16)
 	filter, _ := gcs.FromBytesV2(20, 1<<20, nil)
-
 	return &testRPCChain{
 		bestSnapshot: &blockchain.BestState{
 			Hash:           *blkHash,
@@ -842,7 +844,9 @@ func defaultMockRPCChain() *testRPCChain {
 			Value:    0,
 			Version:  0,
 		}},
-		estimateNextStakeDifficulty: 14336790201,
+		estimateNextStakeDifficultyFn: func(int64, bool) (int64, error) {
+			return 14336790201, nil
+		},
 		fetchUtxoEntry: &testRPCUtxoEntry{
 			hasExpiry: true,
 			height:    100000,
@@ -1933,6 +1937,8 @@ func TestHandleEstimateFee(t *testing.T) {
 }
 
 func TestHandleEstimateSmartFee(t *testing.T) {
+	t.Parallel()
+
 	conservative := types.EstimateSmartFeeConservative
 	economical := types.EstimateSmartFeeEconomical
 	validFeeEstimator := defaultMockFeeEstimator()
@@ -1969,6 +1975,132 @@ func TestHandleEstimateSmartFee(t *testing.T) {
 			feeEstimator := defaultMockFeeEstimator()
 			feeEstimator.estimateFeeErr = errors.New("")
 			return feeEstimator
+		}(),
+		wantErr: true,
+		errCode: dcrjson.ErrRPCInternal.Code,
+	}})
+}
+
+func TestHandleEstimateStakeDiff(t *testing.T) {
+	t.Parallel()
+
+	type stakeDiffQueueItem struct {
+		diff int64
+		err  error
+	}
+	var low, med, high, user int64 = 123456, 1234567, 12345678, 7345468745783
+	validQueueFn := func() []*stakeDiffQueueItem {
+		lowQItem := stakeDiffQueueItem{diff: low}
+		medQItem := stakeDiffQueueItem{diff: med}
+		highQItem := stakeDiffQueueItem{diff: high}
+		userQItem := stakeDiffQueueItem{diff: user}
+		return []*stakeDiffQueueItem{
+			&lowQItem,
+			&highQItem,
+			&medQItem,
+			&userQItem,
+		}
+	}
+	estimateFn := func(queue []*stakeDiffQueueItem) func(int64, bool) (int64, error) {
+		return func(int64, bool) (int64, error) {
+			defer func() { queue = queue[1:] }()
+			return queue[0].diff, queue[0].err
+		}
+	}
+	testRPCServerHandler(t, []rpcTest{{
+		name:    "handleEstimateStakeDiff: ok with Tickets arg",
+		handler: handleEstimateStakeDiff,
+		cmd: &types.EstimateStakeDiffCmd{
+			Tickets: dcrjson.Uint32(1),
+		},
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.estimateNextStakeDifficultyFn = estimateFn(validQueueFn())
+			return chain
+		}(),
+		result: &types.EstimateStakeDiffResult{
+			Min:      dcrutil.Amount(low).ToCoin(),
+			Max:      dcrutil.Amount(high).ToCoin(),
+			Expected: dcrutil.Amount(med).ToCoin(),
+			User:     dcrjson.Float64(dcrutil.Amount(user).ToCoin()),
+		},
+	}, {
+		name:    "handleEstimateStakeDiff: ok no Tickets arg",
+		handler: handleEstimateStakeDiff,
+		cmd:     &types.EstimateStakeDiffCmd{},
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.estimateNextStakeDifficultyFn = estimateFn(validQueueFn())
+			return chain
+		}(),
+		result: &types.EstimateStakeDiffResult{
+			Min:      dcrutil.Amount(low).ToCoin(),
+			Max:      dcrutil.Amount(high).ToCoin(),
+			Expected: dcrutil.Amount(med).ToCoin(),
+		},
+	}, {
+		name:    "handleEstimateStakeDiff: HeaderByHeight error",
+		handler: handleEstimateStakeDiff,
+		cmd:     &types.EstimateStakeDiffCmd{},
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.estimateNextStakeDifficultyFn = estimateFn(validQueueFn())
+			chain.headerByHeightErr = errors.New("")
+			return chain
+		}(),
+		wantErr: true,
+		errCode: dcrjson.ErrRPCInternal.Code,
+	}, {
+		name:    "handleEstimateStakeDiff: min diff estimation error",
+		handler: handleEstimateStakeDiff,
+		cmd:     &types.EstimateStakeDiffCmd{},
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			queue := validQueueFn()
+			queue[0].err = errors.New("")
+			chain.estimateNextStakeDifficultyFn = estimateFn(queue)
+			return chain
+		}(),
+		wantErr: true,
+		errCode: dcrjson.ErrRPCInternal.Code,
+	}, {
+		name:    "handleEstimateStakeDiff: high diff estimation error",
+		handler: handleEstimateStakeDiff,
+		cmd:     &types.EstimateStakeDiffCmd{},
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			queue := validQueueFn()
+			queue[1].err = errors.New("")
+			chain.estimateNextStakeDifficultyFn = estimateFn(queue)
+			return chain
+		}(),
+		wantErr: true,
+		errCode: dcrjson.ErrRPCInternal.Code,
+	}, {
+		name:    "handleEstimateStakeDiff: expected diff estimation error",
+		handler: handleEstimateStakeDiff,
+		cmd:     &types.EstimateStakeDiffCmd{},
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			queue := validQueueFn()
+			queue[2].err = errors.New("")
+			chain.estimateNextStakeDifficultyFn = estimateFn(queue)
+			return chain
+		}(),
+		wantErr: true,
+		errCode: dcrjson.ErrRPCInternal.Code,
+	}, {
+		name:    "handleEstimateStakeDiff: user diff estimation error",
+		handler: handleEstimateStakeDiff,
+		cmd: &types.EstimateStakeDiffCmd{
+			Tickets: dcrjson.Uint32(1),
+		},
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			queue := validQueueFn()
+			queue[3].err = errors.New("")
+			chain.estimateNextStakeDifficultyFn = estimateFn(queue)
+			return chain
 		}(),
 		wantErr: true,
 		errCode: dcrjson.ErrRPCInternal.Code,
@@ -3450,9 +3582,10 @@ func testRPCServerHandler(t *testing.T, tests []rpcTest) {
 			}
 			if err != nil {
 				t.Errorf("%s\nunexpected error: %+v\n", test.name, err)
+				return
 			}
 			if !reflect.DeepEqual(result, test.result) {
-				t.Errorf("%s\nwant: %+v\n got: %+v\n", test.name, test.result, result)
+				t.Errorf("%s\nwant: %+v\n got: %+v\n", test.name, spew.Sdump(test.result), spew.Sdump(result))
 			}
 		})
 	}

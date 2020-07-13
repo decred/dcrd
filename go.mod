@@ -4,6 +4,7 @@ go 1.13
 
 require (
 	github.com/btcsuite/winsvc v1.0.0
+	github.com/davecgh/go-spew v1.1.1
 	github.com/decred/base58 v1.0.3
 	github.com/decred/dcrd/addrmgr v1.1.0
 	github.com/decred/dcrd/bech32 v1.0.0
