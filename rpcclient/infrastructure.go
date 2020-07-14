@@ -141,10 +141,6 @@ type Client struct {
 	// client.
 	config *ConnConfig
 
-	// wsConn is the underlying websocket connection when not in HTTP POST
-	// mode.
-	wsConn *websocket.Conn
-
 	// httpClient is the underlying HTTP client to use when running in HTTP
 	// POST mode.
 	httpClient *http.Client
@@ -152,12 +148,12 @@ type Client struct {
 	// mtx is a mutex to protect access to connection related fields.
 	mtx sync.Mutex
 
+	// wsConn is the underlying websocket connection when not in HTTP POST mode.
+	// It is protected by mtx.
+	wsConn *websocket.Conn
+
 	// disconnected indicated whether or not the server is disconnected.
 	disconnected bool
-
-	// retryCount holds the number of times the client has tried to
-	// reconnect to the RPC server.
-	retryCount int64
 
 	// Track command and their response channels by ID.
 	requestLock sync.Mutex
@@ -453,7 +449,10 @@ out:
 		default:
 		}
 
-		_, msg, err := c.wsConn.ReadMessage()
+		c.mtx.Lock()
+		wsConn := c.wsConn
+		c.mtx.Unlock()
+		_, msg, err := wsConn.ReadMessage()
 		if err != nil {
 			// Log the error if it's not due to disconnecting.
 			if c.shouldLogReadError(err) {
@@ -491,7 +490,10 @@ out:
 		// disconnected closed.
 		select {
 		case msg := <-c.sendChan:
-			err := c.wsConn.WriteMessage(websocket.TextMessage, msg)
+			c.mtx.Lock()
+			wsConn := c.wsConn
+			c.mtx.Unlock()
+			err := wsConn.WriteMessage(websocket.TextMessage, msg)
 			if err != nil {
 				c.Disconnect()
 				break out
@@ -673,6 +675,10 @@ func (c *Client) resendRequests(ctx context.Context) {
 //
 // This function must be run as a goroutine.
 func (c *Client) wsReconnectHandler(ctx context.Context) {
+	// retryCount holds the number of times the client has tried to
+	// reconnect to the RPC server.
+	var retryCount int64
+
 out:
 	for {
 		select {
@@ -694,14 +700,14 @@ out:
 
 			wsConn, err := dial(c.config)
 			if err != nil {
-				c.retryCount++
+				retryCount++
 				log.Infof("Failed to connect to %s: %v",
 					c.config.Host, err)
 
 				// Scale the retry interval by the number of
 				// retries so there is a backoff up to a max
 				// of 1 minute.
-				scaledInterval := connectionRetryInterval.Nanoseconds() * c.retryCount
+				scaledInterval := connectionRetryInterval.Nanoseconds() * retryCount
 				scaledDuration := time.Duration(scaledInterval)
 				if scaledDuration > time.Minute {
 					scaledDuration = time.Minute
@@ -717,10 +723,9 @@ out:
 
 			// Reset the connection state and signal the reconnect
 			// has happened.
-			c.wsConn = wsConn
-			c.retryCount = 0
-
+			retryCount = 0
 			c.mtx.Lock()
+			c.wsConn = wsConn
 			c.disconnect = make(chan struct{})
 			c.disconnected = false
 			c.mtx.Unlock()
@@ -1279,7 +1284,10 @@ func (c *Client) keepAlive() {
 			return
 
 		case <-ticker.C:
-			err := c.wsConn.WriteControl(websocket.PingMessage, nil,
+			c.mtx.Lock()
+			wsConn := c.wsConn
+			c.mtx.Unlock()
+			err := wsConn.WriteControl(websocket.PingMessage, nil,
 				time.Now().Add(time.Second))
 			if err != nil {
 				log.Errorf("unable to write ping message: %v", err)
