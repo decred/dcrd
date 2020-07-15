@@ -110,7 +110,8 @@ func TestCFTypesWire(t *testing.T) {
 		{
 			NewMsgCFTypes([]FilterType{GCSFilterRegular}),
 			&MsgCFTypes{
-				SupportedFilters: []FilterType{FilterType(0)}},
+				SupportedFilters: []FilterType{FilterType(0)},
+			},
 			[]byte{
 				0x01, // Number of filter types
 				0x00, // Filter types
@@ -122,7 +123,8 @@ func TestCFTypesWire(t *testing.T) {
 		// supported committed filters (CF).
 		{
 			NewMsgCFTypes([]FilterType{
-				GCSFilterRegular, GCSFilterExtended}),
+				GCSFilterRegular, GCSFilterExtended,
+			}),
 			&MsgCFTypes{SupportedFilters: []FilterType{FilterType(0), FilterType(1)}},
 			[]byte{
 				0x02,       // Number of filter types
