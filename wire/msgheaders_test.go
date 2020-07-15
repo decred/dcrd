@@ -87,7 +87,7 @@ func TestHeadersWire(t *testing.T) {
 		uint32(0),                                   // Size
 		uint32(0x01010101),                          // Nonce
 		[32]byte{},                                  // ExtraData
-		uint32(0xba5eba11),                          //StakeVersion
+		uint32(0xba5eba11),                          // StakeVersion
 	)
 	bh.Timestamp = time.Unix(0x4966bc61, 0)
 
@@ -215,7 +215,7 @@ func TestHeadersWireErrors(t *testing.T) {
 		uint32(0),                 // Size
 		nonce,                     // Nonce
 		[32]byte{},                // ExtraData
-		uint32(0xca55e77e),        //StakeVersion
+		uint32(0xca55e77e),        // StakeVersion
 	)
 
 	bh.Version = testBlock.Header.Version
