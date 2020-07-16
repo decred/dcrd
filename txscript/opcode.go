@@ -683,21 +683,21 @@ func disasmOpcode(buf *strings.Builder, op *opcode, data []byte, compact bool) {
 // disabled opcode (even when they appear in a branch that is not executed).
 func opcodeDisabled(op *opcode, data []byte, vm *Engine) error {
 	str := fmt.Sprintf("attempt to execute disabled opcode %s", op.name)
-	return scriptError(ErrDisabledOpcode, str)
+	return makeError(ErrDisabledOpcode, str)
 }
 
 // opcodeReserved is a common handler for all reserved opcodes.  It returns an
 // appropriate error indicating the opcode is reserved.
 func opcodeReserved(op *opcode, data []byte, vm *Engine) error {
 	str := fmt.Sprintf("attempt to execute reserved opcode %s", op.name)
-	return scriptError(ErrReservedOpcode, str)
+	return makeError(ErrReservedOpcode, str)
 }
 
 // opcodeInvalid is a common handler for all invalid opcodes.  It returns an
 // appropriate error indicating the opcode is invalid.
 func opcodeInvalid(op *opcode, data []byte, vm *Engine) error {
 	str := fmt.Sprintf("attempt to execute invalid opcode %s", op.name)
-	return scriptError(ErrReservedOpcode, str)
+	return makeError(ErrReservedOpcode, str)
 }
 
 // opcodeFalse pushes an empty array to the data stack to represent false.  Note
@@ -756,7 +756,7 @@ func opcodeNop(op *opcode, data []byte, vm *Engine) error {
 
 		if vm.hasFlag(ScriptDiscourageUpgradableNops) {
 			str := fmt.Sprintf("%s reserved for upgrades", op.name)
-			return scriptError(ErrDiscourageUpgradableNOPs, str)
+			return makeError(ErrDiscourageUpgradableNOPs, str)
 		}
 	}
 	return nil
@@ -838,7 +838,7 @@ func opcodeElse(op *opcode, data []byte, vm *Engine) error {
 	if vm.condNestDepth == 0 {
 		str := fmt.Sprintf("encountered opcode %s with no matching "+
 			"opcode to begin conditional execution", op.name)
-		return scriptError(ErrUnbalancedConditional, str)
+		return makeError(ErrUnbalancedConditional, str)
 	}
 
 	conditionalDepth := vm.condNestDepth - 1
@@ -868,7 +868,7 @@ func opcodeEndif(op *opcode, data []byte, vm *Engine) error {
 	if vm.condNestDepth == 0 {
 		str := fmt.Sprintf("encountered opcode %s with no matching "+
 			"opcode to begin conditional execution", op.name)
-		return scriptError(ErrUnbalancedConditional, str)
+		return makeError(ErrUnbalancedConditional, str)
 	}
 
 	// Decrement the conditional execution nesting depth and enable branch
@@ -894,7 +894,7 @@ func abstractVerify(op *opcode, vm *Engine, kind ErrorKind) error {
 
 	if !verified {
 		str := fmt.Sprintf("%s failed", op.name)
-		return scriptError(kind, str)
+		return makeError(kind, str)
 	}
 	return nil
 }
@@ -908,7 +908,7 @@ func opcodeVerify(op *opcode, data []byte, vm *Engine) error {
 // opcodeReturn returns an appropriate error since it is always an error to
 // return early from a script.
 func opcodeReturn(op *opcode, data []byte, vm *Engine) error {
-	return scriptError(ErrEarlyReturn, "script returned early")
+	return makeError(ErrEarlyReturn, "script returned early")
 }
 
 // verifyLockTime is a helper function used to validate locktimes.
@@ -919,14 +919,14 @@ func verifyLockTime(txLockTime, threshold, lockTime int64) error {
 		(txLockTime >= threshold && lockTime >= threshold)) {
 		str := fmt.Sprintf("mismatched locktime types -- tx locktime "+
 			"%d, stack locktime %d", txLockTime, lockTime)
-		return scriptError(ErrUnsatisfiedLockTime, str)
+		return makeError(ErrUnsatisfiedLockTime, str)
 	}
 
 	if lockTime > txLockTime {
 		str := fmt.Sprintf("locktime requirement not satisfied -- "+
 			"locktime is greater than the transaction locktime: "+
 			"%d > %d", lockTime, txLockTime)
-		return scriptError(ErrUnsatisfiedLockTime, str)
+		return makeError(ErrUnsatisfiedLockTime, str)
 	}
 
 	return nil
@@ -942,7 +942,7 @@ func opcodeCheckLockTimeVerify(op *opcode, data []byte, vm *Engine) error {
 	// opcode as OP_NOP2 instead.
 	if !vm.hasFlag(ScriptVerifyCheckLockTimeVerify) {
 		if vm.hasFlag(ScriptDiscourageUpgradableNops) {
-			return scriptError(ErrDiscourageUpgradableNOPs,
+			return makeError(ErrDiscourageUpgradableNOPs,
 				"OP_NOP2 reserved for soft-fork upgrades")
 		}
 		return nil
@@ -964,7 +964,7 @@ func opcodeCheckLockTimeVerify(op *opcode, data []byte, vm *Engine) error {
 	// 0 OP_MAX OP_CHECKLOCKTIMEVERIFY.
 	if lockTime < 0 {
 		str := fmt.Sprintf("negative lock time: %d", lockTime)
-		return scriptError(ErrNegativeLockTime, str)
+		return makeError(ErrNegativeLockTime, str)
 	}
 
 	// The lock time field of a transaction is either a block height at
@@ -992,7 +992,7 @@ func opcodeCheckLockTimeVerify(op *opcode, data []byte, vm *Engine) error {
 	// another input being unlocked, the opcode execution will still fail when the
 	// input being used by the opcode is locked.
 	if vm.tx.TxIn[vm.txIdx].Sequence == wire.MaxTxInSequenceNum {
-		return scriptError(ErrUnsatisfiedLockTime,
+		return makeError(ErrUnsatisfiedLockTime,
 			"transaction input is finalized")
 	}
 
@@ -1009,7 +1009,7 @@ func opcodeCheckSequenceVerify(op *opcode, data []byte, vm *Engine) error {
 	// opcode as OP_NOP3 instead.
 	if !vm.hasFlag(ScriptVerifyCheckSequenceVerify) {
 		if vm.hasFlag(ScriptDiscourageUpgradableNops) {
-			return scriptError(ErrDiscourageUpgradableNOPs,
+			return makeError(ErrDiscourageUpgradableNOPs,
 				"OP_NOP3 reserved for soft-fork upgrades")
 		}
 		return nil
@@ -1031,7 +1031,7 @@ func opcodeCheckSequenceVerify(op *opcode, data []byte, vm *Engine) error {
 	// 0 OP_MAX OP_CHECKSEQUENCEVERIFY.
 	if stackSequence < 0 {
 		str := fmt.Sprintf("negative sequence: %d", stackSequence)
-		return scriptError(ErrNegativeLockTime, str)
+		return makeError(ErrNegativeLockTime, str)
 	}
 
 	sequence := int64(stackSequence)
@@ -1048,7 +1048,7 @@ func opcodeCheckSequenceVerify(op *opcode, data []byte, vm *Engine) error {
 	if vm.tx.Version < 2 {
 		str := fmt.Sprintf("invalid transaction version: %d",
 			vm.tx.Version)
-		return scriptError(ErrUnsatisfiedLockTime, str)
+		return makeError(ErrUnsatisfiedLockTime, str)
 	}
 
 	// Sequence numbers with their most significant bit set are not
@@ -1059,7 +1059,7 @@ func opcodeCheckSequenceVerify(op *opcode, data []byte, vm *Engine) error {
 	if txSequence&int64(wire.SequenceLockTimeDisabled) != 0 {
 		str := fmt.Sprintf("transaction sequence has sequence "+
 			"locktime disabled bit set: 0x%x", txSequence)
-		return scriptError(ErrUnsatisfiedLockTime, str)
+		return makeError(ErrUnsatisfiedLockTime, str)
 	}
 
 	// Mask off non-consensus bits before doing comparisons.
@@ -1288,7 +1288,7 @@ func opcodeCat(op *opcode, data []byte, vm *Engine) error {
 	if combinedLen > MaxScriptElementSize {
 		str := fmt.Sprintf("element size %d exceeds max allowed size %d",
 			combinedLen, MaxScriptElementSize)
-		return scriptError(ErrElementTooBig, str)
+		return makeError(ErrElementTooBig, str)
 	}
 
 	// Push the concatenated result back to the stack.
@@ -1343,26 +1343,26 @@ func opcodeSubstr(op *opcode, data []byte, vm *Engine) error {
 	// value, and an empty byte push will be produced.
 	if startIdx < 0 {
 		str := fmt.Sprintf("start index %d is negative", startIdx)
-		return scriptError(ErrNegativeSubstrIdx, str)
+		return makeError(ErrNegativeSubstrIdx, str)
 	}
 	if endIdx < 0 {
 		str := fmt.Sprintf("end index %d is negative", endIdx)
-		return scriptError(ErrNegativeSubstrIdx, str)
+		return makeError(ErrNegativeSubstrIdx, str)
 	}
 	if startIdx > aLen {
 		str := fmt.Sprintf("start index %d exceeds length %d", startIdx,
 			aLen)
-		return scriptError(ErrOverflowSubstrIdx, str)
+		return makeError(ErrOverflowSubstrIdx, str)
 	}
 	if endIdx > aLen {
 		str := fmt.Sprintf("end index %d exceeds length %d", endIdx,
 			aLen)
-		return scriptError(ErrOverflowSubstrIdx, str)
+		return makeError(ErrOverflowSubstrIdx, str)
 	}
 	if startIdx > endIdx {
 		str := fmt.Sprintf("start index %d is after end index %d",
 			startIdx, endIdx)
-		return scriptError(ErrOverflowSubstrIdx, str)
+		return makeError(ErrOverflowSubstrIdx, str)
 	}
 
 	// Push the requested substring back to the stack.  Note that identical
@@ -1406,11 +1406,11 @@ func opcodeLeft(op *opcode, data []byte, vm *Engine) error {
 	// Ensure the provided index is in bounds.
 	if endIdx < 0 {
 		str := fmt.Sprintf("index %d is negative", endIdx)
-		return scriptError(ErrNegativeSubstrIdx, str)
+		return makeError(ErrNegativeSubstrIdx, str)
 	}
 	if endIdx > aLen {
 		str := fmt.Sprintf("index %d exceeds length %d", endIdx, aLen)
-		return scriptError(ErrOverflowSubstrIdx, str)
+		return makeError(ErrOverflowSubstrIdx, str)
 	}
 
 	// Push the requested substring back to the stack.  Note that a zero
@@ -1458,11 +1458,11 @@ func opcodeRight(op *opcode, data []byte, vm *Engine) error {
 	// produced.
 	if startIdx < 0 {
 		str := fmt.Sprintf("index %d is negative", startIdx)
-		return scriptError(ErrNegativeSubstrIdx, str)
+		return makeError(ErrNegativeSubstrIdx, str)
 	}
 	if startIdx > aLen {
 		str := fmt.Sprintf("index %d exceeds length %d", startIdx, aLen)
-		return scriptError(ErrOverflowSubstrIdx, str)
+		return makeError(ErrOverflowSubstrIdx, str)
 	}
 
 	// Push the requested substring back to the stack.  Note that a start
@@ -1631,11 +1631,11 @@ func opcodeRotr(op *opcode, data []byte, vm *Engine) error {
 	// Don't allow invalid or pointless rotations.
 	if count < 0 {
 		str := fmt.Sprintf("rotation count %d is negative", count)
-		return scriptError(ErrNegativeRotation, str)
+		return makeError(ErrNegativeRotation, str)
 	}
 	if count > 31 {
 		str := fmt.Sprintf("rotation count %d > 31", count)
-		return scriptError(ErrOverflowRotation, str)
+		return makeError(ErrOverflowRotation, str)
 	}
 
 	vm.dstack.PushInt(ScriptNum(rotateRight(value, count)))
@@ -1683,11 +1683,11 @@ func opcodeRotl(op *opcode, data []byte, vm *Engine) error {
 	// Don't allow invalid or pointless rotations.
 	if count < 0 {
 		str := fmt.Sprintf("rotation count %d is negative", count)
-		return scriptError(ErrNegativeRotation, str)
+		return makeError(ErrNegativeRotation, str)
 	}
 	if count > 31 {
 		str := fmt.Sprintf("rotation count %d > 31", count)
-		return scriptError(ErrOverflowRotation, str)
+		return makeError(ErrOverflowRotation, str)
 	}
 
 	vm.dstack.PushInt(ScriptNum(rotateLeft(value, count)))
@@ -1880,7 +1880,7 @@ func opcodeDiv(op *opcode, data []byte, vm *Engine) error {
 	dividend := v1.Int32()
 
 	if divisor == 0 {
-		return scriptError(ErrDivideByZero, "division by zero")
+		return makeError(ErrDivideByZero, "division by zero")
 	}
 
 	vm.dstack.PushInt(ScriptNum(dividend / divisor))
@@ -1911,7 +1911,7 @@ func opcodeMod(op *opcode, data []byte, vm *Engine) error {
 	dividend := v1.Int32()
 
 	if divisor == 0 {
-		return scriptError(ErrDivideByZero, "division by zero")
+		return makeError(ErrDivideByZero, "division by zero")
 	}
 
 	vm.dstack.PushInt(ScriptNum(dividend % divisor))
@@ -1953,11 +1953,11 @@ func opcodeLShift(op *opcode, data []byte, vm *Engine) error {
 	// Don't allow invalid or pointless shifts.
 	if count < 0 {
 		str := fmt.Sprintf("shift count %d is negative", count)
-		return scriptError(ErrNegativeShift, str)
+		return makeError(ErrNegativeShift, str)
 	}
 	if count > 32 {
 		str := fmt.Sprintf("shift count %d > 32", count)
-		return scriptError(ErrOverflowShift, str)
+		return makeError(ErrOverflowShift, str)
 	}
 
 	vm.dstack.PushInt(ScriptNum(value << uint(count)))
@@ -1999,11 +1999,11 @@ func opcodeRShift(op *opcode, data []byte, vm *Engine) error {
 	// Don't allow invalid or pointless shifts.
 	if count < 0 {
 		str := fmt.Sprintf("shift count %d is negative", count)
-		return scriptError(ErrNegativeShift, str)
+		return makeError(ErrNegativeShift, str)
 	}
 	if count > 32 {
 		str := fmt.Sprintf("shift count %d > 32", count)
-		return scriptError(ErrOverflowShift, str)
+		return makeError(ErrOverflowShift, str)
 	}
 
 	vm.dstack.PushInt(ScriptNum(value >> uint(count)))
@@ -2367,7 +2367,7 @@ func opcodeSha256(op *opcode, data []byte, vm *Engine) error {
 	// SHA256 opcode is not set.
 	if !vm.hasFlag(ScriptVerifySHA256) {
 		if vm.hasFlag(ScriptDiscourageUpgradableNops) {
-			return scriptError(ErrDiscourageUpgradableNOPs,
+			return makeError(ErrDiscourageUpgradableNOPs,
 				"OP_UNKNOWN192 reserved for upgrades")
 		}
 		return nil
@@ -2560,18 +2560,18 @@ func opcodeCheckMultiSig(op *opcode, data []byte, vm *Engine) error {
 	if numPubKeys < 0 {
 		str := fmt.Sprintf("number of pubkeys %d is negative",
 			numPubKeys)
-		return scriptError(ErrInvalidPubKeyCount, str)
+		return makeError(ErrInvalidPubKeyCount, str)
 	}
 	if numPubKeys > MaxPubKeysPerMultiSig {
 		str := fmt.Sprintf("too many pubkeys: %d > %d",
 			numPubKeys, MaxPubKeysPerMultiSig)
-		return scriptError(ErrInvalidPubKeyCount, str)
+		return makeError(ErrInvalidPubKeyCount, str)
 	}
 	vm.numOps += numPubKeys
 	if vm.numOps > MaxOpsPerScript {
 		str := fmt.Sprintf("exceeded max operation limit of %d",
 			MaxOpsPerScript)
-		return scriptError(ErrTooManyOperations, str)
+		return makeError(ErrTooManyOperations, str)
 	}
 
 	pubKeys := make([][]byte, 0, numPubKeys)
@@ -2591,12 +2591,12 @@ func opcodeCheckMultiSig(op *opcode, data []byte, vm *Engine) error {
 	if numSignatures < 0 {
 		str := fmt.Sprintf("number of signatures %d is negative",
 			numSignatures)
-		return scriptError(ErrInvalidSignatureCount, str)
+		return makeError(ErrInvalidSignatureCount, str)
 	}
 	if numSignatures > numPubKeys {
 		str := fmt.Sprintf("more signatures than pubkeys: %d > %d",
 			numSignatures, numPubKeys)
-		return scriptError(ErrInvalidSignatureCount, str)
+		return makeError(ErrInvalidSignatureCount, str)
 	}
 
 	signatures := make([]*parsedSigInfo, 0, numSignatures)

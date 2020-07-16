@@ -637,7 +637,7 @@ func CalcMultiSigStats(script []byte) (int, int, error) {
 	details := extractMultisigScriptDetails(scriptVersion, script, false)
 	if !details.valid {
 		str := fmt.Sprintf("script %x is not a multisig script", script)
-		return 0, 0, scriptError(ErrNotMultisigScript, str)
+		return 0, 0, makeError(ErrNotMultisigScript, str)
 	}
 
 	return details.numPubKeys, details.requiredSigs, nil
@@ -733,18 +733,18 @@ func PayToSStx(addr dcrutil.Address) ([]byte, error) {
 	switch addr := addr.(type) {
 	case *dcrutil.AddressPubKeyHash:
 		if addr == nil {
-			return nil, scriptError(ErrUnsupportedAddress,
+			return nil, makeError(ErrUnsupportedAddress,
 				nilAddrErrStr)
 		}
 		if addr.DSA() != dcrec.STEcdsaSecp256k1 {
 			str := "unable to generate payment script for " +
 				"unsupported digital signature algorithm"
-			return nil, scriptError(ErrUnsupportedAddress, str)
+			return nil, makeError(ErrUnsupportedAddress, str)
 		}
 
 	case *dcrutil.AddressScriptHash:
 		if addr == nil {
-			return nil, scriptError(ErrUnsupportedAddress,
+			return nil, makeError(ErrUnsupportedAddress,
 				nilAddrErrStr)
 		}
 		scriptType = ScriptHashTy
@@ -752,7 +752,7 @@ func PayToSStx(addr dcrutil.Address) ([]byte, error) {
 	default:
 		str := fmt.Sprintf("unable to generate payment script for "+
 			"unsupported address type %T", addr)
-		return nil, scriptError(ErrUnsupportedAddress, str)
+		return nil, makeError(ErrUnsupportedAddress, str)
 	}
 
 	hash := addr.ScriptAddress()
@@ -776,18 +776,18 @@ func PayToSStxChange(addr dcrutil.Address) ([]byte, error) {
 	switch addr := addr.(type) {
 	case *dcrutil.AddressPubKeyHash:
 		if addr == nil {
-			return nil, scriptError(ErrUnsupportedAddress,
+			return nil, makeError(ErrUnsupportedAddress,
 				nilAddrErrStr)
 		}
 		if addr.DSA() != dcrec.STEcdsaSecp256k1 {
 			str := "unable to generate payment script for " +
 				"unsupported digital signature algorithm"
-			return nil, scriptError(ErrUnsupportedAddress, str)
+			return nil, makeError(ErrUnsupportedAddress, str)
 		}
 
 	case *dcrutil.AddressScriptHash:
 		if addr == nil {
-			return nil, scriptError(ErrUnsupportedAddress,
+			return nil, makeError(ErrUnsupportedAddress,
 				nilAddrErrStr)
 		}
 		scriptType = ScriptHashTy
@@ -795,7 +795,7 @@ func PayToSStxChange(addr dcrutil.Address) ([]byte, error) {
 	default:
 		str := fmt.Sprintf("unable to generate payment script for "+
 			"unsupported address type %T", addr)
-		return nil, scriptError(ErrUnsupportedAddress, str)
+		return nil, makeError(ErrUnsupportedAddress, str)
 	}
 
 	hash := addr.ScriptAddress()
@@ -819,18 +819,18 @@ func PayToSSGen(addr dcrutil.Address) ([]byte, error) {
 	switch addr := addr.(type) {
 	case *dcrutil.AddressPubKeyHash:
 		if addr == nil {
-			return nil, scriptError(ErrUnsupportedAddress,
+			return nil, makeError(ErrUnsupportedAddress,
 				nilAddrErrStr)
 		}
 		if addr.DSA() != dcrec.STEcdsaSecp256k1 {
 			str := "unable to generate payment script for " +
 				"unsupported digital signature algorithm"
-			return nil, scriptError(ErrUnsupportedAddress, str)
+			return nil, makeError(ErrUnsupportedAddress, str)
 		}
 
 	case *dcrutil.AddressScriptHash:
 		if addr == nil {
-			return nil, scriptError(ErrUnsupportedAddress,
+			return nil, makeError(ErrUnsupportedAddress,
 				nilAddrErrStr)
 		}
 		scriptType = ScriptHashTy
@@ -838,7 +838,7 @@ func PayToSSGen(addr dcrutil.Address) ([]byte, error) {
 	default:
 		str := fmt.Sprintf("unable to generate payment script for "+
 			"unsupported address type %T", addr)
-		return nil, scriptError(ErrUnsupportedAddress, str)
+		return nil, makeError(ErrUnsupportedAddress, str)
 	}
 
 	hash := addr.ScriptAddress()
@@ -881,18 +881,18 @@ func PayToSSRtx(addr dcrutil.Address) ([]byte, error) {
 	switch addr := addr.(type) {
 	case *dcrutil.AddressPubKeyHash:
 		if addr == nil {
-			return nil, scriptError(ErrUnsupportedAddress,
+			return nil, makeError(ErrUnsupportedAddress,
 				nilAddrErrStr)
 		}
 		if addr.DSA() != dcrec.STEcdsaSecp256k1 {
 			str := "unable to generate payment script for " +
 				"unsupported digital signature algorithm"
-			return nil, scriptError(ErrUnsupportedAddress, str)
+			return nil, makeError(ErrUnsupportedAddress, str)
 		}
 
 	case *dcrutil.AddressScriptHash:
 		if addr == nil {
-			return nil, scriptError(ErrUnsupportedAddress,
+			return nil, makeError(ErrUnsupportedAddress,
 				nilAddrErrStr)
 		}
 		scriptType = ScriptHashTy
@@ -900,7 +900,7 @@ func PayToSSRtx(addr dcrutil.Address) ([]byte, error) {
 	default:
 		str := fmt.Sprintf("unable to generate payment script for "+
 			"unsupported address type %T", addr)
-		return nil, scriptError(ErrUnsupportedAddress, str)
+		return nil, makeError(ErrUnsupportedAddress, str)
 	}
 
 	hash := addr.ScriptAddress()
@@ -942,18 +942,18 @@ func GenerateSStxAddrPush(addr dcrutil.Address, amount dcrutil.Amount, limits ui
 	switch addr := addr.(type) {
 	case *dcrutil.AddressPubKeyHash:
 		if addr == nil {
-			return nil, scriptError(ErrUnsupportedAddress,
+			return nil, makeError(ErrUnsupportedAddress,
 				nilAddrErrStr)
 		}
 		if addr.DSA() != dcrec.STEcdsaSecp256k1 {
 			str := "unable to generate payment script for " +
 				"unsupported digital signature algorithm"
-			return nil, scriptError(ErrUnsupportedAddress, str)
+			return nil, makeError(ErrUnsupportedAddress, str)
 		}
 
 	case *dcrutil.AddressScriptHash:
 		if addr == nil {
-			return nil, scriptError(ErrUnsupportedAddress,
+			return nil, makeError(ErrUnsupportedAddress,
 				nilAddrErrStr)
 		}
 		scriptType = ScriptHashTy
@@ -961,7 +961,7 @@ func GenerateSStxAddrPush(addr dcrutil.Address, amount dcrutil.Amount, limits ui
 	default:
 		str := fmt.Sprintf("unable to generate payment script for "+
 			"unsupported address type %T", addr)
-		return nil, scriptError(ErrUnsupportedAddress, str)
+		return nil, makeError(ErrUnsupportedAddress, str)
 	}
 
 	// Concatenate the prefix, pubkeyhash, and amount.
@@ -1005,7 +1005,7 @@ func GenerateProvablyPruneableOut(data []byte) ([]byte, error) {
 	if len(data) > MaxDataCarrierSize {
 		str := fmt.Sprintf("data size %d is larger than max "+
 			"allowed size %d", len(data), MaxDataCarrierSize)
-		return nil, scriptError(ErrTooMuchNullData, str)
+		return nil, makeError(ErrTooMuchNullData, str)
 	}
 
 	return NewScriptBuilder().AddOp(OP_RETURN).AddData(data).Script()
@@ -1017,7 +1017,7 @@ func PayToAddrScript(addr dcrutil.Address) ([]byte, error) {
 	switch addr := addr.(type) {
 	case *dcrutil.AddressPubKeyHash:
 		if addr == nil {
-			return nil, scriptError(ErrUnsupportedAddress,
+			return nil, makeError(ErrUnsupportedAddress,
 				nilAddrErrStr)
 		}
 		switch addr.DSA() {
@@ -1031,28 +1031,28 @@ func PayToAddrScript(addr dcrutil.Address) ([]byte, error) {
 
 	case *dcrutil.AddressScriptHash:
 		if addr == nil {
-			return nil, scriptError(ErrUnsupportedAddress,
+			return nil, makeError(ErrUnsupportedAddress,
 				nilAddrErrStr)
 		}
 		return payToScriptHashScript(addr.ScriptAddress())
 
 	case *dcrutil.AddressSecpPubKey:
 		if addr == nil {
-			return nil, scriptError(ErrUnsupportedAddress,
+			return nil, makeError(ErrUnsupportedAddress,
 				nilAddrErrStr)
 		}
 		return payToPubKeyScript(addr.ScriptAddress())
 
 	case *dcrutil.AddressEdwardsPubKey:
 		if addr == nil {
-			return nil, scriptError(ErrUnsupportedAddress,
+			return nil, makeError(ErrUnsupportedAddress,
 				nilAddrErrStr)
 		}
 		return payToEdwardsPubKeyScript(addr.ScriptAddress())
 
 	case *dcrutil.AddressSecSchnorrPubKey:
 		if addr == nil {
-			return nil, scriptError(ErrUnsupportedAddress,
+			return nil, makeError(ErrUnsupportedAddress,
 				nilAddrErrStr)
 		}
 		return payToSchnorrPubKeyScript(addr.ScriptAddress())
@@ -1060,7 +1060,7 @@ func PayToAddrScript(addr dcrutil.Address) ([]byte, error) {
 
 	str := fmt.Sprintf("unable to generate payment script for unsupported "+
 		"address type %T", addr)
-	return nil, scriptError(ErrUnsupportedAddress, str)
+	return nil, makeError(ErrUnsupportedAddress, str)
 }
 
 // MultiSigScript returns a valid script for a multisignature redemption where
@@ -1072,7 +1072,7 @@ func MultiSigScript(pubkeys []*dcrutil.AddressSecpPubKey, nrequired int) ([]byte
 		str := fmt.Sprintf("unable to generate multisig script with "+
 			"%d required signatures when there are only %d public "+
 			"keys available", nrequired, len(pubkeys))
-		return nil, scriptError(ErrTooManyRequiredSigs, str)
+		return nil, makeError(ErrTooManyRequiredSigs, str)
 	}
 
 	builder := NewScriptBuilder().AddInt64(int64(nrequired))

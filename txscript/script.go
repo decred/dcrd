@@ -133,7 +133,7 @@ func hasP2SHRedeemScriptStakeOpCodes(version uint16, sigScript, pkScript []byte)
 	redeemScript := finalOpcodeData(version, sigScript)
 	if len(redeemScript) == 0 {
 		str := "p2sh signature script has no pushed data"
-		return scriptError(ErrNotPushOnly, str)
+		return makeError(ErrNotPushOnly, str)
 	}
 
 	// Ensure the redeem script does not contain any stake opcodes as their use
@@ -145,7 +145,7 @@ func hasP2SHRedeemScriptStakeOpCodes(version uint16, sigScript, pkScript []byte)
 	}
 	if hasStakeOpCodes {
 		str := "stake opcodes were found in a p2sh script"
-		return scriptError(ErrP2SHStakeOpCodes, str)
+		return makeError(ErrP2SHStakeOpCodes, str)
 	}
 
 	return nil

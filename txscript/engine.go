@@ -260,38 +260,38 @@ func checkMinimalDataPush(op *opcode, data []byte) error {
 	case dataLen == 0 && opcode != OP_0:
 		str := fmt.Sprintf("zero length data push is encoded with opcode %s "+
 			"instead of OP_0", op.name)
-		return scriptError(ErrMinimalData, str)
+		return makeError(ErrMinimalData, str)
 	case dataLen == 1 && data[0] >= 1 && data[0] <= 16:
 		if opcode != OP_1+data[0]-1 {
 			// Should have used OP_1 .. OP_16
 			str := fmt.Sprintf("data push of the value %d encoded with opcode "+
 				"%s instead of OP_%d", data[0], op.name, data[0])
-			return scriptError(ErrMinimalData, str)
+			return makeError(ErrMinimalData, str)
 		}
 	case dataLen == 1 && data[0] == 0x81:
 		if opcode != OP_1NEGATE {
 			str := fmt.Sprintf("data push of the value -1 encoded with opcode "+
 				"%s instead of OP_1NEGATE", op.name)
-			return scriptError(ErrMinimalData, str)
+			return makeError(ErrMinimalData, str)
 		}
 	case dataLen <= 75:
 		if int(opcode) != dataLen {
 			// Should have used a direct push
 			str := fmt.Sprintf("data push of %d bytes encoded with opcode %s "+
 				"instead of OP_DATA_%d", dataLen, op.name, dataLen)
-			return scriptError(ErrMinimalData, str)
+			return makeError(ErrMinimalData, str)
 		}
 	case dataLen <= 255:
 		if opcode != OP_PUSHDATA1 {
 			str := fmt.Sprintf("data push of %d bytes encoded with opcode %s "+
 				"instead of OP_PUSHDATA1", dataLen, op.name)
-			return scriptError(ErrMinimalData, str)
+			return makeError(ErrMinimalData, str)
 		}
 	case dataLen <= 65535:
 		if opcode != OP_PUSHDATA2 {
 			str := fmt.Sprintf("data push of %d bytes encoded with opcode %s "+
 				"instead of OP_PUSHDATA2", dataLen, op.name)
-			return scriptError(ErrMinimalData, str)
+			return makeError(ErrMinimalData, str)
 		}
 	}
 	return nil
@@ -304,13 +304,13 @@ func (vm *Engine) executeOpcode(op *opcode, data []byte) error {
 	// Disabled opcodes are fail on program counter.
 	if isOpcodeDisabled(op.value) {
 		str := fmt.Sprintf("attempt to execute disabled opcode %s", op.name)
-		return scriptError(ErrDisabledOpcode, str)
+		return makeError(ErrDisabledOpcode, str)
 	}
 
 	// Always-illegal opcodes are fail on program counter.
 	if isOpcodeAlwaysIllegal(op.value) {
 		str := fmt.Sprintf("attempt to execute reserved opcode %s", op.name)
-		return scriptError(ErrReservedOpcode, str)
+		return makeError(ErrReservedOpcode, str)
 	}
 
 	// Note that this includes OP_RESERVED which counts as a push operation.
@@ -319,12 +319,12 @@ func (vm *Engine) executeOpcode(op *opcode, data []byte) error {
 		if vm.numOps > MaxOpsPerScript {
 			str := fmt.Sprintf("exceeded max operation limit of %d",
 				MaxOpsPerScript)
-			return scriptError(ErrTooManyOperations, str)
+			return makeError(ErrTooManyOperations, str)
 		}
 	} else if len(data) > MaxScriptElementSize {
 		str := fmt.Sprintf("element size %d exceeds max allowed size %d",
 			len(data), MaxScriptElementSize)
-		return scriptError(ErrElementTooBig, str)
+		return makeError(ErrElementTooBig, str)
 	}
 
 	// Nothing left to do when this is not a conditional opcode and it is
@@ -349,7 +349,7 @@ func (vm *Engine) checkValidPC() error {
 	if vm.scriptIdx >= len(vm.scripts) {
 		str := fmt.Sprintf("program counter beyond input scripts (script idx "+
 			"%d, total scripts %d)", vm.scriptIdx, len(vm.scripts))
-		return scriptError(ErrInvalidProgramCounter, str)
+		return makeError(ErrInvalidProgramCounter, str)
 	}
 	return nil
 }
@@ -385,7 +385,7 @@ func (vm *Engine) DisasmPC() (string, error) {
 		// semantics.
 		str := fmt.Sprintf("program counter beyond script index %d (bytes %x)",
 			vm.scriptIdx, vm.scripts[vm.scriptIdx])
-		return "", scriptError(ErrInvalidProgramCounter, str)
+		return "", makeError(ErrInvalidProgramCounter, str)
 	}
 
 	var buf strings.Builder
@@ -403,7 +403,7 @@ func (vm *Engine) DisasmScript(idx int) (string, error) {
 	if idx >= len(vm.scripts) {
 		str := fmt.Sprintf("script index %d >= total scripts %d", idx,
 			len(vm.scripts))
-		return "", scriptError(ErrInvalidIndex, str)
+		return "", makeError(ErrInvalidIndex, str)
 	}
 
 	var disbuf strings.Builder
@@ -426,7 +426,7 @@ func (vm *Engine) CheckErrorCondition(finalScript bool) error {
 	// Check execution is actually done by ensuring the script index is after
 	// the final script in the array script.
 	if vm.scriptIdx < len(vm.scripts) {
-		return scriptError(ErrScriptUnfinished,
+		return makeError(ErrScriptUnfinished,
 			"error check when script unfinished")
 	}
 
@@ -438,9 +438,9 @@ func (vm *Engine) CheckErrorCondition(finalScript bool) error {
 
 		str := fmt.Sprintf("stack must contain exactly one item (contains %d)",
 			vm.dstack.Depth())
-		return scriptError(ErrCleanStack, str)
+		return makeError(ErrCleanStack, str)
 	} else if vm.dstack.Depth() < 1 {
-		return scriptError(ErrEmptyStack,
+		return makeError(ErrEmptyStack,
 			"stack empty at end of script execution")
 	}
 
@@ -460,7 +460,7 @@ func (vm *Engine) CheckErrorCondition(finalScript bool) error {
 			}
 			return buf.String()
 		}))
-		return scriptError(ErrEvalFalse,
+		return makeError(ErrEvalFalse,
 			"false stack entry at end of script execution")
 	}
 	return nil
@@ -491,7 +491,7 @@ func (vm *Engine) Step() (done bool, err error) {
 
 		str := fmt.Sprintf("attempt to step beyond script index %d (bytes %x)",
 			vm.scriptIdx, vm.scripts[vm.scriptIdx])
-		return true, scriptError(ErrInvalidProgramCounter, str)
+		return true, makeError(ErrInvalidProgramCounter, str)
 	}
 
 	// Execute the opcode while taking into account several things such as
@@ -508,7 +508,7 @@ func (vm *Engine) Step() (done bool, err error) {
 	if combinedStackSize > MaxStackSize {
 		str := fmt.Sprintf("combined stack size %d > max allowed %d",
 			combinedStackSize, MaxStackSize)
-		return false, scriptError(ErrStackOverflow, str)
+		return false, makeError(ErrStackOverflow, str)
 	}
 
 	// Prepare for next instruction.
@@ -516,7 +516,7 @@ func (vm *Engine) Step() (done bool, err error) {
 	if vm.tokenizer.Done() {
 		// Illegal to have a conditional that straddles two scripts.
 		if vm.condNestDepth != 0 {
-			return false, scriptError(ErrUnbalancedConditional,
+			return false, makeError(ErrUnbalancedConditional,
 				"end of script reached in conditional execution")
 		}
 
@@ -694,7 +694,7 @@ func NewEngine(scriptPubKey []byte, tx *wire.MsgTx, txIdx int, flags ScriptFlags
 	if txIdx < 0 || txIdx >= len(tx.TxIn) {
 		str := fmt.Sprintf("transaction input index %d is negative or "+
 			">= %d", txIdx, len(tx.TxIn))
-		return nil, scriptError(ErrInvalidIndex, str)
+		return nil, makeError(ErrInvalidIndex, str)
 	}
 	scriptSig := tx.TxIn[txIdx].SignatureScript
 
@@ -703,7 +703,7 @@ func NewEngine(scriptPubKey []byte, tx *wire.MsgTx, txIdx int, flags ScriptFlags
 	// equivalent to a false top element.  Thus, just return the relevant error
 	// now as an optimization.
 	if len(scriptSig) == 0 && len(scriptPubKey) == 0 {
-		return nil, scriptError(ErrEvalFalse,
+		return nil, makeError(ErrEvalFalse,
 			"false stack entry at end of script execution")
 	}
 
@@ -711,7 +711,7 @@ func NewEngine(scriptPubKey []byte, tx *wire.MsgTx, txIdx int, flags ScriptFlags
 	// flag is set.
 	vm := Engine{version: scriptVersion, flags: flags, sigCache: sigCache}
 	if vm.hasFlag(ScriptVerifySigPushOnly) && !IsPushOnlyScript(scriptSig) {
-		return nil, scriptError(ErrNotPushOnly,
+		return nil, makeError(ErrNotPushOnly,
 			"signature script is not push only")
 	}
 
@@ -723,7 +723,7 @@ func NewEngine(scriptPubKey []byte, tx *wire.MsgTx, txIdx int, flags ScriptFlags
 		// checking again.
 		alreadyChecked := vm.hasFlag(ScriptVerifySigPushOnly)
 		if !alreadyChecked && !IsPushOnlyScript(scriptSig) {
-			return nil, scriptError(ErrNotPushOnly,
+			return nil, makeError(ErrNotPushOnly,
 				"pay to script hash is not push only")
 		}
 		vm.isP2SH = true
@@ -748,7 +748,7 @@ func NewEngine(scriptPubKey []byte, tx *wire.MsgTx, txIdx int, flags ScriptFlags
 		if len(scr) > MaxScriptSize {
 			str := fmt.Sprintf("script size %d is larger than max allowed "+
 				"size %d", len(scr), MaxScriptSize)
-			return nil, scriptError(ErrScriptTooBig, str)
+			return nil, makeError(ErrScriptTooBig, str)
 		}
 
 		// Ensure the scripts can be fully parsed up front according to version

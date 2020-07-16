@@ -236,7 +236,7 @@ func calcSignatureHash(signScript []byte, hashType SigHashType, tx *wire.MsgTx, 
 	if hashType&sigHashMask == SigHashSingle && idx >= len(tx.TxOut) {
 		str := fmt.Sprintf("attempt to sign single input at index %d "+
 			">= %d outputs", idx, len(tx.TxOut))
-		return nil, scriptError(ErrInvalidSigHashSingleIndex, str)
+		return nil, makeError(ErrInvalidSigHashSingleIndex, str)
 	}
 
 	// Choose the inputs that will be committed to based on the signature

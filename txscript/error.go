@@ -349,8 +349,8 @@ func (e Error) Unwrap() error {
 	return e.Err
 }
 
-// scriptError creates a ScriptError given a set of arguments.
-func scriptError(kind ErrorKind, desc string) Error {
+// makeError creates an Error given a set of arguments.
+func makeError(kind ErrorKind, desc string) Error {
 	return Error{Err: kind, Description: desc}
 }
 

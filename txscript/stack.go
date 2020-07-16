@@ -108,7 +108,7 @@ func (s *stack) PeekByteArray(idx int32) ([]byte, error) {
 	if idx < 0 || idx >= sz {
 		str := fmt.Sprintf("index %d is invalid for stack size %d", idx,
 			sz)
-		return nil, scriptError(ErrInvalidStackOperation, str)
+		return nil, makeError(ErrInvalidStackOperation, str)
 	}
 
 	return s.stk[sz-idx-1], nil
@@ -148,7 +148,7 @@ func (s *stack) nipN(idx int32) ([]byte, error) {
 	if idx < 0 || idx > sz-1 {
 		str := fmt.Sprintf("index %d is invalid for stack size %d", idx,
 			sz)
-		return nil, scriptError(ErrInvalidStackOperation, str)
+		return nil, makeError(ErrInvalidStackOperation, str)
 	}
 
 	so := s.stk[sz-idx-1]
@@ -206,7 +206,7 @@ func (s *stack) Tuck() error {
 func (s *stack) DropN(n int32) error {
 	if n < 1 {
 		str := fmt.Sprintf("attempt to drop %d items from stack", n)
-		return scriptError(ErrInvalidStackOperation, str)
+		return makeError(ErrInvalidStackOperation, str)
 	}
 
 	for ; n > 0; n-- {
@@ -226,7 +226,7 @@ func (s *stack) DropN(n int32) error {
 func (s *stack) DupN(n int32) error {
 	if n < 1 {
 		str := fmt.Sprintf("attempt to dup %d stack items", n)
-		return scriptError(ErrInvalidStackOperation, str)
+		return makeError(ErrInvalidStackOperation, str)
 	}
 
 	// Iteratively duplicate the value n-1 down the stack n times.
@@ -249,7 +249,7 @@ func (s *stack) DupN(n int32) error {
 func (s *stack) RotN(n int32) error {
 	if n < 1 {
 		str := fmt.Sprintf("attempt to rotate %d stack items", n)
-		return scriptError(ErrInvalidStackOperation, str)
+		return makeError(ErrInvalidStackOperation, str)
 	}
 
 	// Nip the 3n-1th item from the stack to the top n times to rotate
@@ -274,7 +274,7 @@ func (s *stack) RotN(n int32) error {
 func (s *stack) SwapN(n int32) error {
 	if n < 1 {
 		str := fmt.Sprintf("attempt to swap %d stack items", n)
-		return scriptError(ErrInvalidStackOperation, str)
+		return makeError(ErrInvalidStackOperation, str)
 	}
 
 	entry := 2*n - 1
@@ -299,7 +299,7 @@ func (s *stack) OverN(n int32) error {
 	if n < 1 {
 		str := fmt.Sprintf("attempt to perform over on %d stack items",
 			n)
-		return scriptError(ErrInvalidStackOperation, str)
+		return makeError(ErrInvalidStackOperation, str)
 	}
 
 	// Copy 2n-1th entry to top of the stack.

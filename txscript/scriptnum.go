@@ -96,7 +96,7 @@ func checkMinimalDataEncoding(v []byte) error {
 		if len(v) == 1 || v[len(v)-2]&0x80 == 0 {
 			str := fmt.Sprintf("numeric value encoded as %x is "+
 				"not minimally encoded", v)
-			return scriptError(ErrMinimalData, str)
+			return makeError(ErrMinimalData, str)
 		}
 	}
 
@@ -217,7 +217,7 @@ func MakeScriptNum(v []byte, scriptNumLen int) (ScriptNum, error) {
 		str := fmt.Sprintf("numeric value encoded as %x is %d bytes "+
 			"which exceeds the max allowed of %d", v, len(v),
 			scriptNumLen)
-		return 0, scriptError(ErrNumOutOfRange, str)
+		return 0, makeError(ErrNumOutOfRange, str)
 	}
 
 	// Enforce minimal encoding.
