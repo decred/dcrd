@@ -72,6 +72,8 @@ type Message interface {
 // makeEmptyMessage creates a message of the appropriate concrete type based
 // on the command.
 func makeEmptyMessage(command string) (Message, error) {
+	const op = "makeEmptyMessage"
+
 	var msg Message
 	switch command {
 	case CmdVersion:
@@ -159,7 +161,8 @@ func makeEmptyMessage(command string) (Message, error) {
 		msg = &MsgCFilterV2{}
 
 	default:
-		return nil, fmt.Errorf("unhandled command [%s]", command)
+		str := fmt.Sprintf("unhandled command [%s]", command)
+		return nil, messageError(op, ErrUnknownCmd, str)
 	}
 	return msg, nil
 }
@@ -335,7 +338,7 @@ func ReadMessageN(r io.Reader, pver uint32, dcrnet CurrencyNet) (int, Message, [
 	msg, err := makeEmptyMessage(command)
 	if err != nil {
 		discardInput(r, hdr.length)
-		return totalBytes, nil, nil, messageError(op, ErrUnknownCmd, err.Error())
+		return totalBytes, nil, nil, err
 	}
 
 	// Check for maximum length based on the message type as a malicious client
