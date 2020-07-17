@@ -150,6 +150,7 @@ type testRPCChain struct {
 	stateLastChangedHeight          int64
 	stateLastChangedHeightErr       error
 	ticketPoolValue                 dcrutil.Amount
+	ticketPoolValueErr              error
 	ticketsWithAddress              []chainhash.Hash
 	tipGeneration                   []chainhash.Hash
 }
@@ -347,7 +348,7 @@ func (c *testRPCChain) StateLastChangedHeight(hash *chainhash.Hash, version uint
 // TicketPoolValue returns a mocked current value of all the locked funds in the
 // ticket pool.
 func (c *testRPCChain) TicketPoolValue() (dcrutil.Amount, error) {
-	return c.ticketPoolValue, nil
+	return c.ticketPoolValue, c.ticketPoolValueErr
 }
 
 // TicketsWithAddress returns a mocked slice of ticket hashes that are currently
@@ -3132,6 +3133,28 @@ func TestHandleGetPeerInfo(t *testing.T) {
 			BanScore:       int32(0),
 			SyncNode:       false,
 		}},
+	}})
+}
+
+func TestHandleGetTicketPoolValue(t *testing.T) {
+	t.Parallel()
+
+	testRPCServerHandler(t, []rpcTest{{
+		name:    "handleGetTicketPoolValue: ok",
+		handler: handleGetTicketPoolValue,
+		cmd:     &types.GetTicketPoolValueCmd{},
+		result:  defaultMockRPCChain().ticketPoolValue.ToCoin(),
+	}, {
+		name:    "handleGetTicketPoolValue: could not obtain ticket pool value",
+		handler: handleGetTicketPoolValue,
+		cmd:     &types.GetTicketPoolValueCmd{},
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.ticketPoolValueErr = errors.New("could not obtain ticket pool value")
+			return chain
+		}(),
+		wantErr: true,
+		errCode: dcrjson.ErrRPCInternal.Code,
 	}})
 }
 
