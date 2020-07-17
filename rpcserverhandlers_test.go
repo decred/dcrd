@@ -3269,6 +3269,124 @@ func TestHandleGetPeerInfo(t *testing.T) {
 	}})
 }
 
+func TestHandleGetStakeVersionInfo(t *testing.T) {
+	t.Parallel()
+
+	blk := dcrutil.NewBlock(&block432100)
+	blkHashString := blk.Hash().String()
+	blkHeight := blk.Height()
+	blk2000Hash := mustParseHash("0000000000000c8a886e3f7c32b1bb08422066dcfd008de596471f11a5aff475")
+	mockVersionCount := []types.VersionCount{{
+		Version: 7,
+		Count:   1,
+	}}
+	defaultChain := defaultMockRPCChain()
+	testRPCServerHandler(t, []rpcTest{{
+		name:    "handleGetStakeVersionInfo: ok without specifying count",
+		handler: handleGetStakeVersionInfo,
+		cmd:     &types.GetStakeVersionInfoCmd{},
+		result: types.GetStakeVersionInfoResult{
+			CurrentHeight: blkHeight,
+			Hash:          blkHashString,
+			Intervals: []types.VersionInterval{{
+				StartHeight:  defaultChain.calcWantHeight + 1,
+				EndHeight:    blkHeight,
+				PoSVersions:  mockVersionCount,
+				VoteVersions: mockVersionCount,
+			}},
+		},
+	}, {
+		name:    "handleGetStakeVersionInfo: ok with count 2",
+		handler: handleGetStakeVersionInfo,
+		cmd: &types.GetStakeVersionInfoCmd{
+			Count: dcrjson.Int32(2),
+		},
+		result: types.GetStakeVersionInfoResult{
+			CurrentHeight: blkHeight,
+			Hash:          blkHashString,
+			Intervals: []types.VersionInterval{{
+				StartHeight:  defaultChain.calcWantHeight + 1,
+				EndHeight:    blkHeight,
+				PoSVersions:  mockVersionCount,
+				VoteVersions: mockVersionCount,
+			}, {
+				StartHeight: defaultChain.calcWantHeight + 1 -
+					defaultChainParams.StakeVersionInterval,
+				EndHeight:    defaultChain.calcWantHeight + 1,
+				PoSVersions:  mockVersionCount,
+				VoteVersions: mockVersionCount,
+			}},
+		},
+	}, {
+		name:    "handleGetStakeVersionInfo: invalid count",
+		handler: handleGetStakeVersionInfo,
+		cmd: &types.GetStakeVersionInfoCmd{
+			Count: dcrjson.Int32(-1),
+		},
+		wantErr: true,
+		errCode: dcrjson.ErrRPCInvalidParameter,
+	}, {
+		name:    "handleGetStakeVersionInfo: ok with count > max intervals",
+		handler: handleGetStakeVersionInfo,
+		cmd: &types.GetStakeVersionInfoCmd{
+			Count: dcrjson.Int32(5),
+		},
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.bestSnapshot.Hash = *blk2000Hash
+			chain.bestSnapshot.Height = 2000
+			chain.calcWantHeight = 0
+			return chain
+		}(),
+		result: types.GetStakeVersionInfoResult{
+			CurrentHeight: 2000,
+			Hash:          blk2000Hash.String(),
+			Intervals: []types.VersionInterval{{
+				StartHeight:  1,
+				EndHeight:    2000,
+				PoSVersions:  mockVersionCount,
+				VoteVersions: mockVersionCount,
+			}},
+		},
+	}, {
+		name:    "handleGetStakeVersionInfo: ok with startHeight - endHeight == 0",
+		handler: handleGetStakeVersionInfo,
+		cmd:     &types.GetStakeVersionInfoCmd{},
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.calcWantHeight = blkHeight
+			return chain
+		}(),
+		result: types.GetStakeVersionInfoResult{
+			CurrentHeight: blkHeight,
+			Hash:          blkHashString,
+			Intervals:     []types.VersionInterval{},
+		},
+	}, {
+		name:    "handleGetStakeVersionInfo: failed to get stake versions",
+		handler: handleGetStakeVersionInfo,
+		cmd:     &types.GetStakeVersionInfoCmd{},
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.getStakeVersionsErr = errors.New("failed to get stake versions")
+			return chain
+		}(),
+		wantErr: true,
+		errCode: dcrjson.ErrRPCInternal.Code,
+	}, {
+		name:    "handleGetStakeVersionInfo: failed to get block hash",
+		handler: handleGetStakeVersionInfo,
+		cmd:     &types.GetStakeVersionInfoCmd{},
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.blockHashByHeightErr = errors.New("failed to get block hash")
+			return chain
+		}(),
+		wantErr: true,
+		errCode: dcrjson.ErrRPCInternal.Code,
+	}})
+}
+
 func TestHandleGetStakeVersions(t *testing.T) {
 	t.Parallel()
 
