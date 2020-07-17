@@ -131,6 +131,7 @@ type testRPCChain struct {
 	fetchUtxoStats                  *blockchain.UtxoStats
 	filterByBlockHash               *gcs.FilterV2
 	getStakeVersions                []blockchain.StakeVersions
+	getStakeVersionsErr             error
 	getVoteCounts                   blockchain.VoteCounts
 	getVoteInfo                     *blockchain.VoteInfo
 	headerByHash                    wire.BlockHeader
@@ -260,7 +261,7 @@ func (c *testRPCChain) FilterByBlockHash(hash *chainhash.Hash) (*gcs.FilterV2, e
 
 // GetStakeVersions returns a mocked cooked array of StakeVersions.
 func (c *testRPCChain) GetStakeVersions(hash *chainhash.Hash, count int32) ([]blockchain.StakeVersions, error) {
-	return c.getStakeVersions, nil
+	return c.getStakeVersions, c.getStakeVersionsErr
 }
 
 // GetVoteCounts returns a mocked blockchain.VoteCounts for the specified
@@ -3133,6 +3134,66 @@ func TestHandleGetPeerInfo(t *testing.T) {
 			BanScore:       int32(0),
 			SyncNode:       false,
 		}},
+	}})
+}
+
+func TestHandleGetStakeVersions(t *testing.T) {
+	t.Parallel()
+
+	blk := dcrutil.NewBlock(&block432100)
+	blkHashString := blk.Hash().String()
+	blkHeight := blk.Height()
+	testRPCServerHandler(t, []rpcTest{{
+		name:    "handleGetStakeVersions: ok",
+		handler: handleGetStakeVersions,
+		cmd: &types.GetStakeVersionsCmd{
+			Hash:  blkHashString,
+			Count: 1,
+		},
+		result: types.GetStakeVersionsResult{
+			StakeVersions: []types.StakeVersions{{
+				Hash:         blkHashString,
+				Height:       blkHeight,
+				BlockVersion: block432100.Header.Version,
+				StakeVersion: block432100.Header.StakeVersion,
+				Votes: []types.VersionBits{{
+					Version: 7,
+					Bits:    1,
+				}},
+			}},
+		},
+	}, {
+		name:    "handleGetStakeVersions: invalid hash",
+		handler: handleGetStakeVersions,
+		cmd: &types.GetStakeVersionsCmd{
+			Hash:  "invalid",
+			Count: 1,
+		},
+		wantErr: true,
+		errCode: dcrjson.ErrRPCDecodeHexString,
+	}, {
+		name:    "handleGetStakeVersions: invalid count",
+		handler: handleGetStakeVersions,
+		cmd: &types.GetStakeVersionsCmd{
+			Hash:  blkHashString,
+			Count: -1,
+		},
+		wantErr: true,
+		errCode: dcrjson.ErrRPCInvalidParameter,
+	}, {
+		name:    "handleGetStakeVersions: could not obtain stake versions",
+		handler: handleGetStakeVersions,
+		cmd: &types.GetStakeVersionsCmd{
+			Hash:  blkHashString,
+			Count: 1,
+		},
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.getStakeVersionsErr = errors.New("could not obtain stake versions")
+			return chain
+		}(),
+		wantErr: true,
+		errCode: dcrjson.ErrRPCInternal.Code,
 	}})
 }
 
