@@ -49,6 +49,7 @@ import (
 	"github.com/decred/dcrd/internal/rpcserver"
 	"github.com/decred/dcrd/internal/version"
 	"github.com/decred/dcrd/mempool/v4"
+	"github.com/decred/dcrd/mining/v3"
 	"github.com/decred/dcrd/rpc/jsonrpc/types/v2"
 	"github.com/decred/dcrd/txscript/v3"
 	"github.com/decred/dcrd/wire"
@@ -3271,7 +3272,7 @@ func handleGetWorkRequest(s *rpcServer) (interface{}, error) {
 	state := s.workState
 	best := s.cfg.Chain.BestSnapshot()
 	bgTmplGenerator := s.cfg.BgBlkTmplGenerator()
-	var template *BlockTemplate
+	var template *mining.BlockTemplate
 	if state.prevHash == nil || *state.prevHash != best.Hash {
 		// Prune old templates from the pool when the best block changes.
 		state.pruneOldBlockTemplates(best.Height)
@@ -5573,8 +5574,8 @@ type rpcserverConfig struct {
 	// BgBlkTmplGenerator generates blocks as a background process, CPUMiner
 	// solves templates using the CPU.  CPU mining is typically only useful
 	// for test purposes when doing regression or simulation testing.
-	BgBlkTmplGenerator func() *BgBlkTmplGenerator
-	CPUMiner           *CPUMiner
+	BgBlkTmplGenerator func() *mining.BgBlkTmplGenerator
+	CPUMiner           *mining.CPUMiner
 
 	// These fields define any optional indexes the RPC server can make use
 	// of to provide additional data when queried.

@@ -442,11 +442,11 @@ type server struct {
 	subsidyCache         *standalone.SubsidyCache
 	rpcServer            *rpcServer
 	blockManager         *blockManager
-	bg                   *BgBlkTmplGenerator
+	bg                   *mining.BgBlkTmplGenerator
 	chain                *blockchain.BlockChain
 	txMemPool            *mempool.TxPool
 	feeEstimator         *fees.Estimator
-	cpuMiner             *CPUMiner
+	cpuMiner             *mining.CPUMiner
 	modifyRebroadcastInv chan interface{}
 	newPeers             chan *serverPeer
 	donePeers            chan *serverPeer
@@ -813,7 +813,7 @@ func (sp *serverPeer) OnGetMiningState(p *peer.Peer, msg *wire.MsgGetMiningState
 	// list to the maximum number of allowed eligible block hashes per
 	// mining state message.  There is nothing to send when there are no
 	// eligible blocks.
-	blockHashes := SortParentsByVotes(mp, best.Hash, children,
+	blockHashes := mining.SortParentsByVotes(mp, best.Hash, children,
 		bm.cfg.ChainParams)
 	numBlocks := len(blockHashes)
 	if numBlocks == 0 {
@@ -3120,18 +3120,18 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB, chainP
 			return standardScriptVerifyFlags(s.chain)
 		},
 	}
-	tg := newBlkTmplGenerator(&policy, s.txMemPool, s.timeSource, s.sigCache,
+	tg := mining.NewBlkTmplGenerator(&policy, s.txMemPool, s.timeSource, s.sigCache,
 		s.subsidyCache, s.chainParams, s.chain, s.blockManager,
 		cfg.MiningTimeOffset)
 
 	// Create the background block template generator if the config has a
 	// mining address.
 	if len(cfg.miningAddrs) > 0 {
-		s.bg = newBgBlkTmplGenerator(tg, cfg.miningAddrs, cfg.AllowUnsyncedMining)
+		s.bg = mining.NewBgBlkTmplGenerator(tg, cfg.miningAddrs, cfg.AllowUnsyncedMining)
 		s.blockManager.cfg.BgBlkTmplGenerator = s.bg
 	}
 
-	s.cpuMiner = newCPUMiner(&cpuminerConfig{
+	s.cpuMiner = mining.NewCPUMiner(&mining.CPUMinerConfig{
 		ChainParams:                s.chainParams,
 		PermitConnectionlessMining: cfg.SimNet,
 		BlockTemplateGenerator:     tg,
@@ -3252,7 +3252,7 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB, chainP
 			ChainParams:  chainParams,
 			DB:           db,
 			TxMemPool:    s.txMemPool,
-			BgBlkTmplGenerator: func() *BgBlkTmplGenerator {
+			BgBlkTmplGenerator: func() *mining.BgBlkTmplGenerator {
 				return s.bg
 			},
 			CPUMiner:  s.cpuMiner,

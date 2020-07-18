@@ -3,7 +3,7 @@
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
-package main
+package mining
 
 import (
 	"context"
@@ -73,8 +73,8 @@ func (s *speedStats) AddTotalHashes(numHashes uint64) {
 	s.Unlock()
 }
 
-// cpuminerConfig is a descriptor containing the cpu miner configuration.
-type cpuminerConfig struct {
+// CPUMinerConfig is a descriptor containing the cpu miner configuration.
+type CPUMinerConfig struct {
 	// ChainParams identifies which chain parameters the cpu miner is
 	// associated with.
 	ChainParams *chaincfg.Params
@@ -123,7 +123,7 @@ type CPUMiner struct {
 
 	sync.Mutex
 	g                 *BlkTmplGenerator
-	cfg               *cpuminerConfig
+	cfg               *CPUMinerConfig
 	started           bool
 	discreteMining    bool
 	submitBlockLock   sync.Mutex
@@ -144,7 +144,7 @@ type CPUMiner struct {
 // speedMonitor handles tracking the number of hashes per second the mining
 // process is performing.  It must be run as a goroutine.
 func (m *CPUMiner) speedMonitor() {
-	minrLog.Tracef("CPU miner speed monitor started")
+	log.Tracef("CPU miner speed monitor started")
 
 	var hashesPerSec float64
 	ticker := time.NewTicker(time.Second * hpsUpdateSecs)
@@ -166,7 +166,7 @@ out:
 			}
 			hashesPerSec = (hashesPerSec + curHashesPerSec) / 2
 			if hashesPerSec != 0 {
-				minrLog.Debugf("Hash speed: %6.0f kilohashes/s",
+				log.Debugf("Hash speed: %6.0f kilohashes/s",
 					hashesPerSec/1000)
 			}
 
@@ -180,7 +180,7 @@ out:
 	}
 
 	m.wg.Done()
-	minrLog.Tracef("CPU miner speed monitor done")
+	log.Tracef("CPU miner speed monitor done")
 }
 
 // submitBlock submits the passed block to network after ensuring it passes all
@@ -197,7 +197,7 @@ func (m *CPUMiner) submitBlock(block *dcrutil.Block) bool {
 		// so log that error as an internal error.
 		var rErr blockchain.RuleError
 		if !errors.As(err, &rErr) {
-			minrLog.Errorf("Unexpected error while processing "+
+			log.Errorf("Unexpected error while processing "+
 				"block submitted via CPU miner: %v", err)
 			return false
 		}
@@ -206,17 +206,17 @@ func (m *CPUMiner) submitBlock(block *dcrutil.Block) bool {
 		// the target. Feed these to debug.
 		if m.cfg.ChainParams.ReduceMinDifficulty &&
 			rErr.ErrorCode == blockchain.ErrHighHash {
-			minrLog.Debugf("Block submitted via CPU miner rejected "+
+			log.Debugf("Block submitted via CPU miner rejected "+
 				"because of ReduceMinDifficulty time sync failure: %v",
 				err)
 			return false
 		}
 		// Other rule errors should be reported.
-		minrLog.Errorf("Block submitted via CPU miner rejected: %v", err)
+		log.Errorf("Block submitted via CPU miner rejected: %v", err)
 		return false
 	}
 	if isOrphan {
-		minrLog.Errorf("Block submitted via CPU miner is an orphan building "+
+		log.Errorf("Block submitted via CPU miner is an orphan building "+
 			"on parent %v", block.MsgBlock().Header.PrevBlock)
 		return false
 	}
@@ -227,7 +227,7 @@ func (m *CPUMiner) submitBlock(block *dcrutil.Block) bool {
 	for _, out := range coinbaseTxOuts {
 		coinbaseTxGenerated += out.Value
 	}
-	minrLog.Infof("Block submitted via CPU miner accepted (hash %s, "+
+	log.Infof("Block submitted via CPU miner accepted (hash %s, "+
 		"height %v, amount %v)", block.Hash(), block.Height(),
 		dcrutil.Amount(coinbaseTxGenerated))
 	return true
@@ -247,7 +247,7 @@ func (m *CPUMiner) solveBlock(ctx context.Context, msgBlock *wire.MsgBlock, stat
 	// worker.
 	enOffset, err := wire.RandomUint64()
 	if err != nil {
-		minrLog.Errorf("Unexpected error while generating random "+
+		log.Errorf("Unexpected error while generating random "+
 			"extra nonce offset: %v", err)
 		enOffset = 0
 	}
@@ -304,7 +304,7 @@ func (m *CPUMiner) solveBlock(ctx context.Context, msgBlock *wire.MsgBlock, stat
 
 				err = m.g.UpdateBlockTime(header)
 				if err != nil {
-					minrLog.Warnf("CPU miner unable to update block template "+
+					log.Warnf("CPU miner unable to update block template "+
 						"time: %v", err)
 					return false
 				}
@@ -340,7 +340,7 @@ func (m *CPUMiner) solveBlock(ctx context.Context, msgBlock *wire.MsgBlock, stat
 //
 // It must be run as a goroutine.
 func (m *CPUMiner) generateBlocks(ctx context.Context) {
-	minrLog.Tracef("Starting generate blocks worker")
+	log.Tracef("Starting generate blocks worker")
 
 	// Start a ticker which is used to signal checks for stale work and
 	// updates to the speed monitor.
@@ -387,7 +387,7 @@ func (m *CPUMiner) generateBlocks(ctx context.Context) {
 		if err != nil {
 			errStr := fmt.Sprintf("Failed to create new block "+
 				"template: %v", err)
-			minrLog.Errorf(errStr)
+			log.Errorf(errStr)
 			continue
 		}
 
@@ -404,7 +404,7 @@ func (m *CPUMiner) generateBlocks(ctx context.Context) {
 			maxBlocksOnParent := m.minedOnParents[prevBlock] >= maxSimnetToMine
 			m.Unlock()
 			if maxBlocksOnParent {
-				minrLog.Tracef("too many blocks mined on parent, stopping " +
+				log.Tracef("too many blocks mined on parent, stopping " +
 					"until there are enough votes on these to make a new " +
 					"block")
 				continue
@@ -426,7 +426,7 @@ func (m *CPUMiner) generateBlocks(ctx context.Context) {
 	}
 
 	m.workerWg.Done()
-	minrLog.Tracef("Generate blocks worker done")
+	log.Tracef("Generate blocks worker done")
 }
 
 // miningWorkerController launches the worker goroutines that are used to
@@ -513,7 +513,7 @@ func (m *CPUMiner) Start() {
 	go m.miningWorkerController(context.TODO())
 
 	m.started = true
-	minrLog.Infof("CPU miner started")
+	log.Infof("CPU miner started")
 }
 
 // Wait blocks until the WaitGroup counters added to by a call to
@@ -540,7 +540,7 @@ func (m *CPUMiner) Stop() {
 	close(m.quit)
 	m.wg.Wait()
 	m.started = false
-	minrLog.Infof("CPU miner stopped")
+	log.Infof("CPU miner stopped")
 }
 
 // IsMining returns whether or not the CPU miner has been started and is
@@ -620,7 +620,7 @@ func (m *CPUMiner) GenerateNBlocks(ctx context.Context, n uint32) ([]*chainhash.
 	m.discreteMining = true
 	m.Unlock()
 
-	minrLog.Tracef("Generating %d blocks", n)
+	log.Tracef("Generating %d blocks", n)
 
 	i := uint32(0)
 	blockHashes := make([]*chainhash.Hash, n)
@@ -655,13 +655,13 @@ func (m *CPUMiner) GenerateNBlocks(ctx context.Context, n uint32) ([]*chainhash.
 		if err != nil {
 			errStr := fmt.Sprintf("Failed to create new block "+
 				"template: %v", err)
-			minrLog.Errorf(errStr)
+			log.Errorf(errStr)
 			continue
 		}
 		if template == nil {
 			errStr := fmt.Sprintf("Not enough voters on parent block " +
 				"and failed to pull parent template")
-			minrLog.Debugf(errStr)
+			log.Debugf(errStr)
 			continue
 		}
 
@@ -676,7 +676,7 @@ func (m *CPUMiner) GenerateNBlocks(ctx context.Context, n uint32) ([]*chainhash.
 			blockHashes[i] = block.Hash()
 			i++
 			if i == n {
-				minrLog.Tracef("Generated %d blocks", i)
+				log.Tracef("Generated %d blocks", i)
 				m.wg.Wait()
 				m.Lock()
 				m.started = false
@@ -688,10 +688,10 @@ func (m *CPUMiner) GenerateNBlocks(ctx context.Context, n uint32) ([]*chainhash.
 	}
 }
 
-// newCPUMiner returns a new instance of a CPU miner for the provided server.
+// NewCPUMiner returns a new instance of a CPU miner for the provided server.
 // Use Start to begin the mining process.  See the documentation for CPUMiner
 // type for more details.
-func newCPUMiner(cfg *cpuminerConfig) *CPUMiner {
+func NewCPUMiner(cfg *CPUMinerConfig) *CPUMiner {
 	return &CPUMiner{
 		g:                 cfg.BlockTemplateGenerator,
 		cfg:               cfg,
