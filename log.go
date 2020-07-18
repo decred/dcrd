@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2017 The btcsuite developers
-// Copyright (c) 2015-2019 The Decred developers
+// Copyright (c) 2015-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -19,6 +19,7 @@ import (
 	"github.com/decred/dcrd/fees/v2"
 	"github.com/decred/dcrd/internal/rpcserver"
 	"github.com/decred/dcrd/mempool/v4"
+	"github.com/decred/dcrd/mining/v3"
 	"github.com/decred/dcrd/peer/v2"
 	"github.com/decred/dcrd/txscript/v3"
 	"github.com/decred/slog"
@@ -83,6 +84,7 @@ func init() {
 	fees.UseLogger(feesLog)
 	indexers.UseLogger(indxLog)
 	mempool.UseLogger(txmpLog)
+	mining.UseLogger(minrLog)
 	peer.UseLogger(peerLog)
 	rpcserver.UseLogger(rpcsLog)
 	stake.UseLogger(stkeLog)

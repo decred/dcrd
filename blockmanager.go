@@ -24,6 +24,7 @@ import (
 	"github.com/decred/dcrd/dcrutil/v3"
 	"github.com/decred/dcrd/fees/v2"
 	"github.com/decred/dcrd/mempool/v4"
+	"github.com/decred/dcrd/mining/v3"
 	peerpkg "github.com/decred/dcrd/peer/v2"
 	"github.com/decred/dcrd/wire"
 )
@@ -271,7 +272,7 @@ type blockManagerConfig struct {
 	// the background block template generator.
 	FeeEstimator       *fees.Estimator
 	TxMemPool          *mempool.TxPool
-	BgBlkTmplGenerator *BgBlkTmplGenerator
+	BgBlkTmplGenerator *mining.BgBlkTmplGenerator
 
 	// The following fields are blockManager callbacks.
 	NotifyWinningTickets      func(*WinningTicketsNtfnData)
@@ -359,7 +360,7 @@ func (b *blockManager) resetHeaderState(newestHash *chainhash.Hash, newestHeight
 
 // NotifyWork passes new mining work to the notification manager
 // for block notification processing.
-func (b *blockManager) NotifyWork(templateNtfn *TemplateNtfn) {
+func (b *blockManager) NotifyWork(templateNtfn *mining.TemplateNtfn) {
 	if r := b.cfg.RpcServer(); r != nil {
 		r.ntfnMgr.NotifyWork(templateNtfn)
 	}
