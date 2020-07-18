@@ -30,6 +30,7 @@ import (
 	"github.com/decred/dcrd/crypto/ripemd160"
 	"github.com/decred/dcrd/dcrjson/v3"
 	"github.com/decred/dcrd/dcrutil/v3"
+	"github.com/decred/dcrd/mining/v3"
 	"github.com/decred/dcrd/rpc/jsonrpc/types/v2"
 	"github.com/decred/dcrd/txscript/v3"
 	"github.com/decred/dcrd/wire"
@@ -245,7 +246,7 @@ func (m *wsNotificationManager) NotifyBlockDisconnected(block *dcrutil.Block) {
 
 // NotifyWork passes new mining work to the notification manager
 // for block notification processing.
-func (m *wsNotificationManager) NotifyWork(templateNtfn *TemplateNtfn) {
+func (m *wsNotificationManager) NotifyWork(templateNtfn *mining.TemplateNtfn) {
 	m.mtx.RLock()
 	if m.ctx == nil {
 		// Notification manager not started yet.
@@ -551,7 +552,7 @@ func (f *wsClientFilter) existsUnspentOutPoint(op *wire.OutPoint) bool {
 // Notification types
 type notificationBlockConnected dcrutil.Block
 type notificationBlockDisconnected dcrutil.Block
-type notificationWork TemplateNtfn
+type notificationWork mining.TemplateNtfn
 type notificationReorganization blockchain.ReorganizationNtfnsData
 type notificationWinningTickets WinningTicketsNtfnData
 type notificationSpentAndMissedTickets blockchain.TicketNotificationsData
@@ -630,7 +631,7 @@ out:
 					(*dcrutil.Block)(n))
 
 			case *notificationWork:
-				m.notifyWork(workNotifications, (*TemplateNtfn)(n))
+				m.notifyWork(workNotifications, (*mining.TemplateNtfn)(n))
 
 			case *notificationReorganization:
 				m.notifyReorganization(blockNotifications,
@@ -955,13 +956,13 @@ func (*wsNotificationManager) notifyBlockDisconnected(clients map[chan struct{}]
 
 // updateReasonToWorkNtfnString converts a template update reason to a string
 // which matches the reasons required return values for work notifications.
-func updateReasonToWorkNtfnString(reason TemplateUpdateReason) string {
+func updateReasonToWorkNtfnString(reason mining.TemplateUpdateReason) string {
 	switch reason {
-	case TURNewParent:
+	case mining.TURNewParent:
 		return "newparent"
-	case TURNewVotes:
+	case mining.TURNewVotes:
 		return "newvotes"
-	case TURNewTxns:
+	case mining.TURNewTxns:
 		return "newtxns"
 	}
 
@@ -970,7 +971,8 @@ func updateReasonToWorkNtfnString(reason TemplateUpdateReason) string {
 
 // notifyWork notifies websocket clients that have registered for template
 // updates when a new block template is generated.
-func (m *wsNotificationManager) notifyWork(clients map[chan struct{}]*wsClient, templateNtfn *TemplateNtfn) {
+func (m *wsNotificationManager) notifyWork(clients map[chan struct{}]*wsClient,
+	templateNtfn *mining.TemplateNtfn) {
 	// Skip notification creation if no clients have requested work
 	// notifications.
 	if len(clients) == 0 {
