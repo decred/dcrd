@@ -1951,12 +1951,13 @@ mempoolLoop:
 	return blockTemplate, nil
 }
 
-// UpdateBlockTime updates the timestamp in the header of the passed block to
-// the current time while taking into account the median time of the last
-// several blocks to ensure the new time is after that time per the chain
-// consensus rules.  Finally, it will update the target difficulty if needed
-// based on the new time for the test networks since their target difficulty can
-// change based upon time.
+// UpdateBlockTime updates the timestamp in the passed header to the current
+// time while taking into account the median time of the last several blocks to
+// ensure the new time is after that time per the chain consensus rules.
+//
+// Finally, it will update the target difficulty if needed based on the new time
+// for the test networks since their target difficulty can change based upon
+// time.
 func (g *BlkTmplGenerator) UpdateBlockTime(header *wire.BlockHeader) error {
 	// The new timestamp is potentially adjusted to ensure it comes after
 	// the median time of the last several blocks per the chain consensus
@@ -1976,12 +1977,6 @@ func (g *BlkTmplGenerator) UpdateBlockTime(header *wire.BlockHeader) error {
 	}
 
 	return nil
-}
-
-// UpdateBlockTime invokes `UpdateBlockTime` on the underlying
-// BgBlkTmplGenerator.
-func (g *BgBlkTmplGenerator) UpdateBlockTime(header *wire.BlockHeader) error {
-	return g.tg.UpdateBlockTime(header)
 }
 
 // regenEventType represents the type of a template regeneration event message.
@@ -2230,6 +2225,17 @@ func NewBgBlkTmplGenerator(tg *BlkTmplGenerator, addrs []dcrutil.Address, allowU
 		regenEventMsgs:      make(chan regenEvent),
 		cancelTemplate:      func() {},
 	}
+}
+
+// UpdateBlockTime updates the timestamp in the passed header to the current
+// time while taking into account the median time of the last several blocks to
+// ensure the new time is after that time per the chain consensus rules.
+//
+// Finally, it will update the target difficulty if needed based on the new time
+// for the test networks since their target difficulty can change based upon
+// time.
+func (g *BgBlkTmplGenerator) UpdateBlockTime(header *wire.BlockHeader) error {
+	return g.tg.UpdateBlockTime(header)
 }
 
 // sendQueueRegenEvent sends the provided regen event on the internal queue
