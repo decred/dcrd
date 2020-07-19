@@ -19,6 +19,7 @@ import (
 	"github.com/decred/dcrd/fees/v2"
 	"github.com/decred/dcrd/internal/mempool"
 	"github.com/decred/dcrd/internal/mining"
+	"github.com/decred/dcrd/internal/mining/cpuminer"
 	"github.com/decred/dcrd/internal/rpcserver"
 	"github.com/decred/dcrd/peer/v2"
 	"github.com/decred/dcrd/txscript/v3"
@@ -85,6 +86,7 @@ func init() {
 	indexers.UseLogger(indxLog)
 	mempool.UseLogger(txmpLog)
 	mining.UseLogger(minrLog)
+	cpuminer.UseLogger(minrLog)
 	peer.UseLogger(peerLog)
 	rpcserver.UseLogger(rpcsLog)
 	stake.UseLogger(stkeLog)

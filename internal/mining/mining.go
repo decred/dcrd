@@ -1979,6 +1979,23 @@ func (g *BlkTmplGenerator) UpdateBlockTime(header *wire.BlockHeader) error {
 	return nil
 }
 
+// BestSnapshot returns information about the current best chain block and
+// related state as of the current point in time using the chain instance
+// associated with the block template generator.  The returned state must be
+// treated as immutable since it is shared by all callers.
+//
+// This function is safe for concurrent access.
+func (g *BlkTmplGenerator) BestSnapshot() *blockchain.BestState {
+	return g.chain.BestSnapshot()
+}
+
+// TxSource returns the associated transaction source.
+//
+// This function is safe for concurrent access.
+func (g *BlkTmplGenerator) TxSource() TxSource {
+	return g.txSource
+}
+
 // regenEventType represents the type of a template regeneration event message.
 type regenEventType int
 
