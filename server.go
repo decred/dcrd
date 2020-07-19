@@ -3252,9 +3252,22 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB, chainP
 			BgBlkTmplGenerator: func() *mining.BgBlkTmplGenerator {
 				return s.bg
 			},
-			CPUMiner:  s.cpuMiner,
-			TxIndex:   s.txIndex,
-			AddrIndex: s.addrIndex,
+			CPUMiner:             s.cpuMiner,
+			TxIndex:              s.txIndex,
+			AddrIndex:            s.addrIndex,
+			NetInfo:              cfg.generateNetworkInfo(),
+			MinRelayTxFee:        cfg.minRelayTxFee,
+			Proxy:                cfg.Proxy,
+			RPCUser:              cfg.RPCUser,
+			RPCPass:              cfg.RPCPass,
+			RPCLimitUser:         cfg.RPCLimitUser,
+			RPCLimitPass:         cfg.RPCLimitPass,
+			RPCMaxClients:        cfg.RPCMaxClients,
+			RPCMaxConcurrentReqs: cfg.RPCMaxConcurrentReqs,
+			RPCMaxWebsockets:     cfg.RPCMaxWebsockets,
+			TestNet:              cfg.TestNet,
+			MiningAddrs:          cfg.miningAddrs,
+			AllowUnsyncedMining:  cfg.AllowUnsyncedMining,
 		})
 		if err != nil {
 			return nil, err

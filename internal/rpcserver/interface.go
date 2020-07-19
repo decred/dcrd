@@ -127,6 +127,9 @@ type ConnManager interface {
 
 	// AddedNodeInfo returns information describing persistent (added) nodes.
 	AddedNodeInfo() []Peer
+
+	// Lookup defines the DNS lookup function to be used.
+	Lookup(host string) ([]net.IP, error)
 }
 
 // SyncManager represents a sync manager for use with the RPC server.

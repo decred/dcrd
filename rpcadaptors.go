@@ -304,6 +304,14 @@ func (cm *rpcConnManager) AddedNodeInfo() []rpcserver.Peer {
 	return peers
 }
 
+// Lookup defines the DNS lookup function to be used.
+//
+// This function is safe for concurrent access and is part of the
+// rpcserver.ConnManager interface implementation.
+func (*rpcConnManager) Lookup(host string) ([]net.IP, error) {
+	return dcrdLookup(host)
+}
+
 // rpcSyncMgr provides a block manager for use with the RPC server and
 // implements the rpcserver.SyncManager interface.
 type rpcSyncMgr struct {

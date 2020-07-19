@@ -18,7 +18,6 @@ import (
 	"path/filepath"
 	"reflect"
 	"strconv"
-	"sync"
 	"testing"
 	"time"
 
@@ -523,6 +522,7 @@ type testConnManager struct {
 	connectedPeers      []rpcserver.Peer
 	persistentPeers     []rpcserver.Peer
 	addedNodeInfo       []rpcserver.Peer
+	lookup              func(host string) ([]net.IP, error)
 }
 
 // Connect provides a mock implementation for adding the provided address as a
@@ -595,6 +595,11 @@ func (c *testConnManager) RelayTransactions(txns []*dcrutil.Tx) {
 // AddedNodeInfo returns a mocked slice of persistent (added) peers.
 func (c *testConnManager) AddedNodeInfo() []rpcserver.Peer {
 	return c.addedNodeInfo
+}
+
+// Lookup defines a mocked DNS lookup function to be used.
+func (c *testConnManager) Lookup(host string) ([]net.IP, error) {
+	return c.lookup(host)
 }
 
 // testAddr implements the net.Addr interface.
@@ -713,43 +718,6 @@ type rpcTest struct {
 	result           interface{}
 	wantErr          bool
 	errCode          dcrjson.RPCErrorCode
-}
-
-// setCfgOnce is used to set cfg once safely.
-var setCfgOnce sync.Once
-
-// defaultCfg provides a default config that is used throughout the tests.
-func defaultCfg() *config {
-	return &config{
-		ipv4NetInfo: types.NetworksResult{
-			Name:                      "IPV4",
-			Limited:                   false,
-			Reachable:                 true,
-			Proxy:                     "",
-			ProxyRandomizeCredentials: false,
-		},
-		ipv6NetInfo: types.NetworksResult{
-			Name:                      "IPV6",
-			Limited:                   false,
-			Reachable:                 true,
-			Proxy:                     "",
-			ProxyRandomizeCredentials: false,
-		},
-		onionNetInfo: types.NetworksResult{
-			Name:                      "Onion",
-			Limited:                   false,
-			Reachable:                 false,
-			Proxy:                     "",
-			ProxyRandomizeCredentials: false,
-		},
-		lookup: func(host string) ([]net.IP, error) {
-			if host == "mydomain.org" {
-				return []net.IP{net.ParseIP("127.0.0.211")}, nil
-			}
-			return nil, errors.New("host not found")
-		},
-		minRelayTxFee: dcrutil.Amount(int64(10000)),
-	}
 }
 
 // defaultChainParams provides a default chaincfg.Params to be used throughout
@@ -974,6 +942,12 @@ func defaultMockConnManager() *testConnManager {
 			testPeer3,
 			testPeer4,
 		},
+		lookup: func(host string) ([]net.IP, error) {
+			if host == "mydomain.org" {
+				return []net.IP{net.ParseIP("127.0.0.211")}, nil
+			}
+			return nil, errors.New("host not found")
+		},
 	}
 }
 
@@ -1000,6 +974,26 @@ func defaultMockConfig(chainParams *chaincfg.Params) *rpcserverConfig {
 		TimeSource:   blockchain.NewMedianTime(),
 		Services:     wire.SFNodeNetwork | wire.SFNodeCF,
 		SubsidyCache: standalone.NewSubsidyCache(chainParams),
+		NetInfo: []types.NetworksResult{{
+			Name:                      "IPV4",
+			Limited:                   false,
+			Reachable:                 true,
+			Proxy:                     "",
+			ProxyRandomizeCredentials: false,
+		}, {
+			Name:                      "IPV6",
+			Limited:                   false,
+			Reachable:                 true,
+			Proxy:                     "",
+			ProxyRandomizeCredentials: false,
+		}, {
+			Name:                      "Onion",
+			Limited:                   false,
+			Reachable:                 false,
+			Proxy:                     "",
+			ProxyRandomizeCredentials: false,
+		}},
+		MinRelayTxFee: dcrutil.Amount(10000),
 	}
 }
 
@@ -3847,10 +3841,6 @@ func TestHandleValidateAddress(t *testing.T) {
 
 func testRPCServerHandler(t *testing.T, tests []rpcTest) {
 	t.Helper()
-
-	setCfgOnce.Do(func() {
-		cfg = defaultCfg()
-	})
 
 	for _, test := range tests {
 		test := test // capture range variable
