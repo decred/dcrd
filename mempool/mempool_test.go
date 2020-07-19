@@ -8,7 +8,6 @@ package mempool
 import (
 	"encoding/binary"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"runtime"
 	"sync"
@@ -1148,24 +1147,9 @@ func TestOrphanReject(t *testing.T) {
 			t.Fatalf("ProcessTransaction: did not fail on orphan "+
 				"%v when allow orphans flag is false", tx.Hash())
 		}
-		var expectedErr RuleError
-		if !errors.As(err, &expectedErr) {
-			t.Fatalf("ProcessTransaction: wrong error got: <%T> %v, "+
-				"want: <%T>", err, err, expectedErr)
-		}
-		code, extracted := extractRejectCode(err)
-		if !extracted {
-			t.Fatalf("ProcessTransaction: failed to extract reject "+
-				"code from error %q", err)
-		}
-		if code != wire.RejectDuplicate {
-			t.Fatalf("ProcessTransaction: unexpected reject code "+
-				"-- got %v, want %v", code, wire.RejectDuplicate)
-		}
-
 		if !IsErrorCode(err, ErrOrphan) {
-			t.Fatalf("ProcessTransaction: unexpected error code "+
-				"-- got %v, want %v", code, ErrOrphan)
+			t.Fatalf("ProcessTransaction: unexpected error -- got %v, want %v",
+				err, ErrOrphan)
 		}
 
 		// Ensure no transactions were reported as accepted.
