@@ -97,9 +97,9 @@ func (s *rpcServer) WebsocketHandler(conn *websocket.Conn, remoteAddr string, au
 
 	// Limit max number of websocket clients.
 	rpcsLog.Infof("New websocket client %s", remoteAddr)
-	if s.ntfnMgr.NumClients()+1 > cfg.RPCMaxWebsockets {
+	if s.ntfnMgr.NumClients()+1 > s.cfg.RPCMaxWebsockets {
 		rpcsLog.Infof("Max websocket clients exceeded [%d] - "+
-			"disconnecting client %s", cfg.RPCMaxWebsockets,
+			"disconnecting client %s", s.cfg.RPCMaxWebsockets,
 			remoteAddr)
 		conn.Close()
 		return
@@ -2160,7 +2160,7 @@ func newWebsocketClient(server *rpcServer, conn *websocket.Conn,
 		isAdmin:           isAdmin,
 		sessionID:         sessionID,
 		rpcServer:         server,
-		serviceRequestSem: makeSemaphore(cfg.RPCMaxConcurrentReqs),
+		serviceRequestSem: makeSemaphore(server.cfg.RPCMaxConcurrentReqs),
 		ntfnChan:          make(chan []byte, 1), // nonblocking sync
 		sendChan:          make(chan wsResponse, websocketSendBufferSize),
 		quit:              make(chan struct{}),

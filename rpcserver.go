@@ -1313,7 +1313,7 @@ func handleDecodeScript(_ context.Context, s *rpcServer, cmd interface{}) (inter
 // TODO this is a very basic implementation.  It should be
 // modified to match the bitcoin-core one.
 func handleEstimateFee(_ context.Context, s *rpcServer, cmd interface{}) (interface{}, error) {
-	return cfg.minRelayTxFee.ToCoin(), nil
+	return s.cfg.MinRelayTxFee.ToCoin(), nil
 }
 
 // handleEstimateSmartFee implements the estimatesmartfee command.
@@ -1623,7 +1623,7 @@ func handleExistsMempoolTxs(_ context.Context, s *rpcServer, cmd interface{}) (i
 func handleGenerate(ctx context.Context, s *rpcServer, cmd interface{}) (interface{}, error) {
 	// Respond with an error if there are no addresses to pay the
 	// created blocks to.
-	if len(cfg.miningAddrs) == 0 {
+	if len(s.cfg.MiningAddrs) == 0 {
 		return nil, rpcInternalError("No payment addresses specified "+
 			"via --miningaddr", "Configuration")
 	}
@@ -1711,7 +1711,7 @@ func handleGetAddedNodeInfo(_ context.Context, s *rpcServer, cmd interface{}) (i
 		// Do a DNS lookup for the address.  If the lookup fails, just
 		// use the host.
 		var ipList []string
-		ips, err := dcrdLookup(host)
+		ips, err := s.cfg.ConnMgr.Lookup(host)
 		if err == nil {
 			ipList = make([]string, 0, len(ips))
 			for _, ip := range ips {
@@ -2355,12 +2355,12 @@ func handleGetInfo(_ context.Context, s *rpcServer, cmd interface{}) (interface{
 		Blocks:          best.Height,
 		TimeOffset:      int64(s.cfg.TimeSource.Offset().Seconds()),
 		Connections:     s.cfg.ConnMgr.ConnectedCount(),
-		Proxy:           cfg.Proxy,
+		Proxy:           s.cfg.Proxy,
 		Difficulty:      getDifficultyRatio(best.Bits, s.cfg.ChainParams),
-		TestNet:         cfg.TestNet,
-		RelayFee:        cfg.minRelayTxFee.ToCoin(),
-		AddrIndex:       cfg.AddrIndex,
-		TxIndex:         cfg.TxIndex,
+		TestNet:         s.cfg.TestNet,
+		RelayFee:        s.cfg.MinRelayTxFee.ToCoin(),
+		AddrIndex:       s.cfg.AddrIndex != nil,
+		TxIndex:         s.cfg.TxIndex != nil,
 	}
 
 	return ret, nil
@@ -2418,7 +2418,7 @@ func handleGetMiningInfo(ctx context.Context, s *rpcServer, cmd interface{}) (in
 		HashesPerSec:     int64(s.cfg.CPUMiner.HashesPerSecond()),
 		NetworkHashPS:    networkHashesPerSec,
 		PooledTx:         uint64(s.cfg.TxMemPool.Count()),
-		TestNet:          cfg.TestNet,
+		TestNet:          s.cfg.TestNet,
 	}
 	return &result, nil
 }
@@ -2533,7 +2533,6 @@ func handleGetNetworkHashPS(_ context.Context, s *rpcServer, cmd interface{}) (i
 
 // handleGetNetworkInfo implements the getnetworkinfo command.
 func handleGetNetworkInfo(_ context.Context, s *rpcServer, cmd interface{}) (interface{}, error) {
-	networks := cfg.generateNetworkInfo()
 	lAddrs := s.cfg.AddrManager.LocalAddresses()
 	localAddrs := make([]types.LocalAddressesResult, len(lAddrs))
 	for idx, entry := range lAddrs {
@@ -2551,8 +2550,8 @@ func handleGetNetworkInfo(_ context.Context, s *rpcServer, cmd interface{}) (int
 		ProtocolVersion: int32(maxProtocolVersion),
 		TimeOffset:      int64(s.cfg.TimeSource.Offset().Seconds()),
 		Connections:     s.cfg.ConnMgr.ConnectedCount(),
-		RelayFee:        cfg.minRelayTxFee.ToCoin(),
-		Networks:        networks,
+		RelayFee:        s.cfg.MinRelayTxFee.ToCoin(),
+		Networks:        s.cfg.NetInfo,
 		LocalAddresses:  localAddrs,
 		LocalServices:   fmt.Sprintf("%016x", uint64(s.cfg.Services)),
 	}
@@ -3464,7 +3463,7 @@ func handleGetWork(ctx context.Context, s *rpcServer, cmd interface{}) (interfac
 
 	// Respond with an error if there are no addresses to pay the created
 	// blocks to.
-	if len(cfg.miningAddrs) == 0 {
+	if len(s.cfg.MiningAddrs) == 0 {
 		return nil, rpcInternalError("No payment addresses specified "+
 			"via --miningaddr", "Configuration")
 	}
@@ -3472,7 +3471,7 @@ func handleGetWork(ctx context.Context, s *rpcServer, cmd interface{}) (interfac
 	// Return an error if there are no peers connected since there is no way to
 	// relay a found block or receive transactions to work on unless
 	// unsynchronized mining has specifically been allowed.
-	if !cfg.AllowUnsyncedMining && s.cfg.ConnMgr.ConnectedCount() == 0 {
+	if !s.cfg.AllowUnsyncedMining && s.cfg.ConnMgr.ConnectedCount() == 0 {
 		return nil, &dcrjson.RPCError{
 			Code:    dcrjson.ErrRPCClientNotConnected,
 			Message: "Decred is not connected",
@@ -3482,7 +3481,7 @@ func handleGetWork(ctx context.Context, s *rpcServer, cmd interface{}) (interfac
 	// No point in generating or accepting work before the chain is synced
 	// unless unsynchronized mining has specifically been allowed.
 	bestHeight := s.cfg.Chain.BestSnapshot().Height
-	if !cfg.AllowUnsyncedMining && bestHeight != 0 && !s.cfg.Chain.IsCurrent() {
+	if !s.cfg.AllowUnsyncedMining && bestHeight != 0 && !s.cfg.Chain.IsCurrent() {
 		return nil, &dcrjson.RPCError{
 			Code:    dcrjson.ErrRPCClientInInitialDownload,
 			Message: "Decred is downloading blocks...",
@@ -4207,7 +4206,7 @@ func handleSetGenerate(_ context.Context, s *rpcServer, cmd interface{}) (interf
 	} else {
 		// Respond with an error if there are no addresses to pay the
 		// created blocks to.
-		if len(cfg.miningAddrs) == 0 {
+		if len(s.cfg.MiningAddrs) == 0 {
 			return nil, rpcInternalError("No payment addresses "+
 				"specified via --miningaddr", "Configuration")
 		}
@@ -4987,9 +4986,9 @@ func (s *rpcServer) NotifyNewTransactions(txns []*dcrutil.Tx) {
 //
 // This function is safe for concurrent access.
 func (s *rpcServer) limitConnections(w http.ResponseWriter, remoteAddr string) bool {
-	if int(atomic.LoadInt32(&s.numClients)+1) > cfg.RPCMaxClients {
+	if int(atomic.LoadInt32(&s.numClients)+1) > s.cfg.RPCMaxClients {
 		rpcsLog.Infof("Max RPC clients exceeded [%d] - "+
-			"disconnecting client %s", cfg.RPCMaxClients,
+			"disconnecting client %s", s.cfg.RPCMaxClients,
 			remoteAddr)
 		http.Error(w, "503 Too busy.  Try again later.",
 			http.StatusServiceUnavailable)
@@ -5579,6 +5578,44 @@ type rpcserverConfig struct {
 	// of to provide additional data when queried.
 	TxIndex   *indexers.TxIndex
 	AddrIndex *indexers.AddrIndex
+
+	// NetInfo defines a slice of the available networks.
+	NetInfo []types.NetworksResult
+
+	// MinRelayTxFee defines the minimum transaction fee in Atoms/1000 bytes to be
+	// considered a non-zero fee.
+	MinRelayTxFee dcrutil.Amount
+
+	// Proxy defines the proxy that is being used for connections.
+	Proxy string
+
+	// These fields define the username and password for RPC connections and
+	// limited RPC connections.
+	RPCUser      string
+	RPCPass      string
+	RPCLimitUser string
+	RPCLimitPass string
+
+	// RPCMaxClients defines the max number of RPC clients for standard
+	// connections.
+	RPCMaxClients int
+
+	// RPCMaxConcurrentReqs defines the max number of RPC requests that may be
+	// processed concurrently.
+	RPCMaxConcurrentReqs int
+
+	// RPCMaxWebsockets defines the max number of RPC websocket connections.
+	RPCMaxWebsockets int
+
+	// TestNet represents whether or not the server is using testnet.
+	TestNet bool
+
+	// MiningAddrs is a list of payment addresses to use for the generated blocks.
+	MiningAddrs []dcrutil.Address
+
+	// AllowUnsyncedMining indicates whether block templates should be created even
+	// when the chain is not fully synced.
+	AllowUnsyncedMining bool
 }
 
 // newRPCServer returns a new instance of the rpcServer struct.
@@ -5590,14 +5627,14 @@ func newRPCServer(config *rpcserverConfig) (*rpcServer, error) {
 		helpCacher:             newHelpCacher(),
 		requestProcessShutdown: make(chan struct{}),
 	}
-	if cfg.RPCUser != "" && cfg.RPCPass != "" {
-		login := cfg.RPCUser + ":" + cfg.RPCPass
+	if config.RPCUser != "" && config.RPCPass != "" {
+		login := config.RPCUser + ":" + config.RPCPass
 		auth := "Basic " +
 			base64.StdEncoding.EncodeToString([]byte(login))
 		rpc.authsha = sha256.Sum256([]byte(auth))
 	}
-	if cfg.RPCLimitUser != "" && cfg.RPCLimitPass != "" {
-		login := cfg.RPCLimitUser + ":" + cfg.RPCLimitPass
+	if config.RPCLimitUser != "" && config.RPCLimitPass != "" {
+		login := config.RPCLimitUser + ":" + config.RPCLimitPass
 		auth := "Basic " +
 			base64.StdEncoding.EncodeToString([]byte(login))
 		rpc.limitauthsha = sha256.Sum256([]byte(auth))
