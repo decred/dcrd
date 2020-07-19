@@ -7,7 +7,6 @@ package mempool
 
 import (
 	"bytes"
-	"errors"
 	"testing"
 	"time"
 
@@ -340,7 +339,7 @@ func TestCheckTransactionStandard(t *testing.T) {
 		tx         wire.MsgTx
 		height     int64
 		isStandard bool
-		code       wire.RejectCode
+		code       ErrorCode
 	}{
 		{
 			name: "Typical pay-to-pubkey-hash transaction",
@@ -365,7 +364,7 @@ func TestCheckTransactionStandard(t *testing.T) {
 			},
 			height:     300000,
 			isStandard: false,
-			code:       wire.RejectNonstandard,
+			code:       ErrNonStandard,
 		},
 		{
 			name: "Transaction version too high",
@@ -378,7 +377,7 @@ func TestCheckTransactionStandard(t *testing.T) {
 			},
 			height:     300000,
 			isStandard: false,
-			code:       wire.RejectNonstandard,
+			code:       ErrNonStandard,
 		},
 		{
 			name: "Transaction is not finalized",
@@ -395,7 +394,7 @@ func TestCheckTransactionStandard(t *testing.T) {
 			},
 			height:     300000,
 			isStandard: false,
-			code:       wire.RejectNonstandard,
+			code:       ErrNonStandard,
 		},
 		{
 			name: "Transaction size is too large",
@@ -412,7 +411,7 @@ func TestCheckTransactionStandard(t *testing.T) {
 			},
 			height:     300000,
 			isStandard: false,
-			code:       wire.RejectNonstandard,
+			code:       ErrNonStandard,
 		},
 		{
 			name: "Signature script size is too large",
@@ -430,7 +429,7 @@ func TestCheckTransactionStandard(t *testing.T) {
 			},
 			height:     300000,
 			isStandard: false,
-			code:       wire.RejectNonstandard,
+			code:       ErrNonStandard,
 		},
 		{
 			name: "Signature script that does more than push data",
@@ -448,7 +447,7 @@ func TestCheckTransactionStandard(t *testing.T) {
 			},
 			height:     300000,
 			isStandard: false,
-			code:       wire.RejectNonstandard,
+			code:       ErrNonStandard,
 		},
 		{
 			name: "Valid but non standard public key script",
@@ -464,7 +463,7 @@ func TestCheckTransactionStandard(t *testing.T) {
 			},
 			height:     300000,
 			isStandard: false,
-			code:       wire.RejectNonstandard,
+			code:       ErrNonStandard,
 		},
 		{
 			name: "More than four nulldata outputs",
@@ -492,7 +491,7 @@ func TestCheckTransactionStandard(t *testing.T) {
 			},
 			height:     300000,
 			isStandard: false,
-			code:       wire.RejectNonstandard,
+			code:       ErrNonStandard,
 		},
 		{
 			name: "Dust output",
@@ -508,7 +507,7 @@ func TestCheckTransactionStandard(t *testing.T) {
 			},
 			height:     300000,
 			isStandard: false,
-			code:       wire.RejectDust,
+			code:       ErrDustOutput,
 		},
 		{
 			name: "One nulldata output with 0 amount (standard)",
@@ -550,25 +549,10 @@ func TestCheckTransactionStandard(t *testing.T) {
 			continue
 		}
 
-		// Ensure error type is a TxRuleError inside of a RuleError.
-		var rerr RuleError
-		if !errors.As(err, &rerr) {
-			t.Errorf("checkTransactionStandard (%s): unexpected "+
-				"error type - got %T", test.name, err)
-			continue
-		}
-		var txrerr TxRuleError
-		if !errors.As(rerr.Err, &txrerr) {
-			t.Errorf("checkTransactionStandard (%s): unexpected "+
-				"error type - got %T", test.name, rerr.Err)
-			continue
-		}
-
-		// Ensure the reject code is the expected one.
-		if txrerr.RejectCode != test.code {
-			t.Errorf("checkTransactionStandard (%s): unexpected "+
-				"error code - got %v, want %v", test.name,
-				txrerr.RejectCode, test.code)
+		// Ensure the error code is the expected one.
+		if !IsErrorCode(err, test.code) {
+			t.Errorf("checkTransactionStandard (%s): unexpected error -- got "+
+				"%v, want %v", test.name, err, test.code)
 			continue
 		}
 	}
