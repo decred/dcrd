@@ -25,7 +25,6 @@ require (
 	github.com/decred/dcrd/gcs/v2 v2.0.1
 	github.com/decred/dcrd/hdkeychain/v3 v3.0.0
 	github.com/decred/dcrd/lru v1.0.0
-	github.com/decred/dcrd/mempool/v4 v4.0.0-20200215031403-6b2ce76f0986
 	github.com/decred/dcrd/mining/v3 v3.0.0-20200215031403-6b2ce76f0986
 	github.com/decred/dcrd/peer/v2 v2.1.0
 	github.com/decred/dcrd/rpc/jsonrpc/types/v2 v2.0.1-0.20200503044000-76f6906e50e5
@@ -64,7 +63,6 @@ replace (
 	github.com/decred/dcrd/hdkeychain/v3 => ./hdkeychain
 	github.com/decred/dcrd/limits => ./limits
 	github.com/decred/dcrd/lru => ./lru
-	github.com/decred/dcrd/mempool/v4 => ./mempool
 	github.com/decred/dcrd/mining/v3 => ./mining
 	github.com/decred/dcrd/peer/v2 => ./peer
 	github.com/decred/dcrd/rpc/jsonrpc/types/v2 => ./rpc/jsonrpc/types
