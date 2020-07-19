@@ -21,7 +21,6 @@ digraph {
 	standalone [label="blockchain/standalone" fillcolor=firebrick4]
 	gcs [label="gcs" fillcolor=gold]
 	blockchain [label="blockchain/v2" fillcolor=orchid]
-	mining [label="mining/v2" fillcolor=chartreuse]
 	lru  [label="lru" fillcolor=royalblue3]
 	peer [label="peer/v2" fillcolor=khaki]
 	rpcclient [label="rpcclient/v4" fillcolor=mediumseagreen]
@@ -50,7 +49,7 @@ digraph {
 	standalone -> blockchain [dir=back color=firebrick4]
 	gcs -> blockchain [dir=back color=gold]
 	gcs -> rpcclient [dir=back color=gold]
-	blockchain -> mining [dir=back color=orchid]
+
 	lru -> peer [dir=back color=royalblue3]
 	blockchain -> peer [dir=back color=orchid]
 	dcrjson -> types [dir=back color=tomato]
