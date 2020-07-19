@@ -21,7 +21,6 @@ digraph {
 	standalone [label="blockchain/standalone" fillcolor=firebrick4]
 	gcs [label="gcs" fillcolor=gold]
 	blockchain [label="blockchain/v2" fillcolor=orchid]
-	mempool [label="mempool/v3" fillcolor=slategray]
 	mining [label="mining/v2" fillcolor=chartreuse]
 	lru  [label="lru" fillcolor=royalblue3]
 	peer [label="peer/v2" fillcolor=khaki]
@@ -29,7 +28,7 @@ digraph {
 	fees [label="fees" fillcolor=darkolivegreen2]
 	dcrd [label="dcrd" fillcolor=chocolate]
 
-	{rank=same connmgr addrmgr hdkeychain peer rpcclient mempool}
+	{rank=same connmgr addrmgr hdkeychain peer rpcclient}
 
 	certgen
 	chainhash -> dcrjson [dir=back color=aquamarine]
@@ -52,14 +51,12 @@ digraph {
 	gcs -> blockchain [dir=back color=gold]
 	gcs -> rpcclient [dir=back color=gold]
 	blockchain -> mining [dir=back color=orchid]
-	mining -> mempool [dir=back color=chartreuse]
 	lru -> peer [dir=back color=royalblue3]
 	blockchain -> peer [dir=back color=orchid]
 	dcrjson -> types [dir=back color=tomato]
 	types -> rpcclient [dir=back color=indianred]
 
 	fees -> dcrd [dir=back color=darkolivegreen2]
-	mempool -> dcrd [dir=back color=slategray]
 	certgen -> dcrd [dir=back color=darkkhaki]
 	addrmgr -> dcrd [dir=back color=lightsalmon]
 	hdkeychain -> dcrd [dir=back color=deepskyblue]
