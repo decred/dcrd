@@ -37,6 +37,7 @@ import (
 	"github.com/decred/dcrd/gcs/v2/blockcf"
 	"github.com/decred/dcrd/internal/mempool"
 	"github.com/decred/dcrd/internal/mining"
+	"github.com/decred/dcrd/internal/mining/cpuminer"
 	"github.com/decred/dcrd/internal/version"
 	"github.com/decred/dcrd/lru"
 	"github.com/decred/dcrd/peer/v2"
@@ -446,7 +447,7 @@ type server struct {
 	chain                *blockchain.BlockChain
 	txMemPool            *mempool.TxPool
 	feeEstimator         *fees.Estimator
-	cpuMiner             *mining.CPUMiner
+	cpuMiner             *cpuminer.CPUMiner
 	modifyRebroadcastInv chan interface{}
 	newPeers             chan *serverPeer
 	donePeers            chan *serverPeer
@@ -3131,7 +3132,7 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB, chainP
 		s.blockManager.cfg.BgBlkTmplGenerator = s.bg
 	}
 
-	s.cpuMiner = mining.NewCPUMiner(&mining.CPUMinerConfig{
+	s.cpuMiner = cpuminer.New(&cpuminer.Config{
 		ChainParams:                s.chainParams,
 		PermitConnectionlessMining: cfg.SimNet,
 		BlockTemplateGenerator:     tg,

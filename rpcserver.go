@@ -48,6 +48,7 @@ import (
 	"github.com/decred/dcrd/dcrutil/v3"
 	"github.com/decred/dcrd/internal/mempool"
 	"github.com/decred/dcrd/internal/mining"
+	"github.com/decred/dcrd/internal/mining/cpuminer"
 	"github.com/decred/dcrd/internal/rpcserver"
 	"github.com/decred/dcrd/internal/version"
 	"github.com/decred/dcrd/rpc/jsonrpc/types/v2"
@@ -5575,7 +5576,7 @@ type rpcserverConfig struct {
 	// solves templates using the CPU.  CPU mining is typically only useful
 	// for test purposes when doing regression or simulation testing.
 	BgBlkTmplGenerator func() *mining.BgBlkTmplGenerator
-	CPUMiner           *mining.CPUMiner
+	CPUMiner           *cpuminer.CPUMiner
 
 	// These fields define any optional indexes the RPC server can make use
 	// of to provide additional data when queried.
