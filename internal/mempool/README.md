@@ -1,8 +1,10 @@
-// Copyright (c) 2018 The Decred developers
-// Use of this source code is governed by an ISC
-// license that can be found in the LICENSE file.
+mempool
+=======
 
-/*
+[![Build Status](https://github.com/decred/dcrd/workflows/Build%20and%20Test/badge.svg)](https://github.com/decred/dcrd/actions)
+[![ISC License](https://img.shields.io/badge/license-ISC-blue.svg)](http://copyfree.org)
+[![Doc](https://img.shields.io/badge/doc-reference-blue.svg)](https://pkg.go.dev/github.com/decred/dcrd/internal/mempool)
+
 Package mempool provides a policy-enforced pool of unmined Decred transactions.
 
 A key responsibility of the Decred network is mining transactions – regular
@@ -32,11 +34,6 @@ accepted which gives the caller a high level of flexibility in how they want to
 proceed.  Typically, this will involve things such as relaying the transactions
 to other peers on the network and notifying the mining process that new
 transactions are available.
-
-This package has intentionally been designed so it can be used as a standalone
-package for any projects needing the ability create an in-memory pool of Decred
-transactions that are not only valid by consensus rules, but also adhere to a
-configurable policy
 
 ## Feature Overview
 
@@ -73,18 +70,7 @@ be an exhaustive list.
 - Manual control of transaction removal
   - Recursive removal of all dependent transactions
 
-Errors
+## License
 
-Errors returned by this package are either the raw errors provided by underlying
-calls or of type mempool.RuleError.  Since there are two classes of rules
-(mempool acceptance rules and blockchain (consensus) acceptance rules), the
-mempool.RuleError type contains a single Err field which will, in turn, either
-be a mempool.TxRuleError or a blockchain.RuleError.  The first indicates a
-violation of mempool acceptance rules while the latter indicates a violation of
-consensus acceptance rules.  This allows the caller to easily differentiate
-between unexpected errors, such as database errors, versus errors due to rule
-violations through type assertions.  In addition, callers can programmatically
-determine the specific rule violation by type asserting the Err field to one of
-the aforementioned types and examining their underlying ErrorCode field.
-*/
-package mempool
+Package mempool is licensed under the [copyfree](http://copyfree.org) ISC
+License.
