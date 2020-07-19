@@ -10,7 +10,6 @@ import (
 	"fmt"
 
 	"github.com/decred/dcrd/blockchain/v3"
-	"github.com/decred/dcrd/wire"
 )
 
 // RuleError identifies a rule violation.  It is used to indicate that
@@ -62,13 +61,6 @@ const (
 // specifically due to a rule violation and access the ErrorCode field to
 // ascertain the specific reason for the rule violation.
 type TxRuleError struct {
-	// RejectCode is the corresponding rejection code to send when
-	// reporting the error via 'reject' wire protocol messages.
-	//
-	// Deprecated: This will be removed in the next major version. Use
-	// ErrorCode instead.
-	RejectCode wire.RejectCode
-
 	// ErrorCode is the mempool package error code ID.
 	ErrorCode ErrorCode
 
@@ -84,9 +76,9 @@ func (e TxRuleError) Error() string {
 
 // txRuleError creates an underlying TxRuleError with the given a set of
 // arguments and returns a RuleError that encapsulates it.
-func txRuleError(c wire.RejectCode, code ErrorCode, desc string) RuleError {
+func txRuleError(code ErrorCode, desc string) RuleError {
 	return RuleError{
-		Err: TxRuleError{RejectCode: c, ErrorCode: code, Description: desc},
+		Err: TxRuleError{ErrorCode: code, Description: desc},
 	}
 }
 
@@ -113,21 +105,19 @@ func IsErrorCode(err error, code ErrorCode) bool {
 }
 
 // wrapTxRuleError returns a new RuleError with an underlying TxRuleError,
-// replacing the description with the provided one while retaining both the
-// error code and rejection code from the original error if they can be
-// determined.
-func wrapTxRuleError(rejectCode wire.RejectCode, errorCode ErrorCode, desc string, err error) error {
+// replacing the description with the provided one while retaining the error
+// code from the original error if it can be determined.
+func wrapTxRuleError(errorCode ErrorCode, desc string, err error) error {
 	// Unwrap the underlying error if err is a RuleError
 	var rerr RuleError
 	if errors.As(err, &rerr) {
 		err = rerr.Err
 	}
 
-	// Override the passed rejectCode and errorCode with the ones from the
-	// error, if it is a TxRuleError
+	// Override the passed error code with the ones from the error if it is a
+	// TxRuleError.
 	var txerr TxRuleError
 	if errors.As(err, &txerr) {
-		rejectCode = txerr.RejectCode
 		errorCode = txerr.ErrorCode
 	}
 
@@ -136,5 +126,5 @@ func wrapTxRuleError(rejectCode wire.RejectCode, errorCode ErrorCode, desc strin
 		desc = fmt.Sprintf("rejected: %v", err)
 	}
 
-	return txRuleError(rejectCode, errorCode, desc)
+	return txRuleError(errorCode, desc)
 }

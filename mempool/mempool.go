@@ -534,7 +534,7 @@ func (mp *TxPool) maybeAddOrphan(tx *dcrutil.Tx, tag Tag) error {
 		str := fmt.Sprintf("orphan transaction size of %d bytes is "+
 			"larger than max allowed size of %d bytes",
 			serializedLen, mp.cfg.Policy.MaxOrphanTxSize)
-		return txRuleError(wire.RejectNonstandard, ErrOrphanPolicyViolation, str)
+		return txRuleError(ErrOrphanPolicyViolation, str)
 	}
 
 	// Add the orphan if the none of the above disqualified it.
@@ -949,13 +949,13 @@ func (mp *TxPool) checkPoolDoubleSpend(tx *dcrutil.Tx, txType stake.TxType) erro
 		if txR, exists := mp.outpoints[txIn.PreviousOutPoint]; exists {
 			str := fmt.Sprintf("transaction %v in the pool "+
 				"already spends the same coins", txR.Hash())
-			return txRuleError(wire.RejectDuplicate, ErrMempoolDoubleSpend, str)
+			return txRuleError(ErrMempoolDoubleSpend, str)
 		}
 
 		if txR, exists := mp.stagedOutpoints[txIn.PreviousOutPoint]; exists {
 			str := fmt.Sprintf("staged transaction %v in the pool "+
 				"already spends the same coins", txR.Hash())
-			return txRuleError(wire.RejectDuplicate, ErrMempoolDoubleSpend, str)
+			return txRuleError(ErrMempoolDoubleSpend, str)
 		}
 	}
 
@@ -994,7 +994,7 @@ func (mp *TxPool) checkVoteDoubleSpend(vote *dcrutil.Tx) error {
 			str := fmt.Sprintf("vote %v spending ticket %v already votes on "+
 				"block %s (height %d)", vote.Hash(), ticketSpent, hashVotedOn,
 				heightVotedOn)
-			return txRuleError(wire.RejectDuplicate, ErrAlreadyVoted, str)
+			return txRuleError(ErrAlreadyVoted, str)
 		}
 	}
 	mp.votesMtx.RUnlock()
@@ -1111,7 +1111,7 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 	if mp.isTransactionInPool(txHash) || mp.isTransactionStaged(txHash) ||
 		(rejectDupOrphans && mp.isOrphanInPool(txHash)) {
 		str := fmt.Sprintf("already have transaction %v", txHash)
-		return nil, txRuleError(wire.RejectDuplicate, ErrDuplicate, str)
+		return nil, txRuleError(ErrDuplicate, str)
 	}
 
 	// Perform preliminary sanity checks on the transaction.  This makes
@@ -1130,7 +1130,7 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 	if standalone.IsCoinBaseTx(msgTx) {
 		str := fmt.Sprintf("transaction %v is an individual coinbase",
 			txHash)
-		return nil, txRuleError(wire.RejectInvalid, ErrCoinbase, str)
+		return nil, txRuleError(ErrCoinbase, str)
 	}
 
 	// Get the current height of the main chain.  A standalone transaction
@@ -1143,7 +1143,7 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 	if blockchain.IsExpired(tx, nextBlockHeight) {
 		str := fmt.Sprintf("transaction %v expired at height %d",
 			txHash, msgTx.Expiry)
-		return nil, txRuleError(wire.RejectInvalid, ErrExpired, str)
+		return nil, txRuleError(ErrExpired, str)
 	}
 
 	// Determine what type of transaction we're dealing with (regular or stake).
@@ -1178,7 +1178,7 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 				}
 
 				str := "violates sequence lock consensus bug"
-				return nil, txRuleError(wire.RejectInvalid, ErrInvalid, str)
+				return nil, txRuleError(ErrInvalid, str)
 			}
 		}
 	}
@@ -1188,7 +1188,7 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 	if isVote && nextBlockHeight < stakeValidationHeight {
 		str := fmt.Sprintf("votes are not valid until block height %d (next "+
 			"block height %d)", stakeValidationHeight, nextBlockHeight)
-		return nil, txRuleError(wire.RejectInvalid, ErrInvalid, str)
+		return nil, txRuleError(ErrInvalid, str)
 	}
 
 	// Reject revocations before they can possibly be valid.  A vote must be
@@ -1199,7 +1199,7 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 	if isRevocation && nextBlockHeight < stakeValidationHeight+1 {
 		str := fmt.Sprintf("revocations are not valid until block height %d "+
 			"(next block height %d)", stakeValidationHeight+1, nextBlockHeight)
-		return nil, txRuleError(wire.RejectInvalid, ErrInvalid, str)
+		return nil, txRuleError(ErrInvalid, str)
 	}
 
 	// Don't allow non-standard transactions if the mempool config forbids
@@ -1212,8 +1212,7 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 		if err != nil {
 			str := fmt.Sprintf("transaction %v is not standard: %v",
 				txHash, err)
-			return nil, wrapTxRuleError(wire.RejectNonstandard,
-				ErrNonStandard, str, err)
+			return nil, wrapTxRuleError(ErrNonStandard, str, err)
 		}
 	}
 
@@ -1232,8 +1231,7 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 			str := fmt.Sprintf("transaction %v has not enough funds "+
 				"to meet stake difficulty (ticket diff %v < next diff %v)",
 				txHash, msgTx.TxOut[0].Value, sDiff)
-			return nil, txRuleError(wire.RejectInsufficientFee,
-				ErrInsufficientFee, str)
+			return nil, txRuleError(ErrInsufficientFee, str)
 		}
 	}
 
@@ -1274,7 +1272,7 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 				str := fmt.Sprintf("transaction %v in the pool with more than "+
 					"%v votes", msgTx.TxIn[1].PreviousOutPoint,
 					maxVoteDoubleSpends)
-				return nil, txRuleError(wire.RejectDuplicate, ErrTooManyVotes, str)
+				return nil, txRuleError(ErrTooManyVotes, str)
 			}
 		}
 
@@ -1286,7 +1284,7 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 					str := fmt.Sprintf("transaction %v in the pool as a "+
 						"revocation. Only one revocation is allowed.",
 						msgTx.TxIn[0].PreviousOutPoint)
-					return nil, txRuleError(wire.RejectDuplicate, ErrDuplicateRevocation, str)
+					return nil, txRuleError(ErrDuplicateRevocation, str)
 				}
 			}
 		}
@@ -1301,7 +1299,7 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 				"block height of %d which is before the "+
 				"current cutoff height of %v", tx.Hash(),
 				voteHeight, nextBlockHeight-int64(mp.cfg.Policy.MaxVoteAge))
-			return nil, txRuleError(wire.RejectNonstandard, ErrOldVote, str)
+			return nil, txRuleError(ErrOldVote, str)
 		}
 	}
 
@@ -1322,8 +1320,7 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 	// already fully spent.
 	txEntry := utxoView.LookupEntry(txHash)
 	if txEntry != nil && !txEntry.IsFullySpent() {
-		return nil, txRuleError(wire.RejectDuplicate, ErrAlreadyExists,
-			"transaction already exists")
+		return nil, txRuleError(ErrAlreadyExists, "transaction already exists")
 	}
 	delete(utxoView.Entries(), *txHash)
 
@@ -1375,7 +1372,7 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 		return nil, err
 	}
 	if !blockchain.SequenceLockActive(seqLock, nextBlockHeight, medianTime) {
-		return nil, txRuleError(wire.RejectNonstandard, ErrSeqLockUnmet,
+		return nil, txRuleError(ErrSeqLockUnmet,
 			"transaction sequence locks on inputs not met")
 	}
 
@@ -1401,8 +1398,7 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 		if err != nil {
 			str := fmt.Sprintf("transaction %v has a non-standard "+
 				"input: %v", txHash, err)
-			return nil, wrapTxRuleError(wire.RejectNonstandard,
-				ErrNonStandard, str, err)
+			return nil, wrapTxRuleError(ErrNonStandard, str, err)
 		}
 	}
 
@@ -1429,7 +1425,7 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 	if numSigOps > mp.cfg.Policy.MaxSigOpsPerTx {
 		str := fmt.Sprintf("transaction %v has too many sigops: %d > %d",
 			txHash, numSigOps, mp.cfg.Policy.MaxSigOpsPerTx)
-		return nil, txRuleError(wire.RejectNonstandard, ErrNonStandard, str)
+		return nil, txRuleError(ErrNonStandard, str)
 	}
 
 	// Don't allow transactions with fees too low to get into a mined block.
@@ -1454,8 +1450,7 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 			str := fmt.Sprintf("transaction %v has %v fees which "+
 				"is under the required amount of %v", txHash,
 				txFee, minFee)
-			return nil, txRuleError(wire.RejectInsufficientFee,
-				ErrInsufficientFee, str)
+			return nil, txRuleError(ErrInsufficientFee, str)
 		}
 	}
 
@@ -1474,8 +1469,7 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 			str := fmt.Sprintf("transaction %v has insufficient "+
 				"priority (%g <= %g)", txHash,
 				currentPriority, mining.MinHighPriority)
-			return nil, txRuleError(wire.RejectInsufficientFee,
-				ErrInsufficientPriority, str)
+			return nil, txRuleError(ErrInsufficientPriority, str)
 		}
 	}
 
@@ -1494,8 +1488,7 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 		if mp.pennyTotal >= mp.cfg.Policy.FreeTxRelayLimit*10*1000 {
 			str := fmt.Sprintf("transaction %v has been rejected "+
 				"by the rate limiter due to low fees", txHash)
-			return nil, txRuleError(wire.RejectInsufficientFee,
-				ErrInsufficientFee, str)
+			return nil, txRuleError(ErrInsufficientFee, str)
 		}
 		oldTotal := mp.pennyTotal
 
@@ -1516,8 +1509,7 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 			str := fmt.Sprintf("ticket purchase transaction %v has a %v "+
 				"fee which is under the required threshold amount of %d",
 				txHash, txFee, minTicketFee)
-			return nil, txRuleError(wire.RejectInsufficientFee,
-				ErrInsufficientFee, str)
+			return nil, txRuleError(ErrInsufficientFee, str)
 		}
 	}
 
@@ -1531,7 +1523,7 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 			str := fmt.Sprintf("transaction %v has %v fee which is above the "+
 				"allowHighFee check threshold amount of %v", txHash,
 				txFee, maxFee)
-			return nil, txRuleError(wire.RejectInvalid, ErrFeeTooHigh, str)
+			return nil, txRuleError(ErrFeeTooHigh, str)
 		}
 	}
 
@@ -1859,7 +1851,7 @@ func (mp *TxPool) ProcessTransaction(tx *dcrutil.Tx, allowOrphan, rateLimit, all
 		str := fmt.Sprintf("orphan transaction %v references "+
 			"outputs of unknown or fully-spent "+
 			"transaction %v", tx.Hash(), missingParents[0])
-		return nil, txRuleError(wire.RejectDuplicate, ErrOrphan, str)
+		return nil, txRuleError(ErrOrphan, str)
 	}
 
 	// Potentially add the orphan transaction to the orphan pool.
