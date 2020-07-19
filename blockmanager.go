@@ -24,7 +24,7 @@ import (
 	"github.com/decred/dcrd/dcrutil/v3"
 	"github.com/decred/dcrd/fees/v2"
 	"github.com/decred/dcrd/internal/mempool"
-	"github.com/decred/dcrd/mining/v3"
+	"github.com/decred/dcrd/internal/mining"
 	peerpkg "github.com/decred/dcrd/peer/v2"
 	"github.com/decred/dcrd/wire"
 )
