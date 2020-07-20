@@ -993,7 +993,10 @@ func defaultMockConfig(chainParams *chaincfg.Params) *rpcserverConfig {
 			Proxy:                     "",
 			ProxyRandomizeCredentials: false,
 		}},
-		MinRelayTxFee: dcrutil.Amount(10000),
+		MinRelayTxFee:      dcrutil.Amount(10000),
+		MaxProtocolVersion: wire.CFilterV2Version,
+		UserAgentVersion: fmt.Sprintf("%d.%d.%d", version.Major, version.Minor,
+			version.Patch),
 	}
 }
 
@@ -2691,8 +2694,9 @@ func TestHandleGetBlock(t *testing.T) {
 	// createTxRawResult should be tested independently as well.
 	txns := blk.Transactions()
 	rawTxns := make([]types.TxRawResult, len(txns))
+	testServer := &rpcServer{cfg: *defaultMockConfig(defaultChainParams)}
 	for i, tx := range txns {
-		rawTxn, err := createTxRawResult(defaultChainParams, tx.MsgTx(),
+		rawTxn, err := testServer.createTxRawResult(defaultChainParams, tx.MsgTx(),
 			tx.Hash().String(), uint32(i), &blkHeader, blk.Hash().String(),
 			int64(blkHeader.Height), confirmations)
 		if err != nil {
@@ -2703,7 +2707,7 @@ func TestHandleGetBlock(t *testing.T) {
 	stxns := blk.STransactions()
 	rawSTxns := make([]types.TxRawResult, len(stxns))
 	for i, tx := range stxns {
-		rawSTxn, err := createTxRawResult(defaultChainParams, tx.MsgTx(),
+		rawSTxn, err := testServer.createTxRawResult(defaultChainParams, tx.MsgTx(),
 			tx.Hash().String(), uint32(i), &blkHeader, blk.Hash().String(),
 			int64(blkHeader.Height), confirmations)
 		if err != nil {
@@ -3118,7 +3122,7 @@ func TestHandleGetInfo(t *testing.T) {
 		result: &types.InfoChainResult{
 			Version: int32(1000000*version.Major + 10000*version.Minor +
 				100*version.Patch),
-			ProtocolVersion: int32(maxProtocolVersion),
+			ProtocolVersion: int32(wire.CFilterV2Version),
 			Blocks:          int64(block432100.Header.Height),
 			TimeOffset:      int64(0),
 			Connections:     int32(4),
@@ -3160,8 +3164,9 @@ func TestHandleGetNetworkInfo(t *testing.T) {
 		result: types.GetNetworkInfoResult{
 			Version: int32(1000000*version.Major + 10000*version.Minor +
 				100*version.Patch),
-			SubVersion:      userAgentVersion,
-			ProtocolVersion: int32(maxProtocolVersion),
+			SubVersion: fmt.Sprintf("%d.%d.%d", version.Major, version.Minor,
+				version.Patch),
+			ProtocolVersion: int32(wire.CFilterV2Version),
 			TimeOffset:      int64(0),
 			Connections:     int32(4),
 			Networks: []types.NetworksResult{{

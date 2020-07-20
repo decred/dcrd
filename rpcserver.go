@@ -588,9 +588,9 @@ func peerExists(connMgr rpcserver.ConnManager, addr string, nodeID int32) bool {
 
 // messageToHex serializes a message to the wire protocol encoding using the
 // latest protocol version and returns a hex-encoded string of the result.
-func messageToHex(msg wire.Message) (string, error) {
+func (s *rpcServer) messageToHex(msg wire.Message) (string, error) {
 	var buf bytes.Buffer
-	if err := msg.BtcEncode(&buf, maxProtocolVersion); err != nil {
+	if err := msg.BtcEncode(&buf, s.cfg.MaxProtocolVersion); err != nil {
 		context := fmt.Sprintf("Failed to encode msg of type %T", msg)
 		return "", rpcInternalError(err.Error(), context)
 	}
@@ -701,7 +701,7 @@ func handleCreateRawTransaction(_ context.Context, s *rpcServer, cmd interface{}
 	// is intentionally not directly returning because the first return
 	// value is a string and it would result in returning an empty string to
 	// the client instead of nothing (nil) in the case of an error.
-	mtxHex, err := messageToHex(mtx)
+	mtxHex, err := s.messageToHex(mtx)
 	if err != nil {
 		return nil, err
 	}
@@ -892,7 +892,7 @@ func handleCreateRawSStx(_ context.Context, s *rpcServer, cmd interface{}) (inte
 	}
 
 	// Return the serialized and hex-encoded transaction.
-	mtxHex, err := messageToHex(mtx)
+	mtxHex, err := s.messageToHex(mtx)
 	if err != nil {
 		return nil, err
 	}
@@ -1017,7 +1017,7 @@ func handleCreateRawSSRtx(_ context.Context, s *rpcServer, cmd interface{}) (int
 	}
 
 	// Return the serialized and hex-encoded transaction.
-	mtxHex, err := messageToHex(mtx)
+	mtxHex, err := s.messageToHex(mtx)
 	if err != nil {
 		return nil, err
 	}
@@ -1189,8 +1189,8 @@ func createVoutList(mtx *wire.MsgTx, chainParams *chaincfg.Params, filterAddrMap
 
 // createTxRawResult converts the passed transaction and associated parameters
 // to a raw transaction JSON object.
-func createTxRawResult(chainParams *chaincfg.Params, mtx *wire.MsgTx, txHash string, blkIdx uint32, blkHeader *wire.BlockHeader, blkHash string, blkHeight int64, confirmations int64) (*types.TxRawResult, error) {
-	mtxHex, err := messageToHex(mtx)
+func (s *rpcServer) createTxRawResult(chainParams *chaincfg.Params, mtx *wire.MsgTx, txHash string, blkIdx uint32, blkHeader *wire.BlockHeader, blkHash string, blkHeight int64, confirmations int64) (*types.TxRawResult, error) {
+	mtxHex, err := s.messageToHex(mtx)
 	if err != nil {
 		return nil, err
 	}
@@ -1880,7 +1880,7 @@ func handleGetBlock(_ context.Context, s *rpcServer, cmd interface{}) (interface
 		chainParams := s.cfg.ChainParams
 		rawTxns := make([]types.TxRawResult, len(txns))
 		for i, tx := range txns {
-			rawTxn, err := createTxRawResult(chainParams,
+			rawTxn, err := s.createTxRawResult(chainParams,
 				tx.MsgTx(), tx.Hash().String(), uint32(i),
 				blockHeader, blk.Hash().String(),
 				int64(blockHeader.Height), confirmations)
@@ -1895,7 +1895,7 @@ func handleGetBlock(_ context.Context, s *rpcServer, cmd interface{}) (interface
 		stxns := blk.STransactions()
 		rawSTxns := make([]types.TxRawResult, len(stxns))
 		for i, tx := range stxns {
-			rawSTxn, err := createTxRawResult(chainParams,
+			rawSTxn, err := s.createTxRawResult(chainParams,
 				tx.MsgTx(), tx.Hash().String(), uint32(i),
 				blockHeader, blk.Hash().String(),
 				int64(blockHeader.Height), confirmations)
@@ -2351,7 +2351,7 @@ func handleGetInfo(_ context.Context, s *rpcServer, cmd interface{}) (interface{
 	ret := &types.InfoChainResult{
 		Version: int32(1000000*version.Major + 10000*version.Minor +
 			100*version.Patch),
-		ProtocolVersion: int32(maxProtocolVersion),
+		ProtocolVersion: int32(s.cfg.MaxProtocolVersion),
 		Blocks:          best.Height,
 		TimeOffset:      int64(s.cfg.TimeSource.Offset().Seconds()),
 		Connections:     s.cfg.ConnMgr.ConnectedCount(),
@@ -2546,8 +2546,8 @@ func handleGetNetworkInfo(_ context.Context, s *rpcServer, cmd interface{}) (int
 	info := types.GetNetworkInfoResult{
 		Version: int32(1000000*version.Major + 10000*version.Minor +
 			100*version.Patch),
-		SubVersion:      userAgentVersion,
-		ProtocolVersion: int32(maxProtocolVersion),
+		SubVersion:      s.cfg.UserAgentVersion,
+		ProtocolVersion: int32(s.cfg.MaxProtocolVersion),
 		TimeOffset:      int64(s.cfg.TimeSource.Offset().Seconds()),
 		Connections:     s.cfg.ConnMgr.ConnectedCount(),
 		RelayFee:        s.cfg.MinRelayTxFee.ToCoin(),
@@ -2758,7 +2758,7 @@ func handleGetRawTransaction(_ context.Context, s *rpcServer, cmd interface{}) (
 			// string and it would result in returning an empty
 			// string to the client instead of nothing (nil) in the
 			// case of an error.
-			mtxHex, err := messageToHex(tx.MsgTx())
+			mtxHex, err := s.messageToHex(tx.MsgTx())
 			if err != nil {
 				return nil, err
 			}
@@ -2787,7 +2787,7 @@ func handleGetRawTransaction(_ context.Context, s *rpcServer, cmd interface{}) (
 		confirmations = 1 + s.cfg.Chain.BestSnapshot().Height - blkHeight
 	}
 
-	rawTxn, err := createTxRawResult(s.cfg.ChainParams, mtx, txHash.String(),
+	rawTxn, err := s.createTxRawResult(s.cfg.ChainParams, mtx, txHash.String(),
 		blkIndex, blkHeader, blkHashStr, blkHeight, confirmations)
 	if err != nil {
 		return nil, err
@@ -4009,7 +4009,7 @@ func handleSearchRawTransactions(_ context.Context, s *rpcServer, cmd interface{
 
 		// Serialize the transaction first and convert to hex when the
 		// retrieved transaction is the deserialized structure.
-		hexTxns[i], err = messageToHex(rtx.tx.MsgTx())
+		hexTxns[i], err = s.messageToHex(rtx.tx.MsgTx())
 		if err != nil {
 			return nil, err
 		}
@@ -5616,6 +5616,13 @@ type rpcserverConfig struct {
 	// AllowUnsyncedMining indicates whether block templates should be created even
 	// when the chain is not fully synced.
 	AllowUnsyncedMining bool
+
+	// MaxProtocolVersion is the max protocol version that the server supports.
+	MaxProtocolVersion uint32
+
+	// UserAgentVersion is the user agent version and is used to help identify
+	// ourselves to other peers.
+	UserAgentVersion string
 }
 
 // newRPCServer returns a new instance of the rpcServer struct.

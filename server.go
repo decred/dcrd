@@ -3268,6 +3268,8 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB, chainP
 			TestNet:              cfg.TestNet,
 			MiningAddrs:          cfg.miningAddrs,
 			AllowUnsyncedMining:  cfg.AllowUnsyncedMining,
+			MaxProtocolVersion:   maxProtocolVersion,
+			UserAgentVersion:     userAgentVersion,
 		})
 		if err != nil {
 			return nil, err
