@@ -472,3 +472,27 @@ var _ rpcserver.FeeEstimator = (*rpcFeeEstimator)(nil)
 type rpcFeeEstimator struct {
 	*fees.Estimator
 }
+
+// Ensure rpcLogManager implements the rpcserver.LogManager interface.
+var _ rpcserver.LogManager = (*rpcLogManager)(nil)
+
+// rpcLogManager provides a log manager for use with the RPC server and
+// implements the rpcserver.LogManager interface.
+type rpcLogManager struct{}
+
+// SupportedSubsystems returns a sorted slice of the supported subsystems for
+// logging purposes.
+//
+// This function is part of the rpcserver.LogManager interface implementation.
+func (*rpcLogManager) SupportedSubsystems() []string {
+	return supportedSubsystems()
+}
+
+// ParseAndSetDebugLevels attempts to parse the specified debug level and set
+// the levels accordingly.  An appropriate error is returned if anything is
+// invalid.
+//
+// This function is part of the rpcserver.LogManager interface implementation.
+func (*rpcLogManager) ParseAndSetDebugLevels(debugLevel string) error {
+	return parseAndSetDebugLevels(debugLevel)
+}
