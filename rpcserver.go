@@ -1031,10 +1031,10 @@ func handleDebugLevel(_ context.Context, s *rpcServer, cmd interface{}) (interfa
 	// Special show command to list supported subsystems.
 	if c.LevelSpec == "show" {
 		return fmt.Sprintf("Supported subsystems %v",
-			supportedSubsystems()), nil
+			s.cfg.LogManager.SupportedSubsystems()), nil
 	}
 
-	err := parseAndSetDebugLevels(c.LevelSpec)
+	err := s.cfg.LogManager.ParseAndSetDebugLevels(c.LevelSpec)
 	if err != nil {
 		return nil, rpcInvalidError("Invalid debug level %v: %v",
 			c.LevelSpec, err)
@@ -5623,6 +5623,9 @@ type rpcserverConfig struct {
 	// UserAgentVersion is the user agent version and is used to help identify
 	// ourselves to other peers.
 	UserAgentVersion string
+
+	// LogManager defines the log manager for the RPC server to use.
+	LogManager rpcserver.LogManager
 }
 
 // newRPCServer returns a new instance of the rpcServer struct.

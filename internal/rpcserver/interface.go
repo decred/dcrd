@@ -440,3 +440,18 @@ type FeeEstimator interface {
 	// high degree of certainty.
 	EstimateFee(targetConfs int32) (dcrutil.Amount, error)
 }
+
+// LogManager represents a log manager for use with the RPC server.
+//
+// The interface contract does NOT require that these methods are safe for
+// concurrent access.
+type LogManager interface {
+	// SupportedSubsystems returns a sorted slice of the supported subsystems for
+	// logging purposes.
+	SupportedSubsystems() []string
+
+	// ParseAndSetDebugLevels attempts to parse the specified debug level and set
+	// the levels accordingly.  An appropriate error must be returned if anything
+	// is invalid.
+	ParseAndSetDebugLevels(debugLevel string) error
+}

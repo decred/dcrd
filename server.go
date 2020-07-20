@@ -3270,6 +3270,7 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB, chainP
 			AllowUnsyncedMining:  cfg.AllowUnsyncedMining,
 			MaxProtocolVersion:   maxProtocolVersion,
 			UserAgentVersion:     userAgentVersion,
+			LogManager:           &rpcLogManager{},
 		})
 		if err != nil {
 			return nil, err

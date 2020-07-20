@@ -646,6 +646,24 @@ func (e *testFeeEstimator) EstimateFee(targetConfs int32) (dcrutil.Amount, error
 	return e.estimateFeeAmt, e.estimateFeeErr
 }
 
+// testLogManager provides a mock log manager by implementing the
+// rpcserver.LogManager interface.
+type testLogManager struct {
+	supportedSubsystems       []string
+	parseAndSetDebugLevelsErr error
+}
+
+// SupportedSubsystems returns a mocked slice of supported subsystems.
+func (l *testLogManager) SupportedSubsystems() []string {
+	return l.supportedSubsystems
+}
+
+// ParseAndSetDebugLevels provides a mock implementation for parsing the
+// specified debug level and setting the levels accordingly.
+func (l *testLogManager) ParseAndSetDebugLevels(debugLevel string) error {
+	return l.parseAndSetDebugLevelsErr
+}
+
 // mustParseHash converts the passed big-endian hex string into a
 // chainhash.Hash and will panic if there is an error.  It only differs from the
 // one available in chainhash in that it will panic so errors in the source code
@@ -715,6 +733,7 @@ type rpcTest struct {
 	mockSyncManager  *testSyncManager
 	mockConnManager  *testConnManager
 	mockClock        *testClock
+	mockLogManager   *testLogManager
 	result           interface{}
 	wantErr          bool
 	errCode          dcrjson.RPCErrorCode
@@ -960,6 +979,17 @@ func defaultMockFeeEstimator() *testFeeEstimator {
 	return &testFeeEstimator{}
 }
 
+// defaultMockLogManager provides a default mock log manager to be used
+// throughout the tests. Tests can override these defaults by calling
+// defaultMockLogManager, updating fields as necessary on the returned
+// *testLogManager, and then setting rpcTest.mockLogManager as that
+// *testLogManager.
+func defaultMockLogManager() *testLogManager {
+	return &testLogManager{
+		supportedSubsystems: []string{"DCRD", "PEER", "RPCS"},
+	}
+}
+
 // defaultMockConfig provides a default rpcserverConfig that is used throughout
 // the tests.  Defaults can be overridden by tests through the rpcTest struct.
 func defaultMockConfig(chainParams *chaincfg.Params) *rpcserverConfig {
@@ -971,6 +1001,7 @@ func defaultMockConfig(chainParams *chaincfg.Params) *rpcserverConfig {
 		SyncMgr:      defaultMockSyncManager(),
 		ConnMgr:      defaultMockConnManager(),
 		Clock:        &testClock{},
+		LogManager:   defaultMockLogManager(),
 		TimeSource:   blockchain.NewMedianTime(),
 		Services:     wire.SFNodeNetwork | wire.SFNodeCF,
 		SubsidyCache: standalone.NewSubsidyCache(chainParams),
@@ -1691,19 +1722,25 @@ func TestHandleCreateRawTransaction(t *testing.T) {
 func TestHandleDebugLevel(t *testing.T) {
 	t.Parallel()
 
+	logMgr := defaultMockLogManager()
 	testRPCServerHandler(t, []rpcTest{{
 		name:    "handleDebugLevel: show",
 		handler: handleDebugLevel,
 		cmd: &types.DebugLevelCmd{
 			LevelSpec: "show",
 		},
-		result: fmt.Sprintf("Supported subsystems %v", supportedSubsystems()),
+		result: fmt.Sprintf("Supported subsystems %v", logMgr.supportedSubsystems),
 	}, {
 		name:    "handleDebugLevel: invalidDebugLevel",
 		handler: handleDebugLevel,
 		cmd: &types.DebugLevelCmd{
 			LevelSpec: "invalidDebugLevel",
 		},
+		mockLogManager: func() *testLogManager {
+			logManager := defaultMockLogManager()
+			logManager.parseAndSetDebugLevelsErr = errors.New("invalidDebugLevel")
+			return logManager
+		}(),
 		wantErr: true,
 		errCode: dcrjson.ErrRPCInvalidParameter,
 	}, {
@@ -3876,6 +3913,9 @@ func testRPCServerHandler(t *testing.T, tests []rpcTest) {
 			}
 			if test.mockFeeEstimator != nil {
 				rpcserverConfig.FeeEstimator = test.mockFeeEstimator
+			}
+			if test.mockLogManager != nil {
+				rpcserverConfig.LogManager = test.mockLogManager
 			}
 
 			testServer := &rpcServer{cfg: *rpcserverConfig}
