@@ -1647,20 +1647,16 @@ func handleGenerate(ctx context.Context, s *rpcServer, cmd interface{}) (interfa
 			"Configuration")
 	}
 
-	// Create a reply
-	reply := make([]string, c.NumBlocks)
-
+	// Mine the correct number of blocks, assigning the hex representation of
+	// the hash of each one to its place in the reply.
 	blockHashes, err := s.cfg.CPUMiner.GenerateNBlocks(ctx, c.NumBlocks)
 	if err != nil {
 		return nil, rpcInternalError(err.Error(), "Could not generate blocks")
 	}
-
-	// Mine the correct number of blocks, assigning the hex representation of the
-	// hash of each one to its place in the reply.
-	for i, hash := range blockHashes {
-		reply[i] = hash.String()
+	reply := make([]string, 0, len(blockHashes))
+	for _, hash := range blockHashes {
+		reply = append(reply, hash.String())
 	}
-
 	return reply, nil
 }
 
@@ -4204,7 +4200,10 @@ func handleSetGenerate(_ context.Context, s *rpcServer, cmd interface{}) (interf
 	}
 
 	if !generate {
-		s.cfg.CPUMiner.Stop()
+		// Stop CPU mining by setting the number of workers to zero, if needed.
+		if s.cfg.CPUMiner != nil {
+			s.cfg.CPUMiner.SetNumWorkers(0)
+		}
 	} else {
 		// Respond with an error if there are no addresses to pay the
 		// created blocks to.
@@ -4213,9 +4212,7 @@ func handleSetGenerate(_ context.Context, s *rpcServer, cmd interface{}) (interf
 				"specified via --miningaddr", "Configuration")
 		}
 
-		// It's safe to call start even if it's already started.
 		s.cfg.CPUMiner.SetNumWorkers(int32(genProcLimit))
-		s.cfg.CPUMiner.Start()
 	}
 	return nil, nil
 }

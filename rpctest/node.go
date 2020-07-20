@@ -129,6 +129,8 @@ func (n *nodeConfig) arguments() []string {
 		// --debuglevel
 		args = append(args, fmt.Sprintf("--debuglevel=%s", n.debugLevel))
 	}
+	// --allowunsyncedmining
+	args = append(args, "--allowunsyncedmining")
 	args = append(args, n.extra...)
 	return args
 }

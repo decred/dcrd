@@ -20,3 +20,12 @@ var log = slog.Disabled
 func UseLogger(logger slog.Logger) {
 	log = logger
 }
+
+// pickNoun returns the singular or plural form of a noun depending
+// on the count n.
+func pickNoun(n uint64, singular, plural string) string {
+	if n == 1 {
+		return singular
+	}
+	return plural
+}

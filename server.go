@@ -2675,24 +2675,24 @@ func (s *server) Run(ctx context.Context) {
 		}(s)
 	}
 
-	// Start the background block template generator if the config provides
-	// a mining address.
-	if len(cfg.MiningAddrs) > 0 {
-		s.wg.Add(1)
+	// Start the background block template generator and CPU miner if the config
+	// provides a mining address.
+	if len(cfg.miningAddrs) > 0 {
+		s.wg.Add(2)
 		go func(s *server) {
 			s.bg.Run(serverCtx)
 			s.wg.Done()
 		}(s)
-	}
-
-	// Start the CPU miner if generation is enabled.
-	if cfg.Generate {
-		s.wg.Add(1)
 		go func(s *server) {
-			s.cpuMiner.Start()
-			s.cpuMiner.Wait()
+			s.cpuMiner.Run(serverCtx)
 			s.wg.Done()
 		}(s)
+
+		// The CPU miner is started without any workers which means it is idle.
+		// Start mining by setting the default number of workers when requested.
+		if cfg.Generate {
+			s.cpuMiner.SetNumWorkers(-1)
+		}
 	}
 
 	// Wait until the server is signalled to shutdown.
@@ -2700,11 +2700,6 @@ func (s *server) Run(ctx context.Context) {
 	atomic.AddInt32(&s.shutdown, 1)
 
 	srvrLog.Warnf("Server shutting down")
-
-	// Stop the CPU miner if needed.
-	if cfg.Generate && s.cpuMiner != nil {
-		s.cpuMiner.Stop()
-	}
 
 	s.feeEstimator.Close()
 
@@ -3106,41 +3101,42 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB, chainP
 		return nil, err
 	}
 
-	// Create the mining policy and block template generator based on the
-	// configuration options.
-	//
-	// NOTE: The CPU miner relies on the mempool, so the mempool has to be
-	// created before calling the function to create the CPU miner.
-	policy := mining.Policy{
-		BlockMinSize:      cfg.BlockMinSize,
-		BlockMaxSize:      cfg.BlockMaxSize,
-		BlockPrioritySize: cfg.BlockPrioritySize,
-		TxMinFreeFee:      cfg.minRelayTxFee,
-		AggressiveMining:  !cfg.NonAggressive,
-		StandardVerifyFlags: func() (txscript.ScriptFlags, error) {
-			return standardScriptVerifyFlags(s.chain)
-		},
-	}
-	tg := mining.NewBlkTmplGenerator(&policy, s.txMemPool, s.timeSource, s.sigCache,
-		s.subsidyCache, s.chainParams, s.chain, s.blockManager,
-		cfg.MiningTimeOffset)
-
-	// Create the background block template generator if the config has a
-	// mining address.
+	// Create the background block template generator and CPU miner if the
+	// config has a mining address.
 	if len(cfg.miningAddrs) > 0 {
-		s.bg = mining.NewBgBlkTmplGenerator(tg, cfg.miningAddrs, cfg.AllowUnsyncedMining)
-		s.blockManager.cfg.BgBlkTmplGenerator = s.bg
-	}
+		// Create the mining policy and block template generator based on the
+		// configuration options.
+		//
+		// NOTE: The CPU miner relies on the mempool, so the mempool has to be
+		// created before calling the function to create the CPU miner.
+		policy := mining.Policy{
+			BlockMinSize:      cfg.BlockMinSize,
+			BlockMaxSize:      cfg.BlockMaxSize,
+			BlockPrioritySize: cfg.BlockPrioritySize,
+			TxMinFreeFee:      cfg.minRelayTxFee,
+			AggressiveMining:  !cfg.NonAggressive,
+			StandardVerifyFlags: func() (txscript.ScriptFlags, error) {
+				return standardScriptVerifyFlags(s.chain)
+			},
+		}
+		tg := mining.NewBlkTmplGenerator(&policy, s.txMemPool, s.timeSource,
+			s.sigCache, s.subsidyCache, s.chainParams, s.chain, s.blockManager,
+			cfg.MiningTimeOffset)
 
-	s.cpuMiner = cpuminer.New(&cpuminer.Config{
-		ChainParams:                s.chainParams,
-		PermitConnectionlessMining: cfg.SimNet,
-		BlockTemplateGenerator:     tg,
-		MiningAddrs:                cfg.miningAddrs,
-		ProcessBlock:               s.blockManager.ProcessBlock,
-		ConnectedCount:             s.ConnectedCount,
-		IsCurrent:                  s.blockManager.IsCurrent,
-	})
+		s.bg = mining.NewBgBlkTmplGenerator(tg, cfg.miningAddrs,
+			cfg.AllowUnsyncedMining)
+		s.blockManager.cfg.BgBlkTmplGenerator = s.bg
+
+		s.cpuMiner = cpuminer.New(&cpuminer.Config{
+			ChainParams:                s.chainParams,
+			PermitConnectionlessMining: cfg.SimNet || cfg.RegNet,
+			BgBlkTmplGenerator:         s.bg,
+			MiningAddrs:                cfg.miningAddrs,
+			ProcessBlock:               s.blockManager.ProcessBlock,
+			ConnectedCount:             s.ConnectedCount,
+			IsCurrent:                  s.blockManager.IsCurrent,
+		})
+	}
 
 	// Only setup a function to return new addresses to connect to when
 	// not running in connect-only mode.  The simulation and regression networks

@@ -1062,7 +1062,7 @@ func loadConfig() (*config, []string, error) {
 
 	// Ensure there is at least one mining address when the generate flag is
 	// set.
-	if cfg.Generate && len(cfg.MiningAddrs) == 0 {
+	if cfg.Generate && len(cfg.miningAddrs) == 0 {
 		str := "%s: the generate flag is set, but there are no mining " +
 			"addresses specified "
 		err := fmt.Errorf(str, funcName)
@@ -1080,8 +1080,8 @@ func loadConfig() (*config, []string, error) {
 		return nil, nil, err
 	}
 
-	// Always allow unsynchronized mining on simnet.
-	if cfg.SimNet {
+	// Always allow unsynchronized mining on simnet and regnet.
+	if cfg.SimNet || cfg.RegNet {
 		cfg.AllowUnsyncedMining = true
 	}
 
