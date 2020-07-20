@@ -4167,7 +4167,12 @@ func handleSendRawTransaction(_ context.Context, s *rpcServer, cmd interface{}) 
 		return nil, rpcDeserializationError("rejected: %v", err)
 	}
 
-	s.cfg.PeerNotifier.AnnounceNewTransactions(acceptedTxs)
+	// Generate and relay inventory vectors for all newly accepted
+	// transactions.
+	s.cfg.ConnMgr.RelayTransactions(acceptedTxs)
+
+	// Notify websocket clients of all newly accepted transactions.
+	s.NotifyNewTransactions(acceptedTxs)
 
 	// Keep track of all the regular sendrawtransaction request txns so that
 	// they can be rebroadcast if they don't make their way into a block.
@@ -5539,9 +5544,6 @@ type rpcserverConfig struct {
 
 	// SyncMgr defines the sync manager for the RPC server to use.
 	SyncMgr rpcserver.SyncManager
-
-	// PeerNotifier provides an interface for server peer notifications.
-	PeerNotifier PeerNotifier
 
 	// These fields allow the RPC server to interface with the local block
 	// chain data and state.

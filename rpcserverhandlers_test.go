@@ -578,19 +578,16 @@ func (c *testConnManager) PersistentPeers() []rpcserver.Peer {
 
 // BroadcastMessage provides a mock implementation for sending the provided
 // message to all currently connected peers.
-func (c *testConnManager) BroadcastMessage(msg wire.Message) {
-}
+func (c *testConnManager) BroadcastMessage(msg wire.Message) {}
 
 // AddRebroadcastInventory provides a mock implementation for adding the
 // provided inventory to the list of inventories to be rebroadcast at random
 // intervals until they show up in a block.
-func (c *testConnManager) AddRebroadcastInventory(iv *wire.InvVect, data interface{}) {
-}
+func (c *testConnManager) AddRebroadcastInventory(iv *wire.InvVect, data interface{}) {}
 
 // RelayTransactions provides a mock implementation for generating and relaying
 // inventory vectors for all of the passed transactions to all connected peers.
-func (c *testConnManager) RelayTransactions(txns []*dcrutil.Tx) {
-}
+func (c *testConnManager) RelayTransactions(txns []*dcrutil.Tx) {}
 
 // AddedNodeInfo returns a mocked slice of persistent (added) peers.
 func (c *testConnManager) AddedNodeInfo() []rpcserver.Peer {
