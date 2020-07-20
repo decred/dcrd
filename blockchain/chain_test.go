@@ -150,8 +150,8 @@ func TestForceHeadReorg(t *testing.T) {
 	//
 	// rejectForceTipReorg forces the chain instance to reorganize the
 	// current tip of the main chain from the given block to the given
-	// block and expected it to be rejected with the provided error code.
-	rejectForceTipReorg := func(fromTipName, toTipName string, code ErrorCode) {
+	// block and expected it to be rejected with the provided error kind.
+	rejectForceTipReorg := func(fromTipName, toTipName string, errKind ErrorKind) {
 		from := g.BlockByName(fromTipName)
 		to := g.BlockByName(toTipName)
 		t.Logf("Testing forced reorg from %s (hash %s, height %d) "+
@@ -179,14 +179,13 @@ func TestForceHeadReorg(t *testing.T) {
 				from.BlockHash(), from.Header.Height, toTipName,
 				to.BlockHash(), to.Header.Height, err)
 		}
-		if rerr.ErrorCode != code {
+		if !errors.Is(rerr, errKind) {
 			t.Fatalf("forced header reorg from block %q (hash %s, "+
 				"height %d) to block %q (hash %s, height %d) "+
 				"does not have expected reject code -- got %v, "+
 				"want %v", fromTipName,
 				from.BlockHash(), from.Header.Height, toTipName,
-				to.BlockHash(), to.Header.Height, rerr.ErrorCode,
-				code)
+				to.BlockHash(), to.Header.Height, rerr, errKind)
 		}
 	}
 

@@ -8,6 +8,7 @@ package main
 import (
 	"context"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"sync"
@@ -129,7 +130,7 @@ func (bi *blockImporter) processBlock(serializedBlock []byte) (bool, error) {
 	// known checkpoints.
 	forkLen, err := bi.chain.ProcessBlock(block, blockchain.BFFastAdd)
 	if err != nil {
-		if blockchain.IsErrorCode(err, blockchain.ErrMissingParent) {
+		if errors.Is(err, blockchain.ErrMissingParent) {
 			return false, fmt.Errorf("import file contains an orphan block: %v",
 				blockHash)
 		}

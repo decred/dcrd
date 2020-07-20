@@ -143,7 +143,7 @@ func TestFullBlocks(t *testing.T) {
 
 		var isOrphan bool
 		forkLen, err := chain.ProcessBlock(block, blockchain.BFNone)
-		if blockchain.IsErrorCode(err, blockchain.ErrMissingParent) {
+		if errors.Is(err, blockchain.ErrMissingParent) {
 			isOrphan = true
 			err = nil
 		}
@@ -195,11 +195,11 @@ func TestFullBlocks(t *testing.T) {
 				"blockchain.RuleError", item.Name, block.Hash(),
 				blockHeight, err)
 		}
-		if rerr.ErrorCode != item.RejectCode {
+		if !errors.Is(rerr, item.RejectKind) {
 			t.Fatalf("block %q (hash %s, height %d) does not have "+
 				"expected reject code -- got %v, want %v",
 				item.Name, block.Hash(), blockHeight,
-				rerr.ErrorCode, item.RejectCode)
+				rerr, item.RejectKind)
 		}
 	}
 

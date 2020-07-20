@@ -633,7 +633,7 @@ func errToWireRejectCode(err error) (wire.RejectCode, string) {
 	switch {
 	case errors.As(err, &berr):
 		// Convert the chain error to a reject code.
-		switch berr.ErrorCode {
+		switch berr.Err {
 		// Rejected due to duplicate.
 		case blockchain.ErrDuplicateBlock:
 			code = wire.RejectDuplicate
@@ -960,7 +960,7 @@ func (b *blockManager) processBlockAndOrphans(block *dcrutil.Block, flags blockc
 	// returned indicates the block is an orphan.
 	blockHash := block.Hash()
 	forkLen, err := b.cfg.Chain.ProcessBlock(block, flags)
-	if blockchain.IsErrorCode(err, blockchain.ErrMissingParent) {
+	if errors.Is(err, blockchain.ErrMissingParent) {
 		bmgrLog.Infof("Adding orphan block %v with parent %v", blockHash,
 			block.MsgBlock().Header.PrevBlock)
 		b.addOrphanBlock(block)
@@ -1797,7 +1797,7 @@ func isDoubleSpendOrDuplicateError(err error) bool {
 
 	var cerr blockchain.RuleError
 	return errors.As(merr.Err, &cerr) &&
-		cerr.ErrorCode == blockchain.ErrMissingTxOut
+		errors.Is(cerr, blockchain.ErrMissingTxOut)
 }
 
 // handleBlockchainNotification handles notifications from blockchain.  It does

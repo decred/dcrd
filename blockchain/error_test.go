@@ -6,13 +6,15 @@
 package blockchain
 
 import (
+	"errors"
+	"io"
 	"testing"
 )
 
-// TestErrorCodeStringer tests the stringized output for the ErrorCode type.
+// TestErrorKindStringer tests the stringized output for the ErrorKind type.
 func TestErrorCodeStringer(t *testing.T) {
 	tests := []struct {
-		in   ErrorCode
+		in   ErrorKind
 		want string
 	}{
 		{ErrDuplicateBlock, "ErrDuplicateBlock"},
@@ -116,18 +118,11 @@ func TestErrorCodeStringer(t *testing.T) {
 		{ErrKnownInvalidBlock, "ErrKnownInvalidBlock"},
 		{ErrInvalidAncestorBlock, "ErrInvalidAncestorBlock"},
 		{ErrInvalidTemplateParent, "ErrInvalidTemplateParent"},
-		{0xffff, "Unknown ErrorCode (65535)"},
-	}
-
-	// Detect additional error codes that don't have the stringer added.
-	if len(tests)-1 != int(numErrorCodes) {
-		t.Errorf("It appears an error code was added without adding an " +
-			"associated stringer test")
 	}
 
 	t.Logf("Running %d tests", len(tests))
 	for i, test := range tests {
-		result := test.in.String()
+		result := test.in.Error()
 		if result != test.want {
 			t.Errorf("String #%d\n got: %s want: %s", i, result,
 				test.want)
@@ -163,44 +158,84 @@ func TestRuleError(t *testing.T) {
 	}
 }
 
-// TestIsErrorCode ensures IsErrorCode works as intended.
-func TestIsErrorCode(t *testing.T) {
+// TestErrorKindIsAs ensures both ErrorKind and Error can be identified as being
+// a specific error kind via errors.Is and unwrapped via errors.As.
+func TestErrorKindIsAs(t *testing.T) {
 	tests := []struct {
-		name string
-		err  error
-		code ErrorCode
-		want bool
+		name      string
+		err       error
+		target    error
+		wantMatch bool
+		wantAs    ErrorKind
 	}{{
-		name: "ErrUnexpectedDifficulty testing for ErrUnexpectedDifficulty",
-		err:  ruleError(ErrUnexpectedDifficulty, ""),
-		code: ErrUnexpectedDifficulty,
-		want: true,
+		name:      "ErrDuplicateBlock == ErrDuplicateBlock",
+		err:       ErrDuplicateBlock,
+		target:    ErrDuplicateBlock,
+		wantMatch: true,
+		wantAs:    ErrDuplicateBlock,
 	}, {
-		name: "ErrHighHash testing for ErrHighHash",
-		err:  ruleError(ErrHighHash, ""),
-		code: ErrHighHash,
-		want: true,
+		name:      "RuleError.ErrDuplicateBlock == ErrDuplicateBlock",
+		err:       ruleError(ErrDuplicateBlock, ""),
+		target:    ErrDuplicateBlock,
+		wantMatch: true,
+		wantAs:    ErrDuplicateBlock,
 	}, {
-		name: "ErrHighHash error testing for ErrUnexpectedDifficulty",
-		err:  ruleError(ErrHighHash, ""),
-		code: ErrUnexpectedDifficulty,
-		want: false,
+		name:      "RuleError.ErrDuplicateBlock == RuleError.ErrDuplicateBlock",
+		err:       ruleError(ErrDuplicateBlock, ""),
+		target:    ruleError(ErrDuplicateBlock, ""),
+		wantMatch: true,
+		wantAs:    ErrDuplicateBlock,
 	}, {
-		name: "ErrHighHash error testing for unknown error code",
-		err:  ruleError(ErrHighHash, ""),
-		code: 0xffff,
-		want: false,
+		name:      "ErrDuplicateBlock != ErrMissingParent",
+		err:       ErrDuplicateBlock,
+		target:    ErrMissingParent,
+		wantMatch: false,
+		wantAs:    ErrDuplicateBlock,
 	}, {
-		name: "nil error testing for ErrUnexpectedDifficulty",
-		err:  nil,
-		code: ErrUnexpectedDifficulty,
-		want: false,
+		name:      "RuleError.ErrDuplicateBlock != ErrMissingParent",
+		err:       ruleError(ErrDuplicateBlock, ""),
+		target:    ErrMissingParent,
+		wantMatch: false,
+		wantAs:    ErrDuplicateBlock,
+	}, {
+		name:      "ErrDuplicateBlock != RuleError.ErrMissingParent",
+		err:       ErrDuplicateBlock,
+		target:    ruleError(ErrMissingParent, ""),
+		wantMatch: false,
+		wantAs:    ErrDuplicateBlock,
+	}, {
+		name:      "RuleError.ErrDuplicateBlock != RuleError.ErrMissingParent",
+		err:       ruleError(ErrDuplicateBlock, ""),
+		target:    ruleError(ErrMissingParent, ""),
+		wantMatch: false,
+		wantAs:    ErrDuplicateBlock,
+	}, {
+		name:      "RuleError.ErrDuplicateBlock != io.EOF",
+		err:       ruleError(ErrDuplicateBlock, ""),
+		target:    io.EOF,
+		wantMatch: false,
+		wantAs:    ErrDuplicateBlock,
 	}}
+
 	for _, test := range tests {
-		result := IsErrorCode(test.err, test.code)
-		if result != test.want {
-			t.Errorf("%s: unexpected result -- got: %v want: %v", test.name,
-				result, test.want)
+		// Ensure the error matches or not depending on the expected result.
+		result := errors.Is(test.err, test.target)
+		if result != test.wantMatch {
+			t.Errorf("%s: incorrect error identification -- got %v, want %v",
+				test.name, result, test.wantMatch)
+			continue
+		}
+
+		// Ensure the underlying error kind can be unwrapped is and is the
+		// expected kind.
+		var kind ErrorKind
+		if !errors.As(test.err, &kind) {
+			t.Errorf("%s: unable to unwrap to error kind", test.name)
+			continue
+		}
+		if kind != test.wantAs {
+			t.Errorf("%s: unexpected unwrapped error kind -- got %v, want %v",
+				test.name, kind, test.wantAs)
 			continue
 		}
 	}

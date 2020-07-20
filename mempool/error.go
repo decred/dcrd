@@ -155,7 +155,7 @@ func extractRejectCode(err error) (wire.RejectCode, bool) {
 	case errors.As(err, &berr):
 		// Convert the chain error to a reject code.
 		var code wire.RejectCode
-		switch berr.ErrorCode {
+		switch berr.Err {
 		// Rejected due to duplicate.
 		case blockchain.ErrDuplicateBlock:
 			code = wire.RejectDuplicate

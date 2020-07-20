@@ -197,7 +197,7 @@ func (s *fakeChain) CalcSequenceLock(tx *dcrutil.Tx, view *blockchain.UtxoViewpo
 				"either does not exist or has already been spent",
 				txIn.PreviousOutPoint, tx.Hash(), txInIndex)
 			return nil, blockchain.RuleError{
-				ErrorCode:   blockchain.ErrMissingTxOut,
+				Err:         blockchain.ErrMissingTxOut,
 				Description: str,
 			}
 		}

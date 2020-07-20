@@ -369,8 +369,8 @@ func (g *chaingenHarness) AcceptTipBlock() {
 }
 
 // RejectBlock expects the block associated with the given name in the harness
-// generator to be rejected with the provided error code.
-func (g *chaingenHarness) RejectBlock(blockName string, code ErrorCode) {
+// generator to be rejected with the provided error kind.
+func (g *chaingenHarness) RejectBlock(blockName string, errKind ErrorKind) {
 	g.t.Helper()
 
 	msgBlock := g.BlockByName(blockName)
@@ -393,19 +393,19 @@ func (g *chaingenHarness) RejectBlock(blockName string, code ErrorCode) {
 			"type -- got %T, want blockchain.RuleError", blockName,
 			block.Hash(), blockHeight, err)
 	}
-	if rerr.ErrorCode != code {
+	if !errors.Is(rerr, errKind) {
 		g.t.Fatalf("block %q (hash %s, height %d) does not have expected reject "+
 			"code -- got %v, want %v", blockName, block.Hash(), blockHeight,
-			rerr.ErrorCode, code)
+			rerr, errKind)
 	}
 }
 
 // RejectTipBlock expects the current tip block associated with the harness
 // generator to be rejected with the provided error code.
-func (g *chaingenHarness) RejectTipBlock(code ErrorCode) {
+func (g *chaingenHarness) RejectTipBlock(errKind ErrorKind) {
 	g.t.Helper()
 
-	g.RejectBlock(g.TipName(), code)
+	g.RejectBlock(g.TipName(), errKind)
 }
 
 // ExpectTip expects the provided block to be the current tip of the main chain

@@ -205,7 +205,7 @@ func (m *CPUMiner) submitBlock(block *dcrutil.Block) bool {
 		// ReduceMinDifficulty and high block works that is above
 		// the target. Feed these to debug.
 		if m.cfg.ChainParams.ReduceMinDifficulty &&
-			rErr.ErrorCode == blockchain.ErrHighHash {
+			errors.Is(rErr, blockchain.ErrHighHash) {
 			minrLog.Debugf("Block submitted via CPU miner rejected "+
 				"because of ReduceMinDifficulty time sync failure: %v",
 				err)

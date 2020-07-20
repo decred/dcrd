@@ -606,10 +606,10 @@ func TestTxValidationErrors(t *testing.T) {
 		t.Fatalf("CheckTransactionSanity: unexpected error type for "+
 			"transaction that is too large -- got %T", err)
 	}
-	if rerr.ErrorCode != ErrTxTooBig {
+	if !errors.Is(rerr, ErrTxTooBig) {
 		t.Fatalf("CheckTransactionSanity: unexpected error code for "+
 			"transaction that is too large -- got %v, want %v",
-			rerr.ErrorCode, ErrTxTooBig)
+			rerr, ErrTxTooBig)
 	}
 }
 
@@ -666,7 +666,7 @@ func TestCheckConnectBlockTemplate(t *testing.T) {
 				block.Hash(), blockHeight, err)
 		}
 	}
-	rejectedBlockTemplate := func(code ErrorCode) {
+	rejectedBlockTemplate := func(errKind ErrorKind) {
 		msgBlock := g.Tip()
 		blockHeight := msgBlock.Header.Height
 		block := dcrutil.NewBlock(msgBlock)
@@ -689,11 +689,11 @@ func TestCheckConnectBlockTemplate(t *testing.T) {
 				"blockchain.RuleError", g.TipName(),
 				block.Hash(), blockHeight, err)
 		}
-		if rerr.ErrorCode != code {
+		if !errors.Is(rerr, errKind) {
 			t.Fatalf("block template %q (hash %s, height %d) does "+
 				"not have expected reject code -- got %v, want %v",
 				g.TipName(), block.Hash(), blockHeight,
-				rerr.ErrorCode, code)
+				rerr, errKind)
 		}
 	}
 
