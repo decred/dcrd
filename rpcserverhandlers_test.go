@@ -142,12 +142,14 @@ type testRPCChain struct {
 	heightRange                     []chainhash.Hash
 	isCurrent                       bool
 	liveTickets                     []chainhash.Hash
+	liveTicketsErr                  error
 	locateHeaders                   []wire.BlockHeader
 	lotteryDataForBlock             []chainhash.Hash
 	mainChainHasBlock               bool
 	maxBlockSize                    int64
 	maxBlockSizeErr                 error
 	missedTickets                   []chainhash.Hash
+	missedTicketsErr                error
 	nextThresholdState              blockchain.ThresholdStateTuple
 	nextThresholdStateErr           error
 	stateLastChangedHeight          int64
@@ -303,7 +305,7 @@ func (c *testRPCChain) IsCurrent() bool {
 
 // LiveTickets returns a mocked slice of all currently live tickets.
 func (c *testRPCChain) LiveTickets() ([]chainhash.Hash, error) {
-	return c.liveTickets, nil
+	return c.liveTickets, c.liveTicketsErr
 }
 
 // LocateHeaders returns a mocked slice of headers of the blocks after the first
@@ -333,7 +335,7 @@ func (c *testRPCChain) MaxBlockSize() (int64, error) {
 
 // MissedTickets returns a mocked slice of all currently missed tickets.
 func (c *testRPCChain) MissedTickets() ([]chainhash.Hash, error) {
-	return c.missedTickets, nil
+	return c.missedTickets, c.missedTicketsErr
 }
 
 // NextThresholdState returns a mocked current rule change threshold state of
@@ -3488,6 +3490,84 @@ func TestHandleGetTxOutSetInfo(t *testing.T) {
 	}})
 }
 
+func TestHandleLiveTickets(t *testing.T) {
+	t.Parallel()
+
+	tkt1 := mustParseHash("1f6631957b4060d81ba7e760ec9c8150ba028eb051ddadf2b9749a5ccda1a955")
+	tkt2 := mustParseHash("eca7e802590df60f7d300b6170f63dfab213b26421ed2e70de3ec2224cb9e460")
+
+	testRPCServerHandler(t, []rpcTest{{
+		name:    "handleLiveTickets: no live tickets",
+		handler: handleLiveTickets,
+		cmd:     &types.LiveTicketsCmd{},
+		result: types.LiveTicketsResult{
+			Tickets: []string{},
+		},
+	}, {
+		name:    "handleLiveTickets: two live tickets",
+		handler: handleLiveTickets,
+		cmd:     &types.LiveTicketsCmd{},
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.liveTickets = []chainhash.Hash{*tkt1, *tkt2}
+			return chain
+		}(),
+		result: types.LiveTicketsResult{
+			Tickets: []string{tkt1.String(), tkt2.String()},
+		},
+	}, {
+		name:    "handleLiveTickets: unable to fetch live tickets",
+		handler: handleLiveTickets,
+		cmd:     &types.LiveTicketsCmd{},
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.liveTicketsErr = errors.New("unable to fetch live tickets")
+			return chain
+		}(),
+		wantErr: true,
+		errCode: dcrjson.ErrRPCInternal.Code,
+	}})
+}
+
+func TestHandleMissedTickets(t *testing.T) {
+	t.Parallel()
+
+	tkt1 := mustParseHash("1f6631957b4060d81ba7e760ec9c8150ba028eb051ddadf2b9749a5ccda1a955")
+	tkt2 := mustParseHash("eca7e802590df60f7d300b6170f63dfab213b26421ed2e70de3ec2224cb9e460")
+
+	testRPCServerHandler(t, []rpcTest{{
+		name:    "handleMissedTickets: no missed tickets",
+		handler: handleMissedTickets,
+		cmd:     &types.MissedTicketsCmd{},
+		result: types.MissedTicketsResult{
+			Tickets: []string{},
+		},
+	}, {
+		name:    "handleMissedTickets: two missed tickets",
+		handler: handleMissedTickets,
+		cmd:     &types.MissedTicketsCmd{},
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.missedTickets = []chainhash.Hash{*tkt1, *tkt2}
+			return chain
+		}(),
+		result: types.MissedTicketsResult{
+			Tickets: []string{tkt1.String(), tkt2.String()},
+		},
+	}, {
+		name:    "handleMissedTickets: unable to fetch missed tickets",
+		handler: handleMissedTickets,
+		cmd:     &types.MissedTicketsCmd{},
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.missedTicketsErr = errors.New("unable to fetch missed tickets")
+			return chain
+		}(),
+		wantErr: true,
+		errCode: dcrjson.ErrRPCInternal.Code,
+	}})
+}
+
 func TestHandleNode(t *testing.T) {
 	t.Parallel()
 
@@ -3728,6 +3808,40 @@ func TestHandleSubmitBlock(t *testing.T) {
 			return syncManager
 		}(),
 		result: "rejected: block rejected",
+	}})
+}
+
+func TestHandleValidateAddress(t *testing.T) {
+	t.Parallel()
+
+	testRPCServerHandler(t, []rpcTest{{
+		name:    "handleValidateAddress: ok",
+		handler: handleValidateAddress,
+		cmd: &types.ValidateAddressCmd{
+			Address: "DcdacYDf5SUH5dYyDxufRngdiaVhi6n83ka",
+		},
+		result: types.ValidateAddressChainResult{
+			IsValid: true,
+			Address: "DcdacYDf5SUH5dYyDxufRngdiaVhi6n83ka",
+		},
+	}, {
+		name:    "handleValidateAddress: invalid address",
+		handler: handleValidateAddress,
+		cmd: &types.ValidateAddressCmd{
+			Address: "invalid",
+		},
+		result: types.ValidateAddressChainResult{
+			IsValid: false,
+		},
+	}, {
+		name:    "handleValidateAddress: wrong network",
+		handler: handleValidateAddress,
+		cmd: &types.ValidateAddressCmd{
+			Address: "Ssn23a3rJaCUxjqXiVSNwU6FxV45sLkiFpz",
+		},
+		result: types.ValidateAddressChainResult{
+			IsValid: false,
+		},
 	}})
 }
 
