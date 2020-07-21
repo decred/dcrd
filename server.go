@@ -441,7 +441,7 @@ type server struct {
 	connManager          *connmgr.ConnManager
 	sigCache             *txscript.SigCache
 	subsidyCache         *standalone.SubsidyCache
-	rpcServer            *rpcServer
+	rpcServer            *RPCServer
 	blockManager         *blockManager
 	bg                   *mining.BgBlkTmplGenerator
 	chain                *blockchain.BlockChain
@@ -3093,7 +3093,7 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB, chainP
 			}
 		},
 		PruneRebroadcastInventory: s.PruneRebroadcastInventory,
-		RpcServer: func() *rpcServer {
+		RpcServer: func() *RPCServer {
 			return s.rpcServer
 		},
 	})
@@ -3234,7 +3234,7 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB, chainP
 			return nil, errors.New("no usable rpc listen addresses")
 		}
 
-		s.rpcServer, err = newRPCServer(&rpcserverConfig{
+		s.rpcServer, err = NewRPCServer(&RpcserverConfig{
 			Listeners:    rpcListeners,
 			ConnMgr:      &rpcConnManager{&s},
 			SyncMgr:      &rpcSyncMgr{&s, s.blockManager},
