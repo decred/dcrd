@@ -1,4 +1,4 @@
-// Copyright (c) 2018 The Decred developers
+// Copyright (c) 2018-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -10,10 +10,6 @@ two main goals:
 - Ensuring transactions are mined within a target _confirmation range_
   (expressed in blocks);
 - Attempting to minimize fees while maintaining be above restriction.
-
-Although it was primarily written for dcrd, this package has intentionally been
-designed so it can be used as a standalone package for any projects needing the
-functionality provided.
 
 Preliminaries
 

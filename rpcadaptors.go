@@ -1,5 +1,5 @@
 // Copyright (c) 2017 The btcsuite developers
-// Copyright (c) 2015-2019 The Decred developers
+// Copyright (c) 2015-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -15,7 +15,7 @@ import (
 	"github.com/decred/dcrd/blockchain/v3/indexers"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/dcrutil/v3"
-	"github.com/decred/dcrd/fees/v2"
+	"github.com/decred/dcrd/internal/fees"
 	"github.com/decred/dcrd/internal/mempool"
 	"github.com/decred/dcrd/internal/rpcserver"
 	"github.com/decred/dcrd/peer/v2"

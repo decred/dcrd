@@ -21,7 +21,6 @@ require (
 	github.com/decred/dcrd/dcrec/secp256k1/v3 v3.0.0-20200215031403-6b2ce76f0986
 	github.com/decred/dcrd/dcrjson/v3 v3.0.1
 	github.com/decred/dcrd/dcrutil/v3 v3.0.0-20200503044000-76f6906e50e5
-	github.com/decred/dcrd/fees/v2 v2.0.0
 	github.com/decred/dcrd/gcs/v2 v2.0.1
 	github.com/decred/dcrd/hdkeychain/v3 v3.0.0
 	github.com/decred/dcrd/lru v1.0.0
@@ -36,6 +35,7 @@ require (
 	github.com/jessevdk/go-flags v1.4.0
 	github.com/jrick/bitset v1.0.0
 	github.com/jrick/logrotate v1.0.0
+	github.com/syndtr/goleveldb v1.0.1-0.20190923125748-758128399b1d
 	golang.org/x/crypto v0.0.0-20190611184440-5c40567a22f8
 	golang.org/x/sync v0.0.0-20181221193216-37e7f081c4d4
 )
@@ -57,7 +57,6 @@ replace (
 	github.com/decred/dcrd/dcrec/secp256k1/v3 => ./dcrec/secp256k1
 	github.com/decred/dcrd/dcrjson/v3 => ./dcrjson
 	github.com/decred/dcrd/dcrutil/v3 => ./dcrutil
-	github.com/decred/dcrd/fees/v2 => ./fees
 	github.com/decred/dcrd/gcs/v2 => ./gcs
 	github.com/decred/dcrd/hdkeychain/v3 => ./hdkeychain
 	github.com/decred/dcrd/limits => ./limits
