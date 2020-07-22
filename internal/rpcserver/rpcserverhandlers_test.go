@@ -986,10 +986,10 @@ func defaultMockLogManager() *testLogManager {
 	}
 }
 
-// defaultMockConfig provides a default RpcserverConfig that is used throughout
+// defaultMockConfig provides a default Config that is used throughout
 // the tests.  Defaults can be overridden by tests through the rpcTest struct.
-func defaultMockConfig(chainParams *chaincfg.Params) *RpcserverConfig {
-	return &RpcserverConfig{
+func defaultMockConfig(chainParams *chaincfg.Params) *Config {
+	return &Config{
 		ChainParams:  chainParams,
 		Chain:        defaultMockRPCChain(),
 		AddrManager:  defaultMockAddrManager(),

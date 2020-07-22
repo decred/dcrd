@@ -4906,7 +4906,7 @@ func handleVersion(_ context.Context, s *RPCServer, cmd interface{}) (interface{
 
 // RPCServer provides a concurrent safe RPC server to a chain server.
 type RPCServer struct {
-	cfg                    RpcserverConfig
+	cfg                    Config
 	authsha                [sha256.Size]byte
 	limitauthsha           [sha256.Size]byte
 	ntfnMgr                *wsNotificationManager
@@ -5567,8 +5567,8 @@ func (s *RPCServer) Run(ctx context.Context) {
 	}
 }
 
-// RpcserverConfig is a descriptor containing the RPC server configuration.
-type RpcserverConfig struct {
+// Config is a descriptor containing the RPC server configuration.
+type Config struct {
 	// Listeners defines a slice of listeners for which the RPC server will
 	// take ownership of and accept connections.  Since the RPC server takes
 	// ownership of these listeners, they will be closed when the RPC server
@@ -5674,7 +5674,7 @@ type RpcserverConfig struct {
 }
 
 // NewRPCServer returns a new instance of the RPCServer struct.
-func NewRPCServer(config *RpcserverConfig) (*RPCServer, error) {
+func NewRPCServer(config *Config) (*RPCServer, error) {
 	rpc := RPCServer{
 		cfg:                    *config,
 		statusLines:            make(map[int]string),
