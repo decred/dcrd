@@ -2,7 +2,7 @@
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
-package main
+package rpcserver
 
 import (
 	"bytes"
@@ -33,7 +33,6 @@ import (
 	"github.com/decred/dcrd/dcrutil/v3"
 	"github.com/decred/dcrd/gcs/v2"
 	"github.com/decred/dcrd/internal/mempool"
-	"github.com/decred/dcrd/internal/rpcserver"
 	"github.com/decred/dcrd/internal/version"
 	"github.com/decred/dcrd/peer/v2"
 	"github.com/decred/dcrd/rpc/jsonrpc/types/v2"
@@ -41,7 +40,7 @@ import (
 )
 
 // testDataPath is the path where all rpcserver test fixtures reside.
-var testDataPath = filepath.Join("internal", "rpcserver", "testdata")
+const testDataPath = "testdata"
 
 // testRPCUtxoEntry provides a mock utxo entry by implementing the UtxoEntry interface.
 type testRPCUtxoEntry struct {
@@ -127,7 +126,7 @@ type testRPCChain struct {
 	convertUtxosToMinimalOutputs    []*stake.MinimalOutput
 	countVoteVersion                uint32
 	estimateNextStakeDifficultyFn   func(newTickets int64, useMaxTickets bool) (diff int64, err error)
-	fetchUtxoEntry                  rpcserver.UtxoEntry
+	fetchUtxoEntry                  UtxoEntry
 	fetchUtxoStats                  *blockchain.UtxoStats
 	filterByBlockHash               *gcs.FilterV2
 	getStakeVersions                []blockchain.StakeVersions
@@ -231,7 +230,7 @@ func (c *testRPCChain) CheckMissedTickets(hashes []chainhash.Hash) []bool {
 }
 
 // ConvertUtxosToMinimalOutputs returns a mocked MinimalOutput slice.
-func (c *testRPCChain) ConvertUtxosToMinimalOutputs(entry rpcserver.UtxoEntry) []*stake.MinimalOutput {
+func (c *testRPCChain) ConvertUtxosToMinimalOutputs(entry UtxoEntry) []*stake.MinimalOutput {
 	return c.convertUtxosToMinimalOutputs
 }
 
@@ -247,7 +246,7 @@ func (c *testRPCChain) EstimateNextStakeDifficulty(newTickets int64, useMaxTicke
 }
 
 // FetchUtxoEntry returns a mocked UtxoEntry.
-func (c *testRPCChain) FetchUtxoEntry(txHash *chainhash.Hash) (rpcserver.UtxoEntry, error) {
+func (c *testRPCChain) FetchUtxoEntry(txHash *chainhash.Hash) (UtxoEntry, error) {
 	return c.fetchUtxoEntry, nil
 }
 
@@ -519,9 +518,9 @@ type testConnManager struct {
 	connectedCount      int32
 	netTotalReceived    uint64
 	netTotalSent        uint64
-	connectedPeers      []rpcserver.Peer
-	persistentPeers     []rpcserver.Peer
-	addedNodeInfo       []rpcserver.Peer
+	connectedPeers      []Peer
+	persistentPeers     []Peer
+	addedNodeInfo       []Peer
 	lookup              func(host string) ([]net.IP, error)
 }
 
@@ -567,12 +566,12 @@ func (c *testConnManager) NetTotals() (uint64, uint64) {
 }
 
 // ConnectedPeers returns a mocked slice of all connected peers.
-func (c *testConnManager) ConnectedPeers() []rpcserver.Peer {
+func (c *testConnManager) ConnectedPeers() []Peer {
 	return c.connectedPeers
 }
 
 // PersistentPeers returns a mocked slice of all persistent peers.
-func (c *testConnManager) PersistentPeers() []rpcserver.Peer {
+func (c *testConnManager) PersistentPeers() []Peer {
 	return c.persistentPeers
 }
 
@@ -590,7 +589,7 @@ func (c *testConnManager) AddRebroadcastInventory(iv *wire.InvVect, data interfa
 func (c *testConnManager) RelayTransactions(txns []*dcrutil.Tx) {}
 
 // AddedNodeInfo returns a mocked slice of persistent (added) peers.
-func (c *testConnManager) AddedNodeInfo() []rpcserver.Peer {
+func (c *testConnManager) AddedNodeInfo() []Peer {
 	return c.addedNodeInfo
 }
 
@@ -631,7 +630,7 @@ func (c *testClock) Since(t time.Time) time.Duration {
 }
 
 // testFeeEstimator provides a mock fee estimator by implementing the
-// rpcserver.FeeEstimator interface.
+// FeeEstimator interface.
 type testFeeEstimator struct {
 	estimateFeeAmt dcrutil.Amount
 	estimateFeeErr error
@@ -643,8 +642,8 @@ func (e *testFeeEstimator) EstimateFee(targetConfs int32) (dcrutil.Amount, error
 	return e.estimateFeeAmt, e.estimateFeeErr
 }
 
-// testLogManager provides a mock log manager by implementing the
-// rpcserver.LogManager interface.
+// testLogManager provides a mock log manager by implementing the LogManager
+// interface.
 type testLogManager struct {
 	supportedSubsystems       []string
 	parseAndSetDebugLevelsErr error
@@ -940,19 +939,19 @@ func defaultMockConnManager() *testConnManager {
 		connectedCount:   4,
 		netTotalReceived: 9598159,
 		netTotalSent:     4783802,
-		connectedPeers: []rpcserver.Peer{
+		connectedPeers: []Peer{
 			testPeer1,
 			testPeer2,
 			testPeer3,
 			testPeer4,
 		},
-		persistentPeers: []rpcserver.Peer{
+		persistentPeers: []Peer{
 			testPeer1,
 			testPeer2,
 			testPeer3,
 			testPeer4,
 		},
-		addedNodeInfo: []rpcserver.Peer{
+		addedNodeInfo: []Peer{
 			testPeer1,
 			testPeer2,
 			testPeer3,
@@ -3242,7 +3241,7 @@ func TestHandleGetPeerInfo(t *testing.T) {
 		cmd:     &types.GetPeerInfoCmd{},
 		mockConnManager: func() *testConnManager {
 			connManager := defaultMockConnManager()
-			connManager.connectedPeers = []rpcserver.Peer{
+			connManager.connectedPeers = []Peer{
 				&testPeer{
 					localAddr: testAddr{
 						net:  "tcp",

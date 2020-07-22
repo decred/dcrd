@@ -42,6 +42,7 @@ import (
 	"github.com/decred/dcrd/internal/mempool"
 	"github.com/decred/dcrd/internal/mining"
 	"github.com/decred/dcrd/internal/mining/cpuminer"
+	"github.com/decred/dcrd/internal/rpcserver"
 	"github.com/decred/dcrd/internal/version"
 	"github.com/decred/dcrd/lru"
 	"github.com/decred/dcrd/peer/v2"
@@ -445,7 +446,7 @@ type server struct {
 	connManager          *connmgr.ConnManager
 	sigCache             *txscript.SigCache
 	subsidyCache         *standalone.SubsidyCache
-	rpcServer            *RPCServer
+	rpcServer            *rpcserver.RPCServer
 	blockManager         *blockManager
 	bg                   *mining.BgBlkTmplGenerator
 	chain                *blockchain.BlockChain
@@ -3116,13 +3117,13 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB, chainP
 		FeeEstimator:       s.feeEstimator,
 		TxMemPool:          s.txMemPool,
 		BgBlkTmplGenerator: nil, // Created later.
-		NotifyWinningTickets: func(wtnd *WinningTicketsNtfnData) {
+		NotifyWinningTickets: func(wtnd *rpcserver.WinningTicketsNtfnData) {
 			if s.rpcServer != nil {
 				s.rpcServer.NotifyWinningTickets(wtnd)
 			}
 		},
 		PruneRebroadcastInventory: s.PruneRebroadcastInventory,
-		RpcServer: func() *RPCServer {
+		RpcServer: func() *rpcserver.RPCServer {
 			return s.rpcServer
 		},
 	})
@@ -3263,7 +3264,7 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB, chainP
 			return nil, errors.New("no usable rpc listen addresses")
 		}
 
-		s.rpcServer, err = NewRPCServer(&RpcserverConfig{
+		s.rpcServer, err = rpcserver.NewRPCServer(&rpcserver.RpcserverConfig{
 			Listeners:    rpcListeners,
 			ConnMgr:      &rpcConnManager{&s},
 			SyncMgr:      &rpcSyncMgr{&s, s.blockManager},
