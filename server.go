@@ -3089,7 +3089,7 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB, chainP
 		BgBlkTmplGenerator: nil, // Created later.
 		NotifyWinningTickets: func(wtnd *WinningTicketsNtfnData) {
 			if s.rpcServer != nil {
-				s.rpcServer.ntfnMgr.NotifyWinningTickets(wtnd)
+				s.rpcServer.NotifyWinningTickets(wtnd)
 			}
 		},
 		PruneRebroadcastInventory: s.PruneRebroadcastInventory,

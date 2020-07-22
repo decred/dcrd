@@ -362,7 +362,7 @@ func (b *blockManager) resetHeaderState(newestHash *chainhash.Hash, newestHeight
 // for block notification processing.
 func (b *blockManager) NotifyWork(templateNtfn *mining.TemplateNtfn) {
 	if r := b.cfg.RpcServer(); r != nil {
-		r.ntfnMgr.NotifyWork(templateNtfn)
+		r.NotifyWork(templateNtfn)
 	}
 }
 
@@ -1117,7 +1117,7 @@ func (b *blockManager) handleBlockMsg(bmsg *blockMsg) {
 			if r != nil {
 				// Update registered websocket clients on the
 				// current stake difficulty.
-				r.ntfnMgr.NotifyStakeDifficulty(
+				r.NotifyStakeDifficulty(
 					&StakeDifficultyNtfnData{
 						best.Hash,
 						best.Height,
@@ -1682,7 +1682,7 @@ out:
 					best := b.cfg.Chain.BestSnapshot()
 					r := b.cfg.RpcServer()
 					if r != nil {
-						r.ntfnMgr.NotifyStakeDifficulty(
+						r.NotifyStakeDifficulty(
 							&StakeDifficultyNtfnData{
 								best.Hash,
 								best.Height,
@@ -1724,7 +1724,7 @@ out:
 					// invalidated transactions.
 					best := b.cfg.Chain.BestSnapshot()
 					if r != nil {
-						r.ntfnMgr.NotifyStakeDifficulty(
+						r.NotifyStakeDifficulty(
 							&StakeDifficultyNtfnData{
 								best.Hash,
 								best.Height,
@@ -2030,7 +2030,7 @@ func (b *blockManager) handleBlockchainNotification(notification *blockchain.Not
 			b.cfg.PruneRebroadcastInventory()
 
 			// Notify registered websocket clients of incoming block.
-			r.ntfnMgr.NotifyBlockConnected(block)
+			r.NotifyBlockConnected(block)
 		}
 
 		if b.cfg.BgBlkTmplGenerator != nil {
@@ -2047,7 +2047,7 @@ func (b *blockManager) handleBlockchainNotification(notification *blockchain.Not
 		}
 
 		if r := b.cfg.RpcServer(); r != nil {
-			r.ntfnMgr.NotifySpentAndMissedTickets(tnd)
+			r.NotifySpentAndMissedTickets(tnd)
 		}
 
 	// Stake tickets are matured from the most recently connected block.
@@ -2060,7 +2060,7 @@ func (b *blockManager) handleBlockchainNotification(notification *blockchain.Not
 		}
 
 		if r := b.cfg.RpcServer(); r != nil {
-			r.ntfnMgr.NotifyNewTickets(tnd)
+			r.NotifyNewTickets(tnd)
 		}
 
 	// A block has been disconnected from the main block chain.
@@ -2139,7 +2139,7 @@ func (b *blockManager) handleBlockchainNotification(notification *blockchain.Not
 			b.cfg.PruneRebroadcastInventory()
 
 			// Notify registered websocket clients.
-			r.ntfnMgr.NotifyBlockDisconnected(block)
+			r.NotifyBlockDisconnected(block)
 		}
 
 	// Chain reorganization has commenced.
@@ -2164,7 +2164,7 @@ func (b *blockManager) handleBlockchainNotification(notification *blockchain.Not
 
 		// Notify registered websocket clients.
 		if r := b.cfg.RpcServer(); r != nil {
-			r.ntfnMgr.NotifyReorganization(rd)
+			r.NotifyReorganization(rd)
 		}
 	}
 }
