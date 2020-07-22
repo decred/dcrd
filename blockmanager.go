@@ -25,6 +25,7 @@ import (
 	"github.com/decred/dcrd/fees/v2"
 	"github.com/decred/dcrd/internal/mempool"
 	"github.com/decred/dcrd/internal/mining"
+	"github.com/decred/dcrd/internal/rpcserver"
 	peerpkg "github.com/decred/dcrd/peer/v2"
 	"github.com/decred/dcrd/wire"
 )
@@ -275,9 +276,9 @@ type blockManagerConfig struct {
 	BgBlkTmplGenerator *mining.BgBlkTmplGenerator
 
 	// The following fields are blockManager callbacks.
-	NotifyWinningTickets      func(*WinningTicketsNtfnData)
+	NotifyWinningTickets      func(*rpcserver.WinningTicketsNtfnData)
 	PruneRebroadcastInventory func()
-	RpcServer                 func() *RPCServer
+	RpcServer                 func() *rpcserver.RPCServer
 }
 
 // peerSyncState stores additional information that the blockManager tracks
@@ -1118,10 +1119,10 @@ func (b *blockManager) handleBlockMsg(bmsg *blockMsg) {
 				// Update registered websocket clients on the
 				// current stake difficulty.
 				r.NotifyStakeDifficulty(
-					&StakeDifficultyNtfnData{
-						best.Hash,
-						best.Height,
-						best.NextStakeDiff,
+					&rpcserver.StakeDifficultyNtfnData{
+						BlockHash:       best.Hash,
+						BlockHeight:     best.Height,
+						StakeDifficulty: best.NextStakeDiff,
 					})
 			}
 			b.cfg.TxMemPool.PruneStakeTx(best.NextStakeDiff, best.Height)
@@ -1683,10 +1684,10 @@ out:
 					r := b.cfg.RpcServer()
 					if r != nil {
 						r.NotifyStakeDifficulty(
-							&StakeDifficultyNtfnData{
-								best.Hash,
-								best.Height,
-								best.NextStakeDiff,
+							&rpcserver.StakeDifficultyNtfnData{
+								BlockHash:       best.Hash,
+								BlockHeight:     best.Height,
+								StakeDifficulty: best.NextStakeDiff,
 							})
 					}
 					b.cfg.TxMemPool.PruneStakeTx(best.NextStakeDiff,
@@ -1725,10 +1726,10 @@ out:
 					best := b.cfg.Chain.BestSnapshot()
 					if r != nil {
 						r.NotifyStakeDifficulty(
-							&StakeDifficultyNtfnData{
-								best.Hash,
-								best.Height,
-								best.NextStakeDiff,
+							&rpcserver.StakeDifficultyNtfnData{
+								BlockHash:       best.Hash,
+								BlockHeight:     best.Height,
+								StakeDifficulty: best.NextStakeDiff,
 							})
 					}
 					b.cfg.TxMemPool.PruneStakeTx(best.NextStakeDiff,
@@ -1895,7 +1896,7 @@ func (b *blockManager) handleBlockchainNotification(notification *blockchain.Not
 			} else {
 				// Notify registered websocket clients of newly
 				// eligible tickets to vote on.
-				b.cfg.NotifyWinningTickets(&WinningTicketsNtfnData{
+				b.cfg.NotifyWinningTickets(&rpcserver.WinningTicketsNtfnData{
 					BlockHash:   *blockHash,
 					BlockHeight: blockHeight,
 					Tickets:     wt,

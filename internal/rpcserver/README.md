@@ -7,7 +7,8 @@ rpcserver
 
 ## Overview
 
-This package is currently a work in progress.
+Package rpcserver includes all RPC server interfaces, types, and pieces of code
+pertaining to implementing the RPC server.
 
 ## License
 

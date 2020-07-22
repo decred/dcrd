@@ -3,7 +3,7 @@
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
-package main
+package rpcserver
 
 import (
 	"bytes"
@@ -46,7 +46,6 @@ import (
 	"github.com/decred/dcrd/internal/mempool"
 	"github.com/decred/dcrd/internal/mining"
 	"github.com/decred/dcrd/internal/mining/cpuminer"
-	"github.com/decred/dcrd/internal/rpcserver"
 	"github.com/decred/dcrd/internal/version"
 	"github.com/decred/dcrd/rpc/jsonrpc/types/v2"
 	"github.com/decred/dcrd/txscript/v3"
@@ -109,6 +108,11 @@ var (
 
 	// JSON 2.0 batched request prefix
 	batchedRequestPrefix = []byte("[")
+
+	// zeroHash is the zero value for a chainhash.Hash and is defined as
+	// a package level variable to avoid the need to create a new instance
+	// every time a check is needed.
+	zeroHash chainhash.Hash
 )
 
 // Errors
@@ -369,7 +373,7 @@ func rpcInternalError(errStr, context string) *dcrjson.RPCError {
 	if context != "" {
 		logStr = context + ": " + errStr
 	}
-	rpcsLog.Error(logStr)
+	log.Error(logStr)
 	return dcrjson.NewRPCError(dcrjson.ErrRPCInternal.Code, errStr)
 }
 
@@ -433,6 +437,25 @@ func rpcNoTxInfoError(txHash *chainhash.Hash) *dcrjson.RPCError {
 // misc return codes are a cop out.
 func rpcMiscError(message string) *dcrjson.RPCError {
 	return dcrjson.NewRPCError(dcrjson.ErrRPCMisc, message)
+}
+
+// directionString is a helper function that returns a string that represents
+// the direction of a connection (inbound or outbound).
+func directionString(inbound bool) string {
+	if inbound {
+		return "inbound"
+	}
+	return "outbound"
+}
+
+// normalizeAddress returns addr with the passed default port appended if
+// there is not already a port specified.
+func normalizeAddress(addr, defaultPort string) string {
+	_, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		return net.JoinHostPort(addr, defaultPort)
+	}
+	return addr
 }
 
 // workState houses state that is used in between multiple RPC invocations to
@@ -574,7 +597,7 @@ func handleNode(_ context.Context, s *RPCServer, cmd interface{}) (interface{}, 
 // peerExists determines if a certain peer is currently connected given
 // information about all currently connected peers. Peer existence is
 // determined using either a target address or node id.
-func peerExists(connMgr rpcserver.ConnManager, addr string, nodeID int32) bool {
+func peerExists(connMgr ConnManager, addr string, nodeID int32) bool {
 	for _, p := range connMgr.ConnectedPeers() {
 		if p.ID() == nodeID || p.Addr() == addr {
 			return true
@@ -1118,7 +1141,7 @@ func createVoutList(mtx *wire.MsgTx, chainParams *chaincfg.Params, filterAddrMap
 			addr, err := stake.AddrFromSStxPkScrCommitment(v.PkScript,
 				chainParams)
 			if err != nil {
-				rpcsLog.Warnf("failed to decode ticket "+
+				log.Warnf("failed to decode ticket "+
 					"commitment addr output for tx hash "+
 					"%v, output idx %v", mtx.TxHash(), i)
 			} else {
@@ -1126,7 +1149,7 @@ func createVoutList(mtx *wire.MsgTx, chainParams *chaincfg.Params, filterAddrMap
 			}
 			amt, err := stake.AmountFromSStxPkScrCommitment(v.PkScript)
 			if err != nil {
-				rpcsLog.Warnf("failed to decode ticket "+
+				log.Warnf("failed to decode ticket "+
 					"commitment amt output for tx hash %v"+
 					", output idx %v", mtx.TxHash(), i)
 			} else {
@@ -1769,7 +1792,7 @@ func getDifficultyRatio(bits uint32, params *chaincfg.Params) float64 {
 	outString := difficulty.FloatString(8)
 	diff, err := strconv.ParseFloat(outString, 64)
 	if err != nil {
-		rpcsLog.Errorf("Cannot get difficulty: %v", err)
+		log.Errorf("Cannot get difficulty: %v", err)
 		return 0
 	}
 	return diff
@@ -2209,7 +2232,7 @@ func handleGetCFilter(_ context.Context, s *RPCServer, cmd interface{}) (interfa
 		}
 	}
 
-	rpcsLog.Debugf("Found committed filter for %v", hash)
+	log.Debugf("Found committed filter for %v", hash)
 	return hex.EncodeToString(filterBytes), nil
 }
 
@@ -2480,7 +2503,7 @@ func handleGetNetworkHashPS(_ context.Context, s *RPCServer, cmd interface{}) (i
 	if startHeight < 0 {
 		startHeight = 0
 	}
-	rpcsLog.Debugf("Calculating network hashes per second from %d to %d",
+	log.Debugf("Calculating network hashes per second from %d to %d",
 		startHeight, endHeight)
 
 	// Find the min and max block timestamps as well as calculate the total
@@ -2798,7 +2821,7 @@ func handleGetStakeDifficulty(_ context.Context, s *RPCServer, cmd interface{}) 
 	best := chain.BestSnapshot()
 	blockHeader, err := chain.HeaderByHeight(best.Height)
 	if err != nil {
-		rpcsLog.Errorf("Error getting block: %v", err)
+		log.Errorf("Error getting block: %v", err)
 		return nil, &dcrjson.RPCError{
 			Code:    dcrjson.ErrRPCDifficulty,
 			Message: "Error getting stake difficulty: " + err.Error(),
@@ -3398,7 +3421,7 @@ func handleGetWorkSubmission(_ context.Context, s *RPCServer, hexData string) (i
 			return false, rpcInternalError(err.Error(), context)
 		}
 
-		rpcsLog.Errorf("Block submitted via getwork does not meet the "+
+		log.Errorf("Block submitted via getwork does not meet the "+
 			"required proof of work: %v", err)
 		return false, nil
 	}
@@ -3409,7 +3432,7 @@ func handleGetWorkSubmission(_ context.Context, s *RPCServer, hexData string) (i
 	templateKey := getWorkTemplateKey(&submittedHeader)
 	templateBlock, ok := s.workState.templatePool[templateKey]
 	if !ok || templateBlock == nil {
-		rpcsLog.Errorf("Block submitted via getwork has no matching template "+
+		log.Errorf("Block submitted via getwork has no matching template "+
 			"for merkle root %s, stake root %s",
 			submittedHeader.MerkleRoot, submittedHeader.StakeRoot)
 		return false, nil
@@ -3434,18 +3457,18 @@ func handleGetWorkSubmission(_ context.Context, s *RPCServer, hexData string) (i
 			return false, rpcInternalError(err.Error(), context)
 		}
 
-		rpcsLog.Infof("Block submitted via getwork rejected: %v", err)
+		log.Infof("Block submitted via getwork rejected: %v", err)
 		return false, nil
 	}
 
 	if isOrphan {
-		rpcsLog.Infof("Block submitted via getwork rejected: an orphan "+
+		log.Infof("Block submitted via getwork rejected: an orphan "+
 			"building on parent %v", block.MsgBlock().Header.PrevBlock)
 		return false, nil
 	}
 
 	// The block was accepted.
-	rpcsLog.Infof("Block submitted via getwork accepted: %s (height %d)",
+	log.Infof("Block submitted via getwork accepted: %s (height %d)",
 		block.Hash(), msgBlock.Header.Height)
 	return true, nil
 }
@@ -4147,7 +4170,7 @@ func handleSendRawTransaction(_ context.Context, s *RPCServer, cmd interface{}) 
 		if errors.As(err, &rErr) {
 			err = fmt.Errorf("rejected transaction %v: %v", tx.Hash(),
 				err)
-			rpcsLog.Debugf("%v", err)
+			log.Debugf("%v", err)
 			if mempool.IsErrorCode(rErr, mempool.ErrDuplicate) {
 				// This is an actual exact duplicate tx, so
 				// return the specific duplicate tx error.
@@ -4160,7 +4183,7 @@ func handleSendRawTransaction(_ context.Context, s *RPCServer, cmd interface{}) 
 
 		err = fmt.Errorf("failed to process transaction %v: %v",
 			tx.Hash(), err)
-		rpcsLog.Errorf("%v", err)
+		log.Errorf("%v", err)
 		return nil, rpcDeserializationError("rejected: %v", err)
 	}
 
@@ -4251,7 +4274,7 @@ func handleSubmitBlock(_ context.Context, s *RPCServer, cmd interface{}) (interf
 		return fmt.Sprintf("rejected: %v", err), nil
 	}
 
-	rpcsLog.Infof("Accepted block %s via submitblock", block.Hash())
+	log.Infof("Accepted block %s via submitblock", block.Hash())
 	return nil, nil
 }
 
@@ -4746,14 +4769,14 @@ func verifyChain(_ context.Context, s *RPCServer, level, depth int64) error {
 	if finishHeight < 0 {
 		finishHeight = 0
 	}
-	rpcsLog.Infof("Verifying chain for %d blocks at level %d",
+	log.Infof("Verifying chain for %d blocks at level %d",
 		best.Height-finishHeight, level)
 
 	for height := best.Height; height > finishHeight; height-- {
 		// Level 0 just looks up the block.
 		block, err := s.cfg.Chain.BlockByHeight(height)
 		if err != nil {
-			rpcsLog.Errorf("Verify is unable to fetch block at "+
+			log.Errorf("Verify is unable to fetch block at "+
 				"height %d: %v", height, err)
 			return err
 		}
@@ -4763,14 +4786,14 @@ func verifyChain(_ context.Context, s *RPCServer, level, depth int64) error {
 			err := blockchain.CheckBlockSanity(block, s.cfg.TimeSource,
 				s.cfg.ChainParams)
 			if err != nil {
-				rpcsLog.Errorf("Verify is unable to validate "+
+				log.Errorf("Verify is unable to validate "+
 					"block at hash %v height %d: %v",
 					block.Hash(), height, err)
 				return err
 			}
 		}
 	}
-	rpcsLog.Infof("Chain verify completed successfully")
+	log.Infof("Chain verify completed successfully")
 
 	return nil
 }
@@ -4953,16 +4976,16 @@ func (s *RPCServer) writeHTTPResponseHeaders(req *http.Request, headers http.Hea
 
 // shutdown terminates the processes of the rpc server.
 func (s *RPCServer) shutdown() error {
-	rpcsLog.Warnf("RPC server shutting down")
+	log.Warnf("RPC server shutting down")
 	for _, listener := range s.cfg.Listeners {
 		err := listener.Close()
 		if err != nil {
-			rpcsLog.Errorf("Problem shutting down rpc: %v", err)
+			log.Errorf("Problem shutting down rpc: %v", err)
 			return err
 		}
 	}
 	s.wg.Wait()
-	rpcsLog.Infof("RPC server shutdown complete")
+	log.Infof("RPC server shutdown complete")
 	return nil
 }
 
@@ -5037,7 +5060,7 @@ func (s *RPCServer) NotifyWinningTickets(wtnd *WinningTicketsNtfnData) {
 // This function is safe for concurrent access.
 func (s *RPCServer) limitConnections(w http.ResponseWriter, remoteAddr string) bool {
 	if int(atomic.LoadInt32(&s.numClients)+1) > s.cfg.RPCMaxClients {
-		rpcsLog.Infof("Max RPC clients exceeded [%d] - "+
+		log.Infof("Max RPC clients exceeded [%d] - "+
 			"disconnecting client %s", s.cfg.RPCMaxClients,
 			remoteAddr)
 		http.Error(w, "503 Too busy.  Try again later.",
@@ -5079,7 +5102,7 @@ func (s *RPCServer) checkAuth(r *http.Request, require bool) (bool, bool, error)
 	authhdr := r.Header["Authorization"]
 	if len(authhdr) <= 0 {
 		if require {
-			rpcsLog.Warnf("RPC authentication failure from %s",
+			log.Warnf("RPC authentication failure from %s",
 				r.RemoteAddr)
 			return false, false, errors.New("auth failure")
 		}
@@ -5103,7 +5126,7 @@ func (s *RPCServer) checkAuth(r *http.Request, require bool) (bool, bool, error)
 	}
 
 	// Request's auth doesn't match either user
-	rpcsLog.Warnf("RPC authentication failure from %s", r.RemoteAddr)
+	log.Warnf("RPC authentication failure from %s", r.RemoteAddr)
 	return false, false, errors.New("auth failure")
 }
 
@@ -5207,7 +5230,7 @@ func (s *RPCServer) processRequest(ctx context.Context, request *dcrjson.Request
 			}
 			msg, err := createMarshalledReply(request.Jsonrpc, request.ID, result, jsonErr)
 			if err != nil {
-				rpcsLog.Errorf("Failed to marshal reply: %v", err)
+				log.Errorf("Failed to marshal reply: %v", err)
 				return nil
 			}
 			return msg
@@ -5232,7 +5255,7 @@ func (s *RPCServer) processRequest(ctx context.Context, request *dcrjson.Request
 	// Marshal the response.
 	msg, err := createMarshalledReply(request.Jsonrpc, request.ID, result, jsonErr)
 	if err != nil {
-		rpcsLog.Errorf("Failed to marshal reply: %v", err)
+		log.Errorf("Failed to marshal reply: %v", err)
 		return nil
 	}
 	return msg
@@ -5266,7 +5289,7 @@ func (s *RPCServer) jsonRPCRead(sCtx context.Context, w http.ResponseWriter, r *
 	hj, ok := w.(http.Hijacker)
 	if !ok {
 		errMsg := "webserver doesn't support hijacking"
-		rpcsLog.Warnf(errMsg)
+		log.Warnf(errMsg)
 		errCode := http.StatusInternalServerError
 		http.Error(w, strconv.Itoa(errCode)+" "+errMsg,
 			errCode)
@@ -5275,7 +5298,7 @@ func (s *RPCServer) jsonRPCRead(sCtx context.Context, w http.ResponseWriter, r *
 
 	conn, buf, err := hj.Hijack()
 	if err != nil {
-		rpcsLog.Warnf("Failed to hijack HTTP connection: %v", err)
+		log.Warnf("Failed to hijack HTTP connection: %v", err)
 		errCode := http.StatusInternalServerError
 		http.Error(w, strconv.Itoa(errCode)+" "+
 			err.Error(), errCode)
@@ -5318,7 +5341,7 @@ func (s *RPCServer) jsonRPCRead(sCtx context.Context, w http.ResponseWriter, r *
 			}
 			resp, err = dcrjson.MarshalResponse("1.0", nil, nil, jsonErr)
 			if err != nil {
-				rpcsLog.Errorf("Failed to create reply: %v", err)
+				log.Errorf("Failed to create reply: %v", err)
 			}
 		} else {
 			resp = s.processRequest(ctx, &req, isAdmin)
@@ -5341,7 +5364,7 @@ func (s *RPCServer) jsonRPCRead(sCtx context.Context, w http.ResponseWriter, r *
 			}
 			resp, err = dcrjson.MarshalResponse("2.0", nil, nil, jsonErr)
 			if err != nil {
-				rpcsLog.Errorf("Failed to create reply: %v", err)
+				log.Errorf("Failed to create reply: %v", err)
 			}
 
 			if resp != nil {
@@ -5358,7 +5381,7 @@ func (s *RPCServer) jsonRPCRead(sCtx context.Context, w http.ResponseWriter, r *
 				}
 				resp, err = dcrjson.MarshalResponse("2.0", nil, nil, jsonErr)
 				if err != nil {
-					rpcsLog.Errorf("Failed to marshal reply: %v", err)
+					log.Errorf("Failed to marshal reply: %v", err)
 				}
 
 				if resp != nil {
@@ -5381,7 +5404,7 @@ func (s *RPCServer) jsonRPCRead(sCtx context.Context, w http.ResponseWriter, r *
 						}
 						resp, err = dcrjson.MarshalResponse("", nil, nil, jsonErr)
 						if err != nil {
-							rpcsLog.Errorf("Failed to create reply: %v", err)
+							log.Errorf("Failed to create reply: %v", err)
 						}
 
 						if resp != nil {
@@ -5428,16 +5451,16 @@ func (s *RPCServer) jsonRPCRead(sCtx context.Context, w http.ResponseWriter, r *
 	// Write the response.
 	err = s.writeHTTPResponseHeaders(r, w.Header(), http.StatusOK, buf)
 	if err != nil {
-		rpcsLog.Error(err)
+		log.Error(err)
 		return
 	}
 	if _, err := buf.Write(msg); err != nil {
-		rpcsLog.Errorf("Failed to write marshalled reply: %v", err)
+		log.Errorf("Failed to write marshalled reply: %v", err)
 	}
 
 	// Terminate with newline to maintain compatibility with Bitcoin Core.
 	if err := buf.WriteByte('\n'); err != nil {
-		rpcsLog.Errorf("Failed to append terminating newline to reply: %v", err)
+		log.Errorf("Failed to append terminating newline to reply: %v", err)
 	}
 }
 
@@ -5494,7 +5517,7 @@ func (s *RPCServer) route(ctx context.Context) *http.Server {
 		if err != nil {
 			var herr websocket.HandshakeError
 			if !errors.As(err, &herr) {
-				rpcsLog.Errorf("Unexpected websocket error: %v",
+				log.Errorf("Unexpected websocket error: %v",
 					err)
 			}
 			http.Error(w, "400 Bad Request.", http.StatusBadRequest)
@@ -5503,17 +5526,17 @@ func (s *RPCServer) route(ctx context.Context) *http.Server {
 		ws.SetPingHandler(func(payload string) error {
 			err := ws.WriteControl(websocket.PongMessage, []byte(payload),
 				time.Now().Add(time.Second))
-			rpcsLog.Debugf("ping received: len %d", len(payload))
-			rpcsLog.Tracef("ping payload: %s", payload)
+			log.Debugf("ping received: len %d", len(payload))
+			log.Tracef("ping payload: %s", payload)
 			if err != nil {
-				rpcsLog.Errorf("Failed to send pong: %v", err)
+				log.Errorf("Failed to send pong: %v", err)
 				return err
 			}
 			return nil
 		})
 		ws.SetPongHandler(func(payload string) error {
-			rpcsLog.Debugf("pong received: len %d", len(payload))
-			rpcsLog.Tracef("pong payload: %s", payload)
+			log.Debugf("pong received: len %d", len(payload))
+			log.Tracef("pong payload: %s", payload)
 			return nil
 		})
 		s.WebsocketHandler(ws, r.RemoteAddr, authenticated, isAdmin)
@@ -5524,14 +5547,14 @@ func (s *RPCServer) route(ctx context.Context) *http.Server {
 // Run starts the rpc server and its listeners. It blocks until the
 // provided context is cancelled.
 func (s *RPCServer) Run(ctx context.Context) {
-	rpcsLog.Trace("Starting RPC server")
+	log.Trace("Starting RPC server")
 	server := s.route(ctx)
 	for _, listener := range s.cfg.Listeners {
 		s.wg.Add(1)
 		go func(listener net.Listener) {
-			rpcsLog.Infof("RPC server listening on %s", listener.Addr())
+			log.Infof("RPC server listening on %s", listener.Addr())
 			server.Serve(listener)
-			rpcsLog.Tracef("RPC listener done for %s", listener.Addr())
+			log.Tracef("RPC listener done for %s", listener.Addr())
 			s.wg.Done()
 		}(listener)
 	}
@@ -5539,7 +5562,7 @@ func (s *RPCServer) Run(ctx context.Context) {
 	s.ntfnMgr.Run(ctx)
 	err := s.shutdown()
 	if err != nil {
-		rpcsLog.Error(err)
+		log.Error(err)
 		return
 	}
 }
@@ -5560,18 +5583,18 @@ type RpcserverConfig struct {
 	// provides the RPC server with a means to do things such as add,
 	// remove, connect, disconnect, and query peers as well as other
 	// connection-related data and tasks.
-	ConnMgr rpcserver.ConnManager
+	ConnMgr ConnManager
 
 	// SyncMgr defines the sync manager for the RPC server to use.
-	SyncMgr rpcserver.SyncManager
+	SyncMgr SyncManager
 
 	// These fields allow the RPC server to interface with the local block
 	// chain data and state.
 	TimeSource   blockchain.MedianTimeSource
-	Chain        rpcserver.Chain
+	Chain        Chain
 	ChainParams  *chaincfg.Params
 	DB           database.DB
-	FeeEstimator rpcserver.FeeEstimator
+	FeeEstimator FeeEstimator
 	Services     wire.ServiceFlag
 
 	// SubsidyCache defines a cache for efficient access to consensus-critical
@@ -5580,10 +5603,10 @@ type RpcserverConfig struct {
 
 	// AddrManager defines a concurrency safe address manager for caching
 	// potential peers on the network.
-	AddrManager rpcserver.AddrManager
+	AddrManager AddrManager
 
 	// Clock defines the clock for the RPC server to use.
-	Clock rpcserver.Clock
+	Clock Clock
 
 	// TxMemPool defines the transaction memory pool to interact with.
 	TxMemPool *mempool.TxPool
@@ -5647,7 +5670,7 @@ type RpcserverConfig struct {
 	UserAgentVersion string
 
 	// LogManager defines the log manager for the RPC server to use.
-	LogManager rpcserver.LogManager
+	LogManager LogManager
 }
 
 // NewRPCServer returns a new instance of the RPCServer struct.
