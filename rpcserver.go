@@ -4986,6 +4986,54 @@ func (s *RPCServer) NotifyNewTransactions(txns []*dcrutil.Tx) {
 	}
 }
 
+// NotifyWork notifies websocket clients that have registered for new mining
+// work.
+func (s *RPCServer) NotifyWork(templateNtfn *mining.TemplateNtfn) {
+	s.ntfnMgr.NotifyWork(templateNtfn)
+}
+
+// NotifyStakeDifficulty notifies websocket clients that have registered for
+// stake difficulty updates.
+func (s *RPCServer) NotifyStakeDifficulty(stnd *StakeDifficultyNtfnData) {
+	s.ntfnMgr.NotifyStakeDifficulty(stnd)
+}
+
+// NotifyNewTickets notifies websocket clients that have registered for maturing
+// ticket updates.
+func (s *RPCServer) NotifyNewTickets(tnd *blockchain.TicketNotificationsData) {
+	s.ntfnMgr.NotifyNewTickets(tnd)
+}
+
+// NotifyBlockConnected notifies websocket clients that have registered for
+// block updates when a block is connected to the main chain.
+func (s *RPCServer) NotifyBlockConnected(block *dcrutil.Block) {
+	s.ntfnMgr.NotifyBlockConnected(block)
+}
+
+// NotifySpentAndMissedTickets notifies websocket clients that have registered
+// for spent and missed ticket updates.
+func (s *RPCServer) NotifySpentAndMissedTickets(tnd *blockchain.TicketNotificationsData) {
+	s.ntfnMgr.NotifySpentAndMissedTickets(tnd)
+}
+
+// NotifyBlockDisconnected notifies websocket clients that have registered for
+// block updates when a block is disconnected from the main chain.
+func (s *RPCServer) NotifyBlockDisconnected(block *dcrutil.Block) {
+	s.ntfnMgr.NotifyBlockDisconnected(block)
+}
+
+// NotifyReorganization notifies websocket clients that have registered for
+// block updates when the blockchain is beginning a reorganization.
+func (s *RPCServer) NotifyReorganization(rd *blockchain.ReorganizationNtfnsData) {
+	s.ntfnMgr.NotifyReorganization(rd)
+}
+
+// NotifyWinningTickets notifies websocket clients that have registered for
+// winning ticket updates.
+func (s *RPCServer) NotifyWinningTickets(wtnd *WinningTicketsNtfnData) {
+	s.ntfnMgr.NotifyWinningTickets(wtnd)
+}
+
 // limitConnections responds with a 503 service unavailable and returns true if
 // adding another client would exceed the maximum allow RPC clients.
 //

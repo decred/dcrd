@@ -357,8 +357,8 @@ func (m *wsNotificationManager) NotifyNewTickets(
 	}
 }
 
-// NotifyNewTickets passes a new ticket data for an incoming block from the best
-// chain to the notification manager for block notification processing.
+// NotifyStakeDifficulty notifies websocket clients that have registered for
+// stake difficulty updates.
 func (m *wsNotificationManager) NotifyStakeDifficulty(
 	stnd *StakeDifficultyNtfnData) {
 	m.mtx.RLock()
@@ -370,7 +370,7 @@ func (m *wsNotificationManager) NotifyStakeDifficulty(
 	ctx := m.ctx
 	m.mtx.RUnlock()
 
-	// As NotifyNewTickets will be called by the block manager
+	// As NotifyStakeDifficulty will be called by the block manager
 	// and the RPC server may no longer be running, use a select
 	// statement to unblock enqueuing the notification once the RPC
 	// server has begun shutting down.
