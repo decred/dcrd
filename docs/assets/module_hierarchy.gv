@@ -24,7 +24,6 @@ digraph {
 	lru  [label="lru" fillcolor=royalblue3]
 	peer [label="peer/v2" fillcolor=khaki]
 	rpcclient [label="rpcclient/v4" fillcolor=mediumseagreen]
-	fees [label="fees" fillcolor=darkolivegreen2]
 	dcrd [label="dcrd" fillcolor=chocolate]
 
 	{rank=same connmgr addrmgr hdkeychain peer rpcclient}
@@ -55,7 +54,6 @@ digraph {
 	dcrjson -> types [dir=back color=tomato]
 	types -> rpcclient [dir=back color=indianred]
 
-	fees -> dcrd [dir=back color=darkolivegreen2]
 	certgen -> dcrd [dir=back color=darkkhaki]
 	addrmgr -> dcrd [dir=back color=lightsalmon]
 	hdkeychain -> dcrd [dir=back color=deepskyblue]

@@ -220,9 +220,6 @@ The following versioned modules are provided by dcrd repository:
 * [gcs](https://github.com/decred/dcrd/tree/master/gcs) - Provides an API for
   building and using Golomb-coded set filters useful for light clients such as
   SPV wallets
-* [fees](https://github.com/decred/dcrd/tree/master/fees) - Provides methods for
-  tracking and estimating fee rates for new transactions to be mined into the
-  network
 * [lru](https://github.com/decred/dcrd/tree/master/lru) - Implements a generic
   concurrent safe least-recently-used cache with near O(1) perf
 
