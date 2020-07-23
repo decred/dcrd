@@ -90,7 +90,7 @@ var wsHandlersBeforeInit = map[types.Method]wsCommandHandler{
 // must be run in a separate goroutine.  It should be invoked from the websocket
 // server handler which runs each new connection in a new goroutine thereby
 // satisfying the requirement.
-func (s *RPCServer) WebsocketHandler(conn *websocket.Conn, remoteAddr string, authenticated bool, isAdmin bool) {
+func (s *Server) WebsocketHandler(conn *websocket.Conn, remoteAddr string, authenticated bool, isAdmin bool) {
 	// Clear the read deadline that was set before the websocket hijacked
 	// the connection.
 	conn.SetReadDeadline(timeZeroVal)
@@ -131,7 +131,7 @@ func (s *RPCServer) WebsocketHandler(conn *websocket.Conn, remoteAddr string, au
 // track of all connected websocket clients.
 type wsNotificationManager struct {
 	// server is the RPC server the notification manager is associated with.
-	server *RPCServer
+	server *Server
 
 	// queueNotification queues a notification for handling.
 	queueNotification chan interface{}
@@ -1391,7 +1391,7 @@ func (m *wsNotificationManager) Run(ctx context.Context) {
 
 // newWsNotificationManager returns a new notification manager ready for use.
 // See wsNotificationManager for more details.
-func newWsNotificationManager(server *RPCServer) *wsNotificationManager {
+func newWsNotificationManager(server *Server) *wsNotificationManager {
 	return &wsNotificationManager{
 		server:            server,
 		queueNotification: make(chan interface{}),
@@ -1423,7 +1423,7 @@ type wsClient struct {
 	sync.Mutex
 
 	// server is the RPC server that is servicing the client.
-	rpcServer *RPCServer
+	rpcServer *Server
 
 	// conn is the underlying websocket connection.
 	conn *websocket.Conn
@@ -2145,7 +2145,7 @@ func (c *wsClient) WaitForShutdown() {
 // returned client is ready to start.  Once started, the client will process
 // incoming and outgoing messages in separate goroutines complete with queuing
 // and asynchronous handling for long-running operations.
-func newWebsocketClient(server *RPCServer, conn *websocket.Conn,
+func newWebsocketClient(server *Server, conn *websocket.Conn,
 	remoteAddr string, authenticated bool, isAdmin bool) (*wsClient, error) {
 
 	sessionID, err := wire.RandomUint64()

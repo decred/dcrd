@@ -132,7 +132,7 @@ var (
 	}
 )
 
-type commandHandler func(context.Context, *RPCServer, interface{}) (interface{}, error)
+type commandHandler func(context.Context, *Server, interface{}) (interface{}, error)
 
 // rpcHandlers maps RPC command strings to appropriate handler functions.
 // This is set by init because help references rpcHandlers and thus causes
@@ -476,19 +476,19 @@ func newWorkState() *workState {
 
 // handleUnimplemented is the handler for commands that should ultimately be
 // supported but are not yet implemented.
-func handleUnimplemented(_ context.Context, s *RPCServer, cmd interface{}) (interface{}, error) {
+func handleUnimplemented(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
 	return nil, ErrRPCUnimplemented
 }
 
 // handleAskWallet is the handler for commands that are recognized as valid, but
 // are unable to answer correctly since it involves wallet state.
 // These commands will be implemented in dcrwallet.
-func handleAskWallet(_ context.Context, s *RPCServer, cmd interface{}) (interface{}, error) {
+func handleAskWallet(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
 	return nil, ErrRPCNoWallet
 }
 
 // handleAddNode handles addnode commands.
-func handleAddNode(_ context.Context, s *RPCServer, cmd interface{}) (interface{}, error) {
+func handleAddNode(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
 	c := cmd.(*types.AddNodeCmd)
 
 	addr := normalizeAddress(c.Addr, s.cfg.ChainParams.DefaultPort)
@@ -514,7 +514,7 @@ func handleAddNode(_ context.Context, s *RPCServer, cmd interface{}) (interface{
 }
 
 // handleNode handles node commands.
-func handleNode(_ context.Context, s *RPCServer, cmd interface{}) (interface{}, error) {
+func handleNode(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
 	c := cmd.(*types.NodeCmd)
 
 	connMgr := s.cfg.ConnMgr
@@ -608,7 +608,7 @@ func peerExists(connMgr ConnManager, addr string, nodeID int32) bool {
 
 // messageToHex serializes a message to the wire protocol encoding using the
 // latest protocol version and returns a hex-encoded string of the result.
-func (s *RPCServer) messageToHex(msg wire.Message) (string, error) {
+func (s *Server) messageToHex(msg wire.Message) (string, error) {
 	var buf bytes.Buffer
 	if err := msg.BtcEncode(&buf, s.cfg.MaxProtocolVersion); err != nil {
 		context := fmt.Sprintf("Failed to encode msg of type %T", msg)
@@ -619,7 +619,7 @@ func (s *RPCServer) messageToHex(msg wire.Message) (string, error) {
 }
 
 // handleCreateRawTransaction handles createrawtransaction commands.
-func handleCreateRawTransaction(_ context.Context, s *RPCServer, cmd interface{}) (interface{}, error) {
+func handleCreateRawTransaction(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
 	c := cmd.(*types.CreateRawTransactionCmd)
 
 	// Validate expiry, if given.
@@ -729,7 +729,7 @@ func handleCreateRawTransaction(_ context.Context, s *RPCServer, cmd interface{}
 }
 
 // handleCreateRawSStx handles createrawsstx commands.
-func handleCreateRawSStx(_ context.Context, s *RPCServer, cmd interface{}) (interface{}, error) {
+func handleCreateRawSStx(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
 	c := cmd.(*types.CreateRawSStxCmd)
 
 	// Basic sanity checks for the information coming from the cmd.
@@ -920,7 +920,7 @@ func handleCreateRawSStx(_ context.Context, s *RPCServer, cmd interface{}) (inte
 }
 
 // handleCreateRawSSRtx handles createrawssrtx commands.
-func handleCreateRawSSRtx(_ context.Context, s *RPCServer, cmd interface{}) (interface{}, error) {
+func handleCreateRawSSRtx(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
 	c := cmd.(*types.CreateRawSSRtxCmd)
 
 	// Only a single SStx should be given
@@ -1045,7 +1045,7 @@ func handleCreateRawSSRtx(_ context.Context, s *RPCServer, cmd interface{}) (int
 }
 
 // handleDebugLevel handles debuglevel commands.
-func handleDebugLevel(_ context.Context, s *RPCServer, cmd interface{}) (interface{}, error) {
+func handleDebugLevel(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
 	c := cmd.(*types.DebugLevelCmd)
 
 	// Special show command to list supported subsystems.
@@ -1209,7 +1209,7 @@ func createVoutList(mtx *wire.MsgTx, chainParams *chaincfg.Params, filterAddrMap
 
 // createTxRawResult converts the passed transaction and associated parameters
 // to a raw transaction JSON object.
-func (s *RPCServer) createTxRawResult(chainParams *chaincfg.Params, mtx *wire.MsgTx, txHash string, blkIdx uint32, blkHeader *wire.BlockHeader, blkHash string, blkHeight int64, confirmations int64) (*types.TxRawResult, error) {
+func (s *Server) createTxRawResult(chainParams *chaincfg.Params, mtx *wire.MsgTx, txHash string, blkIdx uint32, blkHeader *wire.BlockHeader, blkHash string, blkHeight int64, confirmations int64) (*types.TxRawResult, error) {
 	mtxHex, err := s.messageToHex(mtx)
 	if err != nil {
 		return nil, err
@@ -1244,7 +1244,7 @@ func (s *RPCServer) createTxRawResult(chainParams *chaincfg.Params, mtx *wire.Ms
 }
 
 // handleDecodeRawTransaction handles decoderawtransaction commands.
-func handleDecodeRawTransaction(_ context.Context, s *RPCServer, cmd interface{}) (interface{}, error) {
+func handleDecodeRawTransaction(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
 	c := cmd.(*types.DecodeRawTransactionCmd)
 
 	// Deserialize the transaction.
@@ -1276,7 +1276,7 @@ func handleDecodeRawTransaction(_ context.Context, s *RPCServer, cmd interface{}
 }
 
 // handleDecodeScript handles decodescript commands.
-func handleDecodeScript(_ context.Context, s *RPCServer, cmd interface{}) (interface{}, error) {
+func handleDecodeScript(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
 	c := cmd.(*types.DecodeScriptCmd)
 
 	// Convert the hex script to bytes.
@@ -1332,7 +1332,7 @@ func handleDecodeScript(_ context.Context, s *RPCServer, cmd interface{}) (inter
 // handleEstimateFee implements the estimatefee command.
 // TODO this is a very basic implementation.  It should be
 // modified to match the bitcoin-core one.
-func handleEstimateFee(_ context.Context, s *RPCServer, cmd interface{}) (interface{}, error) {
+func handleEstimateFee(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
 	return s.cfg.MinRelayTxFee.ToCoin(), nil
 }
 
@@ -1340,7 +1340,7 @@ func handleEstimateFee(_ context.Context, s *RPCServer, cmd interface{}) (interf
 //
 // The default estimation mode when unset is assumed as "conservative". As of
 // 2018-12, the only supported mode is "conservative".
-func handleEstimateSmartFee(_ context.Context, s *RPCServer, cmd interface{}) (interface{}, error) {
+func handleEstimateSmartFee(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
 	c := cmd.(*types.EstimateSmartFeeCmd)
 
 	mode := types.EstimateSmartFeeConservative
@@ -1362,7 +1362,7 @@ func handleEstimateSmartFee(_ context.Context, s *RPCServer, cmd interface{}) (i
 }
 
 // handleEstimateStakeDiff implements the estimatestakediff command.
-func handleEstimateStakeDiff(_ context.Context, s *RPCServer, cmd interface{}) (interface{}, error) {
+func handleEstimateStakeDiff(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
 	c := cmd.(*types.EstimateStakeDiffCmd)
 
 	// Minimum possible stake difficulty.
@@ -1431,7 +1431,7 @@ func handleEstimateStakeDiff(_ context.Context, s *RPCServer, cmd interface{}) (
 }
 
 // handleExistsAddress implements the existsaddress command.
-func handleExistsAddress(_ context.Context, s *RPCServer, cmd interface{}) (interface{}, error) {
+func handleExistsAddress(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
 	existsAddrIndex := s.cfg.SyncMgr.ExistsAddrIndex()
 	if existsAddrIndex == nil {
 		return nil, rpcInternalError("Exists address index disabled",
@@ -1457,7 +1457,7 @@ func handleExistsAddress(_ context.Context, s *RPCServer, cmd interface{}) (inte
 }
 
 // handleExistsAddresses implements the existsaddresses command.
-func handleExistsAddresses(_ context.Context, s *RPCServer, cmd interface{}) (interface{}, error) {
+func handleExistsAddresses(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
 	existsAddrIndex := s.cfg.SyncMgr.ExistsAddrIndex()
 	if existsAddrIndex == nil {
 		return nil, rpcInternalError("Exists address index disabled",
@@ -1523,7 +1523,7 @@ func decodeHashPointers(strs []string) ([]*chainhash.Hash, error) {
 }
 
 // handleExistsMissedTickets implements the existsmissedtickets command.
-func handleExistsMissedTickets(_ context.Context, s *RPCServer, cmd interface{}) (interface{}, error) {
+func handleExistsMissedTickets(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
 	c := cmd.(*types.ExistsMissedTicketsCmd)
 
 	hashes, err := decodeHashes(c.TxHashes)
@@ -1549,7 +1549,7 @@ func handleExistsMissedTickets(_ context.Context, s *RPCServer, cmd interface{})
 }
 
 // handleExistsExpiredTickets implements the existsexpiredtickets command.
-func handleExistsExpiredTickets(_ context.Context, s *RPCServer, cmd interface{}) (interface{}, error) {
+func handleExistsExpiredTickets(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
 	c := cmd.(*types.ExistsExpiredTicketsCmd)
 
 	hashes, err := decodeHashes(c.TxHashes)
@@ -1575,7 +1575,7 @@ func handleExistsExpiredTickets(_ context.Context, s *RPCServer, cmd interface{}
 }
 
 // handleExistsLiveTicket implements the existsliveticket command.
-func handleExistsLiveTicket(_ context.Context, s *RPCServer, cmd interface{}) (interface{}, error) {
+func handleExistsLiveTicket(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
 	c := cmd.(*types.ExistsLiveTicketCmd)
 
 	hash, err := chainhash.NewHashFromStr(c.TxHash)
@@ -1587,7 +1587,7 @@ func handleExistsLiveTicket(_ context.Context, s *RPCServer, cmd interface{}) (i
 }
 
 // handleExistsLiveTickets implements the existslivetickets command.
-func handleExistsLiveTickets(_ context.Context, s *RPCServer, cmd interface{}) (interface{}, error) {
+func handleExistsLiveTickets(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
 	c := cmd.(*types.ExistsLiveTicketsCmd)
 
 	hashes, err := decodeHashes(c.TxHashes)
@@ -1613,7 +1613,7 @@ func handleExistsLiveTickets(_ context.Context, s *RPCServer, cmd interface{}) (
 }
 
 // handleExistsMempoolTxs implements the existsmempooltxs command.
-func handleExistsMempoolTxs(_ context.Context, s *RPCServer, cmd interface{}) (interface{}, error) {
+func handleExistsMempoolTxs(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
 	c := cmd.(*types.ExistsMempoolTxsCmd)
 
 	hashes, err := decodeHashPointers(c.TxHashes)
@@ -1640,7 +1640,7 @@ func handleExistsMempoolTxs(_ context.Context, s *RPCServer, cmd interface{}) (i
 }
 
 // handleGenerate handles generate commands.
-func handleGenerate(ctx context.Context, s *RPCServer, cmd interface{}) (interface{}, error) {
+func handleGenerate(ctx context.Context, s *Server, cmd interface{}) (interface{}, error) {
 	// Respond with an error if there are no addresses to pay the
 	// created blocks to.
 	if len(s.cfg.MiningAddrs) == 0 {
@@ -1681,7 +1681,7 @@ func handleGenerate(ctx context.Context, s *RPCServer, cmd interface{}) (interfa
 }
 
 // handleGetAddedNodeInfo handles getaddednodeinfo commands.
-func handleGetAddedNodeInfo(_ context.Context, s *RPCServer, cmd interface{}) (interface{}, error) {
+func handleGetAddedNodeInfo(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
 	c := cmd.(*types.GetAddedNodeInfoCmd)
 
 	// Retrieve a list of persistent (added) peers from the Decred server
@@ -1761,7 +1761,7 @@ func handleGetAddedNodeInfo(_ context.Context, s *RPCServer, cmd interface{}) (i
 }
 
 // handleGetBestBlock implements the getbestblock command.
-func handleGetBestBlock(_ context.Context, s *RPCServer, cmd interface{}) (interface{}, error) {
+func handleGetBestBlock(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
 	// All other "get block" commands give either the height, the hash, or
 	// both but require the block SHA.  This gets both for the best block.
 	best := s.cfg.Chain.BestSnapshot()
@@ -1773,7 +1773,7 @@ func handleGetBestBlock(_ context.Context, s *RPCServer, cmd interface{}) (inter
 }
 
 // handleGetBestBlockHash implements the getbestblockhash command.
-func handleGetBestBlockHash(_ context.Context, s *RPCServer, cmd interface{}) (interface{}, error) {
+func handleGetBestBlockHash(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
 	best := s.cfg.Chain.BestSnapshot()
 	return best.Hash.String(), nil
 }
@@ -1799,7 +1799,7 @@ func getDifficultyRatio(bits uint32, params *chaincfg.Params) float64 {
 }
 
 // handleGetBlock implements the getblock command.
-func handleGetBlock(_ context.Context, s *RPCServer, cmd interface{}) (interface{}, error) {
+func handleGetBlock(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
 	c := cmd.(*types.GetBlockCmd)
 
 	// Load the raw block bytes from the database.
@@ -1932,7 +1932,7 @@ func handleGetBlock(_ context.Context, s *RPCServer, cmd interface{}) (interface
 }
 
 // handleGetBlockchainInfo implements the getblockchaininfo command.
-func handleGetBlockchainInfo(_ context.Context, s *RPCServer, cmd interface{}) (interface{}, error) {
+func handleGetBlockchainInfo(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
 	chain := s.cfg.Chain
 	best := chain.BestSnapshot()
 
@@ -2020,13 +2020,13 @@ func handleGetBlockchainInfo(_ context.Context, s *RPCServer, cmd interface{}) (
 }
 
 // handleGetBlockCount implements the getblockcount command.
-func handleGetBlockCount(_ context.Context, s *RPCServer, cmd interface{}) (interface{}, error) {
+func handleGetBlockCount(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
 	best := s.cfg.Chain.BestSnapshot()
 	return best.Height, nil
 }
 
 // handleGetBlockHash implements the getblockhash command.
-func handleGetBlockHash(_ context.Context, s *RPCServer, cmd interface{}) (interface{}, error) {
+func handleGetBlockHash(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
 	c := cmd.(*types.GetBlockHashCmd)
 	hash, err := s.cfg.Chain.BlockHashByHeight(c.Index)
 	if err != nil {
@@ -2041,7 +2041,7 @@ func handleGetBlockHash(_ context.Context, s *RPCServer, cmd interface{}) (inter
 }
 
 // handleGetBlockHeader implements the getblockheader command.
-func handleGetBlockHeader(_ context.Context, s *RPCServer, cmd interface{}) (interface{}, error) {
+func handleGetBlockHeader(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
 	c := cmd.(*types.GetBlockHeaderCmd)
 
 	// Fetch the header from chain.
@@ -2126,7 +2126,7 @@ func handleGetBlockHeader(_ context.Context, s *RPCServer, cmd interface{}) (int
 }
 
 // handleGetBlockSubsidy implements the getblocksubsidy command.
-func handleGetBlockSubsidy(_ context.Context, s *RPCServer, cmd interface{}) (interface{}, error) {
+func handleGetBlockSubsidy(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
 	c := cmd.(*types.GetBlockSubsidyCmd)
 
 	height := c.Height
@@ -2148,7 +2148,7 @@ func handleGetBlockSubsidy(_ context.Context, s *RPCServer, cmd interface{}) (in
 }
 
 // handleGetChainTips implements the getchaintips command.
-func handleGetChainTips(_ context.Context, s *RPCServer, cmd interface{}) (interface{}, error) {
+func handleGetChainTips(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
 	chainTips := s.cfg.Chain.ChainTips()
 	result := make([]types.GetChainTipsResult, 0, len(chainTips))
 	for _, tip := range chainTips {
@@ -2163,38 +2163,38 @@ func handleGetChainTips(_ context.Context, s *RPCServer, cmd interface{}) (inter
 }
 
 // handleGetCoinSupply implements the getcoinsupply command.
-func handleGetCoinSupply(_ context.Context, s *RPCServer, cmd interface{}) (interface{}, error) {
+func handleGetCoinSupply(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
 	return s.cfg.Chain.BestSnapshot().TotalSubsidy, nil
 }
 
 // handleGetConnectionCount implements the getconnectioncount command.
-func handleGetConnectionCount(_ context.Context, s *RPCServer, cmd interface{}) (interface{}, error) {
+func handleGetConnectionCount(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
 	return s.cfg.ConnMgr.ConnectedCount(), nil
 }
 
 // handleGetCurrentNet implements the getcurrentnet command.
-func handleGetCurrentNet(_ context.Context, s *RPCServer, cmd interface{}) (interface{}, error) {
+func handleGetCurrentNet(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
 	return s.cfg.ChainParams.Net, nil
 }
 
 // handleGetDifficulty implements the getdifficulty command.
-func handleGetDifficulty(_ context.Context, s *RPCServer, cmd interface{}) (interface{}, error) {
+func handleGetDifficulty(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
 	best := s.cfg.Chain.BestSnapshot()
 	return getDifficultyRatio(best.Bits, s.cfg.ChainParams), nil
 }
 
 // handleGetGenerate implements the getgenerate command.
-func handleGetGenerate(_ context.Context, s *RPCServer, cmd interface{}) (interface{}, error) {
+func handleGetGenerate(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
 	return s.cfg.CPUMiner.IsMining(), nil
 }
 
 // handleGetHashesPerSec implements the gethashespersec command.
-func handleGetHashesPerSec(_ context.Context, s *RPCServer, cmd interface{}) (interface{}, error) {
+func handleGetHashesPerSec(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
 	return int64(s.cfg.CPUMiner.HashesPerSecond()), nil
 }
 
 // handleGetCFilter implements the getcfilter command.
-func handleGetCFilter(_ context.Context, s *RPCServer, cmd interface{}) (interface{}, error) {
+func handleGetCFilter(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
 	cfIndex := s.cfg.SyncMgr.CFIndex()
 	if cfIndex == nil {
 		return nil, &dcrjson.RPCError{
@@ -2237,7 +2237,7 @@ func handleGetCFilter(_ context.Context, s *RPCServer, cmd interface{}) (interfa
 }
 
 // handleGetCFilterHeader implements the getcfilterheader command.
-func handleGetCFilterHeader(_ context.Context, s *RPCServer, cmd interface{}) (interface{}, error) {
+func handleGetCFilterHeader(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
 	cfIndex := s.cfg.SyncMgr.CFIndex()
 	if cfIndex == nil {
 		return nil, &dcrjson.RPCError{
@@ -2283,7 +2283,7 @@ func handleGetCFilterHeader(_ context.Context, s *RPCServer, cmd interface{}) (i
 }
 
 // handleGetHeaders implements the getheaders command.
-func handleGetHeaders(_ context.Context, s *RPCServer, cmd interface{}) (interface{}, error) {
+func handleGetHeaders(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
 	c := cmd.(*types.GetHeadersCmd)
 	blockLocators, err := decodeHashes(c.BlockLocators)
 	if err != nil {
@@ -2328,7 +2328,7 @@ func handleGetHeaders(_ context.Context, s *RPCServer, cmd interface{}) (interfa
 }
 
 // handleGetCFilterV2 implements the getcfilterv2 command.
-func handleGetCFilterV2(_ context.Context, s *RPCServer, cmd interface{}) (interface{}, error) {
+func handleGetCFilterV2(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
 	c := cmd.(*types.GetCFilterV2Cmd)
 	hash, err := chainhash.NewHashFromStr(c.BlockHash)
 	if err != nil {
@@ -2366,7 +2366,7 @@ func handleGetCFilterV2(_ context.Context, s *RPCServer, cmd interface{}) (inter
 
 // handleGetInfo implements the getinfo command. We only return the fields
 // that are not related to wallet functionality.
-func handleGetInfo(_ context.Context, s *RPCServer, cmd interface{}) (interface{}, error) {
+func handleGetInfo(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
 	best := s.cfg.Chain.BestSnapshot()
 	ret := &types.InfoChainResult{
 		Version: int32(1000000*version.Major + 10000*version.Minor +
@@ -2387,7 +2387,7 @@ func handleGetInfo(_ context.Context, s *RPCServer, cmd interface{}) (interface{
 }
 
 // handleGetMempoolInfo implements the getmempoolinfo command.
-func handleGetMempoolInfo(_ context.Context, s *RPCServer, cmd interface{}) (interface{}, error) {
+func handleGetMempoolInfo(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
 	mempoolTxns := s.cfg.TxMemPool.TxDescs()
 
 	var numBytes int64
@@ -2405,7 +2405,7 @@ func handleGetMempoolInfo(_ context.Context, s *RPCServer, cmd interface{}) (int
 
 // handleGetMiningInfo implements the getmininginfo command. We only return the
 // fields that are not related to wallet functionality.
-func handleGetMiningInfo(ctx context.Context, s *RPCServer, cmd interface{}) (interface{}, error) {
+func handleGetMiningInfo(ctx context.Context, s *Server, cmd interface{}) (interface{}, error) {
 	// Create a default getnetworkhashps command to use defaults and make
 	// use of the existing getnetworkhashps handler.
 	gnhpsCmd := types.NewGetNetworkHashPSCmd(nil, nil)
@@ -2444,7 +2444,7 @@ func handleGetMiningInfo(ctx context.Context, s *RPCServer, cmd interface{}) (in
 }
 
 // handleGetNetTotals implements the getnettotals command.
-func handleGetNetTotals(_ context.Context, s *RPCServer, cmd interface{}) (interface{}, error) {
+func handleGetNetTotals(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
 	totalBytesRecv, totalBytesSent := s.cfg.ConnMgr.NetTotals()
 	reply := &types.GetNetTotalsResult{
 		TotalBytesRecv: totalBytesRecv,
@@ -2455,7 +2455,7 @@ func handleGetNetTotals(_ context.Context, s *RPCServer, cmd interface{}) (inter
 }
 
 // handleGetNetworkHashPS implements the getnetworkhashps command.
-func handleGetNetworkHashPS(_ context.Context, s *RPCServer, cmd interface{}) (interface{}, error) {
+func handleGetNetworkHashPS(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
 	// Note: All valid error return paths should return an int64.  Literal
 	// zeros are inferred as int, and won't coerce to int64 because the
 	// return value is an interface{}.
@@ -2552,7 +2552,7 @@ func handleGetNetworkHashPS(_ context.Context, s *RPCServer, cmd interface{}) (i
 }
 
 // handleGetNetworkInfo implements the getnetworkinfo command.
-func handleGetNetworkInfo(_ context.Context, s *RPCServer, cmd interface{}) (interface{}, error) {
+func handleGetNetworkInfo(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
 	lAddrs := s.cfg.AddrManager.LocalAddresses()
 	localAddrs := make([]types.LocalAddressesResult, len(lAddrs))
 	for idx, entry := range lAddrs {
@@ -2580,7 +2580,7 @@ func handleGetNetworkInfo(_ context.Context, s *RPCServer, cmd interface{}) (int
 }
 
 // handleGetPeerInfo implements the getpeerinfo command.
-func handleGetPeerInfo(_ context.Context, s *RPCServer, cmd interface{}) (interface{}, error) {
+func handleGetPeerInfo(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
 	peers := s.cfg.ConnMgr.ConnectedPeers()
 	syncPeerID := s.cfg.SyncMgr.SyncPeerID()
 	infos := make([]*types.GetPeerInfoResult, 0, len(peers))
@@ -2618,7 +2618,7 @@ func handleGetPeerInfo(_ context.Context, s *RPCServer, cmd interface{}) (interf
 }
 
 // handleGetRawMempool implements the getrawmempool command.
-func handleGetRawMempool(_ context.Context, s *RPCServer, cmd interface{}) (interface{}, error) {
+func handleGetRawMempool(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
 	c := cmd.(*types.GetRawMempoolCmd)
 
 	// Choose the type to filter the results by based on the provided param.
@@ -2694,7 +2694,7 @@ func handleGetRawMempool(_ context.Context, s *RPCServer, cmd interface{}) (inte
 }
 
 // handleGetRawTransaction implements the getrawtransaction command.
-func handleGetRawTransaction(_ context.Context, s *RPCServer, cmd interface{}) (interface{}, error) {
+func handleGetRawTransaction(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
 	c := cmd.(*types.GetRawTransactionCmd)
 
 	// Convert the provided transaction hash hex to a Hash.
@@ -2816,7 +2816,7 @@ func handleGetRawTransaction(_ context.Context, s *RPCServer, cmd interface{}) (
 }
 
 // handleGetStakeDifficulty implements the getstakedifficulty command.
-func handleGetStakeDifficulty(_ context.Context, s *RPCServer, cmd interface{}) (interface{}, error) {
+func handleGetStakeDifficulty(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
 	chain := s.cfg.Chain
 	best := chain.BestSnapshot()
 	blockHeader, err := chain.HeaderByHeight(best.Height)
@@ -2863,7 +2863,7 @@ func convertVersionMap(m map[int]int) []types.VersionCount {
 }
 
 // handleGetStakeVersionInfo implements the getstakeversioninfo command.
-func handleGetStakeVersionInfo(_ context.Context, s *RPCServer, cmd interface{}) (interface{}, error) {
+func handleGetStakeVersionInfo(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
 	c := cmd.(*types.GetStakeVersionInfoCmd)
 
 	chain := s.cfg.Chain
@@ -2942,7 +2942,7 @@ func handleGetStakeVersionInfo(_ context.Context, s *RPCServer, cmd interface{})
 }
 
 // handleGetStakeVersions implements the getstakeversions command.
-func handleGetStakeVersions(_ context.Context, s *RPCServer, cmd interface{}) (interface{}, error) {
+func handleGetStakeVersions(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
 	c := cmd.(*types.GetStakeVersionsCmd)
 
 	hash, err := chainhash.NewHashFromStr(c.Hash)
@@ -2984,7 +2984,7 @@ func handleGetStakeVersions(_ context.Context, s *RPCServer, cmd interface{}) (i
 }
 
 // handleGetTicketPoolValue implements the getticketpoolvalue command.
-func handleGetTicketPoolValue(_ context.Context, s *RPCServer, cmd interface{}) (interface{}, error) {
+func handleGetTicketPoolValue(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
 	amt, err := s.cfg.Chain.TicketPoolValue()
 	if err != nil {
 		return nil, rpcInternalError(err.Error(),
@@ -2995,7 +2995,7 @@ func handleGetTicketPoolValue(_ context.Context, s *RPCServer, cmd interface{}) 
 }
 
 // handleGetVoteInfo implements the getvoteinfo command.
-func handleGetVoteInfo(_ context.Context, s *RPCServer, cmd interface{}) (interface{}, error) {
+func handleGetVoteInfo(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
 	c := cmd.(*types.GetVoteInfoCmd)
 
 	// Shorter versions of some parameters for convenience.
@@ -3120,7 +3120,7 @@ func bigToLEUint256(n *big.Int) [uint256Size]byte {
 }
 
 // handleGetTxOut handles gettxout commands.
-func handleGetTxOut(_ context.Context, s *RPCServer, cmd interface{}) (interface{}, error) {
+func handleGetTxOut(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
 	c := cmd.(*types.GetTxOutCmd)
 
 	// Convert the provided transaction hash hex to a Hash.
@@ -3232,7 +3232,7 @@ func handleGetTxOut(_ context.Context, s *RPCServer, cmd interface{}) (interface
 }
 
 // handleGetTxOutSetInfo returns statistics on the current unspent transaction output set.
-func handleGetTxOutSetInfo(_ context.Context, s *RPCServer, cmd interface{}) (interface{}, error) {
+func handleGetTxOutSetInfo(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
 	best := s.cfg.Chain.BestSnapshot()
 	stats, err := s.cfg.Chain.FetchUtxoStats()
 	if err != nil {
@@ -3282,7 +3282,7 @@ func getWorkTemplateKey(header *wire.BlockHeader) [merkleRootPairSize]byte {
 // generating and returning work to the caller.
 //
 // This function MUST be called with the RPC workstate locked.
-func handleGetWorkRequest(s *RPCServer) (interface{}, error) {
+func handleGetWorkRequest(s *Server) (interface{}, error) {
 	// Prune old templates and wait for updated templates when the current best
 	// chain changes.
 	state := s.workState
@@ -3386,7 +3386,7 @@ func handleGetWorkRequest(s *RPCServer) (interface{}, error) {
 // the calling submitting work to be verified and processed.
 //
 // This function MUST be called with the RPC workstate locked.
-func handleGetWorkSubmission(_ context.Context, s *RPCServer, hexData string) (interface{}, error) {
+func handleGetWorkSubmission(_ context.Context, s *Server, hexData string) (interface{}, error) {
 	// Ensure the provided data is sane.
 	if len(hexData)%2 != 0 {
 		hexData = "0" + hexData
@@ -3474,7 +3474,7 @@ func handleGetWorkSubmission(_ context.Context, s *RPCServer, hexData string) (i
 }
 
 // handleGetWork implements the getwork command.
-func handleGetWork(ctx context.Context, s *RPCServer, cmd interface{}) (interface{}, error) {
+func handleGetWork(ctx context.Context, s *Server, cmd interface{}) (interface{}, error) {
 	if s.cfg.CPUMiner.IsMining() {
 		return nil, rpcMiscError("getwork polling is disallowed " +
 			"while CPU mining is enabled. Please disable CPU " +
@@ -3527,7 +3527,7 @@ func handleGetWork(ctx context.Context, s *RPCServer, cmd interface{}) (interfac
 }
 
 // handleHelp implements the help command.
-func handleHelp(_ context.Context, s *RPCServer, cmd interface{}) (interface{}, error) {
+func handleHelp(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
 	c := cmd.(*types.HelpCmd)
 
 	// Provide a usage overview of all commands when no specific command
@@ -3563,7 +3563,7 @@ func handleHelp(_ context.Context, s *RPCServer, cmd interface{}) (interface{}, 
 }
 
 // handleLiveTickets implements the livetickets command.
-func handleLiveTickets(_ context.Context, s *RPCServer, cmd interface{}) (interface{}, error) {
+func handleLiveTickets(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
 	lt, err := s.cfg.Chain.LiveTickets()
 	if err != nil {
 		return nil, rpcInternalError("Could not get live tickets "+
@@ -3579,7 +3579,7 @@ func handleLiveTickets(_ context.Context, s *RPCServer, cmd interface{}) (interf
 }
 
 // handleMissedTickets implements the missedtickets command.
-func handleMissedTickets(_ context.Context, s *RPCServer, cmd interface{}) (interface{}, error) {
+func handleMissedTickets(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
 	mt, err := s.cfg.Chain.MissedTickets()
 	if err != nil {
 		return nil, rpcInternalError("Could not get missed tickets "+
@@ -3595,7 +3595,7 @@ func handleMissedTickets(_ context.Context, s *RPCServer, cmd interface{}) (inte
 }
 
 // handlePing implements the ping command.
-func handlePing(_ context.Context, s *RPCServer, cmd interface{}) (interface{}, error) {
+func handlePing(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
 	// Ask server to ping \o_
 	nonce, err := wire.RandomUint64()
 	if err != nil {
@@ -3608,7 +3608,7 @@ func handlePing(_ context.Context, s *RPCServer, cmd interface{}) (interface{}, 
 }
 
 // handleRegenTemplate implements the regentemplate command.
-func handleRegenTemplate(_ context.Context, s *RPCServer, cmd interface{}) (interface{}, error) {
+func handleRegenTemplate(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
 	bg := s.cfg.BgBlkTmplGenerator()
 	if bg == nil {
 		return nil, rpcInternalError("Node is not configured for mining", "")
@@ -3634,7 +3634,7 @@ type retrievedTx struct {
 // fetchInputTxos fetches the outpoints from all transactions referenced by the
 // inputs to the passed transaction by checking the transaction mempool first
 // then the transaction index for those already mined into blocks.
-func fetchInputTxos(s *RPCServer, tx *wire.MsgTx) (map[wire.OutPoint]wire.TxOut, error) {
+func fetchInputTxos(s *Server, tx *wire.MsgTx) (map[wire.OutPoint]wire.TxOut, error) {
 	mp := s.cfg.TxMemPool
 	originOutputs := make(map[wire.OutPoint]wire.TxOut)
 	voteTx := stake.IsSSGen(tx)
@@ -3706,7 +3706,7 @@ func fetchInputTxos(s *RPCServer, tx *wire.MsgTx) (map[wire.OutPoint]wire.TxOut,
 
 // createVinListPrevOut returns a slice of JSON objects for the inputs of the
 // passed transaction.
-func createVinListPrevOut(s *RPCServer, mtx *wire.MsgTx, chainParams *chaincfg.Params, vinExtra bool, filterAddrMap map[string]struct{}) ([]types.VinPrevOut, error) {
+func createVinListPrevOut(s *Server, mtx *wire.MsgTx, chainParams *chaincfg.Params, vinExtra bool, filterAddrMap map[string]struct{}) ([]types.VinPrevOut, error) {
 	// Coinbase transactions only have a single txin by definition.
 	if standalone.IsCoinBaseTx(mtx) {
 		// Only include the transaction if the filter map is empty
@@ -3847,7 +3847,7 @@ func createVinListPrevOut(s *RPCServer, mtx *wire.MsgTx, chainParams *chaincfg.P
 // fetchMempoolTxnsForAddress queries the address index for all unconfirmed
 // transactions that involve the provided address.  The results will be limited
 // by the number to skip and the number requested.
-func fetchMempoolTxnsForAddress(s *RPCServer, addr dcrutil.Address, numToSkip, numRequested uint32) ([]*dcrutil.Tx, uint32) {
+func fetchMempoolTxnsForAddress(s *Server, addr dcrutil.Address, numToSkip, numRequested uint32) ([]*dcrutil.Tx, uint32) {
 	// There are no entries to return when there are less available than
 	// the number being skipped.
 	mpTxns := s.cfg.AddrIndex.UnconfirmedTxnsForAddress(addr)
@@ -3866,7 +3866,7 @@ func fetchMempoolTxnsForAddress(s *RPCServer, addr dcrutil.Address, numToSkip, n
 }
 
 // handleSearchRawTransactions implements the searchrawtransactions command.
-func handleSearchRawTransactions(_ context.Context, s *RPCServer, cmd interface{}) (interface{}, error) {
+func handleSearchRawTransactions(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
 	// Respond with an error if the address index is not enabled.
 	addrIndex := s.cfg.AddrIndex
 	if addrIndex == nil {
@@ -4135,7 +4135,7 @@ func handleSearchRawTransactions(_ context.Context, s *RPCServer, cmd interface{
 }
 
 // handleSendRawTransaction implements the sendrawtransaction command.
-func handleSendRawTransaction(_ context.Context, s *RPCServer, cmd interface{}) (interface{}, error) {
+func handleSendRawTransaction(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
 	c := cmd.(*types.SendRawTransactionCmd)
 	// Deserialize and send off to tx relay
 
@@ -4208,7 +4208,7 @@ func handleSendRawTransaction(_ context.Context, s *RPCServer, cmd interface{}) 
 }
 
 // handleSetGenerate implements the setgenerate command.
-func handleSetGenerate(_ context.Context, s *RPCServer, cmd interface{}) (interface{}, error) {
+func handleSetGenerate(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
 	c := cmd.(*types.SetGenerateCmd)
 
 	// Disable generation regardless of the provided generate flag if the
@@ -4242,7 +4242,7 @@ func handleSetGenerate(_ context.Context, s *RPCServer, cmd interface{}) (interf
 }
 
 // handleStop implements the stop command.
-func handleStop(_ context.Context, s *RPCServer, cmd interface{}) (interface{}, error) {
+func handleStop(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
 	select {
 	case s.requestProcessShutdown <- struct{}{}:
 	default:
@@ -4251,7 +4251,7 @@ func handleStop(_ context.Context, s *RPCServer, cmd interface{}) (interface{}, 
 }
 
 // handleSubmitBlock implements the submitblock command.
-func handleSubmitBlock(_ context.Context, s *RPCServer, cmd interface{}) (interface{}, error) {
+func handleSubmitBlock(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
 	c := cmd.(*types.SubmitBlockCmd)
 
 	// Deserialize the submitted block.
@@ -4360,7 +4360,7 @@ func stdDev(s []dcrutil.Amount) dcrutil.Amount {
 
 // feeInfoForMempool returns the fee information for the passed tx type in the
 // memory pool.
-func feeInfoForMempool(s *RPCServer, txType stake.TxType) *types.FeeInfoMempool {
+func feeInfoForMempool(s *Server, txType stake.TxType) *types.FeeInfoMempool {
 	txDs := s.cfg.TxMemPool.TxDescs()
 	ticketFees := make([]dcrutil.Amount, 0, len(txDs))
 	for _, txD := range txDs {
@@ -4398,7 +4398,7 @@ func calcFeePerKb(tx *dcrutil.Tx) dcrutil.Amount {
 
 // feeInfoForBlock fetches the ticket fee information for a given tx type in a
 // block.
-func ticketFeeInfoForBlock(s *RPCServer, height int64, txType stake.TxType) (*types.FeeInfoBlock, error) {
+func ticketFeeInfoForBlock(s *Server, height int64, txType stake.TxType) (*types.FeeInfoBlock, error) {
 	bl, err := s.cfg.Chain.BlockByHeight(height)
 	if err != nil {
 		return nil, err
@@ -4451,7 +4451,7 @@ func ticketFeeInfoForBlock(s *RPCServer, height int64, txType stake.TxType) (*ty
 
 // ticketFeeInfoForRange fetches the ticket fee information for a given range
 // from [start, end).
-func ticketFeeInfoForRange(s *RPCServer, start int64, end int64, txType stake.TxType) (*types.FeeInfoWindow, error) {
+func ticketFeeInfoForRange(s *Server, start int64, end int64, txType stake.TxType) (*types.FeeInfoWindow, error) {
 	hashes, err := s.cfg.Chain.HeightRange(start, end)
 	if err != nil {
 		return nil, err
@@ -4496,7 +4496,7 @@ func ticketFeeInfoForRange(s *RPCServer, start int64, end int64, txType stake.Tx
 }
 
 // handleTicketFeeInfo implements the ticketfeeinfo command.
-func handleTicketFeeInfo(_ context.Context, s *RPCServer, cmd interface{}) (interface{}, error) {
+func handleTicketFeeInfo(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
 	c := cmd.(*types.TicketFeeInfoCmd)
 
 	bestHeight := s.cfg.Chain.BestSnapshot().Height
@@ -4577,7 +4577,7 @@ func handleTicketFeeInfo(_ context.Context, s *RPCServer, cmd interface{}) (inte
 }
 
 // handleTicketsForAddress implements the ticketsforaddress command.
-func handleTicketsForAddress(_ context.Context, s *RPCServer, cmd interface{}) (interface{}, error) {
+func handleTicketsForAddress(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
 	c := cmd.(*types.TicketsForAddressCmd)
 
 	// Decode the provided address.  This also ensures the network encoded
@@ -4606,7 +4606,7 @@ func handleTicketsForAddress(_ context.Context, s *RPCServer, cmd interface{}) (
 }
 
 // handleTicketVWAP implements the ticketvwap command.
-func handleTicketVWAP(_ context.Context, s *RPCServer, cmd interface{}) (interface{}, error) {
+func handleTicketVWAP(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
 	c := cmd.(*types.TicketVWAPCmd)
 
 	// The default VWAP is for the past WorkDiffWindows * WorkDiffWindowSize
@@ -4664,7 +4664,7 @@ func handleTicketVWAP(_ context.Context, s *RPCServer, cmd interface{}) (interfa
 }
 
 // handleTxFeeInfo implements the txfeeinfo command.
-func handleTxFeeInfo(_ context.Context, s *RPCServer, cmd interface{}) (interface{}, error) {
+func handleTxFeeInfo(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
 	c := cmd.(*types.TxFeeInfoCmd)
 
 	bestHeight := s.cfg.Chain.BestSnapshot().Height
@@ -4749,7 +4749,7 @@ func handleTxFeeInfo(_ context.Context, s *RPCServer, cmd interface{}) (interfac
 }
 
 // handleValidateAddress implements the validateaddress command.
-func handleValidateAddress(_ context.Context, s *RPCServer, cmd interface{}) (interface{}, error) {
+func handleValidateAddress(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
 	c := cmd.(*types.ValidateAddressCmd)
 	result := types.ValidateAddressChainResult{}
 	addr, err := dcrutil.DecodeAddress(c.Address, s.cfg.ChainParams)
@@ -4763,7 +4763,7 @@ func handleValidateAddress(_ context.Context, s *RPCServer, cmd interface{}) (in
 	return result, nil
 }
 
-func verifyChain(_ context.Context, s *RPCServer, level, depth int64) error {
+func verifyChain(_ context.Context, s *Server, level, depth int64) error {
 	best := s.cfg.Chain.BestSnapshot()
 	finishHeight := best.Height - depth
 	if finishHeight < 0 {
@@ -4799,7 +4799,7 @@ func verifyChain(_ context.Context, s *RPCServer, level, depth int64) error {
 }
 
 // handleVerifyChain implements the verifychain command.
-func handleVerifyChain(ctx context.Context, s *RPCServer, cmd interface{}) (interface{}, error) {
+func handleVerifyChain(ctx context.Context, s *Server, cmd interface{}) (interface{}, error) {
 	c := cmd.(*types.VerifyChainCmd)
 
 	var checkLevel, checkDepth int64
@@ -4815,7 +4815,7 @@ func handleVerifyChain(ctx context.Context, s *RPCServer, cmd interface{}) (inte
 }
 
 // handleVerifyMessage implements the verifymessage command.
-func handleVerifyMessage(_ context.Context, s *RPCServer, cmd interface{}) (interface{}, error) {
+func handleVerifyMessage(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
 	c := cmd.(*types.VerifyMessageCmd)
 
 	// Decode the provided address.  This also ensures the network encoded with
@@ -4878,7 +4878,7 @@ func handleVerifyMessage(_ context.Context, s *RPCServer, cmd interface{}) (inte
 }
 
 // handleVersion implements the version command.
-func handleVersion(_ context.Context, s *RPCServer, cmd interface{}) (interface{}, error) {
+func handleVersion(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
 	runtimeVer := strings.Replace(runtime.Version(), ".", "-", -1)
 	buildMeta := version.NormalizeBuildString(runtimeVer)
 	build := version.NormalizeBuildString(version.BuildMetadata)
@@ -4904,8 +4904,8 @@ func handleVersion(_ context.Context, s *RPCServer, cmd interface{}) (interface{
 	return result, nil
 }
 
-// RPCServer provides a concurrent safe RPC server to a chain server.
-type RPCServer struct {
+// Server provides a concurrent safe RPC server to a chain server.
+type Server struct {
 	cfg                    Config
 	authsha                [sha256.Size]byte
 	limitauthsha           [sha256.Size]byte
@@ -4922,7 +4922,7 @@ type RPCServer struct {
 // httpStatusLine returns a response Status-Line (RFC 2616 Section 6.1) for the
 // given request and response status code.  This function was lifted and
 // adapted from the standard library HTTP server code since it's not exported.
-func (s *RPCServer) httpStatusLine(req *http.Request, code int) string {
+func (s *Server) httpStatusLine(req *http.Request, code int) string {
 	// Fast path:
 	key := code
 	proto11 := req.ProtoAtLeast(1, 1)
@@ -4959,7 +4959,7 @@ func (s *RPCServer) httpStatusLine(req *http.Request, code int) string {
 // writeHTTPResponseHeaders writes the necessary response headers prior to
 // writing an HTTP body given a request to use for protocol negotiation,
 // headers to write, a status code, and a writer.
-func (s *RPCServer) writeHTTPResponseHeaders(req *http.Request, headers http.Header, code int, w io.Writer) error {
+func (s *Server) writeHTTPResponseHeaders(req *http.Request, headers http.Header, code int, w io.Writer) error {
 	_, err := io.WriteString(w, s.httpStatusLine(req, code))
 	if err != nil {
 		return err
@@ -4975,7 +4975,7 @@ func (s *RPCServer) writeHTTPResponseHeaders(req *http.Request, headers http.Hea
 }
 
 // shutdown terminates the processes of the rpc server.
-func (s *RPCServer) shutdown() error {
+func (s *Server) shutdown() error {
 	log.Warnf("RPC server shutting down")
 	for _, listener := range s.cfg.Listeners {
 		err := listener.Close()
@@ -4992,14 +4992,14 @@ func (s *RPCServer) shutdown() error {
 // RequestedProcessShutdown returns a channel that is sent to when an
 // authorized RPC client requests the process to shutdown.  If the request can
 // not be read immediately, it is dropped.
-func (s *RPCServer) RequestedProcessShutdown() <-chan struct{} {
+func (s *Server) RequestedProcessShutdown() <-chan struct{} {
 	return s.requestProcessShutdown
 }
 
 // NotifyNewTransactions notifies both websocket and getblocktemplate long
 // poll clients of the passed transactions.  This function should be called
 // whenever new transactions are added to the mempool.
-func (s *RPCServer) NotifyNewTransactions(txns []*dcrutil.Tx) {
+func (s *Server) NotifyNewTransactions(txns []*dcrutil.Tx) {
 	for _, tx := range txns {
 		// Notify websocket clients about mempool transactions.
 		s.ntfnMgr.NotifyMempoolTx(tx, true)
@@ -5008,49 +5008,49 @@ func (s *RPCServer) NotifyNewTransactions(txns []*dcrutil.Tx) {
 
 // NotifyWork notifies websocket clients that have registered for new mining
 // work.
-func (s *RPCServer) NotifyWork(templateNtfn *mining.TemplateNtfn) {
+func (s *Server) NotifyWork(templateNtfn *mining.TemplateNtfn) {
 	s.ntfnMgr.NotifyWork(templateNtfn)
 }
 
 // NotifyStakeDifficulty notifies websocket clients that have registered for
 // stake difficulty updates.
-func (s *RPCServer) NotifyStakeDifficulty(stnd *StakeDifficultyNtfnData) {
+func (s *Server) NotifyStakeDifficulty(stnd *StakeDifficultyNtfnData) {
 	s.ntfnMgr.NotifyStakeDifficulty(stnd)
 }
 
 // NotifyNewTickets notifies websocket clients that have registered for maturing
 // ticket updates.
-func (s *RPCServer) NotifyNewTickets(tnd *blockchain.TicketNotificationsData) {
+func (s *Server) NotifyNewTickets(tnd *blockchain.TicketNotificationsData) {
 	s.ntfnMgr.NotifyNewTickets(tnd)
 }
 
 // NotifyBlockConnected notifies websocket clients that have registered for
 // block updates when a block is connected to the main chain.
-func (s *RPCServer) NotifyBlockConnected(block *dcrutil.Block) {
+func (s *Server) NotifyBlockConnected(block *dcrutil.Block) {
 	s.ntfnMgr.NotifyBlockConnected(block)
 }
 
 // NotifySpentAndMissedTickets notifies websocket clients that have registered
 // for spent and missed ticket updates.
-func (s *RPCServer) NotifySpentAndMissedTickets(tnd *blockchain.TicketNotificationsData) {
+func (s *Server) NotifySpentAndMissedTickets(tnd *blockchain.TicketNotificationsData) {
 	s.ntfnMgr.NotifySpentAndMissedTickets(tnd)
 }
 
 // NotifyBlockDisconnected notifies websocket clients that have registered for
 // block updates when a block is disconnected from the main chain.
-func (s *RPCServer) NotifyBlockDisconnected(block *dcrutil.Block) {
+func (s *Server) NotifyBlockDisconnected(block *dcrutil.Block) {
 	s.ntfnMgr.NotifyBlockDisconnected(block)
 }
 
 // NotifyReorganization notifies websocket clients that have registered for
 // block updates when the blockchain is beginning a reorganization.
-func (s *RPCServer) NotifyReorganization(rd *blockchain.ReorganizationNtfnsData) {
+func (s *Server) NotifyReorganization(rd *blockchain.ReorganizationNtfnsData) {
 	s.ntfnMgr.NotifyReorganization(rd)
 }
 
 // NotifyWinningTickets notifies websocket clients that have registered for
 // winning ticket updates.
-func (s *RPCServer) NotifyWinningTickets(wtnd *WinningTicketsNtfnData) {
+func (s *Server) NotifyWinningTickets(wtnd *WinningTicketsNtfnData) {
 	s.ntfnMgr.NotifyWinningTickets(wtnd)
 }
 
@@ -5058,7 +5058,7 @@ func (s *RPCServer) NotifyWinningTickets(wtnd *WinningTicketsNtfnData) {
 // adding another client would exceed the maximum allow RPC clients.
 //
 // This function is safe for concurrent access.
-func (s *RPCServer) limitConnections(w http.ResponseWriter, remoteAddr string) bool {
+func (s *Server) limitConnections(w http.ResponseWriter, remoteAddr string) bool {
 	if int(atomic.LoadInt32(&s.numClients)+1) > s.cfg.RPCMaxClients {
 		log.Infof("Max RPC clients exceeded [%d] - "+
 			"disconnecting client %s", s.cfg.RPCMaxClients,
@@ -5075,7 +5075,7 @@ func (s *RPCServer) limitConnections(w http.ResponseWriter, remoteAddr string) b
 // and are tracked separately.
 //
 // This function is safe for concurrent access.
-func (s *RPCServer) incrementClients() {
+func (s *Server) incrementClients() {
 	atomic.AddInt32(&s.numClients, 1)
 }
 
@@ -5084,7 +5084,7 @@ func (s *RPCServer) incrementClients() {
 // own limits and are tracked separately.
 //
 // This function is safe for concurrent access.
-func (s *RPCServer) decrementClients() {
+func (s *Server) decrementClients() {
 	atomic.AddInt32(&s.numClients, -1)
 }
 
@@ -5098,7 +5098,7 @@ func (s *RPCServer) decrementClients() {
 // the second bool return value specifies whether the user can change the state
 // of the server (true) or whether the user is limited (false). The second is
 // always false if the first is.
-func (s *RPCServer) checkAuth(r *http.Request, require bool) (bool, bool, error) {
+func (s *Server) checkAuth(r *http.Request, require bool) (bool, bool, error) {
 	authhdr := r.Header["Authorization"]
 	if len(authhdr) <= 0 {
 		if require {
@@ -5145,7 +5145,7 @@ type parsedRPCCmd struct {
 // JSON-RPC command and runs the appropriate handler to reply to the command.
 // Any commands which are not recognized or not implemented will return an
 // error suitable for use in replies.
-func (s *RPCServer) standardCmdResult(ctx context.Context, cmd *parsedRPCCmd) (interface{}, error) {
+func (s *Server) standardCmdResult(ctx context.Context, cmd *parsedRPCCmd) (interface{}, error) {
 	handler, ok := rpcHandlers[cmd.method]
 	if ok {
 		goto handled
@@ -5211,7 +5211,7 @@ func createMarshalledReply(rpcVersion string, id interface{}, result interface{}
 
 // processRequest determines the incoming request type (single or batched),
 // parses it and returns a marshalled response.
-func (s *RPCServer) processRequest(ctx context.Context, request *dcrjson.Request, isAdmin bool) []byte {
+func (s *Server) processRequest(ctx context.Context, request *dcrjson.Request, isAdmin bool) []byte {
 	var result interface{}
 	var jsonErr error
 
@@ -5262,7 +5262,7 @@ func (s *RPCServer) processRequest(ctx context.Context, request *dcrjson.Request
 }
 
 // jsonRPCRead handles reading and responding to RPC messages.
-func (s *RPCServer) jsonRPCRead(sCtx context.Context, w http.ResponseWriter, r *http.Request, isAdmin bool) {
+func (s *Server) jsonRPCRead(sCtx context.Context, w http.ResponseWriter, r *http.Request, isAdmin bool) {
 	select {
 	case <-sCtx.Done():
 		return
@@ -5471,7 +5471,7 @@ func jsonAuthFail(w http.ResponseWriter) {
 }
 
 // route sets up the endpoints of the rpc server.
-func (s *RPCServer) route(ctx context.Context) *http.Server {
+func (s *Server) route(ctx context.Context) *http.Server {
 	rpcServeMux := http.NewServeMux()
 	httpServer := &http.Server{
 		Handler: rpcServeMux,
@@ -5546,7 +5546,7 @@ func (s *RPCServer) route(ctx context.Context) *http.Server {
 
 // Run starts the rpc server and its listeners. It blocks until the
 // provided context is cancelled.
-func (s *RPCServer) Run(ctx context.Context) {
+func (s *Server) Run(ctx context.Context) {
 	log.Trace("Starting RPC server")
 	server := s.route(ctx)
 	for _, listener := range s.cfg.Listeners {
@@ -5673,9 +5673,9 @@ type Config struct {
 	LogManager LogManager
 }
 
-// New returns a new instance of the RPCServer struct.
-func New(config *Config) (*RPCServer, error) {
-	rpc := RPCServer{
+// New returns a new instance of the Server struct.
+func New(config *Config) (*Server, error) {
+	rpc := Server{
 		cfg:                    *config,
 		statusLines:            make(map[int]string),
 		workState:              newWorkState(),

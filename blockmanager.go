@@ -278,7 +278,7 @@ type blockManagerConfig struct {
 	// The following fields are blockManager callbacks.
 	NotifyWinningTickets      func(*rpcserver.WinningTicketsNtfnData)
 	PruneRebroadcastInventory func()
-	RpcServer                 func() *rpcserver.RPCServer
+	RpcServer                 func() *rpcserver.Server
 }
 
 // peerSyncState stores additional information that the blockManager tracks
