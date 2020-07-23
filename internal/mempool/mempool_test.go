@@ -2686,3 +2686,70 @@ func (p *poolHarness) countTotalSigOps(tx *dcrutil.Tx, txType stake.TxType) (int
 
 	return sigOps + p2shSigOps, nil
 }
+
+// TestStagedTransactionHeight verifies that the height of a transaction
+// that moves from the stage pool into the main pool is set to the height it
+// was initially added to the mempool, rather than the height it was unstaged.
+func TestStagedTransactionHeight(t *testing.T) {
+	harness, spendableOuts, err := newPoolHarness(chaincfg.MainNetParams())
+	if err != nil {
+		t.Fatalf("unable to create test pool: %v", err)
+	}
+
+	txA, _ := harness.CreateSignedTx([]spendableOutput{
+		spendableOuts[0],
+	}, 1)
+
+	ticket, err := harness.CreateTicketPurchase(txA, 40000)
+	if err != nil {
+		t.Fatalf("unable to create ticket purchase transaction %v", err)
+	}
+
+	allTxns := []*dcrutil.Tx{txA, ticket}
+	for index, tx := range allTxns {
+		_, err := harness.txPool.ProcessTransaction(tx,
+			true, false, true, 0)
+		if err != nil {
+			t.Fatalf("ProcessTransaction: failed to accept valid "+
+				"transaction at index %d: %v", index, err)
+		}
+	}
+
+	initialBlockHeight := harness.chain.BestHeight()
+	poolTxDescs := harness.txPool.TxDescs()
+	if len(poolTxDescs) != 1 {
+		t.Fatalf("expected to find exactly one transaction in the mempool but "+
+			"got %v", len(poolTxDescs))
+	}
+
+	poolTxA := poolTxDescs[0]
+	if poolTxA.Height != initialBlockHeight {
+		t.Fatalf("expected txA mempool height to be %v but got %v",
+			initialBlockHeight, poolTxA.Height)
+	}
+
+	// Remove txA, which should bring the ticket out of the stage pool and
+	// into the main pool.
+	newBlockHeight := initialBlockHeight + 1
+	harness.AddFakeUTXO(txA, newBlockHeight)
+	harness.chain.SetHeight(newBlockHeight)
+	harness.txPool.RemoveTransaction(txA, false, noTreasury)
+	harness.txPool.MaybeAcceptDependents(txA, noTreasury)
+
+	poolTxDescs = harness.txPool.TxDescs()
+	if len(poolTxDescs) != 1 {
+		t.Fatalf("expected to find exactly one transaction in the mempool but "+
+			"got %v", len(poolTxDescs))
+	}
+
+	poolTransaction := poolTxDescs[0]
+	if *poolTransaction.Tx.Hash() != *ticket.Hash() {
+		t.Fatalf("expected to find ticket %v in the mempool but got %v",
+			ticket.Hash(), poolTransaction.Tx.Hash())
+	}
+
+	if poolTransaction.Height != initialBlockHeight {
+		t.Fatalf("expected ticket mempool height to be %v but got %v",
+			initialBlockHeight, poolTransaction.Height)
+	}
+}

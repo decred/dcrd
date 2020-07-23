@@ -578,8 +578,8 @@ type TxMempooler interface {
 	Count() int
 
 	// FetchTransaction returns the requested transaction from the
-	// transaction pool. This only fetches from the main transaction pool
-	// and does not include orphans.
+	// transaction pool. This only fetches from the main and stage transaction
+	// pools and does not include orphans.
 	FetchTransaction(txHash *chainhash.Hash) (*dcrutil.Tx, error)
 
 	// TSpendHashes returns the hashes of the treasury spend transactions
