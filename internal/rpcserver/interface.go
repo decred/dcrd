@@ -13,7 +13,6 @@ import (
 	"github.com/decred/dcrd/addrmgr"
 	"github.com/decred/dcrd/blockchain/stake/v3"
 	"github.com/decred/dcrd/blockchain/v3"
-	"github.com/decred/dcrd/blockchain/v3/indexers"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/dcrutil/v3"
 	"github.com/decred/dcrd/gcs/v2"
@@ -155,9 +154,6 @@ type SyncManager interface {
 	// provided max number of block hashes.
 	LocateBlocks(locator blockchain.BlockLocator, hashStop *chainhash.Hash,
 		maxHashes uint32) []chainhash.Hash
-
-	// ExistsAddrIndex returns the address index.
-	ExistsAddrIndex() *indexers.ExistsAddrIndex
 
 	// TipGeneration returns the entire generation of blocks stemming from the
 	// parent of the current tip.
@@ -537,4 +533,22 @@ type FiltererV2 interface {
 	// An error of type blockchain.NoFilterError must be returned when the filter
 	// for the given block hash does not exist.
 	FilterByBlockHash(hash *chainhash.Hash) (*gcs.FilterV2, error)
+}
+
+// ExistsAddresser represents a source of exists address methods for the RPC
+// server. These methods return whether or not an address or addresses have
+// been seen on the blockchain.
+//
+// The interface contract requires that all of these methods are safe for
+// concurrent access.
+//
+// ExistsAddresser may be nil. The RPC server must check for the presence of an
+// ExistsAddresser before calling methods associated with it.
+type ExistsAddresser interface {
+	// ExistsAddress returns whether or not an address has been seen before.
+	ExistsAddress(addr dcrutil.Address) (bool, error)
+
+	// ExistsAddresses returns whether or not each address in a slice of
+	// addresses has been seen before.
+	ExistsAddresses(addrs []dcrutil.Address) ([]bool, error)
 }

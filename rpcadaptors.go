@@ -363,14 +363,6 @@ func (b *rpcSyncMgr) LocateBlocks(locator blockchain.BlockLocator, hashStop *cha
 	return b.server.chain.LocateBlocks(locator, hashStop, maxHashes)
 }
 
-// ExistsAddrIndex returns the address index.
-//
-// This function is safe for concurrent access and is part of the
-// rpcserver.SyncManager interface implementation.
-func (b *rpcSyncMgr) ExistsAddrIndex() *indexers.ExistsAddrIndex {
-	return b.server.existsAddrIndex
-}
-
 // TipGeneration returns the entire generation of blocks stemming from the
 // parent of the current tip.
 func (b *rpcSyncMgr) TipGeneration() ([]chainhash.Hash, error) {
@@ -597,3 +589,35 @@ type rpcFiltererV2 struct {
 
 // Ensure rpcFiltererV2 implements the rpcserver.FiltererV2 interface.
 var _ rpcserver.FiltererV2 = (*rpcFiltererV2)(nil)
+
+// Ensure rpcExistsAddresser implements the rpcserver.ExistsAddresser interface.
+var _ rpcserver.ExistsAddresser = (*rpcExistsAddresser)(nil)
+
+// rpcExistsAddresser provides exists address methods for use with the RPC
+// server and implements the rpcserver.ExistsAddresser interface. It should be
+// constructed by calling newRPCExistsAddresser.
+type rpcExistsAddresser struct {
+	existsAddrIndex *indexers.ExistsAddrIndex
+}
+
+// newRPCExistsAddresser is a constructor for a new rpcserver.ExistsAddresser
+// that wraps *rpcExistsAddresser. If the server's existsAddrIndex is nil, nil
+// is returned. Consumers must check for nil before calling methods on the
+// returned rpcserver.ExistsAddresser.
+func newRPCExistsAddresser(e *indexers.ExistsAddrIndex) rpcserver.ExistsAddresser {
+	if e == nil {
+		return nil
+	}
+	return &rpcExistsAddresser{e}
+}
+
+// ExistsAddress returns whether or not an address has been seen before.
+func (e *rpcExistsAddresser) ExistsAddress(addr dcrutil.Address) (bool, error) {
+	return e.existsAddrIndex.ExistsAddress(addr)
+}
+
+// ExistsAddresses returns whether or not each address in a slice of addresses
+// has been seen before.
+func (e *rpcExistsAddresser) ExistsAddresses(addrs []dcrutil.Address) ([]bool, error) {
+	return e.existsAddrIndex.ExistsAddresses(addrs)
+}

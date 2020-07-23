@@ -3265,20 +3265,21 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB, chainP
 		}
 
 		s.rpcServer, err = rpcserver.New(&rpcserver.Config{
-			Listeners:     rpcListeners,
-			ConnMgr:       &rpcConnManager{&s},
-			SyncMgr:       &rpcSyncMgr{&s, s.blockManager},
-			FeeEstimator:  &rpcFeeEstimator{s.feeEstimator},
-			TimeSource:    s.timeSource,
-			Services:      s.services,
-			AddrManager:   &rpcAddrManager{s.addrManager},
-			Clock:         &rpcClock{},
-			SubsidyCache:  s.subsidyCache,
-			Chain:         &rpcChain{s.chain},
-			ChainParams:   chainParams,
-			SanityChecker: &rpcSanityChecker{s.timeSource, chainParams},
-			DB:            db,
-			TxMemPool:     s.txMemPool,
+			Listeners:       rpcListeners,
+			ConnMgr:         &rpcConnManager{&s},
+			SyncMgr:         &rpcSyncMgr{server: &s, blockMgr: s.blockManager},
+			ExistsAddresser: newRPCExistsAddresser(s.existsAddrIndex),
+			FeeEstimator:    &rpcFeeEstimator{s.feeEstimator},
+			TimeSource:      s.timeSource,
+			Services:        s.services,
+			AddrManager:     &rpcAddrManager{s.addrManager},
+			Clock:           &rpcClock{},
+			SubsidyCache:    s.subsidyCache,
+			Chain:           &rpcChain{s.chain},
+			ChainParams:     chainParams,
+			SanityChecker:   &rpcSanityChecker{s.timeSource, chainParams},
+			DB:              db,
+			TxMemPool:       s.txMemPool,
 			BlockTemplater: func() rpcserver.BlockTemplater {
 				if s.bg == nil {
 					return nil
