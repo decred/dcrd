@@ -54,10 +54,9 @@ import (
 
 // API version constants
 const (
-	jsonrpcSemverString = "6.1.1"
-	jsonrpcSemverMajor  = 6
-	jsonrpcSemverMinor  = 1
-	jsonrpcSemverPatch  = 2
+	jsonrpcSemverMajor = 6
+	jsonrpcSemverMinor = 1
+	jsonrpcSemverPatch = 2
 )
 
 const (
@@ -99,6 +98,11 @@ const (
 )
 
 var (
+	// jsonrpcSemverString is the RPC server's semantic API version formatted as
+	// a string.
+	jsonrpcSemverString = fmt.Sprintf("%d.%d.%d", jsonrpcSemverMajor,
+		jsonrpcSemverMinor, jsonrpcSemverPatch)
+
 	// blake256Pad is the extra blake256 internal padding needed for the
 	// data of the getwork RPC.  It is set in the init routine since it is
 	// based on the size of the block header and requires a bit of
