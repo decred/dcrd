@@ -26,7 +26,6 @@ import (
 	"github.com/decred/dcrd/blockchain/stake/v3"
 	"github.com/decred/dcrd/blockchain/standalone/v2"
 	"github.com/decred/dcrd/blockchain/v3"
-	"github.com/decred/dcrd/blockchain/v3/indexers"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/chaincfg/v3"
 	"github.com/decred/dcrd/dcrjson/v3"
@@ -443,7 +442,6 @@ type testSyncManager struct {
 	submitBlockErr     error
 	syncPeerID         int32
 	locateBlocks       []chainhash.Hash
-	existsAddrIndex    *indexers.ExistsAddrIndex
 	tipGeneration      []chainhash.Hash
 	syncHeight         int64
 	processTransaction []*dcrutil.Tx
@@ -473,11 +471,6 @@ func (s *testSyncManager) LocateBlocks(locator blockchain.BlockLocator, hashStop
 	return s.locateBlocks
 }
 
-// ExistsAddrIndex returns a mocked address index.
-func (s *testSyncManager) ExistsAddrIndex() *indexers.ExistsAddrIndex {
-	return s.existsAddrIndex
-}
-
 // TipGeneration returns a mocked entire generation of blocks stemming from the
 // parent of the current tip.
 func (s *testSyncManager) TipGeneration() ([]chainhash.Hash, error) {
@@ -494,6 +487,27 @@ func (s *testSyncManager) SyncHeight() int64 {
 func (s *testSyncManager) ProcessTransaction(tx *dcrutil.Tx, allowOrphans bool,
 	rateLimit bool, allowHighFees bool, tag mempool.Tag) ([]*dcrutil.Tx, error) {
 	return s.processTransaction, nil
+}
+
+// testExistsAddresser provides a mock exists addresser by implementing the
+// ExistsAddresser interface.
+type testExistsAddresser struct {
+	existsAddress      bool
+	existsAddressErr   error
+	existsAddresses    []bool
+	existsAddressesErr error
+}
+
+// ExistsAddress returns a mocked bool representing whether or not an address
+// has been seen before.
+func (e *testExistsAddresser) ExistsAddress(addr dcrutil.Address) (bool, error) {
+	return e.existsAddress, e.existsAddressErr
+}
+
+// ExistsAddresses returns a mocked bool slice representing whether or not each
+// address in a slice of addresses has been seen before.
+func (e *testExistsAddresser) ExistsAddresses(addrs []dcrutil.Address) ([]bool, error) {
+	return e.existsAddresses, e.existsAddressesErr
 }
 
 // testConnManager provides a mock connection manager by implementing the
@@ -752,23 +766,25 @@ var block432100 = func() wire.MsgBlock {
 }()
 
 type rpcTest struct {
-	name              string
-	handler           commandHandler
-	cmd               interface{}
-	mockChainParams   *chaincfg.Params
-	mockChain         *testRPCChain
-	mockSanityChecker *testSanityChecker
-	mockAddrManager   *testAddrManager
-	mockFeeEstimator  *testFeeEstimator
-	mockSyncManager   *testSyncManager
-	mockConnManager   *testConnManager
-	mockClock         *testClock
-	mockLogManager    *testLogManager
-	mockFilterer      *testFilterer
-	mockFiltererV2    *testFiltererV2
-	result            interface{}
-	wantErr           bool
-	errCode           dcrjson.RPCErrorCode
+	name                  string
+	handler               commandHandler
+	cmd                   interface{}
+	mockChainParams       *chaincfg.Params
+	mockChain             *testRPCChain
+	mockSanityChecker     *testSanityChecker
+	mockAddrManager       *testAddrManager
+	mockFeeEstimator      *testFeeEstimator
+	mockSyncManager       *testSyncManager
+	mockExistsAddresser   *testExistsAddresser
+	setExistsAddresserNil bool
+	mockConnManager       *testConnManager
+	mockClock             *testClock
+	mockLogManager        *testLogManager
+	mockFilterer          *testFilterer
+	mockFiltererV2        *testFiltererV2
+	result                interface{}
+	wantErr               bool
+	errCode               dcrjson.RPCErrorCode
 }
 
 // defaultChainParams provides a default chaincfg.Params to be used throughout
@@ -938,6 +954,15 @@ func defaultMockAddrManager() *testAddrManager {
 	}
 }
 
+// defaultMockExistsAddresser provides a default mock exists addresser to be
+// used throughout the tests. Tests can override these defaults by calling
+// defaultMockExistsAddresser, updating fields as necessary on the returned
+// *testExistsAddresser, and then setting rpcTest.mockExistsAddresser as that
+// *testExistsAddresser.
+func defaultMockExistsAddresser() *testExistsAddresser {
+	return &testExistsAddresser{}
+}
+
 // defaultMockSyncManager provides a default mock sync manager to be used
 // throughout the tests. Tests can override these defaults by calling
 // defaultMockSyncManager, updating fields as necessary on the returned
@@ -1049,19 +1074,20 @@ func defaultMockFiltererV2() *testFiltererV2 {
 // the tests.  Defaults can be overridden by tests through the rpcTest struct.
 func defaultMockConfig(chainParams *chaincfg.Params) *Config {
 	return &Config{
-		ChainParams:   chainParams,
-		Chain:         defaultMockRPCChain(),
-		SanityChecker: defaultMockSanityChecker(),
-		AddrManager:   defaultMockAddrManager(),
-		FeeEstimator:  defaultMockFeeEstimator(),
-		SyncMgr:       defaultMockSyncManager(),
-		ConnMgr:       defaultMockConnManager(),
-		Clock:         &testClock{},
-		LogManager:    defaultMockLogManager(),
-		FiltererV2:    defaultMockFiltererV2(),
-		TimeSource:    blockchain.NewMedianTime(),
-		Services:      wire.SFNodeNetwork | wire.SFNodeCF,
-		SubsidyCache:  standalone.NewSubsidyCache(chainParams),
+		ChainParams:     chainParams,
+		Chain:           defaultMockRPCChain(),
+		SanityChecker:   defaultMockSanityChecker(),
+		AddrManager:     defaultMockAddrManager(),
+		FeeEstimator:    defaultMockFeeEstimator(),
+		SyncMgr:         defaultMockSyncManager(),
+		ExistsAddresser: defaultMockExistsAddresser(),
+		ConnMgr:         defaultMockConnManager(),
+		Clock:           &testClock{},
+		LogManager:      defaultMockLogManager(),
+		FiltererV2:      defaultMockFiltererV2(),
+		TimeSource:      blockchain.NewMedianTime(),
+		Services:        wire.SFNodeNetwork | wire.SFNodeCF,
+		SubsidyCache:    standalone.NewSubsidyCache(chainParams),
 		NetInfo: []types.NetworksResult{{
 			Name:                      "IPV4",
 			Limited:                   false,
@@ -2199,6 +2225,50 @@ func TestHandleEstimateStakeDiff(t *testing.T) {
 		}(),
 		wantErr: true,
 		errCode: dcrjson.ErrRPCInternal.Code,
+	}})
+}
+
+func TestHandleExistsAddress(t *testing.T) {
+	t.Parallel()
+
+	validAddr := "DcurAwesomeAddressmqDctW5wJCW1Cn2MF"
+	testRPCServerHandler(t, []rpcTest{{
+		name:    "handleExistsAddress: ok",
+		handler: handleExistsAddress,
+		cmd: &types.ExistsAddressCmd{
+			Address: validAddr,
+		},
+		result: false,
+	}, {
+		name:    "handleExistsAddress: exist address indexing not enabled",
+		handler: handleExistsAddress,
+		cmd: &types.ExistsAddressCmd{
+			Address: validAddr,
+		},
+		setExistsAddresserNil: true,
+		wantErr:               true,
+		errCode:               dcrjson.ErrRPCInternal.Code,
+	}, {
+		name:    "handleExistsAddress: bad address",
+		handler: handleExistsAddress,
+		cmd: &types.ExistsAddressCmd{
+			Address: "bad address",
+		},
+		wantErr: true,
+		errCode: dcrjson.ErrRPCInvalidAddressOrKey,
+	}, {
+		name:    "handleExistsAddress: ExistsAddress error",
+		handler: handleExistsAddress,
+		cmd: &types.ExistsAddressCmd{
+			Address: validAddr,
+		},
+		mockExistsAddresser: func() *testExistsAddresser {
+			existsAddrIndexer := defaultMockExistsAddresser()
+			existsAddrIndexer.existsAddressErr = errors.New("")
+			return existsAddrIndexer
+		}(),
+		wantErr: true,
+		errCode: dcrjson.ErrRPCInvalidParameter,
 	}})
 }
 
@@ -4288,6 +4358,12 @@ func testRPCServerHandler(t *testing.T, tests []rpcTest) {
 			}
 			if test.mockSyncManager != nil {
 				rpcserverConfig.SyncMgr = test.mockSyncManager
+			}
+			if test.mockExistsAddresser != nil {
+				rpcserverConfig.ExistsAddresser = test.mockExistsAddresser
+			}
+			if test.setExistsAddresserNil {
+				rpcserverConfig.ExistsAddresser = nil
 			}
 			if test.mockConnManager != nil {
 				rpcserverConfig.ConnMgr = test.mockConnManager

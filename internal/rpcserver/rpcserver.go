@@ -1434,8 +1434,7 @@ func handleEstimateStakeDiff(_ context.Context, s *Server, cmd interface{}) (int
 
 // handleExistsAddress implements the existsaddress command.
 func handleExistsAddress(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
-	existsAddrIndex := s.cfg.SyncMgr.ExistsAddrIndex()
-	if existsAddrIndex == nil {
+	if s.cfg.ExistsAddresser == nil {
 		return nil, rpcInternalError("Exists address index disabled",
 			"Configuration")
 	}
@@ -1450,7 +1449,7 @@ func handleExistsAddress(_ context.Context, s *Server, cmd interface{}) (interfa
 			err)
 	}
 
-	exists, err := existsAddrIndex.ExistsAddress(addr)
+	exists, err := s.cfg.ExistsAddresser.ExistsAddress(addr)
 	if err != nil {
 		return nil, rpcInvalidError("Could not query address: %v", err)
 	}
@@ -1460,8 +1459,7 @@ func handleExistsAddress(_ context.Context, s *Server, cmd interface{}) (interfa
 
 // handleExistsAddresses implements the existsaddresses command.
 func handleExistsAddresses(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
-	existsAddrIndex := s.cfg.SyncMgr.ExistsAddrIndex()
-	if existsAddrIndex == nil {
+	if s.cfg.ExistsAddresser == nil {
 		return nil, rpcInternalError("Exists address index disabled",
 			"Configuration")
 	}
@@ -1478,7 +1476,7 @@ func handleExistsAddresses(_ context.Context, s *Server, cmd interface{}) (inter
 		addresses[i] = addr
 	}
 
-	exists, err := existsAddrIndex.ExistsAddresses(addresses)
+	exists, err := s.cfg.ExistsAddresser.ExistsAddresses(addresses)
 	if err != nil {
 		return nil, rpcInvalidError("Could not query address: %v", err)
 	}
@@ -5593,6 +5591,10 @@ type Config struct {
 
 	// SyncMgr defines the sync manager for the RPC server to use.
 	SyncMgr SyncManager
+
+	// ExistsAddresser defines the exist addresser for the RPC server to
+	// use.
+	ExistsAddresser ExistsAddresser
 
 	// These fields allow the RPC server to interface with the local block
 	// chain data and state.
