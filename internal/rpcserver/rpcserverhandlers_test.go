@@ -2727,7 +2727,7 @@ func TestHandleGetBlock(t *testing.T) {
 	// createTxRawResult should be tested independently as well.
 	txns := blk.Transactions()
 	rawTxns := make([]types.TxRawResult, len(txns))
-	testServer := &RPCServer{cfg: *defaultMockConfig(defaultChainParams)}
+	testServer := &Server{cfg: *defaultMockConfig(defaultChainParams)}
 	for i, tx := range txns {
 		rawTxn, err := testServer.createTxRawResult(defaultChainParams, tx.MsgTx(),
 			tx.Hash().String(), uint32(i), &blkHeader, blk.Hash().String(),
@@ -3914,7 +3914,7 @@ func testRPCServerHandler(t *testing.T, tests []rpcTest) {
 				rpcserverConfig.LogManager = test.mockLogManager
 			}
 
-			testServer := &RPCServer{cfg: *rpcserverConfig}
+			testServer := &Server{cfg: *rpcserverConfig}
 			result, err := test.handler(nil, testServer, test.cmd)
 			if test.wantErr {
 				var rpcErr *dcrjson.RPCError

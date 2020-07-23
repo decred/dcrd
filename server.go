@@ -446,7 +446,7 @@ type server struct {
 	connManager          *connmgr.ConnManager
 	sigCache             *txscript.SigCache
 	subsidyCache         *standalone.SubsidyCache
-	rpcServer            *rpcserver.RPCServer
+	rpcServer            *rpcserver.Server
 	blockManager         *blockManager
 	bg                   *mining.BgBlkTmplGenerator
 	chain                *blockchain.BlockChain
@@ -3123,7 +3123,7 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB, chainP
 			}
 		},
 		PruneRebroadcastInventory: s.PruneRebroadcastInventory,
-		RpcServer: func() *rpcserver.RPCServer {
+		RpcServer: func() *rpcserver.Server {
 			return s.rpcServer
 		},
 	})
