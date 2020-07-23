@@ -4786,8 +4786,7 @@ func verifyChain(_ context.Context, s *Server, level, depth int64) error {
 
 		// Level 1 does basic chain sanity checks.
 		if level > 0 {
-			err := blockchain.CheckBlockSanity(block, s.cfg.TimeSource,
-				s.cfg.ChainParams)
+			err := s.cfg.SanityChecker.CheckBlockSanity(block)
 			if err != nil {
 				log.Errorf("Verify is unable to validate "+
 					"block at hash %v height %d: %v",
@@ -5593,12 +5592,13 @@ type Config struct {
 
 	// These fields allow the RPC server to interface with the local block
 	// chain data and state.
-	TimeSource   blockchain.MedianTimeSource
-	Chain        Chain
-	ChainParams  *chaincfg.Params
-	DB           database.DB
-	FeeEstimator FeeEstimator
-	Services     wire.ServiceFlag
+	TimeSource    blockchain.MedianTimeSource
+	Chain         Chain
+	SanityChecker SanityChecker
+	ChainParams   *chaincfg.Params
+	DB            database.DB
+	FeeEstimator  FeeEstimator
+	Services      wire.ServiceFlag
 
 	// SubsidyCache defines a cache for efficient access to consensus-critical
 	// subsidy calculations.

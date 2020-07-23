@@ -654,6 +654,17 @@ func (l *testLogManager) SupportedSubsystems() []string {
 	return l.supportedSubsystems
 }
 
+// testSanityChecker provides a mock implementation that checks the sanity
+// state of a block.
+type testSanityChecker struct {
+	checkBlockSanityErr error
+}
+
+// testSanityChecker returns mock sanity state of the provided block.
+func (s *testSanityChecker) CheckBlockSanity(block *dcrutil.Block) error {
+	return s.checkBlockSanityErr
+}
+
 // ParseAndSetDebugLevels provides a mock implementation for parsing the
 // specified debug level and setting the levels accordingly.
 func (l *testLogManager) ParseAndSetDebugLevels(debugLevel string) error {
@@ -719,20 +730,21 @@ var block432100 = func() wire.MsgBlock {
 }()
 
 type rpcTest struct {
-	name             string
-	handler          commandHandler
-	cmd              interface{}
-	mockChainParams  *chaincfg.Params
-	mockChain        *testRPCChain
-	mockAddrManager  *testAddrManager
-	mockFeeEstimator *testFeeEstimator
-	mockSyncManager  *testSyncManager
-	mockConnManager  *testConnManager
-	mockClock        *testClock
-	mockLogManager   *testLogManager
-	result           interface{}
-	wantErr          bool
-	errCode          dcrjson.RPCErrorCode
+	name              string
+	handler           commandHandler
+	cmd               interface{}
+	mockChainParams   *chaincfg.Params
+	mockChain         *testRPCChain
+	mockSanityChecker *testSanityChecker
+	mockAddrManager   *testAddrManager
+	mockFeeEstimator  *testFeeEstimator
+	mockSyncManager   *testSyncManager
+	mockConnManager   *testConnManager
+	mockClock         *testClock
+	mockLogManager    *testLogManager
+	result            interface{}
+	wantErr           bool
+	errCode           dcrjson.RPCErrorCode
 }
 
 // defaultChainParams provides a default chaincfg.Params to be used throughout
@@ -878,6 +890,15 @@ func defaultMockRPCChain() *testRPCChain {
 	}
 }
 
+// defaultMockSanityChecker provides a default mock sanity checker to be used
+// throughout the tests. Tests can override these defaults by calling
+// defaultMockSanityChecker, updating fields as necessary on the returned
+// *testSanityChecker, and then setting rpcTest.mockSanityChecker as that
+// *testSanityChecker.
+func defaultMockSanityChecker() *testSanityChecker {
+	return &testSanityChecker{}
+}
+
 // defaultMockAddrManager provides a default mock address manager to be used
 // throughout the tests. Tests can override these defaults by calling
 // defaultMockAddrManager, updating fields as necessary on the returned
@@ -990,17 +1011,18 @@ func defaultMockLogManager() *testLogManager {
 // the tests.  Defaults can be overridden by tests through the rpcTest struct.
 func defaultMockConfig(chainParams *chaincfg.Params) *Config {
 	return &Config{
-		ChainParams:  chainParams,
-		Chain:        defaultMockRPCChain(),
-		AddrManager:  defaultMockAddrManager(),
-		FeeEstimator: defaultMockFeeEstimator(),
-		SyncMgr:      defaultMockSyncManager(),
-		ConnMgr:      defaultMockConnManager(),
-		Clock:        &testClock{},
-		LogManager:   defaultMockLogManager(),
-		TimeSource:   blockchain.NewMedianTime(),
-		Services:     wire.SFNodeNetwork | wire.SFNodeCF,
-		SubsidyCache: standalone.NewSubsidyCache(chainParams),
+		ChainParams:   chainParams,
+		Chain:         defaultMockRPCChain(),
+		SanityChecker: defaultMockSanityChecker(),
+		AddrManager:   defaultMockAddrManager(),
+		FeeEstimator:  defaultMockFeeEstimator(),
+		SyncMgr:       defaultMockSyncManager(),
+		ConnMgr:       defaultMockConnManager(),
+		Clock:         &testClock{},
+		LogManager:    defaultMockLogManager(),
+		TimeSource:    blockchain.NewMedianTime(),
+		Services:      wire.SFNodeNetwork | wire.SFNodeCF,
+		SubsidyCache:  standalone.NewSubsidyCache(chainParams),
 		NetInfo: []types.NetworksResult{{
 			Name:                      "IPV4",
 			Limited:                   false,
@@ -3912,6 +3934,9 @@ func testRPCServerHandler(t *testing.T, tests []rpcTest) {
 			}
 			if test.mockLogManager != nil {
 				rpcserverConfig.LogManager = test.mockLogManager
+			}
+			if test.mockSanityChecker != nil {
+				rpcserverConfig.SanityChecker = test.mockSanityChecker
 			}
 
 			testServer := &Server{cfg: *rpcserverConfig}
