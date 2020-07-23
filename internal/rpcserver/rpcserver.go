@@ -20,7 +20,6 @@ import (
 	"io/ioutil"
 	"math"
 	"math/big"
-	"math/rand"
 	"net"
 	"net/http"
 	"runtime"
@@ -5701,7 +5700,6 @@ func New(config *Config) (*Server, error) {
 
 func init() {
 	rpcHandlers = rpcHandlersBeforeInit
-	rand.Seed(time.Now().UnixNano())
 
 	// blake256Pad is the extra blake256 internal padding needed for the
 	// data of the getwork RPC.  The internal blake256 padding consists of
