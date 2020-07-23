@@ -14,6 +14,7 @@ import (
 	"github.com/decred/dcrd/blockchain/v3"
 	"github.com/decred/dcrd/blockchain/v3/indexers"
 	"github.com/decred/dcrd/chaincfg/chainhash"
+	"github.com/decred/dcrd/chaincfg/v3"
 	"github.com/decred/dcrd/dcrutil/v3"
 	"github.com/decred/dcrd/internal/fees"
 	"github.com/decred/dcrd/internal/mempool"
@@ -495,4 +496,23 @@ func (*rpcLogManager) SupportedSubsystems() []string {
 // This function is part of the rpcserver.LogManager interface implementation.
 func (*rpcLogManager) ParseAndSetDebugLevels(debugLevel string) error {
 	return parseAndSetDebugLevels(debugLevel)
+}
+
+// rpcSanityChecker provides a block sanity checker for use with the RPC and
+// implements the rpcserver.SanityChecker interface.
+type rpcSanityChecker struct {
+	timeSource  blockchain.MedianTimeSource
+	chainParams *chaincfg.Params
+}
+
+// Ensure rpcSanityChecker implements the rpcserver.SanityChecker interface.
+var _ rpcserver.SanityChecker = (*rpcSanityChecker)(nil)
+
+// CheckBlockSanity checks the correctness of the provided block
+// per consensus.  An appropriate error is returned if anything is
+// invalid.
+//
+// This function is part of the rpcserver.SanityChecker interface implementation.
+func (s *rpcSanityChecker) CheckBlockSanity(block *dcrutil.Block) error {
+	return blockchain.CheckBlockSanity(block, s.timeSource, s.chainParams)
 }

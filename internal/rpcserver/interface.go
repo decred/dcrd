@@ -455,3 +455,13 @@ type LogManager interface {
 	// is invalid.
 	ParseAndSetDebugLevels(debugLevel string) error
 }
+
+// SanityChecker represents a block sanity checker for use with the RPC server.
+//
+// The interface contract requires that all of these methods are safe for
+// concurrent access.
+type SanityChecker interface {
+	// CheckBlockSanity checks the correctness of the provided block
+	// per consensus.
+	CheckBlockSanity(block *dcrutil.Block) error
+}
