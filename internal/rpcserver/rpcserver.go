@@ -5673,8 +5673,8 @@ type Config struct {
 	LogManager LogManager
 }
 
-// NewRPCServer returns a new instance of the RPCServer struct.
-func NewRPCServer(config *Config) (*RPCServer, error) {
+// New returns a new instance of the RPCServer struct.
+func New(config *Config) (*RPCServer, error) {
 	rpc := RPCServer{
 		cfg:                    *config,
 		statusLines:            make(map[int]string),
