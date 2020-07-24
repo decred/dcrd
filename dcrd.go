@@ -175,7 +175,7 @@ func dcrdMain() error {
 		return nil
 	}
 
-	// Create server and start it.
+	// Create server.
 	lifetimeNotifier.notifyStartupEvent(lifetimeEventP2PServer)
 	svr, err := newServer(ctx, cfg.Listeners, db, cfg.params.Params,
 		cfg.DataDir)
@@ -183,30 +183,23 @@ func dcrdMain() error {
 		dcrdLog.Errorf("Unable to start server: %v", err)
 		return err
 	}
-	serverDone := make(chan struct{})
-	defer func() {
-		lifetimeNotifier.notifyShutdownEvent(lifetimeEventP2PServer)
-		<-serverDone
-		srvrLog.Infof("Server shutdown complete")
-	}()
-	go func(s *server) {
-		s.Run(ctx)
-		close(serverDone)
-	}(svr)
 
 	if shutdownRequested(ctx) {
 		return nil
 	}
 
 	lifetimeNotifier.notifyStartupComplete()
+	defer lifetimeNotifier.notifyShutdownEvent(lifetimeEventP2PServer)
 
 	// Signal the Windows service (if running) that startup has completed.
 	serviceStartOfDayChan <- cfg
 
-	// Wait until the interrupt signal is received from an OS signal or
+	// Run the server.  This will block until the context is cancelled which
+	// happens when the interrupt signal is received from an OS signal or
 	// shutdown is requested through one of the subsystems such as the RPC
 	// server.
-	<-ctx.Done()
+	svr.Run(ctx)
+	srvrLog.Infof("Server shutdown complete")
 	return nil
 }
 
