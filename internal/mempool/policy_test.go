@@ -7,6 +7,7 @@ package mempool
 
 import (
 	"bytes"
+	"errors"
 	"testing"
 	"time"
 
@@ -339,7 +340,7 @@ func TestCheckTransactionStandard(t *testing.T) {
 		tx         wire.MsgTx
 		height     int64
 		isStandard bool
-		code       ErrorCode
+		errKind    ErrorKind
 	}{
 		{
 			name: "Typical pay-to-pubkey-hash transaction",
@@ -364,7 +365,7 @@ func TestCheckTransactionStandard(t *testing.T) {
 			},
 			height:     300000,
 			isStandard: false,
-			code:       ErrNonStandard,
+			errKind:    ErrNonStandard,
 		},
 		{
 			name: "Transaction version too high",
@@ -377,7 +378,7 @@ func TestCheckTransactionStandard(t *testing.T) {
 			},
 			height:     300000,
 			isStandard: false,
-			code:       ErrNonStandard,
+			errKind:    ErrNonStandard,
 		},
 		{
 			name: "Transaction is not finalized",
@@ -394,7 +395,7 @@ func TestCheckTransactionStandard(t *testing.T) {
 			},
 			height:     300000,
 			isStandard: false,
-			code:       ErrNonStandard,
+			errKind:    ErrNonStandard,
 		},
 		{
 			name: "Transaction size is too large",
@@ -411,7 +412,7 @@ func TestCheckTransactionStandard(t *testing.T) {
 			},
 			height:     300000,
 			isStandard: false,
-			code:       ErrNonStandard,
+			errKind:    ErrNonStandard,
 		},
 		{
 			name: "Signature script size is too large",
@@ -429,7 +430,7 @@ func TestCheckTransactionStandard(t *testing.T) {
 			},
 			height:     300000,
 			isStandard: false,
-			code:       ErrNonStandard,
+			errKind:    ErrNonStandard,
 		},
 		{
 			name: "Signature script that does more than push data",
@@ -447,7 +448,7 @@ func TestCheckTransactionStandard(t *testing.T) {
 			},
 			height:     300000,
 			isStandard: false,
-			code:       ErrNonStandard,
+			errKind:    ErrNonStandard,
 		},
 		{
 			name: "Valid but non standard public key script",
@@ -463,7 +464,7 @@ func TestCheckTransactionStandard(t *testing.T) {
 			},
 			height:     300000,
 			isStandard: false,
-			code:       ErrNonStandard,
+			errKind:    ErrNonStandard,
 		},
 		{
 			name: "More than four nulldata outputs",
@@ -491,7 +492,7 @@ func TestCheckTransactionStandard(t *testing.T) {
 			},
 			height:     300000,
 			isStandard: false,
-			code:       ErrNonStandard,
+			errKind:    ErrNonStandard,
 		},
 		{
 			name: "Dust output",
@@ -507,7 +508,7 @@ func TestCheckTransactionStandard(t *testing.T) {
 			},
 			height:     300000,
 			isStandard: false,
-			code:       ErrDustOutput,
+			errKind:    ErrDustOutput,
 		},
 		{
 			name: "One nulldata output with 0 amount (standard)",
@@ -550,9 +551,9 @@ func TestCheckTransactionStandard(t *testing.T) {
 		}
 
 		// Ensure the error code is the expected one.
-		if !IsErrorCode(err, test.code) {
+		if !errors.Is(err, test.errKind) {
 			t.Errorf("checkTransactionStandard (%s): unexpected error -- got "+
-				"%v, want %v", test.name, err, test.code)
+				"%v, want %v", test.name, err, test.errKind)
 			continue
 		}
 	}

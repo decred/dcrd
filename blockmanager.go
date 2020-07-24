@@ -660,7 +660,7 @@ func errToWireRejectCode(err error) (wire.RejectCode, string) {
 
 		reason = berr.Error()
 	case errors.As(err, &terr):
-		switch terr.ErrorCode {
+		switch terr.Err {
 		// Error codes which map to a duplicate transaction already
 		// mined or in the mempool.
 		case mempool.ErrMempoolDoubleSpend,
@@ -1792,7 +1792,7 @@ func isDoubleSpendOrDuplicateError(err error) bool {
 
 	var rerr mempool.TxRuleError
 	if errors.As(merr.Err, &rerr) {
-		switch rerr.ErrorCode {
+		switch rerr.Err {
 		case mempool.ErrDuplicate:
 			return true
 		case mempool.ErrAlreadyExists:
