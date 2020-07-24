@@ -4,22 +4,20 @@ import (
 	"time"
 )
 
-// pruningIntervalInMinutes is the interval in which to prune the blockchain's
-// nodes and restore memory to the garbage collector.
-const pruningIntervalInMinutes = 5
-
 // chainPruner is used to occasionally prune the blockchain of old nodes that
 // can be freed to the garbage collector.
 type chainPruner struct {
-	chain         *BlockChain
-	lastPruneTime time.Time
+	chain           *BlockChain
+	lastPruneTime   time.Time
+	pruningInterval time.Duration
 }
 
 // newChainPruner returns a new chain pruner.
 func newChainPruner(chain *BlockChain) *chainPruner {
 	return &chainPruner{
-		chain:         chain,
-		lastPruneTime: time.Now(),
+		chain:           chain,
+		lastPruneTime:   time.Now(),
+		pruningInterval: chain.chainParams.TargetTimePerBlock,
 	}
 }
 
@@ -30,7 +28,7 @@ func newChainPruner(chain *BlockChain) *chainPruner {
 func (c *chainPruner) pruneChainIfNeeded() {
 	now := time.Now()
 	duration := now.Sub(c.lastPruneTime)
-	if duration < time.Minute*pruningIntervalInMinutes {
+	if duration < c.pruningInterval {
 		return
 	}
 
