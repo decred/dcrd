@@ -450,29 +450,22 @@ func (b *BlockChain) pruneStakeNodes() {
 		return
 	}
 
-	// Push the nodes to delete on a list. This will typically end up being
-	// a single node since pruning is currently done just before each new
-	// node is created.  However, that might be tuned later to only prune at
-	// intervals, so the code needs to account for the possibility of
-	// multiple nodes.
-	var deleteNodes []*blockNode
-	for node := pruneToNode.parent; node != nil; node = node.parent {
-		deleteNodes = append(deleteNodes, node)
+	// Determine the nodes that need to be pruned.  This will typically end up
+	// being a small number of nodes since the pruning interval currently
+	// coincides with the average block time.
+	pruneNodes := make([]*blockNode, 0, b.pruner.prunedPerIntervalHint)
+	for n := pruneToNode.parent; n != nil && n.stakeNode != nil; n = n.parent {
+		pruneNodes = append(pruneNodes, n)
 	}
 
-	// Loop through each node to prune in reverse, unlink its children, remove
-	// it from the dependency index, and remove it from the node index.
-	for i := len(deleteNodes) - 1; i >= 0; i-- {
-		node := deleteNodes[i]
-
-		// Do not attempt to prune if the node should already have been pruned,
-		// for example if you're adding an old side chain block.
-		if node.height > b.bestChain.Tip().height-minMemoryNodes {
-			node.stakeNode = nil
-			node.newTickets = nil
-			node.ticketsVoted = nil
-			node.ticketsRevoked = nil
-		}
+	// Loop through each node to prune from the oldest to the newest and prune
+	// the stake-related fields.
+	for i := len(pruneNodes) - 1; i >= 0; i-- {
+		node := pruneNodes[i]
+		node.stakeNode = nil
+		node.newTickets = nil
+		node.ticketsVoted = nil
+		node.ticketsRevoked = nil
 	}
 }
 
