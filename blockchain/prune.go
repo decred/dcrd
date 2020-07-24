@@ -11,15 +11,15 @@ const pruningIntervalInMinutes = 5
 // chainPruner is used to occasionally prune the blockchain of old nodes that
 // can be freed to the garbage collector.
 type chainPruner struct {
-	chain              *BlockChain
-	lastNodeInsertTime time.Time
+	chain         *BlockChain
+	lastPruneTime time.Time
 }
 
 // newChainPruner returns a new chain pruner.
 func newChainPruner(chain *BlockChain) *chainPruner {
 	return &chainPruner{
-		chain:              chain,
-		lastNodeInsertTime: time.Now(),
+		chain:         chain,
+		lastPruneTime: time.Now(),
 	}
 }
 
@@ -29,11 +29,11 @@ func newChainPruner(chain *BlockChain) *chainPruner {
 // pruneChainIfNeeded must be called with the chainLock held for writes.
 func (c *chainPruner) pruneChainIfNeeded() {
 	now := time.Now()
-	duration := now.Sub(c.lastNodeInsertTime)
+	duration := now.Sub(c.lastPruneTime)
 	if duration < time.Minute*pruningIntervalInMinutes {
 		return
 	}
 
-	c.lastNodeInsertTime = now
+	c.lastPruneTime = now
 	c.chain.pruneStakeNodes()
 }
