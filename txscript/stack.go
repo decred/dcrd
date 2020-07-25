@@ -201,14 +201,10 @@ func (s *stack) Tuck() error {
 // DropN removes the top N items from the stack.
 //
 // Stack transformation:
+// DropN(0): [... x1 x2] -> [... x1 x2] (aka NOP)
 // DropN(1): [... x1 x2] -> [... x1]
 // DropN(2): [... x1 x2] -> [...]
 func (s *stack) DropN(n int32) error {
-	if n < 1 {
-		str := fmt.Sprintf("attempt to drop %d items from stack", n)
-		return scriptError(ErrInvalidStackOperation, str)
-	}
-
 	for ; n > 0; n-- {
 		_, err := s.PopByteArray()
 		if err != nil {

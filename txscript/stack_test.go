@@ -567,6 +567,15 @@ func TestStack(t *testing.T) {
 			nil,
 		},
 		{
+			"drop 0",
+			[][]byte{{1}, {2}, {3}, {4}},
+			func(s *stack) error {
+				return s.DropN(0)
+			},
+			nil,
+			[][]byte{{1}, {2}, {3}, {4}},
+		},
+		{
 			"drop 1",
 			[][]byte{{1}, {2}, {3}, {4}},
 			func(s *stack) error {
@@ -607,15 +616,6 @@ func TestStack(t *testing.T) {
 			[][]byte{{1}, {2}, {3}, {4}},
 			func(s *stack) error {
 				return s.DropN(5)
-			},
-			ErrInvalidStackOperation,
-			nil,
-		},
-		{
-			"drop invalid",
-			[][]byte{{1}, {2}, {3}, {4}},
-			func(s *stack) error {
-				return s.DropN(0)
 			},
 			ErrInvalidStackOperation,
 			nil,
