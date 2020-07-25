@@ -144,16 +144,16 @@ type wsNotificationManager struct {
 	// Access channel for current number of connected clients.
 	numClients chan int
 
-	// Shutdown handling
-	wg  sync.WaitGroup
-	ctx context.Context
-	mtx sync.RWMutex
+	// The following fields are used for lifecycle management of the
+	// notification manager.
+	wg   sync.WaitGroup
+	quit chan struct{}
 }
 
 // queueHandler maintains a queue of notifications and notification handler
 // control messages. The handler stops when the input channel is closed or a
 // context cancellation signal is received.
-func (m *wsNotificationManager) queueHandler() {
+func (m *wsNotificationManager) queueHandler(ctx context.Context) {
 	var q []interface{}
 	var dequeue chan<- interface{}
 	skipQueue := m.notificationMsgs
@@ -161,7 +161,7 @@ func (m *wsNotificationManager) queueHandler() {
 out:
 	for {
 		select {
-		case <-m.ctx.Done():
+		case <-ctx.Done():
 			break out
 
 		case n, ok := <-m.queueNotification:
@@ -203,180 +203,73 @@ out:
 // to the notification manager for block and transaction notification
 // processing.
 func (m *wsNotificationManager) NotifyBlockConnected(block *dcrutil.Block) {
-	m.mtx.RLock()
-	if m.ctx == nil {
-		// Notification manager not started yet.
-		m.mtx.RUnlock()
-		return
-	}
-	ctx := m.ctx
-	m.mtx.RUnlock()
-
-	// As NotifyBlockConnected will be called by the block manager
-	// and the RPC server may no longer be running, use a select
-	// statement to unblock enqueuing the notification once the RPC
-	// server has begun shutting down.
 	select {
 	case m.queueNotification <- (*notificationBlockConnected)(block):
-	case <-ctx.Done():
+	case <-m.quit:
 	}
 }
 
 // NotifyBlockDisconnected passes a block disconnected from the best chain
 // to the notification manager for block notification processing.
 func (m *wsNotificationManager) NotifyBlockDisconnected(block *dcrutil.Block) {
-	m.mtx.RLock()
-	if m.ctx == nil {
-		// Notification manager not started yet.
-		m.mtx.RUnlock()
-		return
-	}
-	ctx := m.ctx
-	m.mtx.RUnlock()
-
-	// As NotifyBlockDisconnected will be called by the block manager
-	// and the RPC server may no longer be running, use a select
-	// statement to unblock enqueuing the notification once the RPC
-	// server has begun shutting down.
 	select {
 	case m.queueNotification <- (*notificationBlockDisconnected)(block):
-	case <-ctx.Done():
+	case <-m.quit:
 	}
 }
 
 // NotifyWork passes new mining work to the notification manager
 // for block notification processing.
 func (m *wsNotificationManager) NotifyWork(templateNtfn *mining.TemplateNtfn) {
-	m.mtx.RLock()
-	if m.ctx == nil {
-		// Notification manager not started yet.
-		m.mtx.RUnlock()
-		return
-	}
-	ctx := m.ctx
-	m.mtx.RUnlock()
-
-	// As NotifyWork will be called by the block manager and the
-	// RPC server may no longer be running, use a select statement
-	// to unblock enqueuing the notification once the RPC server
-	// has begun shutting down.
 	select {
 	case m.queueNotification <- (*notificationWork)(templateNtfn):
-	case <-ctx.Done():
+	case <-m.quit:
 	}
 }
 
 // NotifyReorganization passes a blockchain reorganization notification for
 // reorganization notification processing.
 func (m *wsNotificationManager) NotifyReorganization(rd *blockchain.ReorganizationNtfnsData) {
-	m.mtx.RLock()
-	if m.ctx == nil {
-		// Notification manager not started yet.
-		m.mtx.RUnlock()
-		return
-	}
-	ctx := m.ctx
-	m.mtx.RUnlock()
-
-	// As NotifyReorganization will be called by the block manager
-	// and the RPC server may no longer be running, use a select
-	// statement to unblock enqueuing the notification once the RPC
-	// server has begun shutting down.
 	select {
 	case m.queueNotification <- (*notificationReorganization)(rd):
-	case <-ctx.Done():
+	case <-m.quit:
 	}
 }
 
 // NotifyWinningTickets passes newly winning tickets for an incoming block
 // to the notification manager for further processing.
 func (m *wsNotificationManager) NotifyWinningTickets(wtnd *WinningTicketsNtfnData) {
-	m.mtx.RLock()
-	if m.ctx == nil {
-		// Notification manager not started yet.
-		m.mtx.RUnlock()
-		return
-	}
-	ctx := m.ctx
-	m.mtx.RUnlock()
-
-	// As NotifyWinningTickets will be called by the block manager
-	// and the RPC server may no longer be running, use a select
-	// statement to unblock enqueuing the notification once the RPC
-	// server has begun shutting down.
 	select {
 	case m.queueNotification <- (*notificationWinningTickets)(wtnd):
-	case <-ctx.Done():
+	case <-m.quit:
 	}
 }
 
 // NotifySpentAndMissedTickets passes ticket spend and missing data for an
 // incoming block from the best chain to the notification manager for block
 // notification processing.
-func (m *wsNotificationManager) NotifySpentAndMissedTickets(
-	tnd *blockchain.TicketNotificationsData) {
-	m.mtx.RLock()
-	if m.ctx == nil {
-		// Notification manager not started yet.
-		m.mtx.RUnlock()
-		return
-	}
-	ctx := m.ctx
-	m.mtx.RUnlock()
-
-	// As NotifySpentAndMissedTickets will be called by the block manager
-	// and the RPC server may no longer be running, use a select
-	// statement to unblock enqueuing the notification once the RPC
-	// server has begun shutting down.
+func (m *wsNotificationManager) NotifySpentAndMissedTickets(tnd *blockchain.TicketNotificationsData) {
 	select {
 	case m.queueNotification <- (*notificationSpentAndMissedTickets)(tnd):
-	case <-ctx.Done():
+	case <-m.quit:
 	}
 }
 
 // NotifyNewTickets passes a new ticket data for an incoming block from the best
 // chain to the notification manager for block notification processing.
-func (m *wsNotificationManager) NotifyNewTickets(
-	tnd *blockchain.TicketNotificationsData) {
-	m.mtx.RLock()
-	if m.ctx == nil {
-		// Notification manager not started yet.
-		m.mtx.RUnlock()
-		return
-	}
-	ctx := m.ctx
-	m.mtx.RUnlock()
-
-	// As NotifyNewTickets will be called by the block manager
-	// and the RPC server may no longer be running, use a select
-	// statement to unblock enqueuing the notification once the RPC
-	// server has begun shutting down.
+func (m *wsNotificationManager) NotifyNewTickets(tnd *blockchain.TicketNotificationsData) {
 	select {
 	case m.queueNotification <- (*notificationNewTickets)(tnd):
-	case <-ctx.Done():
+	case <-m.quit:
 	}
 }
 
 // NotifyStakeDifficulty notifies websocket clients that have registered for
 // stake difficulty updates.
-func (m *wsNotificationManager) NotifyStakeDifficulty(
-	stnd *StakeDifficultyNtfnData) {
-	m.mtx.RLock()
-	if m.ctx == nil {
-		// Notification manager not started yet.
-		m.mtx.RUnlock()
-		return
-	}
-	ctx := m.ctx
-	m.mtx.RUnlock()
-
-	// As NotifyStakeDifficulty will be called by the block manager
-	// and the RPC server may no longer be running, use a select
-	// statement to unblock enqueuing the notification once the RPC
-	// server has begun shutting down.
+func (m *wsNotificationManager) NotifyStakeDifficulty(stnd *StakeDifficultyNtfnData) {
 	select {
 	case m.queueNotification <- (*notificationStakeDifficulty)(stnd):
-	case <-ctx.Done():
+	case <-m.quit:
 	}
 }
 
@@ -385,27 +278,14 @@ func (m *wsNotificationManager) NotifyStakeDifficulty(
 // isNew is true, the tx is a new transaction, rather than one
 // added to the mempool during a reorg.
 func (m *wsNotificationManager) NotifyMempoolTx(tx *dcrutil.Tx, isNew bool) {
-	m.mtx.RLock()
-	if m.ctx == nil {
-		// Notification manager not started yet.
-		m.mtx.RUnlock()
-		return
-	}
-	ctx := m.ctx
-	m.mtx.RUnlock()
-
 	n := &notificationTxAcceptedByMempool{
 		isNew: isNew,
 		tx:    tx,
 	}
 
-	// As NotifyMempoolTx will be called by mempool and the RPC server
-	// may no longer be running, use a select statement to unblock
-	// enqueuing the notification once the RPC server has begun
-	// shutting down.
 	select {
 	case m.queueNotification <- n:
-	case <-ctx.Done():
+	case <-m.quit:
 	}
 }
 
@@ -583,7 +463,7 @@ type notificationUnregisterNewMempoolTxs wsClient
 
 // notificationHandler reads notifications and control messages from the queue
 // handler and processes one at a time.
-func (m *wsNotificationManager) notificationHandler() {
+func (m *wsNotificationManager) notificationHandler(ctx context.Context) {
 	// clients is a map of all currently connected websocket clients.
 	clients := make(map[chan struct{}]*wsClient)
 
@@ -605,7 +485,7 @@ func (m *wsNotificationManager) notificationHandler() {
 out:
 	for {
 		select {
-		case <-m.ctx.Done():
+		case <-ctx.Done():
 			// RPC server shutdown.
 			break out
 
@@ -747,21 +627,13 @@ out:
 }
 
 // NumClients returns the number of clients actively being served.
-func (m *wsNotificationManager) NumClients() (n int) {
-	m.mtx.RLock()
-	if m.ctx == nil {
-		// Notification manager not started yet.
-		m.mtx.RUnlock()
-		return
-	}
-	ctx := m.ctx
-	m.mtx.RUnlock()
-
+func (m *wsNotificationManager) NumClients() int {
+	var n int
 	select {
 	case n = <-m.numClients:
-	case <-ctx.Done(): // Use default n (0) if server has shut down.
+	case <-m.quit: // Use default n (0) if server has shut down.
 	}
-	return
+	return n
 }
 
 // RegisterBlockUpdates requests block update notifications to the passed
@@ -1360,18 +1232,9 @@ func (m *wsNotificationManager) AddClient(wsc *wsClient) {
 // RemoveClient removes the passed websocket client and all notifications
 // registered for it.
 func (m *wsNotificationManager) RemoveClient(wsc *wsClient) {
-	m.mtx.RLock()
-	if m.ctx == nil {
-		// Notification manager not started yet.
-		m.mtx.RUnlock()
-		return
-	}
-	ctx := m.ctx
-	m.mtx.RUnlock()
-
 	select {
 	case m.queueNotification <- (*notificationUnregisterClient)(wsc):
-	case <-ctx.Done():
+	case <-m.quit:
 	}
 }
 
@@ -1379,13 +1242,14 @@ func (m *wsNotificationManager) RemoveClient(wsc *wsClient) {
 // websocket client notifications. It blocks until the provided context is
 // cancelled.
 func (m *wsNotificationManager) Run(ctx context.Context) {
-	m.mtx.Lock()
-	m.ctx = ctx
-	m.mtx.Unlock()
-
-	m.wg.Add(2)
-	go m.queueHandler()
-	go m.notificationHandler()
+	m.wg.Add(3)
+	go m.queueHandler(ctx)
+	go m.notificationHandler(ctx)
+	go func(ctx context.Context) {
+		<-ctx.Done()
+		close(m.quit)
+		m.wg.Done()
+	}(ctx)
 	m.wg.Wait()
 }
 
@@ -1397,6 +1261,7 @@ func newWsNotificationManager(server *Server) *wsNotificationManager {
 		queueNotification: make(chan interface{}),
 		notificationMsgs:  make(chan interface{}),
 		numClients:        make(chan int),
+		quit:              make(chan struct{}),
 	}
 }
 
