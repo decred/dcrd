@@ -6,7 +6,6 @@
 package txscript
 
 import (
-	"bytes"
 	"sync"
 
 	"github.com/decred/dcrd/chaincfg/chainhash"
@@ -63,10 +62,7 @@ func (s *SigCache) Exists(sigHash chainhash.Hash, sig *ecdsa.Signature, pubKey *
 	entry, ok := s.validSigs[sigHash]
 	s.RUnlock()
 
-	return ok &&
-		bytes.Equal(entry.pubKey.SerializeCompressed(),
-			pubKey.SerializeCompressed()) &&
-		bytes.Equal(entry.sig.Serialize(), sig.Serialize())
+	return ok && entry.pubKey.IsEqual(pubKey) && entry.sig.IsEqual(sig)
 }
 
 // Add adds an entry for a signature over 'sigHash' under public key 'pubKey'
