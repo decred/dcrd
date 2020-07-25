@@ -5,6 +5,7 @@
 package rpcserver
 
 import (
+	"context"
 	"math/big"
 	"net"
 	"time"
@@ -464,4 +465,29 @@ type SanityChecker interface {
 	// CheckBlockSanity checks the correctness of the provided block
 	// per consensus.
 	CheckBlockSanity(block *dcrutil.Block) error
+}
+
+// CPUMiner represents a CPU miner for use with the RPC server. The purpose of
+// this interface is to allow an alternative implementation to be used for
+// testing.
+//
+// The interface contract requires that all of these methods are safe for
+// concurrent access.
+type CPUMiner interface {
+	// GenerateNBlocks generates the requested number of blocks.
+	GenerateNBlocks(ctx context.Context, n uint32) ([]*chainhash.Hash, error)
+
+	// IsMining returns whether or not the CPU miner has been started and is
+	// therefore currently mining.
+	IsMining() bool
+
+	// HashesPerSecond returns the number of hashes per second the mining process
+	// is performing.
+	HashesPerSecond() float64
+
+	// NumWorkers returns the number of workers which are running to solve blocks.
+	NumWorkers() int32
+
+	// SetNumWorkers sets the number of workers to create which solve blocks.
+	SetNumWorkers(numWorkers int32)
 }
