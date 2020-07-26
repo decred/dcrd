@@ -111,6 +111,7 @@ type testRPCChain struct {
 	blockByHash                     *dcrutil.Block
 	blockByHashErr                  error
 	blockByHeight                   *dcrutil.Block
+	blockByHeightErr                error
 	blockHashByHeight               *chainhash.Hash
 	blockHashByHeightErr            error
 	blockHeightByHash               int64
@@ -170,7 +171,7 @@ func (c *testRPCChain) BlockByHash(hash *chainhash.Hash) (*dcrutil.Block, error)
 
 // BlockByHeight returns a mocked block at the given height.
 func (c *testRPCChain) BlockByHeight(height int64) (*dcrutil.Block, error) {
-	return c.blockByHeight, nil
+	return c.blockByHeight, c.blockByHeightErr
 }
 
 // BlockHashByHeight returns a mocked hash of the block at the given height.
@@ -3167,6 +3168,22 @@ func TestHandleGetCurrentNet(t *testing.T) {
 	}})
 }
 
+func TestHandleGetDifficulty(t *testing.T) {
+	t.Parallel()
+
+	testRPCServerHandler(t, []rpcTest{{
+		name:    "handleGetDifficulty: ok",
+		handler: handleGetDifficulty,
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.bestSnapshot.Bits = defaultChainParams.PowLimitBits
+			return chain
+		}(),
+		cmd:    &types.GetDifficultyCmd{},
+		result: float64(1.0),
+	}})
+}
+
 func TestHandleGetInfo(t *testing.T) {
 	t.Parallel()
 
@@ -3896,6 +3913,63 @@ func TestHandleValidateAddress(t *testing.T) {
 		result: types.ValidateAddressChainResult{
 			IsValid: false,
 		},
+	}})
+}
+
+func TestHandleVerifyChain(t *testing.T) {
+	t.Parallel()
+
+	hash := mustParseHash("00000000000000000c07ff0178ad600db22c18f8f47fa423fa144b2ca919475d")
+
+	testRPCServerHandler(t, []rpcTest{{
+		name:    "handleVerifyChain: ok",
+		handler: handleVerifyChain,
+		cmd:     &types.VerifyChainCmd{},
+		result:  true,
+	}, {
+		name:    "handleVerifyChain: ok with depth=50",
+		handler: handleVerifyChain,
+		cmd: &types.VerifyChainCmd{
+			CheckDepth: dcrjson.Int64(50),
+		},
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.bestSnapshot = &blockchain.BestState{
+				Height: 1,
+				Hash:   *hash,
+			}
+			return chain
+		}(),
+		result: true,
+	}, {
+		name:    "handleVerifyChain: invalid block with checklevel=1",
+		handler: handleVerifyChain,
+		cmd: &types.VerifyChainCmd{
+			CheckLevel: dcrjson.Int64(1),
+			CheckDepth: dcrjson.Int64(50),
+		},
+		mockSanityChecker: func() *testSanityChecker {
+			checker := defaultMockSanityChecker()
+			checker.checkBlockSanityErr = errors.New("invalid block")
+			return checker
+		}(),
+		result: false,
+	}, {
+		name:    "handleVerifyChain: no block exists",
+		handler: handleVerifyChain,
+		cmd: &types.VerifyChainCmd{
+			CheckDepth: dcrjson.Int64(50),
+		},
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.bestSnapshot = &blockchain.BestState{
+				Height: 100,
+				Hash:   *hash,
+			}
+			chain.blockByHeightErr = errors.New("no block exists")
+			return chain
+		}(),
+		result: false,
 	}})
 }
 
