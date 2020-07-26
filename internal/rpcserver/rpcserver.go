@@ -4227,9 +4227,7 @@ func handleSetGenerate(_ context.Context, s *Server, cmd interface{}) (interface
 
 	if !generate {
 		// Stop CPU mining by setting the number of workers to zero, if needed.
-		if s.cfg.CPUMiner != nil {
-			s.cfg.CPUMiner.SetNumWorkers(0)
-		}
+		s.cfg.CPUMiner.SetNumWorkers(0)
 	} else {
 		// Respond with an error if there are no addresses to pay the
 		// created blocks to.

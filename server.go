@@ -3285,7 +3285,7 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB, chainP
 				}
 				return &rpcBlockTemplater{s.bg}
 			}(),
-			CPUMiner:             s.cpuMiner,
+			CPUMiner:             &rpcCPUMiner{s.cpuMiner},
 			TxIndex:              s.txIndex,
 			AddrIndex:            s.addrIndex,
 			NetInfo:              cfg.generateNetworkInfo(),

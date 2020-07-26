@@ -6,6 +6,8 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"net"
 	"time"
 
@@ -19,6 +21,7 @@ import (
 	"github.com/decred/dcrd/internal/fees"
 	"github.com/decred/dcrd/internal/mempool"
 	"github.com/decred/dcrd/internal/mining"
+	"github.com/decred/dcrd/internal/mining/cpuminer"
 	"github.com/decred/dcrd/internal/rpcserver"
 	"github.com/decred/dcrd/peer/v2"
 	"github.com/decred/dcrd/wire"
@@ -525,4 +528,59 @@ var _ rpcserver.BlockTemplater = (*rpcBlockTemplater)(nil)
 // RPC server and implements the rpcserver.BlockTemplater interface.
 type rpcBlockTemplater struct {
 	*mining.BgBlkTmplGenerator
+}
+
+// rpcCPUMiner provides a CPU miner for use with the RPC and implements the
+// rpcserver.CPUMiner interface.
+type rpcCPUMiner struct {
+	miner *cpuminer.CPUMiner
+}
+
+// Ensure rpcCPUMiner implements the rpcserver.CPUMiner interface.
+var _ rpcserver.CPUMiner = (*rpcCPUMiner)(nil)
+
+// GenerateNBlocks generates the requested number of blocks.
+func (c *rpcCPUMiner) GenerateNBlocks(ctx context.Context, n uint32) ([]*chainhash.Hash, error) {
+	if c.miner == nil {
+		return nil, errors.New("Block generation is disallowed without a " +
+			"CPU miner.")
+	}
+
+	return c.miner.GenerateNBlocks(ctx, n)
+}
+
+// IsMining returns whether or not the CPU miner has been started and is
+// therefore currently mining.
+func (c *rpcCPUMiner) IsMining() bool {
+	if c.miner == nil {
+		return false
+	}
+
+	return c.miner.IsMining()
+}
+
+// HashesPerSecond returns the number of hashes per second the mining process
+// is performing.
+func (c *rpcCPUMiner) HashesPerSecond() float64 {
+	if c.miner == nil {
+		return 0
+	}
+
+	return c.miner.HashesPerSecond()
+}
+
+// NumWorkers returns the number of workers which are running to solve blocks.
+func (c *rpcCPUMiner) NumWorkers() int32 {
+	if c.miner == nil {
+		return 0
+	}
+
+	return c.miner.NumWorkers()
+}
+
+// SetNumWorkers sets the number of workers to create which solve blocks.
+func (c *rpcCPUMiner) SetNumWorkers(numWorkers int32) {
+	if c.miner != nil {
+		c.miner.SetNumWorkers(numWorkers)
+	}
 }
