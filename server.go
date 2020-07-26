@@ -3279,9 +3279,12 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB, chainP
 			SanityChecker: &rpcSanityChecker{s.timeSource, chainParams},
 			DB:            db,
 			TxMemPool:     s.txMemPool,
-			BgBlkTmplGenerator: func() *mining.BgBlkTmplGenerator {
-				return s.bg
-			},
+			BlockTemplater: func() rpcserver.BlockTemplater {
+				if s.bg == nil {
+					return nil
+				}
+				return &rpcBlockTemplater{s.bg}
+			}(),
 			CPUMiner:             s.cpuMiner,
 			TxIndex:              s.txIndex,
 			AddrIndex:            s.addrIndex,

@@ -18,6 +18,7 @@ import (
 	"github.com/decred/dcrd/dcrutil/v3"
 	"github.com/decred/dcrd/internal/fees"
 	"github.com/decred/dcrd/internal/mempool"
+	"github.com/decred/dcrd/internal/mining"
 	"github.com/decred/dcrd/internal/rpcserver"
 	"github.com/decred/dcrd/peer/v2"
 	"github.com/decred/dcrd/wire"
@@ -515,4 +516,13 @@ var _ rpcserver.SanityChecker = (*rpcSanityChecker)(nil)
 // This function is part of the rpcserver.SanityChecker interface implementation.
 func (s *rpcSanityChecker) CheckBlockSanity(block *dcrutil.Block) error {
 	return blockchain.CheckBlockSanity(block, s.timeSource, s.chainParams)
+}
+
+// Ensure rpcBlockTemplater implements the rpcserver.BlockTemplater interface.
+var _ rpcserver.BlockTemplater = (*rpcBlockTemplater)(nil)
+
+// rpcBlockTemplater provides a block template generator for use with the
+// RPC server and implements the rpcserver.BlockTemplater interface.
+type rpcBlockTemplater struct {
+	*mining.BgBlkTmplGenerator
 }

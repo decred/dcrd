@@ -18,6 +18,7 @@ import (
 	"github.com/decred/dcrd/dcrutil/v3"
 	"github.com/decred/dcrd/gcs/v2"
 	"github.com/decred/dcrd/internal/mempool"
+	"github.com/decred/dcrd/internal/mining"
 	"github.com/decred/dcrd/peer/v2"
 	"github.com/decred/dcrd/wire"
 )
@@ -490,4 +491,28 @@ type CPUMiner interface {
 
 	// SetNumWorkers sets the number of workers to create which solve blocks.
 	SetNumWorkers(numWorkers int32)
+}
+
+// BlockTemplater represents a source of block templates for use with the
+// RPC server.
+//
+// The interface contract requires that all of these methods are safe for
+// concurrent access.
+type BlockTemplater interface {
+	// ForceRegen asks the block templater to generate a new template immediately.
+	ForceRegen()
+
+	// Subscribe subscribes a client for block template updates.  The returned
+	// template subscription contains functions to retrieve a channel that produces
+	// the stream of block templates and to stop the stream when the caller no
+	// longer wishes to receive new templates.
+	Subscribe() *mining.TemplateSubscription
+
+	// CurrentTemplate returns the current template associated with the block
+	// templater along with any associated error.
+	CurrentTemplate() (*mining.BlockTemplate, error)
+
+	// UpdateBlockTime updates the timestamp in the passed header to the current
+	// time while taking into account the consensus rules.
+	UpdateBlockTime(header *wire.BlockHeader) error
 }
