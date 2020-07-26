@@ -357,6 +357,18 @@ func (node *blockNode) CalcPastMedianTime() time.Time {
 	return time.Unix(medianTimestamp, 0)
 }
 
+// chainTipEntry defines an entry used to track the chain tips and is structured
+// such that there is a single statically-allocated field to house a tip, and a
+// dynamically-allocated slice for the rare case when there are multiple
+// tips at the same height.
+//
+// This is done to reduce the number of allocations for the common case since
+// there is typically only a single tip at a given height.
+type chainTipEntry struct {
+	tip       *blockNode
+	otherTips []*blockNode
+}
+
 // blockIndex provides facilities for keeping track of an in-memory index of the
 // block chain.  Although the name block chain suggests a single chain of
 // blocks, it is actually a tree-shaped structure where any node can have
@@ -377,10 +389,13 @@ type blockIndex struct {
 	// since the last time the index was flushed to disk.
 	//
 	// chainTips contains an entry with the tip of all known side chains.
+	//
+	// totalTips tracks the total number of all known chain tips.
 	sync.RWMutex
 	index     map[chainhash.Hash]*blockNode
 	modified  map[*blockNode]struct{}
-	chainTips map[int64][]*blockNode
+	chainTips map[int64]chainTipEntry
+	totalTips uint64
 }
 
 // newBlockIndex returns a new empty instance of a block index.  The index will
@@ -391,7 +406,7 @@ func newBlockIndex(db database.DB) *blockIndex {
 		db:        db,
 		index:     make(map[chainhash.Hash]*blockNode),
 		modified:  make(map[*blockNode]struct{}),
-		chainTips: make(map[int64][]*blockNode),
+		chainTips: make(map[int64]chainTipEntry),
 	}
 }
 
@@ -440,29 +455,73 @@ func (bi *blockIndex) AddNode(node *blockNode) {
 //
 // This function MUST be called with the block index lock held (for writes).
 func (bi *blockIndex) addChainTip(tip *blockNode) {
-	bi.chainTips[tip.height] = append(bi.chainTips[tip.height], tip)
+	bi.totalTips++
+
+	// When an entry does not already exist for the given tip height, add an
+	// entry to the map with the tip stored in the statically-allocated field.
+	entry, ok := bi.chainTips[tip.height]
+	if !ok {
+		bi.chainTips[tip.height] = chainTipEntry{tip: tip}
+		return
+	}
+
+	// Otherwise, an entry already exists for the given tip height, so store the
+	// tip in the dynamically-allocated slice.
+	entry.otherTips = append(entry.otherTips, tip)
+	bi.chainTips[tip.height] = entry
 }
 
 // removeChainTip removes the passed block node from the available chain tips.
 //
 // This function MUST be called with the block index lock held (for writes).
 func (bi *blockIndex) removeChainTip(tip *blockNode) {
-	nodes := bi.chainTips[tip.height]
-	for i, n := range nodes {
-		if n == tip {
-			copy(nodes[i:], nodes[i+1:])
-			nodes[len(nodes)-1] = nil
-			nodes = nodes[:len(nodes)-1]
-			break
-		}
+	// Nothing to do if no tips exist at the given height.
+	entry, ok := bi.chainTips[tip.height]
+	if !ok {
+		return
 	}
 
-	// Either update the map entry for the height with the remaining nodes
-	// or remove it altogether if there are no more nodes left.
-	if len(nodes) == 0 {
-		delete(bi.chainTips, tip.height)
-	} else {
-		bi.chainTips[tip.height] = nodes
+	// The most common case is a single tip at the given height, so handle the
+	// case where the tip that is being removed is the tip that is stored in the
+	// statically-allocated field first.
+	if entry.tip == tip {
+		bi.totalTips--
+		entry.tip = nil
+
+		// Remove the map entry altogether if there are no more tips left.
+		if len(entry.otherTips) == 0 {
+			delete(bi.chainTips, tip.height)
+			return
+		}
+
+		// There are still tips stored in the dynamically-allocated slice, so
+		// move the first tip from it to the statically-allocated field, nil the
+		// slice so it can be garbage collected when there are no more items in
+		// it, and update the map with the modified entry accordingly.
+		entry.tip = entry.otherTips[0]
+		entry.otherTips = entry.otherTips[1:]
+		if len(entry.otherTips) == 0 {
+			entry.otherTips = nil
+		}
+		bi.chainTips[tip.height] = entry
+		return
+	}
+
+	// The tip being removed is not the tip stored in the statically-allocated
+	// field, so attempt to remove it from the dyanimcally-allocated slice.
+	for i, n := range entry.otherTips {
+		if n == tip {
+			bi.totalTips--
+
+			copy(entry.otherTips[i:], entry.otherTips[i+1:])
+			entry.otherTips[len(entry.otherTips)-1] = nil
+			entry.otherTips = entry.otherTips[:len(entry.otherTips)-1]
+			if len(entry.otherTips) == 0 {
+				entry.otherTips = nil
+			}
+			bi.chainTips[tip.height] = entry
+			return
+		}
 	}
 }
 

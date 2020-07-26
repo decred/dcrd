@@ -194,14 +194,18 @@ func TestChainTips(t *testing.T) {
 	//  |    |     \-> 3b -> 4b -> 5b
 	//  |    \-> 2c -> 3c -> 4c -> 5c -> 6c -> 7c -> ... -> 26c
 	//  \-> 1d
-	//  \-> 1e
-	branches := make([][]*blockNode, 6)
+	//  |     \
+	//  \-> 1e |
+	//         \-> 2f (added after 1e)
+
+	branches := make([][]*blockNode, 7)
 	branches[0] = chainedFakeNodes(genesis, 4)
 	branches[1] = chainedFakeNodes(branches[0][0], 25)
 	branches[2] = chainedFakeNodes(branches[1][0], 3)
 	branches[3] = chainedFakeNodes(branches[0][0], 25)
 	branches[4] = chainedFakeNodes(genesis, 1)
 	branches[5] = chainedFakeNodes(genesis, 1)
+	branches[6] = chainedFakeNodes(branches[4][0], 1)
 
 	// Add all of the nodes to the index.
 	for _, branch := range branches {
@@ -213,16 +217,26 @@ func TestChainTips(t *testing.T) {
 	// Create a map of all of the chain tips the block index believes exist.
 	chainTips := make(map[*blockNode]struct{})
 	bc.index.RLock()
-	for _, nodes := range bc.index.chainTips {
-		for _, node := range nodes {
+	for _, entry := range bc.index.chainTips {
+		chainTips[entry.tip] = struct{}{}
+		for _, node := range entry.otherTips {
 			chainTips[node] = struct{}{}
 		}
 	}
 	bc.index.RUnlock()
 
-	// The expected chain tips are the tips of all of the branches.
+	// Exclude tips that are part of an earlier set of branch nodes that was
+	// built on via a new set of branch nodes.
+	excludeExpected := make(map[*blockNode]struct{})
+	excludeExpected[branchTip(branches[4])] = struct{}{}
+
+	// The expected chain tips are the tips of all of the branches minus any
+	// that were excluded.
 	expectedTips := make(map[*blockNode]struct{})
 	for _, branch := range branches {
+		if _, ok := excludeExpected[branchTip(branch)]; ok {
+			continue
+		}
 		expectedTips[branchTip(branch)] = struct{}{}
 	}
 

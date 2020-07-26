@@ -365,12 +365,16 @@ func (b *BlockChain) ChainWork(hash *chainhash.Hash) (*big.Int, error) {
 //
 // The function is safe for concurrent access.
 func (b *BlockChain) TipGeneration() ([]chainhash.Hash, error) {
+	var nodeHashes []chainhash.Hash
 	b.chainLock.Lock()
 	b.index.RLock()
-	nodes := b.index.chainTips[b.bestChain.Tip().height]
-	nodeHashes := make([]chainhash.Hash, len(nodes))
-	for i, n := range nodes {
-		nodeHashes[i] = n.hash
+	entry := b.index.chainTips[b.bestChain.Tip().height]
+	if entry.tip != nil {
+		nodeHashes = make([]chainhash.Hash, 0, len(entry.otherTips)+1)
+		nodeHashes = append(nodeHashes, entry.tip.hash)
+		for _, n := range entry.otherTips {
+			nodeHashes = append(nodeHashes, n.hash)
+		}
 	}
 	b.index.RUnlock()
 	b.chainLock.Unlock()
