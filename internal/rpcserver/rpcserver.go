@@ -3289,7 +3289,7 @@ func handleGetWorkRequest(s *Server) (interface{}, error) {
 	// chain changes.
 	state := s.workState
 	best := s.cfg.Chain.BestSnapshot()
-	bgTmplGenerator := s.cfg.BgBlkTmplGenerator()
+	bt := s.cfg.BlockTemplater
 	var template *mining.BlockTemplate
 	if state.prevHash == nil || *state.prevHash != best.Hash {
 		// Prune old templates from the pool when the best block changes.
@@ -3302,7 +3302,7 @@ func handleGetWorkRequest(s *Server) (interface{}, error) {
 		// that case, wait for the updated template with an eventual timeout
 		// in case the new tip never gets enough votes and no other events
 		// that trigger a new template have happened.
-		templateSub := bgTmplGenerator.Subscribe()
+		templateSub := bt.Subscribe()
 		templateNtfn := <-templateSub.C()
 		template = templateNtfn.Template
 		templateKey := getWorkTemplateKey(&template.Block.Header)
@@ -3324,7 +3324,7 @@ func handleGetWorkRequest(s *Server) (interface{}, error) {
 	// happened when generating the template.
 	if template == nil {
 		var err error
-		template, err = bgTmplGenerator.CurrentTemplate()
+		template, err = bt.CurrentTemplate()
 		if err != nil || template == nil {
 			context := "Unable to retrieve work due to invalid template"
 			return nil, rpcInternalError(err.Error(), context)
@@ -3336,7 +3336,7 @@ func handleGetWorkRequest(s *Server) (interface{}, error) {
 	// consensus rules.  Note that the header is copied to avoid mutating the
 	// shared block template.
 	headerCopy := template.Block.Header
-	err := bgTmplGenerator.UpdateBlockTime(&headerCopy)
+	err := bt.UpdateBlockTime(&headerCopy)
 	if err != nil {
 		context := "Failed to update block time"
 		return nil, rpcInternalError(err.Error(), context)
@@ -3611,11 +3611,11 @@ func handlePing(_ context.Context, s *Server, cmd interface{}) (interface{}, err
 
 // handleRegenTemplate implements the regentemplate command.
 func handleRegenTemplate(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
-	bg := s.cfg.BgBlkTmplGenerator()
-	if bg == nil {
+	bt := s.cfg.BlockTemplater
+	if bt == nil {
 		return nil, rpcInternalError("Node is not configured for mining", "")
 	}
-	bg.ForceRegen()
+	bt.ForceRegen()
 	return nil, nil
 }
 
@@ -5615,11 +5615,11 @@ type Config struct {
 
 	// These fields allow the RPC server to interface with mining.
 	//
-	// BgBlkTmplGenerator generates blocks as a background process, CPUMiner
-	// solves templates using the CPU.  CPU mining is typically only useful
+	// BlockTemplater generates block templates, CPUMiner solves
+	// templates using the CPU.  CPU mining is typically only useful
 	// for test purposes when doing regression or simulation testing.
-	BgBlkTmplGenerator func() *mining.BgBlkTmplGenerator
-	CPUMiner           CPUMiner
+	BlockTemplater BlockTemplater
+	CPUMiner       CPUMiner
 
 	// These fields define any optional indexes the RPC server can make use
 	// of to provide additional data when queried.
