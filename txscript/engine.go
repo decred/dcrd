@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/decred/dcrd/wire"
+	"github.com/decred/slog"
 )
 
 // ScriptFlags is a bitmask defining additional operations or tests that will be
@@ -445,7 +446,7 @@ func (vm *Engine) CheckErrorCondition(finalScript bool) error {
 	}
 	if !v {
 		// Log interesting data.
-		log.Tracef("%v", newLogClosure(func() string {
+		if log.Level() <= slog.LevelTrace {
 			var buf strings.Builder
 			buf.WriteString("scripts failed:\n")
 			for i := range vm.scripts {
@@ -453,8 +454,8 @@ func (vm *Engine) CheckErrorCondition(finalScript bool) error {
 				buf.WriteString(fmt.Sprintf("script%d:\n", i))
 				buf.WriteString(dis)
 			}
-			return buf.String()
-		}))
+			log.Trace(buf.String())
+		}
 		return scriptError(ErrEvalFalse,
 			"false stack entry at end of script execution")
 	}
@@ -587,31 +588,32 @@ func (vm *Engine) Execute() (err error) {
 
 	done := false
 	for !done {
-		log.Tracef("%v", newLogClosure(func() string {
+		if log.Level() <= slog.LevelTrace {
 			dis, err := vm.DisasmPC()
 			if err != nil {
-				return fmt.Sprintf("stepping - failed to disasm pc: %v", err)
+				log.Tracef("stepping - failed to disasm pc: %v", err)
+			} else {
+				log.Tracef("stepping %v", dis)
 			}
-			return fmt.Sprintf("stepping %v", dis)
-		}))
+		}
 
 		done, err = vm.Step()
 		if err != nil {
 			return err
 		}
-		log.Tracef("%v", newLogClosure(func() string {
-			var dstr, astr string
-
+		if log.Level() <= slog.LevelTrace {
 			// Log the non-empty stacks when tracing.
+			var buf strings.Builder
 			if vm.dstack.Depth() != 0 {
-				dstr = "Stack:\n" + vm.dstack.String()
+				buf.WriteString("Stack:\n")
+				buf.WriteString(vm.dstack.String())
 			}
 			if vm.astack.Depth() != 0 {
-				astr = "AltStack:\n" + vm.astack.String()
+				buf.WriteString("AltStack:\n")
+				buf.WriteString(vm.astack.String())
 			}
-
-			return dstr + astr
-		}))
+			log.Trace(buf.String())
+		}
 	}
 
 	return vm.CheckErrorCondition(true)
