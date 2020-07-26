@@ -22,6 +22,7 @@ import (
 	"github.com/decred/dcrd/lru"
 	"github.com/decred/dcrd/wire"
 	"github.com/decred/go-socks/socks"
+	"github.com/decred/slog"
 )
 
 const (
@@ -994,23 +995,19 @@ func (p *Peer) readMessage() (wire.Message, []byte, error) {
 		return nil, nil, err
 	}
 
-	// Use closures to log expensive operations so they are only run when
-	// the logging level requires it.
-	log.Debugf("%v", newLogClosure(func() string {
+	// Only construct expensive log strings when the logging level requires it.
+	if log.Level() <= slog.LevelDebug {
 		// Debug summary of message.
 		summary := messageSummary(msg)
 		if len(summary) > 0 {
 			summary = " (" + summary + ")"
 		}
-		return fmt.Sprintf("Received %v%s from %s",
-			msg.Command(), summary, p)
-	}))
-	log.Tracef("%v", newLogClosure(func() string {
-		return spew.Sdump(msg)
-	}))
-	log.Tracef("%v", newLogClosure(func() string {
-		return spew.Sdump(buf)
-	}))
+		log.Debugf("Received %s%s from %s", msg.Command(), summary, p)
+	}
+	if log.Level() <= slog.LevelTrace {
+		log.Trace(spew.Sdump(msg))
+		log.Trace(spew.Sdump(buf))
+	}
 
 	return msg, buf, nil
 }
@@ -1022,28 +1019,24 @@ func (p *Peer) writeMessage(msg wire.Message) error {
 		return nil
 	}
 
-	// Use closures to log expensive operations so they are only run when
-	// the logging level requires it.
-	log.Debugf("%v", newLogClosure(func() string {
+	// Only construct expensive log strings when the logging level requires it.
+	if log.Level() <= slog.LevelDebug {
 		// Debug summary of message.
 		summary := messageSummary(msg)
 		if len(summary) > 0 {
 			summary = " (" + summary + ")"
 		}
-		return fmt.Sprintf("Sending %v%s to %s", msg.Command(),
-			summary, p)
-	}))
-	log.Tracef("%v", newLogClosure(func() string {
-		return spew.Sdump(msg)
-	}))
-	log.Tracef("%v", newLogClosure(func() string {
+		log.Debugf("Sending %v%s to %s", msg.Command(), summary, p)
+	}
+	if log.Level() <= slog.LevelTrace {
+		log.Trace(spew.Sdump(msg))
+
 		var buf bytes.Buffer
 		err := wire.WriteMessage(&buf, msg, p.ProtocolVersion(), p.cfg.Net)
-		if err != nil {
-			return err.Error()
+		if err == nil {
+			log.Trace(spew.Sdump(buf.Bytes()))
 		}
-		return spew.Sdump(buf.Bytes())
-	}))
+	}
 
 	// Write the message to the peer.
 	n, err := wire.WriteMessageN(p.conn, msg, p.ProtocolVersion(), p.cfg.Net)

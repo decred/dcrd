@@ -41,19 +41,6 @@ func UseLogger(logger slog.Logger) {
 	log = logger
 }
 
-// LogClosure is a closure that can be printed with %v to be used to
-// generate expensive-to-create data for a detailed log level and avoid doing
-// the work if the data isn't printed.
-type logClosure func() string
-
-func (c logClosure) String() string {
-	return c()
-}
-
-func newLogClosure(c func() string) logClosure {
-	return logClosure(c)
-}
-
 // directionString is a helper function that returns a string that represents
 // the direction of a connection (inbound or outbound).
 func directionString(inbound bool) string {
