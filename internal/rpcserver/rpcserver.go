@@ -1458,6 +1458,9 @@ func handleExistsAddress(_ context.Context, s *Server, cmd interface{}) (interfa
 }
 
 // handleExistsAddresses implements the existsaddresses command.
+//
+// TODO: Add an upper bound to the number of addresses that can be checked.
+// This will come with a major RPC version bump.
 func handleExistsAddresses(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
 	if s.cfg.ExistsAddresser == nil {
 		return nil, rpcInternalError("Exists address index disabled",
@@ -1523,6 +1526,9 @@ func decodeHashPointers(strs []string) ([]*chainhash.Hash, error) {
 }
 
 // handleExistsMissedTickets implements the existsmissedtickets command.
+//
+// TODO: Add an upper bound to the number of hashes that can be checked. This
+// will come with a major RPC version bump.
 func handleExistsMissedTickets(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
 	c := cmd.(*types.ExistsMissedTicketsCmd)
 
@@ -1549,6 +1555,9 @@ func handleExistsMissedTickets(_ context.Context, s *Server, cmd interface{}) (i
 }
 
 // handleExistsExpiredTickets implements the existsexpiredtickets command.
+//
+// TODO: Add an upper bound to the number of hashes that can be checked. This
+// will come with a major RPC version bump.
 func handleExistsExpiredTickets(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
 	c := cmd.(*types.ExistsExpiredTicketsCmd)
 
@@ -1587,6 +1596,9 @@ func handleExistsLiveTicket(_ context.Context, s *Server, cmd interface{}) (inte
 }
 
 // handleExistsLiveTickets implements the existslivetickets command.
+//
+// TODO: Add an upper bound to the number of hashes that can be checked. This
+// will come with a major RPC version bump.
 func handleExistsLiveTickets(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
 	c := cmd.(*types.ExistsLiveTicketsCmd)
 
@@ -1613,6 +1625,9 @@ func handleExistsLiveTickets(_ context.Context, s *Server, cmd interface{}) (int
 }
 
 // handleExistsMempoolTxs implements the existsmempooltxs command.
+//
+// TODO: Add an upper bound to the number of hashes that can be checked. This
+// will come with a major RPC version bump.
 func handleExistsMempoolTxs(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
 	c := cmd.(*types.ExistsMempoolTxsCmd)
 
