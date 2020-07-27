@@ -2272,6 +2272,59 @@ func TestHandleExistsAddress(t *testing.T) {
 	}})
 }
 
+func TestHandleExistsAddresses(t *testing.T) {
+	t.Parallel()
+
+	validAddr := "DcurAwesomeAddressmqDctW5wJCW1Cn2MF"
+	validAddrs := []string{validAddr, validAddr, validAddr}
+	existsSlice := []bool{false, true, true}
+	// existsSlice as a bitset is 110₂ which is 6₁₆ in hex.
+	existsStr := "06"
+	testRPCServerHandler(t, []rpcTest{{
+		name:    "handleExistsAddresses: ok",
+		handler: handleExistsAddresses,
+		cmd: &types.ExistsAddressesCmd{
+			Addresses: validAddrs,
+		},
+		mockExistsAddresser: func() *testExistsAddresser {
+			existsAddrIndexer := defaultMockExistsAddresser()
+			existsAddrIndexer.existsAddresses = existsSlice
+			return existsAddrIndexer
+		}(),
+		result: existsStr,
+	}, {
+		name:    "handleExistsAddresses: exist address indexing not enabled",
+		handler: handleExistsAddresses,
+		cmd: &types.ExistsAddressesCmd{
+			Addresses: validAddrs,
+		},
+		setExistsAddresserNil: true,
+		wantErr:               true,
+		errCode:               dcrjson.ErrRPCInternal.Code,
+	}, {
+		name:    "handleExistsAddresses: bad address",
+		handler: handleExistsAddresses,
+		cmd: &types.ExistsAddressesCmd{
+			Addresses: append(validAddrs, "bad address"),
+		},
+		wantErr: true,
+		errCode: dcrjson.ErrRPCInvalidAddressOrKey,
+	}, {
+		name:    "handleExistsAddresses: ExistsAddresses error",
+		handler: handleExistsAddresses,
+		cmd: &types.ExistsAddressesCmd{
+			Addresses: validAddrs,
+		},
+		mockExistsAddresser: func() *testExistsAddresser {
+			existsAddrIndexer := defaultMockExistsAddresser()
+			existsAddrIndexer.existsAddressesErr = errors.New("")
+			return existsAddrIndexer
+		}(),
+		wantErr: true,
+		errCode: dcrjson.ErrRPCInvalidParameter,
+	}})
+}
+
 func TestHandleExistsExpiredTickets(t *testing.T) {
 	t.Parallel()
 
