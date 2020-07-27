@@ -742,69 +742,6 @@ func (s scriptSource) PrevScript(prevOut *wire.OutPoint) (uint16, []byte, bool) 
 	return entry.version, entry.script, true
 }
 
-// stxosToScriptSource uses the provided block and spent txo information to
-// create a source of previous transaction scripts and versions spent by the
-// block.
-func stxosToScriptSource(block *dcrutil.Block, stxos []spentTxOut, compressionVersion uint32) scriptSource {
-	source := make(scriptSource)
-
-	// Loop through all of the transaction inputs in the stake transaction tree
-	// (except for the stakebases which have no inputs) and add the scripts and
-	// associated script versions from the referenced txos to the script source.
-	//
-	// Note that transactions in the stake tree are spent before transactions in
-	// the regular tree when originally creating the spend journal entry, thus
-	// the spent txous need to be processed in the same order.
-	var stxoIdx int
-	for _, tx := range block.MsgBlock().STransactions {
-		isVote := stake.IsSSGen(tx)
-		for txInIdx, txIn := range tx.TxIn {
-			// Ignore stakebase since it has no input.
-			if isVote && txInIdx == 0 {
-				continue
-			}
-
-			// Ensure the spent txout index is incremented to stay in sync with
-			// the transaction input.
-			stxo := &stxos[stxoIdx]
-			stxoIdx++
-
-			// Create an output for the referenced script and version using the
-			// stxo data from the spend journal if it doesn't already exist in
-			// the view.
-			prevOut := &txIn.PreviousOutPoint
-			source[*prevOut] = scriptSourceEntry{
-				version: stxo.scriptVersion,
-				script:  decompressScript(stxo.pkScript, compressionVersion),
-			}
-		}
-	}
-
-	// Loop through all of the transaction inputs in the regular transaction
-	// tree (except for the coinbase which has no inputs) and add the scripts
-	// and associated script versions from the referenced txos to the script
-	// source.
-	for _, tx := range block.MsgBlock().Transactions[1:] {
-		for _, txIn := range tx.TxIn {
-			// Ensure the spent txout index is incremented to stay in sync with
-			// the transaction input.
-			stxo := &stxos[stxoIdx]
-			stxoIdx++
-
-			// Create an output for the referenced script and version using the
-			// stxo data from the spend journal if it doesn't already exist in
-			// the view.
-			prevOut := &txIn.PreviousOutPoint
-			source[*prevOut] = scriptSourceEntry{
-				version: stxo.scriptVersion,
-				script:  decompressScript(stxo.pkScript, compressionVersion),
-			}
-		}
-	}
-
-	return source
-}
-
 // clearFailedBlockFlags unmarks all blocks previously marked failed so they are
 // eligible for validation again under new consensus rules.  This ensures
 // clients that did not update prior to new rules activating are able to
