@@ -17,7 +17,6 @@ import (
 
 	"github.com/decred/dcrd/blockchain/stake/v3"
 	"github.com/decred/dcrd/blockchain/standalone/v2"
-	"github.com/decred/dcrd/blockchain/v3/internal/dbnamespace"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/database/v2"
 	"github.com/decred/dcrd/dcrutil/v3"
@@ -39,6 +38,56 @@ const (
 	// constant from wire and is only provided here for convenience since
 	// wire.MaxBlockHeaderPayload is quite long.
 	blockHdrSize = wire.MaxBlockHeaderPayload
+)
+
+var (
+	// byteOrder is the preferred byte order used for serializing numeric fields
+	// for storage in the database.
+	byteOrder = binary.LittleEndian
+
+	// bcdbInfoBucketName is the name of the database bucket used to house
+	// global versioning and date information for the blockchain database.
+	bcdbInfoBucketName = []byte("dbinfo")
+
+	// bcdbInfoVersionKeyName is the name of the database key used to house the
+	// database version.  It is itself under the bcdbInfoBucketName bucket.
+	bcdbInfoVersionKeyName = []byte("version")
+
+	// bcdbInfoCompressionVerKeyName is the name of the database key used to
+	// house the database compression version.  It is itself under the
+	// bcdbInfoBucketName bucket.
+	bcdbInfoCompressionVerKeyName = []byte("compver")
+
+	// bcdbInfoBlockIndexVerKeyName is the name of the database key used to
+	// house the database block index version.  It is itself under the
+	// bcdbInfoBucketName bucket.
+	bcdbInfoBlockIndexVerKeyName = []byte("bidxver")
+
+	// bcdbInfoCreatedKeyName is the name of the database key used to house
+	// date the database was created.  It is itself under the
+	// bcdbInfoBucketName bucket.
+	bcdbInfoCreatedKeyName = []byte("created")
+
+	// chainStateKeyName is the name of the db key used to store the best chain
+	// state.
+	chainStateKeyName = []byte("chainstate")
+
+	// spendJournalBucketName is the name of the db bucket used to house
+	// transactions outputs that are spent in each block.
+	spendJournalBucketName = []byte("spendjournal")
+
+	// utxoSetBucketName is the name of the db bucket used to house the unspent
+	// transaction output set.
+	utxoSetBucketName = []byte("utxoset")
+
+	// blockIndexBucketName is the name of the db bucket used to house the block
+	// index which consists of metadata for all known blocks both in the main
+	// chain and on side chains.
+	blockIndexBucketName = []byte("blockidx")
+
+	// gcsFilterBucketName is the name of the db bucket used to house GCS
+	// filters.
+	gcsFilterBucketName = []byte("gcsfilters")
 )
 
 // errNotInMainChain signifies that a block hash or height that is not in the
@@ -426,7 +475,7 @@ func dbPutBlockNode(dbTx database.Tx, node *blockNode) error {
 		return err
 	}
 
-	bucket := dbTx.Metadata().Bucket(dbnamespace.BlockIndexBucketName)
+	bucket := dbTx.Metadata().Bucket(blockIndexBucketName)
 	key := blockIndexKey(&node.hash, uint32(node.height))
 	return bucket.Put(key, serialized)
 }
@@ -776,7 +825,7 @@ func serializeSpendJournalEntry(stxos []spentTxOut) ([]byte, error) {
 // txouts.
 func dbFetchSpendJournalEntry(dbTx database.Tx, block *dcrutil.Block) ([]spentTxOut, error) {
 	// Exclude the coinbase transaction since it can't spend anything.
-	spendBucket := dbTx.Metadata().Bucket(dbnamespace.SpendJournalBucketName)
+	spendBucket := dbTx.Metadata().Bucket(spendJournalBucketName)
 	serialized := spendBucket.Get(block.Hash()[:])
 	msgBlock := block.MsgBlock()
 
@@ -812,7 +861,7 @@ func dbFetchSpendJournalEntry(dbTx database.Tx, block *dcrutil.Block) ([]spentTx
 // spent txouts.   The spent txouts slice must contain an entry for every txout
 // the transactions in the block spend in the order they are spent.
 func dbPutSpendJournalEntry(dbTx database.Tx, blockHash *chainhash.Hash, stxos []spentTxOut) error {
-	spendBucket := dbTx.Metadata().Bucket(dbnamespace.SpendJournalBucketName)
+	spendBucket := dbTx.Metadata().Bucket(spendJournalBucketName)
 	serialized, err := serializeSpendJournalEntry(stxos)
 	if err != nil {
 		return err
@@ -823,7 +872,7 @@ func dbPutSpendJournalEntry(dbTx database.Tx, blockHash *chainhash.Hash, stxos [
 // dbRemoveSpendJournalEntry uses an existing database transaction to remove the
 // spend journal entry for the passed block hash.
 func dbRemoveSpendJournalEntry(dbTx database.Tx, blockHash *chainhash.Hash) error {
-	spendBucket := dbTx.Metadata().Bucket(dbnamespace.SpendJournalBucketName)
+	spendBucket := dbTx.Metadata().Bucket(spendJournalBucketName)
 	return spendBucket.Delete(blockHash[:])
 }
 
@@ -1145,7 +1194,7 @@ func deserializeUtxoEntry(serialized []byte) (*UtxoEntry, error) {
 func dbFetchUtxoEntry(dbTx database.Tx, hash *chainhash.Hash) (*UtxoEntry, error) {
 	// Fetch the unspent transaction output information for the passed
 	// transaction hash.  Return now when there is no entry.
-	utxoBucket := dbTx.Metadata().Bucket(dbnamespace.UtxoSetBucketName)
+	utxoBucket := dbTx.Metadata().Bucket(utxoSetBucketName)
 	serializedUtxo := utxoBucket.Get(hash[:])
 	if serializedUtxo == nil {
 		return nil, nil
@@ -1179,7 +1228,7 @@ func dbFetchUtxoEntry(dbTx database.Tx, hash *chainhash.Hash) (*UtxoEntry, error
 
 // dbFetchUxtoStats fetches statistics on the current unspent trnsaction output set.
 func dbFetchUtxoStats(dbTx database.Tx) (*UtxoStats, error) {
-	utxoBucket := dbTx.Metadata().Bucket(dbnamespace.UtxoSetBucketName)
+	utxoBucket := dbTx.Metadata().Bucket(utxoSetBucketName)
 
 	var stats UtxoStats
 	transactions := make(map[chainhash.Hash]int64)
@@ -1238,7 +1287,7 @@ func dbFetchUtxoStats(dbTx database.Tx) (*UtxoStats, error) {
 // particular, only the entries that have been marked as modified are written
 // to the database.
 func dbPutUtxoView(dbTx database.Tx, view *UtxoViewpoint) error {
-	utxoBucket := dbTx.Metadata().Bucket(dbnamespace.UtxoSetBucketName)
+	utxoBucket := dbTx.Metadata().Bucket(utxoSetBucketName)
 	for txHashIter, entry := range view.entries {
 		// No need to update the database if the entry was not modified.
 		if entry == nil || !entry.modified {
@@ -1304,7 +1353,7 @@ func dbPutUtxoView(dbTx database.Tx, view *UtxoViewpoint) error {
 // When there is no entry for the provided hash, nil will be returned for both
 // the filter and the error.
 func dbFetchGCSFilter(dbTx database.Tx, blockHash *chainhash.Hash) (*gcs.FilterV2, error) {
-	filterBucket := dbTx.Metadata().Bucket(dbnamespace.GCSFilterBucketName)
+	filterBucket := dbTx.Metadata().Bucket(gcsFilterBucketName)
 	serialized := filterBucket.Get(blockHash[:])
 	if serialized == nil {
 		return nil, nil
@@ -1325,7 +1374,7 @@ func dbFetchGCSFilter(dbTx database.Tx, blockHash *chainhash.Hash) (*gcs.FilterV
 // dbPutGCSFilter uses an existing database transaction to update the GCS filter
 // for the given block hash using the provided filter.
 func dbPutGCSFilter(dbTx database.Tx, blockHash *chainhash.Hash, filter *gcs.FilterV2) error {
-	filterBucket := dbTx.Metadata().Bucket(dbnamespace.GCSFilterBucketName)
+	filterBucket := dbTx.Metadata().Bucket(gcsFilterBucketName)
 	serialized := filter.Bytes()
 	return filterBucket.Put(blockHash[:], serialized)
 }
@@ -1358,7 +1407,7 @@ func dbPutDatabaseInfo(dbTx database.Tx, dbi *databaseInfo) error {
 	// using the byte order specified by the database namespace.
 	uint32Bytes := func(ui32 uint32) []byte {
 		var b [4]byte
-		dbnamespace.ByteOrder.PutUint32(b[:], ui32)
+		byteOrder.PutUint32(b[:], ui32)
 		return b[:]
 	}
 
@@ -1366,35 +1415,32 @@ func dbPutDatabaseInfo(dbTx database.Tx, dbi *databaseInfo) error {
 	// using the byte order specified by the database namespace.
 	uint64Bytes := func(ui64 uint64) []byte {
 		var b [8]byte
-		dbnamespace.ByteOrder.PutUint64(b[:], ui64)
+		byteOrder.PutUint64(b[:], ui64)
 		return b[:]
 	}
 
 	// Store the database version.
 	meta := dbTx.Metadata()
-	bucket := meta.Bucket(dbnamespace.BCDBInfoBucketName)
-	err := bucket.Put(dbnamespace.BCDBInfoVersionKeyName,
-		uint32Bytes(dbi.version))
+	bucket := meta.Bucket(bcdbInfoBucketName)
+	err := bucket.Put(bcdbInfoVersionKeyName, uint32Bytes(dbi.version))
 	if err != nil {
 		return err
 	}
 
 	// Store the compression version.
-	err = bucket.Put(dbnamespace.BCDBInfoCompressionVersionKeyName,
-		uint32Bytes(dbi.compVer))
+	err = bucket.Put(bcdbInfoCompressionVerKeyName, uint32Bytes(dbi.compVer))
 	if err != nil {
 		return err
 	}
 
 	// Store the block index version.
-	err = bucket.Put(dbnamespace.BCDBInfoBlockIndexVersionKeyName,
-		uint32Bytes(dbi.bidxVer))
+	err = bucket.Put(bcdbInfoBlockIndexVerKeyName, uint32Bytes(dbi.bidxVer))
 	if err != nil {
 		return err
 	}
 
 	// Store the database creation date.
-	return bucket.Put(dbnamespace.BCDBInfoCreatedKeyName,
+	return bucket.Put(bcdbInfoCreatedKeyName,
 		uint64Bytes(uint64(dbi.created.Unix())))
 }
 
@@ -1402,7 +1448,7 @@ func dbPutDatabaseInfo(dbTx database.Tx, dbi *databaseInfo) error {
 // database versioning and creation information.
 func dbFetchDatabaseInfo(dbTx database.Tx) (*databaseInfo, error) {
 	meta := dbTx.Metadata()
-	bucket := meta.Bucket(dbnamespace.BCDBInfoBucketName)
+	bucket := meta.Bucket(bcdbInfoBucketName)
 
 	// Uninitialized state.
 	if bucket == nil {
@@ -1411,30 +1457,30 @@ func dbFetchDatabaseInfo(dbTx database.Tx) (*databaseInfo, error) {
 
 	// Load the database version.
 	var version uint32
-	versionBytes := bucket.Get(dbnamespace.BCDBInfoVersionKeyName)
+	versionBytes := bucket.Get(bcdbInfoVersionKeyName)
 	if versionBytes != nil {
-		version = dbnamespace.ByteOrder.Uint32(versionBytes)
+		version = byteOrder.Uint32(versionBytes)
 	}
 
 	// Load the database compression version.
 	var compVer uint32
-	compVerBytes := bucket.Get(dbnamespace.BCDBInfoCompressionVersionKeyName)
+	compVerBytes := bucket.Get(bcdbInfoCompressionVerKeyName)
 	if compVerBytes != nil {
-		compVer = dbnamespace.ByteOrder.Uint32(compVerBytes)
+		compVer = byteOrder.Uint32(compVerBytes)
 	}
 
 	// Load the database block index version.
 	var bidxVer uint32
-	bidxVerBytes := bucket.Get(dbnamespace.BCDBInfoBlockIndexVersionKeyName)
+	bidxVerBytes := bucket.Get(bcdbInfoBlockIndexVerKeyName)
 	if bidxVerBytes != nil {
-		bidxVer = dbnamespace.ByteOrder.Uint32(bidxVerBytes)
+		bidxVer = byteOrder.Uint32(bidxVerBytes)
 	}
 
 	// Load the database creation date.
 	var created time.Time
-	createdBytes := bucket.Get(dbnamespace.BCDBInfoCreatedKeyName)
+	createdBytes := bucket.Get(bcdbInfoCreatedKeyName)
 	if createdBytes != nil {
-		ts := dbnamespace.ByteOrder.Uint64(createdBytes)
+		ts := byteOrder.Uint64(createdBytes)
 		created = time.Unix(int64(ts), 0)
 	}
 
@@ -1488,14 +1534,14 @@ func serializeBestChainState(state bestChainState) []byte {
 	serializedData := make([]byte, serializedLen)
 	copy(serializedData[0:chainhash.HashSize], state.hash[:])
 	offset := uint32(chainhash.HashSize)
-	dbnamespace.ByteOrder.PutUint32(serializedData[offset:], state.height)
+	byteOrder.PutUint32(serializedData[offset:], state.height)
 	offset += 4
-	dbnamespace.ByteOrder.PutUint64(serializedData[offset:], state.totalTxns)
+	byteOrder.PutUint64(serializedData[offset:], state.totalTxns)
 	offset += 8
-	dbnamespace.ByteOrder.PutUint64(serializedData[offset:],
+	byteOrder.PutUint64(serializedData[offset:],
 		uint64(state.totalSubsidy))
 	offset += 8
-	dbnamespace.ByteOrder.PutUint32(serializedData[offset:], workSumBytesLen)
+	byteOrder.PutUint32(serializedData[offset:], workSumBytesLen)
 	offset += 4
 	copy(serializedData[offset:], workSumBytes)
 	return serializedData
@@ -1521,15 +1567,15 @@ func deserializeBestChainState(serializedData []byte) (bestChainState, error) {
 	state := bestChainState{}
 	copy(state.hash[:], serializedData[0:chainhash.HashSize])
 	offset := uint32(chainhash.HashSize)
-	state.height = dbnamespace.ByteOrder.Uint32(serializedData[offset : offset+4])
+	state.height = byteOrder.Uint32(serializedData[offset : offset+4])
 	offset += 4
-	state.totalTxns = dbnamespace.ByteOrder.Uint64(
+	state.totalTxns = byteOrder.Uint64(
 		serializedData[offset : offset+8])
 	offset += 8
-	state.totalSubsidy = int64(dbnamespace.ByteOrder.Uint64(
+	state.totalSubsidy = int64(byteOrder.Uint64(
 		serializedData[offset : offset+8]))
 	offset += 8
-	workSumBytesLen := dbnamespace.ByteOrder.Uint32(
+	workSumBytesLen := byteOrder.Uint32(
 		serializedData[offset : offset+4])
 	offset += 4
 
@@ -1561,7 +1607,7 @@ func dbPutBestState(dbTx database.Tx, snapshot *BestState, workSum *big.Int) err
 	})
 
 	// Store the current best chain state into the database.
-	return dbTx.Metadata().Put(dbnamespace.ChainStateKeyName, serializedData)
+	return dbTx.Metadata().Put(chainStateKeyName, serializedData)
 }
 
 // dbFetchBestState uses an existing database transaction to fetch the best
@@ -1569,7 +1615,7 @@ func dbPutBestState(dbTx database.Tx, snapshot *BestState, workSum *big.Int) err
 func dbFetchBestState(dbTx database.Tx) (bestChainState, error) {
 	// Fetch the stored chain state from the database metadata.
 	meta := dbTx.Metadata()
-	serializedData := meta.Get(dbnamespace.ChainStateKeyName)
+	serializedData := meta.Get(chainStateKeyName)
 	log.Tracef("Serialized chain state: %x", serializedData)
 	return deserializeBestChainState(serializedData)
 }
@@ -1599,7 +1645,7 @@ func (b *BlockChain) createChainState() error {
 
 		// Create the bucket that houses information about the database's
 		// creation and version.
-		_, err := meta.CreateBucket(dbnamespace.BCDBInfoBucketName)
+		_, err := meta.CreateBucket(bcdbInfoBucketName)
 		if err != nil {
 			return err
 		}
@@ -1616,13 +1662,13 @@ func (b *BlockChain) createChainState() error {
 		}
 
 		// Create the bucket that houses the block index data.
-		_, err = meta.CreateBucket(dbnamespace.BlockIndexBucketName)
+		_, err = meta.CreateBucket(blockIndexBucketName)
 		if err != nil {
 			return err
 		}
 
 		// Create the bucket that houses the spend journal data.
-		_, err = meta.CreateBucket(dbnamespace.SpendJournalBucketName)
+		_, err = meta.CreateBucket(spendJournalBucketName)
 		if err != nil {
 			return err
 		}
@@ -1630,7 +1676,7 @@ func (b *BlockChain) createChainState() error {
 		// Create the bucket that houses the utxo set.  Note that the
 		// genesis block coinbase transaction is intentionally not
 		// inserted here since it is not spendable by consensus rules.
-		_, err = meta.CreateBucket(dbnamespace.UtxoSetBucketName)
+		_, err = meta.CreateBucket(utxoSetBucketName)
 		if err != nil {
 			return err
 		}
@@ -1662,7 +1708,7 @@ func (b *BlockChain) createChainState() error {
 		}
 
 		// Create the bucket that houses the gcs filters.
-		_, err = meta.CreateBucket(dbnamespace.GCSFilterBucketName)
+		_, err = meta.CreateBucket(gcsFilterBucketName)
 		if err != nil {
 			return err
 		}
@@ -1686,7 +1732,7 @@ func loadBlockIndex(dbTx database.Tx, genesisHash *chainhash.Hash, index *blockI
 	// allocate the right amount as a single alloc versus a whole bunch of
 	// little ones to reduce pressure on the GC.
 	meta := dbTx.Metadata()
-	blockIndexBucket := meta.Bucket(dbnamespace.BlockIndexBucketName)
+	blockIndexBucket := meta.Bucket(blockIndexBucketName)
 	var blockCount int32
 	cursor := blockIndexBucket.Cursor()
 	for ok := cursor.First(); ok; ok = cursor.Next() {
@@ -1755,17 +1801,17 @@ func (b *BlockChain) initChainState(ctx context.Context) error {
 	err := b.db.Update(func(dbTx database.Tx) error {
 		// No versioning upgrade is needed if the dbinfo bucket does not
 		// exist or the legacy key does not exist.
-		bucket := dbTx.Metadata().Bucket(dbnamespace.BCDBInfoBucketName)
+		bucket := dbTx.Metadata().Bucket(bcdbInfoBucketName)
 		if bucket == nil {
 			return nil
 		}
-		legacyBytes := bucket.Get(dbnamespace.BCDBInfoBucketName)
+		legacyBytes := bucket.Get(bcdbInfoBucketName)
 		if legacyBytes == nil {
 			return nil
 		}
 
 		// No versioning upgrade is needed if the new version key exists.
-		if bucket.Get(dbnamespace.BCDBInfoVersionKeyName) != nil {
+		if bucket.Get(bcdbInfoVersionKeyName) != nil {
 			return nil
 		}
 
@@ -1782,7 +1828,7 @@ func (b *BlockChain) initChainState(ctx context.Context) error {
 		}
 
 		// Remove the legacy version information.
-		return bucket.Delete(dbnamespace.BCDBInfoBucketName)
+		return bucket.Delete(bcdbInfoBucketName)
 	})
 	if err != nil {
 		return err
