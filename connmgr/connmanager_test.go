@@ -701,16 +701,18 @@ func TestCancelIgnoreDelayedConnection(t *testing.T) {
 }
 
 // TestDialTimeout ensure the Timeout configuration parameter works as intended
-// by creating a dialer that blocks for twice the configured dial timeout before
-// connecting and ensuring the connection fails as expected.
+// by creating a dialer that blocks for three times the configured dial timeout
+// before connecting and ensuring the connection fails as expected.
 func TestDialTimeout(t *testing.T) {
 	// Create a connection manager instance with a dialer that blocks for twice
 	// the configured dial timeout before connecting.
 	const dialTimeout = time.Millisecond * 2
+	cancelled := make(chan struct{})
 	timeoutDialer := func(ctx context.Context, network, addr string) (net.Conn, error) {
 		select {
-		case <-time.After(dialTimeout * 2):
+		case <-time.After(dialTimeout * 3):
 		case <-ctx.Done():
+			close(cancelled)
 			return nil, ctx.Err()
 		}
 
@@ -734,9 +736,14 @@ func TestDialTimeout(t *testing.T) {
 	}
 	go cmgr.Connect(context.Background(), cr)
 
-	// Wait for the dial timeout to elapse and ensure the connection request is
+	// Wait to receive the signal that the dialer context was cancelled, which
+	// means the dial timeout was hit, and ensure the connection request is
 	// marked as failed after a short timeout to allow the transition to occur.
-	time.Sleep(dialTimeout)
+	select {
+	case <-cancelled:
+	case <-time.After(dialTimeout * 10):
+		t.Fatal("timeout waiting for dial cancellation")
+	}
 	time.Sleep(10 * time.Millisecond)
 	assertConnReqState(t, cr, ConnFailed)
 
