@@ -2616,6 +2616,9 @@ func handleGetPeerInfo(_ context.Context, s *Server, cmd interface{}) (interface
 		}
 		infos = append(infos, info)
 	}
+	sort.Slice(infos, func(i, j int) bool {
+		return infos[i].ID < infos[j].ID
+	})
 	return infos, nil
 }
 
