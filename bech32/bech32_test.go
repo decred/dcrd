@@ -28,7 +28,7 @@ func TestBech32(t *testing.T) {
 		{"split1checkupstagehandshakeupstreamerranterredcaperred2y9e3w", nil},
 		{"split1checkupstagehandshakeupstreamerranterredcaperred2y9e2w", ErrInvalidChecksum{"2y9e3w", "2y9e2w"}},              // invalid checksum
 		{"s lit1checkupstagehandshakeupstreamerranterredcaperredp8hs2p", ErrInvalidCharacter(' ')},                            // invalid character (space) in hrp
-		{"spl" + string(127) + "t1checkupstagehandshakeupstreamerranterredcaperred2y9e3w", ErrInvalidCharacter(127)},          // invalid character (DEL) in hrp
+		{"spl" + string(rune(127)) + "t1checkupstagehandshakeupstreamerranterredcaperred2y9e3w", ErrInvalidCharacter(127)},    // invalid character (DEL) in hrp
 		{"split1cheo2y9e2w", ErrNonCharsetChar('o')},                                                                          // invalid character (o) in data part
 		{"split1a2y9w", ErrInvalidSeparatorIndex(5)},                                                                          // too short data part
 		{"1checkupstagehandshakeupstreamerranterredcaperred2y9e3w", ErrInvalidSeparatorIndex(0)},                              // empty hrp
