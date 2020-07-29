@@ -810,6 +810,8 @@ var defaultChainParams = func() *chaincfg.Params {
 	}
 	testChainParams.PowLimitBits = 0x1d00ffff
 	testChainParams.StakeDiffWindowSize = 144
+	testChainParams.GenesisHash = *mustParseHash("298e5cc3d985bfe7f81dc135f360ab" +
+		"e089edd4396b86d2de66b0cef42b21d980")
 	return testChainParams
 }()
 
@@ -3242,6 +3244,115 @@ func TestHandleGetCFilter(t *testing.T) {
 		mockFilterer: &testFilterer{},
 		wantErr:      true,
 		errCode:      dcrjson.ErrRPCBlockNotFound,
+	}})
+}
+
+func TestHandleGetCFilterHeader(t *testing.T) {
+	t.Parallel()
+
+	blkHashString := block432100.BlockHash().String()
+	filter := hexToBytes("bd60b439d72fad354acc4b47d374ec34b0cca3bb25994b459f01f6" +
+		"f84ad6b478")
+	filterHash, err := chainhash.NewHash(filter)
+	if err != nil {
+		t.Fatalf("error creating chainhash.Hash: %+v", err)
+	}
+	extendedFilter := hexToBytes("72109550799eb4cedaec527fea34a3a2fb42f1e9187da1" +
+		"bac1fd8d66274222bd")
+	extendedFilterHash, err := chainhash.NewHash(extendedFilter)
+	if err != nil {
+		t.Fatalf("error creating chainhash.Hash: %+v", err)
+	}
+	testRPCServerHandler(t, []rpcTest{{
+		name:    "handleGetCFilterHeader: ok regular",
+		handler: handleGetCFilterHeader,
+		cmd: &types.GetCFilterHeaderCmd{
+			Hash:       blkHashString,
+			FilterType: "regular",
+		},
+		mockFilterer: &testFilterer{
+			filterHeaderByBlockHash: filter,
+		},
+		result: filterHash.String(),
+	}, {
+		name:    "handleGetCFilterHeader: ok extended",
+		handler: handleGetCFilterHeader,
+		cmd: &types.GetCFilterHeaderCmd{
+			Hash:       blkHashString,
+			FilterType: "extended",
+		},
+		mockFilterer: &testFilterer{
+			filterHeaderByBlockHash: extendedFilter,
+		},
+		result: extendedFilterHash.String(),
+	}, {
+		name:    "handleGetCFilterHeader: ok genesis block",
+		handler: handleGetCFilterHeader,
+		cmd: &types.GetCFilterHeaderCmd{
+			Hash:       defaultChainParams.GenesisHash.String(),
+			FilterType: "regular",
+		},
+		mockFilterer: &testFilterer{
+			filterHeaderByBlockHash: zeroHash[:],
+		},
+		result: zeroHash.String(),
+	}, {
+		name:    "handleGetCFilterHeader: compact filters not enabled",
+		handler: handleGetCFilterHeader,
+		cmd: &types.GetCFilterHeaderCmd{
+			Hash:       blkHashString,
+			FilterType: "regular",
+		},
+		wantErr: true,
+		errCode: dcrjson.ErrRPCNoCFIndex,
+	}, {
+		name:    "handleGetCFilterHeader: invalid hash",
+		handler: handleGetCFilterHeader,
+		cmd: &types.GetCFilterHeaderCmd{
+			Hash:       "invalid",
+			FilterType: "regular",
+		},
+		mockFilterer: &testFilterer{
+			filterHeaderByBlockHash: filter,
+		},
+		wantErr: true,
+		errCode: dcrjson.ErrRPCDecodeHexString,
+	}, {
+		name:    "handleGetCFilterHeader: unknown filter type",
+		handler: handleGetCFilterHeader,
+		cmd: &types.GetCFilterHeaderCmd{
+			Hash:       blkHashString,
+			FilterType: "unknown",
+		},
+		mockFilterer: &testFilterer{
+			filterHeaderByBlockHash: filter,
+		},
+		wantErr: true,
+		errCode: dcrjson.ErrRPCInvalidParameter,
+	}, {
+		name:    "handleGetCFilterHeader: failed to load filter",
+		handler: handleGetCFilterHeader,
+		cmd: &types.GetCFilterHeaderCmd{
+			Hash:       blkHashString,
+			FilterType: "regular",
+		},
+		mockFilterer: &testFilterer{
+			filterHeaderByBlockHashErr: errors.New("failed to load filter"),
+		},
+		wantErr: true,
+		errCode: dcrjson.ErrRPCInternal.Code,
+	}, {
+		name:    "handleGetCFilterHeader: block not found",
+		handler: handleGetCFilterHeader,
+		cmd: &types.GetCFilterHeaderCmd{
+			Hash:       blkHashString,
+			FilterType: "regular",
+		},
+		mockFilterer: &testFilterer{
+			filterHeaderByBlockHash: zeroHash[:],
+		},
+		wantErr: true,
+		errCode: dcrjson.ErrRPCBlockNotFound,
 	}})
 }
 
