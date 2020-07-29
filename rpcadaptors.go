@@ -371,14 +371,6 @@ func (b *rpcSyncMgr) ExistsAddrIndex() *indexers.ExistsAddrIndex {
 	return b.server.existsAddrIndex
 }
 
-// CFIndex returns the committed filter (cf) by hash index.
-//
-// This function is safe for concurrent access and is part of the
-// rpcserver.SyncManager interface implementation.
-func (b *rpcSyncMgr) CFIndex() *indexers.CFIndex {
-	return b.server.cfIndex
-}
-
 // TipGeneration returns the entire generation of blocks stemming from the
 // parent of the current tip.
 func (b *rpcSyncMgr) TipGeneration() ([]chainhash.Hash, error) {
@@ -584,3 +576,21 @@ func (c *rpcCPUMiner) SetNumWorkers(numWorkers int32) {
 		c.miner.SetNumWorkers(numWorkers)
 	}
 }
+
+// rpcFilterer provides methods for retrieving a block's committed filter or
+// committed filter header and implements the rpcserver.Filterer interface.
+type rpcFilterer struct {
+	*indexers.CFIndex
+}
+
+// Ensure rpcFilterer implements the rpcserver.Filterer interface.
+var _ rpcserver.Filterer = (*rpcFilterer)(nil)
+
+// rpcFiltererV2 provides methods for retrieving a block's version 2 GCS filter
+// and implements the rpcserver.FiltererV2 interface.
+type rpcFiltererV2 struct {
+	*blockchain.BlockChain
+}
+
+// Ensure rpcFiltererV2 implements the rpcserver.FiltererV2 interface.
+var _ rpcserver.FiltererV2 = (*rpcFiltererV2)(nil)

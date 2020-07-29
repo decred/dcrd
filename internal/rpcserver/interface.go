@@ -159,9 +159,6 @@ type SyncManager interface {
 	// ExistsAddrIndex returns the address index.
 	ExistsAddrIndex() *indexers.ExistsAddrIndex
 
-	// CFIndex returns the committed filter (cf) by hash index.
-	CFIndex() *indexers.CFIndex
-
 	// TipGeneration returns the entire generation of blocks stemming from the
 	// parent of the current tip.
 	TipGeneration() ([]chainhash.Hash, error)
@@ -317,14 +314,6 @@ type Chain interface {
 
 	// FetchUtxoStats returns statistics on the current utxo set.
 	FetchUtxoStats() (*blockchain.UtxoStats, error)
-
-	// FilterByBlockHash returns the version 2 GCS filter for the given block hash
-	// when it exists.  This function returns the filters regardless of whether or
-	// not their associated block is part of the main chain.
-	//
-	// An error of type blockchain.NoFilterError must be returned when the filter
-	// for the given block hash does not exist.
-	FilterByBlockHash(hash *chainhash.Hash) (*gcs.FilterV2, error)
 
 	// GetStakeVersions returns a cooked array of StakeVersions.  We do this in
 	// order to not bloat memory by returning raw blocks.
@@ -515,4 +504,34 @@ type BlockTemplater interface {
 	// UpdateBlockTime updates the timestamp in the passed header to the current
 	// time while taking into account the consensus rules.
 	UpdateBlockTime(header *wire.BlockHeader) error
+}
+
+// Filterer provides an interface for retrieving a block's committed filter or
+// committed filter header.
+//
+// The interface contract requires that all of these methods are safe for
+// concurrent access.
+type Filterer interface {
+	// FilterByBlockHash returns the serialized contents of a block's regular or
+	// extended committed filter.
+	FilterByBlockHash(h *chainhash.Hash, filterType wire.FilterType) ([]byte, error)
+
+	// FilterHeaderByBlockHash returns the serialized contents of a block's regular
+	// or extended committed filter header.
+	FilterHeaderByBlockHash(h *chainhash.Hash, filterType wire.FilterType) ([]byte, error)
+}
+
+// FiltererV2 provides an interface for retrieving a block's version 2 GCS
+// filter.
+//
+// The interface contract requires that all of these methods are safe for
+// concurrent access.
+type FiltererV2 interface {
+	// FilterByBlockHash returns the version 2 GCS filter for the given block hash
+	// when it exists.  This function returns the filters regardless of whether or
+	// not their associated block is part of the main chain.
+	//
+	// An error of type blockchain.NoFilterError must be returned when the filter
+	// for the given block hash does not exist.
+	FilterByBlockHash(hash *chainhash.Hash) (*gcs.FilterV2, error)
 }

@@ -3304,6 +3304,13 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB, chainP
 			MaxProtocolVersion:   maxProtocolVersion,
 			UserAgentVersion:     userAgentVersion,
 			LogManager:           &rpcLogManager{},
+			Filterer: func() rpcserver.Filterer {
+				if s.cfIndex == nil {
+					return nil
+				}
+				return &rpcFilterer{s.cfIndex}
+			}(),
+			FiltererV2: &rpcFiltererV2{s.chain},
 		})
 		if err != nil {
 			return nil, err

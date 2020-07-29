@@ -32,6 +32,7 @@ import (
 	"github.com/decred/dcrd/dcrjson/v3"
 	"github.com/decred/dcrd/dcrutil/v3"
 	"github.com/decred/dcrd/gcs/v2"
+	"github.com/decred/dcrd/gcs/v2/blockcf2"
 	"github.com/decred/dcrd/internal/mempool"
 	"github.com/decred/dcrd/internal/version"
 	"github.com/decred/dcrd/peer/v2"
@@ -129,7 +130,6 @@ type testRPCChain struct {
 	estimateNextStakeDifficultyFn   func(newTickets int64, useMaxTickets bool) (diff int64, err error)
 	fetchUtxoEntry                  UtxoEntry
 	fetchUtxoStats                  *blockchain.UtxoStats
-	filterByBlockHash               *gcs.FilterV2
 	getStakeVersions                []blockchain.StakeVersions
 	getStakeVersionsErr             error
 	getVoteCounts                   blockchain.VoteCounts
@@ -254,12 +254,6 @@ func (c *testRPCChain) FetchUtxoEntry(txHash *chainhash.Hash) (UtxoEntry, error)
 // FetchUtxoStats returns a mocked blockchain.UtxoStats.
 func (c *testRPCChain) FetchUtxoStats() (*blockchain.UtxoStats, error) {
 	return c.fetchUtxoStats, nil
-}
-
-// FilterByBlockHash returns a mocked version 2 GCS filter for the given block
-// hash when it exists.
-func (c *testRPCChain) FilterByBlockHash(hash *chainhash.Hash) (*gcs.FilterV2, error) {
-	return c.filterByBlockHash, nil
 }
 
 // GetStakeVersions returns a mocked cooked array of StakeVersions.
@@ -450,7 +444,6 @@ type testSyncManager struct {
 	syncPeerID         int32
 	locateBlocks       []chainhash.Hash
 	existsAddrIndex    *indexers.ExistsAddrIndex
-	cfIndex            *indexers.CFIndex
 	tipGeneration      []chainhash.Hash
 	syncHeight         int64
 	processTransaction []*dcrutil.Tx
@@ -483,11 +476,6 @@ func (s *testSyncManager) LocateBlocks(locator blockchain.BlockLocator, hashStop
 // ExistsAddrIndex returns a mocked address index.
 func (s *testSyncManager) ExistsAddrIndex() *indexers.ExistsAddrIndex {
 	return s.existsAddrIndex
-}
-
-// CFIndex returns a mocked committed filter (cf) by hash index.
-func (s *testSyncManager) CFIndex() *indexers.CFIndex {
-	return s.cfIndex
 }
 
 // TipGeneration returns a mocked entire generation of blocks stemming from the
@@ -655,6 +643,12 @@ func (l *testLogManager) SupportedSubsystems() []string {
 	return l.supportedSubsystems
 }
 
+// ParseAndSetDebugLevels provides a mock implementation for parsing the
+// specified debug level and setting the levels accordingly.
+func (l *testLogManager) ParseAndSetDebugLevels(debugLevel string) error {
+	return l.parseAndSetDebugLevelsErr
+}
+
 // testSanityChecker provides a mock implementation that checks the sanity
 // state of a block.
 type testSanityChecker struct {
@@ -666,10 +660,37 @@ func (s *testSanityChecker) CheckBlockSanity(block *dcrutil.Block) error {
 	return s.checkBlockSanityErr
 }
 
-// ParseAndSetDebugLevels provides a mock implementation for parsing the
-// specified debug level and setting the levels accordingly.
-func (l *testLogManager) ParseAndSetDebugLevels(debugLevel string) error {
-	return l.parseAndSetDebugLevelsErr
+// testFilterer provides a mock filterer by implementing the Filterer interface.
+type testFilterer struct {
+	filterByBlockHash          []byte
+	filterByBlockHashErr       error
+	filterHeaderByBlockHash    []byte
+	filterHeaderByBlockHashErr error
+}
+
+// FilterByBlockHash returns a mocked regular or extended committed filter for
+// the given block hash.
+func (f *testFilterer) FilterByBlockHash(h *chainhash.Hash, filterType wire.FilterType) ([]byte, error) {
+	return f.filterByBlockHash, f.filterByBlockHashErr
+}
+
+// FilterHeaderByBlockHash returns a mocked regular or extended committed filter
+// header for the given block hash.
+func (f *testFilterer) FilterHeaderByBlockHash(h *chainhash.Hash, filterType wire.FilterType) ([]byte, error) {
+	return f.filterHeaderByBlockHash, f.filterHeaderByBlockHashErr
+}
+
+// testFiltererV2 provides a mock V2 filterer by implementing the FiltererV2
+// interface.
+type testFiltererV2 struct {
+	filterByBlockHash    *gcs.FilterV2
+	filterByBlockHashErr error
+}
+
+// FilterByBlockHash returns a mocked version 2 GCS filter for the given block
+// hash.
+func (f *testFiltererV2) FilterByBlockHash(hash *chainhash.Hash) (*gcs.FilterV2, error) {
+	return f.filterByBlockHash, f.filterByBlockHashErr
 }
 
 // mustParseHash converts the passed big-endian hex string into a
@@ -743,6 +764,8 @@ type rpcTest struct {
 	mockConnManager   *testConnManager
 	mockClock         *testClock
 	mockLogManager    *testLogManager
+	mockFilterer      *testFilterer
+	mockFiltererV2    *testFiltererV2
 	result            interface{}
 	wantErr           bool
 	errCode           dcrjson.RPCErrorCode
@@ -802,7 +825,6 @@ func defaultMockRPCChain() *testRPCChain {
 	blkHash := blk.Hash()
 	blkHeight := blk.Height()
 	chainWork, _ := new(big.Int).SetString("0e805fb85284503581c57c", 16)
-	filter, _ := gcs.FromBytesV2(20, 1<<20, nil)
 	return &testRPCChain{
 		bestSnapshot: &blockchain.BestState{
 			Hash:           *blkHash,
@@ -860,7 +882,6 @@ func defaultMockRPCChain() *testRPCChain {
 			Total:          1154067750680149,
 			SerializedHash: *mustParseHash("fe7b32aa188800f07268b17f3bead5f3d8a1b6d18654182066436efce6effa86"),
 		},
-		filterByBlockHash: filter,
 		getStakeVersions: []blockchain.StakeVersions{{
 			Hash:         *blkHash,
 			Height:       blkHeight,
@@ -1008,6 +1029,20 @@ func defaultMockLogManager() *testLogManager {
 	}
 }
 
+// defaultMockFiltererV2 provides a default mock V2 filterer to be used
+// throughout the tests. Tests can override these defaults by calling
+// defaultMockFiltererV2, updating fields as necessary on the returned
+// *testFiltererV2, and then setting rpcTest.mockFiltererV2 as that
+// *testFiltererV2.
+func defaultMockFiltererV2() *testFiltererV2 {
+	block432100Filter := hexToBytes("11cdaad289eb092b5fd6ad60c7f7f197c2234dcbc74" +
+		"b14e1a477b319eae9d189cfae45f06a225965c7e932fc7600")
+	filter, _ := gcs.FromBytesV2(blockcf2.B, blockcf2.M, block432100Filter)
+	return &testFiltererV2{
+		filterByBlockHash: filter,
+	}
+}
+
 // defaultMockConfig provides a default Config that is used throughout
 // the tests.  Defaults can be overridden by tests through the rpcTest struct.
 func defaultMockConfig(chainParams *chaincfg.Params) *Config {
@@ -1021,6 +1056,7 @@ func defaultMockConfig(chainParams *chaincfg.Params) *Config {
 		ConnMgr:       defaultMockConnManager(),
 		Clock:         &testClock{},
 		LogManager:    defaultMockLogManager(),
+		FiltererV2:    defaultMockFiltererV2(),
 		TimeSource:    blockchain.NewMedianTime(),
 		Services:      wire.SFNodeNetwork | wire.SFNodeCF,
 		SubsidyCache:  standalone.NewSubsidyCache(chainParams),
@@ -4011,6 +4047,12 @@ func testRPCServerHandler(t *testing.T, tests []rpcTest) {
 			}
 			if test.mockSanityChecker != nil {
 				rpcserverConfig.SanityChecker = test.mockSanityChecker
+			}
+			if test.mockFilterer != nil {
+				rpcserverConfig.Filterer = test.mockFilterer
+			}
+			if test.mockFiltererV2 != nil {
+				rpcserverConfig.FiltererV2 = test.mockFiltererV2
 			}
 
 			testServer := &Server{cfg: *rpcserverConfig}
