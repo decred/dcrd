@@ -3155,6 +3155,96 @@ func TestHandleGetBlockSubsidy(t *testing.T) {
 	}})
 }
 
+func TestHandleGetCFilter(t *testing.T) {
+	t.Parallel()
+
+	blkHashString := block432100.BlockHash().String()
+	filterString := "000000112f2f7a8d1b6dd2170afadb2d5f9ae11085487a270d07ccdfb5e" +
+		"31796a6162379f000001d43f94851308c4a1534d8"
+	filter := hexToBytes(filterString)
+	extendedFilterString := "0000000dbd0b842aa0b9bbe14fb5df84cbb2143c32ba4710767" +
+		"02fbf52af819387b8216504c8d1"
+	extendedFilter := hexToBytes(extendedFilterString)
+	testRPCServerHandler(t, []rpcTest{{
+		name:    "handleGetCFilter: ok regular",
+		handler: handleGetCFilter,
+		cmd: &types.GetCFilterCmd{
+			Hash:       blkHashString,
+			FilterType: "regular",
+		},
+		mockFilterer: &testFilterer{
+			filterByBlockHash: filter,
+		},
+		result: filterString,
+	}, {
+		name:    "handleGetCFilter: ok extended",
+		handler: handleGetCFilter,
+		cmd: &types.GetCFilterCmd{
+			Hash:       blkHashString,
+			FilterType: "extended",
+		},
+		mockFilterer: &testFilterer{
+			filterByBlockHash: extendedFilter,
+		},
+		result: extendedFilterString,
+	}, {
+		name:    "handleGetCFilter: compact filters not enabled",
+		handler: handleGetCFilter,
+		cmd: &types.GetCFilterCmd{
+			Hash:       blkHashString,
+			FilterType: "regular",
+		},
+		wantErr: true,
+		errCode: dcrjson.ErrRPCNoCFIndex,
+	}, {
+		name:    "handleGetCFilter: invalid hash",
+		handler: handleGetCFilter,
+		cmd: &types.GetCFilterCmd{
+			Hash:       "invalid",
+			FilterType: "regular",
+		},
+		mockFilterer: &testFilterer{
+			filterByBlockHash: filter,
+		},
+		wantErr: true,
+		errCode: dcrjson.ErrRPCDecodeHexString,
+	}, {
+		name:    "handleGetCFilter: unknown filter type",
+		handler: handleGetCFilter,
+		cmd: &types.GetCFilterCmd{
+			Hash:       blkHashString,
+			FilterType: "unknown",
+		},
+		mockFilterer: &testFilterer{
+			filterByBlockHash: filter,
+		},
+		wantErr: true,
+		errCode: dcrjson.ErrRPCInvalidParameter,
+	}, {
+		name:    "handleGetCFilter: failed to load filter",
+		handler: handleGetCFilter,
+		cmd: &types.GetCFilterCmd{
+			Hash:       blkHashString,
+			FilterType: "regular",
+		},
+		mockFilterer: &testFilterer{
+			filterByBlockHashErr: errors.New("failed to load filter"),
+		},
+		wantErr: true,
+		errCode: dcrjson.ErrRPCInternal.Code,
+	}, {
+		name:    "handleGetCFilter: block not found",
+		handler: handleGetCFilter,
+		cmd: &types.GetCFilterCmd{
+			Hash:       blkHashString,
+			FilterType: "regular",
+		},
+		mockFilterer: &testFilterer{},
+		wantErr:      true,
+		errCode:      dcrjson.ErrRPCBlockNotFound,
+	}})
+}
+
 func TestHandleGetChainTips(t *testing.T) {
 	t.Parallel()
 
