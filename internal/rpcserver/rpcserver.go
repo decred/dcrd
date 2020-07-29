@@ -2197,8 +2197,7 @@ func handleGetHashesPerSec(_ context.Context, s *Server, cmd interface{}) (inter
 
 // handleGetCFilter implements the getcfilter command.
 func handleGetCFilter(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
-	cfIndex := s.cfg.SyncMgr.CFIndex()
-	if cfIndex == nil {
+	if s.cfg.Filterer == nil {
 		return nil, &dcrjson.RPCError{
 			Code:    dcrjson.ErrRPCNoCFIndex,
 			Message: "Compact filters must be enabled for this command",
@@ -2221,7 +2220,7 @@ func handleGetCFilter(_ context.Context, s *Server, cmd interface{}) (interface{
 		return nil, rpcInvalidError("Unknown filter type %q", c.FilterType)
 	}
 
-	filterBytes, err := cfIndex.FilterByBlockHash(hash, filterType)
+	filterBytes, err := s.cfg.Filterer.FilterByBlockHash(hash, filterType)
 	if err != nil {
 		context := fmt.Sprintf("Failed to load %v filter for block %v",
 			filterType, hash)
@@ -2240,8 +2239,7 @@ func handleGetCFilter(_ context.Context, s *Server, cmd interface{}) (interface{
 
 // handleGetCFilterHeader implements the getcfilterheader command.
 func handleGetCFilterHeader(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
-	cfIndex := s.cfg.SyncMgr.CFIndex()
-	if cfIndex == nil {
+	if s.cfg.Filterer == nil {
 		return nil, &dcrjson.RPCError{
 			Code:    dcrjson.ErrRPCNoCFIndex,
 			Message: "The CF index must be enabled for this command",
@@ -2265,7 +2263,7 @@ func handleGetCFilterHeader(_ context.Context, s *Server, cmd interface{}) (inte
 			c.FilterType)
 	}
 
-	headerBytes, err := cfIndex.FilterHeaderByBlockHash(hash, filterType)
+	headerBytes, err := s.cfg.Filterer.FilterHeaderByBlockHash(hash, filterType)
 	if err != nil {
 		context := fmt.Sprintf("Failed to load %v filter header for block %v",
 			filterType, hash)
@@ -2337,7 +2335,7 @@ func handleGetCFilterV2(_ context.Context, s *Server, cmd interface{}) (interfac
 		return nil, rpcDecodeHexError(c.BlockHash)
 	}
 
-	filter, err := s.cfg.Chain.FilterByBlockHash(hash)
+	filter, err := s.cfg.FiltererV2.FilterByBlockHash(hash)
 	if err != nil {
 		var nErr blockchain.NoFilterError
 		if errors.As(err, &nErr) {
@@ -5674,6 +5672,12 @@ type Config struct {
 
 	// LogManager defines the log manager for the RPC server to use.
 	LogManager LogManager
+
+	// Filterer defines the filterer for the RPC server to use.
+	Filterer Filterer
+
+	// FiltererV2 defines the V2 filterer for the RPC server to use.
+	FiltererV2 FiltererV2
 }
 
 // New returns a new instance of the Server struct.
