@@ -3356,6 +3356,61 @@ func TestHandleGetCFilterHeader(t *testing.T) {
 	}})
 }
 
+func TestHandleGetCFilterV2(t *testing.T) {
+	t.Parallel()
+
+	blkHashString := block432100.BlockHash().String()
+	filter := hex.EncodeToString(defaultMockFiltererV2().filterByBlockHash.Bytes())
+	var noFilterErr blockchain.NoFilterError
+	testRPCServerHandler(t, []rpcTest{{
+		name:    "handleGetCFilterV2: ok",
+		handler: handleGetCFilterV2,
+		cmd: &types.GetCFilterV2Cmd{
+			BlockHash: blkHashString,
+		},
+		result: &types.GetCFilterV2Result{
+			BlockHash:   blkHashString,
+			Data:        filter,
+			ProofIndex:  blockchain.HeaderCmtFilterIndex,
+			ProofHashes: nil,
+		},
+	}, {
+		name:    "handleGetCFilterV2: invalid hash",
+		handler: handleGetCFilterV2,
+		cmd: &types.GetCFilterV2Cmd{
+			BlockHash: "invalid",
+		},
+		wantErr: true,
+		errCode: dcrjson.ErrRPCDecodeHexString,
+	}, {
+		name:    "handleGetCFilterV2: block not found",
+		handler: handleGetCFilterV2,
+		cmd: &types.GetCFilterV2Cmd{
+			BlockHash: blkHashString,
+		},
+		mockFiltererV2: func() *testFiltererV2 {
+			testFiltererV2 := defaultMockFiltererV2()
+			testFiltererV2.filterByBlockHashErr = noFilterErr
+			return testFiltererV2
+		}(),
+		wantErr: true,
+		errCode: dcrjson.ErrRPCBlockNotFound,
+	}, {
+		name:    "handleGetCFilterV2: failed to load filter",
+		handler: handleGetCFilterV2,
+		cmd: &types.GetCFilterV2Cmd{
+			BlockHash: blkHashString,
+		},
+		mockFiltererV2: func() *testFiltererV2 {
+			testFiltererV2 := defaultMockFiltererV2()
+			testFiltererV2.filterByBlockHashErr = errors.New("failed to load filter")
+			return testFiltererV2
+		}(),
+		wantErr: true,
+		errCode: dcrjson.ErrRPCInternal.Code,
+	}})
+}
+
 func TestHandleGetChainTips(t *testing.T) {
 	t.Parallel()
 
