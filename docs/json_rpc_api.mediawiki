@@ -1227,7 +1227,9 @@ of the best block.
 # <code>filtertype</code>: <code>(string, required)</code> The type of committed filter to return.
 |-
 !Description
-|Returns the committed filter for a block.
+|
+: Returns the committed filter for a block.
+: Deprecated: This will be removed in the next major version.  Use [[#getcfilterv2|getcfilterv2]] instead.
 |-
 !Returns
 |<code>string</code> The hex encoded committed filter.
@@ -1253,7 +1255,9 @@ of the best block.
 # <code>filtertype</code>: <code>(string, required)</code> The type of committed filter header to return.
 |-
 !Description
-|Returns the committed filter header for a block.
+|
+: Returns the committed filter header for a block.
+: Deprecated: This will be removed in the next major version.  Use [[#getcfilterv2|getcfilterv2]] instead.
 |-
 !Returns
 |<code>string</code> The hex encoded committed filter header.
