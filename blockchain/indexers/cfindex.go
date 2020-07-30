@@ -255,6 +255,9 @@ func (idx *CFIndex) DisconnectBlock(dbTx database.Tx, block, parent *dcrutil.Blo
 
 // FilterByBlockHash returns the serialized contents of a block's basic or
 // extended committed filter.
+//
+// Deprecated: This will be removed in the next major version.  Use
+// blockchain.FilterByBlockHash instead.
 func (idx *CFIndex) FilterByBlockHash(h *chainhash.Hash, filterType wire.FilterType) ([]byte, error) {
 	if uint8(filterType) > maxFilterType {
 		return nil, errors.New("unsupported filter type")
@@ -270,6 +273,9 @@ func (idx *CFIndex) FilterByBlockHash(h *chainhash.Hash, filterType wire.FilterT
 
 // FilterHeaderByBlockHash returns the serialized contents of a block's basic
 // or extended committed filter header.
+//
+// Deprecated: This will be removed in the next major version.  Use
+// blockchain.FilterByBlockHash instead.
 func (idx *CFIndex) FilterHeaderByBlockHash(h *chainhash.Hash, filterType wire.FilterType) ([]byte, error) {
 	if uint8(filterType) > maxFilterType {
 		return nil, errors.New("unsupported filter type")

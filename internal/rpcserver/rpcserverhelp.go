@@ -377,13 +377,15 @@ var helpDescsEnUS = map[string]string{
 	"getblocksubsidyresult-total":     "The total subsidy",
 
 	// GetCFilterCmd help.
-	"getcfilter--synopsis":  "Returns the committed filter for a block",
+	"getcfilter--synopsis": "Returns the committed filter for a block.\n\n" +
+		"Deprecated: Use handleGetCFilterV2 instead.",
 	"getcfilter--result0":   "The committed filter serialized with the N value and encoded as a hex string",
 	"getcfilter-hash":       "The block hash of the filter being queried",
 	"getcfilter-filtertype": "The type of committed filter to return",
 
 	// GetCFilterHeaderCmd help.
-	"getcfilterheader--synopsis":  "Returns the filter header hash committing to all filters in the chain up through a block",
+	"getcfilterheader--synopsis": "Returns the filter header hash committing to all filters in the chain up through a block.\n\n" +
+		"Deprecated: Use handleGetCFilterV2 instead.",
 	"getcfilterheader--result0":   "The filter header commitment hash",
 	"getcfilterheader-hash":       "The block hash of the filter header being queried",
 	"getcfilterheader-filtertype": "The type of committed filter to return the header commitment for",

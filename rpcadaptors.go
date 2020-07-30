@@ -579,6 +579,9 @@ func (c *rpcCPUMiner) SetNumWorkers(numWorkers int32) {
 
 // rpcFilterer provides methods for retrieving a block's committed filter or
 // committed filter header and implements the rpcserver.Filterer interface.
+//
+// Deprecated: This will be removed in the next major version.  Use
+// rpcFiltererV2 instead.
 type rpcFilterer struct {
 	*indexers.CFIndex
 }

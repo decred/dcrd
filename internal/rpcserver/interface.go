@@ -511,6 +511,9 @@ type BlockTemplater interface {
 //
 // The interface contract requires that all of these methods are safe for
 // concurrent access.
+//
+// Deprecated: This will be removed in the next major version.  Use FiltererV2
+// instead.
 type Filterer interface {
 	// FilterByBlockHash returns the serialized contents of a block's regular or
 	// extended committed filter.

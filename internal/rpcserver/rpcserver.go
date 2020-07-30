@@ -2196,6 +2196,9 @@ func handleGetHashesPerSec(_ context.Context, s *Server, cmd interface{}) (inter
 }
 
 // handleGetCFilter implements the getcfilter command.
+//
+// Deprecated: This will be removed in the next major version.  Use
+// handleGetCFilterV2 instead.
 func handleGetCFilter(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
 	if s.cfg.Filterer == nil {
 		return nil, &dcrjson.RPCError{
@@ -2238,6 +2241,9 @@ func handleGetCFilter(_ context.Context, s *Server, cmd interface{}) (interface{
 }
 
 // handleGetCFilterHeader implements the getcfilterheader command.
+//
+// Deprecated: This will be removed in the next major version.  Use
+// handleGetCFilterV2 instead.
 func handleGetCFilterHeader(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
 	if s.cfg.Filterer == nil {
 		return nil, &dcrjson.RPCError{
