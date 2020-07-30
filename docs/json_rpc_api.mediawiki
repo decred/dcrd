@@ -2608,7 +2608,7 @@ user.  Click the method name for further details such as parameter and return in
 |[[#work|work]]
 |-
 |[[#stopnotifywork|stopnotifywork]]
-|Cancel registered notifications for whenever when a new block template is generated.
+|Cancel registered notifications for whenever a new block template is generated.
 |None
 |-
 |[[#notifyreceived|notifyreceived]]
@@ -2642,6 +2642,22 @@ user.  Click the method name for further details such as parameter and return in
 |[[#stopnotifynewtransactions|stopnotifynewtransactions]]
 |Stop sending either a txaccepted or a txacceptedverbose notification when a new transaction is accepted into the mempool.
 |None
+|-
+|[[#notifywinningtickets|notifywinningtickets]]
+|Send notifications for all tickets that are chosen to vote.
+|[[#winningtickets|winningtickets]]
+|-
+|[[#notifyspentandmissedtickets|notifyspentandmissedtickets]]
+|Send notifications for all tickets that are spent or missed.
+|[[#spentandmissedtickets|spentandmissedtickets]]
+|-
+|[[#notifynewtickets|notifynewtickets]]
+|Send notifications for all new tickets that have matured.
+|[[#newtickets|newtickets]]
+|-
+|[[#notifystakedifficulty|notifystakedifficulty]]
+|Send notifications whenever the stake difficulty is updated.
+|[[#stakedifficulty|stakedifficulty]]
 |-
 |[[#session|session]]
 |Return details regarding a websocket client's current connection.
@@ -2943,6 +2959,86 @@ NOTE: This is only required if an HTTP Authorization header is not being used.
 
 ----
 
+====notifywinningtickets====
+{|
+!Method
+|notifywinningtickets
+|-
+!Notifications
+|[[#winningtickets|winningtickets]]
+|-
+!Parameters
+|None
+|-
+!Description
+|Send a winningtickets notification when tickets are chosen to vote.
+|-
+!Returns
+|Nothing
+|}
+
+----
+
+====notifyspentandmissedtickets====
+{|
+!Method
+|notifyspentandmissedtickets
+|-
+!Notifications
+|[[#spentandmissedtickets|spentandmissedtickets]]
+|-
+!Parameters
+|None
+|-
+!Description
+|Send a spentandmissedtickets notification when tickets are spent or missed.
+|-
+!Returns
+|Nothing
+|}
+
+----
+
+====notifynewtickets====
+{|
+!Method
+|notifynewtickets
+|-
+!Notifications
+|[[#newtickets|newtickets]]
+|-
+!Parameters
+|None
+|-
+!Description
+|Send a newtickets notification when new tickets have matured.
+|-
+!Returns
+|Nothing
+|}
+
+----
+
+====notifystakedifficulty====
+{|
+!Method
+|notifystakedifficulty
+|-
+!Notifications
+|[[#stakedifficulty|stakedifficulty]]
+|-
+!Parameters
+|None
+|-
+!Description
+|Send a stakedifficulty notification when the stake difficulty is updated.
+|-
+!Returns
+|Nothing
+|}
+
+----
+
 ====session====
 {|
 !Method
@@ -3008,6 +3104,22 @@ The following is an overview of the JSON-RPC notifications used for Websocket co
 |[[#txacceptedverbose|txacceptedverbose]]
 |Received a new transaction after requesting verbose notifications of all new transactions accepted into the mempool.
 |[[#notifynewtransactions|notifynewtransactions]]
+|-
+|[[#winningtickets|winningtickets]]
+|Tickets were chosen to vote.
+|[[#notifywinningtickets|notifywinningtickets]]
+|-
+|[[#spentandmissedtickets|spentandmissedtickets]]
+|Tickets were spent or missed.
+|[[#notifyspentandmissedtickets|notifyspentandmissedtickets]]
+|-
+|[[#newtickets|newtickets]]
+|New tickets matured.
+|[[#notifynewtickets|notifynewtickets]]
+|-
+|[[#stakedifficulty|stakedifficulty]]
+|The stake difficulty was updated.
+|[[#notifystakedifficulty|notifystakedifficulty]]
 |-
 |[[#rescanprogress|rescanprogress]]
 |A rescan operation that is underway has made progress.
@@ -3120,7 +3232,7 @@ The recvtx notification for the same txout, after the transaction was mined into
 : <code>newtxns</code> - New non-vote transactions are available and have potentially been included.
 |-
 !Example
-|Example work notification  on testnet:
+|Example work notification on testnet:
 
 : <code>{"jsonrpc":"1.0","method":"work","params":["06000000c9ee7cd5b14b72e41195891a9617f80049eaac06a0dfe063479523060000000088087dbb59923da4faf632a29777805a7632efbd680b86f3c6cbbe3fddf905d45045d61784ad0810749cc045d03a7b9d5e8f6b2ed3ed767c9827f1dad4925771010082ebc7097cf5050007003b1400003b84061cff2d333700000000322400003f10000070b67b5b3bc400803b057900c5575400000000000000000000000000000000000000000000000000060000008000000100000000000005a0","000000000000000000000000000000000000000000000000003b840600000000","newparent"],"id":null}</code>
 |}
@@ -3203,6 +3315,101 @@ The redeemingtx notification for the same txout, after the spending transaction 
 : <code>{"jsonrpc": "1.0", "method": "txacceptedverbose", "params": [{"hex": "01000000010000000000000000000000000000000000000000000000000000000000000000f...", "txid": "90743aad855880e517270550d2a881627d84db5265142fd1e7fb7add38b08be9", "version": 1, "locktime": 0, "vin": [{"txid": "60ac4b057247b3d0b9a8173de56b5e1be8c1d1da970511c626ef53706c66be04","vout": 0, "scriptSig": {"asm": "3046022100cb42f8df44eca83dd0a727988dcde9384953e830b1f8004d57485e2ede1b9c8f0...", "hex": "493046022100cb42f8df44eca83dd0a727988dcde9384953e830b1f8004d57485e2ede1b9c8..."}, "sequence": 4294967295}, ...], "vout": [{"value": 25.1394, "n": 0,"scriptPubKey": {"asm": "OP_DUP OP_HASH160 ea132286328cfc819457b9dec386c4b5c84faa5c OP_EQUALVERIFY OP_CHECKSIG", "hex": "76a914ea132286328cfc819457b9dec386c4b5c84faa5c88ac", "reqSigs": 1,"type": "pubkeyhash", "addresses": ["1NLg3QJMsMQGM5KEUaEu5ADDmKQSLHwmyh", ...]}]}], "id": null}</code>
 |}
 
+----
+
+====winningtickets====
+{|
+!Method
+|winningtickets
+|-
+!Request
+|[[#notifywinningtickets|notifywinningtickets]]
+|-
+!Parameters
+|
+# <code>BlockHash</code>: <code>(string)</code> the hash of the block.
+# <code>BlockHeight</code>: <code>(numeric)</code> the height of the block.
+# <code>Tickets</code>: <code>(object)</code> the tickets chosen to vote.
+|-
+!Description
+|Notifies a client when tickets are chosen to vote.
+|-
+!Example
+|Example notifywinningtickets notification for block 479903 on testnet:
+: <code>{"jsonrpc": "1.0", "method": "winningtickets", "params": ["00000044a6c0e2fb8f4feae2ac1133443859407abcf27d5d3a29d7d16eda8bc4", 479903, {"0": "37bb1218876ed8d11497130e253e98f7fd75546744aa9d209e40b97dd5ac735f", "1": "05ad6ce380d97f254c9c60669e9a33d044fccb5589789128abf7ca8c113159d3", "2": "0c43fa8b907acff3d35d81655b3c0a6ae41904ddd939f81b48e5df8d89c6283c", "3": "f2e544178e9e2a4473114b7bf0c383808eadf81f454fc11b835cd5083b0fae7e", "4": "c982fd8c7350df4781c0826c059e7675e6fb568cecee33d19f3a1b03aa41b1ce"}], "id": null}</code>
+|}
+----
+
+====spentandmissedtickets====
+{|
+!Method
+|spentandmissedtickets
+|-
+!Request
+|[[#notifyspentandmissedtickets|notifyspentandmissedtickets]]
+|-
+!Parameters
+|
+# <code>Hash</code>: <code>(string)</code> the hash of the block.
+# <code>Height</code>: <code>(numeric)</code> the height of the block.
+# <code>StakeDiff</code>: <code>(numeric)</code> the stake difficulty of the block.
+# <code>Tickets</code>: <code>(object)</code> the tickets that have been spent or missed.
+|-
+!Description
+|Notifies a client when tickets have been spent or missed.
+|-
+!Example
+|Example spentandmissedtickets notification for block 479903 on testnet:
+: <code>{"jsonrpc": "1.0", "method": "spentandmissedtickets", "params": ["00000044a6c0e2fb8f4feae2ac1133443859407abcf27d5d3a29d7d16eda8bc4", 479903, 9003800525, {"2911dbd36f0bf09e9e84d223b076413d34c39dea7a060c32e5271d0dbb64b332": "spent", "5edc39e2e5f2fccac6d3a10ae7b0cb51031472cc606d450bbf1d5680083f20a1": "spent", "67ec8b66c5bfc1277cc6c6fc00d1b9e9b1c4d61baed7774843ca86200876fe91": "spent", "c2ca81646dc7afb2165354bbe9fcbf8f3d1e97e4a8361934d43db8cdc7ffcdc0": "spent", "da5b300e1a05b9aad2323916cc4ec6eff98962fcb87787dbe24d25b8ea5b102c": "spent"}], "id": null}</code>
+|}
+----
+
+====newtickets====
+{|
+!Method
+|newtickets
+|-
+!Request
+|[[#notifynewtickets|notifynewtickets]]
+|-
+!Parameters
+|
+# <code>Hash</code>: <code>(string)</code> the hash of the block.
+# <code>Height</code>: <code>(numeric)</code> the height of the block.
+# <code>StakeDiff</code>: <code>(numeric)</code> the stake difficulty of the block.
+# <code>Tickets</code>: <code>(array of strings)</code> the new tickets that have matured.
+|-
+!Description
+|Notifies a client when new tickets have matured.
+|-
+!Example
+|Example newtickets notification for block 479903 on testnet:
+: <code>{"jsonrpc": "1.0", "method": "newtickets", "params": ["00000044a6c0e2fb8f4feae2ac1133443859407abcf27d5d3a29d7d16eda8bc4", 479903, 9003800525, ["5297d32d5178c464c279711e771250f4f80a15830dfb89ae6bf414ee22613c88", "237c15fe027797d72c1ffd5aa3b3f9069b50352855bda5a9e7d0fa13d2299e32", "cd11ab320a543c946a021b37d5339a7f0ea72a6baf46fda455edf302165e812b", "eb82dba288e7af4a02a44818376f7228929c89a4fd51cf07ebdd825acc1c039d"]], "id": null}</code>
+|}
+
+----
+
+====stakedifficulty====
+{|
+!Method
+|stakedifficulty
+|-
+!Request
+|[[#notifystakedifficulty|notifystakedifficulty]]
+|-
+!Parameters
+|
+# <code>BlockHash</code>: <code>(string)</code> the hash of the block.
+# <code>BlockHeight</code>: <code>(numeric)</code> the height of the block.
+# <code>StakeDiff</code>: <code>(numeric)</code> the stake difficulty of the block.
+|-
+!Description
+|Notifies a client when the stake difficulty has been updated.
+|-
+!Example
+|Example stakedifficulty notification for block 479903 on testnet:
+: <code>{"jsonrpc": "1.0", "method": "stakedifficulty", "params": ["00000044a6c0e2fb8f4feae2ac1133443859407abcf27d5d3a29d7d16eda8bc4", 479903, 9003800525], "id": null}</code>
+|}
 ----
 
 ====rescanprogress====

@@ -29,7 +29,7 @@ var (
 )
 
 // notificationState is used to track the current state of successfully
-// registered notification so the state can be automatically re-established on
+// registered notifications so the state can be automatically re-established on
 // reconnect.
 type notificationState struct {
 	notifyBlocks                bool
@@ -906,8 +906,7 @@ func (c *Client) NotifyBlocks(ctx context.Context) error {
 // NotifyWork registers the client to receive notifications when a new block
 // template has been generated.
 //
-// The notifications delivered as a result of this call will be via one of
-// OnWork.
+// The notifications delivered as a result of this call will be via OnWork.
 //
 // NOTE: This is a dcrd extension and requires a websocket connection.
 func (c *Client) NotifyWork(ctx context.Context) error {
@@ -950,7 +949,7 @@ func (c *Client) NotifyWinningTicketsAsync(ctx context.Context) *FutureNotifyWin
 }
 
 // NotifyWinningTickets registers the client to receive notifications when
-// blocks are connected to the main chain and tickets are spent or missed.  The
+// blocks are connected to the main chain and tickets are chosen to vote.  The
 // notifications are delivered to the notification handlers associated with the
 // client.  Calling this function has no effect if there are no notification
 // handlers and will result in an error if the client is configured to run in HTTP
@@ -1127,7 +1126,7 @@ func (r *FutureNotifyNewTransactionsResult) Receive() error {
 // get the result of the RPC at some future time by invoking the Receive
 // function on the returned instance.
 //
-// See NotifyNewTransactionsAsync for the blocking version and more details.
+// See NotifyNewTransactions for the blocking version and more details.
 //
 // NOTE: This is a dcrd extension and requires a websocket connection.
 func (c *Client) NotifyNewTransactionsAsync(ctx context.Context, verbose bool) *FutureNotifyNewTransactionsResult {
