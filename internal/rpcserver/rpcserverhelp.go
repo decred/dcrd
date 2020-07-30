@@ -310,7 +310,7 @@ var helpDescsEnUS = map[string]string{
 	"getblockverboseresult-chainwork":         "The total number of hashes expected to produce the chain up to the block in hex",
 	"getblockverboseresult-previousblockhash": "The hash of the previous block",
 	"getblockverboseresult-nextblockhash":     "The hash of the next block (only if there is one)",
-	"getblockverboseresult-sbits":             "The stake difficulty of theblock",
+	"getblockverboseresult-sbits":             "The stake difficulty of the block",
 	"getblockverboseresult-poolsize":          "The size of the live ticket pool",
 	"getblockverboseresult-revocations":       "The number of revocations in the block",
 	"getblockverboseresult-freshstake":        "The number of new tickets in the block",
@@ -792,7 +792,7 @@ var helpDescsEnUS = map[string]string{
 	"notifystakedifficulty--synopsis": "Request notifications for whenever stake difficulty goes up.",
 
 	// NotifyWinningTicketsCmd help
-	"notifywinningtickets--synopsis": "Request notifications for whenever any tickets is chosen to vote.",
+	"notifywinningtickets--synopsis": "Request notifications for whenever any tickets are chosen to vote.",
 
 	// NotifyBlocksCmd help.
 	"notifyblocks--synopsis": "Request notifications for whenever a block is connected or disconnected from the main (best) chain.",
