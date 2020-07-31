@@ -23,3 +23,14 @@ and related software.
 - [systemd](services/systemd/dcrd.service)  
   Provides an example service file for configuring dcrd as a background service
   on operating systems that use systemd for service management.
+
+### Simulation Network (--simnet) Preconfigured Environment Setup Script
+
+The [dcr_tmux_simnet_setup.sh](./dcr_tmux_simnet_setup.sh) script provides a
+preconfigured `simnet` environment which facilitates testing with a private test
+network where the developer has full control since the difficulty levels are low
+enough to generate blocks on demand and the developer owns all of the tickets
+and votes on the private network.
+
+See the full [Simulation Network Reference](../docs/simnet_environment.mediawiki)
+for more details.

@@ -15,6 +15,7 @@
     2. [JSON-RPC Reference](#JSONRPCReference)
     3. [Go Modules](#GoModules)
     4. [Module Hierarchy](#ModuleHierarchy)
+6. [Simulation Network (--simnet) Reference](#SimnetReference)
 
 <a name="About" />
 
@@ -231,3 +232,22 @@ The following diagram shows an overview of the hierarchy for the modules
 provided by the dcrd repository.
 
 ![Module Hierarchy](./assets/module_hierarchy.svg)
+
+<a name="SimnetReference" />
+
+**6. Simulation Network (--simnet)**
+
+When developing Decred applications or testing potential changes, it is often
+extremely useful to have a test network where transactions are actually mined
+into blocks, difficulty levels are low enough to generate blocks on demand, it
+is possible to easily cause chain reorganizations for testing purposes, and
+otherwise have full control over the network.
+
+In order to facilitate these scenarios, `dcrd` provides a simulation network
+(`--simnet`), where the difficulty starts extremely low to enable fast CPU
+mining of blocks.  Simnet also has some modified functionality that helps
+developers avoid common issues early in development.
+
+See the full reference for more details:
+
+* [Simulation Network Reference](https://github.com/decred/dcrd/tree/master/docs/simnet_environment.mediawiki)
