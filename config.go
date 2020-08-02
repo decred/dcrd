@@ -37,48 +37,62 @@ import (
 )
 
 const (
-	defaultConfigFilename        = "dcrd.conf"
-	defaultDataDirname           = "data"
-	defaultLogLevel              = "info"
-	defaultLogDirname            = "logs"
-	defaultLogFilename           = "dcrd.log"
-	defaultMaxSameIP             = 5
-	defaultMaxPeers              = 125
-	defaultBanDuration           = time.Hour * 24
-	defaultBanThreshold          = 100
-	defaultMaxRPCClients         = 10
-	defaultMaxRPCWebsockets      = 25
-	defaultMaxRPCConcurrentReqs  = 20
-	defaultDbType                = "ffldb"
+	// Defaults for general application behavior options.
+	defaultConfigFilename  = "dcrd.conf"
+	defaultDataDirname     = "data"
+	defaultLogDirname      = "logs"
+	defaultLogFilename     = "dcrd.log"
+	defaultDbType          = "ffldb"
+	defaultLogLevel        = "info"
+	defaultSigCacheMaxSize = 100000
+
+	// Defaults for RPC server options and policy.
+	defaultTLSCurve             = "P-521"
+	defaultMaxRPCClients        = 10
+	defaultMaxRPCWebsockets     = 25
+	defaultMaxRPCConcurrentReqs = 20
+
+	// Defaults for P2P network options.
+	defaultMaxSameIP       = 5
+	defaultMaxPeers        = 125
+	defaultDialTimeout     = time.Second * 30
+	defaultPeerIdleTimeout = time.Second * 120
+
+	// Defaults for banning options.
+	defaultBanDuration  = time.Hour * 24
+	defaultBanThreshold = 100
+
+	// Defaults for relay and mempool policy options.
 	defaultFreeTxRelayLimit      = 15.0
-	defaultBlockMinSize          = 0
-	defaultBlockMaxSize          = 375000
-	blockMaxSizeMin              = 1000
-	defaultAddrIndex             = false
-	defaultGenerate              = false
-	defaultNoMiningStateSync     = false
-	defaultAllowUnsyncedMining   = false
-	defaultAllowOldVotes         = false
 	defaultMaxOrphanTransactions = 100
-	defaultMaxOrphanTxSize       = mempool.MaxStandardTxSize
-	defaultSigCacheMaxSize       = 100000
-	defaultTxIndex               = false
-	defaultNoExistsAddrIndex     = false
-	defaultNoCFilters            = false
-	defaultTLSCurve              = "P-521"
-	defaultDialTimeout           = time.Second * 30
-	defaultPeerIdleTimeout       = time.Second * 120
+	defaultAllowOldVotes         = false
+
+	// Defaults for mining options and policy.
+	defaultGenerate            = false
+	defaultBlockMinSize        = 0
+	defaultBlockMaxSize        = 375000
+	blockMaxSizeMin            = 1000
+	defaultNoMiningStateSync   = false
+	defaultAllowUnsyncedMining = false
+
+	// Defaults for indexing options.
+	defaultTxIndex           = false
+	defaultAddrIndex         = false
+	defaultNoExistsAddrIndex = false
+	defaultNoCFilters        = false
 )
 
 var (
-	defaultHomeDir     = dcrutil.AppDataDir("dcrd", false)
-	defaultConfigFile  = filepath.Join(defaultHomeDir, defaultConfigFilename)
-	defaultDataDir     = filepath.Join(defaultHomeDir, defaultDataDirname)
-	knownDbTypes       = database.SupportedDrivers()
+	// Constructed defaults for general application behavior options.
+	defaultHomeDir    = dcrutil.AppDataDir("dcrd", false)
+	defaultConfigFile = filepath.Join(defaultHomeDir, defaultConfigFilename)
+	defaultDataDir    = filepath.Join(defaultHomeDir, defaultDataDirname)
+	defaultLogDir     = filepath.Join(defaultHomeDir, defaultLogDirname)
+	knownDbTypes      = database.SupportedDrivers()
+
+	// Constructed defaults for RPC server options and policy.
 	defaultRPCKeyFile  = filepath.Join(defaultHomeDir, "rpc.key")
 	defaultRPCCertFile = filepath.Join(defaultHomeDir, "rpc.cert")
-	defaultLogDir      = filepath.Join(defaultHomeDir, defaultLogDirname)
-	defaultAltDNSNames = []string(nil)
 )
 
 // runServiceCommand is only set to a real function on Windows.  It is used
@@ -98,102 +112,124 @@ func minUint32(a, b uint32) uint32 {
 //
 // See loadConfig for details on the configuration load process.
 type config struct {
-	HomeDir              string        `short:"A" long:"appdata" description:"Path to application home directory"`
-	ShowVersion          bool          `short:"V" long:"version" description:"Display version information and exit"`
-	ConfigFile           string        `short:"C" long:"configfile" description:"Path to configuration file"`
-	DataDir              string        `short:"b" long:"datadir" description:"Directory to store data"`
-	LogDir               string        `long:"logdir" description:"Directory to log output."`
-	NoFileLogging        bool          `long:"nofilelogging" description:"Disable file logging."`
-	AddPeers             []string      `short:"a" long:"addpeer" description:"Add a peer to connect with at startup"`
-	ConnectPeers         []string      `long:"connect" description:"Connect only to the specified peers at startup"`
-	DisableListen        bool          `long:"nolisten" description:"Disable listening for incoming connections -- NOTE: Listening is automatically disabled if the --connect or --proxy options are used without also specifying listen interfaces via --listen"`
-	Listeners            []string      `long:"listen" description:"Add an interface/port to listen for connections (default all interfaces port: 9108, testnet: 19108)"`
-	MaxSameIP            int           `long:"maxsameip" description:"Max number of connections with the same IP -- 0 to disable"`
-	MaxPeers             int           `long:"maxpeers" description:"Max number of inbound and outbound peers"`
-	DisableBanning       bool          `long:"nobanning" description:"Disable banning of misbehaving peers"`
-	BanDuration          time.Duration `long:"banduration" description:"How long to ban misbehaving peers.  Valid time units are {s, m, h}.  Minimum 1 second"`
-	BanThreshold         uint32        `long:"banthreshold" description:"Maximum allowed ban score before disconnecting and banning misbehaving peers."`
-	Whitelists           []string      `long:"whitelist" description:"Add an IP network or IP that will not be banned. (eg. 192.168.1.0/24 or ::1)"`
-	RPCUser              string        `short:"u" long:"rpcuser" description:"Username for RPC connections"`
-	RPCPass              string        `short:"P" long:"rpcpass" default-mask:"-" description:"Password for RPC connections"`
-	RPCLimitUser         string        `long:"rpclimituser" description:"Username for limited RPC connections"`
-	RPCLimitPass         string        `long:"rpclimitpass" default-mask:"-" description:"Password for limited RPC connections"`
-	RPCListeners         []string      `long:"rpclisten" description:"Add an interface/port to listen for RPC connections (default port: 9109, testnet: 19109)"`
-	RPCCert              string        `long:"rpccert" description:"File containing the certificate file"`
-	RPCKey               string        `long:"rpckey" description:"File containing the certificate key"`
-	TLSCurve             string        `long:"tlscurve" description:"Curve to use when generating TLS keypairs"`
-	RPCMaxClients        int           `long:"rpcmaxclients" description:"Max number of RPC clients for standard connections"`
-	RPCMaxWebsockets     int           `long:"rpcmaxwebsockets" description:"Max number of RPC websocket connections"`
-	RPCMaxConcurrentReqs int           `long:"rpcmaxconcurrentreqs" description:"Max number of concurrent RPC requests that may be processed concurrently"`
-	DisableRPC           bool          `long:"norpc" description:"Disable built-in RPC server -- NOTE: The RPC server is disabled by default if no rpcuser/rpcpass or rpclimituser/rpclimitpass is specified"`
-	DisableTLS           bool          `long:"notls" description:"Disable TLS for the RPC server -- NOTE: This is only allowed if the RPC server is bound to localhost"`
-	DialTimeout          time.Duration `long:"dialtimeout" description:"How long to wait for TCP connection completion.  Valid time units are {s, m, h}.  Minimum 1 second"`
-	DisableSeeders       bool          `long:"noseeders" description:"Disable seeding for peer discovery"`
-	ExternalIPs          []string      `long:"externalip" description:"Add an ip to the list of local addresses we claim to listen on to peers"`
-	Proxy                string        `long:"proxy" description:"Connect via SOCKS5 proxy (eg. 127.0.0.1:9050)"`
-	ProxyUser            string        `long:"proxyuser" description:"Username for proxy server"`
-	ProxyPass            string        `long:"proxypass" default-mask:"-" description:"Password for proxy server"`
-	OnionProxy           string        `long:"onion" description:"Connect to tor hidden services via SOCKS5 proxy (eg. 127.0.0.1:9050)"`
-	OnionProxyUser       string        `long:"onionuser" description:"Username for onion proxy server"`
-	OnionProxyPass       string        `long:"onionpass" default-mask:"-" description:"Password for onion proxy server"`
-	NoOnion              bool          `long:"noonion" description:"Disable connecting to tor hidden services"`
-	NoDiscoverIP         bool          `long:"nodiscoverip" description:"Disable automatic network address discovery"`
-	TorIsolation         bool          `long:"torisolation" description:"Enable Tor stream isolation by randomizing user credentials for each connection."`
-	TestNet              bool          `long:"testnet" description:"Use the test network"`
-	SimNet               bool          `long:"simnet" description:"Use the simulation test network"`
-	RegNet               bool          `long:"regnet" description:"Use the regression test network"`
-	DisableCheckpoints   bool          `long:"nocheckpoints" description:"Disable built-in checkpoints.  Don't do this unless you know what you're doing."`
-	DbType               string        `long:"dbtype" description:"Database backend to use for the Block Chain"`
-	Profile              string        `long:"profile" description:"Enable HTTP profiling on given [addr:]port -- NOTE port must be between 1024 and 65536"`
-	CPUProfile           string        `long:"cpuprofile" description:"Write CPU profile to the specified file"`
-	MemProfile           string        `long:"memprofile" description:"Write mem profile to the specified file"`
-	DumpBlockchain       string        `long:"dumpblockchain" description:"Write blockchain as a flat file of blocks for use with addblock, to the specified filename"`
-	MiningTimeOffset     int           `long:"miningtimeoffset" description:"Offset the mining timestamp of a block by this many seconds (positive values are in the past)"`
-	DebugLevel           string        `short:"d" long:"debuglevel" description:"Logging level for all subsystems {trace, debug, info, warn, error, critical} -- You may also specify <subsystem>=<level>,<subsystem2>=<level>,... to set the log level for individual subsystems -- Use show to list available subsystems"`
-	Upnp                 bool          `long:"upnp" description:"Use UPnP to map our listening port outside of NAT"`
-	MinRelayTxFee        float64       `long:"minrelaytxfee" description:"The minimum transaction fee in DCR/kB to be considered a non-zero fee."`
-	FreeTxRelayLimit     float64       `long:"limitfreerelay" description:"Limit relay of transactions with no transaction fee to the given amount in thousands of bytes per minute"`
-	NoRelayPriority      bool          `long:"norelaypriority" description:"Do not require free or low-fee transactions to have high priority for relaying"`
-	MaxOrphanTxs         int           `long:"maxorphantx" description:"Max number of orphan transactions to keep in memory"`
-	Generate             bool          `long:"generate" description:"Generate (mine) coins using the CPU"`
-	MiningAddrs          []string      `long:"miningaddr" description:"Add the specified payment address to the list of addresses to use for generated blocks -- At least one address is required if the generate option is set"`
-	BlockMinSize         uint32        `long:"blockminsize" description:"Minimum block size in bytes to be used when creating a block"`
-	BlockMaxSize         uint32        `long:"blockmaxsize" description:"Maximum block size in bytes to be used when creating a block"`
-	BlockPrioritySize    uint32        `long:"blockprioritysize" description:"Size in bytes for high-priority/low-fee transactions when creating a block"`
-	SigCacheMaxSize      uint          `long:"sigcachemaxsize" description:"The maximum number of entries in the signature verification cache"`
-	NonAggressive        bool          `long:"nonaggressive" description:"Disable mining off of the parent block of the blockchain if there aren't enough voters"`
-	NoMiningStateSync    bool          `long:"nominingstatesync" description:"Disable synchronizing the mining state with other nodes"`
-	AllowUnsyncedMining  bool          `long:"allowunsyncedmining" description:"Allow block templates to be generated even when the chain is not considered synced on networks other than the main network.  This is automatically enabled when the simnet option is set.  Don't do this unless you know what you're doing."`
-	AllowOldVotes        bool          `long:"allowoldvotes" description:"Enable the addition of very old votes to the mempool"`
-	BlocksOnly           bool          `long:"blocksonly" description:"Do not accept transactions from remote peers."`
-	AcceptNonStd         bool          `long:"acceptnonstd" description:"Accept and relay non-standard transactions to the network regardless of the default settings for the active network."`
-	RejectNonStd         bool          `long:"rejectnonstd" description:"Reject non-standard transactions regardless of the default settings for the active network."`
-	TxIndex              bool          `long:"txindex" description:"Maintain a full hash-based transaction index which makes all transactions available via the getrawtransaction RPC"`
-	DropTxIndex          bool          `long:"droptxindex" description:"Deletes the hash-based transaction index from the database on start up and then exits."`
-	AddrIndex            bool          `long:"addrindex" description:"Maintain a full address-based transaction index which makes the searchrawtransactions RPC available"`
-	DropAddrIndex        bool          `long:"dropaddrindex" description:"Deletes the address-based transaction index from the database on start up and then exits."`
-	NoExistsAddrIndex    bool          `long:"noexistsaddrindex" description:"Disable the exists address index, which tracks whether or not an address has even been used."`
-	DropExistsAddrIndex  bool          `long:"dropexistsaddrindex" description:"Deletes the exists address index from the database on start up and then exits."`
-	NoCFilters           bool          `long:"nocfilters" description:"(Deprecated) Disable compact filtering (CF) support"`
-	DropCFIndex          bool          `long:"dropcfindex" description:"(Deprecated) Deletes the index used for compact filtering (CF) support from the database on start up and then exits."`
-	PipeRx               uint          `long:"piperx" description:"File descriptor of read end pipe to enable parent -> child process communication"`
-	PipeTx               uint          `long:"pipetx" description:"File descriptor of write end pipe to enable parent <- child process communication"`
-	LifetimeEvents       bool          `long:"lifetimeevents" description:"Send lifetime notifications over the TX pipe"`
-	AltDNSNames          []string      `long:"altdnsnames" description:"Specify additional DNS names to use when generating the RPC server certificate" env:"DCRD_ALT_DNSNAMES" env-delim:","`
-	PeerIdleTimeout      time.Duration `long:"peeridletimeout" description:"The duration of inactivity before a peer is timed out. Valid time units are {s,m,h}. Minimum 15 seconds."`
-	onionlookup          func(string) ([]net.IP, error)
-	lookup               func(string) ([]net.IP, error)
-	oniondial            func(context.Context, string, string) (net.Conn, error)
-	dial                 func(context.Context, string, string) (net.Conn, error)
-	miningAddrs          []dcrutil.Address
-	minRelayTxFee        dcrutil.Amount
-	whitelists           []*net.IPNet
-	ipv4NetInfo          types.NetworksResult
-	ipv6NetInfo          types.NetworksResult
-	onionNetInfo         types.NetworksResult
-	params               *params
+	// General application behavior.
+	ShowVersion     bool   `short:"V" long:"version" description:"Display version information and exit"`
+	HomeDir         string `short:"A" long:"appdata" description:"Path to application home directory"`
+	ConfigFile      string `short:"C" long:"configfile" description:"Path to configuration file"`
+	DataDir         string `short:"b" long:"datadir" description:"Directory to store data"`
+	LogDir          string `long:"logdir" description:"Directory to log output"`
+	NoFileLogging   bool   `long:"nofilelogging" description:"Disable file logging"`
+	DbType          string `long:"dbtype" description:"Database backend to use for the block chain"`
+	Profile         string `long:"profile" description:"Enable HTTP profiling on given [addr:]port -- NOTE port must be between 1024 and 65536"`
+	CPUProfile      string `long:"cpuprofile" description:"Write CPU profile to the specified file"`
+	MemProfile      string `long:"memprofile" description:"Write mem profile to the specified file"`
+	TestNet         bool   `long:"testnet" description:"Use the test network"`
+	SimNet          bool   `long:"simnet" description:"Use the simulation test network"`
+	RegNet          bool   `long:"regnet" description:"Use the regression test network"`
+	DebugLevel      string `short:"d" long:"debuglevel" description:"Logging level for all subsystems {trace, debug, info, warn, error, critical} -- You may also specify <subsystem>=<level>,<subsystem2>=<level>,... to set the log level for individual subsystems -- Use show to list available subsystems"`
+	SigCacheMaxSize uint   `long:"sigcachemaxsize" description:"The maximum number of entries in the signature verification cache"`
 
-	DisableDNSSeed bool `long:"nodnsseed" description:"DEPRECATED: use --noseeders"`
+	// RPC server options and policy.
+	DisableRPC           bool     `long:"norpc" description:"Disable built-in RPC server -- NOTE: The RPC server is disabled by default if no rpcuser/rpcpass or rpclimituser/rpclimitpass is specified"`
+	RPCListeners         []string `long:"rpclisten" description:"Add an interface/port to listen for RPC connections (default port: 9109, testnet: 19109)"`
+	RPCUser              string   `short:"u" long:"rpcuser" description:"Username for RPC connections"`
+	RPCPass              string   `short:"P" long:"rpcpass" default-mask:"-" description:"Password for RPC connections"`
+	RPCLimitUser         string   `long:"rpclimituser" description:"Username for limited RPC connections"`
+	RPCLimitPass         string   `long:"rpclimitpass" default-mask:"-" description:"Password for limited RPC connections"`
+	RPCCert              string   `long:"rpccert" description:"File containing the certificate file"`
+	RPCKey               string   `long:"rpckey" description:"File containing the certificate key"`
+	TLSCurve             string   `long:"tlscurve" description:"Curve to use when generating TLS keypairs"`
+	AltDNSNames          []string `long:"altdnsnames" description:"Specify additional DNS names to use when generating the RPC server certificate" env:"DCRD_ALT_DNSNAMES" env-delim:","`
+	DisableTLS           bool     `long:"notls" description:"Disable TLS for the RPC server -- NOTE: This is only allowed if the RPC server is bound to localhost"`
+	RPCMaxClients        int      `long:"rpcmaxclients" description:"Max number of RPC clients for standard connections"`
+	RPCMaxWebsockets     int      `long:"rpcmaxwebsockets" description:"Max number of RPC websocket connections"`
+	RPCMaxConcurrentReqs int      `long:"rpcmaxconcurrentreqs" description:"Max number of concurrent RPC requests that may be processed concurrently"`
+
+	// P2P proxy and Tor settings.
+	Proxy          string `long:"proxy" description:"Connect via SOCKS5 proxy (eg. 127.0.0.1:9050)"`
+	ProxyUser      string `long:"proxyuser" description:"Username for proxy server"`
+	ProxyPass      string `long:"proxypass" default-mask:"-" description:"Password for proxy server"`
+	OnionProxy     string `long:"onion" description:"Connect to tor hidden services via SOCKS5 proxy (eg. 127.0.0.1:9050)"`
+	OnionProxyUser string `long:"onionuser" description:"Username for onion proxy server"`
+	OnionProxyPass string `long:"onionpass" default-mask:"-" description:"Password for onion proxy server"`
+	NoOnion        bool   `long:"noonion" description:"Disable connecting to tor hidden services"`
+	TorIsolation   bool   `long:"torisolation" description:"Enable Tor stream isolation by randomizing user credentials for each connection"`
+
+	// P2P network options.
+	AddPeers        []string      `short:"a" long:"addpeer" description:"Add a peer to connect with at startup"`
+	ConnectPeers    []string      `long:"connect" description:"Connect only to the specified peers at startup"`
+	DisableListen   bool          `long:"nolisten" description:"Disable listening for incoming connections -- NOTE: Listening is automatically disabled if the --connect or --proxy options are used without also specifying listen interfaces via --listen"`
+	Listeners       []string      `long:"listen" description:"Add an interface/port to listen for connections (default all interfaces port: 9108, testnet: 19108)"`
+	MaxSameIP       int           `long:"maxsameip" description:"Max number of connections with the same IP -- 0 to disable"`
+	MaxPeers        int           `long:"maxpeers" description:"Max number of inbound and outbound peers"`
+	DialTimeout     time.Duration `long:"dialtimeout" description:"How long to wait for TCP connection completion.  Valid time units are {s, m, h}.  Minimum 1 second"`
+	PeerIdleTimeout time.Duration `long:"peeridletimeout" description:"The duration of inactivity before a peer is timed out. Valid time units are {s,m,h}. Minimum 15 seconds"`
+
+	// P2P network discovery options.
+	DisableSeeders bool     `long:"noseeders" description:"Disable seeding for peer discovery"`
+	DisableDNSSeed bool     `long:"nodnsseed" description:"DEPRECATED: use --noseeders"`
+	ExternalIPs    []string `long:"externalip" description:"Add an ip to the list of local addresses we claim to listen on to peers"`
+	NoDiscoverIP   bool     `long:"nodiscoverip" description:"Disable automatic network address discovery of local external IPs"`
+	Upnp           bool     `long:"upnp" description:"Use UPnP to map our listening port outside of NAT"`
+
+	// Banning options.
+	DisableBanning bool          `long:"nobanning" description:"Disable banning of misbehaving peers"`
+	BanDuration    time.Duration `long:"banduration" description:"How long to ban misbehaving peers.  Valid time units are {s, m, h}.  Minimum 1 second"`
+	BanThreshold   uint32        `long:"banthreshold" description:"Maximum allowed ban score before disconnecting and banning misbehaving peers"`
+	Whitelists     []string      `long:"whitelist" description:"Add an IP network or IP that will not be banned. (eg. 192.168.1.0/24 or ::1)"`
+
+	// Chain related options.
+	DisableCheckpoints bool   `long:"nocheckpoints" description:"Disable built-in checkpoints.  Don't do this unless you know what you're doing"`
+	DumpBlockchain     string `long:"dumpblockchain" description:"Write blockchain as a flat file of blocks for use with addblock, to the specified filename"`
+
+	// Relay and mempool policy.
+	MinRelayTxFee    float64 `long:"minrelaytxfee" description:"The minimum transaction fee in DCR/kB to be considered a non-zero fee"`
+	FreeTxRelayLimit float64 `long:"limitfreerelay" description:"Limit relay of transactions with no transaction fee to the given amount in thousands of bytes per minute"`
+	NoRelayPriority  bool    `long:"norelaypriority" description:"Do not require free or low-fee transactions to have high priority for relaying"`
+	MaxOrphanTxs     int     `long:"maxorphantx" description:"Max number of orphan transactions to keep in memory"`
+	BlocksOnly       bool    `long:"blocksonly" description:"Do not accept transactions from remote peers"`
+	AcceptNonStd     bool    `long:"acceptnonstd" description:"Accept and relay non-standard transactions to the network regardless of the default settings for the active network"`
+	RejectNonStd     bool    `long:"rejectnonstd" description:"Reject non-standard transactions regardless of the default settings for the active network"`
+	AllowOldVotes    bool    `long:"allowoldvotes" description:"Enable the addition of very old votes to the mempool"`
+
+	// Mining options and policy.
+	Generate            bool     `long:"generate" description:"Generate (mine) coins using the CPU"`
+	MiningAddrs         []string `long:"miningaddr" description:"Add the specified payment address to the list of addresses to use for generated blocks -- At least one address is required if the generate option is set"`
+	BlockMinSize        uint32   `long:"blockminsize" description:"Minimum block size in bytes to be used when creating a block"`
+	BlockMaxSize        uint32   `long:"blockmaxsize" description:"Maximum block size in bytes to be used when creating a block"`
+	BlockPrioritySize   uint32   `long:"blockprioritysize" description:"Size in bytes for high-priority/low-fee transactions when creating a block"`
+	MiningTimeOffset    int      `long:"miningtimeoffset" description:"Offset the mining timestamp of a block by this many seconds (positive values are in the past)"`
+	NonAggressive       bool     `long:"nonaggressive" description:"Disable mining off of the parent block of the blockchain if there aren't enough voters"`
+	NoMiningStateSync   bool     `long:"nominingstatesync" description:"Disable synchronizing the mining state with other nodes"`
+	AllowUnsyncedMining bool     `long:"allowunsyncedmining" description:"Allow block templates to be generated even when the chain is not considered synced on networks other than the main network.  This is automatically enabled when the simnet option is set.  Don't do this unless you know what you're doing"`
+
+	// Indexing options.
+	TxIndex             bool `long:"txindex" description:"Maintain a full hash-based transaction index which makes all transactions available via the getrawtransaction RPC"`
+	DropTxIndex         bool `long:"droptxindex" description:"Deletes the hash-based transaction index from the database on start up and then exits"`
+	AddrIndex           bool `long:"addrindex" description:"Maintain a full address-based transaction index which makes the searchrawtransactions RPC available"`
+	DropAddrIndex       bool `long:"dropaddrindex" description:"Deletes the address-based transaction index from the database on start up and then exits"`
+	NoExistsAddrIndex   bool `long:"noexistsaddrindex" description:"Disable the exists address index, which tracks whether or not an address has even been used"`
+	DropExistsAddrIndex bool `long:"dropexistsaddrindex" description:"Deletes the exists address index from the database on start up and then exits"`
+	NoCFilters          bool `long:"nocfilters" description:"(Deprecated) Disable compact filtering (CF) support"`
+	DropCFIndex         bool `long:"dropcfindex" description:"(Deprecated) Deletes the index used for compact filtering (CF) support from the database on start up and then exits"`
+
+	// IPC options.
+	PipeRx         uint `long:"piperx" description:"File descriptor of read end pipe to enable parent -> child process communication"`
+	PipeTx         uint `long:"pipetx" description:"File descriptor of write end pipe to enable parent <- child process communication"`
+	LifetimeEvents bool `long:"lifetimeevents" description:"Send lifetime notifications over the TX pipe"`
+
+	// Cooked options ready for use.
+	onionlookup   func(string) ([]net.IP, error)
+	lookup        func(string) ([]net.IP, error)
+	oniondial     func(context.Context, string, string) (net.Conn, error)
+	dial          func(context.Context, string, string) (net.Conn, error)
+	miningAddrs   []dcrutil.Address
+	minRelayTxFee dcrutil.Amount
+	whitelists    []*net.IPNet
+	ipv4NetInfo   types.NetworksResult
+	ipv6NetInfo   types.NetworksResult
+	onionNetInfo  types.NetworksResult
+	params        *params
 }
 
 // serviceOptions defines the configuration options for the daemon as a service on
@@ -508,44 +544,58 @@ func parseNetworkInterfaces(cfg *config) error {
 func loadConfig() (*config, []string, error) {
 	// Default config.
 	cfg := config{
-		HomeDir:              defaultHomeDir,
-		ConfigFile:           defaultConfigFile,
-		DebugLevel:           defaultLogLevel,
-		MaxSameIP:            defaultMaxSameIP,
-		MaxPeers:             defaultMaxPeers,
-		BanDuration:          defaultBanDuration,
-		BanThreshold:         defaultBanThreshold,
+		// General application behavior.
+		HomeDir:         defaultHomeDir,
+		ConfigFile:      defaultConfigFile,
+		DataDir:         defaultDataDir,
+		LogDir:          defaultLogDir,
+		DbType:          defaultDbType,
+		DebugLevel:      defaultLogLevel,
+		SigCacheMaxSize: defaultSigCacheMaxSize,
+
+		// RPC server options and policy.
+		RPCCert:              defaultRPCCertFile,
+		RPCKey:               defaultRPCKeyFile,
+		TLSCurve:             defaultTLSCurve,
 		RPCMaxClients:        defaultMaxRPCClients,
 		RPCMaxWebsockets:     defaultMaxRPCWebsockets,
 		RPCMaxConcurrentReqs: defaultMaxRPCConcurrentReqs,
-		DataDir:              defaultDataDir,
-		LogDir:               defaultLogDir,
-		DbType:               defaultDbType,
-		RPCKey:               defaultRPCKeyFile,
-		TLSCurve:             defaultTLSCurve,
-		RPCCert:              defaultRPCCertFile,
-		MinRelayTxFee:        mempool.DefaultMinRelayTxFee.ToCoin(),
-		FreeTxRelayLimit:     defaultFreeTxRelayLimit,
-		BlockMinSize:         defaultBlockMinSize,
-		BlockMaxSize:         defaultBlockMaxSize,
-		BlockPrioritySize:    mempool.DefaultBlockPrioritySize,
-		MaxOrphanTxs:         defaultMaxOrphanTransactions,
-		SigCacheMaxSize:      defaultSigCacheMaxSize,
-		Generate:             defaultGenerate,
-		NoMiningStateSync:    defaultNoMiningStateSync,
-		AllowUnsyncedMining:  defaultAllowUnsyncedMining,
-		TxIndex:              defaultTxIndex,
-		AddrIndex:            defaultAddrIndex,
-		AllowOldVotes:        defaultAllowOldVotes,
-		NoExistsAddrIndex:    defaultNoExistsAddrIndex,
-		NoCFilters:           defaultNoCFilters,
-		AltDNSNames:          defaultAltDNSNames,
-		DialTimeout:          defaultDialTimeout,
-		PeerIdleTimeout:      defaultPeerIdleTimeout,
-		ipv4NetInfo:          types.NetworksResult{Name: "IPV4"},
-		ipv6NetInfo:          types.NetworksResult{Name: "IPV6"},
-		onionNetInfo:         types.NetworksResult{Name: "Onion"},
-		params:               &mainNetParams,
+
+		// P2P network options.
+		MaxSameIP:       defaultMaxSameIP,
+		MaxPeers:        defaultMaxPeers,
+		DialTimeout:     defaultDialTimeout,
+		PeerIdleTimeout: defaultPeerIdleTimeout,
+
+		// Banning options.
+		BanDuration:  defaultBanDuration,
+		BanThreshold: defaultBanThreshold,
+
+		// Relay and mempool policy.
+		MinRelayTxFee:    mempool.DefaultMinRelayTxFee.ToCoin(),
+		FreeTxRelayLimit: defaultFreeTxRelayLimit,
+		MaxOrphanTxs:     defaultMaxOrphanTransactions,
+		AllowOldVotes:    defaultAllowOldVotes,
+
+		// Mining options and policy.
+		Generate:            defaultGenerate,
+		BlockMinSize:        defaultBlockMinSize,
+		BlockMaxSize:        defaultBlockMaxSize,
+		BlockPrioritySize:   mempool.DefaultBlockPrioritySize,
+		NoMiningStateSync:   defaultNoMiningStateSync,
+		AllowUnsyncedMining: defaultAllowUnsyncedMining,
+
+		// Indexing options.
+		TxIndex:           defaultTxIndex,
+		AddrIndex:         defaultAddrIndex,
+		NoExistsAddrIndex: defaultNoExistsAddrIndex,
+		NoCFilters:        defaultNoCFilters,
+
+		// Cooked options ready for use.
+		ipv4NetInfo:  types.NetworksResult{Name: "IPV4"},
+		ipv6NetInfo:  types.NetworksResult{Name: "IPV6"},
+		onionNetInfo: types.NetworksResult{Name: "Onion"},
+		params:       &mainNetParams,
 	}
 
 	// Service options which are only added on Windows.

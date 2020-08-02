@@ -3062,7 +3062,7 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB, chainP
 			AcceptNonStd:         cfg.AcceptNonStd,
 			FreeTxRelayLimit:     cfg.FreeTxRelayLimit,
 			MaxOrphanTxs:         cfg.MaxOrphanTxs,
-			MaxOrphanTxSize:      defaultMaxOrphanTxSize,
+			MaxOrphanTxSize:      mempool.MaxStandardTxSize,
 			MaxSigOpsPerTx:       blockchain.MaxSigOpsPerBlock / 5,
 			MinRelayTxFee:        cfg.minRelayTxFee,
 			AllowOldVotes:        cfg.AllowOldVotes,
