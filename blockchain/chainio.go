@@ -1781,8 +1781,6 @@ func loadBlockIndex(dbTx database.Tx, genesisHash *chainhash.Hash, index *blockI
 		node := &blockNodes[i]
 		initBlockNode(node, header, parent)
 		node.status = entry.status
-		node.ticketsVoted = entry.ticketsVoted
-		node.ticketsRevoked = entry.ticketsRevoked
 		node.votes = entry.voteInfo
 		index.addNode(node)
 
