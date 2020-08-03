@@ -153,7 +153,7 @@ func upgradeToVersion2(db database.DB, chainParams *chaincfg.Params, dbInfo *dat
 		return block, nil
 	}
 
-	log.Infof("Initializing upgrade to database version 2")
+	log.Info("Initializing upgrade to database version 2")
 	progressLogger := progresslog.NewBlockProgressLogger("Upgraded", log)
 
 	// The upgrade is atomic, so there is no need to set the flag that
@@ -462,7 +462,7 @@ func removeMainChainIndex(ctx context.Context, db database.DB) error {
 			if err := meta.DeleteBucket(hashIdxBucketName); err != nil {
 				return err
 			}
-			log.Infof("Removed hash index.")
+			log.Info("Removed hash index.")
 		}
 
 		if interruptRequested(ctx) {
@@ -479,7 +479,7 @@ func removeMainChainIndex(ctx context.Context, db database.DB) error {
 			if err := meta.DeleteBucket(heightIdxBucketName); err != nil {
 				return err
 			}
-			log.Infof("Removed height index.")
+			log.Info("Removed height index.")
 		}
 
 		return nil
@@ -564,7 +564,7 @@ func upgradeToVersion5(ctx context.Context, db database.DB, chainParams *chaincf
 	if err != nil {
 		return err
 	}
-	log.Infof("Cleared utxoset.")
+	log.Info("Cleared utxoset.")
 
 	if interruptRequested(ctx) {
 		return errInterruptRequested
@@ -575,7 +575,7 @@ func upgradeToVersion5(ctx context.Context, db database.DB, chainParams *chaincf
 	if err != nil {
 		return err
 	}
-	log.Infof("Cleared spend journal.")
+	log.Info("Cleared spend journal.")
 
 	if interruptRequested(ctx) {
 		return errInterruptRequested
@@ -583,7 +583,7 @@ func upgradeToVersion5(ctx context.Context, db database.DB, chainParams *chaincf
 
 	err = db.Update(func(dbTx database.Tx) error {
 		// Reset the ticket database to the genesis block.
-		log.Infof("Resetting the ticket database.  This might take a while...")
+		log.Info("Resetting the ticket database.  This might take a while...")
 		err := stake.ResetDatabase(dbTx, chainParams, &chainParams.GenesisHash)
 		if err != nil {
 			return err
