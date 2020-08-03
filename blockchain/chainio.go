@@ -32,7 +32,7 @@ const (
 
 	// currentBlockIndexVersion indicates what the current block index
 	// database version.
-	currentBlockIndexVersion = 2
+	currentBlockIndexVersion = 3
 
 	// blockHdrSize is the size of a block header.  This is simply the
 	// constant from wire and is only provided here for convenience since
@@ -83,7 +83,7 @@ var (
 	// blockIndexBucketName is the name of the db bucket used to house the block
 	// index which consists of metadata for all known blocks both in the main
 	// chain and on side chains.
-	blockIndexBucketName = []byte("blockidx")
+	blockIndexBucketName = []byte("blockidxv3")
 
 	// gcsFilterBucketName is the name of the db bucket used to house GCS
 	// filters.
@@ -239,7 +239,7 @@ func ConvertUtxosToMinimalOutputs(entry *UtxoEntry) []*stake.MinimalOutput {
 
 // -----------------------------------------------------------------------------
 // The block index consists of an entry for every known block.  It consists of
-// information such as the block header and hashes of tickets voted and revoked.
+// information such as the block header and information about votes.
 //
 // The serialized key format is:
 //
@@ -258,21 +258,15 @@ func ConvertUtxosToMinimalOutputs(entry *UtxoEntry) []*stake.MinimalOutput {
 //   status             blockStatus         1 byte
 //   num votes          VLQ                 variable
 //   vote info
-//     ticket hash      chainhash.Hash      chainhash.HashSize
 //     vote version     VLQ                 variable
 //     vote bits        VLQ                 variable
-//   num revoked        VLQ                 variable
-//   revoked tickets
-//     ticket hash      chainhash.Hash      chainhash.HashSize
 // -----------------------------------------------------------------------------
 
 // blockIndexEntry represents a block index database entry.
 type blockIndexEntry struct {
-	header         wire.BlockHeader
-	status         blockStatus
-	voteInfo       []stake.VoteVersionTuple
-	ticketsVoted   []chainhash.Hash
-	ticketsRevoked []chainhash.Hash
+	header   wire.BlockHeader
+	status   blockStatus
+	voteInfo []stake.VoteVersionTuple
 }
 
 // blockIndexKey generates the binary key for an entry in the block index
@@ -292,14 +286,12 @@ func blockIndexKey(blockHash *chainhash.Hash, blockHeight uint32) []byte {
 func blockIndexEntrySerializeSize(entry *blockIndexEntry) int {
 	voteInfoSize := 0
 	for i := range entry.voteInfo {
-		voteInfoSize += chainhash.HashSize +
-			serializeSizeVLQ(uint64(entry.voteInfo[i].Version)) +
+		voteInfoSize += serializeSizeVLQ(uint64(entry.voteInfo[i].Version)) +
 			serializeSizeVLQ(uint64(entry.voteInfo[i].Bits))
 	}
 
 	return blockHdrSize + 1 + serializeSizeVLQ(uint64(len(entry.voteInfo))) +
-		voteInfoSize + serializeSizeVLQ(uint64(len(entry.ticketsRevoked))) +
-		chainhash.HashSize*len(entry.ticketsRevoked)
+		voteInfoSize
 }
 
 // putBlockIndexEntry serializes the passed block index entry according to the
@@ -307,11 +299,6 @@ func blockIndexEntrySerializeSize(entry *blockIndexEntry) int {
 // target byte slice must be at least large enough to handle the number of bytes
 // returned by the blockIndexEntrySerializeSize function or it will panic.
 func putBlockIndexEntry(target []byte, entry *blockIndexEntry) (int, error) {
-	if len(entry.voteInfo) != len(entry.ticketsVoted) {
-		return 0, AssertError("putBlockIndexEntry called with " +
-			"mismatched number of tickets voted and vote info")
-	}
-
 	// Serialize the entire block header.
 	w := bytes.NewBuffer(target[0:0])
 	if err := entry.header.Serialize(w); err != nil {
@@ -326,16 +313,8 @@ func putBlockIndexEntry(target []byte, entry *blockIndexEntry) (int, error) {
 	// Serialize the number of votes and associated vote information.
 	offset += putVLQ(target[offset:], uint64(len(entry.voteInfo)))
 	for i := range entry.voteInfo {
-		offset += copy(target[offset:], entry.ticketsVoted[i][:])
 		offset += putVLQ(target[offset:], uint64(entry.voteInfo[i].Version))
 		offset += putVLQ(target[offset:], uint64(entry.voteInfo[i].Bits))
-	}
-
-	// Serialize the number of revocations and associated revocation
-	// information.
-	offset += putVLQ(target[offset:], uint64(len(entry.ticketsRevoked)))
-	for i := range entry.ticketsRevoked {
-		offset += copy(target[offset:], entry.ticketsRevoked[i][:])
 	}
 
 	return offset, nil
@@ -376,7 +355,6 @@ func decodeBlockIndexEntry(serialized []byte, entry *blockIndexEntry) (int, erro
 	offset++
 
 	// Deserialize the number of tickets spent.
-	var ticketsVoted []chainhash.Hash
 	var votes []stake.VoteVersionTuple
 	numVotes, bytesRead := deserializeVLQ(serialized[offset:])
 	if bytesRead == 0 {
@@ -385,18 +363,8 @@ func decodeBlockIndexEntry(serialized []byte, entry *blockIndexEntry) (int, erro
 	}
 	offset += bytesRead
 	if numVotes > 0 {
-		ticketsVoted = make([]chainhash.Hash, numVotes)
 		votes = make([]stake.VoteVersionTuple, numVotes)
 		for i := uint64(0); i < numVotes; i++ {
-			// Deserialize the ticket hash associated with the vote.
-			if offset+chainhash.HashSize > len(serialized) {
-				return offset, errDeserialize(fmt.Sprintf("unexpected "+
-					"end of data while reading vote #%d hash",
-					i))
-			}
-			copy(ticketsVoted[i][:], serialized[offset:])
-			offset += chainhash.HashSize
-
 			// Deserialize the vote version.
 			version, bytesRead := deserializeVLQ(serialized[offset:])
 			if bytesRead == 0 {
@@ -420,34 +388,9 @@ func decodeBlockIndexEntry(serialized []byte, entry *blockIndexEntry) (int, erro
 		}
 	}
 
-	// Deserialize the number of tickets revoked.
-	var ticketsRevoked []chainhash.Hash
-	numTicketsRevoked, bytesRead := deserializeVLQ(serialized[offset:])
-	if bytesRead == 0 {
-		return offset, errDeserialize("unexpected end of data while " +
-			"reading num tickets revoked")
-	}
-	offset += bytesRead
-	if numTicketsRevoked > 0 {
-		ticketsRevoked = make([]chainhash.Hash, numTicketsRevoked)
-		for i := uint64(0); i < numTicketsRevoked; i++ {
-			// Deserialize the ticket hash associated with the
-			// revocation.
-			if offset+chainhash.HashSize > len(serialized) {
-				return offset, errDeserialize(fmt.Sprintf("unexpected "+
-					"end of data while reading revocation "+
-					"#%d", i))
-			}
-			copy(ticketsRevoked[i][:], serialized[offset:])
-			offset += chainhash.HashSize
-		}
-	}
-
 	entry.header = header
 	entry.status = status
 	entry.voteInfo = votes
-	entry.ticketsVoted = ticketsVoted
-	entry.ticketsRevoked = ticketsRevoked
 	return offset, nil
 }
 
@@ -465,11 +408,9 @@ func deserializeBlockIndexEntry(serialized []byte) (*blockIndexEntry, error) {
 // block node in the block index according to the format described above.
 func dbPutBlockNode(dbTx database.Tx, node *blockNode) error {
 	serialized, err := serializeBlockIndexEntry(&blockIndexEntry{
-		header:         node.Header(),
-		status:         node.status,
-		voteInfo:       node.votes,
-		ticketsVoted:   node.ticketsVoted,
-		ticketsRevoked: node.ticketsRevoked,
+		header:   node.Header(),
+		status:   node.status,
+		voteInfo: node.votes,
 	})
 	if err != nil {
 		return err

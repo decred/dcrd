@@ -233,9 +233,203 @@ func upgradeToVersion2(db database.DB, chainParams *chaincfg.Params, dbInfo *dat
 		return err
 	}
 
-	log.Infof("Upgrade to new stake database was successful!")
+	log.Info("Upgrade to new stake database was successful!")
 
 	return nil
+}
+
+// -----------------------------------------------------------------------------
+// The legacy version 2 block index consists of an entry for every known block.
+// which includes information such as the block header and hashes of tickets
+// voted and revoked.
+//
+// The serialized key format is:
+//
+//   <block height><block hash>
+//
+//   Field           Type              Size
+//   block height    uint32            4 bytes
+//   block hash      chainhash.Hash    chainhash.HashSize
+//
+// The serialized value format is:
+//
+//   <block header><status><num votes><votes info><num revoked><revoked tickets>
+//
+//   Field              Type                Size
+//   block header       wire.BlockHeader    180 bytes
+//   status             blockStatus         1 byte
+//   num votes          VLQ                 variable
+//   vote info
+//     ticket hash      chainhash.Hash      chainhash.HashSize
+//     vote version     VLQ                 variable
+//     vote bits        VLQ                 variable
+//   num revoked        VLQ                 variable
+//   revoked tickets
+//     ticket hash      chainhash.Hash      chainhash.HashSize
+// -----------------------------------------------------------------------------
+type blockIndexEntryV2 struct {
+	header         wire.BlockHeader
+	status         blockStatus
+	voteInfo       []stake.VoteVersionTuple
+	ticketsVoted   []chainhash.Hash
+	ticketsRevoked []chainhash.Hash
+}
+
+// blockIndexEntrySerializeSizV2e returns the number of bytes it would take to
+// serialize the passed block index entry according to the legacy version 2
+// format described above.
+func blockIndexEntrySerializeSizeV2(entry *blockIndexEntryV2) int {
+	voteInfoSize := 0
+	for i := range entry.voteInfo {
+		voteInfoSize += chainhash.HashSize +
+			serializeSizeVLQ(uint64(entry.voteInfo[i].Version)) +
+			serializeSizeVLQ(uint64(entry.voteInfo[i].Bits))
+	}
+
+	return blockHdrSize + 1 + serializeSizeVLQ(uint64(len(entry.voteInfo))) +
+		voteInfoSize + serializeSizeVLQ(uint64(len(entry.ticketsRevoked))) +
+		chainhash.HashSize*len(entry.ticketsRevoked)
+}
+
+// putBlockIndexEntryV2 serializes the passed block index entry according to the
+// legacy version 2 format described above directly into the passed target byte
+// slice.  The target byte slice must be at least large enough to handle the
+// number of bytes returned by the blockIndexEntrySerializeSizeV2 function or it
+// will panic.
+func putBlockIndexEntryV2(target []byte, entry *blockIndexEntryV2) (int, error) {
+	if len(entry.voteInfo) != len(entry.ticketsVoted) {
+		return 0, AssertError("putBlockIndexEntry called with " +
+			"mismatched number of tickets voted and vote info")
+	}
+
+	// Serialize the entire block header.
+	w := bytes.NewBuffer(target[0:0])
+	if err := entry.header.Serialize(w); err != nil {
+		return 0, err
+	}
+
+	// Serialize the status.
+	offset := blockHdrSize
+	target[offset] = byte(entry.status)
+	offset++
+
+	// Serialize the number of votes and associated vote information.
+	offset += putVLQ(target[offset:], uint64(len(entry.voteInfo)))
+	for i := range entry.voteInfo {
+		offset += copy(target[offset:], entry.ticketsVoted[i][:])
+		offset += putVLQ(target[offset:], uint64(entry.voteInfo[i].Version))
+		offset += putVLQ(target[offset:], uint64(entry.voteInfo[i].Bits))
+	}
+
+	// Serialize the number of revocations and associated revocation
+	// information.
+	offset += putVLQ(target[offset:], uint64(len(entry.ticketsRevoked)))
+	for i := range entry.ticketsRevoked {
+		offset += copy(target[offset:], entry.ticketsRevoked[i][:])
+	}
+
+	return offset, nil
+}
+
+// decodeBlockIndexEntryV2 decodes the passed serialized block index entry into
+// the passed struct according to the legacy version 2 format described above.
+// It returns the number of bytes read.
+func decodeBlockIndexEntryV2(serialized []byte, entry *blockIndexEntryV2) (int, error) {
+	// Hardcoded value so updates do not affect old upgrades.
+	const blockHdrSize = 180
+
+	// Ensure there are enough bytes to decode header.
+	if len(serialized) < blockHdrSize {
+		return 0, errDeserialize("unexpected end of data while reading block " +
+			"header")
+	}
+	hB := serialized[0:blockHdrSize]
+
+	// Deserialize the header.
+	var header wire.BlockHeader
+	if err := header.Deserialize(bytes.NewReader(hB)); err != nil {
+		return 0, err
+	}
+	offset := blockHdrSize
+
+	// Deserialize the status.
+	if offset+1 > len(serialized) {
+		return offset, errDeserialize("unexpected end of data while reading " +
+			"status")
+	}
+	status := blockStatus(serialized[offset])
+	offset++
+
+	// Deserialize the number of tickets spent.
+	var ticketsVoted []chainhash.Hash
+	var votes []stake.VoteVersionTuple
+	numVotes, bytesRead := deserializeVLQ(serialized[offset:])
+	if bytesRead == 0 {
+		return offset, errDeserialize("unexpected end of data while reading " +
+			"num votes")
+	}
+	offset += bytesRead
+	if numVotes > 0 {
+		ticketsVoted = make([]chainhash.Hash, numVotes)
+		votes = make([]stake.VoteVersionTuple, numVotes)
+		for i := uint64(0); i < numVotes; i++ {
+			// Deserialize the ticket hash associated with the vote.
+			if offset+chainhash.HashSize > len(serialized) {
+				return offset, errDeserialize(fmt.Sprintf("unexpected end of "+
+					"data while reading vote #%d hash", i))
+			}
+			copy(ticketsVoted[i][:], serialized[offset:])
+			offset += chainhash.HashSize
+
+			// Deserialize the vote version.
+			version, bytesRead := deserializeVLQ(serialized[offset:])
+			if bytesRead == 0 {
+				return offset, errDeserialize(fmt.Sprintf("unexpected end of "+
+					"data while reading vote #%d version", i))
+			}
+			offset += bytesRead
+
+			// Deserialize the vote bits.
+			voteBits, bytesRead := deserializeVLQ(serialized[offset:])
+			if bytesRead == 0 {
+				return offset, errDeserialize(fmt.Sprintf("unexpected end of "+
+					"data while reading vote #%d bits", i))
+			}
+			offset += bytesRead
+
+			votes[i].Version = uint32(version)
+			votes[i].Bits = uint16(voteBits)
+		}
+	}
+
+	// Deserialize the number of tickets revoked.
+	var ticketsRevoked []chainhash.Hash
+	numTicketsRevoked, bytesRead := deserializeVLQ(serialized[offset:])
+	if bytesRead == 0 {
+		return offset, errDeserialize("unexpected end of data while reading " +
+			"num tickets revoked")
+	}
+	offset += bytesRead
+	if numTicketsRevoked > 0 {
+		ticketsRevoked = make([]chainhash.Hash, numTicketsRevoked)
+		for i := uint64(0); i < numTicketsRevoked; i++ {
+			// Deserialize the ticket hash associated with the
+			// revocation.
+			if offset+chainhash.HashSize > len(serialized) {
+				return offset, errDeserialize(fmt.Sprintf("unexpected end of "+
+					"data while reading revocation #%d", i))
+			}
+			copy(ticketsRevoked[i][:], serialized[offset:])
+			offset += chainhash.HashSize
+		}
+	}
+
+	entry.header = header
+	entry.status = status
+	entry.voteInfo = votes
+	entry.ticketsVoted = ticketsVoted
+	entry.ticketsRevoked = ticketsRevoked
+	return offset, nil
 }
 
 // migrateBlockIndex migrates all block entries from the v1 block index bucket
@@ -357,14 +551,15 @@ func migrateBlockIndex(ctx context.Context, db database.DB) error {
 			// Write the serialized block index entry to the new bucket keyed by
 			// its hash and height.
 			ticketInfo := stake.FindSpentTicketsInBlock(&block)
-			serialized, err := serializeBlockIndexEntry(&blockIndexEntry{
+			entry := &blockIndexEntryV2{
 				header:         block.Header,
 				status:         status,
 				voteInfo:       ticketInfo.Votes,
 				ticketsVoted:   ticketInfo.VotedTickets,
 				ticketsRevoked: ticketInfo.RevokedTickets,
-			})
-			if err != nil {
+			}
+			serialized := make([]byte, blockIndexEntrySerializeSizeV2(entry))
+			if _, err = putBlockIndexEntryV2(serialized, entry); err != nil {
 				return err
 			}
 			err = v2BlockIdxBucket.Put(key, serialized)
@@ -962,6 +1157,164 @@ func upgradeToVersion6(ctx context.Context, db database.DB, chainParams *chaincf
 	return nil
 }
 
+// migrateBlockIndexVersion2To3 migrates all block entries from the v2 block
+// index bucket to a v3 bucket and removes the old v2 bucket.  As compared to
+// the v2 block index, the v3 index removes the ticket hashes associated with
+// vote info and revocations.
+//
+// The new block index is guaranteed to be fully updated if this returns without
+// failure.
+func migrateBlockIndexVersion2To3(ctx context.Context, db database.DB, dbInfo *databaseInfo) error {
+	// Hardcoded bucket names so updates do not affect old upgrades.
+	v2BucketName := []byte("blockidx")
+	v3BucketName := []byte("blockidxv3")
+
+	log.Info("Reindexing block information in the database.  This may take a " +
+		"while...")
+	start := time.Now()
+
+	// Create the new block index bucket as needed.
+	err := db.Update(func(dbTx database.Tx) error {
+		_, err := dbTx.Metadata().CreateBucketIfNotExists(v3BucketName)
+		return err
+	})
+	if err != nil {
+		return err
+	}
+
+	// doBatch contains the primary logic for upgrading the block index from
+	// version 2 to 3 in batches.  This is done because attempting to migrate in
+	// a single database transaction could result in massive memory usage and
+	// could potentially crash on many systems due to ulimits.
+	//
+	// It returns the number of entries processed.
+	const maxEntries = 20000
+	var resumeOffset uint32
+	doBatch := func(dbTx database.Tx) (uint32, error) {
+		meta := dbTx.Metadata()
+		v2BlockIdxBucket := meta.Bucket(v2BucketName)
+		if v2BlockIdxBucket == nil {
+			return 0, fmt.Errorf("bucket %s does not exist", v2BucketName)
+		}
+
+		v3BlockIdxBucket := meta.Bucket(v3BucketName)
+		if v3BlockIdxBucket == nil {
+			return 0, fmt.Errorf("bucket %s does not exist", v3BucketName)
+		}
+
+		// Migrate block index entries so long as the max number of entries for
+		// this batch has not been exceeded.
+		var numMigrated, numIterated uint32
+		err := v2BlockIdxBucket.ForEach(func(key, oldSerialized []byte) error {
+			if numMigrated >= maxEntries {
+				return errBatchFinished
+			}
+
+			// Skip entries that have already been migrated in previous batches.
+			numIterated++
+			if numIterated-1 < resumeOffset {
+				return nil
+			}
+			resumeOffset++
+
+			// Skip entries that have already been migrated in previous
+			// interrupted upgrades.
+			if v3BlockIdxBucket.Get(key) != nil {
+				return nil
+			}
+
+			// Decode the old block index entry.
+			var entry blockIndexEntryV2
+			_, err := decodeBlockIndexEntryV2(oldSerialized, &entry)
+			if err != nil {
+				return err
+			}
+
+			// Write the block index entry seriliazed with the new format to the
+			// new bucket.
+			serialized, err := serializeBlockIndexEntry(&blockIndexEntry{
+				header:   entry.header,
+				status:   entry.status,
+				voteInfo: entry.voteInfo,
+			})
+			if err != nil {
+				return err
+			}
+			err = v3BlockIdxBucket.Put(key, serialized)
+			if err != nil {
+				return err
+			}
+
+			numMigrated++
+
+			if interruptRequested(ctx) {
+				return errInterruptRequested
+			}
+
+			return nil
+		})
+		return numMigrated, err
+	}
+
+	// Migrate all entries in batches for the reasons mentioned above.
+	var totalMigrated uint64
+	for {
+		var numMigrated uint32
+		err := db.Update(func(dbTx database.Tx) error {
+			var err error
+			numMigrated, err = doBatch(dbTx)
+			if errors.Is(err, errInterruptRequested) ||
+				errors.Is(err, errBatchFinished) {
+				// No error here so the database transaction is not cancelled
+				// and therefore outstanding work is written to disk.  The outer
+				// function will exit with an interrupted error below due to
+				// another interrupted check.
+				err = nil
+			}
+			return err
+		})
+		if err != nil {
+			return err
+		}
+
+		if interruptRequested(ctx) {
+			return errInterruptRequested
+		}
+
+		if numMigrated == 0 {
+			break
+		}
+
+		totalMigrated += uint64(numMigrated)
+		log.Infof("Migrated %d entries (%d total)", numMigrated, totalMigrated)
+	}
+
+	elapsed := time.Since(start).Round(time.Millisecond)
+	log.Infof("Done migrating block index.  Total entries: %d in %v",
+		totalMigrated, elapsed)
+
+	if interruptRequested(ctx) {
+		return errInterruptRequested
+	}
+
+	// Drop version 2 block index.
+	log.Info("Removing old block index entries...")
+	start = time.Now()
+	err = incrementalFlatDrop(ctx, db, v2BucketName, "old block index")
+	if err != nil {
+		return err
+	}
+	elapsed = time.Since(start).Round(time.Millisecond)
+	log.Infof("Done removing old block index entries in %v", elapsed)
+
+	// Update and persist the database versions.
+	err = db.Update(func(dbTx database.Tx) error {
+		dbInfo.bidxVer = 3
+		return dbPutDatabaseInfo(dbTx, dbInfo)
+	})
+	return err
+}
+
 // upgradeDB upgrades old database versions to the newest version by applying
 // all possible upgrades iteratively.
 //
@@ -1004,6 +1357,14 @@ func upgradeDB(ctx context.Context, db database.DB, chainParams *chaincfg.Params
 	// filters for all blocks in the main chain.
 	if dbInfo.version == 5 {
 		err := upgradeToVersion6(ctx, db, chainParams, dbInfo)
+		if err != nil {
+			return err
+		}
+	}
+
+	// Update to the version 3 block index format if needed.
+	if dbInfo.version == 6 && dbInfo.bidxVer == 2 {
+		err := migrateBlockIndexVersion2To3(ctx, db, dbInfo)
 		if err != nil {
 			return err
 		}
