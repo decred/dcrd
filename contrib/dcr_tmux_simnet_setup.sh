@@ -14,7 +14,7 @@
 # The primary dcrd node (dcrd1) is configured as the primary mining node.
 #
 # Network layout:
-# dcrd1 (p2p: localhost:19555) <-> dcrd2 (p2p: localhost:19565)
+# dcrd1 (p2p: localhost:19555) <-- dcrd2 (p2p: localhost:19565)
 #
 # RPC layout:
 # dcrd1 (JSON-RPC: localhost:19556)
@@ -90,7 +90,7 @@ tmux send-keys "cd ${NODES_ROOT}/${PRIMARY_DCRD_NAME}" C-m
 
 cat > "${NODES_ROOT}/${PRIMARY_DCRD_NAME}/ctl" <<EOF
 #!/usr/bin/env bash
-dcrctl -C ../dcrctl.conf \$*
+dcrctl -C ../dcrctl.conf "\$@"
 EOF
 chmod +x "${NODES_ROOT}/${PRIMARY_DCRD_NAME}/ctl"
 
@@ -135,7 +135,7 @@ tmux send-keys "cd ${NODES_ROOT}/${PRIMARY_WALLET_NAME}" C-m
 
 cat > "${NODES_ROOT}/${PRIMARY_WALLET_NAME}/ctl" <<EOF
 #!/usr/bin/env bash
-dcrctl -C ../dcrctl.conf --wallet -c ./data/rpc.cert \$*
+dcrctl -C ../dcrctl.conf --wallet -c ./data/rpc.cert "\$@"
 EOF
 chmod +x "${NODES_ROOT}/${PRIMARY_WALLET_NAME}/ctl"
 
@@ -180,7 +180,7 @@ SECONDARY_DCRD_P2P=127.0.0.1:19565
 SECONDARY_DCRD_RPC=127.0.0.1:19566
 cat > "${NODES_ROOT}/${SECONDARY_DCRD_NAME}/ctl" <<EOF
 #!/usr/bin/env bash
-dcrctl -C ../dcrctl.conf -s ${SECONDARY_DCRD_RPC} \$*
+dcrctl -C ../dcrctl.conf -s ${SECONDARY_DCRD_RPC} "\$@"
 EOF
 chmod +x "${NODES_ROOT}/${SECONDARY_DCRD_NAME}/ctl"
 
@@ -229,7 +229,7 @@ tmux send-keys "cd ${NODES_ROOT}/${SECONDARY_WALLET_NAME}" C-m
 
 cat > "${NODES_ROOT}/${SECONDARY_WALLET_NAME}/ctl" <<EOF
 #!/usr/bin/env bash
-dcrctl -C ../dcrctl.conf -c ./data/rpc.cert -s ${SECONDARY_WALLET_RPC} \$*
+dcrctl -C ../dcrctl.conf -c ./data/rpc.cert -s ${SECONDARY_WALLET_RPC} "\$@"
 EOF
 chmod +x "${NODES_ROOT}/${SECONDARY_WALLET_NAME}/ctl"
 
