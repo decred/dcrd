@@ -566,3 +566,32 @@ type ExistsAddresser interface {
 	// addresses has been seen before.
 	ExistsAddresses(addrs []dcrutil.Address) ([]bool, error)
 }
+
+// TxMempooler represents a source of mempool transaction data for the RPC
+// server. Methods assume the existence of a main pool and an orphans pool.
+//
+// The interface contract requires that all of these methods are safe for
+// concurrent access.
+type TxMempooler interface {
+	// HaveTransactions returns whether or not the passed transactions
+	// already exist in the main pool or in the orphan pool.
+	HaveTransactions(hashes []*chainhash.Hash) []bool
+
+	// TxDescs returns a slice of descriptors for all the transactions in
+	// the pool. The descriptors must be treated as read only.
+	TxDescs() []*mempool.TxDesc
+
+	// VerboseTxDescs returns a slice of verbose descriptors for all the
+	// transactions in the pool. The descriptors must be treated as read
+	// only.
+	VerboseTxDescs() []*mempool.VerboseTxDesc
+
+	// Count returns the number of transactions in the main pool. It does
+	// not include the orphan pool.
+	Count() int
+
+	// FetchTransaction returns the requested transaction from the
+	// transaction pool. This only fetches from the main transaction pool
+	// and does not include orphans.
+	FetchTransaction(txHash *chainhash.Hash) (*dcrutil.Tx, error)
+}
