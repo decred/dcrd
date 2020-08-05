@@ -2745,6 +2745,51 @@ func TestHandleExistsLiveTickets(t *testing.T) {
 	}})
 }
 
+func TestHandleExistsMempoolTxs(t *testing.T) {
+	t.Parallel()
+
+	defaultCmdTxHashes := []string{
+		"1189cbe656c2ef1e0fcb91f107624d9aa8f0db7b28e6a86f694a4cf49abc5e39",
+		"2189cbe656c2ef1e0fcb91f107624d9aa8f0db7b28e6a86f694a4cf49abc5e39",
+	}
+	testRPCServerHandler(t, []rpcTest{{
+		name:    "handleExistsMempoolTxs: ok",
+		handler: handleExistsMempoolTxs,
+		cmd: &types.ExistsMempoolTxsCmd{
+			TxHashes: defaultCmdTxHashes,
+		},
+		mockTxMempooler: func() *testTxMempooler {
+			mp := defaultMockTxMempooler()
+			mp.haveTransactions = []bool{false, true}
+			return mp
+		}(),
+		result: "02",
+	}, {
+		name:    "handleExistsMempoolTxs: invalid hash",
+		handler: handleExistsMempoolTxs,
+		cmd: &types.ExistsMempoolTxsCmd{
+			TxHashes: []string{
+				"g189cbe656c2ef1e0fcb91f107624d9aa8f0db7b28e6a86f694a4cf49abc5e39",
+			},
+		},
+		wantErr: true,
+		errCode: dcrjson.ErrRPCDecodeHexString,
+	}, {
+		name:    "handleExistsMempoolTxs: have transaction count different than number of args",
+		handler: handleExistsMempoolTxs,
+		cmd: &types.ExistsMempoolTxsCmd{
+			TxHashes: defaultCmdTxHashes,
+		},
+		mockTxMempooler: func() *testTxMempooler {
+			mp := defaultMockTxMempooler()
+			mp.haveTransactions = []bool{false}
+			return mp
+		}(),
+		wantErr: true,
+		errCode: dcrjson.ErrRPCInternal.Code,
+	}})
+}
+
 func TestHandleExistsMissedTickets(t *testing.T) {
 	t.Parallel()
 
