@@ -3279,7 +3279,7 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB, chainP
 			ChainParams:     chainParams,
 			SanityChecker:   &rpcSanityChecker{s.timeSource, chainParams},
 			DB:              db,
-			TxMemPool:       s.txMemPool,
+			TxMempooler:     &rpcTxMempooler{s.txMemPool},
 			BlockTemplater: func() rpcserver.BlockTemplater {
 				if s.bg == nil {
 					return nil

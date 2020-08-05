@@ -1636,7 +1636,7 @@ func handleExistsMempoolTxs(_ context.Context, s *Server, cmd interface{}) (inte
 		return nil, err
 	}
 
-	exists := s.cfg.TxMemPool.HaveTransactions(hashes)
+	exists := s.cfg.TxMempooler.HaveTransactions(hashes)
 	if len(exists) != len(hashes) {
 		return nil, rpcInternalError(fmt.Sprintf("got %v, want %v",
 			len(exists), len(hashes)),
@@ -2407,7 +2407,7 @@ func handleGetInfo(_ context.Context, s *Server, cmd interface{}) (interface{}, 
 
 // handleGetMempoolInfo implements the getmempoolinfo command.
 func handleGetMempoolInfo(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
-	mempoolTxns := s.cfg.TxMemPool.TxDescs()
+	mempoolTxns := s.cfg.TxMempooler.TxDescs()
 
 	var numBytes int64
 	for _, txD := range mempoolTxns {
@@ -2456,7 +2456,7 @@ func handleGetMiningInfo(ctx context.Context, s *Server, cmd interface{}) (inter
 		GenProcLimit:     s.cfg.CPUMiner.NumWorkers(),
 		HashesPerSec:     int64(s.cfg.CPUMiner.HashesPerSecond()),
 		NetworkHashPS:    networkHashesPerSec,
-		PooledTx:         uint64(s.cfg.TxMemPool.Count()),
+		PooledTx:         uint64(s.cfg.TxMempooler.Count()),
 		TestNet:          s.cfg.TestNet,
 	}
 	return &result, nil
@@ -2672,9 +2672,8 @@ func handleGetRawMempool(_ context.Context, s *Server, cmd interface{}) (interfa
 	}
 
 	// Return verbose results if requested.
-	mp := s.cfg.TxMemPool
 	if c.Verbose != nil && *c.Verbose {
-		descs := mp.VerboseTxDescs()
+		descs := s.cfg.TxMempooler.VerboseTxDescs()
 		result := make(map[string]*types.GetRawMempoolVerboseResult, len(descs))
 		for i := range descs {
 			desc := descs[i]
@@ -2704,7 +2703,7 @@ func handleGetRawMempool(_ context.Context, s *Server, cmd interface{}) (interfa
 
 	// The response is simply an array of the transaction hashes if the
 	// verbose flag is not set.
-	descs := mp.TxDescs()
+	descs := s.cfg.TxMempooler.TxDescs()
 	hashStrings := make([]string, 0, len(descs))
 	for i := range descs {
 		if filterType != nil && descs[i].Type != *filterType {
@@ -2736,7 +2735,7 @@ func handleGetRawTransaction(_ context.Context, s *Server, cmd interface{}) (int
 	var blkHash *chainhash.Hash
 	var blkHeight int64
 	var blkIndex uint32
-	tx, err := s.cfg.TxMemPool.FetchTransaction(txHash)
+	tx, err := s.cfg.TxMempooler.FetchTransaction(txHash)
 	if err != nil {
 		txIndex := s.cfg.TxIndex
 		if txIndex == nil {
@@ -3166,7 +3165,7 @@ func handleGetTxOut(_ context.Context, s *Server, cmd interface{}) (interface{},
 	}
 	var txFromMempool *dcrutil.Tx
 	if includeMempool {
-		txFromMempool, _ = s.cfg.TxMemPool.FetchTransaction(txHash)
+		txFromMempool, _ = s.cfg.TxMempooler.FetchTransaction(txHash)
 	}
 	if txFromMempool != nil {
 		mtx := txFromMempool.MsgTx()
@@ -3657,7 +3656,6 @@ type retrievedTx struct {
 // inputs to the passed transaction by checking the transaction mempool first
 // then the transaction index for those already mined into blocks.
 func fetchInputTxos(s *Server, tx *wire.MsgTx) (map[wire.OutPoint]wire.TxOut, error) {
-	mp := s.cfg.TxMemPool
 	originOutputs := make(map[wire.OutPoint]wire.TxOut)
 	voteTx := stake.IsSSGen(tx)
 	for txInIndex, txIn := range tx.TxIn {
@@ -3669,7 +3667,7 @@ func fetchInputTxos(s *Server, tx *wire.MsgTx) (map[wire.OutPoint]wire.TxOut, er
 		// Attempt to fetch and use the referenced transaction from the
 		// memory pool.
 		origin := &txIn.PreviousOutPoint
-		originTx, err := mp.FetchTransaction(&origin.Hash)
+		originTx, err := s.cfg.TxMempooler.FetchTransaction(&origin.Hash)
 		if err == nil {
 			txOuts := originTx.MsgTx().TxOut
 			if origin.Index >= uint32(len(txOuts)) {
@@ -4381,7 +4379,7 @@ func stdDev(s []dcrutil.Amount) dcrutil.Amount {
 // feeInfoForMempool returns the fee information for the passed tx type in the
 // memory pool.
 func feeInfoForMempool(s *Server, txType stake.TxType) *types.FeeInfoMempool {
-	txDs := s.cfg.TxMemPool.TxDescs()
+	txDs := s.cfg.TxMempooler.TxDescs()
 	ticketFees := make([]dcrutil.Amount, 0, len(txDs))
 	for _, txD := range txDs {
 		if txD.Type == txType {
@@ -5632,8 +5630,8 @@ type Config struct {
 	// Clock defines the clock for the RPC server to use.
 	Clock Clock
 
-	// TxMemPool defines the transaction memory pool to interact with.
-	TxMemPool *mempool.TxPool
+	// TxMempooler defines the transaction memory pool to interact with.
+	TxMempooler TxMempooler
 
 	// These fields allow the RPC server to interface with mining.
 	//

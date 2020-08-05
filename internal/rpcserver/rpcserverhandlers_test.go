@@ -828,6 +828,46 @@ func (b *testBlockTemplater) UpdateBlockTime(header *wire.BlockHeader) error {
 	return b.updateBlockTimeErr
 }
 
+// testTxMempooler provides a mock mempool transaction data source by
+// implementing the TxMempooler interface.
+type testTxMempooler struct {
+	haveTransactions    []bool
+	txDescs             []*mempool.TxDesc
+	verboseTxDescs      []*mempool.VerboseTxDesc
+	count               int
+	fetchTransaction    *dcrutil.Tx
+	fetchTransactionErr error
+}
+
+// HaveTransactions returns a mocked bool slice representing whether or not the
+// passed transactions already exist.
+func (mp *testTxMempooler) HaveTransactions(hashes []*chainhash.Hash) []bool {
+	return mp.haveTransactions
+}
+
+// TxDescs returns a mock slice of descriptors for all the transactions in
+// the pool.
+func (mp *testTxMempooler) TxDescs() []*mempool.TxDesc {
+	return mp.txDescs
+}
+
+// VerboseTxDescs returns a mock slice of verbose descriptors for all the
+// transactions in the pool.
+func (mp *testTxMempooler) VerboseTxDescs() []*mempool.VerboseTxDesc {
+	return mp.verboseTxDescs
+}
+
+// Count returns a mock number of transactions in the main pool.
+func (mp *testTxMempooler) Count() int {
+	return mp.count
+}
+
+// FetchTransaction returns the mocked requested transaction from the
+// transaction pool.
+func (mp *testTxMempooler) FetchTransaction(txHash *chainhash.Hash) (*dcrutil.Tx, error) {
+	return mp.fetchTransaction, mp.fetchTransactionErr
+}
+
 // mustParseHash converts the passed big-endian hex string into a
 // chainhash.Hash and will panic if there is an error.  It only differs from the
 // one available in chainhash in that it will panic so errors in the source code
@@ -907,6 +947,7 @@ type rpcTest struct {
 	mockLogManager        *testLogManager
 	mockFilterer          *testFilterer
 	mockFiltererV2        *testFiltererV2
+	mockTxMempooler       *testTxMempooler
 	result                interface{}
 	wantErr               bool
 	errCode               dcrjson.RPCErrorCode
@@ -1233,6 +1274,15 @@ func defaultMockCPUMiner() *testCPUMiner {
 	return &testCPUMiner{}
 }
 
+// defaultMockTxMempooler provides a default mock mempool transaction source
+// to be used throughout the tests. Tests can override these defaults by
+// calling defaultMockTxMempooler, updating fields as necessary on the returned
+// *testTxMempooler, and then setting rpcTest.mockTxMempooler as that
+// *testTxMempooler.
+func defaultMockTxMempooler() *testTxMempooler {
+	return &testTxMempooler{}
+}
+
 // defaultMockConfig provides a default Config that is used throughout
 // the tests.  Defaults can be overridden by tests through the rpcTest struct.
 func defaultMockConfig(chainParams *chaincfg.Params) *Config {
@@ -1247,6 +1297,7 @@ func defaultMockConfig(chainParams *chaincfg.Params) *Config {
 		ExistsAddresser: defaultMockExistsAddresser(),
 		ConnMgr:         defaultMockConnManager(),
 		CPUMiner:        defaultMockCPUMiner(),
+		TxMempooler:     defaultMockTxMempooler(),
 		Clock:           &testClock{},
 		LogManager:      defaultMockLogManager(),
 		FiltererV2:      defaultMockFiltererV2(),
@@ -4927,6 +4978,9 @@ func testRPCServerHandler(t *testing.T, tests []rpcTest) {
 			}
 			if test.setBlockTemplaterNil {
 				rpcserverConfig.BlockTemplater = nil
+			}
+			if test.mockTxMempooler != nil {
+				rpcserverConfig.TxMempooler = test.mockTxMempooler
 			}
 
 			testServer := &Server{cfg: *rpcserverConfig, workState: workState}

@@ -597,15 +597,15 @@ type rpcFiltererV2 struct {
 // Ensure rpcFiltererV2 implements the rpcserver.FiltererV2 interface.
 var _ rpcserver.FiltererV2 = (*rpcFiltererV2)(nil)
 
-// Ensure rpcExistsAddresser implements the rpcserver.ExistsAddresser interface.
-var _ rpcserver.ExistsAddresser = (*rpcExistsAddresser)(nil)
-
 // rpcExistsAddresser provides exists address methods for use with the RPC
 // server and implements the rpcserver.ExistsAddresser interface. It should be
 // constructed by calling newRPCExistsAddresser.
 type rpcExistsAddresser struct {
-	existsAddrIndex *indexers.ExistsAddrIndex
+	*indexers.ExistsAddrIndex
 }
+
+// Ensure rpcExistsAddresser implements the rpcserver.ExistsAddresser interface.
+var _ rpcserver.ExistsAddresser = (*rpcExistsAddresser)(nil)
 
 // newRPCExistsAddresser is a constructor for a new rpcserver.ExistsAddresser
 // that wraps *rpcExistsAddresser. If the server's existsAddrIndex is nil, nil
@@ -618,13 +618,11 @@ func newRPCExistsAddresser(e *indexers.ExistsAddrIndex) rpcserver.ExistsAddresse
 	return &rpcExistsAddresser{e}
 }
 
-// ExistsAddress returns whether or not an address has been seen before.
-func (e *rpcExistsAddresser) ExistsAddress(addr dcrutil.Address) (bool, error) {
-	return e.existsAddrIndex.ExistsAddress(addr)
+// rpcTxMempooler provides a mempool transaction data source for use with the
+// RPC server and implements the rpcserver.TxMempooler interface.
+type rpcTxMempooler struct {
+	*mempool.TxPool
 }
 
-// ExistsAddresses returns whether or not each address in a slice of addresses
-// has been seen before.
-func (e *rpcExistsAddresser) ExistsAddresses(addrs []dcrutil.Address) ([]bool, error) {
-	return e.existsAddrIndex.ExistsAddresses(addrs)
-}
+// Ensure rpcTxMempooler implements the rpcserver.TxMempooler interface.
+var _ rpcserver.TxMempooler = (*rpcTxMempooler)(nil)
