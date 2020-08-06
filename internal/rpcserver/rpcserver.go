@@ -3437,7 +3437,7 @@ func handleGetWorkSubmission(_ context.Context, s *Server, hexData string) (inte
 	if err != nil {
 		// Anything other than a rule violation is an unexpected error, so
 		// return that error as an internal error.
-		var rErr blockchain.RuleError
+		var rErr standalone.RuleError
 		if !errors.As(err, &rErr) {
 			context := "Unexpected error while checking proof of work"
 			return false, rpcInternalError(err.Error(), context)
