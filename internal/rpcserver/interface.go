@@ -478,6 +478,20 @@ type CPUMiner interface {
 	SetNumWorkers(numWorkers int32)
 }
 
+// TemplaterSubber represents a block template subscription.
+//
+// The interface contract requires that all these methods are safe for
+// concurrent access.
+type TemplateSubber interface {
+	// C returns a channel that produces a stream of block templates as
+	// each new template is generated.
+	C() <-chan *mining.TemplateNtfn
+
+	// Stop prevents any future template updates from being delivered and
+	// unsubscribes the associated subscription.
+	Stop()
+}
+
 // BlockTemplater represents a source of block templates for use with the
 // RPC server.
 //
@@ -491,7 +505,7 @@ type BlockTemplater interface {
 	// template subscription contains functions to retrieve a channel that produces
 	// the stream of block templates and to stop the stream when the caller no
 	// longer wishes to receive new templates.
-	Subscribe() *mining.TemplateSubscription
+	Subscribe() TemplateSubber
 
 	// CurrentTemplate returns the current template associated with the block
 	// templater along with any associated error.

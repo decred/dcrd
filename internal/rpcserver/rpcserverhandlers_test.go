@@ -7,6 +7,7 @@ package rpcserver
 import (
 	"bytes"
 	"compress/bzip2"
+	"context"
 	"encoding/gob"
 	"encoding/hex"
 	"errors"
@@ -33,6 +34,7 @@ import (
 	"github.com/decred/dcrd/gcs/v2"
 	"github.com/decred/dcrd/gcs/v2/blockcf2"
 	"github.com/decred/dcrd/internal/mempool"
+	"github.com/decred/dcrd/internal/mining"
 	"github.com/decred/dcrd/internal/version"
 	"github.com/decred/dcrd/peer/v2"
 	"github.com/decred/dcrd/rpc/jsonrpc/types/v2"
@@ -438,7 +440,7 @@ func (c *testAddrManager) LocalAddresses() []addrmgr.LocalAddr {
 // SyncManager interface.
 type testSyncManager struct {
 	isCurrent          bool
-	submitBlock        bool
+	isOrphan           bool
 	submitBlockErr     error
 	syncPeerID         int32
 	locateBlocks       []chainhash.Hash
@@ -456,7 +458,7 @@ func (s *testSyncManager) IsCurrent() bool {
 // SubmitBlock provides a mock implementation for submitting the provided block
 // to the network after processing it locally.
 func (s *testSyncManager) SubmitBlock(block *dcrutil.Block, flags blockchain.BehaviorFlags) (bool, error) {
-	return s.submitBlock, s.submitBlockErr
+	return s.isOrphan, s.submitBlockErr
 }
 
 // SyncPeer returns a mocked id of the current peer being synced with.
@@ -601,6 +603,43 @@ func (c *testConnManager) Lookup(host string) ([]net.IP, error) {
 	return c.lookup(host)
 }
 
+// testCPUMiner provides a mock CPU miner by implementing the CPUMiner
+// interface.
+type testCPUMiner struct {
+	generatedBlocks    []*chainhash.Hash
+	generateNBlocksErr error
+	isMining           bool
+	hashesPerSecond    float64
+	workers            int32
+}
+
+// GenerateNBlocks returns a mock implementatation of generating a requested
+// number of blocks.
+func (c *testCPUMiner) GenerateNBlocks(ctx context.Context, n uint32) ([]*chainhash.Hash, error) {
+	return c.generatedBlocks, c.generateNBlocksErr
+}
+
+// IsMining returns a mocked mining state of the CPU miner.
+func (c *testCPUMiner) IsMining() bool {
+	return c.isMining
+}
+
+// HashesPerSecond returns a mocked number of hashes per second the CPU miner
+// is performing.
+func (c *testCPUMiner) HashesPerSecond() float64 {
+	return c.hashesPerSecond
+}
+
+// HashesPerSecond returns a mocked number of CPU miner workers solving blocks.
+func (c *testCPUMiner) NumWorkers() int32 {
+	return c.workers
+}
+
+// SetNumWorkers sets a mocked number of CPU miner workers.
+func (c *testCPUMiner) SetNumWorkers(numWorkers int32) {
+	c.workers = numWorkers
+}
+
 // testAddr implements the net.Addr interface.
 type testAddr struct {
 	net, addr string
@@ -707,6 +746,88 @@ func (f *testFiltererV2) FilterByBlockHash(hash *chainhash.Hash) (*gcs.FilterV2,
 	return f.filterByBlockHash, f.filterByBlockHashErr
 }
 
+// testMiningState provides a mock mining state.
+type testMiningState struct {
+	allowUnsyncedMining bool
+	miningAddrs         []dcrutil.Address
+	workState           *workState
+}
+
+// testTemplateSubber provides an implementation of a TemplateSubber for use
+// with tests.
+type testTemplateSubber struct {
+	templater *testBlockTemplater
+	c         chan *mining.TemplateNtfn
+}
+
+// C returns a channel that produces a stream of block templates as each new
+// template is generated.
+func (s *testTemplateSubber) C() <-chan *mining.TemplateNtfn {
+	return s.c
+}
+
+// Stop prevents any future template updates from being delivered and
+// unsubscribes the associated subscription.
+func (s *testTemplateSubber) Stop() {
+	delete(s.templater.subscriptions, s)
+}
+
+// PublishTemplateNtfn sends the provided template notification on the channel
+// associated with the subscription.
+func (s *testTemplateSubber) PublishTemplateNtfn(templateNtfn *mining.TemplateNtfn) {
+	s.c <- templateNtfn
+}
+
+// testBlockTemplater provides a mock block templater by implementing the
+// mining.BlockTemplater interface.
+type testBlockTemplater struct {
+	subscriptions      map[*testTemplateSubber]struct{}
+	regenReason        mining.TemplateUpdateReason
+	currTemplate       *mining.BlockTemplate
+	currTemplateErr    error
+	updateBlockTimeErr error
+	simulateNewNtfn    bool
+}
+
+// ForceRegen asks the block templater to generate a new template immediately.
+func (b *testBlockTemplater) ForceRegen() {}
+
+// Subscribe subscribes a client for block template updates.  The returned
+// template subscription contains functions to retrieve a channel that produces
+// the stream of block templates and to stop the stream when the caller no
+// longer wishes to receive new templates.
+func (b *testBlockTemplater) Subscribe() TemplateSubber {
+	sub := &testTemplateSubber{
+		templater: b,
+		c:         make(chan *mining.TemplateNtfn),
+	}
+	go func() {
+		ntfn := &mining.TemplateNtfn{
+			Template: b.currTemplate,
+			Reason:   b.regenReason,
+		}
+		sub.PublishTemplateNtfn(ntfn)
+
+		if b.simulateNewNtfn {
+			sub.PublishTemplateNtfn(ntfn)
+		}
+	}()
+	b.subscriptions[sub] = struct{}{}
+	return sub
+}
+
+// CurrentTemplate returns the current template associated with the block
+// templater along with any associated error.
+func (b *testBlockTemplater) CurrentTemplate() (*mining.BlockTemplate, error) {
+	return b.currTemplate, b.currTemplateErr
+}
+
+// UpdateBlockTime updates the timestamp in the passed header to the current
+// time while taking into account the consensus rules.
+func (b *testBlockTemplater) UpdateBlockTime(header *wire.BlockHeader) error {
+	return b.updateBlockTimeErr
+}
+
 // mustParseHash converts the passed big-endian hex string into a
 // chainhash.Hash and will panic if there is an error.  It only differs from the
 // one available in chainhash in that it will panic so errors in the source code
@@ -771,6 +892,9 @@ type rpcTest struct {
 	cmd                   interface{}
 	mockChainParams       *chaincfg.Params
 	mockChain             *testRPCChain
+	mockMiningState       *testMiningState
+	mockCPUMiner          *testCPUMiner
+	mockBlockTemplater    *testBlockTemplater
 	mockSanityChecker     *testSanityChecker
 	mockAddrManager       *testAddrManager
 	mockFeeEstimator      *testFeeEstimator
@@ -939,6 +1063,35 @@ func defaultMockSanityChecker() *testSanityChecker {
 	return &testSanityChecker{}
 }
 
+// defaultMockMiningState provides a default mock mining state to be used
+// throughout the tests. Tests can override these defaults by calling
+// defaultMockMiningState, updating fields as necessary on the returned
+// *testMiningState, and then setting rpcTest.mockMiningState as that
+// *testMiningState.
+func defaultMockMiningState() *testMiningState {
+	blk := block432100
+	tmplKey := getWorkTemplateKey(&block432100.Header)
+	workState := newWorkState()
+	workState.templatePool[tmplKey] = &block432100
+	workState.prevHash = &blk.Header.PrevBlock
+	return &testMiningState{
+		workState: workState,
+	}
+}
+
+// defaultMockBlockTemplater provides a default mock block templater to be used
+// throughout the tests. Tests can override these defaults by calling
+// defaultMockBlockTemplaterr, updating fields as necessary on the returned
+// *testBlockTemplater, and then setting rpcTest.mockBlockTemplater as that
+// *testBlockTemplater.
+func defaultMockBlockTemplater() *testBlockTemplater {
+	return &testBlockTemplater{
+		subscriptions: make(map[*testTemplateSubber]struct{}),
+		regenReason:   mining.TURNewParent,
+		currTemplate:  &mining.BlockTemplate{Block: &block432100},
+	}
+}
+
 // defaultMockAddrManager provides a default mock address manager to be used
 // throughout the tests. Tests can override these defaults by calling
 // defaultMockAddrManager, updating fields as necessary on the returned
@@ -970,8 +1123,8 @@ func defaultMockExistsAddresser() *testExistsAddresser {
 // *testSyncManager.
 func defaultMockSyncManager() *testSyncManager {
 	return &testSyncManager{
-		submitBlock: true,
-		syncHeight:  463074,
+		isOrphan:   false,
+		syncHeight: 463074,
 	}
 }
 
@@ -1070,6 +1223,15 @@ func defaultMockFiltererV2() *testFiltererV2 {
 	}
 }
 
+// defaultMockCPUMiner provides a default mock CPU miner to be used
+// throughout the tests. Tests can override these defaults by calling
+// defaultMockCPUMiner, updating fields as necessary on the returned
+// *testCPUMiner, and then setting rpcTest.mockCPUMiner as that
+// *testCPUMiner.
+func defaultMockCPUMiner() *testCPUMiner {
+	return &testCPUMiner{}
+}
+
 // defaultMockConfig provides a default Config that is used throughout
 // the tests.  Defaults can be overridden by tests through the rpcTest struct.
 func defaultMockConfig(chainParams *chaincfg.Params) *Config {
@@ -1077,11 +1239,13 @@ func defaultMockConfig(chainParams *chaincfg.Params) *Config {
 		ChainParams:     chainParams,
 		Chain:           defaultMockRPCChain(),
 		SanityChecker:   defaultMockSanityChecker(),
+		BlockTemplater:  defaultMockBlockTemplater(),
 		AddrManager:     defaultMockAddrManager(),
 		FeeEstimator:    defaultMockFeeEstimator(),
 		SyncMgr:         defaultMockSyncManager(),
 		ExistsAddresser: defaultMockExistsAddresser(),
 		ConnMgr:         defaultMockConnManager(),
+		CPUMiner:        defaultMockCPUMiner(),
 		Clock:           &testClock{},
 		LogManager:      defaultMockLogManager(),
 		FiltererV2:      defaultMockFiltererV2(),
@@ -4388,6 +4552,249 @@ func TestHandleVerifyChain(t *testing.T) {
 	}})
 }
 
+func TestHandleGetWork(t *testing.T) {
+	t.Parallel()
+
+	data := make([]byte, 0, getworkDataLen)
+	buf := bytes.NewBuffer(data)
+	err := block432100.Header.Serialize(buf)
+	if err != nil {
+		t.Fatalf("unexpected serialize error: %v", err)
+	}
+
+	data = data[:getworkDataLen]
+	copy(data[wire.MaxBlockHeaderPayload:], blake256Pad)
+
+	submissionB := make([]byte, hex.EncodedLen(len(data)))
+	hex.Encode(submissionB, data)
+
+	submission := string(submissionB)
+	truncatedSubmission := submission[1:]
+	lessThanGetWorkDataLen := submission[10:]
+
+	buf = &bytes.Buffer{}
+	buf.Write(submissionB[:10])
+	buf.WriteRune('g')
+	buf.Write(submissionB[10:])
+	invalidHexSub := buf.String()
+
+	buf.Reset()
+	buf.Write(submissionB[:232])
+	buf.WriteString("ffffffff")
+	buf.Write(submissionB[240:])
+	invalidPOWSub := buf.String()
+
+	miningaddr, err := dcrutil.DecodeAddress("DsRM6qwzT3r85evKvDBJBviTgYcaLKL4ipD", defaultChainParams)
+	if err != nil {
+		t.Fatalf("[DecodeAddress] unexpected error: %v", err)
+	}
+
+	mine := func() *testMiningState {
+		ms := defaultMockMiningState()
+		ms.miningAddrs = []dcrutil.Address{miningaddr}
+		return ms
+	}
+
+	testRPCServerHandler(t, []rpcTest{{
+		name:    "handleGetWork: CPU IsMining enabled",
+		handler: handleGetWork,
+		cmd:     &types.GetWorkCmd{},
+		mockCPUMiner: func() *testCPUMiner {
+			cpu := defaultMockCPUMiner()
+			cpu.isMining = true
+			return cpu
+		}(),
+		wantErr: true,
+		errCode: dcrjson.ErrRPCMisc,
+	}, {
+		name:    "handleGetWork: no mining address provided",
+		handler: handleGetWork,
+		cmd:     &types.GetWorkCmd{},
+		wantErr: true,
+		errCode: dcrjson.ErrRPCInternal.Code,
+	}, {
+		name:    "handleGetWork: no connected peers with unsynchronized mining disabled",
+		handler: handleGetWork,
+		cmd:     &types.GetWorkCmd{},
+		mockConnManager: func() *testConnManager {
+			connMgr := defaultMockConnManager()
+			connMgr.connectedCount = 0
+			return connMgr
+		}(),
+		mockMiningState: mine(),
+		wantErr:         true,
+		errCode:         dcrjson.ErrRPCClientNotConnected,
+	}, {
+		name:            "handleGetWork: chain is syncing",
+		handler:         handleGetWork,
+		cmd:             &types.GetWorkCmd{},
+		mockMiningState: mine(),
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.bestSnapshot = &blockchain.BestState{
+				Height: 100,
+			}
+			chain.isCurrent = false
+			return chain
+		}(),
+		wantErr: true,
+		errCode: dcrjson.ErrRPCClientInInitialDownload,
+	}, {
+		name:    "handleGetWork: ok with a workstate entry",
+		handler: handleGetWork,
+		cmd:     &types.GetWorkCmd{},
+		mockBlockTemplater: func() *testBlockTemplater {
+			templater := defaultMockBlockTemplater()
+			templater.simulateNewNtfn = true
+			return templater
+		}(),
+		mockMiningState: mine(),
+		result: &types.GetWorkResult{
+			Data: "070000009c3c0efea268c124d46d7daeae2d9667e78daa0523a19725" +
+				"00000000000000000bc8a255edde9901ecc4cdb93e4e573cb38ae91e84" +
+				"495ecddc0c93c019351d5d7731998be0a78e955f6fb98d2f35479905c3" +
+				"279f6257beab42a51d556cef55b9010087ba86bb2e5204000100b1a000" +
+				"00e20f27181e4afc5b03000000e4970600de0a0000d2b46d5ef63e4a6d" +
+				"d6ab3b0000000000a200ca770000000000000000000000000000000000" +
+				"000000070000008000000100000000000005a0",
+			Target: "000000000000000000000000000000000000000000e20f27000000" +
+				"0000000000",
+		},
+	}, {
+		name:            "handleGetWork: ok with no workstate entries",
+		handler:         handleGetWork,
+		cmd:             &types.GetWorkCmd{},
+		mockMiningState: mine(),
+		result: &types.GetWorkResult{
+			Data: "070000009c3c0efea268c124d46d7daeae2d9667e78daa0523a19725" +
+				"00000000000000000bc8a255edde9901ecc4cdb93e4e573cb38ae91e84" +
+				"495ecddc0c93c019351d5d7731998be0a78e955f6fb98d2f35479905c3" +
+				"279f6257beab42a51d556cef55b9010087ba86bb2e5204000100b1a000" +
+				"00e20f27181e4afc5b03000000e4970600de0a0000d2b46d5ef63e4a6d" +
+				"d6ab3b0000000000a200ca770000000000000000000000000000000000" +
+				"000000070000008000000100000000000005a0",
+			Target: "000000000000000000000000000000000000000000e20f27000000" +
+				"0000000000",
+		},
+	}, {
+		name:            "handleGetWork: unable to retrieve template",
+		handler:         handleGetWork,
+		cmd:             &types.GetWorkCmd{},
+		mockMiningState: mine(),
+		mockBlockTemplater: func() *testBlockTemplater {
+			templater := defaultMockBlockTemplater()
+			templater.currTemplateErr = errors.New("unable to retrieve template")
+			return templater
+		}(),
+		wantErr: true,
+		errCode: dcrjson.ErrRPCInternal.Code,
+	}, {
+		name:            "handleGetWork: unable to update block time",
+		handler:         handleGetWork,
+		cmd:             &types.GetWorkCmd{},
+		mockMiningState: mine(),
+		mockBlockTemplater: func() *testBlockTemplater {
+			templater := defaultMockBlockTemplater()
+			templater.updateBlockTimeErr = errors.New("unable to update block time")
+			return templater
+		}(),
+		wantErr: true,
+		errCode: dcrjson.ErrRPCInternal.Code,
+	}, {
+		name:    "handleGetWork: data is not equal to getworkDataLen (192 bytes)",
+		handler: handleGetWork,
+		cmd: &types.GetWorkCmd{
+			Data: &lessThanGetWorkDataLen,
+		},
+		mockMiningState: mine(),
+		wantErr:         true,
+		errCode:         dcrjson.ErrRPCInvalidParameter,
+	}, {
+		name:    "handleGetWork: submission has no matching template",
+		handler: handleGetWork,
+		cmd: &types.GetWorkCmd{
+			Data: &submission,
+		},
+		mockMiningState: func() *testMiningState {
+			ms := defaultMockMiningState()
+			ms.miningAddrs = []dcrutil.Address{miningaddr}
+			ms.workState = newWorkState()
+			return ms
+		}(),
+		result: false,
+	}, {
+		name:    "handleGetWork: submission is an orphan",
+		handler: handleGetWork,
+		cmd: &types.GetWorkCmd{
+			Data: &truncatedSubmission,
+		},
+		mockMiningState: mine(),
+		mockSyncManager: func() *testSyncManager {
+			syncManager := defaultMockSyncManager()
+			syncManager.isOrphan = true
+			return syncManager
+		}(),
+		result: false,
+	}, {
+		name:    "handleGetWork: unable to submit block",
+		handler: handleGetWork,
+		cmd: &types.GetWorkCmd{
+			Data: &submission,
+		},
+		mockMiningState: mine(),
+		mockSyncManager: func() *testSyncManager {
+			syncManager := defaultMockSyncManager()
+			syncManager.submitBlockErr = errors.New("unable to submit block")
+			return syncManager
+		}(),
+		wantErr: true,
+		errCode: dcrjson.ErrRPCInternal.Code,
+	}, {
+		name:    "handleGetWork: submission ok",
+		handler: handleGetWork,
+		cmd: &types.GetWorkCmd{
+			Data: &submission,
+		},
+		mockMiningState: mine(),
+		result:          true,
+	}, {
+		name:    "handleGetWork: invalid submission hex",
+		handler: handleGetWork,
+		cmd: &types.GetWorkCmd{
+			Data: &invalidHexSub,
+		},
+		mockMiningState: mine(),
+		wantErr:         true,
+		errCode:         dcrjson.ErrRPCDecodeHexString,
+	}, {
+		name:    "handleGetWork: invalid proof of work",
+		handler: handleGetWork,
+		cmd: &types.GetWorkCmd{
+			Data: &invalidPOWSub,
+		},
+		mockMiningState: mine(),
+		wantErr:         false,
+		result:          false,
+	}, {
+		name:    "handleGetWork: duplicate block",
+		handler: handleGetWork,
+		cmd: &types.GetWorkCmd{
+			Data: &submission,
+		},
+		mockMiningState: mine(),
+		mockSyncManager: func() *testSyncManager {
+			syncManager := defaultMockSyncManager()
+			syncManager.submitBlockErr = blockchain.RuleError{
+				ErrorCode:   blockchain.ErrDuplicateBlock,
+				Description: "Duplicate Block",
+			}
+			return syncManager
+		}(),
+		wantErr: false,
+		result:  false,
+	}})
+}
+
 func testRPCServerHandler(t *testing.T, tests []rpcTest) {
 	t.Helper()
 
@@ -4396,9 +4803,10 @@ func testRPCServerHandler(t *testing.T, tests []rpcTest) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
-			// Create a default rpcserverConfig and override any configurations that are
-			// provided by the test.
+			// Create a default rpcserverConfig and override any configurations
+			// that are provided by the test.
 			chainParams := defaultChainParams
+			workState := newWorkState()
 			if test.mockChainParams != nil {
 				chainParams = test.mockChainParams
 			}
@@ -4439,8 +4847,22 @@ func testRPCServerHandler(t *testing.T, tests []rpcTest) {
 			if test.mockFiltererV2 != nil {
 				rpcserverConfig.FiltererV2 = test.mockFiltererV2
 			}
+			if test.mockCPUMiner != nil {
+				rpcserverConfig.CPUMiner = test.mockCPUMiner
+			}
+			if test.mockMiningState != nil {
+				ms := test.mockMiningState
+				rpcserverConfig.AllowUnsyncedMining = ms.allowUnsyncedMining
+				rpcserverConfig.MiningAddrs = ms.miningAddrs
+				if ms.workState != nil {
+					workState = ms.workState
+				}
+			}
+			if test.mockBlockTemplater != nil {
+				rpcserverConfig.BlockTemplater = test.mockBlockTemplater
+			}
 
-			testServer := &Server{cfg: *rpcserverConfig}
+			testServer := &Server{cfg: *rpcserverConfig, workState: workState}
 			result, err := test.handler(nil, testServer, test.cmd)
 			if test.wantErr {
 				var rpcErr *dcrjson.RPCError

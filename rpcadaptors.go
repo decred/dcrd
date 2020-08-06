@@ -514,6 +514,13 @@ type rpcBlockTemplater struct {
 	*mining.BgBlkTmplGenerator
 }
 
+// Subscribe returns a TemplateSubber which has functions to retrieve
+// a channel that produces the stream of block templates and to stop
+// the stream when the caller no longer wishes to receive new templates.
+func (t *rpcBlockTemplater) Subscribe() rpcserver.TemplateSubber {
+	return t.BgBlkTmplGenerator.Subscribe()
+}
+
 // rpcCPUMiner provides a CPU miner for use with the RPC and implements the
 // rpcserver.CPUMiner interface.
 type rpcCPUMiner struct {
