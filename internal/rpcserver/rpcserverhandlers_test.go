@@ -895,6 +895,7 @@ type rpcTest struct {
 	mockMiningState       *testMiningState
 	mockCPUMiner          *testCPUMiner
 	mockBlockTemplater    *testBlockTemplater
+	setBlockTemplaterNil  bool
 	mockSanityChecker     *testSanityChecker
 	mockAddrManager       *testAddrManager
 	mockFeeEstimator      *testFeeEstimator
@@ -4795,6 +4796,69 @@ func TestHandleGetWork(t *testing.T) {
 	}})
 }
 
+func TestHandleSetGenerate(t *testing.T) {
+	t.Parallel()
+
+	procLimit := 2
+	zeroProcLimit := 0
+	miningaddr, err := dcrutil.DecodeAddress("DsRM6qwzT3r85evKvDBJBviTgYcaLKL4ipD", defaultChainParams)
+	if err != nil {
+		t.Fatalf("[DecodeAddress] unexpected error: %v", err)
+	}
+
+	testRPCServerHandler(t, []rpcTest{{
+		name:    "handleSetGenerate: no payment addresses",
+		handler: handleSetGenerate,
+		cmd: &types.SetGenerateCmd{
+			Generate:     true,
+			GenProcLimit: &procLimit,
+		},
+		wantErr: true,
+		errCode: dcrjson.ErrRPCInternal.Code,
+	}, {
+		name:    "handleSetGenerate: ok",
+		handler: handleSetGenerate,
+		cmd: &types.SetGenerateCmd{
+			Generate:     true,
+			GenProcLimit: &procLimit,
+		},
+		mockMiningState: func() *testMiningState {
+			ms := defaultMockMiningState()
+			ms.miningAddrs = []dcrutil.Address{miningaddr}
+			return ms
+		}(),
+	}, {
+		name:    "handleSetGenerate: ok, generate=false",
+		handler: handleSetGenerate,
+		cmd: &types.SetGenerateCmd{
+			Generate: false,
+		},
+	}, {
+		name:    "handleSetGenerate: ok, proclimit=0",
+		handler: handleSetGenerate,
+		cmd: &types.SetGenerateCmd{
+			GenProcLimit: &zeroProcLimit,
+		},
+	}})
+}
+
+func TestHandleRegenTemplate(t *testing.T) {
+	t.Parallel()
+
+	testRPCServerHandler(t, []rpcTest{{
+		name:                 "handleRegenTemplate: node is not configured for mining",
+		handler:              handleRegenTemplate,
+		cmd:                  &types.RegenTemplateCmd{},
+		setBlockTemplaterNil: true,
+		wantErr:              true,
+		errCode:              dcrjson.ErrRPCInternal.Code,
+	}, {
+		name:    "handleRegenTemplate: ok",
+		handler: handleRegenTemplate,
+		cmd:     &types.RegenTemplateCmd{},
+	}})
+}
+
 func testRPCServerHandler(t *testing.T, tests []rpcTest) {
 	t.Helper()
 
@@ -4860,6 +4924,9 @@ func testRPCServerHandler(t *testing.T, tests []rpcTest) {
 			}
 			if test.mockBlockTemplater != nil {
 				rpcserverConfig.BlockTemplater = test.mockBlockTemplater
+			}
+			if test.setBlockTemplaterNil {
+				rpcserverConfig.BlockTemplater = nil
 			}
 
 			testServer := &Server{cfg: *rpcserverConfig, workState: workState}
