@@ -140,6 +140,5 @@ raw message bytes using a format similar to hexdump -C.
 Improvement Proposals
 
 This package supports all improvement proposals supported by the wire package.
-(https://pkg.go.dev/github.com/decred/dcrd/wire#hdr-Bitcoin_Improvement_Proposals)
 */
 package peer
