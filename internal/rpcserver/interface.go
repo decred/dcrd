@@ -621,3 +621,16 @@ type AddrIndexer interface {
 	// Unsupported address types are ignored and will result in no results.
 	UnconfirmedTxnsForAddress(addr dcrutil.Address) []*dcrutil.Tx
 }
+
+// TxIndexer provides an interface for retrieving details for a given
+// transaction hash.
+//
+// The interface contract requires that all of these methods are safe for
+// concurrent access.
+type TxIndexer interface {
+	// Entry returns details for the provided transaction hash from the transaction
+	// index.  The block region contained in the result can in turn be used to load
+	// the raw transaction bytes.  When there is no entry for the provided hash, nil
+	// must be returned for the both the entry and the error.
+	Entry(hash *chainhash.Hash) (*indexers.TxIndexEntry, error)
+}
