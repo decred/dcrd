@@ -27,8 +27,10 @@ import (
 	"github.com/decred/dcrd/blockchain/stake/v3"
 	"github.com/decred/dcrd/blockchain/standalone/v2"
 	"github.com/decred/dcrd/blockchain/v3"
+	"github.com/decred/dcrd/blockchain/v3/indexers"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/chaincfg/v3"
+	"github.com/decred/dcrd/database/v2"
 	"github.com/decred/dcrd/dcrjson/v3"
 	"github.com/decred/dcrd/dcrutil/v3"
 	"github.com/decred/dcrd/gcs/v2"
@@ -512,6 +514,29 @@ func (e *testExistsAddresser) ExistsAddresses(addrs []dcrutil.Address) ([]bool, 
 	return e.existsAddresses, e.existsAddressesErr
 }
 
+// testAddrIndexer provides a mock address indexer by implementing the
+// AddrIndexer interface.
+type testAddrIndexer struct {
+	entriesForAddress         []indexers.TxIndexEntry
+	entriesForAddressSkipped  uint32
+	entriesForAddressErr      error
+	unconfirmedTxnsForAddress []*dcrutil.Tx
+}
+
+// EntriesForAddress returns a mocked slice of indexers.TxIndexEntry that
+// involve the given address.
+func (a *testAddrIndexer) EntriesForAddress(dbTx database.Tx,
+	addr dcrutil.Address, numToSkip, numRequested uint32, reverse bool) (
+	[]indexers.TxIndexEntry, uint32, error) {
+	return a.entriesForAddress, a.entriesForAddressSkipped, a.entriesForAddressErr
+}
+
+// UnconfirmedTxnsForAddress returns a mocked slice of transactions that are
+// currently in the unconfirmed (memory-only) address index.
+func (a *testAddrIndexer) UnconfirmedTxnsForAddress(addr dcrutil.Address) []*dcrutil.Tx {
+	return a.unconfirmedTxnsForAddress
+}
+
 // testConnManager provides a mock connection manager by implementing the
 // ConnManager interface.
 type testConnManager struct {
@@ -942,6 +967,8 @@ type rpcTest struct {
 	mockSyncManager       *testSyncManager
 	mockExistsAddresser   *testExistsAddresser
 	setExistsAddresserNil bool
+	mockAddrIndexer       *testAddrIndexer
+	setAddrIndexerNil     bool
 	mockConnManager       *testConnManager
 	mockClock             *testClock
 	mockLogManager        *testLogManager
@@ -1158,6 +1185,15 @@ func defaultMockExistsAddresser() *testExistsAddresser {
 	return &testExistsAddresser{}
 }
 
+// defaultMockAddrIndexer provides a default mock address indexer to be
+// used throughout the tests. Tests can override these defaults by calling
+// defaultMockAddrIndexer, updating fields as necessary on the returned
+// *testAddrIndexer, and then setting rpcTest.mockAddrIndexer as that
+// *testAddrIndexer.
+func defaultMockAddrIndexer() *testAddrIndexer {
+	return &testAddrIndexer{}
+}
+
 // defaultMockSyncManager provides a default mock sync manager to be used
 // throughout the tests. Tests can override these defaults by calling
 // defaultMockSyncManager, updating fields as necessary on the returned
@@ -1295,6 +1331,7 @@ func defaultMockConfig(chainParams *chaincfg.Params) *Config {
 		FeeEstimator:    defaultMockFeeEstimator(),
 		SyncMgr:         defaultMockSyncManager(),
 		ExistsAddresser: defaultMockExistsAddresser(),
+		AddrIndexer:     defaultMockAddrIndexer(),
 		ConnMgr:         defaultMockConnManager(),
 		CPUMiner:        defaultMockCPUMiner(),
 		TxMempooler:     defaultMockTxMempooler(),
@@ -3878,7 +3915,7 @@ func TestHandleGetInfo(t *testing.T) {
 			Difficulty:      float64(28147398026.656624),
 			TestNet:         false,
 			RelayFee:        float64(0.0001),
-			AddrIndex:       false,
+			AddrIndex:       true,
 			TxIndex:         false,
 		},
 	}})
@@ -4985,6 +5022,12 @@ func testRPCServerHandler(t *testing.T, tests []rpcTest) {
 			}
 			if test.setExistsAddresserNil {
 				rpcserverConfig.ExistsAddresser = nil
+			}
+			if test.mockAddrIndexer != nil {
+				rpcserverConfig.AddrIndexer = test.mockAddrIndexer
+			}
+			if test.setAddrIndexerNil {
+				rpcserverConfig.AddrIndexer = nil
 			}
 			if test.mockConnManager != nil {
 				rpcserverConfig.ConnMgr = test.mockConnManager
