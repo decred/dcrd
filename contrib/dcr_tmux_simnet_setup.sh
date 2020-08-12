@@ -31,6 +31,11 @@ RPCPASS="PASS"
 WALLET_SEED="b280922d2cffda44648346412c5ec97f429938105003730414f10b01e1402eac"
 WALLET_MINING_ADDR="SspUvSyDGSzvPz2NfdZ5LW15uq6rmuGZyhL" # NOTE: This must be changed if the seed is changed.
 WALLET_XFER_ADDR="SsonWQK6xkLSYm7VttCddHWkWWhETFMdR4Y" # same as above
+WALLET_CREATE_CONFIG="y
+n
+y
+${WALLET_SEED}
+"
 
 if [ -d "${NODES_ROOT}" ] ; then
   rm -R "${NODES_ROOT}"
@@ -69,13 +74,6 @@ logdir=./log
 appdata=./data
 pass=123
 enablevoting=1
-EOF
-
-cat > "${NODES_ROOT}/wallet.answers" <<EOF
-y
-n
-y
-${WALLET_SEED}
 EOF
 
 cd ${NODES_ROOT} && tmux -2 new-session -d -s $SESSION
@@ -131,7 +129,7 @@ tmux split-window -v
 tmux select-pane -t 0
 tmux resize-pane -D 15
 tmux send-keys "cd ${NODES_ROOT}/${PRIMARY_WALLET_NAME}" C-m
-tmux send-keys "dcrwallet -C ../wallet.conf --create <../wallet.answers; tmux wait-for -S ${PRIMARY_WALLET_NAME}" C-m
+tmux send-keys "echo \"${WALLET_CREATE_CONFIG}\" | dcrwallet -C ../wallet.conf --create; tmux wait-for -S ${PRIMARY_WALLET_NAME}" C-m
 tmux wait-for ${PRIMARY_WALLET_NAME}
 tmux send-keys "dcrwallet -C ../wallet.conf --enableticketbuyer --ticketbuyer.limit=10" C-m
 tmux select-pane -t 1
@@ -222,7 +220,7 @@ tmux split-window -v
 tmux select-pane -t 0
 tmux resize-pane -D 15
 tmux send-keys "cd ${NODES_ROOT}/${SECONDARY_WALLET_NAME}" C-m
-tmux send-keys "dcrwallet -C ../wallet.conf --create <../wallet.answers; tmux wait-for -S ${SECONDARY_WALLET_NAME}" C-m
+tmux send-keys "echo \"${WALLET_CREATE_CONFIG}\" | dcrwallet -C ../wallet.conf --create; tmux wait-for -S ${SECONDARY_WALLET_NAME}" C-m
 tmux wait-for ${SECONDARY_WALLET_NAME}
 tmux send-keys "dcrwallet -C ../wallet.conf --rpcconnect=${SECONDARY_DCRD_RPC} --rpclisten=${SECONDARY_WALLET_RPC} --nogrpc" C-m
 tmux select-pane -t 1
