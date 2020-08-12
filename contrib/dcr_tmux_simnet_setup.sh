@@ -25,7 +25,7 @@
 set -e
 
 SESSION="dcrd-simnet-nodes"
-NODES_ROOT=~/dcrdsimnetnodes
+NODES_ROOT=${DCR_SIMNET_ROOT:-${HOME}/dcrdsimnetnodes}
 RPCUSER="USER"
 RPCPASS="PASS"
 WALLET_SEED="b280922d2cffda44648346412c5ec97f429938105003730414f10b01e1402eac"

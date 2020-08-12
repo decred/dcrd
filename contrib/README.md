@@ -32,5 +32,9 @@ network where the developer has full control since the difficulty levels are low
 enough to generate blocks on demand and the developer owns all of the tickets
 and votes on the private network.
 
+The environment will be housed in the `$HOME/dcrdsimnetnodes` directory by
+default.  This can be overridden with the `DCR_SIMNET_ROOT` environment variable
+if desired.
+
 See the full [Simulation Network Reference](../docs/simnet_environment.mediawiki)
 for more details.

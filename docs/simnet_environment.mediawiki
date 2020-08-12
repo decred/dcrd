@@ -48,6 +48,10 @@ typically readily available on Unix and Linux platforms, to setup a
 self-contained environment with several terminal-based windows and panes with
 <code>dcrd</code> and <code>dcrwallet</code> already configured.
 
+The environment will be housed in the <code>$HOME/dcrdsimnetnodes</code>
+directory by default.  This can be overridden with the
+<code>DCR_SIMNET_ROOT</code> environment variable if desired.
+
 ===2.1 Preconfigured Environment Overview===
 
 The following provides an overview of how the environment that is automatically
