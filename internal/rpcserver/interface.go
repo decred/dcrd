@@ -13,7 +13,9 @@ import (
 	"github.com/decred/dcrd/addrmgr"
 	"github.com/decred/dcrd/blockchain/stake/v3"
 	"github.com/decred/dcrd/blockchain/v3"
+	"github.com/decred/dcrd/blockchain/v3/indexers"
 	"github.com/decred/dcrd/chaincfg/chainhash"
+	"github.com/decred/dcrd/database/v2"
 	"github.com/decred/dcrd/dcrutil/v3"
 	"github.com/decred/dcrd/gcs/v2"
 	"github.com/decred/dcrd/internal/mempool"
@@ -594,4 +596,28 @@ type TxMempooler interface {
 	// transaction pool. This only fetches from the main transaction pool
 	// and does not include orphans.
 	FetchTransaction(txHash *chainhash.Hash) (*dcrutil.Tx, error)
+}
+
+// AddrIndexer provides an interface for retrieving transactions for a given
+// address.
+//
+// The interface contract requires that all of these methods are safe for
+// concurrent access.
+type AddrIndexer interface {
+	// EntriesForAddress returns a slice of details which identify each transaction,
+	// including a block region, that involves the passed address according to the
+	// specified number to skip, number requested, and whether or not the results
+	// should be reversed.  It also returns the number actually skipped since it
+	// could be less in the case where there are not enough entries.
+	//
+	// NOTE: These results only include transactions confirmed in blocks.  See the
+	// UnconfirmedTxnsForAddress method for obtaining unconfirmed transactions
+	// that involve a given address.
+	EntriesForAddress(dbTx database.Tx, addr dcrutil.Address, numToSkip,
+		numRequested uint32, reverse bool) ([]indexers.TxIndexEntry, uint32, error)
+
+	// UnconfirmedTxnsForAddress returns all transactions currently in the
+	// unconfirmed (memory-only) address index that involve the passed address.
+	// Unsupported address types are ignored and will result in no results.
+	UnconfirmedTxnsForAddress(addr dcrutil.Address) []*dcrutil.Tx
 }

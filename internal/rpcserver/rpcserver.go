@@ -2398,7 +2398,7 @@ func handleGetInfo(_ context.Context, s *Server, cmd interface{}) (interface{}, 
 		Difficulty:      getDifficultyRatio(best.Bits, s.cfg.ChainParams),
 		TestNet:         s.cfg.TestNet,
 		RelayFee:        s.cfg.MinRelayTxFee.ToCoin(),
-		AddrIndex:       s.cfg.AddrIndex != nil,
+		AddrIndex:       s.cfg.AddrIndexer != nil,
 		TxIndex:         s.cfg.TxIndex != nil,
 	}
 
@@ -3870,7 +3870,7 @@ func createVinListPrevOut(s *Server, mtx *wire.MsgTx, chainParams *chaincfg.Para
 func fetchMempoolTxnsForAddress(s *Server, addr dcrutil.Address, numToSkip, numRequested uint32) ([]*dcrutil.Tx, uint32) {
 	// There are no entries to return when there are less available than
 	// the number being skipped.
-	mpTxns := s.cfg.AddrIndex.UnconfirmedTxnsForAddress(addr)
+	mpTxns := s.cfg.AddrIndexer.UnconfirmedTxnsForAddress(addr)
 	numAvailable := uint32(len(mpTxns))
 	if numToSkip > numAvailable {
 		return nil, numAvailable
@@ -3888,8 +3888,7 @@ func fetchMempoolTxnsForAddress(s *Server, addr dcrutil.Address, numToSkip, numR
 // handleSearchRawTransactions implements the searchrawtransactions command.
 func handleSearchRawTransactions(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
 	// Respond with an error if the address index is not enabled.
-	addrIndex := s.cfg.AddrIndex
-	if addrIndex == nil {
+	if s.cfg.AddrIndexer == nil {
 		return nil, rpcInternalError("Address index must be "+
 			"enabled (--addrindex)", "Configuration")
 	}
@@ -3973,7 +3972,7 @@ func handleSearchRawTransactions(_ context.Context, s *Server, cmd interface{}) 
 	// are needed.
 	if len(addressTxns) < numRequested {
 		err = s.cfg.DB.View(func(dbTx database.Tx) error {
-			idxEntries, dbSkipped, err := addrIndex.EntriesForAddress(
+			idxEntries, dbSkipped, err := s.cfg.AddrIndexer.EntriesForAddress(
 				dbTx, addr, uint32(numToSkip)-numSkipped,
 				uint32(numRequested-len(addressTxns)), reverse)
 			if err != nil {
@@ -5641,10 +5640,11 @@ type Config struct {
 	BlockTemplater BlockTemplater
 	CPUMiner       CPUMiner
 
-	// These fields define any optional indexes the RPC server can make use
-	// of to provide additional data when queried.
-	TxIndex   *indexers.TxIndex
-	AddrIndex *indexers.AddrIndex
+	// TxIndex defines the optional transaction index for the RPC server to use.
+	TxIndex *indexers.TxIndex
+
+	// AddrIndexer defines the optional address indexer for the RPC server to use.
+	AddrIndexer AddrIndexer
 
 	// NetInfo defines a slice of the available networks.
 	NetInfo []types.NetworksResult
