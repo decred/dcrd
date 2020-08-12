@@ -3290,7 +3290,12 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB, chainP
 				return &rpcBlockTemplater{s.bg}
 			}(),
 			CPUMiner: &rpcCPUMiner{s.cpuMiner},
-			TxIndex:  s.txIndex,
+			TxIndexer: func() rpcserver.TxIndexer {
+				if s.txIndex == nil {
+					return nil
+				}
+				return s.txIndex
+			}(),
 			AddrIndexer: func() rpcserver.AddrIndexer {
 				if s.addrIndex == nil {
 					return nil

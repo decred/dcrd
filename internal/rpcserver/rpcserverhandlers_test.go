@@ -537,6 +537,18 @@ func (a *testAddrIndexer) UnconfirmedTxnsForAddress(addr dcrutil.Address) []*dcr
 	return a.unconfirmedTxnsForAddress
 }
 
+// testTxIndexer provides a mock transaction indexer by implementing the
+// TxIndexer interface.
+type testTxIndexer struct {
+	entry func(hash *chainhash.Hash) (*indexers.TxIndexEntry, error)
+}
+
+// Entry returns mocked details for the provided transaction hash from the
+// transaction index.
+func (t *testTxIndexer) Entry(hash *chainhash.Hash) (*indexers.TxIndexEntry, error) {
+	return t.entry(hash)
+}
+
 // testConnManager provides a mock connection manager by implementing the
 // ConnManager interface.
 type testConnManager struct {
@@ -969,6 +981,8 @@ type rpcTest struct {
 	setExistsAddresserNil bool
 	mockAddrIndexer       *testAddrIndexer
 	setAddrIndexerNil     bool
+	mockTxIndexer         *testTxIndexer
+	setTxIndexerNil       bool
 	mockConnManager       *testConnManager
 	mockClock             *testClock
 	mockLogManager        *testLogManager
@@ -1194,6 +1208,15 @@ func defaultMockAddrIndexer() *testAddrIndexer {
 	return &testAddrIndexer{}
 }
 
+// defaultMockTxIndexer provides a default mock transaction indexer to be
+// used throughout the tests. Tests can override these defaults by calling
+// defaultMockTxIndexer, updating fields as necessary on the returned
+// *testTxIndexer, and then setting rpcTest.mockTxIndexer as that
+// *testTxIndexer.
+func defaultMockTxIndexer() *testTxIndexer {
+	return &testTxIndexer{}
+}
+
 // defaultMockSyncManager provides a default mock sync manager to be used
 // throughout the tests. Tests can override these defaults by calling
 // defaultMockSyncManager, updating fields as necessary on the returned
@@ -1332,6 +1355,7 @@ func defaultMockConfig(chainParams *chaincfg.Params) *Config {
 		SyncMgr:         defaultMockSyncManager(),
 		ExistsAddresser: defaultMockExistsAddresser(),
 		AddrIndexer:     defaultMockAddrIndexer(),
+		TxIndexer:       defaultMockTxIndexer(),
 		ConnMgr:         defaultMockConnManager(),
 		CPUMiner:        defaultMockCPUMiner(),
 		TxMempooler:     defaultMockTxMempooler(),
@@ -3916,7 +3940,7 @@ func TestHandleGetInfo(t *testing.T) {
 			TestNet:         false,
 			RelayFee:        float64(0.0001),
 			AddrIndex:       true,
-			TxIndex:         false,
+			TxIndex:         true,
 		},
 	}})
 }
@@ -5028,6 +5052,12 @@ func testRPCServerHandler(t *testing.T, tests []rpcTest) {
 			}
 			if test.setAddrIndexerNil {
 				rpcserverConfig.AddrIndexer = nil
+			}
+			if test.mockTxIndexer != nil {
+				rpcserverConfig.TxIndexer = test.mockTxIndexer
+			}
+			if test.setTxIndexerNil {
+				rpcserverConfig.TxIndexer = nil
 			}
 			if test.mockConnManager != nil {
 				rpcserverConfig.ConnMgr = test.mockConnManager

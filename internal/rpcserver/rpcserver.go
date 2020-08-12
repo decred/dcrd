@@ -35,7 +35,6 @@ import (
 	"github.com/decred/dcrd/blockchain/stake/v3"
 	"github.com/decred/dcrd/blockchain/standalone/v2"
 	"github.com/decred/dcrd/blockchain/v3"
-	"github.com/decred/dcrd/blockchain/v3/indexers"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/chaincfg/v3"
 	"github.com/decred/dcrd/database/v2"
@@ -2399,7 +2398,7 @@ func handleGetInfo(_ context.Context, s *Server, cmd interface{}) (interface{}, 
 		TestNet:         s.cfg.TestNet,
 		RelayFee:        s.cfg.MinRelayTxFee.ToCoin(),
 		AddrIndex:       s.cfg.AddrIndexer != nil,
-		TxIndex:         s.cfg.TxIndex != nil,
+		TxIndex:         s.cfg.TxIndexer != nil,
 	}
 
 	return ret, nil
@@ -2737,15 +2736,14 @@ func handleGetRawTransaction(_ context.Context, s *Server, cmd interface{}) (int
 	var blkIndex uint32
 	tx, err := s.cfg.TxMempooler.FetchTransaction(txHash)
 	if err != nil {
-		txIndex := s.cfg.TxIndex
-		if txIndex == nil {
+		if s.cfg.TxIndexer == nil {
 			return nil, rpcInternalError("The transaction index "+
 				"must be enabled to query the blockchain "+
 				"(specify --txindex)", "Configuration")
 		}
 
 		// Look up the location of the transaction.
-		idxEntry, err := txIndex.Entry(txHash)
+		idxEntry, err := s.cfg.TxIndexer.Entry(txHash)
 		if err != nil {
 			context := "Failed to retrieve transaction location"
 			return nil, rpcInternalError(err.Error(), context)
@@ -3682,7 +3680,7 @@ func fetchInputTxos(s *Server, tx *wire.MsgTx) (map[wire.OutPoint]wire.TxOut, er
 		}
 
 		// Look up the location of the transaction.
-		idxEntry, err := s.cfg.TxIndex.Entry(&origin.Hash)
+		idxEntry, err := s.cfg.TxIndexer.Entry(&origin.Hash)
 		if err != nil {
 			context := "Failed to retrieve transaction location"
 			return nil, rpcInternalError(err.Error(), context)
@@ -3905,7 +3903,7 @@ func handleSearchRawTransactions(_ context.Context, s *Server, cmd interface{}) 
 	// transaction index.  Currently the address index relies on the
 	// transaction index, so this check is redundant, but it's better to be
 	// safe in case the address index is ever changed to not rely on it.
-	if vinExtra && s.cfg.TxIndex == nil {
+	if vinExtra && s.cfg.TxIndexer == nil {
 		return nil, rpcInternalError("Transaction index must be "+
 			"enabled (--txindex)", "Configuration")
 	}
@@ -5640,8 +5638,9 @@ type Config struct {
 	BlockTemplater BlockTemplater
 	CPUMiner       CPUMiner
 
-	// TxIndex defines the optional transaction index for the RPC server to use.
-	TxIndex *indexers.TxIndex
+	// TxIndexer defines the optional transaction indexer for the RPC server to
+	// use.
+	TxIndexer TxIndexer
 
 	// AddrIndexer defines the optional address indexer for the RPC server to use.
 	AddrIndexer AddrIndexer
