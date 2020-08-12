@@ -549,6 +549,137 @@ func (t *testTxIndexer) Entry(hash *chainhash.Hash) (*indexers.TxIndexEntry, err
 	return t.entry(hash)
 }
 
+// testDB provides a mock database by implementing the database.DB interface.
+type testDB struct {
+	dbType   string
+	beginTx  database.Tx
+	beginErr error
+	viewTx   database.Tx
+	updateTx database.Tx
+	closeErr error
+}
+
+// Type returns the mocked database driver type.
+func (d *testDB) Type() string {
+	return d.dbType
+}
+
+// Begin returns a mocked database transaction.
+func (d *testDB) Begin(writable bool) (database.Tx, error) {
+	return d.beginTx, d.beginErr
+}
+
+// View invokes the passed function in the context of a mocked read-only
+// database transaction.
+func (d *testDB) View(fn func(tx database.Tx) error) error {
+	return fn(d.viewTx)
+}
+
+// Update invokes the passed function in the context of a mocked read-write
+// database transaction.
+func (d *testDB) Update(fn func(tx database.Tx) error) error {
+	return fn(d.updateTx)
+}
+
+// Close provides a mock implementation for the shut down of the database.
+func (d *testDB) Close() error {
+	return d.closeErr
+}
+
+// testDatabaseTx provides a mock database transaction by implementing the
+// database.Tx interface.
+type testDatabaseTx struct {
+	metadata             database.Bucket
+	storeBlockErr        error
+	hasBlock             bool
+	hasBlockErr          error
+	hasBlocks            []bool
+	hasBlocksErr         error
+	fetchBlockHeader     []byte
+	fetchBlockHeaderErr  error
+	fetchBlockHeaders    [][]byte
+	fetchBlockHeadersErr error
+	fetchBlock           []byte
+	fetchBlockErr        error
+	fetchBlocks          [][]byte
+	fetchBlocksErr       error
+	fetchBlockRegion     func(region *database.BlockRegion) ([]byte, error)
+	fetchBlockRegions    func(regions []database.BlockRegion) ([][]byte, error)
+	commitErr            error
+	rollbackErr          error
+}
+
+// Metadata returns a mocked top-most bucket for all metadata storage.
+func (t *testDatabaseTx) Metadata() database.Bucket {
+	return t.metadata
+}
+
+// StoreBlock provides a mock implementation for storing the provided block
+// in the database.
+func (t *testDatabaseTx) StoreBlock(block database.BlockSerializer) error {
+	return t.storeBlockErr
+}
+
+// HasBlock returns a mocked bool representing whether or not a block with the
+// given hash exists in the database.
+func (t *testDatabaseTx) HasBlock(hash *chainhash.Hash) (bool, error) {
+	return t.hasBlock, t.hasBlockErr
+}
+
+// HasBlocks returns a mocked slice of bools representing whether or not the
+// blocks with the provided hashes exist in the database.
+func (t *testDatabaseTx) HasBlocks(hashes []chainhash.Hash) ([]bool, error) {
+	return t.hasBlocks, t.hasBlocksErr
+}
+
+// FetchBlockHeader returns mocked raw serialized bytes for the block header
+// identified by the given hash.
+func (t *testDatabaseTx) FetchBlockHeader(hash *chainhash.Hash) ([]byte, error) {
+	return t.fetchBlockHeader, t.fetchBlockHeaderErr
+}
+
+// FetchBlockHeaders returns mocked raw serialized bytes for the block headers
+// identified by the given hashes.
+func (t *testDatabaseTx) FetchBlockHeaders(hashes []chainhash.Hash) ([][]byte, error) {
+	return t.fetchBlockHeaders, t.fetchBlockHeadersErr
+}
+
+// FetchBlock returns mocked raw serialized bytes for the block identified by
+// the given hash.
+func (t *testDatabaseTx) FetchBlock(hash *chainhash.Hash) ([]byte, error) {
+	return t.fetchBlock, t.fetchBlockErr
+}
+
+// FetchBlocks returns mocked raw serialized bytes for the blocks identified by
+// the given hashes.
+func (t *testDatabaseTx) FetchBlocks(hashes []chainhash.Hash) ([][]byte, error) {
+	return t.fetchBlocks, t.fetchBlocksErr
+}
+
+// FetchBlockRegion returns mocked raw serialized bytes for the given block
+// region.
+func (t *testDatabaseTx) FetchBlockRegion(region *database.BlockRegion) ([]byte, error) {
+	return t.fetchBlockRegion(region)
+}
+
+// FetchBlockRegions returns mocked raw serialized bytes for the given block
+// regions.
+func (t *testDatabaseTx) FetchBlockRegions(regions []database.BlockRegion) ([][]byte, error) {
+	return t.fetchBlockRegions(regions)
+}
+
+// Commit provides a mock implementation for committing all changes that have
+// been made.
+func (t *testDatabaseTx) Commit() error {
+	return t.commitErr
+}
+
+// Rollback provides a mock implementation for undoing all changes that have
+// been made.
+func (t *testDatabaseTx) Rollback() error {
+	return t.rollbackErr
+}
+
 // testConnManager provides a mock connection manager by implementing the
 // ConnManager interface.
 type testConnManager struct {
@@ -983,6 +1114,7 @@ type rpcTest struct {
 	setAddrIndexerNil     bool
 	mockTxIndexer         *testTxIndexer
 	setTxIndexerNil       bool
+	mockDB                *testDB
 	mockConnManager       *testConnManager
 	mockClock             *testClock
 	mockLogManager        *testLogManager
@@ -1217,6 +1349,26 @@ func defaultMockTxIndexer() *testTxIndexer {
 	return &testTxIndexer{}
 }
 
+// defaultMockDB provides a default mock database to be used throughout the
+// tests. Tests can override these defaults by calling defaultMockDB, updating
+// fields as necessary on the returned *testDB, and then setting rpcTest.mockDB
+// as that *testDB.
+func defaultMockDB() *testDB {
+	defaultDatabaseTx := &testDatabaseTx{
+		fetchBlockRegion: func(region *database.BlockRegion) ([]byte, error) {
+			return nil, errors.New("block not found")
+		},
+		fetchBlockRegions: func(regions []database.BlockRegion) ([][]byte, error) {
+			return nil, errors.New("block not found")
+		},
+	}
+	return &testDB{
+		beginTx:  defaultDatabaseTx,
+		viewTx:   defaultDatabaseTx,
+		updateTx: defaultDatabaseTx,
+	}
+}
+
 // defaultMockSyncManager provides a default mock sync manager to be used
 // throughout the tests. Tests can override these defaults by calling
 // defaultMockSyncManager, updating fields as necessary on the returned
@@ -1356,6 +1508,7 @@ func defaultMockConfig(chainParams *chaincfg.Params) *Config {
 		ExistsAddresser: defaultMockExistsAddresser(),
 		AddrIndexer:     defaultMockAddrIndexer(),
 		TxIndexer:       defaultMockTxIndexer(),
+		DB:              defaultMockDB(),
 		ConnMgr:         defaultMockConnManager(),
 		CPUMiner:        defaultMockCPUMiner(),
 		TxMempooler:     defaultMockTxMempooler(),
@@ -5058,6 +5211,9 @@ func testRPCServerHandler(t *testing.T, tests []rpcTest) {
 			}
 			if test.setTxIndexerNil {
 				rpcserverConfig.TxIndexer = nil
+			}
+			if test.mockDB != nil {
+				rpcserverConfig.DB = test.mockDB
 			}
 			if test.mockConnManager != nil {
 				rpcserverConfig.ConnMgr = test.mockConnManager
