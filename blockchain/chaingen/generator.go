@@ -892,32 +892,6 @@ func (g *Generator) ancestorBlock(block *wire.MsgBlock, height uint32, f func(*w
 	return block
 }
 
-// mergeDifficulty takes an original stake difficulty and two new, scaled
-// stake difficulties, merges the new difficulties, and outputs a new
-// merged stake difficulty.
-func mergeDifficulty(oldDiff int64, newDiff1 int64, newDiff2 int64) int64 {
-	newDiff1Big := big.NewInt(newDiff1)
-	newDiff2Big := big.NewInt(newDiff2)
-	newDiff2Big.Lsh(newDiff2Big, 32)
-
-	oldDiffBig := big.NewInt(oldDiff)
-	oldDiffBigLSH := big.NewInt(oldDiff)
-	oldDiffBigLSH.Lsh(oldDiffBig, 32)
-
-	newDiff1Big.Div(oldDiffBigLSH, newDiff1Big)
-	newDiff2Big.Div(newDiff2Big, oldDiffBig)
-
-	// Combine the two changes in difficulty.
-	summedChange := big.NewInt(0)
-	summedChange.Set(newDiff2Big)
-	summedChange.Lsh(summedChange, 32)
-	summedChange.Div(summedChange, newDiff1Big)
-	summedChange.Mul(summedChange, oldDiffBig)
-	summedChange.Rsh(summedChange, 32)
-
-	return summedChange.Int64()
-}
-
 // limitRetarget clamps the passed new difficulty to the old one adjusted by the
 // factor specified in the chain parameters.  This ensures the difficulty can
 // only move up or down by a limited amount.
@@ -1036,16 +1010,65 @@ func (g *Generator) CalcNextRequiredDifficulty() uint32 {
 	return uint32(nextDiff)
 }
 
+// sumPurchasedTickets returns the sum of the number of tickets purchased in the
+// most recent specified number of blocks from the point of view of the provided
+// block.
+func (g *Generator) sumPurchasedTickets(block *wire.MsgBlock, numToSum int64) int64 {
+	var numPurchased, numTraversed int64
+	for ; block != nil && numTraversed < numToSum; numTraversed++ {
+		numPurchased += int64(block.Header.FreshStake)
+		block = g.blocks[block.Header.PrevBlock]
+	}
+
+	return numPurchased
+}
+
+// estimateSupply returns an estimate of the coin supply for the provided block
+// height.  This is primarily used in the stake difficulty algorithm and relies
+// on an estimate to simplify the necessary calculations.  The actual total
+// coin supply as of a given block height depends on many factors such as the
+// number of votes included in every prior block (not including all votes
+// reduces the subsidy) and whether or not any of the prior blocks have been
+// invalidated by stakeholders thereby removing the PoW subsidy for them.
+//
+// This function is safe for concurrent access.
+func estimateSupply(params *chaincfg.Params, height int64) int64 {
+	if height <= 0 {
+		return 0
+	}
+
+	// Estimate the supply by calculating the full block subsidy for each
+	// reduction interval and multiplying it the number of blocks in the
+	// interval then adding the subsidy produced by number of blocks in the
+	// current interval.
+	supply := params.BlockOneSubsidy()
+	reductions := height / params.SubsidyReductionInterval
+	subsidy := params.BaseSubsidy
+	for i := int64(0); i < reductions; i++ {
+		supply += params.SubsidyReductionInterval * subsidy
+
+		subsidy *= params.MulSubsidy
+		subsidy /= params.DivSubsidy
+	}
+	supply += (1 + height%params.SubsidyReductionInterval) * subsidy
+
+	// Blocks 0 and 1 have special subsidy amounts that have already been
+	// added above, so remove what their subsidies would have normally been
+	// which were also added above.
+	supply -= params.BaseSubsidy * 2
+
+	return supply
+}
+
 // CalcNextReqStakeDifficulty returns the required stake difficulty (aka
 // ticket price) for the block after the provided block the generator is
-// associated with.
-//
-// See the documentation of CalcNextRequiredStakeDifficulty for more details.
+// associated with.  The stake difficulty is calculated based on the algorithm
+// defined in DCP0001.
 func (g *Generator) CalcNextReqStakeDifficulty(prevBlock *wire.MsgBlock) int64 {
 	// Stake difficulty before any tickets could possibly be purchased is
 	// the minimum value.
-	nextHeight := prevBlock.Header.Height + 1
-	stakeDiffStartHeight := uint32(g.params.CoinbaseMaturity) + 1
+	nextHeight := int64(prevBlock.Header.Height) + 1
+	stakeDiffStartHeight := int64(g.params.CoinbaseMaturity) + 1
 	if nextHeight < stakeDiffStartHeight {
 		return g.params.MinimumStakeDiff
 	}
@@ -1061,135 +1084,100 @@ func (g *Generator) CalcNextReqStakeDifficulty(prevBlock *wire.MsgBlock) int64 {
 
 	// Return the previous block's difficulty requirements if the next block
 	// is not at a difficulty retarget interval.
-	windowSize := g.params.StakeDiffWindowSize
-	if int64(nextHeight)%windowSize != 0 {
+	intervalSize := g.params.StakeDiffWindowSize
+	if nextHeight%intervalSize != 0 {
 		return curDiff
 	}
 
-	// --------------------------------
-	// Ideal pool size retarget metric.
-	// --------------------------------
+	// Get the pool size and number of tickets that were immature at the
+	// previous retarget interval.
+	//
+	// NOTE: Since the stake difficulty must be calculated based on existing
+	// blocks, it is always calculated for the block after a given block, so
+	// the information for the previous retarget interval must be retrieved
+	// relative to the block just before it to coincide with how it was
+	// originally calculated.
+	var prevPoolSize int64
+	prevRetargetHeight := nextHeight - intervalSize - 1
+	prevRetargetBlock := g.ancestorBlock(prevBlock, uint32(prevRetargetHeight), nil)
+	if prevRetargetBlock != nil {
+		prevPoolSize = int64(prevRetargetBlock.Header.PoolSize)
+	}
+	ticketMaturity := int64(g.params.TicketMaturity)
+	prevImmatureTickets := g.sumPurchasedTickets(prevRetargetBlock,
+		ticketMaturity)
 
-	// Calculate the ideal retarget difficulty for each window based on the
-	// actual pool size in the window versus the target pool size and
-	// exponentially weight them.
-	var weightedPoolSizeSum, weightSum uint64
-	ticketsPerBlock := int64(g.params.TicketsPerBlock)
-	targetPoolSize := ticketsPerBlock * int64(g.params.TicketPoolSize)
-	block := prevBlock
-	numWindows := g.params.StakeDiffWindows
-	weightAlpha := g.params.StakeDiffAlpha
-	for i := int64(0); i < numWindows; i++ {
-		// Get the pool size for the block at the start of the window.
-		// Use zero if there are not yet enough blocks left to cover the
-		// window.
-		prevRetargetHeight := nextHeight - uint32(windowSize*(i+1))
-		windowPoolSize := int64(0)
-		block = g.ancestorBlock(block, prevRetargetHeight, nil)
-		if block != nil {
-			windowPoolSize = int64(block.Header.PoolSize)
-		}
-
-		// Skew the pool size by the constant weight factor specified in
-		// the chain parameters (which is typically the max adjustment
-		// factor) in order to help weight the ticket pool size versus
-		// tickets per block.  Also, ensure the skewed pool size is a
-		// minimum of 1.
-		skewedPoolSize := targetPoolSize + (windowPoolSize-
-			targetPoolSize)*int64(g.params.TicketPoolSizeWeight)
-		if skewedPoolSize <= 0 {
-			skewedPoolSize = 1
-		}
-
-		// Calculate the ideal retarget difficulty for the window based
-		// on the skewed pool size and weight it exponentially by
-		// multiplying it by 2^(window_number) such that the most recent
-		// window receives the most weight.
-		//
-		// Also, since integer division is being used, shift up the
-		// number of new tickets 32 bits to avoid losing precision.
-		//
-		// NOTE: The real algorithm uses big ints, but these purpose
-		// built tests won't be using large enough values to overflow,
-		// so just use uint64s.
-		adjusted := (skewedPoolSize << 32) / targetPoolSize
-		adjusted <<= uint64((numWindows - i) * weightAlpha)
-		weightedPoolSizeSum += uint64(adjusted)
-		weightSum += 1 << uint64((numWindows-i)*weightAlpha)
+	// Return the existing ticket price for the first few intervals to avoid
+	// division by zero and encourage initial pool population.
+	prevPoolSizeAll := prevPoolSize + prevImmatureTickets
+	if prevPoolSizeAll == 0 {
+		return curDiff
 	}
 
-	// Calculate the pool size retarget difficulty based on the exponential
-	// weighted average and shift the result back down 32 bits to account
-	// for the previous shift up in order to avoid losing precision.  Then,
-	// limit it to the maximum allowed retarget adjustment factor.
+	// Count the number of currently immature tickets.
+	immatureTickets := g.sumPurchasedTickets(prevBlock, ticketMaturity)
+
+	// Calculate and return the final next required difficulty.
+	curPoolSizeAll := int64(prevBlock.Header.PoolSize) + immatureTickets
+
+	// Shorter version of various parameter for convenience.
+	votesPerBlock := int64(g.params.TicketsPerBlock)
+	ticketPoolSize := int64(g.params.TicketPoolSize)
+
+	// Calculate the difficulty by multiplying the old stake difficulty
+	// with two ratios that represent a force to counteract the relative
+	// change in the pool size (Fc) and a restorative force to push the pool
+	// size towards the target value (Fr).
 	//
-	// This is the first metric used in the final calculated difficulty.
-	nextPoolSizeDiff := (int64(weightedPoolSizeSum/weightSum) * curDiff) >> 32
-	nextPoolSizeDiff = g.limitRetarget(curDiff, nextPoolSizeDiff)
+	// Per DCP0001, the generalized equation is:
+	//
+	//   nextDiff = min(max(curDiff * Fc * Fr, Slb), Sub)
+	//
+	// The detailed form expands to:
+	//
+	//                        curPoolSizeAll      curPoolSizeAll
+	//   nextDiff = curDiff * ---------------  * -----------------
+	//                        prevPoolSizeAll    targetPoolSizeAll
+	//
+	//   Slb = b.chainParams.MinimumStakeDiff
+	//
+	//               estimatedTotalSupply
+	//   Sub = -------------------------------
+	//          targetPoolSize / votesPerBlock
+	//
+	// In order to avoid the need to perform floating point math which could
+	// be problematic across languages due to uncertainty in floating point
+	// math libs, this is further simplified to integer math as follows:
+	//
+	//                   curDiff * curPoolSizeAll^2
+	//   nextDiff = -----------------------------------
+	//              prevPoolSizeAll * targetPoolSizeAll
+	//
+	// Further, the Sub parameter must calculate the denominator first using
+	// integer math.
+	targetPoolSizeAll := votesPerBlock * (ticketPoolSize + ticketMaturity)
+	curPoolSizeAllBig := big.NewInt(curPoolSizeAll)
+	nextDiffBig := big.NewInt(curDiff)
+	nextDiffBig.Mul(nextDiffBig, curPoolSizeAllBig)
+	nextDiffBig.Mul(nextDiffBig, curPoolSizeAllBig)
+	nextDiffBig.Div(nextDiffBig, big.NewInt(prevPoolSizeAll))
+	nextDiffBig.Div(nextDiffBig, big.NewInt(targetPoolSizeAll))
 
-	// -----------------------------------------
-	// Ideal tickets per window retarget metric.
-	// -----------------------------------------
-
-	// Calculate the ideal retarget difficulty for each window based on the
-	// actual number of new tickets in the window versus the target tickets
-	// per window and exponentially weight them.
-	var weightedTicketsSum uint64
-	targetTicketsPerWindow := ticketsPerBlock * windowSize
-	block = prevBlock
-	for i := int64(0); i < numWindows; i++ {
-		// Since the difficulty for the next block after the current tip
-		// is being calculated and there is no such block yet, the sum
-		// of all new tickets in the first window needs to start with
-		// the number of new tickets in the tip block.
-		var windowNewTickets int64
-		if i == 0 {
-			windowNewTickets = int64(block.Header.FreshStake)
-		}
-
-		// Tally all of the new tickets in all blocks in the window and
-		// ensure the number of new tickets is a minimum of 1.
-		prevRetargetHeight := nextHeight - uint32(windowSize*(i+1))
-		block = g.ancestorBlock(block, prevRetargetHeight, func(blk *wire.MsgBlock) {
-			windowNewTickets += int64(blk.Header.FreshStake)
-		})
-		if windowNewTickets <= 0 {
-			windowNewTickets = 1
-		}
-
-		// Calculate the ideal retarget difficulty for the window based
-		// on the number of new tickets and weight it exponentially by
-		// multiplying it by 2^(window_number) such that the most recent
-		// window receives the most weight.
-		//
-		// Also, since integer division is being used, shift up the
-		// number of new tickets 32 bits to avoid losing precision.
-		//
-		// NOTE: The real algorithm uses big ints, but these purpose
-		// built tests won't be using large enough values to overflow,
-		// so just use uint64s.
-		adjusted := (windowNewTickets << 32) / targetTicketsPerWindow
-		adjusted <<= uint64((numWindows - i) * weightAlpha)
-		weightedTicketsSum += uint64(adjusted)
+	// Limit the new stake difficulty between the minimum allowed stake
+	// difficulty and a maximum value that is relative to the total supply.
+	//
+	// NOTE: This is intentionally using integer math to prevent any
+	// potential issues due to uncertainty in floating point math libs.  The
+	// ticketPoolSize parameter already contains the result of
+	// (targetPoolSize / votesPerBlock).
+	nextDiff := nextDiffBig.Int64()
+	estimatedSupply := estimateSupply(g.params, nextHeight)
+	maximumStakeDiff := estimatedSupply / ticketPoolSize
+	if nextDiff > maximumStakeDiff {
+		nextDiff = maximumStakeDiff
 	}
-
-	// Calculate the tickets per window retarget difficulty based on the
-	// exponential weighted average and shift the result back down 32 bits
-	// to account for the previous shift up in order to avoid losing
-	// precision.  Then, limit it to the maximum allowed retarget adjustment
-	// factor.
-	//
-	// This is the second metric used in the final calculated difficulty.
-	nextNewTixDiff := (int64(weightedTicketsSum/weightSum) * curDiff) >> 32
-	nextNewTixDiff = g.limitRetarget(curDiff, nextNewTixDiff)
-
-	// Average the previous two metrics using scaled multiplication and
-	// ensure the result is limited to both the maximum allowed retarget
-	// adjustment factor and the minimum allowed stake difficulty.
-	nextDiff := mergeDifficulty(curDiff, nextPoolSizeDiff, nextNewTixDiff)
-	nextDiff = g.limitRetarget(curDiff, nextDiff)
 	if nextDiff < g.params.MinimumStakeDiff {
-		return g.params.MinimumStakeDiff
+		nextDiff = g.params.MinimumStakeDiff
 	}
 	return nextDiff
 }
@@ -1197,40 +1185,6 @@ func (g *Generator) CalcNextReqStakeDifficulty(prevBlock *wire.MsgBlock) int64 {
 // CalcNextRequiredStakeDifficulty returns the required stake difficulty (aka
 // ticket price) for the block after the current tip block the generator is
 // associated with.
-//
-// An overview of the algorithm is as follows:
-// 1) Use the minimum value for any blocks before any tickets could have
-//    possibly been purchased due to coinbase maturity requirements
-// 2) Return 0 if the current tip block stake difficulty is 0.  This is a
-//    safety check against a condition that should never actually happen.
-// 3) Use the previous block's difficulty if the next block is not at a retarget
-//    interval
-// 4) Calculate the ideal retarget difficulty for each window based on the
-//    actual pool size in the window versus the target pool size skewed by a
-//    constant factor to weight the ticket pool size instead of the tickets per
-//    block and exponentially weight each difficulty such that the most recent
-//    window has the highest weight
-// 5) Calculate the pool size retarget difficulty based on the exponential
-//    weighted average and ensure it is limited to the max retarget adjustment
-//    factor -- This is the first metric used to calculate the final difficulty
-// 6) Calculate the ideal retarget difficulty for each window based on the
-//    actual new tickets in the window versus the target new tickets per window
-//    and exponentially weight each difficulty such that the most recent window
-//    has the highest weight
-// 7) Calculate the tickets per window retarget difficulty based on the
-//    exponential weighted average and ensure it is limited to the max retarget
-//    adjustment factor
-// 8) Calculate the final difficulty by averaging the pool size retarget
-//    difficulty from #5 and the tickets per window retarget difficulty from #7
-//    using scaled multiplication and ensure it is limited to the max retarget
-//    adjustment factor
-//
-// NOTE: In order to simplify the test code, this implementation does not use
-// big integers so it will NOT match the actual consensus code for really big
-// numbers.  However, the parameters on simnet and the pool sizes used in these
-// tests are low enough that this is not an issue for the tests.  Anyone looking
-// at this code should NOT use it for mainnet calculations as is since it will
-// not always yield the correct results.
 func (g *Generator) CalcNextRequiredStakeDifficulty() int64 {
 	return g.CalcNextReqStakeDifficulty(g.tip)
 }
