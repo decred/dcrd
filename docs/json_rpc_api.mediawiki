@@ -2224,6 +2224,8 @@ of the best block.
 # <code>skip</code>: <code>(int, optional, default=0)</code> the number of leading transactions to leave out of the final response.
 # <code>count</code>: <code>(int, optional, default=100)</code> the maximum number of transactions to return.
 # <code>vinextra</code>: <code>(int, optional, default=0)</code> specify that extra data from previous output will be returned in vin.
+# <code>reverse</code>: <code>(boolean, optional, default=false)</code> specify that the transactions should be returned in reverse chronological order.
+# <code>filteraddrs</code>: <code>(json array of strings, optional)</code> specify that only inputs or outputs with matching addresses should be returned.
 |-
 !Description
 |Returns raw data for transactions involving the passed address. Returned transactions are pulled from both the database, and transactions currently in the mempool. Transactions pulled from the mempool will have the <code>"confirmations"</code> field set to 0. Usage of this RPC requires the optional <code>--addrindex</code> flag to be activated, otherwise all responses will simply return with an error stating the address index has not yet been built up. Similarly, until the address index has caught up with the current best height, all requests will return an error response in order to avoid serving stale data.
