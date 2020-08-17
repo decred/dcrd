@@ -29,7 +29,7 @@ const (
 	ANOneTry AddNodeSubCmd = "onetry"
 )
 
-// NodeSubCmd defines the type used in the addnode JSON-RPC command for the
+// NodeSubCmd defines the type used in the node JSON-RPC command for the
 // sub command field.
 type NodeSubCmd string
 
@@ -323,7 +323,7 @@ type ExistsMempoolTxsCmd struct {
 }
 
 // NewExistsMempoolTxsCmd returns a new instance which can be used to issue an
-// existslivetickets JSON-RPC command.
+// existsmempooltxs JSON-RPC command.
 func NewExistsMempoolTxsCmd(txHashes []string) *ExistsMempoolTxsCmd {
 	return &ExistsMempoolTxsCmd{
 		TxHashes: txHashes,
@@ -873,7 +873,7 @@ type NodeCmd struct {
 	ConnectSubCmd *string `jsonrpcusage:"\"perm|temp\""`
 }
 
-// NewNodeCmd returns a new instance which can be used to issue a `node`
+// NewNodeCmd returns a new instance which can be used to issue a node
 // JSON-RPC command.
 //
 // The parameters which are pointers indicate they are optional.  Passing nil
@@ -896,7 +896,7 @@ func NewPingCmd() *PingCmd {
 }
 
 // RebroadcastMissedCmd is a type handling custom marshaling and
-// unmarshaling of rebroadcastwinners JSON RPC commands.
+// unmarshaling of rebroadcastmissed JSON RPC commands.
 type RebroadcastMissedCmd struct{}
 
 // NewRebroadcastMissedCmd returns a new instance which can be used to
@@ -927,7 +927,7 @@ type SearchRawTransactionsCmd struct {
 }
 
 // NewSearchRawTransactionsCmd returns a new instance which can be used to issue a
-// sendrawtransaction JSON-RPC command.
+// searchrawtransactions JSON-RPC command.
 //
 // The parameters which are pointers indicate they are optional.  Passing nil
 // for optional parameters will use the default value.
@@ -1013,7 +1013,7 @@ func NewSubmitBlockCmd(hexBlock string, options *SubmitBlockOptions) *SubmitBloc
 	}
 }
 
-// TicketFeeInfoCmd defines the ticketsfeeinfo JSON-RPC command.
+// TicketFeeInfoCmd defines the ticketfeeinfo JSON-RPC command.
 type TicketFeeInfoCmd struct {
 	Blocks  *uint32
 	Windows *uint32
@@ -1028,13 +1028,13 @@ func NewTicketFeeInfoCmd(blocks *uint32, windows *uint32) *TicketFeeInfoCmd {
 	}
 }
 
-// TicketsForAddressCmd defines the ticketsforbucket JSON-RPC command.
+// TicketsForAddressCmd defines the ticketsforaddress JSON-RPC command.
 type TicketsForAddressCmd struct {
 	Address string
 }
 
 // NewTicketsForAddressCmd returns a new instance which can be used to issue a
-// JSON-RPC tickets for bucket command.
+// JSON-RPC tickets for address command.
 func NewTicketsForAddressCmd(addr string) *TicketsForAddressCmd {
 	return &TicketsForAddressCmd{addr}
 }
@@ -1054,7 +1054,7 @@ func NewTicketVWAPCmd(start *uint32, end *uint32) *TicketVWAPCmd {
 	}
 }
 
-// TxFeeInfoCmd defines the ticketsfeeinfo JSON-RPC command.
+// TxFeeInfoCmd defines the txfeeinfo JSON-RPC command.
 type TxFeeInfoCmd struct {
 	Blocks     *uint32
 	RangeStart *uint32
@@ -1062,7 +1062,7 @@ type TxFeeInfoCmd struct {
 }
 
 // NewTxFeeInfoCmd returns a new instance which can be used to issue a
-// JSON-RPC ticket fee info command.
+// JSON-RPC tx fee info command.
 func NewTxFeeInfoCmd(blocks *uint32, start *uint32, end *uint32) *TxFeeInfoCmd {
 	return &TxFeeInfoCmd{
 		Blocks:     blocks,
