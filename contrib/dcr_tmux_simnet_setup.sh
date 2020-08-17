@@ -29,8 +29,8 @@ NODES_ROOT=${DCR_SIMNET_ROOT:-${HOME}/dcrdsimnetnodes}
 RPCUSER="USER"
 RPCPASS="PASS"
 WALLET_SEED="b280922d2cffda44648346412c5ec97f429938105003730414f10b01e1402eac"
-WALLET_MINING_ADDR="SspUvSyDGSzvPz2NfdZ5LW15uq6rmuGZyhL" # NOTE: This must be changed if the seed is changed.
-WALLET_XFER_ADDR="SsonWQK6xkLSYm7VttCddHWkWWhETFMdR4Y" # same as above
+WALLET_MINING_ADDR="SsXciQNTo3HuV5tX3yy4hXndRWgLMRVC7Ah" # NOTE: This must be changed if the seed is changed.
+WALLET_XFER_ADDR="SsWKp7wtdTZYabYFYSc9cnxhwFEjA5g4pFc" # same as above
 WALLET_CREATE_CONFIG="y
 n
 y
