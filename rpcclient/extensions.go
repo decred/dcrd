@@ -72,8 +72,8 @@ func (c *Client) DebugLevel(ctx context.Context, levelSpec string) (string, erro
 // EstimateStakeDiffAsync RPC invocation (or an applicable error).
 type FutureEstimateStakeDiffResult cmdRes
 
-// Receive waits for the response promised by the future and returns the hash
-// and height of the block in the longest (best) chain.
+// Receive waits for the response promised by the future and returns the
+// estimatestakediff result.
 func (r *FutureEstimateStakeDiffResult) Receive() (*chainjson.EstimateStakeDiffResult, error) {
 	res, err := receiveFuture(r.ctx, r.c)
 	if err != nil {
@@ -195,7 +195,7 @@ func (c *Client) ExistsAddresses(ctx context.Context, addresses []dcrutil.Addres
 type FutureExistsMissedTicketsResult cmdRes
 
 // Receive waits for the response promised by the future and returns whether
-// or not the ticket exists in the missed ticket database.
+// or not the tickets exist in the missed ticket database.
 func (r *FutureExistsMissedTicketsResult) Receive() (string, error) {
 	res, err := receiveFuture(r.ctx, r.c)
 	if err != nil {
@@ -235,7 +235,7 @@ func (c *Client) ExistsMissedTickets(ctx context.Context, hashes []*chainhash.Ha
 type FutureExistsExpiredTicketsResult cmdRes
 
 // Receive waits for the response promised by the future and returns whether
-// or not the ticket exists in the live ticket database.
+// or not the tickets exist in the expired ticket database.
 func (r *FutureExistsExpiredTicketsResult) Receive() (string, error) {
 	res, err := receiveFuture(r.ctx, r.c)
 	if err != nil {
@@ -315,7 +315,7 @@ func (c *Client) ExistsLiveTicket(ctx context.Context, hash *chainhash.Hash) (bo
 type FutureExistsLiveTicketsResult cmdRes
 
 // Receive waits for the response promised by the future and returns whether
-// or not the ticket exists in the live ticket database.
+// or not the tickets exist in the live ticket database.
 func (r *FutureExistsLiveTicketsResult) Receive() (string, error) {
 	res, err := receiveFuture(r.ctx, r.c)
 	if err != nil {
@@ -343,8 +343,8 @@ func (c *Client) ExistsLiveTicketsAsync(ctx context.Context, hashes []*chainhash
 	return (*FutureExistsLiveTicketsResult)(c.sendCmd(ctx, cmd))
 }
 
-// ExistsLiveTickets returns information about whether or not a ticket hash exists
-// in the live ticket database.
+// ExistsLiveTickets returns information about whether or not a list of ticket
+// hashes exist in the live ticket database.
 //
 // NOTE: This is a dcrd extension.
 func (c *Client) ExistsLiveTickets(ctx context.Context, hashes []*chainhash.Hash) (string, error) {
@@ -357,7 +357,7 @@ func (c *Client) ExistsLiveTickets(ctx context.Context, hashes []*chainhash.Hash
 type FutureExistsMempoolTxsResult cmdRes
 
 // Receive waits for the response promised by the future and returns whether
-// or not the ticket exists in the mempool.
+// or not the transactions exist in the mempool.
 func (r *FutureExistsMempoolTxsResult) Receive() (string, error) {
 	res, err := receiveFuture(r.ctx, r.c)
 	if err != nil {
@@ -385,8 +385,8 @@ func (c *Client) ExistsMempoolTxsAsync(ctx context.Context, hashes []*chainhash.
 	return (*FutureExistsMempoolTxsResult)(c.sendCmd(ctx, cmd))
 }
 
-// ExistsMempoolTxs returns information about whether or not a ticket hash exists
-// in the live ticket database.
+// ExistsMempoolTxs returns information about whether or not a list of
+// transaction hashes exist in the mempool.
 //
 // NOTE: This is a dcrd extension.
 func (c *Client) ExistsMempoolTxs(ctx context.Context, hashes []*chainhash.Hash) (string, error) {
@@ -534,8 +534,8 @@ func (c *Client) GetHeaders(ctx context.Context, blockLocators []*chainhash.Hash
 // GetStakeDifficultyAsync RPC invocation (or an applicable error).
 type FutureGetStakeDifficultyResult cmdRes
 
-// Receive waits for the response promised by the future and returns the network
-// the server is running on.
+// Receive waits for the response promised by the future and returns the
+// getstakedifficulty result.
 func (r *FutureGetStakeDifficultyResult) Receive() (*chainjson.GetStakeDifficultyResult, error) {
 	res, err := receiveFuture(r.ctx, r.c)
 	if err != nil {
@@ -575,8 +575,8 @@ func (c *Client) GetStakeDifficulty(ctx context.Context) (*chainjson.GetStakeDif
 // GetStakeVersionsAsync RPC invocation (or an applicable error).
 type FutureGetStakeVersionsResult cmdRes
 
-// Receive waits for the response promised by the future and returns the network
-// the server is running on.
+// Receive waits for the response promised by the future and returns the
+// getstakeversions result.
 func (r *FutureGetStakeVersionsResult) Receive() (*chainjson.GetStakeVersionsResult, error) {
 	res, err := receiveFuture(r.ctx, r.c)
 	if err != nil {
@@ -616,8 +616,8 @@ func (c *Client) GetStakeVersionInfo(ctx context.Context, count int32) (*chainjs
 // GetStakeVersionInfoAsync RPC invocation (or an applicable error).
 type FutureGetStakeVersionInfoResult cmdRes
 
-// Receive waits for the response promised by the future and returns the network
-// the server is running on.
+// Receive waits for the response promised by the future and returns the
+// getstakeversioninfo result.
 func (r *FutureGetStakeVersionInfoResult) Receive() (*chainjson.GetStakeVersionInfoResult, error) {
 	res, err := receiveFuture(r.ctx, r.c)
 	if err != nil {
@@ -657,8 +657,8 @@ func (c *Client) GetStakeVersions(ctx context.Context, hash string, count int32)
 // GetTicketPoolValueAsync RPC invocation (or an applicable error).
 type FutureGetTicketPoolValueResult cmdRes
 
-// Receive waits for the response promised by the future and returns the network
-// the server is running on.
+// Receive waits for the response promised by the future and returns the total
+// value of the live ticket pool.
 func (r *FutureGetTicketPoolValueResult) Receive() (dcrutil.Amount, error) {
 	res, err := receiveFuture(r.ctx, r.c)
 	if err != nil {
@@ -704,8 +704,8 @@ func (c *Client) GetTicketPoolValue(ctx context.Context) (dcrutil.Amount, error)
 // GetVoteInfoAsync RPC invocation (or an applicable error).
 type FutureGetVoteInfoResult cmdRes
 
-// Receive waits for the response promised by the future and returns the network
-// the server is running on.
+// Receive waits for the response promised by the future and returns the
+// getvoteinfo result.
 func (r *FutureGetVoteInfoResult) Receive() (*chainjson.GetVoteInfoResult, error) {
 	res, err := receiveFuture(r.ctx, r.c)
 	if err != nil {
@@ -747,7 +747,7 @@ func (c *Client) GetVoteInfo(ctx context.Context, version uint32) (*chainjson.Ge
 type FutureLiveTicketsResult cmdRes
 
 // Receive waits for the response promised by the future and returns all
-// currently missed tickets from the missed ticket database.
+// currently live tickets from the live ticket database.
 func (r *FutureLiveTicketsResult) Receive() ([]*chainhash.Hash, error) {
 	res, err := receiveFuture(r.ctx, r.c)
 	if err != nil {
@@ -781,8 +781,8 @@ func (c *Client) LiveTicketsAsync(ctx context.Context) *FutureLiveTicketsResult 
 	return (*FutureLiveTicketsResult)(c.sendCmd(ctx, cmd))
 }
 
-// LiveTickets returns all currently missed tickets from the missed
-// ticket database in the daemon.
+// LiveTickets returns all currently live tickets from the live ticket database
+// in the daemon.
 //
 // NOTE: This is a dcrd extension.
 func (c *Client) LiveTickets(ctx context.Context) ([]*chainhash.Hash, error) {
@@ -945,8 +945,8 @@ func (c *Client) TicketFeeInfo(ctx context.Context, blocks *uint32, windows *uin
 // TicketVWAPAsync RPC invocation (or an applicable error).
 type FutureTicketVWAPResult cmdRes
 
-// Receive waits for the response promised by the future and returns the
-// ticketvwap result.
+// Receive waits for the response promised by the future and returns the vwap
+// average price of tickets.
 func (r *FutureTicketVWAPResult) Receive() (dcrutil.Amount, error) {
 	res, err := receiveFuture(r.ctx, r.c)
 	if err != nil {
