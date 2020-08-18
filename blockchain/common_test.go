@@ -724,102 +724,153 @@ func (g *chaingenHarness) ForceTipReorg(fromTipName, toTipName string) {
 	}
 }
 
+// AdvanceToHeight generates and accepts enough blocks to the chain instance
+// associated with the harness to reach the provided height while purchasing
+// the provided tickets per block after coinbase maturity.
+func (g *chaingenHarness) AdvanceToHeight(height uint32, ticketsPerBlock uint32) {
+	g.t.Helper()
+
+	if height == 0 {
+		g.t.Fatalf("the height to progress to cannot be zero")
+	}
+
+	params := g.Params()
+	maxOutsForTickets := uint32(params.TicketsPerBlock)
+
+	if ticketsPerBlock > maxOutsForTickets {
+		g.t.Fatalf("only %v outputs are available for ticket "+
+			"purchases per block", maxOutsForTickets)
+	}
+
+	blocksToGenerate := height
+	if g.Tip().Header.Height > 0 {
+		blocksToGenerate -= g.Tip().Header.Height
+	}
+
+	nextHeight := g.Tip().Header.Height + 1
+
+	// Shorter versions of useful params for convenience.
+	coinbaseMaturity := uint32(params.CoinbaseMaturity)
+	stakeEnabledHeight := uint32(params.StakeEnabledHeight)
+
+	if g.Tip().Header.Height == 0 {
+		// Add the required first block.
+		//
+		//   genesis -> bfb
+		g.CreateBlockOne("bfb", 0)
+		g.AssertTipHeight(1)
+		g.AcceptTipBlock()
+
+		blocksToGenerate--
+		nextHeight++
+	}
+
+	if g.Tip().Header.Height < coinbaseMaturity {
+		// Generate enough blocks to have mature coinbase outputs to work with.
+		//
+		//   genesis -> bfb -> bm2 -> bm3 -> ... -> bm#
+		for i := uint32(0); i < coinbaseMaturity && blocksToGenerate > 0; i++ {
+			blockName := fmt.Sprintf("bm%d", nextHeight)
+			g.NextBlock(blockName, nil, nil)
+			g.SaveTipCoinbaseOuts()
+			g.AcceptTipBlock()
+
+			blocksToGenerate--
+			nextHeight++
+		}
+
+		if blocksToGenerate == 0 {
+			return
+		}
+
+		g.AssertTipHeight(coinbaseMaturity + 1)
+	}
+
+	var ticketsPurchased uint32
+
+	if g.Tip().Header.Height >= coinbaseMaturity &&
+		g.Tip().Header.Height < stakeEnabledHeight {
+		// Generate enough blocks to reach the stake enabled height while
+		// creating ticket purchases that spend from the coinbases matured
+		// above.  This will also populate the pool of immature tickets.
+		//
+		//   ... -> bm# ... -> bse18 -> bse19 -> ... -> bse#
+		for i := uint32(0); g.Tip().Header.Height < stakeEnabledHeight &&
+			blocksToGenerate > 0; i++ {
+			var ticketOuts []chaingen.SpendableOut
+			if ticketsPerBlock > 0 {
+				// Purchase the specified number of tickets per block.
+				outs := g.OldestCoinbaseOuts()
+				ticketOuts = outs[1 : ticketsPerBlock+1]
+				ticketsPurchased += ticketsPerBlock
+			}
+
+			blockName := fmt.Sprintf("bse%d", nextHeight)
+			g.NextBlock(blockName, nil, ticketOuts)
+			g.SaveTipCoinbaseOuts()
+			g.AcceptTipBlock()
+
+			blocksToGenerate--
+			nextHeight++
+		}
+
+		if blocksToGenerate == 0 {
+			return
+		}
+
+		g.AssertTipHeight(stakeEnabledHeight)
+	}
+
+	targetPoolSize := uint32(g.Params().TicketPoolSize) * ticketsPerBlock
+	for i := uint32(0); g.Tip().Header.Height < height && blocksToGenerate > 0; i++ {
+		var ticketOuts []chaingen.SpendableOut
+		if ticketsPerBlock > 0 {
+			// Only purchase tickets until the target ticket pool size is
+			// reached.
+			ticketsNeeded := targetPoolSize - ticketsPurchased
+			if ticketsNeeded > 0 {
+				outs := g.OldestCoinbaseOuts()
+				if ticketsNeeded > ticketsPerBlock {
+					ticketOuts = outs[1 : ticketsPerBlock+1]
+					ticketsPurchased += ticketsPerBlock
+				} else {
+					ticketOuts = outs[1 : ticketsNeeded+1]
+					ticketsPurchased += ticketsNeeded
+				}
+			}
+		}
+
+		if len(ticketOuts) == 0 {
+			ticketOuts = nil
+		}
+
+		blockName := fmt.Sprintf("bsv%d", nextHeight)
+		g.NextBlock(blockName, nil, ticketOuts)
+		g.SaveTipCoinbaseOuts()
+		g.AcceptTipBlock()
+
+		blocksToGenerate--
+		nextHeight++
+	}
+}
+
 // AdvanceToStakeValidationHeight generates and accepts enough blocks to the
 // chain instance associated with the harness to reach stake validation height.
 //
 // The function will fail with a fatal test error if it is not called with the
 // harness at the genesis block which is the case when it is first created.
 func (g *chaingenHarness) AdvanceToStakeValidationHeight() {
-	g.t.Helper()
-
 	// Only allow this to be called on a newly created harness.
 	if g.Tip().Header.Height != 0 {
 		g.t.Fatalf("chaingen harness instance must be at the genesis block " +
 			"to advance to stake validation height")
 	}
 
-	// Shorter versions of useful params for convenience.
 	params := g.Params()
-	ticketsPerBlock := params.TicketsPerBlock
-	coinbaseMaturity := params.CoinbaseMaturity
-	stakeEnabledHeight := params.StakeEnabledHeight
-	stakeValidationHeight := params.StakeValidationHeight
-
-	// ---------------------------------------------------------------------
-	// Block One.
-	// ---------------------------------------------------------------------
-
-	// Add the required first block.
-	//
-	//   genesis -> bfb
-	g.CreateBlockOne("bfb", 0)
-	g.AssertTipHeight(1)
-	g.AcceptTipBlock()
-
-	// ---------------------------------------------------------------------
-	// Generate enough blocks to have mature coinbase outputs to work with.
-	//
-	//   genesis -> bfb -> bm0 -> bm1 -> ... -> bm#
-	// ---------------------------------------------------------------------
-
-	for i := uint16(0); i < coinbaseMaturity; i++ {
-		blockName := fmt.Sprintf("bm%d", i)
-		g.NextBlock(blockName, nil, nil)
-		g.SaveTipCoinbaseOuts()
-		g.AcceptTipBlock()
-	}
-	g.AssertTipHeight(uint32(coinbaseMaturity) + 1)
-
-	// ---------------------------------------------------------------------
-	// Generate enough blocks to reach the stake enabled height while
-	// creating ticket purchases that spend from the coinbases matured
-	// above.  This will also populate the pool of immature tickets.
-	//
-	//   ... -> bm# ... -> bse0 -> bse1 -> ... -> bse#
-	// ---------------------------------------------------------------------
-
-	var ticketsPurchased int
-	for i := int64(0); int64(g.Tip().Header.Height) < stakeEnabledHeight; i++ {
-		outs := g.OldestCoinbaseOuts()
-		ticketOuts := outs[1:]
-		ticketsPurchased += len(ticketOuts)
-		blockName := fmt.Sprintf("bse%d", i)
-		g.NextBlock(blockName, nil, ticketOuts)
-		g.SaveTipCoinbaseOuts()
-		g.AcceptTipBlock()
-	}
-	g.AssertTipHeight(uint32(stakeEnabledHeight))
-
-	// ---------------------------------------------------------------------
-	// Generate enough blocks to reach the stake validation height while
-	// continuing to purchase tickets using the coinbases matured above and
-	// allowing the immature tickets to mature and thus become live.
-	//
-	//   ... -> bse# -> bsv0 -> bsv1 -> ... -> bsv#
-	// ---------------------------------------------------------------------
-
-	targetPoolSize := g.Params().TicketPoolSize * ticketsPerBlock
-	for i := int64(0); int64(g.Tip().Header.Height) < stakeValidationHeight; i++ {
-		// Only purchase tickets until the target ticket pool size is
-		// reached.
-		outs := g.OldestCoinbaseOuts()
-		ticketOuts := outs[1:]
-		if ticketsPurchased+len(ticketOuts) > int(targetPoolSize) {
-			ticketsNeeded := int(targetPoolSize) - ticketsPurchased
-			if ticketsNeeded > 0 {
-				ticketOuts = ticketOuts[1 : ticketsNeeded+1]
-			} else {
-				ticketOuts = nil
-			}
-		}
-		ticketsPurchased += len(ticketOuts)
-
-		blockName := fmt.Sprintf("bsv%d", i)
-		g.NextBlock(blockName, nil, ticketOuts)
-		g.SaveTipCoinbaseOuts()
-		g.AcceptTipBlock()
-	}
-	g.AssertTipHeight(uint32(stakeValidationHeight))
+	ticketsPerBlock := uint32(params.TicketsPerBlock)
+	stakeValidationHeight := uint32(params.StakeValidationHeight)
+	g.AdvanceToHeight(stakeValidationHeight, ticketsPerBlock)
+	g.AssertTipHeight(stakeValidationHeight)
 }
 
 // AdvanceFromSVHToActiveAgenda generates and accepts enough blocks with the
