@@ -9,6 +9,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	mrand "math/rand"
 	"net"
 	"net/http"
@@ -140,15 +141,17 @@ func SeedAddrs(ctx context.Context, seeder string, dialFn DialFunc, filters ...f
 	}
 
 	// Parse the JSON response.
+	const maxNodes = 16
+	const maxRespSize = maxNodes * 256
 	var nodes []node
-	dec := json.NewDecoder(resp.Body)
+	dec := json.NewDecoder(io.LimitReader(resp.Body, maxRespSize))
 	for ctx.Err() == nil && dec.More() {
 		var node node
 		if err = dec.Decode(&node); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("unable to parse response: %w", err)
 		}
 		nodes = append(nodes, node)
-		if len(nodes) >= 16 {
+		if len(nodes) >= maxNodes {
 			break
 		}
 	}
