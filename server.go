@@ -2611,6 +2611,9 @@ func (s *server) querySeeders(ctx context.Context) {
 	seeders := s.chainParams.Seeders()
 	for _, seeder := range seeders {
 		go func(seeder string) {
+			ctx, cancel := context.WithTimeout(ctx, time.Minute)
+			defer cancel()
+
 			addrs, err := connmgr.SeedAddrs(ctx, seeder, dcrdDial,
 				connmgr.SeedFilterServices(defaultRequiredServices))
 			if err != nil {
