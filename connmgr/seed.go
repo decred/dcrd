@@ -8,6 +8,7 @@ package connmgr
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	mrand "math/rand"
 	"net"
 	"net/http"
@@ -133,6 +134,11 @@ func SeedAddrs(ctx context.Context, seeder string, dialFn DialFunc, filters ...f
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("seeder %s returned invalid status code '%d': %v",
+			seeder, resp.StatusCode, http.StatusText(resp.StatusCode))
+	}
+
 	// Parse the JSON response.
 	var nodes []node
 	dec := json.NewDecoder(resp.Body)
@@ -142,6 +148,9 @@ func SeedAddrs(ctx context.Context, seeder string, dialFn DialFunc, filters ...f
 			return nil, err
 		}
 		nodes = append(nodes, node)
+		if len(nodes) >= 16 {
+			break
+		}
 	}
 
 	// Nothing more to do when no addresses are returned.
