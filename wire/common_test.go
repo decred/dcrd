@@ -586,6 +586,141 @@ func TestVarStringOverflowErrors(t *testing.T) {
 	}
 }
 
+// TestAsciiVarStringWire tests wire decode for variable length ascii strings.
+func TestAsciiVarStringWire(t *testing.T) {
+	pver := ProtocolVersion
+
+	// str256 is a string that takes a 2-byte varint to encode.
+	str256 := strings.Repeat("test", 64)
+
+	// maxStr is a string with the maximum allowed length.
+	maxStr := strings.Repeat("a", MaxMessagePayload)
+	maxStrEncoded := append([]byte{0xfe, 0x00, 0x00, 0x00, 0x02}, []byte(maxStr)...)
+
+	tests := []struct {
+		out   string // String to decoded value
+		buf   []byte // Wire encoding
+		pver  uint32 // Protocol version for wire encoding
+		maxsz uint64 // Max allowed size during decoding
+	}{
+		// Latest protocol version.
+		// Empty string, zero allowed
+		{"", []byte{0x00}, pver, 0},
+		// Empty string, more than needed allowed
+		{"", []byte{0x00}, pver, 256},
+		// Single byte varint + string exact needed allowed
+		{"Test", append([]byte{0x04}, []byte("Test")...), pver, 4},
+		// Single byte varint + string more than needed allowed
+		{"Test", append([]byte{0x04}, []byte("Test")...), pver, 256},
+		// 2-byte varint + string
+		{str256, append([]byte{0xfd, 0x00, 0x01}, []byte(str256)...), pver, 256},
+		// Max allowable string exact needed.
+		{maxStr, maxStrEncoded, pver, MaxMessagePayload},
+	}
+
+	t.Logf("Running %d tests", len(tests))
+	for i, test := range tests {
+		// Decode from wire format.
+		rbuf := bytes.NewReader(test.buf)
+		val, err := ReadAsciiVarString(rbuf, test.pver, test.maxsz)
+		if err != nil {
+			t.Errorf("ReadVarString #%d error %v", i, err)
+			continue
+		}
+		if val != test.out {
+			t.Errorf("ReadVarString #%d\n got: %s want: %s", i,
+				val, test.out)
+			continue
+		}
+	}
+}
+
+// TestAsciiVarStringWireErrors performs negative tests against wire decode of
+// variable length ascii strings to confirm error paths work correctly.
+func TestAsciiVarStringWireErrors(t *testing.T) {
+	pver := ProtocolVersion
+
+	tests := []struct {
+		buf     []byte // Wire encoding
+		pver    uint32 // Protocol version for wire encoding
+		max     int    // Max size of fixed buffer to induce errors
+		maxsz   uint64 // Max allowed size during decoding
+		readErr error  // Expected read error
+	}{
+		// Latest protocol version with intentional read/write errors.
+		// Force errors on empty string.
+		{[]byte{0x00}, pver, 0, 256, io.EOF},
+		// Force error on single byte varint + string.
+		{[]byte{0x04}, pver, 2, 256, io.ErrUnexpectedEOF},
+		// Force errors on 2-byte varint + string.
+		{[]byte{0xfd}, pver, 2, 65536, io.ErrUnexpectedEOF},
+		// Force errors on larger than allowed string.
+		{[]byte{0x04, 't', 'e', 's', 't'}, pver, 5, 3, ErrVarStringTooLong},
+		// Force errors on non-ascii string.
+		{[]byte{0x04, 't', 'é', 's', 't'}, pver, 5, 4, ErrMalformedStrictString},
+	}
+
+	t.Logf("Running %d tests", len(tests))
+	for i, test := range tests {
+		// Decode from wire format.
+		r := newFixedReader(test.max, test.buf)
+		_, err := ReadAsciiVarString(r, test.pver, test.maxsz)
+		if !errors.Is(err, test.readErr) {
+			t.Errorf("ReadAsciiVarString #%d wrong error got: %v, want: %v",
+				i, err, test.readErr)
+			continue
+		}
+	}
+}
+
+// TestAsciiVarStringOverflowErrors performs tests to ensure deserializing
+// variable length ascii strings intentionally crafted to use large values for
+// the string length are handled properly.  This could otherwise potentially be
+// used as an attack vector.
+func TestAsciiVarStringOverflowErrors(t *testing.T) {
+	pver := ProtocolVersion
+
+	tests := []struct {
+		buf   []byte // Wire encoding
+		maxsz uint64 // Max allowed size during decoding
+		pver  uint32 // Protocol version for wire encoding
+		err   error  // Expected error
+	}{
+		{ // Max varint, max allowed.
+			[]byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
+			^uint64(0), pver, ErrVarStringTooLong,
+		},
+		{ // 2^56 after decoding (LSB of upper byte of decoded varint).
+			[]byte{0xff, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01},
+			^uint64(0), pver, ErrVarStringTooLong,
+		},
+		{ // One more than max payload, max allowed.
+			[]byte{0xfe, 0x01, 0x00, 0x00, 0x02},
+			^uint64(0), pver, ErrVarStringTooLong,
+		},
+		{ // Max payload, one less than max payload allowed.
+			[]byte{0xfe, 0x00, 0x00, 0x00, 0x02},
+			MaxMessagePayload - 1, pver, ErrVarStringTooLong,
+		},
+		{ // Single byte payload, zero allowed.
+			[]byte{0x01},
+			0, pver, ErrVarStringTooLong,
+		},
+	}
+
+	t.Logf("Running %d tests", len(tests))
+	for i, test := range tests {
+		// Decode from wire format.
+		rbuf := bytes.NewReader(test.buf)
+		_, err := ReadAsciiVarString(rbuf, test.pver, test.maxsz)
+		if !errors.Is(err, test.err) {
+			t.Errorf("ReadAsciiVarString #%d wrong error. want=%v, "+
+				"got=%v", i, test.err, err)
+			continue
+		}
+	}
+}
+
 // TestVarBytesWire tests wire encode and decode for variable length byte array.
 func TestVarBytesWire(t *testing.T) {
 	pver := ProtocolVersion
