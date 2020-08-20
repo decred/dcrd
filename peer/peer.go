@@ -27,7 +27,7 @@ import (
 
 const (
 	// MaxProtocolVersion is the max protocol version the peer supports.
-	MaxProtocolVersion = wire.CFilterV2Version
+	MaxProtocolVersion = wire.InitStateVersion
 
 	// outputBufferSize is the number of elements the output channels use.
 	outputBufferSize = 5000
@@ -191,6 +191,13 @@ type MessageListeners struct {
 	// OnSendHeaders is invoked when a peer receives a sendheaders wire
 	// message.
 	OnSendHeaders func(p *Peer, msg *wire.MsgSendHeaders)
+
+	// OnGetInitState is invoked when a peer receives a getinitstate wire
+	// message.
+	OnGetInitState func(p *Peer, msg *wire.MsgGetInitState)
+
+	// OnInitState is invoked when a peer receives an initstate message.
+	OnInitState func(p *Peer, msg *wire.MsgInitState)
 
 	// OnRead is invoked when a peer receives a wire message.  It consists
 	// of the number of bytes read, the message, and whether or not an error
@@ -1112,6 +1119,9 @@ func (p *Peer) maybeAddDeadline(pendingResponses map[string]time.Time, msgCmd st
 
 	case wire.CmdGetMiningState:
 		pendingResponses[wire.CmdMiningState] = deadline
+
+	case wire.CmdGetInitState:
+		pendingResponses[wire.CmdInitState] = deadline
 	}
 }
 
@@ -1464,6 +1474,16 @@ out:
 		case *wire.MsgCFilterV2:
 			if p.cfg.Listeners.OnCFilterV2 != nil {
 				p.cfg.Listeners.OnCFilterV2(p, msg)
+			}
+
+		case *wire.MsgGetInitState:
+			if p.cfg.Listeners.OnGetInitState != nil {
+				p.cfg.Listeners.OnGetInitState(p, msg)
+			}
+
+		case *wire.MsgInitState:
+			if p.cfg.Listeners.OnInitState != nil {
+				p.cfg.Listeners.OnInitState(p, msg)
 			}
 
 		default:

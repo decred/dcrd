@@ -190,6 +190,15 @@ func messageSummary(msg wire.Message) string {
 			summary += fmt.Sprintf(", hash %v", msg.Hash)
 		}
 		return summary
+
+	case *wire.MsgGetInitState:
+		return fmt.Sprintf("types %v", msg.Types)
+
+	case *wire.MsgInitState:
+		return fmt.Sprintf("blockHashes %d, voteHashes %d, tspendHashes %d",
+			len(msg.BlockHashes), len(msg.VoteHashes),
+			len(msg.TSpendHashes))
+
 	}
 
 	// No summary for other messages.
