@@ -73,7 +73,7 @@ const (
 	connectionRetryInterval = time.Second * 5
 
 	// maxProtocolVersion is the max protocol version the server supports.
-	maxProtocolVersion = wire.CFilterV2Version
+	maxProtocolVersion = wire.InitStateVersion
 
 	// maxKnownAddrsPerPeer is the maximum number of items to keep in the
 	// per-peer known address cache.
@@ -493,11 +493,12 @@ type serverPeer struct {
 	banScore       connmgr.DynamicBanScore
 	quit           chan struct{}
 
-	// addrsSent and getMiningStateSent both track whether or not the peer
-	// has already sent the respective request.  It is used to prevent more
-	// than one response per connection.
+	// addrsSent, getMiningStateSent and initState all track whether or not
+	// the peer has already sent the respective request.  It is used to
+	// prevent more than one response per connection.
 	addrsSent          bool
 	getMiningStateSent bool
+	initStateSent      bool
 
 	// The following chans are used to sync blockmanager and server.
 	txProcessed    chan struct{}
@@ -859,6 +860,113 @@ func (sp *serverPeer) OnMiningState(p *peer.Peer, msg *wire.MsgMiningState) {
 	if err != nil {
 		peerLog.Warnf("couldn't handle mining state message: %v",
 			err.Error())
+	}
+}
+
+// OnGetInitState is invoked when a peer receives a getinitstate wire message.
+// It sends the available requested info the the remote peer.
+func (sp *serverPeer) OnGetInitState(p *peer.Peer, msg *wire.MsgGetInitState) {
+	if sp.initStateSent {
+		peerLog.Tracef("Ignoring getinitstate from %v - already sent", sp.Peer)
+		return
+	}
+	sp.initStateSent = true
+
+	// Access the block manager and get the list of best blocks to mine on.
+	bm := sp.server.blockManager
+	mp := sp.server.txMemPool
+	best := sp.server.chain.BestSnapshot()
+
+	// Send out blank mining states if it's early in the blockchain.
+	if best.Height < sp.server.chainParams.StakeValidationHeight-1 {
+		sp.QueueMessage(wire.NewMsgInitState(), nil)
+		return
+	}
+
+	// Response data.
+	var blockHashes, voteHashes, tspendHashes []chainhash.Hash
+
+	// Map from the types slice into a map for easier checking.
+	types := make(map[string]struct{}, len(msg.Types))
+	for _, typ := range msg.Types {
+		types[typ] = struct{}{}
+	}
+	_, wantBlocks := types[wire.InitStateHeadBlocks]
+	_, wantVotes := types[wire.InitStateHeadBlockVotes]
+	_, wantTSpends := types[wire.InitStateTSpends]
+
+	// Fetch head block hashes if we need to send either them or their
+	// votes.
+	if wantBlocks || wantVotes {
+		// Obtain the entire generation of blocks stemming from the
+		// parent of the current tip.
+		children, err := bm.TipGeneration()
+		if err != nil {
+			peerLog.Warnf("Failed to access block manager to get the generation "+
+				"for a init state request (block: %v): %v", best.Hash, err)
+			return
+		}
+
+		// Get the list of blocks that are eligible to build on and
+		// limit the list to the maximum number of allowed eligible
+		// block hashes per init state message.  There is nothing to
+		// send when there are no eligible blocks.
+		blockHashes = mining.SortParentsByVotes(mp, best.Hash, children,
+			bm.cfg.ChainParams)
+		if len(blockHashes) > wire.MaxISBlocksAtHeadPerMsg {
+			blockHashes = blockHashes[:wire.MaxISBlocksAtHeadPerMsg]
+		}
+	}
+
+	// Construct the set of votes to send.
+	if wantVotes {
+		for i := range blockHashes {
+			// Fetch the vote hashes themselves and append them.
+			bh := &blockHashes[i]
+			vhsForBlock := mp.VoteHashesForBlock(bh)
+			voteHashes = append(voteHashes, vhsForBlock...)
+		}
+	}
+
+	// Construct tspends to send.
+	if wantTSpends {
+		tspendHashes = mp.TSpendHashes()
+	}
+
+	// Clear out block hashes to be sent if they weren't requested.
+	if !wantBlocks {
+		blockHashes = nil
+	}
+
+	// Build and push the response.
+	initMsg, err := wire.NewMsgInitStateFilled(blockHashes, voteHashes, tspendHashes)
+	if err != nil {
+		peerLog.Warnf("Unexpected error while building initstate msg: %v", err)
+		return
+	}
+	sp.QueueMessage(initMsg, nil)
+}
+
+// OnInitState is invoked when a peer receives a initstate wire message.  It
+// requests the data advertised in the message from the peer.
+func (sp *serverPeer) OnInitState(p *peer.Peer, msg *wire.MsgInitState) {
+	blockHashes := make([]*chainhash.Hash, 0, len(msg.BlockHashes))
+	txHashes := make([]*chainhash.Hash, 0, len(msg.VoteHashes)+len(msg.TSpendHashes))
+
+	for i := range msg.BlockHashes {
+		blockHashes = append(blockHashes, &msg.BlockHashes[i])
+	}
+	for i := range msg.VoteHashes {
+		txHashes = append(txHashes, &msg.VoteHashes[i])
+	}
+	for i := range msg.TSpendHashes {
+		txHashes = append(txHashes, &msg.TSpendHashes[i])
+	}
+
+	err := sp.server.blockManager.RequestFromPeer(sp.Peer, blockHashes,
+		txHashes)
+	if err != nil {
+		peerLog.Warnf("couldn't handle init state message: %v", err)
 	}
 }
 
@@ -2121,6 +2229,8 @@ func newPeerConfig(sp *serverPeer) *peer.Config {
 			OnMemPool:        sp.OnMemPool,
 			OnGetMiningState: sp.OnGetMiningState,
 			OnMiningState:    sp.OnMiningState,
+			OnGetInitState:   sp.OnGetInitState,
+			OnInitState:      sp.OnInitState,
 			OnTx:             sp.OnTx,
 			OnBlock:          sp.OnBlock,
 			OnInv:            sp.OnInv,

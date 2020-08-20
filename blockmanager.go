@@ -537,15 +537,48 @@ func (b *blockManager) isSyncCandidate(peer *peerpkg.Peer) bool {
 func (b *blockManager) syncMiningStateAfterSync(peer *peerpkg.Peer) {
 	go func() {
 		for {
-			time.Sleep(3 * time.Second)
+			select {
+			case <-time.After(3 * time.Second):
+			case <-b.quit:
+				return
+			}
+
 			if !peer.Connected() {
 				return
 			}
-			if b.IsCurrent() {
-				msg := wire.NewMsgGetMiningState()
-				peer.QueueMessage(msg, nil)
-				return
+			if !b.IsCurrent() {
+				continue
 			}
+
+			pver := peer.ProtocolVersion()
+			var msg wire.Message
+
+			switch {
+			case pver < wire.InitStateVersion:
+				// Before protocol version InitStateVersion
+				// nodes use the GetMiningState/MiningState
+				// pair of p2p messages.
+				msg = wire.NewMsgGetMiningState()
+
+			default:
+				// On the most recent protocol version, nodes
+				// use the GetInitState/InitState pair of p2p
+				// messages.
+				m := wire.NewMsgGetInitState()
+				err := m.AddTypes(wire.InitStateHeadBlocks,
+					wire.InitStateHeadBlockVotes,
+					wire.InitStateTSpends)
+				if err != nil {
+					bmgrLog.Errorf("Unexpected error while "+
+						"building getinitstate msg: %v",
+						err)
+					return
+				}
+				msg = m
+			}
+
+			peer.QueueMessage(msg, nil)
+			return
 		}
 	}()
 }
