@@ -639,6 +639,48 @@ func ReadVarString(r io.Reader, pver uint32) (string, error) {
 	return string(buf), nil
 }
 
+// ReadAsciiVarString reads a variable length string from r and returns it as a
+// Go string.  A variable length string is encoded as a variable length integer
+// containing the length of the string followed by the bytes that represent the
+// string itself.  An error is returned if the length is greater than the
+// specified maxAllowed argument, greater than the global maximum message
+// payload length or if the decoded string is not strictly an ascii string.
+func ReadAsciiVarString(r io.Reader, pver uint32, maxAllowed uint64) (string, error) {
+	const op = "ReadAsciiVarString"
+	count, err := ReadVarInt(r, pver)
+	if err != nil {
+		return "", err
+	}
+
+	// Prevent variable length strings that are larger than the specified
+	// size or the global maximum payload (whichever is lower).  It would
+	// be possible to cause memory exhaustion and panics without a sane
+	// upper bound on this count.
+	max := maxAllowed
+	if maxAllowed > MaxMessagePayload {
+		max = MaxMessagePayload
+	}
+	if count > max {
+		msg := fmt.Sprintf("variable length string is too long "+
+			"[count %d, max %d]", count, max)
+		return "", messageError(op, ErrVarStringTooLong, msg)
+	}
+
+	buf := make([]byte, count)
+	_, err = io.ReadFull(r, buf)
+	if err != nil {
+		return "", err
+	}
+
+	s := string(buf)
+	if !isStrictAscii(s) {
+		msg := "string is not strict ASCII"
+		return "", messageError(op, ErrMalformedStrictString, msg)
+	}
+
+	return s, nil
+}
+
 // WriteVarString serializes str to w as a variable length integer containing
 // the length of the string followed by the bytes that represent the string
 // itself.

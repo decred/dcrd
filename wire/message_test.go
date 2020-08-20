@@ -78,6 +78,8 @@ func TestMessage(t *testing.T) {
 	msgCFHeaders := NewMsgCFHeaders()
 	msgCFTypes := NewMsgCFTypes([]FilterType{GCSFilterExtended})
 	msgReject := NewMsgReject("block", RejectDuplicate, "duplicate block")
+	msgGetInitState := NewMsgGetInitState()
+	msgInitState := NewMsgInitState()
 
 	tests := []struct {
 		in     Message     // Value to encode
@@ -108,6 +110,8 @@ func TestMessage(t *testing.T) {
 		{msgCFilter, msgCFilter, pver, MainNet, 65},           // [24]
 		{msgCFHeaders, msgCFHeaders, pver, MainNet, 58},       // [25]
 		{msgCFTypes, msgCFTypes, pver, MainNet, 26},           // [26]
+		{msgGetInitState, msgGetInitState, pver, MainNet, 25}, // [27]
+		{msgInitState, msgInitState, pver, MainNet, 27},       // [28]
 	}
 
 	t.Logf("Running %d tests", len(tests))

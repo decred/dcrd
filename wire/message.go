@@ -56,6 +56,8 @@ const (
 	CmdCFTypes        = "cftypes"
 	CmdGetCFilterV2   = "getcfilterv2"
 	CmdCFilterV2      = "cfilterv2"
+	CmdGetInitState   = "getinitstate"
+	CmdInitState      = "initstate"
 )
 
 // Message is an interface that describes a Decred message.  A type that
@@ -159,6 +161,12 @@ func makeEmptyMessage(command string) (Message, error) {
 
 	case CmdCFilterV2:
 		msg = &MsgCFilterV2{}
+
+	case CmdGetInitState:
+		msg = &MsgGetInitState{}
+
+	case CmdInitState:
+		msg = &MsgInitState{}
 
 	default:
 		str := fmt.Sprintf("unhandled command [%s]", command)

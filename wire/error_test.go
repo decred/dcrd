@@ -47,6 +47,10 @@ func TestMessageErrorCodeStringer(t *testing.T) {
 		{ErrUserAgentTooLong, "ErrUserAgentTooLong"},
 		{ErrTooManyFilterHeaders, "ErrTooManyFilterHeaders"},
 		{ErrMalformedStrictString, "ErrMalformedStrictString"},
+		{ErrTooManyInitStateTypes, "ErrTooManyInitStateTypes"},
+		{ErrInitStateTypeTooLong, "ErrInitStateTypeTooLong"},
+		{ErrTooManyTSpends, "ErrTooManyTSpends"},
+
 		{0xffff, "Unknown ErrorCode (65535)"},
 	}
 

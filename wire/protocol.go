@@ -17,7 +17,7 @@ const (
 	InitialProcotolVersion uint32 = 1
 
 	// ProtocolVersion is the latest protocol version this package supports.
-	ProtocolVersion uint32 = 7
+	ProtocolVersion uint32 = 8
 
 	// NodeBloomVersion is the protocol version which added the SFNodeBloom
 	// service flag (unused).
@@ -43,6 +43,10 @@ const (
 	// CFilterV2Version is the protocol version which adds the getcfilterv2 and
 	// cfiltverv2 messages.
 	CFilterV2Version uint32 = 7
+
+	// InitStateVersion is the protocol version which adds the initstate
+	// and getinitstate messages.
+	InitStateVersion uint32 = 8
 )
 
 // ServiceFlag identifies services supported by a Decred peer.
