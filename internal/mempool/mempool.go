@@ -281,6 +281,9 @@ type TxPool struct {
 	votesMtx sync.RWMutex
 	votes    map[chainhash.Hash][]mining.VoteDesc
 
+	// TSpends. Access MUST be protected by the mempool mutex.
+	tspends map[chainhash.Hash]*dcrutil.Tx
+
 	pennyTotal    float64 // exponentially decaying total for penny spends.
 	lastPennyUnix int64   // unix time of last ``penny spend''
 
@@ -372,6 +375,18 @@ func (mp *TxPool) VotesForBlocks(hashes []chainhash.Hash) [][]mining.VoteDesc {
 }
 
 // TODO Pruning of the votes map DECRED
+
+// TSpendHashes returns hashes of all existing tracked tspends. This function
+// is safe for concurrent access.
+func (mp *TxPool) TSpendHashes() []chainhash.Hash {
+	mp.mtx.RLock()
+	res := make([]chainhash.Hash, 0, len(mp.tspends))
+	for hash := range mp.tspends {
+		res = append(res, hash)
+	}
+	mp.mtx.RUnlock()
+	return res
+}
 
 // Ensure the TxPool type implements the mining.TxSource interface.
 var _ mining.TxSource = (*TxPool)(nil)
@@ -862,6 +877,9 @@ func (mp *TxPool) removeTransaction(tx *dcrutil.Tx, removeRedeemers bool, isTrea
 		if mp.cfg.RemoveTxFromFeeEstimation != nil {
 			mp.cfg.RemoveTxFromFeeEstimation(txHash)
 		}
+
+		// Stop tracking if it's a tspend.
+		delete(mp.tspends, *txHash)
 	}
 }
 
@@ -1117,21 +1135,6 @@ func (mp *TxPool) FetchTransaction(txHash *chainhash.Hash) (*dcrutil.Tx, error) 
 	}
 
 	return nil, fmt.Errorf("transaction is not in the pool")
-}
-
-// countTSpends returns the number of TSpends that are currently in the
-// mempool. It does so by iterating over the entire list. This function may
-// have to be memoized.
-//
-// This function MUST be called with the mempool lock held (for writes).
-func (mp *TxPool) countTSpends() int {
-	tspends := 0
-	for _, tx := range mp.pool {
-		if tx.Type == stake.TxTypeTSpend {
-			tspends++
-		}
-	}
-	return tspends
 }
 
 // maybeAcceptTransaction is the internal function which implements the public
@@ -1630,7 +1633,7 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 
 		// Only allow up to MempoolMaxConcurrentTSpends TSpends in the
 		// mempool.
-		tspends := mp.countTSpends()
+		tspends := len(mp.tspends)
 		if tspends >= MempoolMaxConcurrentTSpends {
 			str := fmt.Sprintf("Mempool can only hold %v "+
 				"concurrent TSpend transactions",
@@ -1700,6 +1703,11 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 		mp.votesMtx.Lock()
 		mp.insertVote(tx)
 		mp.votesMtx.Unlock()
+	}
+
+	// Keep track of tspends separately.
+	if isTSpend {
+		mp.tspends[*txHash] = tx
 	}
 
 	log.Debugf("Accepted transaction %v (pool size: %v)", txHash,
@@ -2131,6 +2139,7 @@ func New(cfg *Config) *TxPool {
 		orphansByPrev:   make(map[wire.OutPoint]map[chainhash.Hash]*dcrutil.Tx),
 		outpoints:       make(map[wire.OutPoint]*dcrutil.Tx),
 		votes:           make(map[chainhash.Hash][]mining.VoteDesc),
+		tspends:         make(map[chainhash.Hash]*dcrutil.Tx),
 		nextExpireScan:  time.Now().Add(orphanExpireScanInterval),
 		staged:          make(map[chainhash.Hash]*dcrutil.Tx),
 		stagedOutpoints: make(map[wire.OutPoint]*dcrutil.Tx),
