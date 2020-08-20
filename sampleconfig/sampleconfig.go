@@ -1,11 +1,11 @@
-// Copyright (c) 2017 The Decred developers
+// Copyright (c) 2017-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
 package sampleconfig
 
-// FileContents is a string containing the commented example config for dcrd.
-const FileContents = `[Application Options]
+// fileContents is a string containing the commented example config for dcrd.
+const fileContents = `[Application Options]
 
 ; ------------------------------------------------------------------------------
 ; Data settings
@@ -411,3 +411,9 @@ const DcrctlSampleConfig = `[Application Options]
 ; RPC server certificate chain file for validation
 ; rpccert=~/.dcrd/rpc.cert
 `
+
+// FileContents returns a string containing the commented example config for
+// dcrd.
+func FileContents() string {
+	return fileContents
+}

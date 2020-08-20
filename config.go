@@ -456,7 +456,7 @@ func createDefaultConfigFile(destPath string) error {
 	// file contents with their generated values.
 	rpcUserRE := regexp.MustCompile(`(?m)^;\s*rpcuser=[^\s]*$`)
 	rpcPassRE := regexp.MustCompile(`(?m)^;\s*rpcpass=[^\s]*$`)
-	s := rpcUserRE.ReplaceAllString(sampleconfig.FileContents, rpcUserLine)
+	s := rpcUserRE.ReplaceAllString(sampleconfig.FileContents(), rpcUserLine)
 	s = rpcPassRE.ReplaceAllString(s, rpcPassLine)
 
 	// Create config file at the provided path.
