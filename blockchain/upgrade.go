@@ -1324,6 +1324,532 @@ func migrateBlockIndexVersion2To3(ctx context.Context, db database.DB, dbInfo *d
 	return err
 }
 
+// migrateUtxoSetVersion1To2 migrates all utxoset entries from the v1 bucket to
+// a v2 bucket and removes the old v1 bucket.  As compared to the v1 utxoset,
+// the v2 utxoset moves the bit which defines whether or not a tx is fully spent
+// from bit 4 to bit 6.
+//
+// The utxoset is guaranteed to be fully updated if this returns without
+// failure.
+func migrateUtxoSetVersion1To2(ctx context.Context, db database.DB) error {
+	// Hardcoded bucket and key names so updates do not affect old upgrades.
+	v1BucketName := []byte("utxoset")
+	v2BucketName := []byte("utxosetv2")
+	v2DoneKeyName := []byte("utxosetv2done")
+
+	// No need to migrate again if already done.
+	var alreadyDone bool
+	err := db.View(func(dbTx database.Tx) error {
+		if dbTx.Metadata().Get(v2DoneKeyName) != nil {
+			alreadyDone = true
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	if alreadyDone {
+		return nil
+	}
+
+	log.Info("Migrating database utxoset.  This may take a while...")
+	start := time.Now()
+
+	// Create the new utxoset bucket as needed.
+	err = db.Update(func(dbTx database.Tx) error {
+		_, err := dbTx.Metadata().CreateBucketIfNotExists(v2BucketName)
+		return err
+	})
+	if err != nil {
+		return err
+	}
+
+	// doBatch contains the primary logic for upgrading the utxoset from version
+	// 1 to 2 in batches.  This is done because attempting to migrate in a
+	// single database transaction could result in massive memory usage and
+	// could potentially crash on many systems due to ulimits.
+	//
+	// It returns the number of entries processed.
+	const maxEntries = 20000
+	var resumeOffset uint32
+	doBatch := func(dbTx database.Tx) (uint32, error) {
+		meta := dbTx.Metadata()
+		v1Bucket := meta.Bucket(v1BucketName)
+		if v1Bucket == nil {
+			return 0, fmt.Errorf("bucket %s does not exist", v1BucketName)
+		}
+
+		v2Bucket := meta.Bucket(v2BucketName)
+		if v2Bucket == nil {
+			return 0, fmt.Errorf("bucket %s does not exist", v2BucketName)
+		}
+
+		// Migrate utxoset entries so long as the max number of entries for this
+		// batch has not been exceeded.
+		var numMigrated, numIterated uint32
+		err := v1Bucket.ForEach(func(key, oldSerialized []byte) error {
+			if numMigrated >= maxEntries {
+				return errBatchFinished
+			}
+
+			// Skip entries that have already been migrated in previous batches.
+			numIterated++
+			if numIterated-1 < resumeOffset {
+				return nil
+			}
+			resumeOffset++
+
+			// Skip entries that have already been migrated in previous
+			// interrupted upgrades.
+			if v2Bucket.Get(key) != nil {
+				return nil
+			}
+
+			// Copy the existing serialized bytes so they can be mutated and
+			// rewritten to the new bucket as needed.
+			serialized := make([]byte, len(oldSerialized))
+			copy(serialized, oldSerialized)
+
+			// The legacy version 1 unspent transaction output (utxo) set
+			// consists of an entry for each transaction which contains a utxo
+			// serialized using a format that is highly optimized to reduce
+			// space using domain specific compression algorithms.
+			//
+			// The legacy format for this entry is roughly:
+			//
+			//   <version><height><index><flags><rest of data>
+			//
+			//   Field                 Type     Size
+			//   transaction version   VLQ      variable
+			//   block height          VLQ      variable
+			//   block index           VLQ      variable
+			//   flags                 VLQ      variable (only ever 1 byte)
+			//   rest of data...
+			//
+			// The legacy serialized flags code format is:
+			//   bit  0   - containing transaction is a coinbase
+			//   bit  1   - containing transaction has an expiry
+			//   bits 2-3 - transaction type
+			//   bit  4   - is fully spent
+			//   bits 5-7 - unused
+			//
+			// Given the migration only needs to move the fully spent bit from
+			// bit 4 to bit 6, the following specifically finds and modifies the
+			// relevant byte while leaving everything else untouched.
+
+			// Deserialize the tx version, block height, and block index to
+			// locate the offset of the flags byte that needs to be modified.
+			_, bytesRead := deserializeVLQ(serialized)
+			offset := bytesRead
+			if offset >= len(serialized) {
+				return errDeserialize("unexpected end of data after version")
+			}
+			_, bytesRead = deserializeVLQ(serialized[offset:])
+			offset += bytesRead
+			if offset >= len(serialized) {
+				return errDeserialize("unexpected end of data after height")
+			}
+			_, bytesRead = deserializeVLQ(serialized[offset:])
+			offset += bytesRead
+			if offset >= len(serialized) {
+				return errDeserialize("unexpected end of data after index")
+			}
+
+			// Migrate flags to the new format.
+			const v1FullySpentFlag = 1 << 4
+			const v2FullySpentFlag = 1 << 6
+			flags64, bytesRead := deserializeVLQ(serialized[offset:])
+			if bytesRead != 1 {
+				str := fmt.Sprintf("unexpected flags size -- got %d, want 1",
+					bytesRead)
+				return errDeserialize(str)
+			}
+			flags := byte(flags64)
+			fullySpent := flags&v1FullySpentFlag != 0
+			flags &^= v1FullySpentFlag
+			if fullySpent {
+				flags |= v2FullySpentFlag
+			}
+			serialized[offset] = flags
+
+			// Write the entry serialized with the new format to the new bucket.
+			err = v2Bucket.Put(key, serialized)
+			if err != nil {
+				return err
+			}
+
+			numMigrated++
+
+			if interruptRequested(ctx) {
+				return errInterruptRequested
+			}
+
+			return nil
+		})
+		return numMigrated, err
+	}
+
+	// Migrate all entries in batches for the reasons mentioned above.
+	var totalMigrated uint64
+	for {
+		var numMigrated uint32
+		err := db.Update(func(dbTx database.Tx) error {
+			var err error
+			numMigrated, err = doBatch(dbTx)
+			if errors.Is(err, errInterruptRequested) ||
+				errors.Is(err, errBatchFinished) {
+				// No error here so the database transaction is not cancelled
+				// and therefore outstanding work is written to disk.  The outer
+				// function will exit with an interrupted error below due to
+				// another interrupted check.
+				err = nil
+			}
+			return err
+		})
+		if err != nil {
+			return err
+		}
+
+		if interruptRequested(ctx) {
+			return errInterruptRequested
+		}
+
+		if numMigrated == 0 {
+			break
+		}
+
+		totalMigrated += uint64(numMigrated)
+		log.Infof("Migrated %d entries (%d total)", numMigrated, totalMigrated)
+	}
+
+	elapsed := time.Since(start).Round(time.Millisecond)
+	log.Infof("Done migrating utxoset.  Total entries: %d in %v", totalMigrated,
+		elapsed)
+
+	if interruptRequested(ctx) {
+		return errInterruptRequested
+	}
+
+	// Drop version 1 utxoset.
+	log.Info("Removing old utxoset entries...")
+	start = time.Now()
+	err = incrementalFlatDrop(ctx, db, v1BucketName, "old utxoset")
+	if err != nil {
+		return err
+	}
+	elapsed = time.Since(start).Round(time.Millisecond)
+	log.Infof("Done removing old utxoset entries in %v", elapsed)
+
+	// Save a flag to mark the migration fully complete in case of interruption.
+	err = db.Update(func(dbTx database.Tx) error {
+		return dbTx.Metadata().Put(v2DoneKeyName, nil)
+	})
+	return err
+}
+
+// migrateSpendJournalVersion1To2 migrates all spend journal entries from the v1
+// bucket to a v2 bucket and removes the old v1 bucket.  As compared to the v1
+// spend journal, the v2 spend journal moves the bit which defines whether or
+// not a tx is fully spent from bit 4 to bit 6.
+//
+// The spend journal is guaranteed to be fully updated if this returns without
+// failure.
+func migrateSpendJournalVersion1To2(ctx context.Context, db database.DB) error {
+	// Hardcoded bucket and key names so updates do not affect old upgrades.
+	v1BucketName := []byte("spendjournal")
+	v2BucketName := []byte("spendjournalv2")
+
+	log.Info("Migrating database spend journal.  This may take a while...")
+	start := time.Now()
+
+	// Create the new spend journal bucket as needed.
+	err := db.Update(func(dbTx database.Tx) error {
+		_, err := dbTx.Metadata().CreateBucketIfNotExists(v2BucketName)
+		return err
+	})
+	if err != nil {
+		return err
+	}
+
+	// doBatch contains the primary logic for upgrading the spend journal from
+	// version 1 to 2 in batches.  This is done because attempting to migrate in
+	// a single database transaction could result in massive memory usage and
+	// could potentially crash on many systems due to ulimits.
+	//
+	// It returns the number of entries processed.
+	const maxEntries = 20000
+	var resumeOffset uint32
+	doBatch := func(dbTx database.Tx) (uint32, error) {
+		meta := dbTx.Metadata()
+		v1Bucket := meta.Bucket(v1BucketName)
+		if v1Bucket == nil {
+			return 0, fmt.Errorf("bucket %s does not exist", v1BucketName)
+		}
+
+		v2Bucket := meta.Bucket(v2BucketName)
+		if v2Bucket == nil {
+			return 0, fmt.Errorf("bucket %s does not exist", v2BucketName)
+		}
+
+		// Migrate spend journal entries so long as the max number of entries
+		// for this batch has not been exceeded.
+		var numMigrated, numIterated uint32
+		err := v1Bucket.ForEach(func(key, oldSerialized []byte) error {
+			if numMigrated >= maxEntries {
+				return errBatchFinished
+			}
+
+			// Skip entries that have already been migrated in previous batches.
+			numIterated++
+			if numIterated-1 < resumeOffset {
+				return nil
+			}
+			resumeOffset++
+
+			// Skip entries that have already been migrated in previous
+			// interrupted upgrades.
+			if v2Bucket.Get(key) != nil {
+				return nil
+			}
+
+			// Copy the existing serialized bytes so they can be mutated and
+			// rewritten to the new bucket as needed.
+			serialized := make([]byte, len(oldSerialized))
+			copy(serialized, oldSerialized)
+
+			// The legacy version 1 transaction spend journal consists of an
+			// entry for each block connected to the main chain which contains
+			// the transaction outputs the block spends serialized such that the
+			// order is the reverse of the order they were spent.
+			//
+			// The legacy format for this entry is roughly:
+			//
+			//   [<flags><script version><compressed pkscript><optional data>],...
+			//
+			// The legacy optional data is only present if the flags indicate
+			// the transaction is fully spent (bit 4 in legacy format) and its
+			// format is roughly:
+			//
+			//   <tx version><optional stake data>
+			//
+			// The legacy optional stake data is only present if the flags
+			// indicate the transaction type is a ticket and its format is
+			// roughly:
+			//
+			//   <num outputs>[<amount><script version><script len><script>],...
+			//
+			//
+			//   Field                   Type           Size
+			//   flags                   VLQ            variable (always 1 byte)
+			//   script version          VLQ            variable
+			//   compressed pkscript     []byte         variable
+			//   optional data (only present if flags indicates fully spent)
+			//     transaction version   VLQ            variable
+			//     stake data (only present if flags indicates tx type ticket)
+			//       num outputs         VLQ            variable
+			//       output info
+			//         amount            VLQ            variable
+			//         script version    VLQ            variable
+			//         script len        VLQ            variable
+			//         script            []byte         variable
+			//
+			// The legacy serialized flags code format is:
+			//
+			//   bit  0   - containing transaction is a coinbase
+			//   bit  1   - containing transaction has an expiry
+			//   bits 2-3 - transaction type
+			//   bit  4   - is fully spent
+			//   bits 5-7 - unused
+			//
+			// Given the migration only needs to move the fully spent bit from
+			// bit 4 to bit 6, the following specifically finds and modifies the
+			// relevant flags bytes while leaving everything else untouched.
+			const (
+				v1FullySpentFlag = 1 << 4
+				v1TxTypeMask     = 0x0c
+				v1TxTypeShift    = 2
+				v1TxTypeTicket   = 1
+				v1CompressionVer = 1
+				v2FullySpentFlag = 1 << 6
+			)
+			var offset int
+			for offset != len(serialized) {
+				// Migrate the flags for the entry to the new format.
+				if offset >= len(serialized) {
+					str := "unexpected end of spend journal entry"
+					return errDeserialize(str)
+				}
+				flags64, bytesRead := deserializeVLQ(serialized[offset:])
+				if bytesRead != 1 {
+					str := fmt.Sprintf("unexpected flags size -- got %d, want 1",
+						bytesRead)
+					return errDeserialize(str)
+				}
+				flags := byte(flags64)
+				fullySpent := flags&v1FullySpentFlag != 0
+				txType := (flags & v1TxTypeMask) >> v1TxTypeShift
+				flags &^= v1FullySpentFlag
+				if fullySpent {
+					flags |= v2FullySpentFlag
+				}
+				serialized[offset] = flags
+				offset += bytesRead
+
+				// Deserialize the compressed txout, tx version, and minimal
+				// outputs for tickets as needed to locate the offset of the
+				// next flags byte that needs to be modified.
+				if offset >= len(serialized) {
+					str := "unexpected end of data after flags"
+					return errDeserialize(str)
+				}
+				_, bytesRead = deserializeVLQ(serialized[offset:])
+				offset += bytesRead
+				if offset >= len(serialized) {
+					str := "unexpected end of data after script version"
+					return errDeserialize(str)
+				}
+				scriptSize := decodeCompressedScriptSize(serialized[offset:],
+					v1CompressionVer)
+				offset += scriptSize
+				if fullySpent {
+					if offset >= len(serialized) {
+						str := "unexpected end of data after script size"
+						return errDeserialize(str)
+					}
+					_, bytesRead := deserializeVLQ(serialized[offset:])
+					offset += bytesRead
+					if txType == v1TxTypeTicket {
+						if offset >= len(serialized) {
+							str := "unexpected end of data after tx version"
+							return errDeserialize(str)
+						}
+						sz, err := readDeserializeSizeOfMinimalOutputs(
+							serialized[offset:])
+						if err != nil {
+							return err
+						}
+						offset += sz
+					}
+				}
+			}
+
+			// Write the entry serialized with the new format to the new bucket.
+			err = v2Bucket.Put(key, serialized)
+			if err != nil {
+				return err
+			}
+
+			numMigrated++
+
+			if interruptRequested(ctx) {
+				return errInterruptRequested
+			}
+
+			return nil
+		})
+		return numMigrated, err
+	}
+
+	// Migrate all entries in batches for the reasons mentioned above.
+	var totalMigrated uint64
+	for {
+		var numMigrated uint32
+		err := db.Update(func(dbTx database.Tx) error {
+			var err error
+			numMigrated, err = doBatch(dbTx)
+			if errors.Is(err, errInterruptRequested) ||
+				errors.Is(err, errBatchFinished) {
+				// No error here so the database transaction is not cancelled
+				// and therefore outstanding work is written to disk.  The outer
+				// function will exit with an interrupted error below due to
+				// another interrupted check.
+				err = nil
+			}
+			return err
+		})
+		if err != nil {
+			return err
+		}
+
+		if interruptRequested(ctx) {
+			return errInterruptRequested
+		}
+
+		if numMigrated == 0 {
+			break
+		}
+
+		totalMigrated += uint64(numMigrated)
+		log.Infof("Migrated %d entries (%d total)", numMigrated, totalMigrated)
+	}
+
+	elapsed := time.Since(start).Round(time.Millisecond)
+	log.Infof("Done migrating spend journal.  Total entries: %d in %v",
+		totalMigrated, elapsed)
+
+	if interruptRequested(ctx) {
+		return errInterruptRequested
+	}
+
+	// Drop version 1 spend journal.
+	log.Info("Removing old spend journal entries...")
+	start = time.Now()
+	err = incrementalFlatDrop(ctx, db, v1BucketName, "old spend journal")
+	if err != nil {
+		return err
+	}
+	elapsed = time.Since(start).Round(time.Millisecond)
+	log.Infof("Done removing old spend journal entries in %v", elapsed)
+
+	return nil
+}
+
+// upgradeToVersion7 upgrades a version 6 blockchain database to version 7.
+func upgradeToVersion7(ctx context.Context, db database.DB, chainParams *chaincfg.Params, dbInfo *databaseInfo) error {
+	// Hardcoded key names so updates do not affect old upgrades.
+	v2DoneKeyName := []byte("utxosetv2done")
+
+	if interruptRequested(ctx) {
+		return errInterruptRequested
+	}
+
+	log.Info("Upgrading database to version 7...")
+	start := time.Now()
+
+	// Migrate the utxoset to version 2.
+	if err := migrateUtxoSetVersion1To2(ctx, db); err != nil {
+		return err
+	}
+
+	if interruptRequested(ctx) {
+		return errInterruptRequested
+	}
+
+	// Migrate the spend journal to version 2.
+	if err := migrateSpendJournalVersion1To2(ctx, db); err != nil {
+		return err
+	}
+
+	// Update and persist the database versions and remove upgrade progress
+	// tracking keys.
+	err := db.Update(func(dbTx database.Tx) error {
+		err := dbTx.Metadata().Delete(v2DoneKeyName)
+		if err != nil {
+			return err
+		}
+
+		dbInfo.version = 7
+		return dbPutDatabaseInfo(dbTx, dbInfo)
+	})
+	if err != nil {
+		return err
+	}
+
+	elapsed := time.Since(start).Round(time.Millisecond)
+	log.Infof("Done upgrading database in %v.", elapsed)
+	return nil
+}
+
 // upgradeDB upgrades old database versions to the newest version by applying
 // all possible upgrades iteratively.
 //
@@ -1335,7 +1861,7 @@ func upgradeDB(ctx context.Context, db database.DB, chainParams *chaincfg.Params
 		}
 	}
 
-	// Migrate to the new v2 block index format if needed.  That database
+	// Migrate to the new v2 block index format if needed.  The database
 	// version was bumped because prior versions of the software did not have
 	// a block index version.
 	if dbInfo.version == 2 && dbInfo.bidxVer < 2 {
@@ -1379,12 +1905,13 @@ func upgradeDB(ctx context.Context, db database.DB, chainParams *chaincfg.Params
 		}
 	}
 
-	// Update to a version 7 database if needed.
+	// Update to a version 7 database if needed.  This entails migrating the
+	// utxoset and spend journal to the v2 format.
 	if dbInfo.version == 6 {
-		// FIXME: implement upgrade of the "transaction encoding flags",
-		// moving the "fully spent" bit flag from bit 4 to bit 6. See
-		// compress.go for info.
-		return fmt.Errorf("treasury upgrade is disabled")
+		err := upgradeToVersion7(ctx, db, chainParams, dbInfo)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil

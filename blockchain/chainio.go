@@ -74,11 +74,11 @@ var (
 
 	// spendJournalBucketName is the name of the db bucket used to house
 	// transactions outputs that are spent in each block.
-	spendJournalBucketName = []byte("spendjournal")
+	spendJournalBucketName = []byte("spendjournalv2")
 
 	// utxoSetBucketName is the name of the db bucket used to house the unspent
 	// transaction output set.
-	utxoSetBucketName = []byte("utxoset")
+	utxoSetBucketName = []byte("utxosetv2")
 
 	// blockIndexBucketName is the name of the db bucket used to house the block
 	// index which consists of metadata for all known blocks both in the main
