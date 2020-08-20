@@ -46,43 +46,29 @@ import (
 	"time"
 )
 
-// NAT is an interface representing a NAT traversal options for example UPNP or
-// NAT-PMP. It provides methods to query and manipulate this traversal to allow
-// access to services.
-type NAT interface {
-	// Get the external address from outside the NAT.
-	GetExternalAddress() (addr net.IP, err error)
-	// Add a port mapping for protocol ("udp" or "tcp") from externalport to
-	// internal port with description lasting for timeout.
-	AddPortMapping(protocol string, externalPort, internalPort int, description string, timeout int) (mappedExternalPort int, err error)
-	// Remove a previously added port mapping from externalport to
-	// internal port.
-	DeletePortMapping(protocol string, externalPort, internalPort int) (err error)
-}
-
 type upnpNAT struct {
 	serviceURL string
 	ourIP      string
 }
 
-// Discover searches the local network for a UPnP router returning a NAT
+// discover searches the local network for a UPnP router returning a NAT
 // for the network if so, nil if not.
-func Discover(ctx context.Context) (nat NAT, err error) {
+func discover(ctx context.Context) (*upnpNAT, error) {
 	ssdp, err := net.ResolveUDPAddr("udp4", "239.255.255.250:1900")
 	if err != nil {
-		return
+		return nil, err
 	}
 	var l net.ListenConfig
 	conn, err := l.ListenPacket(ctx, "udp4", ":0")
 	if err != nil {
-		return
+		return nil, err
 	}
 	socket := conn.(*net.UDPConn)
 	defer socket.Close()
 
 	err = socket.SetDeadline(time.Now().Add(3 * time.Second))
 	if err != nil {
-		return
+		return nil, err
 	}
 
 	st := "ST: urn:schemas-upnp-org:device:InternetGatewayDevice:1\r\n"
@@ -97,7 +83,7 @@ func Discover(ctx context.Context) (nat NAT, err error) {
 	for i := 0; i < 3; i++ {
 		_, err = socket.WriteToUDP(message, ssdp)
 		if err != nil {
-			return
+			return nil, err
 		}
 		var n int
 		n, _, err = socket.ReadFromUDP(answerBytes)
@@ -126,18 +112,16 @@ func Discover(ctx context.Context) (nat NAT, err error) {
 		var serviceURL string
 		serviceURL, err = getServiceURL(locURL)
 		if err != nil {
-			return
+			return nil, err
 		}
 		var ourIP string
 		ourIP, err = getOurIP()
 		if err != nil {
-			return
+			return nil, err
 		}
-		nat = &upnpNAT{serviceURL: serviceURL, ourIP: ourIP}
-		return
+		return &upnpNAT{serviceURL: serviceURL, ourIP: ourIP}, nil
 	}
-	err = errors.New("UPnP port discovery failed")
-	return
+	return nil, errors.New("UPnP port discovery failed")
 }
 
 // service represents the Service type in an UPnP xml description.

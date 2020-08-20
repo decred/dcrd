@@ -240,8 +240,8 @@ type headerNode struct {
 	hash   *chainhash.Hash
 }
 
-// PeerNotifier provides an interface for server peer notifications.
-type PeerNotifier interface {
+// peerNotifier provides an interface for server peer notifications.
+type peerNotifier interface {
 	// AnnounceNewTransactions generates and relays inventory vectors and
 	// notifies websocket clients of the passed transactions.
 	AnnounceNewTransactions(txns []*dcrutil.Tx)
@@ -261,7 +261,7 @@ type PeerNotifier interface {
 
 // blockManangerConfig is a configuration struct for a blockManager.
 type blockManagerConfig struct {
-	PeerNotifier PeerNotifier
+	PeerNotifier peerNotifier
 	TimeSource   blockchain.MedianTimeSource
 
 	// The following fields are for accessing the chain and its configuration.
