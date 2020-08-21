@@ -111,8 +111,13 @@ func checkInputsStandard(tx *dcrutil.Tx, txType stake.TxType, utxoView *blockcha
 	// but coinbases have already been rejected prior to calling this
 	// function so no need to recheck.
 
+	// Ignore the first input if this is a SSGen (vote) or tspend since
+	// those inputs are not standard by definition.
+	ignoreFirst := txType == stake.TxTypeSSGen ||
+		(isTreasuryEnabled && txType == stake.TxTypeTSpend)
+
 	for i, txIn := range tx.MsgTx().TxIn {
-		if i == 0 && txType == stake.TxTypeSSGen {
+		if i == 0 && ignoreFirst {
 			continue
 		}
 
@@ -326,6 +331,13 @@ func checkTransactionStandard(tx *dcrutil.Tx, txType stake.TxType, height int64,
 	}
 
 	for i, txIn := range msgTx.TxIn {
+		// TSpends should only have one input and that input has a
+		// specific format which is checked by IsTSpend, so if this tx
+		// is a tspend, skip it.
+		if txType == stake.TxTypeTSpend {
+			continue
+		}
+
 		// Each transaction input signature script must not exceed the
 		// maximum size allowed for a standard transaction.  See
 		// the comment on maxStandardSigScriptSize for more details.

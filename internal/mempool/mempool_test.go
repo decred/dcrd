@@ -8,7 +8,9 @@ package mempool
 import (
 	"encoding/binary"
 	"encoding/hex"
+	"errors"
 	"fmt"
+	"math/rand"
 	"runtime"
 	"sync"
 	"testing"
@@ -48,6 +50,7 @@ type fakeChain struct {
 	medianTime     time.Time
 	scriptFlags    txscript.ScriptFlags
 	acceptSeqLocks bool
+	tspendMined    map[chainhash.Hash]struct{}
 }
 
 // NextStakeDifficulty returns the next stake difficulty associated with the
@@ -300,6 +303,30 @@ func (s *fakeChain) SetAcceptSequenceLocks(accept bool) {
 	s.Unlock()
 }
 
+// TSpendMinedOnAncestor returns whether the given tx hash has been marked on
+// the fake chain as a tspend that has been mined on an ancestor block.
+func (s *fakeChain) TSpendMinedOnAncestor(txh chainhash.Hash) error {
+	s.Lock()
+	_, tspendMined := s.tspendMined[txh]
+	s.Unlock()
+	if tspendMined {
+		return errors.New("tspend mined")
+	}
+	return nil
+}
+
+// SetTSpendMinedOnAncestor sets the status on whether the given txhash is a
+// tspend that has been mined on an ancestor block.
+func (s *fakeChain) SetTSpendMinedOnAncestor(txh chainhash.Hash, mined bool) {
+	s.Lock()
+	if mined {
+		s.tspendMined[txh] = struct{}{}
+	} else {
+		delete(s.tspendMined, txh)
+	}
+	s.Unlock()
+}
+
 // spendableOutput is a convenience type that houses a particular utxo and the
 // amount associated with it.
 type spendableOutput struct {
@@ -326,11 +353,12 @@ type poolHarness struct {
 	//
 	// payAddr is the p2sh address for the signing key and is used for the
 	// payment address throughout the tests.
-	signKey     []byte
-	sigType     dcrec.SignatureType
-	payAddr     dcrutil.Address
-	payScript   []byte
-	chainParams *chaincfg.Params
+	signKey        []byte
+	sigType        dcrec.SignatureType
+	payAddr        dcrutil.Address
+	payScript      []byte
+	chainParams    *chaincfg.Params
+	treasuryActive bool
 
 	chain  *fakeChain
 	txPool *TxPool
@@ -689,6 +717,24 @@ func (p *poolHarness) CreateRevocation(ticket *dcrutil.Tx) (*dcrutil.Tx, error) 
 	return dcrutil.NewTx(revocation), nil
 }
 
+// SetTreasuryAgendaActive sets whether the treasury agenda should be
+// considered active by the mempool.
+func (p *poolHarness) SetTreasuryAgendaActive(active bool) {
+	p.treasuryActive = active
+
+	// Set or clear the treasury verification flag depending on the state
+	// of the agenda.
+	scriptFlags, _ := p.chain.StandardVerifyFlags()
+	if active {
+		scriptFlags |= txscript.ScriptVerifyTreasury
+
+	} else {
+		scriptFlags &^= txscript.ScriptVerifyTreasury
+
+	}
+	p.chain.SetStandardVerifyFlags(scriptFlags)
+}
+
 // newPoolHarness returns a new instance of a pool harness initialized with a
 // fake chain and a TxPool bound to it that is configured with a policy suitable
 // for testing.  Also, the fake chain is populated with the returned spendable
@@ -724,8 +770,10 @@ func newPoolHarness(chainParams *chaincfg.Params) (*poolHarness, []spendableOutp
 		utxoTimes:   make(map[wire.OutPoint]int64),
 		blocks:      make(map[chainhash.Hash]*dcrutil.Block),
 		scriptFlags: BaseStandardVerifyFlags,
+		tspendMined: make(map[chainhash.Hash]struct{}),
 	}
-	harness := poolHarness{
+	var harness *poolHarness
+	harness = &poolHarness{
 		signKey:     keyBytes,
 		sigType:     dcrec.STEcdsaSecp256k1,
 		payAddr:     payAddr,
@@ -735,7 +783,7 @@ func newPoolHarness(chainParams *chaincfg.Params) (*poolHarness, []spendableOutp
 		chain: chain,
 		txPool: New(&Config{
 			Policy: Policy{
-				MaxTxVersion:         2,
+				MaxTxVersion:         3,
 				DisableRelayPriority: true,
 				FreeTxRelayLimit:     15.0,
 				MaxOrphanTxs:         5,
@@ -757,21 +805,22 @@ func newPoolHarness(chainParams *chaincfg.Params) (*poolHarness, []spendableOutp
 				StandardVerifyFlags: chain.StandardVerifyFlags,
 				AcceptSequenceLocks: chain.AcceptSequenceLocks,
 			},
-			ChainParams:         chainParams,
-			NextStakeDifficulty: chain.NextStakeDifficulty,
-			FetchUtxoView:       chain.FetchUtxoView,
-			BlockByHash:         chain.BlockByHash,
-			BestHash:            chain.BestHash,
-			BestHeight:          chain.BestHeight,
-			PastMedianTime:      chain.PastMedianTime,
-			CalcSequenceLock:    chain.CalcSequenceLock,
-			SubsidyCache:        subsidyCache,
-			SigCache:            nil,
-			AddrIndex:           nil,
-			ExistsAddrIndex:     nil,
-			OnVoteReceived:      nil,
+			ChainParams:           chainParams,
+			NextStakeDifficulty:   chain.NextStakeDifficulty,
+			FetchUtxoView:         chain.FetchUtxoView,
+			BlockByHash:           chain.BlockByHash,
+			BestHash:              chain.BestHash,
+			BestHeight:            chain.BestHeight,
+			PastMedianTime:        chain.PastMedianTime,
+			CalcSequenceLock:      chain.CalcSequenceLock,
+			TSpendMinedOnAncestor: chain.TSpendMinedOnAncestor,
+			SubsidyCache:          subsidyCache,
+			SigCache:              nil,
+			AddrIndex:             nil,
+			ExistsAddrIndex:       nil,
+			OnVoteReceived:        nil,
 			IsTreasuryAgendaActive: func() (bool, error) {
-				return noTreasury, nil
+				return harness.treasuryActive, nil
 			},
 		}),
 	}
@@ -796,7 +845,7 @@ func newPoolHarness(chainParams *chaincfg.Params) (*poolHarness, []spendableOutp
 	harness.chain.SetHeight(int64(chainParams.CoinbaseMaturity) + curHeight)
 	harness.chain.SetPastMedianTime(time.Now())
 
-	return &harness, outputs, nil
+	return harness, outputs, nil
 }
 
 // testContext houses a test-related state that is useful to pass to helper
@@ -2283,5 +2332,251 @@ func TestRemoveDoubleSpends(t *testing.T) {
 	if err == nil {
 		t.Fatalf("FetchTransaction: expected dependent transaction %v to not "+
 			"exist in pool.", ticket.Hash())
+	}
+}
+
+// createTSpend creates a treasury spend transaction given the specified
+// parameters. A single output is created that pays to a test OP_TRUE P2SH
+// script.
+func createTSpend(t *testing.T, expiry uint32, tspendAmount, tspendFee int64, piKey []byte) *wire.MsgTx {
+	t.Helper()
+
+	msgTx := wire.NewMsgTx()
+	msgTx.Version = wire.TxVersionTreasury
+	msgTx.Expiry = expiry
+
+	valueIn := tspendAmount + tspendFee
+
+	var opRetScript [1 + 1 + 32]byte
+	opRetScript[0] = txscript.OP_RETURN
+	opRetScript[1] = txscript.OP_DATA_32
+	binary.LittleEndian.PutUint64(opRetScript[2:], uint64(valueIn))
+	binary.LittleEndian.PutUint64(opRetScript[25:], uint64(rand.Int63())) // Ensure unique hash.
+	msgTx.AddTxOut(wire.NewTxOut(0, opRetScript[:]))
+
+	p2shOpTrueScript, err := hex.DecodeString("a914f5a8302ee8695bf836258b8f2b57b38a0be14e4787")
+	if err != nil {
+		t.Fatalf("unable to decode p2shOpTrueScript: %v", err)
+	}
+	script := make([]byte, len(p2shOpTrueScript)+1)
+	script[0] = txscript.OP_TGEN
+	copy(script[1:], p2shOpTrueScript[:])
+	msgTx.AddTxOut(wire.NewTxOut(tspendAmount, script))
+
+	msgTx.AddTxIn(&wire.TxIn{
+		PreviousOutPoint: *wire.NewOutPoint(&chainhash.Hash{},
+			wire.MaxPrevOutIndex, wire.TxTreeRegular),
+		Sequence:        wire.MaxTxInSequenceNum,
+		ValueIn:         valueIn,
+		BlockHeight:     wire.NullBlockHeight,
+		BlockIndex:      wire.NullBlockIndex,
+		SignatureScript: nil,
+	})
+
+	// Calculate TSpend signature without SigHashType.
+	sigscript, err := txscript.TSpendSignatureScript(msgTx, piKey)
+	if err != nil {
+		t.Fatalf("unable to sign tspend: %v", err)
+	}
+	msgTx.TxIn[0].SignatureScript = sigscript
+
+	return msgTx
+}
+
+// TestHandlesTSpends verifies that the mempool correctly adds and removes
+// valid tspends and limits their total number according to the appropriate
+// limits.
+func TestHandlesTSpends(t *testing.T) {
+	t.Parallel()
+
+	// Pi private key to use when signing tspends.
+	piKey, err := hex.DecodeString("62deae1ab2b1ebd96a28c80e870aee325bed359e83d8db2464ef999e616a9eef")
+	if err != nil {
+		t.Fatal(err)
+	}
+	piPubKey := secp256k1.PrivKeyFromBytes(piKey).PubKey().SerializeCompressed()
+
+	// Use the mainnet parameters but replace the Pi key to a simnet one so
+	// we can sign the tspends.
+	net := chaincfg.MainNetParams()
+	net.PiKeys = [][]byte{piPubKey, piPubKey}
+	harness, _, err := newPoolHarness(net)
+	if err != nil {
+		t.Fatalf("unable to create test pool: %v", err)
+	}
+	tc := &testContext{t, harness}
+
+	// Useful constants.
+	tvi := net.TreasuryVoteInterval
+	mul := net.TreasuryVoteIntervalMultiplier
+
+	// Setup the harness for the test and activate the treasury agenda and
+	// set the chain height to an appropriate height to add tspends.
+	harness.SetTreasuryAgendaActive(true)
+	nextHeight := net.StakeValidationHeight + int64(tvi) - net.StakeValidationHeight%int64(tvi)
+	harness.chain.SetHeight(nextHeight - 1)
+
+	// Helper to assert that the TSpendHashes() function returns the
+	// correct tspends.
+	assertTSpendHashes := func(tspends []*dcrutil.Tx) {
+		t.Helper()
+		tspendHashes := harness.txPool.TSpendHashes()
+		tspendHashesMap := make(map[chainhash.Hash]struct{}, len(tspendHashes))
+		for i := 0; i < len(tspendHashes); i++ {
+			tspendHashesMap[tspendHashes[i]] = struct{}{}
+		}
+		for i := 0; i < len(tspends); i++ {
+			h := tspends[i].MsgTx().TxHash()
+			if _, ok := tspendHashesMap[h]; !ok {
+				t.Fatalf("added tspend %d was not returned in TSpendHashes()", i)
+			}
+			delete(tspendHashesMap, h)
+		}
+		if len(tspendHashesMap) > 0 {
+			t.Fatalf("TSpendHashes() returned extraneous data: %v", tspendHashesMap)
+		}
+	}
+
+	// Helper that adds and asserts the given tspend was added to the
+	// mempool.
+	acceptTSpend := func(tx *dcrutil.Tx) {
+		t.Helper()
+		_, err = harness.txPool.ProcessTransaction(tx, true,
+			false, true, 0)
+		if err != nil {
+			t.Fatalf("ProcessTransaction: failed to accept valid tspend %v", err)
+		}
+		testPoolMembership(tc, tx, false, true)
+	}
+
+	// Helper that attempts to add and asserts the given tspend is rejected
+	// with the given error code.
+	rejectTSpend := func(tx *dcrutil.Tx, errCode ErrorCode) {
+		t.Helper()
+		_, err = harness.txPool.ProcessTransaction(tx, true,
+			false, true, 0)
+		if !IsErrorCode(err, errCode) {
+			t.Fatalf("Unexpected error while processing rejected tspend. "+
+				"want=%v got=%#v", errCode, err)
+		}
+		testPoolMembership(tc, tx, false, false)
+	}
+
+	// Helper that attempts to add and asserts the given tspend is rejected
+	// with the given blockchain error code.
+	//
+	// TODO: unify with the above after mempool errors correctly handle
+	// errors.Is/As.
+	rejectTSpendChainError := func(tx *dcrutil.Tx, errCode blockchain.ErrorCode) {
+		t.Helper()
+		_, err = harness.txPool.ProcessTransaction(tx, true,
+			false, true, 0)
+		rerr, ok := err.(RuleError)
+		if !ok {
+			t.Fatalf("Returned error is not a rule error: %#v", err)
+		}
+		if !blockchain.IsErrorCode(rerr.Err, errCode) {
+			t.Fatalf("Unexpected error while processing rejected tspend. "+
+				"want=%v got=%#v", errCode, err)
+		}
+		testPoolMembership(tc, tx, false, false)
+	}
+
+	expiry := standalone.CalculateTSpendExpiry(nextHeight, tvi, mul)
+	tspendAmount := int64(1e8)
+	tspendFee := int64(2550)
+
+	// Create a few valid tspends that can enter the mempool. We'll create
+	// one more than the maximum allowed to test for the correct limit.
+	const maxTSpends = 7
+	const nbTSpends = maxTSpends + 1
+	tspends := make([]*dcrutil.Tx, 0, nbTSpends)
+	for i := 0; i < nbTSpends; i++ {
+		msgTx := createTSpend(t, expiry, tspendAmount, tspendFee, piKey)
+		tspends = append(tspends, dcrutil.NewTx(msgTx))
+	}
+
+	// Before adding any tspends, TSpendHashes() should not have any
+	// hashes.
+	assertTSpendHashes(nil)
+
+	// Add the maximum amount of tspends the mempool can hold.
+	for _, tx := range tspends[:maxTSpends] {
+		acceptTSpend(tx)
+	}
+
+	// TSpendHashes() should return the hashes of all tspends so far.
+	assertTSpendHashes(tspends[:maxTSpends])
+
+	// The next tspend should be rejected due to exceeding the number of
+	// maximum tspends in the mempool.
+	rejectTSpend(tspends[maxTSpends], ErrTooManyTSpends)
+
+	// Remove the first tspend from the mempool and assert TSpendHashes()
+	// is working as intended.
+	harness.txPool.RemoveTransaction(tspends[0], true, true)
+	testPoolMembership(tc, tspends[0], false, false)
+	assertTSpendHashes(tspends[1:maxTSpends])
+
+	// Add the new tspend.
+	acceptTSpend(tspends[maxTSpends])
+	assertTSpendHashes(tspends[1 : maxTSpends+1])
+
+	// Remove all tspends from the mempool and ensure TSpendHashes() is
+	// empty again.
+	for _, tx := range tspends[1 : maxTSpends+1] {
+		harness.txPool.RemoveTransaction(tx, true, true)
+		testPoolMembership(tc, tx, false, false)
+	}
+	assertTSpendHashes(nil)
+
+	// Attempt to add a tspend that was already mined on an ancestor block.
+	// This should fail.
+	harness.chain.SetTSpendMinedOnAncestor(tspends[0].MsgTx().TxHash(), true)
+	rejectTSpend(tspends[0], ErrTSpendMinedOnAncestor)
+
+	// Attempt to add a tspend with a wrong expiry value. This should fail.
+	tx := tspends[1].MsgTx()
+	tx.Expiry += 1
+	tx.TxIn[0].SignatureScript, err = txscript.TSpendSignatureScript(tx, piKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rejectTSpend(tspends[1], ErrTSpendInvalidExpiry)
+
+	// Attempt to add a tspend with an invalid signature. This should fail.
+	// Since tspends have sigscripts with a fixed format, we reach in and
+	// break the signature directly.
+	tx = tspends[2].MsgTx()
+	tx.TxIn[0].SignatureScript[1] = ^tx.TxIn[0].SignatureScript[1]
+	rejectTSpendChainError(tspends[2], blockchain.ErrInvalidPiSignature)
+
+	// Attempt to add a tspend with a valid signature not from a pi key for
+	// the current network. This should fail.
+	nonPiKey, err := hex.DecodeString("ffff1ab2b1ebd96a28c80e870aee325bed359e83d8db2464ef999e616a0000")
+	if err != nil {
+		t.Fatal(err)
+	}
+	tx = tspends[3].MsgTx()
+	tx.TxIn[0].SignatureScript, err = txscript.TSpendSignatureScript(tx, nonPiKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rejectTSpendChainError(tspends[3], blockchain.ErrUnknownPiKey)
+
+	// Assert the OnTSpendReceived listener is called when a tspend enters
+	// the mempool.
+	var callbackReceived bool
+	tspendToAdd := tspends[4]
+	harness.txPool.cfg.OnTSpendReceived = func(tx *dcrutil.Tx) {
+		callbackReceived = true
+		if tx.MsgTx().TxHash() != tspendToAdd.MsgTx().TxHash() {
+			t.Fatalf("Received wrong tx in callback. want=%s got=%s",
+				tspendToAdd.MsgTx().TxHash(), tx.MsgTx().TxHash())
+		}
+	}
+	acceptTSpend(tspends[4])
+	if !callbackReceived {
+		t.Fatalf("OnTSpendReceived callback was not called")
 	}
 }
