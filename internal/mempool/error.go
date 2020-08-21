@@ -53,6 +53,9 @@ const (
 	ErrInsufficientPriority
 	ErrFeeTooHigh
 	ErrOrphan
+	ErrTooManyTSpends
+	ErrTSpendMinedOnAncestor
+	ErrTSpendInvalidExpiry
 )
 
 // TxRuleError identifies a rule violation.  It is used to indicate that

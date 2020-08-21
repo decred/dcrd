@@ -1628,7 +1628,7 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 		if expiry != msgTx.Expiry {
 			str := fmt.Sprintf("Invalid TSPEND Expiry must be %v "+
 				"got %v", expiry, msgTx.Expiry)
-			return nil, txRuleError(ErrInvalid, str)
+			return nil, txRuleError(ErrTSpendInvalidExpiry, str)
 		}
 
 		// Only allow up to MempoolMaxConcurrentTSpends TSpends in the
@@ -1638,7 +1638,7 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 			str := fmt.Sprintf("Mempool can only hold %v "+
 				"concurrent TSpend transactions",
 				MempoolMaxConcurrentTSpends)
-			return nil, txRuleError(ErrInvalid, str)
+			return nil, txRuleError(ErrTooManyTSpends, str)
 		}
 
 		// Verify that this TSpend uses a well-known Pi key and that
@@ -1663,7 +1663,7 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 		// ancestor block yet.
 		if err := mp.cfg.TSpendMinedOnAncestor(*txHash); err != nil {
 			// err is descriptive and only needs to be wrapped.
-			return nil, txRuleError(ErrInvalid, err.Error())
+			return nil, txRuleError(ErrTSpendMinedOnAncestor, err.Error())
 		}
 
 		// Notify that we accepted a TSpend.
