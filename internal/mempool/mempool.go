@@ -1240,8 +1240,12 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 	// Reject votes before stake validation height.
 	stakeValidationHeight := mp.cfg.ChainParams.StakeValidationHeight
 	if (isVote || isTSpend) && nextBlockHeight < stakeValidationHeight {
-		str := fmt.Sprintf("votes are not valid until block height %d (next "+
-			"block height %d)", stakeValidationHeight, nextBlockHeight)
+		strType := "votes"
+		if isTSpend {
+			strType = "tspends"
+		}
+		str := fmt.Sprintf("%s are not valid until block height %d (next "+
+			"block height %d)", strType, stakeValidationHeight, nextBlockHeight)
 		return nil, txRuleError(ErrInvalid, str)
 	}
 
