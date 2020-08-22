@@ -2580,3 +2580,133 @@ func TestHandlesTSpends(t *testing.T) {
 		t.Fatalf("OnTSpendReceived callback was not called")
 	}
 }
+
+// createTAdd creates a treasury add transaction spending from the given
+// harness output and sending back any outstanding change to the given address.
+func createTAdd(t *testing.T, spend *spendableOutput, payScript, signKey []byte,
+	amount, fee dcrutil.Amount, changeAddr dcrutil.Address) *wire.MsgTx {
+	t.Helper()
+
+	// Calculate change and generate script to deliver it.
+	var (
+		changeScript []byte
+		err          error
+	)
+	change := spend.amount - amount - fee
+	if change < 0 {
+		t.Fatalf("negative change %v", change)
+	}
+	if change > 0 {
+		changeScript, err = txscript.PayToSStxChange(changeAddr)
+		if err != nil {
+			t.Fatalf("unable to generate Pay2SStxChange: %v", err)
+		}
+	}
+
+	// Generate and return the transaction spending from the provided
+	// spendable output with the previously described outputs.
+	tx := wire.NewMsgTx()
+	tx.Version = wire.TxVersionTreasury
+	tx.AddTxIn(&wire.TxIn{
+		PreviousOutPoint: spend.outPoint,
+		Sequence:         wire.MaxTxInSequenceNum,
+		ValueIn:          int64(spend.amount),
+	})
+	tx.AddTxOut(wire.NewTxOut(int64(amount),
+		[]byte{txscript.OP_TADD}))
+	if len(changeScript) > 0 {
+		tx.AddTxOut(wire.NewTxOut(int64(change), changeScript))
+	}
+
+	tx.TxIn[0].SignatureScript, err = txscript.SignatureScript(tx,
+		0, payScript, txscript.SigHashAll, signKey,
+		dcrec.STEcdsaSecp256k1, true)
+	if err != nil {
+		t.Fatalf("Unable to sign tadd: %v", err)
+	}
+
+	return tx
+}
+
+// TestHandlesTAdds verifies that the mempool correctly adds and removes valid
+// tadds.
+func TestHandlesTAdds(t *testing.T) {
+	t.Parallel()
+
+	net := chaincfg.MainNetParams()
+	harness, outs, err := newPoolHarness(net)
+	if err != nil {
+		t.Fatalf("unable to create test pool: %v", err)
+	}
+	tc := &testContext{t, harness}
+
+	// Setup the harness for the test and activate the treasury agenda.
+	harness.SetTreasuryAgendaActive(true)
+
+	// Addresses to use in the following TAdds.
+	addPrivKey := secp256k1.NewPrivateKey(new(secp256k1.ModNScalar).SetInt(2))
+	pubKey := addPrivKey.PubKey().SerializeCompressed()
+	pubKeyHash := dcrutil.Hash160(pubKey)
+	addP2pkhAddr, err := dcrutil.NewAddressPubKeyHash(pubKeyHash, net,
+		dcrec.STEcdsaSecp256k1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	addP2shScript := []byte{txscript.OP_NOP, txscript.OP_NOP, txscript.OP_TRUE}
+	addP2shAddr, err := dcrutil.NewAddressScriptHash(addP2shScript, net)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Helper to create tadds for this test without having to keep passing
+	// repeated parameters.
+	createTAdd := func(spend *spendableOutput, amount, fee dcrutil.Amount,
+		changeAddr dcrutil.Address) *dcrutil.Tx {
+		t.Helper()
+		return dcrutil.NewTx(createTAdd(t, spend, harness.payScript,
+			harness.signKey, amount, fee, changeAddr))
+	}
+
+	// Helper that adds and asserts the given tadd was added to the
+	// mempool.
+	//
+	// Note that this automatically removes the tadd from the mempool after
+	// asserting it was correctly added to allow using the same outputs to
+	// create a new one.
+	acceptTAdd := func(tx *dcrutil.Tx) {
+		t.Helper()
+		_, err = harness.txPool.ProcessTransaction(tx, true,
+			false, true, 0)
+		if err != nil {
+			t.Fatalf("ProcessTransaction: failed to accept valid tadd %v", err)
+		}
+		testPoolMembership(tc, tx, false, true)
+		harness.txPool.RemoveTransaction(tx, true, true)
+	}
+
+	// Create a few valid tadds that can enter the mempool. Generate a TAdd
+	// for some amount ensuring there's change and direct the change to a
+	// P2PKH addr.
+	taddAmount := outs[0].amount / 2
+	taddFee := dcrutil.Amount(2550)
+	tadd := createTAdd(&outs[0], taddAmount, taddFee, addP2pkhAddr)
+	if len(tadd.MsgTx().TxOut) != 2 {
+		t.Fatalf("tadd was not created with change: %#v", tadd)
+	}
+	acceptTAdd(tadd)
+
+	// Create a TAdd with change to a p2sh address.
+	tadd = createTAdd(&outs[0], taddAmount, taddFee, addP2shAddr)
+	if len(tadd.MsgTx().TxOut) != 2 {
+		t.Fatalf("tadd was not created with change: %#v", tadd)
+	}
+	acceptTAdd(tadd)
+
+	// Create a TAdd that has no change.
+	taddAmount = outs[0].amount - taddFee
+	tadd = createTAdd(&outs[0], taddAmount, taddFee, addP2shAddr)
+	if len(tadd.MsgTx().TxOut) != 1 {
+		t.Fatalf("tadd was created with change: %#v", tadd)
+	}
+	acceptTAdd(tadd)
+}
