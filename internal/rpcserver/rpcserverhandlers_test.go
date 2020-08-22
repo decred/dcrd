@@ -948,6 +948,7 @@ type rpcTest struct {
 	mockFilterer          *testFilterer
 	mockFiltererV2        *testFiltererV2
 	mockTxMempooler       *testTxMempooler
+	mockMiningAddrs       []dcrutil.Address
 	result                interface{}
 	wantErr               bool
 	errCode               dcrjson.RPCErrorCode
@@ -2870,6 +2871,79 @@ func TestHandleExistsMissedTickets(t *testing.T) {
 		}(),
 		wantErr: true,
 		errCode: dcrjson.ErrRPCInvalidParameter,
+	}})
+}
+
+func TestHandleGenerate(t *testing.T) {
+	t.Parallel()
+
+	hashStrOne := "00000000000000001e6ec1501c858506de1de4703d1be8bab4061126e8f61480"
+	hashStrTwo := "00000000000000001a1ec2becd0dd90bfbd0c65f42fdaf608dd9ceac2a3aee1d"
+	generatedBlocks := []*chainhash.Hash{mustParseHash(hashStrOne), mustParseHash(hashStrTwo)}
+	res := []string{hashStrOne, hashStrTwo}
+	miningAddr, err := dcrutil.DecodeAddress("DcurAwesomeAddressmqDctW5wJCW1Cn2MF", defaultChainParams)
+	if err != nil {
+		t.Fatalf("[DecodeAddress] unexpected error: %v", err)
+	}
+	miningAddrs := []dcrutil.Address{miningAddr}
+	chainParams := cloneParams(defaultChainParams)
+	chainParams.GenerateSupported = true
+	cpu := defaultMockCPUMiner()
+	cpu.generatedBlocks = generatedBlocks
+	testRPCServerHandler(t, []rpcTest{{
+		name:    "handleGenerate: ok",
+		handler: handleGenerate,
+		cmd: &types.GenerateCmd{
+			NumBlocks: 2,
+		},
+		mockMiningAddrs: miningAddrs,
+		mockChainParams: chainParams,
+		mockCPUMiner:    cpu,
+		result:          res,
+	}, {
+		name:    "handleGenerate: no mining addrs",
+		handler: handleGenerate,
+		cmd: &types.GenerateCmd{
+			NumBlocks: 2,
+		},
+		mockChainParams: chainParams,
+		mockCPUMiner:    cpu,
+		wantErr:         true,
+		errCode:         dcrjson.ErrRPCInternal.Code,
+	}, {
+		name:    "handleGenerate: generate not supported for network",
+		handler: handleGenerate,
+		cmd: &types.GenerateCmd{
+			NumBlocks: 2,
+		},
+		mockMiningAddrs: miningAddrs,
+		mockCPUMiner:    cpu,
+		wantErr:         true,
+		errCode:         dcrjson.ErrRPCDifficulty,
+	}, {
+		name:            "handleGenerate: generate 0 blocks",
+		handler:         handleGenerate,
+		cmd:             &types.GenerateCmd{},
+		mockMiningAddrs: miningAddrs,
+		mockChainParams: chainParams,
+		mockCPUMiner:    cpu,
+		wantErr:         true,
+		errCode:         dcrjson.ErrRPCInternal.Code,
+	}, {
+		name:    "handleGenerate: generate n blocks error",
+		handler: handleGenerate,
+		cmd: &types.GenerateCmd{
+			NumBlocks: 2,
+		},
+		mockMiningAddrs: miningAddrs,
+		mockChainParams: chainParams,
+		mockCPUMiner: func() *testCPUMiner {
+			cpu := defaultMockCPUMiner()
+			cpu.generateNBlocksErr = errors.New("")
+			return cpu
+		}(),
+		wantErr: true,
+		errCode: dcrjson.ErrRPCInternal.Code,
 	}})
 }
 
@@ -5017,6 +5091,9 @@ func testRPCServerHandler(t *testing.T, tests []rpcTest) {
 				if ms.workState != nil {
 					workState = ms.workState
 				}
+			}
+			if test.mockMiningAddrs != nil {
+				rpcserverConfig.MiningAddrs = test.mockMiningAddrs
 			}
 			if test.mockBlockTemplater != nil {
 				rpcserverConfig.BlockTemplater = test.mockBlockTemplater

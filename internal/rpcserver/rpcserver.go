@@ -1669,7 +1669,7 @@ func handleGenerate(ctx context.Context, s *Server, cmd interface{}) (interface{
 		return nil, &dcrjson.RPCError{
 			Code: dcrjson.ErrRPCDifficulty,
 			Message: fmt.Sprintf("No support for `generate` on the current "+
-				"network, %s, as it's unlikely to be possible to main a block "+
+				"network, %s, as it's unlikely to be possible to mine a block "+
 				"with the CPU.", params.Net),
 		}
 	}
