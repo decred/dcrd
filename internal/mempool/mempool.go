@@ -1618,16 +1618,30 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 
 	// Only allow TSpends that have a valid Expiry.
 	if isTreasuryEnabled && isTSpend {
-		// Ensure TSpend Expiry is exactly right. We don't use a window
-		// here since there should be enough blocks to cover the
-		// margin. The IsExpired check has been performed at this
-		// point.
-		expiry := standalone.CalculateTSpendExpiry(nextBlockHeight,
-			mp.cfg.ChainParams.TreasuryVoteInterval,
-			mp.cfg.ChainParams.TreasuryVoteIntervalMultiplier)
-		if expiry != msgTx.Expiry {
-			str := fmt.Sprintf("Invalid TSPEND Expiry must be %v "+
-				"got %v", expiry, msgTx.Expiry)
+		// Shorter variable names for relevant chain parameters.
+		tvi := mp.cfg.ChainParams.TreasuryVoteInterval
+		mul := mp.cfg.ChainParams.TreasuryVoteIntervalMultiplier
+
+		// Ensure the TSpend expiry isn't too far in the future, before
+		// its voting is supposed to start. We arbitrarily define as
+		// "too far in the future" as the vote starting greater than or
+		// equal to two full voting windows in the future.
+		voteStart, err := standalone.CalculateTSpendWindowStart(msgTx.Expiry,
+			tvi, mul)
+		if err != nil {
+			str := fmt.Sprintf("Invalid tspend expiry %d: %v ",
+				msgTx.Expiry, err)
+			return nil, txRuleError(ErrTSpendInvalidExpiry, str)
+		}
+		voteStartThresh := int64(2 * tvi * mul)
+		blocksToVoteStart := int64(voteStart) - nextBlockHeight
+		voteStartDistantFuture := int64(voteStart) > nextBlockHeight &&
+			blocksToVoteStart >= voteStartThresh
+		if voteStartDistantFuture {
+			str := fmt.Sprintf("Tspend voting too far in the "+
+				"future: voting starts in %d blocks while the "+
+				"voting threshold is %d blocks",
+				blocksToVoteStart, voteStartThresh)
 			return nil, txRuleError(ErrTSpendInvalidExpiry, str)
 		}
 
@@ -1672,10 +1686,8 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 		}
 
 		log.Tracef("TSpend allowed in mempool: nbh %v expiry %v "+
-			"tvi %v tvim %v tspends %v", nextBlockHeight, expiry,
-			mp.cfg.ChainParams.TreasuryVoteInterval,
-			mp.cfg.ChainParams.TreasuryVoteIntervalMultiplier,
-			tspends)
+			"tvi %v tvim %v tspends %v", nextBlockHeight, msgTx.Expiry,
+			tvi, mul, tspends)
 	}
 
 	// Add to transaction pool.
