@@ -174,7 +174,7 @@ func SimNetParams() *Params {
 		MaxFreshStakePerBlock:   20,            // 4*TicketsPerBlock
 		StakeEnabledHeight:      16 + 16,       // CoinbaseMaturity + TicketMaturity
 		StakeValidationHeight:   16 + (64 * 2), // CoinbaseMaturity + TicketPoolSize*2
-		StakeBaseSigScript:      []byte{0xDE, 0xAD, 0xBE, 0xEF},
+		StakeBaseSigScript:      []byte{0x00, 0x00},
 		StakeMajorityMultiplier: 3,
 		StakeMajorityDivisor:    4,
 
