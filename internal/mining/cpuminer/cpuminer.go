@@ -673,10 +673,15 @@ func (m *CPUMiner) GenerateNBlocks(ctx context.Context, n uint32) ([]*chainhash.
 
 	// Respond with an error if server is already mining.
 	m.Lock()
-	if m.normalMining || m.discreteMining {
+	if m.normalMining {
 		m.Unlock()
-		return nil, errors.New("server is already CPU mining. Please call " +
+		return nil, errors.New("server is already CPU mining -- please call " +
 			"`setgenerate 0` before calling discrete `generate` commands")
+	}
+	if m.discreteMining {
+		m.Unlock()
+		return nil, errors.New("server is already discrete mining -- please " +
+			"wait until the existing call completes or cancel it")
 	}
 
 	m.discreteMining = true
