@@ -2482,7 +2482,9 @@ func TestHandlesTSpends(t *testing.T) {
 		testPoolMembership(tc, tx, false, false)
 	}
 
-	expiry := standalone.CalculateTSpendExpiry(nextHeight, tvi, mul)
+	// Calculate an expiry for the tests such that voting starts at the
+	// next block (which happens to be SVH).
+	expiry := standalone.CalculateTSpendExpiry(nextHeight-int64(tvi), tvi, mul)
 	tspendAmount := int64(1e8)
 	tspendFee := int64(2550)
 
@@ -2535,9 +2537,34 @@ func TestHandlesTSpends(t *testing.T) {
 	harness.chain.SetTSpendMinedOnAncestor(tspends[0].MsgTx().TxHash(), true)
 	rejectTSpend(tspends[0], ErrTSpendMinedOnAncestor)
 
-	// Attempt to add a tspend with a wrong expiry value. This should fail.
+	// Attempt to add a tspend with an incorrect expiry (not tvi+2). This
+	// should fail.
 	tx := tspends[1].MsgTx()
 	tx.Expiry += 1
+	tx.TxIn[0].SignatureScript, err = txscript.TSpendSignatureScript(tx, piKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rejectTSpend(tspends[1], ErrTSpendInvalidExpiry)
+
+	// Attempt to add a tspend with an expiry in the past. This should
+	// fail.
+	tx = tspends[1].MsgTx()
+	tx.Expiry = uint32(tvi)
+	tx.TxIn[0].SignatureScript, err = txscript.TSpendSignatureScript(tx, piKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rejectTSpend(tspends[1], ErrExpired)
+
+	// Attempt to add a tspend with an expiry in the distant future. This
+	// should fail. Mempool considers a tspend in the "distant future" if
+	// the block height where it's supposed to start voting is greater than
+	// twice the total voting interval. To generate such a height we just
+	// add two tvi*mul interval to the current expiry (which starts voting
+	// in the next block).
+	tx = tspends[1].MsgTx()
+	tx.Expiry = expiry + uint32(tvi*mul*2)
 	tx.TxIn[0].SignatureScript, err = txscript.TSpendSignatureScript(tx, piKey)
 	if err != nil {
 		t.Fatal(err)
@@ -2579,6 +2606,19 @@ func TestHandlesTSpends(t *testing.T) {
 	if !callbackReceived {
 		t.Fatalf("OnTSpendReceived callback was not called")
 	}
+	harness.txPool.cfg.OnTSpendReceived = nil
+
+	// Assert the tspend can enter the mempool up until the last block it
+	// can be mined. Given we know the expiry for the tspend, figure out
+	// when voting ends and advance the fake chain to just before that
+	// height. The tspend can be mined on the block the vote ends, which is
+	// a TVI block.
+	endVote, err := standalone.CalculateTSpendWindowEnd(expiry, tvi)
+	if err != nil {
+		t.Fatal(err)
+	}
+	harness.chain.SetHeight(int64(endVote - 1))
+	acceptTSpend(tspends[5])
 }
 
 // createTAdd creates a treasury add transaction spending from the given
