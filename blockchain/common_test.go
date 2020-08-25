@@ -253,7 +253,7 @@ func findDeployment(params *chaincfg.Params, voteID string) (uint32, *chaincfg.C
 		}
 	}
 
-	return 0, nil, fmt.Errorf("unable to find deployement for id %q", voteID)
+	return 0, nil, fmt.Errorf("unable to find deployment for id %q", voteID)
 }
 
 // findDeploymentChoice finds the provided choice ID within the given
@@ -268,6 +268,33 @@ func findDeploymentChoice(deployment *chaincfg.ConsensusDeployment, choiceID str
 	}
 
 	return nil, fmt.Errorf("unable to find vote choice for id %q", choiceID)
+}
+
+// Make the linter happy.  This should be removed once the function is actually
+// used.
+var _ = removeDeployment
+
+// removeDeployment modifies the passed parameters to remove all deployments for
+// the provided vote ID.  An error is returned when not found.
+func removeDeployment(params *chaincfg.Params, voteID string) error {
+	// Remove the deployment(s) for the passed vote ID.
+	var found bool
+	for version, deployments := range params.Deployments {
+		for i, deployment := range deployments {
+			if deployment.Vote.Id == voteID {
+				copy(deployments[i:], deployments[i+1:])
+				deployments[len(deployments)-1] = chaincfg.ConsensusDeployment{}
+				deployments = deployments[:len(deployments)-1]
+				params.Deployments[version] = deployments
+				found = true
+			}
+		}
+	}
+	if found {
+		return nil
+	}
+
+	return fmt.Errorf("unable to find deployment for id %q", voteID)
 }
 
 // removeDeploymentTimeConstraints modifies the passed deployment to remove the
