@@ -1190,6 +1190,34 @@ func (sp *serverPeer) OnWrite(p *peer.Peer, bytesWritten int, msg wire.Message, 
 
 // OnNotFound is invoked when a peer sends a notfound message.
 func (sp *serverPeer) OnNotFound(_ *peer.Peer, msg *wire.MsgNotFound) {
+	if !sp.Connected() {
+		return
+	}
+
+	var numBlocks, numTxns uint32
+	for _, inv := range msg.InvList {
+		switch inv.Type {
+		case wire.InvTypeBlock:
+			numBlocks++
+		case wire.InvTypeTx:
+			numTxns++
+		default:
+			peerLog.Debugf("Invalid inv type '%d' in notfound message from %s",
+				inv.Type, sp)
+			sp.Disconnect()
+			return
+		}
+	}
+	if numBlocks > 0 {
+		blockStr := pickNoun(uint64(numBlocks), "block", "blocks")
+		reason := fmt.Sprintf("%d %v not found", numBlocks, blockStr)
+		sp.addBanScore(20*numBlocks, 0, reason)
+	}
+	if numTxns > 0 {
+		txStr := pickNoun(uint64(numTxns), "transaction", "transactions")
+		reason := fmt.Sprintf("%d %v not found", numBlocks, txStr)
+		sp.addBanScore(0, 10*numTxns, reason)
+	}
 	sp.server.blockManager.QueueNotFound(msg, sp)
 }
 
