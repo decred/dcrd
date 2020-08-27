@@ -94,6 +94,13 @@ type headersMsg struct {
 	peer    *serverPeer
 }
 
+// notFoundMsg packages a Decred notfound message and the peer it came from
+// together so the block handler has access to that information.
+type notFoundMsg struct {
+	notFound *wire.MsgNotFound
+	peer     *serverPeer
+}
+
 // donePeerMsg signifies a newly disconnected peer to the block handler.
 type donePeerMsg struct {
 	peer *serverPeer
@@ -1111,6 +1118,27 @@ func (b *blockManager) handleHeadersMsg(hmsg *headersMsg) {
 	}
 }
 
+// handleNotFoundMsg handles notfound messages from all peers.
+func (b *blockManager) handleNotFoundMsg(nfmsg *notFoundMsg) {
+	peer := nfmsg.peer
+	for _, inv := range nfmsg.notFound.InvList {
+		// verify the hash was actually announced by the peer
+		// before deleting from the global requested maps.
+		switch inv.Type {
+		case wire.InvTypeBlock:
+			if _, exists := peer.requestedBlocks[inv.Hash]; exists {
+				delete(peer.requestedBlocks, inv.Hash)
+				delete(b.requestedBlocks, inv.Hash)
+			}
+		case wire.InvTypeTx:
+			if _, exists := peer.requestedTxns[inv.Hash]; exists {
+				delete(peer.requestedTxns, inv.Hash)
+				delete(b.requestedTxns, inv.Hash)
+			}
+		}
+	}
+}
+
 // haveInventory returns whether or not the inventory represented by the passed
 // inventory vector is known.  This includes checking all of the various places
 // inventory can be when it is in different states such as blocks that are part
@@ -1370,6 +1398,9 @@ out:
 
 			case *headersMsg:
 				b.handleHeadersMsg(msg)
+
+			case *notFoundMsg:
+				b.handleNotFoundMsg(msg)
 
 			case *donePeerMsg:
 				b.handleDonePeerMsg(candidatePeers, msg.peer)
@@ -1950,6 +1981,18 @@ func (b *blockManager) QueueHeaders(headers *wire.MsgHeaders, sp *serverPeer) {
 	}
 
 	b.msgChan <- &headersMsg{headers: headers, peer: sp}
+}
+
+// QueueNotFound adds the passed notfound message and peer to the block handling
+// queue.
+func (b *blockManager) QueueNotFound(notFound *wire.MsgNotFound, sp *serverPeer) {
+	// No channel handling here because peers do not need to block on
+	// reject messages.
+	if atomic.LoadInt32(&b.shutdown) != 0 {
+		return
+	}
+
+	b.msgChan <- &notFoundMsg{notFound: notFound, peer: sp}
 }
 
 // DonePeer informs the blockmanager that a peer has disconnected.
