@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2014 The btcsuite developers
-// Copyright (c) 2015-2018 The Decred developers
+// Copyright (c) 2015-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -28,7 +28,7 @@ const (
 const (
 	Major uint = 1
 	Minor uint = 5
-	Patch uint = 1
+	Patch uint = 2
 )
 
 var (
