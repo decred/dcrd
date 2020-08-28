@@ -823,6 +823,26 @@ func NewGetTreasuryBalanceCmd(hash *string) *GetTreasuryBalanceCmd {
 	}
 }
 
+// GetTreasurySpendVotesCmd returns the vote count for the specified treasury
+// spend transactions up to the specified block.
+//
+// If block is not specified, then the current best block is used. If no
+// tspends are specified, then the counts for all tspends currently in the
+// mempool are returned.
+type GetTreasurySpendVotesCmd struct {
+	Block   *string
+	TSpends *[]string
+}
+
+// NewGetTreasurySpendVotesCmd returns a new instance which can be used to
+// issue a JSON-RPC gettreasuryspendvotes command.
+func NewGetTreasurySpendVotesCmd(block *string, tspends *[]string) *GetTreasurySpendVotesCmd {
+	return &GetTreasurySpendVotesCmd{
+		Block:   block,
+		TSpends: tspends,
+	}
+}
+
 // GetWorkCmd defines the getwork JSON-RPC command.
 type GetWorkCmd struct {
 	Data *string
@@ -1180,6 +1200,7 @@ func init() {
 	dcrjson.MustRegister(Method("getstakeversions"), (*GetStakeVersionsCmd)(nil), flags)
 	dcrjson.MustRegister(Method("getticketpoolvalue"), (*GetTicketPoolValueCmd)(nil), flags)
 	dcrjson.MustRegister(Method("gettreasurybalance"), (*GetTreasuryBalanceCmd)(nil), flags)
+	dcrjson.MustRegister(Method("gettreasuryspendvotes"), (*GetTreasurySpendVotesCmd)(nil), flags)
 	dcrjson.MustRegister(Method("gettxout"), (*GetTxOutCmd)(nil), flags)
 	dcrjson.MustRegister(Method("gettxoutsetinfo"), (*GetTxOutSetInfoCmd)(nil), flags)
 	dcrjson.MustRegister(Method("getvoteinfo"), (*GetVoteInfoCmd)(nil), flags)

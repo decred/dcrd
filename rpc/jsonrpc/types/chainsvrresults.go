@@ -433,6 +433,25 @@ type GetTreasuryBalanceResult struct {
 	Updates []int64 `json:"updates,omitempty"`
 }
 
+// TreasurySpendVotes models the data returned for a single tspend returned by
+// gettreasuryspendvotes command.
+type TreasurySpendVotes struct {
+	Hash      string `json:"hash"`
+	Expiry    int64  `json:"expiry"`
+	VoteStart int64  `json:"votestart"`
+	VoteEnd   int64  `json:"voteend"`
+	YesVotes  int64  `json:"yesvotes"`
+	NoVotes   int64  `json:"novotes"`
+}
+
+// GetTreasurySpendVotesResult models the data returned from the
+// gettreasuryspendvotes command.
+type GetTreasurySpendVotesResult struct {
+	Hash   string               `json:"hash"`
+	Height int64                `json:"height"`
+	Votes  []TreasurySpendVotes `json:"votes"`
+}
+
 // GetWorkResult models the data from the getwork command.
 type GetWorkResult struct {
 	Data   string `json:"data"`
