@@ -322,6 +322,10 @@ the method name for further details such as parameter and return information.
 |N
 |Returns the current value of all locked funds in the ticket pool.
 |-
+|[[#gettreasuryspendvotes|gettreasuryspendvotes]]
+|N
+|Returns the vote counts for mempool or mined treasury spend transactions.
+|-
 |[[#gettxout|gettxout]]
 |Y
 |Returns information about an unspent transaction output.
@@ -1899,6 +1903,37 @@ of the best block.
 |-
 !Example Return
 |<code>5214124.18608402</code>
+|}
+
+----
+
+====gettreasuryspendvotes====
+{|
+!Method
+|gettreasuryspendvotes
+|-
+!Parameters
+|
+# <code>blockhash</code>: <code>(string, optional)</code> Count treasury spend votes up to this block. If unspecified, the current chain tip is used.
+# <code>tspends</code>: <code>(json array of strings, optional)</code> A list of treasury spend transaction hashes for which to tally votes. All specified hashes must correspond to either mined or mempool residing tspends. If unspecified, defaults to tallying votes for all tspends currently in the mempool.
+|-
+!Description
+| Returns a tally of on-chain votes for treasury spend transactions.
+|-
+!Returns
+|<code>(json object)</code>
+| <code>hash</code>: <code>(string)</code> The block hash of the block up to which the votes were tallied.
+| <code>height</code>: <code>(numeric)</code> The block height of the block up to which the votes were tallied.
+| <code>votes</code>: <code>(json array of objects)</code> Per-tspend vote counts.
+|  <code>hash</code>: <code>(string)</code> Hash of the treasury spend transaction.
+|  <code>expiry</code>: <code>(numeric)</code> Expiry value for the tspend tx.
+|  <code>votestart</code>: <code>(numeric)</code> Block height at which voting for the tspend starts.
+|  <code>voteend</code>: <code>(numeric)</code> Block height at which voting for the tspend ends.
+|  <code>yesvotes</code>: <code>(numeric)</code> Number of <code>yes</code> votes the tspend received (up to the height returned in the main response object).
+|  <code>novotes</code>: <code>(numeric)</code> Number of <code>no</code> votes the tspend received (up to the height returned in the main response object).
+|-
+!Example Return
+|<code>{"hash": "00000000000000001605faff0827dafcea7d0986cf0aad06e87eccf9e02ff441","height":428944,"votes": [{"hash": "f9d40601f4156dbdf7b310da9f5751488d9e531cf26151782642cd47efa4b732","expiry": 432290,"votestart": 428832,"voteend": 432288,"yesvotes":392,"novotes":91}]}</code>
 |}
 
 ----

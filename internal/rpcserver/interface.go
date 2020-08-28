@@ -410,6 +410,14 @@ type Chain interface {
 	// defined in DCP0006, has passed and is now active for the block AFTER the
 	// given block.
 	IsTreasuryAgendaActive(*chainhash.Hash) (bool, error)
+
+	// FetchTSpend returns all blocks where the treasury spend tx
+	// identified by the specified hash can be found.
+	FetchTSpend(chainhash.Hash) ([]chainhash.Hash, error)
+
+	// TSpendCountVotes returns the votes for the specified tspend up to
+	// the specified block.
+	TSpendCountVotes(*chainhash.Hash, *dcrutil.Tx) (int64, int64, error)
 }
 
 // Clock represents a clock for use with the RPC server. The purpose of this
@@ -604,6 +612,10 @@ type TxMempooler interface {
 	// transaction pool. This only fetches from the main transaction pool
 	// and does not include orphans.
 	FetchTransaction(txHash *chainhash.Hash) (*dcrutil.Tx, error)
+
+	// TSpendHashes returns the hashes of the treasury spend transactions
+	// currently in the mempool.
+	TSpendHashes() []chainhash.Hash
 }
 
 // AddrIndexer provides an interface for retrieving transactions for a given

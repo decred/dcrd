@@ -192,6 +192,7 @@ var rpcHandlersBeforeInit = map[types.Method]commandHandler{
 	"getstakeversions":      handleGetStakeVersions,
 	"getticketpoolvalue":    handleGetTicketPoolValue,
 	"gettreasurybalance":    handleGetTreasuryBalance,
+	"gettreasuryspendvotes": handleGetTreasurySpendVotes,
 	"getvoteinfo":           handleGetVoteInfo,
 	"gettxout":              handleGetTxOut,
 	"gettxoutsetinfo":       handleGetTxOutSetInfo,
@@ -435,6 +436,15 @@ func rpcNoTxInfoError(txHash *chainhash.Hash) *dcrjson.RPCError {
 	return dcrjson.NewRPCError(dcrjson.ErrRPCNoTxInfo,
 		fmt.Sprintf("No information available about transaction %v",
 			txHash))
+}
+
+// rpcBlockNotFoundError is a convenience function for returning a nicely
+// formatted RPC error which indicates that the provided block was not found in
+// the blockchain.
+func rpcBlockNotFoundError(blockHash chainhash.Hash) *dcrjson.RPCError {
+	return dcrjson.NewRPCError(dcrjson.ErrRPCBlockNotFound,
+		fmt.Sprintf("No information available about block %v",
+			blockHash))
 }
 
 // rpcMiscError is a convenience function for returning a nicely formatted RPC
@@ -3113,6 +3123,225 @@ func handleGetTreasuryBalance(_ context.Context, s *Server, cmd interface{}) (in
 		tbr.Updates = balanceInfo.Updates
 	}
 	return tbr, nil
+}
+
+// handleGetTreasurySpendVotes implements the gettreasuryspendvotes command.
+func handleGetTreasurySpendVotes(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
+	c := cmd.(*types.GetTreasurySpendVotesCmd)
+
+	// Shorter version of relevant parameters.
+	chain := s.cfg.Chain
+	tvi := s.cfg.ChainParams.TreasuryVoteInterval
+	mul := s.cfg.ChainParams.TreasuryVoteIntervalMultiplier
+	mempool := s.cfg.TxMempooler
+
+	// Either parse the provided hash or use the current best tip hash when
+	// none is provided.
+	var block chainhash.Hash
+	var blockHeight int64
+	var checkingMainChain bool
+	if c.Block == nil || *c.Block == "" {
+		best := s.cfg.Chain.BestSnapshot()
+		block = best.Hash
+		blockHeight = best.Height
+		checkingMainChain = true
+	} else {
+		if err := chainhash.Decode(&block, *c.Block); err != nil {
+			return nil, rpcDecodeHexError(*c.Block)
+		}
+
+		// Using HeaderByHash allows querying both the mainchain and
+		// any sidechains.
+		hdr, err := chain.HeaderByHash(&block)
+		if err != nil {
+			return nil, rpcBlockNotFoundError(block)
+		}
+
+		blockHeight = int64(hdr.Height)
+		checkingMainChain = chain.MainChainHasBlock(&block)
+	}
+
+	// When tallying votes on mainchain and for mined tspends, we'll only
+	// count votes up to when the tspend was mined. Thus we need to
+	// maintain some local information to be able to correctly identify the
+	// ending block for those types of tspends.
+	endBlocks := make(map[chainhash.Hash]chainhash.Hash)
+
+	// Determine whether to use the specified tspends or all the ones in
+	// the mempool.
+	var tspends []*dcrutil.Tx
+	if c.TSpends != nil && len(*c.TSpends) > 0 {
+		// Using client-specified tspends, they may be in the mempool,
+		// mined, or completely unknown, so handle each case.
+		tspends = make([]*dcrutil.Tx, len(*c.TSpends))
+		for i, s := range *c.TSpends {
+			var hash chainhash.Hash
+			if err := chainhash.Decode(&hash, s); err != nil {
+				return nil, rpcDecodeHexError(s)
+			}
+
+			// Check if this tspend is in the mempool.
+			var err error
+			tspends[i], err = mempool.FetchTransaction(&hash)
+			if err == nil {
+				// Sanity check this is actually a tspend.
+				if !stake.IsTSpend(tspends[i].MsgTx()) {
+					return nil, rpcInvalidError("mempool tx %s "+
+						"is not a tspend", hash)
+				}
+				continue
+			}
+
+			// Not in the mempool. Check if it is mined.
+			blocks, err := chain.FetchTSpend(hash)
+			if err != nil || len(blocks) == 0 {
+				// TSpend does not exist mined or in mempool.
+				return nil, rpcNoTxInfoError(&hash)
+			}
+
+			// TSpend exists mined in at least one block. Fetch the
+			// first one and extract the tspend.
+			fullBlock, err := chain.BlockByHash(&blocks[0])
+			if err != nil {
+				// Shouldn't happen unless tspend db is hosed.
+				context := "block containing mined tspend not found"
+				return nil, rpcInternalError(err.Error(), context)
+			}
+
+			// TSpends live in the stake tree.
+			var found bool
+			for _, tx := range fullBlock.STransactions() {
+				if tx.Hash().IsEqual(&hash) {
+					tspends[i] = tx
+					found = true
+					break
+				}
+			}
+			if !found {
+				// Shouldn't happen unless tspend db is hosed
+				// or the assumption about tspends living in
+				// the stake tree is wrong.
+				context := "block did not contain tspend tx in stake tree"
+				return nil, rpcInternalError(err.Error(), context)
+			}
+
+			// If we're meant to tally main chain votes, figure out
+			// which (if any) of the blocks the tspend is found are
+			// in the main chain so we can count only up to that
+			// block (since it doesn't make sense to count
+			// additional votes _after_ the tspend was mined). This
+			// doesn't apply if we're not tallying main chain votes
+			// because we don't know the relationship between the
+			// requested branch and the branches that include the
+			// tspend so we just use the requested end block.
+			if !checkingMainChain {
+				continue
+			}
+			for _, block := range blocks {
+				if !chain.MainChainHasBlock(&block) {
+					continue
+				}
+
+				// Fetch the header to discover this block's
+				// height.
+				hdr, err := chain.HeaderByHash(&block)
+				if err != nil {
+					// Shouldn't happen.
+					context := "block without associated header"
+					return nil, rpcInternalError(err.Error(), context)
+				}
+
+				// Given this tspend was mined in the main
+				// chain, it doesn't make sense to count votes
+				// after it was mined. So stop early if the
+				// target block height is higher than the
+				// tspend's mined height. We need to count
+				// votes only up to the block _before_ the
+				// tspend was mined.
+				if blockHeight > int64(hdr.Height) {
+					endBlocks[hash] = hdr.PrevBlock
+				}
+
+				break
+			}
+		}
+	} else {
+		// Fetch vote counts for all mempool tspends.
+		hashes := mempool.TSpendHashes()
+		tspends = make([]*dcrutil.Tx, len(hashes))
+		for i, h := range hashes {
+			var err error
+			tspends[i], err = mempool.FetchTransaction(&h)
+			if err != nil {
+				return nil, rpcInternalError(err.Error(),
+					"could not fetch tspend from mempool")
+			}
+		}
+	}
+
+	// Fetch the vote counts from the blockchain.
+	votes := make([]types.TreasurySpendVotes, len(tspends))
+	for i, tx := range tspends {
+		txHash := tx.Hash()
+
+		// Early check to ensure this tx has a valid expiry and other
+		// functions will behave properly.
+		expiry := tx.MsgTx().Expiry
+		if !standalone.IsTreasuryVoteInterval(uint64(expiry-2), tvi) {
+			err := fmt.Errorf("tspend %s has incorrect expiry %d", tx.Hash(), expiry)
+			context := "tspend without correct expiry"
+			return nil, rpcInternalError(err.Error(), context)
+		}
+
+		// We only count votes for tspends that are inside their voting
+		// window. Otherwise we just return the appropriate vote start
+		// and end heights for it.
+		var yes, no int64
+		insideWindow := standalone.InsideTSpendWindow(blockHeight, expiry, tvi, mul)
+		minedBlock, isMined := endBlocks[*txHash]
+		if insideWindow || isMined {
+			// Determine whether to use the originally requested
+			// stop block or a custom one in case of mainchain
+			// mined tspends.
+			checkBlock := block
+			if isMined {
+				checkBlock = minedBlock
+			}
+
+			var err error
+			yes, no, err = chain.TSpendCountVotes(&checkBlock, tx)
+
+			var bErr blockchain.UnknownBlockError
+			switch {
+			case errors.As(err, &bErr):
+				return nil, rpcBlockNotFoundError(block)
+
+			case err != nil:
+				context := "failed to obtain tspend votes"
+				return nil, rpcInternalError(err.Error(), context)
+			}
+		}
+
+		// The following errors can be ignored because we checked the
+		// expiry is in a TVI earlier.
+		start, _ := standalone.CalculateTSpendWindowStart(expiry, tvi, mul)
+		end, _ := standalone.CalculateTSpendWindowEnd(expiry, tvi)
+
+		votes[i] = types.TreasurySpendVotes{
+			Hash:      txHash.String(),
+			Expiry:    int64(expiry),
+			VoteStart: int64(start),
+			VoteEnd:   int64(end),
+			YesVotes:  yes,
+			NoVotes:   no,
+		}
+	}
+
+	return types.GetTreasurySpendVotesResult{
+		Hash:   block.String(),
+		Height: blockHeight,
+		Votes:  votes,
+	}, nil
 }
 
 // handleGetVoteInfo implements the getvoteinfo command.
