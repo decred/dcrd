@@ -958,6 +958,36 @@ func (b *BlockChain) tSpendCountVotes(prevNode *blockNode, tspend *dcrutil.Tx) (
 	return &t, nil
 }
 
+// TSpendCountVotes tallies the votes given for the specified tspend during its
+// voting interval, up to the specified block. It returns the number of yes and
+// no votes found between the passed block's height and the start of voting.
+//
+// Note that this function errors if the block _after_ the specified block is
+// outside the tpsend voting window. In particular, calling this function for
+// the TVI block that ends the voting interval for a given tspend fails, since
+// the next block is outside the voting interval.
+//
+// This function is safe for concurrent access.
+func (b *BlockChain) TSpendCountVotes(block *chainhash.Hash, tspend *dcrutil.Tx) (yesVotes, noVotes int64, err error) {
+	b.index.RLock()
+	defer b.index.RUnlock()
+
+	prevNode := b.index.lookupNode(block)
+	if prevNode == nil {
+		err = UnknownBlockError(*block)
+		return
+	}
+	var tv *tspendVotes
+	tv, err = b.tSpendCountVotes(prevNode, tspend)
+	if err != nil {
+		return
+	}
+
+	yesVotes = int64(tv.yes)
+	noVotes = int64(tv.no)
+	return
+}
+
 // checkTSpendHasVotes verifies that the provided TSpend has enough votes to be
 // included in the provided block. This function must only be called on a TVI.
 // Note that block can be incomplete; it only must contain the right height.
