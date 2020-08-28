@@ -116,6 +116,13 @@ func (u *testRPCUtxoEntry) IsCoinBase() bool {
 	return u.isCoinBase
 }
 
+// tspendVotes is used to mock the results of a chain TSpendCountVotes call.
+type tspendVotes struct {
+	yes int64
+	no  int64
+	err error
+}
+
 // testRPCChain provides a mock block chain by implementing the Chain interface.
 type testRPCChain struct {
 	bestSnapshot                    *blockchain.BestState
@@ -158,6 +165,7 @@ type testRPCChain struct {
 	mainChainHasBlock               bool
 	maxBlockSize                    int64
 	maxBlockSizeErr                 error
+	minedTSpendBlocks               []chainhash.Hash
 	missedTickets                   []chainhash.Hash
 	missedTicketsErr                error
 	nextThresholdState              blockchain.ThresholdStateTuple
@@ -168,6 +176,7 @@ type testRPCChain struct {
 	ticketPoolValueErr              error
 	ticketsWithAddress              []chainhash.Hash
 	tipGeneration                   []chainhash.Hash
+	tspendVotes                     tspendVotes
 }
 
 // BestSnapshot returns a mocked blockchain.BestState.
@@ -379,6 +388,17 @@ func (c *testRPCChain) TreasuryBalance(*chainhash.Hash) (*blockchain.TreasuryBal
 
 func (c *testRPCChain) IsTreasuryAgendaActive(*chainhash.Hash) (bool, error) {
 	return false, nil
+}
+
+// FetchTSpend returns the blocks a given tspend was mined in.
+func (c *testRPCChain) FetchTSpend(chainhash.Hash) ([]chainhash.Hash, error) {
+	return c.minedTSpendBlocks, nil
+}
+
+// TSpendCountVotes counts the number of votes a given tspend has received up
+// to the given block.
+func (c *testRPCChain) TSpendCountVotes(*chainhash.Hash, *dcrutil.Tx) (int64, int64, error) {
+	return c.tspendVotes.yes, c.tspendVotes.no, c.tspendVotes.err
 }
 
 // testPeer provides a mock peer by implementing the Peer interface.
@@ -1022,6 +1042,7 @@ type testTxMempooler struct {
 	count               int
 	fetchTransaction    *dcrutil.Tx
 	fetchTransactionErr error
+	tspendHashes        []chainhash.Hash
 }
 
 // HaveTransactions returns a mocked bool slice representing whether or not the
@@ -1051,6 +1072,12 @@ func (mp *testTxMempooler) Count() int {
 // transaction pool.
 func (mp *testTxMempooler) FetchTransaction(txHash *chainhash.Hash) (*dcrutil.Tx, error) {
 	return mp.fetchTransaction, mp.fetchTransactionErr
+}
+
+// TSpendHashes returns the mocked list of mempool treasury spend transaction
+// hashes.
+func (mp *testTxMempooler) TSpendHashes() []chainhash.Hash {
+	return mp.tspendHashes
 }
 
 // mustParseHash converts the passed big-endian hex string into a
@@ -5721,6 +5748,168 @@ func TestHandleRegenTemplate(t *testing.T) {
 		name:    "handleRegenTemplate: ok",
 		handler: handleRegenTemplate,
 		cmd:     &types.RegenTemplateCmd{},
+	}})
+}
+
+func TestHandleTSpendVotes(t *testing.T) {
+	t.Parallel()
+
+	// Hash of the best block during tests.
+	bestHash := "000000000000000023455b4328635d8e014dbeea99c6140aa715836cc7e55981"
+
+	// Hash of some other block.
+	otherBlock := "000000000000000002e63055e402c823cb86c8258806508d84d6dc2a0790bd49"
+
+	// Test tspend.
+	tspend := &wire.MsgTx{
+		Expiry: 432290,
+		TxIn:   []*wire.TxIn{},
+		TxOut:  []*wire.TxOut{},
+	}
+	tspendHash := tspend.TxHash()
+
+	// Test tx that is _not_ a tspend.
+	nonTSpend := wire.NewMsgTx()
+	nonTSpendHash := nonTSpend.TxHash()
+
+	// Test block that has a mined tspend.
+	headerMinedTSpend := wire.BlockHeader{}
+	blockMinedTSpend := wire.NewMsgBlock(&headerMinedTSpend)
+	blockMinedTSpend.AddSTransaction(tspend)
+
+	// Mempool with a tspend.
+	mempoolTSpends := defaultMockTxMempooler()
+	mempoolTSpends.tspendHashes = []chainhash.Hash{tspendHash}
+	mempoolTSpends.fetchTransaction = dcrutil.NewTx(tspend)
+	mempoolTSpends.fetchTransactionErr = nil
+
+	// Mempool with a tx that is _not_ a tspend.
+	mempoolNonTspend := defaultMockTxMempooler()
+	mempoolNonTspend.fetchTransaction = dcrutil.NewTx(nonTSpend)
+	mempoolNonTspend.fetchTransactionErr = nil
+
+	// Mempool that returns an error when fetching a tx (tx not found).
+	mempoolTxNotFound := defaultMockTxMempooler()
+	mempoolTxNotFound.fetchTransactionErr = errors.New("tx not found")
+
+	// Chain that has tspend votes.
+	chainVotes := defaultMockRPCChain()
+	chainVotes.tspendVotes = tspendVotes{yes: 100, no: 50}
+
+	// Chain that returns an older header in HeaderByHeight.
+	chainOldBlock := new(testRPCChain)
+	*chainOldBlock = *chainVotes
+	chainOldBlock.headerByHash.Height = 1000
+
+	// Chain that has a mined tspend.
+	chainMinedTSpend := new(testRPCChain)
+	*chainMinedTSpend = *chainVotes
+	chainMinedTSpend.minedTSpendBlocks = []chainhash.Hash{blockMinedTSpend.BlockHash()}
+	chainMinedTSpend.blockByHash = dcrutil.NewBlock(blockMinedTSpend)
+
+	// Chain that has a mined tspend but it's now very far in the future
+	// after its voting window.
+	chainFarFuture := new(testRPCChain)
+	*chainFarFuture = *chainMinedTSpend
+	futureBestSnap := new(blockchain.BestState)
+	*futureBestSnap = *chainFarFuture.bestSnapshot
+	chainFarFuture.bestSnapshot = futureBestSnap
+	chainFarFuture.bestSnapshot.Height *= 10
+
+	testRPCServerHandler(t, []rpcTest{{
+		name:            "tspendVotes: no params count mempool tspend votes up to tip",
+		mockTxMempooler: mempoolTSpends,
+		mockChain:       chainVotes,
+		handler:         handleGetTreasurySpendVotes,
+		cmd:             &types.GetTreasurySpendVotesCmd{},
+		result: types.GetTreasurySpendVotesResult{
+			Hash:   bestHash,
+			Height: 432100,
+			Votes: []types.TreasurySpendVotes{{
+				Hash:      tspendHash.String(),
+				Expiry:    432290,
+				VoteStart: 428832,
+				VoteEnd:   432288,
+				YesVotes:  100,
+				NoVotes:   50,
+			}},
+		},
+	}, {
+		name:            "tspendVotes: requesting block in the past does not count votes",
+		mockTxMempooler: mempoolTSpends,
+		mockChain:       chainOldBlock,
+		handler:         handleGetTreasurySpendVotes,
+		cmd: &types.GetTreasurySpendVotesCmd{
+			Block: &otherBlock,
+		},
+		result: types.GetTreasurySpendVotesResult{
+			Hash:   otherBlock,
+			Height: 1000,
+			Votes: []types.TreasurySpendVotes{{
+				Hash:      tspendHash.String(),
+				Expiry:    432290,
+				VoteStart: 428832,
+				VoteEnd:   432288,
+			}},
+		},
+	}, {
+		name:            "tspendVotes: requesting votes for mined tspend works",
+		mockTxMempooler: mempoolTxNotFound,
+		mockChain:       chainMinedTSpend,
+		handler:         handleGetTreasurySpendVotes,
+		cmd: &types.GetTreasurySpendVotesCmd{
+			TSpends: &[]string{tspendHash.String()},
+		},
+		result: types.GetTreasurySpendVotesResult{
+			Hash:   bestHash,
+			Height: 432100,
+			Votes: []types.TreasurySpendVotes{{
+				Hash:      tspendHash.String(),
+				Expiry:    432290,
+				VoteStart: 428832,
+				VoteEnd:   432288,
+				YesVotes:  100,
+				NoVotes:   50,
+			}},
+		},
+	}, {
+		name:            "tspendVotes: requesting votes for mined tspend works after voting ends",
+		mockTxMempooler: mempoolTxNotFound,
+		mockChain:       chainFarFuture,
+		handler:         handleGetTreasurySpendVotes,
+		cmd: &types.GetTreasurySpendVotesCmd{
+			TSpends: &[]string{tspendHash.String()},
+		},
+		result: types.GetTreasurySpendVotesResult{
+			Hash:   bestHash,
+			Height: 4321000,
+			Votes: []types.TreasurySpendVotes{{
+				Hash:      tspendHash.String(),
+				Expiry:    432290,
+				VoteStart: 428832,
+				VoteEnd:   432288,
+				YesVotes:  100,
+				NoVotes:   50,
+			}},
+		},
+	}, {
+		name:            "tspendVotes: requesting votes for non-tspend mempool tx fails",
+		mockTxMempooler: mempoolNonTspend,
+		handler:         handleGetTreasurySpendVotes,
+		cmd: &types.GetTreasurySpendVotesCmd{
+			TSpends: &[]string{nonTSpendHash.String()},
+		},
+		wantErr: true,
+		errCode: dcrjson.ErrRPCInvalidParameter,
+	}, {
+		name:            "tspendVotes: tspend not found in mempool or mined",
+		mockTxMempooler: mempoolTxNotFound,
+		handler:         handleGetTreasurySpendVotes,
+		cmd: &types.GetTreasurySpendVotesCmd{
+			TSpends: &[]string{tspendHash.String()},
+		},
+		wantErr: true,
+		errCode: dcrjson.ErrRPCNoTxInfo,
 	}})
 }
 

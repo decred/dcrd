@@ -666,6 +666,26 @@ var helpDescsEnUS = map[string]string{
 	"gettreasurybalance--condition0": "verbose=false",
 	"gettreasurybalance--condition1": "verbose=true",
 
+	// TreasurySpendVotes help.
+	"treasuryspendvotes-hash":      "The hash of the tspend transaction",
+	"treasuryspendvotes-expiry":    "The block height when the tspend expires",
+	"treasuryspendvotes-votestart": "The block height when voting for the tspend starts",
+	"treasuryspendvotes-voteend":   "The block height when voting for the tspend ends",
+	"treasuryspendvotes-yesvotes":  "The number of yes votes the tspend received",
+	"treasuryspendvotes-novotes":   "The number of no votes the tspend received",
+
+	// GetTreasurySpendVotesResult help.
+	"gettreasuryspendvotesresult-hash":   "The block hash for the last block where votes were tallied",
+	"gettreasuryspendvotesresult-height": "The block height for the last block where votes were tallied",
+	"gettreasuryspendvotesresult-votes":  "Vote counts for each tspend",
+
+	// GetTreasurySpendCmd help.
+	"gettreasuryspendvotes--synopsis": "Returns a tally of votes for a list of treasury spend transactions.",
+	"gettreasuryspendvotes-block": "Count votes only up to the specified block.\n" +
+		"If empty, count up to the current mainchain tip.",
+	"gettreasuryspendvotes-tspends": "Count votes for the specified tspends.\n" +
+		"If empty, count votes for all tspends currently in the mempool.",
+
 	// GetTxOutResult help.
 	"gettxoutresult-bestblock":     "The block hash that contains the transaction output",
 	"gettxoutresult-confirmations": "The number of confirmations",
@@ -1018,6 +1038,7 @@ var rpcResultTypes = map[types.Method][]interface{}{
 	"getrawtransaction":     {(*string)(nil), (*types.TxRawResult)(nil)},
 	"getticketpoolvalue":    {(*float64)(nil)},
 	"gettreasurybalance":    {(*types.GetTreasuryBalanceResult)(nil)},
+	"gettreasuryspendvotes": {(*types.GetTreasurySpendVotesResult)(nil)},
 	"gettxout":              {(*types.GetTxOutResult)(nil)},
 	"gettxoutsetinfo":       {(*types.GetTxOutSetInfoResult)(nil)},
 	"getvoteinfo":           {(*types.GetVoteInfoResult)(nil)},
