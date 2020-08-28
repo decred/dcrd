@@ -693,6 +693,48 @@ func TestChainSvrCmds(t *testing.T) {
 			},
 		},
 		{
+			name: "gettreasuryspendvotes",
+			newCmd: func() (interface{}, error) {
+				return dcrjson.NewCmd(Method("gettreasuryspendvotes"))
+			},
+			staticCmd: func() interface{} {
+				return NewGetTreasurySpendVotesCmd(nil, nil)
+			},
+			marshalled: `{"jsonrpc":"1.0","method":"gettreasuryspendvotes","params":[],"id":1}`,
+			unmarshalled: &GetTreasurySpendVotesCmd{
+				Block:   nil,
+				TSpends: nil,
+			},
+		},
+		{
+			name: "gettreasuryspendvotes data",
+			newCmd: func() (interface{}, error) {
+				return dcrjson.NewCmd(Method("gettreasuryspendvotes"), "123", []string{"456"})
+			},
+			staticCmd: func() interface{} {
+				return NewGetTreasurySpendVotesCmd(dcrjson.String("123"), &[]string{"456"})
+			},
+			marshalled: `{"jsonrpc":"1.0","method":"gettreasuryspendvotes","params":["123",["456"]],"id":1}`,
+			unmarshalled: &GetTreasurySpendVotesCmd{
+				Block:   dcrjson.String("123"),
+				TSpends: &[]string{"456"},
+			},
+		},
+		{
+			name: "gettreasuryspendvotes empty block",
+			newCmd: func() (interface{}, error) {
+				return dcrjson.NewCmd(Method("gettreasuryspendvotes"), "", []string{"456"})
+			},
+			staticCmd: func() interface{} {
+				return NewGetTreasurySpendVotesCmd(dcrjson.String(""), &[]string{"456"})
+			},
+			marshalled: `{"jsonrpc":"1.0","method":"gettreasuryspendvotes","params":["",["456"]],"id":1}`,
+			unmarshalled: &GetTreasurySpendVotesCmd{
+				Block:   dcrjson.String(""),
+				TSpends: &[]string{"456"},
+			},
+		},
+		{
 			name: "getwork",
 			newCmd: func() (interface{}, error) {
 				return dcrjson.NewCmd(Method("getwork"))
