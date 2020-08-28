@@ -1125,3 +1125,63 @@ func (c *Client) GetTreasuryBalanceAsync(ctx context.Context, block *chainhash.H
 func (c *Client) GetTreasuryBalance(ctx context.Context, block *chainhash.Hash, verbose bool) (*chainjson.GetTreasuryBalanceResult, error) {
 	return c.GetTreasuryBalanceAsync(ctx, block, verbose).Receive()
 }
+
+// FutureGetTreasurySpendVotes is a future promise to deliver the result of a
+// GetTreasurySpendVotesAsync RPC invocation (or an applicable error).
+type FutureGetTreasurySpendVotesResult cmdRes
+
+// Receive waits for the response promised by the future and returns the
+// gettreasuryspendvotes result.
+func (r *FutureGetTreasurySpendVotesResult) Receive() (*chainjson.GetTreasurySpendVotesResult, error) {
+	res, err := receiveFuture(r.ctx, r.c)
+	if err != nil {
+		return nil, err
+	}
+
+	// Unmarshal result as a gettreasuryspendvotes result object.
+	var votesRes chainjson.GetTreasurySpendVotesResult
+	err = json.Unmarshal(res, &votesRes)
+	if err != nil {
+		return nil, err
+	}
+
+	return &votesRes, nil
+}
+
+// GetTreasurySpendVotesAsync returns an instance of a type that can be used to
+// get the result of the RPC at some future time by invoking the Receive
+// function on the returned instance.
+//
+// See GetTreasurySpendVotes for the blocking version and more details.
+func (c *Client) GetTreasurySpendVotesAsync(ctx context.Context, block *chainhash.Hash, tspends []*chainhash.Hash) *FutureGetTreasurySpendVotesResult {
+	var bl string
+	if block != nil {
+		bl = block.String()
+	}
+	tsHashes := make([]string, 0, len(tspends))
+	for _, hash := range tspends {
+		if hash == nil {
+			continue
+		}
+		tsHashes = append(tsHashes, hash.String())
+	}
+	var ts *[]string
+	if len(tsHashes) > 0 {
+		ts = &tsHashes
+	}
+	cmd := &chainjson.GetTreasurySpendVotesCmd{
+		Block:   &bl,
+		TSpends: ts,
+	}
+	return (*FutureGetTreasurySpendVotesResult)(c.sendCmd(ctx, cmd))
+}
+
+// GetTreasurySpendVotes returns the vote counts for some set of treasury spend
+// transactions up to the specified block.
+//
+// If the block is not specified, then votes are tallied up to the current main
+// tip. If no tspend hashes are specified, then votes for all tspends currently
+// in the mempool are returned.
+func (c *Client) GetTreasurySpendVotes(ctx context.Context, block *chainhash.Hash, tspends []*chainhash.Hash) (*chainjson.GetTreasurySpendVotesResult, error) {
+	return c.GetTreasurySpendVotesAsync(ctx, block, tspends).Receive()
+}
