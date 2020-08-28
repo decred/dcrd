@@ -138,6 +138,51 @@ func createTAdd(t testing.TB, privKey []byte, prevOut *wire.OutPoint, pkScript [
 	return tx
 }
 
+// assertTSpendVoteCount verifies that the given tspend shows up and has the
+// specified vote counts when requesting the current vote counts for mempool
+// tspends in the given node.
+//
+// If the reqSpecific check is specified, then only the vote counts for this
+// specific tspend are requested from the backend node, which allows fetching
+// vote counts even if the tspend has already been mined.
+func assertTSpendVoteCount(t *testing.T, node *rpcclient.Client, tspend *wire.MsgTx, reqSpecific bool, yesVotes, noVotes int64) {
+	t.Helper()
+
+	txh := tspend.TxHash()
+	var reqTSpends []*chainhash.Hash
+	if reqSpecific {
+		reqTSpends = []*chainhash.Hash{&txh}
+		time.Sleep(time.Second * 3)
+	}
+
+	res, err := node.GetTreasurySpendVotes(timeoutCtx(t, time.Second*5), nil, reqTSpends)
+	if err != nil {
+		t.Fatalf("unable to query node for tspend votes: %v", err)
+	}
+
+	found := false
+	for _, tsVote := range res.Votes {
+		if txh.String() != tsVote.Hash {
+			continue
+		}
+		found = true
+
+		if tsVote.YesVotes != yesVotes {
+			t.Fatalf("unexpected nb of yes votes. want %d, got=%d",
+				yesVotes, tsVote.YesVotes)
+		}
+		if tsVote.NoVotes != noVotes {
+			t.Fatalf("unexpected nb of no votes. want %d, got %d",
+				noVotes, tsVote.NoVotes)
+		}
+	}
+
+	if !found {
+		t.Fatalf("could not find tspend %s in gettreasuryspendvotes "+
+			"response %v", txh, res)
+	}
+}
+
 // TestTreasury performs a test of treasury functionality across the entire
 // dcrd stack.
 func TestTreasury(t *testing.T) {
@@ -315,13 +360,27 @@ func TestTreasury(t *testing.T) {
 		}
 	}
 
-	// Generate one TVI worth of blocks to start voting then TVI*MUL blocks
+	// The vote counts for the tspends should be empty.
+	assertTSpendVoteCount(t, hn.Node, tspendYes, false, 0, 0)
+	assertTSpendVoteCount(t, hn.Node, tspendNo, false, 0, 0)
+	assertTSpendVoteCount(t, hn.Node, tspendLarge, false, 0, 0)
+	assertTSpendVoteCount(t, hn.Node, tspendAbstain, false, 0, 0)
+
+	// Generate one TVI worth of blocks to start voting then TVI*2 blocks
 	// to approve but stop just before the tspend will be mined.
-	nbBlocks := uint32(tvi + tvi*mul - 1)
+	nbBlocks := uint32(tvi + tvi*2 - 1)
 	_, err = vw.GenerateBlocks(timeoutCtx(t, time.Minute), nbBlocks)
 	if err != nil {
 		t.Fatalf("unable to mine to blocks to approve tspend: %v", err)
 	}
+
+	// The vote counts for the tspends should correspond to the max
+	// possible for the amount of mined blocks.
+	maxVotes := int64(tvi * 2 * 5)
+	assertTSpendVoteCount(t, hn.Node, tspendYes, false, maxVotes, 0)
+	assertTSpendVoteCount(t, hn.Node, tspendNo, false, 0, maxVotes)
+	assertTSpendVoteCount(t, hn.Node, tspendLarge, false, maxVotes, 0)
+	assertTSpendVoteCount(t, hn.Node, tspendAbstain, false, 0, 0)
 
 	// Publish the tadds so both the tspend and tadds are mined at the same
 	// block.
@@ -340,6 +399,16 @@ func TestTreasury(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unable to mine to blocks to approve tspend: %v", err)
 	}
+
+	// Ensure vote counts for the mined tspend are fixed after it was
+	// mined.
+	assertTSpendVoteCount(t, hn.Node, tspendYes, true, maxVotes, 0)
+
+	// The other tspends are still being voted.
+	nbVotes := maxVotes + int64(nbBlocks*5)
+	assertTSpendVoteCount(t, hn.Node, tspendNo, false, 0, nbVotes)
+	assertTSpendVoteCount(t, hn.Node, tspendLarge, false, nbVotes, 0)
+	assertTSpendVoteCount(t, hn.Node, tspendAbstain, false, 0, 0)
 
 	// Create a tx that spends from the TSPend outputs and the TAdd change
 	// outputs.
