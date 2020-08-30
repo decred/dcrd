@@ -3267,41 +3267,22 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB, chainP
 			return nil, errors.New("no usable rpc listen addresses")
 		}
 
-		s.rpcServer, err = rpcserver.New(&rpcserver.Config{
-			Listeners:       rpcListeners,
-			ConnMgr:         &rpcConnManager{&s},
-			SyncMgr:         &rpcSyncMgr{server: &s, blockMgr: s.blockManager},
-			ExistsAddresser: newRPCExistsAddresser(s.existsAddrIndex),
-			FeeEstimator:    &rpcFeeEstimator{s.feeEstimator},
-			TimeSource:      s.timeSource,
-			Services:        s.services,
-			AddrManager:     &rpcAddrManager{s.addrManager},
-			Clock:           &rpcClock{},
-			SubsidyCache:    s.subsidyCache,
-			Chain:           &rpcChain{s.chain},
-			ChainParams:     chainParams,
-			SanityChecker:   &rpcSanityChecker{s.timeSource, chainParams},
-			DB:              db,
-			TxMempooler:     &rpcTxMempooler{s.txMemPool},
-			BlockTemplater: func() rpcserver.BlockTemplater {
-				if s.bg == nil {
-					return nil
-				}
-				return &rpcBlockTemplater{s.bg}
-			}(),
-			CPUMiner: &rpcCPUMiner{s.cpuMiner},
-			TxIndexer: func() rpcserver.TxIndexer {
-				if s.txIndex == nil {
-					return nil
-				}
-				return s.txIndex
-			}(),
-			AddrIndexer: func() rpcserver.AddrIndexer {
-				if s.addrIndex == nil {
-					return nil
-				}
-				return s.addrIndex
-			}(),
+		rpcsConfig := rpcserver.Config{
+			Listeners:            rpcListeners,
+			ConnMgr:              &rpcConnManager{&s},
+			SyncMgr:              &rpcSyncMgr{server: &s, blockMgr: s.blockManager},
+			FeeEstimator:         s.feeEstimator,
+			TimeSource:           s.timeSource,
+			Services:             s.services,
+			AddrManager:          s.addrManager,
+			Clock:                &rpcClock{},
+			SubsidyCache:         s.subsidyCache,
+			Chain:                &rpcChain{s.chain},
+			ChainParams:          chainParams,
+			SanityChecker:        &rpcSanityChecker{s.timeSource, chainParams},
+			DB:                   db,
+			TxMempooler:          s.txMemPool,
+			CPUMiner:             &rpcCPUMiner{s.cpuMiner},
 			NetInfo:              cfg.generateNetworkInfo(),
 			MinRelayTxFee:        cfg.minRelayTxFee,
 			Proxy:                cfg.Proxy,
@@ -3318,14 +3299,25 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB, chainP
 			MaxProtocolVersion:   maxProtocolVersion,
 			UserAgentVersion:     userAgentVersion,
 			LogManager:           &rpcLogManager{},
-			Filterer: func() rpcserver.Filterer {
-				if s.cfIndex == nil {
-					return nil
-				}
-				return &rpcFilterer{s.cfIndex}
-			}(),
-			FiltererV2: &rpcFiltererV2{s.chain},
-		})
+			FiltererV2:           s.chain,
+		}
+		if s.existsAddrIndex != nil {
+			rpcsConfig.ExistsAddresser = s.existsAddrIndex
+		}
+		if s.bg != nil {
+			rpcsConfig.BlockTemplater = &rpcBlockTemplater{s.bg}
+		}
+		if s.txIndex != nil {
+			rpcsConfig.TxIndexer = s.txIndex
+		}
+		if s.addrIndex != nil {
+			rpcsConfig.AddrIndexer = s.addrIndex
+		}
+		if s.cfIndex != nil {
+			rpcsConfig.Filterer = s.cfIndex
+		}
+
+		s.rpcServer, err = rpcserver.New(&rpcsConfig)
 		if err != nil {
 			return nil, err
 		}

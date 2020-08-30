@@ -11,14 +11,11 @@ import (
 	"net"
 	"time"
 
-	"github.com/decred/dcrd/addrmgr"
 	"github.com/decred/dcrd/blockchain/stake/v3"
 	"github.com/decred/dcrd/blockchain/v3"
-	"github.com/decred/dcrd/blockchain/v3/indexers"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/chaincfg/v3"
 	"github.com/decred/dcrd/dcrutil/v3"
-	"github.com/decred/dcrd/internal/fees"
 	"github.com/decred/dcrd/internal/mempool"
 	"github.com/decred/dcrd/internal/mining"
 	"github.com/decred/dcrd/internal/mining/cpuminer"
@@ -107,15 +104,6 @@ func (p *rpcPeer) IsTxRelayDisabled() bool {
 func (p *rpcPeer) BanScore() uint32 {
 	return (*serverPeer)(p).banScore.Int()
 }
-
-// rpcAddrManager provides an address manager for use with the RPC server and
-// implements the rpcserver.AddrManager interface.
-type rpcAddrManager struct {
-	*addrmgr.AddrManager
-}
-
-// Ensure rpcAddrManager implements the rpcserver.AddrManager interface.
-var _ rpcserver.AddrManager = (*rpcAddrManager)(nil)
 
 // rpcConnManager provides a connection manager for use with the RPC server and
 // implements the rpcserver.ConnManager interface.
@@ -453,21 +441,12 @@ func (*rpcClock) Since(t time.Time) time.Duration {
 	return time.Since(t)
 }
 
-// Ensure rpcFeeEstimator implements the rpcserver.FeeEstimator interface.
-var _ rpcserver.FeeEstimator = (*rpcFeeEstimator)(nil)
-
-// rpcFeeEstimator provides a fee estimator for use with the RPC server and
-// implements the rpcserver.FeeEstimator interface.
-type rpcFeeEstimator struct {
-	*fees.Estimator
-}
-
-// Ensure rpcLogManager implements the rpcserver.LogManager interface.
-var _ rpcserver.LogManager = (*rpcLogManager)(nil)
-
 // rpcLogManager provides a log manager for use with the RPC server and
 // implements the rpcserver.LogManager interface.
 type rpcLogManager struct{}
+
+// Ensure rpcLogManager implements the rpcserver.LogManager interface.
+var _ rpcserver.LogManager = (*rpcLogManager)(nil)
 
 // SupportedSubsystems returns a sorted slice of the supported subsystems for
 // logging purposes.
@@ -505,14 +484,14 @@ func (s *rpcSanityChecker) CheckBlockSanity(block *dcrutil.Block) error {
 	return blockchain.CheckBlockSanity(block, s.timeSource, s.chainParams)
 }
 
-// Ensure rpcBlockTemplater implements the rpcserver.BlockTemplater interface.
-var _ rpcserver.BlockTemplater = (*rpcBlockTemplater)(nil)
-
 // rpcBlockTemplater provides a block template generator for use with the
 // RPC server and implements the rpcserver.BlockTemplater interface.
 type rpcBlockTemplater struct {
 	*mining.BgBlkTmplGenerator
 }
+
+// Ensure rpcBlockTemplater implements the rpcserver.BlockTemplater interface.
+var _ rpcserver.BlockTemplater = (*rpcBlockTemplater)(nil)
 
 // Subscribe returns a TemplateSubber which has functions to retrieve
 // a channel that produces the stream of block templates and to stop
@@ -575,54 +554,3 @@ func (c *rpcCPUMiner) SetNumWorkers(numWorkers int32) {
 		c.miner.SetNumWorkers(numWorkers)
 	}
 }
-
-// rpcFilterer provides methods for retrieving a block's committed filter or
-// committed filter header and implements the rpcserver.Filterer interface.
-//
-// Deprecated: This will be removed in the next major version.  Use
-// rpcFiltererV2 instead.
-type rpcFilterer struct {
-	*indexers.CFIndex
-}
-
-// Ensure rpcFilterer implements the rpcserver.Filterer interface.
-var _ rpcserver.Filterer = (*rpcFilterer)(nil)
-
-// rpcFiltererV2 provides methods for retrieving a block's version 2 GCS filter
-// and implements the rpcserver.FiltererV2 interface.
-type rpcFiltererV2 struct {
-	*blockchain.BlockChain
-}
-
-// Ensure rpcFiltererV2 implements the rpcserver.FiltererV2 interface.
-var _ rpcserver.FiltererV2 = (*rpcFiltererV2)(nil)
-
-// rpcExistsAddresser provides exists address methods for use with the RPC
-// server and implements the rpcserver.ExistsAddresser interface. It should be
-// constructed by calling newRPCExistsAddresser.
-type rpcExistsAddresser struct {
-	*indexers.ExistsAddrIndex
-}
-
-// Ensure rpcExistsAddresser implements the rpcserver.ExistsAddresser interface.
-var _ rpcserver.ExistsAddresser = (*rpcExistsAddresser)(nil)
-
-// newRPCExistsAddresser is a constructor for a new rpcserver.ExistsAddresser
-// that wraps *rpcExistsAddresser. If the server's existsAddrIndex is nil, nil
-// is returned. Consumers must check for nil before calling methods on the
-// returned rpcserver.ExistsAddresser.
-func newRPCExistsAddresser(e *indexers.ExistsAddrIndex) rpcserver.ExistsAddresser {
-	if e == nil {
-		return nil
-	}
-	return &rpcExistsAddresser{e}
-}
-
-// rpcTxMempooler provides a mempool transaction data source for use with the
-// RPC server and implements the rpcserver.TxMempooler interface.
-type rpcTxMempooler struct {
-	*mempool.TxPool
-}
-
-// Ensure rpcTxMempooler implements the rpcserver.TxMempooler interface.
-var _ rpcserver.TxMempooler = (*rpcTxMempooler)(nil)
