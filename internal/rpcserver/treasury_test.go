@@ -183,6 +183,29 @@ func assertTSpendVoteCount(t *testing.T, node *rpcclient.Client, tspend *wire.Ms
 	}
 }
 
+// assertTBaseAmount verifies the treasury base output amount for the tip block
+// equals the given value.
+func assertTBaseAmount(t *testing.T, node *rpcclient.Client, amount int64) {
+	t.Helper()
+
+	bh, _, err := node.GetBestBlock(timeoutCtx(t, time.Second))
+	if err != nil {
+		t.Fatalf("unable to get best block hash: %v", err)
+	}
+	bl, err := node.GetBlock(timeoutCtx(t, time.Second), bh)
+	if err != nil {
+		t.Fatalf("unable to get block: %v", err)
+	}
+	tbase := bl.STransactions[0]
+	if err := stake.CheckTreasuryBase(tbase); err != nil {
+		t.Fatalf("stransactions[0] is not a treasury base: %v", err)
+	}
+	if tbase.TxOut[0].Value != amount {
+		t.Fatalf("unexpected tbase amount. want=%d got=%d", amount,
+			tbase.TxOut[0].Value)
+	}
+}
+
 // TestTreasury performs a test of treasury functionality across the entire
 // dcrd stack.
 func TestTreasury(t *testing.T) {
@@ -481,11 +504,12 @@ func TestTreasury(t *testing.T) {
 		t.Fatalf("unable to publish spend tx: %v", err)
 	}
 
-	// Mine it.
+	// Mine it and keep track of running number of votes issued.
 	_, err = vw.GenerateBlocks(timeoutCtx(t, time.Minute), 1)
 	if err != nil {
 		t.Fatalf("unable to mine to blocks to approve tspend: %v", err)
 	}
+	nbVotes += 5
 
 	// Ensure the spending tx output is part of the utxo set and has 1
 	// confirmation.
@@ -554,6 +578,11 @@ func TestTreasury(t *testing.T) {
 		}
 		tbaseTotal += dcrutil.Amount(nbBlocks * tbaseSubsidy)
 		i += sri
+		if i >= lastMatureTbaseBlock {
+			// Quit early so tbaseSubsidy still contains the most
+			// recent tbase subsidy amount.
+			break
+		}
 		subsidy = subsidy * net.MulSubsidy / net.DivSubsidy
 		tbaseSubsidy = subsidy * int64(net.BlockTaxProportion) /
 			int64(net.TotalSubsidyProportions())
@@ -580,4 +609,47 @@ func TestTreasury(t *testing.T) {
 			wantBalance, gotBalance)
 	}
 
+	// We'll now test that when casting less than the total amount of votes
+	// on the network the correct treasury base and vote counts are still
+	// generated.
+	//
+	// First limit the number of votes to 4, then generate a block so that
+	// the _next_ block has only 4 votes. Keep track of the total number of
+	// tspend votes issued.
+	if err := vw.LimitNbVotes(4); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := vw.GenerateBlocks(timeoutCtx(t, time.Minute), 1); err != nil {
+		t.Fatal(err)
+	}
+	nbVotes += 5
+
+	// Generate a block with 4 votes and assert the treasury base and vote
+	// counts are correct.
+	//
+	// We also limit the total number of votes to 3 so that the _next_ test
+	// can be done.
+	if err := vw.LimitNbVotes(3); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := vw.GenerateBlocks(timeoutCtx(t, time.Minute), 1); err != nil {
+		t.Fatal(err)
+	}
+	assertTBaseAmount(t, hn.Node, tbaseSubsidy)
+	nbVotes = nbVotes + int64(4)
+	assertTSpendVoteCount(t, hn.Node, tspendNo, false, 0, nbVotes)
+	assertTSpendVoteCount(t, hn.Node, tspendLarge, false, nbVotes, 0)
+
+	// Generate a block with 3 votes and assert the treasury base and vote
+	// counts are correct.
+	if err := vw.LimitNbVotes(3); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := vw.GenerateBlocks(timeoutCtx(t, time.Minute), 1); err != nil {
+		t.Fatal(err)
+	}
+	nbVotes = nbVotes + int64(3)
+	assertTBaseAmount(t, hn.Node, tbaseSubsidy)
+	assertTSpendVoteCount(t, hn.Node, tspendNo, false, 0, nbVotes)
+	assertTSpendVoteCount(t, hn.Node, tspendLarge, false, nbVotes, 0)
 }
