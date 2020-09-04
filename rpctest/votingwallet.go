@@ -126,6 +126,9 @@ type VotingWallet struct {
 
 	// tspends to vote for when generating votes.
 	tspendVotes []*stake.TreasuryVoteTuple
+
+	// Limit the total number of votes to that.
+	limitNbVotes int
 }
 
 // NewVotingWallet creates a new minimal voting wallet for the given harness.
@@ -190,6 +193,7 @@ func NewVotingWallet(ctx context.Context, hn *Harness) (*VotingWallet, error) {
 		voteScript:             voteScript,
 		voteReturnScript:       voteReturnScript,
 		subsidyCache:           standalone.NewSubsidyCache(hn.ActiveNet),
+		limitNbVotes:           int(hn.ActiveNet.TicketsPerBlock),
 		tickets:                make(map[chainhash.Hash]ticketInfo, hintTicketsCap),
 		maturingVotes:          make(map[int64][]utxoInfo, hintMaturingVotesCap),
 		blockConnectedNtfnChan: make(chan blockConnectedNtfn, bufferLen),
@@ -289,6 +293,27 @@ func (w *VotingWallet) SetMiner(f func(context.Context, uint32) ([]*chainhash.Ha
 	w.miner = f
 }
 
+// LimitNbVotes limits the number of votes issued by the voting wallet to the
+// given amount, which is useful for testing scenarios where less than the
+// total number of votes per block are cast in the network.
+//
+// Note that due to limitations in the current implementation of the voting
+// wallet, you can only reduce this amount (never increase it) and simnet
+// voting will stop once CoinbaseMaturity blocks have passed (so this needs to
+// be used only at the end of a test run).
+func (w *VotingWallet) LimitNbVotes(newLimit int) error {
+	if newLimit < 0 {
+		return fmt.Errorf("cannot use negative number of votes")
+	}
+
+	if newLimit > w.limitNbVotes {
+		return fmt.Errorf("cannot increase number of votes")
+	}
+
+	w.limitNbVotes = newLimit
+	return nil
+}
+
 // GenerateBlocks generates blocks while ensuring the chain will continue past
 // SVH indefinitely. This will generate a block then wait for the votes from
 // this wallet to be sent and tickets to be purchased before either generating
@@ -303,7 +328,8 @@ func (w *VotingWallet) GenerateBlocks(ctx context.Context, nb uint32) ([]*chainh
 		return nil, err
 	}
 
-	nbVotes := int(w.hn.ActiveNet.TicketsPerBlock)
+	nbVotes := w.limitNbVotes
+	nbTickets := int(w.hn.ActiveNet.TicketsPerBlock)
 	hashes := make([]*chainhash.Hash, nb)
 
 	miner := w.c.Generate
@@ -338,7 +364,7 @@ func (w *VotingWallet) GenerateBlocks(ctx context.Context, nb uint32) ([]*chainh
 				if len(mempoolVotes) != nbVotes {
 					notGot = append(notGot, "votes")
 				}
-				if len(mempoolTickets) != nbVotes {
+				if len(mempoolTickets) != nbTickets {
 					notGot = append(notGot, "tickets")
 				}
 
@@ -481,7 +507,7 @@ func (w *VotingWallet) handleWinningTicketsNtfn(ntfn *winningTicketsNtfn) {
 
 	// Create the votes. nbVotes is the number of tickets from the wallet that
 	// voted.
-	votes := make([]wire.MsgTx, w.hn.ActiveNet.TicketsPerBlock)
+	votes := make([]wire.MsgTx, w.limitNbVotes)
 	nbVotes := 0
 
 	var (
@@ -545,6 +571,11 @@ func (w *VotingWallet) handleWinningTicketsNtfn(ntfn *winningTicketsNtfn) {
 		if err != nil {
 			w.logError(fmt.Errorf("transaction is not a valid vote: %v", err))
 			return
+		}
+
+		// Limit the total number of issued votes if requested.
+		if nbVotes >= w.limitNbVotes {
+			break
 		}
 	}
 
