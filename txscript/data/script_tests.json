@@ -1239,7 +1239,7 @@
 ["0x7a{6} 0x7a{6}", "XOR 0 EQUAL", "NONE", "ERR_INVALID_STACK_OPERATION", "XOR must fail with any non-numeric stack item"],
 ["DATA_13 2147483647 0 XOR 2147483647 EQUAL", "HASH160 DATA_20 0x3f11930aee7f857ecc7e00cb350d5748ecf59056 EQUAL", "NONE", "OK", "XOR P2SH"],
 
-["Bitwise comparison opcode tests"],
+["Bytewise comparison opcode tests"],
 
 ["EQUAL test coverage"],
 ["0 0", "EQUAL", "NONE", "OK"],
