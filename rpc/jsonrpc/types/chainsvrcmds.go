@@ -895,26 +895,6 @@ func NewPingCmd() *PingCmd {
 	return &PingCmd{}
 }
 
-// RebroadcastMissedCmd is a type handling custom marshaling and
-// unmarshaling of rebroadcastmissed JSON RPC commands.
-type RebroadcastMissedCmd struct{}
-
-// NewRebroadcastMissedCmd returns a new instance which can be used to
-// issue a JSON-RPC rebroadcastmissed command.
-func NewRebroadcastMissedCmd() *RebroadcastMissedCmd {
-	return &RebroadcastMissedCmd{}
-}
-
-// RebroadcastWinnersCmd is a type handling custom marshaling and
-// unmarshaling of rebroadcastwinners JSON RPC commands.
-type RebroadcastWinnersCmd struct{}
-
-// NewRebroadcastWinnersCmd returns a new instance which can be used to
-// issue a JSON-RPC rebroadcastwinners command.
-func NewRebroadcastWinnersCmd() *RebroadcastWinnersCmd {
-	return &RebroadcastWinnersCmd{}
-}
-
 // SearchRawTransactionsCmd defines the searchrawtransactions JSON-RPC command.
 type SearchRawTransactionsCmd struct {
 	Address     string
@@ -1190,8 +1170,6 @@ func init() {
 	dcrjson.MustRegister(Method("missedtickets"), (*MissedTicketsCmd)(nil), flags)
 	dcrjson.MustRegister(Method("node"), (*NodeCmd)(nil), flags)
 	dcrjson.MustRegister(Method("ping"), (*PingCmd)(nil), flags)
-	dcrjson.MustRegister(Method("rebroadcastmissed"), (*RebroadcastMissedCmd)(nil), flags)
-	dcrjson.MustRegister(Method("rebroadcastwinners"), (*RebroadcastWinnersCmd)(nil), flags)
 	dcrjson.MustRegister(Method("regentemplate"), (*RegenTemplateCmd)(nil), flags)
 	dcrjson.MustRegister(Method("searchrawtransactions"), (*SearchRawTransactionsCmd)(nil), flags)
 	dcrjson.MustRegister(Method("sendrawtransaction"), (*SendRawTransactionCmd)(nil), flags)
