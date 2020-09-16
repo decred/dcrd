@@ -358,14 +358,6 @@ the method name for further details such as parameter and return information.
 |N
 |Queues a ping to be sent to each connected peer.
 |-
-|[[#rebroadcastmissed|rebroadcastmissed]]
-|Y
-|Asks the daemon to rebroadcast missed votes.
-|-
-|[[#rebroadcastwinners|rebroadcastwinners]]
-|Y
-|Asks the daemon to rebroadcast the winners of the voting lottery.
-|-
 |[[#regentemplate|regentemplate]]
 |Y
 |Asks the daemon to regenerate the mining block template.
@@ -2158,42 +2150,6 @@ of the best block.
 
 ----
 
-====rebroadcastmissed====
-{|
-!Method
-|rebroadcastmissed
-|-
-!Parameters
-|None
-|-
-!Description
-|Asks the daemon to rebroadcast missed votes.
-|-
-!Returns
-|Nothing
-|-
-|}
-
-----
-
-====rebroadcastwinners====
-{|
-!Method
-|rebroadcastwinners
-|-
-!Parameters
-|None
-|-
-!Description
-|Asks the daemon to rebroadcast the winners of the voting lottery.
-|-
-!Returns
-|Nothing
-|-
-|}
-
-----
-
 ====regentemplate====
 {|
 !Method
@@ -2633,6 +2589,14 @@ user.  Click the method name for further details such as parameter and return in
 |Load, add to, or reload a websocket client's transaction filter for mempool transactions, new blocks and rescanblocks.
 |[[#relevanttxaccepted|relevanttxaccepted]]
 |-
+|[[#rebroadcastmissed|rebroadcastmissed]]
+|Asks the daemon to rebroadcast missed votes.
+|[[#spentandmissedtickets|spentandmissedtickets]]
+|-
+|[[#rebroadcastwinners|rebroadcastwinners]]
+|Asks the daemon to rebroadcast the winners of the voting lottery.
+|[[#winningtickets|winningtickets]]
+|-
 |[[#rescan|rescan]]
 |Rescan block chain for transactions to addresses and spent transaction outpoints.
 |[[#recvtx|recvtx]], [[#redeemingtx|redeemingtx]], [[#rescanprogress|rescanprogress]], and [[#rescanfinished|rescanfinished]]
@@ -2886,6 +2850,42 @@ NOTE: This is only required if an HTTP Authorization header is not being used.
 |-
 !Returns
 |Nothing
+|}
+
+----
+
+====rebroadcastmissed====
+{|
+!Method
+|rebroadcastmissed
+|-
+!Parameters
+|None
+|-
+!Description
+|Asks the daemon to rebroadcast missed votes via a [[#spentandmissedtickets|spentandmissedtickets]] notification.
+|-
+!Returns
+|Nothing
+|-
+|}
+
+----
+
+====rebroadcastwinners====
+{|
+!Method
+|rebroadcastwinners
+|-
+!Parameters
+|None
+|-
+!Description
+|Asks the daemon to rebroadcast the winners of the voting lottery via a [[#winningtickets|winningtickets]] notification.
+|-
+!Returns
+|Nothing
+|-
 |}
 
 ----
