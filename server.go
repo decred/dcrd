@@ -732,19 +732,11 @@ func (sp *serverPeer) OnMemPool(p *peer.Peer, msg *wire.MsgMemPool) {
 	// without double checking it here.
 	txMemPool := sp.server.txMemPool
 	txDescs := txMemPool.TxDescs()
-	invMsg := wire.NewMsgInvSizeHint(uint(len(txDescs)))
-
-	for i, txDesc := range txDescs {
-		iv := wire.NewInvVect(wire.InvTypeTx, txDesc.Tx.Hash())
-		invMsg.AddInvVect(iv)
-		if i+1 >= wire.MaxInvPerMsg {
-			break
-		}
-	}
 
 	// Send the inventory message if there is anything to send.
-	if len(invMsg.InvList) > 0 {
-		p.QueueMessage(invMsg, nil)
+	for _, txDesc := range txDescs {
+		iv := wire.NewInvVect(wire.InvTypeTx, txDesc.Tx.Hash())
+		sp.QueueInventory(iv)
 	}
 }
 
