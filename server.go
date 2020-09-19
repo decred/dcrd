@@ -3251,6 +3251,7 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB, chainP
 		PeerNotifier:       &s,
 		Chain:              s.chain,
 		ChainParams:        s.chainParams,
+		SigCache:           s.sigCache,
 		SubsidyCache:       s.subsidyCache,
 		TimeSource:         s.timeSource,
 		FeeEstimator:       s.feeEstimator,

@@ -6,7 +6,10 @@
 package txscript
 
 import (
+	"compress/bzip2"
 	"crypto/rand"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/decred/dcrd/chaincfg/chainhash"
@@ -14,6 +17,27 @@ import (
 	"github.com/decred/dcrd/dcrec/secp256k1/v3/ecdsa"
 	"github.com/decred/dcrd/wire"
 )
+
+// testDataPath is the path where txscript test fixtures reside.
+const testDataPath = "data"
+
+// block432100 mocks block 432,100 of the block chain.  It is loaded and
+// deserialized immediately here and then can be used throughout the tests.
+var block432100 = func() wire.MsgBlock {
+	// Load and deserialize the test block.
+	blockDataFile := filepath.Join(testDataPath, "block432100.bz2")
+	fi, err := os.Open(blockDataFile)
+	if err != nil {
+		panic(err)
+	}
+	defer fi.Close()
+	var block wire.MsgBlock
+	err = block.Deserialize(bzip2.NewReader(fi))
+	if err != nil {
+		panic(err)
+	}
+	return block
+}()
 
 // msgTx113875_1 mocks the first transaction from block 113875.
 func msgTx113875_1() *wire.MsgTx {
@@ -47,20 +71,22 @@ func msgTx113875_1() *wire.MsgTx {
 // genRandomSig returns a random message, a signature of the message under the
 // public key and the public key. This function is used to generate randomized
 // test data.
-func genRandomSig() (*chainhash.Hash, *ecdsa.Signature, *secp256k1.PublicKey, error) {
+func genRandomSig(t *testing.T) (*chainhash.Hash, *ecdsa.Signature, *secp256k1.PublicKey) {
+	t.Helper()
+
 	privKey, err := secp256k1.GeneratePrivateKey()
 	if err != nil {
-		return nil, nil, nil, err
+		t.Fatalf("error generating private key: %v", err)
 	}
 	pub := privKey.PubKey()
 
 	var msgHash chainhash.Hash
 	if _, err := rand.Read(msgHash[:]); err != nil {
-		return nil, nil, nil, err
+		t.Fatalf("error reading random hash: %v", err)
 	}
 
 	sig := ecdsa.Sign(privKey, msgHash[:])
-	return &msgHash, sig, pub, nil
+	return &msgHash, sig, pub
 }
 
 // TestSigCacheAddExists tests the ability to add, and later check the
@@ -72,10 +98,7 @@ func TestSigCacheAddExists(t *testing.T) {
 	}
 
 	// Generate a random sigCache entry triplet.
-	msg1, sig1, key1, err := genRandomSig()
-	if err != nil {
-		t.Errorf("unable to generate random signature test data")
-	}
+	msg1, sig1, key1 := genRandomSig(t)
 
 	// Add the triplet to the signature cache.
 	sigCache.Add(*msg1, sig1, key1, msgTx113875_1())
@@ -104,10 +127,7 @@ func TestSigCacheAddEvictEntry(t *testing.T) {
 
 	// Fill the sigcache up with some random sig triplets.
 	for i := uint(0); i < sigCacheSize; i++ {
-		msg, sig, key, err := genRandomSig()
-		if err != nil {
-			t.Fatalf("unable to generate random signature test data")
-		}
+		msg, sig, key := genRandomSig(t)
 
 		sigCache.Add(*msg, sig, key, tx)
 		sigCopy, _ := ecdsa.ParseDERSignature(sig.Serialize())
@@ -126,10 +146,7 @@ func TestSigCacheAddEvictEntry(t *testing.T) {
 
 	// Add a new entry, this should cause eviction of a randomly chosen
 	// previous entry.
-	msgNew, sigNew, keyNew, err := genRandomSig()
-	if err != nil {
-		t.Fatalf("unable to generate random signature test data")
-	}
+	msgNew, sigNew, keyNew := genRandomSig(t)
 	sigCache.Add(*msgNew, sigNew, keyNew, tx)
 
 	// The sigcache should still have sigCache entries.
@@ -156,10 +173,7 @@ func TestSigCacheAddMaxEntriesZeroOrNegative(t *testing.T) {
 	}
 
 	// Generate a random sigCache entry triplet.
-	msg1, sig1, key1, err := genRandomSig()
-	if err != nil {
-		t.Errorf("unable to generate random signature test data")
-	}
+	msg1, sig1, key1 := genRandomSig(t)
 
 	// Add the triplet to the signature cache.
 	sigCache.Add(*msg1, sig1, key1, msgTx113875_1())
@@ -206,5 +220,57 @@ func TestShortTxHash(t *testing.T) {
 	got = shortTxHash(msgTx, key2)
 	if hash == got {
 		t.Errorf("shortTxHash: wanted different hash, but got same hash %d", got)
+	}
+}
+
+// TestEvictEntries tests that evictEntries properly removes all SigCache
+// entries related to the given block.
+func TestEvictEntries(t *testing.T) {
+	// Create a SigCache instance.
+	numTxns := len(block432100.Transactions) + len(block432100.STransactions)
+	sigCache, err := NewSigCache(uint(numTxns + 1))
+	if err != nil {
+		t.Fatalf("error creating NewSigCache: %v", err)
+	}
+
+	// Add random signatures to the SigCache for each transaction in block432100.
+	for _, tx := range block432100.Transactions {
+		msg, sig, key := genRandomSig(t)
+		sigCache.Add(*msg, sig, key, tx)
+	}
+	for _, stx := range block432100.STransactions {
+		msg, sig, key := genRandomSig(t)
+		sigCache.Add(*msg, sig, key, stx)
+	}
+
+	// Add another random signature that is not related to a transaction in
+	// block432100.
+	msg, sig, key := genRandomSig(t)
+	sigCache.Add(*msg, sig, key, msgTx113875_1())
+
+	// Validate the number of entries that should exist in the SigCache before
+	// eviction.
+	wantLength := numTxns + 1
+	gotLength := len(sigCache.validSigs)
+	if gotLength != wantLength {
+		t.Fatalf("Incorrect number of entries before eviction: "+
+			"gotLength: %d, wantLength: %d", gotLength, wantLength)
+	}
+
+	// Evict entries for block432100.
+	sigCache.evictEntries(&block432100)
+
+	// Validate that entries related to block432100 have been removed and that
+	// entries unrelated to block432100 have not been removed.
+	wantLength = 1
+	gotLength = len(sigCache.validSigs)
+	if gotLength != wantLength {
+		t.Errorf("Incorrect number of entries after eviction: "+
+			"gotLength: %d, wantLength: %d", gotLength, wantLength)
+	}
+	sigCopy, _ := ecdsa.ParseDERSignature(sig.Serialize())
+	keyCopy, _ := secp256k1.ParsePubKey(key.SerializeCompressed())
+	if !sigCache.Exists(*msg, sigCopy, keyCopy) {
+		t.Errorf("previously added item not found in signature cache")
 	}
 }
