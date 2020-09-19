@@ -1429,12 +1429,15 @@ func (sp *serverPeer) OnAddr(p *peer.Peer, msg *wire.MsgAddr) {
 // OnRead is invoked when a peer receives a message and it is used to update
 // the bytes received by the server.
 func (sp *serverPeer) OnRead(p *peer.Peer, bytesRead int, msg wire.Message, err error) {
-	// Ban peers sending messages that do not conform to the wire protocol.
+	// Ban non-whitelisted peers sending messages that do not conform to the
+	// wire protocol.
 	var errCode wire.ErrorCode
 	if errors.As(err, &errCode) {
 		peerLog.Errorf("Unable to read wire message from %s: %v", sp, err)
-		sp.server.BanPeer(sp)
-		sp.Disconnect()
+		if !cfg.DisableBanning && !sp.isWhitelisted {
+			sp.server.BanPeer(sp)
+			sp.Disconnect()
+		}
 	}
 
 	sp.server.AddBytesReceived(uint64(bytesRead))
