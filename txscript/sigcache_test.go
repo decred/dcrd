@@ -12,7 +12,37 @@ import (
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/dcrec/secp256k1/v3"
 	"github.com/decred/dcrd/dcrec/secp256k1/v3/ecdsa"
+	"github.com/decred/dcrd/wire"
 )
+
+// msgTx113875_1 mocks the first transaction from block 113875.
+func msgTx113875_1() *wire.MsgTx {
+	msgTx := wire.NewMsgTx()
+	txIn := wire.TxIn{
+		PreviousOutPoint: wire.OutPoint{
+			Hash:  chainhash.Hash{},
+			Index: 0xffffffff,
+			Tree:  wire.TxTreeRegular,
+		},
+		Sequence:        0xffffffff,
+		ValueIn:         5000000000,
+		BlockHeight:     0x3f3f3f3f,
+		BlockIndex:      0x2e2e2e2e,
+		SignatureScript: hexToBytes("0431dc001b0162"),
+	}
+	txOut := wire.TxOut{
+		Value:   5000000000,
+		Version: 0xf0f0,
+		PkScript: mustParseShortForm("DATA_65 0x04d64bdfd09eb1c5fe295abdeb1dca4281b" +
+			"e988e2da0b6c1c6a59dc226c28624e18175e851c96b973d81b01cc31f047834bc06d6d6e" +
+			"df620d184241a6aed8b63a6 CHECKSIG"),
+	}
+	msgTx.AddTxIn(&txIn)
+	msgTx.AddTxOut(&txOut)
+	msgTx.LockTime = 0
+	msgTx.Expiry = 0
+	return msgTx
+}
 
 // genRandomSig returns a random message, a signature of the message under the
 // public key and the public key. This function is used to generate randomized
@@ -134,5 +164,35 @@ func TestSigCacheAddMaxEntriesZeroOrNegative(t *testing.T) {
 	if len(sigCache.validSigs) != 0 {
 		t.Errorf("%v items found in sigcache, no items should have "+
 			"been added", len(sigCache.validSigs))
+	}
+}
+
+// TestShortTxHash tests the ability to generate the short hash of a transaction
+// accurately.
+func TestShortTxHash(t *testing.T) {
+	// Create test keys.
+	key1 := [shortTxHashKeySize]byte{0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
+		0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0}
+	key2 := [shortTxHashKeySize]byte{0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1,
+		0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1}
+
+	// Create test tx.
+	msgTx := msgTx113875_1()
+
+	// Generate a short tx hash for msgTx with key1.
+	hash := shortTxHash(msgTx, key1)
+
+	// Ensure that shortTxHash returns the same short tx hash when given the same
+	// key.
+	got := shortTxHash(msgTx, key1)
+	if hash != got {
+		t.Errorf("shortTxHash: wrong hash - got %d, want %d", got, hash)
+	}
+
+	// Ensure that shortTxHash returns a different short tx hash when given a
+	// different key.
+	got = shortTxHash(msgTx, key2)
+	if hash == got {
+		t.Errorf("shortTxHash: wanted different hash, but got same hash %d", got)
 	}
 }

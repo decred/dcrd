@@ -6,12 +6,20 @@
 package txscript
 
 import (
+	"crypto/rand"
+	"encoding/binary"
 	"sync"
 
+	"github.com/dchest/siphash"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/dcrec/secp256k1/v3"
 	"github.com/decred/dcrd/dcrec/secp256k1/v3/ecdsa"
+	"github.com/decred/dcrd/wire"
 )
+
+// shortTxHashKeySize is the size of the byte array required for key material
+// for the SipHash keyed shortTxHash function.
+const shortTxHashKeySize = 16
 
 // sigCacheEntry represents an entry in the SigCache. Entries within the
 // SigCache are keyed according to the sigHash of the signature. In the
@@ -98,4 +106,27 @@ func (s *SigCache) Add(sigHash chainhash.Hash, sig *ecdsa.Signature, pubKey *sec
 		}
 	}
 	s.validSigs[sigHash] = sigCacheEntry{sig, pubKey}
+}
+
+// createShortTxHashKey returns a cryptographically secure random key of size
+// shortTxHashKeySize that can be used for generating short transaction hashes
+// with the shortTxHash function.
+func createShortTxHashKey() ([shortTxHashKeySize]byte, error) {
+	var key [shortTxHashKeySize]byte
+	_, err := rand.Read(key[:])
+	if err != nil {
+		return key, err
+	}
+
+	return key, nil
+}
+
+// shortTxHash generates a short hash from the standard transaction hash. The
+// hash function used is SipHash-2-4, a keyed function, and it produces a 64-bit
+// hash.  The key that is used must be a cryptographically secure random key.
+func shortTxHash(msg *wire.MsgTx, key [shortTxHashKeySize]byte) uint64 {
+	k0 := binary.LittleEndian.Uint64(key[0:8])
+	k1 := binary.LittleEndian.Uint64(key[8:16])
+	txHash := msg.TxHash()
+	return siphash.Hash(k0, k1, txHash[:])
 }
