@@ -17,6 +17,11 @@ import (
 	"github.com/decred/dcrd/wire"
 )
 
+// ProactiveEvictionDepth is the depth of the block at which the signatures for
+// the transactions within the block are nearly guaranteed to no longer be
+// useful.
+const ProactiveEvictionDepth = 2
+
 // shortTxHashKeySize is the size of the byte array required for key material
 // for the SipHash keyed shortTxHash function.
 const shortTxHashKeySize = 16
@@ -138,4 +143,61 @@ func shortTxHash(msg *wire.MsgTx, key [shortTxHashKeySize]byte) uint64 {
 	k1 := binary.LittleEndian.Uint64(key[8:16])
 	txHash := msg.TxHash()
 	return siphash.Hash(k0, k1, txHash[:])
+}
+
+// EvictEntries removes all entries from the SigCache that correspond to the
+// transactions in the given block.  The block that is passed should be
+// ProactiveEvictionDepth blocks deep, which is the depth at which the
+// signatures for the transactions within the block are nearly guaranteed to no
+// longer be useful.
+//
+// EvictEntries wraps the unexported evictEntries method, which is run from a
+// goroutine.  evictEntries is only invoked if validSigs is not empty.  This
+// avoids starting a new goroutine when there is nothing to evict, such as when
+// syncing is ongoing.
+func (s *SigCache) EvictEntries(block *wire.MsgBlock) {
+	s.RLock()
+	if len(s.validSigs) == 0 {
+		s.RUnlock()
+		return
+	}
+	s.RUnlock()
+
+	go s.evictEntries(block)
+}
+
+// evictEntries removes all entries from the SigCache that correspond to the
+// transactions in the given block.  The block that is passed should be
+// ProactiveEvictionDepth blocks deep, which is the depth at which the
+// signatures for the transactions within the block are nearly guaranteed to no
+// longer be useful.
+//
+// Proactively evicting entries reduces the likelihood of the SigCache reaching
+// maximum capacity quickly and then relying on random eviction, which may
+// randomly evict entries that are still useful.
+//
+// This method must be run from a goroutine and should not be run during block
+// validation.
+func (s *SigCache) evictEntries(block *wire.MsgBlock) {
+	// Create a set consisting of the short tx hashes that are in the block.
+	numTxns := len(block.Transactions) + len(block.STransactions)
+	shortTxHashSet := make(map[uint64]struct{}, numTxns)
+	for _, tx := range block.Transactions {
+		shortTxHashSet[shortTxHash(tx, s.shortTxHashKey)] = struct{}{}
+	}
+	for _, stx := range block.STransactions {
+		shortTxHashSet[shortTxHash(stx, s.shortTxHashKey)] = struct{}{}
+	}
+
+	// Iterate through the entries in validSigs and remove any that are associated
+	// with a transaction in the block.  This is done by iterating through every
+	// entry in validSigs, since the alternative of also keying the map by the
+	// shortTxHash would take extra space.
+	s.Lock()
+	for sigHash, sigEntry := range s.validSigs {
+		if _, ok := shortTxHashSet[sigEntry.shortTxHash]; ok {
+			delete(s.validSigs, sigHash)
+		}
+	}
+	s.Unlock()
 }
