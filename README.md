@@ -30,7 +30,7 @@ Bundles:
 
 * [Decrediton](https://github.com/decred/decrediton): a GUI bundle for `dcrd`
   and `dcrwallet`
-* [CLI app suite](https://github.com/decred/decred-release/releases/tag/v1.5.1):
+* [CLI app suite](https://github.com/decred/decred-release/releases/latest):
   a CLI bundle for `dcrd` and `dcrwallet`
 
 ## What is dcrd?
