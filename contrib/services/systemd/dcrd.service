@@ -6,28 +6,27 @@ After=local-fs.target network-online.target network.target
 [Service]
 Type=simple
 
-# modify to your username
 User=dcrd
 Group=dcrd
 
-#dcrd appdir, %h will be replaced to ~/$User.
-ReadWritePaths=%h/.dcrd/
+# dcrd appdir
+ReadWritePaths=/home/dcrd/.dcrd/
 
-# dcrd datadir, modify if data directory on other mount device. e.g /data/dcrd-data/
-ReadWritePaths=%h/.dcrd/data
+# dcrd datadir
+ReadWritePaths=/home/dcrd/.dcrd/data
 
 # dcrd logdir
-ReadWritePaths=%h/.dcrd/logs
+ReadWritePaths=/home/dcrd/.dcrd/logs
 
 # launch dcrd
-ExecStart=%h/decred/dcrd
+ExecStart=/home/dcrd/decred/dcrd
 
 # restart dcrd
 TimeoutStopSec=10s
 Restart=on-abnormal
 RestartSec=10s
 
-#strict privilege
+# strict privilege
 CapabilityBoundingSet=
 NoNewPrivileges=true
 LockPersonality=true
