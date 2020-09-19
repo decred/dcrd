@@ -66,7 +66,10 @@ func genRandomSig() (*chainhash.Hash, *ecdsa.Signature, *secp256k1.PublicKey, er
 // TestSigCacheAddExists tests the ability to add, and later check the
 // existence of a signature triplet in the signature cache.
 func TestSigCacheAddExists(t *testing.T) {
-	sigCache := NewSigCache(200)
+	sigCache, err := NewSigCache(200)
+	if err != nil {
+		t.Fatalf("error creating NewSigCache: %v", err)
+	}
 
 	// Generate a random sigCache entry triplet.
 	msg1, sig1, key1, err := genRandomSig()
@@ -75,7 +78,7 @@ func TestSigCacheAddExists(t *testing.T) {
 	}
 
 	// Add the triplet to the signature cache.
-	sigCache.Add(*msg1, sig1, key1)
+	sigCache.Add(*msg1, sig1, key1, msgTx113875_1())
 
 	// The previously added triplet should now be found within the sigcache.
 	sig1Copy, _ := ecdsa.ParseDERSignature(sig1.Serialize())
@@ -91,7 +94,13 @@ func TestSigCacheAddExists(t *testing.T) {
 func TestSigCacheAddEvictEntry(t *testing.T) {
 	// Create a sigcache that can hold up to 100 entries.
 	sigCacheSize := uint(100)
-	sigCache := NewSigCache(sigCacheSize)
+	sigCache, err := NewSigCache(sigCacheSize)
+	if err != nil {
+		t.Fatalf("error creating NewSigCache: %v", err)
+	}
+
+	// Create test tx.
+	tx := msgTx113875_1()
 
 	// Fill the sigcache up with some random sig triplets.
 	for i := uint(0); i < sigCacheSize; i++ {
@@ -100,7 +109,7 @@ func TestSigCacheAddEvictEntry(t *testing.T) {
 			t.Fatalf("unable to generate random signature test data")
 		}
 
-		sigCache.Add(*msg, sig, key)
+		sigCache.Add(*msg, sig, key, tx)
 		sigCopy, _ := ecdsa.ParseDERSignature(sig.Serialize())
 		keyCopy, _ := secp256k1.ParsePubKey(key.SerializeCompressed())
 		if !sigCache.Exists(*msg, sigCopy, keyCopy) {
@@ -121,7 +130,7 @@ func TestSigCacheAddEvictEntry(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unable to generate random signature test data")
 	}
-	sigCache.Add(*msgNew, sigNew, keyNew)
+	sigCache.Add(*msgNew, sigNew, keyNew, tx)
 
 	// The sigcache should still have sigCache entries.
 	if uint(len(sigCache.validSigs)) != sigCacheSize {
@@ -141,7 +150,10 @@ func TestSigCacheAddEvictEntry(t *testing.T) {
 // with a max size <= 0, then no entries are added to the sigcache at all.
 func TestSigCacheAddMaxEntriesZeroOrNegative(t *testing.T) {
 	// Create a sigcache that can hold up to 0 entries.
-	sigCache := NewSigCache(0)
+	sigCache, err := NewSigCache(0)
+	if err != nil {
+		t.Fatalf("error creating NewSigCache: %v", err)
+	}
 
 	// Generate a random sigCache entry triplet.
 	msg1, sig1, key1, err := genRandomSig()
@@ -150,7 +162,7 @@ func TestSigCacheAddMaxEntriesZeroOrNegative(t *testing.T) {
 	}
 
 	// Add the triplet to the signature cache.
-	sigCache.Add(*msg1, sig1, key1)
+	sigCache.Add(*msg1, sig1, key1, msgTx113875_1())
 
 	// The generated triplet should not be found.
 	sig1Copy, _ := ecdsa.ParseDERSignature(sig1.Serialize())

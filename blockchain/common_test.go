@@ -103,13 +103,19 @@ func chainSetup(dbName string, params *chaincfg.Params) (*BlockChain, func(), er
 	// the chain parameters do not affect the global instance.
 	paramsCopy := *params
 
+	// Create a SigCache instance.
+	sigCache, err := txscript.NewSigCache(1000)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	// Create the main chain instance.
 	chain, err := New(context.Background(),
 		&Config{
 			DB:          db,
 			ChainParams: &paramsCopy,
 			TimeSource:  NewMedianTime(),
-			SigCache:    txscript.NewSigCache(1000),
+			SigCache:    sigCache,
 		})
 
 	if err != nil {
