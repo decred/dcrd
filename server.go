@@ -3067,6 +3067,12 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB, chainP
 		}
 	}
 
+	// Create a SigCache instance.
+	sigCache, err := txscript.NewSigCache(cfg.SigCacheMaxSize)
+	if err != nil {
+		return nil, err
+	}
+
 	s := server{
 		chainParams:          chainParams,
 		addrManager:          amgr,
@@ -3082,7 +3088,7 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB, chainP
 		db:                   db,
 		timeSource:           blockchain.NewMedianTime(),
 		services:             services,
-		sigCache:             txscript.NewSigCache(cfg.SigCacheMaxSize),
+		sigCache:             sigCache,
 		subsidyCache:         standalone.NewSubsidyCache(chainParams),
 	}
 

@@ -2505,7 +2505,7 @@ func opcodeCheckSig(op *opcode, data []byte, vm *Engine) error {
 
 		valid = vm.sigCache.Exists(sigHash, signature, pubKey)
 		if !valid && signature.Verify(hash, pubKey) {
-			vm.sigCache.Add(sigHash, signature, pubKey)
+			vm.sigCache.Add(sigHash, signature, pubKey, &vm.tx)
 			valid = true
 		}
 	} else {
@@ -2707,7 +2707,7 @@ func opcodeCheckMultiSig(op *opcode, data []byte, vm *Engine) error {
 
 			valid = vm.sigCache.Exists(sigHash, parsedSig, parsedPubKey)
 			if !valid && parsedSig.Verify(hash, parsedPubKey) {
-				vm.sigCache.Add(sigHash, parsedSig, parsedPubKey)
+				vm.sigCache.Add(sigHash, parsedSig, parsedPubKey, &vm.tx)
 				valid = true
 			}
 		} else {

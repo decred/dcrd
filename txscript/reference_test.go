@@ -392,7 +392,11 @@ func testScripts(t *testing.T, tests [][]string, useSigCache bool) {
 	// Create a signature cache to use only if requested.
 	var sigCache *SigCache
 	if useSigCache {
-		sigCache = NewSigCache(10)
+		var err error
+		sigCache, err = NewSigCache(10)
+		if err != nil {
+			t.Fatalf("error creating NewSigCache: %v", err)
+		}
 	}
 
 	// "Format is: [scriptSig, scriptPubKey, flags, expectedScriptError, ...

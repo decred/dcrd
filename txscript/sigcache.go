@@ -24,12 +24,13 @@ const shortTxHashKeySize = 16
 // sigCacheEntry represents an entry in the SigCache. Entries within the
 // SigCache are keyed according to the sigHash of the signature. In the
 // scenario of a cache-hit (according to the sigHash), an additional comparison
-// of the signature, and public key will be executed in order to ensure a complete
+// of the signature and public key will be executed in order to ensure a complete
 // match. In the occasion that two sigHashes collide, the newer sigHash will
 // simply overwrite the existing entry.
 type sigCacheEntry struct {
-	sig    *ecdsa.Signature
-	pubKey *secp256k1.PublicKey
+	sig         *ecdsa.Signature
+	pubKey      *secp256k1.PublicKey
+	shortTxHash uint64
 }
 
 // SigCache implements an ECDSA signature verification cache with a randomized
@@ -44,8 +45,9 @@ type sigCacheEntry struct {
 // if they've already been seen and verified within the mempool.
 type SigCache struct {
 	sync.RWMutex
-	validSigs  map[chainhash.Hash]sigCacheEntry
-	maxEntries uint
+	validSigs      map[chainhash.Hash]sigCacheEntry
+	maxEntries     uint
+	shortTxHashKey [shortTxHashKeySize]byte
 }
 
 // NewSigCache creates and initializes a new instance of SigCache. Its sole
@@ -53,11 +55,18 @@ type SigCache struct {
 // exist in the SigCache at any particular moment. Random entries are evicted
 // to make room for new entries that would cause the number of entries in the
 // cache to exceed the max.
-func NewSigCache(maxEntries uint) *SigCache {
-	return &SigCache{
-		validSigs:  make(map[chainhash.Hash]sigCacheEntry, maxEntries),
-		maxEntries: maxEntries,
+func NewSigCache(maxEntries uint) (*SigCache, error) {
+	// Create a cryptographically secure random key for generating short tx hashes.
+	shortTxHashKey, err := createShortTxHashKey()
+	if err != nil {
+		return nil, err
 	}
+
+	return &SigCache{
+		validSigs:      make(map[chainhash.Hash]sigCacheEntry, maxEntries),
+		maxEntries:     maxEntries,
+		shortTxHashKey: shortTxHashKey,
+	}, nil
 }
 
 // Exists returns true if an existing entry of 'sig' over 'sigHash' for public
@@ -80,7 +89,7 @@ func (s *SigCache) Exists(sigHash chainhash.Hash, sig *ecdsa.Signature, pubKey *
 //
 // NOTE: This function is safe for concurrent access. Writers will block
 // simultaneous readers until function execution has concluded.
-func (s *SigCache) Add(sigHash chainhash.Hash, sig *ecdsa.Signature, pubKey *secp256k1.PublicKey) {
+func (s *SigCache) Add(sigHash chainhash.Hash, sig *ecdsa.Signature, pubKey *secp256k1.PublicKey, tx *wire.MsgTx) {
 	s.Lock()
 	defer s.Unlock()
 
@@ -105,7 +114,7 @@ func (s *SigCache) Add(sigHash chainhash.Hash, sig *ecdsa.Signature, pubKey *sec
 			break
 		}
 	}
-	s.validSigs[sigHash] = sigCacheEntry{sig, pubKey}
+	s.validSigs[sigHash] = sigCacheEntry{sig, pubKey, shortTxHash(tx, s.shortTxHashKey)}
 }
 
 // createShortTxHashKey returns a cryptographically secure random key of size
