@@ -918,13 +918,9 @@ func (sp *serverPeer) OnBlock(p *peer.Peer, msg *wire.MsgBlock, buf []byte) {
 // accordingly.  We pass the message down to blockmanager which will call
 // QueueMessage with any appropriate responses.
 func (sp *serverPeer) OnInv(p *peer.Peer, msg *wire.MsgInv) {
-	// Ban non-whitelisted peers sending empty inventory requests.
+	// Ban peers sending empty inventory requests.
 	if len(msg.InvList) == 0 {
-		if !sp.isWhitelisted {
-			sp.server.BanPeer(sp)
-			sp.Disconnect()
-		}
-
+		sp.server.BanPeer(sp)
 		return
 	}
 
@@ -954,13 +950,9 @@ func (sp *serverPeer) OnInv(p *peer.Peer, msg *wire.MsgInv) {
 // OnHeaders is invoked when a peer receives a headers wire message.  The
 // message is passed down to the block manager.
 func (sp *serverPeer) OnHeaders(_ *peer.Peer, msg *wire.MsgHeaders) {
-	// Ban non-whitelisted peers sending empty headers requests.
+	// Ban peers sending empty headers requests.
 	if len(msg.Headers) == 0 {
-		if !sp.isWhitelisted {
-			sp.server.BanPeer(sp)
-			sp.Disconnect()
-		}
-
+		sp.server.BanPeer(sp)
 		return
 	}
 
@@ -970,13 +962,9 @@ func (sp *serverPeer) OnHeaders(_ *peer.Peer, msg *wire.MsgHeaders) {
 // handleGetData is invoked when a peer receives a getdata wire message and is
 // used to deliver block and transaction information.
 func (sp *serverPeer) OnGetData(p *peer.Peer, msg *wire.MsgGetData) {
-	// Ban non-whitelisted peers sending empty getdata requests.
+	// Ban peers sending empty getdata requests.
 	if len(msg.InvList) == 0 {
-		if !sp.isWhitelisted {
-			sp.server.BanPeer(sp)
-			sp.Disconnect()
-		}
-
+		sp.server.BanPeer(sp)
 		return
 	}
 
@@ -1167,12 +1155,8 @@ func (sp *serverPeer) OnGetCFilter(p *peer.Peer, msg *wire.MsgGetCFilter) {
 		peerLog.Warnf("OnGetCFilter: unsupported filter type '%v' from %s",
 			msg.FilterType, sp)
 
-		// Ban non-whitelisted peers requesting unsupported filter types.
-		if !sp.isWhitelisted {
-			sp.server.BanPeer(sp)
-			sp.Disconnect()
-		}
-
+		// Ban peers requesting unsupported filter types.
+		sp.server.BanPeer(sp)
 		return
 	}
 
@@ -1273,12 +1257,8 @@ func (sp *serverPeer) OnGetCFHeaders(p *peer.Peer, msg *wire.MsgGetCFHeaders) {
 		peerLog.Warnf("OnGetCFilter: unsupported filter type '%v' from %s",
 			msg.FilterType, sp)
 
-		// Ban non-whitelisted peers requesting unsupported filter types.
-		if !sp.isWhitelisted {
-			sp.server.BanPeer(sp)
-			sp.Disconnect()
-		}
-
+		// Ban peers requesting unsupported filter types.
+		sp.server.BanPeer(sp)
 		return
 	}
 
@@ -1391,12 +1371,8 @@ func (sp *serverPeer) OnAddr(p *peer.Peer, msg *wire.MsgAddr) {
 		peerLog.Errorf("Command [%s] from %s does not contain any addresses",
 			msg.Command(), p)
 
-		// Ban non-whitelisted peers sending empty address requests.
-		if !sp.isWhitelisted {
-			sp.server.BanPeer(sp)
-			sp.Disconnect()
-		}
-
+		// Ban peers sending empty address requests.
+		sp.server.BanPeer(sp)
 		return
 	}
 
@@ -1429,15 +1405,11 @@ func (sp *serverPeer) OnAddr(p *peer.Peer, msg *wire.MsgAddr) {
 // OnRead is invoked when a peer receives a message and it is used to update
 // the bytes received by the server.
 func (sp *serverPeer) OnRead(p *peer.Peer, bytesRead int, msg wire.Message, err error) {
-	// Ban non-whitelisted peers sending messages that do not conform to the
-	// wire protocol.
+	// Ban peers sending messages that do not conform to the wire protocol.
 	var errCode wire.ErrorCode
 	if errors.As(err, &errCode) {
 		peerLog.Errorf("Unable to read wire message from %s: %v", sp, err)
-		if !cfg.DisableBanning && !sp.isWhitelisted {
-			sp.server.BanPeer(sp)
-			sp.Disconnect()
-		}
+		sp.server.BanPeer(sp)
 	}
 
 	sp.server.AddBytesReceived(uint64(bytesRead))
@@ -2328,8 +2300,13 @@ func (s *server) AddPeer(sp *serverPeer) {
 	s.newPeers <- sp
 }
 
-// BanPeer bans a peer that has already been connected to the server by ip.
+// BanPeer bans a peer that has already been connected to the server by ip
+// unless banning is disabled or the peer has been whitelisted.
 func (s *server) BanPeer(sp *serverPeer) {
+	if cfg.DisableBanning || sp.isWhitelisted {
+		return
+	}
+	sp.Disconnect()
 	s.banPeers <- sp
 }
 
