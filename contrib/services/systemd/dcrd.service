@@ -27,6 +27,7 @@ Restart=on-abnormal
 RestartSec=10s
 
 # strict privilege
+InaccessiblePaths=/usr/local/sbin /usr/local/bin /usr/sbin /usr/bin /sbin /bin
 CapabilityBoundingSet=
 NoNewPrivileges=true
 LockPersonality=true
