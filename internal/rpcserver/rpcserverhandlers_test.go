@@ -4245,6 +4245,61 @@ func TestHandleGetHashesPerSec(t *testing.T) {
 	}})
 }
 
+func TestHandleGetHeaders(t *testing.T) {
+	t.Parallel()
+
+	hash32 := "349b3e23b64cb4b71d09b9be4652c9e02e73430daee1285ea03d92aa437dcf37"
+	headerBytes, err := block432100.Header.Bytes()
+	if err != nil {
+		t.Fatal(err)
+	}
+	header := hex.EncodeToString(headerBytes)
+	chain := defaultMockRPCChain()
+	chain.locateHeaders = []wire.BlockHeader{block432100.Header, block432100.Header}
+
+	testRPCServerHandler(t, []rpcTest{{
+		name:      "handleGetHeaders: ok with hashstop",
+		handler:   handleGetHeaders,
+		mockChain: chain,
+		cmd: &types.GetHeadersCmd{
+			BlockLocators: []string{hash32, hash32},
+			HashStop:      hash32,
+		},
+		result: &types.GetHeadersResult{
+			Headers: []string{header, header},
+		},
+	}, {
+		name:      "handleGetHeaders: ok no hashstop",
+		handler:   handleGetHeaders,
+		mockChain: chain,
+		cmd: &types.GetHeadersCmd{
+			BlockLocators: []string{hash32, hash32},
+		},
+		result: &types.GetHeadersResult{
+			Headers: []string{header, header},
+		},
+	}, {
+		name:      "handleGetHeaders: bad locator",
+		handler:   handleGetHeaders,
+		mockChain: chain,
+		cmd: &types.GetHeadersCmd{
+			BlockLocators: []string{hash32, "bad hex"},
+		},
+		wantErr: true,
+		errCode: dcrjson.ErrRPCDecodeHexString,
+	}, {
+		name:      "handleGetHeaders: bad hashstop",
+		handler:   handleGetHeaders,
+		mockChain: chain,
+		cmd: &types.GetHeadersCmd{
+			BlockLocators: []string{hash32, hash32},
+			HashStop:      "bad hex",
+		},
+		wantErr: true,
+		errCode: dcrjson.ErrRPCInvalidParameter,
+	}})
+}
+
 func TestHandleGetInfo(t *testing.T) {
 	t.Parallel()
 
