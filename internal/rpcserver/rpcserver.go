@@ -2250,12 +2250,12 @@ func handleGetDifficulty(_ context.Context, s *Server, cmd interface{}) (interfa
 }
 
 // handleGetGenerate implements the getgenerate command.
-func handleGetGenerate(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
+func handleGetGenerate(_ context.Context, s *Server, _ interface{}) (interface{}, error) {
 	return s.cfg.CPUMiner.IsMining(), nil
 }
 
 // handleGetHashesPerSec implements the gethashespersec command.
-func handleGetHashesPerSec(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
+func handleGetHashesPerSec(_ context.Context, s *Server, _ interface{}) (interface{}, error) {
 	return int64(s.cfg.CPUMiner.HashesPerSecond()), nil
 }
 

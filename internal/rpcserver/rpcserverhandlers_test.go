@@ -4225,6 +4225,26 @@ func TestHandleGetDifficulty(t *testing.T) {
 	}})
 }
 
+func TestHandleGetGenerate(t *testing.T) {
+	t.Parallel()
+
+	testRPCServerHandler(t, []rpcTest{{
+		name:    "handleGetGenerate: ok",
+		handler: handleGetGenerate,
+		result:  false,
+	}})
+}
+
+func TestHandleGetHashesPerSec(t *testing.T) {
+	t.Parallel()
+
+	testRPCServerHandler(t, []rpcTest{{
+		name:    "handleGetHashesPerSec: ok",
+		handler: handleGetHashesPerSec,
+		result:  int64(0),
+	}})
+}
+
 func TestHandleGetInfo(t *testing.T) {
 	t.Parallel()
 
