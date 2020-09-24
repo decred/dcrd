@@ -438,6 +438,7 @@ func (w *VotingWallet) handleBlockConnectedNtfn(ntfn *blockConnectedNtfn) {
 		changeAmount := utxos[i].amount - commitAmount
 
 		t := &tickets[i]
+		t.Version = wire.TxVersion
 		t.AddTxIn(wire.NewTxIn(&utxos[i].outpoint, wire.NullValueIn, nil))
 		t.AddTxOut(wire.NewTxOut(ticketPrice, w.p2sstx))
 		t.AddTxOut(wire.NewTxOut(0, w.commitmentScript))
@@ -525,6 +526,7 @@ func (w *VotingWallet) handleWinningTicketsNtfn(ntfn *winningTicketsNtfn) {
 		// Create a corresponding vote transaction.
 		vote := &votes[nbVotes]
 		nbVotes++
+		vote.Version = wire.TxVersion
 		vote.AddTxIn(wire.NewTxIn(
 			&stakebaseOutPoint, stakebaseValue, w.hn.ActiveNet.StakeBaseSigScript,
 		))
