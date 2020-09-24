@@ -322,6 +322,10 @@ the method name for further details such as parameter and return information.
 |N
 |Returns the current value of all locked funds in the ticket pool.
 |-
+|[[#gettreasurybalance|gettreasurybalance]]
+|Y
+|Returns the mature balance of the treasury account.
+|-
 |[[#gettreasuryspendvotes|gettreasuryspendvotes]]
 |N
 |Returns the vote counts for mempool or mined treasury spend transactions.
@@ -1903,6 +1907,31 @@ of the best block.
 |-
 !Example Return
 |<code>5214124.18608402</code>
+|}
+
+----
+
+====gettreasurybalance====
+{|
+!Method
+|gettreasurybalance
+|-
+!Parameters
+# <code>hash</code>: <code>(string, optional)</code> Return the treasury balance at the specified block. If unspecified, return the balance for the current tip block.
+# <code>verbose</code>: <code>(bool, optional)</code> Whether to fill the <code>updates</code> field of the response. Defaults to false.
+|-
+!Description
+| Returns the matured balance of the network's treasury account. It optionally also returns the individual balance-changing amounts (treasury base, add and spend transactions) for the block.
+|-
+!Returns
+|<code>(json object)</code>
+| <code>hash</code>: <code>(string)</code> Block hash for which the balance was fetched.
+| <code>height</code>: <code>(numeric)</code> Block height for which the balance was fetched.
+| <code>balance</code>: <code>(numeric)</code> Balance (in atoms) of mature funds of the treasury account.
+| <code>updates</code>: <code>(json array of numeric)</code>: Individual amounts that affect the treasury balance in the given block. Amounts corresponding to treasury spend transactions will be negative. Only filled if <code>verbose</code> is specified.
+|-
+!Example Return
+|<code>{"hash": "00000000000000001605faff0827dafcea7d0986cf0aad06e87eccf9e02ff441","height": 428944,"balance": 1923209183818,"updates":[157007970,19200000000,-1892811207]}</code>
 |}
 
 ----
