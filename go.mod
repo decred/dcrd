@@ -8,27 +8,27 @@ require (
 	github.com/decred/base58 v1.0.3
 	github.com/decred/dcrd/addrmgr v1.1.0
 	github.com/decred/dcrd/bech32 v1.0.0
-	github.com/decred/dcrd/blockchain/stake/v3 v3.0.0-20200215031403-6b2ce76f0986
+	github.com/decred/dcrd/blockchain/stake/v3 v3.0.0-20200921173733-67245079e9fb
 	github.com/decred/dcrd/blockchain/standalone/v2 v2.0.0
 	github.com/decred/dcrd/blockchain/v3 v3.0.0-20200215031403-6b2ce76f0986
 	github.com/decred/dcrd/certgen v1.1.0
 	github.com/decred/dcrd/chaincfg/chainhash v1.0.2
-	github.com/decred/dcrd/chaincfg/v3 v3.0.0-20200215031403-6b2ce76f0986
+	github.com/decred/dcrd/chaincfg/v3 v3.0.0-20200921173733-67245079e9fb
 	github.com/decred/dcrd/connmgr/v3 v3.0.0-20200215031403-6b2ce76f0986
 	github.com/decred/dcrd/crypto/ripemd160 v1.0.0
 	github.com/decred/dcrd/database/v2 v2.0.1
 	github.com/decred/dcrd/dcrec v1.0.0
-	github.com/decred/dcrd/dcrec/secp256k1/v3 v3.0.0-20200608124004-b2f67c2dc475
+	github.com/decred/dcrd/dcrec/secp256k1/v3 v3.0.0-20200921173733-67245079e9fb
 	github.com/decred/dcrd/dcrjson/v3 v3.0.1
-	github.com/decred/dcrd/dcrutil/v3 v3.0.0-20200503044000-76f6906e50e5
-	github.com/decred/dcrd/gcs/v2 v2.0.1
+	github.com/decred/dcrd/dcrutil/v3 v3.0.0-20200921173733-67245079e9fb
+	github.com/decred/dcrd/gcs/v2 v2.0.2-0.20200921173733-67245079e9fb
 	github.com/decred/dcrd/hdkeychain/v3 v3.0.0
 	github.com/decred/dcrd/lru v1.0.0
 	github.com/decred/dcrd/peer/v2 v2.1.0
 	github.com/decred/dcrd/rpc/jsonrpc/types/v2 v2.0.1-0.20200503044000-76f6906e50e5
 	github.com/decred/dcrd/rpcclient/v6 v6.0.0-20200215031403-6b2ce76f0986
 	github.com/decred/dcrd/txscript/v3 v3.0.0
-	github.com/decred/dcrd/wire v1.3.0
+	github.com/decred/dcrd/wire v1.3.1-0.20200921173733-67245079e9fb
 	github.com/decred/go-socks v1.1.0
 	github.com/decred/slog v1.0.0
 	github.com/gorilla/websocket v1.4.2
