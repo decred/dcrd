@@ -107,7 +107,13 @@ func TestNet3Params() *Params {
 		// Checkpoints ordered from oldest to newest.
 		Checkpoints: []Checkpoint{
 			{83520, newHashFromStr("0000000001e6244d95feae8b598e854905158c7bc781daf874afff88675ef0c8")},
+			{148320, newHashFromStr("0000000003535b80e4b759b8ec1790f81f429d9f5a810eda43c3afb64d9760b1")},
+			{213120, newHashFromStr("000000000009bb6909db742278f3ab7c9169ef396068cce7f750b587b72738af")},
 			{282340, newHashFromStr("0000001f538d6343316fe50709fa544b680a1be38141d003e755da8ad30f67a8")},
+			{347140, newHashFromStr("0000001638f00f197b882a00db04d1323e205f45bf1108e4f1bbc1f456d4250c")},
+			{411940, newHashFromStr("00000012b6d21f31f18a2f6d8b64e111327f011ac13a1b3e9d0d8b477f71f62b")},
+			{476740, newHashFromStr("00000005635a4b783ad4d85e0cb92f094e2e885a92ef4d6b8464b22a02646279")},
+			{515730, newHashFromStr("00000010ecddf8da5d91f7020f69130db8a163906d460cbbed2a91568701f0ac")},
 		},
 
 		// MinKnownChainWork is the minimum amount of known total work for the
