@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	stdlog "log"
 	"math"
 	"math/big"
 	"net"
@@ -5858,6 +5859,17 @@ func jsonAuthFail(w http.ResponseWriter) {
 	http.Error(w, "401 Unauthorized.", http.StatusUnauthorized)
 }
 
+// logForwarder provides logic to forward log messages writing to an io.Writer
+// to the rpcserver logger.
+type logForwarder struct{}
+
+// Write implements the io.Writer interface and forwards the message to the
+// active rpcserver logger.
+func (logForwarder) Write(p []byte) (int, error) {
+	log.Error(strings.TrimRight(string(p), "\r\n"))
+	return len(p), nil
+}
+
 // route sets up the endpoints of the rpc server.
 func (s *Server) route(ctx context.Context) *http.Server {
 	rpcServeMux := http.NewServeMux()
@@ -5867,6 +5879,10 @@ func (s *Server) route(ctx context.Context) *http.Server {
 		// Timeout connections which don't complete the initial
 		// handshake within the allowed timeframe.
 		ReadTimeout: time.Second * rpcAuthTimeoutSeconds,
+
+		// Reroute http server error logging through the rpcserver
+		// logger.
+		ErrorLog: stdlog.New(logForwarder{}, "", 0),
 	}
 	rpcServeMux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Connection", "close")
