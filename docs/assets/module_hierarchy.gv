@@ -13,7 +13,7 @@ digraph {
 	dcrec [label="dcrec" fillcolor=mediumpurple]
 	edwards [label="dcrec/edwards/v2" fillcolor=lightseagreen]
 	secp256k1 [label="dcrec/secp256k1/v3" fillcolor=mediumvioletred]
-	dcrutil [label="dcrutil/v2" fillcolor=burlywood]
+	dcrutil [label="dcrutil/v3" fillcolor=burlywood]
 	database [label="database/v2" fillcolor=dodgerblue]
 	hdkeychain [label="hdkeychain/v2" fillcolor=deepskyblue]
 	txscript [label="txscript/v2" fillcolor=mediumspringgreen]
@@ -26,6 +26,8 @@ digraph {
 	rpcclient [label="rpcclient/v4" fillcolor=mediumseagreen]
 	dcrd [label="dcrd" fillcolor=chocolate]
 
+	{rank=same wire secp256k1 dcrjson}
+	{rank=same dcrec chaincfg edwards}
 	{rank=same connmgr addrmgr hdkeychain peer rpcclient}
 
 	certgen
@@ -35,7 +37,6 @@ digraph {
 	wire -> chaincfg [dir=back color=coral]
 	wire -> connmgr [dir=back color=coral]
 	chainhash -> secp256k1 [dir=back color=aquamarine]
-	chaincfg -> dcrutil [dir=back color=cadetblue]
 	dcrec -> dcrutil [dir=back color=mediumpurple]
 	edwards ->  dcrutil [dir=back color=lightseagreen]
 	secp256k1 ->  dcrutil [dir=back color=mediumvioletred]

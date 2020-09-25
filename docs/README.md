@@ -200,7 +200,7 @@ The following versioned modules are provided by dcrd repository:
     Implements the edwards25519 twisted Edwards curve
 * [database/v2](https://github.com/decred/dcrd/tree/master/database) -
   Provides a database interface for the Decred block chain
-* [dcrutil/v2](https://github.com/decred/dcrd/tree/master/dcrutil) - Provides
+* [dcrutil/v3](https://github.com/decred/dcrd/tree/master/dcrutil) - Provides
   Decred-specific convenience functions and types
 * [chaincfg/v3](https://github.com/decred/dcrd/tree/master/chaincfg) - Defines
   chain configuration parameters for the standard Decred networks and allows
