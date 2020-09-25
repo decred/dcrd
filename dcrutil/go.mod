@@ -11,7 +11,7 @@ require (
 	github.com/decred/dcrd/dcrec v1.0.0
 	github.com/decred/dcrd/dcrec/edwards/v2 v2.0.0
 	github.com/decred/dcrd/dcrec/secp256k1/v3 v3.0.0-20200215031403-6b2ce76f0986
-	github.com/decred/dcrd/wire v1.3.0
+	github.com/decred/dcrd/wire v1.4.0
 )
 
 replace (

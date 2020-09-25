@@ -7,7 +7,7 @@ require (
 	github.com/decred/dcrd/chaincfg/chainhash v1.0.2
 	github.com/decred/dcrd/lru v1.0.0
 	github.com/decred/dcrd/txscript/v3 v3.0.0-20200215031403-6b2ce76f0986
-	github.com/decred/dcrd/wire v1.3.0
+	github.com/decred/dcrd/wire v1.4.0
 	github.com/decred/go-socks v1.1.0
 	github.com/decred/slog v1.0.0
 )
@@ -17,5 +17,4 @@ replace (
 	github.com/decred/dcrd/dcrec/secp256k1/v3 => ../dcrec/secp256k1
 	github.com/decred/dcrd/dcrutil/v3 => ../dcrutil
 	github.com/decred/dcrd/txscript/v3 => ../txscript
-	github.com/decred/dcrd/wire => ../wire
 )

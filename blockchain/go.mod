@@ -13,7 +13,7 @@ require (
 	github.com/decred/dcrd/dcrutil/v3 v3.0.0-20200921173733-67245079e9fb
 	github.com/decred/dcrd/gcs/v2 v2.0.2-0.20200921173733-67245079e9fb
 	github.com/decred/dcrd/txscript/v3 v3.0.0-20200921173733-67245079e9fb
-	github.com/decred/dcrd/wire v1.3.1-0.20200921173733-67245079e9fb
+	github.com/decred/dcrd/wire v1.4.0
 	github.com/decred/slog v1.0.0
 )
 
@@ -25,5 +25,4 @@ replace (
 	github.com/decred/dcrd/dcrutil/v3 => ../dcrutil
 	github.com/decred/dcrd/gcs/v2 => ../gcs
 	github.com/decred/dcrd/txscript/v3 => ../txscript
-	github.com/decred/dcrd/wire => ../wire
 )
