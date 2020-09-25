@@ -873,8 +873,9 @@ type tspendVotes struct {
 	no    int    // No vote tally
 }
 
-// tSpendCountVotes returns the vote tally for a given tspend.
-// NOTE: This function must only be called on a TVI.
+// tSpendCountVotes returns the vote tally for a given tspend up to the
+// specified block. Note that this function errors if the block is outside the
+// voting window for the given tspend.
 func (b *BlockChain) tSpendCountVotes(prevNode *blockNode, tspend *dcrutil.Tx) (*tspendVotes, error) {
 	trsyLog.Tracef("tSpendCountVotes: processing tspend %v", tspend.Hash())
 
@@ -982,9 +983,8 @@ func (b *BlockChain) TSpendCountVotes(block *chainhash.Hash, tspend *dcrutil.Tx)
 }
 
 // checkTSpendHasVotes verifies that the provided TSpend has enough votes to be
-// included in the provided block. This function must only be called on a TVI.
-// Note that block can be incomplete; it only must contain the right height.
-// This is needed in the mining path.
+// included in a block _after_ the provided block node. Such child node MUST be
+// on a TVI.
 func (b *BlockChain) checkTSpendHasVotes(prevNode *blockNode, tspend *dcrutil.Tx) error {
 	t, err := b.tSpendCountVotes(prevNode, tspend)
 	if err != nil {
@@ -1027,15 +1027,17 @@ func (b *BlockChain) checkTSpendHasVotes(prevNode *blockNode, tspend *dcrutil.Tx
 	return nil
 }
 
-// CheckTSpendHasVotes exports checkTSpendHasVotes for mining purposes.
+// CheckTSpendHasVotes checks whether the given tspend has enough votes to be
+// included in a block _after_ the specified prevHash block.
 //
-// Block MUST have the Header.Height set to the correct height of the (future)
-// block and Header.PrevBlock MUST be set to the hash of the parent block of
-// the future block.
+// Such child block MUST be on a TVI, otherwise the result of this function may
+// not correspond to the behavior of the consensus rules.
+//
+// This function is safe for concurrent access.
 func (b *BlockChain) CheckTSpendHasVotes(prevHash chainhash.Hash, tspend *dcrutil.Tx) error {
 	prevNode := b.index.LookupNode(&prevHash)
 	if prevNode == nil {
-		return fmt.Errorf("unknown previous block %s", prevHash)
+		return UnknownBlockError(prevHash)
 	}
 	return b.checkTSpendHasVotes(prevNode, tspend)
 }
