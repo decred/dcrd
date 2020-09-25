@@ -319,6 +319,7 @@ func Regular(block *wire.MsgBlock, prevScripts PrevScripter) (*gcs.FilterV2, err
 	//
 	// - Treasury add:
 	//   - Input scripts that are payments to the treasury
+	//   - Output script for the second output if it exists (tadd change)
 	//
 	// - Treasury spends:
 	//   - Output scripts that make payments
