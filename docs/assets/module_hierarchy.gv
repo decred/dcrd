@@ -8,7 +8,7 @@ digraph {
 	types [label="rpc/jsonrpc/types" fillcolor=tomato]
 	wire [label="wire" fillcolor=coral]
 	addrmgr [label="addrmgr" fillcolor=lightsalmon]
-	chaincfg [label="chaincfg/v2" fillcolor=cadetblue]
+	chaincfg [label="chaincfg/v3" fillcolor=cadetblue]
 	connmgr [label="connmgr/v3" fillcolor=mistyrose]
 	dcrec [label="dcrec" fillcolor=mediumpurple]
 	edwards [label="dcrec/edwards/v2" fillcolor=lightseagreen]

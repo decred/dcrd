@@ -93,7 +93,7 @@
 <!-- chaincfg -->
 <g id="node7" class="node"><title>chaincfg</title>
 <path fill="cadetblue" stroke="black" d="M264,-540C264,-540 207,-540 207,-540 201,-540 195,-534 195,-528 195,-528 195,-516 195,-516 195,-510 201,-504 207,-504 207,-504 264,-504 264,-504 270,-504 276,-510 276,-516 276,-516 276,-528 276,-528 276,-534 270,-540 264,-540"/>
-<text text-anchor="middle" x="235.5" y="-518.3" font-family="Times New Roman,serif" font-size="14.00">chaincfg/v2</text>
+<text text-anchor="middle" x="235.5" y="-518.3" font-family="Times New Roman,serif" font-size="14.00">chaincfg/v3</text>
 </g>
 <!-- wire&#45;&gt;chaincfg -->
 <g id="edge4" class="edge"><title>wire&#45;&gt;chaincfg</title>
