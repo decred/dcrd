@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/decred/dcrd/chaincfg/v3"
 	"github.com/decred/dcrd/dcrec"
 	"github.com/decred/dcrd/dcrutil/v3"
 )
@@ -80,6 +79,74 @@ func ExampleAmount_unitConversions() {
 	// Atom to Atom: 44433322211100 Atom
 }
 
+// mockAddrParams implements the AddressParams interface and is used throughout
+// the tests to mock multiple networks.
+type mockAddrParams struct {
+	pubKeyID     [2]byte
+	pkhEcdsaID   [2]byte
+	pkhEd25519ID [2]byte
+	pkhSchnorrID [2]byte
+	scriptHashID [2]byte
+	privKeyID    [2]byte
+}
+
+// AddrIDPubKeyV0 returns the magic prefix bytes associated with the mock params
+// for version 0 pay-to-pubkey addresses.
+//
+// This is part of the AddressParams interface.
+func (p *mockAddrParams) AddrIDPubKeyV0() [2]byte {
+	return p.pubKeyID
+}
+
+// AddrIDPubKeyHashECDSAV0 returns the magic prefix bytes associated with the
+// mock params for version 0 pay-to-pubkey-hash addresses where the underlying
+// pubkey is secp256k1 and the signature algorithm is ECDSA.
+//
+// This is part of the AddressParams interface.
+func (p *mockAddrParams) AddrIDPubKeyHashECDSAV0() [2]byte {
+	return p.pkhEcdsaID
+}
+
+// AddrIDPubKeyHashEd25519V0 returns the magic prefix bytes associated with the
+// mock params for version 0 pay-to-pubkey-hash addresses where the underlying
+// pubkey and signature algorithm are Ed25519.
+//
+// This is part of the AddressParams interface.
+func (p *mockAddrParams) AddrIDPubKeyHashEd25519V0() [2]byte {
+	return p.pkhEd25519ID
+}
+
+// AddrIDPubKeyHashSchnorrV0 returns the magic prefix bytes associated with the
+// mock params for version 0 pay-to-pubkey-hash addresses where the underlying
+// pubkey is secp256k1 and the signature algorithm is Schnorr.
+//
+// This is part of the AddressParams interface.
+func (p *mockAddrParams) AddrIDPubKeyHashSchnorrV0() [2]byte {
+	return p.pkhSchnorrID
+}
+
+// AddrIDScriptHashV0 returns the magic prefix bytes associated with the mock
+// params for version 0 pay-to-script-hash addresses.
+//
+// This is part of the AddressParams interface.
+func (p *mockAddrParams) AddrIDScriptHashV0() [2]byte {
+	return p.scriptHashID
+}
+
+// mockMainNetParams returns mock mainnet address parameters to use throughout
+// the tests.  They match the Decred mainnet params as of the time this comment
+// was written.
+func mockMainNetParams() *mockAddrParams {
+	return &mockAddrParams{
+		pubKeyID:     [2]byte{0x13, 0x86}, // starts with Dk
+		pkhEcdsaID:   [2]byte{0x07, 0x3f}, // starts with Ds
+		pkhEd25519ID: [2]byte{0x07, 0x1f}, // starts with De
+		pkhSchnorrID: [2]byte{0x07, 0x01}, // starts with DS
+		scriptHashID: [2]byte{0x07, 0x1a}, // starts with Dc
+		privKeyID:    [2]byte{0x22, 0xde}, // starts with Pm
+	}
+}
+
 // This example demonstrates decoding addresses, determining their underlying
 // type, and displaying their associated underlying hash160 and digital
 // signature algorithm.
@@ -87,7 +154,12 @@ func ExampleDecodeAddress() {
 	// Ordinarily addresses would be read from the user or the result of a
 	// derivation, but they are hard coded here for the purposes of this
 	// example.
-	mainNetParmas := chaincfg.MainNetParams()
+	//
+	// Also, the caller would ordinarily want to use parameters from chaincfg
+	// such as chaincfg.MainNetParams(), but mock parameters are used here for
+	// the purposes of this example to avoid an otherwise unnecessary dependency
+	// on the chaincfg module.
+	mainNetParmas := mockMainNetParams()
 	addrsToDecode := []string{
 		"DsRUvfCwTMrKz29dDiQBJhZii9GDN3bVx6Q", // pay-to-pubkey-hash ecdsa
 		"DSpf9Sru9MarMKQQnuzTiQ9tjWVJA3KSm2d", // pay-to-pubkey-hash schnorr
