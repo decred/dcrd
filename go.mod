@@ -19,7 +19,7 @@ require (
 	github.com/decred/dcrd/database/v2 v2.0.1
 	github.com/decred/dcrd/dcrec v1.0.0
 	github.com/decred/dcrd/dcrec/secp256k1/v3 v3.0.0
-	github.com/decred/dcrd/dcrjson/v3 v3.0.1
+	github.com/decred/dcrd/dcrjson/v3 v3.1.0
 	github.com/decred/dcrd/dcrutil/v3 v3.0.0-20200921173733-67245079e9fb
 	github.com/decred/dcrd/gcs/v2 v2.0.2-0.20200921173733-67245079e9fb
 	github.com/decred/dcrd/hdkeychain/v3 v3.0.0
