@@ -6,13 +6,16 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
+	"path/filepath"
 	"runtime"
 	"runtime/debug"
 	"runtime/pprof"
+	"strings"
 
 	"github.com/decred/dcrd/blockchain/v3/indexers"
 	"github.com/decred/dcrd/internal/limits"
@@ -36,8 +39,16 @@ var serviceStartOfDayChan = make(chan *config, 1)
 func dcrdMain() error {
 	// Load configuration and parse command line.  This function also
 	// initializes logging and configures it accordingly.
-	tcfg, _, err := loadConfig()
+	appName := filepath.Base(os.Args[0])
+	appName = strings.TrimSuffix(appName, filepath.Ext(appName))
+	tcfg, _, err := loadConfig(appName)
 	if err != nil {
+		usageMessage := fmt.Sprintf("Use %s -h to show usage", appName)
+		fmt.Fprintln(os.Stderr, err)
+		var e errSuppressUsage
+		if !errors.As(err, &e) {
+			fmt.Fprintln(os.Stderr, usageMessage)
+		}
 		return err
 	}
 	cfg = tcfg

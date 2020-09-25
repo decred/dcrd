@@ -529,6 +529,16 @@ func parseNetworkInterfaces(cfg *config) error {
 	return nil
 }
 
+// errSuppressUsage signifies that an error that happened during the initial
+// configuration phase should suppress the usage output since it was not caused
+// by the user.
+type errSuppressUsage string
+
+// Error implements the error interface.
+func (e errSuppressUsage) Error() string {
+	return string(e)
+}
+
 // loadConfig initializes and parses the config using a config file and command
 // line options.
 //
@@ -541,7 +551,7 @@ func parseNetworkInterfaces(cfg *config) error {
 // The above results in dcrd functioning properly without any config settings
 // while still allowing the user to override settings with config files and
 // command line options.  Command line options always take precedence.
-func loadConfig() (*config, []string, error) {
+func loadConfig(appName string) (*config, []string, error) {
 	// Default config.
 	cfg := config{
 		// General application behavior.
@@ -621,9 +631,6 @@ func loadConfig() (*config, []string, error) {
 	}
 
 	// Show the version and exit if the version flag was specified.
-	appName := filepath.Base(os.Args[0])
-	appName = strings.TrimSuffix(appName, filepath.Ext(appName))
-	usageMessage := fmt.Sprintf("Use %s -h to show usage", appName)
 	if preCfg.ShowVersion {
 		fmt.Printf("%s version %s (Go version %s %s/%s)\n", appName,
 			version.String(), runtime.Version(), runtime.GOOS, runtime.GOARCH)
@@ -697,9 +704,7 @@ func loadConfig() (*config, []string, error) {
 		if err != nil {
 			var e *os.PathError
 			if !errors.As(err, &e) {
-				fmt.Fprintf(os.Stderr, "Error parsing config "+
-					"file: %v\n", err)
-				fmt.Fprintln(os.Stderr, usageMessage)
+				err = fmt.Errorf("Error parsing config file: %w", err)
 				return nil, nil, err
 			}
 			configFileError = err
@@ -714,10 +719,6 @@ func loadConfig() (*config, []string, error) {
 	// Parse command line options again to ensure they take precedence.
 	remainingArgs, err := parser.Parse()
 	if err != nil {
-		var e *flags.Error
-		if !errors.As(err, &e) || e.Type != flags.ErrHelp {
-			fmt.Fprintln(os.Stderr, usageMessage)
-		}
 		return nil, nil, err
 	}
 
@@ -736,9 +737,8 @@ func loadConfig() (*config, []string, error) {
 			}
 		}
 
-		str := "%s: failed to create home directory: %v"
-		err := fmt.Errorf(str, funcName, err)
-		fmt.Fprintln(os.Stderr, err)
+		str := "%s: failed to create home directory: %w"
+		err := errSuppressUsage(fmt.Sprintf(str, funcName, err))
 		return nil, nil, err
 	}
 
@@ -768,8 +768,6 @@ func loadConfig() (*config, []string, error) {
 		str := "%s: the testnet, regnet, and simnet params can't be " +
 			"used together -- choose one of the three"
 		err := fmt.Errorf(str, funcName)
-		fmt.Fprintln(os.Stderr, err)
-		fmt.Fprintln(os.Stderr, usageMessage)
 		return nil, nil, err
 	}
 
@@ -783,8 +781,6 @@ func loadConfig() (*config, []string, error) {
 		str := "%s: rejectnonstd and acceptnonstd cannot be used " +
 			"together -- choose only one"
 		err := fmt.Errorf(str, funcName)
-		fmt.Fprintln(os.Stderr, err)
-		fmt.Fprintln(os.Stderr, usageMessage)
 		return nil, nil, err
 	case cfg.RejectNonStd:
 		acceptNonStd = false
@@ -827,9 +823,7 @@ func loadConfig() (*config, []string, error) {
 
 	// Parse, validate, and set debug log level(s).
 	if err := parseAndSetDebugLevels(cfg.DebugLevel); err != nil {
-		err := fmt.Errorf("%s: %v", funcName, err.Error())
-		fmt.Fprintln(os.Stderr, err)
-		fmt.Fprintln(os.Stderr, usageMessage)
+		err := fmt.Errorf("%s: %w", funcName, err)
 		return nil, nil, err
 	}
 
@@ -838,8 +832,6 @@ func loadConfig() (*config, []string, error) {
 		str := "%s: the specified database type [%v] is invalid -- " +
 			"supported types %v"
 		err := fmt.Errorf(str, funcName, cfg.DbType, knownDbTypes)
-		fmt.Fprintln(os.Stderr, err)
-		fmt.Fprintln(os.Stderr, usageMessage)
 		return nil, nil, err
 	}
 
@@ -853,10 +845,8 @@ func loadConfig() (*config, []string, error) {
 		// check the Profile is a valid address
 		_, portStr, err := net.SplitHostPort(cfg.Profile)
 		if err != nil {
-			str := "%s: profile: %s"
+			str := "%s: profile: %w"
 			err := fmt.Errorf(str, funcName, err)
-			fmt.Fprintln(os.Stderr, err)
-			fmt.Fprintln(os.Stderr, usageMessage)
 			return nil, nil, err
 		}
 
@@ -864,8 +854,6 @@ func loadConfig() (*config, []string, error) {
 		if port, _ := strconv.Atoi(portStr); port < 1024 || port > 65535 {
 			str := "%s: profile: address %s: port must be between 1024 and 65535"
 			err := fmt.Errorf(str, funcName, cfg.Profile)
-			fmt.Fprintln(os.Stderr, err)
-			fmt.Fprintln(os.Stderr, usageMessage)
 			return nil, nil, err
 		}
 	}
@@ -874,8 +862,6 @@ func loadConfig() (*config, []string, error) {
 	if cfg.BanDuration < time.Second {
 		str := "%s: the banduration option may not be less than 1s -- parsed [%v]"
 		err := fmt.Errorf(str, funcName, cfg.BanDuration)
-		fmt.Fprintln(os.Stderr, err)
-		fmt.Fprintln(os.Stderr, usageMessage)
 		return nil, nil, err
 	}
 
@@ -883,8 +869,6 @@ func loadConfig() (*config, []string, error) {
 	if cfg.DialTimeout < time.Second {
 		str := "%s: the dialtimeout option may not be less than 1s -- parsed [%v]"
 		err := fmt.Errorf(str, funcName, cfg.DialTimeout)
-		fmt.Fprintln(os.Stderr, err)
-		fmt.Fprintln(os.Stderr, usageMessage)
 		return nil, nil, err
 	}
 
@@ -893,8 +877,6 @@ func loadConfig() (*config, []string, error) {
 		str := "%s: the peeridletimeout option may not be less " +
 			"than 15s -- parsed [%v]"
 		err := fmt.Errorf(str, funcName, cfg.PeerIdleTimeout)
-		fmt.Fprintln(os.Stderr, err)
-		fmt.Fprintln(os.Stderr, usageMessage)
 		return nil, nil, err
 	}
 
@@ -910,8 +892,6 @@ func loadConfig() (*config, []string, error) {
 				if ip == nil {
 					str := "%s: the whitelist value of '%s' is invalid"
 					err = fmt.Errorf(str, funcName, addr)
-					fmt.Fprintln(os.Stderr, err)
-					fmt.Fprintln(os.Stderr, usageMessage)
 					return nil, nil, err
 				}
 				var bits int
@@ -935,8 +915,6 @@ func loadConfig() (*config, []string, error) {
 		str := "%s: the --addpeer and --connect options can not be " +
 			"mixed"
 		err := fmt.Errorf(str, funcName)
-		fmt.Fprintln(os.Stderr, err)
-		fmt.Fprintln(os.Stderr, usageMessage)
 		return nil, nil, err
 	}
 
@@ -965,8 +943,6 @@ func loadConfig() (*config, []string, error) {
 		str := "%s: --rpcuser and --rpclimituser must not specify the " +
 			"same username"
 		err := fmt.Errorf(str, funcName)
-		fmt.Fprintln(os.Stderr, err)
-		fmt.Fprintln(os.Stderr, usageMessage)
 		return nil, nil, err
 	}
 
@@ -975,8 +951,6 @@ func loadConfig() (*config, []string, error) {
 		str := "%s: --rpcpass and --rpclimitpass must not specify the " +
 			"same password"
 		err := fmt.Errorf(str, funcName)
-		fmt.Fprintln(os.Stderr, err)
-		fmt.Fprintln(os.Stderr, usageMessage)
 		return nil, nil, err
 	}
 
@@ -1003,18 +977,14 @@ func loadConfig() (*config, []string, error) {
 		str := "%s: the rpcmaxwebsocketconcurrentrequests option may " +
 			"not be less than 0 -- parsed [%d]"
 		err := fmt.Errorf(str, funcName, cfg.RPCMaxConcurrentReqs)
-		fmt.Fprintln(os.Stderr, err)
-		fmt.Fprintln(os.Stderr, usageMessage)
 		return nil, nil, err
 	}
 
 	// Validate the minrelaytxfee.
 	cfg.minRelayTxFee, err = dcrutil.NewAmount(cfg.MinRelayTxFee)
 	if err != nil {
-		str := "%s: invalid minrelaytxfee: %v"
+		str := "%s: invalid minrelaytxfee: %w"
 		err := fmt.Errorf(str, funcName, err)
-		fmt.Fprintln(os.Stderr, err)
-		fmt.Fprintln(os.Stderr, usageMessage)
 		return nil, nil, err
 	}
 
@@ -1028,8 +998,6 @@ func loadConfig() (*config, []string, error) {
 			"and %d -- parsed [%d]"
 		err := fmt.Errorf(str, funcName, blockMaxSizeMin,
 			blockMaxSizeMax, cfg.BlockMaxSize)
-		fmt.Fprintln(os.Stderr, err)
-		fmt.Fprintln(os.Stderr, usageMessage)
 		return nil, nil, err
 	}
 
@@ -1038,8 +1006,6 @@ func loadConfig() (*config, []string, error) {
 		str := "%s: the maxorphantx option may not be less than 0 " +
 			"-- parsed [%d]"
 		err := fmt.Errorf(str, funcName, cfg.MaxOrphanTxs)
-		fmt.Fprintln(os.Stderr, err)
-		fmt.Fprintln(os.Stderr, usageMessage)
 		return nil, nil, err
 	}
 
@@ -1052,8 +1018,6 @@ func loadConfig() (*config, []string, error) {
 		err := fmt.Errorf("%s: the --txindex and --droptxindex "+
 			"options may  not be activated at the same time",
 			funcName)
-		fmt.Fprintln(os.Stderr, err)
-		fmt.Fprintln(os.Stderr, usageMessage)
 		return nil, nil, err
 	}
 
@@ -1062,8 +1026,6 @@ func loadConfig() (*config, []string, error) {
 		err := fmt.Errorf("%s: the --addrindex and --dropaddrindex "+
 			"options may not be activated at the same time",
 			funcName)
-		fmt.Fprintln(os.Stderr, err)
-		fmt.Fprintln(os.Stderr, usageMessage)
 		return nil, nil, err
 	}
 
@@ -1072,10 +1034,7 @@ func loadConfig() (*config, []string, error) {
 		err := fmt.Errorf("%s: the --addrindex and --droptxindex "+
 			"options may not be activated at the same time "+
 			"because the address index relies on the transaction "+
-			"index",
-			funcName)
-		fmt.Fprintln(os.Stderr, err)
-		fmt.Fprintln(os.Stderr, usageMessage)
+			"index", funcName)
 		return nil, nil, err
 	}
 
@@ -1083,16 +1042,12 @@ func loadConfig() (*config, []string, error) {
 	if !cfg.NoExistsAddrIndex && cfg.DropExistsAddrIndex {
 		err := fmt.Errorf("dropexistsaddrindex cannot be activated when " +
 			"existsaddressindex is on (try setting --noexistsaddrindex)")
-		fmt.Fprintln(os.Stderr, err)
-		fmt.Fprintln(os.Stderr, usageMessage)
 		return nil, nil, err
 	}
 
 	// !--nocfilters and --dropcfindex do not mix.
 	if !cfg.NoCFilters && cfg.DropCFIndex {
 		err := errors.New("dropcfindex cannot be activated without nocfilters")
-		fmt.Fprintln(os.Stderr, err)
-		fmt.Fprintln(os.Stderr, usageMessage)
 		return nil, nil, err
 	}
 
@@ -1101,10 +1056,8 @@ func loadConfig() (*config, []string, error) {
 	for _, strAddr := range cfg.MiningAddrs {
 		addr, err := dcrutil.DecodeAddress(strAddr, cfg.params.Params)
 		if err != nil {
-			str := "%s: mining address '%s' failed to decode: %v"
+			str := "%s: mining address '%s' failed to decode: %w"
 			err := fmt.Errorf(str, funcName, strAddr, err)
-			fmt.Fprintln(os.Stderr, err)
-			fmt.Fprintln(os.Stderr, usageMessage)
 			return nil, nil, err
 		}
 		cfg.miningAddrs = append(cfg.miningAddrs, addr)
@@ -1116,8 +1069,6 @@ func loadConfig() (*config, []string, error) {
 		str := "%s: the generate flag is set, but there are no mining " +
 			"addresses specified "
 		err := fmt.Errorf(str, funcName)
-		fmt.Fprintln(os.Stderr, err)
-		fmt.Fprintln(os.Stderr, usageMessage)
 		return nil, nil, err
 	}
 
@@ -1125,8 +1076,6 @@ func loadConfig() (*config, []string, error) {
 	if cfg.AllowUnsyncedMining && cfg.params == &mainNetParams {
 		str := "%s: allowunsyncedmining cannot be activated on mainnet"
 		err := fmt.Errorf(str, funcName)
-		fmt.Fprintln(os.Stderr, err)
-		fmt.Fprintln(os.Stderr, usageMessage)
 		return nil, nil, err
 	}
 
@@ -1157,10 +1106,8 @@ func loadConfig() (*config, []string, error) {
 			host, _, err := net.SplitHostPort(addr)
 			if err != nil {
 				str := "%s: RPC listen interface '%s' is " +
-					"invalid: %v"
+					"invalid: %w"
 				err := fmt.Errorf(str, funcName, addr, err)
-				fmt.Fprintln(os.Stderr, err)
-				fmt.Fprintln(os.Stderr, usageMessage)
 				return nil, nil, err
 			}
 			if _, ok := allowedTLSListeners[host]; !ok {
@@ -1168,8 +1115,6 @@ func loadConfig() (*config, []string, error) {
 					"when binding RPC to non localhost " +
 					"addresses: %s"
 				err := fmt.Errorf(str, funcName, addr)
-				fmt.Fprintln(os.Stderr, err)
-				fmt.Fprintln(os.Stderr, usageMessage)
 				return nil, nil, err
 			}
 		}
@@ -1187,8 +1132,6 @@ func loadConfig() (*config, []string, error) {
 		str := "%s: Tor stream isolation requires either proxy or " +
 			"onionproxy to be set"
 		err := fmt.Errorf(str, funcName)
-		fmt.Fprintln(os.Stderr, err)
-		fmt.Fprintln(os.Stderr, usageMessage)
 		return nil, nil, err
 	}
 
@@ -1204,10 +1147,8 @@ func loadConfig() (*config, []string, error) {
 	if cfg.Proxy != "" {
 		_, _, err := net.SplitHostPort(cfg.Proxy)
 		if err != nil {
-			str := "%s: proxy address '%s' is invalid: %v"
+			str := "%s: proxy address '%s' is invalid: %w"
 			err := fmt.Errorf(str, funcName, cfg.Proxy, err)
-			fmt.Fprintln(os.Stderr, err)
-			fmt.Fprintln(os.Stderr, usageMessage)
 			return nil, nil, err
 		}
 
@@ -1242,10 +1183,8 @@ func loadConfig() (*config, []string, error) {
 	if cfg.OnionProxy != "" {
 		_, _, err := net.SplitHostPort(cfg.OnionProxy)
 		if err != nil {
-			str := "%s: Onion proxy address '%s' is invalid: %v"
+			str := "%s: Onion proxy address '%s' is invalid: %w"
 			err := fmt.Errorf(str, funcName, cfg.OnionProxy, err)
-			fmt.Fprintln(os.Stderr, err)
-			fmt.Fprintln(os.Stderr, usageMessage)
 			return nil, nil, err
 		}
 
@@ -1301,7 +1240,6 @@ func loadConfig() (*config, []string, error) {
 
 	// Prevent using an unsupported curve.
 	if _, err := tlsCurve(cfg.TLSCurve); err != nil {
-		fmt.Fprintln(os.Stderr, err)
 		return nil, nil, err
 	}
 
