@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2014 The btcsuite developers
-// Copyright (c) 2015-2018 The Decred developers
+// Copyright (c) 2015-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -1204,8 +1204,8 @@ func (a *AddrManager) ValidatePeerNa(localAddr, remoteAddr *wire.NetAddress) (bo
 // IsPeerNaValid asserts if the provided local address is routable
 // and reachabile from the peer that suggested it.
 //
-// This function has been deprecated, to be removed in the next major version
-// bump.
+// Deprecated: This will be removed in the next major version bump.
+// Use ValidatePeerNa instead.
 func (a *AddrManager) IsPeerNaValid(localAddr, remoteAddr *wire.NetAddress) bool {
 	valid, _ := a.ValidatePeerNa(localAddr, remoteAddr)
 	return valid
