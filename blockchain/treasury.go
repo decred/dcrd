@@ -607,8 +607,6 @@ func VerifyTSpendSignature(msgTx *wire.MsgTx, signature, pubKey []byte) error {
 //
 // It also returns the node immediately before the last checked node (that is,
 // the node before node-nbBlocks).
-//
-// This function must be called with the block index read lock held.
 func (b *BlockChain) sumPastTreasuryExpenditure(preTVINode *blockNode, nbBlocks uint64) (int64, *blockNode, error) {
 	node := preTVINode
 	var total int64
@@ -634,7 +632,7 @@ func (b *BlockChain) sumPastTreasuryExpenditure(preTVINode *blockNode, nbBlocks 
 			}
 		}
 
-		node = b.index.lookupNode(&node.parent.hash)
+		node = node.parent
 	}
 
 	return total, node, nil
@@ -646,8 +644,6 @@ func (b *BlockChain) sumPastTreasuryExpenditure(preTVINode *blockNode, nbBlocks 
 // returned amount.
 //
 // The passed node MUST correspond to a node immediately prior to a TVI block.
-//
-// This function must be called with the block index read lock held.
 func (b *BlockChain) maxTreasuryExpenditure(preTVINode *blockNode) (int64, error) {
 	// The expenditure policy check is roughly speaking:
 	//
@@ -731,10 +727,7 @@ func (b *BlockChain) maxTreasuryExpenditure(preTVINode *blockNode) (int64, error
 // the treasury by a set of TSpends for a block that extends the given block
 // hash. Function will return 0 if it is called on an invalid TVI.
 func (b *BlockChain) MaxTreasuryExpenditure(preTVIBlock *chainhash.Hash) (int64, error) {
-	b.index.RLock()
-	defer b.index.RUnlock()
-
-	preTVINode := b.index.lookupNode(preTVIBlock)
+	preTVINode := b.index.LookupNode(preTVIBlock)
 	if preTVINode == nil {
 		return 0, fmt.Errorf("unknown block %s", preTVIBlock)
 	}
@@ -949,7 +942,7 @@ func (b *BlockChain) tSpendCountVotes(prevNode *blockNode, tspend *dcrutil.Tx) (
 			t.no += no
 		}
 
-		node = b.index.lookupNode(&node.parent.hash)
+		node = node.parent
 		if node == nil {
 			break
 		}
