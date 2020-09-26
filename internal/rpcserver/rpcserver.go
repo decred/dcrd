@@ -4263,8 +4263,11 @@ func handleSearchRawTransactions(_ context.Context, s *Server, cmd interface{}) 
 	numRequested := 100
 	if c.Count != nil {
 		numRequested = *c.Count
+		maxCount := 10000
 		if numRequested < 0 {
 			numRequested = 1
+		} else if numRequested > maxCount {
+			numRequested = maxCount
 		}
 	}
 	if numRequested == 0 {
