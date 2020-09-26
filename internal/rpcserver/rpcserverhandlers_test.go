@@ -5090,6 +5090,21 @@ func TestHandleSearchRawTransactions(t *testing.T) {
 			tx0TestTx.hex,
 		},
 	}, {
+		name:    "handleSearchRawTransactions: ok with count greater than limit",
+		handler: handleSearchRawTransactions,
+		cmd: &types.SearchRawTransactionsCmd{
+			Address:  address,
+			VinExtra: dcrjson.Int(1),
+			Verbose:  dcrjson.Int(0),
+			Count:    dcrjson.Int(42949673333394),
+		},
+		mockAddrIndexer: addrIndexer,
+		mockDB:          db,
+		result: []string{
+			tx0TestTx.hex,
+			tx1TestTx.hex,
+		},
+	}, {
 		name:    "handleSearchRawTransactions: ok with skip < 0",
 		handler: handleSearchRawTransactions,
 		cmd: &types.SearchRawTransactionsCmd{

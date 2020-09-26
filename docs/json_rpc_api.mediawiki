@@ -2242,7 +2242,7 @@ of the best block.
 # <code>address</code>: <code>(string, required)</code> Decred address.
 # <code>verbose</code>: <code>(int, optional, default=true)</code> specifies the transaction is returned as a JSON object instead of hex-encoded string.
 # <code>skip</code>: <code>(int, optional, default=0)</code> the number of leading transactions to leave out of the final response.
-# <code>count</code>: <code>(int, optional, default=100)</code> the maximum number of transactions to return.
+# <code>count</code>: <code>(int, optional, default=100, max=10000)</code> the maximum number of transactions to return.
 # <code>vinextra</code>: <code>(int, optional, default=0)</code> specify that extra data from previous output will be returned in vin.
 # <code>reverse</code>: <code>(boolean, optional, default=false)</code> specify that the transactions should be returned in reverse chronological order.
 # <code>filteraddrs</code>: <code>(json array of strings, optional)</code> specify that only inputs or outputs with matching addresses should be returned.
