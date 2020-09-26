@@ -9,8 +9,18 @@ import (
 	"math"
 
 	"github.com/decred/dcrd/chaincfg/chainhash"
-	"github.com/decred/dcrd/txscript/v3"
 	"github.com/decred/dcrd/wire"
+)
+
+const (
+	// These constants are opcodes are defined here to avoid a dependency on
+	// txscript.  They are used in consensus code which can't be changed without
+	// a vote anyway, so not referring to them directly via txscript is safe.
+	opData12 = 0x0c
+	opReturn = 0x6a
+	opTAdd   = 0xc1
+	opTSpend = 0xc2
+	opTGen   = 0xc3
 )
 
 var (
@@ -70,9 +80,9 @@ func IsCoinBaseTx(tx *wire.MsgTx, isTreasuryEnabled bool) bool {
 		// TSpends have a TSpend opcode as the last byte of TxIn 0 and
 		// an OP_RETURN followed by at least one OP_TGEN in the zeroth
 		// TxOut script.
-		if tx.TxIn[0].SignatureScript[l-1] == txscript.OP_TSPEND &&
-			tx.TxOut[0].PkScript[0] == txscript.OP_RETURN &&
-			tx.TxOut[1].PkScript[0] == txscript.OP_TGEN {
+		if tx.TxIn[0].SignatureScript[l-1] == opTSpend &&
+			tx.TxOut[0].PkScript[0] == opReturn &&
+			tx.TxOut[1].PkScript[0] == opTGen {
 			return false
 		}
 	}
@@ -96,13 +106,13 @@ func IsTreasuryBase(tx *wire.MsgTx) bool {
 	}
 
 	if len(tx.TxOut[0].PkScript) != 1 ||
-		tx.TxOut[0].PkScript[0] != txscript.OP_TADD {
+		tx.TxOut[0].PkScript[0] != opTAdd {
 		return false
 	}
 
 	if len(tx.TxOut[1].PkScript) != 14 ||
-		tx.TxOut[1].PkScript[0] != txscript.OP_RETURN ||
-		tx.TxOut[1].PkScript[1] != txscript.OP_DATA_12 {
+		tx.TxOut[1].PkScript[0] != opReturn ||
+		tx.TxOut[1].PkScript[1] != opData12 {
 		return false
 	}
 
