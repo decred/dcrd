@@ -187,7 +187,7 @@ The following versioned modules are provided by dcrd repository:
   * [stake/v2](https://github.com/decred/dcrd/tree/master/blockchain/stake) -
     Provides an API for working with stake transactions and other portions
     related to the Proof-of-Stake (PoS) system
-  * [standalone](https://github.com/decred/dcrd/tree/master/blockchain/standalone) -
+  * [standalone/v2](https://github.com/decred/dcrd/tree/master/blockchain/standalone) -
     Provides standalone functions useful for working with the Decred blockchain
     consensus rules
 * [txscript/v3](https://github.com/decred/dcrd/tree/master/txscript) -
