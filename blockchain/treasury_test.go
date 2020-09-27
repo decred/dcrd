@@ -586,8 +586,7 @@ func TestTSpendVoteCount(t *testing.T) {
 
 	// Assert we are on a TVI and generate block. This should fail.
 	startTip = g.TipName()
-	if standalone.IsTreasuryVoteInterval(uint64(g.Tip().Header.Height),
-		tvi) {
+	if standalone.IsTreasuryVoteInterval(uint64(g.Tip().Header.Height), tvi) {
 		t.Fatalf("expected !TVI %v", g.Tip().Header.Height)
 	}
 	name = "btvinotenough0"
@@ -619,8 +618,7 @@ func TestTSpendVoteCount(t *testing.T) {
 
 	// Assert we are on a TVI and generate block. This should fail.
 	startTip = g.TipName()
-	if standalone.IsTreasuryVoteInterval(uint64(g.Tip().Header.Height),
-		tvi) {
+	if standalone.IsTreasuryVoteInterval(uint64(g.Tip().Header.Height), tvi) {
 		t.Fatalf("expected !TVI %v", g.Tip().Header.Height)
 	}
 	name = "btvinotenough1"
@@ -654,8 +652,7 @@ func TestTSpendVoteCount(t *testing.T) {
 	// Assert we are on a TVI and generate block. This should fail with No
 	// vote (TSpend should not have been submitted).
 	startTip = g.TipName()
-	if standalone.IsTreasuryVoteInterval(uint64(g.Tip().Header.Height),
-		tvi) {
+	if standalone.IsTreasuryVoteInterval(uint64(g.Tip().Header.Height), tvi) {
 		t.Fatalf("expected !TVI %v", g.Tip().Header.Height)
 	}
 	name = "btvienough0"
@@ -711,8 +708,7 @@ func TestTSpendVoteCount(t *testing.T) {
 
 	// Assert TSpend expired
 	startTip = g.TipName()
-	if standalone.IsTreasuryVoteInterval(uint64(g.Tip().Header.Height),
-		tvi) {
+	if standalone.IsTreasuryVoteInterval(uint64(g.Tip().Header.Height), tvi) {
 		t.Fatalf("expected !TVI %v", g.Tip().Header.Height)
 	}
 	name = "bexpired0"
@@ -791,8 +787,7 @@ func TestTSpendVoteCount(t *testing.T) {
 
 	// Verify we are one vote shy of quorum
 	startTip = g.TipName()
-	if standalone.IsTreasuryVoteInterval(uint64(g.Tip().Header.Height),
-		tvi) {
+	if standalone.IsTreasuryVoteInterval(uint64(g.Tip().Header.Height), tvi) {
 		t.Fatalf("expected !TVI %v", g.Tip().Header.Height)
 	}
 	name = "bquorum0"
@@ -848,8 +843,7 @@ func TestTSpendVoteCount(t *testing.T) {
 	}
 
 	// Verify TSpend can be added exactly on quorum.
-	if standalone.IsTreasuryVoteInterval(uint64(g.Tip().Header.Height),
-		tvi) {
+	if standalone.IsTreasuryVoteInterval(uint64(g.Tip().Header.Height), tvi) {
 		t.Fatalf("expected !TVI %v", g.Tip().Header.Height)
 	}
 	name = "bquorum1"
@@ -2598,8 +2592,7 @@ func TestTSpendSignature(t *testing.T) {
 	}
 
 	// Assert that we are on a TVI.
-	if standalone.IsTreasuryVoteInterval(uint64(g.Tip().Header.Height),
-		tvi) {
+	if standalone.IsTreasuryVoteInterval(uint64(g.Tip().Header.Height), tvi) {
 		t.Fatalf("expected !TVI %v", g.Tip().Header.Height)
 	}
 
@@ -2810,8 +2803,7 @@ func TestTSpendSignatureInvalid(t *testing.T) {
 	}
 
 	// Assert that we are on a TVI.
-	if standalone.IsTreasuryVoteInterval(uint64(g.Tip().Header.Height),
-		tvi) {
+	if standalone.IsTreasuryVoteInterval(uint64(g.Tip().Header.Height), tvi) {
 		t.Fatalf("expected !TVI %v", g.Tip().Header.Height)
 	}
 

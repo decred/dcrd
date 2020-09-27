@@ -17,8 +17,8 @@ func CalcTSpendExpiry(nextBlockHeight int64, tvi, multiplier uint64) uint32 {
 	return uint32(maxTVI + 2) // + 2 to deal with Expiry handling in mempool.
 }
 
-// IsTreasuryVoteInterval returns true if the passed height is on a Treasury
-// Vote Interval.
+// IsTreasuryVoteInterval returns true if the passed height is on a treasury
+// vote interval (TVI) and is not 0.
 func IsTreasuryVoteInterval(height, tvi uint64) bool {
 	return height%tvi == 0 && height != 0
 }

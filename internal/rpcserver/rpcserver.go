@@ -3289,9 +3289,10 @@ func handleGetTreasurySpendVotes(_ context.Context, s *Server, cmd interface{}) 
 		// functions will behave properly.
 		expiry := tx.MsgTx().Expiry
 		if !standalone.IsTreasuryVoteInterval(uint64(expiry-2), tvi) {
-			err := fmt.Errorf("tspend %s has incorrect expiry %d", tx.Hash(), expiry)
+			errStr := fmt.Sprintf("tspend %s has incorrect expiry %d", tx.Hash(),
+				expiry)
 			context := "tspend without correct expiry"
-			return nil, rpcInternalError(err.Error(), context)
+			return nil, rpcInternalError(errStr, context)
 		}
 
 		// We only count votes for tspends that are inside their voting

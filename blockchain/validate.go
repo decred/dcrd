@@ -3412,8 +3412,7 @@ func (b *BlockChain) consensusScriptVerifyFlags(node *blockNode) (txscript.Scrip
 // function assumes that the treasury agenda is enabled.
 func (b *BlockChain) tspendChecks(prevNode *blockNode, block *dcrutil.Block) error {
 	blockHeight := prevNode.height + 1
-
-	isTVI := standalone.IsTreasuryVoteInterval(uint64(block.Height()),
+	isTVI := standalone.IsTreasuryVoteInterval(uint64(blockHeight),
 		b.chainParams.TreasuryVoteInterval)
 
 	var totalTSpendAmount int64
