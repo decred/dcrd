@@ -20,13 +20,9 @@ const (
 	// lower than the required target difficultly.
 	ErrHighHash = ErrorKind("ErrHighHash")
 
-	// ErrTSpendStartInvalidExpiry indicates that an invalid expiry was
-	// provided to calculate the start of a treasury spend vote window.
-	ErrTSpendStartInvalidExpiry = ErrorKind("ErrTSpendStartInvalidExpiry")
-
-	// ErrTSpendEndInvalidExpiry indicates that an invalid expiry was
-	// provided to calculate the end of a treasury spend vote window.
-	ErrTSpendEndInvalidExpiry = ErrorKind("ErrTSpendEndInvalidExpiry")
+	// ErrInvalidTSpendExpiry indicates that an invalid expiry was
+	// provided when calculating the treasury spend voting window.
+	ErrInvalidTSpendExpiry = ErrorKind("ErrInvalidTSpendExpiry")
 )
 
 // Error satisfies the error interface and prints human-readable errors.

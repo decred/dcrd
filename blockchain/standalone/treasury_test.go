@@ -9,19 +9,106 @@ import (
 	"testing"
 )
 
-func TestTSpendExpiryNegative(t *testing.T) {
-	// 5 is not a valid start for a tvi of 11 with a mul of 3.
-	_, err := CalculateTSpendWindowStart(5, 11, 3)
-	if !errors.Is(err, ErrTSpendStartInvalidExpiry) {
-		t.Fatalf("expected %v got %v",
-			ErrTSpendStartInvalidExpiry, err)
-	}
+const (
+	// mainNetTVI is the treasury vote interval for mainnet.
+	mainNetTVI = 288
 
-	// 5 is not a valid end for a tvi of 11.
-	_, err = CalculateTSpendWindowEnd(5, 11)
-	if !errors.Is(err, ErrTSpendEndInvalidExpiry) {
-		t.Fatalf("expected %v got %v",
-			ErrTSpendEndInvalidExpiry, err)
+	// mainNetTVIMul is the treasury vote interval multiplier for mainnet.
+	mainNetTVIMul = 12
+)
+
+// TestCalcTSpendWindow ensures that the function that calculates the start and
+// end of a treasury spend voting window returns the expected results including
+// error conditions.
+func TestCalcTSpendWindow(t *testing.T) {
+	tests := []struct {
+		name      string // test description
+		expiry    uint32 // expiry to calculate the window for
+		tvi       uint64 // treasury vote interval
+		tvimul    uint64 // treasury vote interval multiplier
+		err       error  // expected error
+		wantStart uint32 // expected start result
+		wantEnd   uint32 // expected end result
+	}{{
+		name:      "zero is not a valid expiry",
+		expiry:    0,
+		tvi:       mainNetTVI,
+		tvimul:    mainNetTVIMul,
+		err:       ErrInvalidTSpendExpiry,
+		wantStart: 0,
+		wantEnd:   0,
+	}, {
+		name:      "min required expiry - 1",
+		expiry:    mainNetTVI*mainNetTVIMul + 1,
+		tvi:       mainNetTVI,
+		tvimul:    mainNetTVIMul,
+		err:       ErrInvalidTSpendExpiry,
+		wantStart: 0,
+		wantEnd:   0,
+	}, {
+		name:      "not a TVI + 2",
+		expiry:    mainNetTVI*mainNetTVIMul + 3,
+		tvi:       mainNetTVI,
+		tvimul:    mainNetTVIMul,
+		err:       ErrInvalidTSpendExpiry,
+		wantStart: 0,
+		wantEnd:   0,
+	}, {
+		name:      "5 is not a valid start or end for a tvi 11, mul 3",
+		expiry:    5,
+		tvi:       11,
+		tvimul:    3,
+		err:       ErrInvalidTSpendExpiry,
+		wantStart: 0,
+		wantEnd:   0,
+	}, {
+		name:      "first possible valid mainnet params",
+		expiry:    mainNetTVI*mainNetTVIMul + 2,
+		tvi:       mainNetTVI,
+		tvimul:    mainNetTVIMul,
+		err:       nil,
+		wantStart: 0,
+		wantEnd:   mainNetTVI * mainNetTVIMul,
+	}, {
+		name:      "second possible valid mainnet params",
+		expiry:    mainNetTVI*mainNetTVIMul*2 + 2,
+		tvi:       mainNetTVI,
+		tvimul:    mainNetTVIMul,
+		err:       nil,
+		wantStart: mainNetTVI * mainNetTVIMul,
+		wantEnd:   mainNetTVI * mainNetTVIMul * 2,
+	}, {
+		name:      "5186 for tvi 288, mul 7 is window [3168, 5184)",
+		expiry:    5186,
+		tvi:       288,
+		tvimul:    7,
+		err:       nil,
+		wantStart: 5186 - 288*7 - 2,
+		wantEnd:   5186 - 2,
+	}}
+
+	for _, test := range tests {
+		// Calculate result and ensure the expected error is produced.
+		start, end, err := CalcTSpendWindow(test.expiry, test.tvi, test.tvimul)
+		if !errors.Is(err, test.err) {
+			t.Errorf("%q: unexpected error -- got %v, want %v", test.name, err,
+				test.err)
+			continue
+		}
+
+		// Ensure the expected start value is calculated.
+		if start != test.wantStart {
+			t.Errorf("%q: unexpected start val -- got %v, want %v", test.name,
+				start, test.wantStart)
+			continue
+		}
+
+		// Ensure the expected end value is calculated.
+		if end != test.wantEnd {
+			t.Errorf("%q: unexpected end val -- got %v, want %v", test.name,
+				end, test.wantEnd)
+			continue
+		}
 	}
 }
 
@@ -31,33 +118,5 @@ func TestTSpendExpiry(t *testing.T) {
 	expiry := CalculateTSpendExpiry(2880, tvi, mul)
 	if expiry != 5186 {
 		t.Fatalf("got %v, expected 5186", expiry)
-	}
-	start, err := CalculateTSpendWindowStart(expiry, tvi, mul)
-	if err != nil {
-		t.Fatal(err)
-	}
-	end, err := CalculateTSpendWindowEnd(expiry, tvi)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// Expect 3168 = expiry - (tvi*mul) - 2
-	expectedStart := expiry - uint32(tvi*mul) - 2
-	if start != expectedStart {
-		t.Fatalf("got %v, expected %v", start, expectedStart)
-	}
-
-	// Expect 5184 = expiry - 2
-	expectedEnd := expiry - 2
-	if end != expectedEnd {
-		t.Fatalf("got %v, expected %v", end, expectedEnd)
-	}
-
-	// Hard check numbers as well.
-	if expectedStart != 3168 {
-		t.Fatalf("got %v, expected %v", expectedStart, 3168)
-	}
-	if expectedEnd != 5184 {
-		t.Fatalf("got %v, expected %v", expectedEnd, 5184)
 	}
 }

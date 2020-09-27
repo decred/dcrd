@@ -1630,8 +1630,7 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 		// its voting is supposed to start. We arbitrarily define as
 		// "too far in the future" as the vote starting greater than or
 		// equal to two full voting windows in the future.
-		voteStart, err := standalone.CalculateTSpendWindowStart(msgTx.Expiry,
-			tvi, mul)
+		voteStart, _, err := standalone.CalcTSpendWindow(msgTx.Expiry, tvi, mul)
 		if err != nil {
 			str := fmt.Sprintf("Invalid tspend expiry %d: %v ",
 				msgTx.Expiry, err)

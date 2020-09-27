@@ -24,26 +24,29 @@ func IsTreasuryVoteInterval(height, tvi uint64) bool {
 	return height%tvi == 0 && height != 0
 }
 
-// CalculateTSpendWindowStart calculates the start of a treasury voting window
-// based on the parameters that are passed. Great care must be taken to ensure
-// this function is only called with an expiry that *IS* on a TVI.
-func CalculateTSpendWindowStart(expiry uint32, tvi, multiplier uint64) (uint32, error) {
-	if !IsTreasuryVoteInterval(uint64(expiry-2), tvi) {
-		return 0, ruleError(ErrTSpendStartInvalidExpiry,
-			fmt.Sprintf("invalid start expiry: %v", expiry))
+// CalcTSpendWindow calculates the start and end of a treasury voting window
+// based on the parameters that are passed.  An error will be returned if the
+// provided expiry is not two more than a treasury vote interval (TVI) or before
+// a single voting window is possible.
+func CalcTSpendWindow(expiry uint32, tvi, multiplier uint64) (uint32, uint32, error) {
+	// Ensure the provided expiry is at least higher than a single voting
+	// window.
+	minReqExpiry := tvi*multiplier + 2
+	if uint64(expiry) < minReqExpiry {
+		str := fmt.Sprintf("expiry %d must be at least %d for the voting "+
+			"window defined by a TVI of %d with a multiplier of %d", expiry,
+			minReqExpiry, tvi, multiplier)
+		return 0, 0, ruleError(ErrInvalidTSpendExpiry, str)
 	}
-	return expiry - uint32(tvi*multiplier) - 2, nil
-}
 
-// CalculateTSpendWindowEnd calculates the end of a treasury voting window
-// based on the parameters that are passed. Great care must be taken to ensure
-// this function is only called with an expiry that *IS* on a TVI.
-func CalculateTSpendWindowEnd(expiry uint32, tvi uint64) (uint32, error) {
+	// Ensure the provided expiry is two more than a TVI.
 	if !IsTreasuryVoteInterval(uint64(expiry-2), tvi) {
-		return 0, ruleError(ErrTSpendEndInvalidExpiry,
-			fmt.Sprintf("invalid end expiry: %v", expiry))
+		str := fmt.Sprintf("expiry %d must be two more than a multiple of the "+
+			"treasury vote interval %d", expiry, tvi)
+		return 0, 0, ruleError(ErrInvalidTSpendExpiry, str)
 	}
-	return expiry - 2, nil
+
+	return expiry - uint32(tvi*multiplier) - 2, expiry - 2, nil
 }
 
 // InsideTSpendWindow returns true if the provided block height is inside the
@@ -55,13 +58,10 @@ func CalculateTSpendWindowEnd(expiry uint32, tvi uint64) (uint32, error) {
 // Note: The end is INCLUSIVE in order to determine if a TSPEND is allowed in a
 // block despite the fact that voting window is EXCLUSIVE.
 func InsideTSpendWindow(blockHeight int64, expiry uint32, tvi, multiplier uint64) bool {
-	s, err := CalculateTSpendWindowStart(expiry, tvi, multiplier)
+	start, end, err := CalcTSpendWindow(expiry, tvi, multiplier)
 	if err != nil {
 		return false
 	}
-	e, err := CalculateTSpendWindowEnd(expiry, tvi)
-	if err != nil {
-		return false
-	}
-	return uint32(blockHeight) >= s && uint32(blockHeight) <= e
+
+	return uint32(blockHeight) >= start && uint32(blockHeight) <= end
 }

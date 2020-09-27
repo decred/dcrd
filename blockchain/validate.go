@@ -3432,20 +3432,15 @@ func (b *BlockChain) tspendChecks(prevNode *blockNode, block *dcrutil.Block) err
 			return ruleError(ErrNotTVI, str)
 		}
 
-		// Assert that the tspend is inside the correct window.
+		// Assert that the treasury spend is inside the correct window.
 		exp := stx.MsgTx().Expiry
 		if !standalone.InsideTSpendWindow(blockHeight,
 			exp, b.chainParams.TreasuryVoteInterval,
 			b.chainParams.TreasuryVoteIntervalMultiplier) {
-			s, _ := standalone.CalculateTSpendWindowStart(exp,
-				b.chainParams.TreasuryVoteInterval,
-				b.chainParams.TreasuryVoteIntervalMultiplier)
 
-			str := fmt.Sprintf("block contains TSpend "+
-				"transaction (%v) that is outside "+
-				"of the valid window: height %v "+
-				"start %v expiry %v",
-				stx.Hash(), block.Height(), s, exp)
+			str := fmt.Sprintf("block at height %d contains treasury spend "+
+				"transaction %v with expiry %v that is outside of the valid "+
+				"window", blockHeight, stx.Hash(), exp)
 			return ruleError(ErrInvalidTSpendWindow, str)
 		}
 

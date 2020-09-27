@@ -1461,13 +1461,9 @@ mempoolLoop:
 				exp, g.chainParams.TreasuryVoteInterval,
 				g.chainParams.TreasuryVoteIntervalMultiplier) {
 
-				s, _ := standalone.CalculateTSpendWindowStart(exp,
-					g.chainParams.TreasuryVoteInterval,
-					g.chainParams.TreasuryVoteIntervalMultiplier)
-				log.Tracef("Skipping tspend %v because it is "+
-					"outside of the window: height %v "+
-					"start %v expiry %v reason %v",
-					tx.Hash(), nextBlockHeight, s, exp, err)
+				log.Tracef("Skipping treasury spend %v at height %d because it "+
+					"has an expiry of %d that is outside of the voting window",
+					tx.Hash(), nextBlockHeight, exp)
 				continue
 			}
 

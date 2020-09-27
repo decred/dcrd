@@ -523,11 +523,7 @@ func TestTSpendVoteCount(t *testing.T) {
 	tspendFee := 100
 	expiry := standalone.CalculateTSpendExpiry(int64(nextBlockHeight), tvi,
 		mul)
-	start, err := standalone.CalculateTSpendWindowStart(expiry, tvi, mul)
-	if err != nil {
-		t.Fatal(err)
-	}
-	end, err := standalone.CalculateTSpendWindowEnd(expiry, tvi)
+	start, end, err := standalone.CalcTSpendWindow(expiry, tvi, mul)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -738,7 +734,7 @@ func TestTSpendVoteCount(t *testing.T) {
 	// Use exact hight to validate that tspend starts on next tvi.
 	expiry = standalone.CalculateTSpendExpiry(int64(g.Tip().Header.Height),
 		tvi, mul)
-	start, err = standalone.CalculateTSpendWindowStart(expiry, tvi, mul)
+	start, _, err = standalone.CalcTSpendWindow(expiry, tvi, mul)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -946,7 +942,7 @@ func TestTSpendEmptyTreasury(t *testing.T) {
 	nextBlockHeight := g.Tip().Header.Height + 1
 	expiry := standalone.CalculateTSpendExpiry(int64(nextBlockHeight), tvi,
 		mul)
-	start, err := standalone.CalculateTSpendWindowStart(expiry, tvi, mul)
+	start, _, err := standalone.CalcTSpendWindow(expiry, tvi, mul)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1170,7 +1166,7 @@ func TestTSpendExpendituresPolicy(t *testing.T) {
 	nextBlockHeight := g.Tip().Header.Height + 1
 	expiry := standalone.CalculateTSpendExpiry(int64(nextBlockHeight), tvi,
 		mul)
-	start, err := standalone.CalculateTSpendWindowStart(expiry, tvi, mul)
+	start, _, err := standalone.CalcTSpendWindow(expiry, tvi, mul)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1661,7 +1657,7 @@ func TestExpendituresReorg(t *testing.T) {
 
 	nextBlockHeight := g.Tip().Header.Height + 1
 	expiry := standalone.CalculateTSpendExpiry(int64(nextBlockHeight), tvi, mul)
-	start, err := standalone.CalculateTSpendWindowStart(expiry, tvi, mul)
+	start, _, err := standalone.CalcTSpendWindow(expiry, tvi, mul)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1869,7 +1865,7 @@ func TestSpendableTreasuryTxs(t *testing.T) {
 	nextBlockHeight := g.Tip().Header.Height + 1
 	expiry := standalone.CalculateTSpendExpiry(int64(nextBlockHeight), tvi,
 		mul)
-	start, err := standalone.CalculateTSpendWindowStart(expiry, tvi, mul)
+	start, _, err := standalone.CalcTSpendWindow(expiry, tvi, mul)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2164,7 +2160,7 @@ func TestTSpendDupVote(t *testing.T) {
 	// ---------------------------------------------------------------------
 	nextBlockHeight := g.Tip().Header.Height + 1
 	expiry := standalone.CalculateTSpendExpiry(int64(nextBlockHeight), tvi, mul)
-	start, err := standalone.CalculateTSpendWindowStart(expiry, tvi, mul)
+	start, _, err := standalone.CalcTSpendWindow(expiry, tvi, mul)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2306,7 +2302,7 @@ func TestTSpendTooManyTSpend(t *testing.T) {
 	nextBlockHeight := g.Tip().Header.Height + 1
 	expiry := standalone.CalculateTSpendExpiry(int64(nextBlockHeight), tvi,
 		mul)
-	start, err := standalone.CalculateTSpendWindowStart(expiry, tvi, mul)
+	start, _, err := standalone.CalcTSpendWindow(expiry, tvi, mul)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2423,7 +2419,7 @@ func TestTSpendWindow(t *testing.T) {
 	nextBlockHeight := g.Tip().Header.Height + uint32(tvi*mul*4) + 1
 	expiry := standalone.CalculateTSpendExpiry(int64(nextBlockHeight), tvi,
 		mul)
-	start, err := standalone.CalculateTSpendWindowStart(expiry, tvi, mul)
+	start, _, err := standalone.CalcTSpendWindow(expiry, tvi, mul)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2547,7 +2543,7 @@ func TestTSpendSignature(t *testing.T) {
 	nextBlockHeight := g.Tip().Header.Height //+ uint32(tvi*mul*4) + 1
 	expiry := standalone.CalculateTSpendExpiry(int64(nextBlockHeight), tvi,
 		mul)
-	start, err := standalone.CalculateTSpendWindowStart(expiry, tvi, mul)
+	start, _, err := standalone.CalcTSpendWindow(expiry, tvi, mul)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2767,7 +2763,7 @@ func TestTSpendSignatureInvalid(t *testing.T) {
 	nextBlockHeight := g.Tip().Header.Height //+ uint32(tvi*mul*4) + 1
 	expiry := standalone.CalculateTSpendExpiry(int64(nextBlockHeight), tvi,
 		mul)
-	start, err := standalone.CalculateTSpendWindowStart(expiry, tvi, mul)
+	start, _, err := standalone.CalcTSpendWindow(expiry, tvi, mul)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2965,7 +2961,7 @@ func TestTSpendExists(t *testing.T) {
 	nextBlockHeight := g.Tip().Header.Height + 1
 	expiry := standalone.CalculateTSpendExpiry(int64(nextBlockHeight), tvi,
 		mul)
-	start, err := standalone.CalculateTSpendWindowStart(expiry, tvi, mul)
+	start, _, err := standalone.CalcTSpendWindow(expiry, tvi, mul)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -3870,7 +3866,7 @@ func TestTSpendCorners(t *testing.T) {
 	tspendFee := 100
 	expiry := standalone.CalculateTSpendExpiry(int64(nextBlockHeight), tvi,
 		mul)
-	start, err := standalone.CalculateTSpendWindowStart(expiry, tvi, mul)
+	start, _, err := standalone.CalcTSpendWindow(expiry, tvi, mul)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -3958,11 +3954,7 @@ func TestTSpendFirstTVICorner(t *testing.T) {
 	// total of 55 possible.  That easily is voted in since 60% is 33 yes
 	// votes.
 	expiry := standalone.CalculateTSpendExpiry(140, tvi, mul)
-	start, err := standalone.CalculateTSpendWindowStart(expiry, tvi, mul)
-	if err != nil {
-		t.Fatal(err)
-	}
-	end, err := standalone.CalculateTSpendWindowEnd(expiry, tvi)
+	start, end, err := standalone.CalcTSpendWindow(expiry, tvi, mul)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -4250,11 +4242,7 @@ func TestTSpendVoteCountSynthetic(t *testing.T) {
 	tpb := params.TicketsPerBlock
 
 	expiry := standalone.CalculateTSpendExpiry(int64(tmh), tvi, mul)
-	start, err := standalone.CalculateTSpendWindowStart(expiry, tvi, mul)
-	if err != nil {
-		t.Fatal(err)
-	}
-	end, err := standalone.CalculateTSpendWindowEnd(expiry, tvi)
+	start, end, err := standalone.CalcTSpendWindow(expiry, tvi, mul)
 	if err != nil {
 		t.Fatal(err)
 	}

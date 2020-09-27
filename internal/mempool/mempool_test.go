@@ -2613,7 +2613,7 @@ func TestHandlesTSpends(t *testing.T) {
 	// when voting ends and advance the fake chain to just before that
 	// height. The tspend can be mined on the block the vote ends, which is
 	// a TVI block.
-	endVote, err := standalone.CalculateTSpendWindowEnd(expiry, tvi)
+	_, endVote, err := standalone.CalcTSpendWindow(expiry, tvi, mul)
 	if err != nil {
 		t.Fatal(err)
 	}

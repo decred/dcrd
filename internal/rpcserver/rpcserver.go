@@ -3323,10 +3323,9 @@ func handleGetTreasurySpendVotes(_ context.Context, s *Server, cmd interface{}) 
 			}
 		}
 
-		// The following errors can be ignored because we checked the
-		// expiry is in a TVI earlier.
-		start, _ := standalone.CalculateTSpendWindowStart(expiry, tvi, mul)
-		end, _ := standalone.CalculateTSpendWindowEnd(expiry, tvi)
+		// The following error can be ignored because the expiry was verified to
+		// be in a TVI earlier.
+		start, end, _ := standalone.CalcTSpendWindow(expiry, tvi, mul)
 
 		votes[i] = types.TreasurySpendVotes{
 			Hash:      txHash.String(),

@@ -885,14 +885,9 @@ func (b *BlockChain) tSpendCountVotes(prevNode *blockNode, tspend *dcrutil.Tx) (
 	)
 
 	expiry := tspend.MsgTx().Expiry
-	t.start, err = standalone.CalculateTSpendWindowStart(expiry,
+	t.start, t.end, err = standalone.CalcTSpendWindow(expiry,
 		b.chainParams.TreasuryVoteInterval,
 		b.chainParams.TreasuryVoteIntervalMultiplier)
-	if err != nil {
-		return nil, err
-	}
-	t.end, err = standalone.CalculateTSpendWindowEnd(expiry,
-		b.chainParams.TreasuryVoteInterval)
 	if err != nil {
 		return nil, err
 	}

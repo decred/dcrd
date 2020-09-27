@@ -18,8 +18,7 @@ func TestErrorKindStringer(t *testing.T) {
 	}{
 		{ErrUnexpectedDifficulty, "ErrUnexpectedDifficulty"},
 		{ErrHighHash, "ErrHighHash"},
-		{ErrTSpendStartInvalidExpiry, "ErrTSpendStartInvalidExpiry"},
-		{ErrTSpendEndInvalidExpiry, "ErrTSpendEndInvalidExpiry"},
+		{ErrInvalidTSpendExpiry, "ErrInvalidTSpendExpiry"},
 	}
 
 	t.Logf("Running %d tests", len(tests))
