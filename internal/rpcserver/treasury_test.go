@@ -322,7 +322,7 @@ func TestTreasury(t *testing.T) {
 
 	// Create a TSpend that pays to a privkey we control and to a P2SH
 	// address we know how to redeem.
-	expiry := standalone.CalculateTSpendExpiry(targetHeight+1, tvi, mul)
+	expiry := standalone.CalcTSpendExpiry(targetHeight+1, tvi, mul)
 	tspendFee := dcrutil.Amount(5190)
 	tspendAmount := dcrutil.Amount(7e8) // 7 DCR
 	payouts := []tspendPayout{

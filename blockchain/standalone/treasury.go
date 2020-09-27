@@ -6,11 +6,10 @@ package standalone
 
 import "fmt"
 
-// CalculateTSpendExpiry returns the only valid value relative to the next
-// block height where the transaction will expire. We add two blocks in the end
-// because transaction expiry is inclusive (>=) relative to blockheight.
-// We try very hard to use the "natural" types but this is a giant mess.
-func CalculateTSpendExpiry(nextBlockHeight int64, tvi, multiplier uint64) uint32 {
+// CalcTSpendExpiry returns the only valid value relative to the next block
+// height where the transaction will expire.  Two blocks are added in the end
+// because transaction expiry is inclusive (>=) relative to block height.
+func CalcTSpendExpiry(nextBlockHeight int64, tvi, multiplier uint64) uint32 {
 	nbh := uint64(nextBlockHeight)
 	nextTVI := nbh + (tvi - (nbh % tvi)) // Round up to next TVI
 	maxTVI := nextTVI + tvi*multiplier   // Max TVI allowed.

@@ -115,7 +115,7 @@ func TestCalcTSpendWindow(t *testing.T) {
 func TestTSpendExpiry(t *testing.T) {
 	tvi := uint64(288)
 	mul := uint64(7)
-	expiry := CalculateTSpendExpiry(2880, tvi, mul)
+	expiry := CalcTSpendExpiry(2880, tvi, mul)
 	if expiry != 5186 {
 		t.Fatalf("got %v, expected 5186", expiry)
 	}

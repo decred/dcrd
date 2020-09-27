@@ -2484,7 +2484,7 @@ func TestHandlesTSpends(t *testing.T) {
 
 	// Calculate an expiry for the tests such that voting starts at the
 	// next block (which happens to be SVH).
-	expiry := standalone.CalculateTSpendExpiry(nextHeight-int64(tvi), tvi, mul)
+	expiry := standalone.CalcTSpendExpiry(nextHeight-int64(tvi), tvi, mul)
 	tspendAmount := int64(1e8)
 	tspendFee := int64(2550)
 
