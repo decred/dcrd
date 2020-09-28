@@ -529,15 +529,15 @@ func CheckProofOfStake(block *dcrutil.Block, posLimit int64) error {
 }
 
 // standaloneToChainRuleError attempts to convert the passed error from a
-// standalone.RuleError to a blockchain.RuleError with the equivalent code.  The
-// error is simply passed through without modification if it is not a
-// standalone.RuleError, not one of the specifically recognized error codes, or
-// nil.
+// standalone.RuleError to a blockchain.RuleError with the equivalent error
+// kind.  The error is simply passed through without modification if it is
+// not a standalone.RuleError, not one of the specifically recognized
+// error codes, or nil.
 func standaloneToChainRuleError(err error) error {
 	// Convert standalone package rule errors to blockchain rule errors.
 	var rErr standalone.RuleError
 	if errors.As(err, &rErr) {
-		switch rErr.ErrorCode {
+		switch rErr.Err {
 		case standalone.ErrUnexpectedDifficulty:
 			return ruleError(ErrUnexpectedDifficulty, rErr.Description)
 		case standalone.ErrHighHash:

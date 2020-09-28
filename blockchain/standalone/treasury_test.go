@@ -4,25 +4,24 @@
 
 package standalone
 
-import "testing"
+import (
+	"errors"
+	"testing"
+)
 
 func TestTSpendExpiryNegative(t *testing.T) {
 	// 5 is not a valid start for a tvi of 11 with a mul of 3.
 	_, err := CalculateTSpendWindowStart(5, 11, 3)
-	if e, ok := err.(RuleError); !ok {
-		t.Fatal(err)
-	} else if e.ErrorCode != ErrTSpendStartInvalidExpiry {
+	if !errors.Is(err, ErrTSpendStartInvalidExpiry) {
 		t.Fatalf("expected %v got %v",
-			ErrTSpendStartInvalidExpiry, e.ErrorCode)
+			ErrTSpendStartInvalidExpiry, err)
 	}
 
 	// 5 is not a valid end for a tvi of 11.
 	_, err = CalculateTSpendWindowEnd(5, 11)
-	if e, ok := err.(RuleError); !ok {
-		t.Fatal(err)
-	} else if e.ErrorCode != ErrTSpendEndInvalidExpiry {
+	if !errors.Is(err, ErrTSpendEndInvalidExpiry) {
 		t.Fatalf("expected %v got %v",
-			ErrTSpendEndInvalidExpiry, e.ErrorCode)
+			ErrTSpendEndInvalidExpiry, err)
 	}
 }
 

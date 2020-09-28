@@ -5,6 +5,7 @@
 package standalone
 
 import (
+	"errors"
 	"math/big"
 	"testing"
 
@@ -248,17 +249,17 @@ func TestCheckProofOfWorkRange(t *testing.T) {
 		name:     "zero",
 		bits:     0,
 		powLimit: mockMainNetPowLimit(),
-		err:      ruleError(ErrUnexpectedDifficulty, ""),
+		err:      ErrUnexpectedDifficulty,
 	}, {
 		name:     "negative",
 		bits:     0x1810000,
 		powLimit: mockMainNetPowLimit(),
-		err:      ruleError(ErrUnexpectedDifficulty, ""),
+		err:      ErrUnexpectedDifficulty,
 	}, {
 		name:     "pow limit + 1",
 		bits:     0x1d010000,
 		powLimit: mockMainNetPowLimit(),
-		err:      ruleError(ErrUnexpectedDifficulty, ""),
+		err:      ErrUnexpectedDifficulty,
 	}}
 
 	for _, test := range tests {
@@ -269,15 +270,9 @@ func TestCheckProofOfWorkRange(t *testing.T) {
 		}
 
 		err := CheckProofOfWorkRange(test.bits, powLimit)
-		if test.err == nil && err != nil {
-			t.Errorf("%q: unexpected err -- got %v, want nil", test.name, err)
-			continue
-		} else if test.err != nil {
-			if !IsErrorCode(err, test.err.(RuleError).ErrorCode) {
-				t.Errorf("%q: unexpected err -- got %v, want %v",
-					test.name, err, test.err.(RuleError).ErrorCode)
-				continue
-			}
+		if !errors.Is(err, test.err) {
+			t.Errorf("%q: unexpected err -- got %v, want %v", test.name, err,
+				test.err)
 			continue
 		}
 	}
@@ -316,25 +311,25 @@ func TestCheckProofOfWork(t *testing.T) {
 		hash:     "000000000001ffff000000000000000000000000000000000000000000000001",
 		bits:     0x1b01ffff,
 		powLimit: mockMainNetPowLimit(),
-		err:      ruleError(ErrHighHash, ""),
+		err:      ErrHighHash,
 	}, {
 		name:     "hash satisfies target, but target too high at pow limit + 1",
 		hash:     "0000000000000000000000000000000000000000000000000000000000000001",
 		bits:     0x1d010000,
 		powLimit: mockMainNetPowLimit(),
-		err:      ruleError(ErrUnexpectedDifficulty, ""),
+		err:      ErrUnexpectedDifficulty,
 	}, {
 		name:     "zero target difficulty",
 		hash:     "0000000000000000000000000000000000000000000000000000000000000001",
 		bits:     0,
 		powLimit: mockMainNetPowLimit(),
-		err:      ruleError(ErrUnexpectedDifficulty, ""),
+		err:      ErrUnexpectedDifficulty,
 	}, {
 		name:     "negative target difficulty",
 		hash:     "0000000000000000000000000000000000000000000000000000000000000001",
 		bits:     0x1810000,
 		powLimit: mockMainNetPowLimit(),
-		err:      ruleError(ErrUnexpectedDifficulty, ""),
+		err:      ErrUnexpectedDifficulty,
 	}}
 
 	for _, test := range tests {
@@ -351,15 +346,9 @@ func TestCheckProofOfWork(t *testing.T) {
 		}
 
 		err = CheckProofOfWork(hash, test.bits, powLimit)
-		if test.err == nil && err != nil {
-			t.Errorf("%q: unexpected err -- got %v, want nil", test.name, err)
-			continue
-		} else if test.err != nil {
-			if !IsErrorCode(err, test.err.(RuleError).ErrorCode) {
-				t.Errorf("%q: unexpected err -- got %v, want %v",
-					test.name, err, test.err.(RuleError).ErrorCode)
-				continue
-			}
+		if !errors.Is(err, test.err) {
+			t.Errorf("%q: unexpected err -- got %v, want %v", test.name, err,
+				test.err)
 			continue
 		}
 	}

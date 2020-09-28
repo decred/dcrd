@@ -5,33 +5,28 @@
 package standalone
 
 import (
+	"errors"
+	"io"
 	"testing"
 )
 
-// TestErrorCodeStringer tests the stringized output for the ErrorCode type.
-func TestErrorCodeStringer(t *testing.T) {
+// TestErrorKindStringer tests the stringized output for the ErrorKind type.
+func TestErrorKindStringer(t *testing.T) {
 	tests := []struct {
-		in   ErrorCode
+		in   ErrorKind
 		want string
 	}{
 		{ErrUnexpectedDifficulty, "ErrUnexpectedDifficulty"},
 		{ErrHighHash, "ErrHighHash"},
 		{ErrTSpendStartInvalidExpiry, "ErrTSpendStartInvalidExpiry"},
 		{ErrTSpendEndInvalidExpiry, "ErrTSpendEndInvalidExpiry"},
-		{0xffff, "Unknown ErrorCode (65535)"},
-	}
-
-	// Detect additional error codes that don't have the stringer added.
-	if len(tests)-1 != int(numErrorCodes) {
-		t.Errorf("It appears an error code was added without adding an " +
-			"associated stringer test")
 	}
 
 	t.Logf("Running %d tests", len(tests))
 	for i, test := range tests {
-		result := test.in.String()
+		result := test.in.Error()
 		if result != test.want {
-			t.Errorf("String #%d\n got: %s want: %s", i, result, test.want)
+			t.Errorf("%d: got: %s want: %s", i, result, test.want)
 			continue
 		}
 	}
@@ -43,8 +38,8 @@ func TestRuleError(t *testing.T) {
 		in   RuleError
 		want string
 	}{{
-		RuleError{Description: "duplicate block"},
-		"duplicate block",
+		RuleError{Description: "unexpected difficulty"},
+		"unexpected difficulty",
 	}, {
 		RuleError{Description: "human-readable error"},
 		"human-readable error",
@@ -55,50 +50,91 @@ func TestRuleError(t *testing.T) {
 	for i, test := range tests {
 		result := test.in.Error()
 		if result != test.want {
-			t.Errorf("Error #%d\n got: %s want: %s", i, result, test.want)
+			t.Errorf("%d: got: %s want: %s", i, result, test.want)
 			continue
 		}
 	}
 }
 
-// TestIsErrorCode ensures IsErrorCode works as intended.
-func TestIsErrorCode(t *testing.T) {
+// TestRuleErrorKindIsAs ensures both ErrorKind and RuleError can be
+// identified as being a specific error kind via errors.Is and unwrapped
+// via errors.As.
+func TestRuleErrorKindIsAs(t *testing.T) {
 	tests := []struct {
-		name string
-		err  error
-		code ErrorCode
-		want bool
+		name      string
+		err       error
+		target    error
+		wantMatch bool
+		wantAs    ErrorKind
 	}{{
-		name: "ErrUnexpectedDifficulty testing for ErrUnexpectedDifficulty",
-		err:  ruleError(ErrUnexpectedDifficulty, ""),
-		code: ErrUnexpectedDifficulty,
-		want: true,
+		name:      "ErrUnexpectedDifficulty == ErrUnexpectedDifficulty",
+		err:       ErrUnexpectedDifficulty,
+		target:    ErrUnexpectedDifficulty,
+		wantMatch: true,
+		wantAs:    ErrUnexpectedDifficulty,
 	}, {
-		name: "ErrHighHash testing for ErrHighHash",
-		err:  ruleError(ErrHighHash, ""),
-		code: ErrHighHash,
-		want: true,
+		name:      "RuleError.ErrUnexpectedDifficulty == ErrUnexpectedDifficulty",
+		err:       ruleError(ErrUnexpectedDifficulty, ""),
+		target:    ErrUnexpectedDifficulty,
+		wantMatch: true,
+		wantAs:    ErrUnexpectedDifficulty,
 	}, {
-		name: "ErrHighHash error testing for ErrUnexpectedDifficulty",
-		err:  ruleError(ErrHighHash, ""),
-		code: ErrUnexpectedDifficulty,
-		want: false,
+		name:      "RuleError.ErrUnexpectedDifficulty == RuleError.ErrUnexpectedDifficulty",
+		err:       ruleError(ErrUnexpectedDifficulty, ""),
+		target:    ruleError(ErrUnexpectedDifficulty, ""),
+		wantMatch: true,
+		wantAs:    ErrUnexpectedDifficulty,
 	}, {
-		name: "ErrHighHash error testing for unknown error code",
-		err:  ruleError(ErrHighHash, ""),
-		code: 0xffff,
-		want: false,
+		name:      "ErrUnexpectedDifficulty != ErrHighHash",
+		err:       ErrUnexpectedDifficulty,
+		target:    ErrHighHash,
+		wantMatch: false,
+		wantAs:    ErrUnexpectedDifficulty,
 	}, {
-		name: "nil error testing for ErrUnexpectedDifficulty",
-		err:  nil,
-		code: ErrUnexpectedDifficulty,
-		want: false,
+		name:      "RuleError.ErrUnexpectedDifficulty != ErrHighHash",
+		err:       ruleError(ErrUnexpectedDifficulty, ""),
+		target:    ErrHighHash,
+		wantMatch: false,
+		wantAs:    ErrUnexpectedDifficulty,
+	}, {
+		name:      "ErrUnexpectedDifficulty != RuleError.ErrHighHash",
+		err:       ErrUnexpectedDifficulty,
+		target:    ruleError(ErrHighHash, ""),
+		wantMatch: false,
+		wantAs:    ErrUnexpectedDifficulty,
+	}, {
+		name:      "RuleError.ErrUnexpectedDifficulty != RuleError.ErrHighHash",
+		err:       ruleError(ErrUnexpectedDifficulty, ""),
+		target:    ruleError(ErrHighHash, ""),
+		wantMatch: false,
+		wantAs:    ErrUnexpectedDifficulty,
+	}, {
+		name:      "RuleError.ErrUnexpectedDifficulty != io.EOF",
+		err:       ruleError(ErrUnexpectedDifficulty, ""),
+		target:    io.EOF,
+		wantMatch: false,
+		wantAs:    ErrUnexpectedDifficulty,
 	}}
+
 	for _, test := range tests {
-		result := IsErrorCode(test.err, test.code)
-		if result != test.want {
-			t.Errorf("%s: unexpected result -- got: %v want: %v", test.name,
-				result, test.want)
+		// Ensure the error matches or not depending on the expected result.
+		result := errors.Is(test.err, test.target)
+		if result != test.wantMatch {
+			t.Errorf("%s: incorrect error identification -- got %v, want %v",
+				test.name, result, test.wantMatch)
+			continue
+		}
+
+		// Ensure the underlying error kind can be unwrapped is and is the
+		// expected kind.
+		var kind ErrorKind
+		if !errors.As(test.err, &kind) {
+			t.Errorf("%s: unable to unwrap to error kind", test.name)
+			continue
+		}
+		if kind != test.wantAs {
+			t.Errorf("%s: unexpected unwrapped error kind -- got %v, want %v",
+				test.name, kind, test.wantAs)
 			continue
 		}
 	}
