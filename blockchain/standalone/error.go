@@ -4,58 +4,42 @@
 
 package standalone
 
-import (
-	"fmt"
-)
-
-// ErrorCode identifies a kind of error.
-type ErrorCode int
+// ErrorKind identifies a kind of error.  It has full support for errors.Is and
+// errors.As, so the caller can directly check against an error kind when
+// determining the reason for an error.
+type ErrorKind string
 
 // These constants are used to identify a specific RuleError.
 const (
 	// ErrUnexpectedDifficulty indicates specified bits do not align with
 	// the expected value either because it doesn't match the calculated
 	// value based on difficulty rules or it is out of the valid range.
-	ErrUnexpectedDifficulty ErrorCode = iota
+	ErrUnexpectedDifficulty = ErrorKind("ErrUnexpectedDifficulty")
 
 	// ErrHighHash indicates the block does not hash to a value which is
 	// lower than the required target difficultly.
-	ErrHighHash
+	ErrHighHash = ErrorKind("ErrHighHash")
 
 	// ErrTSpendStartInvalidExpiry indicates that an invalid expiry was
 	// provided to calculate the start of a treasury spend vote window.
-	ErrTSpendStartInvalidExpiry
+	ErrTSpendStartInvalidExpiry = ErrorKind("ErrTSpendStartInvalidExpiry")
 
 	// ErrTSpendEndInvalidExpiry indicates that an invalid expiry was
 	// provided to calculate the end of a treasury spend vote window.
-	ErrTSpendEndInvalidExpiry
-
-	// numErrorCodes is the maximum error code number used in tests.
-	numErrorCodes
+	ErrTSpendEndInvalidExpiry = ErrorKind("ErrTSpendEndInvalidExpiry")
 )
 
-// Map of ErrorCode values back to their constant names for pretty printing.
-var errorCodeStrings = map[ErrorCode]string{
-	ErrUnexpectedDifficulty:     "ErrUnexpectedDifficulty",
-	ErrHighHash:                 "ErrHighHash",
-	ErrTSpendStartInvalidExpiry: "ErrTSpendStartInvalidExpiry",
-	ErrTSpendEndInvalidExpiry:   "ErrTSpendEndInvalidExpiry",
+// Error satisfies the error interface and prints human-readable errors.
+func (e ErrorKind) Error() string {
+	return string(e)
 }
 
-// String returns the ErrorCode as a human-readable name.
-func (e ErrorCode) String() string {
-	if s := errorCodeStrings[e]; s != "" {
-		return s
-	}
-	return fmt.Sprintf("Unknown ErrorCode (%d)", int(e))
-}
-
-// RuleError identifies a rule violation.  The caller can use type assertions to
-// determine if a failure was specifically due to a rule violation and access
-// the ErrorCode field to ascertain the specific reason for the rule violation.
+// RuleError identifies a rule violation. It has full support for errors.Is
+// and errors.As, so the caller can ascertain the specific reason for the
+// error by checking the underlying error.
 type RuleError struct {
-	ErrorCode   ErrorCode // Describes the kind of error
-	Description string    // Human readable description of the issue
+	Description string
+	Err         error
 }
 
 // Error satisfies the error interface and prints human-readable errors.
@@ -63,14 +47,12 @@ func (e RuleError) Error() string {
 	return e.Description
 }
 
-// ruleError creates an RuleError given a set of arguments.
-func ruleError(c ErrorCode, desc string) RuleError {
-	return RuleError{ErrorCode: c, Description: desc}
+// Unwrap returns the underlying wrapped error.
+func (e RuleError) Unwrap() error {
+	return e.Err
 }
 
-// IsErrorCode returns whether or not the provided error is a rule error with
-// the provided error code.
-func IsErrorCode(err error, c ErrorCode) bool {
-	e, ok := err.(RuleError)
-	return ok && e.ErrorCode == c
+// ruleError creates a RuleError given a set of arguments.
+func ruleError(kind ErrorKind, desc string) RuleError {
+	return RuleError{Err: kind, Description: desc}
 }

@@ -29,8 +29,8 @@ func IsTreasuryVoteInterval(height, tvi uint64) bool {
 // this function is only called with an expiry that *IS* on a TVI.
 func CalculateTSpendWindowStart(expiry uint32, tvi, multiplier uint64) (uint32, error) {
 	if !IsTreasuryVoteInterval(uint64(expiry-2), tvi) {
-		return 0, RuleError{ErrTSpendStartInvalidExpiry,
-			fmt.Sprintf("invalid start expiry: %v", expiry)}
+		return 0, ruleError(ErrTSpendStartInvalidExpiry,
+			fmt.Sprintf("invalid start expiry: %v", expiry))
 	}
 	return expiry - uint32(tvi*multiplier) - 2, nil
 }
@@ -40,8 +40,8 @@ func CalculateTSpendWindowStart(expiry uint32, tvi, multiplier uint64) (uint32, 
 // this function is only called with an expiry that *IS* on a TVI.
 func CalculateTSpendWindowEnd(expiry uint32, tvi uint64) (uint32, error) {
 	if !IsTreasuryVoteInterval(uint64(expiry-2), tvi) {
-		return 0, RuleError{ErrTSpendEndInvalidExpiry,
-			fmt.Sprintf("invalid end expiry: %v", expiry)}
+		return 0, ruleError(ErrTSpendEndInvalidExpiry,
+			fmt.Sprintf("invalid end expiry: %v", expiry))
 	}
 	return expiry - 2, nil
 }
