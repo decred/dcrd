@@ -228,3 +228,61 @@ func TestCalcTSpendExpiry(t *testing.T) {
 		}
 	}
 }
+
+// TestInsideTSpendWindow ensures that the function to determine if a given
+// height is within a treasury spend voting window returns the expected results.
+func TestInsideTSpendWindow(t *testing.T) {
+	tests := []struct {
+		name   string // test description
+		height int64  // height to check
+		expiry uint32 // expiry for the voting window
+		tvi    uint64 // treasury vote interval
+		tvimul uint64 // treasury vote interval multiplier
+		want   bool   // expected result
+	}{{
+		name:   "invalid expiry but otherwise correct",
+		height: 3167,
+		expiry: 5185,
+		tvi:    288,
+		tvimul: 7,
+		want:   false,
+	}, {
+		name:   "one block before window start",
+		height: 3167,
+		expiry: 5186,
+		tvi:    288,
+		tvimul: 7,
+		want:   false,
+	}, {
+		name:   "exactly window start",
+		height: 3168,
+		expiry: 5186,
+		tvi:    288,
+		tvimul: 7,
+		want:   true,
+	}, {
+		name:   "last block of window",
+		height: 5184,
+		expiry: 5186,
+		tvi:    288,
+		tvimul: 7,
+		want:   true,
+	}, {
+		name:   "one block after window",
+		height: 5185,
+		expiry: 5186,
+		tvi:    288,
+		tvimul: 7,
+		want:   false,
+	}}
+
+	for _, test := range tests {
+		result := InsideTSpendWindow(test.height, test.expiry, test.tvi,
+			test.tvimul)
+		if result != test.want {
+			t.Errorf("%q: unexpected result -- got %v, want %v", test.name,
+				result, test.want)
+			continue
+		}
+	}
+}
