@@ -157,11 +157,74 @@ func TestCalcTSpendWindow(t *testing.T) {
 	}
 }
 
-func TestTSpendExpiry(t *testing.T) {
-	tvi := uint64(288)
-	mul := uint64(7)
-	expiry := CalcTSpendExpiry(2880, tvi, mul)
-	if expiry != 5186 {
-		t.Fatalf("got %v, expected 5186", expiry)
+// TestCalcTSpendExpiry ensures that the function to calculate the expiry for
+// the treasury spend voting window for a given height produces the expected
+// results.
+func TestCalcTSpendExpiry(t *testing.T) {
+	tests := []struct {
+		name       string // test description
+		height     int64  // height to calculate the expiry for
+		tvi        uint64 // treasury vote interval
+		tvimul     uint64 // treasury vote interval multiplier
+		wantExpiry uint32 // expected expiry
+	}{{
+		name:       "mul 1, tvi 288, first block in first tvi",
+		height:     0,
+		tvi:        288,
+		tvimul:     1,
+		wantExpiry: 578,
+	}, {
+		name:       "mul 1, tvi 288, last block in first tvi",
+		height:     287,
+		tvi:        288,
+		tvimul:     1,
+		wantExpiry: 578,
+	}, {
+		name:       "mul 1, tvi 288, first block in second tvi",
+		height:     288,
+		tvi:        288,
+		tvimul:     1,
+		wantExpiry: 866,
+	}, {
+		name:       "mul 2, tvi 288, first block in first tvi",
+		height:     0,
+		tvi:        288,
+		tvimul:     2,
+		wantExpiry: 866,
+	}, {
+		name:       "mul 2, tvi 288, last block in first tvi",
+		height:     287,
+		tvi:        288,
+		tvimul:     2,
+		wantExpiry: 866,
+	}, {
+		name:       "mul 2, tvi 288, first block in second tvi",
+		height:     288,
+		tvi:        288,
+		tvimul:     2,
+		wantExpiry: 1154,
+	}, {
+		name:       "mul 60, tvi 4, block in middle of 13th tvi",
+		height:     810,
+		tvi:        60,
+		tvimul:     4,
+		wantExpiry: 1082,
+	}, {
+		name:       "mul 7, tvi 288, first block in 10th tvi",
+		height:     2880,
+		tvi:        288,
+		tvimul:     7,
+		wantExpiry: 5186,
+	}}
+
+	for _, test := range tests {
+		// Calculate expiry and ensure the expected value is produced.
+		// Ensure the expected start value is calculated.
+		expiry := CalcTSpendExpiry(test.height, test.tvi, test.tvimul)
+		if expiry != test.wantExpiry {
+			t.Errorf("%q: unexpected expiry -- got %v, want %v", test.name,
+				expiry, test.wantExpiry)
+			continue
+		}
 	}
 }
