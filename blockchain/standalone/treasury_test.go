@@ -17,6 +17,51 @@ const (
 	mainNetTVIMul = 12
 )
 
+// TestIsTreasuryVoteInterval ensures that the function to determine if a given
+// block height is on a treasury vote interval returns the expected results
+// including for edge conditions.
+func TestIsTreasuryVoteInterval(t *testing.T) {
+	tests := []struct {
+		name   string // test description
+		height uint64 // height to check
+		tvi    uint64 // treasury vote interval
+		want   bool   // expected result
+	}{{
+		name:   "0 is never considered a TVI",
+		height: 0,
+		tvi:    mainNetTVI,
+		want:   false,
+	}, {
+		name:   "TVI - 1",
+		height: mainNetTVI - 1,
+		tvi:    mainNetTVI,
+		want:   false,
+	}, {
+		name:   "exactly TVI",
+		height: mainNetTVI,
+		tvi:    mainNetTVI,
+		want:   true,
+	}, {
+		name:   "TVI + 1",
+		height: mainNetTVI + 1,
+		tvi:    mainNetTVI,
+		want:   false,
+	}, {
+		name:   "Multiple of TVI",
+		height: 2 * mainNetTVI,
+		tvi:    mainNetTVI,
+		want:   true,
+	}}
+
+	for _, test := range tests {
+		result := IsTreasuryVoteInterval(test.height, test.tvi)
+		if result != test.want {
+			t.Errorf("%q: Unexpected result -- got %v, want %v", test.name,
+				result, test.want)
+		}
+	}
+}
+
 // TestCalcTSpendWindow ensures that the function that calculates the start and
 // end of a treasury spend voting window returns the expected results including
 // error conditions.
