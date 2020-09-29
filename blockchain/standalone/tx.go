@@ -30,17 +30,6 @@ var (
 	zeroHash = chainhash.Hash{}
 )
 
-// isNullOutpoint determines whether or not a previous transaction output point
-// is set.
-func isNullOutpoint(tx *wire.MsgTx) bool {
-	nullInOP := tx.TxIn[0].PreviousOutPoint
-	if nullInOP.Index == math.MaxUint32 && nullInOP.Hash.IsEqual(&zeroHash) &&
-		nullInOP.Tree == wire.TxTreeRegular {
-		return true
-	}
-	return false
-}
-
 // IsCoinBaseTx determines whether or not a transaction is a coinbase.  A
 // coinbase is a special transaction created by miners that has no inputs.
 // This is represented in the block chain by a transaction with a single input
@@ -102,6 +91,17 @@ func IsCoinBaseTx(tx *wire.MsgTx, isTreasuryEnabled bool) bool {
 	return true
 }
 
+// isNullOutpoint determines whether or not a previous transaction output point
+// is set.
+func isNullOutpoint(tx *wire.MsgTx) bool {
+	nullInOP := tx.TxIn[0].PreviousOutPoint
+	if nullInOP.Index == math.MaxUint32 && nullInOP.Hash.IsEqual(&zeroHash) &&
+		nullInOP.Tree == wire.TxTreeRegular {
+		return true
+	}
+	return false
+}
+
 // IsTreasuryBase does a minimal check to see if a transaction is a treasury
 // base.
 func IsTreasuryBase(tx *wire.MsgTx) bool {
@@ -117,14 +117,14 @@ func IsTreasuryBase(tx *wire.MsgTx) bool {
 		return false
 	}
 
-	if len(tx.TxOut[0].PkScript) != 1 ||
-		tx.TxOut[0].PkScript[0] != opTAdd {
+	if len(tx.TxOut[0].PkScript) != 1 || tx.TxOut[0].PkScript[0] != opTAdd {
 		return false
 	}
 
 	if len(tx.TxOut[1].PkScript) != 14 ||
 		tx.TxOut[1].PkScript[0] != opReturn ||
 		tx.TxOut[1].PkScript[1] != opData12 {
+
 		return false
 	}
 
