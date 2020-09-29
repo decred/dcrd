@@ -50,12 +50,12 @@ func CalcTSpendWindow(expiry uint32, tvi, multiplier uint64) (uint32, uint32, er
 
 // InsideTSpendWindow returns true if the provided block height is inside the
 // treasury vote window of the provided expiry.  This function should only be
-// called with an expiry that is on a TVI. Proper care must be taken to call
-// this function with the correct blockheight. It is incumbent on the caller to
-// determine if the blockheight is for the previous, current or next block.
+// called with an expiry that is on a TVI.  Proper care must be taken to call
+// this function with the correct block height.  It is incumbent on the caller
+// to determine if the block height is for the previous, current, or next block.
 //
-// Note: The end is INCLUSIVE in order to determine if a TSPEND is allowed in a
-// block despite the fact that voting window is EXCLUSIVE.
+// Note: The end is INCLUSIVE in order to determine if a treasury spend is
+// allowed in a block despite the fact that the voting window is EXCLUSIVE.
 func InsideTSpendWindow(blockHeight int64, expiry uint32, tvi, multiplier uint64) bool {
 	start, end, err := CalcTSpendWindow(expiry, tvi, multiplier)
 	if err != nil {

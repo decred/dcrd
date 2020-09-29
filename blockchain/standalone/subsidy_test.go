@@ -374,7 +374,8 @@ func TestSubsidyCacheCalcs(t *testing.T) {
 			continue
 		}
 
-		// Ensure the treasury subsidy is the expected value.
+		// Ensure the treasury subsidy is the expected value when the treasury
+		// agenda is not active.
 		treasuryResult := cache.CalcTreasurySubsidy(test.height, test.numVotes,
 			noTreasury)
 		if treasuryResult != test.wantTreasury {
