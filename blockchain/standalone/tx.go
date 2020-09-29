@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2019 The Decred developers
+// Copyright (c) 2015-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -47,44 +47,56 @@ func isNullOutpoint(tx *wire.MsgTx) bool {
 // that has a previous output transaction index set to the maximum value along
 // with a zero hash.
 func IsCoinBaseTx(tx *wire.MsgTx, isTreasuryEnabled bool) bool {
+	// A coinbase must be version 3 once the treasury agenda is active.
 	if isTreasuryEnabled && tx.Version != wire.TxVersionTreasury {
 		return false
 	}
 
-	// A coin base must only have one transaction input.
+	// A coinbase must only have one transaction input.
 	if len(tx.TxIn) != 1 {
 		return false
 	}
 
-	// The previous output of a coin base must have a max value index and a
+	// The previous output of a coinbase must have a max value index and a
 	// zero hash.
 	prevOut := &tx.TxIn[0].PreviousOutPoint
 	if prevOut.Index != math.MaxUint32 || prevOut.Hash != zeroHash {
 		return false
 	}
 
-	// We need to do additional testing when treasury is enabled or a
-	// TSPEND will be recognized as a coinbase transaction.
-	if isTreasuryEnabled {
-		// TSpends have at least 2 outputs.
+	// isTreasurySpendLike returns whether or not the provided transaction is
+	// likely to be a treasury spend transaction for the purposes of
+	// differentiating it from a coinbase.
+	//
+	// Note that this relies on the checks above to avoid panics.
+	isTreasurySpendLike := func(tx *wire.MsgTx) bool {
+		// Treasury spends have at least two outputs.
 		if len(tx.TxOut) < 2 {
 			return false
 		}
-		// TSpends have scripts in TxIn[0] and all TxOut.
+
+		// Treasury spends have scripts in the first input and all outputs.
 		l := len(tx.TxIn[0].SignatureScript)
 		if l == 0 ||
 			len(tx.TxOut[0].PkScript) == 0 ||
 			len(tx.TxOut[1].PkScript) == 0 {
+
 			return false
 		}
-		// TSpends have a TSpend opcode as the last byte of TxIn 0 and
-		// an OP_RETURN followed by at least one OP_TGEN in the zeroth
-		// TxOut script.
-		if tx.TxIn[0].SignatureScript[l-1] == opTSpend &&
+
+		// Treasury spends have an OP_TSPEND as the last byte of the signature
+		// script of the first input, an OP_RETURN as the first byte of the
+		// public key script of the first output, and at least one output with
+		// an OP_TGEN as the first byte of its public key script.
+		return tx.TxIn[0].SignatureScript[l-1] == opTSpend &&
 			tx.TxOut[0].PkScript[0] == opReturn &&
-			tx.TxOut[1].PkScript[0] == opTGen {
-			return false
-		}
+			tx.TxOut[1].PkScript[0] == opTGen
+	}
+
+	// Avoid detecting treasury spends as a coinbase transaction when the
+	// treasury agenda is active.
+	if isTreasuryEnabled && isTreasurySpendLike(tx) {
+		return false
 	}
 
 	return true

@@ -4213,7 +4213,7 @@ func TestTreasuryInRegularTree(t *testing.T) {
 	startTip := g.TipName()
 	g.NextBlock("tb0", nil, outs[1:], replaceTreasuryVersions, replaceCoinbase,
 		addTreasuryBaseRegular)
-	g.RejectTipBlock(ErrStakeTxInRegularTree)
+	g.RejectTipBlock(ErrMultipleCoinbases)
 
 	// ---------------------------------------------------------------------
 	// Append tadd to transactions
