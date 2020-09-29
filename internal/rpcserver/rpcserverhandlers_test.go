@@ -5820,7 +5820,6 @@ func TestHandleTSpendVotes(t *testing.T) {
 	chainMinedTSpend := new(testRPCChain)
 	*chainMinedTSpend = *chainVotes
 	chainMinedTSpend.minedTSpendBlocks = []chainhash.Hash{blockMinedTSpend.BlockHash()}
-	chainMinedTSpend.blockByHash = dcrutil.NewBlock(blockMinedTSpend)
 
 	// Chain that has a mined tspend but it's now very far in the future
 	// after its voting window.
@@ -5870,8 +5869,11 @@ func TestHandleTSpendVotes(t *testing.T) {
 	}, {
 		name:            "tspendVotes: requesting votes for mined tspend works",
 		mockTxMempooler: mempoolTxNotFound,
-		mockChain:       chainMinedTSpend,
-		handler:         handleGetTreasurySpendVotes,
+		mockChain: func() *testRPCChain {
+			chainMinedTSpend.blockByHash = dcrutil.NewBlock(blockMinedTSpend)
+			return chainMinedTSpend
+		}(),
+		handler: handleGetTreasurySpendVotes,
 		cmd: &types.GetTreasurySpendVotesCmd{
 			TSpends: &[]string{tspendHash.String()},
 		},
@@ -5890,8 +5892,11 @@ func TestHandleTSpendVotes(t *testing.T) {
 	}, {
 		name:            "tspendVotes: requesting votes for mined tspend works after voting ends",
 		mockTxMempooler: mempoolTxNotFound,
-		mockChain:       chainFarFuture,
-		handler:         handleGetTreasurySpendVotes,
+		mockChain: func() *testRPCChain {
+			chainFarFuture.blockByHash = dcrutil.NewBlock(blockMinedTSpend)
+			return chainFarFuture
+		}(),
+		handler: handleGetTreasurySpendVotes,
 		cmd: &types.GetTreasurySpendVotesCmd{
 			TSpends: &[]string{tspendHash.String()},
 		},
