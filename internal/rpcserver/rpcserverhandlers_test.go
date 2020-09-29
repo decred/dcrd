@@ -176,6 +176,8 @@ type testRPCChain struct {
 	ticketPoolValueErr              error
 	ticketsWithAddress              []chainhash.Hash
 	tipGeneration                   []chainhash.Hash
+	treasuryBalance                 *blockchain.TreasuryBalanceInfo
+	treasuryBalanceErr              error
 	tspendVotes                     tspendVotes
 }
 
@@ -383,7 +385,7 @@ func (c *testRPCChain) TipGeneration() ([]chainhash.Hash, error) {
 
 // TreasuryBalance returns the treasury balance at the provided block.
 func (c *testRPCChain) TreasuryBalance(*chainhash.Hash) (*blockchain.TreasuryBalanceInfo, error) {
-	return nil, fmt.Errorf("not implemented")
+	return c.treasuryBalance, c.treasuryBalanceErr
 }
 
 func (c *testRPCChain) IsTreasuryAgendaActive(*chainhash.Hash) (bool, error) {
@@ -1335,6 +1337,11 @@ func defaultMockRPCChain() *testRPCChain {
 			Choice: uint32(0xffffffff),
 		},
 		ticketPoolValue: 570678298669222,
+		treasuryBalance: &blockchain.TreasuryBalanceInfo{
+			BlockHeight: blkHeight,
+			Balance:     uint64(1923209183818),
+			Updates:     []int64{157007970, 19200000000, -1892811207},
+		},
 	}
 }
 
@@ -4569,6 +4576,90 @@ func TestHandleGetTicketPoolValue(t *testing.T) {
 		mockChain: func() *testRPCChain {
 			chain := defaultMockRPCChain()
 			chain.ticketPoolValueErr = errors.New("could not obtain ticket pool value")
+			return chain
+		}(),
+		wantErr: true,
+		errCode: dcrjson.ErrRPCInternal.Code,
+	}})
+}
+
+func TestHandleGetTreasuryBalance(t *testing.T) {
+	t.Parallel()
+
+	blkHeight := int64(block432100.Header.Height)
+	blkHash := block432100.BlockHash()
+	blkHashString := blkHash.String()
+	balance := uint64(1923209183818)
+	updates := []int64{157007970, 19200000000, -1892811207}
+	testRPCServerHandler(t, []rpcTest{{
+		name:    "handleGetTreasuryBalance: ok",
+		handler: handleGetTreasuryBalance,
+		cmd:     &types.GetTreasuryBalanceCmd{},
+		result: types.GetTreasuryBalanceResult{
+			Hash:    blkHashString,
+			Height:  blkHeight,
+			Balance: balance,
+		},
+	}, {
+		name:    "handleGetTreasuryBalance: ok verbose",
+		handler: handleGetTreasuryBalance,
+		cmd: &types.GetTreasuryBalanceCmd{
+			Verbose: dcrjson.Bool(true),
+		},
+		result: types.GetTreasuryBalanceResult{
+			Hash:    blkHashString,
+			Height:  blkHeight,
+			Balance: balance,
+			Updates: updates,
+		},
+	}, {
+		name:    "handleGetTreasuryBalance: ok with block hash",
+		handler: handleGetTreasuryBalance,
+		cmd: &types.GetTreasuryBalanceCmd{
+			Hash: &blkHashString,
+		},
+		result: types.GetTreasuryBalanceResult{
+			Hash:    blkHashString,
+			Height:  blkHeight,
+			Balance: balance,
+		},
+	}, {
+		name:    "handleGetTreasuryBalance: invalid hex",
+		handler: handleGetTreasuryBalance,
+		cmd: &types.GetTreasuryBalanceCmd{
+			Hash: dcrjson.String("invalid hex"),
+		},
+		wantErr: true,
+		errCode: dcrjson.ErrRPCDecodeHexString,
+	}, {
+		name:    "handleGetTreasuryBalance: block not found",
+		handler: handleGetTreasuryBalance,
+		cmd:     &types.GetTreasuryBalanceCmd{},
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.treasuryBalanceErr = blockchain.UnknownBlockError(blkHash)
+			return chain
+		}(),
+		wantErr: true,
+		errCode: dcrjson.ErrRPCBlockNotFound,
+	}, {
+		name:    "handleGetTreasuryBalance: treasury inactive for block",
+		handler: handleGetTreasuryBalance,
+		cmd:     &types.GetTreasuryBalanceCmd{},
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.treasuryBalanceErr = blockchain.NoTreasuryError(blkHashString)
+			return chain
+		}(),
+		wantErr: true,
+		errCode: dcrjson.ErrRPCNoTreasury,
+	}, {
+		name:    "handleGetTreasuryBalance: failed to obtain treasury balance",
+		handler: handleGetTreasuryBalance,
+		cmd:     &types.GetTreasuryBalanceCmd{},
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.treasuryBalanceErr = errors.New("failed to obtain treasury balance")
 			return chain
 		}(),
 		wantErr: true,
