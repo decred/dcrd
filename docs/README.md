@@ -215,7 +215,7 @@ The following versioned modules are provided by dcrd repository:
   concurrency safe Decred network address manager
 * [connmgr/v3](https://github.com/decred/dcrd/tree/master/connmgr) - Implements
   a generic Decred network connection manager
-* [hdkeychain/v2](https://github.com/decred/dcrd/tree/master/hdkeychain) -
+* [hdkeychain/v3](https://github.com/decred/dcrd/tree/master/hdkeychain) -
   Provides an API for working with  Decred hierarchical deterministic extended
   keys
 * [gcs](https://github.com/decred/dcrd/tree/master/gcs) - Provides an API for

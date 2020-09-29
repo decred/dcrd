@@ -15,7 +15,7 @@ digraph {
 	secp256k1 [label="dcrec/secp256k1/v3" fillcolor=mediumvioletred]
 	dcrutil [label="dcrutil/v3" fillcolor=burlywood]
 	database [label="database/v2" fillcolor=dodgerblue]
-	hdkeychain [label="hdkeychain/v2" fillcolor=deepskyblue]
+	hdkeychain [label="hdkeychain/v3" fillcolor=deepskyblue]
 	txscript [label="txscript/v3" fillcolor=mediumspringgreen]
 	stake [label="blockchain/stake/v2" fillcolor=bisque]
 	standalone [label="blockchain/standalone" fillcolor=firebrick4]

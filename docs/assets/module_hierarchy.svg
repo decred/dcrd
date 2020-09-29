@@ -173,7 +173,7 @@
 <!-- hdkeychain -->
 <g id="node14" class="node"><title>hdkeychain</title>
 <path fill="deepskyblue" stroke="black" d="M421,-108C421,-108 348,-108 348,-108 342,-108 336,-102 336,-96 336,-96 336,-84 336,-84 336,-78 342,-72 348,-72 348,-72 421,-72 421,-72 427,-72 433,-78 433,-84 433,-84 433,-96 433,-96 433,-102 427,-108 421,-108"/>
-<text text-anchor="middle" x="384.5" y="-86.3" font-family="Times New Roman,serif" font-size="14.00">hdkeychain/v2</text>
+<text text-anchor="middle" x="384.5" y="-86.3" font-family="Times New Roman,serif" font-size="14.00">hdkeychain/v3</text>
 </g>
 <!-- dcrutil&#45;&gt;hdkeychain -->
 <g id="edge12" class="edge"><title>dcrutil&#45;&gt;hdkeychain</title>
