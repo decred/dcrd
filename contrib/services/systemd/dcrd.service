@@ -1,13 +1,53 @@
 [Unit]
 Description=Decred Full Node
+Requires=local-fs.target network-online.target network.target
+After=local-fs.target network-online.target network.target
 
 [Service]
 Type=simple
+
 User=dcrd
 Group=dcrd
-WorkingDirectory=/var/dcrd
-ExecStart=/opt/decred/bin/dcrd --appdata=/var/dcrd
+
+# dcrd appdir
+ReadWritePaths=/home/dcrd/.dcrd/
+
+# dcrd datadir
+ReadWritePaths=/home/dcrd/.dcrd/data
+
+# dcrd logdir
+ReadWritePaths=/home/dcrd/.dcrd/logs
+
+# launch dcrd
+ExecStart=/home/dcrd/decred/dcrd
+
+# restart dcrd
+TimeoutStopSec=10s
 Restart=on-abnormal
+RestartSec=10s
+
+# strict privilege
+InaccessiblePaths=/usr/local/sbin /usr/local/bin /usr/sbin /usr/bin /sbin /bin
+CapabilityBoundingSet=
+NoNewPrivileges=true
+LockPersonality=true
+PrivateDevices=true
+PrivateMounts=true
+PrivateTmp=true
+PrivateUsers=true
+ProtectClock=true
+ProtectControlGroups=true
+ProtectHostname=true
+ProtectKernelModules=true
+ProtectKernelTunables=true
+ProtectSystem=strict
+RemoveIPC=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX AF_NETLINK
+RestrictNamespaces=true
+RestrictSUIDSGID=true
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@clock @module @mount @reboot @swap @privileged
 
 [Install]
 WantedBy=multi-user.target
