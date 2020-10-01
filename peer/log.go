@@ -81,6 +81,8 @@ func invSummary(invList []*wire.InvVect) string {
 			return fmt.Sprintf("block %s", iv.Hash)
 		case wire.InvTypeTx:
 			return fmt.Sprintf("tx %s", iv.Hash)
+		case wire.InvTypeFilteredBlock:
+			return fmt.Sprintf("filtered block %s", iv.Hash)
 		}
 
 		return fmt.Sprintf("unknown (%d) %s", uint32(iv.Type), iv.Hash)
@@ -198,7 +200,6 @@ func messageSummary(msg wire.Message) string {
 		return fmt.Sprintf("blockHashes %d, voteHashes %d, tspendHashes %d",
 			len(msg.BlockHashes), len(msg.VoteHashes),
 			len(msg.TSpendHashes))
-
 	}
 
 	// No summary for other messages.
