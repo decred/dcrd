@@ -325,7 +325,7 @@ func newNetAddress(addr net.Addr, services wire.ServiceFlag) (*wire.NetAddress, 
 
 // outMsg is used to house a message to be sent along with a channel to signal
 // when the message has been sent (or won't be sent due to things such as
-// shutdown)
+// shutdown).
 type outMsg struct {
 	msg      wire.Message
 	doneChan chan<- struct{}

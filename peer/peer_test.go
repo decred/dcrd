@@ -66,7 +66,7 @@ func (c conn) SetDeadline(t time.Time) error      { return nil }
 func (c conn) SetReadDeadline(t time.Time) error  { return nil }
 func (c conn) SetWriteDeadline(t time.Time) error { return nil }
 
-// addr mocks a network address
+// addr mocks a network address.
 type addr struct {
 	net, address string
 }
@@ -106,7 +106,7 @@ type peerStats struct {
 	wantBytesReceived   uint64
 }
 
-// testPeer tests the given peer's flags and stats
+// testPeer tests the given peer's flags and stats.
 func testPeer(t *testing.T, p *Peer, s peerStats) {
 	if p.UserAgent() != s.wantUserAgent {
 		t.Errorf("testPeer: wrong UserAgent - got %v, want %v", p.UserAgent(), s.wantUserAgent)
@@ -536,7 +536,8 @@ func TestPeerListeners(t *testing.T) {
 		{
 			"OnCFTypes",
 			wire.NewMsgCFTypes([]wire.FilterType{
-				wire.GCSFilterRegular, wire.GCSFilterExtended}),
+				wire.GCSFilterRegular, wire.GCSFilterExtended,
+			}),
 		},
 		{
 			"OnFeeFilter",
@@ -643,7 +644,7 @@ func TestOutboundPeer(t *testing.T) {
 	p.Disconnect()
 
 	// Test NewestBlock
-	var newestBlock = func() (*chainhash.Hash, int64, error) {
+	newestBlock := func() (*chainhash.Hash, int64, error) {
 		hashStr := "14a0810ac680a3eb3f82edc878cea25ec41d6b790744e5daeef"
 		hash, err := chainhash.NewHashFromStr(hashStr)
 		if err != nil {
