@@ -1811,56 +1811,6 @@ mempoolLoop:
 		} else {
 			votebits = uint16(0x0000) // TxTreeRegular disabled
 		}
-
-		if votebits == uint16(0x0000) {
-			// In the event TxTreeRegular is disabled, we need to remove all tx
-			// in the current block that depend on tx from the TxTreeRegular of
-			// the previous block.
-			// DECRED WARNING: The ideal behaviour should also be that we re-add
-			// all tx that we just removed from the previous block into our
-			// current block template. Right now this code fails to do that;
-			// these tx will then be included in the next block, which isn't
-			// catastrophic but is kind of buggy.
-
-			// Retrieve the current top block, whose TxTreeRegular was voted
-			// out.
-			topBlock, err := g.chain.BlockByHash(&prevHash)
-			if err != nil {
-				str := fmt.Sprintf("unable to get tip block %s", prevHash)
-				return nil, miningRuleError(ErrGetTopBlock, str)
-			}
-			topBlockRegTx := topBlock.Transactions()
-
-			tempBlockTxns := make([]*dcrutil.Tx, 0, len(sourceTxns))
-			for _, tx := range blockTxns {
-				if tx.Tree() == wire.TxTreeRegular {
-					// Go through all the inputs and check to see if this mempool
-					// tx uses outputs from the parent block. This loop is
-					// probably very expensive.
-					isValid := true
-					for _, txIn := range tx.MsgTx().TxIn {
-						for _, parentTx := range topBlockRegTx {
-							if txIn.PreviousOutPoint.Hash.IsEqual(
-								parentTx.Hash()) {
-								isValid = false
-							}
-						}
-					}
-
-					if isValid {
-						txCopy := dcrutil.NewTxDeepTxIns(tx.MsgTx())
-						tempBlockTxns = append(tempBlockTxns, txCopy)
-					}
-				} else {
-					txCopy := dcrutil.NewTxDeepTxIns(tx.MsgTx())
-					tempBlockTxns = append(tempBlockTxns, txCopy)
-				}
-			}
-
-			// Replace blockTxns with the pruned list of valid
-			// mempool tx.
-			blockTxns = tempBlockTxns
-		}
 	}
 
 	// Get the newly purchased tickets (SStx tx) and store them and their
