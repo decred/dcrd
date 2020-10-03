@@ -724,134 +724,115 @@ func (g *chaingenHarness) ForceTipReorg(fromTipName, toTipName string) {
 	}
 }
 
+// minUint32 is a helper function to return the minimum of two uint32s.
+// This avoids a math import and the need to cast to floats.
+func minUint32(a, b uint32) uint32 {
+	if a < b {
+		return a
+	}
+	return b
+}
+
 // AdvanceToHeight generates and accepts enough blocks to the chain instance
-// associated with the harness to reach the provided height while purchasing
-// the provided tickets per block after coinbase maturity.
-func (g *chaingenHarness) AdvanceToHeight(height uint32, ticketsPerBlock uint32) {
+// associated with the harness to reach the provided height while purchasing the
+// provided tickets per block after coinbase maturity.
+func (g *chaingenHarness) AdvanceToHeight(height uint32, buyTicketsPerBlock uint32) {
 	g.t.Helper()
 
-	if height == 0 {
-		g.t.Fatalf("the height to progress to cannot be zero")
+	// Only allow this to be called with a sane height.
+	tipHeight := g.Tip().Header.Height
+	if height <= tipHeight {
+		g.t.Fatalf("not possible to advanced to height %d when the current "+
+			"height is already %d", height, tipHeight)
 	}
 
+	// Only allow this to be called with a sane number of tickets to buy per
+	// block.
 	params := g.Params()
 	maxOutsForTickets := uint32(params.TicketsPerBlock)
-
-	if ticketsPerBlock > maxOutsForTickets {
-		g.t.Fatalf("only %v outputs are available for ticket "+
+	if buyTicketsPerBlock > maxOutsForTickets {
+		g.t.Fatalf("a max of %v outputs are available for ticket "+
 			"purchases per block", maxOutsForTickets)
 	}
-
-	blocksToGenerate := height
-	if g.Tip().Header.Height > 0 {
-		blocksToGenerate -= g.Tip().Header.Height
-	}
-
-	nextHeight := g.Tip().Header.Height + 1
 
 	// Shorter versions of useful params for convenience.
 	coinbaseMaturity := uint32(params.CoinbaseMaturity)
 	stakeEnabledHeight := uint32(params.StakeEnabledHeight)
 
-	if g.Tip().Header.Height == 0 {
-		// Add the required first block.
-		//
-		//   genesis -> bfb
+	// Add the required first block as needed.
+	//
+	//   genesis -> bfb
+	if tipHeight == 0 {
 		g.CreateBlockOne("bfb", 0)
 		g.AssertTipHeight(1)
 		g.AcceptTipBlock()
+		tipHeight++
+	}
+	intermediateHeight := uint32(1)
 
-		blocksToGenerate--
-		nextHeight++
+	// Generate enough blocks to have mature coinbase outputs to work with as
+	// needed.
+	//
+	//   genesis -> bfb -> bm2 -> bm3 -> ... -> bm#
+	alreadyAsserted := tipHeight >= coinbaseMaturity+1
+	targetHeight := minUint32(coinbaseMaturity+1, height)
+	for ; tipHeight < targetHeight; tipHeight++ {
+		blockName := fmt.Sprintf("bm%d", tipHeight-intermediateHeight)
+		g.NextBlock(blockName, nil, nil)
+		g.SaveTipCoinbaseOuts()
+		g.AcceptTipBlock()
+	}
+	intermediateHeight = targetHeight
+	if !alreadyAsserted {
+		g.AssertTipHeight(intermediateHeight)
 	}
 
-	if g.Tip().Header.Height < coinbaseMaturity {
-		// Generate enough blocks to have mature coinbase outputs to work with.
-		//
-		//   genesis -> bfb -> bm2 -> bm3 -> ... -> bm#
-		for i := uint32(0); i < coinbaseMaturity && blocksToGenerate > 0; i++ {
-			blockName := fmt.Sprintf("bm%d", nextHeight)
-			g.NextBlock(blockName, nil, nil)
-			g.SaveTipCoinbaseOuts()
-			g.AcceptTipBlock()
-
-			blocksToGenerate--
-			nextHeight++
-		}
-
-		if blocksToGenerate == 0 {
-			return
-		}
-
-		g.AssertTipHeight(coinbaseMaturity + 1)
-	}
-
+	// Generate enough blocks to reach the stake enabled height while creating
+	// ticket purchases that spend from the coinbases matured above as needed.
+	// This will also populate the pool of immature tickets.
+	//
+	//   ... -> bm# ... -> bse18 -> bse19 -> ... -> bse#
 	var ticketsPurchased uint32
-
-	if g.Tip().Header.Height >= coinbaseMaturity &&
-		g.Tip().Header.Height < stakeEnabledHeight {
-		// Generate enough blocks to reach the stake enabled height while
-		// creating ticket purchases that spend from the coinbases matured
-		// above.  This will also populate the pool of immature tickets.
-		//
-		//   ... -> bm# ... -> bse18 -> bse19 -> ... -> bse#
-		for i := uint32(0); g.Tip().Header.Height < stakeEnabledHeight &&
-			blocksToGenerate > 0; i++ {
-			var ticketOuts []chaingen.SpendableOut
-			if ticketsPerBlock > 0 {
-				// Purchase the specified number of tickets per block.
-				outs := g.OldestCoinbaseOuts()
-				ticketOuts = outs[1 : ticketsPerBlock+1]
-				ticketsPurchased += ticketsPerBlock
-			}
-
-			blockName := fmt.Sprintf("bse%d", nextHeight)
-			g.NextBlock(blockName, nil, ticketOuts)
-			g.SaveTipCoinbaseOuts()
-			g.AcceptTipBlock()
-
-			blocksToGenerate--
-			nextHeight++
-		}
-
-		if blocksToGenerate == 0 {
-			return
-		}
-
-		g.AssertTipHeight(stakeEnabledHeight)
-	}
-
-	targetPoolSize := uint32(g.Params().TicketPoolSize) * ticketsPerBlock
-	for i := uint32(0); g.Tip().Header.Height < height && blocksToGenerate > 0; i++ {
+	alreadyAsserted = tipHeight >= stakeEnabledHeight
+	targetHeight = minUint32(stakeEnabledHeight, height)
+	for ; tipHeight < targetHeight; tipHeight++ {
 		var ticketOuts []chaingen.SpendableOut
-		if ticketsPerBlock > 0 {
-			// Only purchase tickets until the target ticket pool size is
-			// reached.
-			ticketsNeeded := targetPoolSize - ticketsPurchased
-			if ticketsNeeded > 0 {
-				outs := g.OldestCoinbaseOuts()
-				if ticketsNeeded > ticketsPerBlock {
-					ticketOuts = outs[1 : ticketsPerBlock+1]
-					ticketsPurchased += ticketsPerBlock
-				} else {
-					ticketOuts = outs[1 : ticketsNeeded+1]
-					ticketsPurchased += ticketsNeeded
-				}
-			}
+		if buyTicketsPerBlock > 0 {
+			// Purchase the specified number of tickets per block.
+			outs := g.OldestCoinbaseOuts()
+			ticketOuts = outs[1 : buyTicketsPerBlock+1]
+			ticketsPurchased += buyTicketsPerBlock
 		}
 
-		if len(ticketOuts) == 0 {
-			ticketOuts = nil
-		}
-
-		blockName := fmt.Sprintf("bsv%d", nextHeight)
+		blockName := fmt.Sprintf("bse%d", tipHeight-intermediateHeight)
 		g.NextBlock(blockName, nil, ticketOuts)
 		g.SaveTipCoinbaseOuts()
 		g.AcceptTipBlock()
-
-		blocksToGenerate--
-		nextHeight++
 	}
+	intermediateHeight = targetHeight
+	if !alreadyAsserted {
+		g.AssertTipHeight(intermediateHeight)
+	}
+
+	targetPoolSize := uint32(g.Params().TicketPoolSize) * buyTicketsPerBlock
+	for ; tipHeight < height; tipHeight++ {
+		var ticketOuts []chaingen.SpendableOut
+		// Only purchase tickets until the target ticket pool size is
+		// reached.
+		ticketsNeeded := targetPoolSize - ticketsPurchased
+		ticketsNeeded = minUint32(ticketsNeeded, buyTicketsPerBlock)
+		if ticketsNeeded > 0 {
+			outs := g.OldestCoinbaseOuts()
+			ticketOuts = outs[1 : ticketsNeeded+1]
+			ticketsPurchased += ticketsNeeded
+		}
+
+		blockName := fmt.Sprintf("bsv%d", tipHeight-intermediateHeight)
+		g.NextBlock(blockName, nil, ticketOuts)
+		g.SaveTipCoinbaseOuts()
+		g.AcceptTipBlock()
+	}
+	g.AssertTipHeight(height)
 }
 
 // AdvanceToStakeValidationHeight generates and accepts enough blocks to the
