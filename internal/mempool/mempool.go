@@ -2500,12 +2500,14 @@ func (mv *txMiningView) notifyDescendentsAdded(txDesc *mining.TxDesc) {
 	txHash := txDesc.Tx.Hash()
 	txSize := int64(txDesc.Tx.MsgTx().SerializeSize())
 	sigOps := int64(txDesc.NumSigOps)
+	p2shSigOps := int64(txDesc.NumP2SHSigOps)
 	seen := make(map[chainhash.Hash]struct{})
 	mv.txGraph.forEachDescendent(txHash, seen, func(descendent *mining.TxDesc) {
 		descendentStats := mv.bundleStats[*descendent.Tx.Hash()]
 		descendentStats.Fees += txDesc.Fee
 		descendentStats.SizeBytes += txSize
 		descendentStats.NumSigOps += sigOps
+		descendentStats.NumP2SHSigOps += p2shSigOps
 		descendentStats.NumAncestors++
 	})
 }
@@ -2516,12 +2518,14 @@ func (mv *txMiningView) notifyDescendentsRemoved(txDesc *mining.TxDesc) {
 	txHash := txDesc.Tx.Hash()
 	txSize := int64(txDesc.Tx.MsgTx().SerializeSize())
 	sigOps := int64(txDesc.NumSigOps)
+	p2shSigOps := int64(txDesc.NumP2SHSigOps)
 	seen := make(map[chainhash.Hash]struct{})
 	mv.txGraph.forEachDescendent(txHash, seen, func(descendent *mining.TxDesc) {
 		descendentStats := mv.bundleStats[*descendent.Tx.Hash()]
 		descendentStats.Fees -= txDesc.Fee
 		descendentStats.SizeBytes -= txSize
 		descendentStats.NumSigOps -= sigOps
+		descendentStats.NumP2SHSigOps -= p2shSigOps
 		descendentStats.NumAncestors--
 	})
 }

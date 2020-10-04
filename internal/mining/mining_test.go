@@ -36,6 +36,7 @@ func TestStakeTxFeePrioHeap(t *testing.T) {
 		{feePerKB: 10000, txType: stake.TxTypeRegular, priority: 0}, // Higher fee, smaller prio
 		{feePerKB: 0, txType: stake.TxTypeRegular, priority: 10000}, // Higher prio, lower fee
 	}
+
 	ph := newTxPriorityQueue((numElements + numEdgeConditionElements), txPQByStakeAndFee)
 
 	// Add random data in addition to the edge conditions already manually

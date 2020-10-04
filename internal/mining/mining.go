@@ -82,6 +82,8 @@ type TxBundleStats struct {
 	// NumSigOps is the total number of signature operations of all ancestors.
 	NumSigOps int64
 
+	NumP2SHSigOps int64
+
 	// NumAncestors is the total number of ancestors for a given transaction.
 	NumAncestors int
 }
@@ -215,18 +217,23 @@ const (
 	// incoming non vote transactions before template regeneration
 	// is required.
 	templateRegenSecs = 30
+
+	// maxResorts is the maximum number of times a transaction can be
+	// added back to the priority queue due to the fee changing.
+	maxResorts = 10
 )
 
 // txPrioItem houses a transaction along with extra information that allows the
 // transaction to be prioritized and track dependencies on other transactions
 // which have not been mined into a block yet.
 type txPrioItem struct {
-	tx       *dcrutil.Tx
-	txDesc   *TxDesc
-	txType   stake.TxType
-	fee      int64
-	priority float64
-	feePerKB float64
+	tx          *dcrutil.Tx
+	txDesc      *TxDesc
+	txType      stake.TxType
+	fee         int64
+	priority    float64
+	feePerKB    float64
+	resortCount int
 }
 
 // txPriorityQueueLessFunc describes a function that can be used as a compare
@@ -1101,6 +1108,12 @@ func NewBlkTmplGenerator(policy *Policy, txSource TxSource,
 	}
 }
 
+func calcFeePerKb(txDesc *TxDesc, ancestorStats *TxBundleStats) float64 {
+	txSize := uint32(txDesc.Tx.MsgTx().SerializeSize())
+	return (float64(txDesc.Fee+ancestorStats.Fees) * float64(kilobyte)) /
+		float64(int64(txSize)+ancestorStats.SizeBytes)
+}
+
 // NewBlockTemplate returns a new block template that is ready to be solved
 // using the transactions from the passed transaction source pool and a coinbase
 // that either pays to the passed address if it is not nil, or a coinbase that
@@ -1417,18 +1430,14 @@ mempoolLoop:
 		// during calcMinRelayFee which rounds up to the nearest full
 		// kilobyte boundary.  This is beneficial since it provides an
 		// incentive to create smaller transactions.
-		txSize := tx.MsgTx().SerializeSize()
-		prioItem.feePerKB = (float64(txDesc.Fee) * float64(kilobyte)) /
-			float64(txSize)
-		prioItem.fee = txDesc.Fee
+		ancestorStats := miningView.BundleStats(txDesc.Tx.Hash())
+		prioItem.feePerKB = calcFeePerKb(txDesc, ancestorStats)
+		prioItem.fee = txDesc.Fee + ancestorStats.Fees
 
 		prioItemMap[*prioItem.tx.Hash()] = prioItem
 
-		// Add the transaction to the priority queue to mark it ready
-		// for inclusion in the block unless it has dependencies.
-		if !miningView.HasParents(tx.Hash()) {
-			heap.Push(priorityQueue, prioItem)
-		} else {
+		heap.Push(priorityQueue, prioItem)
+		if miningView.HasParents(tx.Hash()) {
 			totalDescendentTxns++
 		}
 
@@ -1464,6 +1473,7 @@ mempoolLoop:
 	}
 
 	// Choose which transactions make it into the block.
+nextPriorityQueueItem:
 	for priorityQueue.Len() > 0 {
 		// Grab the highest priority (or highest fee per kilobyte
 		// depending on the sort order) transaction.
@@ -1573,9 +1583,26 @@ mempoolLoop:
 			}
 		}
 
+		hasParents := miningView.HasParents(prioItem.tx.Hash())
+		exceededMaxAncestorResorts := prioItem.resortCount > maxResorts
+		if hasParents && exceededMaxAncestorResorts {
+			// Discard the tranasction if we've resorted it too many times.
+			continue
+		}
+
+		ancestors, ancestorStats := miningView.Ancestors(tx.Hash())
+		oldFeePerKb := prioItem.feePerKB
+		prioItem.feePerKB = calcFeePerKb(prioItem.txDesc, ancestorStats)
+		if prioItem.feePerKB < oldFeePerKb {
+			// If the fee decreased, re-enqueue the item.
+			prioItem.resortCount++
+			priorityQueue.Push(prioItem)
+			continue
+		}
+
 		// Enforce maximum block size.  Also check for overflow.
 		txSize := uint32(tx.MsgTx().SerializeSize())
-		blockPlusTxSize := blockSize + txSize
+		blockPlusTxSize := blockSize + txSize + uint32(ancestorStats.SizeBytes)
 		if blockPlusTxSize < blockSize ||
 			blockPlusTxSize >= g.policy.BlockMaxSize {
 			log.Tracef("Skipping tx %s (size %v) because it "+
@@ -1588,20 +1615,20 @@ mempoolLoop:
 
 		// Enforce maximum signature operations per block.  Also check
 		// for overflow.
-		numSigOps := int64(prioItem.txDesc.NumSigOps)
-		if blockSigOps+numSigOps < blockSigOps ||
-			blockSigOps+numSigOps > blockchain.MaxSigOpsPerBlock {
+		numSigOps := int64(prioItem.txDesc.NumSigOps) + ancestorStats.NumSigOps
+		numSigOpsBundle := numSigOps + ancestorStats.NumSigOps
+		if blockSigOps+numSigOpsBundle < blockSigOps ||
+			blockSigOps+numSigOpsBundle > blockchain.MaxSigOpsPerBlock {
 			log.Tracef("Skipping tx %s because it would "+
 				"exceed the maximum sigops per block", tx.Hash())
 			logSkippedDeps(tx, deps)
 			continue
 		}
 
-		// This isn't very expensive, but we do this check a number of times.
-		// Consider caching this in the mempool in the future. - Decred
 		numSigOps += int64(prioItem.txDesc.NumP2SHSigOps)
-		if blockSigOps+numSigOps < blockSigOps ||
-			blockSigOps+numSigOps > blockchain.MaxSigOpsPerBlock {
+		numSigOpsBundle += ancestorStats.NumP2SHSigOps
+		if blockSigOps+numSigOpsBundle < blockSigOps ||
+			blockSigOps+numSigOpsBundle > blockchain.MaxSigOpsPerBlock {
 			log.Tracef("Skipping tx %s because it would "+
 				"exceed the maximum sigops per block (p2sh)",
 				tx.Hash())
@@ -1673,72 +1700,78 @@ mempoolLoop:
 			}
 		}
 
-		// Ensure the transaction inputs pass all of the necessary
-		// preconditions before allowing it to be added to the block.
-		// The fraud proof is not checked because it will be filled in
-		// by the miner.
-		_, err = blockchain.CheckTransactionInputs(g.subsidyCache, tx,
-			nextBlockHeight, blockUtxos, false, g.chainParams,
-			isTreasuryEnabled)
-		if err != nil {
-			log.Tracef("Skipping tx %s due to error in "+
-				"CheckTransactionInputs: %v", tx.Hash(), err)
-			logSkippedDeps(tx, deps)
-			continue
-		}
-		err = blockchain.ValidateTransactionScripts(tx, blockUtxos,
-			scriptFlags, g.sigCache)
-		if err != nil {
-			log.Tracef("Skipping tx %s due to error in "+
-				"ValidateTransactionScripts: %v", tx.Hash(), err)
-			logSkippedDeps(tx, deps)
-			continue
-		}
-
-		// Spend the transaction inputs in the block utxo view and add
-		// an entry for it to ensure any transactions which reference
-		// this one have it available as an input and can ensure they
-		// aren't double spending.
-		spendTransaction(blockUtxos, tx, nextBlockHeight, isTreasuryEnabled)
-
-		// Add the transaction to the block, increment counters, and
-		// save the fees and signature operation counts to the block
-		// template.
-		blockTxns = append(blockTxns, tx)
-		blockSize += txSize
-		blockSigOps += numSigOps
-
-		// Accumulate the SStxs in the block, because only a certain number
-		// are allowed.
-		if isSStx {
-			numSStx++
-		}
-		if isSSGen {
-			foundWinningTickets[tx.MsgTx().TxIn[1].PreviousOutPoint.Hash] = true
-		}
-		if isTAdd {
-			numTAdds++
+		txBundle := append(ancestors, prioItem.txDesc)
+		for _, bundledTx := range txBundle {
+			// Ensure the transaction inputs pass all of the necessary
+			// preconditions before allowing it to be added to the block.
+			// The fraud proof is not checked because it will be filled in
+			// by the miner.
+			_, err = blockchain.CheckTransactionInputs(g.subsidyCache,
+				bundledTx.Tx, nextBlockHeight, blockUtxos, false, g.chainParams,
+				isTreasuryEnabled)
+			if err != nil {
+				log.Tracef("Skipping tx %s due to error in "+
+					"CheckTransactionInputs: %v", bundledTx.Tx.Hash(), err)
+				logSkippedDeps(bundledTx.Tx, deps)
+				continue nextPriorityQueueItem
+			}
+			err = blockchain.ValidateTransactionScripts(bundledTx.Tx,
+				blockUtxos, scriptFlags, g.sigCache)
+			if err != nil {
+				log.Tracef("Skipping tx %s due to error in "+
+					"ValidateTransactionScripts: %v", bundledTx.Tx.Hash(), err)
+				logSkippedDeps(bundledTx.Tx, deps)
+				continue nextPriorityQueueItem
+			}
 		}
 
-		txFeesMap[*tx.Hash()] = prioItem.fee
-		txSigOpCountsMap[*tx.Hash()] = numSigOps
+		for _, bundledTx := range txBundle {
+			// Spend the transaction inputs in the block utxo view and add
+			// an entry for it to ensure any transactions which reference
+			// this one have it available as an input and can ensure they
+			// aren't double spending.
+			spendTransaction(blockUtxos, bundledTx.Tx, nextBlockHeight,
+				isTreasuryEnabled)
 
-		log.Tracef("Adding tx %s (priority %.2f, feePerKB %.2f)",
-			prioItem.tx.Hash(), prioItem.priority, prioItem.feePerKB)
+			// Add the transaction to the block, increment counters, and
+			// save the fees and signature operation counts to the block
+			// template.
+			blockTxns = append(blockTxns, bundledTx.Tx)
+			blockSize += txSize
+			blockSigOps += numSigOps
 
-		// Remove transaction from mining view since it's been added to the
-		// block template.
-		miningView.Remove(tx.Hash(), false)
+			// Accumulate the SStxs in the block, because only a certain number
+			// are allowed.
+			if isSStx {
+				numSStx++
+			}
+			if isSSGen {
+				foundWinningTickets[bundledTx.Tx.MsgTx().TxIn[1].PreviousOutPoint.Hash] = true
+			}
+			if isTAdd {
+				numTAdds++
+			}
 
-		// Add transactions which depend on this one (and also do not
-		// have any other unsatisfied dependencies) to the priority
-		// queue.
-		for _, item := range deps {
-			// Add the transaction to the priority queue if there
-			// are no more dependencies after this one.
-			txHash := item.Tx.Hash()
-			if !miningView.HasParents(txHash) {
-				heap.Push(priorityQueue, prioItemMap[*txHash])
+			txFeesMap[*tx.Hash()] = prioItem.fee
+			txSigOpCountsMap[*tx.Hash()] = numSigOps
+
+			log.Tracef("Adding tx %s (priority %.2f, feePerKB %.2f)",
+				prioItem.tx.Hash(), prioItem.priority, prioItem.feePerKB)
+
+			// Remove transaction from mining view since it's been added to the
+			// block template.
+			miningView.Remove(tx.Hash(), false)
+
+			// Add transactions which depend on this one (and also do not
+			// have any other unsatisfied dependencies) to the priority
+			// queue.
+			for _, item := range deps {
+				// Add the transaction to the priority queue if there
+				// are no more dependencies after this one.
+				txHash := item.Tx.Hash()
+				if !miningView.HasParents(txHash) {
+					heap.Push(priorityQueue, prioItemMap[*txHash])
+				}
 			}
 		}
 	}
