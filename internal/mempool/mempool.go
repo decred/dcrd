@@ -943,7 +943,7 @@ func (mp *TxPool) RemoveDoubleSpends(tx *dcrutil.Tx, isTreasuryEnabled bool) {
 //
 // This function MUST be called with the mempool lock held (for writes).
 func (mp *TxPool) addTransaction(utxoView *blockchain.UtxoViewpoint, tx *dcrutil.Tx,
-	txType stake.TxType, height int64, fee int64, isTreasuryEnabled bool, numSigOps int) {
+	txType stake.TxType, height int64, fee int64, isTreasuryEnabled bool, numSigOps int, numP2SHSigOps int) {
 
 	// Notify callback about vote if requested.
 	if mp.cfg.OnVoteReceived != nil && txType == stake.TxTypeSSGen {
@@ -955,12 +955,13 @@ func (mp *TxPool) addTransaction(utxoView *blockchain.UtxoViewpoint, tx *dcrutil
 	msgTx := tx.MsgTx()
 	poolTxDesc := &TxDesc{
 		TxDesc: mining.TxDesc{
-			Tx:        tx,
-			Type:      txType,
-			Added:     time.Now(),
-			Height:    height,
-			Fee:       fee,
-			NumSigOps: numSigOps,
+			Tx:            tx,
+			Type:          txType,
+			Added:         time.Now(),
+			Height:        height,
+			Fee:           fee,
+			NumSigOps:     numSigOps,
+			NumP2SHSigOps: numP2SHSigOps,
 		},
 		StartingPriority: mining.CalcPriority(msgTx, utxoView, height),
 	}
@@ -1490,7 +1491,7 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 	// the coinbase address itself can contain signature operations, the
 	// maximum allowed signature operations per transaction is less than
 	// the maximum allowed signature operations per block.
-	numSigOps, err := blockchain.CountP2SHSigOps(tx, false,
+	numP2SHSigOps, err := blockchain.CountP2SHSigOps(tx, false,
 		(txType == stake.TxTypeSSGen), utxoView, isTreasuryEnabled)
 	if err != nil {
 		var cerr blockchain.RuleError
@@ -1500,10 +1501,11 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 		return nil, err
 	}
 
-	numSigOps += blockchain.CountSigOps(tx, false, isVote, isTreasuryEnabled)
-	if numSigOps > mp.cfg.Policy.MaxSigOpsPerTx {
+	numSigOps := blockchain.CountSigOps(tx, false, isVote, isTreasuryEnabled)
+	totalSigOps := numP2SHSigOps + numSigOps
+	if totalSigOps > mp.cfg.Policy.MaxSigOpsPerTx {
 		str := fmt.Sprintf("transaction %v has too many sigops: %d > %d",
-			txHash, numSigOps, mp.cfg.Policy.MaxSigOpsPerTx)
+			txHash, totalSigOps, mp.cfg.Policy.MaxSigOpsPerTx)
 		return nil, txRuleError(ErrNonStandard, str)
 	}
 
@@ -1714,7 +1716,7 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 
 	// Add to transaction pool.
 	mp.addTransaction(utxoView, tx, txType, bestHeight, txFee, isTreasuryEnabled,
-		numSigOps)
+		numSigOps, numP2SHSigOps)
 
 	// A regular transaction that is added back to the mempool causes
 	// any mempool tickets that redeem it to leave the main pool and enter the

@@ -65,6 +65,8 @@ type TxDesc struct {
 
 	// NumSigOps is the total sigops for this transaction
 	NumSigOps int
+
+	NumP2SHSigOps int
 }
 
 // TxBundleStats is a descriptor that stores aggregated statistics for the
@@ -220,6 +222,7 @@ const (
 // which have not been mined into a block yet.
 type txPrioItem struct {
 	tx       *dcrutil.Tx
+	txDesc   *TxDesc
 	txType   stake.TxType
 	fee      int64
 	priority float64
@@ -1379,7 +1382,8 @@ mempoolLoop:
 		// Setup dependencies for any transactions which reference
 		// other transactions in the mempool so they can be properly
 		// ordered below.
-		prioItem := &txPrioItem{tx: txDesc.Tx, txType: txDesc.Type}
+		prioItem := &txPrioItem{
+			tx: txDesc.Tx, txDesc: txDesc, txType: txDesc.Type}
 		for i, txIn := range tx.MsgTx().TxIn {
 			// Evaluate if this is a stakebase input or not. If it is, continue
 			// without evaluation of the input.
@@ -1584,8 +1588,7 @@ mempoolLoop:
 
 		// Enforce maximum signature operations per block.  Also check
 		// for overflow.
-		numSigOps := int64(blockchain.CountSigOps(tx, false, isSSGen,
-			isTreasuryEnabled))
+		numSigOps := int64(prioItem.txDesc.NumSigOps)
 		if blockSigOps+numSigOps < blockSigOps ||
 			blockSigOps+numSigOps > blockchain.MaxSigOpsPerBlock {
 			log.Tracef("Skipping tx %s because it would "+
@@ -1596,15 +1599,7 @@ mempoolLoop:
 
 		// This isn't very expensive, but we do this check a number of times.
 		// Consider caching this in the mempool in the future. - Decred
-		numP2SHSigOps, err := blockchain.CountP2SHSigOps(tx, false,
-			isSSGen, blockUtxos, isTreasuryEnabled)
-		if err != nil {
-			log.Tracef("Skipping tx %s due to error in "+
-				"CountP2SHSigOps: %v", tx.Hash(), err)
-			logSkippedDeps(tx, deps)
-			continue
-		}
-		numSigOps += int64(numP2SHSigOps)
+		numSigOps += int64(prioItem.txDesc.NumP2SHSigOps)
 		if blockSigOps+numSigOps < blockSigOps ||
 			blockSigOps+numSigOps > blockchain.MaxSigOpsPerBlock {
 			log.Tracef("Skipping tx %s because it would "+
