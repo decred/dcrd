@@ -1597,6 +1597,12 @@ nextPriorityQueueItem:
 			continue
 		}
 
+		if miningView.IsRejected(prioItem.tx.Hash()) {
+			// If the transaction or any of its ancestors have been rejected,
+			// discard the transaction.
+			continue
+		}
+
 		ancestors, ancestorStats := miningView.Ancestors(tx.Hash())
 		oldFeePerKb := prioItem.feePerKB
 		prioItem.feePerKB = calcFeePerKb(prioItem.txDesc, ancestorStats)
@@ -1617,6 +1623,7 @@ nextPriorityQueueItem:
 				"size %v, cur num tx %v", tx.Hash(), txSize,
 				blockSize, len(blockTxns))
 			logSkippedDeps(tx, deps)
+			miningView.Reject(tx.Hash())
 			continue
 		}
 
@@ -1629,6 +1636,7 @@ nextPriorityQueueItem:
 			log.Tracef("Skipping tx %s because it would "+
 				"exceed the maximum sigops per block", tx.Hash())
 			logSkippedDeps(tx, deps)
+			miningView.Reject(tx.Hash())
 			continue
 		}
 
@@ -1640,6 +1648,7 @@ nextPriorityQueueItem:
 				"exceed the maximum sigops per block (p2sh)",
 				tx.Hash())
 			logSkippedDeps(tx, deps)
+			miningView.Reject(tx.Hash())
 			continue
 		}
 
@@ -1675,6 +1684,7 @@ nextPriorityQueueItem:
 				g.policy.TxMinFreeFee, blockPlusTxSize,
 				g.policy.BlockMinSize)
 			logSkippedDeps(tx, deps)
+			miningView.Reject(tx.Hash())
 			continue
 		}
 
@@ -1720,6 +1730,7 @@ nextPriorityQueueItem:
 				log.Tracef("Skipping tx %s due to error in "+
 					"CheckTransactionInputs: %v", bundledTx.Tx.Hash(), err)
 				logSkippedDeps(bundledTx.Tx, deps)
+				miningView.Reject(tx.Hash())
 				continue nextPriorityQueueItem
 			}
 			err = blockchain.ValidateTransactionScripts(bundledTx.Tx,
@@ -1728,6 +1739,7 @@ nextPriorityQueueItem:
 				log.Tracef("Skipping tx %s due to error in "+
 					"ValidateTransactionScripts: %v", bundledTx.Tx.Hash(), err)
 				logSkippedDeps(bundledTx.Tx, deps)
+				miningView.Reject(tx.Hash())
 				continue nextPriorityQueueItem
 			}
 		}
