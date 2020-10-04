@@ -2209,9 +2209,9 @@ func New(cfg *Config) *TxPool {
 // ancestors. It only stores transactions that have at least one edge relating
 // to another.
 type txDescGraph struct {
-	redeemers  func(tx *dcrutil.Tx) map[chainhash.Hash]*mining.TxDesc
-	childrenOf map[chainhash.Hash]map[chainhash.Hash]*mining.TxDesc
-	parentsOf  map[chainhash.Hash]map[chainhash.Hash]*mining.TxDesc
+	forEachRedeemer func(tx *dcrutil.Tx, f func(redeemerTx *mining.TxDesc))
+	childrenOf      map[chainhash.Hash]map[chainhash.Hash]*mining.TxDesc
+	parentsOf       map[chainhash.Hash]map[chainhash.Hash]*mining.TxDesc
 }
 
 // txDescFind is used to inject a transaction repository into the mining view.
@@ -2235,24 +2235,21 @@ type txMiningView struct {
 func (mp *TxPool) newTxDescGraph() *txDescGraph {
 	// for a given transaction, scan the mempool to find which transactions
 	// spend it.
-	redeemers := func(tx *dcrutil.Tx) map[chainhash.Hash]*mining.TxDesc {
-		children := make(map[chainhash.Hash]*mining.TxDesc)
+	forEachRedeemer := func(tx *dcrutil.Tx, f func(redeemerTx *mining.TxDesc)) {
 		prevOut := wire.OutPoint{Hash: *tx.Hash(), Tree: tx.Tree()}
 		txOutLen := uint32(len(tx.MsgTx().TxOut))
 		for i := uint32(0); i < txOutLen; i++ {
 			prevOut.Index = i
 			if txRedeemer, exists := mp.outpoints[prevOut]; exists {
-				children[*txRedeemer.Hash()] = &mp.pool[*txRedeemer.Hash()].TxDesc
+				f(&mp.pool[txRedeemer.MsgTx().TxHash()].TxDesc)
 			}
 		}
-
-		return children
 	}
 
 	return &txDescGraph{
-		redeemers:  redeemers,
-		childrenOf: make(map[chainhash.Hash]map[chainhash.Hash]*mining.TxDesc),
-		parentsOf:  make(map[chainhash.Hash]map[chainhash.Hash]*mining.TxDesc),
+		forEachRedeemer: forEachRedeemer,
+		childrenOf:      make(map[chainhash.Hash]map[chainhash.Hash]*mining.TxDesc),
+		parentsOf:       make(map[chainhash.Hash]map[chainhash.Hash]*mining.TxDesc),
 	}
 }
 
@@ -2366,12 +2363,14 @@ func (mv *txMiningView) updateBundleStats(txDesc *mining.TxDesc) {
 func (g *txDescGraph) clone(fetchTx txDescFind) *txDescGraph {
 	// Source transactions from within the graph to decouple the cloned
 	// mining view instance from the mempool.
-	redeemers := func(tx *dcrutil.Tx) map[chainhash.Hash]*mining.TxDesc {
-		return g.childrenOf[*tx.Hash()]
+	forEachRedeemer := func(tx *dcrutil.Tx, f func(redeemerTx *mining.TxDesc)) {
+		for _, childTx := range g.childrenOf[*tx.Hash()] {
+			f(childTx)
+		}
 	}
 
 	graph := &txDescGraph{
-		redeemers: redeemers,
+		forEachRedeemer: forEachRedeemer,
 		parentsOf: make(map[chainhash.Hash]map[chainhash.Hash]*mining.TxDesc,
 			len(g.parentsOf)),
 		childrenOf: make(map[chainhash.Hash]map[chainhash.Hash]*mining.TxDesc,
@@ -2421,10 +2420,10 @@ func (g *txDescGraph) insert(txDesc *mining.TxDesc, findTx txDescFind) {
 	seen := make(map[chainhash.Hash]struct{})
 
 	// Fetch transactions that spend this one from the graph.
-	for _, child := range g.redeemers(txDesc.Tx) {
+	g.forEachRedeemer(txDesc.Tx, func(child *mining.TxDesc) {
 		g.addChild(txDesc, child)
 		g.addParent(child, txDesc)
-	}
+	})
 
 	// Relate self with direct ancestors.
 	for _, txIn := range txDesc.Tx.MsgTx().TxIn {
@@ -2542,6 +2541,7 @@ func (mv *txMiningView) notifyDescendentsRemoved(txDesc *mining.TxDesc) {
 }
 
 var defaultAncestorStats = &mining.TxAncestorStats{}
+var noAncestors = make([]*mining.TxDesc, 0)
 
 // AncestorStats returns the view's cached statistics for all of the provided
 // transaction's ancestors.
@@ -2556,7 +2556,7 @@ func (mv *txMiningView) AncestorStats(txHash *chainhash.Hash) *mining.TxAncestor
 // provided transaction hash depends on, and its ancestors' bundle stats.
 func (mv *txMiningView) Ancestors(txHash *chainhash.Hash) ([]*mining.TxDesc, *mining.TxAncestorStats) {
 	stats := defaultAncestorStats
-	ancestors := make([]*mining.TxDesc, 0)
+	ancestors := noAncestors
 	seen := make(map[chainhash.Hash]struct{})
 	mv.txGraph.forEachAncestor(txHash, seen, func(txDesc *mining.TxDesc) {
 		if stats == defaultAncestorStats {
