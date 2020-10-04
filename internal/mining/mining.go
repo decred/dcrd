@@ -63,9 +63,11 @@ type TxDesc struct {
 	// Fee is the total fee the transaction associated with the entry pays.
 	Fee int64
 
-	// NumSigOps is the total sigops for this transaction
+	// NumSigOps is the total sigops for this transaction.
 	NumSigOps int
 
+	// NumP2SHSigOps is the total number of signature operations for all input
+	// transactions which are of the pay-to-script-hash type.
 	NumP2SHSigOps int
 }
 
@@ -82,6 +84,9 @@ type TxAncestorStats struct {
 	// NumSigOps is the total number of signature operations of all ancestors.
 	NumSigOps int64
 
+	// NumP2SHSigOps is the aggregate number of signature operations for all
+	// input transactions of all ancestors which are of the pay-to-script-hash
+	// type.
 	NumP2SHSigOps int64
 
 	// NumAncestors is the total number of ancestors for a given transaction.
@@ -1108,6 +1113,8 @@ func NewBlkTmplGenerator(policy *Policy, txSource TxSource,
 	}
 }
 
+// calcFeePerKb returns an adjusted fee per kilobyte taking the provided
+// transaction and its ancestors into account.
 func calcFeePerKb(txDesc *TxDesc, ancestorStats *TxAncestorStats) float64 {
 	txSize := uint32(txDesc.Tx.MsgTx().SerializeSize())
 	return (float64(txDesc.Fee+ancestorStats.Fees) * float64(kilobyte)) /
