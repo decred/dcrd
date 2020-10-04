@@ -1730,7 +1730,7 @@ nextPriorityQueueItem:
 				log.Tracef("Skipping tx %s due to error in "+
 					"CheckTransactionInputs: %v", bundledTx.Tx.Hash(), err)
 				logSkippedDeps(bundledTx.Tx, deps)
-				miningView.Reject(tx.Hash())
+				miningView.Reject(bundledTx.Tx.Hash())
 				continue nextPriorityQueueItem
 			}
 			err = blockchain.ValidateTransactionScripts(bundledTx.Tx,
@@ -1739,7 +1739,7 @@ nextPriorityQueueItem:
 				log.Tracef("Skipping tx %s due to error in "+
 					"ValidateTransactionScripts: %v", bundledTx.Tx.Hash(), err)
 				logSkippedDeps(bundledTx.Tx, deps)
-				miningView.Reject(tx.Hash())
+				miningView.Reject(bundledTx.Tx.Hash())
 				continue nextPriorityQueueItem
 			}
 		}
