@@ -2278,10 +2278,11 @@ func (mp *TxPool) MiningView() mining.TxMiningView {
 
 	for key, value := range mp.miningView.ancestorStats {
 		statsCopy[key] = &mining.TxAncestorStats{
-			Fees:         value.Fees,
-			SizeBytes:    value.SizeBytes,
-			NumSigOps:    value.NumSigOps,
-			NumAncestors: value.NumAncestors,
+			Fees:          value.Fees,
+			SizeBytes:     value.SizeBytes,
+			NumSigOps:     value.NumSigOps,
+			NumP2SHSigOps: value.NumP2SHSigOps,
+			NumAncestors:  value.NumAncestors,
 		}
 	}
 
@@ -2344,6 +2345,7 @@ func aggregateStats(stats *mining.TxAncestorStats, ancestor *mining.TxDesc) {
 	stats.Fees += ancestor.Fee
 	stats.SizeBytes += int64(ancestor.Tx.MsgTx().SerializeSize())
 	stats.NumSigOps += int64(ancestor.NumSigOps)
+	stats.NumP2SHSigOps += int64(ancestor.NumP2SHSigOps)
 }
 
 // updateBundleStats ensures that the bundle stats for a given
