@@ -1640,8 +1640,8 @@ nextPriorityQueueItem:
 			continue
 		}
 
-		numSigOps += int64(prioItem.txDesc.NumP2SHSigOps)
-		numSigOpsBundle += ancestorStats.NumP2SHSigOps
+		numSigOpsBundle += numSigOps + int64(prioItem.txDesc.NumP2SHSigOps) +
+			ancestorStats.NumP2SHSigOps
 		if blockSigOps+numSigOpsBundle < blockSigOps ||
 			blockSigOps+numSigOpsBundle > blockchain.MaxSigOpsPerBlock {
 			log.Tracef("Skipping tx %s because it would "+
@@ -1756,8 +1756,10 @@ nextPriorityQueueItem:
 			// save the fees and signature operation counts to the block
 			// template.
 			blockTxns = append(blockTxns, bundledTx.Tx)
-			blockSize += txSize
-			blockSigOps += numSigOps
+			blockSize += uint32(bundledTx.Tx.MsgTx().SerializeSize())
+			bundledTxSigOps := int64(bundledTx.NumSigOps +
+				bundledTx.NumP2SHSigOps)
+			blockSigOps += bundledTxSigOps
 
 			// Accumulate the SStxs in the block, because only a certain number
 			// are allowed.
@@ -1771,25 +1773,26 @@ nextPriorityQueueItem:
 				numTAdds++
 			}
 
-			txFeesMap[*tx.Hash()] = prioItem.fee
-			txSigOpCountsMap[*tx.Hash()] = numSigOps
+			txFeesMap[*bundledTx.Tx.Hash()] = bundledTx.Fee
+			txSigOpCountsMap[*bundledTx.Tx.Hash()] = bundledTxSigOps
 
 			log.Tracef("Adding tx %s (priority %.2f, feePerKB %.2f)",
-				prioItem.tx.Hash(), prioItem.priority, prioItem.feePerKB)
+				bundledTx.Tx.Hash(), prioItem.priority, prioItem.feePerKB)
 
 			// Remove transaction from mining view since it's been added to the
 			// block template.
-			miningView.Remove(tx.Hash(), false)
+			bundledTxDeps := miningView.Children(bundledTx.Tx.Hash())
+			miningView.Remove(bundledTx.Tx.Hash(), false)
 
 			// Add transactions which depend on this one (and also do not
 			// have any other unsatisfied dependencies) to the priority
 			// queue.
-			for _, item := range deps {
+			for _, childTx := range bundledTxDeps {
 				// Add the transaction to the priority queue if there
 				// are no more dependencies after this one.
-				txHash := item.Tx.Hash()
-				if !miningView.HasParents(txHash) {
-					heap.Push(priorityQueue, prioItemMap[*txHash])
+				childTxHash := childTx.Tx.Hash()
+				if !miningView.HasParents(childTxHash) {
+					heap.Push(priorityQueue, prioItemMap[*childTxHash])
 				}
 			}
 		}
