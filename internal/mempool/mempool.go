@@ -222,6 +222,10 @@ type Policy struct {
 	//
 	// This function must be safe for concurrent access.
 	AcceptSequenceLocks func() (bool, error)
+
+	// EnableMiningView controls whether the mining view tracks transaction
+	// relationships in the mempool.
+	EnableMiningView bool
 }
 
 // TxDesc is a descriptor containing a transaction in the mempool along with
@@ -879,7 +883,9 @@ func (mp *TxPool) removeTransaction(tx *dcrutil.Tx, removeRedeemers bool, isTrea
 			updateDescendentStats = false
 		}
 
-		mp.miningView.Remove(tx.Hash(), updateDescendentStats)
+		if mp.cfg.Policy.EnableMiningView {
+			mp.miningView.Remove(tx.Hash(), updateDescendentStats)
+		}
 
 		delete(mp.pool, *txHash)
 
@@ -967,7 +973,10 @@ func (mp *TxPool) addTransaction(utxoView *blockchain.UtxoViewpoint, tx *dcrutil
 	}
 
 	mp.pool[*tx.Hash()] = poolTxDesc
-	mp.miningView.addTransaction(&poolTxDesc.TxDesc, mp.findTx)
+
+	if mp.cfg.Policy.EnableMiningView {
+		mp.miningView.addTransaction(&poolTxDesc.TxDesc, mp.findTx)
+	}
 
 	for _, txIn := range msgTx.TxIn {
 		mp.outpoints[txIn.PreviousOutPoint] = tx
@@ -2530,19 +2539,27 @@ func (mv *txMiningView) notifyDescendentsRemoved(txDesc *mining.TxDesc) {
 	})
 }
 
+var defaultAncestorStats = &mining.TxAncestorStats{}
+
 // AncestorStats returns the view's cached statistics for all of the provided
 // transaction's ancestors.
 func (mv *txMiningView) AncestorStats(txHash *chainhash.Hash) *mining.TxAncestorStats {
-	return mv.ancestorStats[*txHash]
+	if ancestorStats, exists := mv.ancestorStats[*txHash]; exists {
+		return ancestorStats
+	}
+	return defaultAncestorStats
 }
 
 // Ancestors returns a collection of all transactions in the graph that the
 // provided transaction hash depends on, and its ancestors' bundle stats.
 func (mv *txMiningView) Ancestors(txHash *chainhash.Hash) ([]*mining.TxDesc, *mining.TxAncestorStats) {
-	stats := &mining.TxAncestorStats{}
+	stats := defaultAncestorStats
 	ancestors := make([]*mining.TxDesc, 0)
 	seen := make(map[chainhash.Hash]struct{})
 	mv.txGraph.forEachAncestor(txHash, seen, func(txDesc *mining.TxDesc) {
+		if stats == defaultAncestorStats {
+			stats = &mining.TxAncestorStats{}
+		}
 		aggregateStats(stats, txDesc)
 		ancestors = append(ancestors, txDesc)
 	})
