@@ -2917,7 +2917,7 @@ func TestMiningView(t *testing.T) {
 		}
 
 		// Ensure stats are calculated before retrieving ancestors.
-		stat := miningView.BundleStats(txHash)
+		stat := miningView.AncestorStats(txHash)
 		if test.expectedFees != stat.Fees {
 			t.Fatalf("%v: expected subject txn to have bundle fees %v, got %v",
 				test.name, test.expectedFees, stat.Fees)
@@ -3003,9 +3003,9 @@ func TestMiningView(t *testing.T) {
 			child := children[0]
 			siblings := removalMiningView.Parents(child.Tx.Hash())
 
-			// Make sure parent fee has not changed.
-			oldStat := miningView.BundleStats(child.Tx.Hash())
-			newStat := removalMiningView.BundleStats(child.Tx.Hash())
+			// Make sure ancestor stats have not changed.
+			oldStat := miningView.AncestorStats(child.Tx.Hash())
+			newStat := removalMiningView.AncestorStats(child.Tx.Hash())
 
 			if *oldStat != *newStat {
 				t.Fatalf("%v: expected test subject's child bundle stats to "+
@@ -3028,8 +3028,8 @@ func TestMiningView(t *testing.T) {
 		removalMiningView.Remove(txHash, true)
 
 		for _, descendent := range descendents {
-			oldStat := miningView.BundleStats(descendent)
-			newStat := removalMiningView.BundleStats(descendent)
+			oldStat := miningView.AncestorStats(descendent)
+			newStat := removalMiningView.AncestorStats(descendent)
 
 			expectedFee := oldStat.Fees - txDesc.Fee
 			expectedSigOps := oldStat.NumSigOps - int64(txDesc.NumSigOps)

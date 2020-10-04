@@ -2187,10 +2187,10 @@ func New(cfg *Config) *TxPool {
 	}
 
 	mp.miningView = &txMiningView{
-		rejected:    make(map[chainhash.Hash]struct{}),
-		txGraph:     mp.newTxDescGraph(),
-		txDescs:     []*mining.TxDesc{},
-		bundleStats: make(map[chainhash.Hash]*mining.TxBundleStats),
+		rejected:      make(map[chainhash.Hash]struct{}),
+		txGraph:       mp.newTxDescGraph(),
+		txDescs:       []*mining.TxDesc{},
+		ancestorStats: make(map[chainhash.Hash]*mining.TxAncestorStats),
 	}
 
 	return mp
@@ -2214,10 +2214,10 @@ type txDescFind func(txHash *chainhash.Hash) *mining.TxDesc
 // as well as the hierarchy of transactions, as they may spend from one another
 // in the mempool.
 type txMiningView struct {
-	rejected    map[chainhash.Hash]struct{}
-	txGraph     *txDescGraph
-	txDescs     []*mining.TxDesc
-	bundleStats map[chainhash.Hash]*mining.TxBundleStats
+	rejected      map[chainhash.Hash]struct{}
+	txGraph       *txDescGraph
+	txDescs       []*mining.TxDesc
+	ancestorStats map[chainhash.Hash]*mining.TxAncestorStats
 }
 
 // newTxDescGraph returns a new instance of txDescGraph. The graph is provided
@@ -2257,18 +2257,18 @@ func (mp *TxPool) MiningView() mining.TxMiningView {
 	mp.mtx.RLock()
 	defer mp.mtx.RUnlock()
 
-	statsCopy := make(map[chainhash.Hash]*mining.TxBundleStats,
-		len(mp.miningView.bundleStats))
+	statsCopy := make(map[chainhash.Hash]*mining.TxAncestorStats,
+		len(mp.miningView.ancestorStats))
 
 	view := &txMiningView{
-		rejected:    make(map[chainhash.Hash]struct{}),
-		txGraph:     mp.miningView.txGraph.clone(mp.findTx),
-		txDescs:     mp.miningDescs(),
-		bundleStats: statsCopy,
+		rejected:      make(map[chainhash.Hash]struct{}),
+		txGraph:       mp.miningView.txGraph.clone(mp.findTx),
+		txDescs:       mp.miningDescs(),
+		ancestorStats: statsCopy,
 	}
 
-	for key, value := range mp.miningView.bundleStats {
-		statsCopy[key] = &mining.TxBundleStats{
+	for key, value := range mp.miningView.ancestorStats {
+		statsCopy[key] = &mining.TxAncestorStats{
 			Fees:         value.Fees,
 			SizeBytes:    value.SizeBytes,
 			NumSigOps:    value.NumSigOps,
@@ -2330,7 +2330,7 @@ func (g *txDescGraph) find(txHash *chainhash.Hash) *mining.TxDesc {
 	return nil
 }
 
-func aggregateStats(stats *mining.TxBundleStats, ancestor *mining.TxDesc) {
+func aggregateStats(stats *mining.TxAncestorStats, ancestor *mining.TxDesc) {
 	stats.NumAncestors++
 	stats.Fees += ancestor.Fee
 	stats.SizeBytes += int64(ancestor.Tx.MsgTx().SerializeSize())
@@ -2343,12 +2343,12 @@ func aggregateStats(stats *mining.TxBundleStats, ancestor *mining.TxDesc) {
 func (mv *txMiningView) updateBundleStats(txDesc *mining.TxDesc) {
 	seen := make(map[chainhash.Hash]struct{})
 	txHash := txDesc.Tx.Hash()
-	stats := &mining.TxBundleStats{}
+	stats := &mining.TxAncestorStats{}
 	mv.txGraph.forEachAncestor(txHash, seen, func(txDesc *mining.TxDesc) {
 		aggregateStats(stats, txDesc)
 	})
 
-	mv.bundleStats[*txDesc.Tx.Hash()] = stats
+	mv.ancestorStats[*txDesc.Tx.Hash()] = stats
 }
 
 // clone returns a copy of the current graph.
@@ -2503,7 +2503,7 @@ func (mv *txMiningView) notifyDescendentsAdded(txDesc *mining.TxDesc) {
 	p2shSigOps := int64(txDesc.NumP2SHSigOps)
 	seen := make(map[chainhash.Hash]struct{})
 	mv.txGraph.forEachDescendent(txHash, seen, func(descendent *mining.TxDesc) {
-		descendentStats := mv.bundleStats[*descendent.Tx.Hash()]
+		descendentStats := mv.ancestorStats[*descendent.Tx.Hash()]
 		descendentStats.Fees += txDesc.Fee
 		descendentStats.SizeBytes += txSize
 		descendentStats.NumSigOps += sigOps
@@ -2521,7 +2521,7 @@ func (mv *txMiningView) notifyDescendentsRemoved(txDesc *mining.TxDesc) {
 	p2shSigOps := int64(txDesc.NumP2SHSigOps)
 	seen := make(map[chainhash.Hash]struct{})
 	mv.txGraph.forEachDescendent(txHash, seen, func(descendent *mining.TxDesc) {
-		descendentStats := mv.bundleStats[*descendent.Tx.Hash()]
+		descendentStats := mv.ancestorStats[*descendent.Tx.Hash()]
 		descendentStats.Fees -= txDesc.Fee
 		descendentStats.SizeBytes -= txSize
 		descendentStats.NumSigOps -= sigOps
@@ -2530,16 +2530,16 @@ func (mv *txMiningView) notifyDescendentsRemoved(txDesc *mining.TxDesc) {
 	})
 }
 
-// BundleStats returns the view's cached statistics for all of the provided
+// AncestorStats returns the view's cached statistics for all of the provided
 // transaction's ancestors.
-func (mv *txMiningView) BundleStats(txHash *chainhash.Hash) *mining.TxBundleStats {
-	return mv.bundleStats[*txHash]
+func (mv *txMiningView) AncestorStats(txHash *chainhash.Hash) *mining.TxAncestorStats {
+	return mv.ancestorStats[*txHash]
 }
 
 // Ancestors returns a collection of all transactions in the graph that the
 // provided transaction hash depends on, and its ancestors' bundle stats.
-func (mv *txMiningView) Ancestors(txHash *chainhash.Hash) ([]*mining.TxDesc, *mining.TxBundleStats) {
-	stats := &mining.TxBundleStats{}
+func (mv *txMiningView) Ancestors(txHash *chainhash.Hash) ([]*mining.TxDesc, *mining.TxAncestorStats) {
+	stats := &mining.TxAncestorStats{}
 	ancestors := make([]*mining.TxDesc, 0)
 	seen := make(map[chainhash.Hash]struct{})
 	mv.txGraph.forEachAncestor(txHash, seen, func(txDesc *mining.TxDesc) {
@@ -2548,7 +2548,7 @@ func (mv *txMiningView) Ancestors(txHash *chainhash.Hash) ([]*mining.TxDesc, *mi
 	})
 
 	// Update the cache.
-	mv.bundleStats[*txHash] = stats
+	mv.ancestorStats[*txHash] = stats
 	return ancestors, stats
 }
 
@@ -2605,7 +2605,7 @@ func (mv *txMiningView) Remove(txHash *chainhash.Hash, notifyFeeChange bool) {
 	}
 
 	mv.txGraph.remove(txHash)
-	delete(mv.bundleStats, *txHash)
+	delete(mv.ancestorStats, *txHash)
 }
 
 // Reject stops tracking the transaction in the view, if it exists, and all

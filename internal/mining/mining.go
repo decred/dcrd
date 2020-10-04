@@ -69,9 +69,9 @@ type TxDesc struct {
 	NumP2SHSigOps int
 }
 
-// TxBundleStats is a descriptor that stores aggregated statistics for the
+// TxAncestorStats is a descriptor that stores aggregated statistics for the
 // unconfirmed ancestors of a transasction.
-type TxBundleStats struct {
+type TxAncestorStats struct {
 	// Fees is the sum of all fees of unconfirmed ancestors
 	// and the current transaction.
 	Fees int64
@@ -94,14 +94,14 @@ type TxMiningView interface {
 	// transactions in the source pool.
 	TxDescs() []*TxDesc
 
-	// BundleStats returns the last known bundle stats for a given transaction.
+	// AncestorStats returns the last known bundle stats for a given transaction.
 	// May return a nil pointer if the stats have not been calculated. Calling
 	// Ancestors will calculate and update the value returned by this method.
-	BundleStats(txHash *chainhash.Hash) *TxBundleStats
+	AncestorStats(txHash *chainhash.Hash) *TxAncestorStats
 
 	// Ancestors returns all transactions in the mining view that the provided
 	// transaction has depends on.
-	Ancestors(txHash *chainhash.Hash) ([]*TxDesc, *TxBundleStats)
+	Ancestors(txHash *chainhash.Hash) ([]*TxDesc, *TxAncestorStats)
 
 	// HasParents returns true if the provided transaction hash has any
 	// ancestors known to the view.
@@ -1108,7 +1108,7 @@ func NewBlkTmplGenerator(policy *Policy, txSource TxSource,
 	}
 }
 
-func calcFeePerKb(txDesc *TxDesc, ancestorStats *TxBundleStats) float64 {
+func calcFeePerKb(txDesc *TxDesc, ancestorStats *TxAncestorStats) float64 {
 	txSize := uint32(txDesc.Tx.MsgTx().SerializeSize())
 	return (float64(txDesc.Fee+ancestorStats.Fees) * float64(kilobyte)) /
 		float64(int64(txSize)+ancestorStats.SizeBytes)
@@ -1430,7 +1430,7 @@ mempoolLoop:
 		// during calcMinRelayFee which rounds up to the nearest full
 		// kilobyte boundary.  This is beneficial since it provides an
 		// incentive to create smaller transactions.
-		ancestorStats := miningView.BundleStats(txDesc.Tx.Hash())
+		ancestorStats := miningView.AncestorStats(txDesc.Tx.Hash())
 		prioItem.feePerKB = calcFeePerKb(txDesc, ancestorStats)
 		prioItem.fee = txDesc.Fee + ancestorStats.Fees
 
