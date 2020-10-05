@@ -632,6 +632,10 @@ const (
 	// block is larger than the maximum allowed.
 	ErrTooManyTAdds
 
+	// ErrTicketExhaustion indicates extending a given block with another one
+	// would result in an unrecoverable chain due to ticket exhaustion.
+	ErrTicketExhaustion
+
 	// numErrorCodes is the maximum error code number used in tests.
 	numErrorCodes
 )
@@ -767,6 +771,7 @@ var errorCodeStrings = map[ErrorCode]string{
 	ErrInvalidTemplateParent:        "ErrInvalidTemplateParent",
 	ErrInvalidTAddChange:            "ErrInvalidTAddChange",
 	ErrTooManyTAdds:                 "ErrTooManyTAdds",
+	ErrTicketExhaustion:             "ErrTicketExhaustion",
 }
 
 // String returns the ErrorCode as a human-readable name.

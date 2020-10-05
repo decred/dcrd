@@ -144,6 +144,7 @@ func TestErrorCodeStringer(t *testing.T) {
 		{ErrBadTSpendScriptLen, "ErrBadTSpendScriptLen"},
 		{ErrInvalidTAddChange, "ErrInvalidTAddChange"},
 		{ErrTooManyTAdds, "ErrTooManyTAdds"},
+		{ErrTicketExhaustion, "ErrTicketExhaustion"},
 		{0xffff, "Unknown ErrorCode (65535)"},
 	}
 

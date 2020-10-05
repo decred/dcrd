@@ -1029,3 +1029,242 @@ func TestCheckConnectBlockTemplate(t *testing.T) {
 	g.NextBlock("b4ct", outs[3], ticketOuts[3], changeNonce)
 	acceptedBlockTemplate()
 }
+
+// TestCheckTicketExhaustion ensures the function which checks for inevitable
+// ticket exhaustion works as intended with a variety of scenarios including
+// various corner cases such as before, after, and straddling stake validation
+// height.
+func TestCheckTicketExhaustion(t *testing.T) {
+	// Hardcoded values expected by the tests so they remain valid if network
+	// parameters change.
+	const (
+		coinbaseMaturity      = 16
+		ticketMaturity        = 16
+		ticketsPerBlock       = 5
+		stakeEnabledHeight    = coinbaseMaturity + ticketMaturity
+		stakeValidationHeight = 144
+	)
+
+	// Create chain params based on regnet params with the specific values
+	// overridden.
+	params := chaincfg.RegNetParams()
+	params.CoinbaseMaturity = coinbaseMaturity
+	params.TicketMaturity = ticketMaturity
+	params.TicketsPerBlock = ticketsPerBlock
+	params.StakeEnabledHeight = stakeEnabledHeight
+	params.StakeValidationHeight = stakeValidationHeight
+
+	// isErr is a convenience func which acts as a limited version of errors.Is
+	// until the package is converted to support it at which point this can be
+	// removed.
+	isErr := func(err error, target error) bool {
+		if (err == nil) != (target == nil) {
+			return false
+		}
+		return target == nil || IsErrorCode(err, target.(RuleError).ErrorCode)
+	}
+
+	// ticketInfo is used to control the tests by specifying the details about
+	// how many fake blocks to create with the specified number of tickets.
+	type ticketInfo struct {
+		numNodes uint32 // number of fake blocks to create
+		tickets  uint8  // number of tickets to buy in each block
+	}
+
+	tests := []struct {
+		name        string       // test description
+		ticketInfo  []ticketInfo // num blocks and tickets to construct
+		newBlockTix uint8        // num tickets in new block for check call
+		err         error        // expected error
+	}{{
+		// Reach inevitable ticket exhaustion by not including any ticket
+		// purchases up to and including the final possible block prior to svh
+		// that can prevent it.
+		name: "guaranteed exhaustion prior to svh",
+		ticketInfo: []ticketInfo{
+			{126, 0}, // height: 126, 0 live, 0 immature
+		},
+		newBlockTix: 0, // extending height: 126, 0 live, 0 immature
+		err:         ruleError(ErrTicketExhaustion, ""),
+	}, {
+		// Reach inevitable ticket exhaustion by not including any ticket
+		// purchases up to just before the final possible block prior to svh
+		// that can prevent it and only include enough tickets in that final
+		// block such that it is one short of the required amount.
+		name: "one ticket short in final possible block prior to svh",
+		ticketInfo: []ticketInfo{
+			{126, 0}, // height: 126, 0 live, 0 immature
+		},
+		newBlockTix: 4, // extending height: 126, 0 live, 4 immature
+		err:         ruleError(ErrTicketExhaustion, ""),
+	}, {
+		// Construct chain such that there are no ticket purchases up to just
+		// before the final possible block prior to svh that can prevent ticket
+		// exhaustion and that final block contains the exact amount of ticket
+		// purchases required to prevent it.
+		name: "just enough in final possible block prior to svh",
+		ticketInfo: []ticketInfo{
+			{126, 0}, // height: 126, 0 live, 0 immature
+		},
+		newBlockTix: 5, // extending height: 126, 0 live, 5 immature
+		err:         nil,
+	}, {
+		// Reach inevitable ticket exhaustion with one live ticket less than
+		// needed to prevent it at the first block which ticket exhaustion can
+		// happen.
+		name: "one ticket short with live tickets at 1st possible exhaustion",
+		ticketInfo: []ticketInfo{
+			{16, 0},  // height: 16, 0 live, 0 immature
+			{1, 4},   // height: 17, 0 live, 4 immature
+			{109, 0}, // height: 126, 4 live, 0 immature
+		},
+		newBlockTix: 0, // extending height: 126, 4 live, 0 immature
+		err:         ruleError(ErrTicketExhaustion, ""),
+	}, {
+		name: "just enough live tickets at 1st possible exhaustion",
+		ticketInfo: []ticketInfo{
+			{16, 0},  // height: 16, 0 live, 0 immature
+			{1, 5},   // height: 17, 0 live, 5 immature
+			{109, 0}, // height: 126, 5 live, 0 immature
+		},
+		newBlockTix: 0, // extending height: 126, 5 live, 0 immature
+		err:         nil,
+	}, {
+		// Reach inevitable ticket exhaustion in the second possible block that
+		// it can happen.  Notice this means it consumes the exact number of
+		// live tickets in the first block that ticket exhaustion can happen.
+		name: "exhaustion at 2nd possible block, five tickets short",
+		ticketInfo: []ticketInfo{
+			{16, 0},  // height: 16, 0 live, 0 immature
+			{1, 5},   // height: 17, 0 live, 5 immature
+			{110, 0}, // height: 127, 5 live, 0 immature
+		},
+		newBlockTix: 0, // extending height: 127, 5 live, 0 immature
+		err:         ruleError(ErrTicketExhaustion, ""),
+	}, {
+		// Reach inevitable ticket exhaustion in the second possible block that
+		// it can happen with one live ticket less than needed to prevent it.
+		name: "exhaustion at 2nd possible block, one ticket short",
+		ticketInfo: []ticketInfo{
+			{16, 0},  // height: 16, 0 live, 0 immature
+			{1, 9},   // height: 17, 0 live, 9 immature
+			{110, 0}, // height: 127, 9 live, 0 immature
+		},
+		newBlockTix: 0, // extending height: 127, 9 live, 0 immature
+		err:         ruleError(ErrTicketExhaustion, ""),
+	}, {
+		// Construct chain to one block before svh such that there are exactly
+		// enough live tickets to prevent exhaustion.
+		name: "just enough to svh-1 with live tickets",
+		ticketInfo: []ticketInfo{
+			{36, 0},  // height: 36, 0 live, 0 immature
+			{4, 20},  // height: 40, 0 live, 80 immature
+			{1, 5},   // height: 41, 0 live, 85 immature
+			{101, 0}, // height: 142, 85 live, 0 immature
+		},
+		newBlockTix: 0, // extending height: 142, 85 live, 0 immature
+		err:         nil,
+	}, {
+		// Construct chain to one block before svh such that there is a mix of
+		// live and immature tickets that sum to exactly enough prevent
+		// exhaustion.
+		name: "just enough to svh-1 with mix of live and immature tickets",
+		ticketInfo: []ticketInfo{
+			{36, 0},  // height: 36, 0 live, 0 immature
+			{3, 20},  // height: 39, 0 live, 60 immature
+			{1, 15},  // height: 40, 0 live, 75 immature
+			{101, 0}, // height: 141, 75 live, 0 immature
+			{1, 5},   // height: 142, 75 live, 5 immature
+		},
+		newBlockTix: 5, // extending height: 142, 75 live, 10 immature
+		err:         nil,
+	}, {
+		// Construct chain to svh such that there are exactly enough live
+		// tickets to prevent exhaustion.
+		name: "just enough to svh with live tickets",
+		ticketInfo: []ticketInfo{
+			{32, 0},  // height: 32, 0 live, 0 immature
+			{4, 20},  // height: 36, 0 live, 80 immature
+			{1, 10},  // height: 37, 0 live, 90 immature
+			{106, 0}, // height: 143, 90 live, 0 immature
+		},
+		newBlockTix: 0, // extending height: 143, 90 live, 0 immature
+		err:         nil,
+	}, {
+		// Construct chain to svh such that there are exactly enough live
+		// tickets just becoming mature to prevent exhaustion.
+		name: "just enough to svh with maturing",
+		ticketInfo: []ticketInfo{
+			{126, 0}, // height: 126, 0 live, 0 immature
+			{16, 5},  // height: 142, 0 live, 80 immature
+			{1, 5},   // height: 143, 5 live, 80 immature
+		},
+		newBlockTix: 5, // extending height: 143, 5 live, 80 immature
+		err:         nil,
+	}, {
+		// Reach inevitable ticket exhaustion after creating a large pool of
+		// live tickets and allowing the live ticket pool to dwindle due to
+		// votes without buying more any more tickets.
+		name: "exhaustion due to dwindling live tickets w/o new purchases",
+		ticketInfo: []ticketInfo{
+			{126, 0}, // height: 126, 0 live, 0 immature
+			{25, 20}, // height: 151, 140 live, 360 immature
+			{75, 0},  // height: 226, 85 live, 0 immature
+		},
+		newBlockTix: 0, // extending height: 226, 85 live, 0 immature
+		err:         ruleError(ErrTicketExhaustion, ""),
+	}}
+
+	for _, test := range tests {
+		bc := newFakeChain(params)
+
+		// immatureTickets tracks which height the purchased tickets will mature
+		// and thus be eligible for admission to the live ticket pool.
+		immatureTickets := make(map[int64]uint8)
+		var poolSize uint32
+		node := bc.bestChain.Tip()
+		blockTime := time.Unix(node.timestamp, 0)
+		for _, ticketInfo := range test.ticketInfo {
+			for i := uint32(0); i < ticketInfo.numNodes; i++ {
+				blockTime = blockTime.Add(time.Second)
+				node = newFakeNode(node, 1, 1, 0, blockTime)
+				node.poolSize = poolSize
+				node.freshStake = ticketInfo.tickets
+
+				// Update the pool size for the next header.  Notice how tickets
+				// that mature for this block do not show up in the pool size
+				// until the next block.  This is correct behavior.
+				poolSize += uint32(immatureTickets[node.height])
+				delete(immatureTickets, node.height)
+				if node.height >= stakeValidationHeight {
+					poolSize -= ticketsPerBlock
+				}
+
+				// Track maturity height for new ticket purchases.
+				maturityHeight := node.height + ticketMaturity
+				immatureTickets[maturityHeight] = ticketInfo.tickets
+
+				// Add the new fake node to the block index and update the chain
+				// to use it as the new best node.
+				bc.index.AddNode(node)
+				bc.bestChain.SetTip(node)
+
+				// Ensure the test data does not have any invalid intermediate
+				// states leading up to the final test condition.
+				parentHash := &node.parent.hash
+				err := bc.CheckTicketExhaustion(parentHash, ticketInfo.tickets)
+				if err != nil {
+					t.Errorf("%q: unexpected err: %v", test.name, err)
+				}
+			}
+		}
+
+		// Ensure the expected result is returned from ticket exhaustion check.
+		err := bc.CheckTicketExhaustion(&node.hash, test.newBlockTix)
+		if !isErr(err, test.err) {
+			t.Errorf("%q: mismatched err -- got %v, want %v", test.name, err,
+				test.err)
+			continue
+		}
+	}
+}

@@ -3917,3 +3917,84 @@ func (b *BlockChain) CheckConnectBlockTemplate(block *dcrutil.Block) error {
 	// rules.
 	return b.checkConnectBlock(newNode, block, parent, view, nil, nil)
 }
+
+// checkTicketExhaustion ensures that extending the provided block with a block
+// that contains the specified number of ticket purchases will not result in
+// a chain that is unrecoverable due to inevitable ticket exhaustion.  This
+// scenario happens when the number of live tickets drops below the number of
+// tickets that is needed to reach the next block at which any outstanding
+// immature ticket purchases that would provide the necessary live tickets
+// mature.
+func (b *BlockChain) checkTicketExhaustion(prevNode *blockNode, ticketPurchases uint8) error {
+	// Nothing to do if the chain is not far enough along where ticket
+	// exhaustion could be an issue.
+	//
+	// Note that the +1 added to the ticket maturity is because the lottery for
+	// each block selects tickets from the state of the pool as of the previous
+	// block and the first votes are required to be included at stake validation
+	// height, which means the tickets need to be live as of one block prior.
+	//
+	// Another way to look at it is that matured tickets do not become eligible
+	// for selection until the block AFTER the maturity period.
+	nextHeight := prevNode.height + 1
+	stakeValidationHeight := b.chainParams.StakeValidationHeight
+	ticketMaturity := int64(b.chainParams.TicketMaturity)
+	if nextHeight+ticketMaturity+1 < stakeValidationHeight {
+		return nil
+	}
+
+	// Calculate the final pool size of live tickets after the ticket maturity
+	// period relative to the next block height.
+	//
+	// Note that the pool size in the block header indicates the pool size
+	// BEFORE applying the block, so this adjusts the final pool size
+	// accordingly by adding any tickets that matured in said previous block as
+	// well as subtracting tickets consumed by votes if at least at stake
+	// validation height.  This is why both the call to sum purchased tickets
+	// and the number of voting blocks in the maturity period are one more than
+	// might otherwise be expected.
+	//
+	// In addition, adjust the pool size for all tickets that will mature during
+	// the ticket maturity interval, which includes any tickets purchased in the
+	// block that is extending the block being checked, as well as all votes
+	// that will consume tickets.
+	finalPoolSize := int64(prevNode.poolSize)
+	finalPoolSize += b.sumPurchasedTickets(prevNode, ticketMaturity+1)
+	finalPoolSize += int64(ticketPurchases)
+	votingBlocksInMaturityPeriod := ticketMaturity + 2
+	if prevNode.height < stakeValidationHeight {
+		nonVotingBlocks := stakeValidationHeight - prevNode.height
+		votingBlocksInMaturityPeriod -= nonVotingBlocks
+	}
+	votesPerBlock := int64(b.chainParams.TicketsPerBlock)
+	finalPoolSize -= votingBlocksInMaturityPeriod * votesPerBlock
+
+	// Ensure that the final pool of live tickets after the ticket maturity
+	// period will have enough tickets to prevent becoming unrecoverable.
+	if finalPoolSize < votesPerBlock {
+		purchasesNeeded := votesPerBlock - finalPoolSize
+		str := fmt.Sprintf("extending block %s (height %d) with a block that "+
+			"contains fewer than %d ticket purchase(s) would result in an "+
+			"unrecoverable chain due to ticket exhaustion", prevNode.hash,
+			prevNode.height, purchasesNeeded)
+		return ruleError(ErrTicketExhaustion, str)
+	}
+
+	return nil
+}
+
+// CheckTicketExhaustion ensures that extending the block associated with the
+// provided hash with a block that contains the specified number of ticket
+// purchases will not result in a chain that is unrecoverable due to inevitable
+// ticket exhaustion.  This scenario happens when the number of live tickets
+// drops below the number of tickets that is needed to reach the next block at
+// which any outstanding immature ticket purchases that would provide the
+// necessary live tickets mature.
+func (b *BlockChain) CheckTicketExhaustion(hash *chainhash.Hash, ticketPurchases uint8) error {
+	node := b.index.LookupNode(hash)
+	if node == nil || !b.index.NodeStatus(node).HaveData() {
+		return UnknownBlockError(*hash)
+	}
+
+	return b.checkTicketExhaustion(node, ticketPurchases)
+}
