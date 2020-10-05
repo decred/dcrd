@@ -33,6 +33,11 @@ const (
 	// to a msgblock.
 	ErrTransactionAppend
 
+	// ErrTicketExhaustion indicates that there will not be enough mature
+	// tickets by the end of the next ticket maturity period to progress the
+	// chain.
+	ErrTicketExhaustion
+
 	// ErrCheckConnectBlock indicates that a newly created block template
 	// failed blockchain.CheckConnectBlock.
 	ErrCheckConnectBlock
@@ -57,6 +62,7 @@ var miningErrorCodeStrings = map[MiningErrorCode]string{
 	ErrGetTopBlock:           "ErrGetTopBlock",
 	ErrGettingDifficulty:     "ErrGettingDifficulty",
 	ErrTransactionAppend:     "ErrTransactionAppend",
+	ErrTicketExhaustion:      "ErrTicketExhaustion",
 	ErrCheckConnectBlock:     "ErrCheckConnectBlock",
 	ErrFraudProofIndex:       "ErrFraudProofIndex",
 	ErrFetchTxStore:          "ErrFetchTxStore",

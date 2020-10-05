@@ -1843,6 +1843,14 @@ mempoolLoop:
 		}
 	}
 
+	// Ensure that mining the block would not cause the chain to become
+	// unrecoverable due to ticket exhaustion.
+	err = g.chain.CheckTicketExhaustion(&best.Hash, uint8(freshStake))
+	if err != nil {
+		log.Debug(err)
+		return nil, miningRuleError(ErrTicketExhaustion, err.Error())
+	}
+
 	// Get the ticket revocations (SSRtx tx) and store them and their
 	// number.
 	revocations := 0
