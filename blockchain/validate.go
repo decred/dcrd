@@ -1136,8 +1136,7 @@ func (b *BlockChain) checkBlockHeaderPositional(header *wire.BlockHeader, prevNo
 			return ruleError(ErrBlockVersionTooOld, str)
 		}
 
-		// Reject version 4 blocks once a majority of the network has
-		// upgraded.
+		// Reject version 4 blocks once a majority of the network has upgraded.
 		if header.Version < 5 && b.isMajorityVersion(5, prevNode,
 			b.chainParams.BlockRejectNumRequired) {
 
@@ -1146,8 +1145,7 @@ func (b *BlockChain) checkBlockHeaderPositional(header *wire.BlockHeader, prevNo
 			return ruleError(ErrBlockVersionTooOld, str)
 		}
 
-		// Reject version 3 blocks once a majority of the network has
-		// upgraded.
+		// Reject version 3 blocks once a majority of the network has upgraded.
 		if header.Version < 4 && b.isMajorityVersion(4, prevNode,
 			b.chainParams.BlockRejectNumRequired) {
 
@@ -1156,8 +1154,7 @@ func (b *BlockChain) checkBlockHeaderPositional(header *wire.BlockHeader, prevNo
 			return ruleError(ErrBlockVersionTooOld, str)
 		}
 
-		// Reject version 2 blocks once a majority of the network has
-		// upgraded.
+		// Reject version 2 blocks once a majority of the network has upgraded.
 		if header.Version < 3 && b.isMajorityVersion(3, prevNode,
 			b.chainParams.BlockRejectNumRequired) {
 
@@ -1166,8 +1163,7 @@ func (b *BlockChain) checkBlockHeaderPositional(header *wire.BlockHeader, prevNo
 			return ruleError(ErrBlockVersionTooOld, str)
 		}
 
-		// Reject version 1 blocks once a majority of the network has
-		// upgraded.
+		// Reject version 1 blocks once a majority of the network has upgraded.
 		if header.Version < 2 && b.isMajorityVersion(2, prevNode,
 			b.chainParams.BlockRejectNumRequired) {
 

@@ -3936,8 +3936,8 @@ func TestTSpendFirstTVICorner(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Logf("tspend expiry %v start %v end %v", expiry, start, end)
-	tspend := newFakeCreateTSpend(privKey, []addressAmountTuple{
-		{amount: 100000000}}, 1, expiry)
+	tspend := newFakeCreateTSpend(privKey, []dcrutil.Amount{100000000}, 1,
+		expiry)
 	tspendHash := tspend.TxHash()
 	_, _, err = stake.CheckTSpend(tspend)
 	if err != nil {
@@ -4231,9 +4231,8 @@ func TestTSpendVoteCountSynthetic(t *testing.T) {
 		params.TreasuryVoteRequiredDivisor
 
 	// Create tspend.
-	tspend := newFakeCreateTSpend(privKey, []addressAmountTuple{
-		{amount: 100000000},
-	}, 1, expiry)
+	tspend := newFakeCreateTSpend(privKey, []dcrutil.Amount{100000000}, 1,
+		expiry)
 	tspendHash := tspend.TxHash()
 	_, _, err = stake.CheckTSpend(tspend)
 	if err != nil {

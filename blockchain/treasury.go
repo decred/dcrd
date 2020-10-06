@@ -85,9 +85,9 @@ type treasuryValueType byte
 // treasury balance.
 const (
 	treasuryValueTBase  treasuryValueType = 0x01
-	treasuryValueTAdd                     = 0x02
-	treasuryValueFee                      = 0x03
-	treasuryValueTSpend                   = 0x04
+	treasuryValueTAdd   treasuryValueType = 0x02
+	treasuryValueFee    treasuryValueType = 0x03
+	treasuryValueTSpend treasuryValueType = 0x04
 
 	// tvFlagTypMask is the mask of the bits used to encode the type in the
 	// flags field of a serialized treasuryValue.

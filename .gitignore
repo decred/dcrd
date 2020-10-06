@@ -19,6 +19,9 @@ _obj
 _test
 vendor
 .idea
+.vscode
+playground
+notes
 
 # Architecture specific extensions/prefixes
 *.[568vq]

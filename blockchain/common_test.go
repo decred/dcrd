@@ -253,17 +253,12 @@ func newFakeCreateVoteTx(tspendVotes []treasuryVoteTuple) *wire.MsgTx {
 	return tx
 }
 
-type addressAmountTuple struct {
-	address dcrutil.Address
-	amount  dcrutil.Amount
-}
-
 // newFakeCreateTSpend creates a fake tspend transaction.
-func newFakeCreateTSpend(privKey []byte, payouts []addressAmountTuple, fee dcrutil.Amount, expiry uint32) *wire.MsgTx {
+func newFakeCreateTSpend(privKey []byte, payouts []dcrutil.Amount, fee dcrutil.Amount, expiry uint32) *wire.MsgTx {
 	// Calculate total payout.
 	totalPayout := int64(0)
-	for _, v := range payouts {
-		totalPayout += int64(v.amount)
+	for _, amount := range payouts {
+		totalPayout += int64(amount)
 	}
 	valueIn := int64(fee) + totalPayout
 
@@ -289,7 +284,7 @@ func newFakeCreateTSpend(privKey []byte, payouts []addressAmountTuple, fee dcrut
 	msgTx.AddTxOut(wire.NewTxOut(0, opretScript))
 
 	// OP_TGEN
-	for _, v := range payouts {
+	for _, amount := range payouts {
 		// Generate valid script. This is a hex encdoded blob from
 		// generator.go.
 		p2shOpTrueScript, err := hex.DecodeString("a914f5a8302ee8695bf836258b8f2b57b38a0be14e4787")
@@ -299,7 +294,7 @@ func newFakeCreateTSpend(privKey []byte, payouts []addressAmountTuple, fee dcrut
 		script := make([]byte, len(p2shOpTrueScript)+1)
 		script[0] = txscript.OP_TGEN
 		copy(script[1:], p2shOpTrueScript[:])
-		msgTx.AddTxOut(wire.NewTxOut(int64(v.amount), script))
+		msgTx.AddTxOut(wire.NewTxOut(int64(amount), script))
 	}
 
 	// Treasury spend transactions have no inputs since the funds are
