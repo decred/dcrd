@@ -1116,18 +1116,35 @@ func (b *BlockChain) checkBlockHeaderPositional(header *wire.BlockHeader, prevNo
 	}
 
 	if !fastAdd {
-		// Reject version 6 blocks for networks other than the main
-		// network once a majority of the network has upgraded.
-		if b.chainParams.Net != wire.MainNet && header.Version < 7 &&
-			b.isMajorityVersion(7, prevNode, b.chainParams.BlockRejectNumRequired) {
+		// Reject version 8 blocks for networks other than the main network once
+		// a majority of the network has upgraded.
+		if b.chainParams.Net != wire.MainNet && header.Version < 9 &&
+			b.isMajorityVersion(9, prevNode, b.chainParams.BlockRejectNumRequired) {
 
 			str := "new blocks with version %d are no longer valid"
 			str = fmt.Sprintf(str, header.Version)
 			return ruleError(ErrBlockVersionTooOld, str)
 		}
 
-		// Reject version 5 blocks once a majority of the network has
-		// upgraded.
+		// Reject version 7 blocks once a majority of the network has upgraded.
+		if header.Version < 8 && b.isMajorityVersion(8, prevNode,
+			b.chainParams.BlockRejectNumRequired) {
+
+			str := "new blocks with version %d are no longer valid"
+			str = fmt.Sprintf(str, header.Version)
+			return ruleError(ErrBlockVersionTooOld, str)
+		}
+
+		// Reject version 6 blocks once a majority of the network has upgraded.
+		if header.Version < 7 && b.isMajorityVersion(7, prevNode,
+			b.chainParams.BlockRejectNumRequired) {
+
+			str := "new blocks with version %d are no longer valid"
+			str = fmt.Sprintf(str, header.Version)
+			return ruleError(ErrBlockVersionTooOld, str)
+		}
+
+		// Reject version 5 blocks once a majority of the network has upgraded.
 		if header.Version < 6 && b.isMajorityVersion(6, prevNode,
 			b.chainParams.BlockRejectNumRequired) {
 
