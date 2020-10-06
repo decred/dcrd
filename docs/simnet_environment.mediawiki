@@ -233,17 +233,7 @@ tickets.
 This is caused by the same thing as the previous issue and has the same
 solution.
 
-====2.3.4. Errors similar to <code>list size too small: 0 < 5</code>====
-
-This happens if you stop buying tickets and mine enough blocks to the point the
-chain is unrecoverable due to the ticket pool becoming depleted.  The solution
-is to start over and ensure you are purchasing enough tickets.  A new chain is
-created every time the simnet environment setup script is run.
-
-Note that this error is temporary and will be replaced with a
-<code>chain continuity</code> error in the future.
-
-====2.3.5. Errors similar to <code>chain continuity not guaranteed after height X</code>====
+====2.3.4. Errors similar to <code>extending block X (height Y) would result in an unrecoverable chain due to ticket exhaustion</code>====
 
 This happens if you stop buying tickets and mining the next block would cause
 the chain to become unrecoverable if no tickets are included due to depletion of
