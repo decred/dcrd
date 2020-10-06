@@ -1116,77 +1116,23 @@ func (b *BlockChain) checkBlockHeaderPositional(header *wire.BlockHeader, prevNo
 	}
 
 	if !fastAdd {
-		// Reject version 8 blocks for networks other than the main network once
-		// a majority of the network has upgraded.
-		if b.chainParams.Net != wire.MainNet && header.Version < 9 &&
-			b.isMajorityVersion(9, prevNode, b.chainParams.BlockRejectNumRequired) {
-
-			str := "new blocks with version %d are no longer valid"
-			str = fmt.Sprintf(str, header.Version)
-			return ruleError(ErrBlockVersionTooOld, str)
+		// Reject old version blocks once a majority of the network has
+		// upgraded.
+		//
+		// Note that the latest block version for all networks other than the
+		// main network is one higher.
+		latestBlockVersion := int32(8)
+		if b.chainParams.Net != wire.MainNet {
+			latestBlockVersion++
 		}
+		for version := latestBlockVersion; version > 1; version-- {
+			if header.Version < version && b.isMajorityVersion(version,
+				prevNode, b.chainParams.BlockRejectNumRequired) {
 
-		// Reject version 7 blocks once a majority of the network has upgraded.
-		if header.Version < 8 && b.isMajorityVersion(8, prevNode,
-			b.chainParams.BlockRejectNumRequired) {
-
-			str := "new blocks with version %d are no longer valid"
-			str = fmt.Sprintf(str, header.Version)
-			return ruleError(ErrBlockVersionTooOld, str)
-		}
-
-		// Reject version 6 blocks once a majority of the network has upgraded.
-		if header.Version < 7 && b.isMajorityVersion(7, prevNode,
-			b.chainParams.BlockRejectNumRequired) {
-
-			str := "new blocks with version %d are no longer valid"
-			str = fmt.Sprintf(str, header.Version)
-			return ruleError(ErrBlockVersionTooOld, str)
-		}
-
-		// Reject version 5 blocks once a majority of the network has upgraded.
-		if header.Version < 6 && b.isMajorityVersion(6, prevNode,
-			b.chainParams.BlockRejectNumRequired) {
-
-			str := "new blocks with version %d are no longer valid"
-			str = fmt.Sprintf(str, header.Version)
-			return ruleError(ErrBlockVersionTooOld, str)
-		}
-
-		// Reject version 4 blocks once a majority of the network has upgraded.
-		if header.Version < 5 && b.isMajorityVersion(5, prevNode,
-			b.chainParams.BlockRejectNumRequired) {
-
-			str := "new blocks with version %d are no longer valid"
-			str = fmt.Sprintf(str, header.Version)
-			return ruleError(ErrBlockVersionTooOld, str)
-		}
-
-		// Reject version 3 blocks once a majority of the network has upgraded.
-		if header.Version < 4 && b.isMajorityVersion(4, prevNode,
-			b.chainParams.BlockRejectNumRequired) {
-
-			str := "new blocks with version %d are no longer valid"
-			str = fmt.Sprintf(str, header.Version)
-			return ruleError(ErrBlockVersionTooOld, str)
-		}
-
-		// Reject version 2 blocks once a majority of the network has upgraded.
-		if header.Version < 3 && b.isMajorityVersion(3, prevNode,
-			b.chainParams.BlockRejectNumRequired) {
-
-			str := "new blocks with version %d are no longer valid"
-			str = fmt.Sprintf(str, header.Version)
-			return ruleError(ErrBlockVersionTooOld, str)
-		}
-
-		// Reject version 1 blocks once a majority of the network has upgraded.
-		if header.Version < 2 && b.isMajorityVersion(2, prevNode,
-			b.chainParams.BlockRejectNumRequired) {
-
-			str := "new blocks with version %d are no longer valid"
-			str = fmt.Sprintf(str, header.Version)
-			return ruleError(ErrBlockVersionTooOld, str)
+				str := "new blocks with version %d are no longer valid"
+				str = fmt.Sprintf(str, header.Version)
+				return ruleError(ErrBlockVersionTooOld, str)
+			}
 		}
 	}
 
