@@ -3625,12 +3625,13 @@ retrieve the current block height, and displays it.
 package main
 
 import (
+	"context"
 	"io/ioutil"
 	"log"
 	"path/filepath"
 
-	"github.com/decred/dcrd/dcrutil/v2"
-	"github.com/decred/dcrd/rpcclient/v4"
+	"github.com/decred/dcrd/dcrutil/v3"
+	"github.com/decred/dcrd/rpcclient/v6"
 )
 
 func main() {
@@ -3660,7 +3661,8 @@ func main() {
 	defer client.Shutdown()
 
 	// Query the RPC server for the current block count and display it.
-	blockCount, err := client.GetBlockCount()
+	ctx := context.Background()
+	blockCount, err := client.GetBlockCount(ctx)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -3685,14 +3687,15 @@ information about the Genesis block, and display a few details about it.
 package main
 
 import (
+	"context"
 	"io/ioutil"
 	"log"
 	"path/filepath"
 	"time"
 
 	"github.com/decred/dcrd/chaincfg/chainhash"
-	"github.com/decred/dcrd/dcrutil/v2"
-	"github.com/decred/dcrd/rpcclient/v4"
+	"github.com/decred/dcrd/dcrutil/v3"
+	"github.com/decred/dcrd/rpcclient/v6"
 )
 
 func main() {
@@ -3724,12 +3727,13 @@ func main() {
 	// Query the RPC server for the genesis block using the "getblock"
 	// command with the verbose flag set to true and the verboseTx flag
 	// set to false.
+	ctx := context.Background()
 	genesisHashStr := "298e5cc3d985bfe7f81dc135f360abe089edd4396b86d2de66b0cef42b21d980"
 	blockHash, err := chainhash.NewHashFromStr(genesisHashStr)
 	if err != nil {
 		log.Fatal(err)
 	}
-	block, err := client.GetBlockVerbose(blockHash, false)
+	block, err := client.GetBlockVerbose(ctx, blockHash, false)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -3774,13 +3778,14 @@ the notifications.
 package main
 
 import (
+	"context"
 	"io/ioutil"
 	"log"
 	"path/filepath"
 	"time"
 
-	"github.com/decred/dcrd/dcrutil/v2"
-	"github.com/decred/dcrd/rpcclient/v4"
+	"github.com/decred/dcrd/dcrutil/v3"
+	"github.com/decred/dcrd/rpcclient/v6"
 )
 
 func main() {
@@ -3819,7 +3824,8 @@ func main() {
 	}
 
 	// Register for blockconnected and blockdisconneted notifications.
-	if err := client.NotifyBlocks(); err != nil {
+	ctx := context.Background()
+	if err := client.NotifyBlocks(ctx); err != nil {
 		client.Shutdown()
 		log.Fatal(err)
 	}
