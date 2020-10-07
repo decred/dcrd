@@ -105,7 +105,7 @@ type TxMiningView interface {
 	AncestorStats(txHash *chainhash.Hash) *TxAncestorStats
 
 	// Ancestors returns all transactions in the mining view that the provided
-	// transaction has depends on.
+	// transaction hash depends on.
 	Ancestors(txHash *chainhash.Hash) ([]*TxDesc, *TxAncestorStats)
 
 	// HasParents returns true if the provided transaction hash has any
@@ -123,11 +123,14 @@ type TxMiningView interface {
 	Children(txHash *chainhash.Hash) []*TxDesc
 
 	// Remove causes the provided transaction to be removed from the view, if
-	// it exists.
-	Remove(txHash *chainhash.Hash, notifyFeeChange bool)
+	// it exists. The updateDescendantStats parameter indicates whether the
+	// descendent transactions of the provided txHash should have their ancestor
+	// stats updated within the view to account for the removal of this
+	// transaction.
+	Remove(txHash *chainhash.Hash, updateDescendantStats bool)
 
 	// Reject removes and flags the provided transaction hash and all of its
-	// descendents in the view as rejected.
+	// descendants in the view as rejected.
 	Reject(txHash *chainhash.Hash)
 
 	// IsRejected checks to see if a transaction that once existed in the view
@@ -180,7 +183,7 @@ type TxSource interface {
 	// source pool.
 	IsRegTxTreeKnownDisapproved(hash *chainhash.Hash) bool
 
-	// MiningView returns a snapshot of the underlying TxSource
+	// MiningView returns a snapshot of the underlying TxSource.
 	MiningView() TxMiningView
 }
 
@@ -1116,7 +1119,7 @@ func NewBlkTmplGenerator(policy *Policy, txSource TxSource,
 // calcFeePerKb returns an adjusted fee per kilobyte taking the provided
 // transaction and its ancestors into account.
 func calcFeePerKb(txDesc *TxDesc, ancestorStats *TxAncestorStats) float64 {
-	txSize := uint32(txDesc.Tx.MsgTx().SerializeSize())
+	txSize := txDesc.Tx.MsgTx().SerializeSize()
 	return (float64(txDesc.Fee+ancestorStats.Fees) * float64(kilobyte)) /
 		float64(int64(txSize)+ancestorStats.SizeBytes)
 }
@@ -1351,7 +1354,7 @@ func (g *BlkTmplGenerator) NewBlockTemplate(payToAddress dcrutil.Address) (*Bloc
 
 	// Tracks the total number of transactions that depend on another
 	// from the tx source.
-	totalDescendentTxns := 0
+	totalDescendantTxns := 0
 	prioItemMap := make(map[chainhash.Hash]*txPrioItem, len(sourceTxns))
 
 mempoolLoop:
@@ -1445,7 +1448,7 @@ mempoolLoop:
 
 		heap.Push(priorityQueue, prioItem)
 		if miningView.HasParents(tx.Hash()) {
-			totalDescendentTxns++
+			totalDescendantTxns++
 		}
 
 		// Merge the referenced outputs from the input transactions to
@@ -1455,7 +1458,7 @@ mempoolLoop:
 	}
 
 	log.Tracef("Priority queue len %d, dependers len %d",
-		priorityQueue.Len(), totalDescendentTxns)
+		priorityQueue.Len(), totalDescendantTxns)
 
 	// The starting block size is the size of the block header plus the max
 	// possible transaction count size, plus the size of the coinbase
