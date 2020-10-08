@@ -783,14 +783,14 @@ func newPoolHarness(chainParams *chaincfg.Params) (*poolHarness, []spendableOutp
 		chain: chain,
 		txPool: New(&Config{
 			Policy: Policy{
-				EnableMiningView:     true,
-				MaxTxVersion:         wire.TxVersionTreasury,
-				DisableRelayPriority: true,
-				FreeTxRelayLimit:     15.0,
-				MaxOrphanTxs:         5,
-				MaxOrphanTxSize:      1000,
-				MaxSigOpsPerTx:       blockchain.MaxSigOpsPerBlock / 5,
-				MinRelayTxFee:        1000, // 1 Atom per byte
+				EnableAncestorTracking: true,
+				MaxTxVersion:           wire.TxVersionTreasury,
+				DisableRelayPriority:   true,
+				FreeTxRelayLimit:       15.0,
+				MaxOrphanTxs:           5,
+				MaxOrphanTxSize:        1000,
+				MaxSigOpsPerTx:         blockchain.MaxSigOpsPerBlock / 5,
+				MinRelayTxFee:          1000, // 1 Atom per byte
 				MaxVoteAge: func() uint16 {
 					switch chainParams.Net {
 					case wire.MainNet, wire.SimNet, wire.RegNet:
@@ -2928,7 +2928,12 @@ func TestMiningView(t *testing.T) {
 		}
 
 		// Ensure stats are calculated before retrieving ancestors.
-		stat := miningView.AncestorStats(txHash)
+		stat, hasStats := miningView.AncestorStats(txHash)
+		if !hasStats {
+			t.Fatalf("%v: expected mining view to have ancestor stats",
+				test.name)
+		}
+
 		if test.expectedAncestorFees != stat.Fees {
 			t.Fatalf("%v: expected subject txn to have bundle fees %v, got %v",
 				test.name, test.expectedAncestorFees, stat.Fees)
@@ -2950,7 +2955,8 @@ func TestMiningView(t *testing.T) {
 		}
 
 		// Retrieving ancestors will cause the cached stats to be updated.
-		ancestors, stat := miningView.Ancestors(txHash)
+		ancestors := miningView.Ancestors(txHash)
+		stat, _ = miningView.AncestorStats(txHash)
 
 		// Get snapshot of transaction relationships as they exist in the pool.
 		descendants := harness.txPool.miningView.txGraph.descendants(txHash)
@@ -3022,8 +3028,18 @@ func TestMiningView(t *testing.T) {
 			siblings := removalMiningView.Parents(child.Tx.Hash())
 
 			// Make sure ancestor stats have not changed.
-			oldStat := miningView.AncestorStats(child.Tx.Hash())
-			newStat := removalMiningView.AncestorStats(child.Tx.Hash())
+			oldStat, hasStats := miningView.AncestorStats(child.Tx.Hash())
+			if !hasStats {
+				t.Fatalf("%v: Expected ancestor stats to be available",
+					test.name)
+			}
+
+			newStat, hasStats := removalMiningView.AncestorStats(
+				child.Tx.Hash())
+			if !hasStats {
+				t.Fatalf("%v: Expected ancestor stats to be available",
+					test.name)
+			}
 
 			if *oldStat != *newStat {
 				t.Fatalf("%v: expected test subject's child bundle stats to "+
@@ -3046,8 +3062,17 @@ func TestMiningView(t *testing.T) {
 		removalMiningView.Remove(txHash, true)
 
 		for _, descendant := range descendants {
-			oldStat := miningView.AncestorStats(descendant)
-			newStat := removalMiningView.AncestorStats(descendant)
+			oldStat, hasStats := miningView.AncestorStats(descendant)
+			if !hasStats {
+				t.Fatalf("%v: Expected ancestor stats to be available",
+					test.name)
+			}
+
+			newStat, hasStats := removalMiningView.AncestorStats(descendant)
+			if !hasStats {
+				t.Fatalf("%v: Expected ancestor stats to be available",
+					test.name)
+			}
 
 			expectedFee := oldStat.Fees - txDesc.Fee
 			expectedSigOps := oldStat.NumSigOps - int64(txDesc.NumSigOps)
@@ -3088,7 +3113,7 @@ func TestMiningView(t *testing.T) {
 
 		// Rejecting a transaction rejects all descendant transactions
 		// and removes the tx from the graph.
-		if ancestors, _ := miningView.Ancestors(txHash); len(ancestors) > 0 {
+		if ancestors := miningView.Ancestors(txHash); len(ancestors) > 0 {
 			t.Fatalf("%v: expected subject txn to have 0 ancestors, got %v",
 				test.name, len(ancestors))
 		}

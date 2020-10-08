@@ -99,14 +99,17 @@ type TxMiningView interface {
 	// transactions in the source pool.
 	TxDescs() []*TxDesc
 
-	// AncestorStats returns the last known bundle stats for a given transaction.
-	// May return a nil pointer if the stats have not been calculated. Calling
-	// Ancestors will calculate and update the value returned by this method.
-	AncestorStats(txHash *chainhash.Hash) *TxAncestorStats
+	// AncestorStats returns the last known ancestor stats for the provided
+	// transaction hash, and a boolean indicating whether ancestors are being
+	// tracked for it.
+	//
+	// Calling Ancestors will update the value returned by this function to
+	// reflect the newly calculated statistics for those ancestors.
+	AncestorStats(txHash *chainhash.Hash) (*TxAncestorStats, bool)
 
 	// Ancestors returns all transactions in the mining view that the provided
 	// transaction hash depends on.
-	Ancestors(txHash *chainhash.Hash) ([]*TxDesc, *TxAncestorStats)
+	Ancestors(txHash *chainhash.Hash) []*TxDesc
 
 	// HasParents returns true if the provided transaction hash has any
 	// ancestors known to the view.
@@ -1095,6 +1098,10 @@ type BlkTmplGenerator struct {
 	miningTimeOffset int
 }
 
+// noAncestorStats represents ancestor stats for a transaction where ancestors
+// are not being tracked in the view.
+var noAncestorStats = &TxAncestorStats{}
+
 // NewBlkTmplGenerator returns a new block template generator for the given
 // policy using transactions from the provided transaction source.
 func NewBlkTmplGenerator(policy *Policy, txSource TxSource,
@@ -1440,14 +1447,17 @@ mempoolLoop:
 		// during calcMinRelayFee which rounds up to the nearest full
 		// kilobyte boundary.  This is beneficial since it provides an
 		// incentive to create smaller transactions.
-		ancestorStats := miningView.AncestorStats(txDesc.Tx.Hash())
+		ancestorStats, hasStats := miningView.AncestorStats(tx.Hash())
 		prioItem.feePerKB = calcFeePerKb(txDesc, ancestorStats)
 		prioItem.fee = txDesc.Fee + ancestorStats.Fees
-
 		prioItemMap[*prioItem.tx.Hash()] = prioItem
+		hasParents := miningView.HasParents(tx.Hash())
 
-		heap.Push(priorityQueue, prioItem)
-		if miningView.HasParents(tx.Hash()) {
+		if !hasParents || hasStats {
+			heap.Push(priorityQueue, prioItem)
+		}
+
+		if hasParents {
 			totalDescendantTxns++
 		}
 
@@ -1606,9 +1616,11 @@ nextPriorityQueueItem:
 			continue
 		}
 
-		ancestors, ancestorStats := miningView.Ancestors(tx.Hash())
-		oldFeePerKb := prioItem.feePerKB
+		ancestors := miningView.Ancestors(tx.Hash())
+		ancestorStats, _ := miningView.AncestorStats(tx.Hash())
+
 		prioItem.feePerKB = calcFeePerKb(prioItem.txDesc, ancestorStats)
+		oldFeePerKb := prioItem.feePerKB
 		if prioItem.feePerKB < oldFeePerKb {
 			// If the fee decreased, re-enqueue the item.
 			prioItem.resortCount++
