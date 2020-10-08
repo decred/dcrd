@@ -1098,10 +1098,6 @@ type BlkTmplGenerator struct {
 	miningTimeOffset int
 }
 
-// noAncestorStats represents ancestor stats for a transaction where ancestors
-// are not being tracked in the view.
-var noAncestorStats = &TxAncestorStats{}
-
 // NewBlkTmplGenerator returns a new block template generator for the given
 // policy using transactions from the provided transaction source.
 func NewBlkTmplGenerator(policy *Policy, txSource TxSource,
