@@ -2582,7 +2582,9 @@ func (mv *txMiningView) Children(txHash *chainhash.Hash) []*mining.TxDesc {
 
 // Reject stops tracking the transaction in the view, if it exists, and all
 // of its descendants.  Also flags the provided transaction as rejected and
-// tracks the hash as rejected internally.
+// tracks the hash as rejected in this instance of the mining view. Rejected
+// transactions are not shared between mining view instances, and a new
+// mining view is always initialized with an empty set of rejected transactions.
 func (mv *txMiningView) Reject(txHash *chainhash.Hash) {
 	seen := make(map[chainhash.Hash]struct{})
 	mv.txGraph.forEachDescendant(txHash, seen, func(descendant *mining.TxDesc) {
@@ -2603,20 +2605,20 @@ func (mv *txMiningView) IsRejected(txHash *chainhash.Hash) bool {
 
 // clone returns a copy of the current graph.
 func (g *txDescGraph) clone(fetchTx txDescFind) *txDescGraph {
-	// Source transactions from within the graph to decouple the cloned
-	// mining view instance from the mempool.
-	forEachRedeemer := func(tx *dcrutil.Tx, f func(redeemerTx *mining.TxDesc)) {
-		for _, childTx := range g.childrenOf[*tx.Hash()] {
-			f(childTx)
-		}
-	}
-
 	graph := &txDescGraph{
-		forEachRedeemer: forEachRedeemer,
 		parentsOf: make(map[chainhash.Hash]map[chainhash.Hash]*mining.TxDesc,
 			len(g.parentsOf)),
 		childrenOf: make(map[chainhash.Hash]map[chainhash.Hash]*mining.TxDesc,
 			len(g.childrenOf)),
+	}
+
+	// Source transactions from within the graph to decouple the cloned
+	// mining view instance from the mempool.
+	graph.forEachRedeemer = func(tx *dcrutil.Tx, f func(
+		redeemerTx *mining.TxDesc)) {
+		for _, childTx := range graph.childrenOf[*tx.Hash()] {
+			f(childTx)
+		}
 	}
 
 	// Copy parents and children. Anything tracked by the graph
