@@ -2766,7 +2766,7 @@ func (g *txDescGraph) descendants(txHash *chainhash.Hash) []*chainhash.Hash {
 // Tests the behavior of the mining view when returned from a mempool with
 // containing a transaction chain depicted as:
 //
-//                       /--> d
+//                       /--> d --> f
 //                       |
 //                 |--> b --|
 // <coinbase>  --> a        |-->e
@@ -2807,6 +2807,10 @@ func TestMiningView(t *testing.T) {
 		txOutToSpendableOut(txB, 1, wire.TxTreeRegular),
 		txOutToSpendableOut(txC, 0, wire.TxTreeRegular),
 	}, 2, applyTxFee(5000))
+
+	txF, _ := harness.CreateSignedTx([]spendableOutput{
+		txOutToSpendableOut(txD, 0, wire.TxTreeRegular),
+	}, 2, applyTxFee(0))
 
 	// Add all to chain.
 	allTxns := []*dcrutil.Tx{txB, txA, txC, txD, txE}
@@ -3122,14 +3126,43 @@ func TestMiningView(t *testing.T) {
 	}
 
 	// Create mining view prior to remove txn from pool.
+	miningViewSnapshot := harness.txPool.MiningView()
+
+	// Remove txC and its descendants from the mempool.
+	harness.txPool.RemoveTransaction(txC, true, true)
+
+	// Add a new transaction to the mempool.
+	_, err = harness.txPool.MaybeAcceptTransaction(txF, true, false)
+	if err != nil {
+		t.Fatalf("AddTxnToPool: failed to accept valid transaction %v",
+			err)
+	}
+
 	miningView := harness.txPool.MiningView()
+	addedTxns := miningView.Children(txD.Hash())
+	if len(addedTxns) != 1 {
+		t.Fatalf("AddTxnToPool: expected txD to have exactly 1 child, got %v",
+			len(addedTxns))
+	}
 
-	// Remove all transactions (txA is root) from the mempool.
-	harness.txPool.RemoveTransaction(txA, true, true)
+	if addedTxns[0].Tx != txF {
+		t.Fatalf("AddTxnToPool: expected txF to exist in the mining view.")
+	}
 
-	// Ensure tx and children are still accessible in view.
-	if len(miningView.Children(txA.Hash())) != 2 {
-		t.Fatalf("RemoveTxnFromPool: expected txA to exist in graph " +
+	// Ensure newly added transaction not added to the mining view snapshot.
+	if len(miningViewSnapshot.Children(txD.Hash())) != 0 {
+		t.Fatalf("AddTxnToPool: expected txD to not have descendants in " +
+			"snapshot mining view.")
+	}
+
+	if len(miningView.Children(txC.Hash())) != 0 {
+		t.Fatalf("RemoveTxnFromPool: expected txC to not have descendents " +
+			"after being removed from the mempool.")
+	}
+
+	// Ensure tx and children are still accessible in cloned view.
+	if len(miningViewSnapshot.Children(txC.Hash())) != 1 {
+		t.Fatalf("RemoveTxnFromPool: expected txC to exist in snapshot view " +
 			"even though it was removed from the mempool.")
 	}
 }
