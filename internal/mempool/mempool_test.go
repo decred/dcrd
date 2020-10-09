@@ -2809,18 +2809,13 @@ func TestMiningView(t *testing.T) {
 	}, 2, applyTxFee(5000))
 
 	// Add all to chain.
-	allTxns := []*dcrutil.Tx{txA, txB, txC, txD, txE}
+	allTxns := []*dcrutil.Tx{txB, txA, txC, txD, txE}
 	for index, tx := range allTxns {
-		acceptedTxns, err := harness.txPool.ProcessTransaction(tx,
-			false, false, true, 0)
+		_, err := harness.txPool.ProcessTransaction(tx,
+			true, false, true, 0)
 		if err != nil {
 			t.Fatalf("ProcessTransaction: failed to accept valid "+
 				"transaction at index %d: %v", index, err)
-		}
-		if len(acceptedTxns) != 1 {
-			t.Fatalf("ProcessTransaction: reported accepted transactions "+
-				"length does not match expected -- got %d, want %d",
-				len(acceptedTxns), 1)
 		}
 	}
 
