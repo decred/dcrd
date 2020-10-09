@@ -6399,6 +6399,151 @@ func TestHandleTxFeeInfo(t *testing.T) {
 	}})
 }
 
+func TestHandleTicketFeeInfo(t *testing.T) {
+	t.Parallel()
+
+	blocks := uint32(1)
+	windows := uint32(1)
+	twoWindows := uint32(2)
+	heightRange := []chainhash.Hash{block432100.BlockHash()}
+	firstFeeInfoWindowsEntry := types.FeeInfoWindow{
+		StartHeight: 432000,
+		EndHeight:   432101,
+		Number:      1,
+		Min:         0.00010033,
+		Max:         0.00010033,
+		Mean:        0.00010033,
+		Median:      0.00010033,
+		StdDev:      0,
+	}
+	secondFeeInfoWindowEntry := types.FeeInfoWindow{
+		StartHeight: 431856,
+		EndHeight:   432000,
+		Number:      1,
+		Min:         0.00010033,
+		Max:         0.00010033,
+		Mean:        0.00010033,
+		Median:      0.00010033,
+		StdDev:      0,
+	}
+	feeInfoBlocksEntry := types.FeeInfoBlock{
+		Height: 432100,
+		Number: 1,
+		Min:    0.00010033,
+		Max:    0.00010033,
+		Mean:   0.00010033,
+		Median: 0.00010033,
+		StdDev: 0,
+	}
+
+	testRPCServerHandler(t, []rpcTest{{
+		name:    "handleTicketFeeInfo: unable to fetch ticket fee info for block",
+		handler: handleTicketFeeInfo,
+		cmd: &types.TicketFeeInfoCmd{
+			Blocks: &blocks,
+		},
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.blockByHeightErr =
+				fmt.Errorf("unable to fetch block by height")
+			return chain
+		}(),
+		wantErr: true,
+		errCode: dcrjson.ErrRPCInternal.Code,
+	}, {
+		name:    "handleTicketFeeInfo: unable to fetch ticket fee info for range",
+		handler: handleTicketFeeInfo,
+		cmd: &types.TicketFeeInfoCmd{
+			Windows: &windows,
+		},
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.heightRangeFn = func(startHeight, endHeight int64) ([]chainhash.Hash, error) {
+				return nil, fmt.Errorf("unable to fetch block by height")
+			}
+			return chain
+		}(),
+		wantErr: true,
+		errCode: dcrjson.ErrRPCInternal.Code,
+	}, {
+		name:    "handleTicketFeeInfo: windows=2, unable to fetch ticket fee info for range",
+		handler: handleTicketFeeInfo,
+		cmd: &types.TicketFeeInfoCmd{
+			Windows: &twoWindows,
+		},
+		mockChain: func() *testRPCChain {
+			var numCalls int
+			chain := defaultMockRPCChain()
+			chain.heightRangeFn = func(startHeight, endHeight int64) ([]chainhash.Hash, error) {
+				numCalls++
+				if numCalls > 1 {
+					return nil, fmt.Errorf("unable to fetch block by height")
+				}
+				return heightRange, nil
+			}
+			return chain
+		}(),
+		wantErr: true,
+		errCode: dcrjson.ErrRPCInternal.Code,
+	}, {
+		name:    "handleTicketFeeInfo: ok",
+		handler: handleTicketFeeInfo,
+		cmd: &types.TicketFeeInfoCmd{
+			Blocks:  &blocks,
+			Windows: &windows,
+		},
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.heightRangeFn = func(startHeight, endHeight int64) ([]chainhash.Hash, error) {
+				return heightRange, nil
+			}
+			return chain
+		}(),
+		result: &types.TicketFeeInfoResult{
+			FeeInfoMempool: types.FeeInfoMempool{},
+			FeeInfoBlocks:  []types.FeeInfoBlock{feeInfoBlocksEntry},
+			FeeInfoWindows: []types.FeeInfoWindow{firstFeeInfoWindowsEntry},
+		},
+	}, {
+		name:    "handleTicketFeeInfo: ok, no blocks parameter",
+		handler: handleTicketFeeInfo,
+		cmd: &types.TicketFeeInfoCmd{
+			Windows: &twoWindows,
+		},
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.heightRangeFn = func(startHeight, endHeight int64) ([]chainhash.Hash, error) {
+				return heightRange, nil
+			}
+			return chain
+		}(),
+		result: &types.TicketFeeInfoResult{
+			FeeInfoMempool: types.FeeInfoMempool{},
+			FeeInfoBlocks:  nil,
+			FeeInfoWindows: []types.FeeInfoWindow{firstFeeInfoWindowsEntry,
+				secondFeeInfoWindowEntry},
+		},
+	}, {
+		name:    "handleTicketFeeInfo: ok, no windows parameter",
+		handler: handleTicketFeeInfo,
+		cmd: &types.TicketFeeInfoCmd{
+			Blocks: &blocks,
+		},
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.heightRangeFn = func(startHeight, endHeight int64) ([]chainhash.Hash, error) {
+				return heightRange, nil
+			}
+			return chain
+		}(),
+		result: &types.TicketFeeInfoResult{
+			FeeInfoMempool: types.FeeInfoMempool{},
+			FeeInfoBlocks:  []types.FeeInfoBlock{feeInfoBlocksEntry},
+			FeeInfoWindows: nil,
+		},
+	}})
+}
+
 func testRPCServerHandler(t *testing.T, tests []rpcTest) {
 	t.Helper()
 
