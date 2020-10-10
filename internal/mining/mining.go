@@ -1326,6 +1326,7 @@ func (g *BlkTmplGenerator) NewBlockTemplate(payToAddress dcrutil.Address) (*Bloc
 		lessFunc = txPQByStakeAndFee
 	}
 	priorityQueue := newTxPriorityQueue(len(sourceTxns), lessFunc)
+	prioritizedTxns := make(map[chainhash.Hash]struct{}, len(sourceTxns))
 
 	// Create a slice to hold the transactions to be included in the
 	// generated block with reserved space.  Also create a utxo view to
@@ -1446,6 +1447,7 @@ mempoolLoop:
 
 		if !hasParents || hasStats {
 			heap.Push(priorityQueue, prioItem)
+			prioritizedTxns[prioItem.tx.MsgTx().TxHash()] = struct{}{}
 		}
 
 		if hasParents {
@@ -1780,11 +1782,16 @@ nextPriorityQueueItem:
 			// have any other unsatisfied dependencies) to the priority
 			// queue.
 			for _, childTx := range bundledTxDeps {
+				childTxHash := childTx.Tx.Hash()
+				if _, exist := prioritizedTxns[*childTxHash]; exist {
+					continue
+				}
+
 				// Add the transaction to the priority queue if there
 				// are no more dependencies after this one.
-				childTxHash := childTx.Tx.Hash()
 				if !miningView.HasParents(childTxHash) {
 					heap.Push(priorityQueue, prioItemMap[*childTxHash])
+					prioritizedTxns[*childTxHash] = struct{}{}
 				}
 			}
 		}
