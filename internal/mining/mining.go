@@ -74,8 +74,7 @@ type TxDesc struct {
 // TxAncestorStats is a descriptor that stores aggregated statistics for the
 // unconfirmed ancestors of a transasction.
 type TxAncestorStats struct {
-	// Fees is the sum of all fees of unconfirmed ancestors
-	// and the current transaction.
+	// Fees is the sum of all fees of unconfirmed ancestors.
 	Fees int64
 
 	// SizeBytes is the total size of all unconfirmed ancestors.
@@ -228,10 +227,6 @@ const (
 	// incoming non vote transactions before template regeneration
 	// is required.
 	templateRegenSecs = 30
-
-	// maxResorts is the maximum number of times a transaction can be
-	// added back to the priority queue due to the fee changing.
-	maxResorts = 10
 )
 
 // txPrioItem houses a transaction along with extra information that allows the
@@ -1599,13 +1594,6 @@ nextPriorityQueueItem:
 			}
 		}
 
-		hasParents := miningView.HasParents(prioItem.tx.Hash())
-		exceededMaxAncestorResorts := prioItem.resortCount > maxResorts
-		if hasParents && exceededMaxAncestorResorts {
-			// Discard the tranasction if we've resorted it too many times.
-			continue
-		}
-
 		if miningView.IsRejected(prioItem.tx.Hash()) {
 			// If the transaction or any of its ancestors have been rejected,
 			// discard the transaction.
@@ -1616,13 +1604,6 @@ nextPriorityQueueItem:
 		ancestorStats, _ := miningView.AncestorStats(tx.Hash())
 
 		prioItem.feePerKB = calcFeePerKb(prioItem.txDesc, ancestorStats)
-		oldFeePerKb := prioItem.feePerKB
-		if prioItem.feePerKB < oldFeePerKb {
-			// If the fee decreased, re-enqueue the item.
-			prioItem.resortCount++
-			priorityQueue.Push(prioItem)
-			continue
-		}
 
 		// Enforce maximum block size.  Also check for overflow.
 		txSize := uint32(tx.MsgTx().SerializeSize())
