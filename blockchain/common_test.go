@@ -65,7 +65,7 @@ func chainSetup(dbName string, params *chaincfg.Params) (*BlockChain, func(), er
 	if testDbType == "memdb" {
 		ndb, err := database.Create(testDbType)
 		if err != nil {
-			return nil, nil, fmt.Errorf("error creating db: %v", err)
+			return nil, nil, fmt.Errorf("error creating db: %w", err)
 		}
 		db = ndb
 
@@ -78,7 +78,7 @@ func chainSetup(dbName string, params *chaincfg.Params) (*BlockChain, func(), er
 		// Create the directory for test database.
 		dbPath, err := ioutil.TempDir("", dbName)
 		if err != nil {
-			err := fmt.Errorf("unable to create test db path: %v",
+			err := fmt.Errorf("unable to create test db path: %w",
 				err)
 			return nil, nil, err
 		}
@@ -87,7 +87,7 @@ func chainSetup(dbName string, params *chaincfg.Params) (*BlockChain, func(), er
 		ndb, err := database.Create(testDbType, dbPath, blockDataNet)
 		if err != nil {
 			os.RemoveAll(dbPath)
-			return nil, nil, fmt.Errorf("error creating db: %v", err)
+			return nil, nil, fmt.Errorf("error creating db: %w", err)
 		}
 		db = ndb
 
@@ -120,7 +120,7 @@ func chainSetup(dbName string, params *chaincfg.Params) (*BlockChain, func(), er
 
 	if err != nil {
 		teardown()
-		err := fmt.Errorf("failed to create chain instance: %v", err)
+		err := fmt.Errorf("failed to create chain instance: %w", err)
 		return nil, nil, err
 	}
 

@@ -719,13 +719,13 @@ func TestTicketDBGeneral(t *testing.T) {
 			// In memory addition test.
 			lotteryIV, err := calcHash256PRNGIVFromHeader(&header)
 			if err != nil {
-				return fmt.Errorf("failed to calc lottery IV: %v", err)
+				return fmt.Errorf("failed to calc lottery IV: %w", err)
 			}
 			bestNode, err = bestNode.ConnectNode(lotteryIV,
 				ticketsSpentInBlock(block), revokedTicketsInBlock(block),
 				ticketsToAdd)
 			if err != nil {
-				return fmt.Errorf("couldn't connect node: %v", err.Error())
+				return fmt.Errorf("couldn't connect node: %w", err)
 			}
 
 			// Write the new node to db.
@@ -733,8 +733,8 @@ func TestTicketDBGeneral(t *testing.T) {
 			blockHash := block.Hash()
 			err = WriteConnectedBestNode(dbTx, bestNode, *blockHash)
 			if err != nil {
-				return fmt.Errorf("failure writing the best node: %v",
-					err.Error())
+				return fmt.Errorf("failure writing the best node: %w",
+					err)
 			}
 
 			// Reload the node from DB and make sure it's the same.
@@ -742,8 +742,8 @@ func TestTicketDBGeneral(t *testing.T) {
 			loadedNode, err := LoadBestNode(dbTx, bestNode.Height(),
 				*blockHash, header, params)
 			if err != nil {
-				return fmt.Errorf("failed to load the best node: %v",
-					err.Error())
+				return fmt.Errorf("failed to load the best node: %w",
+					err)
 			}
 			err = nodesEqual(loadedNode, bestNode)
 			if err != nil {
@@ -795,7 +795,7 @@ func TestTicketDBGeneral(t *testing.T) {
 			// Negative test.
 			lotteryIV, err := calcHash256PRNGIVFromHeader(&header)
 			if err != nil {
-				return fmt.Errorf("failed to calc lottery IV: %v", err)
+				return fmt.Errorf("failed to calc lottery IV: %w", err)
 			}
 			bestNodeUsingDB, err = formerBestNode.DisconnectNode(lotteryIV, nil,
 				nil, nil)
@@ -826,8 +826,8 @@ func TestTicketDBGeneral(t *testing.T) {
 			err := WriteDisconnectedBestNode(dbTx, bestNode,
 				*parentBlockHash, formerBestNode.UndoData())
 			if err != nil {
-				return fmt.Errorf("failure writing the best node: %v",
-					err.Error())
+				return fmt.Errorf("failure writing the best node: %w",
+					err)
 			}
 
 			return nil
@@ -843,8 +843,8 @@ func TestTicketDBGeneral(t *testing.T) {
 			loadedNode, err := LoadBestNode(dbTx, bestNode.Height(),
 				*parentBlockHash, header, params)
 			if err != nil {
-				return fmt.Errorf("failed to load the best node: %v",
-					err.Error())
+				return fmt.Errorf("failed to load the best node: %w",
+					err)
 			}
 			err = nodesEqual(loadedNode, bestNode)
 			if err != nil {

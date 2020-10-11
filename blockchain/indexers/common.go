@@ -1,5 +1,5 @@
 // Copyright (c) 2016 The btcsuite developers
-// Copyright (c) 2016-2019 The Decred developers
+// Copyright (c) 2016-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -149,8 +149,8 @@ func (e errDeserialize) Error() string {
 // isDeserializeErr returns whether or not the passed error is an errDeserialize
 // error.
 func isDeserializeErr(err error) bool {
-	_, ok := err.(errDeserialize)
-	return ok
+	var derr errDeserialize
+	return errors.As(err, &derr)
 }
 
 // internalBucket is an abstraction over a database bucket.  It is used to make

@@ -289,14 +289,14 @@ func deserializeTSpend(data []byte) ([]chainhash.Hash, error) {
 	var count int64
 	err := binary.Read(buf, byteOrder, &count)
 	if err != nil {
-		return nil, fmt.Errorf("count %v", err)
+		return nil, fmt.Errorf("failed to read count: %w", err)
 	}
 	hashes := make([]chainhash.Hash, count)
 	for i := int64(0); i < count; i++ {
 		err := binary.Read(buf, byteOrder, &hashes[i])
 		if err != nil {
 			return nil,
-				fmt.Errorf("values read %v error %v", i, err)
+				fmt.Errorf("failed to read idx %v: %w", i, err)
 		}
 	}
 
@@ -348,12 +348,12 @@ func dbFetchTSpend(dbTx database.Tx, tx chainhash.Hash) ([]chainhash.Hash, error
 // deduplicate. This is ok because in practice a TX cannot appear in the same
 // block more than once.
 func dbUpdateTSpend(dbTx database.Tx, tx, block chainhash.Hash) error {
+	var derr errDbTSpend
 	hashes, err := dbFetchTSpend(dbTx, tx)
-	if _, ok := err.(errDbTSpend); ok {
-		// Record doesn't exist.
-	} else if err != nil {
+	if err != nil && !errors.As(err, &derr) {
 		return err
 	}
+
 	hashes = append(hashes, block)
 	return dbPutTSpend(dbTx, tx, hashes)
 }
@@ -569,19 +569,19 @@ func verifyTSpendSignature(msgTx *wire.MsgTx, signature, pubKey []byte) error {
 	sigHash, err := txscript.CalcSignatureHash(nil,
 		txscript.SigHashAll, msgTx, 0, nil)
 	if err != nil {
-		return fmt.Errorf("CalcSignatureHash: %v", err)
+		return fmt.Errorf("CalcSignatureHash: %w", err)
 	}
 
 	// Lift Signature from bytes.
 	sig, err := schnorr.ParseSignature(signature)
 	if err != nil {
-		return fmt.Errorf("ParseSignature: %v", err)
+		return fmt.Errorf("ParseSignature: %w", err)
 	}
 
 	// Lift public PI key from bytes.
 	pk, err := schnorr.ParsePubKey(pubKey)
 	if err != nil {
-		return fmt.Errorf("ParsePubKey: %v", err)
+		return fmt.Errorf("ParsePubKey: %w", err)
 	}
 
 	// Verify transaction was properly signed.
@@ -610,9 +610,10 @@ func VerifyTSpendSignature(msgTx *wire.MsgTx, signature, pubKey []byte) error {
 func (b *BlockChain) sumPastTreasuryExpenditure(preTVINode *blockNode, nbBlocks uint64) (int64, *blockNode, error) {
 	node := preTVINode
 	var total int64
+	var derr errDbTreasury
 	for i := uint64(0); i < nbBlocks && node != nil; i++ {
 		ts, err := b.dbFetchTreasurySingle(node.hash)
-		if _, ok := err.(errDbTreasury); ok {
+		if errors.As(err, &derr) {
 			// Record doesn't exist. Means we reached the end of
 			// when treasury records are available.
 			node = nil
@@ -796,8 +797,10 @@ func (b *BlockChain) checkTSpendsExpenditure(preTVINode *blockNode, totalTSpendA
 // block on the chain of prevNode.
 func (b *BlockChain) checkTSpendExists(prevNode *blockNode, tspend chainhash.Hash) error {
 	trsyLog.Tracef(" checkTSpendExists: tspend %v", tspend)
+
+	var derr errDbTSpend
 	blocks, err := b.FetchTSpend(tspend)
-	if _, ok := err.(errDbTSpend); ok {
+	if errors.As(err, &derr) {
 		// Record does not exist.
 		return nil
 	} else if err != nil {
