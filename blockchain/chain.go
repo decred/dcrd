@@ -1151,8 +1151,6 @@ func (b *BlockChain) reorganizeChainInternal(targetTip *blockNode) error {
 		if err != nil {
 			return err
 		}
-
-		tip = n
 	}
 
 	return nil

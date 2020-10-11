@@ -665,7 +665,7 @@ func TestSSGenErrors(t *testing.T) {
 	ssgenNoDiscriminator.SetIndex(0)
 
 	err = stake.CheckSSGen(ssgenNoDiscriminator.MsgTx(), withTreasury)
-	if err.(stake.RuleError).GetCode() !=
+	if !errors.As(err, &serr) || serr.GetCode() !=
 		stake.ErrSSGenInvalidDiscriminatorLength {
 		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
 			stake.ErrSSGenInvalidDiscriminatorLength, err)
@@ -680,7 +680,7 @@ func TestSSGenErrors(t *testing.T) {
 	ssgenInvalidDiscriminator.SetIndex(0)
 
 	err = stake.CheckSSGen(ssgenInvalidDiscriminator.MsgTx(), withTreasury)
-	if err.(stake.RuleError).GetCode() !=
+	if !errors.As(err, &serr) || serr.GetCode() !=
 		stake.ErrSSGenInvalidDiscriminatorLength {
 		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
 			stake.ErrSSGenInvalidDiscriminatorLength, err)
@@ -695,7 +695,7 @@ func TestSSGenErrors(t *testing.T) {
 	ssgenInvalidDiscriminator2.SetIndex(0)
 
 	err = stake.CheckSSGen(ssgenInvalidDiscriminator2.MsgTx(), withTreasury)
-	if err.(stake.RuleError).GetCode() !=
+	if !errors.As(err, &serr) || serr.GetCode() !=
 		stake.ErrSSGenUnknownDiscriminator {
 		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
 			stake.ErrSSGenUnknownDiscriminator, err)
@@ -710,7 +710,7 @@ func TestSSGenErrors(t *testing.T) {
 	ssgenInvalidDiscriminator3.SetIndex(0)
 
 	err = stake.CheckSSGen(ssgenInvalidDiscriminator3.MsgTx(), withTreasury)
-	if err.(stake.RuleError).GetCode() !=
+	if !errors.As(err, &serr) || serr.GetCode() !=
 		stake.ErrSSGenBadGenOuts {
 		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
 			stake.ErrSSGenBadGenOuts, err)
@@ -720,7 +720,8 @@ func TestSSGenErrors(t *testing.T) {
 	}
 	// Verify we don't crash in this case as well.
 	_, err = stake.GetSSGenTreasuryVotes(ssgenInvalidDiscriminator3.MsgTx().TxOut[4].PkScript)
-	if err.(stake.RuleError).GetCode() != stake.ErrSSGenInvalidNullScript {
+	if !errors.As(err, &serr) || serr.GetCode() !=
+		stake.ErrSSGenInvalidNullScript {
 		t.Error(err)
 	}
 
@@ -730,7 +731,7 @@ func TestSSGenErrors(t *testing.T) {
 	ssgenInvalidTVNoVote.SetIndex(0)
 
 	err = stake.CheckSSGen(ssgenInvalidTVNoVote.MsgTx(), withTreasury)
-	if err.(stake.RuleError).GetCode() !=
+	if !errors.As(err, &serr) || serr.GetCode() !=
 		stake.ErrSSGenInvalidTVLength {
 		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
 			stake.ErrSSGenInvalidTVLength, err)
@@ -745,7 +746,7 @@ func TestSSGenErrors(t *testing.T) {
 	ssgenInvalidTVNoVote2.SetIndex(0)
 
 	err = stake.CheckSSGen(ssgenInvalidTVNoVote2.MsgTx(), withTreasury)
-	if err.(stake.RuleError).GetCode() !=
+	if !errors.As(err, &serr) || serr.GetCode() !=
 		stake.ErrSSGenInvalidTVLength {
 		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
 			stake.ErrSSGenInvalidTVLength, err)
@@ -761,7 +762,7 @@ func TestSSGenErrors(t *testing.T) {
 	ssgenInvalidTVNoVote3.SetIndex(0)
 
 	err = stake.CheckSSGen(ssgenInvalidTVNoVote3.MsgTx(), withTreasury)
-	if err.(stake.RuleError).GetCode() !=
+	if !errors.As(err, &serr) || serr.GetCode() !=
 		stake.ErrSSGenInvalidTVLength {
 		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
 			stake.ErrSSGenInvalidTVLength, err)
@@ -777,7 +778,7 @@ func TestSSGenErrors(t *testing.T) {
 	ssgenInvalidTVNoVote4.SetIndex(0)
 
 	err = stake.CheckSSGen(ssgenInvalidTVNoVote4.MsgTx(), withTreasury)
-	if err.(stake.RuleError).GetCode() !=
+	if !errors.As(err, &serr) || serr.GetCode() !=
 		stake.ErrSSGenInvalidTVLength {
 		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
 			stake.ErrSSGenInvalidTVLength, err)
@@ -793,7 +794,7 @@ func TestSSGenErrors(t *testing.T) {
 	ssgenInvalidTVNoVote5.SetIndex(0)
 
 	err = stake.CheckSSGen(ssgenInvalidTVNoVote5.MsgTx(), withTreasury)
-	if err.(stake.RuleError).GetCode() !=
+	if !errors.As(err, &serr) || serr.GetCode() !=
 		stake.ErrSSGenInvalidDiscriminatorLength {
 		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
 			stake.ErrSSGenInvalidDiscriminatorLength, err)
@@ -808,7 +809,7 @@ func TestSSGenErrors(t *testing.T) {
 	ssgenInvalidTVote.SetIndex(0)
 
 	err = stake.CheckSSGen(ssgenInvalidTVote.MsgTx(), withTreasury)
-	if err.(stake.RuleError).GetCode() !=
+	if !errors.As(err, &serr) || serr.GetCode() !=
 		stake.ErrSSGenInvalidTreasuryVote {
 		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
 			stake.ErrSSGenInvalidTreasuryVote, err)
@@ -823,7 +824,7 @@ func TestSSGenErrors(t *testing.T) {
 	ssgenInvalidTVote2.SetIndex(0)
 
 	err = stake.CheckSSGen(ssgenInvalidTVote2.MsgTx(), withTreasury)
-	if err.(stake.RuleError).GetCode() !=
+	if !errors.As(err, &serr) || serr.GetCode() !=
 		stake.ErrSSGenInvalidTreasuryVote {
 		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
 			stake.ErrSSGenInvalidTreasuryVote, err)
@@ -838,7 +839,7 @@ func TestSSGenErrors(t *testing.T) {
 	ssgenInvalidTVote3.SetIndex(0)
 
 	err = stake.CheckSSGen(ssgenInvalidTVote3.MsgTx(), withTreasury)
-	if err.(stake.RuleError).GetCode() !=
+	if !errors.As(err, &serr) || serr.GetCode() !=
 		stake.ErrSSGenDuplicateTreasuryVote {
 		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
 			stake.ErrSSGenDuplicateTreasuryVote, err)

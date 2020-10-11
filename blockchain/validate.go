@@ -535,14 +535,11 @@ func CheckProofOfStake(block *dcrutil.Block, posLimit int64) error {
 // error kinds, or nil.
 func standaloneToChainRuleError(err error) error {
 	// Convert standalone package rule errors to blockchain rule errors.
-	var rErr standalone.RuleError
-	if errors.As(err, &rErr) {
-		switch rErr.Err {
-		case standalone.ErrUnexpectedDifficulty:
-			return ruleError(ErrUnexpectedDifficulty, rErr.Description)
-		case standalone.ErrHighHash:
-			return ruleError(ErrHighHash, rErr.Description)
-		}
+	switch {
+	case errors.Is(err, standalone.ErrUnexpectedDifficulty):
+		return ruleError(ErrUnexpectedDifficulty, err.Error())
+	case errors.Is(err, standalone.ErrHighHash):
+		return ruleError(ErrHighHash, err.Error())
 	}
 
 	return err
