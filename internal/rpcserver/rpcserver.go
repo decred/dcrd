@@ -4533,7 +4533,7 @@ func handleSendRawTransaction(_ context.Context, s *Server, cmd interface{}) (in
 		// deserialization error code (to match bitcoind behavior).
 		var rErr mempool.RuleError
 		if errors.As(err, &rErr) {
-			err = fmt.Errorf("rejected transaction %v: %v", tx.Hash(),
+			err = fmt.Errorf("rejected transaction %v: %w", tx.Hash(),
 				err)
 			log.Debugf("%v", err)
 			if errors.Is(rErr, mempool.ErrDuplicate) {
@@ -4546,7 +4546,7 @@ func handleSendRawTransaction(_ context.Context, s *Server, cmd interface{}) (in
 			return nil, rpcRuleError("%v", err)
 		}
 
-		err = fmt.Errorf("failed to process transaction %v: %v",
+		err = fmt.Errorf("failed to process transaction %v: %w",
 			tx.Hash(), err)
 		log.Errorf("%v", err)
 		return nil, rpcDeserializationError("rejected: %v", err)
@@ -5913,14 +5913,15 @@ func (s *Server) route(ctx context.Context) *http.Server {
 
 		// Attempt to upgrade the connection to a websocket connection
 		// using the default size for read/write buffers.
-		ws, err := websocket.Upgrade(w, r, nil, 0, 0)
+		upgrader := websocket.Upgrader{
+			CheckOrigin: func(r *http.Request) bool { return true },
+		}
+		ws, err := upgrader.Upgrade(w, r, nil)
 		if err != nil {
 			var herr websocket.HandshakeError
 			if !errors.As(err, &herr) {
-				log.Errorf("Unexpected websocket error: %v",
-					err)
+				log.Errorf("Unexpected websocket error: %v", err)
 			}
-			http.Error(w, "400 Bad Request.", http.StatusBadRequest)
 			return
 		}
 		ws.SetPingHandler(func(payload string) error {
