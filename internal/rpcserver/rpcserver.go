@@ -5296,7 +5296,7 @@ type Server struct {
 	cfg                    Config
 	authsha                [sha256.Size]byte
 	limitauthsha           [sha256.Size]byte
-	ntfnMgr                *wsNotificationManager
+	ntfnMgr                NtfnManager
 	numClients             int32
 	statusLines            map[int]string
 	statusLock             sync.RWMutex
