@@ -654,3 +654,128 @@ type TxIndexer interface {
 	// must be returned for the both the entry and the error.
 	Entry(hash *chainhash.Hash) (*indexers.TxIndexEntry, error)
 }
+
+// NtfnManager provides an interface for processing and sending chain
+// notifications.
+//
+// The interface contract requires that all of these methods are safe for
+// concurrent access.
+type NtfnManager interface {
+	// NotifyBlockConnected passes a block newly-connected to the manager
+	// for processing.
+	NotifyBlockConnected(block *dcrutil.Block)
+
+	// NotifyBlockDisconnected passes a block disconnected to the manager
+	// for processing.
+	NotifyBlockDisconnected(block *dcrutil.Block)
+
+	// NotifyWork passes new mining work to the manager for
+	// processing.
+	NotifyWork(templateNtfn *mining.TemplateNtfn)
+
+	// NotifyTSpend passes new tspends to the manager for processing.
+	NotifyTSpend(tx *dcrutil.Tx)
+
+	// NotifyReorganization passes a blockchain reorganization notification to
+	// the manager for processing.
+	NotifyReorganization(rd *blockchain.ReorganizationNtfnsData)
+
+	// NotifyWinningTickets passes newly winning tickets to the manager for
+	// processing.
+	NotifyWinningTickets(wtnd *WinningTicketsNtfnData)
+
+	// NotifySpentAndMissedTickets passes ticket spend and missing data for an
+	// incoming block to the manager for processing.
+	NotifySpentAndMissedTickets(tnd *blockchain.TicketNotificationsData)
+
+	// NotifyNewTickets passes a new ticket data for an incoming block to the
+	// manager for processing.
+	NotifyNewTickets(tnd *blockchain.TicketNotificationsData)
+
+	// NotifyStakeDifficulty passes a new stake difficulty notification to the
+	// manager for processing.
+	NotifyStakeDifficulty(stnd *StakeDifficultyNtfnData)
+
+	// NotifyMempoolTx passes a transaction accepted by mempool to the
+	// manager for processing.
+	NotifyMempoolTx(tx *dcrutil.Tx, isNew bool)
+
+	// NumClients returns the number of clients actively being served.
+	NumClients() int
+
+	// RegisterBlockUpdates requests block update notifications to the passed
+	// websocket client.
+	RegisterBlockUpdates(wsc *wsClient)
+
+	// UnregisterBlockUpdates removes block update notifications for the passed
+	// websocket client.
+	UnregisterBlockUpdates(wsc *wsClient)
+
+	// RegisterWorkUpdates requests work update notifications to the passed
+	// websocket client.
+	RegisterWorkUpdates(wsc *wsClient)
+
+	// UnregisterWorkUpdates removes work update notifications for the passed
+	// websocket client.
+	UnregisterWorkUpdates(wsc *wsClient)
+
+	// RegisterTSpendUpdates requests tspend update notifications to the passed
+	// websocket client.
+	RegisterTSpendUpdates(wsc *wsClient)
+
+	// UnregisterTSpendUpdates removes tspend update notifications for the passed
+	// websocket client.
+	UnregisterTSpendUpdates(wsc *wsClient)
+
+	// RegisterWinningTickets requests winning tickets update notifications
+	// to the passed websocket client.
+	RegisterWinningTickets(wsc *wsClient)
+
+	// UnregisterWinningTickets removes winning ticket notifications for
+	// the passed websocket client.
+	UnregisterWinningTickets(wsc *wsClient)
+
+	// RegisterSpentAndMissedTickets requests spent/missed tickets update notifications
+	// to the passed websocket client.
+	RegisterSpentAndMissedTickets(wsc *wsClient)
+
+	// UnregisterSpentAndMissedTickets removes spent/missed ticket notifications for
+	// the passed websocket client.
+	UnregisterSpentAndMissedTickets(wsc *wsClient)
+
+	// RegisterNewTickets requests spent/missed tickets update notifications
+	// to the passed websocket client.
+	RegisterNewTickets(wsc *wsClient)
+
+	// UnregisterNewTickets removes spent/missed ticket notifications for
+	// the passed websocket client.
+	UnregisterNewTickets(wsc *wsClient)
+
+	// RegisterStakeDifficulty requests stake difficulty notifications
+	// to the passed websocket client.
+	RegisterStakeDifficulty(wsc *wsClient)
+
+	// UnregisterStakeDifficulty removes stake difficulty notifications for
+	// the passed websocket client.
+	UnregisterStakeDifficulty(wsc *wsClient)
+
+	// RegisterNewMempoolTxsUpdates requests notifications to the passed websocket
+	// client when new transactions are added to the memory pool.
+	RegisterNewMempoolTxsUpdates(wsc *wsClient)
+
+	// UnregisterNewMempoolTxsUpdates removes notifications to the passed websocket
+	// client when new transaction are added to the memory pool.
+	UnregisterNewMempoolTxsUpdates(wsc *wsClient)
+
+	// AddClient adds the passed websocket client to the notification manager.
+	AddClient(wsc *wsClient)
+
+	// RemoveClient removes the passed websocket client and all notifications
+	// registered for it.
+	RemoveClient(wsc *wsClient)
+
+	// Run starts the goroutines required for the manager to queue and process
+	// websocket client notifications. It blocks until the provided context is
+	// cancelled.
+	Run(ctx context.Context)
+}
