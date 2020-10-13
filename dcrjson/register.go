@@ -168,13 +168,16 @@ func Register(method interface{}, params interface{}, flags UsageFlag) error {
 		return makeError(ErrInvalidType, str)
 	}
 
+	if _, ok := methodToConcreteType[method]; ok {
+		str := fmt.Sprintf("method %q is already registered for type %[1]T",
+			method)
+		return makeError(ErrDuplicateMethod, str)
+	}
+
 	rtp := reflect.TypeOf(params)
-	if paramsType, ok := methodToConcreteType[method]; ok {
-		if rtp == paramsType {
-			return nil
-		}
-		str := fmt.Sprintf("method %q is already registered for "+
-			"type %T", method, paramsType)
+	if registeredMethod, ok := concreteTypeToMethod[rtp]; ok {
+		str := fmt.Sprintf("param type %T is already registered for method %q",
+			params, registeredMethod)
 		return makeError(ErrDuplicateMethod, str)
 	}
 
