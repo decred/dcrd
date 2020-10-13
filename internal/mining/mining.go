@@ -233,13 +233,12 @@ const (
 // transaction to be prioritized and track dependencies on other transactions
 // which have not been mined into a block yet.
 type txPrioItem struct {
-	tx          *dcrutil.Tx
-	txDesc      *TxDesc
-	txType      stake.TxType
-	fee         int64
-	priority    float64
-	feePerKB    float64
-	resortCount int
+	tx       *dcrutil.Tx
+	txDesc   *TxDesc
+	txType   stake.TxType
+	fee      int64
+	priority float64
+	feePerKB float64
 }
 
 // txPriorityQueueLessFunc describes a function that can be used as a compare
