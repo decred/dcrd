@@ -1731,45 +1731,50 @@ nextPriorityQueueItem:
 			}
 		}
 
-		for _, bundledTx := range txBundle {
+		for _, bundledTxDesc := range txBundle {
+			bundledTx := bundledTxDesc.Tx
+			bundledTxHash := bundledTx.Hash()
+
 			// Spend the transaction inputs in the block utxo view and add
 			// an entry for it to ensure any transactions which reference
 			// this one have it available as an input and can ensure they
 			// aren't double spending.
-			spendTransaction(blockUtxos, bundledTx.Tx, nextBlockHeight,
+			spendTransaction(blockUtxos, bundledTxDesc.Tx, nextBlockHeight,
 				isTreasuryEnabled)
 
 			// Add the transaction to the block, increment counters, and
 			// save the fees and signature operation counts to the block
 			// template.
-			blockTxns = append(blockTxns, bundledTx.Tx)
-			blockSize += uint32(bundledTx.Tx.MsgTx().SerializeSize())
-			bundledTxSigOps := int64(bundledTx.NumSigOps +
-				bundledTx.NumP2SHSigOps)
+			blockTxns = append(blockTxns, bundledTx)
+			blockSize += uint32(bundledTx.MsgTx().SerializeSize())
+			bundledTxSigOps := int64(bundledTxDesc.NumSigOps +
+				bundledTxDesc.NumP2SHSigOps)
 			blockSigOps += bundledTxSigOps
 
 			// Accumulate the SStxs in the block, because only a certain number
 			// are allowed.
-			if isSStx {
+			if bundledTxDesc.Type == stake.TxTypeSStx {
 				numSStx++
 			}
-			if isSSGen {
-				foundWinningTickets[bundledTx.Tx.MsgTx().TxIn[1].PreviousOutPoint.Hash] = true
+			if bundledTxDesc.Type == stake.TxTypeSSGen {
+				foundWinningTickets[bundledTx.MsgTx().TxIn[1].PreviousOutPoint.Hash] = true
 			}
-			if isTAdd {
+			if isTreasuryEnabled && bundledTxDesc.Type == stake.TxTypeTAdd {
 				numTAdds++
 			}
 
-			txFeesMap[*bundledTx.Tx.Hash()] = bundledTx.Fee
-			txSigOpCountsMap[*bundledTx.Tx.Hash()] = bundledTxSigOps
+			txFeesMap[*bundledTxHash] = bundledTxDesc.Fee
+			txSigOpCountsMap[*bundledTxHash] = bundledTxSigOps
 
+			bundledPrioItem := prioItemMap[*bundledTxHash]
 			log.Tracef("Adding tx %s (priority %.2f, feePerKB %.2f)",
-				bundledTx.Tx.Hash(), prioItem.priority, prioItem.feePerKB)
+				bundledTxHash, bundledPrioItem.priority,
+				bundledPrioItem.feePerKB)
 
 			// Remove transaction from mining view since it's been added to the
 			// block template.
-			bundledTxDeps := miningView.Children(bundledTx.Tx.Hash())
-			miningView.Remove(bundledTx.Tx.Hash(), false)
+			bundledTxDeps := miningView.Children(bundledTxHash)
+			miningView.Remove(bundledTxHash, false)
 
 			// Add transactions which depend on this one (and also do not
 			// have any other unsatisfied dependencies) to the priority
