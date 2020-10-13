@@ -233,7 +233,6 @@ const (
 // transaction to be prioritized and track dependencies on other transactions
 // which have not been mined into a block yet.
 type txPrioItem struct {
-	tx       *dcrutil.Tx
 	txDesc   *TxDesc
 	txType   stake.TxType
 	fee      int64
@@ -1403,8 +1402,7 @@ mempoolLoop:
 		// Setup dependencies for any transactions which reference
 		// other transactions in the mempool so they can be properly
 		// ordered below.
-		prioItem := &txPrioItem{
-			tx: txDesc.Tx, txDesc: txDesc, txType: txDesc.Type}
+		prioItem := &txPrioItem{txDesc: txDesc, txType: txDesc.Type}
 		for i, txIn := range tx.MsgTx().TxIn {
 			// Evaluate if this is a stakebase input or not. If it is, continue
 			// without evaluation of the input.
@@ -1441,12 +1439,12 @@ mempoolLoop:
 		ancestorStats, hasStats := miningView.AncestorStats(tx.Hash())
 		prioItem.feePerKB = calcFeePerKb(txDesc, ancestorStats)
 		prioItem.fee = txDesc.Fee + ancestorStats.Fees
-		prioItemMap[*prioItem.tx.Hash()] = prioItem
+		prioItemMap[*tx.Hash()] = prioItem
 		hasParents := miningView.HasParents(tx.Hash())
 
 		if !hasParents || hasStats {
 			heap.Push(priorityQueue, prioItem)
-			prioritizedTxns[prioItem.tx.MsgTx().TxHash()] = struct{}{}
+			prioritizedTxns[tx.MsgTx().TxHash()] = struct{}{}
 		}
 
 		if hasParents {
@@ -1490,7 +1488,7 @@ nextPriorityQueueItem:
 		// Grab the highest priority (or highest fee per kilobyte
 		// depending on the sort order) transaction.
 		prioItem := heap.Pop(priorityQueue).(*txPrioItem)
-		tx := prioItem.tx
+		tx := prioItem.txDesc.Tx
 
 		// Store if this is an SStx or not.
 		isSStx := prioItem.txType == stake.TxTypeSStx
@@ -1595,7 +1593,7 @@ nextPriorityQueueItem:
 			}
 		}
 
-		if miningView.IsRejected(prioItem.tx.Hash()) {
+		if miningView.IsRejected(tx.Hash()) {
 			// If the transaction or any of its ancestors have been rejected,
 			// discard the transaction.
 			continue

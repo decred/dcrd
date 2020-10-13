@@ -47,7 +47,7 @@ func TestStakeTxFeePrioHeap(t *testing.T) {
 			randPrio := rand.Float64() * 100
 			randFeePerKB := rand.Float64() * 10
 			testItems = append(testItems, &txPrioItem{
-				tx:       nil,
+				txDesc:   nil,
 				txType:   randType,
 				feePerKB: randFeePerKB,
 				priority: randPrio,
@@ -59,7 +59,7 @@ func TestStakeTxFeePrioHeap(t *testing.T) {
 
 	// Test sorting by stake and fee per KB.
 	last := &txPrioItem{
-		tx:       nil,
+		txDesc:   nil,
 		txType:   stake.TxTypeSSGen,
 		priority: 10000.0,
 		feePerKB: 10000.0,
@@ -84,7 +84,7 @@ func TestStakeTxFeePrioHeap(t *testing.T) {
 		randPrio := rand.Float64() * 100
 		randFeePerKB := rand.Float64() * 10
 		prioItem := &txPrioItem{
-			tx:       nil,
+			txDesc:   nil,
 			txType:   randType,
 			feePerKB: randFeePerKB,
 			priority: randPrio,
@@ -95,7 +95,7 @@ func TestStakeTxFeePrioHeap(t *testing.T) {
 	// Test sorting with fees per KB for high stake priority, then
 	// priority for low stake priority.
 	last = &txPrioItem{
-		tx:       nil,
+		txDesc:   nil,
 		txType:   stake.TxTypeSSGen,
 		priority: 10000.0,
 		feePerKB: 10000.0,
