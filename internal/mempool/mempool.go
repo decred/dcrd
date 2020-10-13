@@ -2517,24 +2517,22 @@ func (mv *txMiningView) Ancestors(txHash *chainhash.Hash) []*mining.TxDesc {
 		return nil
 	}
 
-	if mv.trackAncestorStats {
-		var stats *mining.TxAncestorStats
-		seen := make(map[chainhash.Hash]struct{})
-		mv.txGraph.forEachAncestor(txHash, seen, func(txDesc *mining.TxDesc) {
-			if stats == nil {
-				stats = &mining.TxAncestorStats{}
-			}
-
-			aggregateAncestorStats(stats, txDesc)
-			ancestors = append(ancestors, txDesc)
-		})
-
+	var stats *mining.TxAncestorStats
+	seen := make(map[chainhash.Hash]struct{})
+	mv.txGraph.forEachAncestor(txHash, seen, func(txDesc *mining.TxDesc) {
 		if stats == nil {
-			delete(mv.ancestorStats, *txHash)
-		} else {
-			// Update the cache.
-			mv.ancestorStats[*txHash] = stats
+			stats = &mining.TxAncestorStats{}
 		}
+
+		aggregateAncestorStats(stats, txDesc)
+		ancestors = append(ancestors, txDesc)
+	})
+
+	if stats == nil {
+		delete(mv.ancestorStats, *txHash)
+	} else {
+		// Update the cache.
+		mv.ancestorStats[*txHash] = stats
 	}
 
 	return ancestors
