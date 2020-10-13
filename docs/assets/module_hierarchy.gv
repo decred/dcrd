@@ -17,7 +17,7 @@ digraph {
 	database [label="database/v2" fillcolor=dodgerblue]
 	hdkeychain [label="hdkeychain/v3" fillcolor=deepskyblue]
 	txscript [label="txscript/v3" fillcolor=mediumspringgreen]
-	stake [label="blockchain/stake/v2" fillcolor=bisque]
+	stake [label="blockchain/stake/v3" fillcolor=bisque]
 	standalone [label="blockchain/standalone/v2" fillcolor=firebrick4]
 	gcs [label="gcs" fillcolor=gold]
 	blockchain [label="blockchain/v2" fillcolor=orchid]
