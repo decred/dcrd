@@ -60,6 +60,7 @@ logdir=./log
 datadir=./data
 debuglevel=TXMP=debug,MINR=debug
 txindex=1
+rejectnonstd=1
 EOF
 
 cat > "${NODES_ROOT}/dcrctl.conf" <<EOF
