@@ -217,6 +217,7 @@ func TestTreasury(t *testing.T) {
 	// Setup the log dir for tests to ease debugging after failures.
 	logDir := ".dcrdlogs"
 	extraArgs := []string{
+		"--rejectnonstd",
 		"--debuglevel=MINR=trace,TRSY=trace",
 		"--logdir=" + logDir,
 	}
