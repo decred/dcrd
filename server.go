@@ -3175,7 +3175,7 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB, chainP
 
 	txC := mempool.Config{
 		Policy: mempool.Policy{
-			MaxTxVersion:         2,
+			MaxTxVersion:         wire.TxVersionTreasury,
 			DisableRelayPriority: cfg.NoRelayPriority,
 			AcceptNonStd:         cfg.AcceptNonStd,
 			FreeTxRelayLimit:     cfg.FreeTxRelayLimit,
