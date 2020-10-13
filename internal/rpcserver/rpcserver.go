@@ -502,19 +502,6 @@ func isTreasuryAgendaActive(s *Server) (bool, error) {
 	return isTreasuryEnabled, nil
 }
 
-// handleUnimplemented is the handler for commands that should ultimately be
-// supported but are not yet implemented.
-func handleUnimplemented(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
-	return nil, ErrRPCUnimplemented
-}
-
-// handleAskWallet is the handler for commands that are recognized as valid, but
-// are unable to answer correctly since it involves wallet state.
-// These commands will be implemented in dcrwallet.
-func handleAskWallet(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
-	return nil, ErrRPCNoWallet
-}
-
 // handleAddNode handles addnode commands.
 func handleAddNode(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
 	c := cmd.(*types.AddNodeCmd)
@@ -5533,27 +5520,16 @@ type parsedRPCCmd struct {
 	err     *dcrjson.RPCError
 }
 
-// standardCmdResult checks that a parsed command is a standard Bitcoin
-// JSON-RPC command and runs the appropriate handler to reply to the command.
-// Any commands which are not recognized or not implemented will return an
-// error suitable for use in replies.
+// standardCmdResult checks that a parsed command is a standard JSON-RPC command
+// and runs the appropriate handler to reply to the command.  Any commands which
+// are not recognized or not implemented will return an error suitable for use
+// in replies.
 func (s *Server) standardCmdResult(ctx context.Context, cmd *parsedRPCCmd) (interface{}, error) {
 	handler, ok := rpcHandlers[cmd.method]
-	if ok {
-		goto handled
+	if !ok {
+		return nil, dcrjson.ErrRPCMethodNotFound
 	}
-	_, ok = rpcAskWallet[string(cmd.method)]
-	if ok {
-		handler = handleAskWallet
-		goto handled
-	}
-	_, ok = rpcUnimplemented[string(cmd.method)]
-	if ok {
-		handler = handleUnimplemented
-		goto handled
-	}
-	return nil, dcrjson.ErrRPCMethodNotFound
-handled:
+
 	return handler(ctx, s, cmd.params)
 }
 
@@ -5570,12 +5546,18 @@ func parseCmd(request *dcrjson.Request) *parsedRPCCmd {
 
 	params, err := dcrjson.ParseParams(types.Method(request.Method), request.Params)
 	if err != nil {
-		// When the error is because the method is not registered,
-		// produce a method not found RPC error.
+		// Produce a relevant error when the requested method is not registered
+		// depending on whether or not it is recognized as being a wallet
+		// command, recognized as unimplemented, or completely unrecognized.
 		var jerr dcrjson.Error
-		if errors.As(err, &jerr) &&
-			jerr.Code == dcrjson.ErrUnregisteredMethod {
+		if errors.As(err, &jerr) && jerr.Code == dcrjson.ErrUnregisteredMethod {
 			parsedCmd.err = dcrjson.ErrRPCMethodNotFound
+			if _, ok := rpcAskWallet[request.Method]; ok {
+				parsedCmd.err = ErrRPCNoWallet
+			} else if _, ok := rpcUnimplemented[request.Method]; ok {
+				parsedCmd.err = ErrRPCUnimplemented
+			}
+
 			return &parsedCmd
 		}
 
