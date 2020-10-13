@@ -2415,18 +2415,6 @@ func (mp *TxPool) miningDescs() []*mining.TxDesc {
 	return descs
 }
 
-// MiningDescs returns a slice of mining descriptors for all the transactions
-// in the pool.
-//
-// This is part of the mining.TxSource interface implementation and is safe for
-// concurrent access as required by the interface contract.
-func (mp *TxPool) MiningDescs() []*mining.TxDesc {
-	mp.mtx.RLock()
-	descs := mp.miningDescs()
-	mp.mtx.RUnlock()
-	return descs
-}
-
 // LastUpdated returns the last time a transaction was added to or removed from
 // the main pool.  It does not include the orphan pool.
 //

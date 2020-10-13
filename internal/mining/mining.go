@@ -94,7 +94,7 @@ type TxAncestorStats struct {
 
 // TxMiningView is a snapshot of the tx source.
 type TxMiningView interface {
-	// MiningDescs returns a slice of mining descriptors for all the
+	// TxDescs returns a slice of mining descriptors for all minable
 	// transactions in the source pool.
 	TxDescs() []*TxDesc
 
@@ -157,10 +157,6 @@ type TxSource interface {
 	// LastUpdated returns the last time a transaction was added to or
 	// removed from the source pool.
 	LastUpdated() time.Time
-
-	// MiningDescs returns a slice of mining descriptors for all the
-	// transactions in the source pool.
-	MiningDescs() []*TxDesc
 
 	// HaveTransaction returns whether or not the passed transaction hash
 	// exists in the source pool.
