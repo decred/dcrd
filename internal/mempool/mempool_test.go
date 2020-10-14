@@ -2755,8 +2755,7 @@ func TestHandlesTAdds(t *testing.T) {
 func (p *poolHarness) countTotalSigOps(tx *dcrutil.Tx, txType stake.TxType) (int, error) {
 	isVote := txType == stake.TxTypeSSGen
 	isStakeBase := txType == stake.TxTypeSSGen
-	isTreasuryEnabled := p.treasuryActive
-	utxoView, err := p.txPool.fetchInputUtxos(tx, isTreasuryEnabled)
+	utxoView, err := p.txPool.fetchInputUtxos(tx, p.treasuryActive)
 	if err != nil {
 		return 0, err
 	}
