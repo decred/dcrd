@@ -1603,7 +1603,7 @@ nextPriorityQueueItem:
 		}
 
 		if feeDecreased {
-			// Skip the transaction if the total feePerKb decresed.
+			// Skip the transaction if the total feePerKb decreased.
 			// This addresses a vulnerability that would allow a low-fee
 			// transaction to have an inflated and inaccurate feePerKb based on
 			// ancestors that have already been included in the block template.
@@ -1748,8 +1748,7 @@ nextPriorityQueueItem:
 			// template.
 			blockTxns = append(blockTxns, bundledTx)
 			blockSize += uint32(bundledTx.MsgTx().SerializeSize())
-			bundledTxSigOps := int64(bundledTxDesc.TotalSigOps +
-				bundledTxDesc.TotalSigOps)
+			bundledTxSigOps := int64(bundledTxDesc.TotalSigOps)
 			blockSigOps += bundledTxSigOps
 
 			// Accumulate the SStxs in the block, because only a certain number
