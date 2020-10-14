@@ -1376,9 +1376,6 @@ mempoolLoop:
 		}
 
 		// Fetch all of the utxos referenced by the this transaction.
-		// NOTE: This intentionally does not fetch inputs from the
-		// mempool since a transaction which depends on other
-		// transactions in the mempool must come after those
 		utxos, err := g.chain.FetchUtxoView(tx, !knownDisapproved)
 		if err != nil {
 			log.Warnf("Unable to fetch utxo view for tx %s: "+
@@ -1432,6 +1429,8 @@ mempoolLoop:
 		if !hasParents || hasStats {
 			heap.Push(priorityQueue, prioItem)
 			prioritizedTxns[*tx.Hash()] = struct{}{}
+			blockUtxos.AddTxOuts(tx, nextBlockHeight, wire.NullBlockIndex,
+				isTreasuryEnabled)
 		}
 
 		if hasParents {
@@ -1469,6 +1468,10 @@ mempoolLoop:
 		foundWinningTickets[ticketHash] = false
 	}
 
+	// Maintain lookup of transactions that have been included in the block
+	// template.
+	templateTxnMap := make(map[chainhash.Hash]struct{})
+
 	// Choose which transactions make it into the block.
 nextPriorityQueueItem:
 	for priorityQueue.Len() > 0 {
@@ -1477,6 +1480,10 @@ nextPriorityQueueItem:
 		prioItem := heap.Pop(priorityQueue).(*txPrioItem)
 		tx := prioItem.txDesc.Tx
 		delete(prioritizedTxns, *tx.Hash())
+
+		if _, exist := templateTxnMap[*tx.Hash()]; exist {
+			continue
+		}
 
 		// Store if this is an SStx or not.
 		isSStx := prioItem.txType == stake.TxTypeSStx
@@ -1763,6 +1770,7 @@ nextPriorityQueueItem:
 				numTAdds++
 			}
 
+			templateTxnMap[*bundledTxHash] = struct{}{}
 			txFeesMap[*bundledTxHash] = bundledTxDesc.Fee
 			txSigOpCountsMap[*bundledTxHash] = bundledTxSigOps
 
