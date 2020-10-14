@@ -860,6 +860,7 @@ func (mp *TxPool) HaveAllTransactions(hashes []chainhash.Hash) bool {
 // the provided transaction hash and invokes function f with each in post-order.
 func (g *txDescGraph) forEachDescendant(txHash *chainhash.Hash,
 	seen map[chainhash.Hash]struct{}, f func(*mining.TxDesc)) {
+
 	for child, childDesc := range g.childrenOf[*txHash] {
 		if _, saw := seen[child]; saw {
 			continue
@@ -876,15 +877,12 @@ func (g *txDescGraph) forEachDescendant(txHash *chainhash.Hash,
 func (mv *txMiningView) updateStatsDescendantsRemoved(txDesc *mining.TxDesc) {
 	txHash := txDesc.Tx.Hash()
 	txSize := int64(txDesc.Tx.MsgTx().SerializeSize())
-	sigOps := int64(txDesc.NumSigOps)
-	p2shSigOps := int64(txDesc.NumP2SHSigOps)
 	seen := make(map[chainhash.Hash]struct{})
 	mv.txGraph.forEachDescendant(txHash, seen, func(descendant *mining.TxDesc) {
 		descendantStats := mv.ancestorStats[*descendant.Tx.Hash()]
 		descendantStats.Fees -= txDesc.Fee
 		descendantStats.SizeBytes -= txSize
-		descendantStats.NumSigOps -= sigOps
-		descendantStats.NumP2SHSigOps -= p2shSigOps
+		descendantStats.TotalSigOps -= txDesc.TotalSigOps
 		descendantStats.NumAncestors--
 	})
 }
@@ -1063,6 +1061,7 @@ func (mp *TxPool) RemoveDoubleSpends(tx *dcrutil.Tx, isTreasuryEnabled bool) {
 // in topological order.
 func (g *txDescGraph) forEachAncestor(txHash *chainhash.Hash,
 	seen map[chainhash.Hash]struct{}, f func(tx *mining.TxDesc)) {
+
 	for parent, parentDesc := range g.parentsOf[*txHash] {
 		if _, saw := seen[parent]; saw {
 			continue
@@ -1080,8 +1079,7 @@ func aggregateAncestorStats(stats *mining.TxAncestorStats, ancestor *mining.TxDe
 	stats.NumAncestors++
 	stats.Fees += ancestor.Fee
 	stats.SizeBytes += int64(ancestor.Tx.MsgTx().SerializeSize())
-	stats.NumSigOps += int64(ancestor.NumSigOps)
-	stats.NumP2SHSigOps += int64(ancestor.NumP2SHSigOps)
+	stats.TotalSigOps += ancestor.TotalSigOps
 }
 
 // updateBundleStats ensures that the bundle stats for a given
@@ -1132,7 +1130,7 @@ func (g *txDescGraph) addParent(tx *mining.TxDesc, parent *mining.TxDesc) {
 }
 
 // When a transaction is added to the mempool, create a 2-way association
-// between itself and it's parents in the mempool.
+// between itself and its parents in the mempool.
 func (g *txDescGraph) insert(txDesc *mining.TxDesc, findTx txDescFind) {
 	seen := make(map[chainhash.Hash]struct{})
 
@@ -1164,15 +1162,12 @@ func (g *txDescGraph) insert(txDesc *mining.TxDesc, findTx txDescFind) {
 func (mv *txMiningView) updateStatsDescendantsAdded(txDesc *mining.TxDesc) {
 	txHash := txDesc.Tx.Hash()
 	txSize := int64(txDesc.Tx.MsgTx().SerializeSize())
-	sigOps := int64(txDesc.NumSigOps)
-	p2shSigOps := int64(txDesc.NumP2SHSigOps)
 	seen := make(map[chainhash.Hash]struct{})
 	mv.txGraph.forEachDescendant(txHash, seen, func(descendant *mining.TxDesc) {
 		descendantStats := mv.ancestorStats[*descendant.Tx.Hash()]
 		descendantStats.Fees += txDesc.Fee
 		descendantStats.SizeBytes += txSize
-		descendantStats.NumSigOps += sigOps
-		descendantStats.NumP2SHSigOps += p2shSigOps
+		descendantStats.TotalSigOps += txDesc.TotalSigOps
 		descendantStats.NumAncestors++
 	})
 }
@@ -1203,7 +1198,7 @@ func (mv *txMiningView) addTransaction(txDesc *mining.TxDesc, findTx txDescFind)
 //
 // This function MUST be called with the mempool lock held (for writes).
 func (mp *TxPool) addTransaction(utxoView *blockchain.UtxoViewpoint, tx *dcrutil.Tx,
-	txType stake.TxType, height int64, fee int64, isTreasuryEnabled bool, numSigOps int, numP2SHSigOps int) {
+	txType stake.TxType, height int64, fee int64, isTreasuryEnabled bool, totalSigOps int) {
 
 	// Notify callback about vote if requested.
 	if mp.cfg.OnVoteReceived != nil && txType == stake.TxTypeSSGen {
@@ -1215,13 +1210,12 @@ func (mp *TxPool) addTransaction(utxoView *blockchain.UtxoViewpoint, tx *dcrutil
 	msgTx := tx.MsgTx()
 	poolTxDesc := &TxDesc{
 		TxDesc: mining.TxDesc{
-			Tx:            tx,
-			Type:          txType,
-			Added:         time.Now(),
-			Height:        height,
-			Fee:           fee,
-			NumSigOps:     numSigOps,
-			NumP2SHSigOps: numP2SHSigOps,
+			Tx:          tx,
+			Type:        txType,
+			Added:       time.Now(),
+			Height:      height,
+			Fee:         fee,
+			TotalSigOps: totalSigOps,
 		},
 		StartingPriority: mining.CalcPriority(msgTx, utxoView, height),
 	}
@@ -1976,7 +1970,7 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 
 	// Add to transaction pool.
 	mp.addTransaction(utxoView, tx, txType, bestHeight, txFee, isTreasuryEnabled,
-		numSigOps, numP2SHSigOps)
+		totalSigOps)
 
 	// A regular transaction that is added back to the mempool causes
 	// any mempool tickets that redeem it to leave the main pool and enter the
@@ -2447,33 +2441,6 @@ func (mp *TxPool) newTxDescGraph() *txDescGraph {
 	}
 }
 
-// New returns a new memory pool for validating and storing standalone
-// transactions until they are mined into a block.
-func New(cfg *Config) *TxPool {
-	mp := &TxPool{
-		cfg:             *cfg,
-		pool:            make(map[chainhash.Hash]*TxDesc),
-		orphans:         make(map[chainhash.Hash]*orphanTx),
-		orphansByPrev:   make(map[wire.OutPoint]map[chainhash.Hash]*dcrutil.Tx),
-		outpoints:       make(map[wire.OutPoint]*dcrutil.Tx),
-		votes:           make(map[chainhash.Hash][]mining.VoteDesc),
-		tspends:         make(map[chainhash.Hash]*dcrutil.Tx),
-		nextExpireScan:  time.Now().Add(orphanExpireScanInterval),
-		staged:          make(map[chainhash.Hash]*dcrutil.Tx),
-		stagedOutpoints: make(map[wire.OutPoint]*dcrutil.Tx),
-	}
-
-	mp.miningView = &txMiningView{
-		rejected:           make(map[chainhash.Hash]struct{}),
-		txGraph:            mp.newTxDescGraph(),
-		txDescs:            nil,
-		trackAncestorStats: cfg.Policy.EnableAncestorTracking,
-		ancestorStats:      make(map[chainhash.Hash]*mining.TxAncestorStats),
-	}
-
-	return mp
-}
-
 // TxDescs returns a collection of all transactions available in the view.
 func (mv *txMiningView) TxDescs() []*mining.TxDesc {
 	return mv.txDescs
@@ -2642,14 +2609,40 @@ func (mp *TxPool) MiningView() mining.TxMiningView {
 
 	for key, value := range mp.miningView.ancestorStats {
 		view.ancestorStats[key] = &mining.TxAncestorStats{
-			Fees:          value.Fees,
-			SizeBytes:     value.SizeBytes,
-			NumSigOps:     value.NumSigOps,
-			NumP2SHSigOps: value.NumP2SHSigOps,
-			NumAncestors:  value.NumAncestors,
+			Fees:         value.Fees,
+			SizeBytes:    value.SizeBytes,
+			TotalSigOps:  value.TotalSigOps,
+			NumAncestors: value.NumAncestors,
 		}
 	}
 
 	mp.mtx.RUnlock()
 	return view
+}
+
+// New returns a new memory pool for validating and storing standalone
+// transactions until they are mined into a block.
+func New(cfg *Config) *TxPool {
+	mp := &TxPool{
+		cfg:             *cfg,
+		pool:            make(map[chainhash.Hash]*TxDesc),
+		orphans:         make(map[chainhash.Hash]*orphanTx),
+		orphansByPrev:   make(map[wire.OutPoint]map[chainhash.Hash]*dcrutil.Tx),
+		outpoints:       make(map[wire.OutPoint]*dcrutil.Tx),
+		votes:           make(map[chainhash.Hash][]mining.VoteDesc),
+		tspends:         make(map[chainhash.Hash]*dcrutil.Tx),
+		nextExpireScan:  time.Now().Add(orphanExpireScanInterval),
+		staged:          make(map[chainhash.Hash]*dcrutil.Tx),
+		stagedOutpoints: make(map[wire.OutPoint]*dcrutil.Tx),
+	}
+
+	mp.miningView = &txMiningView{
+		rejected:           make(map[chainhash.Hash]struct{}),
+		txGraph:            mp.newTxDescGraph(),
+		txDescs:            nil,
+		trackAncestorStats: cfg.Policy.EnableAncestorTracking,
+		ancestorStats:      make(map[chainhash.Hash]*mining.TxAncestorStats),
+	}
+
+	return mp
 }

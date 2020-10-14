@@ -2752,6 +2752,25 @@ func TestHandlesTAdds(t *testing.T) {
 	acceptTAdd(tadd)
 }
 
+func (p *poolHarness) countTotalSigOps(tx *dcrutil.Tx, txType stake.TxType) (int, error) {
+	isVote := txType == stake.TxTypeSSGen
+	isStakeBase := txType == stake.TxTypeSSGen
+	isTreasuryEnabled := p.treasuryActive
+	utxoView, err := p.txPool.fetchInputUtxos(tx, isTreasuryEnabled)
+	if err != nil {
+		return 0, err
+	}
+
+	sigOps := blockchain.CountSigOps(tx, false, isVote, p.treasuryActive)
+	p2shSigOps, err := blockchain.CountP2SHSigOps(tx, false, isStakeBase,
+		utxoView, p.treasuryActive)
+	if err != nil {
+		return 0, err
+	}
+
+	return sigOps + p2shSigOps, nil
+}
+
 // descendants returns a collection of transactions in the graph that depend on
 // the provided transaction hash.
 func (g *txDescGraph) descendants(txHash *chainhash.Hash) []*chainhash.Hash {
@@ -2812,7 +2831,7 @@ func TestMiningView(t *testing.T) {
 		txOutToSpendableOut(txD, 0, wire.TxTreeRegular),
 	}, 2, applyTxFee(0))
 
-	// Add all to chain.
+	// Add all to mempool.
 	allTxns := []*dcrutil.Tx{txB, txA, txC, txD, txE}
 	for index, tx := range allTxns {
 		_, err := harness.txPool.ProcessTransaction(tx,
@@ -2823,97 +2842,101 @@ func TestMiningView(t *testing.T) {
 		}
 	}
 
-	type test struct {
+	txALen := int64(txA.MsgTx().SerializeSize())
+	txBLen := int64(txB.MsgTx().SerializeSize())
+	txCLen := int64(txC.MsgTx().SerializeSize())
+
+	txATotalSigOps, err := harness.countTotalSigOps(txA, stake.TxTypeRegular)
+	if err != nil {
+		t.Fatalf("failed to count sigops for txA %v", err)
+	}
+
+	txBTotalSigOps, err := harness.countTotalSigOps(txB, stake.TxTypeRegular)
+	if err != nil {
+		t.Fatalf("failed to count sigops for txB %v", err)
+	}
+
+	txCTotalSigOps, err := harness.countTotalSigOps(txC, stake.TxTypeRegular)
+	if err != nil {
+		t.Fatalf("failed to count sigops for txC %v", err)
+	}
+
+	tests := []struct {
 		name                 string
 		miningView           mining.TxMiningView
 		subject              *dcrutil.Tx
 		expectedAncestorFees int64
 		expectedSizeBytes    int64
-		expectedSigOps       int64
+		expectedSigOps       int
 		ancestors            []*dcrutil.Tx
 		descendants          map[chainhash.Hash]*dcrutil.Tx
 		orderedAncestors     [][]*dcrutil.Tx
-	}
-
-	txALen := int64(txA.MsgTx().SerializeSize())
-	txBLen := int64(txB.MsgTx().SerializeSize())
-	txCLen := int64(txC.MsgTx().SerializeSize())
-
-	txANumSigOps := int64(2)
-	txBNumSigOps := int64(2)
-	txCNumSigOps := int64(2)
-
-	tests := []*test{
-		{
-			name:                 "Tx A",
-			subject:              txA,
-			expectedAncestorFees: 0,
-			expectedSizeBytes:    0,
-			expectedSigOps:       0,
-			ancestors:            []*dcrutil.Tx{},
-			descendants: map[chainhash.Hash]*dcrutil.Tx{
-				txB.MsgTx().TxHash(): txB,
-				txC.MsgTx().TxHash(): txC,
-				txD.MsgTx().TxHash(): txD,
-				txE.MsgTx().TxHash(): txE,
-			},
-			orderedAncestors: [][]*dcrutil.Tx{},
+	}{{
+		name:                 "Tx A",
+		subject:              txA,
+		expectedAncestorFees: 0,
+		expectedSizeBytes:    0,
+		expectedSigOps:       0,
+		ancestors:            nil,
+		descendants: map[chainhash.Hash]*dcrutil.Tx{
+			txB.MsgTx().TxHash(): txB,
+			txC.MsgTx().TxHash(): txC,
+			txD.MsgTx().TxHash(): txD,
+			txE.MsgTx().TxHash(): txE,
 		},
-		{
-			name:                 "Tx B",
-			subject:              txB,
-			expectedAncestorFees: 1000,
-			expectedSizeBytes:    txALen,
-			expectedSigOps:       txANumSigOps,
-			ancestors:            []*dcrutil.Tx{txA},
-			descendants: map[chainhash.Hash]*dcrutil.Tx{
-				txD.MsgTx().TxHash(): txD,
-				txE.MsgTx().TxHash(): txE,
-			},
-			orderedAncestors: [][]*dcrutil.Tx{
-				{txA},
-			},
+		orderedAncestors: nil,
+	}, {
+		name:                 "Tx B",
+		subject:              txB,
+		expectedAncestorFees: 1000,
+		expectedSizeBytes:    txALen,
+		expectedSigOps:       txATotalSigOps,
+		ancestors:            []*dcrutil.Tx{txA},
+		descendants: map[chainhash.Hash]*dcrutil.Tx{
+			txD.MsgTx().TxHash(): txD,
+			txE.MsgTx().TxHash(): txE,
 		},
-		{
-			name:                 "Tx C",
-			subject:              txC,
-			expectedAncestorFees: 1000,
-			expectedSizeBytes:    txALen,
-			expectedSigOps:       txANumSigOps,
-			ancestors:            []*dcrutil.Tx{txA},
-			descendants: map[chainhash.Hash]*dcrutil.Tx{
-				txE.MsgTx().TxHash(): txE,
-			},
-			orderedAncestors: [][]*dcrutil.Tx{
-				{txA},
-			},
+		orderedAncestors: [][]*dcrutil.Tx{
+			{txA},
 		},
-		{
-			name:                 "Tx D",
-			subject:              txD,
-			expectedAncestorFees: 6000,
-			expectedSizeBytes:    txALen + txBLen,
-			expectedSigOps:       txANumSigOps + txBNumSigOps,
-			ancestors:            []*dcrutil.Tx{txA, txB},
-			descendants:          map[chainhash.Hash]*dcrutil.Tx{},
-			orderedAncestors: [][]*dcrutil.Tx{
-				{txA, txB},
-			},
+	}, {
+		name:                 "Tx C",
+		subject:              txC,
+		expectedAncestorFees: 1000,
+		expectedSizeBytes:    txALen,
+		expectedSigOps:       txATotalSigOps,
+		ancestors:            []*dcrutil.Tx{txA},
+		descendants: map[chainhash.Hash]*dcrutil.Tx{
+			txE.MsgTx().TxHash(): txE,
 		},
-		{
-			name:                 "Tx E",
-			subject:              txE,
-			expectedAncestorFees: 11000,
-			expectedSizeBytes:    txALen + txBLen + txCLen,
-			expectedSigOps:       txANumSigOps + txBNumSigOps + txCNumSigOps,
-			ancestors:            []*dcrutil.Tx{txA, txB, txC},
-			descendants:          map[chainhash.Hash]*dcrutil.Tx{},
-			orderedAncestors: [][]*dcrutil.Tx{
-				{txA, txB, txC},
-				{txA, txC, txB},
-			},
+		orderedAncestors: [][]*dcrutil.Tx{
+			{txA},
 		},
-	}
+	}, {
+		name:                 "Tx D",
+		subject:              txD,
+		expectedAncestorFees: 6000,
+		expectedSizeBytes:    txALen + txBLen,
+		expectedSigOps:       txATotalSigOps + txBTotalSigOps,
+		ancestors:            []*dcrutil.Tx{txA, txB},
+		descendants:          map[chainhash.Hash]*dcrutil.Tx{},
+		orderedAncestors: [][]*dcrutil.Tx{
+			{txA, txB},
+		},
+	}, {
+		name:                 "Tx E",
+		subject:              txE,
+		expectedAncestorFees: 11000,
+		expectedSizeBytes:    txALen + txBLen + txCLen,
+		expectedSigOps: txATotalSigOps + txBTotalSigOps +
+			txCTotalSigOps,
+		ancestors:   []*dcrutil.Tx{txA, txB, txC},
+		descendants: map[chainhash.Hash]*dcrutil.Tx{},
+		orderedAncestors: [][]*dcrutil.Tx{
+			{txA, txB, txC},
+			{txA, txC, txB},
+		},
+	}}
 
 	for _, test := range tests {
 		txHash := test.subject.Hash()
@@ -2943,9 +2966,9 @@ func TestMiningView(t *testing.T) {
 				test.name, test.expectedSizeBytes, stat.SizeBytes)
 		}
 
-		if test.expectedSigOps != stat.NumSigOps {
+		if test.expectedSigOps != stat.TotalSigOps {
 			t.Fatalf("%v: expected subject txn to have SigOps=%v, got %v",
-				test.name, test.expectedSigOps, stat.NumSigOps)
+				test.name, test.expectedSigOps, stat.TotalSigOps)
 		}
 
 		if len(test.ancestors) != stat.NumAncestors {
@@ -3074,7 +3097,7 @@ func TestMiningView(t *testing.T) {
 			}
 
 			expectedFee := oldStat.Fees - txDesc.Fee
-			expectedSigOps := oldStat.NumSigOps - int64(txDesc.NumSigOps)
+			expectedSigOps := oldStat.TotalSigOps - txDesc.TotalSigOps
 			expectedSizeBytes := oldStat.SizeBytes -
 				int64(txDesc.Tx.MsgTx().SerializeSize())
 			expectedNumAncestors := oldStat.NumAncestors - 1
@@ -3084,10 +3107,10 @@ func TestMiningView(t *testing.T) {
 					"Fees=%v, but got %v", test.name, expectedFee, newStat.Fees)
 			}
 
-			if newStat.NumSigOps != expectedSigOps {
+			if newStat.TotalSigOps != expectedSigOps {
 				t.Fatalf("%v: expected descendant to have adjusted "+
 					"NumSigOps=%v, but got %v", test.name,
-					expectedSigOps, newStat.NumSigOps)
+					expectedSigOps, newStat.TotalSigOps)
 			}
 
 			if newStat.SizeBytes != expectedSizeBytes {

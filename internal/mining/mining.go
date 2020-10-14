@@ -63,12 +63,8 @@ type TxDesc struct {
 	// Fee is the total fee the transaction associated with the entry pays.
 	Fee int64
 
-	// NumSigOps is the total sigops for this transaction.
-	NumSigOps int
-
-	// NumP2SHSigOps is the total number of signature operations for all input
-	// transactions which are of the pay-to-script-hash type.
-	NumP2SHSigOps int
+	// TotalSigOps is the total signature operations for this transaction.
+	TotalSigOps int
 }
 
 // TxAncestorStats is a descriptor that stores aggregated statistics for the
@@ -80,13 +76,8 @@ type TxAncestorStats struct {
 	// SizeBytes is the total size of all unconfirmed ancestors.
 	SizeBytes int64
 
-	// NumSigOps is the total number of signature operations of all ancestors.
-	NumSigOps int64
-
-	// NumP2SHSigOps is the aggregate number of signature operations for all
-	// input transactions of all ancestors which are of the pay-to-script-hash
-	// type.
-	NumP2SHSigOps int64
+	// TotalSigOps is the total number of signature operations of all ancestors.
+	TotalSigOps int
 
 	// NumAncestors is the total number of ancestors for a given transaction.
 	NumAncestors int
@@ -1616,24 +1607,12 @@ nextPriorityQueueItem:
 
 		// Enforce maximum signature operations per block.  Also check
 		// for overflow.
-		numSigOps := int64(prioItem.txDesc.NumSigOps) + ancestorStats.NumSigOps
-		numSigOpsBundle := numSigOps + ancestorStats.NumSigOps
+		numSigOps := int64(prioItem.txDesc.TotalSigOps)
+		numSigOpsBundle := numSigOps + int64(ancestorStats.TotalSigOps)
 		if blockSigOps+numSigOpsBundle < blockSigOps ||
 			blockSigOps+numSigOpsBundle > blockchain.MaxSigOpsPerBlock {
 			log.Tracef("Skipping tx %s because it would "+
 				"exceed the maximum sigops per block", tx.Hash())
-			logSkippedDeps(tx, deps)
-			miningView.Reject(tx.Hash())
-			continue
-		}
-
-		numSigOpsBundle += numSigOps + int64(prioItem.txDesc.NumP2SHSigOps) +
-			ancestorStats.NumP2SHSigOps
-		if blockSigOps+numSigOpsBundle < blockSigOps ||
-			blockSigOps+numSigOpsBundle > blockchain.MaxSigOpsPerBlock {
-			log.Tracef("Skipping tx %s because it would "+
-				"exceed the maximum sigops per block (p2sh)",
-				tx.Hash())
 			logSkippedDeps(tx, deps)
 			miningView.Reject(tx.Hash())
 			continue
@@ -1747,8 +1726,8 @@ nextPriorityQueueItem:
 			// template.
 			blockTxns = append(blockTxns, bundledTx)
 			blockSize += uint32(bundledTx.MsgTx().SerializeSize())
-			bundledTxSigOps := int64(bundledTxDesc.NumSigOps +
-				bundledTxDesc.NumP2SHSigOps)
+			bundledTxSigOps := int64(bundledTxDesc.TotalSigOps +
+				bundledTxDesc.TotalSigOps)
 			blockSigOps += bundledTxSigOps
 
 			// Accumulate the SStxs in the block, because only a certain number
