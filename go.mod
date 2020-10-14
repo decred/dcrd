@@ -8,7 +8,7 @@ require (
 	github.com/decred/base58 v1.0.3
 	github.com/decred/dcrd/addrmgr v1.1.0
 	github.com/decred/dcrd/bech32 v1.0.0
-	github.com/decred/dcrd/blockchain/stake/v3 v3.0.0-20200921173733-67245079e9fb
+	github.com/decred/dcrd/blockchain/stake/v3 v3.0.0
 	github.com/decred/dcrd/blockchain/standalone/v2 v2.0.0
 	github.com/decred/dcrd/blockchain/v3 v3.0.0-20200215031403-6b2ce76f0986
 	github.com/decred/dcrd/certgen v1.1.0

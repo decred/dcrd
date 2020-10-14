@@ -3,7 +3,7 @@ module github.com/decred/dcrd/blockchain/v3
 go 1.13
 
 require (
-	github.com/decred/dcrd/blockchain/stake/v3 v3.0.0-20200921173733-67245079e9fb
+	github.com/decred/dcrd/blockchain/stake/v3 v3.0.0
 	github.com/decred/dcrd/blockchain/standalone/v2 v2.0.0-20200921173733-67245079e9fb
 	github.com/decred/dcrd/chaincfg/chainhash v1.0.2
 	github.com/decred/dcrd/chaincfg/v3 v3.0.0
