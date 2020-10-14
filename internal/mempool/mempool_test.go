@@ -2950,35 +2950,40 @@ func TestMiningView(t *testing.T) {
 		}
 
 		// Ensure stats are calculated before retrieving ancestors.
-		stat, hasStats := miningView.AncestorStats(txHash)
+		initialStat, hasStats := miningView.AncestorStats(txHash)
 		if !hasStats {
 			t.Fatalf("%v: expected mining view to have ancestor stats",
 				test.name)
 		}
 
-		if test.expectedAncestorFees != stat.Fees {
+		if test.expectedAncestorFees != initialStat.Fees {
 			t.Fatalf("%v: expected subject txn to have bundle fees %v, got %v",
-				test.name, test.expectedAncestorFees, stat.Fees)
+				test.name, test.expectedAncestorFees, initialStat.Fees)
 		}
 
-		if test.expectedSizeBytes != stat.SizeBytes {
+		if test.expectedSizeBytes != initialStat.SizeBytes {
 			t.Fatalf("%v: expected subject txn to have SizeBytes=%v, got %v",
-				test.name, test.expectedSizeBytes, stat.SizeBytes)
+				test.name, test.expectedSizeBytes, initialStat.SizeBytes)
 		}
 
-		if test.expectedSigOps != stat.TotalSigOps {
+		if test.expectedSigOps != initialStat.TotalSigOps {
 			t.Fatalf("%v: expected subject txn to have SigOps=%v, got %v",
-				test.name, test.expectedSigOps, stat.TotalSigOps)
+				test.name, test.expectedSigOps, initialStat.TotalSigOps)
 		}
 
-		if len(test.ancestors) != stat.NumAncestors {
+		if len(test.ancestors) != initialStat.NumAncestors {
 			t.Fatalf("%v: expected subject txn to have NumAncestors=%v, got %v",
-				test.name, len(test.ancestors), stat.NumAncestors)
+				test.name, len(test.ancestors), initialStat.NumAncestors)
 		}
 
 		// Retrieving ancestors will cause the cached stats to be updated.
 		ancestors := miningView.Ancestors(txHash)
-		stat, _ = miningView.AncestorStats(txHash)
+		stat, _ := miningView.AncestorStats(txHash)
+
+		if initialStat == stat {
+			t.Fatalf("%v: expected ancestor stats reference to have changed "+
+				"after retrieving list of ancestors", test.name)
+		}
 
 		// Get snapshot of transaction relationships as they exist in the pool.
 		descendants := harness.txPool.miningView.txGraph.descendants(txHash)
