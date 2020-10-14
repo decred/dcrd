@@ -1431,7 +1431,7 @@ mempoolLoop:
 
 		if !hasParents || hasStats {
 			heap.Push(priorityQueue, prioItem)
-			prioritizedTxns[tx.MsgTx().TxHash()] = struct{}{}
+			prioritizedTxns[*tx.Hash()] = struct{}{}
 		}
 
 		if hasParents {
@@ -1476,6 +1476,7 @@ nextPriorityQueueItem:
 		// depending on the sort order) transaction.
 		prioItem := heap.Pop(priorityQueue).(*txPrioItem)
 		tx := prioItem.txDesc.Tx
+		delete(prioritizedTxns, *tx.Hash())
 
 		// Store if this is an SStx or not.
 		isSStx := prioItem.txType == stake.TxTypeSStx
@@ -1588,8 +1589,28 @@ nextPriorityQueueItem:
 
 		ancestors := miningView.Ancestors(tx.Hash())
 		ancestorStats, _ := miningView.AncestorStats(tx.Hash())
-
+		oldFee := prioItem.feePerKB
 		prioItem.feePerKB = calcFeePerKb(prioItem.txDesc, ancestorStats)
+
+		feeDecreased := oldFee > prioItem.feePerKB
+		if feeDecreased && ancestorStats.NumAncestors == 0 {
+			// If the fee decreased due to ancestors being included in the
+			// template and the transaction has no parents, then enqueue it one
+			// more time with an accurate feePerKb.
+			heap.Push(priorityQueue, prioItemMap[*tx.Hash()])
+			prioritizedTxns[*tx.Hash()] = struct{}{}
+			continue
+		}
+
+		if feeDecreased {
+			// Skip the transaction if the total feePerKb decresed.
+			// This addresses a vulnerability that would allow a low-fee
+			// transaction to have an inflated and inaccurate feePerKb based on
+			// ancestors that have already been included in the block template.
+			// The transaction will be added back to the priority queue when all
+			// parent transactions are included in the template.
+			continue
+		}
 
 		// Enforce maximum block size.  Also check for overflow.
 		txSize := uint32(tx.MsgTx().SerializeSize())
@@ -1679,6 +1700,7 @@ nextPriorityQueueItem:
 				prioItem.priority < MinHighPriority {
 
 				heap.Push(priorityQueue, prioItem)
+				prioritizedTxns[*tx.Hash()] = struct{}{}
 				continue
 			}
 		}
