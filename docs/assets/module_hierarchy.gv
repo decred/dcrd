@@ -23,7 +23,7 @@ digraph {
 	blockchain [label="blockchain/v2" fillcolor=orchid]
 	lru  [label="lru" fillcolor=royalblue3]
 	peer [label="peer/v2" fillcolor=khaki]
-	rpcclient [label="rpcclient/v4" fillcolor=mediumseagreen]
+	rpcclient [label="rpcclient/v6" fillcolor=mediumseagreen]
 	dcrd [label="dcrd" fillcolor=chocolate]
 
 	{rank=same connmgr addrmgr hdkeychain peer blockchain rpcclient}
