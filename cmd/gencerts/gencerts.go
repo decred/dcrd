@@ -80,7 +80,7 @@ func main() {
 	case "Ed25519":
 		keygen = ed25519KeyGen
 	default:
-		fmt.Fprintf(os.Stderr, "unknown algorithm %q", cfg.Algo)
+		fmt.Fprintf(os.Stderr, "unknown algorithm %q\n", cfg.Algo)
 		usage(parser)
 	}
 
