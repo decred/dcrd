@@ -238,7 +238,7 @@
 <!-- blockchain -->
 <g id="node19" class="node"><title>blockchain</title>
 <path fill="orchid" stroke="black" d="M419,-108C419,-108 348,-108 348,-108 342,-108 336,-102 336,-96 336,-96 336,-84 336,-84 336,-78 342,-72 348,-72 348,-72 419,-72 419,-72 425,-72 431,-78 431,-84 431,-84 431,-96 431,-96 431,-102 425,-108 419,-108"/>
-<text text-anchor="middle" x="383.5" y="-86.3" font-family="Times New Roman,serif" font-size="14.00">blockchain/v2</text>
+<text text-anchor="middle" x="383.5" y="-86.3" font-family="Times New Roman,serif" font-size="14.00">blockchain/v3</text>
 </g>
 <!-- standalone&#45;&gt;blockchain -->
 <g id="edge19" class="edge"><title>standalone&#45;&gt;blockchain</title>
