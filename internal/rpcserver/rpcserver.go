@@ -4536,7 +4536,7 @@ func handleSendRawTransaction(_ context.Context, s *Server, cmd interface{}) (in
 			err = fmt.Errorf("rejected transaction %v: %v", tx.Hash(),
 				err)
 			log.Debugf("%v", err)
-			if mempool.IsErrorCode(rErr, mempool.ErrDuplicate) {
+			if errors.Is(rErr, mempool.ErrDuplicate) {
 				// This is an actual exact duplicate tx, so
 				// return the specific duplicate tx error.
 				return nil, rpcDuplicateTxError("%v", err)

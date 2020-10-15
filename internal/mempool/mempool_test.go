@@ -200,7 +200,7 @@ func (s *fakeChain) CalcSequenceLock(tx *dcrutil.Tx, view *blockchain.UtxoViewpo
 				"either does not exist or has already been spent",
 				txIn.PreviousOutPoint, tx.Hash(), txInIndex)
 			return nil, blockchain.RuleError{
-				ErrorCode:   blockchain.ErrMissingTxOut,
+				Err:         blockchain.ErrMissingTxOut,
 				Description: str,
 			}
 		}
@@ -1065,7 +1065,7 @@ func TestVoteOrphan(t *testing.T) {
 
 	// Ensure the vote is rejected because it is an orphan.
 	_, err = harness.txPool.ProcessTransaction(vote, false, false, true, 0)
-	if !IsErrorCode(err, ErrOrphan) {
+	if !errors.Is(err, ErrOrphan) {
 		t.Fatalf("Process Transaction: did not get expected ErrOrphan")
 	}
 	testPoolMembership(tc, vote, false, false)
@@ -1136,7 +1136,7 @@ func TestRevocationOrphan(t *testing.T) {
 	// Ensure the vote is rejected because it is an orphan.
 	_, err = harness.txPool.ProcessTransaction(revocation, false, false, true,
 		0)
-	if !IsErrorCode(err, ErrOrphan) {
+	if !errors.Is(err, ErrOrphan) {
 		t.Fatalf("Process Transaction: did not get expected " +
 			"ErrTooManyVotes error code")
 	}
@@ -1201,7 +1201,7 @@ func TestOrphanReject(t *testing.T) {
 			t.Fatalf("ProcessTransaction: did not fail on orphan "+
 				"%v when allow orphans flag is false", tx.Hash())
 		}
-		if !IsErrorCode(err, ErrOrphan) {
+		if !errors.Is(err, ErrOrphan) {
 			t.Fatalf("ProcessTransaction: unexpected error -- got %v, want %v",
 				err, ErrOrphan)
 		}
@@ -1860,7 +1860,7 @@ func TestSequenceLockAcceptance(t *testing.T) {
 			case acceptSeqLocks && !test.valid && err == nil:
 				t.Fatalf("%s: did not reject tx", test.name)
 
-			case acceptSeqLocks && !test.valid && !IsErrorCode(err, ErrSeqLockUnmet):
+			case acceptSeqLocks && !test.valid && !errors.Is(err, ErrSeqLockUnmet):
 				t.Fatalf("%s: did not get expected ErrSeqLockUnmet",
 					test.name)
 			}
@@ -1977,7 +1977,7 @@ func TestMaxVoteDoubleSpendRejection(t *testing.T) {
 			t.Fatalf("ProcessTransaction: accepted double-spending vote with " +
 				"more than max allowed")
 		}
-		if !IsErrorCode(err, ErrTooManyVotes) {
+		if !errors.Is(err, ErrTooManyVotes) {
 			t.Fatalf("Process Transaction: did not get expected " +
 				"ErrTooManyVotes error code")
 		}
@@ -2015,7 +2015,7 @@ func TestMaxVoteDoubleSpendRejection(t *testing.T) {
 	// in the transaction pool, and not reported as available.
 	vote = votes[maxVoteDoubleSpends+1]
 	_, err = harness.txPool.ProcessTransaction(vote, false, false, true, 0)
-	if !IsErrorCode(err, ErrTooManyVotes) {
+	if !errors.Is(err, ErrTooManyVotes) {
 		t.Fatalf("Process Transaction: did not get expected " +
 			"ErrTooManyVotes error code")
 	}
@@ -2088,7 +2088,7 @@ func TestDuplicateVoteRejection(t *testing.T) {
 	// ensure it is not in the orphan pool, not in the transaction pool, and not
 	// reported as available.
 	_, err = harness.txPool.ProcessTransaction(dupVote, false, false, true, 0)
-	if !IsErrorCode(err, ErrAlreadyVoted) {
+	if !errors.Is(err, ErrAlreadyVoted) {
 		t.Fatalf("Process Transaction: did not get expected " +
 			"ErrTooManyVotes error code")
 	}
@@ -2138,7 +2138,7 @@ func TestDuplicateTxError(t *testing.T) {
 	// Ensure a second attempt to process the tx is rejected with the
 	// correct error code and that the transaction remains in the pool.
 	_, err = harness.txPool.ProcessTransaction(tx, true, false, true, 0)
-	if !IsErrorCode(err, ErrDuplicate) {
+	if !errors.Is(err, ErrDuplicate) {
 		t.Fatalf("ProcessTransaction: did get the expected ErrDuplicate")
 	}
 	testPoolMembership(tc, tx, false, true)
@@ -2162,7 +2162,7 @@ func TestDuplicateTxError(t *testing.T) {
 
 	// The second call should fail with the expected ErrDuplicate error.
 	_, err = harness.txPool.ProcessTransaction(orphan, true, false, true, 0)
-	if !IsErrorCode(err, ErrDuplicate) {
+	if !errors.Is(err, ErrDuplicate) {
 		t.Fatalf("ProcessTransaction: did not get expected ErrDuplicate")
 	}
 	testPoolMembership(tc, orphan, true, false)
@@ -2207,7 +2207,7 @@ func TestMempoolDoubleSpend(t *testing.T) {
 	// pool and the double spend is not added to the pool.
 	_, err = harness.txPool.ProcessTransaction(doubleSpendTx, true, false, true,
 		0)
-	if !IsErrorCode(err, ErrMempoolDoubleSpend) {
+	if !errors.Is(err, ErrMempoolDoubleSpend) {
 		t.Fatalf("ProcessTransaction: did not get expected ErrMempoolDoubleSpend")
 	}
 	testPoolMembership(tc, tx, false, true)
@@ -2451,13 +2451,13 @@ func TestHandlesTSpends(t *testing.T) {
 
 	// Helper that attempts to add and asserts the given tspend is rejected
 	// with the given error code.
-	rejectTSpend := func(tx *dcrutil.Tx, errCode ErrorCode) {
+	rejectTSpend := func(tx *dcrutil.Tx, kind ErrorKind) {
 		t.Helper()
 		_, err = harness.txPool.ProcessTransaction(tx, true,
 			false, true, 0)
-		if !IsErrorCode(err, errCode) {
+		if !errors.Is(err, kind) {
 			t.Fatalf("Unexpected error while processing rejected tspend. "+
-				"want=%v got=%#v", errCode, err)
+				"want=%v got=%#v", kind, err)
 		}
 		testPoolMembership(tc, tx, false, false)
 	}
@@ -2467,17 +2467,13 @@ func TestHandlesTSpends(t *testing.T) {
 	//
 	// TODO: unify with the above after mempool errors correctly handle
 	// errors.Is/As.
-	rejectTSpendChainError := func(tx *dcrutil.Tx, errCode blockchain.ErrorCode) {
+	rejectTSpendChainError := func(tx *dcrutil.Tx, kind blockchain.ErrorKind) {
 		t.Helper()
 		_, err = harness.txPool.ProcessTransaction(tx, true,
 			false, true, 0)
-		rerr, ok := err.(RuleError)
-		if !ok {
-			t.Fatalf("Returned error is not a rule error: %#v", err)
-		}
-		if !blockchain.IsErrorCode(rerr.Err, errCode) {
+		if !errors.Is(err, kind) {
 			t.Fatalf("Unexpected error while processing rejected tspend. "+
-				"want=%v got=%#v", errCode, err)
+				"want=%v got=%#v", kind, err)
 		}
 		testPoolMembership(tc, tx, false, false)
 	}

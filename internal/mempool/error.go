@@ -12,116 +12,132 @@ import (
 	"github.com/decred/dcrd/blockchain/v3"
 )
 
-// RuleError identifies a rule violation.  It is used to indicate that
-// processing of a transaction failed due to one of the many validation
-// rules.  The caller can use type assertions to determine if a failure was
-// specifically due to a rule violation and use the Err field to access the
-// underlying error, which will be either a TxRuleError or a
-// blockchain.RuleError.
-type RuleError struct {
-	Err error
-}
-
-// Error satisfies the error interface and prints human-readable errors.
-func (e RuleError) Error() string {
-	if e.Err == nil {
-		return "<nil>"
-	}
-	return e.Err.Error()
-}
-
-// ErrorCode identifies the kind of error.
-type ErrorCode int
+// ErrorKind identifies a kind of error.  It has full support for errors.Is and
+// errors.As, so the caller can directly check against an error kind when
+// determining the reason for an error.
+type ErrorKind string
 
 const (
-	ErrOther ErrorCode = iota
-	ErrInvalid
-	ErrOrphanPolicyViolation
-	ErrMempoolDoubleSpend
-	ErrAlreadyVoted
-	ErrDuplicate
-	ErrCoinbase
-	ErrExpired
-	ErrNonStandard
-	ErrDustOutput
-	ErrInsufficientFee
-	ErrTooManyVotes
-	ErrDuplicateRevocation
-	ErrOldVote
-	ErrAlreadyExists
-	ErrSeqLockUnmet
-	ErrInsufficientPriority
-	ErrFeeTooHigh
-	ErrOrphan
-	ErrTooManyTSpends
-	ErrTSpendMinedOnAncestor
-	ErrTSpendInvalidExpiry
+	// ErrorInvalid indicates a mempool transaction is invalid per consensus.
+	ErrInvalid = ErrorKind("ErrInvalid")
+
+	// ErrorOrphanPolicyViolation indicates that an orphan block violates the
+	// prevailing orphan policy.
+	ErrOrphanPolicyViolation = ErrorKind("ErrOrphanPolicyViolation")
+
+	// ErrMempoolDoubleSpend indicates a transaction that attempts to to spend
+	// coins already spent by other transactions in the pool.
+	ErrMempoolDoubleSpend = ErrorKind("ErrMempoolDoubleSpend")
+
+	// ErrAlreadyVoted indicates a ticket already voted.
+	ErrAlreadyVoted = ErrorKind("ErrorAlreadyVoted")
+
+	// ErrDuplicate indicates a transaction already exists in the mempool.
+	ErrDuplicate = ErrorKind("ErrDuplicate")
+
+	// ErrCoinbase indicates a transaction is a standalone coinbase transaction.
+	ErrCoinbase = ErrorKind("ErrCoinbase")
+
+	// ErrExpired indicates a transaction will be expired as of the next block.
+	ErrExpired = ErrorKind("ErrExpired")
+
+	// ErrNonStandard indicates a non-standard transaction.
+	ErrNonStandard = ErrorKind("ErrNonStandard")
+
+	// ErrDustOutput indicates a transaction has one or more dust outputs.
+	ErrDustOutput = ErrorKind("ErrDustOutput")
+
+	// ErrInsufficientFee indicates a transaction cannot does not pay the minimum
+	// fee required by the active policy.
+	ErrInsufficientFee = ErrorKind("ErrInsufficientFee")
+
+	// ErrTooManyVotes indicates the number of vote double spends exceeds the
+	// maximum allowed.
+	ErrTooManyVotes = ErrorKind("ErrTooManyVotes")
+
+	// ErrDuplicateRevocation indicates a revocation already exists in the
+	// mempool.
+	ErrDuplicateRevocation = ErrorKind("ErrDuplicateRevocation")
+
+	// ErrOldVote indicates a ticket votes on a block height lower than
+	// the minimum allowed by the mempool.
+	ErrOldVote = ErrorKind("ErrOldVote")
+
+	// ErrAlreadyExists indicates a transaction already exists on the
+	// main chain and is not fully spent.
+	ErrAlreadyExists = ErrorKind("ErrAlreadyExists")
+
+	// ErrSeqLockUnmet indicates a transaction sequence locks are not active.
+	ErrSeqLockUnmet = ErrorKind("ErrSeqLockUnmet")
+
+	// ErrInsufficientPriority indicates a non-stake transaction has a
+	// priority lower than the minimum allowed.
+	ErrInsufficientPriority = ErrorKind("ErrInsufficientPriority")
+
+	// ErrFeeTooHigh indicates a transaction pays fees above the maximum
+	// allowed by the active policy.
+	ErrFeeTooHigh = ErrorKind("ErrFeeTooHigh")
+
+	// ErrOrphan indicates a transaction is an orphan.
+	ErrOrphan = ErrorKind("ErrOrphan")
+
+	// ErrTooManyTSpends indicates the number of treasury spend hashes exceeds
+	// the maximum allowed.
+	ErrTooManyTSpends = ErrorKind("ErrTooManyTSpends")
+
+	// ErrTSpendMinedOnAncestor indicates a referenced treasury spend was
+	// already mined on an ancestor block.
+	ErrTSpendMinedOnAncestor = ErrorKind("ErrTSpendMinedOnAncestor")
+
+	// ErrTSpendInvalidExpiry indicates a treasury spend expiry is invalid.
+	ErrTSpendInvalidExpiry = ErrorKind("ErrTSpendInvalidExpiry")
 )
 
-// TxRuleError identifies a rule violation.  It is used to indicate that
-// processing of a transaction failed due to one of the many validation
-// rules.  The caller can use type assertions to determine if a failure was
-// specifically due to a rule violation and access the ErrorCode field to
-// ascertain the specific reason for the rule violation.
-type TxRuleError struct {
-	// ErrorCode is the mempool package error code ID.
-	ErrorCode ErrorCode
+// Error satisfies the error interface and prints human-readable errors.
+func (e ErrorKind) Error() string {
+	return string(e)
+}
 
-	// Description is an additional human readable description of the
-	// error.
+// RuleError identifies a rule violation.  It is used to indicate that
+// processing of a transaction failed due to one of the many validation
+// rules.  It has full support for errors.Is and errors.As, so the caller
+// can ascertain the specific reason for the error by checking the
+// underlying error, which will be either an ErrorKind or blockchain.RuleError.
+type RuleError struct {
+	Err         error
 	Description string
 }
 
 // Error satisfies the error interface and prints human-readable errors.
-func (e TxRuleError) Error() string {
+func (e RuleError) Error() string {
 	return e.Description
 }
 
-// txRuleError creates an underlying TxRuleError with the given a set of
-// arguments and returns a RuleError that encapsulates it.
-func txRuleError(code ErrorCode, desc string) RuleError {
-	return RuleError{
-		Err: TxRuleError{ErrorCode: code, Description: desc},
-	}
+// Unwrap returns the underlying wrapped error.
+func (e RuleError) Unwrap() error {
+	return e.Err
 }
 
 // chainRuleError returns a RuleError that encapsulates the given
 // blockchain.RuleError.
 func chainRuleError(chainErr blockchain.RuleError) RuleError {
-	return RuleError{
-		Err: chainErr,
-	}
+	return RuleError{Err: chainErr, Description: chainErr.Description}
 }
 
-// IsErrorCode returns true if the passed error encodes a TxRuleError with the
-// given ErrorCode, either directly or embedded in an outer RuleError.
-func IsErrorCode(err error, code ErrorCode) bool {
-	// Unwrap RuleError if necessary.
-	var rerr RuleError
-	if errors.As(err, &rerr) {
-		err = rerr.Err
-	}
-
-	var trerr TxRuleError
-	return errors.As(err, &trerr) &&
-		trerr.ErrorCode == code
+// txRuleError creates a RuleError given a set of arguments.
+func txRuleError(kind ErrorKind, desc string) RuleError {
+	return RuleError{Err: kind, Description: desc}
 }
 
-// wrapTxRuleError returns a new RuleError with an underlying TxRuleError,
+// wrapTxRuleError returns a new RuleError with an underlying ErrorKind,
 // replacing the description with the provided one while retaining the error
-// code from the original error if it can be determined.
-func wrapTxRuleError(errorCode ErrorCode, desc string, err error) error {
-	// Unwrap the underlying error if err is a RuleError
-	var rerr RuleError
-	if errors.As(err, &rerr) {
-		err = rerr.Err
-	}
-
-	// Override the passed error code with the ones from the error if it is a
-	// TxRuleError.
-	var txerr TxRuleError
-	if errors.As(err, &txerr) {
-		errorCode = txerr.ErrorCode
+// kind from the original error if it can be determined.
+func wrapTxRuleError(kind ErrorKind, desc string, err error) error {
+	// Override the passed error kind with the one from the error if it is an
+	// ErrorKind.
+	var kerr ErrorKind
+	if errors.As(err, &kerr) {
+		kind = kerr
 	}
 
 	// Fill a default error description if empty.
@@ -129,5 +145,5 @@ func wrapTxRuleError(errorCode ErrorCode, desc string, err error) error {
 		desc = fmt.Sprintf("rejected: %v", err)
 	}
 
-	return txRuleError(errorCode, desc)
+	return txRuleError(kind, desc)
 }

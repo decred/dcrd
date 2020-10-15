@@ -662,76 +662,63 @@ func (b *blockManager) handleDonePeerMsg(peer *peerpkg.Peer) {
 // given error. This function can convert some select blockchain and mempool
 // error types to the historical rejection codes used on the p2p wire protocol.
 func errToWireRejectCode(err error) (wire.RejectCode, string) {
-	// Unwrap mempool errors.
-	var rerr mempool.RuleError
-	if errors.As(err, &rerr) {
-		err = rerr.Err
-	}
-
 	// The default reason to reject a transaction/block is due to it being
 	// invalid somehow.
 	code := wire.RejectInvalid
 	var reason string
 
-	var berr blockchain.RuleError
-	var terr mempool.TxRuleError
+	// Convert recognized errors to a reject code.
 	switch {
-	case errors.As(err, &berr):
-		// Convert the chain error to a reject code.
-		switch berr.ErrorCode {
-		// Rejected due to duplicate.
-		case blockchain.ErrDuplicateBlock:
-			code = wire.RejectDuplicate
+	// Rejected due to duplicate.
+	case errors.Is(err, blockchain.ErrDuplicateBlock):
+		code = wire.RejectDuplicate
+		reason = err.Error()
 
-		// Rejected due to obsolete version.
-		case blockchain.ErrBlockVersionTooOld:
-			code = wire.RejectObsolete
+	// Rejected due to obsolete version.
+	case errors.Is(err, blockchain.ErrBlockVersionTooOld):
+		code = wire.RejectObsolete
+		reason = err.Error()
 
-		// Rejected due to checkpoint.
-		case blockchain.ErrCheckpointTimeTooOld,
-			blockchain.ErrDifficultyTooLow,
-			blockchain.ErrBadCheckpoint,
-			blockchain.ErrForkTooOld:
+	// Rejected due to checkpoint.
+	case errors.Is(err, blockchain.ErrCheckpointTimeTooOld),
+		errors.Is(err, blockchain.ErrDifficultyTooLow),
+		errors.Is(err, blockchain.ErrBadCheckpoint),
+		errors.Is(err, blockchain.ErrForkTooOld):
+		code = wire.RejectCheckpoint
+		reason = err.Error()
 
-			code = wire.RejectCheckpoint
-		}
+	// Error codes which map to a duplicate transaction already
+	// mined or in the mempool.
+	case errors.Is(err, mempool.ErrMempoolDoubleSpend),
+		errors.Is(err, mempool.ErrAlreadyVoted),
+		errors.Is(err, mempool.ErrDuplicate),
+		errors.Is(err, mempool.ErrTooManyVotes),
+		errors.Is(err, mempool.ErrDuplicateRevocation),
+		errors.Is(err, mempool.ErrAlreadyExists),
+		errors.Is(err, mempool.ErrOrphan):
+		code = wire.RejectDuplicate
+		reason = err.Error()
 
-		reason = berr.Error()
-	case errors.As(err, &terr):
-		switch terr.ErrorCode {
-		// Error codes which map to a duplicate transaction already
-		// mined or in the mempool.
-		case mempool.ErrMempoolDoubleSpend,
-			mempool.ErrAlreadyVoted,
-			mempool.ErrDuplicate,
-			mempool.ErrTooManyVotes,
-			mempool.ErrDuplicateRevocation,
-			mempool.ErrAlreadyExists,
-			mempool.ErrOrphan:
+	// Error codes which map to a non-standard transaction being
+	// relayed.
+	case errors.Is(err, mempool.ErrOrphanPolicyViolation),
+		errors.Is(err, mempool.ErrOldVote),
+		errors.Is(err, mempool.ErrSeqLockUnmet),
+		errors.Is(err, mempool.ErrNonStandard):
+		code = wire.RejectNonstandard
+		reason = err.Error()
 
-			code = wire.RejectDuplicate
+	// Error codes which map to an insufficient fee being paid.
+	case errors.Is(err, mempool.ErrInsufficientFee),
+		errors.Is(err, mempool.ErrInsufficientPriority):
+		code = wire.RejectInsufficientFee
+		reason = err.Error()
 
-		// Error codes which map to a non-standard transaction being
-		// relayed.
-		case mempool.ErrOrphanPolicyViolation,
-			mempool.ErrOldVote,
-			mempool.ErrSeqLockUnmet,
-			mempool.ErrNonStandard:
+	// Error codes which map to an attempt to create dust outputs.
+	case errors.Is(err, mempool.ErrDustOutput):
+		code = wire.RejectDust
+		reason = err.Error()
 
-			code = wire.RejectNonstandard
-
-		// Error codes which map to an insufficient fee being paid.
-		case mempool.ErrInsufficientFee,
-			mempool.ErrInsufficientPriority:
-
-			code = wire.RejectInsufficientFee
-
-		// Error codes which map to an attempt to create dust outputs.
-		case mempool.ErrDustOutput:
-			code = wire.RejectDust
-		}
-
-		reason = terr.Error()
 	default:
 		reason = fmt.Sprintf("rejected: %v", err)
 	}
@@ -1005,7 +992,7 @@ func (b *blockManager) processBlockAndOrphans(block *dcrutil.Block, flags blockc
 	// returned indicates the block is an orphan.
 	blockHash := block.Hash()
 	forkLen, err := b.cfg.Chain.ProcessBlock(block, flags)
-	if blockchain.IsErrorCode(err, blockchain.ErrMissingParent) {
+	if errors.Is(err, blockchain.ErrMissingParent) {
 		bmgrLog.Infof("Adding orphan block %v with parent %v", blockHash,
 			block.MsgBlock().Header.PrevBlock)
 		b.addOrphanBlock(block)
@@ -1846,26 +1833,16 @@ func headerApprovesParent(header *wire.BlockHeader) bool {
 // is expected to have come from mempool, indicates a transaction was rejected
 // either due to containing a double spend or already existing in the pool.
 func isDoubleSpendOrDuplicateError(err error) bool {
-	var merr mempool.RuleError
-	if !errors.As(err, &merr) {
-		return false
+	switch {
+	case errors.Is(err, mempool.ErrDuplicate):
+		return true
+	case errors.Is(err, mempool.ErrAlreadyExists):
+		return true
+	case errors.Is(err, blockchain.ErrMissingTxOut):
+		return true
 	}
 
-	var rerr mempool.TxRuleError
-	if errors.As(merr.Err, &rerr) {
-		switch rerr.ErrorCode {
-		case mempool.ErrDuplicate:
-			return true
-		case mempool.ErrAlreadyExists:
-			return true
-		default:
-			return false
-		}
-	}
-
-	var cerr blockchain.RuleError
-	return errors.As(merr.Err, &cerr) &&
-		cerr.ErrorCode == blockchain.ErrMissingTxOut
+	return false
 }
 
 // handleBlockchainNotification handles notifications from blockchain.  It does
