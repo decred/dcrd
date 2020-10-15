@@ -3175,15 +3175,16 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB, chainP
 
 	txC := mempool.Config{
 		Policy: mempool.Policy{
-			MaxTxVersion:         wire.TxVersionTreasury,
-			DisableRelayPriority: cfg.NoRelayPriority,
-			AcceptNonStd:         cfg.AcceptNonStd,
-			FreeTxRelayLimit:     cfg.FreeTxRelayLimit,
-			MaxOrphanTxs:         cfg.MaxOrphanTxs,
-			MaxOrphanTxSize:      mempool.MaxStandardTxSize,
-			MaxSigOpsPerTx:       blockchain.MaxSigOpsPerBlock / 5,
-			MinRelayTxFee:        cfg.minRelayTxFee,
-			AllowOldVotes:        cfg.AllowOldVotes,
+			EnableAncestorTracking: len(cfg.miningAddrs) > 0,
+			MaxTxVersion:           wire.TxVersionTreasury,
+			DisableRelayPriority:   cfg.NoRelayPriority,
+			AcceptNonStd:           cfg.AcceptNonStd,
+			FreeTxRelayLimit:       cfg.FreeTxRelayLimit,
+			MaxOrphanTxs:           cfg.MaxOrphanTxs,
+			MaxOrphanTxSize:        mempool.MaxStandardTxSize,
+			MaxSigOpsPerTx:         blockchain.MaxSigOpsPerBlock / 5,
+			MinRelayTxFee:          cfg.minRelayTxFee,
+			AllowOldVotes:          cfg.AllowOldVotes,
 			MaxVoteAge: func() uint16 {
 				switch chainParams.Net {
 				case wire.MainNet, wire.SimNet, wire.RegNet:

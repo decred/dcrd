@@ -62,6 +62,73 @@ type TxDesc struct {
 
 	// Fee is the total fee the transaction associated with the entry pays.
 	Fee int64
+
+	// TotalSigOps is the total signature operations for this transaction.
+	TotalSigOps int
+}
+
+// TxAncestorStats is a descriptor that stores aggregated statistics for the
+// unconfirmed ancestors of a transasction.
+type TxAncestorStats struct {
+	// Fees is the sum of all fees of unconfirmed ancestors.
+	Fees int64
+
+	// SizeBytes is the total size of all unconfirmed ancestors.
+	SizeBytes int64
+
+	// TotalSigOps is the total number of signature operations of all ancestors.
+	TotalSigOps int
+
+	// NumAncestors is the total number of ancestors for a given transaction.
+	NumAncestors int
+}
+
+// TxMiningView is a snapshot of the tx source.
+type TxMiningView interface {
+	// TxDescs returns a slice of mining descriptors for all minable
+	// transactions in the source pool.
+	TxDescs() []*TxDesc
+
+	// AncestorStats returns the last known ancestor stats for the provided
+	// transaction hash, and a boolean indicating whether ancestors are being
+	// tracked for it.
+	//
+	// Calling Ancestors will update the value returned by this function to
+	// reflect the newly calculated statistics for those ancestors.
+	AncestorStats(txHash *chainhash.Hash) (*TxAncestorStats, bool)
+
+	// Ancestors returns all transactions in the mining view that the provided
+	// transaction hash depends on.
+	Ancestors(txHash *chainhash.Hash) []*TxDesc
+
+	// HasParents returns true if the provided transaction hash has any
+	// ancestors known to the view.
+	HasParents(txHash *chainhash.Hash) bool
+
+	// Parents returns a set of transactions in the graph that the provided
+	// transaction hash spends from in the view. The order of elements
+	// returned is not guaranteed.
+	Parents(txHash *chainhash.Hash) []*TxDesc
+
+	// Children returns a set of transactions in the graph that spend
+	// from the provided transaction hash. The order of elements
+	// returned is not guaranteed.
+	Children(txHash *chainhash.Hash) []*TxDesc
+
+	// Remove causes the provided transaction to be removed from the view, if
+	// it exists. The updateDescendantStats parameter indicates whether the
+	// descendent transactions of the provided txHash should have their ancestor
+	// stats updated within the view to account for the removal of this
+	// transaction.
+	Remove(txHash *chainhash.Hash, updateDescendantStats bool)
+
+	// Reject removes and flags the provided transaction hash and all of its
+	// descendants in the view as rejected.
+	Reject(txHash *chainhash.Hash)
+
+	// IsRejected checks to see if a transaction that once existed in the view
+	// has been rejected.
+	IsRejected(txHash *chainhash.Hash) bool
 }
 
 // VoteDesc is a descriptor about a vote transaction in a transaction source
@@ -81,10 +148,6 @@ type TxSource interface {
 	// LastUpdated returns the last time a transaction was added to or
 	// removed from the source pool.
 	LastUpdated() time.Time
-
-	// MiningDescs returns a slice of mining descriptors for all the
-	// transactions in the source pool.
-	MiningDescs() []*TxDesc
 
 	// HaveTransaction returns whether or not the passed transaction hash
 	// exists in the source pool.
@@ -108,6 +171,9 @@ type TxSource interface {
 	// known to be disapproved according to the votes currently in the
 	// source pool.
 	IsRegTxTreeKnownDisapproved(hash *chainhash.Hash) bool
+
+	// MiningView returns a snapshot of the underlying TxSource.
+	MiningView() TxMiningView
 }
 
 const (
@@ -154,17 +220,11 @@ const (
 // transaction to be prioritized and track dependencies on other transactions
 // which have not been mined into a block yet.
 type txPrioItem struct {
-	tx       *dcrutil.Tx
+	txDesc   *TxDesc
 	txType   stake.TxType
 	fee      int64
 	priority float64
 	feePerKB float64
-
-	// dependsOn holds a map of transaction hashes which this one depends
-	// on.  It will only be set when the transaction references other
-	// transactions in the source pool and hence must come after them in
-	// a block.
-	dependsOn map[chainhash.Hash]struct{}
 }
 
 // txPriorityQueueLessFunc describes a function that can be used as a compare
@@ -762,14 +822,14 @@ func spendTransaction(utxoView *blockchain.UtxoViewpoint, tx *dcrutil.Tx, height
 
 // logSkippedDeps logs any dependencies which are also skipped as a result of
 // skipping a transaction while generating a block template at the trace level.
-func logSkippedDeps(tx *dcrutil.Tx, deps map[chainhash.Hash]*txPrioItem) {
+func logSkippedDeps(tx *dcrutil.Tx, deps []*TxDesc) {
 	if deps == nil {
 		return
 	}
 
 	for _, item := range deps {
 		log.Tracef("Skipping tx %s since it depends on %s\n",
-			item.tx.Hash(), tx.Hash())
+			item.Tx.Hash(), tx.Hash())
 	}
 }
 
@@ -1039,6 +1099,14 @@ func NewBlkTmplGenerator(policy *Policy, txSource TxSource,
 	}
 }
 
+// calcFeePerKb returns an adjusted fee per kilobyte taking the provided
+// transaction and its ancestors into account.
+func calcFeePerKb(txDesc *TxDesc, ancestorStats *TxAncestorStats) float64 {
+	txSize := txDesc.Tx.MsgTx().SerializeSize()
+	return (float64(txDesc.Fee+ancestorStats.Fees) * float64(kilobyte)) /
+		float64(int64(txSize)+ancestorStats.SizeBytes)
+}
+
 // NewBlockTemplate returns a new block template that is ready to be solved
 // using the transactions from the passed transaction source pool and a coinbase
 // that either pays to the passed address if it is not nil, or a coinbase that
@@ -1235,13 +1303,15 @@ func (g *BlkTmplGenerator) NewBlockTemplate(payToAddress dcrutil.Address) (*Bloc
 	// number of items that are available for the priority queue.  Also,
 	// choose the initial sort order for the priority queue based on whether
 	// or not there is an area allocated for high-priority transactions.
-	sourceTxns := g.txSource.MiningDescs()
+	miningView := g.txSource.MiningView()
+	sourceTxns := miningView.TxDescs()
 	sortedByFee := g.policy.BlockPrioritySize == 0
 	lessFunc := txPQByStakeAndFeeAndThenPriority
 	if sortedByFee {
 		lessFunc = txPQByStakeAndFee
 	}
 	priorityQueue := newTxPriorityQueue(len(sourceTxns), lessFunc)
+	prioritizedTxns := make(map[chainhash.Hash]struct{}, len(sourceTxns))
 
 	// Create a slice to hold the transactions to be included in the
 	// generated block with reserved space.  Also create a utxo view to
@@ -1249,13 +1319,6 @@ func (g *BlkTmplGenerator) NewBlockTemplate(payToAddress dcrutil.Address) (*Bloc
 	// avoided.
 	blockTxns := make([]*dcrutil.Tx, 0, len(sourceTxns))
 	blockUtxos := blockchain.NewUtxoViewpoint(g.chain)
-
-	// dependers is used to track transactions which depend on another
-	// transaction in the source pool.  This, in conjunction with the
-	// dependsOn map kept with each dependent transaction helps quickly
-	// determine which dependent transactions are now eligible for inclusion
-	// in the block once each transaction has been included.
-	dependers := make(map[chainhash.Hash]map[chainhash.Hash]*txPrioItem)
 
 	// Create slices to hold the fees and number of signature operations
 	// for each of the selected transactions and add an entry for the
@@ -1272,6 +1335,11 @@ func (g *BlkTmplGenerator) NewBlockTemplate(payToAddress dcrutil.Address) (*Bloc
 	log.Debugf("Considering %d transactions for inclusion to new block",
 		len(sourceTxns))
 	knownDisapproved := g.txSource.IsRegTxTreeKnownDisapproved(&prevHash)
+
+	// Tracks the total number of transactions that depend on another
+	// from the tx source.
+	totalDescendantTxns := 0
+	prioItemMap := make(map[chainhash.Hash]*txPrioItem, len(sourceTxns))
 
 mempoolLoop:
 	for _, txDesc := range sourceTxns {
@@ -1308,9 +1376,6 @@ mempoolLoop:
 		}
 
 		// Fetch all of the utxos referenced by the this transaction.
-		// NOTE: This intentionally does not fetch inputs from the
-		// mempool since a transaction which depends on other
-		// transactions in the mempool must come after those
 		utxos, err := g.chain.FetchUtxoView(tx, !knownDisapproved)
 		if err != nil {
 			log.Warnf("Unable to fetch utxo view for tx %s: "+
@@ -1321,7 +1386,7 @@ mempoolLoop:
 		// Setup dependencies for any transactions which reference
 		// other transactions in the mempool so they can be properly
 		// ordered below.
-		prioItem := &txPrioItem{tx: txDesc.Tx, txType: txDesc.Type}
+		prioItem := &txPrioItem{txDesc: txDesc, txType: txDesc.Type}
 		for i, txIn := range tx.MsgTx().TxIn {
 			// Evaluate if this is a stakebase input or not. If it is, continue
 			// without evaluation of the input.
@@ -1341,25 +1406,6 @@ mempoolLoop:
 						tx.Hash(), txIn.PreviousOutPoint)
 					continue mempoolLoop
 				}
-
-				// The transaction is referencing another
-				// transaction in the source pool, so setup an
-				// ordering dependency.
-				deps, exists := dependers[*originHash]
-				if !exists {
-					deps = make(map[chainhash.Hash]*txPrioItem)
-					dependers[*originHash] = deps
-				}
-				deps[*prioItem.tx.Hash()] = prioItem
-				if prioItem.dependsOn == nil {
-					prioItem.dependsOn = make(
-						map[chainhash.Hash]struct{})
-				}
-				prioItem.dependsOn[*originHash] = struct{}{}
-
-				// Skip the check below. We already know the
-				// referenced transaction is available.
-				continue
 			}
 		}
 
@@ -1374,15 +1420,21 @@ mempoolLoop:
 		// during calcMinRelayFee which rounds up to the nearest full
 		// kilobyte boundary.  This is beneficial since it provides an
 		// incentive to create smaller transactions.
-		txSize := tx.MsgTx().SerializeSize()
-		prioItem.feePerKB = (float64(txDesc.Fee) * float64(kilobyte)) /
-			float64(txSize)
-		prioItem.fee = txDesc.Fee
+		ancestorStats, hasStats := miningView.AncestorStats(tx.Hash())
+		prioItem.feePerKB = calcFeePerKb(txDesc, ancestorStats)
+		prioItem.fee = txDesc.Fee + ancestorStats.Fees
+		prioItemMap[*tx.Hash()] = prioItem
+		hasParents := miningView.HasParents(tx.Hash())
 
-		// Add the transaction to the priority queue to mark it ready
-		// for inclusion in the block unless it has dependencies.
-		if prioItem.dependsOn == nil {
+		if !hasParents || hasStats {
 			heap.Push(priorityQueue, prioItem)
+			prioritizedTxns[*tx.Hash()] = struct{}{}
+			blockUtxos.AddTxOuts(tx, nextBlockHeight, wire.NullBlockIndex,
+				isTreasuryEnabled)
+		}
+
+		if hasParents {
+			totalDescendantTxns++
 		}
 
 		// Merge the referenced outputs from the input transactions to
@@ -1392,7 +1444,7 @@ mempoolLoop:
 	}
 
 	log.Tracef("Priority queue len %d, dependers len %d",
-		priorityQueue.Len(), len(dependers))
+		priorityQueue.Len(), totalDescendantTxns)
 
 	// The starting block size is the size of the block header plus the max
 	// possible transaction count size, plus the size of the coinbase
@@ -1416,12 +1468,22 @@ mempoolLoop:
 		foundWinningTickets[ticketHash] = false
 	}
 
+	// Maintain lookup of transactions that have been included in the block
+	// template.
+	templateTxnMap := make(map[chainhash.Hash]struct{})
+
 	// Choose which transactions make it into the block.
+nextPriorityQueueItem:
 	for priorityQueue.Len() > 0 {
 		// Grab the highest priority (or highest fee per kilobyte
 		// depending on the sort order) transaction.
 		prioItem := heap.Pop(priorityQueue).(*txPrioItem)
-		tx := prioItem.tx
+		tx := prioItem.txDesc.Tx
+		delete(prioritizedTxns, *tx.Hash())
+
+		if _, exist := templateTxnMap[*tx.Hash()]; exist {
+			continue
+		}
 
 		// Store if this is an SStx or not.
 		isSStx := prioItem.txType == stake.TxTypeSStx
@@ -1442,7 +1504,7 @@ mempoolLoop:
 		}
 
 		// Grab the list of transactions which depend on this one (if any).
-		deps := dependers[*tx.Hash()]
+		deps := miningView.Children(tx.Hash())
 
 		// Skip TSpend if this block is not on a TVI or outside of the
 		// Tspend window.
@@ -1526,9 +1588,40 @@ mempoolLoop:
 			}
 		}
 
+		if miningView.IsRejected(tx.Hash()) {
+			// If the transaction or any of its ancestors have been rejected,
+			// discard the transaction.
+			continue
+		}
+
+		ancestors := miningView.Ancestors(tx.Hash())
+		ancestorStats, _ := miningView.AncestorStats(tx.Hash())
+		oldFee := prioItem.feePerKB
+		prioItem.feePerKB = calcFeePerKb(prioItem.txDesc, ancestorStats)
+
+		feeDecreased := oldFee > prioItem.feePerKB
+		if feeDecreased && ancestorStats.NumAncestors == 0 {
+			// If the fee decreased due to ancestors being included in the
+			// template and the transaction has no parents, then enqueue it one
+			// more time with an accurate feePerKb.
+			heap.Push(priorityQueue, prioItemMap[*tx.Hash()])
+			prioritizedTxns[*tx.Hash()] = struct{}{}
+			continue
+		}
+
+		if feeDecreased {
+			// Skip the transaction if the total feePerKb decreased.
+			// This addresses a vulnerability that would allow a low-fee
+			// transaction to have an inflated and inaccurate feePerKb based on
+			// ancestors that have already been included in the block template.
+			// The transaction will be added back to the priority queue when all
+			// parent transactions are included in the template.
+			continue
+		}
+
 		// Enforce maximum block size.  Also check for overflow.
 		txSize := uint32(tx.MsgTx().SerializeSize())
-		blockPlusTxSize := blockSize + txSize
+		blockPlusTxSize := blockSize + txSize + uint32(ancestorStats.SizeBytes)
 		if blockPlusTxSize < blockSize ||
 			blockPlusTxSize >= g.policy.BlockMaxSize {
 			log.Tracef("Skipping tx %s (size %v) because it "+
@@ -1536,38 +1629,20 @@ mempoolLoop:
 				"size %v, cur num tx %v", tx.Hash(), txSize,
 				blockSize, len(blockTxns))
 			logSkippedDeps(tx, deps)
+			miningView.Reject(tx.Hash())
 			continue
 		}
 
 		// Enforce maximum signature operations per block.  Also check
 		// for overflow.
-		numSigOps := int64(blockchain.CountSigOps(tx, false, isSSGen,
-			isTreasuryEnabled))
-		if blockSigOps+numSigOps < blockSigOps ||
-			blockSigOps+numSigOps > blockchain.MaxSigOpsPerBlock {
+		numSigOps := int64(prioItem.txDesc.TotalSigOps)
+		numSigOpsBundle := numSigOps + int64(ancestorStats.TotalSigOps)
+		if blockSigOps+numSigOpsBundle < blockSigOps ||
+			blockSigOps+numSigOpsBundle > blockchain.MaxSigOpsPerBlock {
 			log.Tracef("Skipping tx %s because it would "+
 				"exceed the maximum sigops per block", tx.Hash())
 			logSkippedDeps(tx, deps)
-			continue
-		}
-
-		// This isn't very expensive, but we do this check a number of times.
-		// Consider caching this in the mempool in the future. - Decred
-		numP2SHSigOps, err := blockchain.CountP2SHSigOps(tx, false,
-			isSSGen, blockUtxos, isTreasuryEnabled)
-		if err != nil {
-			log.Tracef("Skipping tx %s due to error in "+
-				"CountP2SHSigOps: %v", tx.Hash(), err)
-			logSkippedDeps(tx, deps)
-			continue
-		}
-		numSigOps += int64(numP2SHSigOps)
-		if blockSigOps+numSigOps < blockSigOps ||
-			blockSigOps+numSigOps > blockchain.MaxSigOpsPerBlock {
-			log.Tracef("Skipping tx %s because it would "+
-				"exceed the maximum sigops per block (p2sh)",
-				tx.Hash())
-			logSkippedDeps(tx, deps)
+			miningView.Reject(tx.Hash())
 			continue
 		}
 
@@ -1603,6 +1678,7 @@ mempoolLoop:
 				g.policy.TxMinFreeFee, blockPlusTxSize,
 				g.policy.BlockMinSize)
 			logSkippedDeps(tx, deps)
+			miningView.Reject(tx.Hash())
 			continue
 		}
 
@@ -1631,72 +1707,98 @@ mempoolLoop:
 				prioItem.priority < MinHighPriority {
 
 				heap.Push(priorityQueue, prioItem)
+				prioritizedTxns[*tx.Hash()] = struct{}{}
 				continue
 			}
 		}
 
-		// Ensure the transaction inputs pass all of the necessary
-		// preconditions before allowing it to be added to the block.
-		// The fraud proof is not checked because it will be filled in
-		// by the miner.
-		_, err = blockchain.CheckTransactionInputs(g.subsidyCache, tx,
-			nextBlockHeight, blockUtxos, false, g.chainParams,
-			isTreasuryEnabled)
-		if err != nil {
-			log.Tracef("Skipping tx %s due to error in "+
-				"CheckTransactionInputs: %v", tx.Hash(), err)
-			logSkippedDeps(tx, deps)
-			continue
-		}
-		err = blockchain.ValidateTransactionScripts(tx, blockUtxos,
-			scriptFlags, g.sigCache)
-		if err != nil {
-			log.Tracef("Skipping tx %s due to error in "+
-				"ValidateTransactionScripts: %v", tx.Hash(), err)
-			logSkippedDeps(tx, deps)
-			continue
-		}
-
-		// Spend the transaction inputs in the block utxo view and add
-		// an entry for it to ensure any transactions which reference
-		// this one have it available as an input and can ensure they
-		// aren't double spending.
-		spendTransaction(blockUtxos, tx, nextBlockHeight, isTreasuryEnabled)
-
-		// Add the transaction to the block, increment counters, and
-		// save the fees and signature operation counts to the block
-		// template.
-		blockTxns = append(blockTxns, tx)
-		blockSize += txSize
-		blockSigOps += numSigOps
-
-		// Accumulate the SStxs in the block, because only a certain number
-		// are allowed.
-		if isSStx {
-			numSStx++
-		}
-		if isSSGen {
-			foundWinningTickets[tx.MsgTx().TxIn[1].PreviousOutPoint.Hash] = true
-		}
-		if isTAdd {
-			numTAdds++
+		txBundle := append(ancestors, prioItem.txDesc)
+		for _, bundledTx := range txBundle {
+			// Ensure the transaction inputs pass all of the necessary
+			// preconditions before allowing it to be added to the block.
+			// The fraud proof is not checked because it will be filled in
+			// by the miner.
+			_, err = blockchain.CheckTransactionInputs(g.subsidyCache,
+				bundledTx.Tx, nextBlockHeight, blockUtxos, false, g.chainParams,
+				isTreasuryEnabled)
+			if err != nil {
+				log.Tracef("Skipping tx %s due to error in "+
+					"CheckTransactionInputs: %v", bundledTx.Tx.Hash(), err)
+				logSkippedDeps(bundledTx.Tx, deps)
+				miningView.Reject(bundledTx.Tx.Hash())
+				continue nextPriorityQueueItem
+			}
+			err = blockchain.ValidateTransactionScripts(bundledTx.Tx,
+				blockUtxos, scriptFlags, g.sigCache)
+			if err != nil {
+				log.Tracef("Skipping tx %s due to error in "+
+					"ValidateTransactionScripts: %v", bundledTx.Tx.Hash(), err)
+				logSkippedDeps(bundledTx.Tx, deps)
+				miningView.Reject(bundledTx.Tx.Hash())
+				continue nextPriorityQueueItem
+			}
 		}
 
-		txFeesMap[*tx.Hash()] = prioItem.fee
-		txSigOpCountsMap[*tx.Hash()] = numSigOps
+		for _, bundledTxDesc := range txBundle {
+			bundledTx := bundledTxDesc.Tx
+			bundledTxHash := bundledTx.Hash()
 
-		log.Tracef("Adding tx %s (priority %.2f, feePerKB %.2f)",
-			prioItem.tx.Hash(), prioItem.priority, prioItem.feePerKB)
+			// Spend the transaction inputs in the block utxo view and add
+			// an entry for it to ensure any transactions which reference
+			// this one have it available as an input and can ensure they
+			// aren't double spending.
+			spendTransaction(blockUtxos, bundledTxDesc.Tx, nextBlockHeight,
+				isTreasuryEnabled)
 
-		// Add transactions which depend on this one (and also do not
-		// have any other unsatisfied dependencies) to the priority
-		// queue.
-		for _, item := range deps {
-			// Add the transaction to the priority queue if there
-			// are no more dependencies after this one.
-			delete(item.dependsOn, *tx.Hash())
-			if len(item.dependsOn) == 0 {
-				heap.Push(priorityQueue, item)
+			// Add the transaction to the block, increment counters, and
+			// save the fees and signature operation counts to the block
+			// template.
+			blockTxns = append(blockTxns, bundledTx)
+			blockSize += uint32(bundledTx.MsgTx().SerializeSize())
+			bundledTxSigOps := int64(bundledTxDesc.TotalSigOps)
+			blockSigOps += bundledTxSigOps
+
+			// Accumulate the SStxs in the block, because only a certain number
+			// are allowed.
+			if bundledTxDesc.Type == stake.TxTypeSStx {
+				numSStx++
+			}
+			if bundledTxDesc.Type == stake.TxTypeSSGen {
+				foundWinningTickets[bundledTx.MsgTx().TxIn[1].PreviousOutPoint.Hash] = true
+			}
+			if isTreasuryEnabled && bundledTxDesc.Type == stake.TxTypeTAdd {
+				numTAdds++
+			}
+
+			templateTxnMap[*bundledTxHash] = struct{}{}
+			txFeesMap[*bundledTxHash] = bundledTxDesc.Fee
+			txSigOpCountsMap[*bundledTxHash] = bundledTxSigOps
+
+			bundledPrioItem := prioItemMap[*bundledTxHash]
+			log.Tracef("Adding tx %s (priority %.2f, feePerKB %.2f)",
+				bundledTxHash, bundledPrioItem.priority,
+				bundledPrioItem.feePerKB)
+
+			// Remove transaction from mining view since it's been added to the
+			// block template.
+			bundledTxDeps := miningView.Children(bundledTxHash)
+			miningView.Remove(bundledTxHash, false)
+
+			// Add transactions which depend on this one (and also do not
+			// have any other unsatisfied dependencies) to the priority
+			// queue.
+			for _, childTx := range bundledTxDeps {
+				childTxHash := childTx.Tx.Hash()
+				if _, exist := prioritizedTxns[*childTxHash]; exist {
+					continue
+				}
+
+				// Add the transaction to the priority queue if there
+				// are no more dependencies after this one.
+				if !miningView.HasParents(childTxHash) {
+					heap.Push(priorityQueue, prioItemMap[*childTxHash])
+					prioritizedTxns[*childTxHash] = struct{}{}
+				}
 			}
 		}
 	}
