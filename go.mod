@@ -39,31 +39,3 @@ require (
 	golang.org/x/crypto v0.0.0-20200820211705-5c72a883971a
 	golang.org/x/sync v0.0.0-20200625203802-6e8e738ad208
 )
-
-replace (
-	github.com/decred/dcrd/addrmgr => ./addrmgr
-	github.com/decred/dcrd/bech32 => ./bech32
-	github.com/decred/dcrd/blockchain/stake/v3 => ./blockchain/stake
-	github.com/decred/dcrd/blockchain/standalone/v2 => ./blockchain/standalone
-	github.com/decred/dcrd/blockchain/v3 => ./blockchain
-	github.com/decred/dcrd/certgen => ./certgen
-	github.com/decred/dcrd/chaincfg/chainhash => ./chaincfg/chainhash
-	github.com/decred/dcrd/chaincfg/v3 => ./chaincfg
-	github.com/decred/dcrd/connmgr/v3 => ./connmgr
-	github.com/decred/dcrd/crypto/blake256 => ./crypto/blake256
-	github.com/decred/dcrd/crypto/ripemd160 => ./crypto/ripemd160
-	github.com/decred/dcrd/database/v2 => ./database
-	github.com/decred/dcrd/dcrec => ./dcrec
-	github.com/decred/dcrd/dcrec/secp256k1/v3 => ./dcrec/secp256k1
-	github.com/decred/dcrd/dcrjson/v3 => ./dcrjson
-	github.com/decred/dcrd/dcrutil/v3 => ./dcrutil
-	github.com/decred/dcrd/gcs/v2 => ./gcs
-	github.com/decred/dcrd/hdkeychain/v3 => ./hdkeychain
-	github.com/decred/dcrd/limits => ./limits
-	github.com/decred/dcrd/lru => ./lru
-	github.com/decred/dcrd/peer/v2 => ./peer
-	github.com/decred/dcrd/rpc/jsonrpc/types/v2 => ./rpc/jsonrpc/types
-	github.com/decred/dcrd/rpcclient/v6 => ./rpcclient
-	github.com/decred/dcrd/txscript/v3 => ./txscript
-	github.com/decred/dcrd/wire => ./wire
-)
