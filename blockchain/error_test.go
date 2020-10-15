@@ -153,8 +153,7 @@ func TestErrorKindStringer(t *testing.T) {
 	for i, test := range tests {
 		result := test.in.Error()
 		if result != test.want {
-			t.Errorf("#%d: got: %s want: %s", i, result,
-				test.want)
+			t.Errorf("#%d: got: %s want: %s", i, result, test.want)
 			continue
 		}
 	}
@@ -165,23 +164,19 @@ func TestRuleError(t *testing.T) {
 	tests := []struct {
 		in   RuleError
 		want string
-	}{
-		{
-			RuleError{Description: "duplicate block"},
-			"duplicate block",
-		},
-		{
-			RuleError{Description: "human-readable error"},
-			"human-readable error",
-		},
-	}
+	}{{
+		RuleError{Description: "duplicate block"},
+		"duplicate block",
+	}, {
+		RuleError{Description: "human-readable error"},
+		"human-readable error",
+	}}
 
 	t.Logf("Running %d tests", len(tests))
 	for i, test := range tests {
 		result := test.in.Error()
 		if result != test.want {
-			t.Errorf("Error #%d: got: %s want: %s", i, result,
-				test.want)
+			t.Errorf("#%d: got: %s want: %s", i, result, test.want)
 			continue
 		}
 	}

@@ -558,7 +558,7 @@ func (g *chaingenHarness) RejectBlock(blockName string, kind ErrorKind) {
 }
 
 // RejectTipBlock expects the current tip block associated with the harness
-// generator to be rejected with the provided error code.
+// generator to be rejected with the provided error kind.
 func (g *chaingenHarness) RejectTipBlock(kind ErrorKind) {
 	g.t.Helper()
 

@@ -556,7 +556,7 @@ func TestCheckTransactionStandard(t *testing.T) {
 			continue
 		}
 
-		// Ensure the error code is the expected one.
+		// Ensure the error is the expected one.
 		if !errors.Is(err, test.err) {
 			t.Errorf("checkTransactionStandard (%s): unexpected error -- got "+
 				"%v, want %v", test.name, err, test.err)

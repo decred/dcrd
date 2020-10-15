@@ -192,8 +192,8 @@ func TestFullBlocks(t *testing.T) {
 				blockHeight)
 		}
 
-		// Ensure the error code is of the expected type and the reject
-		// code matches the value specified in the test instance.
+		// Ensure the error reject kind matches the value specified in the test
+		// instance.
 		if !errors.Is(err, item.RejectKind) {
 			t.Fatalf("block %q (hash %s, height %d) does not have "+
 				"expected reject code -- got %v, want %v",
@@ -237,9 +237,9 @@ func TestFullBlocks(t *testing.T) {
 
 		_, err := chain.ProcessBlock(block, blockchain.BFNone)
 		if err != nil {
-			// Ensure the error code is of the expected type.  Note
-			// that orphans are rejected with ErrMissingParent, so
-			// this check covers both conditions.
+			// Ensure the error is of the expected type.  Note that orphans are
+			// rejected with ErrMissingParent, so this check covers both
+			// conditions.
 			var rerr blockchain.RuleError
 			if !errors.As(err, &rerr) {
 				t.Fatalf("block %q (hash %s, height %d) "+

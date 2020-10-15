@@ -603,9 +603,8 @@ func TestTxValidationErrors(t *testing.T) {
 	// Ensure transaction is rejected due to being too large.
 	err := CheckTransactionSanity(tx, chaincfg.MainNetParams(), noTreasury)
 	if !errors.Is(err, ErrTxTooBig) {
-		t.Fatalf("CheckTransactionSanity: unexpected error code for "+
-			"transaction that is too large -- got %v, want %v",
-			err, ErrTxTooBig)
+		t.Fatalf("CheckTransactionSanity: unexpected error for transaction "+
+			"that is too large -- got %v, want %v", err, ErrTxTooBig)
 	}
 }
 
@@ -647,7 +646,7 @@ func TestCheckConnectBlockTemplate(t *testing.T) {
 	// template.
 	//
 	// rejectedBlockTemplate expects the block to be considered an invalid
-	// block template due to the provided error code.
+	// block template due to the provided error kind.
 	acceptedBlockTemplate := func() {
 		msgBlock := g.Tip()
 		blockHeight := msgBlock.Header.Height
@@ -676,8 +675,8 @@ func TestCheckConnectBlockTemplate(t *testing.T) {
 				blockHeight)
 		}
 
-		// Ensure the error code is of the expected type and the reject
-		// code matches the value specified in the test instance.
+		// Ensure the error reject kind matches the value specified in the test
+		// instance.
 		if !errors.Is(err, kind) {
 			t.Fatalf("block template %q (hash %s, height %d) does "+
 				"not have expected reject code -- got %v, want %v",

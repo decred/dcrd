@@ -1139,7 +1139,7 @@ func TestRevocationOrphan(t *testing.T) {
 		0)
 	if !errors.Is(err, ErrOrphan) {
 		t.Fatalf("Process Transaction: did not get expected " +
-			"ErrTooManyVotes error code")
+			"ErrTooManyVotes error")
 	}
 	testPoolMembership(tc, revocation, false, false)
 
@@ -1980,7 +1980,7 @@ func TestMaxVoteDoubleSpendRejection(t *testing.T) {
 		}
 		if !errors.Is(err, ErrTooManyVotes) {
 			t.Fatalf("Process Transaction: did not get expected " +
-				"ErrTooManyVotes error code")
+				"ErrTooManyVotes error")
 		}
 
 		// Ensure no transactions were reported as accepted.
@@ -2018,7 +2018,7 @@ func TestMaxVoteDoubleSpendRejection(t *testing.T) {
 	_, err = harness.txPool.ProcessTransaction(vote, false, false, true, 0)
 	if !errors.Is(err, ErrTooManyVotes) {
 		t.Fatalf("Process Transaction: did not get expected " +
-			"ErrTooManyVotes error code")
+			"ErrTooManyVotes error")
 	}
 	testPoolMembership(tc, vote, false, false)
 }
@@ -2091,7 +2091,7 @@ func TestDuplicateVoteRejection(t *testing.T) {
 	_, err = harness.txPool.ProcessTransaction(dupVote, false, false, true, 0)
 	if !errors.Is(err, ErrAlreadyVoted) {
 		t.Fatalf("Process Transaction: did not get expected " +
-			"ErrTooManyVotes error code")
+			"ErrTooManyVotes error")
 	}
 	testPoolMembership(tc, dupVote, false, false)
 
@@ -2136,8 +2136,8 @@ func TestDuplicateTxError(t *testing.T) {
 	}
 	testPoolMembership(tc, tx, false, true)
 
-	// Ensure a second attempt to process the tx is rejected with the
-	// correct error code and that the transaction remains in the pool.
+	// Ensure a second attempt to process the tx is rejected with the correct
+	// error and that the transaction remains in the pool.
 	_, err = harness.txPool.ProcessTransaction(tx, true, false, true, 0)
 	if !errors.Is(err, ErrDuplicate) {
 		t.Fatalf("ProcessTransaction: did get the expected ErrDuplicate")
@@ -2203,9 +2203,9 @@ func TestMempoolDoubleSpend(t *testing.T) {
 		t.Fatalf("unable to create double spend tx: %v", err)
 	}
 
-	// Ensure a second attempt to process the tx is rejected with the
-	// correct error code, that the original transaction remains in the
-	// pool and the double spend is not added to the pool.
+	// Ensure a second attempt to process the tx is rejected with the correct
+	// error, that the original transaction remains in the pool and the double
+	// spend is not added to the pool.
 	_, err = harness.txPool.ProcessTransaction(doubleSpendTx, true, false, true,
 		0)
 	if !errors.Is(err, ErrMempoolDoubleSpend) {
@@ -2451,30 +2451,13 @@ func TestHandlesTSpends(t *testing.T) {
 	}
 
 	// Helper that attempts to add and asserts the given tspend is rejected
-	// with the given error code.
-	rejectTSpend := func(tx *dcrutil.Tx, kind ErrorKind) {
+	// with the given error.
+	rejectTSpend := func(tx *dcrutil.Tx, wantErr error) {
 		t.Helper()
-		_, err = harness.txPool.ProcessTransaction(tx, true,
-			false, true, 0)
-		if !errors.Is(err, kind) {
+		_, err = harness.txPool.ProcessTransaction(tx, true, false, true, 0)
+		if !errors.Is(err, wantErr) {
 			t.Fatalf("Unexpected error while processing rejected tspend. "+
-				"want=%v got=%#v", kind, err)
-		}
-		testPoolMembership(tc, tx, false, false)
-	}
-
-	// Helper that attempts to add and asserts the given tspend is rejected
-	// with the given blockchain error code.
-	//
-	// TODO: unify with the above after mempool errors correctly handle
-	// errors.Is/As.
-	rejectTSpendChainError := func(tx *dcrutil.Tx, kind blockchain.ErrorKind) {
-		t.Helper()
-		_, err = harness.txPool.ProcessTransaction(tx, true,
-			false, true, 0)
-		if !errors.Is(err, kind) {
-			t.Fatalf("Unexpected error while processing rejected tspend. "+
-				"want=%v got=%#v", kind, err)
+				"want %v, got %#v", wantErr, err)
 		}
 		testPoolMembership(tc, tx, false, false)
 	}
@@ -2573,7 +2556,7 @@ func TestHandlesTSpends(t *testing.T) {
 	// break the signature directly.
 	tx = tspends[2].MsgTx()
 	tx.TxIn[0].SignatureScript[1] = ^tx.TxIn[0].SignatureScript[1]
-	rejectTSpendChainError(tspends[2], blockchain.ErrInvalidPiSignature)
+	rejectTSpend(tspends[2], blockchain.ErrInvalidPiSignature)
 
 	// Attempt to add a tspend with a valid signature not from a pi key for
 	// the current network. This should fail.
@@ -2586,7 +2569,7 @@ func TestHandlesTSpends(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	rejectTSpendChainError(tspends[3], blockchain.ErrUnknownPiKey)
+	rejectTSpend(tspends[3], blockchain.ErrUnknownPiKey)
 
 	// Assert the OnTSpendReceived listener is called when a tspend enters
 	// the mempool.

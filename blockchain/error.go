@@ -643,9 +643,10 @@ func (e ErrorKind) Error() string {
 	return string(e)
 }
 
-// RuleError identifies a rule violation related to blocks. It has
-// full support for errors.Is and errors.As, so the caller can ascertain the
-// specific reason for the error by checking the underlying error.
+// RuleError identifies a rule violation.  It is used to indicate that
+// processing of a block or transaction failed due to one of the many validation
+// rules.  It has full support for errors.Is and errors.As, so the caller can
+// ascertain the specific reason for the rule violation.
 type RuleError struct {
 	Err         error
 	Description string
