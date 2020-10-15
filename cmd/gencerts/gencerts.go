@@ -1,140 +1,138 @@
-// Copyright (c) 2013-2014 The btcsuite developers
-// Copyright (c) 2015-2016 The Decred developers
+// Copyright (c) 2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
 package main
 
 import (
+	"bytes"
+	"crypto/ecdsa"
+	"crypto/ed25519"
 	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/pem"
+	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
+	"math/big"
+	"net"
 	"os"
-	"os/user"
-	"path/filepath"
-	"runtime"
-	"strings"
 	"time"
 
-	"github.com/decred/dcrd/certgen"
 	flags "github.com/jessevdk/go-flags"
 )
 
+func fatalf(format string, args ...interface{}) {
+	fmt.Fprintf(os.Stderr, format, args...)
+	os.Exit(1)
+}
+
+func usage(parser *flags.Parser) {
+	parser.WriteHelp(os.Stderr)
+	os.Exit(2)
+}
+
 type config struct {
-	Directory    string   `short:"d" long:"directory" description:"Directory to write certificate pair"`
-	Years        int      `short:"y" long:"years" description:"How many years a certificate is valid for"`
-	Organization string   `short:"o" long:"org" description:"Organization in certificate"`
-	ExtraHosts   []string `short:"H" long:"host" description:"Additional hosts/IPs to create certificate for"`
-	Force        bool     `short:"f" long:"force" description:"Force overwriting of any old certs and keys"`
+	Hosts []string `short:"H" description:"hostname or IP certificate is valid for; may be specified multiple times"`
+	Local bool     `short:"L" description:"append localhost, 127.0.0.1, and ::1 to hosts if not already specified"`
+	Org   string   `short:"o" description:"organization"`
+	Algo  string   `short:"a" description:"key algorithm (one of: P-256, P-384, P-521, Ed25519)"`
+	Years int      `short:"y" description:"years certificate is valid for"`
+	Force bool     `short:"f" description:"overwrite existing certs/keys"`
 }
 
 func main() {
 	cfg := config{
-		Years:        10,
-		Organization: "gencerts",
+		Algo:  "P-521",
+		Years: 10,
+		Org:   "gencerts",
 	}
 	parser := flags.NewParser(&cfg, flags.Default)
-	_, err := parser.Parse()
+	parser.Usage = "[OPTIONS] cert key"
+	args, err := parser.Parse()
 	if err != nil {
-		if e, ok := err.(*flags.Error); !ok || e.Type != flags.ErrHelp {
-			parser.WriteHelp(os.Stderr)
+		var e *flags.Error
+		if errors.As(err, &e) {
+			if e.Type != flags.ErrHelp {
+				os.Exit(1)
+			}
+			os.Exit(0)
 		}
-		return
+		os.Exit(1)
 	}
 
-	if cfg.Directory == "" {
-		var err error
-		cfg.Directory, err = os.Getwd()
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "no directory specified and cannot get working directory\n")
-			os.Exit(1)
+	if len(args) != 2 {
+		usage(parser)
+	}
+	certname, keyname := args[0], args[1]
+
+	var keygen func() (pub, priv interface{})
+	switch cfg.Algo {
+	case "P-256":
+		keygen = ecKeyGen(elliptic.P256())
+	case "P-384":
+		keygen = ecKeyGen(elliptic.P384())
+	case "P-521":
+		keygen = ecKeyGen(elliptic.P521())
+	case "Ed25519":
+		keygen = ed25519KeyGen
+	default:
+		fmt.Fprintf(os.Stderr, "unknown algorithm %q", cfg.Algo)
+		usage(parser)
+	}
+
+	if cfg.Local {
+		var localhost, v4Loopback, v6Loopback bool
+		for _, h := range cfg.Hosts {
+			switch h {
+			case "localhost":
+				localhost = true
+			case "127.0.0.1":
+				v4Loopback = true
+			case "::1":
+				v6Loopback = true
+			}
+		}
+		if !localhost {
+			cfg.Hosts = append(cfg.Hosts, "localhost")
+		}
+		if !v4Loopback {
+			cfg.Hosts = append(cfg.Hosts, "127.0.0.1")
+		}
+		if !v6Loopback {
+			cfg.Hosts = append(cfg.Hosts, "::1")
 		}
 	}
-	cfg.Directory = cleanAndExpandPath(cfg.Directory)
-	certFile := filepath.Join(cfg.Directory, "rpc.cert")
-	keyFile := filepath.Join(cfg.Directory, "rpc.key")
 
-	if !cfg.Force {
-		if fileExists(certFile) || fileExists(keyFile) {
-			fmt.Fprintf(os.Stderr, "%v: certificate and/or key files exist; use -f to force\n", cfg.Directory)
-			os.Exit(1)
-		}
-	}
-
-	validUntil := time.Now().Add(time.Duration(cfg.Years) * 365 * 24 * time.Hour)
-	cert, key, err := certgen.NewTLSCertPair(elliptic.P521(), cfg.Organization, validUntil, cfg.ExtraHosts)
+	pub, priv := keygen()
+	ca, err := generateAuthority(pub, priv, cfg.Hosts, cfg.Org, cfg.Years)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "cannot generate certificate pair: %v\n", err)
-		os.Exit(1)
+		fatalf("generate certificate authority: %v\n", err)
+	}
+	keyBlock, err := marshalPrivateKey(priv)
+	if err != nil {
+		fatalf("%s\n", err)
 	}
 
-	// Write cert and key files.
-	if err = ioutil.WriteFile(certFile, cert, 0644); err != nil {
-		fmt.Fprintf(os.Stderr, "cannot write cert: %v\n", err)
-		os.Exit(1)
+	if !cfg.Force && fileExists(certname) {
+		fatalf("certificate file %q already exists\n", certname)
 	}
-	if err = ioutil.WriteFile(keyFile, key, 0600); err != nil {
-		os.Remove(certFile)
-		fmt.Fprintf(os.Stderr, "cannot write key: %v\n", err)
-		os.Exit(1)
+	if !cfg.Force && fileExists(keyname) {
+		fatalf("key file %q already exists\n", keyname)
+	}
+
+	if err = ioutil.WriteFile(certname, ca.CertBlock, 0644); err != nil {
+		fatalf("cannot write cert: %v\n", err)
+	}
+	if err = ioutil.WriteFile(keyname, keyBlock, 0600); err != nil {
+		os.Remove(certname)
+		fatalf("cannot write key: %v\n", err)
 	}
 }
 
-// cleanAndExpandPath expands environment variables and leading ~ in the
-// passed path, cleans the result, and returns it.
-func cleanAndExpandPath(path string) string {
-	// Nothing to do when no path is given.
-	if path == "" {
-		return path
-	}
-
-	// NOTE: The os.ExpandEnv doesn't work with Windows cmd.exe-style
-	// %VARIABLE%, but the variables can still be expanded via POSIX-style
-	// $VARIABLE.
-	path = os.ExpandEnv(path)
-
-	if !strings.HasPrefix(path, "~") {
-		return filepath.Clean(path)
-	}
-
-	// Expand initial ~ to the current user's home directory, or ~otheruser
-	// to otheruser's home directory.  On Windows, both forward and backward
-	// slashes can be used.
-	path = path[1:]
-
-	var pathSeparators string
-	if runtime.GOOS == "windows" {
-		pathSeparators = string(os.PathSeparator) + "/"
-	} else {
-		pathSeparators = string(os.PathSeparator)
-	}
-
-	userName := ""
-	if i := strings.IndexAny(path, pathSeparators); i != -1 {
-		userName = path[:i]
-		path = path[i:]
-	}
-
-	homeDir := ""
-	var u *user.User
-	var err error
-	if userName == "" {
-		u, err = user.Current()
-	} else {
-		u, err = user.Lookup(userName)
-	}
-	if err == nil {
-		homeDir = u.HomeDir
-	}
-	// Fallback to CWD if user lookup fails or user has no home directory.
-	if homeDir == "" {
-		homeDir = "."
-	}
-
-	return filepath.Join(homeDir, path)
-}
-
-// fileExists reports whether the named file or directory exists.
 func fileExists(name string) bool {
 	if _, err := os.Stat(name); err != nil {
 		if os.IsNotExist(err) {
@@ -142,4 +140,131 @@ func fileExists(name string) bool {
 		}
 	}
 	return true
+}
+
+func ed25519KeyGen() (pub, priv interface{}) {
+	seed := make([]byte, ed25519.SeedSize)
+	_, err := io.ReadFull(rand.Reader, seed)
+	if err != nil {
+		fatalf("read random bytes: %v\n", err)
+	}
+	key := ed25519.NewKeyFromSeed(seed)
+	return key.Public(), key
+}
+
+func ecKeyGen(curve elliptic.Curve) func() (pub, priv interface{}) {
+	return func() (pub, priv interface{}) {
+		var key *ecdsa.PrivateKey
+		key, err := ecdsa.GenerateKey(curve, rand.Reader)
+		if err != nil {
+			fatalf("generate random EC key: %v\n", err)
+		}
+		return key.Public(), key
+	}
+}
+
+func randomX509SerialNumber() (*big.Int, error) {
+	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
+	serialNumber, err := rand.Int(rand.Reader, serialNumberLimit)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate serial number: %s", err)
+	}
+	return serialNumber, nil
+}
+
+// End of ASN.1 time
+var endOfTime = time.Date(2049, 12, 31, 23, 59, 59, 0, time.UTC)
+
+type CA struct {
+	CertBlock  []byte
+	Cert       *x509.Certificate
+	PrivateKey interface{}
+}
+
+func newTemplate(hosts []string, org string, validUntil time.Time) (*x509.Certificate, error) {
+	now := time.Now()
+	if validUntil.After(endOfTime) {
+		validUntil = endOfTime
+	}
+	if validUntil.Before(now) {
+		return nil, fmt.Errorf("valid until date %v already elapsed", validUntil)
+	}
+	serialNumber, err := randomX509SerialNumber()
+	if err != nil {
+		return nil, err
+	}
+	cn := org
+	if len(hosts) > 0 {
+		cn = hosts[0]
+	}
+
+	var hostnames []string
+	var ips []net.IP
+	for _, h := range hosts {
+		if ip := net.ParseIP(h); ip != nil {
+			ips = append(ips, ip)
+			continue
+		}
+		hostnames = append(hostnames, h)
+	}
+
+	template := &x509.Certificate{
+		SerialNumber: serialNumber,
+		Subject: pkix.Name{
+			CommonName:   cn,
+			Organization: []string{org},
+		},
+		NotBefore:   now.Add(-time.Hour * 24),
+		NotAfter:    validUntil,
+		DNSNames:    hostnames,
+		IPAddresses: ips,
+	}
+	return template, nil
+}
+
+func generateAuthority(pub, priv interface{}, hosts []string, org string, years int) (*CA, error) {
+	validUntil := time.Now().Add(time.Hour * 24 * 365 * time.Duration(years))
+	template, err := newTemplate(hosts, org, validUntil)
+	if err != nil {
+		return nil, err
+	}
+	template.KeyUsage = x509.KeyUsageCertSign | x509.KeyUsageDigitalSignature
+	template.BasicConstraintsValid = true
+	template.IsCA = true
+
+	cert, err := x509.CreateCertificate(rand.Reader, template, template, pub, priv)
+	if err != nil {
+		return nil, err
+	}
+	buf := new(bytes.Buffer)
+	err = pem.Encode(buf, &pem.Block{Type: "CERTIFICATE", Bytes: cert})
+	if err != nil {
+		return nil, fmt.Errorf("failed to encode certificate: %v", err)
+	}
+	certBlock := buf.Bytes()
+
+	x509Cert, err := x509.ParseCertificate(cert)
+	if err != nil {
+		return nil, err
+	}
+
+	ca := &CA{
+		CertBlock:  certBlock,
+		Cert:       x509Cert,
+		PrivateKey: priv,
+	}
+	return ca, nil
+}
+
+func marshalPrivateKey(key interface{}) ([]byte, error) {
+	der, err := x509.MarshalPKCS8PrivateKey(key)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal private key: %v", err)
+	}
+	buf := new(bytes.Buffer)
+	err = pem.Encode(buf, &pem.Block{Type: "PRIVATE KEY", Bytes: der})
+	if err != nil {
+		return nil, fmt.Errorf("failed to encode private key: %v", err)
+	}
+	return buf.Bytes(), nil
 }
