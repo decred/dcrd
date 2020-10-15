@@ -59,16 +59,6 @@ func minInt(a, b int) int {
 	return b
 }
 
-// PriorityInputser defines an interface that provides access to information
-// about an transaction output needed to calculate a priority based on the input
-// age of a transaction.  It is used within this package as a generic means to
-// provide the block heights and amounts referenced by all of the inputs to a
-// transaction that are needed to calculate an input age.  The boolean return
-// indicates whether or not the information for the provided outpoint was found.
-type PriorityInputser interface {
-	PriorityInput(prevOut *wire.OutPoint) (blockHeight int64, amount int64, ok bool)
-}
-
 // calcInputValueAge is a helper function used to calculate the input age of
 // a transaction.  The input age for a txin is the number of confirmations
 // since the referenced txout multiplied by its output value.  The total input
