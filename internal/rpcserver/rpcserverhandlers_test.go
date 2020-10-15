@@ -5693,7 +5693,7 @@ func TestHandleGetWork(t *testing.T) {
 		mockSyncManager: func() *testSyncManager {
 			syncManager := defaultMockSyncManager()
 			syncManager.submitBlockErr = blockchain.RuleError{
-				ErrorCode:   blockchain.ErrDuplicateBlock,
+				Err:         blockchain.ErrDuplicateBlock,
 				Description: "Duplicate Block",
 			}
 			return syncManager

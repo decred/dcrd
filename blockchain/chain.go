@@ -1260,21 +1260,22 @@ func (b *BlockChain) forceHeadReorganization(formerBest chainhash.Hash, newBest 
 	// We can't reorganize the chain unless our head block matches up with
 	// b.bestChain.
 	if !formerBestNode.hash.IsEqual(&formerBest) {
-		return ruleError(ErrForceReorgWrongChain, "tried to force reorg "+
-			"on wrong chain")
+		str := "tried to force reorg on wrong chain"
+		return ruleError(ErrForceReorgWrongChain, str)
 	}
 
 	// Child to reorganize to is missing.
 	newBestNode := b.index.LookupNode(&newBest)
 	if newBestNode == nil || newBestNode.parent != formerBestNode.parent {
-		return ruleError(ErrForceReorgMissingChild, "missing child of "+
-			"common parent for forced reorg")
+		str := "missing child of common parent for forced reorg"
+		return ruleError(ErrForceReorgMissingChild, str)
 	}
 
 	// Don't allow a reorganize to a known invalid chain.
 	newBestNodeStatus := b.index.NodeStatus(newBestNode)
 	if newBestNodeStatus.KnownInvalid() {
-		return ruleError(ErrKnownInvalidBlock, "block is known to be invalid")
+		str := "block is known to be invalid"
+		return ruleError(ErrKnownInvalidBlock, str)
 	}
 
 	// Reorganize the chain and flush any potential unsaved changes to the

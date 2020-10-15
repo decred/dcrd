@@ -602,15 +602,10 @@ func TestTxValidationErrors(t *testing.T) {
 
 	// Ensure transaction is rejected due to being too large.
 	err := CheckTransactionSanity(tx, chaincfg.MainNetParams(), noTreasury)
-	var rerr RuleError
-	if !errors.As(err, &rerr) {
-		t.Fatalf("CheckTransactionSanity: unexpected error type for "+
-			"transaction that is too large -- got %T", err)
-	}
-	if rerr.ErrorCode != ErrTxTooBig {
+	if !errors.Is(err, ErrTxTooBig) {
 		t.Fatalf("CheckTransactionSanity: unexpected error code for "+
 			"transaction that is too large -- got %v, want %v",
-			rerr.ErrorCode, ErrTxTooBig)
+			err, ErrTxTooBig)
 	}
 }
 
@@ -667,7 +662,7 @@ func TestCheckConnectBlockTemplate(t *testing.T) {
 				block.Hash(), blockHeight, err)
 		}
 	}
-	rejectedBlockTemplate := func(code ErrorCode) {
+	rejectedBlockTemplate := func(kind ErrorKind) {
 		msgBlock := g.Tip()
 		blockHeight := msgBlock.Header.Height
 		block := dcrutil.NewBlock(msgBlock)
@@ -683,18 +678,10 @@ func TestCheckConnectBlockTemplate(t *testing.T) {
 
 		// Ensure the error code is of the expected type and the reject
 		// code matches the value specified in the test instance.
-		var rerr RuleError
-		if !errors.As(err, &rerr) {
-			t.Fatalf("block template %q (hash %s, height %d) "+
-				"returned unexpected error type -- got %T, want "+
-				"blockchain.RuleError", g.TipName(),
-				block.Hash(), blockHeight, err)
-		}
-		if rerr.ErrorCode != code {
+		if !errors.Is(err, kind) {
 			t.Fatalf("block template %q (hash %s, height %d) does "+
 				"not have expected reject code -- got %v, want %v",
-				g.TipName(), block.Hash(), blockHeight,
-				rerr.ErrorCode, code)
+				g.TipName(), block.Hash(), blockHeight, err, kind)
 		}
 	}
 
@@ -1054,16 +1041,6 @@ func TestCheckTicketExhaustion(t *testing.T) {
 	params.StakeEnabledHeight = stakeEnabledHeight
 	params.StakeValidationHeight = stakeValidationHeight
 
-	// isErr is a convenience func which acts as a limited version of errors.Is
-	// until the package is converted to support it at which point this can be
-	// removed.
-	isErr := func(err error, target error) bool {
-		if (err == nil) != (target == nil) {
-			return false
-		}
-		return target == nil || IsErrorCode(err, target.(RuleError).ErrorCode)
-	}
-
 	// ticketInfo is used to control the tests by specifying the details about
 	// how many fake blocks to create with the specified number of tickets.
 	type ticketInfo struct {
@@ -1085,7 +1062,7 @@ func TestCheckTicketExhaustion(t *testing.T) {
 			{126, 0}, // height: 126, 0 live, 0 immature
 		},
 		newBlockTix: 0, // extending height: 126, 0 live, 0 immature
-		err:         ruleError(ErrTicketExhaustion, ""),
+		err:         ErrTicketExhaustion,
 	}, {
 		// Reach inevitable ticket exhaustion by not including any ticket
 		// purchases up to just before the final possible block prior to svh
@@ -1096,7 +1073,7 @@ func TestCheckTicketExhaustion(t *testing.T) {
 			{126, 0}, // height: 126, 0 live, 0 immature
 		},
 		newBlockTix: 4, // extending height: 126, 0 live, 4 immature
-		err:         ruleError(ErrTicketExhaustion, ""),
+		err:         ErrTicketExhaustion,
 	}, {
 		// Construct chain such that there are no ticket purchases up to just
 		// before the final possible block prior to svh that can prevent ticket
@@ -1119,7 +1096,7 @@ func TestCheckTicketExhaustion(t *testing.T) {
 			{109, 0}, // height: 126, 4 live, 0 immature
 		},
 		newBlockTix: 0, // extending height: 126, 4 live, 0 immature
-		err:         ruleError(ErrTicketExhaustion, ""),
+		err:         ErrTicketExhaustion,
 	}, {
 		name: "just enough live tickets at 1st possible exhaustion",
 		ticketInfo: []ticketInfo{
@@ -1140,7 +1117,7 @@ func TestCheckTicketExhaustion(t *testing.T) {
 			{110, 0}, // height: 127, 5 live, 0 immature
 		},
 		newBlockTix: 0, // extending height: 127, 5 live, 0 immature
-		err:         ruleError(ErrTicketExhaustion, ""),
+		err:         ErrTicketExhaustion,
 	}, {
 		// Reach inevitable ticket exhaustion in the second possible block that
 		// it can happen with one live ticket less than needed to prevent it.
@@ -1151,7 +1128,7 @@ func TestCheckTicketExhaustion(t *testing.T) {
 			{110, 0}, // height: 127, 9 live, 0 immature
 		},
 		newBlockTix: 0, // extending height: 127, 9 live, 0 immature
-		err:         ruleError(ErrTicketExhaustion, ""),
+		err:         ErrTicketExhaustion,
 	}, {
 		// Construct chain to one block before svh such that there are exactly
 		// enough live tickets to prevent exhaustion.
@@ -1212,7 +1189,7 @@ func TestCheckTicketExhaustion(t *testing.T) {
 			{75, 0},  // height: 226, 85 live, 0 immature
 		},
 		newBlockTix: 0, // extending height: 226, 85 live, 0 immature
-		err:         ruleError(ErrTicketExhaustion, ""),
+		err:         ErrTicketExhaustion,
 	}}
 
 	for _, test := range tests {
@@ -1261,7 +1238,7 @@ func TestCheckTicketExhaustion(t *testing.T) {
 
 		// Ensure the expected result is returned from ticket exhaustion check.
 		err := bc.CheckTicketExhaustion(&node.hash, test.newBlockTix)
-		if !isErr(err, test.err) {
+		if !errors.Is(err, test.err) {
 			t.Errorf("%q: mismatched err -- got %v, want %v", test.name, err,
 				test.err)
 			continue

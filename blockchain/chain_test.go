@@ -157,8 +157,8 @@ func TestForceHeadReorg(t *testing.T) {
 	//
 	// rejectForceTipReorg forces the chain instance to reorganize the
 	// current tip of the main chain from the given block to the given
-	// block and expected it to be rejected with the provided error code.
-	rejectForceTipReorg := func(fromTipName, toTipName string, code ErrorCode) {
+	// block and expected it to be rejected with the provided error kind.
+	rejectForceTipReorg := func(fromTipName, toTipName string, kind ErrorKind) {
 		from := g.BlockByName(fromTipName)
 		to := g.BlockByName(toTipName)
 		t.Logf("Testing forced reorg from %s (hash %s, height %d) "+
@@ -175,25 +175,15 @@ func TestForceHeadReorg(t *testing.T) {
 				to.Header.Height)
 		}
 
-		// Ensure the error code is of the expected type and the reject
-		// code matches the value specified in the test instance.
-		var rerr RuleError
-		if !errors.As(err, &rerr) {
-			t.Fatalf("forced header reorg from block %q (hash %s, "+
-				"height %d) to block %q (hash %s, height %d) "+
-				"returned unexpected error type -- got %T, "+
-				"want blockchain.RuleError", fromTipName,
-				from.BlockHash(), from.Header.Height, toTipName,
-				to.BlockHash(), to.Header.Height, err)
-		}
-		if rerr.ErrorCode != code {
+		// Ensure the error kind is of the expected type and matches
+		// the value specified in the test instance.
+		if !errors.Is(err, kind) {
 			t.Fatalf("forced header reorg from block %q (hash %s, "+
 				"height %d) to block %q (hash %s, height %d) "+
 				"does not have expected reject code -- got %v, "+
 				"want %v", fromTipName,
 				from.BlockHash(), from.Header.Height, toTipName,
-				to.BlockHash(), to.Header.Height, rerr.ErrorCode,
-				code)
+				to.BlockHash(), to.Header.Height, err, kind)
 		}
 	}
 

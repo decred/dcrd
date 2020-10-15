@@ -6,7 +6,6 @@
 package blockchain
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/decred/dcrd/chaincfg/chainhash"
@@ -93,703 +92,563 @@ func (e AssertError) Error() string {
 	return "assertion failed: " + string(e)
 }
 
-// ErrorCode identifies a kind of error.
-type ErrorCode int
+// ErrorKind identifies a kind of error.  It has full support for errors.Is and
+// errors.As, so the caller can directly check against an error kind when
+// determining the reason for an error.
+type ErrorKind string
 
 // These constants are used to identify a specific RuleError.
 const (
 	// ErrDuplicateBlock indicates a block with the same hash already
 	// exists.
-	ErrDuplicateBlock ErrorCode = iota
+	ErrDuplicateBlock = ErrorKind("ErrDuplicateBlock")
 
 	// ErrMissingParent indicates that the block was an orphan.
-	ErrMissingParent
+	ErrMissingParent = ErrorKind("ErrMissingParent")
 
 	// ErrBlockTooBig indicates the serialized block size exceeds the
 	// maximum allowed size.
-	ErrBlockTooBig
+	ErrBlockTooBig = ErrorKind("ErrBlockTooBig")
 
 	// ErrWrongBlockSize indicates that the block size in the header is not
 	// the actual serialized size of the block.
-	ErrWrongBlockSize
+	ErrWrongBlockSize = ErrorKind("ErrWrongBlockSize")
 
 	// ErrBlockVersionTooOld indicates the block version is too old and is
 	// no longer accepted since the majority of the network has upgraded
 	// to a newer version.
-	ErrBlockVersionTooOld
+	ErrBlockVersionTooOld = ErrorKind("ErrBlockVersionTooOld")
 
 	// ErrBadStakeVersionindicates the block version is too old and is no
 	// longer accepted since the majority of the network has upgraded to a
 	// newer version.
-	ErrBadStakeVersion
+	ErrBadStakeVersion = ErrorKind("ErrBadStakeVersion")
 
 	// ErrInvalidTime indicates the time in the passed block has a precision
 	// that is more than one second.  The chain consensus rules require
 	// timestamps to have a maximum precision of one second.
-	ErrInvalidTime
+	ErrInvalidTime = ErrorKind("ErrInvalidTime")
 
 	// ErrTimeTooOld indicates the time is either before the median time of
 	// the last several blocks per the chain consensus rules or prior to the
 	// most recent checkpoint.
-	ErrTimeTooOld
+	ErrTimeTooOld = ErrorKind("ErrTimeTooOld")
 
 	// ErrTimeTooNew indicates the time is too far in the future as compared
 	// the current time.
-	ErrTimeTooNew
+	ErrTimeTooNew = ErrorKind("ErrTimeTooNew")
 
 	// ErrDifficultyTooLow indicates the difficulty for the block is lower
 	// than the difficulty required by the most recent checkpoint.
-	ErrDifficultyTooLow
+	ErrDifficultyTooLow = ErrorKind("ErrDifficultyTooLow")
 
 	// ErrUnexpectedDifficulty indicates specified bits do not align with
 	// the expected value either because it doesn't match the calculated
 	// value based on difficulty regarding the rules or it is out of the
 	// valid range.
-	ErrUnexpectedDifficulty
+	ErrUnexpectedDifficulty = ErrorKind("ErrUnexpectedDifficulty")
 
 	// ErrHighHash indicates the block does not hash to a value which is
 	// lower than the required target difficultly.
-	ErrHighHash
+	ErrHighHash = ErrorKind("ErrHighHash")
 
 	// ErrBadMerkleRoot indicates the calculated merkle root does not match
 	// the expected value.
-	ErrBadMerkleRoot
+	ErrBadMerkleRoot = ErrorKind("ErrBadMerkleRoot")
 
 	// ErrBadCommitmentRoot indicates the calculated commitment root does
 	// not match the expected value.
-	ErrBadCommitmentRoot
+	ErrBadCommitmentRoot = ErrorKind("ErrBadCommitmentRoot")
 
 	// ErrBadCheckpoint indicates a block that is expected to be at a
 	// checkpoint height does not match the expected one.
-	ErrBadCheckpoint
+	ErrBadCheckpoint = ErrorKind("ErrBadCheckpoint")
 
 	// ErrForkTooOld indicates a block is attempting to fork the block chain
 	// before the most recent checkpoint.
-	ErrForkTooOld
+	ErrForkTooOld = ErrorKind("ErrForkTooOld")
 
 	// ErrCheckpointTimeTooOld indicates a block has a timestamp before the
 	// most recent checkpoint.
-	ErrCheckpointTimeTooOld
+	ErrCheckpointTimeTooOld = ErrorKind("ErrCheckpointTimeTooOld")
 
 	// ErrNoTransactions indicates the block does not have a least one
 	// transaction.  A valid block must have at least the coinbase
 	// transaction.
-	ErrNoTransactions
+	ErrNoTransactions = ErrorKind("ErrNoTransactions")
 
 	// ErrTooManyTransactions indicates the block has more transactions than
 	// are allowed.
-	ErrTooManyTransactions
+	ErrTooManyTransactions = ErrorKind("ErrTooManyTransactions")
 
 	// ErrNoTxInputs indicates a transaction does not have any inputs.  A
 	// valid transaction must have at least one input.
-	ErrNoTxInputs
+	ErrNoTxInputs = ErrorKind("ErrNoTxInputs")
 
 	// ErrNoTxOutputs indicates a transaction does not have any outputs.  A
 	// valid transaction must have at least one output.
-	ErrNoTxOutputs
+	ErrNoTxOutputs = ErrorKind("ErrNoTxOutputs")
 
 	// ErrInvalidTxOutputs indicates a transaction does not have the exact
 	// number of outputs.
-	ErrInvalidTxOutputs
+	ErrInvalidTxOutputs = ErrorKind("ErrInvalidTxOutputs")
 
 	// ErrTxTooBig indicates a transaction exceeds the maximum allowed size
 	// when serialized.
-	ErrTxTooBig
+	ErrTxTooBig = ErrorKind("ErrTxTooBig")
 
 	// ErrBadTxOutValue indicates an output value for a transaction is
 	// invalid in some way such as being out of range.
-	ErrBadTxOutValue
+	ErrBadTxOutValue = ErrorKind("ErrBadTxOutValue")
 
 	// ErrDuplicateTxInputs indicates a transaction references the same
 	// input more than once.
-	ErrDuplicateTxInputs
+	ErrDuplicateTxInputs = ErrorKind("ErrDuplicateTxInputs")
 
 	// ErrBadTxInput indicates a transaction input is invalid in some way
 	// such as referencing a previous transaction outpoint which is out of
 	// range or not referencing one at all.
-	ErrBadTxInput
+	ErrBadTxInput = ErrorKind("ErrBadTxInput")
 
 	// ErrMissingTxOut indicates a transaction output referenced by an input
 	// either does not exist or has already been spent.
-	ErrMissingTxOut
+	ErrMissingTxOut = ErrorKind("ErrMissingTxOut")
 
 	// ErrUnfinalizedTx indicates a transaction has not been finalized.
 	// A valid block may only contain finalized transactions.
-	ErrUnfinalizedTx
+	ErrUnfinalizedTx = ErrorKind("ErrUnfinalizedTx")
 
 	// ErrDuplicateTx indicates a block contains an identical transaction
 	// (or at least two transactions which hash to the same value).  A
 	// valid block may only contain unique transactions.
-	ErrDuplicateTx
+	ErrDuplicateTx = ErrorKind("ErrDuplicateTx")
 
 	// ErrOverwriteTx indicates a block contains a transaction that has
 	// the same hash as a previous transaction which has not been fully
 	// spent.
-	ErrOverwriteTx
+	ErrOverwriteTx = ErrorKind("ErrOverwriteTx")
 
 	// ErrImmatureSpend indicates a transaction is attempting to spend a
 	// coinbase that has not yet reached the required maturity.
-	ErrImmatureSpend
+	ErrImmatureSpend = ErrorKind("ErrImmatureSpend")
 
 	// ErrSpendTooHigh indicates a transaction is attempting to spend more
 	// value than the sum of all of its inputs.
-	ErrSpendTooHigh
+	ErrSpendTooHigh = ErrorKind("ErrSpendTooHigh")
 
 	// ErrBadFees indicates the total fees for a block are invalid due to
 	// exceeding the maximum possible value.
-	ErrBadFees
+	ErrBadFees = ErrorKind("ErrBadFees")
 
 	// ErrTooManySigOps indicates the total number of signature operations
 	// for a transaction or block exceed the maximum allowed limits.
-	ErrTooManySigOps
+	ErrTooManySigOps = ErrorKind("ErrTooManySigOps")
 
 	// ErrFirstTxNotCoinbase indicates the first transaction in a block
 	// is not a coinbase transaction.
-	ErrFirstTxNotCoinbase
+	ErrFirstTxNotCoinbase = ErrorKind("ErrFirstTxNotCoinbase")
 
 	// ErrFirstTxNotOpReturn indicates the first transaction in a block
 	// is not an OP_RETURN.
-	ErrFirstTxNotOpReturn
+	ErrFirstTxNotOpReturn = ErrorKind("ErrFirstTxNotOpReturn")
 
 	// ErrCoinbaseHeight indicates that the encoded height in the coinbase
 	// is incorrect.
-	ErrCoinbaseHeight
+	ErrCoinbaseHeight = ErrorKind("ErrCoinbaseHeight")
 
 	// ErrMultipleCoinbases indicates a block contains more than one
 	// coinbase transaction.
-	ErrMultipleCoinbases
+	ErrMultipleCoinbases = ErrorKind("ErrMultipleCoinbases")
 
 	// ErrStakeTxInRegularTree indicates a stake transaction was found in
 	// the regular transaction tree.
-	ErrStakeTxInRegularTree
+	ErrStakeTxInRegularTree = ErrorKind("ErrStakeTxInRegularTree")
 
 	// ErrRegTxInStakeTree indicates that a regular transaction was found in
 	// the stake transaction tree.
-	ErrRegTxInStakeTree
+	ErrRegTxInStakeTree = ErrorKind("ErrRegTxInStakeTree")
 
 	// ErrBadCoinbaseScriptLen indicates the length of the signature script
 	// for a coinbase transaction is not within the valid range.
-	ErrBadCoinbaseScriptLen
+	ErrBadCoinbaseScriptLen = ErrorKind("ErrBadCoinbaseScriptLen")
 
 	// ErrBadCoinbaseValue indicates the amount of a coinbase value does
 	// not match the expected value of the subsidy plus the sum of all fees.
-	ErrBadCoinbaseValue
+	ErrBadCoinbaseValue = ErrorKind("ErrBadCoinbaseValue")
 
 	// ErrBadCoinbaseOutpoint indicates that the outpoint used by a coinbase
 	// as input was non-null.
-	ErrBadCoinbaseOutpoint
+	ErrBadCoinbaseOutpoint = ErrorKind("ErrBadCoinbaseOutpoint")
 
 	// ErrBadCoinbaseFraudProof indicates that the fraud proof for a coinbase
 	// input was non-null.
-	ErrBadCoinbaseFraudProof
+	ErrBadCoinbaseFraudProof = ErrorKind("ErrBadCoinbaseFraudProof")
 
 	// ErrBadCoinbaseAmountIn indicates that the AmountIn (=subsidy) for a
 	// coinbase input was incorrect.
-	ErrBadCoinbaseAmountIn
+	ErrBadCoinbaseAmountIn = ErrorKind("ErrBadCoinbaseAmountIn")
 
 	// ErrBadStakebaseAmountIn indicates that the AmountIn (=subsidy) for a
 	// stakebase input was incorrect.
-	ErrBadStakebaseAmountIn
+	ErrBadStakebaseAmountIn = ErrorKind("ErrBadStakebaseAmountIn")
 
 	// ErrBadStakebaseScriptLen indicates the length of the signature script
 	// for a stakebase transaction is not within the valid range.
-	ErrBadStakebaseScriptLen
+	ErrBadStakebaseScriptLen = ErrorKind("ErrBadStakebaseScriptLen")
 
 	// ErrBadStakebaseScrVal indicates the signature script for a stakebase
 	// transaction was not set to the network consensus value.
-	ErrBadStakebaseScrVal
+	ErrBadStakebaseScrVal = ErrorKind("ErrBadStakebaseScrVal")
 
 	// ErrScriptMalformed indicates a transaction script is malformed in
 	// some way.  For example, it might be longer than the maximum allowed
 	// length or fail to parse.
-	ErrScriptMalformed
+	ErrScriptMalformed = ErrorKind("ErrScriptMalformed")
 
 	// ErrScriptValidation indicates the result of executing transaction
 	// script failed.  The error covers any failure when executing scripts
 	// such signature verification failures and execution past the end of
 	// the stack.
-	ErrScriptValidation
+	ErrScriptValidation = ErrorKind("ErrScriptValidation")
 
 	// ErrNotEnoughStake indicates that there was for some SStx in a given block,
 	// the given SStx did not have enough stake to meet the network target.
-	ErrNotEnoughStake
+	ErrNotEnoughStake = ErrorKind("ErrNotEnoughStake")
 
 	// ErrStakeBelowMinimum indicates that for some SStx in a given block,
 	// the given SStx had an amount of stake below the minimum network target.
-	ErrStakeBelowMinimum
+	ErrStakeBelowMinimum = ErrorKind("ErrStakeBelowMinimum")
 
 	// ErrNonstandardStakeTx indicates that a block contained a stake tx that
 	// was not one of the allowed types of a stake transactions.
-	ErrNonstandardStakeTx
+	ErrNonstandardStakeTx = ErrorKind("ErrNonstandardStakeTx")
 
 	// ErrNotEnoughVotes indicates that a block contained less than a majority
 	// of voters.
-	ErrNotEnoughVotes
+	ErrNotEnoughVotes = ErrorKind("ErrNotEnoughVotes")
 
 	// ErrTooManyVotes indicates that a block contained more than the maximum
 	// allowable number of votes.
-	ErrTooManyVotes
+	ErrTooManyVotes = ErrorKind("ErrTooManyVotes")
 
 	// ErrFreshStakeMismatch indicates that a block's header contained a different
 	// number of SStx as compared to what was found in the block.
-	ErrFreshStakeMismatch
+	ErrFreshStakeMismatch = ErrorKind("ErrFreshStakeMismatch")
 
 	// ErrTooManySStxs indicates that more than the allowed number of SStx was
 	// found in a block.
-	ErrTooManySStxs
+	ErrTooManySStxs = ErrorKind("ErrTooManySStxs")
 
 	// ErrInvalidEarlyStakeTx indicates that a tx type other than SStx was found
 	// in the stake tx tree before the period when stake validation begins, or
 	// before the stake tx type could possibly be included in the block.
-	ErrInvalidEarlyStakeTx
+	ErrInvalidEarlyStakeTx = ErrorKind("ErrInvalidEarlyStakeTx")
 
 	// ErrTicketUnavailable indicates that a vote in the block spent a ticket
 	// that could not be found.
-	ErrTicketUnavailable
+	ErrTicketUnavailable = ErrorKind("ErrTicketUnavailable")
 
 	// ErrVotesOnWrongBlock indicates that an SSGen voted on a block not the
 	// block's parent, and so was ineligible for inclusion into that block.
-	ErrVotesOnWrongBlock
+	ErrVotesOnWrongBlock = ErrorKind("ErrVotesOnWrongBlock")
 
 	// ErrVotesMismatch indicates that the number of SSGen in the block was not
 	// equivalent to the number of votes provided in the block header.
-	ErrVotesMismatch
+	ErrVotesMismatch = ErrorKind("ErrVotesMismatch")
 
 	// ErrIncongruentVotebit indicates that the first votebit in votebits was not
 	// the same as that determined by the majority of voters in the SSGen tx
 	// included in the block.
-	ErrIncongruentVotebit
+	ErrIncongruentVotebit = ErrorKind("ErrIncongruentVotebit")
 
 	// ErrInvalidSSRtx indicates than an SSRtx in a block could not be found to
 	// have a valid missed sstx input as per the stake ticket database.
-	ErrInvalidSSRtx
+	ErrInvalidSSRtx = ErrorKind("ErrInvalidSSRtx")
 
 	// ErrInvalidRevNum indicates that the number of revocations from the
 	// header was not the same as the number of SSRtx included in the block.
-	ErrRevocationsMismatch
+	ErrRevocationsMismatch = ErrorKind("ErrRevocationsMismatch")
 
 	// ErrTooManyRevocations indicates more revocations were found in a block
 	// than were allowed.
-	ErrTooManyRevocations
+	ErrTooManyRevocations = ErrorKind("ErrTooManyRevocations")
 
 	// ErrTicketCommitment indicates that a ticket commitment contains an amount
 	// that does not coincide with the associated ticket input amount.
-	ErrTicketCommitment
+	ErrTicketCommitment = ErrorKind("ErrTicketCommitment")
 
 	// ErrInvalidVoteInput indicates that an input to a vote transaction is
 	// either not a stake ticket submission or is not a supported version.
-	ErrInvalidVoteInput
+	ErrInvalidVoteInput = ErrorKind("ErrInvalidVoteInput")
 
 	// ErrBadNumPayees indicates that either a vote or revocation transaction
 	// does not make the correct number of payments per the associated ticket
 	// commitments.
-	ErrBadNumPayees
+	ErrBadNumPayees = ErrorKind("ErrBadNumPayees")
 
 	// ErrBadPayeeScriptVersion indicates that either a vote or revocation
 	// transaction output that corresponds to a ticket commitment does not use
 	// a supported script version.
-	ErrBadPayeeScriptVersion
+	ErrBadPayeeScriptVersion = ErrorKind("ErrBadPayeeScriptVersion")
 
 	// ErrBadPayeeScriptType indicates that either a vote or revocation
 	// transaction output that corresponds to a ticket commitment does not pay
 	// to the same script type required by the commitment.
-	ErrBadPayeeScriptType
+	ErrBadPayeeScriptType = ErrorKind("ErrBadPayeeScriptType")
 
 	// ErrBadPayeeScriptType indicates that either a vote or revocation
 	// transaction output that corresponds to a ticket commitment does not pay
 	// to the hash required by the commitment.
-	ErrMismatchedPayeeHash
+	ErrMismatchedPayeeHash = ErrorKind("ErrMismatchedPayeeHash")
 
 	// ErrBadPayeeValue indicates that either a vote or revocation transaction
 	// output that corresponds to a ticket commitment does not pay the expected
 	// amount required by the commitment.
-	ErrBadPayeeValue
+	ErrBadPayeeValue = ErrorKind("ErrBadPayeeValue")
 
 	// ErrSSGenSubsidy indicates that there was an error in the amount of subsidy
 	// generated in the vote.
-	ErrSSGenSubsidy
+	ErrSSGenSubsidy = ErrorKind("ErrSSGenSubsidy")
 
 	// ErrImmatureTicketSpend indicates that a vote or revocation is attempting
 	// to spend a ticket submission output that has not yet reached the required
 	// maturity.
-	ErrImmatureTicketSpend
+	ErrImmatureTicketSpend = ErrorKind("ErrImmatureTicketSpend")
 
 	// ErrTicketInputScript indicates that a ticket input is not one of the
 	// supported script forms or versions.
-	ErrTicketInputScript
+	ErrTicketInputScript = ErrorKind("ErrTicketInputScript")
 
 	// ErrInvalidRevokeInput indicates that an input to a revocation transaction
 	// is either not a stake ticket submission or is not a supported version.
-	ErrInvalidRevokeInput
+	ErrInvalidRevokeInput = ErrorKind("ErrInvalidRevokeInput")
 
 	// ErrSSRtxPayees indicates that the SSRtx failed to pay out to the committed
 	// addresses or amounts from the originating SStx.
-	ErrSSRtxPayees
+	ErrSSRtxPayees = ErrorKind("ErrSSRtxPayees")
 
 	// ErrTxSStxOutSpend indicates that a non SSGen or SSRtx tx attempted to spend
 	// an OP_SSTX tagged output from an SStx.
-	ErrTxSStxOutSpend
+	ErrTxSStxOutSpend = ErrorKind("ErrTxSStxOutSpend")
 
 	// ErrRegTxCreateStakeOut indicates that a regular tx attempted to create
 	// a stake tagged output.
-	ErrRegTxCreateStakeOut
+	ErrRegTxCreateStakeOut = ErrorKind("ErrRegTxCreateStakeOut")
 
 	// ErrInvalidFinalState indicates that the final state of the PRNG included
 	// in the block differed from the calculated final state.
-	ErrInvalidFinalState
+	ErrInvalidFinalState = ErrorKind("ErrInvalidFinalState")
 
 	// ErrPoolSize indicates an error in the ticket pool size for this block.
-	ErrPoolSize
+	ErrPoolSize = ErrorKind("ErrPoolSize")
 
 	// ErrForceReorgWrongChain indicates that a reroganization was attempted
 	// to be forced, but the chain indicated was not mirrored by b.bestChain.
-	ErrForceReorgWrongChain
+	ErrForceReorgWrongChain = ErrorKind("ErrForceReorgWrongChain")
 
 	// ErrForceReorgMissingChild indicates that a reroganization was attempted
 	// to be forced, but the child node to reorganize to could not be found.
-	ErrForceReorgMissingChild
+	ErrForceReorgMissingChild = ErrorKind("ErrForceReorgMissingChild")
 
 	// ErrBadStakebaseValue indicates that a block's stake tx tree has spent
 	// more than it is allowed.
-	ErrBadStakebaseValue
+	ErrBadStakebaseValue = ErrorKind("ErrBadStakebaseValue")
 
 	// ErrDiscordantTxTree specifies that a given origin tx's content
 	// indicated that it should exist in a different tx tree than the
 	// one given in the TxIn outpoint.
-	ErrDiscordantTxTree
+	ErrDiscordantTxTree = ErrorKind("ErrDiscordantTxTree")
 
 	// ErrStakeFees indicates an error with the fees found in the stake
 	// transaction tree.
-	ErrStakeFees
+	ErrStakeFees = ErrorKind("ErrStakeFees")
 
 	// ErrNoStakeTx indicates there were no stake transactions found in a
 	// block after stake validation height.
-	ErrNoStakeTx
+	ErrNoStakeTx = ErrorKind("ErrNoStakeTx")
 
 	// ErrBadBlockHeight indicates that a block header's embedded block height
 	// was different from where it was actually embedded in the block chain.
-	ErrBadBlockHeight
+	ErrBadBlockHeight = ErrorKind("ErrBadBlockHeight")
 
 	// ErrBlockOneTx indicates that block height 1 failed to correct generate
 	// the block one initial payout transaction.
-	ErrBlockOneTx
+	ErrBlockOneTx = ErrorKind("ErrBlockOneTx")
 
 	// ErrBlockOneTx indicates that block height 1 coinbase transaction in
 	// zero was incorrect in some way.
-	ErrBlockOneInputs
+	ErrBlockOneInputs = ErrorKind("ErrBlockOneInputs")
 
 	// ErrBlockOneOutputs indicates that block height 1 failed to incorporate
 	// the ledger addresses correctly into the transaction's outputs.
-	ErrBlockOneOutputs
+	ErrBlockOneOutputs = ErrorKind("ErrBlockOneOutputs")
 
 	// ErrNoTax indicates that there was no tax present in the coinbase of a
 	// block after height 1.
-	ErrNoTax
+	ErrNoTax = ErrorKind("ErrNoTax")
 
 	// ErrExpiredTx indicates that the transaction is currently expired.
-	ErrExpiredTx
+	ErrExpiredTx = ErrorKind("ErrExpiredTx")
 
 	// ErrExpiryTxSpentEarly indicates that an output from a transaction
 	// that included an expiry field was spent before coinbase maturity
 	// many blocks had passed in the blockchain.
-	ErrExpiryTxSpentEarly
+	ErrExpiryTxSpentEarly = ErrorKind("ErrExpiryTxSpentEarly")
 
 	// ErrFraudAmountIn indicates the witness amount given was fraudulent.
-	ErrFraudAmountIn
+	ErrFraudAmountIn = ErrorKind("ErrFraudAmountIn")
 
 	// ErrFraudBlockHeight indicates the witness block height given was
 	// fraudulent.
-	ErrFraudBlockHeight
+	ErrFraudBlockHeight = ErrorKind("ErrFraudBlockHeight")
 
 	// ErrFraudBlockIndex indicates the witness block index given was
 	// fraudulent.
-	ErrFraudBlockIndex
+	ErrFraudBlockIndex = ErrorKind("ErrFraudBlockIndex")
 
 	// ErrZeroValueOutputSpend indicates that a transaction attempted to spend a
 	// zero value output.
-	ErrZeroValueOutputSpend
+	ErrZeroValueOutputSpend = ErrorKind("ErrZeroValueOutputSpend")
 
 	// ErrInvalidEarlyVoteBits indicates that a block before stake validation
 	// height had an unallowed vote bits value.
-	ErrInvalidEarlyVoteBits
+	ErrInvalidEarlyVoteBits = ErrorKind("ErrInvalidEarlyVoteBits")
 
 	// ErrInvalidEarlyFinalState indicates that a block before stake validation
 	// height had a non-zero final state.
-	ErrInvalidEarlyFinalState
+	ErrInvalidEarlyFinalState = ErrorKind("ErrInvalidEarlyFinalState")
 
 	// ErrKnownInvalidBlock indicates that this block has previously failed
 	// validation.
-	ErrKnownInvalidBlock
+	ErrKnownInvalidBlock = ErrorKind("ErrKnownInvalidBlock")
 
 	// ErrInvalidAncestorBlock indicates that an ancestor of this block has
 	// failed validation.
-	ErrInvalidAncestorBlock
+	ErrInvalidAncestorBlock = ErrorKind("ErrInvalidAncestorBlock")
 
 	// ErrInvalidTemplateParent indicates that a block template builds on a
 	// block that is either not the current best chain tip or its parent.
-	ErrInvalidTemplateParent
+	ErrInvalidTemplateParent = ErrorKind("ErrInvalidTemplateParent")
 
 	// ErrUnknownPiKey indicates that the provided public Pi Key is not
 	// a well known key.
-	ErrUnknownPiKey
+	ErrUnknownPiKey = ErrorKind("ErrUnknownPiKey")
 
 	// ErrInvalidPiSignature indicates that a treasury spend transaction
 	// was not properly signed.
-	ErrInvalidPiSignature
+	ErrInvalidPiSignature = ErrorKind("ErrInvalidPiSignature")
 
 	// ErrInvalidTVoteWindow indicates that a treasury spend transaction
 	// appeared in a block that is prior to a valid treasury vote window.
-	ErrInvalidTVoteWindow
+	ErrInvalidTVoteWindow = ErrorKind("ErrInvalidTVoteWindow")
 
 	// ErrNotTVI indicates that a treasury spend transaction appeared in a
 	// block that is not at a TVI interval.
-	ErrNotTVI
+	ErrNotTVI = ErrorKind("ErrNotTVI")
 
 	// ErrInvalidTSpendWindow indicates that this treasury spend
 	// transaction is outside of the allowed window.
-	ErrInvalidTSpendWindow
+	ErrInvalidTSpendWindow = ErrorKind("ErrInvalidTSpendWindow")
 
 	// ErrNotEnoughTSpendVotes indicates that a treasury spend transaction
 	// does not have enough votes to be included in block.
-	ErrNotEnoughTSpendVotes
+	ErrNotEnoughTSpendVotes = ErrorKind("ErrNotEnoughTSpendVotes")
 
 	// ErrInvalidTSpendValueIn indicates that a treasury spend transaction
 	// ValueIn does not match the encoded copy in the first TxOut.
-	ErrInvalidTSpendValueIn
+	ErrInvalidTSpendValueIn = ErrorKind("ErrInvalidTSpendValueIn")
 
 	// ErrTSpendExists indicates that a duplicate treasury spend
 	// transaction has been mined on a TVI in the current best chain.
-	ErrTSpendExists
+	ErrTSpendExists = ErrorKind("ErrTSpendExists")
 
 	// ErrInvalidExpenditure indicates that a treasury spend transaction
 	// expenditure is out of range.
-	ErrInvalidExpenditure
+	ErrInvalidExpenditure = ErrorKind("ErrInvalidExpenditure")
 
 	// ErrFirstTxNotTreasurybase indicates the first transaction in a block
 	// is not a treasurybase transaction.
-	ErrFirstTxNotTreasurybase
+	ErrFirstTxNotTreasurybase = ErrorKind("ErrFirstTxNotTreasurybase")
 
 	// ErrBadTreasurybaseOutpoint indicates that the outpoint used by a
 	// treasurybase as input was non-null.
-	ErrBadTreasurybaseOutpoint
+	ErrBadTreasurybaseOutpoint = ErrorKind("ErrBadTreasurybaseOutpoint")
 
 	// ErrBadTreasurybaseFraudProof indicates that the fraud proof for a
 	// treasurybase input was non-null.
-	ErrBadTreasurybaseFraudProof
+	ErrBadTreasurybaseFraudProof = ErrorKind("ErrBadTreasurybaseFraudProof")
 
 	// ErrBadTreasurybaseScriptLen indicates the length of the signature script
 	// for a treasurybase transaction is not within the valid range.
-	ErrBadTreasurybaseScriptLen
+	ErrBadTreasurybaseScriptLen = ErrorKind("ErrBadTreasurybaseScriptLen")
 
 	// ErrTreasurybaseTxNotOpReturn indicates the second ouptut of a
 	// treasury base transaction is not an OP_RETURN.
-	ErrTreasurybaseTxNotOpReturn
+	ErrTreasurybaseTxNotOpReturn = ErrorKind("ErrTreasurybaseTxNotOpReturn")
 
 	// ErrTreasurybaseHeight indicates that the encoded height in the
 	// treasurybase is incorrect.
-	ErrTreasurybaseHeight
+	ErrTreasurybaseHeight = ErrorKind("ErrTreasurybaseHeight")
 
 	// ErrInvalidTreasurybaseTxOutputs indicates that the transaction does
 	// not have the correct number of outputs.
-	ErrInvalidTreasurybaseTxOutputs
+	ErrInvalidTreasurybaseTxOutputs = ErrorKind("ErrInvalidTreasurybaseTxOutputs")
 
 	// ErrInvalidTreasurybaseVersion indicates that the transaction output
 	// has the wrong version.
-	ErrInvalidTreasurybaseVersion
+	ErrInvalidTreasurybaseVersion = ErrorKind("ErrInvalidTreasurybaseVersion")
 
 	// ErrInvalidTreasurybaseScript indicates that the transaction output
 	// script is invalid.
-	ErrInvalidTreasurybaseScript
+	ErrInvalidTreasurybaseScript = ErrorKind("ErrInvalidTreasurybaseScript")
 
 	// ErrTreasurybaseOutValue ensures that the OP_TADD value of a
 	// treasurybase is not the expected amount.
-	ErrTreasurybaseOutValue
+	ErrTreasurybaseOutValue = ErrorKind("ErrTreasurybaseOutValue")
 
 	// ErrMultipleTreasurybases indicates a block contains more than one
 	// treasurybase transaction.
-	ErrMultipleTreasurybases
+	ErrMultipleTreasurybases = ErrorKind("ErrMultipleTreasurybases")
 
 	// ErrBadTreasurybaseAmountIn indicates that a block contains an
 	// invalid treasury contribution.
-	ErrBadTreasurybaseAmountIn
+	ErrBadTreasurybaseAmountIn = ErrorKind("ErrBadTreasurybaseAmountIn")
 
 	// ErrBadTSpendOutpoint indicates that the outpoint used by a
 	// treasury spend as input was non-null.
-	ErrBadTSpendOutpoint
+	ErrBadTSpendOutpoint = ErrorKind("ErrBadTSpendOutpoint")
 
 	// ErrBadTSpendFraudProof indicates that the fraud proof for a treasury
 	// spend transaction input was non-null.
-	ErrBadTSpendFraudProof
+	ErrBadTSpendFraudProof = ErrorKind("ErrBadTSpendFraudProof")
 
 	// ErrBadTSpendScriptLen indicates the length of the signature script
 	// for a treasury spend transaction is not within the valid range.
-	ErrBadTSpendScriptLen
+	ErrBadTSpendScriptLen = ErrorKind("ErrBadTSpendScriptLen")
 
 	// ErrInvalidTAddChange indicates the change output of a TAdd is zero.
-	ErrInvalidTAddChange
+	ErrInvalidTAddChange = ErrorKind("ErrInvalidTAddChange")
 
 	// ErrTooManyTAdds indicates the number of treasury adds in a given
 	// block is larger than the maximum allowed.
-	ErrTooManyTAdds
+	ErrTooManyTAdds = ErrorKind("ErrTooManyTAdds")
 
 	// ErrTicketExhaustion indicates extending a given block with another one
 	// would result in an unrecoverable chain due to ticket exhaustion.
-	ErrTicketExhaustion
-
-	// numErrorCodes is the maximum error code number used in tests.
-	numErrorCodes
+	ErrTicketExhaustion = ErrorKind("ErrTicketExhaustion")
 )
 
-// Map of ErrorCode values back to their constant names for pretty printing.
-var errorCodeStrings = map[ErrorCode]string{
-	ErrDuplicateBlock:               "ErrDuplicateBlock",
-	ErrMissingParent:                "ErrMissingParent",
-	ErrBlockTooBig:                  "ErrBlockTooBig",
-	ErrWrongBlockSize:               "ErrWrongBlockSize",
-	ErrBlockVersionTooOld:           "ErrBlockVersionTooOld",
-	ErrBadStakeVersion:              "ErrBadStakeVersion",
-	ErrInvalidTime:                  "ErrInvalidTime",
-	ErrTimeTooOld:                   "ErrTimeTooOld",
-	ErrTimeTooNew:                   "ErrTimeTooNew",
-	ErrDifficultyTooLow:             "ErrDifficultyTooLow",
-	ErrUnexpectedDifficulty:         "ErrUnexpectedDifficulty",
-	ErrHighHash:                     "ErrHighHash",
-	ErrBadMerkleRoot:                "ErrBadMerkleRoot",
-	ErrBadCommitmentRoot:            "ErrBadCommitmentRoot",
-	ErrBadCheckpoint:                "ErrBadCheckpoint",
-	ErrForkTooOld:                   "ErrForkTooOld",
-	ErrCheckpointTimeTooOld:         "ErrCheckpointTimeTooOld",
-	ErrNoTransactions:               "ErrNoTransactions",
-	ErrTooManyTransactions:          "ErrTooManyTransactions",
-	ErrNoTxInputs:                   "ErrNoTxInputs",
-	ErrNoTxOutputs:                  "ErrNoTxOutputs",
-	ErrInvalidTxOutputs:             "ErrInvalidTxOutputs",
-	ErrTxTooBig:                     "ErrTxTooBig",
-	ErrBadTxOutValue:                "ErrBadTxOutValue",
-	ErrDuplicateTxInputs:            "ErrDuplicateTxInputs",
-	ErrBadTxInput:                   "ErrBadTxInput",
-	ErrMissingTxOut:                 "ErrMissingTxOut",
-	ErrUnfinalizedTx:                "ErrUnfinalizedTx",
-	ErrDuplicateTx:                  "ErrDuplicateTx",
-	ErrOverwriteTx:                  "ErrOverwriteTx",
-	ErrImmatureSpend:                "ErrImmatureSpend",
-	ErrSpendTooHigh:                 "ErrSpendTooHigh",
-	ErrBadFees:                      "ErrBadFees",
-	ErrTooManySigOps:                "ErrTooManySigOps",
-	ErrFirstTxNotCoinbase:           "ErrFirstTxNotCoinbase",
-	ErrFirstTxNotOpReturn:           "ErrFirstTxNotOpReturn",
-	ErrCoinbaseHeight:               "ErrCoinbaseHeight",
-	ErrMultipleCoinbases:            "ErrMultipleCoinbases",
-	ErrStakeTxInRegularTree:         "ErrStakeTxInRegularTree",
-	ErrRegTxInStakeTree:             "ErrRegTxInStakeTree",
-	ErrBadCoinbaseScriptLen:         "ErrBadCoinbaseScriptLen",
-	ErrBadCoinbaseValue:             "ErrBadCoinbaseValue",
-	ErrBadCoinbaseOutpoint:          "ErrBadCoinbaseOutpoint",
-	ErrBadCoinbaseFraudProof:        "ErrBadCoinbaseFraudProof",
-	ErrBadCoinbaseAmountIn:          "ErrBadCoinbaseAmountIn",
-	ErrBadStakebaseAmountIn:         "ErrBadStakebaseAmountIn",
-	ErrBadStakebaseScriptLen:        "ErrBadStakebaseScriptLen",
-	ErrBadStakebaseScrVal:           "ErrBadStakebaseScrVal",
-	ErrScriptMalformed:              "ErrScriptMalformed",
-	ErrScriptValidation:             "ErrScriptValidation",
-	ErrNotEnoughStake:               "ErrNotEnoughStake",
-	ErrStakeBelowMinimum:            "ErrStakeBelowMinimum",
-	ErrNonstandardStakeTx:           "ErrNonstandardStakeTx",
-	ErrNotEnoughVotes:               "ErrNotEnoughVotes",
-	ErrTooManyVotes:                 "ErrTooManyVotes",
-	ErrFreshStakeMismatch:           "ErrFreshStakeMismatch",
-	ErrTooManySStxs:                 "ErrTooManySStxs",
-	ErrInvalidEarlyStakeTx:          "ErrInvalidEarlyStakeTx",
-	ErrTicketUnavailable:            "ErrTicketUnavailable",
-	ErrVotesOnWrongBlock:            "ErrVotesOnWrongBlock",
-	ErrVotesMismatch:                "ErrVotesMismatch",
-	ErrIncongruentVotebit:           "ErrIncongruentVotebit",
-	ErrInvalidSSRtx:                 "ErrInvalidSSRtx",
-	ErrRevocationsMismatch:          "ErrRevocationsMismatch",
-	ErrTooManyRevocations:           "ErrTooManyRevocations",
-	ErrTicketCommitment:             "ErrTicketCommitment",
-	ErrInvalidVoteInput:             "ErrInvalidVoteInput",
-	ErrBadNumPayees:                 "ErrBadNumPayees",
-	ErrBadPayeeScriptVersion:        "ErrBadPayeeScriptVersion",
-	ErrBadPayeeScriptType:           "ErrBadPayeeScriptType",
-	ErrMismatchedPayeeHash:          "ErrMismatchedPayeeHash",
-	ErrBadPayeeValue:                "ErrBadPayeeValue",
-	ErrSSGenSubsidy:                 "ErrSSGenSubsidy",
-	ErrImmatureTicketSpend:          "ErrImmatureTicketSpend",
-	ErrTicketInputScript:            "ErrTicketInputScript",
-	ErrInvalidRevokeInput:           "ErrInvalidRevokeInput",
-	ErrSSRtxPayees:                  "ErrSSRtxPayees",
-	ErrTxSStxOutSpend:               "ErrTxSStxOutSpend",
-	ErrRegTxCreateStakeOut:          "ErrRegTxCreateStakeOut",
-	ErrInvalidFinalState:            "ErrInvalidFinalState",
-	ErrPoolSize:                     "ErrPoolSize",
-	ErrForceReorgWrongChain:         "ErrForceReorgWrongChain",
-	ErrForceReorgMissingChild:       "ErrForceReorgMissingChild",
-	ErrBadStakebaseValue:            "ErrBadStakebaseValue",
-	ErrDiscordantTxTree:             "ErrDiscordantTxTree",
-	ErrStakeFees:                    "ErrStakeFees",
-	ErrNoStakeTx:                    "ErrNoStakeTx",
-	ErrBadBlockHeight:               "ErrBadBlockHeight",
-	ErrBlockOneTx:                   "ErrBlockOneTx",
-	ErrBlockOneInputs:               "ErrBlockOneInputs",
-	ErrBlockOneOutputs:              "ErrBlockOneOutputs",
-	ErrNoTax:                        "ErrNoTax",
-	ErrExpiredTx:                    "ErrExpiredTx",
-	ErrExpiryTxSpentEarly:           "ErrExpiryTxSpentEarly",
-	ErrFraudAmountIn:                "ErrFraudAmountIn",
-	ErrFraudBlockHeight:             "ErrFraudBlockHeight",
-	ErrFraudBlockIndex:              "ErrFraudBlockIndex",
-	ErrZeroValueOutputSpend:         "ErrZeroValueOutputSpend",
-	ErrInvalidEarlyVoteBits:         "ErrInvalidEarlyVoteBits",
-	ErrInvalidEarlyFinalState:       "ErrInvalidEarlyFinalState",
-	ErrKnownInvalidBlock:            "ErrKnownInvalidBlock",
-	ErrInvalidAncestorBlock:         "ErrInvalidAncestorBlock",
-	ErrUnknownPiKey:                 "ErrUnknownPiKey",
-	ErrInvalidPiSignature:           "ErrInvalidPiSignature",
-	ErrInvalidTVoteWindow:           "ErrInvalidTVoteWindow",
-	ErrNotTVI:                       "ErrNotTVI",
-	ErrInvalidTSpendWindow:          "ErrInvalidTSpendWindow",
-	ErrNotEnoughTSpendVotes:         "ErrNotEnoughTSpendVotes",
-	ErrInvalidTSpendValueIn:         "ErrInvalidTSpendValueIn",
-	ErrTSpendExists:                 "ErrTSpendExists",
-	ErrInvalidExpenditure:           "ErrInvalidExpenditure",
-	ErrFirstTxNotTreasurybase:       "ErrFirstTxNotTreasurybase",
-	ErrBadTreasurybaseOutpoint:      "ErrBadTreasurybaseOutpoint",
-	ErrBadTreasurybaseFraudProof:    "ErrBadTreasurybaseFraudProof",
-	ErrBadTreasurybaseScriptLen:     "ErrBadTreasurybaseScriptLen",
-	ErrTreasurybaseTxNotOpReturn:    "ErrTreasurybaseTxNotOpReturn",
-	ErrTreasurybaseHeight:           "ErrTreasurybaseHeight",
-	ErrTreasurybaseOutValue:         "ErrTreasurybaseOutValue",
-	ErrInvalidTreasurybaseTxOutputs: "ErrInvalidTreasurybaseTxOutputs",
-	ErrInvalidTreasurybaseVersion:   "ErrInvalidTreasurybaseVersion",
-	ErrInvalidTreasurybaseScript:    "ErrInvalidTreasurybaseScript",
-	ErrMultipleTreasurybases:        "ErrMultipleTreasurybases",
-	ErrBadTreasurybaseAmountIn:      "ErrBadTreasurybaseAmountIn",
-	ErrBadTSpendOutpoint:            "ErrBadTSpendOutpoint",
-	ErrBadTSpendFraudProof:          "ErrBadTSpendFraudProof",
-	ErrBadTSpendScriptLen:           "ErrBadTSpendScriptLen",
-	ErrInvalidTemplateParent:        "ErrInvalidTemplateParent",
-	ErrInvalidTAddChange:            "ErrInvalidTAddChange",
-	ErrTooManyTAdds:                 "ErrTooManyTAdds",
-	ErrTicketExhaustion:             "ErrTicketExhaustion",
+// Error satisfies the error interface and prints human-readable errors.
+func (e ErrorKind) Error() string {
+	return string(e)
 }
 
-// String returns the ErrorCode as a human-readable name.
-func (e ErrorCode) String() string {
-	if s := errorCodeStrings[e]; s != "" {
-		return s
-	}
-	return fmt.Sprintf("Unknown ErrorCode (%d)", int(e))
-}
-
-// RuleError identifies a rule violation.  It is used to indicate that
-// processing of a block or transaction failed due to one of the many validation
-// rules.  The caller can use type assertions to determine if a failure was
-// specifically due to a rule violation and access the ErrorCode field to
-// ascertain the specific reason for the rule violation.
+// RuleError identifies a rule violation related to blocks. It has
+// full support for errors.Is and errors.As, so the caller can ascertain the
+// specific reason for the error by checking the underlying error.
 type RuleError struct {
-	ErrorCode   ErrorCode // Describes the kind of error
-	Description string    // Human readable description of the issue
+	Err         error
+	Description string
 }
 
 // Error satisfies the error interface and prints human-readable errors.
@@ -797,14 +656,12 @@ func (e RuleError) Error() string {
 	return e.Description
 }
 
-// ruleError creates a RuleError given a set of arguments.
-func ruleError(c ErrorCode, desc string) RuleError {
-	return RuleError{ErrorCode: c, Description: desc}
+// Unwrap returns the underlying wrapped error.
+func (e RuleError) Unwrap() error {
+	return e.Err
 }
 
-// IsErrorCode returns whether or not the provided error is a rule error with
-// the provided error code.
-func IsErrorCode(err error, c ErrorCode) bool {
-	var e RuleError
-	return errors.As(err, &e) && e.ErrorCode == c
+// ruleError creates a RuleError given a set of arguments.
+func ruleError(kind ErrorKind, desc string) RuleError {
+	return RuleError{Err: kind, Description: desc}
 }

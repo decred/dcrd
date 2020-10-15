@@ -93,7 +93,7 @@ func (b AcceptedBlock) FullBlockTestInstance() {}
 type RejectedBlock struct {
 	Name       string
 	Block      *wire.MsgBlock
-	RejectCode blockchain.ErrorCode
+	RejectKind blockchain.ErrorKind
 }
 
 // Ensure RejectedBlock implements the TestInstance interface.
@@ -402,8 +402,8 @@ func Generate(includeLargeReorg bool) (tests [][]TestInstance, err error) {
 	acceptBlock := func(blockName string, block *wire.MsgBlock, isMainChain, isOrphan bool) TestInstance {
 		return AcceptedBlock{blockName, block, isMainChain, isOrphan}
 	}
-	rejectBlock := func(blockName string, block *wire.MsgBlock, code blockchain.ErrorCode) TestInstance {
-		return RejectedBlock{blockName, block, code}
+	rejectBlock := func(blockName string, block *wire.MsgBlock, kind blockchain.ErrorKind) TestInstance {
+		return RejectedBlock{blockName, block, kind}
 	}
 	rejectNonCanonicalBlock := func(blockName string, block *wire.MsgBlock) TestInstance {
 		blockHeight := int32(block.Header.Height)
@@ -449,9 +449,9 @@ func Generate(includeLargeReorg bool) (tests [][]TestInstance, err error) {
 			expectTipBlock(tipName, g.BlockByName(tipName)),
 		})
 	}
-	rejected := func(code blockchain.ErrorCode) {
+	rejected := func(kind blockchain.ErrorKind) {
 		tests = append(tests, []TestInstance{
-			rejectBlock(g.TipName(), g.Tip(), code),
+			rejectBlock(g.TipName(), g.Tip(), kind),
 		})
 	}
 	rejectedNonCanonical := func() {
