@@ -26,7 +26,7 @@ digraph {
 	rpcclient [label="rpcclient/v4" fillcolor=mediumseagreen]
 	dcrd [label="dcrd" fillcolor=chocolate]
 
-	{rank=same connmgr addrmgr hdkeychain peer rpcclient}
+	{rank=same connmgr addrmgr hdkeychain peer blockchain rpcclient}
 
 	certgen
 	chaincfg -> txscript [dir=back color=cadetblue]
@@ -45,16 +45,17 @@ digraph {
 	dcrutil -> txscript [dir=back color=burlywood]
 	database ->  stake [dir=back color=dodgerblue]
 	txscript -> stake [dir=back color=mediumspringgreen]
+	txscript -> peer [dir=back color=mediumspringgreen]
 	stake -> gcs [dir=back color=bisque]
 	standalone -> blockchain [dir=back color=firebrick4]
 	gcs -> blockchain [dir=back color=gold]
 	gcs -> rpcclient [dir=back color=gold]
 
 	lru -> peer [dir=back color=royalblue3]
-	blockchain -> peer [dir=back color=orchid]
 	dcrjson -> types [dir=back color=tomato]
 	types -> rpcclient [dir=back color=indianred]
 
+	blockchain -> dcrd [dir=back color=orchid]
 	certgen -> dcrd [dir=back color=darkkhaki]
 	addrmgr -> dcrd [dir=back color=lightsalmon]
 	hdkeychain -> dcrd [dir=back color=deepskyblue]
