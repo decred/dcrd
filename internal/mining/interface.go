@@ -110,7 +110,16 @@ type TxSource interface {
 // blockManagerFacade provides the mining package with a subset of
 // the methods originally defined in the blockManager.
 type blockManagerFacade interface {
+	// ForceReorganization forces a reorganization of the block chain to the block
+	// hash requested, so long as it matches up with the current organization of the
+	// best chain.
 	ForceReorganization(formerBest, newBest chainhash.Hash) error
+
+	// IsCurrent returns whether or not the block manager believes it is synced
+	// with the connected peers.
 	IsCurrent() bool
+
+	// NotifyWork passes new mining work to the notification manager for block
+	// notification processing.
 	NotifyWork(templateNtfn *TemplateNtfn)
 }
