@@ -156,7 +156,7 @@ type testRPCChain struct {
 	headerByHashErr                 error
 	headerByHeight                  wire.BlockHeader
 	headerByHeightErr               error
-	heightRange                     []chainhash.Hash
+	heightRangeFn                   func(startHeight, endHeight int64) ([]chainhash.Hash, error)
 	isCurrent                       bool
 	liveTickets                     []chainhash.Hash
 	liveTicketsErr                  error
@@ -312,7 +312,7 @@ func (c *testRPCChain) HeaderByHeight(height int64) (wire.BlockHeader, error) {
 // HeightRange returns a mocked range of block hashes for the given start and
 // end heights.
 func (c *testRPCChain) HeightRange(startHeight, endHeight int64) ([]chainhash.Hash, error) {
-	return c.heightRange, nil
+	return c.heightRangeFn(startHeight, endHeight)
 }
 
 // IsCurrent returns a mocked bool representing whether or not the chain
@@ -6236,6 +6236,166 @@ func TestHandleTicketVWAP(t *testing.T) {
 			return chain
 		}(),
 		result: vwap,
+	}})
+}
+
+func TestHandleTxFeeInfo(t *testing.T) {
+	t.Parallel()
+
+	txDesc := &mempool.TxDesc{
+		StartingPriority: 0,
+	}
+	txDesc.Tx = dcrutil.NewTx(block432100.Transactions[1])
+	txDesc.Type = stake.TxTypeRegular
+	txDesc.Added = time.Time{}
+	fee, _ := dcrutil.NewAmount(0.0030)
+	txDesc.Fee = int64(fee)
+
+	blocks := uint32(1)
+	afterBestHeight := block432100.Header.Height + uint32(1)
+	start := uint32(10)
+	beforeStart := uint32(5)
+	end := uint32(11)
+	heightRange := []chainhash.Hash{block432100.BlockHash()}
+	feeInfoBlocks := []types.FeeInfoBlock{
+		{
+			Height: 432100,
+			Number: 1,
+			Min:    0.00010088,
+			Max:    0.00010088,
+			Mean:   0.00010088,
+			Median: 0.00010088,
+			StdDev: 0,
+		},
+	}
+	feeInfoRange := types.FeeInfoRange{
+		Number: 1,
+		Min:    0.00010088,
+		Max:    0.00010088,
+		Mean:   0.00010088,
+		Median: 0.00010088,
+		StdDev: 0,
+	}
+
+	feeInfoMempool := types.FeeInfoMempool{
+		Number: 1,
+		Min:    0.00665188,
+		Max:    0.00665188,
+		Mean:   0.00665188,
+		Median: 0.00665188,
+		StdDev: 0,
+	}
+
+	testRPCServerHandler(t, []rpcTest{{
+		name:    "handleTxFeeInfo: unable to fetch ticket fee info for block",
+		handler: handleTxFeeInfo,
+		cmd: &types.TxFeeInfoCmd{
+			Blocks:     &blocks,
+			RangeStart: &start,
+			RangeEnd:   &end,
+		},
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.blockByHeightErr =
+				fmt.Errorf("unable to fetch block by height")
+			return chain
+		}(),
+		wantErr: true,
+		errCode: dcrjson.ErrRPCInternal.Code,
+	}, {
+		name:    "handleTxFeeInfo: start is greater than end",
+		handler: handleTxFeeInfo,
+		cmd: &types.TxFeeInfoCmd{
+			Blocks:     &blocks,
+			RangeStart: &start,
+			RangeEnd:   &beforeStart,
+		},
+		wantErr: true,
+		errCode: dcrjson.ErrRPCInvalidParameter,
+	}, {
+		name:    "handleTxFeeInfo: end is after the current best height",
+		handler: handleTxFeeInfo,
+		cmd: &types.TxFeeInfoCmd{
+			Blocks:     &blocks,
+			RangeStart: &start,
+			RangeEnd:   &afterBestHeight,
+		},
+		wantErr: true,
+		errCode: dcrjson.ErrRPCInvalidParameter,
+	}, {
+		name:    "handleTxFeeInfo: unable to get ticket fee info for block",
+		handler: handleTxFeeInfo,
+		cmd: &types.TxFeeInfoCmd{
+			RangeStart: &start,
+			RangeEnd:   &end,
+		},
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.heightRangeFn = func(startHeight, endHeight int64) ([]chainhash.Hash, error) {
+				return nil, errors.New("unable to fetch block by height")
+			}
+			return chain
+		}(),
+		wantErr: true,
+		errCode: dcrjson.ErrRPCInternal.Code,
+	}, {
+		name:    "handleTxFeeInfo: ok",
+		handler: handleTxFeeInfo,
+		cmd: &types.TxFeeInfoCmd{
+			Blocks:     &blocks,
+			RangeStart: &start,
+			RangeEnd:   &end,
+		},
+		mockTxMempooler: func() *testTxMempooler {
+			mp := defaultMockTxMempooler()
+			mp.txDescs = []*mempool.TxDesc{txDesc}
+			return mp
+		}(),
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.heightRangeFn = func(startHeight, endHeight int64) ([]chainhash.Hash, error) {
+				return heightRange, nil
+			}
+			return chain
+		}(),
+		result: &types.TxFeeInfoResult{
+			FeeInfoMempool: feeInfoMempool,
+			FeeInfoBlocks:  feeInfoBlocks,
+			FeeInfoRange:   feeInfoRange,
+		},
+	}, {
+		name:    "handleTxFeeInfo: ok, no parameters",
+		handler: handleTxFeeInfo,
+		cmd:     &types.TxFeeInfoCmd{},
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.heightRangeFn = func(startHeight, endHeight int64) ([]chainhash.Hash, error) {
+				return heightRange, nil
+			}
+			return chain
+		}(),
+		result: &types.TxFeeInfoResult{
+			FeeInfoMempool: types.FeeInfoMempool{},
+			FeeInfoBlocks:  nil,
+			FeeInfoRange:   feeInfoRange,
+		},
+	}, {
+		name:    "handleTxFeeInfo: ok, not enough blocks",
+		handler: handleTxFeeInfo,
+		cmd:     &types.TxFeeInfoCmd{},
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.bestSnapshot.Height = 1
+			chain.heightRangeFn = func(startHeight, endHeight int64) ([]chainhash.Hash, error) {
+				return heightRange, nil
+			}
+			return chain
+		}(),
+		result: &types.TxFeeInfoResult{
+			FeeInfoMempool: types.FeeInfoMempool{},
+			FeeInfoBlocks:  nil,
+			FeeInfoRange:   feeInfoRange,
+		},
 	}})
 }
 
