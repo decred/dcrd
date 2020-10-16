@@ -2809,7 +2809,8 @@ func TestMiningView(t *testing.T) {
 		txOutToSpendableOut(txD, 0, wire.TxTreeRegular),
 	}, 2, applyTxFee(0))
 
-	// Add all to mempool.
+	// Add all to mempool. Note that txB is out of order to test the behavior of
+	// an orphan transaction with ancestors brought into the main pool.
 	allTxns := []*dcrutil.Tx{txB, txA, txC, txD, txE}
 	for index, tx := range allTxns {
 		_, err := harness.txPool.ProcessTransaction(tx,
@@ -2974,6 +2975,11 @@ func TestMiningView(t *testing.T) {
 		if len(ancestors) != stat.NumAncestors {
 			t.Fatalf("%v: expected subject txn to have NumAncestors=%v, got %v",
 				test.name, len(ancestors), stat.NumAncestors)
+		}
+
+		if len(descendants) != stat.NumDescendants {
+			t.Fatalf("%v: expected subject txn to have NumDescendants=%v, "+
+				"got %v", test.name, len(descendants), stat.NumDescendants)
 		}
 
 		for _, descendantHash := range descendants {
@@ -3170,5 +3176,102 @@ func TestMiningView(t *testing.T) {
 	if len(miningViewSnapshot.Children(txC.Hash())) != 1 {
 		t.Fatalf("RemoveTxnFromPool: expected txC to exist in snapshot view " +
 			"even though it was removed from the mempool.")
+	}
+}
+
+// TestAncestorTrackingLimits ensures that ancestor tracking is
+// disabled for transactions that have too many ancestors.
+func TestAncestorTrackingLimits(t *testing.T) {
+	harness, spendableOuts, err := newPoolHarness(chaincfg.MainNetParams())
+	if err != nil {
+		t.Fatalf("unable to create test pool: %v", err)
+	}
+
+	// Add a chain of transactions to the mempool.
+	var allTxns []*dcrutil.Tx
+	prevSpendableOut := spendableOuts[0]
+	for i := 0; i < ancestorTrackingLimit+2; i++ {
+		tx, _ := harness.CreateSignedTx([]spendableOutput{
+			prevSpendableOut,
+		}, 1)
+
+		allTxns = append(allTxns, tx)
+		prevSpendableOut = txOutToSpendableOut(tx, 0, wire.TxTreeRegular)
+	}
+
+	// Add all transactions to the mempool.
+	for index, tx := range allTxns {
+		_, err := harness.txPool.ProcessTransaction(tx,
+			true, false, true, 0)
+		if err != nil {
+			t.Fatalf("ProcessTransaction: failed to accept valid "+
+				"transaction at index %d: %v", index, err)
+		}
+	}
+
+	// Remove each transaction from the mempool to demonstrate that once a
+	// transaction has less ancestors than the limit that it begins having
+	// ancestor stats tracked and it continues to do so until it is removed
+	// from the mempool.
+	allTxnsQueue := allTxns
+	for len(allTxnsQueue) > 0 {
+		for index, tx := range allTxnsQueue {
+			_, hasStats := harness.txPool.miningView.AncestorStats(tx.Hash())
+			if index <= ancestorTrackingLimit && !hasStats {
+				t.Fatalf("expected transaction %v at index %v to have ancestor"+
+					" tracking enabled", tx.Hash(), index)
+			}
+
+			if index > ancestorTrackingLimit && hasStats {
+				t.Fatalf("expected transaction %v at index %v to not have "+
+					"ancestor tracking enabled", tx.Hash(), index)
+			}
+		}
+
+		tx := allTxnsQueue[0]
+		allTxnsQueue = allTxnsQueue[1:]
+
+		// Simulate the transaction being included in a block.
+		newBlockHeight := harness.chain.currentHeight + 1
+		harness.AddFakeUTXO(tx, newBlockHeight)
+		harness.chain.SetHeight(newBlockHeight)
+		harness.txPool.RemoveTransaction(tx, false, noTreasury)
+		harness.txPool.MaybeAcceptDependents(tx, noTreasury)
+	}
+
+	// Add all transactions back to the mempool in reverse order to demonstrate
+	// that a transaction that initially has ancestor stats tracked is
+	// later excluded from the ancestor tracked set when it has too many
+	// ancestors.
+	for index := len(allTxns) - 1; index >= 0; index-- {
+		tx := allTxns[index]
+		txHash := tx.Hash()
+		harness.chain.utxos.LookupEntry(txHash).SpendOutput(0)
+		_, err := harness.txPool.ProcessTransaction(tx,
+			true, false, true, 0)
+		if err != nil {
+			t.Fatalf("ProcessTransaction: failed to accept valid "+
+				"transaction %v", err)
+		}
+
+		_, hasStats := harness.txPool.miningView.AncestorStats(txHash)
+		if !hasStats {
+			t.Fatalf("expected transaction %v at index %v to have ancestor"+
+				" tracking enabled when added back to the pool", txHash, index)
+		}
+	}
+
+	for index, tx := range allTxns {
+		txHash := tx.Hash()
+		_, hasStats := harness.txPool.miningView.AncestorStats(txHash)
+		if index <= ancestorTrackingLimit && !hasStats {
+			t.Fatalf("expected transaction %v at index %v to have ancestor"+
+				" tracking enabled", txHash, index)
+		}
+
+		if index > ancestorTrackingLimit && hasStats {
+			t.Fatalf("expected transaction %v at index %v to not have "+
+				"ancestor tracking enabled", txHash, index)
+		}
 	}
 }
