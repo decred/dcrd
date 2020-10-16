@@ -193,6 +193,9 @@ type TxDesc struct {
 
 	// TotalSigOps is the total signature operations for this transaction.
 	TotalSigOps int
+
+	// TxSize is the size of the transaction.
+	TxSize int64
 }
 
 // TxAncestorStats is a descriptor that stores aggregated statistics for the
@@ -209,6 +212,10 @@ type TxAncestorStats struct {
 
 	// NumAncestors is the total number of ancestors for a given transaction.
 	NumAncestors int
+
+	// NumDescendants is the total number of descendants that have ancestor
+	// statistics tracked for a given transaction.
+	NumDescendants int
 }
 
 // VoteDesc is a descriptor about a vote transaction in a transaction source

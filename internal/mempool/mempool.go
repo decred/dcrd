@@ -67,6 +67,17 @@ const (
 	// are allowed in the mempool. The number 7 is also the amount of
 	// physical space available for TSpend votes and thus is a hard limit.
 	MempoolMaxConcurrentTSpends = 7
+
+	// ancestorTrackingLimit is the maximum number of ancestors a transaction
+	// can have ancestor stats calculated for.
+	ancestorTrackingLimit = 25
+)
+
+var (
+	// zeroHash is the zero value for a chainhash.Hash and is defined as a
+	// package level variable to avoid the need to create a new instance
+	// every time a check is needed.
+	zeroHash = &chainhash.Hash{}
 )
 
 // Tag represents an identifier to use for tagging orphan transactions.  The
@@ -872,19 +883,228 @@ func (g *txDescGraph) forEachDescendant(txHash *chainhash.Hash,
 	}
 }
 
+// forEachDescendantPreOrder attempts to walk all transactions that depend on
+// the provided transaction hash by invoking the function f with each in
+// pre-order. If the provided function f returns true then the traversal will
+// walk descendants of the provided transaction's respective child.
+func (g *txDescGraph) forEachDescendantPreOrder(txHash *chainhash.Hash,
+	seen map[chainhash.Hash]struct{}, f func(*mining.TxDesc) bool) {
+
+	for child, childDesc := range g.childrenOf[*txHash] {
+		if _, saw := seen[child]; saw {
+			continue
+		}
+
+		seen[child] = struct{}{}
+		if f(childDesc) {
+			g.forEachDescendantPreOrder(&child, seen, f)
+		}
+	}
+}
+
+// forEachAncestorPreOrder iterates over all transactions in the graph that
+// txHash depends on and invokes the function f for each, in pre-order.
+// If the provided function f returns true then it continues to walk ancestors
+// of the respective ancestor. If it returns false, then no additional parents
+// of the provided transaction will be visited and the transaction passed to f
+// will not be added to the seen map.
+func (g *txDescGraph) forEachAncestorPreOrder(txHash *chainhash.Hash,
+	seen map[chainhash.Hash]*mining.TxDesc, f func(tx *mining.TxDesc) bool) {
+
+	for parentHash, parentTxDesc := range g.parentsOf[*txHash] {
+		if _, saw := seen[parentHash]; saw {
+			continue
+		}
+
+		moveNext := f(parentTxDesc)
+		if !moveNext {
+			return
+		}
+
+		seen[parentHash] = parentTxDesc
+		g.forEachAncestorPreOrder(&parentHash, seen, f)
+	}
+}
+
+// addAncestorTo modifies the TxAncestorStats instance to include the provided
+// TxDesc's statistics.
+func addAncestorTo(stats *mining.TxAncestorStats, txDesc *mining.TxDesc) {
+	stats.Fees += txDesc.Fee
+	stats.SizeBytes += txDesc.TxSize
+	stats.TotalSigOps += txDesc.TotalSigOps
+	stats.NumAncestors++
+}
+
+// addDescendantTo modifies the TxAncestorStats instance to account for the
+// addition of a newly tracked descendant.
+func addDescendantTo(stats *mining.TxAncestorStats) {
+	stats.NumDescendants++
+}
+
+// maybeUpdateAncestorStats attempts to update the ancestor stats for a given
+// transaction. It walks the graph for all ancestors of the provided transaction
+// and aggregates statistics for its ancestors. It also accepts a hash for
+// an ancestor that should be treated as though it does not exist in the
+// graph.
+func (mv *txMiningView) maybeUpdateAncestorStats(txDesc *mining.TxDesc,
+	ignoreTxHash *chainhash.Hash) bool {
+
+	baseTxHash := txDesc.Tx.Hash()
+	canTrackAncestors := true
+	seenAncestors := make(map[chainhash.Hash]*mining.TxDesc,
+		ancestorTrackingLimit)
+	mv.txGraph.forEachAncestorPreOrder(baseTxHash, seenAncestors,
+		func(ancestorTxDesc *mining.TxDesc) bool {
+			if !canTrackAncestors {
+				// Short circuit the below checks if we know that the provided
+				// transaction cannot have ancestor stats aggregated. This also
+				// stops adding transactions to the seenAncestors map.
+				return false
+			}
+
+			ancestorTxHash := *ancestorTxDesc.Tx.Hash()
+			if ancestorTxHash == *ignoreTxHash {
+				// Skip this ancestor but continue walking others.
+				// This accounts for a scenario where a transaction that will be
+				// removed from the miningView should cause descendants on the
+				// outer edge of the ancestor limit to potentially have ancestor
+				// stats calculated. However, in order to walk descendants of
+				// the transaction pending removal, it must exist in the graph
+				// so ignore it.
+				return false
+			}
+
+			if len(seenAncestors) >= ancestorTrackingLimit {
+				// A transaction with too many ancestors should not have
+				// ancestor stats cached.
+				canTrackAncestors = false
+				return false
+			}
+
+			// If any ancestor transaction does not have stats, then the
+			// provided one should not either.
+			ancestorStats, exists := mv.ancestorStats[ancestorTxHash]
+			if !exists {
+				canTrackAncestors = false
+				return false
+			}
+
+			// If any ancestor plus its respective ancestors would exceed the
+			// limit for this transaction, then do not track stats.
+			if ancestorStats.NumAncestors+1 > ancestorTrackingLimit {
+				canTrackAncestors = false
+				return false
+			}
+
+			// If tracking this transaction would cause any ancestor to have
+			// more descendants than the tracking limit, then stats should not
+			// be tracked for the base transaction.
+			if ancestorStats.NumDescendants+1 > ancestorTrackingLimit {
+				canTrackAncestors = false
+				return false
+			}
+			return true
+		})
+
+	if !canTrackAncestors {
+		delete(mv.ancestorStats, *baseTxHash)
+		return false
+	}
+
+	// The transaction has passed all checks and will have ancestor statistics
+	// tracked and updated. All elements of the seenAncestors map will have
+	// ancestor statistics tracked. This is guaranteed by a check performed
+	// during a prior walk that limits what enters the seenAncestors map.
+	baseTxnAncestorStats := &mining.TxAncestorStats{}
+	for ancestorTxHash, ancestorTxDesc := range seenAncestors {
+		addAncestorTo(baseTxnAncestorStats, ancestorTxDesc)
+		addDescendantTo(mv.ancestorStats[ancestorTxHash])
+	}
+	mv.ancestorStats[*baseTxHash] = baseTxnAncestorStats
+	return true
+}
+
+// removeAncestorFrom modifies the TxAncestorStats instance to stop storing
+// the statistics of the provided TxDesc.
+func removeAncestorFrom(stats *mining.TxAncestorStats, txDesc *mining.TxDesc) {
+	stats.Fees -= txDesc.Fee
+	stats.SizeBytes -= txDesc.TxSize
+	stats.TotalSigOps -= txDesc.TotalSigOps
+	stats.NumAncestors--
+}
+
+// removeDescendantFrom modifies the TxAncestorStats instance to account for
+// the removal of a descendant.
+func removeDescendantFrom(stats *mining.TxAncestorStats) {
+	stats.NumDescendants--
+}
+
 // updateStatsDescendantsRemoved removes the provided transaction's stats
 // from all descendant transactions.
-func (mv *txMiningView) updateStatsDescendantsRemoved(txDesc *mining.TxDesc) {
-	txHash := txDesc.Tx.Hash()
-	txSize := int64(txDesc.Tx.MsgTx().SerializeSize())
-	seen := make(map[chainhash.Hash]struct{})
-	mv.txGraph.forEachDescendant(txHash, seen, func(descendant *mining.TxDesc) {
-		descendantStats := mv.ancestorStats[*descendant.Tx.Hash()]
-		descendantStats.Fees -= txDesc.Fee
-		descendantStats.SizeBytes -= txSize
-		descendantStats.TotalSigOps -= txDesc.TotalSigOps
-		descendantStats.NumAncestors--
-	})
+func (mv *txMiningView) updateStatsDescendantsRemoved(baseTxDesc *mining.TxDesc) {
+	baseTxHash := baseTxDesc.Tx.Hash()
+	if _, hasStats := mv.ancestorStats[*baseTxHash]; !hasStats {
+		// If the transaction does not have ancestor tracking enabled, then
+		// none of its descendants should either.
+		return
+	}
+
+	numUntrackedDescendants := 0
+	seenDescendants := make(map[chainhash.Hash]struct{}, ancestorTrackingLimit)
+	mv.txGraph.forEachDescendantPreOrder(baseTxHash, seenDescendants,
+		func(descendantTxDesc *mining.TxDesc) bool {
+			descendantTxHash := *descendantTxDesc.Tx.Hash()
+			descendantStats, hasStats := mv.ancestorStats[descendantTxHash]
+
+			// Attempt to track the descendant's ancestor stats if it was not
+			// tracked previously. This scenario applies to a transaction
+			// that once had too many ancestors, but is now eligible to
+			// have stats tracked.
+			// A check is also performed to avoid testing too many descendants
+			// for eligibility to be included in the tracked set, since no
+			// descendant can know if any one of its ancestors has too many
+			// descendants tracked without visiting the ancestor. Note that
+			// although this has a non-ideal behavior of potentially skipping
+			// transactions that would otherwise be eligible to have stats
+			// tracked, it bounds the number of times ancestors are walked.
+			if !hasStats && numUntrackedDescendants < ancestorTrackingLimit {
+				numUntrackedDescendants++
+
+				// Note that this call retrieves ancestors while walking
+				// descendants of another transaction, and that the time
+				// complexity is bound by the maximum number of ancestors
+				// allowed to be tracked in the graph and the maximum
+				// number of descendants allowed to have ancestor stats tracked.
+				mv.maybeUpdateAncestorStats(descendantTxDesc, baseTxHash)
+
+				// Do not walk descendants of this descendant if it did not
+				// have ancestor stats previously because it was on the edge of
+				// the ancestor limit. Any transactions that descend from it
+				// would exceed the limit by at least one.
+				return false
+			}
+
+			if hasStats {
+				removeAncestorFrom(descendantStats, baseTxDesc)
+				return true
+			}
+
+			// If the transaction does not have statistics tracked then none of
+			// its descendants will either.
+			return false
+		})
+
+	// Update all ancestors to account for the removal of a descendant.
+	seenAncestors := make(map[chainhash.Hash]*mining.TxDesc,
+		ancestorTrackingLimit)
+	mv.txGraph.forEachAncestorPreOrder(baseTxHash, seenAncestors,
+		func(ancestorTxDesc *mining.TxDesc) bool {
+			ancestorStats, exists := mv.ancestorStats[*ancestorTxDesc.Tx.Hash()]
+			if exists {
+				removeDescendantFrom(ancestorStats)
+			}
+			return true
+		})
 }
 
 // remove deletes the provided txn hash from the graph. If it is the only
@@ -1073,29 +1293,6 @@ func (g *txDescGraph) forEachAncestor(txHash *chainhash.Hash,
 	}
 }
 
-// aggregateAncestorStats adds the provided ancestor transaction's statistics
-// to the provided ancestor stats reference.
-func aggregateAncestorStats(stats *mining.TxAncestorStats, ancestor *mining.TxDesc) {
-	stats.NumAncestors++
-	stats.Fees += ancestor.Fee
-	stats.SizeBytes += int64(ancestor.Tx.MsgTx().SerializeSize())
-	stats.TotalSigOps += ancestor.TotalSigOps
-}
-
-// updateBundleStats ensures that the bundle stats for a given
-// transaction are up to date. It aggregates statistics for the provided
-// transaction based on its ancestors.
-func (mv *txMiningView) updateBundleStats(txDesc *mining.TxDesc) {
-	seen := make(map[chainhash.Hash]struct{})
-	txHash := txDesc.Tx.Hash()
-	stats := &mining.TxAncestorStats{}
-	mv.txGraph.forEachAncestor(txHash, seen, func(txDesc *mining.TxDesc) {
-		aggregateAncestorStats(stats, txDesc)
-	})
-
-	mv.ancestorStats[*txDesc.Tx.Hash()] = stats
-}
-
 // findTx returns a transaction from the mempool by hash.  If it does not exist
 // in the mempool, a nil pointer is returned.
 func (mp *TxPool) findTx(txHash *chainhash.Hash) *mining.TxDesc {
@@ -1112,7 +1309,8 @@ func (mp *TxPool) findTx(txHash *chainhash.Hash) *mining.TxDesc {
 func (g *txDescGraph) addChild(tx *mining.TxDesc, child *mining.TxDesc) {
 	txHash := *tx.Tx.Hash()
 	if _, exists := g.childrenOf[txHash]; !exists {
-		g.childrenOf[txHash] = make(map[chainhash.Hash]*mining.TxDesc)
+		g.childrenOf[txHash] = make(map[chainhash.Hash]*mining.TxDesc,
+			len(tx.Tx.MsgTx().TxOut))
 	}
 
 	g.childrenOf[txHash][*child.Tx.Hash()] = child
@@ -1123,7 +1321,8 @@ func (g *txDescGraph) addChild(tx *mining.TxDesc, child *mining.TxDesc) {
 func (g *txDescGraph) addParent(tx *mining.TxDesc, parent *mining.TxDesc) {
 	txHash := *tx.Tx.Hash()
 	if _, exists := g.parentsOf[txHash]; !exists {
-		g.parentsOf[txHash] = make(map[chainhash.Hash]*mining.TxDesc)
+		g.parentsOf[txHash] = make(map[chainhash.Hash]*mining.TxDesc,
+			len(tx.Tx.MsgTx().TxIn))
 	}
 
 	g.parentsOf[txHash][*parent.Tx.Hash()] = parent
@@ -1159,17 +1358,58 @@ func (g *txDescGraph) insert(txDesc *mining.TxDesc, findTx txDescFind) {
 
 // updateStatsDescendantsAdded adds the provided transaction's stats
 // to all transactions in the graph that depend on it.
-func (mv *txMiningView) updateStatsDescendantsAdded(txDesc *mining.TxDesc) {
-	txHash := txDesc.Tx.Hash()
-	txSize := int64(txDesc.Tx.MsgTx().SerializeSize())
-	seen := make(map[chainhash.Hash]struct{})
-	mv.txGraph.forEachDescendant(txHash, seen, func(descendant *mining.TxDesc) {
-		descendantStats := mv.ancestorStats[*descendant.Tx.Hash()]
-		descendantStats.Fees += txDesc.Fee
-		descendantStats.SizeBytes += txSize
-		descendantStats.TotalSigOps += txDesc.TotalSigOps
-		descendantStats.NumAncestors++
-	})
+func (mv *txMiningView) updateStatsDescendantsAdded(baseTxDesc *mining.TxDesc) {
+	if len(mv.txGraph.childrenOf[*baseTxDesc.Tx.Hash()]) == 0 {
+		// Return early if the base transaction has no descendants.
+		return
+	}
+
+	baseTxHash := baseTxDesc.Tx.Hash()
+	baseTxStats, baseTxHasStats := mv.ancestorStats[*baseTxHash]
+	seenDescendants := make(map[chainhash.Hash]struct{},
+		ancestorTrackingLimit+1)
+
+	mv.txGraph.forEachDescendantPreOrder(baseTxHash, seenDescendants,
+		func(descendant *mining.TxDesc) bool {
+			descendantTxHash := *descendant.Tx.Hash()
+			descendantStats, descendantHasStats :=
+				mv.ancestorStats[descendantTxHash]
+			if !descendantHasStats {
+				// Cannot update ancestor stats for a transaction or its
+				// descendants if it does not have ancestor stats tracked.
+				return false
+			}
+
+			if !baseTxHasStats {
+				// If the base tx does not have ancestor stats, then remove them
+				// for all of its descendants. This can happen during a reorg or
+				// disapproval event when two transaction chains are joined by
+				// the base transaction.
+				delete(mv.ancestorStats, descendantTxHash)
+				return true
+			}
+
+			if baseTxStats.NumDescendants+1 > ancestorTrackingLimit {
+				// The base transaction has enough tracked descendants. Stop
+				// tracking this descendant and its descendants.
+				delete(mv.ancestorStats, descendantTxHash)
+				return true
+			}
+
+			if descendantStats.NumAncestors+1 > ancestorTrackingLimit {
+				// The descendant has too many tracked ancestors. Stop
+				// tracking this descendant and its descendants.
+				delete(mv.ancestorStats, descendantTxHash)
+				return true
+			}
+
+			// Update the stats for this descendant since it is allowed to have
+			// ancestor statistics tracked. Also add the descendant to the
+			// statistics of the base transaction.
+			addAncestorTo(descendantStats, baseTxDesc)
+			addDescendantTo(baseTxStats)
+			return true
+		})
 }
 
 // addTransaction inserts a TxDesc into the mining view if it has a parent
@@ -1181,13 +1421,9 @@ func (mv *txMiningView) addTransaction(txDesc *mining.TxDesc, findTx txDescFind)
 	mv.txGraph.insert(txDesc, findTx)
 
 	if mv.trackAncestorStats {
-		// Ensure that the statistics for this transaction are up to date
-		// given the current ancestors in the view.
-		mv.updateBundleStats(txDesc)
-
-		// If a transaction is added back to the view,
-		// reconnect it with transactions already in the view.
-		// This is necessary to account for reorgs.
+		mv.maybeUpdateAncestorStats(txDesc, zeroHash)
+		// When a transaction is added back to the mempool, update the stats
+		// of its descendants.
 		mv.updateStatsDescendantsAdded(txDesc)
 	}
 }
@@ -1216,6 +1452,7 @@ func (mp *TxPool) addTransaction(utxoView *blockchain.UtxoViewpoint, tx *dcrutil
 			Height:      height,
 			Fee:         fee,
 			TotalSigOps: totalSigOps,
+			TxSize:      int64(tx.MsgTx().SerializeSize()),
 		},
 		StartingPriority: mining.CalcPriority(msgTx, utxoView, height),
 	}
@@ -2467,27 +2704,36 @@ func (mv *txMiningView) AncestorStats(txHash *chainhash.Hash) (*mining.TxAncesto
 // Ancestors returns a collection of all transactions in the graph that the
 // provided transaction hash depends on, and its ancestors' bundle stats.
 func (mv *txMiningView) Ancestors(txHash *chainhash.Hash) []*mining.TxDesc {
-	var ancestors []*mining.TxDesc
 	if !mv.trackAncestorStats {
 		return nil
 	}
 
-	var stats *mining.TxAncestorStats
-	seen := make(map[chainhash.Hash]struct{})
+	ancestors := make([]*mining.TxDesc, 0, ancestorTrackingLimit)
+	var baseTxStats *mining.TxAncestorStats
+	if oldStats, hadStats := mv.ancestorStats[*txHash]; hadStats {
+		// If the transaction had statistics tracked already, then we should
+		// copy the number of descendants since that value is up to date. Use
+		// a new instance of mining.TxAncestorStats to avoid mutating references
+		// that may be held between calls to this function.
+		baseTxStats = &mining.TxAncestorStats{}
+		baseTxStats.NumDescendants = oldStats.NumDescendants
+	}
+
+	seen := make(map[chainhash.Hash]struct{}, ancestorTrackingLimit)
 	mv.txGraph.forEachAncestor(txHash, seen, func(txDesc *mining.TxDesc) {
-		if stats == nil {
-			stats = &mining.TxAncestorStats{}
+		if baseTxStats == nil {
+			baseTxStats = &mining.TxAncestorStats{}
 		}
 
-		aggregateAncestorStats(stats, txDesc)
+		addAncestorTo(baseTxStats, txDesc)
 		ancestors = append(ancestors, txDesc)
 	})
 
-	if stats == nil {
+	if baseTxStats == nil {
 		delete(mv.ancestorStats, *txHash)
 	} else {
 		// Update the cache.
-		mv.ancestorStats[*txHash] = stats
+		mv.ancestorStats[*txHash] = baseTxStats
 	}
 
 	return ancestors
@@ -2609,10 +2855,11 @@ func (mp *TxPool) MiningView() mining.TxMiningView {
 
 	for key, value := range mp.miningView.ancestorStats {
 		view.ancestorStats[key] = &mining.TxAncestorStats{
-			Fees:         value.Fees,
-			SizeBytes:    value.SizeBytes,
-			TotalSigOps:  value.TotalSigOps,
-			NumAncestors: value.NumAncestors,
+			Fees:           value.Fees,
+			SizeBytes:      value.SizeBytes,
+			TotalSigOps:    value.TotalSigOps,
+			NumAncestors:   value.NumAncestors,
+			NumDescendants: value.NumDescendants,
 		}
 	}
 
