@@ -2429,9 +2429,10 @@ func (b *blockManager) CalcNextRequiredStakeDifficulty() (int64, error) {
 	return response.stakeDifficulty, response.err
 }
 
-// ForceReorganization returns the hashes of all the children of a parent for the
-// block hash that is passed to the function. It is funneled through the block
-// manager since blockchain is not safe for concurrent access.
+// ForceReorganization forces a reorganization of the block chain to the block
+// hash requested, so long as it matches up with the current organization of the
+// best chain.  It is funneled through the block manager since blockchain is not
+// safe for concurrent access.
 func (b *blockManager) ForceReorganization(formerBest, newBest chainhash.Hash) error {
 	reply := make(chan forceReorganizationResponse)
 	b.msgChan <- forceReorganizationMsg{
