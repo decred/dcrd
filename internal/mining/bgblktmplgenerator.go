@@ -270,12 +270,12 @@ type BgBlkTmplGenerator struct {
 func NewBgBlkTmplGenerator(tg *BlkTmplGenerator, addrs []dcrutil.Address, allowUnsynced bool) *BgBlkTmplGenerator {
 	return &BgBlkTmplGenerator{
 		quit:                make(chan struct{}),
-		chain:               tg.chain,
+		chain:               tg.cfg.Chain,
 		tg:                  tg,
 		allowUnsyncedMining: allowUnsynced,
 		miningAddrs:         addrs,
-		maxVotesPerBlock:    tg.chainParams.TicketsPerBlock,
-		minVotesRequired:    (tg.chainParams.TicketsPerBlock / 2) + 1,
+		maxVotesPerBlock:    tg.cfg.ChainParams.TicketsPerBlock,
+		minVotesRequired:    (tg.cfg.ChainParams.TicketsPerBlock / 2) + 1,
 		subscriptions:       make(map[*TemplateSubscription]struct{}),
 		notifySubscribers:   make(chan *TemplateNtfn),
 		notifiedParents:     lru.NewCache(3),
@@ -411,7 +411,7 @@ func (g *BgBlkTmplGenerator) notifySubscribersHandler(ctx context.Context) {
 	for {
 		select {
 		case templateNtfn := <-g.notifySubscribers:
-			g.tg.blockManager.NotifyWork(templateNtfn)
+			g.tg.cfg.BlockManager.NotifyWork(templateNtfn)
 
 			g.subscriptionMtx.Lock()
 			for subscription := range g.subscriptions {
@@ -729,7 +729,7 @@ func (g *BgBlkTmplGenerator) curTplHasNumVotes(votedOnHash *chainhash.Hash, numV
 // numVotesForBlock returns the number of votes on the provided block hash that
 // are known.
 func (g *BgBlkTmplGenerator) numVotesForBlock(votedOnBlock *chainhash.Hash) uint16 {
-	return uint16(len(g.tg.txSource.VoteHashesForBlock(votedOnBlock)))
+	return uint16(len(g.tg.cfg.TxSource.VoteHashesForBlock(votedOnBlock)))
 }
 
 // handleBlockConnected handles the rtBlockConnected event by either immediately
@@ -760,7 +760,7 @@ func (g *BgBlkTmplGenerator) handleBlockConnected(ctx context.Context, state *re
 	// Generate a new template immediately when it will be prior to stake
 	// validation height which means no votes are required.
 	newTemplateHeight := blockHeight + 1
-	if newTemplateHeight < uint32(g.tg.chainParams.StakeValidationHeight) {
+	if newTemplateHeight < uint32(g.tg.cfg.ChainParams.StakeValidationHeight) {
 		state.stopRegenTimer()
 		state.failedGenRetryTimeout = nil
 		state.baseBlockHash = *blockHash
@@ -876,7 +876,7 @@ func (g *BgBlkTmplGenerator) handleBlockAccepted(_ context.Context, state *regen
 	// therefore no additional handling is necessary.
 	blockHeight := block.MsgBlock().Header.Height
 	newTemplateHeight := blockHeight + 1
-	if newTemplateHeight < uint32(g.tg.chainParams.StakeValidationHeight) {
+	if newTemplateHeight < uint32(g.tg.cfg.ChainParams.StakeValidationHeight) {
 		return
 	}
 
@@ -1141,7 +1141,7 @@ func (g *BgBlkTmplGenerator) handleRegenEvent(ctx context.Context, state *regenH
 
 	// Do not generate block templates when the chain is not synced unless
 	// specifically requested to.
-	if !g.allowUnsyncedMining && !g.tg.blockManager.IsCurrent() {
+	if !g.allowUnsyncedMining && !g.tg.cfg.BlockManager.IsCurrent() {
 		return
 	}
 
@@ -1335,7 +1335,7 @@ func (g *BgBlkTmplGenerator) regenHandler(ctx context.Context) {
 
 			// Generate a new template when there are new transactions
 			// available.
-			if g.tg.txSource.LastUpdated().Unix() > state.lastGeneratedTime {
+			if g.tg.cfg.TxSource.LastUpdated().Unix() > state.lastGeneratedTime {
 				state.failedGenRetryTimeout = nil
 				g.genTemplateAsync(ctx, TURNewTxns)
 				continue

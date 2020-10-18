@@ -40,6 +40,44 @@ const (
 	MinHighPriority = dcrutil.AtomsPerCoin * 144.0 / 250
 )
 
+// Config is a descriptor containing the mining configuration.
+type Config struct {
+	// Policy houses the policy (configuration parameters) which is used to control
+	// the generation of block templates.
+	Policy *Policy
+
+	// TxSource represents a source of transactions to consider for inclusion in
+	// new blocks.
+	TxSource TxSource
+
+	// TimeSource defines the median time source which is used to retrieve the
+	// current time adjusted by the median time offset.  This is used when setting
+	// the timestamp in the header of new blocks.
+	TimeSource blockchain.MedianTimeSource
+
+	// SigCache defines a signature cache to use.
+	SigCache *txscript.SigCache
+
+	// SubsidyCache defines a subsidy cache to use when calculating and validating
+	// block and vote subsidies.
+	SubsidyCache *standalone.SubsidyCache
+
+	// ChainParams identifies which chain parameters should be used while
+	// generating block templates.
+	ChainParams *chaincfg.Params
+
+	// Chain defines the block chain to use.
+	Chain *blockchain.BlockChain
+
+	// BlockManager provides methods for checking if the chain is synced, forcing
+	// reorgs, and passing new work to the notification manager.
+	BlockManager blockManagerFacade
+
+	// MiningTimeOffset defines the number of seconds to offset the mining
+	// timestamp of a block by (positive values are in the past).
+	MiningTimeOffset int
+}
+
 // TxDesc is a descriptor about a transaction in a transaction source along with
 // additional metadata.
 type TxDesc struct {
@@ -571,8 +609,8 @@ func (g *BlkTmplGenerator) medianAdjustedTime() time.Time {
 	// current time and one second after the past median time.  The current
 	// timestamp is truncated to a second boundary before comparison since a
 	// block timestamp does not support a precision greater than one second.
-	best := g.chain.BestSnapshot()
-	newTimestamp := g.timeSource.AdjustedTime()
+	best := g.cfg.Chain.BestSnapshot()
+	newTimestamp := g.cfg.TimeSource.AdjustedTime()
 	minTimestamp := minimumMedianTime(best)
 	if newTimestamp.Before(minTimestamp) {
 		newTimestamp = minTimestamp
@@ -580,7 +618,7 @@ func (g *BlkTmplGenerator) medianAdjustedTime() time.Time {
 
 	// Adjust by the amount requested from the command line argument.
 	newTimestamp = newTimestamp.Add(
-		time.Duration(-g.miningTimeOffset) * time.Second)
+		time.Duration(-g.cfg.MiningTimeOffset) * time.Second)
 
 	return newTimestamp
 }
@@ -592,7 +630,7 @@ func (g *BlkTmplGenerator) medianAdjustedTime() time.Time {
 func (g *BlkTmplGenerator) maybeInsertStakeTx(stx *dcrutil.Tx, treeValid bool, isTreasuryEnabled bool) bool {
 	missingInput := false
 
-	view, err := g.chain.FetchUtxoView(stx, treeValid)
+	view, err := g.cfg.Chain.FetchUtxoView(stx, treeValid)
 	if err != nil {
 		log.Warnf("Unable to fetch transaction store for "+
 			"stx %s: %v", stx.Hash(), err)
@@ -635,17 +673,17 @@ func (g *BlkTmplGenerator) maybeInsertStakeTx(stx *dcrutil.Tx, treeValid bool, i
 // miner.
 // Safe for concurrent access.
 func (g *BlkTmplGenerator) handleTooFewVoters(nextHeight int64, miningAddress dcrutil.Address, isTreasuryEnabled bool) (*BlockTemplate, error) {
-	stakeValidationHeight := g.chainParams.StakeValidationHeight
+	stakeValidationHeight := g.cfg.ChainParams.StakeValidationHeight
 
 	// Handle not enough voters being present if we're set to mine aggressively
 	// (default behavior).
-	best := g.chain.BestSnapshot()
-	if nextHeight >= stakeValidationHeight && g.policy.AggressiveMining {
+	best := g.cfg.Chain.BestSnapshot()
+	if nextHeight >= stakeValidationHeight && g.cfg.Policy.AggressiveMining {
 		// Fetch the latest block and head and begin working off of it with an
 		// empty transaction tree regular and the contents of that stake tree.
 		// In the future we should have the option of reading some transactions
 		// from this block, too.
-		topBlock, err := g.chain.BlockByHash(&best.Hash)
+		topBlock, err := g.cfg.Chain.BlockByHash(&best.Hash)
 		if err != nil {
 			str := fmt.Sprintf("unable to get tip block %s", best.PrevHash)
 			return nil, miningRuleError(ErrGetTopBlock, str)
@@ -663,16 +701,16 @@ func (g *BlkTmplGenerator) handleTooFewVoters(nextHeight int64, miningAddress dc
 		if err != nil {
 			return nil, err
 		}
-		coinbaseTx, err := createCoinbaseTx(g.subsidyCache, coinbaseScript,
+		coinbaseTx, err := createCoinbaseTx(g.cfg.SubsidyCache, coinbaseScript,
 			opReturnPkScript, topBlock.Height(), miningAddress,
-			tipHeader.Voters, g.chainParams, isTreasuryEnabled)
+			tipHeader.Voters, g.cfg.ChainParams, isTreasuryEnabled)
 		if err != nil {
 			return nil, err
 		}
 		block.AddTransaction(coinbaseTx.MsgTx())
 
 		if isTreasuryEnabled {
-			treasuryBase, err := createTreasuryBaseTx(g.subsidyCache,
+			treasuryBase, err := createTreasuryBaseTx(g.cfg.SubsidyCache,
 				topBlock.Height(), tipHeader.Voters)
 			if err != nil {
 				return nil, err
@@ -695,11 +733,11 @@ func (g *BlkTmplGenerator) handleTooFewVoters(nextHeight int64, miningAddress dc
 
 		// If we're on testnet, the time since this last block listed as the
 		// parent must be taken into consideration.
-		if g.chainParams.ReduceMinDifficulty {
+		if g.cfg.ChainParams.ReduceMinDifficulty {
 			parentHash := topBlock.MsgBlock().Header.PrevBlock
 
 			requiredDifficulty, err :=
-				g.chain.CalcNextRequiredDifficulty(&parentHash, ts)
+				g.cfg.Chain.CalcNextRequiredDifficulty(&parentHash, ts)
 			if err != nil {
 				return nil, miningRuleError(ErrGettingDifficulty,
 					err.Error())
@@ -722,7 +760,7 @@ func (g *BlkTmplGenerator) handleTooFewVoters(nextHeight int64, miningAddress dc
 		// Calculate the merkle root depending on the result of the header
 		// commitments agenda vote.
 		prevHash := &tipHeader.PrevBlock
-		hdrCmtActive, err := g.chain.IsHeaderCommitmentsAgendaActive(prevHash)
+		hdrCmtActive, err := g.cfg.Chain.IsHeaderCommitmentsAgendaActive(prevHash)
 		if err != nil {
 			return nil, err
 		}
@@ -735,7 +773,7 @@ func (g *BlkTmplGenerator) handleTooFewVoters(nextHeight int64, miningAddress dc
 		if hdrCmtActive {
 			// Load all of the previous output scripts the block references as
 			// inputs since they are needed to create the filter commitment.
-			blockUtxos, err := g.chain.FetchUtxoViewParentTemplate(&block)
+			blockUtxos, err := g.cfg.Chain.FetchUtxoViewParentTemplate(&block)
 			if err != nil {
 				str := fmt.Sprintf("failed to fetch inputs when making new "+
 					"block template: %v", err)
@@ -755,7 +793,7 @@ func (g *BlkTmplGenerator) handleTooFewVoters(nextHeight int64, miningAddress dc
 
 		// Make sure the block validates.
 		btBlock := dcrutil.NewBlockDeepCopyCoinbase(&block)
-		err = g.chain.CheckConnectBlockTemplate(btBlock)
+		err = g.cfg.Chain.CheckConnectBlockTemplate(btBlock)
 		if err != nil {
 			str := fmt.Sprintf("failed to check template: %v while "+
 				"constructing a new parent", err.Error())
@@ -780,36 +818,13 @@ func (g *BlkTmplGenerator) handleTooFewVoters(nextHeight int64, miningAddress dc
 // See the NewBlockTemplate method for a detailed description of how the block
 // template is generated.
 type BlkTmplGenerator struct {
-	policy           *Policy
-	txSource         TxSource
-	sigCache         *txscript.SigCache
-	subsidyCache     *standalone.SubsidyCache
-	chainParams      *chaincfg.Params
-	chain            *blockchain.BlockChain
-	blockManager     blockManagerFacade
-	timeSource       blockchain.MedianTimeSource
-	miningTimeOffset int
+	cfg *Config
 }
 
 // NewBlkTmplGenerator returns a new block template generator for the given
 // policy using transactions from the provided transaction source.
-func NewBlkTmplGenerator(policy *Policy, txSource TxSource,
-	timeSource blockchain.MedianTimeSource, sigCache *txscript.SigCache,
-	subsidyCache *standalone.SubsidyCache, chainParams *chaincfg.Params,
-	chain *blockchain.BlockChain, blockManager blockManagerFacade,
-	miningTimeOffset int) *BlkTmplGenerator {
-
-	return &BlkTmplGenerator{
-		policy:           policy,
-		txSource:         txSource,
-		sigCache:         sigCache,
-		subsidyCache:     subsidyCache,
-		chainParams:      chainParams,
-		chain:            chain,
-		blockManager:     blockManager,
-		timeSource:       timeSource,
-		miningTimeOffset: miningTimeOffset,
-	}
+func NewBlkTmplGenerator(cfg *Config) *BlkTmplGenerator {
+	return &BlkTmplGenerator{cfg: cfg}
 }
 
 // calcFeePerKb returns an adjusted fee per kilobyte taking the provided
@@ -904,7 +919,7 @@ func calcFeePerKb(txDesc *TxDesc, ancestorStats *TxAncestorStats) float64 {
 func (g *BlkTmplGenerator) NewBlockTemplate(payToAddress dcrutil.Address) (*BlockTemplate, error) {
 	// All transaction scripts are verified using the more strict standard
 	// flags.
-	scriptFlags, err := g.policy.StandardVerifyFlags()
+	scriptFlags, err := g.cfg.Policy.StandardVerifyFlags()
 	if err != nil {
 		return nil, err
 	}
@@ -931,12 +946,12 @@ func (g *BlkTmplGenerator) NewBlockTemplate(payToAddress dcrutil.Address) (*Bloc
 	//    This block is then selected to build upon instead of the others, because
 	//    it yields the greater amount of rewards.
 
-	best := g.chain.BestSnapshot()
+	best := g.cfg.Chain.BestSnapshot()
 	prevHash := best.Hash
 	nextBlockHeight := best.Height + 1
-	stakeValidationHeight := g.chainParams.StakeValidationHeight
+	stakeValidationHeight := g.cfg.ChainParams.StakeValidationHeight
 
-	isTreasuryEnabled, err := g.chain.IsTreasuryAgendaActive(&prevHash)
+	isTreasuryEnabled, err := g.cfg.Chain.IsTreasuryAgendaActive(&prevHash)
 	if err != nil {
 		return nil, err
 	}
@@ -947,12 +962,12 @@ func (g *BlkTmplGenerator) NewBlockTemplate(payToAddress dcrutil.Address) (*Bloc
 	)
 	if isTreasuryEnabled {
 		isTVI = standalone.IsTreasuryVoteInterval(uint64(nextBlockHeight),
-			g.chainParams.TreasuryVoteInterval)
+			g.cfg.ChainParams.TreasuryVoteInterval)
 	}
 
 	if nextBlockHeight >= stakeValidationHeight {
 		// Obtain the entire generation of blocks stemming from this parent.
-		children, err := g.chain.TipGeneration()
+		children, err := g.cfg.Chain.TipGeneration()
 		if err != nil {
 			return nil, miningRuleError(ErrFailedToGetGeneration, err.Error())
 		}
@@ -960,8 +975,8 @@ func (g *BlkTmplGenerator) NewBlockTemplate(payToAddress dcrutil.Address) (*Bloc
 		// Get the list of blocks that we can actually build on top of. If we're
 		// not currently on the block that has the most votes, switch to that
 		// block.
-		eligibleParents := SortParentsByVotes(g.txSource, prevHash, children,
-			g.chainParams)
+		eligibleParents := SortParentsByVotes(g.cfg.TxSource, prevHash, children,
+			g.cfg.ChainParams)
 		if len(eligibleParents) == 0 {
 			log.Debugf("Too few voters found on any HEAD block, " +
 				"recycling a parent block to mine on")
@@ -978,7 +993,7 @@ func (g *BlkTmplGenerator) NewBlockTemplate(payToAddress dcrutil.Address) (*Bloc
 		if eligibleParents[0] != prevHash {
 			for i := range eligibleParents {
 				newHead := &eligibleParents[i]
-				err := g.blockManager.ForceReorganization(prevHash, *newHead)
+				err := g.cfg.BlockManager.ForceReorganization(prevHash, *newHead)
 				if err != nil {
 					log.Errorf("failed to reorganize to new parent: %v", err)
 					continue
@@ -986,13 +1001,13 @@ func (g *BlkTmplGenerator) NewBlockTemplate(payToAddress dcrutil.Address) (*Bloc
 
 				// Check to make sure we actually have the transactions
 				// (votes) we need in the mempool.
-				voteHashes := g.txSource.VoteHashesForBlock(newHead)
+				voteHashes := g.cfg.TxSource.VoteHashesForBlock(newHead)
 				if len(voteHashes) == 0 {
 					return nil, fmt.Errorf("no vote metadata for block %v",
 						newHead)
 				}
 
-				if exist := g.txSource.HaveAllTransactions(voteHashes); !exist {
+				if exist := g.cfg.TxSource.HaveAllTransactions(voteHashes); !exist {
 					continue
 				} else {
 					prevHash = *newHead
@@ -1003,7 +1018,7 @@ func (g *BlkTmplGenerator) NewBlockTemplate(payToAddress dcrutil.Address) (*Bloc
 
 		// Obtain the maximum allowed treasury expenditure.
 		if isTreasuryEnabled && isTVI {
-			maxTreasurySpend, err = g.chain.MaxTreasuryExpenditure(&prevHash)
+			maxTreasurySpend, err = g.cfg.Chain.MaxTreasuryExpenditure(&prevHash)
 			if err != nil {
 				return nil, err
 			}
@@ -1016,9 +1031,9 @@ func (g *BlkTmplGenerator) NewBlockTemplate(payToAddress dcrutil.Address) (*Bloc
 	// number of items that are available for the priority queue.  Also,
 	// choose the initial sort order for the priority queue based on whether
 	// or not there is an area allocated for high-priority transactions.
-	miningView := g.txSource.MiningView()
+	miningView := g.cfg.TxSource.MiningView()
 	sourceTxns := miningView.TxDescs()
-	sortedByFee := g.policy.BlockPrioritySize == 0
+	sortedByFee := g.cfg.Policy.BlockPrioritySize == 0
 	lessFunc := txPQByStakeAndFeeAndThenPriority
 	if sortedByFee {
 		lessFunc = txPQByStakeAndFee
@@ -1031,7 +1046,7 @@ func (g *BlkTmplGenerator) NewBlockTemplate(payToAddress dcrutil.Address) (*Bloc
 	// house all of the input transactions so multiple lookups can be
 	// avoided.
 	blockTxns := make([]*dcrutil.Tx, 0, len(sourceTxns))
-	blockUtxos := blockchain.NewUtxoViewpoint(g.chain)
+	blockUtxos := blockchain.NewUtxoViewpoint(g.cfg.Chain)
 
 	// Create slices to hold the fees and number of signature operations
 	// for each of the selected transactions and add an entry for the
@@ -1047,7 +1062,7 @@ func (g *BlkTmplGenerator) NewBlockTemplate(payToAddress dcrutil.Address) (*Bloc
 
 	log.Debugf("Considering %d transactions for inclusion to new block",
 		len(sourceTxns))
-	knownDisapproved := g.txSource.IsRegTxTreeKnownDisapproved(&prevHash)
+	knownDisapproved := g.cfg.TxSource.IsRegTxTreeKnownDisapproved(&prevHash)
 
 	// Tracks the total number of transactions that depend on another
 	// from the tx source.
@@ -1089,7 +1104,7 @@ mempoolLoop:
 		}
 
 		// Fetch all of the utxos referenced by the this transaction.
-		utxos, err := g.chain.FetchUtxoView(tx, !knownDisapproved)
+		utxos, err := g.cfg.Chain.FetchUtxoView(tx, !knownDisapproved)
 		if err != nil {
 			log.Warnf("Unable to fetch utxo view for tx %s: "+
 				"%v", tx.Hash(), err)
@@ -1112,7 +1127,7 @@ mempoolLoop:
 			originIndex := txIn.PreviousOutPoint.Index
 			utxoEntry := utxos.LookupEntry(originHash)
 			if utxoEntry == nil || utxoEntry.IsOutputSpent(originIndex) {
-				if !g.txSource.HaveTransaction(originHash) {
+				if !g.cfg.TxSource.HaveTransaction(originHash) {
 					log.Tracef("Skipping tx %s because "+
 						"it references unspent output "+
 						"%s which is not available",
@@ -1233,8 +1248,8 @@ nextPriorityQueueItem:
 			// window.
 			exp := tx.MsgTx().Expiry
 			if !standalone.InsideTSpendWindow(nextBlockHeight,
-				exp, g.chainParams.TreasuryVoteInterval,
-				g.chainParams.TreasuryVoteIntervalMultiplier) {
+				exp, g.cfg.ChainParams.TreasuryVoteInterval,
+				g.cfg.ChainParams.TreasuryVoteIntervalMultiplier) {
 
 				log.Tracef("Skipping treasury spend %v at height %d because it "+
 					"has an expiry of %d that is outside of the voting window",
@@ -1244,7 +1259,7 @@ nextPriorityQueueItem:
 
 			// Ensure there are enough votes. Send in a fake block
 			// with the proper height.
-			err = g.chain.CheckTSpendHasVotes(prevHash,
+			err = g.cfg.Chain.CheckTSpendHasVotes(prevHash,
 				dcrutil.NewTx(tx.MsgTx()))
 			if err != nil {
 				log.Tracef("Skipping tspend %v because it doesn't have enough "+
@@ -1279,7 +1294,7 @@ nextPriorityQueueItem:
 
 		// Skip if we already have too many SStx.
 		if isSStx && (numSStx >=
-			int(g.chainParams.MaxFreshStakePerBlock)) {
+			int(g.cfg.ChainParams.MaxFreshStakePerBlock)) {
 			log.Tracef("Skipping sstx %s because it would exceed "+
 				"the max number of sstx allowed in a block", tx.Hash())
 			logSkippedDeps(tx, deps)
@@ -1336,7 +1351,7 @@ nextPriorityQueueItem:
 		txSize := uint32(tx.MsgTx().SerializeSize())
 		blockPlusTxSize := blockSize + txSize + uint32(ancestorStats.SizeBytes)
 		if blockPlusTxSize < blockSize ||
-			blockPlusTxSize >= g.policy.BlockMaxSize {
+			blockPlusTxSize >= g.cfg.Policy.BlockMaxSize {
 			log.Tracef("Skipping tx %s (size %v) because it "+
 				"would exceed the max block size; cur block "+
 				"size %v, cur num tx %v", tx.Hash(), txSize,
@@ -1381,15 +1396,15 @@ nextPriorityQueueItem:
 		// Skip free transactions once the block is larger than the
 		// minimum block size, except for stake transactions.
 		if sortedByFee &&
-			(prioItem.feePerKB < float64(g.policy.TxMinFreeFee)) &&
+			(prioItem.feePerKB < float64(g.cfg.Policy.TxMinFreeFee)) &&
 			(tx.Tree() != wire.TxTreeStake) &&
-			(blockPlusTxSize >= g.policy.BlockMinSize) {
+			(blockPlusTxSize >= g.cfg.Policy.BlockMinSize) {
 
 			log.Tracef("Skipping tx %s with feePerKB %.2f "+
 				"< TxMinFreeFee %d and block size %d >= "+
 				"minBlockSize %d", tx.Hash(), prioItem.feePerKB,
-				g.policy.TxMinFreeFee, blockPlusTxSize,
-				g.policy.BlockMinSize)
+				g.cfg.Policy.TxMinFreeFee, blockPlusTxSize,
+				g.cfg.Policy.BlockMinSize)
 			logSkippedDeps(tx, deps)
 			miningView.Reject(tx.Hash())
 			continue
@@ -1398,13 +1413,13 @@ nextPriorityQueueItem:
 		// Prioritize by fee per kilobyte once the block is larger than
 		// the priority size or there are no more high-priority
 		// transactions.
-		if !sortedByFee && (blockPlusTxSize >= g.policy.BlockPrioritySize ||
+		if !sortedByFee && (blockPlusTxSize >= g.cfg.Policy.BlockPrioritySize ||
 			prioItem.priority <= MinHighPriority) {
 
 			log.Tracef("Switching to sort by fees per "+
 				"kilobyte blockSize %d >= BlockPrioritySize "+
 				"%d || priority %.2f <= minHighPriority %.2f",
-				blockPlusTxSize, g.policy.BlockPrioritySize,
+				blockPlusTxSize, g.cfg.Policy.BlockPrioritySize,
 				prioItem.priority, MinHighPriority)
 
 			sortedByFee = true
@@ -1416,7 +1431,7 @@ nextPriorityQueueItem:
 			// too low.  Otherwise this transaction will be the
 			// final one in the high-priority section, so just fall
 			// though to the code below so it is added now.
-			if blockPlusTxSize > g.policy.BlockPrioritySize ||
+			if blockPlusTxSize > g.cfg.Policy.BlockPrioritySize ||
 				prioItem.priority < MinHighPriority {
 
 				heap.Push(priorityQueue, prioItem)
@@ -1431,8 +1446,8 @@ nextPriorityQueueItem:
 			// preconditions before allowing it to be added to the block.
 			// The fraud proof is not checked because it will be filled in
 			// by the miner.
-			_, err = blockchain.CheckTransactionInputs(g.subsidyCache,
-				bundledTx.Tx, nextBlockHeight, blockUtxos, false, g.chainParams,
+			_, err = blockchain.CheckTransactionInputs(g.cfg.SubsidyCache,
+				bundledTx.Tx, nextBlockHeight, blockUtxos, false, g.cfg.ChainParams,
 				isTreasuryEnabled)
 			if err != nil {
 				log.Tracef("Skipping tx %s due to error in "+
@@ -1442,7 +1457,7 @@ nextPriorityQueueItem:
 				continue nextPriorityQueueItem
 			}
 			err = blockchain.ValidateTransactionScripts(bundledTx.Tx,
-				blockUtxos, scriptFlags, g.sigCache)
+				blockUtxos, scriptFlags, g.cfg.SigCache)
 			if err != nil {
 				log.Tracef("Skipping tx %s due to error in "+
 					"ValidateTransactionScripts: %v", bundledTx.Tx.Hash(), err)
@@ -1559,8 +1574,8 @@ nextPriorityQueueItem:
 	// We should only find at most TicketsPerBlock votes per block, so
 	// initialize the slices using that as a hint to avoid reallocations.
 	voters := 0
-	voteBitsVoters := make([]uint16, 0, g.chainParams.TicketsPerBlock)
-	votes := make([]*dcrutil.Tx, 0, g.chainParams.TicketsPerBlock)
+	voteBitsVoters := make([]uint16, 0, g.cfg.ChainParams.TicketsPerBlock)
+	votes := make([]*dcrutil.Tx, 0, g.cfg.ChainParams.TicketsPerBlock)
 
 	// After SVH, we should add SSGens (votes) to the stake tree. Since we
 	// need to figure out the number of voters before creating the
@@ -1593,7 +1608,7 @@ nextPriorityQueueItem:
 	// tree.
 	var treasuryBase *dcrutil.Tx
 	if isTreasuryEnabled {
-		treasuryBase, err = createTreasuryBaseTx(g.subsidyCache,
+		treasuryBase, err = createTreasuryBaseTx(g.cfg.SubsidyCache,
 			nextBlockHeight, uint16(voters))
 		if err != nil {
 			return nil, err
@@ -1657,14 +1672,14 @@ nextPriorityQueueItem:
 		}
 
 		// Don't let this overflow.
-		if freshStake >= int(g.chainParams.MaxFreshStakePerBlock) {
+		if freshStake >= int(g.cfg.ChainParams.MaxFreshStakePerBlock) {
 			break
 		}
 	}
 
 	// Ensure that mining the block would not cause the chain to become
 	// unrecoverable due to ticket exhaustion.
-	err = g.chain.CheckTicketExhaustion(&best.Hash, uint8(freshStake))
+	err = g.cfg.Chain.CheckTicketExhaustion(&best.Hash, uint8(freshStake))
 	if err != nil {
 		log.Debug(err)
 		return nil, miningRuleError(ErrTicketExhaustion, err.Error())
@@ -1719,9 +1734,9 @@ nextPriorityQueueItem:
 		}
 	}
 
-	coinbaseTx, err := createCoinbaseTx(g.subsidyCache, coinbaseScript,
+	coinbaseTx, err := createCoinbaseTx(g.cfg.SubsidyCache, coinbaseScript,
 		opReturnPkScript, nextBlockHeight, payToAddress, uint16(voters),
-		g.chainParams, isTreasuryEnabled)
+		g.cfg.ChainParams, isTreasuryEnabled)
 	if err != nil {
 		return nil, err
 	}
@@ -1796,7 +1811,7 @@ nextPriorityQueueItem:
 	// height is reached.
 	if nextBlockHeight >= stakeValidationHeight {
 		totalFees *= int64(voters)
-		totalFees /= int64(g.chainParams.TicketsPerBlock)
+		totalFees /= int64(g.cfg.ChainParams.TicketsPerBlock)
 	}
 
 	txSigOpCounts = append(txSigOpCounts, numCoinbaseSigOps)
@@ -1820,7 +1835,7 @@ nextPriorityQueueItem:
 	// is potentially adjusted to ensure it comes after the median time of
 	// the last several blocks per the chain consensus rules.
 	ts := g.medianAdjustedTime()
-	reqDifficulty, err := g.chain.CalcNextRequiredDifficulty(&prevHash, ts)
+	reqDifficulty, err := g.cfg.Chain.CalcNextRequiredDifficulty(&prevHash, ts)
 	if err != nil {
 		return nil, miningRuleError(ErrGettingDifficulty, err.Error())
 	}
@@ -1829,7 +1844,7 @@ nextPriorityQueueItem:
 	// bit for the mempool to sync with the votes map and we end up down
 	// here despite having the relevant votes available in the votes map.
 	minimumVotesRequired :=
-		int((g.chainParams.TicketsPerBlock / 2) + 1)
+		int((g.cfg.ChainParams.TicketsPerBlock / 2) + 1)
 	if nextBlockHeight >= stakeValidationHeight &&
 		voters < minimumVotesRequired {
 		log.Warnf("incongruent number of voters in mempool " +
@@ -1848,7 +1863,7 @@ nextPriorityQueueItem:
 			break
 		}
 
-		utxs, err := g.chain.FetchUtxoView(tx, !knownDisapproved)
+		utxs, err := g.cfg.Chain.FetchUtxoView(tx, !knownDisapproved)
 		if err != nil {
 			str := fmt.Sprintf("failed to fetch input utxs for tx %v: %s",
 				tx.Hash(), err.Error())
@@ -1914,12 +1929,14 @@ nextPriorityQueueItem:
 
 	// Choose the block version to generate based on the network.
 	blockVersion := int32(generatedBlockVersion)
-	if g.chainParams.Net != wire.MainNet && g.chainParams.Net != wire.SimNet {
+	if g.cfg.ChainParams.Net != wire.MainNet &&
+		g.cfg.ChainParams.Net != wire.SimNet {
+
 		blockVersion = generatedBlockVersionTest
 	}
 
 	// Figure out stake version.
-	generatedStakeVersion, err := g.chain.CalcStakeVersionByHash(&prevHash)
+	generatedStakeVersion, err := g.cfg.Chain.CalcStakeVersionByHash(&prevHash)
 	if err != nil {
 		return nil, err
 	}
@@ -1967,7 +1984,7 @@ nextPriorityQueueItem:
 
 	// Calculate the merkle root depending on the result of the header
 	// commitments agenda vote.
-	hdrCmtActive, err := g.chain.IsHeaderCommitmentsAgendaActive(&prevHash)
+	hdrCmtActive, err := g.cfg.Chain.IsHeaderCommitmentsAgendaActive(&prevHash)
 	if err != nil {
 		return nil, err
 	}
@@ -1995,7 +2012,7 @@ nextPriorityQueueItem:
 	// consensus rules to ensure it properly connects to the current best
 	// chain with no issues.
 	block := dcrutil.NewBlockDeepCopyCoinbase(&msgBlock)
-	err = g.chain.CheckConnectBlockTemplate(block)
+	err = g.cfg.Chain.CheckConnectBlockTemplate(block)
 	if err != nil {
 		str := fmt.Sprintf("failed to do final check for check connect "+
 			"block when making new block template: %v",
@@ -2038,8 +2055,8 @@ func (g *BlkTmplGenerator) UpdateBlockTime(header *wire.BlockHeader) error {
 
 	// If running on a network that requires recalculating the difficulty,
 	// do so now.
-	if g.chainParams.ReduceMinDifficulty {
-		difficulty, err := g.chain.CalcNextRequiredDifficulty(&header.PrevBlock,
+	if g.cfg.ChainParams.ReduceMinDifficulty {
+		difficulty, err := g.cfg.Chain.CalcNextRequiredDifficulty(&header.PrevBlock,
 			newTimestamp)
 		if err != nil {
 			return miningRuleError(ErrGettingDifficulty, err.Error())

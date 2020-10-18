@@ -3282,9 +3282,17 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB, chainP
 				return standardScriptVerifyFlags(s.chain)
 			},
 		}
-		tg := mining.NewBlkTmplGenerator(&policy, s.txMemPool, s.timeSource,
-			s.sigCache, s.subsidyCache, s.chainParams, s.chain, s.blockManager,
-			cfg.MiningTimeOffset)
+		tg := mining.NewBlkTmplGenerator(&mining.Config{
+			Policy:           &policy,
+			TxSource:         s.txMemPool,
+			TimeSource:       s.timeSource,
+			SigCache:         s.sigCache,
+			SubsidyCache:     s.subsidyCache,
+			ChainParams:      s.chainParams,
+			Chain:            s.chain,
+			BlockManager:     s.blockManager,
+			MiningTimeOffset: cfg.MiningTimeOffset,
+		})
 
 		s.bg = mining.NewBgBlkTmplGenerator(tg, cfg.miningAddrs,
 			cfg.AllowUnsyncedMining)
