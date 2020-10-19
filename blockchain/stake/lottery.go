@@ -151,16 +151,18 @@ func intInSlice(i int, sl []int) bool {
 	return false
 }
 
-// findTicketIdxs finds n many unique index numbers for a list length size.
+// findTicketIdxs finds n many unique ticket indexes from the provided live
+// tickets size.
 func findTicketIdxs(size int, n uint16, prng *Hash256PRNG) ([]int, error) {
 	if size < int(n) {
-		return nil, fmt.Errorf("list size too small: %v < %v",
-			size, n)
+		return nil, fmt.Errorf("cannot pick %d unique ticket indexes from a "+
+			"live tickets size of %d", n, size)
 	}
 
 	max := int64(0xFFFFFFFF)
 	if int64(size) > max {
-		return nil, fmt.Errorf("list size too big: %v > %v",
+		return nil, fmt.Errorf("live tickets size (%d) exceeds maximum "+
+			"allowed (%d)",
 			size, max)
 	}
 	sz := uint32(size)
