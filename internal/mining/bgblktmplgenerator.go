@@ -270,7 +270,6 @@ type BgBlkTmplGenerator struct {
 func NewBgBlkTmplGenerator(tg *BlkTmplGenerator, addrs []dcrutil.Address, allowUnsynced bool) *BgBlkTmplGenerator {
 	return &BgBlkTmplGenerator{
 		quit:                make(chan struct{}),
-		chain:               tg.cfg.Chain,
 		tg:                  tg,
 		allowUnsyncedMining: allowUnsynced,
 		miningAddrs:         addrs,
@@ -1026,7 +1025,7 @@ func (g *BgBlkTmplGenerator) handleVote(ctx context.Context, state *regenHandler
 		log.Debugf("Received vote %s for side chain block %s (%d total)",
 			voteTx.Hash(), votedOnHash, numVotes)
 		if numVotes >= g.minVotesRequired {
-			err := g.chain.ForceHeadReorganization(chainTip.Hash, votedOnHash)
+			err := g.tg.cfg.ForceHeadReorganization(chainTip.Hash, votedOnHash)
 			if err != nil {
 				return
 			}
@@ -1121,8 +1120,8 @@ func (g *BgBlkTmplGenerator) handleRegenEvent(ctx context.Context, state *regenH
 		//
 		// An error should be impossible here since the request is for the block
 		// the chain believes is the current tip which means it must exist.
-		chainTip := g.chain.BestSnapshot()
-		tipBlock, err := g.chain.BlockByHash(&chainTip.Hash)
+		chainTip := g.tg.cfg.BestSnapshot()
+		tipBlock, err := g.tg.cfg.BlockByHash(&chainTip.Hash)
 		if err != nil {
 			g.setCurrentTemplate(nil, turUnknown, err)
 		} else {
@@ -1145,7 +1144,7 @@ func (g *BgBlkTmplGenerator) handleRegenEvent(ctx context.Context, state *regenH
 		return
 	}
 
-	chainTip := g.chain.BestSnapshot()
+	chainTip := g.tg.cfg.BestSnapshot()
 	switch event.reason {
 	case rtBlockConnected:
 		block := event.value.(*dcrutil.Block)
@@ -1178,7 +1177,7 @@ func (g *BgBlkTmplGenerator) handleRegenEvent(ctx context.Context, state *regenH
 func (g *BgBlkTmplGenerator) tipSiblingsSortedByVotes(state *regenHandlerState) []*blockWithNumVotes {
 	// Obtain all of the current blocks that extend the same parent as the
 	// current tip.  The error is ignored here because it is deprecated.
-	generation, _ := g.chain.TipGeneration()
+	generation, _ := g.tg.cfg.TipGeneration()
 
 	// Nothing else to consider if there is only a single block which will be
 	// the current tip itself.
@@ -1231,7 +1230,7 @@ func (g *BgBlkTmplGenerator) handleTrackSideChainsTimeout(ctx context.Context, s
 	sortedSiblings := g.tipSiblingsSortedByVotes(state)
 	for _, sibling := range sortedSiblings {
 		if sibling.NumVotes >= g.minVotesRequired {
-			err := g.chain.ForceHeadReorganization(*state.awaitingMinVotesHash,
+			err := g.tg.cfg.ForceHeadReorganization(*state.awaitingMinVotesHash,
 				sibling.Hash)
 			if err != nil {
 				// Try the next block in the case of failure to reorg.
@@ -1263,7 +1262,7 @@ func (g *BgBlkTmplGenerator) handleTrackSideChainsTimeout(ctx context.Context, s
 	// will typically only not be an existing template when the generator is
 	// first instantiated and after a chain reorganization.
 	if state.baseBlockHash == zeroHash {
-		chainTip := g.chain.BestSnapshot()
+		chainTip := g.tg.cfg.BestSnapshot()
 		state.failedGenRetryTimeout = nil
 		state.baseBlockHash = chainTip.PrevHash
 		state.baseBlockHeight = uint32(chainTip.Height - 1)
@@ -1284,7 +1283,7 @@ func (g *BgBlkTmplGenerator) handleTrackSideChainsTimeout(ctx context.Context, s
 func (g *BgBlkTmplGenerator) regenHandler(ctx context.Context) {
 	// Treat the tip block as if it was just connected when starting up so the
 	// existing code paths are run.
-	tipBlock, err := g.chain.BlockByHash(&g.chain.BestSnapshot().Hash)
+	tipBlock, err := g.tg.cfg.BlockByHash(&g.tg.cfg.BestSnapshot().Hash)
 	if err != nil {
 		g.setCurrentTemplate(nil, turUnknown, err)
 	} else {
