@@ -3283,15 +3283,45 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB, chainP
 			},
 		}
 		tg := mining.NewBlkTmplGenerator(&mining.Config{
-			Policy:           &policy,
-			TxSource:         s.txMemPool,
-			TimeSource:       s.timeSource,
-			SigCache:         s.sigCache,
-			SubsidyCache:     s.subsidyCache,
-			ChainParams:      s.chainParams,
-			Chain:            s.chain,
-			BlockManager:     s.blockManager,
-			MiningTimeOffset: cfg.MiningTimeOffset,
+			Policy:                     &policy,
+			TxSource:                   s.txMemPool,
+			TimeSource:                 s.timeSource,
+			SubsidyCache:               s.subsidyCache,
+			ChainParams:                s.chainParams,
+			BlockManager:               s.blockManager,
+			MiningTimeOffset:           cfg.MiningTimeOffset,
+			BestSnapshot:               s.chain.BestSnapshot,
+			BlockByHash:                s.chain.BlockByHash,
+			CalcNextRequiredDifficulty: s.chain.CalcNextRequiredDifficulty,
+			CalcStakeVersionByHash:     s.chain.CalcStakeVersionByHash,
+			CheckConnectBlockTemplate:  s.chain.CheckConnectBlockTemplate,
+			CheckTicketExhaustion:      s.chain.CheckTicketExhaustion,
+			CheckTransactionInputs: func(tx *dcrutil.Tx, txHeight int64,
+				view *blockchain.UtxoViewpoint, checkFraudProof bool,
+				isTreasuryEnabled bool) (int64, error) {
+
+				return blockchain.CheckTransactionInputs(s.subsidyCache, tx, txHeight,
+					view, checkFraudProof, s.chainParams, isTreasuryEnabled)
+			},
+			CheckTSpendHasVotes:             s.chain.CheckTSpendHasVotes,
+			CountSigOps:                     blockchain.CountSigOps,
+			FetchUtxoView:                   s.chain.FetchUtxoView,
+			FetchUtxoViewParentTemplate:     s.chain.FetchUtxoViewParentTemplate,
+			ForceHeadReorganization:         s.chain.ForceHeadReorganization,
+			IsFinalizedTransaction:          blockchain.IsFinalizedTransaction,
+			IsHeaderCommitmentsAgendaActive: s.chain.IsHeaderCommitmentsAgendaActive,
+			IsTreasuryAgendaActive:          s.chain.IsTreasuryAgendaActive,
+			MaxTreasuryExpenditure:          s.chain.MaxTreasuryExpenditure,
+			NewUtxoViewpoint: func() *blockchain.UtxoViewpoint {
+				return blockchain.NewUtxoViewpoint(s.chain)
+			},
+			TipGeneration: s.chain.TipGeneration,
+			ValidateTransactionScripts: func(tx *dcrutil.Tx,
+				utxoView *blockchain.UtxoViewpoint, flags txscript.ScriptFlags) error {
+
+				return blockchain.ValidateTransactionScripts(tx, utxoView, flags,
+					s.sigCache)
+			},
 		})
 
 		s.bg = mining.NewBgBlkTmplGenerator(tg, cfg.miningAddrs,

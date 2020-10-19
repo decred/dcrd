@@ -55,9 +55,6 @@ type Config struct {
 	// the timestamp in the header of new blocks.
 	TimeSource blockchain.MedianTimeSource
 
-	// SigCache defines a signature cache to use.
-	SigCache *txscript.SigCache
-
 	// SubsidyCache defines a subsidy cache to use when calculating and validating
 	// block and vote subsidies.
 	SubsidyCache *standalone.SubsidyCache
@@ -66,9 +63,6 @@ type Config struct {
 	// generating block templates.
 	ChainParams *chaincfg.Params
 
-	// Chain defines the block chain to use.
-	Chain *blockchain.BlockChain
-
 	// BlockManager provides methods for checking if the chain is synced, forcing
 	// reorgs, and passing new work to the notification manager.
 	BlockManager blockManagerFacade
@@ -76,6 +70,106 @@ type Config struct {
 	// MiningTimeOffset defines the number of seconds to offset the mining
 	// timestamp of a block by (positive values are in the past).
 	MiningTimeOffset int
+
+	// BestSnapshot defines the function to use to access information about the
+	// current best block.  The returned instance should be treated as immutable.
+	BestSnapshot func() *blockchain.BestState
+
+	// BlockByHash defines the function to use to search the internal chain block
+	// stores and the database in an attempt to find the requested block and return
+	// it.  This function should return blocks regardless of whether or not they
+	// are part of the main chain.
+	BlockByHash func(hash *chainhash.Hash) (*dcrutil.Block, error)
+
+	// CalcNextRequiredDifficulty defines the function to use to calculate the
+	// required difficulty for the block after the given block based on the
+	// difficulty retarget rules.
+	CalcNextRequiredDifficulty func(hash *chainhash.Hash, timestamp time.Time) (uint32, error)
+
+	// CalcStakeVersionByHash defines the function to use to calculate the expected
+	// stake version for the block AFTER the provided block hash.
+	CalcStakeVersionByHash func(hash *chainhash.Hash) (uint32, error)
+
+	// CheckConnectBlockTemplate defines the function to use to fully validate that
+	// connecting the passed block to either the tip of the main chain or its
+	// parent does not violate any consensus rules, aside from the proof of work
+	// requirement.
+	CheckConnectBlockTemplate func(block *dcrutil.Block) error
+
+	// CheckTicketExhaustion defines the function to use to ensure that extending
+	// the block associated with the provided hash with a block that contains the
+	// specified number of ticket purchases will not result in a chain that is
+	// unrecoverable due to inevitable ticket exhaustion.  This scenario happens
+	// when the number of live tickets drops below the number of tickets that is
+	// needed to reach the next block at which any outstanding immature ticket
+	// purchases that would provide the necessary live tickets mature.
+	CheckTicketExhaustion func(hash *chainhash.Hash, ticketPurchases uint8) error
+
+	// CheckTransactionInputs defines the function to use to perform a series of
+	// checks on the inputs to a transaction to ensure they are valid.
+	CheckTransactionInputs func(tx *dcrutil.Tx, txHeight int64, view *blockchain.UtxoViewpoint, checkFraudProof bool, isTreasuryEnabled bool) (int64, error)
+
+	// CheckTSpendHasVotes defines the function to use to check whether the given
+	// tspend has enough votes to be included in a block AFTER the specified block.
+	CheckTSpendHasVotes func(prevHash chainhash.Hash, tspend *dcrutil.Tx) error
+
+	// CountSigOps defines the function to use to count the number of signature
+	// operations for all transaction input and output scripts in the provided
+	// transaction.
+	CountSigOps func(tx *dcrutil.Tx, isCoinBaseTx bool, isSSGen bool, isTreasuryEnabled bool) int
+
+	// FetchUtxoView defines the function to use to fetch unspent transaction
+	// output information.  The returned instance should be treated as immutable.
+	FetchUtxoView func(tx *dcrutil.Tx, includeRegularTxns bool) (*blockchain.UtxoViewpoint, error)
+
+	// FetchUtxoViewParentTemplate defines the function to use to fetch unspent
+	// transaction output information from the point of view of just having
+	// connected the given block, which must be a block template that connects to
+	// the parent of the tip of the main chain.  In other words, the given block
+	// must be a sibling of the current tip of the main chain.
+	//
+	// This should typically only be used by mining code when it is unable to
+	// generate a template that extends the current tip due to being unable to
+	// acquire the minimum required number of votes to extend it.
+	//
+	// The returned instance should be treated as immutable.
+	FetchUtxoViewParentTemplate func(block *wire.MsgBlock) (*blockchain.UtxoViewpoint, error)
+
+	// ForceHeadReorganization defines the function to use to force a
+	// reorganization of the block chain to the block hash requested, so long as it
+	// matches up with the current organization of the best chain.
+	ForceHeadReorganization func(formerBest chainhash.Hash, newBest chainhash.Hash) error
+
+	// IsFinalizedTransaction defines the function to use to determine whether or
+	// not a transaction is finalized.
+	IsFinalizedTransaction func(tx *dcrutil.Tx, blockHeight int64, blockTime time.Time) bool
+
+	// IsHeaderCommitmentsAgendaActive defines the function to use to determine
+	// whether or not the header commitments agenda is active or not for the block
+	// AFTER the given block.
+	IsHeaderCommitmentsAgendaActive func(prevHash *chainhash.Hash) (bool, error)
+
+	// IsTreasuryAgendaActive defines the function to use to determine if the
+	// treasury agenda is active or not for the block AFTER the given block.
+	IsTreasuryAgendaActive func(prevHash *chainhash.Hash) (bool, error)
+
+	// MaxTreasuryExpenditure defines the function to use to get the maximum amount
+	// of funds that can be spent from the treasury by a set of TSpends for a block
+	// that extends the given block hash.  The function should return 0 if it is
+	// called on an invalid TVI.
+	MaxTreasuryExpenditure func(preTVIBlock *chainhash.Hash) (int64, error)
+
+	// NewUtxoViewpoint defines the function to use to create a new empty unspent
+	// transaction output view.
+	NewUtxoViewpoint func() *blockchain.UtxoViewpoint
+
+	// TipGeneration defines the function to use to get the entire generation of
+	// blocks stemming from the parent of the current tip.
+	TipGeneration func() ([]chainhash.Hash, error)
+
+	// ValidateTransactionScripts defines the function to use to validate the
+	// scripts for the passed transaction.
+	ValidateTransactionScripts func(tx *dcrutil.Tx, utxoView *blockchain.UtxoViewpoint, flags txscript.ScriptFlags) error
 }
 
 // TxDesc is a descriptor about a transaction in a transaction source along with
@@ -609,7 +703,7 @@ func (g *BlkTmplGenerator) medianAdjustedTime() time.Time {
 	// current time and one second after the past median time.  The current
 	// timestamp is truncated to a second boundary before comparison since a
 	// block timestamp does not support a precision greater than one second.
-	best := g.cfg.Chain.BestSnapshot()
+	best := g.cfg.BestSnapshot()
 	newTimestamp := g.cfg.TimeSource.AdjustedTime()
 	minTimestamp := minimumMedianTime(best)
 	if newTimestamp.Before(minTimestamp) {
@@ -630,7 +724,7 @@ func (g *BlkTmplGenerator) medianAdjustedTime() time.Time {
 func (g *BlkTmplGenerator) maybeInsertStakeTx(stx *dcrutil.Tx, treeValid bool, isTreasuryEnabled bool) bool {
 	missingInput := false
 
-	view, err := g.cfg.Chain.FetchUtxoView(stx, treeValid)
+	view, err := g.cfg.FetchUtxoView(stx, treeValid)
 	if err != nil {
 		log.Warnf("Unable to fetch transaction store for "+
 			"stx %s: %v", stx.Hash(), err)
@@ -677,13 +771,13 @@ func (g *BlkTmplGenerator) handleTooFewVoters(nextHeight int64, miningAddress dc
 
 	// Handle not enough voters being present if we're set to mine aggressively
 	// (default behavior).
-	best := g.cfg.Chain.BestSnapshot()
+	best := g.cfg.BestSnapshot()
 	if nextHeight >= stakeValidationHeight && g.cfg.Policy.AggressiveMining {
 		// Fetch the latest block and head and begin working off of it with an
 		// empty transaction tree regular and the contents of that stake tree.
 		// In the future we should have the option of reading some transactions
 		// from this block, too.
-		topBlock, err := g.cfg.Chain.BlockByHash(&best.Hash)
+		topBlock, err := g.cfg.BlockByHash(&best.Hash)
 		if err != nil {
 			str := fmt.Sprintf("unable to get tip block %s", best.PrevHash)
 			return nil, miningRuleError(ErrGetTopBlock, str)
@@ -736,8 +830,7 @@ func (g *BlkTmplGenerator) handleTooFewVoters(nextHeight int64, miningAddress dc
 		if g.cfg.ChainParams.ReduceMinDifficulty {
 			parentHash := topBlock.MsgBlock().Header.PrevBlock
 
-			requiredDifficulty, err :=
-				g.cfg.Chain.CalcNextRequiredDifficulty(&parentHash, ts)
+			requiredDifficulty, err := g.cfg.CalcNextRequiredDifficulty(&parentHash, ts)
 			if err != nil {
 				return nil, miningRuleError(ErrGettingDifficulty,
 					err.Error())
@@ -760,7 +853,7 @@ func (g *BlkTmplGenerator) handleTooFewVoters(nextHeight int64, miningAddress dc
 		// Calculate the merkle root depending on the result of the header
 		// commitments agenda vote.
 		prevHash := &tipHeader.PrevBlock
-		hdrCmtActive, err := g.cfg.Chain.IsHeaderCommitmentsAgendaActive(prevHash)
+		hdrCmtActive, err := g.cfg.IsHeaderCommitmentsAgendaActive(prevHash)
 		if err != nil {
 			return nil, err
 		}
@@ -773,7 +866,7 @@ func (g *BlkTmplGenerator) handleTooFewVoters(nextHeight int64, miningAddress dc
 		if hdrCmtActive {
 			// Load all of the previous output scripts the block references as
 			// inputs since they are needed to create the filter commitment.
-			blockUtxos, err := g.cfg.Chain.FetchUtxoViewParentTemplate(&block)
+			blockUtxos, err := g.cfg.FetchUtxoViewParentTemplate(&block)
 			if err != nil {
 				str := fmt.Sprintf("failed to fetch inputs when making new "+
 					"block template: %v", err)
@@ -793,7 +886,7 @@ func (g *BlkTmplGenerator) handleTooFewVoters(nextHeight int64, miningAddress dc
 
 		// Make sure the block validates.
 		btBlock := dcrutil.NewBlockDeepCopyCoinbase(&block)
-		err = g.cfg.Chain.CheckConnectBlockTemplate(btBlock)
+		err = g.cfg.CheckConnectBlockTemplate(btBlock)
 		if err != nil {
 			str := fmt.Sprintf("failed to check template: %v while "+
 				"constructing a new parent", err.Error())
@@ -946,12 +1039,12 @@ func (g *BlkTmplGenerator) NewBlockTemplate(payToAddress dcrutil.Address) (*Bloc
 	//    This block is then selected to build upon instead of the others, because
 	//    it yields the greater amount of rewards.
 
-	best := g.cfg.Chain.BestSnapshot()
+	best := g.cfg.BestSnapshot()
 	prevHash := best.Hash
 	nextBlockHeight := best.Height + 1
 	stakeValidationHeight := g.cfg.ChainParams.StakeValidationHeight
 
-	isTreasuryEnabled, err := g.cfg.Chain.IsTreasuryAgendaActive(&prevHash)
+	isTreasuryEnabled, err := g.cfg.IsTreasuryAgendaActive(&prevHash)
 	if err != nil {
 		return nil, err
 	}
@@ -967,7 +1060,7 @@ func (g *BlkTmplGenerator) NewBlockTemplate(payToAddress dcrutil.Address) (*Bloc
 
 	if nextBlockHeight >= stakeValidationHeight {
 		// Obtain the entire generation of blocks stemming from this parent.
-		children, err := g.cfg.Chain.TipGeneration()
+		children, err := g.cfg.TipGeneration()
 		if err != nil {
 			return nil, miningRuleError(ErrFailedToGetGeneration, err.Error())
 		}
@@ -1018,7 +1111,7 @@ func (g *BlkTmplGenerator) NewBlockTemplate(payToAddress dcrutil.Address) (*Bloc
 
 		// Obtain the maximum allowed treasury expenditure.
 		if isTreasuryEnabled && isTVI {
-			maxTreasurySpend, err = g.cfg.Chain.MaxTreasuryExpenditure(&prevHash)
+			maxTreasurySpend, err = g.cfg.MaxTreasuryExpenditure(&prevHash)
 			if err != nil {
 				return nil, err
 			}
@@ -1046,7 +1139,7 @@ func (g *BlkTmplGenerator) NewBlockTemplate(payToAddress dcrutil.Address) (*Bloc
 	// house all of the input transactions so multiple lookups can be
 	// avoided.
 	blockTxns := make([]*dcrutil.Tx, 0, len(sourceTxns))
-	blockUtxos := blockchain.NewUtxoViewpoint(g.cfg.Chain)
+	blockUtxos := g.cfg.NewUtxoViewpoint()
 
 	// Create slices to hold the fees and number of signature operations
 	// for each of the selected transactions and add an entry for the
@@ -1079,8 +1172,7 @@ mempoolLoop:
 			log.Tracef("Skipping coinbase tx %s", tx.Hash())
 			continue
 		}
-		if !blockchain.IsFinalizedTransaction(tx, nextBlockHeight,
-			best.MedianTime) {
+		if !g.cfg.IsFinalizedTransaction(tx, nextBlockHeight, best.MedianTime) {
 			log.Tracef("Skipping non-finalized tx %s", tx.Hash())
 			continue
 		}
@@ -1104,7 +1196,7 @@ mempoolLoop:
 		}
 
 		// Fetch all of the utxos referenced by the this transaction.
-		utxos, err := g.cfg.Chain.FetchUtxoView(tx, !knownDisapproved)
+		utxos, err := g.cfg.FetchUtxoView(tx, !knownDisapproved)
 		if err != nil {
 			log.Warnf("Unable to fetch utxo view for tx %s: "+
 				"%v", tx.Hash(), err)
@@ -1259,7 +1351,7 @@ nextPriorityQueueItem:
 
 			// Ensure there are enough votes. Send in a fake block
 			// with the proper height.
-			err = g.cfg.Chain.CheckTSpendHasVotes(prevHash,
+			err = g.cfg.CheckTSpendHasVotes(prevHash,
 				dcrutil.NewTx(tx.MsgTx()))
 			if err != nil {
 				log.Tracef("Skipping tspend %v because it doesn't have enough "+
@@ -1446,9 +1538,8 @@ nextPriorityQueueItem:
 			// preconditions before allowing it to be added to the block.
 			// The fraud proof is not checked because it will be filled in
 			// by the miner.
-			_, err = blockchain.CheckTransactionInputs(g.cfg.SubsidyCache,
-				bundledTx.Tx, nextBlockHeight, blockUtxos, false, g.cfg.ChainParams,
-				isTreasuryEnabled)
+			_, err = g.cfg.CheckTransactionInputs(bundledTx.Tx, nextBlockHeight,
+				blockUtxos, false, isTreasuryEnabled)
 			if err != nil {
 				log.Tracef("Skipping tx %s due to error in "+
 					"CheckTransactionInputs: %v", bundledTx.Tx.Hash(), err)
@@ -1456,8 +1547,7 @@ nextPriorityQueueItem:
 				miningView.Reject(bundledTx.Tx.Hash())
 				continue nextPriorityQueueItem
 			}
-			err = blockchain.ValidateTransactionScripts(bundledTx.Tx,
-				blockUtxos, scriptFlags, g.cfg.SigCache)
+			err = g.cfg.ValidateTransactionScripts(bundledTx.Tx, blockUtxos, scriptFlags)
 			if err != nil {
 				log.Tracef("Skipping tx %s due to error in "+
 					"ValidateTransactionScripts: %v", bundledTx.Tx.Hash(), err)
@@ -1679,7 +1769,7 @@ nextPriorityQueueItem:
 
 	// Ensure that mining the block would not cause the chain to become
 	// unrecoverable due to ticket exhaustion.
-	err = g.cfg.Chain.CheckTicketExhaustion(&best.Hash, uint8(freshStake))
+	err = g.cfg.CheckTicketExhaustion(&best.Hash, uint8(freshStake))
 	if err != nil {
 		log.Debug(err)
 		return nil, miningRuleError(ErrTicketExhaustion, err.Error())
@@ -1742,7 +1832,7 @@ nextPriorityQueueItem:
 	}
 	coinbaseTx.SetTree(wire.TxTreeRegular)
 
-	numCoinbaseSigOps := int64(blockchain.CountSigOps(coinbaseTx, true,
+	numCoinbaseSigOps := int64(g.cfg.CountSigOps(coinbaseTx, true,
 		false, isTreasuryEnabled))
 	blockSize += uint32(coinbaseTx.MsgTx().SerializeSize())
 	blockSigOps += numCoinbaseSigOps
@@ -1750,8 +1840,7 @@ nextPriorityQueueItem:
 	txSigOpCountsMap[*coinbaseTx.Hash()] = numCoinbaseSigOps
 	if treasuryBase != nil {
 		txFeesMap[*treasuryBase.Hash()] = 0
-		n := int64(blockchain.CountSigOps(treasuryBase, true, false,
-			isTreasuryEnabled))
+		n := int64(g.cfg.CountSigOps(treasuryBase, true, false, isTreasuryEnabled))
 		txSigOpCountsMap[*treasuryBase.Hash()] = n
 	}
 
@@ -1835,7 +1924,7 @@ nextPriorityQueueItem:
 	// is potentially adjusted to ensure it comes after the median time of
 	// the last several blocks per the chain consensus rules.
 	ts := g.medianAdjustedTime()
-	reqDifficulty, err := g.cfg.Chain.CalcNextRequiredDifficulty(&prevHash, ts)
+	reqDifficulty, err := g.cfg.CalcNextRequiredDifficulty(&prevHash, ts)
 	if err != nil {
 		return nil, miningRuleError(ErrGettingDifficulty, err.Error())
 	}
@@ -1863,7 +1952,7 @@ nextPriorityQueueItem:
 			break
 		}
 
-		utxs, err := g.cfg.Chain.FetchUtxoView(tx, !knownDisapproved)
+		utxs, err := g.cfg.FetchUtxoView(tx, !knownDisapproved)
 		if err != nil {
 			str := fmt.Sprintf("failed to fetch input utxs for tx %v: %s",
 				tx.Hash(), err.Error())
@@ -1936,7 +2025,7 @@ nextPriorityQueueItem:
 	}
 
 	// Figure out stake version.
-	generatedStakeVersion, err := g.cfg.Chain.CalcStakeVersionByHash(&prevHash)
+	generatedStakeVersion, err := g.cfg.CalcStakeVersionByHash(&prevHash)
 	if err != nil {
 		return nil, err
 	}
@@ -1984,7 +2073,7 @@ nextPriorityQueueItem:
 
 	// Calculate the merkle root depending on the result of the header
 	// commitments agenda vote.
-	hdrCmtActive, err := g.cfg.Chain.IsHeaderCommitmentsAgendaActive(&prevHash)
+	hdrCmtActive, err := g.cfg.IsHeaderCommitmentsAgendaActive(&prevHash)
 	if err != nil {
 		return nil, err
 	}
@@ -2012,7 +2101,7 @@ nextPriorityQueueItem:
 	// consensus rules to ensure it properly connects to the current best
 	// chain with no issues.
 	block := dcrutil.NewBlockDeepCopyCoinbase(&msgBlock)
-	err = g.cfg.Chain.CheckConnectBlockTemplate(block)
+	err = g.cfg.CheckConnectBlockTemplate(block)
 	if err != nil {
 		str := fmt.Sprintf("failed to do final check for check connect "+
 			"block when making new block template: %v",
@@ -2056,7 +2145,7 @@ func (g *BlkTmplGenerator) UpdateBlockTime(header *wire.BlockHeader) error {
 	// If running on a network that requires recalculating the difficulty,
 	// do so now.
 	if g.cfg.ChainParams.ReduceMinDifficulty {
-		difficulty, err := g.cfg.Chain.CalcNextRequiredDifficulty(&header.PrevBlock,
+		difficulty, err := g.cfg.CalcNextRequiredDifficulty(&header.PrevBlock,
 			newTimestamp)
 		if err != nil {
 			return miningRuleError(ErrGettingDifficulty, err.Error())

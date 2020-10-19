@@ -311,7 +311,7 @@ func (b *BlockChain) calcStakeVersionByHash(hash *chainhash.Hash) (uint32, error
 }
 
 // CalcStakeVersionByHash calculates the expected stake version for the block
-// AFTER provided block hash.
+// AFTER the provided block hash.
 //
 // This function is safe for concurrent access.
 func (b *BlockChain) CalcStakeVersionByHash(hash *chainhash.Hash) (uint32, error) {
