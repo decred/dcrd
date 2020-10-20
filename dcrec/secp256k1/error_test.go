@@ -9,10 +9,10 @@ import (
 	"testing"
 )
 
-// TestErrorCodeStringer tests the stringized output for the ErrorCode type.
-func TestErrorCodeStringer(t *testing.T) {
+// TestErrorKindStringer tests the stringized output for the ErrorKind type.
+func TestErrorKindStringer(t *testing.T) {
 	tests := []struct {
-		in   ErrorCode
+		in   ErrorKind
 		want string
 	}{
 		{ErrPubKeyInvalidLen, "ErrPubKeyInvalidLen"},
@@ -21,17 +21,10 @@ func TestErrorCodeStringer(t *testing.T) {
 		{ErrPubKeyYTooBig, "ErrPubKeyYTooBig"},
 		{ErrPubKeyNotOnCurve, "ErrPubKeyNotOnCurve"},
 		{ErrPubKeyMismatchedOddness, "ErrPubKeyMismatchedOddness"},
-		{0xffff, "Unknown ErrorCode (65535)"},
-	}
-
-	// Detect additional error codes that don't have the stringer added.
-	if len(tests)-1 != int(numErrorCodes) {
-		t.Fatalf("It appears an error code was added without adding an " +
-			"associated stringer test")
 	}
 
 	for i, test := range tests {
-		result := test.in.String()
+		result := test.in.Error()
 		if result != test.want {
 			t.Errorf("#%d: got: %s want: %s", i, result, test.want)
 			continue
@@ -61,15 +54,15 @@ func TestError(t *testing.T) {
 	}
 }
 
-// TestErrorCodeIsAs ensures both ErrorCode and Error can be identified as being
-// a specific error code via errors.Is and unwrapped via errors.As.
-func TestErrorCodeIsAs(t *testing.T) {
+// TestErrorKindIsAs ensures both ErrorKind and Error can be identified as being
+// a specific error kind via errors.Is and unwrapped via errors.As.
+func TestErrorKindIsAs(t *testing.T) {
 	tests := []struct {
 		name      string
 		err       error
 		target    error
 		wantMatch bool
-		wantAs    ErrorCode
+		wantAs    ErrorKind
 	}{{
 		name:      "ErrPubKeyInvalidLen == ErrPubKeyInvalidLen",
 		err:       ErrPubKeyInvalidLen,
@@ -80,12 +73,6 @@ func TestErrorCodeIsAs(t *testing.T) {
 		name:      "Error.ErrPubKeyInvalidLen == ErrPubKeyInvalidLen",
 		err:       makeError(ErrPubKeyInvalidLen, ""),
 		target:    ErrPubKeyInvalidLen,
-		wantMatch: true,
-		wantAs:    ErrPubKeyInvalidLen,
-	}, {
-		name:      "ErrPubKeyInvalidLen == Error.ErrPubKeyInvalidLen",
-		err:       ErrPubKeyInvalidLen,
-		target:    makeError(ErrPubKeyInvalidLen, ""),
 		wantMatch: true,
 		wantAs:    ErrPubKeyInvalidLen,
 	}, {
@@ -131,14 +118,14 @@ func TestErrorCodeIsAs(t *testing.T) {
 
 		// Ensure the underlying error code can be unwrapped and is the expected
 		// code.
-		var code ErrorCode
-		if !errors.As(test.err, &code) {
+		var kind ErrorKind
+		if !errors.As(test.err, &kind) {
 			t.Errorf("%s: unable to unwrap to error code", test.name)
 			continue
 		}
-		if code != test.wantAs {
+		if kind != test.wantAs {
 			t.Errorf("%s: unexpected unwrapped error code -- got %v, want %v",
-				test.name, code, test.wantAs)
+				test.name, kind, test.wantAs)
 			continue
 		}
 	}
