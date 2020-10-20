@@ -1604,7 +1604,7 @@ nextPriorityQueueItem:
 			// If the fee decreased due to ancestors being included in the
 			// template and the transaction has no parents, then enqueue it one
 			// more time with an accurate feePerKb.
-			heap.Push(priorityQueue, prioItemMap[*tx.Hash()])
+			heap.Push(priorityQueue, prioItem)
 			prioritizedTxns[*tx.Hash()] = struct{}{}
 			continue
 		}
@@ -1793,11 +1793,15 @@ nextPriorityQueueItem:
 					continue
 				}
 
-				// Add the transaction to the priority queue if there
-				// are no more dependencies after this one.
+				// Add the transaction to the priority queue if there are no
+				// more dependencies after this one and the priority item for it
+				// already exists.
 				if !miningView.HasParents(childTxHash) {
-					heap.Push(priorityQueue, prioItemMap[*childTxHash])
-					prioritizedTxns[*childTxHash] = struct{}{}
+					childPrioItem := prioItemMap[*childTxHash]
+					if childPrioItem != nil {
+						heap.Push(priorityQueue, childPrioItem)
+						prioritizedTxns[*childTxHash] = struct{}{}
+					}
 				}
 			}
 		}
