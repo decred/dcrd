@@ -1804,6 +1804,25 @@ func migrateSpendJournalVersion1To2(ctx context.Context, db database.DB) error {
 	return nil
 }
 
+// initializeTreasuryBuckets creates the buckets that house the treasury account
+// and spend information as needed.
+func initializeTreasuryBuckets(db database.DB) error {
+	// Hardcoded key names so updates do not affect old upgrades.
+	treasuryBucketName := []byte("treasury")
+	treasuryTSpendBucketName := []byte("tspend")
+
+	// Create the new treasury buckets as needed.
+	return db.Update(func(dbTx database.Tx) error {
+		meta := dbTx.Metadata()
+		_, err := meta.CreateBucketIfNotExists(treasuryBucketName)
+		if err != nil {
+			return err
+		}
+		_, err = meta.CreateBucketIfNotExists(treasuryTSpendBucketName)
+		return err
+	})
+}
+
 // upgradeToVersion7 upgrades a version 6 blockchain database to version 7.
 func upgradeToVersion7(ctx context.Context, db database.DB, chainParams *chaincfg.Params, dbInfo *databaseInfo) error {
 	// Hardcoded key names so updates do not affect old upgrades.
@@ -1815,6 +1834,11 @@ func upgradeToVersion7(ctx context.Context, db database.DB, chainParams *chaincf
 
 	log.Info("Upgrading database to version 7...")
 	start := time.Now()
+
+	// Create the new treasury buckets as needed.
+	if err := initializeTreasuryBuckets(db); err != nil {
+		return err
+	}
 
 	// Migrate the utxoset to version 2.
 	if err := migrateUtxoSetVersion1To2(ctx, db); err != nil {
@@ -1910,6 +1934,21 @@ func upgradeDB(ctx context.Context, db database.DB, chainParams *chaincfg.Params
 	if dbInfo.version == 6 {
 		err := upgradeToVersion7(ctx, db, chainParams, dbInfo)
 		if err != nil {
+			return err
+		}
+	}
+
+	// Ensure the treasury buckets are created for version 7 databases.  They
+	// ordinarily will have already been created during the upgrade to version 7
+	// above, however, due to a bug in a release candidate, they might not have
+	// been, so this is a relatively simple hack to ensure anyone in that
+	// intermediate state is upgraded properly without needing to go through
+	// another upgrade or redownload the chain.
+	//
+	// This can be removed once the database needs to migrate to version 8.
+	if dbInfo.version == 7 {
+		// Create the new treasury buckets as needed.
+		if err := initializeTreasuryBuckets(db); err != nil {
 			return err
 		}
 	}

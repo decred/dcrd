@@ -1695,8 +1695,8 @@ func (b *BlockChain) createChainState() error {
 			return err
 		}
 
-		// Create the bucket that houses the treasury account
-		// information.
+		// Create the buckets that house the treasury account and spend
+		// transaction information.
 		_, err = meta.CreateBucket(treasuryBucketName)
 		if err != nil {
 			return err
