@@ -1660,10 +1660,13 @@ of the best block.
 |-
 !Returns
 |<code>(json array)</code>
+: <code>id</code>: <code>(numeric)</code> a unique node ID.
 : <code>addr</code>: <code>(string)</code> the ip address and port of the peer.
+: <code>addrlocal</code>: <code>(string)</code> local address.
 : <code>services</code>: <code>(string)</code> the services supported by the peer.
-: <code>lastrecv</code>: <code>(numeric)</code> time the last message was received in seconds since 1 Jan 1970 GMT.
+: <code>relaytxes</code>: <code>(boolean)</code> peer has requested transactions be relayed to it.
 : <code>lastsend</code>: <code>(numeric)</code> time the last message was sent in seconds since 1 Jan 1970 GMT.
+: <code>lastrecv</code>: <code>(numeric)</code> time the last message was received in seconds since 1 Jan 1970 GMT.
 : <code>bytessent</code>: <code>(numeric)</code> total bytes sent.
 : <code>bytesrecv</code>: <code>(numeric)</code> total bytes received.
 : <code>conntime</code>: <code>(numeric)</code> time the connection was made in seconds since 1 Jan 1970 GMT.
@@ -1674,12 +1677,13 @@ of the best block.
 : <code>inbound</code>: <code>(boolean)</code> whether or not the peer is an inbound connection.
 : <code>startingheight</code>: <code>(numeric)</code> the latest block height the peer knew about when the connection was established.
 : <code>currentheight</code>: <code>(numeric)</code> the latest block height the peer is known to have relayed since connected.
+: <code>banscore</code>: <code>(numeric)</code> the ban score.
 : <code>syncnode</code>: <code>(boolean)</code> whether or not the peer is the sync peer.
 
-<code>[{"addr": "host:port", "services": "00000001", "lastrecv": n, "lastsend": n,  "bytessent": n, "bytesrecv": n, "conntime": n, "pingtime": n, "pingwait": n,  "version": n, "subver": "useragent", "inbound": true_or_false, "startingheight": n, "currentheight": n, "syncnode": true_or_false }, ...]</code>
+<code>[{"id": n, "addr": "host:port", "addrlocal": "host:port", "services": "00000001", "relaytxes": true_or_false, "lastsend": n, "lastrecv": n, "bytessent": n, "bytesrecv": n, "conntime": n, "pingtime": n.nnn, "pingwait": n.nnn,  "version": n, "subver": "useragent", "inbound": true_or_false, "startingheight": n, "currentheight": n, "banscore": n, "syncnode": true_or_false }, ...]</code>
 |-
 !Example Return
-|<code>[{"addr": "178.172.xxx.xxx:9108", "services": "00000001", "lastrecv": 1388183523, "lastsend": 1388185470, "bytessent": 287592965, "bytesrecv": 780340, "conntime": 1388182973, "pingtime": 405551, "pingwait": 183023, "version": 70001, "subver": "/dcrd:0.4.0/", "inbound": false, "startingheight": 276921, "currentheight": 276955, "syncnode": true }, ...]</code>
+|<code>[{"id": 1, "addr": "178.172.xxx.xxx:9108", "addrlocal": "192.168.x.x:54349", "services": "00000001", "relaytxes": true, "lastsend": 1388185470, "lastrecv": 1388183523, "bytessent": 287592965, "bytesrecv": 780340, "conntime": 1388182973, "pingtime": 405551, "pingwait": 183023, "version": 70001, "subver": "/dcrd:0.4.0/", "inbound": false, "startingheight": 276921, "currentheight": 276955, "banscore": 0, "syncnode": true }, ...]</code>
 |}
 
 ----
