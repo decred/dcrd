@@ -1933,18 +1933,32 @@ func extractDeploymentIDVersions(params *chaincfg.Params) (map[string]uint32, er
 // stxosToScriptSource uses the provided block and spent txo information to
 // create a source of previous transaction scripts and versions spent by the
 // block.
-func stxosToScriptSource(block *dcrutil.Block, stxos []spentTxOut, compressionVersion uint32, isTreasuryEnabled bool) scriptSource {
+func stxosToScriptSource(block *dcrutil.Block, stxos []spentTxOut, compressionVersion uint32, isTreasuryEnabled bool, chainParams *chaincfg.Params) scriptSource {
 	source := make(scriptSource)
+	msgBlock := block.MsgBlock()
 
-	// Loop through all of the transaction inputs in the stake transaction tree
-	// (except for the stakebases which have no inputs) and add the scripts and
-	// associated script versions from the referenced txos to the script source.
+	// TSpends can only be added to TVI blocks so don't look for them
+	// except in those blocks.
+	isTVI := standalone.IsTreasuryVoteInterval(uint64(msgBlock.Header.Height),
+		chainParams.TreasuryVoteInterval)
+
+	// Loop through all of the transaction inputs in the stake transaction
+	// tree (except for the stakebases, treasurybases and treasuryspends
+	// which have no inputs) and add the scripts and associated script
+	// versions from the referenced txos to the script source.
 	//
 	// Note that transactions in the stake tree are spent before transactions in
 	// the regular tree when originally creating the spend journal entry, thus
 	// the spent txous need to be processed in the same order.
 	var stxoIdx int
-	for _, tx := range block.MsgBlock().STransactions {
+	for i, tx := range msgBlock.STransactions {
+		// Ignore treasury base and tspends since they have no inputs.
+		isTreasuryBase := isTreasuryEnabled && i == 0
+		isTSpend := isTreasuryEnabled && i > 0 && isTVI && stake.IsTSpend(tx)
+		if isTreasuryBase || isTSpend {
+			continue
+		}
+
 		isVote := stake.IsSSGen(tx, isTreasuryEnabled)
 		for txInIdx, txIn := range tx.TxIn {
 			// Ignore stakebase since it has no input.
@@ -1972,7 +1986,7 @@ func stxosToScriptSource(block *dcrutil.Block, stxos []spentTxOut, compressionVe
 	// tree (except for the coinbase which has no inputs) and add the scripts
 	// and associated script versions from the referenced txos to the script
 	// source.
-	for _, tx := range block.MsgBlock().Transactions[1:] {
+	for _, tx := range msgBlock.Transactions[1:] {
 		for _, txIn := range tx.TxIn {
 			// Ensure the spent txout index is incremented to stay in sync with
 			// the transaction input.
@@ -2036,7 +2050,7 @@ func (q *chainQueryerAdapter) PrevScripts(dbTx database.Tx, block *dcrutil.Block
 	}
 
 	prevScripts := stxosToScriptSource(block, stxos, currentCompressionVersion,
-		isTreasuryEnabled)
+		isTreasuryEnabled, q.chainParams)
 	return prevScripts, nil
 }
 

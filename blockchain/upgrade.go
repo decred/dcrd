@@ -962,7 +962,7 @@ func clearFailedBlockFlags(index *blockIndex) error {
 //
 // The database is  guaranteed to have a filter entry for every block in the
 // main chain if this returns without failure.
-func initializeGCSFilters(ctx context.Context, db database.DB, index *blockIndex, bestChain *chainView, isTreasuryEnabled bool) error {
+func initializeGCSFilters(ctx context.Context, db database.DB, index *blockIndex, bestChain *chainView, isTreasuryEnabled bool, chainParams *chaincfg.Params) error {
 	// Hardcoded values so updates to the global values do not affect old
 	// upgrades.
 	gcsBucketName := []byte("gcsfilters")
@@ -1000,7 +1000,7 @@ func initializeGCSFilters(ctx context.Context, db database.DB, index *blockIndex
 		// of previous scripts spent by the block needed to create the
 		// filter.
 		prevScripts := stxosToScriptSource(block, stxos,
-			compressionVersion, isTreasuryEnabled)
+			compressionVersion, isTreasuryEnabled, chainParams)
 
 		// Create the filter from the block and referenced previous output
 		// scripts.
@@ -1147,7 +1147,7 @@ func upgradeToVersion6(ctx context.Context, db database.DB, chainParams *chaincf
 	// Create and store version 2 GCS filters for all blocks in the main chain.
 	// We can use the false flag because there is no way the treasury could
 	// be active at this point.
-	err = initializeGCSFilters(ctx, db, index, bestChain, false)
+	err = initializeGCSFilters(ctx, db, index, bestChain, false, chainParams)
 	if err != nil {
 		return err
 	}
