@@ -2007,7 +2007,7 @@ of the best block.
 |None
 |-
 !Description
-| Returns information about an unspent transaction output.
+| Returns statistics on current unspent transaction output set.
 |-
 !Returns
 |<code>(json object)</code>
