@@ -1921,6 +1921,7 @@ of the best block.
 |gettreasurybalance
 |-
 !Parameters
+|
 # <code>hash</code>: <code>(string, optional)</code> Return the treasury balance at the specified block. If unspecified, return the balance for the current tip block.
 # <code>verbose</code>: <code>(bool, optional)</code> Whether to fill the <code>updates</code> field of the response. Defaults to false.
 |-
@@ -1928,11 +1929,12 @@ of the best block.
 | Returns the matured balance of the network's treasury account. It optionally also returns the individual balance-changing amounts (treasury base, add and spend transactions) for the block.
 |-
 !Returns
-|<code>(json object)</code>
-| <code>hash</code>: <code>(string)</code> Block hash for which the balance was fetched.
-| <code>height</code>: <code>(numeric)</code> Block height for which the balance was fetched.
-| <code>balance</code>: <code>(numeric)</code> Balance (in atoms) of mature funds of the treasury account.
-| <code>updates</code>: <code>(json array of numeric)</code>: Individual amounts that affect the treasury balance in the given block. Amounts corresponding to treasury spend transactions will be negative. Only filled if <code>verbose</code> is specified.
+|
+<code>(json object)</code>
+: <code>hash</code>: <code>(string)</code> Block hash for which the balance was fetched.
+: <code>height</code>: <code>(numeric)</code> Block height for which the balance was fetched.
+: <code>balance</code>: <code>(numeric)</code> Balance (in atoms) of mature funds of the treasury account.
+: <code>updates</code>: <code>(json array of numeric)</code>: Individual amounts that affect the treasury balance in the given block. Amounts corresponding to treasury spend transactions will be negative. Only filled if <code>verbose</code> is specified.
 |-
 !Example Return
 |<code>{"hash": "00000000000000001605faff0827dafcea7d0986cf0aad06e87eccf9e02ff441","height": 428944,"balance": 1923209183818,"updates":[157007970,19200000000,-1892811207]}</code>
