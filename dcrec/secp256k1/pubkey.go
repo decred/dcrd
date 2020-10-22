@@ -24,7 +24,7 @@ const (
 	// compressed public key.
 	PubKeyBytesLenCompressed = 33
 
-	// PubKeyBytesLenCompressed is the number of bytes of a serialized
+	// PubKeyBytesLenUncompressed is the number of bytes of a serialized
 	// uncompressed public key.
 	PubKeyBytesLenUncompressed = 65
 
