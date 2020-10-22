@@ -2257,6 +2257,9 @@ of the best block.
 !Description
 |Returns raw data for transactions involving the passed address. Returned transactions are pulled from both the database, and transactions currently in the mempool. Transactions pulled from the mempool will have the <code>"confirmations"</code> field set to 0. Usage of this RPC requires the optional <code>--addrindex</code> flag to be activated, otherwise all responses will simply return with an error stating the address index has not yet been built up. Similarly, until the address index has caught up with the current best height, all requests will return an error response in order to avoid serving stale data.
 |-
+!Notes
+|Each request is limited to a maximum of 10000 transactions. Callers may use the <code>skip</code> parameter in subsequent requests to access additional data if access to more results is required.
+|-
 !Returns (verbose=0)
 |
 <code>(json array of strings)</code>
