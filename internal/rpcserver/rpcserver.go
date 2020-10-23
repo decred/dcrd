@@ -2714,12 +2714,15 @@ func handleGetRawMempool(_ context.Context, s *Server, cmd interface{}) (interfa
 		case types.GRMTSpend:
 			filterType = new(stake.TxType)
 			*filterType = stake.TxTypeTSpend
+		case types.GRMTAdd:
+			filterType = new(stake.TxType)
+			*filterType = stake.TxTypeTAdd
 		case types.GRMAll:
 			// Nothing to do
 		default:
 			supported := []types.GetRawMempoolTxTypeCmd{types.GRMRegular,
 				types.GRMTickets, types.GRMVotes, types.GRMRevocations,
-				types.GRMAll}
+				types.GRMTSpend, types.GRMTAdd, types.GRMAll}
 			return nil, rpcInvalidError("Invalid transaction type: %s -- "+
 				"supported types: %v", *c.TxType, supported)
 		}
