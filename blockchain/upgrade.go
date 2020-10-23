@@ -1698,6 +1698,216 @@ func upgradeToVersion7(ctx context.Context, db database.DB, dbInfo *databaseInfo
 	return nil
 }
 
+// clearFailedBlockFlagsV3 unmarks all blocks in a version 3 block index
+// previously marked failed so they are eligible for validation again under new
+// consensus rules.  This ensures clients that did not update prior to new rules
+// activating are able to automatically recover under the new rules without
+// having to download the entire chain again.
+func clearFailedBlockFlagsV3(ctx context.Context, db database.DB) error {
+	// Hardcoded bucket name so updates do not affect old upgrades.
+	v3BucketName := []byte("blockidxv3")
+	v3ClearFailedDoneKeyName := []byte("blockidxv3clearfaileddone")
+
+	// No need to clear again if already done.
+	var alreadyDone bool
+	err := db.View(func(dbTx database.Tx) error {
+		if dbTx.Metadata().Get(v3ClearFailedDoneKeyName) != nil {
+			alreadyDone = true
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	if alreadyDone {
+		return nil
+	}
+
+	log.Info("Reindexing block information in the database.  This may take a " +
+		"while...")
+	start := time.Now()
+
+	// doBatch contains the primary logic for updating the block index in
+	// batches.  This is done because attempting to migrate in a single database
+	// transaction could result in massive memory usage and could potentially
+	// crash on many systems due to ulimits.
+	//
+	// It returns the number of entries processed.
+	const maxEntries = 20000
+	var resumeOffset uint32
+	doBatch := func(dbTx database.Tx) (uint32, error) {
+		meta := dbTx.Metadata()
+		v3BlockIdxBucket := meta.Bucket(v3BucketName)
+		if v3BlockIdxBucket == nil {
+			return 0, fmt.Errorf("bucket %s does not exist", v3BucketName)
+		}
+
+		// Update block index entries so long as the max number of entries for
+		// this batch has not been exceeded.
+		var numMigrated, numIterated uint32
+		err := v3BlockIdxBucket.ForEach(func(key, oldSerialized []byte) error {
+			if numMigrated >= maxEntries {
+				return errBatchFinished
+			}
+
+			// Skip entries that have already been migrated in previous batches.
+			numIterated++
+			if numIterated-1 < resumeOffset {
+				return nil
+			}
+			resumeOffset++
+
+			// Copy the existing serialized bytes so they can be mutated and
+			// rewritten to the new bucket as needed.
+			serialized := make([]byte, len(oldSerialized))
+			copy(serialized, oldSerialized)
+
+			// The version 3 block index consists of an entry for every known
+			// block.
+			//
+			// The serialized value format is roughly:
+			//
+			//   <block header><status><rest of data>
+			//
+			//   Field              Type                Size
+			//   block header       wire.BlockHeader    180 bytes
+			//   status             blockStatus         1 byte
+			//   rest of data...
+			//
+			// Given the status field is the only thing that needs to be
+			// modified, the following specifically finds and modifies the
+			// relevant byte while leaving everything else untouched.
+
+			// Mark the block index entry as eligible for validation again.
+			const (
+				blockHdrSize            = 180
+				v3StatusValidateFailed  = 1 << 2
+				v3StatusInvalidAncestor = 1 << 3
+			)
+			offset := blockHdrSize
+			if offset+1 > len(serialized) {
+				return errDeserialize("unexpected end of data while reading " +
+					"status")
+			}
+			origStatus := serialized[offset]
+			newStatus := origStatus
+			newStatus &^= v3StatusValidateFailed | v3StatusInvalidAncestor
+			serialized[offset] = newStatus
+			if newStatus != origStatus {
+				err = v3BlockIdxBucket.Put(key, serialized)
+				if err != nil {
+					return err
+				}
+			}
+
+			numMigrated++
+
+			if interruptRequested(ctx) {
+				return errInterruptRequested
+			}
+
+			return nil
+		})
+		return numMigrated, err
+	}
+
+	// Migrate all entries in batches for the reasons mentioned above.
+	var totalMigrated uint64
+	for {
+		var numMigrated uint32
+		err := db.Update(func(dbTx database.Tx) error {
+			var err error
+			numMigrated, err = doBatch(dbTx)
+			if errors.Is(err, errInterruptRequested) ||
+				errors.Is(err, errBatchFinished) {
+
+				// No error here so the database transaction is not cancelled
+				// and therefore outstanding work is written to disk.  The outer
+				// function will exit with an interrupted error below due to
+				// another interrupted check.
+				err = nil
+			}
+			return err
+		})
+		if err != nil {
+			return err
+		}
+
+		if interruptRequested(ctx) {
+			return errInterruptRequested
+		}
+
+		if numMigrated == 0 {
+			break
+		}
+
+		totalMigrated += uint64(numMigrated)
+		log.Infof("Updated %d entries (%d total)", numMigrated, totalMigrated)
+	}
+
+	elapsed := time.Since(start).Round(time.Millisecond)
+	log.Infof("Done updating block index.  Total entries: %d in %v",
+		totalMigrated, elapsed)
+
+	if interruptRequested(ctx) {
+		return errInterruptRequested
+	}
+
+	// Save a flag to mark the update fully complete in case of interruption.
+	err = db.Update(func(dbTx database.Tx) error {
+		return dbTx.Metadata().Put(v3ClearFailedDoneKeyName, nil)
+	})
+	return err
+}
+
+// upgradeToVersion8 upgrades a version 7 blockchain database to version 8.
+func upgradeToVersion8(ctx context.Context, db database.DB, dbInfo *databaseInfo) error {
+	// Hardcoded key names so updates do not affect old upgrades.
+	v3ClearFailedDoneKeyName := []byte("blockidxv3clearfaileddone")
+
+	if interruptRequested(ctx) {
+		return errInterruptRequested
+	}
+
+	log.Info("Upgrading database to version 8...")
+	start := time.Now()
+
+	// Ensure the treasury buckets are created for version 7 databases.  They
+	// ordinarily will have already been created during the upgrade to version 7
+	// above, however, due to a bug in a release candidate, they might not have
+	// been, so this is a relatively simple hack to ensure anyone in that
+	// intermediate state is upgraded properly without needing to redownload the
+	// chain.
+	if err := initializeTreasuryBuckets(db); err != nil {
+		return err
+	}
+
+	// Unmark all blocks previously marked failed so they are eligible for
+	// validation again under the new consensus rules.
+	if err := clearFailedBlockFlagsV3(ctx, db); err != nil {
+		return err
+	}
+
+	// Update and persist the database versions and remove upgrade progress
+	// tracking keys.
+	err := db.Update(func(dbTx database.Tx) error {
+		err := dbTx.Metadata().Delete(v3ClearFailedDoneKeyName)
+		if err != nil {
+			return err
+		}
+
+		dbInfo.version = 8
+		return dbPutDatabaseInfo(dbTx, dbInfo)
+	})
+	if err != nil {
+		return err
+	}
+
+	elapsed := time.Since(start).Round(time.Millisecond)
+	log.Infof("Done upgrading database in %v.", elapsed)
+	return nil
+}
+
 // checkDBTooOldToUpgrade returns an ErrDBTooOldToUpgrade error if the provided
 // database version can no longer be upgraded due to being too old.
 func checkDBTooOldToUpgrade(dbVersion uint32) error {
@@ -1785,17 +1995,12 @@ func upgradeDB(ctx context.Context, db database.DB, chainParams *chaincfg.Params
 		}
 	}
 
-	// Ensure the treasury buckets are created for version 7 databases.  They
-	// ordinarily will have already been created during the upgrade to version 7
-	// above, however, due to a bug in a release candidate, they might not have
-	// been, so this is a relatively simple hack to ensure anyone in that
-	// intermediate state is upgraded properly without needing to go through
-	// another upgrade or redownload the chain.
-	//
-	// This can be removed once the database needs to migrate to version 8.
+	// Update to a version 8 database if needed.  This entails ensuring the
+	// treasury buckets from v7 are created and unmarking all blocks previously
+	// marked failed so they are eligible for validation again under the new
+	// consensus rules.
 	if dbInfo.version == 7 {
-		// Create the new treasury buckets as needed.
-		if err := initializeTreasuryBuckets(db); err != nil {
+		if err := upgradeToVersion8(ctx, db, dbInfo); err != nil {
 			return err
 		}
 	}
