@@ -147,6 +147,7 @@ func TestErrorKindStringer(t *testing.T) {
 		{ErrInvalidTAddChange, "ErrInvalidTAddChange"},
 		{ErrTooManyTAdds, "ErrTooManyTAdds"},
 		{ErrTicketExhaustion, "ErrTicketExhaustion"},
+		{ErrDBTooOldToUpgrade, "ErrDBTooOldToUpgrade"},
 	}
 
 	t.Logf("Running %d tests", len(tests))
@@ -169,6 +170,29 @@ func TestRuleError(t *testing.T) {
 		"duplicate block",
 	}, {
 		RuleError{Description: "human-readable error"},
+		"human-readable error",
+	}}
+
+	t.Logf("Running %d tests", len(tests))
+	for i, test := range tests {
+		result := test.in.Error()
+		if result != test.want {
+			t.Errorf("#%d: got: %s want: %s", i, result, test.want)
+			continue
+		}
+	}
+}
+
+// TestContextError tests the error output for the ContextError type.
+func TestContextError(t *testing.T) {
+	tests := []struct {
+		in   ContextError
+		want string
+	}{{
+		ContextError{Description: "duplicate block"},
+		"duplicate block",
+	}, {
+		ContextError{Description: "human-readable error"},
 		"human-readable error",
 	}}
 
@@ -239,6 +263,42 @@ func TestErrorKindIsAs(t *testing.T) {
 		target:    io.EOF,
 		wantMatch: false,
 		wantAs:    ErrDuplicateBlock,
+	}, {
+		name:      "ContextError.ErrDBTooOldToUpgrade == ErrDBTooOldToUpgrade",
+		err:       contextError(ErrDBTooOldToUpgrade, ""),
+		target:    ErrDBTooOldToUpgrade,
+		wantMatch: true,
+		wantAs:    ErrDBTooOldToUpgrade,
+	}, {
+		name:      "ContextError.ErrDBTooOldToUpgrade == ContextError.ErrDBTooOldToUpgrade",
+		err:       contextError(ErrDBTooOldToUpgrade, ""),
+		target:    contextError(ErrDBTooOldToUpgrade, ""),
+		wantMatch: true,
+		wantAs:    ErrDBTooOldToUpgrade,
+	}, {
+		name:      "ContextError.ErrDBTooOldToUpgrade != ErrMissingParent",
+		err:       contextError(ErrDBTooOldToUpgrade, ""),
+		target:    ErrMissingParent,
+		wantMatch: false,
+		wantAs:    ErrDBTooOldToUpgrade,
+	}, {
+		name:      "ErrDBTooOldToUpgrade != ContextError.ErrMissingParent",
+		err:       ErrDBTooOldToUpgrade,
+		target:    contextError(ErrMissingParent, ""),
+		wantMatch: false,
+		wantAs:    ErrDBTooOldToUpgrade,
+	}, {
+		name:      "ContextError.ErrDBTooOldToUpgrade != ContextError.ErrMissingParent",
+		err:       contextError(ErrDBTooOldToUpgrade, ""),
+		target:    contextError(ErrMissingParent, ""),
+		wantMatch: false,
+		wantAs:    ErrDBTooOldToUpgrade,
+	}, {
+		name:      "ContextError.ErrDBTooOldToUpgrade != io.EOF",
+		err:       contextError(ErrDBTooOldToUpgrade, ""),
+		target:    io.EOF,
+		wantMatch: false,
+		wantAs:    ErrDBTooOldToUpgrade,
 	}}
 
 	for _, test := range tests {

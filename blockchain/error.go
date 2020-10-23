@@ -97,7 +97,7 @@ func (e AssertError) Error() string {
 // determining the reason for an error.
 type ErrorKind string
 
-// These constants are used to identify a specific RuleError.
+// These constants are used to identify a specific ErrorKind.
 const (
 	// ErrDuplicateBlock indicates a block with the same hash already
 	// exists.
@@ -636,11 +636,38 @@ const (
 	// ErrTicketExhaustion indicates extending a given block with another one
 	// would result in an unrecoverable chain due to ticket exhaustion.
 	ErrTicketExhaustion = ErrorKind("ErrTicketExhaustion")
+
+	// ErrDBTooOldToUpgrade indicates the database version is prior to the
+	// minimum supported version for which upgrades are supported.
+	ErrDBTooOldToUpgrade = ErrorKind("ErrDBTooOldToUpgrade")
 )
 
 // Error satisfies the error interface and prints human-readable errors.
 func (e ErrorKind) Error() string {
 	return string(e)
+}
+
+// ContextError wraps an error with additional context.  It has full support for
+// errors.Is and errors.As, so the caller can ascertain the specific wrapped
+// error.
+type ContextError struct {
+	Err         error
+	Description string
+}
+
+// Error satisfies the error interface and prints human-readable errors.
+func (e ContextError) Error() string {
+	return e.Description
+}
+
+// Unwrap returns the underlying wrapped error.
+func (e ContextError) Unwrap() error {
+	return e.Err
+}
+
+// ruleError creates a ContextError given a set of arguments.
+func contextError(kind ErrorKind, desc string) ContextError {
+	return ContextError{Err: kind, Description: desc}
 }
 
 // RuleError identifies a rule violation.  It is used to indicate that

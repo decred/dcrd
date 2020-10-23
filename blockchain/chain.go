@@ -2198,12 +2198,6 @@ func New(ctx context.Context, config *Config) (*BlockChain, error) {
 		}
 	}
 
-	// The version 5 database upgrade requires a full reindex.  Perform, or
-	// resume, the reindex as needed.
-	if err := b.maybeFinishV5Upgrade(ctx); err != nil {
-		return nil, err
-	}
-
 	log.Infof("Blockchain database version info: chain: %d, compression: "+
 		"%d, block index: %d", b.dbInfo.version, b.dbInfo.compVer,
 		b.dbInfo.bidxVer)

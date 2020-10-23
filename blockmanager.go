@@ -2535,6 +2535,16 @@ func newBlockManager(config *blockManagerConfig) (*blockManager, error) {
 	return &bm, nil
 }
 
+// removeDB removes the database at the provided path.  The fi parameter MUST
+// agree with the provided path.
+func removeDB(dbPath string, fi os.FileInfo) error {
+	if fi.IsDir() {
+		return os.RemoveAll(dbPath)
+	}
+
+	return os.Remove(dbPath)
+}
+
 // removeRegressionDB removes the existing regression test database if running
 // in regression test mode and it already exists.
 func removeRegressionDB(dbPath string) error {
@@ -2547,17 +2557,7 @@ func removeRegressionDB(dbPath string) error {
 	fi, err := os.Stat(dbPath)
 	if err == nil {
 		dcrdLog.Infof("Removing regression test database from '%s'", dbPath)
-		if fi.IsDir() {
-			err := os.RemoveAll(dbPath)
-			if err != nil {
-				return err
-			}
-		} else {
-			err := os.Remove(dbPath)
-			if err != nil {
-				return err
-			}
-		}
+		return removeDB(dbPath, fi)
 	}
 
 	return nil
@@ -2634,11 +2634,24 @@ func loadBlockDB(params *chaincfg.Params) (database.DB, error) {
 	// each run, so remove it now if it already exists.
 	removeRegressionDB(dbPath)
 
+	// createDB is a convenience func that creates the database with the type
+	// and network specified in the config at the path determined above while
+	// also creating any any intermediate directories in the configured data
+	// directory path as needed.
+	createDB := func() (database.DB, error) {
+		// Create the data dir if it does not exist.
+		err := os.MkdirAll(cfg.DataDir, 0700)
+		if err != nil {
+			return nil, err
+		}
+		return database.Create(cfg.DbType, dbPath, params.Net)
+	}
+
+	// Open the existing database or create a new one as needed.
 	dcrdLog.Infof("Loading block database from '%s'", dbPath)
 	db, err := database.Open(cfg.DbType, dbPath, params.Net)
 	if err != nil {
-		// Return the error if it's not because the database doesn't
-		// exist.
+		// Return the error if it's not because the database doesn't exist.
 		var dbErr database.Error
 		if !errors.As(err, &dbErr) || dbErr.ErrorCode !=
 			database.ErrDbDoesNotExist {
@@ -2646,12 +2659,39 @@ func loadBlockDB(params *chaincfg.Params) (database.DB, error) {
 			return nil, err
 		}
 
-		// Create the db if it does not exist.
-		err = os.MkdirAll(cfg.DataDir, 0700)
+		db, err = createDB()
 		if err != nil {
 			return nil, err
 		}
-		db, err = database.Create(cfg.DbType, dbPath, params.Net)
+	}
+
+	// Remove and recreate the blockchain database when it can no longer be
+	// upgraded due to being too old.
+	if err := blockchain.CheckDBTooOldToUpgrade(db); err != nil {
+		// Any errors other than the database being too old upgrade are
+		// unexpected.
+		if !errors.Is(err, blockchain.ErrDBTooOldToUpgrade) {
+			return nil, err
+		}
+		dcrdLog.Infof("Removing database from '%s': %v", dbPath, err)
+
+		// Close the database so it can be removed cleanly.
+		if err := db.Close(); err != nil {
+			return nil, err
+		}
+
+		// Remove the old database and create/open a new one.
+		fi, err := os.Stat(dbPath)
+		if err != nil {
+			return nil, err
+		}
+
+		err = removeDB(dbPath, fi)
+		if err != nil {
+			return nil, err
+		}
+
+		db, err = createDB()
 		if err != nil {
 			return nil, err
 		}

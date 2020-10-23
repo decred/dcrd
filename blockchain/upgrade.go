@@ -14,12 +14,9 @@ import (
 	"time"
 
 	"github.com/decred/dcrd/blockchain/stake/v3"
-	"github.com/decred/dcrd/blockchain/standalone/v2"
-	"github.com/decred/dcrd/blockchain/v3/internal/progresslog"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/chaincfg/v3"
 	"github.com/decred/dcrd/database/v2"
-	"github.com/decred/dcrd/dcrutil/v3"
 	"github.com/decred/dcrd/gcs/v2"
 	"github.com/decred/dcrd/gcs/v2/blockcf2"
 	"github.com/decred/dcrd/wire"
@@ -79,170 +76,6 @@ func deserializeDatabaseInfoV2(dbInfoBytes []byte) (*databaseInfo, error) {
 	}, nil
 }
 
-// ticketsVotedInBlock fetches a list of tickets that were voted in the
-// block.
-func ticketsVotedInBlock(bl *dcrutil.Block, isTreasuryEnabled bool) []chainhash.Hash {
-	var tickets []chainhash.Hash
-	for _, stx := range bl.MsgBlock().STransactions {
-		if stake.IsSSGen(stx, isTreasuryEnabled) {
-			tickets = append(tickets, stx.TxIn[1].PreviousOutPoint.Hash)
-		}
-	}
-
-	return tickets
-}
-
-// ticketsRevokedInBlock fetches a list of tickets that were revoked in the
-// block.
-func ticketsRevokedInBlock(bl *dcrutil.Block, isTreasuryEnabled bool) []chainhash.Hash {
-	var tickets []chainhash.Hash
-	for _, stx := range bl.MsgBlock().STransactions {
-		if stake.DetermineTxType(stx, isTreasuryEnabled) == stake.TxTypeSSRtx {
-			tickets = append(tickets, stx.TxIn[0].PreviousOutPoint.Hash)
-		}
-	}
-
-	return tickets
-}
-
-// upgradeToVersion2 upgrades a version 1 blockchain to version 2, allowing
-// use of the new on-disk ticket database.
-func upgradeToVersion2(db database.DB, chainParams *chaincfg.Params, dbInfo *databaseInfo) error {
-	// Hardcoded so updates to the global values do not affect old upgrades.
-	byteOrder := binary.LittleEndian
-	chainStateKeyName := []byte("chainstate")
-	heightIdxBucketName := []byte("heightidx")
-
-	// These are legacy functions that relied on information in the database
-	// that is no longer available in more recent code.
-	dbFetchHashByHeight := func(dbTx database.Tx, height int64) (*chainhash.Hash, error) {
-		var serializedHeight [4]byte
-		byteOrder.PutUint32(serializedHeight[:], uint32(height))
-
-		meta := dbTx.Metadata()
-		heightIndex := meta.Bucket(heightIdxBucketName)
-		hashBytes := heightIndex.Get(serializedHeight[:])
-		if hashBytes == nil {
-			str := fmt.Sprintf("no block at height %d exists", height)
-			return nil, errNotInMainChain(str)
-		}
-
-		var hash chainhash.Hash
-		copy(hash[:], hashBytes)
-		return &hash, nil
-	}
-	dbFetchBlockByHeight := func(dbTx database.Tx, height int64) (*dcrutil.Block, error) {
-		// First find the hash associated with the provided height in the index.
-		hash, err := dbFetchHashByHeight(dbTx, height)
-		if err != nil {
-			return nil, err
-		}
-
-		// Load the raw block bytes from the database.
-		blockBytes, err := dbTx.FetchBlock(hash)
-		if err != nil {
-			return nil, err
-		}
-
-		// Create the encapsulated block and set the height appropriately.
-		block, err := dcrutil.NewBlockFromBytes(blockBytes)
-		if err != nil {
-			return nil, err
-		}
-
-		return block, nil
-	}
-
-	log.Info("Initializing upgrade to database version 2")
-	progressLogger := progresslog.NewBlockProgressLogger("Upgraded", log)
-
-	// The upgrade is atomic, so there is no need to set the flag that
-	// the database is undergoing an upgrade here.  Get the stake node
-	// for the genesis block, and then begin connecting stake nodes
-	// incrementally.
-	err := db.Update(func(dbTx database.Tx) error {
-		// Fetch the stored best chain state from the database metadata.
-		serializedData := dbTx.Metadata().Get(chainStateKeyName)
-		best, err := deserializeBestChainState(serializedData)
-		if err != nil {
-			return err
-		}
-
-		bestStakeNode, errLocal := stake.InitDatabaseState(dbTx, chainParams,
-			&chainParams.GenesisHash)
-		if errLocal != nil {
-			return errLocal
-		}
-
-		parent, errLocal := dbFetchBlockByHeight(dbTx, 0)
-		if errLocal != nil {
-			return errLocal
-		}
-
-		for i := int64(1); i <= int64(best.height); i++ {
-			block, errLocal := dbFetchBlockByHeight(dbTx, i)
-			if errLocal != nil {
-				return errLocal
-			}
-
-			// If we need the tickets, fetch them too.
-			var newTickets []chainhash.Hash
-			if i >= chainParams.StakeEnabledHeight {
-				matureHeight := i - int64(chainParams.TicketMaturity)
-				matureBlock, errLocal := dbFetchBlockByHeight(dbTx, matureHeight)
-				if errLocal != nil {
-					return errLocal
-				}
-				for _, stx := range matureBlock.MsgBlock().STransactions {
-					if stake.IsSStx(stx) {
-						h := stx.TxHash()
-						newTickets = append(newTickets, h)
-					}
-				}
-			}
-
-			// Iteratively connect the stake nodes in memory.
-			header := block.MsgBlock().Header
-			hB, errLocal := header.Bytes()
-			if errLocal != nil {
-				return errLocal
-			}
-
-			// Assume v2 does NOT support treasury agenda.
-			const isTreasuryEnabled = false
-			bestStakeNode, errLocal = bestStakeNode.ConnectNode(
-				stake.CalcHash256PRNGIV(hB), ticketsVotedInBlock(block,
-					isTreasuryEnabled),
-				ticketsRevokedInBlock(block, isTreasuryEnabled),
-				newTickets)
-			if errLocal != nil {
-				return errLocal
-			}
-
-			// Write the top block stake node to the database.
-			errLocal = stake.WriteConnectedBestNode(dbTx, bestStakeNode,
-				best.hash)
-			if errLocal != nil {
-				return errLocal
-			}
-
-			progressLogger.LogBlockHeight(block.MsgBlock(), parent.MsgBlock())
-			parent = block
-		}
-
-		// Write the new database version.
-		dbInfo.version = 2
-		return dbPutDatabaseInfo(dbTx, dbInfo)
-	})
-	if err != nil {
-		return err
-	}
-
-	log.Info("Upgrade to new stake database was successful!")
-
-	return nil
-}
-
 // -----------------------------------------------------------------------------
 // The legacy version 2 block index consists of an entry for every known block.
 // which includes information such as the block header and hashes of tickets
@@ -278,17 +111,6 @@ type blockIndexEntryV2 struct {
 	voteInfo       []stake.VoteVersionTuple
 	ticketsVoted   []chainhash.Hash
 	ticketsRevoked []chainhash.Hash
-}
-
-// blockIndexKeyV2 generates the binary key for an entry in the version 2 block
-// index bucket.  The key is composed of the block height encoded as a
-// big-endian 32-bit unsigned int followed by the 32 byte block hash.  Big
-// endian is used here so the entries can easily be iterated by height.
-func blockIndexKeyV2(blockHash *chainhash.Hash, blockHeight uint32) []byte {
-	indexKey := make([]byte, chainhash.HashSize+4)
-	binary.BigEndian.PutUint32(indexKey[0:4], blockHeight)
-	copy(indexKey[4:chainhash.HashSize+4], blockHash[:])
-	return indexKey
 }
 
 // blockIndexEntrySerializeSizeV2 returns the number of bytes it would take to
@@ -448,279 +270,6 @@ func decodeBlockIndexEntryV2(serialized []byte, entry *blockIndexEntryV2) (int, 
 	return offset, nil
 }
 
-// migrateBlockIndex migrates all block entries from the v1 block index bucket
-// managed by ffldb to the v2 bucket managed by this package.  The v1 bucket
-// stored all block entries keyed by block hash, whereas the v2 bucket stores
-// them keyed by block height + hash.  Also, the old block index only stored the
-// header, while the new one stores all info needed to recreate block nodes.
-//
-// The new block index is guaranteed to be fully updated if this returns without
-// failure.
-func migrateBlockIndex(ctx context.Context, db database.DB) error {
-	// blkHdrOffset defines the offsets into a v1 block index row for the block
-	// header.
-	//
-	// The serialized block index row format is:
-	//   <blocklocation><blockheader>
-	const blkHdrOffset = 12
-
-	// blkHdrHeightStart is the offset of the height in the serialized block
-	// header bytes as it existed at the time of this migration.  It is hard
-	// coded here so potential future changes do not affect old upgrades.
-	const blkHdrHeightStart = 128
-
-	// Hardcoded bucket names so updates to the global values do not affect old
-	// upgrades.
-	v1BucketName := []byte("ffldb-blockidx")
-	v2BucketName := []byte("blockidx")
-	hashIdxBucketName := []byte("hashidx")
-
-	log.Info("Reindexing block information in the database.  This will take " +
-		"a while...")
-	start := time.Now()
-
-	// Create the new block index bucket as needed.
-	err := db.Update(func(dbTx database.Tx) error {
-		_, err := dbTx.Metadata().CreateBucketIfNotExists(v2BucketName)
-		return err
-	})
-	if err != nil {
-		return err
-	}
-
-	// doBatch contains the primary logic for upgrading the block index from
-	// version 1 to 2 in batches.  This is done because attempting to migrate in
-	// a single database transaction could result in massive memory usage and
-	// could potentially crash on many systems due to ulimits.
-	//
-	// It returns the number of entries processed.
-	const maxEntries = 20000
-	var resumeOffset uint32
-	doBatch := func(dbTx database.Tx) (uint32, error) {
-		meta := dbTx.Metadata()
-		v1BlockIdxBucket := meta.Bucket(v1BucketName)
-		if v1BlockIdxBucket == nil {
-			return 0, fmt.Errorf("bucket %s does not exist", v1BucketName)
-		}
-
-		v2BlockIdxBucket := meta.Bucket(v2BucketName)
-		if v2BlockIdxBucket == nil {
-			return 0, fmt.Errorf("bucket %s does not exist", v2BucketName)
-		}
-
-		hashIdxBucket := meta.Bucket(hashIdxBucketName)
-		if hashIdxBucket == nil {
-			return 0, fmt.Errorf("bucket %s does not exist", hashIdxBucketName)
-		}
-
-		// Migrate block index entries so long as the max number of entries for
-		// this batch has not been exceeded.
-		var numMigrated, numIterated uint32
-		err := v1BlockIdxBucket.ForEach(func(hashBytes, blockRow []byte) error {
-			if numMigrated >= maxEntries {
-				return errBatchFinished
-			}
-
-			// Skip entries that have already been migrated in previous batches.
-			numIterated++
-			if numIterated-1 < resumeOffset {
-				return nil
-			}
-			resumeOffset++
-
-			// Skip entries that have already been migrated in previous
-			// interrupted upgrades.
-			var blockHash chainhash.Hash
-			copy(blockHash[:], hashBytes)
-			endOffset := blkHdrOffset + blockHdrSize
-			headerBytes := blockRow[blkHdrOffset:endOffset:endOffset]
-			heightBytes := headerBytes[blkHdrHeightStart : blkHdrHeightStart+4]
-			height := binary.LittleEndian.Uint32(heightBytes)
-			key := blockIndexKeyV2(&blockHash, height)
-			if v2BlockIdxBucket.Get(key) != nil {
-				return nil
-			}
-
-			// Load the raw full block from the database.
-			blockBytes, err := dbTx.FetchBlock(&blockHash)
-			if err != nil {
-				return err
-			}
-
-			// Deserialize the block bytes.
-			var block wire.MsgBlock
-			err = block.Deserialize(bytes.NewReader(blockBytes))
-			if err != nil {
-				return err
-			}
-
-			// Mark the block as valid if it's part of the main chain.  While it
-			// is possible side chain blocks were validated too, there was
-			// previously no tracking of that information, so there is no way to
-			// know for sure.  It's better to be safe and just assume side chain
-			// blocks were never validated.
-			status := statusDataStored
-			if hashIdxBucket.Get(blockHash[:]) != nil {
-				status |= statusValidated
-			}
-
-			// Write the serialized block index entry to the new bucket keyed by
-			// its hash and height.
-			ticketInfo := stake.FindSpentTicketsInBlock(&block)
-			entry := &blockIndexEntryV2{
-				header:         block.Header,
-				status:         status,
-				voteInfo:       ticketInfo.Votes,
-				ticketsVoted:   ticketInfo.VotedTickets,
-				ticketsRevoked: ticketInfo.RevokedTickets,
-			}
-			serialized := make([]byte, blockIndexEntrySerializeSizeV2(entry))
-			if _, err = putBlockIndexEntryV2(serialized, entry); err != nil {
-				return err
-			}
-			err = v2BlockIdxBucket.Put(key, serialized)
-			if err != nil {
-				return err
-			}
-
-			numMigrated++
-
-			if interruptRequested(ctx) {
-				return errInterruptRequested
-			}
-
-			return nil
-		})
-		return numMigrated, err
-	}
-
-	// Migrate all entries in batches for the reasons mentioned above.
-	var totalMigrated uint64
-	for {
-		var numMigrated uint32
-		err := db.Update(func(dbTx database.Tx) error {
-			var err error
-			numMigrated, err = doBatch(dbTx)
-			if errors.Is(err, errInterruptRequested) ||
-				errors.Is(err, errBatchFinished) {
-				// No error here so the database transaction is
-				// not cancelled and therefore outstanding work
-				// is written to disk.  The outer function will
-				// exit with an interrupted error below due to
-				// another interrupted check.
-				err = nil
-			}
-			return err
-		})
-		if err != nil {
-			return err
-		}
-
-		if interruptRequested(ctx) {
-			return errInterruptRequested
-		}
-
-		if numMigrated == 0 {
-			break
-		}
-
-		totalMigrated += uint64(numMigrated)
-		log.Infof("Migrated %d entries (%d total)", numMigrated, totalMigrated)
-	}
-
-	seconds := int64(time.Since(start) / time.Second)
-	log.Infof("Done upgrading block index.  Total entries: %d in %d seconds",
-		totalMigrated, seconds)
-	return nil
-}
-
-// upgradeToVersion3 upgrades a version 2 blockchain to version 3 along with
-// upgrading the block index to version 2.
-func upgradeToVersion3(ctx context.Context, db database.DB, dbInfo *databaseInfo) error {
-	if err := migrateBlockIndex(ctx, db); err != nil {
-		return err
-	}
-
-	// Update and persist the updated database versions.
-	dbInfo.version = 3
-	dbInfo.bidxVer = 2
-	return db.Update(func(dbTx database.Tx) error {
-		return dbPutDatabaseInfo(dbTx, dbInfo)
-	})
-}
-
-// removeMainChainIndex removes the main chain hash index and height index
-// buckets.  These are no longer needed due to using the full block index in
-// memory.
-//
-// The database is guaranteed to be fully updated if this returns without
-// failure.
-func removeMainChainIndex(ctx context.Context, db database.DB) error {
-	// Hardcoded bucket names so updates to the global values do not affect old
-	// upgrades.
-	hashIdxBucketName := []byte("hashidx")
-	heightIdxBucketName := []byte("heightidx")
-
-	log.Info("Removing unneeded indexes in the database...")
-	start := time.Now()
-
-	// Delete the main chain index buckets.
-	err := db.Update(func(dbTx database.Tx) error {
-		// Delete the main chain hash to height index.
-		meta := dbTx.Metadata()
-		hashIdxBucket := meta.Bucket(hashIdxBucketName)
-		if hashIdxBucket != nil {
-			if err := meta.DeleteBucket(hashIdxBucketName); err != nil {
-				return err
-			}
-			log.Info("Removed hash index.")
-		}
-
-		if interruptRequested(ctx) {
-			// No error here so the database transaction is not cancelled
-			// and therefore outstanding work is written to disk.  The
-			// outer function will exit with an interrupted error below due
-			// to another interrupted check.
-			return nil
-		}
-
-		// Delete the main chain hash to height index.
-		heightIdxBucket := meta.Bucket(heightIdxBucketName)
-		if heightIdxBucket != nil {
-			if err := meta.DeleteBucket(heightIdxBucketName); err != nil {
-				return err
-			}
-			log.Info("Removed height index.")
-		}
-
-		return nil
-	})
-	if err != nil {
-		return err
-	}
-
-	if interruptRequested(ctx) {
-		return errInterruptRequested
-	}
-
-	elapsed := time.Since(start).Round(time.Millisecond)
-	log.Infof("Done upgrading database in %v.", elapsed)
-	return nil
-}
-
-// upgradeToVersion4 upgrades a version 3 blockchain database to version 4.
-func upgradeToVersion4(ctx context.Context, db database.DB, dbInfo *databaseInfo) error {
-	if err := removeMainChainIndex(ctx, db); err != nil {
-		return err
-	}
-
-	// Update and persist the updated database versions.
-	dbInfo.version = 4
-	return db.Update(func(dbTx database.Tx) error {
-		return dbPutDatabaseInfo(dbTx, dbInfo)
-	})
-}
-
 // incrementalFlatDrop uses multiple database updates to remove key/value pairs
 // saved to a flag bucket.
 func incrementalFlatDrop(ctx context.Context, db database.DB, bucketKey []byte, humanName string) error {
@@ -755,178 +304,6 @@ func incrementalFlatDrop(ctx context.Context, db database.DB, bucketKey []byte, 
 			return errInterruptRequested
 		}
 	}
-	return nil
-}
-
-// upgradeToVersion5 upgrades a version 4 blockchain database to version 5.
-func upgradeToVersion5(ctx context.Context, db database.DB, chainParams *chaincfg.Params, dbInfo *databaseInfo) error {
-	// Hardcoded bucket and key names so updates to the global values do not
-	// affect old upgrades.
-	utxoSetBucketName := []byte("utxoset")
-	spendJournalBucketName := []byte("spendjournal")
-	chainStateKeyName := []byte("chainstate")
-	v5ReindexTipKeyName := []byte("v5reindextip")
-
-	log.Info("Clearing database utxoset and spend journal for upgrade...")
-	start := time.Now()
-
-	// Clear the utxoset.
-	err := incrementalFlatDrop(ctx, db, utxoSetBucketName, "utxoset")
-	if err != nil {
-		return err
-	}
-	log.Info("Cleared utxoset.")
-
-	if interruptRequested(ctx) {
-		return errInterruptRequested
-	}
-
-	// Clear the spend journal.
-	err = incrementalFlatDrop(ctx, db, spendJournalBucketName, "spend journal")
-	if err != nil {
-		return err
-	}
-	log.Info("Cleared spend journal.")
-
-	if interruptRequested(ctx) {
-		return errInterruptRequested
-	}
-
-	err = db.Update(func(dbTx database.Tx) error {
-		// Reset the ticket database to the genesis block.
-		log.Info("Resetting the ticket database.  This might take a while...")
-		err := stake.ResetDatabase(dbTx, chainParams, &chainParams.GenesisHash)
-		if err != nil {
-			return err
-		}
-
-		// Fetch the stored best chain state from the database metadata.
-		meta := dbTx.Metadata()
-		serializedData := meta.Get(chainStateKeyName)
-		best, err := deserializeBestChainState(serializedData)
-		if err != nil {
-			return err
-		}
-
-		// Store the current best chain tip as the reindex target.
-		if err := meta.Put(v5ReindexTipKeyName, best.hash[:]); err != nil {
-			return err
-		}
-
-		// Reset the state related to the best block to the genesis block.
-		genesisBlock := chainParams.GenesisBlock
-		numTxns := uint64(len(genesisBlock.Transactions))
-		serializedData = serializeBestChainState(bestChainState{
-			hash:         genesisBlock.BlockHash(),
-			height:       0,
-			totalTxns:    numTxns,
-			totalSubsidy: 0,
-			workSum:      standalone.CalcWork(genesisBlock.Header.Bits),
-		})
-		err = meta.Put(chainStateKeyName, serializedData)
-		if err != nil {
-			return err
-		}
-
-		// Update and persist the updated database versions.
-		dbInfo.version = 5
-		return dbPutDatabaseInfo(dbTx, dbInfo)
-	})
-	if err != nil {
-		return err
-	}
-
-	elapsed := time.Since(start).Round(time.Millisecond)
-	log.Infof("Done upgrading database in %v.", elapsed)
-	return nil
-}
-
-// maybeFinishV5Upgrade potentially reindexes the chain due to a version 5
-// database upgrade.  It will resume previously uncompleted attempts.
-func (b *BlockChain) maybeFinishV5Upgrade(ctx context.Context) error {
-	// Nothing to do if the database is not version 5.
-	if b.dbInfo.version != 5 {
-		return nil
-	}
-
-	// Hardcoded key name so updates to the global values do not affect old
-	// upgrades.
-	v5ReindexTipKeyName := []byte("v5reindextip")
-
-	// Finish the version 5 reindex as needed.
-	var v5ReindexTipHash *chainhash.Hash
-	err := b.db.View(func(dbTx database.Tx) error {
-		hash := dbTx.Metadata().Get(v5ReindexTipKeyName)
-		if hash != nil {
-			v5ReindexTipHash = new(chainhash.Hash)
-			copy(v5ReindexTipHash[:], hash)
-		}
-		return nil
-	})
-	if err != nil {
-		return err
-	}
-	if v5ReindexTipHash != nil {
-		// Look up the final target tip to reindex to in the block index.
-		targetTip := b.index.LookupNode(v5ReindexTipHash)
-		if targetTip == nil {
-			return AssertError(fmt.Sprintf("maybeFinishV5Upgrade: cannot find "+
-				"chain tip %s in block index", v5ReindexTipHash))
-		}
-
-		// Ensure all ancestors of the current best chain tip are marked as
-		// valid.  This is necessary due to older software versions not marking
-		// nodes before the final checkpoint as valid.
-		for node := targetTip; node != nil; node = node.parent {
-			b.index.SetStatusFlags(node, statusValidated)
-		}
-		if err := b.index.flush(); err != nil {
-			return err
-		}
-
-		// Disable notifications during the reindex.
-		ntfnCallback := b.notifications
-		b.notifications = nil
-		defer func() {
-			b.notifications = ntfnCallback
-		}()
-
-		tip := b.bestChain.Tip()
-		for tip != targetTip {
-			if interruptRequested(ctx) {
-				return errInterruptRequested
-			}
-
-			// Limit to a reasonable number of blocks at a time.
-			const maxReindexBlocks = 250
-			intermediateTip := targetTip
-			if intermediateTip.height-tip.height > maxReindexBlocks {
-				intermediateTip = intermediateTip.Ancestor(tip.height +
-					maxReindexBlocks)
-			}
-
-			log.Infof("Reindexing to height %d of %d (progress %.2f%%)...",
-				intermediateTip.height, targetTip.height,
-				float64(intermediateTip.height)/float64(targetTip.height)*100)
-			b.chainLock.Lock()
-			if err := b.reorganizeChainInternal(intermediateTip); err != nil {
-				b.chainLock.Unlock()
-				return err
-			}
-			b.chainLock.Unlock()
-
-			tip = b.bestChain.Tip()
-		}
-
-		// Mark the v5 reindex as complete by removing the associated key.
-		err := b.db.Update(func(dbTx database.Tx) error {
-			return dbTx.Metadata().Delete(v5ReindexTipKeyName)
-		})
-		if err != nil {
-			return err
-		}
-	}
-
 	return nil
 }
 
@@ -2321,40 +1698,63 @@ func upgradeToVersion7(ctx context.Context, db database.DB, dbInfo *databaseInfo
 	return nil
 }
 
+// checkDBTooOldToUpgrade returns an ErrDBTooOldToUpgrade error if the provided
+// database version can no longer be upgraded due to being too old.
+func checkDBTooOldToUpgrade(dbVersion uint32) error {
+	const lowestSupportedUpgradeVer = 5
+	if dbVersion < lowestSupportedUpgradeVer {
+		str := fmt.Sprintf("database versions prior to version %d are no "+
+			"longer supported (current version: %d)", lowestSupportedUpgradeVer,
+			dbVersion)
+		return contextError(ErrDBTooOldToUpgrade, str)
+	}
+
+	return nil
+}
+
+// CheckDBTooOldToUpgrade returns an ErrDBTooOldToUpgrade error if the provided
+// database can no longer be upgraded due to being too old.
+func CheckDBTooOldToUpgrade(db database.DB) error {
+	// Fetch the database versioning information.
+	var dbInfo *databaseInfo
+	err := db.View(func(dbTx database.Tx) error {
+		var err error
+		dbInfo, err = dbFetchDatabaseInfo(dbTx)
+		if err != nil {
+			return err
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+
+	// The database has not been initialized and thus will be created at the
+	// latest version.
+	if dbInfo == nil {
+		return nil
+	}
+
+	return checkDBTooOldToUpgrade(dbInfo.version)
+}
+
 // upgradeDB upgrades old database versions to the newest version by applying
 // all possible upgrades iteratively.
 //
 // NOTE: The passed database info will be updated with the latest versions.
 func upgradeDB(ctx context.Context, db database.DB, chainParams *chaincfg.Params, dbInfo *databaseInfo) error {
-	if dbInfo.version == 1 {
-		if err := upgradeToVersion2(db, chainParams, dbInfo); err != nil {
-			return err
+	// Upgrading databases prior to version 5 is no longer supported due to a
+	// major overhaul that took place at that version.
+	if err := checkDBTooOldToUpgrade(dbInfo.version); err != nil {
+		// Override the error with some additional instructions in this path
+		// since it means the caller did not check up front before attempting
+		// to create a chain instance.
+		if errors.Is(err, ErrDBTooOldToUpgrade) {
+			str := fmt.Sprintf("%s -- please delete the existing database "+
+				"and restart the application to continue", err)
+			err = contextError(ErrDBTooOldToUpgrade, str)
 		}
-	}
-
-	// Migrate to the new v2 block index format if needed.  The database
-	// version was bumped because prior versions of the software did not have
-	// a block index version.
-	if dbInfo.version == 2 && dbInfo.bidxVer < 2 {
-		if err := upgradeToVersion3(ctx, db, dbInfo); err != nil {
-			return err
-		}
-	}
-
-	// Remove the main chain index from the database if needed.
-	if dbInfo.version == 3 {
-		if err := upgradeToVersion4(ctx, db, dbInfo); err != nil {
-			return err
-		}
-	}
-
-	// Clear the utxoset, clear the spend journal, reset the best chain back to
-	// the genesis block, and mark that a v5 reindex is required if needed.
-	if dbInfo.version == 4 {
-		err := upgradeToVersion5(ctx, db, chainParams, dbInfo)
-		if err != nil {
-			return err
-		}
+		return err
 	}
 
 	// Update to a version 6 database if needed.  This entails unmarking all
