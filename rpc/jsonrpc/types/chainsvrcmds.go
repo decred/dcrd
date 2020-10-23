@@ -675,6 +675,9 @@ const (
 
 	// GRMTSpend indicates that only tspends should be returned.
 	GRMTSpend GetRawMempoolTxTypeCmd = "tspend"
+
+	// GRMTAdd indicates that only tadds should be returned.
+	GRMTAdd GetRawMempoolTxTypeCmd = "tadd"
 )
 
 // GetRawMempoolCmd defines the getmempool JSON-RPC command.
