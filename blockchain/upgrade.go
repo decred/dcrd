@@ -280,6 +280,17 @@ type blockIndexEntryV2 struct {
 	ticketsRevoked []chainhash.Hash
 }
 
+// blockIndexKeyV2 generates the binary key for an entry in the version 2 block
+// index bucket.  The key is composed of the block height encoded as a
+// big-endian 32-bit unsigned int followed by the 32 byte block hash.  Big
+// endian is used here so the entries can easily be iterated by height.
+func blockIndexKeyV2(blockHash *chainhash.Hash, blockHeight uint32) []byte {
+	indexKey := make([]byte, chainhash.HashSize+4)
+	binary.BigEndian.PutUint32(indexKey[0:4], blockHeight)
+	copy(indexKey[4:chainhash.HashSize+4], blockHash[:])
+	return indexKey
+}
+
 // blockIndexEntrySerializeSizeV2 returns the number of bytes it would take to
 // serialize the passed block index entry according to the legacy version 2
 // format described above.
@@ -525,7 +536,7 @@ func migrateBlockIndex(ctx context.Context, db database.DB) error {
 			headerBytes := blockRow[blkHdrOffset:endOffset:endOffset]
 			heightBytes := headerBytes[blkHdrHeightStart : blkHdrHeightStart+4]
 			height := binary.LittleEndian.Uint32(heightBytes)
-			key := blockIndexKey(&blockHash, height)
+			key := blockIndexKeyV2(&blockHash, height)
 			if v2BlockIdxBucket.Get(key) != nil {
 				return nil
 			}
@@ -919,6 +930,152 @@ func (b *BlockChain) maybeFinishV5Upgrade(ctx context.Context) error {
 	return nil
 }
 
+// clearFailedBlockFlagsV2 unmarks all blocks in a version 2 block index
+// previously marked failed so they are eligible for validation again under new
+// consensus rules.  This ensures clients that did not update prior to new rules
+// activating are able to automatically recover under the new rules without
+// having to download the entire chain again.
+func clearFailedBlockFlagsV2(ctx context.Context, db database.DB) error {
+	// Hardcoded bucket name so updates do not affect old upgrades.
+	v2BucketName := []byte("blockidx")
+	v2ClearFailedDoneKeyName := []byte("blockidxv2clearfaileddone")
+
+	// No need to clear again if already done.
+	var alreadyDone bool
+	err := db.View(func(dbTx database.Tx) error {
+		if dbTx.Metadata().Get(v2ClearFailedDoneKeyName) != nil {
+			alreadyDone = true
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	if alreadyDone {
+		return nil
+	}
+
+	log.Info("Reindexing block information in the database.  This may take a " +
+		"while...")
+	start := time.Now()
+
+	// doBatch contains the primary logic for updating the block index in
+	// batches.  This is done because attempting to migrate in a single database
+	// transaction could result in massive memory usage and could potentially
+	// crash on many systems due to ulimits.
+	//
+	// It returns the number of entries processed.
+	const maxEntries = 20000
+	var resumeOffset uint32
+	doBatch := func(dbTx database.Tx) (uint32, error) {
+		meta := dbTx.Metadata()
+		v2BlockIdxBucket := meta.Bucket(v2BucketName)
+		if v2BlockIdxBucket == nil {
+			return 0, fmt.Errorf("bucket %s does not exist", v2BucketName)
+		}
+
+		// Update block index entries so long as the max number of entries for
+		// this batch has not been exceeded.
+		var numMigrated, numIterated uint32
+		err := v2BlockIdxBucket.ForEach(func(key, oldSerialized []byte) error {
+			if numMigrated >= maxEntries {
+				return errBatchFinished
+			}
+
+			// Skip entries that have already been migrated in previous batches.
+			numIterated++
+			if numIterated-1 < resumeOffset {
+				return nil
+			}
+			resumeOffset++
+
+			// Decode the old block index entry.
+			var entry blockIndexEntryV2
+			_, err := decodeBlockIndexEntryV2(oldSerialized, &entry)
+			if err != nil {
+				return err
+			}
+
+			// Mark the block index entry as eligible for validation again.
+			const (
+				v2StatusValidateFailed  = 1 << 2
+				v2StatusInvalidAncestor = 1 << 3
+			)
+			origStatus := entry.status
+			entry.status &^= v2StatusValidateFailed | v2StatusInvalidAncestor
+			if entry.status != origStatus {
+				targetSize := blockIndexEntrySerializeSizeV2(&entry)
+				serialized := make([]byte, targetSize)
+				_, err = putBlockIndexEntryV2(serialized, &entry)
+				if err != nil {
+					return err
+				}
+				err = v2BlockIdxBucket.Put(key, serialized)
+				if err != nil {
+					return err
+				}
+			}
+
+			numMigrated++
+
+			if interruptRequested(ctx) {
+				return errInterruptRequested
+			}
+
+			return nil
+		})
+		return numMigrated, err
+	}
+
+	// Migrate all entries in batches for the reasons mentioned above.
+	var totalMigrated uint64
+	for {
+		var numMigrated uint32
+		err := db.Update(func(dbTx database.Tx) error {
+			var err error
+			numMigrated, err = doBatch(dbTx)
+			if errors.Is(err, errInterruptRequested) ||
+				errors.Is(err, errBatchFinished) {
+
+				// No error here so the database transaction is not cancelled
+				// and therefore outstanding work is written to disk.  The outer
+				// function will exit with an interrupted error below due to
+				// another interrupted check.
+				err = nil
+			}
+			return err
+		})
+		if err != nil {
+			return err
+		}
+
+		if interruptRequested(ctx) {
+			return errInterruptRequested
+		}
+
+		if numMigrated == 0 {
+			break
+		}
+
+		totalMigrated += uint64(numMigrated)
+		log.Infof("Updated %d entries (%d total)", numMigrated, totalMigrated)
+	}
+
+	elapsed := time.Since(start).Round(time.Millisecond)
+	log.Infof("Done updating block index.  Total entries: %d in %v",
+		totalMigrated, elapsed)
+
+	if interruptRequested(ctx) {
+		return errInterruptRequested
+	}
+
+	// Save a flag to mark the update fully complete in case of interruption.
+	err = db.Update(func(dbTx database.Tx) error {
+		return dbTx.Metadata().Put(v2ClearFailedDoneKeyName, nil)
+	})
+	return err
+}
+
 // scriptSourceEntry houses a script and its associated version.
 type scriptSourceEntry struct {
 	version uint16
@@ -942,17 +1099,222 @@ func (s scriptSource) PrevScript(prevOut *wire.OutPoint) (uint16, []byte, bool) 
 	return entry.version, entry.script, true
 }
 
-// clearFailedBlockFlags unmarks all blocks previously marked failed so they are
-// eligible for validation again under new consensus rules.  This ensures
-// clients that did not update prior to new rules activating are able to
-// automatically recover under the new rules without having to download the
-// entire chain again.
-func clearFailedBlockFlags(index *blockIndex) error {
-	for _, node := range index.index {
-		index.UnsetStatusFlags(node, statusValidateFailed|statusInvalidAncestor)
+// determineMinimalOutputsSizeV1 determines and returns the size of the stored
+// set of minimal outputs in a version 1 spend journal entry.
+func determineMinimalOutputsSizeV1(serialized []byte) (int, error) {
+	numOutputs, offset := deserializeVLQ(serialized)
+	if offset == 0 {
+		return offset, errDeserialize("unexpected end of data during " +
+			"decoding (num outputs)")
+	}
+	for i := 0; i < int(numOutputs); i++ {
+		// Amount.
+		_, bytesRead := deserializeVLQ(serialized[offset:])
+		if bytesRead == 0 {
+			return offset, errDeserialize("unexpected end of data during " +
+				"decoding (output amount)")
+		}
+		offset += bytesRead
+
+		// Script version.
+		_, bytesRead = deserializeVLQ(serialized[offset:])
+		if bytesRead == 0 {
+			return offset, errDeserialize("unexpected end of data during " +
+				"decoding (output script version)")
+		}
+		offset += bytesRead
+
+		// Script.
+		var scriptSize uint64
+		scriptSize, bytesRead = deserializeVLQ(serialized[offset:])
+		if bytesRead == 0 {
+			return offset, errDeserialize("unexpected end of data during " +
+				"decoding (output script size)")
+		}
+		offset += bytesRead
+
+		if uint64(len(serialized[offset:])) < scriptSize {
+			return offset, errDeserialize("unexpected end of data during " +
+				"decoding (output script)")
+		}
+
+		offset += int(scriptSize)
 	}
 
-	return index.flush()
+	return offset, nil
+}
+
+// scriptSourceFromSpendJournalV1 uses the legacy v1 spend journal along with
+// the provided block to create a source of previous transaction scripts and
+// versions spent by the block.
+func scriptSourceFromSpendJournalV1(dbTx database.Tx, block *wire.MsgBlock) (scriptSource, error) {
+	// Load the serialized spend journal entry from the database, construct the
+	// full list of transactions that spend outputs (notice the coinbase
+	// transaction is excluded since it can't spend anything), and perform an
+	// initial sanity check to ensure there is serialized data for the block
+	// when there are transactions that spend outputs.
+	blockHash := block.BlockHash()
+	v1SpendJournalBucketName := []byte("spendjournal")
+	spendBucket := dbTx.Metadata().Bucket(v1SpendJournalBucketName)
+	serialized := spendBucket.Get(blockHash[:])
+
+	txns := make([]*wire.MsgTx, 0, len(block.STransactions)+
+		len(block.Transactions[1:]))
+	txns = append(txns, block.STransactions...)
+	txns = append(txns, block.Transactions[1:]...)
+	if len(txns) > 0 && len(serialized) == 0 {
+		str := fmt.Sprintf("missing spend journal data for %s", blockHash)
+		return nil, errDeserialize(str)
+	}
+
+	// The legacy version 1 transaction spend journal consists of an entry for
+	// each block connected to the main chain which contains the transaction
+	// outputs the block spends serialized such that the order is the reverse of
+	// the order they were spent.
+	//
+	// The legacy format for this entry is roughly:
+	//
+	//   [<flags><script version><compressed pkscript><optional data>],...
+	//
+	// The legacy optional data is only present if the flags indicate the
+	// transaction is fully spent (bit 4 in legacy format) and its format is
+	// roughly:
+	//
+	//   <tx version><optional stake data>
+	//
+	// The legacy optional stake data is only present if the flags indicate the
+	// transaction type is a ticket and its format is roughly:
+	//
+	//   <num outputs>[<amount><script version><script len><script>],...
+	//
+	//   Field                   Type           Size
+	//   flags                   VLQ            variable (always 1 byte)
+	//   script version          VLQ            variable
+	//   compressed pkscript     []byte         variable
+	//   optional data (only present if flags indicates fully spent)
+	//     transaction version   VLQ            variable
+	//     stake data (only present if flags indicates tx type ticket)
+	//       num outputs         VLQ            variable
+	//       output info
+	//         amount            VLQ            variable
+	//         script version    VLQ            variable
+	//         script len        VLQ            variable
+	//         script            []byte         variable
+	//
+	// The legacy serialized flags code format is:
+	//
+	//   bit  0   - containing transaction is a coinbase
+	//   bit  1   - containing transaction has an expiry
+	//   bits 2-3 - transaction type
+	//   bit  4   - is fully spent
+	//   bits 5-7 - unused
+	//
+	// Given the only information needed is the script version and associated
+	// pkscript, the following specifically finds the relevant information while
+	// skipping everything else.
+	const (
+		v1FullySpentFlag = 1 << 4
+		v1TxTypeMask     = 0x0c
+		v1TxTypeShift    = 2
+		v1TxTypeTicket   = 1
+		v1CompressionVer = 1
+	)
+
+	// Loop backwards through all transactions so everything is read in reverse
+	// order to match the serialization order.
+	source := make(scriptSource)
+	var offset int
+	for txIdx := len(txns) - 1; txIdx > -1; txIdx-- {
+		tx := txns[txIdx]
+		isVote := stake.IsSSGen(tx, false)
+
+		// Loop backwards through all of the transaction inputs and read the
+		// associated stxo.
+		for txInIdx := len(tx.TxIn) - 1; txInIdx > -1; txInIdx-- {
+			// Skip stakebase since it has no input.
+			if txInIdx == 0 && isVote {
+				continue
+			}
+
+			txIn := tx.TxIn[txInIdx]
+
+			// Deserialize the flags.
+			if offset >= len(serialized) {
+				str := "unexpected end of spend journal entry"
+				return nil, errDeserialize(str)
+			}
+			flags64, bytesRead := deserializeVLQ(serialized[offset:])
+			offset += bytesRead
+			if bytesRead != 1 {
+				str := fmt.Sprintf("unexpected flags size -- got %d, want 1",
+					bytesRead)
+				return nil, errDeserialize(str)
+			}
+			flags := byte(flags64)
+			fullySpent := flags&v1FullySpentFlag != 0
+			txType := (flags & v1TxTypeMask) >> v1TxTypeShift
+
+			// Deserialize the script version.
+			if offset >= len(serialized) {
+				str := "unexpected end of data after flags"
+				return nil, errDeserialize(str)
+			}
+			scriptVersion, bytesRead := deserializeVLQ(serialized[offset:])
+			offset += bytesRead
+
+			// Decode the compressed script size and ensure there are enough
+			// bytes left in the slice for it.
+			if offset >= len(serialized) {
+				str := "unexpected end of data after script version"
+				return nil, errDeserialize(str)
+			}
+			scriptSize := decodeCompressedScriptSize(serialized[offset:],
+				v1CompressionVer)
+			if scriptSize < 0 {
+				str := "negative script size"
+				return nil, errDeserialize(str)
+			}
+			if offset+scriptSize > len(serialized) {
+				str := "unexpected end of data after script size"
+				return nil, errDeserialize(str)
+			}
+			pkScript := serialized[offset : offset+scriptSize]
+			offset += scriptSize
+
+			// Create an output in the script source for the referenced script
+			// and version using the data from the spend journal.
+			prevOut := &txIn.PreviousOutPoint
+			source[*prevOut] = scriptSourceEntry{
+				version: uint16(scriptVersion),
+				script:  decompressScript(pkScript, v1CompressionVer),
+			}
+
+			// Deserialize the tx version and minimal outputs for tickets as
+			// needed to locate the offset of the next entry.
+			if fullySpent {
+				if offset >= len(serialized) {
+					str := "unexpected end of data after script size"
+					return nil, errDeserialize(str)
+				}
+				_, bytesRead := deserializeVLQ(serialized[offset:])
+				offset += bytesRead
+				if txType == v1TxTypeTicket {
+					if offset >= len(serialized) {
+						str := "unexpected end of data after tx version"
+						return nil, errDeserialize(str)
+					}
+
+					sz, err := determineMinimalOutputsSizeV1(serialized[offset:])
+					if err != nil {
+						return nil, err
+					}
+					offset += sz
+				}
+			}
+		}
+	}
+
+	return source, nil
 }
 
 // initializeGCSFilters creates and stores version 2 GCS filters for all blocks
@@ -960,19 +1322,129 @@ func clearFailedBlockFlags(index *blockIndex) error {
 // and simplifies the rest of the related code since it can rely on the filters
 // being available once the upgrade completes.
 //
-// The database is  guaranteed to have a filter entry for every block in the
+// The database is guaranteed to have a filter entry for every block in the
 // main chain if this returns without failure.
-func initializeGCSFilters(ctx context.Context, db database.DB, index *blockIndex, bestChain *chainView, isTreasuryEnabled bool, chainParams *chaincfg.Params) error {
-	// Hardcoded values so updates to the global values do not affect old
-	// upgrades.
-	gcsBucketName := []byte("gcsfilters")
-	const compressionVersion = 1
-
+func initializeGCSFilters(ctx context.Context, db database.DB, genesisHash *chainhash.Hash) error {
 	log.Info("Creating and storing GCS filters.  This will take a while...")
 	start := time.Now()
 
+	// Determine the blocks in the main chain using the version 2 block index
+	// and version 1 chain state.
+	var mainChainBlocks []chainhash.Hash
+	err := db.View(func(dbTx database.Tx) error {
+		// Hardcoded bucket names and keys so updates do not affect old
+		// upgrades.
+		v2BucketName := []byte("blockidx")
+		v1ChainStateKeyName := []byte("chainstate")
+
+		// Load the current best chain tip hash and height from the v1 chain
+		// state.
+		//
+		// The serialized format of the v1 chain state is roughly:
+		//
+		//   <block hash><rest of data>
+		//
+		//   Field             Type             Size
+		//   block hash        chainhash.Hash   chainhash.HashSize
+		//   rest of data...
+		meta := dbTx.Metadata()
+		serializedChainState := meta.Get(v1ChainStateKeyName)
+		if serializedChainState == nil {
+			str := fmt.Sprintf("chain state with key %s does not exist",
+				v1ChainStateKeyName)
+			return errDeserialize(str)
+		}
+		if len(serializedChainState) < chainhash.HashSize {
+			str := "version 1 chain state is malformed"
+			return errDeserialize(str)
+		}
+		var tipHash chainhash.Hash
+		copy(tipHash[:], serializedChainState[0:chainhash.HashSize])
+
+		// blockTreeEntry represents a version 2 block index entry with just
+		// enough information to be able to determine which blocks comprise the
+		// main chain.
+		type blockTreeEntry struct {
+			parent *blockTreeEntry
+			hash   chainhash.Hash
+			height uint32
+		}
+
+		// Construct a full block tree from the version 2 block index by mapping
+		// each block to its parent block.
+		var lastEntry, parent *blockTreeEntry
+		blockTree := make(map[chainhash.Hash]*blockTreeEntry)
+		v2BlockIdxBucket := meta.Bucket(v2BucketName)
+		if v2BlockIdxBucket == nil {
+			return fmt.Errorf("bucket %s does not exist", v2BucketName)
+		}
+		err := v2BlockIdxBucket.ForEach(func(_, serialized []byte) error {
+			// Decode the block index entry.
+			var entry blockIndexEntryV2
+			_, err := decodeBlockIndexEntryV2(serialized, &entry)
+			if err != nil {
+				return err
+			}
+			header := &entry.header
+
+			// Determine the parent block node.  Since the entries are iterated
+			// in order of height, there is a very good chance the previous
+			// one processed is the parent.
+			blockHash := header.BlockHash()
+			if lastEntry == nil {
+				if blockHash != *genesisHash {
+					str := fmt.Sprintf("initializeGCSFilters: expected first "+
+						"entry in block index to be genesis block, found %s",
+						blockHash)
+					return errDeserialize(str)
+				}
+			} else if header.PrevBlock == lastEntry.hash {
+				parent = lastEntry
+			} else {
+				parent = blockTree[header.PrevBlock]
+				if parent == nil {
+					str := fmt.Sprintf("initializeGCSFilters: could not find "+
+						"parent for block %s", blockHash)
+					return errDeserialize(str)
+				}
+			}
+
+			// Add the block to the block tree.
+			treeEntry := &blockTreeEntry{
+				parent: parent,
+				hash:   blockHash,
+				height: header.Height,
+			}
+			blockTree[blockHash] = treeEntry
+
+			lastEntry = treeEntry
+			return nil
+		})
+		if err != nil {
+			return err
+		}
+
+		// Construct a view of the blocks that comprise the main chain by
+		// starting at the best tip and walking backwards to the genesis block
+		// while assigning each one to its respective height.
+		tipEntry := blockTree[tipHash]
+		if tipEntry == nil {
+			str := fmt.Sprintf("chain tip %s is not in block index", tipHash)
+			return errDeserialize(str)
+		}
+		mainChainBlocks = make([]chainhash.Hash, tipEntry.height+1)
+		for entry := tipEntry; entry != nil; entry = entry.parent {
+			mainChainBlocks[entry.height] = entry.hash
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+
 	// Create the new filter bucket as needed.
-	err := db.Update(func(dbTx database.Tx) error {
+	gcsBucketName := []byte("gcsfilters")
+	err = db.Update(func(dbTx database.Tx) error {
 		_, err := dbTx.Metadata().CreateBucketIfNotExists(gcsBucketName)
 		return err
 	})
@@ -982,29 +1454,28 @@ func initializeGCSFilters(ctx context.Context, db database.DB, index *blockIndex
 
 	// newFilter loads the full block for the provided node from the db along
 	// with its spend journal information and uses it to create a v2 GCS filter.
-	newFilter := func(dbTx database.Tx, node *blockNode) (*gcs.FilterV2, error) {
+	newFilter := func(dbTx database.Tx, blockHash *chainhash.Hash) (*gcs.FilterV2, error) {
 		// Load the full block from the database.
-		block, err := dbFetchBlockByNode(dbTx, node)
+		blockBytes, err := dbTx.FetchBlock(blockHash)
 		if err != nil {
 			return nil, err
 		}
-
-		// Load all of the spent transaction output data from the database.
-		stxos, err := dbFetchSpendJournalEntry(dbTx, block,
-			isTreasuryEnabled)
-		if err != nil {
+		var block wire.MsgBlock
+		if err := block.FromBytes(blockBytes); err != nil {
 			return nil, err
 		}
 
-		// Use the combination of the block and the stxos to create a source
-		// of previous scripts spent by the block needed to create the
-		// filter.
-		prevScripts := stxosToScriptSource(block, stxos,
-			compressionVersion, isTreasuryEnabled, chainParams)
+		// Use the combination of the block and the spent transaction output
+		// data from the database to create a source of previous scripts spent
+		// by the block needed to create the filter.
+		prevScripts, err := scriptSourceFromSpendJournalV1(dbTx, &block)
+		if err != nil {
+			return nil, err
+		}
 
 		// Create the filter from the block and referenced previous output
 		// scripts.
-		filter, err := blockcf2.Regular(block.MsgBlock(), prevScripts)
+		filter, err := blockcf2.Regular(&block, prevScripts)
 		if err != nil {
 			return nil, err
 		}
@@ -1021,7 +1492,7 @@ func initializeGCSFilters(ctx context.Context, db database.DB, index *blockIndex
 	// It returns the number of entries processed as well as the total number
 	// bytes occupied by all of the processed filters.
 	const maxEntries = 20000
-	node := bestChain.Genesis()
+	blockHeight := int64(0)
 	doBatch := func(dbTx database.Tx) (uint64, uint64, error) {
 		filterBucket := dbTx.Metadata().Bucket(gcsBucketName)
 		if filterBucket == nil {
@@ -1029,21 +1500,22 @@ func initializeGCSFilters(ctx context.Context, db database.DB, index *blockIndex
 		}
 
 		var numCreated, totalBytes uint64
-		for ; node != nil; node = bestChain.Next(node) {
+		for ; blockHeight < int64(len(mainChainBlocks)); blockHeight++ {
 			if numCreated >= maxEntries {
 				break
 			}
 
 			// Create the filter from the block and referenced previous output
 			// scripts.
-			filter, err := newFilter(dbTx, node)
+			blockHash := &mainChainBlocks[blockHeight]
+			filter, err := newFilter(dbTx, blockHash)
 			if err != nil {
 				return numCreated, totalBytes, err
 			}
 
 			// Store the filter to the database.
 			serialized := filter.Bytes()
-			err = filterBucket.Put(node.hash[:], serialized)
+			err = filterBucket.Put(blockHash[:], serialized)
 			if err != nil {
 				return numCreated, totalBytes, err
 			}
@@ -1100,6 +1572,9 @@ func initializeGCSFilters(ctx context.Context, db database.DB, index *blockIndex
 
 // upgradeToVersion6 upgrades a version 5 blockchain database to version 6.
 func upgradeToVersion6(ctx context.Context, db database.DB, chainParams *chaincfg.Params, dbInfo *databaseInfo) error {
+	// Hardcoded key names so updates do not affect old upgrades.
+	v2ClearFailedDoneKeyName := []byte("blockidxv2clearfaileddone")
+
 	if interruptRequested(ctx) {
 		return errInterruptRequested
 	}
@@ -1107,53 +1582,26 @@ func upgradeToVersion6(ctx context.Context, db database.DB, chainParams *chaincf
 	log.Info("Upgrading database to version 6...")
 	start := time.Now()
 
-	// Load the chain state and block index from the database.
-	bestChain := newChainView(nil)
-	index := newBlockIndex(db)
-	err := db.View(func(dbTx database.Tx) error {
-		// Fetch the stored best chain state from the database.
-		state, err := dbFetchBestState(dbTx)
-		if err != nil {
-			return err
-		}
-
-		// Load all of the block index entries from the database and
-		// construct the block index.
-		err = loadBlockIndex(dbTx, &chainParams.GenesisHash, index)
-		if err != nil {
-			return err
-		}
-
-		// Set the best chain to the stored best state.
-		tip := index.lookupNode(&state.hash)
-		if tip == nil {
-			return AssertError(fmt.Sprintf("initChainState: cannot find "+
-				"chain tip %s in block index", state.hash))
-		}
-		bestChain.SetTip(tip)
-
-		return nil
-	})
-	if err != nil {
-		return err
-	}
-
 	// Unmark all blocks previously marked failed so they are eligible for
 	// validation again under the new consensus rules.
-	if err := clearFailedBlockFlags(index); err != nil {
+	if err := clearFailedBlockFlagsV2(ctx, db); err != nil {
 		return err
 	}
 
 	// Create and store version 2 GCS filters for all blocks in the main chain.
-	// We can use the false flag because there is no way the treasury could
-	// be active at this point.
-	err = initializeGCSFilters(ctx, db, index, bestChain, false, chainParams)
+	err := initializeGCSFilters(ctx, db, &chainParams.GenesisHash)
 	if err != nil {
 		return err
 	}
 
+	// Update and persist the database versions and remove upgrade progress
+	// tracking keys.
 	err = db.Update(func(dbTx database.Tx) error {
-		// Update and persist the updated database versions.
+		err := dbTx.Metadata().Delete(v2ClearFailedDoneKeyName)
+		if err != nil {
+			return err
+		}
+
 		dbInfo.version = 6
 		return dbPutDatabaseInfo(dbTx, dbInfo)
 	})
@@ -1638,7 +2086,6 @@ func migrateSpendJournalVersion1To2(ctx context.Context, db database.DB) error {
 			//
 			//   <num outputs>[<amount><script version><script len><script>],...
 			//
-			//
 			//   Field                   Type           Size
 			//   flags                   VLQ            variable (always 1 byte)
 			//   script version          VLQ            variable
@@ -1723,7 +2170,7 @@ func migrateSpendJournalVersion1To2(ctx context.Context, db database.DB) error {
 							str := "unexpected end of data after tx version"
 							return errDeserialize(str)
 						}
-						sz, err := readDeserializeSizeOfMinimalOutputs(
+						sz, err := determineMinimalOutputsSizeV1(
 							serialized[offset:])
 						if err != nil {
 							return err
@@ -1824,7 +2271,7 @@ func initializeTreasuryBuckets(db database.DB) error {
 }
 
 // upgradeToVersion7 upgrades a version 6 blockchain database to version 7.
-func upgradeToVersion7(ctx context.Context, db database.DB, chainParams *chaincfg.Params, dbInfo *databaseInfo) error {
+func upgradeToVersion7(ctx context.Context, db database.DB, dbInfo *databaseInfo) error {
 	// Hardcoded key names so updates do not affect old upgrades.
 	v2DoneKeyName := []byte("utxosetv2done")
 
@@ -1932,7 +2379,7 @@ func upgradeDB(ctx context.Context, db database.DB, chainParams *chaincfg.Params
 	// Update to a version 7 database if needed.  This entails migrating the
 	// utxoset and spend journal to the v2 format.
 	if dbInfo.version == 6 {
-		err := upgradeToVersion7(ctx, db, chainParams, dbInfo)
+		err := upgradeToVersion7(ctx, db, dbInfo)
 		if err != nil {
 			return err
 		}
