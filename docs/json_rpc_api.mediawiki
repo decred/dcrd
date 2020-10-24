@@ -1695,15 +1695,14 @@ of the best block.
 |-
 !Parameters
 |
-# <code>verbose</code> <code>(boolean, optional, default=false)</code>
+# <code>verbose</code> <code>(boolean, optional, default=false)</code> Returns JSON object when true or an array of transaction hashes when false.
+# <code>txtype</code> <code>(string, optional)</code> Type of transaction to return.
 |-
 !Description
 |
-:Returns an array of hashes for all of the transactions currently in the memory pool.
+:Returns information about all of the transactions currently in the memory pool.
 :The <code>verbose</code> flag specifies that each transaction is returned as a JSON object.
-|-
-!Notes
-|Since dcrd does not perform any mining, the priority related fields <code>startingpriority</code> and <code>currentpriority</code> that are available when the <code>verbose</code> flag is set are always 0.
+:The valid transaction types are <code>regular</code>, <code>tickets</code>, <code>votes</code>, <code>revocations</code>, <code>tspend</code>, <code>tadd</code>, and <code>all</code>.
 |-
 !Returns (verbose=false)
 |
