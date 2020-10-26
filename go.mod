@@ -25,7 +25,7 @@ require (
 	github.com/decred/dcrd/hdkeychain/v3 v3.0.0
 	github.com/decred/dcrd/lru v1.1.0
 	github.com/decred/dcrd/peer/v2 v2.2.0
-	github.com/decred/dcrd/rpc/jsonrpc/types/v2 v2.1.0
+	github.com/decred/dcrd/rpc/jsonrpc/types/v2 v2.2.0
 	github.com/decred/dcrd/rpcclient/v6 v6.0.0
 	github.com/decred/dcrd/txscript/v3 v3.0.0
 	github.com/decred/dcrd/wire v1.4.0
