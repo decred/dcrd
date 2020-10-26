@@ -6171,6 +6171,74 @@ func TestTicketsForAddress(t *testing.T) {
 	}})
 }
 
+func TestHandleTicketVWAP(t *testing.T) {
+	t.Parallel()
+
+	start := uint32(10)
+	beforeStart := uint32(0)
+	afterBestHeight := block432100.Header.Height + uint32(1)
+	end := uint32(15)
+	vwap := 144.2816259
+
+	testRPCServerHandler(t, []rpcTest{{
+		name:    "handleTicketVWAP: start is greater than end",
+		handler: handleTicketVWAP,
+		cmd: &types.TicketVWAPCmd{
+			Start: &start,
+			End:   &beforeStart,
+		},
+		wantErr: true,
+		errCode: dcrjson.ErrRPCInvalidParameter,
+	}, {
+		name:    "handleTicketVWAP: end is after the current best height",
+		handler: handleTicketVWAP,
+		cmd: &types.TicketVWAPCmd{
+			Start: &start,
+			End:   &afterBestHeight,
+		},
+		wantErr: true,
+		errCode: dcrjson.ErrRPCInvalidParameter,
+	}, {
+		name:    "handleTicketVWAP: unable to fetch header by height",
+		handler: handleTicketVWAP,
+		cmd: &types.TicketVWAPCmd{
+			Start: &start,
+			End:   &end,
+		},
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.headerByHeightErr =
+				errors.New("unable to fetch header by height")
+			return chain
+		}(),
+		wantErr: true,
+		errCode: dcrjson.ErrRPCInternal.Code,
+	}, {
+		name:    "handleTicketVWAP: ok",
+		handler: handleTicketVWAP,
+		cmd: &types.TicketVWAPCmd{
+			Start: &start,
+			End:   &end,
+		},
+		result: vwap,
+	}, {
+		name:    "handleTicketVWAP: ok, no parameters",
+		handler: handleTicketVWAP,
+		cmd:     &types.TicketVWAPCmd{},
+		result:  vwap,
+	}, {
+		name:    "handleTicketVWAP: ok, not enough blocks",
+		handler: handleTicketVWAP,
+		cmd:     &types.TicketVWAPCmd{},
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.bestSnapshot.Height = 1
+			return chain
+		}(),
+		result: vwap,
+	}})
+}
+
 func testRPCServerHandler(t *testing.T, tests []rpcTest) {
 	t.Helper()
 
