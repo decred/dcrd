@@ -175,10 +175,13 @@ type testRPCChain struct {
 	ticketPoolValue                 dcrutil.Amount
 	ticketPoolValueErr              error
 	ticketsWithAddress              []chainhash.Hash
+	ticketsWithAddressErr           error
 	tipGeneration                   []chainhash.Hash
 	treasuryBalance                 *blockchain.TreasuryBalanceInfo
 	treasuryBalanceErr              error
 	tspendVotes                     tspendVotes
+	treasuryActive                  bool
+	treasuryActiveErr               error
 }
 
 // BestSnapshot returns a mocked blockchain.BestState.
@@ -374,7 +377,7 @@ func (c *testRPCChain) TicketPoolValue() (dcrutil.Amount, error) {
 // TicketsWithAddress returns a mocked slice of ticket hashes that are currently
 // live corresponding to the given address.
 func (c *testRPCChain) TicketsWithAddress(address dcrutil.Address, isTreasuryEnabled bool) ([]chainhash.Hash, error) {
-	return c.ticketsWithAddress, nil
+	return c.ticketsWithAddress, c.ticketsWithAddressErr
 }
 
 // TipGeneration returns a mocked slice of the entire generation of blocks
@@ -389,7 +392,7 @@ func (c *testRPCChain) TreasuryBalance(*chainhash.Hash) (*blockchain.TreasuryBal
 }
 
 func (c *testRPCChain) IsTreasuryAgendaActive(*chainhash.Hash) (bool, error) {
-	return false, nil
+	return c.treasuryActive, c.treasuryActiveErr
 }
 
 // FetchTSpend returns the blocks a given tspend was mined in.
@@ -1342,6 +1345,7 @@ func defaultMockRPCChain() *testRPCChain {
 			Balance:     uint64(1923209183818),
 			Updates:     []int64{157007970, 19200000000, -1892811207},
 		},
+		treasuryActive: true,
 	}
 }
 
@@ -3631,6 +3635,7 @@ func TestHandleGetBlock(t *testing.T) {
 		},
 		mockChain: func() *testRPCChain {
 			chain := defaultMockRPCChain()
+			chain.treasuryActive = false
 			chain.bestSnapshot = &blockchain.BestState{
 				Height: bestHeight,
 			}
@@ -6096,6 +6101,73 @@ func TestHandleTSpendVotes(t *testing.T) {
 		},
 		wantErr: true,
 		errCode: dcrjson.ErrRPCNoTxInfo,
+	}})
+}
+
+func TestTicketsForAddress(t *testing.T) {
+	t.Parallel()
+
+	addr := "DsRM6qwzT3r85evKvDBJBviTgYcaLKL4ipD"
+	hashStrings := []string{"822e537612dfd03b0dd2c2610083a93fde655f11c32adc7511d75e460abf4283",
+		"8319c4e0623f0f2c73444047eff595493aa87fe195a192c086204c06a758cdee",
+		"c870cd4c47be2ff342997b6d48a56f55b44932b4925098943c58d01b0ed5e725"}
+
+	hashes := make([]chainhash.Hash, 0, len(hashStrings))
+	for _, h := range hashStrings {
+		hashes = append(hashes, *mustParseHash(h))
+	}
+
+	testRPCServerHandler(t, []rpcTest{{
+		name:    "handleTicketsForAddress: invalid address",
+		handler: handleTicketsForAddress,
+		cmd: &types.TicketsForAddressCmd{
+			Address: "invalid",
+		},
+		wantErr: true,
+		errCode: dcrjson.ErrRPCInvalidParameter,
+	}, {
+		name:    "handleTicketsForAddress: unable to fetch treasury agenda status",
+		handler: handleTicketsForAddress,
+		cmd: &types.TicketsForAddressCmd{
+			Address: addr,
+		},
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.treasuryActive = false
+			chain.treasuryActiveErr =
+				errors.New("unable to fetch treasury agenda status")
+			return chain
+		}(),
+		wantErr: true,
+		errCode: dcrjson.ErrRPCInternal.Code,
+	}, {
+		name:    "handleTicketsForAddress: unable to fetch tickets for address",
+		handler: handleTicketsForAddress,
+		cmd: &types.TicketsForAddressCmd{
+			Address: addr,
+		},
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.ticketsWithAddressErr =
+				errors.New("unable to fetch tickets for address")
+			return chain
+		}(),
+		wantErr: true,
+		errCode: dcrjson.ErrRPCInternal.Code,
+	}, {
+		name:    "handleTicketsForAddress: ok",
+		handler: handleTicketsForAddress,
+		cmd: &types.TicketsForAddressCmd{
+			Address: addr,
+		},
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.ticketsWithAddress = hashes
+			return chain
+		}(),
+		result: &types.TicketsForAddressResult{
+			Tickets: hashStrings,
+		},
 	}})
 }
 
