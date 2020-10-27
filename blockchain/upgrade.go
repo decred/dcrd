@@ -895,79 +895,62 @@ func initializeGCSFilters(ctx context.Context, db database.DB, genesisHash *chai
 	// result in massive memory usage and could potentially crash on many
 	// systems due to ulimits.
 	//
-	// It returns the number of entries processed as well as the total number
-	// bytes occupied by all of the processed filters.
+	// It returns whether or not all entries have been updated.
 	const maxEntries = 20000
 	blockHeight := int64(0)
-	doBatch := func(dbTx database.Tx) (uint64, uint64, error) {
+	var totalCreated, totalFilterBytes uint64
+	doBatch := func(dbTx database.Tx) (bool, error) {
 		filterBucket := dbTx.Metadata().Bucket(gcsBucketName)
 		if filterBucket == nil {
-			return 0, 0, fmt.Errorf("bucket %s does not exist", gcsBucketName)
+			return false, fmt.Errorf("bucket %s does not exist", gcsBucketName)
 		}
 
+		var logProgress bool
 		var numCreated, totalBytes uint64
-		for ; blockHeight < int64(len(mainChainBlocks)); blockHeight++ {
-			if numCreated >= maxEntries {
-				break
-			}
+		err := func() error {
+			for ; blockHeight < int64(len(mainChainBlocks)); blockHeight++ {
+				if interruptRequested(ctx) {
+					logProgress = true
+					return errInterruptRequested
+				}
 
-			// Create the filter from the block and referenced previous output
-			// scripts.
-			blockHash := &mainChainBlocks[blockHeight]
-			filter, err := newFilter(dbTx, blockHash)
-			if err != nil {
-				return numCreated, totalBytes, err
-			}
+				if numCreated >= maxEntries {
+					logProgress = true
+					return errBatchFinished
+				}
 
-			// Store the filter to the database.
-			serialized := filter.Bytes()
-			err = filterBucket.Put(blockHash[:], serialized)
-			if err != nil {
-				return numCreated, totalBytes, err
-			}
-			totalBytes += uint64(len(serialized))
+				// Create the filter from the block and referenced previous output
+				// scripts.
+				blockHash := &mainChainBlocks[blockHeight]
+				filter, err := newFilter(dbTx, blockHash)
+				if err != nil {
+					return err
+				}
 
-			numCreated++
+				// Store the filter to the database.
+				serialized := filter.Bytes()
+				err = filterBucket.Put(blockHash[:], serialized)
+				if err != nil {
+					return err
+				}
+				totalBytes += uint64(len(serialized))
 
-			if interruptRequested(ctx) {
-				return numCreated, totalBytes, errInterruptRequested
+				numCreated++
 			}
+			return nil
+		}()
+		isFullyDone := err == nil
+		if (isFullyDone || logProgress) && numCreated > 0 {
+			totalCreated += numCreated
+			totalFilterBytes += totalBytes
+			log.Infof("Created %d entries (%d total)", numCreated, totalCreated)
 		}
-
-		return numCreated, totalBytes, nil
+		return isFullyDone, err
 	}
 
-	// Migrate all entries in batches for the reasons mentioned above.
-	var totalCreated, totalFilterBytes uint64
-	for {
-		var numCreated, numFilterBytes uint64
-		err := db.Update(func(dbTx database.Tx) error {
-			var err error
-			numCreated, numFilterBytes, err = doBatch(dbTx)
-			if errors.Is(err, errInterruptRequested) {
-				// No error here so the database transaction is not cancelled
-				// and therefore outstanding work is written to disk.  The
-				// outer function will exit with an interrupted error below due
-				// to another interrupted check.
-				err = nil
-			}
-			return err
-		})
-		if err != nil {
-			return err
-		}
-
-		if interruptRequested(ctx) {
-			return errInterruptRequested
-		}
-
-		if numCreated == 0 {
-			break
-		}
-
-		totalCreated += numCreated
-		totalFilterBytes += numFilterBytes
-		log.Infof("Created %d entries (%d total)", numCreated, totalCreated)
+	// Create the filters in batches for the reasons mentioned above.
+	if err := batchedUpdate(ctx, db, doBatch); err != nil {
+		return err
 	}
 
 	elapsed := time.Since(start).Round(time.Millisecond)
