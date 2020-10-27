@@ -1172,26 +1172,34 @@ func migrateUtxoSetVersion1To2(ctx context.Context, db database.DB) error {
 	// single database transaction could result in massive memory usage and
 	// could potentially crash on many systems due to ulimits.
 	//
-	// It returns the number of entries processed.
+	// It returns whether or not all entries have been updated.
 	const maxEntries = 20000
 	var resumeOffset uint32
-	doBatch := func(dbTx database.Tx) (uint32, error) {
+	var totalMigrated uint64
+	doBatch := func(dbTx database.Tx) (bool, error) {
 		meta := dbTx.Metadata()
 		v1Bucket := meta.Bucket(v1BucketName)
 		if v1Bucket == nil {
-			return 0, fmt.Errorf("bucket %s does not exist", v1BucketName)
+			return false, fmt.Errorf("bucket %s does not exist", v1BucketName)
 		}
 
 		v2Bucket := meta.Bucket(v2BucketName)
 		if v2Bucket == nil {
-			return 0, fmt.Errorf("bucket %s does not exist", v2BucketName)
+			return false, fmt.Errorf("bucket %s does not exist", v2BucketName)
 		}
 
 		// Migrate utxoset entries so long as the max number of entries for this
 		// batch has not been exceeded.
+		var logProgress bool
 		var numMigrated, numIterated uint32
 		err := v1Bucket.ForEach(func(key, oldSerialized []byte) error {
+			if interruptRequested(ctx) {
+				logProgress = true
+				return errInterruptRequested
+			}
+
 			if numMigrated >= maxEntries {
+				logProgress = true
 				return errBatchFinished
 			}
 
@@ -1282,47 +1290,20 @@ func migrateUtxoSetVersion1To2(ctx context.Context, db database.DB) error {
 			}
 
 			numMigrated++
-
-			if interruptRequested(ctx) {
-				return errInterruptRequested
-			}
-
 			return nil
 		})
-		return numMigrated, err
+		isFullyDone := err == nil
+		if (isFullyDone || logProgress) && numMigrated > 0 {
+			totalMigrated += uint64(numMigrated)
+			log.Infof("Migrated %d entries (%d total)", numMigrated,
+				totalMigrated)
+		}
+		return isFullyDone, err
 	}
 
 	// Migrate all entries in batches for the reasons mentioned above.
-	var totalMigrated uint64
-	for {
-		var numMigrated uint32
-		err := db.Update(func(dbTx database.Tx) error {
-			var err error
-			numMigrated, err = doBatch(dbTx)
-			if errors.Is(err, errInterruptRequested) ||
-				errors.Is(err, errBatchFinished) {
-				// No error here so the database transaction is not cancelled
-				// and therefore outstanding work is written to disk.  The outer
-				// function will exit with an interrupted error below due to
-				// another interrupted check.
-				err = nil
-			}
-			return err
-		})
-		if err != nil {
-			return err
-		}
-
-		if interruptRequested(ctx) {
-			return errInterruptRequested
-		}
-
-		if numMigrated == 0 {
-			break
-		}
-
-		totalMigrated += uint64(numMigrated)
-		log.Infof("Migrated %d entries (%d total)", numMigrated, totalMigrated)
+	if err := batchedUpdate(ctx, db, doBatch); err != nil {
+		return err
 	}
 
 	elapsed := time.Since(start).Round(time.Millisecond)
