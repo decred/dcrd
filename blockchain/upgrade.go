@@ -307,6 +307,39 @@ func incrementalFlatDrop(ctx context.Context, db database.DB, bucketKey []byte, 
 	return nil
 }
 
+// runUpgradeStageOnce ensures the provided function is only run one time by
+// checking if the provided key already exists in the database and writing it to
+// the database upon successful completion of the provided function when it is
+// not.
+//
+// This is useful to ensure upgrades that consist of multiple stages can be
+// interrupted without redoing all of the work associated with stages that were
+// previously completed successfully.
+func runUpgradeStageOnce(ctx context.Context, db database.DB, doneKeyName []byte, fn func() error) error {
+	// Don't run again if the provided key already exists.
+	var alreadyDone bool
+	err := db.View(func(dbTx database.Tx) error {
+		alreadyDone = dbTx.Metadata().Get(doneKeyName) != nil
+		return nil
+	})
+	if err != nil || alreadyDone {
+		return err
+	}
+
+	if err := fn(); err != nil {
+		return err
+	}
+
+	if interruptRequested(ctx) {
+		return errInterruptRequested
+	}
+
+	// Save the key to mark the update fully complete in case of interruption.
+	return db.Update(func(dbTx database.Tx) error {
+		return dbTx.Metadata().Put(doneKeyName, nil)
+	})
+}
+
 // clearFailedBlockFlagsV2 unmarks all blocks in a version 2 block index
 // previously marked failed so they are eligible for validation again under new
 // consensus rules.  This ensures clients that did not update prior to new rules
@@ -315,22 +348,6 @@ func incrementalFlatDrop(ctx context.Context, db database.DB, bucketKey []byte, 
 func clearFailedBlockFlagsV2(ctx context.Context, db database.DB) error {
 	// Hardcoded bucket name so updates do not affect old upgrades.
 	v2BucketName := []byte("blockidx")
-	v2ClearFailedDoneKeyName := []byte("blockidxv2clearfaileddone")
-
-	// No need to clear again if already done.
-	var alreadyDone bool
-	err := db.View(func(dbTx database.Tx) error {
-		if dbTx.Metadata().Get(v2ClearFailedDoneKeyName) != nil {
-			alreadyDone = true
-		}
-		return nil
-	})
-	if err != nil {
-		return err
-	}
-	if alreadyDone {
-		return nil
-	}
 
 	log.Info("Reindexing block information in the database.  This may take a " +
 		"while...")
@@ -441,16 +458,7 @@ func clearFailedBlockFlagsV2(ctx context.Context, db database.DB) error {
 	elapsed := time.Since(start).Round(time.Millisecond)
 	log.Infof("Done updating block index.  Total entries: %d in %v",
 		totalMigrated, elapsed)
-
-	if interruptRequested(ctx) {
-		return errInterruptRequested
-	}
-
-	// Save a flag to mark the update fully complete in case of interruption.
-	err = db.Update(func(dbTx database.Tx) error {
-		return dbTx.Metadata().Put(v2ClearFailedDoneKeyName, nil)
-	})
-	return err
+	return nil
 }
 
 // scriptSourceEntry houses a script and its associated version.
@@ -949,9 +957,6 @@ func initializeGCSFilters(ctx context.Context, db database.DB, genesisHash *chai
 
 // upgradeToVersion6 upgrades a version 5 blockchain database to version 6.
 func upgradeToVersion6(ctx context.Context, db database.DB, chainParams *chaincfg.Params, dbInfo *databaseInfo) error {
-	// Hardcoded key names so updates do not affect old upgrades.
-	v2ClearFailedDoneKeyName := []byte("blockidxv2clearfaileddone")
-
 	if interruptRequested(ctx) {
 		return errInterruptRequested
 	}
@@ -961,12 +966,16 @@ func upgradeToVersion6(ctx context.Context, db database.DB, chainParams *chaincf
 
 	// Unmark all blocks previously marked failed so they are eligible for
 	// validation again under the new consensus rules.
-	if err := clearFailedBlockFlagsV2(ctx, db); err != nil {
+	v2ClearFailedDoneKeyName := []byte("blockidxv2clearfaileddone")
+	err := runUpgradeStageOnce(ctx, db, v2ClearFailedDoneKeyName, func() error {
+		return clearFailedBlockFlagsV2(ctx, db)
+	})
+	if err != nil {
 		return err
 	}
 
 	// Create and store version 2 GCS filters for all blocks in the main chain.
-	err := initializeGCSFilters(ctx, db, &chainParams.GenesisHash)
+	err = initializeGCSFilters(ctx, db, &chainParams.GenesisHash)
 	if err != nil {
 		return err
 	}
@@ -1160,28 +1169,12 @@ func migrateUtxoSetVersion1To2(ctx context.Context, db database.DB) error {
 	// Hardcoded bucket and key names so updates do not affect old upgrades.
 	v1BucketName := []byte("utxoset")
 	v2BucketName := []byte("utxosetv2")
-	v2DoneKeyName := []byte("utxosetv2done")
-
-	// No need to migrate again if already done.
-	var alreadyDone bool
-	err := db.View(func(dbTx database.Tx) error {
-		if dbTx.Metadata().Get(v2DoneKeyName) != nil {
-			alreadyDone = true
-		}
-		return nil
-	})
-	if err != nil {
-		return err
-	}
-	if alreadyDone {
-		return nil
-	}
 
 	log.Info("Migrating database utxoset.  This may take a while...")
 	start := time.Now()
 
 	// Create the new utxoset bucket as needed.
-	err = db.Update(func(dbTx database.Tx) error {
+	err := db.Update(func(dbTx database.Tx) error {
 		_, err := dbTx.Metadata().CreateBucketIfNotExists(v2BucketName)
 		return err
 	})
@@ -1364,12 +1357,7 @@ func migrateUtxoSetVersion1To2(ctx context.Context, db database.DB) error {
 	}
 	elapsed = time.Since(start).Round(time.Millisecond)
 	log.Infof("Done removing old utxoset entries in %v", elapsed)
-
-	// Save a flag to mark the migration fully complete in case of interruption.
-	err = db.Update(func(dbTx database.Tx) error {
-		return dbTx.Metadata().Put(v2DoneKeyName, nil)
-	})
-	return err
+	return nil
 }
 
 // migrateSpendJournalVersion1To2 migrates all spend journal entries from the v1
@@ -1649,9 +1637,6 @@ func initializeTreasuryBuckets(db database.DB) error {
 
 // upgradeToVersion7 upgrades a version 6 blockchain database to version 7.
 func upgradeToVersion7(ctx context.Context, db database.DB, dbInfo *databaseInfo) error {
-	// Hardcoded key names so updates do not affect old upgrades.
-	v2DoneKeyName := []byte("utxosetv2done")
-
 	if interruptRequested(ctx) {
 		return errInterruptRequested
 	}
@@ -1665,7 +1650,11 @@ func upgradeToVersion7(ctx context.Context, db database.DB, dbInfo *databaseInfo
 	}
 
 	// Migrate the utxoset to version 2.
-	if err := migrateUtxoSetVersion1To2(ctx, db); err != nil {
+	v2DoneKeyName := []byte("utxosetv2done")
+	err := runUpgradeStageOnce(ctx, db, v2DoneKeyName, func() error {
+		return migrateUtxoSetVersion1To2(ctx, db)
+	})
+	if err != nil {
 		return err
 	}
 
@@ -1680,7 +1669,7 @@ func upgradeToVersion7(ctx context.Context, db database.DB, dbInfo *databaseInfo
 
 	// Update and persist the database versions and remove upgrade progress
 	// tracking keys.
-	err := db.Update(func(dbTx database.Tx) error {
+	err = db.Update(func(dbTx database.Tx) error {
 		err := dbTx.Metadata().Delete(v2DoneKeyName)
 		if err != nil {
 			return err
@@ -1706,22 +1695,6 @@ func upgradeToVersion7(ctx context.Context, db database.DB, dbInfo *databaseInfo
 func clearFailedBlockFlagsV3(ctx context.Context, db database.DB) error {
 	// Hardcoded bucket name so updates do not affect old upgrades.
 	v3BucketName := []byte("blockidxv3")
-	v3ClearFailedDoneKeyName := []byte("blockidxv3clearfaileddone")
-
-	// No need to clear again if already done.
-	var alreadyDone bool
-	err := db.View(func(dbTx database.Tx) error {
-		if dbTx.Metadata().Get(v3ClearFailedDoneKeyName) != nil {
-			alreadyDone = true
-		}
-		return nil
-	})
-	if err != nil {
-		return err
-	}
-	if alreadyDone {
-		return nil
-	}
 
 	log.Info("Reindexing block information in the database.  This may take a " +
 		"while...")
@@ -1794,7 +1767,7 @@ func clearFailedBlockFlagsV3(ctx context.Context, db database.DB) error {
 			newStatus &^= v3StatusValidateFailed | v3StatusInvalidAncestor
 			serialized[offset] = newStatus
 			if newStatus != origStatus {
-				err = v3BlockIdxBucket.Put(key, serialized)
+				err := v3BlockIdxBucket.Put(key, serialized)
 				if err != nil {
 					return err
 				}
@@ -1848,23 +1821,11 @@ func clearFailedBlockFlagsV3(ctx context.Context, db database.DB) error {
 	elapsed := time.Since(start).Round(time.Millisecond)
 	log.Infof("Done updating block index.  Total entries: %d in %v",
 		totalMigrated, elapsed)
-
-	if interruptRequested(ctx) {
-		return errInterruptRequested
-	}
-
-	// Save a flag to mark the update fully complete in case of interruption.
-	err = db.Update(func(dbTx database.Tx) error {
-		return dbTx.Metadata().Put(v3ClearFailedDoneKeyName, nil)
-	})
-	return err
+	return nil
 }
 
 // upgradeToVersion8 upgrades a version 7 blockchain database to version 8.
 func upgradeToVersion8(ctx context.Context, db database.DB, dbInfo *databaseInfo) error {
-	// Hardcoded key names so updates do not affect old upgrades.
-	v3ClearFailedDoneKeyName := []byte("blockidxv3clearfaileddone")
-
 	if interruptRequested(ctx) {
 		return errInterruptRequested
 	}
@@ -1888,14 +1849,8 @@ func upgradeToVersion8(ctx context.Context, db database.DB, dbInfo *databaseInfo
 		return err
 	}
 
-	// Update and persist the database versions and remove upgrade progress
-	// tracking keys.
+	// Update and persist the database versions.
 	err := db.Update(func(dbTx database.Tx) error {
-		err := dbTx.Metadata().Delete(v3ClearFailedDoneKeyName)
-		if err != nil {
-			return err
-		}
-
 		dbInfo.version = 8
 		return dbPutDatabaseInfo(dbTx, dbInfo)
 	})
