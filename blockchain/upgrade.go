@@ -340,6 +340,48 @@ func runUpgradeStageOnce(ctx context.Context, db database.DB, doneKeyName []byte
 	})
 }
 
+// batchFn represents the batch function used by the batched update function.
+type batchFn func(dbTx database.Tx) (bool, error)
+
+// batchedUpdate calls the provided batch function repeatedly until it either
+// returns an error other than the special ones described in this comment or
+// its return indicates no more calls are necessary.
+//
+// In order to ensure the database is updated with the results of the batch that
+// have already been successfully completed, it is allowed to return
+// errBatchFinished and errInterruptRequested.  In the case of the former, the
+// error will be ignored.  In the case of the latter, the database will be
+// updated and the error will be returned accordingly.  The database will NOT
+// be updated if any other errors are returned.
+func batchedUpdate(ctx context.Context, db database.DB, doBatch batchFn) error {
+	var isFullyDone bool
+	for !isFullyDone {
+		err := db.Update(func(dbTx database.Tx) error {
+			var err error
+			isFullyDone, err = doBatch(dbTx)
+			if errors.Is(err, errInterruptRequested) ||
+				errors.Is(err, errBatchFinished) {
+
+				// No error here so the database transaction is not cancelled
+				// and therefore outstanding work is written to disk.  The outer
+				// function will exit with an interrupted error below due to
+				// another interrupted check.
+				err = nil
+			}
+			return err
+		})
+		if err != nil {
+			return err
+		}
+
+		if interruptRequested(ctx) {
+			return errInterruptRequested
+		}
+	}
+
+	return nil
+}
+
 // clearFailedBlockFlagsV2 unmarks all blocks in a version 2 block index
 // previously marked failed so they are eligible for validation again under new
 // consensus rules.  This ensures clients that did not update prior to new rules
@@ -358,21 +400,29 @@ func clearFailedBlockFlagsV2(ctx context.Context, db database.DB) error {
 	// transaction could result in massive memory usage and could potentially
 	// crash on many systems due to ulimits.
 	//
-	// It returns the number of entries processed.
+	// It returns whether or not all entries have been updated.
 	const maxEntries = 20000
 	var resumeOffset uint32
-	doBatch := func(dbTx database.Tx) (uint32, error) {
+	var totalUpdated uint64
+	doBatch := func(dbTx database.Tx) (bool, error) {
 		meta := dbTx.Metadata()
 		v2BlockIdxBucket := meta.Bucket(v2BucketName)
 		if v2BlockIdxBucket == nil {
-			return 0, fmt.Errorf("bucket %s does not exist", v2BucketName)
+			return false, fmt.Errorf("bucket %s does not exist", v2BucketName)
 		}
 
 		// Update block index entries so long as the max number of entries for
 		// this batch has not been exceeded.
-		var numMigrated, numIterated uint32
+		var logProgress bool
+		var numUpdated, numIterated uint32
 		err := v2BlockIdxBucket.ForEach(func(key, oldSerialized []byte) error {
-			if numMigrated >= maxEntries {
+			if interruptRequested(ctx) {
+				logProgress = true
+				return errInterruptRequested
+			}
+
+			if numUpdated >= maxEntries {
+				logProgress = true
 				return errBatchFinished
 			}
 
@@ -410,54 +460,25 @@ func clearFailedBlockFlagsV2(ctx context.Context, db database.DB) error {
 				}
 			}
 
-			numMigrated++
-
-			if interruptRequested(ctx) {
-				return errInterruptRequested
-			}
-
+			numUpdated++
 			return nil
 		})
-		return numMigrated, err
+		isFullyDone := err == nil
+		if (isFullyDone || logProgress) && numUpdated > 0 {
+			totalUpdated += uint64(numUpdated)
+			log.Infof("Updated %d entries (%d total)", numUpdated, totalUpdated)
+		}
+		return isFullyDone, err
 	}
 
-	// Migrate all entries in batches for the reasons mentioned above.
-	var totalMigrated uint64
-	for {
-		var numMigrated uint32
-		err := db.Update(func(dbTx database.Tx) error {
-			var err error
-			numMigrated, err = doBatch(dbTx)
-			if errors.Is(err, errInterruptRequested) ||
-				errors.Is(err, errBatchFinished) {
-
-				// No error here so the database transaction is not cancelled
-				// and therefore outstanding work is written to disk.  The outer
-				// function will exit with an interrupted error below due to
-				// another interrupted check.
-				err = nil
-			}
-			return err
-		})
-		if err != nil {
-			return err
-		}
-
-		if interruptRequested(ctx) {
-			return errInterruptRequested
-		}
-
-		if numMigrated == 0 {
-			break
-		}
-
-		totalMigrated += uint64(numMigrated)
-		log.Infof("Updated %d entries (%d total)", numMigrated, totalMigrated)
+	// Update all entries in batches for the reasons mentioned above.
+	if err := batchedUpdate(ctx, db, doBatch); err != nil {
+		return err
 	}
 
 	elapsed := time.Since(start).Round(time.Millisecond)
 	log.Infof("Done updating block index.  Total entries: %d in %v",
-		totalMigrated, elapsed)
+		totalUpdated, elapsed)
 	return nil
 }
 
