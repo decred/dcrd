@@ -483,14 +483,15 @@ func (c *testAddrManager) LocalAddresses() []addrmgr.LocalAddr {
 // testSyncManager provides a mock sync manager by implementing the
 // SyncManager interface.
 type testSyncManager struct {
-	isCurrent          bool
-	isOrphan           bool
-	submitBlockErr     error
-	syncPeerID         int32
-	locateBlocks       []chainhash.Hash
-	tipGeneration      []chainhash.Hash
-	syncHeight         int64
-	processTransaction []*dcrutil.Tx
+	isCurrent             bool
+	isOrphan              bool
+	submitBlockErr        error
+	syncPeerID            int32
+	locateBlocks          []chainhash.Hash
+	tipGeneration         []chainhash.Hash
+	syncHeight            int64
+	processTransaction    []*dcrutil.Tx
+	processTransactionErr error
 }
 
 // IsCurrent returns a mocked bool representing whether or not the sync manager
@@ -532,7 +533,7 @@ func (s *testSyncManager) SyncHeight() int64 {
 // transaction validation and insertion into the memory pool.
 func (s *testSyncManager) ProcessTransaction(tx *dcrutil.Tx, allowOrphans bool,
 	rateLimit bool, allowHighFees bool, tag mempool.Tag) ([]*dcrutil.Tx, error) {
-	return s.processTransaction, nil
+	return s.processTransaction, s.processTransactionErr
 }
 
 // testExistsAddresser provides a mock exists addresser by implementing the
@@ -1083,6 +1084,134 @@ func (mp *testTxMempooler) FetchTransaction(txHash *chainhash.Hash) (*dcrutil.Tx
 // hashes.
 func (mp *testTxMempooler) TSpendHashes() []chainhash.Hash {
 	return mp.tspendHashes
+}
+
+// testNtfnManager provides a mock notification manager by implementing the
+// NtfnManager interface.
+type testNtfnManager struct {
+	clients int
+}
+
+// NotifyBlockConnected passes a block newly-connected to the manager
+// for processing.
+func (mgr *testNtfnManager) NotifyBlockConnected(block *dcrutil.Block) {}
+
+// NotifyBlockDisconnected passes a block disconnected to the manager
+// for processing.
+func (mgr *testNtfnManager) NotifyBlockDisconnected(block *dcrutil.Block) {}
+
+// NotifyWork passes new mining work to the manager for
+// processing.
+func (mgr *testNtfnManager) NotifyWork(templateNtfn *mining.TemplateNtfn) {}
+
+// NotifyTSpend passes new tspends to the manager for processing.
+func (mgr *testNtfnManager) NotifyTSpend(tx *dcrutil.Tx) {}
+
+// NotifyReorganization passes a blockchain reorganization notification to
+// the manager for processing.
+func (mgr *testNtfnManager) NotifyReorganization(rd *blockchain.ReorganizationNtfnsData) {}
+
+// NotifyWinningTickets passes newly winning tickets to the manager for
+// processing.
+func (mgr *testNtfnManager) NotifyWinningTickets(wtnd *WinningTicketsNtfnData) {}
+
+// NotifySpentAndMissedTickets passes ticket spend and missing data for an
+// incoming block to the manager for processing.
+func (mgr *testNtfnManager) NotifySpentAndMissedTickets(tnd *blockchain.TicketNotificationsData) {}
+
+// NotifyNewTickets passes new ticket data for an incoming block to the
+// manager for processing.
+func (mgr *testNtfnManager) NotifyNewTickets(tnd *blockchain.TicketNotificationsData) {}
+
+// NotifyStakeDifficulty passes a new stake difficulty notification to the
+// manager for processing.
+func (mgr *testNtfnManager) NotifyStakeDifficulty(stnd *StakeDifficultyNtfnData) {}
+
+// NotifyMempoolTx passes a transaction accepted by mempool to the
+// manager for processing.
+func (mgr *testNtfnManager) NotifyMempoolTx(tx *dcrutil.Tx, isNew bool) {}
+
+// NumClients returns the number of clients actively being served.
+func (mgr *testNtfnManager) NumClients() int {
+	return mgr.clients
+}
+
+// RegisterBlockUpdates requests block update notifications to the passed
+// websocket client.
+func (mgr *testNtfnManager) RegisterBlockUpdates(wsc *wsClient) {}
+
+// UnregisterBlockUpdates removes block update notifications for the passed
+// websocket client.
+func (mgr *testNtfnManager) UnregisterBlockUpdates(wsc *wsClient) {}
+
+// RegisterWorkUpdates requests work update notifications to the passed
+// websocket client.
+func (mgr *testNtfnManager) RegisterWorkUpdates(wsc *wsClient) {}
+
+// UnregisterWorkUpdates removes work update notifications for the passed
+// websocket client.
+func (mgr *testNtfnManager) UnregisterWorkUpdates(wsc *wsClient) {}
+
+// RegisterTSpendUpdates requests tspend update notifications to the passed
+// websocket client.
+func (mgr *testNtfnManager) RegisterTSpendUpdates(wsc *wsClient) {}
+
+// UnregisterTSpendUpdates removes tspend update notifications for the passed
+// websocket client.
+func (mgr *testNtfnManager) UnregisterTSpendUpdates(wsc *wsClient) {}
+
+// RegisterWinningTickets requests winning tickets update notifications
+// to the passed websocket client.
+func (mgr *testNtfnManager) RegisterWinningTickets(wsc *wsClient) {}
+
+// UnregisterWinningTickets removes winning ticket notifications for
+// the passed websocket client.
+func (mgr *testNtfnManager) UnregisterWinningTickets(wsc *wsClient) {}
+
+// RegisterSpentAndMissedTickets requests spent/missed tickets update notifications
+// to the passed websocket client.
+func (mgr *testNtfnManager) RegisterSpentAndMissedTickets(wsc *wsClient) {}
+
+// UnregisterSpentAndMissedTickets removes spent/missed ticket notifications for
+// the passed websocket client.
+func (mgr *testNtfnManager) UnregisterSpentAndMissedTickets(wsc *wsClient) {}
+
+// RegisterNewTickets requests spent/missed tickets update notifications
+// to the passed websocket client.
+func (mgr *testNtfnManager) RegisterNewTickets(wsc *wsClient) {}
+
+// UnregisterNewTickets removes spent/missed ticket notifications for
+// the passed websocket client.
+func (mgr *testNtfnManager) UnregisterNewTickets(wsc *wsClient) {}
+
+// RegisterStakeDifficulty requests stake difficulty notifications
+// to the passed websocket client.
+func (mgr *testNtfnManager) RegisterStakeDifficulty(wsc *wsClient) {}
+
+// UnregisterStakeDifficulty removes stake difficulty notifications for
+// the passed websocket client.
+func (mgr *testNtfnManager) UnregisterStakeDifficulty(wsc *wsClient) {}
+
+// RegisterNewMempoolTxsUpdates requests notifications to the passed websocket
+// client when new transactions are added to the memory pool.
+func (mgr *testNtfnManager) RegisterNewMempoolTxsUpdates(wsc *wsClient) {}
+
+// UnregisterNewMempoolTxsUpdates removes notifications to the passed websocket
+// client when new transaction are added to the memory pool.
+func (mgr *testNtfnManager) UnregisterNewMempoolTxsUpdates(wsc *wsClient) {}
+
+// AddClient adds the passed websocket client to the notification manager.
+func (mgr *testNtfnManager) AddClient(wsc *wsClient) {}
+
+// RemoveClient removes the passed websocket client and all notifications
+// registered for it.
+func (mgr *testNtfnManager) RemoveClient(wsc *wsClient) {}
+
+// Run starts the goroutines required for the manager to queue and process
+// websocket client notifications. It blocks until the provided context is
+// cancelled.
+func (mgr *testNtfnManager) Run(ctx context.Context) {
+	<-ctx.Done()
 }
 
 // mustParseHash converts the passed big-endian hex string into a
@@ -6630,6 +6759,127 @@ func TestHandleVerifyMessage(t *testing.T) {
 	}})
 }
 
+func TestHandleSendRawTransaction(t *testing.T) {
+	t.Parallel()
+
+	allowHighFees := true
+	doNotAllowHighFees := false
+	tx := dcrutil.NewTx(block432100.Transactions[1])
+	txB, err := block432100.Transactions[1].Bytes()
+	if err != nil {
+		t.Fatalf("unexpected tx serialization error: %v", err)
+	}
+
+	hexTx := hex.EncodeToString(txB)
+
+	testRPCServerHandler(t, []rpcTest{{
+		name:    "handleSendRawTransaction: invalid tx hex",
+		handler: handleSendRawTransaction,
+		cmd: &types.SendRawTransactionCmd{
+			HexTx:         "invalid",
+			AllowHighFees: &doNotAllowHighFees,
+		},
+		wantErr: true,
+		errCode: dcrjson.ErrRPCDecodeHexString,
+	}, {
+		name:    "handleSendRawTransaction: invalid tx hex",
+		handler: handleSendRawTransaction,
+		cmd: &types.SendRawTransactionCmd{
+			HexTx:         "fefefefefefe",
+			AllowHighFees: &doNotAllowHighFees,
+		},
+		wantErr: true,
+		errCode: dcrjson.ErrRPCDeserialization,
+	}, {
+		name:    "handleSendRawTransaction: unable to process transaction",
+		handler: handleSendRawTransaction,
+		cmd: &types.SendRawTransactionCmd{
+			HexTx:         hexTx,
+			AllowHighFees: &allowHighFees,
+		},
+		mockSyncManager: func() *testSyncManager {
+			syncManager := defaultMockSyncManager()
+			syncManager.processTransactionErr =
+				errors.New("unable to process transaction")
+			return syncManager
+		}(),
+		wantErr: true,
+		errCode: dcrjson.ErrRPCDeserialization,
+	}, {
+		name:    "handleSendRawTransaction: duplicate transaction",
+		handler: handleSendRawTransaction,
+		cmd: &types.SendRawTransactionCmd{
+			HexTx:         hexTx,
+			AllowHighFees: &allowHighFees,
+		},
+		mockSyncManager: func() *testSyncManager {
+			syncManager := defaultMockSyncManager()
+			syncManager.processTransactionErr = mempool.RuleError{
+				Err: mempool.RuleError{
+					Err:         mempool.ErrDuplicate,
+					Description: "duplicate tx",
+				},
+			}
+			return syncManager
+		}(),
+		wantErr: true,
+		errCode: dcrjson.ErrRPCDuplicateTx,
+	}, {
+		name:    "handleSendRawTransaction: expired transaction",
+		handler: handleSendRawTransaction,
+		cmd: &types.SendRawTransactionCmd{
+			HexTx:         hexTx,
+			AllowHighFees: &allowHighFees,
+		},
+		mockSyncManager: func() *testSyncManager {
+			syncManager := defaultMockSyncManager()
+			syncManager.processTransactionErr = mempool.RuleError{
+				Err: mempool.RuleError{
+					Err:         mempool.ErrExpired,
+					Description: "tx expired",
+				},
+			}
+			return syncManager
+		}(),
+		wantErr: true,
+		errCode: dcrjson.ErrRPCMisc,
+	}, {
+		name:    "handleSendRawTransaction: unable to fetch treasury agenda status",
+		handler: handleSendRawTransaction,
+		cmd: &types.SendRawTransactionCmd{
+			HexTx:         hexTx,
+			AllowHighFees: &allowHighFees,
+		},
+		mockSyncManager: func() *testSyncManager {
+			syncManager := defaultMockSyncManager()
+			syncManager.processTransaction = []*dcrutil.Tx{tx}
+			return syncManager
+		}(),
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.treasuryActive = false
+			chain.treasuryActiveErr =
+				errors.New("unable to fetch treasury agenda status")
+			return chain
+		}(),
+		wantErr: true,
+		errCode: dcrjson.ErrRPCInternal.Code,
+	}, {
+		name:    "handleSendRawTransaction: ok",
+		handler: handleSendRawTransaction,
+		cmd: &types.SendRawTransactionCmd{
+			HexTx:         hexTx,
+			AllowHighFees: &allowHighFees,
+		},
+		mockSyncManager: func() *testSyncManager {
+			syncManager := defaultMockSyncManager()
+			syncManager.processTransaction = []*dcrutil.Tx{tx}
+			return syncManager
+		}(),
+		result: tx.Hash().String(),
+	}})
+}
+
 func testRPCServerHandler(t *testing.T, tests []rpcTest) {
 	t.Helper()
 
@@ -6721,7 +6971,11 @@ func testRPCServerHandler(t *testing.T, tests []rpcTest) {
 				rpcserverConfig.TxMempooler = test.mockTxMempooler
 			}
 
-			testServer := &Server{cfg: *rpcserverConfig, workState: workState}
+			testServer := &Server{
+				cfg:       *rpcserverConfig,
+				ntfnMgr:   new(testNtfnManager),
+				workState: workState,
+			}
 			result, err := test.handler(nil, testServer, test.cmd)
 			if test.wantErr {
 				var rpcErr *dcrjson.RPCError
