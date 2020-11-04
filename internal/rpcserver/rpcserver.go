@@ -3389,7 +3389,8 @@ func handleGetVoteInfo(_ context.Context, s *Server, cmd interface{}) (interface
 		state, err := chain.NextThresholdState(&snapshot.Hash, c.Version,
 			agenda.Vote.Id)
 		if err != nil {
-			return nil, err
+			return nil, rpcInternalError(err.Error(),
+				"could not fetch next threshold state")
 		}
 
 		a := types.Agenda{
