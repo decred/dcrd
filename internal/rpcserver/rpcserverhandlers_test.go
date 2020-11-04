@@ -6544,6 +6544,92 @@ func TestHandleTicketFeeInfo(t *testing.T) {
 	}})
 }
 
+func TestHandleVerifyMessage(t *testing.T) {
+	t.Parallel()
+
+	// private key : 0x0000000000000000000000000000000000000000000000000000000000000001
+	msg := "test message"
+	p2shAddr := "DcXTb4QtmnyRsnzUVViYQawqFE5PuYTdX2C"
+	compressedPKHAddr := "DsmcYVbP1Nmag2H4AS17UTvmWXmGeA7nLDx"
+	compressedCompactSig := "H18ier4CIfSBOk0FKPjO4mggno0ES1w2P+41GpJnnyiSRW" +
+		"dE2n02YwE29Sw0n2ALT3M1Q1+GQW7moKqsem1COF8="
+	uncompressedPKHAddr := "DsbnCMAYV13buumdjHuwiJeJWZWvgjZRTbE"
+	uncompressedCompactSig := "G18ier4CIfSBOk0FKPjO4mggno0ES1w2P+41GpJnnyiS" +
+		"RWdE2n02YwE29Sw0n2ALT3M1Q1+GQW7moKqsem1COF8="
+	malformedCompactSig := "MEUCIQD8wKh2jPvO/PLK3Xz7D7GO0I3S4q6EvvGkdKPTUbJ" +
+		"vAwIgD8GjULRfRvoAEBORMCgY10jCsiYVURo//Vu2OL13cgc="
+	invalidCompactSig := "II57fsP8WEHAwfrSlx3u3wu4PHqTnP1fk/r0LM9dzm0lYr6GA" +
+		"D+HAFIHWUTAN623ONsG+yq6onSbZvu5vW8YI/0=" // sig for message "test"
+
+	testRPCServerHandler(t, []rpcTest{{
+		name:    "handleVerifyMessage: invalid address",
+		handler: handleVerifyMessage,
+		cmd: &types.VerifyMessageCmd{
+			Address:   "invalid",
+			Message:   msg,
+			Signature: compressedCompactSig,
+		},
+		wantErr: true,
+		errCode: dcrjson.ErrRPCInvalidAddressOrKey,
+	}, {
+		name:    "handleVerifyMessage: address is P2SH",
+		handler: handleVerifyMessage,
+		cmd: &types.VerifyMessageCmd{
+			Address:   p2shAddr,
+			Message:   msg,
+			Signature: compressedCompactSig,
+		},
+		wantErr: true,
+		errCode: dcrjson.ErrRPCType,
+	}, {
+		name:    "handleVerifyMessage: invalid signature",
+		handler: handleVerifyMessage,
+		cmd: &types.VerifyMessageCmd{
+			Address:   compressedPKHAddr,
+			Message:   msg,
+			Signature: "invalid",
+		},
+		wantErr: true,
+		errCode: dcrjson.ErrRPCParse.Code,
+	}, {
+		name:    "handleVerifyMessage: address is uncompressed PKH",
+		handler: handleVerifyMessage,
+		cmd: &types.VerifyMessageCmd{
+			Address:   uncompressedPKHAddr,
+			Message:   msg,
+			Signature: uncompressedCompactSig,
+		},
+		result: true,
+	}, {
+		name:    "handleVerifyMessage: size is greater than the compact sig size",
+		handler: handleVerifyMessage,
+		cmd: &types.VerifyMessageCmd{
+			Address:   compressedPKHAddr,
+			Message:   msg,
+			Signature: malformedCompactSig,
+		},
+		result: false,
+	}, {
+		name:    "handleVerifyMessage: invalid signature for message",
+		handler: handleVerifyMessage,
+		cmd: &types.VerifyMessageCmd{
+			Address:   compressedPKHAddr,
+			Message:   msg,
+			Signature: invalidCompactSig,
+		},
+		result: false,
+	}, {
+		name:    "handleVerifyMessage: ok",
+		handler: handleVerifyMessage,
+		cmd: &types.VerifyMessageCmd{
+			Address:   compressedPKHAddr,
+			Message:   msg,
+			Signature: compressedCompactSig,
+		},
+		result: true,
+	}})
+}
+
 func testRPCServerHandler(t *testing.T, tests []rpcTest) {
 	t.Helper()
 
