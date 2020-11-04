@@ -145,13 +145,16 @@ type testRPCChain struct {
 	checkMissedTickets              []bool
 	convertUtxosToMinimalOutputs    []*stake.MinimalOutput
 	countVoteVersion                uint32
+	countVoteVersionErr             error
 	estimateNextStakeDifficultyFn   func(newTickets int64, useMaxTickets bool) (diff int64, err error)
 	fetchUtxoEntry                  UtxoEntry
 	fetchUtxoStats                  *blockchain.UtxoStats
 	getStakeVersions                []blockchain.StakeVersions
 	getStakeVersionsErr             error
 	getVoteCounts                   blockchain.VoteCounts
+	getVoteCountsErr                error
 	getVoteInfo                     *blockchain.VoteInfo
+	getVoteInfoErr                  error
 	headerByHash                    wire.BlockHeader
 	headerByHashErr                 error
 	headerByHeight                  wire.BlockHeader
@@ -263,7 +266,7 @@ func (c *testRPCChain) ConvertUtxosToMinimalOutputs(entry UtxoEntry) []*stake.Mi
 // CountVoteVersion returns a mocked total number of version votes for the current
 // rule change activation interval.
 func (c *testRPCChain) CountVoteVersion(version uint32) (uint32, error) {
-	return c.countVoteVersion, nil
+	return c.countVoteVersion, c.countVoteVersionErr
 }
 
 // EstimateNextStakeDifficulty returns a mocked estimated next stake difficulty.
@@ -289,14 +292,14 @@ func (c *testRPCChain) GetStakeVersions(hash *chainhash.Hash, count int32) ([]bl
 // GetVoteCounts returns a mocked blockchain.VoteCounts for the specified
 // version and deployment identifier for the current rule change activation interval.
 func (c *testRPCChain) GetVoteCounts(version uint32, deploymentID string) (blockchain.VoteCounts, error) {
-	return c.getVoteCounts, nil
+	return c.getVoteCounts, c.getVoteCountsErr
 }
 
 // GetVoteInfo returns mocked information on consensus deployment agendas and
 // their respective states at the provided hash, for the provided deployment
 // version.
 func (c *testRPCChain) GetVoteInfo(hash *chainhash.Hash, version uint32) (*blockchain.VoteInfo, error) {
-	return c.getVoteInfo, nil
+	return c.getVoteInfo, c.getVoteInfoErr
 }
 
 // HeaderByHash returns a mocked block header identified by the given hash.
@@ -6877,6 +6880,231 @@ func TestHandleSendRawTransaction(t *testing.T) {
 			return syncManager
 		}(),
 		result: tx.Hash().String(),
+	}})
+}
+
+func TestHandleGetVoteInfo(t *testing.T) {
+	t.Parallel()
+
+	v0 := uint32(0)
+	v7 := uint32(7)
+
+	okAgendas := []types.Agenda{{
+		ID:             "headercommitments",
+		Description:    "Enable header commitments as defined in DCP0005",
+		Mask:           6,
+		StartTime:      1567641600,
+		ExpireTime:     1599264000,
+		Status:         "started",
+		QuorumProgress: 0.01984126984126984,
+		Choices: []types.Choice{{
+			ID:          "abstain",
+			Description: "abstain voting for change",
+			Bits:        0,
+			IsAbstain:   true,
+			IsNo:        false,
+			Count:       20,
+			Progress:    0.2,
+		}, {
+			ID:          "no",
+			Description: "keep the existing consensus rules",
+			Bits:        2,
+			IsAbstain:   false,
+			IsNo:        true,
+			Count:       10,
+			Progress:    0.1,
+		}, {
+			ID:          "yes",
+			Description: "change to the new consensus rules",
+			Bits:        4,
+			IsAbstain:   false,
+			IsNo:        false,
+			Count:       70,
+			Progress:    0.7,
+		}},
+	}}
+
+	thresholdDefinedAgendas := []types.Agenda{{
+		ID:             "headercommitments",
+		Description:    "Enable header commitments as defined in DCP0005",
+		Mask:           6,
+		StartTime:      1567641600,
+		ExpireTime:     1599264000,
+		Status:         "defined",
+		QuorumProgress: 0,
+		Choices: []types.Choice{{
+			ID:          "abstain",
+			Description: "abstain voting for change",
+			Bits:        0,
+			IsAbstain:   true,
+			IsNo:        false,
+			Count:       0,
+			Progress:    0,
+		}, {
+			ID:          "no",
+			Description: "keep the existing consensus rules",
+			Bits:        2,
+			IsAbstain:   false,
+			IsNo:        true,
+			Count:       0,
+			Progress:    0,
+		}, {
+			ID:          "yes",
+			Description: "change to the new consensus rules",
+			Bits:        4,
+			IsAbstain:   false,
+			IsNo:        false,
+			Count:       0,
+			Progress:    0,
+		}},
+	}}
+
+	okResult := types.GetVoteInfoResult{
+		CurrentHeight: 432100,
+		StartHeight:   431488,
+		EndHeight:     439551,
+		Hash:          "000000000000000023455b4328635d8e014dbeea99c6140aa715836cc7e55981",
+		VoteVersion:   7,
+		Quorum:        4032,
+		TotalVotes:    0,
+		Agendas:       okAgendas,
+	}
+
+	thresholdDefinedResult := types.GetVoteInfoResult{
+		CurrentHeight: 432100,
+		StartHeight:   431488,
+		EndHeight:     439551,
+		Hash:          "000000000000000023455b4328635d8e014dbeea99c6140aa715836cc7e55981",
+		VoteVersion:   7,
+		Quorum:        4032,
+		TotalVotes:    0,
+		Agendas:       thresholdDefinedAgendas,
+	}
+
+	testRPCServerHandler(t, []rpcTest{{
+		name:    "handleGetVoteInfo: unable to fetch vote info",
+		handler: handleGetVoteInfo,
+		cmd: &types.GetVoteInfoCmd{
+			Version: v0,
+		},
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.getVoteInfoErr = errors.New("unable to fetch vote info")
+			return chain
+		}(),
+		wantErr: true,
+		errCode: dcrjson.ErrRPCInternal.Code,
+	}, {
+		name:    "handleGetVoteInfo: invalid version info",
+		handler: handleGetVoteInfo,
+		cmd: &types.GetVoteInfoCmd{
+			Version: v7,
+		},
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.getVoteInfoErr = blockchain.VoteVersionError(v7)
+			return chain
+		}(),
+		wantErr: true,
+		errCode: dcrjson.ErrRPCInvalidParameter,
+	}, {
+		name:    "handleGetVoteInfo: unable to count vote version",
+		handler: handleGetVoteInfo,
+		cmd: &types.GetVoteInfoCmd{
+			Version: v7,
+		},
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.countVoteVersionErr = errors.New("unable to count vote version")
+			return chain
+		}(),
+		wantErr: true,
+		errCode: dcrjson.ErrRPCInternal.Code,
+	}, {
+		name:    "handleGetVoteInfo: unable to fetch next threshold state",
+		handler: handleGetVoteInfo,
+		cmd: &types.GetVoteInfoCmd{
+			Version: v7,
+		},
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.getVoteInfo = &blockchain.VoteInfo{
+				Agendas: defaultChainParams.Deployments[v7],
+				AgendaStatus: []blockchain.ThresholdStateTuple{{
+					State:  blockchain.ThresholdStarted,
+					Choice: uint32(0xffffffff),
+				}},
+			}
+			chain.nextThresholdStateErr = errors.New("unable to fetch next threshold state")
+			return chain
+		}(),
+		wantErr: true,
+		errCode: dcrjson.ErrRPCInternal.Code,
+	}, {
+		name:    "handleGetVoteInfo: unable to get vote counts",
+		handler: handleGetVoteInfo,
+		cmd: &types.GetVoteInfoCmd{
+			Version: v7,
+		},
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.getVoteInfo = &blockchain.VoteInfo{
+				Agendas: defaultChainParams.Deployments[v7],
+				AgendaStatus: []blockchain.ThresholdStateTuple{{
+					State:  blockchain.ThresholdStarted,
+					Choice: uint32(0xffffffff),
+				}},
+			}
+			chain.getVoteCountsErr = errors.New("unable to get vote counts")
+			return chain
+		}(),
+		wantErr: true,
+		errCode: dcrjson.ErrRPCInternal.Code,
+	}, {
+		name:    "handleGetVoteInfo: ok, threshold state != started",
+		handler: handleGetVoteInfo,
+		cmd: &types.GetVoteInfoCmd{
+			Version: v7,
+		},
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.getVoteInfo = &blockchain.VoteInfo{
+				Agendas: defaultChainParams.Deployments[v7],
+				AgendaStatus: []blockchain.ThresholdStateTuple{{
+					State:  blockchain.ThresholdDefined,
+					Choice: uint32(0xffffffff),
+				}},
+			}
+			chain.nextThresholdState = blockchain.ThresholdStateTuple{
+				State:  blockchain.ThresholdDefined,
+				Choice: uint32(0xffffffff),
+			}
+			return chain
+		}(),
+		result: thresholdDefinedResult,
+	}, {
+		name:    "handleGetVoteInfo: ok",
+		handler: handleGetVoteInfo,
+		cmd: &types.GetVoteInfoCmd{
+			Version: v7,
+		},
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.getVoteCounts = blockchain.VoteCounts{
+				Total:        100,
+				TotalAbstain: 20,
+				VoteChoices:  []uint32{20, 10, 70},
+			}
+			chain.getVoteInfo = &blockchain.VoteInfo{
+				Agendas: defaultChainParams.Deployments[v7],
+				AgendaStatus: []blockchain.ThresholdStateTuple{{
+					State:  blockchain.ThresholdStarted,
+					Choice: uint32(0xffffffff),
+				}},
+			}
+			return chain
+		}(),
+		result: okResult,
 	}})
 }
 
