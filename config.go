@@ -47,7 +47,7 @@ const (
 	defaultSigCacheMaxSize = 100000
 
 	// Defaults for RPC server options and policy.
-	defaultTLSCurve             = "P-521"
+	defaultTLSCurve             = "P-256"
 	defaultMaxRPCClients        = 10
 	defaultMaxRPCWebsockets     = 25
 	defaultMaxRPCConcurrentReqs = 20
