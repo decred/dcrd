@@ -58,7 +58,7 @@ Application Options:
       --rpccert=               File containing the certificate file
       --rpckey=                File containing the certificate key
       --tlscurve=              Curve to use when generating the TLS keypair
-                               (default: P-521)
+                               (default: P-256)
       --altdnsnames            Specify additional dns names to use when
                                generating the rpc server certificate
                                [supports DCRD_ALT_DNSNAMES environment variable]
