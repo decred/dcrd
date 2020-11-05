@@ -46,7 +46,7 @@ type config struct {
 
 func main() {
 	cfg := config{
-		Algo:  "P-521",
+		Algo:  "P-256",
 		Years: 10,
 		Org:   "gencerts",
 	}
