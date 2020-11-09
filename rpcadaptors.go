@@ -71,7 +71,8 @@ func (p *rpcPeer) StatsSnapshot() *peer.StatsSnap {
 	return (*serverPeer)(p).Peer.StatsSnapshot()
 }
 
-// LocalAddr returns the local address of the connection.
+// LocalAddr returns the local address of the connection or nil if the peer is
+// not currently connected.
 //
 // This function is safe for concurrent access and is part of the rpcserver.Peer
 // interface implementation.
