@@ -730,7 +730,8 @@ func (p *Peer) LastRecv() time.Time {
 	return time.Unix(atomic.LoadInt64(&p.lastRecv), 0)
 }
 
-// LocalAddr returns the local address of the connection.
+// LocalAddr returns the local address of the connection or nil if the peer is
+// not currently connected.
 //
 // This function is safe for concurrent access.
 func (p *Peer) LocalAddr() net.Addr {

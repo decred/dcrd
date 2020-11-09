@@ -44,7 +44,8 @@ type Peer interface {
 	// StatsSnapshot returns a snapshot of the current peer flags and statistics.
 	StatsSnapshot() *peer.StatsSnap
 
-	// LocalAddr returns the local address of the connection.
+	// LocalAddr returns the local address of the connection or nil if the peer
+	// is not currently connected.
 	LocalAddr() net.Addr
 
 	// LastPingNonce returns the last ping nonce of the remote peer.

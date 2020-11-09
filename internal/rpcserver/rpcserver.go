@@ -2656,10 +2656,14 @@ func handleGetPeerInfo(_ context.Context, s *Server, cmd interface{}) (interface
 	infos := make([]*types.GetPeerInfoResult, 0, len(peers))
 	for _, p := range peers {
 		statsSnap := p.StatsSnapshot()
+		var addrLocalStr string
+		if addrLocal := p.LocalAddr(); addrLocal != nil {
+			addrLocalStr = addrLocal.String()
+		}
 		info := &types.GetPeerInfoResult{
 			ID:             statsSnap.ID,
 			Addr:           statsSnap.Addr,
-			AddrLocal:      p.LocalAddr().String(),
+			AddrLocal:      addrLocalStr,
 			Services:       fmt.Sprintf("%08d", uint64(statsSnap.Services)),
 			RelayTxes:      !p.IsTxRelayDisabled(),
 			LastSend:       statsSnap.LastSend.Unix(),
