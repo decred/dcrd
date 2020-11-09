@@ -34,19 +34,17 @@ type KVCache struct {
 //
 // This function is safe for concurrent access.
 func (m *KVCache) Lookup(key interface{}) (interface{}, bool) {
+	var value interface{}
 	m.mtx.Lock()
 	node, exists := m.cache[key]
 	if exists {
 		m.list.MoveToFront(node)
+		pair := node.Value.(*kv)
+		value = pair.value
 	}
 	m.mtx.Unlock()
 
-	if !exists {
-		return nil, exists
-	}
-
-	pair := node.Value.(*kv)
-	return pair.value, exists
+	return value, exists
 }
 
 // Contains returns whether or not the passed key is a member of the cache.
