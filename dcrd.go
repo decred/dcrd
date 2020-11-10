@@ -17,7 +17,7 @@ import (
 	"runtime/pprof"
 	"strings"
 
-	"github.com/decred/dcrd/blockchain/v3/indexers"
+	"github.com/decred/dcrd/blockchain/v4/indexers"
 	"github.com/decred/dcrd/internal/limits"
 	"github.com/decred/dcrd/internal/version"
 )

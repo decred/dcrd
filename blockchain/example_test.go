@@ -11,7 +11,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/decred/dcrd/blockchain/v3"
+	"github.com/decred/dcrd/blockchain/v4"
 	"github.com/decred/dcrd/chaincfg/v3"
 	"github.com/decred/dcrd/database/v2"
 	_ "github.com/decred/dcrd/database/v2/ffldb"
