@@ -21,7 +21,7 @@ import (
 	"time"
 
 	"github.com/decred/dcrd/certgen"
-	rpc "github.com/decred/dcrd/rpcclient/v6"
+	rpc "github.com/decred/dcrd/rpcclient/v7"
 )
 
 // nodeConfig contains all the args, and data required to launch a dcrd process
