@@ -1,4 +1,4 @@
-module github.com/decred/dcrd/gcs/v2
+module github.com/decred/dcrd/gcs/v3
 
 go 1.11
 
