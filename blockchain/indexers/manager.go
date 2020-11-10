@@ -9,7 +9,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/decred/dcrd/blockchain/v3/internal/progresslog"
+	"github.com/decred/dcrd/blockchain/v4/internal/progresslog"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/chaincfg/v3"
 	"github.com/decred/dcrd/database/v2"

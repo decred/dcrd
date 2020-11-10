@@ -10,7 +10,7 @@ require (
 	github.com/decred/dcrd/bech32 v1.1.1
 	github.com/decred/dcrd/blockchain/stake/v3 v3.0.0
 	github.com/decred/dcrd/blockchain/standalone/v2 v2.0.0
-	github.com/decred/dcrd/blockchain/v3 v3.0.0
+	github.com/decred/dcrd/blockchain/v4 v4.0.0
 	github.com/decred/dcrd/certgen v1.1.1
 	github.com/decred/dcrd/chaincfg/chainhash v1.0.2
 	github.com/decred/dcrd/chaincfg/v3 v3.0.0
@@ -45,7 +45,7 @@ replace (
 	github.com/decred/dcrd/bech32 => ./bech32
 	github.com/decred/dcrd/blockchain/stake/v3 => ./blockchain/stake
 	github.com/decred/dcrd/blockchain/standalone/v2 => ./blockchain/standalone
-	github.com/decred/dcrd/blockchain/v3 => ./blockchain
+	github.com/decred/dcrd/blockchain/v4 => ./blockchain
 	github.com/decred/dcrd/certgen => ./certgen
 	github.com/decred/dcrd/chaincfg/chainhash => ./chaincfg/chainhash
 	github.com/decred/dcrd/chaincfg/v3 => ./chaincfg
