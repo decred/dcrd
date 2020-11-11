@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/hex"
+	"errors"
 	"math/rand"
 	"testing"
 	"time"
@@ -465,12 +466,12 @@ func TestFilterCorners(t *testing.T) {
 	const largeP = 33
 	var key [KeySize]byte
 	_, err := NewFilterV1(largeP, key, nil)
-	if !IsErrorCode(err, ErrPTooBig) {
+	if !errors.Is(err, ErrPTooBig) {
 		t.Fatalf("did not receive expected err for P too big -- got %v, want %v",
 			err, ErrPTooBig)
 	}
 	_, err = FromBytesV1(largeP, nil)
-	if !IsErrorCode(err, ErrPTooBig) {
+	if !errors.Is(err, ErrPTooBig) {
 		t.Fatalf("did not receive expected err for P too big -- got %v, want %v",
 			err, ErrPTooBig)
 	}
@@ -479,19 +480,19 @@ func TestFilterCorners(t *testing.T) {
 	const largeB = 33
 	const smallM = 1 << 10
 	_, err = NewFilterV2(largeB, smallM, key, nil)
-	if !IsErrorCode(err, ErrBTooBig) {
+	if !errors.Is(err, ErrBTooBig) {
 		t.Fatalf("did not receive expected err for B too big -- got %v, want %v",
 			err, ErrBTooBig)
 	}
 	_, err = FromBytesV2(largeB, smallM, nil)
-	if !IsErrorCode(err, ErrBTooBig) {
+	if !errors.Is(err, ErrBTooBig) {
 		t.Fatalf("did not receive expected err for B too big -- got %v, want %v",
 			err, ErrBTooBig)
 	}
 
 	// Attempt to decode a v1 filter without the N value serialized properly.
 	_, err = FromBytesV1(20, []byte{0x00})
-	if !IsErrorCode(err, ErrMisserialized) {
+	if !errors.Is(err, ErrMisserialized) {
 		t.Fatalf("did not receive expected err -- got %v, want %v", err,
 			ErrMisserialized)
 	}

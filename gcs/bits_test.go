@@ -7,6 +7,7 @@ package gcs
 import (
 	"bytes"
 	"encoding/hex"
+	"errors"
 	"io"
 	"testing"
 )
@@ -340,7 +341,7 @@ nextTest:
 			// Read unary and ensure expected result if requested.
 			if prTest.doUnary {
 				gotUnary, err := r.readUnary()
-				if err != prTest.unaryErr {
+				if !errors.Is(err, prTest.unaryErr) {
 					t.Errorf("%q-%q: unexpected unary err -- got %v, want %v",
 						test.name, prTest.name, err, prTest.unaryErr)
 					continue nextTest
@@ -359,7 +360,7 @@ nextTest:
 			// Read specified number of bits as uint64 and ensure expected
 			// result.
 			gotVal, err := r.readNBits(prTest.nValBits)
-			if err != prTest.bitsErr {
+			if !errors.Is(err, prTest.bitsErr) {
 				t.Errorf("%q-%q: unexpected nbits err -- got %v, want %v",
 					test.name, prTest.name, err, prTest.bitsErr)
 				continue nextTest
