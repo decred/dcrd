@@ -5,33 +5,27 @@
 package gcs
 
 import (
+	"errors"
+	"io"
 	"testing"
 )
 
-// TestErrorCodeStringer tests the stringized output for the ErrorCode type.
-func TestErrorCodeStringer(t *testing.T) {
+// TestErrorKindStringer tests the stringized output for the ErrorKind type.
+func TestErrorKindStringer(t *testing.T) {
 	tests := []struct {
-		in   ErrorCode
+		in   ErrorKind
 		want string
 	}{
 		{ErrNTooBig, "ErrNTooBig"},
 		{ErrPTooBig, "ErrPTooBig"},
 		{ErrBTooBig, "ErrBTooBig"},
 		{ErrMisserialized, "ErrMisserialized"},
-		{0xffff, "Unknown ErrorCode (65535)"},
 	}
 
-	// Detect additional error codes that don't have the stringer added.
-	if len(tests)-1 != int(numErrorCodes) {
-		t.Errorf("It appears an error code was added without adding an " +
-			"associated stringer test")
-	}
-
-	t.Logf("Running %d tests", len(tests))
 	for i, test := range tests {
-		result := test.in.String()
+		result := test.in.Error()
 		if result != test.want {
-			t.Errorf("String #%d\n got: %s want: %s", i, result, test.want)
+			t.Errorf("%d: got: %s want: %s", i, result, test.want)
 			continue
 		}
 	}
@@ -51,59 +45,92 @@ func TestError(t *testing.T) {
 	},
 	}
 
-	t.Logf("Running %d tests", len(tests))
 	for i, test := range tests {
 		result := test.in.Error()
 		if result != test.want {
-			t.Errorf("Error #%d\n got: %s want: %s", i, result, test.want)
+			t.Errorf("%d: got: %s want: %s", i, result, test.want)
 			continue
 		}
 	}
 }
 
-// TestIsErrorCode ensures IsErrorCode works as intended.
-func TestIsErrorCode(t *testing.T) {
+// TestErrorKindIsAs ensures both ErrorKind and Error can be identified as being
+// a specific error kind via errors.Is and unwrapped via errors.As.
+func TestErrorKindIsAs(t *testing.T) {
 	tests := []struct {
-		name string
-		err  error
-		code ErrorCode
-		want bool
+		name      string
+		err       error
+		target    error
+		wantMatch bool
+		wantAs    ErrorKind
 	}{{
-		name: "ErrNTooBig testing for ErrNTooBig",
-		err:  makeError(ErrNTooBig, ""),
-		code: ErrNTooBig,
-		want: true,
+		name:      "ErrNTooBig == ErrNTooBig",
+		err:       ErrNTooBig,
+		target:    ErrNTooBig,
+		wantMatch: true,
+		wantAs:    ErrNTooBig,
 	}, {
-		name: "ErrPTooBig testing for ErrPTooBig",
-		err:  makeError(ErrPTooBig, ""),
-		code: ErrPTooBig,
-		want: true,
+		name:      "Error.ErrNTooBig == ErrNTooBig",
+		err:       makeError(ErrNTooBig, ""),
+		target:    ErrNTooBig,
+		wantMatch: true,
+		wantAs:    ErrNTooBig,
 	}, {
-		name: "ErrMisserialized testing for ErrMisserialized",
-		err:  makeError(ErrMisserialized, ""),
-		code: ErrMisserialized,
-		want: true,
+		name:      "Error.ErrNTooBig == Error.ErrNTooBig",
+		err:       makeError(ErrNTooBig, ""),
+		target:    makeError(ErrNTooBig, ""),
+		wantMatch: true,
+		wantAs:    ErrNTooBig,
 	}, {
-		name: "ErrNTooBig error testing for ErrPTooBig",
-		err:  makeError(ErrNTooBig, ""),
-		code: ErrPTooBig,
-		want: false,
+		name:      "ErrNTooBig != ErrPTooBig",
+		err:       ErrNTooBig,
+		target:    ErrPTooBig,
+		wantMatch: false,
+		wantAs:    ErrNTooBig,
 	}, {
-		name: "ErrNTooBig error testing for unknown error code",
-		err:  makeError(ErrNTooBig, ""),
-		code: 0xffff,
-		want: false,
+		name:      "Error.ErrNTooBig != ErrPTooBig",
+		err:       makeError(ErrNTooBig, ""),
+		target:    ErrPTooBig,
+		wantMatch: false,
+		wantAs:    ErrNTooBig,
 	}, {
-		name: "nil error testing for ErrNTooBig",
-		err:  nil,
-		code: ErrNTooBig,
-		want: false,
+		name:      "ErrNTooBig != Error.ErrPTooBig",
+		err:       ErrNTooBig,
+		target:    makeError(ErrPTooBig, ""),
+		wantMatch: false,
+		wantAs:    ErrNTooBig,
+	}, {
+		name:      "Error.ErrNTooBig != Error.ErrPTooBig",
+		err:       makeError(ErrNTooBig, ""),
+		target:    makeError(ErrPTooBig, ""),
+		wantMatch: false,
+		wantAs:    ErrNTooBig,
+	}, {
+		name:      "Error.ErrMisserialized != io.EOF",
+		err:       makeError(ErrMisserialized, ""),
+		target:    io.EOF,
+		wantMatch: false,
+		wantAs:    ErrMisserialized,
 	}}
 	for _, test := range tests {
-		result := IsErrorCode(test.err, test.code)
-		if result != test.want {
-			t.Errorf("%s: unexpected result -- got: %v want: %v", test.name,
-				result, test.want)
+		// Ensure the error matches or not depending on the expected result.
+		result := errors.Is(test.err, test.target)
+		if result != test.wantMatch {
+			t.Errorf("%s: incorrect error identification -- got %v, want %v",
+				test.name, result, test.wantMatch)
+			continue
+		}
+
+		// Ensure the underlying error kind can be unwrapped and is the
+		// expected kind.
+		var kind ErrorKind
+		if !errors.As(test.err, &kind) {
+			t.Errorf("%s: unable to unwrap to error kind", test.name)
+			continue
+		}
+		if kind != test.wantAs {
+			t.Errorf("%s: unexpected unwrapped error kind -- got %v, want %v",
+				test.name, kind, test.wantAs)
 			continue
 		}
 	}
