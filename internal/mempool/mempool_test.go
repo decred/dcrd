@@ -2749,17 +2749,6 @@ func (p *poolHarness) countTotalSigOps(tx *dcrutil.Tx, txType stake.TxType) (int
 	return sigOps + p2shSigOps, nil
 }
 
-// descendants returns a collection of transactions in the graph that depend on
-// the provided transaction hash.
-func (g *txDescGraph) descendants(txHash *chainhash.Hash) []*chainhash.Hash {
-	seen := map[chainhash.Hash]struct{}{}
-	descendants := make([]*chainhash.Hash, 0)
-	g.forEachDescendant(txHash, seen, func(descendant *mining.TxDesc) {
-		descendants = append(descendants, descendant.Tx.Hash())
-	})
-	return descendants
-}
-
 // Tests the behavior of the mining view when returned from a mempool with
 // containing a transaction chain depicted as:
 //
@@ -2965,7 +2954,7 @@ func TestMiningView(t *testing.T) {
 		}
 
 		// Get snapshot of transaction relationships as they exist in the pool.
-		descendants := harness.txPool.miningView.txGraph.descendants(txHash)
+		descendants := harness.txPool.miningView.Descendants(txHash)
 
 		if len(test.ancestors) != len(ancestors) {
 			t.Fatalf("%v: expected subject txn to have %v ancestors, got %v",
@@ -3190,7 +3179,7 @@ func TestAncestorTrackingLimits(t *testing.T) {
 	// Add a chain of transactions to the mempool.
 	var allTxns []*dcrutil.Tx
 	prevSpendableOut := spendableOuts[0]
-	for i := 0; i < ancestorTrackingLimit+2; i++ {
+	for i := 0; i < mining.AncestorTrackingLimit+2; i++ {
 		tx, _ := harness.CreateSignedTx([]spendableOutput{
 			prevSpendableOut,
 		}, 1)
@@ -3217,12 +3206,12 @@ func TestAncestorTrackingLimits(t *testing.T) {
 	for len(allTxnsQueue) > 0 {
 		for index, tx := range allTxnsQueue {
 			_, hasStats := harness.txPool.miningView.AncestorStats(tx.Hash())
-			if index <= ancestorTrackingLimit && !hasStats {
+			if index <= mining.AncestorTrackingLimit && !hasStats {
 				t.Fatalf("expected transaction %v at index %v to have ancestor"+
 					" tracking enabled", tx.Hash(), index)
 			}
 
-			if index > ancestorTrackingLimit && hasStats {
+			if index > mining.AncestorTrackingLimit && hasStats {
 				t.Fatalf("expected transaction %v at index %v to not have "+
 					"ancestor tracking enabled", tx.Hash(), index)
 			}
@@ -3264,12 +3253,12 @@ func TestAncestorTrackingLimits(t *testing.T) {
 	for index, tx := range allTxns {
 		txHash := tx.Hash()
 		_, hasStats := harness.txPool.miningView.AncestorStats(txHash)
-		if index <= ancestorTrackingLimit && !hasStats {
+		if index <= mining.AncestorTrackingLimit && !hasStats {
 			t.Fatalf("expected transaction %v at index %v to have ancestor"+
 				" tracking enabled", txHash, index)
 		}
 
-		if index > ancestorTrackingLimit && hasStats {
+		if index > mining.AncestorTrackingLimit && hasStats {
 			t.Fatalf("expected transaction %v at index %v to not have "+
 				"ancestor tracking enabled", txHash, index)
 		}
