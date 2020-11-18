@@ -22,54 +22,6 @@ type PriorityInputser interface {
 	PriorityInput(prevOut *wire.OutPoint) (blockHeight int64, amount int64, ok bool)
 }
 
-// TxMiningView is a snapshot of the tx source.
-type TxMiningView interface {
-	// TxDescs returns a slice of mining descriptors for all minable
-	// transactions in the source pool.
-	TxDescs() []*TxDesc
-
-	// AncestorStats returns the last known ancestor stats for the provided
-	// transaction hash, and a boolean indicating whether ancestors are being
-	// tracked for it.
-	//
-	// Calling Ancestors will update the value returned by this function to
-	// reflect the newly calculated statistics for those ancestors.
-	AncestorStats(txHash *chainhash.Hash) (*TxAncestorStats, bool)
-
-	// Ancestors returns all transactions in the mining view that the provided
-	// transaction hash depends on.
-	Ancestors(txHash *chainhash.Hash) []*TxDesc
-
-	// HasParents returns true if the provided transaction hash has any
-	// ancestors known to the view.
-	HasParents(txHash *chainhash.Hash) bool
-
-	// Parents returns a set of transactions in the graph that the provided
-	// transaction hash spends from in the view. The order of elements
-	// returned is not guaranteed.
-	Parents(txHash *chainhash.Hash) []*TxDesc
-
-	// Children returns a set of transactions in the graph that spend
-	// from the provided transaction hash. The order of elements
-	// returned is not guaranteed.
-	Children(txHash *chainhash.Hash) []*TxDesc
-
-	// Remove causes the provided transaction to be removed from the view, if
-	// it exists. The updateDescendantStats parameter indicates whether the
-	// descendent transactions of the provided txHash should have their ancestor
-	// stats updated within the view to account for the removal of this
-	// transaction.
-	Remove(txHash *chainhash.Hash, updateDescendantStats bool)
-
-	// Reject removes and flags the provided transaction hash and all of its
-	// descendants in the view as rejected.
-	Reject(txHash *chainhash.Hash)
-
-	// IsRejected checks to see if a transaction that once existed in the view
-	// has been rejected.
-	IsRejected(txHash *chainhash.Hash) bool
-}
-
 // TxSource represents a source of transactions to consider for inclusion in
 // new blocks.
 //
@@ -104,7 +56,7 @@ type TxSource interface {
 	IsRegTxTreeKnownDisapproved(hash *chainhash.Hash) bool
 
 	// MiningView returns a snapshot of the underlying TxSource.
-	MiningView() TxMiningView
+	MiningView() *TxMiningView
 }
 
 // blockManagerFacade provides the mining package with a subset of
