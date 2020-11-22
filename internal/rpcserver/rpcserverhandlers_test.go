@@ -5276,24 +5276,6 @@ func TestHandleSearchRawTransactions(t *testing.T) {
 		wantErr: true,
 		errCode: dcrjson.ErrRPCBlockNotFound,
 	}, {
-		name:    "handleSearchRawTransactions: failed to obtain block height",
-		handler: handleSearchRawTransactions,
-		cmd: &types.SearchRawTransactionsCmd{
-			Address:  address,
-			VinExtra: dcrjson.Int(1),
-			Verbose:  dcrjson.Int(1),
-		},
-		mockAddrIndexer: addrIndexer,
-		mockDB:          db,
-		mockTxIndexer:   txIndexer,
-		mockChain: func() *testRPCChain {
-			chain := defaultMockRPCChain()
-			chain.blockHeightByHashErr = errors.New("failed to obtain block height")
-			return chain
-		}(),
-		wantErr: true,
-		errCode: dcrjson.ErrRPCInternal.Code,
-	}, {
 		name:    "handleSearchRawTransactions: failed to retrieve tx location",
 		handler: handleSearchRawTransactions,
 		cmd: &types.SearchRawTransactionsCmd{

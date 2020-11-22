@@ -501,18 +501,6 @@ func newWorkState() *workState {
 	}
 }
 
-// isTreasuryAgendaActive returns if the treasury agenda is active or not.
-func isTreasuryAgendaActive(s *Server) (bool, error) {
-	chain := s.cfg.Chain
-	hash := chain.BestSnapshot().Hash
-	isTreasuryEnabled, err := chain.IsTreasuryAgendaActive(&hash)
-	if err != nil {
-		context := "Could not obtain treasury agenda status"
-		return false, rpcInternalError(err.Error(), context)
-	}
-	return isTreasuryEnabled, nil
-}
-
 // handleAddNode handles addnode commands.
 func handleAddNode(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
 	c := cmd.(*types.AddNodeCmd)
@@ -1146,7 +1134,6 @@ func createVinList(mtx *wire.MsgTx, isTreasuryEnabled bool) []types.Vin {
 // createVoutList returns a slice of JSON objects for the outputs of the passed
 // transaction.
 func createVoutList(mtx *wire.MsgTx, chainParams *chaincfg.Params, filterAddrMap map[string]struct{}, isTreasuryEnabled bool) []types.Vout {
-
 	txType := stake.DetermineTxType(mtx, isTreasuryEnabled)
 	voutList := make([]types.Vout, 0, len(mtx.TxOut))
 	for i, v := range mtx.TxOut {
@@ -1294,7 +1281,9 @@ func handleDecodeRawTransaction(_ context.Context, s *Server, cmd interface{}) (
 			err)
 	}
 
-	isTreasuryEnabled, err := isTreasuryAgendaActive(s)
+	// Determine if the treasury rules are active as of the current best tip.
+	prevBlkHash := s.cfg.Chain.BestSnapshot().Hash
+	isTreasuryEnabled, err := s.isTreasuryAgendaActive(&prevBlkHash)
 	if err != nil {
 		return nil, err
 	}
@@ -1335,7 +1324,9 @@ func handleDecodeScript(_ context.Context, s *Server, cmd interface{}) (interfac
 	// doesn't fully parse, so ignore the error here.
 	disbuf, _ := txscript.DisasmString(script)
 
-	isTreasuryEnabled, err := isTreasuryAgendaActive(s)
+	// Determine if the treasury rules are active as of the current best tip.
+	prevBlkHash := s.cfg.Chain.BestSnapshot().Hash
+	isTreasuryEnabled, err := s.isTreasuryAgendaActive(&prevBlkHash)
 	if err != nil {
 		return nil, err
 	}
@@ -1933,7 +1924,8 @@ func handleGetBlock(_ context.Context, s *Server, cmd interface{}) (interface{},
 		NextHash:      nextHashString,
 	}
 
-	isTreasuryEnabled, err := isTreasuryAgendaActive(s)
+	// Determine if the treasury rules are active for the block.
+	isTreasuryEnabled, err := s.isTreasuryAgendaActive(&blockHeader.PrevBlock)
 	if err != nil {
 		return nil, err
 	}
@@ -2193,10 +2185,26 @@ func handleGetBlockSubsidy(_ context.Context, s *Server, cmd interface{}) (inter
 	height := c.Height
 	voters := c.Voters
 
-	isTreasuryEnabled, err := isTreasuryAgendaActive(s)
+	// Determine if the treasury rules are active as of the provided height when
+	// that height exists in the main chain or as of the current best tip
+	// otherwise.
+	chain := s.cfg.Chain
+	best := chain.BestSnapshot()
+	prevBlkHash := best.Hash
+	if height <= best.Height {
+		header, err := chain.HeaderByHeight(height)
+		if err != nil {
+			context := fmt.Sprintf("Failed to retrieve header for height %d",
+				height)
+			return nil, rpcInternalError(err.Error(), context)
+		}
+		prevBlkHash = header.PrevBlock
+	}
+	isTreasuryEnabled, err := s.isTreasuryAgendaActive(&prevBlkHash)
 	if err != nil {
 		return nil, err
 	}
+
 	dev := s.cfg.SubsidyCache.CalcTreasurySubsidy(height, voters,
 		isTreasuryEnabled)
 	pos := s.cfg.SubsidyCache.CalcStakeVoteSubsidy(height-1) * int64(voters)
@@ -2796,6 +2804,7 @@ func handleGetRawTransaction(_ context.Context, s *Server, cmd interface{}) (int
 	var blkHash *chainhash.Hash
 	var blkHeight int64
 	var blkIndex uint32
+	chain := s.cfg.Chain
 	tx, err := s.cfg.TxMempooler.FetchTransaction(txHash)
 	if err != nil {
 		if s.cfg.TxIndexer == nil {
@@ -2835,7 +2844,7 @@ func handleGetRawTransaction(_ context.Context, s *Server, cmd interface{}) (int
 
 		// Grab the block details.
 		blkHash = blockRegion.Hash
-		blkHeight, err = s.cfg.Chain.BlockHeightByHash(blkHash)
+		blkHeight, err = chain.BlockHeightByHash(blkHash)
 		if err != nil {
 			context := "Failed to retrieve block height"
 			return nil, rpcInternalError(err.Error(), context)
@@ -2872,23 +2881,33 @@ func handleGetRawTransaction(_ context.Context, s *Server, cmd interface{}) (int
 	// The verbose flag is set, so generate the JSON object and return it.
 	var (
 		blkHeader     *wire.BlockHeader
+		prevBlkHash   chainhash.Hash
 		blkHashStr    string
 		confirmations int64
 	)
 	if blkHash != nil {
 		// Fetch the header from chain.
-		header, err := s.cfg.Chain.HeaderByHash(blkHash)
+		header, err := chain.HeaderByHash(blkHash)
 		if err != nil {
 			context := "Failed to fetch block header"
 			return nil, rpcInternalError(err.Error(), context)
 		}
 
 		blkHeader = &header
+		prevBlkHash = header.PrevBlock
 		blkHashStr = blkHash.String()
-		confirmations = 1 + s.cfg.Chain.BestSnapshot().Height - blkHeight
+		confirmations = 1 + chain.BestSnapshot().Height - blkHeight
+	} else {
+		// The transaction was obtained from the mempool when there is no block
+		// hash set, so the previous block hash is the current best chain tip in
+		// that case.
+		prevBlkHash = chain.BestSnapshot().Hash
 	}
 
-	isTreasuryEnabled, err := isTreasuryAgendaActive(s)
+	// Determine if the treasury rules are active as of either the block the
+	// contains the transaction or the current best tip when it is in the
+	// mempool.
+	isTreasuryEnabled, err := s.isTreasuryAgendaActive(&prevBlkHash)
 	if err != nil {
 		return nil, err
 	}
@@ -3485,10 +3504,8 @@ func handleGetTxOut(_ context.Context, s *Server, cmd interface{}) (interface{},
 		return nil, rpcDecodeHexError(c.Txid)
 	}
 
-	isTreasuryEnabled, err := isTreasuryAgendaActive(s)
-	if err != nil {
-		return nil, err
-	}
+	chain := s.cfg.Chain
+	best := chain.BestSnapshot()
 
 	// If requested and the tx is available in the mempool try to fetch it
 	// from there, otherwise attempt to fetch from the block database.
@@ -3499,6 +3516,7 @@ func handleGetTxOut(_ context.Context, s *Server, cmd interface{}) (interface{},
 	var scriptVersion uint16
 	var pkScript []byte
 	var isCoinbase bool
+	var isTreasuryEnabled bool
 	includeMempool := true
 	if c.IncludeMempool != nil {
 		includeMempool = *c.IncludeMempool
@@ -3524,7 +3542,14 @@ func handleGetTxOut(_ context.Context, s *Server, cmd interface{}) (interface{},
 			return nil, rpcInternalError(errStr, "")
 		}
 
-		best := s.cfg.Chain.BestSnapshot()
+		// The transaction output in question is from the mempool, so determine
+		// if the treasury rules are active from the point of view of the
+		// current best tip.
+		isTreasuryEnabled, err = s.isTreasuryAgendaActive(&best.PrevHash)
+		if err != nil {
+			return nil, err
+		}
+
 		bestBlockHash = best.Hash.String()
 		confirmations = 0
 		txVersion = mtx.Version
@@ -3533,7 +3558,7 @@ func handleGetTxOut(_ context.Context, s *Server, cmd interface{}) (interface{},
 		pkScript = txOut.PkScript
 		isCoinbase = standalone.IsCoinBaseTx(mtx, isTreasuryEnabled)
 	} else {
-		entry, err := s.cfg.Chain.FetchUtxoEntry(txHash)
+		entry, err := chain.FetchUtxoEntry(txHash)
 		if err != nil {
 			context := "Failed to retrieve utxo entry"
 			return nil, rpcInternalError(err.Error(), context)
@@ -3549,7 +3574,19 @@ func handleGetTxOut(_ context.Context, s *Server, cmd interface{}) (interface{},
 			return nil, nil
 		}
 
-		best := s.cfg.Chain.BestSnapshot()
+		// Determine if the treasury rules are active for the block containing
+		// the txout in question.
+		header, err := chain.HeaderByHeight(entry.BlockHeight())
+		if err != nil {
+			context := fmt.Sprintf("Failed to retrieve header for height %d",
+				entry.BlockHeight())
+			return nil, rpcInternalError(err.Error(), context)
+		}
+		isTreasuryEnabled, err = s.isTreasuryAgendaActive(&header.PrevBlock)
+		if err != nil {
+			return nil, err
+		}
+
 		bestBlockHash = best.Hash.String()
 		confirmations = 1 + best.Height - entry.BlockHeight()
 		txVersion = entry.TxVersion()
@@ -4268,7 +4305,7 @@ func handleSearchRawTransactions(_ context.Context, s *Server, cmd interface{}) 
 	numRequested := 100
 	if c.Count != nil {
 		numRequested = *c.Count
-		maxCount := 10000
+		const maxCount = 10000
 		if numRequested < 0 {
 			numRequested = 1
 		} else if numRequested > maxCount {
@@ -4304,9 +4341,9 @@ func handleSearchRawTransactions(_ context.Context, s *Server, cmd interface{}) 
 	numSkipped := uint32(0)
 	addressTxns := make([]retrievedTx, 0, numRequested)
 	if reverse {
-		// Transactions in the mempool are not in a block header yet,
-		// so the block header and block index fields in the retrieved
-		// transaction struct are left unset.
+		// Transactions in the mempool are not in a block yet, so the block and
+		// block index fields in the retrieved transaction struct are left
+		// unset.
 		mpTxns, mpSkipped := fetchMempoolTxnsForAddress(s, addr,
 			uint32(numToSkip), uint32(numRequested))
 		numSkipped += mpSkipped
@@ -4343,8 +4380,6 @@ func handleSearchRawTransactions(_ context.Context, s *Server, cmd interface{}) 
 			// requested non-verbose output and hence there would
 			// be no point in deserializing it just to reserialize
 			// it later.
-			//
-			// TODO: Update txindex to provide block index.
 			for i, serializedTx := range serializedTxns {
 				addressTxns = append(addressTxns, retrievedTx{
 					txBytes:  serializedTx,
@@ -4365,9 +4400,8 @@ func handleSearchRawTransactions(_ context.Context, s *Server, cmd interface{}) 
 	// Add transactions from mempool last if client did not request reverse
 	// order and the number of results is still under the number requested.
 	if !reverse && len(addressTxns) < numRequested {
-		// Transactions in the mempool are not in a block header yet,
-		// so the block header field in the retrieved transaction
-		// struct is left nil.
+		// Transactions in the mempool are not in a block yet, so the block
+		// field in the retrieved transaction struct is left nil.
 		mpTxns, mpSkipped := fetchMempoolTxnsForAddress(s, addr,
 			uint32(numToSkip)-numSkipped, uint32(numRequested-
 				len(addressTxns)))
@@ -4415,13 +4449,17 @@ func handleSearchRawTransactions(_ context.Context, s *Server, cmd interface{}) 
 		}
 	}
 
-	isTreasuryEnabled, err := isTreasuryAgendaActive(s)
+	// The verbose flag is set, so generate the JSON object and return it.
+
+	// Determine if the treasury rules are active as of the current best tip for
+	// transactions in the mempool.
+	chain := s.cfg.Chain
+	best := chain.BestSnapshot()
+	isTreasuryEnabledMempool, err := s.isTreasuryAgendaActive(&best.PrevHash)
 	if err != nil {
 		return nil, err
 	}
 
-	// The verbose flag is set, so generate the JSON object and return it.
-	best := s.cfg.Chain.BestSnapshot()
 	chainParams := s.cfg.ChainParams
 	srtList := make([]types.SearchRawTransactionsResult, len(addressTxns))
 	for i := range addressTxns {
@@ -4444,21 +4482,6 @@ func handleSearchRawTransactions(_ context.Context, s *Server, cmd interface{}) 
 			mtx = rtx.tx.MsgTx()
 		}
 
-		result := &srtList[i]
-		result.Hex = hexTxns[i]
-		result.Txid = mtx.TxHash().String()
-		result.Vin, err = createVinListPrevOut(s, mtx, s.cfg.ChainParams,
-			vinExtra, filterAddrMap, isTreasuryEnabled)
-		if err != nil {
-			return nil, rpcInternalError(err.Error(),
-				"Could not create vin list")
-		}
-		result.Vout = createVoutList(mtx, chainParams, filterAddrMap,
-			isTreasuryEnabled)
-		result.Version = int32(mtx.Version)
-		result.LockTime = mtx.LockTime
-		result.Expiry = mtx.Expiry
-
 		// Transactions grabbed from the mempool aren't yet in a block,
 		// so conditionally fetch block details here.  This will be
 		// reflected in the final JSON output (mempool won't have
@@ -4467,6 +4490,7 @@ func handleSearchRawTransactions(_ context.Context, s *Server, cmd interface{}) 
 		var blkHashStr string
 		var blkHeight int64
 		var blkIndex uint32
+		isTreasuryEnabled := isTreasuryEnabledMempool
 		if blkHash := rtx.blkHash; blkHash != nil {
 			// Fetch the header from chain.
 			header, err := s.cfg.Chain.HeaderByHash(blkHash)
@@ -4477,18 +4501,34 @@ func handleSearchRawTransactions(_ context.Context, s *Server, cmd interface{}) 
 				}
 			}
 
-			// Get the block height from chain.
-			height, err := s.cfg.Chain.BlockHeightByHash(blkHash)
+			// Determine if the treasury rules are active for the block that
+			// contains the transaction.
+			prevBlkHash := header.PrevBlock
+			isTreasuryEnabled, err = s.isTreasuryAgendaActive(&prevBlkHash)
 			if err != nil {
-				context := "Failed to obtain block height"
-				return nil, rpcInternalError(err.Error(), context)
+				return nil, err
 			}
 
 			blkHeader = &header
 			blkHashStr = blkHash.String()
-			blkHeight = height
+			blkHeight = int64(header.Height)
 			blkIndex = rtx.blkIndex
 		}
+
+		result := &srtList[i]
+		result.Hex = hexTxns[i]
+		result.Txid = mtx.TxHash().String()
+		result.Vin, err = createVinListPrevOut(s, mtx, s.cfg.ChainParams,
+			vinExtra, filterAddrMap, isTreasuryEnabled)
+		if err != nil {
+			context := "Could not create vin list"
+			return nil, rpcInternalError(err.Error(), context)
+		}
+		result.Vout = createVoutList(mtx, chainParams, filterAddrMap,
+			isTreasuryEnabled)
+		result.Version = int32(mtx.Version)
+		result.LockTime = mtx.LockTime
+		result.Expiry = mtx.Expiry
 
 		// Add the block information to the result if there is any.
 		if blkHeader != nil {
@@ -4566,7 +4606,9 @@ func handleSendRawTransaction(_ context.Context, s *Server, cmd interface{}) (in
 	// Notify websocket clients of all newly accepted transactions.
 	s.NotifyNewTransactions(acceptedTxs)
 
-	isTreasuryEnabled, err := isTreasuryAgendaActive(s)
+	// Determine if the treasury rules are active as of the current best tip.
+	prevBlkHash := s.cfg.Chain.BestSnapshot().Hash
+	isTreasuryEnabled, err := s.isTreasuryAgendaActive(&prevBlkHash)
 	if err != nil {
 		return nil, err
 	}
@@ -4576,7 +4618,8 @@ func handleSendRawTransaction(_ context.Context, s *Server, cmd interface{}) (in
 	//
 	// Note that votes are only valid for a specific block and are time
 	// sensitive, so they should not be added to the rebroadcast logic.
-	if txType := stake.DetermineTxType(msgtx, isTreasuryEnabled); txType != stake.TxTypeSSGen {
+	txType := stake.DetermineTxType(msgtx, isTreasuryEnabled)
+	if txType != stake.TxTypeSSGen {
 		iv := wire.NewInvVect(wire.InvTypeTx, tx.Hash())
 		s.cfg.ConnMgr.AddRebroadcastInventory(iv, tx)
 	}
@@ -4771,15 +4814,17 @@ func calcFeePerKb(tx *dcrutil.Tx) dcrutil.Amount {
 	return ((in - out) * 1000) / dcrutil.Amount(tx.MsgTx().SerializeSize())
 }
 
-// feeInfoForBlock fetches the ticket fee information for a given tx type in a
-// block.
+// ticketFeeInfoForBlock fetches the ticket fee information for a given tx type
+// in a block.
 func ticketFeeInfoForBlock(s *Server, height int64, txType stake.TxType) (*types.FeeInfoBlock, error) {
 	bl, err := s.cfg.Chain.BlockByHeight(height)
 	if err != nil {
 		return nil, err
 	}
 
-	isTreasuryEnabled, err := isTreasuryAgendaActive(s)
+	// Determine if the treasury rules are active for the block.
+	prevBlkHash := bl.MsgBlock().Header.PrevBlock
+	isTreasuryEnabled, err := s.isTreasuryAgendaActive(&prevBlkHash)
 	if err != nil {
 		return nil, err
 	}
@@ -4833,19 +4878,15 @@ func ticketFeeInfoForBlock(s *Server, height int64, txType stake.TxType) (*types
 // ticketFeeInfoForRange fetches the ticket fee information for a given range
 // from [start, end).
 func ticketFeeInfoForRange(s *Server, start int64, end int64, txType stake.TxType) (*types.FeeInfoWindow, error) {
-	hashes, err := s.cfg.Chain.HeightRange(start, end)
-	if err != nil {
-		return nil, err
-	}
-
-	isTreasuryEnabled, err := isTreasuryAgendaActive(s)
+	chain := s.cfg.Chain
+	hashes, err := chain.HeightRange(start, end)
 	if err != nil {
 		return nil, err
 	}
 
 	var txFees []dcrutil.Amount
 	for i := range hashes {
-		bl, err := s.cfg.Chain.BlockByHash(&hashes[i])
+		bl, err := chain.BlockByHash(&hashes[i])
 		if err != nil {
 			return nil, err
 		}
@@ -4860,6 +4901,13 @@ func ticketFeeInfoForRange(s *Server, start int64, end int64, txType stake.TxTyp
 				txFees = append(txFees, calcFeePerKb(tx))
 			}
 		} else {
+			// Determine if the treasury rules are active for the block.
+			prevBlkHash := bl.MsgBlock().Header.PrevBlock
+			isTreasuryEnabled, err := s.isTreasuryAgendaActive(&prevBlkHash)
+			if err != nil {
+				return nil, err
+			}
+
 			for _, stx := range bl.STransactions() {
 				thisTxType := stake.DetermineTxType(stx.MsgTx(),
 					isTreasuryEnabled)
@@ -4974,12 +5022,15 @@ func handleTicketsForAddress(_ context.Context, s *Server, cmd interface{}) (int
 		return nil, rpcInvalidError("Invalid address: %v", err)
 	}
 
-	isTreasuryEnabled, err := isTreasuryAgendaActive(s)
+	// Determine if the treasury rules are active as of the current best tip.
+	chain := s.cfg.Chain
+	prevBlkHash := chain.BestSnapshot().Hash
+	isTreasuryEnabled, err := s.isTreasuryAgendaActive(&prevBlkHash)
 	if err != nil {
 		return nil, err
 	}
 
-	tickets, err := s.cfg.Chain.TicketsWithAddress(addr, isTreasuryEnabled)
+	tickets, err := chain.TicketsWithAddress(addr, isTreasuryEnabled)
 	if err != nil {
 		return nil, rpcInternalError(err.Error(), "could not obtain tickets")
 	}
@@ -5308,6 +5359,19 @@ type Server struct {
 	workState              *workState
 	helpCacher             *helpCacher
 	requestProcessShutdown chan struct{}
+}
+
+// isTreasuryAgendaActive returns if the treasury agenda is active or not for
+// the block AFTER the provided block hash.
+func (s *Server) isTreasuryAgendaActive(prevBlkHash *chainhash.Hash) (bool, error) {
+	chain := s.cfg.Chain
+	isTreasuryEnabled, err := chain.IsTreasuryAgendaActive(prevBlkHash)
+	if err != nil {
+		context := fmt.Sprintf("Could not obtain treasury agenda status for "+
+			"block %s", prevBlkHash)
+		return false, rpcInternalError(err.Error(), context)
+	}
+	return isTreasuryEnabled, nil
 }
 
 // httpStatusLine returns a response Status-Line (RFC 2616 Section 6.1) for the
