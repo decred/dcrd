@@ -54,8 +54,8 @@ import (
 // API version constants
 const (
 	jsonrpcSemverMajor = 6
-	jsonrpcSemverMinor = 1
-	jsonrpcSemverPatch = 2
+	jsonrpcSemverMinor = 2
+	jsonrpcSemverPatch = 0
 )
 
 const (
@@ -1080,8 +1080,23 @@ func handleDebugLevel(_ context.Context, s *Server, cmd interface{}) (interface{
 // createVinList returns a slice of JSON objects for the inputs of the passed
 // transaction.
 func createVinList(mtx *wire.MsgTx, isTreasuryEnabled bool) []types.Vin {
-	// Coinbase transactions only have a single txin by definition.
+	// Treasurybase transactions only have a single txin by definition.
+	//
+	// NOTE: This check MUST come before the coinbase check because a
+	// treasurybase will be identified as a coinbase as well.
 	vinList := make([]types.Vin, len(mtx.TxIn))
+	if isTreasuryEnabled && standalone.IsTreasuryBase(mtx) {
+		txIn := mtx.TxIn[0]
+		vinEntry := &vinList[0]
+		vinEntry.Treasurybase = true
+		vinEntry.Sequence = txIn.Sequence
+		vinEntry.AmountIn = dcrutil.Amount(txIn.ValueIn).ToCoin()
+		vinEntry.BlockHeight = txIn.BlockHeight
+		vinEntry.BlockIndex = txIn.BlockIndex
+		return vinList
+	}
+
+	// Coinbase transactions only have a single txin by definition.
 	if standalone.IsCoinBaseTx(mtx, isTreasuryEnabled) {
 		txIn := mtx.TxIn[0]
 		vinEntry := &vinList[0]
@@ -4108,6 +4123,27 @@ func createVinListPrevOut(s *Server, mtx *wire.MsgTx,
 	vinExtra bool, filterAddrMap map[string]struct{},
 	isTreasuryEnabled bool) ([]types.VinPrevOut, error) {
 
+	// Treasurybase transactions only have a single txin by definition.
+	//
+	// NOTE: This check MUST come before the coinbase check because a
+	// treasurybase will be identified as a coinbase as well.
+	if isTreasuryEnabled && standalone.IsTreasuryBase(mtx) {
+		// Only include the transaction if the filter map is empty because a
+		// treasurybase input has no addresses and so would never match a
+		// non-empty filter.
+		if len(filterAddrMap) != 0 {
+			return nil, nil
+		}
+
+		txIn := mtx.TxIn[0]
+		vinList := make([]types.VinPrevOut, 1)
+		vinEntry := &vinList[0]
+		vinEntry.Treasurybase = true
+		vinEntry.Sequence = txIn.Sequence
+		vinEntry.AmountIn = dcrjson.Float64(dcrutil.Amount(txIn.ValueIn).ToCoin())
+		return vinList, nil
+	}
+
 	// Coinbase transactions only have a single txin by definition.
 	if standalone.IsCoinBaseTx(mtx, isTreasuryEnabled) {
 		// Only include the transaction if the filter map is empty
@@ -4119,10 +4155,10 @@ func createVinListPrevOut(s *Server, mtx *wire.MsgTx,
 
 		txIn := mtx.TxIn[0]
 		vinList := make([]types.VinPrevOut, 1)
-		vinList[0].Coinbase = hex.EncodeToString(txIn.SignatureScript)
-		amountIn := dcrutil.Amount(txIn.ValueIn).ToCoin()
-		vinList[0].AmountIn = &amountIn
-		vinList[0].Sequence = txIn.Sequence
+		vinEntry := &vinList[0]
+		vinEntry.Coinbase = hex.EncodeToString(txIn.SignatureScript)
+		vinEntry.Sequence = txIn.Sequence
+		vinEntry.AmountIn = dcrjson.Float64(dcrutil.Amount(txIn.ValueIn).ToCoin())
 		return vinList, nil
 	}
 
@@ -4150,8 +4186,8 @@ func createVinListPrevOut(s *Server, mtx *wire.MsgTx,
 			amountIn := dcrutil.Amount(txIn.ValueIn).ToCoin()
 			vinEntry := types.VinPrevOut{
 				Stakebase: hex.EncodeToString(txIn.SignatureScript),
-				AmountIn:  &amountIn,
 				Sequence:  txIn.Sequence,
+				AmountIn:  &amountIn,
 			}
 			vinList = append(vinList, vinEntry)
 			// No previous outpoints to check against the address filter.
@@ -4171,10 +4207,10 @@ func createVinListPrevOut(s *Server, mtx *wire.MsgTx,
 			Txid:        prevOut.Hash.String(),
 			Vout:        prevOut.Index,
 			Tree:        prevOut.Tree,
+			Sequence:    txIn.Sequence,
 			AmountIn:    &amountIn,
 			BlockHeight: &txIn.BlockHeight,
 			BlockIndex:  &txIn.BlockIndex,
-			Sequence:    txIn.Sequence,
 			ScriptSig: &types.ScriptSig{
 				Asm: disbuf,
 				Hex: hex.EncodeToString(txIn.SignatureScript),

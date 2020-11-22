@@ -597,19 +597,19 @@ type ScriptSig struct {
 }
 
 // Vin models parts of the tx data.  It is defined separately since
-// getrawtransaction, decoderawtransaction, and searchrawtransaction use the
-// same structure.
+// getrawtransaction and decoderawtransaction use the same structure.
 type Vin struct {
-	Coinbase    string     `json:"coinbase"`
-	Stakebase   string     `json:"stakebase"`
-	Txid        string     `json:"txid"`
-	Vout        uint32     `json:"vout"`
-	Tree        int8       `json:"tree"`
-	Sequence    uint32     `json:"sequence"`
-	AmountIn    float64    `json:"amountin"`
-	BlockHeight uint32     `json:"blockheight"`
-	BlockIndex  uint32     `json:"blockindex"`
-	ScriptSig   *ScriptSig `json:"scriptSig"`
+	Coinbase     string     `json:"coinbase"`
+	Stakebase    string     `json:"stakebase"`
+	Treasurybase bool       `json:"treasurybase"`
+	Txid         string     `json:"txid"`
+	Vout         uint32     `json:"vout"`
+	Tree         int8       `json:"tree"`
+	Sequence     uint32     `json:"sequence"`
+	AmountIn     float64    `json:"amountin"`
+	BlockHeight  uint32     `json:"blockheight"`
+	BlockIndex   uint32     `json:"blockindex"`
+	ScriptSig    *ScriptSig `json:"scriptSig"`
 }
 
 // IsCoinBase returns a bool to show if a Vin is a Coinbase one or not.
@@ -624,38 +624,54 @@ func (v *Vin) IsStakeBase() bool {
 
 // MarshalJSON provides a custom Marshal method for Vin.
 func (v *Vin) MarshalJSON() ([]byte, error) {
-	if v.IsCoinBase() {
+	switch {
+	case v.IsCoinBase():
 		coinbaseStruct := struct {
-			AmountIn    float64 `json:"amountin"`
-			BlockHeight uint32  `json:"blockheight"`
-			BlockIndex  uint32  `json:"blockindex"`
 			Coinbase    string  `json:"coinbase"`
 			Sequence    uint32  `json:"sequence"`
-		}{
-			AmountIn:    v.AmountIn,
-			BlockHeight: v.BlockHeight,
-			BlockIndex:  v.BlockIndex,
-			Coinbase:    v.Coinbase,
-			Sequence:    v.Sequence,
-		}
-		return json.Marshal(coinbaseStruct)
-	}
-
-	if v.IsStakeBase() {
-		stakebaseStruct := struct {
 			AmountIn    float64 `json:"amountin"`
 			BlockHeight uint32  `json:"blockheight"`
 			BlockIndex  uint32  `json:"blockindex"`
-			Stakebase   string  `json:"stakebase"`
-			Sequence    uint32  `json:"sequence"`
 		}{
+			Coinbase:    v.Coinbase,
+			Sequence:    v.Sequence,
 			AmountIn:    v.AmountIn,
 			BlockHeight: v.BlockHeight,
 			BlockIndex:  v.BlockIndex,
+		}
+		return json.Marshal(coinbaseStruct)
+
+	case v.IsStakeBase():
+		stakebaseStruct := struct {
+			Stakebase   string  `json:"stakebase"`
+			Sequence    uint32  `json:"sequence"`
+			AmountIn    float64 `json:"amountin"`
+			BlockHeight uint32  `json:"blockheight"`
+			BlockIndex  uint32  `json:"blockindex"`
+		}{
 			Stakebase:   v.Stakebase,
 			Sequence:    v.Sequence,
+			AmountIn:    v.AmountIn,
+			BlockHeight: v.BlockHeight,
+			BlockIndex:  v.BlockIndex,
 		}
 		return json.Marshal(stakebaseStruct)
+
+	case v.Treasurybase:
+		treasurybaseStruct := struct {
+			Treasurybase bool    `json:"treasurybase"`
+			Sequence     uint32  `json:"sequence"`
+			AmountIn     float64 `json:"amountin"`
+			BlockHeight  uint32  `json:"blockheight"`
+			BlockIndex   uint32  `json:"blockindex"`
+		}{
+			Treasurybase: v.Treasurybase,
+			Sequence:     v.Sequence,
+			AmountIn:     v.AmountIn,
+			BlockHeight:  v.BlockHeight,
+			BlockIndex:   v.BlockIndex,
+		}
+		return json.Marshal(treasurybaseStruct)
 	}
 
 	txStruct := struct {
@@ -686,19 +702,21 @@ type PrevOut struct {
 	Value     float64  `json:"value"`
 }
 
-// VinPrevOut is like Vin except it includes PrevOut.  It is used by searchrawtransaction
+// VinPrevOut is like Vin except it includes PrevOut.  It is used by
+// searchrawtransaction.
 type VinPrevOut struct {
-	Coinbase    string     `json:"coinbase"`
-	Stakebase   string     `json:"stakebase"`
-	Txid        string     `json:"txid"`
-	Vout        uint32     `json:"vout"`
-	Tree        int8       `json:"tree"`
-	AmountIn    *float64   `json:"amountin,omitempty"`
-	BlockHeight *uint32    `json:"blockheight,omitempty"`
-	BlockIndex  *uint32    `json:"blockindex,omitempty"`
-	ScriptSig   *ScriptSig `json:"scriptSig"`
-	PrevOut     *PrevOut   `json:"prevOut"`
-	Sequence    uint32     `json:"sequence"`
+	Coinbase     string     `json:"coinbase"`
+	Stakebase    string     `json:"stakebase"`
+	Treasurybase bool       `json:"treasurybase"`
+	Txid         string     `json:"txid"`
+	Vout         uint32     `json:"vout"`
+	Tree         int8       `json:"tree"`
+	AmountIn     *float64   `json:"amountin,omitempty"`
+	BlockHeight  *uint32    `json:"blockheight,omitempty"`
+	BlockIndex   *uint32    `json:"blockindex,omitempty"`
+	ScriptSig    *ScriptSig `json:"scriptSig"`
+	PrevOut      *PrevOut   `json:"prevOut"`
+	Sequence     uint32     `json:"sequence"`
 }
 
 // IsCoinBase returns a bool to show if a Vin is a Coinbase one or not.
@@ -713,7 +731,8 @@ func (v *VinPrevOut) IsStakeBase() bool {
 
 // MarshalJSON provides a custom Marshal method for VinPrevOut.
 func (v *VinPrevOut) MarshalJSON() ([]byte, error) {
-	if v.IsCoinBase() {
+	switch {
+	case v.IsCoinBase():
 		coinbaseStruct := struct {
 			Coinbase string   `json:"coinbase"`
 			AmountIn *float64 `json:"amountin,omitempty"`
@@ -724,9 +743,8 @@ func (v *VinPrevOut) MarshalJSON() ([]byte, error) {
 			Sequence: v.Sequence,
 		}
 		return json.Marshal(coinbaseStruct)
-	}
 
-	if v.IsStakeBase() {
+	case v.IsStakeBase():
 		stakebaseStruct := struct {
 			Stakebase string   `json:"stakebase"`
 			AmountIn  *float64 `json:"amountin,omitempty"`
@@ -737,6 +755,18 @@ func (v *VinPrevOut) MarshalJSON() ([]byte, error) {
 			Sequence:  v.Sequence,
 		}
 		return json.Marshal(stakebaseStruct)
+
+	case v.Treasurybase:
+		treasurybaseStruct := struct {
+			Treasurybase bool     `json:"treasurybase"`
+			AmountIn     *float64 `json:"amountin,omitempty"`
+			Sequence     uint32   `json:"sequence"`
+		}{
+			Treasurybase: v.Treasurybase,
+			AmountIn:     v.AmountIn,
+			Sequence:     v.Sequence,
+		}
+		return json.Marshal(treasurybaseStruct)
 	}
 
 	txStruct := struct {
