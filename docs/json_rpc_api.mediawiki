@@ -580,62 +580,87 @@ the method name for further details such as parameter and return information.
 <code>(json object)</code>
 : <code>txid</code>: <code>(string)</code> the transaction id.
 : <code>hash</code>: <code>(string)</code> the hash of the transaction.
-: <code>locktime</code>: <code>(numeric)</code> the transaction lock time.
 : <code>version</code>: <code>(numeric)</code> the block version.
+: <code>locktime</code>: <code>(numeric)</code> the transaction lock time.
 : <code>expiry</code>: <code>(numeric)</code> the transaction expiry.
 : <code>vin</code>: <code>(array of json objects)</code> the transaction inputs as json objects.
 : <code>vout</code>: <code>(array of json objects)</code> the transaction outputs as json objects.
 
-<code>{"txid": "hash", "locktime": n, "version":n, "expiry": n, "vin": [...], "vout": [...]}</code>
+<code>{"txid": "hash", "version": n, "locktime": n, "expiry": n, "vin": [...], "vout": [...]}</code>
 
 ; vin (for coinbase transactions)
 : <code>(json object)</code>
 :: <code>coinbase</code>: (string) the hex-encoded bytes of the signature script.
+:: <code>amountin</code>: (numeric) the input amount.
+:: <code>blockheight</code>: (numeric) the block height of the origin transaction.
+:: <code>blockindex</code>: (numeric) the block index of the origin transaction.
 :: <code>sequence</code>: (numeric) the script sequence number.
 
-: <code>{"coinbase": "data", "sequence": n, ...}</code>
+: <code>{"coinbase": "data", "amountin": n.nnn, "blockheight": n, "blockindex": n, "sequence": n, ...}</code>
 
-; vin (for stakebase transactions)
+; vin (for vote transactions)
 : <code>(json object)</code>
-:: <code>stakebase</code>: (string) the hash of the stake transaction.
+:: <code>stakebase</code>: (string) the hex-encoded bytes of the signature script.
+:: <code>amountin</code>: (numeric) the input amount.
+:: <code>blockheight</code>: (numeric) the block height of the origin transaction.
+:: <code>blockindex</code>: (numeric) the block index of the origin transaction.
 :: <code>sequence</code>: (numeric) the script sequence number.
 
-: <code>{"stakebase": "hash", "sequence": n, ...}</code>
+: <code>{"stakebase": "data", "amountin": n.nnn, "blockheight": n, "blockindex": n, "sequence": n, ...}</code>
 
-; vin (for non-coinbase / non-stakebase transactions)
+; vin (for treasurybase transactions)
+: <code>(json object)</code>
+:: <code>treasurybase</code>: (boolean) Whether or not the input is a treasury base.
+:: <code>amountin</code>: (numeric) the input amount.
+:: <code>blockheight</code>: (numeric) the block height of the origin transaction.
+:: <code>blockindex</code>: (numeric) the block index of the origin transaction.
+:: <code>sequence</code>: (numeric) the script sequence number.
+
+: <code>{"treasurybase": bool, "amountin": n.nnn, "blockheight": n, "blockindex": n, "sequence": n, ...}</code>
+
+; vin (for other transactions)
 : <code>(json object)</code>
 :: <code>txid</code>: <code>(string)</code> the hash of the origin transaction.
 :: <code>vout</code>: <code>(numeric)</code> the index of the output being redeemed from the origin transaction.
-:: <code>scriptSig</code>: <code>(json object)</code> the signature script used to redeem the origin transaction.
-:: <code>asm</code>:<code>(string)</code> disassembly of the script.
-:: <code>data</code>: <code>(string)</code> hex-encoded bytes of the script.
+:: <code>tree</code>: <code>(numeric)</code> the tree of the transaction.
 :: <code>sequence</code>:  <code>(numeric)</code> the script sequence number.
+:: <code>amountin</code>: (numeric) the input amount.
+:: <code>blockheight</code>: (numeric) the block height of the origin transaction.
+:: <code>blockindex</code>: (numeric) the block index of the origin transaction.
+:: <code>scriptSig</code>: <code>(json object)</code> the signature script used to redeem the origin transaction.
+::: <code>asm</code>:<code>(string)</code> disassembly of the script.
+::: <code>hex</code>: <code>(string)</code> hex-encoded bytes of the script.
 
-: <code>{"txid": "hash", "vout": n,"scriptSig": {"asm": "asm", "hex": "data"}, "sequence": n, ...}</code>
+: <code>{"txid": "hash", "vout": n, "tree": n, "sequence": n, "amountin": n.nnn, "blockheight": n, "blockindex": n, "scriptSig": {"asm": "asm", "hex": "data"}, ...}</code>
 
 ; vout
 : <code>(json object)</code>
 :: <code>value</code>: <code>(numeric)</code> the value in DCR.
 :: <code>n</code>: <code>(numeric)</code> the index of this transaction output.
+:: <code>version</code>: <code>(numeric)</code> the version of public key script.
 :: <code>scriptPubKey</code>:<code>(json object)</code> the public key script used to pay coins.
-:: <code>asm</code>: <code>(string)</code> disassembly of the script.
-:: <code>hex</code>: <code>(string)</code> hex-encoded bytes of the script.
-:: <code>reqSigs</code>: <code>(numeric)</code> the number of required signatures.
-:: <code>type</code>: <code>(string)</code> the type of the script (e.g. 'pubkeyhash').
-:: <code>addresses</code>: <code>(json array of string)</code> the Decred addresses associated with this output.
+::: <code>asm</code>: <code>(string)</code> disassembly of the script.
+::: <code>hex</code>: <code>(string)</code> hex-encoded bytes of the script.
+::: <code>reqSigs</code>: <code>(numeric)</code> the number of required signatures.
+::: <code>type</code>: <code>(string)</code> the type of the script (e.g. 'pubkeyhash').
+::: <code>addresses</code>: <code>(json array of string)</code> the Decred addresses associated with this output.
+::: <code>commitamt</code>: <code>(numeric)</code> the ticket commitment value if the script is for a staking commitment (ticket txns only)
 
-: <code>{ "value": n, "n": n, "scriptPubKey": {"asm": "asm", "hex": "data","reqSigs": n, "type": "scripttype","addresses": [...]}}</code>
+: <code>{"value": n, "n": n, "scriptPubKey": {"asm": "asm", "hex": "data","reqSigs": n, "type": "scripttype", "addresses": [...], "commitamt": n.nnn}}</code>
 |-
 !Example Return
 |
 ; For coinbase transactions
-: <code>{"txid": "4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b", "version": 1, "locktime": 0, "vin": [{"coinbase": "04ffff001d0104455468652054696d65732030332f4a616e2f32303039204368616e63656c6c6...","sequence": 4294967295}, ...],"vout": [{"value": 50, "n": 0, "scriptPubKey": {"asm": "04678afdb0fe5548271967f1a67130b7105cd6a828e03909a67962e0ea1f61deb649f6bc3f4ce...","hex": "4104678afdb0fe5548271967f1a67130b7105cd6a828e03909a67962e0ea1f61deb649f6bc3f4...", "reqSigs": 1,"type": "pubkey","addresses": ["1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa", ...]}}]}</code>
+: <code>{"txid": "df2c767ea46a8b459d78dc3cad7e1ce47cc91f4d9d6cfa6e8af4f2cf8a1d2501", "version": 3, "locktime": 0, "expiry": 0, "vin": [{"coinbase": "00002f646372642f", "amountin": 0.98182641, "blockheight": 0, "blockindex": 0, "sequence": 4294967295}], "vout": [{"value": 0, "n": 0, "version": 0, "scriptPubKey": {"asm": "OP_DUP OP_HASH160 2da3aaa402b110247f08c3ea2300a0567de77a5b OP_EQUALVERIFY OP_CHECKSIG", "hex": "76a9142da3aaa402b110247f08c3ea2300a0567de77a5b88ac", "reqSigs": 1, "type": "pubkeyhash", "addresses": ["DsVBSwwjs42fzxrJduHotLXhQX3AoUQEsVg", ...]}}]}</code>
 
-; For stakebase transactions
-: <code>{"txid": "4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b", "version": 1, "locktime": 0, "vin": [{"stakebase": "60ac4b057247b3d0b9a8173de56b5e1be8c1d1da970511c626ef53706c66be04","sequence": 4294967295}, ...],"vout": [{"value": 50, "n": 0, "scriptPubKey": {"asm": "04678afdb0fe5548271967f1a67130b7105cd6a828e03909a67962e0ea1f61deb649f6bc3f4ce...","hex": "4104678afdb0fe5548271967f1a67130b7105cd6a828e03909a67962e0ea1f61deb649f6bc3f4...", "reqSigs": 1,"type": "pubkey","addresses": ["1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa", ...]}}]}</code>
+; For vote transactions
+: <code>{"txid": "b77b9367f7d7cf428a54c39d4bcbf66e2b5917a6d1c643f534853e32ae41b000", "version": 1, "locktime": 0, "expiry": 0, "vin": [{"stakebase": "0000", "amountin": 0.09818264, "blockheight": 0, "blockindex": 4294967295, "sequence": 4294967295}, {"txid":"078e60de39e764c1053e404bd498d319c16e903104a17aea283f4aa5cdb3e28b", "vout": 0, "tree": 1, "sequence": 4294967295, "amountin": 76.06810002, "blockheight": 560810, "blockindex": 23, "scriptSig": {"asm": "304402200ed0a2d476b29cde2221a31f5e07cdef...", "hex": "47304402200ed0a2d476b29cde2221a31f5e07cd..."}, ...}], "vout": [{"value": 0, "n": 0, "version": 0, "scriptPubKey": {"asm": "OP_RETURN fdb752026e489bec1334177405c0c4dd632cf1018c45f1db62a335081d000000de920800", "hex": "6a24fdb752026e489bec1334177405c0c4dd632cf1018c45f1db62a335081d000000de920800", "type": "nulldata"}}, {"value": 0, "n": 1, "version": 0, "scriptPubKey": {"asm": "OP_RETURN 010009000000", "hex": "6a06010009000000", "type": "nulldata"}}, {"value": 76.16628266, "n": 2, "version": 0, "scriptPubKey": {"asm": "OP_SSGEN OP_DUP OP_HASH160 6e479df154d676e44069d5d2d5dd4e9f0d461c8f OP_EQUALVERIFY OP_CHECKSIG", "hex": "bb76a9146e479df154d676e44069d5d2d5dd4e9f0d461c8f88ac", "type": "stakegen", "addresses": ["Dsb5EbhGhWwUJXbcuMr46cyvm2J5n4ekFYm"]}}, ...]}</code>
 
-; For non-coinbase / non-stakebase transactions
-: <code>{"txid": "4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b", "version": 1, "locktime": 0, "vin": [{"txid": "60ac4b057247b3d0b9a8173de56b5e1be8c1d1da970511c626ef53706c66be04", "vout": 0, "scriptSig": {"asm": "3046022100cb42f8df44eca83dd0a727988dcde9384953e830b1f8004d57485e2ede1b9c8f0...", "hex": "493046022100cb42f8df44eca83dd0a727988dcde9384953e830b1f8004d57485e2ede1b9c8...",},"sequence": 4294967295}, ...],"vout": [{"value": 50, "n": 0, "scriptPubKey": {"asm": "04678afdb0fe5548271967f1a67130b7105cd6a828e03909a67962e0ea1f61deb649f6bc3f4ce...","hex": "4104678afdb0fe5548271967f1a67130b7105cd6a828e03909a67962e0ea1f61deb649f6bc3f4...", "reqSigs": 1,"type": "pubkey","addresses": ["1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa", ...]}}]}</code>
+; For treasurybase transactions
+: <code>{"txid": "cc84c219827d98011398e842190f62a2d1e755ba6f9aea925264c04a8c6c18d8", "version": 3, "locktime": 0, "expiry": 0, "vin": [{"treasurybase": true, "amountin": 0.16363773, "blockheight": 0, "blockindex": 4294967295, "sequence": 4294967295}], "vout": [{"value": 0.16363773, "n": 0, "version": 0, "scriptPubKey": {"asm": "OP_TADD", "hex": "c1", "type": "treasuryadd"}}, {"value": 0, "n": 1, "version": 0, "scriptPubKey": {"asm": "OP_RETURN df92080067c8c34911561fe7", "hex": "6a0cdf92080067c8c34911561fe7", "type": "nulldata"}}]}</code>
+
+; For other transactions
+: <code>{"txid": "f1d21c62f4444c5fb0d68d1f75109ad8fb44bbf3bf08b275eb08aec55bdb22f9", "version": 1, "locktime": 0, "expiry": 0, "vin": [{"txid": "b3a6dc584c36c59360f682cf67294566843b580909a2f543e53a45dc17f29ed4", "vout": 2, "tree": 1, "sequence": 4294967295, "amountin": 85.23317042, "blockheight": 561882, "blockindex": 2, "scriptSig": {"asm": "30440220088e38e24ce1cd863389a5790221d6c71879d4fc21e86b97ee345ce6e18a3b54022...", "hex": "4730440220088e38e24ce1cd863389a5790221d6c71879d4fc21e86b97ee345ce6e18a3b540..."}}, ...], "vout": [{"value": 0.00485517, "n": 0, "version": 0, "scriptPubKey": {"asm": "OP_DUP OP_HASH160 fe420208bf2d1bbb40b9ee27a11ca0061d45e35c OP_EQUALVERIFY OP_CHECKSIG", "hex": "76a914fe420208bf2d1bbb40b9ee27a11ca0061d45e35c88ac", "reqSigs": 1, "type": "pubkeyhash", "addresses": ["Dsa5TDxF5X8oSQnekqYUHZpFbXWKJKR6Lj3"]}}, ...]}</code>
 |}
 
 ----
@@ -1754,59 +1779,91 @@ of the best block.
 : <code>locktime</code>: <code>(numeric)</code> the transaction lock time.
 : <code>expiry</code>: <code>(numeric)</code> the transaction expiry.
 : <code>vin</code>: <code>(array of json objects)</code> the transaction inputs as json objects.
-:: <code>coinbase</code>: <code>(string)</code> the hex-encoded bytes of the signature script.
-:: <code>stakebase</code>: <code>(string)</code> the hash of the stake transaction.
-:: <code>sequence</code>: <code>(numeric)</code> the script sequence number.
+: <code>vout</code>: <code>(array of json objects)</code> the transaction outputs as json objects.
+
+<code>{"hex": "data", "txid": "hash", "version": n, "locktime": n, "expiry": n, "vin": [...], "vout": [...]}</code>
+
+; vin (for coinbase transactions)
+: <code>(json object)</code>
+:: <code>coinbase</code>: (string) the hex-encoded bytes of the signature script.
+:: <code>amountin</code>: (numeric) the input amount.
+:: <code>blockheight</code>: (numeric) the block height of the origin transaction.
+:: <code>blockindex</code>: (numeric) the block index of the origin transaction.
+:: <code>sequence</code>: (numeric) the script sequence number.
+
+: <code>{"coinbase": "data", "amountin": n.nnn, "blockheight": n, "blockindex": n, "sequence": n, ...}</code>
+
+; vin (for vote transactions)
+: <code>(json object)</code>
+:: <code>stakebase</code>: (string) the hex-encoded bytes of the signature script.
+:: <code>amountin</code>: (numeric) the input amount.
+:: <code>blockheight</code>: (numeric) the block height of the origin transaction.
+:: <code>blockindex</code>: (numeric) the block index of the origin transaction.
+:: <code>sequence</code>: (numeric) the script sequence number.
+
+: <code>{"stakebase": "data", "amountin": n.nnn, "blockheight": n, "blockindex": n, "sequence": n, ...}</code>
+
+; vin (for treasurybase transactions)
+: <code>(json object)</code>
+:: <code>treasurybase</code>: (boolean) Whether or not the input is a treasury base.
+:: <code>amountin</code>: (numeric) the input amount.
+:: <code>blockheight</code>: (numeric) the block height of the origin transaction.
+:: <code>blockindex</code>: (numeric) the block index of the origin transaction.
+:: <code>sequence</code>: (numeric) the script sequence number.
+
+: <code>{"treasurybase": bool, "amountin": n.nnn, "blockheight": n, "blockindex": n, "sequence": n, ...}</code>
+
+; vin (for other transactions)
+: <code>(json object)</code>
 :: <code>txid</code>: <code>(string)</code> the hash of the origin transaction.
 :: <code>vout</code>: <code>(numeric)</code> the index of the output being redeemed from the origin transaction.
+:: <code>tree</code>: <code>(numeric)</code> the tree of the transaction.
+:: <code>sequence</code>:  <code>(numeric)</code> the script sequence number.
+:: <code>amountin</code>: (numeric) the input amount.
+:: <code>blockheight</code>: (numeric) the block height of the origin transaction.
+:: <code>blockindex</code>: (numeric) the block index of the origin transaction.
 :: <code>scriptSig</code>: <code>(json object)</code> the signature script used to redeem the origin transaction.
-::: <code>asm</code>: <code>(string)</code> disassembly of the script.
-::: <code>sequence</code>: <code>(numeric)</code> the script sequence number.
-: <code>vout</code>: <code>(array of json objects)</code> the transaction outputs as json objects.
+::: <code>asm</code>:<code>(string)</code> disassembly of the script.
+::: <code>hex</code>: <code>(string)</code> hex-encoded bytes of the script.
+
+: <code>{"txid": "hash", "vout": n, "tree": n, "sequence": n, "amountin": n.nnn, "blockheight": n, "blockindex": n, "scriptSig": {"asm": "asm", "hex": "data"}, ...}</code>
+
+; vout
+: <code>(json object)</code>
 :: <code>value</code>: <code>(numeric)</code> the value in DCR.
 :: <code>n</code>: <code>(numeric)</code> the index of this transaction output.
-:: <code>scriptPubKey</code>: <code>(json object)</code> the public key script used to pay coins.
+:: <code>version</code>: <code>(numeric)</code> the version of public key script.
+:: <code>scriptPubKey</code>:<code>(json object)</code> the public key script used to pay coins.
+::: <code>asm</code>: <code>(string)</code> disassembly of the script.
+::: <code>hex</code>: <code>(string)</code> hex-encoded bytes of the script.
 ::: <code>reqSigs</code>: <code>(numeric)</code> the number of required signatures.
 ::: <code>type</code>: <code>(string)</code> the type of the script (e.g. 'pubkeyhash').
 ::: <code>addresses</code>: <code>(json array of string)</code> the Decred addresses associated with this output.
-:::: <code>decredaddress</code>:  <code>(string)</code> the Decred address
-: <code>blockhash</code>:  <code>(string)</code> the hash of the block that contains the transaction.
-: <code>blockheight</code>:  <code>(numeric)</code> the height of the block that contains the transaction.
-: <code>blockindex</code>:  <code>(numeric)</code> the index within the array of transactions contained by the block.
-: <code>confirmations</code>:  <code>(numeric)</code> number of confirmations.
-: <code>time</code>: <code>(numeric)</code> transaction time in seconds since the epoch.
-: <code>blocktime</code>:  <code>(numeric)</code> block time in seconds since the epoch.
+::: <code>commitamt</code>: <code>(numeric)</code> the ticket commitment value if the script is for a staking commitment (ticket txns only)
 
-; For coinbase transactions
-: <code>{"hex": "data", "txid": "hash", "version": n, "locktime": n, "expiry": n, vin": [{ "coinbase": "data", "sequence": n}, ...], "vout": [{"value": n, "n": n,"scriptPubKey": { "asm": "asm","hex": "data", "reqSigs": n,"type": "scripttype", "addresses": [ "decredaddress", ...]}}, ...], "blockhash": "hash", "blockheight": n, "confirmations": n, "blocktime": n}</code>
-
-; For stakebase transactions
-: <code>{"hex": "data", "txid": "hash", "version": n, "locktime": n, "expiry": n, "vin": [{ "stakebase": "hash", "sequence": n}, ...], "vout": [{"value": n, "n": n,"scriptPubKey": { "asm": "asm","hex": "data", "reqSigs": n,"type": "scripttype", "addresses": [ "decredaddress", ...]}}, ...], "blockhash": "hash", "blockheight": n,  "blockindex": n, "confirmations": n, "time": n, blocktime": n}</code>
-
-; For non-coinbase / non-stakebase transactions
-: <code>{"hex": "data", "txid": "hash", "version": n, "locktime": n, "expiry": n, "vin": [{"txid": "hash","vout": n, "scriptSig": {"asm": "asm", "hex": "data"}, "sequence": n}, ...], "vout": [{"value": n, "n": n,"scriptPubKey": { "asm": "asm","hex": "data", "reqSigs": n,"type": "scripttype", "addresses": [ "decredaddress", ...]}}, ...], "blockhash": "hash", "blockheight": n,  "blockindex": n, "confirmations": n, "time": n, "blocktime": n}</code>
+: <code>{"value": n, "n": n, "scriptPubKey": {"asm": "asm", "hex": "data","reqSigs": n, "type": "scripttype", "addresses": [...], "commitamt": n.nnn}}</code>
 |-
 !Example Return (verbose=0)
 |
 : Newlines added for display purposes.  The actual return does not contain newlines.
-: <code>"010000000104be666c7053ef26c6110597dad1c1e81b5e6be53d17a8b9d0b34772054bac60000000</code>
-: <code>008c493046022100cb42f8df44eca83dd0a727988dcde9384953e830b1f8004d57485e2ede1b9c8f</code>
-: <code>022100fbce8d84fcf2839127605818ac6c3e7a1531ebc69277c504599289fb1e9058df0141045a33</code>
-: <code>76eeb85e494330b03c1791619d53327441002832f4bd618fd9efa9e644d242d5e1145cb9c2f71965</code>
-: <code>656e276633d4ff1a6db5e7153a0a9042745178ebe0f5ffffffff0280841e00000000001976a91406</code>
-: <code>f1b6703d3f56427bfcfd372f952d50d04b64bd88ac4dd52700000000001976a9146b63f291c295ee</code>
-: <code>abd9aee6be193ab2d019e7ea7088ac00000000</code>
+: <code>03000000010000000000000000000000000000000000000000000000000000000000000000ffffff</code>
+: <code>ff00ffffffff02000000000000000000000e6a0cdf920800f34792efcaad585df125da0500000000</code>
+: <code>00001976a9142da3aaa402b110247f08c3ea2300a0567de77a5b88ac000000000000000001f125da</code>
+: <code>050000000000000000ffffffff0800002f646372642f</code>
 |-
 !Example Return (verbose=1)
 |
 ; For coinbase transactions
-: <code>{"hex": "01000000010000000000000000000000000000000000000000000000000000000000000000f...","txid": "90743aad855880e517270550d2a881627d84db5265142fd1e7fb7add38b08be9","version": 1,"locktime": 0,"vin": [{"coinbase": "03708203062f503253482f04066d605108f800080100000ea2122f6f7a636f696e4065757374726174756d2f","sequence": 0},...], "vout": [{"value": 25.1394,"n": 0, "scriptPubKey": {"asm": "OP_DUP OP_HASH160 ea132286328cfc819457b9dec386c4b5c84faa5c OP_EQUALVERIFY OP_CHECKSIG", "hex": "76a914ea132286328cfc819457b9dec386c4b5c84faa5c88ac", "reqSigs": 1, "type": "pubkeyhash", "addresses": ["1NLg3QJMsMQGM5KEUaEu5ADDmKQSLHwmyh", ...]}}, ...]}</code>
+: <code>{"hex": "03000000010000000000000000000000000000000000000000000000000000000000000000f...", "txid": "df2c767ea46a8b459d78dc3cad7e1ce47cc91f4d9d6cfa6e8af4f2cf8a1d2501", "version": 3, "locktime": 0, "expiry": 0, "vin": [{"coinbase": "00002f646372642f", "amountin": 0.98182641, "blockheight": 0, "blockindex": 0, "sequence": 4294967295}], "vout": [{"value": 0, "n": 0, "version": 0, "scriptPubKey": {"asm": "OP_DUP OP_HASH160 2da3aaa402b110247f08c3ea2300a0567de77a5b OP_EQUALVERIFY OP_CHECKSIG", "hex": "76a9142da3aaa402b110247f08c3ea2300a0567de77a5b88ac", "reqSigs": 1, "type": "pubkeyhash", "addresses": ["DsVBSwwjs42fzxrJduHotLXhQX3AoUQEsVg", ...]}}]}</code>
 
-; For stakebase transactions
-: <code>{"hex": "01000000010000000000000000000000000000000000000000000000000000000000000000f...","txid": "90743aad855880e517270550d2a881627d84db5265142fd1e7fb7add38b08be9","version": 1,"locktime": 0,"vin": [{"stakebase": "90743aad855880e517270550d2a881627d84db5265142fd1e7fb7add38b08be9","sequence": 0},...], "vout": [{"value": 25.1394,"n": 0, "scriptPubKey": {"asm": "OP_DUP OP_HASH160 ea132286328cfc819457b9dec386c4b5c84faa5c OP_EQUALVERIFY OP_CHECKSIG", "hex": "76a914ea132286328cfc819457b9dec386c4b5c84faa5c88ac", "reqSigs": 1, "type": "pubkeyhash", "addresses": ["1NLg3QJMsMQGM5KEUaEu5ADDmKQSLHwmyh", ...]}}, ...]}</code>
+; For vote transactions
+: <code>{"hex": "01000000020000000000000000000000000000000000000000000000000000000000000000f...", "txid": "b77b9367f7d7cf428a54c39d4bcbf66e2b5917a6d1c643f534853e32ae41b000", "version": 1, "locktime": 0, "expiry": 0, "vin": [{"stakebase": "0000", "amountin": 0.09818264, "blockheight": 0, "blockindex": 4294967295, "sequence": 4294967295}, {"txid":"078e60de39e764c1053e404bd498d319c16e903104a17aea283f4aa5cdb3e28b", "vout": 0, "tree": 1, "sequence": 4294967295, "amountin": 76.06810002, "blockheight": 560810, "blockindex": 23, "scriptSig": {"asm": "304402200ed0a2d476b29cde2221a31f5e07cdef...", "hex": "47304402200ed0a2d476b29cde2221a31f5e07cd..."}, ...}], "vout": [{"value": 0, "n": 0, "version": 0, "scriptPubKey": {"asm": "OP_RETURN fdb752026e489bec1334177405c0c4dd632cf1018c45f1db62a335081d000000de920800", "hex": "6a24fdb752026e489bec1334177405c0c4dd632cf1018c45f1db62a335081d000000de920800", "type": "nulldata"}}, {"value": 0, "n": 1, "version": 0, "scriptPubKey": {"asm": "OP_RETURN 010009000000", "hex": "6a06010009000000", "type": "nulldata"}}, {"value": 76.16628266, "n": 2, "version": 0, "scriptPubKey": {"asm": "OP_SSGEN OP_DUP OP_HASH160 6e479df154d676e44069d5d2d5dd4e9f0d461c8f OP_EQUALVERIFY OP_CHECKSIG", "hex": "bb76a9146e479df154d676e44069d5d2d5dd4e9f0d461c8f88ac", "type": "stakegen", "addresses": ["Dsb5EbhGhWwUJXbcuMr46cyvm2J5n4ekFYm"]}}, ...], "blockhash": "0000002fd3e1c731012bb29571bd414d9bde0af348ab362971c0e2f037cd31d0", "blockheight": 561887, "blockindex": 1, "confirmations": 56, "time": 1606032208, "blocktime": 1606032208}</code>
 
-; For non-coinbase / non-stakebase transactions
-: <code>{"hex": "01000000010000000000000000000000000000000000000000000000000000000000000000f...","txid": "90743aad855880e517270550d2a881627d84db5265142fd1e7fb7add38b08be9","version": 1,"locktime": 0,"vin": [{"txid": "60ac4b057247b3d0b9a8173de56b5e1be8c1d1da970511c626ef53706c66be04","scriptSig": {"asm": "3046022100cb42f8df44eca83dd0a727988dcde9384953e830b1f8004d57485e2ede1b9c8f0...","hex": "493046022100cb42f8df44eca83dd0a727988dcde9384953e830b1f8004d57485e2ede1b9c8..."}, "sequence": 4294967295}, ...], "vout": [{"value": 25.1394,"n": 0, "scriptPubKey": {"asm": "OP_DUP OP_HASH160 ea132286328cfc819457b9dec386c4b5c84faa5c OP_EQUALVERIFY OP_CHECKSIG", "hex": "76a914ea132286328cfc819457b9dec386c4b5c84faa5c88ac", "reqSigs": 1, "type": "pubkeyhash", "addresses": ["1NLg3QJMsMQGM5KEUaEu5ADDmKQSLHwmyh", ...]}}, ...]}</code>
+; For treasurybase transactions
+: <code>{"hex": "03000000010000000000000000000000000000000000000000000000000000000000000000f...", "txid": "cc84c219827d98011398e842190f62a2d1e755ba6f9aea925264c04a8c6c18d8", "version": 3, "locktime": 0, "expiry": 0, "vin": [{"treasurybase": true, "amountin": 0.16363773, "blockheight": 0, "blockindex": 4294967295, "sequence": 4294967295}], "vout": [{"value": 0.16363773, "n": 0, "version": 0, "scriptPubKey": {"asm": "OP_TADD", "hex": "c1", "type": "treasuryadd"}}, {"value": 0, "n": 1, "version": 0, "scriptPubKey": {"asm": "OP_RETURN df92080067c8c34911561fe7", "hex": "6a0cdf92080067c8c34911561fe7", "type": "nulldata"}}], "blockhash": "0000002fd3e1c731012bb29571bd414d9bde0af348ab362971c0e2f037cd31d0", "blockheight": 561887, "confirmations": 58, "time": 1606032208, "blocktime": 1606032208}</code>
+
+; For other transactions
+: <code>{"hex": "0100000001d49ef217dc453ae543f5a20909583b8466452967cf82f66093c5364c58dca6b30...", "txid": "f1d21c62f4444c5fb0d68d1f75109ad8fb44bbf3bf08b275eb08aec55bdb22f9", "version": 1, "locktime": 0, "expiry": 0, "vin": [{"txid": "b3a6dc584c36c59360f682cf67294566843b580909a2f543e53a45dc17f29ed4", "vout": 2, "tree": 1, "sequence": 4294967295, "amountin": 85.23317042, "blockheight": 561882, "blockindex": 2, "scriptSig": {"asm": "30440220088e38e24ce1cd863389a5790221d6c71879d4fc21e86b97ee345ce6e18a3b54022...", "hex": "4730440220088e38e24ce1cd863389a5790221d6c71879d4fc21e86b97ee345ce6e18a3b540..."}}, ...], "vout": [{"value": 0.00485517, "n": 0, "version": 0, "scriptPubKey": {"asm": "OP_DUP OP_HASH160 fe420208bf2d1bbb40b9ee27a11ca0061d45e35c OP_EQUALVERIFY OP_CHECKSIG", "hex": "76a914fe420208bf2d1bbb40b9ee27a11ca0061d45e35c88ac", "reqSigs": 1, "type": "pubkeyhash", "addresses": ["Dsa5TDxF5X8oSQnekqYUHZpFbXWKJKR6Lj3"]}}, ...], "blockhash": "000000453c04c1dc6925704c396573cbf627c3c35134d4cae38495d959412ae3", "blockheight": 561917, "blockindex": 1, "confirmations": 29, "time": 1606035418, "blocktime": 1606035418}</code>
 |}
 
 ----
@@ -2259,49 +2316,7 @@ of the best block.
 !Returns (verbose=1)
 |
 <code>(array of json objects)</code>
-: <code>hex</code>: <code>(string)</code> hex-encoded transaction.
-: <code>txid</code>: <code>(string)</code> the hash of the transaction.
-: <code>version</code>: <code>(numeric)</code> the transaction version.
-: <code>locktime</code>: <code>(numeric)</code> the transaction lock time.
-: <code>expiry</code>: <code>(numeric)</code> the transaction expiry.
-: <code>vin</code>: <code>(json array)</code> the transaction inputs as json objects.
-:: <code>coinbase</code>: <code>(string)</code> the hex-encoded bytes of the signature script.
-:: <code>stakebase</code>: <code>(string)</code> the hash of the stake transaction.
-:: <code>sequence</code>:  <code>(numeric)</code> the script sequence number.
-:: <code>txid</code>: <code>(string)</code> the hash of the origin transaction.
-:: <code>vout</code>: <code>(numeric)</code> the index of the output being redeemed from the origin transaction.
-:: <code>scriptSig</code>: <code>(json object)</code> the signature script used to redeem the origin transaction.
-::: <code>asm</code>: <code>(string)</code> disassembly of the script.
-::: <code>hex</code>: <code>(string)</code> hex-encoded bytes of the script.
-:: <code>prevOut</code>: Data from the origin transaction output with index vout.
-::: <code>addresses</code>:  <code>(array of string)</code> previous output addresses.
-::: <code>value</code>: <code>(numeric)</code> previous output value.
-:: <code>sequence</code>: <code>(numeric)</code> the script sequence number.
-: <code>vout</code>: <code>(array of json objects)</code> the transaction outputs as json objects.
-:: <code>value</code>: <code>(numeric)</code> the value in DCR.
-:: <code>n</code>: <code>(numeric)</code> the index of this transaction output.
-:: <code>scriptPubKey</code>: <code>(json object)</code> the public key script used to pay coins.
-::: <code>asm</code>: <code>(string)</code> disassembly of the script.
-::: <code>hex</code>: <code>(string)</code> hex-encoded bytes of the script.
-::: <code>reqSigs</code>: <code>(numeric)</code> the number of required signatures.
-::: <code>type</code>: <code>(string)</code> the type of the script (e.g. 'pubkeyhash').
-::: <code>addresses</code>: <code>(json array of string)</code> the Decred addresses associated with this output.
-::: <code>address</code>:  <code>(string)</code> the Decred address.
-: <code>blockhash</code>:  <code>(string)</code> the hash of the block that contains the transaction.
-: <code>blockheight</code>:  <code>(numeric)</code> the height of the block that contains the transaction.
-: <code>blockindex</code>:  <code>(numeric)</code> the index within the array of transactions contained by the block.
-: <code>confirmations</code>:  <code>(numeric)</code> number of confirmations.
-: <code>time</code>: <code>(numeric)</code> transaction time in seconds since the epoch.
-: <code>blocktime</code>:  <code>(numeric)</code> block time in seconds since the epoch.
-
-; For coinbase transactions
-: <code>[{"hex": "data", "txid": "hash", "version": n, "locktime": n,"vin": [{"coinbase": "data",  "sequence": n},{"txid": "hash", "vout": n, "scriptSig": {"asm": "asm", "hex": "data"}, "prevOut": {"addresses": ["value", ...], "value": n.nnn}, "sequence": n}, ...],"vout": [{ "value": n, "n": n, "scriptPubKey": {"asm": "asm", "hex": "data", "reqSigs": n, "type": "scripttype", "addresses": ["address", ...]}}, ...], "blockhash": "hash", "blockheight": n, confirmations": n, "time": n, "blocktime": n},...]</code>
-
-; For stakebase transactions
-: <code>[{"hex": "data", "txid": "hash", "version": n, "locktime": n,"vin": [{"stakebase": "hash",  "sequence": n},{"txid": "hash", "vout": n, "scriptSig": {"asm": "asm", "hex": "data"}, "prevOut": {"addresses": ["value", ...], "value": n.nnn}, "sequence": n}, ...],"vout": [{ "value": n,"n": n, "scriptPubKey": {"asm": "asm", "hex": "data", "reqSigs": n, "type": "scripttype", "addresses": ["address", ...]}}, ...], "blockhash": "hash", "blockheight": n, "blockindex": n, confirmations": n, "time": n, "blocktime": n},...]</code>
-
-; For non-coinbase / non-stakebase transactions
-: <code>[{"hex": "data", "txid": "hash", "version": n, "locktime": n,"vin": [{"txid": "hash", "vout": n, "scriptSig": {"asm": "asm", "hex": "data"}, "prevOut": {"addresses": ["value",...], "value": n.nnn}, "sequence": n}, ...],"vout": [{ "value": n,"n": n, "scriptPubKey": {"asm": "asm", "hex": "data", "reqSigs": n, "type": "scripttype", "addresses": ["address", ...]}}, ...], "blockhash":"hash", "blockheight": n, "blockindex": n, confirmations": n, "time": n, "blocktime": n},...]</code>
+: See [[#getrawtransaction|getrawtransaction]] with <code>verbose=1</code> for the format of each individual object.
 |}
 
 ----
