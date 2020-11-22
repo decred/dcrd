@@ -1190,7 +1190,9 @@ func (m *wsNotificationManager) notifyForNewTx(clients map[chan struct{}]*wsClie
 		return
 	}
 
-	isTreasuryEnabled, err := isTreasuryAgendaActive(m.server)
+	// Determine if the treasury rules are active as of the current best tip.
+	prevBlkHash := m.server.cfg.Chain.BestSnapshot().Hash
+	isTreasuryEnabled, err := m.server.isTreasuryAgendaActive(&prevBlkHash)
 	if err != nil {
 		log.Errorf("Could not obtain treasury agenda status: %v", err)
 		return
@@ -2466,14 +2468,10 @@ func handleRescan(wsc *wsClient, icmd interface{}) (interface{}, error) {
 
 	discoveredData := make([]types.RescannedBlock, 0, len(blockHashes))
 
-	isTreasuryEnabled, err := isTreasuryAgendaActive(wsc.rpcServer)
-	if err != nil {
-		return nil, err
-	}
-
 	// Iterate over each block in the request and rescan.  When a block
 	// contains relevant transactions, add it to the response.
-	cfg := wsc.rpcServer.cfg
+	rpcServer := wsc.rpcServer
+	cfg := rpcServer.cfg
 	bc := cfg.Chain
 	var lastBlockHash *chainhash.Hash
 	for i := range blockHashes {
@@ -2484,7 +2482,8 @@ func handleRescan(wsc *wsClient, icmd interface{}) (interface{}, error) {
 				Message: "Failed to fetch block: " + err.Error(),
 			}
 		}
-		if lastBlockHash != nil && block.MsgBlock().Header.PrevBlock != *lastBlockHash {
+		prevBlkHash := block.MsgBlock().Header.PrevBlock
+		if lastBlockHash != nil && prevBlkHash != *lastBlockHash {
 			return nil, &dcrjson.RPCError{
 				Code: dcrjson.ErrRPCInvalidParameter,
 				Message: fmt.Sprintf("Block %v is not a child of %v",
@@ -2492,6 +2491,12 @@ func handleRescan(wsc *wsClient, icmd interface{}) (interface{}, error) {
 			}
 		}
 		lastBlockHash = &blockHashes[i]
+
+		// Determine if the treasury rules are active as of the block.
+		isTreasuryEnabled, err := rpcServer.isTreasuryAgendaActive(&prevBlkHash)
+		if err != nil {
+			return nil, err
+		}
 
 		transactions := rescanBlock(filter, block, cfg.ChainParams,
 			isTreasuryEnabled)
