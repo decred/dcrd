@@ -1108,6 +1108,18 @@ func createVinList(mtx *wire.MsgTx, isTreasuryEnabled bool) []types.Vin {
 		return vinList
 	}
 
+	// Treasury spend transactions only have a single txin by definition.
+	if isTreasuryEnabled && stake.IsTSpend(mtx) {
+		txIn := mtx.TxIn[0]
+		vinEntry := &vinList[0]
+		vinEntry.TreasurySpend = hex.EncodeToString(txIn.SignatureScript)
+		vinEntry.Sequence = txIn.Sequence
+		vinEntry.AmountIn = dcrutil.Amount(txIn.ValueIn).ToCoin()
+		vinEntry.BlockHeight = txIn.BlockHeight
+		vinEntry.BlockIndex = txIn.BlockIndex
+		return vinList
+	}
+
 	// Stakebase transactions (votes) have two inputs: a null stake base
 	// followed by an input consuming a ticket's stakesubmission.
 	isSSGen := stake.IsSSGen(mtx, isTreasuryEnabled)
@@ -4157,6 +4169,24 @@ func createVinListPrevOut(s *Server, mtx *wire.MsgTx,
 		vinList := make([]types.VinPrevOut, 1)
 		vinEntry := &vinList[0]
 		vinEntry.Coinbase = hex.EncodeToString(txIn.SignatureScript)
+		vinEntry.Sequence = txIn.Sequence
+		vinEntry.AmountIn = dcrjson.Float64(dcrutil.Amount(txIn.ValueIn).ToCoin())
+		return vinList, nil
+	}
+
+	// Treasury spend transactions only have a single txin by definition.
+	if isTreasuryEnabled && stake.IsTSpend(mtx) {
+		// Only include the transaction if the filter map is empty because a
+		// treasury spend input has no addresses and so would never match a
+		// non-empty filter.
+		if len(filterAddrMap) != 0 {
+			return nil, nil
+		}
+
+		txIn := mtx.TxIn[0]
+		vinList := make([]types.VinPrevOut, 1)
+		vinEntry := &vinList[0]
+		vinEntry.TreasurySpend = hex.EncodeToString(txIn.SignatureScript)
 		vinEntry.Sequence = txIn.Sequence
 		vinEntry.AmountIn = dcrjson.Float64(dcrutil.Amount(txIn.ValueIn).ToCoin())
 		return vinList, nil

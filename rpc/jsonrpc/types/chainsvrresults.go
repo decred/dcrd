@@ -599,27 +599,33 @@ type ScriptSig struct {
 // Vin models parts of the tx data.  It is defined separately since
 // getrawtransaction and decoderawtransaction use the same structure.
 type Vin struct {
-	Coinbase     string     `json:"coinbase"`
-	Stakebase    string     `json:"stakebase"`
-	Treasurybase bool       `json:"treasurybase"`
-	Txid         string     `json:"txid"`
-	Vout         uint32     `json:"vout"`
-	Tree         int8       `json:"tree"`
-	Sequence     uint32     `json:"sequence"`
-	AmountIn     float64    `json:"amountin"`
-	BlockHeight  uint32     `json:"blockheight"`
-	BlockIndex   uint32     `json:"blockindex"`
-	ScriptSig    *ScriptSig `json:"scriptSig"`
+	Coinbase      string     `json:"coinbase"`
+	Stakebase     string     `json:"stakebase"`
+	Treasurybase  bool       `json:"treasurybase"`
+	TreasurySpend string     `json:"treasuryspend"`
+	Txid          string     `json:"txid"`
+	Vout          uint32     `json:"vout"`
+	Tree          int8       `json:"tree"`
+	Sequence      uint32     `json:"sequence"`
+	AmountIn      float64    `json:"amountin"`
+	BlockHeight   uint32     `json:"blockheight"`
+	BlockIndex    uint32     `json:"blockindex"`
+	ScriptSig     *ScriptSig `json:"scriptSig"`
 }
 
-// IsCoinBase returns a bool to show if a Vin is a Coinbase one or not.
+// IsCoinBase returns whether or not an input is a coinbase input.
 func (v *Vin) IsCoinBase() bool {
 	return len(v.Coinbase) > 0
 }
 
-// IsStakeBase returns a bool to show if a Vin is a StakeBase one or not.
+// IsStakeBase returns whether or not an input is a stakebase input.
 func (v *Vin) IsStakeBase() bool {
 	return len(v.Stakebase) > 0
+}
+
+// IsTreasurySpend returns whether or not an input is a treasury spend input.
+func (v *Vin) IsTreasurySpend() bool {
+	return len(v.TreasurySpend) > 0
 }
 
 // MarshalJSON provides a custom Marshal method for Vin.
@@ -672,6 +678,22 @@ func (v *Vin) MarshalJSON() ([]byte, error) {
 			BlockIndex:   v.BlockIndex,
 		}
 		return json.Marshal(treasurybaseStruct)
+
+	case v.IsTreasurySpend():
+		treasurySpendStruct := struct {
+			TreasurySpend string  `json:"treasuryspend"`
+			Sequence      uint32  `json:"sequence"`
+			AmountIn      float64 `json:"amountin"`
+			BlockHeight   uint32  `json:"blockheight"`
+			BlockIndex    uint32  `json:"blockindex"`
+		}{
+			TreasurySpend: v.TreasurySpend,
+			Sequence:      v.Sequence,
+			AmountIn:      v.AmountIn,
+			BlockHeight:   v.BlockHeight,
+			BlockIndex:    v.BlockIndex,
+		}
+		return json.Marshal(treasurySpendStruct)
 	}
 
 	txStruct := struct {
@@ -705,18 +727,19 @@ type PrevOut struct {
 // VinPrevOut is like Vin except it includes PrevOut.  It is used by
 // searchrawtransaction.
 type VinPrevOut struct {
-	Coinbase     string     `json:"coinbase"`
-	Stakebase    string     `json:"stakebase"`
-	Treasurybase bool       `json:"treasurybase"`
-	Txid         string     `json:"txid"`
-	Vout         uint32     `json:"vout"`
-	Tree         int8       `json:"tree"`
-	AmountIn     *float64   `json:"amountin,omitempty"`
-	BlockHeight  *uint32    `json:"blockheight,omitempty"`
-	BlockIndex   *uint32    `json:"blockindex,omitempty"`
-	ScriptSig    *ScriptSig `json:"scriptSig"`
-	PrevOut      *PrevOut   `json:"prevOut"`
-	Sequence     uint32     `json:"sequence"`
+	Coinbase      string     `json:"coinbase"`
+	Stakebase     string     `json:"stakebase"`
+	Treasurybase  bool       `json:"treasurybase"`
+	TreasurySpend string     `json:"treasuryspend"`
+	Txid          string     `json:"txid"`
+	Vout          uint32     `json:"vout"`
+	Tree          int8       `json:"tree"`
+	AmountIn      *float64   `json:"amountin,omitempty"`
+	BlockHeight   *uint32    `json:"blockheight,omitempty"`
+	BlockIndex    *uint32    `json:"blockindex,omitempty"`
+	ScriptSig     *ScriptSig `json:"scriptSig"`
+	PrevOut       *PrevOut   `json:"prevOut"`
+	Sequence      uint32     `json:"sequence"`
 }
 
 // IsCoinBase returns a bool to show if a Vin is a Coinbase one or not.
@@ -727,6 +750,11 @@ func (v *VinPrevOut) IsCoinBase() bool {
 // IsStakeBase returns a bool to show if a Vin is a StakeBase one or not.
 func (v *VinPrevOut) IsStakeBase() bool {
 	return len(v.Stakebase) > 0
+}
+
+// IsTreasurySpend returns whether or not an input is a treasury spend input.
+func (v *VinPrevOut) IsTreasurySpend() bool {
+	return len(v.TreasurySpend) > 0
 }
 
 // MarshalJSON provides a custom Marshal method for VinPrevOut.
@@ -767,6 +795,18 @@ func (v *VinPrevOut) MarshalJSON() ([]byte, error) {
 			Sequence:     v.Sequence,
 		}
 		return json.Marshal(treasurybaseStruct)
+
+	case v.IsTreasurySpend():
+		treasurySpendStruct := struct {
+			TreasurySpend string   `json:"treasuryspend"`
+			AmountIn      *float64 `json:"amountin,omitempty"`
+			Sequence      uint32   `json:"sequence"`
+		}{
+			TreasurySpend: v.TreasurySpend,
+			AmountIn:      v.AmountIn,
+			Sequence:      v.Sequence,
+		}
+		return json.Marshal(treasurySpendStruct)
 	}
 
 	txStruct := struct {

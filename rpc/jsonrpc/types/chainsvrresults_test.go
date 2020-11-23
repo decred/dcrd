@@ -52,6 +52,14 @@ func TestChainSvrCustomResults(t *testing.T) {
 			expected: `{"treasurybase":true,"sequence":4294967295,"amountin":0,"blockheight":0,"blockindex":0}`,
 		},
 		{
+			name: "custom vin marshal with treasuryspend",
+			result: &Vin{
+				TreasurySpend: "0000c2",
+				Sequence:      4294967295,
+			},
+			expected: `{"treasuryspend":"0000c2","sequence":4294967295,"amountin":0,"blockheight":0,"blockindex":0}`,
+		},
+		{
 			name: "custom vinprevout marshal with coinbase",
 			result: &VinPrevOut{
 				Coinbase: "021234",
@@ -83,6 +91,14 @@ func TestChainSvrCustomResults(t *testing.T) {
 				Sequence:     4294967295,
 			},
 			expected: `{"treasurybase":true,"sequence":4294967295}`,
+		},
+		{
+			name: "custom vinprevout marshal with treasuryspend",
+			result: &VinPrevOut{
+				TreasurySpend: "0000c2",
+				Sequence:      4294967295,
+			},
+			expected: `{"treasuryspend":"0000c2","sequence":4294967295}`,
 		},
 	}
 
