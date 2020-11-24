@@ -129,6 +129,49 @@ type regenEvent struct {
 	value  interface{}
 }
 
+// waitGroup behaves simlarly to a sync.WaitGroup without the restriction that
+// Adds() and Waits() must be synchronized if the wait group is empty.
+type waitGroup struct {
+	mtx sync.Mutex
+	c   int64
+	dc  chan struct{}
+}
+
+func (wg *waitGroup) Add(i int64) {
+	wg.mtx.Lock()
+	wg.c += i
+	switch {
+	case wg.c < 0:
+		panic("counter cannot be negative")
+
+	case wg.c > 0 && wg.dc == nil:
+		// First increase after counter was last zero. Create the
+		// doneChan.
+		wg.dc = make(chan struct{})
+
+	case wg.c == 0 && wg.dc != nil:
+		// Counter decreased to zero. Signal the waitGroup is done.
+		close(wg.dc)
+		wg.dc = nil
+	}
+	wg.mtx.Unlock()
+}
+
+func (wg *waitGroup) Done() {
+	wg.Add(-1)
+}
+
+func (wg *waitGroup) Wait() {
+	wg.mtx.Lock()
+	dc := wg.dc
+	wg.mtx.Unlock()
+	if dc == nil {
+		// No need to wait, given there are no processes running.
+		return
+	}
+	<-dc
+}
+
 // BgBlkTmplGenerator provides facilities for asynchronously generating block
 // templates in response to various relevant events and allowing clients to
 // subscribe for updates when new templates are generated as well as access the
@@ -242,7 +285,19 @@ type BgBlkTmplGenerator struct {
 	// a new template that will make the current template stale is being
 	// generated.  Stale, in this context, means either the parent has changed
 	// or there are new votes available.
-	staleTemplateWg sync.WaitGroup
+	//
+	// Note that the use of a custom implementation of a wait group is
+	// intentional. The stdlib's sync.WaitGroup documentation states in its
+	// Add() method:
+	//
+	// 	[...] calls with a positive delta that occur when the counter
+	// 	is zero must happen before a Wait.
+	//
+	// However, the usage pattern of staleTemplateWg within
+	// BgBlkTmplGenerator cannot enforce that guarantee. Specifically,
+	// Add(1) and Wait() calls are actually always executed in different
+	// goroutines without any synchronization.
+	staleTemplateWg waitGroup
 
 	// These fields track the current best template and are protected by the
 	// template mutex.  The template will be nil when there is a template error
