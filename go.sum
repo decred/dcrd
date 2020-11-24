@@ -16,8 +16,8 @@ github.com/decred/dcrd/blockchain/stake/v3 v3.0.0 h1:vr0o0ICjuEzg1End6YtBfwgDuPk
 github.com/decred/dcrd/blockchain/stake/v3 v3.0.0/go.mod h1:5GIUwsrHQCJauacgCegIR6t92SaeVi28Qls/BLN9vOw=
 github.com/decred/dcrd/blockchain/standalone/v2 v2.0.0 h1:9gUuH0u/IZNPWBK9K3CxgAWPG7nTqVSsZefpGY4Okns=
 github.com/decred/dcrd/blockchain/standalone/v2 v2.0.0/go.mod h1:t2qaZ3hNnxHZ5kzVJDgW5sp47/8T5hYJt7SR+/JtRhI=
-github.com/decred/dcrd/blockchain/v3 v3.0.1 h1:Sk1Td+2uahykZFMUunhhL0gBNawosVNBoq034Bjw6EQ=
-github.com/decred/dcrd/blockchain/v3 v3.0.1/go.mod h1:LD5VA95qdb+DlRiPI8VLBimDqvlDCAJsidZ5oD6nc/U=
+github.com/decred/dcrd/blockchain/v3 v3.0.2 h1:jrM7dTmNsvY3dzYhVOL090A3mnUnTlZdI5zt2l5SyAM=
+github.com/decred/dcrd/blockchain/v3 v3.0.2/go.mod h1:LD5VA95qdb+DlRiPI8VLBimDqvlDCAJsidZ5oD6nc/U=
 github.com/decred/dcrd/certgen v1.1.1 h1:MYPG5jCysnbF4OiJ1++YumFEu2p/MsM/zxmmqC9mVFg=
 github.com/decred/dcrd/certgen v1.1.1/go.mod h1:ivkPLChfjdAgFh7ZQOtl6kJRqVkfrCq67dlq3AbZBQE=
 github.com/decred/dcrd/chaincfg/chainhash v1.0.2 h1:rt5Vlq/jM3ZawwiacWjPa+smINyLRN07EO0cNBV6DGU=
@@ -50,10 +50,10 @@ github.com/decred/dcrd/lru v1.1.0 h1:QwT6v8LFKOL3xQ3qtucgRk4pdiawrxIfCbUXWpm+JL4
 github.com/decred/dcrd/lru v1.1.0/go.mod h1:mxKOwFd7lFjN2GZYsiz/ecgqR6kkYAl+0pz0tEMk218=
 github.com/decred/dcrd/peer/v2 v2.2.0 h1:goBze7VpQq350Uo/tp9EkFbEggPyXwzs971Vzf7t2ok=
 github.com/decred/dcrd/peer/v2 v2.2.0/go.mod h1:jB/UwIWbxAFJn776dVC7hqR1MAiFpVP+q2dt/lDUC+I=
-github.com/decred/dcrd/rpc/jsonrpc/types/v2 v2.2.0 h1:8xxN/nKOO2yx29oZEL8METscZ3eJnvbl68oFiNg2+SI=
-github.com/decred/dcrd/rpc/jsonrpc/types/v2 v2.2.0/go.mod h1:krn89ZOgSa8yc7sA4WpDK95p61NnjNWFkNlMnGrKbMc=
-github.com/decred/dcrd/rpcclient/v6 v6.0.1 h1:TdJD2+VoPqALRWEiKTAiOpkhuSmhca9Wa810WL5dtjs=
-github.com/decred/dcrd/rpcclient/v6 v6.0.1/go.mod h1:ooiJiav7qFDpleLyz9ioXvwic6GhaVp3UUfPRXPqjHQ=
+github.com/decred/dcrd/rpc/jsonrpc/types/v2 v2.3.0 h1:KZ2zihwY5Mx6EeYwEA3bL3k+qDXdCraQL+iDIG1BP5k=
+github.com/decred/dcrd/rpc/jsonrpc/types/v2 v2.3.0/go.mod h1:krn89ZOgSa8yc7sA4WpDK95p61NnjNWFkNlMnGrKbMc=
+github.com/decred/dcrd/rpcclient/v6 v6.0.2 h1:bPHPeKGrPZPsHDSRIJxj5xhqoxwM5R7+OsEZXFpDxPk=
+github.com/decred/dcrd/rpcclient/v6 v6.0.2/go.mod h1:t6ECC72j2xWQ323poL85IFNq0EUfcSTfwL8j7jDJ6mw=
 github.com/decred/dcrd/txscript/v3 v3.0.0 h1:74NmirXAIskbGP0g9OWtrmN7OxDbWJ9G73a5uoxTkcM=
 github.com/decred/dcrd/txscript/v3 v3.0.0/go.mod h1:pdvnlD4KGdDoc09cvWRJ8EoRQUaiUz41uDevOWuEfII=
 github.com/decred/dcrd/wire v1.4.0 h1:KmSo6eTQIvhXS0fLBQ/l7hG7QLcSJQKSwSyzSqJYDk0=
