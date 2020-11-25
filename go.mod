@@ -3,7 +3,6 @@ module github.com/decred/dcrd
 go 1.13
 
 require (
-	github.com/btcsuite/winsvc v1.0.0
 	github.com/davecgh/go-spew v1.1.1
 	github.com/decred/base58 v1.0.3
 	github.com/decred/dcrd/addrmgr v1.2.0
@@ -38,6 +37,7 @@ require (
 	github.com/syndtr/goleveldb v1.0.1-0.20200815110645-5c35d600f0ca
 	golang.org/x/crypto v0.0.0-20200820211705-5c72a883971a
 	golang.org/x/sync v0.0.0-20200625203802-6e8e738ad208
+	golang.org/x/sys v0.0.0-20201119102817-f84b799fce68
 )
 
 replace (
