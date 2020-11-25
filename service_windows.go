@@ -11,9 +11,9 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/btcsuite/winsvc/eventlog"
-	"github.com/btcsuite/winsvc/mgr"
-	"github.com/btcsuite/winsvc/svc"
+	"golang.org/x/sys/windows/svc/eventlog"
+	"golang.org/x/sys/windows/svc/mgr"
+	"golang.org/x/sys/windows/svc"
 	"github.com/decred/dcrd/internal/version"
 )
 
@@ -195,7 +195,7 @@ func startService() error {
 	}
 	defer service.Close()
 
-	err = service.Start(os.Args)
+	err = service.Start(os.Args...)
 	if err != nil {
 		return fmt.Errorf("could not start service: %v", err)
 	}
@@ -275,11 +275,11 @@ func performServiceCommand(command string) error {
 func serviceMain() (bool, error) {
 	// Don't run as a service if we're running interactively (or that can't
 	// be determined due to an error).
-	isInteractive, err := svc.IsAnInteractiveSession()
+	isService, err := svc.IsWindowsService()
 	if err != nil {
 		return false, err
 	}
-	if isInteractive {
+	if !isService {
 		return false, nil
 	}
 
