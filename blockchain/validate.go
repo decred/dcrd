@@ -971,60 +971,6 @@ func (b *BlockChain) checkBlockPositional(block *dcrutil.Block, prevNode *blockN
 				return ruleError(ErrExpiredTx, str)
 			}
 		}
-
-		// Block 0 and 1 are special and don't need the following checks.
-		if blockHeight < 2 {
-			return nil
-		}
-		isTreasuryEnabled, err := b.isTreasuryAgendaActive(prevNode)
-		if err != nil {
-			return err
-		}
-		if !isTreasuryEnabled {
-			return nil
-		}
-
-		// From this point forward it is assumed that Treasury Agenda is active.
-
-		// If there is a TSpend transaction in this block we need to tally all
-		// votes and ensure we are on a TVI (Treasury Vote Interval) height. If
-		// either of those cases is not true a TSpend is not valid in this
-		// block.
-		tvi := standalone.IsTreasuryVoteInterval(uint64(blockHeight),
-			b.chainParams.TreasuryVoteInterval)
-
-		tspends := 0
-		for _, stx := range block.STransactions() {
-			msgTx := stx.MsgTx()
-			if !stake.IsTSpend(msgTx) {
-				continue
-			}
-			tspends++
-
-			if tvi {
-				// Exclude first window since it cannot contain the required
-				// number of votes.
-				minRequiredExpiry := 2 +
-					uint64(b.chainParams.StakeValidationHeight) +
-					(b.chainParams.TreasuryVoteInterval *
-						b.chainParams.TreasuryVoteIntervalMultiplier)
-				if msgTx.Expiry >= uint32(minRequiredExpiry) {
-					continue
-				}
-
-				str := fmt.Sprintf("block contains a TSpend "+
-					"transaction before a full voting window "+
-					"is possible: height %v expiry %v minExpiry %v",
-					blockHeight, msgTx.Expiry, minRequiredExpiry)
-				return ruleError(ErrInvalidTVoteWindow, str)
-			}
-
-			// We are not in a TVI, error out.
-			str := fmt.Sprintf("block contains a TSpend transaction "+
-				"while not on a TVI: height %v TVI %v",
-				blockHeight, b.chainParams.TreasuryVoteInterval)
-			return ruleError(ErrNotTVI, str)
-		}
 	}
 
 	return nil
@@ -1530,6 +1476,7 @@ func (b *BlockChain) checkBlockContext(block *dcrutil.Block, prevNode *blockNode
 	var totalTickets, totalVotes, totalRevocations int64
 	var totalTreasuryAdd, totalTreasurySpend, totalTreasurybase int64
 	var totalYesVotes int64
+	var treasurySpendTxns []*wire.MsgTx
 	for txIdx, stx := range msgBlock.STransactions {
 		// A block must not have regular transactions in the stake transaction
 		// tree.
@@ -1580,6 +1527,7 @@ func (b *BlockChain) checkBlockContext(block *dcrutil.Block, prevNode *blockNode
 
 			case stake.TxTypeTSpend:
 				totalTreasurySpend++
+				treasurySpendTxns = append(treasurySpendTxns, stx)
 
 			case stake.TxTypeTreasuryBase:
 				totalTreasurybase++
@@ -1644,8 +1592,7 @@ func (b *BlockChain) checkBlockContext(block *dcrutil.Block, prevNode *blockNode
 		if int64(len(msgBlock.STransactions)) != numExpected {
 			str := fmt.Sprintf("block contains disallowed stake transactions "+
 				"before stake validation height %d (total: %d, expected %d)",
-				uint32(b.chainParams.StakeValidationHeight),
-				len(msgBlock.STransactions), numExpected)
+				stakeValidationHeight, len(msgBlock.STransactions), numExpected)
 			return ruleError(ErrInvalidEarlyStakeTx, str)
 		}
 	}
@@ -1728,7 +1675,7 @@ func (b *BlockChain) checkBlockContext(block *dcrutil.Block, prevNode *blockNode
 		// Ensure that all votes are only for winning tickets and all
 		// revocations are actually eligible to be revoked once stake validation
 		// height has been reached.
-		if blockHeight >= b.chainParams.StakeValidationHeight {
+		if header.Height >= stakeValidationHeight {
 			parentStakeNode, err := b.fetchStakeNode(prevNode)
 			if err != nil {
 				return err
@@ -1741,6 +1688,42 @@ func (b *BlockChain) checkBlockContext(block *dcrutil.Block, prevNode *blockNode
 			err = b.checkAllowedRevocations(parentStakeNode, block.MsgBlock())
 			if err != nil {
 				return err
+			}
+		}
+
+		// Treasury spend transactions must only be present in blocks that fall
+		// on a treasury voting interval (TVI) after a full voting window is
+		// possible.  Treasury spend transactions are not allowed before a full
+		// voting window is possible since it is not possible for them to have
+		// the required number of votes at that point.
+		//
+		// Also, blocks 0 and 1 are special, so they must be exempted.
+		if isTreasuryEnabled && blockHeight > 1 {
+			tvi := b.chainParams.TreasuryVoteInterval
+			isTVI := standalone.IsTreasuryVoteInterval(uint64(blockHeight), tvi)
+			if !isTVI && len(treasurySpendTxns) != 0 {
+				tx := treasurySpendTxns[0]
+				curHeight := uint64(blockHeight)
+				nextTVI := curHeight + (tvi - (curHeight % tvi))
+				str := fmt.Sprintf("block contains treasury spend %s while "+
+					"not on a treasury vote interval (block height: %d, next "+
+					"TVI: %d)", tx.TxHash(), blockHeight, nextTVI)
+				return ruleError(ErrNotTVI, str)
+			}
+
+			if isTVI {
+				minRequiredExpiry := 2 + uint64(stakeValidationHeight) +
+					tvi*b.chainParams.TreasuryVoteIntervalMultiplier
+				for _, tx := range treasurySpendTxns {
+					if uint64(tx.Expiry) < minRequiredExpiry {
+						str := fmt.Sprintf("block contains treasury spend "+
+							"transaction %s before a full voting window is "+
+							"possible (height: %d, expiry: %d, min required "+
+							"expiry: %d)", tx.TxHash(), blockHeight, tx.Expiry,
+							minRequiredExpiry)
+						return ruleError(ErrInvalidTVoteWindow, str)
+					}
+				}
 			}
 		}
 	}
@@ -3365,20 +3348,17 @@ func (b *BlockChain) tspendChecks(prevNode *blockNode, block *dcrutil.Block) err
 	isTVI := standalone.IsTreasuryVoteInterval(uint64(blockHeight),
 		b.chainParams.TreasuryVoteInterval)
 
+	// NOTE: Treasury spend transactions are rejected from blocks that are not
+	// on a treasury vote interval during the contextual block checks.  Thus,
+	// there are no additional checks in that case.
+	if !isTVI {
+		return nil
+	}
+
 	var totalTSpendAmount int64
 	for _, stx := range block.STransactions() {
 		if !stake.IsTSpend(stx.MsgTx()) {
 			continue
-		}
-		// If block is not TVI error out since it is not
-		// allowed to contain a TSpend. This check is also
-		// performed in checkBlockPositional.
-		if !isTVI {
-			str := fmt.Sprintf("block contains TSpend "+
-				"transaction (%v) while block is not "+
-				"at a TVI height (%v)", stx.Hash(),
-				block.Height())
-			return ruleError(ErrNotTVI, str)
 		}
 
 		// Assert that the treasury spend is inside the correct window.
