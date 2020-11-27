@@ -752,6 +752,78 @@ func checkBlockSanityContextFree(block *dcrutil.Block, timeSource MedianTimeSour
 		return ruleError(ErrWrongBlockSize, str)
 	}
 
+	// Do some preliminary checks on each regular transaction to ensure they
+	// are sane.
+	transactions := block.Transactions()
+	for _, tx := range transactions {
+		msgTx := tx.MsgTx()
+		err := checkTransactionSanityContextFree(msgTx, chainParams)
+		if err != nil {
+			return err
+		}
+	}
+
+	// Do some preliminary checks on stake transactions that do not require
+	// additional context to determine their type to ensure they are sane while
+	// tallying each type before continuing.
+	var totalTickets, totalRevocations int64
+	for _, stx := range msgBlock.STransactions {
+		err := checkTransactionSanityContextFree(stx, chainParams)
+		if err != nil {
+			return err
+		}
+
+		isTicket := stake.IsSStx(stx)
+		isRevocation := !isTicket && stake.IsSSRtx(stx)
+		switch {
+		case isTicket:
+			totalTickets++
+
+		case isRevocation:
+			totalRevocations++
+		}
+	}
+
+	// A block must not contain more than the maximum allowed number of
+	// revocations.
+	if totalRevocations > maxRevocationsPerBlock {
+		str := fmt.Sprintf("block contains %d revocations which exceeds the "+
+			"maximum allowed amount of %d", totalRevocations,
+			maxRevocationsPerBlock)
+		return ruleError(ErrTooManyRevocations, str)
+	}
+
+	// A block header must commit to the actual number of tickets purchases that
+	// are in the block.
+	if int64(header.FreshStake) != totalTickets {
+		str := fmt.Sprintf("block header commitment to %d ticket purchases "+
+			"does not match %d contained in the block", header.FreshStake,
+			totalTickets)
+		return ruleError(ErrFreshStakeMismatch, str)
+	}
+
+	// A block header must commit to the actual number of revocations that
+	// are in the block.
+	if int64(header.Revocations) != totalRevocations {
+		str := fmt.Sprintf("block header commitment to %d revocations does "+
+			"not match %d contained in the block", header.Revocations,
+			totalRevocations)
+		return ruleError(ErrRevocationsMismatch, str)
+	}
+
+	// Check for duplicate transactions.
+	existingTxHashes := make(map[chainhash.Hash]struct{})
+	stakeTransactions := block.STransactions()
+	allTransactions := append(transactions, stakeTransactions...)
+	for _, tx := range allTransactions {
+		hash := tx.Hash()
+		if _, exists := existingTxHashes[*hash]; exists {
+			str := fmt.Sprintf("block contains duplicate transaction %v", hash)
+			return ruleError(ErrDuplicateTx, str)
+		}
+		existingTxHashes[*hash] = struct{}{}
+	}
+
 	return nil
 }
 
@@ -795,8 +867,8 @@ func checkBlockSanityContextual(block *dcrutil.Block, timeSource MedianTimeSourc
 		}
 	}
 
-	// Do some preliminary checks on each regular transaction to ensure they
-	// are sane before continuing.
+	// Do some preliminary contextual checks on each regular transaction to
+	// ensure they are sane before continuing.
 	for i, tx := range transactions {
 		// A block must not have stake transactions in the regular
 		// transaction tree.
@@ -809,7 +881,7 @@ func checkBlockSanityContextual(block *dcrutil.Block, timeSource MedianTimeSourc
 			return ruleError(ErrStakeTxInRegularTree, errStr)
 		}
 
-		err := CheckTransactionSanity(msgTx, chainParams,
+		err := checkTransactionSanityContextual(msgTx, chainParams,
 			isTreasuryEnabled)
 		if err != nil {
 			return err
@@ -823,7 +895,7 @@ func checkBlockSanityContextual(block *dcrutil.Block, timeSource MedianTimeSourc
 	var totalTAdd, totalTSpend, totalTreasurybase int64
 	var totalYesVotes int64
 	for txIdx, stx := range msgBlock.STransactions {
-		err := CheckTransactionSanity(stx, chainParams,
+		err := checkTransactionSanityContextual(stx, chainParams,
 			isTreasuryEnabled)
 		if err != nil {
 			return err
@@ -833,10 +905,9 @@ func checkBlockSanityContextual(block *dcrutil.Block, timeSource MedianTimeSourc
 		// transaction tree.
 		txType := stake.DetermineTxType(stx, isTreasuryEnabled)
 		if txType == stake.TxTypeRegular {
-			errStr := fmt.Sprintf("block contains regular "+
-				"transaction in stake transaction tree at "+
-				"index %d", txIdx)
-			return ruleError(ErrRegTxInStakeTree, errStr)
+			str := fmt.Sprintf("block contains regular transaction in stake "+
+				"transaction tree at index %d", txIdx)
+			return ruleError(ErrRegTxInStakeTree, str)
 		}
 
 		switch txType {
@@ -873,8 +944,7 @@ func checkBlockSanityContextual(block *dcrutil.Block, timeSource MedianTimeSourc
 			totalRevocations++
 		}
 
-		// If treasury agenda is enabled do the same type of math as
-		// above.
+		// Count treasury-related stake transactions when the agenda is active.
 		if isTreasuryEnabled {
 			switch txType {
 			case stake.TxTypeTAdd:
@@ -889,17 +959,8 @@ func checkBlockSanityContextual(block *dcrutil.Block, timeSource MedianTimeSourc
 		}
 	}
 
-	// A block must not contain more than the maximum allowed number of
-	// revocations.
-	if totalRevocations > maxRevocationsPerBlock {
-		errStr := fmt.Sprintf("block contains %d revocations which "+
-			"exceeds the maximum allowed amount of %d",
-			totalRevocations, maxRevocationsPerBlock)
-		return ruleError(ErrTooManyRevocations, errStr)
-	}
-
-	// A block must not contain more than the maximum allowed number of
-	// TAdds.
+	// A block must not contain more than the maximum allowed number of treasury
+	// add transactions.
 	if totalTAdd > MaxTAddsPerBlock {
 		errStr := fmt.Sprintf("block contains %d treasury adds which "+
 			"exceeds the maximum allowed amount of %d",
@@ -926,15 +987,6 @@ func checkBlockSanityContextual(block *dcrutil.Block, timeSource MedianTimeSourc
 		return ruleError(ErrNonstandardStakeTx, errStr)
 	}
 
-	// A block header must commit to the actual number of tickets purchases that
-	// are in the block.
-	if int64(header.FreshStake) != totalTickets {
-		errStr := fmt.Sprintf("block header commitment to %d ticket "+
-			"purchases does not match %d contained in the block",
-			header.FreshStake, totalTickets)
-		return ruleError(ErrFreshStakeMismatch, errStr)
-	}
-
 	// A block header must commit to the actual number of votes that are
 	// in the block.
 	if int64(header.Voters) != totalVotes {
@@ -942,15 +994,6 @@ func checkBlockSanityContextual(block *dcrutil.Block, timeSource MedianTimeSourc
 			"does not match %d contained in the block",
 			header.Voters, totalVotes)
 		return ruleError(ErrVotesMismatch, errStr)
-	}
-
-	// A block header must commit to the actual number of revocations that
-	// are in the block.
-	if int64(header.Revocations) != totalRevocations {
-		errStr := fmt.Sprintf("block header commitment to %d revocations "+
-			"does not match %d contained in the block",
-			header.Revocations, totalRevocations)
-		return ruleError(ErrRevocationsMismatch, errStr)
 	}
 
 	// A block header must commit to the same previous block acceptance
@@ -983,40 +1026,22 @@ func checkBlockSanityContextual(block *dcrutil.Block, timeSource MedianTimeSourc
 		}
 	}
 
-	// Check for duplicate transactions.  This check will be fairly quick
-	// since the transaction hashes are already cached due to building the
-	// merkle trees above.
-	existingTxHashes := make(map[chainhash.Hash]struct{})
+	// The number of signature operations must be less than the maximum allowed
+	// per block.
+	totalSigOps := 0
 	stakeTransactions := block.STransactions()
 	allTransactions := append(transactions, stakeTransactions...)
-
 	for _, tx := range allTransactions {
-		hash := tx.Hash()
-		if _, exists := existingTxHashes[*hash]; exists {
-			str := fmt.Sprintf("block contains duplicate "+
-				"transaction %v", hash)
-			return ruleError(ErrDuplicateTx, str)
-		}
-		existingTxHashes[*hash] = struct{}{}
-	}
-
-	// The number of signature operations must be less than the maximum
-	// allowed per block.
-	totalSigOps := 0
-	for _, tx := range allTransactions {
-		// We could potentially overflow the accumulator so check for
-		// overflow.
-		lastSigOps := totalSigOps
-
 		msgTx := tx.MsgTx()
+
+		// We could potentially overflow the accumulator so check for overflow.
+		lastSigOps := totalSigOps
 		isCoinBase := standalone.IsCoinBaseTx(msgTx, isTreasuryEnabled)
 		isSSGen := stake.IsSSGen(msgTx, isTreasuryEnabled)
-		totalSigOps += CountSigOps(tx, isCoinBase, isSSGen,
-			isTreasuryEnabled)
+		totalSigOps += CountSigOps(tx, isCoinBase, isSSGen, isTreasuryEnabled)
 		if totalSigOps < lastSigOps || totalSigOps > MaxSigOpsPerBlock {
-			str := fmt.Sprintf("block contains too many signature "+
-				"operations - got %v, max %v", totalSigOps,
-				MaxSigOpsPerBlock)
+			str := fmt.Sprintf("block contains too many signature operations "+
+				"- got %v, max %v", totalSigOps, MaxSigOpsPerBlock)
 			return ruleError(ErrTooManySigOps, str)
 		}
 	}
