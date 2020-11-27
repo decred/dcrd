@@ -1164,94 +1164,90 @@ func (b *BlockChain) checkBlockPositional(block *dcrutil.Block, prevNode *blockN
 	}
 
 	fastAdd := flags&BFFastAdd == BFFastAdd
-	if fastAdd {
-		return nil
-	}
+	if !fastAdd {
+		// The height of this block is one more than the referenced previous
+		// block.
+		blockHeight := prevNode.height + 1
 
-	// The height of this block is one more than the referenced
-	// previous block.
-	blockHeight := prevNode.height + 1
-
-	// Ensure all transactions in the block are not expired.
-	for _, tx := range block.Transactions() {
-		if IsExpired(tx, blockHeight) {
-			errStr := fmt.Sprintf("block contains expired regular "+
-				"transaction %v (expiration height %d)", tx.Hash(),
-				tx.MsgTx().Expiry)
-			return ruleError(ErrExpiredTx, errStr)
+		// Ensure all transactions in the block are not expired.
+		for _, tx := range block.Transactions() {
+			if IsExpired(tx, blockHeight) {
+				str := fmt.Sprintf("block contains expired regular "+
+					"transaction %v (expiration height %d)", tx.Hash(),
+					tx.MsgTx().Expiry)
+				return ruleError(ErrExpiredTx, str)
+			}
 		}
-	}
-	for _, stx := range block.STransactions() {
-		if IsExpired(stx, blockHeight) {
-			errStr := fmt.Sprintf("block contains expired stake "+
-				"transaction %v (expiration height %d)", stx.Hash(),
-				stx.MsgTx().Expiry)
-			return ruleError(ErrExpiredTx, errStr)
+		for _, stx := range block.STransactions() {
+			if IsExpired(stx, blockHeight) {
+				str := fmt.Sprintf("block contains expired stake "+
+					"transaction %v (expiration height %d)", stx.Hash(),
+					stx.MsgTx().Expiry)
+				return ruleError(ErrExpiredTx, str)
+			}
 		}
-	}
 
-	// Block 0 and 1 are special and don't need the coinbase height checks.
-	if blockHeight < 2 {
-		return nil
-	}
-
-	// Check that the coinbase contains at minimum the block height in
-	// output 1.
-	isTreasuryEnabled, err := b.isTreasuryAgendaActive(prevNode)
-	if err != nil {
-		return err
-	}
-	err = checkCoinbaseUniqueHeight(blockHeight, block, isTreasuryEnabled)
-	if err != nil {
-		return err
-	}
-	if !isTreasuryEnabled {
-		return nil
-	}
-
-	// From this point forward it is assumed that Treasury Agenda is active.
-
-	// If there is a TSpend transaction in this block we need to tally all
-	// votes and ensure we are on a TVI (Treasury Vote Interval) height. If
-	// either of those cases is not true a TSpend is not valid in this
-	// block.
-	tvi := standalone.IsTreasuryVoteInterval(uint64(blockHeight),
-		b.chainParams.TreasuryVoteInterval)
-
-	tspends := 0
-	for _, stx := range block.STransactions() {
-		msgTx := stx.MsgTx()
-		if !stake.IsTSpend(msgTx) {
-			continue
+		// Block 0 and 1 are special and don't need the coinbase height checks.
+		if blockHeight < 2 {
+			return nil
 		}
-		tspends++
 
-		if tvi {
-			// Exclude first window since it cannot contain the
-			// required number of votes.
-			minRequiredExpiry := 2 +
-				uint64(b.chainParams.StakeValidationHeight) +
-				(b.chainParams.TreasuryVoteInterval *
-					b.chainParams.TreasuryVoteIntervalMultiplier)
-			if msgTx.Expiry >= uint32(minRequiredExpiry) {
+		// Check that the coinbase contains at minimum the block height in
+		// output 1.
+		isTreasuryEnabled, err := b.isTreasuryAgendaActive(prevNode)
+		if err != nil {
+			return err
+		}
+		err = checkCoinbaseUniqueHeight(blockHeight, block, isTreasuryEnabled)
+		if err != nil {
+			return err
+		}
+		if !isTreasuryEnabled {
+			return nil
+		}
+
+		// From this point forward it is assumed that Treasury Agenda is active.
+
+		// If there is a TSpend transaction in this block we need to tally all
+		// votes and ensure we are on a TVI (Treasury Vote Interval) height. If
+		// either of those cases is not true a TSpend is not valid in this
+		// block.
+		tvi := standalone.IsTreasuryVoteInterval(uint64(blockHeight),
+			b.chainParams.TreasuryVoteInterval)
+
+		tspends := 0
+		for _, stx := range block.STransactions() {
+			msgTx := stx.MsgTx()
+			if !stake.IsTSpend(msgTx) {
 				continue
 			}
+			tspends++
 
-			errStr := fmt.Sprintf("block contains a TSpend "+
-				"transaction before a full voting window "+
-				"is possible: height %v expiry %v minExpiry %v",
-				blockHeight, msgTx.Expiry, minRequiredExpiry)
-			return ruleError(ErrInvalidTVoteWindow, errStr)
+			if tvi {
+				// Exclude first window since it cannot contain the required
+				// number of votes.
+				minRequiredExpiry := 2 +
+					uint64(b.chainParams.StakeValidationHeight) +
+					(b.chainParams.TreasuryVoteInterval *
+						b.chainParams.TreasuryVoteIntervalMultiplier)
+				if msgTx.Expiry >= uint32(minRequiredExpiry) {
+					continue
+				}
+
+				str := fmt.Sprintf("block contains a TSpend "+
+					"transaction before a full voting window "+
+					"is possible: height %v expiry %v minExpiry %v",
+					blockHeight, msgTx.Expiry, minRequiredExpiry)
+				return ruleError(ErrInvalidTVoteWindow, str)
+			}
+
+			// We are not in a TVI, error out.
+			str := fmt.Sprintf("block contains a TSpend transaction "+
+				"while not on a TVI: height %v TVI %v",
+				blockHeight, b.chainParams.TreasuryVoteInterval)
+			return ruleError(ErrNotTVI, str)
 		}
-
-		// We are not in a TVI, error out.
-		errStr := fmt.Sprintf("block contains a TSpend transaction "+
-			"while not on a TVI: height %v TVI %v",
-			blockHeight, b.chainParams.TreasuryVoteInterval)
-		return ruleError(ErrNotTVI, errStr)
 	}
-	log.Tracef("checkBlockPositional tspends while on TVI: %v %v %v",
-		tspends, blockHeight, b.chainParams.TreasuryVoteInterval)
 
 	return nil
 }
@@ -1672,82 +1668,78 @@ func (b *BlockChain) checkBlockContext(block *dcrutil.Block, prevNode *blockNode
 	}
 
 	fastAdd := flags&BFFastAdd == BFFastAdd
-	if fastAdd {
-		return nil
-	}
-
-	// A block must not exceed the maximum allowed size as defined by the
-	// network parameters and the current status of any hard fork votes to
-	// change it when serialized.
-	maxBlockSize, err := b.maxBlockSize(prevNode)
-	if err != nil {
-		return err
-	}
-	serializedSize := int64(block.MsgBlock().Header.Size)
-	if serializedSize > maxBlockSize {
-		str := fmt.Sprintf("serialized block is too big - "+
-			"got %d, max %d", serializedSize,
-			maxBlockSize)
-		return ruleError(ErrBlockTooBig, str)
-	}
-
-	// The calculated merkle root(s) of the transaction trees must match
-	// the associated entries in the header.
-	err = b.checkMerkleRoots(block.MsgBlock(), prevNode)
-	if err != nil {
-		return err
-	}
-
-	// Switch to using the past median time of the block prior to the block
-	// being checked for all checks related to lock times once the stake
-	// vote for the agenda is active.
-	blockTime := header.Timestamp
-	lnFeaturesActive, err := b.isLNFeaturesAgendaActive(prevNode)
-	if err != nil {
-		return err
-	}
-	if lnFeaturesActive {
-		blockTime = prevNode.CalcPastMedianTime()
-	}
-
-	// The height of this block is one more than the referenced
-	// previous block.
-	blockHeight := prevNode.height + 1
-
-	// Ensure all transactions in the block are finalized.
-	for _, tx := range block.Transactions() {
-		if !IsFinalizedTransaction(tx, blockHeight, blockTime) {
-			str := fmt.Sprintf("block contains unfinalized regular "+
-				"transaction %v", tx.Hash())
-			return ruleError(ErrUnfinalizedTx, str)
-		}
-	}
-	for _, stx := range block.STransactions() {
-		if !IsFinalizedTransaction(stx, blockHeight, blockTime) {
-			str := fmt.Sprintf("block contains unfinalized stake "+
-				"transaction %v", stx.Hash())
-			return ruleError(ErrUnfinalizedTx, str)
-
-		}
-	}
-
-	// Ensure that all votes are only for winning tickets and all
-	// revocations are actually eligible to be revoked once stake
-	// validation height has been reached.
-	if blockHeight >= b.chainParams.StakeValidationHeight {
-		parentStakeNode, err := b.fetchStakeNode(prevNode)
+	if !fastAdd {
+		// A block must not exceed the maximum allowed size as defined by the
+		// network parameters and the current status of any hard fork votes to
+		// change it when serialized.
+		maxBlockSize, err := b.maxBlockSize(prevNode)
 		if err != nil {
 			return err
 		}
-		err = b.checkAllowedVotes(prevNode, parentStakeNode, block.MsgBlock())
+		serializedSize := int64(block.MsgBlock().Header.Size)
+		if serializedSize > maxBlockSize {
+			str := fmt.Sprintf("serialized block is too big - got %d, max %d",
+				serializedSize, maxBlockSize)
+			return ruleError(ErrBlockTooBig, str)
+		}
+
+		// The calculated merkle root(s) of the transaction trees must match
+		// the associated entries in the header.
+		err = b.checkMerkleRoots(block.MsgBlock(), prevNode)
 		if err != nil {
 			return err
 		}
 
-		err = b.checkAllowedRevocations(parentStakeNode,
-			block.MsgBlock())
+		// Switch to using the past median time of the block prior to the block
+		// being checked for all checks related to lock times once the stake
+		// vote for the agenda is active.
+		blockTime := header.Timestamp
+		lnFeaturesActive, err := b.isLNFeaturesAgendaActive(prevNode)
 		if err != nil {
 			return err
+		}
+		if lnFeaturesActive {
+			blockTime = prevNode.CalcPastMedianTime()
+		}
+
+		// The height of this block is one more than the referenced
+		// previous block.
+		blockHeight := prevNode.height + 1
+
+		// Ensure all transactions in the block are finalized.
+		for _, tx := range block.Transactions() {
+			if !IsFinalizedTransaction(tx, blockHeight, blockTime) {
+				str := fmt.Sprintf("block contains unfinalized regular "+
+					"transaction %v", tx.Hash())
+				return ruleError(ErrUnfinalizedTx, str)
+			}
+		}
+		for _, stx := range block.STransactions() {
+			if !IsFinalizedTransaction(stx, blockHeight, blockTime) {
+				str := fmt.Sprintf("block contains unfinalized stake "+
+					"transaction %v", stx.Hash())
+				return ruleError(ErrUnfinalizedTx, str)
+
+			}
+		}
+
+		// Ensure that all votes are only for winning tickets and all
+		// revocations are actually eligible to be revoked once stake validation
+		// height has been reached.
+		if blockHeight >= b.chainParams.StakeValidationHeight {
+			parentStakeNode, err := b.fetchStakeNode(prevNode)
+			if err != nil {
+				return err
+			}
+			err = b.checkAllowedVotes(prevNode, parentStakeNode, block.MsgBlock())
+			if err != nil {
+				return err
+			}
+
+			err = b.checkAllowedRevocations(parentStakeNode, block.MsgBlock())
+			if err != nil {
+				return err
+			}
 		}
 	}
 
