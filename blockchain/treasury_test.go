@@ -3757,7 +3757,7 @@ func TestTreasuryBaseCorners(t *testing.T) {
 	g.SetTip(startTip)
 	g.NextBlock("length0", nil, outs[1:], replaceTreasuryVersions,
 		replaceCoinbase, corruptLengthTreasurybase)
-	g.RejectTipBlock(ErrFirstTxNotTreasurybase)
+	g.RejectTipBlock(ErrRegTxInStakeTree)
 
 	// ---------------------------------------------------------------------
 	// Only treasury base.
@@ -3784,8 +3784,8 @@ func TestTreasuryBaseCorners(t *testing.T) {
 	g.RejectTipBlock(ErrTreasurybaseOutValue)
 
 	// Note we can't hit the following errors in consensus:
-	// * ErrErrFirstTxNotOpReturn (missing OP_RETURN)
-	// * ErrErrFirstTxNotOpReturn (version)
+	// * ErrFirstTxNotTreasurybase (missing OP_RETURN)
+	// * ErrFirstTxNotTreasurybase (version)
 	// * ErrTreasurybaseTxNotOpReturn
 	// * ErrInvalidTreasurybaseTxOutputs
 	// * ErrInvalidTreasurybaseVersion

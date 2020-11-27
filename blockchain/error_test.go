@@ -52,7 +52,6 @@ func TestErrorKindStringer(t *testing.T) {
 		{ErrBadFees, "ErrBadFees"},
 		{ErrTooManySigOps, "ErrTooManySigOps"},
 		{ErrFirstTxNotCoinbase, "ErrFirstTxNotCoinbase"},
-		{ErrFirstTxNotOpReturn, "ErrFirstTxNotOpReturn"},
 		{ErrCoinbaseHeight, "ErrCoinbaseHeight"},
 		{ErrMultipleCoinbases, "ErrMultipleCoinbases"},
 		{ErrStakeTxInRegularTree, "ErrStakeTxInRegularTree"},

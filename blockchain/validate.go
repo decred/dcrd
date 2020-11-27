@@ -820,39 +820,6 @@ func checkBlockSanityContextual(block *dcrutil.Block, timeSource MedianTimeSourc
 	msgBlock := block.MsgBlock()
 	header := &msgBlock.Header
 
-	// The first transaction in a block's regular tree must be a coinbase.
-	transactions := block.Transactions()
-	if !standalone.IsCoinBaseTx(transactions[0].MsgTx(), isTreasuryEnabled) {
-		return ruleError(ErrFirstTxNotCoinbase, "first transaction in "+
-			"block is not a coinbase")
-	}
-
-	// A block must not have more than one coinbase.
-	for i, tx := range transactions[1:] {
-		if standalone.IsCoinBaseTx(tx.MsgTx(), isTreasuryEnabled) {
-			str := fmt.Sprintf("block contains second coinbase at "+
-				"index %d", i+1)
-			return ruleError(ErrMultipleCoinbases, str)
-		}
-	}
-
-	if isTreasuryEnabled {
-		if len(block.STransactions()) == 0 ||
-			!standalone.IsTreasuryBase(block.STransactions()[0].MsgTx()) {
-			return ruleError(ErrFirstTxNotTreasurybase, "first "+
-				"transaction in block is not a treasurybase")
-		}
-
-		// A block must not have more than one treasury base.
-		for i, tx := range block.STransactions()[1:] {
-			if standalone.IsTreasuryBase(tx.MsgTx()) {
-				str := fmt.Sprintf("block contains second "+
-					"treasury base at index %d", i+1)
-				return ruleError(ErrMultipleTreasurybases, str)
-			}
-		}
-	}
-
 	// Do some preliminary checks on stake transactions and tally how many of
 	// each type there are as well as the the number of yes votes approving the
 	// previous block
@@ -989,6 +956,7 @@ func checkBlockSanityContextual(block *dcrutil.Block, timeSource MedianTimeSourc
 	// The number of signature operations must be less than the maximum allowed
 	// per block.
 	totalSigOps := 0
+	transactions := block.Transactions()
 	stakeTransactions := block.STransactions()
 	allTransactions := append(transactions, stakeTransactions...)
 	for _, tx := range allTransactions {
@@ -1167,18 +1135,11 @@ func (b *BlockChain) checkBlockPositional(block *dcrutil.Block, prevNode *blockN
 			}
 		}
 
-		// Block 0 and 1 are special and don't need the coinbase height checks.
+		// Block 0 and 1 are special and don't need the following checks.
 		if blockHeight < 2 {
 			return nil
 		}
-
-		// Check that the coinbase contains at minimum the block height in
-		// output 1.
 		isTreasuryEnabled, err := b.isTreasuryAgendaActive(prevNode)
-		if err != nil {
-			return err
-		}
-		err = checkCoinbaseUniqueHeight(blockHeight, block, isTreasuryEnabled)
 		if err != nil {
 			return err
 		}
@@ -1314,32 +1275,44 @@ func (b *BlockChain) checkBlockHeaderContext(header *wire.BlockHeader, prevNode 
 	return nil
 }
 
-// checkCoinbaseUniqueHeightWithAddress checks to ensure that for all blocks
-// height > 1 the coinbase contains the height encoding to make coinbase hash
-// collisions impossible. This is the old function that assumes a treasury
-// address.
-func checkCoinbaseUniqueHeightWithAddress(blockHeight int64, minReqOutputs, index int, block *dcrutil.Block) error {
-	// When treasury is disabled, Coinbase output 0 is the project subsidy,
-	// and output 1 is height + extranonce, so at least two outputs must
-	// exist. When the treasury is enabled the coinbase treasury payout has
-	// been moved to the stake tree and therefore we only need one output
-	// which encodes the height + extranonce in output 0.
+// checkCoinbaseUniqueHeight checks to ensure that for all blocks height > 1 the
+// coinbase contains the height encoding to make coinbase hash collisions
+// impossible.
+func checkCoinbaseUniqueHeight(blockHeight int64, block *dcrutil.Block, treasuryEnabled bool) error {
+	// Block 0 and 1 are special and don't need the coinbase height checks.
+	if blockHeight < 2 {
+		return nil
+	}
 
+	// Choose the correct output that encodes the height depending on whether
+	// or not the treasury agenda is active.
+	//
+	// Prior to activation of the agenda, output 0 is the project subsidy and
+	// output 1 encodes the height.  Once the agenda is active, the project
+	// subsidy is moved to the treasurybase in the stake tree and thus output 0
+	// then encodes the height.
+	nullDataOutIdx := 1
+	if treasuryEnabled {
+		nullDataOutIdx = 0
+	}
+
+	// There must be at least enough outputs to contain the one that encodes the
+	// height.
 	coinbaseTx := block.MsgBlock().Transactions[0]
-	if len(coinbaseTx.TxOut) < minReqOutputs {
+	if len(coinbaseTx.TxOut) < nullDataOutIdx+1 {
 		str := fmt.Sprintf("block %s is missing required coinbase outputs ("+
 			"num outputs: %d, min required: %d)", block.Hash(),
-			len(coinbaseTx.TxOut), minReqOutputs)
+			len(coinbaseTx.TxOut), nullDataOutIdx+1)
 		return ruleError(ErrFirstTxNotCoinbase, str)
 	}
 
 	// Only version 0 scripts are currently valid.
 	const scriptVersion = 0
-	nullDataOut := coinbaseTx.TxOut[index]
+	nullDataOut := coinbaseTx.TxOut[nullDataOutIdx]
 	if nullDataOut.Version != scriptVersion {
-		str := fmt.Sprintf("block %s coinbase output 1 script version %d is "+
-			"not the required version %d", block.Hash(), nullDataOut.Version,
-			scriptVersion)
+		str := fmt.Sprintf("block %s coinbase output %d script version %d is "+
+			"not the required version %d", block.Hash(), nullDataOutIdx,
+			nullDataOut.Version, scriptVersion)
 		return ruleError(ErrFirstTxNotCoinbase, str)
 	}
 
@@ -1369,14 +1342,15 @@ func checkCoinbaseUniqueHeightWithAddress(blockHeight int64, minReqOutputs, inde
 		}
 	}
 	if len(nullData) > maxUniqueCoinbaseNullDataSize {
-		str := fmt.Sprintf("block %s coinbase output 1 pushes %d bytes which "+
-			"is more than allowed value of %d", block.Hash(), len(nullData),
-			maxUniqueCoinbaseNullDataSize)
+		str := fmt.Sprintf("block %s coinbase output %d pushes %d bytes which "+
+			"is more than allowed value of %d", block.Hash(), nullDataOutIdx,
+			len(nullData), maxUniqueCoinbaseNullDataSize)
 		return ruleError(ErrFirstTxNotCoinbase, str)
 	}
 	if len(nullData) < 4 {
-		str := fmt.Sprintf("block %s coinbase output 1 pushes %d bytes which "+
-			"is too short to encode height", block.Hash(), len(nullData))
+		str := fmt.Sprintf("block %s coinbase output %d pushes %d bytes which "+
+			"is too short to encode height", block.Hash(), nullDataOutIdx,
+			len(nullData))
 		return ruleError(ErrFirstTxNotCoinbase, str)
 	}
 
@@ -1384,110 +1358,90 @@ func checkCoinbaseUniqueHeightWithAddress(blockHeight int64, minReqOutputs, inde
 	cbHeight := binary.LittleEndian.Uint32(nullData[0:4])
 	if cbHeight != uint32(blockHeight) {
 		header := &block.MsgBlock().Header
-		str := fmt.Sprintf("block %s coinbase output 1 encodes height %d "+
+		str := fmt.Sprintf("block %s coinbase output %d encodes height %d "+
 			"instead of expected height %d (prev block: %s, header height %d)",
-			block.Hash(), cbHeight, uint32(blockHeight), header.PrevBlock,
-			header.Height)
+			block.Hash(), nullDataOutIdx, cbHeight, uint32(blockHeight),
+			header.PrevBlock, header.Height)
 		return ruleError(ErrCoinbaseHeight, str)
 	}
 
 	return nil
 }
 
-// checkCoinbaseUniqueHeightWithTreasuryBase checks to ensure that for all
-// blocks height > 1 the treasurybase contains the height encoding to make
-// treasurybase hash collisions impossible. This is the new function that
-// assumes that there is no treasury address.
-func checkCoinbaseUniqueHeightWithTreasuryBase(blockHeight int64, block *dcrutil.Block) error {
-	if len(block.MsgBlock().STransactions) == 0 {
-		str := fmt.Sprintf("checkCoinbaseUniqueHeightWithTreasuryBase: " +
-			"has 0 stake transactions")
-		return AssertError(str)
+// checkTreasurybaseUniqueHeight ensures that for all blocks height > 1 the
+// treasurybase contains the height encoding to make treasurybase hash
+// collisions impossible.
+func checkTreasurybaseUniqueHeight(blockHeight int64, block *dcrutil.Block) error {
+	// Block 0 and 1 are special and don't need the treasurybase height checks.
+	if blockHeight < 2 {
+		return nil
 	}
 
-	// Coinbase output 0 is height + extranonce, so at least one outputs
-	// must exist.
-	const minReqOutputs = 1
-	stakebaseTx := block.MsgBlock().STransactions[0]
-	if len(stakebaseTx.TxOut) < minReqOutputs {
-		str := fmt.Sprintf("block %s is missing required OP_RETURN "+
-			"output (num outputs: %d, min required: %d) ",
-			block.Hash(), len(stakebaseTx.TxOut), minReqOutputs)
-		return ruleError(ErrFirstTxNotOpReturn, str)
+	if len(block.MsgBlock().STransactions) == 0 {
+		return AssertError(fmt.Sprintf("checkTreasurybaseUniqueHeight must be "+
+			"called with a block that has already been verified to have at "+
+			"least one stake transaction (block %s)", block.Hash()))
+	}
+
+	// Treasurybase output 0 is the subsidy and output 1 encodes the height.
+	const nullDataOutIdx = 1
+	trsybaseTx := block.MsgBlock().STransactions[0]
+	if len(trsybaseTx.TxOut) < nullDataOutIdx+1 {
+		str := fmt.Sprintf("block %s is missing required OP_RETURN output ("+
+			"num outputs: %d, min required: %d) ", block.Hash(),
+			len(trsybaseTx.TxOut), nullDataOutIdx+1)
+		return ruleError(ErrFirstTxNotTreasurybase, str)
 	}
 
 	// Only version 0 scripts are currently valid.
 	const scriptVersion = 0
-	nullDataOut := stakebaseTx.TxOut[1]
+	nullDataOut := trsybaseTx.TxOut[nullDataOutIdx]
 	if nullDataOut.Version != scriptVersion {
-		str := fmt.Sprintf("block %s treasurybase output 0 script "+
-			"version %d is not the required version %d",
-			block.Hash(), nullDataOut.Version, scriptVersion)
-		return ruleError(ErrFirstTxNotOpReturn, str)
+		str := fmt.Sprintf("block %s treasurybase output %d script version %d "+
+			"is not the required version %d", block.Hash(), nullDataOutIdx,
+			nullDataOut.Version, scriptVersion)
+		return ruleError(ErrFirstTxNotTreasurybase, str)
 	}
 
-	// The nulldata in the treasurybase must be a single OP_RETURN followed
-	// by a data push of 12 bytes which encodes the height of the block
-	// followed by random data.
+	// The nulldata in the treasurybase must be a single OP_RETURN followed by a
+	// data push of 12 bytes which encodes the height of the block followed by
+	// random data.
 	//
 	// NOTE: This is intentionally not using GetScriptClass and the related
-	// functions because those are specifically for standardness checks
-	// which can change over time and this function enforces consensus
-	// rules.
+	// functions because those are specifically for standardness checks which
+	// can change over time and this function enforces consensus rules.
 	//
-	// Also of note is that technically normal nulldata scripts support
-	// encoding numbers via small opcodes, however, for legacy reasons, the
-	// consensus rules require the block height to be encoded as a 4-byte
-	// little-endian uint32 pushed via a normal data push, as opposed to
-	// using the normal number handling semantics of scripts, so this is
-	// specialized to accommodate that.
+	// Also of note is that technically normal nulldata scripts support encoding
+	// numbers via small opcodes, however, for legacy reasons, the consensus
+	// rules require the block height to be encoded as a 4-byte little-endian
+	// uint32 pushed via a normal data push, as opposed to using the normal
+	// number handling semantics of scripts, so this is specialized to
+	// accommodate that.
 	var nullData []byte
 	pkScript := nullDataOut.PkScript
 	if len(pkScript) == 14 && pkScript[0] == txscript.OP_RETURN &&
 		pkScript[1] == txscript.OP_DATA_12 {
+
 		nullData = pkScript[2:6] // Encoded height.
 	}
 	if len(nullData) != 4 {
-		str := fmt.Sprintf("block %s treasurybase output 0 is invalid",
-			block.Hash())
+		str := fmt.Sprintf("block %s treasurybase output %d is invalid",
+			block.Hash(), nullDataOutIdx)
 		return ruleError(ErrTreasurybaseTxNotOpReturn, str)
 	}
 
 	// Check the height and ensure it is correct.
-	cbHeight := binary.LittleEndian.Uint32(nullData[0:4])
-	if cbHeight != uint32(blockHeight) {
+	encodedHeight := binary.LittleEndian.Uint32(nullData[0:4])
+	if encodedHeight != uint32(blockHeight) {
 		header := &block.MsgBlock().Header
-		str := fmt.Sprintf("block %s treasurybase output 0 encodes "+
-			"height %d instead of expected height %d (prev block: "+
-			"%s, header height %d)", block.Hash(), cbHeight,
-			uint32(blockHeight), header.PrevBlock, header.Height)
+		str := fmt.Sprintf("block %s treasurybase output %d encodes height %d "+
+			"instead of expected height %d (prev block: %s, header height %d)",
+			block.Hash(), nullDataOutIdx, encodedHeight, uint32(blockHeight),
+			header.PrevBlock, header.Height)
 		return ruleError(ErrTreasurybaseHeight, str)
 	}
 
 	return nil
-}
-
-// checkCoinbaseUniqueHeight checks to ensure that for all blocks height > 1 the
-// coinbase contains the height encoding to make coinbase hash collisions
-// impossible.
-func checkCoinbaseUniqueHeight(blockHeight int64, block *dcrutil.Block, treasuryEnabled bool) error {
-	if treasuryEnabled {
-		// First check coinbase in Transactions.
-		// minReqOutputs = 1
-		// index into TxOut=0
-		if err := checkCoinbaseUniqueHeightWithAddress(blockHeight, 1,
-			0, block); err != nil {
-			return err
-		}
-
-		// Secondly, check treasurybase in STransactions.
-		return checkCoinbaseUniqueHeightWithTreasuryBase(blockHeight, block)
-	} else {
-		// minReqOutputs = 2
-		// index into TxOut=1
-		return checkCoinbaseUniqueHeightWithAddress(blockHeight, 2, 1,
-			block)
-	}
 }
 
 // checkAllowedVotes performs validation of all votes in the block to ensure
@@ -1654,7 +1608,47 @@ func (b *BlockChain) checkBlockContext(block *dcrutil.Block, prevNode *blockNode
 		return err
 	}
 
+	// The first transaction in a block's regular tree must be a coinbase.
+	if !standalone.IsCoinBaseTx(msgBlock.Transactions[0], isTreasuryEnabled) {
+		str := "first transaction in block is not a coinbase"
+		return ruleError(ErrFirstTxNotCoinbase, str)
+	}
+
+	// The height of this block is one more than the referenced previous block.
+	blockHeight := prevNode.height + 1
+
+	// Ensure the coinbase contains the block height encoded in the expected
+	// output depending on its version.
+	err = checkCoinbaseUniqueHeight(blockHeight, block, isTreasuryEnabled)
+	if err != nil {
+		return err
+	}
+
+	if isTreasuryEnabled {
+		// The first transaction in a block's stake tree must be a treasurybase.
+		if len(msgBlock.STransactions) == 0 ||
+			!standalone.IsTreasuryBase(msgBlock.STransactions[0]) {
+
+			str := "first transaction in stake tree is not a treasurybase"
+			return ruleError(ErrFirstTxNotTreasurybase, str)
+		}
+
+		// Ensure the treasurybase contains the block height encoded in the
+		// expected output.
+		err := checkTreasurybaseUniqueHeight(blockHeight, block)
+		if err != nil {
+			return err
+		}
+	}
+
 	for txIdx, tx := range msgBlock.Transactions {
+		// A block must not have more than one coinbase.
+		if txIdx > 0 && standalone.IsCoinBaseTx(tx, isTreasuryEnabled) {
+			str := fmt.Sprintf("block contains second coinbase at index %d",
+				txIdx)
+			return ruleError(ErrMultipleCoinbases, str)
+		}
+
 		// A block must not have stake transactions in the regular transaction
 		// tree.
 		txType := stake.DetermineTxType(tx, isTreasuryEnabled)
@@ -1672,12 +1666,20 @@ func (b *BlockChain) checkBlockContext(block *dcrutil.Block, prevNode *blockNode
 		}
 	}
 
-	for _, stx := range msgBlock.STransactions {
+	for txIdx, stx := range msgBlock.STransactions {
 		// Perform additional contextual validation checks on each stake
 		// transaction.
 		err := checkTransactionContext(stx, b.chainParams, isTreasuryEnabled)
 		if err != nil {
 			return err
+		}
+
+		// A block must not have more than one treasurybase when the treasury
+		// agenda is active.
+		if txIdx > 0 && isTreasuryEnabled && standalone.IsTreasuryBase(stx) {
+			str := fmt.Sprintf("block contains second treasurybase at index %d",
+				txIdx)
+			return ruleError(ErrMultipleTreasurybases, str)
 		}
 	}
 
@@ -1715,10 +1717,6 @@ func (b *BlockChain) checkBlockContext(block *dcrutil.Block, prevNode *blockNode
 		if lnFeaturesActive {
 			blockTime = prevNode.CalcPastMedianTime()
 		}
-
-		// The height of this block is one more than the referenced
-		// previous block.
-		blockHeight := prevNode.height + 1
 
 		// Ensure all transactions in the block are finalized.
 		for _, tx := range block.Transactions() {

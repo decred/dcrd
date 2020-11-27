@@ -248,10 +248,6 @@ const (
 	// is not a coinbase transaction.
 	ErrFirstTxNotCoinbase = ErrorKind("ErrFirstTxNotCoinbase")
 
-	// ErrFirstTxNotOpReturn indicates the first transaction in a block
-	// is not an OP_RETURN.
-	ErrFirstTxNotOpReturn = ErrorKind("ErrFirstTxNotOpReturn")
-
 	// ErrCoinbaseHeight indicates that the encoded height in the coinbase
 	// is incorrect.
 	ErrCoinbaseHeight = ErrorKind("ErrCoinbaseHeight")

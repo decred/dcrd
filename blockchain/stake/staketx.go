@@ -868,8 +868,6 @@ func GetSSGenTreasuryVotes(PkScript []byte) ([]TreasuryVoteTuple, error) {
 // For example: OP_RETURN OP_DATA_X 'T','V' <N hashvote_tuple>
 func CheckSSGenVotes(tx *wire.MsgTx, isTreasuryEnabled bool) ([]TreasuryVoteTuple, error) {
 	// Check to make sure there aren't too many inputs.
-	// CheckTransactionSanity already makes sure that number of inputs is
-	// greater than 0, so no need to check that.
 	if len(tx.TxIn) != NumInputsPerSSGen {
 		return nil, stakeRuleError(ErrSSGenWrongNumInputs,
 			"SSgen tx has an invalid number of inputs")
@@ -1087,8 +1085,6 @@ func IsSSGen(tx *wire.MsgTx, isTreasuryEnabled bool) bool {
 //     MaxInputsPerSStx [index MaxOutputsPerSSRtx - 1]
 func CheckSSRtx(tx *wire.MsgTx) error {
 	// Check to make sure there is the correct number of inputs.
-	// CheckTransactionSanity already makes sure that number of inputs is
-	// greater than 0, so no need to check that.
 	if len(tx.TxIn) != NumInputsPerSSRtx {
 		return stakeRuleError(ErrSSRtxWrongNumInputs, "SSRtx has an "+
 			"invalid number of inputs")
