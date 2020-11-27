@@ -2211,7 +2211,7 @@ func TestTSpendDupVote(t *testing.T) {
 				stake.TreasuryVoteYes,
 			},
 			voteCount, true))
-	g.RejectTipBlock(ErrRegTxInStakeTree)
+	g.RejectTipBlock(ErrBadTxInput)
 
 	// ---------------------------------------------------------------------
 	// Invalid treasury spend tx vote bits are illegal and therefore the tx
@@ -2232,7 +2232,7 @@ func TestTSpendDupVote(t *testing.T) {
 				0x04, // Invalid bits
 			},
 			voteCount, true))
-	g.RejectTipBlock(ErrRegTxInStakeTree)
+	g.RejectTipBlock(ErrBadTxInput)
 }
 
 func TestTSpendTooManyTSpend(t *testing.T) {
@@ -2346,7 +2346,7 @@ func TestTSpendTooManyTSpend(t *testing.T) {
 	g.NextBlock("bdv0", nil, outs[1:], replaceTreasuryVersions,
 		replaceCoinbase,
 		addTSpendVotes(t, tspendHashes, tspendVotes, voteCount, true))
-	g.RejectTipBlock(ErrRegTxInStakeTree)
+	g.RejectTipBlock(ErrBadTxInput)
 }
 
 func TestTSpendWindow(t *testing.T) {
@@ -3757,7 +3757,7 @@ func TestTreasuryBaseCorners(t *testing.T) {
 	g.SetTip(startTip)
 	g.NextBlock("length0", nil, outs[1:], replaceTreasuryVersions,
 		replaceCoinbase, corruptLengthTreasurybase)
-	g.RejectTipBlock(ErrRegTxInStakeTree)
+	g.RejectTipBlock(ErrFirstTxNotTreasurybase)
 
 	// ---------------------------------------------------------------------
 	// Only treasury base.

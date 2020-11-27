@@ -817,142 +817,6 @@ func checkBlockSanityContextFree(block *dcrutil.Block, timeSource MedianTimeSour
 // ensure it is sane before continuing with block processing.  These checks are
 // contextual.
 func checkBlockSanityContextual(block *dcrutil.Block, timeSource MedianTimeSource, flags BehaviorFlags, chainParams *chaincfg.Params, isTreasuryEnabled bool) error {
-	msgBlock := block.MsgBlock()
-	header := &msgBlock.Header
-
-	// Do some preliminary checks on stake transactions and tally how many of
-	// each type there are as well as the the number of yes votes approving the
-	// previous block
-	stakeValidationHeight := uint32(chainParams.StakeValidationHeight)
-	var totalTickets, totalVotes, totalRevocations int64
-	var totalTAdd, totalTSpend, totalTreasurybase int64
-	var totalYesVotes int64
-	for txIdx, stx := range msgBlock.STransactions {
-		// A block must not have regular transactions in the stake
-		// transaction tree.
-		txType := stake.DetermineTxType(stx, isTreasuryEnabled)
-		if txType == stake.TxTypeRegular {
-			str := fmt.Sprintf("block contains regular transaction in stake "+
-				"transaction tree at index %d", txIdx)
-			return ruleError(ErrRegTxInStakeTree, str)
-		}
-
-		switch txType {
-		case stake.TxTypeSStx:
-			totalTickets++
-
-		case stake.TxTypeSSGen:
-			totalVotes++
-
-			// All votes in a block must commit to the parent of the
-			// block once stake validation height has been reached.
-			if header.Height >= stakeValidationHeight {
-				votedHash, votedHeight := stake.SSGenBlockVotedOn(stx)
-				if (votedHash != header.PrevBlock) || (votedHeight !=
-					header.Height-1) {
-
-					errStr := fmt.Sprintf("vote %s at index %d is "+
-						"for parent block %s (height %d) versus "+
-						"expected parent block %s (height %d)",
-						stx.TxHash(), txIdx, votedHash,
-						votedHeight, header.PrevBlock,
-						header.Height-1)
-					return ruleError(ErrVotesOnWrongBlock, errStr)
-				}
-
-				// Tally how many votes approve the previous block for use
-				// when validating the header commitment.
-				if voteBitsApproveParent(stake.SSGenVoteBits(stx)) {
-					totalYesVotes++
-				}
-			}
-
-		case stake.TxTypeSSRtx:
-			totalRevocations++
-		}
-
-		// Count treasury-related stake transactions when the agenda is active.
-		if isTreasuryEnabled {
-			switch txType {
-			case stake.TxTypeTAdd:
-				totalTAdd++
-
-			case stake.TxTypeTSpend:
-				totalTSpend++
-
-			case stake.TxTypeTreasuryBase:
-				totalTreasurybase++
-			}
-		}
-	}
-
-	// A block must not contain more than the maximum allowed number of treasury
-	// add transactions.
-	if totalTAdd > MaxTAddsPerBlock {
-		errStr := fmt.Sprintf("block contains %d treasury adds which "+
-			"exceeds the maximum allowed amount of %d",
-			totalTAdd, MaxTAddsPerBlock)
-		return ruleError(ErrTooManyTAdds, errStr)
-	}
-
-	// A block must only contain stake transactions of the allowed
-	// types.
-	//
-	// NOTE: This is not possible to hit at the time this comment was
-	// written because all transactions which are not specifically one of
-	// the recognized stake transaction forms are considered regular
-	// transactions and those are rejected above.  However, if a new stake
-	// transaction type is added, that implicit condition would no longer
-	// hold and therefore an explicit check is performed here.
-	numStakeTx := int64(len(msgBlock.STransactions))
-	calcStakeTx := totalTickets + totalVotes + totalRevocations +
-		totalTAdd + totalTSpend + totalTreasurybase
-	if numStakeTx != calcStakeTx {
-		errStr := fmt.Sprintf("block contains an unexpected number "+
-			"of stake transactions (contains %d, expected %d)",
-			numStakeTx, calcStakeTx)
-		return ruleError(ErrNonstandardStakeTx, errStr)
-	}
-
-	// A block header must commit to the actual number of votes that are
-	// in the block.
-	if int64(header.Voters) != totalVotes {
-		errStr := fmt.Sprintf("block header commitment to %d votes "+
-			"does not match %d contained in the block",
-			header.Voters, totalVotes)
-		return ruleError(ErrVotesMismatch, errStr)
-	}
-
-	// A block header must commit to the same previous block acceptance
-	// semantics expressed by the votes once stake validation height has
-	// been reached.
-	if header.Height >= stakeValidationHeight {
-		totalNoVotes := totalVotes - totalYesVotes
-		headerApproves := headerApprovesParent(header)
-		votesApprove := totalYesVotes > totalNoVotes
-		if headerApproves != votesApprove {
-			errStr := fmt.Sprintf("block header commitment to previous "+
-				"block approval does not match votes (header claims: %v, "+
-				"votes: %v)", headerApproves, votesApprove)
-			return ruleError(ErrIncongruentVotebit, errStr)
-		}
-	}
-
-	// A block must not contain anything other than ticket purchases or
-	// treasury transactions (when agenda is enabled) prior to stake
-	// validation height.
-	if header.Height < stakeValidationHeight {
-		if int64(len(msgBlock.STransactions)) !=
-			totalTickets+totalTAdd+totalTreasurybase {
-			errStr := fmt.Sprintf("block contains disallowed stake"+
-				" transactions before stake validation height "+
-				"%d (total: %d, expected %d)",
-				uint32(chainParams.StakeValidationHeight),
-				len(msgBlock.STransactions), header.FreshStake)
-			return ruleError(ErrInvalidEarlyStakeTx, errStr)
-		}
-	}
-
 	// The number of signature operations must be less than the maximum allowed
 	// per block.
 	totalSigOps := 0
@@ -1680,6 +1544,136 @@ func (b *BlockChain) checkBlockContext(block *dcrutil.Block, prevNode *blockNode
 			str := fmt.Sprintf("block contains second treasurybase at index %d",
 				txIdx)
 			return ruleError(ErrMultipleTreasurybases, str)
+		}
+	}
+
+	// Do some preliminary checks on stake transactions and tally how many of
+	// each type there are as well as the number of yes votes approving the
+	// previous block.
+	//
+	// Also, in the case the treasury agenda is active and there are one or more
+	// treasury spend transactions, keep track of them for use below.
+	stakeValidationHeight := uint32(b.chainParams.StakeValidationHeight)
+	var totalTickets, totalVotes, totalRevocations int64
+	var totalTreasuryAdd, totalTreasurySpend, totalTreasurybase int64
+	var totalYesVotes int64
+	for txIdx, stx := range msgBlock.STransactions {
+		// A block must not have regular transactions in the stake transaction
+		// tree.
+		txType := stake.DetermineTxType(stx, isTreasuryEnabled)
+		if txType == stake.TxTypeRegular {
+			str := fmt.Sprintf("block contains regular transaction in stake "+
+				"transaction tree at index %d", txIdx)
+			return ruleError(ErrRegTxInStakeTree, str)
+		}
+
+		switch txType {
+		case stake.TxTypeSStx:
+			totalTickets++
+
+		case stake.TxTypeSSGen:
+			totalVotes++
+
+			// All votes in a block must commit to the parent of the block once
+			// stake validation height has been reached.
+			if header.Height >= stakeValidationHeight {
+				votedHash, votedHeight := stake.SSGenBlockVotedOn(stx)
+				if (votedHash != header.PrevBlock) || (votedHeight !=
+					header.Height-1) {
+
+					str := fmt.Sprintf("vote %s at index %d is for parent "+
+						"block %s (height %d) versus expected parent block %s "+
+						"(height %d)", stx.TxHash(), txIdx, votedHash,
+						votedHeight, header.PrevBlock, header.Height-1)
+					return ruleError(ErrVotesOnWrongBlock, str)
+				}
+
+				// Tally how many votes approve the previous block for use when
+				// validating the header commitment.
+				if voteBitsApproveParent(stake.SSGenVoteBits(stx)) {
+					totalYesVotes++
+				}
+			}
+
+		case stake.TxTypeSSRtx:
+			totalRevocations++
+		}
+
+		// Count treasury-related stake transactions when the agenda is active.
+		if isTreasuryEnabled {
+			switch txType {
+			case stake.TxTypeTAdd:
+				totalTreasuryAdd++
+
+			case stake.TxTypeTSpend:
+				totalTreasurySpend++
+
+			case stake.TxTypeTreasuryBase:
+				totalTreasurybase++
+			}
+		}
+	}
+
+	// A block must not contain more than the maximum allowed number of treasury
+	// add transactions.
+	if totalTreasuryAdd > MaxTAddsPerBlock {
+		str := fmt.Sprintf("block contains %d treasury adds which exceeds the "+
+			"maximum allowed amount of %d", totalTreasuryAdd, MaxTAddsPerBlock)
+		return ruleError(ErrTooManyTAdds, str)
+	}
+
+	// A block must only contain stake transactions of the allowed types.
+	//
+	// NOTE: This is not possible to hit at the time this comment was written
+	// because all transactions which are not specifically one of the recognized
+	// stake transaction forms are considered regular transactions and those are
+	// rejected above.  However, if a new stake transaction type is added, that
+	// implicit condition would no longer hold and therefore an explicit check
+	// is performed here.
+	numStakeTx := int64(len(msgBlock.STransactions))
+	expectedNumStakeTx := totalTickets + totalVotes + totalRevocations +
+		totalTreasuryAdd + totalTreasurySpend + totalTreasurybase
+	if numStakeTx != expectedNumStakeTx {
+		str := fmt.Sprintf("block contains an unexpected number of stake "+
+			"transactions (contains %d, expected %d)", numStakeTx,
+			expectedNumStakeTx)
+		return ruleError(ErrNonstandardStakeTx, str)
+	}
+
+	// A block header must commit to the actual number of votes that are in the
+	// block.
+	if int64(header.Voters) != totalVotes {
+		str := fmt.Sprintf("block header commitment to %d votes does not "+
+			"match %d contained in the block", header.Voters, totalVotes)
+		return ruleError(ErrVotesMismatch, str)
+	}
+
+	// A block header must commit to the same previous block acceptance
+	// semantics expressed by the votes once stake validation height has been
+	// reached.
+	if header.Height >= stakeValidationHeight {
+		totalNoVotes := totalVotes - totalYesVotes
+		headerApproves := headerApprovesParent(header)
+		votesApprove := totalYesVotes > totalNoVotes
+		if headerApproves != votesApprove {
+			str := fmt.Sprintf("block header commitment to previous block "+
+				"approval does not match votes (header claims: %v, votes: %v)",
+				headerApproves, votesApprove)
+			return ruleError(ErrIncongruentVotebit, str)
+		}
+	}
+
+	// A block must not contain anything other than ticket purchases and
+	// treasury transactions (when agenda is enabled) prior to stake validation
+	// height.
+	if header.Height < stakeValidationHeight {
+		numExpected := totalTickets + totalTreasuryAdd + totalTreasurybase
+		if int64(len(msgBlock.STransactions)) != numExpected {
+			str := fmt.Sprintf("block contains disallowed stake transactions "+
+				"before stake validation height %d (total: %d, expected %d)",
+				uint32(b.chainParams.StakeValidationHeight),
+				len(msgBlock.STransactions), numExpected)
+			return ruleError(ErrInvalidEarlyStakeTx, str)
 		}
 	}
 
