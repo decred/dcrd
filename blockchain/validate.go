@@ -817,27 +817,6 @@ func checkBlockSanityContextFree(block *dcrutil.Block, timeSource MedianTimeSour
 // ensure it is sane before continuing with block processing.  These checks are
 // contextual.
 func checkBlockSanityContextual(block *dcrutil.Block, timeSource MedianTimeSource, flags BehaviorFlags, chainParams *chaincfg.Params, isTreasuryEnabled bool) error {
-	// The number of signature operations must be less than the maximum allowed
-	// per block.
-	totalSigOps := 0
-	transactions := block.Transactions()
-	stakeTransactions := block.STransactions()
-	allTransactions := append(transactions, stakeTransactions...)
-	for _, tx := range allTransactions {
-		msgTx := tx.MsgTx()
-
-		// We could potentially overflow the accumulator so check for overflow.
-		lastSigOps := totalSigOps
-		isCoinBase := standalone.IsCoinBaseTx(msgTx, isTreasuryEnabled)
-		isSSGen := stake.IsSSGen(msgTx, isTreasuryEnabled)
-		totalSigOps += CountSigOps(tx, isCoinBase, isSSGen, isTreasuryEnabled)
-		if totalSigOps < lastSigOps || totalSigOps > MaxSigOpsPerBlock {
-			str := fmt.Sprintf("block contains too many signature operations "+
-				"- got %v, max %v", totalSigOps, MaxSigOpsPerBlock)
-			return ruleError(ErrTooManySigOps, str)
-		}
-	}
-
 	return nil
 }
 
@@ -1674,6 +1653,29 @@ func (b *BlockChain) checkBlockContext(block *dcrutil.Block, prevNode *blockNode
 				uint32(b.chainParams.StakeValidationHeight),
 				len(msgBlock.STransactions), numExpected)
 			return ruleError(ErrInvalidEarlyStakeTx, str)
+		}
+	}
+
+	// The number of signature operations must be less than the maximum allowed
+	// per block.
+	totalSigOps := 0
+	regularTxns := block.Transactions()
+	stakeTxns := block.STransactions()
+	allTxns := make([]*dcrutil.Tx, 0, len(regularTxns)+len(stakeTxns))
+	allTxns = append(allTxns, regularTxns...)
+	allTxns = append(allTxns, stakeTxns...)
+	for _, tx := range allTxns {
+		msgTx := tx.MsgTx()
+
+		// We could potentially overflow the accumulator so check for overflow.
+		lastSigOps := totalSigOps
+		isCoinBase := standalone.IsCoinBaseTx(msgTx, isTreasuryEnabled)
+		isSSGen := stake.IsSSGen(msgTx, isTreasuryEnabled)
+		totalSigOps += CountSigOps(tx, isCoinBase, isSSGen, isTreasuryEnabled)
+		if totalSigOps < lastSigOps || totalSigOps > MaxSigOpsPerBlock {
+			str := fmt.Sprintf("block contains too many signature operations "+
+				"- got %v, max %v", totalSigOps, MaxSigOpsPerBlock)
+			return ruleError(ErrTooManySigOps, str)
 		}
 	}
 

@@ -2676,7 +2676,7 @@ func Generate(includeLargeReorg bool) (tests [][]TestInstance, err error) {
 	g.NextBlock("bsc2", outs[19], ticketOuts[19],
 		replaceSpendScript(tooManySigOps))
 	g.AssertTipBlockSigOpsCount(maxBlockSigOps + 1)
-	rejected(blockchain.ErrTooManySigOps)
+	rejected(blockchain.ErrScriptMalformed)
 
 	// ---------------------------------------------------------------------
 	// Dead execution path tests.
