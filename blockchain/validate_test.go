@@ -532,7 +532,7 @@ func TestCheckBlockSanity(t *testing.T) {
 	params := chaincfg.RegNetParams()
 	timeSource := NewMedianTime()
 	block := dcrutil.NewBlock(&badBlock)
-	err := CheckBlockSanity(block, timeSource, params, noTreasury)
+	err := CheckBlockSanity(block, timeSource, params)
 	if err == nil {
 		t.Fatalf("block should fail.\n")
 	}

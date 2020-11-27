@@ -66,7 +66,7 @@ func (b *BlockChain) ProcessBlock(block *dcrutil.Block, flags BehaviorFlags) (in
 	}
 
 	// Perform preliminary sanity checks on the block and its transactions.
-	err := checkBlockSanityContextFree(block, b.timeSource, flags, b.chainParams)
+	err := checkBlockSanity(block, b.timeSource, flags, b.chainParams)
 	if err != nil {
 		return 0, err
 	}
@@ -79,23 +79,6 @@ func (b *BlockChain) ProcessBlock(block *dcrutil.Block, flags BehaviorFlags) (in
 		// not connect to the best chain.
 		str := fmt.Sprintf("previous block %s is not known", prevHash)
 		return 0, ruleError(ErrMissingParent, str)
-	}
-
-	// Perform preliminary sanity checks on the block and its transactions that
-	// depend on the state of the treasury agenda.  Note that these checks
-	// really ultimately need to be done later in the context-dependent block
-	// checking, however, they are done here for now as a stop gap to ensure
-	// they are not applied to orphan blocks from further in the chain which may
-	// have the new rules active before the local chain is far enough along for
-	// them to be active.
-	isTreasuryEnabled, err := b.isTreasuryAgendaActiveByHash(prevHash)
-	if err != nil {
-		return 0, err
-	}
-	err = checkBlockSanityContextual(block, b.timeSource, flags, b.chainParams,
-		isTreasuryEnabled)
-	if err != nil {
-		return 0, err
 	}
 
 	// The block has passed all context independent checks and appears sane

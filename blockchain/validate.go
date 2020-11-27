@@ -668,31 +668,12 @@ func checkBlockHeaderSanity(header *wire.BlockHeader, timeSource MedianTimeSourc
 }
 
 // checkBlockSanity performs some preliminary checks on a block to ensure it is
-// sane before continuing with block processing.  These checks are supposed to
-// be context free but are not due to the treasury agenda.
+// sane before continuing with block processing.  These checks are context
+// free.
 //
 // The flags do not modify the behavior of this function directly, however they
 // are needed to pass along to checkBlockHeaderSanity.
-//
-// Note that this is a giant hack to separate the original context free
-// function into two functions due to the treasury agenda induced contextual
-// isTreasuryEnabled flag.  The contextual checks have been pulled out in order
-// to maintain order and assumptions without having to discard the
-// isTreasuryEnabled checks from the function.
-func checkBlockSanity(block *dcrutil.Block, timeSource MedianTimeSource, flags BehaviorFlags, chainParams *chaincfg.Params, isTreasuryEnabled bool) error {
-	err := checkBlockSanityContextFree(block, timeSource, flags,
-		chainParams)
-	if err != nil {
-		return err
-	}
-	return checkBlockSanityContextual(block, timeSource, flags,
-		chainParams, isTreasuryEnabled)
-}
-
-// checkBlockSanityContextFree performs some preliminary checks on a block to
-// ensure it is sane before continuing with block processing.  These checks are
-// context free.
-func checkBlockSanityContextFree(block *dcrutil.Block, timeSource MedianTimeSource, flags BehaviorFlags, chainParams *chaincfg.Params) error {
+func checkBlockSanity(block *dcrutil.Block, timeSource MedianTimeSource, flags BehaviorFlags, chainParams *chaincfg.Params) error {
 	msgBlock := block.MsgBlock()
 	header := &msgBlock.Header
 	err := checkBlockHeaderSanity(header, timeSource, flags, chainParams)
@@ -813,18 +794,11 @@ func checkBlockSanityContextFree(block *dcrutil.Block, timeSource MedianTimeSour
 	return nil
 }
 
-// checkBlockSanityContextual performs some preliminary checks on a block to
-// ensure it is sane before continuing with block processing.  These checks are
-// contextual.
-func checkBlockSanityContextual(block *dcrutil.Block, timeSource MedianTimeSource, flags BehaviorFlags, chainParams *chaincfg.Params, isTreasuryEnabled bool) error {
-	return nil
-}
-
 // CheckBlockSanity performs some preliminary checks on a block to ensure it is
 // sane before continuing with block processing.  These checks are context
 // free.
-func CheckBlockSanity(block *dcrutil.Block, timeSource MedianTimeSource, chainParams *chaincfg.Params, isTreasuryEnabled bool) error {
-	return checkBlockSanity(block, timeSource, BFNone, chainParams, isTreasuryEnabled)
+func CheckBlockSanity(block *dcrutil.Block, timeSource MedianTimeSource, chainParams *chaincfg.Params) error {
+	return checkBlockSanity(block, timeSource, BFNone, chainParams)
 }
 
 // checkBlockHeaderPositional performs several validation checks on the block
@@ -3795,8 +3769,7 @@ func (b *BlockChain) CheckConnectBlockTemplate(block *dcrutil.Block) error {
 	if err != nil {
 		return err
 	}
-	err = checkBlockSanity(block, b.timeSource, flags, b.chainParams,
-		isTreasuryEnabled)
+	err = checkBlockSanity(block, b.timeSource, flags, b.chainParams)
 	if err != nil {
 		return err
 	}

@@ -483,14 +483,7 @@ var _ rpcserver.SanityChecker = (*rpcSanityChecker)(nil)
 //
 // This function is part of the rpcserver.SanityChecker interface implementation.
 func (s *rpcSanityChecker) CheckBlockSanity(block *dcrutil.Block) error {
-	pHash := &block.MsgBlock().Header.PrevBlock
-	isTreasuryEnabled, err := s.chain.IsTreasuryAgendaActive(pHash)
-	if err != nil {
-		return err
-	}
-
-	return blockchain.CheckBlockSanity(block, s.timeSource, s.chainParams,
-		isTreasuryEnabled)
+	return blockchain.CheckBlockSanity(block, s.timeSource, s.chainParams)
 }
 
 // rpcBlockTemplater provides a block template generator for use with the
