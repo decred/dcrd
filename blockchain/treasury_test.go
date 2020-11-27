@@ -2190,8 +2190,11 @@ func TestTSpendDupVote(t *testing.T) {
 	}
 
 	// ---------------------------------------------------------------------
+	// Duplicate votes on the same treasury spend tx hash illegal and
+	// therefore the tx is NOT recognized as a vote.
+	//
 	//   ... -> pretvi1
-	//       \-> bdv0
+	//                 \-> bdv0
 	// ---------------------------------------------------------------------
 
 	startTip := g.TipName()
@@ -2208,11 +2211,14 @@ func TestTSpendDupVote(t *testing.T) {
 				stake.TreasuryVoteYes,
 			},
 			voteCount, true))
-	g.RejectTipBlock(ErrBadTxInput)
+	g.RejectTipBlock(ErrRegTxInStakeTree)
 
 	// ---------------------------------------------------------------------
+	// Invalid treasury spend tx vote bits are illegal and therefore the tx
+	// is NOT recognized as a vote.
+	//
 	//   ... -> pretvi1
-	//       \-> bdv1
+	//                 \-> bdv1
 	// ---------------------------------------------------------------------
 
 	g.SetTip(startTip)
@@ -2226,7 +2232,7 @@ func TestTSpendDupVote(t *testing.T) {
 				0x04, // Invalid bits
 			},
 			voteCount, true))
-	g.RejectTipBlock(ErrBadTxInput)
+	g.RejectTipBlock(ErrRegTxInStakeTree)
 }
 
 func TestTSpendTooManyTSpend(t *testing.T) {
@@ -2330,19 +2336,17 @@ func TestTSpendTooManyTSpend(t *testing.T) {
 	}
 
 	// ---------------------------------------------------------------------
-	// 8 votes is illegal and therefore this SSGEN is NOT recognized as a
-	// vote and therefore it falls through the type if/else case in
-	// validate.go CheckTransactionSanity.
+	// 8 votes is illegal and therefore the tx is NOT recognized as a vote.
 	//
 	//   ... -> pretvi1
-	//       \-> bdv0
+	//                 \-> bdv0
 	// ---------------------------------------------------------------------
 
 	voteCount := params.TicketsPerBlock
 	g.NextBlock("bdv0", nil, outs[1:], replaceTreasuryVersions,
 		replaceCoinbase,
 		addTSpendVotes(t, tspendHashes, tspendVotes, voteCount, true))
-	g.RejectTipBlock(ErrBadTxInput)
+	g.RejectTipBlock(ErrRegTxInStakeTree)
 }
 
 func TestTSpendWindow(t *testing.T) {

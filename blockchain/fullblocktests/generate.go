@@ -2123,7 +2123,7 @@ func Generate(includeLargeReorg bool) (tests [][]TestInstance, err error) {
 		ticket.TxOut[0], ticket.TxOut[2] = ticket.TxOut[2], ticket.TxOut[0]
 		b.AddSTransaction(ticket)
 	})
-	rejected(blockchain.ErrRegTxCreateStakeOut)
+	rejected(blockchain.ErrRegTxInStakeTree)
 
 	// Create block with scripts that do not involve p2pkh or p2sh addresses
 	// for a ticket purchase.
@@ -2139,7 +2139,7 @@ func Generate(includeLargeReorg bool) (tests [][]TestInstance, err error) {
 		ticket.TxOut[0].PkScript = opTrueScript
 		b.AddSTransaction(ticket)
 	})
-	rejected(blockchain.ErrRegTxCreateStakeOut)
+	rejected(blockchain.ErrRegTxInStakeTree)
 
 	// ---------------------------------------------------------------------
 	// Block header median time tests.
@@ -2676,7 +2676,7 @@ func Generate(includeLargeReorg bool) (tests [][]TestInstance, err error) {
 	g.NextBlock("bsc2", outs[19], ticketOuts[19],
 		replaceSpendScript(tooManySigOps))
 	g.AssertTipBlockSigOpsCount(maxBlockSigOps + 1)
-	rejected(blockchain.ErrScriptMalformed)
+	rejected(blockchain.ErrTooManySigOps)
 
 	// ---------------------------------------------------------------------
 	// Dead execution path tests.

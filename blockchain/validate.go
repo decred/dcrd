@@ -288,16 +288,15 @@ func checkTransactionSanityContextFree(tx *wire.MsgTx, params *chaincfg.Params) 
 	return nil
 }
 
-// checkTransactionSanityContextual performs some preliminary checks on a
-// transaction to ensure it is sane.  These checks are contextual.
-func checkTransactionSanityContextual(tx *wire.MsgTx, params *chaincfg.Params, isTreasuryEnabled bool) error {
-	var (
-		isCoinBase, isVote, isTicket, isRevocation bool
-		isTreasuryBase, isTAdd, isTSpend           bool
-	)
-
-	// Determine type. Note that the treasury flags cannot be true due to
-	// the isTreasuryEnabled flag into DetermineTxType.
+// checkTransactionContext performs several validation checks on the transaction
+// which depend on having the full block data for all of its ancestors
+// available, most likely because the checks depend on whether or not an agenda
+// is active, because that involves tallying the result of votes that are part
+// of the block data.
+func checkTransactionContext(tx *wire.MsgTx, params *chaincfg.Params, isTreasuryEnabled bool) error {
+	// Determine type.
+	var isCoinBase, isVote, isTicket, isRevocation bool
+	var isTreasuryBase, isTreasuryAdd, isTreasurySpend bool
 	switch stake.DetermineTxType(tx, isTreasuryEnabled) {
 	case stake.TxTypeSSGen:
 		isVote = true
@@ -308,9 +307,9 @@ func checkTransactionSanityContextual(tx *wire.MsgTx, params *chaincfg.Params, i
 	case stake.TxTypeTreasuryBase:
 		isTreasuryBase = true
 	case stake.TxTypeTAdd:
-		isTAdd = true
+		isTreasuryAdd = true
 	case stake.TxTypeTSpend:
-		isTSpend = true
+		isTreasurySpend = true
 	default:
 		// Determine if we are dealing with a coinbase.
 		isCoinBase = standalone.IsCoinBaseTx(tx, isTreasuryEnabled)
@@ -322,51 +321,44 @@ func checkTransactionSanityContextual(tx *wire.MsgTx, params *chaincfg.Params, i
 		// Check script length of stake base signature.
 		slen := len(tx.TxIn[0].SignatureScript)
 		if slen < MinCoinbaseScriptLen || slen > MaxCoinbaseScriptLen {
-			str := fmt.Sprintf("stakebase transaction script "+
-				"length of %d is out of range (min: %d, max: "+
-				"%d)", slen, MinCoinbaseScriptLen,
+			str := fmt.Sprintf("stakebase transaction script length of %d is "+
+				"out of range (min: %d, max: %d)", slen, MinCoinbaseScriptLen,
 				MaxCoinbaseScriptLen)
 			return ruleError(ErrBadStakebaseScriptLen, str)
 		}
 
 		// The script must be set to the one specified by the network.
-		// Check script length of stake base signature.
-		if !bytes.Equal(tx.TxIn[0].SignatureScript,
-			params.StakeBaseSigScript) {
-			str := fmt.Sprintf("stakebase transaction signature "+
-				"script was set to disallowed value (got %x, "+
-				"want %x)", tx.TxIn[0].SignatureScript,
-				params.StakeBaseSigScript)
+		if !bytes.Equal(tx.TxIn[0].SignatureScript, params.StakeBaseSigScript) {
+			str := fmt.Sprintf("stakebase transaction signature script was "+
+				"set to disallowed value (got %x, want %x)",
+				tx.TxIn[0].SignatureScript, params.StakeBaseSigScript)
 			return ruleError(ErrBadStakebaseScrVal, str)
 		}
 
 		// The ticket reference hash in an SSGen tx must not be null.
 		ticketHash := &tx.TxIn[1].PreviousOutPoint
 		if isNullOutpoint(ticketHash) {
-			return ruleError(ErrBadTxInput, "ssgen tx ticket input"+
-				" refers to previous output that is null")
+			str := "vote ticket input refers to previous output that is null"
+			return ruleError(ErrBadTxInput, str)
 		}
 
 	case isCoinBase:
 		// The referenced outpoint must be null.
 		if !isNullOutpoint(&tx.TxIn[0].PreviousOutPoint) {
-			str := fmt.Sprintf("coinbase transaction did not use " +
-				"a null outpoint")
+			str := "coinbase transaction does not have a null outpoint"
 			return ruleError(ErrBadCoinbaseOutpoint, str)
 		}
 
 		// The fraud proof must also be null.
 		if !isNullFraudProof(tx.TxIn[0]) {
-			str := fmt.Sprintf("coinbase transaction fraud proof " +
-				"was non-null")
+			str := "coinbase transaction fraud proof is non-null"
 			return ruleError(ErrBadCoinbaseFraudProof, str)
 		}
 
 		slen := len(tx.TxIn[0].SignatureScript)
 		if slen < MinCoinbaseScriptLen || slen > MaxCoinbaseScriptLen {
-			str := fmt.Sprintf("coinbase transaction script "+
-				"length of %d is out of range (min: %d, max: "+
-				"%d)", slen, MinCoinbaseScriptLen,
+			str := fmt.Sprintf("coinbase transaction script length of %d is "+
+				"out of range (min: %d, max: %d)", slen, MinCoinbaseScriptLen,
 				MaxCoinbaseScriptLen)
 			return ruleError(ErrBadCoinbaseScriptLen, str)
 		}
@@ -374,80 +366,74 @@ func checkTransactionSanityContextual(tx *wire.MsgTx, params *chaincfg.Params, i
 	case isTreasuryBase:
 		// The referenced outpoint must be null.
 		if !isNullOutpoint(&tx.TxIn[0].PreviousOutPoint) {
-			str := fmt.Sprintf("treasurybase transaction did not " +
-				"use a null outpoint")
+			str := "treasurybase transaction does not have a null outpoint"
 			return ruleError(ErrBadTreasurybaseOutpoint, str)
 		}
 
 		// The fraud proof must also be null.
 		if !isNullFraudProof(tx.TxIn[0]) {
-			str := fmt.Sprintf("treasurybase transaction fraud " +
-				"proof was non-null")
+			str := "treasurybase transaction fraud proof is non-null"
 			return ruleError(ErrBadTreasurybaseFraudProof, str)
 		}
 
 		// SignatureScript length must be zero.
-		if len(tx.TxIn[0].SignatureScript) != 0 {
-			str := fmt.Sprintf("treasurybase transaction script "+
-				"length is not zero: %v",
-				len(tx.TxIn[0].SignatureScript))
+		slen := len(tx.TxIn[0].SignatureScript)
+		if slen != 0 {
+			str := fmt.Sprintf("treasurybase transaction script length is not "+
+				"zero: %v", slen)
 			return ruleError(ErrBadTreasurybaseScriptLen, str)
 		}
 
-	case isTSpend:
+	case isTreasurySpend:
 		// The referenced outpoint must be null.
 		if !isNullOutpoint(&tx.TxIn[0].PreviousOutPoint) {
-			str := fmt.Sprintf("tspend transaction did not " +
-				"use a null outpoint")
+			str := "treasury spend transaction does not have a null outpoint"
 			return ruleError(ErrBadTSpendOutpoint, str)
 		}
 
 		// The fraud proof must also be null.
 		if !isNullFraudProof(tx.TxIn[0]) {
-			str := fmt.Sprintf("tspend transaction fraud " +
-				"proof was non-null")
+			str := "treasury spend transaction fraud proof is non-null"
 			return ruleError(ErrBadTSpendFraudProof, str)
 		}
 
 		// Check script length of stake base signature.
 		slen := len(tx.TxIn[0].SignatureScript)
 		if slen != stake.TSpendScriptLen {
-			str := fmt.Sprintf("tspend invalid transaction script "+
-				"length: %v", slen)
+			str := fmt.Sprintf("treasury spend transaction script length of "+
+				"%d is invalid (required: %d)", slen, stake.TSpendScriptLen)
 			return ruleError(ErrBadTSpendScriptLen, str)
 		}
 
-	case isTAdd:
+	case isTreasuryAdd:
 		if len(tx.TxOut) == 2 && tx.TxOut[1].Value == 0 {
-			return ruleError(ErrInvalidTAddChange,
-				"tadd change cannot be 0")
+			str := "treasury add transaction change cannot be 0"
+			return ruleError(ErrInvalidTAddChange, str)
 		}
 
-		// Note that we are falling through. TAdds require the default
-		// test. Do not move this case!
+		// Note the fallthrough.  Treasury add transactions require the default
+		// test.  Do not move this case!
 		fallthrough
 
 	default:
 		// Previous transaction outputs referenced by the inputs to this
 		// transaction must not be null.
-		for _, txIn := range tx.TxIn {
+		for txInIdx, txIn := range tx.TxIn {
 			prevOut := &txIn.PreviousOutPoint
 			if isNullOutpoint(prevOut) {
-				return ruleError(ErrBadTxInput, "transaction "+
-					"input refers to previous output that "+
-					"is null")
+				str := fmt.Sprintf("transaction input %d refers to previous "+
+					"output that is null", txInIdx)
+				return ruleError(ErrBadTxInput, str)
 			}
 		}
 	}
 
-	// Ensure that non-stake transaction output scripts do not contain any stake
-	// opcodes.
-	isStakeTx := isVote || isTicket || isRevocation || isTAdd || isTSpend ||
-		isTreasuryBase
+	// Ensure that non-stake transactions have no outputs with opcodes that are
+	// not allowed outside of the stake transactions.
+	isStakeTx := isVote || isTicket || isRevocation || isTreasuryAdd ||
+		isTreasurySpend || isTreasuryBase
 	if !isStakeTx {
 		for txOutIdx, txOut := range tx.TxOut {
-			// Ensure that non-stake transactions have no outputs with opcodes
-			// that are not allowed outside of the stake transactions.
 			hasOp, err := txscript.ContainsStakeOpCodes(txOut.PkScript,
 				isTreasuryEnabled)
 			if err != nil {
@@ -478,7 +464,7 @@ func CheckTransactionSanity(tx *wire.MsgTx, params *chaincfg.Params, isTreasuryE
 	if err != nil {
 		return err
 	}
-	return checkTransactionSanityContextual(tx, params, isTreasuryEnabled)
+	return checkTransactionContext(tx, params, isTreasuryEnabled)
 }
 
 // checkProofOfStake ensures that all ticket purchases in the block pay at least
@@ -867,40 +853,14 @@ func checkBlockSanityContextual(block *dcrutil.Block, timeSource MedianTimeSourc
 		}
 	}
 
-	// Do some preliminary contextual checks on each regular transaction to
-	// ensure they are sane before continuing.
-	for i, tx := range transactions {
-		// A block must not have stake transactions in the regular
-		// transaction tree.
-		msgTx := tx.MsgTx()
-		txType := stake.DetermineTxType(msgTx, isTreasuryEnabled)
-		if txType != stake.TxTypeRegular {
-			errStr := fmt.Sprintf("block contains a stake "+
-				"transaction in the regular transaction tree at "+
-				"index %d", i)
-			return ruleError(ErrStakeTxInRegularTree, errStr)
-		}
-
-		err := checkTransactionSanityContextual(msgTx, chainParams,
-			isTreasuryEnabled)
-		if err != nil {
-			return err
-		}
-	}
-
-	// Do some preliminary checks on each stake transaction to ensure they
-	// are sane while tallying each type before continuing.
+	// Do some preliminary checks on stake transactions and tally how many of
+	// each type there are as well as the the number of yes votes approving the
+	// previous block
 	stakeValidationHeight := uint32(chainParams.StakeValidationHeight)
 	var totalTickets, totalVotes, totalRevocations int64
 	var totalTAdd, totalTSpend, totalTreasurybase int64
 	var totalYesVotes int64
 	for txIdx, stx := range msgBlock.STransactions {
-		err := checkTransactionSanityContextual(stx, chainParams,
-			isTreasuryEnabled)
-		if err != nil {
-			return err
-		}
-
 		// A block must not have regular transactions in the stake
 		// transaction tree.
 		txType := stake.DetermineTxType(stx, isTreasuryEnabled)
@@ -1681,10 +1641,44 @@ func (b *BlockChain) checkBlockContext(block *dcrutil.Block, prevNode *blockNode
 
 	// Perform all block header related validation checks which depend on
 	// having the full block data for all of its ancestors available.
-	header := &block.MsgBlock().Header
+	msgBlock := block.MsgBlock()
+	header := &msgBlock.Header
 	err := b.checkBlockHeaderContext(header, prevNode, flags)
 	if err != nil {
 		return err
+	}
+
+	// Determine if the treasury agenda is active as of the block being checked.
+	isTreasuryEnabled, err := b.isTreasuryAgendaActive(prevNode)
+	if err != nil {
+		return err
+	}
+
+	for txIdx, tx := range msgBlock.Transactions {
+		// A block must not have stake transactions in the regular transaction
+		// tree.
+		txType := stake.DetermineTxType(tx, isTreasuryEnabled)
+		if txType != stake.TxTypeRegular {
+			str := fmt.Sprintf("block contains a stake transaction in the "+
+				"regular transaction tree at index %d", txIdx)
+			return ruleError(ErrStakeTxInRegularTree, str)
+		}
+
+		// Perform additional contextual validation checks on each regular
+		// transaction.
+		err := checkTransactionContext(tx, b.chainParams, isTreasuryEnabled)
+		if err != nil {
+			return err
+		}
+	}
+
+	for _, stx := range msgBlock.STransactions {
+		// Perform additional contextual validation checks on each stake
+		// transaction.
+		err := checkTransactionContext(stx, b.chainParams, isTreasuryEnabled)
+		if err != nil {
+			return err
+		}
 	}
 
 	fastAdd := flags&BFFastAdd == BFFastAdd
