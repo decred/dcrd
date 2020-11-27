@@ -231,13 +231,58 @@ func checkTransactionSanityContextFree(tx *wire.MsgTx, params *chaincfg.Params) 
 		return ruleError(ErrNoTxOutputs, "transaction has no outputs")
 	}
 
-	// A transaction must not exceed the maximum allowed size when
-	// serialized.
+	// A transaction must not exceed the maximum allowed size when serialized.
 	serializedTxSize := tx.SerializeSize()
 	if serializedTxSize > params.MaxTxSize {
-		str := fmt.Sprintf("serialized transaction is too big - got "+
-			"%d, max %d", serializedTxSize, params.MaxTxSize)
+		str := fmt.Sprintf("serialized transaction is too big - got %d, max %d",
+			serializedTxSize, params.MaxTxSize)
 		return ruleError(ErrTxTooBig, str)
+	}
+
+	// Ensure the transaction amounts are in range.  Each transaction output
+	// must not be negative or more than the max allowed per transaction.  Also,
+	// the total of all outputs must abide by the same restrictions.  All
+	// amounts in a transaction are in a unit value known as an atom.  One
+	// Decred is a quantity of atoms as defined by the AtomsPerCoin constant.
+	var totalAtom int64
+	for _, txOut := range tx.TxOut {
+		atom := txOut.Value
+		if atom < 0 {
+			str := fmt.Sprintf("transaction output has negative value of %v",
+				atom)
+			return ruleError(ErrBadTxOutValue, str)
+		}
+		if atom > dcrutil.MaxAmount {
+			str := fmt.Sprintf("transaction output value of %v is higher than "+
+				"max allowed value of %v", atom, dcrutil.MaxAmount)
+			return ruleError(ErrBadTxOutValue, str)
+		}
+
+		// Two's complement int64 overflow guarantees that any overflow is
+		// detected and reported.  This is impossible for Decred, but perhaps
+		// possible if an alt increases the total money supply.
+		totalAtom += atom
+		if totalAtom < 0 {
+			str := fmt.Sprintf("total value of all transaction outputs "+
+				"exceeds max allowed value of %v", dcrutil.MaxAmount)
+			return ruleError(ErrBadTxOutValue, str)
+		}
+		if totalAtom > dcrutil.MaxAmount {
+			str := fmt.Sprintf("total value of all transaction outputs is %v "+
+				"which is higher than max allowed value of %v", totalAtom,
+				dcrutil.MaxAmount)
+			return ruleError(ErrBadTxOutValue, str)
+		}
+	}
+
+	// Check for duplicate transaction inputs.
+	existingTxOut := make(map[wire.OutPoint]struct{})
+	for _, txIn := range tx.TxIn {
+		if _, exists := existingTxOut[txIn.PreviousOutPoint]; exists {
+			str := "transaction contains duplicate inputs"
+			return ruleError(ErrDuplicateTxInputs, str)
+		}
+		existingTxOut[txIn.PreviousOutPoint] = struct{}{}
 	}
 
 	return nil
@@ -383,9 +428,8 @@ func checkTransactionSanityContextual(tx *wire.MsgTx, params *chaincfg.Params, i
 		fallthrough
 
 	default:
-		// Previous transaction outputs referenced by the inputs to
-		// this transaction must not be null except in the case of
-		// stakebases for votes.
+		// Previous transaction outputs referenced by the inputs to this
+		// transaction must not be null.
 		for _, txIn := range tx.TxIn {
 			prevOut := &txIn.PreviousOutPoint
 			if isNullOutpoint(prevOut) {
@@ -396,53 +440,14 @@ func checkTransactionSanityContextual(tx *wire.MsgTx, params *chaincfg.Params, i
 		}
 	}
 
-	// Ensure the transaction amounts are in range.  Each transaction output
-	// must not be negative or more than the max allowed per transaction.  Also,
-	// the total of all outputs must abide by the same restrictions.  All
-	// amounts in a transaction are in a unit value known as an atom.  One
-	// Decred is a quantity of atoms as defined by the AtomsPerCoin constant.
-	//
-	// Also ensure that non-stake transaction output scripts do not contain any
-	// stake opcodes.
+	// Ensure that non-stake transaction output scripts do not contain any stake
+	// opcodes.
 	isStakeTx := isVote || isTicket || isRevocation || isTAdd || isTSpend ||
 		isTreasuryBase
-	var totalAtom int64
-	for txOutIdx, txOut := range tx.TxOut {
-		atom := txOut.Value
-		if atom < 0 {
-			str := fmt.Sprintf("transaction output has negative value of %v",
-				atom)
-			return ruleError(ErrBadTxOutValue, str)
-		}
-		if atom > dcrutil.MaxAmount {
-			str := fmt.Sprintf("transaction output value of %v is higher than "+
-				"max allowed value of %v", atom, dcrutil.MaxAmount)
-			return ruleError(ErrBadTxOutValue, str)
-		}
-
-		// Two's complement int64 overflow guarantees that any overflow is
-		// detected and reported.  This is impossible for Decred, but perhaps
-		// possible if an alt increases the total money supply.
-		totalAtom += atom
-		if totalAtom < 0 {
-			str := fmt.Sprintf("total value of all transaction outputs "+
-				"exceeds max allowed value of %v", dcrutil.MaxAmount)
-			return ruleError(ErrBadTxOutValue, str)
-		}
-		if totalAtom > dcrutil.MaxAmount {
-			str := fmt.Sprintf("total value of all transaction outputs is %v "+
-				"which is higher than max allowed value of %v", totalAtom,
-				dcrutil.MaxAmount)
-			return ruleError(ErrBadTxOutValue, str)
-		}
-
-		// Ensure that non-stake transactions have no outputs with
-		// opcodes OP_SSTX, OP_SSRTX, OP_SSGEN, OP_SSTX_CHANGE,
-		// OP_TADD, or OP_TGEN.
-		//
-		// Note that OP_TADD is a valid output for a regular
-		// transaction.
-		if !isStakeTx {
+	if !isStakeTx {
+		for txOutIdx, txOut := range tx.TxOut {
+			// Ensure that non-stake transactions have no outputs with opcodes
+			// that are not allowed outside of the stake transactions.
 			hasOp, err := txscript.ContainsStakeOpCodes(txOut.PkScript,
 				isTreasuryEnabled)
 			if err != nil {
@@ -454,16 +459,6 @@ func checkTransactionSanityContextual(tx *wire.MsgTx, params *chaincfg.Params, i
 				return ruleError(ErrRegTxCreateStakeOut, str)
 			}
 		}
-	}
-
-	// Check for duplicate transaction inputs.
-	existingTxOut := make(map[wire.OutPoint]struct{})
-	for _, txIn := range tx.TxIn {
-		if _, exists := existingTxOut[txIn.PreviousOutPoint]; exists {
-			return ruleError(ErrDuplicateTxInputs, "transaction "+
-				"contains duplicate inputs")
-		}
-		existingTxOut[txIn.PreviousOutPoint] = struct{}{}
 	}
 
 	return nil

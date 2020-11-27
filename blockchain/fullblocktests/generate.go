@@ -1069,7 +1069,7 @@ func Generate(includeLargeReorg bool) (tests [][]TestInstance, err error) {
 			Tree:  wire.TxTreeRegular,
 		}
 	})
-	rejected(blockchain.ErrBadTxInput)
+	rejected(blockchain.ErrDuplicateTxInputs)
 
 	// Attempt to add block with a regular tx in the stake tree.
 	//
