@@ -3631,15 +3631,19 @@ func TestTreasuryBaseCorners(t *testing.T) {
 	}
 
 	// removeStakeTxns is a munge function which modifies the provided block by
-	// removing all stake transactions.
+	// removing all stake transactions other than votes.
 	removeStakeTxns := func(b *wire.MsgBlock) {
-		b.STransactions = nil
+		b.Header.FreshStake = 0
+		b.Header.Revocations = 0
+		b.STransactions = b.STransactions[1:6]
 	}
 
 	// dupTreasurybase is a munge function which modifies the provided block by
 	// adding a duplicate treasurybase at the end of the stake tree.
 	dupTreasurybase := func(b *wire.MsgBlock) {
-		b.STransactions = append(b.STransactions, b.STransactions[0])
+		txCopy := b.STransactions[0].Copy()
+		txCopy.TxOut[1].PkScript[len(txCopy.TxOut[1].PkScript)-1] ^= 0x55
+		b.AddSTransaction(txCopy)
 	}
 
 	// flipTreasurybase is a munge function which modifies the provided block by
@@ -4143,7 +4147,9 @@ func TestTreasuryInRegularTree(t *testing.T) {
 	// addTreasuryBaseRegular is a munge function which modifies the provided
 	// block to add a treasurybase to the regular transaction tree.
 	addTreasuryBaseRegular := func(b *wire.MsgBlock) {
-		b.Transactions = append(b.Transactions, b.STransactions[0])
+		txCopy := b.STransactions[0].Copy()
+		txCopy.TxOut[1].PkScript[len(txCopy.TxOut[1].PkScript)-1] ^= 0x55
+		b.AddTransaction(txCopy)
 	}
 
 	// moveTAddRegular is a munge function which modifies the provided block by

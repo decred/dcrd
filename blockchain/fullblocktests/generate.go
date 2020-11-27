@@ -1077,7 +1077,9 @@ func Generate(includeLargeReorg bool) (tests [][]TestInstance, err error) {
 	//                 \-> bv2(9)
 	g.SetTip("bsl5")
 	g.NextBlock("bv2", outs[9], ticketOuts[9], func(b *wire.MsgBlock) {
-		b.STransactions[0] = b.Transactions[0]
+		txCopy := b.Transactions[1].Copy()
+		txCopy.TxOut[1].PkScript = chaingen.UniqueOpReturnScript()
+		b.AddSTransaction(txCopy)
 	})
 	rejected(blockchain.ErrRegTxInStakeTree)
 
@@ -1852,7 +1854,9 @@ func Generate(includeLargeReorg bool) (tests [][]TestInstance, err error) {
 	//                  \-> bmf16(15)
 	g.SetTip("brs3")
 	g.NextBlock("bmf16", outs[15], ticketOuts[15], func(b *wire.MsgBlock) {
-		b.AddTransaction(b.STransactions[1])
+		txCopy := b.STransactions[1].Copy()
+		txCopy.TxOut[1].PkScript = chaingen.UniqueOpReturnScript()
+		b.AddTransaction(txCopy)
 	})
 	rejected(blockchain.ErrStakeTxInRegularTree)
 
@@ -2118,12 +2122,11 @@ func Generate(includeLargeReorg bool) (tests [][]TestInstance, err error) {
 		ticket := g.CreateTicketPurchaseTx(&spendOut, ticketPrice, lowFee)
 		ticket.TxOut[0], ticket.TxOut[2] = ticket.TxOut[2], ticket.TxOut[0]
 		b.AddSTransaction(ticket)
-		b.Header.FreshStake++
 	})
 	rejected(blockchain.ErrRegTxCreateStakeOut)
 
-	// Create block with scripts that do not involve p2pkh or
-	// p2sh addresses for a ticket purchase.
+	// Create block with scripts that do not involve p2pkh or p2sh addresses
+	// for a ticket purchase.
 	//
 	//   ... -> brs3(14)
 	//                  \-> bmf37(15)
@@ -2135,7 +2138,6 @@ func Generate(includeLargeReorg bool) (tests [][]TestInstance, err error) {
 		ticket := g.CreateTicketPurchaseTx(&spendOut, ticketPrice, lowFee)
 		ticket.TxOut[0].PkScript = opTrueScript
 		b.AddSTransaction(ticket)
-		b.Header.FreshStake++
 	})
 	rejected(blockchain.ErrRegTxCreateStakeOut)
 
