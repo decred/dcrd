@@ -1192,11 +1192,14 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 		return nil, txRuleError(ErrDuplicate, str)
 	}
 
-	// Perform preliminary sanity checks on the transaction.  This makes
-	// use of blockchain which contains the invariant rules for what
-	// transactions are allowed into blocks.
-	err := blockchain.CheckTransactionSanity(msgTx, mp.cfg.ChainParams,
-		isTreasuryEnabled)
+	// Perform preliminary validation checks on the transaction.  This makes use
+	// of blockchain which contains the invariant rules for what transactions
+	// are allowed into blocks.
+	checkTxFlags := blockchain.AFNone
+	if isTreasuryEnabled {
+		checkTxFlags |= blockchain.AFTreasuryEnabled
+	}
+	err := blockchain.CheckTransaction(msgTx, mp.cfg.ChainParams, checkTxFlags)
 	if err != nil {
 		var cerr blockchain.RuleError
 		if errors.As(err, &cerr) {

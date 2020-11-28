@@ -218,9 +218,9 @@ func IsFinalizedTransaction(tx *dcrutil.Tx, blockHeight int64, blockTime time.Ti
 	return true
 }
 
-// checkTransactionSanityContextFree performs some preliminary checks on a
-// transaction to ensure it is sane.  These checks are context free.
-func checkTransactionSanityContextFree(tx *wire.MsgTx, params *chaincfg.Params) error {
+// checkTransactionSanity performs some preliminary checks on a transaction to
+// ensure it is sane.  These checks are context free.
+func checkTransactionSanity(tx *wire.MsgTx, params *chaincfg.Params) error {
 	// A transaction must have at least one input.
 	if len(tx.TxIn) == 0 {
 		return ruleError(ErrNoTxInputs, "transaction has no inputs")
@@ -451,19 +451,39 @@ func checkTransactionContext(tx *wire.MsgTx, params *chaincfg.Params, isTreasury
 }
 
 // CheckTransactionSanity performs some preliminary checks on a transaction to
-// ensure it is sane.  These checks are supposed to be context free but cannot
-// be due to the treasury agenda.
+// ensure it is sane.  These checks are context free.
+func CheckTransactionSanity(tx *wire.MsgTx, params *chaincfg.Params) error {
+	return checkTransactionSanity(tx, params)
+}
+
+// AgendaFlags is a bitmask defining additional agendas to consider as active
+// when checking transactions.  This can be useful for callers who are able to
+// accurately determine what agendas are active or otherwise desire any
+// additional validation checks associated with a given agenda being active.
+type AgendaFlags uint32
+
+const (
+	// AFTreasuryEnabled may be set to indicate that the treasury agenda should
+	// be considered as active when checking a transaction so that any
+	// additional checks which depend on the agenda being active are applied.
+	AFTreasuryEnabled AgendaFlags = 1 << iota
+
+	// AFNone is a convenience value to specifically indicate no flags.
+	AFNone AgendaFlags = 0
+)
+
+// CheckTransaction performs several validation checks on a transaction that
+// include both preliminary sanity checks that are context free as well as those
+// which depend on whether or not an agenda is active.
 //
-// Note that this is a giant hack to separate the original context free
-// function into two functions due to the treasury agenda induced contextual
-// isTreasuryEnabled flag.  The contextual checks have been pulled out in order
-// to maintain order and assumptions without having to discard the
-// isTreasuryEnabled checks from the function.
-func CheckTransactionSanity(tx *wire.MsgTx, params *chaincfg.Params, isTreasuryEnabled bool) error {
-	err := checkTransactionSanityContextFree(tx, params)
+// The flags may be used to specify which agendas should be considered as active
+// in order to change how the validation rules are applied accordingly.
+func CheckTransaction(tx *wire.MsgTx, params *chaincfg.Params, flags AgendaFlags) error {
+	err := checkTransactionSanity(tx, params)
 	if err != nil {
 		return err
 	}
+	isTreasuryEnabled := flags&AFTreasuryEnabled == AFTreasuryEnabled
 	return checkTransactionContext(tx, params, isTreasuryEnabled)
 }
 
@@ -724,7 +744,7 @@ func checkBlockSanity(block *dcrutil.Block, timeSource MedianTimeSource, flags B
 	transactions := block.Transactions()
 	for _, tx := range transactions {
 		msgTx := tx.MsgTx()
-		err := checkTransactionSanityContextFree(msgTx, chainParams)
+		err := checkTransactionSanity(msgTx, chainParams)
 		if err != nil {
 			return err
 		}
@@ -735,7 +755,7 @@ func checkBlockSanity(block *dcrutil.Block, timeSource MedianTimeSource, flags B
 	// tallying each type before continuing.
 	var totalTickets, totalRevocations int64
 	for _, stx := range msgBlock.STransactions {
-		err := checkTransactionSanityContextFree(stx, chainParams)
+		err := checkTransactionSanity(stx, chainParams)
 		if err != nil {
 			return err
 		}

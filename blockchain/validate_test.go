@@ -601,7 +601,7 @@ func TestTxValidationErrors(t *testing.T) {
 	}
 
 	// Ensure transaction is rejected due to being too large.
-	err := CheckTransactionSanity(tx, chaincfg.MainNetParams(), noTreasury)
+	err := CheckTransactionSanity(tx, chaincfg.MainNetParams())
 	if !errors.Is(err, ErrTxTooBig) {
 		t.Fatalf("CheckTransactionSanity: unexpected error for transaction "+
 			"that is too large -- got %v, want %v", err, ErrTxTooBig)
