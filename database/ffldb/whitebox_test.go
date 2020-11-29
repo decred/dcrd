@@ -13,6 +13,7 @@ import (
 	"compress/bzip2"
 	"encoding/binary"
 	"encoding/gob"
+	"errors"
 	"fmt"
 	"hash/crc32"
 	"os"
@@ -86,8 +87,8 @@ func loadBlocks(t *testing.T, dataFile string, network wire.CurrencyNet) ([]*dcr
 // checkDbError ensures the passed error is a database.Error with an error code
 // that matches the passed error code.
 func checkDbError(t *testing.T, testName string, gotErr error, wantErrCode database.ErrorCode) bool {
-	dbErr, ok := gotErr.(database.Error)
-	if !ok {
+	var dbErr database.Error
+	if !errors.As(gotErr, &dbErr) {
 		t.Errorf("%s: unexpected error type - got %T, want %T",
 			testName, gotErr, database.Error{})
 		return false
@@ -410,7 +411,7 @@ func testBlockFileErrors(tc *testContext) bool {
 		return nil
 	})
 	if err != nil {
-		if err != errSubTestFail {
+		if !errors.Is(err, errSubTestFail) {
 			tc.t.Errorf("Update: unexpected error: %v", err)
 		}
 		return false
@@ -471,7 +472,7 @@ func testBlockFileErrors(tc *testContext) bool {
 		return nil
 	})
 	if err != nil {
-		if err != errSubTestFail {
+		if !errors.Is(err, errSubTestFail) {
 			tc.t.Errorf("View: unexpected error: %v", err)
 		}
 		return false
@@ -498,7 +499,7 @@ func testCorruption(tc *testContext) bool {
 		return nil
 	})
 	if err != nil {
-		if err != errSubTestFail {
+		if !errors.Is(err, errSubTestFail) {
 			tc.t.Errorf("Update: unexpected error: %v", err)
 		}
 		return false
@@ -566,7 +567,7 @@ func testCorruption(tc *testContext) bool {
 		return nil
 	})
 	if err != nil {
-		if err != errSubTestFail {
+		if !errors.Is(err, errSubTestFail) {
 			tc.t.Errorf("View: unexpected error: %v", err)
 		}
 		return false

@@ -183,20 +183,20 @@ func TestPersistence(t *testing.T) {
 
 		bucket1, err := metadataBucket.CreateBucket(bucket1Key)
 		if err != nil {
-			return fmt.Errorf("CreateBucket: unexpected error: %v",
+			return fmt.Errorf("CreateBucket: unexpected error: %w",
 				err)
 		}
 
 		for k, v := range storeValues {
 			err := bucket1.Put([]byte(k), []byte(v))
 			if err != nil {
-				return fmt.Errorf("Put: unexpected error: %v",
+				return fmt.Errorf("Put: unexpected error: %w",
 					err)
 			}
 		}
 
 		if err := tx.StoreBlock(genesisBlock); err != nil {
-			return fmt.Errorf("StoreBlock: unexpected error: %v",
+			return fmt.Errorf("StoreBlock: unexpected error: %w",
 				err)
 		}
 
@@ -241,7 +241,7 @@ func TestPersistence(t *testing.T) {
 		genesisBlockBytes, _ := genesisBlock.Bytes()
 		gotBytes, err := tx.FetchBlock(genesisHash)
 		if err != nil {
-			return fmt.Errorf("FetchBlock: unexpected error: %v",
+			return fmt.Errorf("FetchBlock: unexpected error: %w",
 				err)
 		}
 		if !reflect.DeepEqual(gotBytes, genesisBlockBytes) {

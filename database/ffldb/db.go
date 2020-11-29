@@ -8,6 +8,7 @@ package ffldb
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -145,13 +146,13 @@ func convertErr(desc string, ldbErr error) database.Error {
 		code = database.ErrCorruption
 
 	// Database open/create errors.
-	case ldbErr == leveldb.ErrClosed:
+	case errors.Is(ldbErr, leveldb.ErrClosed):
 		code = database.ErrDbNotOpen
 
 	// Transaction errors.
-	case ldbErr == leveldb.ErrSnapshotReleased:
+	case errors.Is(ldbErr, leveldb.ErrSnapshotReleased):
 		code = database.ErrTxClosed
-	case ldbErr == leveldb.ErrIterReleased:
+	case errors.Is(ldbErr, leveldb.ErrIterReleased):
 		code = database.ErrTxClosed
 	}
 
