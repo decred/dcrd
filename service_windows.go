@@ -8,7 +8,6 @@ package main
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"time"
 
 	"golang.org/x/sys/windows/svc/eventlog"
@@ -112,17 +111,10 @@ loop:
 // be done by the msi installer, but it is provided here since it can be useful
 // for development.
 func installService() error {
-	// Get the path of the current executable.  This is needed because
-	// os.Args[0] can vary depending on how the application was launched.
-	// For example, under cmd.exe it will only be the name of the app
-	// without the path or extension, but under mingw it will be the full
-	// path including the extension.
-	exePath, err := filepath.Abs(os.Args[0])
+	// The the full path to the current executable.
+	exePath, err := os.Executable()
 	if err != nil {
 		return err
-	}
-	if filepath.Ext(exePath) == "" {
-		exePath += ".exe"
 	}
 
 	// Connect to the windows service manager.
