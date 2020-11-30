@@ -10,6 +10,7 @@ import (
 	"crypto/ed25519"
 	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
@@ -36,6 +37,8 @@ func usage(parser *flags.Parser) {
 }
 
 type config struct {
+	CA    string   `short:"C" description:"sign generated certificate using CA cert (requires -K)"`
+	CAKey string   `short:"K" description:"key of CA certificate"`
 	Hosts []string `short:"H" description:"hostname or IP certificate is valid for; may be specified multiple times"`
 	Local bool     `short:"L" description:"append localhost, 127.0.0.1, and ::1 to hosts if not already specified"`
 	Org   string   `short:"o" description:"organization"`
@@ -84,6 +87,10 @@ func main() {
 		usage(parser)
 	}
 
+	if cfg.CA == "" != (cfg.CAKey == "") {
+		fatalf("-C and -K must be used together\n")
+	}
+
 	if cfg.Local {
 		var localhost, v4Loopback, v6Loopback bool
 		for _, h := range cfg.Hosts {
@@ -107,14 +114,33 @@ func main() {
 		}
 	}
 
+	var cert *Cert
 	pub, priv := keygen()
-	ca, err := generateAuthority(pub, priv, cfg.Hosts, cfg.Org, cfg.Years)
-	if err != nil {
-		fatalf("generate certificate authority: %v\n", err)
-	}
 	keyBlock, err := marshalPrivateKey(priv)
 	if err != nil {
 		fatalf("%s\n", err)
+	}
+	if cfg.CA == "" {
+		cert, err = generateAuthority(pub, priv, cfg.Hosts, cfg.Org, cfg.Years)
+		if err != nil {
+			fatalf("generate certificate authority: %v\n", err)
+		}
+	} else {
+		var ca *x509.Certificate
+		var caPriv interface{}
+		tlsCert, err := tls.LoadX509KeyPair(cfg.CA, cfg.CAKey)
+		if err != nil {
+			fatalf("open CA keypair: %s\n", err)
+		}
+		// will never error, as this was already parsed by LoadX509KeyPair
+		ca, _ = x509.ParseCertificate(tlsCert.Certificate[0])
+		caPriv = tlsCert.PrivateKey
+
+		cert, err = createIssuedCert(pub, caPriv, ca,
+			cfg.Hosts, cfg.Org, cfg.Years)
+		if err != nil {
+			fatalf("issue certificate: %v\n", err)
+		}
 	}
 
 	if !cfg.Force && fileExists(certname) {
@@ -124,7 +150,7 @@ func main() {
 		fatalf("key file %q already exists\n", keyname)
 	}
 
-	if err = ioutil.WriteFile(certname, ca.CertBlock, 0644); err != nil {
+	if err = ioutil.WriteFile(certname, cert.PEMBlock, 0644); err != nil {
 		fatalf("cannot write cert: %v\n", err)
 	}
 	if err = ioutil.WriteFile(keyname, keyBlock, 0600); err != nil {
@@ -175,10 +201,9 @@ func randomX509SerialNumber() (*big.Int, error) {
 // End of ASN.1 time
 var endOfTime = time.Date(2049, 12, 31, 23, 59, 59, 0, time.UTC)
 
-type CA struct {
-	CertBlock  []byte
-	Cert       *x509.Certificate
-	PrivateKey interface{}
+type Cert struct {
+	PEMBlock []byte
+	Cert     *x509.Certificate
 }
 
 func newTemplate(hosts []string, org string, validUntil time.Time) (*x509.Certificate, error) {
@@ -222,7 +247,7 @@ func newTemplate(hosts []string, org string, validUntil time.Time) (*x509.Certif
 	return template, nil
 }
 
-func generateAuthority(pub, priv interface{}, hosts []string, org string, years int) (*CA, error) {
+func generateAuthority(pub, priv interface{}, hosts []string, org string, years int) (*Cert, error) {
 	validUntil := time.Now().Add(time.Hour * 24 * 365 * time.Duration(years))
 	template, err := newTemplate(hosts, org, validUntil)
 	if err != nil {
@@ -241,19 +266,58 @@ func generateAuthority(pub, priv interface{}, hosts []string, org string, years 
 	if err != nil {
 		return nil, fmt.Errorf("failed to encode certificate: %v", err)
 	}
-	certBlock := buf.Bytes()
+	pemBlock := buf.Bytes()
 
 	x509Cert, err := x509.ParseCertificate(cert)
 	if err != nil {
 		return nil, err
 	}
 
-	ca := &CA{
-		CertBlock:  certBlock,
-		Cert:       x509Cert,
-		PrivateKey: priv,
+	ca := &Cert{
+		PEMBlock: pemBlock,
+		Cert:     x509Cert,
 	}
 	return ca, nil
+}
+
+func createIssuedCert(pub, caPriv interface{}, ca *x509.Certificate,
+	hosts []string, org string, years int) (*Cert, error) {
+
+	if ca.KeyUsage&x509.KeyUsageCertSign == 0 {
+		return nil, fmt.Errorf("parent certificate cannot sign other certificates")
+	}
+	validUntil := time.Now().Add(time.Hour * 24 * 365 * time.Duration(years))
+	if validUntil.After(ca.NotAfter) {
+		validUntil = ca.NotAfter
+	}
+	template, err := newTemplate(hosts, org, validUntil)
+	if err != nil {
+		return nil, err
+	}
+	template.KeyUsage = x509.KeyUsageDigitalSignature
+	template.BasicConstraintsValid = true
+
+	cert, err := x509.CreateCertificate(rand.Reader, template, ca, pub, caPriv)
+	if err != nil {
+		return nil, err
+	}
+	buf := new(bytes.Buffer)
+	err = pem.Encode(buf, &pem.Block{Type: "CERTIFICATE", Bytes: cert})
+	if err != nil {
+		return nil, fmt.Errorf("failed to encode certificate: %v", err)
+	}
+	pemBlock := buf.Bytes()
+
+	x509Cert, err := x509.ParseCertificate(cert)
+	if err != nil {
+		return nil, err
+	}
+
+	issuedCert := &Cert{
+		PEMBlock: pemBlock,
+		Cert:     x509Cert,
+	}
+	return issuedCert, nil
 }
 
 func marshalPrivateKey(key interface{}) ([]byte, error) {
