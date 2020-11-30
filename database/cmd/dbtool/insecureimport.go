@@ -1,5 +1,5 @@
 // Copyright (c) 2015-2016 The btcsuite developers
-// Copyright (c) 2016-2019 The Decred developers
+// Copyright (c) 2016-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -7,6 +7,7 @@ package main
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -70,7 +71,7 @@ func (bi *blockImporter) readBlock() ([]byte, error) {
 	var net uint32
 	err := binary.Read(bi.r, binary.LittleEndian, &net)
 	if err != nil {
-		if err != io.EOF {
+		if !errors.Is(err, io.EOF) {
 			return nil, err
 		}
 
@@ -376,8 +377,10 @@ func (cmd *importCmd) Execute(args []string) error {
 		resultsChan := importer.Import()
 		results := <-resultsChan
 		if results.err != nil {
-			dbErr, ok := results.err.(database.Error)
-			if !ok || ok && dbErr.ErrorCode != database.ErrDbNotOpen {
+			var dbErr database.Error
+			if !errors.As(results.err, &dbErr) ||
+				dbErr.ErrorCode != database.ErrDbNotOpen {
+
 				shutdownChannel <- results.err
 				return
 			}

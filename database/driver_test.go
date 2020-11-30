@@ -1,11 +1,12 @@
 // Copyright (c) 2015-2016 The btcsuite developers
-// Copyright (c) 2016-2019 The Decred developers
+// Copyright (c) 2016-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
 package database_test
 
 import (
+	"errors"
 	"fmt"
 	"testing"
 
@@ -16,8 +17,8 @@ import (
 // checkDbError ensures the passed error is a database.Error with an error code
 // that matches the passed error code.
 func checkDbError(t *testing.T, testName string, gotErr error, wantErrCode database.ErrorCode) bool {
-	dbErr, ok := gotErr.(database.Error)
-	if !ok {
+	var dbErr database.Error
+	if !errors.As(gotErr, &dbErr) {
 		t.Errorf("%s: unexpected error type - got %T, want %T",
 			testName, gotErr, database.Error{})
 		return false
@@ -91,7 +92,7 @@ func TestCreateOpenFail(t *testing.T) {
 	// Ensure creating a database with the new type fails with the expected
 	// error.
 	_, err := database.Create(dbType)
-	if err != openError {
+	if !errors.Is(err, openError) {
 		t.Errorf("expected error not received - got: %v, want %v", err,
 			openError)
 		return
@@ -100,7 +101,7 @@ func TestCreateOpenFail(t *testing.T) {
 	// Ensure opening a database with the new type fails with the expected
 	// error.
 	_, err = database.Open(dbType)
-	if err != openError {
+	if !errors.Is(err, openError) {
 		t.Errorf("expected error not received - got: %v, want %v", err,
 			openError)
 		return

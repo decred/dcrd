@@ -1,5 +1,5 @@
 // Copyright (c) 2015-2016 The btcsuite developers
-// Copyright (c) 2016-2019 The Decred developers
+// Copyright (c) 2016-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -17,6 +17,7 @@ import (
 	"bytes"
 	"compress/bzip2"
 	"encoding/gob"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -91,8 +92,8 @@ func loadBlocks(t *testing.T, dataFile string, network wire.CurrencyNet) ([]*dcr
 // checkDbError ensures the passed error is a database.Error with an error code
 // that matches the passed error code.
 func checkDbError(t *testing.T, testName string, gotErr error, wantErrCode database.ErrorCode) bool {
-	dbErr, ok := gotErr.(database.Error)
-	if !ok {
+	var dbErr database.Error
+	if !errors.As(gotErr, &dbErr) {
 		t.Errorf("%s: unexpected error type - got %T, want %T",
 			testName, gotErr, database.Error{})
 		return false
@@ -407,7 +408,7 @@ func testBucketInterface(tc *testContext, bucket database.Bucket) bool {
 		err := bucket.ForEach(func(k, v []byte) error {
 			return forEachError
 		})
-		if err != forEachError {
+		if !errors.Is(err, forEachError) {
 			tc.t.Errorf("ForEach: inner function error not "+
 				"returned - got %v, want %v", err, forEachError)
 			return false
@@ -470,7 +471,7 @@ func testBucketInterface(tc *testContext, bucket database.Bucket) bool {
 		err = bucket.ForEachBucket(func(k []byte) error {
 			return forEachError
 		})
-		if err != forEachError {
+		if !errors.Is(err, forEachError) {
 			tc.t.Errorf("ForEachBucket: inner function error not "+
 				"returned - got %v, want %v", err, forEachError)
 			return false
@@ -928,7 +929,7 @@ func testMetadataTxInterface(tc *testContext) bool {
 		return nil
 	})
 	if err != nil {
-		if err != errSubTestFail {
+		if !errors.Is(err, errSubTestFail) {
 			tc.t.Errorf("%v", err)
 		}
 		return false
@@ -940,7 +941,7 @@ func testMetadataTxInterface(tc *testContext) bool {
 	err = tc.db.View(func(tx database.Tx) error {
 		return viewError
 	})
-	if err != viewError {
+	if !errors.Is(err, viewError) {
 		tc.t.Errorf("View: inner function error not returned - got "+
 			"%v, want %v", err, viewError)
 		return false
@@ -973,8 +974,8 @@ func testMetadataTxInterface(tc *testContext) bool {
 		// Return an error to force a rollback.
 		return forceRollbackError
 	})
-	if err != forceRollbackError {
-		if err == errSubTestFail {
+	if !errors.Is(err, forceRollbackError) {
+		if errors.Is(err, errSubTestFail) {
 			return false
 		}
 
@@ -998,7 +999,7 @@ func testMetadataTxInterface(tc *testContext) bool {
 		return nil
 	})
 	if err != nil {
-		if err != errSubTestFail {
+		if !errors.Is(err, errSubTestFail) {
 			tc.t.Errorf("%v", err)
 		}
 		return false
@@ -1023,7 +1024,7 @@ func testMetadataTxInterface(tc *testContext) bool {
 		return nil
 	})
 	if err != nil {
-		if err != errSubTestFail {
+		if !errors.Is(err, errSubTestFail) {
 			tc.t.Errorf("%v", err)
 		}
 		return false
@@ -1048,7 +1049,7 @@ func testMetadataTxInterface(tc *testContext) bool {
 		return nil
 	})
 	if err != nil {
-		if err != errSubTestFail {
+		if !errors.Is(err, errSubTestFail) {
 			tc.t.Errorf("%v", err)
 		}
 		return false
@@ -1073,7 +1074,7 @@ func testMetadataTxInterface(tc *testContext) bool {
 		return nil
 	})
 	if err != nil {
-		if err != errSubTestFail {
+		if !errors.Is(err, errSubTestFail) {
 			tc.t.Errorf("%v", err)
 		}
 		return false
@@ -1498,7 +1499,7 @@ func testBlockIOTxInterface(tc *testContext) bool {
 		return nil
 	})
 	if err != nil {
-		if err != errSubTestFail {
+		if !errors.Is(err, errSubTestFail) {
 			tc.t.Errorf("%v", err)
 		}
 		return false
@@ -1540,8 +1541,8 @@ func testBlockIOTxInterface(tc *testContext) bool {
 
 		return forceRollbackError
 	})
-	if err != forceRollbackError {
-		if err == errSubTestFail {
+	if !errors.Is(err, forceRollbackError) {
+		if errors.Is(err, errSubTestFail) {
 			return false
 		}
 
@@ -1558,7 +1559,7 @@ func testBlockIOTxInterface(tc *testContext) bool {
 		return nil
 	})
 	if err != nil {
-		if err != errSubTestFail {
+		if !errors.Is(err, errSubTestFail) {
 			tc.t.Errorf("%v", err)
 		}
 		return false
@@ -1599,7 +1600,7 @@ func testBlockIOTxInterface(tc *testContext) bool {
 		return nil
 	})
 	if err != nil {
-		if err != errSubTestFail {
+		if !errors.Is(err, errSubTestFail) {
 			tc.t.Errorf("%v", err)
 		}
 		return false
@@ -1616,7 +1617,7 @@ func testBlockIOTxInterface(tc *testContext) bool {
 		return nil
 	})
 	if err != nil {
-		if err != errSubTestFail {
+		if !errors.Is(err, errSubTestFail) {
 			tc.t.Errorf("%v", err)
 		}
 		return false
@@ -1647,7 +1648,7 @@ func testBlockIOTxInterface(tc *testContext) bool {
 		return nil
 	})
 	if err != nil {
-		if err != errSubTestFail {
+		if !errors.Is(err, errSubTestFail) {
 			tc.t.Errorf("%v", err)
 		}
 		return false
