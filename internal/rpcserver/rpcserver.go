@@ -8,14 +8,16 @@ package rpcserver
 import (
 	"bytes"
 	"context"
+	"crypto/hmac"
+	"crypto/rand"
 	"crypto/sha256"
-	"crypto/subtle"
 	"encoding/base64"
 	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"hash"
 	"io"
 	"io/ioutil"
 	stdlog "log"
@@ -5415,11 +5417,15 @@ func handleVersion(_ context.Context, s *Server, cmd interface{}) (interface{}, 
 
 // Server provides a concurrent safe RPC server to a chain server.
 type Server struct {
+	// atomic
+	numClients int32
+
 	cfg                    Config
+	hmac                   hash.Hash
+	hmacMu                 sync.Mutex
 	authsha                [sha256.Size]byte
 	limitauthsha           [sha256.Size]byte
 	ntfnMgr                NtfnManager
-	numClients             int32
 	statusLines            map[int]string
 	statusLock             sync.RWMutex
 	wg                     sync.WaitGroup
@@ -5616,6 +5622,18 @@ func (s *Server) decrementClients() {
 	atomic.AddInt32(&s.numClients, -1)
 }
 
+// authMAC calculates the MAC (currently HMAC-SHA256) of an Authorization
+// header, keyed with a random key created during server creation.  The MAC is
+// appended to dst, and the appended slice is returned.
+func (s *Server) authMAC(dst, auth []byte) []byte {
+	s.hmacMu.Lock()
+	s.hmac.Reset()
+	s.hmac.Write(auth)
+	dst = s.hmac.Sum(dst)
+	s.hmacMu.Unlock()
+	return dst
+}
+
 // checkAuth checks the HTTP Basic authentication supplied by a wallet or RPC
 // client in the HTTP request r.  If the supplied authentication does not match
 // the username and password expected, a non-nil error is returned.
@@ -5638,18 +5656,17 @@ func (s *Server) checkAuth(r *http.Request, require bool) (bool, bool, error) {
 		return false, false, nil
 	}
 
-	authsha := sha256.Sum256([]byte(authhdr[0]))
+	mac := make([]byte, 0, sha256.Size)
+	mac = s.authMAC(mac, []byte(authhdr[0]))
 
 	// Check for limited auth first as in environments with limited users,
 	// those are probably expected to have a higher volume of calls
-	limitcmp := subtle.ConstantTimeCompare(authsha[:], s.limitauthsha[:])
-	if limitcmp == 1 {
+	if hmac.Equal(mac, s.limitauthsha[:]) {
 		return true, false, nil
 	}
 
 	// Check for admin-level auth
-	cmp := subtle.ConstantTimeCompare(authsha[:], s.authsha[:])
-	if cmp == 1 {
+	if hmac.Equal(mac, s.authsha[:]) {
 		return true, true, nil
 	}
 
@@ -6234,17 +6251,23 @@ func New(config *Config) (*Server, error) {
 		helpCacher:             newHelpCacher(),
 		requestProcessShutdown: make(chan struct{}),
 	}
+	key := make([]byte, 32)
+	_, err := io.ReadFull(rand.Reader, key)
+	if err != nil {
+		return nil, err
+	}
+	rpc.hmac = hmac.New(sha256.New, key)
 	if config.RPCUser != "" && config.RPCPass != "" {
 		login := config.RPCUser + ":" + config.RPCPass
 		auth := "Basic " +
 			base64.StdEncoding.EncodeToString([]byte(login))
-		rpc.authsha = sha256.Sum256([]byte(auth))
+		rpc.authMAC(rpc.authsha[:0], []byte(auth))
 	}
 	if config.RPCLimitUser != "" && config.RPCLimitPass != "" {
 		login := config.RPCLimitUser + ":" + config.RPCLimitPass
 		auth := "Basic " +
 			base64.StdEncoding.EncodeToString([]byte(login))
-		rpc.limitauthsha = sha256.Sum256([]byte(auth))
+		rpc.authMAC(rpc.limitauthsha[:0], []byte(auth))
 	}
 	rpc.ntfnMgr = newWsNotificationManager(&rpc)
 
