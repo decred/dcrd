@@ -525,7 +525,8 @@ func (b *BlockChain) TreasuryBalance(hash *chainhash.Hash) (*TreasuryBalanceInfo
 
 	// Treasury agenda is never active for the genesis block.
 	if node.parent == nil {
-		return nil, NoTreasuryError(hash.String())
+		str := fmt.Sprintf("treasury balance not available for block %s", hash)
+		return nil, contextError(ErrNoTreasuryBalance, str)
 	}
 
 	// Ensure the treasury agenda is active as of the requested block.
@@ -537,7 +538,8 @@ func (b *BlockChain) TreasuryBalance(hash *chainhash.Hash) (*TreasuryBalanceInfo
 		return nil, err
 	}
 	if !isActive {
-		return nil, NoTreasuryError(hash.String())
+		str := fmt.Sprintf("treasury balance not available for block %s", hash)
+		return nil, contextError(ErrNoTreasuryBalance, str)
 	}
 
 	// Load treasury balance information.

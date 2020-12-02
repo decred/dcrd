@@ -4863,7 +4863,7 @@ func TestHandleGetTreasuryBalance(t *testing.T) {
 		cmd:     &types.GetTreasuryBalanceCmd{},
 		mockChain: func() *testRPCChain {
 			chain := defaultMockRPCChain()
-			chain.treasuryBalanceErr = blockchain.NoTreasuryError(blkHashString)
+			chain.treasuryBalanceErr = blockchain.ErrNoTreasuryBalance
 			return chain
 		}(),
 		wantErr: true,

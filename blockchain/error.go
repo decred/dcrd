@@ -11,16 +11,6 @@ import (
 	"github.com/decred/dcrd/chaincfg/chainhash"
 )
 
-// NoTreasuryError identifies an error that indicates the treasury balance for a
-// given block hash does not exist.
-type NoTreasuryError string
-
-// Error returns the error as a human-readable string and satisfies the error
-// interface.
-func (e NoTreasuryError) Error() string {
-	return fmt.Sprintf("treasury balance not available for block %s", string(e))
-}
-
 // AssertError identifies an error that indicates an internal code consistency
 // issue and should be treated as a critical and unrecoverable error.
 type AssertError string
@@ -592,6 +582,10 @@ const (
 
 	// ErrNoFilter indicates a filter for a given block hash does not exist.
 	ErrNoFilter = ErrorKind("ErrNoFilter")
+
+	// ErrNoTreasuryBalance indicates the treasury balance for a given block
+	// hash does not exist.
+	ErrNoTreasuryBalance = ErrorKind("ErrNoTreasuryBalance")
 )
 
 // Error satisfies the error interface and prints human-readable errors.

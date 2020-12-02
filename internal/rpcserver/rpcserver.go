@@ -3147,7 +3147,6 @@ func handleGetTreasuryBalance(_ context.Context, s *Server, cmd interface{}) (in
 
 	balanceInfo, err := s.cfg.Chain.TreasuryBalance(&hash)
 	if err != nil {
-		var nErr blockchain.NoTreasuryError
 		switch {
 		case errors.Is(err, blockchain.ErrUnknownBlock):
 			return nil, &dcrjson.RPCError{
@@ -3155,7 +3154,7 @@ func handleGetTreasuryBalance(_ context.Context, s *Server, cmd interface{}) (in
 				Message: fmt.Sprintf("Block not found: %s", hash),
 			}
 
-		case errors.As(err, &nErr):
+		case errors.Is(err, blockchain.ErrNoTreasuryBalance):
 			return nil, &dcrjson.RPCError{
 				Code:    dcrjson.ErrRPCNoTreasury,
 				Message: fmt.Sprintf("Treasury inactive for block %s", hash),
