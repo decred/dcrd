@@ -3922,7 +3922,7 @@ func (b *BlockChain) checkTicketExhaustion(prevNode *blockNode, ticketPurchases 
 func (b *BlockChain) CheckTicketExhaustion(hash *chainhash.Hash, ticketPurchases uint8) error {
 	node := b.index.LookupNode(hash)
 	if node == nil || !b.index.NodeStatus(node).HaveData() {
-		return UnknownBlockError(*hash)
+		return unknownBlockError(hash)
 	}
 
 	return b.checkTicketExhaustion(node, ticketPurchases)

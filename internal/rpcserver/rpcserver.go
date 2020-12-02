@@ -3148,10 +3148,9 @@ func handleGetTreasuryBalance(_ context.Context, s *Server, cmd interface{}) (in
 
 	balanceInfo, err := s.cfg.Chain.TreasuryBalance(&hash)
 	if err != nil {
-		var bErr blockchain.UnknownBlockError
 		var nErr blockchain.NoTreasuryError
 		switch {
-		case errors.As(err, &bErr):
+		case errors.Is(err, blockchain.ErrUnknownBlock):
 			return nil, &dcrjson.RPCError{
 				Code:    dcrjson.ErrRPCBlockNotFound,
 				Message: fmt.Sprintf("Block not found: %s", hash),
@@ -3365,13 +3364,11 @@ func handleGetTreasurySpendVotes(_ context.Context, s *Server, cmd interface{}) 
 
 			var err error
 			yes, no, err = chain.TSpendCountVotes(&checkBlock, tx)
+			if err != nil {
+				if errors.Is(err, blockchain.ErrUnknownBlock) {
+					return nil, rpcBlockNotFoundError(block)
+				}
 
-			var bErr blockchain.UnknownBlockError
-			switch {
-			case errors.As(err, &bErr):
-				return nil, rpcBlockNotFoundError(block)
-
-			case err != nil:
 				context := "failed to obtain tspend votes"
 				return nil, rpcInternalError(err.Error(), context)
 			}

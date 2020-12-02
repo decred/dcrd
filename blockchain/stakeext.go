@@ -6,8 +6,6 @@
 package blockchain
 
 import (
-	"fmt"
-
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/database/v2"
 	"github.com/decred/dcrd/dcrutil/v3"
@@ -54,7 +52,7 @@ func (b *BlockChain) lotteryDataForNode(node *blockNode) ([]chainhash.Hash, int,
 func (b *BlockChain) lotteryDataForBlock(hash *chainhash.Hash) ([]chainhash.Hash, int, [6]byte, error) {
 	node := b.index.LookupNode(hash)
 	if node == nil {
-		return nil, 0, [6]byte{}, fmt.Errorf("block %s is not known", hash)
+		return nil, 0, [6]byte{}, unknownBlockError(hash)
 	}
 
 	winningTickets, poolSize, finalState, err := b.lotteryDataForNode(node)

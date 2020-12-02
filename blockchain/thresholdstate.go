@@ -530,7 +530,7 @@ func (b *BlockChain) StateLastChangedHeight(hash *chainhash.Hash, version uint32
 	// efficiently determine that state.
 	node := b.index.LookupNode(hash)
 	if node == nil || !b.index.NodeStatus(node).HasValidated() {
-		return 0, HashError(hash.String())
+		return 0, unknownBlockError(hash)
 	}
 
 	// Fetch the threshold state cache for the provided deployment id as well as
@@ -584,7 +584,7 @@ func (b *BlockChain) NextThresholdState(hash *chainhash.Hash, version uint32, de
 			State:  ThresholdInvalid,
 			Choice: invalidChoice,
 		}
-		return invalidState, HashError(hash.String())
+		return invalidState, unknownBlockError(hash)
 	}
 
 	b.chainLock.Lock()
@@ -723,7 +723,7 @@ func (b *BlockChain) IsHeaderCommitmentsAgendaActive(prevHash *chainhash.Hash) (
 	// efficiently determine that state.
 	node := b.index.LookupNode(prevHash)
 	if node == nil || !b.index.NodeStatus(node).HasValidated() {
-		return false, HashError(prevHash.String())
+		return false, unknownBlockError(prevHash)
 	}
 
 	b.chainLock.Lock()
@@ -796,7 +796,7 @@ func (b *BlockChain) isTreasuryAgendaActiveByHash(prevHash *chainhash.Hash) (boo
 func (b *BlockChain) IsTreasuryAgendaActive(prevHash *chainhash.Hash) (bool, error) {
 	prevNode := b.index.LookupNode(prevHash)
 	if prevNode == nil || !b.index.NodeStatus(prevNode).HasValidated() {
-		return false, HashError(prevHash.String())
+		return false, unknownBlockError(prevHash)
 	}
 
 	b.chainLock.Lock()

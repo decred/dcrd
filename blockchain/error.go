@@ -11,26 +11,6 @@ import (
 	"github.com/decred/dcrd/chaincfg/chainhash"
 )
 
-// UnknownBlockError identifies an error that indicates a requested block
-// does not exist.
-type UnknownBlockError chainhash.Hash
-
-// Error returns the error as a human-readable string and satisfies the error
-// interface.
-func (e UnknownBlockError) Error() string {
-	return fmt.Sprintf("block %s is not known", chainhash.Hash(e))
-}
-
-// HashError identifies an error that indicates a hash was specified that does
-// not exist.
-type HashError string
-
-// Error returns the error as a human-readable string and satisfies the error
-// interface.
-func (e HashError) Error() string {
-	return fmt.Sprintf("hash %v does not exist", string(e))
-}
-
 // NoFilterError identifies an error that indicates a filter for a given block
 // hash does not exist.
 type NoFilterError string
@@ -616,6 +596,9 @@ const (
 	// ErrDuplicateDeployment indicates a duplicate deployment id exists in the
 	// network parameter deployment definitions.
 	ErrDuplicateDeployment = ErrorKind("ErrDuplicateDeployment")
+
+	// ErrUnknownBlock indicates a requested block does not exist.
+	ErrUnknownBlock = ErrorKind("ErrUnknownBlock")
 )
 
 // Error satisfies the error interface and prints human-readable errors.
@@ -644,6 +627,13 @@ func (e ContextError) Unwrap() error {
 // ruleError creates a ContextError given a set of arguments.
 func contextError(kind ErrorKind, desc string) ContextError {
 	return ContextError{Err: kind, Description: desc}
+}
+
+// unknownBlockError create a ContextError with the kind of error set to
+// ErrUnknownBlock and a description that includes the provided hash.
+func unknownBlockError(hash *chainhash.Hash) ContextError {
+	str := fmt.Sprintf("block %s is not known", hash)
+	return contextError(ErrUnknownBlock, str)
 }
 
 // RuleError identifies a rule violation.  It is used to indicate that

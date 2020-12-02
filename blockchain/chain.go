@@ -257,7 +257,7 @@ func (b *BlockChain) GetStakeVersions(hash *chainhash.Hash, count int32) ([]Stak
 	// efficiently determine that state.
 	startNode := b.index.LookupNode(hash)
 	if startNode == nil || !b.index.NodeStatus(startNode).HasValidated() {
-		return nil, fmt.Errorf("block %s is not known", hash)
+		return nil, unknownBlockError(hash)
 	}
 
 	// Nothing to do if no count requested.
@@ -354,7 +354,7 @@ func (b *BlockChain) HaveBlock(hash *chainhash.Hash) bool {
 func (b *BlockChain) ChainWork(hash *chainhash.Hash) (*big.Int, error) {
 	node := b.index.LookupNode(hash)
 	if node == nil {
-		return nil, fmt.Errorf("block %s is not known", hash)
+		return nil, unknownBlockError(hash)
 	}
 
 	return node.workSum, nil
@@ -1592,7 +1592,7 @@ func (b *BlockChain) MaxBlockSize() (int64, error) {
 func (b *BlockChain) HeaderByHash(hash *chainhash.Hash) (wire.BlockHeader, error) {
 	node := b.index.LookupNode(hash)
 	if node == nil {
-		return wire.BlockHeader{}, fmt.Errorf("block %s is not known", hash)
+		return wire.BlockHeader{}, unknownBlockError(hash)
 	}
 
 	return node.Header(), nil
@@ -1620,7 +1620,7 @@ func (b *BlockChain) HeaderByHeight(height int64) (wire.BlockHeader, error) {
 func (b *BlockChain) BlockByHash(hash *chainhash.Hash) (*dcrutil.Block, error) {
 	node := b.index.LookupNode(hash)
 	if node == nil || !b.index.NodeStatus(node).HaveData() {
-		return nil, fmt.Errorf("block %s is not known", hash)
+		return nil, unknownBlockError(hash)
 	}
 
 	// Return the block from either cache or the database.

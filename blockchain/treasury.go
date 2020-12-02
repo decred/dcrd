@@ -520,7 +520,7 @@ type TreasuryBalanceInfo struct {
 func (b *BlockChain) TreasuryBalance(hash *chainhash.Hash) (*TreasuryBalanceInfo, error) {
 	node := b.index.LookupNode(hash)
 	if node == nil || !b.index.NodeStatus(node).HaveData() {
-		return nil, UnknownBlockError(*hash)
+		return nil, unknownBlockError(hash)
 	}
 
 	// Treasury agenda is never active for the genesis block.
@@ -960,24 +960,20 @@ func (b *BlockChain) tSpendCountVotes(prevNode *blockNode, tspend *dcrutil.Tx) (
 // the next block is outside the voting interval.
 //
 // This function is safe for concurrent access.
-func (b *BlockChain) TSpendCountVotes(block *chainhash.Hash, tspend *dcrutil.Tx) (yesVotes, noVotes int64, err error) {
+func (b *BlockChain) TSpendCountVotes(blockHash *chainhash.Hash, tspend *dcrutil.Tx) (yesVotes, noVotes int64, err error) {
 	b.index.RLock()
 	defer b.index.RUnlock()
 
-	prevNode := b.index.lookupNode(block)
+	prevNode := b.index.lookupNode(blockHash)
 	if prevNode == nil {
-		err = UnknownBlockError(*block)
-		return
+		return 0, 0, unknownBlockError(blockHash)
 	}
-	var tv *tspendVotes
-	tv, err = b.tSpendCountVotes(prevNode, tspend)
+	tv, err := b.tSpendCountVotes(prevNode, tspend)
 	if err != nil {
-		return
+		return 0, 0, err
 	}
 
-	yesVotes = int64(tv.yes)
-	noVotes = int64(tv.no)
-	return
+	return int64(tv.yes), int64(tv.no), nil
 }
 
 // checkTSpendHasVotes verifies that the provided TSpend has enough votes to be
@@ -1035,7 +1031,7 @@ func (b *BlockChain) checkTSpendHasVotes(prevNode *blockNode, tspend *dcrutil.Tx
 func (b *BlockChain) CheckTSpendHasVotes(prevHash chainhash.Hash, tspend *dcrutil.Tx) error {
 	prevNode := b.index.LookupNode(&prevHash)
 	if prevNode == nil {
-		return UnknownBlockError(prevHash)
+		return unknownBlockError(&prevHash)
 	}
 	return b.checkTSpendHasVotes(prevNode, tspend)
 }

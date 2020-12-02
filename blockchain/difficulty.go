@@ -208,7 +208,7 @@ func (b *BlockChain) calcNextRequiredDifficulty(curNode *blockNode, newBlockTime
 func (b *BlockChain) CalcNextRequiredDifficulty(hash *chainhash.Hash, timestamp time.Time) (uint32, error) {
 	node := b.index.LookupNode(hash)
 	if node == nil {
-		return 0, fmt.Errorf("block %s is not known", hash)
+		return 0, unknownBlockError(hash)
 	}
 
 	b.chainLock.Lock()
