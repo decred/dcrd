@@ -22,6 +22,7 @@ import (
 	"github.com/decred/dcrd/dcrutil/v3"
 	"github.com/decred/dcrd/gcs/v3"
 	"github.com/decred/dcrd/gcs/v3/blockcf2"
+	"github.com/decred/dcrd/lru"
 	"github.com/decred/dcrd/txscript/v3"
 	"github.com/decred/dcrd/wire"
 )
@@ -40,13 +41,12 @@ const (
 	// be at least the stake retarget interval.
 	minMemoryStakeNodes = 288
 
-	// mainChainBlockCacheSize is the number of main chain blocks to keep in
-	// memory, by height from the tip of the main chain.  This value is set
-	// based on the target block time for the main network such that there is
-	// approximately one hour of blocks cached.  This could be made network
-	// independent and calculated based on the parameters, but that would
-	// result in larger caches than desired for other networks.
-	mainChainBlockCacheSize = 12
+	// recentBlockCacheSize is the number of recent blocks to keep in memory.
+	// This value is set based on the target block time for the main network
+	// such that there is approximately one hour of blocks cached.  This could
+	// be made network independent and calculated based on the parameters, but
+	// that would result in larger caches than desired for other networks.
+	recentBlockCacheSize = 12
 )
 
 // panicf is a convenience function that formats according to the given format
@@ -170,10 +170,9 @@ type BlockChain struct {
 	index     *blockIndex
 	bestChain *chainView
 
-	// The block cache for main chain blocks to facilitate faster chain reorgs
-	// and more efficient recent block serving.
-	mainChainBlockCacheLock sync.RWMutex
-	mainChainBlockCache     map[chainhash.Hash]*dcrutil.Block
+	// recentBlocks houses a block cache to facilitate faster chain reorgs and
+	// more efficient recent block serving. It is protected by its own lock.
+	recentBlocks lru.KVCache
 
 	// These fields house a cached view that represents a block that votes
 	// against its parent and therefore contains all changes as a result
@@ -381,6 +380,27 @@ func (b *BlockChain) TipGeneration() ([]chainhash.Hash, error) {
 	return nodeHashes, nil
 }
 
+// addRecentBlock adds a block to the recent block LRU cache and evicts the
+// least recently used item if needed.
+//
+// This function is safe for concurrent access.
+func (b *BlockChain) addRecentBlock(block *dcrutil.Block) {
+	b.recentBlocks.Add(*block.Hash(), block)
+}
+
+// lookupRecentBlock attempts to return the requested block from the recent
+// block LRU cache.  When the block exists, it will be made the most recently
+// used item.
+//
+// This function is safe for concurrent access.
+func (b *BlockChain) lookupRecentBlock(hash *chainhash.Hash) (*dcrutil.Block, bool) {
+	block, ok := b.recentBlocks.Lookup(*hash)
+	if ok {
+		return block.(*dcrutil.Block), true
+	}
+	return nil, false
+}
+
 // fetchMainChainBlockByNode returns the block from the main chain associated
 // with the given node.  It first attempts to use cache and then falls back to
 // loading it from the database.
@@ -396,9 +416,8 @@ func (b *BlockChain) fetchMainChainBlockByNode(node *blockNode) (*dcrutil.Block,
 		return nil, errNotInMainChain(str)
 	}
 
-	b.mainChainBlockCacheLock.RLock()
-	block, ok := b.mainChainBlockCache[node.hash]
-	b.mainChainBlockCacheLock.RUnlock()
+	// Attempt to load the block from the recent block cache.
+	block, ok := b.lookupRecentBlock(&node.hash)
 	if ok {
 		return block, nil
 	}
@@ -418,10 +437,8 @@ func (b *BlockChain) fetchMainChainBlockByNode(node *blockNode) (*dcrutil.Block,
 //
 // This function is safe for concurrent access.
 func (b *BlockChain) fetchBlockByNode(node *blockNode) (*dcrutil.Block, error) {
-	// Check main chain cache.
-	b.mainChainBlockCacheLock.RLock()
-	block, ok := b.mainChainBlockCache[node.hash]
-	b.mainChainBlockCacheLock.RUnlock()
+	// Attempt to load the block from the recent block cache.
+	block, ok := b.lookupRecentBlock(&node.hash)
 	if ok {
 		return block, nil
 	}
@@ -492,21 +509,6 @@ func (b *BlockChain) isMajorityVersion(minVer int32, startNode *blockNode, numRe
 	}
 
 	return numFound >= numRequired
-}
-
-// pushMainChainBlockCache pushes a block onto the main chain block cache and
-// removes any old blocks from the cache that might be present.
-func (b *BlockChain) pushMainChainBlockCache(block *dcrutil.Block) {
-	curHash := block.Hash()
-	pruneHeight := block.Height() - mainChainBlockCacheSize
-	b.mainChainBlockCacheLock.Lock()
-	b.mainChainBlockCache[*curHash] = block
-	for hash, bl := range b.mainChainBlockCache {
-		if bl.Height() <= pruneHeight {
-			delete(b.mainChainBlockCache, hash)
-		}
-	}
-	b.mainChainBlockCacheLock.Unlock()
 }
 
 // connectBlock handles connecting the passed node/block to the end of the main
@@ -722,17 +724,9 @@ func (b *BlockChain) connectBlock(node *blockNode, block, parent *dcrutil.Block,
 		parent.ticketsRevoked = nil
 	}
 
-	b.pushMainChainBlockCache(block)
+	b.addRecentBlock(block)
 
 	return nil
-}
-
-// dropMainChainBlockCache drops a block from the main chain block cache.
-func (b *BlockChain) dropMainChainBlockCache(block *dcrutil.Block) {
-	curHash := block.Hash()
-	b.mainChainBlockCacheLock.Lock()
-	delete(b.mainChainBlockCache, *curHash)
-	b.mainChainBlockCacheLock.Unlock()
 }
 
 // disconnectBlock handles disconnecting the passed node/block from the end of
@@ -864,8 +858,6 @@ func (b *BlockChain) disconnectBlock(node *blockNode, block, parent *dcrutil.Blo
 		IsTreasuryActive: isTreasuryEnabled,
 	})
 	b.chainLock.Lock()
-
-	b.dropMainChainBlockCache(block)
 
 	return nil
 }
@@ -2173,7 +2165,7 @@ func New(ctx context.Context, config *Config) (*BlockChain, error) {
 		subsidyCache:                  subsidyCache,
 		index:                         newBlockIndex(config.DB),
 		bestChain:                     newChainView(nil),
-		mainChainBlockCache:           make(map[chainhash.Hash]*dcrutil.Block),
+		recentBlocks:                  lru.NewKVCache(recentBlockCacheSize),
 		deploymentCaches:              newThresholdCaches(params),
 		isVoterMajorityVersionCache:   make(map[[stakeMajorityCacheKeySize]byte]bool),
 		isStakeMajorityVersionCache:   make(map[[stakeMajorityCacheKeySize]byte]bool),

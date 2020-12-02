@@ -1920,13 +1920,13 @@ func (b *BlockChain) initChainState(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		b.mainChainBlockCache[tip.hash] = utilBlock
+		b.addRecentBlock(utilBlock)
 		if tip.parent != nil {
 			parentBlock, err := dbFetchBlockByNode(dbTx, tip.parent)
 			if err != nil {
 				return err
 			}
-			b.mainChainBlockCache[tip.parent.hash] = parentBlock
+			b.addRecentBlock(parentBlock)
 		}
 
 		// Initialize the state related to the best block.

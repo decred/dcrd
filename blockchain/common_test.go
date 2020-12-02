@@ -25,6 +25,7 @@ import (
 	"github.com/decred/dcrd/database/v2"
 	_ "github.com/decred/dcrd/database/v2/ffldb"
 	"github.com/decred/dcrd/dcrutil/v3"
+	"github.com/decred/dcrd/lru"
 	"github.com/decred/dcrd/txscript/v3"
 	"github.com/decred/dcrd/wire"
 )
@@ -151,12 +152,12 @@ func newFakeChain(params *chaincfg.Params) *BlockChain {
 		deploymentCaches:              newThresholdCaches(params),
 		index:                         index,
 		bestChain:                     newChainView(node),
+		recentBlocks:                  lru.NewKVCache(recentBlockCacheSize),
 		isVoterMajorityVersionCache:   make(map[[stakeMajorityCacheKeySize]byte]bool),
 		isStakeMajorityVersionCache:   make(map[[stakeMajorityCacheKeySize]byte]bool),
 		calcPriorStakeVersionCache:    make(map[[chainhash.HashSize]byte]uint32),
 		calcVoterVersionIntervalCache: make(map[[chainhash.HashSize]byte]uint32),
 		calcStakeVersionCache:         make(map[[chainhash.HashSize]byte]uint32),
-		mainChainBlockCache:           make(map[chainhash.Hash]*dcrutil.Block),
 	}
 }
 

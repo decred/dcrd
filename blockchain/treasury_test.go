@@ -25,6 +25,7 @@ import (
 	"github.com/decred/dcrd/dcrec/secp256k1/v3"
 	"github.com/decred/dcrd/dcrutil/v3"
 	"github.com/decred/dcrd/gcs/v3/blockcf2"
+	"github.com/decred/dcrd/lru"
 	"github.com/decred/dcrd/txscript/v3"
 	"github.com/decred/dcrd/wire"
 )
@@ -4306,8 +4307,7 @@ func TestTSpendVoteCountSynthetic(t *testing.T) {
 			}
 
 			// Insert block into the cache.
-			block := dcrutil.NewBlock(mblk)
-			bc.mainChainBlockCache[*block.Hash()] = block
+			bc.addRecentBlock(dcrutil.NewBlock(mblk))
 		},
 	}, {
 		name:             "All no",
@@ -4334,8 +4334,7 @@ func TestTSpendVoteCountSynthetic(t *testing.T) {
 			}
 
 			// Insert block into the cache.
-			block := dcrutil.NewBlock(mblk)
-			bc.mainChainBlockCache[*block.Hash()] = block
+			bc.addRecentBlock(dcrutil.NewBlock(mblk))
 		},
 	}, {
 		name:             "All abstain",
@@ -4356,8 +4355,7 @@ func TestTSpendVoteCountSynthetic(t *testing.T) {
 			}
 
 			// Insert block into the cache.
-			block := dcrutil.NewBlock(mblk)
-			bc.mainChainBlockCache[*block.Hash()] = block
+			bc.addRecentBlock(dcrutil.NewBlock(mblk))
 		},
 	}, {
 		name:             "Undervote one tvi",
@@ -4380,8 +4378,7 @@ func TestTSpendVoteCountSynthetic(t *testing.T) {
 			}
 
 			// Insert block into the cache.
-			block := dcrutil.NewBlock(mblk)
-			bc.mainChainBlockCache[*block.Hash()] = block
+			bc.addRecentBlock(dcrutil.NewBlock(mblk))
 		},
 	}, {
 		name:             "Overvote",
@@ -4403,8 +4400,7 @@ func TestTSpendVoteCountSynthetic(t *testing.T) {
 			}
 
 			// Insert block into the cache.
-			block := dcrutil.NewBlock(mblk)
-			bc.mainChainBlockCache[*block.Hash()] = block
+			bc.addRecentBlock(dcrutil.NewBlock(mblk))
 		},
 	}, {
 		name:             "All yes quorum",
@@ -4435,8 +4431,7 @@ func TestTSpendVoteCountSynthetic(t *testing.T) {
 			}
 
 			// Insert block into the cache.
-			block := dcrutil.NewBlock(mblk)
-			bc.mainChainBlockCache[*block.Hash()] = block
+			bc.addRecentBlock(dcrutil.NewBlock(mblk))
 		},
 	}, {
 		name:             "All yes quorum - 1",
@@ -4467,8 +4462,7 @@ func TestTSpendVoteCountSynthetic(t *testing.T) {
 			}
 
 			// Insert block into the cache.
-			block := dcrutil.NewBlock(mblk)
-			bc.mainChainBlockCache[*block.Hash()] = block
+			bc.addRecentBlock(dcrutil.NewBlock(mblk))
 		},
 	}, {
 		name:             "All yes quorum + 1",
@@ -4499,8 +4493,7 @@ func TestTSpendVoteCountSynthetic(t *testing.T) {
 			}
 
 			// Insert block into the cache.
-			block := dcrutil.NewBlock(mblk)
-			bc.mainChainBlockCache[*block.Hash()] = block
+			bc.addRecentBlock(dcrutil.NewBlock(mblk))
 		},
 	}, {
 		name:             "Exactly yes required",
@@ -4533,8 +4526,7 @@ func TestTSpendVoteCountSynthetic(t *testing.T) {
 			}
 
 			// Insert block into the cache.
-			block := dcrutil.NewBlock(mblk)
-			bc.mainChainBlockCache[*block.Hash()] = block
+			bc.addRecentBlock(dcrutil.NewBlock(mblk))
 		},
 	}, {
 		name:             "Yes required - 1",
@@ -4567,8 +4559,7 @@ func TestTSpendVoteCountSynthetic(t *testing.T) {
 			}
 
 			// Insert block into the cache.
-			block := dcrutil.NewBlock(mblk)
-			bc.mainChainBlockCache[*block.Hash()] = block
+			bc.addRecentBlock(dcrutil.NewBlock(mblk))
 		},
 	}, {
 		name:             "Yes required + 1",
@@ -4601,8 +4592,7 @@ func TestTSpendVoteCountSynthetic(t *testing.T) {
 			}
 
 			// Insert block into the cache.
-			block := dcrutil.NewBlock(mblk)
-			bc.mainChainBlockCache[*block.Hash()] = block
+			bc.addRecentBlock(dcrutil.NewBlock(mblk))
 		},
 	}, {
 		name:             "Exactly yes required with abstain",
@@ -4634,15 +4624,17 @@ func TestTSpendVoteCountSynthetic(t *testing.T) {
 			}
 
 			// Insert block into the cache.
-			block := dcrutil.NewBlock(mblk)
-			bc.mainChainBlockCache[*block.Hash()] = block
+			bc.addRecentBlock(dcrutil.NewBlock(mblk))
 		},
 	}}
 
 	for _, test := range tests {
-		// Create new BlockChain in order to blow away cache.
+		// Create new BlockChain in order to blow away cache.  Also notice the
+		// cache needs to be large enough to hold all of the blocks for these
+		// tests without eviction.
 		bc := newFakeChain(params)
 		node := bc.bestChain.Tip()
+		bc.recentBlocks = lru.NewKVCache(uint(test.numNodes))
 
 		ticketCount = 0
 		for i := int64(0); i < test.numNodes; i++ {
