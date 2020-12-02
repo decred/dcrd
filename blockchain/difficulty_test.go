@@ -377,12 +377,7 @@ nextTest:
 			// Ensure the test data isn't faking ticket purchases at
 			// an incorrect difficulty.
 			tip := bc.bestChain.Tip()
-			gotDiff, err := bc.calcNextRequiredStakeDifficultyV2(tip)
-			if err != nil {
-				t.Errorf("calcNextRequiredStakeDifficultyV2 (%s): "+
-					"unexpected error: %v", test.name, err)
-				continue nextTest
-			}
+			gotDiff := bc.calcNextRequiredStakeDifficultyV2(tip)
 			if gotDiff != ticketInfo.stakeDiff {
 				t.Errorf("calcNextRequiredStakeDifficultyV2 (%s): "+
 					"did not get expected stake difficulty -- got "+
@@ -425,12 +420,7 @@ nextTest:
 		}
 
 		// Ensure the calculated difficulty matches the expected value.
-		gotDiff, err := bc.calcNextRequiredStakeDifficultyV2(bc.bestChain.Tip())
-		if err != nil {
-			t.Errorf("calcNextRequiredStakeDifficultyV2 (%s): "+
-				"unexpected error: %v", test.name, err)
-			continue
-		}
+		gotDiff := bc.calcNextRequiredStakeDifficultyV2(bc.bestChain.Tip())
 		if gotDiff != test.expectedDiff {
 			t.Errorf("calcNextRequiredStakeDifficultyV2 (%s): "+
 				"did not get expected stake difficulty -- got "+
@@ -928,12 +918,7 @@ nextTest:
 			// Ensure the test data isn't faking ticket purchases at
 			// an incorrect difficulty.
 			tip := bc.bestChain.Tip()
-			reqDiff, err := bc.calcNextRequiredStakeDifficultyV2(tip)
-			if err != nil {
-				t.Errorf("calcNextRequiredStakeDifficultyV2 (%s): "+
-					"unexpected error: %v", test.name, err)
-				continue nextTest
-			}
+			reqDiff := bc.calcNextRequiredStakeDifficultyV2(tip)
 			if ticketInfo.stakeDiff != reqDiff {
 				t.Errorf("calcNextRequiredStakeDifficultyV2 (%s): "+
 					"test data has incorrect stake difficulty: "+
@@ -1131,10 +1116,7 @@ func TestMinDifficultyReduction(t *testing.T) {
 			// Update the block time according to the test data and calculate
 			// the difficulty for the next block.
 			blockTime = blockTime.Add(test.timeAdjustment(i))
-			diff, err := bc.calcNextRequiredDifficulty(node, blockTime)
-			if err != nil {
-				t.Fatalf("calcNextRequiredDifficulty: unexpected err: %v", err)
-			}
+			diff := bc.calcNextRequiredDifficulty(node, blockTime)
 
 			// Ensure the calculated difficulty matches the expected value.
 			expectedDiff := test.expectedDiff(i)

@@ -52,7 +52,7 @@ func (b *BlockChain) findPrevTestNetDifficulty(startNode *blockNode) uint32 {
 // This function differs from the exported CalcNextRequiredDifficulty in that
 // the exported version uses the current best chain as the previous block node
 // while this function accepts any block node.
-func (b *BlockChain) calcNextRequiredDifficulty(curNode *blockNode, newBlockTime time.Time) (uint32, error) {
+func (b *BlockChain) calcNextRequiredDifficulty(curNode *blockNode, newBlockTime time.Time) uint32 {
 	// Get the old difficulty; if we aren't at a block height where it changes,
 	// just return this.
 	oldDiff := curNode.bits
@@ -70,16 +70,16 @@ func (b *BlockChain) calcNextRequiredDifficulty(curNode *blockNode, newBlockTime
 				time.Second)
 			allowMinTime := curNode.timestamp + reductionTime
 			if newBlockTime.Unix() > allowMinTime {
-				return b.chainParams.PowLimitBits, nil
+				return b.chainParams.PowLimitBits
 			}
 
 			// The block was mined within the desired timeframe, so
 			// return the difficulty for the last block which did
 			// not have the special minimum difficulty rule applied.
-			return b.findPrevTestNetDifficulty(curNode), nil
+			return b.findPrevTestNetDifficulty(curNode)
 		}
 
-		return oldDiff, nil
+		return oldDiff
 	}
 
 	// Declare some useful variables.
@@ -198,7 +198,7 @@ func (b *BlockChain) calcNextRequiredDifficulty(curNode *blockNode, newBlockTime
 	log.Debugf("New target %08x (%064x)", nextDiffBits, standalone.CompactToBig(
 		nextDiffBits))
 
-	return nextDiffBits, nil
+	return nextDiffBits
 }
 
 // CalcNextRequiredDifficulty calculates the required difficulty for the block
@@ -212,9 +212,9 @@ func (b *BlockChain) CalcNextRequiredDifficulty(hash *chainhash.Hash, timestamp 
 	}
 
 	b.chainLock.Lock()
-	difficulty, err := b.calcNextRequiredDifficulty(node, timestamp)
+	difficulty := b.calcNextRequiredDifficulty(node, timestamp)
 	b.chainLock.Unlock()
-	return difficulty, err
+	return difficulty, nil
 }
 
 // mergeDifficulty takes an original stake difficulty and two new, scaled
@@ -620,7 +620,7 @@ func calcNextStakeDiffV2(params *chaincfg.Params, nextHeight, curDiff, prevPoolS
 // defined in DCP0001.
 //
 // This function MUST be called with the chain state lock held (for writes).
-func (b *BlockChain) calcNextRequiredStakeDifficultyV2(curNode *blockNode) (int64, error) {
+func (b *BlockChain) calcNextRequiredStakeDifficultyV2(curNode *blockNode) int64 {
 	// Stake difficulty before any tickets could possibly be purchased is
 	// the minimum value.
 	nextHeight := int64(0)
@@ -629,7 +629,7 @@ func (b *BlockChain) calcNextRequiredStakeDifficultyV2(curNode *blockNode) (int6
 	}
 	stakeDiffStartHeight := int64(b.chainParams.CoinbaseMaturity) + 1
 	if nextHeight < stakeDiffStartHeight {
-		return b.chainParams.MinimumStakeDiff, nil
+		return b.chainParams.MinimumStakeDiff
 	}
 
 	// Return the previous block's difficulty requirements if the next block
@@ -637,7 +637,7 @@ func (b *BlockChain) calcNextRequiredStakeDifficultyV2(curNode *blockNode) (int6
 	intervalSize := b.chainParams.StakeDiffWindowSize
 	curDiff := curNode.sbits
 	if nextHeight%intervalSize != 0 {
-		return curDiff, nil
+		return curDiff
 	}
 
 	// Get the pool size and number of tickets that were immature at the
@@ -662,7 +662,7 @@ func (b *BlockChain) calcNextRequiredStakeDifficultyV2(curNode *blockNode) (int6
 	// division by zero and encourage initial pool population.
 	prevPoolSizeAll := prevPoolSize + prevImmatureTickets
 	if prevPoolSizeAll == 0 {
-		return curDiff, nil
+		return curDiff
 	}
 
 	// Count the number of currently immature tickets.
@@ -671,7 +671,7 @@ func (b *BlockChain) calcNextRequiredStakeDifficultyV2(curNode *blockNode) (int6
 	// Calculate and return the final next required difficulty.
 	curPoolSizeAll := int64(curNode.poolSize) + immatureTickets
 	return calcNextStakeDiffV2(b.chainParams, nextHeight, curDiff,
-		prevPoolSizeAll, curPoolSizeAll), nil
+		prevPoolSizeAll, curPoolSizeAll)
 }
 
 // calcNextRequiredStakeDifficulty calculates the required stake difficulty for
@@ -690,7 +690,7 @@ func (b *BlockChain) calcNextRequiredStakeDifficulty(curNode *blockNode) (int64,
 	const deploymentID = chaincfg.VoteIDSDiffAlgorithm
 	deploymentVer, ok := b.deploymentVers[deploymentID]
 	if !ok {
-		return b.calcNextRequiredStakeDifficultyV2(curNode)
+		return b.calcNextRequiredStakeDifficultyV2(curNode), nil
 	}
 
 	// Use the new stake difficulty algorithm if the stake vote for the new
@@ -704,7 +704,7 @@ func (b *BlockChain) calcNextRequiredStakeDifficulty(curNode *blockNode) (int64,
 		return 0, err
 	}
 	if state.State == ThresholdActive {
-		return b.calcNextRequiredStakeDifficultyV2(curNode)
+		return b.calcNextRequiredStakeDifficultyV2(curNode), nil
 	}
 
 	// Use the old stake difficulty algorithm in any other case.
@@ -1180,7 +1180,7 @@ func (b *BlockChain) estimateNextStakeDifficulty(curNode *blockNode, newTickets 
 	const deploymentID = chaincfg.VoteIDSDiffAlgorithm
 	deploymentVer, ok := b.deploymentVers[deploymentID]
 	if !ok {
-		return b.calcNextRequiredStakeDifficultyV2(curNode)
+		return b.calcNextRequiredStakeDifficultyV2(curNode), nil
 	}
 
 	// Use the new stake difficulty algorithm if the stake vote for the new

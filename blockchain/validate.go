@@ -842,11 +842,7 @@ func (b *BlockChain) checkBlockHeaderPositional(header *wire.BlockHeader, prevNo
 		// Ensure the difficulty specified in the block header matches
 		// the calculated difficulty based on the previous block and
 		// difficulty retarget rules.
-		expDiff, err := b.calcNextRequiredDifficulty(prevNode,
-			header.Timestamp)
-		if err != nil {
-			return err
-		}
+		expDiff := b.calcNextRequiredDifficulty(prevNode, header.Timestamp)
 		blockDifficulty := header.Bits
 		if blockDifficulty != expDiff {
 			str := fmt.Sprintf("block difficulty of %d is not the"+
