@@ -301,13 +301,13 @@ type VoteInfo struct {
 	AgendaStatus []ThresholdStateTuple
 }
 
-// GetVoteInfo returns information on consensus deployment agendas
-// and their respective states at the provided hash, for the provided
-// deployment version.
+// GetVoteInfo returns information on consensus deployment agendas and their
+// respective states at the provided hash, for the provided deployment version.
 func (b *BlockChain) GetVoteInfo(hash *chainhash.Hash, version uint32) (*VoteInfo, error) {
 	deployments, ok := b.chainParams.Deployments[version]
 	if !ok {
-		return nil, VoteVersionError(version)
+		str := fmt.Sprintf("stake version %d does not exist", version)
+		return nil, contextError(ErrUnknownDeploymentVersion, str)
 	}
 
 	vi := VoteInfo{
@@ -1921,7 +1921,9 @@ func extractDeploymentIDVersions(params *chaincfg.Params) (map[string]uint32, er
 		for _, deployment := range deployments {
 			id := deployment.Vote.Id
 			if _, ok := deploymentVers[id]; ok {
-				return nil, DuplicateDeploymentError(id)
+				str := fmt.Sprintf("deployment ID %s exists in more than one "+
+					"deployment", id)
+				return nil, contextError(ErrDuplicateDeployment, str)
 			}
 			deploymentVers[id] = version
 		}

@@ -147,6 +147,9 @@ func TestErrorKindStringer(t *testing.T) {
 		{ErrTooManyTAdds, "ErrTooManyTAdds"},
 		{ErrTicketExhaustion, "ErrTicketExhaustion"},
 		{ErrDBTooOldToUpgrade, "ErrDBTooOldToUpgrade"},
+		{ErrUnknownDeploymentID, "ErrUnknownDeploymentID"},
+		{ErrUnknownDeploymentVersion, "ErrUnknownDeploymentVersion"},
+		{ErrDuplicateDeployment, "ErrDuplicateDeployment"},
 	}
 
 	t.Logf("Running %d tests", len(tests))

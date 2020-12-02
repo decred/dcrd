@@ -21,16 +21,6 @@ func (e UnknownBlockError) Error() string {
 	return fmt.Sprintf("block %s is not known", chainhash.Hash(e))
 }
 
-// VoteVersionError identifies an error that indicates a vote version was
-// specified that does not exist.
-type VoteVersionError uint32
-
-// Error returns the assertion error as a human-readable string and satisfies
-// the error interface.
-func (e VoteVersionError) Error() string {
-	return fmt.Sprintf("stake version %v does not exist", uint32(e))
-}
-
 // HashError identifies an error that indicates a hash was specified that does
 // not exist.
 type HashError string
@@ -39,27 +29,6 @@ type HashError string
 // interface.
 func (e HashError) Error() string {
 	return fmt.Sprintf("hash %v does not exist", string(e))
-}
-
-// DeploymentError identifies an error that indicates a deployment ID was
-// specified that does not exist.
-type DeploymentError string
-
-// Error returns the assertion error as a human-readable string and satisfies
-// the error interface.
-func (e DeploymentError) Error() string {
-	return fmt.Sprintf("deployment ID %v does not exist", string(e))
-}
-
-// DuplicateDeploymentError identifies an error that indicates a duplicate
-// deployment ID was specified in the network parameter deployment definitions.
-type DuplicateDeploymentError string
-
-// Error returns the assertion error as a human-readable string and satisfies
-// the error interface.
-func (e DuplicateDeploymentError) Error() string {
-	return fmt.Sprintf("deployment ID %v exists in more than one deployment",
-		string(e))
 }
 
 // NoFilterError identifies an error that indicates a filter for a given block
@@ -636,6 +605,17 @@ const (
 	// ErrDBTooOldToUpgrade indicates the database version is prior to the
 	// minimum supported version for which upgrades are supported.
 	ErrDBTooOldToUpgrade = ErrorKind("ErrDBTooOldToUpgrade")
+
+	// ErrUnknownDeploymentID indicates a deployment id does not exist.
+	ErrUnknownDeploymentID = ErrorKind("ErrUnknownDeploymentID")
+
+	// ErrUnknownDeploymentVersion indicates a version for a given deployment id
+	// was specified that does not exist.
+	ErrUnknownDeploymentVersion = ErrorKind("ErrUnknownDeploymentVersion")
+
+	// ErrDuplicateDeployment indicates a duplicate deployment id exists in the
+	// network parameter deployment definitions.
+	ErrDuplicateDeployment = ErrorKind("ErrDuplicateDeployment")
 )
 
 // Error satisfies the error interface and prints human-readable errors.

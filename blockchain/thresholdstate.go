@@ -461,7 +461,8 @@ func (b *BlockChain) deploymentState(prevNode *blockNode, version uint32, deploy
 		State:  ThresholdInvalid,
 		Choice: invalidChoice,
 	}
-	return invalidState, DeploymentError(deploymentID)
+	str := fmt.Sprintf("deployment ID %s does not exist", deploymentID)
+	return invalidState, contextError(ErrUnknownDeploymentID, str)
 }
 
 // stateLastChanged returns the node at which the provided consensus deployment
@@ -874,7 +875,8 @@ func (b *BlockChain) GetVoteCounts(version uint32, deploymentID string) (VoteCou
 			return counts, err
 		}
 	}
-	return VoteCounts{}, DeploymentError(deploymentID)
+	str := fmt.Sprintf("deployment ID %s does not exist", deploymentID)
+	return VoteCounts{}, contextError(ErrUnknownDeploymentID, str)
 }
 
 // CountVoteVersion returns the total number of version votes for the current

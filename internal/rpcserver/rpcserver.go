@@ -3410,8 +3410,7 @@ func handleGetVoteInfo(_ context.Context, s *Server, cmd interface{}) (interface
 
 	vi, err := chain.GetVoteInfo(&snapshot.Hash, c.Version)
 	if err != nil {
-		var vErr blockchain.VoteVersionError
-		if errors.As(err, &vErr) {
+		if errors.Is(err, blockchain.ErrUnknownDeploymentVersion) {
 			return nil, rpcInvalidError("%d: unrecognized vote version",
 				c.Version)
 		}

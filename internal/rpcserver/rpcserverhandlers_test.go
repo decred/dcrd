@@ -6988,7 +6988,7 @@ func TestHandleGetVoteInfo(t *testing.T) {
 		},
 		mockChain: func() *testRPCChain {
 			chain := defaultMockRPCChain()
-			chain.getVoteInfoErr = blockchain.VoteVersionError(v7)
+			chain.getVoteInfoErr = blockchain.ErrUnknownDeploymentVersion
 			return chain
 		}(),
 		wantErr: true,
