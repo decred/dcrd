@@ -560,7 +560,7 @@ func (p *fakeTxSource) RemoveTransaction(tx *dcrutil.Tx, removeRedeemers bool, i
 		// If redeeming transactions are going to be removed from the graph, then do
 		// not update their stats.
 		updateDescendantStats := !removeRedeemers
-		p.miningView.Remove(tx.Hash(), updateDescendantStats)
+		p.miningView.RemoveTransaction(tx.Hash(), updateDescendantStats)
 
 		delete(p.pool, *txHash)
 

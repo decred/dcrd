@@ -284,7 +284,7 @@ func TestMiningView(t *testing.T) {
 		// ancestor after removal.
 		removalMiningView := harness.txSource.MiningView()
 		if children := removalMiningView.Children(txHash); len(children) > 0 {
-			removalMiningView.Remove(txHash, false)
+			removalMiningView.RemoveTransaction(txHash, false)
 			child := children[0]
 			siblings := removalMiningView.Parents(child.Tx.Hash())
 
@@ -320,7 +320,7 @@ func TestMiningView(t *testing.T) {
 		// have the fee removed for this transaction when calling Remove with the
 		// option to do so.
 		removalMiningView = harness.txSource.MiningView()
-		removalMiningView.Remove(txHash, true)
+		removalMiningView.RemoveTransaction(txHash, true)
 
 		for _, descendant := range descendants {
 			oldStat, hasStats := miningView.AncestorStats(descendant)

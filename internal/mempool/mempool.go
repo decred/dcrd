@@ -879,7 +879,7 @@ func (mp *TxPool) removeTransaction(tx *dcrutil.Tx, removeRedeemers bool, isTrea
 		// If redeeming transactions are going to be removed from the
 		// graph, then do not update their stats.
 		updateDescendantStats := !removeRedeemers
-		mp.miningView.Remove(tx.Hash(), updateDescendantStats)
+		mp.miningView.RemoveTransaction(tx.Hash(), updateDescendantStats)
 
 		delete(mp.pool, *txHash)
 

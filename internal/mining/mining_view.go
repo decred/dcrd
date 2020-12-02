@@ -449,12 +449,13 @@ func (mv *TxMiningView) AddTransaction(txDesc *TxDesc, findTx TxDescFind) {
 	}
 }
 
-// Remove stops tracking the transaction in the mining view if it exists.  If
-// updateDescendantStats is true, then the statistics for all descendant
-// transactions are updated to account for the removal of an ancestor.
+// RemoveTransaction stops tracking the transaction in the mining view if it
+// exists.  If updateDescendantStats is true, then the statistics for all
+// descendant transactions are updated to account for the removal of an
+// ancestor.
 //
 // This function is NOT safe for concurrent access.
-func (mv *TxMiningView) Remove(txHash *chainhash.Hash, updateDescendantStats bool) {
+func (mv *TxMiningView) RemoveTransaction(txHash *chainhash.Hash, updateDescendantStats bool) {
 	if mv.trackAncestorStats && updateDescendantStats {
 		txDesc := mv.txGraph.find(txHash)
 		if txDesc != nil {
@@ -476,11 +477,11 @@ func (mv *TxMiningView) Remove(txHash *chainhash.Hash, updateDescendantStats boo
 func (mv *TxMiningView) Reject(txHash *chainhash.Hash) {
 	seen := make(map[chainhash.Hash]struct{})
 	mv.txGraph.forEachDescendant(txHash, seen, func(descendant *TxDesc) {
-		mv.Remove(descendant.Tx.Hash(), false)
+		mv.RemoveTransaction(descendant.Tx.Hash(), false)
 		mv.rejected[*descendant.Tx.Hash()] = struct{}{}
 	})
 
-	mv.Remove(txHash, false)
+	mv.RemoveTransaction(txHash, false)
 	mv.rejected[*txHash] = struct{}{}
 }
 
