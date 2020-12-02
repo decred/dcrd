@@ -1607,7 +1607,7 @@ nextPriorityQueueItem:
 			// Remove transaction from mining view since it's been added to the
 			// block template.
 			bundledTxDeps := miningView.Children(bundledTxHash)
-			miningView.Remove(bundledTxHash, false)
+			miningView.RemoveTransaction(bundledTxHash, false)
 
 			// Add transactions which depend on this one (and also do not
 			// have any other unsatisfied dependencies) to the priority
