@@ -4288,11 +4288,9 @@ func TestTSpendVoteCountSynthetic(t *testing.T) {
 		expectedNoVotes:  0,
 		failure:          false,
 		set: func(bc *BlockChain, node *blockNode) {
-			// Create message block
-			bh := &wire.BlockHeader{
-				Height: uint32(node.height),
-			}
-			mblk := wire.NewMsgBlock(bh)
+			// Create block.
+			bh := node.Header()
+			mblk := wire.NewMsgBlock(&bh)
 
 			// Append SSGen
 			if node.height >= int64(start) &&
@@ -4307,11 +4305,9 @@ func TestTSpendVoteCountSynthetic(t *testing.T) {
 				}
 			}
 
-			// Create block
+			// Insert block into the cache.
 			block := dcrutil.NewBlock(mblk)
-
-			// Insert in cache
-			bc.mainChainBlockCache[node.hash] = block
+			bc.mainChainBlockCache[*block.Hash()] = block
 		},
 	}, {
 		name:             "All no",
@@ -4320,11 +4316,9 @@ func TestTSpendVoteCountSynthetic(t *testing.T) {
 		expectedNoVotes:  int(tpb) * int(tvi*mul),
 		failure:          true,
 		set: func(bc *BlockChain, node *blockNode) {
-			// Create message block
-			bh := &wire.BlockHeader{
-				Height: uint32(node.height),
-			}
-			mblk := wire.NewMsgBlock(bh)
+			// Create block.
+			bh := node.Header()
+			mblk := wire.NewMsgBlock(&bh)
 
 			// Append SSGen
 			if node.height >= int64(start) &&
@@ -4339,11 +4333,9 @@ func TestTSpendVoteCountSynthetic(t *testing.T) {
 				}
 			}
 
-			// Create block
+			// Insert block into the cache.
 			block := dcrutil.NewBlock(mblk)
-
-			// Insert in cache
-			bc.mainChainBlockCache[node.hash] = block
+			bc.mainChainBlockCache[*block.Hash()] = block
 		},
 	}, {
 		name:             "All abstain",
@@ -4352,25 +4344,20 @@ func TestTSpendVoteCountSynthetic(t *testing.T) {
 		expectedNoVotes:  0,
 		failure:          true,
 		set: func(bc *BlockChain, node *blockNode) {
-			// Create message block
-			bh := &wire.BlockHeader{
-				Height: uint32(node.height),
-			}
-			mblk := wire.NewMsgBlock(bh)
+			// Create block.
+			bh := node.Header()
+			mblk := wire.NewMsgBlock(&bh)
 
 			// Append SSGen
-			if node.height >= int64(start) &&
-				node.height < int64(end) {
+			if node.height >= int64(start) && node.height < int64(end) {
 				mblk.STransactions = []*wire.MsgTx{
 					fakeTreasuryBase,
 				}
 			}
 
-			// Create block
+			// Insert block into the cache.
 			block := dcrutil.NewBlock(mblk)
-
-			// Insert in cache
-			bc.mainChainBlockCache[node.hash] = block
+			bc.mainChainBlockCache[*block.Hash()] = block
 		},
 	}, {
 		name:             "Undervote one tvi",
@@ -4379,11 +4366,9 @@ func TestTSpendVoteCountSynthetic(t *testing.T) {
 		expectedNoVotes:  0,
 		failure:          true,
 		set: func(bc *BlockChain, node *blockNode) {
-			// Create message block
-			bh := &wire.BlockHeader{
-				Height: uint32(node.height),
-			}
-			mblk := wire.NewMsgBlock(bh)
+			// Create block.
+			bh := node.Header()
+			mblk := wire.NewMsgBlock(&bh)
 
 			// Append SSGen
 			x := uint32(tvi) // subtract one tvi
@@ -4394,11 +4379,9 @@ func TestTSpendVoteCountSynthetic(t *testing.T) {
 				}
 			}
 
-			// Create block
+			// Insert block into the cache.
 			block := dcrutil.NewBlock(mblk)
-
-			// Insert in cache
-			bc.mainChainBlockCache[node.hash] = block
+			bc.mainChainBlockCache[*block.Hash()] = block
 		},
 	}, {
 		name:             "Overvote",
@@ -4407,11 +4390,9 @@ func TestTSpendVoteCountSynthetic(t *testing.T) {
 		expectedNoVotes:  0,
 		failure:          true,
 		set: func(bc *BlockChain, node *blockNode) {
-			// Create message block
-			bh := &wire.BlockHeader{
-				Height: uint32(node.height),
-			}
-			mblk := wire.NewMsgBlock(bh)
+			// Create block.
+			bh := node.Header()
+			mblk := wire.NewMsgBlock(&bh)
 
 			// Append SSGen
 			x := uint32(tvi) // add one tvi
@@ -4421,11 +4402,9 @@ func TestTSpendVoteCountSynthetic(t *testing.T) {
 				}
 			}
 
-			// Create block
+			// Insert block into the cache.
 			block := dcrutil.NewBlock(mblk)
-
-			// Insert in cache
-			bc.mainChainBlockCache[node.hash] = block
+			bc.mainChainBlockCache[*block.Hash()] = block
 		},
 	}, {
 		name:             "All yes quorum",
@@ -4434,11 +4413,9 @@ func TestTSpendVoteCountSynthetic(t *testing.T) {
 		expectedNoVotes:  0,
 		failure:          false,
 		set: func(bc *BlockChain, node *blockNode) {
-			// Create message block
-			bh := &wire.BlockHeader{
-				Height: uint32(node.height),
-			}
-			mblk := wire.NewMsgBlock(bh)
+			// Create block.
+			bh := node.Header()
+			mblk := wire.NewMsgBlock(&bh)
 
 			// Append SSGen
 			if node.height >= int64(start) &&
@@ -4457,11 +4434,9 @@ func TestTSpendVoteCountSynthetic(t *testing.T) {
 				}
 			}
 
-			// Create block
+			// Insert block into the cache.
 			block := dcrutil.NewBlock(mblk)
-
-			// Insert in cache
-			bc.mainChainBlockCache[node.hash] = block
+			bc.mainChainBlockCache[*block.Hash()] = block
 		},
 	}, {
 		name:             "All yes quorum - 1",
@@ -4470,11 +4445,9 @@ func TestTSpendVoteCountSynthetic(t *testing.T) {
 		expectedNoVotes:  0,
 		failure:          true,
 		set: func(bc *BlockChain, node *blockNode) {
-			// Create message block
-			bh := &wire.BlockHeader{
-				Height: uint32(node.height),
-			}
-			mblk := wire.NewMsgBlock(bh)
+			// Create block.
+			bh := node.Header()
+			mblk := wire.NewMsgBlock(&bh)
 
 			// Append SSGen
 			if node.height >= int64(start) &&
@@ -4493,11 +4466,9 @@ func TestTSpendVoteCountSynthetic(t *testing.T) {
 				}
 			}
 
-			// Create block
+			// Insert block into the cache.
 			block := dcrutil.NewBlock(mblk)
-
-			// Insert in cache
-			bc.mainChainBlockCache[node.hash] = block
+			bc.mainChainBlockCache[*block.Hash()] = block
 		},
 	}, {
 		name:             "All yes quorum + 1",
@@ -4506,11 +4477,9 @@ func TestTSpendVoteCountSynthetic(t *testing.T) {
 		expectedNoVotes:  0,
 		failure:          false,
 		set: func(bc *BlockChain, node *blockNode) {
-			// Create message block
-			bh := &wire.BlockHeader{
-				Height: uint32(node.height),
-			}
-			mblk := wire.NewMsgBlock(bh)
+			// Create block.
+			bh := node.Header()
+			mblk := wire.NewMsgBlock(&bh)
 
 			// Append SSGen
 			if node.height >= int64(start) &&
@@ -4529,11 +4498,9 @@ func TestTSpendVoteCountSynthetic(t *testing.T) {
 				}
 			}
 
-			// Create block
+			// Insert block into the cache.
 			block := dcrutil.NewBlock(mblk)
-
-			// Insert in cache
-			bc.mainChainBlockCache[node.hash] = block
+			bc.mainChainBlockCache[*block.Hash()] = block
 		},
 	}, {
 		name:             "Exactly yes required",
@@ -4542,11 +4509,9 @@ func TestTSpendVoteCountSynthetic(t *testing.T) {
 		expectedNoVotes:  int(maxVotes) - int(requiredVotes),
 		failure:          false,
 		set: func(bc *BlockChain, node *blockNode) {
-			// Create message block
-			bh := &wire.BlockHeader{
-				Height: uint32(node.height),
-			}
-			mblk := wire.NewMsgBlock(bh)
+			// Create block.
+			bh := node.Header()
+			mblk := wire.NewMsgBlock(&bh)
 
 			// Append SSGen
 			if node.height >= int64(start) &&
@@ -4567,11 +4532,9 @@ func TestTSpendVoteCountSynthetic(t *testing.T) {
 				}
 			}
 
-			// Create block
+			// Insert block into the cache.
 			block := dcrutil.NewBlock(mblk)
-
-			// Insert in cache
-			bc.mainChainBlockCache[node.hash] = block
+			bc.mainChainBlockCache[*block.Hash()] = block
 		},
 	}, {
 		name:             "Yes required - 1",
@@ -4580,11 +4543,9 @@ func TestTSpendVoteCountSynthetic(t *testing.T) {
 		expectedNoVotes:  int(maxVotes) - int(requiredVotes-1),
 		failure:          true,
 		set: func(bc *BlockChain, node *blockNode) {
-			// Create message block
-			bh := &wire.BlockHeader{
-				Height: uint32(node.height),
-			}
-			mblk := wire.NewMsgBlock(bh)
+			// Create block.
+			bh := node.Header()
+			mblk := wire.NewMsgBlock(&bh)
 
 			// Append SSGen
 			if node.height >= int64(start) &&
@@ -4605,11 +4566,9 @@ func TestTSpendVoteCountSynthetic(t *testing.T) {
 				}
 			}
 
-			// Create block
+			// Insert block into the cache.
 			block := dcrutil.NewBlock(mblk)
-
-			// Insert in cache
-			bc.mainChainBlockCache[node.hash] = block
+			bc.mainChainBlockCache[*block.Hash()] = block
 		},
 	}, {
 		name:             "Yes required + 1",
@@ -4618,11 +4577,9 @@ func TestTSpendVoteCountSynthetic(t *testing.T) {
 		expectedNoVotes:  int(maxVotes) - int(requiredVotes+1),
 		failure:          false,
 		set: func(bc *BlockChain, node *blockNode) {
-			// Create message block
-			bh := &wire.BlockHeader{
-				Height: uint32(node.height),
-			}
-			mblk := wire.NewMsgBlock(bh)
+			// Create block.
+			bh := node.Header()
+			mblk := wire.NewMsgBlock(&bh)
 
 			// Append SSGen
 			if node.height >= int64(start) &&
@@ -4643,11 +4600,9 @@ func TestTSpendVoteCountSynthetic(t *testing.T) {
 				}
 			}
 
-			// Create block
+			// Insert block into the cache.
 			block := dcrutil.NewBlock(mblk)
-
-			// Insert in cache
-			bc.mainChainBlockCache[node.hash] = block
+			bc.mainChainBlockCache[*block.Hash()] = block
 		},
 	}, {
 		name:             "Exactly yes required with abstain",
@@ -4656,11 +4611,9 @@ func TestTSpendVoteCountSynthetic(t *testing.T) {
 		expectedNoVotes:  0,
 		failure:          false,
 		set: func(bc *BlockChain, node *blockNode) {
-			// Create message block
-			bh := &wire.BlockHeader{
-				Height: uint32(node.height),
-			}
-			mblk := wire.NewMsgBlock(bh)
+			// Create block.
+			bh := node.Header()
+			mblk := wire.NewMsgBlock(&bh)
 
 			// Append SSGen
 			if node.height >= int64(start) &&
@@ -4680,11 +4633,9 @@ func TestTSpendVoteCountSynthetic(t *testing.T) {
 				}
 			}
 
-			// Create block
+			// Insert block into the cache.
 			block := dcrutil.NewBlock(mblk)
-
-			// Insert in cache
-			bc.mainChainBlockCache[node.hash] = block
+			bc.mainChainBlockCache[*block.Hash()] = block
 		},
 	}}
 
@@ -4695,7 +4646,7 @@ func TestTSpendVoteCountSynthetic(t *testing.T) {
 
 		ticketCount = 0
 		for i := int64(0); i < test.numNodes; i++ {
-			// Version 9 is regnet idecentralized treasury agenda.
+			// Version 9 is regnet decentralized treasury agenda.
 			node = newFakeNode(node, test.blockVersion,
 				9, 0, time.Now())
 
@@ -4712,8 +4663,7 @@ func TestTSpendVoteCountSynthetic(t *testing.T) {
 			t.Fatalf("Not a TVI: %v", node.height)
 		}
 
-		tv, err := bc.tSpendCountVotes(node.parent,
-			dcrutil.NewTx(tspend))
+		tv, err := bc.tSpendCountVotes(node.parent, dcrutil.NewTx(tspend))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -4865,5 +4815,4 @@ func TestTSpendTooManyTAdds(t *testing.T) {
 		replaceCoinbase, addTAdds(tadds[1:]))
 	g.SaveTipCoinbaseOutsWithTreasury()
 	g.AcceptTipBlock()
-
 }
