@@ -128,8 +128,8 @@ func (b *BlockChain) FetchUtxoViewParentTemplate(block *wire.MsgBlock) (*UtxoVie
 // when it exists.  This function returns the filters regardless of whether or
 // not their associated block is part of the main chain.
 //
-// An error of type NoFilterError will be returned when the filter for the given
-// block hash does not exist.
+// An error that wraps ErrNoFilter will be returned when the filter for the
+// given block hash does not exist.
 //
 // This function is safe for concurrent access.
 func (b *BlockChain) FilterByBlockHash(hash *chainhash.Hash) (*gcs.FilterV2, error) {
@@ -140,7 +140,8 @@ func (b *BlockChain) FilterByBlockHash(hash *chainhash.Hash) (*gcs.FilterV2, err
 		return err
 	})
 	if err == nil && filter == nil {
-		err = NoFilterError(hash.String())
+		str := fmt.Sprintf("no filter available for block %s", hash)
+		err = contextError(ErrNoFilter, str)
 	}
 	return filter, err
 }

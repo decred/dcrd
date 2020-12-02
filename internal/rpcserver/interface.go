@@ -559,11 +559,11 @@ type Filterer interface {
 // The interface contract requires that all of these methods are safe for
 // concurrent access.
 type FiltererV2 interface {
-	// FilterByBlockHash returns the version 2 GCS filter for the given block hash
-	// when it exists.  This function returns the filters regardless of whether or
-	// not their associated block is part of the main chain.
+	// FilterByBlockHash returns the version 2 GCS filter for the given block
+	// hash when it exists.  This function returns the filters regardless of
+	// whether or not their associated block is part of the main chain.
 	//
-	// An error of type blockchain.NoFilterError must be returned when the filter
+	// An error of type blockchain.ErrNoFilter must be returned when the filter
 	// for the given block hash does not exist.
 	FilterByBlockHash(hash *chainhash.Hash) (*gcs.FilterV2, error)
 }

@@ -2444,8 +2444,7 @@ func handleGetCFilterV2(_ context.Context, s *Server, cmd interface{}) (interfac
 
 	filter, err := s.cfg.FiltererV2.FilterByBlockHash(hash)
 	if err != nil {
-		var nErr blockchain.NoFilterError
-		if errors.As(err, &nErr) {
+		if errors.Is(err, blockchain.ErrNoFilter) {
 			return nil, &dcrjson.RPCError{
 				Code:    dcrjson.ErrRPCBlockNotFound,
 				Message: fmt.Sprintf("Block not found: %v", hash),

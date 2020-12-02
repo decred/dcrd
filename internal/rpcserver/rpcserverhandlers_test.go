@@ -4251,7 +4251,6 @@ func TestHandleGetCFilterV2(t *testing.T) {
 
 	blkHashString := block432100.BlockHash().String()
 	filter := hex.EncodeToString(defaultMockFiltererV2().filterByBlockHash.Bytes())
-	var noFilterErr blockchain.NoFilterError
 	testRPCServerHandler(t, []rpcTest{{
 		name:    "handleGetCFilterV2: ok",
 		handler: handleGetCFilterV2,
@@ -4280,7 +4279,7 @@ func TestHandleGetCFilterV2(t *testing.T) {
 		},
 		mockFiltererV2: func() *testFiltererV2 {
 			testFiltererV2 := defaultMockFiltererV2()
-			testFiltererV2.filterByBlockHashErr = noFilterErr
+			testFiltererV2.filterByBlockHashErr = blockchain.ErrNoFilter
 			return testFiltererV2
 		}(),
 		wantErr: true,

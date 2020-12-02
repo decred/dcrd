@@ -151,6 +151,7 @@ func TestErrorKindStringer(t *testing.T) {
 		{ErrUnknownDeploymentVersion, "ErrUnknownDeploymentVersion"},
 		{ErrDuplicateDeployment, "ErrDuplicateDeployment"},
 		{ErrUnknownBlock, "ErrUnknownBlock"},
+		{ErrNoFilter, "ErrNoFilter"},
 	}
 
 	t.Logf("Running %d tests", len(tests))
