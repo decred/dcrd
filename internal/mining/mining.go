@@ -399,7 +399,7 @@ type BlockTemplate struct {
 	ValidPayAddress bool
 }
 
-// mergeUtxoView adds all of the entries in view to viewA.  The result is that
+// mergeUtxoView adds all of the entries in viewB to viewA.  The result is that
 // viewA will contain all of its original entries plus all of the entries
 // in viewB.  It will replace any entries in viewB which also exist in viewA
 // if the entry in viewA is fully spent.
