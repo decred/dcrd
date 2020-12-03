@@ -1251,7 +1251,7 @@ mempoolLoop:
 		prioItem.feePerKB = calcFeePerKb(txDesc, ancestorStats)
 		prioItem.fee = txDesc.Fee + ancestorStats.Fees
 		prioItemMap[*tx.Hash()] = prioItem
-		hasParents := miningView.HasParents(tx.Hash())
+		hasParents := miningView.hasParents(tx.Hash())
 
 		if !hasParents || hasStats {
 			heap.Push(priorityQueue, prioItem)
@@ -1331,7 +1331,7 @@ nextPriorityQueueItem:
 		}
 
 		// Grab the list of transactions which depend on this one (if any).
-		deps := miningView.Children(tx.Hash())
+		deps := miningView.children(tx.Hash())
 
 		// Skip TSpend if this block is not on a TVI or outside of the
 		// Tspend window.
@@ -1415,13 +1415,13 @@ nextPriorityQueueItem:
 			}
 		}
 
-		if miningView.IsRejected(tx.Hash()) {
+		if miningView.isRejected(tx.Hash()) {
 			// If the transaction or any of its ancestors have been rejected,
 			// discard the transaction.
 			continue
 		}
 
-		ancestors := miningView.Ancestors(tx.Hash())
+		ancestors := miningView.ancestors(tx.Hash())
 		ancestorStats, _ := miningView.AncestorStats(tx.Hash())
 		oldFee := prioItem.feePerKB
 		prioItem.feePerKB = calcFeePerKb(prioItem.txDesc, ancestorStats)
@@ -1456,7 +1456,7 @@ nextPriorityQueueItem:
 				"size %v, cur num tx %v", tx.Hash(), txSize,
 				blockSize, len(blockTxns))
 			logSkippedDeps(tx, deps)
-			miningView.Reject(tx.Hash())
+			miningView.reject(tx.Hash())
 			continue
 		}
 
@@ -1469,7 +1469,7 @@ nextPriorityQueueItem:
 			log.Tracef("Skipping tx %s because it would "+
 				"exceed the maximum sigops per block", tx.Hash())
 			logSkippedDeps(tx, deps)
-			miningView.Reject(tx.Hash())
+			miningView.reject(tx.Hash())
 			continue
 		}
 
@@ -1505,7 +1505,7 @@ nextPriorityQueueItem:
 				g.cfg.Policy.TxMinFreeFee, blockPlusTxSize,
 				g.cfg.Policy.BlockMinSize)
 			logSkippedDeps(tx, deps)
-			miningView.Reject(tx.Hash())
+			miningView.reject(tx.Hash())
 			continue
 		}
 
@@ -1551,7 +1551,7 @@ nextPriorityQueueItem:
 				log.Tracef("Skipping tx %s due to error in "+
 					"CheckTransactionInputs: %v", bundledTx.Tx.Hash(), err)
 				logSkippedDeps(bundledTx.Tx, deps)
-				miningView.Reject(bundledTx.Tx.Hash())
+				miningView.reject(bundledTx.Tx.Hash())
 				continue nextPriorityQueueItem
 			}
 			err = g.cfg.ValidateTransactionScripts(bundledTx.Tx, blockUtxos, scriptFlags)
@@ -1559,7 +1559,7 @@ nextPriorityQueueItem:
 				log.Tracef("Skipping tx %s due to error in "+
 					"ValidateTransactionScripts: %v", bundledTx.Tx.Hash(), err)
 				logSkippedDeps(bundledTx.Tx, deps)
-				miningView.Reject(bundledTx.Tx.Hash())
+				miningView.reject(bundledTx.Tx.Hash())
 				continue nextPriorityQueueItem
 			}
 		}
@@ -1606,7 +1606,7 @@ nextPriorityQueueItem:
 
 			// Remove transaction from mining view since it's been added to the
 			// block template.
-			bundledTxDeps := miningView.Children(bundledTxHash)
+			bundledTxDeps := miningView.children(bundledTxHash)
 			miningView.RemoveTransaction(bundledTxHash, false)
 
 			// Add transactions which depend on this one (and also do not
@@ -1621,7 +1621,7 @@ nextPriorityQueueItem:
 				// Add the transaction to the priority queue if there are no
 				// more dependencies after this one and the priority item for it
 				// already exists.
-				if !miningView.HasParents(childTxHash) {
+				if !miningView.hasParents(childTxHash) {
 					childPrioItem := prioItemMap[*childTxHash]
 					if childPrioItem != nil {
 						heap.Push(priorityQueue, childPrioItem)

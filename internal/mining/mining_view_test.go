@@ -174,7 +174,7 @@ func TestMiningView(t *testing.T) {
 		miningView := harness.txSource.MiningView()
 
 		// Make sure transaction is not rejected between view instances.
-		if miningView.IsRejected(txHash) {
+		if miningView.isRejected(txHash) {
 			t.Fatalf("%v: expected test subject txn %v to not be rejected",
 				test.name, *txHash)
 		}
@@ -207,7 +207,7 @@ func TestMiningView(t *testing.T) {
 		}
 
 		// Retrieving ancestors will cause the cached stats to be updated.
-		ancestors := miningView.Ancestors(txHash)
+		ancestors := miningView.ancestors(txHash)
 		stat, _ := miningView.AncestorStats(txHash)
 
 		if initialStat == stat {
@@ -216,7 +216,7 @@ func TestMiningView(t *testing.T) {
 		}
 
 		// Get snapshot of transaction relationships as they exist in the tx source.
-		descendants := harness.txSource.miningView.Descendants(txHash)
+		descendants := harness.txSource.miningView.descendants(txHash)
 
 		if len(test.ancestors) != len(ancestors) {
 			t.Fatalf("%v: expected subject txn to have %v ancestors, got %v",
@@ -262,7 +262,7 @@ func TestMiningView(t *testing.T) {
 				test.name)
 		}
 
-		if miningView.HasParents(txHash) && len(test.ancestors) == 0 {
+		if miningView.hasParents(txHash) && len(test.ancestors) == 0 {
 			t.Fatalf("%v: expected subject txn to not have 0 parents, got %v",
 				test.name, len(test.ancestors))
 		}
@@ -273,7 +273,7 @@ func TestMiningView(t *testing.T) {
 			txInputHashes[outpoint.PreviousOutPoint.Hash] = struct{}{}
 		}
 
-		for _, parentDesc := range miningView.Parents(txHash) {
+		for _, parentDesc := range miningView.parents(txHash) {
 			if _, exist := txInputHashes[*parentDesc.Tx.Hash()]; !exist {
 				t.Fatalf("%v: test subject %v has invalid parent %v",
 					test.name, *txHash, *parentDesc.Tx.Hash())
@@ -283,10 +283,10 @@ func TestMiningView(t *testing.T) {
 		// if the transaction has children, make sure it's no longer the child's
 		// ancestor after removal.
 		removalMiningView := harness.txSource.MiningView()
-		if children := removalMiningView.Children(txHash); len(children) > 0 {
+		if children := removalMiningView.children(txHash); len(children) > 0 {
 			removalMiningView.RemoveTransaction(txHash, false)
 			child := children[0]
-			siblings := removalMiningView.Parents(child.Tx.Hash())
+			siblings := removalMiningView.parents(child.Tx.Hash())
 
 			// Make sure ancestor stats have not changed.
 			oldStat, hasStats := miningView.AncestorStats(child.Tx.Hash())
@@ -365,22 +365,22 @@ func TestMiningView(t *testing.T) {
 			}
 		}
 
-		miningView.Reject(txHash)
+		miningView.reject(txHash)
 
-		if !miningView.IsRejected(txHash) {
+		if !miningView.isRejected(txHash) {
 			t.Fatalf("%v: expected test subject txn %v to be rejected",
 				test.name, *txHash)
 		}
 
 		// Rejecting a transaction rejects all descendant transactions and removes the
 		// tx from the graph.
-		if ancestors := miningView.Ancestors(txHash); len(ancestors) > 0 {
+		if ancestors := miningView.ancestors(txHash); len(ancestors) > 0 {
 			t.Fatalf("%v: expected subject txn to have 0 ancestors, got %v",
 				test.name, len(ancestors))
 		}
 
 		for _, descendant := range descendants {
-			if !miningView.IsRejected(descendant) {
+			if !miningView.isRejected(descendant) {
 				t.Fatalf("%v: expected descendant txn %v to be rejected.",
 					test.name, *descendant)
 			}
@@ -400,7 +400,7 @@ func TestMiningView(t *testing.T) {
 	}
 
 	miningView := harness.txSource.MiningView()
-	addedTxns := miningView.Children(txD.Hash())
+	addedTxns := miningView.children(txD.Hash())
 	if len(addedTxns) != 1 {
 		t.Fatalf("AddTxnToTxSource: expected txD to have exactly 1 child, got %v",
 			len(addedTxns))
@@ -411,18 +411,18 @@ func TestMiningView(t *testing.T) {
 	}
 
 	// Ensure newly added transaction not added to the mining view snapshot.
-	if len(miningViewSnapshot.Children(txD.Hash())) != 0 {
+	if len(miningViewSnapshot.children(txD.Hash())) != 0 {
 		t.Fatalf("AddTxnToTxSource: expected txD to not have descendants in " +
 			"snapshot mining view.")
 	}
 
-	if len(miningView.Children(txC.Hash())) != 0 {
+	if len(miningView.children(txC.Hash())) != 0 {
 		t.Fatalf("RemoveTxnFromTxSource: expected txC to not have descendents " +
 			"after being removed from the tx source.")
 	}
 
 	// Ensure tx and children are still accessible in cloned view.
-	if len(miningViewSnapshot.Children(txC.Hash())) != 1 {
+	if len(miningViewSnapshot.children(txC.Hash())) != 1 {
 		t.Fatalf("RemoveTxnFromTxSource: expected txC to exist in snapshot view " +
 			"even though it was removed from the tx source.")
 	}
@@ -439,7 +439,7 @@ func TestAncestorTrackingLimits(t *testing.T) {
 	// Create a chain of transactions.
 	var allTxns []*dcrutil.Tx
 	prevSpendableOut := spendableOuts[0]
-	for i := 0; i < AncestorTrackingLimit+2; i++ {
+	for i := 0; i < ancestorTrackingLimit+2; i++ {
 		tx, _ := harness.CreateSignedTx([]spendableOutput{
 			prevSpendableOut,
 		}, 1)
@@ -464,12 +464,12 @@ func TestAncestorTrackingLimits(t *testing.T) {
 	for len(allTxnsQueue) > 0 {
 		for index, tx := range allTxnsQueue {
 			_, hasStats := harness.txSource.miningView.AncestorStats(tx.Hash())
-			if index <= AncestorTrackingLimit && !hasStats {
+			if index <= ancestorTrackingLimit && !hasStats {
 				t.Fatalf("expected transaction %v at index %v to have ancestor"+
 					" tracking enabled", tx.Hash(), index)
 			}
 
-			if index > AncestorTrackingLimit && hasStats {
+			if index > ancestorTrackingLimit && hasStats {
 				t.Fatalf("expected transaction %v at index %v to not have "+
 					"ancestor tracking enabled", tx.Hash(), index)
 			}
@@ -513,12 +513,12 @@ func TestAncestorTrackingLimits(t *testing.T) {
 	for index, tx := range allTxns {
 		txHash := tx.Hash()
 		_, hasStats := harness.txSource.miningView.AncestorStats(txHash)
-		if index <= AncestorTrackingLimit && !hasStats {
+		if index <= ancestorTrackingLimit && !hasStats {
 			t.Fatalf("expected transaction %v at index %v to have ancestor"+
 				" tracking enabled", txHash, index)
 		}
 
-		if index > AncestorTrackingLimit && hasStats {
+		if index > ancestorTrackingLimit && hasStats {
 			t.Fatalf("expected transaction %v at index %v to not have "+
 				"ancestor tracking enabled", txHash, index)
 		}
