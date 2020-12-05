@@ -401,7 +401,7 @@ var _ mining.TxSource = (*TxPool)(nil)
 //
 // This function MUST be called with the mempool lock held (for writes).
 func (mp *TxPool) removeOrphan(tx *dcrutil.Tx, removeRedeemers bool, isTreasuryEnabled bool) {
-	// Nothing to do if passed tx is not an orphan.
+	// Nothing to do if the passed tx does not exist in the orphan pool.
 	txHash := tx.Hash()
 	otx, exists := mp.orphans[*txHash]
 	if !exists {
@@ -1229,7 +1229,7 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 	}
 
 	// Determine what type of transaction we're dealing with (regular or stake).
-	// Then, be sure to set the tx tree correctly as it's possible a use submitted
+	// Then, be sure to set the tx tree correctly as it's possible a user submitted
 	// it to the network with TxTreeUnknown.
 	txType := stake.DetermineTxType(msgTx, isTreasuryEnabled)
 	if txType == stake.TxTypeRegular {

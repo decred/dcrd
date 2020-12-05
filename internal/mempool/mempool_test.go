@@ -385,8 +385,7 @@ func (p *poolHarness) AddFakeUTXO(tx *dcrutil.Tx, blockHeight int64) {
 // CreateCoinbaseTx returns a coinbase transaction with the requested number of
 // outputs paying an appropriate subsidy based on the passed block height to the
 // address associated with the harness.  It automatically uses a standard
-// signature script that starts with the block height that is required by
-// version 2 blocks.
+// signature script that starts with the required block height.
 func (p *poolHarness) CreateCoinbaseTx(blockHeight int64, numOutputs uint32) (*dcrutil.Tx, error) {
 	// Create standard coinbase script.
 	extraNonce := int64(0)
@@ -441,7 +440,7 @@ func (p *poolHarness) CreateSignedTx(inputs []spendableOutput, numOutputs uint32
 		totalInput += input.amount
 	}
 	amountPerOutput := int64(totalInput) / int64(numOutputs)
-	remainder := int64(totalInput) - amountPerOutput*int64(numOutputs)
+	remainder := int64(totalInput) % int64(numOutputs)
 
 	tx := wire.NewMsgTx()
 	tx.Expiry = wire.NoExpiryValue
@@ -458,7 +457,7 @@ func (p *poolHarness) CreateSignedTx(inputs []spendableOutput, numOutputs uint32
 		// be left from splitting the input amount.
 		amount := amountPerOutput
 		if i == numOutputs-1 {
-			amount = amountPerOutput + remainder
+			amount += remainder
 		}
 		tx.AddTxOut(&wire.TxOut{
 			PkScript: p.payScript,
@@ -540,7 +539,7 @@ func (p *poolHarness) CreateTx(out spendableOutput) (*dcrutil.Tx, error) {
 // CreateTicketPurchase creates a ticket purchase spending the first output of
 // the provided transaction.
 func (p *poolHarness) CreateTicketPurchase(sourceTx *dcrutil.Tx, cost int64) (*dcrutil.Tx, error) {
-	ticketfee := dcrutil.Amount(singleInputTicketSize)
+	ticketFee := dcrutil.Amount(singleInputTicketSize)
 	ticketPrice := dcrutil.Amount(cost)
 
 	// Generate the p2sh, commitment and change scripts of the ticket.
@@ -549,9 +548,9 @@ func (p *poolHarness) CreateTicketPurchase(sourceTx *dcrutil.Tx, cost int64) (*d
 		return nil, err
 	}
 	commitScript := chaingen.PurchaseCommitmentScript(p.payAddr,
-		ticketPrice+ticketfee, 0, ticketPrice)
+		ticketPrice+ticketFee, 0, ticketPrice)
 	change := dcrutil.Amount(sourceTx.MsgTx().TxOut[0].Value) -
-		ticketPrice - ticketfee
+		ticketPrice - ticketFee
 	changeScript, err := txscript.PayToSStxChange(p.payAddr)
 	if err != nil {
 		return nil, err
