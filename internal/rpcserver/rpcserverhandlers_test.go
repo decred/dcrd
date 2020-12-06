@@ -1558,7 +1558,11 @@ func defaultMockAddrIndexer() *testAddrIndexer {
 // *testTxIndexer, and then setting rpcTest.mockTxIndexer as that
 // *testTxIndexer.
 func defaultMockTxIndexer() *testTxIndexer {
-	return &testTxIndexer{}
+	return &testTxIndexer{
+		entry: func(hash *chainhash.Hash) (*indexers.TxIndexEntry, error) {
+			return nil, nil
+		},
+	}
 }
 
 // defaultMockDB provides a default mock database to be used throughout the
@@ -7087,6 +7091,450 @@ func TestHandleGetVoteInfo(t *testing.T) {
 			return chain
 		}(),
 		result: okResult,
+	}})
+}
+
+func TestHandleGetRawTransaction(t *testing.T) {
+	t.Parallel()
+
+	nonVerboseTx := 0
+	verboseTx := 1
+	txid := "c720b8991e3345e13858607cdbbaf8fc535a15cd36f22d42623dba56586c94d5"
+	nonVerboseResult := "0100000002b761292042421b09196a2a9cdf56001a95df8c" +
+		"508dacf1170bba8b0c813fc8210300000001ffffffffdca0b996c9078ed14749" +
+		"774aba78d6e1df78e29486deb59d1894ed16a53b74080200000000ffffffff03" +
+		"53170b000000000000001976a914762432e9619f5ddaf122ac663684152ffe9e" +
+		"b0ec88acf747f15b0300000000001976a914762432e9619f5ddaf122ac663684" +
+		"152ffe9eb0ec88acba8656950100000000001976a914bc3c059489f447afbf54" +
+		"2ff33432adb9ded7f8e988ac000000000000000002772383e902000000e19606" +
+		"00010000006b483045022100ba5b20f9148273717deba544348f0595750e12cb" +
+		"57d7a818914c66453c9dfb930220486feb328c8f171cce5cfbf88382114282f9" +
+		"041ba53209a12ad48ac86ceb8eb2012102b9ff45cb72132bdf41cf97e96afa90" +
+		"102a4c96ef11fafe43e01983050880aab953d4cf0702000000d3970600020000" +
+		"006b483045022100b29ff29f99ae5b8e3fad72efe6dd13968b7d1c6b3fe2e0fb" +
+		"7eb7656cf7de75f202200888c36da42a0cc948770e3be29b0c75465096bc47cb" +
+		"ac27f7c19be7b33287760121039e58379edbbc239e965d7715a9834f6870d9e5" +
+		"e6bf7ebae8d12a30f7282ea5a5"
+
+	verboseResult := types.TxRawResult{
+		Hex: nonVerboseResult,
+		Txid: "c720b8991e3345e13858607cdbbaf8fc535a15cd36f22d42623dba" +
+			"56586c94d5",
+		Version:  1,
+		LockTime: 0,
+		Expiry:   0,
+		Vin: []types.Vin{{
+			Coinbase:      "",
+			Stakebase:     "",
+			Treasurybase:  false,
+			TreasurySpend: "",
+			Txid: "21c83f810c8bba0b17f1ac8d508cdf951a0056df9c2" +
+				"a6a19091b4242202961b7",
+			Vout:        3,
+			Tree:        1,
+			Sequence:    4294967295,
+			AmountIn:    125.07620215,
+			BlockHeight: 431841,
+			BlockIndex:  1,
+			ScriptSig: &types.ScriptSig{
+				Asm: "3045022100ba5b20f9148273717deba544348f0595750e12cb5" +
+					"7d7a818914c66453c9dfb930220486feb328c8f171cce5cfbf88" +
+					"382114282f9041ba53209a12ad48ac86ceb8eb201 02b9ff45cb" +
+					"72132bdf41cf97e96afa90102a4c96ef11fafe43e01983050880aab9",
+				Hex: "483045022100ba5b20f9148273717deba544348f0595750e12c" +
+					"b57d7a818914c66453c9dfb930220486feb328c8f171cce5cfbf" +
+					"88382114282f9041ba53209a12ad48ac86ceb8eb2012102b9ff4" +
+					"5cb72132bdf41cf97e96afa90102a4c96ef11fafe43e01983050" +
+					"880aab9",
+			}}, {
+			Coinbase:      "",
+			Stakebase:     "",
+			Treasurybase:  false,
+			TreasurySpend: "",
+			Txid: "08743ba516ed94189db5de8694e278dfe1d678ba4a774" +
+				"947d18e07c996b9a0dc",
+			Vout:        2,
+			Tree:        0,
+			Sequence:    4294967295,
+			AmountIn:    87.20995411,
+			BlockHeight: 432083,
+			BlockIndex:  2,
+			ScriptSig: &types.ScriptSig{
+				Asm: "3045022100b29ff29f99ae5b8e3fad72efe6dd13968b7d1c6b3fe" +
+					"2e0fb7eb7656cf7de75f202200888c36da42a0cc948770e3be29b0" +
+					"c75465096bc47cbac27f7c19be7b332877601 039e58379edbbc23" +
+					"9e965d7715a9834f6870d9e5e6bf7ebae8d12a30f7282ea5a5",
+				Hex: "483045022100b29ff29f99ae5b8e3fad72efe6dd13968b7d1c6b3" +
+					"fe2e0fb7eb7656cf7de75f202200888c36da42a0cc948770e3be29" +
+					"b0c75465096bc47cbac27f7c19be7b33287760121039e58379edbb" +
+					"c239e965d7715a9834f6870d9e5e6bf7ebae8d12a30f7282ea5a5",
+			},
+		}},
+		Vout: []types.Vout{{
+			Value:   0.00726867,
+			N:       0,
+			Version: 0,
+			ScriptPubKey: types.ScriptPubKeyResult{
+				Asm: "OP_DUP OP_HASH160 762432e9619f5ddaf122ac6636841" +
+					"52ffe9eb0ec OP_EQUALVERIFY OP_CHECKSIG",
+				Hex:       "76a914762432e9619f5ddaf122ac663684152ffe9eb0ec88ac",
+				ReqSigs:   1,
+				Type:      "pubkeyhash",
+				Addresses: []string{"DsbjabD32RuS1deAj2uTjKfFZ6nSza5qVf3"},
+			}}, {
+			Value:   144.27441143,
+			N:       1,
+			Version: 0,
+			ScriptPubKey: types.ScriptPubKeyResult{
+				Asm: "OP_DUP OP_HASH160 762432e9619f5ddaf122ac663684" +
+					"152ffe9eb0ec OP_EQUALVERIFY OP_CHECKSIG",
+				Hex:       "76a914762432e9619f5ddaf122ac663684152ffe9eb0ec88ac",
+				ReqSigs:   1,
+				Type:      "pubkeyhash",
+				Addresses: []string{"DsbjabD32RuS1deAj2uTjKfFZ6nSza5qVf3"},
+			}}, {
+			Value:   68.00443066,
+			N:       2,
+			Version: 0,
+			ScriptPubKey: types.ScriptPubKeyResult{
+				Asm: "OP_DUP OP_HASH160 bc3c059489f447afbf542ff3343" +
+					"2adb9ded7f8e9 OP_EQUALVERIFY OP_CHECKSIG",
+				Hex:       "76a914bc3c059489f447afbf542ff33432adb9ded7f8e988ac",
+				ReqSigs:   1,
+				Type:      "pubkeyhash",
+				Addresses: []string{"Dsi8CRt85xYyempXs7ZPL1rBxvDdAGZmgsg"},
+			},
+		}},
+		BlockHash: "00000000000000001fc4c4c7a3f2ec6d552dda16a3a928f27b" +
+			"d6bd16d8f1e9b3",
+		BlockHeight:   432100,
+		BlockIndex:    11,
+		Confirmations: 1,
+		Time:          1584248018,
+		Blocktime:     1584248018,
+	}
+
+	verboseMempoolResult := verboseResult
+	verboseMempoolResult.BlockHash = ""
+	verboseMempoolResult.BlockHeight = 0
+	verboseMempoolResult.BlockIndex = 0
+	verboseMempoolResult.Confirmations = 0
+	verboseMempoolResult.Time = 0
+	verboseMempoolResult.Blocktime = 0
+
+	tx0TestTx := testTx{
+		hex: hexFromFile("tx432098-11.hex"),
+		indexEntry: &indexers.TxIndexEntry{
+			BlockRegion: database.BlockRegion{
+				Hash: mustParseHash("00000000000000001fc4c4c7a3f2ec6d552dda16a3a928f27bd6" +
+					"bd16d8f1e9b3"),
+				Offset: 52508,
+				Len:    453,
+			},
+			BlockIndex: 11,
+		},
+	}
+
+	var tx wire.MsgTx
+	err := tx.FromBytes(hexToBytes(tx0TestTx.hex))
+	if err != nil {
+		t.Fatalf("unable to create tx from bytes: %v", err)
+	}
+
+	txPool := func() *testTxMempooler {
+		mp := defaultMockTxMempooler()
+		mp.fetchTransactionErr = errors.New("unable to fetch tx from mempool")
+		return mp
+	}()
+
+	txIndex := func() *testTxIndexer {
+		idx := defaultMockTxIndexer()
+		idx.entry = func(hash *chainhash.Hash) (*indexers.TxIndexEntry, error) {
+			return tx0TestTx.indexEntry, nil
+		}
+		return idx
+	}()
+
+	testRPCServerHandler(t, []rpcTest{{
+		name:    "handleGetRawTransaction: invalid txid",
+		handler: handleGetRawTransaction,
+		cmd: &types.GetRawTransactionCmd{
+			Txid:    "invalid",
+			Verbose: &nonVerboseTx,
+		},
+		wantErr: true,
+		errCode: dcrjson.ErrRPCDecodeHexString,
+	}, {
+		name:    "handleGetRawTransaction: tx index not enabled",
+		handler: handleGetRawTransaction,
+		cmd: &types.GetRawTransactionCmd{
+			Txid:    txid,
+			Verbose: &nonVerboseTx,
+		},
+		setTxIndexerNil: true,
+		mockTxMempooler: txPool,
+		wantErr:         true,
+		errCode:         dcrjson.ErrRPCInternal.Code,
+	}, {
+		name:    "handleGetRawTransaction: unable to fetch tx location",
+		handler: handleGetRawTransaction,
+		cmd: &types.GetRawTransactionCmd{
+			Txid:    txid,
+			Verbose: &nonVerboseTx,
+		},
+		mockTxMempooler: txPool,
+		mockTxIndexer: func() *testTxIndexer {
+			idx := defaultMockTxIndexer()
+			idx.entry = func(hash *chainhash.Hash) (*indexers.TxIndexEntry, error) {
+				return nil, errors.New("unable to retrieve tx location")
+			}
+			return idx
+		}(),
+		wantErr: true,
+		errCode: dcrjson.ErrRPCInternal.Code,
+	}, {
+		name:    "handleGetRawTransaction: no info about tx",
+		handler: handleGetRawTransaction,
+		cmd: &types.GetRawTransactionCmd{
+			Txid:    txid,
+			Verbose: &nonVerboseTx,
+		},
+		mockTxMempooler: txPool,
+		mockTxIndexer: func() *testTxIndexer {
+			idx := defaultMockTxIndexer()
+			idx.entry = func(hash *chainhash.Hash) (*indexers.TxIndexEntry, error) {
+				return nil, nil
+			}
+			return idx
+		}(),
+		wantErr: true,
+		errCode: dcrjson.ErrRPCNoTxInfo,
+	}, {
+		name:    "handleGetRawTransaction: unable to fetch block region",
+		handler: handleGetRawTransaction,
+		cmd: &types.GetRawTransactionCmd{
+			Txid:    txid,
+			Verbose: &nonVerboseTx,
+		},
+		mockTxMempooler: txPool,
+		mockTxIndexer:   txIndex,
+		wantErr:         true,
+		errCode:         dcrjson.ErrRPCNoTxInfo,
+	}, {
+		name:    "handleGetRawTransaction: ok, not verbose",
+		handler: handleGetRawTransaction,
+		cmd: &types.GetRawTransactionCmd{
+			Txid:    txid,
+			Verbose: &nonVerboseTx,
+		},
+		mockTxMempooler: txPool,
+		mockTxIndexer:   txIndex,
+		mockDB: func() *testDB {
+			db := defaultMockDB()
+			db.viewTx = &testDatabaseTx{
+				fetchBlockRegion: func(region *database.BlockRegion) ([]byte, error) {
+					return hexToBytes(tx0TestTx.hex), nil
+				},
+			}
+			return db
+		}(),
+		result: nonVerboseResult,
+	}, {
+		name:    "handleGetRawTransaction: unable to deserialize tx",
+		handler: handleGetRawTransaction,
+		cmd: &types.GetRawTransactionCmd{
+			Txid:    txid,
+			Verbose: &verboseTx,
+		},
+		mockTxMempooler: func() *testTxMempooler {
+			mp := defaultMockTxMempooler()
+			mp.fetchTransactionErr = errors.New("unable to fetch tx from mempool")
+			return mp
+		}(),
+		mockTxIndexer: txIndex,
+		mockDB: func() *testDB {
+			db := defaultMockDB()
+			db.viewTx = &testDatabaseTx{
+				fetchBlockRegion: func(region *database.BlockRegion) ([]byte, error) {
+					return hexToBytes("fefefefefefefefefefe"), nil
+				},
+			}
+			return db
+		}(),
+		wantErr: true,
+		errCode: dcrjson.ErrRPCInternal.Code,
+	}, {
+		name:    "handleGetRawTransaction: unable to fetch block by height",
+		handler: handleGetRawTransaction,
+		cmd: &types.GetRawTransactionCmd{
+			Txid:    txid,
+			Verbose: &verboseTx,
+		},
+		mockTxMempooler: txPool,
+		mockTxIndexer:   txIndex,
+		mockDB: func() *testDB {
+			db := defaultMockDB()
+			db.viewTx = &testDatabaseTx{
+				fetchBlockRegion: func(region *database.BlockRegion) ([]byte, error) {
+					return hexToBytes(tx0TestTx.hex), nil
+				},
+			}
+			return db
+		}(),
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.blockHeightByHashErr = errors.New("unable to fetch block by height")
+			return chain
+		}(),
+		wantErr: true,
+		errCode: dcrjson.ErrRPCInternal.Code,
+	}, {
+		name:    "handleGetRawTransaction: unable to fetch header by hash",
+		handler: handleGetRawTransaction,
+		cmd: &types.GetRawTransactionCmd{
+			Txid:    txid,
+			Verbose: &verboseTx,
+		},
+		mockTxMempooler: txPool,
+		mockTxIndexer:   txIndex,
+		mockDB: func() *testDB {
+			db := defaultMockDB()
+			db.viewTx = &testDatabaseTx{
+				fetchBlockRegion: func(region *database.BlockRegion) ([]byte, error) {
+					return hexToBytes(tx0TestTx.hex), nil
+				},
+			}
+			return db
+		}(),
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.headerByHashErr = errors.New("unable to fetch header by hash")
+			return chain
+		}(),
+		wantErr: true,
+		errCode: dcrjson.ErrRPCInternal.Code,
+	}, {
+		name:    "handleGetRawTransaction: unable to fetch treasury agenda status",
+		handler: handleGetRawTransaction,
+		cmd: &types.GetRawTransactionCmd{
+			Txid:    txid,
+			Verbose: &verboseTx,
+		},
+		mockTxMempooler: txPool,
+		mockTxIndexer:   txIndex,
+		mockDB: func() *testDB {
+			db := defaultMockDB()
+			db.viewTx = &testDatabaseTx{
+				fetchBlockRegion: func(region *database.BlockRegion) ([]byte, error) {
+					return hexToBytes(tx0TestTx.hex), nil
+				},
+			}
+			return db
+		}(),
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.treasuryActive = false
+			chain.treasuryActiveErr =
+				errors.New("unable to fetch treasury agenda status")
+			return chain
+		}(),
+		wantErr: true,
+		errCode: dcrjson.ErrRPCInternal.Code,
+	}, {
+		name:    "handleGetRawTransaction: ok, verbose",
+		handler: handleGetRawTransaction,
+		cmd: &types.GetRawTransactionCmd{
+			Txid:    txid,
+			Verbose: &verboseTx,
+		},
+		mockTxMempooler: txPool,
+		mockTxIndexer:   txIndex,
+		mockDB: func() *testDB {
+			db := defaultMockDB()
+			db.viewTx = &testDatabaseTx{
+				fetchBlockRegion: func(region *database.BlockRegion) ([]byte, error) {
+					return hexToBytes(tx0TestTx.hex), nil
+				},
+			}
+			return db
+		}(),
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.treasuryActive = true
+			return chain
+		}(),
+		result: verboseResult,
+	}, {
+		name:    "handleGetRawTransaction: ok, verbose, tx from mempool",
+		handler: handleGetRawTransaction,
+		cmd: &types.GetRawTransactionCmd{
+			Txid:    txid,
+			Verbose: &verboseTx,
+		},
+		mockTxMempooler: func() *testTxMempooler {
+			mp := defaultMockTxMempooler()
+			mp.fetchTransaction = dcrutil.NewTx(&tx)
+			mp.fetchTransactionErr = nil
+			return mp
+		}(),
+		mockDB: func() *testDB {
+			db := defaultMockDB()
+			db.viewTx = &testDatabaseTx{
+				fetchBlockRegion: func(region *database.BlockRegion) ([]byte, error) {
+					return hexToBytes(tx0TestTx.hex), nil
+				},
+			}
+			return db
+		}(),
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.treasuryActive = true
+			return chain
+		}(),
+		result: verboseMempoolResult,
+	}, {
+		name:    "handleGetRawTransaction: ok, not verbose, tx from mempool",
+		handler: handleGetRawTransaction,
+		cmd: &types.GetRawTransactionCmd{
+			Txid:    txid,
+			Verbose: &nonVerboseTx,
+		},
+		mockTxMempooler: func() *testTxMempooler {
+			mp := defaultMockTxMempooler()
+			mp.fetchTransaction = dcrutil.NewTx(&tx)
+			mp.fetchTransactionErr = nil
+			return mp
+		}(),
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.treasuryActive = true
+			return chain
+		}(),
+		result: nonVerboseResult,
+	}, {
+		name:    "handleGetRawTransaction: tx mismatch",
+		handler: handleGetRawTransaction,
+		cmd: &types.GetRawTransactionCmd{
+			Txid:    zeroHash.String(),
+			Verbose: &verboseTx,
+		},
+		mockTxMempooler: func() *testTxMempooler {
+			mp := defaultMockTxMempooler()
+			mp.fetchTransaction = dcrutil.NewTx(&tx)
+			mp.fetchTransactionErr = nil
+			return mp
+		}(),
+		mockDB: func() *testDB {
+			db := defaultMockDB()
+			db.viewTx = &testDatabaseTx{
+				fetchBlockRegion: func(region *database.BlockRegion) ([]byte, error) {
+					return hexToBytes(tx0TestTx.hex), nil
+				},
+			}
+			return db
+		}(),
+		wantErr: true,
+		errCode: dcrjson.ErrRPCInvalidParameter,
 	}})
 }
 

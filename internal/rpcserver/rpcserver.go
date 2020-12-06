@@ -2936,7 +2936,7 @@ func handleGetRawTransaction(_ context.Context, s *Server, cmd interface{}) (int
 	// mempool.
 	isTreasuryEnabled, err := s.isTreasuryAgendaActive(&prevBlkHash)
 	if err != nil {
-		return nil, err
+		return nil, rpcInternalError(err.Error(), "Treasury Status")
 	}
 
 	rawTxn, err := s.createTxRawResult(s.cfg.ChainParams, mtx, txHash.String(),
