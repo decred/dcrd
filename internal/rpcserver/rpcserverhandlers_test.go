@@ -4464,6 +4464,42 @@ func TestHandleGetInfo(t *testing.T) {
 	}})
 }
 
+func TestHandleGetMempoolInfo(t *testing.T) {
+	t.Parallel()
+
+	txDescOne := &mempool.TxDesc{
+		StartingPriority: 0,
+		TxDesc: mining.TxDesc{
+			Tx:   dcrutil.NewTx(block432100.Transactions[0]),
+			Type: stake.TxTypeSSGen,
+			Fee:  1,
+		},
+	}
+	txDescTwo := &mempool.TxDesc{
+		StartingPriority: 0,
+		TxDesc: mining.TxDesc{
+			Tx:   dcrutil.NewTx(block432100.Transactions[1]),
+			Type: stake.TxTypeRegular,
+			Fee:  300000,
+		},
+	}
+
+	testRPCServerHandler(t, []rpcTest{{
+		name:    "handleGetMempoolInfo: ok",
+		handler: handleGetMempoolInfo,
+		mockTxMempooler: func() *testTxMempooler {
+			mp := defaultMockTxMempooler()
+			mp.txDescs = []*mempool.TxDesc{txDescOne, txDescTwo}
+			return mp
+		}(),
+		cmd: &types.GetMempoolInfoCmd{},
+		result: &types.GetMempoolInfoResult{
+			Size:  2,
+			Bytes: 627,
+		},
+	}})
+}
+
 func TestHandleGetNetTotals(t *testing.T) {
 	t.Parallel()
 
