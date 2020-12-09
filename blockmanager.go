@@ -250,7 +250,6 @@ type peerNotifier interface {
 // blockManangerConfig is a configuration struct for a blockManager.
 type blockManagerConfig struct {
 	PeerNotifier peerNotifier
-	TimeSource   blockchain.MedianTimeSource
 
 	// The following fields are for accessing the chain and its configuration.
 	Chain        *blockchain.BlockChain

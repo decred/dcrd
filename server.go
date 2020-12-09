@@ -3236,7 +3236,6 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB, chainP
 		ChainParams:        s.chainParams,
 		SigCache:           s.sigCache,
 		SubsidyCache:       s.subsidyCache,
-		TimeSource:         s.timeSource,
 		FeeEstimator:       s.feeEstimator,
 		TxMemPool:          s.txMemPool,
 		BgBlkTmplGenerator: nil, // Created later.
