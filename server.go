@@ -3248,6 +3248,10 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB, chainP
 		RpcServer: func() *rpcserver.Server {
 			return s.rpcServer
 		},
+		DisableCheckpoints: cfg.DisableCheckpoints,
+		NoMiningStateSync:  cfg.NoMiningStateSync,
+		MaxPeers:           cfg.MaxPeers,
+		MaxOrphanTxs:       cfg.MaxOrphanTxs,
 	})
 	if err != nil {
 		return nil, err

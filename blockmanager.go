@@ -261,6 +261,24 @@ type blockManagerConfig struct {
 	NotifyWinningTickets      func(*rpcserver.WinningTicketsNtfnData)
 	PruneRebroadcastInventory func()
 	RpcServer                 func() *rpcserver.Server
+
+	// DisableCheckpoints indicates whether or not the block manager should make
+	// use of checkpoints.
+	DisableCheckpoints bool
+
+	// NoMiningStateSync indicates whether or not the block manager should
+	// perform an initial mining state synchronization with peers once they are
+	// believed to be fully synced.
+	NoMiningStateSync bool
+
+	// MaxPeers specifies the maximum number of peers the server is expected to
+	// be connected with.  It is primarily used as a hint for more efficient
+	// synchronization.
+	MaxPeers int
+
+	// MaxOrphanTxs specifies the maximum number of orphan transactions the
+	// transaction pool associated with the server supports.
+	MaxOrphanTxs int
 }
 
 // peerSyncState stores additional information that the blockManager tracks
@@ -361,11 +379,6 @@ func (b *blockManager) SyncHeight() int64 {
 // later than the final checkpoint or some other reason such as disabled
 // checkpoints.
 func (b *blockManager) findNextHeaderCheckpoint(height int64) *chaincfg.Checkpoint {
-	// There is no next checkpoint if checkpoints are disabled or there are
-	// none for this current network.
-	if cfg.DisableCheckpoints {
-		return nil
-	}
 	checkpoints := b.cfg.Chain.Checkpoints()
 	if len(checkpoints) == 0 {
 		return nil
@@ -477,7 +490,7 @@ func (b *blockManager) startSync() {
 		// downloads when in regression test mode.
 		if b.nextCheckpoint != nil &&
 			best.Height < b.nextCheckpoint.Height &&
-			!cfg.DisableCheckpoints {
+			!b.cfg.DisableCheckpoints {
 
 			err := bestPeer.PushGetHeadersMsg(locator, b.nextCheckpoint.Hash)
 			if err != nil {
@@ -589,8 +602,8 @@ func (b *blockManager) handleNewPeerMsg(peer *peerpkg.Peer) {
 		b.startSync()
 	}
 
-	// Grab the mining state from this peer after we're synced.
-	if !cfg.NoMiningStateSync {
+	// Grab the mining state from this peer once synced when enabled.
+	if !b.cfg.NoMiningStateSync {
 		b.syncMiningStateAfterSync(peer)
 	}
 }
@@ -733,7 +746,7 @@ func (b *blockManager) handleTxMsg(tmsg *txMsg) {
 
 	// Process the transaction to include validation, insertion in the
 	// memory pool, orphan handling, etc.
-	allowOrphans := cfg.MaxOrphanTxs > 0
+	allowOrphans := b.cfg.MaxOrphanTxs > 0
 	acceptedTxs, err := b.cfg.TxMemPool.ProcessTransaction(tmsg.tx,
 		allowOrphans, true, true, mempool.Tag(tmsg.peer.ID()))
 
@@ -2458,7 +2471,7 @@ func newBlockManager(config *blockManagerConfig) (*blockManager, error) {
 		requestedBlocks: make(map[chainhash.Hash]struct{}),
 		peerStates:      make(map[*peerpkg.Peer]*peerSyncState),
 		progressLogger:  newBlockProgressLogger("Processed", bmgrLog),
-		msgChan:         make(chan interface{}, cfg.MaxPeers*3),
+		msgChan:         make(chan interface{}, config.MaxPeers*3),
 		headerList:      list.New(),
 		quit:            make(chan struct{}),
 		orphans:         make(map[chainhash.Hash]*orphanBlock),
@@ -2466,7 +2479,7 @@ func newBlockManager(config *blockManagerConfig) (*blockManager, error) {
 	}
 
 	best := bm.cfg.Chain.BestSnapshot()
-	if !cfg.DisableCheckpoints {
+	if !bm.cfg.DisableCheckpoints {
 		// Initialize the next checkpoint based on the current height.
 		bm.nextCheckpoint = bm.findNextHeaderCheckpoint(best.Height)
 		if bm.nextCheckpoint != nil {
