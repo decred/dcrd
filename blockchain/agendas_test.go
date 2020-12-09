@@ -116,6 +116,7 @@ func testLNFeaturesDeployment(t *testing.T, params *chaincfg.Params) {
 					Bits:    yesChoice.Bits | 0x01,
 				})
 			}
+			bc.index.AddNode(node)
 			bc.bestChain.SetTip(node)
 			curTimestamp = curTimestamp.Add(time.Second)
 		}
@@ -136,7 +137,7 @@ func testLNFeaturesDeployment(t *testing.T, params *chaincfg.Params) {
 
 		// Ensure the agenda reports the expected activation status for
 		// the NEXT block
-		gotActive, err = bc.IsLNFeaturesAgendaActive()
+		gotActive, err = bc.IsLNFeaturesAgendaActive(&node.hash)
 		if err != nil {
 			t.Errorf("%s: unexpected err: %v", test.name, err)
 			continue

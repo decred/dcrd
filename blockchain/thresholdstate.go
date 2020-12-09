@@ -626,12 +626,17 @@ func (b *BlockChain) isLNFeaturesAgendaActive(prevNode *blockNode) (bool, error)
 
 // IsLNFeaturesAgendaActive returns whether or not the LN features agenda vote,
 // as defined in DCP0002 and DCP0003 has passed and is now active for the block
-// AFTER the current best chain block.
+// AFTER the given block.
 //
 // This function is safe for concurrent access.
-func (b *BlockChain) IsLNFeaturesAgendaActive() (bool, error) {
+func (b *BlockChain) IsLNFeaturesAgendaActive(prevHash *chainhash.Hash) (bool, error) {
+	prevNode := b.index.LookupNode(prevHash)
+	if prevNode == nil || !b.index.NodeStatus(prevNode).HasValidated() {
+		return false, unknownBlockError(prevHash)
+	}
+
 	b.chainLock.Lock()
-	isActive, err := b.isLNFeaturesAgendaActive(b.bestChain.Tip())
+	isActive, err := b.isLNFeaturesAgendaActive(prevNode)
 	b.chainLock.Unlock()
 	return isActive, err
 }

@@ -2917,9 +2917,9 @@ out:
 func standardScriptVerifyFlags(chain *blockchain.BlockChain) (txscript.ScriptFlags, error) {
 	scriptFlags := mempool.BaseStandardVerifyFlags
 
-	// Enable validation of OP_SHA256 if the stake vote for the agenda is
-	// active.
-	isActive, err := chain.IsLNFeaturesAgendaActive()
+	// Enable validation of OP_SHA256 when the associated agenda is active.
+	tipHash := &chain.BestSnapshot().Hash
+	isActive, err := chain.IsLNFeaturesAgendaActive(tipHash)
 	if err != nil {
 		return 0, err
 	}
@@ -2927,9 +2927,8 @@ func standardScriptVerifyFlags(chain *blockchain.BlockChain) (txscript.ScriptFla
 		scriptFlags |= txscript.ScriptVerifySHA256
 	}
 
-	// Enable validation of treasury-related opcodes when the associated
-	// agenda is active.
-	tipHash := &chain.BestSnapshot().Hash
+	// Enable validation of treasury-related opcodes when the associated agenda
+	// is active.
 	isActive, err = chain.IsTreasuryAgendaActive(tipHash)
 	if err != nil {
 		return 0, err
