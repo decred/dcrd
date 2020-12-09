@@ -2606,14 +2606,6 @@ out:
 
 			case broadcastPruneInventory:
 				best := s.chain.BestSnapshot()
-				nextStakeDiff, err :=
-					s.chain.CalcNextRequiredStakeDifficulty()
-				if err != nil {
-					srvrLog.Errorf("Failed to get next stake difficulty: %v",
-						err)
-					break
-				}
-
 				isTreasuryEnabled, err := s.chain.IsTreasuryAgendaActive(&best.Hash)
 				if err != nil {
 					srvrLog.Errorf("Could not obtain treasury agenda status: %v",
@@ -2633,7 +2625,7 @@ out:
 					// Remove the ticket rebroadcast if the amount not equal to
 					// the current stake difficulty.
 					if txType == stake.TxTypeSStx &&
-						tx.MsgTx().TxOut[0].Value != nextStakeDiff {
+						tx.MsgTx().TxOut[0].Value != best.NextStakeDiff {
 						delete(pendingInvs, iv)
 						srvrLog.Debugf("Pending ticket purchase broadcast "+
 							"inventory for tx %v removed. Ticket value not "+
