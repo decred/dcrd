@@ -125,66 +125,65 @@ type tspendVotes struct {
 
 // testRPCChain provides a mock block chain by implementing the Chain interface.
 type testRPCChain struct {
-	bestSnapshot                    *blockchain.BestState
-	blockByHash                     *dcrutil.Block
-	blockByHashErr                  error
-	blockByHeight                   *dcrutil.Block
-	blockByHeightErr                error
-	blockHashByHeight               *chainhash.Hash
-	blockHashByHeightErr            error
-	blockHeightByHash               int64
-	blockHeightByHashErr            error
-	calcNextRequiredStakeDifficulty int64
-	calcWantHeight                  int64
-	chainTips                       []blockchain.ChainTipInfo
-	chainWork                       *big.Int
-	chainWorkErr                    error
-	checkExpiredTickets             []bool
-	checkLiveTicket                 bool
-	checkLiveTickets                []bool
-	checkMissedTickets              []bool
-	convertUtxosToMinimalOutputs    []*stake.MinimalOutput
-	countVoteVersion                uint32
-	countVoteVersionErr             error
-	estimateNextStakeDifficultyFn   func(newTickets int64, useMaxTickets bool) (diff int64, err error)
-	fetchUtxoEntry                  UtxoEntry
-	fetchUtxoStats                  *blockchain.UtxoStats
-	getStakeVersions                []blockchain.StakeVersions
-	getStakeVersionsErr             error
-	getVoteCounts                   blockchain.VoteCounts
-	getVoteCountsErr                error
-	getVoteInfo                     *blockchain.VoteInfo
-	getVoteInfoErr                  error
-	headerByHash                    wire.BlockHeader
-	headerByHashErr                 error
-	headerByHeight                  wire.BlockHeader
-	headerByHeightErr               error
-	heightRangeFn                   func(startHeight, endHeight int64) ([]chainhash.Hash, error)
-	isCurrent                       bool
-	liveTickets                     []chainhash.Hash
-	liveTicketsErr                  error
-	locateHeaders                   []wire.BlockHeader
-	lotteryDataForBlock             []chainhash.Hash
-	mainChainHasBlock               bool
-	maxBlockSize                    int64
-	maxBlockSizeErr                 error
-	minedTSpendBlocks               []chainhash.Hash
-	missedTickets                   []chainhash.Hash
-	missedTicketsErr                error
-	nextThresholdState              blockchain.ThresholdStateTuple
-	nextThresholdStateErr           error
-	stateLastChangedHeight          int64
-	stateLastChangedHeightErr       error
-	ticketPoolValue                 dcrutil.Amount
-	ticketPoolValueErr              error
-	ticketsWithAddress              []chainhash.Hash
-	ticketsWithAddressErr           error
-	tipGeneration                   []chainhash.Hash
-	treasuryBalance                 *blockchain.TreasuryBalanceInfo
-	treasuryBalanceErr              error
-	tspendVotes                     tspendVotes
-	treasuryActive                  bool
-	treasuryActiveErr               error
+	bestSnapshot                  *blockchain.BestState
+	blockByHash                   *dcrutil.Block
+	blockByHashErr                error
+	blockByHeight                 *dcrutil.Block
+	blockByHeightErr              error
+	blockHashByHeight             *chainhash.Hash
+	blockHashByHeightErr          error
+	blockHeightByHash             int64
+	blockHeightByHashErr          error
+	calcWantHeight                int64
+	chainTips                     []blockchain.ChainTipInfo
+	chainWork                     *big.Int
+	chainWorkErr                  error
+	checkExpiredTickets           []bool
+	checkLiveTicket               bool
+	checkLiveTickets              []bool
+	checkMissedTickets            []bool
+	convertUtxosToMinimalOutputs  []*stake.MinimalOutput
+	countVoteVersion              uint32
+	countVoteVersionErr           error
+	estimateNextStakeDifficultyFn func(newTickets int64, useMaxTickets bool) (diff int64, err error)
+	fetchUtxoEntry                UtxoEntry
+	fetchUtxoStats                *blockchain.UtxoStats
+	getStakeVersions              []blockchain.StakeVersions
+	getStakeVersionsErr           error
+	getVoteCounts                 blockchain.VoteCounts
+	getVoteCountsErr              error
+	getVoteInfo                   *blockchain.VoteInfo
+	getVoteInfoErr                error
+	headerByHash                  wire.BlockHeader
+	headerByHashErr               error
+	headerByHeight                wire.BlockHeader
+	headerByHeightErr             error
+	heightRangeFn                 func(startHeight, endHeight int64) ([]chainhash.Hash, error)
+	isCurrent                     bool
+	liveTickets                   []chainhash.Hash
+	liveTicketsErr                error
+	locateHeaders                 []wire.BlockHeader
+	lotteryDataForBlock           []chainhash.Hash
+	mainChainHasBlock             bool
+	maxBlockSize                  int64
+	maxBlockSizeErr               error
+	minedTSpendBlocks             []chainhash.Hash
+	missedTickets                 []chainhash.Hash
+	missedTicketsErr              error
+	nextThresholdState            blockchain.ThresholdStateTuple
+	nextThresholdStateErr         error
+	stateLastChangedHeight        int64
+	stateLastChangedHeightErr     error
+	ticketPoolValue               dcrutil.Amount
+	ticketPoolValueErr            error
+	ticketsWithAddress            []chainhash.Hash
+	ticketsWithAddressErr         error
+	tipGeneration                 []chainhash.Hash
+	treasuryBalance               *blockchain.TreasuryBalanceInfo
+	treasuryBalanceErr            error
+	tspendVotes                   tspendVotes
+	treasuryActive                bool
+	treasuryActiveErr             error
 }
 
 // BestSnapshot returns a mocked blockchain.BestState.
@@ -210,11 +209,6 @@ func (c *testRPCChain) BlockHashByHeight(height int64) (*chainhash.Hash, error) 
 // BlockHeightByHash returns a mocked height of the block with the given hash.
 func (c *testRPCChain) BlockHeightByHash(hash *chainhash.Hash) (int64, error) {
 	return c.blockHeightByHash, c.blockHeightByHashErr
-}
-
-// CalcNextRequiredStakeDifficulty returns a mocked required stake difficulty.
-func (c *testRPCChain) CalcNextRequiredStakeDifficulty() (int64, error) {
-	return c.calcNextRequiredStakeDifficulty, nil
 }
 
 // CalcWantHeight returns a mocked height of the final block of the previous
@@ -1403,12 +1397,11 @@ func defaultMockRPCChain() *testRPCChain {
 			TotalSubsidy:   1122503888072909,
 			NextFinalState: [6]byte{0xdc, 0x2a, 0x4f, 0x6e, 0x60, 0xb3},
 		},
-		blockByHash:                     blk,
-		blockByHeight:                   blk,
-		blockHashByHeight:               blkHash,
-		blockHeightByHash:               blkHeight,
-		calcNextRequiredStakeDifficulty: 14428162590,
-		calcWantHeight:                  431487,
+		blockByHash:       blk,
+		blockByHeight:     blk,
+		blockHashByHeight: blkHash,
+		blockHeightByHash: blkHeight,
+		calcWantHeight:    431487,
 		chainTips: []blockchain.ChainTipInfo{{
 			Height:    blkHeight,
 			Hash:      *blkHash,

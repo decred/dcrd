@@ -2527,18 +2527,12 @@ func handleGetMiningInfo(ctx context.Context, s *Server, cmd interface{}) (inter
 	}
 
 	best := s.cfg.Chain.BestSnapshot()
-	nextStakeDiff, err := s.cfg.Chain.CalcNextRequiredStakeDifficulty()
-	if err != nil {
-		return nil, rpcInternalError(err.Error(),
-			"Could not calculate next stake difficulty")
-	}
-
 	result := types.GetMiningInfoResult{
 		Blocks:           best.Height,
 		CurrentBlockSize: best.BlockSize,
 		CurrentBlockTx:   best.NumTxns,
 		Difficulty:       getDifficultyRatio(best.Bits, s.cfg.ChainParams),
-		StakeDifficulty:  nextStakeDiff,
+		StakeDifficulty:  best.NextStakeDiff,
 		Generate:         s.cfg.CPUMiner.IsMining(),
 		GenProcLimit:     s.cfg.CPUMiner.NumWorkers(),
 		HashesPerSec:     int64(s.cfg.CPUMiner.HashesPerSecond()),
@@ -2961,21 +2955,11 @@ func handleGetStakeDifficulty(_ context.Context, s *Server, cmd interface{}) (in
 			Message: "Error getting stake difficulty: " + err.Error(),
 		}
 	}
-	currentSdiff := dcrutil.Amount(blockHeader.SBits)
-
-	nextSdiff, err := chain.CalcNextRequiredStakeDifficulty()
-	if err != nil {
-		context := "Could not calculate next stake difficulty"
-		return nil, rpcInternalError(err.Error(), context)
+	result := types.GetStakeDifficultyResult{
+		CurrentStakeDifficulty: dcrutil.Amount(blockHeader.SBits).ToCoin(),
+		NextStakeDifficulty:    dcrutil.Amount(best.NextStakeDiff).ToCoin(),
 	}
-	nextSdiffAmount := dcrutil.Amount(nextSdiff)
-
-	sDiffResult := &types.GetStakeDifficultyResult{
-		CurrentStakeDifficulty: currentSdiff.ToCoin(),
-		NextStakeDifficulty:    nextSdiffAmount.ToCoin(),
-	}
-
-	return sDiffResult, nil
+	return result, nil
 }
 
 // convertVersionMap translates a map[int]int into a sorted array of

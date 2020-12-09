@@ -2222,16 +2222,10 @@ func handleRebroadcastMissed(wsc *wsClient, icmd interface{}) (interface{}, erro
 			err.Error(), "")
 	}
 
-	stakeDiff, err := cfg.Chain.CalcNextRequiredStakeDifficulty()
-	if err != nil {
-		return nil, rpcInternalError("Could not calculate next stake "+
-			"difficulty "+err.Error(), "")
-	}
-
 	missedTicketsNtfn := &blockchain.TicketNotificationsData{
 		Hash:            best.Hash,
 		Height:          best.Height,
-		StakeDifficulty: stakeDiff,
+		StakeDifficulty: best.NextStakeDiff,
 		TicketsSpent:    []chainhash.Hash{},
 		TicketsMissed:   mt,
 		TicketsNew:      []chainhash.Hash{},

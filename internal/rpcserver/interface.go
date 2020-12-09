@@ -251,11 +251,6 @@ type Chain interface {
 	// main chain.
 	BlockHeightByHash(hash *chainhash.Hash) (int64, error)
 
-	// CalcNextRequiredStakeDifficulty calculates the required stake difficulty for
-	// the block after the end of the current best chain based on the active stake
-	// difficulty retarget rules.
-	CalcNextRequiredStakeDifficulty() (int64, error)
-
 	// CalcWantHeight calculates the height of the final block of the previous
 	// interval given a block height.
 	CalcWantHeight(interval, height int64) int64
