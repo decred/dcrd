@@ -3253,6 +3253,16 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB, chainP
 		return nil, err
 	}
 
+	// Dump the blockchain and quit if requested.
+	if cfg.DumpBlockchain != "" {
+		err := dumpBlockChain(s.chainParams, s.chain)
+		if err != nil {
+			return nil, err
+		}
+
+		return nil, fmt.Errorf("closing after dumping blockchain")
+	}
+
 	// Create the background block template generator and CPU miner if the
 	// config has a mining address.
 	if len(cfg.miningAddrs) > 0 {
