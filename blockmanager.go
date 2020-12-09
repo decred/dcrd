@@ -147,19 +147,6 @@ type requestFromPeerResponse struct {
 	err error
 }
 
-// calcNextReqStakeDifficultyResponse is a response sent to the reply channel of a
-// calcNextReqStakeDifficultyMsg query.
-type calcNextReqStakeDifficultyResponse struct {
-	stakeDifficulty int64
-	err             error
-}
-
-// calcNextReqStakeDifficultyMsg is a message type to be sent across the message
-// channel for requesting the required stake difficulty of the next block.
-type calcNextReqStakeDifficultyMsg struct {
-	reply chan calcNextReqStakeDifficultyResponse
-}
-
 // tipGenerationResponse is a response sent to the reply channel of a
 // tipGenerationMsg query.
 type tipGenerationResponse struct {
@@ -1713,13 +1700,6 @@ out:
 					err: err,
 				}
 
-			case calcNextReqStakeDifficultyMsg:
-				stakeDiff, err := b.cfg.Chain.CalcNextRequiredStakeDifficulty()
-				msg.reply <- calcNextReqStakeDifficultyResponse{
-					stakeDifficulty: stakeDiff,
-					err:             err,
-				}
-
 			case forceReorganizationMsg:
 				err := b.cfg.Chain.ForceHeadReorganization(
 					msg.formerBest, msg.newBest)
@@ -2415,18 +2395,6 @@ func (b *blockManager) requestFromPeer(p *peerpkg.Peer, blocks, txs []*chainhash
 	}
 
 	return nil
-}
-
-// CalcNextRequiredStakeDifficulty calculates the required Stake difficulty for
-// the next block after the current main chain.  This function makes use of
-// CalcNextRequiredStakeDifficulty on an internal instance of a block chain.  It is
-// funneled through the block manager since blockchain is not safe for concurrent
-// access.
-func (b *blockManager) CalcNextRequiredStakeDifficulty() (int64, error) {
-	reply := make(chan calcNextReqStakeDifficultyResponse)
-	b.msgChan <- calcNextReqStakeDifficultyMsg{reply: reply}
-	response := <-reply
-	return response.stakeDifficulty, response.err
 }
 
 // ForceReorganization forces a reorganization of the block chain to the block
