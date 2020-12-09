@@ -3191,7 +3191,6 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB, chainP
 			StandardVerifyFlags: func() (txscript.ScriptFlags, error) {
 				return standardScriptVerifyFlags(s.chain)
 			},
-			AcceptSequenceLocks: s.chain.IsFixSeqLocksAgendaActive,
 		},
 		ChainParams: chainParams,
 		NextStakeDifficulty: func() (int64, error) {

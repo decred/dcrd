@@ -216,13 +216,6 @@ type Policy struct {
 	// This function must be safe for concurrent access.
 	StandardVerifyFlags func() (txscript.ScriptFlags, error)
 
-	// AcceptSequenceLocks defines the function to determine whether or not
-	// to accept transactions with sequence locks.  Typically this will be
-	// set depending on the result of the fix sequence locks agenda vote.
-	//
-	// This function must be safe for concurrent access.
-	AcceptSequenceLocks func() (bool, error)
-
 	// EnableAncestorTracking controls whether the mining view tracks
 	// transaction relationships in the mempool.
 	EnableAncestorTracking bool
@@ -1245,32 +1238,6 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 		isTreasuryBase = txType == stake.TxTypeTreasuryBase
 	}
 
-	// Choose whether or not to accept transactions with sequence locks enabled.
-	//
-	// Typically, this will be set based on the result of the fix sequence locks
-	// agenda vote.
-	acceptSeqLocks, err := mp.cfg.Policy.AcceptSequenceLocks()
-	if err != nil {
-		var cerr blockchain.RuleError
-		if errors.As(err, &cerr) {
-			return nil, chainRuleError(cerr)
-		}
-		return nil, err
-	}
-	if !acceptSeqLocks {
-		if msgTx.Version >= 2 && !isVote {
-			for _, txIn := range msgTx.TxIn {
-				sequenceNum := txIn.Sequence
-				if sequenceNum&wire.SequenceLockTimeDisabled != 0 {
-					continue
-				}
-
-				str := "violates sequence lock consensus bug"
-				return nil, txRuleError(ErrInvalid, str)
-			}
-		}
-	}
-
 	// Reject votes before stake validation height.
 	stakeValidationHeight := mp.cfg.ChainParams.StakeValidationHeight
 	if (isVote || isTSpend) && nextBlockHeight < stakeValidationHeight {
@@ -1452,20 +1419,26 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 		return missingParents, nil
 	}
 
-	// Don't allow the transaction into the mempool unless its sequence
-	// lock is active, meaning that it'll be allowed into the next block
-	// with respect to its defined relative lock times.
-	seqLock, err := mp.cfg.CalcSequenceLock(tx, utxoView)
-	if err != nil {
-		var cerr blockchain.RuleError
-		if errors.As(err, &cerr) {
-			return nil, chainRuleError(cerr)
+	// Don't allow the transaction into the mempool unless its sequence lock is
+	// active, meaning that it'll be allowed into the next block with respect to
+	// its defined relative lock times.
+	//
+	// Note that sequence locks do not apply to votes or treasury spend
+	// transactions since they do not involve spending normal utxos.
+	checkSeqLocks := !isVote && !isTSpend
+	if checkSeqLocks {
+		seqLock, err := mp.cfg.CalcSequenceLock(tx, utxoView)
+		if err != nil {
+			var cerr blockchain.RuleError
+			if errors.As(err, &cerr) {
+				return nil, chainRuleError(cerr)
+			}
+			return nil, err
 		}
-		return nil, err
-	}
-	if !blockchain.SequenceLockActive(seqLock, nextBlockHeight, medianTime) {
-		return nil, txRuleError(ErrSeqLockUnmet,
-			"transaction sequence locks on inputs not met")
+		if !blockchain.SequenceLockActive(seqLock, nextBlockHeight, medianTime) {
+			str := "transaction sequence locks on inputs not met"
+			return nil, txRuleError(ErrSeqLockUnmet, str)
+		}
 	}
 
 	// Perform several checks on the transaction inputs using the invariant
@@ -1805,8 +1778,7 @@ func (mp *TxPool) processOrphans(acceptedTx *dcrutil.Tx, isTreasuryEnabled bool)
 		processList[0] = nil
 		processList = processList[1:]
 
-		txType := stake.DetermineTxType(processItem.MsgTx(),
-			isTreasuryEnabled)
+		txType := stake.DetermineTxType(processItem.MsgTx(), isTreasuryEnabled)
 		tree := wire.TxTreeRegular
 		if txType != stake.TxTypeRegular {
 			tree = wire.TxTreeStake

@@ -286,23 +286,6 @@ func (s *fakeChain) AddFakeUtxoMedianTime(tx *dcrutil.Tx, txOutIdx uint32, media
 	s.Unlock()
 }
 
-// AcceptSequenceLocks returns whether or not the pool harness the fake chain
-// is associated with should accept transactions with sequence locks enabled.
-func (s *fakeChain) AcceptSequenceLocks() (bool, error) {
-	s.RLock()
-	acceptSeqLocks := s.acceptSeqLocks
-	s.RUnlock()
-	return acceptSeqLocks, nil
-}
-
-// SetAcceptSequenceLocks sets whether or not the pool harness the fake chain is
-// associated with should accept transactions with sequence locks enabled.
-func (s *fakeChain) SetAcceptSequenceLocks(accept bool) {
-	s.Lock()
-	s.acceptSeqLocks = accept
-	s.Unlock()
-}
-
 // TSpendMinedOnAncestor returns whether the given tx hash has been marked on
 // the fake chain as a tspend that has been mined on an ancestor block.
 func (s *fakeChain) TSpendMinedOnAncestor(txh chainhash.Hash) error {
@@ -803,7 +786,6 @@ func newPoolHarness(chainParams *chaincfg.Params) (*poolHarness, []spendableOutp
 					}
 				}(),
 				StandardVerifyFlags: chain.StandardVerifyFlags,
-				AcceptSequenceLocks: chain.AcceptSequenceLocks,
 			},
 			ChainParams:           chainParams,
 			NextStakeDifficulty:   chain.NextStakeDifficulty,
@@ -1769,95 +1751,79 @@ func TestSequenceLockAcceptance(t *testing.T) {
 		err:        nil,
 	}}
 
-	// Run through the tests twice such that the first time the pool is set to
-	// reject all sequence locks and the second it is not.
-	for _, acceptSeqLocks := range []bool{false, true} {
-		harness, _, err := newPoolHarness(chaincfg.MainNetParams())
+	harness, _, err := newPoolHarness(chaincfg.MainNetParams())
+	if err != nil {
+		t.Fatalf("unable to create test pool: %v", err)
+	}
+	tc := &testContext{t, harness}
+
+	baseHeight := harness.chain.BestHeight()
+	baseTime := time.Now()
+	for i, test := range tests {
+		// Create and add a mock utxo at a common base height so updating the
+		// mock chain height below will cause sequence locks to be evaluated
+		// relative to that height.
+		//
+		// The output value adds the test index in order to ensure the resulting
+		// transaction hash is unique.
+		inputMsgTx := wire.NewMsgTx()
+		inputMsgTx.AddTxOut(&wire.TxOut{
+			PkScript: harness.payScript,
+			Value:    1000000000 + int64(i),
+		})
+		inputTx := dcrutil.NewTx(inputMsgTx)
+		harness.AddFakeUTXO(inputTx, baseHeight)
+		harness.chain.AddFakeUtxoMedianTime(inputTx, 0, baseTime)
+
+		// Create a transaction which spends from the mock utxo with the details
+		// specified in the test data.
+		spendableOut := txOutToSpendableOut(inputTx, 0, wire.TxTreeRegular)
+		inputs := []spendableOutput{spendableOut}
+		tx, err := harness.CreateSignedTx(inputs, 1, func(tx *wire.MsgTx) {
+			tx.Version = test.txVersion
+			tx.TxIn[0].Sequence = test.sequence
+		})
 		if err != nil {
-			t.Fatalf("unable to create test pool: %v", err)
+			t.Fatalf("unable to create tx: %v", err)
 		}
-		tc := &testContext{t, harness}
 
-		harness.chain.SetAcceptSequenceLocks(acceptSeqLocks)
-		baseHeight := harness.chain.BestHeight()
-		baseTime := time.Now()
-		for i, test := range tests {
-			// Create and add a mock utxo at a common base height so updating
-			// the mock chain height below will cause sequence locks to be
-			// evaluated relative to that height.
-			//
-			// The output value adds the test index in order to ensure the
-			// resulting transaction hash is unique.
-			inputMsgTx := wire.NewMsgTx()
-			inputMsgTx.AddTxOut(&wire.TxOut{
-				PkScript: harness.payScript,
-				Value:    1000000000 + int64(i),
-			})
-			inputTx := dcrutil.NewTx(inputMsgTx)
-			harness.AddFakeUTXO(inputTx, baseHeight)
-			harness.chain.AddFakeUtxoMedianTime(inputTx, 0, baseTime)
+		// Set the mock chain height and median time based on the test data and
+		// ensure the transaction is either accepted or rejected as desired.
+		secsOffset := time.Second * time.Duration(test.secsOffset)
+		harness.chain.SetHeight(baseHeight + test.heightOffset)
+		harness.chain.SetPastMedianTime(baseTime.Add(secsOffset))
+		acceptedTxns, err := harness.txPool.ProcessTransaction(tx, false,
+			false, true, 0)
+		if !errors.Is(err, test.err) {
+			t.Fatalf("%s: unexpected err -- got %v, want %v", test.name, err,
+				test.err)
+		}
 
-			// Create a transaction which spends from the mock utxo with the
-			// details specified in the test data.
-			spendableOut := txOutToSpendableOut(inputTx, 0, wire.TxTreeRegular)
-			inputs := []spendableOutput{spendableOut}
-			tx, err := harness.CreateSignedTx(inputs, 1, func(tx *wire.MsgTx) {
-				tx.Version = test.txVersion
-				tx.TxIn[0].Sequence = test.sequence
-			})
-			if err != nil {
-				t.Fatalf("unable to create tx: %v", err)
+		// Ensure the number of reported accepted transactions and pool
+		// membership matches the expected result.
+		shouldHaveAccepted := err == nil
+		switch {
+		case shouldHaveAccepted:
+			// Ensure the transaction was reported as accepted.
+			if len(acceptedTxns) != 1 {
+				t.Fatalf("%s: reported %d accepted transactions from what "+
+					"should be 1", test.name, len(acceptedTxns))
 			}
 
-			// Determine if the test data describes a transaction with an
-			// enabled sequence lock.
-			hasEnabledSeqLock := test.txVersion >= 2 &&
-				test.sequence&wire.SequenceLockTimeDisabled == 0
+			// Ensure the transaction is not in the orphan pool, in the
+			// transaction pool, and reported as available.
+			testPoolMembership(tc, tx, false, true)
 
-			// Set the mock chain height and median time based on the test data
-			// and ensure the transaction is either accepted or rejected as
-			// desired.
-			secsOffset := time.Second * time.Duration(test.secsOffset)
-			harness.chain.SetHeight(baseHeight + test.heightOffset)
-			harness.chain.SetPastMedianTime(baseTime.Add(secsOffset))
-			acceptedTxns, err := harness.txPool.ProcessTransaction(tx, false,
-				false, true, 0)
-			wantErr := test.err
-			if !acceptSeqLocks && hasEnabledSeqLock {
-				wantErr = ErrInvalid
-			}
-			if !errors.Is(err, wantErr) {
-				t.Fatalf("%s: unexpected error -- got %v, want %v", test.name,
-					err, wantErr)
+		case !shouldHaveAccepted:
+			if len(acceptedTxns) != 0 {
+				// Ensure no transactions were reported as accepted.
+				t.Fatalf("%s: reported %d accepted transactions from what "+
+					"should have been rejected", test.name, len(acceptedTxns))
 			}
 
-			// Ensure the number of reported accepted transactions and pool
-			// membership matches the expected result.
-			shouldHaveAccepted := (acceptSeqLocks && test.err == nil) ||
-				(!acceptSeqLocks && !hasEnabledSeqLock)
-			switch {
-			case shouldHaveAccepted:
-				// Ensure the transaction was reported as accepted.
-				if len(acceptedTxns) != 1 {
-					t.Fatalf("%s: reported %d accepted transactions from what "+
-						"should be 1", test.name, len(acceptedTxns))
-				}
-
-				// Ensure the transaction is not in the orphan pool, in the
-				// transaction pool, and reported as available.
-				testPoolMembership(tc, tx, false, true)
-
-			case !shouldHaveAccepted:
-				if len(acceptedTxns) != 0 {
-					// Ensure no transactions were reported as accepted.
-					t.Fatalf("%s: reported %d accepted transactions from what "+
-						"should have been rejected", test.name, len(acceptedTxns))
-				}
-
-				// Ensure the transaction is not in the orphan pool, not in the
-				// transaction pool, and not reported as available.
-				testPoolMembership(tc, tx, false, false)
-			}
+			// Ensure the transaction is not in the orphan pool, not in the
+			// transaction pool, and not reported as available.
+			testPoolMembership(tc, tx, false, false)
 		}
 	}
 }
