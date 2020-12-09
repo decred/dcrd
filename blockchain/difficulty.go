@@ -712,13 +712,18 @@ func (b *BlockChain) calcNextRequiredStakeDifficulty(curNode *blockNode) (int64,
 }
 
 // CalcNextRequiredStakeDifficulty calculates the required stake difficulty for
-// the block after the end of the current best chain based on the active stake
-// difficulty retarget rules.
+// the block after the given block based on the active stake difficulty retarget
+// rules.
 //
 // This function is safe for concurrent access.
-func (b *BlockChain) CalcNextRequiredStakeDifficulty() (int64, error) {
+func (b *BlockChain) CalcNextRequiredStakeDifficulty(hash *chainhash.Hash) (int64, error) {
+	node := b.index.LookupNode(hash)
+	if node == nil {
+		return 0, unknownBlockError(hash)
+	}
+
 	b.chainLock.Lock()
-	nextDiff, err := b.calcNextRequiredStakeDifficulty(b.bestChain.Tip())
+	nextDiff, err := b.calcNextRequiredStakeDifficulty(node)
 	b.chainLock.Unlock()
 	return nextDiff, err
 }
