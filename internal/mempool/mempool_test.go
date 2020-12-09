@@ -1627,171 +1627,147 @@ func TestSequenceLockAcceptance(t *testing.T) {
 		heightOffset int64  // mock chain height offset at which to evaluate.
 		secsOffset   int64  // mock median time offset at which to evaluate.
 		valid        bool   // whether tx is valid when enforcing seq locks.
-	}{
-		{
-			name:         "By-height lock with seq == height == 0",
-			txVersion:    2,
-			sequence:     mustLockTimeToSeq(false, 0),
-			heightOffset: 0,
-			valid:        true,
-		},
-		{
-			// The mempool is for transactions to be included in the next block
-			// so sequence locks are calculated based on that point of view.
-			// Thus, a sequence lock of one for an input created at the current
-			// height will be satisfied.
-			name:         "By-height lock with seq == 1, height == 0",
-			txVersion:    2,
-			sequence:     mustLockTimeToSeq(false, 1),
-			heightOffset: 0,
-			valid:        true,
-		},
-		{
-			name:         "By-height lock with seq == height == 65535",
-			txVersion:    2,
-			sequence:     mustLockTimeToSeq(false, 65535),
-			heightOffset: 65534,
-			valid:        true,
-		},
-		{
-			name:         "By-height lock with masked max seq == height",
-			txVersion:    2,
-			sequence:     0xffffffff &^ seqLockTimeDisabled &^ seqLockTimeIsSecs,
-			heightOffset: 65534,
-			valid:        true,
-		},
-		{
-			name:         "By-height lock with unsatisfied seq == 2",
-			txVersion:    2,
-			sequence:     mustLockTimeToSeq(false, 2),
-			heightOffset: 0,
-			valid:        false,
-		},
-		{
-			name:         "By-height lock with unsatisfied masked max sequence",
-			txVersion:    2,
-			sequence:     0xffffffff &^ seqLockTimeDisabled &^ seqLockTimeIsSecs,
-			heightOffset: 65533,
-			valid:        false,
-		},
-		{
-			name:       "By-time lock with seq == elapsed == 0",
-			txVersion:  2,
-			sequence:   mustLockTimeToSeq(true, 0),
-			secsOffset: 0,
-			valid:      true,
-		},
-		{
-			name:       "By-time lock with seq == elapsed == max",
-			txVersion:  2,
-			sequence:   mustLockTimeToSeq(true, seqIntervalToSecs(65535)),
-			secsOffset: int64(seqIntervalToSecs(65535)),
-			valid:      true,
-		},
-		{
-			name:       "By-time lock with unsatisfied seq == 1024",
-			txVersion:  2,
-			sequence:   mustLockTimeToSeq(true, seqIntervalToSecs(2)),
-			secsOffset: int64(seqIntervalToSecs(1)),
-			valid:      false,
-		},
-		{
-			name:       "By-time lock with unsatisfied masked max sequence",
-			txVersion:  2,
-			sequence:   0xffffffff &^ seqLockTimeDisabled,
-			secsOffset: int64(seqIntervalToSecs(65534)),
-			valid:      false,
-		},
-		{
-			name:         "Disabled by-height lock with seq == height == 0",
-			txVersion:    2,
-			sequence:     mustLockTimeToSeq(false, 0) | seqLockTimeDisabled,
-			heightOffset: 0,
-			valid:        true,
-		},
-		{
-			name:         "Disabled by-height lock with unsatisfied sequence",
-			txVersion:    2,
-			sequence:     mustLockTimeToSeq(false, 2) | seqLockTimeDisabled,
-			heightOffset: 0,
-			valid:        true,
-		},
-		{
-			name:       "Disabled by-time lock with seq == elapsed == 0",
-			txVersion:  2,
-			sequence:   mustLockTimeToSeq(true, 0) | seqLockTimeDisabled,
-			secsOffset: 0,
-			valid:      true,
-		},
-		{
-			name:      "Disabled by-time lock with unsatisfied seq == 1024",
-			txVersion: 2,
-			sequence: mustLockTimeToSeq(true, seqIntervalToSecs(2)) |
-				seqLockTimeDisabled,
-			secsOffset: int64(seqIntervalToSecs(1)),
-			valid:      true,
-		},
-
+	}{{
+		name:         "By-height lock with seq == height == 0",
+		txVersion:    2,
+		sequence:     mustLockTimeToSeq(false, 0),
+		heightOffset: 0,
+		valid:        true,
+	}, {
+		// The mempool is for transactions to be included in the next block so
+		// sequence locks are calculated based on that point of view.  Thus, a
+		// sequence lock of one for an input created at the current height will
+		// be satisfied.
+		name:         "By-height lock with seq == 1, height == 0",
+		txVersion:    2,
+		sequence:     mustLockTimeToSeq(false, 1),
+		heightOffset: 0,
+		valid:        true,
+	}, {
+		name:         "By-height lock with seq == height == 65535",
+		txVersion:    2,
+		sequence:     mustLockTimeToSeq(false, 65535),
+		heightOffset: 65534,
+		valid:        true,
+	}, {
+		name:         "By-height lock with masked max seq == height",
+		txVersion:    2,
+		sequence:     0xffffffff &^ seqLockTimeDisabled &^ seqLockTimeIsSecs,
+		heightOffset: 65534,
+		valid:        true,
+	}, {
+		name:         "By-height lock with unsatisfied seq == 2",
+		txVersion:    2,
+		sequence:     mustLockTimeToSeq(false, 2),
+		heightOffset: 0,
+		valid:        false,
+	}, {
+		name:         "By-height lock with unsatisfied masked max sequence",
+		txVersion:    2,
+		sequence:     0xffffffff &^ seqLockTimeDisabled &^ seqLockTimeIsSecs,
+		heightOffset: 65533,
+		valid:        false,
+	}, {
+		name:       "By-time lock with seq == elapsed == 0",
+		txVersion:  2,
+		sequence:   mustLockTimeToSeq(true, 0),
+		secsOffset: 0,
+		valid:      true,
+	}, {
+		name:       "By-time lock with seq == elapsed == max",
+		txVersion:  2,
+		sequence:   mustLockTimeToSeq(true, seqIntervalToSecs(65535)),
+		secsOffset: int64(seqIntervalToSecs(65535)),
+		valid:      true,
+	}, {
+		name:       "By-time lock with unsatisfied seq == 1024",
+		txVersion:  2,
+		sequence:   mustLockTimeToSeq(true, seqIntervalToSecs(2)),
+		secsOffset: int64(seqIntervalToSecs(1)),
+		valid:      false,
+	}, {
+		name:       "By-time lock with unsatisfied masked max sequence",
+		txVersion:  2,
+		sequence:   0xffffffff &^ seqLockTimeDisabled,
+		secsOffset: int64(seqIntervalToSecs(65534)),
+		valid:      false,
+	}, {
+		name:         "Disabled by-height lock with seq == height == 0",
+		txVersion:    2,
+		sequence:     mustLockTimeToSeq(false, 0) | seqLockTimeDisabled,
+		heightOffset: 0,
+		valid:        true,
+	}, {
+		name:         "Disabled by-height lock with unsatisfied sequence",
+		txVersion:    2,
+		sequence:     mustLockTimeToSeq(false, 2) | seqLockTimeDisabled,
+		heightOffset: 0,
+		valid:        true,
+	}, {
+		name:       "Disabled by-time lock with seq == elapsed == 0",
+		txVersion:  2,
+		sequence:   mustLockTimeToSeq(true, 0) | seqLockTimeDisabled,
+		secsOffset: 0,
+		valid:      true,
+	}, {
+		name:      "Disabled by-time lock with unsatisfied seq == 1024",
+		txVersion: 2,
+		sequence: mustLockTimeToSeq(true, seqIntervalToSecs(2)) |
+			seqLockTimeDisabled,
+		secsOffset: int64(seqIntervalToSecs(1)),
+		valid:      true,
+	}, {
 		// The following section uses version 1 transactions which are not
 		// subject to sequence locks.
-		{
-			name:         "By-height lock with seq == height == 0 (v1)",
-			txVersion:    1,
-			sequence:     mustLockTimeToSeq(false, 0),
-			heightOffset: 0,
-			valid:        true,
-		},
-		{
-			name:         "By-height lock with unsatisfied seq == 2 (v1)",
-			txVersion:    1,
-			sequence:     mustLockTimeToSeq(false, 2),
-			heightOffset: 0,
-			valid:        true,
-		},
-		{
-			name:       "By-time lock with seq == elapsed == 0 (v1)",
-			txVersion:  1,
-			sequence:   mustLockTimeToSeq(true, 0),
-			secsOffset: 0,
-			valid:      true,
-		},
-		{
-			name:       "By-time lock with unsatisfied seq == 1024 (v1)",
-			txVersion:  1,
-			sequence:   mustLockTimeToSeq(true, seqIntervalToSecs(2)),
-			secsOffset: int64(seqIntervalToSecs(1)),
-			valid:      true,
-		},
-		{
-			name:         "Disabled by-height lock with seq == height == 0 (v1)",
-			txVersion:    1,
-			sequence:     mustLockTimeToSeq(false, 0) | seqLockTimeDisabled,
-			heightOffset: 0,
-			valid:        true,
-		},
-		{
-			name:         "Disabled by-height lock with unsatisfied seq (v1)",
-			txVersion:    1,
-			sequence:     mustLockTimeToSeq(false, 2) | seqLockTimeDisabled,
-			heightOffset: 0,
-			valid:        true,
-		},
-		{
-			name:       "Disabled by-time lock with seq == elapsed == 0 (v1)",
-			txVersion:  1,
-			sequence:   mustLockTimeToSeq(true, 0) | seqLockTimeDisabled,
-			secsOffset: 0,
-			valid:      true,
-		},
-		{
-			name:      "Disabled by-time lock with unsatisfied seq == 1024 (v1)",
-			txVersion: 1,
-			sequence: mustLockTimeToSeq(true, seqIntervalToSecs(2)) |
-				seqLockTimeDisabled,
-			secsOffset: int64(seqIntervalToSecs(1)),
-			valid:      true,
-		},
-	}
+		name:         "By-height lock with seq == height == 0 (v1)",
+		txVersion:    1,
+		sequence:     mustLockTimeToSeq(false, 0),
+		heightOffset: 0,
+		valid:        true,
+	}, {
+		name:         "By-height lock with unsatisfied seq == 2 (v1)",
+		txVersion:    1,
+		sequence:     mustLockTimeToSeq(false, 2),
+		heightOffset: 0,
+		valid:        true,
+	}, {
+		name:       "By-time lock with seq == elapsed == 0 (v1)",
+		txVersion:  1,
+		sequence:   mustLockTimeToSeq(true, 0),
+		secsOffset: 0,
+		valid:      true,
+	}, {
+		name:       "By-time lock with unsatisfied seq == 1024 (v1)",
+		txVersion:  1,
+		sequence:   mustLockTimeToSeq(true, seqIntervalToSecs(2)),
+		secsOffset: int64(seqIntervalToSecs(1)),
+		valid:      true,
+	}, {
+		name:         "Disabled by-height lock with seq == height == 0 (v1)",
+		txVersion:    1,
+		sequence:     mustLockTimeToSeq(false, 0) | seqLockTimeDisabled,
+		heightOffset: 0,
+		valid:        true,
+	}, {
+		name:         "Disabled by-height lock with unsatisfied seq (v1)",
+		txVersion:    1,
+		sequence:     mustLockTimeToSeq(false, 2) | seqLockTimeDisabled,
+		heightOffset: 0,
+		valid:        true,
+	}, {
+		name:       "Disabled by-time lock with seq == elapsed == 0 (v1)",
+		txVersion:  1,
+		sequence:   mustLockTimeToSeq(true, 0) | seqLockTimeDisabled,
+		secsOffset: 0,
+		valid:      true,
+	}, {
+		name:      "Disabled by-time lock with unsatisfied seq == 1024 (v1)",
+		txVersion: 1,
+		sequence: mustLockTimeToSeq(true, seqIntervalToSecs(2)) |
+			seqLockTimeDisabled,
+		secsOffset: int64(seqIntervalToSecs(1)),
+		valid:      true,
+	}}
 
 	// Run through the tests twice such that the first time the pool is set to
 	// reject all sequence locks and the second it is not.
