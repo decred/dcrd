@@ -1626,13 +1626,13 @@ func TestSequenceLockAcceptance(t *testing.T) {
 		sequence     uint32 // sequence number used for input.
 		heightOffset int64  // mock chain height offset at which to evaluate.
 		secsOffset   int64  // mock median time offset at which to evaluate.
-		valid        bool   // whether tx is valid when enforcing seq locks.
+		err          error  // expected error when enforcing seq locks.
 	}{{
 		name:         "By-height lock with seq == height == 0",
 		txVersion:    2,
 		sequence:     mustLockTimeToSeq(false, 0),
 		heightOffset: 0,
-		valid:        true,
+		err:          nil,
 	}, {
 		// The mempool is for transactions to be included in the next block so
 		// sequence locks are calculated based on that point of view.  Thus, a
@@ -1642,80 +1642,80 @@ func TestSequenceLockAcceptance(t *testing.T) {
 		txVersion:    2,
 		sequence:     mustLockTimeToSeq(false, 1),
 		heightOffset: 0,
-		valid:        true,
+		err:          nil,
 	}, {
 		name:         "By-height lock with seq == height == 65535",
 		txVersion:    2,
 		sequence:     mustLockTimeToSeq(false, 65535),
 		heightOffset: 65534,
-		valid:        true,
+		err:          nil,
 	}, {
 		name:         "By-height lock with masked max seq == height",
 		txVersion:    2,
 		sequence:     0xffffffff &^ seqLockTimeDisabled &^ seqLockTimeIsSecs,
 		heightOffset: 65534,
-		valid:        true,
+		err:          nil,
 	}, {
 		name:         "By-height lock with unsatisfied seq == 2",
 		txVersion:    2,
 		sequence:     mustLockTimeToSeq(false, 2),
 		heightOffset: 0,
-		valid:        false,
+		err:          ErrSeqLockUnmet,
 	}, {
 		name:         "By-height lock with unsatisfied masked max sequence",
 		txVersion:    2,
 		sequence:     0xffffffff &^ seqLockTimeDisabled &^ seqLockTimeIsSecs,
 		heightOffset: 65533,
-		valid:        false,
+		err:          ErrSeqLockUnmet,
 	}, {
 		name:       "By-time lock with seq == elapsed == 0",
 		txVersion:  2,
 		sequence:   mustLockTimeToSeq(true, 0),
 		secsOffset: 0,
-		valid:      true,
+		err:        nil,
 	}, {
 		name:       "By-time lock with seq == elapsed == max",
 		txVersion:  2,
 		sequence:   mustLockTimeToSeq(true, seqIntervalToSecs(65535)),
 		secsOffset: int64(seqIntervalToSecs(65535)),
-		valid:      true,
+		err:        nil,
 	}, {
 		name:       "By-time lock with unsatisfied seq == 1024",
 		txVersion:  2,
 		sequence:   mustLockTimeToSeq(true, seqIntervalToSecs(2)),
 		secsOffset: int64(seqIntervalToSecs(1)),
-		valid:      false,
+		err:        ErrSeqLockUnmet,
 	}, {
 		name:       "By-time lock with unsatisfied masked max sequence",
 		txVersion:  2,
 		sequence:   0xffffffff &^ seqLockTimeDisabled,
 		secsOffset: int64(seqIntervalToSecs(65534)),
-		valid:      false,
+		err:        ErrSeqLockUnmet,
 	}, {
 		name:         "Disabled by-height lock with seq == height == 0",
 		txVersion:    2,
 		sequence:     mustLockTimeToSeq(false, 0) | seqLockTimeDisabled,
 		heightOffset: 0,
-		valid:        true,
+		err:          nil,
 	}, {
 		name:         "Disabled by-height lock with unsatisfied sequence",
 		txVersion:    2,
 		sequence:     mustLockTimeToSeq(false, 2) | seqLockTimeDisabled,
 		heightOffset: 0,
-		valid:        true,
+		err:          nil,
 	}, {
 		name:       "Disabled by-time lock with seq == elapsed == 0",
 		txVersion:  2,
 		sequence:   mustLockTimeToSeq(true, 0) | seqLockTimeDisabled,
 		secsOffset: 0,
-		valid:      true,
+		err:        nil,
 	}, {
 		name:      "Disabled by-time lock with unsatisfied seq == 1024",
 		txVersion: 2,
 		sequence: mustLockTimeToSeq(true, seqIntervalToSecs(2)) |
 			seqLockTimeDisabled,
 		secsOffset: int64(seqIntervalToSecs(1)),
-		valid:      true,
+		err:        nil,
 	}, {
 		// The following section uses version 1 transactions which are not
 		// subject to sequence locks.
@@ -1723,50 +1723,50 @@ func TestSequenceLockAcceptance(t *testing.T) {
 		txVersion:    1,
 		sequence:     mustLockTimeToSeq(false, 0),
 		heightOffset: 0,
-		valid:        true,
+		err:          nil,
 	}, {
 		name:         "By-height lock with unsatisfied seq == 2 (v1)",
 		txVersion:    1,
 		sequence:     mustLockTimeToSeq(false, 2),
 		heightOffset: 0,
-		valid:        true,
+		err:          nil,
 	}, {
 		name:       "By-time lock with seq == elapsed == 0 (v1)",
 		txVersion:  1,
 		sequence:   mustLockTimeToSeq(true, 0),
 		secsOffset: 0,
-		valid:      true,
+		err:        nil,
 	}, {
 		name:       "By-time lock with unsatisfied seq == 1024 (v1)",
 		txVersion:  1,
 		sequence:   mustLockTimeToSeq(true, seqIntervalToSecs(2)),
 		secsOffset: int64(seqIntervalToSecs(1)),
-		valid:      true,
+		err:        nil,
 	}, {
 		name:         "Disabled by-height lock with seq == height == 0 (v1)",
 		txVersion:    1,
 		sequence:     mustLockTimeToSeq(false, 0) | seqLockTimeDisabled,
 		heightOffset: 0,
-		valid:        true,
+		err:          nil,
 	}, {
 		name:         "Disabled by-height lock with unsatisfied seq (v1)",
 		txVersion:    1,
 		sequence:     mustLockTimeToSeq(false, 2) | seqLockTimeDisabled,
 		heightOffset: 0,
-		valid:        true,
+		err:          nil,
 	}, {
 		name:       "Disabled by-time lock with seq == elapsed == 0 (v1)",
 		txVersion:  1,
 		sequence:   mustLockTimeToSeq(true, 0) | seqLockTimeDisabled,
 		secsOffset: 0,
-		valid:      true,
+		err:        nil,
 	}, {
 		name:      "Disabled by-time lock with unsatisfied seq == 1024 (v1)",
 		txVersion: 1,
 		sequence: mustLockTimeToSeq(true, seqIntervalToSecs(2)) |
 			seqLockTimeDisabled,
 		secsOffset: int64(seqIntervalToSecs(1)),
-		valid:      true,
+		err:        nil,
 	}}
 
 	// Run through the tests twice such that the first time the pool is set to
@@ -1822,28 +1822,18 @@ func TestSequenceLockAcceptance(t *testing.T) {
 			harness.chain.SetPastMedianTime(baseTime.Add(secsOffset))
 			acceptedTxns, err := harness.txPool.ProcessTransaction(tx, false,
 				false, true, 0)
-			switch {
-			case !acceptSeqLocks && hasEnabledSeqLock && err == nil:
-				t.Fatalf("%s: did not reject tx when seq locks are not allowed",
-					test.name)
-
-			case !acceptSeqLocks && !hasEnabledSeqLock && err != nil:
-				t.Fatalf("%s: did not accept tx: %v", test.name, err)
-
-			case acceptSeqLocks && test.valid && err != nil:
-				t.Fatalf("%s: did not accept tx: %v", test.name, err)
-
-			case acceptSeqLocks && !test.valid && err == nil:
-				t.Fatalf("%s: did not reject tx", test.name)
-
-			case acceptSeqLocks && !test.valid && !errors.Is(err, ErrSeqLockUnmet):
-				t.Fatalf("%s: did not get expected ErrSeqLockUnmet",
-					test.name)
+			wantErr := test.err
+			if !acceptSeqLocks && hasEnabledSeqLock {
+				wantErr = ErrInvalid
+			}
+			if !errors.Is(err, wantErr) {
+				t.Fatalf("%s: unexpected error -- got %v, want %v", test.name,
+					err, wantErr)
 			}
 
 			// Ensure the number of reported accepted transactions and pool
 			// membership matches the expected result.
-			shouldHaveAccepted := (acceptSeqLocks && test.valid) ||
+			shouldHaveAccepted := (acceptSeqLocks && test.err == nil) ||
 				(!acceptSeqLocks && !hasEnabledSeqLock)
 			switch {
 			case shouldHaveAccepted:
