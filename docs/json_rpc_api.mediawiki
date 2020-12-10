@@ -549,7 +549,7 @@ the method name for further details such as parameter and return information.
 : Dynamically changes the debug logging level.
 : The levelspec can either be a debug level or of the form <code><subsystem>=<level>,<subsystem2>=<level2>,...</code>
 : The valid debug levels are <code>trace</code>, <code>debug</code>, <code>info</code>, <code>warn</code>, <code>error</code>, and <code>critical</code>.
-: The valid subsystems are <code>AMGR</code>, <code>ADXR</code>, <code>BCDB</code>, <code>BMGR</code>, <code>DCRD</code>, <code>CHAN</code>, <code>DISC</code>, <code>PEER</code>, <code>RPCS</code>, <code>SCRP</code>, <code>SRVR</code>, and <code>TXMP</code>.
+: The valid subsystems are <code>AMGR</code>, <code>ADXR</code>, <code>BCDB</code>, <code>DCRD</code>, <code>CHAN</code>, <code>DISC</code>, <code>PEER</code>, <code>RPCS</code>, <code>SCRP</code>, <code>SRVR</code>, <code>SYNC</code>, and <code>TXMP</code>.
 : Additionally, the special keyword <code>show</code> can be used to get a list of the available subsystems.
 |-
 !Returns
@@ -559,7 +559,7 @@ the method name for further details such as parameter and return information.
 |<code>Done.</code>
 |-
 !Example <code>show</code> Return
-|<code>Supported subsystems [AMGR ADXR BCDB BMGR DCRD CHAN DISC PEER RPCS SCRP SRVR TXMP]</code>
+|<code>Supported subsystems [AMGR ADXR BCDB DCRD CHAN DISC PEER RPCS SCRP SRVR SYNC TXMP]</code>
 |}
 
 ----

@@ -244,7 +244,7 @@ func dumpBlockChain(params *chaincfg.Params, b *blockchain.BlockChain) error {
 		progressLogger.LogBlockHeight(bl.MsgBlock(), tipHeight)
 	}
 
-	bmgrLog.Infof("Successfully dumped the blockchain (%v blocks) to %v.",
+	srvrLog.Infof("Successfully dumped the blockchain (%v blocks) to %v.",
 		tipHeight, cfg.DumpBlockchain)
 
 	return nil

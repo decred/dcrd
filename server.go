@@ -2647,7 +2647,7 @@ func (s *server) handleBlockchainNotification(notification *blockchain.Notificat
 		// which could result in a deadlock.
 		block, ok := notification.Data.(*dcrutil.Block)
 		if !ok {
-			bmgrLog.Warnf("New tip block checked notification is not a block.")
+			syncLog.Warnf("New tip block checked notification is not a block.")
 			break
 		}
 
@@ -2671,7 +2671,7 @@ func (s *server) handleBlockchainNotification(notification *blockchain.Notificat
 
 		band, ok := notification.Data.(*blockchain.BlockAcceptedNtfnsData)
 		if !ok {
-			bmgrLog.Warnf("Chain accepted notification is not " +
+			syncLog.Warnf("Chain accepted notification is not " +
 				"BlockAcceptedNtfnsData.")
 			break
 		}
@@ -2715,7 +2715,7 @@ func (s *server) handleBlockchainNotification(notification *blockchain.Notificat
 			// blockchain.
 			wt, _, _, err := s.chain.LotteryDataForBlock(blockHash)
 			if err != nil {
-				bmgrLog.Errorf("Couldn't calculate winning tickets for "+
+				syncLog.Errorf("Couldn't calculate winning tickets for "+
 					"accepted block %v: %v", blockHash, err.Error())
 			} else {
 				// Notify registered websocket clients of newly eligible tickets
@@ -2760,8 +2760,8 @@ func (s *server) handleBlockchainNotification(notification *blockchain.Notificat
 	case blockchain.NTBlockConnected:
 		ntfn, ok := notification.Data.(*blockchain.BlockConnectedNtfnsData)
 		if !ok {
-			bmgrLog.Warnf("Block connected notification is not " +
-				"BlockConnectedNtfnsData.")
+			syncLog.Warnf("Block connected notification is not " +
+				"BlockConnectedNtfnsData")
 			break
 		}
 		block := ntfn.Block
@@ -2870,7 +2870,7 @@ func (s *server) handleBlockchainNotification(notification *blockchain.Notificat
 	case blockchain.NTSpentAndMissedTickets:
 		tnd, ok := notification.Data.(*blockchain.TicketNotificationsData)
 		if !ok {
-			bmgrLog.Warnf("Tickets connected notification is not " +
+			syncLog.Warnf("Tickets connected notification is not " +
 				"TicketNotificationsData")
 			break
 		}
@@ -2883,7 +2883,7 @@ func (s *server) handleBlockchainNotification(notification *blockchain.Notificat
 	case blockchain.NTNewTickets:
 		tnd, ok := notification.Data.(*blockchain.TicketNotificationsData)
 		if !ok {
-			bmgrLog.Warnf("Tickets connected notification is not " +
+			syncLog.Warnf("Tickets connected notification is not " +
 				"TicketNotificationsData")
 			break
 		}
@@ -2896,7 +2896,7 @@ func (s *server) handleBlockchainNotification(notification *blockchain.Notificat
 	case blockchain.NTBlockDisconnected:
 		ntfn, ok := notification.Data.(*blockchain.BlockDisconnectedNtfnsData)
 		if !ok {
-			bmgrLog.Warnf("Block disconnected notification is not " +
+			syncLog.Warnf("Block disconnected notification is not " +
 				"BlockDisconnectedNtfnsData.")
 			break
 		}
@@ -2989,7 +2989,7 @@ func (s *server) handleBlockchainNotification(notification *blockchain.Notificat
 	case blockchain.NTReorganization:
 		rd, ok := notification.Data.(*blockchain.ReorganizationNtfnsData)
 		if !ok {
-			bmgrLog.Warnf("Chain reorganization notification is malformed")
+			syncLog.Warnf("Chain reorganization notification is malformed")
 			break
 		}
 

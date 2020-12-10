@@ -60,7 +60,6 @@ var (
 	adxrLog = backendLog.Logger("ADXR")
 	amgrLog = backendLog.Logger("AMGR")
 	bcdbLog = backendLog.Logger("BCDB")
-	bmgrLog = backendLog.Logger("BMGR")
 	chanLog = backendLog.Logger("CHAN")
 	cmgrLog = backendLog.Logger("CMGR")
 	dcrdLog = backendLog.Logger("DCRD")
@@ -73,6 +72,7 @@ var (
 	scrpLog = backendLog.Logger("SCRP")
 	srvrLog = backendLog.Logger("SRVR")
 	stkeLog = backendLog.Logger("STKE")
+	syncLog = backendLog.Logger("SYNC")
 	txmpLog = backendLog.Logger("TXMP")
 	trsyLog = backendLog.Logger("TRSY")
 )
@@ -100,7 +100,6 @@ var subsystemLoggers = map[string]slog.Logger{
 	"ADXR": adxrLog,
 	"AMGR": amgrLog,
 	"BCDB": bcdbLog,
-	"BMGR": bmgrLog,
 	"CHAN": chanLog,
 	"CMGR": cmgrLog,
 	"DCRD": dcrdLog,
@@ -113,6 +112,7 @@ var subsystemLoggers = map[string]slog.Logger{
 	"SCRP": scrpLog,
 	"SRVR": srvrLog,
 	"STKE": stkeLog,
+	"SYNC": syncLog,
 	"TXMP": txmpLog,
 	"TRSY": trsyLog,
 }
