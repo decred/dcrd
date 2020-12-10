@@ -465,8 +465,6 @@ func (g *BgBlkTmplGenerator) notifySubscribersHandler(ctx context.Context) {
 	for {
 		select {
 		case templateNtfn := <-g.notifySubscribers:
-			g.tg.cfg.BlockManager.NotifyWork(templateNtfn)
-
 			g.subscriptionMtx.Lock()
 			for subscription := range g.subscriptions {
 				subscription.publishTemplateNtfn(templateNtfn)

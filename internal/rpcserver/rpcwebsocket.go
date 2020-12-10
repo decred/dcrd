@@ -885,8 +885,7 @@ func updateReasonToWorkNtfnString(reason mining.TemplateUpdateReason) string {
 
 // notifyWork notifies websocket clients that have registered for template
 // updates when a new block template is generated.
-func (m *wsNotificationManager) notifyWork(clients map[chan struct{}]*wsClient,
-	templateNtfn *mining.TemplateNtfn) {
+func (m *wsNotificationManager) notifyWork(clients map[chan struct{}]*wsClient, templateNtfn *mining.TemplateNtfn) {
 	// Skip notification creation if no clients have requested work
 	// notifications.
 	if len(clients) == 0 {

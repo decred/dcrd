@@ -5513,12 +5513,6 @@ func (s *Server) NotifyNewTransactions(txns []*dcrutil.Tx) {
 	}
 }
 
-// NotifyWork notifies websocket clients that have registered for new mining
-// work.
-func (s *Server) NotifyWork(templateNtfn *mining.TemplateNtfn) {
-	s.ntfnMgr.NotifyWork(templateNtfn)
-}
-
 // NotifyTSpend notifies websocket clients that have registered to receive new
 // tspends in the mempool.
 func (s *Server) NotifyTSpend(tx *dcrutil.Tx) {
@@ -6088,6 +6082,27 @@ func (s *Server) Run(ctx context.Context) {
 			log.Tracef("RPC listener done for %s", listener.Addr())
 			s.wg.Done()
 		}(listener)
+	}
+
+	// Subscribe for async work notifications when background template
+	// generation is enabled.
+	if len(s.cfg.MiningAddrs) > 0 && s.cfg.BlockTemplater != nil {
+		s.wg.Add(1)
+		go func(s *Server, ctx context.Context) {
+			templateSub := s.cfg.BlockTemplater.Subscribe()
+			defer templateSub.Stop()
+
+			for {
+				select {
+				case templateNtfn := <-templateSub.C():
+					s.ntfnMgr.NotifyWork(templateNtfn)
+
+				case <-ctx.Done():
+					s.wg.Done()
+					return
+				}
+			}
+		}(s, ctx)
 	}
 
 	s.ntfnMgr.Run(ctx)

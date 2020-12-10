@@ -665,8 +665,7 @@ type NtfnManager interface {
 	// for processing.
 	NotifyBlockDisconnected(block *dcrutil.Block)
 
-	// NotifyWork passes new mining work to the manager for
-	// processing.
+	// NotifyWork passes new mining work to the manager for processing.
 	NotifyWork(templateNtfn *mining.TemplateNtfn)
 
 	// NotifyTSpend passes new tspends to the manager for processing.

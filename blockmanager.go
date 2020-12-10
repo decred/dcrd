@@ -359,14 +359,6 @@ func (b *blockManager) resetHeaderState(newestHash *chainhash.Hash, newestHeight
 	}
 }
 
-// NotifyWork passes new mining work to the notification manager
-// for block notification processing.
-func (b *blockManager) NotifyWork(templateNtfn *mining.TemplateNtfn) {
-	if r := b.cfg.RpcServer(); r != nil {
-		r.NotifyWork(templateNtfn)
-	}
-}
-
 // SyncHeight returns latest known block being synced to.
 func (b *blockManager) SyncHeight() int64 {
 	b.syncHeightMtx.Lock()

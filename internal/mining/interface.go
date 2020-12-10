@@ -70,8 +70,4 @@ type blockManagerFacade interface {
 	// IsCurrent returns whether or not the block manager believes it is synced
 	// with the connected peers.
 	IsCurrent() bool
-
-	// NotifyWork passes new mining work to the notification manager for block
-	// notification processing.
-	NotifyWork(templateNtfn *TemplateNtfn)
 }
