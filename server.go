@@ -42,6 +42,7 @@ import (
 	"github.com/decred/dcrd/internal/mempool"
 	"github.com/decred/dcrd/internal/mining"
 	"github.com/decred/dcrd/internal/mining/cpuminer"
+	"github.com/decred/dcrd/internal/netsync"
 	"github.com/decred/dcrd/internal/rpcserver"
 	"github.com/decred/dcrd/internal/version"
 	"github.com/decred/dcrd/lru"
@@ -462,7 +463,7 @@ type server struct {
 	sigCache             *txscript.SigCache
 	subsidyCache         *standalone.SubsidyCache
 	rpcServer            *rpcserver.Server
-	syncManager          syncManager
+	syncManager          netsync.SyncManager
 	bg                   *mining.BgBlkTmplGenerator
 	chain                *blockchain.BlockChain
 	txMemPool            *mempool.TxPool
@@ -3645,12 +3646,11 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB, chainP
 		},
 	}
 	s.txMemPool = mempool.New(&txC)
-	s.syncManager, err = newBlockManager(&blockManagerConfig{
+	s.syncManager, err = netsync.New(&netsync.Config{
 		PeerNotifier: &s,
 		Chain:        s.chain,
 		ChainParams:  s.chainParams,
 		SigCache:     s.sigCache,
-		SubsidyCache: s.subsidyCache,
 		TxMemPool:    s.txMemPool,
 		RpcServer: func() *rpcserver.Server {
 			return s.rpcServer
