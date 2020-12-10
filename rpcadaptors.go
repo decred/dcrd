@@ -311,7 +311,7 @@ func (*rpcConnManager) Lookup(host string) ([]net.IP, error) {
 // rpcserver.SyncManager interface.
 type rpcSyncMgr struct {
 	server  *server
-	syncMgr netsync.SyncManager
+	syncMgr *netsync.SyncManager
 }
 
 // Ensure rpcSyncMgr implements the rpcserver.SyncManager interface.
