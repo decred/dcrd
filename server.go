@@ -813,7 +813,7 @@ func (sp *serverPeer) OnGetMiningState(p *peer.Peer, msg *wire.MsgGetMiningState
 	// mining state message.  There is nothing to send when there are no
 	// eligible blocks.
 	blockHashes := mining.SortParentsByVotes(mp, best.Hash, children,
-		bm.cfg.ChainParams)
+		sp.server.chainParams)
 	numBlocks := len(blockHashes)
 	if numBlocks == 0 {
 		return
@@ -904,7 +904,7 @@ func (sp *serverPeer) OnGetInitState(p *peer.Peer, msg *wire.MsgGetInitState) {
 		// block hashes per init state message.  There is nothing to
 		// send when there are no eligible blocks.
 		blockHashes = mining.SortParentsByVotes(mp, best.Hash, children,
-			bm.cfg.ChainParams)
+			sp.server.chainParams)
 		if len(blockHashes) > wire.MaxISBlocksAtHeadPerMsg {
 			blockHashes = blockHashes[:wire.MaxISBlocksAtHeadPerMsg]
 		}
