@@ -2010,6 +2010,30 @@ func (b *blockManager) TicketPoolValue() (dcrutil.Amount, error) {
 	return b.cfg.Chain.TicketPoolValue()
 }
 
+// syncManager is a temporary interface to facilitate cleaner diffs when moving
+// the block manager to a new package, so none of its members are documented.
+// It will be removed in a future commit.
+type syncManager interface {
+	NewPeer(p *peerpkg.Peer)
+	IsCurrent() bool
+	TipGeneration() ([]chainhash.Hash, error)
+	RequestFromPeer(p *peerpkg.Peer, blocks, txs []*chainhash.Hash) error
+	QueueTx(tx *dcrutil.Tx, peer *peerpkg.Peer, done chan struct{})
+	QueueBlock(block *dcrutil.Block, peer *peerpkg.Peer, done chan struct{})
+	QueueInv(inv *wire.MsgInv, peer *peerpkg.Peer)
+	QueueHeaders(headers *wire.MsgHeaders, peer *peerpkg.Peer)
+	QueueNotFound(notFound *wire.MsgNotFound, peer *peerpkg.Peer)
+	DonePeer(peer *peerpkg.Peer)
+	Start()
+	Stop() error
+	ForceReorganization(formerBest, newBest chainhash.Hash) error
+	ProcessBlock(block *dcrutil.Block, flags blockchain.BehaviorFlags) (bool, error)
+	SyncPeerID() int32
+	SyncHeight() int64
+	ProcessTransaction(tx *dcrutil.Tx, allowOrphans bool, rateLimit bool,
+		allowHighFees bool, tag mempool.Tag) ([]*dcrutil.Tx, error)
+}
+
 // newBlockManager returns a new Decred block manager.
 // Use Start to begin processing asynchronous block and inv updates.
 func newBlockManager(config *blockManagerConfig) (*blockManager, error) {

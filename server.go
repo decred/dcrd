@@ -462,7 +462,7 @@ type server struct {
 	sigCache             *txscript.SigCache
 	subsidyCache         *standalone.SubsidyCache
 	rpcServer            *rpcserver.Server
-	syncManager          *blockManager
+	syncManager          syncManager
 	bg                   *mining.BgBlkTmplGenerator
 	chain                *blockchain.BlockChain
 	txMemPool            *mempool.TxPool
