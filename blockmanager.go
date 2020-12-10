@@ -207,13 +207,6 @@ type processTransactionMsg struct {
 	reply         chan processTransactionResponse
 }
 
-// isCurrentMsg is a message type to be sent across the message channel for
-// requesting whether or not the block manager believes it is synced with
-// the currently connected peers.
-type isCurrentMsg struct {
-	reply chan bool
-}
-
 // headerNode is used as a node in a list of headers that are linked together
 // between checkpoints.
 type headerNode struct {
@@ -342,6 +335,11 @@ type blockManager struct {
 	// peers.
 	syncHeightMtx sync.Mutex
 	syncHeight    int64
+
+	// The following fields are used to track whether or not the manager
+	// believes it is fully synced to the network.
+	isCurrentMtx sync.RWMutex
+	isCurrent    bool
 }
 
 // resetHeaderState sets the headers-first mode state to values appropriate for
@@ -446,6 +444,15 @@ func (b *blockManager) startSync() {
 		}
 	}
 
+	// Update the state of whether or not the manager believes the chain is
+	// fully synced to whatever the chain believes when there is no candidate
+	// for a sync peer.
+	if bestPeer == nil {
+		b.isCurrentMtx.Lock()
+		b.isCurrent = b.cfg.Chain.IsCurrent()
+		b.isCurrentMtx.Unlock()
+	}
+
 	// Start syncing from the best peer if one was selected.
 	if bestPeer != nil {
 		// Clear the requestedBlocks if the sync peer changes, otherwise
@@ -463,6 +470,14 @@ func (b *blockManager) startSync() {
 
 		bmgrLog.Infof("Syncing to block height %d from peer %v",
 			bestPeer.LastBlock(), bestPeer.Addr())
+
+		// The chain is not synced whenever the current best height is less than
+		// the height to sync to.
+		if best.Height < bestPeer.LastBlock() {
+			b.isCurrentMtx.Lock()
+			b.isCurrent = false
+			b.isCurrentMtx.Unlock()
+		}
 
 		// When the current height is less than a known checkpoint we
 		// can use block headers to learn about which blocks comprise
@@ -995,29 +1010,17 @@ func (b *blockManager) processBlockAndOrphans(block *dcrutil.Block, flags blockc
 		return 0, false, err
 	}
 
+	// The chain is considered synced once both the blockchain believes it is
+	// current and the sync height is reached or exceeded.
+	best := b.cfg.Chain.BestSnapshot()
+	syncHeight := b.SyncHeight()
+	if best.Height >= syncHeight && b.cfg.Chain.IsCurrent() {
+		b.isCurrentMtx.Lock()
+		b.isCurrent = true
+		b.isCurrentMtx.Unlock()
+	}
+
 	return forkLen, false, nil
-}
-
-// current returns true if we believe we are synced with our peers, false if we
-// still have blocks to check
-func (b *blockManager) current() bool {
-	if !b.cfg.Chain.IsCurrent() {
-		return false
-	}
-
-	// if blockChain thinks we are current and we have no syncPeer it
-	// is probably right.
-	if b.syncPeer == nil {
-		return true
-	}
-
-	// No matter what chain thinks, if we are below the block we are syncing
-	// to we are not current.
-	if b.cfg.Chain.BestSnapshot().Height < b.syncPeer.LastBlock() {
-		return false
-	}
-
-	return true
 }
 
 // handleBlockMsg handles block messages from all peers.
@@ -1153,7 +1156,7 @@ func (b *blockManager) handleBlockMsg(bmsg *blockMsg) {
 	// chain was not yet current or lost the lock announcement race.
 	blockHeight := int64(bmsg.block.MsgBlock().Header.Height)
 	peer.UpdateLastBlockHeight(blockHeight)
-	if isOrphan || (onMainChain && b.current()) {
+	if isOrphan || (onMainChain && b.IsCurrent()) {
 		go b.cfg.PeerNotifier.UpdatePeerHeights(blockHash, blockHeight,
 			bmsg.peer)
 	}
@@ -1189,9 +1192,8 @@ func (b *blockManager) handleBlockMsg(bmsg *blockMsg) {
 				"peer %s: %v", peer.Addr(), err)
 			return
 		}
-		bmgrLog.Infof("Downloading headers for blocks %d to %d from "+
-			"peer %s", prevHeight+1, b.nextCheckpoint.Height,
-			b.syncPeer.Addr())
+		bmgrLog.Infof("Downloading headers for blocks %d to %d from peer %s",
+			prevHeight+1, b.nextCheckpoint.Height, b.syncPeer.Addr())
 		return
 	}
 
@@ -1468,7 +1470,7 @@ func (b *blockManager) handleInvMsg(imsg *invMsg) {
 	}
 
 	fromSyncPeer := peer == b.syncPeer
-	isCurrent := b.current()
+	isCurrent := b.IsCurrent()
 
 	// If this inv contains a block announcement, and this isn't coming from
 	// our current sync peer or we're current, then update the last
@@ -1774,9 +1776,6 @@ out:
 					err:         err,
 				}
 
-			case isCurrentMsg:
-				msg.reply <- b.current()
-
 			default:
 				bmgrLog.Warnf("Invalid message type in block handler: %T", msg)
 			}
@@ -1855,7 +1854,7 @@ func (b *blockManager) handleBlockchainNotification(notification *blockchain.Not
 		// are not current. Other peers that are current should already
 		// know about it and clients, such as wallets, shouldn't be voting on
 		// old blocks.
-		if !b.current() {
+		if !b.IsCurrent() {
 			return
 		}
 
@@ -2442,10 +2441,13 @@ func (b *blockManager) ProcessTransaction(tx *dcrutil.Tx, allowOrphans bool,
 
 // IsCurrent returns whether or not the block manager believes it is synced with
 // the connected peers.
+//
+// This function is safe for concurrent access.
 func (b *blockManager) IsCurrent() bool {
-	reply := make(chan bool)
-	b.msgChan <- isCurrentMsg{reply: reply}
-	return <-reply
+	b.isCurrentMtx.RLock()
+	isCurrent := b.isCurrent
+	b.isCurrentMtx.RUnlock()
+	return isCurrent
 }
 
 // TicketPoolValue returns the current value of the total stake in the ticket
@@ -2469,6 +2471,7 @@ func newBlockManager(config *blockManagerConfig) (*blockManager, error) {
 		quit:            make(chan struct{}),
 		orphans:         make(map[chainhash.Hash]*orphanBlock),
 		prevOrphans:     make(map[chainhash.Hash][]*orphanBlock),
+		isCurrent:       config.Chain.IsCurrent(),
 	}
 
 	best := bm.cfg.Chain.BestSnapshot()
