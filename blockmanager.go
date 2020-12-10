@@ -22,6 +22,7 @@ import (
 	"github.com/decred/dcrd/internal/fees"
 	"github.com/decred/dcrd/internal/mempool"
 	"github.com/decred/dcrd/internal/mining"
+	"github.com/decred/dcrd/internal/progresslog"
 	"github.com/decred/dcrd/internal/rpcserver"
 	peerpkg "github.com/decred/dcrd/peer/v2"
 	"github.com/decred/dcrd/txscript/v3"
@@ -306,7 +307,7 @@ type blockManager struct {
 	rejectedTxns    map[chainhash.Hash]struct{}
 	requestedTxns   map[chainhash.Hash]struct{}
 	requestedBlocks map[chainhash.Hash]struct{}
-	progressLogger  *blockProgressLogger
+	progressLogger  *progresslog.BlockLogger
 	syncPeer        *peerpkg.Peer
 	msgChan         chan interface{}
 	wg              sync.WaitGroup
@@ -1115,7 +1116,7 @@ func (b *blockManager) handleBlockMsg(bmsg *blockMsg) {
 	} else {
 		// When the block is not an orphan, log information about it and
 		// update the chain state.
-		b.progressLogger.logBlockHeight(bmsg.block, b.SyncHeight())
+		b.progressLogger.LogBlockHeight(bmsg.block.MsgBlock(), b.SyncHeight())
 
 		if onMainChain {
 			// Notify stake difficulty subscribers and prune invalidated
@@ -2462,7 +2463,7 @@ func newBlockManager(config *blockManagerConfig) (*blockManager, error) {
 		requestedTxns:   make(map[chainhash.Hash]struct{}),
 		requestedBlocks: make(map[chainhash.Hash]struct{}),
 		peerStates:      make(map[*peerpkg.Peer]*peerSyncState),
-		progressLogger:  newBlockProgressLogger("Processed", bmgrLog),
+		progressLogger:  progresslog.New("Processed", bmgrLog),
 		msgChan:         make(chan interface{}, config.MaxPeers*3),
 		headerList:      list.New(),
 		quit:            make(chan struct{}),

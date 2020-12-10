@@ -15,6 +15,7 @@ import (
 	"github.com/decred/dcrd/blockchain/v4"
 	"github.com/decred/dcrd/chaincfg/v3"
 	"github.com/decred/dcrd/database/v2"
+	"github.com/decred/dcrd/internal/progresslog"
 )
 
 const (
@@ -194,7 +195,7 @@ func dumpBlockChain(params *chaincfg.Params, b *blockchain.BlockChain) error {
 	dcrdLog.Infof("Writing the blockchain to flat file %q.  This might take a "+
 		"while...", cfg.DumpBlockchain)
 
-	progressLogger := newBlockProgressLogger("Wrote", dcrdLog)
+	progressLogger := progresslog.New("Wrote", dcrdLog)
 
 	file, err := os.Create(cfg.DumpBlockchain)
 	if err != nil {
@@ -240,7 +241,7 @@ func dumpBlockChain(params *chaincfg.Params, b *blockchain.BlockChain) error {
 			return err
 		}
 
-		progressLogger.logBlockHeight(bl, tipHeight)
+		progressLogger.LogBlockHeight(bl.MsgBlock(), tipHeight)
 	}
 
 	bmgrLog.Infof("Successfully dumped the blockchain (%v blocks) to %v.",
