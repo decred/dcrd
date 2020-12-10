@@ -306,23 +306,23 @@ func (*rpcConnManager) Lookup(host string) ([]net.IP, error) {
 	return dcrdLookup(host)
 }
 
-// rpcSyncMgr provides a block manager for use with the RPC server and
-// implements the rpcserver.SyncManager interface.
+// rpcSyncMgr provides an adaptor for use with the RPC server and implements the
+// rpcserver.SyncManager interface.
 type rpcSyncMgr struct {
-	server   *server
-	blockMgr *blockManager
+	server  *server
+	syncMgr *blockManager
 }
 
 // Ensure rpcSyncMgr implements the rpcserver.SyncManager interface.
 var _ rpcserver.SyncManager = (*rpcSyncMgr)(nil)
 
-// IsCurrent returns whether or not the sync manager believes the chain is
+// IsCurrent returns whether or not the net sync manager believes the chain is
 // current as compared to the rest of the network.
 //
 // This function is safe for concurrent access and is part of the
 // rpcserver.SyncManager interface implementation.
 func (b *rpcSyncMgr) IsCurrent() bool {
-	return b.blockMgr.IsCurrent()
+	return b.syncMgr.IsCurrent()
 }
 
 // SubmitBlock submits the provided block to the network after processing it
@@ -331,7 +331,7 @@ func (b *rpcSyncMgr) IsCurrent() bool {
 // This function is safe for concurrent access and is part of the
 // rpcserver.SyncManager interface implementation.
 func (b *rpcSyncMgr) SubmitBlock(block *dcrutil.Block, flags blockchain.BehaviorFlags) (bool, error) {
-	return b.blockMgr.ProcessBlock(block, flags)
+	return b.syncMgr.ProcessBlock(block, flags)
 }
 
 // SyncPeer returns the id of the current peer being synced with.
@@ -339,7 +339,7 @@ func (b *rpcSyncMgr) SubmitBlock(block *dcrutil.Block, flags blockchain.Behavior
 // This function is safe for concurrent access and is part of the
 // rpcserver.SyncManager interface implementation.
 func (b *rpcSyncMgr) SyncPeerID() int32 {
-	return b.blockMgr.SyncPeerID()
+	return b.syncMgr.SyncPeerID()
 }
 
 // LocateBlocks returns the hashes of the blocks after the first known block in
@@ -355,19 +355,19 @@ func (b *rpcSyncMgr) LocateBlocks(locator blockchain.BlockLocator, hashStop *cha
 // TipGeneration returns the entire generation of blocks stemming from the
 // parent of the current tip.
 func (b *rpcSyncMgr) TipGeneration() ([]chainhash.Hash, error) {
-	return b.blockMgr.TipGeneration()
+	return b.syncMgr.TipGeneration()
 }
 
 // SyncHeight returns latest known block being synced to.
 func (b *rpcSyncMgr) SyncHeight() int64 {
-	return b.blockMgr.SyncHeight()
+	return b.syncMgr.SyncHeight()
 }
 
 // ProcessTransaction relays the provided transaction validation and insertion
 // into the memory pool.
 func (b *rpcSyncMgr) ProcessTransaction(tx *dcrutil.Tx, allowOrphans bool,
 	rateLimit bool, allowHighFees bool, tag mempool.Tag) ([]*dcrutil.Tx, error) {
-	return b.blockMgr.ProcessTransaction(tx, allowOrphans,
+	return b.syncMgr.ProcessTransaction(tx, allowOrphans,
 		rateLimit, allowHighFees, tag)
 }
 

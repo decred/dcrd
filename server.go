@@ -161,9 +161,9 @@ type relayMsg struct {
 	immediate bool
 }
 
-// updatePeerHeightsMsg is a message sent from the blockmanager to the server
-// after a new block has been accepted. The purpose of the message is to update
-// the heights of peers that were known to announce the block before we
+// updatePeerHeightsMsg is a message sent from the net sync manager to the
+// server after a new block has been accepted. The purpose of the message is to
+// update the heights of peers that were known to announce the block before we
 // connected it to the main chain or recognized it as an orphan. With these
 // updates, peer heights will be kept up to date, allowing for fresh data when
 // selecting sync peer candidacy.
@@ -462,7 +462,7 @@ type server struct {
 	sigCache             *txscript.SigCache
 	subsidyCache         *standalone.SubsidyCache
 	rpcServer            *rpcserver.Server
-	blockManager         *blockManager
+	syncManager          *blockManager
 	bg                   *mining.BgBlkTmplGenerator
 	chain                *blockchain.BlockChain
 	txMemPool            *mempool.TxPool
@@ -501,8 +501,7 @@ type server struct {
 	lotteryDataBroadcast    map[chainhash.Hash]struct{}
 }
 
-// serverPeer extends the peer to maintain state shared by the server and
-// the blockmanager.
+// serverPeer extends the peer to maintain state shared by the server.
 type serverPeer struct {
 	*peer.Peer
 
@@ -524,7 +523,8 @@ type serverPeer struct {
 	getMiningStateSent bool
 	initStateSent      bool
 
-	// The following chans are used to sync blockmanager and server.
+	// The following chans are used to synchronize the net sync manager and
+	// server.
 	txProcessed    chan struct{}
 	blockProcessed chan struct{}
 
@@ -699,7 +699,7 @@ func (sp *serverPeer) OnVersion(p *peer.Peer, msg *wire.MsgVersion) *wire.MsgRej
 		// Advertise the local address when the server accepts incoming
 		// connections and it believes itself to be close to the best
 		// known tip.
-		if !cfg.DisableListen && sp.server.blockManager.IsCurrent() {
+		if !cfg.DisableListen && sp.server.syncManager.IsCurrent() {
 			// Get address that best matches.
 			lna := addrManager.GetBestLocalAddress(remoteAddr)
 			if addrmgr.IsRoutable(lna) {
@@ -730,8 +730,8 @@ func (sp *serverPeer) OnVersion(p *peer.Peer, msg *wire.MsgVersion) *wire.MsgRej
 	// the local clock to keep the network time in sync.
 	sp.server.timeSource.AddTimeSample(p.Addr(), msg.Timestamp)
 
-	// Signal the block manager this peer is a new sync candidate.
-	sp.server.blockManager.NewPeer(sp.Peer)
+	// Signal the net sync manager this peer is a new sync candidate.
+	sp.server.syncManager.NewPeer(sp.Peer)
 
 	// Add valid peer to the server.
 	sp.server.AddPeer(sp)
@@ -807,12 +807,8 @@ func (sp *serverPeer) OnGetMiningState(p *peer.Peer, msg *wire.MsgGetMiningState
 	}
 	sp.getMiningStateSent = true
 
-	// Access the block manager and get the list of best blocks to mine on.
-	bm := sp.server.blockManager
-	mp := sp.server.txMemPool
-	best := sp.server.chain.BestSnapshot()
-
 	// Send out blank mining states if it's early in the blockchain.
+	best := sp.server.chain.BestSnapshot()
 	if best.Height < sp.server.chainParams.StakeValidationHeight-1 {
 		err := sp.pushMiningStateMsg(0, nil, nil)
 		if err != nil {
@@ -825,9 +821,10 @@ func (sp *serverPeer) OnGetMiningState(p *peer.Peer, msg *wire.MsgGetMiningState
 
 	// Obtain the entire generation of blocks stemming from the parent of
 	// the current tip.
-	children, err := bm.TipGeneration()
+	sm := sp.server.syncManager
+	children, err := sm.TipGeneration()
 	if err != nil {
-		peerLog.Warnf("failed to access block manager to get the generation "+
+		peerLog.Warnf("failed to access sync manager to get the generation "+
 			"for a mining state request (block: %v): %v", best.Hash, err)
 		return
 	}
@@ -836,6 +833,7 @@ func (sp *serverPeer) OnGetMiningState(p *peer.Peer, msg *wire.MsgGetMiningState
 	// list to the maximum number of allowed eligible block hashes per
 	// mining state message.  There is nothing to send when there are no
 	// eligible blocks.
+	mp := sp.server.txMemPool
 	blockHashes := mining.SortParentsByVotes(mp, best.Hash, children,
 		sp.server.chainParams)
 	numBlocks := len(blockHashes)
@@ -871,7 +869,7 @@ func (sp *serverPeer) OnGetMiningState(p *peer.Peer, msg *wire.MsgGetMiningState
 // OnMiningState is invoked when a peer receives a miningstate wire message.  It
 // requests the data advertised in the message from the peer.
 func (sp *serverPeer) OnMiningState(p *peer.Peer, msg *wire.MsgMiningState) {
-	err := sp.server.blockManager.RequestFromPeer(sp.Peer, msg.BlockHashes,
+	err := sp.server.syncManager.RequestFromPeer(sp.Peer, msg.BlockHashes,
 		msg.VoteHashes)
 	if err != nil {
 		peerLog.Warnf("couldn't handle mining state message: %v",
@@ -888,12 +886,8 @@ func (sp *serverPeer) OnGetInitState(p *peer.Peer, msg *wire.MsgGetInitState) {
 	}
 	sp.initStateSent = true
 
-	// Access the block manager and get the list of best blocks to mine on.
-	bm := sp.server.blockManager
-	mp := sp.server.txMemPool
-	best := sp.server.chain.BestSnapshot()
-
 	// Send out blank mining states if it's early in the blockchain.
+	best := sp.server.chain.BestSnapshot()
 	if best.Height < sp.server.chainParams.StakeValidationHeight-1 {
 		sp.QueueMessage(wire.NewMsgInitState(), nil)
 		return
@@ -913,12 +907,14 @@ func (sp *serverPeer) OnGetInitState(p *peer.Peer, msg *wire.MsgGetInitState) {
 
 	// Fetch head block hashes if we need to send either them or their
 	// votes.
+	mp := sp.server.txMemPool
 	if wantBlocks || wantVotes {
 		// Obtain the entire generation of blocks stemming from the
 		// parent of the current tip.
-		children, err := bm.TipGeneration()
+		sm := sp.server.syncManager
+		children, err := sm.TipGeneration()
 		if err != nil {
-			peerLog.Warnf("Failed to access block manager to get the generation "+
+			peerLog.Warnf("Failed to access sync manager to get the generation "+
 				"for a init state request (block: %v): %v", best.Hash, err)
 			return
 		}
@@ -979,7 +975,7 @@ func (sp *serverPeer) OnInitState(p *peer.Peer, msg *wire.MsgInitState) {
 		txHashes = append(txHashes, &msg.TSpendHashes[i])
 	}
 
-	err := sp.server.blockManager.RequestFromPeer(sp.Peer, blockHashes,
+	err := sp.server.syncManager.RequestFromPeer(sp.Peer, blockHashes,
 		txHashes)
 	if err != nil {
 		peerLog.Warnf("couldn't handle init state message: %v", err)
@@ -1004,12 +1000,12 @@ func (sp *serverPeer) OnTx(p *peer.Peer, msg *wire.MsgTx) {
 	iv := wire.NewInvVect(wire.InvTypeTx, tx.Hash())
 	p.AddKnownInventory(iv)
 
-	// Queue the transaction up to be handled by the block manager and
+	// Queue the transaction up to be handled by the net sync manager and
 	// intentionally block further receives until the transaction is fully
 	// processed and known good or bad.  This helps prevent a malicious peer
 	// from queuing up a bunch of bad transactions before disconnecting (or
 	// being disconnected) and wasting memory.
-	sp.server.blockManager.QueueTx(tx, sp.Peer, sp.txProcessed)
+	sp.server.syncManager.QueueTx(tx, sp.Peer, sp.txProcessed)
 	<-sp.txProcessed
 }
 
@@ -1024,23 +1020,22 @@ func (sp *serverPeer) OnBlock(p *peer.Peer, msg *wire.MsgBlock, buf []byte) {
 	iv := wire.NewInvVect(wire.InvTypeBlock, block.Hash())
 	p.AddKnownInventory(iv)
 
-	// Queue the block up to be handled by the block manager and
+	// Queue the block up to be handled by the net sync manager and
 	// intentionally block further receives until the network block is fully
 	// processed and known good or bad.  This helps prevent a malicious peer
 	// from queuing up a bunch of bad blocks before disconnecting (or being
 	// disconnected) and wasting memory.  Additionally, this behavior is
-	// depended on by at least the block acceptance test tool as the
-	// reference implementation processes blocks in the same thread and
-	// therefore blocks further messages until the network block has been
-	// fully processed.
-	sp.server.blockManager.QueueBlock(block, sp.Peer, sp.blockProcessed)
+	// depended on by at least the block acceptance test tool as the reference
+	// implementation processes blocks in the same thread and therefore blocks
+	// further messages until the network block has been fully processed.
+	sp.server.syncManager.QueueBlock(block, sp.Peer, sp.blockProcessed)
 	<-sp.blockProcessed
 }
 
 // OnInv is invoked when a peer receives an inv wire message and is used to
 // examine the inventory being advertised by the remote peer and react
-// accordingly.  We pass the message down to blockmanager which will call
-// QueueMessage with any appropriate responses.
+// accordingly.  We pass the message down to the net sync manager which will
+// call QueueMessage with any appropriate responses.
 func (sp *serverPeer) OnInv(p *peer.Peer, msg *wire.MsgInv) {
 	// Ban peers sending empty inventory requests.
 	if len(msg.InvList) == 0 {
@@ -1049,7 +1044,7 @@ func (sp *serverPeer) OnInv(p *peer.Peer, msg *wire.MsgInv) {
 	}
 
 	if !cfg.BlocksOnly {
-		sp.server.blockManager.QueueInv(msg, sp.Peer)
+		sp.server.syncManager.QueueInv(msg, sp.Peer)
 		return
 	}
 
@@ -1068,11 +1063,11 @@ func (sp *serverPeer) OnInv(p *peer.Peer, msg *wire.MsgInv) {
 		}
 	}
 
-	sp.server.blockManager.QueueInv(newInv, sp.Peer)
+	sp.server.syncManager.QueueInv(newInv, sp.Peer)
 }
 
 // OnHeaders is invoked when a peer receives a headers wire message.  The
-// message is passed down to the block manager.
+// message is passed down to the net sync manager.
 func (sp *serverPeer) OnHeaders(_ *peer.Peer, msg *wire.MsgHeaders) {
 	// Ban peers sending empty headers requests.
 	if len(msg.Headers) == 0 {
@@ -1080,7 +1075,7 @@ func (sp *serverPeer) OnHeaders(_ *peer.Peer, msg *wire.MsgHeaders) {
 		return
 	}
 
-	sp.server.blockManager.QueueHeaders(msg, sp.Peer)
+	sp.server.syncManager.QueueHeaders(msg, sp.Peer)
 }
 
 // handleGetData is invoked when a peer receives a getdata wire message and is
@@ -1206,7 +1201,7 @@ func (sp *serverPeer) OnGetBlocks(p *peer.Peer, msg *wire.MsgGetBlocks) {
 // OnGetHeaders is invoked when a peer receives a getheaders wire message.
 func (sp *serverPeer) OnGetHeaders(p *peer.Peer, msg *wire.MsgGetHeaders) {
 	// Ignore getheaders requests if not in sync.
-	if !sp.server.blockManager.IsCurrent() {
+	if !sp.server.syncManager.IsCurrent() {
 		return
 	}
 
@@ -1268,7 +1263,7 @@ func (sp *serverPeer) OnGetCFilter(p *peer.Peer, msg *wire.MsgGetCFilter) {
 	}
 
 	// Ignore request if CFs are disabled or the chain is not yet synced.
-	if cfg.NoCFilters || !sp.server.blockManager.IsCurrent() {
+	if cfg.NoCFilters || !sp.server.syncManager.IsCurrent() {
 		return
 	}
 
@@ -1337,7 +1332,7 @@ func (sp *serverPeer) OnGetCFilter(p *peer.Peer, msg *wire.MsgGetCFilter) {
 // OnGetCFilterV2 is invoked when a peer receives a getcfilterv2 wire message.
 func (sp *serverPeer) OnGetCFilterV2(_ *peer.Peer, msg *wire.MsgGetCFilterV2) {
 	// Ignore request if the chain is not yet synced.
-	if !sp.server.blockManager.IsCurrent() {
+	if !sp.server.syncManager.IsCurrent() {
 		return
 	}
 
@@ -1370,7 +1365,7 @@ func (sp *serverPeer) OnGetCFHeaders(p *peer.Peer, msg *wire.MsgGetCFHeaders) {
 	}
 
 	// Ignore request if CFs are disabled or the chain is not yet synced.
-	if cfg.NoCFilters || !sp.server.blockManager.IsCurrent() {
+	if cfg.NoCFilters || !sp.server.syncManager.IsCurrent() {
 		return
 	}
 
@@ -1579,7 +1574,7 @@ func (sp *serverPeer) OnNotFound(p *peer.Peer, msg *wire.MsgNotFound) {
 			return
 		}
 	}
-	sp.server.blockManager.QueueNotFound(msg, p)
+	sp.server.syncManager.QueueNotFound(msg, p)
 }
 
 // randomUint16Number returns a random uint16 in a specified input range.  Note
@@ -2317,9 +2312,10 @@ func (s *server) peerDoneHandler(sp *serverPeer) {
 	sp.WaitForDisconnect()
 	s.donePeers <- sp
 
-	// Only tell block manager we are gone if we ever told it we existed.
+	// Notify the net sync manager the peer is gone if it was ever notified that
+	// the peer existed.
 	if sp.VersionKnown() {
-		s.blockManager.DonePeer(sp.Peer)
+		s.syncManager.DonePeer(sp.Peer)
 
 		tipHash := &s.chain.BestSnapshot().Hash
 		isTreasuryEnabled, err := s.chain.IsTreasuryAgendaActive(tipHash)
@@ -2342,13 +2338,12 @@ func (s *server) peerDoneHandler(sp *serverPeer) {
 // peers to and from the server, banning peers, and broadcasting messages to
 // peers.  It must be run in a goroutine.
 func (s *server) peerHandler(ctx context.Context) {
-	// Start the address manager and block manager, both of which are needed
-	// by peers.  This is done here since their lifecycle is closely tied
-	// to this handler and rather than adding more channels to synchronize
-	// things, it's easier and slightly faster to simply start and stop them
-	// in this handler.
+	// Start the address manager and sync manager, both of which are needed by
+	// peers.  This is done here since their lifecycle is closely tied to this
+	// handler and rather than adding more channels to synchronize things, it's
+	// easier and slightly faster to simply start and stop them in this handler.
 	s.addrManager.Start()
-	s.blockManager.Start()
+	s.syncManager.Start()
 
 	srvrLog.Tracef("Starting peer handler")
 
@@ -2405,7 +2400,7 @@ out:
 		}
 	}
 
-	s.blockManager.Stop()
+	s.syncManager.Stop()
 	s.addrManager.Stop()
 
 	// Drain channels before exiting so nothing is left waiting around
@@ -2670,7 +2665,7 @@ func (s *server) handleBlockchainNotification(notification *blockchain.Notificat
 		// Don't relay or notify RPC clients with winning tickets if we are not
 		// current. Other peers that are current should already know about it
 		// and clients, such as wallets, shouldn't be voting on old blocks.
-		if !s.blockManager.IsCurrent() {
+		if !s.syncManager.IsCurrent() {
 			return
 		}
 
@@ -3650,7 +3645,7 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB, chainP
 		},
 	}
 	s.txMemPool = mempool.New(&txC)
-	s.blockManager, err = newBlockManager(&blockManagerConfig{
+	s.syncManager, err = newBlockManager(&blockManagerConfig{
 		PeerNotifier: &s,
 		Chain:        s.chain,
 		ChainParams:  s.chainParams,
@@ -3703,7 +3698,7 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB, chainP
 			TimeSource:                 s.timeSource,
 			SubsidyCache:               s.subsidyCache,
 			ChainParams:                s.chainParams,
-			BlockManager:               s.blockManager,
+			BlockManager:               s.syncManager,
 			MiningTimeOffset:           cfg.MiningTimeOffset,
 			BestSnapshot:               s.chain.BestSnapshot,
 			BlockByHash:                s.chain.BlockByHash,
@@ -3747,9 +3742,9 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB, chainP
 			PermitConnectionlessMining: cfg.SimNet || cfg.RegNet,
 			BgBlkTmplGenerator:         s.bg,
 			MiningAddrs:                cfg.miningAddrs,
-			ProcessBlock:               s.blockManager.ProcessBlock,
+			ProcessBlock:               s.syncManager.ProcessBlock,
 			ConnectedCount:             s.ConnectedCount,
-			IsCurrent:                  s.blockManager.IsCurrent,
+			IsCurrent:                  s.syncManager.IsCurrent,
 		})
 	}
 
@@ -3852,7 +3847,7 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB, chainP
 		rpcsConfig := rpcserver.Config{
 			Listeners:    rpcListeners,
 			ConnMgr:      &rpcConnManager{&s},
-			SyncMgr:      &rpcSyncMgr{server: &s, blockMgr: s.blockManager},
+			SyncMgr:      &rpcSyncMgr{server: &s, syncMgr: s.syncManager},
 			FeeEstimator: s.feeEstimator,
 			TimeSource:   s.timeSource,
 			Services:     s.services,

@@ -623,11 +623,11 @@ func (stats *Estimator) removeFromMemPool(blocksInMemPool int32, rate feeRate) {
 		// function but not on a previous newMemPoolTx. This leaves the fee db
 		// in an undefined state and should never happen in regular use. If this
 		// happens, then there is a logic or coding error somewhere, either in
-		// the estimator itself or on its hooking to the mempool/blockmanager.
-		// Either way, the easiest way to fix this is to completely delete the
-		// database and start again.
-		// During development, you can use a panic() here and we might return it
-		// after being confident that the estimator is completely bug free.
+		// the estimator itself or on its hooking to the mempool/network sync
+		// manager.  Either way, the easiest way to fix this is to completely
+		// delete the database and start again.  During development, you can use
+		// a panic() here and we might return it after being confident that the
+		// estimator is completely bug free.
 		log.Errorf("Transaction count in bucket index %d and confirmation "+
 			"index %d became < 0", bucketIdx, confirmIdx)
 	}

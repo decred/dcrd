@@ -67,7 +67,7 @@ type blockManagerFacade interface {
 	// best chain.
 	ForceReorganization(formerBest, newBest chainhash.Hash) error
 
-	// IsCurrent returns whether or not the block manager believes it is synced
-	// with the connected peers.
+	// IsCurrent returns whether or not the net sync manager believes it is
+	// synced with the connected peers.
 	IsCurrent() bool
 }

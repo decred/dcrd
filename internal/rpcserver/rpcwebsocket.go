@@ -2028,8 +2028,8 @@ var ErrClientQuit = errors.New("client quit")
 // QueueNotification queues the passed notification to be sent to the websocket
 // client.  This function, as the name implies, is only intended for
 // notifications since it has additional logic to prevent other subsystems, such
-// as the memory pool and block manager, from blocking even when the send
-// channel is full.
+// as the memory pool and sync manager, from blocking even when the send channel
+// is full.
 //
 // If the client is in the process of shutting down, this function returns
 // ErrClientQuit.  This is intended to be checked by long-running notification
