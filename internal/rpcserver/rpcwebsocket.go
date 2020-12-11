@@ -1524,9 +1524,10 @@ out:
 				// Check credentials.
 				login := authCmd.Username + ":" + authCmd.Passphrase
 				auth := "Basic " + base64.StdEncoding.EncodeToString([]byte(login))
-				authSha := sha256.Sum256([]byte(auth))
-				cmp := subtle.ConstantTimeCompare(authSha[:], c.rpcServer.authsha[:])
-				limitcmp := subtle.ConstantTimeCompare(authSha[:], c.rpcServer.limitauthsha[:])
+				mac := make([]byte, 0, sha256.Size)
+				mac = c.rpcServer.authMAC(mac, []byte(auth))
+				cmp := subtle.ConstantTimeCompare(mac, c.rpcServer.authsha[:])
+				limitcmp := subtle.ConstantTimeCompare(mac, c.rpcServer.limitauthsha[:])
 				if cmp != 1 && limitcmp != 1 {
 					log.Warnf("Auth failure.")
 					break out
