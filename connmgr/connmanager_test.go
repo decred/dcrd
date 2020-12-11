@@ -83,7 +83,7 @@ func mockDialer(ctx context.Context, network, addr string) (net.Conn, error) {
 	c := &mockConn{rAddr: &mockAddr{network, addr}}
 	c.Reader = r
 	c.Writer = w
-	return c, nil
+	return c, ctx.Err()
 }
 
 // mockDialer mocks the net.Dial interface by returning a mock connection to
@@ -275,7 +275,7 @@ func TestPassAddrAlongDialAddr(t *testing.T) {
 		if receivedMock != targetAddr {
 			t.Fatal("connected to an address different than the expected target")
 		}
-	case <-time.After(time.Millisecond * 5):
+	case <-time.After(time.Millisecond * 20):
 		t.Fatal("did not get connection to target address before timeout")
 	}
 
@@ -390,7 +390,7 @@ func TestMaxRetryDuration(t *testing.T) {
 	// retry in 2ms - timedDialer returns mockDial
 	select {
 	case <-connected:
-	case <-time.After(20 * time.Millisecond):
+	case <-time.After(200 * time.Millisecond):
 		t.Fatal("max retry duration: connection timeout")
 	}
 
@@ -706,7 +706,7 @@ func TestCancelIgnoreDelayedConnection(t *testing.T) {
 func TestDialTimeout(t *testing.T) {
 	// Create a connection manager instance with a dialer that blocks for twice
 	// the configured dial timeout before connecting.
-	const dialTimeout = time.Millisecond * 2
+	const dialTimeout = time.Millisecond * 20
 	cancelled := make(chan struct{})
 	timeoutDialer := func(ctx context.Context, network, addr string) (net.Conn, error) {
 		select {
