@@ -941,12 +941,17 @@ func (m *wsNotificationManager) notifyWork(clients map[chan struct{}]*wsClient, 
 		return
 	}
 
-	// Add the template to the template pool.  Since the key is a combination
-	// of the merkle and stake root fields, this will not add duplicate entries
-	// for the templates with modified timestamps and/or difficulty bits.
+	// Prune old templates from the pool when the best block changes and add the
+	// template to the template pool.  Since the key is a combination of the
+	// merkle and stake root fields, this will not add duplicate entries for the
+	// templates with modified timestamps and/or difficulty bits.
 	templateKey := getWorkTemplateKey(header)
 	state := m.server.workState
 	state.Lock()
+	if templateNtfn.Reason == mining.TURNewParent {
+		best := m.server.cfg.Chain.BestSnapshot()
+		state.pruneOldBlockTemplates(best.Height)
+	}
 	state.templatePool[templateKey] = templateNtfn.Template.Block
 	state.Unlock()
 
