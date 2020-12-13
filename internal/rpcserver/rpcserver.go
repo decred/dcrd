@@ -2033,7 +2033,7 @@ func handleGetBlockchainInfo(_ context.Context, s *Server, cmd interface{}) (int
 	}
 
 	// Fetch the maximum allowed block size.
-	maxBlockSize, err := chain.MaxBlockSize()
+	maxBlockSize, err := chain.MaxBlockSize(&best.PrevHash)
 	if err != nil {
 		return nil, rpcInternalError(err.Error(),
 			"Could not fetch max block size.")

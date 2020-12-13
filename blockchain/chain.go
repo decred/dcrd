@@ -1566,12 +1566,22 @@ func (b *BlockChain) maxBlockSize(prevNode *blockNode) (int64, error) {
 }
 
 // MaxBlockSize returns the maximum permitted block size for the block AFTER
-// the end of the current best chain.
+// the provided block hash.
 //
 // This function is safe for concurrent access.
-func (b *BlockChain) MaxBlockSize() (int64, error) {
+func (b *BlockChain) MaxBlockSize(hash *chainhash.Hash) (int64, error) {
+	// NOTE: The requirement for the node being fully validated here is strictly
+	// stronger than what is actually required.  In reality, all that is needed
+	// is for the block data for the node and all of its ancestors to be
+	// available, but there is not currently any tracking to be able to
+	// efficiently determine that state.
+	node := b.index.LookupNode(hash)
+	if node == nil || !b.index.NodeStatus(node).HasValidated() {
+		return 0, unknownBlockError(hash)
+	}
+
 	b.chainLock.Lock()
-	maxSize, err := b.maxBlockSize(b.bestChain.Tip())
+	maxSize, err := b.maxBlockSize(node)
 	b.chainLock.Unlock()
 	return maxSize, err
 }

@@ -343,8 +343,8 @@ func (c *testRPCChain) MainChainHasBlock(hash *chainhash.Hash) bool {
 }
 
 // MaxBlockSize returns a mocked maximum permitted block size for the block
-// AFTER the end of the current best chain.
-func (c *testRPCChain) MaxBlockSize() (int64, error) {
+// AFTER the provided block hash.
+func (c *testRPCChain) MaxBlockSize(hash *chainhash.Hash) (int64, error) {
 	return c.maxBlockSize, c.maxBlockSizeErr
 }
 

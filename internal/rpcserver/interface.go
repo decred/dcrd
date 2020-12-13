@@ -371,8 +371,8 @@ type Chain interface {
 	MainChainHasBlock(hash *chainhash.Hash) bool
 
 	// MaxBlockSize returns the maximum permitted block size for the block AFTER
-	// the end of the current best chain.
-	MaxBlockSize() (int64, error)
+	// the provided block hash.
+	MaxBlockSize(hash *chainhash.Hash) (int64, error)
 
 	// MissedTickets returns all currently missed tickets.
 	MissedTickets() ([]chainhash.Hash, error)
