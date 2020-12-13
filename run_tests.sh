@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/sh
 
 set -ex
 
@@ -48,7 +48,7 @@ for module in $MODPATHS; do
     go mod tidy
     UPDATED_MOD_STATUS=$(git status --porcelain go.mod go.sum)
     if [ "$UPDATED_MOD_STATUS" != "$MOD_STATUS" ]; then
-      echo "Running `go mod tidy` modified go.mod and/or go.sum"
+      echo 'Running `go mod tidy` modified go.mod and/or go.sum'
       exit 1
     fi
 
