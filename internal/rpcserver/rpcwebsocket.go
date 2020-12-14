@@ -1528,7 +1528,7 @@ out:
 				mac = c.rpcServer.authMAC(mac, []byte(auth))
 				cmp := subtle.ConstantTimeCompare(mac, c.rpcServer.authsha[:])
 				limitcmp := subtle.ConstantTimeCompare(mac, c.rpcServer.limitauthsha[:])
-				if cmp != 1 && limitcmp != 1 {
+				if cmp|limitcmp != 0 {
 					log.Warnf("Auth failure.")
 					break out
 				}

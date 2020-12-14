@@ -11,6 +11,7 @@ import (
 	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
+	"crypto/subtle"
 	"encoding/base64"
 	"encoding/binary"
 	"encoding/hex"
@@ -5637,20 +5638,16 @@ func (s *Server) checkAuth(r *http.Request, require bool) (bool, bool, error) {
 	mac := make([]byte, 0, sha256.Size)
 	mac = s.authMAC(mac, []byte(authhdr[0]))
 
-	// Check for limited auth first as in environments with limited users,
-	// those are probably expected to have a higher volume of calls
-	if hmac.Equal(mac, s.limitauthsha[:]) {
-		return true, false, nil
+	cmp := subtle.ConstantTimeCompare(mac, s.authsha[:])
+	limitcmp := subtle.ConstantTimeCompare(mac, s.limitauthsha[:])
+	if cmp|limitcmp == 0 {
+		// Request's auth doesn't match either user
+		log.Warnf("RPC authentication failure from %s", r.RemoteAddr)
+		return false, false, errors.New("auth failure")
 	}
 
-	// Check for admin-level auth
-	if hmac.Equal(mac, s.authsha[:]) {
-		return true, true, nil
-	}
-
-	// Request's auth doesn't match either user
-	log.Warnf("RPC authentication failure from %s", r.RemoteAddr)
-	return false, false, errors.New("auth failure")
+	isAdmin := cmp == 1
+	return true, isAdmin, nil
 }
 
 // parsedRPCCmd represents a JSON-RPC request object that has been parsed into
