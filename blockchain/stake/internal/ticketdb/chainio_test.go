@@ -107,28 +107,21 @@ func TestDbInfoDeserializeErrors(t *testing.T) {
 	tests := []struct {
 		name       string
 		serialized []byte
-		errCode    ErrorCode
+		err        error
 	}{
 		{
 			name:       "short read",
 			serialized: hexToBytes("0000"),
-			errCode:    ErrDatabaseInfoShortRead,
+			err:        ErrDatabaseInfoShortRead,
 		},
 	}
 
-	var ticketDBErr DBError
 	for _, test := range tests {
 		// Ensure the expected error type is returned.
 		_, err := deserializeDatabaseInfo(test.serialized)
-		if !errors.As(err, &ticketDBErr) {
-			t.Errorf("couldn't convert deserializeDatabaseInfo error "+
-				"to ticket db error (err: %v)", err)
-			continue
-		}
-		if ticketDBErr.GetCode() != test.errCode {
+		if !errors.Is(err, test.err) {
 			t.Errorf("deserializeDatabaseInfo (%s): expected error type "+
-				"does not match - got %v, want %v", test.name,
-				ticketDBErr.ErrorCode, test.errCode)
+				"does not match - got %v, want %v", test.name, err, test.err)
 			continue
 		}
 	}
@@ -200,28 +193,21 @@ func TestBestChainStateDeserializeErrors(t *testing.T) {
 	tests := []struct {
 		name       string
 		serialized []byte
-		errCode    ErrorCode
+		err        error
 	}{
 		{
 			name:       "short read",
 			serialized: hexToBytes("0000"),
-			errCode:    ErrChainStateShortRead,
+			err:        ErrChainStateShortRead,
 		},
 	}
 
-	var ticketDBErr DBError
 	for _, test := range tests {
 		// Ensure the expected error type is returned.
 		_, err := deserializeBestChainState(test.serialized)
-		if !errors.As(err, &ticketDBErr) {
-			t.Errorf("couldn't convert deserializeBestChainState error "+
-				"to ticket db error (err: %v)", err)
-			continue
-		}
-		if ticketDBErr.GetCode() != test.errCode {
+		if !errors.Is(err, test.err) {
 			t.Errorf("deserializeBestChainState (%s): expected error type "+
-				"does not match - got %v, want %v", test.name,
-				ticketDBErr.ErrorCode, test.errCode)
+				"does not match - got %v, want %v", test.name, err, test.err)
 			continue
 		}
 	}
@@ -293,33 +279,26 @@ func TestBlockUndoDataDeserializingErrors(t *testing.T) {
 	tests := []struct {
 		name       string
 		serialized []byte
-		errCode    ErrorCode
+		err        error
 	}{
 		{
 			name:       "short read",
 			serialized: hexToBytes("00"),
-			errCode:    ErrUndoDataShortRead,
+			err:        ErrUndoDataShortRead,
 		},
 		{
 			name:       "bad size",
 			serialized: hexToBytes("00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
-			errCode:    ErrUndoDataCorrupt,
+			err:        ErrUndoDataCorrupt,
 		},
 	}
 
-	var ticketDBErr DBError
 	for _, test := range tests {
 		// Ensure the expected error type is returned.
 		_, err := deserializeBlockUndoData(test.serialized)
-		if !errors.As(err, &ticketDBErr) {
-			t.Errorf("couldn't convert deserializeBlockUndoData error "+
-				"to ticket db error (err: %v)", err)
-			continue
-		}
-		if ticketDBErr.GetCode() != test.errCode {
+		if !errors.Is(err, test.err) {
 			t.Errorf("deserializeBlockUndoData (%s): expected error type "+
-				"does not match - got %v, want %v", test.name,
-				ticketDBErr.ErrorCode, test.errCode)
+				"does not match - got %v, want %v", test.name, err, test.err)
 			continue
 		}
 	}
@@ -382,33 +361,26 @@ func TestTicketHashesDeserializingErrors(t *testing.T) {
 	tests := []struct {
 		name       string
 		serialized []byte
-		errCode    ErrorCode
+		err        error
 	}{
 		{
 			name:       "short read",
 			serialized: hexToBytes("00"),
-			errCode:    ErrTicketHashesShortRead,
+			err:        ErrTicketHashesShortRead,
 		},
 		{
 			name:       "bad size",
 			serialized: hexToBytes("00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
-			errCode:    ErrTicketHashesCorrupt,
+			err:        ErrTicketHashesCorrupt,
 		},
 	}
 
-	var ticketDBErr DBError
 	for _, test := range tests {
 		// Ensure the expected error type is returned.
 		_, err := deserializeTicketHashes(test.serialized)
-		if !errors.As(err, &ticketDBErr) {
-			t.Errorf("couldn't convert deserializeTicketHashes error "+
-				"to ticket db error (err: %v)", err)
-			continue
-		}
-		if ticketDBErr.GetCode() != test.errCode {
+		if !errors.Is(err, test.err) {
 			t.Errorf("deserializeTicketHashes (%s): expected error type "+
-				"does not match - got %v, want %v", test.name,
-				ticketDBErr.ErrorCode, test.errCode)
+				"does not match - got %v, want %v", test.name, err, test.err)
 			continue
 		}
 	}
