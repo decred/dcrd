@@ -229,14 +229,11 @@ type BgBlkTmplGenerator struct {
 	// are either independently safe for concurrent access or do not change after
 	// initialization.
 	//
-	// chain is the blockchain instance that is used to build the block and
-	// validate the block templates.
+	// cfg is the overall configuration options used when building the block
+	// templates in the background.
 	//
 	// tg is a block template generator instance that is used to actually create
 	// the block templates the background block template generator stores.
-	//
-	// allowUnsyncedMining indicates block templates should be created even when
-	// the chain is not fully synced.
 	//
 	// maxVotesPerBlock is the maximum number of votes per block and comes from
 	// the chain parameters.  It is defined separately for convenience.
@@ -244,12 +241,10 @@ type BgBlkTmplGenerator struct {
 	// minVotesRequired is the minimum number of votes required for a block to
 	// be built on.  It is derived from the chain parameters and is defined
 	// separately for convenience.
-	chain               *blockchain.BlockChain
-	tg                  *BlkTmplGenerator
-	allowUnsyncedMining bool
-	miningAddrs         []dcrutil.Address
-	maxVotesPerBlock    uint16
-	minVotesRequired    uint16
+	cfg              BgBlkTmplConfig
+	tg               *BlkTmplGenerator
+	maxVotesPerBlock uint16
+	minVotesRequired uint16
 
 	// These fields deal with providing a stream of template updates to
 	// subscribers.
@@ -319,23 +314,43 @@ type BgBlkTmplGenerator struct {
 	cancelTemplate    func()
 }
 
+// BgBlkTmplConfig holds the configuration options related to the background
+// block template generator.
+type BgBlkTmplConfig struct {
+	// TemplateGenerator specifies the generator to use when generating the
+	// block templates.
+	TemplateGenerator *BlkTmplGenerator
+
+	// MiningAddrs specifies the addresses to choose from when paying mining
+	// rewards in generated templates.
+	MiningAddrs []dcrutil.Address
+
+	// AllowUnsyncedMining indicates block templates should be created even when
+	// the chain is not fully synced.
+	AllowUnsyncedMining bool
+
+	// IsCurrent defines the function to use to determine whether or not the
+	// chain is current (synced).
+	IsCurrent func() bool
+}
+
 // NewBgBlkTmplGenerator initializes a background block template generator with
 // the provided parameters.  The returned instance must be started with the Run
 // method to allowing processing.
-func NewBgBlkTmplGenerator(tg *BlkTmplGenerator, addrs []dcrutil.Address, allowUnsynced bool) *BgBlkTmplGenerator {
+func NewBgBlkTmplGenerator(cfg *BgBlkTmplConfig) *BgBlkTmplGenerator {
+	tg := cfg.TemplateGenerator
 	return &BgBlkTmplGenerator{
-		quit:                make(chan struct{}),
-		tg:                  tg,
-		allowUnsyncedMining: allowUnsynced,
-		miningAddrs:         addrs,
-		maxVotesPerBlock:    tg.cfg.ChainParams.TicketsPerBlock,
-		minVotesRequired:    (tg.cfg.ChainParams.TicketsPerBlock / 2) + 1,
-		subscriptions:       make(map[*TemplateSubscription]struct{}),
-		notifySubscribers:   make(chan *TemplateNtfn),
-		notifiedParents:     lru.NewCache(3),
-		queueRegenEvent:     make(chan regenEvent),
-		regenEventMsgs:      make(chan regenEvent),
-		cancelTemplate:      func() {},
+		quit:              make(chan struct{}),
+		cfg:               *cfg,
+		tg:                tg,
+		maxVotesPerBlock:  tg.cfg.ChainParams.TicketsPerBlock,
+		minVotesRequired:  (tg.cfg.ChainParams.TicketsPerBlock / 2) + 1,
+		subscriptions:     make(map[*TemplateSubscription]struct{}),
+		notifySubscribers: make(chan *TemplateNtfn),
+		notifiedParents:   lru.NewCache(3),
+		queueRegenEvent:   make(chan regenEvent),
+		regenEventMsgs:    make(chan regenEvent),
+		cancelTemplate:    func() {},
 	}
 }
 
@@ -717,7 +732,7 @@ func (g *BgBlkTmplGenerator) genTemplateAsync(ctx context.Context, reason Templa
 		// Pick a mining address at random and generate a block template that
 		// pays to it.
 		prng := rand.New(rand.NewSource(time.Now().Unix()))
-		payToAddr := g.miningAddrs[prng.Intn(len(g.miningAddrs))]
+		payToAddr := g.cfg.MiningAddrs[prng.Intn(len(g.cfg.MiningAddrs))]
 		template, err := g.tg.NewBlockTemplate(payToAddr)
 		// NOTE: err is handled below.
 		if err != nil {
@@ -1193,7 +1208,7 @@ func (g *BgBlkTmplGenerator) handleRegenEvent(ctx context.Context, state *regenH
 
 	// Do not generate block templates when the chain is not synced unless
 	// specifically requested to.
-	if !g.allowUnsyncedMining && !g.tg.cfg.BlockManager.IsCurrent() {
+	if !g.cfg.AllowUnsyncedMining && !g.cfg.IsCurrent() {
 		return
 	}
 

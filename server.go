@@ -3698,7 +3698,6 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB, chainP
 			TimeSource:                 s.timeSource,
 			SubsidyCache:               s.subsidyCache,
 			ChainParams:                s.chainParams,
-			BlockManager:               s.syncManager,
 			MiningTimeOffset:           cfg.MiningTimeOffset,
 			BestSnapshot:               s.chain.BestSnapshot,
 			BlockByHash:                s.chain.BlockByHash,
@@ -3732,10 +3731,15 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB, chainP
 				return blockchain.ValidateTransactionScripts(tx, utxoView, flags,
 					s.sigCache)
 			},
+			ForceReorganization: s.syncManager.ForceReorganization,
 		})
 
-		s.bg = mining.NewBgBlkTmplGenerator(tg, cfg.miningAddrs,
-			cfg.AllowUnsyncedMining)
+		s.bg = mining.NewBgBlkTmplGenerator(&mining.BgBlkTmplConfig{
+			TemplateGenerator:   tg,
+			MiningAddrs:         cfg.miningAddrs,
+			AllowUnsyncedMining: cfg.AllowUnsyncedMining,
+			IsCurrent:           s.syncManager.IsCurrent,
+		})
 
 		s.cpuMiner = cpuminer.New(&cpuminer.Config{
 			ChainParams:                s.chainParams,

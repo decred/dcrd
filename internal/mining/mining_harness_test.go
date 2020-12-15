@@ -1369,7 +1369,6 @@ func newMiningHarness(chainParams *chaincfg.Params) (*miningHarness, []spendable
 			TimeSource:                 blockchain.NewMedianTime(),
 			SubsidyCache:               subsidyCache,
 			ChainParams:                chainParams,
-			BlockManager:               nil,
 			MiningTimeOffset:           0,
 			BestSnapshot:               chain.BestSnapshot,
 			BlockByHash:                chain.BlockByHash,
@@ -1400,6 +1399,7 @@ func newMiningHarness(chainParams *chaincfg.Params) (*miningHarness, []spendable
 
 				return blockchain.ValidateTransactionScripts(tx, utxoView, flags, sigCache)
 			},
+			ForceReorganization: chain.ForceHeadReorganization,
 		}),
 	}
 

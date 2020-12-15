@@ -63,10 +63,6 @@ type Config struct {
 	// generating block templates.
 	ChainParams *chaincfg.Params
 
-	// BlockManager provides methods for checking if the chain is synced, forcing
-	// reorgs, and passing new work to the notification manager.
-	BlockManager blockManagerFacade
-
 	// MiningTimeOffset defines the number of seconds to offset the mining
 	// timestamp of a block by (positive values are in the past).
 	MiningTimeOffset int
@@ -170,6 +166,11 @@ type Config struct {
 	// ValidateTransactionScripts defines the function to use to validate the
 	// scripts for the passed transaction.
 	ValidateTransactionScripts func(tx *dcrutil.Tx, utxoView *blockchain.UtxoViewpoint, flags txscript.ScriptFlags) error
+
+	// ForceReorganization forces a reorganization of the block chain to the
+	// block hash requested, so long as it matches up with the current
+	// organization of the best chain.
+	ForceReorganization func(formerBest, newBest chainhash.Hash) error
 }
 
 // TxDesc is a descriptor about a transaction in a transaction source along with
@@ -1093,7 +1094,7 @@ func (g *BlkTmplGenerator) NewBlockTemplate(payToAddress dcrutil.Address) (*Bloc
 		if eligibleParents[0] != prevHash {
 			for i := range eligibleParents {
 				newHead := &eligibleParents[i]
-				err := g.cfg.BlockManager.ForceReorganization(prevHash, *newHead)
+				err := g.cfg.ForceReorganization(prevHash, *newHead)
 				if err != nil {
 					log.Errorf("failed to reorganize to new parent: %v", err)
 					continue
