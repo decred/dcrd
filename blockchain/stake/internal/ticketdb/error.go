@@ -4,79 +4,60 @@
 
 package ticketdb
 
-import (
-	"fmt"
-)
+// ErrorKind identifies a kind of error.  It has full support for errors.Is
+// and errors.As, so the caller can directly check against an error kind
+// when determining the reason for an error.
+type ErrorKind string
 
-// ErrorCode identifies a kind of error.
-type ErrorCode int
-
-// These constants are used to identify a specific RuleError.
+// These constants are used to identify a specific DBError.
 const (
 	// ErrUndoDataShortRead indicates that the given undo serialized data
 	// was took small.
-	ErrUndoDataShortRead = iota
+	ErrUndoDataShortRead = ErrorKind("ErrUndoDataShortRead")
 
 	// ErrUndoDataNoEntries indicates that the data for undoing ticket data
 	// in a serialized entry was corrupt.
-	ErrUndoDataCorrupt
+	ErrUndoDataCorrupt = ErrorKind("ErrUndoDataCorrupt")
 
 	// ErrTicketHashesShortRead indicates that the given ticket hashes
 	// serialized data was took small.
-	ErrTicketHashesShortRead
+	ErrTicketHashesShortRead = ErrorKind("ErrTicketHashesShortRead")
 
 	// ErrTicketHashesCorrupt indicates that the data for ticket hashes
 	// in a serialized entry was corrupt.
-	ErrTicketHashesCorrupt
+	ErrTicketHashesCorrupt = ErrorKind("ErrTicketHashesCorrupt")
 
 	// ErrUninitializedBucket indicates that a database bucket was not
 	// initialized and therefore could not be written to or read from.
-	ErrUninitializedBucket
+	ErrUninitializedBucket = ErrorKind("ErrUninitializedBucket")
 
 	// ErrMissingKey indicates that a key was not found in a bucket.
-	ErrMissingKey
+	ErrMissingKey = ErrorKind("ErrMissingKey")
 
 	// ErrChainStateShortRead indicates that the given chain state data
 	// was too small.
-	ErrChainStateShortRead
+	ErrChainStateShortRead = ErrorKind("ErrChainStateShortRead")
 
 	// ErrDatabaseInfoShortRead indicates that the given database information
 	// was too small.
-	ErrDatabaseInfoShortRead
+	ErrDatabaseInfoShortRead = ErrorKind("ErrDatabaseInfoShortRead")
 
 	// ErrLoadAllTickets indicates that there was an error loading the tickets
 	// from the database, presumably at startup.
-	ErrLoadAllTickets
+	ErrLoadAllTickets = ErrorKind("ErrLoadAllTickets")
 )
 
-// Map of ErrorCode values back to their constant names for pretty printing.
-var errorCodeStrings = map[ErrorCode]string{
-	ErrUndoDataShortRead:     "ErrUndoDataShortRead",
-	ErrUndoDataCorrupt:       "ErrUndoDataCorrupt",
-	ErrTicketHashesShortRead: "ErrTicketHashesShortRead",
-	ErrTicketHashesCorrupt:   "ErrTicketHashesCorrupt",
-	ErrUninitializedBucket:   "ErrUninitializedBucket",
-	ErrMissingKey:            "ErrMissingKey",
-	ErrChainStateShortRead:   "ErrChainStateShortRead",
-	ErrDatabaseInfoShortRead: "ErrDatabaseInfoShortRead",
-	ErrLoadAllTickets:        "ErrLoadAllTickets",
+// Error satisfies the error interface and prints human-readable errors.
+func (e ErrorKind) Error() string {
+	return string(e)
 }
 
-// String returns the ErrorCode as a human-readable name.
-func (e ErrorCode) String() string {
-	if s := errorCodeStrings[e]; s != "" {
-		return s
-	}
-	return fmt.Sprintf("Unknown ErrorCode (%d)", int(e))
-}
-
-// DBError identifies an error in the stake database for tickets.
-// The caller can use type assertions to determine if a failure was
-// specifically due to a rule violation and access the ErrorCode field to
-// ascertain the specific reason for the rule violation.
+// DBError identifies an error related to the stake database for tickets. It
+// has full support for errors.Is and errors.As, so the caller can ascertain
+// the specific reason for the error by checking the underlying error.
 type DBError struct {
-	ErrorCode   ErrorCode // Describes the kind of error
-	Description string    // Human readable description of the issue
+	Description string
+	Err         error
 }
 
 // Error satisfies the error interface and prints human-readable errors.
@@ -84,12 +65,12 @@ func (e DBError) Error() string {
 	return e.Description
 }
 
-// GetCode satisfies the error interface and prints human-readable errors.
-func (e DBError) GetCode() ErrorCode {
-	return e.ErrorCode
+// Unwrap returns the underlying wrapped error.
+func (e DBError) Unwrap() error {
+	return e.Err
 }
 
-// DBError creates an DBError given a set of arguments.
-func ticketDBError(c ErrorCode, desc string) DBError {
-	return DBError{ErrorCode: c, Description: desc}
+// ticketDBError creates an DBError given a set of arguments.
+func ticketDBError(kind ErrorKind, desc string) DBError {
+	return DBError{Err: kind, Description: desc}
 }
