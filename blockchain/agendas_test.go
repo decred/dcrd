@@ -12,7 +12,7 @@ import (
 	"github.com/decred/dcrd/blockchain/v4/chaingen"
 	"github.com/decred/dcrd/chaincfg/v3"
 	"github.com/decred/dcrd/dcrutil/v3"
-	"github.com/decred/dcrd/txscript/v3"
+	"github.com/decred/dcrd/txscript/v4"
 	"github.com/decred/dcrd/wire"
 )
 

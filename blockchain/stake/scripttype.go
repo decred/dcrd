@@ -5,7 +5,7 @@
 package stake
 
 import (
-	"github.com/decred/dcrd/txscript/v3"
+	"github.com/decred/dcrd/txscript/v4"
 )
 
 // isScriptHashScript returns whether or not the passed script is a

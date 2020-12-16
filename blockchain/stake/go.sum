@@ -24,8 +24,6 @@ github.com/decred/dcrd/dcrec/secp256k1/v3 v3.0.0 h1:sgNeV1VRMDzs6rzyPpxyM0jp317h
 github.com/decred/dcrd/dcrec/secp256k1/v3 v3.0.0/go.mod h1:J70FGZSbzsjecRTiTzER+3f1KZLNaXkuv+yeFTKoxM8=
 github.com/decred/dcrd/dcrutil/v3 v3.0.0 h1:n6uQaTQynIhCY89XsoDk2WQqcUcnbD+zUM9rnZcIOZo=
 github.com/decred/dcrd/dcrutil/v3 v3.0.0/go.mod h1:iVsjcqVzLmYFGCZLet2H7Nq+7imV9tYcuY+0lC2mNsY=
-github.com/decred/dcrd/txscript/v3 v3.0.0 h1:74NmirXAIskbGP0g9OWtrmN7OxDbWJ9G73a5uoxTkcM=
-github.com/decred/dcrd/txscript/v3 v3.0.0/go.mod h1:pdvnlD4KGdDoc09cvWRJ8EoRQUaiUz41uDevOWuEfII=
 github.com/decred/dcrd/wire v1.4.0 h1:KmSo6eTQIvhXS0fLBQ/l7hG7QLcSJQKSwSyzSqJYDk0=
 github.com/decred/dcrd/wire v1.4.0/go.mod h1:WxC/0K+cCAnBh+SKsRjIX9YPgvrjhmE+6pZlel1G7Ro=
 github.com/decred/slog v1.1.0 h1:uz5ZFfmaexj1rEDgZvzQ7wjGkoSPjw2LCh8K+K1VrW4=
