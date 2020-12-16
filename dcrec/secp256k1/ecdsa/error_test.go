@@ -9,10 +9,10 @@ import (
 	"testing"
 )
 
-// TestErrorCodeStringer tests the stringized output for the ErrorCode type.
+// TestErrorKindStringer tests the stringized output for the ErrorKind type.
 func TestErrorCodeStringer(t *testing.T) {
 	tests := []struct {
-		in   ErrorCode
+		in   ErrorKind
 		want string
 	}{
 		{ErrSigTooShort, "ErrSigTooShort"},
@@ -34,17 +34,10 @@ func TestErrorCodeStringer(t *testing.T) {
 		{ErrSigTooMuchSPadding, "ErrSigTooMuchSPadding"},
 		{ErrSigSIsZero, "ErrSigSIsZero"},
 		{ErrSigSTooBig, "ErrSigSTooBig"},
-		{0xffff, "Unknown ErrorCode (65535)"},
-	}
-
-	// Detect additional error codes that don't have the stringer added.
-	if len(tests)-1 != int(numSigErrorCodes) {
-		t.Errorf("It appears a signature error code was added without adding " +
-			"an associated stringer test")
 	}
 
 	for i, test := range tests {
-		result := test.in.String()
+		result := test.in.Error()
 		if result != test.want {
 			t.Errorf("#%d: got: %s want: %s", i, result, test.want)
 			continue
@@ -74,15 +67,15 @@ func TestError(t *testing.T) {
 	}
 }
 
-// TestErrorCodeIsAs ensures both ErrorCode and Error can be identified as being
-// a specific error code via errors.Is and unwrapped via errors.As.
-func TestErrorCodeIsAs(t *testing.T) {
+// TestErrorKindIsAs ensures both ErrorKind and Error can be identified as being
+// a specific error kind via errors.Is and unwrapped via errors.As.
+func TestErrorKindIsAs(t *testing.T) {
 	tests := []struct {
 		name      string
 		err       error
 		target    error
 		wantMatch bool
-		wantAs    ErrorCode
+		wantAs    ErrorKind
 	}{{
 		name:      "ErrSigTooShort == ErrSigTooShort",
 		err:       ErrSigTooShort,
@@ -93,12 +86,6 @@ func TestErrorCodeIsAs(t *testing.T) {
 		name:      "Error.ErrSigTooShort == ErrSigTooShort",
 		err:       signatureError(ErrSigTooShort, ""),
 		target:    ErrSigTooShort,
-		wantMatch: true,
-		wantAs:    ErrSigTooShort,
-	}, {
-		name:      "ErrSigTooShort == Error.ErrSigTooShort",
-		err:       ErrSigTooShort,
-		target:    signatureError(ErrSigTooShort, ""),
 		wantMatch: true,
 		wantAs:    ErrSigTooShort,
 	}, {
@@ -142,16 +129,16 @@ func TestErrorCodeIsAs(t *testing.T) {
 			continue
 		}
 
-		// Ensure the underlying error code can be unwrapped is and is the
+		// Ensure the underlying error kind can be unwrapped is and is the
 		// expected code.
-		var code ErrorCode
-		if !errors.As(test.err, &code) {
-			t.Errorf("%s: unable to unwrap to error code", test.name)
+		var kind ErrorKind
+		if !errors.As(test.err, &kind) {
+			t.Errorf("%s: unable to unwrap to error", test.name)
 			continue
 		}
-		if code != test.wantAs {
-			t.Errorf("%s: unexpected unwrapped error code -- got %v, want %v",
-				test.name, code, test.wantAs)
+		if !errors.Is(kind, test.wantAs) {
+			t.Errorf("%s: unexpected unwrapped error -- got %v, want %v",
+				test.name, kind, test.wantAs)
 			continue
 		}
 	}
