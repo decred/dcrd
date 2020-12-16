@@ -3,7 +3,7 @@ module github.com/decred/dcrd/blockchain/v4
 go 1.13
 
 require (
-	github.com/decred/dcrd/blockchain/stake/v3 v3.0.0
+	github.com/decred/dcrd/blockchain/stake/v4 v4.0.0
 	github.com/decred/dcrd/blockchain/standalone/v2 v2.0.0
 	github.com/decred/dcrd/chaincfg/chainhash v1.0.2
 	github.com/decred/dcrd/chaincfg/v3 v3.0.0
@@ -19,6 +19,7 @@ require (
 )
 
 replace (
+	github.com/decred/dcrd/blockchain/stake/v4 => ./stake
 	github.com/decred/dcrd/gcs/v3 => ../gcs
 	github.com/decred/dcrd/lru => ../lru
 )

@@ -8,7 +8,7 @@ package mining
 import (
 	"container/heap"
 
-	"github.com/decred/dcrd/blockchain/stake/v3"
+	"github.com/decred/dcrd/blockchain/stake/v4"
 )
 
 // txPrioItem houses a transaction along with extra information that allows the

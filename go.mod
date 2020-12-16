@@ -7,7 +7,7 @@ require (
 	github.com/decred/base58 v1.0.3
 	github.com/decred/dcrd/addrmgr v1.2.0
 	github.com/decred/dcrd/bech32 v1.1.1
-	github.com/decred/dcrd/blockchain/stake/v3 v3.0.0
+	github.com/decred/dcrd/blockchain/stake/v4 v4.0.0
 	github.com/decred/dcrd/blockchain/standalone/v2 v2.0.0
 	github.com/decred/dcrd/blockchain/v4 v4.0.0
 	github.com/decred/dcrd/certgen v1.1.1
@@ -43,7 +43,7 @@ require (
 replace (
 	github.com/decred/dcrd/addrmgr => ./addrmgr
 	github.com/decred/dcrd/bech32 => ./bech32
-	github.com/decred/dcrd/blockchain/stake/v3 => ./blockchain/stake
+	github.com/decred/dcrd/blockchain/stake/v4 => ./blockchain/stake
 	github.com/decred/dcrd/blockchain/standalone/v2 => ./blockchain/standalone
 	github.com/decred/dcrd/blockchain/v4 => ./blockchain
 	github.com/decred/dcrd/certgen => ./certgen
