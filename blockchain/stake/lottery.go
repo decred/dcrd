@@ -10,7 +10,7 @@ import (
 	"encoding/binary"
 	"fmt"
 
-	"github.com/decred/dcrd/blockchain/stake/v3/internal/tickettreap"
+	"github.com/decred/dcrd/blockchain/stake/v4/internal/tickettreap"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 )
 

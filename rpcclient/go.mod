@@ -14,4 +14,7 @@ require (
 	github.com/gorilla/websocket v1.4.2
 )
 
-replace github.com/decred/dcrd/gcs/v3 => ../gcs
+replace (
+	github.com/decred/dcrd/blockchain/stake/v4 => ../blockchain/stake
+	github.com/decred/dcrd/gcs/v3 => ../gcs
+)

@@ -7,9 +7,9 @@ package stake
 import (
 	"fmt"
 
-	"github.com/decred/dcrd/blockchain/stake/v3/internal/dbnamespace"
-	"github.com/decred/dcrd/blockchain/stake/v3/internal/ticketdb"
-	"github.com/decred/dcrd/blockchain/stake/v3/internal/tickettreap"
+	"github.com/decred/dcrd/blockchain/stake/v4/internal/dbnamespace"
+	"github.com/decred/dcrd/blockchain/stake/v4/internal/ticketdb"
+	"github.com/decred/dcrd/blockchain/stake/v4/internal/tickettreap"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/database/v2"
 	"github.com/decred/dcrd/wire"
