@@ -26,7 +26,7 @@ require (
 	github.com/decred/dcrd/peer/v2 v2.2.0
 	github.com/decred/dcrd/rpc/jsonrpc/types/v2 v2.2.0
 	github.com/decred/dcrd/rpcclient/v7 v7.0.0
-	github.com/decred/dcrd/txscript/v3 v3.0.0
+	github.com/decred/dcrd/txscript/v4 v4.0.0
 	github.com/decred/dcrd/wire v1.4.0
 	github.com/decred/go-socks v1.1.0
 	github.com/decred/slog v1.1.0
@@ -64,6 +64,6 @@ replace (
 	github.com/decred/dcrd/peer/v2 => ./peer
 	github.com/decred/dcrd/rpc/jsonrpc/types/v2 => ./rpc/jsonrpc/types
 	github.com/decred/dcrd/rpcclient/v7 => ./rpcclient
-	github.com/decred/dcrd/txscript/v3 => ./txscript
+	github.com/decred/dcrd/txscript/v4 => ./txscript
 	github.com/decred/dcrd/wire => ./wire
 )

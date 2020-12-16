@@ -24,8 +24,6 @@ github.com/decred/dcrd/dcrutil/v3 v3.0.0 h1:n6uQaTQynIhCY89XsoDk2WQqcUcnbD+zUM9r
 github.com/decred/dcrd/dcrutil/v3 v3.0.0/go.mod h1:iVsjcqVzLmYFGCZLet2H7Nq+7imV9tYcuY+0lC2mNsY=
 github.com/decred/dcrd/lru v1.1.0 h1:QwT6v8LFKOL3xQ3qtucgRk4pdiawrxIfCbUXWpm+JL4=
 github.com/decred/dcrd/lru v1.1.0/go.mod h1:mxKOwFd7lFjN2GZYsiz/ecgqR6kkYAl+0pz0tEMk218=
-github.com/decred/dcrd/txscript/v3 v3.0.0 h1:74NmirXAIskbGP0g9OWtrmN7OxDbWJ9G73a5uoxTkcM=
-github.com/decred/dcrd/txscript/v3 v3.0.0/go.mod h1:pdvnlD4KGdDoc09cvWRJ8EoRQUaiUz41uDevOWuEfII=
 github.com/decred/dcrd/wire v1.4.0 h1:KmSo6eTQIvhXS0fLBQ/l7hG7QLcSJQKSwSyzSqJYDk0=
 github.com/decred/dcrd/wire v1.4.0/go.mod h1:WxC/0K+cCAnBh+SKsRjIX9YPgvrjhmE+6pZlel1G7Ro=
 github.com/decred/go-socks v1.1.0 h1:dnENcc0KIqQo3HSXdgboXAHgqsCIutkqq6ntQjYtm2U=
