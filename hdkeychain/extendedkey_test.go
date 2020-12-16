@@ -16,7 +16,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/decred/dcrd/dcrec/secp256k1/v3"
+	"github.com/decred/dcrd/dcrec/secp256k1/v4"
 )
 
 // mockNetParams implements the NetworkParams interface and is used throughout

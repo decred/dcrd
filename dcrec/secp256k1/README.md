@@ -3,7 +3,7 @@ secp256k1
 
 [![Build Status](https://github.com/decred/dcrd/workflows/Build%20and%20Test/badge.svg)](https://github.com/decred/dcrd/actions)
 [![ISC License](https://img.shields.io/badge/license-ISC-blue.svg)](http://copyfree.org)
-[![Doc](https://img.shields.io/badge/doc-reference-blue.svg)](https://pkg.go.dev/github.com/decred/dcrd/dcrec/secp256k1/v3)
+[![Doc](https://img.shields.io/badge/doc-reference-blue.svg)](https://pkg.go.dev/github.com/decred/dcrd/dcrec/secp256k1/v4)
 
 Package secp256k1 implements optimized secp256k1 elliptic curve operations.
 
@@ -63,7 +63,7 @@ $ go get -u github.com/decred/dcrd/dcrec/secp256k1/v3
 
 ## Examples
 
-* [Encryption](https://pkg.go.dev/github.com/decred/dcrd/dcrec/secp256k1/v3#example-package-EncryptDecryptMessage)
+* [Encryption](https://pkg.go.dev/github.com/decred/dcrd/dcrec/secp256k1/v4#example-package-EncryptDecryptMessage)
   Demonstrates encrypting and decrypting a message using a shared key derived
   through ECDHE.
 
