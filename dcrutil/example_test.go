@@ -9,7 +9,7 @@ import (
 	"math"
 
 	"github.com/decred/dcrd/dcrec"
-	"github.com/decred/dcrd/dcrutil/v3"
+	"github.com/decred/dcrd/dcrutil/v4"
 )
 
 func ExampleAmount() {

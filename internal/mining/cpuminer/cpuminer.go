@@ -18,7 +18,7 @@ import (
 	"github.com/decred/dcrd/blockchain/v4"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/chaincfg/v3"
-	"github.com/decred/dcrd/dcrutil/v3"
+	"github.com/decred/dcrd/dcrutil/v4"
 	"github.com/decred/dcrd/internal/mining"
 	"github.com/decred/dcrd/wire"
 )

@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/decred/dcrd/dcrutil/v3"
+	"github.com/decred/dcrd/dcrutil/v4"
 )
 
 // BehaviorFlags is a bitmask defining tweaks to the normal behavior when

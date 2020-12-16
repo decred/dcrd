@@ -1,4 +1,4 @@
-module github.com/decred/dcrd/dcrutil/v3
+module github.com/decred/dcrd/dcrutil/v4
 
 go 1.13
 

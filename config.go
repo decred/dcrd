@@ -26,7 +26,7 @@ import (
 	"github.com/decred/dcrd/connmgr/v3"
 	"github.com/decred/dcrd/database/v2"
 	_ "github.com/decred/dcrd/database/v2/ffldb"
-	"github.com/decred/dcrd/dcrutil/v3"
+	"github.com/decred/dcrd/dcrutil/v4"
 	"github.com/decred/dcrd/internal/mempool"
 	"github.com/decred/dcrd/internal/version"
 	"github.com/decred/dcrd/rpc/jsonrpc/types/v2"
