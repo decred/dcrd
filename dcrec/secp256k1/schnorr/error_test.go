@@ -9,10 +9,10 @@ import (
 	"testing"
 )
 
-// TestErrorCodeStringer tests the stringized output for the ErrorCode type.
-func TestErrorCodeStringer(t *testing.T) {
+// TestErrorKindStringer tests the stringized output for the ErrorKind type.
+func TestErrorKindStringer(t *testing.T) {
 	tests := []struct {
-		in   ErrorCode
+		in   ErrorKind
 		want string
 	}{
 		{ErrInvalidHashLen, "ErrInvalidHashLen"},
@@ -26,17 +26,10 @@ func TestErrorCodeStringer(t *testing.T) {
 		{ErrSigTooLong, "ErrSigTooLong"},
 		{ErrSigRTooBig, "ErrSigRTooBig"},
 		{ErrSigSTooBig, "ErrSigSTooBig"},
-		{0xffff, "Unknown ErrorCode (65535)"},
-	}
-
-	// Detect additional error codes that don't have the stringer added.
-	if len(tests)-1 != int(numErrorCodes) {
-		t.Fatalf("It appears an error code was added without adding an " +
-			"associated stringer test")
 	}
 
 	for i, test := range tests {
-		result := test.in.String()
+		result := test.in.Error()
 		if result != test.want {
 			t.Errorf("#%d: got: %s want: %s", i, result, test.want)
 			continue
@@ -66,15 +59,15 @@ func TestError(t *testing.T) {
 	}
 }
 
-// TestErrorCodeIsAs ensures both ErrorCode and Error can be identified as being
-// a specific error code via errors.Is and unwrapped via errors.As.
+// TestErrorKindIsAs ensures both ErrorKind and Error can be identified
+// as being a specific error via errors.Is and unwrapped via errors.As.
 func TestErrorCodeIsAs(t *testing.T) {
 	tests := []struct {
 		name      string
 		err       error
 		target    error
 		wantMatch bool
-		wantAs    ErrorCode
+		wantAs    ErrorKind
 	}{{
 		name:      "ErrInvalidHashLen == ErrInvalidHashLen",
 		err:       ErrInvalidHashLen,
@@ -85,12 +78,6 @@ func TestErrorCodeIsAs(t *testing.T) {
 		name:      "Error.ErrInvalidHashLen == ErrInvalidHashLen",
 		err:       signatureError(ErrInvalidHashLen, ""),
 		target:    ErrInvalidHashLen,
-		wantMatch: true,
-		wantAs:    ErrInvalidHashLen,
-	}, {
-		name:      "ErrInvalidHashLen == Error.ErrInvalidHashLen",
-		err:       ErrInvalidHashLen,
-		target:    signatureError(ErrInvalidHashLen, ""),
 		wantMatch: true,
 		wantAs:    ErrInvalidHashLen,
 	}, {
@@ -134,15 +121,15 @@ func TestErrorCodeIsAs(t *testing.T) {
 			continue
 		}
 
-		// Ensure the underlying error code can be unwrapped and is the expected
-		// code.
-		var code ErrorCode
+		// Ensure the underlying error kind can be unwrapped and is the
+		// expected code.
+		var code ErrorKind
 		if !errors.As(test.err, &code) {
-			t.Errorf("%s: unable to unwrap to error code", test.name)
+			t.Errorf("%s: unable to unwrap to error", test.name)
 			continue
 		}
-		if code != test.wantAs {
-			t.Errorf("%s: unexpected unwrapped error code -- got %v, want %v",
+		if !errors.Is(code, test.wantAs) {
+			t.Errorf("%s: unexpected unwrapped error -- got %v, want %v",
 				test.name, code, test.wantAs)
 			continue
 		}
