@@ -9,7 +9,7 @@ require (
 	github.com/decred/dcrd/chaincfg/v3 v3.0.0
 	github.com/decred/dcrd/database/v2 v2.0.2
 	github.com/decred/dcrd/dcrec v1.0.0
-	github.com/decred/dcrd/dcrec/secp256k1/v3 v3.0.0
+	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.0.0
 	github.com/decred/dcrd/dcrutil/v4 v4.0.0
 	github.com/decred/dcrd/gcs/v3 v3.0.0
 	github.com/decred/dcrd/lru v1.1.0
@@ -20,6 +20,7 @@ require (
 
 replace (
 	github.com/decred/dcrd/blockchain/stake/v4 => ./stake
+	github.com/decred/dcrd/dcrec/secp256k1/v4 => ../dcrec/secp256k1
 	github.com/decred/dcrd/dcrutil/v4 => ../dcrutil
 	github.com/decred/dcrd/gcs/v3 => ../gcs
 	github.com/decred/dcrd/lru => ../lru

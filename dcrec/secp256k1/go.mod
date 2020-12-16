@@ -1,4 +1,4 @@
-module github.com/decred/dcrd/dcrec/secp256k1/v3
+module github.com/decred/dcrd/dcrec/secp256k1/v4
 
 go 1.13
 

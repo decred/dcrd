@@ -12,4 +12,7 @@ require (
 	github.com/syndtr/goleveldb v1.0.1-0.20200815110645-5c35d600f0ca
 )
 
-replace github.com/decred/dcrd/dcrutil/v4 => ../dcrutil
+replace (
+	github.com/decred/dcrd/dcrec/secp256k1/v4 => ../dcrec/secp256k1
+	github.com/decred/dcrd/dcrutil/v4 => ../dcrutil
+)
