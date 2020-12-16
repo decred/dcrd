@@ -12,4 +12,7 @@ require (
 	github.com/decred/slog v1.1.0
 )
 
-replace github.com/decred/dcrd/txscript/v4 => ../txscript
+replace (
+	github.com/decred/dcrd/dcrutil/v4 => ../dcrutil
+	github.com/decred/dcrd/txscript/v4 => ../txscript
+)

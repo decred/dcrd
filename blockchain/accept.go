@@ -10,7 +10,7 @@ import (
 
 	"github.com/decred/dcrd/blockchain/stake/v4"
 	"github.com/decred/dcrd/database/v2"
-	"github.com/decred/dcrd/dcrutil/v3"
+	"github.com/decred/dcrd/dcrutil/v4"
 )
 
 // maybeAcceptBlock potentially accepts a block into the block chain and, if

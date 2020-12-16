@@ -23,7 +23,7 @@ import (
 	"github.com/decred/dcrd/database/v2"
 	"github.com/decred/dcrd/dcrec"
 	"github.com/decred/dcrd/dcrec/secp256k1/v3"
-	"github.com/decred/dcrd/dcrutil/v3"
+	"github.com/decred/dcrd/dcrutil/v4"
 	"github.com/decred/dcrd/gcs/v3/blockcf2"
 	"github.com/decred/dcrd/lru"
 	"github.com/decred/dcrd/txscript/v4"
