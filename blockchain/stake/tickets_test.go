@@ -28,10 +28,6 @@ import (
 const (
 	// testDbType is the database backend type to use for the tests.
 	testDbType = "ffldb"
-
-	// noTreasury signifies the treasury agenda should be treated as though it
-	// is inactive.  It is used to increase the readability of the tests.
-	noTreasury = false
 )
 
 // calcHash256PRNGIVFromHeader calculates the initialization vector for a
@@ -891,9 +887,9 @@ func TestTicketDBGeneral(t *testing.T) {
 	var rerr RuleError
 	_, err = n161Copy.ConnectNode(b162LotteryIV, n162Test.SpentByBlock(),
 		revokedTicketsInBlock(b162), n162Test.NewTickets())
-	if !errors.As(err, &rerr) || rerr.GetCode() != ErrMissingTicket {
-		t.Errorf("unexpected wrong or no error for "+
-			"Best node missing ticket in live ticket bucket to spend: %v", err)
+	if !errors.As(err, &rerr) || !errors.Is(rerr, ErrMissingTicket) {
+		t.Errorf("unexpected wrong or no error for best node missing ticket "+
+			"in live ticket bucket to spend: %v", err)
 	}
 
 	// Duplicate best winners.
@@ -904,9 +900,9 @@ func TestTicketDBGeneral(t *testing.T) {
 	spentInBlock[0] = spentInBlock[1]
 	_, err = n161Copy.ConnectNode(b162LotteryIV, spentInBlock,
 		revokedTicketsInBlock(b162), n162Test.NewTickets())
-	if !errors.As(err, &rerr) || rerr.GetCode() != ErrMissingTicket {
-		t.Errorf("unexpected wrong or no error for "+
-			"Best node missing ticket in live ticket bucket to spend: %v", err)
+	if !errors.As(err, &rerr) || !errors.Is(rerr, ErrMissingTicket) {
+		t.Errorf("unexpected wrong or no error for best node missing ticket "+
+			"in live ticket bucket to spend: %v", err)
 	}
 
 	// Test for corrupted spentInBlock.
@@ -915,7 +911,7 @@ func TestTicketDBGeneral(t *testing.T) {
 	spentInBlock[4] = someHash
 	_, err = nodesForward[161].ConnectNode(b162LotteryIV, spentInBlock,
 		revokedTicketsInBlock(b162), n162Test.NewTickets())
-	if !errors.As(err, &rerr) || rerr.GetCode() != ErrUnknownTicketSpent {
+	if !errors.As(err, &rerr) || !errors.Is(rerr, ErrUnknownTicketSpent) {
 		t.Errorf("unexpected wrong or no error for "+
 			"Test for corrupted spentInBlock: %v", err)
 	}
@@ -925,9 +921,8 @@ func TestTicketDBGeneral(t *testing.T) {
 	n161Copy.nextWinners[4] = someHash
 	_, err = n161Copy.ConnectNode(b162LotteryIV, spentInBlock,
 		revokedTicketsInBlock(b162), n162Test.NewTickets())
-	if !errors.As(err, &rerr) || rerr.GetCode() != ErrMissingTicket {
-		t.Errorf("unexpected wrong or no error for "+
-			"Corrupt winners: %v", err)
+	if !errors.As(err, &rerr) || !errors.Is(rerr, ErrMissingTicket) {
+		t.Errorf("unexpected wrong or no error for corrupt winners: %v", err)
 	}
 
 	// Unknown missed ticket.
@@ -935,9 +930,9 @@ func TestTicketDBGeneral(t *testing.T) {
 	spentInBlock = n162Copy.SpentByBlock()
 	_, err = nodesForward[161].ConnectNode(b162LotteryIV, spentInBlock,
 		append(revokedTicketsInBlock(b162), someHash), n162Copy.NewTickets())
-	if !errors.As(err, &rerr) || rerr.GetCode() != ErrMissingTicket {
-		t.Errorf("unexpected wrong or no error for "+
-			"Unknown missed ticket: %v", err)
+	if !errors.As(err, &rerr) || !errors.Is(rerr, ErrMissingTicket) {
+		t.Errorf("unexpected wrong or no error for unknown missed "+
+			"ticket: %v", err)
 	}
 
 	// Insert a duplicate new ticket.
@@ -945,9 +940,9 @@ func TestTicketDBGeneral(t *testing.T) {
 	newTicketsDup := []chainhash.Hash{someHash, someHash}
 	_, err = nodesForward[161].ConnectNode(b162LotteryIV, spentInBlock,
 		revokedTicketsInBlock(b162), newTicketsDup)
-	if !errors.As(err, &rerr) || rerr.GetCode() != ErrDuplicateTicket {
-		t.Errorf("unexpected wrong or no error for "+
-			"Insert a duplicate new ticket: %v", err)
+	if !errors.As(err, &rerr) || !errors.Is(rerr, ErrDuplicateTicket) {
+		t.Errorf("unexpected wrong or no error for insert a duplicate "+
+			"new ticket: %v", err)
 	}
 
 	// Impossible undo data for disconnecting.
@@ -986,9 +981,9 @@ func TestTicketDBGeneral(t *testing.T) {
 	n162Copy.databaseUndoUpdate[0].Revoked = false
 	_, err = n162Copy.DisconnectNode(b161LotteryIV, n161Copy.UndoData(),
 		n161Copy.NewTickets(), nil)
-	if !errors.As(err, &rerr) || rerr.GetCode() != ErrMissingTicket {
-		t.Errorf("unexpected wrong or no error for "+
-			"Unknown undo data for disconnecting (missing): %v", err)
+	if !errors.As(err, &rerr) || !errors.Is(rerr, ErrMissingTicket) {
+		t.Errorf("unexpected wrong or no error for unknown undo data for "+
+			"disconnecting (missing): %v", err)
 	}
 
 	// Unknown undo data hash when disconnecting (revoked).
@@ -1001,8 +996,8 @@ func TestTicketDBGeneral(t *testing.T) {
 	n162Copy.databaseUndoUpdate[0].Revoked = true
 	_, err = n162Copy.DisconnectNode(b161LotteryIV, n161Copy.UndoData(),
 		n161Copy.NewTickets(), nil)
-	if !errors.As(err, &rerr) || rerr.GetCode() != ErrMissingTicket {
-		t.Errorf("unexpected wrong or no error for "+
-			"Unknown undo data for disconnecting (revoked): %v", err)
+	if !errors.As(err, &rerr) || !errors.Is(rerr, ErrMissingTicket) {
+		t.Errorf("unexpected wrong or no error for unknown undo data for "+
+			"disconnecting (revoked): %v", err)
 	}
 }

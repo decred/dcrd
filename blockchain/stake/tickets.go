@@ -321,7 +321,8 @@ func LoadBestNode(dbTx database.Tx, height uint32, blockHash chainhash.Hash, hea
 		return nil, err
 	}
 	if state.Hash != blockHash || state.Height != height {
-		return nil, stakeRuleError(ErrDatabaseCorrupt, "best state corruption")
+		str := "best state corruption"
+		return nil, stakeRuleError(ErrDatabaseCorrupt, str)
 	}
 
 	// Restore the best node treaps form the database.
@@ -334,10 +335,9 @@ func LoadBestNode(dbTx database.Tx, height uint32, blockHash chainhash.Hash, hea
 		return nil, err
 	}
 	if node.liveTickets.Len() != int(state.Live) {
-		return nil, stakeRuleError(ErrDatabaseCorrupt,
-			fmt.Sprintf("live tickets corruption (got "+
-				"%v in state but loaded %v)", int(state.Live),
-				node.liveTickets.Len()))
+		str := fmt.Sprintf("live tickets corruption (got %v in state but "+
+			"loaded %v)", int(state.Live), node.liveTickets.Len())
+		return nil, stakeRuleError(ErrDatabaseCorrupt, str)
 	}
 	node.missedTickets, err = ticketdb.DbLoadAllTickets(dbTx,
 		dbnamespace.MissedTicketsBucketName)
@@ -345,10 +345,9 @@ func LoadBestNode(dbTx database.Tx, height uint32, blockHash chainhash.Hash, hea
 		return nil, err
 	}
 	if node.missedTickets.Len() != int(state.Missed) {
-		return nil, stakeRuleError(ErrDatabaseCorrupt,
-			fmt.Sprintf("missed tickets corruption (got "+
-				"%v in state but loaded %v)", int(state.Missed),
-				node.missedTickets.Len()))
+		str := fmt.Sprintf("missed tickets corruption (got %v in state but "+
+			"loaded %v)", int(state.Missed), node.missedTickets.Len())
+		return nil, stakeRuleError(ErrDatabaseCorrupt, str)
 	}
 	node.revokedTickets, err = ticketdb.DbLoadAllTickets(dbTx,
 		dbnamespace.RevokedTicketsBucketName)
@@ -356,10 +355,9 @@ func LoadBestNode(dbTx database.Tx, height uint32, blockHash chainhash.Hash, hea
 		return nil, err
 	}
 	if node.revokedTickets.Len() != int(state.Revoked) {
-		return nil, stakeRuleError(ErrDatabaseCorrupt,
-			fmt.Sprintf("revoked tickets corruption (got "+
-				"%v in state but loaded %v)", int(state.Revoked),
-				node.revokedTickets.Len()))
+		str := fmt.Sprintf("revoked tickets corruption (got %v in state but "+
+			"loaded %v)", int(state.Revoked), node.revokedTickets.Len())
+		return nil, stakeRuleError(ErrDatabaseCorrupt, str)
 	}
 
 	// Restore the node undo and new tickets data.
@@ -425,10 +423,9 @@ func hashInSlice(h chainhash.Hash, list []chainhash.Hash) bool {
 func safeGet(t *tickettreap.Immutable, k tickettreap.Key) (*tickettreap.Value, error) {
 	v := t.Get(k)
 	if v == nil {
-		h := chainhash.Hash(k)
-		return nil, stakeRuleError(ErrMissingTicket, fmt.Sprintf(
-			"ticket %v was supposed to be in the passed "+
-				"treap, but could not be found", h))
+		str := fmt.Sprintf("ticket %v was supposed to be in the passed "+
+			"treap, but could not be found", chainhash.Hash(k))
+		return nil, stakeRuleError(ErrMissingTicket, str)
 	}
 
 	return &tickettreap.Value{
@@ -447,8 +444,9 @@ func safeGet(t *tickettreap.Immutable, k tickettreap.Key) (*tickettreap.Value, e
 //       treap value are valid.
 func safePut(t *tickettreap.Immutable, k tickettreap.Key, v *tickettreap.Value) (*tickettreap.Immutable, error) {
 	if t.Has(k) {
-		return nil, stakeRuleError(ErrDuplicateTicket, fmt.Sprintf("attempted "+
-			"to insert duplicate key %v into treap", chainhash.Hash(k)))
+		str := fmt.Sprintf("attempted to insert duplicate key %v into treap",
+			chainhash.Hash(k))
+		return nil, stakeRuleError(ErrDuplicateTicket, str)
 	}
 
 	return t.Put(k, v), nil
@@ -459,8 +457,9 @@ func safePut(t *tickettreap.Immutable, k tickettreap.Key, v *tickettreap.Value) 
 // the key exists in the treap. If it does not, it returns an error.
 func safeDelete(t *tickettreap.Immutable, k tickettreap.Key) (*tickettreap.Immutable, error) {
 	if !t.Has(k) {
-		return nil, stakeRuleError(ErrMissingTicket, fmt.Sprintf("attempted to "+
-			"delete non-existing key %v from treap", chainhash.Hash(k)))
+		str := fmt.Sprintf("attempted to delete non-existing key %v "+
+			"from treap", chainhash.Hash(k))
+		return nil, stakeRuleError(ErrMissingTicket, str)
 	}
 
 	return t.Delete(k), nil
@@ -494,9 +493,9 @@ func connectNode(node *Node, lotteryIV chainhash.Hash, ticketsVoted, revokedTick
 		// Basic sanity check.
 		for i := range ticketsVoted {
 			if !hashInSlice(ticketsVoted[i], node.nextWinners) {
-				return nil, stakeRuleError(ErrUnknownTicketSpent,
-					fmt.Sprintf("unknown ticket %v spent in block",
-						ticketsVoted[i]))
+				str := fmt.Sprintf("unknown ticket %v spent in block",
+					ticketsVoted[i])
+				return nil, stakeRuleError(ErrUnknownTicketSpent, str)
 			}
 		}
 
@@ -717,8 +716,9 @@ func disconnectNode(node *Node, parentLotteryIV chainhash.Hash, parentUtds UndoT
 	// disk.
 	if parentUtds == nil || parentTickets == nil {
 		if dbTx == nil {
-			return nil, stakeRuleError(ErrMissingDatabaseTx, "needed to "+
-				"look up undo data in the database, but no dbtx passed")
+			str := "needed to look up undo data in the database, but " +
+				"no dbtx passed"
+			return nil, stakeRuleError(ErrMissingDatabaseTx, str)
 		}
 
 		var err error
@@ -827,8 +827,8 @@ func disconnectNode(node *Node, parentLotteryIV chainhash.Hash, parentUtds UndoT
 			}
 
 		default:
-			return nil, stakeRuleError(ErrMemoryCorruption,
-				"unknown ticket state in undo data")
+			str := "unknown ticket state in undo data"
+			return nil, stakeRuleError(ErrMemoryCorruption, str)
 		}
 	}
 
@@ -916,8 +916,8 @@ func WriteConnectedBestNode(dbTx database.Tx, node *Node, hash chainhash.Hash) e
 			}
 
 		default:
-			return stakeRuleError(ErrMemoryCorruption,
-				"unknown ticket state in undo data")
+			str := "unknown ticket state in undo data"
+			return stakeRuleError(ErrMemoryCorruption, str)
 		}
 	}
 
@@ -1047,8 +1047,8 @@ func WriteDisconnectedBestNode(dbTx database.Tx, node *Node, hash chainhash.Hash
 			}
 
 		default:
-			return stakeRuleError(ErrMemoryCorruption,
-				"unknown ticket state in undo data")
+			str := "unknown ticket state in undo data"
+			return stakeRuleError(ErrMemoryCorruption, str)
 		}
 	}
 
