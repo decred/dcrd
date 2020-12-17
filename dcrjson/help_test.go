@@ -1,11 +1,12 @@
 // Copyright (c) 2014 The btcsuite developers
-// Copyright (c) 2015-2016 The Decred developers
+// Copyright (c) 2015-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
 package dcrjson
 
 import (
+	"errors"
 	"reflect"
 	"testing"
 )
@@ -666,47 +667,39 @@ func TestGenerateHelpErrors(t *testing.T) {
 		name        string
 		method      string
 		resultTypes []interface{}
-		err         Error
+		err         error
 	}{
 		{
 			name:   "unregistered command",
 			method: "boguscommand",
-			err:    Error{Code: ErrUnregisteredMethod},
+			err:    ErrUnregisteredMethod,
 		},
 		{
 			name:        "non-pointer result type",
 			method:      "help",
 			resultTypes: []interface{}{0},
-			err:         Error{Code: ErrInvalidType},
+			err:         ErrInvalidType,
 		},
 		{
 			name:        "invalid result type",
 			method:      "help",
 			resultTypes: []interface{}{(*complex64)(nil)},
-			err:         Error{Code: ErrInvalidType},
+			err:         ErrInvalidType,
 		},
 		{
 			name:        "missing description",
 			method:      "help",
 			resultTypes: []interface{}{(*string)(nil), nil},
-			err:         Error{Code: ErrMissingDescription},
+			err:         ErrMissingDescription,
 		},
 	}
 
 	t.Logf("Running %d tests", len(tests))
 	for i, test := range tests {
-		_, err := GenerateHelp(test.method, nil,
-			test.resultTypes...)
-		if reflect.TypeOf(err) != reflect.TypeOf(test.err) {
-			t.Errorf("Test #%d (%s) wrong error type - got `%T` (%v), want `%T`",
-				i, test.name, err, err, test.err)
-			continue
-		}
-		gotErrorCode := err.(Error).Code
-		if gotErrorCode != test.err.Code {
-			t.Errorf("Test #%d (%s) mismatched error code - got "+
-				"%v (%v), want %v", i, test.name, gotErrorCode,
-				err, test.err.Code)
+		_, err := GenerateHelp(test.method, nil, test.resultTypes...)
+		if !errors.Is(err, test.err) {
+			t.Errorf("Test #%d (%s): mismatched error - got %v, "+
+				"want %v", i, test.name, err, test.err)
 			continue
 		}
 	}

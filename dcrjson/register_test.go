@@ -1,11 +1,12 @@
 // Copyright (c) 2014 The btcsuite developers
-// Copyright (c) 2015-2019 The Decred developers
+// Copyright (c) 2015-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
 package dcrjson
 
 import (
+	"errors"
 	"reflect"
 	"sort"
 	"testing"
@@ -82,7 +83,7 @@ func TestRegisterCmdErrors(t *testing.T) {
 		method  string
 		cmdFunc func() interface{}
 		flags   UsageFlag
-		err     Error
+		err     error
 	}{
 		{
 			name:   "duplicate method",
@@ -90,7 +91,7 @@ func TestRegisterCmdErrors(t *testing.T) {
 			cmdFunc: func() interface{} {
 				return struct{}{}
 			},
-			err: Error{Code: ErrDuplicateMethod},
+			err: ErrDuplicateMethod,
 		},
 		{
 			name:   "invalid usage flags",
@@ -99,7 +100,7 @@ func TestRegisterCmdErrors(t *testing.T) {
 				return 0
 			},
 			flags: highestUsageFlagBit,
-			err:   Error{Code: ErrInvalidUsageFlags},
+			err:   ErrInvalidUsageFlags,
 		},
 		{
 			name:   "invalid type",
@@ -107,7 +108,7 @@ func TestRegisterCmdErrors(t *testing.T) {
 			cmdFunc: func() interface{} {
 				return 0
 			},
-			err: Error{Code: ErrInvalidType},
+			err: ErrInvalidType,
 		},
 		{
 			name:   "invalid type 2",
@@ -115,7 +116,7 @@ func TestRegisterCmdErrors(t *testing.T) {
 			cmdFunc: func() interface{} {
 				return &[]string{}
 			},
-			err: Error{Code: ErrInvalidType},
+			err: ErrInvalidType,
 		},
 		{
 			name:   "embedded field",
@@ -124,7 +125,7 @@ func TestRegisterCmdErrors(t *testing.T) {
 				type test struct{ int }
 				return (*test)(nil)
 			},
-			err: Error{Code: ErrEmbeddedType},
+			err: ErrEmbeddedType,
 		},
 		{
 			name:   "unexported field",
@@ -133,7 +134,7 @@ func TestRegisterCmdErrors(t *testing.T) {
 				type test struct{ a int }
 				return (*test)(nil)
 			},
-			err: Error{Code: ErrUnexportedField},
+			err: ErrUnexportedField,
 		},
 		{
 			name:   "unsupported field type 1",
@@ -142,7 +143,7 @@ func TestRegisterCmdErrors(t *testing.T) {
 				type test struct{ A **int }
 				return (*test)(nil)
 			},
-			err: Error{Code: ErrUnsupportedFieldType},
+			err: ErrUnsupportedFieldType,
 		},
 		{
 			name:   "unsupported field type 2",
@@ -151,7 +152,7 @@ func TestRegisterCmdErrors(t *testing.T) {
 				type test struct{ A chan int }
 				return (*test)(nil)
 			},
-			err: Error{Code: ErrUnsupportedFieldType},
+			err: ErrUnsupportedFieldType,
 		},
 		{
 			name:   "unsupported field type 3",
@@ -160,7 +161,7 @@ func TestRegisterCmdErrors(t *testing.T) {
 				type test struct{ A complex64 }
 				return (*test)(nil)
 			},
-			err: Error{Code: ErrUnsupportedFieldType},
+			err: ErrUnsupportedFieldType,
 		},
 		{
 			name:   "unsupported field type 4",
@@ -169,7 +170,7 @@ func TestRegisterCmdErrors(t *testing.T) {
 				type test struct{ A complex128 }
 				return (*test)(nil)
 			},
-			err: Error{Code: ErrUnsupportedFieldType},
+			err: ErrUnsupportedFieldType,
 		},
 		{
 			name:   "unsupported field type 5",
@@ -178,7 +179,7 @@ func TestRegisterCmdErrors(t *testing.T) {
 				type test struct{ A func() }
 				return (*test)(nil)
 			},
-			err: Error{Code: ErrUnsupportedFieldType},
+			err: ErrUnsupportedFieldType,
 		},
 		{
 			name:   "unsupported field type 6",
@@ -187,7 +188,7 @@ func TestRegisterCmdErrors(t *testing.T) {
 				type test struct{ A interface{} }
 				return (*test)(nil)
 			},
-			err: Error{Code: ErrUnsupportedFieldType},
+			err: ErrUnsupportedFieldType,
 		},
 		{
 			name:   "required after optional",
@@ -199,7 +200,7 @@ func TestRegisterCmdErrors(t *testing.T) {
 				}
 				return (*test)(nil)
 			},
-			err: Error{Code: ErrNonOptionalField},
+			err: ErrNonOptionalField,
 		},
 		{
 			name:   "non-optional with default",
@@ -210,7 +211,7 @@ func TestRegisterCmdErrors(t *testing.T) {
 				}
 				return (*test)(nil)
 			},
-			err: Error{Code: ErrNonOptionalDefault},
+			err: ErrNonOptionalDefault,
 		},
 		{
 			name:   "mismatched default",
@@ -221,23 +222,16 @@ func TestRegisterCmdErrors(t *testing.T) {
 				}
 				return (*test)(nil)
 			},
-			err: Error{Code: ErrMismatchedDefault},
+			err: ErrMismatchedDefault,
 		},
 	}
 
 	t.Logf("Running %d tests", len(tests))
 	for i, test := range tests {
 		err := Register(test.method, test.cmdFunc(), test.flags)
-		if reflect.TypeOf(err) != reflect.TypeOf(test.err) {
-			t.Errorf("Test #%d (%s) wrong error - got %T, "+
-				"want %T", i, test.name, err, test.err)
-			continue
-		}
-		gotErrorCode := err.(Error).Code
-		if gotErrorCode != test.err.Code {
-			t.Errorf("Test #%d (%s) mismatched error code - got "+
-				"%v, want %v", i, test.name, gotErrorCode,
-				test.err.Code)
+		if !errors.Is(err, test.err) {
+			t.Errorf("Test #%d (%s): mismatched error - got %v, "+
+				"want %v", i, test.name, err, test.err)
 			continue
 		}
 	}

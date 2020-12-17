@@ -1,112 +1,91 @@
 // Copyright (c) 2014 The btcsuite developers
-// Copyright (c) 2015-2016 The Decred developers
+// Copyright (c) 2015-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
 package dcrjson
 
-import (
-	"fmt"
-)
-
-// ErrorCode identifies a kind of error.  These error codes are NOT used for
+// ErrorKind identifies a kind of error.  It has full support for errors.Is and
+// errors.As, so the caller can directly check against an error kind when
+// determining the reason for an error.  These error codes are NOT used for
 // JSON-RPC response errors.
-type ErrorCode int
+type ErrorKind string
 
 // These constants are used to identify a specific RuleError.
 const (
 	// ErrDuplicateMethod indicates a command with the specified method
 	// already exists.
-	ErrDuplicateMethod ErrorCode = iota
+	ErrDuplicateMethod = ErrorKind("ErrDuplicateMethod")
 
 	// ErrInvalidUsageFlags indicates one or more unrecognized flag bits
 	// were specified.
-	ErrInvalidUsageFlags
+	ErrInvalidUsageFlags = ErrorKind("ErrInvalidUsageFlags")
 
 	// ErrInvalidType indicates a type was passed that is not the required
 	// type.
-	ErrInvalidType
+	ErrInvalidType = ErrorKind("ErrInvalidType")
 
 	// ErrEmbeddedType indicates the provided command struct contains an
 	// embedded type which is not not supported.
-	ErrEmbeddedType
+	ErrEmbeddedType = ErrorKind("ErrEmbeddedType")
 
 	// ErrUnexportedField indicates the provided command struct contains an
 	// unexported field which is not supported.
-	ErrUnexportedField
+	ErrUnexportedField = ErrorKind("ErrUnexportedField")
 
 	// ErrUnsupportedFieldType indicates the type of a field in the provided
 	// command struct is not one of the supported types.
-	ErrUnsupportedFieldType
+	ErrUnsupportedFieldType = ErrorKind("ErrUnsupportedFieldType")
 
 	// ErrNonOptionalField indicates a non-optional field was specified
 	// after an optional field.
-	ErrNonOptionalField
+	ErrNonOptionalField = ErrorKind("ErrNonOptionalField")
 
 	// ErrNonOptionalDefault indicates a 'jsonrpcdefault' struct tag was
 	// specified for a non-optional field.
-	ErrNonOptionalDefault
+	ErrNonOptionalDefault = ErrorKind("ErrNonOptionalDefault")
 
 	// ErrMismatchedDefault indicates a 'jsonrpcdefault' struct tag contains
 	// a value that doesn't match the type of the field.
-	ErrMismatchedDefault
+	ErrMismatchedDefault = ErrorKind("ErrMismatchedDefault")
 
 	// ErrUnregisteredMethod indicates a method was specified that has not
 	// been registered.
-	ErrUnregisteredMethod
+	ErrUnregisteredMethod = ErrorKind("ErrUnregisteredMethod")
 
 	// ErrMissingDescription indicates a description required to generate
 	// help is missing.
-	ErrMissingDescription
+	ErrMissingDescription = ErrorKind("ErrMissingDescription")
 
 	// ErrNumParams indicates the number of params supplied do not
 	// match the requirements of the associated command.
-	ErrNumParams
-
-	// numErrorCodes is the maximum error code number used in tests.
-	numErrorCodes
+	ErrNumParams = ErrorKind("ErrNumParams")
 )
 
-// Map of ErrorCode values back to their constant names for pretty printing.
-var errorCodeStrings = map[ErrorCode]string{
-	ErrDuplicateMethod:      "ErrDuplicateMethod",
-	ErrInvalidUsageFlags:    "ErrInvalidUsageFlags",
-	ErrInvalidType:          "ErrInvalidType",
-	ErrEmbeddedType:         "ErrEmbeddedType",
-	ErrUnexportedField:      "ErrUnexportedField",
-	ErrUnsupportedFieldType: "ErrUnsupportedFieldType",
-	ErrNonOptionalField:     "ErrNonOptionalField",
-	ErrNonOptionalDefault:   "ErrNonOptionalDefault",
-	ErrMismatchedDefault:    "ErrMismatchedDefault",
-	ErrUnregisteredMethod:   "ErrUnregisteredMethod",
-	ErrMissingDescription:   "ErrMissingDescription",
-	ErrNumParams:            "ErrNumParams",
+// Error satisfies the error interface and prints human-readable errors.
+func (e ErrorKind) Error() string {
+	return string(e)
 }
 
-// String returns the ErrorCode as a human-readable name.
-func (e ErrorCode) String() string {
-	if s := errorCodeStrings[e]; s != "" {
-		return s
-	}
-	return fmt.Sprintf("Unknown ErrorCode (%d)", int(e))
-}
-
-// Error identifies a general error.  This differs from an RPCError in that this
-// error typically is used more by the consumers of the package as opposed to
-// RPCErrors which are intended to be returned to the client across the wire via
-// a JSON-RPC Response.  The caller can use type assertions to determine the
-// specific error and access the ErrorCode field.
+// Error identifies an error related to decred's JSON-RPC APIs. It has
+// full support for errors.Is and errors.As, so the caller can ascertain the
+// specific reason for the error by checking the underlying error.
 type Error struct {
-	Code    ErrorCode // Describes the kind of error
-	Message string    // Human readable description of the issue
+	Err         error
+	Description string
 }
 
 // Error satisfies the error interface and prints human-readable errors.
 func (e Error) Error() string {
-	return e.Message
+	return e.Description
+}
+
+// Unwrap returns the underlying wrapped error.
+func (e Error) Unwrap() error {
+	return e.Err
 }
 
 // makeError creates an Error given a set of arguments.
-func makeError(c ErrorCode, desc string) Error {
-	return Error{Code: c, Message: desc}
+func makeError(kind ErrorKind, desc string) Error {
+	return Error{Err: kind, Description: desc}
 }

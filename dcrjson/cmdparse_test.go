@@ -7,6 +7,7 @@ package dcrjson
 
 import (
 	"encoding/json"
+	"errors"
 	"math"
 	"reflect"
 	"testing"
@@ -196,133 +197,133 @@ func TestAssignFieldErrors(t *testing.T) {
 		name string
 		dest interface{}
 		src  interface{}
-		err  Error
+		err  error
 	}{
 		{
 			name: "general incompatible int -> string",
 			dest: string(rune(0)),
 			src:  int(0),
-			err:  Error{Code: ErrInvalidType},
+			err:  ErrInvalidType,
 		},
 		{
 			name: "overflow source int -> dest int",
 			dest: int8(0),
 			src:  int(128),
-			err:  Error{Code: ErrInvalidType},
+			err:  ErrInvalidType,
 		},
 		{
 			name: "overflow source int -> dest uint",
 			dest: uint8(0),
 			src:  int(256),
-			err:  Error{Code: ErrInvalidType},
+			err:  ErrInvalidType,
 		},
 		{
 			name: "int -> float",
 			dest: float32(0),
 			src:  int(256),
-			err:  Error{Code: ErrInvalidType},
+			err:  ErrInvalidType,
 		},
 		{
 			name: "overflow source uint64 -> dest int64",
 			dest: int64(0),
 			src:  uint64(1 << 63),
-			err:  Error{Code: ErrInvalidType},
+			err:  ErrInvalidType,
 		},
 		{
 			name: "overflow source uint -> dest int",
 			dest: int8(0),
 			src:  uint(128),
-			err:  Error{Code: ErrInvalidType},
+			err:  ErrInvalidType,
 		},
 		{
 			name: "overflow source uint -> dest uint",
 			dest: uint8(0),
 			src:  uint(256),
-			err:  Error{Code: ErrInvalidType},
+			err:  ErrInvalidType,
 		},
 		{
 			name: "uint -> float",
 			dest: float32(0),
 			src:  uint(256),
-			err:  Error{Code: ErrInvalidType},
+			err:  ErrInvalidType,
 		},
 		{
 			name: "float -> int",
 			dest: int(0),
 			src:  float32(1.0),
-			err:  Error{Code: ErrInvalidType},
+			err:  ErrInvalidType,
 		},
 		{
 			name: "overflow float64 -> float32",
 			dest: float32(0),
 			src:  float64(math.MaxFloat64),
-			err:  Error{Code: ErrInvalidType},
+			err:  ErrInvalidType,
 		},
 		{
 			name: "invalid string -> bool",
 			dest: true,
 			src:  "foo",
-			err:  Error{Code: ErrInvalidType},
+			err:  ErrInvalidType,
 		},
 		{
 			name: "invalid string -> int",
 			dest: int8(0),
 			src:  "foo",
-			err:  Error{Code: ErrInvalidType},
+			err:  ErrInvalidType,
 		},
 		{
 			name: "overflow string -> int",
 			dest: int8(0),
 			src:  "128",
-			err:  Error{Code: ErrInvalidType},
+			err:  ErrInvalidType,
 		},
 		{
 			name: "invalid string -> uint",
 			dest: uint8(0),
 			src:  "foo",
-			err:  Error{Code: ErrInvalidType},
+			err:  ErrInvalidType,
 		},
 		{
 			name: "overflow string -> uint",
 			dest: uint8(0),
 			src:  "256",
-			err:  Error{Code: ErrInvalidType},
+			err:  ErrInvalidType,
 		},
 		{
 			name: "invalid string -> float",
 			dest: float32(0),
 			src:  "foo",
-			err:  Error{Code: ErrInvalidType},
+			err:  ErrInvalidType,
 		},
 		{
 			name: "overflow string -> float",
 			dest: float32(0),
 			src:  "1.7976931348623157e+308",
-			err:  Error{Code: ErrInvalidType},
+			err:  ErrInvalidType,
 		},
 		{
 			name: "invalid string -> array",
 			dest: [3]int{},
 			src:  "foo",
-			err:  Error{Code: ErrInvalidType},
+			err:  ErrInvalidType,
 		},
 		{
 			name: "invalid string -> slice",
 			dest: []int{},
 			src:  "foo",
-			err:  Error{Code: ErrInvalidType},
+			err:  ErrInvalidType,
 		},
 		{
 			name: "invalid string -> struct",
 			dest: struct{ A int }{},
 			src:  "foo",
-			err:  Error{Code: ErrInvalidType},
+			err:  ErrInvalidType,
 		},
 		{
 			name: "invalid string -> map",
 			dest: map[string]int{},
 			src:  "foo",
-			err:  Error{Code: ErrInvalidType},
+			err:  ErrInvalidType,
 		},
 	}
 
@@ -331,16 +332,9 @@ func TestAssignFieldErrors(t *testing.T) {
 		dst := reflect.New(reflect.TypeOf(test.dest)).Elem()
 		src := reflect.ValueOf(test.src)
 		err := assignField(1, "testField", dst, src)
-		if reflect.TypeOf(err) != reflect.TypeOf(test.err) {
-			t.Errorf("Test #%d (%s) wrong error - got %T (%[3]v), "+
-				"want %T", i, test.name, err, test.err)
-			continue
-		}
-		gotErrorCode := err.(Error).Code
-		if gotErrorCode != test.err.Code {
-			t.Errorf("Test #%d (%s) mismatched error code - got "+
-				"%v (%v), want %v", i, test.name, gotErrorCode,
-				err, test.err.Code)
+		if !errors.Is(err, test.err) {
+			t.Errorf("Test #%d (%s): mismatched error - got %v, "+
+				"want %v", i, test.name, err, test.err)
 			continue
 		}
 	}
@@ -354,53 +348,46 @@ func TestNewCmdErrors(t *testing.T) {
 		name   string
 		method string
 		args   []interface{}
-		err    Error
+		err    error
 	}{
 		{
 			name:   "unregistered command",
 			method: "boguscommand",
 			args:   []interface{}{},
-			err:    Error{Code: ErrUnregisteredMethod},
+			err:    ErrUnregisteredMethod,
 		},
 		{
 			name:   "too few parameters to command with required + optional",
 			method: "getblock",
 			args:   []interface{}{},
-			err:    Error{Code: ErrNumParams},
+			err:    ErrNumParams,
 		},
 		{
 			name:   "too many parameters to command with no optional",
 			method: "getblockcount",
 			args:   []interface{}{"123"},
-			err:    Error{Code: ErrNumParams},
+			err:    ErrNumParams,
 		},
 		{
 			name:   "incorrect parameter type",
 			method: "getblock",
 			args:   []interface{}{1},
-			err:    Error{Code: ErrInvalidType},
+			err:    ErrInvalidType,
 		},
 	}
 
 	t.Logf("Running %d tests", len(tests))
 	for i, test := range tests {
 		_, err := NewCmd(test.method, test.args...)
-		if reflect.TypeOf(err) != reflect.TypeOf(test.err) {
-			t.Errorf("Test #%d (%s) wrong error type - got `%T` (%v), want `%T`",
-				i, test.name, err, err, test.err)
-			continue
-		}
-		gotErrorCode := err.(Error).Code
-		if gotErrorCode != test.err.Code {
-			t.Errorf("Test #%d (%s) mismatched error code - got "+
-				"%v (%v), want %v", i, test.name, gotErrorCode,
-				err, test.err.Code)
+		if !errors.Is(err, test.err) {
+			t.Errorf("Test #%d (%s): mismatched error - got %v, "+
+				"want %v", i, test.name, err, test.err)
 			continue
 		}
 	}
 }
 
-// TestMarshalCmdErrors  tests the error paths of the MarshalCmd function.
+// TestMarshalCmdErrors tests the error paths of the MarshalCmd function.
 func TestMarshalCmdErrors(t *testing.T) {
 	t.Parallel()
 
@@ -408,41 +395,34 @@ func TestMarshalCmdErrors(t *testing.T) {
 		name string
 		id   interface{}
 		cmd  interface{}
-		err  Error
+		err  error
 	}{
 		{
 			name: "unregistered type",
 			id:   1,
 			cmd:  (*int)(nil),
-			err:  Error{Code: ErrUnregisteredMethod},
+			err:  ErrUnregisteredMethod,
 		},
 		{
 			name: "nil instance of registered type",
 			id:   1,
 			cmd:  (*testGetBlockCmd)(nil),
-			err:  Error{Code: ErrInvalidType},
+			err:  ErrInvalidType,
 		},
 		{
 			name: "zero instance of registered type",
 			id:   []int{0, 1},
 			cmd:  &testGetBlockCountCmd{},
-			err:  Error{Code: ErrInvalidType},
+			err:  ErrInvalidType,
 		},
 	}
 
 	t.Logf("Running %d tests", len(tests))
 	for i, test := range tests {
 		_, err := MarshalCmd("1.0", test.id, test.cmd)
-		if reflect.TypeOf(err) != reflect.TypeOf(test.err) {
-			t.Errorf("Test #%d (%s) wrong error type - got `%T` (%v), want `%T`",
-				i, test.name, err, err, test.err)
-			continue
-		}
-		gotErrorCode := err.(Error).Code
-		if gotErrorCode != test.err.Code {
-			t.Errorf("Test #%d (%s) mismatched error code - got "+
-				"%v (%v), want %v", i, test.name, gotErrorCode,
-				err, test.err.Code)
+		if !errors.Is(err, test.err) {
+			t.Errorf("Test #%d (%s): mismatched error - got %v, "+
+				"want %T", i, test.name, err, test.err)
 			continue
 		}
 	}
@@ -456,47 +436,40 @@ func TestParseParamsErrors(t *testing.T) {
 		name   string
 		method string
 		params []json.RawMessage
-		err    Error
+		err    error
 	}{
 		{
 			name:   "unregistered type",
 			method: "bogusmethod",
 			params: nil,
-			err:    Error{Code: ErrUnregisteredMethod},
+			err:    ErrUnregisteredMethod,
 		},
 		{
 			name:   "incorrect number of params",
 			method: "getblockcount",
 			params: []json.RawMessage{[]byte(`"bogusparam"`)},
-			err:    Error{Code: ErrNumParams},
+			err:    ErrNumParams,
 		},
 		{
 			name:   "invalid type for a parameter",
 			method: "getblock",
 			params: []json.RawMessage{[]byte("1")},
-			err:    Error{Code: ErrInvalidType},
+			err:    ErrInvalidType,
 		},
 		{
 			name:   "invalid JSON for a parameter",
 			method: "getblock",
 			params: []json.RawMessage{[]byte(`"1`)},
-			err:    Error{Code: ErrInvalidType},
+			err:    ErrInvalidType,
 		},
 	}
 
 	t.Logf("Running %d tests", len(tests))
 	for i, test := range tests {
 		_, err := ParseParams(test.method, test.params)
-		if reflect.TypeOf(err) != reflect.TypeOf(test.err) {
-			t.Errorf("Test #%d (%s) wrong error type - got `%T` (%v), want `%T`",
-				i, test.name, err, err, test.err)
-			continue
-		}
-		gotErrorCode := err.(Error).Code
-		if gotErrorCode != test.err.Code {
-			t.Errorf("Test #%d (%s) mismatched error code - got "+
-				"%v (%v), want %v", i, test.name, gotErrorCode,
-				err, test.err.Code)
+		if !errors.Is(err, test.err) {
+			t.Errorf("#%d (%s): mismatched error - got %v, "+
+				"want %v", i, test.name, err, test.err)
 			continue
 		}
 	}

@@ -1,5 +1,5 @@
 // Copyright (c) 2014 The btcsuite developers
-// Copyright (c) 2015-2016 The Decred developers
+// Copyright (c) 2015-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -7,6 +7,7 @@ package dcrjson
 
 import (
 	"encoding/json"
+	"errors"
 	"reflect"
 	"testing"
 )
@@ -108,9 +109,9 @@ func TestMiscErrors(t *testing.T) {
 
 	// Force an error in MarshalResponse by giving it an id type that is not
 	// supported.
-	wantErr := Error{Code: ErrInvalidType}
+	wantErr := ErrInvalidType
 	_, err = MarshalResponse("", make(chan int), nil, nil)
-	if jerr, ok := err.(Error); !ok || jerr.Code != wantErr.Code {
+	if !errors.Is(err, wantErr) {
 		t.Errorf("MarshalResult: did not receive expected error - got "+
 			"%v (%[1]T), want %v (%[2]T)", err, wantErr)
 		return

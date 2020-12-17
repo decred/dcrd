@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2014 Conformal Systems LLC.
-// Copyright (c) 2015-2016 The Decred developers
+// Copyright (c) 2015-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -7,23 +7,23 @@ package dcrjson
 
 // Standard JSON-RPC 2.0 errors
 var (
-	ErrInvalidRequest = Error{
+	ErrInvalidRequest = RPCError{
 		Code:    -32600,
 		Message: "Invalid request",
 	}
-	ErrMethodNotFound = Error{
+	ErrMethodNotFound = RPCError{
 		Code:    -32601,
 		Message: "Method not found",
 	}
-	ErrInvalidParams = Error{
+	ErrInvalidParams = RPCError{
 		Code:    -32602,
 		Message: "Invalid parameters",
 	}
-	ErrInternal = Error{
+	ErrInternal = RPCError{
 		Code:    -32603,
 		Message: "Internal error",
 	}
-	ErrParse = Error{
+	ErrParse = RPCError{
 		Code:    -32700,
 		Message: "Parse error",
 	}
@@ -31,35 +31,35 @@ var (
 
 // General application defined JSON errors
 var (
-	ErrMisc = Error{
+	ErrMisc = RPCError{
 		Code:    -1,
 		Message: "Miscellaneous error",
 	}
-	ErrForbiddenBySafeMode = Error{
+	ErrForbiddenBySafeMode = RPCError{
 		Code:    -2,
 		Message: "Server is in safe mode, and command is not allowed in safe mode",
 	}
-	ErrType = Error{
+	ErrType = RPCError{
 		Code:    -3,
 		Message: "Unexpected type was passed as parameter",
 	}
-	ErrInvalidAddressOrKey = Error{
+	ErrInvalidAddressOrKey = RPCError{
 		Code:    -5,
 		Message: "Invalid address or key",
 	}
-	ErrOutOfMemory = Error{
+	ErrOutOfMemory = RPCError{
 		Code:    -7,
 		Message: "Ran out of memory during operation",
 	}
-	ErrInvalidParameter = Error{
+	ErrInvalidParameter = RPCError{
 		Code:    -8,
 		Message: "Invalid, missing or duplicate parameter",
 	}
-	ErrDatabase = Error{
+	ErrDatabase = RPCError{
 		Code:    -20,
 		Message: "Database error",
 	}
-	ErrDeserialization = Error{
+	ErrDeserialization = RPCError{
 		Code:    -22,
 		Message: "Error parsing or validating structure in raw format",
 	}
@@ -67,11 +67,11 @@ var (
 
 // Peer-to-peer client errors
 var (
-	ErrClientNotConnected = Error{
+	ErrClientNotConnected = RPCError{
 		Code:    -9,
 		Message: "dcrd is not connected",
 	}
-	ErrClientInInitialDownload = Error{
+	ErrClientInInitialDownload = RPCError{
 		Code:    -10,
 		Message: "dcrd is downloading blocks...",
 	}
@@ -79,39 +79,39 @@ var (
 
 // Wallet JSON errors
 var (
-	ErrWallet = Error{
+	ErrWallet = RPCError{
 		Code:    -4,
 		Message: "Unspecified problem with wallet",
 	}
-	ErrWalletInsufficientFunds = Error{
+	ErrWalletInsufficientFunds = RPCError{
 		Code:    -6,
 		Message: "Not enough funds in wallet or account",
 	}
-	ErrWalletInvalidAccountName = Error{
+	ErrWalletInvalidAccountName = RPCError{
 		Code:    -11,
 		Message: "Invalid account name",
 	}
-	ErrWalletKeypoolRanOut = Error{
+	ErrWalletKeypoolRanOut = RPCError{
 		Code:    -12,
 		Message: "Keypool ran out, call keypoolrefill first",
 	}
-	ErrWalletUnlockNeeded = Error{
+	ErrWalletUnlockNeeded = RPCError{
 		Code:    -13,
 		Message: "Enter the wallet passphrase with walletpassphrase first",
 	}
-	ErrWalletPassphraseIncorrect = Error{
+	ErrWalletPassphraseIncorrect = RPCError{
 		Code:    -14,
 		Message: "The wallet passphrase entered was incorrect",
 	}
-	ErrWalletWrongEncState = Error{
+	ErrWalletWrongEncState = RPCError{
 		Code:    -15,
 		Message: "Command given in wrong wallet encryption state",
 	}
-	ErrWalletEncryptionFailed = Error{
+	ErrWalletEncryptionFailed = RPCError{
 		Code:    -16,
 		Message: "Failed to encrypt the wallet",
 	}
-	ErrWalletAlreadyUnlocked = Error{
+	ErrWalletAlreadyUnlocked = RPCError{
 		Code:    -17,
 		Message: "Wallet is already unlocked",
 	}
@@ -121,43 +121,43 @@ var (
 // server are most likely to see.  Generally, the codes should match one of the
 // more general errors above.
 var (
-	ErrBlockNotFound = Error{
+	ErrBlockNotFound = RPCError{
 		Code:    -5,
 		Message: "Block not found",
 	}
-	ErrBlockCount = Error{
+	ErrBlockCount = RPCError{
 		Code:    -5,
 		Message: "Error getting block count",
 	}
-	ErrBestBlockHash = Error{
+	ErrBestBlockHash = RPCError{
 		Code:    -5,
 		Message: "Error getting best block hash",
 	}
-	ErrDifficulty = Error{
+	ErrDifficulty = RPCError{
 		Code:    -5,
 		Message: "Error getting difficulty",
 	}
-	ErrOutOfRange = Error{
+	ErrOutOfRange = RPCError{
 		Code:    -1,
 		Message: "Block number out of range",
 	}
-	ErrNoTxInfo = Error{
+	ErrNoTxInfo = RPCError{
 		Code:    -5,
 		Message: "No information available about transaction",
 	}
-	ErrNoNewestBlockInfo = Error{
+	ErrNoNewestBlockInfo = RPCError{
 		Code:    -5,
 		Message: "No information about newest block",
 	}
-	ErrInvalidTxVout = Error{
+	ErrInvalidTxVout = RPCError{
 		Code:    -5,
 		Message: "Output index number (vout) does not exist for transaction.",
 	}
-	ErrRawTxString = Error{
+	ErrRawTxString = RPCError{
 		Code:    -32602,
 		Message: "Raw tx is not a string",
 	}
-	ErrDecodeHexString = Error{
+	ErrDecodeHexString = RPCError{
 		Code:    -22,
 		Message: "Unable to decode hex string",
 	}
@@ -165,11 +165,11 @@ var (
 
 // Errors that are specific to dcrd.
 var (
-	ErrNoWallet = Error{
+	ErrNoWallet = RPCError{
 		Code:    -1,
 		Message: "This implementation does not implement wallet commands",
 	}
-	ErrUnimplemented = Error{
+	ErrUnimplemented = RPCError{
 		Code:    -1,
 		Message: "Command unimplemented",
 	}
