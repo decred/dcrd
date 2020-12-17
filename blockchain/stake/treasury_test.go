@@ -7,6 +7,7 @@ package stake
 import (
 	"bytes"
 	"encoding/hex"
+	"errors"
 	"math"
 	"math/rand"
 	"testing"
@@ -1061,77 +1062,77 @@ func TestTSpendErrors(t *testing.T) {
 		{
 			name:     "tspendInvalidOutCount",
 			tx:       tspendInvalidOutCount,
-			expected: RuleError{ErrorCode: ErrTSpendInvalidLength},
+			expected: ErrTSpendInvalidLength,
 		},
 		{
 			name:     "tspendInvalidInCount",
 			tx:       tspendInvalidInCount,
-			expected: RuleError{ErrorCode: ErrTSpendInvalidLength},
+			expected: ErrTSpendInvalidLength,
 		},
 		{
 			name:     "tspendInvalidVersion",
 			tx:       tspendInvalidVersion,
-			expected: RuleError{ErrorCode: ErrTSpendInvalidVersion},
+			expected: ErrTSpendInvalidVersion,
 		},
 		{
 			name:     "tspendInvalidSignature",
 			tx:       tspendInvalidSignature,
-			expected: RuleError{ErrorCode: ErrTSpendInvalidScript},
+			expected: ErrTSpendInvalidScript,
 		},
 		{
 			name:     "tspendInvalidSignature2",
 			tx:       tspendInvalidSignature2,
-			expected: RuleError{ErrorCode: ErrTSpendInvalidScript},
+			expected: ErrTSpendInvalidScript,
 		},
 		{
 			name:     "tspendInvalidOpcode",
 			tx:       tspendInvalidOpcode,
-			expected: RuleError{ErrorCode: ErrTSpendInvalidScript},
+			expected: ErrTSpendInvalidScript,
 		},
 		{
 			name:     "tspendInvalidPubkey",
 			tx:       tspendInvalidPubkey,
-			expected: RuleError{ErrorCode: ErrTSpendInvalidPubkey},
+			expected: ErrTSpendInvalidPubkey,
 		},
 		{
 			name:     "tspendInvalidTokenCount",
 			tx:       tspendInvalidTokenCount,
-			expected: RuleError{ErrorCode: ErrTSpendInvalidScript},
+			expected: ErrTSpendInvalidScript,
 		},
 		{
 			name:     "tspendInvalidTokenCount2",
 			tx:       tspendInvalidTokenCount2,
-			expected: RuleError{ErrorCode: ErrTSpendInvalidScript},
+			expected: ErrTSpendInvalidScript,
 		},
 		{
 			name:     "tspendInvalidTokenCount3",
 			tx:       tspendInvalidTokenCount3,
-			expected: RuleError{ErrorCode: ErrTSpendInvalidScript},
+			expected: ErrTSpendInvalidScript,
 		},
 		{
 			name:     "tspendInvalidScriptLength",
 			tx:       tspendInvalidScriptLength,
-			expected: RuleError{ErrorCode: ErrTSpendInvalidScriptLength},
+			expected: ErrTSpendInvalidScriptLength,
 		},
 		{
 			name:     "tspendInvalidTransaction",
 			tx:       tspendInvalidTransaction,
-			expected: RuleError{ErrorCode: ErrTSpendInvalidTransaction},
+			expected: ErrTSpendInvalidTransaction,
 		},
 		{
 			name:     "tspendInvalidTGen",
 			tx:       tspendInvalidTGen,
-			expected: RuleError{ErrorCode: ErrTSpendInvalidTGen},
+			expected: ErrTSpendInvalidTGen,
 		},
 		{
 			name:     "tspendInvalidP2SH",
 			tx:       tspendInvalidP2SH,
-			expected: RuleError{ErrorCode: ErrTSpendInvalidSpendScript},
+			expected: ErrTSpendInvalidSpendScript,
 		},
 		{
 			name:     "tspendInvalidTxVersion",
 			tx:       tspendInvalidTxVersion,
-			expected: RuleError{ErrorCode: ErrTSpendInvalidTxVersion},
+			expected: ErrTSpendInvalidTxVersion,
 		},
 	}
 	for i, tt := range tests {
@@ -1139,11 +1140,9 @@ func TestTSpendErrors(t *testing.T) {
 		test.SetTree(wire.TxTreeStake)
 		test.SetIndex(0)
 		err := checkTSpend(test.MsgTx())
-		if err.(RuleError).GetCode() != tt.expected.(RuleError).GetCode() {
+		if !errors.Is(err, tt.expected) {
 			t.Errorf("%v: checkTSpend should have returned %v but "+
-				"instead returned %v: %v",
-				tt.name, tt.expected.(RuleError).GetCode(),
-				err.(RuleError).GetCode(), err)
+				"instead returned %v", tt.name, tt.expected, err)
 		}
 		if IsTSpend(test.MsgTx()) {
 			t.Errorf("IsTSpend claimed an invalid tspend is valid"+
@@ -1306,47 +1305,47 @@ func TestTAddErrors(t *testing.T) {
 		{
 			name:     "taddInvalidOutCount",
 			tx:       taddInvalidOutCount,
-			expected: RuleError{ErrorCode: ErrTAddInvalidCount},
+			expected: ErrTAddInvalidCount,
 		},
 		{
 			name:     "taddInvalidOutCount2",
 			tx:       taddInvalidOutCount2,
-			expected: RuleError{ErrorCode: ErrTAddInvalidCount},
+			expected: ErrTAddInvalidCount,
 		},
 		{
 			name:     "taddInvalidOutCount3",
 			tx:       taddInvalidOutCount3,
-			expected: RuleError{ErrorCode: ErrTAddInvalidCount},
+			expected: ErrTAddInvalidCount,
 		},
 		{
 			name:     "taddInvalidVersion",
 			tx:       taddInvalidVersion,
-			expected: RuleError{ErrorCode: ErrTAddInvalidVersion},
+			expected: ErrTAddInvalidVersion,
 		},
 		{
 			name:     "taddInvalidScriptLength",
 			tx:       taddInvalidScriptLength,
-			expected: RuleError{ErrorCode: ErrTAddInvalidScriptLength},
+			expected: ErrTAddInvalidScriptLength,
 		},
 		{
 			name:     "taddInvalidLength",
 			tx:       taddInvalidLength,
-			expected: RuleError{ErrorCode: ErrTAddInvalidLength},
+			expected: ErrTAddInvalidLength,
 		},
 		{
 			name:     "taddInvalidOpcode",
 			tx:       taddInvalidOpcode,
-			expected: RuleError{ErrorCode: ErrTAddInvalidOpcode},
+			expected: ErrTAddInvalidOpcode,
 		},
 		{
 			name:     "taddInvalidChange",
 			tx:       taddInvalidChange,
-			expected: RuleError{ErrorCode: ErrTAddInvalidChange},
+			expected: ErrTAddInvalidChange,
 		},
 		{
 			name:     "taddInvalidTxVersion",
 			tx:       taddInvalidTxVersion,
-			expected: RuleError{ErrorCode: ErrTAddInvalidTxVersion},
+			expected: ErrTAddInvalidTxVersion,
 		},
 	}
 	for i, tt := range tests {
@@ -1354,11 +1353,9 @@ func TestTAddErrors(t *testing.T) {
 		test.SetTree(wire.TxTreeStake)
 		test.SetIndex(0)
 		err := checkTAdd(test.MsgTx())
-		if err.(RuleError).GetCode() != tt.expected.(RuleError).GetCode() {
+		if !errors.Is(err, tt.expected) {
 			t.Errorf("%v: checkTAdd should have returned %v but "+
-				"instead returned %v: %v",
-				tt.name, tt.expected.(RuleError).GetCode(),
-				err.(RuleError).GetCode(), err)
+				"instead returned %v", tt.name, tt.expected, err)
 		}
 		if IsTAdd(test.MsgTx()) {
 			t.Errorf("IsTAdd claimed an invalid tadd is valid"+
@@ -1664,62 +1661,62 @@ func TestTreasuryBaseErrors(t *testing.T) {
 		{
 			name:     "treasurybaseInvalidInCount",
 			tx:       treasurybaseInvalidInCount,
-			expected: RuleError{ErrorCode: ErrTreasuryBaseInvalidCount},
+			expected: ErrTreasuryBaseInvalidCount,
 		},
 		{
 			name:     "treasurybaseInvalidOutCount",
 			tx:       treasurybaseInvalidOutCount,
-			expected: RuleError{ErrorCode: ErrTreasuryBaseInvalidCount},
+			expected: ErrTreasuryBaseInvalidCount,
 		},
 		{
 			name:     "treasurybaseInvalidVersion",
 			tx:       treasurybaseInvalidVersion,
-			expected: RuleError{ErrorCode: ErrTreasuryBaseInvalidVersion},
+			expected: ErrTreasuryBaseInvalidVersion,
 		},
 		{
 			name:     "treasurybaseInvalidOpcode0",
 			tx:       treasurybaseInvalidOpcode0,
-			expected: RuleError{ErrorCode: ErrTreasuryBaseInvalidOpcode0},
+			expected: ErrTreasuryBaseInvalidOpcode0,
 		},
 		{
 			name:     "treasurybaseInvalidOpcode0Len",
 			tx:       treasurybaseInvalidOpcode0Len,
-			expected: RuleError{ErrorCode: ErrTreasuryBaseInvalidOpcode0},
+			expected: ErrTreasuryBaseInvalidOpcode0,
 		},
 		{
 			name:     "treasurybaseInvalidOpcode1",
 			tx:       treasurybaseInvalidOpcode1,
-			expected: RuleError{ErrorCode: ErrTreasuryBaseInvalidOpcode1},
+			expected: ErrTreasuryBaseInvalidOpcode1,
 		},
 		{
 			name:     "treasurybaseInvalidOpcode1Len",
 			tx:       treasurybaseInvalidOpcode1Len,
-			expected: RuleError{ErrorCode: ErrTreasuryBaseInvalidOpcode1},
+			expected: ErrTreasuryBaseInvalidOpcode1,
 		},
 		{
 			name:     "treasurybaseInvalidDataPush",
 			tx:       treasurybaseInvalidOpcodeDataPush,
-			expected: RuleError{ErrorCode: ErrTreasuryBaseInvalidOpcode1},
+			expected: ErrTreasuryBaseInvalidOpcode1,
 		},
 		{
 			name:     "treasurybaseInvalid",
 			tx:       treasurybaseInvalid,
-			expected: RuleError{ErrorCode: ErrTreasuryBaseInvalid},
+			expected: ErrTreasuryBaseInvalid,
 		},
 		{
 			name:     "treasurybaseInvalid2",
 			tx:       treasurybaseInvalid2,
-			expected: RuleError{ErrorCode: ErrTreasuryBaseInvalid},
+			expected: ErrTreasuryBaseInvalid,
 		},
 		{
 			name:     "treasurybaseInvalidTxVersion",
 			tx:       treasurybaseInvalidTxVersion,
-			expected: RuleError{ErrorCode: ErrTreasuryBaseInvalidTxVersion},
+			expected: ErrTreasuryBaseInvalidTxVersion,
 		},
 		{
 			name:     "treasurybaseInvalidLength",
 			tx:       treasurybaseInvalidLength,
-			expected: RuleError{ErrorCode: ErrTreasuryBaseInvalidLength},
+			expected: ErrTreasuryBaseInvalidLength,
 		},
 	}
 	for i, tt := range tests {
@@ -1727,11 +1724,9 @@ func TestTreasuryBaseErrors(t *testing.T) {
 		test.SetTree(wire.TxTreeStake)
 		test.SetIndex(0)
 		err := checkTreasuryBase(test.MsgTx())
-		if err.(RuleError).GetCode() != tt.expected.(RuleError).GetCode() {
+		if !errors.Is(err, tt.expected) {
 			t.Errorf("%v: checkTreasuryBase should have returned "+
-				"%v but instead returned %v: %v",
-				tt.name, tt.expected.(RuleError).GetCode(),
-				err.(RuleError).GetCode(), err)
+				"%v but instead returned %v", tt.name, tt.expected, err)
 		}
 		if IsTreasuryBase(test.MsgTx()) {
 			t.Errorf("IsTreasuryBase claimed an invalid treasury "+

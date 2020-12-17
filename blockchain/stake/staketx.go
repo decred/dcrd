@@ -10,7 +10,6 @@ package stake
 import (
 	"bytes"
 	"encoding/binary"
-	"errors"
 	"fmt"
 	"math"
 	"math/big"
@@ -398,8 +397,8 @@ func TxSStxStakeOutputInfo(tx *wire.MsgTx) ([]bool, [][]byte, []int64, []int64,
 // commitment pkScript.
 func AddrFromSStxPkScrCommitment(pkScript []byte, params dcrutil.AddressParams) (dcrutil.Address, error) {
 	if len(pkScript) < SStxPKHMinOutSize {
-		return nil, stakeRuleError(ErrSStxBadCommitAmount, "short read "+
-			"of sstx commit pkscript")
+		str := "short read of sstx commit pkscript"
+		return nil, stakeRuleError(ErrSStxBadCommitAmount, str)
 	}
 
 	// The MSB of the encoded amount specifies if the output is P2SH.  Since
@@ -428,8 +427,8 @@ func AddrFromSStxPkScrCommitment(pkScript []byte, params dcrutil.AddressParams) 
 // ticket commitment pkScript.
 func AmountFromSStxPkScrCommitment(pkScript []byte) (dcrutil.Amount, error) {
 	if len(pkScript) < SStxPKHMinOutSize {
-		return 0, stakeRuleError(ErrSStxBadCommitAmount, "short read "+
-			"of sstx commit pkscript")
+		str := "short read of sstx commit pkscript"
+		return 0, stakeRuleError(ErrSStxBadCommitAmount, str)
 	}
 
 	// The MSB (sign), not used ever normally, encodes whether
@@ -494,14 +493,13 @@ func SStxNullOutputAmounts(amounts []int64,
 	lengthAmounts := len(amounts)
 
 	if lengthAmounts != len(changeAmounts) {
-		errStr := fmt.Sprintf("amounts was not equal in length " +
-			"to change amounts!")
-		return 0, nil, errors.New(errStr)
+		str := "amounts was not equal in length to change amounts!"
+		return 0, nil, fmt.Errorf(str)
 	}
 
 	if amountTicket <= 0 {
-		errStr := "committed amount was too small!"
-		return 0, nil, stakeRuleError(ErrSStxBadCommitAmount, errStr)
+		str := "committed amount was too small!"
+		return 0, nil, stakeRuleError(ErrSStxBadCommitAmount, str)
 	}
 
 	contribAmounts := make([]int64, lengthAmounts)
@@ -515,9 +513,9 @@ func SStxNullOutputAmounts(amounts []int64,
 	for i := 0; i < lengthAmounts; i++ {
 		contribAmounts[i] = amounts[i] - changeAmounts[i]
 		if contribAmounts[i] < 0 {
-			errStr := fmt.Sprintf("change at idx %v spent more coins than "+
+			str := fmt.Sprintf("change at idx %v spent more coins than "+
 				"allowed (have: %v, spent: %v)", i, amounts[i], changeAmounts[i])
-			return 0, nil, stakeRuleError(ErrSStxBadChangeAmts, errStr)
+			return 0, nil, stakeRuleError(ErrSStxBadChangeAmts, str)
 		}
 
 		sum += contribAmounts[i]
@@ -610,42 +608,44 @@ func CheckSStx(tx *wire.MsgTx) error {
 	// CheckTransactionSanity already makes sure that number of inputs is
 	// greater than 0, so no need to check that.
 	if len(tx.TxIn) > MaxInputsPerSStx {
-		return stakeRuleError(ErrSStxTooManyInputs, "SStx has too many "+
-			"inputs")
+		str := "SStx has too many inputs"
+		return stakeRuleError(ErrSStxTooManyInputs, str)
 	}
 
 	// Check to make sure there aren't too many outputs.
 	if len(tx.TxOut) > MaxOutputsPerSStx {
-		return stakeRuleError(ErrSStxTooManyOutputs, "SStx has too many "+
-			"outputs")
+		str := "SStx has too many outputs"
+		return stakeRuleError(ErrSStxTooManyOutputs, str)
 	}
 
 	// Check to make sure there are some outputs.
 	if len(tx.TxOut) == 0 {
-		return stakeRuleError(ErrSStxNoOutputs, "SStx has no "+
-			"outputs")
+		str := "SStx has no outputs"
+		return stakeRuleError(ErrSStxNoOutputs, str)
 	}
 
 	// Check to make sure that all output scripts are the consensus version.
 	for idx, txOut := range tx.TxOut {
 		if txOut.Version != consensusVersion {
-			errStr := fmt.Sprintf("invalid script version found in "+
+			str := fmt.Sprintf("invalid script version found in "+
 				"txOut idx %v", idx)
-			return stakeRuleError(ErrSStxInvalidOutputs, errStr)
+			return stakeRuleError(ErrSStxInvalidOutputs, str)
 		}
 	}
 
 	// Ensure that the first output is tagged OP_SSTX.
 	if !IsTicketPurchaseScript(tx.TxOut[0].Version, tx.TxOut[0].PkScript) {
-		return stakeRuleError(ErrSStxInvalidOutputs, "First SStx output "+
-			"should have been OP_SSTX tagged, but it was not")
+		str := "first SStx output should have been OP_SSTX tagged, " +
+			"but it was not"
+		return stakeRuleError(ErrSStxInvalidOutputs, str)
 	}
 
 	// Ensure that the number of outputs is equal to the number of inputs
 	// + 1.
 	if (len(tx.TxIn)*2 + 1) != len(tx.TxOut) {
-		return stakeRuleError(ErrSStxInOutProportions, "The number of "+
-			"inputs in the SStx tx was not the number of outputs/2 - 1")
+		str := "the number of inputs in the SStx tx was not the number " +
+			"of outputs/2 - 1"
+		return stakeRuleError(ErrSStxInOutProportions, str)
 	}
 
 	// Ensure that the rest of the odd outputs are 28-byte OP_RETURN pushes that
@@ -694,10 +694,9 @@ func CheckSStx(tx *wire.MsgTx) error {
 		// valid push length.
 		if !(outputScriptPrefix[0] == validSStxAddressOutMinPrefix[0]) ||
 			!pushLengthValid {
-			errStr := fmt.Sprintf("sstx commitment at output idx %v had "+
+			str := fmt.Sprintf("sstx commitment at output idx %v had "+
 				"an invalid prefix", outTxIndex)
-			return stakeRuleError(ErrSStxInvalidOutputs,
-				errStr)
+			return stakeRuleError(ErrSStxInvalidOutputs, str)
 		}
 	}
 
@@ -869,29 +868,29 @@ func GetSSGenTreasuryVotes(PkScript []byte) ([]TreasuryVoteTuple, error) {
 func CheckSSGenVotes(tx *wire.MsgTx, isTreasuryEnabled bool) ([]TreasuryVoteTuple, error) {
 	// Check to make sure there aren't too many inputs.
 	if len(tx.TxIn) != NumInputsPerSSGen {
-		return nil, stakeRuleError(ErrSSGenWrongNumInputs,
-			"SSgen tx has an invalid number of inputs")
+		str := "SSgen tx has an invalid number of inputs"
+		return nil, stakeRuleError(ErrSSGenWrongNumInputs, str)
 	}
 
 	// Check to make sure there aren't too many outputs.
 	if len(tx.TxOut) > MaxOutputsPerSSGen {
-		return nil, stakeRuleError(ErrSSGenTooManyOutputs,
-			"SSgen tx has too many outputs")
+		str := "SSgen tx has too many outputs"
+		return nil, stakeRuleError(ErrSSGenTooManyOutputs, str)
 	}
 
 	// Check to make sure there are enough outputs.
 	if len(tx.TxOut) < 2 {
-		return nil, stakeRuleError(ErrSSGenNoOutputs,
-			"SSgen tx does not have enough outputs")
+		str := "SSgen tx does not have enough outputs"
+		return nil, stakeRuleError(ErrSSGenNoOutputs, str)
 	}
 
 	// Ensure that the first input is a stake base null input.
 	// Also checks to make sure that there aren't too many or too few
 	// inputs.
 	if !IsStakeBase(tx) {
-		return nil, stakeRuleError(ErrSSGenNoStakebase,
-			"SSGen tx did not include a stakebase in the zeroeth "+
-				"input position")
+		str := "SSGen tx did not include a stakebase in the zeroeth " +
+			"input position"
+		return nil, stakeRuleError(ErrSSGenNoStakebase, str)
 	}
 
 	// Check to make sure that the output used as input came from
@@ -903,23 +902,22 @@ func CheckSSGenVotes(tx *wire.MsgTx, isTreasuryEnabled bool) ([]TreasuryVoteTupl
 		}
 
 		if txin.PreviousOutPoint.Index != 0 {
-			errStr := fmt.Sprintf("SSGen used an invalid input "+
-				"idx (got %v, want 0)",
-				txin.PreviousOutPoint.Index)
-			return nil, stakeRuleError(ErrSSGenWrongIndex, errStr)
+			str := fmt.Sprintf("SSGen used an invalid input idx (got %v, "+
+				"want 0)", txin.PreviousOutPoint.Index)
+			return nil, stakeRuleError(ErrSSGenWrongIndex, str)
 		}
 
 		if txin.PreviousOutPoint.Tree != wire.TxTreeStake {
-			return nil, stakeRuleError(ErrSSGenWrongTxTree,
-				"SSGen used a non-stake input")
+			str := "SSGen used a non-stake input"
+			return nil, stakeRuleError(ErrSSGenWrongTxTree, str)
 		}
 	}
 
 	// Check to make sure that all output scripts are the consensus version.
 	for _, txOut := range tx.TxOut {
 		if txOut.Version != consensusVersion {
-			return nil, stakeRuleError(ErrSSGenBadGenOuts,
-				"invalid script version found in txOut")
+			str := "invalid script version found in txOut"
+			return nil, stakeRuleError(ErrSSGenBadGenOuts, str)
 		}
 	}
 
@@ -935,14 +933,14 @@ func CheckSSGenVotes(tx *wire.MsgTx, isTreasuryEnabled bool) ([]TreasuryVoteTupl
 	zeroethOutputVersion := tx.TxOut[0].Version
 	zeroethOutputScript := tx.TxOut[0].PkScript
 	if !IsNullDataScript(zeroethOutputVersion, zeroethOutputScript) {
-		return nil, stakeRuleError(ErrSSGenNoReference,
-			"First SSGen output should have been an OP_RETURN "+
-				"data push, but was not")
+		str := "first SSGen output should have been an OP_RETURN " +
+			"data push, but was not"
+		return nil, stakeRuleError(ErrSSGenNoReference, str)
 	}
 
 	// Ensure that the first output is the correct size.
 	if len(zeroethOutputScript) != SSGenBlockReferenceOutSize {
-		str := fmt.Sprintf("First SSGen output has invalid an length (got %d, "+
+		str := fmt.Sprintf("first SSGen output has invalid an length (got %d, "+
 			"want %d)", len(zeroethOutputScript), SSGenBlockReferenceOutSize)
 		return nil, stakeRuleError(ErrSSGenBadReference, str)
 	}
@@ -954,8 +952,8 @@ func CheckSSGenVotes(tx *wire.MsgTx, isTreasuryEnabled bool) ([]TreasuryVoteTupl
 	zeroethOutputScriptPrefix := zeroethOutputScriptBuffer.Next(2)
 	if !bytes.Equal(zeroethOutputScriptPrefix,
 		validSSGenReferenceOutPrefix) {
-		return nil, stakeRuleError(ErrSSGenBadReference,
-			"First SSGen output had an invalid prefix")
+		str := "first SSGen output had an invalid prefix"
+		return nil, stakeRuleError(ErrSSGenBadReference, str)
 	}
 
 	// Ensure that the block header hash given in the first 32 bytes of the
@@ -966,9 +964,9 @@ func CheckSSGenVotes(tx *wire.MsgTx, isTreasuryEnabled bool) ([]TreasuryVoteTupl
 	firstOutputVersion := tx.TxOut[1].Version
 	firstOutputScript := tx.TxOut[1].PkScript
 	if !IsNullDataScript(firstOutputVersion, firstOutputScript) {
-		return nil, stakeRuleError(ErrSSGenNoVotePush,
-			"Second SSGen output should have been an OP_RETURN "+
-				"data push, but was not")
+		str := "second SSGen output should have been an OP_RETURN " +
+			"data push, but was not"
+		return nil, stakeRuleError(ErrSSGenNoVotePush, str)
 	}
 
 	// The length of the output script should be between 4 and 77 bytes
@@ -994,8 +992,8 @@ func CheckSSGenVotes(tx *wire.MsgTx, isTreasuryEnabled bool) ([]TreasuryVoteTupl
 	// valid push length.
 	if !(firstOutputScriptPrefix[0] == validSSGenVoteOutMinPrefix[0]) ||
 		!pushLengthValid {
-		return nil, stakeRuleError(ErrSSGenBadVotePush,
-			"Second SSGen output had an invalid prefix")
+		str := "second SSGen output had an invalid prefix"
+		return nil, stakeRuleError(ErrSSGenBadVotePush, str)
 	}
 
 	// Check to see if the last output is an OP_RETURN followed by a 2 byte
@@ -1086,35 +1084,35 @@ func IsSSGen(tx *wire.MsgTx, isTreasuryEnabled bool) bool {
 func CheckSSRtx(tx *wire.MsgTx) error {
 	// Check to make sure there is the correct number of inputs.
 	if len(tx.TxIn) != NumInputsPerSSRtx {
-		return stakeRuleError(ErrSSRtxWrongNumInputs, "SSRtx has an "+
-			"invalid number of inputs")
+		str := "SSRtx has an invalid number of inputs"
+		return stakeRuleError(ErrSSRtxWrongNumInputs, str)
 	}
 
 	// Check to make sure there aren't too many outputs.
 	if len(tx.TxOut) > MaxOutputsPerSSRtx {
-		return stakeRuleError(ErrSSRtxTooManyOutputs, "SSRtx has too "+
-			"many outputs")
+		str := "SSRtx has too many outputs"
+		return stakeRuleError(ErrSSRtxTooManyOutputs, str)
 	}
 
 	// Check to make sure there are some outputs.
 	if len(tx.TxOut) == 0 {
-		return stakeRuleError(ErrSSRtxNoOutputs, "SSRtx has no "+
-			"outputs")
+		str := "SSRtx has no outputs"
+		return stakeRuleError(ErrSSRtxNoOutputs, str)
 	}
 
 	// Check to make sure that all output scripts are the consensus version.
 	for _, txOut := range tx.TxOut {
 		if txOut.Version != consensusVersion {
-			return stakeRuleError(ErrSSRtxBadOuts, "invalid "+
-				"script version found in txOut")
+			str := "invalid script version found in txOut"
+			return stakeRuleError(ErrSSRtxBadOuts, str)
 		}
 	}
 
 	// Check to make sure that the output used as input came from TxTreeStake.
 	for _, txin := range tx.TxIn {
 		if txin.PreviousOutPoint.Tree != wire.TxTreeStake {
-			return stakeRuleError(ErrSSRtxWrongTxTree, "SSRtx used "+
-				"a non-stake input")
+			str := "SSRtx used a non-stake input"
+			return stakeRuleError(ErrSSRtxWrongTxTree, str)
 		}
 	}
 

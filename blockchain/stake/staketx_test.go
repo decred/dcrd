@@ -2,7 +2,7 @@
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
-package stake_test
+package stake
 
 import (
 	"bytes"
@@ -11,7 +11,6 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/decred/dcrd/blockchain/stake/v4"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/dcrutil/v4"
 	"github.com/decred/dcrd/txscript/v4"
@@ -39,11 +38,11 @@ func TestSStx(t *testing.T) {
 	sstx.SetTree(wire.TxTreeStake)
 	sstx.SetIndex(0)
 
-	err := stake.CheckSStx(sstx.MsgTx())
+	err := CheckSStx(sstx.MsgTx())
 	if err != nil {
 		t.Errorf("CheckSStx: unexpected err: %v", err)
 	}
-	if !stake.IsSStx(sstx.MsgTx()) {
+	if !IsSStx(sstx.MsgTx()) {
 		t.Errorf("IsSStx claimed a valid sstx is invalid")
 	}
 
@@ -68,11 +67,11 @@ func TestSStx(t *testing.T) {
 	sstx.SetTree(wire.TxTreeStake)
 	sstx.SetIndex(0)
 
-	err = stake.CheckSStx(sstx.MsgTx())
+	err = CheckSStx(sstx.MsgTx())
 	if err != nil {
 		t.Errorf("CheckSStx: unexpected err: %v", err)
 	}
-	if !stake.IsSStx(sstx.MsgTx()) {
+	if !IsSStx(sstx.MsgTx()) {
 		t.Errorf("IsSStx claimed a valid sstx is invalid")
 	}
 }
@@ -96,13 +95,12 @@ func TestSSTxErrors(t *testing.T) {
 	sstxExtraInputs.SetTree(wire.TxTreeStake)
 	sstxExtraInputs.SetIndex(0)
 
-	var serr stake.RuleError
-	err = stake.CheckSStx(sstxExtraInputs.MsgTx())
-	if !errors.As(err, &serr) || serr.GetCode() != stake.ErrSStxTooManyInputs {
+	err = CheckSStx(sstxExtraInputs.MsgTx())
+	if !errors.Is(err, ErrSStxTooManyInputs) {
 		t.Errorf("CheckSStx should have returned %v but instead returned %v",
-			stake.ErrSStxTooManyInputs, err)
+			ErrSStxTooManyInputs, err)
 	}
-	if stake.IsSStx(sstxExtraInputs.MsgTx()) {
+	if IsSStx(sstxExtraInputs.MsgTx()) {
 		t.Errorf("IsSStx claimed an invalid sstx is valid")
 	}
 
@@ -113,12 +111,12 @@ func TestSSTxErrors(t *testing.T) {
 	sstxExtraOutputs.SetTree(wire.TxTreeStake)
 	sstxExtraOutputs.SetIndex(0)
 
-	err = stake.CheckSStx(sstxExtraOutputs.MsgTx())
-	if !errors.As(err, &serr) || serr.GetCode() != stake.ErrSStxTooManyOutputs {
+	err = CheckSStx(sstxExtraOutputs.MsgTx())
+	if !errors.Is(err, ErrSStxTooManyOutputs) {
 		t.Errorf("CheckSStx should have returned %v but instead returned %v",
-			stake.ErrSStxTooManyOutputs, err)
+			ErrSStxTooManyOutputs, err)
 	}
-	if stake.IsSStx(sstxExtraOutputs.MsgTx()) {
+	if IsSStx(sstxExtraOutputs.MsgTx()) {
 		t.Errorf("IsSStx claimed an invalid sstx is valid")
 	}
 
@@ -144,12 +142,12 @@ func TestSSTxErrors(t *testing.T) {
 	sstxUntaggedOut.SetTree(wire.TxTreeStake)
 	sstxUntaggedOut.SetIndex(0)
 
-	err = stake.CheckSStx(sstxUntaggedOut.MsgTx())
-	if !errors.As(err, &serr) || serr.GetCode() != stake.ErrSStxInvalidOutputs {
+	err = CheckSStx(sstxUntaggedOut.MsgTx())
+	if !errors.Is(err, ErrSStxInvalidOutputs) {
 		t.Errorf("CheckSStx should have returned %v but instead returned %v",
-			stake.ErrSStxInvalidOutputs, err)
+			ErrSStxInvalidOutputs, err)
 	}
-	if stake.IsSStx(sstxUntaggedOut.MsgTx()) {
+	if IsSStx(sstxUntaggedOut.MsgTx()) {
 		t.Errorf("IsSStx claimed an invalid sstx is valid")
 	}
 
@@ -160,12 +158,12 @@ func TestSSTxErrors(t *testing.T) {
 	sstxInsOutsMismatched.SetTree(wire.TxTreeStake)
 	sstxInsOutsMismatched.SetIndex(0)
 
-	err = stake.CheckSStx(sstxInsOutsMismatched.MsgTx())
-	if !errors.As(err, &serr) || serr.GetCode() != stake.ErrSStxInOutProportions {
+	err = CheckSStx(sstxInsOutsMismatched.MsgTx())
+	if !errors.Is(err, ErrSStxInOutProportions) {
 		t.Errorf("CheckSStx should have returned %v but instead returned %v",
-			stake.ErrSStxInOutProportions, err)
+			ErrSStxInOutProportions, err)
 	}
-	if stake.IsSStx(sstxInsOutsMismatched.MsgTx()) {
+	if IsSStx(sstxInsOutsMismatched.MsgTx()) {
 		t.Errorf("IsSStx claimed an invalid sstx is valid")
 	}
 
@@ -175,12 +173,12 @@ func TestSSTxErrors(t *testing.T) {
 	sstxBadVerOut.SetTree(wire.TxTreeStake)
 	sstxBadVerOut.SetIndex(0)
 
-	err = stake.CheckSStx(sstxBadVerOut.MsgTx())
-	if !errors.As(err, &serr) || serr.GetCode() != stake.ErrSStxInvalidOutputs {
+	err = CheckSStx(sstxBadVerOut.MsgTx())
+	if !errors.Is(err, ErrSStxInvalidOutputs) {
 		t.Errorf("CheckSStx should have returned %v but instead returned %v",
-			stake.ErrSStxInvalidOutputs, err)
+			ErrSStxInvalidOutputs, err)
 	}
-	if stake.IsSStx(sstxBadVerOut.MsgTx()) {
+	if IsSStx(sstxBadVerOut.MsgTx()) {
 		t.Errorf("IsSStx claimed an invalid sstx is valid")
 	}
 
@@ -191,12 +189,12 @@ func TestSSTxErrors(t *testing.T) {
 	sstxNoNullData.SetTree(wire.TxTreeStake)
 	sstxNoNullData.SetIndex(0)
 
-	err = stake.CheckSStx(sstxNoNullData.MsgTx())
-	if !errors.As(err, &serr) || serr.GetCode() != stake.ErrSStxInvalidOutputs {
+	err = CheckSStx(sstxNoNullData.MsgTx())
+	if !errors.Is(err, ErrSStxInvalidOutputs) {
 		t.Errorf("CheckSStx should have returned %v but instead returned %v",
-			stake.ErrSStxInvalidOutputs, err)
+			ErrSStxInvalidOutputs, err)
 	}
-	if stake.IsSStx(sstxNoNullData.MsgTx()) {
+	if IsSStx(sstxNoNullData.MsgTx()) {
 		t.Errorf("IsSStx claimed an invalid sstx is valid")
 	}
 
@@ -207,12 +205,12 @@ func TestSSTxErrors(t *testing.T) {
 	sstxNullDataMis.SetTree(wire.TxTreeStake)
 	sstxNullDataMis.SetIndex(0)
 
-	err = stake.CheckSStx(sstxNullDataMis.MsgTx())
-	if !errors.As(err, &serr) || serr.GetCode() != stake.ErrSStxInvalidOutputs {
+	err = CheckSStx(sstxNullDataMis.MsgTx())
+	if !errors.Is(err, ErrSStxInvalidOutputs) {
 		t.Errorf("CheckSStx should have returned %v but instead returned %v",
-			stake.ErrSStxInvalidOutputs, err)
+			ErrSStxInvalidOutputs, err)
 	}
-	if stake.IsSStx(sstxNullDataMis.MsgTx()) {
+	if IsSStx(sstxNullDataMis.MsgTx()) {
 		t.Errorf("IsSStx claimed an invalid sstx is valid")
 	}
 
@@ -243,12 +241,12 @@ func TestSSTxErrors(t *testing.T) {
 	sstxWrongPKHLength.SetTree(wire.TxTreeStake)
 	sstxWrongPKHLength.SetIndex(0)
 
-	err = stake.CheckSStx(sstxWrongPKHLength.MsgTx())
-	if !errors.As(err, &serr) || serr.GetCode() != stake.ErrSStxInvalidOutputs {
+	err = CheckSStx(sstxWrongPKHLength.MsgTx())
+	if !errors.Is(err, ErrSStxInvalidOutputs) {
 		t.Errorf("CheckSStx should have returned %v but instead returned %v",
-			stake.ErrSStxInvalidOutputs, err)
+			ErrSStxInvalidOutputs, err)
 	}
-	if stake.IsSStx(sstxWrongPKHLength.MsgTx()) {
+	if IsSStx(sstxWrongPKHLength.MsgTx()) {
 		t.Errorf("IsSStx claimed an invalid sstx is valid")
 	}
 
@@ -280,12 +278,12 @@ func TestSSTxErrors(t *testing.T) {
 	sstxWrongPrefix.SetTree(wire.TxTreeStake)
 	sstxWrongPrefix.SetIndex(0)
 
-	err = stake.CheckSStx(sstxWrongPrefix.MsgTx())
-	if !errors.As(err, &serr) || serr.GetCode() != stake.ErrSStxInvalidOutputs {
+	err = CheckSStx(sstxWrongPrefix.MsgTx())
+	if !errors.Is(err, ErrSStxInvalidOutputs) {
 		t.Errorf("CheckSStx should have returned %v but instead returned %v",
-			stake.ErrSStxInvalidOutputs, err)
+			ErrSStxInvalidOutputs, err)
 	}
-	if stake.IsSStx(sstxWrongPrefix.MsgTx()) {
+	if IsSStx(sstxWrongPrefix.MsgTx()) {
 		t.Errorf("IsSStx claimed an invalid sstx is valid")
 	}
 }
@@ -299,11 +297,11 @@ func TestSSGen(t *testing.T) {
 	ssgen.SetTree(wire.TxTreeStake)
 	ssgen.SetIndex(0)
 
-	err := stake.CheckSSGen(ssgen.MsgTx(), noTreasury)
+	err := CheckSSGen(ssgen.MsgTx(), noTreasury)
 	if err != nil {
 		t.Errorf("IsSSGen: unexpected err: %v", err)
 	}
-	if !stake.IsSSGen(ssgen.MsgTx(), noTreasury) {
+	if !IsSSGen(ssgen.MsgTx(), noTreasury) {
 		t.Errorf("IsSSGen claimed a valid ssgen is invalid")
 	}
 
@@ -327,11 +325,11 @@ func TestSSGen(t *testing.T) {
 	ssgen.SetIndex(0)
 	ssgen.MsgTx().TxOut[1].PkScript = biggestPush
 
-	err = stake.CheckSSGen(ssgen.MsgTx(), noTreasury)
+	err = CheckSSGen(ssgen.MsgTx(), noTreasury)
 	if err != nil {
 		t.Errorf("IsSSGen: unexpected err: %v", err)
 	}
-	if !stake.IsSSGen(ssgen.MsgTx(), noTreasury) {
+	if !IsSSGen(ssgen.MsgTx(), noTreasury) {
 		t.Errorf("IsSSGen claimed a valid ssgen is invalid")
 	}
 }
@@ -356,13 +354,12 @@ func TestSSGenErrors(t *testing.T) {
 	ssgenExtraInputs.SetTree(wire.TxTreeStake)
 	ssgenExtraInputs.SetIndex(0)
 
-	var serr stake.RuleError
-	err = stake.CheckSSGen(ssgenExtraInputs.MsgTx(), noTreasury)
-	if !errors.As(err, &serr) || serr.GetCode() != stake.ErrSSGenWrongNumInputs {
+	err = CheckSSGen(ssgenExtraInputs.MsgTx(), noTreasury)
+	if !errors.Is(err, ErrSSGenWrongNumInputs) {
 		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
-			stake.ErrSSGenWrongNumInputs, err)
+			ErrSSGenWrongNumInputs, err)
 	}
-	if stake.IsSSGen(ssgenExtraInputs.MsgTx(), noTreasury) {
+	if IsSSGen(ssgenExtraInputs.MsgTx(), noTreasury) {
 		t.Errorf("IsSSGen claimed an invalid ssgen is valid")
 	}
 
@@ -373,12 +370,12 @@ func TestSSGenErrors(t *testing.T) {
 	ssgenExtraOutputs.SetTree(wire.TxTreeStake)
 	ssgenExtraOutputs.SetIndex(0)
 
-	err = stake.CheckSSGen(ssgenExtraOutputs.MsgTx(), noTreasury)
-	if !errors.As(err, &serr) || serr.GetCode() != stake.ErrSSGenTooManyOutputs {
+	err = CheckSSGen(ssgenExtraOutputs.MsgTx(), noTreasury)
+	if !errors.Is(err, ErrSSGenTooManyOutputs) {
 		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
-			stake.ErrSSGenTooManyOutputs, err)
+			ErrSSGenTooManyOutputs, err)
 	}
-	if stake.IsSSGen(ssgenExtraOutputs.MsgTx(), noTreasury) {
+	if IsSSGen(ssgenExtraOutputs.MsgTx(), noTreasury) {
 		t.Errorf("IsSSGen claimed an invalid ssgen is valid")
 	}
 
@@ -389,12 +386,12 @@ func TestSSGenErrors(t *testing.T) {
 	ssgenStakeBaseWrong.SetTree(wire.TxTreeStake)
 	ssgenStakeBaseWrong.SetIndex(0)
 
-	err = stake.CheckSSGen(ssgenStakeBaseWrong.MsgTx(), noTreasury)
-	if !errors.As(err, &serr) || serr.GetCode() != stake.ErrSSGenNoStakebase {
+	err = CheckSSGen(ssgenStakeBaseWrong.MsgTx(), noTreasury)
+	if !errors.Is(err, ErrSSGenNoStakebase) {
 		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
-			stake.ErrSSGenNoStakebase, err)
+			ErrSSGenNoStakebase, err)
 	}
-	if stake.IsSSGen(ssgenStakeBaseWrong.MsgTx(), noTreasury) {
+	if IsSSGen(ssgenStakeBaseWrong.MsgTx(), noTreasury) {
 		t.Errorf("IsSSGen claimed an invalid ssgen is valid")
 	}
 
@@ -421,12 +418,12 @@ func TestSSGenErrors(t *testing.T) {
 	ssgenWrongTreeIns.SetTree(wire.TxTreeStake)
 	ssgenWrongTreeIns.SetIndex(0)
 
-	err = stake.CheckSSGen(ssgenWrongTreeIns.MsgTx(), noTreasury)
-	if !errors.As(err, &serr) || serr.GetCode() != stake.ErrSSGenWrongTxTree {
+	err = CheckSSGen(ssgenWrongTreeIns.MsgTx(), noTreasury)
+	if !errors.Is(err, ErrSSGenWrongTxTree) {
 		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
-			stake.ErrSSGenWrongTxTree, err)
+			ErrSSGenWrongTxTree, err)
 	}
-	if stake.IsSSGen(ssgenWrongTreeIns.MsgTx(), noTreasury) {
+	if IsSSGen(ssgenWrongTreeIns.MsgTx(), noTreasury) {
 		t.Errorf("IsSSGen claimed an invalid ssgen is valid")
 	}
 
@@ -436,12 +433,12 @@ func TestSSGenErrors(t *testing.T) {
 	ssgenTxBadVerOut.SetTree(wire.TxTreeStake)
 	ssgenTxBadVerOut.SetIndex(0)
 
-	err = stake.CheckSSGen(ssgenTxBadVerOut.MsgTx(), noTreasury)
-	if !errors.As(err, &serr) || serr.GetCode() != stake.ErrSSGenBadGenOuts {
+	err = CheckSSGen(ssgenTxBadVerOut.MsgTx(), noTreasury)
+	if !errors.Is(err, ErrSSGenBadGenOuts) {
 		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
-			stake.ErrSSGenBadGenOuts, err)
+			ErrSSGenBadGenOuts, err)
 	}
-	if stake.IsSSGen(ssgenTxBadVerOut.MsgTx(), noTreasury) {
+	if IsSSGen(ssgenTxBadVerOut.MsgTx(), noTreasury) {
 		t.Errorf("IsSSGen claimed an invalid ssgen is valid")
 	}
 
@@ -452,12 +449,12 @@ func TestSSGenErrors(t *testing.T) {
 	ssgenWrongZeroethOut.SetTree(wire.TxTreeStake)
 	ssgenWrongZeroethOut.SetIndex(0)
 
-	err = stake.CheckSSGen(ssgenWrongZeroethOut.MsgTx(), noTreasury)
-	if !errors.As(err, &serr) || serr.GetCode() != stake.ErrSSGenNoReference {
+	err = CheckSSGen(ssgenWrongZeroethOut.MsgTx(), noTreasury)
+	if !errors.Is(err, ErrSSGenNoReference) {
 		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
-			stake.ErrSSGenNoReference, err)
+			ErrSSGenNoReference, err)
 	}
-	if stake.IsSSGen(ssgenWrongZeroethOut.MsgTx(), noTreasury) {
+	if IsSSGen(ssgenWrongZeroethOut.MsgTx(), noTreasury) {
 		t.Errorf("IsSSGen claimed an invalid ssgen is valid")
 	}
 
@@ -494,12 +491,12 @@ func TestSSGenErrors(t *testing.T) {
 	ssgenWrongDataPush0Length.SetTree(wire.TxTreeStake)
 	ssgenWrongDataPush0Length.SetIndex(0)
 
-	err = stake.CheckSSGen(ssgenWrongDataPush0Length.MsgTx(), noTreasury)
-	if !errors.As(err, &serr) || serr.GetCode() != stake.ErrSSGenBadReference {
+	err = CheckSSGen(ssgenWrongDataPush0Length.MsgTx(), noTreasury)
+	if !errors.Is(err, ErrSSGenBadReference) {
 		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
-			stake.ErrSSGenBadReference, err)
+			ErrSSGenBadReference, err)
 	}
-	if stake.IsSSGen(ssgenWrongDataPush0Length.MsgTx(), noTreasury) {
+	if IsSSGen(ssgenWrongDataPush0Length.MsgTx(), noTreasury) {
 		t.Errorf("IsSSGen claimed an invalid ssgen is valid")
 	}
 
@@ -536,12 +533,12 @@ func TestSSGenErrors(t *testing.T) {
 	ssgenWrongNullData0Prefix.SetTree(wire.TxTreeStake)
 	ssgenWrongNullData0Prefix.SetIndex(0)
 
-	err = stake.CheckSSGen(ssgenWrongNullData0Prefix.MsgTx(), noTreasury)
-	if !errors.As(err, &serr) || serr.GetCode() != stake.ErrSSGenBadReference {
+	err = CheckSSGen(ssgenWrongNullData0Prefix.MsgTx(), noTreasury)
+	if !errors.Is(err, ErrSSGenBadReference) {
 		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
-			stake.ErrSSGenBadReference, err)
+			ErrSSGenBadReference, err)
 	}
-	if stake.IsSSGen(ssgenWrongNullData0Prefix.MsgTx(), noTreasury) {
+	if IsSSGen(ssgenWrongNullData0Prefix.MsgTx(), noTreasury) {
 		t.Errorf("IsSSGen claimed an invalid ssgen is valid")
 	}
 
@@ -552,12 +549,12 @@ func TestSSGenErrors(t *testing.T) {
 	ssgenWrongFirstOut.SetTree(wire.TxTreeStake)
 	ssgenWrongFirstOut.SetIndex(0)
 
-	err = stake.CheckSSGen(ssgenWrongFirstOut.MsgTx(), noTreasury)
-	if !errors.As(err, &serr) || serr.GetCode() != stake.ErrSSGenNoVotePush {
+	err = CheckSSGen(ssgenWrongFirstOut.MsgTx(), noTreasury)
+	if !errors.Is(err, ErrSSGenNoVotePush) {
 		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
-			stake.ErrSSGenNoVotePush, err)
+			ErrSSGenNoVotePush, err)
 	}
-	if stake.IsSSGen(ssgenWrongFirstOut.MsgTx(), noTreasury) {
+	if IsSSGen(ssgenWrongFirstOut.MsgTx(), noTreasury) {
 		t.Errorf("IsSSGen claimed an invalid ssgen is valid")
 	}
 
@@ -583,12 +580,12 @@ func TestSSGenErrors(t *testing.T) {
 	ssgenWrongDataPush1Length.SetTree(wire.TxTreeStake)
 	ssgenWrongDataPush1Length.SetIndex(0)
 
-	err = stake.CheckSSGen(ssgenWrongDataPush1Length.MsgTx(), noTreasury)
-	if !errors.As(err, &serr) || serr.GetCode() != stake.ErrSSGenBadVotePush {
+	err = CheckSSGen(ssgenWrongDataPush1Length.MsgTx(), noTreasury)
+	if !errors.Is(err, ErrSSGenBadVotePush) {
 		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
-			stake.ErrSSGenBadVotePush, err)
+			ErrSSGenBadVotePush, err)
 	}
-	if stake.IsSSGen(ssgenWrongDataPush1Length.MsgTx(), noTreasury) {
+	if IsSSGen(ssgenWrongDataPush1Length.MsgTx(), noTreasury) {
 		t.Errorf("IsSSGen claimed an invalid ssgen is valid")
 	}
 
@@ -615,12 +612,12 @@ func TestSSGenErrors(t *testing.T) {
 	ssgenWrongNullData1Prefix.SetTree(wire.TxTreeStake)
 	ssgenWrongNullData1Prefix.SetIndex(0)
 
-	err = stake.CheckSSGen(ssgenWrongNullData1Prefix.MsgTx(), noTreasury)
-	if !errors.As(err, &serr) || serr.GetCode() != stake.ErrSSGenBadVotePush {
+	err = CheckSSGen(ssgenWrongNullData1Prefix.MsgTx(), noTreasury)
+	if !errors.Is(err, ErrSSGenBadVotePush) {
 		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
-			stake.ErrSSGenBadVotePush, err)
+			ErrSSGenBadVotePush, err)
 	}
-	if stake.IsSSGen(ssgenWrongNullData1Prefix.MsgTx(), noTreasury) {
+	if IsSSGen(ssgenWrongNullData1Prefix.MsgTx(), noTreasury) {
 		t.Errorf("IsSSGen claimed an invalid ssgen is valid")
 	}
 
@@ -647,12 +644,12 @@ func TestSSGenErrors(t *testing.T) {
 	ssgentestGenOutputUntagged.SetTree(wire.TxTreeStake)
 	ssgentestGenOutputUntagged.SetIndex(0)
 
-	err = stake.CheckSSGen(ssgentestGenOutputUntagged.MsgTx(), noTreasury)
-	if !errors.As(err, &serr) || serr.GetCode() != stake.ErrSSGenBadGenOuts {
+	err = CheckSSGen(ssgentestGenOutputUntagged.MsgTx(), noTreasury)
+	if !errors.Is(err, ErrSSGenBadGenOuts) {
 		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
-			stake.ErrSSGenBadGenOuts, err)
+			ErrSSGenBadGenOuts, err)
 	}
-	if stake.IsSSGen(ssgentestGenOutputUntagged.MsgTx(), noTreasury) {
+	if IsSSGen(ssgentestGenOutputUntagged.MsgTx(), noTreasury) {
 		t.Errorf("IsSSGen claimed an invalid ssgen is valid")
 	}
 
@@ -664,13 +661,12 @@ func TestSSGenErrors(t *testing.T) {
 	ssgenNoDiscriminator.SetTree(wire.TxTreeStake)
 	ssgenNoDiscriminator.SetIndex(0)
 
-	err = stake.CheckSSGen(ssgenNoDiscriminator.MsgTx(), withTreasury)
-	if !errors.As(err, &serr) || serr.GetCode() !=
-		stake.ErrSSGenInvalidDiscriminatorLength {
+	err = CheckSSGen(ssgenNoDiscriminator.MsgTx(), withTreasury)
+	if !errors.Is(err, ErrSSGenInvalidDiscriminatorLength) {
 		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
-			stake.ErrSSGenInvalidDiscriminatorLength, err)
+			ErrSSGenInvalidDiscriminatorLength, err)
 	}
-	if stake.IsSSGen(ssgenNoDiscriminator.MsgTx(), withTreasury) {
+	if IsSSGen(ssgenNoDiscriminator.MsgTx(), withTreasury) {
 		t.Errorf("IsSSGen claimed an invalid ssgen is valid")
 	}
 
@@ -679,13 +675,12 @@ func TestSSGenErrors(t *testing.T) {
 	ssgenInvalidDiscriminator.SetTree(wire.TxTreeStake)
 	ssgenInvalidDiscriminator.SetIndex(0)
 
-	err = stake.CheckSSGen(ssgenInvalidDiscriminator.MsgTx(), withTreasury)
-	if !errors.As(err, &serr) || serr.GetCode() !=
-		stake.ErrSSGenInvalidDiscriminatorLength {
+	err = CheckSSGen(ssgenInvalidDiscriminator.MsgTx(), withTreasury)
+	if !errors.Is(err, ErrSSGenInvalidDiscriminatorLength) {
 		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
-			stake.ErrSSGenInvalidDiscriminatorLength, err)
+			ErrSSGenInvalidDiscriminatorLength, err)
 	}
-	if stake.IsSSGen(ssgenInvalidDiscriminator.MsgTx(), withTreasury) {
+	if IsSSGen(ssgenInvalidDiscriminator.MsgTx(), withTreasury) {
 		t.Errorf("IsSSGen claimed an invalid ssgen is valid")
 	}
 
@@ -694,13 +689,12 @@ func TestSSGenErrors(t *testing.T) {
 	ssgenInvalidDiscriminator2.SetTree(wire.TxTreeStake)
 	ssgenInvalidDiscriminator2.SetIndex(0)
 
-	err = stake.CheckSSGen(ssgenInvalidDiscriminator2.MsgTx(), withTreasury)
-	if !errors.As(err, &serr) || serr.GetCode() !=
-		stake.ErrSSGenUnknownDiscriminator {
+	err = CheckSSGen(ssgenInvalidDiscriminator2.MsgTx(), withTreasury)
+	if !errors.Is(err, ErrSSGenUnknownDiscriminator) {
 		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
-			stake.ErrSSGenUnknownDiscriminator, err)
+			ErrSSGenUnknownDiscriminator, err)
 	}
-	if stake.IsSSGen(ssgenInvalidDiscriminator2.MsgTx(), withTreasury) {
+	if IsSSGen(ssgenInvalidDiscriminator2.MsgTx(), withTreasury) {
 		t.Errorf("IsSSGen claimed an invalid ssgen is valid")
 	}
 
@@ -709,19 +703,17 @@ func TestSSGenErrors(t *testing.T) {
 	ssgenInvalidDiscriminator3.SetTree(wire.TxTreeStake)
 	ssgenInvalidDiscriminator3.SetIndex(0)
 
-	err = stake.CheckSSGen(ssgenInvalidDiscriminator3.MsgTx(), withTreasury)
-	if !errors.As(err, &serr) || serr.GetCode() !=
-		stake.ErrSSGenBadGenOuts {
+	err = CheckSSGen(ssgenInvalidDiscriminator3.MsgTx(), withTreasury)
+	if !errors.Is(err, ErrSSGenBadGenOuts) {
 		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
-			stake.ErrSSGenBadGenOuts, err)
+			ErrSSGenBadGenOuts, err)
 	}
-	if stake.IsSSGen(ssgenInvalidDiscriminator3.MsgTx(), withTreasury) {
+	if IsSSGen(ssgenInvalidDiscriminator3.MsgTx(), withTreasury) {
 		t.Errorf("IsSSGen claimed an invalid ssgen is valid")
 	}
 	// Verify we don't crash in this case as well.
-	_, err = stake.GetSSGenTreasuryVotes(ssgenInvalidDiscriminator3.MsgTx().TxOut[4].PkScript)
-	if !errors.As(err, &serr) || serr.GetCode() !=
-		stake.ErrSSGenInvalidNullScript {
+	_, err = GetSSGenTreasuryVotes(ssgenInvalidDiscriminator3.MsgTx().TxOut[4].PkScript)
+	if !errors.Is(err, ErrSSGenInvalidNullScript) {
 		t.Error(err)
 	}
 
@@ -730,13 +722,12 @@ func TestSSGenErrors(t *testing.T) {
 	ssgenInvalidTVNoVote.SetTree(wire.TxTreeStake)
 	ssgenInvalidTVNoVote.SetIndex(0)
 
-	err = stake.CheckSSGen(ssgenInvalidTVNoVote.MsgTx(), withTreasury)
-	if !errors.As(err, &serr) || serr.GetCode() !=
-		stake.ErrSSGenInvalidTVLength {
+	err = CheckSSGen(ssgenInvalidTVNoVote.MsgTx(), withTreasury)
+	if !errors.Is(err, ErrSSGenInvalidTVLength) {
 		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
-			stake.ErrSSGenInvalidTVLength, err)
+			ErrSSGenInvalidTVLength, err)
 	}
-	if stake.IsSSGen(ssgenInvalidTVNoVote.MsgTx(), withTreasury) {
+	if IsSSGen(ssgenInvalidTVNoVote.MsgTx(), withTreasury) {
 		t.Errorf("IsSSGen claimed an invalid ssgen is valid")
 	}
 
@@ -745,13 +736,12 @@ func TestSSGenErrors(t *testing.T) {
 	ssgenInvalidTVNoVote2.SetTree(wire.TxTreeStake)
 	ssgenInvalidTVNoVote2.SetIndex(0)
 
-	err = stake.CheckSSGen(ssgenInvalidTVNoVote2.MsgTx(), withTreasury)
-	if !errors.As(err, &serr) || serr.GetCode() !=
-		stake.ErrSSGenInvalidTVLength {
+	err = CheckSSGen(ssgenInvalidTVNoVote2.MsgTx(), withTreasury)
+	if !errors.Is(err, ErrSSGenInvalidTVLength) {
 		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
-			stake.ErrSSGenInvalidTVLength, err)
+			ErrSSGenInvalidTVLength, err)
 	}
-	if stake.IsSSGen(ssgenInvalidTVNoVote2.MsgTx(), withTreasury) {
+	if IsSSGen(ssgenInvalidTVNoVote2.MsgTx(), withTreasury) {
 		t.Errorf("IsSSGen claimed an invalid ssgen is valid")
 	}
 
@@ -761,13 +751,12 @@ func TestSSGenErrors(t *testing.T) {
 	ssgenInvalidTVNoVote3.SetTree(wire.TxTreeStake)
 	ssgenInvalidTVNoVote3.SetIndex(0)
 
-	err = stake.CheckSSGen(ssgenInvalidTVNoVote3.MsgTx(), withTreasury)
-	if !errors.As(err, &serr) || serr.GetCode() !=
-		stake.ErrSSGenInvalidTVLength {
+	err = CheckSSGen(ssgenInvalidTVNoVote3.MsgTx(), withTreasury)
+	if !errors.Is(err, ErrSSGenInvalidTVLength) {
 		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
-			stake.ErrSSGenInvalidTVLength, err)
+			ErrSSGenInvalidTVLength, err)
 	}
-	if stake.IsSSGen(ssgenInvalidTVNoVote3.MsgTx(), withTreasury) {
+	if IsSSGen(ssgenInvalidTVNoVote3.MsgTx(), withTreasury) {
 		t.Errorf("IsSSGen claimed an invalid ssgen is valid")
 	}
 
@@ -777,13 +766,12 @@ func TestSSGenErrors(t *testing.T) {
 	ssgenInvalidTVNoVote4.SetTree(wire.TxTreeStake)
 	ssgenInvalidTVNoVote4.SetIndex(0)
 
-	err = stake.CheckSSGen(ssgenInvalidTVNoVote4.MsgTx(), withTreasury)
-	if !errors.As(err, &serr) || serr.GetCode() !=
-		stake.ErrSSGenInvalidTVLength {
+	err = CheckSSGen(ssgenInvalidTVNoVote4.MsgTx(), withTreasury)
+	if !errors.Is(err, ErrSSGenInvalidTVLength) {
 		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
-			stake.ErrSSGenInvalidTVLength, err)
+			ErrSSGenInvalidTVLength, err)
 	}
-	if stake.IsSSGen(ssgenInvalidTVNoVote4.MsgTx(), withTreasury) {
+	if IsSSGen(ssgenInvalidTVNoVote4.MsgTx(), withTreasury) {
 		t.Errorf("IsSSGen claimed an invalid ssgen is valid")
 	}
 
@@ -793,13 +781,12 @@ func TestSSGenErrors(t *testing.T) {
 	ssgenInvalidTVNoVote5.SetTree(wire.TxTreeStake)
 	ssgenInvalidTVNoVote5.SetIndex(0)
 
-	err = stake.CheckSSGen(ssgenInvalidTVNoVote5.MsgTx(), withTreasury)
-	if !errors.As(err, &serr) || serr.GetCode() !=
-		stake.ErrSSGenInvalidDiscriminatorLength {
+	err = CheckSSGen(ssgenInvalidTVNoVote5.MsgTx(), withTreasury)
+	if !errors.Is(err, ErrSSGenInvalidDiscriminatorLength) {
 		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
-			stake.ErrSSGenInvalidDiscriminatorLength, err)
+			ErrSSGenInvalidDiscriminatorLength, err)
 	}
-	if stake.IsSSGen(ssgenInvalidTVNoVote5.MsgTx(), withTreasury) {
+	if IsSSGen(ssgenInvalidTVNoVote5.MsgTx(), withTreasury) {
 		t.Errorf("IsSSGen claimed an invalid ssgen is valid")
 	}
 
@@ -808,13 +795,12 @@ func TestSSGenErrors(t *testing.T) {
 	ssgenInvalidTVote.SetTree(wire.TxTreeStake)
 	ssgenInvalidTVote.SetIndex(0)
 
-	err = stake.CheckSSGen(ssgenInvalidTVote.MsgTx(), withTreasury)
-	if !errors.As(err, &serr) || serr.GetCode() !=
-		stake.ErrSSGenInvalidTreasuryVote {
+	err = CheckSSGen(ssgenInvalidTVote.MsgTx(), withTreasury)
+	if !errors.Is(err, ErrSSGenInvalidTreasuryVote) {
 		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
-			stake.ErrSSGenInvalidTreasuryVote, err)
+			ErrSSGenInvalidTreasuryVote, err)
 	}
-	if stake.IsSSGen(ssgenInvalidTVote.MsgTx(), withTreasury) {
+	if IsSSGen(ssgenInvalidTVote.MsgTx(), withTreasury) {
 		t.Errorf("IsSSGen claimed an invalid ssgen is valid")
 	}
 
@@ -823,13 +809,12 @@ func TestSSGenErrors(t *testing.T) {
 	ssgenInvalidTVote2.SetTree(wire.TxTreeStake)
 	ssgenInvalidTVote2.SetIndex(0)
 
-	err = stake.CheckSSGen(ssgenInvalidTVote2.MsgTx(), withTreasury)
-	if !errors.As(err, &serr) || serr.GetCode() !=
-		stake.ErrSSGenInvalidTreasuryVote {
+	err = CheckSSGen(ssgenInvalidTVote2.MsgTx(), withTreasury)
+	if !errors.Is(err, ErrSSGenInvalidTreasuryVote) {
 		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
-			stake.ErrSSGenInvalidTreasuryVote, err)
+			ErrSSGenInvalidTreasuryVote, err)
 	}
-	if stake.IsSSGen(ssgenInvalidTVote2.MsgTx(), withTreasury) {
+	if IsSSGen(ssgenInvalidTVote2.MsgTx(), withTreasury) {
 		t.Errorf("IsSSGen claimed an invalid ssgen is valid")
 	}
 
@@ -838,13 +823,12 @@ func TestSSGenErrors(t *testing.T) {
 	ssgenInvalidTVote3.SetTree(wire.TxTreeStake)
 	ssgenInvalidTVote3.SetIndex(0)
 
-	err = stake.CheckSSGen(ssgenInvalidTVote3.MsgTx(), withTreasury)
-	if !errors.As(err, &serr) || serr.GetCode() !=
-		stake.ErrSSGenDuplicateTreasuryVote {
+	err = CheckSSGen(ssgenInvalidTVote3.MsgTx(), withTreasury)
+	if !errors.Is(err, ErrSSGenDuplicateTreasuryVote) {
 		t.Errorf("CheckSSGen should have returned %v but instead returned %v",
-			stake.ErrSSGenDuplicateTreasuryVote, err)
+			ErrSSGenDuplicateTreasuryVote, err)
 	}
-	if stake.IsSSGen(ssgenInvalidTVote3.MsgTx(), withTreasury) {
+	if IsSSGen(ssgenInvalidTVote3.MsgTx(), withTreasury) {
 		t.Errorf("IsSSGen claimed an invalid ssgen is valid")
 	}
 
@@ -866,16 +850,16 @@ func TestSSGenTreasuryVotes(t *testing.T) {
 	}
 
 	// Make sure ssgen is valid.
-	if !stake.IsSSGen(ssgenValidVote.MsgTx(), withTreasury) {
+	if !IsSSGen(ssgenValidVote.MsgTx(), withTreasury) {
 		t.Error("IsSSGen claimed a valid ssgen is invalid")
 	}
-	err := stake.CheckSSGen(ssgenValidVote.MsgTx(), withTreasury)
+	err := CheckSSGen(ssgenValidVote.MsgTx(), withTreasury)
 	if err != nil {
 		t.Error(err)
 	}
 
 	// Pull out votes:
-	votes, err := stake.GetSSGenTreasuryVotes(lastTxOut.PkScript)
+	votes, err := GetSSGenTreasuryVotes(lastTxOut.PkScript)
 	if err != nil {
 		t.Error(err)
 	}
@@ -908,11 +892,11 @@ func TestSSRtx(t *testing.T) {
 	ssrtx.SetTree(wire.TxTreeStake)
 	ssrtx.SetIndex(0)
 
-	err := stake.CheckSSRtx(ssrtx.MsgTx())
+	err := CheckSSRtx(ssrtx.MsgTx())
 	if err != nil {
 		t.Errorf("IsSSRtx: unexpected err: %v", err)
 	}
-	if !stake.IsSSRtx(ssrtx.MsgTx()) {
+	if !IsSSRtx(ssrtx.MsgTx()) {
 		t.Errorf("IsSSRtx claimed a valid ssrtx is invalid")
 	}
 }
@@ -937,13 +921,12 @@ func TestIsSSRtxErrors(t *testing.T) {
 	ssrtxTooManyInputs.SetTree(wire.TxTreeStake)
 	ssrtxTooManyInputs.SetIndex(0)
 
-	var serr stake.RuleError
-	err = stake.CheckSSRtx(ssrtxTooManyInputs.MsgTx())
-	if !errors.As(err, &serr) || serr.GetCode() != stake.ErrSSRtxWrongNumInputs {
+	err = CheckSSRtx(ssrtxTooManyInputs.MsgTx())
+	if !errors.Is(err, ErrSSRtxWrongNumInputs) {
 		t.Errorf("CheckSSRtx should have returned %v but instead returned %v",
-			stake.ErrSSRtxWrongNumInputs, err)
+			ErrSSRtxWrongNumInputs, err)
 	}
-	if stake.IsSSRtx(ssrtxTooManyInputs.MsgTx()) {
+	if IsSSRtx(ssrtxTooManyInputs.MsgTx()) {
 		t.Errorf("IsSSRtx claimed an invalid ssrtx is valid")
 	}
 
@@ -954,12 +937,12 @@ func TestIsSSRtxErrors(t *testing.T) {
 	ssrtxTooManyOutputs.SetTree(wire.TxTreeStake)
 	ssrtxTooManyOutputs.SetIndex(0)
 
-	err = stake.CheckSSRtx(ssrtxTooManyOutputs.MsgTx())
-	if !errors.As(err, &serr) || serr.GetCode() != stake.ErrSSRtxTooManyOutputs {
+	err = CheckSSRtx(ssrtxTooManyOutputs.MsgTx())
+	if !errors.Is(err, ErrSSRtxTooManyOutputs) {
 		t.Errorf("CheckSSRtx should have returned %v but instead returned %v",
-			stake.ErrSSRtxTooManyOutputs, err)
+			ErrSSRtxTooManyOutputs, err)
 	}
-	if stake.IsSSRtx(ssrtxTooManyOutputs.MsgTx()) {
+	if IsSSRtx(ssrtxTooManyOutputs.MsgTx()) {
 		t.Errorf("IsSSRtx claimed an invalid ssrtx is valid")
 	}
 
@@ -969,12 +952,12 @@ func TestIsSSRtxErrors(t *testing.T) {
 	ssrtxTxBadVerOut.SetTree(wire.TxTreeStake)
 	ssrtxTxBadVerOut.SetIndex(0)
 
-	err = stake.CheckSSRtx(ssrtxTxBadVerOut.MsgTx())
-	if !errors.As(err, &serr) || serr.GetCode() != stake.ErrSSRtxBadOuts {
+	err = CheckSSRtx(ssrtxTxBadVerOut.MsgTx())
+	if !errors.Is(err, ErrSSRtxBadOuts) {
 		t.Errorf("CheckSSRtx should have returned %v but instead returned %v",
-			stake.ErrSSRtxBadOuts, err)
+			ErrSSRtxBadOuts, err)
 	}
-	if stake.IsSSRtx(ssrtxTxBadVerOut.MsgTx()) {
+	if IsSSRtx(ssrtxTxBadVerOut.MsgTx()) {
 		t.Errorf("IsSSRtx claimed an invalid ssrtx is valid")
 	}
 
@@ -1001,12 +984,12 @@ func TestIsSSRtxErrors(t *testing.T) {
 	ssrtxTestRevocOutputUntagged.SetTree(wire.TxTreeStake)
 	ssrtxTestRevocOutputUntagged.SetIndex(0)
 
-	err = stake.CheckSSRtx(ssrtxTestRevocOutputUntagged.MsgTx())
-	if !errors.As(err, &serr) || serr.GetCode() != stake.ErrSSRtxBadOuts {
+	err = CheckSSRtx(ssrtxTestRevocOutputUntagged.MsgTx())
+	if !errors.Is(err, ErrSSRtxBadOuts) {
 		t.Errorf("CheckSSRtx should have returned %v but instead returned %v",
-			stake.ErrSSRtxBadOuts, err)
+			ErrSSRtxBadOuts, err)
 	}
-	if stake.IsSSRtx(ssrtxTestRevocOutputUntagged.MsgTx()) {
+	if IsSSRtx(ssrtxTestRevocOutputUntagged.MsgTx()) {
 		t.Errorf("IsSSRtx claimed an invalid ssrtx is valid")
 	}
 
@@ -1032,12 +1015,12 @@ func TestIsSSRtxErrors(t *testing.T) {
 	ssrtxWrongTreeIns.SetTree(wire.TxTreeStake)
 	ssrtxWrongTreeIns.SetIndex(0)
 
-	err = stake.CheckSSRtx(ssrtxWrongTreeIns.MsgTx())
-	if !errors.As(err, &serr) || serr.GetCode() != stake.ErrSSRtxWrongTxTree {
+	err = CheckSSRtx(ssrtxWrongTreeIns.MsgTx())
+	if !errors.Is(err, ErrSSRtxWrongTxTree) {
 		t.Errorf("CheckSSRtx should have returned %v but instead returned %v",
-			stake.ErrSSGenWrongTxTree, err)
+			ErrSSGenWrongTxTree, err)
 	}
-	if stake.IsSSRtx(ssrtxWrongTreeIns.MsgTx()) {
+	if IsSSRtx(ssrtxWrongTreeIns.MsgTx()) {
 		t.Errorf("IsSSRtx claimed an invalid ssrtx is valid")
 	}
 }
@@ -1049,7 +1032,7 @@ func TestGetSSGenBlockVotedOn(t *testing.T) {
 	ssgen.SetTree(wire.TxTreeStake)
 	ssgen.SetIndex(0)
 
-	blockHash, height := stake.SSGenBlockVotedOn(ssgen.MsgTx())
+	blockHash, height := SSGenBlockVotedOn(ssgen.MsgTx())
 
 	correctBlockHash, _ := chainhash.NewHash(
 		[]byte{
@@ -1099,7 +1082,7 @@ func TestGetSStxStakeOutputInfo(t *testing.T) {
 	correctLimit := uint16(4)
 
 	typs, pkhs, amts, changeAmts, rules, limits :=
-		stake.TxSStxStakeOutputInfo(sstx.MsgTx())
+		TxSStxStakeOutputInfo(sstx.MsgTx())
 
 	if typs[2] != correctTyp {
 		t.Errorf("Error thrown on TestGetSStxStakeOutputInfo: Looking for "+
@@ -1139,7 +1122,7 @@ func TestGetSSGenVoteBits(t *testing.T) {
 
 	correctvbs := uint16(0x8c94)
 
-	votebits := stake.SSGenVoteBits(ssgen.MsgTx())
+	votebits := SSGenVoteBits(ssgen.MsgTx())
 
 	if correctvbs != votebits {
 		t.Errorf("Error thrown on TestGetSSGenVoteBits: Looking for "+
@@ -1150,8 +1133,8 @@ func TestGetSSGenVoteBits(t *testing.T) {
 func TestGetSSGenVersion(t *testing.T) {
 	var ssgen = ssgenMsgTx.Copy()
 
-	missingVersion := uint32(stake.VoteConsensusVersionAbsent)
-	version := stake.SSGenVersion(ssgen)
+	missingVersion := uint32(VoteConsensusVersionAbsent)
+	version := SSGenVersion(ssgen)
 	if version != missingVersion {
 		t.Errorf("Error thrown on TestGetSSGenVersion: Looking for "+
 			"version % x, got version % x", missingVersion, version)
@@ -1164,7 +1147,7 @@ func TestGetSSGenVersion(t *testing.T) {
 		t.Errorf("GenerateProvablyPruneableOut error %v", err)
 	}
 	ssgen.TxOut[1].PkScript = pkScript
-	version = stake.SSGenVersion(ssgen)
+	version = SSGenVersion(ssgen)
 
 	if version != expectedVersion {
 		t.Errorf("Error thrown on TestGetSSGenVersion: Looking for "+
@@ -1185,7 +1168,7 @@ func TestGetSStxNullOutputAmounts(t *testing.T) {
 	}
 	amtTicket := int64(0x9122e300)
 
-	_, _, err := stake.SStxNullOutputAmounts(
+	_, _, err := SStxNullOutputAmounts(
 		[]int64{
 			0x12000000,
 			0x12300000,
@@ -1201,7 +1184,7 @@ func TestGetSStxNullOutputAmounts(t *testing.T) {
 	}
 
 	// too small amount to commit
-	_, _, err = stake.SStxNullOutputAmounts(
+	_, _, err = SStxNullOutputAmounts(
 		commitAmts,
 		changeAmts,
 		int64(0x00000000))
@@ -1217,17 +1200,15 @@ func TestGetSStxNullOutputAmounts(t *testing.T) {
 		0x12300001,
 	}
 
-	var serr stake.RuleError
-	_, _, err = stake.SStxNullOutputAmounts(
+	_, _, err = SStxNullOutputAmounts(
 		commitAmts,
 		tooMuchChangeAmts,
 		int64(0x00000020))
-	if !errors.As(err, &serr) || serr.GetCode() != stake.ErrSStxBadChangeAmts {
+	if !errors.Is(err, ErrSStxBadChangeAmts) {
 		t.Errorf("TestGetSStxNullOutputAmounts unexpected error: %v", err)
 	}
 
-	fees, amts, err := stake.SStxNullOutputAmounts(commitAmts,
-		changeAmts,
+	fees, amts, err := SStxNullOutputAmounts(commitAmts, changeAmts,
 		amtTicket)
 
 	if err != nil {
@@ -1263,7 +1244,7 @@ func TestGetStakeRewards(t *testing.T) {
 	amountTicket := int64(42000000)
 	subsidy := int64(400000)
 
-	outAmts := stake.CalculateRewards(amounts, amountTicket, subsidy)
+	outAmts := CalculateRewards(amounts, amountTicket, subsidy)
 
 	// SSRtx example with 0 subsidy
 	expectedAmts := []int64{
@@ -1337,7 +1318,7 @@ func TestIsNullDataScript(t *testing.T) {
 				test.name, err)
 		}
 
-		result := stake.IsNullDataScript(test.version, script)
+		result := IsNullDataScript(test.version, script)
 		if result != test.expected {
 			t.Fatalf("%s: expected %v, got %v", test.name,
 				test.expected, result)
