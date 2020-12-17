@@ -1,11 +1,12 @@
 // Copyright (c) 2015 The btcsuite developers
-// Copyright (c) 2015-2019 The Decred developers
+// Copyright (c) 2015-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
 package dcrjson
 
 import (
+	"errors"
 	"reflect"
 	"testing"
 )
@@ -24,7 +25,7 @@ func TestCmdMethod(t *testing.T) {
 		{
 			name: "unregistered type",
 			cmd:  (*int)(nil),
-			err:  Error{Code: ErrUnregisteredMethod},
+			err:  ErrUnregisteredMethod,
 		},
 		{
 			name:   "nil pointer of registered type",
@@ -41,21 +42,10 @@ func TestCmdMethod(t *testing.T) {
 	t.Logf("Running %d tests", len(tests))
 	for i, test := range tests {
 		method, err := CmdMethod(test.cmd)
-		if reflect.TypeOf(err) != reflect.TypeOf(test.err) {
-			t.Errorf("Test #%d (%s) wrong error - got %T (%[3]v), "+
-				"want %T", i, test.name, err, test.err)
-			continue
-		}
-		if err != nil {
-			gotErrorCode := err.(Error).Code
-			if gotErrorCode != test.err.(Error).Code {
-				t.Errorf("Test #%d (%s) mismatched error code "+
-					"- got %v (%v), want %v", i, test.name,
-					gotErrorCode, err,
-					test.err.(Error).Code)
-				continue
-			}
-
+		// Ensure the error is of the expected type.
+		if !errors.Is(err, test.err) {
+			t.Errorf("Test #%d (%s): mismatched error - got %v, "+
+				"want %v", i, test.name, err, test.err)
 			continue
 		}
 
@@ -82,7 +72,7 @@ func TestMethodUsageFlags(t *testing.T) {
 		{
 			name:   "unregistered type",
 			method: "bogusmethod",
-			err:    Error{Code: ErrUnregisteredMethod},
+			err:    ErrUnregisteredMethod,
 		},
 		{
 			name:   "getblock",
@@ -99,21 +89,9 @@ func TestMethodUsageFlags(t *testing.T) {
 	t.Logf("Running %d tests", len(tests))
 	for i, test := range tests {
 		flags, err := MethodUsageFlags(test.method)
-		if reflect.TypeOf(err) != reflect.TypeOf(test.err) {
-			t.Errorf("Test #%d (%s) wrong error - got %T (%[3]v), "+
-				"want %T", i, test.name, err, test.err)
-			continue
-		}
-		if err != nil {
-			gotErrorCode := err.(Error).Code
-			if gotErrorCode != test.err.(Error).Code {
-				t.Errorf("Test #%d (%s) mismatched error code "+
-					"- got %v (%v), want %v", i, test.name,
-					gotErrorCode, err,
-					test.err.(Error).Code)
-				continue
-			}
-
+		if !errors.Is(err, test.err) {
+			t.Errorf("Test #%d (%s): mismatched error - got %v, "+
+				"want %v", i, test.name, err, test.err)
 			continue
 		}
 
@@ -140,7 +118,7 @@ func TestMethodUsageText(t *testing.T) {
 		{
 			name:   "unregistered type",
 			method: "bogusmethod",
-			err:    Error{Code: ErrUnregisteredMethod},
+			err:    ErrUnregisteredMethod,
 		},
 		{
 			name:     "getblockcount",
@@ -157,21 +135,9 @@ func TestMethodUsageText(t *testing.T) {
 	t.Logf("Running %d tests", len(tests))
 	for i, test := range tests {
 		usage, err := MethodUsageText(test.method)
-		if reflect.TypeOf(err) != reflect.TypeOf(test.err) {
-			t.Errorf("Test #%d (%s) wrong error - got %T (%[3]v), "+
-				"want %T", i, test.name, err, test.err)
-			continue
-		}
-		if err != nil {
-			gotErrorCode := err.(Error).Code
-			if gotErrorCode != test.err.(Error).Code {
-				t.Errorf("Test #%d (%s) mismatched error code "+
-					"- got %v (%v), want %v", i, test.name,
-					gotErrorCode, err,
-					test.err.(Error).Code)
-				continue
-			}
-
+		if !errors.Is(err, test.err) {
+			t.Errorf("Test #%d (%s): mismatched error - got %v, "+
+				"want %v", i, test.name, err, test.err)
 			continue
 		}
 
@@ -184,7 +150,7 @@ func TestMethodUsageText(t *testing.T) {
 
 		// Get the usage again to exercise caching.
 		usage, err = MethodUsageText(test.method)
-		if err != nil {
+		if !errors.Is(err, test.err) {
 			t.Errorf("Test #%d (%s) unexpected error: %v", i,
 				test.name, err)
 			continue

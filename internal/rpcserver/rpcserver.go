@@ -5684,8 +5684,7 @@ func parseCmd(request *dcrjson.Request) *parsedRPCCmd {
 		// Produce a relevant error when the requested method is not registered
 		// depending on whether or not it is recognized as being a wallet
 		// command, recognized as unimplemented, or completely unrecognized.
-		var jerr dcrjson.Error
-		if errors.As(err, &jerr) && jerr.Code == dcrjson.ErrUnregisteredMethod {
+		if errors.Is(err, dcrjson.ErrUnregisteredMethod) {
 			parsedCmd.err = dcrjson.ErrRPCMethodNotFound
 			if _, ok := rpcAskWallet[request.Method]; ok {
 				parsedCmd.err = ErrRPCNoWallet
