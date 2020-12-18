@@ -4496,6 +4496,32 @@ func TestHandleGetMempoolInfo(t *testing.T) {
 	}})
 }
 
+func TestHandleGetMiningInfo(t *testing.T) {
+	t.Parallel()
+
+	testRPCServerHandler(t, []rpcTest{{
+		name:    "handleGetMiningInfo: ok",
+		handler: handleGetMiningInfo,
+		result: &types.GetMiningInfoResult{
+			Blocks:           432100,
+			CurrentBlockSize: 2782,
+			CurrentBlockTx:   7,
+			Difficulty:       2.8147398026656624e+10,
+			StakeDifficulty:  14428162590,
+		},
+	}, {
+		name:    "handleGetMiningInfo: invalid network hashes per sec",
+		handler: handleGetMiningInfo,
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.headerByHashErr = errors.New("")
+			return chain
+		}(),
+		wantErr: true,
+		errCode: dcrjson.ErrRPCInternal.Code,
+	}})
+}
+
 func TestHandleGetNetTotals(t *testing.T) {
 	t.Parallel()
 

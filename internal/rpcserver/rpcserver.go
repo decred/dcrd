@@ -2512,7 +2512,7 @@ func handleGetMempoolInfo(_ context.Context, s *Server, cmd interface{}) (interf
 
 // handleGetMiningInfo implements the getmininginfo command. We only return the
 // fields that are not related to wallet functionality.
-func handleGetMiningInfo(ctx context.Context, s *Server, cmd interface{}) (interface{}, error) {
+func handleGetMiningInfo(ctx context.Context, s *Server, _ interface{}) (interface{}, error) {
 	// Create a default getnetworkhashps command to use defaults and make
 	// use of the existing getnetworkhashps handler.
 	gnhpsCmd := types.NewGetNetworkHashPSCmd(nil, nil)
