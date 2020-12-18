@@ -156,7 +156,7 @@ type testRPCChain struct {
 	getVoteCountsErr              error
 	getVoteInfo                   *blockchain.VoteInfo
 	getVoteInfoErr                error
-	headerByHash                  wire.BlockHeader
+	headerByHashFn                func() wire.BlockHeader
 	headerByHashErr               error
 	headerByHeight                wire.BlockHeader
 	headerByHeightErr             error
@@ -300,7 +300,7 @@ func (c *testRPCChain) GetVoteInfo(hash *chainhash.Hash, version uint32) (*block
 
 // HeaderByHash returns a mocked block header identified by the given hash.
 func (c *testRPCChain) HeaderByHash(hash *chainhash.Hash) (wire.BlockHeader, error) {
-	return c.headerByHash, c.headerByHashErr
+	return c.headerByHashFn(), c.headerByHashErr
 }
 
 // HeaderByHeight returns a mocked block header at the given height.
@@ -1381,6 +1381,7 @@ func defaultMockRPCChain() *testRPCChain {
 	// mock chain.
 	blk := dcrutil.NewBlock(&block432100)
 	blkHeader := block432100.Header
+	headerByHashFn := func() wire.BlockHeader { return blkHeader }
 	blkHash := blk.Hash()
 	blkHeight := blk.Height()
 	chainWork, _ := new(big.Int).SetString("0e805fb85284503581c57c", 16)
@@ -1457,7 +1458,7 @@ func defaultMockRPCChain() *testRPCChain {
 				Choice: uint32(0xffffffff),
 			}},
 		},
-		headerByHash:      blkHeader,
+		headerByHashFn:    headerByHashFn,
 		headerByHeight:    blkHeader,
 		isCurrent:         true,
 		mainChainHasBlock: true,
@@ -4513,6 +4514,90 @@ func TestHandleGetNetTotals(t *testing.T) {
 	}})
 }
 
+func TestHandleGetNetworkHashPS(t *testing.T) {
+	t.Parallel()
+
+	mc := func() *testRPCChain {
+		chain := defaultMockRPCChain()
+		header := block432100.Header
+		i := 0
+		inverter := 1
+		// Increase or decrease the block header timestamp
+		// every block.
+		fn := func() wire.BlockHeader {
+			t := time.Minute * time.Duration(i) * time.Duration(inverter)
+			header.Timestamp = header.Timestamp.Add(t)
+			i++
+			inverter *= -1
+			return header
+		}
+		chain.headerByHashFn = fn
+		return chain
+	}
+	networkHashPSResult := int64(2014899978133500709)
+
+	testRPCServerHandler(t, []rpcTest{{
+		name:    "handleGetNetworkHashPS: ok",
+		handler: handleGetNetworkHashPS,
+		cmd: &types.GetNetworkHashPSCmd{
+			Blocks: dcrjson.Int(0),
+		},
+		mockChain: mc(),
+		result:    networkHashPSResult,
+	}, {
+		name:    "handleGetNetworkHashPS: ok end height larger than best height",
+		handler: handleGetNetworkHashPS,
+		cmd: &types.GetNetworkHashPSCmd{
+			Height: dcrjson.Int(1),
+		},
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.bestSnapshot.Height = 0
+			return chain
+		}(),
+		result: int64(0),
+	}, {
+		name:    "handleGetNetworkHashPS: ok blocks push scan past best height",
+		handler: handleGetNetworkHashPS,
+		cmd: &types.GetNetworkHashPSCmd{
+			Blocks: dcrjson.Int(5),
+			Height: dcrjson.Int(1),
+		},
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.bestSnapshot.Height = 3
+			return chain
+		}(),
+		result: int64(0),
+	}, {
+		name: "handleGetNetworkHashPS: unable to fetch a block hash " +
+			"by height needed to fetch headers in between the start " +
+			"and end heights in order to retrieve the header's timestamp",
+		handler: handleGetNetworkHashPS,
+		cmd:     &types.GetNetworkHashPSCmd{},
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.blockHashByHeightErr = errors.New("")
+			return chain
+		}(),
+		wantErr: true,
+		errCode: dcrjson.ErrRPCInternal.Code,
+	}, {
+		name: "handleGetNetworkHashPS: unable to fetch a header " +
+			"in between the start and end heights in order to " +
+			"retrieve the header's timestamp",
+		handler: handleGetNetworkHashPS,
+		cmd:     &types.GetNetworkHashPSCmd{},
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.headerByHashErr = errors.New("")
+			return chain
+		}(),
+		wantErr: true,
+		errCode: dcrjson.ErrRPCInternal.Code,
+	}})
+}
+
 func TestHandleGetNetworkInfo(t *testing.T) {
 	t.Parallel()
 
@@ -6345,7 +6430,14 @@ func TestHandleTSpendVotes(t *testing.T) {
 	// Chain that returns an older header in HeaderByHeight.
 	chainOldBlock := new(testRPCChain)
 	*chainOldBlock = *chainVotes
-	chainOldBlock.headerByHash.Height = 1000
+	header, err := chainOldBlock.HeaderByHash(nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	header.Height = 1000
+	chainOldBlock.headerByHashFn = func() wire.BlockHeader {
+		return header
+	}
 
 	// Chain that has a mined tspend.
 	chainMinedTSpend := new(testRPCChain)
