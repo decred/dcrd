@@ -579,60 +579,35 @@ func decompressTxOutAmount(amount uint64) uint64 {
 // -----------------------------------------------------------------------------
 
 // compressedTxOutSize returns the number of bytes the passed transaction output
-// fields would take when encoded with the format described above.  The
-// preCompressed flag indicates the provided amount and script are already
-// compressed.  This is useful since loaded utxo entries are not decompressed
-// until the output is accessed.
+// fields would take when encoded with the format described above.
 func compressedTxOutSize(amount uint64, scriptVersion uint16, pkScript []byte,
-	compressionVersion uint32, preCompressed bool, hasAmount bool) int {
+	compressionVersion uint32, hasAmount bool) int {
+
 	scriptVersionSize := serializeSizeVLQ(uint64(scriptVersion))
-	if preCompressed && !hasAmount {
-		return scriptVersionSize + len(pkScript)
-	}
-	if preCompressed && hasAmount {
-		return scriptVersionSize + serializeSizeVLQ(compressTxOutAmount(amount)) +
-			len(pkScript)
-	}
-	if !preCompressed && !hasAmount {
+	if !hasAmount {
 		return scriptVersionSize + compressedScriptSize(scriptVersion,
 			pkScript, compressionVersion)
 	}
 
-	// if !preCompressed && hasAmount
 	return scriptVersionSize + serializeSizeVLQ(compressTxOutAmount(amount)) +
 		compressedScriptSize(scriptVersion, pkScript, compressionVersion)
 }
 
-// putCompressedTxOut potentially compresses the passed amount and script
-// according to their domain specific compression algorithms and encodes them
-// directly into the passed target byte slice with the format described above.
-// The preCompressed flag indicates the provided amount and script are already
-// compressed in which case the values are not modified.  This is useful since
-// loaded utxo entries are not decompressed until the output is accessed.  The
-// target byte slice must be at least large enough to handle the number of bytes
-// returned by the compressedTxOutSize function or it will panic.
+// putCompressedTxOut compresses the passed amount and script according to their
+// domain specific compression algorithms and encodes them directly into the
+// passed target byte slice with the format described above.  The target byte
+// slice must be at least large enough to handle the number of bytes returned by
+// the compressedTxOutSize function or it will panic.
 func putCompressedTxOut(target []byte, amount uint64, scriptVersion uint16,
-	pkScript []byte, compressionVersion uint32, preCompressed bool,
-	hasAmount bool) int {
-	if preCompressed && hasAmount {
-		offset := putVLQ(target, compressTxOutAmount(amount))
-		offset += putVLQ(target[offset:], uint64(scriptVersion))
-		copy(target[offset:], pkScript)
-		return offset + len(pkScript)
-	}
-	if preCompressed && !hasAmount {
-		offset := putVLQ(target, uint64(scriptVersion))
-		copy(target[offset:], pkScript)
-		return offset + len(pkScript)
-	}
-	if !preCompressed && !hasAmount {
+	pkScript []byte, compressionVersion uint32, hasAmount bool) int {
+
+	if !hasAmount {
 		offset := putVLQ(target, uint64(scriptVersion))
 		offset += putCompressedScript(target[offset:], scriptVersion, pkScript,
 			compressionVersion)
 		return offset
 	}
 
-	// if !preCompressed && hasAmount
 	offset := putVLQ(target, compressTxOutAmount(amount))
 	offset += putVLQ(target[offset:], uint64(scriptVersion))
 	offset += putCompressedScript(target[offset:], scriptVersion, pkScript,
@@ -641,10 +616,11 @@ func putCompressedTxOut(target []byte, amount uint64, scriptVersion uint16,
 }
 
 // decodeCompressedTxOut decodes the passed compressed txout, possibly followed
-// by other data, into its compressed amount and compressed script and returns
-// them along with the number of bytes they occupied.
+// by other data, into its uncompressed amount and script and returns them along
+// with the number of bytes they occupied prior to decompression.
 func decodeCompressedTxOut(serialized []byte, compressionVersion uint32,
 	hasAmount bool) (int64, uint16, []byte, int, error) {
+
 	var amount int64
 	var bytesRead int
 	var offset int
@@ -684,66 +660,50 @@ func decodeCompressedTxOut(serialized []byte, compressionVersion uint32,
 			scriptSize))
 	}
 
-	// Make a copy of the compressed script so the original serialized data
-	// can be released as soon as possible.
-	compressedScript := make([]byte, scriptSize)
-	copy(compressedScript, serialized[offset:offset+scriptSize])
+	// Decompress the script.
+	script := decompressScript(serialized[offset:offset+scriptSize],
+		compressionVersion)
 
-	return amount, uint16(scriptVersion), compressedScript,
-		offset + scriptSize, nil
+	return amount, uint16(scriptVersion), script, offset + scriptSize, nil
 }
 
-// -----------------------------------------------------------------------------
-// Decred specific transaction encoding flags
+// txOutFlags defines additional information and state for transaction outputs.
+// This is used when serializing both unspent and spent transaction outputs.
 //
-// Details about a transaction needed to determine how it may be spent
-// according to consensus rules are given by these flags.
-//
-// The following details are encoded into a single byte, where the index
-// of the bit is given in zeroeth order:
-//     0: Is coinbase
-//     1: Has an expiry
-//   2-4: Transaction type
-//     5: Unused
-//     6: Fully spent
-//     7: Unused
-//
-// 0, 1, and 6 are bit flags, while the transaction type is encoded with a bitmask
-// and used to describe the underlying int.
-//
-// The fully spent flag should always come as the *last* flag (highest bit index)
-// in this data type should flags be updated to include more rules in the future,
-// such as rules governing new script OP codes. This ensures that we may still use
-// these flags in the UTX serialized data without consequence, where the last
-// flag indicating fully spent will always be zeroed. Note that currently the
-// fully spent flag is stored in bit 6 so that when serializing the flags as a
-// VLQ integer it still fits into a single byte.
-//
-// -----------------------------------------------------------------------------
+// The bit representation is:
+//   bit  0     - containing transaction is a coinbase
+//   bit  1     - containing transaction has an expiry
+//   bits 2-5   - transaction type
+//   bits 6-7   - unused
+type txOutFlags uint8
 
 const (
-	// txTypeBitmask describes the bitmask that yields the 3rd, 4th and 5th
-	// bits from the flags byte.
-	txTypeBitmask = 0x1c
+	// txOutFlagCoinBase indicates that a txout was contained in a coinbase tx.
+	txOutFlagCoinBase = 1 << 0
 
-	// txTypeShift is the number of bits to shift flags to the right to yield the
-	// correct integer value after applying the bitmask with AND.
-	txTypeShift = 2
+	// txOutFlagHasExpiry indicates that a txout was contained in a tx that included
+	// an expiry.
+	txOutFlagHasExpiry = 1 << 1
+
+	// txOutFlagTxTypeBitmask describes the bitmask that yields bits 2-5 from
+	// txoFlags.
+	txOutFlagTxTypeBitmask = 0x3c
+
+	// txOutFlagTxTypeShift is the number of bits to shift txoFlags to the right
+	// to yield the correct integer value after applying the bitmask with AND.
+	txOutFlagTxTypeShift = 2
 )
 
 // encodeFlags encodes transaction flags into a single byte.
-func encodeFlags(isCoinBase bool, hasExpiry bool, txType stake.TxType, fullySpent bool) byte {
-	b := uint8(txType)
-	b <<= txTypeShift
+func encodeFlags(isCoinBase bool, hasExpiry bool, txType stake.TxType) txOutFlags {
+	b := txOutFlags(txType)
+	b <<= txOutFlagTxTypeShift
 
 	if isCoinBase {
-		b |= 0x01 // Set bit 0
+		b |= txOutFlagCoinBase
 	}
 	if hasExpiry {
-		b |= 0x02 // Set bit 1
-	}
-	if fullySpent {
-		b |= 0x40 // Set bit 6
+		b |= txOutFlagHasExpiry
 	}
 
 	return b
@@ -751,18 +711,12 @@ func encodeFlags(isCoinBase bool, hasExpiry bool, txType stake.TxType, fullySpen
 
 // decodeFlags decodes transaction flags from a single byte into their respective
 // data types.
-func decodeFlags(b byte) (bool, bool, stake.TxType, bool) {
-	isCoinBase := b&0x01 != 0
-	hasExpiry := b&(1<<1) != 0
-	fullySpent := b&(1<<6) != 0
-	txType := stake.TxType((b & txTypeBitmask) >> txTypeShift)
+func decodeFlags(flags txOutFlags) (bool, bool, stake.TxType) {
+	isCoinBase := flags&txOutFlagCoinBase == txOutFlagCoinBase
+	hasExpiry := flags&txOutFlagHasExpiry == txOutFlagHasExpiry
+	txType := (flags & txOutFlagTxTypeBitmask) >> txOutFlagTxTypeShift
 
-	return isCoinBase, hasExpiry, txType, fullySpent
-}
-
-// decodeFlagsFullySpent decodes whether or not a transaction was fully spent.
-func decodeFlagsFullySpent(b byte) bool {
-	return b&(1<<6) != 0
+	return isCoinBase, hasExpiry, stake.TxType(txType)
 }
 
 // absInt64 computes the absolute value of the given int64 and converts it into

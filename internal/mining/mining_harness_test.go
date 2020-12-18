@@ -132,24 +132,30 @@ func (c *fakeChain) CheckTSpendHasVotes(prevHash chainhash.Hash, tspend *dcrutil
 	return c.checkTSpendHasVotesErr
 }
 
-// FetchUtxoView loads utxo details about the input transactions referenced by
-// the passed transaction from the point of view of the fake chain.  It also
-// attempts to fetch the utxo details for the transaction itself so the
-// returned view can be examined for duplicate unspent transaction outputs.
+// FetchUtxoView loads unspent transaction outputs for the inputs referenced by
+// the passed transaction from the point of view of the main chain tip while
+// taking into account whether or not the transactions in the regular tree of
+// the current tip block should be included or not depending on the provided
+// flag.  It also attempts to fetch the utxos for the outputs of the transaction
+// so the returned view can be examined for duplicate transactions.
 func (c *fakeChain) FetchUtxoView(tx *dcrutil.Tx, treeValid bool) (*blockchain.UtxoViewpoint, error) {
 	// All entries are cloned to ensure modifications to the returned view
 	// do not affect the fake chain's view.
 
-	// Add an entry for the tx itself to the new view.
+	// Add entries for the outputs of the tx to the new view.
+	msgTx := tx.MsgTx()
 	viewpoint := blockchain.NewUtxoViewpoint(nil)
-	entry := c.utxos.LookupEntry(tx.Hash())
-	viewpoint.Entries()[*tx.Hash()] = entry.Clone()
+	prevOut := wire.OutPoint{Hash: *tx.Hash(), Tree: tx.Tree()}
+	for txOutIdx := range msgTx.TxOut {
+		prevOut.Index = uint32(txOutIdx)
+		entry := c.utxos.LookupEntry(prevOut)
+		viewpoint.Entries()[prevOut] = entry.Clone()
+	}
 
 	// Add entries for all of the inputs to the tx to the new view.
 	for _, txIn := range tx.MsgTx().TxIn {
-		originHash := &txIn.PreviousOutPoint.Hash
-		entry := c.utxos.LookupEntry(originHash)
-		viewpoint.Entries()[*originHash] = entry.Clone()
+		entry := c.utxos.LookupEntry(txIn.PreviousOutPoint)
+		viewpoint.Entries()[txIn.PreviousOutPoint] = entry.Clone()
 	}
 
 	return viewpoint, c.fetchUtxoViewErr
@@ -358,10 +364,10 @@ func (p *fakeTxSource) fetchRedeemers(outpoints map[wire.OutPoint]*dcrutil.Tx, t
 	tree := wire.TxTreeRegular
 	seen := map[chainhash.Hash]struct{}{}
 	redeemers := make([]*dcrutil.Tx, 0)
-	prevOut := wire.OutPoint{Hash: *tx.Hash(), Tree: tree}
+	outpoint := wire.OutPoint{Hash: *tx.Hash(), Tree: tree}
 	for i := uint32(0); i < uint32(len(tx.MsgTx().TxOut)); i++ {
-		prevOut.Index = i
-		txRedeemer, exists := outpoints[prevOut]
+		outpoint.Index = i
+		txRedeemer, exists := outpoints[outpoint]
 		if !exists {
 			continue
 		}
@@ -413,13 +419,7 @@ func (p *fakeTxSource) removeOrphan(tx *dcrutil.Tx, removeRedeemers bool, isTrea
 
 	// Remove any orphans that redeem outputs from this one if requested.
 	if removeRedeemers {
-		txType := stake.DetermineTxType(tx.MsgTx(), isTreasuryEnabled)
-		tree := wire.TxTreeRegular
-		if txType != stake.TxTypeRegular {
-			tree = wire.TxTreeStake
-		}
-
-		prevOut := wire.OutPoint{Hash: *txHash, Tree: tree}
+		prevOut := wire.OutPoint{Hash: *txHash, Tree: tx.Tree()}
 		for txOutIdx := range tx.MsgTx().TxOut {
 			prevOut.Index = uint32(txOutIdx)
 			for _, orphan := range p.orphansByPrev[prevOut] {
@@ -661,8 +661,8 @@ func (p *fakeTxSource) maybeAcceptTransaction(tx *dcrutil.Tx, isNew bool) ([]*ch
 			continue
 		}
 
-		entry := utxoView.LookupEntry(&txIn.PreviousOutPoint.Hash)
-		if entry == nil || entry.IsFullySpent() {
+		entry := utxoView.LookupEntry(txIn.PreviousOutPoint)
+		if entry == nil || entry.IsSpent() {
 			// Must make a copy of the hash here since the iterator
 			// is replaced and taking its address directly would
 			// result in all of the entries pointing to the same
@@ -678,10 +678,9 @@ func (p *fakeTxSource) maybeAcceptTransaction(tx *dcrutil.Tx, isNew bool) ([]*ch
 					txIn.PreviousOutPoint.Hash)
 				continue
 			}
-			if entry.IsFullySpent() {
-				log.Tracef("Transaction %v uses full spent input %v "+
-					"and will be considered an orphan", txHash,
-					txIn.PreviousOutPoint.Hash)
+			if entry.IsSpent() {
+				log.Tracef("Transaction %v uses spent input %v and will be considered "+
+					"an orphan", txHash, txIn.PreviousOutPoint.Hash)
 			}
 		}
 	}
@@ -878,19 +877,25 @@ func (p *fakeTxSource) fetchInputUtxos(tx *dcrutil.Tx, isTreasuryEnabled bool) (
 	}
 
 	// Attempt to populate any missing inputs from the transaction pool.
-	for originHash, entry := range utxoView.Entries() {
-		if entry != nil && !entry.IsFullySpent() {
+	for _, txIn := range tx.MsgTx().TxIn {
+		prevOut := &txIn.PreviousOutPoint
+		entry := utxoView.LookupEntry(*prevOut)
+		if entry != nil && !entry.IsSpent() {
 			continue
 		}
 
-		if poolTxDesc, exists := p.pool[originHash]; exists {
-			utxoView.AddTxOuts(poolTxDesc.Tx, UnminedHeight, wire.NullBlockIndex,
-				isTreasuryEnabled)
+		if poolTxDesc, exists := p.pool[prevOut.Hash]; exists {
+			// AddTxOut ignores out of range index values, so it is safe to call without
+			// bounds checking here.
+			utxoView.AddTxOut(poolTxDesc.Tx, prevOut.Index, UnminedHeight,
+				wire.NullBlockIndex, isTreasuryEnabled)
 		}
 
-		if stagedTx, exists := p.staged[originHash]; exists {
-			utxoView.AddTxOuts(stagedTx, UnminedHeight, wire.NullBlockIndex,
-				isTreasuryEnabled)
+		if stagedTx, exists := p.staged[prevOut.Hash]; exists {
+			// AddTxOut ignores out of range index values, so it is safe to call without
+			// bounds checking here.
+			utxoView.AddTxOut(stagedTx, prevOut.Index, UnminedHeight,
+				wire.NullBlockIndex, isTreasuryEnabled)
 		}
 	}
 

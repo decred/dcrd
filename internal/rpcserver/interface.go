@@ -169,51 +169,35 @@ type UtxoEntry interface {
 	// ToUtxoEntry returns the underlying UtxoEntry instance.
 	ToUtxoEntry() *blockchain.UtxoEntry
 
-	// TransactionType returns the type of the transaction the utxo entry
-	// represents.
+	// TransactionType returns the type of the transaction that the output is
+	// contained in.
 	TransactionType() stake.TxType
 
-	// IsOutputSpent returns whether or not the provided output index has been
-	// spent based upon the current state of the unspent transaction output view
-	// the entry was obtained from.
-	//
-	// Returns true if the output index references an output that does not exist
-	// either due to it being invalid or because the output is not part of the view
-	// due to previously being spent/pruned.
-	IsOutputSpent(outputIndex uint32) bool
+	// IsSpent returns whether or not the output has been spent based upon the
+	// current state of the unspent transaction output view it was obtained from.
+	IsSpent() bool
 
-	// BlockHeight returns the height of the block containing the transaction the
-	// utxo entry represents.
+	// BlockHeight returns the height of the block containing the output.
 	BlockHeight() int64
 
-	// TxVersion returns the version of the transaction the utxo represents.
-	TxVersion() uint16
+	// Amount returns the amount of the output.
+	Amount() int64
 
-	// AmountByIndex returns the amount of the provided output index.
-	//
-	// Returns 0 if the output index references an output that does not exist
-	// either due to it being invalid or because the output is not part of the view
-	// due to previously being spent/pruned.
-	AmountByIndex(outputIndex uint32) int64
+	// ScriptVersion returns the public key script version for the output.
+	ScriptVersion() uint16
 
-	// ScriptVersionByIndex returns the public key script for the provided output
-	// index.
-	//
-	// Returns 0 if the output index references an output that does not exist
-	// either due to it being invalid or because the output is not part of the view
-	// due to previously being spent/pruned.
-	ScriptVersionByIndex(outputIndex uint32) uint16
+	// PkScript returns the public key script for the output.
+	PkScript() []byte
 
-	// PkScriptByIndex returns the public key script for the provided output index.
-	//
-	// Returns nil if the output index references an output that does not exist
-	// either due to it being invalid or because the output is not part of the view
-	// due to previously being spent/pruned.
-	PkScriptByIndex(outputIndex uint32) []byte
-
-	// IsCoinBase returns whether or not the transaction the utxo entry represents
-	// is a coinbase.
+	// IsCoinBase returns whether or not the output was contained in a coinbase
+	// transaction.
 	IsCoinBase() bool
+
+	// TicketMinimalOutputs returns the minimal outputs for the ticket transaction
+	// that the output is contained in.  Note that the ticket minimal outputs are
+	// only stored in ticket submission outputs and nil will be returned for all
+	// other output types.
+	TicketMinimalOutputs() []*stake.MinimalOutput
 }
 
 // Chain represents a chain for use with the RPC server.
@@ -272,11 +256,6 @@ type Chain interface {
 	// hash has been missed in the live ticket treap of the best node.
 	CheckMissedTickets(hashes []chainhash.Hash) []bool
 
-	// ConvertUtxosToMinimalOutputs converts the contents of a UTX to a series of
-	// minimal outputs. It does this so that these can be passed to stake subpackage
-	// functions, where they will be evaluated for correctness.
-	ConvertUtxosToMinimalOutputs(entry UtxoEntry) []*stake.MinimalOutput
-
 	// CountVoteVersion returns the total number of version votes for the current
 	// rule change activation interval.
 	CountVoteVersion(version uint32) (uint32, error)
@@ -288,17 +267,17 @@ type Chain interface {
 	// the interval.
 	EstimateNextStakeDifficulty(hash *chainhash.Hash, newTickets int64, useMaxTickets bool) (int64, error)
 
-	// FetchUtxoEntry loads and returns the unspent transaction output entry for the
-	// passed hash from the point of view of the end of the main chain.
+	// FetchUtxoEntry loads and returns the requested unspent transaction output
+	// from the point of view of the main chain tip.
 	//
-	// NOTE: Requesting a hash for which there is no data must NOT return an error.
-	// Instead both the entry and the error must be nil.  This is done to allow
-	// pruning of fully spent transactions.  In practice this means the caller must
-	// check if the returned entry is nil before invoking methods on it.
+	// NOTE: Requesting an output for which there is no data will NOT return an
+	// error.  Instead both the entry and the error will be nil.  This is done to
+	// allow pruning of spent transaction outputs.  In practice this means the
+	// caller must check if the returned entry is nil before invoking methods on it.
 	//
 	// This function is safe for concurrent access however the returned entry (if
 	// any) is NOT.
-	FetchUtxoEntry(txHash *chainhash.Hash) (UtxoEntry, error)
+	FetchUtxoEntry(outpoint wire.OutPoint) (UtxoEntry, error)
 
 	// FetchUtxoStats returns statistics on the current utxo set.
 	FetchUtxoStats() (*blockchain.UtxoStats, error)

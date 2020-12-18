@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/decred/dcrd/blockchain/stake/v4"
 	"github.com/decred/dcrd/blockchain/v4"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/chaincfg/v3"
@@ -110,10 +111,11 @@ type getSyncPeerMsg struct {
 // this through the sync manager so the sync manager doesn't ban the peer
 // when it sends this information back.
 type requestFromPeerMsg struct {
-	peer   *peerpkg.Peer
-	blocks []*chainhash.Hash
-	txs    []*chainhash.Hash
-	reply  chan requestFromPeerResponse
+	peer         *peerpkg.Peer
+	blocks       []*chainhash.Hash
+	voteHashes   []*chainhash.Hash
+	tSpendHashes []*chainhash.Hash
+	reply        chan requestFromPeerResponse
 }
 
 // requestFromPeerResponse is a response sent to the reply channel of a
@@ -1305,13 +1307,34 @@ func (m *SyncManager) haveInventory(invVect *wire.InvVect) (bool, error) {
 			return true, nil
 		}
 
-		// Check if the transaction exists from the point of view of the
-		// end of the main chain.
-		entry, err := m.cfg.Chain.FetchUtxoEntry(&invVect.Hash)
-		if err != nil {
-			return false, err
+		// Check if the transaction exists from the point of view of the main chain
+		// tip.  Note that this is only a best effort since it is expensive to check
+		// existence of every output and the only purpose of this check is to avoid
+		// downloading already known transactions.
+		//
+		// The first three outputs are checked because it covers the majority of
+		// common scenarios, including:
+		//   - The vast majority of regular transactions consist of two outputs
+		//     where one is some form of "pay-to-somebody-else" and the other is a
+		//     change output.
+		//   - For some stake transactions (e.g. votes) the first two outputs will
+		//     never be found as a utxo, since they are not spendable, so we need to
+		//     check through at least the third output.
+		outpoint := wire.OutPoint{Hash: invVect.Hash}
+		trees := []int8{wire.TxTreeRegular, wire.TxTreeStake}
+		for _, tree := range trees {
+			outpoint.Tree = tree
+			for i := uint32(0); i < 3; i++ {
+				outpoint.Index = i
+				entry, err := m.cfg.Chain.FetchUtxoEntry(outpoint)
+				if err != nil {
+					return false, err
+				}
+				if entry != nil && !entry.IsSpent() {
+					return true, nil
+				}
+			}
 		}
-		return entry != nil && !entry.IsFullySpent(), nil
 	}
 
 	// The requested inventory is an unsupported type, so just claim
@@ -1566,7 +1589,8 @@ out:
 				msg.reply <- peerID
 
 			case requestFromPeerMsg:
-				err := m.requestFromPeer(msg.peer, msg.blocks, msg.txs)
+				err := m.requestFromPeer(msg.peer, msg.blocks, msg.voteHashes,
+					msg.tSpendHashes)
 				msg.reply <- requestFromPeerResponse{
 					err: err,
 				}
@@ -1699,11 +1723,13 @@ func (m *SyncManager) SyncPeerID() int32 {
 // RequestFromPeer allows an outside caller to request blocks or transactions
 // from a peer.  The requests are logged in the internal map of requests so the
 // peer is not later banned for sending the respective data.
-func (m *SyncManager) RequestFromPeer(p *peerpkg.Peer, blocks, txs []*chainhash.Hash) error {
+func (m *SyncManager) RequestFromPeer(p *peerpkg.Peer, blocks, voteHashes,
+	tSpendHashes []*chainhash.Hash) error {
+
 	reply := make(chan requestFromPeerResponse, 1)
 	select {
-	case m.msgChan <- requestFromPeerMsg{peer: p, blocks: blocks, txs: txs,
-		reply: reply}:
+	case m.msgChan <- requestFromPeerMsg{peer: p, blocks: blocks,
+		voteHashes: voteHashes, tSpendHashes: tSpendHashes, reply: reply}:
 	case <-m.quit:
 	}
 
@@ -1715,7 +1741,9 @@ func (m *SyncManager) RequestFromPeer(p *peerpkg.Peer, blocks, txs []*chainhash.
 	}
 }
 
-func (m *SyncManager) requestFromPeer(p *peerpkg.Peer, blocks, txs []*chainhash.Hash) error {
+func (m *SyncManager) requestFromPeer(p *peerpkg.Peer, blocks, voteHashes,
+	tSpendHashes []*chainhash.Hash) error {
+
 	peer := lookupPeer(p, m.peers)
 	if peer == nil {
 		return fmt.Errorf("unknown peer %s", p)
@@ -1748,41 +1776,80 @@ func (m *SyncManager) requestFromPeer(p *peerpkg.Peer, blocks, txs []*chainhash.
 		m.requestedBlocks[*bh] = struct{}{}
 	}
 
+	addTxsToRequest := func(txs []*chainhash.Hash, txType stake.TxType) error {
+		// Return immediately if txs is nil.
+		if txs == nil {
+			return nil
+		}
+
+		for _, tx := range txs {
+			// If we've already requested this transaction, skip it.
+			_, alreadyReqP := peer.requestedTxns[*tx]
+			_, alreadyReqB := m.requestedTxns[*tx]
+
+			if alreadyReqP || alreadyReqB {
+				continue
+			}
+
+			// Ask the transaction memory pool if the transaction is known
+			// to it in any form (main pool or orphan).
+			if m.cfg.TxMemPool.HaveTransaction(tx) {
+				continue
+			}
+
+			// Check if the transaction exists from the point of view of the main
+			// chain tip.  Note that this is only a best effort since it is expensive
+			// to check existence of every output and the only purpose of this check
+			// is to avoid requesting already known transactions.
+			//
+			// Check for a specific outpoint based on the tx type.
+			outpoint := wire.OutPoint{Hash: *tx}
+			switch txType {
+			case stake.TxTypeSSGen:
+				// The first two outputs of vote transactions are OP_RETURN <data>, and
+				// therefore never exist as an unspent txo.  Use the third output, as
+				// the third output (and subsequent outputs) are OP_SSGEN outputs.
+				outpoint.Index = 2
+				outpoint.Tree = wire.TxTreeStake
+			case stake.TxTypeTSpend:
+				// The first output of a tSpend transaction is OP_RETURN <data>, and
+				// therefore never exists as an unspent txo.  Use the second output, as
+				// the second output (and subsequent outputs) are OP_TGEN outputs.
+				outpoint.Index = 1
+				outpoint.Tree = wire.TxTreeStake
+			}
+			entry, err := m.cfg.Chain.FetchUtxoEntry(outpoint)
+			if err != nil {
+				return err
+			}
+			if entry != nil {
+				continue
+			}
+
+			err = msgResp.AddInvVect(wire.NewInvVect(wire.InvTypeTx, tx))
+			if err != nil {
+				return fmt.Errorf("unexpected error encountered building request "+
+					"for mining state vote %v: %v",
+					tx, err.Error())
+			}
+
+			peer.requestedTxns[*tx] = struct{}{}
+			m.requestedTxns[*tx] = struct{}{}
+		}
+
+		return nil
+	}
+
 	// Add the vote transactions to the request.
-	for _, vh := range txs {
-		// If we've already requested this transaction, skip it.
-		_, alreadyReqP := peer.requestedTxns[*vh]
-		_, alreadyReqB := m.requestedTxns[*vh]
+	err := addTxsToRequest(voteHashes, stake.TxTypeSSGen)
+	if err != nil {
+		return err
+	}
 
-		if alreadyReqP || alreadyReqB {
-			continue
-		}
-
-		// Ask the transaction memory pool if the transaction is known
-		// to it in any form (main pool or orphan).
-		if m.cfg.TxMemPool.HaveTransaction(vh) {
-			continue
-		}
-
-		// Check if the transaction exists from the point of view of the
-		// end of the main chain.
-		entry, err := m.cfg.Chain.FetchUtxoEntry(vh)
-		if err != nil {
-			return err
-		}
-		if entry != nil {
-			continue
-		}
-
-		err = msgResp.AddInvVect(wire.NewInvVect(wire.InvTypeTx, vh))
-		if err != nil {
-			return fmt.Errorf("unexpected error encountered building request "+
-				"for mining state vote %v: %v",
-				vh, err.Error())
-		}
-
-		peer.requestedTxns[*vh] = struct{}{}
-		m.requestedTxns[*vh] = struct{}{}
+	// Add the tspend transactions to the request.
+	err = addTxsToRequest(tSpendHashes, stake.TxTypeTSpend)
+	if err != nil {
+		return err
 	}
 
 	if len(msgResp.InvList) > 0 {

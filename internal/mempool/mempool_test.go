@@ -70,10 +70,12 @@ func (s *fakeChain) SetNextStakeDifficulty(nextStakeDiff int64) {
 	s.Unlock()
 }
 
-// FetchUtxoView loads utxo details about the input transactions referenced by
-// the passed transaction from the point of view of the fake chain.
-// It also attempts to fetch the utxo details for the transaction itself so the
-// returned view can be examined for duplicate unspent transaction outputs.
+// FetchUtxoView loads unspent transaction outputs for the inputs referenced by
+// the passed transaction from the point of view of the main chain tip while
+// taking into account whether or not the transactions in the regular tree of
+// the current tip block should be included or not depending on the provided
+// flag.  It also attempts to fetch the utxos for the outputs of the transaction
+// so the returned view can be examined for duplicate transactions.
 //
 // This function is safe for concurrent access however the returned view is NOT.
 func (s *fakeChain) FetchUtxoView(tx *dcrutil.Tx, treeValid bool) (*blockchain.UtxoViewpoint, error) {
@@ -83,16 +85,20 @@ func (s *fakeChain) FetchUtxoView(tx *dcrutil.Tx, treeValid bool) (*blockchain.U
 	// All entries are cloned to ensure modifications to the returned view
 	// do not affect the fake chain's view.
 
-	// Add an entry for the tx itself to the new view.
+	// Add entries for the outputs of the tx to the new view.
+	msgTx := tx.MsgTx()
 	viewpoint := blockchain.NewUtxoViewpoint(nil)
-	entry := s.utxos.LookupEntry(tx.Hash())
-	viewpoint.Entries()[*tx.Hash()] = entry.Clone()
+	outpoint := wire.OutPoint{Hash: *tx.Hash(), Tree: tx.Tree()}
+	for txOutIdx := range msgTx.TxOut {
+		outpoint.Index = uint32(txOutIdx)
+		entry := s.utxos.LookupEntry(outpoint)
+		viewpoint.Entries()[outpoint] = entry.Clone()
+	}
 
 	// Add entries for all of the inputs to the tx to the new view.
-	for _, txIn := range tx.MsgTx().TxIn {
-		originHash := &txIn.PreviousOutPoint.Hash
-		entry := s.utxos.LookupEntry(originHash)
-		viewpoint.Entries()[*originHash] = entry.Clone()
+	for _, txIn := range msgTx.TxIn {
+		entry := s.utxos.LookupEntry(txIn.PreviousOutPoint)
+		viewpoint.Entries()[txIn.PreviousOutPoint] = entry.Clone()
 	}
 
 	return viewpoint, nil
@@ -194,7 +200,7 @@ func (s *fakeChain) CalcSequenceLock(tx *dcrutil.Tx, view *blockchain.UtxoViewpo
 			continue
 		}
 
-		utxo := view.LookupEntry(&txIn.PreviousOutPoint.Hash)
+		utxo := view.LookupEntry(txIn.PreviousOutPoint)
 		if utxo == nil {
 			str := fmt.Sprintf("output %v referenced from transaction %s:%d "+
 				"either does not exist or has already been spent",
@@ -1002,7 +1008,8 @@ func TestTicketPurchaseOrphan(t *testing.T) {
 	// Add the transaction back to the mempool to ensure it
 	// kicks the ticket out to the stage pool.
 	harness.AddFakeUTXO(tx, int64(mining.UnminedHeight))
-	harness.chain.utxos.LookupEntry(tx.Hash()).SpendOutput(0)
+	outpoint := wire.OutPoint{Hash: *tx.Hash(), Tree: wire.TxTreeRegular, Index: 0}
+	harness.chain.utxos.LookupEntry(outpoint).Spend()
 	_, err = harness.txPool.MaybeAcceptTransaction(tx, false, false)
 	if err != nil {
 		t.Fatalf("ProcessTransaction: failed to accept valid transaction %v",

@@ -376,8 +376,8 @@ func Regular(block *wire.MsgBlock, prevScripts PrevScripter) (*gcs.FilterV2, err
 
 				// Commit to the change outputs with the exception of those that
 				// are provably unspendable.
-				isChangeOuput := txOutIdx%2 == 0
-				if isChangeOuput {
+				isChangeOutput := txOutIdx%2 == 0
+				if isChangeOutput {
 					if txOut.Value == 0 {
 						continue
 					}

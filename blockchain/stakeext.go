@@ -10,6 +10,7 @@ import (
 	"github.com/decred/dcrd/database/v2"
 	"github.com/decred/dcrd/dcrutil/v4"
 	"github.com/decred/dcrd/txscript/v4"
+	"github.com/decred/dcrd/wire"
 )
 
 // NextLotteryData returns the next tickets eligible for spending as SSGen
@@ -110,15 +111,14 @@ func (b *BlockChain) TicketsWithAddress(address dcrutil.Address, isTreasuryEnabl
 	var ticketsWithAddr []chainhash.Hash
 	err := b.db.View(func(dbTx database.Tx) error {
 		for _, hash := range tickets {
-			utxo, err := dbFetchUtxoEntry(dbTx, &hash)
+			outpoint := wire.OutPoint{Hash: hash, Index: 0, Tree: wire.TxTreeStake}
+			utxo, err := dbFetchUtxoEntry(dbTx, outpoint)
 			if err != nil {
 				return err
 			}
 
-			_, addrs, _, err :=
-				txscript.ExtractPkScriptAddrs(utxo.ScriptVersionByIndex(0),
-					utxo.PkScriptByIndex(0), b.chainParams,
-					isTreasuryEnabled)
+			_, addrs, _, err := txscript.ExtractPkScriptAddrs(utxo.ScriptVersion(),
+				utxo.PkScript(), b.chainParams, isTreasuryEnabled)
 			if err != nil {
 				return err
 			}
@@ -223,12 +223,13 @@ func (b *BlockChain) TicketPoolValue() (dcrutil.Amount, error) {
 	var amt int64
 	err := b.db.View(func(dbTx database.Tx) error {
 		for _, hash := range sn.LiveTickets() {
-			utxo, err := dbFetchUtxoEntry(dbTx, &hash)
+			outpoint := wire.OutPoint{Hash: hash, Index: 0, Tree: wire.TxTreeStake}
+			utxo, err := dbFetchUtxoEntry(dbTx, outpoint)
 			if err != nil {
 				return err
 			}
 
-			amt += utxo.sparseOutputs[0].amount
+			amt += utxo.Amount()
 		}
 		return nil
 	})
