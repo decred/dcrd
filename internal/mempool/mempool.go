@@ -425,10 +425,10 @@ func (mp *TxPool) removeOrphan(tx *dcrutil.Tx, removeRedeemers bool, isTreasuryE
 			tree = wire.TxTreeStake
 		}
 
-		prevOut := wire.OutPoint{Hash: *txHash, Tree: tree}
+		outpoint := wire.OutPoint{Hash: *txHash, Tree: tree}
 		for txOutIdx := range tx.MsgTx().TxOut {
-			prevOut.Index = uint32(txOutIdx)
-			for _, orphan := range mp.orphansByPrev[prevOut] {
+			outpoint.Index = uint32(txOutIdx)
+			for _, orphan := range mp.orphansByPrev[outpoint] {
 				mp.removeOrphan(orphan, true, isTreasuryEnabled)
 			}
 		}
@@ -698,10 +698,10 @@ func (mp *TxPool) fetchRedeemers(outpoints map[wire.OutPoint]*dcrutil.Tx, tx *dc
 	tree := wire.TxTreeRegular
 	seen := map[chainhash.Hash]struct{}{}
 	redeemers := make([]*dcrutil.Tx, 0)
-	prevOut := wire.OutPoint{Hash: *tx.Hash(), Tree: tree}
+	outpoint := wire.OutPoint{Hash: *tx.Hash(), Tree: tree}
 	for i := uint32(0); i < uint32(len(tx.MsgTx().TxOut)); i++ {
-		prevOut.Index = i
-		txRedeemer, exists := outpoints[prevOut]
+		outpoint.Index = i
+		txRedeemer, exists := outpoints[outpoint]
 		if !exists {
 			continue
 		}
@@ -838,16 +838,16 @@ func (mp *TxPool) removeTransaction(tx *dcrutil.Tx, removeRedeemers bool, isTrea
 			tree = wire.TxTreeStake
 		}
 
-		prevOut := wire.OutPoint{Hash: *txHash, Tree: tree}
+		outpoint := wire.OutPoint{Hash: *txHash, Tree: tree}
 		for i := uint32(0); i < uint32(len(tx.MsgTx().TxOut)); i++ {
-			prevOut.Index = i
-			if txRedeemer, exists := mp.outpoints[prevOut]; exists {
+			outpoint.Index = i
+			if txRedeemer, exists := mp.outpoints[outpoint]; exists {
 				mp.removeTransaction(txRedeemer, true,
 					isTreasuryEnabled)
 				continue
 			}
-			if txRedeemer, exists := mp.stagedOutpoints[prevOut]; exists {
-				log.Tracef("Removing staged transaction %v", prevOut.Hash)
+			if txRedeemer, exists := mp.stagedOutpoints[outpoint]; exists {
+				log.Tracef("Removing staged transaction %v", outpoint.Hash)
 				mp.removeStagedTransaction(txRedeemer)
 			}
 		}
@@ -1116,18 +1116,24 @@ func (mp *TxPool) fetchInputUtxos(tx *dcrutil.Tx, isTreasuryEnabled bool) (*bloc
 	}
 
 	// Attempt to populate any missing inputs from the transaction pool.
-	for originHash, entry := range utxoView.Entries() {
-		if entry != nil && !entry.IsFullySpent() {
+	for _, txIn := range tx.MsgTx().TxIn {
+		prevOut := &txIn.PreviousOutPoint
+		entry := utxoView.LookupEntry(*prevOut)
+		if entry != nil && !entry.IsSpent() {
 			continue
 		}
 
-		if poolTxDesc, exists := mp.pool[originHash]; exists {
-			utxoView.AddTxOuts(poolTxDesc.Tx, mining.UnminedHeight,
+		if poolTxDesc, exists := mp.pool[prevOut.Hash]; exists {
+			// AddTxOut ignores out of range index values, so it is safe to call without
+			// bounds checking here.
+			utxoView.AddTxOut(poolTxDesc.Tx, prevOut.Index, mining.UnminedHeight,
 				wire.NullBlockIndex, isTreasuryEnabled)
 		}
 
-		if stagedTx, exists := mp.staged[originHash]; exists {
-			utxoView.AddTxOuts(stagedTx, mining.UnminedHeight,
+		if stagedTx, exists := mp.staged[prevOut.Hash]; exists {
+			// AddTxOut ignores out of range index values, so it is safe to call without
+			// bounds checking here.
+			utxoView.AddTxOut(stagedTx, prevOut.Index, mining.UnminedHeight,
 				wire.NullBlockIndex, isTreasuryEnabled)
 		}
 	}
@@ -1225,11 +1231,11 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 	// Then, be sure to set the tx tree correctly as it's possible a user submitted
 	// it to the network with TxTreeUnknown.
 	txType := stake.DetermineTxType(msgTx, isTreasuryEnabled)
-	if txType == stake.TxTypeRegular {
-		tx.SetTree(wire.TxTreeRegular)
-	} else {
-		tx.SetTree(wire.TxTreeStake)
+	tree := wire.TxTreeRegular
+	if txType != stake.TxTypeRegular {
+		tree = wire.TxTreeStake
 	}
+	tx.SetTree(tree)
 	isVote := txType == stake.TxTypeSSGen
 
 	var isTreasuryBase, isTSpend bool
@@ -1377,21 +1383,26 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 
 	// Don't allow the transaction if it exists in the main chain and is not
 	// already fully spent.
-	txEntry := utxoView.LookupEntry(txHash)
-	if txEntry != nil && !txEntry.IsFullySpent() {
-		return nil, txRuleError(ErrAlreadyExists, "transaction already exists")
+	outpoint := wire.OutPoint{Hash: *txHash, Tree: tree}
+	for txOutIdx := range msgTx.TxOut {
+		outpoint.Index = uint32(txOutIdx)
+		entry := utxoView.LookupEntry(outpoint)
+		if entry != nil && !entry.IsSpent() {
+			return nil, txRuleError(ErrAlreadyExists, "transaction already exists")
+		}
+		utxoView.RemoveEntry(outpoint)
 	}
-	delete(utxoView.Entries(), *txHash)
 
-	// Transaction is an orphan if any of the inputs don't exist.
+	// Transaction is an orphan if any of the referenced transaction outputs don't
+	// exist or are already spent.
 	var missingParents []*chainhash.Hash
 	for i, txIn := range msgTx.TxIn {
 		if (i == 0 && (isVote || isTreasuryBase)) || isTSpend {
 			continue
 		}
 
-		entry := utxoView.LookupEntry(&txIn.PreviousOutPoint.Hash)
-		if entry == nil || entry.IsFullySpent() {
+		entry := utxoView.LookupEntry(txIn.PreviousOutPoint)
+		if entry == nil || entry.IsSpent() {
 			// Must make a copy of the hash here since the iterator
 			// is replaced and taking its address directly would
 			// result in all of the entries pointing to the same
@@ -1407,10 +1418,9 @@ func (mp *TxPool) maybeAcceptTransaction(tx *dcrutil.Tx, isNew, rateLimit, allow
 					txIn.PreviousOutPoint.Hash)
 				continue
 			}
-			if entry.IsFullySpent() {
-				log.Tracef("Transaction %v uses full spent input %v "+
-					"and will be considered an orphan", txHash,
-					txIn.PreviousOutPoint.Hash)
+			if entry.IsSpent() {
+				log.Tracef("Transaction %v uses spent input %v and will be considered "+
+					"an orphan", txHash, txIn.PreviousOutPoint.Hash)
 			}
 		}
 	}
@@ -1784,7 +1794,7 @@ func (mp *TxPool) processOrphans(acceptedTx *dcrutil.Tx, isTreasuryEnabled bool)
 			tree = wire.TxTreeStake
 		}
 
-		prevOut := wire.OutPoint{Hash: *processItem.Hash(), Tree: tree}
+		outpoint := wire.OutPoint{Hash: *processItem.Hash(), Tree: tree}
 		for txOutIdx := range processItem.MsgTx().TxOut {
 			// Look up all orphans that redeem the output that is
 			// now available.  This will typically only be one, but
@@ -1797,8 +1807,8 @@ func (mp *TxPool) processOrphans(acceptedTx *dcrutil.Tx, isTreasuryEnabled bool)
 			// would otherwise make outputs unspendable.
 			//
 			// Skip to the next available output if there are none.
-			prevOut.Index = uint32(txOutIdx)
-			orphans, exists := mp.orphansByPrev[prevOut]
+			outpoint.Index = uint32(txOutIdx)
+			orphans, exists := mp.orphansByPrev[outpoint]
 			if !exists {
 				continue
 			}
@@ -2181,11 +2191,11 @@ func New(cfg *Config) *TxPool {
 	// for a given transaction, scan the mempool to find which transactions
 	// spend it.
 	forEachRedeemer := func(tx *dcrutil.Tx, f func(redeemerTx *mining.TxDesc)) {
-		prevOut := wire.OutPoint{Hash: *tx.Hash(), Tree: tx.Tree()}
+		outpoint := wire.OutPoint{Hash: *tx.Hash(), Tree: tx.Tree()}
 		txOutLen := uint32(len(tx.MsgTx().TxOut))
 		for i := uint32(0); i < txOutLen; i++ {
-			prevOut.Index = i
-			if txRedeemer, exists := mp.outpoints[prevOut]; exists {
+			outpoint.Index = i
+			if txRedeemer, exists := mp.outpoints[outpoint]; exists {
 				f(&mp.pool[txRedeemer.MsgTx().TxHash()].TxDesc)
 			}
 		}

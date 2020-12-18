@@ -69,7 +69,7 @@ func (b *BlockChain) calcSequenceLock(node *blockNode, tx *dcrutil.Tx, view *Utx
 			continue
 		}
 
-		utxo := view.LookupEntry(&txIn.PreviousOutPoint.Hash)
+		utxo := view.LookupEntry(txIn.PreviousOutPoint)
 		if utxo == nil {
 			str := fmt.Sprintf("output %v referenced from "+
 				"transaction %s:%d either does not exist or "+

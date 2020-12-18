@@ -11,7 +11,6 @@ import (
 	"net"
 	"time"
 
-	"github.com/decred/dcrd/blockchain/stake/v4"
 	"github.com/decred/dcrd/blockchain/v4"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/chaincfg/v3"
@@ -379,25 +378,18 @@ type rpcChain struct {
 // Ensure rpcChain implements the rpcserver.Chain interface.
 var _ rpcserver.Chain = (*rpcChain)(nil)
 
-// ConvertUtxosToMinimalOutputs converts the contents of a UTX to a series of
-// minimal outputs. It does this so that these can be passed to stake subpackage
-// functions, where they will be evaluated for correctness.
-func (c *rpcChain) ConvertUtxosToMinimalOutputs(entry rpcserver.UtxoEntry) []*stake.MinimalOutput {
-	return blockchain.ConvertUtxosToMinimalOutputs(entry.ToUtxoEntry())
-}
-
-// FetchUtxoEntry loads and returns the unspent transaction output entry for the
-// passed hash from the point of view of the end of the main chain.
+// FetchUtxoEntry loads and returns the requested unspent transaction output
+// from the point of view of the main chain tip.
 //
-// NOTE: Requesting a hash for which there is no data will NOT return an error.
-// Instead both the entry and the error will be nil.  This is done to allow
-// pruning of fully spent transactions.  In practice this means the caller must
-// check if the returned entry is nil before invoking methods on it.
+// NOTE: Requesting an output for which there is no data will NOT return an
+// error.  Instead both the entry and the error will be nil.  This is done to
+// allow pruning of spent transaction outputs.  In practice this means the
+// caller must check if the returned entry is nil before invoking methods on it.
 //
 // This function is safe for concurrent access however the returned entry (if
 // any) is NOT.
-func (c *rpcChain) FetchUtxoEntry(txHash *chainhash.Hash) (rpcserver.UtxoEntry, error) {
-	utxo, err := c.BlockChain.FetchUtxoEntry(txHash)
+func (c *rpcChain) FetchUtxoEntry(outpoint wire.OutPoint) (rpcserver.UtxoEntry, error) {
+	utxo, err := c.BlockChain.FetchUtxoEntry(outpoint)
 	if utxo == nil || err != nil {
 		return nil, err
 	}

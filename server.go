@@ -855,7 +855,7 @@ func (sp *serverPeer) OnGetMiningState(p *peer.Peer, msg *wire.MsgGetMiningState
 // requests the data advertised in the message from the peer.
 func (sp *serverPeer) OnMiningState(p *peer.Peer, msg *wire.MsgMiningState) {
 	err := sp.server.syncManager.RequestFromPeer(sp.Peer, msg.BlockHashes,
-		msg.VoteHashes)
+		msg.VoteHashes, nil)
 	if err != nil {
 		peerLog.Warnf("couldn't handle mining state message: %v",
 			err.Error())
@@ -947,20 +947,21 @@ func (sp *serverPeer) OnGetInitState(p *peer.Peer, msg *wire.MsgGetInitState) {
 // requests the data advertised in the message from the peer.
 func (sp *serverPeer) OnInitState(p *peer.Peer, msg *wire.MsgInitState) {
 	blockHashes := make([]*chainhash.Hash, 0, len(msg.BlockHashes))
-	txHashes := make([]*chainhash.Hash, 0, len(msg.VoteHashes)+len(msg.TSpendHashes))
+	voteHashes := make([]*chainhash.Hash, 0, len(msg.VoteHashes))
+	tSpendHashes := make([]*chainhash.Hash, 0, len(msg.TSpendHashes))
 
 	for i := range msg.BlockHashes {
 		blockHashes = append(blockHashes, &msg.BlockHashes[i])
 	}
 	for i := range msg.VoteHashes {
-		txHashes = append(txHashes, &msg.VoteHashes[i])
+		voteHashes = append(voteHashes, &msg.VoteHashes[i])
 	}
 	for i := range msg.TSpendHashes {
-		txHashes = append(txHashes, &msg.TSpendHashes[i])
+		tSpendHashes = append(tSpendHashes, &msg.TSpendHashes[i])
 	}
 
 	err := sp.server.syncManager.RequestFromPeer(sp.Peer, blockHashes,
-		txHashes)
+		voteHashes, tSpendHashes)
 	if err != nil {
 		peerLog.Warnf("couldn't handle init state message: %v", err)
 	}

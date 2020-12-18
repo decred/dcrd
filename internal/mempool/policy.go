@@ -124,10 +124,9 @@ func checkInputsStandard(tx *dcrutil.Tx, txType stake.TxType, utxoView *blockcha
 		// It is safe to elide existence and index checks here since
 		// they have already been checked prior to calling this
 		// function.
-		prevOut := txIn.PreviousOutPoint
-		entry := utxoView.LookupEntry(&prevOut.Hash)
-		originPkScriptVer := entry.ScriptVersionByIndex(prevOut.Index)
-		originPkScript := entry.PkScriptByIndex(prevOut.Index)
+		entry := utxoView.LookupEntry(txIn.PreviousOutPoint)
+		originPkScriptVer := entry.ScriptVersion()
+		originPkScript := entry.PkScript()
 		switch txscript.GetScriptClass(originPkScriptVer,
 			originPkScript, isTreasuryEnabled) {
 		case txscript.ScriptHashTy:

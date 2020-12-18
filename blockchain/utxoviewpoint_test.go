@@ -55,8 +55,8 @@ func TestFetchUtxoView(t *testing.T) {
 
 		for txInIdx, txIn := range tx.MsgTx().TxIn {
 			prevOut := &txIn.PreviousOutPoint
-			entry := view.LookupEntry(&prevOut.Hash)
-			gotSpent := entry == nil || entry.IsOutputSpent(prevOut.Index)
+			entry := view.LookupEntry(*prevOut)
+			gotSpent := entry == nil || entry.IsSpent()
 			if gotSpent != spent {
 				t.Fatalf("unexpected spent state for txo %s referenced by "+
 					"input %d -- got %v, want %v", prevOut, txInIdx,

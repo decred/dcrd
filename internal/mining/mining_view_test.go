@@ -497,7 +497,8 @@ func TestAncestorTrackingLimits(t *testing.T) {
 	for index := len(allTxns) - 1; index >= 0; index-- {
 		tx := allTxns[index]
 		txHash := tx.Hash()
-		harness.chain.utxos.LookupEntry(txHash).SpendOutput(0)
+		outpoint := wire.OutPoint{Hash: *txHash, Index: 0, Tree: wire.TxTreeRegular}
+		harness.chain.utxos.LookupEntry(outpoint).Spend()
 		_, err = harness.AddTransactionToTxSource(tx)
 		if err != nil {
 			t.Fatalf("unable to add transaction to the tx source: %v", err)

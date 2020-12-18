@@ -368,100 +368,66 @@ func TestCompressedTxOut(t *testing.T) {
 		amount        uint64
 		scriptVersion uint16
 		pkScript      []byte
-		compPkScript  []byte
 		version       uint32
 		compressed    []byte
 		hasAmount     bool
-		isCompressed  bool
 	}{
 		{
 			name:          "nulldata with 0 DCR",
 			amount:        0,
 			scriptVersion: 0,
 			pkScript:      hexToBytes("6a200102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20"),
-			compPkScript:  hexToBytes("626a200102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20"),
 			version:       1,
 			compressed:    hexToBytes("00626a200102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20"),
 			hasAmount:     false,
-			isCompressed:  false,
 		},
 		{
 			name:          "pay-to-pubkey-hash dust, no amount",
 			amount:        0,
 			scriptVersion: 0,
 			pkScript:      hexToBytes("76a9141018853670f9f3b0582c5b9ee8ce93764ac32b9388ac"),
-			compPkScript:  hexToBytes("001018853670f9f3b0582c5b9ee8ce93764ac32b93"),
 			version:       1,
 			compressed:    hexToBytes("00001018853670f9f3b0582c5b9ee8ce93764ac32b93"),
 			hasAmount:     false,
-			isCompressed:  false,
-		},
-		{
-			name:          "pay-to-pubkey-hash dust, no amount, precompressed",
-			amount:        0,
-			scriptVersion: 0,
-			pkScript:      hexToBytes("001018853670f9f3b0582c5b9ee8ce93764ac32b93"),
-			compPkScript:  hexToBytes("001018853670f9f3b0582c5b9ee8ce93764ac32b93"),
-			version:       1,
-			compressed:    hexToBytes("00001018853670f9f3b0582c5b9ee8ce93764ac32b93"),
-			hasAmount:     false,
-			isCompressed:  true,
 		},
 		{
 			name:          "pay-to-pubkey-hash dust, amount",
 			amount:        546,
 			scriptVersion: 0,
 			pkScript:      hexToBytes("76a9141018853670f9f3b0582c5b9ee8ce93764ac32b9388ac"),
-			compPkScript:  hexToBytes("001018853670f9f3b0582c5b9ee8ce93764ac32b93"),
 			version:       1,
 			compressed:    hexToBytes("a52f00001018853670f9f3b0582c5b9ee8ce93764ac32b93"),
 			hasAmount:     true,
-			isCompressed:  false,
-		},
-		{
-			name:          "pay-to-pubkey-hash dust, amount, precompressed",
-			amount:        546,
-			scriptVersion: 0,
-			pkScript:      hexToBytes("001018853670f9f3b0582c5b9ee8ce93764ac32b93"),
-			compPkScript:  hexToBytes("001018853670f9f3b0582c5b9ee8ce93764ac32b93"),
-			version:       1,
-			compressed:    hexToBytes("a52f00001018853670f9f3b0582c5b9ee8ce93764ac32b93"),
-			hasAmount:     true,
-			isCompressed:  true,
 		},
 		{
 			name:          "pay-to-pubkey uncompressed, no amount",
 			amount:        0,
 			scriptVersion: 0,
 			pkScript:      hexToBytes("4104192d74d0cb94344c9569c2e77901573d8d7903c3ebec3a957724895dca52c6b40d45264838c0bd96852662ce6a847b197376830160c6d2eb5e6a4c44d33f453eac"),
-			compPkScript:  hexToBytes("04192d74d0cb94344c9569c2e77901573d8d7903c3ebec3a957724895dca52c6b4"),
 			version:       1,
 			compressed:    hexToBytes("0004192d74d0cb94344c9569c2e77901573d8d7903c3ebec3a957724895dca52c6b4"),
 			hasAmount:     false,
-			isCompressed:  false,
 		},
 		{
 			name:          "pay-to-pubkey uncompressed 1 DCR, amount present",
 			amount:        100000000,
 			scriptVersion: 0,
 			pkScript:      hexToBytes("4104192d74d0cb94344c9569c2e77901573d8d7903c3ebec3a957724895dca52c6b40d45264838c0bd96852662ce6a847b197376830160c6d2eb5e6a4c44d33f453eac"),
-			compPkScript:  hexToBytes("04192d74d0cb94344c9569c2e77901573d8d7903c3ebec3a957724895dca52c6b4"),
 			version:       1,
 			compressed:    hexToBytes("090004192d74d0cb94344c9569c2e77901573d8d7903c3ebec3a957724895dca52c6b4"),
 			hasAmount:     true,
-			isCompressed:  false,
 		},
 	}
 
 	for _, test := range tests {
-		targetSz := compressedTxOutSize(0, test.scriptVersion, test.pkScript, currentCompressionVersion, test.isCompressed, test.hasAmount) - 1
+		targetSz := compressedTxOutSize(0, test.scriptVersion, test.pkScript, currentCompressionVersion, test.hasAmount) - 1
 		target := make([]byte, targetSz)
 		putCompressedScript(target, test.scriptVersion, test.pkScript, currentCompressionVersion)
 
 		// Ensure the function to calculate the serialized size without
 		// actually serializing the txout is calculated properly.
 		gotSize := compressedTxOutSize(test.amount, test.scriptVersion,
-			test.pkScript, test.version, test.isCompressed, test.hasAmount)
+			test.pkScript, test.version, test.hasAmount)
 		if gotSize != len(test.compressed) {
 			t.Errorf("compressedTxOutSize (%s): did not get "+
 				"expected size - got %d, want %d", test.name,
@@ -473,7 +439,7 @@ func TestCompressedTxOut(t *testing.T) {
 		gotCompressed := make([]byte, gotSize)
 		gotBytesWritten := putCompressedTxOut(gotCompressed,
 			test.amount, test.scriptVersion, test.pkScript,
-			test.version, test.isCompressed, test.hasAmount)
+			test.version, test.hasAmount)
 		if !bytes.Equal(gotCompressed, test.compressed) {
 			t.Errorf("compressTxOut (%s): did not get expected "+
 				"bytes - got %x, want %x", test.name,
@@ -510,31 +476,16 @@ func TestCompressedTxOut(t *testing.T) {
 				test.name, gotScrVersion, test.scriptVersion)
 			continue
 		}
-		if !bytes.Equal(gotScript, test.compPkScript) {
+		if !bytes.Equal(gotScript, test.pkScript) {
 			t.Errorf("decodeCompressedTxOut (%s): did not get "+
 				"expected script - got %x, want %x",
-				test.name, gotScript, test.compPkScript)
+				test.name, gotScript, test.pkScript)
 			continue
 		}
 		if gotBytesRead != len(test.compressed) {
 			t.Errorf("decodeCompressedTxOut (%s): did not get "+
 				"expected number of bytes read - got %d, want %d",
 				test.name, gotBytesRead, len(test.compressed))
-			continue
-		}
-
-		// Ensure the compressed values decompress to the expected
-		// txout.
-		gotScript = decompressScript(gotScript, test.version)
-		localScript := make([]byte, len(test.pkScript))
-		copy(localScript, test.pkScript)
-		if test.isCompressed {
-			localScript = decompressScript(localScript, test.version)
-		}
-		if !bytes.Equal(gotScript, localScript) {
-			t.Errorf("decompressTxOut (%s): did not get expected "+
-				"script - got %x, want %x", test.name,
-				gotScript, test.pkScript)
 			continue
 		}
 	}

@@ -398,13 +398,13 @@ type BlockTemplate struct {
 // mergeUtxoView adds all of the entries in viewB to viewA.  The result is that
 // viewA will contain all of its original entries plus all of the entries
 // in viewB.  It will replace any entries in viewB which also exist in viewA
-// if the entry in viewA is fully spent.
+// if the entry in viewA is spent.
 func mergeUtxoView(viewA *blockchain.UtxoViewpoint, viewB *blockchain.UtxoViewpoint) {
 	viewAEntries := viewA.Entries()
-	for hash, entryB := range viewB.Entries() {
-		if entryA, exists := viewAEntries[hash]; !exists ||
-			entryA == nil || entryA.IsFullySpent() {
-			viewAEntries[hash] = entryB
+	for outpoint, entryB := range viewB.Entries() {
+		if entryA, exists := viewAEntries[outpoint]; !exists ||
+			entryA == nil || entryA.IsSpent() {
+			viewAEntries[outpoint] = entryB
 		}
 	}
 }
@@ -665,11 +665,9 @@ func createTreasuryBaseTx(subsidyCache *standalone.SubsidyCache, nextBlockHeight
 // which are not provably unspendable as available unspent transaction outputs.
 func spendTransaction(utxoView *blockchain.UtxoViewpoint, tx *dcrutil.Tx, height int64, isTreasuryEnabled bool) {
 	for _, txIn := range tx.MsgTx().TxIn {
-		originHash := &txIn.PreviousOutPoint.Hash
-		originIndex := txIn.PreviousOutPoint.Index
-		entry := utxoView.LookupEntry(originHash)
+		entry := utxoView.LookupEntry(txIn.PreviousOutPoint)
 		if entry != nil {
-			entry.SpendOutput(originIndex)
+			entry.Spend()
 		}
 	}
 
@@ -749,16 +747,14 @@ func (g *BlkTmplGenerator) maybeInsertStakeTx(stx *dcrutil.Tx, treeValid bool, i
 			continue
 		}
 
-		originHash := &txIn.PreviousOutPoint.Hash
-		utxIn := view.LookupEntry(originHash)
-		if utxIn == nil {
+		entry := view.LookupEntry(txIn.PreviousOutPoint)
+		if entry == nil {
 			missingInput = true
 			break
 		} else {
-			originIdx := txIn.PreviousOutPoint.Index
-			txIn.ValueIn = utxIn.AmountByIndex(originIdx)
-			txIn.BlockHeight = uint32(utxIn.BlockHeight())
-			txIn.BlockIndex = utxIn.BlockIndex()
+			txIn.ValueIn = entry.Amount()
+			txIn.BlockHeight = uint32(entry.BlockHeight())
+			txIn.BlockIndex = entry.BlockIndex()
 		}
 	}
 	return !missingInput
@@ -1221,9 +1217,8 @@ mempoolLoop:
 			}
 
 			originHash := &txIn.PreviousOutPoint.Hash
-			originIndex := txIn.PreviousOutPoint.Index
-			utxoEntry := utxos.LookupEntry(originHash)
-			if utxoEntry == nil || utxoEntry.IsOutputSpent(originIndex) {
+			entry := utxos.LookupEntry(txIn.PreviousOutPoint)
+			if entry == nil || entry.IsSpent() {
 				if !g.cfg.TxSource.HaveTransaction(originHash) {
 					log.Tracef("Skipping tx %s because "+
 						"it references unspent output "+
@@ -1957,9 +1952,9 @@ nextPriorityQueueItem:
 			break
 		}
 
-		utxs, err := g.cfg.FetchUtxoView(tx, !knownDisapproved)
+		view, err := g.cfg.FetchUtxoView(tx, !knownDisapproved)
 		if err != nil {
-			str := fmt.Sprintf("failed to fetch input utxs for tx %v: %s",
+			str := fmt.Sprintf("failed to fetch utxo view for tx %v: %s",
 				tx.Hash(), err.Error())
 			return nil, makeError(ErrFetchTxStore, str)
 		}
@@ -1970,17 +1965,15 @@ nextPriorityQueueItem:
 		tx = txCopy
 
 		for _, txIn := range tx.MsgTx().TxIn {
-			originHash := &txIn.PreviousOutPoint.Hash
-			utx := utxs.LookupEntry(originHash)
-			if utx == nil {
+			entry := view.LookupEntry(txIn.PreviousOutPoint)
+			if entry == nil {
 				// Set a flag with the index so we can properly set
 				// the fraud proof below.
 				txIn.BlockIndex = wire.NullBlockIndex
 			} else {
-				originIdx := txIn.PreviousOutPoint.Index
-				txIn.ValueIn = utx.AmountByIndex(originIdx)
-				txIn.BlockHeight = uint32(utx.BlockHeight())
-				txIn.BlockIndex = utx.BlockIndex()
+				txIn.ValueIn = entry.Amount()
+				txIn.BlockHeight = uint32(entry.BlockHeight())
+				txIn.BlockIndex = entry.BlockIndex()
 			}
 		}
 	}

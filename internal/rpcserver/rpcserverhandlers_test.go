@@ -56,17 +56,16 @@ const testDataPath = "testdata"
 
 // testRPCUtxoEntry provides a mock utxo entry by implementing the UtxoEntry interface.
 type testRPCUtxoEntry struct {
-	amountByIndex        int64
+	amount               int64
 	hasExpiry            bool
 	height               uint32
 	index                uint32
 	isCoinBase           bool
-	isOutputSpent        bool
-	modified             bool
-	pkScriptByIndex      []byte
-	scriptVersionByIndex uint16
+	isSpent              bool
+	pkScript             []byte
+	scriptVersion        uint16
+	ticketMinimalOutputs []*stake.MinimalOutput
 	txType               stake.TxType
-	txVersion            uint16
 }
 
 // ToUtxoEntry returns a mocked underlying UtxoEntry instance.
@@ -74,47 +73,48 @@ func (u *testRPCUtxoEntry) ToUtxoEntry() *blockchain.UtxoEntry {
 	return nil
 }
 
-// TransactionType returns a mocked txType of the testRPCUtxoEntry.
+// TransactionType returns a mocked type of the transaction that the output is
+// contained in.
 func (u *testRPCUtxoEntry) TransactionType() stake.TxType {
 	return u.txType
 }
 
-// IsOutputSpent returns a mocked bool representing whether or not the provided
-// output index has been spent.
-func (u *testRPCUtxoEntry) IsOutputSpent(outputIndex uint32) bool {
-	return u.isOutputSpent
+// IsSpent returns a mocked bool representing whether or not the output has been
+// spent.
+func (u *testRPCUtxoEntry) IsSpent() bool {
+	return u.isSpent
 }
 
-// BlockHeight returns a mocked height of the testRPCUtxoEntry.
+// BlockHeight returns a mocked height of the block containing the output.
 func (u *testRPCUtxoEntry) BlockHeight() int64 {
 	return int64(u.height)
 }
 
-// TxVersion returns a mocked txVersion of the testRPCUtxoEntry.
-func (u *testRPCUtxoEntry) TxVersion() uint16 {
-	return u.txVersion
+// Amount returns a mocked amount of the output.
+func (u *testRPCUtxoEntry) Amount() int64 {
+	return u.amount
 }
 
-// AmountByIndex returns a mocked amount of the provided output index.
-func (u *testRPCUtxoEntry) AmountByIndex(outputIndex uint32) int64 {
-	return u.amountByIndex
+// ScriptVersion returns a mocked public key script version of the output.
+func (u *testRPCUtxoEntry) ScriptVersion() uint16 {
+	return u.scriptVersion
 }
 
-// ScriptVersionByIndex returns a mocked public key script for the provided
-// output index.
-func (u *testRPCUtxoEntry) ScriptVersionByIndex(outputIndex uint32) uint16 {
-	return u.scriptVersionByIndex
+// PkScript returns a mocked public key script of the output.
+func (u *testRPCUtxoEntry) PkScript() []byte {
+	return u.pkScript
 }
 
-// PkScriptByIndex returns a mocked public key script for the provided output
-// index.
-func (u *testRPCUtxoEntry) PkScriptByIndex(outputIndex uint32) []byte {
-	return u.pkScriptByIndex
-}
-
-// IsCoinBase returns a mocked isCoinBase bool of the testRPCUtxoEntry.
+// IsCoinBase returns a mocked bool representing whether or not the output was
+// contained in a coinbase transaction.
 func (u *testRPCUtxoEntry) IsCoinBase() bool {
 	return u.isCoinBase
+}
+
+// TicketMinimalOutputs returns mocked minimal outputs for the ticket
+// transaction that the output is contained in.
+func (u *testRPCUtxoEntry) TicketMinimalOutputs() []*stake.MinimalOutput {
+	return u.ticketMinimalOutputs
 }
 
 // tspendVotes is used to mock the results of a chain TSpendCountVotes call.
@@ -145,7 +145,6 @@ type testRPCChain struct {
 	checkLiveTicket               bool
 	checkLiveTickets              []bool
 	checkMissedTickets            []bool
-	convertUtxosToMinimalOutputs  []*stake.MinimalOutput
 	countVoteVersion              uint32
 	countVoteVersionErr           error
 	estimateNextStakeDifficultyFn func(hash *chainhash.Hash, newTickets int64, useMaxTickets bool) (diff int64, err error)
@@ -263,11 +262,6 @@ func (c *testRPCChain) CheckMissedTickets(hashes []chainhash.Hash) []bool {
 	return c.checkMissedTickets
 }
 
-// ConvertUtxosToMinimalOutputs returns a mocked MinimalOutput slice.
-func (c *testRPCChain) ConvertUtxosToMinimalOutputs(entry UtxoEntry) []*stake.MinimalOutput {
-	return c.convertUtxosToMinimalOutputs
-}
-
 // CountVoteVersion returns a mocked total number of version votes for the current
 // rule change activation interval.
 func (c *testRPCChain) CountVoteVersion(version uint32) (uint32, error) {
@@ -280,7 +274,7 @@ func (c *testRPCChain) EstimateNextStakeDifficulty(hash *chainhash.Hash, newTick
 }
 
 // FetchUtxoEntry returns a mocked UtxoEntry.
-func (c *testRPCChain) FetchUtxoEntry(txHash *chainhash.Hash) (UtxoEntry, error) {
+func (c *testRPCChain) FetchUtxoEntry(outpoint wire.OutPoint) (UtxoEntry, error) {
 	return c.fetchUtxoEntry, c.fetchUtxoEntryErr
 }
 
@@ -1393,19 +1387,6 @@ func defaultMockRPCChain() *testRPCChain {
 			Status:    "active",
 		}},
 		chainWork: chainWork,
-		convertUtxosToMinimalOutputs: []*stake.MinimalOutput{{
-			PkScript: hexToBytes("baa914780239ea1231ba67b0c5b82e786b51e21072522187"),
-			Value:    100000000,
-			Version:  0,
-		}, {
-			PkScript: hexToBytes("6a1e355c96f48612d57509140e9a049981d5f9970f945c770d00000000000058"),
-			Value:    0,
-			Version:  0,
-		}, {
-			PkScript: hexToBytes("bd76a914000000000000000000000000000000000000000088ac"),
-			Value:    0,
-			Version:  0,
-		}},
 		estimateNextStakeDifficultyFn: func(*chainhash.Hash, int64, bool) (int64, error) {
 			return 14336790201, nil
 		},
@@ -1413,7 +1394,19 @@ func defaultMockRPCChain() *testRPCChain {
 			hasExpiry: true,
 			height:    100000,
 			txType:    stake.TxTypeSStx,
-			txVersion: 1,
+			ticketMinimalOutputs: []*stake.MinimalOutput{{
+				PkScript: hexToBytes("baa914780239ea1231ba67b0c5b82e786b51e21072522187"),
+				Value:    100000000,
+				Version:  0,
+			}, {
+				PkScript: hexToBytes("6a1e355c96f48612d57509140e9a049981d5f9970f945c770d00000000000058"),
+				Value:    0,
+				Version:  0,
+			}, {
+				PkScript: hexToBytes("bd76a914000000000000000000000000000000000000000088ac"),
+				Value:    0,
+				Version:  0,
+			}},
 		},
 		fetchUtxoStats: &blockchain.UtxoStats{
 			Utxos:          1593879,
@@ -2129,34 +2122,39 @@ func TestHandleCreateRawSSRtx(t *testing.T) {
 		},
 		mockChain: func() *testRPCChain {
 			chain := defaultMockRPCChain()
-			chain.convertUtxosToMinimalOutputs = []*stake.MinimalOutput{{
-				PkScript: []byte{
-					0xBA, 0xA9, 0x14, 0x78, 0x02, 0x39, 0xEA, 0x12,
-					0x31, 0xBA, 0x67, 0xB0, 0xC5, 0xB8, 0x2E, 0x78,
-					0x6B, 0x51, 0xE2, 0x10, 0x72, 0x52, 0x21, 0x87,
-				},
-				Value:   100000000,
-				Version: 0,
-			}, {
-				PkScript: []byte{
-					0x6A, 0x1E, 0x35, 0x5C, 0x96, 0xF4, 0x86, 0x12,
-					0xD5, 0x75, 0x09, 0x14, 0x0E, 0x9A, 0x04, 0x99,
-					0x81, 0xD5, 0xF9, 0x97, 0x0F, 0x94,
-					0x5C, 0x77, 0x0D, 0x00, 0x00, 0x00, 0x00, 0x80, // commitamt (set MSB for P2SH)
-					0x00, 0x58,
-				},
-				Value:   0,
-				Version: 0,
-			}, {
-				PkScript: []byte{
-					0xBD, 0x76, 0xA9, 0x14, 0x00, 0x00, 0x00, 0x00,
-					0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-					0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-					0x88, 0xAC,
-				},
-				Value:   0,
-				Version: 0,
-			}}
+			chain.fetchUtxoEntry = &testRPCUtxoEntry{
+				hasExpiry: true,
+				height:    100000,
+				txType:    stake.TxTypeSStx,
+				ticketMinimalOutputs: []*stake.MinimalOutput{{
+					PkScript: []byte{
+						0xBA, 0xA9, 0x14, 0x78, 0x02, 0x39, 0xEA, 0x12,
+						0x31, 0xBA, 0x67, 0xB0, 0xC5, 0xB8, 0x2E, 0x78,
+						0x6B, 0x51, 0xE2, 0x10, 0x72, 0x52, 0x21, 0x87,
+					},
+					Value:   100000000,
+					Version: 0,
+				}, {
+					PkScript: []byte{
+						0x6A, 0x1E, 0x35, 0x5C, 0x96, 0xF4, 0x86, 0x12,
+						0xD5, 0x75, 0x09, 0x14, 0x0E, 0x9A, 0x04, 0x99,
+						0x81, 0xD5, 0xF9, 0x97, 0x0F, 0x94,
+						0x5C, 0x77, 0x0D, 0x00, 0x00, 0x00, 0x00, 0x80, // commitamt (set MSB for P2SH)
+						0x00, 0x58,
+					},
+					Value:   0,
+					Version: 0,
+				}, {
+					PkScript: []byte{
+						0xBD, 0x76, 0xA9, 0x14, 0x00, 0x00, 0x00, 0x00,
+						0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+						0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+						0x88, 0xAC,
+					},
+					Value:   0,
+					Version: 0,
+				}},
+			}
 			return chain
 		}(),
 		result: "0100000001395ebc9af44c4a696fa8e6287bdbf0a89a4d6207f191cb0f1eefc25" +
@@ -2222,10 +2220,8 @@ func TestHandleCreateRawSSRtx(t *testing.T) {
 				txType:     stake.TxTypeRegular,
 				height:     100000,
 				index:      0,
-				txVersion:  1,
 				isCoinBase: false,
 				hasExpiry:  true,
-				modified:   false,
 			}
 			return chain
 		}(),
@@ -2268,34 +2264,39 @@ func TestHandleCreateRawSSRtx(t *testing.T) {
 		},
 		mockChain: func() *testRPCChain {
 			chain := defaultMockRPCChain()
-			chain.convertUtxosToMinimalOutputs = []*stake.MinimalOutput{{
-				PkScript: []byte{
-					0xBA, 0xA9, 0x14, 0x78, 0x02, 0x39, 0xEA, 0x12,
-					0x31, 0xBA, 0x67, 0xB0, 0xC5, 0xB8, 0x2E, 0x78,
-					0x6B, 0x51, 0xE2, 0x10, 0x72, 0x52, 0x21, 0x87,
-				},
-				Value:   100000000,
-				Version: 0,
-			}, {
-				PkScript: []byte{
-					0x6A, 0x1E, 0x35, 0x5C, 0x96, 0xF4, 0x86, 0x12,
-					0xD5, 0x75, 0x09, 0x14, 0x0E, 0x9A, 0x04, 0x99,
-					0x81, 0xD5, 0xF9, 0x97, 0x0F, 0x94,
-					0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, // commitamt (invalid amount)
-					0x00, 0x58,
-				},
-				Value:   0,
-				Version: 0,
-			}, {
-				PkScript: []byte{
-					0xBD, 0x76, 0xA9, 0x14, 0x00, 0x00, 0x00, 0x00,
-					0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-					0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-					0x88, 0xAC,
-				},
-				Value:   0,
-				Version: 0,
-			}}
+			chain.fetchUtxoEntry = &testRPCUtxoEntry{
+				hasExpiry: true,
+				height:    100000,
+				txType:    stake.TxTypeSStx,
+				ticketMinimalOutputs: []*stake.MinimalOutput{{
+					PkScript: []byte{
+						0xBA, 0xA9, 0x14, 0x78, 0x02, 0x39, 0xEA, 0x12,
+						0x31, 0xBA, 0x67, 0xB0, 0xC5, 0xB8, 0x2E, 0x78,
+						0x6B, 0x51, 0xE2, 0x10, 0x72, 0x52, 0x21, 0x87,
+					},
+					Value:   100000000,
+					Version: 0,
+				}, {
+					PkScript: []byte{
+						0x6A, 0x1E, 0x35, 0x5C, 0x96, 0xF4, 0x86, 0x12,
+						0xD5, 0x75, 0x09, 0x14, 0x0E, 0x9A, 0x04, 0x99,
+						0x81, 0xD5, 0xF9, 0x97, 0x0F, 0x94,
+						0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, // commitamt (invalid amount)
+						0x00, 0x58,
+					},
+					Value:   0,
+					Version: 0,
+				}, {
+					PkScript: []byte{
+						0xBD, 0x76, 0xA9, 0x14, 0x00, 0x00, 0x00, 0x00,
+						0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+						0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+						0x88, 0xAC,
+					},
+					Value:   0,
+					Version: 0,
+				}},
+			}
 			return chain
 		}(),
 		wantErr: true,
@@ -4868,13 +4869,12 @@ func TestHandleGetTxOut(t *testing.T) {
 	chainWithTx := func() *testRPCChain {
 		chain := defaultMockRPCChain()
 		chain.fetchUtxoEntry = &testRPCUtxoEntry{
-			amountByIndex:        txOut.Value,
-			height:               432100,
-			index:                1,
-			pkScriptByIndex:      script,
-			scriptVersionByIndex: scriptVersion,
-			txType:               stake.TxTypeRegular,
-			txVersion:            msgTx.Version,
+			amount:        txOut.Value,
+			height:        432100,
+			index:         1,
+			pkScript:      script,
+			scriptVersion: scriptVersion,
+			txType:        stake.TxTypeRegular,
 		}
 		return chain
 	}
@@ -4908,21 +4908,21 @@ func TestHandleGetTxOut(t *testing.T) {
 		}(),
 		result: nil,
 	}, {
-		name:    "handleGetTxOut: ok transaction exists but wrong tree",
+		name:    "handleGetTxOut: ok transaction exists in mempool but wrong tree",
 		handler: handleGetTxOut,
 		cmd:     &cmd,
 		mockChain: func() *testRPCChain {
 			chain := defaultMockRPCChain()
-			chain.fetchUtxoEntry = &testRPCUtxoEntry{
-				amountByIndex:        txOut.Value,
-				height:               432100,
-				index:                1,
-				pkScriptByIndex:      script,
-				scriptVersionByIndex: scriptVersion,
-				txType:               stake.TxTypeSStx,
-				txVersion:            msgTx.Version,
-			}
+			chain.fetchUtxoEntry = nil
 			return chain
+		}(),
+		mockTxMempooler: func() *testTxMempooler {
+			mp := defaultMockTxMempooler()
+			tx := dcrutil.NewTx(hexToMsgTx(txHex))
+			tx.SetTree(wire.TxTreeStake)
+			mp.fetchTransaction = tx
+			mp.fetchTransactionErr = nil
+			return mp
 		}(),
 		result: nil,
 	}, {
@@ -4966,6 +4966,7 @@ func TestHandleGetTxOut(t *testing.T) {
 		mockTxMempooler: func() *testTxMempooler {
 			mp := defaultMockTxMempooler()
 			tx := dcrutil.NewTx(hexToMsgTx(txHex))
+			tx.SetTree(wire.TxTreeRegular)
 			tx.MsgTx().TxOut[0] = nil
 			mp.fetchTransaction = tx
 			mp.fetchTransactionErr = nil

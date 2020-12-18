@@ -496,7 +496,7 @@ type scriptSource map[wire.OutPoint]scriptSourceEntry
 // PrevScript returns the script and script version associated with the provided
 // previous outpoint along with a bool that indicates whether or not the
 // requested entry exists.  This ensures the caller is able to distinguish
-// between missing entry and empty v0 scripts.
+// between missing entries and empty v0 scripts.
 func (s scriptSource) PrevScript(prevOut *wire.OutPoint) (uint16, []byte, bool) {
 	entry, ok := s[*prevOut]
 	if !ok {
@@ -1789,6 +1789,1184 @@ func upgradeToVersion8(ctx context.Context, db database.DB, dbInfo *databaseInfo
 	return nil
 }
 
+// migrateUtxoSetVersion2To3 migrates all utxoset entries from the v2 bucket to
+// a v3 bucket and removes the old v2 bucket.
+//
+// The utxoset is guaranteed to be fully updated if this returns without
+// failure.
+func migrateUtxoSetVersion2To3(ctx context.Context, db database.DB) error {
+	// Hardcoded bucket and key names so updates do not affect old upgrades.
+	v2BucketName := []byte("utxosetv2")
+	v3BucketName := []byte("utxosetv3")
+
+	log.Info("Migrating database utxoset.  This may take a while...")
+	start := time.Now()
+
+	// Create the new utxoset bucket as needed.
+	err := db.Update(func(dbTx database.Tx) error {
+		_, err := dbTx.Metadata().CreateBucketIfNotExists(v3BucketName)
+		return err
+	})
+	if err != nil {
+		return err
+	}
+
+	// doBatch contains the primary logic for upgrading the utxoset from version
+	// 2 to 3 in batches.  This is done because attempting to migrate in a
+	// single database transaction could result in massive memory usage and
+	// could potentially crash on many systems due to ulimits.
+	//
+	// It returns whether or not all entries have been updated.
+	const maxEntries = 20000
+	var resumeOffset uint32
+	var totalMigrated uint64
+	doBatch := func(dbTx database.Tx) (bool, error) {
+		meta := dbTx.Metadata()
+		v2Bucket := meta.Bucket(v2BucketName)
+		if v2Bucket == nil {
+			return false, fmt.Errorf("bucket %s does not exist", v2BucketName)
+		}
+
+		v3Bucket := meta.Bucket(v3BucketName)
+		if v3Bucket == nil {
+			return false, fmt.Errorf("bucket %s does not exist", v3BucketName)
+		}
+
+		// Migrate utxoset entries so long as the max number of entries for this
+		// batch has not been exceeded.
+		var logProgress bool
+		var numMigrated, numIterated uint32
+		err := v2Bucket.ForEach(func(oldKey, oldSerialized []byte) error {
+			if interruptRequested(ctx) {
+				logProgress = true
+				return errInterruptRequested
+			}
+
+			if numMigrated >= maxEntries {
+				logProgress = true
+				return errBatchFinished
+			}
+
+			// Skip entries that have already been migrated in previous batches.
+			numIterated++
+			if numIterated-1 < resumeOffset {
+				return nil
+			}
+			resumeOffset++
+
+			// Old key was the transaction hash.
+			var txHash chainhash.Hash
+			copy(txHash[:], oldKey)
+
+			// Deserialize the legacy V2 entry which included all utxos for the given
+			// transaction.
+			//
+			// The legacy V2 format is as follows:
+			//
+			//   <version><height><header code><unspentness bitmap>
+			//	 [<compressed txouts>,...]
+			//
+			//   Field                 Type     Size
+			//   transaction version   VLQ      variable
+			//   block height          VLQ      variable
+			//   block index           VLQ      variable
+			//   flags                 VLQ      variable (currently 1 byte)
+			//   header code           VLQ      variable
+			//   unspentness bitmap    []byte   variable
+			//   compressed txouts
+			//     compressed amount   VLQ      variable
+			//     script version      VLQ      variable
+			//     compressed script   []byte   variable
+			//   stakeExtra            []byte   variable
+			//
+			// The serialized flags code format is:
+			//   bit  0   - containing transaction is a coinbase
+			//   bit  1   - containing transaction has an expiry
+			//   bits 2-4 - transaction type
+			//   bit  5   - unused
+			//   bit  6   - is fully spent
+			//   bit  7   - unused
+			//
+			// The serialized header code format is:
+			//   bit 0 - output zero is unspent
+			//   bit 1 - output one is unspent
+			//   bits 2-x - number of bytes in unspentness bitmap.  When both bits 1
+			//     and 2 are unset, it encodes N-1 since there must be at least one
+			//     unspent output.
+			//
+			// The stake extra field contains minimally encoded outputs for all
+			// consensus-related outputs in the stake transaction. It is only
+			// encoded for tickets.
+
+			// Deserialize the version.
+			//
+			// NOTE: Ignore version since it is no longer used in the new format.
+			_, bytesRead := deserializeVLQ(oldSerialized)
+			offset := bytesRead
+			if offset >= len(oldSerialized) {
+				return errDeserialize("unexpected end of data after version")
+			}
+
+			// Deserialize the block height.
+			blockHeight, bytesRead := deserializeVLQ(oldSerialized[offset:])
+			offset += bytesRead
+			if offset >= len(oldSerialized) {
+				return errDeserialize("unexpected end of data after height")
+			}
+
+			// Deserialize the block index.
+			blockIndex, bytesRead := deserializeVLQ(oldSerialized[offset:])
+			offset += bytesRead
+			if offset >= len(oldSerialized) {
+				return errDeserialize("unexpected end of data after index")
+			}
+
+			// Deserialize the flags.
+			flags, bytesRead := deserializeVLQ(oldSerialized[offset:])
+			offset += bytesRead
+			if offset >= len(oldSerialized) {
+				return errDeserialize("unexpected end of data after flags")
+			}
+			// Decode the flags.  The format is:
+			//     0: Is coinbase
+			//     1: Has an expiry
+			//   2-4: Transaction type
+			//     5: Unused
+			//     6: Fully spent
+			//     7: Unused
+			isCoinBase := flags&0x01 != 0
+			hasExpiry := flags&(1<<1) != 0
+			txType := stake.TxType((flags & 0x1c) >> 2)
+
+			// Deserialize the header code.
+			code, bytesRead := deserializeVLQ(oldSerialized[offset:])
+			offset += bytesRead
+			if offset >= len(oldSerialized) {
+				return errDeserialize("unexpected end of data after header")
+			}
+
+			// Decode the header code.
+			//
+			// Bit 0 indicates output 0 is unspent.
+			// Bit 1 indicates output 1 is unspent.
+			// Bits 2-x encodes the number of non-zero unspentness bitmap bytes that
+			// follow.  When both output 0 and 1 are spent, it encodes N-1.
+			output0Unspent := code&0x01 != 0
+			output1Unspent := code&0x02 != 0
+			numBitmapBytes := code >> 2
+			if !output0Unspent && !output1Unspent {
+				numBitmapBytes++
+			}
+
+			// Ensure there are enough bytes left to deserialize the unspentness
+			// bitmap.
+			if uint64(len(oldSerialized[offset:])) < numBitmapBytes {
+				return errDeserialize("unexpected end of data for " +
+					"unspentness bitmap")
+			}
+
+			// Add sparse outputs for unspent outputs 0 and 1 as needed based on the
+			// details provided by the header code.
+			var outputIndexes []uint32
+			if output0Unspent {
+				outputIndexes = append(outputIndexes, 0)
+			}
+			if output1Unspent {
+				outputIndexes = append(outputIndexes, 1)
+			}
+
+			// Decode the unspentness bitmap adding a sparse output for each unspent
+			// output.
+			for i := uint32(0); i < uint32(numBitmapBytes); i++ {
+				unspentBits := oldSerialized[offset]
+				for j := uint32(0); j < 8; j++ {
+					if unspentBits&0x01 != 0 {
+						// The first 2 outputs are encoded via the
+						// header code, so adjust the output number
+						// accordingly.
+						outputNum := 2 + i*8 + j
+						outputIndexes = append(outputIndexes, outputNum)
+					}
+					unspentBits >>= 1
+				}
+				offset++
+			}
+
+			// Create a map to hold all of the converted outputs for the entry.
+			type convertedOut struct {
+				compressedAmount uint64
+				compressedScript []byte
+				scriptVersion    uint64
+			}
+			outputs := make(map[uint32]*convertedOut)
+
+			// Decode and add all of the outputs.
+			for _, outputIndex := range outputIndexes {
+				// Deserialize the compressed amount and ensure there are bytes
+				// remaining for the compressed script.
+				compressedAmount, bytesRead := deserializeVLQ(oldSerialized[offset:])
+				if bytesRead == 0 {
+					return errDeserialize("unexpected end of data during decoding " +
+						"(compressed amount)")
+				}
+				offset += bytesRead
+
+				// Decode the script version.
+				scriptVersion, bytesRead := deserializeVLQ(oldSerialized[offset:])
+				if bytesRead == 0 {
+					return errDeserialize("unexpected end of data during decoding " +
+						"(script version)")
+				}
+				offset += bytesRead
+
+				// Decode the compressed script size and ensure there are enough bytes
+				// left in the slice for it.
+				const compressionVersion = 1
+				scriptSize := decodeCompressedScriptSize(oldSerialized[offset:],
+					compressionVersion)
+				// Note: scriptSize == 0 is OK (an empty compressed script is valid)
+				if scriptSize < 0 {
+					return errDeserialize("negative script size")
+				}
+				if len(oldSerialized[offset:]) < scriptSize {
+					return errDeserialize(fmt.Sprintf("unexpected end of "+
+						"data after script size (got %v, need %v)",
+						len(oldSerialized[offset:]), scriptSize))
+				}
+				compressedScript := oldSerialized[offset : offset+scriptSize]
+
+				offset += scriptSize
+
+				// Create a converted utxo entry with the details deserialized above.
+				outputs[outputIndex] = &convertedOut{
+					compressedAmount: compressedAmount,
+					compressedScript: compressedScript,
+					scriptVersion:    scriptVersion,
+				}
+			}
+			// Read the minimal outputs if this was a ticket.
+			var ticketMinOuts []byte
+			if txType == stake.TxTypeSStx {
+				sz, err := determineMinimalOutputsSizeV1(oldSerialized[offset:])
+				if err != nil {
+					return errDeserialize(fmt.Sprintf("unable to decode "+
+						"ticket outputs: %v", err))
+				}
+
+				// Read the ticket minimal outputs.
+				ticketMinOuts = oldSerialized[offset : offset+sz]
+			}
+
+			// Create V3 utxo entries with the details deserialized above.
+			//
+			// The V3 serialized key format is:
+			//
+			//   <hash><tree><output index>
+			//
+			//   Field                Type             Size
+			//   hash                 chainhash.Hash   chainhash.HashSize
+			//   tree                 VLQ              variable
+			//   output index         VLQ              variable
+			//
+			// The V3 serialized value format is:
+			//
+			//   <block height><block index><flags><compressed txout>
+			//   OPTIONAL: [<ticket min outs>]
+			//
+			//   Field                Type     Size
+			//   block height         VLQ      variable
+			//   block index          VLQ      variable
+			//   flags                VLQ      variable
+			//   compressed txout
+			//     compressed amount   VLQ      variable
+			//     script version      VLQ      variable
+			//     compressed script   []byte   variable
+			//
+			//   OPTIONAL
+			//     ticketMinOuts      []byte         variable
+			//
+			// The serialized flags format is:
+			//   bit  0     - containing transaction is a coinbase
+			//   bit  1     - containing transaction has an expiry
+			//   bits 2-5   - transaction type
+			//   bits 6-7   - unused
+			//
+			// The ticket min outs field contains minimally encoded outputs for all
+			// outputs of a ticket transaction. It is only encoded for ticket outputs.
+			for outputIndex, output := range outputs {
+				// Encode the V3 utxo flags.
+				encodedFlags := uint8(txType) << 2
+				if isCoinBase {
+					encodedFlags |= 1
+				}
+				if hasExpiry {
+					encodedFlags |= 1 << 1
+				}
+
+				// Calculate the size needed to serialize the entry.
+				size := serializeSizeVLQ(blockHeight) +
+					serializeSizeVLQ(blockIndex) +
+					serializeSizeVLQ(uint64(encodedFlags)) +
+					serializeSizeVLQ(output.compressedAmount) +
+					serializeSizeVLQ(output.scriptVersion) +
+					len(output.compressedScript)
+
+				// Only store the ticket minimal outputs in the ticket submission
+				// output (output index 0).
+				if outputIndex == 0 {
+					size += len(ticketMinOuts)
+				}
+
+				// Serialize the entry.
+				reserialized := make([]byte, size)
+				reserializedOffset := putVLQ(reserialized, blockHeight)
+				reserializedOffset += putVLQ(reserialized[reserializedOffset:],
+					blockIndex)
+				reserializedOffset += putVLQ(reserialized[reserializedOffset:],
+					uint64(encodedFlags))
+				reserializedOffset += putVLQ(reserialized[reserializedOffset:],
+					output.compressedAmount)
+				reserializedOffset += putVLQ(reserialized[reserializedOffset:],
+					output.scriptVersion)
+				copy(reserialized[reserializedOffset:], output.compressedScript)
+				reserializedOffset += len(output.compressedScript)
+
+				// Only store the ticket minimal outputs in the ticket submission
+				// output (output index 0).
+				if ticketMinOuts != nil && outputIndex == 0 {
+					copy(reserialized[reserializedOffset:], ticketMinOuts)
+				}
+
+				// Create the key for the new entry.
+				tree := wire.TxTreeRegular
+				if txType != stake.TxTypeRegular {
+					tree = wire.TxTreeStake
+				}
+				keySize := chainhash.HashSize + serializeSizeVLQ(uint64(tree)) +
+					serializeSizeVLQ(uint64(outputIndex))
+				key := make([]byte, keySize)
+				copy(key, txHash[:])
+				keyOffset := chainhash.HashSize
+				keyOffset += putVLQ(key[keyOffset:], uint64(tree))
+				putVLQ(key[keyOffset:], uint64(outputIndex))
+
+				// Create the new entry in the V3 bucket.
+				err = v3Bucket.Put(key, reserialized)
+				if err != nil {
+					return err
+				}
+			}
+
+			numMigrated++
+			return nil
+		})
+		isFullyDone := err == nil
+		if (isFullyDone || logProgress) && numMigrated > 0 {
+			totalMigrated += uint64(numMigrated)
+			log.Infof("Migrated %d entries (%d total)", numMigrated,
+				totalMigrated)
+		}
+		return isFullyDone, err
+	}
+
+	// Migrate all entries in batches for the reasons mentioned above.
+	if err := batchedUpdate(ctx, db, doBatch); err != nil {
+		return err
+	}
+
+	elapsed := time.Since(start).Round(time.Millisecond)
+	log.Infof("Done migrating utxoset.  Total entries: %d in %v", totalMigrated,
+		elapsed)
+
+	if interruptRequested(ctx) {
+		return errInterruptRequested
+	}
+
+	// Drop version 2 utxoset.
+	log.Info("Removing old utxoset entries...")
+	start = time.Now()
+	err = incrementalFlatDrop(ctx, db, v2BucketName, "old utxoset")
+	if err != nil {
+		return err
+	}
+	elapsed = time.Since(start).Round(time.Millisecond)
+	log.Infof("Done removing old utxoset entries in %v", elapsed)
+	return nil
+}
+
+// migrateSpendJournalVersion2To3 migrates all spend journal entries from the v2
+// bucket to a v3 bucket and removes the old v2 bucket.
+//
+// The spend journal entries are guaranteed to be fully updated if this returns
+// without failure.
+func migrateSpendJournalVersion2To3(ctx context.Context, b *BlockChain) error {
+	// Hardcoded bucket and key names so updates do not affect old upgrades.
+	v2SpendJournalBucketName := []byte("spendjournalv2")
+	v3SpendJournalBucketName := []byte("spendjournalv3")
+	v3BlockIndexBucketName := []byte("blockidxv3")
+	v3UtxoSetBucketName := []byte("utxosetv3")
+	tmpTxInfoBucketName := []byte("tmpTxInfo")
+
+	log.Info("Migrating database spend journal.  This may take a while...")
+	start := time.Now()
+
+	// Create the new spend journal bucket as needed.
+	err := b.db.Update(func(dbTx database.Tx) error {
+		_, err := dbTx.Metadata().CreateBucketIfNotExists(v3SpendJournalBucketName)
+		return err
+	})
+	if err != nil {
+		return err
+	}
+
+	// Create the temp bucket as needed.  This bucket is used to temporarily store
+	// tx info for fully spent transactions.
+	err = b.db.Update(func(dbTx database.Tx) error {
+		_, err := dbTx.Metadata().CreateBucketIfNotExists(tmpTxInfoBucketName)
+		return err
+	})
+	if err != nil {
+		return err
+	}
+
+	// doBatch contains the primary logic for upgrading the spend journal from
+	// version 2 to 3 in batches.  This is done because attempting to migrate in a
+	// single database transaction could result in massive memory usage and
+	// could potentially crash on many systems due to ulimits.
+	//
+	// It returns whether or not all entries have been updated.
+	const maxEntries = 20000
+	var resumeOffset uint32
+	var totalMigrated uint64
+	doBatch := func(dbTx database.Tx) (bool, error) {
+		meta := dbTx.Metadata()
+
+		v2SpendJournalBucket := meta.Bucket(v2SpendJournalBucketName)
+		if v2SpendJournalBucket == nil {
+			return false, fmt.Errorf("bucket %s does not exist",
+				v2SpendJournalBucketName)
+		}
+
+		v3SpendJournalBucket := meta.Bucket(v3SpendJournalBucketName)
+		if v3SpendJournalBucket == nil {
+			return false, fmt.Errorf("bucket %s does not exist",
+				v3SpendJournalBucketName)
+		}
+
+		v3BlockIndexBucket := meta.Bucket(v3BlockIndexBucketName)
+		if v3BlockIndexBucket == nil {
+			return false, fmt.Errorf("bucket %s does not exist",
+				v3BlockIndexBucketName)
+		}
+
+		v3UtxoSetBucket := meta.Bucket(v3UtxoSetBucketName)
+		if v3UtxoSetBucket == nil {
+			return false, fmt.Errorf("bucket %s does not exist",
+				v3UtxoSetBucketName)
+		}
+
+		tmpTxInfoBucket := meta.Bucket(tmpTxInfoBucketName)
+		if tmpTxInfoBucket == nil {
+			return false, fmt.Errorf("bucket %s does not exist",
+				tmpTxInfoBucketName)
+		}
+
+		// Migrate spend journal entries so long as the max number of entries for
+		// this batch has not been exceeded.
+		//
+		// Use the block index to iterate through every block in reverse order.  It
+		// is necessary to read the blocks in reverse order since the V2 spend
+		// journal conditionally stored tx info when the output was the last spent
+		// output of the containing transaction.  Therefore, we need to find the
+		// last spent outputs first and temporarily store the associated tx info so
+		// that it is available when creating the corresponding V3 entries.
+		var logProgress bool
+		var numMigrated, numIterated uint32
+		cursor := v3BlockIndexBucket.Cursor()
+		for ok := cursor.Last(); ok; ok = cursor.Prev() {
+			// Reset err on each iteration.
+			err = nil
+
+			if interruptRequested(ctx) {
+				logProgress = true
+				err = errInterruptRequested
+				break
+			}
+
+			if numMigrated >= maxEntries {
+				logProgress = true
+				err = errBatchFinished
+				break
+			}
+
+			// Skip entries that have already been migrated in previous batches.
+			numIterated++
+			if numIterated-1 < resumeOffset {
+				continue
+			}
+			resumeOffset++
+
+			// Deserialize the header from the V3 block index entry.  The header is
+			// the first item in the serialized entry.
+			serializedBlockIndexEntry := cursor.Value()
+			if len(serializedBlockIndexEntry) < blockHdrSize {
+				return false, errDeserialize("unexpected end of data while " +
+					"reading block header")
+			}
+			hB := serializedBlockIndexEntry[0:blockHdrSize]
+			var header wire.BlockHeader
+			if err := header.Deserialize(bytes.NewReader(hB)); err != nil {
+				return false, err
+			}
+
+			// Skip entries that have already been migrated in previous interrupted
+			// upgrades.
+			blockHash := header.BlockHash()
+			if v3SpendJournalBucket.Get(blockHash[:]) != nil {
+				continue
+			}
+
+			// Load the full block from the database.
+			blockBytes, err := dbTx.FetchBlock(&blockHash)
+			if err != nil {
+				break
+			}
+			var msgBlock wire.MsgBlock
+			if err = msgBlock.FromBytes(blockBytes); err != nil {
+				break
+			}
+
+			// Determine if treasury agenda is active.
+			isTreasuryEnabled := false
+			if msgBlock.Header.Height > 0 {
+				parentHash := msgBlock.Header.PrevBlock
+				isTreasuryEnabled, err = b.IsTreasuryAgendaActive(&parentHash)
+				if err != nil {
+					break
+				}
+			}
+
+			// Deserialize the legacy V2 spend journal entry.
+			//
+			// The legacy V2 format is as follows:
+			//
+			//   [<flags><script version><compressed pk script>],...
+			//   OPTIONAL: [<txVersion><stakeExtra>]
+			//
+			//   Field                Type           Size
+			//   flags                VLQ            byte
+			//   scriptVersion        uint16         2 bytes
+			//   pkScript             VLQ+[]byte     variable
+			//
+			//   OPTIONAL
+			//     txVersion          VLQ            variable
+			//     stakeExtra         []byte         variable
+			//
+			// The serialized flags code format is:
+			//   bit  0   - containing transaction is a coinbase
+			//   bit  1   - containing transaction has an expiry
+			//   bits 2-4 - transaction type
+			//   bit  5   - unused
+			//   bit  6   - is fully spent
+			//   bit  7   - unused
+			//
+			// The stake extra field contains minimally encoded outputs for all
+			// consensus-related outputs in the stake transaction. It is only
+			// encoded for tickets.
+			//
+			//   NOTE: The transaction version and flags are only encoded when the
+			//   spent txout was the final unspent output of the containing
+			//   transaction.  Otherwise, the header code will be 0 and the version is
+			//   not serialized at all. This is done because that information is only
+			//   needed when the utxo set no longer has it.
+
+			// Get the serialized V2 data.
+			v2Serialized := v2SpendJournalBucket.Get(blockHash[:])
+
+			// Continue if there is no spend journal entry for the block.
+			if v2Serialized == nil {
+				continue
+			}
+
+			// Exclude the coinbase transaction since it can't spend anything.
+			blockTxns := make([]*wire.MsgTx, 0, len(msgBlock.STransactions)+
+				len(msgBlock.Transactions[1:]))
+			if len(msgBlock.STransactions) > 0 && isTreasuryEnabled {
+				// Skip treasury base and remove tspends.
+				for _, v := range msgBlock.STransactions[1:] {
+					if stake.IsTSpend(v) {
+						continue
+					}
+					blockTxns = append(blockTxns, v)
+				}
+			} else {
+				blockTxns = append(blockTxns, msgBlock.STransactions...)
+			}
+			blockTxns = append(blockTxns, msgBlock.Transactions[1:]...)
+
+			// Calculate the total number of stxos.
+			var numStxos int
+			for _, tx := range blockTxns {
+				if stake.IsSSGen(tx, isTreasuryEnabled) {
+					numStxos++
+					continue
+				}
+				numStxos += len(tx.TxIn)
+			}
+
+			// If there is an empty spend journal entry for the block, create an empty
+			// entry in the V3 bucket and continue.
+			if len(v2Serialized) == 0 {
+				// Ensure the block actually has no stxos.  This should never
+				// happen unless there is database corruption or an empty entry
+				// erroneously made its way into the database.
+				if numStxos != 0 {
+					return false, AssertError(fmt.Sprintf("mismatched spend "+
+						"journal serialization - no serialization for "+
+						"expected %d stxos", numStxos))
+				}
+
+				err = v3SpendJournalBucket.Put(blockHash[:], nil)
+				if err != nil {
+					return false, err
+				}
+
+				continue
+			}
+
+			// Create a slice to hold all of the converted stxos.
+			type convertedStxo struct {
+				compScript    []byte
+				ticketMinOuts []byte
+				scriptVersion uint16
+				flags         uint8
+				txOutIndex    uint32
+			}
+			stxos := make([]convertedStxo, numStxos)
+
+			// Loop backwards through all transactions so everything is read in
+			// reverse order to match the serialization order.
+			stxoIdx := numStxos - 1
+			offset := 0
+			for txIdx := len(blockTxns) - 1; txIdx > -1; txIdx-- {
+				tx := blockTxns[txIdx]
+				isVote := stake.IsSSGen(tx, isTreasuryEnabled)
+
+				// Loop backwards through all of the transaction inputs and read
+				// the associated stxo.
+				for txInIdx := len(tx.TxIn) - 1; txInIdx > -1; txInIdx-- {
+					// Skip stakebase since it has no input.
+					if txInIdx == 0 && isVote {
+						continue
+					}
+
+					txIn := tx.TxIn[txInIdx]
+					stxo := &stxos[stxoIdx]
+					stxoIdx--
+
+					// Set the tx out index that the stxo is associated with.
+					stxo.txOutIndex = txIn.PreviousOutPoint.Index
+
+					// Deserialize the flags.
+					flags, bytesRead := deserializeVLQ(v2Serialized[offset:])
+					if bytesRead == 0 {
+						return false, errDeserialize("unexpected end of data during " +
+							"decoding (flags)")
+					}
+					offset += bytesRead
+
+					// Decode the script version.
+					scriptVersion, bytesRead := deserializeVLQ(v2Serialized[offset:])
+					if bytesRead == 0 {
+						return false, errDeserialize("unexpected end of " +
+							"data during decoding (script version)")
+					}
+					offset += bytesRead
+					stxo.scriptVersion = uint16(scriptVersion)
+
+					// Decode the compressed script size and ensure there are enough bytes
+					// left in the slice for it.
+					const compressionVersion = 1
+					scriptSize := decodeCompressedScriptSize(v2Serialized[offset:],
+						compressionVersion)
+					// Note: scriptSize == 0 is OK (an empty compressed script is valid)
+					if scriptSize < 0 {
+						return false, errDeserialize("negative script size")
+					}
+					if len(v2Serialized[offset:]) < scriptSize {
+						return false, errDeserialize(fmt.Sprintf("unexpected end of "+
+							"data after script size (got %v, need %v)",
+							len(v2Serialized[offset:]), scriptSize))
+					}
+					compressedScript := v2Serialized[offset : offset+scriptSize]
+					offset += scriptSize
+					stxo.compScript = compressedScript
+
+					// Deserialize the containing transaction if the flags indicate that
+					// the transaction has been fully spent.
+					// The flags format is:
+					//   bit  0   - containing transaction is a coinbase
+					//   bit  1   - containing transaction has an expiry
+					//   bits 2-4 - transaction type
+					//   bit  5   - unused
+					//   bit  6   - is fully spent
+					//   bit  7   - unused
+					fullySpent := flags&(1<<6) != 0
+					if fullySpent {
+						txType := stake.TxType((flags & 0x1c) >> 2)
+						stxo.flags = uint8(flags)
+
+						// Unset the spent flag since it is no longer needed in the new
+						// version.
+						stxo.flags &^= 1 << 6
+
+						// Deserialize the version and ignore it since it is no longer
+						// used in the new format.
+						_, bytesRead := deserializeVLQ(v2Serialized[offset:])
+						if bytesRead == 0 {
+							return false, errDeserialize("unexpected end of " +
+								"data during decoding (tx version)")
+						}
+						offset += bytesRead
+
+						if txType == stake.TxTypeSStx {
+							sz, err := determineMinimalOutputsSizeV1(v2Serialized[offset:])
+							if err != nil {
+								return false, errDeserialize(fmt.Sprintf("unable to decode "+
+									"ticket outputs: %v", err))
+							}
+
+							// Read the ticket minimal outputs.
+							stxo.ticketMinOuts = v2Serialized[offset : offset+sz]
+							offset += sz
+						}
+
+						// Save the fully spent tx info in the temp bucket.  Store the
+						// fields that were conditionally stored in V2, which includes flags
+						// and ticket minimal outputs.
+						//
+						// The serialzied format is:
+						//   flags             VLQ            byte
+						//   ticketMinOuts     []byte         variable
+						//
+						// The flags format is:
+						//   bit  0   - containing transaction is a coinbase
+						//   bit  1   - containing transaction has an expiry
+						//   bits 2-5 - transaction type
+						//   bits 6-7 - unused
+						//
+						// The ticket min outs field is only stored for tickets.
+						size := serializeSizeVLQ(uint64(stxo.flags))
+						if txType == stake.TxTypeSStx {
+							size += len(stxo.ticketMinOuts)
+						}
+						target := make([]byte, size)
+						tmpOffset := putVLQ(target, uint64(stxo.flags))
+						if txType == stake.TxTypeSStx {
+							copy(target[tmpOffset:], stxo.ticketMinOuts)
+						}
+						err = tmpTxInfoBucket.Put(txIn.PreviousOutPoint.Hash[:], target)
+						if err != nil {
+							return false, err
+						}
+
+						// Continue since we have everything we need for stxos that were
+						// marked as fully spent.
+						continue
+					}
+
+					// The stxo was not marked as fully spent (otherwise we already
+					// continued above).  To get the missing tx info (flags and ticket
+					// min outs), first check the tmp bucket, and if not found, then
+					// check the utxo set.
+
+					// First, check the temp bucket for the tx info.
+					tmpSerialized := tmpTxInfoBucket.Get(txIn.PreviousOutPoint.Hash[:])
+					if len(tmpSerialized) != 0 {
+						flags, bytesRead := deserializeVLQ(tmpSerialized)
+						tOffset := bytesRead
+						stxo.flags = uint8(flags)
+
+						// Decode the flags.  The format is:
+						//   bit  0   - containing transaction is a coinbase
+						//   bit  1   - containing transaction has an expiry
+						//   bits 2-5 - transaction type
+						//   bits 6-7 - unused
+						txType := stake.TxType((flags & 0x3c) >> 2)
+						// Read the minimal outputs if this was a ticket submission output.
+						if txType == stake.TxTypeSStx && stxo.txOutIndex == 0 {
+							sz, err := determineMinimalOutputsSizeV1(tmpSerialized[tOffset:])
+							if err != nil {
+								return false, errDeserialize(fmt.Sprintf("unable to decode "+
+									"ticket outputs: %v", err))
+							}
+
+							// Read the ticket minimal outputs.
+							stxo.ticketMinOuts = tmpSerialized[tOffset : tOffset+sz]
+						}
+
+						// Continue to the next stxo since the flags and ticket min outs
+						// have now been set.
+						continue
+					}
+
+					// If the temp bucket didn't have the tx info, check the utxo set for
+					// the tx info.  We don't know what output to look for, so this scans
+					// until it finds the first output for the corresponding transaction
+					// hash.
+					//
+					// Attempt to find an entry by seeking for the hash along with a zero
+					// index and tree.  Due to the fact the keys are serialized as
+					// <hash><tree><index>, where the tree and index use an MSB encoding,
+					// if there are any entries for the hash at all, one will be found.
+					cursor := v3UtxoSetBucket.Cursor()
+					tree := uint64(0)
+					index := uint64(0)
+					utxoKey := make([]byte, chainhash.HashSize+serializeSizeVLQ(tree)+
+						serializeSizeVLQ(index))
+					copy(utxoKey, txIn.PreviousOutPoint.Hash[:])
+					utxoKeyOffset := chainhash.HashSize
+					utxoKeyOffset += putVLQ(utxoKey[utxoKeyOffset:], tree)
+					putVLQ(utxoKey[utxoKeyOffset:], index)
+					ok := cursor.Seek(utxoKey)
+					if !ok {
+						return false, AssertError(fmt.Sprintf("Couldn't find any utxo "+
+							"for non-fully spent tx %v",
+							txIn.PreviousOutPoint.Hash.String()))
+					}
+					cursorKey := cursor.Key()
+					if len(cursorKey) < chainhash.HashSize {
+						return false, AssertError(fmt.Sprintf("Couldn't find any utxo "+
+							"for non-fully spent tx %v",
+							txIn.PreviousOutPoint.Hash.String()))
+					}
+
+					// An entry was found, but it could just be an entry with the next
+					// highest hash after the requested one, so make sure the hashes
+					// actually match.
+					if chainhash.HashSize >= len(cursorKey) {
+						return false, errDeserialize("unexpected length for serialized " +
+							"outpoint key")
+					}
+					var keyHash chainhash.Hash
+					copy(keyHash[:], cursorKey[:chainhash.HashSize])
+					keyOffset := chainhash.HashSize
+					keyTree, bytesRead := deserializeVLQ(cursorKey[keyOffset:])
+					keyOffset += bytesRead
+					if keyOffset >= len(cursorKey) {
+						return false, errDeserialize("unexpected end of data after tree")
+					}
+					keyIdx, _ := deserializeVLQ(cursorKey[keyOffset:])
+					outpoint := wire.OutPoint{Hash: keyHash, Index: uint32(keyIdx),
+						Tree: int8(keyTree)}
+					if outpoint.Hash != txIn.PreviousOutPoint.Hash {
+						return false, AssertError(fmt.Sprintf("Couldn't find any utxo "+
+							"for non-fully spent tx %v",
+							txIn.PreviousOutPoint.Hash.String()))
+					}
+
+					// Deserialize the V3 utxo entry.
+					//
+					// The V3 serialized key format is:
+					//
+					//   <hash><tree><output index>
+					//
+					//   Field                Type             Size
+					//   hash                 chainhash.Hash   chainhash.HashSize
+					//   tree                 VLQ              variable
+					//   output index         VLQ              variable
+					//
+					// The V3 serialized value format is:
+					//
+					//   <block height><block index><flags><compressed txout>
+					//   OPTIONAL: [<ticket min outs>]
+					//
+					//   Field                Type     Size
+					//   block height         VLQ      variable
+					//   block index          VLQ      variable
+					//   flags                VLQ      variable
+					//   compressed txout
+					//     compressed amount   VLQ      variable
+					//     script version      VLQ      variable
+					//     compressed script   []byte   variable
+					//
+					//   OPTIONAL
+					//     ticketMinOuts      []byte         variable
+					//
+					// The serialized flags format is:
+					//   bit  0     - containing transaction is a coinbase
+					//   bit  1     - containing transaction has an expiry
+					//   bits 2-5   - transaction type
+					//   bits 6-7   - unused
+					//
+					// The ticket min outs field contains minimally encoded outputs for
+					// all outputs of a ticket transaction. It is only encoded for ticket
+					// submission outputs.
+					utxoSerialized := cursor.Value()
+
+					// Deserialize the block height.  Ignore it since we don't need it.
+					_, bytesRead = deserializeVLQ(utxoSerialized)
+					utxoOffset := bytesRead
+					if utxoOffset >= len(utxoSerialized) {
+						return false, errDeserialize("unexpected end of data after height")
+					}
+
+					// Deserialize the block index.  Ignore it since we don't need it.
+					_, bytesRead = deserializeVLQ(utxoSerialized[utxoOffset:])
+					utxoOffset += bytesRead
+					if utxoOffset >= len(utxoSerialized) {
+						return false, errDeserialize("unexpected end of data after index")
+					}
+
+					// Deserialize the flags.
+					v3UtxoFlags, bytesRead := deserializeVLQ(utxoSerialized[utxoOffset:])
+					utxoOffset += bytesRead
+					if utxoOffset >= len(utxoSerialized) {
+						return false, errDeserialize("unexpected end of data after flags")
+					}
+
+					// Set the flags on the stxo.
+					stxo.flags = uint8(v3UtxoFlags)
+
+					// Deserialize the compressed amount and ensure there are bytes
+					// remaining for the compressed script.  Ignore it since we don't need
+					// it.
+					_, bytesRead = deserializeVLQ(utxoSerialized[utxoOffset:])
+					if bytesRead == 0 {
+						return false, errDeserialize("unexpected end of data during " +
+							"decoding (compressed amount)")
+					}
+					utxoOffset += bytesRead
+
+					// Decode the script version.  Ignore it since we don't need it.
+					_, bytesRead = deserializeVLQ(utxoSerialized[utxoOffset:])
+					if bytesRead == 0 {
+						return false, errDeserialize("unexpected end of data during " +
+							"decoding (script version)")
+					}
+					utxoOffset += bytesRead
+
+					// Decode the compressed script size and ensure there are enough bytes
+					// left in the slice for it.
+					scriptSize = decodeCompressedScriptSize(utxoSerialized[utxoOffset:],
+						compressionVersion)
+					// Note: scriptSize == 0 is OK (an empty compressed script is valid)
+					if scriptSize < 0 {
+						return false, errDeserialize("negative script size")
+					}
+					if len(utxoSerialized[utxoOffset:]) < scriptSize {
+						return false, errDeserialize(fmt.Sprintf("unexpected end of "+
+							"data after script size (got %v, need %v)",
+							len(utxoSerialized[utxoOffset:]), scriptSize))
+					}
+					// Ignore the script since we don't need it.
+					utxoOffset += scriptSize
+
+					// Determine the tx type from the flags.  The flags format is:
+					//   bit  0     - containing transaction is a coinbase
+					//   bit  1     - containing transaction has an expiry
+					//   bits 2-5   - transaction type
+					//   bits 6-7   - unused
+					txType := stake.TxType((v3UtxoFlags & 0x3c) >> 2)
+
+					// Read the minimal outputs if this was a ticket submission output.
+					if txType == stake.TxTypeSStx && outpoint.Index == 0 {
+						sz, err := determineMinimalOutputsSizeV1(utxoSerialized[utxoOffset:])
+						if err != nil {
+							return false, errDeserialize(fmt.Sprintf("unable to decode "+
+								"ticket outputs: %v", err))
+						}
+
+						// Read the ticket minimal outputs.
+						stxo.ticketMinOuts = utxoSerialized[utxoOffset : utxoOffset+sz]
+					}
+				}
+			}
+
+			// Create a V3 spend journal entry with the details deserialized above.
+			//
+			// The V3 serialized format is:
+			//
+			//   [<flags><script version><compressed pk script>],...
+			//   OPTIONAL: <ticket min outs>
+			//
+			//   Field                Type           Size
+			//   flags                VLQ            byte
+			//   scriptVersion        uint16         2 bytes
+			//   pkScript             VLQ+[]byte     variable
+			//
+			//   OPTIONAL
+			//     ticketMinOuts      []byte         variable
+			//
+			// The serialized flags format is:
+			//   bit  0     - containing transaction is a coinbase
+			//   bit  1     - containing transaction has an expiry
+			//   bits 2-5   - transaction type
+			//   bits 6-7   - unused
+			//
+			// The ticket min outs field contains minimally encoded outputs for all
+			// outputs of a ticket transaction. It is only encoded for ticket
+			// submission outputs.
+
+			// Calculate the size needed to serialize the entire journal entry.
+			var size int
+			sizes := make([]int, 0, len(stxos))
+			for i := range stxos {
+				stxo := &stxos[i]
+				sz := serializeSizeVLQ(uint64(stxo.flags)) +
+					serializeSizeVLQ(uint64(stxo.scriptVersion)) +
+					len(stxo.compScript)
+
+				// Determine the tx type from the flags.  The flags format is:
+				//   bit  0     - containing transaction is a coinbase
+				//   bit  1     - containing transaction has an expiry
+				//   bits 2-5   - transaction type
+				//   bits 6-7   - unused
+				txType := stake.TxType((stxo.flags & 0x3c) >> 2)
+
+				// Only store the minimal outputs if this was a ticket submission
+				// output.
+				if txType == stake.TxTypeSStx && stxo.txOutIndex == 0 {
+					sz += len(stxo.ticketMinOuts)
+				}
+
+				sizes = append(sizes, sz)
+				size += sz
+			}
+			reserialized := make([]byte, size)
+
+			// Serialize each individual stxo directly into the slice in reverse
+			// order one after the other.
+			offset = 0
+			for i := len(stxos) - 1; i > -1; i-- {
+				oldOffset := offset
+				stxo := &stxos[i]
+				offset += putVLQ(reserialized[offset:], uint64(stxo.flags))
+				offset += putVLQ(reserialized[offset:], uint64(stxo.scriptVersion))
+				copy(reserialized[offset:], stxo.compScript)
+				offset += len(stxo.compScript)
+
+				// Determine the tx type from the flags.  The flags format is:
+				//   bit  0     - containing transaction is a coinbase
+				//   bit  1     - containing transaction has an expiry
+				//   bits 2-5   - transaction type
+				//   bits 6-7   - unused
+				txType := stake.TxType((stxo.flags & 0x3c) >> 2)
+
+				// Only store the minimal outputs if this was a ticket submission
+				// output.
+				if txType == stake.TxTypeSStx && stxo.txOutIndex == 0 {
+					copy(reserialized[offset:], stxo.ticketMinOuts)
+					offset += len(stxo.ticketMinOuts)
+				}
+
+				if offset-oldOffset != sizes[i] {
+					return false, AssertError(fmt.Sprintf("bad write; expect sz %v, "+
+						"got sz %v (wrote %x)", sizes[i], offset-oldOffset,
+						reserialized[oldOffset:offset]))
+				}
+			}
+
+			// Create the new entry in the V3 bucket.
+			err = v3SpendJournalBucket.Put(blockHash[:], reserialized)
+			if err != nil {
+				return false, err
+			}
+
+			numMigrated++
+		}
+		isFullyDone := err == nil
+		if (isFullyDone || logProgress) && numMigrated > 0 {
+			totalMigrated += uint64(numMigrated)
+			log.Infof("Migrated %d entries (%d total)", numMigrated,
+				totalMigrated)
+		}
+		return isFullyDone, err
+	}
+
+	// Migrate all entries in batches for the reasons mentioned above.
+	if err := batchedUpdate(ctx, b.db, doBatch); err != nil {
+		return err
+	}
+
+	elapsed := time.Since(start).Round(time.Millisecond)
+	log.Infof("Done migrating spend journal.  Total entries: %d in %v",
+		totalMigrated, elapsed)
+
+	if interruptRequested(ctx) {
+		return errInterruptRequested
+	}
+
+	// Drop temp bucket.
+	log.Info("Removing temp data...")
+	start = time.Now()
+	err = incrementalFlatDrop(ctx, b.db, tmpTxInfoBucketName, "temp data")
+	if err != nil {
+		return err
+	}
+	elapsed = time.Since(start).Round(time.Millisecond)
+	log.Infof("Done removing temp data in %v", elapsed)
+
+	// Drop version 2 spend journal.
+	log.Info("Removing old spend journal...")
+	start = time.Now()
+	err = incrementalFlatDrop(ctx, b.db, v2SpendJournalBucketName, "old journal")
+	if err != nil {
+		return err
+	}
+	elapsed = time.Since(start).Round(time.Millisecond)
+	log.Infof("Done removing old spend journal in %v", elapsed)
+	return nil
+}
+
+// upgradeToVersion9 upgrades a version 8 blockchain database to version 9.
+func upgradeToVersion9(ctx context.Context, b *BlockChain) error {
+	if interruptRequested(ctx) {
+		return errInterruptRequested
+	}
+
+	log.Info("Upgrading database to version 9...")
+	start := time.Now()
+
+	// Migrate the utxoset to version 3.
+	v3DoneKeyName := []byte("utxosetv3done")
+	err := runUpgradeStageOnce(ctx, b.db, v3DoneKeyName, func() error {
+		return migrateUtxoSetVersion2To3(ctx, b.db)
+	})
+	if err != nil {
+		return err
+	}
+
+	if interruptRequested(ctx) {
+		return errInterruptRequested
+	}
+
+	// Migrate the spend journal to version 3.
+	err = migrateSpendJournalVersion2To3(ctx, b)
+	if err != nil {
+		return err
+	}
+
+	// Update and persist the database version  and remove upgrade progress
+	// tracking keys.
+	err = b.db.Update(func(dbTx database.Tx) error {
+		err := dbTx.Metadata().Delete(v3DoneKeyName)
+		if err != nil {
+			return err
+		}
+
+		b.dbInfo.version = 9
+		return dbPutDatabaseInfo(dbTx, b.dbInfo)
+	})
+	if err != nil {
+		return err
+	}
+
+	elapsed := time.Since(start).Round(time.Millisecond)
+	log.Infof("Done upgrading database in %v.", elapsed)
+	return nil
+}
+
 // checkDBTooOldToUpgrade returns an ErrDBTooOldToUpgrade error if the provided
 // database version can no longer be upgraded due to being too old.
 func checkDBTooOldToUpgrade(dbVersion uint32) error {
@@ -1830,7 +3008,9 @@ func CheckDBTooOldToUpgrade(db database.DB) error {
 }
 
 // upgradeDB upgrades old database versions to the newest version by applying
-// all possible upgrades iteratively.
+// all possible upgrades iteratively.  Note that there may also be upgrades
+// that run after the block index has been loaded as part of the
+// upgradeDBPostBlockIndexLoad function.
 //
 // NOTE: The passed database info will be updated with the latest versions.
 func upgradeDB(ctx context.Context, db database.DB, chainParams *chaincfg.Params, dbInfo *databaseInfo) error {
@@ -1882,6 +3062,25 @@ func upgradeDB(ctx context.Context, db database.DB, chainParams *chaincfg.Params
 	// consensus rules.
 	if dbInfo.version == 7 {
 		if err := upgradeToVersion8(ctx, db, dbInfo); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// upgradeDBPostBlockIndexLoad upgrades old database versions to the newest
+// version by applying all possible post block index upgrades iteratively.
+// This function should only include upgrades that need to be run after the
+// block index has been loaded.  Upgrades that run prior to the block index
+// being loaded should be included in the upgradeDB function.
+//
+// NOTE: The passed database info will be updated with the latest versions.
+func upgradeDBPostBlockIndexLoad(ctx context.Context, b *BlockChain) error {
+	// Update to a version 9 database if needed.  This entails migrating the
+	// utxoset and spend journal to the v3 format.
+	if b.dbInfo.version == 8 {
+		if err := upgradeToVersion9(ctx, b); err != nil {
 			return err
 		}
 	}

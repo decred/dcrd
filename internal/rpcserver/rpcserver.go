@@ -966,17 +966,22 @@ func handleCreateRawSSRtx(_ context.Context, s *Server, cmd interface{}) (interf
 	}
 
 	// Try to fetch the ticket from the block database.
-	ticketUtx, err := s.cfg.Chain.FetchUtxoEntry(txHash)
-	if ticketUtx == nil || err != nil {
+	outpoint := wire.OutPoint{Hash: *txHash, Index: input.Vout, Tree: input.Tree}
+	ticketUtxo, err := s.cfg.Chain.FetchUtxoEntry(outpoint)
+	if ticketUtxo == nil || err != nil {
 		return nil, rpcNoTxInfoError(txHash)
 	}
-	if t := ticketUtx.TransactionType(); t != stake.TxTypeSStx {
+	if t := ticketUtxo.TransactionType(); t != stake.TxTypeSStx {
 		return nil, rpcDeserializationError("Invalid Tx type: %v", t)
 	}
 
 	// Store the sstx pubkeyhashes and amounts as found in the transaction
 	// outputs.
-	minimalOutputs := s.cfg.Chain.ConvertUtxosToMinimalOutputs(ticketUtx)
+	minimalOutputs := ticketUtxo.TicketMinimalOutputs()
+	if minimalOutputs == nil {
+		return nil, rpcInternalError("Missing ticket minimal outputs", "")
+	}
+
 	ssrtxPayTypes, ssrtxPkhs, sstxAmts, _, _, _ :=
 		stake.SStxStakeOutputInfo(minimalOutputs)
 
@@ -3440,7 +3445,6 @@ func handleGetTxOut(_ context.Context, s *Server, cmd interface{}) (interface{},
 	var pkScript []byte
 	var isCoinbase bool
 	var isTreasuryEnabled bool
-	var txTree int8
 	includeMempool := true
 	if c.IncludeMempool != nil {
 		includeMempool = *c.IncludeMempool
@@ -3448,6 +3452,14 @@ func handleGetTxOut(_ context.Context, s *Server, cmd interface{}) (interface{},
 	var txFromMempool *dcrutil.Tx
 	if includeMempool {
 		txFromMempool, _ = s.cfg.TxMempooler.FetchTransaction(txHash)
+
+		// Set as nil if the tx tree does not match the tree param that was passed.
+		// This is set as nil rather than returning immediately here since it is
+		// technically possible (though extremely unlikely) that the tx exists
+		// elsewhere, so it should still continue and check elsewhere below.
+		if txFromMempool != nil && txFromMempool.Tree() != c.Tree {
+			txFromMempool = nil
+		}
 	}
 	if txFromMempool != nil {
 		mtx := txFromMempool.MsgTx()
@@ -3480,9 +3492,9 @@ func handleGetTxOut(_ context.Context, s *Server, cmd interface{}) (interface{},
 		scriptVersion = txOut.Version
 		pkScript = txOut.PkScript
 		isCoinbase = standalone.IsCoinBaseTx(mtx, isTreasuryEnabled)
-		txTree = txFromMempool.Tree()
 	} else {
-		entry, err := chain.FetchUtxoEntry(txHash)
+		outpoint := wire.OutPoint{Hash: *txHash, Index: c.Vout, Tree: c.Tree}
+		entry, err := chain.FetchUtxoEntry(outpoint)
 		if err != nil {
 			context := "Failed to retrieve utxo entry"
 			return nil, rpcInternalError(err.Error(), context)
@@ -3494,7 +3506,7 @@ func handleGetTxOut(_ context.Context, s *Server, cmd interface{}) (interface{},
 		// transaction already in the main chain.  Mined transactions
 		// that are spent by a mempool transaction are not affected by
 		// this.
-		if entry == nil || entry.IsOutputSpent(c.Vout) {
+		if entry == nil || entry.IsSpent() {
 			return nil, nil
 		}
 
@@ -3513,19 +3525,10 @@ func handleGetTxOut(_ context.Context, s *Server, cmd interface{}) (interface{},
 
 		bestBlockHash = best.Hash.String()
 		confirmations = 1 + best.Height - entry.BlockHeight()
-		value = entry.AmountByIndex(c.Vout)
-		scriptVersion = entry.ScriptVersionByIndex(c.Vout)
-		pkScript = entry.PkScriptByIndex(c.Vout)
+		value = entry.Amount()
+		scriptVersion = entry.ScriptVersion()
+		pkScript = entry.PkScript()
 		isCoinbase = entry.IsCoinBase()
-		txTree = wire.TxTreeRegular
-		if entry.TransactionType() != stake.TxTypeRegular {
-			txTree = wire.TxTreeStake
-		}
-	}
-
-	// Return nil if the tx tree does not match the tree param that was passed.
-	if txTree != c.Tree {
-		return nil, nil
 	}
 
 	// Disassemble script into single line printable format.  The

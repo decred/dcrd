@@ -2014,7 +2014,7 @@ func Generate(includeLargeReorg bool) (tests [][]TestInstance, err error) {
 		tx.TxIn[0].PreviousOutPoint.Tree = wire.TxTreeStake
 		b.AddTransaction(tx)
 	})
-	rejected(blockchain.ErrDiscordantTxTree)
+	rejected(blockchain.ErrMissingTxOut)
 
 	// Create block with no dev subsidy for coinbase transaction.
 	//

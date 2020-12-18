@@ -392,11 +392,6 @@ const (
 	// more than it is allowed.
 	ErrBadStakebaseValue = ErrorKind("ErrBadStakebaseValue")
 
-	// ErrDiscordantTxTree specifies that a given origin tx's content
-	// indicated that it should exist in a different tx tree than the
-	// one given in the TxIn outpoint.
-	ErrDiscordantTxTree = ErrorKind("ErrDiscordantTxTree")
-
 	// ErrStakeFees indicates an error with the fees found in the stake
 	// transaction tree.
 	ErrStakeFees = ErrorKind("ErrStakeFees")
