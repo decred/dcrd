@@ -1,5 +1,5 @@
 // Copyright (c) 2015-2016 The btcsuite developers
-// Copyright (c) 2016-2018 The Decred developers
+// Copyright (c) 2016-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -42,7 +42,7 @@ func RegisterDriver(driver Driver) error {
 	if _, exists := drivers[driver.DbType]; exists {
 		str := fmt.Sprintf("driver %q is already registered",
 			driver.DbType)
-		return makeError(ErrDbTypeRegistered, str, nil)
+		return makeError(ErrDbTypeRegistered, str)
 	}
 
 	drivers[driver.DbType] = &driver
@@ -68,7 +68,7 @@ func Create(dbType string, args ...interface{}) (DB, error) {
 	drv, exists := drivers[dbType]
 	if !exists {
 		str := fmt.Sprintf("driver %q is not registered", dbType)
-		return nil, makeError(ErrDbUnknownType, str, nil)
+		return nil, makeError(ErrDbUnknownType, str)
 	}
 
 	return drv.Create(args...)
@@ -83,7 +83,7 @@ func Open(dbType string, args ...interface{}) (DB, error) {
 	drv, exists := drivers[dbType]
 	if !exists {
 		str := fmt.Sprintf("driver %q is not registered", dbType)
-		return nil, makeError(ErrDbUnknownType, str, nil)
+		return nil, makeError(ErrDbUnknownType, str)
 	}
 
 	return drv.Open(args...)

@@ -89,19 +89,12 @@ func loadBlocks(t *testing.T, dataFile string, network wire.CurrencyNet) ([]*dcr
 	return blocks, nil
 }
 
-// checkDbError ensures the passed error is a database.Error with an error code
-// that matches the passed error code.
-func checkDbError(t *testing.T, testName string, gotErr error, wantErrCode database.ErrorCode) bool {
-	var dbErr database.Error
-	if !errors.As(gotErr, &dbErr) {
-		t.Errorf("%s: unexpected error type - got %T, want %T",
-			testName, gotErr, database.Error{})
-		return false
-	}
-	if dbErr.ErrorCode != wantErrCode {
-		t.Errorf("%s: unexpected error code - got %s (%s), want %s",
-			testName, dbErr.ErrorCode, dbErr.Description,
-			wantErrCode)
+// checkDbError ensures the passed error is a database.Error that matches the
+// passed error kind.
+func checkDbError(t *testing.T, testName string, gotErr error, wantErr database.ErrorKind) bool {
+	if !errors.Is(gotErr, wantErr) {
+		t.Errorf("%s: unexpected error code - got %v, want %v",
+			testName, gotErr, wantErr)
 		return false
 	}
 
@@ -479,9 +472,9 @@ func testBucketInterface(tc *testContext, bucket database.Bucket) bool {
 
 		// Ensure creating a bucket that already exists fails with the
 		// expected error.
-		wantErrCode := database.ErrBucketExists
+		wantErrKind := database.ErrBucketExists
 		_, err = bucket.CreateBucket(testBucketName)
-		if !checkDbError(tc.t, "CreateBucket", err, wantErrCode) {
+		if !checkDbError(tc.t, "CreateBucket", err, wantErrKind) {
 			return false
 		}
 
@@ -515,9 +508,9 @@ func testBucketInterface(tc *testContext, bucket database.Bucket) bool {
 
 		// Ensure deleting a bucket that doesn't exist returns the
 		// expected error.
-		wantErrCode = database.ErrBucketNotFound
+		wantErrKind = database.ErrBucketNotFound
 		err = bucket.DeleteBucket(testBucketName)
-		if !checkDbError(tc.t, "DeleteBucket", err, wantErrCode) {
+		if !checkDbError(tc.t, "DeleteBucket", err, wantErrKind) {
 			return false
 		}
 
@@ -552,24 +545,24 @@ func testBucketInterface(tc *testContext, bucket database.Bucket) bool {
 	} else {
 		// Put should fail with bucket that is not writable.
 		testName := "unwritable tx put"
-		wantErrCode := database.ErrTxNotWritable
+		wantErrKind := database.ErrTxNotWritable
 		failBytes := []byte("fail")
 		err := bucket.Put(failBytes, failBytes)
-		if !checkDbError(tc.t, testName, err, wantErrCode) {
+		if !checkDbError(tc.t, testName, err, wantErrKind) {
 			return false
 		}
 
 		// Delete should fail with bucket that is not writable.
 		testName = "unwritable tx delete"
 		err = bucket.Delete(failBytes)
-		if !checkDbError(tc.t, testName, err, wantErrCode) {
+		if !checkDbError(tc.t, testName, err, wantErrKind) {
 			return false
 		}
 
 		// CreateBucket should fail with bucket that is not writable.
 		testName = "unwritable tx create bucket"
 		_, err = bucket.CreateBucket(failBytes)
-		if !checkDbError(tc.t, testName, err, wantErrCode) {
+		if !checkDbError(tc.t, testName, err, wantErrKind) {
 			return false
 		}
 
@@ -577,14 +570,14 @@ func testBucketInterface(tc *testContext, bucket database.Bucket) bool {
 		// writable.
 		testName = "unwritable tx create bucket if not exists"
 		_, err = bucket.CreateBucketIfNotExists(failBytes)
-		if !checkDbError(tc.t, testName, err, wantErrCode) {
+		if !checkDbError(tc.t, testName, err, wantErrKind) {
 			return false
 		}
 
 		// DeleteBucket should fail with bucket that is not writable.
 		testName = "unwritable tx delete bucket"
 		err = bucket.DeleteBucket(failBytes)
-		if !checkDbError(tc.t, testName, err, wantErrCode) {
+		if !checkDbError(tc.t, testName, err, wantErrKind) {
 			return false
 		}
 
@@ -656,9 +649,9 @@ func testMetadataManualTxInterface(tc *testContext) bool {
 			// The transaction is not writable, so it should fail
 			// the commit.
 			testName := "unwritable tx commit"
-			wantErrCode := database.ErrTxNotWritable
+			wantErrKind := database.ErrTxNotWritable
 			err := tx.Commit()
-			if !checkDbError(tc.t, testName, err, wantErrCode) {
+			if !checkDbError(tc.t, testName, err, wantErrKind) {
 				_ = tx.Rollback()
 				return false
 			}
@@ -1086,7 +1079,7 @@ func testMetadataTxInterface(tc *testContext) bool {
 // testFetchBlockIOMissing ensures that all of the block retrieval API functions
 // work as expected when requesting blocks that don't exist.
 func testFetchBlockIOMissing(tc *testContext, tx database.Tx) bool {
-	wantErrCode := database.ErrBlockNotFound
+	wantErrKind := database.ErrBlockNotFound
 
 	// ---------------------
 	// Non-bulk Block IO API
@@ -1111,7 +1104,7 @@ func testFetchBlockIOMissing(tc *testContext, tx database.Tx) bool {
 		// Ensure FetchBlock returns expected error.
 		testName := fmt.Sprintf("FetchBlock #%d on missing block", i)
 		_, err = tx.FetchBlock(blockHash)
-		if !checkDbError(tc.t, testName, err, wantErrCode) {
+		if !checkDbError(tc.t, testName, err, wantErrKind) {
 			return false
 		}
 
@@ -1119,7 +1112,7 @@ func testFetchBlockIOMissing(tc *testContext, tx database.Tx) bool {
 		testName = fmt.Sprintf("FetchBlockHeader #%d on missing block",
 			i)
 		_, err = tx.FetchBlockHeader(blockHash)
-		if !checkDbError(tc.t, testName, err, wantErrCode) {
+		if !checkDbError(tc.t, testName, err, wantErrKind) {
 			return false
 		}
 
@@ -1132,7 +1125,7 @@ func testFetchBlockIOMissing(tc *testContext, tx database.Tx) bool {
 		}
 		allBlockRegions[i] = region
 		_, err = tx.FetchBlockRegion(&region)
-		if !checkDbError(tc.t, testName, err, wantErrCode) {
+		if !checkDbError(tc.t, testName, err, wantErrKind) {
 			return false
 		}
 
@@ -1155,21 +1148,21 @@ func testFetchBlockIOMissing(tc *testContext, tx database.Tx) bool {
 	// Ensure FetchBlocks returns expected error.
 	testName := "FetchBlocks on missing blocks"
 	_, err := tx.FetchBlocks(allBlockHashes)
-	if !checkDbError(tc.t, testName, err, wantErrCode) {
+	if !checkDbError(tc.t, testName, err, wantErrKind) {
 		return false
 	}
 
 	// Ensure FetchBlockHeaders returns expected error.
 	testName = "FetchBlockHeaders on missing blocks"
 	_, err = tx.FetchBlockHeaders(allBlockHashes)
-	if !checkDbError(tc.t, testName, err, wantErrCode) {
+	if !checkDbError(tc.t, testName, err, wantErrKind) {
 		return false
 	}
 
 	// Ensure FetchBlockRegions returns expected error.
 	testName = "FetchBlockRegions on missing blocks"
 	_, err = tx.FetchBlockRegions(allBlockRegions)
-	if !checkDbError(tc.t, testName, err, wantErrCode) {
+	if !checkDbError(tc.t, testName, err, wantErrKind) {
 		return false
 	}
 
@@ -1300,9 +1293,9 @@ func testFetchBlockIO(tc *testContext, tx database.Tx) bool {
 		badBlockHash := &chainhash.Hash{}
 		testName := fmt.Sprintf("FetchBlock(%s) invalid block",
 			badBlockHash)
-		wantErrCode := database.ErrBlockNotFound
+		wantErrKind := database.ErrBlockNotFound
 		_, err = tx.FetchBlock(badBlockHash)
-		if !checkDbError(tc.t, testName, err, wantErrCode) {
+		if !checkDbError(tc.t, testName, err, wantErrKind) {
 			return false
 		}
 
@@ -1311,7 +1304,7 @@ func testFetchBlockIO(tc *testContext, tx database.Tx) bool {
 		testName = fmt.Sprintf("FetchBlockHeader(%s) invalid block",
 			badBlockHash)
 		_, err = tx.FetchBlockHeader(badBlockHash)
-		if !checkDbError(tc.t, testName, err, wantErrCode) {
+		if !checkDbError(tc.t, testName, err, wantErrKind) {
 			return false
 		}
 
@@ -1319,11 +1312,11 @@ func testFetchBlockIO(tc *testContext, tx database.Tx) bool {
 		// return the expected error.
 		testName = fmt.Sprintf("FetchBlockRegion(%s) invalid hash",
 			badBlockHash)
-		wantErrCode = database.ErrBlockNotFound
+		wantErrKind = database.ErrBlockNotFound
 		region.Hash = badBlockHash
 		region.Offset = ^uint32(0)
 		_, err = tx.FetchBlockRegion(&region)
-		if !checkDbError(tc.t, testName, err, wantErrCode) {
+		if !checkDbError(tc.t, testName, err, wantErrKind) {
 			return false
 		}
 
@@ -1331,11 +1324,11 @@ func testFetchBlockIO(tc *testContext, tx database.Tx) bool {
 		// the expected error.
 		testName = fmt.Sprintf("FetchBlockRegion(%s) invalid region",
 			blockHash)
-		wantErrCode = database.ErrBlockRegionInvalid
+		wantErrKind = database.ErrBlockRegionInvalid
 		region.Hash = blockHash
 		region.Offset = ^uint32(0)
 		_, err = tx.FetchBlockRegion(&region)
-		if !checkDbError(tc.t, testName, err, wantErrCode) {
+		if !checkDbError(tc.t, testName, err, wantErrKind) {
 			return false
 		}
 	}
@@ -1442,9 +1435,9 @@ func testFetchBlockIO(tc *testContext, tx database.Tx) bool {
 	badBlockHashes := make([]chainhash.Hash, len(allBlockHashes)+1)
 	copy(badBlockHashes, allBlockHashes)
 	badBlockHashes[len(badBlockHashes)-1] = chainhash.Hash{}
-	wantErrCode := database.ErrBlockNotFound
+	wantErrKind := database.ErrBlockNotFound
 	_, err = tx.FetchBlocks(badBlockHashes)
-	if !checkDbError(tc.t, testName, err, wantErrCode) {
+	if !checkDbError(tc.t, testName, err, wantErrKind) {
 		return false
 	}
 
@@ -1452,7 +1445,7 @@ func testFetchBlockIO(tc *testContext, tx database.Tx) bool {
 	// expected error.
 	testName = "FetchBlockHeaders invalid hash"
 	_, err = tx.FetchBlockHeaders(badBlockHashes)
-	if !checkDbError(tc.t, testName, err, wantErrCode) {
+	if !checkDbError(tc.t, testName, err, wantErrKind) {
 		return false
 	}
 
@@ -1462,9 +1455,9 @@ func testFetchBlockIO(tc *testContext, tx database.Tx) bool {
 	badBlockRegions := make([]database.BlockRegion, len(allBlockRegions)+1)
 	copy(badBlockRegions, allBlockRegions)
 	badBlockRegions[len(badBlockRegions)-1].Hash = &chainhash.Hash{}
-	wantErrCode = database.ErrBlockNotFound
+	wantErrKind = database.ErrBlockNotFound
 	_, err = tx.FetchBlockRegions(badBlockRegions)
-	if !checkDbError(tc.t, testName, err, wantErrCode) {
+	if !checkDbError(tc.t, testName, err, wantErrKind) {
 		return false
 	}
 
@@ -1475,9 +1468,9 @@ func testFetchBlockIO(tc *testContext, tx database.Tx) bool {
 	for i := range badBlockRegions {
 		badBlockRegions[i].Offset = ^uint32(0)
 	}
-	wantErrCode = database.ErrBlockRegionInvalid
+	wantErrKind = database.ErrBlockRegionInvalid
 	_, err = tx.FetchBlockRegions(badBlockRegions)
-	return checkDbError(tc.t, testName, err, wantErrCode)
+	return checkDbError(tc.t, testName, err, wantErrKind)
 }
 
 // testBlockIOTxInterface ensures that the block IO interface works as expected
@@ -1487,11 +1480,11 @@ func testBlockIOTxInterface(tc *testContext) bool {
 	// Ensure attempting to store a block with a read-only transaction fails
 	// with the expected error.
 	err := tc.db.View(func(tx database.Tx) error {
-		wantErrCode := database.ErrTxNotWritable
+		wantErrKind := database.ErrTxNotWritable
 		for i, block := range tc.blocks {
 			testName := fmt.Sprintf("StoreBlock(%d) on ro tx", i)
 			err := tx.StoreBlock(block)
-			if !checkDbError(tc.t, testName, err, wantErrCode) {
+			if !checkDbError(tc.t, testName, err, wantErrKind) {
 				return errSubTestFail
 			}
 		}
@@ -1523,12 +1516,12 @@ func testBlockIOTxInterface(tc *testContext) bool {
 
 		// Ensure attempting to store the same block again, before the
 		// transaction has been committed, returns the expected error.
-		wantErrCode := database.ErrBlockExists
+		wantErrKind := database.ErrBlockExists
 		for i, block := range tc.blocks {
 			testName := fmt.Sprintf("duplicate block entry #%d "+
 				"(before commit)", i)
 			err := tx.StoreBlock(block)
-			if !checkDbError(tc.t, testName, err, wantErrCode) {
+			if !checkDbError(tc.t, testName, err, wantErrKind) {
 				return errSubTestFail
 			}
 		}
@@ -1584,9 +1577,9 @@ func testBlockIOTxInterface(tc *testContext) bool {
 		for i, block := range tc.blocks {
 			testName := fmt.Sprintf("duplicate block entry #%d "+
 				"(before commit)", i)
-			wantErrCode := database.ErrBlockExists
+			wantErrKind := database.ErrBlockExists
 			err := tx.StoreBlock(block)
-			if !checkDbError(tc.t, testName, err, wantErrCode) {
+			if !checkDbError(tc.t, testName, err, wantErrKind) {
 				return errSubTestFail
 			}
 		}
@@ -1635,12 +1628,12 @@ func testBlockIOTxInterface(tc *testContext) bool {
 		// expected error.  Note that this is different from the
 		// previous version since this is a new transaction after the
 		// blocks have been committed.
-		wantErrCode := database.ErrBlockExists
+		wantErrKind := database.ErrBlockExists
 		for i, block := range tc.blocks {
 			testName := fmt.Sprintf("duplicate block entry #%d "+
 				"(before commit)", i)
 			err := tx.StoreBlock(block)
-			if !checkDbError(tc.t, testName, err, wantErrCode) {
+			if !checkDbError(tc.t, testName, err, wantErrKind) {
 				return errSubTestFail
 			}
 		}
@@ -1660,7 +1653,7 @@ func testBlockIOTxInterface(tc *testContext) bool {
 // testClosedTxInterface ensures that both the metadata and block IO API
 // functions behave as expected when attempted against a closed transaction.
 func testClosedTxInterface(tc *testContext, tx database.Tx) bool {
-	wantErrCode := database.ErrTxClosed
+	wantErrKind := database.ErrTxClosed
 	bucket := tx.Metadata()
 	cursor := tx.Metadata().Cursor()
 	bucketName := []byte("closedtxbucket")
@@ -1680,42 +1673,42 @@ func testClosedTxInterface(tc *testContext, tx database.Tx) bool {
 	// Ensure CreateBucket returns expected error.
 	testName := "CreateBucket on closed tx"
 	_, err := bucket.CreateBucket(bucketName)
-	if !checkDbError(tc.t, testName, err, wantErrCode) {
+	if !checkDbError(tc.t, testName, err, wantErrKind) {
 		return false
 	}
 
 	// Ensure CreateBucketIfNotExists returns expected error.
 	testName = "CreateBucketIfNotExists on closed tx"
 	_, err = bucket.CreateBucketIfNotExists(bucketName)
-	if !checkDbError(tc.t, testName, err, wantErrCode) {
+	if !checkDbError(tc.t, testName, err, wantErrKind) {
 		return false
 	}
 
 	// Ensure Delete returns expected error.
 	testName = "Delete on closed tx"
 	err = bucket.Delete(keyName)
-	if !checkDbError(tc.t, testName, err, wantErrCode) {
+	if !checkDbError(tc.t, testName, err, wantErrKind) {
 		return false
 	}
 
 	// Ensure DeleteBucket returns expected error.
 	testName = "DeleteBucket on closed tx"
 	err = bucket.DeleteBucket(bucketName)
-	if !checkDbError(tc.t, testName, err, wantErrCode) {
+	if !checkDbError(tc.t, testName, err, wantErrKind) {
 		return false
 	}
 
 	// Ensure ForEach returns expected error.
 	testName = "ForEach on closed tx"
 	err = bucket.ForEach(nil)
-	if !checkDbError(tc.t, testName, err, wantErrCode) {
+	if !checkDbError(tc.t, testName, err, wantErrKind) {
 		return false
 	}
 
 	// Ensure ForEachBucket returns expected error.
 	testName = "ForEachBucket on closed tx"
 	err = bucket.ForEachBucket(nil)
-	if !checkDbError(tc.t, testName, err, wantErrCode) {
+	if !checkDbError(tc.t, testName, err, wantErrKind) {
 		return false
 	}
 
@@ -1728,7 +1721,7 @@ func testClosedTxInterface(tc *testContext, tx database.Tx) bool {
 	// Ensure Put returns expected error.
 	testName = "Put on closed tx"
 	err = bucket.Put(keyName, []byte("test"))
-	if !checkDbError(tc.t, testName, err, wantErrCode) {
+	if !checkDbError(tc.t, testName, err, wantErrKind) {
 		return false
 	}
 
@@ -1746,7 +1739,7 @@ func testClosedTxInterface(tc *testContext, tx database.Tx) bool {
 	// Ensure Cursor.Delete returns expected error.
 	testName = "Cursor.Delete on closed tx"
 	err = cursor.Delete()
-	if !checkDbError(tc.t, testName, err, wantErrCode) {
+	if !checkDbError(tc.t, testName, err, wantErrKind) {
 		return false
 	}
 
@@ -1828,21 +1821,21 @@ func testClosedTxInterface(tc *testContext, tx database.Tx) bool {
 		// Ensure StoreBlock returns expected error.
 		testName = "StoreBlock on closed tx"
 		err = tx.StoreBlock(block)
-		if !checkDbError(tc.t, testName, err, wantErrCode) {
+		if !checkDbError(tc.t, testName, err, wantErrKind) {
 			return false
 		}
 
 		// Ensure FetchBlock returns expected error.
 		testName = fmt.Sprintf("FetchBlock #%d on closed tx", i)
 		_, err = tx.FetchBlock(blockHash)
-		if !checkDbError(tc.t, testName, err, wantErrCode) {
+		if !checkDbError(tc.t, testName, err, wantErrKind) {
 			return false
 		}
 
 		// Ensure FetchBlockHeader returns expected error.
 		testName = fmt.Sprintf("FetchBlockHeader #%d on closed tx", i)
 		_, err = tx.FetchBlockHeader(blockHash)
-		if !checkDbError(tc.t, testName, err, wantErrCode) {
+		if !checkDbError(tc.t, testName, err, wantErrKind) {
 			return false
 		}
 
@@ -1855,14 +1848,14 @@ func testClosedTxInterface(tc *testContext, tx database.Tx) bool {
 		}
 		allBlockRegions[i] = region
 		_, err = tx.FetchBlockRegion(&region)
-		if !checkDbError(tc.t, testName, err, wantErrCode) {
+		if !checkDbError(tc.t, testName, err, wantErrKind) {
 			return false
 		}
 
 		// Ensure HasBlock returns expected error.
 		testName = fmt.Sprintf("HasBlock #%d on closed tx", i)
 		_, err = tx.HasBlock(blockHash)
-		if !checkDbError(tc.t, testName, err, wantErrCode) {
+		if !checkDbError(tc.t, testName, err, wantErrKind) {
 			return false
 		}
 	}
@@ -1874,28 +1867,28 @@ func testClosedTxInterface(tc *testContext, tx database.Tx) bool {
 	// Ensure FetchBlocks returns expected error.
 	testName = "FetchBlocks on closed tx"
 	_, err = tx.FetchBlocks(allBlockHashes)
-	if !checkDbError(tc.t, testName, err, wantErrCode) {
+	if !checkDbError(tc.t, testName, err, wantErrKind) {
 		return false
 	}
 
 	// Ensure FetchBlockHeaders returns expected error.
 	testName = "FetchBlockHeaders on closed tx"
 	_, err = tx.FetchBlockHeaders(allBlockHashes)
-	if !checkDbError(tc.t, testName, err, wantErrCode) {
+	if !checkDbError(tc.t, testName, err, wantErrKind) {
 		return false
 	}
 
 	// Ensure FetchBlockRegions returns expected error.
 	testName = "FetchBlockRegions on closed tx"
 	_, err = tx.FetchBlockRegions(allBlockRegions)
-	if !checkDbError(tc.t, testName, err, wantErrCode) {
+	if !checkDbError(tc.t, testName, err, wantErrKind) {
 		return false
 	}
 
 	// Ensure HasBlocks returns expected error.
 	testName = "HasBlocks on closed tx"
 	_, err = tx.HasBlocks(allBlockHashes)
-	if !checkDbError(tc.t, testName, err, wantErrCode) {
+	if !checkDbError(tc.t, testName, err, wantErrKind) {
 		return false
 	}
 
@@ -1906,11 +1899,11 @@ func testClosedTxInterface(tc *testContext, tx database.Tx) bool {
 	// Ensure that attempting to rollback or commit a transaction that is
 	// already closed returns the expected error.
 	err = tx.Rollback()
-	if !checkDbError(tc.t, "closed tx rollback", err, wantErrCode) {
+	if !checkDbError(tc.t, "closed tx rollback", err, wantErrKind) {
 		return false
 	}
 	err = tx.Commit()
-	return checkDbError(tc.t, "closed tx commit", err, wantErrCode)
+	return checkDbError(tc.t, "closed tx commit", err, wantErrKind)
 }
 
 // testTxClosed ensures that both the metadata and block IO API functions behave

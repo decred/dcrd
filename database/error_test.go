@@ -1,60 +1,49 @@
 // Copyright (c) 2015-2016 The btcsuite developers
-// Copyright (c) 2016-2019 The Decred developers
+// Copyright (c) 2016-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
-package database_test
+package database
 
 import (
 	"errors"
+	"io"
 	"testing"
-
-	"github.com/decred/dcrd/database/v2"
 )
 
-// TestErrorCodeStringer tests the stringized output for the ErrorCode type.
-func TestErrorCodeStringer(t *testing.T) {
+// TestErrorKindStringer tests the stringized output for the ErrorKind type.
+func TestErrorKindStringer(t *testing.T) {
 	tests := []struct {
-		in   database.ErrorCode
+		in   ErrorKind
 		want string
 	}{
-		{database.ErrDbTypeRegistered, "ErrDbTypeRegistered"},
-		{database.ErrDbUnknownType, "ErrDbUnknownType"},
-		{database.ErrDbDoesNotExist, "ErrDbDoesNotExist"},
-		{database.ErrDbExists, "ErrDbExists"},
-		{database.ErrDbNotOpen, "ErrDbNotOpen"},
-		{database.ErrDbAlreadyOpen, "ErrDbAlreadyOpen"},
-		{database.ErrInvalid, "ErrInvalid"},
-		{database.ErrCorruption, "ErrCorruption"},
-		{database.ErrTxClosed, "ErrTxClosed"},
-		{database.ErrTxNotWritable, "ErrTxNotWritable"},
-		{database.ErrBucketNotFound, "ErrBucketNotFound"},
-		{database.ErrBucketExists, "ErrBucketExists"},
-		{database.ErrBucketNameRequired, "ErrBucketNameRequired"},
-		{database.ErrKeyRequired, "ErrKeyRequired"},
-		{database.ErrKeyTooLarge, "ErrKeyTooLarge"},
-		{database.ErrValueTooLarge, "ErrValueTooLarge"},
-		{database.ErrIncompatibleValue, "ErrIncompatibleValue"},
-		{database.ErrBlockNotFound, "ErrBlockNotFound"},
-		{database.ErrBlockExists, "ErrBlockExists"},
-		{database.ErrBlockRegionInvalid, "ErrBlockRegionInvalid"},
-		{database.ErrDriverSpecific, "ErrDriverSpecific"},
-
-		{0xffff, "Unknown ErrorCode (65535)"},
+		{ErrDbTypeRegistered, "ErrDbTypeRegistered"},
+		{ErrDbUnknownType, "ErrDbUnknownType"},
+		{ErrDbDoesNotExist, "ErrDbDoesNotExist"},
+		{ErrDbExists, "ErrDbExists"},
+		{ErrDbNotOpen, "ErrDbNotOpen"},
+		{ErrDbAlreadyOpen, "ErrDbAlreadyOpen"},
+		{ErrInvalid, "ErrInvalid"},
+		{ErrCorruption, "ErrCorruption"},
+		{ErrTxClosed, "ErrTxClosed"},
+		{ErrTxNotWritable, "ErrTxNotWritable"},
+		{ErrBucketNotFound, "ErrBucketNotFound"},
+		{ErrBucketExists, "ErrBucketExists"},
+		{ErrBucketNameRequired, "ErrBucketNameRequired"},
+		{ErrKeyRequired, "ErrKeyRequired"},
+		{ErrKeyTooLarge, "ErrKeyTooLarge"},
+		{ErrValueTooLarge, "ErrValueTooLarge"},
+		{ErrIncompatibleValue, "ErrIncompatibleValue"},
+		{ErrBlockNotFound, "ErrBlockNotFound"},
+		{ErrBlockExists, "ErrBlockExists"},
+		{ErrBlockRegionInvalid, "ErrBlockRegionInvalid"},
+		{ErrDriverSpecific, "ErrDriverSpecific"},
 	}
 
-	// Detect additional error codes that don't have the stringer added.
-	if len(tests)-1 != int(database.TstNumErrorCodes) {
-		t.Errorf("It appears an error code was added without adding " +
-			"an associated stringer test")
-	}
-
-	t.Logf("Running %d tests", len(tests))
 	for i, test := range tests {
-		result := test.in.String()
+		result := test.in.Error()
 		if result != test.want {
-			t.Errorf("String #%d\ngot: %s\nwant: %s", i, result,
-				test.want)
+			t.Errorf("#%d: got: %s want: %s", i, result, test.want)
 			continue
 		}
 	}
@@ -65,33 +54,103 @@ func TestError(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		in   database.Error
+		in   Error
 		want string
-	}{
-		{
-			database.Error{Description: "some error"},
-			"some error",
-		},
-		{
-			database.Error{Description: "human-readable error"},
-			"human-readable error",
-		},
-		{
-			database.Error{
-				ErrorCode:   database.ErrDriverSpecific,
-				Description: "some error",
-				Err:         errors.New("driver-specific error"),
-			},
-			"some error: driver-specific error",
-		},
-	}
+	}{{
+		Error{Description: "some error"},
+		"some error",
+	}, {
+		Error{Description: "human-readable error"},
+		"human-readable error",
+	}}
 
-	t.Logf("Running %d tests", len(tests))
 	for i, test := range tests {
 		result := test.in.Error()
 		if result != test.want {
-			t.Errorf("Error #%d\n got: %s want: %s", i, result,
-				test.want)
+			t.Errorf("#%d: got: %s want: %s", i, result, test.want)
+			continue
+		}
+	}
+}
+
+// TestErrorKindIsAs ensures both ErrorKind and Error can be identified as being
+// a specific error kind via errors.Is and unwrapped via errors.As.
+func TestErrorKindIsAs(t *testing.T) {
+	tests := []struct {
+		name      string
+		err       error
+		target    error
+		wantMatch bool
+		wantAs    ErrorKind
+	}{{
+		name:      "ErrDbTypeRegistered == ErrDbTypeRegistered",
+		err:       ErrDbTypeRegistered,
+		target:    ErrDbTypeRegistered,
+		wantMatch: true,
+		wantAs:    ErrDbTypeRegistered,
+	}, {
+		name:      "Error.ErrDbTypeRegistered == ErrDbTypeRegistered",
+		err:       makeError(ErrDbTypeRegistered, ""),
+		target:    ErrDbTypeRegistered,
+		wantMatch: true,
+		wantAs:    ErrDbTypeRegistered,
+	}, {
+		name:      "Error.ErrDbTypeRegistered == Error.ErrDbTypeRegistered",
+		err:       makeError(ErrDbTypeRegistered, ""),
+		target:    makeError(ErrDbTypeRegistered, ""),
+		wantMatch: true,
+		wantAs:    ErrDbTypeRegistered,
+	}, {
+		name:      "ErrBucketNotFound != ErrDbTypeRegistered",
+		err:       ErrBucketNotFound,
+		target:    ErrDbTypeRegistered,
+		wantMatch: false,
+		wantAs:    ErrBucketNotFound,
+	}, {
+		name:      "Error.ErrBucketNotFound != ErrDbTypeRegistered",
+		err:       makeError(ErrBucketNotFound, ""),
+		target:    ErrDbTypeRegistered,
+		wantMatch: false,
+		wantAs:    ErrBucketNotFound,
+	}, {
+		name:      "ErrBucketNotFound != Error.ErrDbTypeRegistered",
+		err:       ErrBucketNotFound,
+		target:    makeError(ErrDbTypeRegistered, ""),
+		wantMatch: false,
+		wantAs:    ErrBucketNotFound,
+	}, {
+		name:      "Error.ErrBucketNotFound != Error.ErrDbTypeRegistered",
+		err:       makeError(ErrBucketNotFound, ""),
+		target:    makeError(ErrDbTypeRegistered, ""),
+		wantMatch: false,
+		wantAs:    ErrBucketNotFound,
+	}, {
+		name:      "Error.ErrKeyRequired != io.EOF",
+		err:       makeError(ErrKeyRequired, ""),
+		target:    io.EOF,
+		wantMatch: false,
+		wantAs:    ErrKeyRequired,
+	}}
+
+	for _, test := range tests {
+		// Ensure the error matches or not depending on the expected result.
+		result := errors.Is(test.err, test.target)
+		if result != test.wantMatch {
+			t.Errorf("%s: incorrect error identification -- got %v, want %v",
+				test.name, result, test.wantMatch)
+			continue
+		}
+
+		// Ensure the underlying error kind can be unwrapped is and is the
+		// expected kind.
+		var kind ErrorKind
+		if !errors.As(test.err, &kind) {
+			t.Errorf("%s: unable to unwrap to error kind", test.name)
+			continue
+		}
+		if kind != test.wantAs {
+			t.Errorf("%s: unexpected unwrapped error kind -- got %v, want %v",
+				test.name, kind, test.wantAs)
 			continue
 		}
 	}

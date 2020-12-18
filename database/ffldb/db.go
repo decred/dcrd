@@ -128,35 +128,38 @@ func (s bulkFetchDataSorter) Less(i, j int) bool {
 }
 
 // makeDbErr creates a database.Error given a set of arguments.
-func makeDbErr(c database.ErrorCode, desc string, err error) database.Error {
-	return database.Error{ErrorCode: c, Description: desc, Err: err}
+func makeDbErr(kind database.ErrorKind, desc string) database.Error {
+	return database.Error{Err: kind, Description: desc}
 }
 
 // convertErr converts the passed leveldb error into a database error with an
-// equivalent error code and the passed description.  It also sets the passed
+// equivalent error kind and the passed description.  It also sets the passed
 // error as the underlying error.
 func convertErr(desc string, ldbErr error) database.Error {
 	// Use the driver-specific error code by default.  The code below will
 	// update this with the converted error if it's recognized.
-	var code = database.ErrDriverSpecific
+	var kind = database.ErrDriverSpecific
 
 	switch {
 	// Database corruption errors.
 	case ldberrors.IsCorrupted(ldbErr):
-		code = database.ErrCorruption
+		kind = database.ErrCorruption
 
 	// Database open/create errors.
 	case errors.Is(ldbErr, leveldb.ErrClosed):
-		code = database.ErrDbNotOpen
+		kind = database.ErrDbNotOpen
 
 	// Transaction errors.
 	case errors.Is(ldbErr, leveldb.ErrSnapshotReleased):
-		code = database.ErrTxClosed
+		kind = database.ErrTxClosed
 	case errors.Is(ldbErr, leveldb.ErrIterReleased):
-		code = database.ErrTxClosed
+		kind = database.ErrTxClosed
 	}
 
-	return database.Error{ErrorCode: code, Description: desc, Err: ldbErr}
+	err := makeDbErr(kind, desc)
+	err.RawErr = ldbErr
+
+	return err
 }
 
 // copySlice returns a copy of the passed slice.  This is mostly used to copy
@@ -211,14 +214,14 @@ func (c *cursor) Delete() error {
 	// Error if the cursor is exhausted.
 	if c.currentIter == nil {
 		str := "cursor is exhausted"
-		return makeDbErr(database.ErrIncompatibleValue, str, nil)
+		return makeDbErr(database.ErrIncompatibleValue, str)
 	}
 
 	// Do not allow buckets to be deleted via the cursor.
 	key := c.currentIter.Key()
 	if bytes.HasPrefix(key, bucketIndexPrefix) {
 		str := "buckets may not be deleted from a cursor"
-		return makeDbErr(database.ErrIncompatibleValue, str, nil)
+		return makeDbErr(database.ErrIncompatibleValue, str)
 	}
 
 	c.bucket.tx.deleteKey(copySlice(key), true)
@@ -627,20 +630,20 @@ func (b *bucket) CreateBucket(key []byte) (database.Bucket, error) {
 	// Ensure the transaction is writable.
 	if !b.tx.writable {
 		str := "create bucket requires a writable database transaction"
-		return nil, makeDbErr(database.ErrTxNotWritable, str, nil)
+		return nil, makeDbErr(database.ErrTxNotWritable, str)
 	}
 
 	// Ensure a key was provided.
 	if len(key) == 0 {
 		str := "create bucket requires a key"
-		return nil, makeDbErr(database.ErrBucketNameRequired, str, nil)
+		return nil, makeDbErr(database.ErrBucketNameRequired, str)
 	}
 
 	// Ensure bucket does not already exist.
 	bidxKey := bucketIndexKey(b.id, key)
 	if b.tx.hasKey(bidxKey) {
 		str := "bucket already exists"
-		return nil, makeDbErr(database.ErrBucketExists, str, nil)
+		return nil, makeDbErr(database.ErrBucketExists, str)
 	}
 
 	// Find the appropriate next bucket ID to use for the new bucket.  In
@@ -684,7 +687,7 @@ func (b *bucket) CreateBucketIfNotExists(key []byte) (database.Bucket, error) {
 	// Ensure the transaction is writable.
 	if !b.tx.writable {
 		str := "create bucket requires a writable database transaction"
-		return nil, makeDbErr(database.ErrTxNotWritable, str, nil)
+		return nil, makeDbErr(database.ErrTxNotWritable, str)
 	}
 
 	// Return existing bucket if it already exists, otherwise create it.
@@ -711,7 +714,7 @@ func (b *bucket) DeleteBucket(key []byte) error {
 	// Ensure the transaction is writable.
 	if !b.tx.writable {
 		str := "delete bucket requires a writable database transaction"
-		return makeDbErr(database.ErrTxNotWritable, str, nil)
+		return makeDbErr(database.ErrTxNotWritable, str)
 	}
 
 	// Attempt to fetch the ID for the child bucket.  The bucket does not
@@ -721,7 +724,7 @@ func (b *bucket) DeleteBucket(key []byte) error {
 	childID := b.tx.fetchKey(bidxKey)
 	if childID == nil {
 		str := fmt.Sprintf("bucket %q does not exist", key)
-		return makeDbErr(database.ErrBucketNotFound, str, nil)
+		return makeDbErr(database.ErrBucketNotFound, str)
 	}
 
 	// Remove all nested buckets and their keys.
@@ -877,13 +880,13 @@ func (b *bucket) Put(key, value []byte) error {
 	// Ensure the transaction is writable.
 	if !b.tx.writable {
 		str := "setting a key requires a writable database transaction"
-		return makeDbErr(database.ErrTxNotWritable, str, nil)
+		return makeDbErr(database.ErrTxNotWritable, str)
 	}
 
 	// Ensure a key was provided.
 	if len(key) == 0 {
 		str := "put requires a key"
-		return makeDbErr(database.ErrKeyRequired, str, nil)
+		return makeDbErr(database.ErrKeyRequired, str)
 	}
 
 	return b.tx.putKey(bucketizedKey(b.id, key), value)
@@ -931,7 +934,7 @@ func (b *bucket) Delete(key []byte) error {
 	// Ensure the transaction is writable.
 	if !b.tx.writable {
 		str := "deleting a value requires a writable database transaction"
-		return makeDbErr(database.ErrTxNotWritable, str, nil)
+		return makeDbErr(database.ErrTxNotWritable, str)
 	}
 
 	// Nothing to do if there is no key.
@@ -1020,7 +1023,7 @@ func (tx *transaction) notifyActiveIters() {
 func (tx *transaction) checkClosed() error {
 	// The transaction is no longer valid if it has been closed.
 	if tx.closed {
-		return makeDbErr(database.ErrTxClosed, errTxClosedStr, nil)
+		return makeDbErr(database.ErrTxClosed, errTxClosedStr)
 	}
 
 	return nil
@@ -1156,21 +1159,21 @@ func (tx *transaction) StoreBlock(block database.BlockSerializer) error {
 	// Ensure the transaction is writable.
 	if !tx.writable {
 		str := "store block requires a writable database transaction"
-		return makeDbErr(database.ErrTxNotWritable, str, nil)
+		return makeDbErr(database.ErrTxNotWritable, str)
 	}
 
 	// Reject the block if it already exists.
 	blockHash := block.Hash()
 	if tx.hasBlock(blockHash) {
 		str := fmt.Sprintf("block %s already exists", blockHash)
-		return makeDbErr(database.ErrBlockExists, str, nil)
+		return makeDbErr(database.ErrBlockExists, str)
 	}
 
 	blockBytes, err := block.Bytes()
 	if err != nil {
 		str := fmt.Sprintf("failed to get serialized bytes for block %s",
 			blockHash)
-		return makeDbErr(database.ErrDriverSpecific, str, err)
+		return makeDbErr(database.ErrDriverSpecific, str)
 	}
 
 	// Add the block to be stored to the list of pending blocks to store
@@ -1233,7 +1236,7 @@ func (tx *transaction) fetchBlockRow(hash *chainhash.Hash) ([]byte, error) {
 	blockRow := tx.blockIdxBucket.Get(hash[:])
 	if blockRow == nil {
 		str := fmt.Sprintf("block %s does not exist", hash)
-		return nil, makeDbErr(database.ErrBlockNotFound, str, nil)
+		return nil, makeDbErr(database.ErrBlockNotFound, str)
 	}
 
 	return blockRow, nil
@@ -1441,7 +1444,7 @@ func (tx *transaction) fetchPendingRegion(region *database.BlockRegion) ([]byte,
 		str := fmt.Sprintf("block %s region offset %d, length %d "+
 			"exceeds block length of %d", region.Hash,
 			region.Offset, region.Len, blockLen)
-		return nil, makeDbErr(database.ErrBlockRegionInvalid, str, nil)
+		return nil, makeDbErr(database.ErrBlockRegionInvalid, str)
 	}
 
 	// Return the bytes from the pending block.
@@ -1506,7 +1509,7 @@ func (tx *transaction) FetchBlockRegion(region *database.BlockRegion) ([]byte, e
 		str := fmt.Sprintf("block %s region offset %d, length %d "+
 			"exceeds block length of %d", region.Hash,
 			region.Offset, region.Len, location.blockLen)
-		return nil, makeDbErr(database.ErrBlockRegionInvalid, str, nil)
+		return nil, makeDbErr(database.ErrBlockRegionInvalid, str)
 	}
 
 	// Read the region from the appropriate disk block file.
@@ -1603,7 +1606,7 @@ func (tx *transaction) FetchBlockRegions(regions []database.BlockRegion) ([][]by
 			str := fmt.Sprintf("block %s region offset %d, length "+
 				"%d exceeds block length of %d", region.Hash,
 				region.Offset, region.Len, location.blockLen)
-			return nil, makeDbErr(database.ErrBlockRegionInvalid, str, nil)
+			return nil, makeDbErr(database.ErrBlockRegionInvalid, str)
 		}
 
 		fetchList = append(fetchList, bulkFetchData{&location, i})
@@ -1754,7 +1757,7 @@ func (tx *transaction) Commit() error {
 	// Ensure the transaction is writable.
 	if !tx.writable {
 		str := "Commit requires a writable database transaction"
-		return makeDbErr(database.ErrTxNotWritable, str, nil)
+		return makeDbErr(database.ErrTxNotWritable, str)
 	}
 
 	// Write pending data.  The function will rollback if any errors occur.
@@ -1828,8 +1831,7 @@ func (db *db) begin(writable bool) (*transaction, error) {
 		if writable {
 			db.writeLock.Unlock()
 		}
-		return nil, makeDbErr(database.ErrDbNotOpen, errDbNotOpenStr,
-			nil)
+		return nil, makeDbErr(database.ErrDbNotOpen, errDbNotOpenStr)
 	}
 
 	// Grab a snapshot of the database cache (which in turn also handles the
@@ -1968,7 +1970,7 @@ func (db *db) Close() error {
 	defer db.closeLock.Unlock()
 
 	if db.closed {
-		return makeDbErr(database.ErrDbNotOpen, errDbNotOpenStr, nil)
+		return makeDbErr(database.ErrDbNotOpen, errDbNotOpenStr)
 	}
 	db.closed = true
 
@@ -2046,7 +2048,7 @@ func openDB(dbPath string, network wire.CurrencyNet, create bool) (database.DB, 
 	dbExists := fileExists(metadataDbPath)
 	if !create && !dbExists {
 		str := fmt.Sprintf("database %q does not exist", metadataDbPath)
-		return nil, makeDbErr(database.ErrDbDoesNotExist, str, nil)
+		return nil, makeDbErr(database.ErrDbDoesNotExist, str)
 	}
 
 	// Ensure the full path to the database exists.

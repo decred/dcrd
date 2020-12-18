@@ -7,6 +7,7 @@ package indexers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/decred/dcrd/blockchain/v4/internal/progresslog"
@@ -60,11 +61,9 @@ func dbFetchIndexerTip(dbTx database.Tx, idxKey []byte) (*chainhash.Hash, int32,
 	indexesBucket := dbTx.Metadata().Bucket(indexTipsBucketName)
 	serialized := indexesBucket.Get(idxKey)
 	if len(serialized) < chainhash.HashSize+4 {
-		return nil, 0, database.Error{
-			ErrorCode: database.ErrCorruption,
-			Description: fmt.Sprintf("unexpected end of data for "+
-				"index %q tip", string(idxKey)),
-		}
+		str := fmt.Sprintf("unexpected end of data for index %q tip",
+			string(idxKey))
+		return nil, 0, makeDbErr(database.ErrCorruption, str)
 	}
 
 	var hash chainhash.Hash
@@ -103,11 +102,9 @@ func dbFetchIndexerVersion(dbTx database.Tx, idxKey []byte) (uint32, error) {
 	}
 
 	if len(serialized) < 4 {
-		return 0, database.Error{
-			ErrorCode: database.ErrCorruption,
-			Description: fmt.Sprintf("unexpected end of data for "+
-				"index %q version", string(idxKey)),
-		}
+		str := fmt.Sprintf("unexpected end of data for index %q version",
+			string(idxKey))
+		return 0, makeDbErr(database.ErrCorruption, str)
 	}
 
 	version := byteOrder.Uint32(serialized)
@@ -777,7 +774,7 @@ func dropIndexMetadata(db database.DB, idxKey []byte, idxName string) error {
 		}
 
 		err = meta.DeleteBucket(idxKey)
-		if err != nil && !database.IsError(err, database.ErrBucketNotFound) {
+		if !errors.Is(err, database.ErrBucketNotFound) {
 			return err
 		}
 
