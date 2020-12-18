@@ -1,5 +1,5 @@
 // Copyright (c) 2016 The btcsuite developers
-// Copyright (c) 2016-2019 The Decred developers
+// Copyright (c) 2016-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -217,21 +217,16 @@ func dbFetchTxIndexEntry(dbTx database.Tx, txHash *chainhash.Hash) (*TxIndexEntr
 
 	// Ensure the serialized data has enough bytes to properly deserialize.
 	if len(serializedData) < txEntrySize {
-		return nil, database.Error{
-			ErrorCode: database.ErrCorruption,
-			Description: fmt.Sprintf("corrupt transaction index "+
-				"entry for %s", txHash),
-		}
+		str := fmt.Sprintf("corrupt transaction index entry for %s", txHash)
+		return nil, makeDbErr(database.ErrCorruption, str)
 	}
 
 	// Load the block hash associated with the block ID.
 	hash, err := dbFetchBlockHashBySerializedID(dbTx, serializedData[0:4])
 	if err != nil {
-		return nil, database.Error{
-			ErrorCode: database.ErrCorruption,
-			Description: fmt.Sprintf("corrupt transaction index "+
-				"entry for %s: %v", txHash, err),
-		}
+		str := fmt.Sprintf("corrupt transaction index entry for %s: %v",
+			txHash, err)
+		return nil, makeDbErr(database.ErrCorruption, str)
 	}
 
 	// Deserialize the final entry.

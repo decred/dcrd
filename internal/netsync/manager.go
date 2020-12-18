@@ -991,9 +991,7 @@ func (m *SyncManager) handleBlockMsg(bmsg *blockMsg) {
 		} else {
 			log.Errorf("Failed to process block %v: %v", blockHash, err)
 		}
-		var dbErr database.Error
-		if errors.As(err, &dbErr) && dbErr.ErrorCode ==
-			database.ErrCorruption {
+		if errors.Is(err, database.ErrCorruption) {
 			log.Errorf("Critical failure: %v", err)
 		}
 

@@ -1,5 +1,5 @@
 // Copyright (c) 2015-2016 The btcsuite developers
-// Copyright (c) 2016-2019 The Decred developers
+// Copyright (c) 2016-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -40,7 +40,7 @@ func deserializeWriteRow(writeRow []byte) (uint32, uint32, error) {
 		str := fmt.Sprintf("metadata for write cursor does not match "+
 			"the expected checksum - got %d, want %d", gotChecksum,
 			wantChecksum)
-		return 0, 0, makeDbErr(database.ErrCorruption, str, nil)
+		return 0, 0, makeDbErr(database.ErrCorruption, str)
 	}
 
 	fileNum := byteOrder.Uint32(writeRow[0:4])
@@ -65,7 +65,7 @@ func reconcileDB(pdb *db, create bool) (database.DB, error) {
 		writeRow := tx.Metadata().Get(writeLocKeyName)
 		if writeRow == nil {
 			str := "write cursor does not exist"
-			return makeDbErr(database.ErrCorruption, str, nil)
+			return makeDbErr(database.ErrCorruption, str)
 		}
 
 		var err error
@@ -111,7 +111,7 @@ func reconcileDB(pdb *db, create bool) (database.DB, error) {
 			"block data is at file %d, offset %d", curFileNum,
 			curOffset, wc.curFileNum, wc.curOffset)
 		log.Warnf("***Database corruption detected***: %v", str)
-		return nil, makeDbErr(database.ErrCorruption, str, nil)
+		return nil, makeDbErr(database.ErrCorruption, str)
 	}
 
 	return pdb, nil

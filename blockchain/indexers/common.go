@@ -168,3 +168,8 @@ type internalBucket interface {
 func interruptRequested(ctx context.Context) bool {
 	return ctx.Err() != nil
 }
+
+// makeDbErr creates a database.Error given a set of arguments.
+func makeDbErr(kind database.ErrorKind, desc string) database.Error {
+	return database.Error{Err: kind, Description: desc}
+}

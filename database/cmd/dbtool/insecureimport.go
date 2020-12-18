@@ -377,10 +377,7 @@ func (cmd *importCmd) Execute(args []string) error {
 		resultsChan := importer.Import()
 		results := <-resultsChan
 		if results.err != nil {
-			var dbErr database.Error
-			if !errors.As(results.err, &dbErr) ||
-				dbErr.ErrorCode != database.ErrDbNotOpen {
-
+			if !errors.Is(results.err, database.ErrDbNotOpen) {
 				shutdownChannel <- results.err
 				return
 			}

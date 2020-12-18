@@ -14,19 +14,12 @@ import (
 	_ "github.com/decred/dcrd/database/v2/ffldb"
 )
 
-// checkDbError ensures the passed error is a database.Error with an error code
-// that matches the passed error code.
-func checkDbError(t *testing.T, testName string, gotErr error, wantErrCode database.ErrorCode) bool {
-	var dbErr database.Error
-	if !errors.As(gotErr, &dbErr) {
-		t.Errorf("%s: unexpected error type - got %T, want %T",
-			testName, gotErr, database.Error{})
-		return false
-	}
-	if dbErr.ErrorCode != wantErrCode {
-		t.Errorf("%s: unexpected error code - got %s (%s), want %s",
-			testName, dbErr.ErrorCode, dbErr.Description,
-			wantErrCode)
+// checkDbError ensures the passed error is an Error that matches the passed
+// error kind.
+func checkDbError(t *testing.T, testName string, gotErr error, wantErr database.ErrorKind) bool {
+	if !errors.Is(gotErr, wantErr) {
+		t.Errorf("%s: unexpected error - got %v, want %v",
+			testName, gotErr, wantErr)
 		return false
 	}
 

@@ -141,10 +141,7 @@ func loadBlockDB(params *chaincfg.Params) (database.DB, error) {
 	db, err := database.Open(cfg.DbType, dbPath, params.Net)
 	if err != nil {
 		// Return the error if it's not because the database doesn't exist.
-		var dbErr database.Error
-		if !errors.As(err, &dbErr) || dbErr.ErrorCode !=
-			database.ErrDbDoesNotExist {
-
+		if !errors.Is(err, database.ErrDbDoesNotExist) {
 			return nil, err
 		}
 

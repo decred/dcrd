@@ -131,6 +131,11 @@ func isDeserializeErr(err error) bool {
 	return errors.As(err, &e)
 }
 
+// makeDbErr creates a database.Error given a set of arguments.
+func makeDbErr(kind database.ErrorKind, desc string) database.Error {
+	return database.Error{Err: kind, Description: desc}
+}
+
 // -----------------------------------------------------------------------------
 // The staking system requires some extra information to be stored for tickets
 // to maintain consensus rules. The full set of minimal outputs are thus required
@@ -812,12 +817,9 @@ func dbFetchSpendJournalEntry(dbTx database.Tx, block *dcrutil.Block, isTreasury
 		// Ensure any deserialization errors are returned as database
 		// corruption errors.
 		if isDeserializeErr(err) {
-			return nil, database.Error{
-				ErrorCode: database.ErrCorruption,
-				Description: fmt.Sprintf("corrupt spend "+
-					"information for %v: %v", block.Hash(),
-					err),
-			}
+			str := fmt.Sprintf("corrupt spend information for %v: %v",
+				block.Hash(), err)
+			return nil, makeDbErr(database.ErrCorruption, str)
 		}
 
 		return nil, err
@@ -1185,11 +1187,8 @@ func dbFetchUtxoEntry(dbTx database.Tx, hash *chainhash.Hash) (*UtxoEntry, error
 		// Ensure any deserialization errors are returned as database
 		// corruption errors.
 		if isDeserializeErr(err) {
-			return nil, database.Error{
-				ErrorCode: database.ErrCorruption,
-				Description: fmt.Sprintf("corrupt utxo entry "+
-					"for %v: %v", hash, err),
-			}
+			str := fmt.Sprintf("corrupt utxo entry for %v: %v", hash, err)
+			return nil, makeDbErr(database.ErrCorruption, str)
 		}
 
 		return nil, err
@@ -1232,11 +1231,8 @@ func dbFetchUtxoStats(dbTx database.Tx) (*UtxoStats, error) {
 			// Ensure any deserialization errors are returned as database
 			// corruption errors.
 			if isDeserializeErr(err) {
-				return nil, database.Error{
-					ErrorCode: database.ErrCorruption,
-					Description: fmt.Sprintf("corrupt utxo entry "+
-						"for %v: %v", hash, err),
-				}
+				str := fmt.Sprintf("corrupt utxo entry for %v: %v", hash, err)
+				return nil, makeDbErr(database.ErrCorruption, str)
 			}
 
 			return nil, err
@@ -1333,11 +1329,8 @@ func dbFetchGCSFilter(dbTx database.Tx, blockHash *chainhash.Hash) (*gcs.FilterV
 
 	filter, err := gcs.FromBytesV2(blockcf2.B, blockcf2.M, serialized)
 	if err != nil {
-		return nil, database.Error{
-			ErrorCode: database.ErrCorruption,
-			Description: fmt.Sprintf("corrupt filter for %v: %v", blockHash,
-				err),
-		}
+		str := fmt.Sprintf("corrupt filter for %v: %v", blockHash, err)
+		return nil, makeDbErr(database.ErrCorruption, str)
 	}
 
 	return filter, nil
@@ -1529,11 +1522,9 @@ func deserializeBestChainState(serializedData []byte) (bestChainState, error) {
 	// and work sum length.
 	expectedMinLen := chainhash.HashSize + 4 + 8 + 8 + 4
 	if len(serializedData) < expectedMinLen {
-		return bestChainState{}, database.Error{
-			ErrorCode: database.ErrCorruption,
-			Description: fmt.Sprintf("corrupt best chain state size; min %v "+
-				"got %v", expectedMinLen, len(serializedData)),
-		}
+		str := fmt.Sprintf("corrupt best chain state size; min %v got %v",
+			expectedMinLen, len(serializedData))
+		return bestChainState{}, makeDbErr(database.ErrCorruption, str)
 	}
 
 	state := bestChainState{}
@@ -1554,11 +1545,9 @@ func deserializeBestChainState(serializedData []byte) (bestChainState, error) {
 	// Ensure the serialized data has enough bytes to deserialize the work
 	// sum.
 	if uint32(len(serializedData[offset:])) < workSumBytesLen {
-		return bestChainState{}, database.Error{
-			ErrorCode: database.ErrCorruption,
-			Description: fmt.Sprintf("corrupt work sum size; want %v "+
-				"got %v", workSumBytesLen, uint32(len(serializedData[offset:]))),
-		}
+		str := fmt.Sprintf("corrupt work sum size; want %v got %v",
+			workSumBytesLen, uint32(len(serializedData[offset:])))
+		return bestChainState{}, makeDbErr(database.ErrCorruption, str)
 	}
 	workSumBytes := serializedData[offset : offset+workSumBytesLen]
 	state.workSum = new(big.Int).SetBytes(workSumBytes)

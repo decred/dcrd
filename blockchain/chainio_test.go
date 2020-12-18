@@ -1435,44 +1435,32 @@ func TestBestChainStateDeserializeErrors(t *testing.T) {
 	tests := []struct {
 		name       string
 		serialized []byte
-		errType    error
+		err        error
 	}{
 		{
 			name:       "nothing serialized",
 			serialized: hexToBytes(""),
-			errType:    database.Error{ErrorCode: database.ErrCorruption},
+			err:        database.ErrCorruption,
 		},
 		{
 			name:       "short data in hash",
 			serialized: hexToBytes("0000"),
-			errType:    database.Error{ErrorCode: database.ErrCorruption},
+			err:        database.ErrCorruption,
 		},
 		{
 			name:       "short data in work sum",
 			serialized: hexToBytes("6fe28c0ab6f1b372c1a6a246ae63f74f931e8365e15a089c68d61900000000000000000001000000000000000500000001000100"),
-			errType:    database.Error{ErrorCode: database.ErrCorruption},
+			err:        database.ErrCorruption,
 		},
 	}
 
 	for _, test := range tests {
 		// Ensure the expected error type and code is returned.
 		_, err := deserializeBestChainState(test.serialized)
-		if !errors.As(err, &test.errType) {
-			t.Errorf("deserializeBestChainState (%s): expected "+
-				"error type does not match - got %T, want %T",
-				test.name, err, test.errType)
+		if !errors.Is(err, test.err) {
+			t.Errorf("deserializeBestChainState (%s): wrong error code "+
+				"got: %v, want: %v", test.name, err, test.err)
 			continue
-		}
-		var derr database.Error
-		if errors.As(err, &derr) {
-			var tderr database.Error
-			if !errors.As(test.errType, &tderr) || derr.ErrorCode != tderr.ErrorCode {
-				t.Errorf("deserializeBestChainState (%s): "+
-					"wrong  error code got: %v, want: %v",
-					test.name, derr.ErrorCode,
-					tderr.ErrorCode)
-				continue
-			}
 		}
 	}
 }

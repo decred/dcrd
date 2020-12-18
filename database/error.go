@@ -5,203 +5,155 @@
 
 package database
 
-import (
-	"errors"
-	"fmt"
-)
-
-// ErrorCode identifies a kind of error.
-type ErrorCode int
+// ErrorKind identifies a kind of error.  It has full support for errors.Is and
+// errors.As, so the caller can directly check against an error kind when
+// determining the reason for an error.
+type ErrorKind string
 
 // These constants are used to identify a specific database Error.
 const (
-	// **************************************
+	// ------------------------------------------
 	// Errors related to driver registration.
-	// **************************************
+	// ------------------------------------------
 
 	// ErrDbTypeRegistered indicates two different database drivers
 	// attempt to register with the name database type.
-	ErrDbTypeRegistered ErrorCode = iota
+	ErrDbTypeRegistered = ErrorKind("ErrDbTypeRegistered")
 
-	// *************************************
+	// ------------------------------------------
 	// Errors related to database functions.
-	// *************************************
+	// ------------------------------------------
 
 	// ErrDbUnknownType indicates there is no driver registered for
 	// the specified database type.
-	ErrDbUnknownType
+	ErrDbUnknownType = ErrorKind("ErrDbUnknownType")
 
 	// ErrDbDoesNotExist indicates open is called for a database that
 	// does not exist.
-	ErrDbDoesNotExist
+	ErrDbDoesNotExist = ErrorKind("ErrDbDoesNotExist")
 
 	// ErrDbExists indicates create is called for a database that
 	// already exists.
-	ErrDbExists
+	ErrDbExists = ErrorKind("ErrDbExists")
 
 	// ErrDbNotOpen indicates a database instance is accessed before
 	// it is opened or after it is closed.
-	ErrDbNotOpen
+	ErrDbNotOpen = ErrorKind("ErrDbNotOpen")
 
 	// ErrDbAlreadyOpen indicates open was called on a database that
 	// is already open.
-	ErrDbAlreadyOpen
+	ErrDbAlreadyOpen = ErrorKind("ErrDbAlreadyOpen")
 
 	// ErrInvalid indicates the specified database is not valid.
-	ErrInvalid
+	ErrInvalid = ErrorKind("ErrInvalid")
 
 	// ErrCorruption indicates a checksum failure occurred which invariably
 	// means the database is corrupt.
-	ErrCorruption
+	ErrCorruption = ErrorKind("ErrCorruption")
 
-	// ****************************************
+	// ------------------------------------------
 	// Errors related to database transactions.
-	// ****************************************
+	// ------------------------------------------
 
 	// ErrTxClosed indicates an attempt was made to commit or rollback a
 	// transaction that has already had one of those operations performed.
-	ErrTxClosed
+	ErrTxClosed = ErrorKind("ErrTxClosed")
 
 	// ErrTxNotWritable indicates an operation that requires write access to
 	// the database was attempted against a read-only transaction.
-	ErrTxNotWritable
+	ErrTxNotWritable = ErrorKind("ErrTxNotWritable")
 
-	// **************************************
+	// ------------------------------------------
 	// Errors related to metadata operations.
-	// **************************************
+	// ------------------------------------------
 
 	// ErrBucketNotFound indicates an attempt to access a bucket that has
 	// not been created yet.
-	ErrBucketNotFound
+	ErrBucketNotFound = ErrorKind("ErrBucketNotFound")
 
 	// ErrBucketExists indicates an attempt to create a bucket that already
 	// exists.
-	ErrBucketExists
+	ErrBucketExists = ErrorKind("ErrBucketExists")
 
 	// ErrBucketNameRequired indicates an attempt to create a bucket with a
 	// blank name.
-	ErrBucketNameRequired
+	ErrBucketNameRequired = ErrorKind("ErrBucketNameRequired")
 
 	// ErrKeyRequired indicates at attempt to insert a zero-length key.
-	ErrKeyRequired
+	ErrKeyRequired = ErrorKind("ErrKeyRequired")
 
 	// ErrKeyTooLarge indicates an attempt to insert a key that is larger
 	// than the max allowed key size.  The max key size depends on the
 	// specific backend driver being used.  As a general rule, key sizes
 	// should be relatively, so this should rarely be an issue.
-	ErrKeyTooLarge
+	ErrKeyTooLarge = ErrorKind("ErrKeyTooLarge")
 
 	// ErrValueTooLarge indicates an attempt to insert a value that is
 	// larger than max allowed value size.  The max key size depends on the
 	// specific backend driver being used.
-	ErrValueTooLarge
+	ErrValueTooLarge = ErrorKind("ErrValueTooLarge")
 
 	// ErrIncompatibleValue indicates the value in question is invalid for
 	// the specific requested operation.  For example, trying create or
 	// delete a bucket with an existing non-bucket key, attempting to create
 	// or delete a non-bucket key with an existing bucket key, or trying to
 	// delete a value via a cursor when it points to a nested bucket.
-	ErrIncompatibleValue
+	ErrIncompatibleValue = ErrorKind("ErrIncompatibleValue")
 
-	// ***************************************
+	// ------------------------------------------
 	// Errors related to block I/O operations.
-	// ***************************************
+	// ------------------------------------------
 
 	// ErrBlockNotFound indicates a block with the provided hash does not
 	// exist in the database.
-	ErrBlockNotFound
+	ErrBlockNotFound = ErrorKind("ErrBlockNotFound")
 
 	// ErrBlockExists indicates a block with the provided hash already
 	// exists in the database.
-	ErrBlockExists
+	ErrBlockExists = ErrorKind("ErrBlockExists")
 
 	// ErrBlockRegionInvalid indicates a region that exceeds the bounds of
 	// the specified block was requested.  When the hash provided by the
 	// region does not correspond to an existing block, the error will be
 	// ErrBlockNotFound instead.
-	ErrBlockRegionInvalid
+	ErrBlockRegionInvalid = ErrorKind("ErrBlockRegionInvalid")
 
-	// ***********************************
+	// ------------------------------------------
 	// Support for driver-specific errors.
-	// ***********************************
+	// ------------------------------------------
 
 	// ErrDriverSpecific indicates the Err field is a driver-specific error.
 	// This provides a mechanism for drivers to plug-in their own custom
 	// errors for any situations which aren't already covered by the error
 	// codes provided by this package.
-	ErrDriverSpecific
-
-	// numErrorCodes is the maximum error code number used in tests.
-	numErrorCodes
+	ErrDriverSpecific = ErrorKind("ErrDriverSpecific")
 )
 
-// Map of ErrorCode values back to their constant names for pretty printing.
-var errorCodeStrings = map[ErrorCode]string{
-	ErrDbTypeRegistered:   "ErrDbTypeRegistered",
-	ErrDbUnknownType:      "ErrDbUnknownType",
-	ErrDbDoesNotExist:     "ErrDbDoesNotExist",
-	ErrDbExists:           "ErrDbExists",
-	ErrDbNotOpen:          "ErrDbNotOpen",
-	ErrDbAlreadyOpen:      "ErrDbAlreadyOpen",
-	ErrInvalid:            "ErrInvalid",
-	ErrCorruption:         "ErrCorruption",
-	ErrTxClosed:           "ErrTxClosed",
-	ErrTxNotWritable:      "ErrTxNotWritable",
-	ErrBucketNotFound:     "ErrBucketNotFound",
-	ErrBucketExists:       "ErrBucketExists",
-	ErrBucketNameRequired: "ErrBucketNameRequired",
-	ErrKeyRequired:        "ErrKeyRequired",
-	ErrKeyTooLarge:        "ErrKeyTooLarge",
-	ErrValueTooLarge:      "ErrValueTooLarge",
-	ErrIncompatibleValue:  "ErrIncompatibleValue",
-	ErrBlockNotFound:      "ErrBlockNotFound",
-	ErrBlockExists:        "ErrBlockExists",
-	ErrBlockRegionInvalid: "ErrBlockRegionInvalid",
-	ErrDriverSpecific:     "ErrDriverSpecific",
+// Error satisfies the error interface and prints human-readable errors.
+func (e ErrorKind) Error() string {
+	return string(e)
 }
 
-// String returns the ErrorCode as a human-readable name.
-func (e ErrorCode) String() string {
-	if s := errorCodeStrings[e]; s != "" {
-		return s
-	}
-	return fmt.Sprintf("Unknown ErrorCode (%d)", int(e))
-}
-
-// Error provides a single type for errors that can happen during database
-// operation.  It is used to indicate several types of failures including errors
-// with caller requests such as specifying invalid block regions or attempting
-// to access data against closed database transactions, driver errors, errors
-// retrieving data, and errors communicating with database servers.
-//
-// The caller can use type assertions to determine if an error is an Error and
-// access the ErrorCode field to ascertain the specific reason for the failure.
-//
-// The ErrDriverSpecific error code will also have the Err field set with the
-// underlying error.  Depending on the backend driver, the Err field might be
-// set to the underlying error for other error codes as well.
+// Error identifies an error related to database operation. It has
+// full support for errors.Is and errors.As, so the caller can ascertain the
+// specific reason for the error by checking the underlying error.
 type Error struct {
-	ErrorCode   ErrorCode // Describes the kind of error
-	Description string    // Human readable description of the issue
-	Err         error     // Underlying error
+	Err         error
+	RawErr      error
+	Description string
 }
 
 // Error satisfies the error interface and prints human-readable errors.
 func (e Error) Error() string {
-	if e.Err != nil {
-		return e.Description + ": " + e.Err.Error()
-	}
 	return e.Description
 }
 
-// makeError creates an Error given a set of arguments.  The error code must
-// be one of the error codes provided by this package.
-func makeError(c ErrorCode, desc string, err error) Error {
-	return Error{ErrorCode: c, Description: desc, Err: err}
+// Unwrap returns the underlying wrapped error.
+func (e Error) Unwrap() error {
+	return e.Err
 }
 
-// IsError returns whether err is an Error with a matching error code.
-func IsError(err error, code ErrorCode) bool {
-	var e Error
-	return errors.As(err, &e) && e.ErrorCode == code
+// makeError creates an Error given a set of arguments.
+func makeError(kind ErrorKind, desc string) Error {
+	return Error{Err: kind, Description: desc}
 }
