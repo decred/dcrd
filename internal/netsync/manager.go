@@ -248,7 +248,7 @@ type SyncManager struct {
 
 	// The following fields are used to track whether or not the manager
 	// believes it is fully synced to the network.
-	isCurrentMtx sync.RWMutex
+	isCurrentMtx sync.Mutex
 	isCurrent    bool
 }
 
@@ -826,6 +826,25 @@ func (m *SyncManager) addOrphanBlock(block *dcrutil.Block) {
 	m.prevOrphans[*prevHash] = append(m.prevOrphans[*prevHash], oBlock)
 }
 
+// maybeUpdateIsCurrent potentially updates the manager to signal it believes the
+// chain is considered synced.
+//
+// This function MUST be called with the is current mutex held (for writes).
+func (m *SyncManager) maybeUpdateIsCurrent() {
+	// Nothing to do when already considered synced.
+	if m.isCurrent {
+		return
+	}
+
+	// The chain is considered synced once both the blockchain believes it is
+	// current and the sync height is reached or exceeded.
+	best := m.cfg.Chain.BestSnapshot()
+	syncHeight := m.SyncHeight()
+	if best.Height >= syncHeight && m.cfg.Chain.IsCurrent() {
+		m.isCurrent = true
+	}
+}
+
 // processOrphans determines if there are any orphans which depend on the passed
 // block hash (they are no longer orphans if true) and potentially accepts them.
 // It repeats the process for the newly accepted blocks (to detect further
@@ -870,6 +889,9 @@ func (m *SyncManager) processOrphans(hash *chainhash.Hash, flags blockchain.Beha
 			if err != nil {
 				return err
 			}
+			m.isCurrentMtx.Lock()
+			m.maybeUpdateIsCurrent()
+			m.isCurrentMtx.Unlock()
 
 			// Add this block to the list of blocks to process so any orphan
 			// blocks that depend on this block are handled too.
@@ -909,21 +931,14 @@ func (m *SyncManager) processBlockAndOrphans(block *dcrutil.Block, flags blockch
 	if err != nil {
 		return 0, false, err
 	}
+	m.isCurrentMtx.Lock()
+	m.maybeUpdateIsCurrent()
+	m.isCurrentMtx.Unlock()
 
 	// Accept any orphan blocks that depend on this block (they are no longer
 	// orphans) and repeat for those accepted blocks until there are no more.
 	if err := m.processOrphans(blockHash, flags); err != nil {
 		return 0, false, err
-	}
-
-	// The chain is considered synced once both the blockchain believes it is
-	// current and the sync height is reached or exceeded.
-	best := m.cfg.Chain.BestSnapshot()
-	syncHeight := m.SyncHeight()
-	if best.Height >= syncHeight && m.cfg.Chain.IsCurrent() {
-		m.isCurrentMtx.Lock()
-		m.isCurrent = true
-		m.isCurrentMtx.Unlock()
 	}
 
 	return forkLen, false, nil
@@ -1932,9 +1947,10 @@ func (m *SyncManager) ProcessTransaction(tx *dcrutil.Tx, allowOrphans bool,
 //
 // This function is safe for concurrent access.
 func (m *SyncManager) IsCurrent() bool {
-	m.isCurrentMtx.RLock()
+	m.isCurrentMtx.Lock()
+	m.maybeUpdateIsCurrent()
 	isCurrent := m.isCurrent
-	m.isCurrentMtx.RUnlock()
+	m.isCurrentMtx.Unlock()
 	return isCurrent
 }
 
