@@ -769,30 +769,6 @@ func (b *BlockChain) isTreasuryAgendaActive(prevNode *blockNode) (bool, error) {
 	return state.State == ThresholdActive, nil
 }
 
-// isTreasuryAgendaActiveByHash returns whether or not the treasury agenda vote,
-// as defined in DCP0006, has passed and is now active for the block AFTER the
-// given block.
-//
-// NOTE: Unlike IsTreasuryAgendaActive, this version returns false to indicate
-// the it is not active in the case the hash is not found instead of an error.
-//
-// This is necessary because this particular version is needed before the full
-// context is available.
-//
-// This function MUST be called with the chain state lock held (for writes).
-func (b *BlockChain) isTreasuryAgendaActiveByHash(prevHash *chainhash.Hash) (bool, error) {
-	// NOTE: The requirement for the node being fully validated here is strictly
-	// stronger than what is actually required.  In reality, all that is needed
-	// is for the block data for the node and all of its ancestors to be
-	// available, but there is not currently any tracking to be able to
-	// efficiently determine that state.
-	prevNode := b.index.LookupNode(prevHash)
-	if prevNode == nil {
-		return false, nil // Not found means not active.
-	}
-	return b.isTreasuryAgendaActive(prevNode)
-}
-
 // IsTreasuryAgendaActive returns whether or not the treasury agenda vote, as
 // defined in DCP0006, has passed and is now active for the block AFTER the
 // given block.
