@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2014 The btcsuite developers
-// Copyright (c) 2015-2016 The Decred developers
+// Copyright (c) 2015-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -59,7 +59,7 @@ Errors returned by this package are either the raw errors provided by underlying
 calls or of type blockchain.RuleError.  This allows the caller to differentiate
 between unexpected errors, such as database errors, versus errors due to rule
 violations through type assertions.  In addition, callers can programmatically
-determine the specific rule violation by examining the ErrorCode field of the
+determine the specific rule violation by examining the Errorkind field of the
 type asserted blockchain.RuleError.
 */
 package blockchain

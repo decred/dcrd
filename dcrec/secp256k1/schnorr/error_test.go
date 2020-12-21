@@ -61,7 +61,7 @@ func TestError(t *testing.T) {
 
 // TestErrorKindIsAs ensures both ErrorKind and Error can be identified
 // as being a specific error via errors.Is and unwrapped via errors.As.
-func TestErrorCodeIsAs(t *testing.T) {
+func TestErrorKindIsAs(t *testing.T) {
 	tests := []struct {
 		name      string
 		err       error

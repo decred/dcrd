@@ -34,9 +34,9 @@ Errors
 
 Errors returned by this package are of type ecdsa.Error and fully support the
 standard library errors.Is and errors.As functions.  This allows the caller to
-programmatically determine the specific error by examining the ErrorCode field
+programmatically determine the specific error by examining the ErrorKind field
 of the type asserted ecdsa.Error while still providing rich error messages with
-contextual information.  See ErrorCode in the package documentation for a full
+contextual information.  See ErrorKind in the package documentation for a full
 list.
 */
 package ecdsa

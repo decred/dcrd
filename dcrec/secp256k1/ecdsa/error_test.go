@@ -10,7 +10,7 @@ import (
 )
 
 // TestErrorKindStringer tests the stringized output for the ErrorKind type.
-func TestErrorCodeStringer(t *testing.T) {
+func TestErrorKindStringer(t *testing.T) {
 	tests := []struct {
 		in   ErrorKind
 		want string
