@@ -80,6 +80,6 @@ consensus acceptance rules.  This allows the caller to easily differentiate
 between unexpected errors, such as database errors, versus errors due to rule
 violations through type assertions.  In addition, callers can programmatically
 determine the specific rule violation by type asserting the Err field to one of
-the aforementioned types and examining their underlying ErrorCode field.
+the aforementioned types and examining their underlying ErrorKind field.
 */
 package mempool
