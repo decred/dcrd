@@ -788,7 +788,7 @@ func (g *BlkTmplGenerator) handleTooFewVoters(nextHeight int64, miningAddress dc
 		topBlock, err := g.cfg.BlockByHash(&best.Hash)
 		if err != nil {
 			str := fmt.Sprintf("unable to get tip block %s", best.PrevHash)
-			return nil, miningRuleError(ErrGetTopBlock, str)
+			return nil, makeError(ErrGetTopBlock, str)
 		}
 		tipHeader := &topBlock.MsgBlock().Header
 
@@ -840,8 +840,7 @@ func (g *BlkTmplGenerator) handleTooFewVoters(nextHeight int64, miningAddress dc
 
 			requiredDifficulty, err := g.cfg.CalcNextRequiredDifficulty(&parentHash, ts)
 			if err != nil {
-				return nil, miningRuleError(ErrGettingDifficulty,
-					err.Error())
+				return nil, makeError(ErrGettingDifficulty, err.Error())
 			}
 
 			block.Header.Bits = requiredDifficulty
@@ -878,14 +877,14 @@ func (g *BlkTmplGenerator) handleTooFewVoters(nextHeight int64, miningAddress dc
 			if err != nil {
 				str := fmt.Sprintf("failed to fetch inputs when making new "+
 					"block template: %v", err)
-				return nil, miningRuleError(ErrFetchTxStore, str)
+				return nil, makeError(ErrFetchTxStore, str)
 			}
 
 			cmtRoot, err = calcBlockCommitmentRootV1(&block, blockUtxos)
 			if err != nil {
 				str := fmt.Sprintf("failed to calculate commitment root for "+
 					"block when making new block template: %v", err)
-				return nil, miningRuleError(ErrCalcCommitmentRoot, str)
+				return nil, makeError(ErrCalcCommitmentRoot, str)
 			}
 		} else {
 			cmtRoot = standalone.CalcTxTreeMerkleRoot(block.STransactions)
@@ -898,7 +897,7 @@ func (g *BlkTmplGenerator) handleTooFewVoters(nextHeight int64, miningAddress dc
 		if err != nil {
 			str := fmt.Sprintf("failed to check template: %v while "+
 				"constructing a new parent", err.Error())
-			return nil, miningRuleError(ErrCheckConnectBlock, str)
+			return nil, makeError(ErrCheckConnectBlock, str)
 		}
 
 		return bt, nil
@@ -1070,7 +1069,7 @@ func (g *BlkTmplGenerator) NewBlockTemplate(payToAddress dcrutil.Address) (*Bloc
 		// Obtain the entire generation of blocks stemming from this parent.
 		children, err := g.cfg.TipGeneration()
 		if err != nil {
-			return nil, miningRuleError(ErrFailedToGetGeneration, err.Error())
+			return nil, makeError(ErrFailedToGetGeneration, err.Error())
 		}
 
 		// Get the list of blocks that we can actually build on top of. If we're
@@ -1780,7 +1779,7 @@ nextPriorityQueueItem:
 	err = g.cfg.CheckTicketExhaustion(&best.Hash, uint8(freshStake))
 	if err != nil {
 		log.Debug(err)
-		return nil, miningRuleError(ErrTicketExhaustion, err.Error())
+		return nil, makeError(ErrTicketExhaustion, err.Error())
 	}
 
 	// Get the ticket revocations (SSRtx tx) and store them and their
@@ -1934,7 +1933,7 @@ nextPriorityQueueItem:
 	ts := g.medianAdjustedTime()
 	reqDifficulty, err := g.cfg.CalcNextRequiredDifficulty(&prevHash, ts)
 	if err != nil {
-		return nil, miningRuleError(ErrGettingDifficulty, err.Error())
+		return nil, makeError(ErrGettingDifficulty, err.Error())
 	}
 
 	// Return nil if we don't yet have enough voters; sometimes it takes a
@@ -1964,7 +1963,7 @@ nextPriorityQueueItem:
 		if err != nil {
 			str := fmt.Sprintf("failed to fetch input utxs for tx %v: %s",
 				tx.Hash(), err.Error())
-			return nil, miningRuleError(ErrFetchTxStore, str)
+			return nil, makeError(ErrFetchTxStore, str)
 		}
 
 		// Copy the transaction and swap the pointer.
@@ -2018,7 +2017,7 @@ nextPriorityQueueItem:
 					str := fmt.Sprintf("failed find hash in tx list "+
 						"for fraud proof; tx in hash %v",
 						txIn.PreviousOutPoint.Hash)
-					return nil, miningRuleError(ErrFraudProofIndex, str)
+					return nil, makeError(ErrFraudProofIndex, str)
 				}
 			}
 		}
@@ -2060,14 +2059,14 @@ nextPriorityQueueItem:
 
 	for _, tx := range blockTxnsRegular {
 		if err := msgBlock.AddTransaction(tx.MsgTx()); err != nil {
-			return nil, miningRuleError(ErrTransactionAppend, err.Error())
+			return nil, makeError(ErrTransactionAppend, err.Error())
 		}
 	}
 
 	totalTreasuryOps := 0
 	for _, tx := range blockTxnsStake {
 		if err := msgBlock.AddSTransaction(tx.MsgTx()); err != nil {
-			return nil, miningRuleError(ErrTransactionAppend, err.Error())
+			return nil, makeError(ErrTransactionAppend, err.Error())
 		}
 		// While in this loop count treasury operations.
 		if isTreasuryEnabled {
@@ -2096,7 +2095,7 @@ nextPriorityQueueItem:
 		if err != nil {
 			str := fmt.Sprintf("failed to calculate commitment root for block "+
 				"when making new block template: %v", err)
-			return nil, miningRuleError(ErrCalcCommitmentRoot, str)
+			return nil, makeError(ErrCalcCommitmentRoot, str)
 		}
 	} else {
 		cmtRoot = standalone.CalcTxTreeMerkleRoot(msgBlock.STransactions)
@@ -2114,7 +2113,7 @@ nextPriorityQueueItem:
 		str := fmt.Sprintf("failed to do final check for check connect "+
 			"block when making new block template: %v",
 			err.Error())
-		return nil, miningRuleError(ErrCheckConnectBlock, str)
+		return nil, makeError(ErrCheckConnectBlock, str)
 	}
 
 	log.Debugf("Created new block template (%d transactions, %d stake "+
@@ -2156,7 +2155,7 @@ func (g *BlkTmplGenerator) UpdateBlockTime(header *wire.BlockHeader) error {
 		difficulty, err := g.cfg.CalcNextRequiredDifficulty(&header.PrevBlock,
 			newTimestamp)
 		if err != nil {
-			return miningRuleError(ErrGettingDifficulty, err.Error())
+			return makeError(ErrGettingDifficulty, err.Error())
 		}
 		header.Bits = difficulty
 	}
