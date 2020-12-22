@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	dcrdtypes "github.com/decred/dcrd/rpc/jsonrpc/types/v2"
+	dcrdtypes "github.com/decred/dcrd/rpc/jsonrpc/types/v3"
 	"github.com/decred/dcrd/rpcclient/v7"
 )
 

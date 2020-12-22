@@ -48,7 +48,7 @@ import (
 	"github.com/decred/dcrd/internal/mempool"
 	"github.com/decred/dcrd/internal/mining"
 	"github.com/decred/dcrd/internal/version"
-	"github.com/decred/dcrd/rpc/jsonrpc/types/v2"
+	"github.com/decred/dcrd/rpc/jsonrpc/types/v3"
 	"github.com/decred/dcrd/txscript/v4"
 	"github.com/decred/dcrd/wire"
 	"github.com/jrick/bitset"

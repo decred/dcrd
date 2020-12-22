@@ -18,7 +18,7 @@ import (
 	"github.com/decred/dcrd/gcs/v3"
 	"github.com/decred/dcrd/gcs/v3/blockcf"
 	"github.com/decred/dcrd/gcs/v3/blockcf2"
-	chainjson "github.com/decred/dcrd/rpc/jsonrpc/types/v2"
+	chainjson "github.com/decred/dcrd/rpc/jsonrpc/types/v3"
 	"github.com/decred/dcrd/wire"
 )
 
