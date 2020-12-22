@@ -12,7 +12,7 @@ import (
 	"sync"
 
 	"github.com/decred/dcrd/dcrjson/v3"
-	"github.com/decred/dcrd/rpc/jsonrpc/types/v2"
+	"github.com/decred/dcrd/rpc/jsonrpc/types/v3"
 )
 
 // helpDescsEnUS defines the English descriptions used for the help strings.
