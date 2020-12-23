@@ -907,9 +907,8 @@ func (b *BlockChain) checkBlockHeaderPositional(header *wire.BlockHeader, prevNo
 		expDiff := b.calcNextRequiredDifficulty(prevNode, header.Timestamp)
 		blockDifficulty := header.Bits
 		if blockDifficulty != expDiff {
-			str := fmt.Sprintf("block difficulty of %d is not the"+
-				" expected value of %d", blockDifficulty,
-				expDiff)
+			str := fmt.Sprintf("block difficulty of %d is not the "+
+				"expected value of %d", blockDifficulty, expDiff)
 			return ruleError(ErrUnexpectedDifficulty, str)
 		}
 
@@ -936,23 +935,27 @@ func (b *BlockChain) checkBlockHeaderPositional(header *wire.BlockHeader, prevNo
 		return ruleError(ErrBadBlockHeight, errStr)
 	}
 
-	// Ensure chain matches up to predetermined checkpoints.
-	blockHash := header.BlockHash()
-	if !b.verifyCheckpoint(blockHeight, &blockHash) {
-		str := fmt.Sprintf("block at height %d does not match "+
-			"checkpoint hash", blockHeight)
-		return ruleError(ErrBadCheckpoint, str)
-	}
-
 	// Prevent blocks that fork the main chain before the most recently known
 	// checkpoint.  This prevents storage of new, otherwise valid, blocks which
 	// build off of old blocks that are likely at a much easier difficulty and
 	// therefore could be used to waste cache and disk space.
-	if b.checkpointNode != nil && blockHeight < b.checkpointNode.height {
-		str := fmt.Sprintf("block at height %d forks the main chain "+
-			"before the previous checkpoint at height %d",
-			blockHeight, b.checkpointNode.height)
+	checkpoint := b.checkpointNode
+	blockHash := header.BlockHash()
+	if checkpoint != nil && blockHeight < checkpoint.height &&
+		(checkpoint.Ancestor(prevNode.height) != prevNode ||
+			b.index.LookupNode(&blockHash) == nil) {
+
+		str := fmt.Sprintf("block at height %d forks the main chain before "+
+			"the previous checkpoint at height %d", blockHeight,
+			checkpoint.height)
 		return ruleError(ErrForkTooOld, str)
+	}
+
+	// Ensure chain matches up to predetermined checkpoints.
+	if !b.verifyCheckpoint(blockHeight, &blockHash) {
+		str := fmt.Sprintf("block at height %d does not match "+
+			"checkpoint hash", blockHeight)
+		return ruleError(ErrBadCheckpoint, str)
 	}
 
 	if !fastAdd {
@@ -989,31 +992,21 @@ func (b *BlockChain) checkBlockHeaderPositional(header *wire.BlockHeader, prevNo
 	return nil
 }
 
-// checkBlockPositional performs several validation checks on the block which
-// depend on its position within the block chain and having the headers of all
-// ancestors available.  These checks do not, and must not, rely on having the
-// full block data of all ancestors available.
+// checkBlockDataPositional performs several validation checks on the block data
+// (not including the header) which depend on its position within the block
+// chain and having the headers of all ancestors available.  These checks do
+// not, and must not, rely on having the full block data of all ancestors
+// available.
 //
 // The flags modify the behavior of this function as follows:
 //  - BFFastAdd: The transactions are not checked to see if they are expired and
 //    the coinbase height check is not performed.
 //
-// The flags are also passed to checkBlockHeaderPositional.  See its
-// documentation for how the flags modify its behavior.
-func (b *BlockChain) checkBlockPositional(block *dcrutil.Block, prevNode *blockNode, flags BehaviorFlags) error {
+// This function MUST be called with the chain state lock held (for reads).
+func (b *BlockChain) checkBlockDataPositional(block *dcrutil.Block, prevNode *blockNode, flags BehaviorFlags) error {
 	// The genesis block is valid by definition.
 	if prevNode == nil {
 		return nil
-	}
-
-	// Perform all block header related validation checks that depend on its
-	// position within the block chain and having the headers of all
-	// ancestors available, but do not rely on having the full block data of
-	// all ancestors available.
-	header := &block.MsgBlock().Header
-	err := b.checkBlockHeaderPositional(header, prevNode, flags)
-	if err != nil {
-		return err
 	}
 
 	fastAdd := flags&BFFastAdd == BFFastAdd
@@ -1042,6 +1035,37 @@ func (b *BlockChain) checkBlockPositional(block *dcrutil.Block, prevNode *blockN
 	}
 
 	return nil
+}
+
+// checkBlockPositional performs several validation checks on the block (both
+// its header and data) which depend on its position within the block chain and
+// having the headers of all ancestors available.  These checks do not, and must
+// not, rely on having the full block data of all ancestors available.
+//
+// The flags do not modify the behavior of this function directly, however they
+// are needed to pass along to checkBlockHeaderPositional and
+// checkBlockDataPositional.
+func (b *BlockChain) checkBlockPositional(block *dcrutil.Block, prevNode *blockNode, flags BehaviorFlags) error {
+	// The genesis block is valid by definition.
+	if prevNode == nil {
+		return nil
+	}
+
+	// Perform all block header related validation checks that depend on its
+	// position within the block chain and having the headers of all
+	// ancestors available, but do not rely on having the full block data of
+	// all ancestors available.
+	header := &block.MsgBlock().Header
+	err := b.checkBlockHeaderPositional(header, prevNode, flags)
+	if err != nil {
+		return err
+	}
+
+	// Perform all block data related validation checks that depend on its
+	// position within the block chain and having the headers of all ancestors
+	// available, but do not rely on having the full block data of all ancestors
+	// available.
+	return b.checkBlockDataPositional(block, prevNode, flags)
 }
 
 // checkBlockHeaderContext performs several validation checks on the block
@@ -1418,17 +1442,17 @@ func (b *BlockChain) checkMerkleRoots(block *wire.MsgBlock, prevNode *blockNode)
 	return nil
 }
 
-// checkBlockContext performs several validation checks on the block which depend
-// on having the full block data for all of its ancestors available.  This
-// includes checks which depend on tallying the results of votes, because votes
-// are part of the block data.
+// checkBlockContext performs several validation checks on the block which
+// depend on having the full block data for all of its ancestors available.
+// This includes checks which depend on tallying the results of votes, because
+// votes are part of the block data.
 //
 // It should be noted that rule changes that have become buried deep enough
 // typically will eventually be transitioned to using well-known activation
 // points for efficiency purposes at which point the associated checks no longer
 // require having direct access to the historical votes, and therefore may be
-// transitioned to checkBlockPositional at that time.  Conversely, any checks
-// in that function which become conditional based on the results of a vote will
+// transitioned to checkBlockPositional at that time.  Conversely, any checks in
+// that function which become conditional based on the results of a vote will
 // necessarily need to be transitioned to this function.
 //
 // The flags modify the behavior of this function as follows:
@@ -1441,6 +1465,11 @@ func (b *BlockChain) checkMerkleRoots(block *wire.MsgBlock, prevNode *blockNode)
 func (b *BlockChain) checkBlockContext(block *dcrutil.Block, prevNode *blockNode, flags BehaviorFlags) error {
 	// The genesis block is valid by definition.
 	if prevNode == nil {
+		return nil
+	}
+
+	// No need to check the block again when it has already been checked.
+	if b.recentContextChecks.Contains(*block.Hash()) {
 		return nil
 	}
 
@@ -2891,17 +2920,18 @@ func CountP2SHSigOps(tx *dcrutil.Tx, isCoinBaseTx bool, isStakeBaseTx bool, view
 		return 0, nil
 	}
 
-	// Exit in some cases if treasury agenda is enabled.
+	// Treasury spend and treasurybase transactions have no P2SH inputs, but
+	// they are only recognized as the associated transactions once the
+	// treasury agenda is active.
+	msgTx := tx.MsgTx()
 	if isTreasuryEnabled {
-		if stake.IsTSpend(tx.MsgTx()) ||
-			stake.IsTreasuryBase(tx.MsgTx()) {
+		if stake.IsTSpend(msgTx) || stake.IsTreasuryBase(msgTx) {
 			return 0, nil
 		}
 	}
 
 	// Accumulate the number of signature operations in all transaction
 	// inputs.
-	msgTx := tx.MsgTx()
 	totalSigOps := 0
 	for txInIndex, txIn := range msgTx.TxIn {
 		// Ensure the referenced input transaction is available.
@@ -3457,12 +3487,6 @@ func (b *BlockChain) tspendChecks(prevNode *blockNode, block *dcrutil.Block) err
 //
 // This function MUST be called with the chain state lock held (for writes).
 func (b *BlockChain) checkConnectBlock(node *blockNode, block, parent *dcrutil.Block, view *UtxoViewpoint, stxos *[]spentTxOut, hdrCommitments *headerCommitmentData) error {
-	// If the side chain blocks end up in the database, a call to
-	// CheckBlockSanity should be done here in case a previous version
-	// allowed a block that is no longer valid.  However, since the
-	// implementation only currently uses memory for the side chain blocks,
-	// it isn't currently necessary.
-
 	// Ensure the view is for the node being checked.
 	parentHash := &block.MsgBlock().Header.PrevBlock
 	if !view.BestHash().IsEqual(parentHash) {
@@ -3751,11 +3775,7 @@ func (b *BlockChain) CheckConnectBlockTemplate(block *dcrutil.Block) error {
 	}
 
 	// Perform context-free sanity checks on the block and its transactions.
-	isTreasuryEnabled, err := b.isTreasuryAgendaActive(prevNode)
-	if err != nil {
-		return err
-	}
-	err = checkBlockSanity(block, b.timeSource, flags, b.chainParams)
+	err := checkBlockSanity(block, b.timeSource, flags, b.chainParams)
 	if err != nil {
 		return err
 	}
@@ -3809,10 +3829,13 @@ func (b *BlockChain) CheckConnectBlockTemplate(block *dcrutil.Block) error {
 	}
 
 	// Load all of the spent txos for the tip block from the spend journal.
+	isTreasuryEnabled, err := b.isTreasuryAgendaActive(prevNode)
+	if err != nil {
+		return err
+	}
 	var stxos []spentTxOut
 	err = b.db.View(func(dbTx database.Tx) error {
-		stxos, err = dbFetchSpendJournalEntry(dbTx, tipBlock,
-			isTreasuryEnabled)
+		stxos, err = dbFetchSpendJournalEntry(dbTx, tipBlock, isTreasuryEnabled)
 		return err
 	})
 	if err != nil {
@@ -3840,6 +3863,8 @@ func (b *BlockChain) CheckConnectBlockTemplate(block *dcrutil.Block) error {
 // tickets that is needed to reach the next block at which any outstanding
 // immature ticket purchases that would provide the necessary live tickets
 // mature.
+//
+// This function is safe for concurrent access.
 func (b *BlockChain) checkTicketExhaustion(prevNode *blockNode, ticketPurchases uint8) error {
 	// Nothing to do if the chain is not far enough along where ticket
 	// exhaustion could be an issue.
@@ -3905,9 +3930,11 @@ func (b *BlockChain) checkTicketExhaustion(prevNode *blockNode, ticketPurchases 
 // drops below the number of tickets that is needed to reach the next block at
 // which any outstanding immature ticket purchases that would provide the
 // necessary live tickets mature.
+//
+// This function is safe for concurrent access.
 func (b *BlockChain) CheckTicketExhaustion(hash *chainhash.Hash, ticketPurchases uint8) error {
 	node := b.index.LookupNode(hash)
-	if node == nil || !b.index.NodeStatus(node).HaveData() {
+	if node == nil {
 		return unknownBlockError(hash)
 	}
 

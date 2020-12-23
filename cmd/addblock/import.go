@@ -110,16 +110,14 @@ func (bi *blockImporter) processBlock(serializedBlock []byte) (bool, error) {
 
 	// Skip blocks that already exist.
 	blockHash := block.Hash()
-	exists := bi.chain.HaveBlock(blockHash)
-	if exists {
+	if bi.chain.HaveBlock(blockHash) {
 		return false, nil
 	}
 
 	// Don't bother trying to process orphans.
 	prevHash := &block.MsgBlock().Header.PrevBlock
 	if !prevHash.IsEqual(&zeroHash) {
-		exists := bi.chain.HaveBlock(prevHash)
-		if !exists {
+		if !bi.chain.HaveBlock(prevHash) {
 			return false, fmt.Errorf("import file contains block "+
 				"%v which does not link to the available "+
 				"block chain", prevHash)

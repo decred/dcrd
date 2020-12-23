@@ -74,10 +74,10 @@ func newChainPruner(chain *BlockChain) *chainPruner {
 	}
 }
 
-// pruneChainIfNeeded checks the current time versus the time of the last pruning.
-// If the blockchain hasn't been pruned in this time, it initiates a new pruning.
+// pruneChainIfNeeded removes references to old information that should no
+// longer be held in memory if the pruning interval has elapsed.
 //
-// pruneChainIfNeeded must be called with the chainLock held for writes.
+// This function MUST be called with the chain lock held (for writes).
 func (c *chainPruner) pruneChainIfNeeded() {
 	now := time.Now()
 	duration := now.Sub(c.lastPruneTime)

@@ -58,9 +58,8 @@ func ExampleBlockChain_ProcessBlock() {
 		return
 	}
 
-	// Process a block.  For this example, we are going to intentionally
-	// cause an error by trying to process the genesis block which already
-	// exists.
+	// Process a block.  For this example, intentionally cause an error by
+	// trying to process the genesis block which already exists.
 	genesisBlock := dcrutil.NewBlock(mainNetParams.GenesisBlock)
 	forkLen, err := chain.ProcessBlock(genesisBlock,
 		blockchain.BFNone)

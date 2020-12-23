@@ -790,7 +790,6 @@ func (b *BlockChain) estimateNextStakeDifficultyV1(curNode *blockNode, ticketsIn
 
 			// User a constant pool size for estimate, since
 			// this has much less fluctuation than freshStake.
-			// TODO Use a better pool size estimate?
 			emptyHeader.PoolSize = curNode.poolSize
 
 			// Insert the fake fresh stake into each block,

@@ -5,6 +5,7 @@
 package blockchain
 
 import (
+	"math/big"
 	"math/rand"
 	"reflect"
 	"testing"
@@ -293,6 +294,203 @@ func TestAncestorSkipList(t *testing.T) {
 		if startNode.Ancestor(endHeight) != nodes[endHeight] {
 			t.Fatalf("unxpected ancestor for height %d from start height %d",
 				endHeight, startHeight)
+		}
+	}
+}
+
+// TestWorkSorterCompare ensures the work sorter less and hash comparison
+// functions work as intended including multiple keys.
+func TestWorkSorterCompare(t *testing.T) {
+	lowerHash := mustParseHash("000000000000c41019872ff7db8fd2e9bfa05f42d3f8fee8e895e8c1e5b8dcba")
+	higherHash := mustParseHash("000000000000d41019872ff7db8fd2e9bfa05f42d3f8fee8e895e8c1e5b8dcba")
+	tests := []struct {
+		name     string     // test description
+		nodeA    *blockNode // first node to compare
+		nodeB    *blockNode // second node to compare
+		wantCmp  int        // expected result of the hash comparison
+		wantLess bool       // expected result of the less comparison
+
+	}{{
+		name: "exactly equal, both data",
+		nodeA: &blockNode{
+			hash:            *mustParseHash("0000000000000000000000000000000000000000000000000000000000000000"),
+			workSum:         big.NewInt(2),
+			status:          statusDataStored,
+			receivedOrderID: 0,
+		},
+		nodeB: &blockNode{
+			hash:            *mustParseHash("0000000000000000000000000000000000000000000000000000000000000000"),
+			workSum:         big.NewInt(2),
+			status:          statusDataStored,
+			receivedOrderID: 0,
+		},
+		wantCmp:  0,
+		wantLess: false,
+	}, {
+		name: "exactly equal, no data",
+		nodeA: &blockNode{
+			hash:            *mustParseHash("0000000000000000000000000000000000000000000000000000000000000000"),
+			workSum:         big.NewInt(2),
+			receivedOrderID: 0,
+		},
+		nodeB: &blockNode{
+			hash:            *mustParseHash("0000000000000000000000000000000000000000000000000000000000000000"),
+			workSum:         big.NewInt(2),
+			receivedOrderID: 0,
+		},
+		wantCmp:  0,
+		wantLess: false,
+	}, {
+		name: "a has more cumulative work, same order, higher hash, a has data",
+		nodeA: &blockNode{
+			hash:            *higherHash,
+			workSum:         big.NewInt(4),
+			status:          statusDataStored,
+			receivedOrderID: 0,
+		},
+		nodeB: &blockNode{
+			hash:            *lowerHash,
+			workSum:         big.NewInt(2),
+			receivedOrderID: 0,
+		},
+		wantCmp:  1,
+		wantLess: false,
+	}, {
+		name: "a has less cumulative work, same order, lower hash, b has data",
+		nodeA: &blockNode{
+			hash:            *lowerHash,
+			workSum:         big.NewInt(2),
+			receivedOrderID: 0,
+		},
+		nodeB: &blockNode{
+			hash:            *higherHash,
+			workSum:         big.NewInt(4),
+			status:          statusDataStored,
+			receivedOrderID: 0,
+		},
+		wantCmp:  -1,
+		wantLess: true,
+	}, {
+		name: "a has same cumulative work, same order, lower hash, a has data",
+		nodeA: &blockNode{
+			hash:            *lowerHash,
+			workSum:         big.NewInt(2),
+			status:          statusDataStored,
+			receivedOrderID: 0,
+		},
+		nodeB: &blockNode{
+			hash:            *higherHash,
+			workSum:         big.NewInt(2),
+			receivedOrderID: 0,
+		},
+		wantCmp:  -1,
+		wantLess: false,
+	}, {
+		name: "a has same cumulative work, same order, higher hash, b has data",
+		nodeA: &blockNode{
+			hash:            *higherHash,
+			workSum:         big.NewInt(2),
+			receivedOrderID: 0,
+		},
+		nodeB: &blockNode{
+			hash:            *lowerHash,
+			workSum:         big.NewInt(2),
+			status:          statusDataStored,
+			receivedOrderID: 0,
+		},
+		wantCmp:  1,
+		wantLess: true,
+	}, {
+		name: "a has same cumulative work, higher order, lower hash, both data",
+		nodeA: &blockNode{
+			hash:            *lowerHash,
+			workSum:         big.NewInt(2),
+			status:          statusDataStored,
+			receivedOrderID: 1,
+		},
+		nodeB: &blockNode{
+			hash:            *higherHash,
+			workSum:         big.NewInt(2),
+			status:          statusDataStored,
+			receivedOrderID: 0,
+		},
+		wantCmp:  -1,
+		wantLess: true,
+	}, {
+		name: "a has same cumulative work, lower order, lower hash, both data",
+		nodeA: &blockNode{
+			hash:            *lowerHash,
+			workSum:         big.NewInt(2),
+			status:          statusDataStored,
+			receivedOrderID: 1,
+		},
+		nodeB: &blockNode{
+			hash:            *higherHash,
+			workSum:         big.NewInt(2),
+			status:          statusDataStored,
+			receivedOrderID: 2,
+		},
+		wantCmp:  -1,
+		wantLess: false,
+	}, {
+		name: "a has same cumulative work, same order, lower hash, no data",
+		nodeA: &blockNode{
+			hash:            *lowerHash,
+			workSum:         big.NewInt(2),
+			receivedOrderID: 0,
+		},
+		nodeB: &blockNode{
+			hash:            *higherHash,
+			workSum:         big.NewInt(2),
+			receivedOrderID: 0,
+		},
+		wantCmp:  -1,
+		wantLess: false,
+	}, {
+		name: "a has same cumulative work, same order, lower hash, both data",
+		nodeA: &blockNode{
+			hash:            *lowerHash,
+			workSum:         big.NewInt(2),
+			status:          statusDataStored,
+			receivedOrderID: 0,
+		},
+		nodeB: &blockNode{
+			hash:            *higherHash,
+			workSum:         big.NewInt(2),
+			status:          statusDataStored,
+			receivedOrderID: 0,
+		},
+		wantCmp:  -1,
+		wantLess: false,
+	}, {
+		name: "a has same cumulative work, same order, higher hash, both data",
+		nodeA: &blockNode{
+			hash:            *higherHash,
+			workSum:         big.NewInt(2),
+			status:          statusDataStored,
+			receivedOrderID: 0,
+		},
+		nodeB: &blockNode{
+			hash:            *lowerHash,
+			workSum:         big.NewInt(2),
+			status:          statusDataStored,
+			receivedOrderID: 0,
+		},
+		wantCmp:  1,
+		wantLess: true,
+	}}
+
+	for _, test := range tests {
+		gotLess := workSorterLess(test.nodeA, test.nodeB)
+		if gotLess != test.wantLess {
+			t.Fatalf("%q: unexpected result -- got %v, want %v", test.name,
+				gotLess, test.wantLess)
+		}
+
+		gotCmp := compareHashesAsUint256LE(&test.nodeA.hash, &test.nodeB.hash)
+		if gotCmp != test.wantCmp {
+			t.Fatalf("%q: unexpected result -- got %v, want %v", test.name,
+				gotCmp, test.wantCmp)
 		}
 	}
 }

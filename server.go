@@ -2723,6 +2723,9 @@ func (s *server) handleBlockchainNotification(notification *blockchain.Notificat
 
 	// Stake tickets are spent or missed from the most recently connected block.
 	case blockchain.NTSpentAndMissedTickets:
+		// WARNING: The chain lock is not released before sending this
+		// notification, so care must be taken to avoid calling chain functions
+		// which could result in a deadlock.
 		tnd, ok := notification.Data.(*blockchain.TicketNotificationsData)
 		if !ok {
 			syncLog.Warnf("Tickets connected notification is not " +
@@ -2736,6 +2739,9 @@ func (s *server) handleBlockchainNotification(notification *blockchain.Notificat
 
 	// Stake tickets are matured from the most recently connected block.
 	case blockchain.NTNewTickets:
+		// WARNING: The chain lock is not released before sending this
+		// notification, so care must be taken to avoid calling chain functions
+		// which could result in a deadlock.
 		tnd, ok := notification.Data.(*blockchain.TicketNotificationsData)
 		if !ok {
 			syncLog.Warnf("Tickets connected notification is not " +
@@ -2830,18 +2836,27 @@ func (s *server) handleBlockchainNotification(notification *blockchain.Notificat
 
 	// Chain reorganization has commenced.
 	case blockchain.NTChainReorgStarted:
+		// WARNING: The chain lock is not released before sending this
+		// notification, so care must be taken to avoid calling chain functions
+		// which could result in a deadlock.
 		if s.bg != nil {
 			s.bg.ChainReorgStarted()
 		}
 
 	// Chain reorganization has concluded.
 	case blockchain.NTChainReorgDone:
+		// WARNING: The chain lock is not released before sending this
+		// notification, so care must be taken to avoid calling chain functions
+		// which could result in a deadlock.
 		if s.bg != nil {
 			s.bg.ChainReorgDone()
 		}
 
 	// The blockchain is reorganizing.
 	case blockchain.NTReorganization:
+		// WARNING: The chain lock is not released before sending this
+		// notification, so care must be taken to avoid calling chain functions
+		// which could result in a deadlock.
 		rd, ok := notification.Data.(*blockchain.ReorganizationNtfnsData)
 		if !ok {
 			syncLog.Warnf("Chain reorganization notification is malformed")

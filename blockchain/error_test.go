@@ -19,6 +19,7 @@ func TestErrorKindStringer(t *testing.T) {
 	}{
 		{ErrDuplicateBlock, "ErrDuplicateBlock"},
 		{ErrMissingParent, "ErrMissingParent"},
+		{ErrNoBlockData, "ErrNoBlockData"},
 		{ErrBlockTooBig, "ErrBlockTooBig"},
 		{ErrWrongBlockSize, "ErrWrongBlockSize"},
 		{ErrBlockVersionTooOld, "ErrBlockVersionTooOld"},
@@ -97,6 +98,7 @@ func TestErrorKindStringer(t *testing.T) {
 		{ErrRegTxCreateStakeOut, "ErrRegTxCreateStakeOut"},
 		{ErrInvalidFinalState, "ErrInvalidFinalState"},
 		{ErrPoolSize, "ErrPoolSize"},
+		{ErrForceReorgSameBlock, "ErrForceReorgSameBlock"},
 		{ErrForceReorgWrongChain, "ErrForceReorgWrongChain"},
 		{ErrForceReorgMissingChild, "ErrForceReorgMissingChild"},
 		{ErrBadStakebaseValue, "ErrBadStakebaseValue"},

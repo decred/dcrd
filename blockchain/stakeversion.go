@@ -303,7 +303,7 @@ func (b *BlockChain) calcStakeVersion(prevNode *blockNode) uint32 {
 // This function MUST be called with the chain state lock held (for writes).
 func (b *BlockChain) calcStakeVersionByHash(hash *chainhash.Hash) (uint32, error) {
 	prevNode := b.index.LookupNode(hash)
-	if prevNode == nil {
+	if prevNode == nil || !b.index.CanValidate(prevNode) {
 		return 0, fmt.Errorf("block %s is not known", hash)
 	}
 

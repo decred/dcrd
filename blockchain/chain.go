@@ -28,13 +28,6 @@ import (
 )
 
 const (
-	// minMemoryNodes is the minimum number of consecutive nodes needed
-	// in memory in order to perform all necessary validation.  It is used
-	// to determine when it's safe to prune nodes from memory without
-	// causing constant dynamic reloading.  This value should be larger than
-	// that for minMemoryStakeNodes.
-	minMemoryNodes = 2880
-
 	// minMemoryStakeNodes is the maximum height to keep stake nodes
 	// in memory for in their respective nodes.  Beyond this height,
 	// they will need to be manually recalculated.  This value should
@@ -47,6 +40,10 @@ const (
 	// be made network independent and calculated based on the parameters, but
 	// that would result in larger caches than desired for other networks.
 	recentBlockCacheSize = 12
+
+	// contextCheckCacheSize is the number of recent successful contextual block
+	// check results to keep in memory.
+	contextCheckCacheSize = 25
 )
 
 // panicf is a convenience function that formats according to the given format
@@ -145,10 +142,16 @@ type BlockChain struct {
 	notifications       NotificationCallback
 	sigCache            *txscript.SigCache
 	indexManager        indexers.IndexManager
+	interrupt           <-chan struct{}
 
 	// subsidyCache is the cache that provides quick lookup of subsidy
 	// values.
 	subsidyCache *standalone.SubsidyCache
+
+	// processLock protects concurrent access to overall chain processing
+	// independent from the chain lock which is periodically released to
+	// send notifications.
+	processLock sync.Mutex
 
 	// chainLock protects concurrent access to the vast majority of the
 	// fields in this struct below this point.
@@ -170,9 +173,17 @@ type BlockChain struct {
 	index     *blockIndex
 	bestChain *chainView
 
-	// recentBlocks houses a block cache to facilitate faster chain reorgs and
-	// more efficient recent block serving. It is protected by its own lock.
-	recentBlocks lru.KVCache
+	// These fields house caches for blocks to facilitate faster chain reorgs,
+	// block connection, and more efficient recent block serving.
+	//
+	// recentBlocks houses a block cache of block data that has been seen
+	// recently.
+	//
+	// recentContextChecks tracks recent blocks that have successfully passed
+	// all contextual checks and is primarily used as an optimization to avoid
+	// running the checks again when possible.
+	recentBlocks        lru.KVCache
+	recentContextChecks lru.Cache
 
 	// These fields house a cached view that represents a block that votes
 	// against its parent and therefore contains all changes as a result
@@ -204,9 +215,6 @@ type BlockChain struct {
 
 	// The following caches are used to efficiently keep track of the
 	// current deployment threshold state of each rule change deployment.
-	//
-	// This information is stored in the database so it can be quickly
-	// reconstructed on load.
 	//
 	// deploymentCaches caches the current deployment threshold state for
 	// blocks in each of the actively defined deployments.
@@ -249,13 +257,8 @@ type StakeVersions struct {
 // GetStakeVersions returns a cooked array of StakeVersions.  We do this in
 // order to not bloat memory by returning raw blocks.
 func (b *BlockChain) GetStakeVersions(hash *chainhash.Hash, count int32) ([]StakeVersions, error) {
-	// NOTE: The requirement for the node being fully validated here is strictly
-	// stronger than what is actually required.  In reality, all that is needed
-	// is for the block data for the node and all of its ancestors to be
-	// available, but there is not currently any tracking to be able to
-	// efficiently determine that state.
 	startNode := b.index.LookupNode(hash)
-	if startNode == nil || !b.index.NodeStatus(startNode).HasValidated() {
+	if startNode == nil || !b.index.CanValidate(startNode) {
 		return nil, unknownBlockError(hash)
 	}
 
@@ -660,6 +663,7 @@ func (b *BlockChain) connectBlock(node *blockNode, block, parent *dcrutil.Block,
 
 	// This node is now the end of the best chain.
 	b.bestChain.SetTip(node)
+	b.index.MaybePruneCachedTips(node)
 
 	// Update the state for the best block.  Notice how this replaces the
 	// entire struct instead of updating the existing one.  This effectively
@@ -688,7 +692,7 @@ func (b *BlockChain) connectBlock(node *blockNode, block, parent *dcrutil.Block,
 			return err
 		}
 
-		// Notify of spent and missed tickets
+		// Notify of spent and missed tickets.
 		b.sendNotification(NTSpentAndMissedTickets,
 			&TicketNotificationsData{
 				Hash:            node.hash,
@@ -696,16 +700,17 @@ func (b *BlockChain) connectBlock(node *blockNode, block, parent *dcrutil.Block,
 				StakeDifficulty: nextStakeDiff,
 				TicketsSpent:    node.stakeNode.SpentByBlock(),
 				TicketsMissed:   node.stakeNode.MissedByBlock(),
-				TicketsNew:      []chainhash.Hash{},
+				TicketsNew:      nil,
 			})
-		// Notify of new tickets
+
+		// Notify of new tickets.
 		b.sendNotification(NTNewTickets,
 			&TicketNotificationsData{
 				Hash:            node.hash,
 				Height:          node.height,
 				StakeDifficulty: nextStakeDiff,
-				TicketsSpent:    []chainhash.Hash{},
-				TicketsMissed:   []chainhash.Hash{},
+				TicketsSpent:    nil,
+				TicketsMissed:   nil,
 				TicketsNew:      node.stakeNode.NewTickets(),
 			})
 	}
@@ -929,66 +934,56 @@ func (b *BlockChain) loadOrCreateFilter(block *dcrutil.Block, view *UtxoViewpoin
 	return filter, nil
 }
 
-// reorganizeChainInternal attempts to reorganize the block chain to the
-// provided tip without attempting to undo failed reorgs.
+// reorganizeChainInternal attempts to reorganize the block chain to the given
+// target without attempting to undo failed reorgs.
 //
-// Since reorganizing to a new chain tip might involve validating blocks that
-// have not previously been validated, or attempting to reorganize to a branch
-// that is already known to be invalid, it possible for the reorganize to fail.
-// When that is the case, this function will return the error without attempting
-// to undo what has already been reorganized to that point.  That means the best
-// chain tip will be set to some intermediate block along the reorg path and
-// will not actually be the best chain.  This is acceptable because this
-// function is only intended to be called from the reorganizeChain function
-// which handles reorg failures by reorganizing back to the known good best
-// chain tip.
+// The actions needed to reorganize the chain to the given target fall into
+// three main cases:
 //
-// A reorg entails disconnecting all blocks from the current best chain tip back
-// to the fork point between it and the provided target tip in reverse order
-// (think popping them off the end of the chain) and then connecting the blocks
-// on the new branch in forwards order (think pushing them onto the end of the
-// chain).
+// 1. The target is a descendant of the current best chain tip (most common)
+// 2. The target is an ancestor of the current best chain tip (least common)
+// 3. The target is neither of the above which means it is on another branch
+//    and that branch forks from the main chain at some ancestor of the current
+//    best chain tip
+//
+// For the first case, the blocks between the current best chain tip and the
+// given target need to be connected (think pushed onto the end of the chain).
+//
+// For the second case, the blocks between the current best chain tip and the
+// given target need to be disconnected in reverse order (think popped off the
+// end of chain).
+//
+// The third case is essentially a combination of the first two.  Namely, the
+// blocks between the current best chain tip and the fork point between it and
+// the given target need to be disconnected in reverse order and then the blocks
+// between that fork point and the given target (aka the blocks that form the
+// new branch) need to be connected in forwards order.
 //
 // This function may modify the validation state of nodes in the block index
 // without flushing in the case the chain is not able to reorganize due to a
 // block failing to connect.
 //
 // This function MUST be called with the chain state lock held (for writes).
-func (b *BlockChain) reorganizeChainInternal(targetTip *blockNode) error {
-	// Find the fork point adding each block to a slice of blocks to attach
-	// below once the current best chain has been disconnected.  They are added
-	// to the slice from back to front so that so they are attached in the
-	// appropriate order when iterating the slice later.
-	//
-	// In the case a known invalid block is detected while constructing this
-	// list, mark all of its descendants as having an invalid ancestor and
-	// prevent the reorganize.
-	fork := b.bestChain.FindFork(targetTip)
-	attachNodes := make([]*blockNode, targetTip.height-fork.height)
-	for n := targetTip; n != nil && n != fork; n = n.parent {
-		if b.index.NodeStatus(n).KnownInvalid() {
-			for _, dn := range attachNodes[n.height-fork.height:] {
-				b.index.SetStatusFlags(dn, statusInvalidAncestor)
-			}
-
-			str := fmt.Sprintf("block %s is known to be invalid or a "+
-				"descendant of an invalid block", n.hash)
-			return ruleError(ErrKnownInvalidBlock, str)
-		}
-
-		attachNodes[n.height-fork.height-1] = n
-	}
+func (b *BlockChain) reorganizeChainInternal(target *blockNode) error {
+	// Find the fork point between the current tip and target block.
+	tip := b.bestChain.Tip()
+	fork := b.bestChain.FindFork(target)
 
 	// Disconnect all of the blocks back to the point of the fork.  This entails
 	// loading the blocks and their associated spent txos from the database and
 	// using that information to unspend all of the spent txos and remove the
 	// utxos created by the blocks.  In addition, if a block votes against its
 	// parent, the regular transactions are reconnected.
-	tip := b.bestChain.Tip()
 	view := NewUtxoViewpoint(b)
 	view.SetBestHash(&tip.hash)
 	var nextBlockToDetach *dcrutil.Block
 	for tip != nil && tip != fork {
+		select {
+		case <-b.interrupt:
+			return errInterruptRequested
+		default:
+		}
+
 		// Grab the block to detach based on the node.  Use the fact that the
 		// blocks are being detached in reverse order, so the parent of the
 		// current block being detached is the next one being detached.
@@ -1025,8 +1020,7 @@ func (b *BlockChain) reorganizeChainInternal(targetTip *blockNode) error {
 		// Load all of the spent txos for the block from the spend journal.
 		var stxos []spentTxOut
 		err = b.db.View(func(dbTx database.Tx) error {
-			stxos, err = dbFetchSpendJournalEntry(dbTx, block,
-				isTreasuryEnabled)
+			stxos, err = dbFetchSpendJournalEntry(dbTx, block, isTreasuryEnabled)
 			return err
 		})
 		if err != nil {
@@ -1036,8 +1030,7 @@ func (b *BlockChain) reorganizeChainInternal(targetTip *blockNode) error {
 		// Update the view to unspend all of the spent txos and remove the utxos
 		// created by the block.  Also, if the block votes against its parent,
 		// reconnect all of the regular transactions.
-		err = view.disconnectBlock(b.db, block, parent, stxos,
-			isTreasuryEnabled)
+		err = view.disconnectBlock(b.db, block, parent, stxos, isTreasuryEnabled)
 		if err != nil {
 			return err
 		}
@@ -1048,10 +1041,21 @@ func (b *BlockChain) reorganizeChainInternal(targetTip *blockNode) error {
 			return err
 		}
 
+		log.Tracef("Disconnected block %s (height %d) from main chain", n.hash,
+			n.height)
+
 		tip = n.parent
 	}
 
-	// Load the fork block if there are blocks to attach and it's not already
+	// Determine the blocks to attach after the fork point.  Each block is added
+	// to the slice from back to front so they are attached in the appropriate
+	// order when iterating the slice below.
+	attachNodes := make([]*blockNode, target.height-fork.height)
+	for n := target; n != nil && n != fork; n = n.parent {
+		attachNodes[n.height-fork.height-1] = n
+	}
+
+	// Load the fork block if there are blocks to attach and its not already
 	// loaded which will be the case if no nodes were detached.  The fork block
 	// is used as the parent to the first node to be attached below.
 	forkBlock := nextBlockToDetach
@@ -1069,6 +1073,12 @@ func (b *BlockChain) reorganizeChainInternal(targetTip *blockNode) error {
 	// relevant information related to the current chain state.
 	var prevBlockAttached *dcrutil.Block
 	for i, n := range attachNodes {
+		select {
+		case <-b.interrupt:
+			return errInterruptRequested
+		default:
+		}
+
 		// Grab the block to attach based on the node.  Use the fact that the
 		// parent of the block is either the fork point for the first node being
 		// attached or the previous one that was attached for subsequent blocks
@@ -1096,11 +1106,11 @@ func (b *BlockChain) reorganizeChainInternal(targetTip *blockNode) error {
 			return err
 		}
 
-		// Skip validation if the block is already known to be valid.  However,
+		// Skip validation if the block has already been validated.  However,
 		// the utxo view still needs to be updated and the stxos and header
 		// commitment data are still needed.
-		stxos := make([]spentTxOut, 0, countSpentOutputs(block,
-			isTreasuryEnabled))
+		numSpentOutputs := countSpentOutputs(block, isTreasuryEnabled)
+		stxos := make([]spentTxOut, 0, numSpentOutputs)
 		var hdrCommitments headerCommitmentData
 		if b.index.NodeStatus(n).HasValidated() {
 			// Update the view to mark all utxos referenced by the block as
@@ -1108,7 +1118,7 @@ func (b *BlockChain) reorganizeChainInternal(targetTip *blockNode) error {
 			// In the case the block votes against the parent, also disconnect
 			// all of the regular transactions in the parent block.  Finally,
 			// provide an stxo slice so the spent txout details are generated.
-			err = view.connectBlock(b.db, block, parent, &stxos,
+			err := view.connectBlock(b.db, block, parent, &stxos,
 				isTreasuryEnabled)
 			if err != nil {
 				return err
@@ -1120,6 +1130,20 @@ func (b *BlockChain) reorganizeChainInternal(targetTip *blockNode) error {
 			}
 			hdrCommitments.filter = filter
 		} else {
+			// The block must pass all of the validation rules which depend on
+			// having the full block data for all of its ancestors available.
+			if err := b.checkBlockContext(block, n.parent, BFNone); err != nil {
+				var rerr RuleError
+				if errors.As(err, &rerr) {
+					b.index.MarkBlockFailedValidation(n)
+				}
+				return err
+			}
+
+			// Mark the block as recently checked to avoid checking it again
+			// when processing.
+			b.recentContextChecks.Add(n.hash)
+
 			// In the case the block is determined to be invalid due to a rule
 			// violation, mark it as invalid and mark all of its descendants as
 			// having an invalid ancestor.
@@ -1128,10 +1152,7 @@ func (b *BlockChain) reorganizeChainInternal(targetTip *blockNode) error {
 			if err != nil {
 				var rerr RuleError
 				if errors.As(err, &rerr) {
-					b.index.SetStatusFlags(n, statusValidateFailed)
-					for _, dn := range attachNodes[i+1:] {
-						b.index.SetStatusFlags(dn, statusInvalidAncestor)
-					}
+					b.index.MarkBlockFailedValidation(n)
 				}
 				return err
 			}
@@ -1143,94 +1164,147 @@ func (b *BlockChain) reorganizeChainInternal(targetTip *blockNode) error {
 		if err != nil {
 			return err
 		}
+
+		log.Tracef("Connected block %s (height %d) to main chain", n.hash,
+			n.height)
+
+		// Remove any best chain candidates that have less work than the new
+		// tip.
+		b.index.RemoveLessWorkCandidates(n)
 	}
 
 	return nil
 }
 
-// reorganizeChain attempts to reorganize the block chain to the provided tip.
-// The tip must have already been determined to be on another branch by the
-// caller.  Upon return, the chain will be fully reorganized to the provided tip
-// or an appropriate error will be returned and the chain will remain at the
-// same tip it was prior to calling this function.
+// reorganizeChain attempts to reorganize the block chain to the given target
+// with additional handling for failed reorgs.
 //
-// Reorganizing the chain entails disconnecting all blocks from the current best
-// chain tip back to the fork point between it and the provided target tip in
-// reverse order (think popping them off the end of the chain) and then
-// connecting the blocks on the new branch in forwards order (think pushing them
-// onto the end of the chain).
+// When the given target is already known to be invalid, or is determined to be
+// invalid during the process, the chain will be reorganized to the best valid
+// block as determined by having the most cumulative proof of work instead.
+//
+// This is most commonly called with a target that is a descendant of the
+// current best chain.  However, it supports arbitrary targets.
+//
+// See reorganizeChainInternal for more details on the various actions needed to
+// reorganize the chain.
 //
 // This function may modify the validation state of nodes in the block index
-// without flushing in the case the chain is not able to reorganize due to a
-// block failing to connect.
+// without flushing.
 //
 // This function MUST be called with the chain state lock held (for writes).
-func (b *BlockChain) reorganizeChain(targetTip *blockNode) error {
-	// Nothing to do if there is no target tip or the target tip is already the
-	// current tip.
-	if targetTip == nil {
+func (b *BlockChain) reorganizeChain(target *blockNode) error {
+	// Nothing to do if there is no target specified or it is already the
+	// current best chain tip.
+	tip := b.bestChain.Tip()
+	if target == nil || tip == target {
 		return nil
 	}
-	origTip := b.bestChain.Tip()
-	if origTip == targetTip {
-		return nil
-	}
+	origTip := tip
 
-	// Send a notification announcing the start of the chain reorganization.
-	b.chainLock.Unlock()
-	b.sendNotification(NTChainReorgStarted, nil)
-	b.chainLock.Lock()
-
-	defer func() {
-		// Send a notification announcing the end of the chain reorganization.
-		b.chainLock.Unlock()
-		b.sendNotification(NTChainReorgDone, nil)
-		b.chainLock.Lock()
-	}()
-
-	// Attempt to reorganize to the chain to the new tip.  In the case it fails,
-	// reorganize back to the original tip.  There is no way to recover if the
-	// chain fails to reorganize back to the original tip since something is
-	// very wrong if a chain tip that was already known to be valid fails to
-	// reconnect.
-	//
-	// NOTE: The failure handling makes an assumption that a block in the path
-	// between the fork point and original tip are not somehow invalidated in
-	// between the point a reorged chain fails to connect and the reorg back to
-	// the original tip.  That is a safe assumption with the current code due to
-	// all modifications which mark blocks invalid being performed under the
-	// chain lock, however, this will need to be reworked if that assumption is
-	// violated.
-	fork := b.bestChain.FindFork(targetTip)
-	reorgErr := b.reorganizeChainInternal(targetTip)
-	if reorgErr != nil {
-		if err := b.reorganizeChainInternal(origTip); err != nil {
-			panicf("failed to reorganize back to known good chain tip %s "+
-				"(height %d): %v -- probable database corruption", origTip.hash,
-				origTip.height, err)
+	var sentReorgingNtfn bool
+	var reorgErrs []error
+	for ; target != nil && tip != target; tip = b.bestChain.Tip() {
+		select {
+		case <-b.interrupt:
+			return errInterruptRequested
+		default:
 		}
 
-		return reorgErr
+		// Determine if the chain is being reorganized to a competing branch.
+		// This is the case when the current tip is not an ancestor of the
+		// target tip.
+		if !sentReorgingNtfn && target.Ancestor(tip.height) != tip {
+			// Send a notification announcing the start of the chain
+			// reorganization.
+			//
+			// Notice that the chain lock is not released before sending the
+			// notification.  This is intentional and must not be changed
+			// without understanding why!
+			b.sendNotification(NTChainReorgStarted, nil)
+			sentReorgingNtfn = true
+
+			defer func() {
+				// Send a notification announcing the end of the chain
+				// reorganization.
+				//
+				// Notice that the chain lock is not released before sending the
+				// notification.  This is intentional and must not be changed
+				// without understanding why!
+				b.sendNotification(NTChainReorgDone, nil)
+			}()
+		}
+
+		// Attempt to reorganize the chain to the new tip.  In the case it
+		// fails, attempt to reorganize to the best valid block with the most
+		// cumulative proof of work instead.
+		err := b.reorganizeChainInternal(target)
+		if err != nil {
+			// Shutting down.
+			if errors.Is(err, errInterruptRequested) {
+				return err
+			}
+
+			// Typically, if a reorganize fails, there will only be a single
+			// error due to the block that caused the failure.  However, it is
+			// possible that several candidate branches might fail.  Thus, track
+			// them all so they can potentially be converted to a multi error
+			// later if needed.
+			reorgErrs = append(reorgErrs, err)
+
+			// Determine a new best candidate since the reorg failed.  This
+			// should realistically always result in a different target than the
+			// current one unless there is some type of unrecoverable error,
+			// such as a disk failure.  In that case, bail out to avoid
+			// attempting to do the same reorg over and over.
+			newTarget := b.index.FindBestChainCandidate()
+			if newTarget == target {
+				break
+			}
+			target = newTarget
+		}
 	}
 
-	// Send a notification that a blockchain reorganization took place.
-	reorgData := &ReorganizationNtfnsData{origTip.hash, origTip.height,
-		targetTip.hash, targetTip.height}
-	b.chainLock.Unlock()
-	b.sendNotification(NTReorganization, reorgData)
-	b.chainLock.Lock()
+	// Log chain reorganizations and send a notification as needed.  Notice that
+	// the tip is reset to whatever the best chain actually is here versus using
+	// the one from above since it might not match reality if there were errors
+	// while reorganizing.
+	newTip := b.bestChain.Tip()
+	if sentReorgingNtfn && newTip != origTip {
+		// Send a notification that a chain reorganization took place.
+		//
+		// Notice that the chain lock is not released before sending the
+		// notification.  This is intentional and must not be changed without
+		// understanding why!
+		b.sendNotification(NTReorganization, &ReorganizationNtfnsData{
+			OldHash:   origTip.hash,
+			OldHeight: origTip.height,
+			NewHash:   newTip.hash,
+			NewHeight: newTip.height,
+		})
 
-	// Log the point where the chain forked and old and new best chain tips.
-	if fork != nil {
-		log.Infof("REORGANIZE: Chain forks at %v (height %v)", fork.hash,
-			fork.height)
+		// Log the point where the chain forked and old and new best chain tips.
+		if fork := b.bestChain.FindFork(origTip); fork != nil {
+			log.Infof("REORGANIZE: Chain forks at %v (height %v)", fork.hash,
+				fork.height)
+		}
+		log.Infof("REORGANIZE: Old best chain tip was %v (height %v)",
+			&origTip.hash, origTip.height)
+		log.Infof("REORGANIZE: New best chain tip is %v (height %v)",
+			&newTip.hash, newTip.height)
 	}
-	log.Infof("REORGANIZE: Old best chain tip was %v (height %v)",
-		&origTip.hash, origTip.height)
-	log.Infof("REORGANIZE: New best chain tip is %v (height %v)",
-		targetTip.hash, targetTip.height)
 
-	return nil
+	// Determine if there were any reorg errors and either extract and return
+	// the error directly when there was only a single error or return them all
+	// as a multi error when there are more.
+	var finalErr error
+	switch {
+	case len(reorgErrs) == 1:
+		finalErr = reorgErrs[0]
+	case len(reorgErrs) > 1:
+		finalErr = MultiError(reorgErrs)
+	}
+	return finalErr
 }
 
 // forceHeadReorganization forces a reorganization of the block chain to the
@@ -1242,14 +1316,16 @@ func (b *BlockChain) reorganizeChain(targetTip *blockNode) error {
 //
 // This function MUST be called with the chain state lock held (for writes).
 func (b *BlockChain) forceHeadReorganization(formerBest chainhash.Hash, newBest chainhash.Hash) error {
-	if formerBest.IsEqual(&newBest) {
-		return fmt.Errorf("can't reorganize to the same block")
+	// Don't try to reorganize to the same block.
+	if formerBest == newBest {
+		str := "tried to force reorg to the same block"
+		return ruleError(ErrForceReorgSameBlock, str)
 	}
-	formerBestNode := b.bestChain.Tip()
 
-	// We can't reorganize the chain unless our head block matches up with
-	// b.bestChain.
-	if !formerBestNode.hash.IsEqual(&formerBest) {
+	// Don't allow a reorganize when the former best is not the current best
+	// chain tip.
+	formerBestNode := b.bestChain.Tip()
+	if formerBestNode.hash != formerBest {
 		str := "tried to force reorg on wrong chain"
 		return ruleError(ErrForceReorgWrongChain, str)
 	}
@@ -1268,6 +1344,11 @@ func (b *BlockChain) forceHeadReorganization(formerBest chainhash.Hash, newBest 
 		return ruleError(ErrKnownInvalidBlock, str)
 	}
 
+	// Don't try to reorganize to a block when its data is not available.
+	if !newBestNodeStatus.HaveData() {
+		return ruleError(ErrNoBlockData, "block data is not available")
+	}
+
 	// Reorganize the chain and flush any potential unsaved changes to the
 	// block index to the database.  It is safe to ignore any flushing
 	// errors here as the only time the index will be modified is if the
@@ -1283,205 +1364,62 @@ func (b *BlockChain) forceHeadReorganization(formerBest chainhash.Hash, newBest 
 //
 // This function is safe for concurrent access.
 func (b *BlockChain) ForceHeadReorganization(formerBest chainhash.Hash, newBest chainhash.Hash) error {
+	b.processLock.Lock()
 	b.chainLock.Lock()
 	err := b.forceHeadReorganization(formerBest, newBest)
 	b.chainLock.Unlock()
+	b.processLock.Unlock()
 	return err
 }
 
 // flushBlockIndex populates any ticket data that has been pruned from modified
 // block nodes, writes those nodes to the database and clears the set of
 // modified nodes if it succeeds.
+//
+// This function MUST be called with the chain lock held (for writes).
 func (b *BlockChain) flushBlockIndex() error {
+	// Ensure that any ticket information that has been pruned is reloaded
+	// before flushing modified nodes.
+	//
+	// Note that a separate slice is created for the modified nodes that
+	// potentially need the ticket information reloaded as opposed to doing it
+	// directly in the loop over the modified nodes because reloading the ticket
+	// information is shared code that locks the index to mark the entry
+	// modified.  Therefore, it has to be called without the index lock.
 	b.index.RLock()
+	maybePruned := make([]*blockNode, 0, len(b.index.modified))
 	for node := range b.index.modified {
+		if !b.index.canValidate(node) {
+			continue
+		}
+		maybePruned = append(maybePruned, node)
+	}
+	b.index.RUnlock()
+	for _, node := range maybePruned {
 		if err := b.maybeFetchTicketInfo(node); err != nil {
-			b.index.RUnlock()
 			return err
 		}
 	}
-	b.index.RUnlock()
-
 	return b.index.flush()
 }
 
-// flushBlockIndexWarnOnly attempts to flush and modified block index nodes to
+// flushBlockIndexWarnOnly attempts to flush any modified block index nodes to
 // the database and will log a warning if it fails.
 //
 // NOTE: This MUST only be used in the specific circumstances where failure to
 // flush only results in a worst case scenario of requiring one or more blocks
 // to be validated again.  All other cases must directly call the function on
 // the block index and check the error return accordingly.
+//
+// This function MUST be called with the chain lock held (for writes).
 func (b *BlockChain) flushBlockIndexWarnOnly() {
 	if err := b.flushBlockIndex(); err != nil {
 		log.Warnf("Unable to flush block index changes to db: %v", err)
 	}
 }
 
-// connectBestChain handles connecting the passed block to the chain while
-// respecting proper chain selection according to the chain with the most
-// proof of work.  In the typical case, the new block simply extends the main
-// chain.  However, it may also be extending (or creating) a side chain (fork)
-// which may or may not end up becoming the main chain depending on which fork
-// cumulatively has the most proof of work.  It returns the resulting fork
-// length, that is to say the number of blocks to the fork point from the main
-// chain, which will be zero if the block ends up on the main chain (either
-// due to extending the main chain or causing a reorganization to become the
-// main chain).
-//
-// The flags modify the behavior of this function as follows:
-//  - BFFastAdd: Avoids several expensive transaction validation operations.
-//    This is useful when using checkpoints.
-//
-// This function MUST be called with the chain state lock held (for writes).
-func (b *BlockChain) connectBestChain(node *blockNode, block, parent *dcrutil.Block, flags BehaviorFlags) (int64, error) {
-	fastAdd := flags&BFFastAdd == BFFastAdd
-
-	// Ensure the passed parent is actually the parent of the block.
-	if *parent.Hash() != node.parent.hash {
-		panicf("parent block %v (height %v) does not match expected parent %v "+
-			"(height %v)", parent.Hash(), parent.MsgBlock().Header.Height,
-			node.parent.hash, node.height-1)
-	}
-
-	// We are extending the main (best) chain with a new block.  This is the
-	// most common case.
-	parentHash := &block.MsgBlock().Header.PrevBlock
-	tip := b.bestChain.Tip()
-	if *parentHash == tip.hash {
-		// Skip expensive checks if the block has already been fully
-		// validated.
-		hasValidated := b.index.NodeStatus(node).HasValidated()
-		fastAdd = fastAdd || hasValidated
-
-		// Perform several checks to verify the block can be connected
-		// to the main chain without violating any rules and without
-		// actually connecting the block.
-		//
-		// Also, set the applicable status result in the block index,
-		// and flush the status changes to the database.  It is safe to
-		// ignore any errors when flushing here as the changes will be
-		// flushed when a valid block is connected, and the worst case
-		// scenario if a block is invalid is it would need to be
-		// revalidated after a restart.
-		view := NewUtxoViewpoint(b)
-		view.SetBestHash(parentHash)
-		var stxos []spentTxOut
-		var hdrCommitments headerCommitmentData
-		if !fastAdd {
-			err := b.checkConnectBlock(node, block, parent, view, &stxos,
-				&hdrCommitments)
-			if err != nil {
-				var rerr RuleError
-				if errors.As(err, &rerr) {
-					b.index.SetStatusFlags(node, statusValidateFailed)
-					b.flushBlockIndexWarnOnly()
-				}
-				return 0, err
-			}
-		}
-		if !hasValidated {
-			b.index.SetStatusFlags(node, statusValidated)
-			b.flushBlockIndexWarnOnly()
-		}
-
-		// In the fast add case the code to check the block connection
-		// was skipped, so the utxo view needs to load the referenced
-		// utxos, spend them, and add the new utxos being created by
-		// this block.  Also, in the case the block votes against
-		// the parent, its regular transaction tree must be
-		// disconnected.
-		isTreasuryEnabled, err := b.isTreasuryAgendaActive(node.parent)
-		if err != nil {
-			return 0, err
-		}
-
-		if fastAdd {
-			err := view.connectBlock(b.db, block, parent, &stxos,
-				isTreasuryEnabled)
-			if err != nil {
-				return 0, err
-			}
-
-			// Create a version 2 block filter for the block and store it into
-			// the header commitment data.
-			filter, err := blockcf2.Regular(block.MsgBlock(), view)
-			if err != nil {
-				return 0, ruleError(ErrMissingTxOut, err.Error())
-			}
-			hdrCommitments.filter = filter
-		}
-
-		// Connect the block to the main chain.
-		err = b.connectBlock(node, block, parent, view, stxos, &hdrCommitments)
-		if err != nil {
-			return 0, err
-		}
-
-		validateStr := "validating"
-		if !voteBitsApproveParent(node.voteBits) {
-			validateStr = "invalidating"
-		}
-
-		log.Debugf("Block %v (height %v) connected to the main chain, "+
-			"%v the previous block", node.hash, node.height,
-			validateStr)
-
-		// The fork length is zero since the block is now the tip of the
-		// best chain.
-		return 0, nil
-	}
-	if fastAdd {
-		log.Warnf("fastAdd set in the side chain case? %v\n",
-			block.Hash())
-	}
-
-	// We're extending (or creating) a side chain, but the cumulative
-	// work for this new side chain is not enough to make it the new chain.
-	if node.workSum.Cmp(tip.workSum) <= 0 {
-		// Log information about how the block is forking the chain.
-		fork := b.bestChain.FindFork(node)
-		if fork.hash == *parentHash {
-			log.Infof("FORK: Block %v (height %v) forks the chain at height "+
-				"%d/block %v, but does not cause a reorganize",
-				node.hash, node.height, fork.height, fork.hash)
-		} else {
-			log.Infof("EXTEND FORK: Block %v (height %v) extends a side chain "+
-				"which forks the chain at height %d/block %v", node.hash,
-				node.height, fork.height, fork.hash)
-		}
-
-		forkLen := node.height - fork.height
-		return forkLen, nil
-	}
-
-	// We're extending (or creating) a side chain and the cumulative work
-	// for this new side chain is more than the old best chain, so this side
-	// chain needs to become the main chain.  In order to accomplish that,
-	// find the common ancestor of both sides of the fork, disconnect the
-	// blocks that form the (now) old fork from the main chain, and attach
-	// the blocks that form the new chain to the main chain starting at the
-	// common ancestor (the point where the chain forked).
-	//
-	// Reorganize the chain and flush any potential unsaved changes to the
-	// block index to the database.  It is safe to ignore any flushing
-	// errors here as the only time the index will be modified is if the
-	// block failed to connect.
-	log.Infof("REORGANIZE: Block %v is causing a reorganize.", node.hash)
-	err := b.reorganizeChain(node)
-	b.flushBlockIndexWarnOnly()
-	if err != nil {
-		return 0, err
-	}
-
-	// The fork length is zero since the block is now the tip of the best
-	// chain.
-	return 0, nil
-}
-
-// isCurrent returns whether or not the chain believes it is current.  Several
-// factors are used to guess, but the key factors that allow the chain to
-// believe it is current are:
+// isCurrent returns whether or not the chain believes it is current.  The
+// factors that are used to determine if the chain believes it is current are:
 //  - Total amount of cumulative work is more than the minimum known work
 //    specified by the parameters for the network
 //  - Latest block has a timestamp newer than 24 hours ago
@@ -1515,9 +1453,9 @@ func (b *BlockChain) isCurrent() bool {
 // This function is safe for concurrent access.
 func (b *BlockChain) IsCurrent() bool {
 	b.chainLock.RLock()
-	defer b.chainLock.RUnlock()
-
-	return b.isCurrent()
+	isCurrent := b.isCurrent()
+	b.chainLock.RUnlock()
+	return isCurrent
 }
 
 // BestSnapshot returns information about the current best chain block and
@@ -1570,13 +1508,8 @@ func (b *BlockChain) maxBlockSize(prevNode *blockNode) (int64, error) {
 //
 // This function is safe for concurrent access.
 func (b *BlockChain) MaxBlockSize(hash *chainhash.Hash) (int64, error) {
-	// NOTE: The requirement for the node being fully validated here is strictly
-	// stronger than what is actually required.  In reality, all that is needed
-	// is for the block data for the node and all of its ancestors to be
-	// available, but there is not currently any tracking to be able to
-	// efficiently determine that state.
 	node := b.index.LookupNode(hash)
-	if node == nil || !b.index.NodeStatus(node).HasValidated() {
+	if node == nil || !b.index.CanValidate(node) {
 		return 0, unknownBlockError(hash)
 	}
 
@@ -2172,10 +2105,12 @@ func New(ctx context.Context, config *Config) (*BlockChain, error) {
 		notifications:                 config.Notifications,
 		sigCache:                      config.SigCache,
 		indexManager:                  config.IndexManager,
+		interrupt:                     ctx.Done(),
 		subsidyCache:                  subsidyCache,
 		index:                         newBlockIndex(config.DB),
 		bestChain:                     newChainView(nil),
 		recentBlocks:                  lru.NewKVCache(recentBlockCacheSize),
+		recentContextChecks:           lru.NewCache(contextCheckCacheSize),
 		deploymentCaches:              newThresholdCaches(params),
 		isVoterMajorityVersionCache:   make(map[[stakeMajorityCacheKeySize]byte]bool),
 		isStakeMajorityVersionCache:   make(map[[stakeMajorityCacheKeySize]byte]bool),

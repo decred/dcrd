@@ -523,13 +523,8 @@ func (b *BlockChain) stateLastChanged(version uint32, node *blockNode, checker t
 //
 // This function is safe for concurrent access.
 func (b *BlockChain) StateLastChangedHeight(hash *chainhash.Hash, version uint32, deploymentID string) (int64, error) {
-	// NOTE: The requirement for the node being fully validated here is strictly
-	// stronger than what is actually required.  In reality, all that is needed
-	// is for the block data for the node and all of its ancestors to be
-	// available, but there is not currently any tracking to be able to
-	// efficiently determine that state.
 	node := b.index.LookupNode(hash)
-	if node == nil || !b.index.NodeStatus(node).HasValidated() {
+	if node == nil || !b.index.CanValidate(node) {
 		return 0, unknownBlockError(hash)
 	}
 
@@ -573,13 +568,8 @@ func (b *BlockChain) StateLastChangedHeight(hash *chainhash.Hash, version uint32
 //
 // This function is safe for concurrent access.
 func (b *BlockChain) NextThresholdState(hash *chainhash.Hash, version uint32, deploymentID string) (ThresholdStateTuple, error) {
-	// NOTE: The requirement for the node being fully validated here is strictly
-	// stronger than what is actually required.  In reality, all that is needed
-	// is for the block data for the node and all of its ancestors to be
-	// available, but there is not currently any tracking to be able to
-	// efficiently determine that state.
 	node := b.index.LookupNode(hash)
-	if node == nil || !b.index.NodeStatus(node).HasValidated() {
+	if node == nil || !b.index.CanValidate(node) {
 		invalidState := ThresholdStateTuple{
 			State:  ThresholdInvalid,
 			Choice: invalidChoice,
@@ -631,7 +621,7 @@ func (b *BlockChain) isLNFeaturesAgendaActive(prevNode *blockNode) (bool, error)
 // This function is safe for concurrent access.
 func (b *BlockChain) IsLNFeaturesAgendaActive(prevHash *chainhash.Hash) (bool, error) {
 	prevNode := b.index.LookupNode(prevHash)
-	if prevNode == nil || !b.index.NodeStatus(prevNode).HasValidated() {
+	if prevNode == nil || !b.index.CanValidate(prevNode) {
 		return false, unknownBlockError(prevHash)
 	}
 
@@ -678,13 +668,8 @@ func (b *BlockChain) isHeaderCommitmentsAgendaActive(prevNode *blockNode) (bool,
 //
 // This function is safe for concurrent access.
 func (b *BlockChain) IsHeaderCommitmentsAgendaActive(prevHash *chainhash.Hash) (bool, error) {
-	// NOTE: The requirement for the node being fully validated here is strictly
-	// stronger than what is actually required.  In reality, all that is needed
-	// is for the block data for the node and all of its ancestors to be
-	// available, but there is not currently any tracking to be able to
-	// efficiently determine that state.
 	node := b.index.LookupNode(prevHash)
-	if node == nil || !b.index.NodeStatus(node).HasValidated() {
+	if node == nil || !b.index.CanValidate(node) {
 		return false, unknownBlockError(prevHash)
 	}
 
@@ -733,7 +718,7 @@ func (b *BlockChain) isTreasuryAgendaActive(prevNode *blockNode) (bool, error) {
 // This function is safe for concurrent access.
 func (b *BlockChain) IsTreasuryAgendaActive(prevHash *chainhash.Hash) (bool, error) {
 	prevNode := b.index.LookupNode(prevHash)
-	if prevNode == nil || !b.index.NodeStatus(prevNode).HasValidated() {
+	if prevNode == nil || !b.index.CanValidate(prevNode) {
 		return false, unknownBlockError(prevHash)
 	}
 

@@ -360,6 +360,18 @@ func TestForceHeadReorg(t *testing.T) {
 	g.ForceTipReorg("b5", "b3")
 	g.ExpectTip("b3")
 
+	// Attempt to force tip reorganization to the same tip.  This should
+	// fail since that is not allowed.
+	//
+	//   ... -> b1(0) -> b3(1)
+	//               \-> b2(1)
+	//               \-> b4(1)
+	//               \-> b5(1)
+	//               \-> b2bad0(1)
+	//               \-> b2bad1(1)
+	//               \-> b2bad2(1)
+	rejectForceTipReorg("b2", "b2", ErrForceReorgSameBlock)
+
 	// Attempt to force tip reorganization from a block that is not the
 	// current tip.  This should fail since that is not allowed.
 	//
@@ -401,7 +413,9 @@ func TestForceHeadReorg(t *testing.T) {
 
 	// Attempt to force tip reorganization to an invalid block that has an
 	// entry in the block index, but is not already known to be invalid.
-	//
+	// Notice that this requires a full reorganization attempt, so the
+	// expected behavior is to reorganize back to the best known good tip,
+	// which is b2 because it was seen before b3.
 	//
 	//   ... -> b1(0) -> b3(1)
 	//               \-> b2(1)
@@ -411,7 +425,7 @@ func TestForceHeadReorg(t *testing.T) {
 	//               \-> b2bad1(1)
 	//               \-> b2bad2(1)
 	rejectForceTipReorg("b3", "b2bad2", ErrFraudAmountIn)
-	g.ExpectTip("b3")
+	g.ExpectTip("b2")
 }
 
 // locatorHashes is a convenience function that returns the hashes for all of

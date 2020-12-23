@@ -76,7 +76,8 @@ func (b *BlockChain) maybeFetchTicketInfo(node *blockNode) error {
 			return err
 		}
 
-		node.populateTicketInfo(stake.FindSpentTicketsInBlock(block.MsgBlock()))
+		ticketInfo := stake.FindSpentTicketsInBlock(block.MsgBlock())
+		b.index.PopulateTicketInfo(node, ticketInfo)
 	}
 
 	return nil
@@ -101,7 +102,7 @@ func (b *BlockChain) fetchStakeNode(node *blockNode) (*stake.Node, error) {
 
 	// Create the requested stake node from the parent stake node if it is
 	// already loaded as an optimization.
-	if node.parent.stakeNode != nil {
+	if node.parent != nil && node.parent.stakeNode != nil {
 		// Populate the prunable ticket information as needed.
 		if err := b.maybeFetchTicketInfo(node); err != nil {
 			return nil, err

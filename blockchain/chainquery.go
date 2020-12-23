@@ -132,3 +132,25 @@ func (b *BlockChain) ChainTips() []ChainTipInfo {
 	}
 	return results
 }
+
+// BestHeader returns the header with the most cumulative work that is NOT
+// known to be invalid.
+func (b *BlockChain) BestHeader() (chainhash.Hash, int64) {
+	b.index.RLock()
+	header := b.index.bestHeader
+	b.index.RUnlock()
+	return header.hash, header.height
+}
+
+// BestInvalidHeader returns the header with the most cumulative work that is
+// known to be invalid.  It will be a hash of all zeroes if there is no such
+// header.
+func (b *BlockChain) BestInvalidHeader() chainhash.Hash {
+	var hash chainhash.Hash
+	b.index.RLock()
+	if b.index.bestInvalid != nil {
+		hash = b.index.bestInvalid.hash
+	}
+	b.index.RUnlock()
+	return hash
+}

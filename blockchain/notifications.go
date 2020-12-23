@@ -69,8 +69,8 @@ const (
 	// accepted block.
 	NTSpentAndMissedTickets
 
-	// NTSpentAndMissedTickets indicates newly maturing tickets from a newly
-	// accepted block.
+	// NTNewTickets indicates newly maturing tickets from a newly accepted
+	// block.
 	NTNewTickets
 )
 

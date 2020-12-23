@@ -6,7 +6,10 @@
 package blockchain
 
 import (
+	"errors"
 	"fmt"
+	"strconv"
+	"strings"
 
 	"github.com/decred/dcrd/chaincfg/chainhash"
 )
@@ -34,6 +37,12 @@ const (
 
 	// ErrMissingParent indicates that the block was an orphan.
 	ErrMissingParent = ErrorKind("ErrMissingParent")
+
+	// ErrNoBlockData indicates an attempt to perform an operation on a block
+	// that requires all data to be available does not have the data.  This is
+	// typically because the header is known, but the full data has not been
+	// received yet.
+	ErrNoBlockData = ErrorKind("ErrNoBlockData")
 
 	// ErrBlockTooBig indicates the serialized block size exceeds the
 	// maximum allowed size.
@@ -367,11 +376,15 @@ const (
 	// ErrPoolSize indicates an error in the ticket pool size for this block.
 	ErrPoolSize = ErrorKind("ErrPoolSize")
 
-	// ErrForceReorgWrongChain indicates that a reroganization was attempted
+	// ErrForceReorgSameBlock indicates that a reorganization  was attempted to
+	// be forced to the same block.
+	ErrForceReorgSameBlock = ErrorKind("ErrForceReorgSameBlock")
+
+	// ErrForceReorgWrongChain indicates that a reorganization  was attempted
 	// to be forced, but the chain indicated was not mirrored by b.bestChain.
 	ErrForceReorgWrongChain = ErrorKind("ErrForceReorgWrongChain")
 
-	// ErrForceReorgMissingChild indicates that a reroganization was attempted
+	// ErrForceReorgMissingChild indicates that a reorganization  was attempted
 	// to be forced, but the child node to reorganize to could not be found.
 	ErrForceReorgMissingChild = ErrorKind("ErrForceReorgMissingChild")
 
@@ -611,7 +624,7 @@ func (e ContextError) Unwrap() error {
 	return e.Err
 }
 
-// ruleError creates a ContextError given a set of arguments.
+// contextError creates a ContextError given a set of arguments.
 func contextError(kind ErrorKind, desc string) ContextError {
 	return ContextError{Err: kind, Description: desc}
 }
@@ -645,4 +658,71 @@ func (e RuleError) Unwrap() error {
 // ruleError creates a RuleError given a set of arguments.
 func ruleError(kind ErrorKind, desc string) RuleError {
 	return RuleError{Err: kind, Description: desc}
+}
+
+// MultiError houses several errors as a single error that provides full support
+// for errors.Is and errors.As so the caller can easily determine if any of the
+// errors match any specific error or error type.  Note that this differs from
+// typical wrapped error chains which only represent a single error.
+type MultiError []error
+
+// Error satisfies the error interface and prints human-readable errors.
+func (e MultiError) Error() string {
+	if len(e) == 1 {
+		return e[0].Error()
+	}
+
+	var builder strings.Builder
+	builder.WriteString("multiple errors (")
+	builder.WriteString(strconv.Itoa(len(e)))
+	builder.WriteString("):\n")
+	const maxErrs = 5
+	i := 0
+	for ; i < len(e) && i < maxErrs; i++ {
+		builder.WriteString(" - ")
+		builder.WriteString(e[i].Error())
+		builder.WriteRune('\n')
+	}
+	if len(e) > maxErrs {
+		builder.WriteString(" - ... ")
+		builder.WriteString(strconv.Itoa(len(e) - maxErrs))
+		builder.WriteString(" more error(s)")
+		builder.WriteRune('\n')
+	}
+
+	return builder.String()
+}
+
+// Is implements the interface to work with the standard library's errors.Is.
+//
+// It iterates each of the errors in the multi error and calls errors.Is on it
+// until the first one that matches target is found, in which case it returns
+// true.  Otherwise, it returns false.
+//
+// This means it keeps all of the same semantics typically provided by Is in
+// terms of unwrapping error chains.
+func (e MultiError) Is(target error) bool {
+	for _, err := range e {
+		if errors.Is(err, target) {
+			return true
+		}
+	}
+	return false
+}
+
+// As implements the interface to work with the standard library's errors.As.
+//
+// It iterates each of the errors in the multi error and calls errors.As on it
+// until the first one that matches target is found, in which case it returns
+// true.  Otherwise, it returns false.
+//
+// This means it keeps all of the same semantics typically provided by As in
+// terms of unwrapping error chains and setting the target to the matched error.
+func (e MultiError) As(target interface{}) bool {
+	for _, err := range e {
+		if errors.As(err, target) {
+			return true
+		}
+	}
+	return false
 }

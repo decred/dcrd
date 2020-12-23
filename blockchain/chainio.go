@@ -1590,6 +1590,7 @@ func (b *BlockChain) createChainState() error {
 	header := &genesisBlock.MsgBlock().Header
 	node := newBlockNode(header, nil)
 	node.status = statusDataStored | statusValidated
+	node.isFullyLinked = true
 
 	// Initialize the state related to the best block.  Since it is the
 	// genesis block, use its timestamp for the median time.
@@ -1713,6 +1714,10 @@ func loadBlockIndex(dbTx database.Tx, genesisHash *chainhash.Hash, index *blockI
 	}
 	blockNodes := make([]blockNode, blockCount)
 
+	// Initialize the best header to the node that will become the genesis block
+	// below.
+	index.bestHeader = &blockNodes[0]
+
 	// Load all of the block index entries and construct the block index
 	// accordingly.
 	//
@@ -1754,8 +1759,9 @@ func loadBlockIndex(dbTx database.Tx, genesisHash *chainhash.Hash, index *blockI
 		node := &blockNodes[i]
 		initBlockNode(node, header, parent)
 		node.status = entry.status
+		node.isFullyLinked = parent == nil || index.canValidate(parent)
 		node.votes = entry.voteInfo
-		index.addNode(node)
+		index.addNodeFromDB(node)
 
 		lastNode = node
 		i++
@@ -1889,6 +1895,11 @@ func (b *BlockChain) initChainState(ctx context.Context) error {
 				"chain tip %s in block index", state.hash))
 		}
 		b.bestChain.SetTip(tip)
+		b.index.MaybePruneCachedTips(tip)
+
+		// Add the best chain tip to the set of candidates since it is required
+		// to have the current best tip in it at all times.
+		b.index.addBestChainCandidate(tip)
 
 		log.Debugf("Block index loaded in %v", time.Since(bidxStart))
 

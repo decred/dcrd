@@ -137,7 +137,9 @@ func newFakeChain(params *chaincfg.Params) *BlockChain {
 	// when creating the fake chain below.
 	node := newBlockNode(&params.GenesisBlock.Header, nil)
 	node.status = statusDataStored | statusValidated
+	node.isFullyLinked = true
 	index := newBlockIndex(nil)
+	index.bestHeader = node
 	index.AddNode(node)
 
 	// Generate a deployment ID to version map from the provided params.
@@ -187,6 +189,7 @@ func newFakeNode(parent *blockNode, blockVersion int32, stakeVersion uint32, bit
 	}
 	node := newBlockNode(header, parent)
 	node.status = statusDataStored | statusValidated
+	node.isFullyLinked = parent == nil || parent.isFullyLinked
 	return node
 }
 
@@ -515,6 +518,94 @@ func newChaingenHarness(t *testing.T, params *chaincfg.Params, dbName string) (*
 	return newChaingenHarnessWithGen(t, dbName, &g)
 }
 
+// AcceptHeader processes the block header associated with the given name in the
+// harness generator and expects it to be accepted, but not necessarily to the
+// main chain.  It also ensures the underlying block index is consistent with
+// the result.
+func (g *chaingenHarness) AcceptHeader(blockName string) {
+	g.t.Helper()
+
+	header := &g.BlockByName(blockName).Header
+	blockHash := header.BlockHash()
+	blockHeight := header.Height
+	g.t.Logf("Testing accept block header %q (hash %s, height %d)", blockName,
+		blockHash, blockHeight)
+
+	// Determine if the header is already known before attempting to process it.
+	alreadyHaveHeader := g.chain.index.LookupNode(&blockHash) != nil
+
+	err := g.chain.ProcessBlockHeader(header, BFNone)
+	if err != nil {
+		g.t.Fatalf("block header %q (hash %s, height %d) should have been "+
+			"accepted: %v", blockName, blockHash, blockHeight, err)
+	}
+
+	// Ensure the accepted header now exists in the block index.
+	node := g.chain.index.LookupNode(&blockHash)
+	if node == nil {
+		g.t.Fatalf("accepted block header %q (hash %s, height %d) should have "+
+			"been added to the block index", blockName, blockHash, blockHeight)
+	}
+
+	// Ensure the accepted header is not marked as known valid when it was not
+	// previously known since that implies the block data is not yet available
+	// and therefore it can't possibly be known to be valid.
+	//
+	// Also, ensure the accepted header is not marked as known invalid, as
+	// having known invalid ancestors, or as known to have failed validation.
+	status := g.chain.index.NodeStatus(node)
+	if !alreadyHaveHeader && status.HasValidated() {
+		g.t.Fatalf("accepted block header %q (hash %s, height %d) was not "+
+			"already known, but is marked as known valid", blockName, blockHash,
+			blockHeight)
+	}
+	if status.KnownInvalid() {
+		g.t.Fatalf("accepted block header %q (hash %s, height %d) is marked "+
+			"as known invalid", blockName, blockHash, blockHeight)
+	}
+	if status.KnownInvalidAncestor() {
+		g.t.Fatalf("accepted block header %q (hash %s, height %d) is marked "+
+			"as having a known invalid ancestor", blockName, blockHash,
+			blockHeight)
+	}
+	if status.KnownValidateFailed() {
+		g.t.Fatalf("accepted block header %q (hash %s, height %d) is marked "+
+			"as having known to fail validation", blockName, blockHash,
+			blockHeight)
+	}
+}
+
+// AcceptBlockData processes the block associated with the given name in the
+// harness generator and expects it to be accepted, but not necessarily to the
+// main chain.
+func (g *chaingenHarness) AcceptBlockData(blockName string) {
+	g.t.Helper()
+
+	msgBlock := g.BlockByName(blockName)
+	blockHeight := msgBlock.Header.Height
+	block := dcrutil.NewBlock(msgBlock)
+	blockHash := block.Hash()
+	g.t.Logf("Testing block %q (hash %s, height %d)", blockName, blockHash,
+		blockHeight)
+
+	_, err := g.chain.ProcessBlock(block, BFNone)
+	if err != nil {
+		g.t.Fatalf("block %q (hash %s, height %d) should have been accepted: %v",
+			blockName, blockHash, blockHeight, err)
+	}
+}
+
+// AcceptBlockDataWithExpectedTip processes the block associated with the given
+// name in the harness generator and expects it to be accepted, but not
+// necessarily to the main chain and for the current best chain tip to be the
+// provided value.
+func (g *chaingenHarness) AcceptBlockDataWithExpectedTip(blockName, tipName string) {
+	g.t.Helper()
+
+	g.AcceptBlockData(blockName)
+	g.ExpectTip(tipName)
+}
+
 // AcceptBlock processes the block associated with the given name in the
 // harness generator and expects it to be accepted to the main chain.
 func (g *chaingenHarness) AcceptBlock(blockName string) {
@@ -548,6 +639,65 @@ func (g *chaingenHarness) AcceptTipBlock() {
 	g.t.Helper()
 
 	g.AcceptBlock(g.TipName())
+}
+
+// RejectHeader expects the block header associated with the given name in the
+// harness generator to be rejected with the provided error kind and also
+// ensures the underlying block index is consistent with the result.
+func (g *chaingenHarness) RejectHeader(blockName string, kind ErrorKind) {
+	g.t.Helper()
+
+	header := &g.BlockByName(blockName).Header
+	blockHash := header.BlockHash()
+	blockHeight := header.Height
+	g.t.Logf("Testing reject block header %q (hash %s, height %d, reason %v)",
+		blockName, blockHash, blockHeight, kind)
+
+	// Determine if the header is already known before attempting to process it.
+	alreadyHaveHeader := g.chain.index.LookupNode(&blockHash) != nil
+
+	err := g.chain.ProcessBlockHeader(header, BFNone)
+	if err == nil {
+		g.t.Fatalf("block header %q (hash %s, height %d) should not have been "+
+			"accepted", blockName, blockHash, blockHeight)
+	}
+
+	// Ensure the error matches the value specified in the test instance.
+	if !errors.Is(err, kind) {
+		g.t.Fatalf("block header %q (hash %s, height %d) does not have "+
+			"expected reject code -- got %v, want %v", blockName, blockHash,
+			blockHeight, err, kind)
+	}
+
+	// Ensure the rejected header was not added to the block index when it was
+	// not already previously successfully added and that it was not removed if
+	// it was already previously added.
+	node := g.chain.index.LookupNode(&blockHash)
+	switch {
+	case !alreadyHaveHeader && node == nil:
+		// Header was not added as expected.
+		return
+
+	case !alreadyHaveHeader && node != nil:
+		g.t.Fatalf("rejected block header %q (hash %s, height %d) was added "+
+			"to the block index", blockName, blockHash, blockHeight)
+
+	case alreadyHaveHeader && node == nil:
+		g.t.Fatalf("rejected block header %q (hash %s, height %d) was removed "+
+			"from the block index", blockName, blockHash, blockHeight)
+	}
+
+	// The header was previously added, so ensure it is not reported as having
+	// been validated and that it is now known invalid.
+	status := g.chain.index.NodeStatus(node)
+	if status.HasValidated() {
+		g.t.Fatalf("rejected block header %q (hash %s, height %d) is marked "+
+			"as known valid", blockName, blockHash, blockHeight)
+	}
+	if !status.KnownInvalid() {
+		g.t.Fatalf("rejected block header %q (hash %s, height %d) is NOT "+
+			"marked as known invalid", blockName, blockHash, blockHeight)
+	}
 }
 
 // RejectBlock expects the block associated with the given name in the harness
@@ -628,6 +778,58 @@ func (g *chaingenHarness) AcceptedToSideChainWithExpectedTip(tipName string) {
 	}
 
 	g.ExpectTip(tipName)
+}
+
+// ExpectBestHeader expects the provided block header associated with the given
+// name to be the one identified as the header of the chain associated with the
+// harness generator with the most cumulative work that is NOT known to be
+// invalid.
+func (g *chaingenHarness) ExpectBestHeader(blockName string) {
+	g.t.Helper()
+
+	// Ensure hash and height match.
+	want := g.BlockByName(blockName).Header
+	bestHash, bestHeight := g.chain.BestHeader()
+	if bestHash != want.BlockHash() || bestHeight != int64(want.Height) {
+		g.t.Fatalf("block header %q (hash %s, height %d) should be the best "+
+			"known header -- got %q (hash %s, height %d)", blockName,
+			want.BlockHash(), want.Height, g.BlockName(&bestHash),
+			bestHash, bestHeight)
+	}
+}
+
+// ExpectBestInvalidHeader expects the provided block header associated with the
+// given name to be the one identified as the header of the chain associated
+// with the harness generator with the most cumulative work that is known to be
+// invalid.  Note that the provided block name can be an empty string to
+// indicate no such header should exist.
+func (g *chaingenHarness) ExpectBestInvalidHeader(blockName string) {
+	g.t.Helper()
+
+	bestHash := g.chain.BestInvalidHeader()
+	switch {
+	case blockName != "" && bestHash != *zeroHash:
+		want := g.BlockByName(blockName).Header
+		bestHeader := g.BlockByHash(&bestHash).Header
+		if bestHash != want.BlockHash() || bestHeader.Height != want.Height {
+			g.t.Fatalf("block header %q (hash %s, height %d) should be the "+
+				"best known invalid header -- got %q (hash %s, height %d)",
+				blockName, want.BlockHash(), want.Height, g.BlockName(&bestHash),
+				bestHash, bestHeader.Height)
+		}
+
+	case blockName != "" && bestHash == *zeroHash:
+		want := g.BlockByName(blockName).Header
+		g.t.Fatalf("block header %q (hash %s, height %d) should be the best "+
+			"known invalid header -- got none", blockName, want.BlockHash(),
+			want.Height)
+
+	case blockName == "" && bestHash != *zeroHash:
+		bestHeight := g.BlockByHash(&bestHash).Header.Height
+		g.t.Fatalf("there should not be a best known invalid header -- got %q "+
+			"(hash %s, height %d)", g.BlockName(&bestHash), bestHash,
+			bestHeight)
+	}
 }
 
 // lookupDeploymentVersion returns the version of the deployment with the
@@ -755,7 +957,7 @@ func minUint32(a, b uint32) uint32 {
 func (g *chaingenHarness) generateToHeight(fromHeight, toHeight uint32, buyTicketsPerBlock uint32, accept bool) {
 	g.t.Helper()
 
-	// Only allow this to be called with a sane heights.
+	// Only allow this to be called with sane heights.
 	tipHeight := fromHeight
 	if toHeight <= tipHeight {
 		g.t.Fatalf("not possible to generate to height %d when the current "+

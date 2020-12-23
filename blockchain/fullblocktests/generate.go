@@ -776,7 +776,7 @@ func Generate(includeLargeReorg bool) (tests [][]TestInstance, err error) {
 	// Create a fork that double spends.
 	//
 	//   ... -> bf1(0) -> bf2(1) -> bf5(2) -> bf6(3)
-	//                          \-> bf7(2) -> bf8(4)
+	//                                    \-> bf7(2) -> bf8(4)
 	//                \-> bf3(1) -> bf4(2)
 	g.SetTip("bf5")
 	g.NextBlock("bf7", outs[2], ticketOuts[3])

@@ -72,6 +72,8 @@ func (b *BlockChain) verifyCheckpoint(height int64, hash *chainhash.Hash) bool {
 
 // maybeUpdateMostRecentCheckpoint potentially updates the most recently known
 // checkpoint to the provided block node.
+//
+// This function MUST be called with the chain lock held (for writes).
 func (b *BlockChain) maybeUpdateMostRecentCheckpoint(node *blockNode) {
 	if len(b.checkpoints) == 0 {
 		return
@@ -91,6 +93,18 @@ func (b *BlockChain) maybeUpdateMostRecentCheckpoint(node *blockNode) {
 			node.hash, node.height)
 		b.checkpointNode = node
 	}
+}
+
+// isKnownCheckpointAncestor determines whether the provided node is an ancestor
+// of the most recently-known checkpoint.  False is returned when no checkpoint
+// is known or checkpoints are disabled.
+//
+// This function MUST be called with the chain lock held (for reads).
+func (b *BlockChain) isKnownCheckpointAncestor(node *blockNode) bool {
+	if b.checkpointNode == nil {
+		return false
+	}
+	return b.checkpointNode.Ancestor(node.height) == node
 }
 
 // isNonstandardTransaction determines whether a transaction contains any

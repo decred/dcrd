@@ -519,7 +519,7 @@ type TreasuryBalanceInfo struct {
 // TreasuryBalance returns treasury balance information as of the given block.
 func (b *BlockChain) TreasuryBalance(hash *chainhash.Hash) (*TreasuryBalanceInfo, error) {
 	node := b.index.LookupNode(hash)
-	if node == nil || !b.index.NodeStatus(node).HaveData() {
+	if node == nil || !b.index.CanValidate(node) {
 		return nil, unknownBlockError(hash)
 	}
 
