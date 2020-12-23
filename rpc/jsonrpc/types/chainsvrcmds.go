@@ -772,6 +772,7 @@ func NewGetTicketPoolValueCmd() *GetTicketPoolValueCmd {
 type GetTxOutCmd struct {
 	Txid           string
 	Vout           uint32
+	Tree           int8
 	IncludeMempool *bool `jsonrpcdefault:"true"`
 }
 
@@ -780,10 +781,11 @@ type GetTxOutCmd struct {
 //
 // The parameters which are pointers indicate they are optional.  Passing nil
 // for optional parameters will use the default value.
-func NewGetTxOutCmd(txHash string, vout uint32, includeMempool *bool) *GetTxOutCmd {
+func NewGetTxOutCmd(txHash string, vout uint32, tree int8, includeMempool *bool) *GetTxOutCmd {
 	return &GetTxOutCmd{
 		Txid:           txHash,
 		Vout:           vout,
+		Tree:           tree,
 		IncludeMempool: includeMempool,
 	}
 }

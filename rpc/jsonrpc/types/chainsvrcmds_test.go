@@ -641,30 +641,32 @@ func TestChainSvrCmds(t *testing.T) {
 		{
 			name: "gettxout",
 			newCmd: func() (interface{}, error) {
-				return dcrjson.NewCmd(Method("gettxout"), "123", 1)
+				return dcrjson.NewCmd(Method("gettxout"), "123", 1, 0)
 			},
 			staticCmd: func() interface{} {
-				return NewGetTxOutCmd("123", 1, nil)
+				return NewGetTxOutCmd("123", 1, 0, nil)
 			},
-			marshalled: `{"jsonrpc":"1.0","method":"gettxout","params":["123",1],"id":1}`,
+			marshalled: `{"jsonrpc":"1.0","method":"gettxout","params":["123",1,0],"id":1}`,
 			unmarshalled: &GetTxOutCmd{
 				Txid:           "123",
 				Vout:           1,
+				Tree:           0,
 				IncludeMempool: dcrjson.Bool(true),
 			},
 		},
 		{
 			name: "gettxout optional",
 			newCmd: func() (interface{}, error) {
-				return dcrjson.NewCmd(Method("gettxout"), "123", 1, true)
+				return dcrjson.NewCmd(Method("gettxout"), "123", 1, 0, true)
 			},
 			staticCmd: func() interface{} {
-				return NewGetTxOutCmd("123", 1, dcrjson.Bool(true))
+				return NewGetTxOutCmd("123", 1, 0, dcrjson.Bool(true))
 			},
-			marshalled: `{"jsonrpc":"1.0","method":"gettxout","params":["123",1,true],"id":1}`,
+			marshalled: `{"jsonrpc":"1.0","method":"gettxout","params":["123",1,0,true],"id":1}`,
 			unmarshalled: &GetTxOutCmd{
 				Txid:           "123",
 				Vout:           1,
+				Tree:           0,
 				IncludeMempool: dcrjson.Bool(true),
 			},
 		},

@@ -2065,6 +2065,7 @@ of the best block.
 |
 # <code>txid</code>: <code>(string, required)</code> The hash of the transaction.
 # <code>vout</code>: <code>(numeric, required)</code> The index of the output.
+# <code>tree</code>: <code>(numeric, required)</code> The tree of the transaction.
 # <code>includemempool</code>: <code>(string,default=true)</code> Include the mempool when true.
 |-
 !Description

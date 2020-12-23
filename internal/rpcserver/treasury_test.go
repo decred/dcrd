@@ -514,7 +514,8 @@ func TestTreasury(t *testing.T) {
 
 	// Ensure the spending tx output is part of the utxo set and has 1
 	// confirmation.
-	utxo, err := hn.Node.GetTxOut(timeoutCtx(t, time.Second), spendTxHash, 0, false)
+	utxo, err := hn.Node.GetTxOut(timeoutCtx(t, time.Second), spendTxHash, 0,
+		wire.TxTreeRegular, false)
 	if err != nil {
 		t.Fatalf("unable to fetch spend tx utxo: %v", err)
 	}
@@ -528,7 +529,8 @@ func TestTreasury(t *testing.T) {
 	tspendAbstainHash := tspendAbstain.TxHash()
 	hashes := []*chainhash.Hash{&tspendLargeHash, &tspendNoHash, &tspendAbstainHash}
 	for i, h := range hashes {
-		utxo, err = hn.Node.GetTxOut(timeoutCtx(t, time.Second), h, 1, false)
+		utxo, err = hn.Node.GetTxOut(timeoutCtx(t, time.Second), h, 1,
+			wire.TxTreeRegular, false)
 		if err != nil {
 			t.Fatalf("unable to fetch tspend %d utxo: %v", i, err)
 		}

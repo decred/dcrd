@@ -3513,6 +3513,10 @@ func handleGetTxOut(_ context.Context, s *Server, cmd interface{}) (interface{},
 		return nil, rpcDecodeHexError(c.Txid)
 	}
 
+	if !(c.Tree == wire.TxTreeRegular || c.Tree == wire.TxTreeStake) {
+		return nil, rpcInvalidError("Tx tree must be regular or stake")
+	}
+
 	chain := s.cfg.Chain
 	best := chain.BestSnapshot()
 
@@ -3525,6 +3529,7 @@ func handleGetTxOut(_ context.Context, s *Server, cmd interface{}) (interface{},
 	var pkScript []byte
 	var isCoinbase bool
 	var isTreasuryEnabled bool
+	var txTree int8
 	includeMempool := true
 	if c.IncludeMempool != nil {
 		includeMempool = *c.IncludeMempool
@@ -3564,6 +3569,7 @@ func handleGetTxOut(_ context.Context, s *Server, cmd interface{}) (interface{},
 		scriptVersion = txOut.Version
 		pkScript = txOut.PkScript
 		isCoinbase = standalone.IsCoinBaseTx(mtx, isTreasuryEnabled)
+		txTree = txFromMempool.Tree()
 	} else {
 		entry, err := chain.FetchUtxoEntry(txHash)
 		if err != nil {
@@ -3600,6 +3606,15 @@ func handleGetTxOut(_ context.Context, s *Server, cmd interface{}) (interface{},
 		scriptVersion = entry.ScriptVersionByIndex(c.Vout)
 		pkScript = entry.PkScriptByIndex(c.Vout)
 		isCoinbase = entry.IsCoinBase()
+		txTree = wire.TxTreeRegular
+		if entry.TransactionType() != stake.TxTypeRegular {
+			txTree = wire.TxTreeStake
+		}
+	}
+
+	// Return nil if the tx tree does not match the tree param that was passed.
+	if txTree != c.Tree {
+		return nil, nil
 	}
 
 	// Disassemble script into single line printable format.  The
