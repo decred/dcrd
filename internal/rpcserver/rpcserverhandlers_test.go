@@ -127,6 +127,8 @@ type tspendVotes struct {
 // testRPCChain provides a mock block chain by implementing the Chain interface.
 type testRPCChain struct {
 	bestSnapshot                  *blockchain.BestState
+	bestHeaderHash                chainhash.Hash
+	bestHeaderHeight              int64
 	blockByHash                   *dcrutil.Block
 	blockByHashErr                error
 	blockByHeight                 *dcrutil.Block
@@ -191,6 +193,11 @@ type testRPCChain struct {
 // BestSnapshot returns a mocked blockchain.BestState.
 func (c *testRPCChain) BestSnapshot() *blockchain.BestState {
 	return c.bestSnapshot
+}
+
+// BestHeader returns a mocked best header hash and height.
+func (c *testRPCChain) BestHeader() (chainhash.Hash, int64) {
+	return c.bestHeaderHash, c.bestHeaderHeight
 }
 
 // BlockByHash returns a mocked block for the given hash.
@@ -3476,6 +3483,8 @@ func TestHandleGetBlockchainInfo(t *testing.T) {
 				Hash:     *hash,
 				PrevHash: *prevHash,
 			}
+			chain.bestHeaderHash = *hash
+			chain.bestHeaderHeight = 463073
 			chain.chainWork = big.NewInt(0).SetBytes([]byte{0x11, 0x5d, 0x28, 0x33, 0x84,
 				0x90, 0x90, 0xb0, 0x02, 0x65, 0x06})
 			chain.isCurrent = false

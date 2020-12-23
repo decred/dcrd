@@ -2018,6 +2018,7 @@ func handleGetBlock(_ context.Context, s *Server, cmd interface{}) (interface{},
 func handleGetBlockchainInfo(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
 	chain := s.cfg.Chain
 	best := chain.BestSnapshot()
+	_, bestHeaderHeight := chain.BestHeader()
 
 	// Fetch the current chain work using the the best block hash.
 	chainWork, err := chain.ChainWork(&best.Hash)
@@ -2087,7 +2088,7 @@ func handleGetBlockchainInfo(_ context.Context, s *Server, cmd interface{}) (int
 	response := types.GetBlockChainInfoResult{
 		Chain:                params.Name,
 		Blocks:               best.Height,
-		Headers:              best.Height,
+		Headers:              bestHeaderHeight,
 		SyncHeight:           syncHeight,
 		ChainWork:            fmt.Sprintf("%064x", chainWork),
 		InitialBlockDownload: !chain.IsCurrent(),

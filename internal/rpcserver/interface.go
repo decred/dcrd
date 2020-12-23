@@ -236,6 +236,10 @@ type Chain interface {
 	// treated as immutable since it is shared by all callers.
 	BestSnapshot() *blockchain.BestState
 
+	// BestHeader returns the header with the most cumulative work that is NOT
+	// known to be invalid.
+	BestHeader() (chainhash.Hash, int64)
+
 	// BlockByHash returns the block for the given hash, regardless of whether the
 	// block is part of the main chain or not.
 	BlockByHash(hash *chainhash.Hash) (*dcrutil.Block, error)
