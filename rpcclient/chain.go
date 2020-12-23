@@ -840,20 +840,20 @@ func (r *FutureGetTxOutResult) Receive() (*chainjson.GetTxOutResult, error) {
 // the returned instance.
 //
 // See GetTxOut for the blocking version and more details.
-func (c *Client) GetTxOutAsync(ctx context.Context, txHash *chainhash.Hash, index uint32, mempool bool) *FutureGetTxOutResult {
+func (c *Client) GetTxOutAsync(ctx context.Context, txHash *chainhash.Hash, index uint32, tree int8, mempool bool) *FutureGetTxOutResult {
 	hash := ""
 	if txHash != nil {
 		hash = txHash.String()
 	}
 
-	cmd := chainjson.NewGetTxOutCmd(hash, index, &mempool)
+	cmd := chainjson.NewGetTxOutCmd(hash, index, tree, &mempool)
 	return (*FutureGetTxOutResult)(c.sendCmd(ctx, cmd))
 }
 
 // GetTxOut returns the transaction output info if it's unspent and
 // nil, otherwise.
-func (c *Client) GetTxOut(ctx context.Context, txHash *chainhash.Hash, index uint32, mempool bool) (*chainjson.GetTxOutResult, error) {
-	return c.GetTxOutAsync(ctx, txHash, index, mempool).Receive()
+func (c *Client) GetTxOut(ctx context.Context, txHash *chainhash.Hash, index uint32, tree int8, mempool bool) (*chainjson.GetTxOutResult, error) {
+	return c.GetTxOutAsync(ctx, txHash, index, tree, mempool).Receive()
 }
 
 // FutureRescanResult is a future promise to deliver the result of a

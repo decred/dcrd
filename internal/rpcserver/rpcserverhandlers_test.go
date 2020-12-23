@@ -4927,6 +4927,7 @@ func TestHandleGetTxOut(t *testing.T) {
 	cmd := types.GetTxOutCmd{
 		Txid:           txid,
 		Vout:           vout,
+		Tree:           wire.TxTreeRegular,
 		IncludeMempool: dcrjson.Bool(true),
 	}
 
@@ -4959,7 +4960,9 @@ func TestHandleGetTxOut(t *testing.T) {
 	// Setup a mock mempooler that has the test tx.
 	mempoolerWithTx := func() *testTxMempooler {
 		mp := defaultMockTxMempooler()
-		mp.fetchTransaction = dcrutil.NewTx(msgTx)
+		tx := dcrutil.NewTx(msgTx)
+		tx.SetTree(wire.TxTreeRegular)
+		mp.fetchTransaction = tx
 		mp.fetchTransactionErr = nil
 		return mp
 	}
@@ -4997,6 +5000,7 @@ func TestHandleGetTxOut(t *testing.T) {
 		cmd: &types.GetTxOutCmd{
 			Txid:           txid,
 			Vout:           vout,
+			Tree:           wire.TxTreeRegular,
 			IncludeMempool: dcrjson.Bool(false),
 		},
 		mockTxMempooler: mempoolerWithTx(),
@@ -5007,21 +5011,52 @@ func TestHandleGetTxOut(t *testing.T) {
 		}(),
 		result: nil,
 	}, {
+		name:    "handleGetTxOut: ok transaction exists but wrong tree",
+		handler: handleGetTxOut,
+		cmd:     &cmd,
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.fetchUtxoEntry = &testRPCUtxoEntry{
+				amountByIndex:        txOut.Value,
+				height:               432100,
+				index:                1,
+				pkScriptByIndex:      script,
+				scriptVersionByIndex: scriptVersion,
+				txType:               stake.TxTypeSStx,
+				txVersion:            msgTx.Version,
+			}
+			return chain
+		}(),
+		result: nil,
+	}, {
 		name:    "handleGetTxOut: invalid txid",
 		handler: handleGetTxOut,
 		cmd: &types.GetTxOutCmd{
 			Txid:           "invalid",
 			Vout:           vout,
+			Tree:           wire.TxTreeRegular,
 			IncludeMempool: dcrjson.Bool(true),
 		},
 		wantErr: true,
 		errCode: dcrjson.ErrRPCDecodeHexString,
+	}, {
+		name:    "handleGetTxOut: invalid tree",
+		handler: handleGetTxOut,
+		cmd: &types.GetTxOutCmd{
+			Txid:           txid,
+			Vout:           vout,
+			Tree:           wire.TxTreeUnknown,
+			IncludeMempool: dcrjson.Bool(true),
+		},
+		wantErr: true,
+		errCode: dcrjson.ErrRPCInvalidParameter,
 	}, {
 		name:    "handleGetTxOut: vout does not exist",
 		handler: handleGetTxOut,
 		cmd: &types.GetTxOutCmd{
 			Txid:           txid,
 			Vout:           9,
+			Tree:           wire.TxTreeRegular,
 			IncludeMempool: dcrjson.Bool(true),
 		},
 		mockTxMempooler: mempoolerWithTx(),

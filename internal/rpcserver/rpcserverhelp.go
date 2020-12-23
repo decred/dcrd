@@ -702,6 +702,7 @@ var helpDescsEnUS = map[string]string{
 	"gettxout--synopsis":      "Returns information about an unspent transaction output.",
 	"gettxout-txid":           "The hash of the transaction",
 	"gettxout-vout":           "The index of the output",
+	"gettxout-tree":           "The tree of the transaction",
 	"gettxout-includemempool": "Include the mempool when true",
 
 	// GetTxOutSetInfoCmd help.
