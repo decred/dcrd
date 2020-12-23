@@ -278,7 +278,7 @@ func (b *BlockChain) maybeAcceptBlockData(node *blockNode, block *dcrutil.Block,
 //
 // This function MUST be called with the chain lock held (for writes).
 func (b *BlockChain) maybeAcceptBlocks(curTip *blockNode, nodes []*blockNode, flags BehaviorFlags) ([]*blockNode, error) {
-	isCurrent := b.isCurrent()
+	isCurrent := b.isCurrent(curTip)
 	for i, n := range nodes {
 		var err error
 		linkedBlock, err := b.fetchBlockByNode(n)

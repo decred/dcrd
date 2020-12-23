@@ -832,6 +832,20 @@ func (g *chaingenHarness) ExpectBestInvalidHeader(blockName string) {
 	}
 }
 
+// ExpectIsCurrent expects the chain associated with the harness generator to
+// report the given is current status.
+func (g *chaingenHarness) ExpectIsCurrent(expected bool) {
+	g.t.Helper()
+
+	best := g.chain.BestSnapshot()
+	isCurrent := g.chain.IsCurrent()
+	if isCurrent != expected {
+		g.t.Fatalf("mismatched is current status for block %q (hash %s, "+
+			"height %d) -- got %v, want %v", g.BlockName(&best.Hash), best.Hash,
+			best.Height, isCurrent, expected)
+	}
+}
+
 // lookupDeploymentVersion returns the version of the deployment with the
 // provided ID and caches the result for future invocations.  An error is
 // returned if the ID is not found.

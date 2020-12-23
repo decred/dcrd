@@ -1157,9 +1157,10 @@ func TestProcessLogic(t *testing.T) {
 	g.AcceptBlockDataWithExpectedTip("b7", "b10f")
 	g.AcceptBlockDataWithExpectedTip("b9", "b10f")
 	g.AcceptBlockDataWithExpectedTip("b6", "b10f")
+	g.ExpectIsCurrent(false)
 
 	// Finally, accept the data for final block on the initial branch that
-	// causes the reorg.
+	// causes the reorg and ensure the chain latches to believe it is current.
 	//
 	//                                                                  new tip
 	//                                                                    vvv
@@ -1169,4 +1170,5 @@ func TestProcessLogic(t *testing.T) {
 	//                                                            ----
 	//                                                          orig tip
 	g.AcceptBlockDataWithExpectedTip("b11", "b11")
+	g.ExpectIsCurrent(true)
 }

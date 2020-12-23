@@ -173,6 +173,12 @@ type BlockChain struct {
 	index     *blockIndex
 	bestChain *chainView
 
+	// isCurrentLatch tracks whether or not the chain believes it is current in
+	// such a way that once it becomes current it latches to that state unless
+	// the chain falls too far behind again which likely indicates it is forked
+	// from the network.  It is protected by the chain lock.
+	isCurrentLatch bool
+
 	// These fields house caches for blocks to facilitate faster chain reorgs,
 	// block connection, and more efficient recent block serving.
 	//
@@ -1265,11 +1271,14 @@ func (b *BlockChain) reorganizeChain(target *blockNode) error {
 		}
 	}
 
-	// Log chain reorganizations and send a notification as needed.  Notice that
-	// the tip is reset to whatever the best chain actually is here versus using
-	// the one from above since it might not match reality if there were errors
-	// while reorganizing.
+	// Potentially update whether or not the chain believes it is current based
+	// on the new tip.  Notice that the tip is reset to whatever the best chain
+	// actually is here versus using the one from above since it might not match
+	// reality if there were errors while reorganizing.
 	newTip := b.bestChain.Tip()
+	b.maybeUpdateIsCurrent(newTip)
+
+	// Log chain reorganizations and send a notification as needed.
 	if sentReorgingNtfn && newTip != origTip {
 		// Send a notification that a chain reorganization took place.
 		//
@@ -1418,42 +1427,80 @@ func (b *BlockChain) flushBlockIndexWarnOnly() {
 	}
 }
 
-// isCurrent returns whether or not the chain believes it is current.  The
-// factors that are used to determine if the chain believes it is current are:
-//  - Total amount of cumulative work is more than the minimum known work
-//    specified by the parameters for the network
-//  - Latest block has a timestamp newer than 24 hours ago
-//
-// This function MUST be called with the chain state lock held (for reads).
-func (b *BlockChain) isCurrent() bool {
-	// Not current if the latest best block has a cumulative work less than the
-	// minimum known work specified by the network parameters.
-	tip := b.bestChain.Tip()
-	minKnownWork := b.chainParams.MinKnownChainWork
-	if minKnownWork != nil && tip.workSum.Cmp(minKnownWork) < 0 {
-		return false
-	}
-
-	// Not current if the latest best block has a timestamp before 24 hours
-	// ago.
-	//
-	// The chain appears to be current if none of the checks reported
-	// otherwise.
+// isOldTimestamp returns whether the given node has a timestamp too far in
+// history for the purposes of determining if the chain should be considered
+// current.
+func (b *BlockChain) isOldTimestamp(node *blockNode) bool {
 	minus24Hours := b.timeSource.AdjustedTime().Add(-24 * time.Hour).Unix()
-	return tip.timestamp >= minus24Hours
+	return node.timestamp < minus24Hours
 }
 
-// IsCurrent returns whether or not the chain believes it is current.  Several
-// factors are used to guess, but the key factors that allow the chain to
-// believe it is current are:
+// maybeUpdateIsCurrent potentially updates whether or not the chain believes it
+// is current.
+//
+// It makes use of a latching approach such that once the chain becomes current
+// it will only switch back to false in the case no new blocks have been seen
+// for an extended period of time.
+//
+// This function MUST be called with the chain state lock held (for writes).
+func (b *BlockChain) maybeUpdateIsCurrent(curBest *blockNode) {
+	// Do some additional checks when the chain is not already latched to being
+	// current.
+	if !b.isCurrentLatch {
+		// Not current if the latest best block has a cumulative work less than
+		// the minimum known work specified by the network parameters.
+		minKnownWork := b.chainParams.MinKnownChainWork
+		if minKnownWork != nil && curBest.workSum.Cmp(minKnownWork) < 0 {
+			return
+		}
+
+		// Not current if the best block is not synced to the header with the
+		// most cumulative work that is not known to be invalid.
+		b.index.RLock()
+		bestHeader := b.index.bestHeader
+		b.index.RUnlock()
+		syncedToBestHeader := curBest.Ancestor(bestHeader.height) == bestHeader
+		if !syncedToBestHeader {
+			return
+		}
+	}
+
+	// Not current if the latest best block has too old of a timestamp.
+	//
+	// The chain appears to be current if none of the checks reported otherwise.
+	wasLatched := b.isCurrentLatch
+	b.isCurrentLatch = !b.isOldTimestamp(curBest)
+	if !wasLatched && b.isCurrentLatch {
+		log.Debugf("Chain latched to current at block %s (height %d)",
+			curBest.hash, curBest.height)
+	}
+
+}
+
+// isCurrent returns whether or not the chain believes it is current based on
+// the current latched state and an additional check which returns false in the
+// case no new blocks have been seen for an extended period of time.
+//
+// This function MUST be called with the chain state lock held (for reads).
+func (b *BlockChain) isCurrent(curBest *blockNode) bool {
+	return b.isCurrentLatch && !b.isOldTimestamp(curBest)
+}
+
+// IsCurrent returns whether or not the chain believes it is current based on
+// the current latched state and an additional check which returns false in the
+// case no new blocks have been seen for an extended period of time.
+//
+// The initial factors that are used to latch the state to current are:
 //  - Total amount of cumulative work is more than the minimum known work
 //    specified by the parameters for the network
+//  - The best chain is synced to the header with the most cumulative work that
+//    is not known to be invalid
 //  - Latest block has a timestamp newer than 24 hours ago
 //
 // This function is safe for concurrent access.
 func (b *BlockChain) IsCurrent() bool {
 	b.chainLock.RLock()
-	isCurrent := b.isCurrent()
+	isCurrent := b.isCurrent(b.bestChain.Tip())
 	b.chainLock.RUnlock()
 	return isCurrent
 }
