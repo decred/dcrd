@@ -467,9 +467,39 @@ type chaingenHarness struct {
 	deploymentVersions map[string]uint32
 }
 
+// newChaingenHarnessWithGen creates and returns a new instance of a chaingen
+// harness that encapsulates the provided test instance and existing chaingen
+// generator along with a teardown function the caller should invoke when done
+// testing to clean up.
+//
+// This differs from newChaingenHarness in that it allows the caller to provide
+// a chaingen generator to use instead of creating a new one.
+//
+// See the documentation for the chaingenHarness type for more details.
+func newChaingenHarnessWithGen(t *testing.T, dbName string, g *chaingen.Generator) (*chaingenHarness, func()) {
+	t.Helper()
+
+	// Create a new database and chain instance to run tests against.
+	chain, teardownFunc, err := chainSetup(dbName, g.Params())
+	if err != nil {
+		t.Fatalf("Failed to setup chain instance: %v", err)
+	}
+
+	harness := chaingenHarness{
+		Generator:          g,
+		t:                  t,
+		chain:              chain,
+		deploymentVersions: make(map[string]uint32),
+	}
+	return &harness, teardownFunc
+}
+
 // newChaingenHarness creates and returns a new instance of a chaingen harness
 // that encapsulates the provided test instance along with a teardown function
 // the caller should invoke when done testing to clean up.
+//
+// This differs from newChaingenHarnessWithGen in that it creates a new chaingen
+// generator to use instead of allowing the caller to provide one.
 //
 // See the documentation for the chaingenHarness type for more details.
 func newChaingenHarness(t *testing.T, params *chaincfg.Params, dbName string) (*chaingenHarness, func()) {
@@ -482,19 +512,7 @@ func newChaingenHarness(t *testing.T, params *chaincfg.Params, dbName string) (*
 		t.Fatalf("Failed to create generator: %v", err)
 	}
 
-	// Create a new database and chain instance to run tests against.
-	chain, teardownFunc, err := chainSetup(dbName, params)
-	if err != nil {
-		t.Fatalf("Failed to setup chain instance: %v", err)
-	}
-
-	harness := chaingenHarness{
-		Generator:          &g,
-		t:                  t,
-		chain:              chain,
-		deploymentVersions: make(map[string]uint32),
-	}
-	return &harness, teardownFunc
+	return newChaingenHarnessWithGen(t, dbName, &g)
 }
 
 // AcceptBlock processes the block associated with the given name in the
@@ -723,17 +741,25 @@ func minUint32(a, b uint32) uint32 {
 	return b
 }
 
-// AdvanceToHeight generates and accepts enough blocks to the chain instance
-// associated with the harness to reach the provided height while purchasing the
-// provided tickets per block after coinbase maturity.
-func (g *chaingenHarness) AdvanceToHeight(height uint32, buyTicketsPerBlock uint32) {
+// generateToHeight generates enough blocks in the generator associated with the
+// harness to reach the provided height assuming the blocks up to and including
+// the provided from height have already been generated.  It also purchases the
+// provided number of tickets per block after coinbase maturity.
+//
+// The accept flag specifies whether or not to accept the blocks to the chain
+// instance associated with the harness as well.
+//
+// The function will fail with a fatal test error if it is called with a from
+// height that is greater than or equal to the to height or a number of tickets
+// that exceeds the max allowed for a block.
+func (g *chaingenHarness) generateToHeight(fromHeight, toHeight uint32, buyTicketsPerBlock uint32, accept bool) {
 	g.t.Helper()
 
-	// Only allow this to be called with a sane height.
-	tipHeight := g.Tip().Header.Height
-	if height <= tipHeight {
-		g.t.Fatalf("not possible to advanced to height %d when the current "+
-			"height is already %d", height, tipHeight)
+	// Only allow this to be called with a sane heights.
+	tipHeight := fromHeight
+	if toHeight <= tipHeight {
+		g.t.Fatalf("not possible to generate to height %d when the current "+
+			"height is already %d", toHeight, tipHeight)
 	}
 
 	// Only allow this to be called with a sane number of tickets to buy per
@@ -741,8 +767,8 @@ func (g *chaingenHarness) AdvanceToHeight(height uint32, buyTicketsPerBlock uint
 	params := g.Params()
 	maxOutsForTickets := uint32(params.TicketsPerBlock)
 	if buyTicketsPerBlock > maxOutsForTickets {
-		g.t.Fatalf("a max of %v outputs are available for ticket "+
-			"purchases per block", maxOutsForTickets)
+		g.t.Fatalf("a max of %v outputs are available for ticket purchases "+
+			"per block", maxOutsForTickets)
 	}
 
 	// Shorter versions of useful params for convenience.
@@ -755,7 +781,9 @@ func (g *chaingenHarness) AdvanceToHeight(height uint32, buyTicketsPerBlock uint
 	if tipHeight == 0 {
 		g.CreateBlockOne("bfb", 0)
 		g.AssertTipHeight(1)
-		g.AcceptTipBlock()
+		if accept {
+			g.AcceptTipBlock()
+		}
 		tipHeight++
 	}
 	intermediateHeight := uint32(1)
@@ -765,12 +793,14 @@ func (g *chaingenHarness) AdvanceToHeight(height uint32, buyTicketsPerBlock uint
 	//
 	//   genesis -> bfb -> bm2 -> bm3 -> ... -> bm#
 	alreadyAsserted := tipHeight >= coinbaseMaturity+1
-	targetHeight := minUint32(coinbaseMaturity+1, height)
+	targetHeight := minUint32(coinbaseMaturity+1, toHeight)
 	for ; tipHeight < targetHeight; tipHeight++ {
 		blockName := fmt.Sprintf("bm%d", tipHeight-intermediateHeight)
 		g.NextBlock(blockName, nil, nil)
 		g.SaveTipCoinbaseOuts()
-		g.AcceptTipBlock()
+		if accept {
+			g.AcceptTipBlock()
+		}
 	}
 	intermediateHeight = targetHeight
 	if !alreadyAsserted {
@@ -784,7 +814,7 @@ func (g *chaingenHarness) AdvanceToHeight(height uint32, buyTicketsPerBlock uint
 	//   ... -> bm# ... -> bse18 -> bse19 -> ... -> bse#
 	var ticketsPurchased uint32
 	alreadyAsserted = tipHeight >= stakeEnabledHeight
-	targetHeight = minUint32(stakeEnabledHeight, height)
+	targetHeight = minUint32(stakeEnabledHeight, toHeight)
 	for ; tipHeight < targetHeight; tipHeight++ {
 		var ticketOuts []chaingen.SpendableOut
 		if buyTicketsPerBlock > 0 {
@@ -797,7 +827,9 @@ func (g *chaingenHarness) AdvanceToHeight(height uint32, buyTicketsPerBlock uint
 		blockName := fmt.Sprintf("bse%d", tipHeight-intermediateHeight)
 		g.NextBlock(blockName, nil, ticketOuts)
 		g.SaveTipCoinbaseOuts()
-		g.AcceptTipBlock()
+		if accept {
+			g.AcceptTipBlock()
+		}
 	}
 	intermediateHeight = targetHeight
 	if !alreadyAsserted {
@@ -805,10 +837,9 @@ func (g *chaingenHarness) AdvanceToHeight(height uint32, buyTicketsPerBlock uint
 	}
 
 	targetPoolSize := uint32(g.Params().TicketPoolSize) * buyTicketsPerBlock
-	for ; tipHeight < height; tipHeight++ {
+	for ; tipHeight < toHeight; tipHeight++ {
 		var ticketOuts []chaingen.SpendableOut
-		// Only purchase tickets until the target ticket pool size is
-		// reached.
+		// Only purchase tickets until the target ticket pool size is reached.
 		ticketsNeeded := targetPoolSize - ticketsPurchased
 		ticketsNeeded = minUint32(ticketsNeeded, buyTicketsPerBlock)
 		if ticketsNeeded > 0 {
@@ -820,9 +851,68 @@ func (g *chaingenHarness) AdvanceToHeight(height uint32, buyTicketsPerBlock uint
 		blockName := fmt.Sprintf("bsv%d", tipHeight-intermediateHeight)
 		g.NextBlock(blockName, nil, ticketOuts)
 		g.SaveTipCoinbaseOuts()
-		g.AcceptTipBlock()
+		if accept {
+			g.AcceptTipBlock()
+		}
 	}
-	g.AssertTipHeight(height)
+	g.AssertTipHeight(toHeight)
+}
+
+// AdvanceToHeight generates and accepts enough blocks to the chain instance
+// associated with the harness to reach the provided height while purchasing the
+// provided tickets per block after coinbase maturity.
+func (g *chaingenHarness) AdvanceToHeight(height uint32, buyTicketsPerBlock uint32) {
+	g.t.Helper()
+
+	// Only allow this to be called with a sane height.
+	tipHeight := g.Tip().Header.Height
+	if height <= tipHeight {
+		g.t.Fatalf("not possible to advance to height %d when the current "+
+			"height is already %d", height, tipHeight)
+	}
+
+	const accept = true
+	g.generateToHeight(tipHeight, height, buyTicketsPerBlock, accept)
+}
+
+// generateToStakeValidationHeight generates enough blocks in the generator
+// associated with the harness to reach stake validation height.
+//
+// The accept flag specifies whether or not to accept the blocks to the chain
+// instance associated with the harness as well.
+//
+// The function will fail with a fatal test error if it is not called with the
+// harness at the genesis block which is the case when it is first created.
+func (g *chaingenHarness) generateToStakeValidationHeight(accept bool) {
+	g.t.Helper()
+
+	// Only allow this to be called on a newly created harness.
+	if g.Tip().Header.Height != 0 {
+		g.t.Fatalf("chaingen harness instance must be at the genesis block " +
+			"to generate to stake validation height")
+	}
+
+	// Shorter versions of useful params for convenience.
+	params := g.Params()
+	ticketsPerBlock := uint32(params.TicketsPerBlock)
+	stakeValidationHeight := uint32(params.StakeValidationHeight)
+
+	// Generate enough blocks in the associated harness generator to reach stake
+	// validation height.
+	g.generateToHeight(0, stakeValidationHeight, ticketsPerBlock, accept)
+}
+
+// GenerateToStakeValidationHeight generates enough blocks in the generator
+// associated with the harness to reach stake validation height without
+// accepting them to the chain instance associated with the harness.
+//
+// The function will fail with a fatal test error if it is not called with the
+// harness at the genesis block which is the case when it is first created.
+func (g *chaingenHarness) GenerateToStakeValidationHeight() {
+	g.t.Helper()
+
+	const accept = false
+	g.generateToStakeValidationHeight(accept)
 }
 
 // AdvanceToStakeValidationHeight generates and accepts enough blocks to the
@@ -831,17 +921,10 @@ func (g *chaingenHarness) AdvanceToHeight(height uint32, buyTicketsPerBlock uint
 // The function will fail with a fatal test error if it is not called with the
 // harness at the genesis block which is the case when it is first created.
 func (g *chaingenHarness) AdvanceToStakeValidationHeight() {
-	// Only allow this to be called on a newly created harness.
-	if g.Tip().Header.Height != 0 {
-		g.t.Fatalf("chaingen harness instance must be at the genesis block " +
-			"to advance to stake validation height")
-	}
+	g.t.Helper()
 
-	params := g.Params()
-	ticketsPerBlock := uint32(params.TicketsPerBlock)
-	stakeValidationHeight := uint32(params.StakeValidationHeight)
-	g.AdvanceToHeight(stakeValidationHeight, ticketsPerBlock)
-	g.AssertTipHeight(stakeValidationHeight)
+	const accept = true
+	g.generateToStakeValidationHeight(accept)
 }
 
 // AdvanceFromSVHToActiveAgenda generates and accepts enough blocks with the
