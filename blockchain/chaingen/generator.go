@@ -164,6 +164,7 @@ type Generator struct {
 	blocks           map[chainhash.Hash]*wire.MsgBlock
 	blockHeights     map[chainhash.Hash]uint32
 	blocksByName     map[string]*wire.MsgBlock
+	blockNames       map[chainhash.Hash]string
 	p2shOpTrueAddr   dcrutil.Address
 	p2shOpTrueScript []byte
 
@@ -203,8 +204,9 @@ func MakeGenerator(params *chaincfg.Params) (Generator, error) {
 		tip:              genesis,
 		tipName:          "genesis",
 		blocks:           map[chainhash.Hash]*wire.MsgBlock{genesisHash: genesis},
-		blockHeights:     map[chainhash.Hash]uint32{genesis.BlockHash(): 0},
+		blockHeights:     map[chainhash.Hash]uint32{genesisHash: 0},
 		blocksByName:     map[string]*wire.MsgBlock{"genesis": genesis},
+		blockNames:       map[chainhash.Hash]string{genesisHash: "genesis"},
 		p2shOpTrueAddr:   p2shOpTrueAddr,
 		p2shOpTrueScript: p2shOpTrueScript,
 		originalParents:  make(map[chainhash.Hash]chainhash.Hash),
@@ -243,6 +245,16 @@ func (g *Generator) BlockByName(blockName string) *wire.MsgBlock {
 		panic(fmt.Sprintf("block name %s does not exist", blockName))
 	}
 	return block
+}
+
+// BlockName returns the name associated with the provided block hash.  It will
+// panic if the specified block hash does not exist.
+func (g *Generator) BlockName(hash *chainhash.Hash) string {
+	name, ok := g.blockNames[*hash]
+	if !ok {
+		panic(fmt.Sprintf("block name for hash %s does not exist", hash))
+	}
+	return name
 }
 
 // BlockByHash returns the block associated with the provided block hash.  It
@@ -2045,7 +2057,7 @@ func (g *Generator) disconnectBlockTickets(b *wire.MsgBlock) {
 
 // originalParent returns the original block the passed block was built from.
 // This is necessary because callers might change the previous block hash in a
-// munger which would cause the like ticket pool to be reconstructed improperly.
+// munger which would cause the live ticket pool to be reconstructed improperly.
 func (g *Generator) originalParent(b *wire.MsgBlock) *wire.MsgBlock {
 	parentHash, ok := g.originalParents[b.BlockHash()]
 	if !ok {
@@ -2402,6 +2414,7 @@ func (g *Generator) NextBlock(blockName string, spend *SpendableOut, ticketSpend
 	g.blocks[blockHash] = &block
 	g.blockHeights[blockHash] = nextHeight
 	g.blocksByName[blockName] = &block
+	g.blockNames[blockHash] = blockName
 	g.tip = &block
 	g.tipName = blockName
 	return &block
@@ -2456,6 +2469,7 @@ func (g *Generator) UpdateBlockState(oldBlockName string, oldBlockHash chainhash
 	delete(g.blocks, oldBlockHash)
 	delete(g.blockHeights, oldBlockHash)
 	delete(g.blocksByName, oldBlockName)
+	delete(g.blockNames, oldBlockHash)
 	delete(g.wonTickets, oldBlockHash)
 
 	// Add new entries.
@@ -2463,6 +2477,7 @@ func (g *Generator) UpdateBlockState(oldBlockName string, oldBlockHash chainhash
 	g.blocks[newBlockHash] = newBlock
 	g.blockHeights[newBlockHash] = existingHeight
 	g.blocksByName[newBlockName] = newBlock
+	g.blockNames[newBlockHash] = newBlockName
 	g.wonTickets[newBlockHash] = wonTickets
 }
 
