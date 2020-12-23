@@ -4951,7 +4951,6 @@ func TestHandleGetTxOut(t *testing.T) {
 			Type:      scriptClass.String(),
 			Addresses: addresses,
 		},
-		Version:  int32(msgTx.Version),
 		Coinbase: false,
 	}
 	txOutResultChain := txOutResultMempool
