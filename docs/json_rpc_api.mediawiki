@@ -2078,11 +2078,10 @@ of the best block.
 : <code>confirmations</code>: <code>(numeric)</code> The number of confirmations.
 : <code>value</code>: <code>(numeric)</code> The transaction amount in DCR.
 : <code>scriptpubkey</code>: <code>(json object)</code> The public key script used to pay coins as a JSON object.
-: <code>version</code>: <code>(numeric)</code> The transaction version.
 : <code>coinbase</code>: <code>(numeric)</code> Whether or not the transaction is a coinbase.
 |-
 !Example Return
-|<code>{"bestblock": "00000000000000001914563fe4f93addae64cd2808a81835ae03b0947034843b","confirmations": 19,"value": 4.63835862,"scriptPubKey": {"asm": "OP_DUP OP_HASH160 f127302adf84741d28fa705a995dc827030077e5 OP_EQUALVERIFY OP_CHECKSIG","hex": "76a914f127302adf84741d28fa705a995dc827030077e588ac","reqSigs": 1,"type": "pubkeyhash","addresses": ["Dsnx1HW62otMif9zFyLzDnQdKuaV9cRNoyr"]},"version": 1,"coinbase": false}</code>
+|<code>{"bestblock": "00000000000000001914563fe4f93addae64cd2808a81835ae03b0947034843b","confirmations": 19,"value": 4.63835862,"scriptPubKey": {"asm": "OP_DUP OP_HASH160 f127302adf84741d28fa705a995dc827030077e5 OP_EQUALVERIFY OP_CHECKSIG","hex": "76a914f127302adf84741d28fa705a995dc827030077e588ac","reqSigs": 1,"type": "pubkeyhash","addresses": ["Dsnx1HW62otMif9zFyLzDnQdKuaV9cRNoyr"]},"coinbase": false}</code>
 |}
 
 ----

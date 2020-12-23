@@ -56,8 +56,8 @@ import (
 
 // API version constants
 const (
-	jsonrpcSemverMajor = 6
-	jsonrpcSemverMinor = 2
+	jsonrpcSemverMajor = 7
+	jsonrpcSemverMinor = 0
 	jsonrpcSemverPatch = 0
 )
 
@@ -3520,7 +3520,6 @@ func handleGetTxOut(_ context.Context, s *Server, cmd interface{}) (interface{},
 	// from there, otherwise attempt to fetch from the block database.
 	var bestBlockHash string
 	var confirmations int64
-	var txVersion uint16
 	var value int64
 	var scriptVersion uint16
 	var pkScript []byte
@@ -3561,7 +3560,6 @@ func handleGetTxOut(_ context.Context, s *Server, cmd interface{}) (interface{},
 
 		bestBlockHash = best.Hash.String()
 		confirmations = 0
-		txVersion = mtx.Version
 		value = txOut.Value
 		scriptVersion = txOut.Version
 		pkScript = txOut.PkScript
@@ -3598,7 +3596,6 @@ func handleGetTxOut(_ context.Context, s *Server, cmd interface{}) (interface{},
 
 		bestBlockHash = best.Hash.String()
 		confirmations = 1 + best.Height - entry.BlockHeight()
-		txVersion = entry.TxVersion()
 		value = entry.AmountByIndex(c.Vout)
 		scriptVersion = entry.ScriptVersionByIndex(c.Vout)
 		pkScript = entry.PkScriptByIndex(c.Vout)
@@ -3625,7 +3622,6 @@ func handleGetTxOut(_ context.Context, s *Server, cmd interface{}) (interface{},
 		BestBlock:     bestBlockHash,
 		Confirmations: confirmations,
 		Value:         dcrutil.Amount(value).ToUnit(dcrutil.AmountCoin),
-		Version:       int32(txVersion),
 		ScriptPubKey: types.ScriptPubKeyResult{
 			Asm:       disbuf,
 			Hex:       hex.EncodeToString(pkScript),
