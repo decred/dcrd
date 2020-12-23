@@ -7,7 +7,7 @@
 Package blockchain implements Decred block handling and chain selection rules.
 
 The Decred block handling and chain selection rules are an integral, and quite
-likely the most important, part of decred.  At its core, Decred is a distributed
+likely the most important, part of Decred.  At its core, Decred is a distributed
 consensus of which blocks are valid and which ones will comprise the main block
 chain (public ledger) that ultimately determines accepted transactions, so it is
 extremely important that fully validating nodes agree on all rules.
@@ -53,13 +53,38 @@ is by no means exhaustive:
    coins
  - Insert the block into the block database
 
+Processing Order
+
+This package supports headers-first semantics such that block data can be
+processed out of order so long as the associated header is already known.
+
+The headers themselves, however, must be processed in the correct order since
+headers that do not properly connect are rejected.  In other words, orphan
+headers are not allowed.
+
+The processing code always maintains the best chain as the branch tip that has
+the most cumulative proof of work, so it is important to keep that in mind when
+considering errors returned from processing blocks.
+
+Notably, due to the ability to process blocks out of order, and the fact blocks
+can only be fully validated once all of their ancestors have the block data
+available, it is to be expected that no error is returned immediately for blocks
+that are valid enough to make it to the point they require the remaining
+ancestor block data to be fully validated even though they might ultimately end
+up failing validation.  Similarly, because the data for a block becoming
+available makes any of its direct descendants that already have their data
+available eligible for validation, an error being returned does not necessarily
+mean the block being processed is the one that failed validation.
+
 Errors
 
-Errors returned by this package are either the raw errors provided by underlying
-calls or of type blockchain.RuleError.  This allows the caller to differentiate
-between unexpected errors, such as database errors, versus errors due to rule
-violations through type assertions.  In addition, callers can programmatically
-determine the specific rule violation by examining the Errorkind field of the
-type asserted blockchain.RuleError.
+Errors returned by this package have full support for the standard library
+errors.Is and errors.As methods and are either the raw errors provided by
+underlying calls or of type blockchain.RuleError, possibly wrapped in a
+blockchain.MultiError.  This allows the caller to differentiate between
+unexpected errors, such as database errors, versus errors due to rule violations
+through errors.As.  In addition, callers can programmatically determine the
+specific rule violation by making use of errors.Is with any of the wrapped error
+kinds.
 */
 package blockchain
