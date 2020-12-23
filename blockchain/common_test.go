@@ -505,7 +505,7 @@ func (g *chaingenHarness) AcceptBlock(blockName string) {
 	msgBlock := g.BlockByName(blockName)
 	blockHeight := msgBlock.Header.Height
 	block := dcrutil.NewBlock(msgBlock)
-	g.t.Logf("Testing block %s (hash %s, height %d)", blockName, block.Hash(),
+	g.t.Logf("Testing block %q (hash %s, height %d)", blockName, block.Hash(),
 		blockHeight)
 
 	forkLen, err := g.chain.ProcessBlock(block, BFNone)
@@ -540,8 +540,8 @@ func (g *chaingenHarness) RejectBlock(blockName string, kind ErrorKind) {
 	msgBlock := g.BlockByName(blockName)
 	blockHeight := msgBlock.Header.Height
 	block := dcrutil.NewBlock(msgBlock)
-	g.t.Logf("Testing block %s (hash %s, height %d)", blockName, block.Hash(),
-		blockHeight)
+	g.t.Logf("Testing reject block %q (hash %s, height %d, reason %v)",
+		blockName, block.Hash(), blockHeight, kind)
 
 	_, err := g.chain.ProcessBlock(block, BFNone)
 	if err == nil {
@@ -549,8 +549,7 @@ func (g *chaingenHarness) RejectBlock(blockName string, kind ErrorKind) {
 			blockName, block.Hash(), blockHeight)
 	}
 
-	// Ensure the error kind is of the expected type and matches
-	// the value specified in the test instance.
+	// Ensure the error matches the value specified in the test instance.
 	if !errors.Is(err, kind) {
 		g.t.Fatalf("block %q (hash %s, height %d) does not have expected reject "+
 			"code -- got %v, want %v", blockName, block.Hash(), blockHeight,
@@ -577,8 +576,9 @@ func (g *chaingenHarness) ExpectTip(tipName string) {
 	if best.Hash != wantTip.BlockHash() ||
 		best.Height != int64(wantTip.Header.Height) {
 		g.t.Fatalf("block %q (hash %s, height %d) should be the current tip "+
-			"-- got (hash %s, height %d)", tipName, wantTip.BlockHash(),
-			wantTip.Header.Height, best.Hash, best.Height)
+			"-- got %q (hash %s, height %d)", tipName, wantTip.BlockHash(),
+			wantTip.Header.Height, g.BlockName(&best.Hash), best.Hash,
+			best.Height)
 	}
 }
 
@@ -591,7 +591,7 @@ func (g *chaingenHarness) AcceptedToSideChainWithExpectedTip(tipName string) {
 	msgBlock := g.Tip()
 	blockHeight := msgBlock.Header.Height
 	block := dcrutil.NewBlock(msgBlock)
-	g.t.Logf("Testing block %s (hash %s, height %d)", g.TipName(), block.Hash(),
+	g.t.Logf("Testing block %q (hash %s, height %d)", g.TipName(), block.Hash(),
 		blockHeight)
 
 	forkLen, err := g.chain.ProcessBlock(block, BFNone)
@@ -701,7 +701,7 @@ func (g *chaingenHarness) ForceTipReorg(fromTipName, toTipName string) {
 
 	from := g.BlockByName(fromTipName)
 	to := g.BlockByName(toTipName)
-	g.t.Logf("Testing forced reorg from %s (hash %s, height %d) to %s (hash "+
+	g.t.Logf("Testing forced reorg from %q (hash %s, height %d) to %q (hash "+
 		"%s, height %d)", fromTipName, from.BlockHash(), from.Header.Height,
 		toTipName, to.BlockHash(), to.Header.Height)
 
