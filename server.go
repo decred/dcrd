@@ -3731,7 +3731,6 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB, chainP
 				return blockchain.ValidateTransactionScripts(tx, utxoView, flags,
 					s.sigCache)
 			},
-			ForceReorganization: s.chain.ForceHeadReorganization,
 		})
 
 		s.bg = mining.NewBgBlkTmplGenerator(&mining.BgBlkTmplConfig{

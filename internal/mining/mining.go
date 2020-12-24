@@ -132,8 +132,8 @@ type Config struct {
 	FetchUtxoViewParentTemplate func(block *wire.MsgBlock) (*blockchain.UtxoViewpoint, error)
 
 	// ForceHeadReorganization defines the function to use to force a
-	// reorganization of the block chain to the block hash requested, so long as it
-	// matches up with the current organization of the best chain.
+	// reorganization of the block chain to the block hash requested, so long as
+	// it matches up with the current organization of the best chain.
 	ForceHeadReorganization func(formerBest chainhash.Hash, newBest chainhash.Hash) error
 
 	// IsFinalizedTransaction defines the function to use to determine whether or
@@ -166,11 +166,6 @@ type Config struct {
 	// ValidateTransactionScripts defines the function to use to validate the
 	// scripts for the passed transaction.
 	ValidateTransactionScripts func(tx *dcrutil.Tx, utxoView *blockchain.UtxoViewpoint, flags txscript.ScriptFlags) error
-
-	// ForceReorganization forces a reorganization of the block chain to the
-	// block hash requested, so long as it matches up with the current
-	// organization of the best chain.
-	ForceReorganization func(formerBest, newBest chainhash.Hash) error
 }
 
 // TxDesc is a descriptor about a transaction in a transaction source along with
@@ -1096,7 +1091,7 @@ func (g *BlkTmplGenerator) NewBlockTemplate(payToAddress dcrutil.Address) (*Bloc
 		if eligibleParents[0] != prevHash {
 			for i := range eligibleParents {
 				newHead := &eligibleParents[i]
-				err := g.cfg.ForceReorganization(prevHash, *newHead)
+				err := g.cfg.ForceHeadReorganization(prevHash, *newHead)
 				if err != nil {
 					log.Errorf("failed to reorganize to new parent: %v", err)
 					continue

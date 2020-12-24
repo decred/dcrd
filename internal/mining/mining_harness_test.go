@@ -1399,7 +1399,6 @@ func newMiningHarness(chainParams *chaincfg.Params) (*miningHarness, []spendable
 
 				return blockchain.ValidateTransactionScripts(tx, utxoView, flags, sigCache)
 			},
-			ForceReorganization: chain.ForceHeadReorganization,
 		}),
 	}
 
