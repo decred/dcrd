@@ -111,17 +111,6 @@ func NewNotifyNewTicketsCmd() *NotifyNewTicketsCmd {
 	return &NotifyNewTicketsCmd{}
 }
 
-// NotifyStakeDifficultyCmd is a type handling custom marshaling and
-// unmarshaling of notifystakedifficulty JSON websocket extension
-// commands.
-type NotifyStakeDifficultyCmd struct {
-}
-
-// NewNotifyStakeDifficultyCmd creates a new NotifyStakeDifficultyCmd.
-func NewNotifyStakeDifficultyCmd() *NotifyStakeDifficultyCmd {
-	return &NotifyStakeDifficultyCmd{}
-}
-
 // RebroadcastMissedCmd is a type handling custom marshaling and
 // unmarshaling of rebroadcastmissed JSON RPC commands.
 type RebroadcastMissedCmd struct{}
@@ -228,12 +217,8 @@ func init() {
 	dcrjson.MustRegister(Method("notifytspend"), (*NotifyTSpendCmd)(nil), flags)
 	dcrjson.MustRegister(Method("notifynewtransactions"), (*NotifyNewTransactionsCmd)(nil), flags)
 	dcrjson.MustRegister(Method("notifynewtickets"), (*NotifyNewTicketsCmd)(nil), flags)
-	dcrjson.MustRegister(Method("notifyspentandmissedtickets"),
-		(*NotifySpentAndMissedTicketsCmd)(nil), flags)
-	dcrjson.MustRegister(Method("notifystakedifficulty"),
-		(*NotifyStakeDifficultyCmd)(nil), flags)
-	dcrjson.MustRegister(Method("notifywinningtickets"),
-		(*NotifyWinningTicketsCmd)(nil), flags)
+	dcrjson.MustRegister(Method("notifyspentandmissedtickets"), (*NotifySpentAndMissedTicketsCmd)(nil), flags)
+	dcrjson.MustRegister(Method("notifywinningtickets"), (*NotifyWinningTicketsCmd)(nil), flags)
 	dcrjson.MustRegister(Method("rebroadcastmissed"), (*RebroadcastMissedCmd)(nil), flags)
 	dcrjson.MustRegister(Method("rebroadcastwinners"), (*RebroadcastWinnersCmd)(nil), flags)
 	dcrjson.MustRegister(Method("session"), (*SessionCmd)(nil), flags)

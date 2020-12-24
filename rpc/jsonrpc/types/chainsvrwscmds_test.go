@@ -75,17 +75,6 @@ func TestChainSvrWsCmds(t *testing.T) {
 			unmarshalled: &NotifyNewTicketsCmd{},
 		},
 		{
-			name: "notifystakedifficulty",
-			newCmd: func() (interface{}, error) {
-				return dcrjson.NewCmd(Method("notifystakedifficulty"))
-			},
-			staticCmd: func() interface{} {
-				return NewNotifyStakeDifficultyCmd()
-			},
-			marshalled:   `{"jsonrpc":"1.0","method":"notifystakedifficulty","params":[],"id":1}`,
-			unmarshalled: &NotifyStakeDifficultyCmd{},
-		},
-		{
 			name: "notifyblocks",
 			newCmd: func() (interface{}, error) {
 				return dcrjson.NewCmd(Method("notifyblocks"))
