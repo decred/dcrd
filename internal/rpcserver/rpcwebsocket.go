@@ -75,7 +75,6 @@ var wsHandlersBeforeInit = map[types.Method]wsCommandHandler{
 	"notifywinningtickets":        handleWinningTickets,
 	"notifyspentandmissedtickets": handleSpentAndMissedTickets,
 	"notifynewtickets":            handleNewTickets,
-	"notifystakedifficulty":       handleStakeDifficulty,
 	"notifynewtransactions":       handleNotifyNewTransactions,
 	"rebroadcastmissed":           handleRebroadcastMissed,
 	"rebroadcastwinners":          handleRebroadcastWinners,
@@ -274,15 +273,6 @@ func (m *wsNotificationManager) NotifyNewTickets(tnd *blockchain.TicketNotificat
 	}
 }
 
-// NotifyStakeDifficulty notifies websocket clients that have registered for
-// stake difficulty updates.
-func (m *wsNotificationManager) NotifyStakeDifficulty(stnd *StakeDifficultyNtfnData) {
-	select {
-	case m.queueNotification <- (*notificationStakeDifficulty)(stnd):
-	case <-m.quit:
-	}
-}
-
 // NotifyMempoolTx passes a transaction accepted by mempool to the
 // notification manager for transaction notification processing.  If
 // isNew is true, the tx is a new transaction, rather than one
@@ -306,14 +296,6 @@ type WinningTicketsNtfnData struct {
 	BlockHash   chainhash.Hash
 	BlockHeight int64
 	Tickets     []chainhash.Hash
-}
-
-// StakeDifficultyNtfnData is the data that is used to generate
-// stake difficulty notifications.
-type StakeDifficultyNtfnData struct {
-	BlockHash       chainhash.Hash
-	BlockHeight     int64
-	StakeDifficulty int64
 }
 
 type wsClientFilter struct {
@@ -448,7 +430,6 @@ type notificationReorganization blockchain.ReorganizationNtfnsData
 type notificationWinningTickets WinningTicketsNtfnData
 type notificationSpentAndMissedTickets blockchain.TicketNotificationsData
 type notificationNewTickets blockchain.TicketNotificationsData
-type notificationStakeDifficulty StakeDifficultyNtfnData
 type notificationTxAcceptedByMempool struct {
 	isNew bool
 	tx    *dcrutil.Tx
@@ -469,8 +450,6 @@ type notificationRegisterSpentAndMissedTickets wsClient
 type notificationUnregisterSpentAndMissedTickets wsClient
 type notificationRegisterNewTickets wsClient
 type notificationUnregisterNewTickets wsClient
-type notificationRegisterStakeDifficulty wsClient
-type notificationUnregisterStakeDifficulty wsClient
 type notificationRegisterNewMempoolTxs wsClient
 type notificationUnregisterNewMempoolTxs wsClient
 
@@ -493,7 +472,6 @@ func (m *wsNotificationManager) notificationHandler(ctx context.Context) {
 	winningTicketNotifications := make(map[chan struct{}]*wsClient)
 	ticketSMNotifications := make(map[chan struct{}]*wsClient)
 	ticketNewNotifications := make(map[chan struct{}]*wsClient)
-	stakeDifficultyNotifications := make(map[chan struct{}]*wsClient)
 	txNotifications := make(map[chan struct{}]*wsClient)
 
 out:
@@ -545,10 +523,6 @@ out:
 			case *notificationNewTickets:
 				m.notifyNewTickets(ticketNewNotifications,
 					(*blockchain.TicketNotificationsData)(n))
-
-			case *notificationStakeDifficulty:
-				m.notifyStakeDifficulty(stakeDifficultyNotifications,
-					(*StakeDifficultyNtfnData)(n))
 
 			case *notificationTxAcceptedByMempool:
 				if n.isNew && len(txNotifications) != 0 {
@@ -604,14 +578,6 @@ out:
 				wsc := (*wsClient)(n)
 				delete(ticketNewNotifications, wsc.quit)
 
-			case *notificationRegisterStakeDifficulty:
-				wsc := (*wsClient)(n)
-				stakeDifficultyNotifications[wsc.quit] = wsc
-
-			case *notificationUnregisterStakeDifficulty:
-				wsc := (*wsClient)(n)
-				delete(stakeDifficultyNotifications, wsc.quit)
-
 			case *notificationRegisterClient:
 				wsc := (*wsClient)(n)
 				clients[wsc.quit] = wsc
@@ -627,7 +593,6 @@ out:
 				delete(winningTicketNotifications, wsc.quit)
 				delete(ticketSMNotifications, wsc.quit)
 				delete(ticketNewNotifications, wsc.quit)
-				delete(stakeDifficultyNotifications, wsc.quit)
 				delete(clients, wsc.quit)
 
 			case *notificationRegisterNewMempoolTxs:
@@ -1107,18 +1072,6 @@ func (m *wsNotificationManager) UnregisterNewTickets(wsc *wsClient) {
 	m.queueNotification <- (*notificationUnregisterNewTickets)(wsc)
 }
 
-// RegisterStakeDifficulty requests stake difficulty notifications
-// to the passed websocket client.
-func (m *wsNotificationManager) RegisterStakeDifficulty(wsc *wsClient) {
-	m.queueNotification <- (*notificationRegisterStakeDifficulty)(wsc)
-}
-
-// UnregisterStakeDifficulty removes stake difficulty notifications for
-// the passed websocket client.
-func (m *wsNotificationManager) UnregisterStakeDifficulty(wsc *wsClient) {
-	m.queueNotification <- (*notificationUnregisterStakeDifficulty)(wsc)
-}
-
 // notifyNewTickets notifies websocket clients that have registered for
 // maturing ticket updates.
 func (*wsNotificationManager) notifyNewTickets(clients map[chan struct{}]*wsClient, tnd *blockchain.TicketNotificationsData) {
@@ -1135,25 +1088,6 @@ func (*wsNotificationManager) notifyNewTickets(clients map[chan struct{}]*wsClie
 	marshalledJSON, err := dcrjson.MarshalCmd("1.0", nil, ntfn)
 	if err != nil {
 		log.Errorf("Failed to marshal new tickets notification: "+
-			"%v", err)
-		return
-	}
-	for _, wsc := range clients {
-		wsc.QueueNotification(marshalledJSON)
-	}
-}
-
-// notifyStakeDifficulty notifies websocket clients that have registered for
-// maturing ticket updates.
-func (*wsNotificationManager) notifyStakeDifficulty(clients map[chan struct{}]*wsClient, sdnd *StakeDifficultyNtfnData) {
-	// Notify interested websocket clients about the connected block.
-	ntfn := types.NewStakeDifficultyNtfn(sdnd.BlockHash.String(),
-		int32(sdnd.BlockHeight),
-		sdnd.StakeDifficulty)
-
-	marshalledJSON, err := dcrjson.MarshalCmd("1.0", nil, ntfn)
-	if err != nil {
-		log.Errorf("Failed to marshal stake difficulty notification: "+
 			"%v", err)
 		return
 	}
@@ -2307,13 +2241,6 @@ func handleSpentAndMissedTickets(wsc *wsClient, icmd interface{}) (interface{}, 
 // websocket connections.
 func handleNewTickets(wsc *wsClient, icmd interface{}) (interface{}, error) {
 	wsc.rpcServer.ntfnMgr.RegisterNewTickets(wsc)
-	return nil, nil
-}
-
-// handleStakeDifficulty implements the notifystakedifficulty command extension
-// for websocket connections.
-func handleStakeDifficulty(wsc *wsClient, icmd interface{}) (interface{}, error) {
-	wsc.rpcServer.ntfnMgr.RegisterStakeDifficulty(wsc)
 	return nil, nil
 }
 

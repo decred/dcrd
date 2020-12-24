@@ -5530,12 +5530,6 @@ func (s *Server) NotifyTSpend(tx *dcrutil.Tx) {
 	s.ntfnMgr.NotifyTSpend(tx)
 }
 
-// NotifyStakeDifficulty notifies websocket clients that have registered for
-// stake difficulty updates.
-func (s *Server) NotifyStakeDifficulty(stnd *StakeDifficultyNtfnData) {
-	s.ntfnMgr.NotifyStakeDifficulty(stnd)
-}
-
 // NotifyNewTickets notifies websocket clients that have registered for maturing
 // ticket updates.
 func (s *Server) NotifyNewTickets(tnd *blockchain.TicketNotificationsData) {

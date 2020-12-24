@@ -687,10 +687,6 @@ type NtfnManager interface {
 	// manager for processing.
 	NotifyNewTickets(tnd *blockchain.TicketNotificationsData)
 
-	// NotifyStakeDifficulty passes a new stake difficulty notification to the
-	// manager for processing.
-	NotifyStakeDifficulty(stnd *StakeDifficultyNtfnData)
-
 	// NotifyMempoolTx passes a transaction accepted by mempool to the
 	// manager for processing.
 	NotifyMempoolTx(tx *dcrutil.Tx, isNew bool)
@@ -745,14 +741,6 @@ type NtfnManager interface {
 	// UnregisterNewTickets removes spent/missed ticket notifications for
 	// the passed websocket client.
 	UnregisterNewTickets(wsc *wsClient)
-
-	// RegisterStakeDifficulty requests stake difficulty notifications
-	// to the passed websocket client.
-	RegisterStakeDifficulty(wsc *wsClient)
-
-	// UnregisterStakeDifficulty removes stake difficulty notifications for
-	// the passed websocket client.
-	UnregisterStakeDifficulty(wsc *wsClient)
 
 	// RegisterNewMempoolTxsUpdates requests notifications to the passed websocket
 	// client when new transactions are added to the memory pool.

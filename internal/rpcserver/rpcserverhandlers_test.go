@@ -1122,10 +1122,6 @@ func (mgr *testNtfnManager) NotifySpentAndMissedTickets(tnd *blockchain.TicketNo
 // manager for processing.
 func (mgr *testNtfnManager) NotifyNewTickets(tnd *blockchain.TicketNotificationsData) {}
 
-// NotifyStakeDifficulty passes a new stake difficulty notification to the
-// manager for processing.
-func (mgr *testNtfnManager) NotifyStakeDifficulty(stnd *StakeDifficultyNtfnData) {}
-
 // NotifyMempoolTx passes a transaction accepted by mempool to the
 // manager for processing.
 func (mgr *testNtfnManager) NotifyMempoolTx(tx *dcrutil.Tx, isNew bool) {}

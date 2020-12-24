@@ -828,9 +828,6 @@ var helpDescsEnUS = map[string]string{
 	// NotifyNewTicketsCmd help
 	"notifynewtickets--synopsis": "Request notifications for whenever new tickets are found.",
 
-	// NotifyStakeDifficultyCmd help
-	"notifystakedifficulty--synopsis": "Request notifications for whenever stake difficulty goes up.",
-
 	// NotifyWinningTicketsCmd help
 	"notifywinningtickets--synopsis": "Request notifications for whenever any tickets are chosen to vote.",
 
@@ -1074,7 +1071,6 @@ var rpcResultTypes = map[types.Method][]interface{}{
 	"notifywinningtickets":        nil,
 	"notifyspentandmissedtickets": nil,
 	"notifynewtickets":            nil,
-	"notifystakedifficulty":       nil,
 	"notifyblocks":                nil,
 	"notifywork":                  nil,
 	"notifytspend":                nil,

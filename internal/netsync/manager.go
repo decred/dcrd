@@ -1042,16 +1042,6 @@ func (m *SyncManager) handleBlockMsg(bmsg *blockMsg) {
 			// Notify stake difficulty subscribers and prune invalidated
 			// transactions.
 			best := m.cfg.Chain.BestSnapshot()
-			if r := m.cfg.RpcServer(); r != nil {
-				// Update registered websocket clients on the
-				// current stake difficulty.
-				r.NotifyStakeDifficulty(
-					&rpcserver.StakeDifficultyNtfnData{
-						BlockHash:       best.Hash,
-						BlockHeight:     best.Height,
-						StakeDifficulty: best.NextStakeDiff,
-					})
-			}
 			m.cfg.TxMemPool.PruneStakeTx(best.NextStakeDiff, best.Height)
 			m.cfg.TxMemPool.PruneExpiredTx()
 
@@ -1613,17 +1603,8 @@ out:
 					msg.formerBest, msg.newBest)
 
 				if err == nil {
-					// Notify stake difficulty subscribers and prune
-					// invalidated transactions.
+					// Prune invalidated transactions.
 					best := m.cfg.Chain.BestSnapshot()
-					if r := m.cfg.RpcServer(); r != nil {
-						r.NotifyStakeDifficulty(
-							&rpcserver.StakeDifficultyNtfnData{
-								BlockHash:       best.Hash,
-								BlockHeight:     best.Height,
-								StakeDifficulty: best.NextStakeDiff,
-							})
-					}
 					m.cfg.TxMemPool.PruneStakeTx(best.NextStakeDiff,
 						best.Height)
 					m.cfg.TxMemPool.PruneExpiredTx()
@@ -1654,17 +1635,8 @@ out:
 
 				onMainChain := !isOrphan && forkLen == 0
 				if onMainChain {
-					// Notify stake difficulty subscribers and prune
-					// invalidated transactions.
+					// Prune invalidated transactions.
 					best := m.cfg.Chain.BestSnapshot()
-					if r := m.cfg.RpcServer(); r != nil {
-						r.NotifyStakeDifficulty(
-							&rpcserver.StakeDifficultyNtfnData{
-								BlockHash:       best.Hash,
-								BlockHeight:     best.Height,
-								StakeDifficulty: best.NextStakeDiff,
-							})
-					}
 					m.cfg.TxMemPool.PruneStakeTx(best.NextStakeDiff,
 						best.Height)
 					m.cfg.TxMemPool.PruneExpiredTx()
