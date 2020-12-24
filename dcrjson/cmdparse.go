@@ -1,5 +1,5 @@
 // Copyright (c) 2014 The btcsuite developers
-// Copyright (c) 2015-2016 The Decred developers
+// Copyright (c) 2015-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -7,6 +7,7 @@ package dcrjson
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"reflect"
 	"strconv"
@@ -136,7 +137,8 @@ func ParseParams(method interface{}, params []json.RawMessage) (interface{}, err
 			// The most common error is the wrong type, so
 			// explicitly detect that error and make it nicer.
 			fieldName := strings.ToLower(rt.Field(i).Name)
-			if jerr, ok := err.(*json.UnmarshalTypeError); ok {
+			var jerr *json.UnmarshalTypeError
+			if errors.As(err, &jerr) {
 				str := fmt.Sprintf("parameter #%d '%s' must "+
 					"be type %v (got %v)", i+1, fieldName,
 					jerr.Type, jerr.Value)

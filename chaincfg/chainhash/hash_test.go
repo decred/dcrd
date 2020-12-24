@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2019 The Decred developers
+// Copyright (c) 2019-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -8,6 +8,7 @@ package chainhash
 import (
 	"bytes"
 	"encoding/hex"
+	"errors"
 	"testing"
 )
 
@@ -193,7 +194,7 @@ func TestNewHashFromStr(t *testing.T) {
 	t.Logf("Running %d tests", len(tests))
 	for i, test := range tests {
 		result, err := NewHashFromStr(test.in)
-		if err != test.err {
+		if !errors.Is(err, test.err) {
 			t.Errorf(unexpectedErrStr, i, err, test.err)
 			continue
 		} else if err != nil {

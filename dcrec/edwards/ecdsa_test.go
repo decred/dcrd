@@ -1,4 +1,4 @@
-// Copyright (c) 2015-2016 The Decred developers
+// Copyright (c) 2015-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"encoding/hex"
+	"errors"
 	"io"
 	"math/big"
 	"math/rand"
@@ -37,7 +38,7 @@ func TestGolden(t *testing.T) {
 		lineNo++
 		lineBytes, err := in.ReadBytes(byte('\n'))
 		if err != nil {
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				break
 			}
 			t.Fatalf("error reading test data: %s", err)

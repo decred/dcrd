@@ -1067,12 +1067,13 @@ func (p *Peer) shouldHandleReadError(err error) bool {
 
 	// No logging or reject message when the remote peer has been
 	// disconnected.
-	if err == io.EOF {
+	if errors.Is(err, io.EOF) {
 		return false
 	}
 
 	// Handle all temporary network errors besides timeout errors.
-	if opErr, ok := err.(*net.OpError); ok &&
+	var opErr *net.OpError
+	if errors.As(err, &opErr) &&
 		(!opErr.Temporary() || opErr.Timeout()) {
 		return false
 	}
@@ -1306,7 +1307,8 @@ out:
 					true)
 			}
 
-			if nErr, ok := err.(net.Error); ok && nErr.Timeout() {
+			var nErr net.Error
+			if errors.As(err, &nErr) && nErr.Timeout() {
 				log.Warnf("Peer %s no answer for %s -- disconnecting",
 					p, p.cfg.IdleTimeout)
 			}
@@ -1636,10 +1638,11 @@ func (p *Peer) shouldLogWriteError(err error) bool {
 	}
 
 	// No logging when the remote peer has been disconnected.
-	if err == io.EOF {
+	if errors.Is(err, io.EOF) {
 		return false
 	}
-	if opErr, ok := err.(*net.OpError); ok && !opErr.Temporary() {
+	var opErr *net.OpError
+	if errors.As(err, &opErr) && !opErr.Temporary() {
 		return false
 	}
 

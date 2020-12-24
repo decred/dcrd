@@ -7,6 +7,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path"
@@ -28,7 +29,8 @@ func main() {
 	parser := flags.NewParser(&cfg, flags.Default)
 	_, err := parser.Parse()
 	if err != nil {
-		if e, ok := err.(*flags.Error); !ok || e.Type != flags.ErrHelp {
+		var e *flags.Error
+		if !errors.As(err, &e) || e.Type != flags.ErrHelp {
 			parser.WriteHelp(os.Stderr)
 		}
 		return

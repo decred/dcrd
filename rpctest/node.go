@@ -1,5 +1,5 @@
 // Copyright (c) 2016 The btcsuite developers
-// Copyright (c) 2017-2019 The Decred developers
+// Copyright (c) 2017-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -8,6 +8,7 @@ package rpctest
 import (
 	"bufio"
 	"crypto/elliptic"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -236,7 +237,7 @@ func (n *node) start() error {
 		r := bufio.NewReader(n.stderr)
 		for {
 			line, err := r.ReadBytes('\n')
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				n.tracef("stderr: EOF")
 				return
 			}
@@ -256,7 +257,7 @@ func (n *node) start() error {
 		r := bufio.NewReader(n.stdout)
 		for {
 			line, err := r.ReadBytes('\n')
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				n.tracef("stdout: EOF")
 				return
 			}
