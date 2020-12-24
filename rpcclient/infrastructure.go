@@ -282,9 +282,6 @@ func (c *Client) trackRegisteredNtfns(cmd interface{}) {
 	case *chainjson.NotifyNewTicketsCmd:
 		c.ntfnState.notifyNewTickets = true
 
-	case *chainjson.NotifyStakeDifficultyCmd:
-		c.ntfnState.notifyStakeDifficulty = true
-
 	case *chainjson.NotifyBlocksCmd:
 		c.ntfnState.notifyBlocks = true
 
@@ -598,14 +595,6 @@ func (c *Client) reregisterNtfns(ctx context.Context) error {
 	if stateCopy.notifyNewTickets {
 		log.Debugf("Reregistering [notifynewtickets]")
 		if err := c.NotifyNewTickets(ctx); err != nil {
-			return err
-		}
-	}
-
-	// Reregister notifystakedifficulty if needed.
-	if stateCopy.notifyStakeDifficulty {
-		log.Debugf("Reregistering [notifystakedifficulty]")
-		if err := c.NotifyStakeDifficulty(ctx); err != nil {
 			return err
 		}
 	}

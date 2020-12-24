@@ -38,7 +38,6 @@ type notificationState struct {
 	notifyWinningTickets        bool
 	notifySpentAndMissedTickets bool
 	notifyNewTickets            bool
-	notifyStakeDifficulty       bool
 	notifyNewTx                 bool
 	notifyNewTxVerbose          bool
 }
@@ -52,7 +51,6 @@ func (s *notificationState) Copy() *notificationState {
 	stateCopy.notifyWinningTickets = s.notifyWinningTickets
 	stateCopy.notifySpentAndMissedTickets = s.notifySpentAndMissedTickets
 	stateCopy.notifyNewTickets = s.notifyNewTickets
-	stateCopy.notifyStakeDifficulty = s.notifyStakeDifficulty
 	stateCopy.notifyNewTx = s.notifyNewTx
 	stateCopy.notifyNewTxVerbose = s.notifyNewTxVerbose
 
@@ -146,14 +144,6 @@ type NotificationHandlers struct {
 		height int64,
 		stakeDiff int64,
 		tickets []*chainhash.Hash)
-
-	// OnStakeDifficulty is invoked when a block is connected to the longest
-	// (best) chain and a new stake difficulty is calculated.  It will only
-	// be invoked if a preceding call to NotifyStakeDifficulty has been
-	// made to register for the notification and the function is non-nil.
-	OnStakeDifficulty func(hash *chainhash.Hash,
-		height int64,
-		stakeDiff int64)
 
 	// OnTxAccepted is invoked when a transaction is accepted into the
 	// memory pool.  It will only be invoked if a preceding call to
@@ -348,26 +338,6 @@ func (c *Client) handleNotification(ntfn *rawNotification) {
 			blockHeight,
 			stakeDifficulty,
 			tickets)
-
-	// OnStakeDifficulty
-	case chainjson.StakeDifficultyNtfnMethod:
-		// Ignore the notification if the client is not interested in
-		// it.
-		if c.ntfnHandlers.OnStakeDifficulty == nil {
-			return
-		}
-
-		blockSha, blockHeight, stakeDiff,
-			err := parseStakeDifficultyNtfnParams(ntfn.Params)
-		if err != nil {
-			log.Warnf("Received invalid stake difficulty "+
-				"notification: %v", err)
-			return
-		}
-
-		c.ntfnHandlers.OnStakeDifficulty(blockSha,
-			blockHeight,
-			stakeDiff)
 
 	// OnTxAccepted
 	case chainjson.TxAcceptedNtfnMethod:
@@ -757,49 +727,6 @@ func parseNewTicketsNtfnParams(params []json.RawMessage) (*chainhash.Hash, int64
 	return sha, bh, stakeDiff, t, nil
 }
 
-// parseStakeDifficultyNtfnParams parses out the list of block hash, block
-// height, and stake difficulty from a WinningTickets notification.
-func parseStakeDifficultyNtfnParams(params []json.RawMessage) (
-	*chainhash.Hash,
-	int64,
-	int64,
-	error) {
-
-	if len(params) != 3 {
-		return nil, 0, 0, wrongNumParams(len(params))
-	}
-
-	// Unmarshal first parameter as a string.
-	var blockHashStr string
-	err := json.Unmarshal(params[0], &blockHashStr)
-	if err != nil {
-		return nil, 0, 0, err
-	}
-
-	// Create ShaHash from block sha string.
-	bHash, err := chainhash.NewHashFromStr(blockHashStr)
-	if err != nil {
-		return nil, 0, 0, err
-	}
-
-	// Unmarshal second parameter as an integer.
-	var blockHeight int32
-	err = json.Unmarshal(params[1], &blockHeight)
-	if err != nil {
-		return nil, 0, 0, err
-	}
-	bHeight := int64(blockHeight)
-
-	// Unmarshal third parameter as an integer.
-	var stakeDiff int64
-	err = json.Unmarshal(params[2], &stakeDiff)
-	if err != nil {
-		return nil, 0, 0, err
-	}
-
-	return bHash, bHeight, stakeDiff, nil
-}
-
 // parseTxAcceptedNtfnParams parses out the transaction hash and total amount
 // from the parameters of a txaccepted notification.
 func parseTxAcceptedNtfnParams(params []json.RawMessage) (*chainhash.Hash,
@@ -1143,56 +1070,6 @@ func (c *Client) NotifyNewTicketsAsync(ctx context.Context) *FutureNotifyNewTick
 // NOTE: This is a dcrd extension and requires a websocket connection.
 func (c *Client) NotifyNewTickets(ctx context.Context) error {
 	return c.NotifyNewTicketsAsync(ctx).Receive()
-}
-
-// FutureNotifyStakeDifficultyResult is a future promise to deliver the result of a
-// NotifyStakeDifficultyAsync RPC invocation (or an applicable error).
-type FutureNotifyStakeDifficultyResult cmdRes
-
-// Receive waits for the response promised by the future and returns an error
-// if the registration was not successful.
-func (r *FutureNotifyStakeDifficultyResult) Receive() error {
-	_, err := receiveFuture(r.ctx, r.c)
-	return err
-}
-
-// NotifyStakeDifficultyAsync returns an instance of a type that can be used to get the
-// result of the RPC at some future time by invoking the Receive function on
-// the returned instance.
-//
-// See NotifyStakeDifficulty for the blocking version and more details.
-//
-// NOTE: This is a dcrd extension and requires a websocket connection.
-func (c *Client) NotifyStakeDifficultyAsync(ctx context.Context) *FutureNotifyStakeDifficultyResult {
-	// Not supported in HTTP POST mode.
-	if c.config.HTTPPostMode {
-		return (*FutureNotifyStakeDifficultyResult)(newFutureError(ctx, ErrWebsocketsRequired))
-	}
-
-	// Ignore the notification if the client is not interested in
-	// notifications.
-	if c.ntfnHandlers == nil {
-		return (*FutureNotifyStakeDifficultyResult)(newNilFutureResult(ctx))
-	}
-
-	cmd := chainjson.NewNotifyStakeDifficultyCmd()
-
-	return (*FutureNotifyStakeDifficultyResult)(c.sendCmd(ctx, cmd))
-}
-
-// NotifyStakeDifficulty registers the client to receive notifications when
-// blocks are connected to the main chain and stake difficulty is updated.  The
-// notifications are delivered to the notification handlers associated with the
-// client.  Calling this function has no effect if there are no notification
-// handlers and will result in an error if the client is configured to run in
-// HTTP POST mode.
-//
-// The notifications delivered as a result of this call will be via
-// OnStakeDifficulty.
-//
-// NOTE: This is a dcrd extension and requires a websocket connection.
-func (c *Client) NotifyStakeDifficulty(ctx context.Context) error {
-	return c.NotifyStakeDifficultyAsync(ctx).Receive()
 }
 
 // FutureNotifyNewTransactionsResult is a future promise to deliver the result
