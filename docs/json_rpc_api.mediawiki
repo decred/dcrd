@@ -2741,10 +2741,6 @@ user.  Click the method name for further details such as parameter and return in
 |Send notifications for all new tickets that have matured.
 |[[#newtickets|newtickets]]
 |-
-|[[#notifystakedifficulty|notifystakedifficulty]]
-|Send notifications whenever the stake difficulty is updated.
-|[[#stakedifficulty|stakedifficulty]]
-|-
 |[[#session|session]]
 |Return details regarding a websocket client's current connection.
 |None
@@ -3181,26 +3177,6 @@ NOTE: This is only required if an HTTP Authorization header is not being used.
 
 ----
 
-====notifystakedifficulty====
-{|
-!Method
-|notifystakedifficulty
-|-
-!Notifications
-|[[#stakedifficulty|stakedifficulty]]
-|-
-!Parameters
-|None
-|-
-!Description
-|Send a stakedifficulty notification when the stake difficulty is updated.
-|-
-!Returns
-|Nothing
-|}
-
-----
-
 ====session====
 {|
 !Method
@@ -3282,10 +3258,6 @@ The following is an overview of the JSON-RPC notifications used for Websocket co
 |[[#newtickets|newtickets]]
 |New tickets matured.
 |[[#notifynewtickets|notifynewtickets]]
-|-
-|[[#stakedifficulty|stakedifficulty]]
-|The stake difficulty was updated.
-|[[#notifystakedifficulty|notifystakedifficulty]]
 |-
 |[[#rescanprogress|rescanprogress]]
 |A rescan operation that is underway has made progress.
@@ -3576,29 +3548,6 @@ The redeemingtx notification for the same txout, after the spending transaction 
 : <code>{"jsonrpc": "1.0", "method": "newtickets", "params": ["00000044a6c0e2fb8f4feae2ac1133443859407abcf27d5d3a29d7d16eda8bc4", 479903, 9003800525, ["5297d32d5178c464c279711e771250f4f80a15830dfb89ae6bf414ee22613c88", "237c15fe027797d72c1ffd5aa3b3f9069b50352855bda5a9e7d0fa13d2299e32", "cd11ab320a543c946a021b37d5339a7f0ea72a6baf46fda455edf302165e812b", "eb82dba288e7af4a02a44818376f7228929c89a4fd51cf07ebdd825acc1c039d"]], "id": null}</code>
 |}
 
-----
-
-====stakedifficulty====
-{|
-!Method
-|stakedifficulty
-|-
-!Request
-|[[#notifystakedifficulty|notifystakedifficulty]]
-|-
-!Parameters
-|
-# <code>BlockHash</code>: <code>(string)</code> the hash of the block.
-# <code>BlockHeight</code>: <code>(numeric)</code> the height of the block.
-# <code>StakeDiff</code>: <code>(numeric)</code> the stake difficulty of the block.
-|-
-!Description
-|Notifies a client when the stake difficulty has been updated.
-|-
-!Example
-|Example stakedifficulty notification for block 479903 on testnet:
-: <code>{"jsonrpc": "1.0", "method": "stakedifficulty", "params": ["00000044a6c0e2fb8f4feae2ac1133443859407abcf27d5d3a29d7d16eda8bc4", 479903, 9003800525], "id": null}</code>
-|}
 ----
 
 ====rescanprogress====
