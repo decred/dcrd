@@ -1,5 +1,5 @@
 // Copyright (c) 2017 The btcsuite developers
-// Copyright (c) 2019 The Decred developers
+// Copyright (c) 2019-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -8,6 +8,7 @@ package bech32
 import (
 	"bytes"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -54,7 +55,7 @@ func TestBech32(t *testing.T) {
 	for i, test := range tests {
 		str := test.str
 		hrp, decoded, err := Decode(str)
-		if test.expectedError != err {
+		if !errors.Is(err, test.expectedError) {
 			t.Errorf("%d: expected decoding error %v "+
 				"instead got %v", i, test.expectedError, err)
 			continue
@@ -285,7 +286,7 @@ func TestBech32Base256(t *testing.T) {
 		// Ensure the decode either produces an error or not as expected.
 		str := test.encoded
 		gotHRP, gotData, err := DecodeToBase256(str)
-		if test.err != err {
+		if !errors.Is(err, test.err) {
 			t.Errorf("%q: unexpected decode error -- got %v, want %v",
 				test.name, err, test.err)
 			continue
@@ -516,7 +517,7 @@ func TestConvertBitsFailures(t *testing.T) {
 		}
 
 		_, err = ConvertBits(input, tc.fromBits, tc.toBits, tc.pad)
-		if err != tc.err {
+		if !errors.Is(err, tc.err) {
 			t.Fatalf("test case %d failure: expected '%v' got '%v'", i,
 				tc.err, err)
 		}

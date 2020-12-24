@@ -1,10 +1,11 @@
-// Copyright (c) 2017 The Decred developers
+// Copyright (c) 2017-2020 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
 package chaincfg
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/decred/dcrd/wire"
@@ -345,7 +346,7 @@ func TestChoices(t *testing.T) {
 	for _, test := range tests {
 		t.Logf("running: %v", test.name)
 		err := validateAgenda(test.vote)
-		if err != test.expected {
+		if !errors.Is(err, test.expected) {
 			t.Fatalf("%v: got '%v' expected '%v'", test.name, err,
 				test.expected)
 		}
@@ -375,7 +376,7 @@ func TestDeployments(t *testing.T) {
 	for _, test := range tests {
 		t.Logf("running: %v", test.name)
 		_, err := validateDeployments(test.deployments)
-		if err != test.expected {
+		if !errors.Is(err, test.expected) {
 			t.Fatalf("%v: got '%v' expected '%v'", test.name, err,
 				test.expected)
 		}

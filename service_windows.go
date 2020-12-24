@@ -10,10 +10,10 @@ import (
 	"os"
 	"time"
 
+	"github.com/decred/dcrd/internal/version"
+	"golang.org/x/sys/windows/svc"
 	"golang.org/x/sys/windows/svc/eventlog"
 	"golang.org/x/sys/windows/svc/mgr"
-	"golang.org/x/sys/windows/svc"
-	"github.com/decred/dcrd/internal/version"
 )
 
 const (

@@ -120,10 +120,10 @@ func TestMiscErrors(t *testing.T) {
 	// Force an error in MarshalResponse by giving it a result type that
 	// can't be marshalled.
 	_, err = MarshalResponse("1.0", 1, make(chan int), nil)
-	if _, ok := err.(*json.UnsupportedTypeError); !ok {
-		wantErr := &json.UnsupportedTypeError{}
+	var jerr *json.UnsupportedTypeError
+	if !errors.As(err, &jerr) {
 		t.Errorf("MarshalResult: did not receive expected error - got "+
-			"%v (%[1]T), want %T", err, wantErr)
+			"%v (%[1]T), want %v (%[2]T)", err, jerr)
 		return
 	}
 }

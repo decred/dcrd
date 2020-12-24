@@ -306,7 +306,7 @@ func (stats *Estimator) loadFromDatabase(replaceBuckets bool) error {
 	currentDbVersion := []byte{1}
 
 	version, err := stats.db.Get(dbKeyVersion, nil)
-	if err != nil && err != leveldb.ErrNotFound {
+	if err != nil && !errors.Is(err, leveldb.ErrNotFound) {
 		return fmt.Errorf("error reading version from db: %v", err)
 	}
 	if len(version) < 1 {
