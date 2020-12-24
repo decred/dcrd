@@ -136,21 +136,6 @@ type tipGenerationMsg struct {
 	reply chan tipGenerationResponse
 }
 
-// forceReorganizationResponse is a response sent to the reply channel of a
-// forceReorganizationMsg query.
-type forceReorganizationResponse struct {
-	err error
-}
-
-// forceReorganizationMsg is a message type to be sent across the message
-// channel for requesting that the block on head be reorganized to one of its
-// adjacent orphans.
-type forceReorganizationMsg struct {
-	formerBest chainhash.Hash
-	newBest    chainhash.Hash
-	reply      chan forceReorganizationResponse
-}
-
 // processBlockResponse is a response sent to the reply channel of a
 // processBlockMsg.
 type processBlockResponse struct {
@@ -1598,22 +1583,6 @@ out:
 					err: err,
 				}
 
-			case forceReorganizationMsg:
-				err := m.cfg.Chain.ForceHeadReorganization(
-					msg.formerBest, msg.newBest)
-
-				if err == nil {
-					// Prune invalidated transactions.
-					best := m.cfg.Chain.BestSnapshot()
-					m.cfg.TxMemPool.PruneStakeTx(best.NextStakeDiff,
-						best.Height)
-					m.cfg.TxMemPool.PruneExpiredTx()
-				}
-
-				msg.reply <- forceReorganizationResponse{
-					err: err,
-				}
-
 			case tipGenerationMsg:
 				g, err := m.cfg.Chain.TipGeneration()
 				msg.reply <- tipGenerationResponse{
@@ -1866,20 +1835,6 @@ func (m *SyncManager) requestFromPeer(p *peerpkg.Peer, blocks, txs []*chainhash.
 	}
 
 	return nil
-}
-
-// ForceReorganization forces a reorganization of the block chain to the block
-// hash requested, so long as it matches up with the current organization of the
-// best chain.  It is funneled through the sync manager since blockchain is not
-// safe for concurrent access.
-func (m *SyncManager) ForceReorganization(formerBest, newBest chainhash.Hash) error {
-	reply := make(chan forceReorganizationResponse)
-	m.msgChan <- forceReorganizationMsg{
-		formerBest: formerBest,
-		newBest:    newBest,
-		reply:      reply}
-	response := <-reply
-	return response.err
 }
 
 // TipGeneration returns the hashes of all the children of the current best
