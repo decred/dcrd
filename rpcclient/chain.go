@@ -10,13 +10,11 @@ import (
 	"context"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/dcrjson/v3"
 	"github.com/decred/dcrd/dcrutil/v4"
 	"github.com/decred/dcrd/gcs/v3"
-	"github.com/decred/dcrd/gcs/v3/blockcf"
 	"github.com/decred/dcrd/gcs/v3/blockcf2"
 	chainjson "github.com/decred/dcrd/rpc/jsonrpc/types/v3"
 	"github.com/decred/dcrd/wire"
@@ -897,103 +895,6 @@ func (c *Client) RescanAsync(ctx context.Context, blockHashes []chainhash.Hash) 
 // chain, but they do need to be adjacent to each other.
 func (c *Client) Rescan(ctx context.Context, blockHashes []chainhash.Hash) (*chainjson.RescanResult, error) {
 	return c.RescanAsync(ctx, blockHashes).Receive()
-}
-
-// FutureGetCFilterResult is a future promise to deliver the result of a
-// GetCFilterAsync RPC invocation (or an applicable error).
-type FutureGetCFilterResult cmdRes
-
-// Receive waits for the response promised by the future and returns the
-// discovered rescan data.
-func (r *FutureGetCFilterResult) Receive() (*gcs.FilterV1, error) {
-	res, err := receiveFuture(r.ctx, r.c)
-	if err != nil {
-		return nil, err
-	}
-
-	var filterHex string
-	err = json.Unmarshal(res, &filterHex)
-	if err != nil {
-		return nil, err
-	}
-	filterBytes, err := hex.DecodeString(filterHex)
-	if err != nil {
-		return nil, err
-	}
-
-	return gcs.FromBytesV1(blockcf.P, filterBytes)
-}
-
-// GetCFilterAsync returns an instance of a type that can be used to get the
-// result of the RPC at some future time by invoking the Receive function on the
-// returned instance.
-//
-// See GetCFilter for the blocking version and more details.
-func (c *Client) GetCFilterAsync(ctx context.Context, blockHash *chainhash.Hash, filterType wire.FilterType) *FutureGetCFilterResult {
-	var ft string
-	switch filterType {
-	case wire.GCSFilterRegular:
-		ft = "regular"
-	case wire.GCSFilterExtended:
-		ft = "extended"
-	default:
-		return (*FutureGetCFilterResult)(newFutureError(ctx, errors.New("unknown filter type")))
-	}
-
-	cmd := chainjson.NewGetCFilterCmd(blockHash.String(), ft)
-	return (*FutureGetCFilterResult)(c.sendCmd(ctx, cmd))
-}
-
-// GetCFilter returns the committed filter of type filterType for a block.
-func (c *Client) GetCFilter(ctx context.Context, blockHash *chainhash.Hash, filterType wire.FilterType) (*gcs.FilterV1, error) {
-	return c.GetCFilterAsync(ctx, blockHash, filterType).Receive()
-}
-
-// FutureGetCFilterHeaderResult is a future promise to deliver the result of a
-// GetCFilterHeaderAsync RPC invocation (or an applicable error).
-type FutureGetCFilterHeaderResult cmdRes
-
-// Receive waits for the response promised by the future and returns the
-// discovered rescan data.
-func (r *FutureGetCFilterHeaderResult) Receive() (*chainhash.Hash, error) {
-	res, err := receiveFuture(r.ctx, r.c)
-	if err != nil {
-		return nil, err
-	}
-
-	var filterHeaderHex string
-	err = json.Unmarshal(res, &filterHeaderHex)
-	if err != nil {
-		return nil, err
-	}
-
-	return chainhash.NewHashFromStr(filterHeaderHex)
-}
-
-// GetCFilterHeaderAsync returns an instance of a type that can be used to get
-// the result of the RPC at some future time by invoking the Receive function on
-// the returned instance.
-//
-// See GetCFilterHeader for the blocking version and more details.
-func (c *Client) GetCFilterHeaderAsync(ctx context.Context, blockHash *chainhash.Hash, filterType wire.FilterType) *FutureGetCFilterHeaderResult {
-	var ft string
-	switch filterType {
-	case wire.GCSFilterRegular:
-		ft = "regular"
-	case wire.GCSFilterExtended:
-		ft = "extended"
-	default:
-		return (*FutureGetCFilterHeaderResult)(newFutureError(ctx, errors.New("unknown filter type")))
-	}
-
-	cmd := chainjson.NewGetCFilterHeaderCmd(blockHash.String(), ft)
-	return (*FutureGetCFilterHeaderResult)(c.sendCmd(ctx, cmd))
-}
-
-// GetCFilterHeader returns the committed filter header hash of type filterType
-// for a block.
-func (c *Client) GetCFilterHeader(ctx context.Context, blockHash *chainhash.Hash, filterType wire.FilterType) (*chainhash.Hash, error) {
-	return c.GetCFilterHeaderAsync(ctx, blockHash, filterType).Receive()
 }
 
 // CFilterV2Result is the result of calling the GetCFilterV2 and
