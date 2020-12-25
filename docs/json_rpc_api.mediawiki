@@ -226,14 +226,6 @@ the method name for further details such as parameter and return information.
 |Y
 |Returns information regarding subsidy amounts.
 |-
-|[[#getcfilter|getcfilter]]
-|Y
-|Returns the committed filter for a block.
-|-
-|[[#getcfilterheader|getcfilterheader]]
-|Y
-|Returns the committed filter header for a block.
-|-
 |[[#getcfilterv2|getcfilterv2]]
 |Y
 |Returns the version 2 block filter for the given block along with a proof that can be used to prove the filter is committed to by the block header.
@@ -1253,59 +1245,6 @@ of the best block.
 |-
 !Example Return
 |<code>{"developer": 171717305, "pos": 515151915, "pow": 1030303833, "total": 1717173053}</code>
-|}
-
-----
-
-====getcfilter====
-{|
-!Method
-|getcfilter
-|-
-!Parameters
-|
-# <code>hash</code>: <code>(string, required)</code> The block hash of the filter being queried.
-# <code>filtertype</code>: <code>(string, required)</code> The type of committed filter to return.
-|-
-!Description
-|
-: Returns the committed filter for a block.
-: Deprecated: This will be removed in the next major version.  Use [[#getcfilterv2|getcfilterv2]] instead.
-|-
-!Returns
-|<code>string</code> The hex encoded committed filter.
-|-
-!Example Return
-|
-: Newlines added for display purposes.  The actual return does not contain newlines.
-:<code>0000002305d72c4c0f6e3d19783a59f26cef1fab1ec21585f8016a22a43762cd2edbda7a1fba</code>
-:<code>596d06e092c6ec2f651d5242074fd063918741f4492dd0dd889f6909fd3028e04fa1e84259c4</code>
-:<code>1088aea6fa0cd0cb162daaa4afb05de43718914a7e04</code>
-|}
-
-----
-
-====getcfilterheader====
-{|
-!Method
-|getcfilterheader
-|-
-!Parameters
-|
-# <code>hash</code>: <code>(string, required)</code> The block hash of the filter header being queried.
-# <code>filtertype</code>: <code>(string, required)</code> The type of committed filter header to return.
-|-
-!Description
-|
-: Returns the committed filter header for a block.
-: Deprecated: This will be removed in the next major version.  Use [[#getcfilterv2|getcfilterv2]] instead.
-|-
-!Returns
-|<code>string</code> The hex encoded committed filter header.
-|-
-!Example Return
-|
-<code>bd60b439d72fad354acc4b47d374ec34b0cca3bb25994b459f01f6f84ad6b478</code>
 |}
 
 ----
