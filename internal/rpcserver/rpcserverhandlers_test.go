@@ -2708,7 +2708,9 @@ func TestHandleEstimateSmartFee(t *testing.T) {
 	economical := types.EstimateSmartFeeEconomical
 	validFeeEstimator := defaultMockFeeEstimator()
 	validFeeEstimator.estimateFeeAmt = 123456789
-	validFee := float64(1.23456789)
+	result := &types.EstimateSmartFeeResult{
+		FeeRate: float64(1.23456789),
+	}
 	testRPCServerHandler(t, []rpcTest{{
 		name:    "handleEstimateSmartFee: ok with mode",
 		handler: handleEstimateSmartFee,
@@ -2717,13 +2719,13 @@ func TestHandleEstimateSmartFee(t *testing.T) {
 			Mode:          &conservative,
 		},
 		mockFeeEstimator: validFeeEstimator,
-		result:           validFee,
+		result:           result,
 	}, {
 		name:             "handleEstimateSmartFee: ok no mode",
 		handler:          handleEstimateSmartFee,
 		cmd:              &types.EstimateSmartFeeCmd{},
 		mockFeeEstimator: validFeeEstimator,
-		result:           validFee,
+		result:           result,
 	}, {
 		name:    "handleEstimateSmartFee: not conservative mode",
 		handler: handleEstimateSmartFee,

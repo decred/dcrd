@@ -152,7 +152,7 @@ the method name for further details such as parameter and return information.
 |-
 |[[#estimatesmartfee|estimatesmartfee]]
 |Y
-|Returns the estimated fee using the historical fee data in dcr/kb.
+|Returns the estimated fee using the historical fee data in dcr/kb and the block number where the estimate was found.
 |-
 |[[#estimatestakediff|estimatestakediff]]
 |Y
@@ -737,10 +737,13 @@ the method name for further details such as parameter and return information.
 # <code>mode</code>: <code>(string)</code> The only supported mode for the moment is 'conservative'.
 |-
 !Description
-|Returns the estimated fee using the historical fee data in dcr/kb.
+|Returns the estimated fee using the historical fee data in dcr/kb and the block number where the estimate was found.
 |-
 !Returns
-|<code>numeric</code>
+|<code>{json object}</code>
+: <code>fee</code>: <code>(numeric)</code> The estimated fee.
+: <code>errors</code>: <code>(json array)</code> Unused.
+: <code>blocks</code>: <code>(numeric)</code> The block number where the estimate was found.
 |-
 !Example Return
 |

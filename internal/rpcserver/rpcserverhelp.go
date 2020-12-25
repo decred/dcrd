@@ -885,7 +885,9 @@ var helpDescsEnUS = map[string]string{
 	"estimatesmartfee--synopsis":     "Returns the estimated fee using the historical fee data in dcr/kb.",
 	"estimatesmartfee-confirmations": "Estimate the fee rate a transaction requires so that it is mined in up to this number of blocks.",
 	"estimatesmartfee-mode":          "The only supported mode for the moment is 'conservative'.",
-	"estimatesmartfee--result0":      "Estimated fee rate (in DCR/KB).",
+	"estimatesmartfeeresult-feerate": "The Estimated fee rate (in DCR/KB).",
+	"estimatesmartfeeresult-errors":  "Unused.",
+	"estimatesmartfeeresult-blocks":  "The block number where the estimate was found.",
 
 	// EstimateStakeDiff help.
 	"estimatestakediff--synopsis":      "Estimate the next minimum, maximum, expected, and user-specified stake difficulty",
@@ -1000,7 +1002,7 @@ var rpcResultTypes = map[types.Method][]interface{}{
 	"decoderawtransaction":  {(*types.TxRawDecodeResult)(nil)},
 	"decodescript":          {(*types.DecodeScriptResult)(nil)},
 	"estimatefee":           {(*float64)(nil)},
-	"estimatesmartfee":      {(*float64)(nil)},
+	"estimatesmartfee":      {(*types.EstimateSmartFeeResult)(nil)},
 	"estimatestakediff":     {(*types.EstimateStakeDiffResult)(nil)},
 	"existsaddress":         {(*bool)(nil)},
 	"existsaddresses":       {(*string)(nil)},
