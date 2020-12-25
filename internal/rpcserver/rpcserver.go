@@ -171,8 +171,6 @@ var rpcHandlersBeforeInit = map[types.Method]commandHandler{
 	"getblockhash":          handleGetBlockHash,
 	"getblockheader":        handleGetBlockHeader,
 	"getblocksubsidy":       handleGetBlockSubsidy,
-	"getcfilter":            handleGetCFilter,
-	"getcfilterheader":      handleGetCFilterHeader,
 	"getcfilterv2":          handleGetCFilterV2,
 	"getchaintips":          handleGetChainTips,
 	"getcoinsupply":         handleGetCoinSupply,
@@ -350,7 +348,6 @@ var rpcLimited = map[string]struct{}{
 	"getblockhash":          {},
 	"getblockheader":        {},
 	"getblocksubsidy":       {},
-	"getcfilter":            {},
 	"getcfilterv2":          {},
 	"getchaintips":          {},
 	"getcoinsupply":         {},
@@ -2298,99 +2295,6 @@ func handleGetGenerate(_ context.Context, s *Server, _ interface{}) (interface{}
 // handleGetHashesPerSec implements the gethashespersec command.
 func handleGetHashesPerSec(_ context.Context, s *Server, _ interface{}) (interface{}, error) {
 	return int64(s.cfg.CPUMiner.HashesPerSecond()), nil
-}
-
-// handleGetCFilter implements the getcfilter command.
-//
-// Deprecated: This will be removed in the next major version.  Use
-// handleGetCFilterV2 instead.
-func handleGetCFilter(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
-	if s.cfg.Filterer == nil {
-		return nil, &dcrjson.RPCError{
-			Code:    dcrjson.ErrRPCNoCFIndex,
-			Message: "Compact filters must be enabled for this command",
-		}
-	}
-
-	c := cmd.(*types.GetCFilterCmd)
-	hash, err := chainhash.NewHashFromStr(c.Hash)
-	if err != nil {
-		return nil, rpcDecodeHexError(c.Hash)
-	}
-
-	var filterType wire.FilterType
-	switch c.FilterType {
-	case "regular":
-		filterType = wire.GCSFilterRegular
-	case "extended":
-		filterType = wire.GCSFilterExtended
-	default:
-		return nil, rpcInvalidError("Unknown filter type %q", c.FilterType)
-	}
-
-	filterBytes, err := s.cfg.Filterer.FilterByBlockHash(hash, filterType)
-	if err != nil {
-		context := fmt.Sprintf("Failed to load %v filter for block %v",
-			filterType, hash)
-		return "", rpcInternalError(err.Error(), context)
-	}
-	if len(filterBytes) == 0 {
-		return nil, &dcrjson.RPCError{
-			Code:    dcrjson.ErrRPCBlockNotFound,
-			Message: fmt.Sprintf("Block not found: %v", hash),
-		}
-	}
-
-	log.Debugf("Found committed filter for %v", hash)
-	return hex.EncodeToString(filterBytes), nil
-}
-
-// handleGetCFilterHeader implements the getcfilterheader command.
-//
-// Deprecated: This will be removed in the next major version.  Use
-// handleGetCFilterV2 instead.
-func handleGetCFilterHeader(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
-	if s.cfg.Filterer == nil {
-		return nil, &dcrjson.RPCError{
-			Code:    dcrjson.ErrRPCNoCFIndex,
-			Message: "The CF index must be enabled for this command",
-		}
-	}
-
-	c := cmd.(*types.GetCFilterHeaderCmd)
-	hash, err := chainhash.NewHashFromStr(c.Hash)
-	if err != nil {
-		return nil, rpcDecodeHexError(c.Hash)
-	}
-
-	var filterType wire.FilterType
-	switch c.FilterType {
-	case "regular":
-		filterType = wire.GCSFilterRegular
-	case "extended":
-		filterType = wire.GCSFilterExtended
-	default:
-		return nil, rpcInvalidError("Unknown filter type %q",
-			c.FilterType)
-	}
-
-	headerBytes, err := s.cfg.Filterer.FilterHeaderByBlockHash(hash, filterType)
-	if err != nil {
-		context := fmt.Sprintf("Failed to load %v filter header for block %v",
-			filterType, hash)
-		return "", rpcInternalError(err.Error(), context)
-	}
-	if bytes.Equal(headerBytes, zeroHash[:]) && *hash !=
-		s.cfg.ChainParams.GenesisHash {
-
-		return nil, &dcrjson.RPCError{
-			Code:    dcrjson.ErrRPCBlockNotFound,
-			Message: fmt.Sprintf("Block not found: %v", hash),
-		}
-	}
-
-	hash.SetBytes(headerBytes)
-	return hash.String(), nil
 }
 
 // handleGetHeaders implements the getheaders command.

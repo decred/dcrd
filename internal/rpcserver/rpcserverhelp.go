@@ -380,20 +380,6 @@ var helpDescsEnUS = map[string]string{
 	"getblocksubsidyresult-pow":       "The Proof-of-Work subsidy",
 	"getblocksubsidyresult-total":     "The total subsidy",
 
-	// GetCFilterCmd help.
-	"getcfilter--synopsis": "Returns the committed filter for a block.\n\n" +
-		"Deprecated: Use handleGetCFilterV2 instead.",
-	"getcfilter--result0":   "The committed filter serialized with the N value and encoded as a hex string",
-	"getcfilter-hash":       "The block hash of the filter being queried",
-	"getcfilter-filtertype": "The type of committed filter to return",
-
-	// GetCFilterHeaderCmd help.
-	"getcfilterheader--synopsis": "Returns the filter header hash committing to all filters in the chain up through a block.\n\n" +
-		"Deprecated: Use handleGetCFilterV2 instead.",
-	"getcfilterheader--result0":   "The filter header commitment hash",
-	"getcfilterheader-hash":       "The block hash of the filter header being queried",
-	"getcfilterheader-filtertype": "The type of committed filter to return the header commitment for",
-
 	// GetCFilterV2Cmd help.
 	"getcfilterv2--synopsis": "Returns the version 2 block filter for the given block along with a proof that can be used to prove the filter is committed to by the block header",
 	"getcfilterv2-blockhash": "The block hash of the filter to retrieve",
@@ -1018,8 +1004,6 @@ var rpcResultTypes = map[types.Method][]interface{}{
 	"getblockhash":          {(*string)(nil)},
 	"getblockheader":        {(*string)(nil), (*types.GetBlockHeaderVerboseResult)(nil)},
 	"getblocksubsidy":       {(*types.GetBlockSubsidyResult)(nil)},
-	"getcfilter":            {(*string)(nil)},
-	"getcfilterheader":      {(*string)(nil)},
 	"getcfilterv2":          {(*types.GetCFilterV2Result)(nil)},
 	"getchaintips":          {(*[]types.GetChainTipsResult)(nil)},
 	"getconnectioncount":    {(*int32)(nil)},
