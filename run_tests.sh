@@ -14,13 +14,7 @@ set -ex
 # golangci-lint (github.com/golangci/golangci-lint) is used to run each
 # static checker.
 
-REPO=dcrd
-
 go version
-
-# binary needed for RPC tests
-env CC=gcc go build
-cp "$REPO" "$(go env GOPATH)/bin/"
 
 # run tests on all modules
 ROOTPATH=$(go list -m)
