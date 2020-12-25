@@ -59,6 +59,12 @@ var (
 
 	// Used to protest concurrent access to above declared variables.
 	harnessStateMtx sync.RWMutex
+
+	// pathToDCRD points to the test node. It is supplied through
+	// NewWithDCRD or created on the first call to newNode and used
+	// throughout the life of this package.
+	pathToDCRD    string
+	pathToDCRDMtx sync.RWMutex
 )
 
 const (
@@ -100,12 +106,32 @@ type Harness struct {
 	sync.Mutex
 }
 
+// SetPathToDCRD sets the package level dcrd executable. All calls to New will
+// use the dcrd located there throughout their life. If not set upon the first
+// call to New, a dcrd will be created in a temporary directory and pathToDCRD
+// set automatically.
+//
+// NOTE: This function is safe for concurrent access, but care must be taken
+// when setting different paths and using New, as whatever is at pathToDCRD at
+// the time will be identified with that node.
+func SetPathToDCRD(fnScopePathToDCRD string) {
+	pathToDCRDMtx.Lock()
+	pathToDCRD = fnScopePathToDCRD
+	pathToDCRDMtx.Unlock()
+}
+
 // New creates and initializes new instance of the rpc test harness.
 // Optionally, websocket handlers and a specified configuration may be passed.
 // In the case that a nil config is passed, a default configuration will be
-// used.
+// used. If pathToDCRD has not been set and working within the dcrd repository,
+// a dcrd executable created from the directory at rpctest/../ (dcrd repo's
+// root directory) will be created in a temporary directory. pathToDCRD will be
+// set as that file's location. If pathToDCRD has already been set, the
+// executable at that location will be used.
 //
-// NOTE: This function is safe for concurrent access.
+// NOTE: This function is safe for concurrent access, but care must be taken
+// when calling New with different dcrd executables, as whatever is at
+// pathToDCRD at the time will be identified with that node.
 func New(t *testing.T, activeNet *chaincfg.Params, handlers *rpcclient.NotificationHandlers, extraArgs []string) (*Harness, error) {
 	harnessStateMtx.Lock()
 	defer harnessStateMtx.Unlock()
@@ -159,7 +185,10 @@ func New(t *testing.T, activeNet *chaincfg.Params, handlers *rpcclient.Notificat
 	config.listen, config.rpcListen = generateListeningAddresses()
 
 	// Create the testing node bounded to the simnet.
-	node := newNode(t, config, nodeTestData)
+	node, err := newNode(t, config, nodeTestData)
+	if err != nil {
+		return nil, err
+	}
 	nodeNum := numTestInstances
 	numTestInstances++ // XXX this really should be the length of the harness map.
 
