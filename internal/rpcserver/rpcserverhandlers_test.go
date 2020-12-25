@@ -148,7 +148,7 @@ type testRPCChain struct {
 	convertUtxosToMinimalOutputs  []*stake.MinimalOutput
 	countVoteVersion              uint32
 	countVoteVersionErr           error
-	estimateNextStakeDifficultyFn func(newTickets int64, useMaxTickets bool) (diff int64, err error)
+	estimateNextStakeDifficultyFn func(hash *chainhash.Hash, newTickets int64, useMaxTickets bool) (diff int64, err error)
 	fetchUtxoEntry                UtxoEntry
 	fetchUtxoEntryErr             error
 	fetchUtxoStats                *blockchain.UtxoStats
@@ -273,8 +273,8 @@ func (c *testRPCChain) CountVoteVersion(version uint32) (uint32, error) {
 }
 
 // EstimateNextStakeDifficulty returns a mocked estimated next stake difficulty.
-func (c *testRPCChain) EstimateNextStakeDifficulty(newTickets int64, useMaxTickets bool) (int64, error) {
-	return c.estimateNextStakeDifficultyFn(newTickets, useMaxTickets)
+func (c *testRPCChain) EstimateNextStakeDifficulty(hash *chainhash.Hash, newTickets int64, useMaxTickets bool) (int64, error) {
+	return c.estimateNextStakeDifficultyFn(hash, newTickets, useMaxTickets)
 }
 
 // FetchUtxoEntry returns a mocked UtxoEntry.
@@ -1407,7 +1407,7 @@ func defaultMockRPCChain() *testRPCChain {
 			Value:    0,
 			Version:  0,
 		}},
-		estimateNextStakeDifficultyFn: func(int64, bool) (int64, error) {
+		estimateNextStakeDifficultyFn: func(*chainhash.Hash, int64, bool) (int64, error) {
 			return 14336790201, nil
 		},
 		fetchUtxoEntry: &testRPCUtxoEntry{
@@ -2750,8 +2750,8 @@ func TestHandleEstimateStakeDiff(t *testing.T) {
 			&userQItem,
 		}
 	}
-	estimateFn := func(queue []*stakeDiffQueueItem) func(int64, bool) (int64, error) {
-		return func(int64, bool) (int64, error) {
+	estimateFn := func(queue []*stakeDiffQueueItem) func(*chainhash.Hash, int64, bool) (int64, error) {
+		return func(*chainhash.Hash, int64, bool) (int64, error) {
 			defer func() { queue = queue[1:] }()
 			return queue[0].diff, queue[0].err
 		}

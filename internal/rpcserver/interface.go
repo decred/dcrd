@@ -296,7 +296,7 @@ type Chain interface {
 	// interval unless the flag to use max tickets is set in which case it will use
 	// the max possible number of tickets that can be purchased in the remainder of
 	// the interval.
-	EstimateNextStakeDifficulty(newTickets int64, useMaxTickets bool) (int64, error)
+	EstimateNextStakeDifficulty(hash *chainhash.Hash, newTickets int64, useMaxTickets bool) (int64, error)
 
 	// FetchUtxoEntry loads and returns the unspent transaction output entry for the
 	// passed hash from the point of view of the end of the main chain.

@@ -49,9 +49,6 @@ func (b *BlockChain) findPrevTestNetDifficulty(startNode *blockNode) uint32 {
 
 // calcNextRequiredDifficulty calculates the required difficulty for the block
 // after the passed previous block node based on the difficulty retarget rules.
-// This function differs from the exported CalcNextRequiredDifficulty in that
-// the exported version uses the current best chain as the previous block node
-// while this function accepts any block node.
 func (b *BlockChain) calcNextRequiredDifficulty(curNode *blockNode, newBlockTime time.Time) uint32 {
 	// Get the old difficulty; if we aren't at a block height where it changes,
 	// just return this.
@@ -678,10 +675,6 @@ func (b *BlockChain) calcNextRequiredStakeDifficultyV2(curNode *blockNode) int64
 // the block after the passed previous block node based on the active stake
 // difficulty retarget rules.
 //
-// This function differs from the exported CalcNextRequiredDifficulty in that
-// the exported version uses the current best chain as the previous block node
-// while this function accepts any block node.
-//
 // This function MUST be called with the chain state lock held (for writes).
 func (b *BlockChain) calcNextRequiredStakeDifficulty(curNode *blockNode) (int64, error) {
 	// Determine the correct deployment version for the new stake difficulty
@@ -1172,10 +1165,6 @@ func (b *BlockChain) estimateNextStakeDifficultyV2(curNode *blockNode, newTicket
 //
 // The stake difficulty algorithm is selected based on the active rules.
 //
-// This function differs from the exported EstimateNextStakeDifficulty in that
-// the exported version uses the current best chain as the block node while this
-// function accepts any block node.
-//
 // This function MUST be called with the chain state lock held (for writes).
 func (b *BlockChain) estimateNextStakeDifficulty(curNode *blockNode, newTickets int64, useMaxTickets bool) (int64, error) {
 	// Determine the correct deployment version for the new stake difficulty
@@ -1214,10 +1203,15 @@ func (b *BlockChain) estimateNextStakeDifficulty(curNode *blockNode, newTickets 
 // the interval.
 //
 // This function is safe for concurrent access.
-func (b *BlockChain) EstimateNextStakeDifficulty(newTickets int64, useMaxTickets bool) (int64, error) {
+func (b *BlockChain) EstimateNextStakeDifficulty(hash *chainhash.Hash, newTickets int64, useMaxTickets bool) (int64, error) {
+	node := b.index.LookupNode(hash)
+	if node == nil || !b.index.CanValidate(node) {
+		return 0, unknownBlockError(hash)
+	}
+
 	b.chainLock.Lock()
-	estimate, err := b.estimateNextStakeDifficulty(b.bestChain.Tip(),
-		newTickets, useMaxTickets)
+	estimate, err := b.estimateNextStakeDifficulty(node, newTickets,
+		useMaxTickets)
 	b.chainLock.Unlock()
 	return estimate, err
 }

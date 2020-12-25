@@ -1429,14 +1429,15 @@ func handleEstimateStakeDiff(_ context.Context, s *Server, cmd interface{}) (int
 
 	// Minimum possible stake difficulty.
 	chain := s.cfg.Chain
-	min, err := chain.EstimateNextStakeDifficulty(0, false)
+	best := chain.BestSnapshot()
+	min, err := chain.EstimateNextStakeDifficulty(&best.Hash, 0, false)
 	if err != nil {
 		return nil, rpcInternalError(err.Error(), "Could not "+
 			"estimate next minimum stake difficulty")
 	}
 
 	// Maximum possible stake difficulty.
-	max, err := chain.EstimateNextStakeDifficulty(0, true)
+	max, err := chain.EstimateNextStakeDifficulty(&best.Hash, 0, true)
 	if err != nil {
 		return nil, rpcInternalError(err.Error(), "Could not "+
 			"estimate next maximum stake difficulty")
@@ -1446,7 +1447,7 @@ func handleEstimateStakeDiff(_ context.Context, s *Server, cmd interface{}) (int
 	// since the last retarget to get the number of tickets per block,
 	// then use that to estimate the next stake difficulty.
 	params := s.cfg.ChainParams
-	bestHeight := chain.BestSnapshot().Height
+	bestHeight := best.Height
 	lastAdjustment := (bestHeight / params.StakeDiffWindowSize) *
 		params.StakeDiffWindowSize
 	nextAdjustment := ((bestHeight / params.StakeDiffWindowSize) + 1) *
@@ -1464,8 +1465,8 @@ func handleEstimateStakeDiff(_ context.Context, s *Server, cmd interface{}) (int
 	remaining := float64(nextAdjustment - bestHeight - 1)
 	averagePerBlock := float64(totalTickets) / blocksSince
 	expectedTickets := int64(math.Floor(averagePerBlock * remaining))
-	expected, err := chain.EstimateNextStakeDifficulty(expectedTickets,
-		false)
+	expected, err := chain.EstimateNextStakeDifficulty(&best.Hash,
+		expectedTickets, false)
 	if err != nil {
 		return nil, rpcInternalError(err.Error(), "Could not "+
 			"estimate next stake difficulty")
@@ -1474,8 +1475,8 @@ func handleEstimateStakeDiff(_ context.Context, s *Server, cmd interface{}) (int
 	// User-specified stake difficulty, if they asked for one.
 	var userEstFltPtr *float64
 	if c.Tickets != nil {
-		userEst, err := chain.EstimateNextStakeDifficulty(int64(*c.Tickets),
-			false)
+		userEst, err := chain.EstimateNextStakeDifficulty(&best.Hash,
+			int64(*c.Tickets), false)
 		if err != nil {
 			return nil, rpcInternalError(err.Error(), "Could not "+
 				"estimate next user specified stake difficulty")
