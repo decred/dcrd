@@ -1420,7 +1420,10 @@ func handleEstimateSmartFee(_ context.Context, s *Server, cmd interface{}) (inte
 		return nil, rpcInternalError(err.Error(), "Could not estimate fee")
 	}
 
-	return fee.ToCoin(), nil
+	return &types.EstimateSmartFeeResult{
+		FeeRate: fee.ToCoin(),
+		Blocks:  c.Confirmations,
+	}, nil
 }
 
 // handleEstimateStakeDiff implements the estimatestakediff command.
