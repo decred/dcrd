@@ -36,8 +36,6 @@ import (
 	"github.com/decred/dcrd/connmgr/v3"
 	"github.com/decred/dcrd/database/v2"
 	"github.com/decred/dcrd/dcrutil/v4"
-	"github.com/decred/dcrd/gcs/v3"
-	"github.com/decred/dcrd/gcs/v3/blockcf"
 	"github.com/decred/dcrd/internal/fees"
 	"github.com/decred/dcrd/internal/mempool"
 	"github.com/decred/dcrd/internal/mining"
@@ -54,7 +52,7 @@ import (
 const (
 	// defaultServices describes the default services that are supported by
 	// the server.
-	defaultServices = wire.SFNodeNetwork | wire.SFNodeCF
+	defaultServices = wire.SFNodeNetwork
 
 	// defaultRequiredServices describes the default services that are
 	// required to be supported by outbound peers.
@@ -1225,109 +1223,38 @@ func (sp *serverPeer) OnGetHeaders(p *peer.Peer, msg *wire.MsgGetHeaders) {
 	p.QueueMessage(&wire.MsgHeaders{Headers: blockHeaders}, nil)
 }
 
-// enforceNodeCFFlag disconnects the peer if the server is not configured to
-// allow committed filters.  Additionally, if the peer has negotiated to a
-// protocol version that is high enough to observe the committed filter service
-// support bit, it will be banned since it is intentionally violating the
-// protocol.
-func (sp *serverPeer) enforceNodeCFFlag(cmd string) bool {
-	if !hasServices(sp.server.services, wire.SFNodeCF) {
-		// Ban the peer if the protocol version is high enough that the peer is
-		// knowingly violating the protocol and banning is enabled.
-		//
-		// NOTE: Even though the addBanScore function already examines whether
-		// or not banning is enabled, it is checked here as well to ensure the
-		// violation is logged and the peer is disconnected regardless.
-		if sp.ProtocolVersion() >= wire.NodeCFVersion && !cfg.DisableBanning {
-			// Disconnect the peer regardless of whether it was banned.
-			sp.addBanScore(100, 0, cmd)
-			sp.Disconnect()
-			return false
-		}
-
-		// Disconnect the peer regardless of protocol version or banning state.
-		peerLog.Debugf("%s sent an unsupported %s request -- disconnecting", sp,
-			cmd)
+// enforceNodeCFFlag bans the peer if it has negotiated to a protocol version
+// that is high enough to observe the committed filter service support bit since
+// it is intentionally violating the protocol by requesting one from when the
+// server does not advertise support for it.
+//
+// It disconnects the peer when it has negotiated to a protocol version prior to
+// being able to understand the service bit.
+func (sp *serverPeer) enforceNodeCFFlag(cmd string) {
+	// Ban the peer if the protocol version is high enough that the peer is
+	// knowingly violating the protocol and banning is enabled.
+	//
+	// NOTE: Even though the addBanScore function already examines whether
+	// or not banning is enabled, it is checked here as well to ensure the
+	// violation is logged and the peer is disconnected regardless.
+	if sp.ProtocolVersion() >= wire.NodeCFVersion && !cfg.DisableBanning {
+		// Disconnect the peer regardless of whether it was banned.
+		sp.addBanScore(100, 0, cmd)
 		sp.Disconnect()
-		return false
+		return
 	}
 
-	return true
+	// Disconnect the peer regardless of protocol version or banning state.
+	peerLog.Debugf("%s sent an unsupported %s request -- disconnecting", sp,
+		cmd)
+	sp.Disconnect()
 }
 
 // OnGetCFilter is invoked when a peer receives a getcfilter wire message.
 func (sp *serverPeer) OnGetCFilter(p *peer.Peer, msg *wire.MsgGetCFilter) {
 	// Disconnect and/or ban depending on the node cf services flag and
 	// negotiated protocol version.
-	if !sp.enforceNodeCFFlag(msg.Command()) {
-		return
-	}
-
-	// Ignore request if CFs are disabled or the chain is not yet synced.
-	if cfg.NoCFilters || !sp.server.syncManager.IsCurrent() {
-		return
-	}
-
-	// Check for understood filter type.
-	switch msg.FilterType {
-	case wire.GCSFilterRegular, wire.GCSFilterExtended:
-	default:
-		peerLog.Warnf("OnGetCFilter: unsupported filter type '%v' from %s",
-			msg.FilterType, sp)
-
-		// Ban peers requesting unsupported filter types.
-		sp.server.BanPeer(sp)
-		return
-	}
-
-	filterBytes, err := sp.server.cfIndex.FilterByBlockHash(&msg.BlockHash,
-		msg.FilterType)
-	if err != nil {
-		peerLog.Errorf("OnGetCFilter: failed to fetch cfilter: %v", err)
-		return
-	}
-
-	// If the filter is not saved in the index (perhaps it was removed as a
-	// block was disconnected, or this has always been a sidechain block) build
-	// the filter on the spot.
-	if len(filterBytes) == 0 {
-		block, err := sp.server.chain.BlockByHash(&msg.BlockHash)
-		if err != nil {
-			peerLog.Errorf("OnGetCFilter: failed to fetch non-mainchain "+
-				"block %v: %v", &msg.BlockHash, err)
-			return
-		}
-
-		var f *gcs.FilterV1
-		switch msg.FilterType {
-		case wire.GCSFilterRegular:
-			f, err = blockcf.Regular(block.MsgBlock())
-			if err != nil {
-				peerLog.Errorf("OnGetCFilter: failed to build regular "+
-					"cfilter for block %v: %v", &msg.BlockHash, err)
-				return
-			}
-		case wire.GCSFilterExtended:
-			f, err = blockcf.Extended(block.MsgBlock())
-			if err != nil {
-				peerLog.Errorf("OnGetCFilter: failed to build extended "+
-					"cfilter for block %v: %v", &msg.BlockHash, err)
-				return
-			}
-		default:
-			peerLog.Errorf("OnGetCFilter: unhandled filter type %d",
-				msg.FilterType)
-			return
-		}
-
-		filterBytes = f.Bytes()
-	}
-
-	peerLog.Tracef("Obtained CF for %v", &msg.BlockHash)
-
-	filterMsg := wire.NewMsgCFilter(&msg.BlockHash, msg.FilterType,
-		filterBytes)
-	sp.QueueMessage(filterMsg, nil)
+	sp.enforceNodeCFFlag(msg.Command())
 }
 
 // OnGetCFilterV2 is invoked when a peer receives a getcfilterv2 wire message.
@@ -1361,86 +1288,14 @@ func (sp *serverPeer) OnGetCFilterV2(_ *peer.Peer, msg *wire.MsgGetCFilterV2) {
 func (sp *serverPeer) OnGetCFHeaders(p *peer.Peer, msg *wire.MsgGetCFHeaders) {
 	// Disconnect and/or ban depending on the node cf services flag and
 	// negotiated protocol version.
-	if !sp.enforceNodeCFFlag(msg.Command()) {
-		return
-	}
-
-	// Ignore request if CFs are disabled or the chain is not yet synced.
-	if cfg.NoCFilters || !sp.server.syncManager.IsCurrent() {
-		return
-	}
-
-	// Check for understood filter type.
-	switch msg.FilterType {
-	case wire.GCSFilterRegular, wire.GCSFilterExtended:
-	default:
-		peerLog.Warnf("OnGetCFilter: unsupported filter type '%v' from %s",
-			msg.FilterType, sp)
-
-		// Ban peers requesting unsupported filter types.
-		sp.server.BanPeer(sp)
-		return
-	}
-
-	// Find the most recent known block in the best chain based on the block
-	// locator and fetch all of the block hashes after it until either
-	// wire.MaxCFHeadersPerMsg have been fetched or the provided stop hash is
-	// encountered.
-	//
-	// Use the block after the genesis block if no other blocks in the provided
-	// locator are known.  This does mean the served filter headers will start
-	// over at the genesis block if unknown block locators are provided.
-	chain := sp.server.chain
-	hashList := chain.LocateBlocks(msg.BlockLocatorHashes, &msg.HashStop,
-		wire.MaxCFHeadersPerMsg)
-	if len(hashList) == 0 {
-		return
-	}
-
-	// Generate cfheaders message and send it.
-	cfIndex := sp.server.cfIndex
-	headersMsg := wire.NewMsgCFHeaders()
-	for i := range hashList {
-		// Fetch the raw committed filter header bytes from the database.
-		hash := &hashList[i]
-		headerBytes, err := cfIndex.FilterHeaderByBlockHash(hash,
-			msg.FilterType)
-		if err != nil || len(headerBytes) == 0 {
-			peerLog.Warnf("Could not obtain CF header for %v: %v", hash, err)
-			return
-		}
-
-		// Deserialize the hash.
-		var header chainhash.Hash
-		err = header.SetBytes(headerBytes)
-		if err != nil {
-			peerLog.Warnf("Committed filter header deserialize failed: %v", err)
-			return
-		}
-
-		headersMsg.AddCFHeader(&header)
-	}
-	headersMsg.FilterType = msg.FilterType
-	headersMsg.StopHash = hashList[len(hashList)-1]
-	sp.QueueMessage(headersMsg, nil)
+	sp.enforceNodeCFFlag(msg.Command())
 }
 
 // OnGetCFTypes is invoked when a peer receives a getcftypes wire message.
 func (sp *serverPeer) OnGetCFTypes(p *peer.Peer, msg *wire.MsgGetCFTypes) {
 	// Disconnect and/or ban depending on the node cf services flag and
 	// negotiated protocol version.
-	if !sp.enforceNodeCFFlag(msg.Command()) {
-		return
-	}
-
-	// Ignore request if CFs are disabled.
-	if cfg.NoCFilters {
-		return
-	}
-
-	cfTypesMsg := wire.NewMsgCFTypes([]wire.FilterType{
-		wire.GCSFilterRegular, wire.GCSFilterExtended})
-	sp.QueueMessage(cfTypesMsg, nil)
+	sp.enforceNodeCFFlag(msg.Command())
 }
 
 // OnGetAddr is invoked when a peer receives a getaddr wire message and is used
@@ -3449,18 +3304,15 @@ func setupRPCListeners() ([]net.Listener, error) {
 // decred network type specified by chainParams.  Use start to begin accepting
 // connections from peers.
 func newServer(ctx context.Context, listenAddrs []string, db database.DB, chainParams *chaincfg.Params, dataDir string) (*server, error) {
-	services := defaultServices
-	if cfg.NoCFilters {
-		services &^= wire.SFNodeCF
-	}
-
 	amgr := addrmgr.New(cfg.DataDir, dcrdLookup)
+	services := defaultServices
 
 	var listeners []net.Listener
 	var nat *upnpNAT
 	if !cfg.DisableListen {
 		var err error
-		listeners, nat, err = initListeners(ctx, chainParams, amgr, listenAddrs, services)
+		listeners, nat, err = initListeners(ctx, chainParams, amgr, listenAddrs,
+			services)
 		if err != nil {
 			return nil, err
 		}
