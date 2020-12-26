@@ -923,26 +923,6 @@ func (s *testSanityChecker) CheckBlockSanity(block *dcrutil.Block) error {
 	return s.checkBlockSanityErr
 }
 
-// testFilterer provides a mock filterer by implementing the Filterer interface.
-type testFilterer struct {
-	filterByBlockHash          []byte
-	filterByBlockHashErr       error
-	filterHeaderByBlockHash    []byte
-	filterHeaderByBlockHashErr error
-}
-
-// FilterByBlockHash returns a mocked regular or extended committed filter for
-// the given block hash.
-func (f *testFilterer) FilterByBlockHash(h *chainhash.Hash, filterType wire.FilterType) ([]byte, error) {
-	return f.filterByBlockHash, f.filterByBlockHashErr
-}
-
-// FilterHeaderByBlockHash returns a mocked regular or extended committed filter
-// header for the given block hash.
-func (f *testFilterer) FilterHeaderByBlockHash(h *chainhash.Hash, filterType wire.FilterType) ([]byte, error) {
-	return f.filterHeaderByBlockHash, f.filterHeaderByBlockHashErr
-}
-
 // testFiltererV2 provides a mock V2 filterer by implementing the FiltererV2
 // interface.
 type testFiltererV2 struct {
@@ -1315,7 +1295,6 @@ type rpcTest struct {
 	mockConnManager       *testConnManager
 	mockClock             *testClock
 	mockLogManager        *testLogManager
-	mockFilterer          *testFilterer
 	mockFiltererV2        *testFiltererV2
 	mockTxMempooler       *testTxMempooler
 	mockMiningAddrs       []dcrutil.Address
@@ -7757,9 +7736,6 @@ func testRPCServerHandler(t *testing.T, tests []rpcTest) {
 			}
 			if test.mockSanityChecker != nil {
 				rpcserverConfig.SanityChecker = test.mockSanityChecker
-			}
-			if test.mockFilterer != nil {
-				rpcserverConfig.Filterer = test.mockFilterer
 			}
 			if test.mockFiltererV2 != nil {
 				rpcserverConfig.FiltererV2 = test.mockFiltererV2

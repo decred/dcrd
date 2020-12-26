@@ -530,24 +530,6 @@ type BlockTemplater interface {
 	UpdateBlockTime(header *wire.BlockHeader) error
 }
 
-// Filterer provides an interface for retrieving a block's committed filter or
-// committed filter header.
-//
-// The interface contract requires that all of these methods are safe for
-// concurrent access.
-//
-// Deprecated: This will be removed in the next major version.  Use FiltererV2
-// instead.
-type Filterer interface {
-	// FilterByBlockHash returns the serialized contents of a block's regular or
-	// extended committed filter.
-	FilterByBlockHash(h *chainhash.Hash, filterType wire.FilterType) ([]byte, error)
-
-	// FilterHeaderByBlockHash returns the serialized contents of a block's regular
-	// or extended committed filter header.
-	FilterHeaderByBlockHash(h *chainhash.Hash, filterType wire.FilterType) ([]byte, error)
-}
-
 // FiltererV2 provides an interface for retrieving a block's version 2 GCS
 // filter.
 //

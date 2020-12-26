@@ -6136,9 +6136,6 @@ type Config struct {
 	// LogManager defines the log manager for the RPC server to use.
 	LogManager LogManager
 
-	// Filterer defines the filterer for the RPC server to use.
-	Filterer Filterer
-
 	// FiltererV2 defines the V2 filterer for the RPC server to use.
 	FiltererV2 FiltererV2
 }

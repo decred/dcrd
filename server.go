@@ -3897,9 +3897,6 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB, chainP
 		if s.addrIndex != nil {
 			rpcsConfig.AddrIndexer = s.addrIndex
 		}
-		if s.cfIndex != nil {
-			rpcsConfig.Filterer = s.cfIndex
-		}
 
 		s.rpcServer, err = rpcserver.New(&rpcsConfig)
 		if err != nil {
