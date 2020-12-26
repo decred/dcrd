@@ -488,7 +488,6 @@ type server struct {
 	txIndex         *indexers.TxIndex
 	addrIndex       *indexers.AddrIndex
 	existsAddrIndex *indexers.ExistsAddrIndex
-	cfIndex         *indexers.CFIndex
 
 	// The following fields are used to filter duplicate block announcements.
 	announcedBlockMtx sync.Mutex
@@ -3377,11 +3376,6 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB, chainP
 		indxLog.Info("Exists address index is enabled")
 		s.existsAddrIndex = indexers.NewExistsAddrIndex(db, chainParams)
 		indexes = append(indexes, s.existsAddrIndex)
-	}
-	if !cfg.NoCFilters {
-		indxLog.Info("CF index is enabled")
-		s.cfIndex = indexers.NewCfIndex(db, chainParams)
-		indexes = append(indexes, s.cfIndex)
 	}
 
 	feC := fees.EstimatorConfig{

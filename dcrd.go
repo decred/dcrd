@@ -177,13 +177,11 @@ func dcrdMain() error {
 
 		return nil
 	}
-	if cfg.DropCFIndex {
-		if err := indexers.DropCfIndex(ctx, db); err != nil {
-			dcrdLog.Errorf("%v", err)
-			return err
-		}
 
-		return nil
+	// Drop the legacy v1 committed filter index if needed.
+	if err := indexers.DropCfIndex(ctx, db); err != nil {
+		dcrdLog.Errorf("%v", err)
+		return err
 	}
 
 	// Create server.

@@ -174,11 +174,6 @@ Application Options:
                                whether or not an address has even been used
       --dropexistsaddrindex    Deletes the exists address index from the
                                database on start up and then exits
-      --nocfilters             (Deprecated) Disable compact filtering (CF)
-                               support
-      --dropcfindex            (Deprecated) Deletes the index used for compact
-                               filtering (CF) support from the database on start
-                               up and then exits
       --piperx=                File descriptor of read end pipe to enable parent
                                -> child process communication
       --pipetx=                File descriptor of write end pipe to enable

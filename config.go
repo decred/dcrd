@@ -79,7 +79,6 @@ const (
 	defaultTxIndex           = false
 	defaultAddrIndex         = false
 	defaultNoExistsAddrIndex = false
-	defaultNoCFilters        = false
 )
 
 var (
@@ -210,8 +209,6 @@ type config struct {
 	DropAddrIndex       bool `long:"dropaddrindex" description:"Deletes the address-based transaction index from the database on start up and then exits"`
 	NoExistsAddrIndex   bool `long:"noexistsaddrindex" description:"Disable the exists address index, which tracks whether or not an address has even been used"`
 	DropExistsAddrIndex bool `long:"dropexistsaddrindex" description:"Deletes the exists address index from the database on start up and then exits"`
-	NoCFilters          bool `long:"nocfilters" description:"(Deprecated) Disable compact filtering (CF) support"`
-	DropCFIndex         bool `long:"dropcfindex" description:"(Deprecated) Deletes the index used for compact filtering (CF) support from the database on start up and then exits"`
 
 	// IPC options.
 	PipeRx         uint `long:"piperx" description:"File descriptor of read end pipe to enable parent -> child process communication"`
@@ -599,7 +596,6 @@ func loadConfig(appName string) (*config, []string, error) {
 		TxIndex:           defaultTxIndex,
 		AddrIndex:         defaultAddrIndex,
 		NoExistsAddrIndex: defaultNoExistsAddrIndex,
-		NoCFilters:        defaultNoCFilters,
 
 		// Cooked options ready for use.
 		ipv4NetInfo:  types.NetworksResult{Name: "IPV4"},
@@ -1042,12 +1038,6 @@ func loadConfig(appName string) (*config, []string, error) {
 	if !cfg.NoExistsAddrIndex && cfg.DropExistsAddrIndex {
 		err := fmt.Errorf("dropexistsaddrindex cannot be activated when " +
 			"existsaddressindex is on (try setting --noexistsaddrindex)")
-		return nil, nil, err
-	}
-
-	// !--nocfilters and --dropcfindex do not mix.
-	if !cfg.NoCFilters && cfg.DropCFIndex {
-		err := errors.New("dropcfindex cannot be activated without nocfilters")
 		return nil, nil, err
 	}
 
