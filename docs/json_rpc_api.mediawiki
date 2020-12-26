@@ -2177,17 +2177,15 @@ of the best block.
 |
 <code>(json object)</code>
 : <code>data</code>: <code>(string)</code> hex-encoded block data
-: <code>hash1</code>: <code>(string)</code> (DEPRECATED) hex-encoded formatted hash buffer
-: <code>midstate</code>: <code>(string)</code> (DEPRECATED) hex-encoded precomputed hash state after hashing first half of the data
 : <code>target</code>: <code>(string)</code> the hex-encoded little-endian hash target
 
-<code>{"data": "hex", "hash1": "hex", "midstate": "hex", "target": "hex"}</code>
+<code>{"data": "hex", "target": "hex"}</code>
 |-
 !Returns (data specified)
 |<code>true</code> or <code>false</code> (boolean)
 |-
 !Example Return (data not specified)
-|<code>{"data": "00000002c39b5d2b7a1e8f7356a1efce26b24bd15d7d906e85341ef9cec99b6a000000006474f...", "hash1": "00000000000000000000000000000000000000000000000000000000000000000000008000000...", "midstate": "ae4a80fc51476e452de855b4e20d5f33418c50fc7cae3b1ecd5badb819b8a584", "target": "0000000000000000000000000000000000000000000000008c96010000000000"}</code>
+|<code>{"data": "00000002c39b5d2b7a1e8f7356a1efce26b24bd15d7d906e85341ef9cec99b6a000000006474f...", "target": "0000000000000000000000000000000000000000000000008c96010000000000"}</code>
 |-
 !Example Return (data specified)
 |<code>true</code>
