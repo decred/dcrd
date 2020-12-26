@@ -931,6 +931,9 @@ func NewBlkTmplGenerator(cfg *Config) *BlkTmplGenerator {
 // transaction and its ancestors into account.
 func calcFeePerKb(txDesc *TxDesc, ancestorStats *TxAncestorStats) float64 {
 	txSize := txDesc.Tx.MsgTx().SerializeSize()
+	if ancestorStats.Fees < 0 || ancestorStats.SizeBytes < 0 {
+		return (float64(txDesc.Fee) * float64(kilobyte)) / float64(txSize)
+	}
 	return (float64(txDesc.Fee+ancestorStats.Fees) * float64(kilobyte)) /
 		float64(int64(txSize)+ancestorStats.SizeBytes)
 }
