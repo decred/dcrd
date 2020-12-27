@@ -1683,6 +1683,21 @@ func (g *Generator) ReplaceVoteBitsN(voteNum int, voteBits uint16) func(*wire.Ms
 	}
 }
 
+// ReplaceVoteBits returns a function that itself takes a block and modifies it
+// by replacing the vote bits of the stake transactions.
+//
+// NOTE: This must only be used as a munger to the 'NextBlock' function or it
+// will lead to an invalid live ticket pool.
+func (g *Generator) ReplaceVoteBits(voteBits uint16) func(*wire.MsgBlock) {
+	return func(b *wire.MsgBlock) {
+		for stxIdx, stx := range b.STransactions {
+			if isVoteTx(stx) {
+				g.ReplaceVoteBitsN(stxIdx, voteBits)(b)
+			}
+		}
+	}
+}
+
 // ReplaceBlockVersion returns a function that itself takes a block and modifies
 // it by replacing the stake version of the header.
 func ReplaceBlockVersion(newVersion int32) func(*wire.MsgBlock) {

@@ -171,49 +171,27 @@ func TestLNFeaturesDeployment(t *testing.T) {
 }
 
 // TestFixedSequenceLocks ensures that sequence locks within blocks behave as
-// expected once the fix sequence locks agenda is active.
+// expected.
 func TestFixedSequenceLocks(t *testing.T) {
 	// Use a set of test chain parameters which allow for quicker vote
 	// activation as compared to various existing network params.
 	params := quickVoteActivationParams()
 
-	// Clone the parameters so they can be mutated, find the correct deployment
-	// for the fix sequence locks agenda, and, finally, ensure it is always
-	// available to vote by removing the time constraints to prevent test
-	// failures when the real expiration time passes.
-	const fslVoteID = chaincfg.VoteIDFixLNSeqLocks
+	// Clone the parameters so they can be mutated.
 	params = cloneParams(params)
-	fslVersion, deployment, err := findDeployment(params, fslVoteID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	removeDeploymentTimeConstraints(deployment)
 
 	// Create a test harness initialized with the genesis block as the tip.
 	g, teardownFunc := newChaingenHarness(t, params, "fixseqlockstest")
 	defer teardownFunc()
 
-	// replaceFixSeqLocksVersions is a munge function which modifies the
-	// provided block by replacing the block, stake, and vote versions with the
-	// fix sequence locks deployment version.
-	replaceFixSeqLocksVersions := func(b *wire.MsgBlock) {
-		chaingen.ReplaceBlockVersion(int32(fslVersion))(b)
-		chaingen.ReplaceStakeVersion(fslVersion)(b)
-		chaingen.ReplaceVoteVersions(fslVersion)(b)
-	}
-
 	// ---------------------------------------------------------------------
-	// Generate and accept enough blocks with the appropriate vote bits set
-	// to reach one block prior to the fix sequence locks agenda becoming
-	// active.
+	// Generate and accept enough blocks to reach stake validation height.
 	// ---------------------------------------------------------------------
 
 	g.AdvanceToStakeValidationHeight()
-	g.AdvanceFromSVHToActiveAgenda(fslVoteID)
 
 	// ---------------------------------------------------------------------
-	// Perform a series of sequence lock tests now that fix sequence locks
-	// enforcement is active.
+	// Perform a series of sequence lock tests.
 	// ---------------------------------------------------------------------
 
 	// enableSeqLocks modifies the passed transaction to enable sequence locks
@@ -233,29 +211,28 @@ func TestFixedSequenceLocks(t *testing.T) {
 	// ---------------------------------------------------------------------
 
 	outs := g.OldestCoinbaseOuts()
-	b0 := g.NextBlock("b0", &outs[0], outs[1:], replaceFixSeqLocksVersions,
-		func(b *wire.MsgBlock) {
-			// Save the current outputs of the spend tx and clear them.
-			tx := b.Transactions[1]
-			origOut := tx.TxOut[0]
-			origOpReturnOut := tx.TxOut[1]
-			tx.TxOut = tx.TxOut[:0]
+	b0 := g.NextBlock("b0", &outs[0], outs[1:], func(b *wire.MsgBlock) {
+		// Save the current outputs of the spend tx and clear them.
+		tx := b.Transactions[1]
+		origOut := tx.TxOut[0]
+		origOpReturnOut := tx.TxOut[1]
+		tx.TxOut = tx.TxOut[:0]
 
-			// Evenly split the original output amount over multiple outputs.
-			const numOutputs = 6
-			amount := origOut.Value / numOutputs
-			for i := 0; i < numOutputs; i++ {
-				if i == numOutputs-1 {
-					amount = origOut.Value - amount*(numOutputs-1)
-				}
-				tx.AddTxOut(wire.NewTxOut(amount, origOut.PkScript))
+		// Evenly split the original output amount over multiple outputs.
+		const numOutputs = 6
+		amount := origOut.Value / numOutputs
+		for i := 0; i < numOutputs; i++ {
+			if i == numOutputs-1 {
+				amount = origOut.Value - amount*(numOutputs-1)
 			}
+			tx.AddTxOut(wire.NewTxOut(amount, origOut.PkScript))
+		}
 
-			// Add the original op return back to the outputs and enable
-			// sequence locks for the first output.
-			tx.AddTxOut(origOpReturnOut)
-			enableSeqLocks(tx, 0)
-		})
+		// Add the original op return back to the outputs and enable
+		// sequence locks for the first output.
+		tx.AddTxOut(origOpReturnOut)
+		enableSeqLocks(tx, 0)
+	})
 	g.SaveTipCoinbaseOuts()
 	g.AcceptTipBlock()
 
@@ -267,13 +244,12 @@ func TestFixedSequenceLocks(t *testing.T) {
 	// ---------------------------------------------------------------------
 
 	outs = g.OldestCoinbaseOuts()
-	g.NextBlock("b1a", nil, outs[1:], replaceFixSeqLocksVersions,
-		func(b *wire.MsgBlock) {
-			spend := chaingen.MakeSpendableOut(b0, 1, 0)
-			tx := g.CreateSpendTx(&spend, dcrutil.Amount(1))
-			enableSeqLocks(tx, 0)
-			b.AddTransaction(tx)
-		})
+	g.NextBlock("b1a", nil, outs[1:], func(b *wire.MsgBlock) {
+		spend := chaingen.MakeSpendableOut(b0, 1, 0)
+		tx := g.CreateSpendTx(&spend, dcrutil.Amount(1))
+		enableSeqLocks(tx, 0)
+		b.AddTransaction(tx)
+	})
 	g.AcceptTipBlock()
 
 	// ---------------------------------------------------------------------
@@ -285,18 +261,17 @@ func TestFixedSequenceLocks(t *testing.T) {
 	//            \-> b1a
 	// ---------------------------------------------------------------------
 	g.SetTip("b0")
-	g.NextBlock("b1", nil, outs[1:], replaceFixSeqLocksVersions)
+	g.NextBlock("b1", nil, outs[1:])
 	g.SaveTipCoinbaseOuts()
 	g.AcceptedToSideChainWithExpectedTip("b1a")
 
 	outs = g.OldestCoinbaseOuts()
-	g.NextBlock("b2", nil, outs[1:], replaceFixSeqLocksVersions,
-		func(b *wire.MsgBlock) {
-			spend := chaingen.MakeSpendableOut(b0, 1, 0)
-			tx := g.CreateSpendTx(&spend, dcrutil.Amount(1))
-			enableSeqLocks(tx, 0)
-			b.AddTransaction(tx)
-		})
+	g.NextBlock("b2", nil, outs[1:], func(b *wire.MsgBlock) {
+		spend := chaingen.MakeSpendableOut(b0, 1, 0)
+		tx := g.CreateSpendTx(&spend, dcrutil.Amount(1))
+		enableSeqLocks(tx, 0)
+		b.AddTransaction(tx)
+	})
 	g.SaveTipCoinbaseOuts()
 	g.AcceptTipBlock()
 	g.ExpectTip("b2")
@@ -308,10 +283,9 @@ func TestFixedSequenceLocks(t *testing.T) {
 	// ---------------------------------------------------------------------
 
 	outs = g.OldestCoinbaseOuts()
-	g.NextBlock("b3", nil, outs[1:], replaceFixSeqLocksVersions,
-		func(b *wire.MsgBlock) {
-			enableSeqLocks(b.STransactions[0], 0)
-		})
+	g.NextBlock("b3", nil, outs[1:], func(b *wire.MsgBlock) {
+		enableSeqLocks(b.STransactions[0], 0)
+	})
 	g.SaveTipCoinbaseOuts()
 	g.AcceptTipBlock()
 
@@ -322,10 +296,9 @@ func TestFixedSequenceLocks(t *testing.T) {
 	// ---------------------------------------------------------------------
 
 	outs = g.OldestCoinbaseOuts()
-	g.NextBlock("b4", nil, outs[1:], replaceFixSeqLocksVersions,
-		func(b *wire.MsgBlock) {
-			enableSeqLocks(b.STransactions[5], 0)
-		})
+	g.NextBlock("b4", nil, outs[1:], func(b *wire.MsgBlock) {
+		enableSeqLocks(b.STransactions[5], 0)
+	})
 	g.SaveTipCoinbaseOuts()
 	g.AcceptTipBlock()
 
@@ -338,23 +311,21 @@ func TestFixedSequenceLocks(t *testing.T) {
 	// ---------------------------------------------------------------------
 
 	outs = g.OldestCoinbaseOuts()
-	g.NextBlock("b5", nil, outs[1:], replaceFixSeqLocksVersions,
-		func(b *wire.MsgBlock) {
-			spend := chaingen.MakeSpendableOut(b0, 1, 1)
-			tx := g.CreateSpendTx(&spend, dcrutil.Amount(1))
-			b.AddTransaction(tx)
-		})
+	g.NextBlock("b5", nil, outs[1:], func(b *wire.MsgBlock) {
+		spend := chaingen.MakeSpendableOut(b0, 1, 1)
+		tx := g.CreateSpendTx(&spend, dcrutil.Amount(1))
+		b.AddTransaction(tx)
+	})
 	g.SaveTipCoinbaseOuts()
 	g.AcceptTipBlock()
 
 	outs = g.OldestCoinbaseOuts()
-	g.NextBlock("b6", nil, outs[1:], replaceFixSeqLocksVersions,
-		func(b *wire.MsgBlock) {
-			spend := chaingen.MakeSpendableOut(b0, 1, 2)
-			tx := g.CreateSpendTx(&spend, dcrutil.Amount(1))
-			enableSeqLocks(tx, 0)
-			b.AddTransaction(tx)
-		})
+	g.NextBlock("b6", nil, outs[1:], func(b *wire.MsgBlock) {
+		spend := chaingen.MakeSpendableOut(b0, 1, 2)
+		tx := g.CreateSpendTx(&spend, dcrutil.Amount(1))
+		enableSeqLocks(tx, 0)
+		b.AddTransaction(tx)
+	})
 	g.SaveTipCoinbaseOuts()
 	g.AcceptTipBlock()
 
@@ -368,13 +339,12 @@ func TestFixedSequenceLocks(t *testing.T) {
 	// ---------------------------------------------------------------------
 
 	outs = g.OldestCoinbaseOuts()
-	g.NextBlock("b7", &outs[0], outs[1:], replaceFixSeqLocksVersions,
-		func(b *wire.MsgBlock) {
-			spend := chaingen.MakeSpendableOut(b, 1, 0)
-			tx := g.CreateSpendTx(&spend, dcrutil.Amount(1))
-			enableSeqLocks(tx, 0)
-			b.AddTransaction(tx)
-		})
+	g.NextBlock("b7", &outs[0], outs[1:], func(b *wire.MsgBlock) {
+		spend := chaingen.MakeSpendableOut(b, 1, 0)
+		tx := g.CreateSpendTx(&spend, dcrutil.Amount(1))
+		enableSeqLocks(tx, 0)
+		b.AddTransaction(tx)
+	})
 	g.SaveTipCoinbaseOuts()
 	g.AcceptTipBlock()
 
@@ -388,18 +358,17 @@ func TestFixedSequenceLocks(t *testing.T) {
 	// ---------------------------------------------------------------------
 
 	outs = g.OldestCoinbaseOuts()
-	g.NextBlock("b8", nil, outs[1:], replaceFixSeqLocksVersions)
+	g.NextBlock("b8", nil, outs[1:])
 	g.SaveTipCoinbaseOuts()
 	g.AcceptTipBlock()
 
 	outs = g.OldestCoinbaseOuts()
-	g.NextBlock("b9", nil, outs[1:], replaceFixSeqLocksVersions,
-		func(b *wire.MsgBlock) {
-			spend := chaingen.MakeSpendableOut(b0, 1, 3)
-			tx := g.CreateSpendTx(&spend, dcrutil.Amount(1))
-			enableSeqLocks(tx, 0)
-			b.AddTransaction(tx)
-		})
+	g.NextBlock("b9", nil, outs[1:], func(b *wire.MsgBlock) {
+		spend := chaingen.MakeSpendableOut(b0, 1, 3)
+		tx := g.CreateSpendTx(&spend, dcrutil.Amount(1))
+		enableSeqLocks(tx, 0)
+		b.AddTransaction(tx)
+	})
 	g.SaveTipCoinbaseOuts()
 	g.AcceptTipBlock()
 
@@ -421,18 +390,17 @@ func TestFixedSequenceLocks(t *testing.T) {
 	)
 
 	outs = g.OldestCoinbaseOuts()
-	g.NextBlock("b10", nil, outs[1:], replaceFixSeqLocksVersions,
-		func(b *wire.MsgBlock) {
-			spend := chaingen.MakeSpendableOut(b0, 1, 4)
-			tx := g.CreateSpendTx(&spend, dcrutil.Amount(1))
-			b.AddTransaction(tx)
-		})
+	g.NextBlock("b10", nil, outs[1:], func(b *wire.MsgBlock) {
+		spend := chaingen.MakeSpendableOut(b0, 1, 4)
+		tx := g.CreateSpendTx(&spend, dcrutil.Amount(1))
+		b.AddTransaction(tx)
+	})
 	g.SaveTipCoinbaseOuts()
 	g.AcceptTipBlock()
 
 	outs = g.OldestCoinbaseOuts()
-	g.NextBlock("b11", nil, outs[1:], replaceFixSeqLocksVersions,
-		chaingen.ReplaceVotes(vbDisapprovePrev, fslVersion),
+	g.NextBlock("b11", nil, outs[1:],
+		g.ReplaceVoteBits(vbDisapprovePrev),
 		func(b *wire.MsgBlock) {
 			b.Header.VoteBits &^= vbApprovePrev
 			spend := chaingen.MakeSpendableOut(b0, 1, 5)
