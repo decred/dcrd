@@ -10,23 +10,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/chaincfg/v3"
 	"github.com/decred/dcrd/wire"
 )
-
-// mustParseHash converts the passed big-endian hex string into a
-// chainhash.Hash and will panic if there is an error.  It only differs from the
-// one available in chainhash in that it will panic so errors in the source code
-// be detected.  It will only (and must only) be called with hard-coded, and
-// therefore known good, hashes.
-func mustParseHash(s string) *chainhash.Hash {
-	hash, err := chainhash.NewHashFromStr(s)
-	if err != nil {
-		panic("invalid hash in source file: " + s)
-	}
-	return hash
-}
 
 // TestBlockNodeHeader ensures that block nodes reconstruct the correct header
 // and fetching the header from the chain reconstructs it from memory.
