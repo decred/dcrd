@@ -100,6 +100,19 @@ const (
 	checkForDuplicateHashes = false
 )
 
+// mustParseHash converts the passed big-endian hex string into a
+// chainhash.Hash and will panic if there is an error.  It only differs from the
+// one available in chainhash in that it will panic so errors in the source code
+// be detected.  It will only (and must only) be called with hard-coded, and
+// therefore known good, hashes.
+func mustParseHash(s string) *chainhash.Hash {
+	hash, err := chainhash.NewHashFromStr(s)
+	if err != nil {
+		panic("invalid hash in source file: " + s)
+	}
+	return hash
+}
+
 var (
 	// zeroHash is the zero value for a chainhash.Hash and is defined as a
 	// package level variable to avoid the need to create a new instance
@@ -109,6 +122,17 @@ var (
 	// earlyFinalState is the only value of the final state allowed in a
 	// block header before stake validation height.
 	earlyFinalState = [6]byte{0x00}
+
+	// The following blocks violate DCP0005 as they were submitted with an old
+	// version after the majority of the network had upgraded.  See
+	// isDCP0005Violation for more details.  They are defined as package level
+	// variables to avoid the need to create new instances every time a check is
+	// needed.
+	block413762Hash = mustParseHash("00000000000000002086ed61f62a546f3bfa8f3e567b003f097efa982008c47b")
+	block414036Hash = mustParseHash("0000000000000000194fa59310b9e988ecb23de0c716d6e8f1b2aa31d9592387")
+	block424011Hash = mustParseHash("0000000000000000317fc6c7a8a6578be7dfa9c96eb81d620050a3732b02d572")
+	block428809Hash = mustParseHash("00000000000000003147798ccffcecaa420fb1c7934d8f4e33809a871ee34aaa")
+	block430191Hash = mustParseHash("00000000000000002127ad6d4cb30cc16f6344589b417e42650388bb0690a88e")
 )
 
 // voteBitsApproveParent returns whether or not the passed vote bits indicate
@@ -1036,6 +1060,44 @@ func CheckBlockSanity(block *dcrutil.Block, timeSource MedianTimeSource, chainPa
 	return checkBlockSanity(block, timeSource, BFNone, chainParams, isTreasuryEnabled)
 }
 
+// isDCP0005Violation returns whether or not the block is known to violate
+// DCP0005.  Due to a bug that has since been fixed, some blocks were accepted
+// that violated DCP0005 by still being submitted on an old block version
+// (version 6 on mainnet) when the majority of the network had already upgraded
+// to the new version specified by DCP0005 (version 7 on mainnet).
+//
+// The blocks that violated DCP0005 due to specifying the old version were
+// otherwise valid and are whitelisted by this function so that they will be
+// accepted when fully syncing the chain without checkpoints.
+func isDCP0005Violation(network wire.CurrencyNet, header *wire.BlockHeader, blockHash *chainhash.Hash) bool {
+	switch network {
+	case wire.MainNet:
+		// 430191 is the height of the last block on mainnet that violated
+		// DCP0005, so return false immediately if the height is greater than
+		// that.
+		if header.Height > 430191 {
+			return false
+		}
+
+		// Return whether or not the block is any of the following 5 mainnet
+		// blocks that are known to violate DCP0005.
+		return header.Height == 413762 && *blockHash == *block413762Hash ||
+			header.Height == 414036 && *blockHash == *block414036Hash ||
+			header.Height == 424011 && *blockHash == *block424011Hash ||
+			header.Height == 428809 && *blockHash == *block428809Hash ||
+			header.Height == 430191 && *blockHash == *block430191Hash
+
+	case wire.TestNet3:
+		// 323282 is the height of the last block on testnet that violated
+		// DCP0005.  Return true if the height is less than or equal to 323282
+		// so that the DCP0005 version check is not enforced until after that
+		// point.
+		return header.Height <= 323282
+	}
+
+	return false
+}
+
 // checkBlockHeaderPositional performs several validation checks on the block
 // header which depend on its position within the block chain and having the
 // headers of all ancestors available.  These checks do not, and must not, rely
@@ -1119,10 +1181,20 @@ func (b *BlockChain) checkBlockHeaderPositional(header *wire.BlockHeader, prevNo
 		// Note that the latest block version for all networks other than the
 		// main network is one higher.
 		latestBlockVersion := int32(8)
+		dcp0005Version := int32(7)
 		if b.chainParams.Net != wire.MainNet {
 			latestBlockVersion++
+			dcp0005Version++
 		}
 		for version := latestBlockVersion; version > 1; version-- {
+			// Skip the version check for blocks that are known to violate DCP0005.
+			// See isDCP0005Violation for more details.
+			if version == dcp0005Version &&
+				isDCP0005Violation(b.chainParams.Net, header, &blockHash) {
+
+				continue
+			}
+
 			if header.Version < version && b.isMajorityVersion(version,
 				prevNode, b.chainParams.BlockRejectNumRequired) {
 

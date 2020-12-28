@@ -21,15 +21,6 @@ import (
 	"github.com/decred/dcrd/wire"
 )
 
-// newHashFromStr converts the passed big-endian hex string into a
-// chainhash.Hash.  It only differs from the one available in chainhash in that
-// it ignores the error since it will only (and must only) be called with
-// hard-coded, and therefore known good, hashes.
-func newHashFromStr(hexStr string) *chainhash.Hash {
-	hash, _ := chainhash.NewHashFromStr(hexStr)
-	return hash
-}
-
 // hexToFinalState converts the passed hex string into an array of 6 bytes and
 // will panic if there is an error.  This is only provided for the hard-coded
 // constants so errors in the source code can be detected. It will only (and
@@ -104,9 +95,9 @@ func TestBlockIndexSerialization(t *testing.T) {
 	// for the various tests below.
 	baseHeader := wire.BlockHeader{
 		Version:      4,
-		PrevBlock:    *newHashFromStr("000000000000016916671ae225343a5ee131c999d5cadb6348805db25737731f"),
-		MerkleRoot:   *newHashFromStr("5ef2bb79795d7503c0ccc5cb6e0d4731992fc8c8c5b332c1c0e2c687d864c666"),
-		StakeRoot:    *newHashFromStr("022965059b7527dc2bc18daaa533f806eda1f96fd0b04bbda2381f5552d7c2de"),
+		PrevBlock:    *mustParseHash("000000000000016916671ae225343a5ee131c999d5cadb6348805db25737731f"),
+		MerkleRoot:   *mustParseHash("5ef2bb79795d7503c0ccc5cb6e0d4731992fc8c8c5b332c1c0e2c687d864c666"),
+		StakeRoot:    *mustParseHash("022965059b7527dc2bc18daaa533f806eda1f96fd0b04bbda2381f5552d7c2de"),
 		VoteBits:     0x0001,
 		FinalState:   hexToFinalState("313e16e64c0b"),
 		Voters:       4,
@@ -597,7 +588,7 @@ func TestSpendJournalSerialization(t *testing.T) {
 				Version: 1,
 				TxIn: []*wire.TxIn{{
 					PreviousOutPoint: wire.OutPoint{
-						Hash:  *newHashFromStr("0437cd7f8525ceed2324359c2d0ba26006d92d856a9c20fa0241106ee5a597c9"),
+						Hash:  *mustParseHash("0437cd7f8525ceed2324359c2d0ba26006d92d856a9c20fa0241106ee5a597c9"),
 						Index: 0,
 						Tree:  0,
 					},
@@ -650,7 +641,7 @@ func TestSpendJournalSerialization(t *testing.T) {
 				Version: 1,
 				TxIn: []*wire.TxIn{{
 					PreviousOutPoint: wire.OutPoint{
-						Hash:  *newHashFromStr("c0ed017828e59ad5ed3cf70ee7c6fb0f426433047462477dc7a5d470f987a537"),
+						Hash:  *mustParseHash("c0ed017828e59ad5ed3cf70ee7c6fb0f426433047462477dc7a5d470f987a537"),
 						Index: 1,
 						Tree:  0,
 					},
@@ -676,7 +667,7 @@ func TestSpendJournalSerialization(t *testing.T) {
 				Version: 1,
 				TxIn: []*wire.TxIn{{
 					PreviousOutPoint: wire.OutPoint{
-						Hash:  *newHashFromStr("92fbe1d4be82f765dfabc9559d4620864b05cc897c4db0e29adac92d294e52b7"),
+						Hash:  *mustParseHash("92fbe1d4be82f765dfabc9559d4620864b05cc897c4db0e29adac92d294e52b7"),
 						Index: 0,
 						Tree:  0,
 					},
@@ -699,7 +690,7 @@ func TestSpendJournalSerialization(t *testing.T) {
 				Expiry:   0,
 			}},
 			utxoView: &UtxoViewpoint{entries: map[chainhash.Hash]*UtxoEntry{
-				*newHashFromStr("c0ed017828e59ad5ed3cf70ee7c6fb0f426433047462477dc7a5d470f987a537"): {
+				*mustParseHash("c0ed017828e59ad5ed3cf70ee7c6fb0f426433047462477dc7a5d470f987a537"): {
 					txVersion:  1,
 					isCoinBase: false,
 					hasExpiry:  false,
@@ -739,7 +730,7 @@ func TestSpendJournalSerialization(t *testing.T) {
 				Version: 1,
 				TxIn: []*wire.TxIn{{
 					PreviousOutPoint: wire.OutPoint{
-						Hash:  *newHashFromStr("c0ed017828e59ad5ed3cf70ee7c6fb0f426433047462477dc7a5d470f987a537"),
+						Hash:  *mustParseHash("c0ed017828e59ad5ed3cf70ee7c6fb0f426433047462477dc7a5d470f987a537"),
 						Index: 1,
 					},
 					SignatureScript: hexToBytes(""),
@@ -749,7 +740,7 @@ func TestSpendJournalSerialization(t *testing.T) {
 					ValueIn:         159747816,
 				}, {
 					PreviousOutPoint: wire.OutPoint{
-						Hash:  *newHashFromStr("c0ed017828e59ad5ed3cf70ee7c6fb0f426433047462477dc7a5d470f987a537"),
+						Hash:  *mustParseHash("c0ed017828e59ad5ed3cf70ee7c6fb0f426433047462477dc7a5d470f987a537"),
 						Index: 2,
 					},
 					SignatureScript: hexToBytes(""),
@@ -771,7 +762,7 @@ func TestSpendJournalSerialization(t *testing.T) {
 				Expiry:   0,
 			}},
 			utxoView: &UtxoViewpoint{entries: map[chainhash.Hash]*UtxoEntry{
-				*newHashFromStr("c0ed017828e59ad5ed3cf70ee7c6fb0f426433047462477dc7a5d470f987a537"): {
+				*mustParseHash("c0ed017828e59ad5ed3cf70ee7c6fb0f426433047462477dc7a5d470f987a537"): {
 					txVersion:  1,
 					isCoinBase: false,
 					hasExpiry:  false,
@@ -844,7 +835,7 @@ func TestSpendJournalErrors(t *testing.T) {
 				Version: 1,
 				TxIn: []*wire.TxIn{{
 					PreviousOutPoint: wire.OutPoint{
-						Hash:  *newHashFromStr("0437cd7f8525ceed2324359c2d0ba26006d92d856a9c20fa0241106ee5a597c9"),
+						Hash:  *mustParseHash("0437cd7f8525ceed2324359c2d0ba26006d92d856a9c20fa0241106ee5a597c9"),
 						Index: 0,
 					},
 					SignatureScript: hexToBytes("47304402204e45e16932b8af514961a1d3a1a25fdf3f4f7732e9d624c6c61548ab5fb8cd410220181522ec8eca07de4860a4acdd12909d831cc56cbbac4622082221a8768d1d0901"),
@@ -862,7 +853,7 @@ func TestSpendJournalErrors(t *testing.T) {
 				Version: 1,
 				TxIn: []*wire.TxIn{{
 					PreviousOutPoint: wire.OutPoint{
-						Hash:  *newHashFromStr("0437cd7f8525ceed2324359c2d0ba26006d92d856a9c20fa0241106ee5a597c9"),
+						Hash:  *mustParseHash("0437cd7f8525ceed2324359c2d0ba26006d92d856a9c20fa0241106ee5a597c9"),
 						Index: 0,
 					},
 					SignatureScript: hexToBytes("47304402204e45e16932b8af514961a1d3a1a25fdf3f4f7732e9d624c6c61548ab5fb8cd410220181522ec8eca07de4860a4acdd12909d831cc56cbbac4622082221a8768d1d0901"),
@@ -1373,7 +1364,7 @@ func TestBestChainStateSerialization(t *testing.T) {
 		{
 			name: "genesis",
 			state: bestChainState{
-				hash:         *newHashFromStr("000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f"),
+				hash:         *mustParseHash("000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f"),
 				height:       0,
 				totalTxns:    1,
 				totalSubsidy: 0,
@@ -1387,7 +1378,7 @@ func TestBestChainStateSerialization(t *testing.T) {
 		{
 			name: "block 1",
 			state: bestChainState{
-				hash:         *newHashFromStr("00000000839a8e6886ab5951d76f411475428afc90947ee320161bbf18eb6048"),
+				hash:         *mustParseHash("00000000839a8e6886ab5951d76f411475428afc90947ee320161bbf18eb6048"),
 				height:       1,
 				totalTxns:    2,
 				totalSubsidy: 123456789,
