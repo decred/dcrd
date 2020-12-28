@@ -418,6 +418,9 @@ func MainNetParams() *Params {
 		seeders: []string{
 			"mainnet-seed-1.decred.org",
 			"mainnet-seed-2.decred.org",
+			"mainnet-seed.planetdecred.org",
+			"mainnet-seed.dcrdata.org",
+			"mainnet-seed.jamieholdstock.com",
 		},
 	}
 }

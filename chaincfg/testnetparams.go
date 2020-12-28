@@ -306,6 +306,9 @@ func TestNet3Params() *Params {
 		seeders: []string{
 			"testnet-seed-1.decred.org",
 			"testnet-seed-2.decred.org",
+			"testnet-seed.planetdecred.org",
+			"testnet-seed.dcrdata.org",
+			"testnet-seed.jamieholdstock.com",
 		},
 	}
 }
