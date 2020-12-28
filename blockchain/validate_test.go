@@ -613,7 +613,7 @@ func TestTxValidationErrors(t *testing.T) {
 var badBlock = wire.MsgBlock{
 	Header: wire.BlockHeader{
 		Version:      1,
-		MerkleRoot:   *newHashFromStr("66aa7491b9adce110585ccab7e3fb5fe280de174530cca10eba2c6c3df01c10d"),
+		MerkleRoot:   *mustParseHash("66aa7491b9adce110585ccab7e3fb5fe280de174530cca10eba2c6c3df01c10d"),
 		VoteBits:     uint16(0x0000),
 		FinalState:   [6]byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
 		Voters:       uint16(0x0000),
