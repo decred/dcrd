@@ -169,9 +169,9 @@ func TestBlockIndexSerializationV2(t *testing.T) {
 	// for the various tests below.
 	baseHeader := wire.BlockHeader{
 		Version:      4,
-		PrevBlock:    *newHashFromStr("000000000000016916671ae225343a5ee131c999d5cadb6348805db25737731f"),
-		MerkleRoot:   *newHashFromStr("5ef2bb79795d7503c0ccc5cb6e0d4731992fc8c8c5b332c1c0e2c687d864c666"),
-		StakeRoot:    *newHashFromStr("022965059b7527dc2bc18daaa533f806eda1f96fd0b04bbda2381f5552d7c2de"),
+		PrevBlock:    *mustParseHash("000000000000016916671ae225343a5ee131c999d5cadb6348805db25737731f"),
+		MerkleRoot:   *mustParseHash("5ef2bb79795d7503c0ccc5cb6e0d4731992fc8c8c5b332c1c0e2c687d864c666"),
+		StakeRoot:    *mustParseHash("022965059b7527dc2bc18daaa533f806eda1f96fd0b04bbda2381f5552d7c2de"),
 		VoteBits:     0x0001,
 		FinalState:   hexToFinalState("313e16e64c0b"),
 		Voters:       4,
@@ -188,14 +188,14 @@ func TestBlockIndexSerializationV2(t *testing.T) {
 		StakeVersion: 4,
 	}
 	baseTicketsVoted := []chainhash.Hash{
-		*newHashFromStr("8b62a877544753ea80a822142a48ec066170e9381d21a9e8a84bc7373f0f9b2e"),
-		*newHashFromStr("4427a003a7aceb1404ffd9072e9aff1e128a24333a543332030e91668a389db7"),
-		*newHashFromStr("4415b88ac74881d7b6b15d41df465257cd1cc92d55e95f1b648434aef3a2110b"),
-		*newHashFromStr("9d2621b57352088809d3a069b04b76c832f30a76da14e56aece72208b3e5b87a"),
+		*mustParseHash("8b62a877544753ea80a822142a48ec066170e9381d21a9e8a84bc7373f0f9b2e"),
+		*mustParseHash("4427a003a7aceb1404ffd9072e9aff1e128a24333a543332030e91668a389db7"),
+		*mustParseHash("4415b88ac74881d7b6b15d41df465257cd1cc92d55e95f1b648434aef3a2110b"),
+		*mustParseHash("9d2621b57352088809d3a069b04b76c832f30a76da14e56aece72208b3e5b87a"),
 	}
 	baseTicketsRevoked := []chainhash.Hash{
-		*newHashFromStr("8146f01b8ffca8008ebc80293d2978d63b1dffa5c456a73e7b39a9b1e695e8eb"),
-		*newHashFromStr("2292ff2461e725c58cc6e2051eac2a10e6ee6d1f62327ed676b7a196fb94be0c"),
+		*mustParseHash("8146f01b8ffca8008ebc80293d2978d63b1dffa5c456a73e7b39a9b1e695e8eb"),
+		*mustParseHash("2292ff2461e725c58cc6e2051eac2a10e6ee6d1f62327ed676b7a196fb94be0c"),
 	}
 	baseVoteInfo := []stake.VoteVersionTuple{
 		{Version: 4, Bits: 0x0001},
