@@ -163,6 +163,7 @@ type testRPCChain struct {
 	headerByHeight                wire.BlockHeader
 	headerByHeightErr             error
 	heightRangeFn                 func(startHeight, endHeight int64) ([]chainhash.Hash, error)
+	invalidateBlockErr            error
 	isCurrent                     bool
 	liveTickets                   []chainhash.Hash
 	liveTicketsErr                error
@@ -176,6 +177,7 @@ type testRPCChain struct {
 	missedTicketsErr              error
 	nextThresholdState            blockchain.ThresholdStateTuple
 	nextThresholdStateErr         error
+	reconsiderBlockErr            error
 	stateLastChangedHeight        int64
 	stateLastChangedHeightErr     error
 	ticketPoolValue               dcrutil.Amount
@@ -321,6 +323,12 @@ func (c *testRPCChain) HeightRange(startHeight, endHeight int64) ([]chainhash.Ha
 	return c.heightRangeFn(startHeight, endHeight)
 }
 
+// InvalidateBlock returns a mocked error from manually invalidating a given
+// block.
+func (c *testRPCChain) InvalidateBlock(hash *chainhash.Hash) error {
+	return c.invalidateBlockErr
+}
+
 // IsCurrent returns a mocked bool representing whether or not the chain
 // believes it is current.
 func (c *testRPCChain) IsCurrent() bool {
@@ -366,6 +374,12 @@ func (c *testRPCChain) MissedTickets() ([]chainhash.Hash, error) {
 // the given deployment ID for the block AFTER the provided block hash.
 func (c *testRPCChain) NextThresholdState(hash *chainhash.Hash, version uint32, deploymentID string) (blockchain.ThresholdStateTuple, error) {
 	return c.nextThresholdState, c.nextThresholdStateErr
+}
+
+// ReconsiderBlock returns a mocked error from manually reconsidering a given
+// block.
+func (c *testRPCChain) ReconsiderBlock(hash *chainhash.Hash) error {
+	return c.reconsiderBlockErr
 }
 
 // StateLastChangedHeight returns a mocked height at which the provided

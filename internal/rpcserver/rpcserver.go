@@ -200,10 +200,12 @@ var rpcHandlersBeforeInit = map[types.Method]commandHandler{
 	"gettxoutsetinfo":       handleGetTxOutSetInfo,
 	"getwork":               handleGetWork,
 	"help":                  handleHelp,
+	"invalidateblock":       handleInvalidateBlock,
 	"livetickets":           handleLiveTickets,
 	"missedtickets":         handleMissedTickets,
 	"node":                  handleNode,
 	"ping":                  handlePing,
+	"reconsiderblock":       handleReconsiderBlock,
 	"regentemplate":         handleRegenTemplate,
 	"searchrawtransactions": handleSearchRawTransactions,
 	"sendrawtransaction":    handleSendRawTransaction,
@@ -3889,6 +3891,35 @@ func handleHelp(_ context.Context, s *Server, cmd interface{}) (interface{}, err
 	return help, nil
 }
 
+// handleInvalidateBlock implements the invalidateblock command.
+func handleInvalidateBlock(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
+	c := cmd.(*types.InvalidateBlockCmd)
+	hash, err := chainhash.NewHashFromStr(c.BlockHash)
+	if err != nil {
+		return nil, rpcDecodeHexError(c.BlockHash)
+	}
+
+	chain := s.cfg.Chain
+	err = chain.InvalidateBlock(hash)
+	if err != nil {
+		if errors.Is(err, blockchain.ErrUnknownBlock) {
+			return nil, &dcrjson.RPCError{
+				Code:    dcrjson.ErrRPCBlockNotFound,
+				Message: fmt.Sprintf("Block not found: %v", hash),
+			}
+		}
+
+		if errors.Is(err, blockchain.ErrInvalidateGenesisBlock) {
+			return nil, rpcInvalidError("%v", err)
+		}
+
+		context := fmt.Sprintf("Failed to invalidate block %s", hash)
+		return nil, rpcInternalError(err.Error(), context)
+	}
+
+	return nil, nil
+}
+
 // handleLiveTickets implements the livetickets command.
 func handleLiveTickets(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
 	lt, err := s.cfg.Chain.LiveTickets()
@@ -3930,6 +3961,58 @@ func handlePing(_ context.Context, s *Server, cmd interface{}) (interface{}, err
 			"generate nonce: "+err.Error(), "")
 	}
 	s.cfg.ConnMgr.BroadcastMessage(wire.NewMsgPing(nonce))
+
+	return nil, nil
+}
+
+// handleReconsiderBlock implements the reconsiderblock command.
+func handleReconsiderBlock(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
+	c := cmd.(*types.ReconsiderBlockCmd)
+	hash, err := chainhash.NewHashFromStr(c.BlockHash)
+	if err != nil {
+		return nil, rpcDecodeHexError(c.BlockHash)
+	}
+
+	chain := s.cfg.Chain
+	err = chain.ReconsiderBlock(hash)
+	if err != nil {
+		if errors.Is(err, blockchain.ErrUnknownBlock) {
+			return nil, &dcrjson.RPCError{
+				Code:    dcrjson.ErrRPCBlockNotFound,
+				Message: fmt.Sprintf("Block not found: %v", hash),
+			}
+		}
+
+		// Use separate error code for failed validation.
+		allRuleErrs := func(err error) bool {
+			var rErr blockchain.RuleError
+			if !errors.As(err, &rErr) {
+				return false
+			}
+
+			var mErr blockchain.MultiError
+			if errors.As(err, &mErr) {
+				for _, e := range mErr {
+					if !errors.As(e, &rErr) {
+						return false
+					}
+				}
+			}
+
+			return true
+		}
+		if allRuleErrs(err) {
+			return nil, &dcrjson.RPCError{
+				Code: dcrjson.ErrRPCReconsiderFailure,
+				Message: fmt.Sprintf("Reconsidering block %s led to one or "+
+					"more validation failures: %v", hash, err),
+			}
+		}
+
+		// Fall back to an internal error.
+		context := fmt.Sprintf("Error while reconsidering block %s", hash)
+		return nil, rpcInternalError(err.Error(), context)
+	}
 
 	return nil, nil
 }

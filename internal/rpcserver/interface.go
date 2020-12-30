@@ -408,6 +408,23 @@ type Chain interface {
 	// TSpendCountVotes returns the votes for the specified tspend up to
 	// the specified block.
 	TSpendCountVotes(*chainhash.Hash, *dcrutil.Tx) (int64, int64, error)
+
+	// InvalidateBlock manually invalidates the provided block as if the block
+	// had violated a consensus rule and marks all of its descendants as having
+	// a known invalid ancestor.  It then reorganizes the chain as necessary so
+	// the branch with the most cumulative proof of work that is still valid
+	// becomes the main chain.
+	InvalidateBlock(*chainhash.Hash) error
+
+	// ReconsiderBlock removes the known invalid status of the provided block
+	// and all of its ancestors along with the known invalid ancestor status
+	// from all of its descendants that are neither themselves marked as having
+	// failed validation nor descendants of another such block.  Therefore, it
+	// allows the affected blocks to be reconsidered under the current consensus
+	// rules.  It then potentially reorganizes the chain as necessary so the
+	// block with the most cumulative proof of work that is valid becomes the
+	// tip of the main chain.
+	ReconsiderBlock(*chainhash.Hash) error
 }
 
 // Clock represents a clock for use with the RPC server. The purpose of this

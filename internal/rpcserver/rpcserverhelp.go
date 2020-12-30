@@ -724,15 +724,25 @@ var helpDescsEnUS = map[string]string{
 	"help--result0":    "List of commands",
 	"help--result1":    "Help for specified command",
 
+	// InvalidateBlockCmd help.
+	"invalidateblock--synopsis": "Permanently invalidates a block as if it had violated consensus rules.\n" +
+		"Use reconsiderblock to remove the invalid status.",
+	"invalidateblock-blockhash": "The hash of the block to invalidate",
+
 	// PingCmd help.
 	"ping--synopsis": "Queues a ping to be sent to each connected peer.\n" +
 		"Ping times are provided by getpeerinfo via the pingtime and pingwait fields.",
 
 	// RebroadcastMissed help.
-	"rebroadcastmissed--synopsis": "Asks the daemon to rebroadcast missed votes.\n",
+	"rebroadcastmissed--synopsis": "Asks the daemon to rebroadcast missed votes.",
 
-	// RebroadcastWinnerCmd help.
-	"rebroadcastwinners--synopsis": "Asks the daemon to rebroadcast the winners of the voting lottery.\n",
+	// RebroadcastWinnersCmd help.
+	"rebroadcastwinners--synopsis": "Asks the daemon to rebroadcast the winners of the voting lottery.",
+
+	// ReconsiderBlockCmd help.
+	"reconsiderblock--synopsis": "Reconsiders a block for validation and best chain selection by removing any invalid status from it and its ancestors.\n" +
+		"Any descendants that are neither themselves marked as having failed validation, nor descendants of another such block, are also made eligibile for best chain selection.",
+	"reconsiderblock-blockhash": "The hash of the block to reconsider",
 
 	// SearchRawTransactionsCmd help.
 	"searchrawtransactions--synopsis": "Returns raw data for transactions involving the passed address.\n" +
@@ -1033,10 +1043,12 @@ var rpcResultTypes = map[types.Method][]interface{}{
 	"getwork":               {(*types.GetWorkResult)(nil), (*bool)(nil)},
 	"getcoinsupply":         {(*int64)(nil)},
 	"help":                  {(*string)(nil), (*string)(nil)},
+	"invalidateblock":       nil,
 	"livetickets":           {(*types.LiveTicketsResult)(nil)},
 	"missedtickets":         {(*types.MissedTicketsResult)(nil)},
 	"node":                  nil,
 	"ping":                  nil,
+	"reconsiderblock":       nil,
 	"regentemplate":         nil,
 	"searchrawtransactions": {(*string)(nil), (*[]types.SearchRawTransactionsResult)(nil)},
 	"sendrawtransaction":    {(*string)(nil)},
