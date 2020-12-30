@@ -493,7 +493,6 @@ type testSyncManager struct {
 	isOrphan              bool
 	submitBlockErr        error
 	syncPeerID            int32
-	locateBlocks          []chainhash.Hash
 	syncHeight            int64
 	processTransaction    []*dcrutil.Tx
 	processTransactionErr error
@@ -514,13 +513,6 @@ func (s *testSyncManager) SubmitBlock(block *dcrutil.Block, flags blockchain.Beh
 // SyncPeer returns a mocked id of the current peer being synced with.
 func (s *testSyncManager) SyncPeerID() int32 {
 	return s.syncPeerID
-}
-
-// LocateBlocks returns a mocked slice of hashes of the blocks after the first
-// known block in the locator until the provided stop hash is reached, or up to
-// the provided max number of block hashes.
-func (s *testSyncManager) LocateBlocks(locator blockchain.BlockLocator, hashStop *chainhash.Hash, maxHashes uint32) []chainhash.Hash {
-	return s.locateBlocks
 }
 
 // SyncHeight returns a mocked latest known block being synced to.

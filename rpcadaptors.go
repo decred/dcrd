@@ -343,16 +343,6 @@ func (b *rpcSyncMgr) SyncPeerID() int32 {
 	return b.syncMgr.SyncPeerID()
 }
 
-// LocateBlocks returns the hashes of the blocks after the first known block in
-// the locator until the provided stop hash is reached, or up to the provided
-// max number of block hashes.
-//
-// This function is safe for concurrent access and is part of the
-// rpcserver.SyncManager interface implementation.
-func (b *rpcSyncMgr) LocateBlocks(locator blockchain.BlockLocator, hashStop *chainhash.Hash, maxHashes uint32) []chainhash.Hash {
-	return b.server.chain.LocateBlocks(locator, hashStop, maxHashes)
-}
-
 // SyncHeight returns latest known block being synced to.
 func (b *rpcSyncMgr) SyncHeight() int64 {
 	return b.syncMgr.SyncHeight()

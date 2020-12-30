@@ -152,12 +152,6 @@ type SyncManager interface {
 	// SyncPeerID returns the id of the current peer being synced with.
 	SyncPeerID() int32
 
-	// LocateBlocks returns the hashes of the blocks after the first known block
-	// in the locator until the provided stop hash is reached, or up to the
-	// provided max number of block hashes.
-	LocateBlocks(locator blockchain.BlockLocator, hashStop *chainhash.Hash,
-		maxHashes uint32) []chainhash.Hash
-
 	// SyncHeight returns latest known block being synced to.
 	SyncHeight() int64
 
