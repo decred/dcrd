@@ -494,7 +494,6 @@ type testSyncManager struct {
 	submitBlockErr        error
 	syncPeerID            int32
 	locateBlocks          []chainhash.Hash
-	tipGeneration         []chainhash.Hash
 	syncHeight            int64
 	processTransaction    []*dcrutil.Tx
 	processTransactionErr error
@@ -522,12 +521,6 @@ func (s *testSyncManager) SyncPeerID() int32 {
 // the provided max number of block hashes.
 func (s *testSyncManager) LocateBlocks(locator blockchain.BlockLocator, hashStop *chainhash.Hash, maxHashes uint32) []chainhash.Hash {
 	return s.locateBlocks
-}
-
-// TipGeneration returns a mocked entire generation of blocks stemming from the
-// parent of the current tip.
-func (s *testSyncManager) TipGeneration() ([]chainhash.Hash, error) {
-	return s.tipGeneration, nil
 }
 
 // SyncHeight returns a mocked latest known block being synced to.

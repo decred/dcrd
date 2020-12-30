@@ -122,20 +122,6 @@ type requestFromPeerResponse struct {
 	err error
 }
 
-// tipGenerationResponse is a response sent to the reply channel of a
-// tipGenerationMsg query.
-type tipGenerationResponse struct {
-	hashes []chainhash.Hash
-	err    error
-}
-
-// tipGenerationMsg is a message type to be sent across the message
-// channel for requesting the required the entire generation of a
-// block node.
-type tipGenerationMsg struct {
-	reply chan tipGenerationResponse
-}
-
 // processBlockResponse is a response sent to the reply channel of a
 // processBlockMsg.
 type processBlockResponse struct {
@@ -1583,13 +1569,6 @@ out:
 					err: err,
 				}
 
-			case tipGenerationMsg:
-				g, err := m.cfg.Chain.TipGeneration()
-				msg.reply <- tipGenerationResponse{
-					hashes: g,
-					err:    err,
-				}
-
 			case processBlockMsg:
 				forkLen, isOrphan, err := m.processBlockAndOrphans(msg.block,
 					msg.flags)
@@ -1835,16 +1814,6 @@ func (m *SyncManager) requestFromPeer(p *peerpkg.Peer, blocks, txs []*chainhash.
 	}
 
 	return nil
-}
-
-// TipGeneration returns the hashes of all the children of the current best
-// chain tip.  It is funneled through the sync manager since blockchain is not
-// safe for concurrent access.
-func (m *SyncManager) TipGeneration() ([]chainhash.Hash, error) {
-	reply := make(chan tipGenerationResponse)
-	m.msgChan <- tipGenerationMsg{reply: reply}
-	response := <-reply
-	return response.hashes, response.err
 }
 
 // ProcessBlock makes use of ProcessBlock on an internal instance of a block

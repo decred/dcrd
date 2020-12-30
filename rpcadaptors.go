@@ -353,12 +353,6 @@ func (b *rpcSyncMgr) LocateBlocks(locator blockchain.BlockLocator, hashStop *cha
 	return b.server.chain.LocateBlocks(locator, hashStop, maxHashes)
 }
 
-// TipGeneration returns the entire generation of blocks stemming from the
-// parent of the current tip.
-func (b *rpcSyncMgr) TipGeneration() ([]chainhash.Hash, error) {
-	return b.syncMgr.TipGeneration()
-}
-
 // SyncHeight returns latest known block being synced to.
 func (b *rpcSyncMgr) SyncHeight() int64 {
 	return b.syncMgr.SyncHeight()

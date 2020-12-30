@@ -819,8 +819,7 @@ func (sp *serverPeer) OnGetMiningState(p *peer.Peer, msg *wire.MsgGetMiningState
 
 	// Obtain the entire generation of blocks stemming from the parent of
 	// the current tip.
-	sm := sp.server.syncManager
-	children, err := sm.TipGeneration()
+	children, err := sp.server.chain.TipGeneration()
 	if err != nil {
 		peerLog.Warnf("failed to access sync manager to get the generation "+
 			"for a mining state request (block: %v): %v", best.Hash, err)
@@ -909,8 +908,7 @@ func (sp *serverPeer) OnGetInitState(p *peer.Peer, msg *wire.MsgGetInitState) {
 	if wantBlocks || wantVotes {
 		// Obtain the entire generation of blocks stemming from the
 		// parent of the current tip.
-		sm := sp.server.syncManager
-		children, err := sm.TipGeneration()
+		children, err := sp.server.chain.TipGeneration()
 		if err != nil {
 			peerLog.Warnf("Failed to access sync manager to get the generation "+
 				"for a init state request (block: %v): %v", best.Hash, err)
