@@ -948,6 +948,53 @@ func (g *chaingenHarness) ForceTipReorg(fromTipName, toTipName string) {
 	}
 }
 
+// InvalidateBlockAndExpectTip marks the block associated with the given name in
+// the harness generator as invalid and expects the provided error along with
+// the resulting current best chain tip to be the block associated with the
+// given tip name.
+func (g *chaingenHarness) InvalidateBlockAndExpectTip(blockName string, wantErr error, tipName string) {
+	g.t.Helper()
+
+	msgBlock := g.BlockByName(blockName)
+	blockHeight := msgBlock.Header.Height
+	block := dcrutil.NewBlock(msgBlock)
+	g.t.Logf("Testing invalidate block %q (hash %s, height %d) with expected "+
+		"error %v", blockName, block.Hash(), blockHeight, wantErr)
+
+	err := g.chain.InvalidateBlock(block.Hash())
+	if !errors.Is(err, wantErr) {
+		g.t.Fatalf("invalidate block %q (hash %s, height %d) does not have "+
+			"expected error -- got %q, want %v", blockName, block.Hash(),
+			blockHeight, err, wantErr)
+	}
+
+	g.ExpectTip(tipName)
+}
+
+// ReconsiderBlockAndExpectTip reconsiders the block associated with the given
+// name in the harness generator and expects the provided error along with the
+// resulting current best chain tip to be the block associated with the given
+// tip name.
+func (g *chaingenHarness) ReconsiderBlockAndExpectTip(blockName string, wantErr error, tipName string) {
+	g.t.Helper()
+
+	msgBlock := g.BlockByName(blockName)
+	blockHeight := msgBlock.Header.Height
+	block := dcrutil.NewBlock(msgBlock)
+
+	g.t.Logf("Testing reconsider block %q (hash %s, height %d) with expected "+
+		"error %v", blockName, block.Hash(), blockHeight, wantErr)
+
+	err := g.chain.ReconsiderBlock((block.Hash()))
+	if !errors.Is(err, wantErr) {
+		g.t.Fatalf("reconsider block %q (hash %s, height %d) does not have "+
+			"expected error -- got %q, want %v", blockName, block.Hash(),
+			blockHeight, err, wantErr)
+	}
+
+	g.ExpectTip(tipName)
+}
+
 // minUint32 is a helper function to return the minimum of two uint32s.
 // This avoids a math import and the need to cast to floats.
 func minUint32(a, b uint32) uint32 {

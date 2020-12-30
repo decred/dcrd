@@ -10,6 +10,7 @@ import (
 	"fmt"
 
 	"github.com/decred/dcrd/blockchain/stake/v4"
+	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/database/v2"
 	"github.com/decred/dcrd/dcrutil/v4"
 	"github.com/decred/dcrd/wire"
@@ -581,4 +582,266 @@ func (b *BlockChain) ProcessBlock(block *dcrutil.Block, flags BehaviorFlags) (in
 		}
 	}
 	return forkLen, finalErr
+}
+
+// InvalidateBlock manually invalidates the provided block as if the block had
+// violated a consensus rule and marks all of its descendants as having a known
+// invalid ancestor.  It then reorganizes the chain as necessary so the branch
+// with the most cumulative proof of work that is still valid becomes the main
+// chain.
+func (b *BlockChain) InvalidateBlock(hash *chainhash.Hash) error {
+	b.processLock.Lock()
+	defer b.processLock.Unlock()
+
+	// Unable to invalidate a block that does not exist.
+	node := b.index.LookupNode(hash)
+	if node == nil {
+		return unknownBlockError(hash)
+	}
+
+	// Disallow invalidation of the genesis block.
+	if node.height == 0 {
+		str := "invalidating the genesis block is not allowed"
+		return contextError(ErrInvalidateGenesisBlock, str)
+	}
+
+	// Nothing to do if the block is already known to have failed validation.
+	// Notice that this is intentionally not considering the case when the block
+	// is marked invalid due to having a known invalid ancestor so the block is
+	// still manually marked as having failed validation in that case.
+	if b.index.NodeStatus(node).KnownValidateFailed() {
+		return nil
+	}
+
+	// Simply mark the block being invalidated as having failed validation and
+	// all of its descendants as having an invalid ancestor when it is not part
+	// of the current best chain.
+	b.recentContextChecks.Delete(node.hash)
+	if !b.bestChain.Contains(node) {
+		b.index.MarkBlockFailedValidation(node)
+		b.chainLock.Lock()
+		b.flushBlockIndexWarnOnly()
+		b.chainLock.Unlock()
+		return nil
+	}
+
+	log.Infof("Rolling the chain back to block %s (height %d) due to manual "+
+		"invalidation", node.parent.hash, node.parent.height)
+
+	// At this point, the invalidated block is part of the current best chain,
+	// so start by reorganizing the chain back to its parent and marking it as
+	// having failed validation along with all of its descendants as having an
+	// invalid ancestor.
+	b.chainLock.Lock()
+	if err := b.reorganizeChain(node.parent); err != nil {
+		b.flushBlockIndexWarnOnly()
+		b.chainLock.Unlock()
+		return err
+	}
+	b.index.MarkBlockFailedValidation(node)
+
+	// Reset whether or not the chain believes it is current since the best
+	// chain was just invalidated.
+	newTip := b.bestChain.Tip()
+	b.isCurrentLatch = false
+	b.maybeUpdateIsCurrent(newTip)
+	b.chainLock.Unlock()
+
+	// The new best chain tip is probably no longer in the best chain candidates
+	// since it was likely removed due to previously having less work, so scour
+	// the block tree in order repopulate the best chain candidates.
+	b.index.Lock()
+	b.index.addBestChainCandidate(newTip)
+	b.index.forEachChainTip(func(tip *blockNode) error {
+		// Chain tips that have less work than the new tip are not best chain
+		// candidates nor are any of their ancestors since they have even less
+		// work.
+		if tip.workSum.Cmp(newTip.workSum) < 0 {
+			return nil
+		}
+
+		// Find the first ancestor of the tip that is not known to be invalid
+		// and can be validated.  Then add it as a candidate to potentially
+		// become the best chain tip if it has the same or more work than the
+		// current one.
+		n := tip
+		for n != nil && (n.status.KnownInvalid() || !b.index.canValidate(n)) {
+			n = n.parent
+		}
+		if n != nil && n != newTip && n.workSum.Cmp(newTip.workSum) >= 0 {
+			b.index.addBestChainCandidate(n)
+		}
+
+		return nil
+	})
+	b.index.Unlock()
+
+	// Find the current best chain candidate and attempt to reorganize the chain
+	// to it.  The most common case is for the candidate to extend the current
+	// best chain, however, it might also be a candidate that would cause a
+	// reorg or be the current main chain tip, which will be the case when the
+	// passed block is on a side chain.
+	b.chainLock.Lock()
+	targetTip := b.index.FindBestChainCandidate()
+	err := b.reorganizeChain(targetTip)
+	b.flushBlockIndexWarnOnly()
+	b.chainLock.Unlock()
+	return err
+}
+
+// blockNodeInSlice return whether a given block node is an element in a slice
+// of them.
+func blockNodeInSlice(node *blockNode, slice []*blockNode) bool {
+	for _, child := range slice {
+		if child == node {
+			return true
+		}
+	}
+	return false
+}
+
+// ReconsiderBlock removes the known invalid status of the provided block and
+// all of its ancestors along with the known invalid ancestor status from all of
+// its descendants that are neither themselves marked as having failed
+// validation nor descendants of another such block.  Therefore, it allows the
+// affected blocks to be reconsidered under the current consensus rules.  It
+// then potentially reorganizes the chain as necessary so the block with the
+// most cumulative proof of work that is valid becomes the tip of the main
+// chain.
+func (b *BlockChain) ReconsiderBlock(hash *chainhash.Hash) error {
+	b.processLock.Lock()
+	defer b.processLock.Unlock()
+
+	// Unable to reconsider a block that does not exist.
+	node := b.index.LookupNode(hash)
+	if node == nil {
+		return unknownBlockError(hash)
+	}
+
+	log.Infof("Reconsidering block %s (height %d)", node.hash, node.height)
+
+	// Remove invalidity flags from the block to be reconsidered and all of its
+	// ancestors while tracking the earliest such block that is marked as having
+	// failed validation since all descendants of that block need to have their
+	// invalid ancestor flag removed.
+	//
+	// Also, add any that are eligible for validation as candidates to
+	// potentially become the best chain when they have the same or more work
+	// than the current best chain tip and remove any cached validation-related
+	// state for them to ensure they undergo full revalidation should it be
+	// necessary.
+	//
+	// Finally, add any that are not already fully linked and have their data
+	// available to the map of unlinked blocks that are eligible for connection
+	// when they are not already present.
+	curBestTip := b.bestChain.Tip()
+	vfNode := node
+	b.index.Lock()
+	for n := node; n != nil && n.height > 0; n = n.parent {
+		if n.status.KnownInvalid() {
+			if n.status.KnownValidateFailed() {
+				vfNode = n
+			}
+			b.index.unsetStatusFlags(n, statusValidateFailed|statusInvalidAncestor)
+			b.recentContextChecks.Delete(n.hash)
+		}
+
+		if b.index.canValidate(n) && n.workSum.Cmp(curBestTip.workSum) >= 0 {
+			b.index.addBestChainCandidate(n)
+		}
+
+		if !n.isFullyLinked && n.status.HaveData() && n.parent != nil {
+			unlinked := b.index.unlinkedChildrenOf[n.parent]
+			if !blockNodeInSlice(n, unlinked) {
+				b.index.unlinkedChildrenOf[n.parent] = append(unlinked, n)
+			}
+		}
+	}
+
+	// Remove the known invalid ancestor flag from all blocks that descend from
+	// the earliest failed block to be reconsidered that are neither themselves
+	// marked as having failed validation nor descendants of another such block.
+	//
+	// Also, add any that are eligible for validation as candidates to
+	// potentially become the best chain when they have the same or more work
+	// than the current best chain tip and remove any cached validation-related
+	// state for them to ensure they undergo full revalidation should it be
+	// necessary.
+	//
+	// Finally, add any that are not already fully linked and have their data
+	// available to the map of unlinked blocks that are eligible for connection
+	// when they are not already present.
+	//
+	// Chain tips at the same or lower heights than the earliest failed block to
+	// be reconsidered can't possibly be descendants of it, so use it as the
+	// lower height bound filter when iterating chain tips.
+	b.index.forEachChainTipAfterHeight(vfNode, func(tip *blockNode) error {
+		// Nothing to do if the earliest failed block to be reconsidered is not
+		// an ancestor of this chain tip.
+		if tip.Ancestor(vfNode.height) != vfNode {
+			return nil
+		}
+
+		// Find the final descendant that is not known to descend from another
+		// one that failed validation since all descendants after that point
+		// need to retain their known invalid ancestor status.
+		finalNotKnownInvalidDescendant := tip
+		for n := tip; n != vfNode; n = n.parent {
+			if n.status.KnownValidateFailed() {
+				finalNotKnownInvalidDescendant = n.parent
+			}
+		}
+
+		for n := finalNotKnownInvalidDescendant; n != vfNode; n = n.parent {
+			b.index.unsetStatusFlags(n, statusInvalidAncestor)
+			b.recentContextChecks.Delete(n.hash)
+			if b.index.canValidate(n) && n.workSum.Cmp(curBestTip.workSum) >= 0 {
+				b.index.addBestChainCandidate(n)
+			}
+
+			if !n.isFullyLinked && n.status.HaveData() && n.parent != nil {
+				unlinked := b.index.unlinkedChildrenOf[n.parent]
+				if !blockNodeInSlice(n, unlinked) {
+					b.index.unlinkedChildrenOf[n.parent] = append(unlinked, n)
+				}
+			}
+		}
+
+		return nil
+	})
+
+	// Update the best known invalid block (as determined by having the most
+	// cumulative work) and best header that is not known to be invalid as
+	// needed.
+	//
+	// Note this is separate from the above iteration because all tips must be
+	// considered as opposed to just those that are possible descendants of the
+	// node being reconsidered.
+	b.index.bestInvalid = nil
+	b.index.forEachChainTip(func(tip *blockNode) error {
+		if tip.status.KnownInvalid() {
+			b.index.maybeUpdateBestInvalid(tip)
+		}
+		b.index.maybeUpdateBestHeaderForTip(tip)
+		return nil
+	})
+	b.index.Unlock()
+
+	// Reset whether or not the chain believes it is current, find the best
+	// chain candidate, and attempt to reorganize the chain to it.
+	b.chainLock.Lock()
+	b.isCurrentLatch = false
+	targetTip := b.index.FindBestChainCandidate()
+	err := b.reorganizeChain(targetTip)
+	b.flushBlockIndexWarnOnly()
+	b.chainLock.Unlock()
+
+	// Force pruning of the cached chain tips since it's fairly likely the best
+	// tip has experienced a sudden change and is higher given how this function
+	// is typically used and the logic which only periodically prunes tips is
+	// optimized for steady state operation.
+	b.index.Lock()
+	b.index.pruneCachedTips(b.bestChain.Tip())
+	b.index.Unlock()
+	return err
 }

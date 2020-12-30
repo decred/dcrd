@@ -1172,3 +1172,708 @@ func TestProcessLogic(t *testing.T) {
 	g.AcceptBlockDataWithExpectedTip("b11", "b11")
 	g.ExpectIsCurrent(true)
 }
+
+// TestInvalidateReconsider ensures that manually invalidating blocks and
+// reconsidering them works as expected under a wide variety of scenarios.
+func TestInvalidateReconsider(t *testing.T) {
+	// Generate or reuse a shared chain generator with a set of blocks that form
+	// a fairly complex overall block tree including multiple forks such that
+	// some branches are valid and others contain invalid headers and/or blocks
+	// with multiple valid descendants as well as further forks at various
+	// heights from those invalid branches.
+	sharedGen, err := genSharedProcessTestBlocks(t)
+	if err != nil {
+		t.Fatalf("Failed to create generator: %v", err)
+	}
+
+	// Create a new database and chain instance to run tests against.
+	g, teardownFunc := newChaingenHarnessWithGen(t, "invalidatetest", sharedGen)
+	defer teardownFunc()
+
+	// Shorter versions of useful params for convenience.
+	params := g.Params()
+	coinbaseMaturity := params.CoinbaseMaturity
+	stakeEnabledHeight := params.StakeEnabledHeight
+	stakeValidationHeight := params.StakeValidationHeight
+
+	// -------------------------------------------------------------------------
+	// Accept all headers in the initial test chain through stake validation
+	// height and the base maturity blocks.
+	//
+	//   genesis -> bfb -> bm0 -> ... -> bm# -> bse0 -> ... -> bse# -> ...
+	//
+	//   ... bsv0 -> ... -> bsv# -> bbm0 -> ... -> bbm#
+	// -------------------------------------------------------------------------
+
+	g.AcceptHeader("bfb")
+	for i := uint16(0); i < coinbaseMaturity; i++ {
+		blockName := fmt.Sprintf("bm%d", i)
+		g.AcceptHeader(blockName)
+	}
+	tipHeight := int64(coinbaseMaturity) + 1
+	for i := int64(0); tipHeight < stakeEnabledHeight; i++ {
+		blockName := fmt.Sprintf("bse%d", i)
+		g.AcceptHeader(blockName)
+		tipHeight++
+	}
+	for i := int64(0); tipHeight < stakeValidationHeight; i++ {
+		blockName := fmt.Sprintf("bsv%d", i)
+		g.AcceptHeader(blockName)
+		tipHeight++
+	}
+	for i := uint16(0); i < coinbaseMaturity; i++ {
+		blockName := fmt.Sprintf("bbm%d", i)
+		g.AcceptHeader(blockName)
+	}
+
+	// -------------------------------------------------------------------------
+	// Initial setup of headers and block data needed for the invalidate and
+	// reconsider tests below.
+	// -------------------------------------------------------------------------
+
+	// Accept block headers for the following tree structure:
+	//
+	// Note that the ! below indicates a block that is invalid due to violating
+	// a consensus rule during the contextual checks prior to connection and the
+	// @ indicates a block that is invalid due to violating a consensus rule
+	// during block connection.
+	//
+	// ... -> b1 -> b2 -> ...
+	//
+	// ... -> b3 -> b4  -> b5   -> b6   -> b7  -> b8  -> b9  -> b10  -> b11
+	//          \-> b4b -> b5b! -> b6b  -> b7b -> b8b       \-> b10a
+	//          \-> b4c                |      \-> b8c -> b9c
+	//          |                      \-> b7d -> b8d
+	//          |                      \-> b7e -> b8e
+	//          \-> b4f -> b5f  -> b6f  -> b7f -> b8f -> b9f -> b10f
+	//          \-> b4i -> b5i  -> b6i@
+	//
+	g.AcceptHeader("b1")
+	g.AcceptHeader("b2")
+	g.AcceptHeader("b3")
+	g.AcceptHeader("b4")
+	g.AcceptHeader("b4b")
+	g.AcceptHeader("b4c")
+	g.AcceptHeader("b4f")
+	g.AcceptHeader("b4i")
+	g.AcceptHeader("b5")
+	g.AcceptHeader("b5b") // Invalid block, but header valid.
+	g.AcceptHeader("b5f")
+	g.AcceptHeader("b5i")
+	g.AcceptHeader("b6")
+	g.AcceptHeader("b6b")
+	g.AcceptHeader("b6f")
+	g.AcceptHeader("b6i")
+	g.AcceptHeader("b7")
+	g.AcceptHeader("b7b")
+	g.AcceptHeader("b7d")
+	g.AcceptHeader("b7e")
+	g.AcceptHeader("b7f")
+	g.AcceptHeader("b8")
+	g.AcceptHeader("b8b")
+	g.AcceptHeader("b8c")
+	g.AcceptHeader("b8d")
+	g.AcceptHeader("b8e")
+	g.AcceptHeader("b8f")
+	g.AcceptHeader("b9")
+	g.AcceptHeader("b9c")
+	g.AcceptHeader("b9f")
+	g.AcceptHeader("b10")
+	g.AcceptHeader("b10a")
+	g.AcceptHeader("b10f")
+	g.AcceptHeader("b11")
+	g.ExpectBestHeader("b11")
+
+	// Accept all of the block data in the test chain through stake validation
+	// height and the base maturity blocks to reach the point where the more
+	// complicated branching structure starts.
+	//
+	//   ... -> bfb -> bm0 -> ... -> bm# -> bse0 -> ... -> bse# -> ...
+	//
+	//   ... bsv0 -> ... -> bsv# -> bbm0 -> ... -> bbm#
+	g.AcceptBlock("bfb")
+	for i := uint16(0); i < coinbaseMaturity; i++ {
+		blockName := fmt.Sprintf("bm%d", i)
+		g.AcceptBlock(blockName)
+	}
+	tipHeight = int64(coinbaseMaturity) + 1
+	for i := int64(0); tipHeight < stakeEnabledHeight; i++ {
+		blockName := fmt.Sprintf("bse%d", i)
+		g.AcceptBlock(blockName)
+		tipHeight++
+	}
+	for i := int64(0); tipHeight < stakeValidationHeight; i++ {
+		blockName := fmt.Sprintf("bsv%d", i)
+		g.AcceptBlock(blockName)
+		tipHeight++
+	}
+	for i := uint16(0); i < coinbaseMaturity; i++ {
+		blockName := fmt.Sprintf("bbm%d", i)
+		g.AcceptBlock(blockName)
+	}
+
+	// Accept the block data for several blocks in the main branch of the test
+	// data.
+	//
+	// ... -> b1 -> b2 -> b3 -> b4  -> b5  -> b6  -> b7
+	g.AcceptBlock("b1")
+	g.AcceptBlock("b2")
+	g.AcceptBlock("b3")
+	g.AcceptBlock("b4")
+	g.AcceptBlock("b5")
+	g.AcceptBlock("b6")
+	g.AcceptBlock("b7")
+
+	// Accept the block data for several blocks in a branch of the test data
+	// that contains a bad block such that the invalid branch has more work.
+	// Notice that the bad block is only processed AFTER all of the data for its
+	// descendants is added since they would otherwise be rejected due to being
+	// part of a known invalid branch.
+	//
+	// ... -> b1 -> b2 -> b3 -> b4  -> b5  -> b6  -> b7
+	//                      \-> b4b -> b5b -> b6b -> b7b -> b8b
+	//                                 ---
+	//                                 ^ (invalid block)
+	g.AcceptBlockData("b4b")
+	g.AcceptBlockData("b6b")
+	g.AcceptBlockData("b7b")
+	g.AcceptBlockData("b8b")
+	g.RejectBlock("b5b", ErrTicketUnavailable)
+	g.ExpectTip("b7")
+	g.ExpectBestInvalidHeader("b9c")
+	g.ExpectIsCurrent(false)
+
+	// -------------------------------------------------------------------------
+	// Invalidating and reconsidering an unknown block must error.
+	// -------------------------------------------------------------------------
+
+	g.InvalidateBlockAndExpectTip("b1bad", ErrUnknownBlock, "b7")
+	g.ReconsiderBlockAndExpectTip("b1bad", ErrUnknownBlock, "b7")
+
+	// -------------------------------------------------------------------------
+	// The genesis block is not allowed to be invalidated, but it can be
+	// reconsidered.
+	// -------------------------------------------------------------------------
+
+	g.InvalidateBlockAndExpectTip("genesis", ErrInvalidateGenesisBlock, "b7")
+	g.ReconsiderBlockAndExpectTip("genesis", nil, "b7")
+	g.ExpectBestHeader("b11")
+	g.ExpectBestInvalidHeader("b9c")
+	g.ExpectIsCurrent(false)
+
+	// -------------------------------------------------------------------------
+	// Invalidating a block that is already known to have failed validation has
+	// no effect.
+	// -------------------------------------------------------------------------
+
+	g.InvalidateBlockAndExpectTip("b5b", nil, "b7")
+	g.ExpectBestHeader("b11")
+	g.ExpectBestInvalidHeader("b9c")
+	g.ExpectIsCurrent(false)
+
+	// -------------------------------------------------------------------------
+	// Reconsider a block that is actually invalid when that block is located in
+	// a side chain that has more work than the current best chain.  Since the
+	// block is actually invalid, that side chain should remain invalid and
+	// therefore NOT become the best chain even though it has more work.
+	//
+	// Note that the * indicates blocks that are marked as failed validation and
+	// the # indicates blocks that are marked as having an invalid ancestor.
+	//
+	// Before reconsider:
+	//
+	// ... -> b1 -> b2 -> b3 -> b4  -> b5   -> b6   -> b7
+	//                      |                          --
+	//                      |                          ^ (best chain tip)
+	//                      \-> b4b -> b5b* -> b6b# -> b7b# -> b8b#
+	//                                 ---
+	//                                 ^ (invalid block, reconsider)
+	//
+	// After reconsider:
+	//
+	// ... -> b1 -> b2 -> b3 -> b4  -> b5   -> b6   -> b7
+	//                      |                          --
+	//                      |                          ^ (best chain tip)
+	//                      \-> b4b -> b5b* -> b6b# -> b7b# -> b8b#
+	//                                 ---
+	//                                 ^ (still invalid block)
+	// -------------------------------------------------------------------------
+
+	g.ReconsiderBlockAndExpectTip("b5b", ErrTicketUnavailable, "b7")
+	g.ExpectBestHeader("b11")
+	g.ExpectBestInvalidHeader("b9c")
+	g.ExpectIsCurrent(false)
+
+	// -------------------------------------------------------------------------
+	// Reconsider a block that is a descendant of a block that is actually
+	// invalid when that block is located in a side chain that has more work
+	// than the current best chain.  Since an ancestor block is actually
+	// invalid, that side chain should remain invalid and therefore NOT become
+	// the best chain even though it has more work.
+	//
+	// Note that the * indicates blocks that are marked as failed validation and
+	// the # indicates blocks that are marked as having an invalid ancestor.
+	//
+	// Before reconsider:
+	//
+	// ... -> b1 -> b2 -> b3 -> b4  -> b5   -> b6   -> b7
+	//                      |                          --
+	//                      |                          ^ (best chain tip)
+	//                      \-> b4b -> b5b* -> b6b# -> b7b# -> b8b#
+	//                                 ---     ----
+	//                (invalid block)  ^       ^ (reconsider)
+	//
+	// After reconsider:
+	//
+	// ... -> b1 -> b2 -> b3 -> b4  -> b5   -> b6   -> b7
+	//                      |                          --
+	//                      |                          ^ (best chain tip)
+	//                      \-> b4b -> b5b* -> b6b# -> b7b# -> b8b#
+	//                                 ---
+	//                                 ^ (still invalid block)
+	// -------------------------------------------------------------------------
+
+	g.ReconsiderBlockAndExpectTip("b6b", ErrTicketUnavailable, "b7")
+	g.ExpectBestHeader("b11")
+	g.ExpectBestInvalidHeader("b9c")
+	g.ExpectIsCurrent(false)
+
+	// -------------------------------------------------------------------------
+	// Invalidate a multi-hop descendant of a block that is actually invalid
+	// when that block is located in a side chain that has more work than the
+	// current best chain.  Then, reconsider a block that is a descendant of
+	// the block that is actually invalid, but an ancestor of the invalidated
+	// multi-hop descendant.
+	//
+	// Since the part of that side chain that is then potentially valid has less
+	// work than the current best chain, no attempt to reorg to that side chain
+	// should be made.  Therefore, no error is expected and the actually invalid
+	// block along with its descendants that are also ancestors of the multi-hop
+	// descendant should no longer be known to be invalid.
+	//
+	// Note that the * indicates blocks that are marked as failed validation and
+	// the # indicates blocks that are marked as having an invalid ancestor.
+	//
+	// Before reconsider:
+	//
+	// ... -> b1 -> b2 -> b3 -> b4  -> b5   -> b6   -> b7
+	//                      |                          --
+	//                      |                          ^ (best chain tip)
+	//                      \-> b4b -> b5b* -> b6b# -> b7b* -> b8b#
+	//                                 ---     ----    ----
+	//                                 |       |       ^ (marked invalid)
+	//                (invalid block)  ^       ^ (reconsider)
+	//
+	// After reconsider:
+	//
+	// ... -> b1 -> b2 -> b3 -> b4  -> b5   -> b6   -> b7
+	//                      |                          --
+	//                      |                          ^ (best chain tip)
+	//                      \-> b4b -> b5b  -> b6b  -> b7b* -> b8b#
+	//                                 -----------     ----
+	//      (no longer known to be invalid) ^          ^ (still marked invalid)
+	// -------------------------------------------------------------------------
+
+	g.InvalidateBlockAndExpectTip("b7b", nil, "b7")
+	g.ExpectBestHeader("b11")
+	g.ExpectBestInvalidHeader("b9c")
+	g.ExpectIsCurrent(false)
+
+	g.ReconsiderBlockAndExpectTip("b6b", nil, "b7")
+	g.ExpectBestHeader("b11")
+	g.ExpectBestInvalidHeader("b9c")
+	g.ExpectIsCurrent(false)
+
+	// -------------------------------------------------------------------------
+	// Reconsider a descendant of the manually invalidated multi-hop descendant
+	// from the previous test.  Since the part of the side chain that is
+	// then potentially valid has more work than the current chain, an attempt
+	// to reorg to that branch should be made and fail due to the actually
+	// invalid ancestor on that branch.
+	//
+	// Note that the * indicates blocks that are marked as failed validation and
+	// the # indicates blocks that are marked as having an invalid ancestor.
+	//
+	// Before reconsider:
+	//
+	// ... -> b1 -> b2 -> b3 -> b4  -> b5   -> b6   -> b7
+	//                      |                          --
+	//                      |                          ^ (best chain tip)
+	//                      \-> b4b -> b5b  -> b6b  -> b7b* -> b8b#
+	//                                 ---             ----    ----
+	//  (invalid, but not known as such) ^             ^       ^ (reconsider)
+	//                                                 (marked invalid)
+	// After reconsider:
+	//
+	// ... -> b1 -> b2 -> b3 -> b4  -> b5   -> b6   -> b7
+	//                      |                          --
+	//                      |                          ^ (best chain tip)
+	//                      \-> b4b -> b5b* -> b6b# -> b7b# -> b8b#
+	//                                 ---
+	//                                 ^ (invalid block)
+	// -------------------------------------------------------------------------
+
+	g.ReconsiderBlockAndExpectTip("b8b", ErrTicketUnavailable, "b7")
+	g.ExpectBestHeader("b11")
+	g.ExpectBestInvalidHeader("b9c")
+	g.ExpectIsCurrent(false)
+
+	// -------------------------------------------------------------------------
+	// Invalidate and reconsider block one.  After the invalidate, the genesis
+	// block should become the best chain tip and the best header not known to
+	// be invalid should become the best header known to be invalid while the
+	// former becomes the genesis block header.
+	//
+	// Reconsidering the block should return the chain back to the original
+	// state and notably should NOT have any validation errors because the
+	// branches with the block that is actually invalid should still be known to
+	// be invalid despite it being a descendant of the reconsidered block and
+	// therefore no attempt to reorg should happen.
+	//
+	// Note that the * indicates blocks that are marked as failed validation and
+	// the # indicates blocks that are marked as having an invalid ancestor.
+	//
+	// Before invalidate:
+	//
+	// genesis -> bfb -> ...-> b3 -> b4  -> b5   -> b6   -> b7
+	//                           |                          --
+	//                           |                          ^ (best chain tip)
+	//                           \-> b4b -> b5b* -> b6b# -> b7b# -> b8b#
+	//                                      ---
+	//                                      ^ (invalid block)
+	//
+	// After invalidate:
+	//
+	// genesis -> bfb* -> ...-> b3# -> b4# -> b5#  -> b6#  -> b7#
+	// -------                     |
+	// ^ (best chain tip)          |
+	//                             \-> b4b#-> b5b* -> b6b# -> b7b# -> b8b#
+	//                                        ---
+	//                                        ^ (invalid block)
+	// After reconsider:
+	//
+	// genesis -> bfb -> ...-> b3 -> b4  -> b5   -> b6   -> b7
+	//                           |                          --
+	//                           |                          ^ (best chain tip)
+	//                           \-> b4b -> b5b* -> b6b# -> b7b# -> b8b#
+	//                                      ---
+	//                                      ^ (invalid block)
+	// -------------------------------------------------------------------------
+
+	// Note that the genesis block is too far in the past to be considered
+	// current.
+	g.InvalidateBlockAndExpectTip("bfb", nil, "genesis")
+	g.ExpectBestHeader("genesis")
+	g.ExpectBestInvalidHeader("b11")
+	g.ExpectIsCurrent(false)
+
+	g.ReconsiderBlockAndExpectTip("bfb", nil, "b7")
+	g.ExpectBestHeader("b11")
+	g.ExpectBestInvalidHeader("b9c")
+	g.ExpectIsCurrent(false)
+
+	// -------------------------------------------------------------------------
+	// Reconsidering a block that is actually invalid upon connection when it is
+	// in a side chain that has had an ancestor manually invalidated and where
+	// the parent of that invalid block has more work than the current best
+	// chain should cause a reorganize to that parent block.
+	//
+	// In other words, ancestors of reconsidered blocks, even those that are
+	// actually invalid, should have their invalidity status cleared and become
+	// eligible for best chain selection.
+	//
+	// Note that the * indicates blocks that are marked as failed validation and
+	// the # indicates blocks that are marked as having an invalid ancestor.
+	//
+	// Before reconsider:
+	//
+	// genesis -> bfb -> ...-> b3 -> b4  -> b5*  -> b6#  -> b7#
+	//                           |   --
+	//                           |   ^ (best chain tip)
+	//                           \-> b4i -> b5i* -> b6i*
+	//                                              ---
+	//                   (invalid block, reconsider) ^
+	//
+	// After reconsider:
+	//
+	// genesis -> bfb -> ...-> b3 -> b4  -> b5*  -> b6#  -> b7#
+	//                           \-> b4i -> b5i  -> b6i*
+	//                                      ---     ---
+	//                     (best chain tip) ^       ^ (invalid block)
+	// -------------------------------------------------------------------------
+
+	// The data for b6i should be accepted because the best chain tip has more
+	// work at this point and thus there is no attempt to connect it.
+	g.AcceptBlockData("b4i")
+	g.AcceptBlockData("b5i")
+	g.AcceptBlockData("b6i")
+
+	// Invalidate the ancestor in the side chain first to ensure there is no
+	// reorg when the main chain is invalidated for the purposes of making it
+	// have less work when the side chain is reconsidered.
+	g.InvalidateBlockAndExpectTip("b5i", nil, "b7")
+	g.InvalidateBlockAndExpectTip("b5", nil, "b4")
+	g.ExpectBestHeader("b10f")
+	g.ExpectBestInvalidHeader("b11")
+	g.ExpectIsCurrent(false)
+
+	g.ReconsiderBlockAndExpectTip("b6i", ErrMissingTxOut, "b5i")
+	g.ExpectBestHeader("b10f")
+	g.ExpectBestInvalidHeader("b11")
+	g.ExpectIsCurrent(false)
+
+	// -------------------------------------------------------------------------
+	// Undo the main chain invalidation for tests below.
+	// -------------------------------------------------------------------------
+
+	g.ReconsiderBlockAndExpectTip("b5", nil, "b7")
+	g.ExpectBestHeader("b11")
+	g.ExpectBestInvalidHeader("b9c")
+	g.ExpectIsCurrent(false)
+
+	// -------------------------------------------------------------------------
+	// Make the primary branch have the most cumulative work and then invalidate
+	// and reconsider a block that is an ancestor of the current best chain tip,
+	// the best header that is NOT known to be invalid, the best header that is
+	// known to be invalid, as well as several other branches.
+	//
+	// After the invalidation, the best invalid header should become the one
+	// that was previously the best NOT known to be invalid and the best chain
+	// tip and header should coincide which also means the chain should latch to
+	// current.
+	//
+	// After reconsideration, everything should revert to the previous state,
+	// including the chain believing it is not current again.
+	//
+	// Note that the * indicates blocks that are marked as failed validation and
+	// the # indicates blocks that are marked as having an invalid ancestor.
+	//
+	// After invalidate:
+	//
+	//        v (best chain tip, best header)
+	//        --
+	// ... -> b2 -> ...
+	//                                                        (best invalid)v
+	//                                                                      ----
+	// ... -> b3* -> b4#  -> b5#  -> b6#  -> b7#  -> b8#  -> b9# -> b10# -> b11#
+	//           \-> b4b# -> b5b* -> b6b# -> b7b# -> b8b#       \-> b10a#
+	//           \-> b4c#                |       \-> b8c# -> b9c#
+	//           |                       \-> b7d# -> b8d#
+	//           |                       \-> b7e# -> b8e#
+	//           \-> b4f# -> b5f# -> b6f# -> b7f# -> b8f# -> b9f# -> b10f#
+	//           \-> b4i# -> b5i# -> b6i*
+	//
+	// After reconsider:
+	//
+	//                                      (best chain tip) v  (best header) v
+	//                                                       --             ---
+	// ... -> b3  -> b4   -> b5   -> b6   -> b7   -> b8   -> b9  -> b10  -> b11
+	//           \-> b4b  -> b5b* -> b6b# -> b7b# -> b8b#       \-> b10a
+	//           \-> b4c                 |       \-> b8c# -> b9c#
+	//           |                       |                   ----
+	//           |                       |                   ^ (best invalid)
+	//           |                       \-> b7d# -> b8d#
+	//           |                       \-> b7e# -> b8e#
+	//           \-> b4f  -> b5f  -> b6f  -> b7f  -> b8f  -> b9f  -> b10f
+	//           \-> b4i  -> b5i  -> b6i*
+	// -------------------------------------------------------------------------
+
+	g.AcceptBlock("b8")
+	g.AcceptBlock("b9")
+	g.InvalidateBlockAndExpectTip("b3", nil, "b2")
+	g.ExpectBestHeader("b2")
+	g.ExpectBestInvalidHeader("b11")
+	g.ExpectIsCurrent(true)
+
+	g.ReconsiderBlockAndExpectTip("b3", nil, "b9")
+	g.ExpectBestHeader("b11")
+	g.ExpectBestInvalidHeader("b9c")
+	g.ExpectIsCurrent(false)
+
+	// -------------------------------------------------------------------------
+	// Invalidate a block that does not have its data available and then
+	// reconsider a descendant of it that itself has both ancestors and
+	// descendants without block data available.  Then make the missing data
+	// available such that there is more cumulative work than the current best
+	// chain tip and ensure that everything is linked and the branch becomes the
+	// new best tip.
+	//
+	// This ensures that reconsidering blocks properly resurrects tracking of
+	// blocks that are not fully linked yet for both descendants and ancestors.
+	//
+	// Note that the @ below indicates data that is available before the
+	// invalidate and reconsider and ! indicates data that is made available
+	// afterwards.
+	//
+	//                                            (orig tip) v
+	//                                                       --
+	// ... -> b3  -> b4   -> b5   -> b6   -> b7   -> b8   -> b9
+	//           \-> b4f! -> b5f@ -> b6f! -> b7f@ -> b8f! -> b9f@ -> b10f!
+	//               ----            ---     ---                     -----
+	//  (added last) ^   (invalidate) ^       ^ (reconsider)         ^ (new tip)
+	// -------------------------------------------------------------------------
+
+	// Notice that the data for b4f, b6f and, b8f, and b10f are intentionally
+	// not made available yet.
+	g.AcceptBlockData("b5f")
+	g.AcceptBlockData("b7f")
+	g.AcceptBlockData("b9f")
+	g.InvalidateBlockAndExpectTip("b6f", nil, "b9")
+	g.ReconsiderBlockAndExpectTip("b7f", nil, "b9")
+	g.ExpectIsCurrent(false)
+
+	// Add the missing data to complete the side chain while only adding b4f
+	// last to ensure it triggers a reorg that consists of all of the blocks
+	// that were previously missing data, but should now be linked.
+	g.AcceptBlockData("b6f")
+	g.AcceptBlockData("b8f")
+	g.AcceptBlockData("b10f")
+	g.AcceptBlockData("b4f")
+	g.ExpectTip("b10f")
+	g.ExpectBestHeader("b11")
+	g.ExpectBestInvalidHeader("b9c")
+	g.ExpectIsCurrent(false)
+
+	// -------------------------------------------------------------------------
+	// Reconsider a block that is a multi-hop descendant of an invalidated chain
+	// and also itself has descendants such that the entire branch has more
+	// cumulative work than the current best chain.  The entire branch,
+	// including the ancestors of the block, is expected to be reconsidered
+	// resulting in it becoming the new best chain.
+	//
+	// Note that the * indicates blocks that are marked as failed validation and
+	// the # indicates blocks that are marked as having an invalid ancestor.
+	//
+	// Before reconsider:
+	//
+	// b3 -> b4   -> b5   -> b6   -> b7   -> b8   -> b9*  -> b10#  -> b11#
+	//   |                                   --
+	//   |                                   ^ (best chain tip)
+	//   \-> b4f* -> b5f# -> b6f# -> b7f# -> b8f# -> b9f# -> b10f#
+	//                               ----
+	//                               ^ (reconsider)
+	//
+	// After reconsider:
+	//
+	// b3 -> b4   -> b5   -> b6   -> b7   -> b8   -> b9*  -> b10#  -> b11#
+	//   \-> b4f  -> b5f  -> b6f  -> b7f  -> b8f  -> b9f  -> b10f
+	//                                                       ----
+	//                                                       ^ (best chain tip)
+	// -------------------------------------------------------------------------
+
+	g.InvalidateBlockAndExpectTip("b4f", nil, "b9")
+	g.InvalidateBlockAndExpectTip("b9", nil, "b8")
+	g.ExpectBestHeader("b8")
+	g.ExpectBestInvalidHeader("b11")
+	g.ExpectIsCurrent(true)
+
+	g.ReconsiderBlockAndExpectTip("b7f", nil, "b10f")
+	g.ExpectBestHeader("b10f")
+	g.ExpectBestInvalidHeader("b11")
+	g.ExpectIsCurrent(true)
+
+	// -------------------------------------------------------------------------
+	// Invalidate and reconsider the current best chain tip.  The chain should
+	// believe it is current both before and after since the best chain tip
+	// matches the best header in both cases.
+	//
+	// Note that the * indicates blocks that are marked as failed validation and
+	// the # indicates blocks that are marked as having an invalid ancestor.
+	//
+	// b3 -> b4   -> b5   -> b6   -> b7   -> b8   -> b9*  -> b10#  -> b11#
+	//   \-> b4f  -> b5f  -> b6f  -> b7f  -> b8f  -> b9f  -> b10f
+	//                                                       ----
+	//              (invalidate, reconsider, best chain tip) ^
+	// -------------------------------------------------------------------------
+
+	g.InvalidateBlockAndExpectTip("b10f", nil, "b9f")
+	g.ExpectBestHeader("b9f")
+	g.ExpectBestInvalidHeader("b11")
+	g.ExpectIsCurrent(true)
+
+	g.ReconsiderBlockAndExpectTip("b10f", nil, "b10f")
+	g.ExpectBestHeader("b10f")
+	g.ExpectBestInvalidHeader("b11")
+	g.ExpectIsCurrent(true)
+
+	// -------------------------------------------------------------------------
+	// Reconsider a chain tip for a branch that has a previously invalidated
+	// ancestor and that has more work than the current best tip, but does not
+	// have all of the block data available.  All of the ancestors must no
+	// longer be marked invalid and any descendants on other branches from any
+	// of those ancestors that were reconsidered must also have their invalid
+	// ancestor status removed.  However, any such descendants that are marked
+	// as having failed validation instead must NOT have that status cleared.
+	//
+	// Note that the * indicates blocks that are marked as failed validation and
+	// the # indicates blocks that are marked as having an invalid ancestor.
+	//
+	// Before reconsider (b10 and b11 data not available):
+	//
+	//                                                   (reconsider) v
+	//                                                                ---
+	// b3 -> b4   -> b5   -> b6   -> b7   -> b8   -> b9*  -> b10#  -> b11#
+	//   \-> b4b  -> b5b* -> b6b# -> b7b# -> b8b#        \-> b10a#
+	//   |                               \-> b8c# -> b9c#
+	//   \-> b4f  -> b5f  -> b6f  -> b7f  -> b8f  -> b9f  -> b10f
+	//                                                       ----
+	//                                      (best chain tip) ^
+	//
+	// After reconsider (b10 and b11 data not available):
+	//
+	// b3 -> b4   -> b5   -> b6   -> b7   -> b8   -> b9   -> b10   -> b11
+	//   \-> b4b  -> b5b* -> b6b# -> b7b# -> b8b#        \-> b10a
+	//   |                               \-> b8c# -> b9c#
+	//   |                                           ----
+	//   |                                            ^ (best invalid header)
+	//   \-> b4f  -> b5f  -> b6f  -> b7f  -> b8f  -> b9f  -> b10f
+	//                                                       ----
+	//                                      (best chain tip) ^
+	// -------------------------------------------------------------------------
+
+	g.ReconsiderBlockAndExpectTip("b11", nil, "b10f")
+	g.ExpectBestHeader("b11")
+	g.ExpectBestInvalidHeader("b9c")
+	g.ExpectIsCurrent(false)
+
+	// -------------------------------------------------------------------------
+	// Accept the rest of the block data to reach the current best header so
+	// it becomes the best chain tip and ensure the chain latches to current.
+	//
+	// ... -> b3 -> b4 -> b5 -> b6 -> b7 -> b8 -> b9 -> b10 -> b11
+	// -------------------------------------------------------------------------
+
+	g.AcceptBlockData("b10")
+	g.AcceptBlock("b11")
+	g.ExpectBestHeader("b11")
+	g.ExpectIsCurrent(true)
+
+	// -------------------------------------------------------------------------
+	// Invalidate and reconsider a block at the tip of the current best chain so
+	// that it has the same cumulative work as another branch that received the
+	// block data first.  The second chain must become the best one despite them
+	// having the exact same work and the header for the initial branch being
+	// seen first because branches that receive their block data first take
+	// precedence.  The initial branch must become the best chain again after
+	// it is reconsidered because it has more work.
+	//
+	// The chain should believe it is current both before and after since the
+	// best chain tip matches the best header in both cases.
+	//
+	//                    (invalidate, reconsider, header seen first) v
+	//                                                                ---
+	// ... -> b3 -> b4  -> b5  -> b6  -> b7  -> b8  -> b9  -> b10  -> b11
+	//          \-> b4f -> b5f -> b6f -> b7f -> b8f -> b9f -> b10f
+	//                                                        ----
+	//                                      (data seen first) ^
+	// -------------------------------------------------------------------------
+
+	g.InvalidateBlockAndExpectTip("b11", nil, "b10f")
+	g.ExpectBestHeader("b10f")
+	g.ExpectIsCurrent(true)
+
+	g.ReconsiderBlockAndExpectTip("b11", nil, "b11")
+	g.ExpectBestHeader("b11")
+	g.ExpectBestInvalidHeader("b9c")
+	g.ExpectIsCurrent(true)
+}

@@ -599,6 +599,10 @@ const (
 	// ErrNoTreasuryBalance indicates the treasury balance for a given block
 	// hash does not exist.
 	ErrNoTreasuryBalance = ErrorKind("ErrNoTreasuryBalance")
+
+	// ErrInvalidateGenesisBlock indicates an attempt to invalidate the genesis
+	// block which is not allowed.
+	ErrInvalidateGenesisBlock = ErrorKind("ErrInvalidateGenesisBlock")
 )
 
 // Error satisfies the error interface and prints human-readable errors.

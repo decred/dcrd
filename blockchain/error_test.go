@@ -155,6 +155,7 @@ func TestErrorKindStringer(t *testing.T) {
 		{ErrUnknownBlock, "ErrUnknownBlock"},
 		{ErrNoFilter, "ErrNoFilter"},
 		{ErrNoTreasuryBalance, "ErrNoTreasuryBalance"},
+		{ErrInvalidateGenesisBlock, "ErrInvalidateGenesisBlock"},
 	}
 
 	t.Logf("Running %d tests", len(tests))
