@@ -859,6 +859,19 @@ func NewHelpCmd(command *string) *HelpCmd {
 	}
 }
 
+// InvalidateBlockCmd defines the invalidateblock JSON-RPC command.
+type InvalidateBlockCmd struct {
+	BlockHash string
+}
+
+// NewInvalidateBlockCmd returns a new instance which can be used to issue an
+// invalidateblock JSON-RPC command.
+func NewInvalidateBlockCmd(hash string) *InvalidateBlockCmd {
+	return &InvalidateBlockCmd{
+		BlockHash: hash,
+	}
+}
+
 // LiveTicketsCmd is a type handling custom marshaling and
 // unmarshaling of livetickets JSON RPC commands.
 type LiveTicketsCmd struct{}
@@ -906,6 +919,19 @@ type PingCmd struct{}
 // command.
 func NewPingCmd() *PingCmd {
 	return &PingCmd{}
+}
+
+// ReconsiderBlockCmd defines the reconsiderblock JSON-RPC command.
+type ReconsiderBlockCmd struct {
+	BlockHash string
+}
+
+// NewReconsiderBlockCmd returns a new instance which can be used to issue a
+// reconsiderblock JSON-RPC command.
+func NewReconsiderBlockCmd(hash string) *ReconsiderBlockCmd {
+	return &ReconsiderBlockCmd{
+		BlockHash: hash,
+	}
 }
 
 // SearchRawTransactionsCmd defines the searchrawtransactions JSON-RPC command.
@@ -1179,10 +1205,12 @@ func init() {
 	dcrjson.MustRegister(Method("getvoteinfo"), (*GetVoteInfoCmd)(nil), flags)
 	dcrjson.MustRegister(Method("getwork"), (*GetWorkCmd)(nil), flags)
 	dcrjson.MustRegister(Method("help"), (*HelpCmd)(nil), flags)
+	dcrjson.MustRegister(Method("invalidateblock"), (*InvalidateBlockCmd)(nil), flags)
 	dcrjson.MustRegister(Method("livetickets"), (*LiveTicketsCmd)(nil), flags)
 	dcrjson.MustRegister(Method("missedtickets"), (*MissedTicketsCmd)(nil), flags)
 	dcrjson.MustRegister(Method("node"), (*NodeCmd)(nil), flags)
 	dcrjson.MustRegister(Method("ping"), (*PingCmd)(nil), flags)
+	dcrjson.MustRegister(Method("reconsiderblock"), (*ReconsiderBlockCmd)(nil), flags)
 	dcrjson.MustRegister(Method("regentemplate"), (*RegenTemplateCmd)(nil), flags)
 	dcrjson.MustRegister(Method("searchrawtransactions"), (*SearchRawTransactionsCmd)(nil), flags)
 	dcrjson.MustRegister(Method("sendrawtransaction"), (*SendRawTransactionCmd)(nil), flags)
