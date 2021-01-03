@@ -1850,12 +1850,6 @@ func (m *SyncManager) IsCurrent() bool {
 	return isCurrent
 }
 
-// TicketPoolValue returns the current value of the total stake in the ticket
-// pool.
-func (m *SyncManager) TicketPoolValue() (dcrutil.Amount, error) {
-	return m.cfg.Chain.TicketPoolValue()
-}
-
 // Config holds the configuration options related to the network chain
 // synchronization manager.
 type Config struct {
