@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2020 The Decred developers
+// Copyright (c) 2015-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -159,18 +159,6 @@ type relayMsg struct {
 	invVect   *wire.InvVect
 	data      interface{}
 	immediate bool
-}
-
-// updatePeerHeightsMsg is a message sent from the net sync manager to the
-// server after a new block has been accepted. The purpose of the message is to
-// update the heights of peers that were known to announce the block before we
-// connected it to the main chain or recognized it as an orphan. With these
-// updates, peer heights will be kept up to date, allowing for fresh data when
-// selecting sync peer candidacy.
-type updatePeerHeightsMsg struct {
-	newHash    *chainhash.Hash
-	newHeight  int64
-	originPeer *peer.Peer
 }
 
 // naSubmission represents a network address submission from an outbound peer.
@@ -475,7 +463,6 @@ type server struct {
 	query                chan interface{}
 	relayInv             chan relayMsg
 	broadcast            chan broadcastMsg
-	peerHeightsUpdate    chan updatePeerHeightsMsg
 	wg                   sync.WaitGroup
 	nat                  *upnpNAT
 	db                   database.DB
@@ -1590,34 +1577,6 @@ func (s *server) pushBlockMsg(sp *serverPeer, hash *chainhash.Hash, doneChan cha
 	return nil
 }
 
-// handleUpdatePeerHeight updates the heights of all peers who were known to
-// announce a block we recently accepted.
-func (s *server) handleUpdatePeerHeights(state *peerState, umsg updatePeerHeightsMsg) {
-	state.forAllPeers(func(sp *serverPeer) {
-		// The origin peer should already have the updated height.
-		if sp.Peer == umsg.originPeer {
-			return
-		}
-
-		// This is a pointer to the underlying memory which doesn't
-		// change.
-		latestBlkHash := sp.LastAnnouncedBlock()
-
-		// Skip this peer if it hasn't recently announced any new blocks.
-		if latestBlkHash == nil {
-			return
-		}
-
-		// If the peer has recently announced a block, and this block
-		// matches our newly accepted block, then update their block
-		// height.
-		if *latestBlkHash == *umsg.newHash {
-			sp.UpdateLastBlockHeight(umsg.newHeight)
-			sp.UpdateLastAnnouncedBlock(nil)
-		}
-	})
-}
-
 // handleAddPeerMsg deals with adding new peers.  It is invoked from the
 // peerHandler goroutine.
 func (s *server) handleAddPeerMsg(state *peerState, sp *serverPeer) bool {
@@ -2224,10 +2183,6 @@ out:
 		case p := <-s.donePeers:
 			s.handleDonePeerMsg(state, p)
 
-		// Block accepted in mainchain or orphan, update peer height.
-		case umsg := <-s.peerHeightsUpdate:
-			s.handleUpdatePeerHeights(state, umsg)
-
 		// Peer to ban.
 		case p := <-s.banPeers:
 			s.handleBanPeerMsg(state, p)
@@ -2264,7 +2219,6 @@ cleanup:
 		select {
 		case <-s.newPeers:
 		case <-s.donePeers:
-		case <-s.peerHeightsUpdate:
 		case <-s.relayInv:
 		case <-s.broadcast:
 		case <-s.query:
@@ -2441,18 +2395,6 @@ func (s *server) AddBytesReceived(bytesReceived uint64) {
 func (s *server) NetTotals() (uint64, uint64) {
 	return atomic.LoadUint64(&s.bytesReceived),
 		atomic.LoadUint64(&s.bytesSent)
-}
-
-// UpdatePeerHeights updates the heights of all peers who have announced
-// the latest connected main chain block, or a recognized orphan. These height
-// updates allow us to dynamically refresh peer heights, ensuring sync peer
-// selection has access to the latest block heights for each peer.
-func (s *server) UpdatePeerHeights(latestBlkHash *chainhash.Hash, latestHeight int64, updateSource *peer.Peer) {
-	s.peerHeightsUpdate <- updatePeerHeightsMsg{
-		newHash:    latestBlkHash,
-		newHeight:  latestHeight,
-		originPeer: updateSource,
-	}
 }
 
 // notifiedWinningTickets returns whether or not the winning tickets
@@ -3363,7 +3305,6 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB, chainP
 		relayInv:             make(chan relayMsg, cfg.MaxPeers),
 		broadcast:            make(chan broadcastMsg, cfg.MaxPeers),
 		modifyRebroadcastInv: make(chan interface{}),
-		peerHeightsUpdate:    make(chan updatePeerHeightsMsg),
 		nat:                  nat,
 		db:                   db,
 		timeSource:           blockchain.NewMedianTime(),

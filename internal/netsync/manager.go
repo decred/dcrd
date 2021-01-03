@@ -1046,8 +1046,18 @@ func (m *SyncManager) handleBlockMsg(bmsg *blockMsg) {
 	blockHeight := int64(bmsg.block.MsgBlock().Header.Height)
 	peer.UpdateLastBlockHeight(blockHeight)
 	if isOrphan || (onMainChain && m.IsCurrent()) {
-		go m.cfg.PeerNotifier.UpdatePeerHeights(blockHash, blockHeight,
-			bmsg.peer)
+		for _, p := range m.peers {
+			// The height for the sending peer is already updated.
+			if p == peer {
+				continue
+			}
+
+			lastAnnBlock := p.LastAnnouncedBlock()
+			if lastAnnBlock != nil && *lastAnnBlock == *blockHash {
+				p.UpdateLastBlockHeight(blockHeight)
+				p.UpdateLastAnnouncedBlock(nil)
+			}
+		}
 	}
 
 	// Nothing more to do if we aren't in headers-first mode.
