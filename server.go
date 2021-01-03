@@ -2151,12 +2151,11 @@ func (s *server) peerDoneHandler(sp *serverPeer) {
 // peers to and from the server, banning peers, and broadcasting messages to
 // peers.  It must be run in a goroutine.
 func (s *server) peerHandler(ctx context.Context) {
-	// Start the address manager and sync manager, both of which are needed by
-	// peers.  This is done here since their lifecycle is closely tied to this
-	// handler and rather than adding more channels to synchronize things, it's
-	// easier and slightly faster to simply start and stop them in this handler.
+	// Start the address manager which is needed by peers.  This is done here
+	// since its lifecycle is closely tied to this handler and rather than
+	// adding more channels to synchronize things, it's easier and slightly
+	// faster to simply start and stop it in this handler.
 	s.addrManager.Start()
-	s.syncManager.Start()
 
 	srvrLog.Tracef("Starting peer handler")
 
@@ -2209,7 +2208,6 @@ out:
 		}
 	}
 
-	s.syncManager.Stop()
 	s.addrManager.Stop()
 
 	// Drain channels before exiting so nothing is left waiting around
@@ -2992,10 +2990,16 @@ func (s *server) Run(ctx context.Context) {
 	// This is needed since not all of the subsystems support context.
 	serverCtx, shutdownServer := context.WithCancel(ctx)
 
-	// Start the peer handler which in turn starts the address and block
-	// managers.
+	// Start the peer handler which in turn starts the address manager.
 	s.wg.Add(1)
 	go s.peerHandler(serverCtx)
+
+	// Start the sync manager.
+	s.wg.Add(1)
+	go func(ctx context.Context, s *server) {
+		s.syncManager.Run(ctx)
+		s.wg.Done()
+	}(serverCtx, s)
 
 	// Query the seeders and start the connection manager.
 	s.wg.Add(1)
@@ -3484,7 +3488,7 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB, chainP
 		},
 	}
 	s.txMemPool = mempool.New(&txC)
-	s.syncManager, err = netsync.New(&netsync.Config{
+	s.syncManager = netsync.New(&netsync.Config{
 		PeerNotifier: &s,
 		Chain:        s.chain,
 		ChainParams:  s.chainParams,
@@ -3497,9 +3501,6 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB, chainP
 		MaxPeers:           cfg.MaxPeers,
 		MaxOrphanTxs:       cfg.MaxOrphanTxs,
 	})
-	if err != nil {
-		return nil, err
-	}
 
 	// Dump the blockchain and quit if requested.
 	if cfg.DumpBlockchain != "" {

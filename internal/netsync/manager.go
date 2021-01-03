@@ -7,11 +7,11 @@ package netsync
 
 import (
 	"container/list"
+	"context"
 	"errors"
 	"fmt"
 	"runtime/debug"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/decred/dcrd/blockchain/v4"
@@ -52,13 +52,13 @@ const (
 // zeroHash is the zero value hash (all zeros).  It is defined as a convenience.
 var zeroHash chainhash.Hash
 
-// newPeerMsg signifies a newly connected peer to the block handler.
+// newPeerMsg signifies a newly connected peer to the event handler.
 type newPeerMsg struct {
 	peer *peerpkg.Peer
 }
 
 // blockMsg packages a Decred block message and the peer it came from together
-// so the block handler has access to that information.
+// so the event handler has access to that information.
 type blockMsg struct {
 	block *dcrutil.Block
 	peer  *peerpkg.Peer
@@ -66,33 +66,33 @@ type blockMsg struct {
 }
 
 // invMsg packages a Decred inv message and the peer it came from together
-// so the block handler has access to that information.
+// so the event handler has access to that information.
 type invMsg struct {
 	inv  *wire.MsgInv
 	peer *peerpkg.Peer
 }
 
 // headersMsg packages a Decred headers message and the peer it came from
-// together so the block handler has access to that information.
+// together so the event handler has access to that information.
 type headersMsg struct {
 	headers *wire.MsgHeaders
 	peer    *peerpkg.Peer
 }
 
 // notFoundMsg packages a Decred notfound message and the peer it came from
-// together so the block handler has access to that information.
+// together so the event handler has access to that information.
 type notFoundMsg struct {
 	notFound *wire.MsgNotFound
 	peer     *peerpkg.Peer
 }
 
-// donePeerMsg signifies a newly disconnected peer to the block handler.
+// donePeerMsg signifies a newly disconnected peer to the event handler.
 type donePeerMsg struct {
 	peer *peerpkg.Peer
 }
 
 // txMsg packages a Decred tx message and the peer it came from together
-// so the block handler has access to that information.
+// so the event handler has access to that information.
 type txMsg struct {
 	tx    *dcrutil.Tx
 	peer  *peerpkg.Peer
@@ -188,17 +188,21 @@ type orphanBlock struct {
 // SyncManager provides a concurrency safe sync manager for handling all
 // incoming blocks.
 type SyncManager struct {
-	cfg             Config
-	started         int32
-	shutdown        int32
+	// The following fields are used for lifecycle management of the sync
+	// manager.
+	wg   sync.WaitGroup
+	quit chan struct{}
+
+	// cfg specifies the configuration of the sync manager and is set at
+	// creation time and treated as immutable after that.
+	cfg Config
+
 	rejectedTxns    map[chainhash.Hash]struct{}
 	requestedTxns   map[chainhash.Hash]struct{}
 	requestedBlocks map[chainhash.Hash]struct{}
 	progressLogger  *progresslog.BlockLogger
 	syncPeer        *syncMgrPeer
 	msgChan         chan interface{}
-	wg              sync.WaitGroup
-	quit            chan struct{}
 	peers           map[*peerpkg.Peer]*syncMgrPeer
 
 	// The following fields are used for headers-first mode.
@@ -483,10 +487,10 @@ func (m *SyncManager) syncMiningStateAfterSync(peer *peerpkg.Peer) {
 // handleNewPeerMsg deals with new peers that have signalled they may
 // be considered as a sync peer (they have already successfully negotiated).  It
 // also starts syncing if needed.  It is invoked from the syncHandler goroutine.
-func (m *SyncManager) handleNewPeerMsg(peer *peerpkg.Peer) {
-	// Ignore if in the process of shutting down.
-	if atomic.LoadInt32(&m.shutdown) != 0 {
-		return
+func (m *SyncManager) handleNewPeerMsg(ctx context.Context, peer *peerpkg.Peer) {
+	select {
+	case <-ctx.Done():
+	default:
 	}
 
 	log.Infof("New valid peer %s (%s)", peer, peer.UserAgent())
@@ -1513,28 +1517,34 @@ func limitAdd(m map[chainhash.Hash]struct{}, hash chainhash.Hash, limit int) {
 	m[hash] = struct{}{}
 }
 
-// blockHandler is the main handler for the sync manager.  It must be run as a
+// eventHandler is the main handler for the sync manager.  It must be run as a
 // goroutine.  It processes block and inv messages in a separate goroutine from
 // the peer handlers so the block (MsgBlock) messages are handled by a single
 // thread without needing to lock memory data structures.  This is important
 // because the sync manager controls which blocks are needed and how the
 // fetching should proceed.
-func (m *SyncManager) blockHandler() {
+func (m *SyncManager) eventHandler(ctx context.Context) {
 out:
 	for {
 		select {
 		case data := <-m.msgChan:
 			switch msg := data.(type) {
 			case *newPeerMsg:
-				m.handleNewPeerMsg(msg.peer)
+				m.handleNewPeerMsg(ctx, msg.peer)
 
 			case *txMsg:
 				m.handleTxMsg(msg)
-				msg.reply <- struct{}{}
+				select {
+				case msg.reply <- struct{}{}:
+				case <-ctx.Done():
+				}
 
 			case *blockMsg:
 				m.handleBlockMsg(msg)
-				msg.reply <- struct{}{}
+				select {
+				case msg.reply <- struct{}{}:
+				case <-ctx.Done():
+				}
 
 			case *invMsg:
 				m.handleInvMsg(msg)
@@ -1596,138 +1606,113 @@ out:
 				}
 
 			default:
-				log.Warnf("Invalid message type in block handler: %T", msg)
+				log.Warnf("Invalid message type in event handler: %T", msg)
 			}
 
-		case <-m.quit:
+		case <-ctx.Done():
 			break out
 		}
 	}
 
 	m.wg.Done()
-	log.Trace("Sync manager done")
+	log.Trace("Sync manager event handler done")
 }
 
 // NewPeer informs the sync manager of a newly active peer.
 func (m *SyncManager) NewPeer(peer *peerpkg.Peer) {
-	// Ignore if we are shutting down.
-	if atomic.LoadInt32(&m.shutdown) != 0 {
-		return
+	select {
+	case m.msgChan <- &newPeerMsg{peer: peer}:
+	case <-m.quit:
 	}
-	m.msgChan <- &newPeerMsg{peer: peer}
 }
 
-// QueueTx adds the passed transaction message and peer to the block handling
+// QueueTx adds the passed transaction message and peer to the event handling
 // queue.
 func (m *SyncManager) QueueTx(tx *dcrutil.Tx, peer *peerpkg.Peer, done chan struct{}) {
-	// Don't accept more transactions if we're shutting down.
-	if atomic.LoadInt32(&m.shutdown) != 0 {
+	select {
+	case m.msgChan <- &txMsg{tx: tx, peer: peer, reply: done}:
+	case <-m.quit:
 		done <- struct{}{}
-		return
 	}
-
-	m.msgChan <- &txMsg{tx: tx, peer: peer, reply: done}
 }
 
-// QueueBlock adds the passed block message and peer to the block handling queue.
+// QueueBlock adds the passed block message and peer to the event handling
+// queue.
 func (m *SyncManager) QueueBlock(block *dcrutil.Block, peer *peerpkg.Peer, done chan struct{}) {
-	// Don't accept more blocks if we're shutting down.
-	if atomic.LoadInt32(&m.shutdown) != 0 {
+	select {
+	case m.msgChan <- &blockMsg{block: block, peer: peer, reply: done}:
+	case <-m.quit:
 		done <- struct{}{}
-		return
 	}
-
-	m.msgChan <- &blockMsg{block: block, peer: peer, reply: done}
 }
 
-// QueueInv adds the passed inv message and peer to the block handling queue.
+// QueueInv adds the passed inv message and peer to the event handling queue.
 func (m *SyncManager) QueueInv(inv *wire.MsgInv, peer *peerpkg.Peer) {
-	// No channel handling here because peers do not need to block on inv
-	// messages.
-	if atomic.LoadInt32(&m.shutdown) != 0 {
-		return
+	select {
+	case m.msgChan <- &invMsg{inv: inv, peer: peer}:
+	case <-m.quit:
 	}
-
-	m.msgChan <- &invMsg{inv: inv, peer: peer}
 }
 
-// QueueHeaders adds the passed headers message and peer to the block handling
+// QueueHeaders adds the passed headers message and peer to the event handling
 // queue.
 func (m *SyncManager) QueueHeaders(headers *wire.MsgHeaders, peer *peerpkg.Peer) {
-	// No channel handling here because peers do not need to block on
-	// headers messages.
-	if atomic.LoadInt32(&m.shutdown) != 0 {
-		return
+	select {
+	case m.msgChan <- &headersMsg{headers: headers, peer: peer}:
+	case <-m.quit:
 	}
-
-	m.msgChan <- &headersMsg{headers: headers, peer: peer}
 }
 
-// QueueNotFound adds the passed notfound message and peer to the block handling
+// QueueNotFound adds the passed notfound message and peer to the event handling
 // queue.
 func (m *SyncManager) QueueNotFound(notFound *wire.MsgNotFound, peer *peerpkg.Peer) {
-	// No channel handling here because peers do not need to block on
-	// reject messages.
-	if atomic.LoadInt32(&m.shutdown) != 0 {
-		return
+	select {
+	case m.msgChan <- &notFoundMsg{notFound: notFound, peer: peer}:
+	case <-m.quit:
 	}
-
-	m.msgChan <- &notFoundMsg{notFound: notFound, peer: peer}
 }
 
 // DonePeer informs the sync manager that a peer has disconnected.
 func (m *SyncManager) DonePeer(peer *peerpkg.Peer) {
-	// Ignore if we are shutting down.
-	if atomic.LoadInt32(&m.shutdown) != 0 {
-		return
+	select {
+	case m.msgChan <- &donePeerMsg{peer: peer}:
+	case <-m.quit:
 	}
-
-	m.msgChan <- &donePeerMsg{peer: peer}
-}
-
-// Start begins the core block handler which processes block and inv messages.
-func (m *SyncManager) Start() {
-	// Already started?
-	if atomic.AddInt32(&m.started, 1) != 1 {
-		return
-	}
-
-	log.Trace("Starting sync manager")
-	m.wg.Add(1)
-	go m.blockHandler()
-}
-
-// Stop gracefully shuts down the sync manager by stopping all asynchronous
-// handlers and waiting for them to finish.
-func (m *SyncManager) Stop() error {
-	if atomic.AddInt32(&m.shutdown, 1) != 1 {
-		log.Warnf("Sync manager is already in the process of shutting down")
-		return nil
-	}
-
-	log.Infof("Sync manager shutting down")
-	close(m.quit)
-	m.wg.Wait()
-	return nil
 }
 
 // SyncPeerID returns the ID of the current sync peer, or 0 if there is none.
 func (m *SyncManager) SyncPeerID() int32 {
-	reply := make(chan int32)
-	m.msgChan <- getSyncPeerMsg{reply: reply}
-	return <-reply
+	reply := make(chan int32, 1)
+	select {
+	case m.msgChan <- getSyncPeerMsg{reply: reply}:
+	case <-m.quit:
+	}
+
+	select {
+	case peerID := <-reply:
+		return peerID
+	case <-m.quit:
+		return 0
+	}
 }
 
 // RequestFromPeer allows an outside caller to request blocks or transactions
 // from a peer.  The requests are logged in the internal map of requests so the
 // peer is not later banned for sending the respective data.
 func (m *SyncManager) RequestFromPeer(p *peerpkg.Peer, blocks, txs []*chainhash.Hash) error {
-	reply := make(chan requestFromPeerResponse)
-	m.msgChan <- requestFromPeerMsg{peer: p, blocks: blocks, txs: txs,
-		reply: reply}
-	response := <-reply
+	reply := make(chan requestFromPeerResponse, 1)
+	select {
+	case m.msgChan <- requestFromPeerMsg{peer: p, blocks: blocks, txs: txs,
+		reply: reply}:
+	case <-m.quit:
+	}
 
-	return response.err
+	select {
+	case response := <-reply:
+		return response.err
+	case <-m.quit:
+		return fmt.Errorf("sync manager stopped")
+	}
 }
 
 func (m *SyncManager) requestFromPeer(p *peerpkg.Peer, blocks, txs []*chainhash.Hash) error {
@@ -1812,9 +1797,17 @@ func (m *SyncManager) requestFromPeer(p *peerpkg.Peer, blocks, txs []*chainhash.
 // for concurrent access.
 func (m *SyncManager) ProcessBlock(block *dcrutil.Block, flags blockchain.BehaviorFlags) (bool, error) {
 	reply := make(chan processBlockResponse, 1)
-	m.msgChan <- processBlockMsg{block: block, flags: flags, reply: reply}
-	response := <-reply
-	return response.isOrphan, response.err
+	select {
+	case m.msgChan <- processBlockMsg{block: block, flags: flags, reply: reply}:
+	case <-m.quit:
+	}
+
+	select {
+	case response := <-reply:
+		return response.isOrphan, response.err
+	case <-m.quit:
+		return false, fmt.Errorf("sync manager stopped")
+	}
 }
 
 // ProcessTransaction makes use of ProcessTransaction on an internal instance of
@@ -1822,11 +1815,20 @@ func (m *SyncManager) ProcessBlock(block *dcrutil.Block, flags blockchain.Behavi
 // not safe for concurrent access.
 func (m *SyncManager) ProcessTransaction(tx *dcrutil.Tx, allowOrphans bool,
 	rateLimit bool, allowHighFees bool, tag mempool.Tag) ([]*dcrutil.Tx, error) {
+
 	reply := make(chan processTransactionResponse, 1)
-	m.msgChan <- processTransactionMsg{tx, allowOrphans, rateLimit,
-		allowHighFees, tag, reply}
-	response := <-reply
-	return response.acceptedTxs, response.err
+	select {
+	case m.msgChan <- processTransactionMsg{tx, allowOrphans, rateLimit,
+		allowHighFees, tag, reply}:
+	case <-m.quit:
+	}
+
+	select {
+	case response := <-reply:
+		return response.acceptedTxs, response.err
+	case <-m.quit:
+		return nil, fmt.Errorf("sync manager stopped")
+	}
 }
 
 // IsCurrent returns whether or not the sync manager believes it is synced with
@@ -1839,6 +1841,27 @@ func (m *SyncManager) IsCurrent() bool {
 	isCurrent := m.isCurrent
 	m.isCurrentMtx.Unlock()
 	return isCurrent
+}
+
+// Run starts the sync manager and all other goroutines necessary for it to
+// function properly and blocks until the provided context is cancelled.
+func (m *SyncManager) Run(ctx context.Context) {
+	log.Trace("Starting sync manager")
+
+	// Start the event handler goroutine.
+	m.wg.Add(1)
+	go m.eventHandler(ctx)
+
+	// Shutdown the sync manager when the context is cancelled.
+	m.wg.Add(1)
+	go func(ctx context.Context) {
+		<-ctx.Done()
+		close(m.quit)
+		m.wg.Done()
+	}(ctx)
+
+	m.wg.Wait()
+	log.Trace("Sync manager stopped")
 }
 
 // Config holds the configuration options related to the network chain
@@ -1882,9 +1905,9 @@ type Config struct {
 	MaxOrphanTxs int
 }
 
-// New returns a new network chain synchronization manager.  Use Start to begin
-// processing asynchronous block and inv updates.
-func New(config *Config) (*SyncManager, error) {
+// New returns a new network chain synchronization manager.  Use Run to begin
+// processing asynchronous events.
+func New(config *Config) *SyncManager {
 	m := SyncManager{
 		cfg:             *config,
 		rejectedTxns:    make(map[chainhash.Hash]struct{}),
@@ -1915,5 +1938,5 @@ func New(config *Config) (*SyncManager, error) {
 	m.syncHeight = best.Height
 	m.syncHeightMtx.Unlock()
 
-	return &m, nil
+	return &m
 }
