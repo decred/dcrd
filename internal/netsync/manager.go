@@ -23,7 +23,6 @@ import (
 	"github.com/decred/dcrd/internal/progresslog"
 	"github.com/decred/dcrd/internal/rpcserver"
 	peerpkg "github.com/decred/dcrd/peer/v2"
-	"github.com/decred/dcrd/txscript/v4"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -1030,9 +1029,6 @@ func (m *SyncManager) handleBlockMsg(bmsg *blockMsg) {
 
 			// Clear the rejected transactions.
 			m.rejectedTxns = make(map[chainhash.Hash]struct{})
-
-			// Proactively evict SigCache entries.
-			m.proactivelyEvictSigCacheEntries(best.Height)
 		}
 	}
 
@@ -1109,26 +1105,6 @@ func (m *SyncManager) handleBlockMsg(bmsg *blockMsg) {
 			peer.Addr(), err)
 		return
 	}
-}
-
-// proactivelyEvictSigCacheEntries fetches the block that is
-// txscript.ProactiveEvictionDepth levels deep from bestHeight and passes it to
-// SigCache to evict the entries associated with the transactions in that block.
-func (m *SyncManager) proactivelyEvictSigCacheEntries(bestHeight int64) {
-	// Nothing to do before the eviction depth is reached.
-	if bestHeight <= txscript.ProactiveEvictionDepth {
-		return
-	}
-
-	evictHeight := bestHeight - txscript.ProactiveEvictionDepth
-	block, err := m.cfg.Chain.BlockByHeight(evictHeight)
-	if err != nil {
-		log.Warnf("Failed to retrieve the block at height %d: %v", evictHeight,
-			err)
-		return
-	}
-
-	m.cfg.SigCache.EvictEntries(block.MsgBlock())
 }
 
 // fetchHeaderBlocks creates and sends a request to the syncPeer for the next
@@ -1879,9 +1855,6 @@ type Config struct {
 	// Chain specifies the chain instance to use for processing blocks and
 	// transactions.
 	Chain *blockchain.BlockChain
-
-	// SigCache defines the signature cache to use when validating signatures.
-	SigCache *txscript.SigCache
 
 	// TxMemPool specifies the mempool to use for processing transactions.
 	TxMemPool *mempool.TxPool

@@ -2429,6 +2429,26 @@ func isDoubleSpendOrDuplicateError(err error) bool {
 	return false
 }
 
+// proactivelyEvictSigCacheEntries fetches the block that is
+// txscript.ProactiveEvictionDepth levels deep from bestHeight and passes it to
+// SigCache to evict the entries associated with the transactions in that block.
+func (s *server) proactivelyEvictSigCacheEntries(bestHeight int64) {
+	// Nothing to do before the eviction depth is reached.
+	if bestHeight <= txscript.ProactiveEvictionDepth {
+		return
+	}
+
+	evictHeight := bestHeight - txscript.ProactiveEvictionDepth
+	block, err := s.chain.BlockByHeight(evictHeight)
+	if err != nil {
+		srvrLog.Warnf("Failed to retrieve the block at height %d: %v",
+			evictHeight, err)
+		return
+	}
+
+	s.sigCache.EvictEntries(block.MsgBlock())
+}
+
 // handleBlockchainNotification handles notifications from blockchain.  It does
 // things such as request orphan block parents and relay accepted blocks to
 // connected peers.
@@ -2661,6 +2681,10 @@ func (s *server) handleBlockchainNotification(notification *blockchain.Notificat
 		if s.bg != nil {
 			s.bg.BlockConnected(block)
 		}
+
+		// Proactively evict signature cache entries that are virtually
+		// guaranteed to no longer be useful.
+		s.proactivelyEvictSigCacheEntries(block.Height())
 
 	// Stake tickets are spent or missed from the most recently connected block.
 	case blockchain.NTSpentAndMissedTickets:
@@ -3464,7 +3488,6 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB, chainP
 		PeerNotifier: &s,
 		Chain:        s.chain,
 		ChainParams:  s.chainParams,
-		SigCache:     s.sigCache,
 		TxMemPool:    s.txMemPool,
 		RpcServer: func() *rpcserver.Server {
 			return s.rpcServer
