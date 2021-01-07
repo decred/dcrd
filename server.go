@@ -10,6 +10,7 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -3286,6 +3287,19 @@ func setupRPCListeners() ([]net.Listener, error) {
 		tlsConfig := tls.Config{
 			Certificates: []tls.Certificate{keypair},
 			MinVersion:   tls.VersionTLS12,
+		}
+
+		if cfg.RPCAuthType == authTypeClientCert {
+			pemCerts, err := ioutil.ReadFile(cfg.RPCClientCAs)
+			if err != nil {
+				return nil, err
+			}
+			tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
+			tlsConfig.ClientCAs = x509.NewCertPool()
+			if !tlsConfig.ClientCAs.AppendCertsFromPEM(pemCerts) {
+				return nil, fmt.Errorf("no certificates found in %q",
+					cfg.RPCClientCAs)
+			}
 		}
 
 		// Change the standard net.Listen function to the tls one.

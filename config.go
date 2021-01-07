@@ -79,6 +79,10 @@ const (
 	defaultTxIndex           = false
 	defaultAddrIndex         = false
 	defaultNoExistsAddrIndex = false
+
+	// Authorization types.
+	authTypeBasic      = "basic"
+	authTypeClientCert = "clientcert"
 )
 
 var (
@@ -90,8 +94,10 @@ var (
 	knownDbTypes      = database.SupportedDrivers()
 
 	// Constructed defaults for RPC server options and policy.
-	defaultRPCKeyFile  = filepath.Join(defaultHomeDir, "rpc.key")
-	defaultRPCCertFile = filepath.Join(defaultHomeDir, "rpc.cert")
+	defaultRPCKeyFile   = filepath.Join(defaultHomeDir, "rpc.key")
+	defaultRPCCertFile  = filepath.Join(defaultHomeDir, "rpc.cert")
+	defaultRPCAuthType  = authTypeBasic
+	defaultRPCClientCAs = filepath.Join(defaultHomeDir, "clients.pem")
 )
 
 // runServiceCommand is only set to a real function on Windows.  It is used
@@ -133,6 +139,8 @@ type config struct {
 	RPCListeners         []string `long:"rpclisten" description:"Add an interface/port to listen for RPC connections (default port: 9109, testnet: 19109)"`
 	RPCUser              string   `short:"u" long:"rpcuser" description:"Username for RPC connections"`
 	RPCPass              string   `short:"P" long:"rpcpass" default-mask:"-" description:"Password for RPC connections"`
+	RPCAuthType          string   `long:"authtype" description:"Method for RPC client authentication (basic or clientcert)"`
+	RPCClientCAs         string   `long:"clientcafile" description:"File containing Certificate Authorities to verify TLS client certificates; requires authtype=clientcert"`
 	RPCLimitUser         string   `long:"rpclimituser" description:"Username for limited RPC connections"`
 	RPCLimitPass         string   `long:"rpclimitpass" default-mask:"-" description:"Password for limited RPC connections"`
 	RPCCert              string   `long:"rpccert" description:"File containing the certificate file"`
@@ -563,6 +571,8 @@ func loadConfig(appName string) (*config, []string, error) {
 		// RPC server options and policy.
 		RPCCert:              defaultRPCCertFile,
 		RPCKey:               defaultRPCKeyFile,
+		RPCAuthType:          defaultRPCAuthType,
+		RPCClientCAs:         defaultRPCClientCAs,
 		TLSCurve:             defaultTLSCurve,
 		RPCMaxClients:        defaultMaxRPCClients,
 		RPCMaxWebsockets:     defaultMaxRPCWebsockets,
@@ -672,6 +682,11 @@ func loadConfig(appName string) (*config, []string, error) {
 			cfg.RPCCert = filepath.Join(cfg.HomeDir, "rpc.cert")
 		} else {
 			cfg.RPCCert = preCfg.RPCCert
+		}
+		if preCfg.RPCClientCAs == defaultRPCClientCAs {
+			cfg.RPCClientCAs = filepath.Join(cfg.HomeDir, "clients.pem")
+		} else {
+			cfg.RPCClientCAs = preCfg.RPCClientCAs
 		}
 		if preCfg.LogDir == defaultLogDir {
 			cfg.LogDir = filepath.Join(cfg.HomeDir, defaultLogDirname)
@@ -950,10 +965,25 @@ func loadConfig(appName string) (*config, []string, error) {
 		return nil, nil, err
 	}
 
-	// The RPC server is disabled if no username or password is provided.
-	if (cfg.RPCUser == "" || cfg.RPCPass == "") &&
+	// The RPC server is disabled if no username or password is provided
+	// under basic user/pass authentication.
+	if cfg.RPCAuthType == authTypeBasic &&
+		(cfg.RPCUser == "" || cfg.RPCPass == "") &&
 		(cfg.RPCLimitUser == "" || cfg.RPCLimitPass == "") {
 		cfg.DisableRPC = true
+	}
+
+	// Check to make sure RPC usernames and passwords are not provided under
+	// client cert authentiation.
+	if cfg.RPCAuthType == authTypeClientCert {
+		switch {
+		case cfg.RPCUser != "", cfg.RPCPass != "",
+			cfg.RPCLimitUser != "", cfg.RPCLimitPass != "":
+			str := "%s: RPC usernames and passwords are not allowed " +
+				"with --authtype=clientcert"
+			err := fmt.Errorf(str, funcName)
+			return nil, nil, err
+		}
 	}
 
 	// Default RPC to listen on localhost only.
@@ -1084,8 +1114,17 @@ func loadConfig(appName string) (*config, []string, error) {
 	cfg.RPCListeners = normalizeAddresses(cfg.RPCListeners,
 		cfg.params.rpcPort)
 
+	// The authtype config must be one of "basic" or "clientcert".
+	switch cfg.RPCAuthType {
+	case authTypeBasic, authTypeClientCert:
+	default:
+		err := fmt.Errorf("%s: invalid authtype option %q",
+			funcName, cfg.RPCAuthType)
+		return nil, nil, err
+	}
+
 	// Only allow TLS to be disabled if the RPC is bound to localhost
-	// addresses.
+	// addresses, and when client cert auth is not used.
 	if !cfg.DisableRPC && cfg.DisableTLS {
 		allowedTLSListeners := map[string]struct{}{
 			"localhost": {},
@@ -1107,6 +1146,12 @@ func loadConfig(appName string) (*config, []string, error) {
 				err := fmt.Errorf(str, funcName, addr)
 				return nil, nil, err
 			}
+		}
+
+		if cfg.RPCAuthType == authTypeClientCert {
+			err := fmt.Errorf("%s: TLS may not be disabled with "+
+				"authtype=clientcert", funcName)
+			return nil, nil, err
 		}
 	}
 
