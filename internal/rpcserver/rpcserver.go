@@ -5532,8 +5532,15 @@ func (s *Server) authMAC(dst, auth []byte) []byte {
 // of the server (true) or whether the user is limited (false). The second is
 // always false if the first is.
 func (s *Server) checkAuth(r *http.Request, require bool) (bool, bool, error) {
+	// If admin-level RPC user and pass options are not set, this always
+	// succeeds.  This will be the case when TLS client certificates are
+	// being used for authentication.
+	if s.authsha == ([32]byte{}) {
+		return true, true, nil
+	}
+
 	authhdr := r.Header["Authorization"]
-	if len(authhdr) <= 0 {
+	if len(authhdr) == 0 {
 		if require {
 			log.Warnf("RPC authentication failure from %s",
 				r.RemoteAddr)
