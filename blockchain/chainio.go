@@ -553,7 +553,7 @@ func spentTxOutSerializeSize(stxo *spentTxOut) int {
 
 	const hasAmount = false
 	size += compressedTxOutSize(uint64(stxo.amount), stxo.scriptVersion,
-		stxo.pkScript, currentCompressionVersion, hasAmount)
+		stxo.pkScript, hasAmount)
 
 	if stxo.ticketMinOuts != nil {
 		size += len(stxo.ticketMinOuts.data)
@@ -573,7 +573,7 @@ func putSpentTxOut(target []byte, stxo *spentTxOut) int {
 
 	const hasAmount = false
 	offset += putCompressedTxOut(target[offset:], 0, stxo.scriptVersion,
-		stxo.pkScript, currentCompressionVersion, hasAmount)
+		stxo.pkScript, hasAmount)
 
 	if stxo.ticketMinOuts != nil {
 		copy(target[offset:], stxo.ticketMinOuts.data)
@@ -600,7 +600,7 @@ func decodeSpentTxOut(serialized []byte, stxo *spentTxOut, amount int64,
 	// since in Decred we only need pkScript at most due to fraud proofs
 	// already storing the decompressed amount.
 	_, scriptVersion, script, bytesRead, err :=
-		decodeCompressedTxOut(serialized[offset:], currentCompressionVersion, false)
+		decodeCompressedTxOut(serialized[offset:], false)
 	offset += bytesRead
 	if err != nil {
 		return offset, errDeserialize(fmt.Sprintf("unable to decode "+
@@ -937,7 +937,7 @@ func serializeUtxoEntry(entry *UtxoEntry) ([]byte, error) {
 		serializeSizeVLQ(uint64(entry.blockIndex)) +
 		serializeSizeVLQ(uint64(flags)) +
 		compressedTxOutSize(uint64(entry.amount), entry.scriptVersion,
-			entry.pkScript, currentCompressionVersion, hasAmount)
+			entry.pkScript, hasAmount)
 
 	if entry.ticketMinOuts != nil {
 		size += len(entry.ticketMinOuts.data)
@@ -949,7 +949,7 @@ func serializeUtxoEntry(entry *UtxoEntry) ([]byte, error) {
 	offset += putVLQ(serialized[offset:], uint64(entry.blockIndex))
 	offset += putVLQ(serialized[offset:], uint64(flags))
 	offset += putCompressedTxOut(serialized[offset:], uint64(entry.amount),
-		entry.scriptVersion, entry.pkScript, currentCompressionVersion, hasAmount)
+		entry.scriptVersion, entry.pkScript, hasAmount)
 
 	if entry.ticketMinOuts != nil {
 		copy(serialized[offset:], entry.ticketMinOuts.data)
@@ -986,8 +986,7 @@ func deserializeUtxoEntry(serialized []byte, txOutIndex uint32) (*UtxoEntry, err
 
 	// Decode the compressed unspent transaction output.
 	amount, scriptVersion, script, bytesRead, err :=
-		decodeCompressedTxOut(serialized[offset:], currentCompressionVersion,
-			true)
+		decodeCompressedTxOut(serialized[offset:], true)
 	if err != nil {
 		return nil, errDeserialize(fmt.Sprintf("unable to decode utxo: %v", err))
 	}

@@ -1917,7 +1917,7 @@ func extractDeploymentIDVersions(params *chaincfg.Params) (map[string]uint32, er
 // stxosToScriptSource uses the provided block and spent txo information to
 // create a source of previous transaction scripts and versions spent by the
 // block.
-func stxosToScriptSource(block *dcrutil.Block, stxos []spentTxOut, compressionVersion uint32, isTreasuryEnabled bool, chainParams *chaincfg.Params) scriptSource {
+func stxosToScriptSource(block *dcrutil.Block, stxos []spentTxOut, isTreasuryEnabled bool, chainParams *chaincfg.Params) scriptSource {
 	source := make(scriptSource)
 	msgBlock := block.MsgBlock()
 
@@ -1961,7 +1961,7 @@ func stxosToScriptSource(block *dcrutil.Block, stxos []spentTxOut, compressionVe
 			prevOut := &txIn.PreviousOutPoint
 			source[*prevOut] = scriptSourceEntry{
 				version: stxo.scriptVersion,
-				script:  decompressScript(stxo.pkScript, compressionVersion),
+				script:  decompressScript(stxo.pkScript),
 			}
 		}
 	}
@@ -1983,7 +1983,7 @@ func stxosToScriptSource(block *dcrutil.Block, stxos []spentTxOut, compressionVe
 			prevOut := &txIn.PreviousOutPoint
 			source[*prevOut] = scriptSourceEntry{
 				version: stxo.scriptVersion,
-				script:  decompressScript(stxo.pkScript, compressionVersion),
+				script:  decompressScript(stxo.pkScript),
 			}
 		}
 	}
@@ -2033,8 +2033,8 @@ func (q *chainQueryerAdapter) PrevScripts(dbTx database.Tx, block *dcrutil.Block
 		return nil, err
 	}
 
-	prevScripts := stxosToScriptSource(block, stxos, currentCompressionVersion,
-		isTreasuryEnabled, q.chainParams)
+	prevScripts := stxosToScriptSource(block, stxos, isTreasuryEnabled,
+		q.chainParams)
 	return prevScripts, nil
 }
 

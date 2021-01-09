@@ -107,91 +107,78 @@ func TestScriptCompression(t *testing.T) {
 
 	tests := []struct {
 		name          string
-		version       uint32
 		scriptVersion uint16
 		uncompressed  []byte
 		compressed    []byte
 	}{
 		{
 			name:          "nil",
-			version:       1,
 			scriptVersion: 0,
 			uncompressed:  nil,
 			compressed:    hexToBytes("40"),
 		},
 		{
 			name:          "pay-to-pubkey-hash 1",
-			version:       1,
 			scriptVersion: 0,
 			uncompressed:  hexToBytes("76a9141018853670f9f3b0582c5b9ee8ce93764ac32b9388ac"),
 			compressed:    hexToBytes("001018853670f9f3b0582c5b9ee8ce93764ac32b93"),
 		},
 		{
 			name:          "pay-to-pubkey-hash 2",
-			version:       1,
 			scriptVersion: 0,
 			uncompressed:  hexToBytes("76a914e34cce70c86373273efcc54ce7d2a491bb4a0e8488ac"),
 			compressed:    hexToBytes("00e34cce70c86373273efcc54ce7d2a491bb4a0e84"),
 		},
 		{
 			name:          "pay-to-script-hash 1",
-			version:       1,
 			scriptVersion: 0,
 			uncompressed:  hexToBytes("a914da1745e9b549bd0bfa1a569971c77eba30cd5a4b87"),
 			compressed:    hexToBytes("01da1745e9b549bd0bfa1a569971c77eba30cd5a4b"),
 		},
 		{
 			name:          "pay-to-script-hash 2",
-			version:       1,
 			scriptVersion: 0,
 			uncompressed:  hexToBytes("a914f815b036d9bbbce5e9f2a00abd1bf3dc91e9551087"),
 			compressed:    hexToBytes("01f815b036d9bbbce5e9f2a00abd1bf3dc91e95510"),
 		},
 		{
 			name:          "pay-to-pubkey compressed 0x02",
-			version:       1,
 			scriptVersion: 0,
 			uncompressed:  hexToBytes("2102192d74d0cb94344c9569c2e77901573d8d7903c3ebec3a957724895dca52c6b4ac"),
 			compressed:    hexToBytes("02192d74d0cb94344c9569c2e77901573d8d7903c3ebec3a957724895dca52c6b4"),
 		},
 		{
 			name:          "pay-to-pubkey compressed 0x03",
-			version:       1,
 			scriptVersion: 0,
 			uncompressed:  hexToBytes("2103b0bd634234abbb1ba1e986e884185c61cf43e001f9137f23c2c409273eb16e65ac"),
 			compressed:    hexToBytes("03b0bd634234abbb1ba1e986e884185c61cf43e001f9137f23c2c409273eb16e65"),
 		},
 		{
 			name:          "pay-to-pubkey uncompressed 0x04 even",
-			version:       1,
 			scriptVersion: 0,
 			uncompressed:  hexToBytes("4104192d74d0cb94344c9569c2e77901573d8d7903c3ebec3a957724895dca52c6b40d45264838c0bd96852662ce6a847b197376830160c6d2eb5e6a4c44d33f453eac"),
 			compressed:    hexToBytes("04192d74d0cb94344c9569c2e77901573d8d7903c3ebec3a957724895dca52c6b4"),
 		},
 		{
 			name:          "pay-to-pubkey uncompressed 0x04 odd",
-			version:       1,
 			scriptVersion: 0,
 			uncompressed:  hexToBytes("410411db93e1dcdb8a016b49840f8c53bc1eb68a382e97b1482ecad7b148a6909a5cb2e0eaddfb84ccf9744464f82e160bfa9b8b64f9d4c03f999b8643f656b412a3ac"),
 			compressed:    hexToBytes("0511db93e1dcdb8a016b49840f8c53bc1eb68a382e97b1482ecad7b148a6909a5c"),
 		},
 		{
 			name:          "pay-to-pubkey invalid pubkey",
-			version:       1,
 			scriptVersion: 0,
 			uncompressed:  hexToBytes("3302aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaac"),
 			compressed:    hexToBytes("633302aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaac"),
 		},
 		{
 			name:          "null data",
-			version:       1,
 			scriptVersion: 0,
 			uncompressed:  hexToBytes("6a200102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20"),
 			compressed:    hexToBytes("626a200102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20"),
 		},
 		{
 			name:          "requires 2 size bytes - data push 200 bytes",
-			version:       1,
 			scriptVersion: 0,
 			uncompressed:  append(hexToBytes("4cc8"), bytes.Repeat([]byte{0x00}, 200)...),
 			// [0x80, 0x50] = 208 as a variable length quantity
@@ -203,8 +190,7 @@ func TestScriptCompression(t *testing.T) {
 	for _, test := range tests {
 		// Ensure the function to calculate the serialized size without
 		// actually serializing the value is calculated properly.
-		gotSize := compressedScriptSize(test.scriptVersion, test.uncompressed,
-			test.version)
+		gotSize := compressedScriptSize(test.scriptVersion, test.uncompressed)
 		if gotSize != len(test.compressed) {
 			t.Errorf("compressedScriptSize (%s): did not get "+
 				"expected size - got %d, want %d", test.name,
@@ -215,7 +201,7 @@ func TestScriptCompression(t *testing.T) {
 		// Ensure the script compresses to the expected bytes.
 		gotCompressed := make([]byte, gotSize)
 		gotBytesWritten := putCompressedScript(gotCompressed, test.scriptVersion,
-			test.uncompressed, test.version)
+			test.uncompressed)
 		if !bytes.Equal(gotCompressed, test.compressed) {
 			t.Errorf("putCompressedScript (%s): did not get "+
 				"expected bytes - got %x, want %x", test.name,
@@ -232,8 +218,7 @@ func TestScriptCompression(t *testing.T) {
 
 		// Ensure the compressed script size is properly decoded from
 		// the compressed script.
-		gotDecodedSize := decodeCompressedScriptSize(test.compressed,
-			test.version)
+		gotDecodedSize := decodeCompressedScriptSize(test.compressed)
 		if gotDecodedSize != len(test.compressed) {
 			t.Errorf("decodeCompressedScriptSize (%s): did not get "+
 				"expected size - got %d, want %d", test.name,
@@ -242,7 +227,7 @@ func TestScriptCompression(t *testing.T) {
 		}
 
 		// Ensure the script decompresses to the expected bytes.
-		gotDecompressed := decompressScript(test.compressed, test.version)
+		gotDecompressed := decompressScript(test.compressed)
 		if !bytes.Equal(gotDecompressed, test.uncompressed) {
 			t.Errorf("decompressScript (%s): did not get expected "+
 				"bytes - got %x, want %x", test.name,
@@ -258,13 +243,13 @@ func TestScriptCompressionErrors(t *testing.T) {
 	t.Parallel()
 
 	// A nil script must result in a decoded size of 0.
-	if gotSize := decodeCompressedScriptSize(nil, 1); gotSize != 0 {
+	if gotSize := decodeCompressedScriptSize(nil); gotSize != 0 {
 		t.Fatalf("decodeCompressedScriptSize with nil script did not "+
 			"return 0 - got %d", gotSize)
 	}
 
 	// A nil script must result in a nil decompressed script.
-	if gotScript := decompressScript(nil, 1); gotScript != nil {
+	if gotScript := decompressScript(nil); gotScript != nil {
 		t.Fatalf("decompressScript with nil script did not return nil "+
 			"decompressed script - got %x", gotScript)
 	}
@@ -273,7 +258,7 @@ func TestScriptCompressionErrors(t *testing.T) {
 	// in an invalid pubkey must result in a nil decompressed script.
 	compressedScript := hexToBytes("04012d74d0cb94344c9569c2e77901573d8d" +
 		"7903c3ebec3a957724895dca52c6b4")
-	if gotScript := decompressScript(compressedScript, 1); gotScript != nil {
+	if gotScript := decompressScript(compressedScript); gotScript != nil {
 		t.Fatalf("decompressScript with compressed pay-to-"+
 			"uncompressed-pubkey that is invalid did not return "+
 			"nil decompressed script - got %x", gotScript)
@@ -420,14 +405,15 @@ func TestCompressedTxOut(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		targetSz := compressedTxOutSize(0, test.scriptVersion, test.pkScript, currentCompressionVersion, test.hasAmount) - 1
+		targetSz := compressedTxOutSize(0, test.scriptVersion, test.pkScript,
+			test.hasAmount) - 1
 		target := make([]byte, targetSz)
-		putCompressedScript(target, test.scriptVersion, test.pkScript, currentCompressionVersion)
+		putCompressedScript(target, test.scriptVersion, test.pkScript)
 
 		// Ensure the function to calculate the serialized size without
 		// actually serializing the txout is calculated properly.
 		gotSize := compressedTxOutSize(test.amount, test.scriptVersion,
-			test.pkScript, test.version, test.hasAmount)
+			test.pkScript, test.hasAmount)
 		if gotSize != len(test.compressed) {
 			t.Errorf("compressedTxOutSize (%s): did not get "+
 				"expected size - got %d, want %d", test.name,
@@ -438,8 +424,7 @@ func TestCompressedTxOut(t *testing.T) {
 		// Ensure the txout compresses to the expected value.
 		gotCompressed := make([]byte, gotSize)
 		gotBytesWritten := putCompressedTxOut(gotCompressed,
-			test.amount, test.scriptVersion, test.pkScript,
-			test.version, test.hasAmount)
+			test.amount, test.scriptVersion, test.pkScript, test.hasAmount)
 		if !bytes.Equal(gotCompressed, test.compressed) {
 			t.Errorf("compressTxOut (%s): did not get expected "+
 				"bytes - got %x, want %x", test.name,
@@ -457,8 +442,7 @@ func TestCompressedTxOut(t *testing.T) {
 		// Ensure the serialized bytes are decoded back to the expected
 		// compressed values.
 		gotAmount, gotScrVersion, gotScript, gotBytesRead, err :=
-			decodeCompressedTxOut(test.compressed, test.version,
-				test.hasAmount)
+			decodeCompressedTxOut(test.compressed, test.hasAmount)
 		if err != nil {
 			t.Errorf("decodeCompressedTxOut (%s): unexpected "+
 				"error: %v", test.name, err)
@@ -498,7 +482,7 @@ func TestTxOutCompressionErrors(t *testing.T) {
 
 	// A compressed txout with a value and missing compressed script must error.
 	compressedTxOut := hexToBytes("00")
-	_, _, _, _, err := decodeCompressedTxOut(compressedTxOut, 1, true)
+	_, _, _, _, err := decodeCompressedTxOut(compressedTxOut, true)
 	if !isDeserializeErr(err) {
 		t.Fatalf("decodeCompressedTxOut with value and missing "+
 			"compressed script did not return expected error type "+
@@ -508,7 +492,7 @@ func TestTxOutCompressionErrors(t *testing.T) {
 	// A compressed txout without a value and with an empty compressed
 	// script returns empty but is valid.
 	compressedTxOut = hexToBytes("00")
-	_, _, _, _, err = decodeCompressedTxOut(compressedTxOut, 1, false)
+	_, _, _, _, err = decodeCompressedTxOut(compressedTxOut, false)
 	if err != nil {
 		t.Fatalf("decodeCompressedTxOut with missing compressed script "+
 			"did not return expected error type - got %T, want "+
@@ -517,7 +501,7 @@ func TestTxOutCompressionErrors(t *testing.T) {
 
 	// A compressed txout with short compressed script must error.
 	compressedTxOut = hexToBytes("0010")
-	_, _, _, _, err = decodeCompressedTxOut(compressedTxOut, 1, false)
+	_, _, _, _, err = decodeCompressedTxOut(compressedTxOut, false)
 	if !isDeserializeErr(err) {
 		t.Fatalf("decodeCompressedTxOut with short compressed script "+
 			"did not return expected error type - got %T, want "+

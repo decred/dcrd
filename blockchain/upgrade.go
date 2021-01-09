@@ -17,8 +17,10 @@ import (
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/chaincfg/v3"
 	"github.com/decred/dcrd/database/v2"
+	"github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/decred/dcrd/gcs/v3"
 	"github.com/decred/dcrd/gcs/v3/blockcf2"
+	"github.com/decred/dcrd/txscript/v4"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -550,6 +552,142 @@ func determineMinimalOutputsSizeV1(serialized []byte) (int, error) {
 	return offset, nil
 }
 
+// decodeCompressedScriptSizeV1 treats the passed serialized bytes as a v1
+// compressed script, possibly followed by other data, and returns the number of
+// bytes it occupies taking into account the special encoding of the script size
+// by the domain specific compression algorithm described above.
+func decodeCompressedScriptSizeV1(serialized []byte) int {
+	const (
+		// Hardcoded constants so updates do not affect old upgrades.
+		cstPayToPubKeyHash       = 0
+		cstPayToScriptHash       = 1
+		cstPayToPubKeyCompEven   = 2
+		cstPayToPubKeyCompOdd    = 3
+		cstPayToPubKeyUncompEven = 4
+		cstPayToPubKeyUncompOdd  = 5
+		numSpecialScripts        = 64
+	)
+
+	scriptSize, bytesRead := deserializeVLQ(serialized)
+	if bytesRead == 0 {
+		return 0
+	}
+
+	switch scriptSize {
+	case cstPayToPubKeyHash:
+		return 21
+
+	case cstPayToScriptHash:
+		return 21
+
+	case cstPayToPubKeyCompEven, cstPayToPubKeyCompOdd,
+		cstPayToPubKeyUncompEven, cstPayToPubKeyUncompOdd:
+		return 33
+	}
+
+	scriptSize -= numSpecialScripts
+	scriptSize += uint64(bytesRead)
+	return int(scriptSize)
+}
+
+// decompressScriptV1 returns the original script obtained by decompressing the
+// passed v1 compressed script according to the domain specific compression
+// algorithm described above.
+//
+// NOTE: The script parameter must already have been proven to be long enough
+// to contain the number of bytes returned by decodeCompressedScriptSize or it
+// will panic.  This is acceptable since it is only an internal function.
+func decompressScriptV1(compressedPkScript []byte) []byte {
+	const (
+		// Hardcoded constants so updates do not affect old upgrades.
+		cstPayToPubKeyHash       = 0
+		cstPayToScriptHash       = 1
+		cstPayToPubKeyCompEven   = 2
+		cstPayToPubKeyCompOdd    = 3
+		cstPayToPubKeyUncompEven = 4
+		cstPayToPubKeyUncompOdd  = 5
+		numSpecialScripts        = 64
+	)
+
+	// Empty scripts, specified by 0x00, are considered nil.
+	if len(compressedPkScript) == 0 {
+		return nil
+	}
+
+	// Decode the script size and examine it for the special cases.
+	encodedScriptSize, bytesRead := deserializeVLQ(compressedPkScript)
+	switch encodedScriptSize {
+	// Pay-to-pubkey-hash script.  The resulting script is:
+	// <OP_DUP><OP_HASH160><20 byte hash><OP_EQUALVERIFY><OP_CHECKSIG>
+	case cstPayToPubKeyHash:
+		pkScript := make([]byte, 25)
+		pkScript[0] = txscript.OP_DUP
+		pkScript[1] = txscript.OP_HASH160
+		pkScript[2] = txscript.OP_DATA_20
+		copy(pkScript[3:], compressedPkScript[bytesRead:bytesRead+20])
+		pkScript[23] = txscript.OP_EQUALVERIFY
+		pkScript[24] = txscript.OP_CHECKSIG
+		return pkScript
+
+	// Pay-to-script-hash script.  The resulting script is:
+	// <OP_HASH160><20 byte script hash><OP_EQUAL>
+	case cstPayToScriptHash:
+		pkScript := make([]byte, 23)
+		pkScript[0] = txscript.OP_HASH160
+		pkScript[1] = txscript.OP_DATA_20
+		copy(pkScript[2:], compressedPkScript[bytesRead:bytesRead+20])
+		pkScript[22] = txscript.OP_EQUAL
+		return pkScript
+
+	// Pay-to-compressed-pubkey script.  The resulting script is:
+	// <OP_DATA_33><33 byte compressed pubkey><OP_CHECKSIG>
+	case cstPayToPubKeyCompEven, cstPayToPubKeyCompOdd:
+		pkScript := make([]byte, 35)
+		pkScript[0] = txscript.OP_DATA_33
+		oddness := byte(0x02)
+		if encodedScriptSize == cstPayToPubKeyCompOdd {
+			oddness = 0x03
+		}
+		pkScript[1] = oddness
+		copy(pkScript[2:], compressedPkScript[bytesRead:bytesRead+32])
+		pkScript[34] = txscript.OP_CHECKSIG
+		return pkScript
+
+	// Pay-to-uncompressed-pubkey script.  The resulting script is:
+	// <OP_DATA_65><65 byte uncompressed pubkey><OP_CHECKSIG>
+	case cstPayToPubKeyUncompEven, cstPayToPubKeyUncompOdd:
+		// Change the leading byte to the appropriate compressed pubkey
+		// identifier (0x02 or 0x03) so it can be decoded as a
+		// compressed pubkey.  This really should never fail since the
+		// encoding ensures it is valid before compressing to this type.
+		compressedKey := make([]byte, 33)
+		oddness := byte(0x02)
+		if encodedScriptSize == cstPayToPubKeyUncompOdd {
+			oddness = 0x03
+		}
+		compressedKey[0] = oddness
+		copy(compressedKey[1:], compressedPkScript[1:])
+		key, err := secp256k1.ParsePubKey(compressedKey)
+		if err != nil {
+			return nil
+		}
+
+		pkScript := make([]byte, 67)
+		pkScript[0] = txscript.OP_DATA_65
+		copy(pkScript[1:], key.SerializeUncompressed())
+		pkScript[66] = txscript.OP_CHECKSIG
+		return pkScript
+	}
+
+	// When none of the special cases apply, the script was encoded using
+	// the general format, so reduce the script size by the number of
+	// special cases and return the unmodified script.
+	scriptSize := int(encodedScriptSize - numSpecialScripts)
+	pkScript := make([]byte, scriptSize)
+	copy(pkScript, compressedPkScript[bytesRead:bytesRead+scriptSize])
+	return pkScript
+}
+
 // scriptSourceFromSpendJournalV1 uses the legacy v1 spend journal along with
 // the provided block to create a source of previous transaction scripts and
 // versions spent by the block.
@@ -623,7 +761,6 @@ func scriptSourceFromSpendJournalV1(dbTx database.Tx, block *wire.MsgBlock) (scr
 		v1TxTypeMask     = 0x0c
 		v1TxTypeShift    = 2
 		v1TxTypeTicket   = 1
-		v1CompressionVer = 1
 	)
 
 	// Loop backwards through all transactions so everything is read in reverse
@@ -674,8 +811,7 @@ func scriptSourceFromSpendJournalV1(dbTx database.Tx, block *wire.MsgBlock) (scr
 				str := "unexpected end of data after script version"
 				return nil, errDeserialize(str)
 			}
-			scriptSize := decodeCompressedScriptSize(serialized[offset:],
-				v1CompressionVer)
+			scriptSize := decodeCompressedScriptSizeV1(serialized[offset:])
 			if scriptSize < 0 {
 				str := "negative script size"
 				return nil, errDeserialize(str)
@@ -692,7 +828,7 @@ func scriptSourceFromSpendJournalV1(dbTx database.Tx, block *wire.MsgBlock) (scr
 			prevOut := &txIn.PreviousOutPoint
 			source[*prevOut] = scriptSourceEntry{
 				version: uint16(scriptVersion),
-				script:  decompressScript(pkScript, v1CompressionVer),
+				script:  decompressScriptV1(pkScript),
 			}
 
 			// Deserialize the tx version and minimal outputs for tickets as
@@ -1494,8 +1630,7 @@ func migrateSpendJournalVersion1To2(ctx context.Context, db database.DB) error {
 					str := "unexpected end of data after script version"
 					return errDeserialize(str)
 				}
-				scriptSize := decodeCompressedScriptSize(serialized[offset:],
-					v1CompressionVer)
+				scriptSize := decodeCompressedScriptSizeV1(serialized[offset:])
 				offset += scriptSize
 				if fullySpent {
 					if offset >= len(serialized) {
@@ -2021,9 +2156,7 @@ func migrateUtxoSetVersion2To3(ctx context.Context, db database.DB) error {
 
 				// Decode the compressed script size and ensure there are enough bytes
 				// left in the slice for it.
-				const compressionVersion = 1
-				scriptSize := decodeCompressedScriptSize(oldSerialized[offset:],
-					compressionVersion)
+				scriptSize := decodeCompressedScriptSizeV1(oldSerialized[offset:])
 				// Note: scriptSize == 0 is OK (an empty compressed script is valid)
 				if scriptSize < 0 {
 					return errDeserialize("negative script size")
@@ -2486,9 +2619,7 @@ func migrateSpendJournalVersion2To3(ctx context.Context, b *BlockChain) error {
 
 					// Decode the compressed script size and ensure there are enough bytes
 					// left in the slice for it.
-					const compressionVersion = 1
-					scriptSize := decodeCompressedScriptSize(v2Serialized[offset:],
-						compressionVersion)
+					scriptSize := decodeCompressedScriptSizeV1(v2Serialized[offset:])
 					// Note: scriptSize == 0 is OK (an empty compressed script is valid)
 					if scriptSize < 0 {
 						return false, errDeserialize("negative script size")
@@ -2748,8 +2879,7 @@ func migrateSpendJournalVersion2To3(ctx context.Context, b *BlockChain) error {
 
 					// Decode the compressed script size and ensure there are enough bytes
 					// left in the slice for it.
-					scriptSize = decodeCompressedScriptSize(utxoSerialized[utxoOffset:],
-						compressionVersion)
+					scriptSize = decodeCompressedScriptSizeV1(utxoSerialized[utxoOffset:])
 					// Note: scriptSize == 0 is OK (an empty compressed script is valid)
 					if scriptSize < 0 {
 						return false, errDeserialize("negative script size")
