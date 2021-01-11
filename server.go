@@ -97,6 +97,15 @@ const (
 	// otherwise arise from sending old orphan blocks and forcing nodes to do
 	// expensive lottery data calculations for them.
 	maxReorgDepthNotify = 6
+
+	// maxRecentlyConfirmedTxns specifies the maximum number of recently
+	// confirmed transactions to track.  This value is set to target tracking
+	// the maximum number transactions of the minimum realistic size (~206
+	// bytes) in approximately one hour of blocks on the main network.
+	//
+	// Since each hash in the cache will occupy 32 bytes, this value will result
+	// in around 718KiB memory usage plus the overhead of the structure.
+	maxRecentlyConfirmedTxns = 23000
 )
 
 var (
@@ -485,6 +494,10 @@ type server struct {
 	// anouncements.
 	lotteryDataBroadcastMtx sync.RWMutex
 	lotteryDataBroadcast    map[chainhash.Hash]struct{}
+
+	// recentlyConfirmedTxns tracks transactions that have been confirmed in the
+	// most recent blocks.
+	recentlyConfirmedTxns lru.Cache
 }
 
 // serverPeer extends the peer to maintain state shared by the server.
@@ -1494,11 +1507,15 @@ func (s *server) AnnounceNewTransactions(txns []*dcrutil.Tx) {
 }
 
 // TransactionConfirmed marks the provided single confirmation transaction as
-// no longer needing rebroadcasting.
+// no longer needing rebroadcasting and keeps track of it for use when avoiding
+// requests for recently confirmed transactions.
 func (s *server) TransactionConfirmed(tx *dcrutil.Tx) {
+	txHash := tx.Hash()
+	s.recentlyConfirmedTxns.Add(*txHash)
+
 	// Rebroadcasting is only necessary when the RPC server is active.
 	if s.rpcServer != nil {
-		iv := wire.NewInvVect(wire.InvTypeTx, tx.Hash())
+		iv := wire.NewInvVect(wire.InvTypeTx, txHash)
 		s.RemoveRebroadcastInventory(iv)
 	}
 }
@@ -2625,7 +2642,8 @@ func (s *server) handleBlockchainNotification(notification *blockchain.Notificat
 
 				// Now that this block is in the blockchain, mark the
 				// transaction (except the coinbase) as no longer needing
-				// rebroadcasting.
+				// rebroadcasting and keep track of it for use when avoiding
+				// requests for recently confirmed transactions.
 				s.TransactionConfirmed(tx)
 			}
 		}
@@ -3325,22 +3343,23 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB, chainP
 	}
 
 	s := server{
-		chainParams:          chainParams,
-		addrManager:          amgr,
-		newPeers:             make(chan *serverPeer, cfg.MaxPeers),
-		donePeers:            make(chan *serverPeer, cfg.MaxPeers),
-		banPeers:             make(chan *serverPeer, cfg.MaxPeers),
-		query:                make(chan interface{}),
-		relayInv:             make(chan relayMsg, cfg.MaxPeers),
-		broadcast:            make(chan broadcastMsg, cfg.MaxPeers),
-		modifyRebroadcastInv: make(chan interface{}),
-		nat:                  nat,
-		db:                   db,
-		timeSource:           blockchain.NewMedianTime(),
-		services:             services,
-		sigCache:             sigCache,
-		subsidyCache:         standalone.NewSubsidyCache(chainParams),
-		lotteryDataBroadcast: make(map[chainhash.Hash]struct{}),
+		chainParams:           chainParams,
+		addrManager:           amgr,
+		newPeers:              make(chan *serverPeer, cfg.MaxPeers),
+		donePeers:             make(chan *serverPeer, cfg.MaxPeers),
+		banPeers:              make(chan *serverPeer, cfg.MaxPeers),
+		query:                 make(chan interface{}),
+		relayInv:              make(chan relayMsg, cfg.MaxPeers),
+		broadcast:             make(chan broadcastMsg, cfg.MaxPeers),
+		modifyRebroadcastInv:  make(chan interface{}),
+		nat:                   nat,
+		db:                    db,
+		timeSource:            blockchain.NewMedianTime(),
+		services:              services,
+		sigCache:              sigCache,
+		subsidyCache:          standalone.NewSubsidyCache(chainParams),
+		lotteryDataBroadcast:  make(map[chainhash.Hash]struct{}),
+		recentlyConfirmedTxns: lru.NewCache(maxRecentlyConfirmedTxns),
 	}
 
 	// Create the transaction and address indexes if needed.
@@ -3497,10 +3516,11 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB, chainP
 		RpcServer: func() *rpcserver.Server {
 			return s.rpcServer
 		},
-		DisableCheckpoints: cfg.DisableCheckpoints,
-		NoMiningStateSync:  cfg.NoMiningStateSync,
-		MaxPeers:           cfg.MaxPeers,
-		MaxOrphanTxs:       cfg.MaxOrphanTxs,
+		DisableCheckpoints:    cfg.DisableCheckpoints,
+		NoMiningStateSync:     cfg.NoMiningStateSync,
+		MaxPeers:              cfg.MaxPeers,
+		MaxOrphanTxs:          cfg.MaxOrphanTxs,
+		RecentlyConfirmedTxns: &s.recentlyConfirmedTxns,
 	})
 
 	// Dump the blockchain and quit if requested.
