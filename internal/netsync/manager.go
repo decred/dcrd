@@ -362,12 +362,7 @@ func (m *SyncManager) startSync() {
 		// to send.
 		m.requestedBlocks = make(map[chainhash.Hash]struct{})
 
-		blkLocator, err := m.cfg.Chain.LatestBlockLocator()
-		if err != nil {
-			log.Errorf("Failed to get block locator for the latest block: %v",
-				err)
-			return
-		}
+		blkLocator := m.cfg.Chain.LatestBlockLocator()
 		locator := chainBlockLocatorToHashes(blkLocator)
 
 		log.Infof("Syncing to block height %d from peer %v",
@@ -1009,17 +1004,12 @@ func (m *SyncManager) handleBlockMsg(bmsg *blockMsg) {
 	onMainChain := !isOrphan && forkLen == 0
 	if isOrphan {
 		orphanRoot := m.orphanRoot(blockHash)
-		blkLocator, err := m.cfg.Chain.LatestBlockLocator()
+		blkLocator := m.cfg.Chain.LatestBlockLocator()
+		locator := chainBlockLocatorToHashes(blkLocator)
+		err := peer.PushGetBlocksMsg(locator, orphanRoot)
 		if err != nil {
-			log.Warnf("Failed to get block locator for the latest block: %v",
+			log.Warnf("Failed to push getblocksmsg for the latest block: %v",
 				err)
-		} else {
-			locator := chainBlockLocatorToHashes(blkLocator)
-			err = peer.PushGetBlocksMsg(locator, orphanRoot)
-			if err != nil {
-				log.Warnf("Failed to push getblocksmsg for the latest block: "+
-					"%v", err)
-			}
 		}
 	} else {
 		// When the block is not an orphan, log information about it and

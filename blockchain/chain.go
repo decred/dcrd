@@ -1886,11 +1886,11 @@ func (b *BlockChain) BlockLocatorFromHash(hash *chainhash.Hash) BlockLocator {
 // main (best) chain.
 //
 // This function is safe for concurrent access.
-func (b *BlockChain) LatestBlockLocator() (BlockLocator, error) {
+func (b *BlockChain) LatestBlockLocator() BlockLocator {
 	b.chainLock.RLock()
 	locator := b.bestChain.BlockLocator(nil)
 	b.chainLock.RUnlock()
-	return locator, nil
+	return locator
 }
 
 // extractDeploymentIDVersions returns a map of all deployment IDs within the
