@@ -10,6 +10,7 @@ import (
 	"crypto/ed25519"
 	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
@@ -42,7 +43,7 @@ type config struct {
 	Hosts []string `short:"H" description:"hostname or IP certificate is valid for; may be specified multiple times"`
 	Local bool     `short:"L" description:"append localhost, 127.0.0.1, and ::1 to hosts if not already specified"`
 	Org   string   `short:"o" description:"organization"`
-	Algo  string   `short:"a" description:"key algorithm (one of: P-256, P-384, P-521, Ed25519)"`
+	Algo  string   `short:"a" description:"key algorithm (one of: P-256, P-384, P-521, Ed25519, RSA4096)"`
 	Years int      `short:"y" description:"years certificate is valid for"`
 	Force bool     `short:"f" description:"overwrite existing certs/keys"`
 }
@@ -82,6 +83,8 @@ func main() {
 		keygen = ecKeyGen(elliptic.P521())
 	case "Ed25519":
 		keygen = ed25519KeyGen
+	case "RSA4096":
+		keygen = rsaKeyGen(4096)
 	default:
 		fmt.Fprintf(os.Stderr, "unknown algorithm %q\n", cfg.Algo)
 		usage(parser)
@@ -184,6 +187,17 @@ func ecKeyGen(curve elliptic.Curve) func() (pub, priv interface{}) {
 		key, err := ecdsa.GenerateKey(curve, rand.Reader)
 		if err != nil {
 			fatalf("generate random EC key: %v\n", err)
+		}
+		return key.Public(), key
+	}
+}
+
+func rsaKeyGen(bits int) func() (pub, priv interface{}) {
+	return func() (pub, priv interface{}) {
+		var key *rsa.PrivateKey
+		key, err := rsa.GenerateKey(rand.Reader, bits)
+		if err != nil {
+			fatalf("generate random RSA key: %v\n", err)
 		}
 		return key.Public(), key
 	}
