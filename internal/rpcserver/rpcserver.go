@@ -2041,17 +2041,21 @@ func handleGetBlockchainInfo(_ context.Context, s *Server, cmd interface{}) (int
 		verifyProgress = math.Min(float64(best.Height)/float64(syncHeight), 1.0)
 	}
 
-	// Fetch the maximum allowed block size.
-	maxBlockSize, err := chain.MaxBlockSize(&best.PrevHash)
-	if err != nil {
-		return nil, rpcInternalError(err.Error(),
-			"Could not fetch max block size.")
+	// Fetch the maximum allowed block size for all blocks other than the
+	// genesis block.
+	params := s.cfg.ChainParams
+	maxBlockSize := int64(params.MaximumBlockSizes[0])
+	if best.PrevHash != zeroHash {
+		maxBlockSize, err = chain.MaxBlockSize(&best.PrevHash)
+		if err != nil {
+			context := "Could not fetch max block size"
+			return nil, rpcInternalError(err.Error(), context)
+		}
 	}
 
 	// Fetch the agendas of the consensus deployments as well as their
 	// threshold states and state activation heights.
 	dInfo := make(map[string]types.AgendaInfo)
-	params := s.cfg.ChainParams
 	defaultStatus := blockchain.ThresholdStateTuple{
 		State: blockchain.ThresholdDefined,
 	}.String()

@@ -3606,7 +3606,8 @@ func TestHandleGetBlockchainInfo(t *testing.T) {
 		mockChain: func() *testRPCChain {
 			chain := defaultMockRPCChain()
 			chain.bestSnapshot = &blockchain.BestState{
-				Hash: *hash,
+				Hash:     *hash,
+				PrevHash: *prevHash,
 			}
 			chain.chainWork = big.NewInt(0).SetBytes([]byte{0x11, 0x5d, 0x28, 0x33, 0x84,
 				0x90, 0x90, 0xb0, 0x02, 0x65, 0x06})
