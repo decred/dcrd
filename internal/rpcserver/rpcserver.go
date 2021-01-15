@@ -3866,7 +3866,7 @@ func handleHelp(_ context.Context, s *Server, cmd interface{}) (interface{}, err
 		method = types.Method(*c.Command)
 	}
 	if method == "" {
-		usage, err := s.helpCacher.rpcUsage(false)
+		usage, err := s.helpCacher.RPCUsage(false)
 		if err != nil {
 			context := "Failed to generate RPC usage"
 			return nil, rpcInternalError(err.Error(), context)
@@ -3883,7 +3883,7 @@ func handleHelp(_ context.Context, s *Server, cmd interface{}) (interface{}, err
 	}
 
 	// Get the help for the command.
-	help, err := s.helpCacher.rpcMethodHelp(method)
+	help, err := s.helpCacher.RPCMethodHelp(method)
 	if err != nil {
 		context := "Failed to generate help"
 		return nil, rpcInternalError(err.Error(), context)
@@ -5412,7 +5412,7 @@ type Server struct {
 	statusLock             sync.RWMutex
 	wg                     sync.WaitGroup
 	workState              *workState
-	helpCacher             *helpCacher
+	helpCacher             RPCHelpCacher
 	requestProcessShutdown chan struct{}
 }
 
