@@ -1,4 +1,4 @@
-// Copyright (c) 2020 The Decred developers
+// Copyright (c) 2020-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -118,9 +118,7 @@ func TestFetchUtxoView(t *testing.T) {
 	outs = g.OldestCoinbaseOuts()
 	g.NextBlock("b1", &outs[0], outs[1:], func(b *wire.MsgBlock) {
 		b.Header.VoteBits &^= voteBitYes
-		for i := 0; i < 5; i++ {
-			g.ReplaceVoteBitsN(i, voteBitNo)(b)
-		}
+		g.ReplaceVoteBits(voteBitNo)(b)
 	})
 	g.AssertTipDisapprovesPrevious()
 	g.AcceptTipBlock()
@@ -174,9 +172,7 @@ func TestFetchUtxoView(t *testing.T) {
 	g.SetTip("b0")
 	b1a := g.NextBlock("b1a", &outs[0], outs[1:], func(b *wire.MsgBlock) {
 		b.Header.VoteBits &^= voteBitYes
-		for i := 0; i < 5; i++ {
-			g.ReplaceVoteBitsN(i, voteBitNo)(b)
-		}
+		g.ReplaceVoteBits(voteBitNo)(b)
 
 		b.Transactions[1] = b0Tx1.MsgTx()
 	})
