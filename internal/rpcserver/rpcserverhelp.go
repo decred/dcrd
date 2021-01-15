@@ -1095,10 +1095,10 @@ type helpCacher struct {
 	methodHelp map[types.Method]string
 }
 
-// rpcMethodHelp returns an RPC help string for the provided method.
+// RPCMethodHelp returns an RPC help string for the provided method.
 //
 // This function is safe for concurrent access.
-func (c *helpCacher) rpcMethodHelp(method types.Method) (string, error) {
+func (c *helpCacher) RPCMethodHelp(method types.Method) (string, error) {
 	c.Lock()
 	defer c.Unlock()
 
@@ -1123,10 +1123,10 @@ func (c *helpCacher) rpcMethodHelp(method types.Method) (string, error) {
 	return help, nil
 }
 
-// rpcUsage returns one-line usage for all support RPC commands.
+// RPCUsage returns one-line usage for all supported RPC commands.
 //
 // This function is safe for concurrent access.
-func (c *helpCacher) rpcUsage(includeWebsockets bool) (string, error) {
+func (c *helpCacher) RPCUsage(includeWebsockets bool) (string, error) {
 	c.Lock()
 	defer c.Unlock()
 

@@ -19,7 +19,9 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -1189,6 +1191,25 @@ func (mgr *testNtfnManager) Run(ctx context.Context) {
 	<-ctx.Done()
 }
 
+// testHelpCacher provides a mock help and usage cacher by implementing the
+// RPCHelpCacher interface.
+type testHelpCacher struct {
+	methodHelp    string
+	methodHelpErr error
+	usage         string
+	usageErr      error
+}
+
+// RPCMethodHelp returns the mocked RPC help string for the provided method.
+func (c *testHelpCacher) RPCMethodHelp(method types.Method) (string, error) {
+	return c.methodHelp, c.methodHelpErr
+}
+
+// RPCUsage returns the mocked usage for supported RPC commands.
+func (c *testHelpCacher) RPCUsage(includeWebsockets bool) (string, error) {
+	return c.usage, c.usageErr
+}
+
 // mustParseHash converts the passed big-endian hex string into a
 // chainhash.Hash and will panic if there is an error.  It only differs from the
 // one available in chainhash in that it will panic so errors in the source code
@@ -1298,6 +1319,7 @@ type rpcTest struct {
 	mockFiltererV2        *testFiltererV2
 	mockTxMempooler       *testTxMempooler
 	mockMiningAddrs       []dcrutil.Address
+	mockHelpCacher        *testHelpCacher
 	result                interface{}
 	wantErr               bool
 	errCode               dcrjson.RPCErrorCode
@@ -7685,6 +7707,148 @@ func TestHandleGetRawTransaction(t *testing.T) {
 	}})
 }
 
+func TestHandleVersion(t *testing.T) {
+	t.Parallel()
+
+	runtimeVer := strings.Replace(runtime.Version(), ".", "-", -1)
+	version.BuildMetadata = "foo"
+	version.PreRelease = "pre"
+	buildMeta := version.NormalizeBuildString(
+		fmt.Sprintf("%s.%s", version.BuildMetadata, runtimeVer))
+
+	result := map[string]types.VersionResult{
+		"dcrdjsonrpcapi": {
+			VersionString: jsonrpcSemverString,
+			Major:         jsonrpcSemverMajor,
+			Minor:         jsonrpcSemverMinor,
+			Patch:         jsonrpcSemverPatch,
+			Prerelease:    "",
+			BuildMetadata: "",
+		},
+		"dcrd": {
+			VersionString: version.String(),
+			Major:         uint32(version.Major),
+			Minor:         uint32(version.Minor),
+			Patch:         uint32(version.Patch),
+			Prerelease:    version.PreRelease,
+			BuildMetadata: buildMeta,
+		}}
+
+	testRPCServerHandler(t, []rpcTest{{
+		name:    "handleVersion: ok, with build metadata",
+		handler: handleVersion,
+		cmd:     &types.VersionCmd{},
+		wantErr: false,
+		result:  result,
+	}})
+}
+
+func TestHandleGetStakeDifficulty(t *testing.T) {
+	t.Parallel()
+
+	testRPCServerHandler(t, []rpcTest{{
+		name:    "handleGetStakeDifficulty: unable to fetch header by height",
+		handler: handleGetStakeDifficulty,
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.headerByHeightErr = errors.New("unable to fetch header " +
+				"by height")
+			return chain
+		}(),
+		cmd:     &types.GetStakeDifficultyCmd{},
+		wantErr: true,
+		errCode: dcrjson.ErrRPCDifficulty,
+	}, {
+		name:    "handleGetStakeDifficulty: ok",
+		handler: handleGetStakeDifficulty,
+		cmd:     &types.GetStakeDifficultyCmd{},
+		result: types.GetStakeDifficultyResult{
+			CurrentStakeDifficulty: 144.2816259,
+			NextStakeDifficulty:    144.2816259,
+		},
+	}})
+}
+
+func TestHandleStop(t *testing.T) {
+	t.Parallel()
+
+	testRPCServerHandler(t, []rpcTest{{
+		name:    "handleStop: ok",
+		handler: handleStop,
+		cmd:     &types.StopCmd{},
+		result:  "dcrd stopping.",
+	}})
+}
+
+func TestHandleHelp(t *testing.T) {
+	t.Parallel()
+
+	unknownCmd := string("nodes")
+	cmd := string("addnode")
+	usage := "command usage"
+	help := "command help"
+
+	testRPCServerHandler(t, []rpcTest{{
+		name:    "handleHelp: unknown command",
+		handler: handleHelp,
+		cmd: &types.HelpCmd{
+			Command: &unknownCmd,
+		},
+		wantErr: true,
+		errCode: dcrjson.ErrRPCInvalidParameter,
+	}, {
+		name:    "handleHelp: unable to generate usage",
+		handler: handleHelp,
+		cmd: &types.HelpCmd{
+			Command: nil,
+		},
+		mockHelpCacher: func() *testHelpCacher {
+			return &testHelpCacher{
+				usageErr: errors.New("unable to generate usage"),
+			}
+		}(),
+		wantErr: true,
+		errCode: dcrjson.ErrRPCInternal.Code,
+	}, {
+		name:    "handleHelp: ok, command is nil",
+		handler: handleHelp,
+		cmd: &types.HelpCmd{
+			Command: nil,
+		},
+		mockHelpCacher: func() *testHelpCacher {
+			return &testHelpCacher{
+				usage: usage,
+			}
+		}(),
+		result: usage,
+	}, {
+		name:    "handleHelp: unable to generate help",
+		handler: handleHelp,
+		cmd: &types.HelpCmd{
+			Command: &cmd,
+		},
+		mockHelpCacher: func() *testHelpCacher {
+			return &testHelpCacher{
+				methodHelpErr: errors.New("unable to generate help"),
+			}
+		}(),
+		wantErr: true,
+		errCode: dcrjson.ErrRPCInternal.Code,
+	}, {
+		name:    "handleHelp: ok",
+		handler: handleHelp,
+		cmd: &types.HelpCmd{
+			Command: &cmd,
+		},
+		mockHelpCacher: func() *testHelpCacher {
+			return &testHelpCacher{
+				methodHelp: help,
+			}
+		}(),
+		result: help,
+	}})
+}
+
 func testRPCServerHandler(t *testing.T, tests []rpcTest) {
 	t.Helper()
 
@@ -7697,6 +7861,7 @@ func testRPCServerHandler(t *testing.T, tests []rpcTest) {
 			// that are provided by the test.
 			chainParams := defaultChainParams
 			workState := newWorkState()
+			helpCacher := &testHelpCacher{}
 			if test.mockChainParams != nil {
 				chainParams = test.mockChainParams
 			}
@@ -7772,11 +7937,15 @@ func testRPCServerHandler(t *testing.T, tests []rpcTest) {
 			if test.mockTxMempooler != nil {
 				rpcserverConfig.TxMempooler = test.mockTxMempooler
 			}
+			if test.mockHelpCacher != nil {
+				helpCacher = test.mockHelpCacher
+			}
 
 			testServer := &Server{
-				cfg:       *rpcserverConfig,
-				ntfnMgr:   new(testNtfnManager),
-				workState: workState,
+				cfg:        *rpcserverConfig,
+				ntfnMgr:    new(testNtfnManager),
+				workState:  workState,
+				helpCacher: helpCacher,
 			}
 			result, err := test.handler(nil, testServer, test.cmd)
 			if test.wantErr {

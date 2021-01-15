@@ -2070,7 +2070,7 @@ func handleWebsocketHelp(wsc *wsClient, icmd interface{}) (interface{}, error) {
 		method = types.Method(*cmd.Command)
 	}
 	if method == "" {
-		usage, err := wsc.rpcServer.helpCacher.rpcUsage(true)
+		usage, err := wsc.rpcServer.helpCacher.RPCUsage(true)
 		if err != nil {
 			context := "Failed to generate RPC usage"
 			return nil, rpcInternalError(err.Error(), context)
@@ -2093,7 +2093,7 @@ func handleWebsocketHelp(wsc *wsClient, icmd interface{}) (interface{}, error) {
 	}
 
 	// Get the help for the command.
-	help, err := wsc.rpcServer.helpCacher.rpcMethodHelp(method)
+	help, err := wsc.rpcServer.helpCacher.RPCMethodHelp(method)
 	if err != nil {
 		context := "Failed to generate help"
 		return nil, rpcInternalError(err.Error(), context)

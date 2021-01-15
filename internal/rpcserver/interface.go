@@ -21,6 +21,7 @@ import (
 	"github.com/decred/dcrd/internal/mempool"
 	"github.com/decred/dcrd/internal/mining"
 	"github.com/decred/dcrd/peer/v2"
+	"github.com/decred/dcrd/rpc/jsonrpc/types/v3"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -733,4 +734,17 @@ type NtfnManager interface {
 	// websocket client notifications. It blocks until the provided context is
 	// cancelled.
 	Run(ctx context.Context)
+}
+
+// RPCHelpCacher represents a cacher that provides help and usage text for RPC
+// server commands and caches the results.
+//
+// The interface contract requires that all of these methods are safe for
+// concurrent access.
+type RPCHelpCacher interface {
+	// RPCMethodHelp returns an RPC help string for the provided method.
+	RPCMethodHelp(method types.Method) (string, error)
+
+	// RPCUsage returns one-line usage for all supported RPC commands.
+	RPCUsage(includeWebsockets bool) (string, error)
 }

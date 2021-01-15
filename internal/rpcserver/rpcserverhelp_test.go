@@ -29,33 +29,33 @@ func TestHelp(t *testing.T) {
 
 	// Ensure the usage for every command can be generated without errors.
 	helpCacher := newHelpCacher()
-	if _, err := helpCacher.rpcUsage(true); err != nil {
+	if _, err := helpCacher.RPCUsage(true); err != nil {
 		t.Fatalf("Failed to generate one-line usage: %v", err)
 	}
-	if _, err := helpCacher.rpcUsage(true); err != nil {
+	if _, err := helpCacher.RPCUsage(true); err != nil {
 		t.Fatalf("Failed to generate one-line usage (cached): %v", err)
 	}
 
 	// Ensure the help for every command can be generated without errors.
 	for k := range rpcHandlers {
-		if _, err := helpCacher.rpcMethodHelp(k); err != nil {
+		if _, err := helpCacher.RPCMethodHelp(k); err != nil {
 			t.Errorf("Failed to generate help for method '%v': %v",
 				k, err)
 			continue
 		}
-		if _, err := helpCacher.rpcMethodHelp(k); err != nil {
+		if _, err := helpCacher.RPCMethodHelp(k); err != nil {
 			t.Errorf("Failed to generate help for method '%v'"+
 				"(cached): %v", k, err)
 			continue
 		}
 	}
 	for k := range wsHandlers {
-		if _, err := helpCacher.rpcMethodHelp(k); err != nil {
+		if _, err := helpCacher.RPCMethodHelp(k); err != nil {
 			t.Errorf("Failed to generate help for method '%v': %v",
 				k, err)
 			continue
 		}
-		if _, err := helpCacher.rpcMethodHelp(k); err != nil {
+		if _, err := helpCacher.RPCMethodHelp(k); err != nil {
 			t.Errorf("Failed to generate help for method '%v'"+
 				"(cached): %v", k, err)
 			continue
