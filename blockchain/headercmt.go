@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2020 The Decred developers
+// Copyright (c) 2019-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -74,7 +74,7 @@ func (b *BlockChain) FetchUtxoViewParentTemplate(block *wire.MsgBlock) (*UtxoVie
 	// Since the block template is building on the parent of the current tip,
 	// undo the transactions and spend information for the tip block to reach
 	// the point of view of the block template.
-	view := NewUtxoViewpoint(b)
+	view := NewUtxoViewpoint()
 	view.SetBestHash(&tip.hash)
 	tipBlock, err := b.fetchMainChainBlockByNode(tip)
 	if err != nil {

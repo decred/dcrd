@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2020 The Decred developers
+// Copyright (c) 2015-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -3791,7 +3791,7 @@ func (b *BlockChain) CheckConnectBlockTemplate(block *dcrutil.Block) error {
 			return ruleError(ErrMissingParent, err.Error())
 		}
 
-		view := NewUtxoViewpoint(b)
+		view := NewUtxoViewpoint()
 		view.SetBestHash(&tip.hash)
 
 		return b.checkConnectBlock(newNode, block, parent, view, nil, nil)
@@ -3801,7 +3801,7 @@ func (b *BlockChain) CheckConnectBlockTemplate(block *dcrutil.Block) error {
 	// current tip due to the previous checks, so undo the transactions and
 	// spend information for the tip block to reach the point of view of the
 	// block template.
-	view := NewUtxoViewpoint(b)
+	view := NewUtxoViewpoint()
 	view.SetBestHash(&tip.hash)
 	tipBlock, err := b.fetchMainChainBlockByNode(tip)
 	if err != nil {

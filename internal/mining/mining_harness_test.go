@@ -1,4 +1,4 @@
-// Copyright (c) 2020 The Decred developers
+// Copyright (c) 2020-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -144,7 +144,7 @@ func (c *fakeChain) FetchUtxoView(tx *dcrutil.Tx, treeValid bool) (*blockchain.U
 
 	// Add entries for the outputs of the tx to the new view.
 	msgTx := tx.MsgTx()
-	viewpoint := blockchain.NewUtxoViewpoint(nil)
+	viewpoint := blockchain.NewUtxoViewpoint()
 	prevOut := wire.OutPoint{Hash: *tx.Hash(), Tree: tx.Tree()}
 	for txOutIdx := range msgTx.TxOut {
 		prevOut.Index = uint32(txOutIdx)
@@ -195,7 +195,7 @@ func (c *fakeChain) MaxTreasuryExpenditure(preTVIBlock *chainhash.Hash) (int64, 
 
 // NewUtxoViewpoint returns a new empty unspent transaction output view.
 func (c *fakeChain) NewUtxoViewpoint() *blockchain.UtxoViewpoint {
-	return blockchain.NewUtxoViewpoint(nil)
+	return blockchain.NewUtxoViewpoint()
 }
 
 // TipGeneration returns a mocked entire generation of blocks stemming from the
@@ -1296,8 +1296,8 @@ func newMiningHarness(chainParams *chaincfg.Params) (*miningHarness, []spendable
 		blocks:                          make(map[chainhash.Hash]*dcrutil.Block),
 		isHeaderCommitmentsAgendaActive: true,
 		isTreasuryAgendaActive:          true,
-		parentUtxos:                     blockchain.NewUtxoViewpoint(nil),
-		utxos:                           blockchain.NewUtxoViewpoint(nil),
+		parentUtxos:                     blockchain.NewUtxoViewpoint(),
+		utxos:                           blockchain.NewUtxoViewpoint(),
 	}
 
 	// Set the proof of work limit and next required difficulty very high by

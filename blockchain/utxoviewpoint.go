@@ -1,5 +1,5 @@
 // Copyright (c) 2015-2016 The btcsuite developers
-// Copyright (c) 2015-2020 The Decred developers
+// Copyright (c) 2015-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -227,9 +227,8 @@ func isTicketSubmissionOutput(txType stake.TxType, txOutIdx uint32) bool {
 // The unspent outputs are needed by other transactions for things such as
 // script validation and double spend prevention.
 type UtxoViewpoint struct {
-	entries    map[wire.OutPoint]*UtxoEntry
-	bestHash   chainhash.Hash
-	blockChain *BlockChain
+	entries  map[wire.OutPoint]*UtxoEntry
+	bestHash chainhash.Hash
 }
 
 // BestHash returns the hash of the best block in the chain the view currently
@@ -958,9 +957,8 @@ func (view *UtxoViewpoint) fetchInputUtxos(db database.DB, block *dcrutil.Block,
 // clone returns a deep copy of the view.
 func (view *UtxoViewpoint) clone() *UtxoViewpoint {
 	clonedView := &UtxoViewpoint{
-		entries:    make(map[wire.OutPoint]*UtxoEntry),
-		bestHash:   view.bestHash,
-		blockChain: view.blockChain,
+		entries:  make(map[wire.OutPoint]*UtxoEntry),
+		bestHash: view.bestHash,
 	}
 
 	for outpoint, entry := range view.entries {
@@ -971,10 +969,9 @@ func (view *UtxoViewpoint) clone() *UtxoViewpoint {
 }
 
 // NewUtxoViewpoint returns a new empty unspent transaction output view.
-func NewUtxoViewpoint(blockChain *BlockChain) *UtxoViewpoint {
+func NewUtxoViewpoint() *UtxoViewpoint {
 	return &UtxoViewpoint{
-		entries:    make(map[wire.OutPoint]*UtxoEntry),
-		blockChain: blockChain,
+		entries: make(map[wire.OutPoint]*UtxoEntry),
 	}
 }
 
@@ -995,7 +992,7 @@ func (b *BlockChain) FetchUtxoView(tx *dcrutil.Tx, includeRegularTxns bool) (*Ut
 	// because the code below requires the parent block and the genesis
 	// block doesn't have one.
 	tip := b.bestChain.Tip()
-	view := NewUtxoViewpoint(b)
+	view := NewUtxoViewpoint()
 	view.SetBestHash(&tip.hash)
 	if tip.height == 0 {
 		return view, nil
