@@ -3581,7 +3581,7 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB, chainP
 			IsTreasuryAgendaActive:          s.chain.IsTreasuryAgendaActive,
 			MaxTreasuryExpenditure:          s.chain.MaxTreasuryExpenditure,
 			NewUtxoViewpoint: func() *blockchain.UtxoViewpoint {
-				return blockchain.NewUtxoViewpoint(s.chain)
+				return blockchain.NewUtxoViewpoint()
 			},
 			TipGeneration: s.chain.TipGeneration,
 			ValidateTransactionScripts: func(tx *dcrutil.Tx,

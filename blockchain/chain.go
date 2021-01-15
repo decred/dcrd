@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2020 The Decred developers
+// Copyright (c) 2015-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -980,7 +980,7 @@ func (b *BlockChain) reorganizeChainInternal(target *blockNode) error {
 	// using that information to unspend all of the spent txos and remove the
 	// utxos created by the blocks.  In addition, if a block votes against its
 	// parent, the regular transactions are reconnected.
-	view := NewUtxoViewpoint(b)
+	view := NewUtxoViewpoint()
 	view.SetBestHash(&tip.hash)
 	var nextBlockToDetach *dcrutil.Block
 	for tip != nil && tip != fork {

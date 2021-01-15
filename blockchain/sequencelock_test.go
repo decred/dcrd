@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2020 The Decred developers
+// Copyright (c) 2017-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -55,7 +55,7 @@ func TestCalcSequenceLock(t *testing.T) {
 			PkScript: nil,
 		}},
 	})
-	view := NewUtxoViewpoint(bc)
+	view := NewUtxoViewpoint()
 	view.AddTxOuts(targetTx, int64(numBlocks)-4, 0, noTreasury)
 	view.SetBestHash(&node.hash)
 
