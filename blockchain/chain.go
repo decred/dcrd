@@ -1961,7 +1961,7 @@ func stxosToScriptSource(block *dcrutil.Block, stxos []spentTxOut, isTreasuryEna
 			prevOut := &txIn.PreviousOutPoint
 			source[*prevOut] = scriptSourceEntry{
 				version: stxo.scriptVersion,
-				script:  decompressScript(stxo.pkScript),
+				script:  stxo.pkScript,
 			}
 		}
 	}
@@ -1983,7 +1983,7 @@ func stxosToScriptSource(block *dcrutil.Block, stxos []spentTxOut, isTreasuryEna
 			prevOut := &txIn.PreviousOutPoint
 			source[*prevOut] = scriptSourceEntry{
 				version: stxo.scriptVersion,
-				script:  decompressScript(stxo.pkScript),
+				script:  stxo.pkScript,
 			}
 		}
 	}
