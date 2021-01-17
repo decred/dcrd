@@ -876,6 +876,65 @@ func (m *SyncManager) handleBlockMsg(bmsg *blockMsg) {
 	}
 }
 
+// guessHeaderSyncProgress returns a percentage that is a guess of the progress
+// of the header sync progress for the given currently best known header based
+// on an algorithm that considers the total number of expected headers based on
+// the target time per block of the network.  It should only be used for the
+// main and test networks because it relies on relatively consistent mining
+// which is not the case for other network such as the simulation test network.
+//
+// This function is safe for concurrent access.
+func (m *SyncManager) guessHeaderSyncProgress(header *wire.BlockHeader) float64 {
+	// Calculate the expected total number of blocks to reach the current time
+	// by considering the number there already are plus the expected number of
+	// remaining ones there should be in the time interval since the provided
+	// best known header and the current time given the target block time.
+	//
+	// This approach is used as opposed to calculating the total expected since
+	// the genesis block since it gets more accurate as more headers are
+	// processed and thus provide more information.  It is also more robust
+	// against networks with dynamic difficulty readjustment such as the test
+	// network.
+	curTimestamp := m.cfg.TimeSource.AdjustedTime().Unix()
+	targetSecsPerBlock := int64(m.cfg.ChainParams.TargetTimePerBlock.Seconds())
+	remaining := (curTimestamp - header.Timestamp.Unix()) / targetSecsPerBlock
+	expectedTotal := int64(header.Height) + remaining
+
+	// Finally the progress guess is simply the ratio of the current number of
+	// known headers to the total expected number of headers.
+	return math.Min(float64(header.Height)/float64(expectedTotal), 1.0) * 100
+}
+
+// headerSyncProgress returns a percentage that is a guess of the progress of
+// of the header sync process.
+//
+// This function is safe for concurrent access.
+func (m *SyncManager) headerSyncProgress() float64 {
+	hash, _ := m.cfg.Chain.BestHeader()
+	header, err := m.cfg.Chain.HeaderByHash(&hash)
+	if err != nil {
+		return 0.0
+	}
+
+	// Use an algorithm that considers the total number of expected headers
+	// based on the target time per block of the network for the main and test
+	// networks.  This is the preferred approach because, unlike the sync height
+	// reported by remote peers, it is difficult to game since it is based on
+	// the target proof of work, but it assumes consistent mining, which is not
+	// the case on all networks, so limit it to the two where that applies.
+	net := m.cfg.ChainParams.Net
+	if net == wire.MainNet || net == wire.TestNet3 {
+		return m.guessHeaderSyncProgress(&header)
+	}
+
+	// Fall back to using the sync height reported by the remote peer otherwise.
+	syncHeight := m.SyncHeight()
+	if syncHeight == 0 {
+		return 0.0
+	}
+	return math.Min(float64(header.Height)/float64(syncHeight), 1.0) * 100
+}
+
 // handleHeadersMsg handles headers messages from all peers.
 func (m *SyncManager) handleHeadersMsg(hmsg *headersMsg) {
 	peer := lookupPeer(hmsg.peer, m.peers)
@@ -1035,6 +1094,9 @@ func (m *SyncManager) handleHeadersMsg(hmsg *headersMsg) {
 		blkLocator := chain.BlockLocatorFromHash(finalReceivedHash)
 		locator := chainBlockLocatorToHashes(blkLocator)
 		peer.PushGetHeadersMsg(locator, &zeroHash)
+
+		m.progressLogger.LogHeaderProgress(uint64(len(headers)), headersSynced,
+			m.headerSyncProgress)
 	}
 
 	// Consider the headers synced once the sync peer sends a message with a
@@ -1046,6 +1108,8 @@ func (m *SyncManager) handleHeadersMsg(hmsg *headersMsg) {
 			m.hdrSyncState.headersSynced = headersSynced
 			m.hdrSyncState.stopStallTimeout()
 
+			m.progressLogger.LogHeaderProgress(uint64(len(headers)),
+				headersSynced, m.headerSyncProgress)
 			log.Infof("Initial headers sync complete (best header hash %s, "+
 				"height %d)", newBestHeaderHash, newBestHeaderHeight)
 			log.Info("Syncing chain")
@@ -1682,6 +1746,10 @@ type Config struct {
 	// Chain specifies the chain instance to use for processing blocks and
 	// transactions.
 	Chain *blockchain.BlockChain
+
+	// TimeSource defines the median time source which is used to retrieve the
+	// current time adjusted by the median time offset.
+	TimeSource blockchain.MedianTimeSource
 
 	// TxMemPool specifies the mempool to use for processing transactions.
 	TxMemPool *mempool.TxPool

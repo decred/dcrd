@@ -3519,6 +3519,7 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB, chainP
 		PeerNotifier: &s,
 		Chain:        s.chain,
 		ChainParams:  s.chainParams,
+		TimeSource:   s.timeSource,
 		TxMemPool:    s.txMemPool,
 		RpcServer: func() *rpcserver.Server {
 			return s.rpcServer

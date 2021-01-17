@@ -2214,6 +2214,12 @@ func New(ctx context.Context, config *Config) (*BlockChain, error) {
 		"%d, block index: %d", b.dbInfo.version, b.dbInfo.compVer,
 		b.dbInfo.bidxVer)
 
+	b.index.RLock()
+	bestHdr := b.index.bestHeader
+	b.index.RUnlock()
+	log.Infof("Best known header: height %d, hash %v", bestHdr.height,
+		bestHdr.hash)
+
 	tip := b.bestChain.Tip()
 	log.Infof("Chain state: height %d, hash %v, total transactions %d, work %v",
 		tip.height, tip.hash, b.stateSnapshot.TotalTxns, tip.workSum)
