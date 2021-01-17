@@ -3519,7 +3519,7 @@ func TestHandleGetBlockchainInfo(t *testing.T) {
 			SyncHeight:           int64(463074),
 			ChainWork:            "000000000000000000000000000000000000000000115d2833849090b0026506",
 			InitialBlockDownload: true,
-			VerificationProgress: float64(0.9999978405179302),
+			VerificationProgress: float64(1),
 			BestBlockHash:        "00000000000000001e6ec1501c858506de1de4703d1be8bab4061126e8f61480",
 			Difficulty:           uint32(404696953),
 			DifficultyRatio:      float64(35256672611.3862),

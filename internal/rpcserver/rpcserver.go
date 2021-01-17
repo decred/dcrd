@@ -2035,10 +2035,10 @@ func handleGetBlockchainInfo(_ context.Context, s *Server, cmd interface{}) (int
 	}
 
 	// Estimate the verification progress of the node.
-	syncHeight := s.cfg.SyncMgr.SyncHeight()
 	var verifyProgress float64
-	if syncHeight > 0 {
-		verifyProgress = math.Min(float64(best.Height)/float64(syncHeight), 1.0)
+	if bestHeaderHeight > 0 {
+		progress := float64(best.Height) / float64(bestHeaderHeight)
+		verifyProgress = math.Min(progress, 1.0)
 	}
 
 	// Fetch the maximum allowed block size for all blocks other than the
@@ -2101,7 +2101,7 @@ func handleGetBlockchainInfo(_ context.Context, s *Server, cmd interface{}) (int
 		Chain:                params.Name,
 		Blocks:               best.Height,
 		Headers:              bestHeaderHeight,
-		SyncHeight:           syncHeight,
+		SyncHeight:           s.cfg.SyncMgr.SyncHeight(),
 		ChainWork:            fmt.Sprintf("%064x", chainWork),
 		InitialBlockDownload: !chain.IsCurrent(),
 		VerificationProgress: verifyProgress,
