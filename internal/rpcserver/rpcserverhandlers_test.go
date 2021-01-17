@@ -1,4 +1,4 @@
-// Copyright (c) 2020 The Decred developers
+// Copyright (c) 2020-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -516,7 +516,7 @@ func (s *testSyncManager) IsCurrent() bool {
 
 // SubmitBlock provides a mock implementation for submitting the provided block
 // to the network after processing it locally.
-func (s *testSyncManager) SubmitBlock(block *dcrutil.Block, flags blockchain.BehaviorFlags) (bool, error) {
+func (s *testSyncManager) SubmitBlock(block *dcrutil.Block) (bool, error) {
 	return s.isOrphan, s.submitBlockErr
 }
 

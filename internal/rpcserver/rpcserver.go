@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2020 The Decred developers
+// Copyright (c) 2015-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -3783,7 +3783,7 @@ func handleGetWorkSubmission(_ context.Context, s *Server, hexData string) (inte
 
 	// Process this block using the same rules as blocks coming from other
 	// nodes.  This will in turn relay it to the network like normal.
-	isOrphan, err := s.cfg.SyncMgr.SubmitBlock(block, blockchain.BFNone)
+	isOrphan, err := s.cfg.SyncMgr.SubmitBlock(block)
 	if err != nil {
 		// Anything other than a rule violation is an unexpected error,
 		// so return that error as an internal error.
@@ -4745,7 +4745,7 @@ func handleSubmitBlock(_ context.Context, s *Server, cmd interface{}) (interface
 		return nil, rpcInternalError(err.Error(), "Block decode")
 	}
 
-	_, err = s.cfg.SyncMgr.SubmitBlock(block, blockchain.BFNone)
+	_, err = s.cfg.SyncMgr.SubmitBlock(block)
 	if err != nil {
 		return fmt.Sprintf("rejected: %v", err), nil
 	}

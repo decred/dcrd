@@ -1,4 +1,4 @@
-// Copyright (c) 2019 The Decred developers
+// Copyright (c) 2019-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -148,7 +148,7 @@ type SyncManager interface {
 
 	// SubmitBlock submits the provided block to the network after
 	// processing it locally.
-	SubmitBlock(block *dcrutil.Block, flags blockchain.BehaviorFlags) (bool, error)
+	SubmitBlock(block *dcrutil.Block) (bool, error)
 
 	// SyncPeerID returns the id of the current peer being synced with.
 	SyncPeerID() int32

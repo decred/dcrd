@@ -1,5 +1,5 @@
 // Copyright (c) 2017 The btcsuite developers
-// Copyright (c) 2015-2020 The Decred developers
+// Copyright (c) 2015-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -330,8 +330,8 @@ func (b *rpcSyncMgr) IsCurrent() bool {
 //
 // This function is safe for concurrent access and is part of the
 // rpcserver.SyncManager interface implementation.
-func (b *rpcSyncMgr) SubmitBlock(block *dcrutil.Block, flags blockchain.BehaviorFlags) (bool, error) {
-	return b.syncMgr.ProcessBlock(block, flags)
+func (b *rpcSyncMgr) SubmitBlock(block *dcrutil.Block) (bool, error) {
+	return b.syncMgr.ProcessBlock(block, blockchain.BFNone)
 }
 
 // SyncPeer returns the id of the current peer being synced with.
