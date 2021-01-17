@@ -203,7 +203,7 @@ type SyncManager struct {
 	rejectedTxns    map[chainhash.Hash]struct{}
 	requestedTxns   map[chainhash.Hash]struct{}
 	requestedBlocks map[chainhash.Hash]struct{}
-	progressLogger  *progresslog.BlockLogger
+	progressLogger  *progresslog.Logger
 	syncPeer        *syncMgrPeer
 	msgChan         chan interface{}
 	peers           map[*peerpkg.Peer]*syncMgrPeer
@@ -1015,7 +1015,9 @@ func (m *SyncManager) handleBlockMsg(bmsg *blockMsg) {
 	} else {
 		// When the block is not an orphan, log information about it and
 		// update the chain state.
-		m.progressLogger.LogBlockHeight(bmsg.block.MsgBlock(), m.SyncHeight())
+		msgBlock := bmsg.block.MsgBlock()
+		forceLog := int64(msgBlock.Header.Height) >= m.SyncHeight()
+		m.progressLogger.LogProgress(msgBlock, forceLog)
 
 		if onMainChain {
 			// Notify stake difficulty subscribers and prune invalidated

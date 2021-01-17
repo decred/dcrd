@@ -1,4 +1,4 @@
-// Copyright (c) 2020 The Decred developers
+// Copyright (c) 2020-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -16,6 +16,6 @@ Tests are included to ensure proper functionality.
   - Total number of tickets
   - Total number of revocations
 - Logs all cumulative data every 10 seconds
-- Immediately logs any outstanding data when the provided sync height is reached
+- Immediately logs any outstanding data when requested by the caller
 */
 package progresslog

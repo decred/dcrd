@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2020 The Decred developers
+// Copyright (c) 2015-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -238,7 +238,9 @@ func dumpBlockChain(params *chaincfg.Params, b *blockchain.BlockChain) error {
 			return err
 		}
 
-		progressLogger.LogBlockHeight(bl.MsgBlock(), tipHeight)
+		msgBlock := bl.MsgBlock()
+		forceLog := int64(msgBlock.Header.Height) >= tipHeight
+		progressLogger.LogProgress(msgBlock, forceLog)
 	}
 
 	srvrLog.Infof("Successfully dumped the blockchain (%v blocks) to %v.",
