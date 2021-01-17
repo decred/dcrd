@@ -128,9 +128,8 @@ type requestFromPeerResponse struct {
 // processBlockResponse is a response sent to the reply channel of a
 // processBlockMsg.
 type processBlockResponse struct {
-	forkLen  int64
-	isOrphan bool
-	err      error
+	forkLen int64
+	err     error
 }
 
 // processBlockMsg is a message type to be sent across the message channel
@@ -894,11 +893,11 @@ func (m *SyncManager) processOrphans(hash *chainhash.Hash, flags blockchain.Beha
 // When no errors occurred during processing, the first return value indicates
 // the length of the fork the block extended.  In the case it either extended
 // the best chain or is now the tip of the best chain due to causing a
-// reorganize, the fork length will be 0.  The second return value indicates
-// whether or not the block is an orphan, in which case the fork length will
-// also be zero as expected, because it, by definition, does not connect to the
-// best chain.
-func (m *SyncManager) processBlockAndOrphans(block *dcrutil.Block, flags blockchain.BehaviorFlags) (int64, bool, error) {
+// reorganize, the fork length will be 0.  The fork length will also be zero as
+// expected when the block is an orphan, because it, by definition, does not
+// connect to the best chain.  The caller can determine if the block is an
+// orphan by check if the error is blockchain.ErrMissingParent.
+func (m *SyncManager) processBlockAndOrphans(block *dcrutil.Block, flags blockchain.BehaviorFlags) (int64, error) {
 	// Process the block to include validation, best chain selection, etc.
 	//
 	// Also, keep track of orphan blocks in the sync manager when the error
@@ -909,13 +908,9 @@ func (m *SyncManager) processBlockAndOrphans(block *dcrutil.Block, flags blockch
 		log.Infof("Adding orphan block %v with parent %v", blockHash,
 			block.MsgBlock().Header.PrevBlock)
 		m.addOrphanBlock(block)
-
-		// The fork length of orphans is unknown since they, by definition, do
-		// not connect to the best chain.
-		return 0, true, nil
 	}
 	if err != nil {
-		return 0, false, err
+		return 0, err
 	}
 	m.isCurrentMtx.Lock()
 	m.maybeUpdateIsCurrent()
@@ -924,10 +919,10 @@ func (m *SyncManager) processBlockAndOrphans(block *dcrutil.Block, flags blockch
 	// Accept any orphan blocks that depend on this block (they are no longer
 	// orphans) and repeat for those accepted blocks until there are no more.
 	if err := m.processOrphans(blockHash, flags); err != nil {
-		return 0, false, err
+		return 0, err
 	}
 
-	return forkLen, false, nil
+	return forkLen, nil
 }
 
 // handleBlockMsg handles block messages from all peers.
@@ -978,7 +973,12 @@ func (m *SyncManager) handleBlockMsg(bmsg *blockMsg) {
 
 	// Process the block to include validation, best chain selection, orphan
 	// handling, etc.
-	forkLen, isOrphan, err := m.processBlockAndOrphans(bmsg.block, behaviorFlags)
+	var isOrphan bool
+	forkLen, err := m.processBlockAndOrphans(bmsg.block, behaviorFlags)
+	if errors.Is(err, blockchain.ErrMissingParent) {
+		isOrphan = true
+		err = nil
+	}
 	if err != nil {
 		// When the error is a rule error, it means the block was simply
 		// rejected as opposed to something actually going wrong, so log
@@ -1514,18 +1514,16 @@ out:
 				}
 
 			case processBlockMsg:
-				forkLen, isOrphan, err := m.processBlockAndOrphans(msg.block,
-					msg.flags)
+				forkLen, err := m.processBlockAndOrphans(msg.block, msg.flags)
 				if err != nil {
 					msg.reply <- processBlockResponse{
-						forkLen:  forkLen,
-						isOrphan: isOrphan,
-						err:      err,
+						forkLen: forkLen,
+						err:     err,
 					}
 					continue
 				}
 
-				onMainChain := !isOrphan && forkLen == 0
+				onMainChain := forkLen == 0
 				if onMainChain {
 					// Prune invalidated transactions.
 					best := m.cfg.Chain.BestSnapshot()
@@ -1535,8 +1533,7 @@ out:
 				}
 
 				msg.reply <- processBlockResponse{
-					isOrphan: isOrphan,
-					err:      nil,
+					err: nil,
 				}
 
 			case processTransactionMsg:
@@ -1780,7 +1777,7 @@ func (m *SyncManager) requestFromPeer(p *peerpkg.Peer, blocks, voteHashes,
 // ProcessBlock makes use of ProcessBlock on an internal instance of a block
 // chain.  It is funneled through the sync manager since blockchain is not safe
 // for concurrent access.
-func (m *SyncManager) ProcessBlock(block *dcrutil.Block, flags blockchain.BehaviorFlags) (bool, error) {
+func (m *SyncManager) ProcessBlock(block *dcrutil.Block, flags blockchain.BehaviorFlags) error {
 	reply := make(chan processBlockResponse, 1)
 	select {
 	case m.msgChan <- processBlockMsg{block: block, flags: flags, reply: reply}:
@@ -1789,9 +1786,9 @@ func (m *SyncManager) ProcessBlock(block *dcrutil.Block, flags blockchain.Behavi
 
 	select {
 	case response := <-reply:
-		return response.isOrphan, response.err
+		return response.err
 	case <-m.quit:
-		return false, fmt.Errorf("sync manager stopped")
+		return fmt.Errorf("sync manager stopped")
 	}
 }
 

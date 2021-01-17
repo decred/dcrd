@@ -3783,8 +3783,14 @@ func handleGetWorkSubmission(_ context.Context, s *Server, hexData string) (inte
 
 	// Process this block using the same rules as blocks coming from other
 	// nodes.  This will in turn relay it to the network like normal.
-	isOrphan, err := s.cfg.SyncMgr.SubmitBlock(block)
+	err = s.cfg.SyncMgr.SubmitBlock(block)
 	if err != nil {
+		if errors.Is(err, blockchain.ErrMissingParent) {
+			log.Infof("Block submitted via getwork rejected: orphan building "+
+				"on parent %v", block.MsgBlock().Header.PrevBlock)
+			return false, nil
+		}
+
 		// Anything other than a rule violation is an unexpected error,
 		// so return that error as an internal error.
 		var rErr blockchain.RuleError
@@ -3794,12 +3800,6 @@ func handleGetWorkSubmission(_ context.Context, s *Server, hexData string) (inte
 		}
 
 		log.Infof("Block submitted via getwork rejected: %v", err)
-		return false, nil
-	}
-
-	if isOrphan {
-		log.Infof("Block submitted via getwork rejected: an orphan "+
-			"building on parent %v", block.MsgBlock().Header.PrevBlock)
 		return false, nil
 	}
 
@@ -4745,7 +4745,7 @@ func handleSubmitBlock(_ context.Context, s *Server, cmd interface{}) (interface
 		return nil, rpcInternalError(err.Error(), "Block decode")
 	}
 
-	_, err = s.cfg.SyncMgr.SubmitBlock(block)
+	err = s.cfg.SyncMgr.SubmitBlock(block)
 	if err != nil {
 		return fmt.Sprintf("rejected: %v", err), nil
 	}

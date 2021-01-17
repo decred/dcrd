@@ -1,5 +1,5 @@
 // Copyright (c) 2014-2016 The btcsuite developers
-// Copyright (c) 2015-2020 The Decred developers
+// Copyright (c) 2015-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -96,7 +96,7 @@ type Config struct {
 	// ProcessBlock defines the function to call with any solved blocks.
 	// It typically must run the provided block through the same set of
 	// rules and handling as any other block coming from the network.
-	ProcessBlock func(*dcrutil.Block, blockchain.BehaviorFlags) (bool, error)
+	ProcessBlock func(*dcrutil.Block, blockchain.BehaviorFlags) error
 
 	// ConnectedCount defines the function to use to obtain how many other
 	// peers the server is connected to.  This is used by the automatic
@@ -200,8 +200,14 @@ func (m *CPUMiner) submitBlock(block *dcrutil.Block) bool {
 
 	// Process this block using the same rules as blocks coming from other
 	// nodes. This will in turn relay it to the network like normal.
-	isOrphan, err := m.cfg.ProcessBlock(block, blockchain.BFNone)
+	err := m.cfg.ProcessBlock(block, blockchain.BFNone)
 	if err != nil {
+		if errors.Is(err, blockchain.ErrMissingParent) {
+			log.Errorf("Block submitted via CPU miner is an orphan building "+
+				"on parent %v", block.MsgBlock().Header.PrevBlock)
+			return false
+		}
+
 		// Anything other than a rule violation is an unexpected error,
 		// so log that error as an internal error.
 		var rErr blockchain.RuleError
@@ -226,11 +232,6 @@ func (m *CPUMiner) submitBlock(block *dcrutil.Block) bool {
 
 		// Other rule errors should be reported.
 		log.Errorf("Block submitted via CPU miner rejected: %v", err)
-		return false
-	}
-	if isOrphan {
-		log.Errorf("Block submitted via CPU miner is an orphan building on "+
-			"parent %v", block.MsgBlock().Header.PrevBlock)
 		return false
 	}
 

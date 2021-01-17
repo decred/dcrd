@@ -500,7 +500,6 @@ func (c *testAddrManager) LocalAddresses() []addrmgr.LocalAddr {
 // SyncManager interface.
 type testSyncManager struct {
 	isCurrent             bool
-	isOrphan              bool
 	submitBlockErr        error
 	syncPeerID            int32
 	syncHeight            int64
@@ -516,8 +515,8 @@ func (s *testSyncManager) IsCurrent() bool {
 
 // SubmitBlock provides a mock implementation for submitting the provided block
 // to the network after processing it locally.
-func (s *testSyncManager) SubmitBlock(block *dcrutil.Block) (bool, error) {
-	return s.isOrphan, s.submitBlockErr
+func (s *testSyncManager) SubmitBlock(block *dcrutil.Block) error {
+	return s.submitBlockErr
 }
 
 // SyncPeer returns a mocked id of the current peer being synced with.
@@ -1584,7 +1583,6 @@ func defaultMockDB() *testDB {
 // *testSyncManager.
 func defaultMockSyncManager() *testSyncManager {
 	return &testSyncManager{
-		isOrphan:   false,
 		syncHeight: 463074,
 	}
 }
@@ -5929,8 +5927,13 @@ func TestHandleGetWork(t *testing.T) {
 	hex.Encode(submissionB, data)
 
 	submission := string(submissionB)
-	truncatedSubmission := submission[1:]
 	lessThanGetWorkDataLen := submission[10:]
+
+	// Create an orphan block by mutating the prevblock field of the data.
+	orphanData := make([]byte, len(data))
+	copy(orphanData, data)
+	orphanData[4] ^= 0x55
+	orphanSubmission := hex.EncodeToString(orphanData)
 
 	buf = &bytes.Buffer{}
 	buf.Write(submissionB[:10])
@@ -6086,12 +6089,11 @@ func TestHandleGetWork(t *testing.T) {
 		name:    "handleGetWork: submission is an orphan",
 		handler: handleGetWork,
 		cmd: &types.GetWorkCmd{
-			Data: &truncatedSubmission,
+			Data: &orphanSubmission,
 		},
 		mockMiningState: mine(),
 		mockSyncManager: func() *testSyncManager {
 			syncManager := defaultMockSyncManager()
-			syncManager.isOrphan = true
 			return syncManager
 		}(),
 		result: false,

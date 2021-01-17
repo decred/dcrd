@@ -148,7 +148,7 @@ type SyncManager interface {
 
 	// SubmitBlock submits the provided block to the network after
 	// processing it locally.
-	SubmitBlock(block *dcrutil.Block) (bool, error)
+	SubmitBlock(block *dcrutil.Block) error
 
 	// SyncPeerID returns the id of the current peer being synced with.
 	SyncPeerID() int32

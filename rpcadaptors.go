@@ -330,7 +330,7 @@ func (b *rpcSyncMgr) IsCurrent() bool {
 //
 // This function is safe for concurrent access and is part of the
 // rpcserver.SyncManager interface implementation.
-func (b *rpcSyncMgr) SubmitBlock(block *dcrutil.Block) (bool, error) {
+func (b *rpcSyncMgr) SubmitBlock(block *dcrutil.Block) error {
 	return b.syncMgr.ProcessBlock(block, blockchain.BFNone)
 }
 
