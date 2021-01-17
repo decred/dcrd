@@ -37,6 +37,9 @@ type Logger struct {
 	receivedVotes   uint64
 	receivedRevokes uint64
 	receivedTickets uint64
+
+	// These fields accumulate information about headers between log statements.
+	receivedHeaders uint64
 }
 
 // New returns a new block progress logger.
@@ -92,6 +95,35 @@ func (l *Logger) LogProgress(block *wire.MsgBlock, forceLog bool) {
 	l.receivedVotes = 0
 	l.receivedTickets = 0
 	l.receivedRevokes = 0
+	l.lastLogTime = now
+}
+
+// LogHeaderProgress accumulates the provided number of processed headers and
+// periodically (every 10 seconds) logs an information message to show the
+// header sync progress to the user along with duration and totals included.
+//
+// The force flag may be used to force a log message to be shown regardless of
+// the time the last one was shown.
+//
+// The progress message is templated as follows:
+//  {progressAction} {numProcessed} {headers|header} in the last {timePeriod}
+//  (progress ~{progress}%)
+func (l *Logger) LogHeaderProgress(processedHeaders uint64, forceLog bool, progressFn func() float64) {
+	l.receivedHeaders += processedHeaders
+
+	now := time.Now()
+	duration := now.Sub(l.lastLogTime)
+	if !forceLog && duration < time.Second*10 {
+		return
+	}
+
+	// Log information about header progress.
+	l.subsystemLogger.Infof("%s %d %s in the last %0.2fs (progress %0.2f%%)",
+		l.progressAction, l.receivedHeaders,
+		pickNoun(l.receivedHeaders, "header", "headers"),
+		duration.Seconds(), progressFn())
+
+	l.receivedHeaders = 0
 	l.lastLogTime = now
 }
 

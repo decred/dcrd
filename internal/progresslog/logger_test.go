@@ -154,3 +154,74 @@ func TestLogProgress(t *testing.T) {
 		}
 	}
 }
+
+// TestLogHeaderProgress ensures the logging functionality for headers works as
+// expected via a test logger.
+func TestLogHeaderProgress(t *testing.T) {
+	tests := []struct {
+		name                string
+		reset               bool
+		numHeaders          uint64
+		forceLog            bool
+		lastLogTime         time.Time
+		wantReceivedHeaders uint64
+	}{{
+		name:                "round 1, batch 1, last log time < 10 secs ago, not forced",
+		numHeaders:          35500,
+		forceLog:            false,
+		lastLogTime:         time.Now(),
+		wantReceivedHeaders: 35500,
+	}, {
+		name:                "round 1, batch 2, last log time < 10 secs ago, not forced",
+		numHeaders:          40000,
+		forceLog:            false,
+		lastLogTime:         time.Now(),
+		wantReceivedHeaders: 75500,
+	}, {
+		name:                "round 1, batch 3, last log time < 10 secs ago, not forced",
+		numHeaders:          66500,
+		forceLog:            false,
+		lastLogTime:         time.Now(),
+		wantReceivedHeaders: 142000,
+	}, {
+		name:                "round 2, batch 1, last log time < 10 secs ago, not forced",
+		reset:               true,
+		numHeaders:          40000,
+		forceLog:            false,
+		lastLogTime:         time.Now(),
+		wantReceivedHeaders: 40000,
+	}, {
+		name:                "round 2, batch 2, last log time > 10 secs ago, not forced",
+		numHeaders:          66500,
+		forceLog:            false,
+		lastLogTime:         time.Now().Add(-11 * time.Second),
+		wantReceivedHeaders: 0,
+	}, {
+		name:                "round 2, batch 1, last log time < 10 secs ago, forced",
+		reset:               true,
+		numHeaders:          54330,
+		forceLog:            true,
+		lastLogTime:         time.Now(),
+		wantReceivedHeaders: 0,
+	}}
+
+	progressFn := func() float64 { return 0.0 }
+	logger := New("Wrote", testLog)
+	for _, test := range tests {
+		if test.reset {
+			logger = New("Wrote", testLog)
+		}
+		logger.SetLastLogTime(test.lastLogTime)
+		logger.LogHeaderProgress(test.numHeaders, test.forceLog, progressFn)
+
+		want := &Logger{
+			subsystemLogger: logger.subsystemLogger,
+			progressAction:  logger.progressAction,
+			lastLogTime:     logger.lastLogTime,
+			receivedHeaders: test.wantReceivedHeaders,
+		}
+		if !reflect.DeepEqual(logger, want) {
+			t.Errorf("%s:\nwant: %+v\ngot: %+v\n", test.name, want, logger)
+		}
+	}
+}
