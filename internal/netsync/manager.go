@@ -791,6 +791,11 @@ func (m *SyncManager) handleBlockMsg(bmsg *blockMsg) {
 		return
 	}
 
+	// Save whether or not the chain believes it is current prior to processing
+	// the block for use below in determining logging behavior.
+	chain := m.cfg.Chain
+	wasChainCurrent := chain.IsCurrent()
+
 	// Process the block to include validation, best chain selection, etc.
 	//
 	// Also, remove the block from the request maps once it has been processed.
@@ -829,15 +834,46 @@ func (m *SyncManager) handleBlockMsg(bmsg *blockMsg) {
 		return
 	}
 
-	// Log information about the block and update the chain state.
+	// Log information about the block.  Use the progress logger when the chain
+	// was not already current prior to processing the block to provide nicer
+	// periodic logging with a progress percentage.  Otherwise, log the block
+	// individually along with some stats.
 	msgBlock := bmsg.block.MsgBlock()
-	forceLog := int64(msgBlock.Header.Height) >= m.SyncHeight()
-	m.progressLogger.LogProgress(msgBlock, forceLog)
+	header := &msgBlock.Header
+	if !wasChainCurrent {
+		forceLog := int64(header.Height) >= m.SyncHeight()
+		m.progressLogger.LogProgress(msgBlock, forceLog, chain.VerifyProgress)
+		if chain.IsCurrent() {
+			best := chain.BestSnapshot()
+			log.Infof("Initial chain sync complete (hash %s, height %d)",
+				best.Hash, best.Height)
+		}
+	} else {
+		var interval string
+		prevBlockHeader, err := chain.HeaderByHash(&header.PrevBlock)
+		if err == nil {
+			diff := header.Timestamp.Sub(prevBlockHeader.Timestamp)
+			interval = ", interval " + diff.Round(time.Second).String()
+		}
 
+		numTxns := uint64(len(msgBlock.Transactions))
+		numTickets := uint64(header.FreshStake)
+		numVotes := uint64(header.Voters)
+		numRevokes := uint64(header.Revocations)
+		log.Infof("New block %s (%d %s, %d %s, %d %s, %d %s, height %d%s)",
+			blockHash, numTxns, pickNoun(numTxns, "transaction", "transactions"),
+			numTickets, pickNoun(numTickets, "ticket", "tickets"),
+			numVotes, pickNoun(numVotes, "vote", "votes"),
+			numRevokes, pickNoun(numRevokes, "revocation", "revocations"),
+			header.Height, interval)
+	}
+
+	// Perform some additional processing when the block extended the main
+	// chain.
 	onMainChain := forkLen == 0
 	if onMainChain {
 		// Prune invalidated transactions.
-		best := m.cfg.Chain.BestSnapshot()
+		best := chain.BestSnapshot()
 		m.cfg.TxMemPool.PruneStakeTx(best.NextStakeDiff, best.Height)
 		m.cfg.TxMemPool.PruneExpiredTx()
 
@@ -852,7 +888,7 @@ func (m *SyncManager) handleBlockMsg(bmsg *blockMsg) {
 	// the main chain, update the heights of other peers whose invs may have
 	// been ignored when actively syncing while the chain was not yet current or
 	// lost the lock announcement race.
-	blockHeight := int64(bmsg.block.MsgBlock().Header.Height)
+	blockHeight := int64(header.Height)
 	peer.UpdateLastBlockHeight(blockHeight)
 	if onMainChain && m.IsCurrent() {
 		for _, p := range m.peers {
@@ -1119,6 +1155,11 @@ func (m *SyncManager) handleHeadersMsg(hmsg *headersMsg) {
 			// that the headers are synced.
 			chain.MaybeUpdateIsCurrent()
 			isChainCurrent = chain.IsCurrent()
+			if isChainCurrent {
+				best := chain.BestSnapshot()
+				log.Infof("Initial chain sync complete (hash %s, height %d)",
+					best.Hash, best.Height)
+			}
 		}
 	}
 

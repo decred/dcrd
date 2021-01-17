@@ -62,8 +62,8 @@ func New(progressAction string, logger slog.Logger) *Logger {
 //  {progressAction} {numProcessed} {blocks|block} in the last {timePeriod}
 //  ({numTxs} {transactions|transaction}, {numTickets} {tickets|ticket},
 //  {numVotes} {votes|vote}, {numRevocations} {revocations|revocation},
-//  height {lastBlockHeight}, {lastBlockTimeStamp})
-func (l *Logger) LogProgress(block *wire.MsgBlock, forceLog bool) {
+//  height {lastBlockHeight}, progress {progress}%)
+func (l *Logger) LogProgress(block *wire.MsgBlock, forceLog bool, progressFn func() float64) {
 	l.Lock()
 	defer l.Unlock()
 
@@ -80,15 +80,15 @@ func (l *Logger) LogProgress(block *wire.MsgBlock, forceLog bool) {
 	}
 
 	// Log information about chain progress.
-	l.subsystemLogger.Infof("%s %d %s in the last %0.2fs (%d %s, %d %s, %d %s,"+
-		" %d %s, height %d, %s)", l.progressAction,
+	l.subsystemLogger.Infof("%s %d %s in the last %0.2fs (%d %s, %d %s, %d %s, "+
+		"%d %s, height %d, progress %0.2f%%)", l.progressAction,
 		l.receivedBlocks, pickNoun(l.receivedBlocks, "block", "blocks"),
 		duration.Seconds(),
 		l.receivedTxns, pickNoun(l.receivedTxns, "transaction", "transactions"),
 		l.receivedTickets, pickNoun(l.receivedTickets, "ticket", "tickets"),
 		l.receivedVotes, pickNoun(l.receivedVotes, "vote", "votes"),
 		l.receivedRevokes, pickNoun(l.receivedRevokes, "revocation", "revocations"),
-		header.Height, header.Timestamp)
+		header.Height, progressFn())
 
 	l.receivedBlocks = 0
 	l.receivedTxns = 0
@@ -107,7 +107,7 @@ func (l *Logger) LogProgress(block *wire.MsgBlock, forceLog bool) {
 //
 // The progress message is templated as follows:
 //  {progressAction} {numProcessed} {headers|header} in the last {timePeriod}
-//  (progress ~{progress}%)
+//  (progress {progress}%)
 func (l *Logger) LogHeaderProgress(processedHeaders uint64, forceLog bool, progressFn func() float64) {
 	l.receivedHeaders += processedHeaders
 

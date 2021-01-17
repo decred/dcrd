@@ -6,6 +6,7 @@ package blockchain
 
 import (
 	"bytes"
+	"math"
 	"sort"
 
 	"github.com/decred/dcrd/chaincfg/chainhash"
@@ -232,4 +233,20 @@ func (b *BlockChain) NextNeededBlocks(maxResults uint8, exclude map[chainhash.Ha
 		neededBlocks = neededBlocks[:maxResults]
 	}
 	return neededBlocks
+}
+
+// VerifyProgress returns a percentage that is a guess of the progress of the
+// chain verification process.
+//
+// This function is safe for concurrent access.
+func (b *BlockChain) VerifyProgress() float64 {
+	b.index.RLock()
+	bestHdr := b.index.bestHeader
+	b.index.RUnlock()
+	if bestHdr.height == 0 {
+		return 0.0
+	}
+
+	tip := b.bestChain.Tip()
+	return math.Min(float64(tip.height)/float64(bestHdr.height), 1.0) * 100
 }

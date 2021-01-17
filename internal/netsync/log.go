@@ -1,4 +1,4 @@
-// Copyright (c) 2020 The Decred developers
+// Copyright (c) 2020-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -19,4 +19,13 @@ var log = slog.Disabled
 // using slog.
 func UseLogger(logger slog.Logger) {
 	log = logger
+}
+
+// pickNoun returns the singular or plural form of a noun depending on the
+// provided count.
+func pickNoun(n uint64, singular, plural string) string {
+	if n == 1 {
+		return singular
+	}
+	return plural
 }

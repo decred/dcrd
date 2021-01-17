@@ -131,13 +131,14 @@ func TestLogProgress(t *testing.T) {
 		wantReceivedTickets: 0,
 	}}
 
+	progressFn := func() float64 { return 0.0 }
 	progressLogger := New("Wrote", testLog)
 	for _, test := range tests {
 		if test.reset {
 			progressLogger = New("Wrote", testLog)
 		}
 		progressLogger.SetLastLogTime(test.inputLastLogTime)
-		progressLogger.LogProgress(test.inputBlock, test.forceLog)
+		progressLogger.LogProgress(test.inputBlock, test.forceLog, progressFn)
 		wantBlockProgressLogger := &Logger{
 			receivedBlocks:  test.wantReceivedBlocks,
 			receivedTxns:    test.wantReceivedTxns,

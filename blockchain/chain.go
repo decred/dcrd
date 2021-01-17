@@ -2221,8 +2221,9 @@ func New(ctx context.Context, config *Config) (*BlockChain, error) {
 		bestHdr.hash)
 
 	tip := b.bestChain.Tip()
-	log.Infof("Chain state: height %d, hash %v, total transactions %d, work %v",
-		tip.height, tip.hash, b.stateSnapshot.TotalTxns, tip.workSum)
+	log.Infof("Chain state: height %d, hash %v, total transactions %d, work "+
+		"%v, progress %0.2f%%", tip.height, tip.hash,
+		b.stateSnapshot.TotalTxns, tip.workSum, b.VerifyProgress())
 
 	return &b, nil
 }

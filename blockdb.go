@@ -240,7 +240,9 @@ func dumpBlockChain(params *chaincfg.Params, b *blockchain.BlockChain) error {
 
 		msgBlock := bl.MsgBlock()
 		forceLog := int64(msgBlock.Header.Height) >= tipHeight
-		progressLogger.LogProgress(msgBlock, forceLog)
+		progressLogger.LogProgress(msgBlock, forceLog, func() float64 {
+			return float64(msgBlock.Header.Height) / float64(tipHeight) * 100
+		})
 	}
 
 	srvrLog.Infof("Successfully dumped the blockchain (%v blocks) to %v.",
