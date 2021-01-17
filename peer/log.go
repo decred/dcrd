@@ -1,5 +1,5 @@
 // Copyright (c) 2015-2016 The btcsuite developers
-// Copyright (c) 2016-2020 The Decred developers
+// Copyright (c) 2016-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -188,7 +188,13 @@ func messageSummary(msg wire.Message) string {
 		return locatorSummary(msg.BlockLocatorHashes, &msg.HashStop)
 
 	case *wire.MsgHeaders:
-		return fmt.Sprintf("num %d", len(msg.Headers))
+		summary := fmt.Sprintf("num %d", len(msg.Headers))
+		if len(msg.Headers) > 0 {
+			finalHeader := msg.Headers[len(msg.Headers)-1]
+			summary = fmt.Sprintf("%s, final hash %s, height %d", summary,
+				finalHeader.BlockHash(), finalHeader.Height)
+		}
+		return summary
 
 	case *wire.MsgReject:
 		// Ensure the variable length strings don't contain any

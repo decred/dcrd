@@ -348,6 +348,19 @@ func (b *BlockChain) DisableVerify(disable bool) {
 	b.chainLock.Unlock()
 }
 
+// HaveHeader returns whether or not the chain instance has the block header
+// represented by the passed hash.  Note that this will return true for both the
+// main chain and any side chains.
+//
+// This function is safe for concurrent access.
+func (b *BlockChain) HaveHeader(hash *chainhash.Hash) bool {
+	b.index.RLock()
+	node := b.index.index[*hash]
+	headerKnown := node != nil
+	b.index.RUnlock()
+	return headerKnown
+}
+
 // HaveBlock returns whether or not the chain instance has the block represented
 // by the passed hash.  This includes checking the various places a block can
 // be like part of the main chain or on a side chain.
@@ -1436,7 +1449,7 @@ func (b *BlockChain) isOldTimestamp(node *blockNode) bool {
 }
 
 // maybeUpdateIsCurrent potentially updates whether or not the chain believes it
-// is current.
+// is current using the provided best chain tip.
 //
 // It makes use of a latching approach such that once the chain becomes current
 // it will only switch back to false in the case no new blocks have been seen
@@ -1474,7 +1487,20 @@ func (b *BlockChain) maybeUpdateIsCurrent(curBest *blockNode) {
 		log.Debugf("Chain latched to current at block %s (height %d)",
 			curBest.hash, curBest.height)
 	}
+}
 
+// MaybeUpdateIsCurrent potentially updates whether or not the chain believes it
+// is current.
+//
+// It makes use of a latching approach such that once the chain becomes current
+// it will only switch back to false in the case no new blocks have been seen
+// for an extended period of time.
+//
+// This function is safe for concurrent access.
+func (b *BlockChain) MaybeUpdateIsCurrent() {
+	b.chainLock.Lock()
+	b.maybeUpdateIsCurrent(b.bestChain.Tip())
+	b.chainLock.Unlock()
 }
 
 // isCurrent returns whether or not the chain believes it is current based on
@@ -2189,9 +2215,8 @@ func New(ctx context.Context, config *Config) (*BlockChain, error) {
 		b.dbInfo.bidxVer)
 
 	tip := b.bestChain.Tip()
-	log.Infof("Chain state: height %d, hash %v, total transactions %d, "+
-		"work %v, stake version %v", tip.height, tip.hash,
-		b.stateSnapshot.TotalTxns, tip.workSum, 0)
+	log.Infof("Chain state: height %d, hash %v, total transactions %d, work %v",
+		tip.height, tip.hash, b.stateSnapshot.TotalTxns, tip.workSum)
 
 	return &b, nil
 }

@@ -1,4 +1,4 @@
-// Copyright (c) 2018-2020 The Decred developers
+// Copyright (c) 2018-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -153,4 +153,83 @@ func (b *BlockChain) BestInvalidHeader() chainhash.Hash {
 	}
 	b.index.RUnlock()
 	return hash
+}
+
+// NextNeededBlocks returns hashes for the next blocks after the current best
+// chain tip that are needed to make progress towards the current best known
+// header skipping any blocks that are already known or in the provided map of
+// blocks to exclude.  Typically the caller would want to exclude all blocks
+// that have outstanding requests.
+//
+// The maximum number of results is limited to the provided value or the maximum
+// allowed by the internal lookahead buffer in the case the requested number of
+// max results exceeds that value.
+//
+// This function is safe for concurrent access.
+func (b *BlockChain) NextNeededBlocks(maxResults uint8, exclude map[chainhash.Hash]struct{}) []*chainhash.Hash {
+	// Nothing to do when no results are requested.
+	if maxResults == 0 {
+		return nil
+	}
+
+	// Determine the common ancestor between the current best chain tip and the
+	// current best known header.  In practice this should never be nil because
+	// orphan headers are not allowed into the block index, but be paranoid and
+	// check anyway in case things change in the future.
+	b.index.RLock()
+	bestHeader := b.index.bestHeader
+	fork := b.bestChain.FindFork(bestHeader)
+	if fork == nil {
+		b.index.RUnlock()
+		return nil
+	}
+
+	// Determine the final block to consider for determining the next needed
+	// blocks by determining the descendants of the current best chain tip on
+	// the branch that leads to the best known header while clamping the number
+	// of descendants to consider to a lookahead buffer.
+	const lookaheadBuffer = 512
+	numBlocksToConsider := bestHeader.height - fork.height
+	if numBlocksToConsider == 0 {
+		b.index.RUnlock()
+		return nil
+	}
+	if numBlocksToConsider > lookaheadBuffer {
+		bestHeader = bestHeader.Ancestor(fork.height + lookaheadBuffer)
+		numBlocksToConsider = lookaheadBuffer
+	}
+
+	// Walk backwards from the final block to consider to the current best chain
+	// tip excluding any blocks that already have their data available or that
+	// the caller asked to be excluded (likely because they've already been
+	// requested).
+	neededBlocks := make([]*chainhash.Hash, 0, numBlocksToConsider)
+	for node := bestHeader; node != nil && node != fork; node = node.parent {
+		_, isExcluded := exclude[node.hash]
+		if isExcluded || node.status.HaveData() {
+			continue
+		}
+
+		neededBlocks = append(neededBlocks, &node.hash)
+	}
+	b.index.RUnlock()
+
+	// Reverse the needed blocks so they are in forwards order.
+	reverse := func(s []*chainhash.Hash) {
+		slen := len(s)
+		for i := 0; i < slen/2; i++ {
+			s[i], s[slen-1-i] = s[slen-1-i], s[i]
+		}
+	}
+	reverse(neededBlocks)
+
+	// Clamp the number of results to the lower of the requested max or number
+	// available.
+	if int64(maxResults) > numBlocksToConsider {
+		maxResults = uint8(numBlocksToConsider)
+	}
+	if uint16(len(neededBlocks)) > uint16(maxResults) {
+		neededBlocks = neededBlocks[:maxResults]
+	}
+	return neededBlocks
 }

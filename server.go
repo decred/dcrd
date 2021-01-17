@@ -673,7 +673,7 @@ func (sp *serverPeer) OnVersion(p *peer.Peer, msg *wire.MsgVersion) *wire.MsgRej
 
 	// Ignore peers that have a protocol version that is too old.  The peer
 	// negotiation logic will disconnect it after this callback returns.
-	if msg.ProtocolVersion < int32(wire.InitialProcotolVersion) {
+	if msg.ProtocolVersion < int32(wire.SendHeadersVersion) {
 		return nil
 	}
 
@@ -735,6 +735,13 @@ func (sp *serverPeer) OnVersion(p *peer.Peer, msg *wire.MsgVersion) *wire.MsgRej
 	// Add valid peer to the server.
 	sp.server.AddPeer(sp)
 	return nil
+}
+
+// OnVerAck is invoked when a peer receives a verack wire message.  It creates
+// and sends a sendheaders message to request all block annoucements are made
+// via full headers instead of the inv message.
+func (sp *serverPeer) OnVerAck(_ *peer.Peer, msg *wire.MsgVerAck) {
+	sp.QueueMessage(wire.NewMsgSendHeaders(), nil)
 }
 
 // OnMemPool is invoked when a peer receives a mempool wire message.  It creates
@@ -1067,12 +1074,6 @@ func (sp *serverPeer) OnInv(p *peer.Peer, msg *wire.MsgInv) {
 // OnHeaders is invoked when a peer receives a headers wire message.  The
 // message is passed down to the net sync manager.
 func (sp *serverPeer) OnHeaders(_ *peer.Peer, msg *wire.MsgHeaders) {
-	// Ban peers sending empty headers requests.
-	if len(msg.Headers) == 0 {
-		sp.server.BanPeer(sp)
-		return
-	}
-
 	sp.server.syncManager.QueueHeaders(msg, sp.Peer)
 }
 
@@ -2068,6 +2069,7 @@ func newPeerConfig(sp *serverPeer) *peer.Config {
 	return &peer.Config{
 		Listeners: peer.MessageListeners{
 			OnVersion:        sp.OnVersion,
+			OnVerAck:         sp.OnVerAck,
 			OnMemPool:        sp.OnMemPool,
 			OnGetMiningState: sp.OnGetMiningState,
 			OnMiningState:    sp.OnMiningState,
@@ -3508,6 +3510,11 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB, chainP
 		},
 	}
 	s.txMemPool = mempool.New(&txC)
+
+	// Create a new sync manager instance with the appropriate configuration.
+	if cfg.DisableCheckpoints {
+		srvrLog.Info("Checkpoints are disabled")
+	}
 	s.syncManager = netsync.New(&netsync.Config{
 		PeerNotifier: &s,
 		Chain:        s.chain,
@@ -3516,7 +3523,6 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB, chainP
 		RpcServer: func() *rpcserver.Server {
 			return s.rpcServer
 		},
-		DisableCheckpoints:    cfg.DisableCheckpoints,
 		NoMiningStateSync:     cfg.NoMiningStateSync,
 		MaxPeers:              cfg.MaxPeers,
 		MaxOrphanTxs:          cfg.MaxOrphanTxs,
