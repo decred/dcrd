@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2016-2020 The Decred developers
+// Copyright (c) 2016-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -1090,40 +1090,45 @@ func (p *Peer) maybeAddDeadline(pendingResponses map[string]time.Time, msgCmd st
 	// sent asynchronously and as a result of a long backlog of messages,
 	// such as is typical in the case of initial block download, the
 	// response won't be received in time.
-	log.Debugf("Adding deadline for command %s for peer %s", msgCmd, p.addr)
-
+	//
+	// Also, getheaders is intentionally ignored since there is no guaranteed
+	// response if the remote peer does not have any headers for the locator.
+	var addedDeadline bool
 	deadline := time.Now().Add(stallResponseTimeout)
 	switch msgCmd {
 	case wire.CmdVersion:
 		// Expects a verack message.
 		pendingResponses[wire.CmdVerAck] = deadline
+		addedDeadline = true
 
 	case wire.CmdMemPool:
 		// Expects an inv message.
 		pendingResponses[wire.CmdInv] = deadline
+		addedDeadline = true
 
 	case wire.CmdGetBlocks:
 		// Expects an inv message.
 		pendingResponses[wire.CmdInv] = deadline
+		addedDeadline = true
 
 	case wire.CmdGetData:
 		// Expects a block, tx, or notfound message.
 		pendingResponses[wire.CmdBlock] = deadline
 		pendingResponses[wire.CmdTx] = deadline
 		pendingResponses[wire.CmdNotFound] = deadline
-
-	case wire.CmdGetHeaders:
-		// Expects a headers message.  Use a longer deadline since it
-		// can take a while for the remote peer to load all of the
-		// headers.
-		deadline = time.Now().Add(stallResponseTimeout * 3)
-		pendingResponses[wire.CmdHeaders] = deadline
+		addedDeadline = true
 
 	case wire.CmdGetMiningState:
 		pendingResponses[wire.CmdMiningState] = deadline
+		addedDeadline = true
 
 	case wire.CmdGetInitState:
 		pendingResponses[wire.CmdInitState] = deadline
+		addedDeadline = true
+	}
+
+	if addedDeadline {
+		log.Debugf("Adding deadline for command %s for peer %s", msgCmd, p.addr)
 	}
 }
 
