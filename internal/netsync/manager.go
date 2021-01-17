@@ -34,10 +34,6 @@ const (
 	// more.
 	minInFlightBlocks = 10
 
-	// maxOrphanBlocks is the maximum number of orphan blocks that can be
-	// queued.
-	maxOrphanBlocks = 500
-
 	// maxRejectedTxns is the maximum number of rejected transactions
 	// hashes to store in memory.
 	maxRejectedTxns = 1000
@@ -179,14 +175,6 @@ type syncMgrPeer struct {
 	requestedBlocks map[chainhash.Hash]struct{}
 }
 
-// orphanBlock represents a block for which the parent is not yet available.  It
-// is a normal block plus an expiration time to prevent caching the orphan
-// forever.
-type orphanBlock struct {
-	block      *dcrutil.Block
-	expiration time.Time
-}
-
 // SyncManager provides a concurrency safe sync manager for handling all
 // incoming blocks.
 type SyncManager struct {
@@ -212,13 +200,6 @@ type SyncManager struct {
 	headerList       *list.List
 	startHeader      *list.Element
 	nextCheckpoint   *chaincfg.Checkpoint
-
-	// These fields are related to handling of orphan blocks.  They are
-	// protected by the orphan lock.
-	orphanLock   sync.RWMutex
-	orphans      map[chainhash.Hash]*orphanBlock
-	prevOrphans  map[chainhash.Hash][]*orphanBlock
-	oldestOrphan *orphanBlock
 
 	// The following fields are used to track the height being synced to from
 	// peers.
@@ -684,135 +665,8 @@ func (m *SyncManager) handleTxMsg(tmsg *txMsg) {
 	m.cfg.PeerNotifier.AnnounceNewTransactions(acceptedTxs)
 }
 
-// isKnownOrphan returns whether the passed hash is currently a known orphan.
-// Keep in mind that only a limited number of orphans are held onto for a
-// limited amount of time, so this function must not be used as an absolute way
-// to test if a block is an orphan block.  A full block (as opposed to just its
-// hash) must be passed to ProcessBlock for that purpose.  This function
-// provides a mechanism for a caller to intelligently detect *recent* duplicate
-// orphans and react accordingly.
-//
-// This function is safe for concurrent access.
-func (m *SyncManager) isKnownOrphan(hash *chainhash.Hash) bool {
-	// Protect concurrent access.  Using a read lock only so multiple readers
-	// can query without blocking each other.
-	m.orphanLock.RLock()
-	_, exists := m.orphans[*hash]
-	m.orphanLock.RUnlock()
-	return exists
-}
-
-// orphanRoot returns the head of the chain for the provided hash from the map
-// of orphan blocks.
-//
-// This function is safe for concurrent access.
-func (m *SyncManager) orphanRoot(hash *chainhash.Hash) *chainhash.Hash {
-	// Protect concurrent access.  Using a read lock only so multiple
-	// readers can query without blocking each other.
-	m.orphanLock.RLock()
-	defer m.orphanLock.RUnlock()
-
-	// Keep looping while the parent of each orphaned block is known and is an
-	// orphan itself.
-	orphanRoot := hash
-	prevHash := hash
-	for {
-		orphan, exists := m.orphans[*prevHash]
-		if !exists {
-			break
-		}
-		orphanRoot = prevHash
-		prevHash = &orphan.block.MsgBlock().Header.PrevBlock
-	}
-
-	return orphanRoot
-}
-
-// removeOrphanBlock removes the passed orphan block from the orphan pool and
-// previous orphan index.
-func (m *SyncManager) removeOrphanBlock(orphan *orphanBlock) {
-	// Protect concurrent access.
-	m.orphanLock.Lock()
-	defer m.orphanLock.Unlock()
-
-	// Remove the orphan block from the orphan pool.
-	orphanHash := orphan.block.Hash()
-	delete(m.orphans, *orphanHash)
-
-	// Remove the reference from the previous orphan index too.  An indexing
-	// for loop is intentionally used over a range here as range does not
-	// reevaluate the slice on each iteration nor does it adjust the index
-	// for the modified slice.
-	prevHash := &orphan.block.MsgBlock().Header.PrevBlock
-	orphans := m.prevOrphans[*prevHash]
-	for i := 0; i < len(orphans); i++ {
-		hash := orphans[i].block.Hash()
-		if hash.IsEqual(orphanHash) {
-			copy(orphans[i:], orphans[i+1:])
-			orphans[len(orphans)-1] = nil
-			orphans = orphans[:len(orphans)-1]
-			i--
-		}
-	}
-	m.prevOrphans[*prevHash] = orphans
-
-	// Remove the map entry altogether if there are no longer any orphans
-	// which depend on the parent hash.
-	if len(m.prevOrphans[*prevHash]) == 0 {
-		delete(m.prevOrphans, *prevHash)
-	}
-}
-
-// addOrphanBlock adds the passed block (which is already determined to be an
-// orphan prior calling this function) to the orphan pool.  It lazily cleans up
-// any expired blocks so a separate cleanup poller doesn't need to be run.  It
-// also imposes a maximum limit on the number of outstanding orphan blocks and
-// will remove the oldest received orphan block if the limit is exceeded.
-func (m *SyncManager) addOrphanBlock(block *dcrutil.Block) {
-	// Remove expired orphan blocks.
-	for _, oBlock := range m.orphans {
-		if time.Now().After(oBlock.expiration) {
-			m.removeOrphanBlock(oBlock)
-			continue
-		}
-
-		// Update the oldest orphan block pointer so it can be discarded
-		// in case the orphan pool fills up.
-		if m.oldestOrphan == nil ||
-			oBlock.expiration.Before(m.oldestOrphan.expiration) {
-			m.oldestOrphan = oBlock
-		}
-	}
-
-	// Limit orphan blocks to prevent memory exhaustion.
-	if len(m.orphans)+1 > maxOrphanBlocks {
-		// Remove the oldest orphan to make room for the new one.
-		m.removeOrphanBlock(m.oldestOrphan)
-		m.oldestOrphan = nil
-	}
-
-	// Protect concurrent access.  This is intentionally done here instead
-	// of near the top since removeOrphanBlock does its own locking and
-	// the range iterator is not invalidated by removing map entries.
-	m.orphanLock.Lock()
-	defer m.orphanLock.Unlock()
-
-	// Insert the block into the orphan map with an expiration time
-	// 1 hour from now.
-	expiration := time.Now().Add(time.Hour)
-	oBlock := &orphanBlock{
-		block:      block,
-		expiration: expiration,
-	}
-	m.orphans[*block.Hash()] = oBlock
-
-	// Add to previous hash lookup index for faster dependency lookups.
-	prevHash := &block.MsgBlock().Header.PrevBlock
-	m.prevOrphans[*prevHash] = append(m.prevOrphans[*prevHash], oBlock)
-}
-
-// maybeUpdateIsCurrent potentially updates the manager to signal it believes the
-// chain is considered synced.
+// maybeUpdateIsCurrent potentially updates the manager to signal it believes
+// the chain is considered synced.
 //
 // This function MUST be called with the is current mutex held (for writes).
 func (m *SyncManager) maybeUpdateIsCurrent() {
@@ -830,97 +684,22 @@ func (m *SyncManager) maybeUpdateIsCurrent() {
 	}
 }
 
-// processOrphans determines if there are any orphans which depend on the passed
-// block hash (they are no longer orphans if true) and potentially accepts them.
-// It repeats the process for the newly accepted blocks (to detect further
-// orphans which may no longer be orphans) until there are no more.
-//
-// The flags do not modify the behavior of this function directly, however they
-// are needed to pass along to maybeAcceptBlock.
-func (m *SyncManager) processOrphans(hash *chainhash.Hash, flags blockchain.BehaviorFlags) error {
-	// Start with processing at least the passed hash.  Leave a little room for
-	// additional orphan blocks that need to be processed without needing to
-	// grow the array in the common case.
-	processHashes := make([]*chainhash.Hash, 0, 10)
-	processHashes = append(processHashes, hash)
-	for len(processHashes) > 0 {
-		// Pop the first hash to process from the slice.
-		processHash := processHashes[0]
-		processHashes[0] = nil // Prevent GC leak.
-		processHashes = processHashes[1:]
-
-		// Look up all orphans that are parented by the block we just accepted.
-		// This will typically only be one, but it could be multiple if multiple
-		// blocks are mined and broadcast around the same time.  The one with
-		// the most proof of work will eventually win out.  An indexing for loop
-		// is intentionally used over a range here as range does not reevaluate
-		// the slice on each iteration nor does it adjust the index for the
-		// modified slice.
-		for i := 0; i < len(m.prevOrphans[*processHash]); i++ {
-			orphan := m.prevOrphans[*processHash][i]
-			if orphan == nil {
-				log.Warnf("Found a nil entry at index %d in the orphan "+
-					"dependency list for block %v", i, processHash)
-				continue
-			}
-
-			// Remove the orphan from the orphan pool.
-			orphanHash := orphan.block.Hash()
-			m.removeOrphanBlock(orphan)
-			i--
-
-			// Potentially accept the block into the block chain.
-			_, err := m.cfg.Chain.ProcessBlock(orphan.block, flags)
-			if err != nil {
-				return err
-			}
-			m.isCurrentMtx.Lock()
-			m.maybeUpdateIsCurrent()
-			m.isCurrentMtx.Unlock()
-
-			// Add this block to the list of blocks to process so any orphan
-			// blocks that depend on this block are handled too.
-			processHashes = append(processHashes, orphanHash)
-		}
-	}
-	return nil
-}
-
-// processBlockAndOrphans processes the provided block using the internal chain
-// instance while keeping track of orphan blocks and also processing any orphans
-// that depend on the passed block to potentially accept as well.
+// processBlock processes the provided block using the internal chain instance.
 //
 // When no errors occurred during processing, the first return value indicates
 // the length of the fork the block extended.  In the case it either extended
 // the best chain or is now the tip of the best chain due to causing a
-// reorganize, the fork length will be 0.  The fork length will also be zero as
-// expected when the block is an orphan, because it, by definition, does not
-// connect to the best chain.  The caller can determine if the block is an
-// orphan by check if the error is blockchain.ErrMissingParent.
-func (m *SyncManager) processBlockAndOrphans(block *dcrutil.Block, flags blockchain.BehaviorFlags) (int64, error) {
+// reorganize, the fork length will be 0.  Orphans are rejected and can be
+// detected by checking if the error is blockchain.ErrMissingParent.
+func (m *SyncManager) processBlock(block *dcrutil.Block, flags blockchain.BehaviorFlags) (int64, error) {
 	// Process the block to include validation, best chain selection, etc.
-	//
-	// Also, keep track of orphan blocks in the sync manager when the error
-	// returned indicates the block is an orphan.
-	blockHash := block.Hash()
 	forkLen, err := m.cfg.Chain.ProcessBlock(block, flags)
-	if errors.Is(err, blockchain.ErrMissingParent) {
-		log.Infof("Adding orphan block %v with parent %v", blockHash,
-			block.MsgBlock().Header.PrevBlock)
-		m.addOrphanBlock(block)
-	}
 	if err != nil {
 		return 0, err
 	}
 	m.isCurrentMtx.Lock()
 	m.maybeUpdateIsCurrent()
 	m.isCurrentMtx.Unlock()
-
-	// Accept any orphan blocks that depend on this block (they are no longer
-	// orphans) and repeat for those accepted blocks until there are no more.
-	if err := m.processOrphans(blockHash, flags); err != nil {
-		return 0, err
-	}
 
 	return forkLen, nil
 }
@@ -971,15 +750,14 @@ func (m *SyncManager) handleBlockMsg(bmsg *blockMsg) {
 	delete(peer.requestedBlocks, *blockHash)
 	delete(m.requestedBlocks, *blockHash)
 
-	// Process the block to include validation, best chain selection, orphan
-	// handling, etc.
-	var isOrphan bool
-	forkLen, err := m.processBlockAndOrphans(bmsg.block, behaviorFlags)
-	if errors.Is(err, blockchain.ErrMissingParent) {
-		isOrphan = true
-		err = nil
-	}
+	// Process the block to include validation, best chain selection, etc.
+	forkLen, err := m.processBlock(bmsg.block, behaviorFlags)
 	if err != nil {
+		// Ignore orphan blocks.
+		if errors.Is(err, blockchain.ErrMissingParent) {
+			return
+		}
+
 		// When the error is a rule error, it means the block was simply
 		// rejected as opposed to something actually going wrong, so log
 		// it as such.  Otherwise, something really did go wrong, so log
@@ -1001,46 +779,32 @@ func (m *SyncManager) handleBlockMsg(bmsg *blockMsg) {
 		return
 	}
 
-	// Request the parents for the orphan block from the peer that sent it.
-	onMainChain := !isOrphan && forkLen == 0
-	if isOrphan {
-		orphanRoot := m.orphanRoot(blockHash)
-		blkLocator := m.cfg.Chain.LatestBlockLocator()
-		locator := chainBlockLocatorToHashes(blkLocator)
-		err := peer.PushGetBlocksMsg(locator, orphanRoot)
-		if err != nil {
-			log.Warnf("Failed to push getblocksmsg for the latest block: %v",
-				err)
-		}
-	} else {
-		// When the block is not an orphan, log information about it and
-		// update the chain state.
-		msgBlock := bmsg.block.MsgBlock()
-		forceLog := int64(msgBlock.Header.Height) >= m.SyncHeight()
-		m.progressLogger.LogProgress(msgBlock, forceLog)
+	// Log information about the block and update the chain state.
+	msgBlock := bmsg.block.MsgBlock()
+	forceLog := int64(msgBlock.Header.Height) >= m.SyncHeight()
+	m.progressLogger.LogProgress(msgBlock, forceLog)
 
-		if onMainChain {
-			// Notify stake difficulty subscribers and prune invalidated
-			// transactions.
-			best := m.cfg.Chain.BestSnapshot()
-			m.cfg.TxMemPool.PruneStakeTx(best.NextStakeDiff, best.Height)
-			m.cfg.TxMemPool.PruneExpiredTx()
+	onMainChain := forkLen == 0
+	if onMainChain {
+		// Prune invalidated transactions.
+		best := m.cfg.Chain.BestSnapshot()
+		m.cfg.TxMemPool.PruneStakeTx(best.NextStakeDiff, best.Height)
+		m.cfg.TxMemPool.PruneExpiredTx()
 
-			// Clear the rejected transactions.
-			m.rejectedTxns = make(map[chainhash.Hash]struct{})
-		}
+		// Clear the rejected transactions.
+		m.rejectedTxns = make(map[chainhash.Hash]struct{})
 	}
 
 	// Update the latest block height for the peer to avoid stale heights when
 	// looking for future potential sync node candidacy.
 	//
-	// Also, when the block is an orphan or the chain is considered current and
-	// the block was accepted to the main chain, update the heights of other
-	// peers whose invs may have been ignored when actively syncing while the
-	// chain was not yet current or lost the lock announcement race.
+	// Also, when the chain is considered current and the block was accepted to
+	// the main chain, update the heights of other peers whose invs may have
+	// been ignored when actively syncing while the chain was not yet current or
+	// lost the lock announcement race.
 	blockHeight := int64(bmsg.block.MsgBlock().Header.Height)
 	peer.UpdateLastBlockHeight(blockHeight)
-	if isOrphan || (onMainChain && m.IsCurrent()) {
+	if onMainChain && m.IsCurrent() {
 		for _, p := range m.peers {
 			// The height for the sending peer is already updated.
 			if p == peer {
@@ -1277,7 +1041,7 @@ func (m *SyncManager) handleNotFoundMsg(nfmsg *notFoundMsg) {
 // needBlock returns whether or not the block needs to be downloaded.  For
 // example, it does not need to be downloaded when it is already known.
 func (m *SyncManager) needBlock(hash *chainhash.Hash) bool {
-	return !m.isKnownOrphan(hash) && !m.cfg.Chain.HaveBlock(hash)
+	return !m.cfg.Chain.HaveBlock(hash)
 }
 
 // needTx returns whether or not the transaction needs to be downloaded.  For
@@ -1374,26 +1138,6 @@ func (m *SyncManager) handleInvMsg(imsg *invMsg) {
 	}
 
 	if lastBlock != nil {
-		// When the block is an orphan that we already have, the missing parent
-		// blocks were requested when the orphan was processed.  In that case,
-		// there were more blocks missing than are allowed into a single
-		// inventory message.  As a result, once this peer requested the final
-		// advertised block, the remote peer noticed and is now resending the
-		// orphan block as an available block to signal there are more missing
-		// blocks that need to be requested.
-		if m.isKnownOrphan(&lastBlock.Hash) {
-			// Request blocks starting at the latest known up to the root of the
-			// orphan that just came in.
-			orphanRoot := m.orphanRoot(&lastBlock.Hash)
-			blkLocator := m.cfg.Chain.LatestBlockLocator()
-			locator := chainBlockLocatorToHashes(blkLocator)
-			err := peer.PushGetBlocksMsg(locator, orphanRoot)
-			if err != nil {
-				log.Errorf("Failed to push getblocksmsg for orphan chain: %v",
-					err)
-			}
-		}
-
 		// Update the last announced block to the final one in the announced
 		// inventory above (if any).  In the case the header for that block is
 		// already known, use that information to update the height for the peer
@@ -1514,7 +1258,7 @@ out:
 				}
 
 			case processBlockMsg:
-				forkLen, err := m.processBlockAndOrphans(msg.block, msg.flags)
+				forkLen, err := m.processBlock(msg.block, msg.flags)
 				if err != nil {
 					msg.reply <- processBlockResponse{
 						forkLen: forkLen,
@@ -1643,8 +1387,12 @@ func (m *SyncManager) RequestFromPeer(p *peerpkg.Peer, blocks, voteHashes,
 
 	reply := make(chan requestFromPeerResponse, 1)
 	select {
-	case m.msgChan <- requestFromPeerMsg{peer: p, blocks: blocks,
-		voteHashes: voteHashes, tSpendHashes: tSpendHashes, reply: reply}:
+	case m.msgChan <- requestFromPeerMsg{
+		peer:         p,
+		blocks:       blocks,
+		voteHashes:   voteHashes,
+		tSpendHashes: tSpendHashes,
+		reply:        reply}:
 	case <-m.quit:
 	}
 
@@ -1676,7 +1424,7 @@ func (m *SyncManager) requestFromPeer(p *peerpkg.Peer, blocks, voteHashes,
 		}
 
 		// Skip the block when it is already known.
-		if m.isKnownOrphan(bh) || m.cfg.Chain.HaveBlock(bh) {
+		if m.cfg.Chain.HaveBlock(bh) {
 			continue
 		}
 
@@ -1905,8 +1653,6 @@ func New(config *Config) *SyncManager {
 		msgChan:         make(chan interface{}, config.MaxPeers*3),
 		headerList:      list.New(),
 		quit:            make(chan struct{}),
-		orphans:         make(map[chainhash.Hash]*orphanBlock),
-		prevOrphans:     make(map[chainhash.Hash][]*orphanBlock),
 		isCurrent:       config.Chain.IsCurrent(),
 	}
 
