@@ -89,7 +89,18 @@ func invSummary(invList []*wire.InvVect) string {
 	}
 
 	// More than one inv item.
-	return fmt.Sprintf("size %d", invLen)
+	var numTxns, numBlocks uint64
+	for _, iv := range invList {
+		switch iv.Type {
+		case wire.InvTypeTx:
+			numTxns++
+		case wire.InvTypeBlock:
+			numBlocks++
+		}
+	}
+
+	diff := uint64(invLen) - (numTxns + numBlocks)
+	return fmt.Sprintf("txns %d, blocks %d, other %d", numTxns, numBlocks, diff)
 }
 
 // locatorSummary returns a block locator as a human-readable string.
