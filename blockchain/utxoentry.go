@@ -189,7 +189,8 @@ func (entry *UtxoEntry) TicketMinimalOutputs() []*stake.MinimalOutput {
 }
 
 // Clone returns a copy of the utxo entry.  It performs a deep copy for any
-// fields that are mutable.
+// fields that are mutable.  Specifically, the script and ticket minimal outputs
+// are NOT deep copied since they are immutable.
 func (entry *UtxoEntry) Clone() *UtxoEntry {
 	if entry == nil {
 		return nil
