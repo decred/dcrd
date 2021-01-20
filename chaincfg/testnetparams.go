@@ -308,7 +308,7 @@ func TestNet3Params() *Params {
 			"testnet-seed-2.decred.org",
 			"testnet-seed.planetdecred.org",
 			"testnet-seed.dcrdata.org",
-			"testnet-seed.jamieholdstock.com",
+			"testnet-seed.jholdstock.uk",
 		},
 	}
 }
