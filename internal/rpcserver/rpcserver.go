@@ -3210,11 +3210,11 @@ func handleGetTreasurySpendVotes(_ context.Context, s *Server, cmd interface{}) 
 				// Given this tspend was mined in the main
 				// chain, it doesn't make sense to count votes
 				// after it was mined. So stop early if the
-				// target block height is higher than the
-				// tspend's mined height. We need to count
-				// votes only up to the block _before_ the
-				// tspend was mined.
-				if blockHeight > int64(hdr.Height) {
+				// target block height is greater than or equal
+				// to the tspend's mined height. We need to
+				// count votes only up to the block _before_
+				// the tspend was mined.
+				if blockHeight >= int64(hdr.Height) {
 					endBlocks[hash] = hdr.PrevBlock
 				}
 
