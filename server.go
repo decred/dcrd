@@ -2273,8 +2273,6 @@ func (s *server) RelayInventory(invVect *wire.InvVect, data interface{}, immedia
 // BroadcastMessage sends msg to all peers currently connected to the server
 // except those in the passed peers to exclude.
 func (s *server) BroadcastMessage(msg wire.Message, exclPeers ...*serverPeer) {
-	// XXX: Need to determine if this is an alert that has already been
-	// broadcast and refrain from broadcasting again.
 	bmsg := broadcastMsg{message: msg, excludePeers: exclPeers}
 	s.broadcast <- bmsg
 }
@@ -2282,9 +2280,7 @@ func (s *server) BroadcastMessage(msg wire.Message, exclPeers ...*serverPeer) {
 // ConnectedCount returns the number of currently connected peers.
 func (s *server) ConnectedCount() int32 {
 	replyChan := make(chan int32)
-
 	s.query <- getConnCountMsg{reply: replyChan}
-
 	return <-replyChan
 }
 
@@ -2301,98 +2297,6 @@ func (s *server) OutboundGroupCount(key string) int {
 func (s *server) AddedNodeInfo() []*serverPeer {
 	replyChan := make(chan []*serverPeer)
 	s.query <- getAddedNodesMsg{reply: replyChan}
-	return <-replyChan
-}
-
-// Peers returns an array of all connected peers.
-func (s *server) Peers() []*serverPeer {
-	replyChan := make(chan []*serverPeer)
-
-	s.query <- getPeersMsg{reply: replyChan}
-
-	return <-replyChan
-}
-
-// DisconnectNodeByAddr disconnects a peer by target address. Both outbound and
-// inbound nodes will be searched for the target node. An error message will
-// be returned if the peer was not found.
-func (s *server) DisconnectNodeByAddr(addr string) error {
-	replyChan := make(chan error)
-
-	s.query <- disconnectNodeMsg{
-		cmp:   func(sp *serverPeer) bool { return sp.Addr() == addr },
-		reply: replyChan,
-	}
-
-	return <-replyChan
-}
-
-// DisconnectNodeByID disconnects a peer by target node id. Both outbound and
-// inbound nodes will be searched for the target node. An error message will be
-// returned if the peer was not found.
-func (s *server) DisconnectNodeByID(id int32) error {
-	replyChan := make(chan error)
-
-	s.query <- disconnectNodeMsg{
-		cmp:   func(sp *serverPeer) bool { return sp.ID() == id },
-		reply: replyChan,
-	}
-
-	return <-replyChan
-}
-
-// RemoveNodeByAddr removes a peer from the list of persistent peers if
-// present. An error will be returned if the peer was not found.
-func (s *server) RemoveNodeByAddr(addr string) error {
-	replyChan := make(chan error)
-
-	s.query <- removeNodeMsg{
-		cmp:   func(sp *serverPeer) bool { return sp.Addr() == addr },
-		reply: replyChan,
-	}
-
-	err := <-replyChan
-	if err != nil {
-		// This connection may still be pending, cancel it.
-		return s.cancelPendingConnection(addr)
-	}
-	return nil
-}
-
-// cancelPendingConnection removes an address from the list of
-// pending connections.
-func (s *server) cancelPendingConnection(addr string) error {
-	replyChan := make(chan error)
-
-	s.query <- cancelPendingMsg{
-		addr:  addr,
-		reply: replyChan,
-	}
-
-	return <-replyChan
-}
-
-// RemoveNodeByID removes a peer by node ID from the list of persistent peers
-// if present. An error will be returned if the peer was not found.
-func (s *server) RemoveNodeByID(id int32) error {
-	replyChan := make(chan error)
-
-	s.query <- removeNodeMsg{
-		cmp:   func(sp *serverPeer) bool { return sp.ID() == id },
-		reply: replyChan,
-	}
-
-	return <-replyChan
-}
-
-// ConnectNode adds `addr' as a new outbound peer. If permanent is true then the
-// peer will be persistent and reconnect if the connection is lost.
-// It is an error to call this with an already existing peer.
-func (s *server) ConnectNode(addr string, permanent bool) error {
-	replyChan := make(chan error)
-
-	s.query <- connectNodeMsg{addr: addr, permanent: permanent, reply: replyChan}
-
 	return <-replyChan
 }
 
