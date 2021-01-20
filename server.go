@@ -1932,15 +1932,25 @@ func (s *server) handleQuery(state *peerState, querymsg interface{}) {
 			msg.reply <- errors.New("max peers reached")
 			return
 		}
-		for _, peer := range state.persistentPeers {
-			if peer.Addr() == msg.addr {
-				if msg.permanent {
-					msg.reply <- errors.New("peer already connected")
-				} else {
-					msg.reply <- errors.New("peer exists as a permanent peer")
+		err := s.connManager.ForEachConnReq(func(c *connmgr.ConnReq) error {
+			if c.Addr != nil && c.Addr.String() == msg.addr {
+				if c.Permanent {
+					return errors.New("peer exists as a permanent peer")
 				}
-				return
+
+				switch c.State() {
+				case connmgr.ConnPending:
+					return errors.New("peer pending connection")
+				case connmgr.ConnEstablished:
+					return errors.New("peer already connected")
+
+				}
 			}
+			return nil
+		})
+		if err != nil {
+			msg.reply <- err
+			return
 		}
 
 		netAddr, err := addrStringToNetAddr(msg.addr)
