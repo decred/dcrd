@@ -19,9 +19,8 @@ systems/integration tests.
 
 ## Installation and Updating
 
-```bash
-$ go get -u github.com/decred/dcrd/rpctest
-```
+This package is part of the `github.com/decred/dcrd` module.  Use the standard
+go tooling for working with modules to incorporate it.
 
 ## License
 

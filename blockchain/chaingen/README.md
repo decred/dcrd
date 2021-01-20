@@ -30,11 +30,10 @@ functions.
   required first block and enough blocks to have mature coinbase outputs to
   work with along with asserting the generator state along the way.
 
-## Installation
+## Installation and Updating
 
-```bash
-$ go get -u github.com/decred/dcrd/blockchain/chaingen
-```
+This package is part of the `github.com/decred/dcrd/blockchain/v3` module.  Use
+the standard go tooling for working with modules to incorporate it.
 
 ## License
 

@@ -16,9 +16,8 @@ this package additionally includes support for Ed25519 certificates.
 
 ## Installation and Updating
 
-```bash
-$ go get -u github.com/decred/dcrd/certgen
-```
+This package is part of the `github.com/decred/dcrd/certgen` module.  Use the
+standard go tooling for working with modules to incorporate it.
 
 ## License
 

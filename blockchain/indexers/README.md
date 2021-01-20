@@ -26,11 +26,10 @@ via an RPC interface.
   - Stores all committed filters and committed filter headers for all blocks in
     the main chain
 
-## Installation
+## Installation and Updating
 
-```bash
-$ go get -u github.com/decred/dcrd/blockchain/indexers
-```
+This package is part of the `github.com/decred/dcrd/blockchain/v3` module.  Use
+the standard go tooling for working with modules to incorporate it.
 
 ## License
 

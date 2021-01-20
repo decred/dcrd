@@ -12,9 +12,8 @@ Test vectors from BIP 173 are added to ensure compatibility with the BIP.
 
 ## Installation and Updating
 
-```bash
-$ go get -u github.com/decred/dcrd/bech32
-```
+This package is part of the `github.com/decred/dcrd/bech32` module.  Use the
+standard go tooling for working with modules to incorporate it.
 
 ## Examples
 

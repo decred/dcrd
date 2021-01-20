@@ -81,9 +81,8 @@ mean the block being processed is the one that failed validation.
 
 ## Installation and Updating
 
-```bash
-$ go get -u github.com/decred/dcrd/blockchain
-```
+This package is part of the `github.com/decred/dcrd/blockchain/v3` module.  Use
+the standard go tooling for working with modules to incorporate it.
 
 ## Examples
 

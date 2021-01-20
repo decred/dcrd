@@ -53,9 +53,8 @@ A quick overview of the major features peer provides are as follows:
 
 ## Installation and Updating
 
-```bash
-$ go get -u github.com/decred/dcrd/peer
-```
+This package is part of the `github.com/decred/dcrd/peer/v2` module.  Use the
+standard go tooling for working with modules to incorporate it.
 
 ## Examples
 

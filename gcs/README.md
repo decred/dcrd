@@ -42,9 +42,8 @@ DCP0005](https://github.com/decred/dcps/blob/master/dcp-0005/dcp-0005.mediawiki#
 
 ## Installation and Updating
 
-```bash
-$ go get -u github.com/decred/dcrd/gcs
-```
+This package is part of the `github.com/decred/dcrd/gcs/v2` module.  Use the
+standard go tooling for working with modules to incorporate it.
 
 ## License
 

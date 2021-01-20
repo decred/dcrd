@@ -36,11 +36,10 @@ implement and the API is not stable yet.
   * Registered notifications are automatically reregistered
   * Back-off support on reconnect attempts
 
-## Installation
+## Installation and Updating
 
-```bash
-$ go get -u github.com/decred/dcrd/rpcclient
-```
+This package is part of the `github.com/decred/dcrd/rpcclient/v6` module.  Use
+the standard go tooling for working with modules to incorporate it.
 
 ## License
 

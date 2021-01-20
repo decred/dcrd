@@ -3,7 +3,7 @@ standalone
 
 [![Build Status](https://github.com/decred/dcrd/workflows/Build%20and%20Test/badge.svg)](https://github.com/decred/dcrd/actions)
 [![ISC License](https://img.shields.io/badge/license-ISC-blue.svg)](http://copyfree.org)
-[![Doc](https://img.shields.io/badge/doc-reference-blue.svg)](https://pkg.go.dev/github.com/decred/dcrd/blockchain/standalone)
+[![Doc](https://img.shields.io/badge/doc-reference-blue.svg)](https://pkg.go.dev/github.com/decred/dcrd/blockchain/standalone/v2)
 
 Package standalone provides standalone functions useful for working with the
 Decred blockchain consensus rules.
@@ -37,9 +37,8 @@ The provided functions fall into the following categories:
 
 ## Installation and Updating
 
-```bash
-$ go get -u github.com/decred/dcrd/blockchain/standalone
-```
+This package is part of the `github.com/decred/dcrd/blockchain/standalone/v2`
+module.  Use the standard go tooling for working with modules to incorporate it.
 
 ## Examples
 

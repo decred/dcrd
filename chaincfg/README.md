@@ -54,9 +54,8 @@ func main() {
 
 ## Installation and Updating
 
-```bash
-$ go get -u github.com/decred/dcrd/chaincfg
-```
+This package is part of the `github.com/decred/dcrd/chaincfg/v3` module.  Use
+the standard go tooling for working with modules to incorporate it.
 
 ## License
 

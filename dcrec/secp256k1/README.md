@@ -57,9 +57,8 @@ defined by the secp256k1 domain parameters.
 
 ## Installation and Updating
 
-```bash
-$ go get -u github.com/decred/dcrd/dcrec/secp256k1/v3
-```
+This package is part of the `github.com/decred/dcrd/dcrec/secp256k1/v3` module.
+Use the standard go tooling for working with modules to incorporate it.
 
 ## Examples
 

@@ -17,9 +17,8 @@ projects needing to marshal to and from dcrd JSON-RPC requests and responses.
 
 ## Installation and Updating
 
-```bash
-$ go get -u github.com/decred/dcrd/rpc/jsonrpc/types
-```
+This package is part of the `github.com/decred/dcrd/rpc/jsonrpc/types/v2`
+module.  Use the standard go tooling for working with modules to incorporate it.
 
 ## License
 

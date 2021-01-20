@@ -14,9 +14,8 @@ protocol level.
 
 ## Installation and Updating
 
-```bash
-$ go get -u github.com/decred/dcrd/wire
-```
+This package is part of the `github.com/decred/dcrd/wire` module.  Use the
+standard go tooling for working with modules to incorporate it.
 
 ## Decred Message Overview
 

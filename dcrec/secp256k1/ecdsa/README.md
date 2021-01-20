@@ -34,9 +34,8 @@ key without actually revealing it.
 
 ## Installation and Updating
 
-```bash
-$ go get -u github.com/decred/dcrd/dcrec/secp25k1/v3/ecdsa
-```
+This package is part of the `github.com/decred/dcrd/dcrec/secp256k1/v3` module.
+Use the standard go tooling for working with modules to incorporate it.
 
 ## Examples
 

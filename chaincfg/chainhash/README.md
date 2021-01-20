@@ -8,11 +8,10 @@ chainhash
 chainhash provides a generic hash type and associated functions that allows the
 specific hash algorithm to be abstracted.
 
-## Installation and updating
+## Installation and Updating
 
-```bash
-$ go get -u github.com/decred/dcrd/chaincfg/chainhash
-```
+This package is part of the `github.com/decred/dcrd/chaincfg/chainhash` module.
+Use the standard go tooling for working with modules to incorporate it.
 
 ## License
 

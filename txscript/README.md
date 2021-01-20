@@ -13,15 +13,14 @@ package for any projects needing to use or validate Decred transaction scripts.
 
 ## Decred Scripts
 
-Decred provides a stack-based, FORTH-like language for the scripts in
-the Decred transactions.  This language is not turing complete
-although it is still fairly powerful.
+Decred provides a stack-based, FORTH-like language for the scripts in the Decred
+transactions.  This language is not Turing complete although it is still fairly
+powerful.
 
 ## Installation and Updating
 
-```bash
-$ go get -u github.com/decred/dcrd/txscript
-```
+This package is part of the `github.com/decred/dcrd/txscript/v3` module.  Use
+the standard go tooling for working with modules to incorporate it.
 
 ## Examples
 
