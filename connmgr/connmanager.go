@@ -1,5 +1,5 @@
 // Copyright (c) 2016 The btcsuite developers
-// Copyright (c) 2017-2020 The Decred developers
+// Copyright (c) 2017-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -197,6 +197,13 @@ type handleFailed struct {
 // handleCancelPending is used to remove failing connections from retries.
 type handleCancelPending struct {
 	addr net.Addr
+	done chan error
+}
+
+// handleForEachConnReq is used to iterate all known connection requests to
+// include pending ones.
+type handleForEachConnReq struct {
+	f    func(c *ConnReq) error
 	done chan error
 }
 
@@ -419,6 +426,26 @@ out:
 				} else {
 					msg.done <- fmt.Errorf("no pending connection to %v", msg.addr)
 				}
+
+			case handleForEachConnReq:
+				var err error
+				for _, connReq := range pending {
+					err = msg.f(connReq)
+					if err != nil {
+						break
+					}
+				}
+				if err != nil {
+					msg.done <- err
+					continue
+				}
+				for _, connReq := range conns {
+					err = msg.f(connReq)
+					if err != nil {
+						break
+					}
+				}
+				msg.done <- err
 			}
 
 		case <-ctx.Done():
@@ -598,6 +625,30 @@ func (cm *ConnManager) CancelPending(addr net.Addr) error {
 	}
 }
 
+// ForEachConnReq calls the provided function with each connection request known
+// to the connection manager, including pending requests.  Returning an error
+// from the provided function will stop the iteration early and return said
+// error from this function.
+//
+// This function is safe for concurrent access.
+//
+// NOTE: This must not call any other connection manager methods during
+// iteration or it will result in a deadlock.
+func (cm *ConnManager) ForEachConnReq(f func(c *ConnReq) error) error {
+	done := make(chan error, 1)
+	select {
+	case cm.requests <- handleForEachConnReq{f, done}:
+	case <-cm.quit:
+	}
+
+	select {
+	case err := <-done:
+		return err
+	case <-cm.quit:
+		return fmt.Errorf("connection manager stopped")
+	}
+}
+
 // listenHandler accepts incoming connections on a given listener.  It must be
 // run as a goroutine.
 func (cm *ConnManager) listenHandler(ctx context.Context, listener net.Listener) {
@@ -619,7 +670,7 @@ func (cm *ConnManager) listenHandler(ctx context.Context, listener net.Listener)
 }
 
 // Run starts the connection manager along with its configured listeners and
-// begin connecting to the network.  It blocks until the provided context is
+// begins connecting to the network.  It blocks until the provided context is
 // cancelled.
 func (cm *ConnManager) Run(ctx context.Context) {
 	log.Trace("Starting connection manager")

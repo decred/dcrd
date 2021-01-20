@@ -1,5 +1,5 @@
 // Copyright (c) 2016 The btcsuite developers
-// Copyright (c) 2019-2020 The Decred developers
+// Copyright (c) 2019-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -571,7 +571,7 @@ func TestShutdownFailedConns(t *testing.T) {
 }
 
 // TestRemovePendingConnection tests that it's possible to cancel a pending
-// connection, removing its internal state from the ConnMgr.
+// connection, removing its internal state from the connection manager.
 func TestRemovePendingConnection(t *testing.T) {
 	// Create a ConnMgr instance with an instance of a dialer that'll never
 	// succeed.
@@ -797,6 +797,113 @@ func TestConnectContext(t *testing.T) {
 	cancelConnect()
 	time.Sleep(10 * time.Millisecond)
 	assertConnReqState(t, cr, ConnFailed)
+
+	// Ensure clean shutdown of connection manager.
+	shutdown()
+	wg.Wait()
+}
+
+// TestForEachConnReq tests the connection request iteration logic work as
+// expected including for normal, permanent, and pending connections.
+func TestForEachConnReq(t *testing.T) {
+	// Create a connection manager instance with a dialer that recognizes a
+	// special address to delay on in order to keep it pending.
+	targetOutbound := uint32(5)
+	connected := make(chan *ConnReq)
+	pending := make(chan struct{})
+	delayDialer := func(ctx context.Context, addr net.Addr) (net.Conn, error) {
+		if addr.String() == "127.0.0.1:18557" {
+			close(pending)
+			time.Sleep(time.Second)
+			return nil, errors.New("error")
+		}
+		return mockDialerAddr(ctx, addr)
+	}
+	cmgr, err := New(&Config{
+		TargetOutbound: targetOutbound,
+		DialAddr:       delayDialer,
+		GetNewAddress: func() (net.Addr, error) {
+			return &net.TCPAddr{
+				IP:   net.ParseIP("127.0.0.1"),
+				Port: 18555,
+			}, nil
+		},
+		OnConnection: func(c *ConnReq, conn net.Conn) {
+			connected <- c
+		},
+	})
+	if err != nil {
+		t.Fatalf("New error: %v", err)
+	}
+	_, shutdown, wg := runConnMgrAsync(context.Background(), cmgr)
+
+	// Wait for the expected number of target outbound conns to be established.
+	allConnected := make(chan struct{})
+	go func() {
+		for i := uint32(0); i < targetOutbound; i++ {
+			<-connected
+		}
+		close(allConnected)
+	}()
+	select {
+	case <-allConnected:
+	case <-time.After(time.Millisecond * 5 * time.Duration(targetOutbound)):
+		t.Fatal("timeout waiting for connections")
+	}
+
+	// Create a permanent connection.
+	cr := &ConnReq{
+		Permanent: true,
+		Addr: &net.TCPAddr{
+			IP:   net.ParseIP("127.0.0.1"),
+			Port: 18556,
+		},
+	}
+	go cmgr.Connect(context.Background(), cr)
+	select {
+	case <-connected:
+	case <-time.After(time.Millisecond * 5):
+		t.Fatal("timeout waiting for permanent connection")
+	}
+
+	// Create a connection that triggers the mock dialer to keep it pending.
+	cr = &ConnReq{
+		Addr: &net.TCPAddr{
+			IP:   net.ParseIP("127.0.0.1"),
+			Port: 18557,
+		},
+	}
+	go cmgr.Connect(context.Background(), cr)
+	select {
+	case <-pending:
+	case <-time.After(time.Millisecond * 5):
+		t.Fatal("timeout waiting for pending connection")
+	}
+
+	// Ensure the expected number of each type of connection exists.
+	var numConnected, numPermanent, numPending uint32
+	cmgr.ForEachConnReq(func(cr *ConnReq) error {
+		numConnected++
+		if cr.State() == ConnPending {
+			numPending++
+		}
+		if cr.Permanent {
+			numPermanent++
+		}
+		return nil
+	})
+	if numConnected != targetOutbound+2 {
+		t.Fatalf("unexpected number of iterated conn reqs -- got %d, want %d",
+			numConnected, targetOutbound+2)
+	}
+	if numPermanent != 1 {
+		t.Fatalf("unexpected number of permanent conn reqs -- got %d, want %d",
+			numPermanent, 1)
+	}
+	if numPending != 1 {
+		t.Fatalf("unexpected number of pending conn reqs -- got %d, want %d",
+			numPending, 1)
+	}
 
 	// Ensure clean shutdown of connection manager.
 	shutdown()
