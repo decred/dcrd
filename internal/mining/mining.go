@@ -1082,32 +1082,32 @@ func (g *BlkTmplGenerator) NewBlockTemplate(payToAddress dcrutil.Address) (*Bloc
 			"block on, proceeding to create a new block template",
 			eligibleParents[0])
 
-		// Force a reorganization to the parent with the most votes if we need
-		// to.
-		if eligibleParents[0] != prevHash {
-			for i := range eligibleParents {
-				newHead := &eligibleParents[i]
-				err := g.cfg.ForceHeadReorganization(prevHash, *newHead)
-				if err != nil {
-					log.Errorf("failed to reorganize to new parent: %v", err)
-					continue
-				}
-
-				// Check to make sure we actually have the transactions
-				// (votes) we need in the mempool.
-				voteHashes := g.cfg.TxSource.VoteHashesForBlock(newHead)
-				if len(voteHashes) == 0 {
-					return nil, fmt.Errorf("no vote metadata for block %v",
-						newHead)
-				}
-
-				if exist := g.cfg.TxSource.HaveAllTransactions(voteHashes); !exist {
-					continue
-				} else {
-					prevHash = *newHead
-					break
-				}
+		// Force a reorganization to the parent with the most votes if needed.
+		for i := range eligibleParents {
+			newHead := &eligibleParents[i]
+			if *newHead == prevHash {
+				break
 			}
+
+			err := g.cfg.ForceHeadReorganization(prevHash, *newHead)
+			if err != nil {
+				log.Debugf("failed to reorganize to new parent: %v", err)
+				continue
+			}
+
+			// Ensure the needed votes are actually in the mempool.
+			voteHashes := g.cfg.TxSource.VoteHashesForBlock(newHead)
+			if len(voteHashes) == 0 {
+				return nil, fmt.Errorf("no vote metadata for block %v",
+					newHead)
+			}
+			haveAllVotes := g.cfg.TxSource.HaveAllTransactions(voteHashes)
+			if !haveAllVotes {
+				continue
+			}
+
+			prevHash = *newHead
+			break
 		}
 
 		// Obtain the maximum allowed treasury expenditure.
