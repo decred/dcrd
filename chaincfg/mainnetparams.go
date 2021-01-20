@@ -420,7 +420,7 @@ func MainNetParams() *Params {
 			"mainnet-seed-2.decred.org",
 			"mainnet-seed.planetdecred.org",
 			"mainnet-seed.dcrdata.org",
-			"mainnet-seed.jamieholdstock.com",
+			"mainnet-seed.jholdstock.uk",
 		},
 	}
 }
