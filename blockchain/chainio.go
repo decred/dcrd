@@ -1,5 +1,5 @@
 // Copyright (c) 2015-2016 The btcsuite developers
-// Copyright (c) 2016-2020 The Decred developers
+// Copyright (c) 2016-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -993,16 +993,13 @@ func deserializeUtxoEntry(serialized []byte, txOutIndex uint32) (*UtxoEntry, err
 	offset += bytesRead
 
 	// Create a new utxo entry with the details deserialized above.
-	const spent = false
-	const modified = false
 	entry := &UtxoEntry{
 		amount:        amount,
 		pkScript:      script,
 		blockHeight:   uint32(blockHeight),
 		blockIndex:    uint32(blockIndex),
 		scriptVersion: scriptVersion,
-		packedFlags: encodeUtxoFlags(isCoinBase, spent, modified, hasExpiry,
-			txType),
+		packedFlags:   encodeUtxoFlags(isCoinBase, hasExpiry, txType),
 	}
 
 	// Copy the minimal outputs if this was a ticket submission output.

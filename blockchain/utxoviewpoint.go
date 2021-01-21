@@ -79,6 +79,11 @@ func (view *UtxoViewpoint) addTxOut(outpoint wire.OutPoint, txOut *wire.TxOut,
 	entry.scriptVersion = txOut.Version
 	entry.packedFlags = packedFlags
 	entry.ticketMinOuts = ticketMinOuts
+
+	// The referenced transaction output should always be marked as unspent and
+	// modified when being added to the view.
+	entry.state &^= utxoStateSpent
+	entry.state |= utxoStateModified
 }
 
 // AddTxOut adds the specified output of the passed transaction to the view if
@@ -96,15 +101,13 @@ func (view *UtxoViewpoint) AddTxOut(tx *dcrutil.Tx, txOutIdx uint32,
 
 	// Set encoded flags for the transaction.
 	isCoinBase := standalone.IsCoinBaseTx(msgTx, isTreasuryEnabled)
-	const spent = false
 	hasExpiry := msgTx.Expiry != wire.NoExpiryValue
-	const modified = true
 	txType := stake.DetermineTxType(msgTx, isTreasuryEnabled)
 	tree := wire.TxTreeRegular
 	if txType != stake.TxTypeRegular {
 		tree = wire.TxTreeStake
 	}
-	flags := encodeUtxoFlags(isCoinBase, spent, modified, hasExpiry, txType)
+	flags := encodeUtxoFlags(isCoinBase, hasExpiry, txType)
 
 	// Update existing entries.  All fields are updated because it's possible
 	// (although extremely unlikely) that the existing entry is being replaced by
@@ -131,15 +134,13 @@ func (view *UtxoViewpoint) AddTxOuts(tx *dcrutil.Tx, blockHeight int64, blockInd
 
 	// Set encoded flags for the transaction.
 	isCoinBase := standalone.IsCoinBaseTx(msgTx, isTreasuryEnabled)
-	const spent = false
 	hasExpiry := msgTx.Expiry != wire.NoExpiryValue
-	const modified = true
 	txType := stake.DetermineTxType(msgTx, isTreasuryEnabled)
 	tree := wire.TxTreeRegular
 	if txType != stake.TxTypeRegular {
 		tree = wire.TxTreeStake
 	}
-	flags := encodeUtxoFlags(isCoinBase, spent, modified, hasExpiry, txType)
+	flags := encodeUtxoFlags(isCoinBase, hasExpiry, txType)
 
 	// Loop through all of the transaction outputs and add those which are not
 	// provably unspendable.
@@ -325,16 +326,14 @@ func (view *UtxoViewpoint) disconnectTransactions(block *dcrutil.Block, stxos []
 			outpoint.Index = uint32(txOutIdx)
 			entry := view.entries[outpoint]
 			if entry == nil {
-				const spent = false
-				const modified = true
 				entry = &UtxoEntry{
 					amount:        txOut.Value,
 					pkScript:      txOut.PkScript,
 					blockHeight:   uint32(block.Height()),
 					blockIndex:    uint32(txIdx),
 					scriptVersion: txOut.Version,
-					packedFlags: encodeUtxoFlags(isCoinBase, spent, modified, hasExpiry,
-						txType),
+					state:         utxoStateModified,
+					packedFlags:   encodeUtxoFlags(isCoinBase, hasExpiry, txType),
 				}
 
 				if isTicketSubmissionOutput(txType, uint32(txOutIdx)) {
@@ -374,8 +373,6 @@ func (view *UtxoViewpoint) disconnectTransactions(block *dcrutil.Block, stxos []
 			txIn := msgTx.TxIn[txInIdx]
 			entry := view.entries[txIn.PreviousOutPoint]
 			if entry == nil {
-				const spent = false
-				const modified = true
 				entry = &UtxoEntry{
 					amount:        txIn.ValueIn,
 					pkScript:      stxo.pkScript,
@@ -383,8 +380,9 @@ func (view *UtxoViewpoint) disconnectTransactions(block *dcrutil.Block, stxos []
 					blockHeight:   stxo.blockHeight,
 					blockIndex:    stxo.blockIndex,
 					scriptVersion: stxo.scriptVersion,
-					packedFlags: encodeUtxoFlags(stxo.IsCoinBase(), spent, modified,
-						stxo.HasExpiry(), stxo.TransactionType()),
+					state:         utxoStateModified,
+					packedFlags: encodeUtxoFlags(stxo.IsCoinBase(), stxo.HasExpiry(),
+						stxo.TransactionType()),
 				}
 
 				view.entries[txIn.PreviousOutPoint] = entry
@@ -392,8 +390,8 @@ func (view *UtxoViewpoint) disconnectTransactions(block *dcrutil.Block, stxos []
 
 			// Mark the existing referenced transaction output as unspent and
 			// modified.
-			entry.packedFlags &^= utxoFlagSpent
-			entry.packedFlags |= utxoFlagModified
+			entry.state &^= utxoStateSpent
+			entry.state |= utxoStateModified
 		}
 	}
 
@@ -601,7 +599,7 @@ func (view *UtxoViewpoint) commit() {
 			continue
 		}
 
-		entry.packedFlags &^= utxoFlagModified
+		entry.state &^= utxoStateModified
 	}
 }
 
