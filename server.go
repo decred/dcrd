@@ -3017,6 +3017,8 @@ func (s *server) Run(ctx context.Context) {
 
 	s.feeEstimator.Close()
 
+	s.chain.ShutdownUtxoCache()
+
 	s.wg.Wait()
 	srvrLog.Trace("Server stopped")
 }
@@ -3367,6 +3369,10 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB, chainP
 	}
 
 	// Create a new block chain instance with the appropriate configuration.
+	utxoCache := blockchain.NewUtxoCache(&blockchain.UtxoCacheConfig{
+		DB:      s.db,
+		MaxSize: uint64(cfg.UtxoCacheMaxSize) * 1024 * 1024,
+	})
 	s.chain, err = blockchain.New(ctx,
 		&blockchain.Config{
 			DB:            s.db,
@@ -3377,6 +3383,7 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB, chainP
 			SigCache:      s.sigCache,
 			SubsidyCache:  s.subsidyCache,
 			IndexManager:  indexManager,
+			UtxoCache:     utxoCache,
 		})
 	if err != nil {
 		return nil, err
@@ -3526,7 +3533,7 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB, chainP
 			IsTreasuryAgendaActive:          s.chain.IsTreasuryAgendaActive,
 			MaxTreasuryExpenditure:          s.chain.MaxTreasuryExpenditure,
 			NewUtxoViewpoint: func() *blockchain.UtxoViewpoint {
-				return blockchain.NewUtxoViewpoint()
+				return blockchain.NewUtxoViewpoint(utxoCache)
 			},
 			TipGeneration: s.chain.TipGeneration,
 			ValidateTransactionScripts: func(tx *dcrutil.Tx,

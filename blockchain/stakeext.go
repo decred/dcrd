@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2014 The btcsuite developers
-// Copyright (c) 2015-2020 The Decred developers
+// Copyright (c) 2015-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -112,7 +112,7 @@ func (b *BlockChain) TicketsWithAddress(address dcrutil.Address, isTreasuryEnabl
 	err := b.db.View(func(dbTx database.Tx) error {
 		for _, hash := range tickets {
 			outpoint := wire.OutPoint{Hash: hash, Index: 0, Tree: wire.TxTreeStake}
-			utxo, err := dbFetchUtxoEntry(dbTx, outpoint)
+			utxo, err := b.utxoCache.FetchEntry(dbTx, outpoint)
 			if err != nil {
 				return err
 			}
@@ -224,7 +224,7 @@ func (b *BlockChain) TicketPoolValue() (dcrutil.Amount, error) {
 	err := b.db.View(func(dbTx database.Tx) error {
 		for _, hash := range sn.LiveTickets() {
 			outpoint := wire.OutPoint{Hash: hash, Index: 0, Tree: wire.TxTreeStake}
-			utxo, err := dbFetchUtxoEntry(dbTx, outpoint)
+			utxo, err := b.utxoCache.FetchEntry(dbTx, outpoint)
 			if err != nil {
 				return err
 			}

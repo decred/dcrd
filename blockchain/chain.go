@@ -143,6 +143,7 @@ type BlockChain struct {
 	sigCache            *txscript.SigCache
 	indexManager        indexers.IndexManager
 	interrupt           <-chan struct{}
+	utxoCache           *UtxoCache
 
 	// subsidyCache is the cache that provides quick lookup of subsidy
 	// values.
@@ -619,14 +620,6 @@ func (b *BlockChain) connectBlock(node *blockNode, block, parent *dcrutil.Block,
 			return err
 		}
 
-		// Update the utxo set using the state of the utxo view.  This
-		// entails removing all of the utxos spent and adding the new
-		// ones created by the block.
-		err = dbPutUtxoView(dbTx, view)
-		if err != nil {
-			return err
-		}
-
 		// Update the transaction spend journal by adding a record for
 		// the block that contains all txos spent by it.
 		err = dbPutSpendJournalEntry(dbTx, block.Hash(), stxos)
@@ -676,9 +669,26 @@ func (b *BlockChain) connectBlock(node *blockNode, block, parent *dcrutil.Block,
 		return err
 	}
 
-	// Prune fully spent entries and mark all entries in the view unmodified
-	// now that the modifications have been committed to the database.
-	view.commit()
+	// Commit all entries in the view to the utxo cache.  All entries in the view
+	// that are marked as modified and spent are removed from the view.
+	// Additionally, all entries that are added to the cache are removed from the
+	// view.
+	err = b.utxoCache.Commit(view)
+	if err != nil {
+		return err
+	}
+
+	// Conditionally flush the utxo cache to the database.  Force a flush if the
+	// chain believes it is current since blocks are connected infrequently at
+	// that point.  Only log the flush when the chain is not current as it is
+	// mostly useful to see the flush details when many blocks are being connected
+	// (and subsequently flushed) in quick succession.
+	isCurrent := b.isCurrent(node)
+	err = b.utxoCache.MaybeFlush(&node.hash, uint32(node.height), isCurrent,
+		!isCurrent)
+	if err != nil {
+		return err
+	}
 
 	// This node is now the end of the best chain.
 	b.bestChain.SetTip(node)
@@ -814,21 +824,6 @@ func (b *BlockChain) disconnectBlock(node *blockNode, block, parent *dcrutil.Blo
 			return err
 		}
 
-		// Update the utxo set using the state of the utxo view.  This
-		// entails restoring all of the utxos spent and removing the new
-		// ones created by the block.
-		err = dbPutUtxoView(dbTx, view)
-		if err != nil {
-			return err
-		}
-
-		// Update the transaction spend journal by removing the record
-		// that contains all txos spent by the block.
-		err = dbRemoveSpendJournalEntry(dbTx, block.Hash())
-		if err != nil {
-			return err
-		}
-
 		err = stake.WriteDisconnectedBestNode(dbTx, parentStakeNode,
 			node.parent.hash, childStakeNode.UndoData())
 		if err != nil {
@@ -856,9 +851,35 @@ func (b *BlockChain) disconnectBlock(node *blockNode, block, parent *dcrutil.Blo
 		return err
 	}
 
-	// Prune fully spent entries and mark all entries in the view unmodified
-	// now that the modifications have been committed to the database.
-	view.commit()
+	// Commit all entries in the view to the utxo cache.  All entries in the view
+	// that are marked as modified and spent are removed from the view.
+	// Additionally, all entries that are added to the cache are removed from the
+	// view.
+	err = b.utxoCache.Commit(view)
+	if err != nil {
+		return err
+	}
+
+	// Force a utxo cache flush when blocks are being disconnected.  A cache flush
+	// is forced here since the spend journal entry for the disconnected block
+	// will be removed below.
+	err = b.utxoCache.MaybeFlush(&node.parent.hash, uint32(node.parent.height),
+		true, false)
+	if err != nil {
+		return err
+	}
+
+	// Update the transaction spend journal by removing the record that contains
+	// all txos spent by the block.  This is intentionally done AFTER the utxo
+	// cache has been force flushed since the spend journal information will no
+	// longer be available for the cache to use for recovery purposes after being
+	// removed.
+	err = b.db.Update(func(dbTx database.Tx) error {
+		return dbRemoveSpendJournalEntry(dbTx, block.Hash())
+	})
+	if err != nil {
+		return err
+	}
 
 	// This node's parent is now the end of the best chain.
 	b.bestChain.SetTip(node.parent)
@@ -993,7 +1014,7 @@ func (b *BlockChain) reorganizeChainInternal(target *blockNode) error {
 	// using that information to unspend all of the spent txos and remove the
 	// utxos created by the blocks.  In addition, if a block votes against its
 	// parent, the regular transactions are reconnected.
-	view := NewUtxoViewpoint()
+	view := NewUtxoViewpoint(b.utxoCache)
 	view.SetBestHash(&tip.hash)
 	var nextBlockToDetach *dcrutil.Block
 	for tip != nil && tip != fork {
@@ -1049,7 +1070,7 @@ func (b *BlockChain) reorganizeChainInternal(target *blockNode) error {
 		// Update the view to unspend all of the spent txos and remove the utxos
 		// created by the block.  Also, if the block votes against its parent,
 		// reconnect all of the regular transactions.
-		err = view.disconnectBlock(b.db, block, parent, stxos, isTreasuryEnabled)
+		err = view.disconnectBlock(block, parent, stxos, isTreasuryEnabled)
 		if err != nil {
 			return err
 		}
@@ -2125,6 +2146,13 @@ type Config struct {
 	// This field can be nil if the caller does not wish to make use of an
 	// index manager.
 	IndexManager indexers.IndexManager
+
+	// UtxoCache defines a utxo cache that sits on top of the utxo set database.
+	// All utxo reads and writes go through the cache, and never read or write to
+	// the database directly.
+	//
+	// This field is required.
+	UtxoCache *UtxoCache
 }
 
 // New returns a BlockChain instance using the provided configuration details.
@@ -2190,6 +2218,7 @@ func New(ctx context.Context, config *Config) (*BlockChain, error) {
 		calcPriorStakeVersionCache:    make(map[[chainhash.HashSize]byte]uint32),
 		calcVoterVersionIntervalCache: make(map[[chainhash.HashSize]byte]uint32),
 		calcStakeVersionCache:         make(map[[chainhash.HashSize]byte]uint32),
+		utxoCache:                     config.UtxoCache,
 	}
 	b.pruner = newChainPruner(&b)
 

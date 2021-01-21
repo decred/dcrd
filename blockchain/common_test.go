@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2020 The Decred developers
+// Copyright (c) 2015-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -117,6 +117,10 @@ func chainSetup(dbName string, params *chaincfg.Params) (*BlockChain, func(), er
 			ChainParams: &paramsCopy,
 			TimeSource:  NewMedianTime(),
 			SigCache:    sigCache,
+			UtxoCache: NewUtxoCache(&UtxoCacheConfig{
+				DB:      db,
+				MaxSize: 100 * 1024 * 1024, // 100 MiB
+			}),
 		})
 
 	if err != nil {

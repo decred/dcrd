@@ -144,7 +144,7 @@ func (c *fakeChain) FetchUtxoView(tx *dcrutil.Tx, treeValid bool) (*blockchain.U
 
 	// Add entries for the outputs of the tx to the new view.
 	msgTx := tx.MsgTx()
-	viewpoint := blockchain.NewUtxoViewpoint()
+	viewpoint := blockchain.NewUtxoViewpoint(nil)
 	prevOut := wire.OutPoint{Hash: *tx.Hash(), Tree: tx.Tree()}
 	for txOutIdx := range msgTx.TxOut {
 		prevOut.Index = uint32(txOutIdx)
@@ -195,7 +195,7 @@ func (c *fakeChain) MaxTreasuryExpenditure(preTVIBlock *chainhash.Hash) (int64, 
 
 // NewUtxoViewpoint returns a new empty unspent transaction output view.
 func (c *fakeChain) NewUtxoViewpoint() *blockchain.UtxoViewpoint {
-	return blockchain.NewUtxoViewpoint()
+	return blockchain.NewUtxoViewpoint(nil)
 }
 
 // TipGeneration returns a mocked entire generation of blocks stemming from the
@@ -1296,8 +1296,8 @@ func newMiningHarness(chainParams *chaincfg.Params) (*miningHarness, []spendable
 		blocks:                          make(map[chainhash.Hash]*dcrutil.Block),
 		isHeaderCommitmentsAgendaActive: true,
 		isTreasuryAgendaActive:          true,
-		parentUtxos:                     blockchain.NewUtxoViewpoint(),
-		utxos:                           blockchain.NewUtxoViewpoint(),
+		parentUtxos:                     blockchain.NewUtxoViewpoint(nil),
+		utxos:                           blockchain.NewUtxoViewpoint(nil),
 	}
 
 	// Set the proof of work limit and next required difficulty very high by

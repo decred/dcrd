@@ -25,6 +25,7 @@ import (
 // The unspent outputs are needed by other transactions for things such as
 // script validation and double spend prevention.
 type UtxoViewpoint struct {
+	cache    *UtxoCache
 	entries  map[wire.OutPoint]*UtxoEntry
 	bestHash chainhash.Hash
 }
@@ -462,7 +463,7 @@ func (view *UtxoViewpoint) disconnectDisapprovedBlock(db database.DB, block *dcr
 
 	// Load all of the utxos referenced by the inputs for all transactions in
 	// the block that don't already exist in the utxo view from the database.
-	err = view.fetchRegularInputUtxos(db, block, isTreasuryEnabled)
+	err = view.fetchRegularInputUtxos(block, isTreasuryEnabled)
 	if err != nil {
 		return err
 	}
@@ -505,7 +506,7 @@ func (view *UtxoViewpoint) connectBlock(db database.DB, block, parent *dcrutil.B
 
 	// Load all of the utxos referenced by the inputs for all transactions in
 	// the block that don't already exist in the utxo view from the database.
-	err := view.fetchInputUtxos(db, block, isTreasuryEnabled)
+	err := view.fetchInputUtxos(block, isTreasuryEnabled)
 	if err != nil {
 		return err
 	}
@@ -553,7 +554,7 @@ func (view *UtxoViewpoint) connectBlock(db database.DB, block, parent *dcrutil.B
 // Note that, unlike block connection, the spent transaction output (stxo)
 // information is required and failure to provide it will result in an assertion
 // panic.
-func (view *UtxoViewpoint) disconnectBlock(db database.DB, block, parent *dcrutil.Block, stxos []spentTxOut, isTreasuryEnabled bool) error {
+func (view *UtxoViewpoint) disconnectBlock(block, parent *dcrutil.Block, stxos []spentTxOut, isTreasuryEnabled bool) error {
 	// Sanity check the correct number of stxos are provided.
 	if len(stxos) != countSpentOutputs(block, isTreasuryEnabled) {
 		panicf("provided %v stxos for block %v (height %v) which spends %v "+
@@ -563,7 +564,7 @@ func (view *UtxoViewpoint) disconnectBlock(db database.DB, block, parent *dcruti
 
 	// Load all of the utxos referenced by the inputs for all transactions in
 	// the block don't already exist in the utxo view from the database.
-	err := view.fetchInputUtxos(db, block, isTreasuryEnabled)
+	err := view.fetchInputUtxos(block, isTreasuryEnabled)
 	if err != nil {
 		return err
 	}
@@ -586,7 +587,7 @@ func (view *UtxoViewpoint) disconnectBlock(db database.DB, block, parent *dcruti
 		// Load all of the utxos referenced by the inputs for all transactions
 		// in the regular tree of the parent block that don't already exist in
 		// the utxo view from the database.
-		err := view.fetchRegularInputUtxos(db, parent, isTreasuryEnabled)
+		err := view.fetchRegularInputUtxos(parent, isTreasuryEnabled)
 		if err != nil {
 			return err
 		}
@@ -611,19 +612,6 @@ func (view *UtxoViewpoint) Entries() map[wire.OutPoint]*UtxoEntry {
 	return view.entries
 }
 
-// commit prunes all entries marked modified that are now spent and marks all
-// entries as unmodified.
-func (view *UtxoViewpoint) commit() {
-	for outpoint, entry := range view.entries {
-		if entry == nil || (entry.isModified() && entry.IsSpent()) {
-			delete(view.entries, outpoint)
-			continue
-		}
-
-		entry.state &^= utxoStateModified
-	}
-}
-
 // viewFilteredSet represents a set of utxos to fetch from the database that are
 // not already in a view.
 type viewFilteredSet map[wire.OutPoint]struct{}
@@ -643,31 +631,13 @@ func (set viewFilteredSet) add(view *UtxoViewpoint, outpoint *wire.OutPoint) {
 // Upon completion of this function, the view will contain an entry for each
 // requested outpoint.  Spent outputs, or those which otherwise don't exist,
 // will result in a nil entry in the view.
-func (view *UtxoViewpoint) fetchUtxosMain(db database.DB, filteredSet viewFilteredSet) error {
+func (view *UtxoViewpoint) fetchUtxosMain(filteredSet viewFilteredSet) error {
 	// Nothing to do if there are no requested outputs.
 	if len(filteredSet) == 0 {
 		return nil
 	}
 
-	// Load the requested set of unspent transaction outputs from the point
-	// of view of the end of the main chain.
-	//
-	// NOTE: Missing entries are not considered an error here and instead
-	// will result in nil entries in the view.  This is intentionally done
-	// so other code can use the presence of an entry in the view as a way
-	// to unnecessarily avoid attempting to reload it from the database.
-	return db.View(func(dbTx database.Tx) error {
-		for outpoint := range filteredSet {
-			entry, err := dbFetchUtxoEntry(dbTx, outpoint)
-			if err != nil {
-				return err
-			}
-
-			view.entries[outpoint] = entry
-		}
-
-		return nil
-	})
+	return view.cache.FetchEntries(filteredSet, view)
 }
 
 // addRegularInputUtxos adds any outputs of transactions in the regular tree of
@@ -725,12 +695,12 @@ func (view *UtxoViewpoint) addRegularInputUtxos(block *dcrutil.Block, isTreasury
 // the view from the database as needed.  In particular, referenced entries that
 // are earlier in the block are added to the view and entries that are already
 // in the view are not modified.
-func (view *UtxoViewpoint) fetchRegularInputUtxos(db database.DB, block *dcrutil.Block, isTreasuryEnabled bool) error {
+func (view *UtxoViewpoint) fetchRegularInputUtxos(block *dcrutil.Block, isTreasuryEnabled bool) error {
 	// Add any outputs of transactions in the regular tree of the block that are
 	// referenced by inputs of transactions that are located later in the tree
 	// and fetch any inputs that are not already in the view from the database.
 	filteredSet := view.addRegularInputUtxos(block, isTreasuryEnabled)
-	return view.fetchUtxosMain(db, filteredSet)
+	return view.fetchUtxosMain(filteredSet)
 }
 
 // fetchInputUtxos loads the unspent transaction outputs for the inputs
@@ -739,7 +709,7 @@ func (view *UtxoViewpoint) fetchRegularInputUtxos(db database.DB, block *dcrutil
 // regular tree, referenced entries that are earlier in the regular tree of the
 // block are added to the view.  In all cases, entries that are already in the
 // view are not modified.
-func (view *UtxoViewpoint) fetchInputUtxos(db database.DB, block *dcrutil.Block, isTreasuryEnabled bool) error {
+func (view *UtxoViewpoint) fetchInputUtxos(block *dcrutil.Block, isTreasuryEnabled bool) error {
 	// Add any outputs of transactions in the regular tree of the block that are
 	// referenced by inputs of transactions that are located later in the tree
 	// and, while doing so, determine which inputs are not already in the view
@@ -768,12 +738,13 @@ func (view *UtxoViewpoint) fetchInputUtxos(db database.DB, block *dcrutil.Block,
 	}
 
 	// Request the input utxos from the database.
-	return view.fetchUtxosMain(db, filteredSet)
+	return view.fetchUtxosMain(filteredSet)
 }
 
 // clone returns a deep copy of the view.
 func (view *UtxoViewpoint) clone() *UtxoViewpoint {
 	clonedView := &UtxoViewpoint{
+		cache:    view.cache,
 		entries:  make(map[wire.OutPoint]*UtxoEntry),
 		bestHash: view.bestHash,
 	}
@@ -786,8 +757,9 @@ func (view *UtxoViewpoint) clone() *UtxoViewpoint {
 }
 
 // NewUtxoViewpoint returns a new empty unspent transaction output view.
-func NewUtxoViewpoint() *UtxoViewpoint {
+func NewUtxoViewpoint(cache *UtxoCache) *UtxoViewpoint {
 	return &UtxoViewpoint{
+		cache:   cache,
 		entries: make(map[wire.OutPoint]*UtxoEntry),
 	}
 }
@@ -809,7 +781,7 @@ func (b *BlockChain) FetchUtxoView(tx *dcrutil.Tx, includeRegularTxns bool) (*Ut
 	// because the code below requires the parent block and the genesis
 	// block doesn't have one.
 	tip := b.bestChain.Tip()
-	view := NewUtxoViewpoint()
+	view := NewUtxoViewpoint(b.utxoCache)
 	view.SetBestHash(&tip.hash)
 	if tip.height == 0 {
 		return view, nil
@@ -879,57 +851,6 @@ func (b *BlockChain) FetchUtxoView(tx *dcrutil.Tx, includeRegularTxns bool) (*Ut
 		}
 	}
 
-	err = view.fetchUtxosMain(b.db, filteredSet)
+	err = view.fetchUtxosMain(filteredSet)
 	return view, err
-}
-
-// FetchUtxoEntry loads and returns the requested unspent transaction output
-// from the point of view of the the main chain tip.
-//
-// NOTE: Requesting an output for which there is no data will NOT return an
-// error.  Instead both the entry and the error will be nil.  This is done to
-// allow pruning of spent transaction outputs.  In practice this means the
-// caller must check if the returned entry is nil before invoking methods on it.
-//
-// This function is safe for concurrent access however the returned entry (if
-// any) is NOT.
-func (b *BlockChain) FetchUtxoEntry(outpoint wire.OutPoint) (*UtxoEntry, error) {
-	b.chainLock.RLock()
-	defer b.chainLock.RUnlock()
-
-	var entry *UtxoEntry
-	err := b.db.View(func(dbTx database.Tx) error {
-		var err error
-		entry, err = dbFetchUtxoEntry(dbTx, outpoint)
-		return err
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	return entry, nil
-}
-
-// UtxoStats represents unspent output statistics on the current utxo set.
-type UtxoStats struct {
-	Utxos          int64
-	Transactions   int64
-	Size           int64
-	Total          int64
-	SerializedHash chainhash.Hash
-}
-
-// FetchUtxoStats returns statistics on the current utxo set.
-func (b *BlockChain) FetchUtxoStats() (*UtxoStats, error) {
-	var stats *UtxoStats
-	err := b.db.View(func(dbTx database.Tx) error {
-		var err error
-		stats, err = dbFetchUtxoStats(dbTx)
-		return err
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	return stats, nil
 }

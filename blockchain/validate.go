@@ -1854,7 +1854,7 @@ func (b *BlockChain) checkDupTxs(txSet []*dcrutil.Tx, view *UtxoViewpoint, tree 
 			filteredSet.add(view, &outpoint)
 		}
 	}
-	err := view.fetchUtxosMain(b.db, filteredSet)
+	err := view.fetchUtxosMain(filteredSet)
 	if err != nil {
 		return err
 	}
@@ -3557,7 +3557,7 @@ func (b *BlockChain) checkConnectBlock(node *blockNode, block, parent *dcrutil.B
 	//
 	// These utxo entries are needed for verification of things such as
 	// transaction inputs, counting pay-to-script-hashes, and scripts.
-	err = view.fetchInputUtxos(b.db, block, isTreasuryEnabled)
+	err = view.fetchInputUtxos(block, isTreasuryEnabled)
 	if err != nil {
 		return err
 	}
@@ -3791,7 +3791,7 @@ func (b *BlockChain) CheckConnectBlockTemplate(block *dcrutil.Block) error {
 			return ruleError(ErrMissingParent, err.Error())
 		}
 
-		view := NewUtxoViewpoint()
+		view := NewUtxoViewpoint(b.utxoCache)
 		view.SetBestHash(&tip.hash)
 
 		return b.checkConnectBlock(newNode, block, parent, view, nil, nil)
@@ -3801,7 +3801,7 @@ func (b *BlockChain) CheckConnectBlockTemplate(block *dcrutil.Block) error {
 	// current tip due to the previous checks, so undo the transactions and
 	// spend information for the tip block to reach the point of view of the
 	// block template.
-	view := NewUtxoViewpoint()
+	view := NewUtxoViewpoint(b.utxoCache)
 	view.SetBestHash(&tip.hash)
 	tipBlock, err := b.fetchMainChainBlockByNode(tip)
 	if err != nil {
@@ -3829,7 +3829,7 @@ func (b *BlockChain) CheckConnectBlockTemplate(block *dcrutil.Block) error {
 	// Update the view to unspend all of the spent txos and remove the utxos
 	// created by the tip block.  Also, if the block votes against its parent,
 	// reconnect all of the regular transactions.
-	err = view.disconnectBlock(b.db, tipBlock, parent, stxos, isTreasuryEnabled)
+	err = view.disconnectBlock(tipBlock, parent, stxos, isTreasuryEnabled)
 	if err != nil {
 		return err
 	}
