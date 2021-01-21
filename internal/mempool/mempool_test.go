@@ -87,7 +87,7 @@ func (s *fakeChain) FetchUtxoView(tx *dcrutil.Tx, treeValid bool) (*blockchain.U
 
 	// Add entries for the outputs of the tx to the new view.
 	msgTx := tx.MsgTx()
-	viewpoint := blockchain.NewUtxoViewpoint()
+	viewpoint := blockchain.NewUtxoViewpoint(nil)
 	outpoint := wire.OutPoint{Hash: *tx.Hash(), Tree: tx.Tree()}
 	for txOutIdx := range msgTx.TxOut {
 		outpoint.Index = uint32(txOutIdx)
@@ -754,7 +754,7 @@ func newPoolHarness(chainParams *chaincfg.Params) (*poolHarness, []spendableOutp
 	// Create a new fake chain and harness bound to it.
 	subsidyCache := standalone.NewSubsidyCache(chainParams)
 	chain := &fakeChain{
-		utxos:       blockchain.NewUtxoViewpoint(),
+		utxos:       blockchain.NewUtxoViewpoint(nil),
 		utxoTimes:   make(map[wire.OutPoint]int64),
 		blocks:      make(map[chainhash.Hash]*dcrutil.Block),
 		scriptFlags: BaseStandardVerifyFlags,

@@ -1117,43 +1117,42 @@ func dbFetchUtxoStats(dbTx database.Tx) (*UtxoStats, error) {
 	return &stats, nil
 }
 
-// dbPutUtxoView uses an existing database transaction to update the utxo set in
-// the database based on the provided utxo view contents and state.  In
-// particular, only the entries that have been marked as modified are written to
-// the database.
-func dbPutUtxoView(dbTx database.Tx, view *UtxoViewpoint) error {
+// dbPutUtxoEntry uses an existing database transaction to update the utxo
+// entry for the given outpoint based on the provided utxo entry state.  In
+// particular, the entry is only written to the database if it is marked as
+// modified, and if the entry is marked as spent it is removed from the
+// database.
+func dbPutUtxoEntry(dbTx database.Tx, outpoint wire.OutPoint, entry *UtxoEntry) error {
+	// No need to update the database if the entry was not modified.
+	if entry == nil || !entry.isModified() {
+		return nil
+	}
+
+	// Remove the utxo entry if it is spent.
 	utxoBucket := dbTx.Metadata().Bucket(utxoSetBucketName)
-	for outpoint, entry := range view.entries {
-		// No need to update the database if the entry was not modified.
-		if entry == nil || !entry.isModified() {
-			continue
-		}
-
-		// Remove the utxo entry if it is spent.
-		if entry.IsSpent() {
-			key := outpointKey(outpoint)
-			err := utxoBucket.Delete(*key)
-			recycleOutpointKey(key)
-			if err != nil {
-				return err
-			}
-
-			continue
-		}
-
-		// Serialize and store the utxo entry.
-		serialized, err := serializeUtxoEntry(entry)
-		if err != nil {
-			return err
-		}
+	if entry.IsSpent() {
 		key := outpointKey(outpoint)
-		err = utxoBucket.Put(*key, serialized)
-		// NOTE: The key is intentionally not recycled here since the database
-		// interface contract prohibits modifications.  It will be garbage collected
-		// normally when the database is done with it.
+		err := utxoBucket.Delete(*key)
+		recycleOutpointKey(key)
 		if err != nil {
 			return err
 		}
+
+		return nil
+	}
+
+	// Serialize and store the utxo entry.
+	serialized, err := serializeUtxoEntry(entry)
+	if err != nil {
+		return err
+	}
+	key := outpointKey(outpoint)
+	err = utxoBucket.Put(*key, serialized)
+	// NOTE: The key is intentionally not recycled here since the database
+	// interface contract prohibits modifications.  It will be garbage collected
+	// normally when the database is done with it.
+	if err != nil {
+		return err
 	}
 
 	return nil
@@ -1831,6 +1830,7 @@ func (b *BlockChain) initChainState(ctx context.Context) error {
 	}
 
 	// Attempt to load the chain state from the database.
+	var tip *blockNode
 	err = b.db.View(func(dbTx database.Tx) error {
 		// Fetch the stored best chain state from the database.
 		state, err := dbFetchBestState(dbTx)
@@ -1849,7 +1849,7 @@ func (b *BlockChain) initChainState(ctx context.Context) error {
 		}
 
 		// Set the best chain to the stored best state.
-		tip := b.index.lookupNode(&state.hash)
+		tip = b.index.lookupNode(&state.hash)
 		if tip == nil {
 			return AssertError(fmt.Sprintf("initChainState: cannot find "+
 				"chain tip %s in block index", state.hash))
@@ -1924,7 +1924,14 @@ func (b *BlockChain) initChainState(ctx context.Context) error {
 	}
 
 	// Upgrade the database post block index load as needed.
-	return upgradeDBPostBlockIndexLoad(ctx, b)
+	err = upgradeDBPostBlockIndexLoad(ctx, b)
+	if err != nil {
+		return err
+	}
+
+	// Initialize the utxo cache to ensure that the state of the utxo set is
+	// caught up to the tip of the best chain.
+	return b.InitUtxoCache(tip)
 }
 
 // dbFetchBlockByNode uses an existing database transaction to retrieve the raw

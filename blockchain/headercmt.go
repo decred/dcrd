@@ -74,7 +74,7 @@ func (b *BlockChain) FetchUtxoViewParentTemplate(block *wire.MsgBlock) (*UtxoVie
 	// Since the block template is building on the parent of the current tip,
 	// undo the transactions and spend information for the tip block to reach
 	// the point of view of the block template.
-	view := NewUtxoViewpoint()
+	view := NewUtxoViewpoint(b.utxoCache)
 	view.SetBestHash(&tip.hash)
 	tipBlock, err := b.fetchMainChainBlockByNode(tip)
 	if err != nil {
@@ -103,7 +103,7 @@ func (b *BlockChain) FetchUtxoViewParentTemplate(block *wire.MsgBlock) (*UtxoVie
 	// Update the view to unspend all of the spent txos and remove the utxos
 	// created by the tip block.  Also, if the block votes against its parent,
 	// reconnect all of the regular transactions.
-	err = view.disconnectBlock(b.db, tipBlock, parent, stxos, isTreasuryEnabled)
+	err = view.disconnectBlock(tipBlock, parent, stxos, isTreasuryEnabled)
 	if err != nil {
 		return nil, err
 	}
