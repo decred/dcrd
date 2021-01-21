@@ -6,25 +6,35 @@ package blockchain
 
 import "github.com/decred/dcrd/blockchain/stake/v4"
 
-// utxoFlags defines additional information and state for a transaction output
-// in a utxo view.  The bit representation is:
+// utxoState defines the in-memory state of a utxo entry.
+//
+// The bit representation is:
+//   bit  0    - transaction output has been spent
+//   bit  1    - transaction output has been modified since it was loaded
+//   bits 2-7  - unused
+type utxoState uint8
+
+const (
+	// utxoStateSpent indicates that a txout is spent.
+	utxoStateSpent utxoState = 1 << iota
+
+	// utxoStateModified indicates that a txout has been modified since it was
+	// loaded.
+	utxoStateModified
+)
+
+// utxoFlags defines additional information for the containing transaction of a
+// utxo entry.
+//
+// The bit representation is:
 //   bit  0    - containing transaction is a coinbase
-//   bit  1    - transaction output has been spent
-//   bit  2    - transaction output has been modified since it was loaded
-//   bit  3    - containing transaction has an expiry
-//   bits 4-7	 - transaction type
+//   bit  1    - containing transaction has an expiry
+//   bits 2-5  - transaction type
 type utxoFlags uint8
 
 const (
 	// utxoFlagCoinBase indicates that a txout was contained in a coinbase tx.
 	utxoFlagCoinBase utxoFlags = 1 << iota
-
-	// utxoFlagSpent indicates that a txout is spent.
-	utxoFlagSpent
-
-	// utxoFlagModified indicates that a txout has been modified since it was
-	// loaded.
-	utxoFlagModified
 
 	// utxoFlagHasExpiry indicates that a txout was contained in a tx that
 	// included an expiry.
@@ -32,28 +42,20 @@ const (
 )
 
 const (
-	// utxoFlagTxTypeBitmask describes the bitmask that yields bits 4-7 from
+	// utxoFlagTxTypeBitmask describes the bitmask that yields bits 2-5 from
 	// utxoFlags.
-	utxoFlagTxTypeBitmask = 0xf0
+	utxoFlagTxTypeBitmask = 0x3c
 
 	// utxoFlagTxTypeShift is the number of bits to shift utxoFlags to the right
 	// to yield the correct integer value after applying the bitmask with AND.
-	utxoFlagTxTypeShift = 4
+	utxoFlagTxTypeShift = 2
 )
 
 // encodeUtxoFlags returns utxoFlags representing the passed parameters.
-func encodeUtxoFlags(coinbase bool, spent bool, modified bool, hasExpiry bool,
-	txType stake.TxType) utxoFlags {
-
+func encodeUtxoFlags(coinbase bool, hasExpiry bool, txType stake.TxType) utxoFlags {
 	packedFlags := utxoFlags(txType) << utxoFlagTxTypeShift
 	if coinbase {
 		packedFlags |= utxoFlagCoinBase
-	}
-	if spent {
-		packedFlags |= utxoFlagSpent
-	}
-	if modified {
-		packedFlags |= utxoFlagModified
 	}
 	if hasExpiry {
 		packedFlags |= utxoFlagHasExpiry
@@ -100,16 +102,20 @@ type UtxoEntry struct {
 	blockIndex    uint32
 	scriptVersion uint16
 
-	// packedFlags contains additional info about the output as defined by
-	// utxoFlags.  This approach is used in order to reduce memory usage since
-	// there will be a lot of these in memory.
+	// state contains info for the in-memory state of the output as defined by
+	// utxoState.
+	state utxoState
+
+	// packedFlags contains additional info for the containing transaction of the
+	// output as defined by utxoFlags.  This approach is used in order to reduce
+	// memory usage since there will be a lot of these in memory.
 	packedFlags utxoFlags
 }
 
 // isModified returns whether or not the output has been modified since it was
 // loaded.
 func (entry *UtxoEntry) isModified() bool {
-	return entry.packedFlags&utxoFlagModified == utxoFlagModified
+	return entry.state&utxoStateModified == utxoStateModified
 }
 
 // IsCoinBase returns whether or not the output was contained in a coinbase
@@ -121,7 +127,7 @@ func (entry *UtxoEntry) IsCoinBase() bool {
 // IsSpent returns whether or not the output has been spent based upon the
 // current state of the unspent transaction output view it was obtained from.
 func (entry *UtxoEntry) IsSpent() bool {
-	return entry.packedFlags&utxoFlagSpent == utxoFlagSpent
+	return entry.state&utxoStateSpent == utxoStateSpent
 }
 
 // HasExpiry returns whether or not the output was contained in a transaction
@@ -157,7 +163,7 @@ func (entry *UtxoEntry) Spend() {
 	}
 
 	// Mark the output as spent and modified.
-	entry.packedFlags |= utxoFlagSpent | utxoFlagModified
+	entry.state |= utxoStateSpent | utxoStateModified
 }
 
 // Amount returns the amount of the output.
@@ -203,6 +209,7 @@ func (entry *UtxoEntry) Clone() *UtxoEntry {
 		blockHeight:   entry.blockHeight,
 		blockIndex:    entry.blockIndex,
 		scriptVersion: entry.scriptVersion,
+		state:         entry.state,
 		packedFlags:   entry.packedFlags,
 	}
 

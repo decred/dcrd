@@ -20,40 +20,31 @@ func TestEncodeUtxoFlags(t *testing.T) {
 	tests := []struct {
 		name      string
 		coinbase  bool
-		spent     bool
-		modified  bool
 		hasExpiry bool
 		txType    stake.TxType
 		want      utxoFlags
 	}{{
 		name:      "no flags set, regular tx",
 		coinbase:  false,
-		spent:     false,
-		modified:  false,
 		hasExpiry: false,
 		txType:    stake.TxTypeRegular,
 		want:      0x00,
 	}, {
 		name:      "coinbase, has expiry, vote tx",
 		coinbase:  true,
-		spent:     false,
-		modified:  false,
 		hasExpiry: true,
 		txType:    stake.TxTypeSSGen,
-		want:      0x29,
+		want:      0x0b,
 	}, {
-		name:      "spent, modified, has expiry, ticket tx",
+		name:      "has expiry, ticket tx",
 		coinbase:  false,
-		spent:     true,
-		modified:  true,
 		hasExpiry: true,
 		txType:    stake.TxTypeSStx,
-		want:      0x1e,
+		want:      0x06,
 	}}
 
 	for _, test := range tests {
-		got := encodeUtxoFlags(test.coinbase, test.spent, test.modified,
-			test.hasExpiry, test.txType)
+		got := encodeUtxoFlags(test.coinbase, test.hasExpiry, test.txType)
 		if got != test.want {
 			t.Errorf("%q: unexpected result -- got %x, want %x", test.name, got,
 				test.want)
@@ -104,9 +95,9 @@ func TestUtxoEntry(t *testing.T) {
 
 	tests := []struct {
 		name                      string
-		coinbase                  bool
 		spent                     bool
 		modified                  bool
+		coinbase                  bool
 		expiry                    bool
 		txType                    stake.TxType
 		amount                    int64
@@ -171,11 +162,24 @@ func TestUtxoEntry(t *testing.T) {
 			scriptVersion: test.scriptVersion,
 			packedFlags: encodeUtxoFlags(
 				test.coinbase,
-				test.spent,
-				test.modified,
 				test.expiry,
 				test.txType,
 			),
+		}
+
+		// Set state flags given the parameters for the current test.
+		if test.spent {
+			entry.state |= utxoStateSpent
+		}
+		if test.modified {
+			entry.state |= utxoStateModified
+		}
+
+		// Validate the spent flag.
+		isSpent := entry.IsSpent()
+		if isSpent != test.spent {
+			t.Fatalf("%q: unexpected spent flag -- got %v, want %v", test.name,
+				isSpent, test.spent)
 		}
 
 		// Validate the modified flag.
@@ -192,18 +196,18 @@ func TestUtxoEntry(t *testing.T) {
 				isCoinBase, test.coinbase)
 		}
 
-		// Validate the spent flag.
-		isSpent := entry.IsSpent()
-		if isSpent != test.spent {
-			t.Fatalf("%q: unexpected spent flag -- got %v, want %v", test.name,
-				isSpent, test.spent)
-		}
-
 		// Validate the expiry flag.
 		hasExpiry := entry.HasExpiry()
 		if hasExpiry != test.expiry {
 			t.Fatalf("%q: unexpected expiry flag -- got %v, want %v", test.name,
 				hasExpiry, test.expiry)
+		}
+
+		// Validate the type of the transaction that the output is contained in.
+		gotTxType := entry.TransactionType()
+		if gotTxType != test.txType {
+			t.Fatalf("%q: unexpected transaction type -- got %v, want %v", test.name,
+				gotTxType, test.txType)
 		}
 
 		// Validate the height of the block containing the output.
@@ -218,13 +222,6 @@ func TestUtxoEntry(t *testing.T) {
 		if gotBlockIndex != test.blockIndex {
 			t.Fatalf("%q: unexpected block index -- got %v, want %v", test.name,
 				gotBlockIndex, test.blockIndex)
-		}
-
-		// Validate the type of the transaction that the output is contained in.
-		gotTxType := entry.TransactionType()
-		if gotTxType != test.txType {
-			t.Fatalf("%q: unexpected transaction type -- got %v, want %v", test.name,
-				gotTxType, test.txType)
 		}
 
 		// Validate the amount of the output.

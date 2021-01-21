@@ -1,5 +1,5 @@
 // Copyright (c) 2015-2016 The btcsuite developers
-// Copyright (c) 2015-2020 The Decred developers
+// Copyright (c) 2015-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -828,9 +828,6 @@ func TestUtxoSerialization(t *testing.T) {
 		withCoinbase = true
 		noExpiry     = false
 		withExpiry   = true
-		unspent      = false
-		spent        = true
-		unmodified   = false
 	)
 
 	tests := []struct {
@@ -851,8 +848,6 @@ func TestUtxoSerialization(t *testing.T) {
 				scriptVersion: 0,
 				packedFlags: encodeUtxoFlags(
 					withCoinbase,
-					unspent,
-					unmodified,
 					noExpiry,
 					stake.TxTypeRegular,
 				),
@@ -872,8 +867,6 @@ func TestUtxoSerialization(t *testing.T) {
 				scriptVersion: 0,
 				packedFlags: encodeUtxoFlags(
 					withCoinbase,
-					unspent,
-					unmodified,
 					noExpiry,
 					stake.TxTypeRegular,
 				),
@@ -892,8 +885,6 @@ func TestUtxoSerialization(t *testing.T) {
 				scriptVersion: 0,
 				packedFlags: encodeUtxoFlags(
 					noCoinbase,
-					unspent,
-					unmodified,
 					noExpiry,
 					stake.TxTypeRegular,
 				),
@@ -912,8 +903,6 @@ func TestUtxoSerialization(t *testing.T) {
 				scriptVersion: 0,
 				packedFlags: encodeUtxoFlags(
 					noCoinbase,
-					unspent,
-					unmodified,
 					withExpiry,
 					stake.TxTypeSStx,
 				),
@@ -940,8 +929,6 @@ func TestUtxoSerialization(t *testing.T) {
 				scriptVersion: 0xffff,
 				packedFlags: encodeUtxoFlags(
 					withCoinbase,
-					unspent,
-					unmodified,
 					noExpiry,
 					stake.TxTypeRegular,
 				),
@@ -960,8 +947,6 @@ func TestUtxoSerialization(t *testing.T) {
 				scriptVersion: 0,
 				packedFlags: encodeUtxoFlags(
 					noCoinbase,
-					unspent,
-					unmodified,
 					withExpiry,
 					stake.TxTypeRegular,
 				),
@@ -979,10 +964,9 @@ func TestUtxoSerialization(t *testing.T) {
 				blockHeight:   33333,
 				blockIndex:    3,
 				scriptVersion: 0,
+				state:         utxoStateModified | utxoStateSpent,
 				packedFlags: encodeUtxoFlags(
 					withCoinbase,
-					spent,
-					unmodified,
 					withExpiry,
 					stake.TxTypeRegular,
 				),
