@@ -40,7 +40,6 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -200,11 +199,14 @@ func getChildService(d *device, serviceType string) *service {
 
 // getOurIP returns a best guess at what the local IP is.
 func getOurIP() (ip string, err error) {
-	hostname, err := os.Hostname()
-	if err != nil {
-		return
+	addrs, err := net.InterfaceAddrs()
+	for _, addr := range addrs {
+		ip, _, _ := net.ParseCIDR(addr.String())
+		if !ip.IsLoopback() {
+			return ip.String(), nil
+		}
 	}
-	return net.LookupCNAME(hostname)
+	return
 }
 
 // getServiceURL parses the xml description at the given root url to find the
