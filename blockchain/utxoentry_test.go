@@ -181,107 +181,110 @@ func TestUtxoEntry(t *testing.T) {
 		// Validate the modified flag.
 		isModified := entry.isModified()
 		if isModified != test.modified {
-			t.Fatalf("unexpected modified flag -- got %v, want %v", isModified,
-				test.modified)
+			t.Fatalf("%q: unexpected modified flag -- got %v, want %v", test.name,
+				isModified, test.modified)
 		}
 
 		// Validate the coinbase flag.
 		isCoinBase := entry.IsCoinBase()
 		if isCoinBase != test.coinbase {
-			t.Fatalf("unexpected coinbase flag -- got %v, want %v", isCoinBase,
-				test.coinbase)
+			t.Fatalf("%q: unexpected coinbase flag -- got %v, want %v", test.name,
+				isCoinBase, test.coinbase)
 		}
 
 		// Validate the spent flag.
 		isSpent := entry.IsSpent()
 		if isSpent != test.spent {
-			t.Fatalf("unexpected spent flag -- got %v, want %v", isSpent, test.spent)
+			t.Fatalf("%q: unexpected spent flag -- got %v, want %v", test.name,
+				isSpent, test.spent)
 		}
 
 		// Validate the expiry flag.
 		hasExpiry := entry.HasExpiry()
 		if hasExpiry != test.expiry {
-			t.Fatalf("unexpected expiry flag -- got %v, want %v", hasExpiry,
-				test.expiry)
+			t.Fatalf("%q: unexpected expiry flag -- got %v, want %v", test.name,
+				hasExpiry, test.expiry)
 		}
 
 		// Validate the height of the block containing the output.
 		gotBlockHeight := entry.BlockHeight()
 		if gotBlockHeight != int64(test.blockHeight) {
-			t.Fatalf("unexpected block height -- got %v, want %v", gotBlockHeight,
-				int64(test.blockHeight))
+			t.Fatalf("%q: unexpected block height -- got %v, want %v", test.name,
+				gotBlockHeight, int64(test.blockHeight))
 		}
 
 		// Validate the index of the transaction that the output is contained in.
 		gotBlockIndex := entry.BlockIndex()
 		if gotBlockIndex != test.blockIndex {
-			t.Fatalf("unexpected block index -- got %v, want %v", gotBlockIndex,
-				test.blockIndex)
+			t.Fatalf("%q: unexpected block index -- got %v, want %v", test.name,
+				gotBlockIndex, test.blockIndex)
 		}
 
 		// Validate the type of the transaction that the output is contained in.
 		gotTxType := entry.TransactionType()
 		if gotTxType != test.txType {
-			t.Fatalf("unexpected transaction type -- got %v, want %v", gotTxType,
-				test.txType)
+			t.Fatalf("%q: unexpected transaction type -- got %v, want %v", test.name,
+				gotTxType, test.txType)
 		}
 
 		// Validate the amount of the output.
 		gotAmount := entry.Amount()
 		if gotAmount != test.amount {
-			t.Fatalf("unexpected amount -- got %v, want %v", gotAmount, test.amount)
+			t.Fatalf("%q: unexpected amount -- got %v, want %v", test.name, gotAmount,
+				test.amount)
 		}
 
 		// Validate the script of the output.
 		gotScript := entry.PkScript()
 		if !bytes.Equal(gotScript, test.pkScript) {
-			t.Fatalf("unexpected script -- got %v, want %v", gotScript, test.pkScript)
+			t.Fatalf("%q: unexpected script -- got %v, want %v", test.name, gotScript,
+				test.pkScript)
 		}
 
 		// Validate the script version of the output.
 		gotScriptVersion := entry.ScriptVersion()
 		if gotScriptVersion != test.scriptVersion {
-			t.Fatalf("unexpected script version -- got %v, want %v", gotScriptVersion,
-				test.scriptVersion)
+			t.Fatalf("%q: unexpected script version -- got %v, want %v", test.name,
+				gotScriptVersion, test.scriptVersion)
 		}
 
 		// Spend the entry.  Validate that it is marked as spent and modified.
 		entry.Spend()
 		if !entry.IsSpent() {
-			t.Fatal("expected entry to be spent")
+			t.Fatalf("%q: expected entry to be spent", test.name)
 		}
 		if !entry.isModified() {
-			t.Fatal("expected entry to be modified")
+			t.Fatalf("%q: expected entry to be modified", test.name)
 		}
 
 		// Validate that if spend is called again the entry is still marked as spent
 		// and modified.
 		entry.Spend()
 		if !entry.IsSpent() {
-			t.Fatal("expected entry to still be marked as spent")
+			t.Fatalf("%q: expected entry to still be marked as spent", test.name)
 		}
 		if !entry.isModified() {
-			t.Fatal("expected entry to still be marked as modified")
+			t.Fatalf("%q: expected entry to still be marked as modified", test.name)
 		}
 
 		// Validate the ticket minimal outputs.
 		ticketMinOutsResult := entry.TicketMinimalOutputs()
 		if !reflect.DeepEqual(ticketMinOutsResult, test.deserializedTicketMinOuts) {
-			t.Fatalf("unexpected ticket min outs -- got %v, want %v",
+			t.Fatalf("%q: unexpected ticket min outs -- got %v, want %v", test.name,
 				ticketMinOutsResult, test.deserializedTicketMinOuts)
 		}
 
 		// Clone the entry and validate that all values are deep equal.
 		clonedEntry := entry.Clone()
 		if !reflect.DeepEqual(clonedEntry, entry) {
-			t.Fatalf("expected entry to be equal to cloned entry -- got %v, want %v",
-				clonedEntry, entry)
+			t.Fatalf("%q: expected entry to be equal to cloned entry -- got %v, "+
+				"want %v", test.name, clonedEntry, entry)
 		}
 
 		// Validate that clone returns nil when called on a nil entry.
 		var nilEntry *UtxoEntry
 		if nilEntry.Clone() != nil {
-			t.Fatal("expected nil when calling clone on a nil entry")
+			t.Fatalf("%q: expected nil when calling clone on a nil entry", test.name)
 		}
 	}
 }
