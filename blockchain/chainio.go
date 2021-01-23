@@ -80,6 +80,10 @@ var (
 	// transaction output set.
 	utxoSetBucketName = []byte("utxosetv3")
 
+	// utxoSetStateKeyName is the name of the database key used to house the
+	// state of the unspent transaction output set.
+	utxoSetStateKeyName = []byte("utxosetstate")
+
 	// blockIndexBucketName is the name of the db bucket used to house the block
 	// index which consists of metadata for all known blocks both in the main
 	// chain and on side chains.
@@ -1153,6 +1157,101 @@ func dbPutUtxoView(dbTx database.Tx, view *UtxoViewpoint) error {
 	}
 
 	return nil
+}
+
+// -----------------------------------------------------------------------------
+// The utxo set state contains information regarding the current state of the
+// utxo set.  In particular, it tracks the block height and block hash of the
+// last completed flush.
+//
+// The utxo set state is tracked in the database since at any given time, the
+// utxo cache may not be consistent with the utxo set in the database.  This is
+// due to the fact that the utxo cache only flushes changes to the database
+// periodically.  Therefore, during initialization, the utxo set state is used
+// to identify the last flushed state of the utxo set and it can be caught up
+// to the current best state of the main chain.
+//
+// Note: The utxo set state MUST always be updated in the same database
+// transaction that the utxo set is updated in to guarantee that they stay in
+// sync in the database.
+//
+// The serialized format is:
+//
+//   <block height><block hash>
+//
+//   Field          Type             Size
+//   block height   VLQ              variable
+//   block hash     chainhash.Hash   chainhash.HashSize
+//
+// -----------------------------------------------------------------------------
+
+// utxoSetState represents the current state of the utxo set.  In particular,
+// it tracks the block height and block hash of the last completed flush.
+type utxoSetState struct {
+	lastFlushHeight uint32
+	lastFlushHash   chainhash.Hash
+}
+
+// serializeUtxoSetState serializes the provided utxo set state.  The format is
+// described in detail above.
+func serializeUtxoSetState(state *utxoSetState) []byte {
+	// Calculate the size needed to serialize the utxo set state.
+	size := serializeSizeVLQ(uint64(state.lastFlushHeight)) + chainhash.HashSize
+
+	// Serialize the utxo set state and return it.
+	serialized := make([]byte, size)
+	offset := putVLQ(serialized, uint64(state.lastFlushHeight))
+	copy(serialized[offset:], state.lastFlushHash[:])
+	return serialized
+}
+
+// deserializeUtxoSetState deserializes the passed serialized byte slice into
+// the utxo set state.  The format is described in detail above.
+func deserializeUtxoSetState(serialized []byte) (*utxoSetState, error) {
+	// Deserialize the block height.
+	blockHeight, bytesRead := deserializeVLQ(serialized)
+	offset := bytesRead
+	if offset >= len(serialized) {
+		return nil, errDeserialize("unexpected end of data after height")
+	}
+
+	// Deserialize the hash.
+	if len(serialized[offset:]) != chainhash.HashSize {
+		return nil, errDeserialize("unexpected length for serialized hash")
+	}
+	var hash chainhash.Hash
+	copy(hash[:], serialized[offset:offset+chainhash.HashSize])
+
+	// Create the utxo set state and return it.
+	return &utxoSetState{
+		lastFlushHeight: uint32(blockHeight),
+		lastFlushHash:   hash,
+	}, nil
+}
+
+// dbPutUtxoSetState uses an existing database transaction to update the utxo
+// set state in the database.
+func dbPutUtxoSetState(dbTx database.Tx, state *utxoSetState) error {
+	// Serialize and store the utxo set state.
+	return dbTx.Metadata().Put(utxoSetStateKeyName, serializeUtxoSetState(state))
+}
+
+// dbFetchUtxoSetState uses an existing database transaction to fetch the utxo
+// set state from the database.  If the utxo set state does not exist in the
+// database, nil is returned.
+func dbFetchUtxoSetState(dbTx database.Tx) (*utxoSetState, error) {
+	// Fetch the serialized utxo set state from the database.
+	serialized := dbTx.Metadata().Get(utxoSetStateKeyName)
+
+	// Return nil if the utxo set state does not exist in the database.  This
+	// should only be the case when starting from a fresh database or a database
+	// that has not been run with the utxo cache yet.
+	if serialized == nil {
+		return nil, nil
+	}
+
+	// Deserialize the utxo set state and return it.
+	return deserializeUtxoSetState(serialized)
 }
 
 // -----------------------------------------------------------------------------
