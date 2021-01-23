@@ -10,6 +10,8 @@ import (
 	"encoding/hex"
 	"errors"
 	"math/big"
+	"os"
+	"path/filepath"
 	"reflect"
 	"testing"
 	"time"
@@ -1000,12 +1002,12 @@ func TestUtxoSerialization(t *testing.T) {
 		// Ensure that the serialized bytes are decoded back to the expected utxo.
 		gotUtxo, err := deserializeUtxoEntry(test.serialized, test.txOutIndex)
 		if err != nil {
-			t.Errorf("serializeUtxoEntry #%d (%s): unexpected error: %v", i,
+			t.Errorf("deserializeUtxoEntry #%d (%s): unexpected error: %v", i,
 				test.name, err)
 			continue
 		}
 		if !reflect.DeepEqual(gotUtxo, test.entry) {
-			t.Errorf("serializeUtxoEntry #%d (%s):\nwant: %+v\n got: %+v\n", i,
+			t.Errorf("deserializeUtxoEntry #%d (%s):\nwant: %+v\n got: %+v\n", i,
 				test.name, test.entry, gotUtxo)
 		}
 	}
@@ -1119,6 +1121,163 @@ func TestUtxoEntryDeserializeErrors(t *testing.T) {
 			t.Errorf("deserializeUtxoEntry (%s): returned entry "+
 				"is not nil", test.name)
 			continue
+		}
+	}
+}
+
+// TestUtxoSetStateSerialization ensures that serializing and deserializing
+// the utxo set state works as expected.
+func TestUtxoSetStateSerialization(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		state      *utxoSetState
+		serialized []byte
+	}{{
+		name: "last flush height and hash updated",
+		state: &utxoSetState{
+			lastFlushHeight: 432100,
+			lastFlushHash: *mustParseHash("000000000000000023455b4328635d8e014dbeea" +
+				"99c6140aa715836cc7e55981"),
+		},
+		serialized: hexToBytes("99ae648159e5c76c8315a70a14c699eabe4d018e5d6328435" +
+			"b45230000000000000000"),
+	}, {
+		name: "last flush height and hash are the genesis block",
+		state: &utxoSetState{
+			lastFlushHeight: 0,
+			lastFlushHash: *mustParseHash("298e5cc3d985bfe7f81dc135f360abe089edd439" +
+				"6b86d2de66b0cef42b21d980"),
+		},
+		serialized: hexToBytes("0080d9212bf4ceb066ded2866b39d4ed89e0ab60f335c11df" +
+			"8e7bf85d9c35c8e29"),
+	}}
+
+	for _, test := range tests {
+		// Ensure the utxo set state serializes to the expected value.
+		gotBytes := serializeUtxoSetState(test.state)
+		if !bytes.Equal(gotBytes, test.serialized) {
+			t.Errorf("serializeUtxoSetState (%s): mismatched bytes - got %x, "+
+				"want %x", test.name, gotBytes, test.serialized)
+			continue
+		}
+
+		// Ensure that the serialized bytes are decoded back to the expected utxo
+		// set state.
+		gotUtxoSetState, err := deserializeUtxoSetState(test.serialized)
+		if err != nil {
+			t.Errorf("deserializeUtxoSetState (%s): unexpected error: %v", test.name,
+				err)
+			continue
+		}
+		if !reflect.DeepEqual(gotUtxoSetState, test.state) {
+			t.Errorf("deserializeUtxoSetState (%s):\nwant: %+v\n got: %+v\n",
+				test.name, test.state, gotUtxoSetState)
+		}
+	}
+}
+
+// TestUtxoSetStateDeserializeErrors performs negative tests against
+// deserializing the utxo set state to ensure error paths work as expected.
+func TestUtxoSetStateDeserializeErrors(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		serialized []byte
+		errType    error
+	}{{
+		// [EOF]
+		name:       "nothing serialized (no last flush height)",
+		serialized: hexToBytes(""),
+		errType:    errDeserialize(""),
+	}, {
+		// [<height 99ae64><EOF>]
+		name:       "no data after last flush height",
+		serialized: hexToBytes("99ae64"),
+		errType:    errDeserialize(""),
+	}, {
+		// [<height 99ae64><truncated hash 8159e5c76c8315a70a14c699>]
+		name:       "truncated hash",
+		serialized: hexToBytes("99ae648159e5c76c8315a70a14c699"),
+		errType:    errDeserialize(""),
+	}}
+
+	for _, test := range tests {
+		// Ensure the expected error type is returned and the returned
+		// utxo set state is nil.
+		entry, err := deserializeUtxoSetState(test.serialized)
+		if !errors.As(err, &test.errType) {
+			t.Errorf("deserializeUtxoSetState (%s): expected error type does not "+
+				"match - got %T, want %T", test.name, err, test.errType)
+			continue
+		}
+		if entry != nil {
+			t.Errorf("deserializeUtxoSetState (%s): returned utxo set state is not "+
+				"nil", test.name)
+			continue
+		}
+	}
+}
+
+// TestDbFetchUtxoSetState ensures that putting and fetching the utxo set state
+// works as expected.
+func TestDbFetchUtxoSetState(t *testing.T) {
+	t.Parallel()
+
+	// Create a test database.
+	dbPath := filepath.Join(os.TempDir(), "test-dbfetchutxosetstate")
+	_ = os.RemoveAll(dbPath)
+	db, err := database.Create("ffldb", dbPath, wire.MainNet)
+	if err != nil {
+		t.Fatalf("error creating test database: %v", err)
+	}
+	defer os.RemoveAll(dbPath)
+	defer db.Close()
+
+	tests := []struct {
+		name  string
+		state *utxoSetState
+	}{{
+		name:  "fresh database (no utxo set state saved)",
+		state: nil,
+	}, {
+		name: "last flush saved in database",
+		state: &utxoSetState{
+			lastFlushHeight: 432100,
+			lastFlushHash: *mustParseHash("000000000000000023455b4328635d8e014dbeea" +
+				"99c6140aa715836cc7e55981"),
+		},
+	}}
+
+	for _, test := range tests {
+		// Update the utxo set state in the database.
+		if test.state != nil {
+			err = db.Update(func(dbTx database.Tx) error {
+				return dbPutUtxoSetState(dbTx, test.state)
+			})
+			if err != nil {
+				t.Fatalf("%q: error putting utxo set state: %v", test.name, err)
+			}
+		}
+
+		// Fetch the utxo set state from the database.
+		err = db.View(func(dbTx database.Tx) error {
+			gotState, err := dbFetchUtxoSetState(dbTx)
+			if err != nil {
+				return err
+			}
+
+			// Ensure that the fetched utxo set state matches the expected state.
+			if !reflect.DeepEqual(gotState, test.state) {
+				t.Errorf("%q: mismatched state:\nwant: %+v\n got: %+v\n", test.name,
+					test.state, gotState)
+			}
+			return nil
+		})
+		if err != nil {
+			t.Fatalf("%q: error fetching utxo set state: %v", test.name, err)
 		}
 	}
 }
