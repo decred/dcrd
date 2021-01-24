@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2020 The Decred developers
+// Copyright (c) 2015-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -38,13 +38,16 @@ import (
 
 const (
 	// Defaults for general application behavior options.
-	defaultConfigFilename  = "dcrd.conf"
-	defaultDataDirname     = "data"
-	defaultLogDirname      = "logs"
-	defaultLogFilename     = "dcrd.log"
-	defaultDbType          = "ffldb"
-	defaultLogLevel        = "info"
-	defaultSigCacheMaxSize = 100000
+	defaultConfigFilename   = "dcrd.conf"
+	defaultDataDirname      = "data"
+	defaultLogDirname       = "logs"
+	defaultLogFilename      = "dcrd.log"
+	defaultDbType           = "ffldb"
+	defaultLogLevel         = "info"
+	defaultSigCacheMaxSize  = 100000
+	defaultUtxoCacheMaxSize = 150
+	minUtxoCacheMaxSize     = 25
+	maxUtxoCacheMaxSize     = 32768 // 32 GiB
 
 	// Defaults for RPC server options and policy.
 	defaultTLSCurve             = "P-256"
@@ -118,21 +121,22 @@ func minUint32(a, b uint32) uint32 {
 // See loadConfig for details on the configuration load process.
 type config struct {
 	// General application behavior.
-	ShowVersion     bool   `short:"V" long:"version" description:"Display version information and exit"`
-	HomeDir         string `short:"A" long:"appdata" description:"Path to application home directory"`
-	ConfigFile      string `short:"C" long:"configfile" description:"Path to configuration file"`
-	DataDir         string `short:"b" long:"datadir" description:"Directory to store data"`
-	LogDir          string `long:"logdir" description:"Directory to log output"`
-	NoFileLogging   bool   `long:"nofilelogging" description:"Disable file logging"`
-	DbType          string `long:"dbtype" description:"Database backend to use for the block chain"`
-	Profile         string `long:"profile" description:"Enable HTTP profiling on given [addr:]port -- NOTE port must be between 1024 and 65536"`
-	CPUProfile      string `long:"cpuprofile" description:"Write CPU profile to the specified file"`
-	MemProfile      string `long:"memprofile" description:"Write mem profile to the specified file"`
-	TestNet         bool   `long:"testnet" description:"Use the test network"`
-	SimNet          bool   `long:"simnet" description:"Use the simulation test network"`
-	RegNet          bool   `long:"regnet" description:"Use the regression test network"`
-	DebugLevel      string `short:"d" long:"debuglevel" description:"Logging level for all subsystems {trace, debug, info, warn, error, critical} -- You may also specify <subsystem>=<level>,<subsystem2>=<level>,... to set the log level for individual subsystems -- Use show to list available subsystems"`
-	SigCacheMaxSize uint   `long:"sigcachemaxsize" description:"The maximum number of entries in the signature verification cache"`
+	ShowVersion      bool   `short:"V" long:"version" description:"Display version information and exit"`
+	HomeDir          string `short:"A" long:"appdata" description:"Path to application home directory"`
+	ConfigFile       string `short:"C" long:"configfile" description:"Path to configuration file"`
+	DataDir          string `short:"b" long:"datadir" description:"Directory to store data"`
+	LogDir           string `long:"logdir" description:"Directory to log output"`
+	NoFileLogging    bool   `long:"nofilelogging" description:"Disable file logging"`
+	DbType           string `long:"dbtype" description:"Database backend to use for the block chain"`
+	Profile          string `long:"profile" description:"Enable HTTP profiling on given [addr:]port -- NOTE port must be between 1024 and 65536"`
+	CPUProfile       string `long:"cpuprofile" description:"Write CPU profile to the specified file"`
+	MemProfile       string `long:"memprofile" description:"Write mem profile to the specified file"`
+	TestNet          bool   `long:"testnet" description:"Use the test network"`
+	SimNet           bool   `long:"simnet" description:"Use the simulation test network"`
+	RegNet           bool   `long:"regnet" description:"Use the regression test network"`
+	DebugLevel       string `short:"d" long:"debuglevel" description:"Logging level for all subsystems {trace, debug, info, warn, error, critical} -- You may also specify <subsystem>=<level>,<subsystem2>=<level>,... to set the log level for individual subsystems -- Use show to list available subsystems"`
+	SigCacheMaxSize  uint   `long:"sigcachemaxsize" description:"The maximum number of entries in the signature verification cache"`
+	UtxoCacheMaxSize uint   `long:"utxocachemaxsize" description:"The maximum size in MiB of the utxo cache"`
 
 	// RPC server options and policy.
 	DisableRPC           bool     `long:"norpc" description:"Disable built-in RPC server -- NOTE: The RPC server is disabled by default if no rpcuser/rpcpass or rpclimituser/rpclimitpass is specified"`
@@ -560,13 +564,14 @@ func loadConfig(appName string) (*config, []string, error) {
 	// Default config.
 	cfg := config{
 		// General application behavior.
-		HomeDir:         defaultHomeDir,
-		ConfigFile:      defaultConfigFile,
-		DataDir:         defaultDataDir,
-		LogDir:          defaultLogDir,
-		DbType:          defaultDbType,
-		DebugLevel:      defaultLogLevel,
-		SigCacheMaxSize: defaultSigCacheMaxSize,
+		HomeDir:          defaultHomeDir,
+		ConfigFile:       defaultConfigFile,
+		DataDir:          defaultDataDir,
+		LogDir:           defaultLogDir,
+		DbType:           defaultDbType,
+		DebugLevel:       defaultLogLevel,
+		SigCacheMaxSize:  defaultSigCacheMaxSize,
+		UtxoCacheMaxSize: defaultUtxoCacheMaxSize,
 
 		// RPC server options and policy.
 		RPCCert:              defaultRPCCertFile,
@@ -844,6 +849,13 @@ func loadConfig(appName string) (*config, []string, error) {
 			"supported types %v"
 		err := fmt.Errorf(str, funcName, cfg.DbType, knownDbTypes)
 		return nil, nil, err
+	}
+
+	// Enforce the minimum and maximum utxo cache max size.
+	if cfg.UtxoCacheMaxSize < minUtxoCacheMaxSize {
+		cfg.UtxoCacheMaxSize = minUtxoCacheMaxSize
+	} else if cfg.UtxoCacheMaxSize > maxUtxoCacheMaxSize {
+		cfg.UtxoCacheMaxSize = maxUtxoCacheMaxSize
 	}
 
 	// Validate format of profile, can be an address:port, or just a port.
