@@ -108,6 +108,7 @@ func TestUtxoEntry(t *testing.T) {
 		scriptVersion             uint16
 		ticketMinOuts             *ticketMinimalOutputs
 		deserializedTicketMinOuts []*stake.MinimalOutput
+		size                      uint64
 	}{{
 		name:     "coinbase output",
 		coinbase: true,
@@ -118,6 +119,8 @@ func TestUtxoEntry(t *testing.T) {
 		blockHeight:   54321,
 		blockIndex:    0,
 		scriptVersion: 0,
+		// baseEntrySize + len(pkScript).
+		size: baseEntrySize + 25,
 	}, {
 		name:   "ticket submission output",
 		fresh:  true,
@@ -151,6 +154,8 @@ func TestUtxoEntry(t *testing.T) {
 			Value:   0,
 			Version: 0,
 		}},
+		// baseEntrySize + len(pkScript) + len(ticketMinOuts.data).
+		size: baseEntrySize + 26 + 99,
 	}}
 
 	for _, test := range tests {
@@ -178,6 +183,13 @@ func TestUtxoEntry(t *testing.T) {
 		}
 		if test.fresh {
 			entry.state |= utxoStateFresh
+		}
+
+		// Validate the size of the entry.
+		size := entry.size()
+		if size != test.size {
+			t.Fatalf("%q: unexpected size -- got %v, want %v", test.name, size,
+				test.size)
 		}
 
 		// Validate the spent flag.
