@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2020 The Decred developers
+// Copyright (c) 2017-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -292,6 +292,12 @@ const fileContents = `[Application Options]
 ; Limit the signature cache to a max of 50000 entries.
 ; sigcachemaxsize=50000
 
+; ------------------------------------------------------------------------------
+; Unspent Transaction Output (UTXO) Cache
+; ------------------------------------------------------------------------------
+
+; Limit the utxo cache to a max of 100 MiB.
+; utxocachemaxsize=150
 
 ; ------------------------------------------------------------------------------
 ; Coin Generation (Mining) Settings - The following options control the

@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2020 The Decred developers
+// Copyright (c) 2015-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -45,6 +45,8 @@ Application Options:
                                Use show to list available subsystems (info)
       --sigcachemaxsize=       The maximum number of entries in the signature
                                verification cache (default: 100000)
+      --utxocachemaxsize=      The maximum size in MiB of the utxo cache
+                               (default: 150, minimum: 25, maximum: 32768)
       --norpc                  Disable built-in RPC server -- NOTE: The RPC
                                server is disabled by default if no
                                rpcuser/rpcpass or rpclimituser/rpclimitpass is
