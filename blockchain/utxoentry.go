@@ -8,6 +8,13 @@ import (
 	"github.com/decred/dcrd/blockchain/stake/v4"
 )
 
+const (
+	// baseEntrySize is the base size of a utxo entry on a 64-bit platform,
+	// excluding the contents of the script and ticket minimal outputs.  It is
+	// equivalent to what unsafe.Sizeof(UtxoEntry{}) returns on a 64-bit platform.
+	baseEntrySize = 56
+)
+
 // utxoState defines the in-memory state of a utxo entry.
 //
 // The bit representation is:
@@ -117,6 +124,15 @@ type UtxoEntry struct {
 	// output as defined by utxoFlags.  This approach is used in order to reduce
 	// memory usage since there will be a lot of these in memory.
 	packedFlags utxoFlags
+}
+
+// size returns the number of bytes that the entry uses on a 64-bit platform.
+func (entry *UtxoEntry) size() uint64 {
+	size := baseEntrySize + len(entry.pkScript)
+	if entry.ticketMinOuts != nil {
+		size += len(entry.ticketMinOuts.data)
+	}
+	return uint64(size)
 }
 
 // isModified returns whether or not the output has been modified since it was
