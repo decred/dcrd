@@ -1245,7 +1245,7 @@ func (m *SyncManager) needTx(hash *chainhash.Hash) bool {
 		return false
 	}
 
-	return false
+	return true
 }
 
 // handleInvMsg handles inv messages from all peers.  This entails examining the
