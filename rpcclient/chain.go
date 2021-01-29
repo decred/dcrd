@@ -977,20 +977,21 @@ func (c *Client) GetCFilterV2(ctx context.Context, blockHash *chainhash.Hash) (*
 type FutureEstimateSmartFeeResult cmdRes
 
 // Receive waits for the response promised by the future and returns a fee
-// estimation for the given target confirmation window and mode.
-func (r *FutureEstimateSmartFeeResult) Receive() (float64, error) {
+// estimation for the given target confirmation window and mode along with
+// the block number where the estimate was found.
+func (r *FutureEstimateSmartFeeResult) Receive() (*chainjson.EstimateSmartFeeResult, error) {
 	res, err := receiveFuture(r.ctx, r.c)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
 
-	// Unmarshal the result as a float64.
-	var dcrPerKB float64
-	err = json.Unmarshal(res, &dcrPerKB)
+	// Unmarshal the result.
+	var estimateSmartFeeResult chainjson.EstimateSmartFeeResult
+	err = json.Unmarshal(res, &estimateSmartFeeResult)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
-	return dcrPerKB, nil
+	return &estimateSmartFeeResult, nil
 }
 
 // EstimateSmartFeeAsync returns an instance of a type that can be used to get
@@ -1005,7 +1006,7 @@ func (c *Client) EstimateSmartFeeAsync(ctx context.Context, confirmations int64,
 
 // EstimateSmartFee returns an estimation of a transaction fee rate (in dcr/KB)
 // that new transactions should pay if they desire to be mined in up to
-// 'confirmations' blocks.
+// 'confirmations' blocks and the block number where the estimate was found.
 //
 // The mode parameter (roughly) selects the different thresholds for accepting
 // an estimation as reasonable, allowing users to select different trade-offs
@@ -1013,6 +1014,6 @@ func (c *Client) EstimateSmartFeeAsync(ctx context.Context, confirmations int64,
 // confirmation range and minimization of fees paid.
 //
 // As of 2019-01, only the default conservative mode is supported by dcrd.
-func (c *Client) EstimateSmartFee(ctx context.Context, confirmations int64, mode chainjson.EstimateSmartFeeMode) (float64, error) {
+func (c *Client) EstimateSmartFee(ctx context.Context, confirmations int64, mode chainjson.EstimateSmartFeeMode) (*chainjson.EstimateSmartFeeResult, error) {
 	return c.EstimateSmartFeeAsync(ctx, confirmations, mode).Receive()
 }
