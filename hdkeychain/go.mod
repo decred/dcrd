@@ -9,7 +9,7 @@ require (
 	github.com/decred/dcrd/crypto/ripemd160 v1.0.1
 	github.com/decred/dcrd/dcrec v1.0.0
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.0.0-20210127014238-b33b46cf1a24
-	github.com/decred/dcrd/dcrutil/v4 v4.0.0
+	github.com/decred/dcrd/dcrutil/v4 v4.0.0-20210129181600-6ae0142d3b28
 )
 
 replace (
