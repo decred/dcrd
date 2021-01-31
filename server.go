@@ -35,6 +35,7 @@ import (
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/chaincfg/v3"
 	"github.com/decred/dcrd/connmgr/v3"
+	"github.com/decred/dcrd/container/apbf"
 	"github.com/decred/dcrd/database/v2"
 	"github.com/decred/dcrd/dcrutil/v4"
 	"github.com/decred/dcrd/internal/fees"
@@ -98,14 +99,21 @@ const (
 	// expensive lottery data calculations for them.
 	maxReorgDepthNotify = 6
 
-	// maxRecentlyConfirmedTxns specifies the maximum number of recently
-	// confirmed transactions to track.  This value is set to target tracking
-	// the maximum number transactions of the minimum realistic size (~206
-	// bytes) in approximately one hour of blocks on the main network.
+	// These fields are used to track recently confirmed transactions.
 	//
-	// Since each hash in the cache will occupy 32 bytes, this value will result
-	// in around 718KiB memory usage plus the overhead of the structure.
-	maxRecentlyConfirmedTxns = 23000
+	// maxRecentlyConfirmedTxns specifies the maximum number to track and is set
+	// to target tracking the maximum number transactions of the minimum
+	// realistic size (~206 bytes) in approximately one hour of blocks on the
+	// main network.
+	//
+	// recentlyConfirmedTxnsFPRate is the false positive rate for the APBF used
+	// to track them and is set to a rate of 1 per 1 million which supports up
+	// to ~11.5 transactions/s before a single false positive would be seen on
+	// average and thus allows for plenty of future growth.
+	//
+	// These values result in about 183 KiB memory usage including overhead.
+	maxRecentlyConfirmedTxns    = 23000
+	recentlyConfirmedTxnsFPRate = 0.000001
 )
 
 var (
@@ -497,7 +505,7 @@ type server struct {
 
 	// recentlyConfirmedTxns tracks transactions that have been confirmed in the
 	// most recent blocks.
-	recentlyConfirmedTxns lru.Cache
+	recentlyConfirmedTxns *apbf.Filter
 }
 
 // serverPeer extends the peer to maintain state shared by the server.
@@ -1510,7 +1518,7 @@ func (s *server) AnnounceNewTransactions(txns []*dcrutil.Tx) {
 // requests for recently confirmed transactions.
 func (s *server) TransactionConfirmed(tx *dcrutil.Tx) {
 	txHash := tx.Hash()
-	s.recentlyConfirmedTxns.Add(*txHash)
+	s.recentlyConfirmedTxns.Add(txHash[:])
 
 	// Rebroadcasting is only necessary when the RPC server is active.
 	if s.rpcServer != nil {
@@ -3266,23 +3274,24 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB, chainP
 	}
 
 	s := server{
-		chainParams:           chainParams,
-		addrManager:           amgr,
-		newPeers:              make(chan *serverPeer, cfg.MaxPeers),
-		donePeers:             make(chan *serverPeer, cfg.MaxPeers),
-		banPeers:              make(chan *serverPeer, cfg.MaxPeers),
-		query:                 make(chan interface{}),
-		relayInv:              make(chan relayMsg, cfg.MaxPeers),
-		broadcast:             make(chan broadcastMsg, cfg.MaxPeers),
-		modifyRebroadcastInv:  make(chan interface{}),
-		nat:                   nat,
-		db:                    db,
-		timeSource:            blockchain.NewMedianTime(),
-		services:              services,
-		sigCache:              sigCache,
-		subsidyCache:          standalone.NewSubsidyCache(chainParams),
-		lotteryDataBroadcast:  make(map[chainhash.Hash]struct{}),
-		recentlyConfirmedTxns: lru.NewCache(maxRecentlyConfirmedTxns),
+		chainParams:          chainParams,
+		addrManager:          amgr,
+		newPeers:             make(chan *serverPeer, cfg.MaxPeers),
+		donePeers:            make(chan *serverPeer, cfg.MaxPeers),
+		banPeers:             make(chan *serverPeer, cfg.MaxPeers),
+		query:                make(chan interface{}),
+		relayInv:             make(chan relayMsg, cfg.MaxPeers),
+		broadcast:            make(chan broadcastMsg, cfg.MaxPeers),
+		modifyRebroadcastInv: make(chan interface{}),
+		nat:                  nat,
+		db:                   db,
+		timeSource:           blockchain.NewMedianTime(),
+		services:             services,
+		sigCache:             sigCache,
+		subsidyCache:         standalone.NewSubsidyCache(chainParams),
+		lotteryDataBroadcast: make(map[chainhash.Hash]struct{}),
+		recentlyConfirmedTxns: apbf.NewFilter(maxRecentlyConfirmedTxns,
+			recentlyConfirmedTxnsFPRate),
 	}
 
 	// Create the transaction and address indexes if needed.
@@ -3448,7 +3457,7 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB, chainP
 		NoMiningStateSync:     cfg.NoMiningStateSync,
 		MaxPeers:              cfg.MaxPeers,
 		MaxOrphanTxs:          cfg.MaxOrphanTxs,
-		RecentlyConfirmedTxns: &s.recentlyConfirmedTxns,
+		RecentlyConfirmedTxns: s.recentlyConfirmedTxns,
 	})
 
 	// Dump the blockchain and quit if requested.

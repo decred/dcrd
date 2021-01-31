@@ -18,12 +18,12 @@ import (
 	"github.com/decred/dcrd/blockchain/v4"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/chaincfg/v3"
+	"github.com/decred/dcrd/container/apbf"
 	"github.com/decred/dcrd/database/v2"
 	"github.com/decred/dcrd/dcrutil/v4"
 	"github.com/decred/dcrd/internal/mempool"
 	"github.com/decred/dcrd/internal/progresslog"
 	"github.com/decred/dcrd/internal/rpcserver"
-	"github.com/decred/dcrd/lru"
 	peerpkg "github.com/decred/dcrd/peer/v3"
 	"github.com/decred/dcrd/wire"
 )
@@ -1241,7 +1241,7 @@ func (m *SyncManager) needTx(hash *chainhash.Hash) bool {
 	}
 
 	// No need for transactions that were recently confirmed.
-	if m.cfg.RecentlyConfirmedTxns.Contains(*hash) {
+	if m.cfg.RecentlyConfirmedTxns.Contains(hash[:]) {
 		return false
 	}
 
@@ -1816,7 +1816,7 @@ type Config struct {
 	// RecentlyConfirmedTxns specifies a size limited set to use for tracking
 	// and querying the most recently confirmed transactions.  It is useful for
 	// preventing duplicate requests.
-	RecentlyConfirmedTxns *lru.Cache
+	RecentlyConfirmedTxns *apbf.Filter
 }
 
 // New returns a new network chain synchronization manager.  Use Run to begin
