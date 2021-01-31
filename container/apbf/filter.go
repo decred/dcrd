@@ -2,6 +2,8 @@
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
+//go:generate go run generateapbftable.go
+
 // Package apbf implements an optimized Age-Partitioned Bloom Filter.
 package apbf
 
@@ -486,6 +488,11 @@ func (f *Filter) Reset() {
 // Applications might prefer using NewFilter to specify the max capacity and a
 // target false positive rate unless they specifically require the additional
 // fine tuning provided here.
+//
+// For convenience, the 'go generate' command may be used in the code directory
+// to generate a table of k and l combinations along with the false positive
+// rate they maintain and average expected number of accesses for false queries
+// to help select appropriate parameters.
 //
 // Note that, due to rounding, the actual max number of items that can be added
 // to the filter before old entries are expired might actually be slightly
