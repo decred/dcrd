@@ -45,7 +45,6 @@ import (
 	"github.com/decred/dcrd/internal/netsync"
 	"github.com/decred/dcrd/internal/rpcserver"
 	"github.com/decred/dcrd/internal/version"
-	"github.com/decred/dcrd/lru"
 	"github.com/decred/dcrd/peer/v3"
 	"github.com/decred/dcrd/txscript/v4"
 	"github.com/decred/dcrd/wire"
@@ -76,9 +75,19 @@ const (
 	// maxProtocolVersion is the max protocol version the server supports.
 	maxProtocolVersion = wire.InitStateVersion
 
-	// maxKnownAddrsPerPeer is the maximum number of items to keep in the
-	// per-peer known address cache.
+	// These fields are used to track known addresses on a per-peer basis.
+	//
+	// maxKnownAddrsPerPeer is the maximum number of items to track.
+	//
+	// knownAddrsFPRate is the false positive rate for the APBF used to track
+	// them.  It is set to a rate of 1 per 1000 since addresses are not very
+	// large and they only need to be filtered once per connection, so an extra
+	// 10 of them being sent (on average) again even though they technically
+	// wouldn't need to is a good tradeoff.
+	//
+	// These values result in about 40 KiB memory usage including overhead.
 	maxKnownAddrsPerPeer = 10000
+	knownAddrsFPRate     = 0.001
 
 	// maxCachedNaSubmissions is the maximum number of network address
 	// submissions cached.
@@ -519,7 +528,7 @@ type serverPeer struct {
 	relayMtx       sync.Mutex
 	disableRelayTx bool
 	isWhitelisted  bool
-	knownAddresses lru.Cache
+	knownAddresses *apbf.Filter
 	banScore       connmgr.DynamicBanScore
 	quit           chan struct{}
 
@@ -547,7 +556,7 @@ func newServerPeer(s *server, isPersistent bool) *serverPeer {
 	return &serverPeer{
 		server:         s,
 		persistent:     isPersistent,
-		knownAddresses: lru.NewCache(maxKnownAddrsPerPeer),
+		knownAddresses: apbf.NewFilter(maxKnownAddrsPerPeer, knownAddrsFPRate),
 		quit:           make(chan struct{}),
 		txProcessed:    make(chan struct{}, 1),
 		blockProcessed: make(chan struct{}, 1),
@@ -565,13 +574,13 @@ func (sp *serverPeer) newestBlock() (*chainhash.Hash, int64, error) {
 // the peer to prevent sending duplicate addresses.
 func (sp *serverPeer) addKnownAddresses(addresses []*wire.NetAddress) {
 	for _, na := range addresses {
-		sp.knownAddresses.Add(addrmgr.NetAddressKey(na))
+		sp.knownAddresses.Add([]byte(addrmgr.NetAddressKey(na)))
 	}
 }
 
 // addressKnown true if the given address is already known to the peer.
 func (sp *serverPeer) addressKnown(na *wire.NetAddress) bool {
-	return sp.knownAddresses.Contains(addrmgr.NetAddressKey(na))
+	return sp.knownAddresses.Contains([]byte(addrmgr.NetAddressKey(na)))
 }
 
 // setDisableRelayTx toggles relaying of transactions for the given peer.
