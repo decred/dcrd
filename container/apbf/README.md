@@ -31,7 +31,7 @@ unbounded event stream with a tunable upper bound on the false positive rate.
 
 ### Additional Implementation Details
 
-This implementation deviates from the original paper in at least a couple of
+This implementation deviates from the original paper in at least the following
 important ways:
 
 - It uses Dillinger-Manolis enhanced double hashing instead of the more
@@ -41,6 +41,7 @@ important ways:
 - Every filter is given a unique key for the internal hashing logic so each one
   will have a unique set of false positives and that key is automatically
   changed when the filter is manually reset by the caller
+- Lemire fast reduction is used instead of standard modular reduction
 
 ## Choosing Parameters
 
@@ -87,18 +88,18 @@ described above, for the parameter selection.
 
 Capacity | Target FP | Actual Observed FP
 ---------|-----------|-------------------
-1000     |   0.1%    | 0.099%
-10000    |   0.1%    | 0.096%
+1000     |   0.1%    | 0.097%
+10000    |   0.1%    | 0.099%
 10000000 |   0.1%    | 0.1%
-1000     |   1.0%    | 0.948%
-10000    |   1.0%    | 0.868%
+1000     |   1.0%    | 0.867%
+10000    |   1.0%    | 0.862%
 10000000 |   1.0%    | 0.857%
-1000     |   2.0%    | 1.448%
-10000    |   2.0%    | 1.47%
-10000000 |   2.0%    | 1.46%
+1000     |   2.0%    | 1.464%
+10000    |   2.0%    | 1.451%
+10000000 |   2.0%    | 1.461%
 1000     |  10.0%    | 6.74%
-10000    |  10.0%    | 6.834%
-10000000 |  10.0%    | 7.027%
+10000    |  10.0%    | 6.96%
+10000000 |  10.0%    | 7.024%
 
 ## Memory Usage
 
@@ -126,32 +127,32 @@ operations.  The benchmarks are from a Ryzen 7 1700 processor.
 
 Capacity | Target FP |  Time / Op  | Allocs / Op
 ---------|-----------|-------------|------------
-1000     | 0.1%      | 159ns ± 5%  | 0
-1000     | 0.01%     | 208ns ± 0%  | 0
-1000     | 0.001%    | 245ns ± 0%  | 0
-100000   | 0.01%     | 198ns ± 3%  | 0
-100000   | 0.0001%   | 271ns ± 2%  | 0
-1000000  | 0.00001%  | 496ns ± 7%  | 0
+1000     | 0.1%      |  59ns ± 1%  | 0
+1000     | 0.01%     |  69ns ± 2%  | 0
+1000     | 0.001%    |  78ns ± 2%  | 0
+100000   | 0.01%     |  80ns ± 1%  | 0
+100000   | 0.0001%   | 110ns ± 1%  | 0
+1000000  | 0.00001%  | 205ns ± 2%  | 0
 
 ### `Contains` (item matches filter, worst case)
 
 Capacity | Target FP |  Time / Op  | Allocs / Op
 ---------|-----------|-------------|------------
-1000     | 0.1%      | 175ns ± 1%  | 0
-1000     | 0.01%     | 228ns ± 1%  | 0
-1000     | 0.001%    | 267ns ± 1%  | 0
-100000   | 0.01%     | 211ns ± 1%  | 0
-100000   | 0.0001%   | 282ns ± 1%  | 0
+1000     | 0.1%      |  69ns ± 2%  | 0
+1000     | 0.01%     |  80ns ± 1%  | 0
+1000     | 0.001%    |  89ns ± 1%  | 0
+100000   | 0.01%     |  80ns ± 1%  | 0
+100000   | 0.0001%   |  98ns ± 1%  | 0
 
 ### `Contains` (item does NOT match filter)
 
 Capacity | Target FP |  Time / Op  | Allocs / Op
 ---------|-----------|-------------|------------
-1000     | 0.1%      | 45.4ns ± 0% | 0
-1000     | 0.01%     | 57.6ns ±21% | 0
-1000     | 0.001%    | 56.2ns ±19% | 0
-100000   | 0.01%     | 48.7ns ±15% | 0
-100000   | 0.0001%   | 49.6ns ±19% | 0
+1000     | 0.1%      | 42.0ns ±26% | 0
+1000     | 0.01%     | 37.7ns ±5%  | 0
+1000     | 0.001%    | 37.0ns ±4%  | 0
+100000   | 0.01%     | 37.6ns ±10% | 0
+100000   | 0.0001%   | 36.3ns ±6%  | 0
 
 ## Installation and Updating
 
