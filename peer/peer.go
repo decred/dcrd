@@ -178,14 +178,18 @@ type MessageListeners struct {
 	OnFeeFilter func(p *Peer, msg *wire.MsgFeeFilter)
 
 	// OnVersion is invoked when a peer receives a version wire message.
-	// The caller may return a reject message in which case the message will
-	// be sent to the peer and the peer will be disconnected.
+	//
+	// Deprecated: The return value is no longer used beyond logging it and
+	// causing the peer to be disconnected when it is a non-nil value.
 	OnVersion func(p *Peer, msg *wire.MsgVersion) *wire.MsgReject
 
 	// OnVerAck is invoked when a peer receives a verack wire message.
 	OnVerAck func(p *Peer, msg *wire.MsgVerAck)
 
 	// OnReject is invoked when a peer receives a reject wire message.
+	//
+	// Deprecated: This will be removed in a future release.  Callers should
+	// avoid using it.
 	OnReject func(p *Peer, msg *wire.MsgReject)
 
 	// OnSendHeaders is invoked when a peer receives a sendheaders wire
@@ -1294,22 +1298,10 @@ out:
 		// needed.
 		rmsg, buf, err := p.readMessage()
 		if err != nil {
-			// Only log the error and send reject message if the
-			// local peer is not forcibly disconnecting and the
-			// remote peer has not disconnected.
+			// Only log the error if the local peer is not forcibly
+			// disconnecting and the remote peer has not disconnected.
 			if p.shouldHandleReadError(err) {
-				errMsg := fmt.Sprintf("Can't read message from %s: %v", p, err)
-				log.Errorf(errMsg)
-
-				// Push a reject message for the malformed message and wait for
-				// the message to be sent before disconnecting.
-				//
-				// NOTE: Ideally this would include the command in the header if
-				// at least that much of the message was valid, but that is not
-				// currently exposed by wire, so just used malformed for the
-				// command.
-				p.PushRejectMsg("malformed", wire.RejectMalformed, errMsg, nil,
-					true)
+				log.Errorf("Can't read message from %s: %v", p, err)
 			}
 
 			var nErr net.Error
@@ -1328,16 +1320,15 @@ out:
 		switch msg := rmsg.(type) {
 		case *wire.MsgVersion:
 			// Limit to one version message per peer.
-			p.PushRejectMsg(msg.Command(), wire.RejectDuplicate,
-				"duplicate version message", nil, true)
+			log.Debugf("Already received 'version' from peer %s -- "+
+				"disconnecting", p)
 			break out
 
 		case *wire.MsgVerAck:
-
 			// No read lock is necessary because verAckReceived is not written
 			// to in any other goroutine.
 			if p.verAckReceived {
-				log.Infof("Already received 'verack' from peer %v -- "+
+				log.Infof("Already received 'verack' from peer %s -- "+
 					"disconnecting", p)
 				break out
 			}
@@ -1878,27 +1869,18 @@ func (p *Peer) readRemoteVersionMsg() error {
 	p.flagsMtx.Unlock()
 
 	// Invoke the callback if specified.  In the case the callback returns a
-	// reject message, notify and disconnect the peer accordingly.
+	// reject message, disconnect the peer accordingly.
 	if p.cfg.Listeners.OnVersion != nil {
 		rejectMsg := p.cfg.Listeners.OnVersion(p, msg)
 		if rejectMsg != nil {
-			_ = p.writeMessage(rejectMsg)
 			return errors.New(rejectMsg.Reason)
 		}
 	}
 
-	// Notify and disconnect clients that have a protocol version that is
-	// too old.
+	// Disconnect clients that have a protocol version that is too old.
 	if msg.ProtocolVersion < int32(wire.InitialProcotolVersion) {
-		// Send a reject message indicating the protocol version is
-		// obsolete and wait for the message to be sent before
-		// disconnecting.
-		reason := fmt.Sprintf("protocol version must be %d or greater",
+		return fmt.Errorf("protocol version must be %d or greater",
 			wire.InitialProcotolVersion)
-		rejectMsg := wire.NewMsgReject(msg.Command(), wire.RejectObsolete,
-			reason)
-		_ = p.writeMessage(rejectMsg)
-		return errors.New(reason)
 	}
 
 	return nil

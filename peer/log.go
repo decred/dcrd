@@ -7,19 +7,12 @@ package peer
 
 import (
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/txscript/v4"
 	"github.com/decred/dcrd/wire"
 	"github.com/decred/slog"
-)
-
-const (
-	// maxRejectReasonLen is the maximum length of a sanitized reject reason
-	// that will be logged.
-	maxRejectReasonLen = 250
 )
 
 // log is a logger that is initialized with no output filters.  This
@@ -112,30 +105,6 @@ func locatorSummary(locator []*chainhash.Hash, stopHash *chainhash.Hash) string 
 	return fmt.Sprintf("no locator, stop %s", stopHash)
 }
 
-// sanitizeString strips any characters which are even remotely dangerous, such
-// as html control characters, from the passed string.  It also limits it to
-// the passed maximum size, which can be 0 for unlimited.  When the string is
-// limited, it will also add "..." to the string to indicate it was truncated.
-func sanitizeString(str string, maxLength uint) string {
-	const safeChars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXY" +
-		"Z01234567890 .,;_/:?@"
-
-	// Strip any characters not in the safeChars string removed.
-	str = strings.Map(func(r rune) rune {
-		if strings.ContainsRune(safeChars, r) {
-			return r
-		}
-		return -1
-	}, str)
-
-	// Limit the string to the max allowed length.
-	if maxLength > 0 && uint(len(str)) > maxLength {
-		str = str[:maxLength]
-		str = str + "..."
-	}
-	return str
-}
-
 // messageSummary returns a human-readable string which summarizes a message.
 // Not all messages have or need a summary.  This is used for debug logging.
 func messageSummary(msg wire.Message) string {
@@ -193,20 +162,6 @@ func messageSummary(msg wire.Message) string {
 			finalHeader := msg.Headers[len(msg.Headers)-1]
 			summary = fmt.Sprintf("%s, final hash %s, height %d", summary,
 				finalHeader.BlockHash(), finalHeader.Height)
-		}
-		return summary
-
-	case *wire.MsgReject:
-		// Ensure the variable length strings don't contain any
-		// characters which are even remotely dangerous such as HTML
-		// control characters, etc.  Also limit them to sane length for
-		// logging.
-		rejCommand := sanitizeString(msg.Cmd, wire.CommandSize)
-		rejReason := sanitizeString(msg.Reason, maxRejectReasonLen)
-		summary := fmt.Sprintf("cmd %v, code %v, reason %v", rejCommand,
-			msg.Code, rejReason)
-		if rejCommand == wire.CmdBlock || rejCommand == wire.CmdTx {
-			summary += fmt.Sprintf(", hash %v", msg.Hash)
 		}
 		return summary
 
