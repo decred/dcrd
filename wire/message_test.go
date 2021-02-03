@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2020 The Decred developers
+// Copyright (c) 2015-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -88,30 +88,30 @@ func TestMessage(t *testing.T) {
 		dcrnet CurrencyNet // Network to use for wire encoding
 		bytes  int         // Expected num bytes read/written
 	}{
-		{msgVersion, msgVersion, pver, MainNet, 125},          // [0]
-		{msgVerack, msgVerack, pver, MainNet, 24},             // [1]
-		{msgGetAddr, msgGetAddr, pver, MainNet, 24},           // [2]
-		{msgAddr, msgAddr, pver, MainNet, 25},                 // [3]
-		{msgGetBlocks, msgGetBlocks, pver, MainNet, 61},       // [4]
-		{msgBlock, msgBlock, pver, MainNet, 522},              // [5]
-		{msgInv, msgInv, pver, MainNet, 25},                   // [6]
-		{msgGetData, msgGetData, pver, MainNet, 25},           // [7]
-		{msgNotFound, msgNotFound, pver, MainNet, 25},         // [8]
-		{msgTx, msgTx, pver, MainNet, 39},                     // [9]
-		{msgPing, msgPing, pver, MainNet, 32},                 // [10]
-		{msgPong, msgPong, pver, MainNet, 32},                 // [11]
-		{msgGetHeaders, msgGetHeaders, pver, MainNet, 61},     // [12]
-		{msgHeaders, msgHeaders, pver, MainNet, 25},           // [13]
-		{msgMemPool, msgMemPool, pver, MainNet, 24},           // [15]
-		{msgReject, msgReject, pver, MainNet, 79},             // [20]
-		{msgGetCFilter, msgGetCFilter, pver, MainNet, 57},     // [21]
-		{msgGetCFHeaders, msgGetCFHeaders, pver, MainNet, 58}, // [22]
-		{msgGetCFTypes, msgGetCFTypes, pver, MainNet, 24},     // [23]
-		{msgCFilter, msgCFilter, pver, MainNet, 65},           // [24]
-		{msgCFHeaders, msgCFHeaders, pver, MainNet, 58},       // [25]
-		{msgCFTypes, msgCFTypes, pver, MainNet, 26},           // [26]
-		{msgGetInitState, msgGetInitState, pver, MainNet, 25}, // [27]
-		{msgInitState, msgInitState, pver, MainNet, 27},       // [28]
+		{msgVersion, msgVersion, pver, MainNet, 125},
+		{msgVerack, msgVerack, pver, MainNet, 24},
+		{msgGetAddr, msgGetAddr, pver, MainNet, 24},
+		{msgAddr, msgAddr, pver, MainNet, 25},
+		{msgGetBlocks, msgGetBlocks, pver, MainNet, 61},
+		{msgBlock, msgBlock, pver, MainNet, 522},
+		{msgInv, msgInv, pver, MainNet, 25},
+		{msgGetData, msgGetData, pver, MainNet, 25},
+		{msgNotFound, msgNotFound, pver, MainNet, 25},
+		{msgTx, msgTx, pver, MainNet, 39},
+		{msgPing, msgPing, pver, MainNet, 32},
+		{msgPong, msgPong, pver, MainNet, 32},
+		{msgGetHeaders, msgGetHeaders, pver, MainNet, 61},
+		{msgHeaders, msgHeaders, pver, MainNet, 25},
+		{msgMemPool, msgMemPool, pver, MainNet, 24},
+		{msgReject, msgReject, RemoveRejectVersion - 1, MainNet, 79},
+		{msgGetCFilter, msgGetCFilter, pver, MainNet, 57},
+		{msgGetCFHeaders, msgGetCFHeaders, pver, MainNet, 58},
+		{msgGetCFTypes, msgGetCFTypes, pver, MainNet, 24},
+		{msgCFilter, msgCFilter, pver, MainNet, 65},
+		{msgCFHeaders, msgCFHeaders, pver, MainNet, 58},
+		{msgCFTypes, msgCFTypes, pver, MainNet, 26},
+		{msgGetInitState, msgGetInitState, pver, MainNet, 25},
+		{msgInitState, msgInitState, pver, MainNet, 27},
 	}
 
 	t.Logf("Running %d tests", len(tests))

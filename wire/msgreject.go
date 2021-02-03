@@ -1,5 +1,5 @@
 // Copyright (c) 2014-2016 The btcsuite developers
-// Copyright (c) 2015-2016 The Decred developers
+// Copyright (c) 2015-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -52,7 +52,8 @@ func (code RejectCode) String() string {
 // MsgReject implements the Message interface and represents a Decred reject
 // message.
 //
-// This message was not added until protocol version RejectVersion.
+// Deprecated: This message is no longer valid as of protocol version
+// RemoveRejectVersion.
 type MsgReject struct {
 	// Cmd is the command for the message which was rejected such as
 	// as CmdBlock or CmdTx.  This can be obtained from the Command function
@@ -99,6 +100,13 @@ func validateRejectReason(reason string) error {
 // BtcDecode decodes r using the Decred protocol encoding into the receiver.
 // This is part of the Message interface implementation.
 func (msg *MsgReject) BtcDecode(r io.Reader, pver uint32) error {
+	const op = "MsgReject.BtcDecode"
+	if pver >= RemoveRejectVersion {
+		str := fmt.Sprintf("%s message invalid for protocol version %d",
+			msg.Command(), pver)
+		return messageError(op, ErrMsgInvalidForPVer, str)
+	}
+
 	// Command that was rejected.
 	cmd, err := ReadVarString(r, pver)
 	if err != nil {
@@ -141,6 +149,13 @@ func (msg *MsgReject) BtcDecode(r io.Reader, pver uint32) error {
 // BtcEncode encodes the receiver to w using the Decred protocol encoding.
 // This is part of the Message interface implementation.
 func (msg *MsgReject) BtcEncode(w io.Writer, pver uint32) error {
+	const op = "MsgReject.BtcEncode"
+	if pver >= RemoveRejectVersion {
+		str := fmt.Sprintf("%s message invalid for protocol version %d",
+			msg.Command(), pver)
+		return messageError(op, ErrMsgInvalidForPVer, str)
+	}
+
 	if err := validateRejectCommand(msg.Cmd); err != nil {
 		return err
 	}
@@ -188,6 +203,10 @@ func (msg *MsgReject) Command() string {
 // MaxPayloadLength returns the maximum length the payload can be for the
 // receiver.  This is part of the Message interface implementation.
 func (msg *MsgReject) MaxPayloadLength(pver uint32) uint32 {
+	if pver >= RemoveRejectVersion {
+		return 0
+	}
+
 	// Unfortunately the Decred protocol does not enforce a sane
 	// limit on the length of the reason, so the max payload is the
 	// overall maximum message payload.
