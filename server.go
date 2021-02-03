@@ -1215,8 +1215,13 @@ func (sp *serverPeer) OnGetBlocks(p *peer.Peer, msg *wire.MsgGetBlocks) {
 
 // OnGetHeaders is invoked when a peer receives a getheaders wire message.
 func (sp *serverPeer) OnGetHeaders(p *peer.Peer, msg *wire.MsgGetHeaders) {
-	// Ignore getheaders requests if not in sync.
-	if !sp.server.syncManager.IsCurrent() {
+	// Ignore getheaders requests if not in sync unless the local best chain
+	// is exactly at the same tip as the requesting peer.
+	locatorHashes := msg.BlockLocatorHashes
+	chain := sp.server.chain
+	if !sp.server.syncManager.IsCurrent() && (len(locatorHashes) == 0 ||
+		*locatorHashes[0] != chain.BestSnapshot().PrevHash) {
+
 		return
 	}
 
@@ -1228,8 +1233,7 @@ func (sp *serverPeer) OnGetHeaders(p *peer.Peer, msg *wire.MsgGetHeaders) {
 	// Use the block after the genesis block if no other blocks in the
 	// provided locator are known.  This does mean the client will start
 	// over with the genesis block if unknown block locators are provided.
-	chain := sp.server.chain
-	headers := chain.LocateHeaders(msg.BlockLocatorHashes, &msg.HashStop)
+	headers := chain.LocateHeaders(locatorHashes, &msg.HashStop)
 
 	// Send found headers to the requesting peer.
 	blockHeaders := make([]*wire.BlockHeader, len(headers))
