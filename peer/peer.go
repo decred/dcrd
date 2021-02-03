@@ -73,10 +73,6 @@ var (
 	// and is used to assign an id to a peer.
 	nodeCount int32
 
-	// zeroHash is the zero value hash (all zeros).  It is defined as a
-	// convenience.
-	zeroHash chainhash.Hash
-
 	// sentNonces houses the unique nonces that are generated when pushing
 	// version messages that are used to detect self connections.
 	sentNonces = lru.NewCache(50)
@@ -926,36 +922,6 @@ func (p *Peer) PushGetHeadersMsg(locator []chainhash.Hash, stopHash *chainhash.H
 	p.prevGetHdrsStop = stopHash
 	p.prevGetHdrsMtx.Unlock()
 	return nil
-}
-
-// PushRejectMsg sends a reject message for the provided command, reject code,
-// reject reason, and hash.  The hash will only be used when the command is a tx
-// or block and should be nil in other cases.  The wait parameter will cause the
-// function to block until the reject message has actually been sent.
-//
-// This function is safe for concurrent access.
-func (p *Peer) PushRejectMsg(command string, code wire.RejectCode, reason string, hash *chainhash.Hash, wait bool) {
-	msg := wire.NewMsgReject(command, code, reason)
-	if command == wire.CmdTx || command == wire.CmdBlock {
-		if hash == nil {
-			log.Warnf("Sending a reject message for command "+
-				"type %v which should have specified a hash "+
-				"but does not", command)
-			hash = &zeroHash
-		}
-		msg.Hash = *hash
-	}
-
-	// Send the message without waiting if the caller has not requested it.
-	if !wait {
-		p.QueueMessage(msg, nil)
-		return
-	}
-
-	// Send the message and block until it has been sent before returning.
-	doneChan := make(chan struct{}, 1)
-	p.QueueMessage(msg, doneChan)
-	<-doneChan
 }
 
 // handlePingMsg is invoked when a peer receives a ping wire message.  For

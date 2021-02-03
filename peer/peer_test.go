@@ -711,9 +711,6 @@ func TestOutboundPeer(t *testing.T) {
 		return
 	}
 
-	p2.PushRejectMsg("block", wire.RejectMalformed, "malformed", nil, false)
-	p2.PushRejectMsg("block", wire.RejectInvalid, "invalid", nil, false)
-
 	// Test Queue Messages
 	p2.QueueMessage(wire.NewMsgGetAddr(), nil)
 	p2.QueueMessage(wire.NewMsgPing(1), nil)
