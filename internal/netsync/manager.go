@@ -604,73 +604,6 @@ func (m *SyncManager) handleDonePeerMsg(p *peerpkg.Peer) {
 	}
 }
 
-// errToWireRejectCode determines the wire rejection code and description for a
-// given error. This function can convert some select blockchain and mempool
-// error types to the historical rejection codes used on the p2p wire protocol.
-func errToWireRejectCode(err error) (wire.RejectCode, string) {
-	// The default reason to reject a transaction/block is due to it being
-	// invalid somehow.
-	code := wire.RejectInvalid
-	var reason string
-
-	// Convert recognized errors to a reject code.
-	switch {
-	// Rejected due to duplicate.
-	case errors.Is(err, blockchain.ErrDuplicateBlock):
-		code = wire.RejectDuplicate
-		reason = err.Error()
-
-	// Rejected due to obsolete version.
-	case errors.Is(err, blockchain.ErrBlockVersionTooOld):
-		code = wire.RejectObsolete
-		reason = err.Error()
-
-	// Rejected due to checkpoint.
-	case errors.Is(err, blockchain.ErrCheckpointTimeTooOld),
-		errors.Is(err, blockchain.ErrDifficultyTooLow),
-		errors.Is(err, blockchain.ErrBadCheckpoint),
-		errors.Is(err, blockchain.ErrForkTooOld):
-		code = wire.RejectCheckpoint
-		reason = err.Error()
-
-	// Error codes which map to a duplicate transaction already
-	// mined or in the mempool.
-	case errors.Is(err, mempool.ErrMempoolDoubleSpend),
-		errors.Is(err, mempool.ErrAlreadyVoted),
-		errors.Is(err, mempool.ErrDuplicate),
-		errors.Is(err, mempool.ErrTooManyVotes),
-		errors.Is(err, mempool.ErrDuplicateRevocation),
-		errors.Is(err, mempool.ErrAlreadyExists),
-		errors.Is(err, mempool.ErrOrphan):
-		code = wire.RejectDuplicate
-		reason = err.Error()
-
-	// Error codes which map to a non-standard transaction being
-	// relayed.
-	case errors.Is(err, mempool.ErrOrphanPolicyViolation),
-		errors.Is(err, mempool.ErrOldVote),
-		errors.Is(err, mempool.ErrSeqLockUnmet),
-		errors.Is(err, mempool.ErrNonStandard):
-		code = wire.RejectNonstandard
-		reason = err.Error()
-
-	// Error codes which map to an insufficient fee being paid.
-	case errors.Is(err, mempool.ErrInsufficientFee),
-		errors.Is(err, mempool.ErrInsufficientPriority):
-		code = wire.RejectInsufficientFee
-		reason = err.Error()
-
-	// Error codes which map to an attempt to create dust outputs.
-	case errors.Is(err, mempool.ErrDustOutput):
-		code = wire.RejectDust
-		reason = err.Error()
-
-	default:
-		reason = fmt.Sprintf("rejected: %v", err)
-	}
-	return code, reason
-}
-
 // handleTxMsg handles transaction messages from all peers.
 func (m *SyncManager) handleTxMsg(tmsg *txMsg) {
 	peer := lookupPeer(tmsg.peer, m.peers)
@@ -725,11 +658,6 @@ func (m *SyncManager) handleTxMsg(tmsg *txMsg) {
 		} else {
 			log.Errorf("Failed to process transaction %v: %v", txHash, err)
 		}
-
-		// Convert the error into an appropriate reject message and
-		// send it.
-		code, reason := errToWireRejectCode(err)
-		peer.PushRejectMsg(wire.CmdTx, code, reason, txHash, false)
 		return
 	}
 
@@ -827,10 +755,6 @@ func (m *SyncManager) handleBlockMsg(bmsg *blockMsg) {
 		if errors.Is(err, database.ErrCorruption) {
 			log.Errorf("Critical failure: %v", err)
 		}
-
-		// Convert the error into an appropriate reject message and send it.
-		code, reason := errToWireRejectCode(err)
-		peer.PushRejectMsg(wire.CmdBlock, code, reason, blockHash, false)
 		return
 	}
 
