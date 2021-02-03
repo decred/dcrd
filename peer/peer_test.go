@@ -386,9 +386,8 @@ func TestPeerListeners(t *testing.T) {
 			OnFeeFilter: func(p *Peer, msg *wire.MsgFeeFilter) {
 				ok <- msg
 			},
-			OnVersion: func(p *Peer, msg *wire.MsgVersion) *wire.MsgReject {
+			OnVersion: func(p *Peer, msg *wire.MsgVersion) {
 				ok <- msg
-				return nil
 			},
 			OnVerAck: func(p *Peer, msg *wire.MsgVerAck) {
 				verack <- struct{}{}

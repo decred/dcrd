@@ -671,7 +671,7 @@ func hasServices(advertised, desired wire.ServiceFlag) bool {
 // OnVersion is invoked when a peer receives a version wire message and is used
 // to negotiate the protocol version details as well as kick start the
 // communications.
-func (sp *serverPeer) OnVersion(_ *peer.Peer, msg *wire.MsgVersion) *wire.MsgReject {
+func (sp *serverPeer) OnVersion(_ *peer.Peer, msg *wire.MsgVersion) {
 	// Update the address manager with the advertised services for outbound
 	// connections in case they have changed.  This is not done for inbound
 	// connections to help prevent malicious behavior and is skipped when
@@ -695,7 +695,7 @@ func (sp *serverPeer) OnVersion(_ *peer.Peer, msg *wire.MsgVersion) *wire.MsgRej
 			"the required version %d", sp.Peer, msg.ProtocolVersion,
 			wire.SendHeadersVersion)
 		sp.Disconnect()
-		return nil
+		return
 	}
 
 	// Reject outbound peers that are not full nodes.
@@ -706,7 +706,7 @@ func (sp *serverPeer) OnVersion(_ *peer.Peer, msg *wire.MsgVersion) *wire.MsgRej
 			"providing desired services %v", sp.Peer, msg.Services,
 			missingServices)
 		sp.Disconnect()
-		return nil
+		return
 	}
 
 	// Update the address manager and request known addresses from the
@@ -751,7 +751,6 @@ func (sp *serverPeer) OnVersion(_ *peer.Peer, msg *wire.MsgVersion) *wire.MsgRej
 
 	// Add valid peer to the server.
 	sp.server.AddPeer(sp)
-	return nil
 }
 
 // OnVerAck is invoked when a peer receives a verack wire message.  It creates
