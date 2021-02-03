@@ -671,7 +671,7 @@ func hasServices(advertised, desired wire.ServiceFlag) bool {
 // OnVersion is invoked when a peer receives a version wire message and is used
 // to negotiate the protocol version details as well as kick start the
 // communications.
-func (sp *serverPeer) OnVersion(p *peer.Peer, msg *wire.MsgVersion) *wire.MsgReject {
+func (sp *serverPeer) OnVersion(_ *peer.Peer, msg *wire.MsgVersion) *wire.MsgReject {
 	// Update the address manager with the advertised services for outbound
 	// connections in case they have changed.  This is not done for inbound
 	// connections to help prevent malicious behavior and is skipped when
@@ -689,9 +689,12 @@ func (sp *serverPeer) OnVersion(p *peer.Peer, msg *wire.MsgVersion) *wire.MsgRej
 		addrManager.SetServices(remoteAddr, msg.Services)
 	}
 
-	// Ignore peers that have a protocol version that is too old.  The peer
-	// negotiation logic will disconnect it after this callback returns.
+	// Reject peers that have a protocol version that is too old.
 	if msg.ProtocolVersion < int32(wire.SendHeadersVersion) {
+		srvrLog.Debugf("Rejecting peer %s with protocol version %d prior to "+
+			"the required version %d", sp.Peer, msg.ProtocolVersion,
+			wire.SendHeadersVersion)
+		sp.Disconnect()
 		return nil
 	}
 
@@ -702,9 +705,8 @@ func (sp *serverPeer) OnVersion(p *peer.Peer, msg *wire.MsgVersion) *wire.MsgRej
 		srvrLog.Debugf("Rejecting peer %s with services %v due to not "+
 			"providing desired services %v", sp.Peer, msg.Services,
 			missingServices)
-		reason := fmt.Sprintf("required services %#x not offered",
-			uint64(missingServices))
-		return wire.NewMsgReject(msg.Command(), wire.RejectNonstandard, reason)
+		sp.Disconnect()
+		return nil
 	}
 
 	// Update the address manager and request known addresses from the
@@ -729,7 +731,7 @@ func (sp *serverPeer) OnVersion(p *peer.Peer, msg *wire.MsgVersion) *wire.MsgRej
 		// Request known addresses if the server address manager needs
 		// more.
 		if addrManager.NeedMoreAddresses() {
-			p.QueueMessage(wire.NewMsgGetAddr(), nil)
+			sp.QueueMessage(wire.NewMsgGetAddr(), nil)
 		}
 
 		// Mark the address as a known good address.
@@ -745,7 +747,7 @@ func (sp *serverPeer) OnVersion(p *peer.Peer, msg *wire.MsgVersion) *wire.MsgRej
 
 	// Add the remote peer time as a sample for creating an offset against
 	// the local clock to keep the network time in sync.
-	sp.server.timeSource.AddTimeSample(p.Addr(), msg.Timestamp)
+	sp.server.timeSource.AddTimeSample(sp.Addr(), msg.Timestamp)
 
 	// Add valid peer to the server.
 	sp.server.AddPeer(sp)
