@@ -1,4 +1,4 @@
-module github.com/decred/dcrd/peer/v2
+module github.com/decred/dcrd/peer/v3
 
 go 1.11
 

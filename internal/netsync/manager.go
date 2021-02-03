@@ -24,7 +24,7 @@ import (
 	"github.com/decred/dcrd/internal/progresslog"
 	"github.com/decred/dcrd/internal/rpcserver"
 	"github.com/decred/dcrd/lru"
-	peerpkg "github.com/decred/dcrd/peer/v2"
+	peerpkg "github.com/decred/dcrd/peer/v3"
 	"github.com/decred/dcrd/wire"
 )
 

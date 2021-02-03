@@ -20,7 +20,7 @@ import (
 	"github.com/decred/dcrd/internal/mining/cpuminer"
 	"github.com/decred/dcrd/internal/netsync"
 	"github.com/decred/dcrd/internal/rpcserver"
-	"github.com/decred/dcrd/peer/v2"
+	"github.com/decred/dcrd/peer/v3"
 	"github.com/decred/dcrd/wire"
 )
 

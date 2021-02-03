@@ -23,7 +23,7 @@ require (
 	github.com/decred/dcrd/gcs/v3 v3.0.0-20210129195202-a4265d63b619
 	github.com/decred/dcrd/hdkeychain/v3 v3.0.1-0.20210129190127-4ebd135a82f1
 	github.com/decred/dcrd/lru v1.1.0
-	github.com/decred/dcrd/peer/v2 v2.2.1-0.20210129192908-660d0518b4cf
+	github.com/decred/dcrd/peer/v3 v3.0.0
 	github.com/decred/dcrd/rpc/jsonrpc/types/v3 v3.0.0-20210129200153-14fd1a785bf2
 	github.com/decred/dcrd/rpcclient/v7 v7.0.0-20210129214723-fc227a05904d
 	github.com/decred/dcrd/txscript/v4 v4.0.0-20210129190127-4ebd135a82f1
@@ -61,7 +61,7 @@ replace (
 	github.com/decred/dcrd/hdkeychain/v3 => ./hdkeychain
 	github.com/decred/dcrd/limits => ./limits
 	github.com/decred/dcrd/lru => ./lru
-	github.com/decred/dcrd/peer/v2 => ./peer
+	github.com/decred/dcrd/peer/v3 => ./peer
 	github.com/decred/dcrd/rpc/jsonrpc/types/v3 => ./rpc/jsonrpc/types
 	github.com/decred/dcrd/rpcclient/v7 => ./rpcclient
 	github.com/decred/dcrd/txscript/v4 => ./txscript
