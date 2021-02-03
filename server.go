@@ -500,7 +500,8 @@ type serverPeer struct {
 	getMiningStateSent bool
 	initStateSent      bool
 
-	// The following chans are used to sync blockmanager and server.
+	// The following fields are used to sync blockmanager and server.
+	mgrNotified    bool
 	txProcessed    chan struct{}
 	blockProcessed chan struct{}
 
@@ -705,9 +706,6 @@ func (sp *serverPeer) OnVersion(p *peer.Peer, msg *wire.MsgVersion) *wire.MsgRej
 	// Add the remote peer time as a sample for creating an offset against
 	// the local clock to keep the network time in sync.
 	sp.server.timeSource.AddTimeSample(p.Addr(), msg.Timestamp)
-
-	// Signal the block manager this peer is a new sync candidate.
-	sp.server.blockManager.NewPeer(sp.Peer)
 
 	// Add valid peer to the server.
 	sp.server.AddPeer(sp)
@@ -2293,9 +2291,13 @@ func (s *server) peerDoneHandler(sp *serverPeer) {
 	sp.WaitForDisconnect()
 	s.donePeers <- sp
 
-	// Only tell block manager we are gone if we ever told it we existed.
-	if sp.VersionKnown() {
+	// Notify the block manager the peer is gone if it was ever notified that
+	// the peer existed.
+	if sp.mgrNotified {
 		s.blockManager.DonePeer(sp.Peer)
+	}
+
+	if sp.VersionKnown() {
 
 		tipHash := &s.chain.BestSnapshot().Hash
 		isTreasuryEnabled, err := s.chain.IsTreasuryAgendaActive(tipHash)
@@ -2346,6 +2348,13 @@ out:
 		// New peers connected to the server.
 		case p := <-s.newPeers:
 			s.handleAddPeerMsg(state, p)
+
+			// Signal the block manager this peer is a new sync candidate unless
+			// it was disconnected above.
+			if p.Connected() {
+				s.blockManager.NewPeer(p.Peer)
+				p.mgrNotified = true
+			}
 
 		// Disconnected peers.
 		case p := <-s.donePeers:
