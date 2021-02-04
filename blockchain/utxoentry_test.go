@@ -97,6 +97,7 @@ func TestUtxoEntry(t *testing.T) {
 		name                      string
 		spent                     bool
 		modified                  bool
+		fresh                     bool
 		coinbase                  bool
 		expiry                    bool
 		txType                    stake.TxType
@@ -119,6 +120,7 @@ func TestUtxoEntry(t *testing.T) {
 		scriptVersion: 0,
 	}, {
 		name:   "ticket submission output",
+		fresh:  true,
 		expiry: true,
 		txType: stake.TxTypeSStx,
 		amount: 4294959555,
@@ -174,6 +176,9 @@ func TestUtxoEntry(t *testing.T) {
 		if test.modified {
 			entry.state |= utxoStateModified
 		}
+		if test.fresh {
+			entry.state |= utxoStateFresh
+		}
 
 		// Validate the spent flag.
 		isSpent := entry.IsSpent()
@@ -187,6 +192,13 @@ func TestUtxoEntry(t *testing.T) {
 		if isModified != test.modified {
 			t.Fatalf("%q: unexpected modified flag -- got %v, want %v", test.name,
 				isModified, test.modified)
+		}
+
+		// Validate the fresh flag.
+		isFresh := entry.isFresh()
+		if isFresh != test.fresh {
+			t.Fatalf("%q: unexpected fresh flag -- got %v, want %v", test.name,
+				isFresh, test.fresh)
 		}
 
 		// Validate the coinbase flag.
