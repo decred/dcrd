@@ -4,14 +4,17 @@
 
 package blockchain
 
-import "github.com/decred/dcrd/blockchain/stake/v4"
+import (
+	"github.com/decred/dcrd/blockchain/stake/v4"
+)
 
 // utxoState defines the in-memory state of a utxo entry.
 //
 // The bit representation is:
 //   bit  0    - transaction output has been spent
 //   bit  1    - transaction output has been modified since it was loaded
-//   bits 2-7  - unused
+//   bit  2    - transaction output is fresh
+//   bits 3-7  - unused
 type utxoState uint8
 
 const (
@@ -21,6 +24,10 @@ const (
 	// utxoStateModified indicates that a txout has been modified since it was
 	// loaded.
 	utxoStateModified
+
+	// utxoStateFresh indicates that a txout is fresh, which means that it exists
+	// in the utxo cache but does not exist in the underlying database.
+	utxoStateFresh
 )
 
 // utxoFlags defines additional information for the containing transaction of a
@@ -116,6 +123,11 @@ type UtxoEntry struct {
 // loaded.
 func (entry *UtxoEntry) isModified() bool {
 	return entry.state&utxoStateModified == utxoStateModified
+}
+
+// isFresh returns whether or not the output is fresh.
+func (entry *UtxoEntry) isFresh() bool {
+	return entry.state&utxoStateFresh == utxoStateFresh
 }
 
 // IsCoinBase returns whether or not the output was contained in a coinbase
