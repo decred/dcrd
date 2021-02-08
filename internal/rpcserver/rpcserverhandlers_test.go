@@ -7266,6 +7266,186 @@ func TestHandleGetVoteInfo(t *testing.T) {
 	}})
 }
 
+func TestHandleGetRawMempool(t *testing.T) {
+	t.Parallel()
+
+	regular := &mempool.TxDesc{
+		TxDesc: mining.TxDesc{
+			Tx: dcrutil.NewTx(&wire.MsgTx{
+				Expiry: 0,
+				TxIn:   []*wire.TxIn{},
+				TxOut:  []*wire.TxOut{},
+			}),
+			Type: stake.TxTypeRegular,
+		},
+	}
+	regularHash := regular.TxDesc.Tx.MsgTx().TxHash().String()
+	ticket := &mempool.TxDesc{
+		TxDesc: mining.TxDesc{
+			Tx: dcrutil.NewTx(&wire.MsgTx{
+				Expiry: 1,
+				TxIn:   []*wire.TxIn{},
+				TxOut:  []*wire.TxOut{},
+			}),
+			Type: stake.TxTypeSStx,
+		},
+	}
+	ticketHash := ticket.TxDesc.Tx.MsgTx().TxHash().String()
+	vote := &mempool.TxDesc{
+		TxDesc: mining.TxDesc{
+			Tx: dcrutil.NewTx(&wire.MsgTx{
+				Expiry: 2,
+				TxIn:   []*wire.TxIn{},
+				TxOut:  []*wire.TxOut{},
+			}),
+			Type: stake.TxTypeSSGen,
+		},
+	}
+	voteHash := vote.TxDesc.Tx.MsgTx().TxHash().String()
+	revocation := &mempool.TxDesc{
+		TxDesc: mining.TxDesc{
+			Tx: dcrutil.NewTx(&wire.MsgTx{
+				Expiry: 3,
+				TxIn:   []*wire.TxIn{},
+				TxOut:  []*wire.TxOut{},
+			}),
+			Type: stake.TxTypeSSRtx,
+		},
+	}
+	revocationHash := revocation.TxDesc.Tx.MsgTx().TxHash().String()
+	tSpend := &mempool.TxDesc{
+		TxDesc: mining.TxDesc{
+			Tx: dcrutil.NewTx(&wire.MsgTx{
+				Expiry: 4,
+				TxIn:   []*wire.TxIn{},
+				TxOut:  []*wire.TxOut{},
+			}),
+			Type: stake.TxTypeTSpend,
+		},
+	}
+	tSpendHash := tSpend.TxDesc.Tx.MsgTx().TxHash().String()
+	tAdd := &mempool.TxDesc{
+		TxDesc: mining.TxDesc{
+			Tx: dcrutil.NewTx(&wire.MsgTx{
+				Expiry: 5,
+				TxIn:   []*wire.TxIn{},
+				TxOut:  []*wire.TxOut{},
+			}),
+			Type: stake.TxTypeTAdd,
+		},
+	}
+	tAddHash := tAdd.TxDesc.Tx.MsgTx().TxHash().String()
+	descs := []*mempool.TxDesc{regular, ticket, vote, revocation, tSpend,
+		tAdd}
+	verboseDescs := []*mempool.VerboseTxDesc{{
+		TxDesc: *regular,
+	}, {
+		TxDesc:  *ticket,
+		Depends: []*mempool.TxDesc{regular},
+	}, {
+		TxDesc: *vote,
+	}, {
+		TxDesc: *revocation,
+	}, {
+		TxDesc: *tSpend,
+	}, {
+		TxDesc: *tAdd,
+	}}
+
+	mockTxMempooler := defaultMockTxMempooler()
+	mockTxMempooler.txDescs = descs
+	mockTxMempooler.verboseTxDescs = verboseDescs
+
+	getRawMempoolVerboseResult := &types.GetRawMempoolVerboseResult{
+		Size:    15,
+		Time:    time.Time{}.Unix(),
+		Depends: []string{},
+	}
+	getRawMempoolVerboseTicketResult := &types.GetRawMempoolVerboseResult{
+		Size:    15,
+		Time:    time.Time{}.Unix(),
+		Depends: []string{regularHash},
+	}
+
+	testRPCServerHandler(t, []rpcTest{{
+		name:            "handleGetRawMempool: ok all",
+		handler:         handleGetRawMempool,
+		mockTxMempooler: mockTxMempooler,
+		cmd:             &types.GetRawMempoolCmd{},
+		result: []string{regularHash, ticketHash, voteHash,
+			revocationHash, tSpendHash, tAddHash},
+	}, {
+		name:            "handleGetRawMempool: ok regular",
+		handler:         handleGetRawMempool,
+		mockTxMempooler: mockTxMempooler,
+		cmd:             &types.GetRawMempoolCmd{TxType: dcrjson.String("regular")},
+		result:          []string{regularHash},
+	}, {
+		name:            "handleGetRawMempool: ok ticket",
+		handler:         handleGetRawMempool,
+		mockTxMempooler: mockTxMempooler,
+		cmd:             &types.GetRawMempoolCmd{TxType: dcrjson.String("tickets")},
+		result:          []string{ticketHash},
+	}, {
+		name:            "handleGetRawMempool: ok vote",
+		handler:         handleGetRawMempool,
+		mockTxMempooler: mockTxMempooler,
+		cmd:             &types.GetRawMempoolCmd{TxType: dcrjson.String("votes")},
+		result:          []string{voteHash},
+	}, {
+		name:            "handleGetRawMempool: ok revocation",
+		handler:         handleGetRawMempool,
+		mockTxMempooler: mockTxMempooler,
+		cmd:             &types.GetRawMempoolCmd{TxType: dcrjson.String("revocations")},
+		result:          []string{revocationHash},
+	}, {
+		name:            "handleGetRawMempool: ok tSpend",
+		handler:         handleGetRawMempool,
+		mockTxMempooler: mockTxMempooler,
+		cmd:             &types.GetRawMempoolCmd{TxType: dcrjson.String("tspend")},
+		result:          []string{tSpendHash},
+	}, {
+		name:            "handleGetRawMempool: ok tAdd",
+		handler:         handleGetRawMempool,
+		mockTxMempooler: mockTxMempooler,
+		cmd:             &types.GetRawMempoolCmd{TxType: dcrjson.String("tadd")},
+		result:          []string{tAddHash},
+	}, {
+		name:            "handleGetRawMempool: ok verbose",
+		handler:         handleGetRawMempool,
+		mockTxMempooler: mockTxMempooler,
+		cmd: &types.GetRawMempoolCmd{
+			Verbose: dcrjson.Bool(true),
+		},
+		result: map[string]*types.GetRawMempoolVerboseResult{
+			regularHash:    getRawMempoolVerboseResult,
+			ticketHash:     getRawMempoolVerboseTicketResult,
+			voteHash:       getRawMempoolVerboseResult,
+			revocationHash: getRawMempoolVerboseResult,
+			tSpendHash:     getRawMempoolVerboseResult,
+			tAddHash:       getRawMempoolVerboseResult,
+		},
+	}, {
+		name:            "handleGetRawMempool: ok verbose regular",
+		handler:         handleGetRawMempool,
+		mockTxMempooler: mockTxMempooler,
+		cmd: &types.GetRawMempoolCmd{
+			Verbose: dcrjson.Bool(true),
+			TxType:  dcrjson.String("regular"),
+		},
+		result: map[string]*types.GetRawMempoolVerboseResult{
+			regularHash: getRawMempoolVerboseResult,
+		},
+	}, {
+		name:            "handleGetRawMempool: invalid type",
+		handler:         handleGetRawMempool,
+		mockTxMempooler: mockTxMempooler,
+		cmd:             &types.GetRawMempoolCmd{TxType: dcrjson.String("not a type")},
+		wantErr:         true,
+		errCode:         dcrjson.ErrRPCInvalidParameter,
+	}})
+}
+
 func TestHandleGetRawTransaction(t *testing.T) {
 	t.Parallel()
 
