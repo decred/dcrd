@@ -37,9 +37,33 @@ const (
 	// peer request queue.
 	maxInFlightBlocks = 16
 
-	// maxRejectedTxns is the maximum number of rejected transactions
-	// hashes to store in memory.
-	maxRejectedTxns = 1000
+	// maxRejectedTxns specifies the maximum number of recently rejected
+	// transactions to track.  This is primarily used to avoid wasting a bunch
+	// of bandwidth from requesting transactions that are already known to be
+	// invalid again from multiple peers, however, it also doubles as DoS
+	// protection against malicious peers.
+	//
+	// Recall that there are 125 connection slots by default.  Assuming the
+	// default setting of 8 outbound connections, which attackers cannot
+	// control, that leaves 117 max inbound connections which could potentially
+	// be malicious.  maxRejectedTxns is set to target tracking the maximum
+	// number of rejected transactions that would result from 120 connections
+	// with malicious peers.  120 is used since it is strictly greater than the
+	// aforementioned 117 max inbound connections while still providing for the
+	// possibility of a few happenstance malicious outbound connections as well.
+	//
+	// It's also worth noting that even if attackers were to manage to exceeed
+	// the configured value, the result is not catastrophic as it would only
+	// result in increased bandwidth usage versus not exceeding it.
+	//
+	// rejectedTxnsFPRate is the false positive rate to use for the APBF used to
+	// track recently rejected transactions.  It is set to a rate of 1 per 10
+	// million to make it incredibly unlikely that any transactions that haven't
+	// actually been rejected are incorrectly treated as if they had.
+	//
+	// These values result in about 568 KiB memory usage including overhead.
+	maxRejectedTxns    = 62500
+	rejectedTxnsFPRate = 0.0000001
 
 	// maxRequestedBlocks is the maximum number of requested block
 	// hashes to store in memory.
@@ -263,7 +287,7 @@ type SyncManager struct {
 	// creation time and treated as immutable after that.
 	cfg Config
 
-	rejectedTxns    map[chainhash.Hash]struct{}
+	rejectedTxns    *apbf.Filter
 	requestedTxns   map[chainhash.Hash]struct{}
 	requestedBlocks map[chainhash.Hash]struct{}
 	progressLogger  *progresslog.Logger
@@ -621,10 +645,9 @@ func (m *SyncManager) handleTxMsg(tmsg *txMsg) {
 	// interoperability.
 	txHash := tmsg.tx.Hash()
 
-	// Ignore transactions that we have already rejected.  Do not
-	// send a reject message here because if the transaction was already
-	// rejected, the transaction was unsolicited.
-	if _, exists := m.rejectedTxns[*txHash]; exists {
+	// Ignore transactions that have already been rejected.  The transaction was
+	// unsolicited if it was already previously rejected.
+	if m.rejectedTxns.Contains(txHash[:]) {
 		log.Debugf("Ignoring unsolicited previously rejected transaction %v "+
 			"from %s", txHash, peer)
 		return
@@ -644,9 +667,9 @@ func (m *SyncManager) handleTxMsg(tmsg *txMsg) {
 	delete(m.requestedTxns, *txHash)
 
 	if err != nil {
-		// Do not request this transaction again until a new block
-		// has been processed.
-		limitAdd(m.rejectedTxns, *txHash, maxRejectedTxns)
+		// Do not request this transaction again until a new block has been
+		// processed.
+		m.rejectedTxns.Add(txHash[:])
 
 		// When the error is a rule error, it means the transaction was
 		// simply rejected as opposed to something actually going wrong,
@@ -802,7 +825,7 @@ func (m *SyncManager) handleBlockMsg(bmsg *blockMsg) {
 		m.cfg.TxMemPool.PruneExpiredTx()
 
 		// Clear the rejected transactions.
-		m.rejectedTxns = make(map[chainhash.Hash]struct{})
+		m.rejectedTxns.Reset()
 	}
 
 	// Update the latest block height for the peer to avoid stale heights when
@@ -1154,7 +1177,7 @@ func (m *SyncManager) handleNotFoundMsg(nfmsg *notFoundMsg) {
 // example, it does not need to be downloaded when it is already known.
 func (m *SyncManager) needTx(hash *chainhash.Hash) bool {
 	// No need for transactions that have already been rejected.
-	if _, exists := m.rejectedTxns[*hash]; exists {
+	if m.rejectedTxns.Contains(hash[:]) {
 		return false
 	}
 
@@ -1748,7 +1771,7 @@ type Config struct {
 func New(config *Config) *SyncManager {
 	return &SyncManager{
 		cfg:             *config,
-		rejectedTxns:    make(map[chainhash.Hash]struct{}),
+		rejectedTxns:    apbf.NewFilter(maxRejectedTxns, rejectedTxnsFPRate),
 		requestedTxns:   make(map[chainhash.Hash]struct{}),
 		requestedBlocks: make(map[chainhash.Hash]struct{}),
 		peers:           make(map[*peerpkg.Peer]*syncMgrPeer),
