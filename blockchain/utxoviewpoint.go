@@ -73,7 +73,6 @@ func (view *UtxoViewpoint) addTxOut(outpoint wire.OutPoint, txOut *wire.TxOut,
 	}
 
 	entry.amount = txOut.Value
-	entry.pkScript = txOut.PkScript
 	entry.blockHeight = uint32(blockHeight)
 	entry.blockIndex = blockIndex
 	entry.scriptVersion = txOut.Version
@@ -84,6 +83,17 @@ func (view *UtxoViewpoint) addTxOut(outpoint wire.OutPoint, txOut *wire.TxOut,
 	// modified when being added to the view.
 	entry.state &^= utxoStateSpent
 	entry.state |= utxoStateModified
+
+	// Deep copy the script.  This is required since the tx out script is a
+	// subslice of the overall contiguous buffer that the msg tx houses for all
+	// scripts within the tx.  It is deep copied here since this entry may be
+	// added to the utxo cache, and we don't want the utxo cache holding the entry
+	// to prevent all of the other tx scripts from getting garbage collected.
+	scriptLen := len(txOut.PkScript)
+	if scriptLen != 0 {
+		entry.pkScript = make([]byte, scriptLen)
+		copy(entry.pkScript, txOut.PkScript)
+	}
 }
 
 // AddTxOut adds the specified output of the passed transaction to the view if
@@ -328,12 +338,23 @@ func (view *UtxoViewpoint) disconnectTransactions(block *dcrutil.Block, stxos []
 			if entry == nil {
 				entry = &UtxoEntry{
 					amount:        txOut.Value,
-					pkScript:      txOut.PkScript,
 					blockHeight:   uint32(block.Height()),
 					blockIndex:    uint32(txIdx),
 					scriptVersion: txOut.Version,
 					state:         utxoStateModified,
 					packedFlags:   encodeUtxoFlags(isCoinBase, hasExpiry, txType),
+				}
+
+				// Deep copy the script.  This is required since the tx out script is a
+				// subslice of the overall contiguous buffer that the msg tx houses for
+				// all scripts within the tx.  It is deep copied here since this entry
+				// may be added to the utxo cache, and we don't want the utxo cache
+				// holding the entry to prevent all of the other tx scripts from getting
+				// garbage collected.
+				scriptLen := len(txOut.PkScript)
+				if scriptLen != 0 {
+					entry.pkScript = make([]byte, scriptLen)
+					copy(entry.pkScript, txOut.PkScript)
 				}
 
 				if isTicketSubmissionOutput(txType, uint32(txOutIdx)) {
