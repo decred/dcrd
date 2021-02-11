@@ -88,7 +88,7 @@ and [Decrediton (GUI)](https://github.com/decred/decrediton).
 ## Minimum Recommended Specifications (dcrd only)
 
 * 12 GB disk space (as of April 2020, increases over time)
-* 1GB memory (RAM)
+* 2GB memory (RAM)
 * ~150MB/day download, ~1.5GB/day upload
   * Plus one-time initial download of the entire block chain
 * Windows 10 (server preferred), macOS, Linux
