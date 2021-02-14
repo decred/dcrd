@@ -2950,20 +2950,16 @@ func (s *server) querySeeders(ctx context.Context) {
 func (s *server) Run(ctx context.Context) {
 	srvrLog.Trace("Starting server")
 
-	// Create a child context with independent cancellation for the server.
-	// This is needed since not all of the subsystems support context.
-	serverCtx, shutdownServer := context.WithCancel(ctx)
-
 	// Start the peer handler which in turn starts the address manager.
 	s.wg.Add(1)
-	go s.peerHandler(serverCtx)
+	go s.peerHandler(ctx)
 
 	// Start the sync manager.
 	s.wg.Add(1)
 	go func(ctx context.Context, s *server) {
 		s.syncManager.Run(ctx)
 		s.wg.Done()
-	}(serverCtx, s)
+	}(ctx, s)
 
 	// Query the seeders and start the connection manager.
 	s.wg.Add(1)
@@ -2973,38 +2969,38 @@ func (s *server) Run(ctx context.Context) {
 		}
 		s.connManager.Run(ctx)
 		s.wg.Done()
-	}(serverCtx, s)
+	}(ctx, s)
 
 	if s.nat != nil {
 		s.wg.Add(1)
-		go s.upnpUpdateThread(serverCtx)
+		go s.upnpUpdateThread(ctx)
 	}
 
 	if !cfg.DisableRPC {
 		// Start the rebroadcastHandler, which ensures user tx received by
 		// the RPC server are rebroadcast until being included in a block.
 		s.wg.Add(1)
-		go s.rebroadcastHandler(serverCtx)
+		go s.rebroadcastHandler(ctx)
 
 		s.wg.Add(1)
-		go func(s *server) {
-			s.rpcServer.Run(serverCtx)
+		go func(ctx context.Context, s *server) {
+			s.rpcServer.Run(ctx)
 			s.wg.Done()
-		}(s)
+		}(ctx, s)
 	}
 
 	// Start the background block template generator and CPU miner if the config
 	// provides a mining address.
 	if len(cfg.miningAddrs) > 0 {
 		s.wg.Add(2)
-		go func(s *server) {
-			s.bg.Run(serverCtx)
+		go func(ctx context.Context, s *server) {
+			s.bg.Run(ctx)
 			s.wg.Done()
-		}(s)
-		go func(s *server) {
-			s.cpuMiner.Run(serverCtx)
+		}(ctx, s)
+		go func(ctx context.Context, s *server) {
+			s.cpuMiner.Run(ctx)
 			s.wg.Done()
-		}(s)
+		}(ctx, s)
 
 		// The CPU miner is started without any workers which means it is idle.
 		// Start mining by setting the default number of workers when requested.
@@ -3021,10 +3017,8 @@ func (s *server) Run(ctx context.Context) {
 
 	s.feeEstimator.Close()
 
-	// Signal the remaining goroutines to quit and block until everything shuts
-	// down.
-	shutdownServer()
 	s.wg.Wait()
+	srvrLog.Trace("Server stopped")
 }
 
 // parseListeners determines whether each listen address is IPv4 and IPv6 and
