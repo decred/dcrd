@@ -174,21 +174,18 @@ func TestBlockIndexSerialization(t *testing.T) {
 		// actually serializing it is calculated properly.
 		gotSize := blockIndexEntrySerializeSize(&test.entry)
 		if gotSize != len(test.serialized) {
-			t.Errorf("blockIndexEntrySerializeSize (%s): did not "+
-				"get expected size - got %d, want %d", test.name,
+			t.Errorf("%q: did not get expected size - got %d, want %d", test.name,
 				gotSize, len(test.serialized))
 		}
 
 		// Ensure the block index entry serializes to the expected value.
 		gotSerialized, err := serializeBlockIndexEntry(&test.entry)
 		if err != nil {
-			t.Errorf("serializeBlockIndexEntry (%s): unexpected "+
-				"error: %v", test.name, err)
+			t.Errorf("%q: unexpected error: %v", test.name, err)
 			continue
 		}
 		if !bytes.Equal(gotSerialized, test.serialized) {
-			t.Errorf("serializeBlockIndexEntry (%s): did not get "+
-				"expected bytes - got %x, want %x", test.name,
+			t.Errorf("%q: did not get expected bytes - got %x, want %x", test.name,
 				gotSerialized, test.serialized)
 			continue
 		}
@@ -200,21 +197,17 @@ func TestBlockIndexSerialization(t *testing.T) {
 		gotBytesWritten, err := putBlockIndexEntry(gotSerialized2,
 			&test.entry)
 		if err != nil {
-			t.Errorf("putBlockIndexEntry (%s): unexpected error: %v",
-				test.name, err)
+			t.Errorf("%q: unexpected error: %v", test.name, err)
 			continue
 		}
 		if !bytes.Equal(gotSerialized2, test.serialized) {
-			t.Errorf("putBlockIndexEntry (%s): did not get "+
-				"expected bytes - got %x, want %x", test.name,
+			t.Errorf("%q: did not get expected bytes - got %x, want %x", test.name,
 				gotSerialized2, test.serialized)
 			continue
 		}
 		if gotBytesWritten != len(test.serialized) {
-			t.Errorf("putBlockIndexEntry (%s): did not get "+
-				"expected number of bytes written - got %d, "+
-				"want %d", test.name, gotBytesWritten,
-				len(test.serialized))
+			t.Errorf("%q: did not get expected number of bytes written - got %d, "+
+				"want %d", test.name, gotBytesWritten, len(test.serialized))
 			continue
 		}
 
@@ -222,14 +215,12 @@ func TestBlockIndexSerialization(t *testing.T) {
 		// block index entry.
 		gotEntry, err := deserializeBlockIndexEntry(test.serialized)
 		if err != nil {
-			t.Errorf("deserializeBlockIndexEntry (%s): unexpected "+
-				"error: %v", test.name, err)
+			t.Errorf("%q: unexpected error: %v", test.name, err)
 			continue
 		}
 		if !reflect.DeepEqual(*gotEntry, test.entry) {
-			t.Errorf("deserializeBlockIndexEntry (%s): mismatched "+
-				"entries\ngot %+v\nwant %+v", test.name,
-				gotEntry, test.entry)
+			t.Errorf("%q: mismatched entries\ngot %+v\nwant %+v", test.name, gotEntry,
+				test.entry)
 			continue
 		}
 
@@ -238,21 +229,17 @@ func TestBlockIndexSerialization(t *testing.T) {
 		var gotEntry2 blockIndexEntry
 		bytesRead, err := decodeBlockIndexEntry(test.serialized, &gotEntry2)
 		if err != nil {
-			t.Errorf("decodeBlockIndexEntry (%s): unexpected "+
-				"error: %v", test.name, err)
+			t.Errorf("%q: unexpected error: %v", test.name, err)
 			continue
 		}
 		if !reflect.DeepEqual(gotEntry2, test.entry) {
-			t.Errorf("decodeBlockIndexEntry (%s): mismatched "+
-				"entries\ngot %+v\nwant %+v", test.name,
+			t.Errorf("%q: mismatched entries\ngot %+v\nwant %+v", test.name,
 				gotEntry2, test.entry)
 			continue
 		}
 		if bytesRead != len(test.serialized) {
-			t.Errorf("decodeBlockIndexEntry (%s): did not get "+
-				"expected number of bytes read - got %d, "+
-				"want %d", test.name, bytesRead,
-				len(test.serialized))
+			t.Errorf("%q: did not get expected number of bytes read - got %d, "+
+				"want %d", test.name, bytesRead, len(test.serialized))
 			continue
 		}
 	}
@@ -325,16 +312,14 @@ func TestBlockIndexDecodeErrors(t *testing.T) {
 		gotBytesRead, err := decodeBlockIndexEntry(test.serialized,
 			&test.entry)
 		if !errors.As(err, &test.errType) {
-			t.Errorf("decodeBlockIndexEntry (%s): expected error "+
-				"type does not match - got %T, want %T",
+			t.Errorf("%q: expected error type does not match - got %T, want %T",
 				test.name, err, test.errType)
 			continue
 		}
 
 		// Ensure the expected number of bytes read is returned.
 		if gotBytesRead != test.bytesRead {
-			t.Errorf("decodeBlockIndexEntry (%s): unexpected "+
-				"number of bytes read - got %d, want %d",
+			t.Errorf("%q: unexpected number of bytes read - got %d, want %d",
 				test.name, gotBytesRead, test.bytesRead)
 			continue
 		}
@@ -409,8 +394,7 @@ func TestStxoSerialization(t *testing.T) {
 		// actually serializing it is calculated properly.
 		gotSize := spentTxOutSerializeSize(&test.stxo)
 		if gotSize != len(test.serialized) {
-			t.Errorf("spentTxOutSerializeSize (%s): did not get "+
-				"expected size - got %d, want %d", test.name,
+			t.Errorf("%q: did not get expected size - got %d, want %d", test.name,
 				gotSize, len(test.serialized))
 		}
 
@@ -418,16 +402,13 @@ func TestStxoSerialization(t *testing.T) {
 		gotSerialized := make([]byte, gotSize)
 		gotBytesWritten := putSpentTxOut(gotSerialized, &test.stxo)
 		if !bytes.Equal(gotSerialized, test.serialized) {
-			t.Errorf("putSpentTxOut (%s): did not get expected "+
-				"bytes - got %x, want %x", test.name,
+			t.Errorf("%q: did not get expected bytes - got %x, want %x", test.name,
 				gotSerialized, test.serialized)
 			continue
 		}
 		if gotBytesWritten != len(test.serialized) {
-			t.Errorf("putSpentTxOut (%s): did not get expected "+
-				"number of bytes written - got %d, want %d",
-				test.name, gotBytesWritten,
-				len(test.serialized))
+			t.Errorf("%q: did not get expected number of bytes written - got %d, "+
+				"want %d", test.name, gotBytesWritten, len(test.serialized))
 			continue
 		}
 
@@ -438,16 +419,16 @@ func TestStxoSerialization(t *testing.T) {
 			test.stxo.amount, test.stxo.blockHeight, test.stxo.blockIndex,
 			test.txOutIndex)
 		if err != nil {
-			t.Errorf("decodeSpentTxOut (%s): unexpected error: %v", test.name, err)
+			t.Errorf("%q: unexpected error: %v", test.name, err)
 			continue
 		}
 		if !reflect.DeepEqual(gotStxo, test.stxo) {
-			t.Errorf("decodeSpentTxOut (%s):\nwant: %+v\n got: %+v\n", test.name,
+			t.Errorf("%q: mismatched stxo:\nwant: %+v\n got: %+v\n", test.name,
 				test.stxo, gotStxo)
 		}
 		if offset != len(test.serialized) {
-			t.Errorf("decodeSpentTxOut (%s): did not get expected number of bytes "+
-				"read - got %d, want %d", test.name, offset, len(test.serialized))
+			t.Errorf("%q: did not get expected number of bytes read - got %d, "+
+				"want %d", test.name, offset, len(test.serialized))
 			continue
 		}
 	}
@@ -547,17 +528,15 @@ func TestStxoDecodeErrors(t *testing.T) {
 			&test.stxo, test.stxo.amount, test.stxo.blockHeight, test.stxo.blockIndex,
 			test.txOutIndex)
 		if !errors.As(err, &test.errType) {
-			t.Errorf("decodeSpentTxOut (%s): expected error type "+
-				"does not match - got %T, want %T", test.name,
-				err, test.errType)
+			t.Errorf("%q: expected error type does not match - got %T, want %T",
+				test.name, err, test.errType)
 			continue
 		}
 
 		// Ensure the expected number of bytes read is returned.
 		if gotBytesRead != test.bytesRead {
-			t.Errorf("decodeSpentTxOut (%s): unexpected number of "+
-				"bytes read - got %d, want %d", test.name,
-				gotBytesRead, test.bytesRead)
+			t.Errorf("%q: unexpected number of bytes read - got %d, want %d",
+				test.name, gotBytesRead, test.bytesRead)
 			continue
 		}
 	}
@@ -712,18 +691,16 @@ func TestSpendJournalSerialization(t *testing.T) {
 			"000b3c2069c496bc13228c154b03993809f278233d1"),
 	}}
 
-	for i, test := range tests {
+	for _, test := range tests {
 		// Ensure the journal entry serializes to the expected value.
 		gotBytes, err := serializeSpendJournalEntry(test.entry)
 		if err != nil {
-			t.Errorf("serializeSpendJournalEntry #%d (%s) "+
-				"unexpected error: %v", i, test.name, err)
+			t.Errorf("%q: unexpected error: %v", test.name, err)
 			continue
 		}
 		if !bytes.Equal(gotBytes, test.serialized) {
-			t.Errorf("serializeSpendJournalEntry #%d (%s): "+
-				"mismatched bytes - got %x, want %x", i,
-				test.name, gotBytes, test.serialized)
+			t.Errorf("%q: mismatched bytes - got %x, want %x", test.name, gotBytes,
+				test.serialized)
 			continue
 		}
 
@@ -731,8 +708,7 @@ func TestSpendJournalSerialization(t *testing.T) {
 		gotEntry, err := deserializeSpendJournalEntry(test.serialized,
 			test.blockTxns, noTreasury)
 		if err != nil {
-			t.Errorf("deserializeSpendJournalEntry #%d (%s) "+
-				"unexpected error: %v", i, test.name, err)
+			t.Errorf("%q: unexpected error: %v", test.name, err)
 			continue
 		}
 
@@ -740,9 +716,8 @@ func TestSpendJournalSerialization(t *testing.T) {
 		// correct properties.
 		for j := range gotEntry {
 			if !reflect.DeepEqual(gotEntry[j], test.entry[j]) {
-				t.Errorf("deserializeSpendJournalEntry #%d (%s) "+
-					"mismatched entries in idx %v - got %v, want %v",
-					i, test.name, j, gotEntry[j], test.entry[j])
+				t.Errorf("%q: mismatched entries in idx %v - got %v, want %v",
+					test.name, j, gotEntry[j], test.entry[j])
 				continue
 			}
 		}
@@ -805,14 +780,12 @@ func TestSpendJournalErrors(t *testing.T) {
 		stxos, err := deserializeSpendJournalEntry(test.serialized,
 			test.blockTxns, noTreasury)
 		if !errors.As(err, &test.errType) {
-			t.Errorf("deserializeSpendJournalEntry (%s): expected "+
-				"error type does not match - got %T, want %T",
+			t.Errorf("%q: expected error type does not match - got %T, want %T",
 				test.name, err, test.errType)
 			continue
 		}
 		if stxos != nil {
-			t.Errorf("deserializeSpendJournalEntry (%s): returned "+
-				"slice of spent transaction outputs is not nil",
+			t.Errorf("%q: returned slice of spent transaction outputs is not nil",
 				test.name)
 			continue
 		}
@@ -978,18 +951,16 @@ func TestUtxoSerialization(t *testing.T) {
 		},
 	}
 
-	for i, test := range tests {
+	for _, test := range tests {
 		// Ensure the utxo entry serializes to the expected value.
 		gotBytes, err := serializeUtxoEntry(test.entry)
 		if err != nil {
-			t.Errorf("serializeUtxoEntry #%d (%s) unexpected "+
-				"error: %v", i, test.name, err)
+			t.Errorf("%q: unexpected error: %v", test.name, err)
 			continue
 		}
 		if !bytes.Equal(gotBytes, test.serialized) {
-			t.Errorf("serializeUtxoEntry #%d (%s): mismatched "+
-				"bytes - got %x, want %x", i, test.name,
-				gotBytes, test.serialized)
+			t.Errorf("%q: mismatched bytes - got %x, want %x", test.name, gotBytes,
+				test.serialized)
 			continue
 		}
 
@@ -1002,13 +973,12 @@ func TestUtxoSerialization(t *testing.T) {
 		// Ensure that the serialized bytes are decoded back to the expected utxo.
 		gotUtxo, err := deserializeUtxoEntry(test.serialized, test.txOutIndex)
 		if err != nil {
-			t.Errorf("deserializeUtxoEntry #%d (%s): unexpected error: %v", i,
-				test.name, err)
+			t.Errorf("%q: unexpected error: %v", test.name, err)
 			continue
 		}
 		if !reflect.DeepEqual(gotUtxo, test.entry) {
-			t.Errorf("deserializeUtxoEntry #%d (%s):\nwant: %+v\n got: %+v\n", i,
-				test.name, test.entry, gotUtxo)
+			t.Errorf("%q: mismatched entry:\nwant: %+v\n got: %+v\n", test.name,
+				test.entry, gotUtxo)
 		}
 	}
 }
@@ -1112,14 +1082,12 @@ func TestUtxoEntryDeserializeErrors(t *testing.T) {
 		// entry is nil.
 		entry, err := deserializeUtxoEntry(test.serialized, test.txOutIndex)
 		if !errors.As(err, &test.errType) {
-			t.Errorf("deserializeUtxoEntry (%s): expected error "+
-				"type does not match - got %T, want %T",
+			t.Errorf("%q: expected error type does not match - got %T, want %T",
 				test.name, err, test.errType)
 			continue
 		}
 		if entry != nil {
-			t.Errorf("deserializeUtxoEntry (%s): returned entry "+
-				"is not nil", test.name)
+			t.Errorf("%q: returned entry is not nil", test.name)
 			continue
 		}
 	}
@@ -1158,8 +1126,8 @@ func TestUtxoSetStateSerialization(t *testing.T) {
 		// Ensure the utxo set state serializes to the expected value.
 		gotBytes := serializeUtxoSetState(test.state)
 		if !bytes.Equal(gotBytes, test.serialized) {
-			t.Errorf("serializeUtxoSetState (%s): mismatched bytes - got %x, "+
-				"want %x", test.name, gotBytes, test.serialized)
+			t.Errorf("%q: mismatched bytes - got %x, want %x", test.name, gotBytes,
+				test.serialized)
 			continue
 		}
 
@@ -1167,13 +1135,12 @@ func TestUtxoSetStateSerialization(t *testing.T) {
 		// set state.
 		gotUtxoSetState, err := deserializeUtxoSetState(test.serialized)
 		if err != nil {
-			t.Errorf("deserializeUtxoSetState (%s): unexpected error: %v", test.name,
-				err)
+			t.Errorf("%q: unexpected error: %v", test.name, err)
 			continue
 		}
 		if !reflect.DeepEqual(gotUtxoSetState, test.state) {
-			t.Errorf("deserializeUtxoSetState (%s):\nwant: %+v\n got: %+v\n",
-				test.name, test.state, gotUtxoSetState)
+			t.Errorf("%q: mismatched state:\nwant: %+v\n got: %+v\n", test.name,
+				test.state, gotUtxoSetState)
 		}
 	}
 }
@@ -1209,13 +1176,12 @@ func TestUtxoSetStateDeserializeErrors(t *testing.T) {
 		// utxo set state is nil.
 		entry, err := deserializeUtxoSetState(test.serialized)
 		if !errors.As(err, &test.errType) {
-			t.Errorf("deserializeUtxoSetState (%s): expected error type does not "+
-				"match - got %T, want %T", test.name, err, test.errType)
+			t.Errorf("%q: expected error type does not match - got %T, want %T",
+				test.name, err, test.errType)
 			continue
 		}
 		if entry != nil {
-			t.Errorf("deserializeUtxoSetState (%s): returned utxo set state is not "+
-				"nil", test.name)
+			t.Errorf("%q: returned utxo set state is not nil", test.name)
 			continue
 		}
 	}
@@ -1323,13 +1289,12 @@ func TestBestChainStateSerialization(t *testing.T) {
 		},
 	}
 
-	for i, test := range tests {
+	for _, test := range tests {
 		// Ensure the state serializes to the expected value.
 		gotBytes := serializeBestChainState(test.state)
 		if !bytes.Equal(gotBytes, test.serialized) {
-			t.Errorf("serializeBestChainState #%d (%s): mismatched "+
-				"bytes - got %x, want %x", i, test.name,
-				gotBytes, test.serialized)
+			t.Errorf("%q: mismatched bytes - got %x, want %x", test.name, gotBytes,
+				test.serialized)
 			continue
 		}
 
@@ -1337,14 +1302,12 @@ func TestBestChainStateSerialization(t *testing.T) {
 		// state.
 		state, err := deserializeBestChainState(test.serialized)
 		if err != nil {
-			t.Errorf("deserializeBestChainState #%d (%s) "+
-				"unexpected error: %v", i, test.name, err)
+			t.Errorf("%q: unexpected error: %v", test.name, err)
 			continue
 		}
 		if !reflect.DeepEqual(state, test.state) {
-			t.Errorf("deserializeBestChainState #%d (%s) "+
-				"mismatched state - got %v, want %v", i,
-				test.name, state, test.state)
+			t.Errorf("%q: mismatched state - got %v, want %v", test.name, state,
+				test.state)
 			continue
 		}
 	}
@@ -1381,8 +1344,8 @@ func TestBestChainStateDeserializeErrors(t *testing.T) {
 		// Ensure the expected error type and code is returned.
 		_, err := deserializeBestChainState(test.serialized)
 		if !errors.Is(err, test.err) {
-			t.Errorf("deserializeBestChainState (%s): wrong error code "+
-				"got: %v, want: %v", test.name, err, test.err)
+			t.Errorf("%q: wrong error code got: %v, want: %v", test.name, err,
+				test.err)
 			continue
 		}
 	}
