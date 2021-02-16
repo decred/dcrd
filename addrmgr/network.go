@@ -8,8 +8,6 @@ package addrmgr
 import (
 	"fmt"
 	"net"
-
-	"github.com/decred/dcrd/wire"
 )
 
 var (
@@ -263,8 +261,8 @@ func IsRoutable(netIP net.IP) bool {
 // "local" for a local address, the string "tor:key" where key is the /4 of the
 // onion address for Tor address, and the string "unroutable" for an unroutable
 // address.
-func GroupKey(na *wire.NetAddress) string {
-	netIP := na.IP
+func (na *NetAddress) GroupKey() string {
+	netIP := net.IP(na.IP)
 	if isLocal(netIP) {
 		return "local"
 	}

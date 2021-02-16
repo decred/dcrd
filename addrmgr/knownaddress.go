@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2014 The btcsuite developers
-// Copyright (c) 2015-2016 The Decred developers
+// Copyright (c) 2015-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -8,8 +8,6 @@ package addrmgr
 import (
 	"sync"
 	"time"
-
-	"github.com/decred/dcrd/wire"
 )
 
 // KnownAddress tracks information about a known network address that is used
@@ -20,11 +18,11 @@ type KnownAddress struct {
 	mtx sync.Mutex
 
 	// na is the primary network address that the known address represents.
-	na *wire.NetAddress
+	na *NetAddress
 
 	// srcAddr is the network address of the peer that suggested the primary
 	// network address.
-	srcAddr *wire.NetAddress
+	srcAddr *NetAddress
 
 	// The following fields track the attempts made to connect to the primary
 	// network address.  Initially connecting to a peer counts as an attempt,
@@ -45,7 +43,7 @@ type KnownAddress struct {
 
 // NetAddress returns the underlying wire.NetAddress associated with the
 // known address.
-func (ka *KnownAddress) NetAddress() *wire.NetAddress {
+func (ka *KnownAddress) NetAddress() *NetAddress {
 	ka.mtx.Lock()
 	defer ka.mtx.Unlock()
 	return ka.na
