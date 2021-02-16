@@ -191,11 +191,10 @@ func TestGroupKey(t *testing.T) {
 
 	for i, test := range tests {
 		nip := net.ParseIP(test.ip)
-		na := wire.NewNetAddressIPPort(nip, 8333, wire.SFNodeNetwork)
-		if key := GroupKey(na); key != test.expected {
+		na := NewNetAddressIPPort(nip, 8333, wire.SFNodeNetwork)
+		if key := na.GroupKey(); key != test.expected {
 			t.Errorf("TestGroupKey #%d (%s): unexpected group key "+
-				"- got '%s', want '%s'", i, test.name,
-				key, test.expected)
+				"- got '%s', want '%s'", i, test.name, key, test.expected)
 		}
 	}
 }

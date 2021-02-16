@@ -18,90 +18,8 @@ import (
 	"github.com/decred/dcrd/wire"
 )
 
-// naTest is used to describe a test to be performed against the NetAddressKey
-// method.
-type naTest struct {
-	in   wire.NetAddress
-	want string
-}
-
-// naTests houses all of the tests to be performed against the NetAddressKey
-// method.
-var naTests = make([]naTest, 0)
-
 // Put some IP in here for convenience. Points to google.
 var someIP = "173.194.115.66"
-
-// addNaTests
-func addNaTests() {
-	// IPv4
-	// Localhost
-	addNaTest("127.0.0.1", 8333, "127.0.0.1:8333")
-	addNaTest("127.0.0.1", 8334, "127.0.0.1:8334")
-
-	// Class A
-	addNaTest("1.0.0.1", 8333, "1.0.0.1:8333")
-	addNaTest("2.2.2.2", 8334, "2.2.2.2:8334")
-	addNaTest("27.253.252.251", 8335, "27.253.252.251:8335")
-	addNaTest("123.3.2.1", 8336, "123.3.2.1:8336")
-
-	// Private Class A
-	addNaTest("10.0.0.1", 8333, "10.0.0.1:8333")
-	addNaTest("10.1.1.1", 8334, "10.1.1.1:8334")
-	addNaTest("10.2.2.2", 8335, "10.2.2.2:8335")
-	addNaTest("10.10.10.10", 8336, "10.10.10.10:8336")
-
-	// Class B
-	addNaTest("128.0.0.1", 8333, "128.0.0.1:8333")
-	addNaTest("129.1.1.1", 8334, "129.1.1.1:8334")
-	addNaTest("180.2.2.2", 8335, "180.2.2.2:8335")
-	addNaTest("191.10.10.10", 8336, "191.10.10.10:8336")
-
-	// Private Class B
-	addNaTest("172.16.0.1", 8333, "172.16.0.1:8333")
-	addNaTest("172.16.1.1", 8334, "172.16.1.1:8334")
-	addNaTest("172.16.2.2", 8335, "172.16.2.2:8335")
-	addNaTest("172.16.172.172", 8336, "172.16.172.172:8336")
-
-	// Class C
-	addNaTest("193.0.0.1", 8333, "193.0.0.1:8333")
-	addNaTest("200.1.1.1", 8334, "200.1.1.1:8334")
-	addNaTest("205.2.2.2", 8335, "205.2.2.2:8335")
-	addNaTest("223.10.10.10", 8336, "223.10.10.10:8336")
-
-	// Private Class C
-	addNaTest("192.168.0.1", 8333, "192.168.0.1:8333")
-	addNaTest("192.168.1.1", 8334, "192.168.1.1:8334")
-	addNaTest("192.168.2.2", 8335, "192.168.2.2:8335")
-	addNaTest("192.168.192.192", 8336, "192.168.192.192:8336")
-
-	// IPv6
-	// Localhost
-	addNaTest("::1", 8333, "[::1]:8333")
-	addNaTest("fe80::1", 8334, "[fe80::1]:8334")
-
-	// Link-local
-	addNaTest("fe80::1:1", 8333, "[fe80::1:1]:8333")
-	addNaTest("fe91::2:2", 8334, "[fe91::2:2]:8334")
-	addNaTest("fea2::3:3", 8335, "[fea2::3:3]:8335")
-	addNaTest("feb3::4:4", 8336, "[feb3::4:4]:8336")
-
-	// Site-local
-	addNaTest("fec0::1:1", 8333, "[fec0::1:1]:8333")
-	addNaTest("fed1::2:2", 8334, "[fed1::2:2]:8334")
-	addNaTest("fee2::3:3", 8335, "[fee2::3:3]:8335")
-	addNaTest("fef3::4:4", 8336, "[fef3::4:4]:8336")
-
-	// Tor
-	addNaTest("fd87:d87e:eb43::", 8333, "aaaaaaaaaaaaaaaa.onion:8333")
-}
-
-func addNaTest(ip string, port uint16, want string) {
-	nip := net.ParseIP(ip)
-	na := *wire.NewNetAddressIPPort(nip, port, wire.SFNodeNetwork)
-	test := naTest{na, want}
-	naTests = append(naTests, test)
-}
 
 func lookupFunc(host string) ([]net.IP, error) {
 	return nil, errors.New("not implemented")
@@ -112,8 +30,8 @@ func lookupFunc(host string) ([]net.IP, error) {
 // a port.
 func (a *AddrManager) addAddressByIP(addr string, port uint16) {
 	ip := net.ParseIP(addr)
-	na := wire.NewNetAddressIPPort(ip, port, 0)
-	a.AddAddress(na, na)
+	na := NewNetAddressIPPort(ip, port, 0)
+	a.addOrUpdateAddress(na, na)
 }
 
 // TestStartStop tests the behavior of the address manager when it is started
@@ -159,9 +77,8 @@ func TestStartStop(t *testing.T) {
 
 	// Verify that the known address matches what was added to the address
 	// manager previously.
-
 	wantNetAddrKey := net.JoinHostPort(someIP, "8333")
-	gotNetAddrKey := NetAddressKey(knownAddress.na)
+	gotNetAddrKey := knownAddress.na.Key()
 	if gotNetAddrKey != wantNetAddrKey {
 		t.Fatal("address manager does not contain expected address - "+
 			"got %v, want %v", gotNetAddrKey, wantNetAddrKey)
@@ -172,7 +89,7 @@ func TestStartStop(t *testing.T) {
 	}
 }
 
-func TestAddAddressUpdate(t *testing.T) {
+func TestAddOrUpdateAddress(t *testing.T) {
 	amgr := New("testaddaddressupdate", nil)
 	amgr.Start()
 	if ka := amgr.GetAddress(); ka != nil {
@@ -182,8 +99,8 @@ func TestAddAddressUpdate(t *testing.T) {
 	if ip == nil {
 		t.Fatalf("invalid IP address %s", someIP)
 	}
-	na := wire.NewNetAddressIPPort(ip, 8333, 0)
-	amgr.AddAddress(na, na)
+	na := NewNetAddressIPPort(net.ParseIP(someIP), 8333, 0)
+	amgr.addOrUpdateAddress(na, na)
 	ka := amgr.GetAddress()
 	newlyAddedAddr := ka.NetAddress()
 	if ka == nil {
@@ -201,7 +118,7 @@ func TestAddAddressUpdate(t *testing.T) {
 	// an update rather than an insert.
 	ts := na.Timestamp.Add(time.Second)
 	na.Timestamp = ts
-	amgr.AddAddress(na, na)
+	amgr.addOrUpdateAddress(na, na)
 
 	// The address should be in the address manager with a new timestamp.
 	// The network address reference held by the known address should also
@@ -234,45 +151,48 @@ func TestAddAddressUpdate(t *testing.T) {
 func TestAddLocalAddress(t *testing.T) {
 	var tests = []struct {
 		name     string
-		address  wire.NetAddress
+		ip       net.IP
 		priority AddressPriority
 		valid    bool
 	}{{
 		name:     "unroutable local IPv4 address",
-		address:  wire.NetAddress{IP: net.ParseIP("192.168.0.100")},
+		ip:       net.ParseIP("192.168.0.100"),
 		priority: InterfacePrio,
 		valid:    false,
 	}, {
 		name:     "routable IPv4 address",
-		address:  wire.NetAddress{IP: net.ParseIP("204.124.1.1")},
+		ip:       net.ParseIP("204.124.1.1"),
 		priority: InterfacePrio,
 		valid:    true,
 	}, {
 		name:     "routable IPv4 address with bound priority",
-		address:  wire.NetAddress{IP: net.ParseIP("204.124.1.1")},
+		ip:       net.ParseIP("204.124.1.1"),
 		priority: BoundPrio,
 		valid:    true,
 	}, {
 		name:     "unroutable local IPv6 address",
-		address:  wire.NetAddress{IP: net.ParseIP("::1")},
+		ip:       net.ParseIP("::1"),
 		priority: InterfacePrio,
 		valid:    false,
 	}, {
 		name:     "unroutable local IPv6 address 2",
-		address:  wire.NetAddress{IP: net.ParseIP("fe80::1")},
+		ip:       net.ParseIP("fe80::1"),
 		priority: InterfacePrio,
 		valid:    false,
 	}, {
 		name:     "routable IPv6 address",
-		address:  wire.NetAddress{IP: net.ParseIP("2620:100::1")},
+		ip:       net.ParseIP("2620:100::1"),
 		priority: InterfacePrio,
 		valid:    true,
 	}}
 
+	const testPort = 8333
+	const testServices = wire.SFNodeNetwork
+
 	amgr := New("testaddlocaladdress", nil)
 	validLocalAddresses := make(map[string]struct{})
 	for _, test := range tests {
-		netAddr := &test.address
+		netAddr := NewNetAddressIPPort(test.ip, testPort, testServices)
 		result := amgr.AddLocalAddress(netAddr, test.priority)
 		if result == nil && !test.valid {
 			t.Errorf("%q: address should have been accepted", test.name)
@@ -293,7 +213,7 @@ func TestAddLocalAddress(t *testing.T) {
 		if test.valid {
 			// Set up data to test behavior of a call to LocalAddresses() for
 			// addresses that were added to the local address manager.
-			validLocalAddresses[NetAddressKey(netAddr)] = struct{}{}
+			validLocalAddresses[netAddr.Key()] = struct{}{}
 		}
 	}
 
@@ -301,8 +221,8 @@ func TestAddLocalAddress(t *testing.T) {
 	// address manager are also returned from a call to LocalAddresses.
 	for _, localAddr := range amgr.LocalAddresses() {
 		localAddrIP := net.ParseIP(localAddr.Address)
-		netAddr := &wire.NetAddress{IP: localAddrIP}
-		netAddrKey := NetAddressKey(netAddr)
+		netAddr := NewNetAddressIPPort(localAddrIP, testPort, testServices)
+		netAddrKey := netAddr.Key()
 		if _, ok := validLocalAddresses[netAddrKey]; !ok {
 			t.Errorf("expected to find local address with key %v", netAddrKey)
 		}
@@ -332,8 +252,7 @@ func TestAttempt(t *testing.T) {
 
 	// Attempt an ip not known to the address manager.
 	unknownIP := net.ParseIP("1.2.3.4")
-	unknownNetAddress := wire.NewNetAddressIPPort(unknownIP, 1234,
-		wire.SFNodeNetwork)
+	unknownNetAddress := NewNetAddressIPPort(unknownIP, 1234, wire.SFNodeNetwork)
 	err = n.Attempt(unknownNetAddress)
 	if err == nil {
 		t.Fatal("attempting unknown address should have returned an error")
@@ -362,8 +281,7 @@ func TestConnected(t *testing.T) {
 	// Attempt to flag an ip address not known to the address manager as
 	// connected.
 	unknownIP := net.ParseIP("1.2.3.4")
-	unknownNetAddress := wire.NewNetAddressIPPort(unknownIP, 1234,
-		wire.SFNodeNetwork)
+	unknownNetAddress := NewNetAddressIPPort(unknownIP, 1234, wire.SFNodeNetwork)
 	err = n.Connected(unknownNetAddress)
 	if err == nil {
 		t.Fatal("attempting to mark unknown address as connected should have " +
@@ -378,18 +296,14 @@ func TestNeedMoreAddresses(t *testing.T) {
 	if !b {
 		t.Fatal("expected the address manager to need more addresses")
 	}
-	addrs := make([]*wire.NetAddress, addrsToAdd)
+	addrs := make([]*NetAddress, addrsToAdd)
 
-	var err error
 	for i := 0; i < addrsToAdd; i++ {
-		s := fmt.Sprintf("%d.%d.173.147:8333", i/128+60, i%128+60)
-		addrs[i], err = n.DeserializeNetAddress(s)
-		if err != nil {
-			t.Errorf("Failed to turn %s into an address: %v", s, err)
-		}
+		s := fmt.Sprintf("%d.%d.173.147", i/128+60, i%128+60)
+		addrs[i] = NewNetAddressIPPort(net.ParseIP(s), 8333, wire.SFNodeNetwork)
 	}
 
-	srcAddr := wire.NewNetAddressIPPort(net.IPv4(173, 144, 173, 111), 8333, 0)
+	srcAddr := NewNetAddressIPPort(net.ParseIP("173.144.173.111"), 8333, 0)
 
 	n.AddAddresses(addrs, srcAddr)
 	numAddrs := n.numAddresses()
@@ -407,18 +321,14 @@ func TestNeedMoreAddresses(t *testing.T) {
 func TestGood(t *testing.T) {
 	n := New("testgood", lookupFunc)
 	addrsToAdd := 64 * 64
-	addrs := make([]*wire.NetAddress, addrsToAdd)
+	addrs := make([]*NetAddress, addrsToAdd)
 
-	var err error
 	for i := 0; i < addrsToAdd; i++ {
-		s := fmt.Sprintf("%d.173.147.%d:8333", i/64+60, i%64+60)
-		addrs[i], err = n.DeserializeNetAddress(s)
-		if err != nil {
-			t.Errorf("Failed to turn %s into an address: %v", s, err)
-		}
+		s := fmt.Sprintf("%d.173.147.%d", i/64+60, i%64+60)
+		addrs[i] = NewNetAddressIPPort(net.ParseIP(s), 8333, wire.SFNodeNetwork)
 	}
 
-	srcAddr := wire.NewNetAddressIPPort(net.IPv4(173, 144, 173, 111), 8333, 0)
+	srcAddr := NewNetAddressIPPort(net.ParseIP("173.144.173.111"), 8333, wire.SFNodeNetwork)
 
 	n.AddAddresses(addrs, srcAddr)
 	for _, addr := range addrs {
@@ -444,17 +354,17 @@ func TestGood(t *testing.T) {
 	// address by moving the old one back to the new bucket.
 	n = New("testgood_tried_overflow", lookupFunc)
 	n.triedBucketSize = 1
-	n.getNewBucket = func(netAddr, srcAddr *wire.NetAddress) int {
+	n.getNewBucket = func(netAddr, srcAddr *NetAddress) int {
 		return 0
 	}
-	n.getTriedBucket = func(netAddr *wire.NetAddress) int {
+	n.getTriedBucket = func(netAddr *NetAddress) int {
 		return 0
 	}
 
-	addrA := wire.NewNetAddressIPPort(net.ParseIP("173.144.173.1"), 8333, 0)
-	addrB := wire.NewNetAddressIPPort(net.ParseIP("173.144.173.2"), 8333, 0)
-	addrAKey := NetAddressKey(addrA)
-	addrBKey := NetAddressKey(addrB)
+	addrA := NewNetAddressIPPort(net.ParseIP("173.144.173.1"), 8333, 0)
+	addrB := NewNetAddressIPPort(net.ParseIP("173.144.173.2"), 8333, 0)
+	addrAKey := addrA.Key()
+	addrBKey := addrB.Key()
 
 	// Neither address should exist in the address index prior to being
 	// added to the address manager. The new and tried buckets should also be
@@ -472,8 +382,7 @@ func TestGood(t *testing.T) {
 			" to the address manager")
 	}
 
-	n.AddAddress(addrA, srcAddr)
-	n.AddAddress(addrB, srcAddr)
+	n.AddAddresses([]*NetAddress{addrA, addrB}, srcAddr)
 
 	// Both addresses should exist in the address index and new bucket after
 	// being added to the address manager.  The tried bucket should be empty.
@@ -502,7 +411,7 @@ func TestGood(t *testing.T) {
 	if len(n.addrTried[0]) != 1 {
 		t.Fatal("expected tried bucket to contain exactly one element")
 	}
-	if NetAddressKey(n.addrTried[0][0].na) != addrAKey {
+	if n.addrTried[0][0].na.Key() != addrAKey {
 		t.Fatalf("expected address %s to exist in tried bucket", addrAKey)
 	}
 
@@ -518,7 +427,7 @@ func TestGood(t *testing.T) {
 		t.Fatalf("expected tried bucket to contain exactly one element - "+
 			"got %d", len(n.addrTried[0]))
 	}
-	if NetAddressKey(n.addrTried[0][0].na) != addrBKey {
+	if n.addrTried[0][0].na.Key() != addrBKey {
 		t.Fatalf("expected address %s to exist in tried bucket", addrBKey)
 	}
 	if _, exists := n.addrNew[0][addrAKey]; !exists {
@@ -532,35 +441,38 @@ func TestGetAddress(t *testing.T) {
 
 	// Get an address from an empty set (should error)
 	if rv := n.GetAddress(); rv != nil {
-		t.Fatalf("GetAddress failed - got: %v want: %v\n", rv, nil)
+		t.Fatalf("GetAddress failed - got: %v, want: %v", rv, nil)
 	}
 
-	// Add a new address and get it
+	// Add a new address and get it.
 	n.addAddressByIP(someIP, 8333)
 	ka := n.GetAddress()
 	if ka == nil {
 		t.Fatal("did not get an address where there is one in the pool")
 	}
 
-	ipStringA := ka.NetAddress().IP.String()
-	if ipStringA != someIP {
-		t.Fatalf("unexpected ip - got %v, want %v", ipStringA, someIP)
+	ipStringA := ka.NetAddress().String()
+	someIPKey := net.JoinHostPort(someIP, "8333")
+	if ipStringA != someIPKey {
+		t.Fatalf("unexpected ip - got %s, want %s", ipStringA, someIPKey)
 	}
 
-	// Mark this as a good address and get it
+	// Mark this as a good address and get it.
 	err := n.Good(ka.NetAddress())
 	if err != nil {
 		t.Fatalf("marking address as good failed: %v", err)
 	}
 
+	// Verify that the previously added address still exists in the address
+	// manager after being marked as good.
 	ka = n.GetAddress()
 	if ka == nil {
 		t.Fatal("did not get an address when one was expected")
 	}
 
-	ipStringB := ka.NetAddress().IP.String()
-	if ipStringB != someIP {
-		t.Fatalf("unexpected ip - got %v, want %v", ipStringB, someIP)
+	ipStringB := ka.NetAddress().String()
+	if ipStringB != someIPKey {
+		t.Fatalf("unexpected ip - got %s, want %s", ipStringB, someIPKey)
 	}
 
 	numAddrs := n.numAddresses()
@@ -570,8 +482,7 @@ func TestGetAddress(t *testing.T) {
 
 	// Attempting to mark an unknown address as good should return an error.
 	unknownIP := net.ParseIP("1.2.3.4")
-	unknownNetAddress := wire.NewNetAddressIPPort(unknownIP, 1234,
-		wire.SFNodeNetwork)
+	unknownNetAddress := NewNetAddressIPPort(unknownIP, 1234, wire.SFNodeNetwork)
 	err = n.Good(unknownNetAddress)
 	if err == nil {
 		t.Fatal("attempting to mark unknown address as good should have " +
@@ -580,48 +491,53 @@ func TestGetAddress(t *testing.T) {
 }
 
 func TestGetBestLocalAddress(t *testing.T) {
-	localAddrs := []wire.NetAddress{
-		{IP: net.ParseIP("192.168.0.100")},
-		{IP: net.ParseIP("::1")},
-		{IP: net.ParseIP("fe80::1")},
-		{IP: net.ParseIP("2001:470::1")},
+	newAddressFromIP := func(ip net.IP) *NetAddress {
+		const port = 0
+		return NewNetAddressIPPort(ip, port, wire.SFNodeNetwork)
+	}
+
+	localAddrs := []*NetAddress{
+		newAddressFromIP(net.ParseIP("192.168.0.100")),
+		newAddressFromIP(net.ParseIP("::1")),
+		newAddressFromIP(net.ParseIP("fe80::1")),
+		newAddressFromIP(net.ParseIP("2001:470::1")),
 	}
 
 	var tests = []struct {
-		remoteAddr wire.NetAddress
-		want0      wire.NetAddress
-		want1      wire.NetAddress
-		want2      wire.NetAddress
-		want3      wire.NetAddress
+		remoteAddr *NetAddress
+		want0      *NetAddress
+		want1      *NetAddress
+		want2      *NetAddress
+		want3      *NetAddress
 	}{{
 		// Remote connection from public IPv4
-		wire.NetAddress{IP: net.ParseIP("204.124.8.1")},
-		wire.NetAddress{IP: net.IPv4zero},
-		wire.NetAddress{IP: net.IPv4zero},
-		wire.NetAddress{IP: net.ParseIP("204.124.8.100")},
-		wire.NetAddress{IP: net.ParseIP("fd87:d87e:eb43:25::1")},
+		newAddressFromIP(net.ParseIP("204.124.8.1")),
+		newAddressFromIP(net.IPv4zero),
+		newAddressFromIP(net.IPv4zero),
+		newAddressFromIP(net.ParseIP("204.124.8.100")),
+		newAddressFromIP(net.ParseIP("fd87:d87e:eb43:25::1")),
 	}, {
 		// Remote connection from private IPv4
-		wire.NetAddress{IP: net.ParseIP("172.16.0.254")},
-		wire.NetAddress{IP: net.IPv4zero},
-		wire.NetAddress{IP: net.IPv4zero},
-		wire.NetAddress{IP: net.IPv4zero},
-		wire.NetAddress{IP: net.IPv4zero},
+		newAddressFromIP(net.ParseIP("172.16.0.254")),
+		newAddressFromIP(net.IPv4zero),
+		newAddressFromIP(net.IPv4zero),
+		newAddressFromIP(net.IPv4zero),
+		newAddressFromIP(net.IPv4zero),
 	}, {
 		// Remote connection from public IPv6
-		wire.NetAddress{IP: net.ParseIP("2602:100:abcd::102")},
-		wire.NetAddress{IP: net.IPv6zero},
-		wire.NetAddress{IP: net.ParseIP("2001:470::1")},
-		wire.NetAddress{IP: net.ParseIP("2001:470::1")},
-		wire.NetAddress{IP: net.ParseIP("2001:470::1")},
+		newAddressFromIP(net.ParseIP("2602:100:abcd::102")),
+		newAddressFromIP(net.IPv6zero),
+		newAddressFromIP(net.ParseIP("2001:470::1")),
+		newAddressFromIP(net.ParseIP("2001:470::1")),
+		newAddressFromIP(net.ParseIP("2001:470::1")),
 	}}
 
 	amgr := New("testgetbestlocaladdress", nil)
 
 	// Test against default when there's no address
 	for x, test := range tests {
-		got := amgr.GetBestLocalAddress(&test.remoteAddr)
-		if !test.want0.IP.Equal(got.IP) {
+		got := amgr.GetBestLocalAddress(test.remoteAddr)
+		if !reflect.DeepEqual(test.want0.IP, got.IP) {
 			t.Errorf("TestGetBestLocalAddress test1 #%d failed for remote address %s: want %s got %s",
 				x, test.remoteAddr.IP, test.want1.IP, got.IP)
 			continue
@@ -629,13 +545,13 @@ func TestGetBestLocalAddress(t *testing.T) {
 	}
 
 	for _, localAddr := range localAddrs {
-		amgr.AddLocalAddress(&localAddr, InterfacePrio)
+		amgr.AddLocalAddress(localAddr, InterfacePrio)
 	}
 
 	// Test against want1
 	for x, test := range tests {
-		got := amgr.GetBestLocalAddress(&test.remoteAddr)
-		if !test.want1.IP.Equal(got.IP) {
+		got := amgr.GetBestLocalAddress(test.remoteAddr)
+		if !reflect.DeepEqual(test.want1.IP, got.IP) {
 			t.Errorf("TestGetBestLocalAddress test1 #%d failed for remote address %s: want %s got %s",
 				x, test.remoteAddr.IP, test.want1.IP, got.IP)
 			continue
@@ -643,13 +559,13 @@ func TestGetBestLocalAddress(t *testing.T) {
 	}
 
 	// Add a public IP to the list of local addresses.
-	localAddr := wire.NetAddress{IP: net.ParseIP("204.124.8.100")}
-	amgr.AddLocalAddress(&localAddr, InterfacePrio)
+	localAddr := newAddressFromIP(net.ParseIP("204.124.8.100"))
+	amgr.AddLocalAddress(localAddr, InterfacePrio)
 
 	// Test against want2
 	for x, test := range tests {
-		got := amgr.GetBestLocalAddress(&test.remoteAddr)
-		if !test.want2.IP.Equal(got.IP) {
+		got := amgr.GetBestLocalAddress(test.remoteAddr)
+		if !reflect.DeepEqual(test.want2.IP, got.IP) {
 			t.Errorf("TestGetBestLocalAddress test2 #%d failed for remote address %s: want %s got %s",
 				x, test.remoteAddr.IP, test.want2.IP, got.IP)
 			continue
@@ -670,19 +586,6 @@ func TestGetBestLocalAddress(t *testing.T) {
 			}
 		}
 	*/
-}
-
-func TestNetAddressKey(t *testing.T) {
-	addNaTests()
-
-	t.Logf("Running %d tests", len(naTests))
-	for i, test := range naTests {
-		key := NetAddressKey(&test.in)
-		if key != test.want {
-			t.Errorf("NetAddressKey #%d\n got: %s want: %s", i, key, test.want)
-			continue
-		}
-	}
 }
 
 func TestCorruptPeersFile(t *testing.T) {
@@ -853,8 +756,8 @@ func TestValidatePeerNa(t *testing.T) {
 	for _, test := range tests {
 		localIP := net.ParseIP(test.localAddress)
 		remoteIP := net.ParseIP(test.remoteAddress)
-		localNa := wire.NewNetAddressIPPort(localIP, 8333, wire.SFNodeNetwork)
-		remoteNa := wire.NewNetAddressIPPort(remoteIP, 8333, wire.SFNodeNetwork)
+		localNa := NewNetAddressIPPort(localIP, 8333, wire.SFNodeNetwork)
+		remoteNa := NewNetAddressIPPort(remoteIP, 8333, wire.SFNodeNetwork)
 
 		valid, reach := addressManager.ValidatePeerNa(localNa, remoteNa)
 		if valid != test.valid {
@@ -883,14 +786,14 @@ func TestHostToNetAddress(t *testing.T) {
 		port       uint16
 		lookupFunc func(host string) ([]net.IP, error)
 		wantErr    bool
-		want       *wire.NetAddress
+		want       *NetAddress
 	}{{
 		name:       "valid onion address",
 		host:       "a5ccbdkubbr2jlcp.onion",
 		port:       8333,
 		lookupFunc: nil,
 		wantErr:    false,
-		want: wire.NewNetAddressIPPort(
+		want: NewNetAddressIPPort(
 			net.ParseIP("fd87:d87e:eb43:744:208d:5408:63a4:ac4f"), 8333,
 			services),
 	}, {
@@ -926,7 +829,7 @@ func TestHostToNetAddress(t *testing.T) {
 			return []net.IP{net.ParseIP("127.0.0.1")}, nil
 		},
 		wantErr: false,
-		want: wire.NewNetAddressIPPort(net.ParseIP("127.0.0.1"), 8333,
+		want: NewNetAddressIPPort(net.ParseIP("127.0.0.1"), 8333,
 			services),
 	}, {
 		name:       "valid ip address",
@@ -934,7 +837,7 @@ func TestHostToNetAddress(t *testing.T) {
 		port:       8333,
 		lookupFunc: nil,
 		wantErr:    false,
-		want: wire.NewNetAddressIPPort(net.ParseIP("12.1.2.3"), 8333,
+		want: NewNetAddressIPPort(net.ParseIP("12.1.2.3"), 8333,
 			services),
 	}}
 
@@ -960,18 +863,16 @@ func TestSetServices(t *testing.T) {
 	const services = wire.SFNodeNetwork
 
 	// Attempt to set services for an address not known to the address manager.
-	// This should have no effect and exercises paths that avoid a panic.
-	notKnownAddr := wire.NewNetAddressIPPort(net.ParseIP("0.0.0.0"), 8333,
-		services)
+	notKnownAddr := NewNetAddressIPPort(net.ParseIP("1.2.3.4"), 8333, services)
 	err := addressManager.SetServices(notKnownAddr, services)
 	if err == nil {
 		t.Fatal("setting services for unknown address should return error")
 	}
 
 	// Add a new address to the address manager.
-	netAddr := wire.NewNetAddressIPPort(net.ParseIP("1.2.3.4"), 8333, services)
-	srcAddr := wire.NewNetAddressIPPort(net.ParseIP("5.6.7.8"), 8333, services)
-	addressManager.AddAddress(netAddr, srcAddr)
+	netAddr := NewNetAddressIPPort(net.ParseIP("1.2.3.4"), 8333, services)
+	srcAddr := NewNetAddressIPPort(net.ParseIP("5.6.7.8"), 8333, services)
+	addressManager.addOrUpdateAddress(netAddr, srcAddr)
 
 	// Ensure that the services field for a network address returned from the
 	// address manager is not mutated by a call to SetServices.
