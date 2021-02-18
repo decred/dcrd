@@ -13,6 +13,7 @@ import (
 
 	"github.com/decred/dcrd/blockchain/stake/v4"
 	"github.com/decred/dcrd/chaincfg/chainhash"
+	"github.com/decred/dcrd/chaincfg/v3"
 	"github.com/decred/dcrd/database/v2"
 	"github.com/decred/dcrd/wire"
 )
@@ -146,6 +147,39 @@ func entry85314() *UtxoEntry {
 		},
 	}
 }
+
+// testUtxoCache provides a mock utxo cache by implementing the UtxoCacher
+// interface.  It allows for toggling flushing on and off to more easily
+// simulate various scenarios.
+type testUtxoCache struct {
+	*UtxoCache
+	disableFlush bool
+}
+
+// MaybeFlush conditionally flushes the cache to the database.  If the disable
+// flush flag is set on the test utxo cache, this function will return
+// immediately without attempting to flush the cache.
+func (c *testUtxoCache) MaybeFlush(bestHash *chainhash.Hash, bestHeight uint32,
+	forceFlush bool, logFlush bool) error {
+
+	// Return immediately if disable flush is set.
+	if c.disableFlush {
+		return nil
+	}
+
+	return c.UtxoCache.MaybeFlush(bestHash, bestHeight, forceFlush, logFlush)
+}
+
+// newTestUtxoCache returns a testUtxoCache instance using the provided
+// configuration details.
+func newTestUtxoCache(config *UtxoCacheConfig) *testUtxoCache {
+	return &testUtxoCache{
+		UtxoCache: NewUtxoCache(config),
+	}
+}
+
+// Ensure testUtxoCache implements the UtxoCacher interface.
+var _ UtxoCacher = (*testUtxoCache)(nil)
 
 // createTestUtxoDatabase creates a test database with the utxo set bucket.
 func createTestUtxoDatabase(t *testing.T) database.DB {
@@ -1065,4 +1099,152 @@ func TestMaybeFlush(t *testing.T) {
 				utxoCache.totalEntrySize, wantTotalEntrySize)
 		}
 	}
+}
+
+// TestInitialize validates that the cache recovers properly during
+// initialization under a variety of conditions.
+func TestInitialize(t *testing.T) {
+	// Create a test harness initialized with the genesis block as the tip.
+	params := chaincfg.RegNetParams()
+	g, teardownFunc := newChaingenHarness(t, params, "initializetest")
+	defer teardownFunc()
+
+	// ---------------------------------------------------------------------------
+	// Create some convenience functions to improve test readability.
+	// ---------------------------------------------------------------------------
+
+	// resetTestUtxoCache replaces the current utxo cache with a new test utxo
+	// cache and calls initialize on it.  This simulates an empty utxo cache that
+	// gets created and initialized at startup.
+	resetTestUtxoCache := func() *testUtxoCache {
+		testUtxoCache := newTestUtxoCache(&UtxoCacheConfig{
+			DB:      g.chain.db,
+			MaxSize: 100 * 1024 * 1024, // 100 MiB
+		})
+		g.chain.utxoCache = testUtxoCache
+		testUtxoCache.Initialize(g.chain, g.chain.bestChain.Tip())
+		return testUtxoCache
+	}
+
+	// forceFlush forces a cache flush to the best chain tip.
+	forceFlush := func(utxoCache *testUtxoCache) {
+		tip := g.chain.bestChain.Tip()
+		utxoCache.MaybeFlush(&tip.hash, uint32(tip.height), true, false)
+	}
+
+	// ---------------------------------------------------------------------------
+	// Generate and accept enough blocks to reach stake validation height.
+	//
+	// Disable flushing of the cache while advancing the chain.  After reaching
+	// stake validation height, reset the cache and validate that it recovers and
+	// properly catches up to the tip.
+	// ---------------------------------------------------------------------------
+
+	// Replace the utxo cache in the test chain with a test utxo cache so that
+	// flushing can be toggled on and off for testing.
+	testUtxoCache := resetTestUtxoCache()
+
+	// Validate that the tip and utxo set state are currently at the genesis
+	// block.
+	g.ExpectTip("genesis")
+	g.ExpectUtxoSetState("genesis")
+
+	// Disable flushing and advance the chain.
+	testUtxoCache.disableFlush = true
+	g.AdvanceToStakeValidationHeight()
+
+	// Validate that the tip is at stake validation height but the utxo set state
+	// is still at the genesis block.
+	g.AssertTipHeight(uint32(params.StakeValidationHeight))
+	g.ExpectUtxoSetState("genesis")
+
+	// Reset the cache and force a flush.
+	testUtxoCache = resetTestUtxoCache()
+	forceFlush(testUtxoCache)
+
+	// Validate that the utxo cache is now caught up to the tip.
+	g.ExpectUtxoSetState(g.TipName())
+
+	// ---------------------------------------------------------------------------
+	// Create a few blocks to use as a base for the tests below.
+	//
+	//   ... -> b0 -> b1
+	// ---------------------------------------------------------------------------
+
+	outs := g.OldestCoinbaseOuts()
+	g.NextBlock("b0", &outs[0], outs[1:])
+	g.AcceptTipBlock()
+
+	outs = g.OldestCoinbaseOuts()
+	b1 := g.NextBlock("b1", &outs[0], outs[1:])
+	g.AcceptTipBlock()
+
+	// Force a cache flush and validate that the cache is caught up to block b1.
+	forceFlush(testUtxoCache)
+	g.ExpectUtxoSetState("b1")
+
+	// ---------------------------------------------------------------------------
+	// Simulate the following scenario:
+	//   - The utxo cache was last flushed at the tip block
+	//   - A reorg to a side chain is triggered
+	//   - During the reorg, a failure resulting in an unclean shutdown
+	//     occurs after disconnecting a block but before flushing the cache
+	//     and removing the spend journal
+	//   - The resulting state should be:
+	//     - The cache was flushed at b1
+	//     - The spend journal for b1 was not removed
+	//     - The chain tip is at b1a
+	//
+	//        last cache flush here
+	//                vvv
+	//   ... -> b0 -> b1
+	//            \-> b1a
+	//                ^^^
+	//              new tip
+	// ---------------------------------------------------------------------------
+
+	// Disable flushing to simulate a failure resulting in the cache not being
+	// flushed after disconnecting a block.
+	testUtxoCache.disableFlush = true
+
+	// Save the spend journal entry for b1.  The spend journal entry for block b1
+	// needs to be restored after the reorg to properly simulate the failure
+	// scenario described above.
+	var serialized []byte
+	b1Hash := b1.BlockHash()
+	g.chain.db.View(func(dbTx database.Tx) error {
+		spendBucket := dbTx.Metadata().Bucket(spendJournalBucketName)
+		serialized = spendBucket.Get(b1Hash[:])
+		return nil
+	})
+	if serialized == nil {
+		t.Fatalf("unable to fetch spend journal entry for block: %v", b1Hash)
+	}
+
+	// Force a reorg as described above.
+	g.SetTip("b0")
+	g.NextBlock("b1a", &outs[0], outs[1:])
+	g.AcceptedToSideChainWithExpectedTip("b1")
+	g.ForceTipReorg("b1", "b1a")
+
+	// Restore the spend journal entry for block b1.
+	err := g.chain.db.Update(func(dbTx database.Tx) error {
+		spendBucket := dbTx.Metadata().Bucket(spendJournalBucketName)
+		return spendBucket.Put(b1Hash[:], serialized)
+	})
+	if err != nil {
+		t.Fatalf("unexpected error putting spend journal entry: %v", err)
+	}
+
+	// Validate that the tip is at b1a but the utxo cache flushed state is at
+	// b1.
+	g.ExpectTip("b1a")
+	g.ExpectUtxoSetState("b1")
+
+	// Reset the cache and force a flush.
+	testUtxoCache = resetTestUtxoCache()
+	forceFlush(testUtxoCache)
+
+	// Validate that the cache recovered and is now caught up to b1a.
+	g.ExpectUtxoSetState("b1a")
 }

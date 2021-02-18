@@ -15,6 +15,7 @@ import (
 	"math"
 	mrand "math/rand"
 	"os"
+	"reflect"
 	"testing"
 	"time"
 
@@ -751,6 +752,34 @@ func (g *chaingenHarness) ExpectTip(tipName string) {
 			"-- got %q (hash %s, height %d)", tipName, wantTip.BlockHash(),
 			wantTip.Header.Height, g.BlockName(&best.Hash), best.Hash,
 			best.Height)
+	}
+}
+
+// ExpectUtxoSetState expects the provided block to be the last flushed block in
+// the utxo set state in the database.
+func (g *chaingenHarness) ExpectUtxoSetState(blockName string) {
+	g.t.Helper()
+
+	// Fetch the utxo set state from the database.
+	var gotState *utxoSetState
+	err := g.chain.db.View(func(dbTx database.Tx) error {
+		var err error
+		gotState, err = dbFetchUtxoSetState(dbTx)
+		return err
+	})
+	if err != nil {
+		g.t.Fatalf("unexpected error fetching utxo set state: %v", err)
+	}
+
+	// Validate that the state matches the expected state.
+	block := g.BlockByName(blockName)
+	wantState := &utxoSetState{
+		lastFlushHeight: block.Header.Height,
+		lastFlushHash:   block.BlockHash(),
+	}
+	if !reflect.DeepEqual(gotState, wantState) {
+		g.t.Fatalf("mismatched utxo set state:\nwant: %+v\n got: %+v\n", wantState,
+			gotState)
 	}
 }
 
