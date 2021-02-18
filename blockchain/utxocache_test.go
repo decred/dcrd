@@ -1248,3 +1248,49 @@ func TestInitialize(t *testing.T) {
 	// Validate that the cache recovered and is now caught up to b1a.
 	g.ExpectUtxoSetState("b1a")
 }
+
+// TestShutdownUtxoCache validates that a cache flush is forced when shutting
+// down.
+func TestShutdownUtxoCache(t *testing.T) {
+	// Create a test harness initialized with the genesis block as the tip.
+	params := chaincfg.RegNetParams()
+	g, teardownFunc := newChaingenHarness(t, params, "shutdownutxocachetest")
+	defer teardownFunc()
+
+	// Replace the chain utxo cache with a test cache so that flushing can be
+	// disabled.
+	testUtxoCache := newTestUtxoCache(&UtxoCacheConfig{
+		DB:      g.chain.db,
+		MaxSize: 100 * 1024 * 1024, // 100 MiB
+	})
+	g.chain.utxoCache = testUtxoCache
+
+	// ---------------------------------------------------------------------------
+	// Generate and accept enough blocks to reach stake validation height.
+	//
+	// Disable flushing of the cache while advancing the chain.  After reaching
+	// stake validation height, call shutdown and validate that it forces a flush
+	// and properly catches up to the tip.
+	// ---------------------------------------------------------------------------
+
+	// Validate that the tip and utxo set state are currently at the genesis
+	// block.
+	g.ExpectTip("genesis")
+	g.ExpectUtxoSetState("genesis")
+
+	// Disable flushing and advance the chain.
+	testUtxoCache.disableFlush = true
+	g.AdvanceToStakeValidationHeight()
+
+	// Validate that the tip is at stake validation height but the utxo set state
+	// is still at the genesis block.
+	g.AssertTipHeight(uint32(params.StakeValidationHeight))
+	g.ExpectUtxoSetState("genesis")
+
+	// Enable flushing and shutdown the cache.
+	testUtxoCache.disableFlush = false
+	g.chain.ShutdownUtxoCache()
+
+	// Validate that the utxo cache is now caught up to the tip.
+	g.ExpectUtxoSetState(g.TipName())
+}
