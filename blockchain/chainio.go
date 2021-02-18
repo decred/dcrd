@@ -1931,7 +1931,7 @@ func (b *BlockChain) initChainState(ctx context.Context) error {
 
 	// Initialize the utxo cache to ensure that the state of the utxo set is
 	// caught up to the tip of the best chain.
-	return b.InitUtxoCache(tip)
+	return b.utxoCache.Initialize(b, tip)
 }
 
 // dbFetchBlockByNode uses an existing database transaction to retrieve the raw

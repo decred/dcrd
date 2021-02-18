@@ -607,8 +607,8 @@ func (c *UtxoCache) MaybeFlush(bestHash *chainhash.Hash, bestHeight uint32,
 	return nil
 }
 
-// InitUtxoCache initializes the utxo cache by ensuring that the utxo set is
-// caught up to the tip of the best chain.
+// Initialize initializes the utxo cache by ensuring that the utxo set is caught
+// up to the tip of the best chain.
 //
 // Since the cache is only flushed to the database periodically, the utxo set
 // may not be caught up to the tip of the best chain.  This function catches the
@@ -616,13 +616,13 @@ func (c *UtxoCache) MaybeFlush(bestHash *chainhash.Hash, bestHeight uint32,
 // last flushed to the tip block through the cache.
 //
 // This function should only be called during initialization.
-func (b *BlockChain) InitUtxoCache(tip *blockNode) error {
+func (c *UtxoCache) Initialize(b *BlockChain, tip *blockNode) error {
 	log.Infof("UTXO cache initializing (max size: %d MiB)...",
-		b.utxoCache.maxSize/1024/1024)
+		c.maxSize/1024/1024)
 
 	// Fetch the utxo set state from the database.
 	var state *utxoSetState
-	err := b.db.View(func(dbTx database.Tx) error {
+	err := c.db.View(func(dbTx database.Tx) error {
 		var err error
 		state, err = dbFetchUtxoSetState(dbTx)
 		return err
@@ -639,7 +639,7 @@ func (b *BlockChain) InitUtxoCache(tip *blockNode) error {
 			lastFlushHeight: uint32(tip.height),
 			lastFlushHash:   tip.hash,
 		}
-		err := b.db.Update(func(dbTx database.Tx) error {
+		err := c.db.Update(func(dbTx database.Tx) error {
 			return dbPutUtxoSetState(dbTx, state)
 		})
 		if err != nil {
@@ -649,8 +649,8 @@ func (b *BlockChain) InitUtxoCache(tip *blockNode) error {
 
 	// Set the last flush hash and the last eviction height from the saved state
 	// since that is where we are starting from.
-	b.utxoCache.lastFlushHash = state.lastFlushHash
-	b.utxoCache.lastEvictionHeight = state.lastFlushHeight
+	c.lastFlushHash = state.lastFlushHash
+	c.lastEvictionHeight = state.lastFlushHeight
 
 	// If state is already caught up to the tip, return as there is nothing to do.
 	if state.lastFlushHash == tip.hash {
@@ -680,7 +680,7 @@ func (b *BlockChain) InitUtxoCache(tip *blockNode) error {
 	// disconnecting a block, this will occur very infrequently.  In the typical
 	// catchup case, the fork node will be the last flushed node itself and this
 	// loop will be skipped.
-	view := NewUtxoViewpoint(b.utxoCache)
+	view := NewUtxoViewpoint(c)
 	view.SetBestHash(&tip.hash)
 	var nextBlockToDetach *dcrutil.Block
 	n := lastFlushedNode
@@ -745,7 +745,7 @@ func (b *BlockChain) InitUtxoCache(tip *blockNode) error {
 		// view that are marked as modified and spent are removed from the view.
 		// Additionally, all entries that are added to the cache are removed from
 		// the view.
-		err = b.utxoCache.Commit(view)
+		err = c.Commit(view)
 		if err != nil {
 			return err
 		}
@@ -753,7 +753,7 @@ func (b *BlockChain) InitUtxoCache(tip *blockNode) error {
 		// Conditionally flush the utxo cache to the database.  Don't force flush
 		// since many blocks may be disconnected and connected in quick succession
 		// when initializing.
-		err = b.utxoCache.MaybeFlush(&n.hash, uint32(n.height), false, true)
+		err = c.MaybeFlush(&n.hash, uint32(n.height), false, true)
 		if err != nil {
 			return err
 		}
@@ -820,14 +820,14 @@ func (b *BlockChain) InitUtxoCache(tip *blockNode) error {
 		// view that are marked as modified and spent are removed from the view.
 		// Additionally, all entries that are added to the cache are removed from
 		// the view.
-		err = b.utxoCache.Commit(view)
+		err = c.Commit(view)
 		if err != nil {
 			return err
 		}
 
 		// Conditionally flush the utxo cache to the database.  Don't force flush
 		// since many blocks may be connected in quick succession when initializing.
-		err = b.utxoCache.MaybeFlush(&n.hash, uint32(n.height), false, true)
+		err = c.MaybeFlush(&n.hash, uint32(n.height), false, true)
 		if err != nil {
 			return err
 		}
