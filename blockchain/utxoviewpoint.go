@@ -25,7 +25,7 @@ import (
 // The unspent outputs are needed by other transactions for things such as
 // script validation and double spend prevention.
 type UtxoViewpoint struct {
-	cache    *UtxoCache
+	cache    UtxoCacher
 	entries  map[wire.OutPoint]*UtxoEntry
 	bestHash chainhash.Hash
 }
@@ -757,7 +757,7 @@ func (view *UtxoViewpoint) clone() *UtxoViewpoint {
 }
 
 // NewUtxoViewpoint returns a new empty unspent transaction output view.
-func NewUtxoViewpoint(cache *UtxoCache) *UtxoViewpoint {
+func NewUtxoViewpoint(cache UtxoCacher) *UtxoViewpoint {
 	return &UtxoViewpoint{
 		cache:   cache,
 		entries: make(map[wire.OutPoint]*UtxoEntry),
