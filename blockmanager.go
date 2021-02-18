@@ -1913,14 +1913,26 @@ func (b *blockManager) handleBlockchainNotification(notification *blockchain.Not
 		// because if the side chain were to be extended enough to become the
 		// best chain, it would result in a reorg that would remove 6 blocks,
 		// namely blocks 101, 102, 103, 104, 105, and 106.
+		//
+		// Additionally, a notification will NOT be sent for mainnet once block
+		// height 534304 has been reached and the block version is prior to 8.
+		// The intent is for future code to perform this type of check more
+		// dynamically so it happens for all upgrades after a certain time frame
+		// is provided for upgrades to occur, but it is hard coded as part of a
+		// patch release for now in the interest of time to allow PoS to force
+		// PoW to upgrade.
 		blockHash := block.Hash()
 		bestHeight := band.BestHeight
-		blockHeight := int64(block.MsgBlock().Header.Height)
+		blockHeader := &block.MsgBlock().Header
+		blockHeight := int64(blockHeader.Height)
 		reorgDepth := bestHeight - (blockHeight - band.ForkLen)
+		isOldMainnetBlock := b.cfg.ChainParams.Net == wire.MainNet &&
+			blockHeight >= 534304 && blockHeader.Version < 8
 		if b.cfg.RpcServer() != nil &&
 			blockHeight >= b.cfg.ChainParams.StakeValidationHeight-1 &&
 			reorgDepth < maxReorgDepthNotify &&
 			blockHeight > b.cfg.ChainParams.LatestCheckpointHeight() &&
+			!isOldMainnetBlock &&
 			!b.notifiedWinningTickets(blockHash) {
 
 			// Obtain the winning tickets for this block.  handleNotifyMsg
