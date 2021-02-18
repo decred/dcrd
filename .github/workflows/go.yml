@@ -6,7 +6,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        go: [1.14, 1.15]
+        go: [1.15, 1.16]
     steps:
       - name: Set up Go
         uses: actions/setup-go@v2
@@ -15,7 +15,7 @@ jobs:
       - name: Check out source
         uses: actions/checkout@v2
       - name: Install Linters
-        run: "curl -sfL https://install.goreleaser.com/github.com/golangci/golangci-lint.sh | sh -s -- -b $(go env GOPATH)/bin v1.33.0"
+        run: "curl -sfL https://install.goreleaser.com/github.com/golangci/golangci-lint.sh | sh -s -- -b $(go env GOPATH)/bin v1.37.0"
       - name: Build
         env:
           GO111MODULE: "on"
