@@ -58,6 +58,49 @@ const (
 	periodicFlushInterval = time.Minute * 2
 )
 
+// UtxoCacher represents a utxo cache that sits on top of the utxo set database.
+//
+// The interface contract requires that all of these methods are safe for
+// concurrent access.
+type UtxoCacher interface {
+	// Commit updates the cache based on the state of each entry in the provided
+	// view.
+	//
+	// All entries in the provided view that are marked as modified and spent are
+	// removed from the view.  Additionally, all entries that are added to the
+	// cache are removed from the provided view.
+	Commit(view *UtxoViewpoint) error
+
+	// FetchEntries adds the requested transaction outputs to the provided view.
+	// It first checks the cache for each output, and if an output does not exist
+	// in the cache, it will fetch it from the database.
+	//
+	// Upon completion of this function, the view will contain an entry for each
+	// requested outpoint.  Spent outputs, or those which otherwise don't exist,
+	// will result in a nil entry in the view.
+	FetchEntries(filteredSet viewFilteredSet, view *UtxoViewpoint) error
+
+	// FetchEntry returns the specified transaction output from the utxo set.  If
+	// the output exists in the cache, it is returned immediately.  Otherwise, it
+	// uses an existing database transaction to fetch the output from the
+	// database, cache it, and return it to the caller.  The entry that is
+	// returned can safely be mutated by the caller without invalidating the
+	// cache.
+	//
+	// When there is no entry for the provided output, nil will be returned for
+	// both the entry and the error.
+	FetchEntry(dbTx database.Tx, outpoint wire.OutPoint) (*UtxoEntry, error)
+
+	// Initialize initializes the utxo cache by ensuring that the utxo set is
+	// caught up to the tip of the best chain.
+	Initialize(b *BlockChain, tip *blockNode) error
+
+	// MaybeFlush conditionally flushes the cache to the database.  A flush can be
+	// forced by setting the force flush parameter.
+	MaybeFlush(bestHash *chainhash.Hash, bestHeight uint32, forceFlush bool,
+		logFlush bool) error
+}
+
 // UtxoCache is an unspent transaction output cache that sits on top of the
 // utxo set database and provides significant runtime performance benefits at
 // the cost of some additional memory usage.  It drastically reduces the amount
@@ -127,6 +170,9 @@ type UtxoCache struct {
 	// testing purposes.
 	timeNow func() time.Time
 }
+
+// Ensure UtxoCache implements the UtxoCacher interface.
+var _ UtxoCacher = (*UtxoCache)(nil)
 
 // UtxoCacheConfig is a descriptor which specifies the utxo cache instance
 // configuration.
@@ -367,8 +413,8 @@ func (c *UtxoCache) FetchEntries(filteredSet viewFilteredSet, view *UtxoViewpoin
 	return err
 }
 
-// Commit updates all entries in the cache based on the state of each entry in
-// the provided view.
+// Commit updates the cache based on the state of each entry in the provided
+// view.
 //
 // All entries in the provided view that are marked as modified and spent are
 // removed from the view.  Additionally, all entries that are added to the cache

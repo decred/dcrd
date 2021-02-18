@@ -143,7 +143,7 @@ type BlockChain struct {
 	sigCache            *txscript.SigCache
 	indexManager        indexers.IndexManager
 	interrupt           <-chan struct{}
-	utxoCache           *UtxoCache
+	utxoCache           UtxoCacher
 
 	// subsidyCache is the cache that provides quick lookup of subsidy
 	// values.
@@ -2152,7 +2152,7 @@ type Config struct {
 	// the database directly.
 	//
 	// This field is required.
-	UtxoCache *UtxoCache
+	UtxoCache UtxoCacher
 }
 
 // New returns a BlockChain instance using the provided configuration details.
