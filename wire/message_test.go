@@ -19,6 +19,8 @@ import (
 	"github.com/decred/dcrd/chaincfg/chainhash"
 )
 
+var timestamp = time.Unix(time.Now().Unix(), 0)
+
 // makeHeader is a convenience function to make a message header in the form of
 // a byte slice.  It is used to force errors when reading messages.
 func makeHeader(dcrnet CurrencyNet, command string,
@@ -57,6 +59,11 @@ func TestMessage(t *testing.T) {
 	msgVersion := NewMsgVersion(me, you, 123123, 0)
 
 	msgVerack := NewMsgVerAck()
+	msgGetAddrV2 := NewMsgGetAddrV2()
+	msgAddrV2 := NewMsgAddrV2()
+	ipv4Addr := NewNetAddressV2(IPv4Address, net.ParseIP("127.0.0.1").To4(), 8333,
+		timestamp, SFNodeNetwork)
+	msgAddrV2.AddAddress(ipv4Addr)
 	msgGetAddr := NewMsgGetAddr()
 	msgAddr := NewMsgAddr()
 	msgGetBlocks := NewMsgGetBlocks(&chainhash.Hash{})
@@ -90,8 +97,10 @@ func TestMessage(t *testing.T) {
 	}{
 		{msgVersion, msgVersion, pver, MainNet, 125},
 		{msgVerack, msgVerack, pver, MainNet, 24},
-		{msgGetAddr, msgGetAddr, pver, MainNet, 24},
-		{msgAddr, msgAddr, pver, MainNet, 25},
+		{msgGetAddrV2, msgGetAddrV2, pver, MainNet, 24},
+		{msgAddrV2, msgAddrV2, pver, MainNet, 48},
+		{msgGetAddr, msgGetAddr, AddrV2Version - 1, MainNet, 24},
+		{msgAddr, msgAddr, AddrV2Version - 1, MainNet, 25},
 		{msgGetBlocks, msgGetBlocks, pver, MainNet, 61},
 		{msgBlock, msgBlock, pver, MainNet, 522},
 		{msgInv, msgInv, pver, MainNet, 25},
@@ -287,7 +296,7 @@ func TestReadMessageWireErrors(t *testing.T) {
 		// Exceed max allowed payload for a message of a specific type.  [5]
 		{
 			exceedTypePayloadBytes,
-			pver,
+			AddrV2Version - 1,
 			dcrnet,
 			len(exceedTypePayloadBytes),
 			&MessageError{},
@@ -317,7 +326,7 @@ func TestReadMessageWireErrors(t *testing.T) {
 		// Message with a valid header, but wrong format. [8]
 		{
 			badMessageBytes,
-			pver,
+			AddrV2Version - 1,
 			dcrnet,
 			len(badMessageBytes),
 			&MessageError{},
