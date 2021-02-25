@@ -975,7 +975,14 @@ func TestMaybeFlush(t *testing.T) {
 		utxoCache.maxSize = test.maxSize
 		utxoCache.lastEvictionHeight = test.lastEvictionHeight
 		utxoCache.lastFlushHash = *test.lastFlushHash
-		origLastFlushTime := utxoCache.lastFlushTime
+
+		// Mock the current time as 1 minute after the last flush time.  This allows
+		// for validating that the last flush time is correctly updated to the
+		// current time when a flush occurs.
+		mockedCurrentTime := utxoCache.lastFlushTime.Add(time.Minute)
+		utxoCache.timeNow = func() time.Time {
+			return mockedCurrentTime
+		}
 
 		// Add entries specified by the test to the test database.
 		err := db.Update(func(dbTx database.Tx) error {
@@ -1036,7 +1043,7 @@ func TestMaybeFlush(t *testing.T) {
 			t.Fatalf("%q: unexpected last flush hash -- got %x, want %x", test.name,
 				utxoCache.lastFlushHash, *test.wantLastFlushHash)
 		}
-		updatedLastFlushTime := utxoCache.lastFlushTime != origLastFlushTime
+		updatedLastFlushTime := utxoCache.lastFlushTime == mockedCurrentTime
 		if updatedLastFlushTime != test.wantUpdatedLastFlushTime {
 			t.Fatalf("%q: unexpected updated last flush time -- got %v, want %v",
 				test.name, updatedLastFlushTime, test.wantUpdatedLastFlushTime)

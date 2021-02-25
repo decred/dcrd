@@ -121,6 +121,11 @@ type UtxoCache struct {
 	// are used to measure the overall cache hit ratio.
 	hits   uint64
 	misses uint64
+
+	// timeNow defines the function to use to get the current local time.  It
+	// defaults to time.Now but an alternative function can be provided for
+	// testing purposes.
+	timeNow func() time.Time
 }
 
 // UtxoCacheConfig is a descriptor which specifies the utxo cache instance
@@ -151,6 +156,7 @@ func NewUtxoCache(config *UtxoCacheConfig) *UtxoCache {
 		maxSize:       config.MaxSize,
 		entries:       make(map[wire.OutPoint]*UtxoEntry, uint64(maxEntries)),
 		lastFlushTime: time.Now(),
+		timeNow:       time.Now,
 	}
 }
 
@@ -556,7 +562,7 @@ func (c *UtxoCache) flush(bestHash *chainhash.Hash, bestHeight uint32, logFlush 
 	// Update the last flush on the cache instance now that the flush has been
 	// completed.
 	c.lastFlushHash = *bestHash
-	c.lastFlushTime = time.Now()
+	c.lastFlushTime = c.timeNow()
 
 	// Update the last eviction height on the cache instance if we evicted just
 	// now.
