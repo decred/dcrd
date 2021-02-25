@@ -5063,6 +5063,53 @@ func TestHandleGetTxOutSetInfo(t *testing.T) {
 	}})
 }
 
+func TestHandleInvalidateBlock(t *testing.T) {
+	t.Parallel()
+
+	chainWithErr := func(err error) *testRPCChain {
+		chain := defaultMockRPCChain()
+		chain.invalidateBlockErr = err
+		return chain
+	}
+
+	validInvalidateBlockCmd := &types.InvalidateBlockCmd{
+		BlockHash: block432100.BlockHash().String(),
+	}
+
+	testRPCServerHandler(t, []rpcTest{{
+		name:    "handleInvalidateBlock: ok",
+		handler: handleInvalidateBlock,
+		cmd:     validInvalidateBlockCmd,
+	}, {
+		name:    "handleInvalidateBlock: bad block hash",
+		handler: handleInvalidateBlock,
+		cmd:     &types.InvalidateBlockCmd{BlockHash: "bad hash"},
+		wantErr: true,
+		errCode: dcrjson.ErrRPCDecodeHexString,
+	}, {
+		name:      "handleInvalidateBlock: unknown block",
+		handler:   handleInvalidateBlock,
+		cmd:       validInvalidateBlockCmd,
+		mockChain: chainWithErr(blockchain.ErrUnknownBlock),
+		wantErr:   true,
+		errCode:   dcrjson.ErrRPCBlockNotFound,
+	}, {
+		name:      "handleInvalidateBlock: invalid genesis block",
+		handler:   handleInvalidateBlock,
+		cmd:       validInvalidateBlockCmd,
+		mockChain: chainWithErr(blockchain.ErrInvalidateGenesisBlock),
+		wantErr:   true,
+		errCode:   dcrjson.ErrRPCInvalidParameter,
+	}, {
+		name:      "handleInvalidateBlock: failure to invalidate",
+		handler:   handleInvalidateBlock,
+		cmd:       validInvalidateBlockCmd,
+		mockChain: chainWithErr(errors.New("")),
+		wantErr:   true,
+		errCode:   dcrjson.ErrRPCInternal.Code,
+	}})
+}
+
 func TestHandleLiveTickets(t *testing.T) {
 	t.Parallel()
 
