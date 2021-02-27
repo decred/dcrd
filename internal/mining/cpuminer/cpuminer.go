@@ -635,7 +635,7 @@ func (m *CPUMiner) SetNumWorkers(numWorkers int32) {
 		m.normalMining = false
 	}
 
-	// Notify the controller about the the change.
+	// Notify the controller about the change.
 	select {
 	case m.updateNumWorkers <- struct{}{}:
 	case <-m.quit:

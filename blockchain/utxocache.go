@@ -906,7 +906,7 @@ func (b *BlockChain) ShutdownUtxoCache() {
 }
 
 // FetchUtxoEntry loads and returns the requested unspent transaction output
-// from the point of view of the the main chain tip.
+// from the point of view of the main chain tip.
 //
 // NOTE: Requesting an output for which there is no data will NOT return an
 // error.  Instead both the entry and the error will be nil.  This is done to

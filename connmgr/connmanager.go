@@ -503,7 +503,7 @@ func (cm *ConnManager) newConnReq(ctx context.Context) {
 
 // Connect assigns an id and dials a connection to the address of the connection
 // request using the provided context and the dial function configured when
-// initially creating the the connection manager.
+// initially creating the connection manager.
 //
 // The connection attempt will be ignored if the connection manager has been
 // shutdown by canceling the lifecycle context the Run method was invoked with

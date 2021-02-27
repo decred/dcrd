@@ -1084,7 +1084,7 @@ func TestProcessLogic(t *testing.T) {
 	// Make the block data for b6j available in order to complete the link
 	// needed to trigger the reorg and check the blocks.  Since errors in reorgs
 	// are currently attibuted to the block that caused them, the error in b7j
-	// shoud be attributed to b6j, but b6j should still end up as the tip since
+	// should be attributed to b6j, but b6j should still end up as the tip since
 	// it is valid.
 	g.RejectBlock("b6j", ErrMissingTxOut)
 	g.ExpectTip("b6j")

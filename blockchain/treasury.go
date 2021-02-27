@@ -603,9 +603,9 @@ func VerifyTSpendSignature(msgTx *wire.MsgTx, signature, pubKey []byte) error {
 }
 
 // sumPastTreasuryExpenditure sums up all tspends found within the range
-// (node-nbBlocks..node). Note that this sum is _inclusive_ of the the passed
-// block and is performed in descending order. Generally, the passed node will
-// be a node immediately before a TVI block.
+// (node-nbBlocks..node). Note that this sum is _inclusive_ of the passed block
+// and is performed in descending order. Generally, the passed node will be a
+// node immediately before a TVI block.
 //
 // It also returns the node immediately before the last checked node (that is,
 // the node before node-nbBlocks).
@@ -709,11 +709,10 @@ func (b *BlockChain) maxTreasuryExpenditure(preTVINode *blockNode) (int64, error
 	// windows ("expenditure allowance").
 	avgPlusAllowance := avgSpentPriorWindows + avgSpentPriorWindows/2
 
-	// The maximum expenditure allowed for the the next block is the
-	// difference between the maximum possible and what has already been
-	// spent in the most recent policy window. This is capped at zero on
-	// the lower end to account for cases where the policy _already_ spent
-	// more than the allowed.
+	// The maximum expenditure allowed for the next block is the difference
+	// between the maximum possible and what has already been spent in the most
+	// recent policy window. This is capped at zero on the lower end to account
+	// for cases where the policy _already_ spent more than the allowed.
 	var allowedToSpend int64
 	if avgPlusAllowance > spentRecentWindow {
 		allowedToSpend = avgPlusAllowance - spentRecentWindow

@@ -28,8 +28,8 @@ func TestWaitGroup(t *testing.T) {
 		return c
 	}
 
-	// waitReturned returns true if the the passed channel created by
-	// goWait is closed before a timeout.
+	// waitReturned returns true if the passed channel created by goWait is
+	// closed before a timeout.
 	waitReturned := func(c chan struct{}) bool {
 		select {
 		case <-c:

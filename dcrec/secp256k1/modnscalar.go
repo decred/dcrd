@@ -597,9 +597,8 @@ func (s *ModNScalar) reduce385(t0, t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11,
 	// acc.Rsh32() // No need since not used after this.  Guaranteed to be 0.
 
 	// NOTE: All of the remaining multiplications for this iteration result in 0
-	// as they all involve multiplying by combinations of the the fifth, sixth,
-	// and seventh words of the two's complement of N, which are 0, so skip
-	// them.
+	// as they all involve multiplying by combinations of the fifth, sixth, and
+	// seventh words of the two's complement of N, which are 0, so skip them.
 
 	// At this point, the result is reduced to fit within 258 bits, so reduce it
 	// again using a slightly modified version of the same method.  The maximum
@@ -780,9 +779,8 @@ func (s *ModNScalar) reduce512(t0, t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11,
 	acc.Rsh32()
 
 	// NOTE: All of the remaining multiplications for this iteration result in 0
-	// as they all involve multiplying by combinations of the the fifth, sixth,
-	// and seventh words of the two's complement of N, which are 0, so skip
-	// them.
+	// as they all involve multiplying by combinations of the fifth, sixth, and
+	// seventh words of the two's complement of N, which are 0, so skip them.
 
 	// Terms for 2^(32*12).
 	t12 = uint64(acc.n[0])

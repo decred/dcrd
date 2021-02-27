@@ -24,7 +24,7 @@ func init() {
 
 // runConnMgrAsync invokes the Run method on the passed connection manager in a
 // separate goroutine and returns a cancelable context and wait group the caller
-// can use to shutdown the the connection manager and wait for clean shutdown.
+// can use to shutdown the connection manager and wait for clean shutdown.
 func runConnMgrAsync(ctx context.Context, cmgr *ConnManager) (context.Context, context.CancelFunc, *sync.WaitGroup) {
 	ctx, cancel := context.WithCancel(ctx)
 	var wg sync.WaitGroup

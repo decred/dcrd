@@ -561,7 +561,7 @@ func (f *FieldVal) IsZero() bool {
 //   - The field value MUST be normalized
 func (f *FieldVal) IsOneBit() uint32 {
 	// The value can only be one if the single lowest significant bit is set in
-	// the the first word and no other bits are set in any of the other words.
+	// the first word and no other bits are set in any of the other words.
 	// This is a constant time implementation.
 	bits := (f.n[0] ^ 1) | f.n[1] | f.n[2] | f.n[3] | f.n[4] | f.n[5] |
 		f.n[6] | f.n[7] | f.n[8] | f.n[9]
@@ -576,7 +576,7 @@ func (f *FieldVal) IsOneBit() uint32 {
 //   - The field value MUST be normalized
 func (f *FieldVal) IsOne() bool {
 	// The value can only be one if the single lowest significant bit is set in
-	// the the first word and no other bits are set in any of the other words.
+	// the first word and no other bits are set in any of the other words.
 	// This is a constant time implementation.
 	bits := (f.n[0] ^ 1) | f.n[1] | f.n[2] | f.n[3] | f.n[4] | f.n[5] |
 		f.n[6] | f.n[7] | f.n[8] | f.n[9]

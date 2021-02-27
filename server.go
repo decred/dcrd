@@ -899,7 +899,7 @@ func (sp *serverPeer) OnMiningState(p *peer.Peer, msg *wire.MsgMiningState) {
 }
 
 // OnGetInitState is invoked when a peer receives a getinitstate wire message.
-// It sends the available requested info the the remote peer.
+// It sends the available requested info to the remote peer.
 func (sp *serverPeer) OnGetInitState(p *peer.Peer, msg *wire.MsgGetInitState) {
 	if sp.initStateSent {
 		peerLog.Tracef("Ignoring getinitstate from %v - already sent", sp.Peer)

@@ -752,11 +752,10 @@ func (g *BgBlkTmplGenerator) genTemplateAsync(ctx context.Context, reason Templa
 		}
 		g.setCurrentTemplate(template, reason, err)
 		if err == nil && template != nil {
-			// It is possible for a new vote to show up while the template for
-			// a new parent is still being generated which causes that template
-			// to be canceled in favor of the the new one with the vote.  So,
-			// ensure the first notification sent for a new parent has that
-			// reason.
+			// It is possible for a new vote to show up while the template for a
+			// new parent is still being generated which causes that template to
+			// be canceled in favor of the new one with the vote.  So, ensure
+			// the first notification sent for a new parent has that reason.
 			header := &template.Block.Header
 			if reason == TURNewVotes {
 				if !g.notifiedParents.Contains(header.PrevBlock) {

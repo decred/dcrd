@@ -111,7 +111,7 @@ loop:
 // be done by the msi installer, but it is provided here since it can be useful
 // for development.
 func installService() error {
-	// The the full path to the current executable.
+	// The full path to the current executable.
 	exePath, err := os.Executable()
 	if err != nil {
 		return err

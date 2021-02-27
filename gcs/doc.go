@@ -41,7 +41,7 @@ for every block and serve the filter to SPV clients that match against the
 filter locally to determine if the block is potentially relevant.  The required
 parameters for Decred are defined by the blockcf2 package.
 
-For more details, see the the Block Filters section of DCP0005:
+For more details, see the Block Filters section of DCP0005:
 https://github.com/decred/dcps/blob/master/dcp-0005/dcp-0005.mediawiki#block-filters
 */
 package gcs

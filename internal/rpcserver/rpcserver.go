@@ -2028,7 +2028,7 @@ func handleGetBlockchainInfo(_ context.Context, s *Server, cmd interface{}) (int
 	best := chain.BestSnapshot()
 	_, bestHeaderHeight := chain.BestHeader()
 
-	// Fetch the current chain work using the the best block hash.
+	// Fetch the current chain work using the best block hash.
 	chainWork, err := chain.ChainWork(&best.Hash)
 	if err != nil {
 		return nil, rpcInternalError(err.Error(), "Could not fetch chain work.")

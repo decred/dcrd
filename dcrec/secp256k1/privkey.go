@@ -51,7 +51,6 @@ func GeneratePrivateKey() (*PrivateKey, error) {
 }
 
 // PubKey computes and returns the public key corresponding to this private key.
-// PubKey returns the PublicKey corresponding to this private key.
 func (p *PrivateKey) PubKey() *PublicKey {
 	var result JacobianPoint
 	ScalarBaseMultNonConst(&p.Key, &result)
