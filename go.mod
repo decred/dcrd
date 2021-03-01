@@ -30,7 +30,7 @@ require (
 	github.com/decred/dcrd/txscript/v4 v4.0.0-20210129190127-4ebd135a82f1
 	github.com/decred/dcrd/wire v1.4.0
 	github.com/decred/go-socks v1.1.0
-	github.com/decred/slog v1.1.0
+	github.com/decred/slog v1.2.0
 	github.com/gorilla/websocket v1.4.2
 	github.com/jessevdk/go-flags v1.4.0
 	github.com/jrick/bitset v1.0.0
