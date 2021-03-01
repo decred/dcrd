@@ -141,9 +141,10 @@ type broadcastPruneInventory struct{}
 // (it will be put into a trickle queue if false) so the relay has access to
 // that information.
 type relayMsg struct {
-	invVect   *wire.InvVect
-	data      interface{}
-	immediate bool
+	invVect     *wire.InvVect
+	data        interface{}
+	immediate   bool
+	reqServices wire.ServiceFlag
 }
 
 // updatePeerHeightsMsg is a message sent from the blockmanager to the server
@@ -508,6 +509,10 @@ type serverPeer struct {
 	// peerNa is network address of the peer connected to.
 	peerNa    *wire.NetAddress
 	peerNaMtx sync.Mutex
+
+	// announcedBlock tracks the most recent block announced to this peer and is
+	// used to filter duplicates.
+	announcedBlock *chainhash.Hash
 }
 
 // newServerPeer returns a new serverPeer instance. The peer needs to be set by
@@ -1952,10 +1957,25 @@ func (s *server) handleRelayInvMsg(state *peerState, msg relayMsg) {
 			return
 		}
 
-		// If the inventory is a block and the peer prefers headers,
-		// generate and send a headers message instead of an inventory
-		// message.
-		if msg.invVect.Type == wire.InvTypeBlock && sp.WantsHeaders() {
+		// Ignore peers that do not have the required service flags.
+		if !hasServices(sp.Services(), msg.reqServices) {
+			return
+		}
+
+		// Filter duplicate block announcements.
+		iv := msg.invVect
+		isBlockAnnouncement := iv.Type == wire.InvTypeBlock
+		if isBlockAnnouncement {
+			if sp.announcedBlock != nil && *sp.announcedBlock == iv.Hash {
+				sp.announcedBlock = nil
+				return
+			}
+			sp.announcedBlock = &iv.Hash
+		}
+
+		// Generate and send a headers message instead of an inventory message
+		// for block announcements when the peer prefers headers.
+		if isBlockAnnouncement && sp.WantsHeaders() {
 			blockHeader, ok := msg.data.(wire.BlockHeader)
 			if !ok {
 				peerLog.Warnf("Underlying data for headers" +
@@ -1972,7 +1992,7 @@ func (s *server) handleRelayInvMsg(state *peerState, msg relayMsg) {
 			return
 		}
 
-		if msg.invVect.Type == wire.InvTypeTx {
+		if iv.Type == wire.InvTypeTx {
 			// Don't relay the transaction to the peer when it has
 			// transaction relaying disabled.
 			if sp.relayTxDisabled() {
@@ -1986,9 +2006,9 @@ func (s *server) handleRelayInvMsg(state *peerState, msg relayMsg) {
 		// It will be ignored in either case if the peer is already
 		// known to have the inventory.
 		if msg.immediate {
-			sp.QueueInventoryImmediate(msg.invVect)
+			sp.QueueInventoryImmediate(iv)
 		} else {
-			sp.QueueInventory(msg.invVect)
+			sp.QueueInventory(iv)
 		}
 	})
 }
@@ -2432,6 +2452,19 @@ func (s *server) BanPeer(sp *serverPeer) {
 // that are not already known to have it.
 func (s *server) RelayInventory(invVect *wire.InvVect, data interface{}, immediate bool) {
 	s.relayInv <- relayMsg{invVect: invVect, data: data, immediate: immediate}
+}
+
+// RelayBlockAnnouncement creates a block announcement for the passed block and
+// relays that announcement immediately to all connected peers that advertise
+// the given required services and are not already known to have it.
+func (s *server) RelayBlockAnnouncement(block *dcrutil.Block, reqServices wire.ServiceFlag) {
+	invVect := wire.NewInvVect(wire.InvTypeBlock, block.Hash())
+	s.relayInv <- relayMsg{
+		invVect:     invVect,
+		data:        block.MsgBlock().Header,
+		immediate:   true,
+		reqServices: reqServices,
+	}
 }
 
 // BroadcastMessage sends msg to all peers currently connected to the server

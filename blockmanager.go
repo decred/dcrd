@@ -255,6 +255,11 @@ type peerNotifier interface {
 	// that are not already known to have it.
 	RelayInventory(invVect *wire.InvVect, data interface{}, immediate bool)
 
+	// RelayBlockAnnouncement creates a block announcement for the passed block
+	// and relays that announcement to all connected peers that advertise the
+	// given required services and are not already known to have it.
+	RelayBlockAnnouncement(block *dcrutil.Block, reqServices wire.ServiceFlag)
+
 	// TransactionConfirmed marks the provided single confirmation transaction
 	// as no longer needing rebroadcasting.
 	TransactionConfirmed(tx *dcrutil.Tx)
@@ -336,10 +341,6 @@ type blockManager struct {
 	// duplicated.
 	lotteryDataBroadcast      map[chainhash.Hash]struct{}
 	lotteryDataBroadcastMutex sync.RWMutex
-
-	// The following fields are used to filter duplicate block announcements.
-	announcedBlockMtx sync.Mutex
-	announcedBlock    *chainhash.Hash
 
 	// The following fields are used to track the height being synced to from
 	// peers.
@@ -1863,12 +1864,8 @@ func (b *blockManager) handleBlockchainNotification(notification *blockchain.Not
 			break
 		}
 
-		// Generate the inventory vector and relay it immediately.
-		iv := wire.NewInvVect(wire.InvTypeBlock, block.Hash())
-		b.cfg.PeerNotifier.RelayInventory(iv, block.MsgBlock().Header, true)
-		b.announcedBlockMtx.Lock()
-		b.announcedBlock = block.Hash()
-		b.announcedBlockMtx.Unlock()
+		// Relay the block announcement immediately to full nodes.
+		b.cfg.PeerNotifier.RelayBlockAnnouncement(block, wire.SFNodeNetwork)
 
 	// A block has been accepted into the block chain.  Relay it to other peers
 	// (will be ignored if already relayed via NTNewTipBlockChecked) and
@@ -1957,16 +1954,10 @@ func (b *blockManager) handleBlockchainNotification(notification *blockchain.Not
 			}
 		}
 
-		// Generate the inventory vector and relay it immediately if not already
-		// known to have been sent in NTNewTipBlockChecked.
-		b.announcedBlockMtx.Lock()
-		sent := b.announcedBlock != nil && *b.announcedBlock == *blockHash
-		b.announcedBlock = nil
-		b.announcedBlockMtx.Unlock()
-		if !sent {
-			iv := wire.NewInvVect(wire.InvTypeBlock, blockHash)
-			b.cfg.PeerNotifier.RelayInventory(iv, block.MsgBlock().Header, true)
-		}
+		// Relay the block announcement immediately to all peers that were not
+		// already notified via NTNewTipBlockChecked.
+		const noRequiredServices = 0
+		b.cfg.PeerNotifier.RelayBlockAnnouncement(block, noRequiredServices)
 
 		// Inform the background block template generator about the accepted
 		// block.
