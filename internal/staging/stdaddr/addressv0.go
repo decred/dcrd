@@ -31,6 +31,7 @@ const (
 	op2           = 0x52
 	opReturn      = 0x6a
 	opDup         = 0x76
+	opEqual       = 0x87
 	opEqualVerify = 0x88
 	opHash160     = 0xa9
 	opCheckSig    = 0xac
@@ -65,6 +66,9 @@ const (
 	// p2pkhPaymentScriptLen is the length of a standard version 0 P2PKH script
 	// for secp256k1+ecdsa.
 	p2pkhPaymentScriptLen = 25
+
+	// p2shPaymentScriptLen is the length of a standard version 0 P2SH script.
+	p2shPaymentScriptLen = 23
 )
 
 // AddressParamsV0 defines an interface that is used to provide the parameters
@@ -908,6 +912,219 @@ func (addr *AddressPubKeyHashSchnorrSecp256k1V0) Hash160() *[ripemd160.Size]byte
 // This is equivalent to calling Address, but is provided so the type can be
 // used as a fmt.Stringer.
 func (addr *AddressPubKeyHashSchnorrSecp256k1V0) String() string {
+	return addr.Address()
+}
+
+// AddressScriptHashV0 specifies an address that represents a payment
+// destination which imposes an encumbrance that requires a script that hashes
+// to the provided script hash along with all of the encumbrances that script
+// itself imposes.  The script is commonly referred to as a redeem script.
+//
+// This is commonly referred to as pay-to-script-hash (P2SH).
+type AddressScriptHashV0 struct {
+	netID [2]byte
+	hash  [ripemd160.Size]byte
+}
+
+// Ensure AddressScriptHashV0 implements the Address and StakeAddress
+// interfaces.
+var _ Address = (*AddressScriptHashV0)(nil)
+var _ StakeAddress = (*AddressScriptHashV0)(nil)
+
+// NewAddressScriptHashV0FromHash returns an address that represents a payment
+// destination which imposes an encumbrance that requires a script that hashes
+// to the provided script hash along with all of the encumbrances that script
+// itself imposes using version 0 scripts.  The script is commonly referred to
+// as a redeem script.
+//
+// The provided script hash must be 20 bytes and is expected to be the Hash160
+// of the associated redeem script.
+//
+// See NewAddressScriptHashV0 for a variant that accepts the redeem script instead
+// of its hash.  It can be used as a convenience for callers that have the
+// redeem script available.
+func NewAddressScriptHashV0FromHash(scriptHash []byte,
+	params AddressParamsV0) (*AddressScriptHashV0, error) {
+
+	// Check for a valid script hash length.
+	if len(scriptHash) != ripemd160.Size {
+		str := fmt.Sprintf("script hash is %d bytes vs required %d bytes",
+			len(scriptHash), ripemd160.Size)
+		return nil, makeError(ErrInvalidHashLen, str)
+	}
+
+	addr := &AddressScriptHashV0{
+		netID: params.AddrIDScriptHashV0(),
+	}
+	copy(addr.hash[:], scriptHash)
+	return addr, nil
+}
+
+// NewAddressScriptHashV0 returns an address that represents a payment
+// destination which imposes an encumbrance that requires a script that hashes
+// to the same value as the provided script along with all of the encumbrances
+// that script itself imposes using version 0 scripts.  The script is commonly
+// referred to as a redeem script.
+//
+// See NewAddressScriptHashV0FromHash for a variant that accepts the hash of the
+// script directly instead of the script.  It can be useful to callers that
+// either already have the script hash available or do not know the associated
+// script.
+func NewAddressScriptHashV0(redeemScript []byte,
+	params AddressParamsV0) (*AddressScriptHashV0, error) {
+
+	scriptHash := Hash160(redeemScript)
+	return NewAddressScriptHashV0FromHash(scriptHash, params)
+}
+
+// Address returns the string encoding of the payment address for the associated
+// script version and payment script.
+//
+// This is part of the Address interface implementation.
+func (addr *AddressScriptHashV0) Address() string {
+	// The format for the data portion of addresses that encode 160-bit hashes
+	// is merely the hash itself:
+	//   20-byte ripemd160 hash
+	return encodeAddressV0(addr.hash[:ripemd160.Size], addr.netID)
+}
+
+// putPaymentScript serializes the payment script associated with the address
+// directly into the passed byte slice which must be at least
+// p2shPaymentScriptLen bytes in length or it will panic.
+func (addr *AddressScriptHashV0) putPaymentScript(script []byte) {
+	// A pay-to-script-hash script is of the form:
+	//  HASH160 <20-byte hash> EQUAL
+	script[0] = opHash160
+	script[1] = opData20
+	copy(script[2:22], addr.hash[:])
+	script[22] = opEqual
+}
+
+// PaymentScript returns the script version associated with the address along
+// with a script to pay a transaction output to the address.
+//
+// This is part of the Address interface implementation.
+func (addr *AddressScriptHashV0) PaymentScript() (uint16, []byte) {
+	// A pay-to-script-hash script is of the form:
+	//  HASH160 <20-byte hash> EQUAL
+	var script [p2shPaymentScriptLen]byte
+	addr.putPaymentScript(script[:])
+	return 0, script[:]
+}
+
+// VotingRightsScript returns the script version associated with the address
+// along with a script to give voting rights to the address.  It is only
+// valid when used in stake ticket purchase transactions.
+//
+// This is part of the StakeAddress interface implementation.
+func (addr *AddressScriptHashV0) VotingRightsScript() (uint16, []byte) {
+	// A script that assigns voting rights for a ticket to this address type is
+	// of the form:
+	//  SSTX [standard pay-to-script-hash script]
+	var script [p2shPaymentScriptLen + 1]byte
+	script[0] = opSSTx
+	addr.putPaymentScript(script[1:])
+	return 0, script[:]
+}
+
+// RewardCommitmentScript returns the script version associated with the address
+// along with a script that commits the original funds locked to purchase a
+// ticket plus the reward to the address along with limits to impose on any
+// fees.
+//
+// This is part of the StakeAddress interface implementation.
+func (addr *AddressScriptHashV0) RewardCommitmentScript(amount int64, limits uint16) (uint16, []byte) {
+	// The reward commitment output of a ticket purchase is a provably pruneable
+	// script of the form:
+	//   RETURN <20-byte hash || 8-byte amount || 2-byte fee limits>
+	//
+	// The high bit of the amount is used to indicate whether the provided hash
+	// is a public key hash that represents a pay-to-pubkey-hash-ecdsa-secp256k1
+	// script or a script hash that represents a pay-to-script-hash script.  It
+	// is set for a script hash.
+	var script [32]byte
+	script[0] = opReturn
+	script[1] = opData30
+	copy(script[2:22], addr.hash[:])
+	binary.LittleEndian.PutUint64(script[22:30], uint64(amount)|commitP2SHFlag)
+	binary.LittleEndian.PutUint16(script[30:32], limits)
+	return 0, script[:]
+}
+
+// StakeChangeScript returns the script version associated with the address
+// along with a script to pay change to the address.  It is only valid when used
+// in stake ticket purchase and treasury add transactions.
+//
+// This is part of the StakeAddress interface implementation.
+func (addr *AddressScriptHashV0) StakeChangeScript() (uint16, []byte) {
+	// A stake change script to this address type is of the form:
+	//  SSTXCHANGE [standard pay-to-script-hash script]
+	var script [p2shPaymentScriptLen + 1]byte
+	script[0] = opSSTxChange
+	addr.putPaymentScript(script[1:])
+	return 0, script[:]
+}
+
+// PayVoteCommitmentScript returns the script version associated with the
+// address along with a script to pay the original funds locked to purchase a
+// ticket plus the reward to the address.  The address must have previously been
+// committed to by the ticket purchase.  The script is only valid when used in
+// stake vote transactions whose associated tickets are eligible to vote.
+//
+// This is part of the StakeAddress interface implementation.
+func (addr *AddressScriptHashV0) PayVoteCommitmentScript() (uint16, []byte) {
+	// A script that pays a ticket commitment as part of a vote to this address
+	// type is of the form:
+	//  SSGEN [standard pay-to-script-hash script]
+	var script [p2shPaymentScriptLen + 1]byte
+	script[0] = opSSGen
+	addr.putPaymentScript(script[1:])
+	return 0, script[:]
+}
+
+// PayRevokeCommitmentScript returns the script version associated with the
+// address along with a script to revoke an expired or missed ticket which pays
+// the original funds locked to purchase a ticket to the address.  The address
+// must have previously been committed to by the ticket purchase.  The script is
+// only valid when used in stake revocation transactions whose associated
+// tickets have been missed or expired.
+//
+// This is part of the StakeAddress interface implementation.
+func (addr *AddressScriptHashV0) PayRevokeCommitmentScript() (uint16, []byte) {
+	// A ticket revocation script to this address type is of the form:
+	//  SSRTX [standard pay-to-script-hash script]
+	var script [p2shPaymentScriptLen + 1]byte
+	script[0] = opSSRTx
+	addr.putPaymentScript(script[1:])
+	return 0, script[:]
+}
+
+// PayFromTreasuryScript returns the script version associated with the address
+// along with a script that pays funds from the treasury to the address.  The
+// script is only valid when used in treasury spend transactions.
+//
+// This is part of the StakeAddress interface implementation.
+func (addr *AddressScriptHashV0) PayFromTreasuryScript() (uint16, []byte) {
+	// A script that pays from the treasury as a part of a treasury spend to
+	// this address type is of the form:
+	//  TGEN [standard pay-to-script-hash script]
+	var script [p2shPaymentScriptLen + 1]byte
+	script[0] = opTGen
+	addr.putPaymentScript(script[1:])
+	return 0, script[:]
+}
+
+// Hash160 returns the underlying script hash.  This can be useful when an array
+// is more appropriate than a slice (for example, when used as map keys).
+func (addr *AddressScriptHashV0) Hash160() *[ripemd160.Size]byte {
+	return &addr.hash
+}
+
+// String returns a human-readable string for the address.
+//
+// This is equivalent to calling Address, but is provided so the type can be
+// used as a fmt.Stringer.
+func (addr *AddressScriptHashV0) String() string {
 	return addr.Address()
 }
 

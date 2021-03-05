@@ -363,8 +363,15 @@ func NewAddressPubKeyHashSchnorrSecp256k1(scriptVersion uint16, pkHash []byte,
 // See NewAddressScriptHash for a variant that accepts the redeem script instead
 // of its hash.  It can be used as a convenience for callers that have the
 // redeem script available.
+//
+// NOTE: Version 0 scripts are the only currently supported version.
 func NewAddressScriptHashFromHash(scriptVersion uint16, scriptHash []byte,
 	params AddressParams) (Address, error) {
+
+	switch scriptVersion {
+	case 0:
+		return NewAddressScriptHashV0FromHash(scriptHash, params)
+	}
 
 	str := fmt.Sprintf("script hash addresses for version %d are not "+
 		"supported", scriptVersion)
@@ -380,8 +387,15 @@ func NewAddressScriptHashFromHash(scriptVersion uint16, scriptHash []byte,
 // script directly instead of the script.  It can be useful to callers that
 // either already have the script hash available or do not know the associated
 // script.
+//
+// NOTE: Version 0 scripts are the only currently supported version.
 func NewAddressScriptHash(scriptVersion uint16, redeemScript []byte,
 	params AddressParams) (Address, error) {
+
+	switch scriptVersion {
+	case 0:
+		return NewAddressScriptHashV0(redeemScript, params)
+	}
 
 	str := fmt.Sprintf("script hash addresses for version %d are not "+
 		"supported", scriptVersion)

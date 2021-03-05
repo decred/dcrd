@@ -897,6 +897,116 @@ func TestAddresses(t *testing.T) {
 		decodeErr: nil,
 		version:   0,
 		payScript: "76a914f15da1cb8d1bcb162c6ab446c95757a6e791c9168852be",
+	}, {
+		// ---------------------------------------------------------------------
+		// Negative P2SH tests.
+		// ---------------------------------------------------------------------
+
+		name: "p2sh wrong hash length",
+		makeAddr: func() (Address, error) {
+			hash := hexToBytes("00f815b036d9bbbce5e9f2a00abd1bf3dc91e95510")
+			return NewAddressScriptHashFromHash(0, hash, mainNetParams)
+		},
+		makeErr: ErrInvalidHashLen,
+	}, {
+		name: "p2sh from script hash unsupported script version",
+		makeAddr: func() (Address, error) {
+			hash := hexToBytes("f815b036d9bbbce5e9f2a00abd1bf3dc91e95510")
+			return NewAddressScriptHashFromHash(9999, hash, mainNetParams)
+		},
+		makeErr: ErrUnsupportedScriptVersion,
+	}, {
+		name: "p2sh from redeem script unsupported script version",
+		makeAddr: func() (Address, error) {
+			script := hexToBytes("a914f0b4e85100aee1a996f22915eb3c3f764d53779a87")
+			return NewAddressScriptHash(9999, script, mainNetParams)
+		},
+		makeErr: ErrUnsupportedScriptVersion,
+	}, {
+		// ---------------------------------------------------------------------
+		// Positive P2SH tests.
+		// ---------------------------------------------------------------------
+
+		name: "mainnet p2sh",
+		makeAddr: func() (Address, error) {
+			script := hexToBytes("512103aa43f0a6c15730d886cc1f0342046d2017548" +
+				"3d90d7ccb657f90c489111d794c51ae")
+			return NewAddressScriptHash(0, script, mainNetParams)
+		},
+		makeErr:      nil,
+		addr:         "DcuQKx8BES9wU7C6Q5VmLBjw436r27hayjS",
+		net:          mainNetParams,
+		decodeErr:    nil,
+		version:      0,
+		payScript:    "a914f0b4e85100aee1a996f22915eb3c3f764d53779a87",
+		rewardAmount: 1e8,
+		feeLimits:    0x5800,
+		rewardScript: "6a1ef0b4e85100aee1a996f22915eb3c3f764d53779a00e1f505000000800058",
+		voteScript:   "baa914f0b4e85100aee1a996f22915eb3c3f764d53779a87",
+		changeScript: "bda914f0b4e85100aee1a996f22915eb3c3f764d53779a87",
+		commitScript: "bba914f0b4e85100aee1a996f22915eb3c3f764d53779a87",
+		revokeScript: "bca914f0b4e85100aee1a996f22915eb3c3f764d53779a87",
+		trsyScript:   "c3a914f0b4e85100aee1a996f22915eb3c3f764d53779a87",
+	}, {
+		name: "mainnet p2sh 2",
+		makeAddr: func() (Address, error) {
+			hash := hexToBytes("c7da5095683436f4435fc4e7163dcafda1a2d007")
+			return NewAddressScriptHashFromHash(0, hash, mainNetParams)
+		},
+		makeErr:      nil,
+		addr:         "DcqgK4N4Ccucu2Sq4VDAdu4wH4LASLhzLVp",
+		net:          mainNetParams,
+		decodeErr:    nil,
+		version:      0,
+		payScript:    "a914c7da5095683436f4435fc4e7163dcafda1a2d00787",
+		voteScript:   "baa914c7da5095683436f4435fc4e7163dcafda1a2d00787",
+		rewardAmount: 9556193632,
+		feeLimits:    0x5900,
+		rewardScript: "6a1ec7da5095683436f4435fc4e7163dcafda1a2d00760f19739020000800059",
+		changeScript: "bda914c7da5095683436f4435fc4e7163dcafda1a2d00787",
+		commitScript: "bba914c7da5095683436f4435fc4e7163dcafda1a2d00787",
+		revokeScript: "bca914c7da5095683436f4435fc4e7163dcafda1a2d00787",
+		trsyScript:   "c3a914c7da5095683436f4435fc4e7163dcafda1a2d00787",
+	}, {
+		name: "testnet p2sh",
+		makeAddr: func() (Address, error) {
+			hash := hexToBytes("36c1ca10a8a6a4b5d4204ac970853979903aa284")
+			return NewAddressScriptHashFromHash(0, hash, testNetParams)
+		},
+		makeErr:      nil,
+		addr:         "TccWLgcquqvwrfBocq5mcK5kBiyw8MvyvCi",
+		net:          testNetParams,
+		decodeErr:    nil,
+		version:      0,
+		payScript:    "a91436c1ca10a8a6a4b5d4204ac970853979903aa28487",
+		voteScript:   "baa91436c1ca10a8a6a4b5d4204ac970853979903aa28487",
+		rewardAmount: 2428220961,
+		feeLimits:    0x5800,
+		rewardScript: "6a1e36c1ca10a8a6a4b5d4204ac970853979903aa28421b6bb90000000800058",
+		changeScript: "bda91436c1ca10a8a6a4b5d4204ac970853979903aa28487",
+		commitScript: "bba91436c1ca10a8a6a4b5d4204ac970853979903aa28487",
+		revokeScript: "bca91436c1ca10a8a6a4b5d4204ac970853979903aa28487",
+		trsyScript:   "c3a91436c1ca10a8a6a4b5d4204ac970853979903aa28487",
+	}, {
+		name: "regnet p2sh",
+		makeAddr: func() (Address, error) {
+			hash := hexToBytes("36c1ca10a8a6a4b5d4204ac970853979903aa284")
+			return NewAddressScriptHashFromHash(0, hash, regNetParams)
+		},
+		makeErr:      nil,
+		addr:         "RcKq28Eheeo2eJvWakqWWAr5pqCUWykwDHe",
+		net:          regNetParams,
+		decodeErr:    nil,
+		version:      0,
+		payScript:    "a91436c1ca10a8a6a4b5d4204ac970853979903aa28487",
+		voteScript:   "baa91436c1ca10a8a6a4b5d4204ac970853979903aa28487",
+		rewardAmount: 2428220961,
+		feeLimits:    0x5800,
+		rewardScript: "6a1e36c1ca10a8a6a4b5d4204ac970853979903aa28421b6bb90000000800058",
+		changeScript: "bda91436c1ca10a8a6a4b5d4204ac970853979903aa28487",
+		commitScript: "bba91436c1ca10a8a6a4b5d4204ac970853979903aa28487",
+		revokeScript: "bca91436c1ca10a8a6a4b5d4204ac970853979903aa28487",
+		trsyScript:   "c3a91436c1ca10a8a6a4b5d4204ac970853979903aa28487",
 	}}
 
 	for _, test := range tests {
