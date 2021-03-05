@@ -388,8 +388,10 @@ type AddressPubKeySchnorrSecp256k1V0 struct {
 	serializedPubKey []byte
 }
 
-// Ensure AddressPubKeySchnorrSecp256k1V0 implements the Address interface.
+// Ensure AddressPubKeySchnorrSecp256k1V0 implements the Address and
+// AddressPubKeyHasher interface.
 var _ Address = (*AddressPubKeySchnorrSecp256k1V0)(nil)
+var _ AddressPubKeyHasher = (*AddressPubKeySchnorrSecp256k1V0)(nil)
 
 // NewAddressPubKeySchnorrSecp256k1V0Raw returns an address that represents a
 // payment destination which imposes an encumbrance that requires a valid
@@ -493,6 +495,22 @@ func (addr *AddressPubKeySchnorrSecp256k1V0) PaymentScript() (uint16, []byte) {
 	script[34] = opPushSTSchnorrSecp256k1
 	script[35] = opCheckSigAlt
 	return 0, script[:]
+}
+
+// AddressPubKeyHash returns the address converted to a
+// pay-to-pubkey-hash-schnorr-secp256k1 address.
+//
+// Note that the hash used in resulting address is the hash of the serialized
+// public key and only public keys in the compressed format are supported.  In
+// other words, the resulting address will impose an encumbrance that requires
+// the public key to be provided in the compressed format.
+func (addr *AddressPubKeySchnorrSecp256k1V0) AddressPubKeyHash() Address {
+	pkHash := Hash160(addr.serializedPubKey)
+	addrPKH := &AddressPubKeyHashSchnorrSecp256k1V0{
+		netID: addr.pubKeyHashID,
+	}
+	copy(addrPKH.hash[:], pkHash)
+	return addrPKH
 }
 
 // String returns a human-readable string for the address.
@@ -795,6 +813,101 @@ func (addr *AddressPubKeyHashEd25519V0) Hash160() *[ripemd160.Size]byte {
 // This is equivalent to calling Address, but is provided so the type can be
 // used as a fmt.Stringer.
 func (addr *AddressPubKeyHashEd25519V0) String() string {
+	return addr.Address()
+}
+
+// AddressPubKeyHashSchnorrSecp256k1V0 specifies address that represents a
+// payment destination which imposes an encumbrance that requires a secp256k1
+// public key in the _compressed_ format that hashes to the given public key
+// hash along with a valid EC-Schnorr-DCRv0 signature for that public key.
+//
+// This is commonly referred to as pay-to-pubkey-hash-schnorr-secp256k1.
+type AddressPubKeyHashSchnorrSecp256k1V0 struct {
+	netID [2]byte
+	hash  [ripemd160.Size]byte
+}
+
+// Ensure AddressPubKeyHashSchnorrSecp256k1V0 implements the Address and
+// Hash160er interfaces.
+var _ Address = (*AddressPubKeyHashSchnorrSecp256k1V0)(nil)
+var _ Hash160er = (*AddressPubKeyHashSchnorrSecp256k1V0)(nil)
+
+// NewAddressPubKeyHashSchnorrSecp256k1V0 returns an address that represents a
+// payment destination which imposes an encumbrance that requires a secp256k1
+// public key in the _compressed_ format that hashes to the provided public key
+// hash along with a valid EC-Schnorr-DCRv0 signature for that public key using
+// version 0 scripts.
+//
+// The provided public key hash must be 20 bytes and is expected to be the
+// Hash160 of the associated secp256k1 public key serialized in the _compressed_
+// format.
+//
+// WARNING: It is important to note that, unlike in the case of the ECDSA
+// variant of this type of address, redemption via a public key in the
+// uncompressed format is NOT supported by the consensus rules for this type, so
+// it is *EXTREMELY* important to ensure the provided hash is of the serialized
+// public key in the compressed format or the associated coins will NOT be
+// redeemable.
+func NewAddressPubKeyHashSchnorrSecp256k1V0(pkHash []byte,
+	params AddressParamsV0) (*AddressPubKeyHashSchnorrSecp256k1V0, error) {
+
+	// Check for a valid script hash length.
+	if len(pkHash) != ripemd160.Size {
+		str := fmt.Sprintf("public key hash is %d bytes vs required %d bytes",
+			len(pkHash), ripemd160.Size)
+		return nil, makeError(ErrInvalidHashLen, str)
+	}
+
+	addr := &AddressPubKeyHashSchnorrSecp256k1V0{
+		netID: params.AddrIDPubKeyHashSchnorrV0(),
+	}
+	copy(addr.hash[:], pkHash)
+	return addr, nil
+}
+
+// Address returns the string encoding of the payment address for the associated
+// script version and payment script.
+//
+// This is part of the Address interface implementation.
+func (addr *AddressPubKeyHashSchnorrSecp256k1V0) Address() string {
+	// The format for the data portion of addresses that encode 160-bit hashes
+	// is merely the hash itself:
+	//   20-byte ripemd160 hash
+	return encodeAddressV0(addr.hash[:ripemd160.Size], addr.netID)
+}
+
+// PaymentScript returns the script version associated with the address along
+// with a script to pay a transaction output to the address.
+//
+// This is part of the Address interface implementation.
+func (addr *AddressPubKeyHashSchnorrSecp256k1V0) PaymentScript() (uint16, []byte) {
+	// A pay-to-pubkey-hash-schnorr-secp256k1 script is of the form:
+	//  DUP HASH160 <20-byte hash> EQUALVERIFY <1-byte sigtype> CHECKSIGALT
+	//
+	// Since the signature type is 2, it is pushed as a small integer.
+	var script [26]byte
+	script[0] = opDup
+	script[1] = opHash160
+	script[2] = opData20
+	copy(script[3:23], addr.hash[:])
+	script[23] = opEqualVerify
+	script[24] = opPushSTSchnorrSecp256k1
+	script[25] = opCheckSigAlt
+	return 0, script[:]
+}
+
+// Hash160 returns the underlying array of the pubkey hash.  This can be useful
+// when an array is more appropriate than a slice (for example, when used as map
+// keys).
+func (addr *AddressPubKeyHashSchnorrSecp256k1V0) Hash160() *[ripemd160.Size]byte {
+	return &addr.hash
+}
+
+// String returns a human-readable string for the address.
+//
+// This is equivalent to calling Address, but is provided so the type can be
+// used as a fmt.Stringer.
+func (addr *AddressPubKeyHashSchnorrSecp256k1V0) String() string {
 	return addr.Address()
 }
 

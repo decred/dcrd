@@ -337,8 +337,15 @@ func NewAddressPubKeyHashEd25519(scriptVersion uint16, pkHash []byte,
 // it is *EXTREMELY* important to ensure the provided hash is of the serialized
 // public key in the compressed format or the associated coins will NOT be
 // redeemable.
+//
+// NOTE: Version 0 scripts are the only currently supported version.
 func NewAddressPubKeyHashSchnorrSecp256k1(scriptVersion uint16, pkHash []byte,
 	params AddressParams) (Address, error) {
+
+	switch scriptVersion {
+	case 0:
+		return NewAddressPubKeyHashSchnorrSecp256k1V0(pkHash, params)
+	}
 
 	str := fmt.Sprintf("pubkey hash addresses for version %d are not "+
 		"supported", scriptVersion)

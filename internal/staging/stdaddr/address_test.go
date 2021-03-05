@@ -827,6 +827,76 @@ func TestAddresses(t *testing.T) {
 		decodeErr: nil,
 		version:   0,
 		payScript: "76a914456d8ee57a4b9121987b4ecab8c3bcb5797e8a538851be",
+	}, {
+		// ---------------------------------------------------------------------
+		// Negative P2PKH Schnorr secp256k1 tests.
+		// ---------------------------------------------------------------------
+
+		name: "p2pkh-schnorr-secp256k1 wrong hash length",
+		makeAddr: func() (Address, error) {
+			hash := hexToBytes("000ef030107fd26e0b6bf40512bca2ceb1dd80adaa")
+			return NewAddressPubKeyHashSchnorrSecp256k1(0, hash, mainNetParams)
+		},
+		makeErr: ErrInvalidHashLen,
+	}, {
+		name: "p2pkh-schnorr-secp256k1 unsupported script version",
+		makeAddr: func() (Address, error) {
+			hash := hexToBytes("0ef030107fd26e0b6bf40512bca2ceb1dd80adaa")
+			return NewAddressPubKeyHashSchnorrSecp256k1(9999, hash, mainNetParams)
+		},
+		makeErr: ErrUnsupportedScriptVersion,
+	}, {
+		// ---------------------------------------------------------------------
+		// Positive P2PKH Schnorr secp256k1 tests.
+		// ---------------------------------------------------------------------
+
+		name: "mainnet p2pkh-schnorr-secp256k1",
+		makeAddr: func() (Address, error) {
+			hash := hexToBytes("2789d58cfa0957d206f025c2af056fc8a77cebb0")
+			return NewAddressPubKeyHashSchnorrSecp256k1(0, hash, mainNetParams)
+		},
+		makeErr:   nil,
+		addr:      "DSXcZv4oSRiEoWL2a9aD8sgfptRo1YEXNKj",
+		net:       mainNetParams,
+		decodeErr: nil,
+		version:   0,
+		payScript: "76a9142789d58cfa0957d206f025c2af056fc8a77cebb08852be",
+	}, {
+		name: "mainnet p2pkh-schnorr-secp256k1 2",
+		makeAddr: func() (Address, error) {
+			hash := hexToBytes("229ebac30efd6a69eec9c1a48e048b7c975c25f2")
+			return NewAddressPubKeyHashSchnorrSecp256k1(0, hash, mainNetParams)
+		},
+		makeErr:   nil,
+		addr:      "DSXAZZwbBmmqzdTxnxRgDN1kxEqA4xJfufA",
+		net:       mainNetParams,
+		decodeErr: nil,
+		version:   0,
+		payScript: "76a914229ebac30efd6a69eec9c1a48e048b7c975c25f28852be",
+	}, {
+		name: "testnet p2pkh-schnorr-secp256k1",
+		makeAddr: func() (Address, error) {
+			hash := hexToBytes("f15da1cb8d1bcb162c6ab446c95757a6e791c916")
+			return NewAddressPubKeyHashSchnorrSecp256k1(0, hash, testNetParams)
+		},
+		makeErr:   nil,
+		addr:      "TSr4xSiznUfzxkJcH7F3xuaFCUBdEb5Jfzg",
+		net:       testNetParams,
+		decodeErr: nil,
+		version:   0,
+		payScript: "76a914f15da1cb8d1bcb162c6ab446c95757a6e791c9168852be",
+	}, {
+		name: "regnet p2pkh-sep256k1-schnorr",
+		makeAddr: func() (Address, error) {
+			hash := hexToBytes("f15da1cb8d1bcb162c6ab446c95757a6e791c916")
+			return NewAddressPubKeyHashSchnorrSecp256k1(0, hash, regNetParams)
+		},
+		makeErr:   nil,
+		addr:      "RSZPdtLrXHY5kQ3KF2znrmLaqaQAdB3CRu7",
+		net:       regNetParams,
+		decodeErr: nil,
+		version:   0,
+		payScript: "76a914f15da1cb8d1bcb162c6ab446c95757a6e791c9168852be",
 	}}
 
 	for _, test := range tests {
@@ -1028,6 +1098,11 @@ func TestAddresses(t *testing.T) {
 
 		case *AddressPubKeyEd25519V0:
 			id := test.net.AddrIDPubKeyHashEd25519V0()
+			wantPkhAddr = base58.CheckEncode(Hash160(a.serializedPubKey), id)
+			pkhAddr = a.AddressPubKeyHash()
+
+		case *AddressPubKeySchnorrSecp256k1V0:
+			id := test.net.AddrIDPubKeyHashSchnorrV0()
 			wantPkhAddr = base58.CheckEncode(Hash160(a.serializedPubKey), id)
 			pkhAddr = a.AddressPubKeyHash()
 		}
