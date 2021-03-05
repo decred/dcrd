@@ -23,6 +23,7 @@ func TestErrorKindStringer(t *testing.T) {
 		{ErrBadAddressChecksum, "ErrBadAddressChecksum"},
 		{ErrInvalidPubKey, "ErrInvalidPubKey"},
 		{ErrInvalidPubKeyFormat, "ErrInvalidPubKeyFormat"},
+		{ErrInvalidHashLen, "ErrInvalidHashLen"},
 	}
 
 	for i, test := range tests {

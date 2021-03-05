@@ -5,10 +5,13 @@
 package stdaddr
 
 import (
+	"encoding/binary"
 	"errors"
 	"fmt"
 
 	"github.com/decred/base58"
+	"github.com/decred/dcrd/crypto/blake256"
+	"github.com/decred/dcrd/crypto/ripemd160"
 	"github.com/decred/dcrd/dcrec"
 	"github.com/decred/dcrd/dcrec/edwards/v2"
 	"github.com/decred/dcrd/dcrec/secp256k1/v4"
@@ -20,12 +23,23 @@ import (
 // create a cyclic dependency since txscript will need to depend on this package
 // for signing.
 const (
+	opData20      = 0x14
+	opData30      = 0x1e
 	opData32      = 0x20
 	opData33      = 0x21
 	op1           = 0x51
 	op2           = 0x52
+	opReturn      = 0x6a
+	opDup         = 0x76
+	opEqualVerify = 0x88
+	opHash160     = 0xa9
 	opCheckSig    = 0xac
+	opSSTx        = 0xba
+	opSSGen       = 0xbb
+	opSSRTx       = 0xbc
+	opSSTxChange  = 0xbd
 	opCheckSigAlt = 0xbe
+	opTGen        = 0xc3
 )
 
 const (
@@ -41,6 +55,16 @@ const (
 	// pubkey address signature type byte for those that deal with compressed
 	// secp256k1 pubkeys to specify the omitted y coordinate is odd.
 	sigTypeSecp256k1PubKeyCompOddFlag = uint8(1 << 7)
+
+	// commitP2SHFlag specifies the bitmask to apply to an amount in a ticket
+	// commitment in order to specify if it is a pay-to-script-hash commitment.
+	// The value is derived from the fact it is encoded as the most significant
+	// bit in the amount.
+	commitP2SHFlag = uint64(1 << 63)
+
+	// p2pkhPaymentScriptLen is the length of a standard version 0 P2PKH script
+	// for secp256k1+ecdsa.
+	p2pkhPaymentScriptLen = 25
 )
 
 // AddressParamsV0 defines an interface that is used to provide the parameters
@@ -83,6 +107,14 @@ func encodeAddressV0(data []byte, netID [2]byte) string {
 	return base58.CheckEncode(data, netID)
 }
 
+// Hash160 calculates the hash ripemd160(blake256(b)).
+func Hash160(buf []byte) []byte {
+	b256Hash := blake256.Sum256(buf)
+	hasher := ripemd160.New()
+	hasher.Write(b256Hash[:])
+	return hasher.Sum(nil)
+}
+
 // AddressPubKeyEcdsaSecp256k1V0 specifies an address that represents a payment
 // destination which imposes an encumbrance that requires a valid ECDSA
 // signature for a specific secp256k1 public key.
@@ -97,8 +129,10 @@ type AddressPubKeyEcdsaSecp256k1V0 struct {
 	serializedPubKey []byte
 }
 
-// Ensure AddressPubKeyEcdsaSecp256k1V0 implements the Address interface.
+// Ensure AddressPubKeyEcdsaSecp256k1V0 implements the Address and
+// AddressPubKeyHasher interfaces.
 var _ Address = (*AddressPubKeyEcdsaSecp256k1V0)(nil)
+var _ AddressPubKeyHasher = (*AddressPubKeyEcdsaSecp256k1V0)(nil)
 
 // NewAddressPubKeyEcdsaSecp256k1V0Raw returns an address that represents a
 // payment destination which imposes an encumbrance that requires a valid ECDSA
@@ -201,6 +235,23 @@ func (addr *AddressPubKeyEcdsaSecp256k1V0) PaymentScript() (uint16, []byte) {
 	copy(script[1:34], addr.serializedPubKey)
 	script[34] = opCheckSig
 	return 0, script[:]
+}
+
+// AddressPubKeyHash returns the address converted to a
+// pay-to-pubkey-hash-ecdsa-secp256k1 address.
+//
+// Note that the hash used in resulting address is the hash of the serialized
+// public key and the address constructor intentionally only supports public
+// keys in the compressed format.  In other words, the resulting address will
+// impose an encumbrance that requires the public key to be provided in the
+// compressed format.
+func (addr *AddressPubKeyEcdsaSecp256k1V0) AddressPubKeyHash() Address {
+	pkHash := Hash160(addr.serializedPubKey)
+	addrPKH := &AddressPubKeyHashEcdsaSecp256k1V0{
+		netID: addr.pubKeyHashID,
+	}
+	copy(addrPKH.hash[:], pkHash)
+	return addrPKH
 }
 
 // String returns a human-readable string for the address.
@@ -436,6 +487,213 @@ func (addr *AddressPubKeySchnorrSecp256k1V0) PaymentScript() (uint16, []byte) {
 // This is equivalent to calling Address, but is provided so the type can be
 // used as a fmt.Stringer.
 func (addr *AddressPubKeySchnorrSecp256k1V0) String() string {
+	return addr.Address()
+}
+
+// AddressPubKeyHashEcdsaSecp256k1V0 specifies an address that represents a
+// payment destination which imposes an encumbrance that requires a secp256k1
+// public key that hashes to the given public key hash along with a valid ECDSA
+// signature for that public key.
+//
+// This is commonly referred to as pay-to-pubkey-hash (P2PKH) for legacy
+// reasons, however, since it is possible to support multiple algorithm and
+// signature scheme combinations, it is technically more accurate to refer to it
+// as pay-to-pubkey-hash-ecdsa-secp256k1.
+type AddressPubKeyHashEcdsaSecp256k1V0 struct {
+	netID [2]byte
+	hash  [ripemd160.Size]byte
+}
+
+// Ensure AddressPubKeyHashEcdsaSecp256k1V0 implements the Address,
+// StakeAddress, and Hash160er interfaces.
+var _ Address = (*AddressPubKeyHashEcdsaSecp256k1V0)(nil)
+var _ StakeAddress = (*AddressPubKeyHashEcdsaSecp256k1V0)(nil)
+var _ Hash160er = (*AddressPubKeyHashEcdsaSecp256k1V0)(nil)
+
+// NewAddressPubKeyHashEcdsaSecp256k1V0 returns an address that represents a
+// payment destination which imposes an encumbrance that requires a secp256k1
+// public key that hashes to the provided public key hash along with a valid
+// ECDSA signature for that public key using version 0 scripts.
+//
+// The provided public key hash must be 20 bytes and is expected to be the
+// Hash160 of the associated secp256k1 public key serialized in the _compressed_
+// format.
+//
+// It is important to note that while it is technically possible for legacy
+// reasons to create this specific type of address based on the hash of a public
+// key in the uncompressed format, so long as it is also redeemed with that same
+// public key in uncompressed format, it is *HIGHLY* recommended to use the
+// compressed format since it occupies less space on the chain and is more
+// consistent with other address formats where uncompressed public keys are NOT
+// supported.
+func NewAddressPubKeyHashEcdsaSecp256k1V0(pkHash []byte,
+	params AddressParamsV0) (*AddressPubKeyHashEcdsaSecp256k1V0, error) {
+
+	// Check for a valid script hash length.
+	if len(pkHash) != ripemd160.Size {
+		str := fmt.Sprintf("public key hash is %d bytes vs required %d bytes",
+			len(pkHash), ripemd160.Size)
+		return nil, makeError(ErrInvalidHashLen, str)
+	}
+
+	addr := &AddressPubKeyHashEcdsaSecp256k1V0{
+		netID: params.AddrIDPubKeyHashECDSAV0(),
+	}
+	copy(addr.hash[:], pkHash)
+	return addr, nil
+}
+
+// Address returns the string encoding of the payment address for the associated
+// script version and payment script.
+//
+// This is part of the Address interface implementation.
+func (addr *AddressPubKeyHashEcdsaSecp256k1V0) Address() string {
+	// The format for the data portion of addresses that encode 160-bit hashes
+	// is merely the hash itself:
+	//   20-byte ripemd160 hash
+	return encodeAddressV0(addr.hash[:ripemd160.Size], addr.netID)
+}
+
+// putPaymentScript serializes the payment script associated with the address
+// directly into the passed byte slice which must be at least
+// p2pkhPaymentScriptLen bytes in length or it will panic.
+func (addr *AddressPubKeyHashEcdsaSecp256k1V0) putPaymentScript(script []byte) {
+	// A pay-to-pubkey-hash-ecdsa-secp256k1 script is of the form:
+	//  DUP HASH160 <20-byte hash> EQUALVERIFY CHECKSIG
+	script[0] = opDup
+	script[1] = opHash160
+	script[2] = opData20
+	copy(script[3:23], addr.hash[:])
+	script[23] = opEqualVerify
+	script[24] = opCheckSig
+}
+
+// PaymentScript returns the script version associated with the address along
+// with a script to pay a transaction output to the address.
+//
+// This is part of the Address interface implementation.
+func (addr *AddressPubKeyHashEcdsaSecp256k1V0) PaymentScript() (uint16, []byte) {
+	// A pay-to-pubkey-hash-ecdsa-secp256k1 script is of the form:
+	//  DUP HASH160 <20-byte hash> EQUALVERIFY CHECKSIG
+	var script [p2pkhPaymentScriptLen]byte
+	addr.putPaymentScript(script[:])
+	return 0, script[:]
+}
+
+// VotingRightsScript returns the script version associated with the address
+// along with a script to give voting rights to the address.  It is only valid
+// when used in stake ticket purchase transactions.
+//
+// This is part of the StakeAddress interface implementation.
+func (addr *AddressPubKeyHashEcdsaSecp256k1V0) VotingRightsScript() (uint16, []byte) {
+	// A script that assigns voting rights for a ticket to this address type is
+	// of the form:
+	//  SSTX [standard pay-to-pubkey-hash-ecdsa-secp256k1 script]
+	var script [p2pkhPaymentScriptLen + 1]byte
+	script[0] = opSSTx
+	addr.putPaymentScript(script[1:])
+	return 0, script[:]
+}
+
+// RewardCommitmentScript returns the script version associated with the address
+// along with a script that commits the original funds locked to purchase a
+// ticket plus the reward to the address along with limits to impose on any
+// fees.
+//
+// This is part of the StakeAddress interface implementation.
+func (addr *AddressPubKeyHashEcdsaSecp256k1V0) RewardCommitmentScript(amount int64, limits uint16) (uint16, []byte) {
+	// The reward commitment output of a ticket purchase is a provably pruneable
+	// script of the form:
+	//   RETURN <20-byte hash || 8-byte amount || 2-byte fee limits>
+	//
+	// The high bit of the amount is used to indicate whether the provided hash
+	// is a public key hash that represents a pay-to-pubkey-hash-ecdsa-secp256k1
+	// script or a script hash that represents a pay-to-script-hash script.  It
+	// is NOT set for a public key hash.
+	var script [32]byte
+	script[0] = opReturn
+	script[1] = opData30
+	copy(script[2:22], addr.hash[:])
+	binary.LittleEndian.PutUint64(script[22:30], uint64(amount) & ^commitP2SHFlag)
+	binary.LittleEndian.PutUint16(script[30:32], limits)
+	return 0, script[:]
+}
+
+// StakeChangeScript returns the script version associated with the address
+// along with a script to pay change to the address.  It is only valid when used
+// in stake ticket purchase and treasury add transactions.
+//
+// This is part of the StakeAddress interface implementation.
+func (addr *AddressPubKeyHashEcdsaSecp256k1V0) StakeChangeScript() (uint16, []byte) {
+	// A stake change script to this address type is of the form:
+	//  SSTXCHANGE [standard pay-to-pubkey-hash-ecdsa-secp256k1 script]
+	var script [p2pkhPaymentScriptLen + 1]byte
+	script[0] = opSSTxChange
+	addr.putPaymentScript(script[1:])
+	return 0, script[:]
+}
+
+// PayVoteCommitmentScript returns the script version associated with the
+// address along with a script to pay the original funds locked to purchase a
+// ticket plus the reward to the address.  The address must have previously been
+// committed to by the ticket purchase.  The script is only valid when used in
+// stake vote transactions whose associated tickets are eligible to vote.
+//
+// This is part of the StakeAddress interface implementation.
+func (addr *AddressPubKeyHashEcdsaSecp256k1V0) PayVoteCommitmentScript() (uint16, []byte) {
+	// A script that pays a ticket commitment as part of a vote to this address
+	// type is of the form:
+	//  SSGEN [standard pay-to-pubkey-hash-ecdsa-secp256k1 script]
+	var script [p2pkhPaymentScriptLen + 1]byte
+	script[0] = opSSGen
+	addr.putPaymentScript(script[1:])
+	return 0, script[:]
+}
+
+// PayRevokeCommitmentScript returns the script version associated with the
+// address along with a script to revoke an expired or missed ticket which pays
+// the original funds locked to purchase a ticket to the address.  The address
+// must have previously been committed to by the ticket purchase.  The script is
+// only valid when used in stake revocation transactions whose associated
+// tickets have been missed or expired.
+//
+// This is part of the StakeAddress interface implementation.
+func (addr *AddressPubKeyHashEcdsaSecp256k1V0) PayRevokeCommitmentScript() (uint16, []byte) {
+	// A ticket revocation script to this address type is of the form:
+	//  SSRTX [standard pay-to-pubkey-hash-ecdsa-secp256k1 script]
+	var script [p2pkhPaymentScriptLen + 1]byte
+	script[0] = opSSRTx
+	addr.putPaymentScript(script[1:])
+	return 0, script[:]
+}
+
+// PayFromTreasuryScript returns the script version associated with the address
+// along with a script that pays funds from the treasury to the address.  The
+// script is only valid when used in treasury spend transactions.
+//
+// This is part of the StakeAddress interface implementation.
+func (addr *AddressPubKeyHashEcdsaSecp256k1V0) PayFromTreasuryScript() (uint16, []byte) {
+	// A script that pays from the treasury as a part of a treasury spend to
+	// this address type is of the form:
+	//  TGEN [standard pay-to-pubkey-hash-ecdsa-secp256k1 script]
+	var script [p2pkhPaymentScriptLen + 1]byte
+	script[0] = opTGen
+	addr.putPaymentScript(script[1:])
+	return 0, script[:]
+}
+
+// Hash160 returns the underlying array of the pubkey hash.  This can be useful
+// when an array is more appropriate than a slice (for example, when used as map
+// keys).
+func (addr *AddressPubKeyHashEcdsaSecp256k1V0) Hash160() *[ripemd160.Size]byte {
+	return &addr.hash
+}
+
+// String returns a human-readable string for the address.
+//
+// This is equivalent to calling Address, but is provided so the type can be
+// used as a fmt.Stringer.
+func (addr *AddressPubKeyHashEcdsaSecp256k1V0) String() string {
 	return addr.Address()
 }
 

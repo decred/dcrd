@@ -651,6 +651,108 @@ func TestAddresses(t *testing.T) {
 		decodeErr: nil,
 		version:   0,
 		payScript: "21030844ee70d8384d5250e9bb3a6a73d4b5bec770e8b31d6a0ae9fb739009d91af552be",
+	}, {
+		// ---------------------------------------------------------------------
+		// Negative P2PKH ECDSA secp256k1 tests.
+		// ---------------------------------------------------------------------
+
+		name: "p2pkh-ecdsa-secp256k1 wrong hash length",
+		makeAddr: func() (Address, error) {
+			hash := hexToBytes("000ef030107fd26e0b6bf40512bca2ceb1dd80adaa")
+			return NewAddressPubKeyHashEcdsaSecp256k1(0, hash, mainNetParams)
+		},
+		makeErr: ErrInvalidHashLen,
+	}, {
+		name: "p2pkh-ecdsa-secp256k1 unsupported script version",
+		makeAddr: func() (Address, error) {
+			hash := hexToBytes("2789d58cfa0957d206f025c2af056fc8a77cebb0")
+			return NewAddressPubKeyHashEcdsaSecp256k1(9999, hash, mainNetParams)
+		},
+		makeErr: ErrUnsupportedScriptVersion,
+	}, {
+		// ---------------------------------------------------------------------
+		// Positive P2PKH ECDSA secp256k1 tests.
+		// ---------------------------------------------------------------------
+
+		name: "mainnet p2pkh-ecdsa-secp256k1",
+		makeAddr: func() (Address, error) {
+			hash := hexToBytes("2789d58cfa0957d206f025c2af056fc8a77cebb0")
+			return NewAddressPubKeyHashEcdsaSecp256k1(0, hash, mainNetParams)
+		},
+		makeErr:      nil,
+		addr:         "DsUZxxoHJSty8DCfwfartwTYbuhmVct7tJu",
+		net:          mainNetParams,
+		decodeErr:    nil,
+		version:      0,
+		payScript:    "76a9142789d58cfa0957d206f025c2af056fc8a77cebb088ac",
+		voteScript:   "ba76a9142789d58cfa0957d206f025c2af056fc8a77cebb088ac",
+		rewardAmount: 1e8,
+		feeLimits:    0x5800,
+		rewardScript: "6a1e2789d58cfa0957d206f025c2af056fc8a77cebb000e1f505000000000058",
+		changeScript: "bd76a9142789d58cfa0957d206f025c2af056fc8a77cebb088ac",
+		commitScript: "bb76a9142789d58cfa0957d206f025c2af056fc8a77cebb088ac",
+		revokeScript: "bc76a9142789d58cfa0957d206f025c2af056fc8a77cebb088ac",
+		trsyScript:   "c376a9142789d58cfa0957d206f025c2af056fc8a77cebb088ac",
+	}, {
+		name: "mainnet p2pkh-ecdsa-secp256k1 2",
+		makeAddr: func() (Address, error) {
+			hash := hexToBytes("229ebac30efd6a69eec9c1a48e048b7c975c25f2")
+			return NewAddressPubKeyHashEcdsaSecp256k1(0, hash, mainNetParams)
+		},
+		makeErr:      nil,
+		addr:         "DsU7xcg53nxaKLLcAUSKyRndjG78Z2VZnX9",
+		net:          mainNetParams,
+		decodeErr:    nil,
+		version:      0,
+		payScript:    "76a914229ebac30efd6a69eec9c1a48e048b7c975c25f288ac",
+		voteScript:   "ba76a914229ebac30efd6a69eec9c1a48e048b7c975c25f288ac",
+		rewardAmount: 9556193632,
+		feeLimits:    0x5900,
+		rewardScript: "6a1e229ebac30efd6a69eec9c1a48e048b7c975c25f260f19739020000000059",
+		changeScript: "bd76a914229ebac30efd6a69eec9c1a48e048b7c975c25f288ac",
+		commitScript: "bb76a914229ebac30efd6a69eec9c1a48e048b7c975c25f288ac",
+		revokeScript: "bc76a914229ebac30efd6a69eec9c1a48e048b7c975c25f288ac",
+		trsyScript:   "c376a914229ebac30efd6a69eec9c1a48e048b7c975c25f288ac",
+	}, {
+		name: "testnet p2pkh-ecdsa-secp256k1",
+		makeAddr: func() (Address, error) {
+			hash := hexToBytes("f15da1cb8d1bcb162c6ab446c95757a6e791c916")
+			return NewAddressPubKeyHashEcdsaSecp256k1(0, hash, testNetParams)
+		},
+		makeErr:      nil,
+		addr:         "Tso2MVTUeVrjHTBFedFhiyM7yVTbieqp91h",
+		net:          testNetParams,
+		decodeErr:    nil,
+		version:      0,
+		payScript:    "76a914f15da1cb8d1bcb162c6ab446c95757a6e791c91688ac",
+		voteScript:   "ba76a914f15da1cb8d1bcb162c6ab446c95757a6e791c91688ac",
+		rewardAmount: 2428220961,
+		feeLimits:    0x5800,
+		rewardScript: "6a1ef15da1cb8d1bcb162c6ab446c95757a6e791c91621b6bb90000000000058",
+		changeScript: "bd76a914f15da1cb8d1bcb162c6ab446c95757a6e791c91688ac",
+		commitScript: "bb76a914f15da1cb8d1bcb162c6ab446c95757a6e791c91688ac",
+		revokeScript: "bc76a914f15da1cb8d1bcb162c6ab446c95757a6e791c91688ac",
+		trsyScript:   "c376a914f15da1cb8d1bcb162c6ab446c95757a6e791c91688ac",
+	}, {
+		name: "regnet p2pkh-sep256k1-ecdsa",
+		makeAddr: func() (Address, error) {
+			hash := hexToBytes("f15da1cb8d1bcb162c6ab446c95757a6e791c916")
+			return NewAddressPubKeyHashEcdsaSecp256k1(0, hash, regNetParams)
+		},
+		makeErr:      nil,
+		addr:         "RsWM2w5LPJip56uxcZ1Scq7Tcbg97EfiwPA",
+		net:          regNetParams,
+		decodeErr:    nil,
+		version:      0,
+		payScript:    "76a914f15da1cb8d1bcb162c6ab446c95757a6e791c91688ac",
+		voteScript:   "ba76a914f15da1cb8d1bcb162c6ab446c95757a6e791c91688ac",
+		rewardAmount: 2428220961,
+		feeLimits:    0x5800,
+		rewardScript: "6a1ef15da1cb8d1bcb162c6ab446c95757a6e791c91621b6bb90000000000058",
+		changeScript: "bd76a914f15da1cb8d1bcb162c6ab446c95757a6e791c91688ac",
+		commitScript: "bb76a914f15da1cb8d1bcb162c6ab446c95757a6e791c91688ac",
+		revokeScript: "bc76a914f15da1cb8d1bcb162c6ab446c95757a6e791c91688ac",
+		trsyScript:   "c376a914f15da1cb8d1bcb162c6ab446c95757a6e791c91688ac",
 	}}
 
 	for _, test := range tests {
@@ -838,6 +940,24 @@ func TestAddresses(t *testing.T) {
 			t.Errorf("%s: mismatched decoded stringer -- got %v, want %v",
 				test.name, ds.String(), test.addr)
 			continue
+		}
+
+		// Ensure the AddressPubKeyHash method for the address types that
+		// support it returns the expected address.
+		var pkhAddr Address
+		var wantPkhAddr string
+		switch a := decodedAddr.(type) {
+		case *AddressPubKeyEcdsaSecp256k1V0:
+			id := test.net.AddrIDPubKeyHashECDSAV0()
+			wantPkhAddr = base58.CheckEncode(Hash160(a.serializedPubKey), id)
+			pkhAddr = a.AddressPubKeyHash()
+		}
+		if pkhAddr != nil {
+			gotAddr := pkhAddr.Address()
+			if gotAddr != wantPkhAddr {
+				t.Errorf("%s: mismatched pkh address -- got %s, want %s",
+					test.name, gotAddr, wantPkhAddr)
+			}
 		}
 
 		// Ensure the Hash160 method for the addresses that support it returns

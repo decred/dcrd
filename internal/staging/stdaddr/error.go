@@ -35,6 +35,10 @@ const (
 	// ErrInvalidPubKeyFormat indicates that a serialized public key parsed
 	// successfully, but is not one of the allowed formats.
 	ErrInvalidPubKeyFormat = ErrorKind("ErrInvalidPubKeyFormat")
+
+	// ErrInvalidHashLen indicates that either a public key hash or a script
+	// hash is not an allowed length.
+	ErrInvalidHashLen = ErrorKind("ErrInvalidHashLen")
 )
 
 // Error satisfies the error interface and prints human-readable errors.

@@ -283,8 +283,15 @@ func NewAddressPubKeySchnorrSecp256k1(scriptVersion uint16,
 // compressed format since it occupies less space on the chain and is more
 // consistent with other address formats where uncompressed public keys are NOT
 // supported.
+//
+// NOTE: Version 0 scripts are the only currently supported version.
 func NewAddressPubKeyHashEcdsaSecp256k1(scriptVersion uint16, pkHash []byte,
 	params AddressParams) (Address, error) {
+
+	switch scriptVersion {
+	case 0:
+		return NewAddressPubKeyHashEcdsaSecp256k1V0(pkHash, params)
+	}
 
 	str := fmt.Sprintf("pubkey hash addresses for version %d are not "+
 		"supported", scriptVersion)
