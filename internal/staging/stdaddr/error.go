@@ -27,6 +27,14 @@ const (
 	// ErrBadAddressChecksum indicates an address failed to decode due to an
 	// invalid checksum.
 	ErrBadAddressChecksum = ErrorKind("ErrBadAddressChecksum")
+
+	// ErrInvalidPubKey indicates that a serialized public key failed to
+	// parse.
+	ErrInvalidPubKey = ErrorKind("ErrInvalidPubKey")
+
+	// ErrInvalidPubKeyFormat indicates that a serialized public key parsed
+	// successfully, but is not one of the allowed formats.
+	ErrInvalidPubKeyFormat = ErrorKind("ErrInvalidPubKeyFormat")
 )
 
 // Error satisfies the error interface and prints human-readable errors.
