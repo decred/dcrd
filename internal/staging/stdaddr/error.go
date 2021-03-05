@@ -16,6 +16,17 @@ const (
 	// ErrUnsupportedScriptVersion indicates that an address type does not
 	// support a given script version.
 	ErrUnsupportedScriptVersion = ErrorKind("ErrUnsupportedScriptVersion")
+
+	// ErrMalformedAddress indicates an address failed to decode.
+	ErrMalformedAddress = ErrorKind("ErrMalformedAddress")
+
+	// ErrMalformedAddressData indicates an address successfully decoded and is
+	// a recognized type, but the encoded data is not the expected length.
+	ErrMalformedAddressData = ErrorKind("ErrMalformedAddressData")
+
+	// ErrBadAddressChecksum indicates an address failed to decode due to an
+	// invalid checksum.
+	ErrBadAddressChecksum = ErrorKind("ErrBadAddressChecksum")
 )
 
 // Error satisfies the error interface and prints human-readable errors.

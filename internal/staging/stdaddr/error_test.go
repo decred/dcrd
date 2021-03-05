@@ -18,6 +18,9 @@ func TestErrorKindStringer(t *testing.T) {
 	}{
 		{ErrUnsupportedAddress, "ErrUnsupportedAddress"},
 		{ErrUnsupportedScriptVersion, "ErrUnsupportedScriptVersion"},
+		{ErrMalformedAddress, "ErrMalformedAddress"},
+		{ErrMalformedAddressData, "ErrMalformedAddressData"},
+		{ErrBadAddressChecksum, "ErrBadAddressChecksum"},
 	}
 
 	for i, test := range tests {

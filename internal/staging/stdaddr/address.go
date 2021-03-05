@@ -16,6 +16,7 @@ import (
 // required when encoding and decoding addresses.  These values are typically
 // well-defined and unique per network.
 type AddressParams interface {
+	AddressParamsV0
 }
 
 // Address represents any type of destination a transaction output may spend to.
@@ -324,11 +325,42 @@ func NewAddressScriptHash(scriptVersion uint16, redeemScript []byte,
 	return nil, makeError(ErrUnsupportedScriptVersion, str)
 }
 
+// probablyV0Base58Addr returns true when the provided string looks like a
+// version 0 base58 address as determined by their length and only containing
+// runes in the base58 alphabet used by Decred for version 0 addresses.
+func probablyV0Base58Addr(s string) bool {
+	// Ensure the length is one of the possible values for supported version 0
+	// addresses.
+	if len(s) != 35 && len(s) != 53 {
+		return false
+	}
+
+	// The modified base58 alphabet used by Decred for version 0 addresses is:
+	//   123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz
+	for _, r := range s {
+		if r < '1' || r > 'z' ||
+			r == 'I' || r == 'O' || r == 'l' ||
+			(r > '9' && r < 'A') || (r > 'Z' && r < 'a') {
+
+			return false
+		}
+	}
+
+	return true
+}
+
 // DecodeAddress decodes the string encoding of an address and returns the
 // relevant Address if it is a valid encoding for a known address type and is
 // for the provided network.
 func DecodeAddress(addr string, params AddressParams) (Address, error) {
-	// Parsing code for future address/script versions goes here.
+	// Parsing code for future address/script versions should be added as the
+	// most recent case in the switch statement.  The expectation is that newer
+	// version addresses will become more common, so they should be checked
+	// first.
+	switch {
+	case probablyV0Base58Addr(addr):
+		return DecodeAddressV0(addr, params)
+	}
 
 	str := fmt.Sprintf("address %q is not a supported type", addr)
 	return nil, makeError(ErrUnsupportedAddress, str)
