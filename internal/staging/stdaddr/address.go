@@ -307,8 +307,15 @@ func NewAddressPubKeyHashEcdsaSecp256k1(scriptVersion uint16, pkHash []byte,
 // the Hash160 of the correct public key or it will not be redeemable with the
 // expected public key because it would hash to a different value than the
 // payment script generated for the provided incorrect public key hash expects.
+//
+// NOTE: Version 0 scripts are the only currently supported version.
 func NewAddressPubKeyHashEd25519(scriptVersion uint16, pkHash []byte,
 	params AddressParams) (Address, error) {
+
+	switch scriptVersion {
+	case 0:
+		return NewAddressPubKeyHashEd25519V0(pkHash, params)
+	}
 
 	str := fmt.Sprintf("pubkey hash addresses for version %d are not "+
 		"supported", scriptVersion)

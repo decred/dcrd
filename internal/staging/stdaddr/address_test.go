@@ -753,6 +753,80 @@ func TestAddresses(t *testing.T) {
 		commitScript: "bb76a914f15da1cb8d1bcb162c6ab446c95757a6e791c91688ac",
 		revokeScript: "bc76a914f15da1cb8d1bcb162c6ab446c95757a6e791c91688ac",
 		trsyScript:   "c376a914f15da1cb8d1bcb162c6ab446c95757a6e791c91688ac",
+	}, {
+		// ---------------------------------------------------------------------
+		// Negative P2PKH ed25519 tests.
+		// ---------------------------------------------------------------------
+
+		name: "p2pkh-ed25519 wrong hash length",
+		makeAddr: func() (Address, error) {
+			hash := hexToBytes("000ef030107fd26e0b6bf40512bca2ceb1dd80adaa")
+			return NewAddressPubKeyHashEd25519(0, hash, mainNetParams)
+		},
+		makeErr: ErrInvalidHashLen,
+	}, {
+		name: "p2pkh-ed25519 unsupported script version",
+		makeAddr: func() (Address, error) {
+			hash := hexToBytes("0ef030107fd26e0b6bf40512bca2ceb1dd80adaa")
+			return NewAddressPubKeyHashEd25519(9999, hash, mainNetParams)
+		},
+		makeErr: ErrUnsupportedScriptVersion,
+	}, {
+		// ---------------------------------------------------------------------
+		// Positive P2PKH Ed25519 tests.
+		// ---------------------------------------------------------------------
+
+		name: "mainnet p2pkh-ed25519",
+		makeAddr: func() (Address, error) {
+			// From pubkey for privkey 0x00...01.
+			hash := hexToBytes("456d8ee57a4b9121987b4ecab8c3bcb5797e8a53")
+			return NewAddressPubKeyHashEd25519(0, hash, mainNetParams)
+		},
+		makeErr:   nil,
+		addr:      "DeeUhrRoTp4DftsqddVW96yMGMW4sgQFYUE",
+		net:       mainNetParams,
+		decodeErr: nil,
+		version:   0,
+		payScript: "76a914456d8ee57a4b9121987b4ecab8c3bcb5797e8a538851be",
+	}, {
+		name: "mainnet p2pkh-ed25519 2",
+		makeAddr: func() (Address, error) {
+			// From pubkey for privkey 0x00...02.
+			hash := hexToBytes("09788a8dcb216efa354e487d57d76255b1af4320")
+			return NewAddressPubKeyHashEd25519(0, hash, mainNetParams)
+		},
+		makeErr:   nil,
+		addr:      "DeZ1gU2ta8auk5et79R74GYR3pnF31KXbFo",
+		net:       mainNetParams,
+		decodeErr: nil,
+		version:   0,
+		payScript: "76a91409788a8dcb216efa354e487d57d76255b1af43208851be",
+	}, {
+		name: "testnet p2pkh-ed25519",
+		makeAddr: func() (Address, error) {
+			// From pubkey for privkey 0x00...01.
+			hash := hexToBytes("456d8ee57a4b9121987b4ecab8c3bcb5797e8a53")
+			return NewAddressPubKeyHashEd25519(0, hash, testNetParams)
+		},
+		makeErr:   nil,
+		addr:      "TeeXvqZJrc7KnFZCT27fHfzcrTTzSF1aSRG",
+		net:       testNetParams,
+		decodeErr: nil,
+		version:   0,
+		payScript: "76a914456d8ee57a4b9121987b4ecab8c3bcb5797e8a538851be",
+	}, {
+		name: "regnet p2pkh-ed25519",
+		makeAddr: func() (Address, error) {
+			// From pubkey for privkey 0x00...01.
+			hash := hexToBytes("456d8ee57a4b9121987b4ecab8c3bcb5797e8a53")
+			return NewAddressPubKeyHashEd25519(0, hash, regNetParams)
+		},
+		makeErr:   nil,
+		addr:      "ReMrcHBAbQyQZuHuQwsQBXkxVZgXpnbqX72",
+		net:       regNetParams,
+		decodeErr: nil,
+		version:   0,
+		payScript: "76a914456d8ee57a4b9121987b4ecab8c3bcb5797e8a538851be",
 	}}
 
 	for _, test := range tests {
@@ -949,6 +1023,11 @@ func TestAddresses(t *testing.T) {
 		switch a := decodedAddr.(type) {
 		case *AddressPubKeyEcdsaSecp256k1V0:
 			id := test.net.AddrIDPubKeyHashECDSAV0()
+			wantPkhAddr = base58.CheckEncode(Hash160(a.serializedPubKey), id)
+			pkhAddr = a.AddressPubKeyHash()
+
+		case *AddressPubKeyEd25519V0:
+			id := test.net.AddrIDPubKeyHashEd25519V0()
 			wantPkhAddr = base58.CheckEncode(Hash160(a.serializedPubKey), id)
 			pkhAddr = a.AddressPubKeyHash()
 		}

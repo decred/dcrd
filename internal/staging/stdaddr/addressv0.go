@@ -273,8 +273,10 @@ type AddressPubKeyEd25519V0 struct {
 	serializedPubKey []byte
 }
 
-// Ensure AddressPubKeyEd25519V0 implements the Address interfaces.
+// Ensure AddressPubKeyEd25519V0 implements the Address and AddressPubKeyHasher
+// interfaces.
 var _ Address = (*AddressPubKeyEd25519V0)(nil)
+var _ AddressPubKeyHasher = (*AddressPubKeyEd25519V0)(nil)
 
 // NewAddressPubKeyEd25519V0Raw returns an address that represents a payment
 // destination which imposes an encumbrance that requires a valid Ed25519
@@ -354,6 +356,17 @@ func (addr *AddressPubKeyEd25519V0) PaymentScript() (uint16, []byte) {
 	script[33] = opPushSTEd25519
 	script[34] = opCheckSigAlt
 	return 0, script[:]
+}
+
+// AddressPubKeyHash returns the address converted to a
+// pay-to-pubkey-hash-ed25519 address.
+func (addr *AddressPubKeyEd25519V0) AddressPubKeyHash() Address {
+	pkHash := Hash160(addr.serializedPubKey)
+	addrPKH := &AddressPubKeyHashEd25519V0{
+		netID: addr.pubKeyHashID,
+	}
+	copy(addrPKH.hash[:], pkHash)
+	return addrPKH
 }
 
 // String returns a human-readable string for the address.
@@ -694,6 +707,94 @@ func (addr *AddressPubKeyHashEcdsaSecp256k1V0) Hash160() *[ripemd160.Size]byte {
 // This is equivalent to calling Address, but is provided so the type can be
 // used as a fmt.Stringer.
 func (addr *AddressPubKeyHashEcdsaSecp256k1V0) String() string {
+	return addr.Address()
+}
+
+// AddressPubKeyHashEd25519V0 specifies an address that represents a a payment
+// destination which imposes an encumbrance that requires an Ed25519 public key
+// that hashes to the given public key hash along with a valid Ed25519 signature
+// for that public key.
+//
+// This is commonly referred to as pay-to-pubkey-hash-ed25519.
+type AddressPubKeyHashEd25519V0 struct {
+	netID [2]byte
+	hash  [ripemd160.Size]byte
+}
+
+// Ensure AddressPubKeyHashEd25519V0 implements the Address and Hash160er
+// interfaces.
+var _ Address = (*AddressPubKeyHashEd25519V0)(nil)
+var _ Hash160er = (*AddressPubKeyHashEd25519V0)(nil)
+
+// NewAddressPubKeyHashEd25519V0 returns an address that represents a a payment
+// destination which imposes an encumbrance that requires an Ed25519 public key
+// that hashes to the provided public key hash along with a valid Ed25519
+// signature for that public key using version 0 scripts.
+//
+// The provided public key hash must be 20 bytes and be the Hash160 of the
+// correct public key or it will not be redeemable with the expected public key
+// because it would hash to a different value than the payment script generated
+// for the provided incorrect public key hash expects.
+func NewAddressPubKeyHashEd25519V0(pkHash []byte,
+	params AddressParamsV0) (*AddressPubKeyHashEd25519V0, error) {
+
+	// Check for a valid script hash length.
+	if len(pkHash) != ripemd160.Size {
+		str := fmt.Sprintf("public key hash is %d bytes vs required %d bytes",
+			len(pkHash), ripemd160.Size)
+		return nil, makeError(ErrInvalidHashLen, str)
+	}
+
+	addr := &AddressPubKeyHashEd25519V0{
+		netID: params.AddrIDPubKeyHashEd25519V0(),
+	}
+	copy(addr.hash[:], pkHash)
+	return addr, nil
+}
+
+// Address returns the string encoding of the payment address for the associated
+// script version and payment script.
+//
+// This is part of the Address interface implementation.
+func (addr *AddressPubKeyHashEd25519V0) Address() string {
+	// The format for the data portion of addresses that encode 160-bit hashes
+	// is merely the hash itself:
+	//   20-byte ripemd160 hash
+	return encodeAddressV0(addr.hash[:ripemd160.Size], addr.netID)
+}
+
+// PaymentScript returns the script version associated with the address along
+// with a script to pay a transaction output to the address.
+//
+// This is part of the Address interface implementation.
+func (addr *AddressPubKeyHashEd25519V0) PaymentScript() (uint16, []byte) {
+	// A pay-to-pubkey-hash-ed25519 script is of the form:
+	//  DUP HASH160 <20-byte hash> EQUALVERIFY <1-byte sigtype> CHECKSIGALT
+	//
+	// Since the signature type is 1, it is pushed as a small integer.
+	var script [26]byte
+	script[0] = opDup
+	script[1] = opHash160
+	script[2] = opData20
+	copy(script[3:23], addr.hash[:])
+	script[23] = opEqualVerify
+	script[24] = opPushSTEd25519
+	script[25] = opCheckSigAlt
+	return 0, script[:]
+}
+
+// Hash160 returns the underlying array of the pubkey hash.  This can be useful
+// when an array is more appropriate than a slice (for example, when used as map
+// keys).
+func (addr *AddressPubKeyHashEd25519V0) Hash160() *[ripemd160.Size]byte {
+	return &addr.hash
+}
+
+// String returns a human-readable string for the address.
+//
+// This is equivalent to calling Address, but is provided so the type can be
+// used as a fmt.Stringer.
+func (addr *AddressPubKeyHashEd25519V0) String() string {
 	return addr.Address()
 }
 
