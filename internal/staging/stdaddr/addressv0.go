@@ -23,6 +23,7 @@ const (
 	opData32      = 0x20
 	opData33      = 0x21
 	op1           = 0x51
+	op2           = 0x52
 	opCheckSig    = 0xac
 	opCheckSigAlt = 0xbe
 )
@@ -31,6 +32,10 @@ const (
 	// opPushSTEd25519 is the dcrec.STEd25519 signature type converted to the
 	// associated small integer data push opcode.
 	opPushSTEd25519 = op1
+
+	// opPushSTSchnorrSecp256k1 is the dcrec.STSchnorrSecp256k1 signature type
+	// converted to the associated small integer data push opcode.
+	opPushSTSchnorrSecp256k1 = op2
 
 	// sigTypeSecp256k1PubKeyCompOddFlag specifies the bitmask to apply to the
 	// pubkey address signature type byte for those that deal with compressed
@@ -305,6 +310,132 @@ func (addr *AddressPubKeyEd25519V0) PaymentScript() (uint16, []byte) {
 // This is equivalent to calling Address, but is provided so the type can be
 // used as a fmt.Stringer.
 func (addr *AddressPubKeyEd25519V0) String() string {
+	return addr.Address()
+}
+
+// AddressPubKeySchnorrSecp256k1V0 specifies an address that represents a
+// payment destination which imposes an encumbrance that requires a valid
+// EC-Schnorr-DCRv0 signature for a specific secp256k1 public key.
+//
+// This is commonly referred to as pay-to-pubkey-schnorr-secp256k1.
+type AddressPubKeySchnorrSecp256k1V0 struct {
+	pubKeyID         [2]byte
+	pubKeyHashID     [2]byte
+	serializedPubKey []byte
+}
+
+// Ensure AddressPubKeySchnorrSecp256k1V0 implements the Address interface.
+var _ Address = (*AddressPubKeySchnorrSecp256k1V0)(nil)
+
+// NewAddressPubKeySchnorrSecp256k1V0Raw returns an address that represents a
+// payment destination which imposes an encumbrance that requires a valid
+// EC-Schnorr-DCRv0 signature for a specific secp256k1 public key using version
+// 0 scripts.
+//
+// The provided public key MUST be a valid secp256k1 public key serialized in
+// the _compressed_ format or an error will be returned.
+//
+// See NewAddressPubKeySchnorrSecp256k1V0 for a variant that accepts the public
+// key as a concrete type instance instead.
+//
+// This function can be useful to callers who already need the serialized public
+// key for other purposes to avoid the need to serialize it multiple times.
+func NewAddressPubKeySchnorrSecp256k1V0Raw(serializedPubKey []byte,
+	params AddressParamsV0) (*AddressPubKeySchnorrSecp256k1V0, error) {
+
+	// Attempt to parse the provided public key to ensure it is both a valid
+	// serialization and that it is a valid point on the secp256k1 curve.
+	_, err := secp256k1.ParsePubKey(serializedPubKey)
+	if err != nil {
+		str := fmt.Sprintf("failed to parse public key: %v", err)
+		return nil, makeError(ErrInvalidPubKey, str)
+	}
+
+	// Ensure the provided serialized public key is in the compressed format.
+	// This probably should be returned from secp256k1, but do it here to avoid
+	// API churn.  The pubkey is known to be valid since it parsed above, so
+	// it's safe to simply examine the leading byte to get the format.
+	//
+	// Notice that both the uncompressed and hybrid forms are intentionally not
+	// supported.
+	switch serializedPubKey[0] {
+	case secp256k1.PubKeyFormatCompressedEven:
+	case secp256k1.PubKeyFormatCompressedOdd:
+	default:
+		str := fmt.Sprintf("serialized public key %x is not a valid format",
+			serializedPubKey)
+		return nil, makeError(ErrInvalidPubKeyFormat, str)
+	}
+
+	return &AddressPubKeySchnorrSecp256k1V0{
+		pubKeyID:         params.AddrIDPubKeyV0(),
+		pubKeyHashID:     params.AddrIDPubKeyHashSchnorrV0(),
+		serializedPubKey: serializedPubKey,
+	}, nil
+}
+
+// NewAddressPubKeySchnorrSecp256k1V0 returns an address that represents a
+// payment destination which imposes an encumbrance that requires a valid
+// EC-Schnorr-DCRv0 signature for a specific secp256k1 public key using version
+// 0 scripts.
+//
+// See NewAddressPubKeySchnorrSecp256k1V0Raw for a variant that accepts the public
+// key already serialized in the _compressed_ format instead of a concrete type.
+// It can be useful to callers who already need the serialized public key for
+// other purposes to avoid the need to serialize it multiple times.
+func NewAddressPubKeySchnorrSecp256k1V0(pubKey Secp256k1PublicKey,
+	params AddressParamsV0) (*AddressPubKeySchnorrSecp256k1V0, error) {
+
+	return &AddressPubKeySchnorrSecp256k1V0{
+		pubKeyID:         params.AddrIDPubKeyV0(),
+		pubKeyHashID:     params.AddrIDPubKeyHashSchnorrV0(),
+		serializedPubKey: pubKey.SerializeCompressed(),
+	}, nil
+}
+
+// Address returns the string encoding of the payment address for the associated
+// script version and payment script.
+//
+// This is part of the Address interface implementation.
+func (addr *AddressPubKeySchnorrSecp256k1V0) Address() string {
+	// The format for the data portion of a public key address used with
+	// elliptic curves is:
+	//   identifier byte || 32-byte X coordinate
+	//
+	// The identifier byte specifies the curve and signature scheme combination
+	// as well as encoding the oddness of the Y coordinate for secp256k1 public
+	// keys in the high bit.
+	var data [33]byte
+	data[0] = byte(dcrec.STSchnorrSecp256k1)
+	if addr.serializedPubKey[0] == secp256k1.PubKeyFormatCompressedOdd {
+		data[0] |= sigTypeSecp256k1PubKeyCompOddFlag
+	}
+	copy(data[1:], addr.serializedPubKey[1:])
+	return encodeAddressV0(data[:], addr.pubKeyID)
+}
+
+// PaymentScript returns the script version associated with the address along
+// with a script to pay a transaction output to the address.
+//
+// This is part of the Address interface implementation.
+func (addr *AddressPubKeySchnorrSecp256k1V0) PaymentScript() (uint16, []byte) {
+	// A pay-to-pubkey-schnorr-secp256k1 script is of the following form:
+	//  <33-byte compressed pubkey> <1-byte sigtype> CHECKSIGALT
+	//
+	// Since the signature type is 2, it is pushed as a small integer.
+	var script [36]byte
+	script[0] = opData33
+	copy(script[1:34], addr.serializedPubKey)
+	script[34] = opPushSTSchnorrSecp256k1
+	script[35] = opCheckSigAlt
+	return 0, script[:]
+}
+
+// String returns a human-readable string for the address.
+//
+// This is equivalent to calling Address, but is provided so the type can be
+// used as a fmt.Stringer.
+func (addr *AddressPubKeySchnorrSecp256k1V0) String() string {
 	return addr.Address()
 }
 

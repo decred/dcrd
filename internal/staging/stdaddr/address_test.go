@@ -500,6 +500,157 @@ func TestAddresses(t *testing.T) {
 		decodeErr: nil,
 		version:   0,
 		payScript: "20cecc1507dc1ddd7295951c290888f095adb9044d1b73d696e6df065d683bd4fc51be",
+	}, {
+		// ---------------------------------------------------------------------
+		// Negative P2PK Schnorr secp256k1 tests.
+		// ---------------------------------------------------------------------
+
+		name: "mainnet p2pk-schnorr-secp256k1 uncompressed (0x04) rejected via constructor",
+		makeAddr: func() (Address, error) {
+			pkHex := "0464c44653d6567eff5753c5d24a682ddc2b2cadfe1b0c6433b163" +
+				"74dace6778f0b87ca4279b565d2130ce59f75bfbb2b88da794143d7cfd3" +
+				"e80808a1fa3203904"
+			pk := hexToBytes(pkHex)
+			return NewAddressPubKeySchnorrSecp256k1Raw(0, pk, mainNetParams)
+		},
+		makeErr: ErrInvalidPubKeyFormat,
+	}, {
+		name:      "mainnet p2pk-schnorr-secp256k1 uncompressed (0x04) rejected via decode",
+		addr:      "HiQjU9uCJtiQD7osQuYHWJRFiBCTuqtaTw8QFMtMgAW2ny4nUENeXDiV5VxfVZrK6PZynKPDpL7bwc6XLFNpV8k7ePDJmkkVCh",
+		net:       mainNetParams,
+		decodeErr: ErrUnsupportedAddress,
+	}, {
+		name: "mainnet p2pk-schnorr-secp256k1 hybrid (0x06) rejected via constructor",
+		makeAddr: func() (Address, error) {
+			pkHex := "0664c44653d6567eff5753c5d24a682ddc2b2cadfe1b0c6433b163" +
+				"74dace6778f0b87ca4279b565d2130ce59f75bfbb2b88da794143d7cfd3" +
+				"e80808a1fa3203904"
+			pk := hexToBytes(pkHex)
+			return NewAddressPubKeySchnorrSecp256k1Raw(0, pk, mainNetParams)
+		},
+		makeErr: ErrInvalidPubKeyFormat,
+	}, {
+		name: "mainnet p2pk-schnorr-secp256k1 hybrid (0x07) rejected via constructor",
+		makeAddr: func() (Address, error) {
+			pkHex := "07348d8aeb4253ca52456fe5da94ab1263bfee16bb8192497f6663" +
+				"89ca964f84798375129d7958843b14258b905dc94faed324dd8a9d67ffa" +
+				"c8cc0a85be84bac5d"
+			pk := hexToBytes(pkHex)
+			return NewAddressPubKeySchnorrSecp256k1Raw(0, pk, mainNetParams)
+		},
+		makeErr: ErrInvalidPubKeyFormat,
+	}, {
+		name: "p2pk-schnorr-secp256k1 unsupported script version",
+		makeAddr: func() (Address, error) {
+			pkHex := "028f53838b7639563f27c94845549a41e5146bcd52e7fef0ea6da143a02b0fe2ed"
+			pk := hexToBytes(pkHex)
+			return NewAddressPubKeySchnorrSecp256k1Raw(9999, pk, mainNetParams)
+		},
+		makeErr: ErrUnsupportedScriptVersion,
+	}, {
+		name: "p2pk-schnorr-secp256k1 unsupported script version via concrete constructor",
+		makeAddr: func() (Address, error) {
+			pkHex := "028f53838b7639563f27c94845549a41e5146bcd52e7fef0ea6da143a02b0fe2ed"
+			pk, err := secp256k1.ParsePubKey(hexToBytes(pkHex))
+			if err != nil {
+				return nil, err
+			}
+			return NewAddressPubKeySchnorrSecp256k1(9999, pk, mainNetParams)
+		},
+		makeErr: ErrUnsupportedScriptVersion,
+	}, {
+		name: "p2pk-schnorr-secp256k1 malformed pubkey",
+		makeAddr: func() (Address, error) {
+			pkHex := "028f53838b7639563f27c94845549a41e5146bcd52e7fef0ea6da143a02b0fe2"
+			pk := hexToBytes(pkHex)
+			return NewAddressPubKeySchnorrSecp256k1Raw(0, pk, mainNetParams)
+		},
+		makeErr: ErrInvalidPubKey,
+	}, {
+		name:      "p2pk-schnorr-secp256k1 malformed pubkey via decode",
+		addr:      "3tWUW3oD87XtmFVGnLX4Z3Hdesm2qRvvN8H5kq3yXxJumCxbvCpo",
+		net:       mainNetParams,
+		decodeErr: ErrUnsupportedAddress,
+	}, {
+		// ---------------------------------------------------------------------
+		// Positive P2PK Schnorr secp256k1 tests.
+		// ---------------------------------------------------------------------
+
+		name:      "mainnet p2pk-schnorr-secp256k1 compressed (0x02)",
+		addr:      "DkM7TD2qsne9DKo4uA2ZNt3XhejYVwT5mmQWtUXtjdPhRHXTSKxN4",
+		net:       mainNetParams,
+		decodeErr: nil,
+		version:   0,
+		payScript: "21028f53838b7639563f27c94845549a41e5146bcd52e7fef0ea6da143a02b0fe2ed52be",
+	}, {
+		name:      "mainnet p2pk-schnorr-secp256k1 compressed (0x03)",
+		addr:      "DkRQx3y6YoJPnMKom23nuDFdfhmEnu8oDLTp4YVyWC6RjND19UxHk",
+		net:       mainNetParams,
+		decodeErr: nil,
+		version:   0,
+		payScript: "2103e925aafc1edd44e7c7f1ea4fb7d265dc672f204c3d0c81930389c10b81fb75de52be",
+	}, {
+		name: "mainnet p2pk-schnorr-secp256k1 compressed via concrete constructor",
+		makeAddr: func() (Address, error) {
+			pkHex := "028f53838b7639563f27c94845549a41e5146bcd52e7fef0ea6da143a02b0fe2ed"
+			pk, err := secp256k1.ParsePubKey(hexToBytes(pkHex))
+			if err != nil {
+				return nil, err
+			}
+			return NewAddressPubKeySchnorrSecp256k1(0, pk, mainNetParams)
+		},
+		makeErr:   nil,
+		addr:      "DkM7TD2qsne9DKo4uA2ZNt3XhejYVwT5mmQWtUXtjdPhRHXTSKxN4",
+		net:       mainNetParams,
+		decodeErr: nil,
+		version:   0,
+		payScript: "21028f53838b7639563f27c94845549a41e5146bcd52e7fef0ea6da143a02b0fe2ed52be",
+	}, {
+		name: "mainnet p2pk-schnorr-secp256k1 compressed from uncompressed via concrete constructor",
+		makeAddr: func() (Address, error) {
+			pkHex := "048f53838b7639563f27c94845549a41e5146bcd52e7fef0ea6da1" +
+				"43a02b0fe2ed91badd9f6403cc485dc3d5ca83ee8917dca57414866b083" +
+				"087c1c83b7a8e3304"
+			pk, err := secp256k1.ParsePubKey(hexToBytes(pkHex))
+			if err != nil {
+				return nil, err
+			}
+			return NewAddressPubKeySchnorrSecp256k1(0, pk, mainNetParams)
+		},
+		makeErr:   nil,
+		addr:      "DkM7TD2qsne9DKo4uA2ZNt3XhejYVwT5mmQWtUXtjdPhRHXTSKxN4",
+		net:       mainNetParams,
+		decodeErr: nil,
+		version:   0,
+		payScript: "21028f53838b7639563f27c94845549a41e5146bcd52e7fef0ea6da143a02b0fe2ed52be",
+	}, {
+		name:      "testnet p2pk-schnorr-secp256k1 compressed (0x02)",
+		addr:      "TkKqFCtYcHPupVbPcDdhvkNeNYXPqqs88Z4ygukH9MGaNV8e1WWhX",
+		net:       testNetParams,
+		decodeErr: nil,
+		version:   0,
+		payScript: "21026a40c403e74670c4de7656a09caa2353d4b383a9ce66eef51e1220eacf4be06e52be",
+	}, {
+		name:      "testnet p2pk-schnorr-secp256k1 compressed (0x03)",
+		addr:      "TkQ7KLcBYvTKq3xMyxkqtVa8LAXGuCC5XyA3RBhqcENVY8ZiDjuAB",
+		net:       testNetParams,
+		decodeErr: nil,
+		version:   0,
+		payScript: "21030844ee70d8384d5250e9bb3a6a73d4b5bec770e8b31d6a0ae9fb739009d91af552be",
+	}, {
+		name:      "regnet p2pk-schnorr-secp256k1 compressed (0x02)",
+		addr:      "Rk45dp3KYgZokaryqY5U11aHYw1V7gwzkbqMF6hxjRACwAxDivM6N",
+		net:       regNetParams,
+		decodeErr: nil,
+		version:   0,
+		payScript: "21026a40c403e74670c4de7656a09caa2353d4b383a9ce66eef51e1220eacf4be06e52be",
+	}, {
+		name:      "regnet p2pk-schnorr-secp256k1 compressed (0x03)",
+		addr:      "Rk8MhwkxVKdDm9DxDHCbxkmmWZ1NB3GxA1vQyNfXCJG86pPPnnn9M",
+		net:       regNetParams,
+		decodeErr: nil,
+		version:   0,
+		payScript: "21030844ee70d8384d5250e9bb3a6a73d4b5bec770e8b31d6a0ae9fb739009d91af552be",
 	}}
 
 	for _, test := range tests {
@@ -753,6 +904,20 @@ func TestDecodeAddressV0Corners(t *testing.T) {
 
 		name:      "p2pk-ed25519 malformed pubkey (only 31 bytes) via decode",
 		addr:      "3tWUQtEa3P4SDQwjER81wkTxe4kiYLgNAso3pt2X5k3NFHRVQeNv",
+		net:       mainNetParams,
+		decodeErr: ErrMalformedAddressData,
+	}, {
+		// ---------------------------------------------------------------------
+		// Negative P2PK Schnorr secp256k1 tests.
+		// ---------------------------------------------------------------------
+
+		name:      "mainnet p2pk-schnorr-secp256k1 uncompressed (0x04) rejected via decode",
+		addr:      "HiQjU9uCJtiQD7osQuYHWJRFiBCTuqtaTw8QFMtMgAW2ny4nUENeXDiV5VxfVZrK6PZynKPDpL7bwc6XLFNpV8k7ePDJmkkVCh",
+		net:       mainNetParams,
+		decodeErr: ErrMalformedAddressData,
+	}, {
+		name:      "p2pk-schnorr-secp256k1 malformed pubkey via decode",
+		addr:      "3tWUW3oD87XtmFVGnLX4Z3Hdesm2qRvvN8H5kq3yXxJumCxbvCpo",
 		net:       mainNetParams,
 		decodeErr: ErrMalformedAddressData,
 	}}

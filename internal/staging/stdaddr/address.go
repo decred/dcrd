@@ -227,9 +227,16 @@ func NewAddressPubKeyEd25519(scriptVersion uint16, pubKey Ed25519PublicKey,
 //
 // This function can be useful to callers who already need the serialized public
 // key for other purposes to avoid the need to serialize it multiple times.
+//
+// NOTE: Version 0 scripts are the only currently supported version.
 func NewAddressPubKeySchnorrSecp256k1Raw(scriptVersion uint16,
 	serializedPubKey []byte,
 	params AddressParams) (Address, error) {
+
+	switch scriptVersion {
+	case 0:
+		return NewAddressPubKeySchnorrSecp256k1V0Raw(serializedPubKey, params)
+	}
 
 	str := fmt.Sprintf("pubkey addresses for version %d are not supported",
 		scriptVersion)
@@ -244,9 +251,16 @@ func NewAddressPubKeySchnorrSecp256k1Raw(scriptVersion uint16,
 // key already serialized in the _compressed_ format instead of a concrete type.
 // It can be useful to callers who already need the serialized public key for
 // other purposes to avoid the need to serialize it multiple times.
+//
+// NOTE: Version 0 scripts are the only currently supported version.
 func NewAddressPubKeySchnorrSecp256k1(scriptVersion uint16,
 	pubKey Secp256k1PublicKey,
 	params AddressParams) (Address, error) {
+
+	switch scriptVersion {
+	case 0:
+		return NewAddressPubKeySchnorrSecp256k1V0(pubKey, params)
+	}
 
 	str := fmt.Sprintf("pubkey addresses for version %d are not supported",
 		scriptVersion)
