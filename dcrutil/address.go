@@ -149,7 +149,7 @@ func NewAddressPubKey(decoded []byte, net AddressParams) (Address, error) {
 				append([]byte{toAppend}, decoded[1:]...),
 				net)
 		case dcrec.STEd25519:
-			return NewAddressEdwardsPubKey(decoded, net)
+			return NewAddressEdwardsPubKey(decoded[1:], net)
 		case dcrec.STSchnorrSecp256k1:
 			return NewAddressSecSchnorrPubKey(
 				append([]byte{toAppend}, decoded[1:]...),
