@@ -13,6 +13,7 @@ import (
 
 	"github.com/decred/base58"
 	"github.com/decred/dcrd/crypto/ripemd160"
+	"github.com/decred/dcrd/dcrec/edwards/v2"
 	"github.com/decred/dcrd/dcrec/secp256k1/v4"
 )
 
@@ -385,6 +386,120 @@ func TestAddresses(t *testing.T) {
 		decodeErr: nil,
 		version:   0,
 		payScript: "21030844ee70d8384d5250e9bb3a6a73d4b5bec770e8b31d6a0ae9fb739009d91af5ac",
+	}, {
+		// ---------------------------------------------------------------------
+		// Negative P2PK Ed25519 tests.
+		// ---------------------------------------------------------------------
+
+		name: "p2pk-ed25519 unsupported script version",
+		makeAddr: func() (Address, error) {
+			pkHex := "cecc1507dc1ddd7295951c290888f095adb9044d1b73d696e6df065d683bd4fc"
+			pk := hexToBytes(pkHex)
+			return NewAddressPubKeyEd25519Raw(9999, pk, mainNetParams)
+		},
+		makeErr: ErrUnsupportedScriptVersion,
+	}, {
+		name: "p2pk-ed25519 unsupported script version via concrete constructor",
+		makeAddr: func() (Address, error) {
+			pkHex := "cecc1507dc1ddd7295951c290888f095adb9044d1b73d696e6df065d683bd4fc"
+			pk, err := edwards.ParsePubKey(hexToBytes(pkHex))
+			if err != nil {
+				return nil, err
+			}
+			return NewAddressPubKeyEd25519(9999, pk, mainNetParams)
+		},
+		makeErr: ErrUnsupportedScriptVersion,
+	}, {
+		name: "p2pk-ed25519 malformed pubkey",
+		makeAddr: func() (Address, error) {
+			return NewAddressPubKeyEd25519Raw(0, nil, mainNetParams)
+		},
+		makeErr: ErrInvalidPubKey,
+	}, {
+		name:      "p2pk-ed25519 malformed pubkey (only 31 bytes) via decode",
+		addr:      "3tWUQtEa3P4SDQwjER81wkTxe4kiYLgNAso3pt2X5k3NFHRVQeNv",
+		net:       mainNetParams,
+		decodeErr: ErrUnsupportedAddress,
+	}, {
+		// ---------------------------------------------------------------------
+		// Positive P2PK Ed25519 tests.
+		// ---------------------------------------------------------------------
+
+		name: "mainnet p2pk-ed25519",
+		makeAddr: func() (Address, error) {
+			// From pubkey for privkey 0x00...01.
+			pkHex := "cecc1507dc1ddd7295951c290888f095adb9044d1b73d696e6df065d683bd4fc"
+			pk := hexToBytes(pkHex)
+			return NewAddressPubKeyEd25519Raw(0, pk, mainNetParams)
+		},
+		makeErr:   nil,
+		addr:      "DkM5zR8tqWNAHngZQDTyAeqzabZxMKrkSbCFULDhmvySn3uHmm221",
+		net:       mainNetParams,
+		decodeErr: nil,
+		version:   0,
+		payScript: "20cecc1507dc1ddd7295951c290888f095adb9044d1b73d696e6df065d683bd4fc51be",
+	}, {
+		name: "mainnet p2pk-ed25519 via concrete constructor",
+		makeAddr: func() (Address, error) {
+			// From pubkey for privkey 0x00...01.
+			pkHex := "cecc1507dc1ddd7295951c290888f095adb9044d1b73d696e6df065d683bd4fc"
+			pk, err := edwards.ParsePubKey(hexToBytes(pkHex))
+			if err != nil {
+				return nil, err
+			}
+			return NewAddressPubKeyEd25519(0, pk, mainNetParams)
+		},
+		makeErr:   nil,
+		addr:      "DkM5zR8tqWNAHngZQDTyAeqzabZxMKrkSbCFULDhmvySn3uHmm221",
+		net:       mainNetParams,
+		decodeErr: nil,
+		version:   0,
+		payScript: "20cecc1507dc1ddd7295951c290888f095adb9044d1b73d696e6df065d683bd4fc51be",
+	}, {
+		name: "testnet p2pk-ed25519",
+		makeAddr: func() (Address, error) {
+			// From pubkey for privkey 0x00...01.
+			pkHex := "cecc1507dc1ddd7295951c290888f095adb9044d1b73d696e6df065d683bd4fc"
+			pk := hexToBytes(pkHex)
+			return NewAddressPubKeyEd25519Raw(0, pk, testNetParams)
+		},
+		makeErr:   nil,
+		addr:      "TkKp4jynaSAyyV5FooNX3UBGzeXhxYq7e96YtjbRS5XEaar5zFom4",
+		net:       testNetParams,
+		decodeErr: nil,
+		version:   0,
+		payScript: "20cecc1507dc1ddd7295951c290888f095adb9044d1b73d696e6df065d683bd4fc51be",
+	}, {
+		name: "testnet p2pk-ed25519 via concrete constructor",
+		makeAddr: func() (Address, error) {
+			// From pubkey for privkey 0x00...01.
+			pkHex := "cecc1507dc1ddd7295951c290888f095adb9044d1b73d696e6df065d683bd4fc"
+			pk, err := edwards.ParsePubKey(hexToBytes(pkHex))
+			if err != nil {
+				return nil, err
+			}
+			return NewAddressPubKeyEd25519(0, pk, testNetParams)
+		},
+		makeErr:   nil,
+		addr:      "TkKp4jynaSAyyV5FooNX3UBGzeXhxYq7e96YtjbRS5XEaar5zFom4",
+		net:       testNetParams,
+		decodeErr: nil,
+		version:   0,
+		payScript: "20cecc1507dc1ddd7295951c290888f095adb9044d1b73d696e6df065d683bd4fc51be",
+	}, {
+		name: "regnet p2pk-ed25519",
+		makeAddr: func() (Address, error) {
+			// From pubkey for privkey 0x00...01.
+			pkHex := "cecc1507dc1ddd7295951c290888f095adb9044d1b73d696e6df065d683bd4fc"
+			pk := hexToBytes(pkHex)
+			return NewAddressPubKeyEd25519Raw(0, pk, regNetParams)
+		},
+		makeErr:   nil,
+		addr:      "Rk44TM8ZWqLsuaLr37pH7jNvB31oEPuzGBrvSvZ729Qs9GfoiBryE",
+		net:       regNetParams,
+		decodeErr: nil,
+		version:   0,
+		payScript: "20cecc1507dc1ddd7295951c290888f095adb9044d1b73d696e6df065d683bd4fc51be",
 	}}
 
 	for _, test := range tests {
@@ -629,6 +744,15 @@ func TestDecodeAddressV0Corners(t *testing.T) {
 	}, {
 		name:      "p2pk-ecdsa-secp256k1 malformed pubkey via decode",
 		addr:      "3tWTcxjUnAKTzHh8pHPYpSsUKVbTvziNGHtbBFQkY12khQWuW83p",
+		net:       mainNetParams,
+		decodeErr: ErrMalformedAddressData,
+	}, {
+		// ---------------------------------------------------------------------
+		// Negative P2PK Ed25519 tests.
+		// ---------------------------------------------------------------------
+
+		name:      "p2pk-ed25519 malformed pubkey (only 31 bytes) via decode",
+		addr:      "3tWUQtEa3P4SDQwjER81wkTxe4kiYLgNAso3pt2X5k3NFHRVQeNv",
 		net:       mainNetParams,
 		decodeErr: ErrMalformedAddressData,
 	}}

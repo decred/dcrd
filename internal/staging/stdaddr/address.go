@@ -169,8 +169,15 @@ func NewAddressPubKeyEcdsaSecp256k1(scriptVersion uint16,
 //
 // See NewAddressPubKeyEd25519 for a variant that accepts the public key as a
 // concrete type instance instead.
+//
+// NOTE: Version 0 scripts are the only currently supported version.
 func NewAddressPubKeyEd25519Raw(scriptVersion uint16, serializedPubKey []byte,
 	params AddressParams) (Address, error) {
+
+	switch scriptVersion {
+	case 0:
+		return NewAddressPubKeyEd25519V0Raw(serializedPubKey, params)
+	}
 
 	str := fmt.Sprintf("pubkey addresses for version %d are not supported",
 		scriptVersion)
@@ -193,8 +200,15 @@ type Ed25519PublicKey interface {
 // already serialized instead of a concrete type.  It can be useful to callers
 // who already need the serialized public key for other purposes to avoid the
 // need to serialize it multiple times.
+//
+// NOTE: Version 0 scripts are the only currently supported version.
 func NewAddressPubKeyEd25519(scriptVersion uint16, pubKey Ed25519PublicKey,
 	params AddressParams) (Address, error) {
+
+	switch scriptVersion {
+	case 0:
+		return NewAddressPubKeyEd25519V0(pubKey, params)
+	}
 
 	str := fmt.Sprintf("pubkey addresses for version %d are not supported",
 		scriptVersion)
