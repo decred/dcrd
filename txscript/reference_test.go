@@ -153,12 +153,10 @@ func parseShortForm(script string) ([]byte, error) {
 
 		// Raw data.
 		if bts, err := parseHex(tok); err == nil {
-			// Concatenate the bytes manually since the test code
+			// Use the unchecked variant since the test code
 			// intentionally creates scripts that are too large and
 			// would cause the builder to error otherwise.
-			if builder.err == nil {
-				builder.script = append(builder.script, bts...)
-			}
+			builder.AddOpsUnchecked(bts)
 			return nil
 		}
 
@@ -173,13 +171,11 @@ func parseShortForm(script string) ([]byte, error) {
 				return fmt.Errorf("bad token %q", tok)
 			}
 
-			// Concatenate the bytes manually since the test code
+			// Use the unchecked variant since the test code
 			// intentionally creates scripts that are too large and
 			// would cause the builder to error otherwise.
 			bts = bytes.Repeat(bts, int(count))
-			if builder.err == nil {
-				builder.script = append(builder.script, bts...)
-			}
+			builder.AddOpsUnchecked(bts)
 			return nil
 		}
 

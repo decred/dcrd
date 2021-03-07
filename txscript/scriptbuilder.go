@@ -53,6 +53,22 @@ type ScriptBuilder struct {
 	err    error
 }
 
+// AddOpsUnchecked should not typically be used by ordinary users as it does not
+// include the checks which prevent scripts from exceeding the largest allowed
+// script size which leads to scripts that can't be executed.  This is provided
+// for testing purposes such as regression tests where sizes are intentionally
+// made larger than allowed.
+//
+// Use AddOps instead.
+func (b *ScriptBuilder) AddOpsUnchecked(opcodes []byte) *ScriptBuilder {
+	if b.err != nil {
+		return b
+	}
+
+	b.script = append(b.script, opcodes...)
+	return b
+}
+
 // AddOp pushes the passed opcode to the end of the script.  The script will not
 // be modified if pushing the opcode would cause the script to exceed the
 // maximum allowed script engine size.
