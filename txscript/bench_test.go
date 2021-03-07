@@ -1,4 +1,4 @@
-// Copyright (c) 2018-2019 The Decred developers
+// Copyright (c) 2018-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -244,7 +244,7 @@ func BenchmarkGetPreciseSigOpCount(b *testing.B) {
 	// as the final data push so the benchmark will cover the p2sh path.
 	scriptHash := "0x0000000000000000000000000000000000000001"
 	pkScript := mustParseShortForm("HASH160 DATA_20 " + scriptHash + " EQUAL")
-	sigScript, err := NewScriptBuilder().AddFullData(redeemScript).Script()
+	sigScript, err := NewScriptBuilder().AddData(redeemScript).Script()
 	if err != nil {
 		b.Fatalf("failed to create signature script: %v", err)
 	}
@@ -269,7 +269,7 @@ func BenchmarkGetPreciseSigOpCountTreasury(b *testing.B) {
 	// as the final data push so the benchmark will cover the p2sh path.
 	scriptHash := "0x0000000000000000000000000000000000000001"
 	pkScript := mustParseShortForm("HASH160 DATA_20 " + scriptHash + " EQUAL")
-	sigScript, err := NewScriptBuilder().AddFullData(redeemScript).Script()
+	sigScript, err := NewScriptBuilder().AddDataUnchecked(redeemScript).Script()
 	if err != nil {
 		b.Fatalf("failed to create signature script: %v", err)
 	}

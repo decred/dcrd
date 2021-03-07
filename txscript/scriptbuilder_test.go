@@ -154,10 +154,10 @@ func TestScriptBuilderAddData(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name     string
-		data     []byte
-		expected []byte
-		useFull  bool // use AddFullData instead of AddData.
+		name         string
+		data         []byte
+		expected     []byte
+		useUnchecked bool // use AddDataUnchecked instead of AddData.
 	}{
 		// BIP0062: Pushing an empty byte sequence must use OP_0.
 		{name: "push empty byte sequence", data: nil, expected: []byte{OP_0}},
@@ -245,34 +245,34 @@ func TestScriptBuilderAddData(t *testing.T) {
 			expected: nil,
 		},
 
-		// Additional tests for the PushFullData function that
+		// Additional tests for the unchecked function that
 		// intentionally allows data pushes to exceed the limit for
 		// regression testing purposes.
 
 		// 3-byte data push via OP_PUSHDATA_2.
 		{
-			name:     "push data len 32767 (non-canonical)",
-			data:     bytes.Repeat([]byte{0x49}, 32767),
-			expected: append([]byte{OP_PUSHDATA2, 255, 127}, bytes.Repeat([]byte{0x49}, 32767)...),
-			useFull:  true,
+			name:         "push data len 32767 (non-canonical)",
+			data:         bytes.Repeat([]byte{0x49}, 32767),
+			expected:     append([]byte{OP_PUSHDATA2, 255, 127}, bytes.Repeat([]byte{0x49}, 32767)...),
+			useUnchecked: true,
 		},
 
 		// 5-byte data push via OP_PUSHDATA_4.
 		{
-			name:     "push data len 65536 (non-canonical)",
-			data:     bytes.Repeat([]byte{0x49}, 65536),
-			expected: append([]byte{OP_PUSHDATA4, 0, 0, 1, 0}, bytes.Repeat([]byte{0x49}, 65536)...),
-			useFull:  true,
+			name:         "push data len 65536 (non-canonical)",
+			data:         bytes.Repeat([]byte{0x49}, 65536),
+			expected:     append([]byte{OP_PUSHDATA4, 0, 0, 1, 0}, bytes.Repeat([]byte{0x49}, 65536)...),
+			useUnchecked: true,
 		},
 	}
 
 	builder := NewScriptBuilder()
 	t.Logf("Running %d tests", len(tests))
 	for i, test := range tests {
-		if !test.useFull {
+		if !test.useUnchecked {
 			builder.Reset().AddData(test.data)
 		} else {
-			builder.Reset().AddFullData(test.data)
+			builder.Reset().AddDataUnchecked(test.data)
 		}
 		result, _ := builder.Script()
 		if !bytes.Equal(result, test.expected) {
@@ -292,7 +292,7 @@ func TestExceedMaxScriptSize(t *testing.T) {
 
 	// Start off by constructing a max size script.
 	builder := NewScriptBuilder()
-	builder.Reset().AddFullData(make([]byte, MaxScriptSize-3))
+	builder.Reset().AddDataUnchecked(make([]byte, MaxScriptSize-3))
 	origScript, err := builder.Script()
 	if err != nil {
 		t.Fatalf("Unexpected error for max size script: %v", err)
@@ -313,7 +313,7 @@ func TestExceedMaxScriptSize(t *testing.T) {
 
 	// Ensure adding an opcode that would exceed the maximum size of the
 	// script does not add the data.
-	builder.Reset().AddFullData(make([]byte, MaxScriptSize-3))
+	builder.Reset().AddDataUnchecked(make([]byte, MaxScriptSize-3))
 	script, err = builder.AddOp(OP_0).Script()
 	if err == nil || !errors.As(err, &e) {
 		t.Fatalf("ScriptBuilder.AddOp unexpected modified script - "+
@@ -326,7 +326,7 @@ func TestExceedMaxScriptSize(t *testing.T) {
 
 	// Ensure adding an integer that would exceed the maximum size of the
 	// script does not add the data.
-	builder.Reset().AddFullData(make([]byte, MaxScriptSize-3))
+	builder.Reset().AddDataUnchecked(make([]byte, MaxScriptSize-3))
 	script, err = builder.AddInt64(0).Script()
 	if err == nil || !errors.As(err, &e) {
 		t.Fatalf("ScriptBuilder.AddInt64 unexpected modified script - "+
@@ -347,10 +347,10 @@ func TestErroredScript(t *testing.T) {
 	// space left to add each data type without an error and force an
 	// initial error condition.
 	builder := NewScriptBuilder()
-	builder.Reset().AddFullData(make([]byte, MaxScriptSize-8))
+	builder.Reset().AddDataUnchecked(make([]byte, MaxScriptSize-8))
 	origScript, err := builder.Script()
 	if err != nil {
-		t.Fatalf("ScriptBuilder.AddFullData unexpected error: %v", err)
+		t.Fatalf("ScriptBuilder.AddDataUnchecked unexpected error: %v", err)
 	}
 	var e ErrScriptNotCanonical
 	script, err := builder.AddData([]byte{0x00, 0x00, 0x00, 0x00, 0x00}).Script()
@@ -365,12 +365,12 @@ func TestErroredScript(t *testing.T) {
 
 	// Ensure adding data, even using the non-canonical path, to a script
 	// that has errored doesn't succeed.
-	script, err = builder.AddFullData([]byte{0x00}).Script()
+	script, err = builder.AddDataUnchecked([]byte{0x00}).Script()
 	if err == nil || !errors.As(err, &e) {
-		t.Fatal("ScriptBuilder.AddFullData succeeded on errored script")
+		t.Fatal("ScriptBuilder.AddDataUnchecked succeeded on errored script")
 	}
 	if !bytes.Equal(script, origScript) {
-		t.Fatalf("ScriptBuilder.AddFullData unexpected modified "+
+		t.Fatalf("ScriptBuilder.AddDataUnchecked unexpected modified "+
 			"script - got len %d, want len %d", len(script),
 			len(origScript))
 	}

@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2017 The btcsuite developers
-// Copyright (c) 2015-2020 The Decred developers
+// Copyright (c) 2015-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -185,7 +185,7 @@ func parseShortForm(script string) ([]byte, error) {
 
 		// Quoted data.
 		if len(tok) >= 2 && tok[0] == '\'' && tok[len(tok)-1] == '\'' {
-			builder.AddFullData([]byte(tok[1 : len(tok)-1]))
+			builder.AddDataUnchecked([]byte(tok[1 : len(tok)-1]))
 			return nil
 		}
 
@@ -196,7 +196,7 @@ func parseShortForm(script string) ([]byte, error) {
 				return fmt.Errorf("bad token %q", tok)
 			}
 			data := strings.Repeat(m[1], int(count))
-			builder.AddFullData([]byte(data))
+			builder.AddDataUnchecked([]byte(data))
 			return nil
 		}
 
