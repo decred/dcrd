@@ -1493,7 +1493,8 @@ func (b *BlockChain) maybeUpdateIsCurrent(curBest *blockNode) {
 		b.index.RLock()
 		bestHeader := b.index.bestHeader
 		b.index.RUnlock()
-		syncedToBestHeader := curBest.Ancestor(bestHeader.height) == bestHeader
+		syncedToBestHeader := curBest.height == bestHeader.height ||
+			curBest.Ancestor(bestHeader.height) == bestHeader
 		if !syncedToBestHeader {
 			return
 		}
