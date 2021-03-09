@@ -6250,6 +6250,69 @@ func TestHandleSetGenerate(t *testing.T) {
 	}})
 }
 
+func TestHandleReconsiderBlock(t *testing.T) {
+	t.Parallel()
+
+	chainWithErr := func(err error) *testRPCChain {
+		chain := defaultMockRPCChain()
+		chain.reconsiderBlockErr = err
+		return chain
+	}
+
+	validReconsiderBlockCmd := &types.ReconsiderBlockCmd{
+		BlockHash: block432100.BlockHash().String(),
+	}
+
+	testRPCServerHandler(t, []rpcTest{{
+		name:    "handleReconsiderBlock: ok",
+		handler: handleReconsiderBlock,
+		cmd:     validReconsiderBlockCmd,
+	}, {
+		name:    "handleReconsiderBlock: bad hash",
+		handler: handleReconsiderBlock,
+		cmd: &types.ReconsiderBlockCmd{
+			BlockHash: "bad hash",
+		},
+		wantErr: true,
+		errCode: dcrjson.ErrRPCDecodeHexString,
+	}, {
+		name:      "handleReconsiderBlock: block not found",
+		handler:   handleReconsiderBlock,
+		cmd:       validReconsiderBlockCmd,
+		mockChain: chainWithErr(blockchain.ErrUnknownBlock),
+		wantErr:   true,
+		errCode:   dcrjson.ErrRPCBlockNotFound,
+	}, {
+		name:      "handleReconsiderBlock: reconsider rules error",
+		handler:   handleReconsiderBlock,
+		cmd:       validReconsiderBlockCmd,
+		mockChain: chainWithErr(blockchain.RuleError{}),
+		wantErr:   true,
+		errCode:   dcrjson.ErrRPCReconsiderFailure,
+	}, {
+		name:      "handleReconsiderBlock: reconsider multi error that includes only rule errors",
+		handler:   handleReconsiderBlock,
+		cmd:       validReconsiderBlockCmd,
+		mockChain: chainWithErr(blockchain.MultiError{blockchain.RuleError{}}),
+		wantErr:   true,
+		errCode:   dcrjson.ErrRPCReconsiderFailure,
+	}, {
+		name:      "handleReconsiderBlock: reconsider multi error that includes a non rule error",
+		handler:   handleReconsiderBlock,
+		cmd:       validReconsiderBlockCmd,
+		mockChain: chainWithErr(blockchain.MultiError{blockchain.RuleError{}, errors.New("")}),
+		wantErr:   true,
+		errCode:   dcrjson.ErrRPCInternal.Code,
+	}, {
+		name:      "handleReconsiderBlock: reconsider other error",
+		handler:   handleReconsiderBlock,
+		cmd:       validReconsiderBlockCmd,
+		mockChain: chainWithErr(errors.New("")),
+		wantErr:   true,
+		errCode:   dcrjson.ErrRPCInternal.Code,
+	}})
+}
+
 func TestHandleRegenTemplate(t *testing.T) {
 	t.Parallel()
 
