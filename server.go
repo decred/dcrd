@@ -725,7 +725,7 @@ func (sp *serverPeer) OnVersion(_ *peer.Peer, msg *wire.MsgVersion) {
 		if !cfg.DisableListen && sp.server.syncManager.IsCurrent() {
 			// Get address that best matches.
 			lna := addrManager.GetBestLocalAddress(remoteAddr)
-			if addrmgr.IsRoutable(lna) {
+			if addrmgr.IsRoutable(lna.IP) {
 				// Filter addresses the peer already knows about.
 				addresses := []*wire.NetAddress{lna}
 				sp.pushAddrMsg(addresses)
