@@ -10,7 +10,6 @@ package rpctest
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"testing"
 	"time"
@@ -21,8 +20,6 @@ import (
 	dcrdtypes "github.com/decred/dcrd/rpc/jsonrpc/types/v3"
 	"github.com/decred/dcrd/txscript/v4"
 	"github.com/decred/dcrd/wire"
-
-	"golang.org/x/sync/errgroup"
 )
 
 const (
@@ -79,6 +76,10 @@ func testSendOutputs(ctx context.Context, r *Harness, t *testing.T) {
 
 	// Generate a single block, the transaction the wallet created should
 	// be found in this block.
+	if err := r.Node.RegenTemplate(ctx); err != nil {
+		t.Fatalf("unable to regenerate block template: %v", err)
+	}
+	time.Sleep(time.Millisecond * 500)
 	blockHashes, err := r.Node.Generate(ctx, 1)
 	if err != nil {
 		t.Fatalf("unable to generate single block: %v", err)
@@ -88,6 +89,10 @@ func testSendOutputs(ctx context.Context, r *Harness, t *testing.T) {
 	// Next, generate a spend much greater than the block reward. This
 	// transaction should also have been mined properly.
 	txid = genSpend(dcrutil.Amount(5000 * dcrutil.AtomsPerCoin))
+	if err := r.Node.RegenTemplate(ctx); err != nil {
+		t.Fatalf("unable to regenerate block template: %v", err)
+	}
+	time.Sleep(time.Millisecond * 500)
 	blockHashes, err = r.Node.Generate(ctx, 1)
 	if err != nil {
 		t.Fatalf("unable to generate single block: %v", err)
@@ -404,12 +409,11 @@ func testJoinMempools(ctx context.Context, r *Harness, t *testing.T) {
 	// Wait until the transaction shows up to ensure the two mempools are
 	// not the same.
 	harnessSynced := make(chan struct{})
-	var eg errgroup.Group
-	eg.Go(func() error {
+	go func() {
 		for {
 			poolHashes, err := r.Node.GetRawMempool(ctx, dcrdtypes.GRMAll)
 			if err != nil {
-				return fmt.Errorf("failed to retrieve harness mempool: %v", err)
+				t.Fatalf("failed to retrieve harness mempool: %v", err)
 			}
 			if len(poolHashes) > 0 {
 				break
@@ -417,11 +421,7 @@ func testJoinMempools(ctx context.Context, r *Harness, t *testing.T) {
 			time.Sleep(time.Millisecond * 100)
 		}
 		harnessSynced <- struct{}{}
-		return nil
-	})
-	if err := eg.Wait(); err != nil {
-		t.Fatal(err)
-	}
+	}()
 
 	select {
 	case <-harnessSynced:
@@ -432,16 +432,12 @@ func testJoinMempools(ctx context.Context, r *Harness, t *testing.T) {
 	// This select case should fall through to the default as the goroutine
 	// should be blocked on the JoinNodes call.
 	poolsSynced := make(chan struct{})
-	eg.Go(func() error {
+	go func() {
 		if err := JoinNodes(nodeSlice, Mempools); err != nil {
-			return fmt.Errorf("unable to join node on mempools: %v", err)
+			t.Fatalf("unable to join node on mempools: %v", err)
 		}
 		poolsSynced <- struct{}{}
-		return nil
-	})
-	if err := eg.Wait(); err != nil {
-		t.Fatal(err)
-	}
+	}()
 	select {
 	case <-poolsSynced:
 		t.Fatalf("mempools detected as synced yet harness has a new tx")
@@ -492,17 +488,12 @@ func testJoinBlocks(_ context.Context, r *Harness, t *testing.T) {
 
 	nodeSlice := []*Harness{r, harness}
 	blocksSynced := make(chan struct{})
-	var eg errgroup.Group
-	eg.Go(func() error {
+	go func() {
 		if err := JoinNodes(nodeSlice, Blocks); err != nil {
-			return fmt.Errorf("unable to join node on blocks: %v", err)
+			t.Fatalf("unable to join node on blocks: %v", err)
 		}
 		blocksSynced <- struct{}{}
-		return nil
-	})
-	if err := eg.Wait(); err != nil {
-		t.Fatal(err)
-	}
+	}()
 
 	// This select case should fall through to the default as the goroutine
 	// should be blocked on the JoinNodes calls.
@@ -524,7 +515,6 @@ func testJoinBlocks(_ context.Context, r *Harness, t *testing.T) {
 	// test hanging indefinitely, a 1 minute timeout is in place.
 	select {
 	case <-blocksSynced:
-		// fall through
 	case <-time.After(time.Minute):
 		t.Fatalf("blocks never detected as synced")
 	}
