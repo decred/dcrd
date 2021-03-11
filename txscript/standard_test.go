@@ -537,98 +537,69 @@ func TestMultiSigScript(t *testing.T) {
 	t.Parallel()
 
 	//  mainnet p2pk 13CG6SJ3yHUXo4Cr2RY4THLLJrNFuG3gUg
-	p2pkCompressedMain, err := dcrutil.NewAddressSecpPubKey(hexToBytes("02192d"+
-		"74d0cb94344c9569c2e77901573d8d7903c3ebec3a957724895dca52c6b4"),
-		mainNetParams)
-	if err != nil {
-		t.Fatalf("Unable to create pubkey address (compressed): %v",
-			err)
-	}
-	p2pkCompressed2Main, err := dcrutil.NewAddressSecpPubKey(hexToBytes("03b0b"+
-		"d634234abbb1ba1e986e884185c61cf43e001f9137f23c2c409273eb16e65"),
-		mainNetParams)
-	if err != nil {
-		t.Fatalf("Unable to create pubkey address (compressed 2): %v",
-			err)
-	}
-
-	p2pkUncompressedMain := newAddressPubKey(hexToBytes("0411d" +
-		"b93e1dcdb8a016b49840f8c53bc1eb68a382e97b1482ecad7b148a6909a5c" +
-		"b2e0eaddfb84ccf9744464f82e160bfa9b8b64f9d4c03f999b8643f656b41" +
-		"2a3"))
+	p2pkCompressedMain := hexToBytes("02192d74d0cb94344c9569c2e77901573d8d790" +
+		"3c3ebec3a957724895dca52c6b4")
+	p2pkCompressed2Main := hexToBytes("03b0bd634234abbb1ba1e986e884185c61cf43" +
+		"e001f9137f23c2c409273eb16e65")
+	p2pkUncompressedMain := hexToBytes("0411db93e1dcdb8a016b49840f8c53bc1eb68" +
+		"a382e97b1482ecad7b148a6909a5cb2e0eaddfb84ccf9744464f82e160bfa9b8b64f" +
+		"9d4c03f999b8643f656b412a3")
 
 	tests := []struct {
-		keys      []*dcrutil.AddressSecpPubKey
-		nrequired int
+		name      string
+		threshold int
+		pubKeys   [][]byte
 		expected  string
 		err       error
-	}{
-		{
-			[]*dcrutil.AddressSecpPubKey{
-				p2pkCompressedMain,
-				p2pkCompressed2Main,
-			},
-			1,
-			"1 DATA_33 0x02192d74d0cb94344c9569c2e77901573d8d7903c" +
-				"3ebec3a957724895dca52c6b4 DATA_33 0x03b0bd634" +
-				"234abbb1ba1e986e884185c61cf43e001f9137f23c2c4" +
-				"09273eb16e65 2 CHECKMULTISIG",
-			nil,
-		},
-		{
-			[]*dcrutil.AddressSecpPubKey{
-				p2pkCompressedMain,
-				p2pkCompressed2Main,
-			},
-			2,
-			"2 DATA_33 0x02192d74d0cb94344c9569c2e77901573d8d7903c" +
-				"3ebec3a957724895dca52c6b4 DATA_33 0x03b0bd634" +
-				"234abbb1ba1e986e884185c61cf43e001f9137f23c2c4" +
-				"09273eb16e65 2 CHECKMULTISIG",
-			nil,
-		},
-		{
-			[]*dcrutil.AddressSecpPubKey{
-				p2pkCompressedMain,
-				p2pkCompressed2Main,
-			},
-			3,
-			"",
-			ErrTooManyRequiredSigs,
-		},
-		{
-			// By default compressed pubkeys are used in Decred.
-			[]*dcrutil.AddressSecpPubKey{
-				p2pkUncompressedMain.(*dcrutil.AddressSecpPubKey),
-			},
-			1,
-			"1 DATA_33 0x0311db93e1dcdb8a016b49840f8c53bc1eb68a3" +
-				"82e97b1482ecad7b148a6909a5c 1 CHECKMULTISIG",
-			nil,
-		},
-		{
-			[]*dcrutil.AddressSecpPubKey{
-				p2pkUncompressedMain.(*dcrutil.AddressSecpPubKey),
-			},
-			2,
-			"",
-			ErrTooManyRequiredSigs,
-		},
-	}
+	}{{
+		name:      "normal 1-of-2",
+		threshold: 1,
+		pubKeys:   [][]byte{p2pkCompressedMain, p2pkCompressed2Main},
+		expected: "1 DATA_33 0x02192d74d0cb94344c9569c2e77901573d8d7903c" +
+			"3ebec3a957724895dca52c6b4 DATA_33 0x03b0bd634" +
+			"234abbb1ba1e986e884185c61cf43e001f9137f23c2c4" +
+			"09273eb16e65 2 CHECKMULTISIG",
+	}, {
+		name:      "normal 2-of-2",
+		threshold: 2,
+		pubKeys:   [][]byte{p2pkCompressedMain, p2pkCompressed2Main},
+		expected: "2 DATA_33 0x02192d74d0cb94344c9569c2e77901573d8d7903c" +
+			"3ebec3a957724895dca52c6b4 DATA_33 0x03b0bd634" +
+			"234abbb1ba1e986e884185c61cf43e001f9137f23c2c4" +
+			"09273eb16e65 2 CHECKMULTISIG",
+	}, {
+		name:      "threshold 3 > 2 pubkeys",
+		pubKeys:   [][]byte{p2pkCompressedMain, p2pkCompressed2Main},
+		threshold: 3,
+		expected:  "",
+		err:       ErrTooManyRequiredSigs,
+	}, {
+		name:      "threshold 2 > 1 pubkey",
+		pubKeys:   [][]byte{p2pkCompressedMain},
+		threshold: 2,
+		expected:  "",
+		err:       ErrTooManyRequiredSigs,
+	}, {
+		name:      "reject uncompressed pubkeys",
+		pubKeys:   [][]byte{p2pkUncompressedMain},
+		threshold: 1,
+		expected:  "",
+		err:       ErrPubKeyType,
+	}}
 
 	t.Logf("Running %d tests", len(tests))
-	for i, test := range tests {
-		script, err := MultiSigScript(test.keys, test.nrequired)
+	for _, test := range tests {
+		script, err := MultiSigScript(test.threshold, test.pubKeys...)
 		if !errors.Is(err, test.err) {
-			t.Errorf("MultiSigScript #%d: unexpected error - got %v, want %v",
-				i, err, test.err)
+			t.Errorf("%q: unexpected error - got %v, want %v", test.name, err,
+				test.err)
 			continue
 		}
 
 		expected := mustParseShortForm(test.expected)
 		if !bytes.Equal(script, expected) {
-			t.Errorf("MultiSigScript #%d got: %x\nwant: %x",
-				i, script, expected)
+			t.Errorf("%q: unexpected result -- got: %x\nwant: %x", test.name,
+				script, expected)
 			continue
 		}
 	}

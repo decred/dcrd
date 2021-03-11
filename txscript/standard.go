@@ -1150,22 +1150,33 @@ func PayToAddrScript(addr dcrutil.Address) ([]byte, error) {
 }
 
 // MultiSigScript returns a valid script for a multisignature redemption where
-// nrequired of the keys in pubkeys are required to have signed the transaction
-// for success.  An Error with kind ErrTooManyRequiredSigs will be returned if
-// nrequired is larger than the number of keys provided.
-func MultiSigScript(pubkeys []*dcrutil.AddressSecpPubKey, nrequired int) ([]byte, error) {
-	if len(pubkeys) < nrequired {
+// the specified threshold number of the keys in the given public keys are
+// required to have signed the transaction for success.
+//
+// The provided public keys must be serialized in the compressed format or an
+// error with kind ErrPubKeyType will be returned.
+//
+// An Error with kind ErrTooManyRequiredSigs will be returned if the threshold
+// is larger than the number of keys provided.
+func MultiSigScript(threshold int, pubKeys ...[]byte) ([]byte, error) {
+	if len(pubKeys) < threshold {
 		str := fmt.Sprintf("unable to generate multisig script with "+
 			"%d required signatures when there are only %d public "+
-			"keys available", nrequired, len(pubkeys))
+			"keys available", threshold, len(pubKeys))
 		return nil, scriptError(ErrTooManyRequiredSigs, str)
 	}
 
-	builder := NewScriptBuilder().AddInt64(int64(nrequired))
-	for _, key := range pubkeys {
-		builder.AddData(key.ScriptAddress())
+	builder := NewScriptBuilder().AddInt64(int64(threshold))
+	for _, pubKey := range pubKeys {
+		if !IsStrictCompressedPubKeyEncoding(pubKey) {
+			str := fmt.Sprintf("unable to generate multisig script with "+
+				"unsupported public key %x", pubKey)
+			return nil, scriptError(ErrPubKeyType, str)
+		}
+
+		builder.AddData(pubKey)
 	}
-	builder.AddInt64(int64(len(pubkeys)))
+	builder.AddInt64(int64(len(pubKeys)))
 	builder.AddOp(OP_CHECKMULTISIG)
 
 	return builder.Script()

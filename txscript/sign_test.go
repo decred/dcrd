@@ -2228,9 +2228,8 @@ func TestSignTxOutput(t *testing.T) {
 				break
 			}
 
-			pkScript, err := MultiSigScript(
-				[]*dcrutil.AddressSecpPubKey{address1, address2},
-				2)
+			pkScript, err := MultiSigScript(2, pk1.SerializeCompressed(),
+				pk2.SerializeCompressed())
 			if err != nil {
 				t.Errorf("failed to make pkscript "+
 					"for %s: %v", msg, err)
@@ -2336,9 +2335,8 @@ func TestSignTxOutput(t *testing.T) {
 				break
 			}
 
-			pkScript, err := MultiSigScript(
-				[]*dcrutil.AddressSecpPubKey{address1, address2},
-				2)
+			pkScript, err := MultiSigScript(2, pk1.SerializeCompressed(),
+				pk2.SerializeCompressed())
 			if err != nil {
 				t.Errorf("failed to make pkscript "+
 					"for %s: %v", msg, err)
@@ -2484,9 +2482,8 @@ func TestSignTxOutput(t *testing.T) {
 				break
 			}
 
-			pkScript, err := MultiSigScript(
-				[]*dcrutil.AddressSecpPubKey{address1, address2},
-				2)
+			pkScript, err := MultiSigScript(2, pk1.SerializeCompressed(),
+				pk2.SerializeCompressed())
 			if err != nil {
 				t.Errorf("failed to make pkscript "+
 					"for %s: %v", msg, err)
