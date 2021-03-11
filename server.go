@@ -3585,7 +3585,6 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB, chainP
 			ChainParams:                s.chainParams,
 			PermitConnectionlessMining: cfg.SimNet || cfg.RegNet,
 			BgBlkTmplGenerator:         s.bg,
-			MiningAddrs:                cfg.miningAddrs,
 			ProcessBlock:               s.syncManager.ProcessBlock,
 			ConnectedCount:             s.ConnectedCount,
 			IsCurrent:                  s.syncManager.IsCurrent,

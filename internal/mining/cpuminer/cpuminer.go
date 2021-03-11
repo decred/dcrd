@@ -89,10 +89,6 @@ type Config struct {
 	// generate block templates that the miner will attempt to solve.
 	BgBlkTmplGenerator *mining.BgBlkTmplGenerator
 
-	// MiningAddrs is a list of payment addresses to use for the generated
-	// blocks.  Each generated block will randomly choose one of them.
-	MiningAddrs []dcrutil.Address
-
 	// ProcessBlock defines the function to call with any solved blocks.
 	// It typically must run the provided block through the same set of
 	// rules and handling as any other block coming from the network.
