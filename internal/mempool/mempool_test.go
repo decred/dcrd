@@ -41,16 +41,15 @@ const (
 // transactions to be appear as though they are spending completely valid utxos.
 type fakeChain struct {
 	sync.RWMutex
-	nextStakeDiff  int64
-	utxos          *blockchain.UtxoViewpoint
-	utxoTimes      map[wire.OutPoint]int64
-	blocks         map[chainhash.Hash]*dcrutil.Block
-	currentHash    chainhash.Hash
-	currentHeight  int64
-	medianTime     time.Time
-	scriptFlags    txscript.ScriptFlags
-	acceptSeqLocks bool
-	tspendMined    map[chainhash.Hash]struct{}
+	nextStakeDiff int64
+	utxos         *blockchain.UtxoViewpoint
+	utxoTimes     map[wire.OutPoint]int64
+	blocks        map[chainhash.Hash]*dcrutil.Block
+	currentHash   chainhash.Hash
+	currentHeight int64
+	medianTime    time.Time
+	scriptFlags   txscript.ScriptFlags
+	tspendMined   map[chainhash.Hash]struct{}
 }
 
 // NextStakeDifficulty returns the next stake difficulty associated with the
