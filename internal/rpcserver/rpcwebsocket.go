@@ -305,10 +305,9 @@ type wsClientFilter struct {
 	params dcrutil.AddressParams
 
 	// Implemented fast paths for address lookup.
-	pubKeyHashes        map[[ripemd160.Size]byte]struct{}
-	scriptHashes        map[[ripemd160.Size]byte]struct{}
-	compressedPubKeys   map[[33]byte]struct{}
-	uncompressedPubKeys map[[65]byte]struct{}
+	pubKeyHashes      map[[ripemd160.Size]byte]struct{}
+	scriptHashes      map[[ripemd160.Size]byte]struct{}
+	compressedPubKeys map[[33]byte]struct{}
 
 	// A fallback address lookup map in case a fast path doesn't exist.
 	// Only exists for completeness.  If using this shows up in a profile,
@@ -321,13 +320,12 @@ type wsClientFilter struct {
 
 func makeWSClientFilter(addresses []string, unspentOutPoints []*wire.OutPoint, params dcrutil.AddressParams) *wsClientFilter {
 	filter := &wsClientFilter{
-		params:              params,
-		pubKeyHashes:        map[[ripemd160.Size]byte]struct{}{},
-		scriptHashes:        map[[ripemd160.Size]byte]struct{}{},
-		compressedPubKeys:   map[[33]byte]struct{}{},
-		uncompressedPubKeys: map[[65]byte]struct{}{},
-		otherAddresses:      map[string]struct{}{},
-		unspent:             make(map[wire.OutPoint]struct{}, len(unspentOutPoints)),
+		params:            params,
+		pubKeyHashes:      map[[ripemd160.Size]byte]struct{}{},
+		scriptHashes:      map[[ripemd160.Size]byte]struct{}{},
+		compressedPubKeys: map[[33]byte]struct{}{},
+		otherAddresses:    map[string]struct{}{},
+		unspent:           make(map[wire.OutPoint]struct{}, len(unspentOutPoints)),
 	}
 
 	for _, s := range addresses {
@@ -355,11 +353,6 @@ func (f *wsClientFilter) addAddress(a dcrutil.Address) {
 			var compressedPubKey [33]byte
 			copy(compressedPubKey[:], serializedPubKey)
 			f.compressedPubKeys[compressedPubKey] = struct{}{}
-			return
-		case 65: // uncompressed
-			var uncompressedPubKey [65]byte
-			copy(uncompressedPubKey[:], serializedPubKey)
-			f.uncompressedPubKeys[uncompressedPubKey] = struct{}{}
 			return
 		}
 	}
@@ -393,14 +386,6 @@ func (f *wsClientFilter) existsAddress(a dcrutil.Address) bool {
 			var compressedPubKey [33]byte
 			copy(compressedPubKey[:], serializedPubKey)
 			_, ok := f.compressedPubKeys[compressedPubKey]
-			if !ok {
-				_, ok = f.pubKeyHashes[*a.AddressPubKeyHash().Hash160()]
-			}
-			return ok
-		case 65: // uncompressed
-			var uncompressedPubKey [65]byte
-			copy(uncompressedPubKey[:], serializedPubKey)
-			_, ok := f.uncompressedPubKeys[uncompressedPubKey]
 			if !ok {
 				_, ok = f.pubKeyHashes[*a.AddressPubKeyHash().Hash160()]
 			}
