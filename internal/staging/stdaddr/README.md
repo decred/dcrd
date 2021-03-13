@@ -26,18 +26,19 @@ implicit depending on the specific concrete encoding of the address.
 ### Supported Version 0 Addresses
 
 The following table lists the `version 0` address types this package supports
-along with whether the type is supported by the staking system, whether it has
-an associated `hash160`, and some additional notes and recommendations:
+along with whether the type is supported by the staking system, whether it has a
+raw public key that can be obtained, whether it has an associated `hash160`, and
+some additional notes and recommendations:
 
-Version 0 Address Type    | Staking? | Hash160? | Notes / Recommendations
---------------------------|----------|----------|----------------------------------
-p2pk-ecdsa-secp256k1      |    N     |    N     | Prefer p2pkh in on-chain txns [1]
-p2pk-ed25519              |    N     |    N     | Not recommended [2]
-p2pk-schnorr-secp256k1    |    N     |    N     | Prefer p2pkh, single party [1,3]
-**p2pkh-ecdsa-secp256k1** |  **Y**   |  **Y**   | **Preferred v0 address**
-p2pkh-ed25519             |    N     |    Y     | Not recommended [2]
-p2pkh-schnorr-secp256k1   |    N     |    Y     | Only use with single party [3]
-p2sh                      |    Y     |    Y     | -
+Version 0 Address Type    | Staking? | PubKey? | Hash160? | Notes / Recommendations
+--------------------------|----------|---------|----------|----------------------------------
+p2pk-ecdsa-secp256k1      |    N     |    Y    |    N     | Prefer p2pkh in on-chain txns [1]
+p2pk-ed25519              |    N     |    Y    |    N     | Not recommended [2]
+p2pk-schnorr-secp256k1    |    N     |    Y    |    N     | Prefer p2pkh, single party [1,3]
+**p2pkh-ecdsa-secp256k1** |  **Y**   |  **N**  |  **Y**   | **Preferred v0 address**
+p2pkh-ed25519             |    N     |    N    |    Y     | Not recommended [2]
+p2pkh-schnorr-secp256k1   |    N     |    N    |    Y     | Only use with single party [3]
+p2sh                      |    Y     |    N    |    Y     | -
 
 Abbreviations:
 
@@ -181,6 +182,24 @@ implemented by the public key address types.  This allows callers to determine
 if an address can be converted to its public key hash variant by type asserting
 the interface and then convert it by making use of the `AddressPubKeyHash`
 method provided by the interface.
+
+### Obtaining Serialized Public Key From Public Key Addresses
+
+When making use of public key addresses, callers often need to obtain the
+serialized public key associated with the address for further processing.
+
+This package provides the `SerializedPubKeyer` interface, which is only
+implemented by the public key address types, for this purpose.  Callers may
+determine if a serialized public key can be obtained from an address by type
+asserting the interface and then extract it by making use of the
+`SerializedPubKey` method provided by the interface.
+
+However, it is also worth noting that merely obtaining the serialized public key
+via the generic interface is typically not sufficient on its own for a caller to
+be able to work with it since parsing a public key requires knowing what type of
+key it is as well.  In that case, the caller will likely need to fall back to
+type asserting the specific concrete implementation to determine which type of
+public key it is dealing with.
 
 ### Hash160 Use in Addresses
 
