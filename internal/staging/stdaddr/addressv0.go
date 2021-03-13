@@ -258,6 +258,12 @@ func (addr *AddressPubKeyEcdsaSecp256k1V0) AddressPubKeyHash() Address {
 	return addrPKH
 }
 
+// SerializedPubKey returns the compressed serialization of the secp256k1 public
+// key.  The bytes must not be modified.
+func (addr *AddressPubKeyEcdsaSecp256k1V0) SerializedPubKey() []byte {
+	return addr.serializedPubKey
+}
+
 // String returns a human-readable string for the address.
 //
 // This is equivalent to calling Address, but is provided so the type can be
@@ -371,6 +377,12 @@ func (addr *AddressPubKeyEd25519V0) AddressPubKeyHash() Address {
 	}
 	copy(addrPKH.hash[:], pkHash)
 	return addrPKH
+}
+
+// SerializedPubKey returns the serialization of the ed25519 public key.  The
+// bytes must not be modified.
+func (addr *AddressPubKeyEd25519V0) SerializedPubKey() []byte {
+	return addr.serializedPubKey
 }
 
 // String returns a human-readable string for the address.
@@ -515,6 +527,12 @@ func (addr *AddressPubKeySchnorrSecp256k1V0) AddressPubKeyHash() Address {
 	}
 	copy(addrPKH.hash[:], pkHash)
 	return addrPKH
+}
+
+// SerializedPubKey returns the compressed serialization of the secp256k1 public
+// key.  The bytes must not be modified.
+func (addr *AddressPubKeySchnorrSecp256k1V0) SerializedPubKey() []byte {
+	return addr.serializedPubKey
 }
 
 // String returns a human-readable string for the address.

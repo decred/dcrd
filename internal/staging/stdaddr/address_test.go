@@ -153,6 +153,7 @@ func TestAddresses(t *testing.T) {
 		commitScript string        // hex-encoded expected vote commitment script
 		revokeScript string        // hex-encoded expected revoke commitment script
 		trsyScript   string        // hex-encoded expected pay from treasury script
+		pubKey       string        // hex-encoded expected public key
 	}{{
 		// ---------------------------------------------------------------------
 		// Misc decoding error tests.
@@ -265,6 +266,7 @@ func TestAddresses(t *testing.T) {
 		decodeErr: nil,
 		version:   0,
 		payScript: "21028f53838b7639563f27c94845549a41e5146bcd52e7fef0ea6da143a02b0fe2edac",
+		pubKey:    "028f53838b7639563f27c94845549a41e5146bcd52e7fef0ea6da143a02b0fe2ed",
 	}, {
 		name: "mainnet p2pk-ecdsa-secp256k1 compressed (0x03)",
 		makeAddr: func() (Address, error) {
@@ -278,6 +280,7 @@ func TestAddresses(t *testing.T) {
 		decodeErr: nil,
 		version:   0,
 		payScript: "2103e925aafc1edd44e7c7f1ea4fb7d265dc672f204c3d0c81930389c10b81fb75deac",
+		pubKey:    "03e925aafc1edd44e7c7f1ea4fb7d265dc672f204c3d0c81930389c10b81fb75de",
 	}, {
 		name: "mainnet p2pk-ecdsa-secp256k1 compressed via concrete constructor",
 		makeAddr: func() (Address, error) {
@@ -294,6 +297,7 @@ func TestAddresses(t *testing.T) {
 		decodeErr: nil,
 		version:   0,
 		payScript: "21028f53838b7639563f27c94845549a41e5146bcd52e7fef0ea6da143a02b0fe2edac",
+		pubKey:    "028f53838b7639563f27c94845549a41e5146bcd52e7fef0ea6da143a02b0fe2ed",
 	}, {
 		name: "mainnet p2pk-ecdsa-secp256k1 compressed from uncompressed via concrete constructor",
 		makeAddr: func() (Address, error) {
@@ -312,6 +316,7 @@ func TestAddresses(t *testing.T) {
 		decodeErr: nil,
 		version:   0,
 		payScript: "210264c44653d6567eff5753c5d24a682ddc2b2cadfe1b0c6433b16374dace6778f0ac",
+		pubKey:    "0264c44653d6567eff5753c5d24a682ddc2b2cadfe1b0c6433b16374dace6778f0",
 	}, {
 		name: "testnet p2pk-ecdsa-secp256k1 compressed (0x02)",
 		makeAddr: func() (Address, error) {
@@ -325,6 +330,7 @@ func TestAddresses(t *testing.T) {
 		decodeErr: nil,
 		version:   0,
 		payScript: "21026a40c403e74670c4de7656a09caa2353d4b383a9ce66eef51e1220eacf4be06eac",
+		pubKey:    "026a40c403e74670c4de7656a09caa2353d4b383a9ce66eef51e1220eacf4be06e",
 	}, {
 		name: "testnet p2pk-ecdsa-secp256k1 compressed (0x03)",
 		makeAddr: func() (Address, error) {
@@ -338,6 +344,7 @@ func TestAddresses(t *testing.T) {
 		decodeErr: nil,
 		version:   0,
 		payScript: "21030844ee70d8384d5250e9bb3a6a73d4b5bec770e8b31d6a0ae9fb739009d91af5ac",
+		pubKey:    "030844ee70d8384d5250e9bb3a6a73d4b5bec770e8b31d6a0ae9fb739009d91af5",
 	}, {
 		name: "testnet p2pk-ecdsa-secp256k1 compressed via concrete constructor",
 		makeAddr: func() (Address, error) {
@@ -354,6 +361,7 @@ func TestAddresses(t *testing.T) {
 		decodeErr: nil,
 		version:   0,
 		payScript: "21026a40c403e74670c4de7656a09caa2353d4b383a9ce66eef51e1220eacf4be06eac",
+		pubKey:    "026a40c403e74670c4de7656a09caa2353d4b383a9ce66eef51e1220eacf4be06e",
 	}, {
 		name: "testnet p2pk-ecdsa-secp256k1 compressed from uncompressed via concrete constructor",
 		makeAddr: func() (Address, error) {
@@ -372,6 +380,7 @@ func TestAddresses(t *testing.T) {
 		decodeErr: nil,
 		version:   0,
 		payScript: "21026a40c403e74670c4de7656a09caa2353d4b383a9ce66eef51e1220eacf4be06eac",
+		pubKey:    "026a40c403e74670c4de7656a09caa2353d4b383a9ce66eef51e1220eacf4be06e",
 	}, {
 		name:      "regnet p2pk-ecdsa-secp256k1 compressed (0x02)",
 		addr:      "Rk41kKgrecrxQ8bLg8GJm1feMPBFtFeb4rG56tDfMdAtvPy4HneyR",
@@ -379,6 +388,7 @@ func TestAddresses(t *testing.T) {
 		decodeErr: nil,
 		version:   0,
 		payScript: "21026a40c403e74670c4de7656a09caa2353d4b383a9ce66eef51e1220eacf4be06eac",
+		pubKey:    "026a40c403e74670c4de7656a09caa2353d4b383a9ce66eef51e1220eacf4be06e",
 	}, {
 		name:      "regnet p2pk-ecdsa-secp256k1 compressed (0x03)",
 		addr:      "Rk8HpTQVbFvNQgxK3sPSiks8K1B8wbyYUGM8qABDpWGp63Q5mnG52",
@@ -386,6 +396,7 @@ func TestAddresses(t *testing.T) {
 		decodeErr: nil,
 		version:   0,
 		payScript: "21030844ee70d8384d5250e9bb3a6a73d4b5bec770e8b31d6a0ae9fb739009d91af5ac",
+		pubKey:    "030844ee70d8384d5250e9bb3a6a73d4b5bec770e8b31d6a0ae9fb739009d91af5",
 	}, {
 		// ---------------------------------------------------------------------
 		// Negative P2PK Ed25519 tests.
@@ -438,6 +449,7 @@ func TestAddresses(t *testing.T) {
 		decodeErr: nil,
 		version:   0,
 		payScript: "20cecc1507dc1ddd7295951c290888f095adb9044d1b73d696e6df065d683bd4fc51be",
+		pubKey:    "cecc1507dc1ddd7295951c290888f095adb9044d1b73d696e6df065d683bd4fc",
 	}, {
 		name: "mainnet p2pk-ed25519 via concrete constructor",
 		makeAddr: func() (Address, error) {
@@ -455,6 +467,7 @@ func TestAddresses(t *testing.T) {
 		decodeErr: nil,
 		version:   0,
 		payScript: "20cecc1507dc1ddd7295951c290888f095adb9044d1b73d696e6df065d683bd4fc51be",
+		pubKey:    "cecc1507dc1ddd7295951c290888f095adb9044d1b73d696e6df065d683bd4fc",
 	}, {
 		name: "testnet p2pk-ed25519",
 		makeAddr: func() (Address, error) {
@@ -469,6 +482,7 @@ func TestAddresses(t *testing.T) {
 		decodeErr: nil,
 		version:   0,
 		payScript: "20cecc1507dc1ddd7295951c290888f095adb9044d1b73d696e6df065d683bd4fc51be",
+		pubKey:    "cecc1507dc1ddd7295951c290888f095adb9044d1b73d696e6df065d683bd4fc",
 	}, {
 		name: "testnet p2pk-ed25519 via concrete constructor",
 		makeAddr: func() (Address, error) {
@@ -486,6 +500,7 @@ func TestAddresses(t *testing.T) {
 		decodeErr: nil,
 		version:   0,
 		payScript: "20cecc1507dc1ddd7295951c290888f095adb9044d1b73d696e6df065d683bd4fc51be",
+		pubKey:    "cecc1507dc1ddd7295951c290888f095adb9044d1b73d696e6df065d683bd4fc",
 	}, {
 		name: "regnet p2pk-ed25519",
 		makeAddr: func() (Address, error) {
@@ -500,6 +515,7 @@ func TestAddresses(t *testing.T) {
 		decodeErr: nil,
 		version:   0,
 		payScript: "20cecc1507dc1ddd7295951c290888f095adb9044d1b73d696e6df065d683bd4fc51be",
+		pubKey:    "cecc1507dc1ddd7295951c290888f095adb9044d1b73d696e6df065d683bd4fc",
 	}, {
 		// ---------------------------------------------------------------------
 		// Negative P2PK Schnorr secp256k1 tests.
@@ -582,6 +598,7 @@ func TestAddresses(t *testing.T) {
 		decodeErr: nil,
 		version:   0,
 		payScript: "21028f53838b7639563f27c94845549a41e5146bcd52e7fef0ea6da143a02b0fe2ed52be",
+		pubKey:    "028f53838b7639563f27c94845549a41e5146bcd52e7fef0ea6da143a02b0fe2ed",
 	}, {
 		name:      "mainnet p2pk-schnorr-secp256k1 compressed (0x03)",
 		addr:      "DkRQx3y6YoJPnMKom23nuDFdfhmEnu8oDLTp4YVyWC6RjND19UxHk",
@@ -589,6 +606,7 @@ func TestAddresses(t *testing.T) {
 		decodeErr: nil,
 		version:   0,
 		payScript: "2103e925aafc1edd44e7c7f1ea4fb7d265dc672f204c3d0c81930389c10b81fb75de52be",
+		pubKey:    "03e925aafc1edd44e7c7f1ea4fb7d265dc672f204c3d0c81930389c10b81fb75de",
 	}, {
 		name: "mainnet p2pk-schnorr-secp256k1 compressed via concrete constructor",
 		makeAddr: func() (Address, error) {
@@ -605,6 +623,7 @@ func TestAddresses(t *testing.T) {
 		decodeErr: nil,
 		version:   0,
 		payScript: "21028f53838b7639563f27c94845549a41e5146bcd52e7fef0ea6da143a02b0fe2ed52be",
+		pubKey:    "028f53838b7639563f27c94845549a41e5146bcd52e7fef0ea6da143a02b0fe2ed",
 	}, {
 		name: "mainnet p2pk-schnorr-secp256k1 compressed from uncompressed via concrete constructor",
 		makeAddr: func() (Address, error) {
@@ -623,6 +642,7 @@ func TestAddresses(t *testing.T) {
 		decodeErr: nil,
 		version:   0,
 		payScript: "21028f53838b7639563f27c94845549a41e5146bcd52e7fef0ea6da143a02b0fe2ed52be",
+		pubKey:    "028f53838b7639563f27c94845549a41e5146bcd52e7fef0ea6da143a02b0fe2ed",
 	}, {
 		name:      "testnet p2pk-schnorr-secp256k1 compressed (0x02)",
 		addr:      "TkKqFCtYcHPupVbPcDdhvkNeNYXPqqs88Z4ygukH9MGaNV8e1WWhX",
@@ -630,6 +650,7 @@ func TestAddresses(t *testing.T) {
 		decodeErr: nil,
 		version:   0,
 		payScript: "21026a40c403e74670c4de7656a09caa2353d4b383a9ce66eef51e1220eacf4be06e52be",
+		pubKey:    "026a40c403e74670c4de7656a09caa2353d4b383a9ce66eef51e1220eacf4be06e",
 	}, {
 		name:      "testnet p2pk-schnorr-secp256k1 compressed (0x03)",
 		addr:      "TkQ7KLcBYvTKq3xMyxkqtVa8LAXGuCC5XyA3RBhqcENVY8ZiDjuAB",
@@ -637,6 +658,7 @@ func TestAddresses(t *testing.T) {
 		decodeErr: nil,
 		version:   0,
 		payScript: "21030844ee70d8384d5250e9bb3a6a73d4b5bec770e8b31d6a0ae9fb739009d91af552be",
+		pubKey:    "030844ee70d8384d5250e9bb3a6a73d4b5bec770e8b31d6a0ae9fb739009d91af5",
 	}, {
 		name:      "regnet p2pk-schnorr-secp256k1 compressed (0x02)",
 		addr:      "Rk45dp3KYgZokaryqY5U11aHYw1V7gwzkbqMF6hxjRACwAxDivM6N",
@@ -644,6 +666,7 @@ func TestAddresses(t *testing.T) {
 		decodeErr: nil,
 		version:   0,
 		payScript: "21026a40c403e74670c4de7656a09caa2353d4b383a9ce66eef51e1220eacf4be06e52be",
+		pubKey:    "026a40c403e74670c4de7656a09caa2353d4b383a9ce66eef51e1220eacf4be06e",
 	}, {
 		name:      "regnet p2pk-schnorr-secp256k1 compressed (0x03)",
 		addr:      "Rk8MhwkxVKdDm9DxDHCbxkmmWZ1NB3GxA1vQyNfXCJG86pPPnnn9M",
@@ -651,6 +674,7 @@ func TestAddresses(t *testing.T) {
 		decodeErr: nil,
 		version:   0,
 		payScript: "21030844ee70d8384d5250e9bb3a6a73d4b5bec770e8b31d6a0ae9fb739009d91af552be",
+		pubKey:    "030844ee70d8384d5250e9bb3a6a73d4b5bec770e8b31d6a0ae9fb739009d91af5",
 	}, {
 		// ---------------------------------------------------------------------
 		// Negative P2PKH ECDSA secp256k1 tests.
@@ -1194,6 +1218,22 @@ func TestAddresses(t *testing.T) {
 			t.Errorf("%s: mismatched decoded stringer -- got %v, want %v",
 				test.name, ds.String(), test.addr)
 			continue
+		}
+
+		// Ensure the method to get the serialized public key for the addresses
+		// that support it returns the expected value.
+		if pubKeyer, ok := decodedAddr.(SerializedPubKeyer); ok {
+			wantPubKey, err := hex.DecodeString(test.pubKey)
+			if err != nil {
+				t.Errorf("%s: unexpected hex decode err: %v", test.name, err)
+				continue
+			}
+			gotPubKey := pubKeyer.SerializedPubKey()
+			if !bytes.Equal(gotPubKey, wantPubKey) {
+				t.Errorf("%s: mismatched public key -- got %x, want %x",
+					test.name, gotPubKey, wantPubKey)
+				continue
+			}
 		}
 
 		// Ensure the AddressPubKeyHash method for the address types that

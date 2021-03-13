@@ -86,6 +86,12 @@ type StakeAddress interface {
 	PayFromTreasuryScript() (uint16, []byte)
 }
 
+// SerializedPubKeyer is an interface for public key addresses that allows the
+// serialized public key to be obtained from addresses that involve them.
+type SerializedPubKeyer interface {
+	SerializedPubKey() []byte
+}
+
 // AddressPubKeyHasher is an interface for public key addresses that can be
 // converted to an address that imposes an encumbrance that requires the public
 // key that hashes to a given public key hash along with a valid signature for
