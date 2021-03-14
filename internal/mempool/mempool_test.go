@@ -2668,24 +2668,6 @@ func TestHandlesTAdds(t *testing.T) {
 	acceptTAdd(tadd)
 }
 
-func (p *poolHarness) countTotalSigOps(tx *dcrutil.Tx, txType stake.TxType) (int, error) {
-	isVote := txType == stake.TxTypeSSGen
-	isStakeBase := txType == stake.TxTypeSSGen
-	utxoView, err := p.txPool.fetchInputUtxos(tx, p.treasuryActive)
-	if err != nil {
-		return 0, err
-	}
-
-	sigOps := blockchain.CountSigOps(tx, false, isVote, p.treasuryActive)
-	p2shSigOps, err := blockchain.CountP2SHSigOps(tx, false, isStakeBase,
-		utxoView, p.treasuryActive)
-	if err != nil {
-		return 0, err
-	}
-
-	return sigOps + p2shSigOps, nil
-}
-
 // TestStagedTransactionHeight verifies that the height of a transaction
 // that moves from the stage pool into the main pool is set to the height it
 // was initially added to the mempool, rather than the height it was unstaged.
