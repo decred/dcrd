@@ -8,7 +8,7 @@ import (
 	"fmt"
 
 	"github.com/decred/dcrd/chaincfg/v3"
-	"github.com/decred/dcrd/internal/staging/stdaddr"
+	"github.com/decred/dcrd/txscript/v4/stdaddr"
 )
 
 // This example demonstrates decoding addresses, generating their payment
