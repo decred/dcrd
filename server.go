@@ -74,7 +74,7 @@ const (
 	connectionRetryInterval = time.Second * 5
 
 	// maxProtocolVersion is the max protocol version the server supports.
-	maxProtocolVersion = wire.AddrV2Version
+	maxProtocolVersion = wire.RelayTORv3Version
 
 	// These fields are used to track known addresses on a per-peer basis.
 	//
@@ -783,6 +783,7 @@ func isSupportedNetAddressTypeV2(netAddressType addrmgr.NetAddressType) bool {
 	switch netAddressType {
 	case addrmgr.IPv4Address:
 	case addrmgr.IPv6Address:
+	case addrmgr.TORv3Address:
 		return true
 	}
 	return false
@@ -792,7 +793,7 @@ func isSupportedNetAddressTypeV2(netAddressType addrmgr.NetAddressType) bool {
 // specific address manager network address type is supported by the
 // provided protocol version.
 func getNetAddressTypeFilter(protocolVersion uint32) addrmgr.NetAddressTypeFilter {
-	if protocolVersion < wire.AddrV2Version {
+	if protocolVersion < wire.RelayTORv3Version {
 		return isSupportedNetAddressTypeV1
 	} else {
 		return isSupportedNetAddressTypeV2

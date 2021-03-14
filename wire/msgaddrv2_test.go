@@ -32,6 +32,13 @@ var (
 		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01,
 	}
 
+	torV3IpBytes = []byte{
+		0xb8, 0x39, 0x1d, 0x20, 0x03, 0xbb, 0x3b, 0xd2,
+		0x85, 0xb0, 0x35, 0xac, 0x8e, 0xb3, 0x0c, 0x80,
+		0xc4, 0xe2, 0xa2, 0x9b, 0xb7, 0xa2, 0xf0, 0xce,
+		0x0d, 0xf8, 0x74, 0x3c, 0x37, 0xec, 0x35, 0x93,
+	}
+
 	serializedIPv4NetAddressBytes = []byte{
 		0x29, 0xab, 0x5f, 0x49, 0x00, 0x00, 0x00, 0x00, // Timestamp
 		0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // Services
@@ -48,11 +55,23 @@ var (
 		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01,
 		0x8e, 0x20,
 	}
+
+	serializedTORv3NetAddressBytes = []byte{
+		0x29, 0xab, 0x5f, 0x49, 0x00, 0x00, 0x00, 0x00,
+		0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0x03,
+		0xb8, 0x39, 0x1d, 0x20, 0x03, 0xbb, 0x3b, 0xd2,
+		0x85, 0xb0, 0x35, 0xac, 0x8e, 0xb3, 0x0c, 0x80,
+		0xc4, 0xe2, 0xa2, 0x9b, 0xb7, 0xa2, 0xf0, 0xce,
+		0x0d, 0xf8, 0x74, 0x3c, 0x37, 0xec, 0x35, 0x93,
+		0x90, 0x20,
+	}
 )
 
 var (
-	ipv4Address = newNetAddressV2(IPv4Address, ipv4IpBytes, 8333)
-	ipv6Address = newNetAddressV2(IPv6Address, ipv6IpBytes, 8334)
+	ipv4Address  = newNetAddressV2(IPv4Address, ipv4IpBytes, 8333)
+	ipv6Address  = newNetAddressV2(IPv6Address, ipv6IpBytes, 8334)
+	torv3Address = newNetAddressV2(TORv3Address, torV3IpBytes, 8336)
 )
 
 // TestMaxPayloadLength verifies the maximum payload length equals the expected
@@ -72,9 +91,13 @@ func TestMaxPayloadLength(t *testing.T) {
 		pver: AddrV2Version,
 		want: 35003,
 	}, {
+		name: "protocol version 11",
+		pver: RelayTORv3Version,
+		want: 51003,
+	}, {
 		name: "latest protocol version",
 		pver: ProtocolVersion,
-		want: 35003,
+		want: 51003,
 	}}
 
 	for _, test := range tests {
@@ -165,11 +188,13 @@ func TestAddrV2Wire(t *testing.T) {
 		addrs: []*NetAddressV2{
 			ipv4Address,
 			ipv6Address,
+			torv3Address,
 		},
 		wantBytes: bytes.Join([][]byte{
-			{0x02},
+			{0x03},
 			serializedIPv4NetAddressBytes,
 			serializedIPv6NetAddressBytes,
+			serializedTORv3NetAddressBytes,
 		}, []byte{}),
 	}}
 
@@ -215,6 +240,7 @@ func TestAddrV2WireErrors(t *testing.T) {
 	pver := ProtocolVersion
 	na := ipv4Address
 	addrs := []*NetAddressV2{na}
+	addrv2 := NewMsgAddrV2()
 
 	tests := []struct {
 		name     string
@@ -270,6 +296,14 @@ func TestAddrV2WireErrors(t *testing.T) {
 		ioLimit:  3,
 		writeErr: ErrTooManyAddrs,
 		readErr:  ErrTooManyAddrs,
+	}, {
+		name:     "torv3 address invalid on protocol version 10",
+		pver:     RelayTORv3Version - 1,
+		addrs:    []*NetAddressV2{torv3Address},
+		bytes:    []byte{0x01},
+		ioLimit:  int(addrv2.MaxPayloadLength(RelayTORv3Version - 1)),
+		writeErr: ErrInvalidMsg,
+		readErr:  ErrInvalidMsg,
 	}}
 
 	t.Logf("Running %d tests", len(tests))

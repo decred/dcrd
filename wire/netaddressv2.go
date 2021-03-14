@@ -16,6 +16,7 @@ const (
 	UnknownAddressType NetAddressType = iota
 	IPv4Address
 	IPv6Address
+	TORv3Address
 )
 
 // NetAddressV2 defines information about a peer on the network.
