@@ -40,6 +40,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -113,8 +114,9 @@ func discover(ctx context.Context) (*upnpNAT, error) {
 		if err != nil {
 			return nil, err
 		}
+		var serviceIP string = getServiceIP(serviceURL)
 		var ourIP string
-		ourIP, err = getOurIP()
+		ourIP, err = getOurIP(serviceIP)
 		if err != nil {
 			return nil, err
 		}
@@ -197,12 +199,18 @@ func getChildService(d *device, serviceType string) *service {
 	return nil
 }
 
-// getOurIP returns a best guess at what the local IP is.
-func getOurIP() (ip string, err error) {
+func getServiceIP(serviceURL string) (routerIP string) {
+	url, _ := url.Parse(serviceURL)
+	return url.Hostname()
+}
+
+// getOurIP returns the local IP that is on the same subnet as the serviceIP.
+func getOurIP(serviceIP string) (ip string, err error) {
+	_, serviceNet, _ := net.ParseCIDR(serviceIP + "/24")
 	addrs, err := net.InterfaceAddrs()
 	for _, addr := range addrs {
 		ip, _, _ := net.ParseCIDR(addr.String())
-		if !ip.IsLoopback() {
+		if serviceNet.Contains(ip) {
 			return ip.String(), nil
 		}
 	}
