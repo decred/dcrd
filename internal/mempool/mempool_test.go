@@ -19,7 +19,6 @@ import (
 	"github.com/decred/dcrd/blockchain/stake/v4"
 	"github.com/decred/dcrd/blockchain/standalone/v2"
 	"github.com/decred/dcrd/blockchain/v4"
-	"github.com/decred/dcrd/blockchain/v4/chaingen"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/chaincfg/v3"
 	"github.com/decred/dcrd/dcrec"
@@ -27,6 +26,7 @@ import (
 	"github.com/decred/dcrd/dcrutil/v4"
 	"github.com/decred/dcrd/internal/mining"
 	"github.com/decred/dcrd/txscript/v4"
+	"github.com/decred/dcrd/txscript/v4/stdaddr"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -341,9 +341,13 @@ type poolHarness struct {
 	//
 	// payAddr is the p2sh address for the signing key and is used for the
 	// payment address throughout the tests.
+	//
+	// payScriptVer and payScript are the script version and script to pay the
+	// aforementioned payAddr.
 	signKey        []byte
 	sigType        dcrec.SignatureType
-	payAddr        dcrutil.Address
+	payAddr        stdaddr.StakeAddress
+	payScriptVer   uint16
 	payScript      []byte
 	chainParams    *chaincfg.Params
 	treasuryActive bool
@@ -527,22 +531,15 @@ func (p *poolHarness) CreateTx(out spendableOutput) (*dcrutil.Tx, error) {
 // CreateTicketPurchase creates a ticket purchase spending the first output of
 // the provided transaction.
 func (p *poolHarness) CreateTicketPurchase(sourceTx *dcrutil.Tx, cost int64) (*dcrutil.Tx, error) {
-	ticketFee := dcrutil.Amount(singleInputTicketSize)
-	ticketPrice := dcrutil.Amount(cost)
+	ticketFee := singleInputTicketSize
+	ticketPrice := cost
 
-	// Generate the p2sh, commitment and change scripts of the ticket.
-	pkScript, err := txscript.PayToSStx(p.payAddr)
-	if err != nil {
-		return nil, err
-	}
-	commitScript := chaingen.PurchaseCommitmentScript(p.payAddr,
+	// Generate the voting rights, commitment, and change scripts of the ticket.
+	voteScriptVer, voteScript := p.payAddr.VotingRightsScript()
+	commitScriptVer, commitScript := p.payAddr.RewardCommitmentScript(
 		ticketPrice+ticketFee, 0, ticketPrice)
-	change := dcrutil.Amount(sourceTx.MsgTx().TxOut[0].Value) -
-		ticketPrice - ticketFee
-	changeScript, err := txscript.PayToSStxChange(p.payAddr)
-	if err != nil {
-		return nil, err
-	}
+	change := sourceTx.MsgTx().TxOut[0].Value - ticketPrice - ticketFee
+	changeScriptVer, changeScript := p.payAddr.StakeChangeScript()
 
 	// Generate the ticket purchase.
 	tx := wire.NewMsgTx()
@@ -557,9 +554,9 @@ func (p *poolHarness) CreateTicketPurchase(sourceTx *dcrutil.Tx, cost int64) (*d
 		BlockHeight: uint32(p.chain.BestHeight()),
 	})
 
-	tx.AddTxOut(wire.NewTxOut(int64(ticketPrice), pkScript))
-	tx.AddTxOut(wire.NewTxOut(0, commitScript))
-	tx.AddTxOut(wire.NewTxOut(int64(change), changeScript))
+	tx.AddTxOut(newTxOut(ticketPrice, voteScriptVer, voteScript))
+	tx.AddTxOut(newTxOut(0, commitScriptVer, commitScript))
+	tx.AddTxOut(newTxOut(change, changeScriptVer, changeScript))
 
 	// Sign the ticket purchase.
 	sigScript, err := txscript.SignatureScript(tx, 0,
@@ -580,6 +577,15 @@ func newVoteScript(voteBits stake.VoteBits) ([]byte, error) {
 	binary.LittleEndian.PutUint16(b[0:2], voteBits.Bits)
 	copy(b[2:], voteBits.ExtendedBits)
 	return txscript.GenerateProvablyPruneableOut(b)
+}
+
+// newTxOut returns a new transaction output with the given parameters.
+func newTxOut(amount int64, pkScriptVer uint16, pkScript []byte) *wire.TxOut {
+	return &wire.TxOut{
+		Value:    amount,
+		Version:  pkScriptVer,
+		PkScript: pkScript,
+	}
 }
 
 // CreateVote creates a vote transaction using the provided ticket.  The vote
@@ -627,15 +633,18 @@ func (p *poolHarness) CreateVote(ticket *dcrutil.Tx, mungers ...func(*wire.MsgTx
 	}
 	vote.AddTxOut(wire.NewTxOut(0, voteScript))
 
-	// Create P2SH scripts for the ticket outputs.
-	for i, hash160 := range ticketHash160s {
-		scriptFn := txscript.PayToSSGenPKHDirect
+	// Create payment scripts for the ticket commitments.
+	params := p.chainParams
+	for i, h160 := range ticketHash160s {
+		var addr stdaddr.StakeAddress
 		if ticketPayKinds[i] { // P2SH
-			scriptFn = txscript.PayToSSGenSHDirect
+			addr, _ = stdaddr.NewAddressScriptHashV0FromHash(h160, params)
+		} else {
+			addr, _ = stdaddr.NewAddressPubKeyHashEcdsaSecp256k1V0(h160, params)
 		}
-		// Error is checking for a nil hash160, just ignore it.
-		script, _ := scriptFn(hash160)
-		vote.AddTxOut(wire.NewTxOut(voteRewardValues[i], script))
+
+		scriptVer, script := addr.PayVoteCommitmentScript()
+		vote.AddTxOut(newTxOut(voteRewardValues[i], scriptVer, script))
 	}
 
 	// Perform any transaction munging just before signing.
@@ -679,13 +688,16 @@ func (p *poolHarness) CreateRevocation(ticket *dcrutil.Tx) (*dcrutil.Tx, error) 
 
 	// All remaining outputs pay to the output destinations and amounts tagged
 	// by the ticket purchase.
-	for i, hash160 := range ticketHash160s {
-		scriptFn := txscript.PayToSSRtxPKHDirect
+	params := p.chainParams
+	for i, h160 := range ticketHash160s {
+		var addr stdaddr.StakeAddress
 		if ticketPayKinds[i] { // P2SH
-			scriptFn = txscript.PayToSSRtxSHDirect
+			addr, _ = stdaddr.NewAddressScriptHashV0FromHash(h160, params)
+		} else {
+			addr, _ = stdaddr.NewAddressPubKeyHashEcdsaSecp256k1V0(h160, params)
 		}
-		// Error is checking for a nil hash160, just ignore it.
-		script, _ := scriptFn(hash160)
+
+		_, script := addr.PayRevokeCommitmentScript()
 		revocation.AddTxOut(wire.NewTxOut(revocationValues[i], script))
 	}
 
@@ -739,16 +751,13 @@ func newPoolHarness(chainParams *chaincfg.Params) (*poolHarness, []spendableOutp
 	// Generate associated pay-to-script-hash address and resulting payment
 	// script.
 	pubKeyBytes := signPub.SerializeCompressed()
-	payPubKeyAddr, err := dcrutil.NewAddressSecpPubKey(pubKeyBytes,
+	h160 := stdaddr.Hash160(pubKeyBytes)
+	payAddr, err := stdaddr.NewAddressPubKeyHashEcdsaSecp256k1V0(h160,
 		chainParams)
 	if err != nil {
 		return nil, nil, err
 	}
-	payAddr := payPubKeyAddr.AddressPubKeyHash()
-	pkScript, err := txscript.PayToAddrScript(payAddr)
-	if err != nil {
-		return nil, nil, err
-	}
+	payScriptVer, payScript := payAddr.PaymentScript()
 
 	// Create a new fake chain and harness bound to it.
 	subsidyCache := standalone.NewSubsidyCache(chainParams)
@@ -761,13 +770,13 @@ func newPoolHarness(chainParams *chaincfg.Params) (*poolHarness, []spendableOutp
 	}
 	var harness *poolHarness
 	harness = &poolHarness{
-		signKey:     keyBytes,
-		sigType:     dcrec.STEcdsaSecp256k1,
-		payAddr:     payAddr,
-		payScript:   pkScript,
-		chainParams: chainParams,
-
-		chain: chain,
+		signKey:      keyBytes,
+		sigType:      dcrec.STEcdsaSecp256k1,
+		payAddr:      payAddr,
+		payScriptVer: payScriptVer,
+		payScript:    payScript,
+		chainParams:  chainParams,
+		chain:        chain,
 		txPool: New(&Config{
 			Policy: Policy{
 				EnableAncestorTracking: true,
@@ -2541,23 +2550,18 @@ func TestHandlesTSpends(t *testing.T) {
 // createTAdd creates a treasury add transaction spending from the given
 // harness output and sending back any outstanding change to the given address.
 func createTAdd(t *testing.T, spend *spendableOutput, payScript, signKey []byte,
-	amount, fee dcrutil.Amount, changeAddr dcrutil.Address) *wire.MsgTx {
+	amount, fee dcrutil.Amount, changeAddr stdaddr.StakeAddress) *wire.MsgTx {
 	t.Helper()
 
 	// Calculate change and generate script to deliver it.
-	var (
-		changeScript []byte
-		err          error
-	)
+	var changeScriptVer uint16
+	var changeScript []byte
 	change := spend.amount - amount - fee
 	if change < 0 {
 		t.Fatalf("negative change %v", change)
 	}
 	if change > 0 {
-		changeScript, err = txscript.PayToSStxChange(changeAddr)
-		if err != nil {
-			t.Fatalf("unable to generate Pay2SStxChange: %v", err)
-		}
+		changeScriptVer, changeScript = changeAddr.StakeChangeScript()
 	}
 
 	// Generate and return the transaction spending from the provided
@@ -2569,12 +2573,12 @@ func createTAdd(t *testing.T, spend *spendableOutput, payScript, signKey []byte,
 		Sequence:         wire.MaxTxInSequenceNum,
 		ValueIn:          int64(spend.amount),
 	})
-	tx.AddTxOut(wire.NewTxOut(int64(amount),
-		[]byte{txscript.OP_TADD}))
+	tx.AddTxOut(wire.NewTxOut(int64(amount), []byte{txscript.OP_TADD}))
 	if len(changeScript) > 0 {
-		tx.AddTxOut(wire.NewTxOut(int64(change), changeScript))
+		tx.AddTxOut(newTxOut(int64(change), changeScriptVer, changeScript))
 	}
 
+	var err error
 	tx.TxIn[0].SignatureScript, err = txscript.SignatureScript(tx,
 		0, payScript, txscript.SigHashAll, signKey,
 		dcrec.STEcdsaSecp256k1, true)
@@ -2603,14 +2607,14 @@ func TestHandlesTAdds(t *testing.T) {
 	// Addresses to use in the following TAdds.
 	addPrivKey := secp256k1.NewPrivateKey(new(secp256k1.ModNScalar).SetInt(2))
 	pubKey := addPrivKey.PubKey().SerializeCompressed()
-	pubKeyHash := dcrutil.Hash160(pubKey)
-	addP2pkhAddr, err := dcrutil.NewAddressPubKeyHash(pubKeyHash, net,
-		dcrec.STEcdsaSecp256k1)
+	pubKeyHash := stdaddr.Hash160(pubKey)
+	addP2pkhAddr, err := stdaddr.NewAddressPubKeyHashEcdsaSecp256k1V0(pubKeyHash,
+		net)
 	if err != nil {
 		t.Fatal(err)
 	}
 	addP2shScript := []byte{txscript.OP_NOP, txscript.OP_NOP, txscript.OP_TRUE}
-	addP2shAddr, err := dcrutil.NewAddressScriptHash(addP2shScript, net)
+	addP2shAddr, err := stdaddr.NewAddressScriptHashV0(addP2shScript, net)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2618,7 +2622,7 @@ func TestHandlesTAdds(t *testing.T) {
 	// Helper to create tadds for this test without having to keep passing
 	// repeated parameters.
 	createTAdd := func(spend *spendableOutput, amount, fee dcrutil.Amount,
-		changeAddr dcrutil.Address) *dcrutil.Tx {
+		changeAddr stdaddr.StakeAddress) *dcrutil.Tx {
 		t.Helper()
 		return dcrutil.NewTx(createTAdd(t, spend, harness.payScript,
 			harness.signKey, amount, fee, changeAddr))

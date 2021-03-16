@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2016-2020 The Decred developers
+// Copyright (c) 2016-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -14,10 +14,10 @@ import (
 	"github.com/decred/dcrd/blockchain/stake/v4"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/chaincfg/v3"
-	"github.com/decred/dcrd/dcrec"
 	"github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/decred/dcrd/dcrutil/v4"
 	"github.com/decred/dcrd/txscript/v4"
+	"github.com/decred/dcrd/txscript/v4/stdaddr"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -326,18 +326,15 @@ func TestCheckTransactionStandard(t *testing.T) {
 		SignatureScript:  dummySigScript,
 	}
 	addrHash := [20]byte{0x01}
-	addr, err := dcrutil.NewAddressPubKeyHash(addrHash[:],
-		chaincfg.RegNetParams(), dcrec.STEcdsaSecp256k1)
+	addr, err := stdaddr.NewAddressPubKeyHashEcdsaSecp256k1V0(addrHash[:],
+		chaincfg.RegNetParams())
 	if err != nil {
 		t.Fatalf("NewAddressPubKeyHash: unexpected error: %v", err)
 	}
-	dummyPkScript, err := txscript.PayToAddrScript(addr)
-	if err != nil {
-		t.Fatalf("PayToAddrScript: unexpected error: %v", err)
-	}
+	dummyPkScriptVer, dummyPkScript := addr.PaymentScript()
 	dummyTxOut := wire.TxOut{
 		Value:    100000000, // 1 BTC
-		Version:  0,
+		Version:  dummyPkScriptVer,
 		PkScript: dummyPkScript,
 	}
 
