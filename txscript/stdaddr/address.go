@@ -55,8 +55,15 @@ type StakeAddress interface {
 	// RewardCommitmentScript returns the script version associated with the
 	// address along with a script that commits the original funds locked to
 	// purchase a ticket plus the reward to the address along with limits to
-	// impose on any fees.
-	RewardCommitmentScript(amount int64, limits uint16) (uint16, []byte)
+	// impose on any fees (in atoms).
+	//
+	// Note that fee limits are encoded in the commitment script in terms of the
+	// closest base 2 exponent that results in a limit that is >= the provided
+	// limit.  In other words, the limits are rounded up to the next power of 2
+	// when they are not already an exact power of 2.  For example, a revocation
+	// limit of 2^23 + 1 will result in allowing a revocation fee of up to 2^24
+	// atoms.
+	RewardCommitmentScript(amount, voteFeeLimit, revocationFeeLimit int64) (uint16, []byte)
 
 	// StakeChangeScript returns the script version associated with the address
 	// along with a script to pay change to the address.  It is only valid when

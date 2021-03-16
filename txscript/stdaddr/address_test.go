@@ -147,7 +147,8 @@ func TestAddresses(t *testing.T) {
 		payScript    string        // hex-encoded expected payment script
 		voteScript   string        // hex-encoded expected voting rights script
 		rewardAmount int64         // reward commitment amount
-		feeLimits    uint16        // reward fee limits commitment
+		voteFeeLimit int64         // reward commitment vote fee limit
+		revFeeLimit  int64         // reward commitment revoke fee limit
 		rewardScript string        // hex-encoded expected reward commitment script
 		changeScript string        // hex-encoded expected stake change script
 		commitScript string        // hex-encoded expected vote commitment script
@@ -711,7 +712,7 @@ func TestAddresses(t *testing.T) {
 		payScript:    "76a9142789d58cfa0957d206f025c2af056fc8a77cebb088ac",
 		voteScript:   "ba76a9142789d58cfa0957d206f025c2af056fc8a77cebb088ac",
 		rewardAmount: 1e8,
-		feeLimits:    0x5800,
+		revFeeLimit:  16777216,
 		rewardScript: "6a1e2789d58cfa0957d206f025c2af056fc8a77cebb000e1f505000000000058",
 		changeScript: "bd76a9142789d58cfa0957d206f025c2af056fc8a77cebb088ac",
 		commitScript: "bb76a9142789d58cfa0957d206f025c2af056fc8a77cebb088ac",
@@ -731,7 +732,7 @@ func TestAddresses(t *testing.T) {
 		payScript:    "76a914229ebac30efd6a69eec9c1a48e048b7c975c25f288ac",
 		voteScript:   "ba76a914229ebac30efd6a69eec9c1a48e048b7c975c25f288ac",
 		rewardAmount: 9556193632,
-		feeLimits:    0x5900,
+		revFeeLimit:  33554432,
 		rewardScript: "6a1e229ebac30efd6a69eec9c1a48e048b7c975c25f260f19739020000000059",
 		changeScript: "bd76a914229ebac30efd6a69eec9c1a48e048b7c975c25f288ac",
 		commitScript: "bb76a914229ebac30efd6a69eec9c1a48e048b7c975c25f288ac",
@@ -751,7 +752,7 @@ func TestAddresses(t *testing.T) {
 		payScript:    "76a914f15da1cb8d1bcb162c6ab446c95757a6e791c91688ac",
 		voteScript:   "ba76a914f15da1cb8d1bcb162c6ab446c95757a6e791c91688ac",
 		rewardAmount: 2428220961,
-		feeLimits:    0x5800,
+		revFeeLimit:  16777216,
 		rewardScript: "6a1ef15da1cb8d1bcb162c6ab446c95757a6e791c91621b6bb90000000000058",
 		changeScript: "bd76a914f15da1cb8d1bcb162c6ab446c95757a6e791c91688ac",
 		commitScript: "bb76a914f15da1cb8d1bcb162c6ab446c95757a6e791c91688ac",
@@ -771,7 +772,7 @@ func TestAddresses(t *testing.T) {
 		payScript:    "76a914f15da1cb8d1bcb162c6ab446c95757a6e791c91688ac",
 		voteScript:   "ba76a914f15da1cb8d1bcb162c6ab446c95757a6e791c91688ac",
 		rewardAmount: 2428220961,
-		feeLimits:    0x5800,
+		revFeeLimit:  16777216,
 		rewardScript: "6a1ef15da1cb8d1bcb162c6ab446c95757a6e791c91621b6bb90000000000058",
 		changeScript: "bd76a914f15da1cb8d1bcb162c6ab446c95757a6e791c91688ac",
 		commitScript: "bb76a914f15da1cb8d1bcb162c6ab446c95757a6e791c91688ac",
@@ -964,7 +965,7 @@ func TestAddresses(t *testing.T) {
 		version:      0,
 		payScript:    "a914f0b4e85100aee1a996f22915eb3c3f764d53779a87",
 		rewardAmount: 1e8,
-		feeLimits:    0x5800,
+		revFeeLimit:  16777216,
 		rewardScript: "6a1ef0b4e85100aee1a996f22915eb3c3f764d53779a00e1f505000000800058",
 		voteScript:   "baa914f0b4e85100aee1a996f22915eb3c3f764d53779a87",
 		changeScript: "bda914f0b4e85100aee1a996f22915eb3c3f764d53779a87",
@@ -985,7 +986,7 @@ func TestAddresses(t *testing.T) {
 		payScript:    "a914c7da5095683436f4435fc4e7163dcafda1a2d00787",
 		voteScript:   "baa914c7da5095683436f4435fc4e7163dcafda1a2d00787",
 		rewardAmount: 9556193632,
-		feeLimits:    0x5900,
+		revFeeLimit:  33554432,
 		rewardScript: "6a1ec7da5095683436f4435fc4e7163dcafda1a2d00760f19739020000800059",
 		changeScript: "bda914c7da5095683436f4435fc4e7163dcafda1a2d00787",
 		commitScript: "bba914c7da5095683436f4435fc4e7163dcafda1a2d00787",
@@ -1005,7 +1006,7 @@ func TestAddresses(t *testing.T) {
 		payScript:    "a91436c1ca10a8a6a4b5d4204ac970853979903aa28487",
 		voteScript:   "baa91436c1ca10a8a6a4b5d4204ac970853979903aa28487",
 		rewardAmount: 2428220961,
-		feeLimits:    0x5800,
+		revFeeLimit:  16777216,
 		rewardScript: "6a1e36c1ca10a8a6a4b5d4204ac970853979903aa28421b6bb90000000800058",
 		changeScript: "bda91436c1ca10a8a6a4b5d4204ac970853979903aa28487",
 		commitScript: "bba91436c1ca10a8a6a4b5d4204ac970853979903aa28487",
@@ -1025,7 +1026,7 @@ func TestAddresses(t *testing.T) {
 		payScript:    "a91436c1ca10a8a6a4b5d4204ac970853979903aa28487",
 		voteScript:   "baa91436c1ca10a8a6a4b5d4204ac970853979903aa28487",
 		rewardAmount: 2428220961,
-		feeLimits:    0x5800,
+		revFeeLimit:  16777216,
 		rewardScript: "6a1e36c1ca10a8a6a4b5d4204ac970853979903aa28421b6bb90000000800058",
 		changeScript: "bda91436c1ca10a8a6a4b5d4204ac970853979903aa28487",
 		commitScript: "bba91436c1ca10a8a6a4b5d4204ac970853979903aa28487",
@@ -1116,7 +1117,7 @@ func TestAddresses(t *testing.T) {
 				continue
 			}
 			gotScriptVer, gotScript = stakeAddr.RewardCommitmentScript(
-				test.rewardAmount, test.feeLimits)
+				test.rewardAmount, test.voteFeeLimit, test.revFeeLimit)
 			if gotScriptVer != test.version {
 				t.Errorf("%s: mismatched reward cmt script version -- got %d, "+
 					"want %d", test.name, gotScriptVer, test.version)

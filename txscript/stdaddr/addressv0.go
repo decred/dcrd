@@ -8,6 +8,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"math"
 
 	"github.com/decred/base58"
 	"github.com/decred/dcrd/crypto/blake256"
@@ -648,13 +649,40 @@ func (addr *AddressPubKeyHashEcdsaSecp256k1V0) VotingRightsScript() (uint16, []b
 	return 0, script[:]
 }
 
+// calcRewardCommitScriptLimits calculates the encoded limits to impose on fees
+// applied to votes and revocations via the reward commitment script of a ticket
+// purchase.
+func calcRewardCommitScriptLimits(voteFeeLimit, revocationFeeLimit int64) uint16 {
+	// The limits are defined in terms of the closest base 2 exponent and
+	// a bit that must be set to specify the limit is to be applied.  The
+	// vote fee exponent is in the bottom 8 bits, while the revocation fee
+	// exponent is in the upper 8 bits.
+	limits := uint16(0)
+	if voteFeeLimit != 0 {
+		exp := uint16(math.Ceil(math.Log2(float64(voteFeeLimit))))
+		limits |= (exp | 0x40)
+	}
+	if revocationFeeLimit != 0 {
+		exp := uint16(math.Ceil(math.Log2(float64(revocationFeeLimit))))
+		limits |= ((exp | 0x40) << 8)
+	}
+	return limits
+}
+
 // RewardCommitmentScript returns the script version associated with the address
 // along with a script that commits the original funds locked to purchase a
 // ticket plus the reward to the address along with limits to impose on any
-// fees.
+// fees (in atoms).
+//
+// Note that fee limits are encoded in the commitment script in terms of the
+// closest base 2 exponent that results in a limit that is >= the provided
+// limit.  In other words, the limits are rounded up to the next power of 2
+// when they are not already an exact power of 2.  For example, a revocation
+// limit of 2^23 + 1 will result in allowing a revocation fee of up to 2^24
+// atoms.
 //
 // This is part of the StakeAddress interface implementation.
-func (addr *AddressPubKeyHashEcdsaSecp256k1V0) RewardCommitmentScript(amount int64, limits uint16) (uint16, []byte) {
+func (addr *AddressPubKeyHashEcdsaSecp256k1V0) RewardCommitmentScript(amount, voteFeeLimit, revocationFeeLimit int64) (uint16, []byte) {
 	// The reward commitment output of a ticket purchase is a provably pruneable
 	// script of the form:
 	//   RETURN <20-byte hash || 8-byte amount || 2-byte fee limits>
@@ -663,6 +691,7 @@ func (addr *AddressPubKeyHashEcdsaSecp256k1V0) RewardCommitmentScript(amount int
 	// is a public key hash that represents a pay-to-pubkey-hash-ecdsa-secp256k1
 	// script or a script hash that represents a pay-to-script-hash script.  It
 	// is NOT set for a public key hash.
+	limits := calcRewardCommitScriptLimits(voteFeeLimit, revocationFeeLimit)
 	var script [32]byte
 	script[0] = opReturn
 	script[1] = opData30
@@ -1048,10 +1077,17 @@ func (addr *AddressScriptHashV0) VotingRightsScript() (uint16, []byte) {
 // RewardCommitmentScript returns the script version associated with the address
 // along with a script that commits the original funds locked to purchase a
 // ticket plus the reward to the address along with limits to impose on any
-// fees.
+// fees (in atoms).
+//
+// Note that fee limits are encoded in the commitment script in terms of the
+// closest base 2 exponent that results in a limit that is >= the provided
+// limit.  In other words, the limits are rounded up to the next power of 2
+// when they are not already an exact power of 2.  For example, a revocation
+// limit of 2^23 + 1 will result in allowing a revocation fee of up to 2^24
+// atoms.
 //
 // This is part of the StakeAddress interface implementation.
-func (addr *AddressScriptHashV0) RewardCommitmentScript(amount int64, limits uint16) (uint16, []byte) {
+func (addr *AddressScriptHashV0) RewardCommitmentScript(amount, voteFeeLimit, revocationFeeLimit int64) (uint16, []byte) {
 	// The reward commitment output of a ticket purchase is a provably pruneable
 	// script of the form:
 	//   RETURN <20-byte hash || 8-byte amount || 2-byte fee limits>
@@ -1060,6 +1096,7 @@ func (addr *AddressScriptHashV0) RewardCommitmentScript(amount int64, limits uin
 	// is a public key hash that represents a pay-to-pubkey-hash-ecdsa-secp256k1
 	// script or a script hash that represents a pay-to-script-hash script.  It
 	// is set for a script hash.
+	limits := calcRewardCommitScriptLimits(voteFeeLimit, revocationFeeLimit)
 	var script [32]byte
 	script[0] = opReturn
 	script[1] = opData30

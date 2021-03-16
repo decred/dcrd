@@ -90,9 +90,10 @@ func ExampleDecodeAddress() {
 			// calculated correctly, but they are hard coded here for the
 			// purposes of this example.
 			const rewardAmount = 1e8
-			const feeLimit = 0x5800
+			const voteFeeLimit = 0
+			const revokeFeeLimit = 16777216
 			rewardScriptVer, rewardScript := stakeAddr.RewardCommitmentScript(
-				rewardAmount, feeLimit)
+				rewardAmount, voteFeeLimit, revokeFeeLimit)
 			fmt.Printf("  reward script version: %d\n", rewardScriptVer)
 			fmt.Printf("  reward script: %x\n", rewardScript)
 		}
