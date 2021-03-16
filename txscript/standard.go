@@ -810,15 +810,6 @@ func payToSchnorrPubKeyScript(serializedPubKey []byte) ([]byte, error) {
 		AddOp(OP_CHECKSIGALT).Script()
 }
 
-// PayToSSRtxSHDirect creates a new script to pay a transaction output to a
-// script hash, but tags the output with OP_SSRTX. For use in constructing
-// valid SSRtx. Unlike PayToSSRtx, this function directly uses the HASH160
-// script hash (instead of an address).
-func PayToSSRtxSHDirect(sh []byte) ([]byte, error) {
-	return NewScriptBuilder().AddOp(OP_SSRTX).AddOp(OP_HASH160).
-		AddData(sh).AddOp(OP_EQUAL).Script()
-}
-
 // GenerateSStxAddrPush generates an OP_RETURN push for SSGen payment addresses in
 // an SStx.
 func GenerateSStxAddrPush(addr dcrutil.Address, amount dcrutil.Amount, limits uint16) ([]byte, error) {
