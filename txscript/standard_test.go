@@ -15,7 +15,6 @@ import (
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/chaincfg/v3"
 	"github.com/decred/dcrd/dcrec/secp256k1/v4"
-	"github.com/decred/dcrd/dcrutil/v4"
 	"github.com/decred/dcrd/txscript/v4/stdaddr"
 )
 
@@ -911,51 +910,6 @@ func TestGenerateProvablyPruneableOut(t *testing.T) {
 				"got: %v, want: %v", i, test.name, scriptType,
 				test.class)
 			continue
-		}
-	}
-}
-
-// TestGenerateSStxAddrPush ensures an expected OP_RETURN push is generated.
-func TestGenerateSStxAddrPush(t *testing.T) {
-	testNetParams := chaincfg.TestNet3Params()
-	var tests = []struct {
-		addrStr  string
-		net      stdaddr.AddressParams
-		amount   dcrutil.Amount
-		limits   uint16
-		expected []byte
-	}{
-		{
-			"Dcur2mcGjmENx4DhNqDctW5wJCVyT3Qeqkx",
-			mainNetParams,
-			1000,
-			10,
-			hexToBytes("6a1ef5916158e3e2c4551c1796708db8367207ed1" +
-				"3bbe8030000000000800a00"),
-		},
-		{
-			"TscB7V5RuR1oXpA364DFEsNDuAs8Rk6BHJE",
-			testNetParams,
-			543543,
-			256,
-			hexToBytes("6a1e7a5c4cca76f2e0b36db4763daacbd6cbb6ee6" +
-				"e7b374b0800000000000001"),
-		},
-	}
-	for _, test := range tests {
-		addr, err := dcrutil.DecodeAddress(test.addrStr, test.net)
-		if err != nil {
-			t.Errorf("DecodeAddress failed: %v", err)
-			continue
-		}
-		s, err := GenerateSStxAddrPush(addr, test.amount, test.limits)
-		if err != nil {
-			t.Errorf("GenerateSStxAddrPush failed: %v", err)
-			continue
-		}
-		if !bytes.Equal(s, test.expected) {
-			t.Errorf("GenerateSStxAddrPush: unexpected script:\n "+
-				"got %x\nwant %x", s, test.expected)
 		}
 	}
 }

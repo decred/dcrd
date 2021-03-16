@@ -12,7 +12,6 @@ import (
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/dcrec"
 	"github.com/decred/dcrd/dcrec/secp256k1/v4"
-	"github.com/decred/dcrd/dcrutil/v4"
 	"github.com/decred/dcrd/txscript/v4/stdaddr"
 )
 
@@ -20,11 +19,6 @@ const (
 	// MaxDataCarrierSize is the maximum number of bytes allowed in pushed
 	// data to be considered a nulldata transaction.
 	MaxDataCarrierSize = 256
-
-	// nilAddrErrStr is the common error string to use for attempts to
-	// generate payment scripts to nil addresses embedded within a
-	// dcrutil.Address interface.
-	nilAddrErrStr = "unable to generate payment script for nil address"
 )
 
 // ScriptClass is an enumeration for the list of standard types of script.
@@ -742,51 +736,6 @@ func MultisigRedeemScriptFromScriptSig(script []byte) []byte {
 	// The redeemScript is always the last item on the stack of the script sig.
 	const scriptVersion = 0
 	return finalOpcodeData(scriptVersion, script)
-}
-
-// GenerateSStxAddrPush generates an OP_RETURN push for SSGen payment addresses in
-// an SStx.
-func GenerateSStxAddrPush(addr dcrutil.Address, amount dcrutil.Amount, limits uint16) ([]byte, error) {
-	// Only pay to pubkey hash and pay to script hash are
-	// supported.
-	scriptType := PubKeyHashTy
-	switch addr := addr.(type) {
-	case *dcrutil.AddressPubKeyHash:
-		if addr == nil {
-			return nil, scriptError(ErrUnsupportedAddress,
-				nilAddrErrStr)
-		}
-		if addr.DSA() != dcrec.STEcdsaSecp256k1 {
-			str := "unable to generate payment script for " +
-				"unsupported digital signature algorithm"
-			return nil, scriptError(ErrUnsupportedAddress, str)
-		}
-
-	case *dcrutil.AddressScriptHash:
-		if addr == nil {
-			return nil, scriptError(ErrUnsupportedAddress,
-				nilAddrErrStr)
-		}
-		scriptType = ScriptHashTy
-
-	default:
-		str := fmt.Sprintf("unable to generate payment script for "+
-			"unsupported address type %T", addr)
-		return nil, scriptError(ErrUnsupportedAddress, str)
-	}
-
-	// Concatenate the prefix, pubkeyhash, and amount.
-	adBytes := make([]byte, 20+8+2)
-	copy(adBytes[0:20], addr.ScriptAddress())
-	binary.LittleEndian.PutUint64(adBytes[20:28], uint64(amount))
-	binary.LittleEndian.PutUint16(adBytes[28:30], limits)
-
-	// Set the bit flag indicating pay to script hash.
-	if scriptType == ScriptHashTy {
-		adBytes[27] |= 1 << 7
-	}
-
-	return NewScriptBuilder().AddOp(OP_RETURN).AddData(adBytes).Script()
 }
 
 // GenerateSSGenBlockRef generates an OP_RETURN push for the block header hash and
