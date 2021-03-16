@@ -1,5 +1,5 @@
 // Copyright (c) 2014 The btcsuite developers
-// Copyright (c) 2015-2020 The Decred developers
+// Copyright (c) 2015-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -9,9 +9,8 @@ import (
 	"fmt"
 
 	"github.com/decred/dcrd/chaincfg/v3"
-	"github.com/decred/dcrd/dcrec"
-	"github.com/decred/dcrd/dcrutil/v4"
 	"github.com/decred/dcrd/hdkeychain/v3"
+	"github.com/decred/dcrd/txscript/v4/stdaddr"
 )
 
 // This example demonstrates how to generate a cryptographically random seed
@@ -127,9 +126,8 @@ func Example_defaultWalletLayout() {
 	// pubKeyHashAddr is a convenience function to convert an extended
 	// pubkey to a standard pay-to-pubkey-hash address.
 	pubKeyHashAddr := func(extKey *hdkeychain.ExtendedKey) (string, error) {
-		pkHash := dcrutil.Hash160(extKey.SerializedPubKey())
-		addr, err := dcrutil.NewAddressPubKeyHash(pkHash, net,
-			dcrec.STEcdsaSecp256k1)
+		pkHash := stdaddr.Hash160(extKey.SerializedPubKey())
+		addr, err := stdaddr.NewAddressPubKeyHashEcdsaSecp256k1V0(pkHash, net)
 		if err != nil {
 			fmt.Println(err)
 			return "", err

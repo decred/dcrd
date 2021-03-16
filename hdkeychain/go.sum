@@ -2,6 +2,7 @@ github.com/agl/ed25519 v0.0.0-20170116200512-5312a6153412 h1:w1UutsfOrms1J05zt7I
 github.com/agl/ed25519 v0.0.0-20170116200512-5312a6153412/go.mod h1:WPjqKcmVOxf0XSf3YxCJs6N6AOSrOx3obionmG7T0y0=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
+github.com/dchest/siphash v1.2.2/go.mod h1:q+IRvb2gOSrUnYoPqHiyHXS0FOBBOdl6tONBlVnOnt4=
 github.com/decred/base58 v1.0.3 h1:KGZuh8d1WEMIrK0leQRM47W85KqCAdl2N+uagbctdDI=
 github.com/decred/base58 v1.0.3/go.mod h1:pXP9cXCfM2sFLb2viz2FNIdeMWmZDBKG3ZBYbiSM78E=
 github.com/decred/dcrd/chaincfg/chainhash v1.0.2 h1:rt5Vlq/jM3ZawwiacWjPa+smINyLRN07EO0cNBV6DGU=
@@ -16,5 +17,7 @@ github.com/decred/dcrd/dcrec v1.0.0 h1:W+z6Es+Rai3MXYVoPAxYr5U1DGis0Co33scJ6uH2J
 github.com/decred/dcrd/dcrec v1.0.0/go.mod h1:HIaqbEJQ+PDzQcORxnqen5/V1FR3B4VpIfmePklt8Q8=
 github.com/decred/dcrd/dcrec/edwards/v2 v2.0.1 h1:V6eqU1crZzuoFT4KG2LhaU5xDSdkHuvLQsj25wd7Wb4=
 github.com/decred/dcrd/dcrec/edwards/v2 v2.0.1/go.mod h1:d0H8xGMWbiIQP7gN3v2rByWUcuZPm9YsgmnfoxgbINc=
+github.com/decred/dcrd/dcrutil/v4 v4.0.0-20210129181600-6ae0142d3b28/go.mod h1:xe59jKcMx5G/dbRmsZ8+FzY+WQDE/7YBP3k3uzJTtmI=
 github.com/decred/dcrd/wire v1.4.0 h1:KmSo6eTQIvhXS0fLBQ/l7hG7QLcSJQKSwSyzSqJYDk0=
 github.com/decred/dcrd/wire v1.4.0/go.mod h1:WxC/0K+cCAnBh+SKsRjIX9YPgvrjhmE+6pZlel1G7Ro=
+github.com/decred/slog v1.1.0/go.mod h1:kVXlGnt6DHy2fV5OjSeuvCJ0OmlmTF6LFpEPMu/fOY0=
