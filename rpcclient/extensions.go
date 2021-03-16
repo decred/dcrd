@@ -1,5 +1,5 @@
 // Copyright (c) 2014-2015 The btcsuite developers
-// Copyright (c) 2015-2020 The Decred developers
+// Copyright (c) 2015-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -12,6 +12,7 @@ import (
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/dcrutil/v4"
 	chainjson "github.com/decred/dcrd/rpc/jsonrpc/types/v3"
+	"github.com/decred/dcrd/txscript/v4/stdaddr"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -134,7 +135,7 @@ func (r *FutureExistsAddressResult) Receive() (bool, error) {
 // ExistsAddressAsync returns an instance of a type that can be used to get the
 // result of the RPC at some future time by invoking the Receive function on the
 // returned instance.
-func (c *Client) ExistsAddressAsync(ctx context.Context, address dcrutil.Address) *FutureExistsAddressResult {
+func (c *Client) ExistsAddressAsync(ctx context.Context, address stdaddr.Address) *FutureExistsAddressResult {
 	cmd := chainjson.NewExistsAddressCmd(address.Address())
 	return (*FutureExistsAddressResult)(c.sendCmd(ctx, cmd))
 }
@@ -143,7 +144,7 @@ func (c *Client) ExistsAddressAsync(ctx context.Context, address dcrutil.Address
 // used on the main chain or in mempool.
 //
 // NOTE: This is a dcrd extension.
-func (c *Client) ExistsAddress(ctx context.Context, address dcrutil.Address) (bool, error) {
+func (c *Client) ExistsAddress(ctx context.Context, address stdaddr.Address) (bool, error) {
 	return c.ExistsAddressAsync(ctx, address).Receive()
 }
 
@@ -172,7 +173,7 @@ func (r *FutureExistsAddressesResult) Receive() (string, error) {
 // ExistsAddressesAsync returns an instance of a type that can be used to get the
 // result of the RPC at some future time by invoking the Receive function on the
 // returned instance.
-func (c *Client) ExistsAddressesAsync(ctx context.Context, addresses []dcrutil.Address) *FutureExistsAddressesResult {
+func (c *Client) ExistsAddressesAsync(ctx context.Context, addresses []stdaddr.Address) *FutureExistsAddressesResult {
 	addrsStr := make([]string, len(addresses))
 	for i := range addresses {
 		addrsStr[i] = addresses[i].Address()
@@ -186,7 +187,7 @@ func (c *Client) ExistsAddressesAsync(ctx context.Context, addresses []dcrutil.A
 // in the blockchain or memory pool.
 //
 // NOTE: This is a dcrd extension.
-func (c *Client) ExistsAddresses(ctx context.Context, addresses []dcrutil.Address) (string, error) {
+func (c *Client) ExistsAddresses(ctx context.Context, addresses []stdaddr.Address) (string, error) {
 	return c.ExistsAddressesAsync(ctx, addresses).Receive()
 }
 

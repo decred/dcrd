@@ -1,5 +1,5 @@
 // Copyright (c) 2014-2016 The btcsuite developers
-// Copyright (c) 2015-2020 The Decred developers
+// Copyright (c) 2015-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -16,6 +16,7 @@ import (
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/dcrutil/v4"
 	chainjson "github.com/decred/dcrd/rpc/jsonrpc/types/v3"
+	"github.com/decred/dcrd/txscript/v4/stdaddr"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -1139,7 +1140,7 @@ func (r *FutureLoadTxFilterResult) Receive() error {
 // See LoadTxFilter for the blocking version and more details.
 //
 // NOTE: This is a dcrd extension and requires a websocket connection.
-func (c *Client) LoadTxFilterAsync(ctx context.Context, reload bool, addresses []dcrutil.Address,
+func (c *Client) LoadTxFilterAsync(ctx context.Context, reload bool, addresses []stdaddr.Address,
 	outPoints []wire.OutPoint) *FutureLoadTxFilterResult {
 
 	addrStrs := make([]string, len(addresses))
@@ -1164,6 +1165,6 @@ func (c *Client) LoadTxFilterAsync(ctx context.Context, reload bool, addresses [
 // during mempool acceptance, block acceptance, and for all rescanned blocks.
 //
 // NOTE: This is a dcrd extension and requires a websocket connection.
-func (c *Client) LoadTxFilter(ctx context.Context, reload bool, addresses []dcrutil.Address, outPoints []wire.OutPoint) error {
+func (c *Client) LoadTxFilter(ctx context.Context, reload bool, addresses []stdaddr.Address, outPoints []wire.OutPoint) error {
 	return c.LoadTxFilterAsync(ctx, reload, addresses, outPoints).Receive()
 }

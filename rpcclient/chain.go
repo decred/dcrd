@@ -1,5 +1,5 @@
 // Copyright (c) 2014-2016 The btcsuite developers
-// Copyright (c) 2015-2020 The Decred developers
+// Copyright (c) 2015-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -17,6 +17,7 @@ import (
 	"github.com/decred/dcrd/gcs/v3"
 	"github.com/decred/dcrd/gcs/v3/blockcf2"
 	chainjson "github.com/decred/dcrd/rpc/jsonrpc/types/v3"
+	"github.com/decred/dcrd/txscript/v4/stdaddr"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -628,14 +629,14 @@ func (r *FutureValidateAddressResult) Receive() (*chainjson.ValidateAddressChain
 // the returned instance.
 //
 // See ValidateAddress for the blocking version and more details.
-func (c *Client) ValidateAddressAsync(ctx context.Context, address dcrutil.Address) *FutureValidateAddressResult {
+func (c *Client) ValidateAddressAsync(ctx context.Context, address stdaddr.Address) *FutureValidateAddressResult {
 	addr := address.Address()
 	cmd := chainjson.NewValidateAddressCmd(addr)
 	return (*FutureValidateAddressResult)(c.sendCmd(ctx, cmd))
 }
 
 // ValidateAddress returns information about the given Decred address.
-func (c *Client) ValidateAddress(ctx context.Context, address dcrutil.Address) (*chainjson.ValidateAddressChainResult, error) {
+func (c *Client) ValidateAddress(ctx context.Context, address stdaddr.Address) (*chainjson.ValidateAddressChainResult, error) {
 	return c.ValidateAddressAsync(ctx, address).Receive()
 }
 
@@ -666,7 +667,7 @@ func (r *FutureVerifyMessageResult) Receive() (bool, error) {
 // returned instance.
 //
 // See VerifyMessage for the blocking version and more details.
-func (c *Client) VerifyMessageAsync(ctx context.Context, address dcrutil.Address, signature, message string) *FutureVerifyMessageResult {
+func (c *Client) VerifyMessageAsync(ctx context.Context, address stdaddr.Address, signature, message string) *FutureVerifyMessageResult {
 	addr := address.Address()
 	cmd := chainjson.NewVerifyMessageCmd(addr, signature, message)
 	return (*FutureVerifyMessageResult)(c.sendCmd(ctx, cmd))
@@ -676,7 +677,7 @@ func (c *Client) VerifyMessageAsync(ctx context.Context, address dcrutil.Address
 //
 // NOTE: This function requires to the wallet to be unlocked.  See the
 // WalletPassphrase function for more details.
-func (c *Client) VerifyMessage(ctx context.Context, address dcrutil.Address, signature, message string) (bool, error) {
+func (c *Client) VerifyMessage(ctx context.Context, address stdaddr.Address, signature, message string) (bool, error) {
 	return c.VerifyMessageAsync(ctx, address, signature, message).Receive()
 }
 

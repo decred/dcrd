@@ -1,5 +1,5 @@
 // Copyright (c) 2016 The btcsuite developers
-// Copyright (c) 2017-2020 The Decred developers
+// Copyright (c) 2017-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -19,13 +19,21 @@ import (
 	"github.com/decred/dcrd/chaincfg/v3"
 	"github.com/decred/dcrd/dcrutil/v4"
 	dcrdtypes "github.com/decred/dcrd/rpc/jsonrpc/types/v3"
-	"github.com/decred/dcrd/txscript/v4"
 	"github.com/decred/dcrd/wire"
 )
 
 const (
 	numMatureOutputs = 25
 )
+
+// newTxOut returns a new transaction output with the given parameters.
+func newTxOut(amount int64, pkScriptVer uint16, pkScript []byte) *wire.TxOut {
+	return &wire.TxOut{
+		Value:    amount,
+		Version:  pkScriptVer,
+		PkScript: pkScript,
+	}
+}
 
 func testSendOutputs(ctx context.Context, r *Harness, t *testing.T) {
 	tracef(t, "testSendOutputs start")
@@ -40,11 +48,8 @@ func testSendOutputs(ctx context.Context, r *Harness, t *testing.T) {
 
 		// Next, send amt to this address, spending from one of our
 		// mature coinbase outputs.
-		addrScript, err := txscript.PayToAddrScript(addr)
-		if err != nil {
-			t.Fatalf("unable to generate pkscript to addr: %v", err)
-		}
-		output := wire.NewTxOut(int64(amt), addrScript)
+		addrScriptVer, addrScript := addr.PaymentScript()
+		output := newTxOut(int64(amt), addrScriptVer, addrScript)
 		txid, err := r.SendOutputs([]*wire.TxOut{output}, 10)
 		if err != nil {
 			t.Fatalf("coinbase spend failed: %v", err)
@@ -394,11 +399,11 @@ func testJoinMempools(ctx context.Context, r *Harness, t *testing.T) {
 	if err != nil {
 		t.Fatalf("unable to get new address: %v", err)
 	}
-	addrScript, err := txscript.PayToAddrScript(addr)
+	addrScriptVer, addrScript := addr.PaymentScript()
 	if err != nil {
 		t.Fatalf("unable to generate pkscript to addr: %v", err)
 	}
-	output := wire.NewTxOut(5e8, addrScript)
+	output := newTxOut(5e8, addrScriptVer, addrScript)
 	testTx, err := r.CreateTransaction([]*wire.TxOut{output}, 10)
 	if err != nil {
 		t.Fatalf("coinbase spend failed: %v", err)
@@ -596,12 +601,9 @@ func testMemWalletLockedOutputs(_ context.Context, r *Harness, t *testing.T) {
 	if err != nil {
 		t.Fatalf("unable to generate new address: %v", err)
 	}
-	pkScript, err := txscript.PayToAddrScript(addr)
-	if err != nil {
-		t.Fatalf("unable to create script: %v", err)
-	}
+	pkScriptVer, pkScript := addr.PaymentScript()
 	outputAmt := dcrutil.Amount(50 * dcrutil.AtomsPerCoin)
-	output := wire.NewTxOut(int64(outputAmt), pkScript)
+	output := newTxOut(int64(outputAmt), pkScriptVer, pkScript)
 	tx, err := r.CreateTransaction([]*wire.TxOut{output}, 10)
 	if err != nil {
 		t.Fatalf("unable to create transaction: %v", err)
@@ -667,7 +669,7 @@ func TestHarness(t *testing.T) {
 	// Current tip should be at a height of numMatureOutputs plus the
 	// required number of blocks for coinbase maturity plus an additional
 	// block for the premine block.
-	ctx := context.TODO()
+	ctx := context.Background()
 	nodeInfo, err := mainHarness.Node.GetInfo(ctx)
 	if err != nil {
 		t.Fatalf("unable to execute getinfo on node: %v", err)

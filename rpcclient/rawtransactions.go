@@ -1,5 +1,5 @@
 // Copyright (c) 2014-2016 The btcsuite developers
-// Copyright (c) 2015-2020 The Decred developers
+// Copyright (c) 2015-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -15,6 +15,7 @@ import (
 	"github.com/decred/dcrd/dcrjson/v3"
 	"github.com/decred/dcrd/dcrutil/v4"
 	chainjson "github.com/decred/dcrd/rpc/jsonrpc/types/v3"
+	"github.com/decred/dcrd/txscript/v4/stdaddr"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -199,11 +200,11 @@ func (r *FutureCreateRawTransactionResult) Receive() (*wire.MsgTx, error) {
 //
 // See CreateRawTransaction for the blocking version and more details.
 func (c *Client) CreateRawTransactionAsync(ctx context.Context, inputs []chainjson.TransactionInput,
-	amounts map[dcrutil.Address]dcrutil.Amount, lockTime *int64, expiry *int64) *FutureCreateRawTransactionResult {
+	amounts map[stdaddr.Address]dcrutil.Amount, lockTime *int64, expiry *int64) *FutureCreateRawTransactionResult {
 
 	convertedAmts := make(map[string]float64, len(amounts))
 	for addr, amount := range amounts {
-		convertedAmts[addr.String()] = amount.ToCoin()
+		convertedAmts[addr.Address()] = amount.ToCoin()
 	}
 	cmd := chainjson.NewCreateRawTransactionCmd(inputs, convertedAmts, lockTime, expiry)
 	return (*FutureCreateRawTransactionResult)(c.sendCmd(ctx, cmd))
@@ -212,7 +213,7 @@ func (c *Client) CreateRawTransactionAsync(ctx context.Context, inputs []chainjs
 // CreateRawTransaction returns a new transaction spending the provided inputs
 // and sending to the provided addresses.
 func (c *Client) CreateRawTransaction(ctx context.Context, inputs []chainjson.TransactionInput,
-	amounts map[dcrutil.Address]dcrutil.Amount, lockTime *int64, expiry *int64) (*wire.MsgTx, error) {
+	amounts map[stdaddr.Address]dcrutil.Amount, lockTime *int64, expiry *int64) (*wire.MsgTx, error) {
 
 	return c.CreateRawTransactionAsync(ctx, inputs, amounts, lockTime, expiry).Receive()
 }
@@ -255,9 +256,9 @@ func (r *FutureCreateRawSStxResult) Receive() (*wire.MsgTx, error) {
 // a commitment address and amount, and a change address and amount. Same
 // name as the JSON lib, but different internal structures.
 type SStxCommitOut struct {
-	Addr       dcrutil.Address
+	Addr       stdaddr.Address
 	CommitAmt  dcrutil.Amount
-	ChangeAddr dcrutil.Address
+	ChangeAddr stdaddr.Address
 	ChangeAmt  dcrutil.Amount
 }
 
@@ -267,18 +268,18 @@ type SStxCommitOut struct {
 //
 // See CreateRawSStx for the blocking version and more details.
 func (c *Client) CreateRawSStxAsync(ctx context.Context, inputs []chainjson.SStxInput,
-	amount map[dcrutil.Address]dcrutil.Amount,
+	amount map[stdaddr.Address]dcrutil.Amount,
 	couts []SStxCommitOut) *FutureCreateRawSStxResult {
 
 	convertedAmt := make(map[string]int64, len(amount))
 	for addr, amt := range amount {
-		convertedAmt[addr.String()] = int64(amt)
+		convertedAmt[addr.Address()] = int64(amt)
 	}
 	convertedCouts := make([]chainjson.SStxCommitOut, len(couts))
 	for i, cout := range couts {
-		convertedCouts[i].Addr = cout.Addr.String()
+		convertedCouts[i].Addr = cout.Addr.Address()
 		convertedCouts[i].CommitAmt = int64(cout.CommitAmt)
-		convertedCouts[i].ChangeAddr = cout.ChangeAddr.String()
+		convertedCouts[i].ChangeAddr = cout.ChangeAddr.Address()
 		convertedCouts[i].ChangeAmt = int64(cout.ChangeAmt)
 	}
 
@@ -289,7 +290,7 @@ func (c *Client) CreateRawSStxAsync(ctx context.Context, inputs []chainjson.SStx
 // CreateRawSStx returns a new transaction spending the provided inputs
 // and sending to the provided addresses.
 func (c *Client) CreateRawSStx(ctx context.Context, inputs []chainjson.SStxInput,
-	amount map[dcrutil.Address]dcrutil.Amount,
+	amount map[stdaddr.Address]dcrutil.Amount,
 	couts []SStxCommitOut) (*wire.MsgTx, error) {
 
 	return c.CreateRawSStxAsync(ctx, inputs, amount, couts).Receive()
@@ -440,7 +441,7 @@ func (r *FutureSearchRawTransactionsResult) Receive() ([]*wire.MsgTx, error) {
 //
 // See SearchRawTransactions for the blocking version and more details.
 func (c *Client) SearchRawTransactionsAsync(ctx context.Context,
-	address dcrutil.Address, skip, count int, reverse bool,
+	address stdaddr.Address, skip, count int, reverse bool,
 	filterAddrs []string) *FutureSearchRawTransactionsResult {
 
 	addr := address.Address()
@@ -459,7 +460,7 @@ func (c *Client) SearchRawTransactionsAsync(ctx context.Context,
 // See SearchRawTransactionsVerbose to retrieve a list of data structures with
 // information about the transactions instead of the transactions themselves.
 func (c *Client) SearchRawTransactions(ctx context.Context,
-	address dcrutil.Address, skip, count int,
+	address stdaddr.Address, skip, count int,
 	reverse bool, filterAddrs []string) ([]*wire.MsgTx, error) {
 
 	return c.SearchRawTransactionsAsync(ctx, address, skip, count, reverse,
@@ -495,7 +496,7 @@ func (r *FutureSearchRawTransactionsVerboseResult) Receive() ([]*chainjson.Searc
 //
 // See SearchRawTransactionsVerbose for the blocking version and more details.
 func (c *Client) SearchRawTransactionsVerboseAsync(ctx context.Context,
-	address dcrutil.Address, skip, count int, includePrevOut bool, reverse bool,
+	address stdaddr.Address, skip, count int, includePrevOut bool, reverse bool,
 	filterAddrs *[]string) *FutureSearchRawTransactionsVerboseResult {
 
 	addr := address.Address()
@@ -517,7 +518,7 @@ func (c *Client) SearchRawTransactionsVerboseAsync(ctx context.Context,
 //
 // See SearchRawTransactions to retrieve a list of raw transactions instead.
 func (c *Client) SearchRawTransactionsVerbose(ctx context.Context,
-	address dcrutil.Address, skip, count int, includePrevOut, reverse bool,
+	address stdaddr.Address, skip, count int, includePrevOut, reverse bool,
 	filterAddrs []string) ([]*chainjson.SearchRawTransactionsResult, error) {
 
 	return c.SearchRawTransactionsVerboseAsync(ctx, address, skip, count,

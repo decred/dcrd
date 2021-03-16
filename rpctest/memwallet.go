@@ -1,5 +1,5 @@
 // Copyright (c) 2016-2017 The btcsuite developers
-// Copyright (c) 2017-2020 The Decred developers
+// Copyright (c) 2017-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -22,6 +22,7 @@ import (
 	"github.com/decred/dcrd/hdkeychain/v3"
 	"github.com/decred/dcrd/rpcclient/v7"
 	"github.com/decred/dcrd/txscript/v4"
+	"github.com/decred/dcrd/txscript/v4/stdaddr"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -82,7 +83,7 @@ type undoEntry struct {
 // hierarchy which promotes reproducibility between harness test runs.
 type memWallet struct {
 	coinbaseKey  *secp256k1.PrivateKey
-	coinbaseAddr dcrutil.Address
+	coinbaseAddr stdaddr.Address
 
 	// hdRoot is the root master private key for the wallet.
 	hdRoot *hdkeychain.ExtendedKey
@@ -96,7 +97,7 @@ type memWallet struct {
 
 	// addrs tracks all addresses belonging to the wallet. The addresses
 	// are indexed by their keypath from the hdRoot.
-	addrs map[uint32]dcrutil.Address
+	addrs map[uint32]stdaddr.Address
 
 	// utxos is the set of utxos spendable by the wallet.
 	utxos map[wire.OutPoint]*utxo
@@ -152,7 +153,7 @@ func newMemWallet(t *testing.T, net *chaincfg.Params, harnessID uint32) (*memWal
 
 	// Track the coinbase generation address to ensure we properly track
 	// newly generated coins we can spend.
-	addrs := make(map[uint32]dcrutil.Address)
+	addrs := make(map[uint32]stdaddr.Address)
 	addrs[0] = coinbaseAddr
 
 	return &memWallet{
@@ -280,8 +281,8 @@ func (m *memWallet) evalOutputs(outputs []*wire.TxOut, txHash *chainhash.Hash, i
 		// Scan all the addresses we currently control to see if the
 		// output is paying to us.
 		for keyIndex, addr := range m.addrs {
-			pkHash := addr.ScriptAddress()
-			if !bytes.Contains(pkScript, pkHash) {
+			pkHash := addr.(stdaddr.Hash160er).Hash160()
+			if !bytes.Contains(pkScript, pkHash[:]) {
 				continue
 			}
 
@@ -355,7 +356,7 @@ func (m *memWallet) UnwindBlock(header []byte) {
 // newAddress returns a new address from the wallet's hd key chain.  It also
 // loads the address into the RPC client's transaction filter to ensure any
 // transactions that involve it are delivered via the notifications.
-func (m *memWallet) newAddress() (dcrutil.Address, error) {
+func (m *memWallet) newAddress() (stdaddr.Address, error) {
 	tracef(m.t, "memwallet.newAddress")
 	defer tracef(m.t, "memwallet.newAddress exit")
 
@@ -376,7 +377,7 @@ func (m *memWallet) newAddress() (dcrutil.Address, error) {
 	}
 
 	err = m.rpc.LoadTxFilter(context.Background(), false,
-		[]dcrutil.Address{addr}, nil)
+		[]stdaddr.Address{addr}, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -391,7 +392,7 @@ func (m *memWallet) newAddress() (dcrutil.Address, error) {
 // NewAddress returns a fresh address spendable by the wallet.
 //
 // This function is safe for concurrent access.
-func (m *memWallet) NewAddress() (dcrutil.Address, error) {
+func (m *memWallet) NewAddress() (stdaddr.Address, error) {
 	m.Lock()
 	defer m.Unlock()
 
@@ -451,12 +452,10 @@ func (m *memWallet) fundTx(tx *wire.MsgTx, amt dcrutil.Amount, feeRate dcrutil.A
 			if err != nil {
 				return err
 			}
-			pkScript, err := txscript.PayToAddrScript(addr)
-			if err != nil {
-				return err
-			}
+			pkScriptVer, pkScript := addr.PaymentScript()
 			changeOutput := &wire.TxOut{
 				Value:    int64(changeVal),
+				Version:  pkScriptVer,
 				PkScript: pkScript,
 			}
 			tx.AddTxOut(changeOutput)
@@ -598,10 +597,11 @@ func (m *memWallet) ConfirmedBalance() dcrutil.Amount {
 }
 
 // keyToAddr maps the passed private to corresponding p2pkh address.
-func keyToAddr(serializedPrivKey []byte, net *chaincfg.Params) (dcrutil.Address, error) {
+func keyToAddr(serializedPrivKey []byte, net *chaincfg.Params) (stdaddr.Address, error) {
 	key := secp256k1.PrivKeyFromBytes(serializedPrivKey)
 	serializedKey := key.PubKey().SerializeCompressed()
-	pubKeyAddr, err := dcrutil.NewAddressSecpPubKey(serializedKey, net)
+	pubKeyAddr, err := stdaddr.NewAddressPubKeyEcdsaSecp256k1V0Raw(
+		serializedKey, net)
 	if err != nil {
 		return nil, err
 	}

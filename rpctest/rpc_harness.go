@@ -1,5 +1,5 @@
 // Copyright (c) 2016 The btcsuite developers
-// Copyright (c) 2017-2020 The Decred developers
+// Copyright (c) 2017-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -21,6 +21,7 @@ import (
 	"github.com/decred/dcrd/chaincfg/v3"
 	"github.com/decred/dcrd/dcrutil/v4"
 	"github.com/decred/dcrd/rpcclient/v7"
+	"github.com/decred/dcrd/txscript/v4/stdaddr"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -259,7 +260,7 @@ func (h *Harness) SetUp(createTestChain bool, numMatureOutputs uint32) error {
 
 	// Filter transactions that pay to the coinbase associated with the
 	// wallet.
-	filterAddrs := []dcrutil.Address{h.wallet.coinbaseAddr}
+	filterAddrs := []stdaddr.Address{h.wallet.coinbaseAddr}
 	if err := h.Node.LoadTxFilter(ctx, true, filterAddrs, nil); err != nil {
 		return err
 	}
@@ -367,7 +368,7 @@ func (h *Harness) connectRPCClient() error {
 // wallet.
 //
 // This function is safe for concurrent access.
-func (h *Harness) NewAddress() (dcrutil.Address, error) {
+func (h *Harness) NewAddress() (stdaddr.Address, error) {
 	return h.wallet.NewAddress()
 }
 
