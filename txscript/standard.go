@@ -820,15 +820,6 @@ func PayToSSGenPKHDirect(pkh []byte) ([]byte, error) {
 		AddOp(OP_CHECKSIG).Script()
 }
 
-// PayToSSGenSHDirect creates a new script to pay a transaction output to a
-// script hash, but tags the output with OP_SSGEN. For use in constructing
-// valid SSGen txs. Unlike PayToSSGen, this function directly uses the HASH160
-// script hash (instead of an address).
-func PayToSSGenSHDirect(sh []byte) ([]byte, error) {
-	return NewScriptBuilder().AddOp(OP_SSGEN).AddOp(OP_HASH160).
-		AddData(sh).AddOp(OP_EQUAL).Script()
-}
-
 // PayToSSRtx creates a new script to pay a transaction output to a
 // public key hash, but tags the output with OP_SSRTX. For use in constructing
 // valid SSRtx.
