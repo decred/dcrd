@@ -763,17 +763,6 @@ func payToPubKeyHashEdwardsScript(pubKeyHash []byte) ([]byte, error) {
 		AddOp(OP_CHECKSIGALT).Script()
 }
 
-// payToPubKeyHashSchnorrScript creates a new script to pay a transaction
-// output to a 20-byte pubkey hash of a secp256k1 public key, but expecting
-// a schnorr signature instead of a classic secp256k1 signature. It is
-// expected that the input is a valid hash.
-func payToPubKeyHashSchnorrScript(pubKeyHash []byte) ([]byte, error) {
-	schnorrData := []byte{byte(dcrec.STSchnorrSecp256k1)}
-	return NewScriptBuilder().AddOp(OP_DUP).AddOp(OP_HASH160).
-		AddData(pubKeyHash).AddOp(OP_EQUALVERIFY).AddData(schnorrData).
-		AddOp(OP_CHECKSIGALT).Script()
-}
-
 // GenerateSStxAddrPush generates an OP_RETURN push for SSGen payment addresses in
 // an SStx.
 func GenerateSStxAddrPush(addr dcrutil.Address, amount dcrutil.Amount, limits uint16) ([]byte, error) {
