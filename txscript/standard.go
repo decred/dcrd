@@ -810,49 +810,6 @@ func payToSchnorrPubKeyScript(serializedPubKey []byte) ([]byte, error) {
 		AddOp(OP_CHECKSIGALT).Script()
 }
 
-// PayToSSGen creates a new script to pay a transaction output to a public key
-// hash or script hash, but tags the output with OP_SSGEN. For use in constructing
-// valid SSGen txs.
-func PayToSSGen(addr dcrutil.Address) ([]byte, error) {
-	// Only pay to pubkey hash and pay to script hash are
-	// supported.
-	scriptType := PubKeyHashTy
-	switch addr := addr.(type) {
-	case *dcrutil.AddressPubKeyHash:
-		if addr == nil {
-			return nil, scriptError(ErrUnsupportedAddress,
-				nilAddrErrStr)
-		}
-		if addr.DSA() != dcrec.STEcdsaSecp256k1 {
-			str := "unable to generate payment script for " +
-				"unsupported digital signature algorithm"
-			return nil, scriptError(ErrUnsupportedAddress, str)
-		}
-
-	case *dcrutil.AddressScriptHash:
-		if addr == nil {
-			return nil, scriptError(ErrUnsupportedAddress,
-				nilAddrErrStr)
-		}
-		scriptType = ScriptHashTy
-
-	default:
-		str := fmt.Sprintf("unable to generate payment script for "+
-			"unsupported address type %T", addr)
-		return nil, scriptError(ErrUnsupportedAddress, str)
-	}
-
-	hash := addr.ScriptAddress()
-
-	if scriptType == PubKeyHashTy {
-		return NewScriptBuilder().AddOp(OP_SSGEN).AddOp(OP_DUP).
-			AddOp(OP_HASH160).AddData(hash).AddOp(OP_EQUALVERIFY).
-			AddOp(OP_CHECKSIG).Script()
-	}
-	return NewScriptBuilder().AddOp(OP_SSGEN).AddOp(OP_HASH160).
-		AddData(hash).AddOp(OP_EQUAL).Script()
-}
-
 // PayToSSGenPKHDirect creates a new script to pay a transaction output to a
 // public key hash, but tags the output with OP_SSGEN. For use in constructing
 // valid SSGen txs. Unlike PayToSSGen, this function directly uses the HASH160
