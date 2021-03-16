@@ -774,13 +774,6 @@ func payToPubKeyHashSchnorrScript(pubKeyHash []byte) ([]byte, error) {
 		AddOp(OP_CHECKSIGALT).Script()
 }
 
-// payToScriptHashScript creates a new script to pay a transaction output to a
-// script hash. It is expected that the input is a valid hash.
-func payToScriptHashScript(scriptHash []byte) ([]byte, error) {
-	return NewScriptBuilder().AddOp(OP_HASH160).AddData(scriptHash).
-		AddOp(OP_EQUAL).Script()
-}
-
 // GenerateSStxAddrPush generates an OP_RETURN push for SSGen payment addresses in
 // an SStx.
 func GenerateSStxAddrPush(addr dcrutil.Address, amount dcrutil.Amount, limits uint16) ([]byte, error) {
