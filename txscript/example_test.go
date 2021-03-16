@@ -25,39 +25,6 @@ const (
 	noTreasury = false
 )
 
-// This example demonstrates creating a script which pays to a Decred address.
-// It also prints the created script hex and uses the DisasmString function to
-// display the disassembled script.
-func ExamplePayToAddrScript() {
-	// Parse the address to send the coins to into an address which is useful to
-	// ensure the accuracy of the address and determine the address type.  It is
-	// also required to determine the payment script.
-	mainNetParams := chaincfg.MainNetParams()
-	addressStr := "DsSej1qR3Fyc8kV176DCh9n9cY9nqf9Quxk"
-	address, err := stdaddr.DecodeAddress(addressStr, mainNetParams)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-
-	// Create a public key script that pays to the address.
-	scriptVersion, script := address.PaymentScript()
-	fmt.Printf("Script Version: %d\n", scriptVersion)
-	fmt.Printf("Script Hex: %x\n", script)
-
-	disasm, err := txscript.DisasmString(script)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	fmt.Println("Script Disassembly:", disasm)
-
-	// Output:
-	// Script Version: 0
-	// Script Hex: 76a914128004ff2fcaf13b2b91eb654b1dc2b674f7ec6188ac
-	// Script Disassembly: OP_DUP OP_HASH160 128004ff2fcaf13b2b91eb654b1dc2b674f7ec61 OP_EQUALVERIFY OP_CHECKSIG
-}
-
 // This example demonstrates extracting information from a standard public key
 // script.
 func ExampleExtractPkScriptAddrs() {

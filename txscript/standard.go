@@ -888,58 +888,6 @@ func GenerateProvablyPruneableOut(data []byte) ([]byte, error) {
 	return NewScriptBuilder().AddOp(OP_RETURN).AddData(data).Script()
 }
 
-// PayToAddrScript creates a new script to pay a transaction output to a the
-// specified address.
-func PayToAddrScript(addr dcrutil.Address) ([]byte, error) {
-	switch addr := addr.(type) {
-	case *dcrutil.AddressPubKeyHash:
-		if addr == nil {
-			return nil, scriptError(ErrUnsupportedAddress,
-				nilAddrErrStr)
-		}
-		switch addr.DSA() {
-		case dcrec.STEcdsaSecp256k1:
-			return payToPubKeyHashScript(addr.ScriptAddress())
-		case dcrec.STEd25519:
-			return payToPubKeyHashEdwardsScript(addr.ScriptAddress())
-		case dcrec.STSchnorrSecp256k1:
-			return payToPubKeyHashSchnorrScript(addr.ScriptAddress())
-		}
-
-	case *dcrutil.AddressScriptHash:
-		if addr == nil {
-			return nil, scriptError(ErrUnsupportedAddress,
-				nilAddrErrStr)
-		}
-		return payToScriptHashScript(addr.ScriptAddress())
-
-	case *dcrutil.AddressSecpPubKey:
-		if addr == nil {
-			return nil, scriptError(ErrUnsupportedAddress,
-				nilAddrErrStr)
-		}
-		return payToPubKeyScript(addr.ScriptAddress())
-
-	case *dcrutil.AddressEdwardsPubKey:
-		if addr == nil {
-			return nil, scriptError(ErrUnsupportedAddress,
-				nilAddrErrStr)
-		}
-		return payToEdwardsPubKeyScript(addr.ScriptAddress())
-
-	case *dcrutil.AddressSecSchnorrPubKey:
-		if addr == nil {
-			return nil, scriptError(ErrUnsupportedAddress,
-				nilAddrErrStr)
-		}
-		return payToSchnorrPubKeyScript(addr.ScriptAddress())
-	}
-
-	str := fmt.Sprintf("unable to generate payment script for unsupported "+
-		"address type %T", addr)
-	return nil, scriptError(ErrUnsupportedAddress, str)
-}
-
 // MultiSigScript returns a valid script for a multisignature redemption where
 // the specified threshold number of the keys in the given public keys are
 // required to have signed the transaction for success.
