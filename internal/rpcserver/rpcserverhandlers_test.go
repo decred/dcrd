@@ -393,7 +393,7 @@ func (c *testRPCChain) TicketPoolValue() (dcrutil.Amount, error) {
 
 // TicketsWithAddress returns a mocked slice of ticket hashes that are currently
 // live corresponding to the given address.
-func (c *testRPCChain) TicketsWithAddress(address dcrutil.Address, isTreasuryEnabled bool) ([]chainhash.Hash, error) {
+func (c *testRPCChain) TicketsWithAddress(address stdaddr.Address, isTreasuryEnabled bool) ([]chainhash.Hash, error) {
 	return c.ticketsWithAddress, c.ticketsWithAddressErr
 }
 

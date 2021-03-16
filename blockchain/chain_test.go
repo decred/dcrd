@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2020 The Decred developers
+// Copyright (c) 2015-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -21,6 +21,7 @@ import (
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/chaincfg/v3"
 	"github.com/decred/dcrd/dcrutil/v4"
+	"github.com/decred/dcrd/txscript/v4/stdaddr"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -125,7 +126,7 @@ func TestBlockchainFunctions(t *testing.T) {
 			"want %v, got %v", expectedVal, val)
 	}
 
-	a, _ := dcrutil.DecodeAddress("SsbKpMkPnadDcZFFZqRPY8nvdFagrktKuzB", params)
+	a, _ := stdaddr.DecodeAddress("SsbKpMkPnadDcZFFZqRPY8nvdFagrktKuzB", params)
 	hs, err := chain.TicketsWithAddress(a, noTreasury)
 	if err != nil {
 		t.Errorf("Failed to do TicketsWithAddress: %v", err)

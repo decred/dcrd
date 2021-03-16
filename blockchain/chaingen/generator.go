@@ -492,8 +492,8 @@ func (g *Generator) CreateTicketPurchaseTx(spend *SpendableOut, ticketPrice, fee
 	voteScriptVer, voteScript := g.p2shOpTrueAddr.VotingRightsScript()
 
 	// Generate the commitment script.
-	commitScript := PurchaseCommitmentScript(g.p2shOpTrueAddr, ticketPrice+fee,
-		0, ticketPrice)
+	commitScriptVer, commitScript := g.p2shOpTrueAddr.RewardCommitmentScript(
+		int64(ticketPrice+fee), 0, int64(ticketPrice))
 
 	// Calculate change and generate script to deliver it.
 	change := spend.amount - ticketPrice - fee
@@ -511,7 +511,7 @@ func (g *Generator) CreateTicketPurchaseTx(spend *SpendableOut, ticketPrice, fee
 		SignatureScript:  opTrueRedeemScript,
 	})
 	tx.AddTxOut(newTxOut(int64(ticketPrice), voteScriptVer, voteScript))
-	tx.AddTxOut(wire.NewTxOut(0, commitScript))
+	tx.AddTxOut(newTxOut(0, commitScriptVer, commitScript))
 	tx.AddTxOut(newTxOut(int64(change), changeScriptVer, changeScript))
 	return tx
 }

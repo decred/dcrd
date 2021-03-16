@@ -1874,7 +1874,7 @@ func TestSpendableTreasuryTxs(t *testing.T) {
 	// mining these txs.
 	spendPrivKey := secp256k1.NewPrivateKey(new(secp256k1.ModNScalar).SetInt(1))
 	pubKey := spendPrivKey.PubKey().SerializeCompressed()
-	pubKeyHash := dcrutil.Hash160(pubKey)
+	pubKeyHash := stdaddr.Hash160(pubKey)
 	spendP2pkhAddr, err := stdaddr.NewAddressPubKeyHashEcdsaSecp256k1V0(
 		pubKeyHash, params)
 	if err != nil {
@@ -1889,7 +1889,7 @@ func TestSpendableTreasuryTxs(t *testing.T) {
 
 	addPrivKey := secp256k1.NewPrivateKey(new(secp256k1.ModNScalar).SetInt(2))
 	pubKey = addPrivKey.PubKey().SerializeCompressed()
-	pubKeyHash = dcrutil.Hash160(pubKey)
+	pubKeyHash = stdaddr.Hash160(pubKey)
 	addP2pkhAddr, err := stdaddr.NewAddressPubKeyHashEcdsaSecp256k1V0(
 		pubKeyHash, params)
 	if err != nil {
@@ -3358,15 +3358,23 @@ func TestTreasuryBalance(t *testing.T) {
 	}
 }
 
+// newTxOut returns a new transaction output with the given parameters.
+func newTxOut(amount int64, pkScriptVer uint16, pkScript []byte) *wire.TxOut {
+	return &wire.TxOut{
+		Value:    amount,
+		Version:  pkScriptVer,
+		PkScript: pkScript,
+	}
+}
+
 func createTAdd(spend chaingen.SpendableOut, changeDivisor dcrutil.Amount, params *chaincfg.Params) func(b *wire.MsgBlock) {
-	p2shOpTrueAddr, err := dcrutil.NewAddressScriptHash([]byte{txscript.OP_TRUE},
-		params)
+	redeemScript := []byte{txscript.OP_TRUE}
+	p2shOpTrueAddr, err := stdaddr.NewAddressScriptHashV0(redeemScript, params)
 	if err != nil {
 		panic(err)
 	}
 
 	return func(b *wire.MsgBlock) {
-		// Add TADD
 		amount := spend.Amount()
 		tx := wire.NewMsgTx()
 		tx.AddTxIn(&wire.TxIn{
@@ -3375,25 +3383,20 @@ func createTAdd(spend chaingen.SpendableOut, changeDivisor dcrutil.Amount, param
 			ValueIn:          int64(amount),
 			BlockHeight:      spend.BlockHeight(),
 			BlockIndex:       spend.BlockIndex(),
-			SignatureScript: []byte{txscript.OP_DATA_1,
-				txscript.OP_TRUE},
+			SignatureScript:  []byte{txscript.OP_DATA_1, txscript.OP_TRUE},
 		})
 
 		// Add negative change.
+		trsyAddScript := []byte{txscript.OP_TADD}
 		if changeDivisor != 0 {
-			changeScript, err := txscript.PayToSStxChange(p2shOpTrueAddr)
-			if err != nil {
-				panic(err)
-			}
+			changeScriptVer, changeScript := p2shOpTrueAddr.StakeChangeScript()
 
 			change := spend.Amount() / changeDivisor
 			amount := spend.Amount() - change
-			tx.AddTxOut(wire.NewTxOut(int64(amount),
-				[]byte{txscript.OP_TADD}))
-			tx.AddTxOut(wire.NewTxOut(int64(change), changeScript))
+			tx.AddTxOut(wire.NewTxOut(int64(amount), trsyAddScript))
+			tx.AddTxOut(newTxOut(int64(change), changeScriptVer, changeScript))
 		} else {
-			tx.AddTxOut(wire.NewTxOut(int64(amount),
-				[]byte{txscript.OP_TADD}))
+			tx.AddTxOut(wire.NewTxOut(int64(amount), trsyAddScript))
 		}
 		tx.Version = wire.TxVersionTreasury
 		b.AddSTransaction(tx)

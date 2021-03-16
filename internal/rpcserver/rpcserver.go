@@ -5083,7 +5083,7 @@ func handleTicketsForAddress(_ context.Context, s *Server, cmd interface{}) (int
 
 	// Decode the provided address.  This also ensures the network encoded
 	// with the address matches the network the server is currently on.
-	addr, err := dcrutil.DecodeAddress(c.Address, s.cfg.ChainParams)
+	addr, err := stdaddr.DecodeAddress(c.Address, s.cfg.ChainParams)
 	if err != nil {
 		return nil, rpcInvalidError("Invalid address: %v", err)
 	}

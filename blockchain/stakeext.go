@@ -10,6 +10,7 @@ import (
 	"github.com/decred/dcrd/database/v2"
 	"github.com/decred/dcrd/dcrutil/v4"
 	"github.com/decred/dcrd/txscript/v4"
+	"github.com/decred/dcrd/txscript/v4/stdaddr"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -101,13 +102,14 @@ func (b *BlockChain) MissedTickets() ([]chainhash.Hash, error) {
 // corresponding to the given address.
 //
 // This function is safe for concurrent access.
-func (b *BlockChain) TicketsWithAddress(address dcrutil.Address, isTreasuryEnabled bool) ([]chainhash.Hash, error) {
+func (b *BlockChain) TicketsWithAddress(address stdaddr.Address, isTreasuryEnabled bool) ([]chainhash.Hash, error) {
 	b.chainLock.RLock()
 	sn := b.bestChain.Tip().stakeNode
 	b.chainLock.RUnlock()
 
 	tickets := sn.LiveTickets()
 
+	encodedAddr := address.Address()
 	var ticketsWithAddr []chainhash.Hash
 	err := b.db.View(func(dbTx database.Tx) error {
 		for _, hash := range tickets {
@@ -122,7 +124,7 @@ func (b *BlockChain) TicketsWithAddress(address dcrutil.Address, isTreasuryEnabl
 			if err != nil {
 				return err
 			}
-			if addrs[0].Address() == address.Address() {
+			if addrs[0].Address() == encodedAddr {
 				ticketsWithAddr = append(ticketsWithAddr, hash)
 			}
 		}

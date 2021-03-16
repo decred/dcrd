@@ -1,5 +1,5 @@
 // Copyright (c) 2016 The btcsuite developers
-// Copyright (c) 2016-2020 The Decred developers
+// Copyright (c) 2016-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -20,6 +20,7 @@ import (
 	"github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/decred/dcrd/dcrutil/v4"
 	"github.com/decred/dcrd/txscript/v4"
+	"github.com/decred/dcrd/txscript/v4/stdaddr"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -41,11 +42,6 @@ const (
 	// whether or not to approve the previous block.
 	voteBitNo  = 0x0000
 	voteBitYes = 0x0001
-
-	// noTreasury signifies the treasury agenda should be treated as though
-	// it is inactive.  It is used to increase the readability of the
-	// tests.
-	noTreasury = false
 )
 
 var (
@@ -158,7 +154,7 @@ func (b RejectedNonCanonicalBlock) FullBlockTestInstance() {}
 // payToScriptHashScript returns a standard pay-to-script-hash for the provided
 // redeem script.
 func payToScriptHashScript(redeemScript []byte) []byte {
-	redeemScriptHash := dcrutil.Hash160(redeemScript)
+	redeemScriptHash := stdaddr.Hash160(redeemScript)
 	script, err := txscript.NewScriptBuilder().
 		AddOp(txscript.OP_HASH160).AddData(redeemScriptHash).
 		AddOp(txscript.OP_EQUAL).Script()
@@ -825,21 +821,15 @@ func Generate(includeLargeReorg bool) (tests [][]TestInstance, err error) {
 	g.SetTip("bf6")
 	g.NextBlock("bbadtaxscript", outs[4], ticketOuts[4],
 		func(b *wire.MsgBlock) {
+			h160 := g.Params().OrganizationPkScript[2:22]
+			p2pkhTaxAddr, err := stdaddr.NewAddressPubKeyHashEcdsaSecp256k1V0(
+				h160, g.Params())
+			if err != nil {
+				panic(err)
+			}
+			p2pkhScriptVer, p2pkhScript := p2pkhTaxAddr.PaymentScript()
 			taxOutput := b.Transactions[0].TxOut[0]
-			_, addrs, _, _ := txscript.ExtractPkScriptAddrs(
-				g.Params().OrganizationPkScriptVersion,
-				taxOutput.PkScript, g.Params(), noTreasury)
-			p2shTaxAddr := addrs[0].(*dcrutil.AddressScriptHash)
-			p2pkhTaxAddr, err := dcrutil.NewAddressPubKeyHash(
-				p2shTaxAddr.Hash160()[:], g.Params(),
-				dcrec.STEcdsaSecp256k1)
-			if err != nil {
-				panic(err)
-			}
-			p2pkhScript, err := txscript.PayToAddrScript(p2pkhTaxAddr)
-			if err != nil {
-				panic(err)
-			}
+			taxOutput.Version = p2pkhScriptVer
 			taxOutput.PkScript = p2pkhScript
 		})
 	rejected(blockchain.ErrNoTax)
@@ -1280,12 +1270,12 @@ func Generate(includeLargeReorg bool) (tests [][]TestInstance, err error) {
 	//                 \-> bv15(9)
 	g.SetTip("bsl5")
 	g.NextBlock("bv15", outs[9], ticketOuts[9], func(b *wire.MsgBlock) {
-		ticketFee := dcrutil.Amount(2)
-		ticketPrice := dcrutil.Amount(g.CalcNextReqStakeDifficulty(g.Tip()))
+		ticketFee := int64(2)
+		ticketPrice := g.CalcNextReqStakeDifficulty(g.Tip())
 		ticketPrice--
-		b.STransactions[5].TxOut[1].PkScript =
-			chaingen.PurchaseCommitmentScript(g.P2shOpTrueAddr(),
-				ticketPrice+ticketFee, 0, ticketPrice)
+		commitTxOut := b.STransactions[5].TxOut[1]
+		commitTxOut.Version, commitTxOut.PkScript = g.P2shOpTrueAddr().
+			RewardCommitmentScript(ticketPrice+ticketFee, 0, ticketPrice)
 	})
 	rejected(blockchain.ErrTicketCommitment)
 
