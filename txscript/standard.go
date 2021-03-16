@@ -781,13 +781,6 @@ func payToScriptHashScript(scriptHash []byte) ([]byte, error) {
 		AddOp(OP_EQUAL).Script()
 }
 
-// payToPubkeyScript creates a new script to pay a transaction output to a
-// public key. It is expected that the input is a valid pubkey.
-func payToPubKeyScript(serializedPubKey []byte) ([]byte, error) {
-	return NewScriptBuilder().AddData(serializedPubKey).
-		AddOp(OP_CHECKSIG).Script()
-}
-
 // GenerateSStxAddrPush generates an OP_RETURN push for SSGen payment addresses in
 // an SStx.
 func GenerateSStxAddrPush(addr dcrutil.Address, amount dcrutil.Amount, limits uint16) ([]byte, error) {
