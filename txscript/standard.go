@@ -753,16 +753,6 @@ func payToPubKeyHashScript(pubKeyHash []byte) ([]byte, error) {
 		Script()
 }
 
-// payToPubKeyHashEdwardsScript creates a new script to pay a transaction
-// output to a 20-byte pubkey hash of an Edwards public key. It is expected
-// that the input is a valid hash.
-func payToPubKeyHashEdwardsScript(pubKeyHash []byte) ([]byte, error) {
-	edwardsData := []byte{byte(dcrec.STEd25519)}
-	return NewScriptBuilder().AddOp(OP_DUP).AddOp(OP_HASH160).
-		AddData(pubKeyHash).AddOp(OP_EQUALVERIFY).AddData(edwardsData).
-		AddOp(OP_CHECKSIGALT).Script()
-}
-
 // GenerateSStxAddrPush generates an OP_RETURN push for SSGen payment addresses in
 // an SStx.
 func GenerateSStxAddrPush(addr dcrutil.Address, amount dcrutil.Amount, limits uint16) ([]byte, error) {
