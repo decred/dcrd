@@ -244,8 +244,8 @@ func (idx *ExistsAddrIndex) ConnectBlock(dbTx database.Tx, block, parent *dcruti
 			if txscript.IsMultisigSigScript(txIn.SignatureScript) {
 				rs := txscript.MultisigRedeemScriptFromScriptSig(
 					txIn.SignatureScript)
-				class, addrs, err := extractPkScriptAddrs(scriptVersion, rs,
-					idx.chainParams, isTreasuryEnabled)
+				class, addrs, _, err := txscript.ExtractPkScriptAddrs(
+					scriptVersion, rs, idx.chainParams, isTreasuryEnabled)
 				if err != nil {
 					// Non-standard outputs are skipped.
 					continue
@@ -267,7 +267,7 @@ func (idx *ExistsAddrIndex) ConnectBlock(dbTx database.Tx, block, parent *dcruti
 		}
 
 		for _, txOut := range tx.MsgTx().TxOut {
-			class, addrs, err := extractPkScriptAddrs(txOut.Version,
+			class, addrs, _, err := txscript.ExtractPkScriptAddrs(txOut.Version,
 				txOut.PkScript, idx.chainParams, isTreasuryEnabled)
 			if err != nil {
 				// Non-standard outputs are skipped.
@@ -363,8 +363,8 @@ func (idx *ExistsAddrIndex) addUnconfirmedTx(tx *wire.MsgTx, isTreasuryEnabled b
 			const scriptVersion = 0
 			rs := txscript.MultisigRedeemScriptFromScriptSig(
 				txIn.SignatureScript)
-			class, addrs, err := extractPkScriptAddrs(scriptVersion, rs,
-				idx.chainParams, isTreasuryEnabled)
+			class, addrs, _, err := txscript.ExtractPkScriptAddrs(scriptVersion,
+				rs, idx.chainParams, isTreasuryEnabled)
 			if err != nil {
 				// Non-standard outputs are skipped.
 				continue
@@ -388,8 +388,8 @@ func (idx *ExistsAddrIndex) addUnconfirmedTx(tx *wire.MsgTx, isTreasuryEnabled b
 	}
 
 	for _, txOut := range tx.TxOut {
-		class, addrs, err := extractPkScriptAddrs(txOut.Version, txOut.PkScript,
-			idx.chainParams, isTreasuryEnabled)
+		class, addrs, _, err := txscript.ExtractPkScriptAddrs(txOut.Version,
+			txOut.PkScript, idx.chainParams, isTreasuryEnabled)
 		if err != nil {
 			// Non-standard outputs are skipped.
 			continue

@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2017 The btcsuite developers
-// Copyright (c) 2015-2020 The Decred developers
+// Copyright (c) 2015-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -13,6 +13,7 @@ import (
 	"github.com/decred/dcrd/dcrec"
 	"github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/decred/dcrd/dcrutil/v4"
+	"github.com/decred/dcrd/txscript/v4/stdaddr"
 )
 
 const (
@@ -1209,11 +1210,10 @@ func PushedData(script []byte) ([][]byte, error) {
 // pubKeyHashToAddrs is a convenience function to attempt to convert the
 // passed hash to a pay-to-pubkey-hash address housed within an address
 // slice.  It is used to consolidate common code.
-func pubKeyHashToAddrs(hash []byte, params dcrutil.AddressParams) []dcrutil.Address {
+func pubKeyHashToAddrs(hash []byte, params stdaddr.AddressParams) []stdaddr.Address {
 	// Skip the pubkey hash if it's invalid for some reason.
-	var addrs []dcrutil.Address
-	addr, err := dcrutil.NewAddressPubKeyHash(hash, params,
-		dcrec.STEcdsaSecp256k1)
+	var addrs []stdaddr.Address
+	addr, err := stdaddr.NewAddressPubKeyHashEcdsaSecp256k1V0(hash, params)
 	if err == nil {
 		addrs = append(addrs, addr)
 	}
@@ -1223,10 +1223,10 @@ func pubKeyHashToAddrs(hash []byte, params dcrutil.AddressParams) []dcrutil.Addr
 // scriptHashToAddrs is a convenience function to attempt to convert the passed
 // hash to a pay-to-script-hash address housed within an address slice.  It is
 // used to consolidate common code.
-func scriptHashToAddrs(hash []byte, params dcrutil.AddressParams) []dcrutil.Address {
+func scriptHashToAddrs(hash []byte, params stdaddr.AddressParams) []stdaddr.Address {
 	// Skip the hash if it's invalid for some reason.
-	var addrs []dcrutil.Address
-	addr, err := dcrutil.NewAddressScriptHashFromHash(hash, params)
+	var addrs []stdaddr.Address
+	addr, err := stdaddr.NewAddressScriptHashV0FromHash(hash, params)
 	if err == nil {
 		addrs = append(addrs, addr)
 	}
@@ -1241,7 +1241,7 @@ func scriptHashToAddrs(hash []byte, params dcrutil.AddressParams) []dcrutil.Addr
 // NOTE: This function only attempts to identify version 0 scripts.  The return
 // value will indicate a nonstandard script type for other script versions along
 // with an invalid script version error.
-func ExtractPkScriptAddrs(version uint16, pkScript []byte, chainParams dcrutil.AddressParams, isTreasuryEnabled bool) (ScriptClass, []dcrutil.Address, int, error) {
+func ExtractPkScriptAddrs(version uint16, pkScript []byte, chainParams stdaddr.AddressParams, isTreasuryEnabled bool) (ScriptClass, []stdaddr.Address, int, error) {
 	if version != 0 {
 		return NonStandardTy, nil, 0, fmt.Errorf("invalid script version")
 	}
@@ -1258,20 +1258,32 @@ func ExtractPkScriptAddrs(version uint16, pkScript []byte, chainParams dcrutil.A
 
 	// Check for pay-to-alt-pubkey-hash script.
 	if data, sigType := extractPubKeyHashAltDetails(pkScript); data != nil {
-		var addrs []dcrutil.Address
-		addr, err := dcrutil.NewAddressPubKeyHash(data, chainParams, sigType)
-		if err == nil {
-			addrs = append(addrs, addr)
+		var addrs []stdaddr.Address
+		switch sigType {
+		case dcrec.STEd25519:
+			addr, err := stdaddr.NewAddressPubKeyHashEd25519(version, data,
+				chainParams)
+			if err == nil {
+				addrs = append(addrs, addr)
+			}
+
+		case dcrec.STSchnorrSecp256k1:
+			addr, err := stdaddr.NewAddressPubKeyHashSchnorrSecp256k1(version,
+				data, chainParams)
+			if err == nil {
+				addrs = append(addrs, addr)
+			}
 		}
 		return PubkeyHashAltTy, addrs, 1, nil
 	}
 
 	// Check for pay-to-pubkey script.
 	if data := extractPubKey(pkScript); data != nil {
-		var addrs []dcrutil.Address
+		var addrs []stdaddr.Address
 		pk, err := secp256k1.ParsePubKey(data)
 		if err == nil {
-			addr, err := dcrutil.NewAddressSecpPubKeyCompressed(pk, chainParams)
+			addr, err := stdaddr.NewAddressPubKeyEcdsaSecp256k1(version, pk,
+				chainParams)
 			if err == nil {
 				addrs = append(addrs, addr)
 			}
@@ -1281,16 +1293,18 @@ func ExtractPkScriptAddrs(version uint16, pkScript []byte, chainParams dcrutil.A
 
 	// Check for pay-to-alt-pubkey script.
 	if pk, sigType := extractPubKeyAltDetails(pkScript); pk != nil {
-		var addrs []dcrutil.Address
+		var addrs []stdaddr.Address
 		switch sigType {
 		case dcrec.STEd25519:
-			addr, err := dcrutil.NewAddressEdwardsPubKey(pk, chainParams)
+			addr, err := stdaddr.NewAddressPubKeyEd25519Raw(version, pk,
+				chainParams)
 			if err == nil {
 				addrs = append(addrs, addr)
 			}
 
 		case dcrec.STSchnorrSecp256k1:
-			addr, err := dcrutil.NewAddressSecSchnorrPubKey(pk, chainParams)
+			addr, err := stdaddr.NewAddressPubKeySchnorrSecp256k1Raw(version,
+				pk, chainParams)
 			if err == nil {
 				addrs = append(addrs, addr)
 			}
@@ -1303,12 +1317,12 @@ func ExtractPkScriptAddrs(version uint16, pkScript []byte, chainParams dcrutil.A
 	details := extractMultisigScriptDetails(version, pkScript, true)
 	if details.valid {
 		// Convert the public keys while skipping any that are invalid.
-		addrs := make([]dcrutil.Address, 0, details.numPubKeys)
+		addrs := make([]stdaddr.Address, 0, details.numPubKeys)
 		for i := 0; i < details.numPubKeys; i++ {
 			pubkey, err := secp256k1.ParsePubKey(details.pubKeys[i])
 			if err == nil {
-				addr, err := dcrutil.NewAddressSecpPubKeyCompressed(pubkey,
-					chainParams)
+				addr, err := stdaddr.NewAddressPubKeyEcdsaSecp256k1(version,
+					pubkey, chainParams)
 				if err == nil {
 					addrs = append(addrs, addr)
 				}

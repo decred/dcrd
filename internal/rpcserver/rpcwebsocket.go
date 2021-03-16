@@ -687,7 +687,7 @@ func (m *wsNotificationManager) subscribedClients(tx *dcrutil.Tx, clients map[ch
 
 		for i, output := range msgTx.TxOut {
 			watchOutput := true
-			sc, addrs, _, err := extractPkScriptAddrs(output.Version,
+			sc, addrs, _, err := txscript.ExtractPkScriptAddrs(output.Version,
 				output.PkScript, params, isTreasuryEnabled)
 			if err != nil {
 				// Clients are not able to subscribe to
@@ -1196,7 +1196,7 @@ func (m *wsNotificationManager) notifyRelevantTxAccepted(tx *dcrutil.Tx,
 		}
 
 		for i, output := range msgTx.TxOut {
-			_, addrs, _, err := extractPkScriptAddrs(output.Version,
+			_, addrs, _, err := txscript.ExtractPkScriptAddrs(output.Version,
 				output.PkScript, m.server.cfg.ChainParams, isTreasuryEnabled)
 			if err != nil {
 				continue
@@ -2317,7 +2317,7 @@ func rescanBlock(filter *wsClientFilter, block *dcrutil.Block, params *chaincfg.
 
 	LoopOutputs:
 		for i, output := range tx.TxOut {
-			_, addrs, _, err := extractPkScriptAddrs(output.Version,
+			_, addrs, _, err := txscript.ExtractPkScriptAddrs(output.Version,
 				output.PkScript, params, isTreasuryEnabled)
 			if err != nil {
 				continue

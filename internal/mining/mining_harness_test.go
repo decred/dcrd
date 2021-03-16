@@ -933,13 +933,13 @@ type miningHarness struct {
 // GetScript is the mining harness' implementation of the ScriptDB interface.
 // It returns the mining harness' payment redeem script for any address passed
 // in.
-func (m *miningHarness) GetScript(addr dcrutil.Address) ([]byte, error) {
+func (m *miningHarness) GetScript(addr stdaddr.Address) ([]byte, error) {
 	return m.payScript, nil
 }
 
 // GetKey is the mining harness' implementation of the KeyDB interface. It
 // returns the mining harness' signature key for any address passed in.
-func (m *miningHarness) GetKey(addr dcrutil.Address) ([]byte, dcrec.SignatureType, bool, error) {
+func (m *miningHarness) GetKey(addr stdaddr.Address) ([]byte, dcrec.SignatureType, bool, error) {
 	return m.signKey, m.sigType, true, nil
 }
 

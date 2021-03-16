@@ -359,13 +359,13 @@ type poolHarness struct {
 // GetScript is the pool harness' implementation of the ScriptDB interface.
 // It returns the pool harness' payment redeem script for any address
 // passed in.
-func (p *poolHarness) GetScript(addr dcrutil.Address) ([]byte, error) {
+func (p *poolHarness) GetScript(addr stdaddr.Address) ([]byte, error) {
 	return p.payScript, nil
 }
 
 // GetKey is the pool harness' implementation of the KeyDB interface.
 // It returns the pool harness' signature key for any address passed in.
-func (p *poolHarness) GetKey(addr dcrutil.Address) ([]byte, dcrec.SignatureType, bool, error) {
+func (p *poolHarness) GetKey(addr stdaddr.Address) ([]byte, dcrec.SignatureType, bool, error) {
 	return p.signKey, p.sigType, true, nil
 }
 

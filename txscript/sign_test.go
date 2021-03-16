@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2020 The Decred developers
+// Copyright (c) 2015-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -17,7 +17,7 @@ import (
 	"github.com/decred/dcrd/dcrec"
 	"github.com/decred/dcrd/dcrec/edwards/v2"
 	"github.com/decred/dcrd/dcrec/secp256k1/v4"
-	"github.com/decred/dcrd/dcrutil/v4"
+	"github.com/decred/dcrd/txscript/v4/stdaddr"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -47,12 +47,12 @@ type addressToKey struct {
 
 func mkGetKey(keys map[string]addressToKey) KeyDB {
 	if keys == nil {
-		return KeyClosure(func(addr dcrutil.Address) ([]byte,
+		return KeyClosure(func(addr stdaddr.Address) ([]byte,
 			dcrec.SignatureType, bool, error) {
 			return nil, 0, false, errors.New("nope 1")
 		})
 	}
-	return KeyClosure(func(addr dcrutil.Address) ([]byte,
+	return KeyClosure(func(addr stdaddr.Address) ([]byte,
 		dcrec.SignatureType, bool, error) {
 		a2k, ok := keys[addr.Address()]
 		if !ok {
@@ -64,14 +64,14 @@ func mkGetKey(keys map[string]addressToKey) KeyDB {
 
 func mkGetKeyPub(keys map[string]addressToKey) KeyDB {
 	if keys == nil {
-		return KeyClosure(func(addr dcrutil.Address) ([]byte,
+		return KeyClosure(func(addr stdaddr.Address) ([]byte,
 			dcrec.SignatureType, bool, error) {
 			return nil, 0, false, errors.New("nope 1")
 		})
 	}
-	return KeyClosure(func(addr dcrutil.Address) ([]byte,
+	return KeyClosure(func(addr stdaddr.Address) ([]byte,
 		dcrec.SignatureType, bool, error) {
-		a2k, ok := keys[addr.String()]
+		a2k, ok := keys[addr.Address()]
 		if !ok {
 			return nil, 0, false, errors.New("nope 2")
 		}
@@ -81,12 +81,12 @@ func mkGetKeyPub(keys map[string]addressToKey) KeyDB {
 
 func mkGetScript(scripts map[string][]byte) ScriptDB {
 	if scripts == nil {
-		return ScriptClosure(func(addr dcrutil.Address) (
+		return ScriptClosure(func(addr stdaddr.Address) (
 			[]byte, error) {
 			return nil, errors.New("nope 3")
 		})
 	}
-	return ScriptClosure(func(addr dcrutil.Address) ([]byte,
+	return ScriptClosure(func(addr stdaddr.Address) ([]byte,
 		error) {
 		script, ok := scripts[addr.Address()]
 		if !ok {
@@ -227,40 +227,42 @@ func TestSignTxOutput(t *testing.T) {
 	for _, hashType := range hashTypes {
 		for _, suite := range signatureSuites {
 			for i := range tx.TxIn {
-				var keyDB, pkBytes []byte
+				var keyDB []byte
 
+				msg := fmt.Sprintf("%d:%d:%d", hashType, i, suite)
+				var address stdaddr.Address
+				var err error
 				switch suite {
 				case dcrec.STEcdsaSecp256k1:
 					privKey, _ := secp256k1.GeneratePrivateKey()
 					keyDB = privKey.Serialize()
-					pkBytes = privKey.PubKey().SerializeUncompressed()
+					pkBytes := privKey.PubKey().SerializeUncompressed()
+					h160 := stdaddr.Hash160(pkBytes)
+					address, err = stdaddr.NewAddressPubKeyHashEcdsaSecp256k1V0(
+						h160, testingParams)
+
 				case dcrec.STEd25519:
 					keyDB, _, _, _ = edwards.GenerateKey(rand.Reader)
 					_, pk := edwards.PrivKeyFromBytes(keyDB)
-					pkBytes = pk.SerializeUncompressed()
+					pkBytes := pk.SerializeUncompressed()
+					h160 := stdaddr.Hash160(pkBytes)
+					address, err = stdaddr.NewAddressPubKeyHashEd25519V0(h160,
+						testingParams)
+
 				case dcrec.STSchnorrSecp256k1:
 					privKey, _ := secp256k1.GeneratePrivateKey()
 					keyDB = privKey.Serialize()
-					pkBytes = privKey.PubKey().SerializeCompressed()
+					pkBytes := privKey.PubKey().SerializeCompressed()
+					h160 := stdaddr.Hash160(pkBytes)
+					address, err = stdaddr.NewAddressPubKeyHashSchnorrSecp256k1V0(
+						h160, testingParams)
 				}
-
-				msg := fmt.Sprintf("%d:%d:%d", hashType, i, suite)
-
-				address, err := dcrutil.NewAddressPubKeyHash(
-					dcrutil.Hash160(pkBytes), testingParams,
-					suite)
-
 				if err != nil {
-					t.Errorf("failed to make address for %s: %v",
-						msg, err)
+					t.Errorf("failed to make address for %s: %v", msg, err)
 					break
 				}
 
-				pkScript, err := PayToAddrScript(address)
-				if err != nil {
-					t.Errorf("failed to make pkscript "+
-						"for %s: %v", msg, err)
-				}
+				_, pkScript := address.PaymentScript()
 
 				// Without treasury agenda.
 				if err := signAndCheck(msg, tx, i, pkScript, hashType,
@@ -303,39 +305,42 @@ func TestSignTxOutput(t *testing.T) {
 	for _, hashType := range hashTypes {
 		for _, suite := range signatureSuites {
 			for i := range tx.TxIn {
-				var keyDB, pkBytes []byte
+				var keyDB []byte
 
+				msg := fmt.Sprintf("%d:%d:%d", hashType, i, suite)
+				var address stdaddr.Address
+				var err error
 				switch suite {
 				case dcrec.STEcdsaSecp256k1:
 					privKey, _ := secp256k1.GeneratePrivateKey()
 					keyDB = privKey.Serialize()
-					pkBytes = privKey.PubKey().SerializeUncompressed()
+					pkBytes := privKey.PubKey().SerializeUncompressed()
+					h160 := stdaddr.Hash160(pkBytes)
+					address, err = stdaddr.NewAddressPubKeyHashEcdsaSecp256k1V0(
+						h160, testingParams)
+
 				case dcrec.STEd25519:
 					keyDB, _, _, _ = edwards.GenerateKey(rand.Reader)
 					_, pk := edwards.PrivKeyFromBytes(keyDB)
-					pkBytes = pk.SerializeUncompressed()
+					pkBytes := pk.SerializeUncompressed()
+					h160 := stdaddr.Hash160(pkBytes)
+					address, err = stdaddr.NewAddressPubKeyHashEd25519V0(h160,
+						testingParams)
+
 				case dcrec.STSchnorrSecp256k1:
 					privKey, _ := secp256k1.GeneratePrivateKey()
 					keyDB = privKey.Serialize()
-					pkBytes = privKey.PubKey().SerializeCompressed()
+					pkBytes := privKey.PubKey().SerializeCompressed()
+					h160 := stdaddr.Hash160(pkBytes)
+					address, err = stdaddr.NewAddressPubKeyHashSchnorrSecp256k1V0(
+						h160, testingParams)
 				}
-
-				msg := fmt.Sprintf("%d:%d:%d", hashType, i, suite)
-
-				address, err := dcrutil.NewAddressPubKeyHash(
-					dcrutil.Hash160(pkBytes), testingParams,
-					suite)
 				if err != nil {
-					t.Errorf("failed to make address for %s: %v",
-						msg, err)
+					t.Errorf("failed to make address for %s: %v", msg, err)
 					break
 				}
 
-				pkScript, err := PayToAddrScript(address)
-				if err != nil {
-					t.Errorf("failed to make pkscript "+
-						"for %s: %v", msg, err)
-				}
+				_, pkScript := address.PaymentScript()
 
 				// Without treasury agenda.
 				sigScript, err := SignTxOutput(
@@ -408,39 +413,42 @@ func TestSignTxOutput(t *testing.T) {
 	for _, hashType := range hashTypes {
 		for _, suite := range signatureSuites {
 			for i := range tx.TxIn {
-				var keyDB, pkBytes []byte
+				var keyDB []byte
 
+				msg := fmt.Sprintf("%d:%d:%d", hashType, i, suite)
+				var address stdaddr.Address
+				var err error
 				switch suite {
 				case dcrec.STEcdsaSecp256k1:
 					privKey, _ := secp256k1.GeneratePrivateKey()
 					keyDB = privKey.Serialize()
-					pkBytes = privKey.PubKey().SerializeCompressed()
+					pkBytes := privKey.PubKey().SerializeCompressed()
+					h160 := stdaddr.Hash160(pkBytes)
+					address, err = stdaddr.NewAddressPubKeyHashEcdsaSecp256k1V0(
+						h160, testingParams)
+
 				case dcrec.STEd25519:
 					keyDB, _, _, _ = edwards.GenerateKey(rand.Reader)
 					_, pk := edwards.PrivKeyFromBytes(keyDB)
-					pkBytes = pk.SerializeCompressed()
+					pkBytes := pk.SerializeCompressed()
+					h160 := stdaddr.Hash160(pkBytes)
+					address, err = stdaddr.NewAddressPubKeyHashEd25519V0(h160,
+						testingParams)
+
 				case dcrec.STSchnorrSecp256k1:
 					privKey, _ := secp256k1.GeneratePrivateKey()
 					keyDB = privKey.Serialize()
-					pkBytes = privKey.PubKey().SerializeCompressed()
+					pkBytes := privKey.PubKey().SerializeCompressed()
+					h160 := stdaddr.Hash160(pkBytes)
+					address, err = stdaddr.NewAddressPubKeyHashSchnorrSecp256k1V0(
+						h160, testingParams)
 				}
-
-				msg := fmt.Sprintf("%d:%d:%d", hashType, i, suite)
-
-				address, err := dcrutil.NewAddressPubKeyHash(
-					dcrutil.Hash160(pkBytes), testingParams,
-					suite)
 				if err != nil {
-					t.Errorf("failed to make address for %s: %v",
-						msg, err)
+					t.Errorf("failed to make address for %s: %v", msg, err)
 					break
 				}
 
-				pkScript, err := PayToAddrScript(address)
-				if err != nil {
-					t.Errorf("failed to make pkscript "+
-						"for %s: %v", msg, err)
-				}
+				_, pkScript := address.PaymentScript()
 
 				// Without treasury agenda.
 				if err := signAndCheck(msg, tx, i, pkScript, hashType,
@@ -483,39 +491,42 @@ func TestSignTxOutput(t *testing.T) {
 	for _, hashType := range hashTypes {
 		for _, suite := range signatureSuites {
 			for i := range tx.TxIn {
-				var keyDB, pkBytes []byte
+				var keyDB []byte
 
+				msg := fmt.Sprintf("%d:%d:%d", hashType, i, suite)
+				var address stdaddr.Address
+				var err error
 				switch suite {
 				case dcrec.STEcdsaSecp256k1:
 					privKey, _ := secp256k1.GeneratePrivateKey()
 					keyDB = privKey.Serialize()
-					pkBytes = privKey.PubKey().SerializeCompressed()
+					pkBytes := privKey.PubKey().SerializeCompressed()
+					h160 := stdaddr.Hash160(pkBytes)
+					address, err = stdaddr.NewAddressPubKeyHashEcdsaSecp256k1V0(
+						h160, testingParams)
+
 				case dcrec.STEd25519:
 					keyDB, _, _, _ = edwards.GenerateKey(rand.Reader)
 					_, pk := edwards.PrivKeyFromBytes(keyDB)
-					pkBytes = pk.SerializeCompressed()
+					pkBytes := pk.SerializeCompressed()
+					h160 := stdaddr.Hash160(pkBytes)
+					address, err = stdaddr.NewAddressPubKeyHashEd25519V0(h160,
+						testingParams)
+
 				case dcrec.STSchnorrSecp256k1:
 					privKey, _ := secp256k1.GeneratePrivateKey()
 					keyDB = privKey.Serialize()
-					pkBytes = privKey.PubKey().SerializeCompressed()
+					pkBytes := privKey.PubKey().SerializeCompressed()
+					h160 := stdaddr.Hash160(pkBytes)
+					address, err = stdaddr.NewAddressPubKeyHashSchnorrSecp256k1V0(
+						h160, testingParams)
 				}
-
-				msg := fmt.Sprintf("%d:%d:%d", hashType, i, suite)
-
-				address, err := dcrutil.NewAddressPubKeyHash(
-					dcrutil.Hash160(pkBytes), testingParams,
-					suite)
 				if err != nil {
-					t.Errorf("failed to make address for %s: %v",
-						msg, err)
+					t.Errorf("failed to make address for %s: %v", msg, err)
 					break
 				}
 
-				pkScript, err := PayToAddrScript(address)
-				if err != nil {
-					t.Errorf("failed to make pkscript "+
-						"for %s: %v", msg, err)
-				}
+				_, pkScript := address.PaymentScript()
 
 				// Without treasury agenda.
 				sigScript, err := SignTxOutput(testingParams,
@@ -597,23 +608,16 @@ func TestSignTxOutput(t *testing.T) {
 			keyDB := privKey.Serialize()
 			pkBytes := privKey.PubKey().SerializeCompressed()
 
-			suite := dcrec.STEcdsaSecp256k1
-			address, err := dcrutil.NewAddressPubKeyHash(
-				dcrutil.Hash160(pkBytes), testingParams,
-				suite)
+			address, err := stdaddr.NewAddressPubKeyHashEcdsaSecp256k1V0(
+				stdaddr.Hash160(pkBytes), testingParams)
 			if err != nil {
-				t.Errorf("failed to make address for %s: %v",
-					msg, err)
-				break
+				t.Errorf("failed to make address for %s: %v", msg, err)
 			}
 
-			pkScript, err := PayToSStx(address)
-			if err != nil {
-				t.Errorf("failed to make pkscript "+
-					"for %s: %v", msg, err)
-			}
+			_, pkScript := address.VotingRightsScript()
 
 			// Without treasury agenda.
+			suite := dcrec.STEcdsaSecp256k1
 			if err := signAndCheck(msg, tx, i, pkScript, hashType,
 				mkGetKey(map[string]addressToKey{
 					address.Address(): {keyDB, suite, true},
@@ -662,23 +666,17 @@ func TestSignTxOutput(t *testing.T) {
 			keyDB := privKey.Serialize()
 			pkBytes := privKey.PubKey().SerializeCompressed()
 
-			suite := dcrec.STEcdsaSecp256k1
-			address, err := dcrutil.NewAddressPubKeyHash(
-				dcrutil.Hash160(pkBytes), testingParams,
-				suite)
+			address, err := stdaddr.NewAddressPubKeyHashEcdsaSecp256k1V0(
+				stdaddr.Hash160(pkBytes), testingParams)
 			if err != nil {
-				t.Errorf("failed to make address for %s: %v",
-					msg, err)
+				t.Errorf("failed to make address for %s: %v", msg, err)
 				break
 			}
 
-			pkScript, err := PayToSStxChange(address)
-			if err != nil {
-				t.Errorf("failed to make pkscript "+
-					"for %s: %v", msg, err)
-			}
+			_, pkScript := address.StakeChangeScript()
 
 			// Without treasury agenda.
+			suite := dcrec.STEcdsaSecp256k1
 			if err := signAndCheck(msg, tx, i, pkScript, hashType,
 				mkGetKey(map[string]addressToKey{
 					address.Address(): {keyDB, suite, true},
@@ -727,23 +725,17 @@ func TestSignTxOutput(t *testing.T) {
 			keyDB := privKey.Serialize()
 			pkBytes := privKey.PubKey().SerializeCompressed()
 
-			suite := dcrec.STEcdsaSecp256k1
-			address, err := dcrutil.NewAddressPubKeyHash(
-				dcrutil.Hash160(pkBytes), testingParams,
-				suite)
+			address, err := stdaddr.NewAddressPubKeyHashEcdsaSecp256k1V0(
+				stdaddr.Hash160(pkBytes), testingParams)
 			if err != nil {
-				t.Errorf("failed to make address for %s: %v",
-					msg, err)
+				t.Errorf("failed to make address for %s: %v", msg, err)
 				break
 			}
 
-			pkScript, err := PayToSSGen(address)
-			if err != nil {
-				t.Errorf("failed to make pkscript "+
-					"for %s: %v", msg, err)
-			}
+			_, pkScript := address.PayVoteCommitmentScript()
 
 			// Without treasury agenda.
+			suite := dcrec.STEcdsaSecp256k1
 			if err := signAndCheck(msg, tx, i, pkScript, hashType,
 				mkGetKey(map[string]addressToKey{
 					address.Address(): {keyDB, suite, true},
@@ -792,23 +784,18 @@ func TestSignTxOutput(t *testing.T) {
 			keyDB := privKey.Serialize()
 			pkBytes := privKey.PubKey().SerializeCompressed()
 
-			suite := dcrec.STEcdsaSecp256k1
-			address, err := dcrutil.NewAddressPubKeyHash(
-				dcrutil.Hash160(pkBytes), testingParams,
-				suite)
+			address, err := stdaddr.NewAddressPubKeyHashEcdsaSecp256k1V0(
+				stdaddr.Hash160(pkBytes), testingParams)
 			if err != nil {
 				t.Errorf("failed to make address for %s: %v",
 					msg, err)
 				break
 			}
 
-			pkScript, err := PayToSSRtx(address)
-			if err != nil {
-				t.Errorf("failed to make pkscript "+
-					"for %s: %v", msg, err)
-			}
+			_, pkScript := address.PayRevokeCommitmentScript()
 
 			// Without treasury agenda.
+			suite := dcrec.STEcdsaSecp256k1
 			if err := signAndCheck(msg, tx, i, pkScript, hashType,
 				mkGetKey(map[string]addressToKey{
 					address.Address(): {keyDB, suite, true},
@@ -846,68 +833,58 @@ func TestSignTxOutput(t *testing.T) {
 
 	// Pay to PubKey (uncompressed)
 	for _, hashType := range hashTypes {
-		for _, suite := range signatureSuites {
-			for i := range tx.TxIn {
-				msg := fmt.Sprintf("%d:%d:%d", hashType, i, suite)
+		for i := range tx.TxIn {
+			msg := fmt.Sprintf("%d:%d", hashType, i)
 
-				privKey, err := secp256k1.GeneratePrivateKey()
-				if err != nil {
-					t.Errorf("failed to generate key: %v", err)
-					break
-				}
-				keyDB := privKey.Serialize()
-				pk := privKey.PubKey()
-				suite := dcrec.STEcdsaSecp256k1
-				// For address generation, consensus rules require using
-				// a compressed public key. Look up ExtractPkScriptAddrs
-				// for more details
-				address, err := dcrutil.NewAddressSecpPubKeyCompressed(pk,
-					testingParams)
-				if err != nil {
-					t.Errorf("failed to make address for %s: %v",
-						msg, err)
-					break
-				}
+			privKey, err := secp256k1.GeneratePrivateKey()
+			if err != nil {
+				t.Errorf("failed to generate key: %v", err)
+				break
+			}
+			keyDB := privKey.Serialize()
+			pk := privKey.PubKey()
+			address, err := stdaddr.NewAddressPubKeyEcdsaSecp256k1V0(pk,
+				testingParams)
+			if err != nil {
+				t.Errorf("failed to make address for %s: %v", msg, err)
+				break
+			}
 
-				pkScript, err := PayToAddrScript(address)
-				if err != nil {
-					t.Errorf("failed to make pkscript "+
-						"for %s: %v", msg, err)
-				}
+			_, pkScript := address.PaymentScript()
 
-				// Without treasury agenda.
-				if err := signAndCheck(msg, tx, i, pkScript, hashType,
-					mkGetKey(map[string]addressToKey{
-						address.Address(): {keyDB, suite, false},
-					}), mkGetScript(nil), noTreasury); err != nil {
-					t.Error(err)
-					break
-				}
+			// Without treasury agenda.
+			suite := dcrec.STEcdsaSecp256k1
+			if err := signAndCheck(msg, tx, i, pkScript, hashType,
+				mkGetKey(map[string]addressToKey{
+					address.Address(): {keyDB, suite, false},
+				}), mkGetScript(nil), noTreasury); err != nil {
+				t.Error(err)
+				break
+			}
 
-				if err := signBadAndCheck(msg, tx, i, pkScript, hashType,
-					mkGetKey(map[string]addressToKey{
-						address.Address(): {keyDB, dcrec.STEcdsaSecp256k1, false},
-					}), mkGetScript(nil), noTreasury); err == nil {
-					t.Errorf("corrupted signature validated: %s", msg)
-					break
-				}
+			if err := signBadAndCheck(msg, tx, i, pkScript, hashType,
+				mkGetKey(map[string]addressToKey{
+					address.Address(): {keyDB, dcrec.STEcdsaSecp256k1, false},
+				}), mkGetScript(nil), noTreasury); err == nil {
+				t.Errorf("corrupted signature validated: %s", msg)
+				break
+			}
 
-				// With treasury agenda.
-				if err := signAndCheck(msg, tx, i, pkScript, hashType,
-					mkGetKey(map[string]addressToKey{
-						address.Address(): {keyDB, suite, false},
-					}), mkGetScript(nil), withTreasury); err != nil {
-					t.Error(err)
-					break
-				}
+			// With treasury agenda.
+			if err := signAndCheck(msg, tx, i, pkScript, hashType,
+				mkGetKey(map[string]addressToKey{
+					address.Address(): {keyDB, suite, false},
+				}), mkGetScript(nil), withTreasury); err != nil {
+				t.Error(err)
+				break
+			}
 
-				if err := signBadAndCheck(msg, tx, i, pkScript, hashType,
-					mkGetKey(map[string]addressToKey{
-						address.Address(): {keyDB, dcrec.STEcdsaSecp256k1, false},
-					}), mkGetScript(nil), withTreasury); err == nil {
-					t.Errorf("corrupted signature validated: %s", msg)
-					break
-				}
+			if err := signBadAndCheck(msg, tx, i, pkScript, hashType,
+				mkGetKey(map[string]addressToKey{
+					address.Address(): {keyDB, dcrec.STEcdsaSecp256k1, false},
+				}), mkGetScript(nil), withTreasury); err == nil {
+				t.Errorf("corrupted signature validated: %s", msg)
+				break
 			}
 		}
 	}
@@ -916,61 +893,50 @@ func TestSignTxOutput(t *testing.T) {
 	for _, hashType := range hashTypes {
 		for _, suite := range signatureSuites {
 			for i := range tx.TxIn {
-				var keyDB, pkBytes []byte
-				var address dcrutil.Address
-				var err error
+				var keyDB []byte
 
 				msg := fmt.Sprintf("%d:%d:%d", hashType, i, suite)
-
+				var address stdaddr.Address
+				var err error
 				switch suite {
 				case dcrec.STEcdsaSecp256k1:
 					privKey, _ := secp256k1.GeneratePrivateKey()
 					keyDB = privKey.Serialize()
 					pk := privKey.PubKey()
-					// For address generation, consensus rules require using
-					// a compressed public key. Look up ExtractPkScriptAddrs
-					// for more details
-					address, err = dcrutil.NewAddressSecpPubKeyCompressed(pk,
+					address, err = stdaddr.NewAddressPubKeyEcdsaSecp256k1V0(pk,
 						testingParams)
 					if err != nil {
-						t.Errorf("failed to make address for %s: %v",
-							msg, err)
+						t.Errorf("failed to make address for %s: %v", msg, err)
 					}
 
 				case dcrec.STEd25519:
 					keyDB, _, _, _ = edwards.GenerateKey(rand.Reader)
 					_, pk := edwards.PrivKeyFromBytes(keyDB)
-					pkBytes = pk.SerializeUncompressed()
-					address, err = dcrutil.NewAddressEdwardsPubKey(pkBytes,
+					pkBytes := pk.SerializeUncompressed()
+					address, err = stdaddr.NewAddressPubKeyEd25519V0Raw(pkBytes,
 						testingParams)
 					if err != nil {
-						t.Errorf("failed to make address for %s: %v",
-							msg, err)
+						t.Errorf("failed to make address for %s: %v", msg, err)
 					}
 
 				case dcrec.STSchnorrSecp256k1:
 					privKey, _ := secp256k1.GeneratePrivateKey()
 					keyDB = privKey.Serialize()
-					pkBytes = privKey.PubKey().SerializeCompressed()
-					address, err = dcrutil.NewAddressSecSchnorrPubKey(pkBytes,
+					pk := privKey.PubKey()
+					address, err = stdaddr.NewAddressPubKeySchnorrSecp256k1V0(pk,
 						testingParams)
 					if err != nil {
-						t.Errorf("failed to make address for %s: %v",
-							msg, err)
+						t.Errorf("failed to make address for %s: %v", msg, err)
 					}
 				}
 
-				pkScript, err := PayToAddrScript(address)
-				if err != nil {
-					t.Errorf("failed to make pkscript "+
-						"for %s: %v", msg, err)
-				}
+				_, pkScript := address.PaymentScript()
 
 				// Without treasury agenda.
 				sigScript, err := SignTxOutput(testingParams,
 					tx, i, pkScript, hashType,
 					mkGetKeyPub(map[string]addressToKey{
-						address.String(): {keyDB, suite, false},
+						address.Address(): {keyDB, suite, false},
 					}), mkGetScript(nil), nil, noTreasury)
 				if err != nil {
 					t.Errorf("failed to sign output %s: %v", msg,
@@ -982,7 +948,7 @@ func TestSignTxOutput(t *testing.T) {
 				sigScript, err = SignTxOutput(testingParams,
 					tx, i, pkScript, hashType,
 					mkGetKeyPub(map[string]addressToKey{
-						address.String(): {keyDB, suite, false},
+						address.Address(): {keyDB, suite, false},
 					}), mkGetScript(nil), sigScript, noTreasury)
 				if err != nil {
 					t.Errorf("failed to sign output %s a "+
@@ -999,7 +965,7 @@ func TestSignTxOutput(t *testing.T) {
 				sigScript, err = SignTxOutput(testingParams,
 					tx, i, pkScript, hashType,
 					mkGetKeyPub(map[string]addressToKey{
-						address.String(): {keyDB, suite, false},
+						address.Address(): {keyDB, suite, false},
 					}), mkGetScript(nil), nil, withTreasury)
 				if err != nil {
 					t.Errorf("failed to sign output %s: %v", msg,
@@ -1011,7 +977,7 @@ func TestSignTxOutput(t *testing.T) {
 				sigScript, err = SignTxOutput(testingParams,
 					tx, i, pkScript, hashType,
 					mkGetKeyPub(map[string]addressToKey{
-						address.String(): {keyDB, suite, false},
+						address.Address(): {keyDB, suite, false},
 					}), mkGetScript(nil), sigScript, withTreasury)
 				if err != nil {
 					t.Errorf("failed to sign output %s a "+
@@ -1031,60 +997,49 @@ func TestSignTxOutput(t *testing.T) {
 	for _, hashType := range hashTypes {
 		for _, suite := range signatureSuites {
 			for i := range tx.TxIn {
-				var keyDB, pkBytes []byte
-				var address dcrutil.Address
-				var err error
+				var keyDB []byte
 
 				msg := fmt.Sprintf("%d:%d:%d", hashType, i, suite)
-
+				var address stdaddr.Address
+				var err error
 				switch suite {
 				case dcrec.STEcdsaSecp256k1:
 					privKey, _ := secp256k1.GeneratePrivateKey()
 					keyDB = privKey.Serialize()
 					pk := privKey.PubKey()
-					// For address generation, consensus rules require using
-					// a compressed public key. Look up ExtractPkScriptAddrs
-					// for more details
-					address, err = dcrutil.NewAddressSecpPubKeyCompressed(pk,
+					address, err = stdaddr.NewAddressPubKeyEcdsaSecp256k1V0(pk,
 						testingParams)
 					if err != nil {
-						t.Errorf("failed to make address for %s: %v",
-							msg, err)
+						t.Errorf("failed to make address for %s: %v", msg, err)
 					}
 
 				case dcrec.STEd25519:
 					keyDB, _, _, _ = edwards.GenerateKey(rand.Reader)
 					_, pk := edwards.PrivKeyFromBytes(keyDB)
-					pkBytes = pk.SerializeCompressed()
-					address, err = dcrutil.NewAddressEdwardsPubKey(pkBytes,
+					pkBytes := pk.SerializeCompressed()
+					address, err = stdaddr.NewAddressPubKeyEd25519V0Raw(pkBytes,
 						testingParams)
 					if err != nil {
-						t.Errorf("failed to make address for %s: %v",
-							msg, err)
+						t.Errorf("failed to make address for %s: %v", msg, err)
 					}
 
 				case dcrec.STSchnorrSecp256k1:
 					privKey, _ := secp256k1.GeneratePrivateKey()
 					keyDB = privKey.Serialize()
-					pkBytes = privKey.PubKey().SerializeCompressed()
-					address, err = dcrutil.NewAddressSecSchnorrPubKey(pkBytes,
+					pk := privKey.PubKey()
+					address, err = stdaddr.NewAddressPubKeySchnorrSecp256k1V0(pk,
 						testingParams)
 					if err != nil {
-						t.Errorf("failed to make address for %s: %v",
-							msg, err)
+						t.Errorf("failed to make address for %s: %v", msg, err)
 					}
 				}
 
-				pkScript, err := PayToAddrScript(address)
-				if err != nil {
-					t.Errorf("failed to make pkscript "+
-						"for %s: %v", msg, err)
-				}
+				_, pkScript := address.PaymentScript()
 
 				// Without treasury agenda.
 				if err := signAndCheck(msg, tx, i, pkScript, hashType,
 					mkGetKeyPub(map[string]addressToKey{
-						address.String(): {keyDB, suite, true},
+						address.Address(): {keyDB, suite, true},
 					}), mkGetScript(nil), noTreasury); err != nil {
 					t.Error(err)
 					break
@@ -1092,7 +1047,7 @@ func TestSignTxOutput(t *testing.T) {
 
 				if err := signBadAndCheck(msg, tx, i, pkScript, hashType,
 					mkGetKeyPub(map[string]addressToKey{
-						address.String(): {keyDB, suite, true},
+						address.Address(): {keyDB, suite, true},
 					}), mkGetScript(nil), noTreasury); err == nil {
 					t.Errorf("corrupted signature validated: %s", msg)
 					break
@@ -1101,7 +1056,7 @@ func TestSignTxOutput(t *testing.T) {
 				// With treasury agenda.
 				if err := signAndCheck(msg, tx, i, pkScript, hashType,
 					mkGetKeyPub(map[string]addressToKey{
-						address.String(): {keyDB, suite, true},
+						address.Address(): {keyDB, suite, true},
 					}), mkGetScript(nil), withTreasury); err != nil {
 					t.Error(err)
 					break
@@ -1109,7 +1064,7 @@ func TestSignTxOutput(t *testing.T) {
 
 				if err := signBadAndCheck(msg, tx, i, pkScript, hashType,
 					mkGetKeyPub(map[string]addressToKey{
-						address.String(): {keyDB, suite, true},
+						address.Address(): {keyDB, suite, true},
 					}), mkGetScript(nil), withTreasury); err == nil {
 					t.Errorf("corrupted signature validated: %s", msg)
 					break
@@ -1122,52 +1077,44 @@ func TestSignTxOutput(t *testing.T) {
 	for _, hashType := range hashTypes {
 		for _, suite := range signatureSuites {
 			for i := range tx.TxIn {
-				var keyDB, pkBytes []byte
-				var address dcrutil.Address
-				var err error
+				var keyDB []byte
 
 				msg := fmt.Sprintf("%d:%d:%d", hashType, i, suite)
-
+				var address stdaddr.Address
+				var err error
 				switch suite {
 				case dcrec.STEcdsaSecp256k1:
 					privKey, _ := secp256k1.GeneratePrivateKey()
 					keyDB = privKey.Serialize()
 					pk := privKey.PubKey()
-					address, err = dcrutil.NewAddressSecpPubKeyCompressed(pk,
+					address, err = stdaddr.NewAddressPubKeyEcdsaSecp256k1V0(pk,
 						testingParams)
 					if err != nil {
-						t.Errorf("failed to make address for %s: %v",
-							msg, err)
+						t.Errorf("failed to make address for %s: %v", msg, err)
 					}
 
 				case dcrec.STEd25519:
 					keyDB, _, _, _ = edwards.GenerateKey(rand.Reader)
 					_, pk := edwards.PrivKeyFromBytes(keyDB)
-					pkBytes = pk.SerializeCompressed()
-					address, err = dcrutil.NewAddressEdwardsPubKey(pkBytes,
+					pkBytes := pk.SerializeCompressed()
+					address, err = stdaddr.NewAddressPubKeyEd25519V0Raw(pkBytes,
 						testingParams)
 					if err != nil {
-						t.Errorf("failed to make address for %s: %v",
-							msg, err)
+						t.Errorf("failed to make address for %s: %v", msg, err)
 					}
 
 				case dcrec.STSchnorrSecp256k1:
 					privKey, _ := secp256k1.GeneratePrivateKey()
 					keyDB = privKey.Serialize()
-					pkBytes = privKey.PubKey().SerializeCompressed()
-					address, err = dcrutil.NewAddressSecSchnorrPubKey(pkBytes,
+					pk := privKey.PubKey()
+					address, err = stdaddr.NewAddressPubKeySchnorrSecp256k1V0(pk,
 						testingParams)
 					if err != nil {
-						t.Errorf("failed to make address for %s: %v",
-							msg, err)
+						t.Errorf("failed to make address for %s: %v", msg, err)
 					}
 				}
 
-				pkScript, err := PayToAddrScript(address)
-				if err != nil {
-					t.Errorf("failed to make pkscript "+
-						"for %s: %v", msg, err)
-				}
+				_, pkScript := address.PaymentScript()
 
 				// Without treasury agenda.
 				sigScript, err := SignTxOutput(testingParams,
@@ -1241,55 +1188,51 @@ func TestSignTxOutput(t *testing.T) {
 	for _, hashType := range hashTypes {
 		for _, suite := range signatureSuites {
 			for i := range tx.TxIn {
-				var keyDB, pkBytes []byte
+				var keyDB []byte
 
+				msg := fmt.Sprintf("%d:%d:%d", hashType, i, suite)
+				var address stdaddr.Address
+				var err error
 				switch suite {
 				case dcrec.STEcdsaSecp256k1:
 					privKey, _ := secp256k1.GeneratePrivateKey()
 					keyDB = privKey.Serialize()
-					pkBytes = privKey.PubKey().SerializeUncompressed()
+					pkBytes := privKey.PubKey().SerializeUncompressed()
+					h160 := stdaddr.Hash160(pkBytes)
+					address, err = stdaddr.NewAddressPubKeyHashEcdsaSecp256k1V0(
+						h160, testingParams)
+
 				case dcrec.STEd25519:
 					keyDB, _, _, _ = edwards.GenerateKey(rand.Reader)
 					_, pk := edwards.PrivKeyFromBytes(keyDB)
-					pkBytes = pk.SerializeUncompressed()
+					pkBytes := pk.SerializeUncompressed()
+					h160 := stdaddr.Hash160(pkBytes)
+					address, err = stdaddr.NewAddressPubKeyHashEd25519V0(h160,
+						testingParams)
+
 				case dcrec.STSchnorrSecp256k1:
 					privKey, _ := secp256k1.GeneratePrivateKey()
 					keyDB = privKey.Serialize()
-					pkBytes = privKey.PubKey().SerializeCompressed()
+					pkBytes := privKey.PubKey().SerializeCompressed()
+					h160 := stdaddr.Hash160(pkBytes)
+					address, err = stdaddr.NewAddressPubKeyHashSchnorrSecp256k1V0(
+						h160, testingParams)
 				}
-
-				msg := fmt.Sprintf("%d:%d:%d", hashType, i, suite)
-
-				address, err := dcrutil.NewAddressPubKeyHash(
-					dcrutil.Hash160(pkBytes), testingParams, suite)
 				if err != nil {
-					t.Errorf("failed to make address for %s: %v",
-						msg, err)
+					t.Errorf("failed to make address for %s: %v", msg, err)
 					break
 				}
 
-				pkScript, err := PayToAddrScript(address)
+				_, pkScript := address.PaymentScript()
+
+				scriptAddr, err := stdaddr.NewAddressScriptHashV0(pkScript,
+					testingParams)
 				if err != nil {
-					t.Errorf("failed to make pkscript "+
-						"for %s: %v", msg, err)
+					t.Errorf("failed to make p2sh addr for %s: %v", msg, err)
 					break
 				}
 
-				scriptAddr, err := dcrutil.NewAddressScriptHash(
-					pkScript, testingParams)
-				if err != nil {
-					t.Errorf("failed to make p2sh addr for %s: %v",
-						msg, err)
-					break
-				}
-
-				scriptPkScript, err := PayToAddrScript(
-					scriptAddr)
-				if err != nil {
-					t.Errorf("failed to make script pkscript for "+
-						"%s: %v", msg, err)
-					break
-				}
+				_, scriptPkScript := scriptAddr.PaymentScript()
 
 				// Without treasury agenda.
 				if err := signAndCheck(msg, tx, i, scriptPkScript,
@@ -1338,55 +1281,51 @@ func TestSignTxOutput(t *testing.T) {
 	for _, hashType := range hashTypes {
 		for _, suite := range signatureSuites {
 			for i := range tx.TxIn {
-				var keyDB, pkBytes []byte
+				var keyDB []byte
 
+				msg := fmt.Sprintf("%d:%d:%d", hashType, i, suite)
+				var address stdaddr.Address
+				var err error
 				switch suite {
 				case dcrec.STEcdsaSecp256k1:
 					privKey, _ := secp256k1.GeneratePrivateKey()
 					keyDB = privKey.Serialize()
-					pkBytes = privKey.PubKey().SerializeUncompressed()
+					pkBytes := privKey.PubKey().SerializeUncompressed()
+					h160 := stdaddr.Hash160(pkBytes)
+					address, err = stdaddr.NewAddressPubKeyHashEcdsaSecp256k1V0(
+						h160, testingParams)
+
 				case dcrec.STEd25519:
 					keyDB, _, _, _ = edwards.GenerateKey(rand.Reader)
 					_, pk := edwards.PrivKeyFromBytes(keyDB)
-					pkBytes = pk.SerializeUncompressed()
+					pkBytes := pk.SerializeUncompressed()
+					h160 := stdaddr.Hash160(pkBytes)
+					address, err = stdaddr.NewAddressPubKeyHashEd25519V0(h160,
+						testingParams)
+
 				case dcrec.STSchnorrSecp256k1:
 					privKey, _ := secp256k1.GeneratePrivateKey()
 					keyDB = privKey.Serialize()
-					pkBytes = privKey.PubKey().SerializeCompressed()
+					pkBytes := privKey.PubKey().SerializeCompressed()
+					h160 := stdaddr.Hash160(pkBytes)
+					address, err = stdaddr.NewAddressPubKeyHashSchnorrSecp256k1V0(
+						h160, testingParams)
 				}
-
-				msg := fmt.Sprintf("%d:%d:%d", hashType, i, suite)
-
-				address, err := dcrutil.NewAddressPubKeyHash(
-					dcrutil.Hash160(pkBytes), testingParams, suite)
 				if err != nil {
-					t.Errorf("failed to make address for %s: %v",
-						msg, err)
+					t.Errorf("failed to make address for %s: %v", msg, err)
 					break
 				}
 
-				pkScript, err := PayToAddrScript(address)
+				_, pkScript := address.PaymentScript()
+
+				scriptAddr, err := stdaddr.NewAddressScriptHashV0(pkScript,
+					testingParams)
 				if err != nil {
-					t.Errorf("failed to make pkscript "+
-						"for %s: %v", msg, err)
+					t.Errorf("failed to make p2sh addr for %s: %v", msg, err)
 					break
 				}
 
-				scriptAddr, err := dcrutil.NewAddressScriptHash(
-					pkScript, testingParams)
-				if err != nil {
-					t.Errorf("failed to make p2sh addr for %s: %v",
-						msg, err)
-					break
-				}
-
-				scriptPkScript, err := PayToAddrScript(
-					scriptAddr)
-				if err != nil {
-					t.Errorf("failed to make script pkscript for "+
-						"%s: %v", msg, err)
-					break
-				}
+				_, scriptPkScript := scriptAddr.PaymentScript()
 
 				// Without treasury agenda.
 				_, err = SignTxOutput(testingParams, tx, i,
@@ -1465,54 +1404,51 @@ func TestSignTxOutput(t *testing.T) {
 	for _, hashType := range hashTypes {
 		for _, suite := range signatureSuites {
 			for i := range tx.TxIn {
-				var keyDB, pkBytes []byte
+				var keyDB []byte
 
+				msg := fmt.Sprintf("%d:%d:%d", hashType, i, suite)
+				var address stdaddr.Address
+				var err error
 				switch suite {
 				case dcrec.STEcdsaSecp256k1:
 					privKey, _ := secp256k1.GeneratePrivateKey()
 					keyDB = privKey.Serialize()
-					pkBytes = privKey.PubKey().SerializeCompressed()
+					pkBytes := privKey.PubKey().SerializeCompressed()
+					h160 := stdaddr.Hash160(pkBytes)
+					address, err = stdaddr.NewAddressPubKeyHashEcdsaSecp256k1V0(
+						h160, testingParams)
+
 				case dcrec.STEd25519:
 					keyDB, _, _, _ = edwards.GenerateKey(rand.Reader)
 					_, pk := edwards.PrivKeyFromBytes(keyDB)
-					pkBytes = pk.SerializeCompressed()
+					pkBytes := pk.SerializeCompressed()
+					h160 := stdaddr.Hash160(pkBytes)
+					address, err = stdaddr.NewAddressPubKeyHashEd25519V0(h160,
+						testingParams)
+
 				case dcrec.STSchnorrSecp256k1:
 					privKey, _ := secp256k1.GeneratePrivateKey()
 					keyDB = privKey.Serialize()
-					pkBytes = privKey.PubKey().SerializeCompressed()
+					pkBytes := privKey.PubKey().SerializeCompressed()
+					h160 := stdaddr.Hash160(pkBytes)
+					address, err = stdaddr.NewAddressPubKeyHashSchnorrSecp256k1V0(
+						h160, testingParams)
 				}
-
-				msg := fmt.Sprintf("%d:%d:%d", hashType, i, suite)
-
-				address, err := dcrutil.NewAddressPubKeyHash(
-					dcrutil.Hash160(pkBytes), testingParams, suite)
 				if err != nil {
-					t.Errorf("failed to make address for %s: %v",
-						msg, err)
+					t.Errorf("failed to make address for %s: %v", msg, err)
 					break
 				}
 
-				pkScript, err := PayToAddrScript(address)
-				if err != nil {
-					t.Errorf("failed to make pkscript "+
-						"for %s: %v", msg, err)
-				}
+				_, pkScript := address.PaymentScript()
 
-				scriptAddr, err := dcrutil.NewAddressScriptHash(
-					pkScript, testingParams)
+				scriptAddr, err := stdaddr.NewAddressScriptHashV0(pkScript,
+					testingParams)
 				if err != nil {
-					t.Errorf("failed to make p2sh addr for %s: %v",
-						msg, err)
+					t.Errorf("failed to make p2sh addr for %s: %v", msg, err)
 					break
 				}
 
-				scriptPkScript, err := PayToAddrScript(
-					scriptAddr)
-				if err != nil {
-					t.Errorf("failed to make script pkscript for "+
-						"%s: %v", msg, err)
-					break
-				}
+				_, scriptPkScript := scriptAddr.PaymentScript()
 
 				// Without treasury agenda.
 				if err := signAndCheck(msg, tx, i, scriptPkScript,
@@ -1561,54 +1497,51 @@ func TestSignTxOutput(t *testing.T) {
 	for _, hashType := range hashTypes {
 		for _, suite := range signatureSuites {
 			for i := range tx.TxIn {
-				var keyDB, pkBytes []byte
+				var keyDB []byte
 
+				msg := fmt.Sprintf("%d:%d:%d", hashType, i, suite)
+				var address stdaddr.Address
+				var err error
 				switch suite {
 				case dcrec.STEcdsaSecp256k1:
 					privKey, _ := secp256k1.GeneratePrivateKey()
 					keyDB = privKey.Serialize()
-					pkBytes = privKey.PubKey().SerializeCompressed()
+					pkBytes := privKey.PubKey().SerializeCompressed()
+					h160 := stdaddr.Hash160(pkBytes)
+					address, err = stdaddr.NewAddressPubKeyHashEcdsaSecp256k1V0(
+						h160, testingParams)
+
 				case dcrec.STEd25519:
 					keyDB, _, _, _ = edwards.GenerateKey(rand.Reader)
 					_, pk := edwards.PrivKeyFromBytes(keyDB)
-					pkBytes = pk.SerializeCompressed()
+					pkBytes := pk.SerializeCompressed()
+					h160 := stdaddr.Hash160(pkBytes)
+					address, err = stdaddr.NewAddressPubKeyHashEd25519V0(h160,
+						testingParams)
+
 				case dcrec.STSchnorrSecp256k1:
 					privKey, _ := secp256k1.GeneratePrivateKey()
 					keyDB = privKey.Serialize()
-					pkBytes = privKey.PubKey().SerializeCompressed()
+					pkBytes := privKey.PubKey().SerializeCompressed()
+					h160 := stdaddr.Hash160(pkBytes)
+					address, err = stdaddr.NewAddressPubKeyHashSchnorrSecp256k1V0(
+						h160, testingParams)
 				}
-
-				msg := fmt.Sprintf("%d:%d:%d", hashType, i, suite)
-
-				address, err := dcrutil.NewAddressPubKeyHash(
-					dcrutil.Hash160(pkBytes), testingParams, suite)
 				if err != nil {
-					t.Errorf("failed to make address for %s: %v",
-						msg, err)
+					t.Errorf("failed to make address for %s: %v", msg, err)
 					break
 				}
 
-				pkScript, err := PayToAddrScript(address)
-				if err != nil {
-					t.Errorf("failed to make pkscript "+
-						"for %s: %v", msg, err)
-				}
+				_, pkScript := address.PaymentScript()
 
-				scriptAddr, err := dcrutil.NewAddressScriptHash(
-					pkScript, testingParams)
+				scriptAddr, err := stdaddr.NewAddressScriptHashV0(pkScript,
+					testingParams)
 				if err != nil {
-					t.Errorf("failed to make p2sh addr for %s: %v",
-						msg, err)
+					t.Errorf("failed to make p2sh addr for %s: %v", msg, err)
 					break
 				}
 
-				scriptPkScript, err := PayToAddrScript(
-					scriptAddr)
-				if err != nil {
-					t.Errorf("failed to make script pkscript for "+
-						"%s: %v", msg, err)
-					break
-				}
+				_, scriptPkScript := scriptAddr.PaymentScript()
 
 				// Without treasury agenda.
 				_, err = SignTxOutput(testingParams,
@@ -1689,69 +1622,47 @@ func TestSignTxOutput(t *testing.T) {
 	for _, hashType := range hashTypes {
 		for _, suite := range signatureSuites {
 			for i := range tx.TxIn {
-				var keyDB, pkBytes []byte
-				var address dcrutil.Address
-				var err error
+				var keyDB []byte
 
 				msg := fmt.Sprintf("%d:%d:%d", hashType, i, suite)
-
+				var address stdaddr.Address
+				var err error
 				switch suite {
 				case dcrec.STEcdsaSecp256k1:
 					privKey, _ := secp256k1.GeneratePrivateKey()
 					keyDB = privKey.Serialize()
 					pk := privKey.PubKey()
-					// For address generation, consensus rules require using
-					// a compressed public key. Look up ExtractPkScriptAddrs
-					// for more details
-					address, err = dcrutil.NewAddressSecpPubKeyCompressed(pk,
+					address, err = stdaddr.NewAddressPubKeyEcdsaSecp256k1V0(pk,
 						testingParams)
-					if err != nil {
-						t.Errorf("failed to make address for %s: %v",
-							msg, err)
-					}
 
 				case dcrec.STEd25519:
 					keyDB, _, _, _ = edwards.GenerateKey(rand.Reader)
 					_, pk := edwards.PrivKeyFromBytes(keyDB)
-					pkBytes = pk.SerializeUncompressed()
-					address, err = dcrutil.NewAddressEdwardsPubKey(pkBytes,
+					pkBytes := pk.SerializeUncompressed()
+					address, err = stdaddr.NewAddressPubKeyEd25519V0Raw(pkBytes,
 						testingParams)
-					if err != nil {
-						t.Errorf("failed to make address for %s: %v",
-							msg, err)
-					}
 
 				case dcrec.STSchnorrSecp256k1:
 					privKey, _ := secp256k1.GeneratePrivateKey()
 					keyDB = privKey.Serialize()
-					pkBytes = privKey.PubKey().SerializeCompressed()
-					address, err = dcrutil.NewAddressSecSchnorrPubKey(pkBytes,
+					pk := privKey.PubKey()
+					address, err = stdaddr.NewAddressPubKeySchnorrSecp256k1V0(pk,
 						testingParams)
-					if err != nil {
-						t.Errorf("failed to make address for %s: %v",
-							msg, err)
-					}
+				}
+				if err != nil {
+					t.Errorf("failed to make address for %s: %v", msg, err)
+					break
 				}
 
-				pkScript, err := PayToAddrScript(address)
+				_, pkScript := address.PaymentScript()
+
+				scriptAddr, err := stdaddr.NewAddressScriptHashV0(pkScript,
+					testingParams)
 				if err != nil {
-					t.Errorf("failed to make pkscript "+
-						"for %s: %v", msg, err)
+					t.Errorf("failed to make p2sh addr for %s: %v", msg, err)
 				}
 
-				scriptAddr, err := dcrutil.NewAddressScriptHash(
-					pkScript, testingParams)
-				if err != nil {
-					t.Errorf("failed to make p2sh addr for %s: %v",
-						msg, err)
-				}
-
-				scriptPkScript, err := PayToAddrScript(
-					scriptAddr)
-				if err != nil {
-					t.Errorf("failed to make script pkscript for "+
-						"%s: %v", msg, err)
-				}
+				_, scriptPkScript := scriptAddr.PaymentScript()
 
 				// Without treasury agenda.
 				if err := signAndCheck(msg, tx, i, scriptPkScript,
@@ -1798,69 +1709,47 @@ func TestSignTxOutput(t *testing.T) {
 	for _, hashType := range hashTypes {
 		for _, suite := range signatureSuites {
 			for i := range tx.TxIn {
-				var keyDB, pkBytes []byte
-				var address dcrutil.Address
-				var err error
+				var keyDB []byte
 
 				msg := fmt.Sprintf("%d:%d:%d", hashType, i, suite)
-
+				var address stdaddr.Address
+				var err error
 				switch suite {
 				case dcrec.STEcdsaSecp256k1:
 					privKey, _ := secp256k1.GeneratePrivateKey()
 					keyDB = privKey.Serialize()
 					pk := privKey.PubKey()
-					// For address generation, consensus rules require using
-					// a compressed public key. Look up ExtractPkScriptAddrs
-					// for more details
-					address, err = dcrutil.NewAddressSecpPubKeyCompressed(pk,
+					address, err = stdaddr.NewAddressPubKeyEcdsaSecp256k1V0(pk,
 						testingParams)
-					if err != nil {
-						t.Errorf("failed to make address for %s: %v",
-							msg, err)
-					}
 
 				case dcrec.STEd25519:
 					keyDB, _, _, _ = edwards.GenerateKey(rand.Reader)
 					_, pk := edwards.PrivKeyFromBytes(keyDB)
-					pkBytes = pk.SerializeUncompressed()
-					address, err = dcrutil.NewAddressEdwardsPubKey(pkBytes,
+					pkBytes := pk.SerializeUncompressed()
+					address, err = stdaddr.NewAddressPubKeyEd25519V0Raw(pkBytes,
 						testingParams)
-					if err != nil {
-						t.Errorf("failed to make address for %s: %v",
-							msg, err)
-					}
 
 				case dcrec.STSchnorrSecp256k1:
 					privKey, _ := secp256k1.GeneratePrivateKey()
 					keyDB = privKey.Serialize()
-					pkBytes = privKey.PubKey().SerializeCompressed()
-					address, err = dcrutil.NewAddressSecSchnorrPubKey(pkBytes,
+					pk := privKey.PubKey()
+					address, err = stdaddr.NewAddressPubKeySchnorrSecp256k1V0(pk,
 						testingParams)
-					if err != nil {
-						t.Errorf("failed to make address for %s: %v",
-							msg, err)
-					}
+				}
+				if err != nil {
+					t.Errorf("failed to make address for %s: %v", msg, err)
+					break
 				}
 
-				pkScript, err := PayToAddrScript(address)
+				_, pkScript := address.PaymentScript()
+
+				scriptAddr, err := stdaddr.NewAddressScriptHashV0(pkScript,
+					testingParams)
 				if err != nil {
-					t.Errorf("failed to make pkscript "+
-						"for %s: %v", msg, err)
+					t.Errorf("failed to make p2sh addr for %s: %v", msg, err)
 				}
 
-				scriptAddr, err := dcrutil.NewAddressScriptHash(
-					pkScript, testingParams)
-				if err != nil {
-					t.Errorf("failed to make p2sh addr for %s: %v",
-						msg, err)
-				}
-
-				scriptPkScript, err := PayToAddrScript(
-					scriptAddr)
-				if err != nil {
-					t.Errorf("failed to make script pkscript for "+
-						"%s: %v", msg, err)
-				}
+				_, scriptPkScript := scriptAddr.PaymentScript()
 
 				// Without treasury agenda.
 				_, err = SignTxOutput(testingParams,
@@ -1941,68 +1830,48 @@ func TestSignTxOutput(t *testing.T) {
 	for _, hashType := range hashTypes {
 		for _, suite := range signatureSuites {
 			for i := range tx.TxIn {
-				var keyDB, pkBytes []byte
-				var address dcrutil.Address
-				var err error
+				var keyDB []byte
 
 				msg := fmt.Sprintf("%d:%d:%d", hashType, i, suite)
-
+				var address stdaddr.Address
+				var err error
 				switch suite {
 				case dcrec.STEcdsaSecp256k1:
 					privKey, _ := secp256k1.GeneratePrivateKey()
 					keyDB = privKey.Serialize()
 					pk := privKey.PubKey()
-					address, err = dcrutil.NewAddressSecpPubKeyCompressed(pk,
+					address, err = stdaddr.NewAddressPubKeyEcdsaSecp256k1V0(pk,
 						testingParams)
-					if err != nil {
-						t.Errorf("failed to make address for %s: %v",
-							msg, err)
-					}
 
 				case dcrec.STEd25519:
 					keyDB, _, _, _ = edwards.GenerateKey(rand.Reader)
 					_, pk := edwards.PrivKeyFromBytes(keyDB)
-					pkBytes = pk.SerializeCompressed()
-					address, err = dcrutil.NewAddressEdwardsPubKey(pkBytes,
+					pkBytes := pk.SerializeCompressed()
+					address, err = stdaddr.NewAddressPubKeyEd25519V0Raw(pkBytes,
 						testingParams)
-					if err != nil {
-						t.Errorf("failed to make address for %s: %v",
-							msg, err)
-					}
 
 				case dcrec.STSchnorrSecp256k1:
 					privKey, _ := secp256k1.GeneratePrivateKey()
 					keyDB = privKey.Serialize()
-					pkBytes = privKey.PubKey().SerializeCompressed()
-					address, err = dcrutil.NewAddressSecSchnorrPubKey(pkBytes,
+					pk := privKey.PubKey()
+					address, err = stdaddr.NewAddressPubKeySchnorrSecp256k1V0(pk,
 						testingParams)
-					if err != nil {
-						t.Errorf("failed to make address for %s: %v",
-							msg, err)
-					}
 				}
-
-				pkScript, err := PayToAddrScript(address)
 				if err != nil {
-					t.Errorf("failed to make pkscript "+
-						"for %s: %v", msg, err)
-				}
-
-				scriptAddr, err := dcrutil.NewAddressScriptHash(
-					pkScript, testingParams)
-				if err != nil {
-					t.Errorf("failed to make p2sh addr for %s: %v",
-						msg, err)
+					t.Errorf("failed to make address for %s: %v", msg, err)
 					break
 				}
 
-				scriptPkScript, err := PayToAddrScript(
-					scriptAddr)
+				_, pkScript := address.PaymentScript()
+
+				scriptAddr, err := stdaddr.NewAddressScriptHashV0(pkScript,
+					testingParams)
 				if err != nil {
-					t.Errorf("failed to make script pkscript for "+
-						"%s: %v", msg, err)
+					t.Errorf("failed to make p2sh addr for %s: %v", msg, err)
 					break
 				}
+
+				_, scriptPkScript := scriptAddr.PaymentScript()
 
 				// Without treasury agenda.
 				if err := signAndCheck(msg, tx, i, scriptPkScript,
@@ -2051,68 +1920,48 @@ func TestSignTxOutput(t *testing.T) {
 	for _, hashType := range hashTypes {
 		for _, suite := range signatureSuites {
 			for i := range tx.TxIn {
-				var keyDB, pkBytes []byte
-				var address dcrutil.Address
-				var err error
+				var keyDB []byte
 
 				msg := fmt.Sprintf("%d:%d:%d", hashType, i, suite)
-
+				var address stdaddr.Address
+				var err error
 				switch suite {
 				case dcrec.STEcdsaSecp256k1:
 					privKey, _ := secp256k1.GeneratePrivateKey()
 					keyDB = privKey.Serialize()
 					pk := privKey.PubKey()
-					address, err = dcrutil.NewAddressSecpPubKeyCompressed(pk,
+					address, err = stdaddr.NewAddressPubKeyEcdsaSecp256k1V0(pk,
 						testingParams)
-					if err != nil {
-						t.Errorf("failed to make address for %s: %v",
-							msg, err)
-					}
 
 				case dcrec.STEd25519:
 					keyDB, _, _, _ = edwards.GenerateKey(rand.Reader)
 					_, pk := edwards.PrivKeyFromBytes(keyDB)
-					pkBytes = pk.SerializeCompressed()
-					address, err = dcrutil.NewAddressEdwardsPubKey(pkBytes,
+					pkBytes := pk.SerializeCompressed()
+					address, err = stdaddr.NewAddressPubKeyEd25519V0Raw(pkBytes,
 						testingParams)
-					if err != nil {
-						t.Errorf("failed to make address for %s: %v",
-							msg, err)
-					}
 
 				case dcrec.STSchnorrSecp256k1:
 					privKey, _ := secp256k1.GeneratePrivateKey()
 					keyDB = privKey.Serialize()
-					pkBytes = privKey.PubKey().SerializeCompressed()
-					address, err = dcrutil.NewAddressSecSchnorrPubKey(pkBytes,
+					pk := privKey.PubKey()
+					address, err = stdaddr.NewAddressPubKeySchnorrSecp256k1V0(pk,
 						testingParams)
-					if err != nil {
-						t.Errorf("failed to make address for %s: %v",
-							msg, err)
-					}
 				}
-
-				pkScript, err := PayToAddrScript(address)
 				if err != nil {
-					t.Errorf("failed to make pkscript "+
-						"for %s: %v", msg, err)
-				}
-
-				scriptAddr, err := dcrutil.NewAddressScriptHash(
-					pkScript, testingParams)
-				if err != nil {
-					t.Errorf("failed to make p2sh addr for %s: %v",
-						msg, err)
+					t.Errorf("failed to make address for %s: %v", msg, err)
 					break
 				}
 
-				scriptPkScript, err := PayToAddrScript(
-					scriptAddr)
+				_, pkScript := address.PaymentScript()
+
+				scriptAddr, err := stdaddr.NewAddressScriptHashV0(pkScript,
+					testingParams)
 				if err != nil {
-					t.Errorf("failed to make script pkscript for "+
-						"%s: %v", msg, err)
+					t.Errorf("failed to make p2sh addr for %s: %v", msg, err)
 					break
 				}
+
+				_, scriptPkScript := scriptAddr.PaymentScript()
 
 				// Without treasury agenda.
 				_, err = SignTxOutput(testingParams,
@@ -2201,13 +2050,11 @@ func TestSignTxOutput(t *testing.T) {
 			}
 			keyDB1 := privKey1.Serialize()
 			pk1 := privKey1.PubKey()
-			suite1 := dcrec.STEcdsaSecp256k1
 
-			address1, err := dcrutil.NewAddressSecpPubKeyCompressed(pk1,
+			address1, err := stdaddr.NewAddressPubKeyEcdsaSecp256k1V0(pk1,
 				testingParams)
 			if err != nil {
-				t.Errorf("failed to make address for %s: %v",
-					msg, err)
+				t.Errorf("failed to make address for %s: %v", msg, err)
 				break
 			}
 
@@ -2218,39 +2065,32 @@ func TestSignTxOutput(t *testing.T) {
 			}
 			keyDB2 := privKey2.Serialize()
 			pk2 := privKey2.PubKey()
-			suite2 := dcrec.STEcdsaSecp256k1
 
-			address2, err := dcrutil.NewAddressSecpPubKeyCompressed(pk2,
+			address2, err := stdaddr.NewAddressPubKeyEcdsaSecp256k1V0(pk2,
 				testingParams)
 			if err != nil {
-				t.Errorf("failed to make address 2 for %s: %v",
-					msg, err)
+				t.Errorf("failed to make address 2 for %s: %v", msg, err)
 				break
 			}
 
 			pkScript, err := MultiSigScript(2, pk1.SerializeCompressed(),
 				pk2.SerializeCompressed())
 			if err != nil {
-				t.Errorf("failed to make pkscript "+
-					"for %s: %v", msg, err)
+				t.Errorf("failed to make pkscript for %s: %v", msg, err)
 			}
 
-			scriptAddr, err := dcrutil.NewAddressScriptHash(
-				pkScript, testingParams)
+			scriptAddr, err := stdaddr.NewAddressScriptHashV0(pkScript,
+				testingParams)
 			if err != nil {
-				t.Errorf("failed to make p2sh addr for %s: %v",
-					msg, err)
+				t.Errorf("failed to make p2sh addr for %s: %v", msg, err)
 				break
 			}
 
-			scriptPkScript, err := PayToAddrScript(scriptAddr)
-			if err != nil {
-				t.Errorf("failed to make script pkscript for "+
-					"%s: %v", msg, err)
-				break
-			}
+			_, scriptPkScript := scriptAddr.PaymentScript()
 
 			// Without treasury agenda.
+			suite1 := dcrec.STEcdsaSecp256k1
+			suite2 := dcrec.STEcdsaSecp256k1
 			if err := signAndCheck(msg, tx, i, scriptPkScript,
 				hashType,
 				mkGetKey(map[string]addressToKey{
@@ -2308,13 +2148,11 @@ func TestSignTxOutput(t *testing.T) {
 			}
 			keyDB1 := privKey1.Serialize()
 			pk1 := privKey1.PubKey()
-			suite1 := dcrec.STEcdsaSecp256k1
 
-			address1, err := dcrutil.NewAddressSecpPubKeyCompressed(pk1,
+			address1, err := stdaddr.NewAddressPubKeyEcdsaSecp256k1V0(pk1,
 				testingParams)
 			if err != nil {
-				t.Errorf("failed to make address for %s: %v",
-					msg, err)
+				t.Errorf("failed to make address for %s: %v", msg, err)
 				break
 			}
 
@@ -2325,13 +2163,11 @@ func TestSignTxOutput(t *testing.T) {
 			}
 			keyDB2 := privKey2.Serialize()
 			pk2 := privKey2.PubKey()
-			suite2 := dcrec.STEcdsaSecp256k1
 
-			address2, err := dcrutil.NewAddressSecpPubKeyCompressed(pk2,
+			address2, err := stdaddr.NewAddressPubKeyEcdsaSecp256k1V0(pk2,
 				testingParams)
 			if err != nil {
-				t.Errorf("failed to make address 2 for %s: %v",
-					msg, err)
+				t.Errorf("failed to make address 2 for %s: %v", msg, err)
 				break
 			}
 
@@ -2342,22 +2178,18 @@ func TestSignTxOutput(t *testing.T) {
 					"for %s: %v", msg, err)
 			}
 
-			scriptAddr, err := dcrutil.NewAddressScriptHash(
-				pkScript, testingParams)
+			scriptAddr, err := stdaddr.NewAddressScriptHashV0(pkScript,
+				testingParams)
 			if err != nil {
-				t.Errorf("failed to make p2sh addr for %s: %v",
-					msg, err)
+				t.Errorf("failed to make p2sh addr for %s: %v", msg, err)
 				break
 			}
 
-			scriptPkScript, err := PayToAddrScript(scriptAddr)
-			if err != nil {
-				t.Errorf("failed to make script pkscript for "+
-					"%s: %v", msg, err)
-				break
-			}
+			_, scriptPkScript := scriptAddr.PaymentScript()
 
 			// Without treasury agenda.
+			suite1 := dcrec.STEcdsaSecp256k1
+			suite2 := dcrec.STEcdsaSecp256k1
 			sigScript, err := SignTxOutput(testingParams, tx, i,
 				scriptPkScript, hashType,
 				mkGetKey(map[string]addressToKey{
@@ -2456,13 +2288,11 @@ func TestSignTxOutput(t *testing.T) {
 			}
 			keyDB1 := privKey1.Serialize()
 			pk1 := privKey1.PubKey()
-			suite1 := dcrec.STEcdsaSecp256k1
 
-			address1, err := dcrutil.NewAddressSecpPubKeyCompressed(pk1,
+			address1, err := stdaddr.NewAddressPubKeyEcdsaSecp256k1V0(pk1,
 				testingParams)
 			if err != nil {
-				t.Errorf("failed to make address for %s: %v",
-					msg, err)
+				t.Errorf("failed to make address for %s: %v", msg, err)
 				break
 			}
 
@@ -2473,38 +2303,35 @@ func TestSignTxOutput(t *testing.T) {
 			}
 			keyDB2 := privKey2.Serialize()
 			pk2 := privKey2.PubKey()
-			suite2 := dcrec.STEcdsaSecp256k1
-			address2, err := dcrutil.NewAddressSecpPubKeyCompressed(pk2,
+			address2, err := stdaddr.NewAddressPubKeyEcdsaSecp256k1V0(pk2,
 				testingParams)
 			if err != nil {
-				t.Errorf("failed to make address 2 for %s: %v",
-					msg, err)
+				t.Errorf("failed to make address 2 for %s: %v", msg, err)
 				break
 			}
 
 			pkScript, err := MultiSigScript(2, pk1.SerializeCompressed(),
 				pk2.SerializeCompressed())
 			if err != nil {
-				t.Errorf("failed to make pkscript "+
-					"for %s: %v", msg, err)
+				t.Errorf("failed to make pkscript for %s: %v", msg, err)
 			}
 
-			scriptAddr, err := dcrutil.NewAddressScriptHash(
-				pkScript, testingParams)
+			scriptAddr, err := stdaddr.NewAddressScriptHashV0(pkScript,
+				testingParams)
 			if err != nil {
-				t.Errorf("failed to make p2sh addr for %s: %v",
-					msg, err)
+				t.Errorf("failed to make p2sh addr for %s: %v", msg, err)
 				break
 			}
 
-			scriptPkScript, err := PayToAddrScript(scriptAddr)
+			_, scriptPkScript := scriptAddr.PaymentScript()
 			if err != nil {
-				t.Errorf("failed to make script pkscript for "+
-					"%s: %v", msg, err)
+				t.Errorf("failed to make script pkscript for %s: %v", msg, err)
 				break
 			}
 
 			// Without treasury agenda.
+			suite1 := dcrec.STEcdsaSecp256k1
+			suite2 := dcrec.STEcdsaSecp256k1
 			sigScript, err := SignTxOutput(testingParams, tx, i,
 				scriptPkScript, hashType,
 				mkGetKey(map[string]addressToKey{
@@ -2622,14 +2449,14 @@ var (
 		0xac, 0x70, 0x7f, 0x3d, 0xa4, 0x39, 0x5e, 0xcb, 0x3b, 0xb0,
 		0xd6, 0x0e, 0x06, 0x92}
 	thisPubKey        = secp256k1.PrivKeyFromBytes(privKeyD).PubKey()
-	thisAddressUnc, _ = dcrutil.NewAddressPubKeyHash(
-		dcrutil.Hash160(thisPubKey.SerializeUncompressed()),
-		testingParams, dcrec.STEcdsaSecp256k1)
-	uncompressedPkScript, _ = PayToAddrScript(thisAddressUnc)
-	thisAddressCom, _       = dcrutil.NewAddressPubKeyHash(
-		dcrutil.Hash160(thisPubKey.SerializeCompressed()),
-		testingParams, dcrec.STEcdsaSecp256k1)
-	compressedPkScript, _ = PayToAddrScript(thisAddressCom)
+	thisAddressUnc, _ = stdaddr.NewAddressPubKeyHashEcdsaSecp256k1V0(
+		stdaddr.Hash160(thisPubKey.SerializeUncompressed()),
+		testingParams)
+	_, uncompressedPkScript = thisAddressUnc.PaymentScript()
+	thisAddressCom, _       = stdaddr.NewAddressPubKeyHashEcdsaSecp256k1V0(
+		stdaddr.Hash160(thisPubKey.SerializeCompressed()),
+		testingParams)
+	_, compressedPkScript = thisAddressCom.PaymentScript()
 	shortPkScript         = []byte{0x76, 0xa9, 0x14, 0xd1, 0x7c, 0xb5,
 		0xeb, 0xa4, 0x02, 0xcb, 0x68, 0xe0, 0x69, 0x56, 0xbf, 0x32,
 		0x53, 0x90, 0x0e, 0x0a, 0x88, 0xac}

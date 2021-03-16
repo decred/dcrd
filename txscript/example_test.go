@@ -1,5 +1,5 @@
 // Copyright (c) 2014-2016 The btcsuite developers
-// Copyright (c) 2015-2020 The Decred developers
+// Copyright (c) 2015-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -13,8 +13,8 @@ import (
 	"github.com/decred/dcrd/chaincfg/v3"
 	"github.com/decred/dcrd/dcrec"
 	"github.com/decred/dcrd/dcrec/secp256k1/v4"
-	"github.com/decred/dcrd/dcrutil/v4"
 	"github.com/decred/dcrd/txscript/v4"
+	"github.com/decred/dcrd/txscript/v4/stdaddr"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -29,24 +29,20 @@ const (
 // It also prints the created script hex and uses the DisasmString function to
 // display the disassembled script.
 func ExamplePayToAddrScript() {
-	// Parse the address to send the coins to into a dcrutil.Address
-	// which is useful to ensure the accuracy of the address and determine
-	// the address type.  It is also required for the upcoming call to
-	// PayToAddrScript.
+	// Parse the address to send the coins to into an address which is useful to
+	// ensure the accuracy of the address and determine the address type.  It is
+	// also required to determine the payment script.
 	mainNetParams := chaincfg.MainNetParams()
 	addressStr := "DsSej1qR3Fyc8kV176DCh9n9cY9nqf9Quxk"
-	address, err := dcrutil.DecodeAddress(addressStr, mainNetParams)
+	address, err := stdaddr.DecodeAddress(addressStr, mainNetParams)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
 
 	// Create a public key script that pays to the address.
-	script, err := txscript.PayToAddrScript(address)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
+	scriptVersion, script := address.PaymentScript()
+	fmt.Printf("Script Version: %d\n", scriptVersion)
 	fmt.Printf("Script Hex: %x\n", script)
 
 	disasm, err := txscript.DisasmString(script)
@@ -57,6 +53,7 @@ func ExamplePayToAddrScript() {
 	fmt.Println("Script Disassembly:", disasm)
 
 	// Output:
+	// Script Version: 0
 	// Script Hex: 76a914128004ff2fcaf13b2b91eb654b1dc2b674f7ec6188ac
 	// Script Disassembly: OP_DUP OP_HASH160 128004ff2fcaf13b2b91eb654b1dc2b674f7ec61 OP_EQUALVERIFY OP_CHECKSIG
 }
@@ -102,11 +99,10 @@ func ExampleSignTxOutput() {
 		return
 	}
 	pubKey := secp256k1.PrivKeyFromBytes(privKeyBytes).PubKey()
-	pubKeyHash := dcrutil.Hash160(pubKey.SerializeCompressed())
+	pubKeyHash := stdaddr.Hash160(pubKey.SerializeCompressed())
 	mainNetParams := chaincfg.MainNetParams()
-	sigType := dcrec.STEcdsaSecp256k1
-	addr, err := dcrutil.NewAddressPubKeyHash(pubKeyHash, mainNetParams,
-		sigType)
+	addr, err := stdaddr.NewAddressPubKeyHashEcdsaSecp256k1V0(pubKeyHash,
+		mainNetParams)
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -119,12 +115,9 @@ func ExampleSignTxOutput() {
 	prevOut := wire.NewOutPoint(&chainhash.Hash{}, ^uint32(0), wire.TxTreeRegular)
 	txIn := wire.NewTxIn(prevOut, 100000000, []byte{txscript.OP_0, txscript.OP_0})
 	originTx.AddTxIn(txIn)
-	pkScript, err := txscript.PayToAddrScript(addr)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
+	pkScriptVer, pkScript := addr.PaymentScript()
 	txOut := wire.NewTxOut(100000000, pkScript)
+	txOut.Version = pkScriptVer
 	originTx.AddTxOut(txOut)
 	originTxHash := originTx.TxHash()
 
@@ -144,7 +137,8 @@ func ExampleSignTxOutput() {
 	redeemTx.AddTxOut(txOut)
 
 	// Sign the redeeming transaction.
-	lookupKey := func(a dcrutil.Address) ([]byte, dcrec.SignatureType, bool, error) {
+	sigType := dcrec.STEcdsaSecp256k1
+	lookupKey := func(a stdaddr.Address) ([]byte, dcrec.SignatureType, bool, error) {
 		// Ordinarily this function would involve looking up the private
 		// key for the provided address, but since the only thing being
 		// signed in this example uses the address associated with the
@@ -199,7 +193,7 @@ func ExampleSignTxOutput() {
 func ExampleScriptTokenizer() {
 	// Create a script to use in the example.  Ordinarily this would come from
 	// some other source.
-	hash160 := dcrutil.Hash160([]byte("example"))
+	hash160 := stdaddr.Hash160([]byte("example"))
 	script, err := txscript.NewScriptBuilder().AddOp(txscript.OP_DUP).
 		AddOp(txscript.OP_HASH160).AddData(hash160).
 		AddOp(txscript.OP_EQUALVERIFY).AddOp(txscript.OP_CHECKSIG).Script()

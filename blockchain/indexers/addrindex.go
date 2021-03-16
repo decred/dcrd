@@ -656,31 +656,6 @@ func (idx *AddrIndex) Create(dbTx database.Tx) error {
 	return err
 }
 
-// extractPkScriptAddrs is a wrapper around txscript.ExtractPkScriptAddrs that
-// converts dcrutil addresses to stdaddr addresses until all code is converted
-// over to use the new package.
-func extractPkScriptAddrs(scriptVer uint16, pkScript []byte, params dcrutil.AddressParams, isTreasuryEnabled bool) (txscript.ScriptClass, []stdaddr.Address, error) {
-	class, utilAddrs, _, err := txscript.ExtractPkScriptAddrs(scriptVer,
-		pkScript, params, isTreasuryEnabled)
-	if err != nil {
-		return class, nil, err
-	}
-
-	// Convert dcrutil addresses to stdaddr addresses until all code is
-	// converted.
-	addrs := make([]stdaddr.Address, 0, len(utilAddrs)+1)
-	for _, utilAddr := range utilAddrs {
-		addr, err := stdaddr.DecodeAddress(utilAddr.Address(), params)
-		if err != nil {
-			return class, nil, err
-		}
-
-		addrs = append(addrs, addr)
-	}
-
-	return class, addrs, nil
-}
-
 // writeIndexData represents the address index data to be written for one block.
 // It consists of the address mapped to an ordered list of the transactions
 // that involve the address in block.  It is ordered so the transactions can be
@@ -693,8 +668,8 @@ type writeIndexData map[[addrKeySize]byte][]int
 func (idx *AddrIndex) indexPkScript(data writeIndexData, scriptVersion uint16, pkScript []byte, txIdx int, isSStx bool, isTreasuryEnabled bool) {
 	// Nothing to index if the script is non-standard or otherwise doesn't
 	// contain any addresses.
-	class, addrs, err := extractPkScriptAddrs(scriptVersion, pkScript,
-		idx.chainParams, isTreasuryEnabled)
+	class, addrs, _, err := txscript.ExtractPkScriptAddrs(scriptVersion,
+		pkScript, idx.chainParams, isTreasuryEnabled)
 	if err != nil {
 		return
 	}
@@ -944,7 +919,7 @@ func (idx *AddrIndex) indexUnconfirmedAddresses(scriptVersion uint16, pkScript [
 	// The error is ignored here since the only reason it can fail is if the
 	// script fails to parse and it was already validated before being
 	// admitted to the mempool.
-	class, addrs, _ := extractPkScriptAddrs(scriptVersion, pkScript,
+	class, addrs, _, _ := txscript.ExtractPkScriptAddrs(scriptVersion, pkScript,
 		idx.chainParams, isTreasuryEnabled)
 
 	if isSStx && class == txscript.NullDataTy {

@@ -4855,8 +4855,8 @@ func TestHandleGetTxOut(t *testing.T) {
 	script := txOut.PkScript
 	scriptVersion := txOut.Version
 	disbuf, _ := txscript.DisasmString(script)
-	scriptClass, addrs, reqSigs, _ := extractPkScriptAddrs(scriptVersion,
-		script, defaultChainParams, false)
+	scriptClass, addrs, reqSigs, _ := txscript.ExtractPkScriptAddrs(
+		scriptVersion, script, defaultChainParams, false)
 	addresses := make([]string, len(addrs))
 	for i, addr := range addrs {
 		addresses[i] = addr.Address()

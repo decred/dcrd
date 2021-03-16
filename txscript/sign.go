@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2015 The btcsuite developers
-// Copyright (c) 2015-2020 The Decred developers
+// Copyright (c) 2015-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -14,7 +14,7 @@ import (
 	"github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/decred/dcrd/dcrec/secp256k1/v4/ecdsa"
 	"github.com/decred/dcrd/dcrec/secp256k1/v4/schnorr"
-	"github.com/decred/dcrd/dcrutil/v4"
+	"github.com/decred/dcrd/txscript/v4/stdaddr"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -118,7 +118,7 @@ func p2pkSignatureScript(tx *wire.MsgTx, idx int, subScript []byte,
 // arguably legal to not be able to sign any of the outputs, no error is
 // returned.
 func signMultiSig(tx *wire.MsgTx, idx int, subScript []byte, hashType SigHashType,
-	addresses []dcrutil.Address, nRequired int, kdb KeyDB) ([]byte, bool) {
+	addresses []stdaddr.Address, nRequired int, kdb KeyDB) ([]byte, bool) {
 
 	// No need to add dummy in Decred.
 	builder := NewScriptBuilder()
@@ -149,8 +149,8 @@ func signMultiSig(tx *wire.MsgTx, idx int, subScript []byte, hashType SigHashTyp
 // sign. It handles the signing of stake outputs.
 func handleStakeOutSign(tx *wire.MsgTx, idx int, subScript []byte,
 	hashType SigHashType, kdb KeyDB, sdb ScriptDB,
-	addresses []dcrutil.Address, class ScriptClass, subClass ScriptClass,
-	nrequired int) ([]byte, ScriptClass, []dcrutil.Address, int, error) {
+	addresses []stdaddr.Address, class ScriptClass, subClass ScriptClass,
+	nrequired int) ([]byte, ScriptClass, []stdaddr.Address, int, error) {
 
 	// look up key for address
 	switch subClass {
@@ -182,7 +182,7 @@ func handleStakeOutSign(tx *wire.MsgTx, idx int, subScript []byte,
 // its input index, a database of keys, a database of scripts, and information
 // about the type of signature and returns a signature, script class, the
 // addresses involved, and the number of signatures required.
-func sign(chainParams dcrutil.AddressParams, tx *wire.MsgTx, idx int, subScript []byte, hashType SigHashType, kdb KeyDB, sdb ScriptDB, isTreasuryEnabled bool) ([]byte, ScriptClass, []dcrutil.Address, int, error) {
+func sign(chainParams stdaddr.AddressParams, tx *wire.MsgTx, idx int, subScript []byte, hashType SigHashType, kdb KeyDB, sdb ScriptDB, isTreasuryEnabled bool) ([]byte, ScriptClass, []stdaddr.Address, int, error) {
 
 	const scriptVersion = 0
 	class, addresses, nrequired, err := ExtractPkScriptAddrs(scriptVersion,
@@ -319,7 +319,7 @@ func sign(chainParams dcrutil.AddressParams, tx *wire.MsgTx, idx int, subScript 
 // NOTE: This function is only valid for version 0 scripts.  Since the function
 // does not accept a script version, the results are undefined for other script
 // versions.
-func mergeMultiSig(tx *wire.MsgTx, idx int, addresses []dcrutil.Address,
+func mergeMultiSig(tx *wire.MsgTx, idx int, addresses []stdaddr.Address,
 	nRequired int, pkScript, sigScript, prevScript []byte) []byte {
 
 	// Nothing to merge if either the new or previous signature scripts are
@@ -393,9 +393,11 @@ sigLoop:
 			// All multisig addresses should be pubkey addresses
 			// it is an error to call this internal function with
 			// bad input.
-			pkaddr := addr.(*dcrutil.AddressSecpPubKey)
-
-			pubKey := pkaddr.PubKey()
+			pkAddr := addr.(stdaddr.SerializedPubKeyer)
+			pubKey, err := secp256k1.ParsePubKey(pkAddr.SerializedPubKey())
+			if err != nil {
+				continue
+			}
 
 			// If it matches we put it in the map. We only
 			// can take one signature per public key so if we
@@ -444,7 +446,7 @@ sigLoop:
 // NOTE: This function is only valid for version 0 scripts.  Since the function
 // does not accept a script version, the results are undefined for other script
 // versions.
-func mergeScripts(chainParams dcrutil.AddressParams, tx *wire.MsgTx, idx int, pkScript []byte, class ScriptClass, addresses []dcrutil.Address, nRequired int, sigScript, prevScript []byte, isTreasuryEnabled bool) []byte {
+func mergeScripts(chainParams stdaddr.AddressParams, tx *wire.MsgTx, idx int, pkScript []byte, class ScriptClass, addresses []stdaddr.Address, nRequired int, sigScript, prevScript []byte, isTreasuryEnabled bool) []byte {
 
 	// TODO(oga) the scripthash and multisig paths here are overly
 	// inefficient in that they will recompute already known data.
@@ -511,28 +513,28 @@ func mergeScripts(chainParams dcrutil.AddressParams, tx *wire.MsgTx, idx int, pk
 // KeyDB is an interface type provided to SignTxOutput, it encapsulates
 // any user state required to get the private keys for an address.
 type KeyDB interface {
-	GetKey(dcrutil.Address) ([]byte, dcrec.SignatureType, bool, error)
+	GetKey(stdaddr.Address) ([]byte, dcrec.SignatureType, bool, error)
 }
 
 // KeyClosure implements KeyDB with a closure.
-type KeyClosure func(dcrutil.Address) ([]byte, dcrec.SignatureType, bool, error)
+type KeyClosure func(stdaddr.Address) ([]byte, dcrec.SignatureType, bool, error)
 
 // GetKey implements KeyDB by returning the result of calling the closure.
-func (kc KeyClosure) GetKey(address dcrutil.Address) ([]byte, dcrec.SignatureType, bool, error) {
+func (kc KeyClosure) GetKey(address stdaddr.Address) ([]byte, dcrec.SignatureType, bool, error) {
 	return kc(address)
 }
 
 // ScriptDB is an interface type provided to SignTxOutput, it encapsulates any
 // user state required to get the scripts for a pay-to-script-hash address.
 type ScriptDB interface {
-	GetScript(dcrutil.Address) ([]byte, error)
+	GetScript(stdaddr.Address) ([]byte, error)
 }
 
 // ScriptClosure implements ScriptDB with a closure.
-type ScriptClosure func(dcrutil.Address) ([]byte, error)
+type ScriptClosure func(stdaddr.Address) ([]byte, error)
 
 // GetScript implements ScriptDB by returning the result of calling the closure.
-func (sc ScriptClosure) GetScript(address dcrutil.Address) ([]byte, error) {
+func (sc ScriptClosure) GetScript(address stdaddr.Address) ([]byte, error) {
 	return sc(address)
 }
 
@@ -547,7 +549,7 @@ func (sc ScriptClosure) GetScript(address dcrutil.Address) ([]byte, error) {
 // NOTE: This function is only valid for version 0 scripts.  Since the function
 // does not accept a script version, the results are undefined for other script
 // versions.
-func SignTxOutput(chainParams dcrutil.AddressParams, tx *wire.MsgTx, idx int, pkScript []byte, hashType SigHashType, kdb KeyDB, sdb ScriptDB, previousScript []byte, isTreasuryEnabled bool) ([]byte, error) {
+func SignTxOutput(chainParams stdaddr.AddressParams, tx *wire.MsgTx, idx int, pkScript []byte, hashType SigHashType, kdb KeyDB, sdb ScriptDB, previousScript []byte, isTreasuryEnabled bool) ([]byte, error) {
 
 	sigScript, class, addresses, nrequired, err := sign(chainParams, tx,
 		idx, pkScript, hashType, kdb, sdb, isTreasuryEnabled)

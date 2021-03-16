@@ -1140,31 +1140,6 @@ func createVinList(mtx *wire.MsgTx, isTreasuryEnabled bool) []types.Vin {
 	return vinList
 }
 
-// extractPkScriptAddrs is a wrapper around txscript.ExtractPkScriptAddrs that
-// converts dcrutil addresses to stdaddr addresses until all code is converted
-// over to use the new package.
-func extractPkScriptAddrs(scriptVer uint16, pkScript []byte, params dcrutil.AddressParams, isTreasuryEnabled bool) (txscript.ScriptClass, []stdaddr.Address, int, error) {
-	class, utilAddrs, reqSigs, err := txscript.ExtractPkScriptAddrs(scriptVer,
-		pkScript, params, isTreasuryEnabled)
-	if err != nil {
-		return class, nil, 0, err
-	}
-
-	// Convert dcrutil addresses to stdaddr addresses until all code is
-	// converted.
-	addrs := make([]stdaddr.Address, 0, len(utilAddrs)+1)
-	for _, utilAddr := range utilAddrs {
-		addr, err := stdaddr.DecodeAddress(utilAddr.Address(), params)
-		if err != nil {
-			return class, nil, 0, err
-		}
-
-		addrs = append(addrs, addr)
-	}
-
-	return class, addrs, reqSigs, nil
-}
-
 // createVoutList returns a slice of JSON objects for the outputs of the passed
 // transaction.
 func createVoutList(mtx *wire.MsgTx, chainParams *chaincfg.Params, filterAddrMap map[string]struct{}, isTreasuryEnabled bool) []types.Vout {
@@ -1207,8 +1182,8 @@ func createVoutList(mtx *wire.MsgTx, chainParams *chaincfg.Params, filterAddrMap
 			// couldn't parse and there is no additional information
 			// about it anyways.
 			var sc txscript.ScriptClass
-			sc, addrs, reqSigs, _ = extractPkScriptAddrs(v.Version, v.PkScript,
-				chainParams, isTreasuryEnabled)
+			sc, addrs, reqSigs, _ = txscript.ExtractPkScriptAddrs(v.Version,
+				v.PkScript, chainParams, isTreasuryEnabled)
 			scriptClass = sc.String()
 		}
 
@@ -1367,10 +1342,13 @@ func handleDecodeScript(_ context.Context, s *Server, cmd interface{}) (interfac
 	// Get information about the script.
 	// Ignore the error here since an error means the script couldn't parse
 	// and there is no additional information about it anyways.
-	scriptClass, addrs, reqSigs, _ := extractPkScriptAddrs(scriptVersion,
-		script, s.cfg.ChainParams, isTreasuryEnabled)
+	scriptClass, addrs, reqSigs, _ := txscript.ExtractPkScriptAddrs(
+		scriptVersion, script, s.cfg.ChainParams, isTreasuryEnabled)
 	addresses := make([]string, len(addrs))
 	for i, addr := range addrs {
+		if pkHasher, ok := addr.(stdaddr.AddressPubKeyHasher); ok {
+			addr = pkHasher.AddressPubKeyHash()
+		}
 		addresses[i] = addr.Address()
 	}
 
@@ -3544,8 +3522,8 @@ func handleGetTxOut(_ context.Context, s *Server, cmd interface{}) (interface{},
 	// Get further info about the script.  Ignore the error here since an
 	// error means the script couldn't parse and there is no additional
 	// information about it anyways.
-	scriptClass, addrs, reqSigs, _ := extractPkScriptAddrs(scriptVersion,
-		script, s.cfg.ChainParams, isTreasuryEnabled)
+	scriptClass, addrs, reqSigs, _ := txscript.ExtractPkScriptAddrs(
+		scriptVersion, script, s.cfg.ChainParams, isTreasuryEnabled)
 	addresses := make([]string, len(addrs))
 	for i, addr := range addrs {
 		addresses[i] = addr.Address()
@@ -4259,7 +4237,7 @@ func createVinListPrevOut(s *Server, mtx *wire.MsgTx,
 		// Ignore the error here since an error means the script
 		// couldn't parse and there is no additional information about
 		// it anyways.
-		_, addrs, _, _ := extractPkScriptAddrs(originTxOut.Version,
+		_, addrs, _, _ := txscript.ExtractPkScriptAddrs(originTxOut.Version,
 			originTxOut.PkScript, chainParams, isTreasuryEnabled)
 
 		// Encode the addresses while checking if the address passes
