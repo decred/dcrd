@@ -781,11 +781,6 @@ func payToScriptHashScript(scriptHash []byte) ([]byte, error) {
 		AddOp(OP_EQUAL).Script()
 }
 
-// PayToScriptHashScript is the exported version of payToScriptHashScript.
-func PayToScriptHashScript(scriptHash []byte) ([]byte, error) {
-	return payToScriptHashScript(scriptHash)
-}
-
 // payToPubkeyScript creates a new script to pay a transaction output to a
 // public key. It is expected that the input is a valid pubkey.
 func payToPubKeyScript(serializedPubKey []byte) ([]byte, error) {
