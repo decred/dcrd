@@ -27,10 +27,6 @@ const (
 	// index that is greater than or equal to the number of outputs.
 	ErrInvalidSigHashSingleIndex = ErrorKind("ErrInvalidSigHashSingleIndex")
 
-	// ErrUnsupportedAddress is returned when a concrete type that
-	// implements a dcrutil.Address is not a supported type.
-	ErrUnsupportedAddress = ErrorKind("ErrUnsupportedAddress")
-
 	// ErrNotMultisigScript is returned from CalcMultiSigStats when the
 	// provided script is not a multisig script.
 	ErrNotMultisigScript = ErrorKind("ErrNotMultisigScript")
