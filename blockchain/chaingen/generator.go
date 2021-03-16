@@ -468,15 +468,6 @@ func (g *Generator) CreateCoinbaseTx(blockHeight uint32, numVotes uint16) *wire.
 	return tx
 }
 
-// PurchaseCommitmentScript returns a standard provably-pruneable OP_RETURN
-// commitment script suitable for use in a ticket purchase tx (sstx) using the
-// provided target address, amount, and fee limits.
-func PurchaseCommitmentScript(addr stdaddr.StakeAddress, amount, voteFeeLimit, revocationFeeLimit dcrutil.Amount) []byte {
-	_, script := addr.RewardCommitmentScript(int64(amount), int64(voteFeeLimit),
-		int64(revocationFeeLimit))
-	return script
-}
-
 // CreateTicketPurchaseTx creates a new transaction that spends the provided
 // output to purchase a stake submission ticket (sstx) at the given ticket
 // price.  Both the ticket and the change will go to a p2sh script that is
