@@ -810,16 +810,6 @@ func payToSchnorrPubKeyScript(serializedPubKey []byte) ([]byte, error) {
 		AddOp(OP_CHECKSIGALT).Script()
 }
 
-// PayToSSRtxPKHDirect creates a new script to pay a transaction output to a
-// public key hash, but tags the output with OP_SSRTX. For use in constructing
-// valid SSRtx. Unlike PayToSSRtx, this function directly uses the HASH160
-// pubkeyhash (instead of an address).
-func PayToSSRtxPKHDirect(pkh []byte) ([]byte, error) {
-	return NewScriptBuilder().AddOp(OP_SSRTX).AddOp(OP_DUP).
-		AddOp(OP_HASH160).AddData(pkh).AddOp(OP_EQUALVERIFY).
-		AddOp(OP_CHECKSIG).Script()
-}
-
 // PayToSSRtxSHDirect creates a new script to pay a transaction output to a
 // script hash, but tags the output with OP_SSRTX. For use in constructing
 // valid SSRtx. Unlike PayToSSRtx, this function directly uses the HASH160
