@@ -44,6 +44,7 @@ import (
 	"github.com/decred/dcrd/peer/v3"
 	"github.com/decred/dcrd/rpc/jsonrpc/types/v3"
 	"github.com/decred/dcrd/txscript/v4"
+	"github.com/decred/dcrd/txscript/v4/stdaddr"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -547,13 +548,13 @@ type testExistsAddresser struct {
 
 // ExistsAddress returns a mocked bool representing whether or not an address
 // has been seen before.
-func (e *testExistsAddresser) ExistsAddress(addr dcrutil.Address) (bool, error) {
+func (e *testExistsAddresser) ExistsAddress(addr stdaddr.Address) (bool, error) {
 	return e.existsAddress, e.existsAddressErr
 }
 
 // ExistsAddresses returns a mocked bool slice representing whether or not each
 // address in a slice of addresses has been seen before.
-func (e *testExistsAddresser) ExistsAddresses(addrs []dcrutil.Address) ([]bool, error) {
+func (e *testExistsAddresser) ExistsAddresses(addrs []stdaddr.Address) ([]bool, error) {
 	return e.existsAddresses, e.existsAddressesErr
 }
 
@@ -569,14 +570,14 @@ type testAddrIndexer struct {
 // EntriesForAddress returns a mocked slice of indexers.TxIndexEntry that
 // involve the given address.
 func (a *testAddrIndexer) EntriesForAddress(dbTx database.Tx,
-	addr dcrutil.Address, numToSkip, numRequested uint32, reverse bool) (
+	addr stdaddr.Address, numToSkip, numRequested uint32, reverse bool) (
 	[]indexers.TxIndexEntry, uint32, error) {
 	return a.entriesForAddress, a.entriesForAddressSkipped, a.entriesForAddressErr
 }
 
 // UnconfirmedTxnsForAddress returns a mocked slice of transactions that are
 // currently in the unconfirmed (memory-only) address index.
-func (a *testAddrIndexer) UnconfirmedTxnsForAddress(addr dcrutil.Address) []*dcrutil.Tx {
+func (a *testAddrIndexer) UnconfirmedTxnsForAddress(addr stdaddr.Address) []*dcrutil.Tx {
 	return a.unconfirmedTxnsForAddress
 }
 

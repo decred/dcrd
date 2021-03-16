@@ -13,6 +13,7 @@ import (
 	"github.com/decred/dcrd/database/v2"
 	"github.com/decred/dcrd/dcrutil/v4"
 	"github.com/decred/dcrd/txscript/v4"
+	"github.com/decred/dcrd/txscript/v4/stdaddr"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -144,7 +145,7 @@ func (idx *ExistsAddrIndex) existsAddress(bucket internalBucket, k [addrKeySize]
 
 // ExistsAddress is the concurrency safe, exported function that returns
 // whether or not an address has been seen before.
-func (idx *ExistsAddrIndex) ExistsAddress(addr dcrutil.Address) (bool, error) {
+func (idx *ExistsAddrIndex) ExistsAddress(addr stdaddr.Address) (bool, error) {
 	k, err := addrToKey(addr)
 	if err != nil {
 		return false, err
@@ -174,7 +175,7 @@ func (idx *ExistsAddrIndex) ExistsAddress(addr dcrutil.Address) (bool, error) {
 
 // ExistsAddresses is the concurrency safe, exported function that returns
 // whether or not each address in a slice of addresses has been seen before.
-func (idx *ExistsAddrIndex) ExistsAddresses(addrs []dcrutil.Address) ([]bool, error) {
+func (idx *ExistsAddrIndex) ExistsAddresses(addrs []stdaddr.Address) ([]bool, error) {
 	exists := make([]bool, len(addrs))
 	addrKeys := make([][addrKeySize]byte, len(addrs))
 	for i := range addrKeys {
@@ -243,9 +244,8 @@ func (idx *ExistsAddrIndex) ConnectBlock(dbTx database.Tx, block, parent *dcruti
 			if txscript.IsMultisigSigScript(txIn.SignatureScript) {
 				rs := txscript.MultisigRedeemScriptFromScriptSig(
 					txIn.SignatureScript)
-				class, addrs, _, err := txscript.ExtractPkScriptAddrs(
-					scriptVersion, rs, idx.chainParams,
-					isTreasuryEnabled)
+				class, addrs, err := extractPkScriptAddrs(scriptVersion, rs,
+					idx.chainParams, isTreasuryEnabled)
 				if err != nil {
 					// Non-standard outputs are skipped.
 					continue
@@ -267,9 +267,8 @@ func (idx *ExistsAddrIndex) ConnectBlock(dbTx database.Tx, block, parent *dcruti
 		}
 
 		for _, txOut := range tx.MsgTx().TxOut {
-			class, addrs, _, err := txscript.ExtractPkScriptAddrs(
-				txOut.Version, txOut.PkScript, idx.chainParams,
-				isTreasuryEnabled)
+			class, addrs, err := extractPkScriptAddrs(txOut.Version,
+				txOut.PkScript, idx.chainParams, isTreasuryEnabled)
 			if err != nil {
 				// Non-standard outputs are skipped.
 				continue
@@ -282,12 +281,8 @@ func (idx *ExistsAddrIndex) ConnectBlock(dbTx database.Tx, block, parent *dcruti
 					// Ignore unsupported address types.
 					continue
 				}
-				utilAddr, err := stdAddrToUtilAddr(addr, idx.chainParams)
-				if err != nil {
-					continue
-				}
 
-				addrs = append(addrs, utilAddr)
+				addrs = append(addrs, addr)
 			}
 
 			for _, addr := range addrs {
@@ -368,9 +363,8 @@ func (idx *ExistsAddrIndex) addUnconfirmedTx(tx *wire.MsgTx, isTreasuryEnabled b
 			const scriptVersion = 0
 			rs := txscript.MultisigRedeemScriptFromScriptSig(
 				txIn.SignatureScript)
-			class, addrs, _, err := txscript.ExtractPkScriptAddrs(
-				scriptVersion, rs, idx.chainParams,
-				isTreasuryEnabled)
+			class, addrs, err := extractPkScriptAddrs(scriptVersion, rs,
+				idx.chainParams, isTreasuryEnabled)
 			if err != nil {
 				// Non-standard outputs are skipped.
 				continue
@@ -394,8 +388,8 @@ func (idx *ExistsAddrIndex) addUnconfirmedTx(tx *wire.MsgTx, isTreasuryEnabled b
 	}
 
 	for _, txOut := range tx.TxOut {
-		class, addrs, _, err := txscript.ExtractPkScriptAddrs(txOut.Version,
-			txOut.PkScript, idx.chainParams, isTreasuryEnabled)
+		class, addrs, err := extractPkScriptAddrs(txOut.Version, txOut.PkScript,
+			idx.chainParams, isTreasuryEnabled)
 		if err != nil {
 			// Non-standard outputs are skipped.
 			continue
@@ -408,12 +402,8 @@ func (idx *ExistsAddrIndex) addUnconfirmedTx(tx *wire.MsgTx, isTreasuryEnabled b
 				// Ignore unsupported address types.
 				continue
 			}
-			utilAddr, err := stdAddrToUtilAddr(addr, idx.chainParams)
-			if err != nil {
-				continue
-			}
 
-			addrs = append(addrs, utilAddr)
+			addrs = append(addrs, addr)
 		}
 
 		for _, addr := range addrs {

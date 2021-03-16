@@ -1,4 +1,4 @@
-// Copyright (c) 2016-2020 The Decred developers
+// Copyright (c) 2016-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -19,6 +19,7 @@ import (
 	"github.com/decred/dcrd/chaincfg/v3"
 	"github.com/decred/dcrd/dcrutil/v4"
 	"github.com/decred/dcrd/txscript/v4"
+	"github.com/decred/dcrd/txscript/v4/stdaddr"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -158,15 +159,16 @@ func (t stakeTicketSorter) Less(i, j int) bool {
 // available spendable outputs and generic payment scripts used throughout the
 // tests.
 type Generator struct {
-	params           *chaincfg.Params
-	tip              *wire.MsgBlock
-	tipName          string
-	blocks           map[chainhash.Hash]*wire.MsgBlock
-	blockHeights     map[chainhash.Hash]uint32
-	blocksByName     map[string]*wire.MsgBlock
-	blockNames       map[chainhash.Hash]string
-	p2shOpTrueAddr   dcrutil.Address
-	p2shOpTrueScript []byte
+	params              *chaincfg.Params
+	tip                 *wire.MsgBlock
+	tipName             string
+	blocks              map[chainhash.Hash]*wire.MsgBlock
+	blockHeights        map[chainhash.Hash]uint32
+	blocksByName        map[string]*wire.MsgBlock
+	blockNames          map[chainhash.Hash]string
+	p2shOpTrueAddr      stdaddr.StakeAddress
+	p2shOpTrueScriptVer uint16
+	p2shOpTrueScript    []byte
 
 	// Used for tracking spendable coinbase outputs.
 	spendableOuts     [][]SpendableOut
@@ -188,31 +190,29 @@ func MakeGenerator(params *chaincfg.Params) (Generator, error) {
 	// Generate a generic pay-to-script-hash script that is a simple
 	// OP_TRUE.  This allows the tests to avoid needing to generate and
 	// track actual public keys and signatures.
-	p2shOpTrueAddr, err := dcrutil.NewAddressScriptHash(opTrueScript, params)
+	p2shOpTrueAddr, err := stdaddr.NewAddressScriptHashV0(opTrueScript, params)
 	if err != nil {
 		return Generator{}, err
 	}
-	p2shOpTrueScript, err := txscript.PayToAddrScript(p2shOpTrueAddr)
-	if err != nil {
-		return Generator{}, err
-	}
+	p2shOpTrueScriptVer, p2shOpTrueScript := p2shOpTrueAddr.PaymentScript()
 
 	genesis := params.GenesisBlock
 	genesisHash := genesis.BlockHash()
 	return Generator{
-		params:           params,
-		tip:              genesis,
-		tipName:          "genesis",
-		blocks:           map[chainhash.Hash]*wire.MsgBlock{genesisHash: genesis},
-		blockHeights:     map[chainhash.Hash]uint32{genesisHash: 0},
-		blocksByName:     map[string]*wire.MsgBlock{"genesis": genesis},
-		blockNames:       map[chainhash.Hash]string{genesisHash: "genesis"},
-		p2shOpTrueAddr:   p2shOpTrueAddr,
-		p2shOpTrueScript: p2shOpTrueScript,
-		originalParents:  make(map[chainhash.Hash]chainhash.Hash),
-		wonTickets:       make(map[chainhash.Hash][]*stakeTicket),
-		revokedTickets:   make(map[chainhash.Hash][]*stakeTicket),
-		missedVotes:      make(map[chainhash.Hash]*stakeTicket),
+		params:              params,
+		tip:                 genesis,
+		tipName:             "genesis",
+		blocks:              map[chainhash.Hash]*wire.MsgBlock{genesisHash: genesis},
+		blockHeights:        map[chainhash.Hash]uint32{genesisHash: 0},
+		blocksByName:        map[string]*wire.MsgBlock{"genesis": genesis},
+		blockNames:          map[chainhash.Hash]string{genesisHash: "genesis"},
+		p2shOpTrueAddr:      p2shOpTrueAddr,
+		p2shOpTrueScriptVer: p2shOpTrueScriptVer,
+		p2shOpTrueScript:    p2shOpTrueScript,
+		originalParents:     make(map[chainhash.Hash]chainhash.Hash),
+		wonTickets:          make(map[chainhash.Hash][]*stakeTicket),
+		revokedTickets:      make(map[chainhash.Hash][]*stakeTicket),
+		missedVotes:         make(map[chainhash.Hash]*stakeTicket),
 	}, nil
 }
 
@@ -233,7 +233,7 @@ func (g *Generator) TipName() string {
 
 // P2shOpTrueAddr returns the generator p2sh script that is composed with
 // a single OP_TRUE.
-func (g *Generator) P2shOpTrueAddr() dcrutil.Address {
+func (g *Generator) P2shOpTrueAddr() stdaddr.StakeAddress {
 	return g.p2shOpTrueAddr
 }
 
@@ -395,6 +395,15 @@ func standardCoinbaseOpReturnScript(blockHeight uint32) []byte {
 	return opReturnScript(data)
 }
 
+// newTxOut returns a new transaction output with the given parameters.
+func newTxOut(amount int64, pkScriptVer uint16, pkScript []byte) *wire.TxOut {
+	return &wire.TxOut{
+		Value:    amount,
+		Version:  pkScriptVer,
+		PkScript: pkScript,
+	}
+}
+
 // addCoinbaseTxOutputs adds the following outputs to the provided transaction
 // which is assumed to be a coinbase transaction:
 // - First output pays the development subsidy portion to the dev org
@@ -423,7 +432,8 @@ func (g *Generator) addCoinbaseTxOutputs(tx *wire.MsgTx, blockHeight uint32, dev
 		if i == numPoWOutputs-1 {
 			amount = powSubsidy - amount*(numPoWOutputs-1)
 		}
-		tx.AddTxOut(wire.NewTxOut(int64(amount), g.p2shOpTrueScript))
+		tx.AddTxOut(newTxOut(int64(amount), g.p2shOpTrueScriptVer,
+			g.p2shOpTrueScript))
 	}
 }
 
@@ -461,35 +471,9 @@ func (g *Generator) CreateCoinbaseTx(blockHeight uint32, numVotes uint16) *wire.
 // PurchaseCommitmentScript returns a standard provably-pruneable OP_RETURN
 // commitment script suitable for use in a ticket purchase tx (sstx) using the
 // provided target address, amount, and fee limits.
-func PurchaseCommitmentScript(addr dcrutil.Address, amount, voteFeeLimit, revocationFeeLimit dcrutil.Amount) []byte {
-	// The limits are defined in terms of the closest base 2 exponent and
-	// a bit that must be set to specify the limit is to be applied.  The
-	// vote fee exponent is in the bottom 8 bits, while the revocation fee
-	// exponent is in the upper 8 bits.
-	limits := uint16(0)
-	if voteFeeLimit != 0 {
-		exp := uint16(math.Ceil(math.Log2(float64(voteFeeLimit))))
-		limits |= (exp | 0x40)
-	}
-	if revocationFeeLimit != 0 {
-		exp := uint16(math.Ceil(math.Log2(float64(revocationFeeLimit))))
-		limits |= ((exp | 0x40) << 8)
-	}
-
-	// The data consists of the 20-byte raw script address for the given
-	// address, 8 bytes for the amount to commit to (with the upper bit flag
-	// set to indicate a pay-to-script-hash address), and 2 bytes for the
-	// fee limits.
-	var data [30]byte
-	copy(data[:], addr.ScriptAddress())
-	binary.LittleEndian.PutUint64(data[20:], uint64(amount))
-	data[27] |= 1 << 7
-	binary.LittleEndian.PutUint16(data[28:], limits)
-	script, err := txscript.NewScriptBuilder().AddOp(txscript.OP_RETURN).
-		AddData(data[:]).Script()
-	if err != nil {
-		panic(err)
-	}
+func PurchaseCommitmentScript(addr stdaddr.StakeAddress, amount, voteFeeLimit, revocationFeeLimit dcrutil.Amount) []byte {
+	_, script := addr.RewardCommitmentScript(int64(amount), int64(voteFeeLimit),
+		int64(revocationFeeLimit))
 	return script
 }
 
@@ -505,21 +489,15 @@ func PurchaseCommitmentScript(addr dcrutil.Address, amount, voteFeeLimit, revoca
 func (g *Generator) CreateTicketPurchaseTx(spend *SpendableOut, ticketPrice, fee dcrutil.Amount) *wire.MsgTx {
 	// The first output is the voting rights address.  This impl uses the
 	// standard pay-to-script-hash to an OP_TRUE.
-	pkScript, err := txscript.PayToSStx(g.p2shOpTrueAddr)
-	if err != nil {
-		panic(err)
-	}
+	voteScriptVer, voteScript := g.p2shOpTrueAddr.VotingRightsScript()
 
 	// Generate the commitment script.
-	commitScript := PurchaseCommitmentScript(g.p2shOpTrueAddr,
-		ticketPrice+fee, 0, ticketPrice)
+	commitScript := PurchaseCommitmentScript(g.p2shOpTrueAddr, ticketPrice+fee,
+		0, ticketPrice)
 
 	// Calculate change and generate script to deliver it.
 	change := spend.amount - ticketPrice - fee
-	changeScript, err := txscript.PayToSStxChange(g.p2shOpTrueAddr)
-	if err != nil {
-		panic(err)
-	}
+	changeScriptVer, changeScript := g.p2shOpTrueAddr.StakeChangeScript()
 
 	// Generate and return the transaction spending from the provided
 	// spendable output with the previously described outputs.
@@ -532,37 +510,32 @@ func (g *Generator) CreateTicketPurchaseTx(spend *SpendableOut, ticketPrice, fee
 		BlockIndex:       spend.blockIndex,
 		SignatureScript:  opTrueRedeemScript,
 	})
-	tx.AddTxOut(wire.NewTxOut(int64(ticketPrice), pkScript))
+	tx.AddTxOut(newTxOut(int64(ticketPrice), voteScriptVer, voteScript))
 	tx.AddTxOut(wire.NewTxOut(0, commitScript))
-	tx.AddTxOut(wire.NewTxOut(int64(change), changeScript))
+	tx.AddTxOut(newTxOut(int64(change), changeScriptVer, changeScript))
 	return tx
 }
 
-// CreateTreasuryTAdd creates a new transaction that spends the provided output
-// to the treasury. If the amount minus fee is zero the returned transaction
-// does not have a change output.
+// CreateTreasuryTAddChange creates a new transaction that spends the provided
+// output to the treasury.  If the amount minus fee is zero the returned
+// transaction does not have a change output.
 //
 // The transaction consists of the following outputs:
 // - First output is an OP_TADD
 // - Second output is optional and when used it is an OP_SSTXCHANGE paying to
 // the provided changeAddr
 func (g *Generator) CreateTreasuryTAddChange(spend *SpendableOut,
-	amount, fee dcrutil.Amount, changeAddr dcrutil.Address) *wire.MsgTx {
+	amount, fee dcrutil.Amount, changeAddr stdaddr.StakeAddress) *wire.MsgTx {
 
 	// Calculate change and generate script to deliver it.
-	var (
-		changeScript []byte
-		err          error
-	)
+	var changeScriptVer uint16
+	var changeScript []byte
 	change := spend.amount - amount - fee
 	if change < 0 {
 		panic(fmt.Sprintf("negative change %v", change))
 	}
 	if change > 0 {
-		changeScript, err = txscript.PayToSStxChange(changeAddr)
-		if err != nil {
-			panic(err)
-		}
+		changeScriptVer, changeScript = changeAddr.StakeChangeScript()
 	}
 
 	// Generate and return the transaction spending from the provided
@@ -576,10 +549,9 @@ func (g *Generator) CreateTreasuryTAddChange(spend *SpendableOut,
 		BlockIndex:       spend.blockIndex,
 		SignatureScript:  opTrueRedeemScript,
 	})
-	tx.AddTxOut(wire.NewTxOut(int64(amount),
-		[]byte{txscript.OP_TADD}))
+	tx.AddTxOut(wire.NewTxOut(int64(amount), []byte{txscript.OP_TADD}))
 	if len(changeScript) > 0 {
-		tx.AddTxOut(wire.NewTxOut(int64(change), changeScript))
+		tx.AddTxOut(newTxOut(int64(change), changeScriptVer, changeScript))
 	}
 	return tx
 }
@@ -593,7 +565,7 @@ func (g *Generator) CreateTreasuryTAdd(spend *SpendableOut, amount, fee dcrutil.
 // AddressAmountTuple wraps address+amount in a tuple for easy parameter
 // passing.
 type AddressAmountTuple struct {
-	Address dcrutil.Address
+	Address stdaddr.Address
 	Amount  dcrutil.Amount
 }
 
@@ -624,13 +596,7 @@ func (g *Generator) CreateTreasuryTSpend(privKey []byte, payouts []AddressAmount
 	if err != nil {
 		panic(err)
 	}
-	builder := txscript.NewScriptBuilder()
-	builder.AddOp(txscript.OP_RETURN)
-	builder.AddData(payload[:])
-	opretScript, err := builder.Script()
-	if err != nil {
-		panic(err)
-	}
+	opretScript := opReturnScript(payload[:])
 	msgTx := wire.NewMsgTx()
 	msgTx.Version = wire.TxVersionTreasury
 	msgTx.Expiry = expiry
@@ -638,18 +604,15 @@ func (g *Generator) CreateTreasuryTSpend(privKey []byte, payouts []AddressAmount
 
 	// OP_TGEN
 	for _, v := range payouts {
-		addr := g.p2shOpTrueAddr
+		addr := g.p2shOpTrueAddr.(stdaddr.Address)
 		if v.Address != nil {
 			addr = v.Address
 		}
-		script, err := txscript.PayToAddrScript(addr)
-		if err != nil {
-			panic(err)
-		}
+		scriptVer, script := addr.PaymentScript()
 		tgenScript := make([]byte, len(script)+1)
 		tgenScript[0] = txscript.OP_TGEN
 		copy(tgenScript[1:], script)
-		msgTx.AddTxOut(wire.NewTxOut(int64(v.Amount), tgenScript))
+		msgTx.AddTxOut(newTxOut(int64(v.Amount), scriptVer, tgenScript))
 	}
 
 	// Treasury spend transactions have no inputs since the funds are
@@ -799,10 +762,7 @@ func (g *Generator) CreateVoteTx(voteBlock *wire.MsgBlock, ticketTx *wire.MsgTx,
 	// The third and subsequent outputs pay the original commitment amounts
 	// along with the appropriate portion of the vote subsidy.  This impl
 	// uses the standard pay-to-script-hash to an OP_TRUE.
-	stakeGenScript, err := txscript.PayToSSGen(g.p2shOpTrueAddr)
-	if err != nil {
-		panic(err)
-	}
+	genScriptVer, genScript := g.p2shOpTrueAddr.PayVoteCommitmentScript()
 
 	// Generate and return the transaction with the proof-of-stake subsidy
 	// coinbase and spending from the provided ticket along with the
@@ -829,7 +789,7 @@ func (g *Generator) CreateVoteTx(voteBlock *wire.MsgBlock, ticketTx *wire.MsgTx,
 	})
 	tx.AddTxOut(wire.NewTxOut(0, blockScript))
 	tx.AddTxOut(wire.NewTxOut(0, voteScript))
-	tx.AddTxOut(wire.NewTxOut(int64(voteSubsidy+ticketPrice), stakeGenScript))
+	tx.AddTxOut(newTxOut(int64(voteSubsidy+ticketPrice), genScriptVer, genScript))
 	return tx
 }
 
@@ -851,10 +811,7 @@ func (g *Generator) createVoteTxFromTicket(voteBlock *wire.MsgBlock, ticket *sta
 func (g *Generator) CreateRevocationTx(ticketTx *wire.MsgTx, ticketBlockHeight, ticketBlockIndex uint32) *wire.MsgTx {
 	// The outputs pay the original commitment amounts.  This impl uses the
 	// standard pay-to-script-hash to an OP_TRUE.
-	revokeScript, err := txscript.PayToSSRtx(g.p2shOpTrueAddr)
-	if err != nil {
-		panic(err)
-	}
+	revokeScrVer, revokeScript := g.p2shOpTrueAddr.PayRevokeCommitmentScript()
 
 	// Generate and return the transaction spending from the provided ticket
 	// along with the previously described outputs.
@@ -870,7 +827,7 @@ func (g *Generator) CreateRevocationTx(ticketTx *wire.MsgTx, ticketBlockHeight, 
 		BlockIndex:      ticketBlockIndex,
 		SignatureScript: opTrueRedeemScript,
 	})
-	tx.AddTxOut(wire.NewTxOut(ticketPrice, revokeScript))
+	tx.AddTxOut(newTxOut(ticketPrice, revokeScrVer, revokeScript))
 	return tx
 }
 
@@ -1773,8 +1730,7 @@ func (g *Generator) CreateSpendTx(spend *SpendableOut, fee dcrutil.Amount) *wire
 		BlockIndex:       spend.blockIndex,
 		SignatureScript:  opTrueRedeemScript,
 	})
-	spendTx.AddTxOut(wire.NewTxOut(int64(spend.amount-fee),
-		g.p2shOpTrueScript))
+	spendTx.AddTxOut(wire.NewTxOut(int64(spend.amount-fee), g.p2shOpTrueScript))
 	spendTx.AddTxOut(wire.NewTxOut(0, UniqueOpReturnScript()))
 	return spendTx
 }

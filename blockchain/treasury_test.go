@@ -1,4 +1,4 @@
-// Copyright (c) 2020 The Decred developers
+// Copyright (c) 2020-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -27,6 +27,7 @@ import (
 	"github.com/decred/dcrd/gcs/v3/blockcf2"
 	"github.com/decred/dcrd/lru"
 	"github.com/decred/dcrd/txscript/v4"
+	"github.com/decred/dcrd/txscript/v4/stdaddr"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -1874,13 +1875,13 @@ func TestSpendableTreasuryTxs(t *testing.T) {
 	spendPrivKey := secp256k1.NewPrivateKey(new(secp256k1.ModNScalar).SetInt(1))
 	pubKey := spendPrivKey.PubKey().SerializeCompressed()
 	pubKeyHash := dcrutil.Hash160(pubKey)
-	spendP2pkhAddr, err := dcrutil.NewAddressPubKeyHash(pubKeyHash, params,
-		dcrec.STEcdsaSecp256k1)
+	spendP2pkhAddr, err := stdaddr.NewAddressPubKeyHashEcdsaSecp256k1V0(
+		pubKeyHash, params)
 	if err != nil {
 		t.Fatal(err)
 	}
 	spendP2shScript := []byte{txscript.OP_NOP, txscript.OP_TRUE}
-	spendP2shAddr, err := dcrutil.NewAddressScriptHash(spendP2shScript,
+	spendP2shAddr, err := stdaddr.NewAddressScriptHashV0(spendP2shScript,
 		params)
 	if err != nil {
 		t.Fatal(err)
@@ -1889,13 +1890,13 @@ func TestSpendableTreasuryTxs(t *testing.T) {
 	addPrivKey := secp256k1.NewPrivateKey(new(secp256k1.ModNScalar).SetInt(2))
 	pubKey = addPrivKey.PubKey().SerializeCompressed()
 	pubKeyHash = dcrutil.Hash160(pubKey)
-	addP2pkhAddr, err := dcrutil.NewAddressPubKeyHash(pubKeyHash, params,
-		dcrec.STEcdsaSecp256k1)
+	addP2pkhAddr, err := stdaddr.NewAddressPubKeyHashEcdsaSecp256k1V0(
+		pubKeyHash, params)
 	if err != nil {
 		t.Fatal(err)
 	}
 	addP2shScript := []byte{txscript.OP_NOP, txscript.OP_NOP, txscript.OP_TRUE}
-	addP2shAddr, err := dcrutil.NewAddressScriptHash(addP2shScript, params)
+	addP2shAddr, err := stdaddr.NewAddressScriptHashV0(addP2shScript, params)
 	if err != nil {
 		t.Fatal(err)
 	}

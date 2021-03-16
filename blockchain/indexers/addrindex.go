@@ -15,7 +15,6 @@ import (
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/chaincfg/v3"
 	"github.com/decred/dcrd/database/v2"
-	"github.com/decred/dcrd/dcrec"
 	"github.com/decred/dcrd/dcrutil/v4"
 	"github.com/decred/dcrd/txscript/v4"
 	"github.com/decred/dcrd/txscript/v4/stdaddr"
@@ -534,49 +533,35 @@ func dbRemoveAddrIndexEntries(bucket internalBucket, addrKey [addrKeySize]byte, 
 
 // addrToKey converts known address types to an addrindex key.  An error is
 // returned for unsupported types.
-func addrToKey(addr dcrutil.Address) ([addrKeySize]byte, error) {
-	switch addr := addr.(type) {
-	case *dcrutil.AddressPubKeyHash:
-		switch addr.DSA() {
-		case dcrec.STEcdsaSecp256k1:
-			var result [addrKeySize]byte
-			result[0] = addrKeyTypePubKeyHash
-			copy(result[1:], addr.Hash160()[:])
-			return result, nil
-		case dcrec.STEd25519:
-			var result [addrKeySize]byte
-			result[0] = addrKeyTypePubKeyHashEdwards
-			copy(result[1:], addr.Hash160()[:])
-			return result, nil
-		case dcrec.STSchnorrSecp256k1:
-			var result [addrKeySize]byte
-			result[0] = addrKeyTypePubKeyHashSchnorr
-			copy(result[1:], addr.Hash160()[:])
-			return result, nil
-		}
+func addrToKey(addr stdaddr.Address) ([addrKeySize]byte, error) {
+	// Convert public key addresses to public key hash variants.
+	if addrPKH, ok := addr.(stdaddr.AddressPubKeyHasher); ok {
+		addr = addrPKH.AddressPubKeyHash()
+	}
 
-	case *dcrutil.AddressScriptHash:
+	switch addr := addr.(type) {
+	case *stdaddr.AddressPubKeyHashEcdsaSecp256k1V0:
 		var result [addrKeySize]byte
-		result[0] = addrKeyTypeScriptHash
+		result[0] = addrKeyTypePubKeyHash
 		copy(result[1:], addr.Hash160()[:])
 		return result, nil
 
-	case *dcrutil.AddressSecpPubKey:
-		var result [addrKeySize]byte
-		result[0] = addrKeyTypePubKeyHash
-		copy(result[1:], addr.AddressPubKeyHash().Hash160()[:])
-		return result, nil
-
-	case *dcrutil.AddressEdwardsPubKey:
+	case *stdaddr.AddressPubKeyHashEd25519V0:
 		var result [addrKeySize]byte
 		result[0] = addrKeyTypePubKeyHashEdwards
-		copy(result[1:], addr.AddressPubKeyHash().Hash160()[:])
+		copy(result[1:], addr.Hash160()[:])
 		return result, nil
 
-	case *dcrutil.AddressSecSchnorrPubKey:
+	case *stdaddr.AddressPubKeyHashSchnorrSecp256k1V0:
 		var result [addrKeySize]byte
 		result[0] = addrKeyTypePubKeyHashSchnorr
-		copy(result[1:], addr.AddressPubKeyHash().Hash160()[:])
+		copy(result[1:], addr.Hash160()[:])
+		return result, nil
+
+	case *stdaddr.AddressScriptHashV0:
+		var result [addrKeySize]byte
+		result[0] = addrKeyTypeScriptHash
+		copy(result[1:], addr.Hash160()[:])
 		return result, nil
 	}
 
@@ -671,10 +656,29 @@ func (idx *AddrIndex) Create(dbTx database.Tx) error {
 	return err
 }
 
-// stdAddrToUtilAddr converts stdaddr addresses to dcrutil addresses until all
-// code is converted over to use the new pacakage.
-func stdAddrToUtilAddr(addr stdaddr.Address, params stdaddr.AddressParams) (dcrutil.Address, error) {
-	return dcrutil.DecodeAddress(addr.Address(), params)
+// extractPkScriptAddrs is a wrapper around txscript.ExtractPkScriptAddrs that
+// converts dcrutil addresses to stdaddr addresses until all code is converted
+// over to use the new package.
+func extractPkScriptAddrs(scriptVer uint16, pkScript []byte, params dcrutil.AddressParams, isTreasuryEnabled bool) (txscript.ScriptClass, []stdaddr.Address, error) {
+	class, utilAddrs, _, err := txscript.ExtractPkScriptAddrs(scriptVer,
+		pkScript, params, isTreasuryEnabled)
+	if err != nil {
+		return class, nil, err
+	}
+
+	// Convert dcrutil addresses to stdaddr addresses until all code is
+	// converted.
+	addrs := make([]stdaddr.Address, 0, len(utilAddrs)+1)
+	for _, utilAddr := range utilAddrs {
+		addr, err := stdaddr.DecodeAddress(utilAddr.Address(), params)
+		if err != nil {
+			return class, nil, err
+		}
+
+		addrs = append(addrs, addr)
+	}
+
+	return class, addrs, nil
 }
 
 // writeIndexData represents the address index data to be written for one block.
@@ -689,8 +693,8 @@ type writeIndexData map[[addrKeySize]byte][]int
 func (idx *AddrIndex) indexPkScript(data writeIndexData, scriptVersion uint16, pkScript []byte, txIdx int, isSStx bool, isTreasuryEnabled bool) {
 	// Nothing to index if the script is non-standard or otherwise doesn't
 	// contain any addresses.
-	class, addrs, _, err := txscript.ExtractPkScriptAddrs(scriptVersion,
-		pkScript, idx.chainParams, isTreasuryEnabled)
+	class, addrs, err := extractPkScriptAddrs(scriptVersion, pkScript,
+		idx.chainParams, isTreasuryEnabled)
 	if err != nil {
 		return
 	}
@@ -700,12 +704,8 @@ func (idx *AddrIndex) indexPkScript(data writeIndexData, scriptVersion uint16, p
 		if err != nil {
 			return
 		}
-		utilAddr, err := stdAddrToUtilAddr(addr, idx.chainParams)
-		if err != nil {
-			return
-		}
 
-		addrs = append(addrs, utilAddr)
+		addrs = append(addrs, addr)
 	}
 
 	if len(addrs) == 0 {
@@ -908,7 +908,7 @@ func (idx *AddrIndex) DisconnectBlock(dbTx database.Tx, block, parent *dcrutil.B
 // that involve a given address.
 //
 // This function is safe for concurrent access.
-func (idx *AddrIndex) EntriesForAddress(dbTx database.Tx, addr dcrutil.Address, numToSkip, numRequested uint32, reverse bool) ([]TxIndexEntry, uint32, error) {
+func (idx *AddrIndex) EntriesForAddress(dbTx database.Tx, addr stdaddr.Address, numToSkip, numRequested uint32, reverse bool) ([]TxIndexEntry, uint32, error) {
 	addrKey, err := addrToKey(addr)
 	if err != nil {
 		return nil, 0, err
@@ -944,8 +944,8 @@ func (idx *AddrIndex) indexUnconfirmedAddresses(scriptVersion uint16, pkScript [
 	// The error is ignored here since the only reason it can fail is if the
 	// script fails to parse and it was already validated before being
 	// admitted to the mempool.
-	class, addresses, _, _ := txscript.ExtractPkScriptAddrs(scriptVersion,
-		pkScript, idx.chainParams, isTreasuryEnabled)
+	class, addrs, _ := extractPkScriptAddrs(scriptVersion, pkScript,
+		idx.chainParams, isTreasuryEnabled)
 
 	if isSStx && class == txscript.NullDataTy {
 		addr, err := stake.AddrFromSStxPkScrCommitment(pkScript, idx.chainParams)
@@ -953,15 +953,11 @@ func (idx *AddrIndex) indexUnconfirmedAddresses(scriptVersion uint16, pkScript [
 			// Fail if this fails to decode. It should.
 			return
 		}
-		utilAddr, err := stdAddrToUtilAddr(addr, idx.chainParams)
-		if err != nil {
-			return
-		}
 
-		addresses = append(addresses, utilAddr)
+		addrs = append(addrs, addr)
 	}
 
-	for _, addr := range addresses {
+	for _, addr := range addrs {
 		// Ignore unsupported address types.
 		addrKey, err := addrToKey(addr)
 		if err != nil {
@@ -1057,7 +1053,7 @@ func (idx *AddrIndex) RemoveUnconfirmedTx(hash *chainhash.Hash) {
 // Unsupported address types are ignored and will result in no results.
 //
 // This function is safe for concurrent access.
-func (idx *AddrIndex) UnconfirmedTxnsForAddress(addr dcrutil.Address) []*dcrutil.Tx {
+func (idx *AddrIndex) UnconfirmedTxnsForAddress(addr stdaddr.Address) []*dcrutil.Tx {
 	// Ignore unsupported address types.
 	addrKey, err := addrToKey(addr)
 	if err != nil {

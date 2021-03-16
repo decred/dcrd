@@ -22,6 +22,7 @@ import (
 	"github.com/decred/dcrd/internal/mining"
 	"github.com/decred/dcrd/peer/v3"
 	"github.com/decred/dcrd/rpc/jsonrpc/types/v3"
+	"github.com/decred/dcrd/txscript/v4/stdaddr"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -552,11 +553,11 @@ type FiltererV2 interface {
 // ExistsAddresser before calling methods associated with it.
 type ExistsAddresser interface {
 	// ExistsAddress returns whether or not an address has been seen before.
-	ExistsAddress(addr dcrutil.Address) (bool, error)
+	ExistsAddress(addr stdaddr.Address) (bool, error)
 
 	// ExistsAddresses returns whether or not each address in a slice of
 	// addresses has been seen before.
-	ExistsAddresses(addrs []dcrutil.Address) ([]bool, error)
+	ExistsAddresses(addrs []stdaddr.Address) ([]bool, error)
 }
 
 // TxMempooler represents a source of mempool transaction data for the RPC
@@ -607,13 +608,13 @@ type AddrIndexer interface {
 	// NOTE: These results only include transactions confirmed in blocks.  See the
 	// UnconfirmedTxnsForAddress method for obtaining unconfirmed transactions
 	// that involve a given address.
-	EntriesForAddress(dbTx database.Tx, addr dcrutil.Address, numToSkip,
+	EntriesForAddress(dbTx database.Tx, addr stdaddr.Address, numToSkip,
 		numRequested uint32, reverse bool) ([]indexers.TxIndexEntry, uint32, error)
 
 	// UnconfirmedTxnsForAddress returns all transactions currently in the
 	// unconfirmed (memory-only) address index that involve the passed address.
 	// Unsupported address types are ignored and will result in no results.
-	UnconfirmedTxnsForAddress(addr dcrutil.Address) []*dcrutil.Tx
+	UnconfirmedTxnsForAddress(addr stdaddr.Address) []*dcrutil.Tx
 }
 
 // TxIndexer provides an interface for retrieving details for a given

@@ -1519,7 +1519,7 @@ func handleExistsAddress(_ context.Context, s *Server, cmd interface{}) (interfa
 
 	// Decode the provided address.  This also ensures the network encoded with
 	// the address matches the network the server is currently on.
-	addr, err := dcrutil.DecodeAddress(c.Address, s.cfg.ChainParams)
+	addr, err := stdaddr.DecodeAddress(c.Address, s.cfg.ChainParams)
 	if err != nil {
 		return nil, rpcAddressKeyError("Could not decode address: %v",
 			err)
@@ -1544,11 +1544,11 @@ func handleExistsAddresses(_ context.Context, s *Server, cmd interface{}) (inter
 	}
 
 	c := cmd.(*types.ExistsAddressesCmd)
-	addresses := make([]dcrutil.Address, len(c.Addresses))
+	addresses := make([]stdaddr.Address, len(c.Addresses))
 	for i := range c.Addresses {
 		// Decode the provided address.  This also ensures the network encoded
 		// with the address matches the network the server is currently on.
-		addr, err := dcrutil.DecodeAddress(c.Addresses[i], s.cfg.ChainParams)
+		addr, err := stdaddr.DecodeAddress(c.Addresses[i], s.cfg.ChainParams)
 		if err != nil {
 			return nil, rpcAddressKeyError("Could not decode address: %v", err)
 		}
@@ -4314,7 +4314,7 @@ func createVinListPrevOut(s *Server, mtx *wire.MsgTx,
 // fetchMempoolTxnsForAddress queries the address index for all unconfirmed
 // transactions that involve the provided address.  The results will be limited
 // by the number to skip and the number requested.
-func fetchMempoolTxnsForAddress(s *Server, addr dcrutil.Address, numToSkip, numRequested uint32) ([]*dcrutil.Tx, uint32) {
+func fetchMempoolTxnsForAddress(s *Server, addr stdaddr.Address, numToSkip, numRequested uint32) ([]*dcrutil.Tx, uint32) {
 	// There are no entries to return when there are less available than
 	// the number being skipped.
 	mpTxns := s.cfg.AddrIndexer.UnconfirmedTxnsForAddress(addr)
@@ -4359,7 +4359,7 @@ func handleSearchRawTransactions(_ context.Context, s *Server, cmd interface{}) 
 
 	// Attempt to decode the supplied address.  This also ensures the network
 	// encoded with the address matches the network the server is currently on.
-	addr, err := dcrutil.DecodeAddress(c.Address, s.cfg.ChainParams)
+	addr, err := stdaddr.DecodeAddress(c.Address, s.cfg.ChainParams)
 	if err != nil {
 		return nil, rpcAddressKeyError("Could not decode address: %v",
 			err)
