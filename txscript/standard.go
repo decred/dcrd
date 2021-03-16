@@ -744,15 +744,6 @@ func MultisigRedeemScriptFromScriptSig(script []byte) []byte {
 	return finalOpcodeData(scriptVersion, script)
 }
 
-// payToPubKeyHashScript creates a new script to pay a transaction
-// output to a 20-byte pubkey hash. It is expected that the input is a valid
-// hash.
-func payToPubKeyHashScript(pubKeyHash []byte) ([]byte, error) {
-	return NewScriptBuilder().AddOp(OP_DUP).AddOp(OP_HASH160).
-		AddData(pubKeyHash).AddOp(OP_EQUALVERIFY).AddOp(OP_CHECKSIG).
-		Script()
-}
-
 // GenerateSStxAddrPush generates an OP_RETURN push for SSGen payment addresses in
 // an SStx.
 func GenerateSStxAddrPush(addr dcrutil.Address, amount dcrutil.Amount, limits uint16) ([]byte, error) {
