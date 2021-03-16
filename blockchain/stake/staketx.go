@@ -1,4 +1,4 @@
-// Copyright (c) 2015-2020 The Decred developers
+// Copyright (c) 2015-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 //
@@ -15,9 +15,9 @@ import (
 	"math/big"
 
 	"github.com/decred/dcrd/chaincfg/chainhash"
-	"github.com/decred/dcrd/dcrec"
 	"github.com/decred/dcrd/dcrutil/v4"
 	"github.com/decred/dcrd/txscript/v4"
+	"github.com/decred/dcrd/txscript/v4/stdaddr"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -395,7 +395,7 @@ func TxSStxStakeOutputInfo(tx *wire.MsgTx) ([]bool, [][]byte, []int64, []int64,
 
 // AddrFromSStxPkScrCommitment extracts a P2SH or P2PKH address from a ticket
 // commitment pkScript.
-func AddrFromSStxPkScrCommitment(pkScript []byte, params dcrutil.AddressParams) (dcrutil.Address, error) {
+func AddrFromSStxPkScrCommitment(pkScript []byte, params stdaddr.AddressParams) (stdaddr.Address, error) {
 	if len(pkScript) < SStxPKHMinOutSize {
 		str := "short read of sstx commit pkscript"
 		return nil, stakeRuleError(ErrSStxBadCommitAmount, str)
@@ -417,10 +417,9 @@ func AddrFromSStxPkScrCommitment(pkScript []byte, params dcrutil.AddressParams) 
 
 	// Return the correct address type.
 	if isP2SH {
-		return dcrutil.NewAddressScriptHashFromHash(hashBytes, params)
+		return stdaddr.NewAddressScriptHashV0FromHash(hashBytes, params)
 	}
-	return dcrutil.NewAddressPubKeyHash(hashBytes, params,
-		dcrec.STEcdsaSecp256k1)
+	return stdaddr.NewAddressPubKeyHashEcdsaSecp256k1V0(hashBytes, params)
 }
 
 // AmountFromSStxPkScrCommitment extracts a commitment amount from a

@@ -1,5 +1,5 @@
 // Copyright (c) 2016 The btcsuite developers
-// Copyright (c) 2016-2020 The Decred developers
+// Copyright (c) 2016-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -18,6 +18,7 @@ import (
 	"github.com/decred/dcrd/dcrec"
 	"github.com/decred/dcrd/dcrutil/v4"
 	"github.com/decred/dcrd/txscript/v4"
+	"github.com/decred/dcrd/txscript/v4/stdaddr"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -670,6 +671,12 @@ func (idx *AddrIndex) Create(dbTx database.Tx) error {
 	return err
 }
 
+// stdAddrToUtilAddr converts stdaddr addresses to dcrutil addresses until all
+// code is converted over to use the new pacakage.
+func stdAddrToUtilAddr(addr stdaddr.Address, params stdaddr.AddressParams) (dcrutil.Address, error) {
+	return dcrutil.DecodeAddress(addr.Address(), params)
+}
+
 // writeIndexData represents the address index data to be written for one block.
 // It consists of the address mapped to an ordered list of the transactions
 // that involve the address in block.  It is ordered so the transactions can be
@@ -693,8 +700,12 @@ func (idx *AddrIndex) indexPkScript(data writeIndexData, scriptVersion uint16, p
 		if err != nil {
 			return
 		}
+		utilAddr, err := stdAddrToUtilAddr(addr, idx.chainParams)
+		if err != nil {
+			return
+		}
 
-		addrs = append(addrs, addr)
+		addrs = append(addrs, utilAddr)
 	}
 
 	if len(addrs) == 0 {
@@ -942,8 +953,12 @@ func (idx *AddrIndex) indexUnconfirmedAddresses(scriptVersion uint16, pkScript [
 			// Fail if this fails to decode. It should.
 			return
 		}
+		utilAddr, err := stdAddrToUtilAddr(addr, idx.chainParams)
+		if err != nil {
+			return
+		}
 
-		addresses = append(addresses, addr)
+		addresses = append(addresses, utilAddr)
 	}
 
 	for _, addr := range addresses {

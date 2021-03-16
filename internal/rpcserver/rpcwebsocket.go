@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2020 The Decred developers
+// Copyright (c) 2015-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -663,6 +663,9 @@ func (m *wsNotificationManager) subscribedClients(tx *dcrutil.Tx, clients map[ch
 
 	const isTreasuryEnabled = true // No need to look it up here.
 
+	// Local for convenience.
+	params := m.server.cfg.ChainParams
+
 	msgTx := tx.MsgTx()
 	var isTicket bool // lazily set
 	for q, c := range clients {
@@ -683,8 +686,7 @@ func (m *wsNotificationManager) subscribedClients(tx *dcrutil.Tx, clients map[ch
 		for i, output := range msgTx.TxOut {
 			watchOutput := true
 			sc, addrs, _, err := txscript.ExtractPkScriptAddrs(output.Version,
-				output.PkScript, m.server.cfg.ChainParams,
-				isTreasuryEnabled)
+				output.PkScript, params, isTreasuryEnabled)
 			if err != nil {
 				// Clients are not able to subscribe to
 				// nonstandard or non-address outputs.
@@ -699,13 +701,14 @@ func (m *wsNotificationManager) subscribedClients(tx *dcrutil.Tx, clients map[ch
 				// These outputs cannot be spent and do not need to
 				// be watched.
 				addr, err := stake.AddrFromSStxPkScrCommitment(
-					output.PkScript, m.server.cfg.ChainParams)
+					output.PkScript, params)
 				if err != nil {
 					log.Errorf("Failed to read commitment from "+
 						"previously-validated ticket: %v", err)
 					continue
 				}
-				scratchAddress[0] = addr
+				utilAddr, _ := stdAddrToUtilAddr(addr, params)
+				scratchAddress[0] = utilAddr
 				addrs = scratchAddress[:]
 				watchOutput = false
 			}

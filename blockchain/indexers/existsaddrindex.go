@@ -1,4 +1,4 @@
-// Copyright (c) 2016-2020 The Decred developers
+// Copyright (c) 2016-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -282,8 +282,12 @@ func (idx *ExistsAddrIndex) ConnectBlock(dbTx database.Tx, block, parent *dcruti
 					// Ignore unsupported address types.
 					continue
 				}
+				utilAddr, err := stdAddrToUtilAddr(addr, idx.chainParams)
+				if err != nil {
+					continue
+				}
 
-				addrs = append(addrs, addr)
+				addrs = append(addrs, utilAddr)
 			}
 
 			for _, addr := range addrs {
@@ -404,8 +408,12 @@ func (idx *ExistsAddrIndex) addUnconfirmedTx(tx *wire.MsgTx, isTreasuryEnabled b
 				// Ignore unsupported address types.
 				continue
 			}
+			utilAddr, err := stdAddrToUtilAddr(addr, idx.chainParams)
+			if err != nil {
+				continue
+			}
 
-			addrs = append(addrs, addr)
+			addrs = append(addrs, utilAddr)
 		}
 
 		for _, addr := range addrs {

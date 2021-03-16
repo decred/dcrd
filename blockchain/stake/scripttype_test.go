@@ -1,4 +1,4 @@
-// Copyright (c) 2020 The Decred developers
+// Copyright (c) 2020-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -7,12 +7,12 @@ package stake
 import (
 	"testing"
 
-	"github.com/decred/dcrd/dcrutil/v4"
 	"github.com/decred/dcrd/txscript/v4"
+	"github.com/decred/dcrd/txscript/v4/stdaddr"
 )
 
 var (
-	hash160 = dcrutil.Hash160([]byte("test"))
+	hash160 = stdaddr.Hash160([]byte("test"))
 )
 
 func TestIsRevocationScript(t *testing.T) {

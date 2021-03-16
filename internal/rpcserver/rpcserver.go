@@ -50,6 +50,7 @@ import (
 	"github.com/decred/dcrd/internal/version"
 	"github.com/decred/dcrd/rpc/jsonrpc/types/v3"
 	"github.com/decred/dcrd/txscript/v4"
+	"github.com/decred/dcrd/txscript/v4/stdaddr"
 	"github.com/decred/dcrd/wire"
 	"github.com/jrick/bitset"
 )
@@ -1165,6 +1166,12 @@ func createVinList(mtx *wire.MsgTx, isTreasuryEnabled bool) []types.Vin {
 	return vinList
 }
 
+// stdAddrToUtilAddr converts stdaddr addresses to dcrutil addresses until all
+// code is converted over to use the new pacakage.
+func stdAddrToUtilAddr(addr stdaddr.Address, params stdaddr.AddressParams) (dcrutil.Address, error) {
+	return dcrutil.DecodeAddress(addr.Address(), params)
+}
+
 // createVoutList returns a slice of JSON objects for the outputs of the passed
 // transaction.
 func createVoutList(mtx *wire.MsgTx, chainParams *chaincfg.Params, filterAddrMap map[string]struct{}, isTreasuryEnabled bool) []types.Vout {
@@ -1192,7 +1199,8 @@ func createVoutList(mtx *wire.MsgTx, chainParams *chaincfg.Params, filterAddrMap
 					"commitment addr output for tx hash "+
 					"%v, output idx %v", mtx.TxHash(), i)
 			} else {
-				addrs = []dcrutil.Address{addr}
+				utilAddr, _ := stdAddrToUtilAddr(addr, chainParams)
+				addrs = []dcrutil.Address{utilAddr}
 			}
 			amt, err := stake.AmountFromSStxPkScrCommitment(v.PkScript)
 			if err != nil {

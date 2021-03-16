@@ -1,4 +1,4 @@
-// Copyright (c) 2015-2020 The Decred developers
+// Copyright (c) 2015-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -14,6 +14,7 @@ import (
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/dcrutil/v4"
 	"github.com/decred/dcrd/txscript/v4"
+	"github.com/decred/dcrd/txscript/v4/stdaddr"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -1260,7 +1261,7 @@ func TestGetStakeRewards(t *testing.T) {
 }
 
 func TestIsNullDataScript(t *testing.T) {
-	var hash160 = dcrutil.Hash160([]byte("test"))
+	var hash160 = stdaddr.Hash160([]byte("test"))
 	var overMaxDataCarrierSize = make([]byte, txscript.MaxDataCarrierSize+1)
 	var underMaxDataCarrierSize = make([]byte, txscript.MaxDataCarrierSize/2)
 	rand.Read(overMaxDataCarrierSize)

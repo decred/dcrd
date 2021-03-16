@@ -1,4 +1,4 @@
-// Copyright (c) 2020 The Decred developers
+// Copyright (c) 2020-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -14,10 +14,10 @@ import (
 
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/chaincfg/v3"
-	"github.com/decred/dcrd/dcrec"
 	"github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/decred/dcrd/dcrutil/v4"
 	"github.com/decred/dcrd/txscript/v4"
+	"github.com/decred/dcrd/txscript/v4/stdaddr"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -162,6 +162,15 @@ var (
 //	panic("x")
 //}
 
+// newTxOut returns a new transaction output with the given parameters.
+func newTxOut(amount int64, pkScriptVer uint16, pkScript []byte) *wire.TxOut {
+	return &wire.TxOut{
+		Value:    amount,
+		Version:  pkScriptVer,
+		PkScript: pkScript,
+	}
+}
+
 // TestTreasuryIsFunctions goes through all valid treasury opcode combinations.
 func TestTreasuryIsFunctions(t *testing.T) {
 	tests := []struct {
@@ -264,17 +273,15 @@ func TestTreasuryIsFunctions(t *testing.T) {
 			msgTx.Version = wire.TxVersionTreasury
 			msgTx.AddTxOut(wire.NewTxOut(0, script))
 
-			p2shOpTrueAddr, err := dcrutil.NewAddressScriptHash([]byte{txscript.OP_TRUE},
+			opTrueScript := []byte{txscript.OP_TRUE}
+			p2shOpTrueAddr, err := stdaddr.NewAddressScriptHashV0(opTrueScript,
 				chaincfg.MainNetParams())
 			if err != nil {
 				panic(err)
 			}
-			changeScript, err := txscript.PayToSStxChange(p2shOpTrueAddr)
-			if err != nil {
-				panic(err)
-			}
-			msgTx.AddTxOut(wire.NewTxOut(1, changeScript))
-			msgTx.AddTxIn(&wire.TxIn{}) // On input required
+			changeScriptVer, changeScript := p2shOpTrueAddr.StakeChangeScript()
+			msgTx.AddTxOut(newTxOut(1, changeScriptVer, changeScript))
+			msgTx.AddTxIn(&wire.TxIn{}) // One input required
 			return msgTx
 		},
 		is:       IsTAdd,
@@ -392,19 +399,14 @@ func TestTreasuryIsFunctions(t *testing.T) {
 			msgTx.AddTxOut(wire.NewTxOut(0, opretScript))
 
 			// OP_TGEN
-			p2shOpTrueAddr, err := dcrutil.NewAddressScriptHash([]byte{txscript.OP_TRUE},
+			opTrueScript := []byte{txscript.OP_TRUE}
+			p2shOpTrueAddr, err := stdaddr.NewAddressScriptHashV0(opTrueScript,
 				chaincfg.MainNetParams())
 			if err != nil {
 				panic(err)
 			}
-			p2shOpTrueScript, err := txscript.PayToAddrScript(p2shOpTrueAddr)
-			if err != nil {
-				panic(err)
-			}
-			script := make([]byte, len(p2shOpTrueScript)+1)
-			script[0] = txscript.OP_TGEN
-			copy(script[1:], p2shOpTrueScript)
-			msgTx.AddTxOut(wire.NewTxOut(0, script))
+			genScriptVer, genScript := p2shOpTrueAddr.PayFromTreasuryScript()
+			msgTx.AddTxOut(newTxOut(0, genScriptVer, genScript))
 
 			// tspend
 			builder = txscript.NewScriptBuilder()
@@ -456,19 +458,16 @@ func TestTreasuryIsFunctions(t *testing.T) {
 			// OP_TGEN
 			privKey := secp256k1.NewPrivateKey(new(secp256k1.ModNScalar).SetInt(1))
 			pubKey := privKey.PubKey().SerializeCompressed()
-			p2pkhAddr, err := dcrutil.NewAddressSecpPubKey(pubKey,
+			p2pkAddr, err := stdaddr.NewAddressPubKeyEcdsaSecp256k1V0Raw(pubKey,
 				chaincfg.MainNetParams())
 			if err != nil {
 				panic(err)
 			}
-			p2pkhOpTrueScript, err := txscript.PayToAddrScript(p2pkhAddr)
-			if err != nil {
-				panic(err)
-			}
-			script := make([]byte, len(p2pkhOpTrueScript)+1)
+			p2pkScriptVer, p2pkScript := p2pkAddr.PaymentScript()
+			script := make([]byte, len(p2pkScript)+1)
 			script[0] = txscript.OP_TGEN
-			copy(script[1:], p2pkhOpTrueScript)
-			msgTx.AddTxOut(wire.NewTxOut(0, script))
+			copy(script[1:], p2pkScript)
+			msgTx.AddTxOut(newTxOut(0, p2pkScriptVer, script))
 
 			// tspend
 			builder = txscript.NewScriptBuilder()
@@ -520,21 +519,14 @@ func TestTreasuryIsFunctions(t *testing.T) {
 			// OP_TGEN
 			privKey := secp256k1.NewPrivateKey(new(secp256k1.ModNScalar).SetInt(1))
 			pubKey := privKey.PubKey()
-			pkHash := dcrutil.Hash160(pubKey.SerializeCompressed())
-			p2pkhAddr, err := dcrutil.NewAddressPubKeyHash(pkHash,
-				chaincfg.MainNetParams(), dcrec.STEcdsaSecp256k1)
-
+			pkHash := stdaddr.Hash160(pubKey.SerializeCompressed())
+			p2pkhAddr, err := stdaddr.NewAddressPubKeyHashEcdsaSecp256k1V0(
+				pkHash, chaincfg.MainNetParams())
 			if err != nil {
 				panic(err)
 			}
-			p2shOpTrueScript, err := txscript.PayToAddrScript(p2pkhAddr)
-			if err != nil {
-				panic(err)
-			}
-			script := make([]byte, len(p2shOpTrueScript)+1)
-			script[0] = txscript.OP_TGEN
-			copy(script[1:], p2shOpTrueScript)
-			msgTx.AddTxOut(wire.NewTxOut(0, script))
+			genScriptVer, genScript := p2pkhAddr.PayFromTreasuryScript()
+			msgTx.AddTxOut(newTxOut(0, genScriptVer, genScript))
 
 			// tspend
 			builder = txscript.NewScriptBuilder()
