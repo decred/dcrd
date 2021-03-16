@@ -33,6 +33,7 @@ import (
 	"github.com/decred/dcrd/internal/mining"
 	"github.com/decred/dcrd/rpc/jsonrpc/types/v3"
 	"github.com/decred/dcrd/txscript/v4"
+	"github.com/decred/dcrd/txscript/v4/stdaddr"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -302,7 +303,7 @@ type wsClientFilter struct {
 	mu sync.Mutex
 
 	// Parameter for address decoding.
-	params dcrutil.AddressParams
+	params stdaddr.AddressParams
 
 	// Implemented fast paths for address lookup.
 	pubKeyHashes      map[[ripemd160.Size]byte]struct{}
@@ -318,7 +319,7 @@ type wsClientFilter struct {
 	unspent map[wire.OutPoint]struct{}
 }
 
-func makeWSClientFilter(addresses []string, unspentOutPoints []*wire.OutPoint, params dcrutil.AddressParams) *wsClientFilter {
+func makeWSClientFilter(addresses []string, unspentOutPoints []*wire.OutPoint, params stdaddr.AddressParams) *wsClientFilter {
 	filter := &wsClientFilter{
 		params:            params,
 		pubKeyHashes:      map[[ripemd160.Size]byte]struct{}{},
@@ -338,16 +339,16 @@ func makeWSClientFilter(addresses []string, unspentOutPoints []*wire.OutPoint, p
 	return filter
 }
 
-func (f *wsClientFilter) addAddress(a dcrutil.Address) {
+func (f *wsClientFilter) addAddress(a stdaddr.Address) {
 	switch a := a.(type) {
-	case *dcrutil.AddressPubKeyHash:
+	case *stdaddr.AddressPubKeyHashEcdsaSecp256k1V0:
 		f.pubKeyHashes[*a.Hash160()] = struct{}{}
 		return
-	case *dcrutil.AddressScriptHash:
+	case *stdaddr.AddressScriptHashV0:
 		f.scriptHashes[*a.Hash160()] = struct{}{}
 		return
-	case *dcrutil.AddressSecpPubKey:
-		serializedPubKey := a.ScriptAddress()
+	case *stdaddr.AddressPubKeyEcdsaSecp256k1V0:
+		serializedPubKey := a.SerializedPubKey()
 		switch len(serializedPubKey) {
 		case 33: // compressed
 			var compressedPubKey [33]byte
@@ -361,33 +362,34 @@ func (f *wsClientFilter) addAddress(a dcrutil.Address) {
 }
 
 func (f *wsClientFilter) addAddressStr(s string) {
-	a, err := dcrutil.DecodeAddress(s, f.params)
-	// If address can't be decoded, no point in saving it since it should also
-	// impossible to create the address from an inspected transaction output
-	// script.
+	a, err := stdaddr.DecodeAddress(s, f.params)
 	if err != nil {
+		// There is no point in saving the address if it can't be decoded since
+		// it should also be impossible to create the address from an inspected
+		// transaction output script.
 		return
 	}
 	f.addAddress(a)
 }
 
-func (f *wsClientFilter) existsAddress(a dcrutil.Address) bool {
+func (f *wsClientFilter) existsAddress(a stdaddr.Address) bool {
 	switch a := a.(type) {
-	case *dcrutil.AddressPubKeyHash:
+	case *stdaddr.AddressPubKeyHashEcdsaSecp256k1V0:
 		_, ok := f.pubKeyHashes[*a.Hash160()]
 		return ok
-	case *dcrutil.AddressScriptHash:
+	case *stdaddr.AddressScriptHashV0:
 		_, ok := f.scriptHashes[*a.Hash160()]
 		return ok
-	case *dcrutil.AddressSecpPubKey:
-		serializedPubKey := a.ScriptAddress()
+	case *stdaddr.AddressPubKeyEcdsaSecp256k1V0:
+		serializedPubKey := a.SerializedPubKey()
 		switch len(serializedPubKey) {
 		case 33: // compressed
 			var compressedPubKey [33]byte
 			copy(compressedPubKey[:], serializedPubKey)
 			_, ok := f.compressedPubKeys[compressedPubKey]
 			if !ok {
-				_, ok = f.pubKeyHashes[*a.AddressPubKeyHash().Hash160()]
+				h160 := a.AddressPubKeyHash().(stdaddr.Hash160er).Hash160()
+				_, ok = f.pubKeyHashes[*h160]
 			}
 			return ok
 		}
@@ -659,7 +661,7 @@ func (m *wsNotificationManager) subscribedClients(tx *dcrutil.Tx, clients map[ch
 	subscribed := make(map[chan struct{}]struct{})
 
 	// Reusable backing array for a slice of a single address.
-	var scratchAddress [1]dcrutil.Address
+	var scratchAddress [1]stdaddr.Address
 
 	const isTreasuryEnabled = true // No need to look it up here.
 
@@ -685,7 +687,7 @@ func (m *wsNotificationManager) subscribedClients(tx *dcrutil.Tx, clients map[ch
 
 		for i, output := range msgTx.TxOut {
 			watchOutput := true
-			sc, addrs, _, err := txscript.ExtractPkScriptAddrs(output.Version,
+			sc, addrs, _, err := extractPkScriptAddrs(output.Version,
 				output.PkScript, params, isTreasuryEnabled)
 			if err != nil {
 				// Clients are not able to subscribe to
@@ -707,8 +709,7 @@ func (m *wsNotificationManager) subscribedClients(tx *dcrutil.Tx, clients map[ch
 						"previously-validated ticket: %v", err)
 					continue
 				}
-				utilAddr, _ := stdAddrToUtilAddr(addr, params)
-				scratchAddress[0] = utilAddr
+				scratchAddress[0] = addr
 				addrs = scratchAddress[:]
 				watchOutput = false
 			}
@@ -1195,9 +1196,8 @@ func (m *wsNotificationManager) notifyRelevantTxAccepted(tx *dcrutil.Tx,
 		}
 
 		for i, output := range msgTx.TxOut {
-			_, addrs, _, err := txscript.ExtractPkScriptAddrs(output.Version,
-				output.PkScript, m.server.cfg.ChainParams,
-				isTreasuryEnabled)
+			_, addrs, _, err := extractPkScriptAddrs(output.Version,
+				output.PkScript, m.server.cfg.ChainParams, isTreasuryEnabled)
 			if err != nil {
 				continue
 			}
@@ -2317,9 +2317,8 @@ func rescanBlock(filter *wsClientFilter, block *dcrutil.Block, params *chaincfg.
 
 	LoopOutputs:
 		for i, output := range tx.TxOut {
-			_, addrs, _, err := txscript.ExtractPkScriptAddrs(
-				output.Version, output.PkScript, params,
-				isTreasuryEnabled)
+			_, addrs, _, err := extractPkScriptAddrs(output.Version,
+				output.PkScript, params, isTreasuryEnabled)
 			if err != nil {
 				continue
 			}

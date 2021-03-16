@@ -941,7 +941,7 @@ func (f *testFiltererV2) FilterByBlockHash(hash *chainhash.Hash) (*gcs.FilterV2,
 // testMiningState provides a mock mining state.
 type testMiningState struct {
 	allowUnsyncedMining bool
-	miningAddrs         []dcrutil.Address
+	miningAddrs         []stdaddr.Address
 	workState           *workState
 }
 
@@ -1318,7 +1318,7 @@ type rpcTest struct {
 	mockLogManager        *testLogManager
 	mockFiltererV2        *testFiltererV2
 	mockTxMempooler       *testTxMempooler
-	mockMiningAddrs       []dcrutil.Address
+	mockMiningAddrs       []stdaddr.Address
 	mockHelpCacher        *testHelpCacher
 	result                interface{}
 	wantErr               bool
@@ -1969,7 +1969,7 @@ func TestHandleCreateRawSStx(t *testing.T) {
 			COuts:  defaultCmdCOuts,
 		},
 		wantErr: true,
-		errCode: dcrjson.ErrRPCInternal.Code,
+		errCode: dcrjson.ErrRPCInvalidAddressOrKey,
 	}, {
 		name:    "handleCreateRawSStx: change amount greater than input amount",
 		handler: handleCreateRawSStx,
@@ -2029,7 +2029,7 @@ func TestHandleCreateRawSStx(t *testing.T) {
 			}},
 		},
 		wantErr: true,
-		errCode: dcrjson.ErrRPCInternal.Code,
+		errCode: dcrjson.ErrRPCInvalidAddressOrKey,
 	}, {
 		name:    "handleCreateRawSStx: invalid change amount > dcrutil.MaxAmount",
 		handler: handleCreateRawSStx,
@@ -2109,7 +2109,7 @@ func TestHandleCreateRawSStx(t *testing.T) {
 			}},
 		},
 		wantErr: true,
-		errCode: dcrjson.ErrRPCInternal.Code,
+		errCode: dcrjson.ErrRPCInvalidAddressOrKey,
 	}})
 }
 
@@ -3313,11 +3313,11 @@ func TestHandleGenerate(t *testing.T) {
 	hashStrTwo := "00000000000000001a1ec2becd0dd90bfbd0c65f42fdaf608dd9ceac2a3aee1d"
 	generatedBlocks := []*chainhash.Hash{mustParseHash(hashStrOne), mustParseHash(hashStrTwo)}
 	res := []string{hashStrOne, hashStrTwo}
-	miningAddr, err := dcrutil.DecodeAddress("DcurAwesomeAddressmqDctW5wJCW1Cn2MF", defaultChainParams)
+	miningAddr, err := stdaddr.DecodeAddress("DcurAwesomeAddressmqDctW5wJCW1Cn2MF", defaultChainParams)
 	if err != nil {
 		t.Fatalf("[DecodeAddress] unexpected error: %v", err)
 	}
-	miningAddrs := []dcrutil.Address{miningAddr}
+	miningAddrs := []stdaddr.Address{miningAddr}
 	chainParams := cloneParams(defaultChainParams)
 	chainParams.GenerateSupported = true
 	cpu := defaultMockCPUMiner()
@@ -4855,8 +4855,8 @@ func TestHandleGetTxOut(t *testing.T) {
 	script := txOut.PkScript
 	scriptVersion := txOut.Version
 	disbuf, _ := txscript.DisasmString(script)
-	scriptClass, addrs, reqSigs, _ := txscript.ExtractPkScriptAddrs(
-		scriptVersion, script, defaultChainParams, false)
+	scriptClass, addrs, reqSigs, _ := extractPkScriptAddrs(scriptVersion,
+		script, defaultChainParams, false)
 	addresses := make([]string, len(addrs))
 	for i, addr := range addrs {
 		addresses[i] = addr.Address()
@@ -5995,14 +5995,14 @@ func TestHandleGetWork(t *testing.T) {
 	buf.Write(submissionB[240:])
 	invalidPOWSub := buf.String()
 
-	miningaddr, err := dcrutil.DecodeAddress("DsRM6qwzT3r85evKvDBJBviTgYcaLKL4ipD", defaultChainParams)
+	miningaddr, err := stdaddr.DecodeAddress("DsRM6qwzT3r85evKvDBJBviTgYcaLKL4ipD", defaultChainParams)
 	if err != nil {
 		t.Fatalf("[DecodeAddress] unexpected error: %v", err)
 	}
 
 	mine := func() *testMiningState {
 		ms := defaultMockMiningState()
-		ms.miningAddrs = []dcrutil.Address{miningaddr}
+		ms.miningAddrs = []stdaddr.Address{miningaddr}
 		return ms
 	}
 
@@ -6128,7 +6128,7 @@ func TestHandleGetWork(t *testing.T) {
 		},
 		mockMiningState: func() *testMiningState {
 			ms := defaultMockMiningState()
-			ms.miningAddrs = []dcrutil.Address{miningaddr}
+			ms.miningAddrs = []stdaddr.Address{miningaddr}
 			ms.workState = newWorkState()
 			return ms
 		}(),
@@ -6210,7 +6210,7 @@ func TestHandleSetGenerate(t *testing.T) {
 
 	procLimit := 2
 	zeroProcLimit := 0
-	miningaddr, err := dcrutil.DecodeAddress("DsRM6qwzT3r85evKvDBJBviTgYcaLKL4ipD", defaultChainParams)
+	miningaddr, err := stdaddr.DecodeAddress("DsRM6qwzT3r85evKvDBJBviTgYcaLKL4ipD", defaultChainParams)
 	if err != nil {
 		t.Fatalf("[DecodeAddress] unexpected error: %v", err)
 	}
@@ -6233,7 +6233,7 @@ func TestHandleSetGenerate(t *testing.T) {
 		},
 		mockMiningState: func() *testMiningState {
 			ms := defaultMockMiningState()
-			ms.miningAddrs = []dcrutil.Address{miningaddr}
+			ms.miningAddrs = []stdaddr.Address{miningaddr}
 			return ms
 		}(),
 	}, {

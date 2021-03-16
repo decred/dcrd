@@ -1,4 +1,4 @@
-// Copyright (c) 2020 The Decred developers
+// Copyright (c) 2020-2021 The Decred developers
 
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
@@ -24,6 +24,7 @@ import (
 	"github.com/decred/dcrd/rpcclient/v7"
 	"github.com/decred/dcrd/rpctest"
 	"github.com/decred/dcrd/txscript/v4"
+	"github.com/decred/dcrd/txscript/v4/stdaddr"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -39,7 +40,7 @@ func timeoutCtx(t testing.TB, timeout time.Duration) context.Context {
 }
 
 type tspendPayout struct {
-	address dcrutil.Address
+	address stdaddr.Address
 	amount  dcrutil.Amount
 }
 
@@ -72,14 +73,9 @@ func createTSpend(privKey []byte, payouts []tspendPayout, fee dcrutil.Amount, ex
 
 	// OP_TGEN
 	for _, v := range payouts {
-		script, err := txscript.PayToAddrScript(v.address)
-		if err != nil {
-			panic(err)
-		}
-		tgenScript := make([]byte, len(script)+1)
-		tgenScript[0] = txscript.OP_TGEN
-		copy(tgenScript[1:], script)
-		msgTx.AddTxOut(wire.NewTxOut(int64(v.amount), tgenScript))
+		addr := v.address.(stdaddr.StakeAddress)
+		genScriptVer, genScript := addr.PayFromTreasuryScript()
+		msgTx.AddTxOut(newTxOut(int64(v.amount), genScriptVer, genScript))
 	}
 
 	// Treasury spend transactions have no inputs since the funds are
@@ -107,7 +103,7 @@ func createTSpend(privKey []byte, payouts []tspendPayout, fee dcrutil.Amount, ex
 
 func createTAdd(t testing.TB, privKey []byte, prevOut *wire.OutPoint, pkScript []byte,
 	amountIn, amountOut, fee dcrutil.Amount,
-	changeAddr dcrutil.Address) *wire.MsgTx {
+	changeAddr stdaddr.StakeAddress) *wire.MsgTx {
 
 	tx := wire.NewMsgTx()
 	tx.AddTxIn(&wire.TxIn{
@@ -116,14 +112,11 @@ func createTAdd(t testing.TB, privKey []byte, prevOut *wire.OutPoint, pkScript [
 		ValueIn:          int64(amountIn),
 	})
 
-	changeScript, err := txscript.PayToSStxChange(changeAddr)
-	if err != nil {
-		t.Fatal(err)
-	}
+	changeScriptVer, changeScript := changeAddr.StakeChangeScript()
 	changeAmount := amountIn - amountOut - fee
 	tx.AddTxOut(wire.NewTxOut(int64(amountOut), []byte{txscript.OP_TADD}))
 	if changeAmount > 0 {
-		tx.AddTxOut(wire.NewTxOut(int64(changeAmount), changeScript))
+		tx.AddTxOut(newTxOut(int64(changeAmount), changeScriptVer, changeScript))
 	}
 	tx.Version = wire.TxVersionTreasury
 
@@ -270,21 +263,18 @@ func TestTreasury(t *testing.T) {
 	// Create a privkey and p2pkh addr we control for use in the tests.
 	privKey := secp256k1.NewPrivateKey(new(secp256k1.ModNScalar).SetInt(1))
 	pubKey := privKey.PubKey().SerializeCompressed()
-	pubKeyHash := dcrutil.Hash160(pubKey)
-	p2pkhAddr, err := dcrutil.NewAddressPubKeyHash(pubKeyHash, net,
-		dcrec.STEcdsaSecp256k1)
+	pubKeyHash := stdaddr.Hash160(pubKey)
+	p2pkhAddr, err := stdaddr.NewAddressPubKeyHashEcdsaSecp256k1V0(pubKeyHash,
+		net)
 	if err != nil {
 		t.Fatal(err)
 	}
-	p2pkhScript, err := txscript.PayToAddrScript(p2pkhAddr)
-	if err != nil {
-		t.Fatal(err)
-	}
+	p2pkhScriptVer, p2pkhScript := p2pkhAddr.PaymentScript()
 
 	// Generate a p2sh script and addr we control for use in the tests.
-	p2shScript := []byte{txscript.OP_TRUE}
+	redeemScript := []byte{txscript.OP_TRUE}
 	p2shSigScript := []byte{txscript.OP_DATA_1, txscript.OP_TRUE}
-	p2shAddr, err := dcrutil.NewAddressScriptHash(p2shScript, net)
+	p2shAddr, err := stdaddr.NewAddressScriptHashV0(redeemScript, net)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -294,7 +284,7 @@ func TestTreasury(t *testing.T) {
 	taddInAmt := dcrutil.Amount(1e8) // 1 DCR
 	taddPrevOuts := make([]*wire.OutPoint, nbTAddPrevOuts)
 	for i := 0; i < nbTAddPrevOuts; i++ {
-		txOut := &wire.TxOut{PkScript: p2pkhScript, Value: int64(taddInAmt)}
+		txOut := newTxOut(int64(taddInAmt), p2pkhScriptVer, p2pkhScript)
 		txHash, err := hn.SendOutputs([]*wire.TxOut{txOut}, defaultFeeRate)
 		if err != nil {
 			t.Fatal(err)

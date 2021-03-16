@@ -3687,17 +3687,6 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB, chainP
 			return nil, errors.New("no usable rpc listen addresses")
 		}
 
-		// Convert stdaddr addresses to dcrutil addresses until all code is
-		// converted.
-		utilAddrs := make([]dcrutil.Address, 0, len(cfg.miningAddrs))
-		for _, addr := range cfg.miningAddrs {
-			utilAddr, err := dcrutil.DecodeAddress(addr.Address(), chainParams)
-			if err != nil {
-				return nil, err
-			}
-			utilAddrs = append(utilAddrs, utilAddr)
-		}
-
 		rpcsConfig := rpcserver.Config{
 			Listeners:    rpcListeners,
 			ConnMgr:      &rpcConnManager{&s},
@@ -3729,7 +3718,7 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB, chainP
 			RPCMaxConcurrentReqs: cfg.RPCMaxConcurrentReqs,
 			RPCMaxWebsockets:     cfg.RPCMaxWebsockets,
 			TestNet:              cfg.TestNet,
-			MiningAddrs:          utilAddrs,
+			MiningAddrs:          cfg.miningAddrs,
 			AllowUnsyncedMining:  cfg.AllowUnsyncedMining,
 			MaxProtocolVersion:   maxProtocolVersion,
 			UserAgentVersion:     userAgentVersion,

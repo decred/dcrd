@@ -635,6 +635,15 @@ func (s *Server) messageToHex(msg wire.Message) (string, error) {
 	return hex.EncodeToString(buf.Bytes()), nil
 }
 
+// newTxOut returns a new transaction output with the given parameters.
+func newTxOut(amount int64, pkScriptVer uint16, pkScript []byte) *wire.TxOut {
+	return &wire.TxOut{
+		Value:    amount,
+		Version:  pkScriptVer,
+		PkScript: pkScript,
+	}
+}
+
 // handleCreateRawTransaction handles createrawtransaction commands.
 func handleCreateRawTransaction(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
 	c := cmd.(*types.CreateRawTransactionCmd)
@@ -700,28 +709,19 @@ func handleCreateRawTransaction(_ context.Context, s *Server, cmd interface{}) (
 
 		// Decode the provided address.  This also ensures the network encoded
 		// with the address matches the network the server is currently on.
-		addr, err := dcrutil.DecodeAddress(encodedAddr, s.cfg.ChainParams)
+		addr, err := stdaddr.DecodeAddress(encodedAddr, s.cfg.ChainParams)
 		if err != nil {
 			return nil, rpcAddressKeyError("Could not decode address: %v", err)
 		}
 
 		// Ensure the address is one of the supported types.
-		switch addr.(type) {
-		case *dcrutil.AddressPubKeyHash:
-		case *dcrutil.AddressScriptHash:
-		default:
+		if _, ok := addr.(stdaddr.StakeAddress); !ok {
 			return nil, rpcAddressKeyError("Invalid type: %T", addr)
 		}
 
 		// Create a new script which pays to the provided address.
-		pkScript, err := txscript.PayToAddrScript(addr)
-		if err != nil {
-			return nil, rpcInternalError(err.Error(),
-				"Pay to address script")
-		}
-
-		txOut := wire.NewTxOut(int64(atoms), pkScript)
-		mtx.AddTxOut(txOut)
+		pkScriptVer, pkScript := addr.PaymentScript()
+		mtx.AddTxOut(newTxOut(int64(atoms), pkScriptVer, pkScript))
 	}
 
 	// Set the Locktime, if given.
@@ -794,30 +794,20 @@ func handleCreateRawSStx(_ context.Context, s *Server, cmd interface{}) (interfa
 
 		// Decode the provided address.  This also ensures the network encoded
 		// with the address matches the network the server is currently on.
-		addr, err := dcrutil.DecodeAddress(encodedAddr, s.cfg.ChainParams)
+		addr, err := stdaddr.DecodeAddress(encodedAddr, s.cfg.ChainParams)
 		if err != nil {
 			return nil, rpcAddressKeyError("Could not decode address: %v", err)
 		}
 
 		// Ensure the address is one of the supported types.
-		switch addr.(type) {
-		case *dcrutil.AddressPubKeyHash:
-		case *dcrutil.AddressScriptHash:
-		default:
-			return nil, rpcAddressKeyError("Invalid address type: "+
-				"%T", addr)
+		stakeAddr, ok := addr.(stdaddr.StakeAddress)
+		if !ok {
+			return nil, rpcAddressKeyError("Invalid address type: %T", addr)
 		}
 
-		// Create a new script which pays to the provided address with an
-		// SStx tagged output.
-		pkScript, err := txscript.PayToSStx(addr)
-		if err != nil {
-			return nil, rpcInternalError(err.Error(),
-				"Could not create TX script")
-		}
-
-		txOut := wire.NewTxOut(amount, pkScript)
-		mtx.AddTxOut(txOut)
+		// Create the necessary voting rights script.
+		pkScriptVer, pkScript := stakeAddr.VotingRightsScript()
+		mtx.AddTxOut(newTxOut(amount, pkScriptVer, pkScript))
 
 		amtTicket += amount
 	}
@@ -855,32 +845,25 @@ func handleCreateRawSStx(_ context.Context, s *Server, cmd interface{}) (interfa
 		// Append future commitment output.  This also ensures the network
 		// encoded with the address matches the network the server is currently
 		// on.
-		addr, err := dcrutil.DecodeAddress(cout.Addr, s.cfg.ChainParams)
+		addr, err := stdaddr.DecodeAddress(cout.Addr, s.cfg.ChainParams)
 		if err != nil {
 			return nil, rpcAddressKeyError("Could not decode address: %v", err)
 		}
 
 		// Ensure the address is one of the supported types.
-		switch addr.(type) {
-		case *dcrutil.AddressPubKeyHash:
-			break
-		case *dcrutil.AddressScriptHash:
-			break
-		default:
+		stakeAddr, ok := addr.(stdaddr.StakeAddress)
+		if !ok {
 			return nil, rpcAddressKeyError("Invalid type: %T", addr)
 		}
 
-		// Create an OP_RETURN push containing the pubkeyhash to send
-		// rewards to.  TODO Replace 0x0000 fee limits with an argument
-		// passed to the RPC call.
-		pkScript, err := txscript.GenerateSStxAddrPush(addr,
-			dcrutil.Amount(amountsCommitted[i]), 0x0000)
-		if err != nil {
-			return nil, rpcInternalError(err.Error(),
-				"Could not create SStx script")
-		}
-		txout := wire.NewTxOut(int64(0), pkScript)
-		mtx.AddTxOut(txout)
+		// Create the reward commitment script.
+		//
+		// TODO: Allow fee limits to be specified with an argument.
+		const voteFeeLimit = 0
+		const revokeFeeLimit = 0
+		cmtScriptVer, cmtScript := stakeAddr.RewardCommitmentScript(
+			amountsCommitted[i], voteFeeLimit, revokeFeeLimit)
+		mtx.AddTxOut(newTxOut(0, cmtScriptVer, cmtScript))
 
 		// 2. Append change output.
 
@@ -892,34 +875,21 @@ func handleCreateRawSStx(_ context.Context, s *Server, cmd interface{}) (interfa
 
 		// Decode the provided address.  This also ensures the network encoded
 		// with the address matches the network the server is currently on.
-		addr, err = dcrutil.DecodeAddress(cout.ChangeAddr, s.cfg.ChainParams)
+		addr, err = stdaddr.DecodeAddress(cout.ChangeAddr, s.cfg.ChainParams)
 		if err != nil {
 			return nil, rpcAddressKeyError("Wrong network: %v",
 				addr)
 		}
 
-		// Ensure the address is one of the supported types and that
-		// the network encoded with the address matches the network the
-		// server is currently on.
-		switch addr.(type) {
-		case *dcrutil.AddressPubKeyHash:
-			break
-		case *dcrutil.AddressScriptHash:
-			break
-		default:
+		// Ensure the address is one of the supported types.
+		stakeAddr, ok = addr.(stdaddr.StakeAddress)
+		if !ok {
 			return nil, rpcAddressKeyError("Invalid type: %T", addr)
 		}
 
-		// Create a new script which pays to the provided address with
-		// an SStx change tagged output.
-		pkScript, err = txscript.PayToSStxChange(addr)
-		if err != nil {
-			return nil, rpcInternalError(err.Error(),
-				"Could not create SStx change script")
-		}
-
-		txOut := wire.NewTxOut(cout.ChangeAmt, pkScript)
-		mtx.AddTxOut(txOut)
+		// Create a new script which pays change to the provided address.
+		changeScriptVer, changeScript := stakeAddr.StakeChangeScript()
+		mtx.AddTxOut(newTxOut(cout.ChangeAmt, changeScriptVer, changeScript))
 	}
 
 	// Make sure we generated a valid SStx.
@@ -1029,17 +999,21 @@ func handleCreateRawSSRtx(_ context.Context, s *Server, cmd interface{}) (interf
 		var ssrtxOutScript []byte
 		switch ssrtxPayTypes[i] {
 		case false: // P2PKH
-			ssrtxOutScript, err = txscript.PayToSSRtxPKHDirect(ssrtxPkh)
+			addr, err := stdaddr.NewAddressPubKeyHashEcdsaSecp256k1V0(ssrtxPkh,
+				s.cfg.ChainParams)
 			if err != nil {
 				return nil, rpcInvalidError("Could not "+
 					"generate P2PKH script: %v", err)
 			}
+			_, ssrtxOutScript = addr.PayRevokeCommitmentScript()
 		case true: // P2SH
-			ssrtxOutScript, err = txscript.PayToSSRtxSHDirect(ssrtxPkh)
+			addr, err := stdaddr.NewAddressScriptHashV0FromHash(ssrtxPkh,
+				s.cfg.ChainParams)
 			if err != nil {
 				return nil, rpcInvalidError("Could not "+
 					"generate P2SH script: %v", err)
 			}
+			_, ssrtxOutScript = addr.PayRevokeCommitmentScript()
 		}
 
 		// Add the txout to our SSGen tx.
@@ -1166,10 +1140,29 @@ func createVinList(mtx *wire.MsgTx, isTreasuryEnabled bool) []types.Vin {
 	return vinList
 }
 
-// stdAddrToUtilAddr converts stdaddr addresses to dcrutil addresses until all
-// code is converted over to use the new pacakage.
-func stdAddrToUtilAddr(addr stdaddr.Address, params stdaddr.AddressParams) (dcrutil.Address, error) {
-	return dcrutil.DecodeAddress(addr.Address(), params)
+// extractPkScriptAddrs is a wrapper around txscript.ExtractPkScriptAddrs that
+// converts dcrutil addresses to stdaddr addresses until all code is converted
+// over to use the new package.
+func extractPkScriptAddrs(scriptVer uint16, pkScript []byte, params dcrutil.AddressParams, isTreasuryEnabled bool) (txscript.ScriptClass, []stdaddr.Address, int, error) {
+	class, utilAddrs, reqSigs, err := txscript.ExtractPkScriptAddrs(scriptVer,
+		pkScript, params, isTreasuryEnabled)
+	if err != nil {
+		return class, nil, 0, err
+	}
+
+	// Convert dcrutil addresses to stdaddr addresses until all code is
+	// converted.
+	addrs := make([]stdaddr.Address, 0, len(utilAddrs)+1)
+	for _, utilAddr := range utilAddrs {
+		addr, err := stdaddr.DecodeAddress(utilAddr.Address(), params)
+		if err != nil {
+			return class, nil, 0, err
+		}
+
+		addrs = append(addrs, addr)
+	}
+
+	return class, addrs, reqSigs, nil
 }
 
 // createVoutList returns a slice of JSON objects for the outputs of the passed
@@ -1186,7 +1179,7 @@ func createVoutList(mtx *wire.MsgTx, chainParams *chaincfg.Params, filterAddrMap
 		// the case of stake submission transactions, the odd outputs
 		// contain a commitment address, so detect that case
 		// accordingly.
-		var addrs []dcrutil.Address
+		var addrs []stdaddr.Address
 		var scriptClass string
 		var reqSigs int
 		var commitAmt *dcrutil.Amount
@@ -1199,8 +1192,7 @@ func createVoutList(mtx *wire.MsgTx, chainParams *chaincfg.Params, filterAddrMap
 					"commitment addr output for tx hash "+
 					"%v, output idx %v", mtx.TxHash(), i)
 			} else {
-				utilAddr, _ := stdAddrToUtilAddr(addr, chainParams)
-				addrs = []dcrutil.Address{utilAddr}
+				addrs = []stdaddr.Address{addr}
 			}
 			amt, err := stake.AmountFromSStxPkScrCommitment(v.PkScript)
 			if err != nil {
@@ -1215,9 +1207,8 @@ func createVoutList(mtx *wire.MsgTx, chainParams *chaincfg.Params, filterAddrMap
 			// couldn't parse and there is no additional information
 			// about it anyways.
 			var sc txscript.ScriptClass
-			sc, addrs, reqSigs, _ = txscript.ExtractPkScriptAddrs(
-				v.Version, v.PkScript, chainParams,
-				isTreasuryEnabled)
+			sc, addrs, reqSigs, _ = extractPkScriptAddrs(v.Version, v.PkScript,
+				chainParams, isTreasuryEnabled)
 			scriptClass = sc.String()
 		}
 
@@ -1376,15 +1367,16 @@ func handleDecodeScript(_ context.Context, s *Server, cmd interface{}) (interfac
 	// Get information about the script.
 	// Ignore the error here since an error means the script couldn't parse
 	// and there is no additional information about it anyways.
-	scriptClass, addrs, reqSigs, _ := txscript.ExtractPkScriptAddrs(
-		scriptVersion, script, s.cfg.ChainParams, isTreasuryEnabled)
+	scriptClass, addrs, reqSigs, _ := extractPkScriptAddrs(scriptVersion,
+		script, s.cfg.ChainParams, isTreasuryEnabled)
 	addresses := make([]string, len(addrs))
 	for i, addr := range addrs {
 		addresses[i] = addr.Address()
 	}
 
 	// Convert the script itself to a pay-to-script-hash address.
-	p2sh, err := dcrutil.NewAddressScriptHash(script, s.cfg.ChainParams)
+	p2sh, err := stdaddr.NewAddressScriptHash(scriptVersion, script,
+		s.cfg.ChainParams)
 	if err != nil {
 		return nil, rpcInternalError(err.Error(),
 			"Failed to convert script to pay-to-script-hash")
@@ -3552,8 +3544,8 @@ func handleGetTxOut(_ context.Context, s *Server, cmd interface{}) (interface{},
 	// Get further info about the script.  Ignore the error here since an
 	// error means the script couldn't parse and there is no additional
 	// information about it anyways.
-	scriptClass, addrs, reqSigs, _ := txscript.ExtractPkScriptAddrs(
-		scriptVersion, script, s.cfg.ChainParams, isTreasuryEnabled)
+	scriptClass, addrs, reqSigs, _ := extractPkScriptAddrs(scriptVersion,
+		script, s.cfg.ChainParams, isTreasuryEnabled)
 	addresses := make([]string, len(addrs))
 	for i, addr := range addrs {
 		addresses[i] = addr.Address()
@@ -4267,7 +4259,7 @@ func createVinListPrevOut(s *Server, mtx *wire.MsgTx,
 		// Ignore the error here since an error means the script
 		// couldn't parse and there is no additional information about
 		// it anyways.
-		_, addrs, _, _ := txscript.ExtractPkScriptAddrs(originTxOut.Version,
+		_, addrs, _, _ := extractPkScriptAddrs(originTxOut.Version,
 			originTxOut.PkScript, chainParams, isTreasuryEnabled)
 
 		// Encode the addresses while checking if the address passes
@@ -5261,7 +5253,7 @@ func handleTxFeeInfo(_ context.Context, s *Server, cmd interface{}) (interface{}
 func handleValidateAddress(_ context.Context, s *Server, cmd interface{}) (interface{}, error) {
 	c := cmd.(*types.ValidateAddressCmd)
 	result := types.ValidateAddressChainResult{}
-	addr, err := dcrutil.DecodeAddress(c.Address, s.cfg.ChainParams)
+	addr, err := stdaddr.DecodeAddress(c.Address, s.cfg.ChainParams)
 	if err != nil {
 		// Return the default value (false) for IsValid.
 		return result, nil
@@ -5328,14 +5320,15 @@ func handleVerifyMessage(_ context.Context, s *Server, cmd interface{}) (interfa
 
 	// Decode the provided address.  This also ensures the network encoded with
 	// the address matches the network the server is currently on.
-	addr, err := dcrutil.DecodeAddress(c.Address, s.cfg.ChainParams)
+	params := s.cfg.ChainParams
+	addr, err := stdaddr.DecodeAddress(c.Address, params)
 	if err != nil {
 		return nil, rpcAddressKeyError("Could not decode address: %v",
 			err)
 	}
 
-	// Only P2PKH addresses are valid for signing.
-	if _, ok := addr.(*dcrutil.AddressPubKeyHash); !ok {
+	// Only version 0 P2PKH addresses are valid for signing.
+	if _, ok := addr.(*stdaddr.AddressPubKeyHashEcdsaSecp256k1V0); !ok {
 		return nil, &dcrjson.RPCError{
 			Code:    dcrjson.ErrRPCType,
 			Message: "Address is not a pay-to-pubkey-hash address",
@@ -5357,27 +5350,22 @@ func handleVerifyMessage(_ context.Context, s *Server, cmd interface{}) (interfa
 	wire.WriteVarString(&buf, 0, "Decred Signed Message:\n")
 	wire.WriteVarString(&buf, 0, c.Message)
 	expectedMessageHash := chainhash.HashB(buf.Bytes())
-	pk, wasCompressed, err := ecdsa.RecoverCompact(sig,
-		expectedMessageHash)
+	pk, wasCompressed, err := ecdsa.RecoverCompact(sig, expectedMessageHash)
 	if err != nil {
-		// Mirror Bitcoin Core behavior, which treats error in
-		// RecoverCompact as invalid signature.
+		// Treat errors in RecoverCompact as an invalid signature.
 		return false, nil
 	}
 
 	// Reconstruct the pubkey hash.
-	dcrPK := pk
-	var serializedPK []byte
+	var pkHash []byte
 	if wasCompressed {
-		serializedPK = dcrPK.SerializeCompressed()
+		pkHash = stdaddr.Hash160(pk.SerializeCompressed())
 	} else {
-		serializedPK = dcrPK.SerializeUncompressed()
+		pkHash = stdaddr.Hash160(pk.SerializeUncompressed())
 	}
-	address, err := dcrutil.NewAddressSecpPubKey(serializedPK,
-		s.cfg.ChainParams)
+	address, err := stdaddr.NewAddressPubKeyHashEcdsaSecp256k1V0(pkHash, params)
 	if err != nil {
-		// Again mirror Bitcoin Core behavior, which treats error in
-		// public key reconstruction as invalid signature.
+		// Treat error in reconstruction as an invalid signature.
 		return false, nil
 	}
 
@@ -6227,7 +6215,7 @@ type Config struct {
 	TestNet bool
 
 	// MiningAddrs is a list of payment addresses to use for the generated blocks.
-	MiningAddrs []dcrutil.Address
+	MiningAddrs []stdaddr.Address
 
 	// AllowUnsyncedMining indicates whether block templates should be created even
 	// when the chain is not fully synced.
