@@ -18,7 +18,6 @@ import (
 	"testing"
 
 	"github.com/decred/dcrd/chaincfg/chainhash"
-	"github.com/decred/dcrd/dcrutil/v4"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -559,10 +558,9 @@ testloop:
 			continue
 		}
 
-		tx, err := dcrutil.NewTxFromBytes(serializedTx)
-		if err != nil {
-			t.Errorf("bad test (arg 2 not msgtx %v) %d: %v", err,
-				i, test)
+		var tx wire.MsgTx
+		if err := tx.Deserialize(bytes.NewReader(serializedTx)); err != nil {
+			t.Errorf("bad test (arg 2 not msgtx %v) %d: %v", err, i, test)
 			continue
 		}
 
@@ -632,8 +630,8 @@ testloop:
 			prevOuts[*wire.NewOutPoint(prevhash, idx, wire.TxTreeRegular)] = script
 		}
 
-		for k, txin := range tx.MsgTx().TxIn {
-			pkScript, ok := prevOuts[txin.PreviousOutPoint]
+		for k, txIn := range tx.TxIn {
+			pkScript, ok := prevOuts[txIn.PreviousOutPoint]
 			if !ok {
 				t.Errorf("bad test (missing %dth input) %d:%v",
 					k, i, test)
@@ -642,8 +640,7 @@ testloop:
 			// These are meant to fail, so as soon as the first
 			// input fails the transaction has failed. (some of the
 			// test txns have good inputs, too..
-			vm, err := NewEngine(pkScript, tx.MsgTx(), k, flags, 0,
-				nil)
+			vm, err := NewEngine(pkScript, &tx, k, flags, 0, nil)
 			if err != nil {
 				continue testloop
 			}
@@ -701,10 +698,9 @@ testloop:
 			continue
 		}
 
-		tx, err := dcrutil.NewTxFromBytes(serializedTx)
-		if err != nil {
-			t.Errorf("bad test (arg 2 not msgtx %v) %d: %v", err,
-				i, test)
+		var tx wire.MsgTx
+		if err := tx.Deserialize(bytes.NewReader(serializedTx)); err != nil {
+			t.Errorf("bad test (arg 2 not msgtx %v) %d: %v", err, i, test)
 			continue
 		}
 
@@ -774,15 +770,14 @@ testloop:
 			prevOuts[*wire.NewOutPoint(prevhash, idx, wire.TxTreeRegular)] = script
 		}
 
-		for k, txin := range tx.MsgTx().TxIn {
-			pkScript, ok := prevOuts[txin.PreviousOutPoint]
+		for k, txIn := range tx.TxIn {
+			pkScript, ok := prevOuts[txIn.PreviousOutPoint]
 			if !ok {
 				t.Errorf("bad test (missing %dth input) %d:%v",
 					k, i, test)
 				continue testloop
 			}
-			vm, err := NewEngine(pkScript, tx.MsgTx(), k, flags, 0,
-				nil)
+			vm, err := NewEngine(pkScript, &tx, k, flags, 0, nil)
 			if err != nil {
 				t.Errorf("test (%d:%v:%d) failed to create "+
 					"script: %v", i, test, k, err)
