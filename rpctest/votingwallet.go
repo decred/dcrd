@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2020 The Decred developers
+// Copyright (c) 2019-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -21,6 +21,7 @@ import (
 	dcrdtypes "github.com/decred/dcrd/rpc/jsonrpc/types/v3"
 	"github.com/decred/dcrd/rpcclient/v7"
 	"github.com/decred/dcrd/txscript/v4"
+	"github.com/decred/dcrd/txscript/v4/stdaddr"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -92,18 +93,23 @@ type utxoInfo struct {
 type VotingWallet struct {
 	hn         *Harness
 	privateKey []byte
-	address    dcrutil.Address
+	address    stdaddr.Address
 	c          *rpcclient.Client
 
 	blockConnectedNtfnChan chan blockConnectedNtfn
 	winningTicketsNtfnChan chan winningTicketsNtfn
 	quitChan               chan struct{}
 
+	p2sstxVer        uint16
 	p2sstx           []byte
-	commitmentScript []byte
+	commitScriptVer  uint16
+	commitScript     []byte
 	p2pkh            []byte
+	p2pkhVer         uint16
+	voteScriptVer    uint16
 	voteScript       []byte
-	voteReturnScript []byte
+	voteRetScriptVer uint16
+	voteRetScript    []byte
 
 	errorReporter func(error)
 
@@ -136,42 +142,29 @@ type VotingWallet struct {
 // of the harness working after it has passed SVH (Stake Validation Height) by
 // continuously buying tickets and voting on them.
 func NewVotingWallet(ctx context.Context, hn *Harness) (*VotingWallet, error) {
-
 	privKey := secp256k1.PrivKeyFromBytes(hardcodedPrivateKey)
 	serPub := privKey.PubKey().SerializeCompressed()
-	hashPub := dcrutil.Hash160(serPub)
-	addr, err := dcrutil.NewAddressPubKeyHash(hashPub, hn.ActiveNet,
-		dcrec.STEcdsaSecp256k1)
+	h160 := stdaddr.Hash160(serPub)
+	addr, err := stdaddr.NewAddressPubKeyHashEcdsaSecp256k1V0(h160, hn.ActiveNet)
 	if err != nil {
 		return nil, fmt.Errorf("unable to generate address for pubkey: %v", err)
 	}
 
-	p2sstx, err := txscript.PayToSStx(addr)
-	if err != nil {
-		return nil, fmt.Errorf("unable to prepare p2sstx script: %v", err)
-	}
+	p2sstxVer, p2sstx := addr.VotingRightsScript()
+	p2pkhVer, p2pkh := addr.PaymentScript()
 
-	p2pkh, err := txscript.PayToAddrScript(addr)
-	if err != nil {
-		return nil, fmt.Errorf("unable to prepare p2pkh script: %v", err)
-	}
+	commitAmount := hn.ActiveNet.MinimumStakeDiff * commitAmountMultiplier
+	const voteFeeLimit = 0
+	const revokeFeeLimit = 16777216
+	commitScriptVer, commitScript := addr.RewardCommitmentScript(commitAmount,
+		voteFeeLimit, revokeFeeLimit)
 
-	commitAmount := dcrutil.Amount(hn.ActiveNet.MinimumStakeDiff * commitAmountMultiplier)
-	limit := uint16(0x0058)
-	commitmentScript, err := txscript.GenerateSStxAddrPush(addr, commitAmount, limit)
-	if err != nil {
-		return nil, fmt.Errorf("unable to prepare commitment script: %v", err)
-	}
-
+	voteScriptVer := uint16(0)
 	voteScript, err := txscript.GenerateSSGenVotes(0x0001)
 	if err != nil {
 		return nil, fmt.Errorf("unable to prepare vote script: %v", err)
 	}
-
-	voteReturnScript, err := txscript.PayToSSGen(addr)
-	if err != nil {
-		return nil, fmt.Errorf("unable to generate vote return script: %v", err)
-	}
+	voteReturnScriptVer, voteReturnScript := addr.PayVoteCommitmentScript()
 
 	// Hints for the initial sizing of the tickets and maturing votes maps.
 	// Given we have a deterministic purchase process, this should allow us to
@@ -187,11 +180,16 @@ func NewVotingWallet(ctx context.Context, hn *Harness) (*VotingWallet, error) {
 		hn:                     hn,
 		privateKey:             hardcodedPrivateKey,
 		address:                addr,
+		p2sstxVer:              p2sstxVer,
 		p2sstx:                 p2sstx,
+		p2pkhVer:               p2pkhVer,
 		p2pkh:                  p2pkh,
-		commitmentScript:       commitmentScript,
+		commitScriptVer:        commitScriptVer,
+		commitScript:           commitScript,
+		voteScriptVer:          voteScriptVer,
 		voteScript:             voteScript,
-		voteReturnScript:       voteReturnScript,
+		voteRetScriptVer:       voteReturnScriptVer,
+		voteRetScript:          voteReturnScript,
 		subsidyCache:           standalone.NewSubsidyCache(hn.ActiveNet),
 		limitNbVotes:           int(hn.ActiveNet.TicketsPerBlock),
 		tickets:                make(map[chainhash.Hash]ticketInfo, hintTicketsCap),
@@ -399,6 +397,15 @@ func (w *VotingWallet) onBlockConnected(blockHeader []byte, transactions [][]byt
 	}
 }
 
+// newTxOut returns a new transaction output with the given parameters.
+func newTxOut(amount int64, pkScriptVer uint16, pkScript []byte) *wire.TxOut {
+	return &wire.TxOut{
+		Value:    amount,
+		Version:  pkScriptVer,
+		PkScript: pkScript,
+	}
+}
+
 func (w *VotingWallet) handleBlockConnectedNtfn(ntfn *blockConnectedNtfn) {
 	var header wire.BlockHeader
 	err := header.FromBytes(ntfn.blockHeader)
@@ -440,13 +447,13 @@ func (w *VotingWallet) handleBlockConnectedNtfn(ntfn *blockConnectedNtfn) {
 		t := &tickets[i]
 		t.Version = wire.TxVersion
 		t.AddTxIn(wire.NewTxIn(&utxos[i].outpoint, wire.NullValueIn, nil))
-		t.AddTxOut(wire.NewTxOut(ticketPrice, w.p2sstx))
-		t.AddTxOut(wire.NewTxOut(0, w.commitmentScript))
+		t.AddTxOut(newTxOut(ticketPrice, w.p2sstxVer, w.p2sstx))
+		t.AddTxOut(newTxOut(0, w.commitScriptVer, w.commitScript))
 		t.AddTxOut(wire.NewTxOut(changeAmount, nullPay2SSTXChange))
 
 		prevScript := w.p2pkh
 		if utxos[i].outpoint.Tree == wire.TxTreeStake {
-			prevScript = w.voteReturnScript
+			prevScript = w.voteRetScript
 		}
 
 		sig, err := txscript.SignatureScript(t, 0, prevScript, txscript.SigHashAll,
@@ -494,7 +501,6 @@ func (w *VotingWallet) onWinningTickets(blockHash *chainhash.Hash, blockHeight i
 }
 
 func (w *VotingWallet) handleWinningTicketsNtfn(ntfn *winningTicketsNtfn) {
-
 	blockRefScript, err := txscript.GenerateSSGenBlockRef(*ntfn.blockHash,
 		uint32(ntfn.blockHeight))
 	if err != nil {
@@ -502,8 +508,6 @@ func (w *VotingWallet) handleWinningTicketsNtfn(ntfn *winningTicketsNtfn) {
 		return
 	}
 
-	voteScript := w.voteScript
-	voteReturnScript := w.voteReturnScript
 	stakebaseValue := w.subsidyCache.CalcStakeVoteSubsidy(ntfn.blockHeight)
 
 	// Create the votes. nbVotes is the number of tickets from the wallet that
@@ -521,7 +525,7 @@ func (w *VotingWallet) handleWinningTicketsNtfn(ntfn *winningTicketsNtfn) {
 			continue
 		}
 
-		voteReturnValue := ticket.ticketPrice + stakebaseValue
+		voteRetValue := ticket.ticketPrice + stakebaseValue
 
 		// Create a corresponding vote transaction.
 		vote := &votes[nbVotes]
@@ -535,8 +539,8 @@ func (w *VotingWallet) handleWinningTicketsNtfn(ntfn *winningTicketsNtfn) {
 			wire.NullValueIn, nil,
 		))
 		vote.AddTxOut(wire.NewTxOut(0, blockRefScript))
-		vote.AddTxOut(wire.NewTxOut(0, voteScript))
-		vote.AddTxOut(wire.NewTxOut(voteReturnValue, voteReturnScript))
+		vote.AddTxOut(newTxOut(0, w.voteScriptVer, w.voteScript))
+		vote.AddTxOut(newTxOut(voteRetValue, w.voteRetScriptVer, w.voteRetScript))
 
 		// If there are tspends to vote for, create an additional
 		// output.

@@ -26,15 +26,6 @@ const (
 	numMatureOutputs = 25
 )
 
-// newTxOut returns a new transaction output with the given parameters.
-func newTxOut(amount int64, pkScriptVer uint16, pkScript []byte) *wire.TxOut {
-	return &wire.TxOut{
-		Value:    amount,
-		Version:  pkScriptVer,
-		PkScript: pkScript,
-	}
-}
-
 func testSendOutputs(ctx context.Context, r *Harness, t *testing.T) {
 	tracef(t, "testSendOutputs start")
 	defer tracef(t, "testSendOutputs end")
