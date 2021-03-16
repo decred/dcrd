@@ -31,6 +31,7 @@ import (
 	"github.com/decred/dcrd/internal/version"
 	"github.com/decred/dcrd/rpc/jsonrpc/types/v3"
 	"github.com/decred/dcrd/sampleconfig"
+	"github.com/decred/dcrd/txscript/v4/stdaddr"
 	"github.com/decred/go-socks/socks"
 	"github.com/decred/slog"
 	flags "github.com/jessevdk/go-flags"
@@ -232,7 +233,7 @@ type config struct {
 	lookup        func(string) ([]net.IP, error)
 	oniondial     func(context.Context, string, string) (net.Conn, error)
 	dial          func(context.Context, string, string) (net.Conn, error)
-	miningAddrs   []dcrutil.Address
+	miningAddrs   []stdaddr.Address
 	minRelayTxFee dcrutil.Amount
 	whitelists    []*net.IPNet
 	ipv4NetInfo   types.NetworksResult
@@ -1084,9 +1085,9 @@ func loadConfig(appName string) (*config, []string, error) {
 	}
 
 	// Check mining addresses are valid and saved parsed versions.
-	cfg.miningAddrs = make([]dcrutil.Address, 0, len(cfg.MiningAddrs))
+	cfg.miningAddrs = make([]stdaddr.Address, 0, len(cfg.MiningAddrs))
 	for _, strAddr := range cfg.MiningAddrs {
-		addr, err := dcrutil.DecodeAddress(strAddr, cfg.params.Params)
+		addr, err := stdaddr.DecodeAddress(strAddr, cfg.params.Params)
 		if err != nil {
 			str := "%s: mining address '%s' failed to decode: %w"
 			err := fmt.Errorf(str, funcName, strAddr, err)

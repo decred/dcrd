@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2020 The Decred developers
+// Copyright (c) 2019-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -17,6 +17,7 @@ import (
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/dcrutil/v4"
 	"github.com/decred/dcrd/lru"
+	"github.com/decred/dcrd/txscript/v4/stdaddr"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -323,7 +324,7 @@ type BgBlkTmplConfig struct {
 
 	// MiningAddrs specifies the addresses to choose from when paying mining
 	// rewards in generated templates.
-	MiningAddrs []dcrutil.Address
+	MiningAddrs []stdaddr.Address
 
 	// AllowUnsyncedMining indicates block templates should be created even when
 	// the chain is not fully synced.

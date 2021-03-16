@@ -1,4 +1,4 @@
-// Copyright (c) 2020 The Decred developers
+// Copyright (c) 2020-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -13,6 +13,7 @@ import (
 	"github.com/decred/dcrd/chaincfg/v3"
 	"github.com/decred/dcrd/dcrutil/v4"
 	"github.com/decred/dcrd/txscript/v4"
+	"github.com/decred/dcrd/txscript/v4/stdaddr"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -28,7 +29,7 @@ func TestNewBlockTemplateBasicErrorScenarios(t *testing.T) {
 	}
 
 	// Create a test address for use in template generation.
-	address, err := dcrutil.DecodeAddress("Dsi8CRt85xYyempXs7ZPL1rBxvDdAGZmgsg",
+	address, err := stdaddr.DecodeAddress("Dsi8CRt85xYyempXs7ZPL1rBxvDdAGZmgsg",
 		harness.chainParams)
 	if err != nil {
 		t.Fatalf("error decoding address: %v", err)
@@ -70,7 +71,7 @@ func TestNewBlockTemplate(t *testing.T) {
 	}
 
 	// Create a test address for use in template generation.
-	address, err := dcrutil.DecodeAddress("Dsi8CRt85xYyempXs7ZPL1rBxvDdAGZmgsg",
+	address, err := stdaddr.DecodeAddress("Dsi8CRt85xYyempXs7ZPL1rBxvDdAGZmgsg",
 		harness.chainParams)
 	if err != nil {
 		t.Fatalf("error decoding address: %v", err)

@@ -1,5 +1,5 @@
 // Copyright (c) 2014-2016 The btcsuite developers
-// Copyright (c) 2015-2020 The Decred developers
+// Copyright (c) 2015-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -21,6 +21,7 @@ import (
 	"github.com/decred/dcrd/dcrutil/v4"
 	"github.com/decred/dcrd/gcs/v3/blockcf2"
 	"github.com/decred/dcrd/txscript/v4"
+	"github.com/decred/dcrd/txscript/v4/stdaddr"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -502,7 +503,7 @@ func calcBlockCommitmentRootV1(block *wire.MsgBlock, prevScripts blockcf2.PrevSc
 //
 // See the comment for NewBlockTemplate for more information about why the nil
 // address handling is useful.
-func createCoinbaseTx(subsidyCache *standalone.SubsidyCache, coinbaseScript []byte, opReturnPkScript []byte, nextBlockHeight int64, addr dcrutil.Address, voters uint16, params *chaincfg.Params, isTreasuryEnabled bool) (*dcrutil.Tx, error) {
+func createCoinbaseTx(subsidyCache *standalone.SubsidyCache, coinbaseScript []byte, opReturnPkScript []byte, nextBlockHeight int64, addr stdaddr.Address, voters uint16, params *chaincfg.Params, isTreasuryEnabled bool) (*dcrutil.Tx, error) {
 	// Coinbase transactions have no inputs, so previous outpoint is zero hash
 	// and max index.
 	coinbaseInput := &wire.TxIn{
@@ -530,18 +531,6 @@ func createCoinbaseTx(subsidyCache *standalone.SubsidyCache, coinbaseScript []by
 		}
 
 		return dcrutil.NewTx(tx), nil
-	}
-
-	// Create the script to pay to the provided payment address if one was
-	// specified.  Otherwise create a script that allows the coinbase to be
-	// redeemable by anyone.
-	workSubsidyScript := opTrueScript
-	if addr != nil {
-		var err error
-		workSubsidyScript, err = txscript.PayToAddrScript(addr)
-		if err != nil {
-			return nil, err
-		}
 	}
 
 	// Prior to the decentralized treasury agenda, the transaction version must
@@ -578,6 +567,15 @@ func createCoinbaseTx(subsidyCache *standalone.SubsidyCache, coinbaseScript []by
 		txVersion = wire.TxVersionTreasury
 	}
 
+	// Create the script to pay to the provided payment address if one was
+	// specified.  Otherwise create a script that allows the coinbase to be
+	// redeemable by anyone.
+	workSubsidyScriptVer := uint16(0)
+	workSubsidyScript := opTrueScript
+	if addr != nil {
+		workSubsidyScriptVer, workSubsidyScript = addr.PaymentScript()
+	}
+
 	// Create a coinbase with expected inputs and outputs.
 	//
 	// Inputs:
@@ -602,6 +600,7 @@ func createCoinbaseTx(subsidyCache *standalone.SubsidyCache, coinbaseScript []by
 	})
 	tx.AddTxOut(&wire.TxOut{
 		Value:    workSubsidy,
+		Version:  workSubsidyScriptVer,
 		PkScript: workSubsidyScript,
 	})
 	return dcrutil.NewTx(tx), nil
@@ -765,7 +764,7 @@ func (g *BlkTmplGenerator) maybeInsertStakeTx(stx *dcrutil.Tx, treeValid bool, i
 // work off of is present, it will return a copy of that template to pass to the
 // miner.
 // Safe for concurrent access.
-func (g *BlkTmplGenerator) handleTooFewVoters(nextHeight int64, miningAddress dcrutil.Address, isTreasuryEnabled bool) (*BlockTemplate, error) {
+func (g *BlkTmplGenerator) handleTooFewVoters(nextHeight int64, miningAddress stdaddr.Address, isTreasuryEnabled bool) (*BlockTemplate, error) {
 	stakeValidationHeight := g.cfg.ChainParams.StakeValidationHeight
 
 	// Handle not enough voters being present if we're set to mine aggressively
@@ -1010,7 +1009,7 @@ func calcFeePerKb(txDesc *TxDesc, ancestorStats *TxAncestorStats) float64 {
 //
 //  This function returns nil, nil if there are not enough voters on any of
 //  the current top blocks to create a new block template.
-func (g *BlkTmplGenerator) NewBlockTemplate(payToAddress dcrutil.Address) (*BlockTemplate, error) {
+func (g *BlkTmplGenerator) NewBlockTemplate(payToAddress stdaddr.Address) (*BlockTemplate, error) {
 	// All transaction scripts are verified using the more strict standard
 	// flags.
 	scriptFlags, err := g.cfg.Policy.StandardVerifyFlags()

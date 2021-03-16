@@ -14,13 +14,13 @@ import (
 	"github.com/decred/dcrd/blockchain/stake/v4"
 	"github.com/decred/dcrd/blockchain/standalone/v2"
 	"github.com/decred/dcrd/blockchain/v4"
-	"github.com/decred/dcrd/blockchain/v4/chaingen"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/chaincfg/v3"
 	"github.com/decred/dcrd/dcrec"
 	"github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/decred/dcrd/dcrutil/v4"
 	"github.com/decred/dcrd/txscript/v4"
+	"github.com/decred/dcrd/txscript/v4/stdaddr"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -918,10 +918,14 @@ type miningHarness struct {
 	//
 	// payAddr is the p2sh address for the signing key and is used for the
 	// payment address throughout the tests.
-	signKey   []byte
-	sigType   dcrec.SignatureType
-	payAddr   dcrutil.Address
-	payScript []byte
+	//
+	// payScriptVer and payScript are the script version and script to pay the
+	// aforementioned payAddr.
+	signKey      []byte
+	sigType      dcrec.SignatureType
+	payAddr      stdaddr.StakeAddress
+	payScriptVer uint16
+	payScript    []byte
 
 	generator *BlkTmplGenerator
 }
@@ -971,10 +975,7 @@ func (m *miningHarness) CreateCoinbaseTx(blockHeight int64, numOutputs uint32) (
 		if i == numOutputs-1 {
 			amount = amountPerOutput + remainder
 		}
-		tx.AddTxOut(&wire.TxOut{
-			PkScript: m.payScript,
-			Value:    amount,
-		})
+		tx.AddTxOut(newTxOut(amount, m.payScriptVer, m.payScript))
 	}
 
 	return dcrutil.NewTx(tx), nil
@@ -998,10 +999,8 @@ func (m *miningHarness) CreateTxChain(firstOutput spendableOutput, numTxns uint3
 			Sequence:         wire.MaxTxInSequenceNum,
 			ValueIn:          int64(spendableAmount),
 		})
-		tx.AddTxOut(&wire.TxOut{
-			PkScript: m.payScript,
-			Value:    int64(spendableAmount),
-		})
+		tx.AddTxOut(newTxOut(int64(spendableAmount), m.payScriptVer,
+			m.payScript))
 
 		// Sign the new transaction.
 		sigScript, err := txscript.SignatureScript(tx, 0,
@@ -1067,10 +1066,7 @@ func (m *miningHarness) CreateSignedTx(inputs []spendableOutput, numOutputs uint
 		if i == numOutputs-1 {
 			amount += remainder
 		}
-		tx.AddTxOut(&wire.TxOut{
-			PkScript: m.payScript,
-			Value:    amount,
-		})
+		tx.AddTxOut(newTxOut(amount, m.payScriptVer, m.payScript))
 	}
 
 	// Perform any transaction munging just before signing.
@@ -1092,25 +1088,27 @@ func (m *miningHarness) CreateSignedTx(inputs []spendableOutput, numOutputs uint
 	return dcrutil.NewTx(tx), nil
 }
 
+// newTxOut returns a new transaction output with the given parameters.
+func newTxOut(amount int64, pkScriptVer uint16, pkScript []byte) *wire.TxOut {
+	return &wire.TxOut{
+		Value:    amount,
+		Version:  pkScriptVer,
+		PkScript: pkScript,
+	}
+}
+
 // CreateTicketPurchase creates a ticket purchase spending the first output of
 // the provided transaction.
 func (m *miningHarness) CreateTicketPurchase(sourceTx *dcrutil.Tx, cost int64) (*dcrutil.Tx, error) {
-	ticketFee := dcrutil.Amount(singleInputTicketSize)
-	ticketPrice := dcrutil.Amount(cost)
+	ticketFee := singleInputTicketSize
+	ticketPrice := cost
 
-	// Generate the p2sh, commitment and change scripts of the ticket.
-	pkScript, err := txscript.PayToSStx(m.payAddr)
-	if err != nil {
-		return nil, err
-	}
-	commitScript := chaingen.PurchaseCommitmentScript(m.payAddr,
+	// Generate the voting rights, commitment, and change scripts of the ticket.
+	voteScriptVer, voteScript := m.payAddr.VotingRightsScript()
+	commitScriptVer, commitScript := m.payAddr.RewardCommitmentScript(
 		ticketPrice+ticketFee, 0, ticketPrice)
-	change := dcrutil.Amount(sourceTx.MsgTx().TxOut[0].Value) -
-		ticketPrice - ticketFee
-	changeScript, err := txscript.PayToSStxChange(m.payAddr)
-	if err != nil {
-		return nil, err
-	}
+	change := sourceTx.MsgTx().TxOut[0].Value - ticketPrice - ticketFee
+	changeScriptVer, changeScript := m.payAddr.StakeChangeScript()
 
 	// Generate the ticket purchase.
 	tx := wire.NewMsgTx()
@@ -1125,9 +1123,9 @@ func (m *miningHarness) CreateTicketPurchase(sourceTx *dcrutil.Tx, cost int64) (
 		BlockHeight: uint32(m.generator.cfg.BestSnapshot().Height),
 	})
 
-	tx.AddTxOut(wire.NewTxOut(int64(ticketPrice), pkScript))
-	tx.AddTxOut(wire.NewTxOut(0, commitScript))
-	tx.AddTxOut(wire.NewTxOut(int64(change), changeScript))
+	tx.AddTxOut(newTxOut(ticketPrice, voteScriptVer, voteScript))
+	tx.AddTxOut(newTxOut(0, commitScriptVer, commitScript))
+	tx.AddTxOut(newTxOut(change, changeScriptVer, changeScript))
 
 	// Sign the ticket purchase.
 	sigScript, err := txscript.SignatureScript(tx, 0,
@@ -1195,14 +1193,17 @@ func (m *miningHarness) CreateVote(ticket *dcrutil.Tx, mungers ...func(*wire.Msg
 	}
 	vote.AddTxOut(wire.NewTxOut(0, voteScript))
 
-	// Create P2SH scripts for the ticket outputs.
-	for i, hash160 := range ticketHash160s {
-		scriptFn := txscript.PayToSSGenPKHDirect
+	// Create payment scripts for the ticket commitments.
+	params := m.chainParams
+	for i, h160 := range ticketHash160s {
+		var addr stdaddr.StakeAddress
 		if ticketPayKinds[i] { // P2SH
-			scriptFn = txscript.PayToSSGenSHDirect
+			addr, _ = stdaddr.NewAddressScriptHashV0FromHash(h160, params)
+		} else {
+			addr, _ = stdaddr.NewAddressPubKeyHashEcdsaSecp256k1V0(h160, params)
 		}
-		// Error is checking for a nil hash160, just ignore it.
-		script, _ := scriptFn(hash160)
+
+		_, script := addr.PayVoteCommitmentScript()
 		vote.AddTxOut(wire.NewTxOut(voteRewardValues[i], script))
 	}
 
@@ -1214,14 +1215,14 @@ func (m *miningHarness) CreateVote(ticket *dcrutil.Tx, mungers ...func(*wire.Msg
 	// Sign the input.
 	inputToSign := 1
 	redeemTicketScript := ticket.MsgTx().TxOut[0].PkScript
-	signedScript, err := txscript.SignTxOutput(m.chainParams, vote,
-		inputToSign, redeemTicketScript, txscript.SigHashAll, m, m,
+	signedScript, err := txscript.SignTxOutput(params, vote, inputToSign,
+		redeemTicketScript, txscript.SigHashAll, m, m,
 		vote.TxIn[inputToSign].SignatureScript, m.chain.isTreasuryAgendaActive)
 	if err != nil {
 		return nil, err
 	}
 
-	vote.TxIn[0].SignatureScript = m.chainParams.StakeBaseSigScript
+	vote.TxIn[0].SignatureScript = params.StakeBaseSigScript
 	vote.TxIn[1].SignatureScript = signedScript
 
 	return dcrutil.NewTx(vote), nil
@@ -1272,15 +1273,13 @@ func newMiningHarness(chainParams *chaincfg.Params) (*miningHarness, []spendable
 	// Generate associated pay-to-script-hash address and resulting payment
 	// script.
 	pubKeyBytes := signPub.SerializeCompressed()
-	payPubKeyAddr, err := dcrutil.NewAddressSecpPubKey(pubKeyBytes, chainParams)
+	h160 := stdaddr.Hash160(pubKeyBytes)
+	payAddr, err := stdaddr.NewAddressPubKeyHashEcdsaSecp256k1V0(h160,
+		chainParams)
 	if err != nil {
 		return nil, nil, err
 	}
-	payAddr := payPubKeyAddr.AddressPubKeyHash()
-	pkScript, err := txscript.PayToAddrScript(payAddr)
-	if err != nil {
-		return nil, nil, err
-	}
+	payScriptVer, payScript := payAddr.PaymentScript()
 
 	// Create a SigCache instance.
 	sigCache, err := txscript.NewSigCache(1000)
@@ -1367,7 +1366,8 @@ func newMiningHarness(chainParams *chaincfg.Params) (*miningHarness, []spendable
 		signKey:      keyBytes,
 		sigType:      dcrec.STEcdsaSecp256k1,
 		payAddr:      payAddr,
-		payScript:    pkScript,
+		payScriptVer: payScriptVer,
+		payScript:    payScript,
 		generator: NewBlkTmplGenerator(&Config{
 			Policy:                     policy,
 			TxSource:                   txSource,
