@@ -12,6 +12,7 @@ import (
 
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/dcrec/secp256k1/v4/ecdsa"
+	"github.com/decred/dcrd/txscript/v4/stdaddr"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -48,13 +49,13 @@ type AddressParams interface {
 func VerifyMessage(address string, signature string, message string, params AddressParams) error {
 	// Decode the provided address.  This also ensures the network encoded with
 	// the address matches the network the server is currently on.
-	addr, err := DecodeAddress(address, params)
+	addr, err := stdaddr.DecodeAddress(address, params)
 	if err != nil {
 		return err
 	}
 
 	// Only P2PKH addresses are valid for signing.
-	if _, ok := addr.(*AddressPubKeyHash); !ok {
+	if _, ok := addr.(*stdaddr.AddressPubKeyHashEcdsaSecp256k1V0); !ok {
 		return fmt.Errorf("address is not a pay-to-pubkey-hash address")
 	}
 
@@ -76,19 +77,19 @@ func VerifyMessage(address string, signature string, message string, params Addr
 	}
 
 	// Reconstruct the address from the recovered pubkey.
-	var serializedPK []byte
+	var pkHash []byte
 	if wasCompressed {
-		serializedPK = pk.SerializeCompressed()
+		pkHash = stdaddr.Hash160(pk.SerializeCompressed())
 	} else {
-		serializedPK = pk.SerializeUncompressed()
+		pkHash = stdaddr.Hash160(pk.SerializeUncompressed())
 	}
-	recoveredAddr, err := NewAddressSecpPubKey(serializedPK, params)
+	recAddr, err := stdaddr.NewAddressPubKeyHashEcdsaSecp256k1V0(pkHash, params)
 	if err != nil {
 		return err
 	}
 
 	// Check whether addresses match.
-	if recoveredAddr.Address() != addr.Address() {
+	if recAddr.String() != addr.String() {
 		return fmt.Errorf("message not signed by address")
 	}
 

@@ -8,7 +8,7 @@ require (
 	github.com/decred/dcrd/dcrutil/v4 v4.0.0-20210129181600-6ae0142d3b28
 	github.com/decred/dcrd/gcs/v3 v3.0.0-20210129195202-a4265d63b619
 	github.com/decred/dcrd/rpc/jsonrpc/types/v3 v3.0.0-20210129200153-14fd1a785bf2
-	github.com/decred/dcrd/txscript/v4 v4.0.0-20210330065944-a2366e6e0b3b
+	github.com/decred/dcrd/txscript/v4 v4.0.0-20210415215133-96b98390a9a9
 	github.com/decred/dcrd/wire v1.4.0
 	github.com/decred/go-socks v1.1.0
 	github.com/decred/slog v1.1.0
