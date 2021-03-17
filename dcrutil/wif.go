@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2020 The Decred developers
+// Copyright (c) 2015-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -17,11 +17,17 @@ import (
 	"github.com/decred/dcrd/dcrec/secp256k1/v4"
 )
 
-// ErrMalformedPrivateKey describes an error where a WIF-encoded private key
-// cannot be decoded due to being improperly formatted.  This may occur if
-// the byte length is incorrect or an unexpected magic number was
-// encountered.
-var ErrMalformedPrivateKey = errors.New("malformed private key")
+var (
+	// ErrMalformedPrivateKey describes an error where a WIF-encoded private key
+	// cannot be decoded due to being improperly formatted.  This may occur if
+	// the byte length is incorrect or an unexpected magic number was
+	// encountered.
+	ErrMalformedPrivateKey = errors.New("malformed private key")
+
+	// ErrChecksumMismatch describes an error where decoding failed due to a bad
+	// checksum.
+	ErrChecksumMismatch = errors.New("checksum mismatch")
+)
 
 // ErrWrongWIFNetwork describes an error in which the provided WIF is not for
 // the expected network.
