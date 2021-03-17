@@ -1,5 +1,5 @@
 // Copyright (c) 2013, 2014 The btcsuite developers
-// Copyright (c) 2015-2020 The Decred developers
+// Copyright (c) 2015-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -71,34 +71,6 @@ func encodePKAddress(serializedPK []byte, netID [2]byte, algo dcrec.SignatureTyp
 
 	pubKeyBytes = append(pubKeyBytes, compressed...)
 	return base58.CheckEncode(pubKeyBytes, netID)
-}
-
-// AddressParams defines an interface that is used to provide the parameters
-// required when encoding and decoding addresses.  These values are typically
-// well-defined and unique per network.
-type AddressParams interface {
-	// AddrIDPubKeyV0 returns the magic prefix bytes for version 0 pay-to-pubkey
-	// addresses.
-	AddrIDPubKeyV0() [2]byte
-
-	// AddrIDPubKeyHashECDSAV0 returns the magic prefix bytes for version 0
-	// pay-to-pubkey-hash addresses where the underlying pubkey is secp256k1 and
-	// the signature algorithm is ECDSA.
-	AddrIDPubKeyHashECDSAV0() [2]byte
-
-	// AddrIDPubKeyHashEd25519V0 returns the magic prefix bytes for version 0
-	// pay-to-pubkey-hash addresses where the underlying pubkey and signature
-	// algorithm are Ed25519.
-	AddrIDPubKeyHashEd25519V0() [2]byte
-
-	// AddrIDPubKeyHashSchnorrV0 returns the magic prefix bytes for version 0
-	// pay-to-pubkey-hash addresses where the underlying pubkey is secp256k1 and
-	// the signature algorithm is Schnorr.
-	AddrIDPubKeyHashSchnorrV0() [2]byte
-
-	// AddrIDScriptHashV0 returns the magic prefix bytes for version 0
-	// pay-to-script-hash addresses.
-	AddrIDScriptHashV0() [2]byte
 }
 
 // Address is an interface type for any type of destination a transaction
