@@ -3826,6 +3826,7 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB,
 	// network.
 	var newAddressFunc func() (net.Addr, error)
 	if !cfg.SimNet && !cfg.RegNet && len(cfg.ConnectPeers) == 0 {
+		isTorDisabled := cfg.OnionProxy == ""
 		newAddressFunc = func() (net.Addr, error) {
 			for tries := 0; tries < 100; tries++ {
 				// Note that this does not filter by address type.  Unsupported
@@ -3836,13 +3837,20 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB,
 					break
 				}
 
+				netAddr := addr.NetAddress()
+
+				// Discard TORv3 addresses if not configured to connect to an
+				// onion proxy.
+				if isTorDisabled && netAddr.Type == addrmgr.TORv3Address {
+					continue
+				}
+
 				// Address will not be invalid, local or unroutable
 				// because addrmanager rejects those on addition.
 				// Just check that we don't already have an address
 				// in the same group so that we are not connecting
 				// to the same network segment at the expense of
 				// others.
-				netAddr := addr.NetAddress()
 				if s.OutboundGroupCount(netAddr.GroupKey()) != 0 {
 					continue
 				}
@@ -4064,11 +4072,29 @@ func initListeners(ctx context.Context, params *chaincfg.Params, amgr *addrmgr.A
 
 // addrStringToNetAddr takes an address in the form of 'host:port' and returns
 // a net.Addr which maps to the original address with any host names resolved
-// to IP addresses.
+// to IP addresses, if applicable for the respective address type.
 func addrStringToNetAddr(addr string) (net.Addr, error) {
 	host, strPort, err := net.SplitHostPort(addr)
 	if err != nil {
 		return nil, err
+	}
+	port, err := strconv.Atoi(strPort)
+	if err != nil {
+		return nil, err
+	}
+
+	// Determine the network that the address belongs to and return early if
+	// a DNS lookup should not be performed for the address.
+	networkID, _, err := addrmgr.ParseHost(host)
+	if err != nil {
+		return nil, err
+	}
+	switch networkID {
+	case addrmgr.TORv3Address:
+		return &simpleAddr{
+			net:  "tcp",
+			addr: addr,
+		}, nil
 	}
 
 	// Attempt to look up an IP address associated with the parsed host.
@@ -4080,11 +4106,6 @@ func addrStringToNetAddr(addr string) (net.Addr, error) {
 	}
 	if len(ips) == 0 {
 		return nil, fmt.Errorf("no addresses found for %s", host)
-	}
-
-	port, err := strconv.Atoi(strPort)
-	if err != nil {
-		return nil, err
 	}
 
 	return &net.TCPAddr{
