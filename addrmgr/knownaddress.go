@@ -41,8 +41,8 @@ type KnownAddress struct {
 	refs int
 }
 
-// NetAddress returns the underlying wire.NetAddress associated with the
-// known address.
+// NetAddress returns the underlying address manager network address associated
+// with the known address.
 func (ka *KnownAddress) NetAddress() *NetAddress {
 	ka.mtx.Lock()
 	defer ka.mtx.Unlock()

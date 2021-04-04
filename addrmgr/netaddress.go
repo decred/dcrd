@@ -6,6 +6,7 @@ package addrmgr
 
 import (
 	"encoding/base32"
+	"fmt"
 	"net"
 	"strconv"
 	"strings"
@@ -16,6 +17,9 @@ import (
 
 // NetAddress defines information about a peer on the network.
 type NetAddress struct {
+	// Type represents the type of network that the network address belongs to.
+	Type NetAddressType
+
 	// IP address of the peer. It is defined as a byte array to support various
 	// address types that are not standard to the net module and therefore not
 	// entirely appropriate to store as a net.IP.
@@ -43,8 +47,8 @@ func (netAddr *NetAddress) IsRoutable() bool {
 // port.
 func (netAddr *NetAddress) ipString() string {
 	netIP := netAddr.IP
-	if isOnionCatTor(netIP) {
-		// We know now that na.IP is long enough.
+	switch netAddr.Type {
+	case TORv2Address:
 		base32 := base32.StdEncoding.EncodeToString(netIP[6:])
 		return strings.ToLower(base32) + ".onion"
 	}
@@ -78,8 +82,79 @@ func (netAddr *NetAddress) AddService(service wire.ServiceFlag) {
 	netAddr.Services |= service
 }
 
-// newAddressFromString creates a new address manager network address from the
-// provided string.  The address is expected to be provided in the format
+// canonicalizeIP converts the provided address' bytes into a standard structure
+// based on the type of the network address, if applicable.
+func canonicalizeIP(addrType NetAddressType, addrBytes []byte) []byte {
+	if addrBytes == nil {
+		return []byte{}
+	}
+	len := len(addrBytes)
+	switch {
+	case len == 16 && addrType == IPv4Address:
+		return net.IP(addrBytes).To4()
+	case len == 10 && addrType == TORv2Address:
+		prefix := []byte{0xfd, 0x87, 0xd8, 0x7e, 0xeb, 0x43}
+		return append(prefix, addrBytes...)
+	case addrType == IPv6Address:
+		return net.IP(addrBytes).To16()
+	}
+	return addrBytes
+}
+
+// deriveNetAddressType attempts to determine the network address type from
+// the address' raw bytes.  If the type cannot be determined, an error is
+// returned.
+func deriveNetAddressType(addrBytes []byte) (NetAddressType, error) {
+	len := len(addrBytes)
+	switch {
+	case isIPv4(addrBytes):
+		return IPv4Address, nil
+	case len == 16 && isOnionCatTor(addrBytes):
+		return TORv2Address, nil
+	case len == 16:
+		return IPv6Address, nil
+	}
+	strErr := fmt.Sprintf("unable to determine address type from raw network "+
+		"address bytes: %v", addrBytes)
+	return UnknownAddressType, makeError(ErrUnknownAddressType, strErr)
+}
+
+// assertNetAddressTypeValid returns an error if the suggested address type does
+// not appear to match the provided address.
+func assertNetAddressTypeValid(netAddressType NetAddressType, addrBytes []byte) error {
+	derivedAddressType, err := deriveNetAddressType(addrBytes)
+	if err != nil {
+		return err
+	}
+	if netAddressType != derivedAddressType {
+		str := fmt.Sprintf("derived address type does not match expected value"+
+			" (got %v, expected %v, address bytes %v).", derivedAddressType,
+			netAddressType, addrBytes)
+		return makeError(ErrMismatchedAddressType, str)
+	}
+	return nil
+}
+
+// NewNetAddressByType creates a new network address using the provided
+// parameters.  If the provided network id does not appear to match the address,
+// an error is returned.
+func NewNetAddressByType(netAddressType NetAddressType, addrBytes []byte, port uint16, timestamp time.Time, services wire.ServiceFlag) (*NetAddress, error) {
+	canonicalizedIP := canonicalizeIP(netAddressType, addrBytes)
+	err := assertNetAddressTypeValid(netAddressType, canonicalizedIP)
+	if err != nil {
+		return nil, err
+	}
+	return &NetAddress{
+		Type:      netAddressType,
+		IP:        canonicalizedIP,
+		Port:      port,
+		Services:  services,
+		Timestamp: timestamp,
+	}, nil
+}
+
+// newAddressFromString creates a new address manager network address from
+// the provided string.  The address is expected to be provided in the format
 // host:port.
 func (a *AddrManager) newAddressFromString(addr string) (*NetAddress, error) {
 	host, portStr, err := net.SplitHostPort(addr)
@@ -91,15 +166,30 @@ func (a *AddrManager) newAddressFromString(addr string) (*NetAddress, error) {
 		return nil, err
 	}
 
-	return a.HostToNetAddress(host, uint16(port), wire.SFNodeNetwork)
+	networkID, addrBytes, err := ParseHost(host)
+	if err != nil {
+		return nil, err
+	}
+	if networkID == UnknownAddressType {
+		str := fmt.Sprintf("failed to deserialize address %s", addr)
+		return nil, makeError(ErrUnknownAddressType, str)
+	}
+	timestamp := time.Unix(time.Now().Unix(), 0)
+	return NewNetAddressByType(networkID, addrBytes, uint16(port), timestamp,
+		wire.SFNodeNetwork)
 }
 
-// NewNetAddressIPPort creates a new address manager network address given an ip,
-// port, and the supported service flags for the address.
+// NewNetAddressIPPort creates a new address manager network address given an
+// ip, port, and the supported service flags for the address.  The provided ip
+// MUST be an IPv4, IPv6, or TORv2 address since this method does not perform
+// error checking on the derived network address type.
 func NewNetAddressIPPort(ip net.IP, port uint16, services wire.ServiceFlag) *NetAddress {
+	netAddressType, _ := deriveNetAddressType(ip)
 	timestamp := time.Unix(time.Now().Unix(), 0)
+	canonicalizedIP := canonicalizeIP(netAddressType, ip)
 	return &NetAddress{
-		IP:        ip,
+		Type:      netAddressType,
+		IP:        canonicalizedIP,
 		Port:      port,
 		Services:  services,
 		Timestamp: timestamp,

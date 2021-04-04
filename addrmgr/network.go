@@ -121,28 +121,11 @@ func isOnionCatTor(netIP net.IP) bool {
 type NetAddressType uint8
 
 const (
-	LocalAddress NetAddressType = iota
+	UnknownAddressType NetAddressType = iota
 	IPv4Address
 	IPv6Address
 	TORv2Address
 )
-
-// addressType returns the network address type of the provided network address.
-func addressType(netIP net.IP) NetAddressType {
-	switch {
-	case isLocal(netIP):
-		return LocalAddress
-
-	case isIPv4(netIP):
-		return IPv4Address
-
-	case isOnionCatTor(netIP):
-		return TORv2Address
-
-	default:
-		return IPv6Address
-	}
-}
 
 // isRFC1918 returns whether or not the passed address is part of the IPv4
 // private network address space as defined by RFC1918 (10.0.0.0/8,
@@ -269,7 +252,7 @@ func (na *NetAddress) GroupKey() string {
 	if !IsRoutable(netIP) {
 		return "unroutable"
 	}
-	if isIPv4(netIP) {
+	if na.Type == IPv4Address {
 		return netIP.Mask(net.CIDRMask(16, 32)).String()
 	}
 	if isRFC6145(netIP) || isRFC6052(netIP) {
@@ -291,7 +274,7 @@ func (na *NetAddress) GroupKey() string {
 		}
 		return newIP.Mask(net.CIDRMask(16, 32)).String()
 	}
-	if isOnionCatTor(netIP) {
+	if na.Type == TORv2Address {
 		// group is keyed off the first 4 bits of the actual onion key.
 		return fmt.Sprintf("tor:%d", netIP[6]&((1<<4)-1))
 	}
