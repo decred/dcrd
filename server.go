@@ -6,6 +6,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"crypto/elliptic"
 	"crypto/rand"
@@ -313,20 +314,20 @@ type peerState struct {
 }
 
 // ConnectionsWithIP returns the number of connections with the given IP.
-func (ps *peerState) ConnectionsWithIP(ip net.IP) int {
+func (ps *peerState) ConnectionsWithIP(ip []byte) int {
 	var total int
 	for _, p := range ps.inboundPeers {
-		if ip.Equal(p.NA().IP) {
+		if bytes.Equal(ip, p.NA().IP) {
 			total++
 		}
 	}
 	for _, p := range ps.outboundPeers {
-		if ip.Equal(p.NA().IP) {
+		if bytes.Equal(ip, p.NA().IP) {
 			total++
 		}
 	}
 	for _, p := range ps.persistentPeers {
-		if ip.Equal(p.NA().IP) {
+		if bytes.Equal(ip, p.NA().IP) {
 			total++
 		}
 	}
@@ -739,7 +740,7 @@ func (sp *serverPeer) OnVersion(_ *peer.Peer, msg *wire.MsgVersion) {
 	// enforced and the remote node has not upgraded yet.
 	isInbound := sp.Inbound()
 	msgProtocolVersion := uint32(msg.ProtocolVersion)
-	remoteAddr := wireToAddrmgrNetAddress(sp.NA())
+	remoteAddr := sp.NA()
 	addrManager := sp.server.addrManager
 	if !cfg.SimNet && !cfg.RegNet && !isInbound {
 		err := addrManager.SetServices(remoteAddr, msg.Services)
@@ -1458,7 +1459,7 @@ func (sp *serverPeer) OnAddr(p *peer.Peer, msg *wire.MsgAddr) {
 	// Add addresses to server address manager.  The address manager handles
 	// the details of things such as preventing duplicate addresses, max
 	// addresses, and last seen updates.
-	remoteAddr := wireToAddrmgrNetAddress(p.NA())
+	remoteAddr := p.NA()
 	sp.server.addrManager.AddAddresses(addrList, remoteAddr)
 }
 
@@ -1711,7 +1712,10 @@ func (s *server) handleAddPeerMsg(state *peerState, sp *serverPeer) bool {
 	// Limit max number of connections from a single IP.  However, allow
 	// whitelisted inbound peers and localhost connections regardless.
 	isInboundWhitelisted := sp.isWhitelisted && sp.Inbound()
-	peerIP := sp.NA().IP
+
+	// Since an address manager IP is just a byte array, cast it to access
+	// convenience methods on net.IP.
+	peerIP := net.IP(sp.NA().IP)
 	if cfg.MaxSameIP > 0 && !isInboundWhitelisted && !peerIP.IsLoopback() &&
 		state.ConnectionsWithIP(peerIP)+1 > cfg.MaxSameIP {
 		srvrLog.Infof("Max connections with %s reached [%d] - "+
@@ -1753,7 +1757,7 @@ func (s *server) handleAddPeerMsg(state *peerState, sp *serverPeer) bool {
 			}
 		}
 	} else {
-		remoteAddr := wireToAddrmgrNetAddress(sp.NA())
+		remoteAddr := sp.NA()
 		state.outboundGroups[remoteAddr.GroupKey()]++
 		if sp.persistent {
 			state.persistentPeers[sp.ID()] = sp
@@ -1840,7 +1844,7 @@ func (s *server) handleDonePeerMsg(state *peerState, sp *serverPeer) {
 	}
 	if _, ok := list[sp.ID()]; ok {
 		if !sp.Inbound() && sp.VersionKnown() {
-			remoteAddr := wireToAddrmgrNetAddress(sp.NA())
+			remoteAddr := sp.NA()
 			state.outboundGroups[remoteAddr.GroupKey()]--
 		}
 		if !sp.Inbound() && sp.connReq != nil {
@@ -1858,7 +1862,7 @@ func (s *server) handleDonePeerMsg(state *peerState, sp *serverPeer) {
 	// Update the address' last seen time if the peer has acknowledged
 	// our version and has sent us its version as well.
 	if sp.VerAckReceived() && sp.VersionKnown() && sp.NA() != nil {
-		remoteAddr := wireToAddrmgrNetAddress(sp.NA())
+		remoteAddr := sp.NA()
 		err := s.addrManager.Connected(remoteAddr)
 		if err != nil {
 			srvrLog.Debugf("Marking address as connected failed: %v", err)
@@ -2072,7 +2076,7 @@ func (s *server) handleQuery(state *peerState, querymsg interface{}) {
 		found := disconnectPeer(state.persistentPeers, msg.cmp, func(sp *serverPeer) {
 			// Keep group counts ok since we remove from
 			// the list now.
-			remoteAddr := wireToAddrmgrNetAddress(sp.NA())
+			remoteAddr := sp.NA()
 			state.outboundGroups[remoteAddr.GroupKey()]--
 
 			peerLog.Debugf("Removing persistent peer %s (reqid %d)", remoteAddr,
@@ -2128,7 +2132,7 @@ func (s *server) handleQuery(state *peerState, querymsg interface{}) {
 		found = disconnectPeer(state.outboundPeers, msg.cmp, func(sp *serverPeer) {
 			// Keep group counts ok since we remove from
 			// the list now.
-			remoteAddr := wireToAddrmgrNetAddress(sp.NA())
+			remoteAddr := sp.NA()
 			state.outboundGroups[remoteAddr.GroupKey()]--
 		})
 		if found {
@@ -2137,7 +2141,7 @@ func (s *server) handleQuery(state *peerState, querymsg interface{}) {
 			// peers are found.
 			for found {
 				found = disconnectPeer(state.outboundPeers, msg.cmp, func(sp *serverPeer) {
-					remoteAddr := wireToAddrmgrNetAddress(sp.NA())
+					remoteAddr := sp.NA()
 					state.outboundGroups[remoteAddr.GroupKey()]--
 				})
 			}
@@ -2206,14 +2210,8 @@ func newPeerConfig(sp *serverPeer) *peer.Config {
 			OnWrite:          sp.OnWrite,
 			OnNotFound:       sp.OnNotFound,
 		},
-		NewestBlock: sp.newestBlock,
-		HostToNetAddress: func(host string, port uint16, services wire.ServiceFlag) (*wire.NetAddress, error) {
-			address, err := sp.server.addrManager.HostToNetAddress(host, port, services)
-			if err != nil {
-				return nil, err
-			}
-			return addrmgrToWireNetAddress(address), nil
-		},
+		NewestBlock:       sp.newestBlock,
+		HostToNetAddress:  sp.server.addrManager.HostToNetAddress,
 		Proxy:             cfg.Proxy,
 		UserAgentName:     userAgentName,
 		UserAgentVersion:  userAgentVersion,
@@ -2257,7 +2255,7 @@ func (s *server) outboundPeerConnected(c *connmgr.ConnReq, conn net.Conn) {
 	sp.AssociateConnection(conn)
 	go s.peerDoneHandler(sp)
 
-	remoteAddr := wireToAddrmgrNetAddress(sp.NA())
+	remoteAddr := sp.NA()
 	err = s.addrManager.Attempt(remoteAddr)
 	if err != nil {
 		srvrLog.Debugf("Marking address as attempted failed: %v", err)
