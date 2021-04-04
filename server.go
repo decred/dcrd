@@ -444,9 +444,8 @@ func (ps *peerState) ResolveLocalAddress(netType addrmgr.NetAddressType, addrMgr
 
 		// Add a local address if the network address is a probable external
 		// endpoint of the listener.
-		lNa := wire.NewNetAddressIPPort(listenerIP, uint16(port), services)
 		lNet := addrmgr.IPv4Address
-		if lNa.IP.To4() == nil {
+		if listenerIP.To4() == nil {
 			lNet = addrmgr.IPv6Address
 		}
 
@@ -705,6 +704,25 @@ func hasServices(advertised, desired wire.ServiceFlag) bool {
 	return advertised&desired == desired
 }
 
+// isSupportedNetAddressTypeV1 returns whether the provided address manager
+// network address type is supported by the addr wire message.
+func isSupportedNetAddressTypeV1(netAddressType addrmgr.NetAddressType) bool {
+	switch netAddressType {
+	case addrmgr.IPv4Address:
+	case addrmgr.IPv6Address:
+	case addrmgr.TORv2Address:
+		return true
+	}
+	return false
+}
+
+// getNetAddressTypeFilter returns a function that determines whether a
+// specific address manager network address type is supported by the
+// provided protocol version.
+func getNetAddressTypeFilter(pver uint32) addrmgr.NetAddressTypeFilter {
+	return isSupportedNetAddressTypeV1
+}
+
 // OnVersion is invoked when a peer receives a version wire message and is used
 // to negotiate the protocol version details as well as kick start the
 // communications.
@@ -720,6 +738,7 @@ func (sp *serverPeer) OnVersion(_ *peer.Peer, msg *wire.MsgVersion) {
 	// it is updated regardless in the case a new minimum protocol version is
 	// enforced and the remote node has not upgraded yet.
 	isInbound := sp.Inbound()
+	msgProtocolVersion := uint32(msg.ProtocolVersion)
 	remoteAddr := wireToAddrmgrNetAddress(sp.NA())
 	addrManager := sp.server.addrManager
 	if !cfg.SimNet && !cfg.RegNet && !isInbound {
@@ -730,7 +749,7 @@ func (sp *serverPeer) OnVersion(_ *peer.Peer, msg *wire.MsgVersion) {
 	}
 
 	// Reject peers that have a protocol version that is too old.
-	if msg.ProtocolVersion < int32(wire.SendHeadersVersion) {
+	if msgProtocolVersion < wire.SendHeadersVersion {
 		srvrLog.Debugf("Rejecting peer %s with protocol version %d prior to "+
 			"the required version %d", sp.Peer, msg.ProtocolVersion,
 			wire.SendHeadersVersion)
@@ -760,7 +779,8 @@ func (sp *serverPeer) OnVersion(_ *peer.Peer, msg *wire.MsgVersion) {
 		// known tip.
 		if !cfg.DisableListen && sp.server.syncManager.IsCurrent() {
 			// Get address that best matches.
-			lna := addrManager.GetBestLocalAddress(remoteAddr)
+			naTypeFilter := getNetAddressTypeFilter(msgProtocolVersion)
+			lna := addrManager.GetBestLocalAddress(remoteAddr, naTypeFilter)
 			if lna.IsRoutable() {
 				// Filter addresses the peer already knows about.
 				addresses := []*addrmgr.NetAddress{lna}
@@ -1387,7 +1407,9 @@ func (sp *serverPeer) OnGetAddr(p *peer.Peer, msg *wire.MsgGetAddr) {
 	sp.addrsSent = true
 
 	// Get the current known addresses from the address manager.
-	addrCache := sp.server.addrManager.AddressCache()
+	pver := sp.ProtocolVersion()
+	naTypeFilter := getNetAddressTypeFilter(pver)
+	addrCache := sp.server.addrManager.AddressCache(naTypeFilter)
 
 	// Push the addresses.
 	sp.pushAddrMsg(addrCache)
@@ -3781,6 +3803,9 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB,
 	if !cfg.SimNet && !cfg.RegNet && len(cfg.ConnectPeers) == 0 {
 		newAddressFunc = func() (net.Addr, error) {
 			for tries := 0; tries < 100; tries++ {
+				// Note that this does not filter by address type.  Unsupported
+				// network address types should be pruned from the address
+				// manager's internal storage prior to calling this function.
 				addr := s.addrManager.GetAddress()
 				if addr == nil {
 					break

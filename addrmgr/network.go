@@ -127,6 +127,12 @@ const (
 	TORv2Address
 )
 
+// NetAddressTypeFilter represents a function that returns whether a particular
+// network address type matches a filter.  Internally, it is used to ensure that
+// only addresses that pass the filter's constraints are returned from the
+// address manager.
+type NetAddressTypeFilter func(NetAddressType) bool
+
 // isRFC1918 returns whether or not the passed address is part of the IPv4
 // private network address space as defined by RFC1918 (10.0.0.0/8,
 // 172.16.0.0/12, or 192.168.0.0/16).
