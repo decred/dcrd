@@ -10,6 +10,7 @@ package rpctest
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"testing"
 	"time"
@@ -408,39 +409,49 @@ func testJoinMempools(ctx context.Context, r *Harness, t *testing.T) {
 
 	// Wait until the transaction shows up to ensure the two mempools are
 	// not the same.
-	harnessSynced := make(chan struct{})
+	harnessSynced := make(chan error)
 	go func() {
 		for {
 			poolHashes, err := r.Node.GetRawMempool(ctx, dcrdtypes.GRMAll)
 			if err != nil {
-				t.Fatalf("failed to retrieve harness mempool: %v", err)
+				err = fmt.Errorf("failed to retrieve harness mempool: %w", err)
+				harnessSynced <- err
+				return
 			}
 			if len(poolHashes) > 0 {
 				break
 			}
 			time.Sleep(time.Millisecond * 100)
 		}
-		harnessSynced <- struct{}{}
+		harnessSynced <- nil
 	}()
 
 	select {
-	case <-harnessSynced:
+	case err := <-harnessSynced:
+		if err != nil {
+			t.Fatal(err)
+		}
 	case <-time.After(time.Minute):
-		t.Fatalf("harness node never received transaction")
+		t.Fatal("harness node never received transaction")
 	}
 
 	// This select case should fall through to the default as the goroutine
 	// should be blocked on the JoinNodes call.
-	poolsSynced := make(chan struct{})
+	poolsSynced := make(chan error)
 	go func() {
 		if err := JoinNodes(nodeSlice, Mempools); err != nil {
-			t.Fatalf("unable to join node on mempools: %v", err)
+			err = fmt.Errorf("unable to join node on mempools: %w", err)
+			poolsSynced <- err
+			return
 		}
-		poolsSynced <- struct{}{}
+		poolsSynced <- nil
 	}()
 	select {
-	case <-poolsSynced:
-		t.Fatalf("mempools detected as synced yet harness has a new tx")
+	case err := <-poolsSynced:
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Fatal("mempools detected as synced yet harness has a new tx")
 	default:
 	}
 
@@ -464,10 +475,12 @@ func testJoinMempools(ctx context.Context, r *Harness, t *testing.T) {
 	// channel. The send should immediately succeed. In order to avoid the
 	// test hanging indefinitely, a 1 minute timeout is in place.
 	select {
-	case <-poolsSynced:
-		// fall through
+	case err := <-poolsSynced:
+		if err != nil {
+			t.Fatal(err)
+		}
 	case <-time.After(time.Minute):
-		t.Fatalf("mempools never detected as synced")
+		t.Fatal("mempools never detected as synced")
 	}
 }
 
@@ -487,18 +500,22 @@ func testJoinBlocks(_ context.Context, r *Harness, t *testing.T) {
 	defer harness.TearDown()
 
 	nodeSlice := []*Harness{r, harness}
-	blocksSynced := make(chan struct{})
+	blocksSynced := make(chan error)
 	go func() {
 		if err := JoinNodes(nodeSlice, Blocks); err != nil {
-			t.Fatalf("unable to join node on blocks: %v", err)
+			blocksSynced <- fmt.Errorf("unable to join node on blocks: %w", err)
+			return
 		}
-		blocksSynced <- struct{}{}
+		blocksSynced <- nil
 	}()
 
 	// This select case should fall through to the default as the goroutine
 	// should be blocked on the JoinNodes calls.
 	select {
-	case <-blocksSynced:
+	case err := <-blocksSynced:
+		if err != nil {
+			t.Fatal(err)
+		}
 		t.Fatalf("blocks detected as synced yet local harness is behind")
 	default:
 	}
@@ -514,7 +531,10 @@ func testJoinBlocks(_ context.Context, r *Harness, t *testing.T) {
 	// channel. The send should immediately succeed. In order to avoid the
 	// test hanging indefinitely, a 1 minute timeout is in place.
 	select {
-	case <-blocksSynced:
+	case err := <-blocksSynced:
+		if err != nil {
+			t.Fatal(err)
+		}
 	case <-time.After(time.Minute):
 		t.Fatalf("blocks never detected as synced")
 	}
