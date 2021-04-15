@@ -4859,7 +4859,7 @@ func TestHandleGetTxOut(t *testing.T) {
 		scriptVersion, script, defaultChainParams, false)
 	addresses := make([]string, len(addrs))
 	for i, addr := range addrs {
-		addresses[i] = addr.Address()
+		addresses[i] = addr.String()
 	}
 	txOutResultMempool := types.GetTxOutResult{
 		BestBlock:     block432100.BlockHash().String(),

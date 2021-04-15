@@ -25,9 +25,9 @@ type AddressParams interface {
 // other kinds of addresses may be added in the future without changing the
 // decoding and encoding API.
 type Address interface {
-	// Address returns the string encoding of the payment address for the
+	// String returns the string encoding of the payment address for the
 	// associated script version and payment script.
-	Address() string
+	String() string
 
 	// PaymentScript returns the script version associated with the address
 	// along with a script to pay a transaction output to the address.

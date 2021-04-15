@@ -630,7 +630,7 @@ func (r *FutureValidateAddressResult) Receive() (*chainjson.ValidateAddressChain
 //
 // See ValidateAddress for the blocking version and more details.
 func (c *Client) ValidateAddressAsync(ctx context.Context, address stdaddr.Address) *FutureValidateAddressResult {
-	addr := address.Address()
+	addr := address.String()
 	cmd := chainjson.NewValidateAddressCmd(addr)
 	return (*FutureValidateAddressResult)(c.sendCmd(ctx, cmd))
 }
@@ -668,7 +668,7 @@ func (r *FutureVerifyMessageResult) Receive() (bool, error) {
 //
 // See VerifyMessage for the blocking version and more details.
 func (c *Client) VerifyMessageAsync(ctx context.Context, address stdaddr.Address, signature, message string) *FutureVerifyMessageResult {
-	addr := address.Address()
+	addr := address.String()
 	cmd := chainjson.NewVerifyMessageCmd(addr, signature, message)
 	return (*FutureVerifyMessageResult)(c.sendCmd(ctx, cmd))
 }

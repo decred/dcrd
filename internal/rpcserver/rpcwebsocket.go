@@ -358,7 +358,7 @@ func (f *wsClientFilter) addAddress(a stdaddr.Address) {
 		}
 	}
 
-	f.otherAddresses[a.Address()] = struct{}{}
+	f.otherAddresses[a.String()] = struct{}{}
 }
 
 func (f *wsClientFilter) addAddressStr(s string) {
@@ -395,7 +395,7 @@ func (f *wsClientFilter) existsAddress(a stdaddr.Address) bool {
 		}
 	}
 
-	_, ok := f.otherAddresses[a.Address()]
+	_, ok := f.otherAddresses[a.String()]
 	return ok
 }
 
