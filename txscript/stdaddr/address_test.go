@@ -8,7 +8,6 @@ import (
 	"bytes"
 	"encoding/hex"
 	"errors"
-	"fmt"
 	"testing"
 
 	"github.com/decred/base58"
@@ -1049,7 +1048,7 @@ func TestAddresses(t *testing.T) {
 			}
 
 			// Ensure encoding the address is the same as the original.
-			encoded := addr.Address()
+			encoded := addr.String()
 			if encoded != test.addr {
 				t.Errorf("%s: unexpected address -- got %v, want %v", test.name,
 					encoded, test.addr)
@@ -1207,17 +1206,10 @@ func TestAddresses(t *testing.T) {
 		}
 
 		// Ensure encoding the address is the same as the original.
-		encoded := decodedAddr.Address()
+		encoded := decodedAddr.String()
 		if encoded != test.addr {
 			t.Errorf("%s: decoding and encoding produced different addresses "+
 				"-- got %v, want %v", test.name, encoded, test.addr)
-			continue
-		}
-
-		// Ensure the stringer returns the same address as the original.
-		if ds, ok := decodedAddr.(fmt.Stringer); ok && ds.String() != test.addr {
-			t.Errorf("%s: mismatched decoded stringer -- got %v, want %v",
-				test.name, ds.String(), test.addr)
 			continue
 		}
 
@@ -1258,7 +1250,7 @@ func TestAddresses(t *testing.T) {
 			pkhAddr = a.AddressPubKeyHash()
 		}
 		if pkhAddr != nil {
-			gotAddr := pkhAddr.Address()
+			gotAddr := pkhAddr.String()
 			if gotAddr != wantPkhAddr {
 				t.Errorf("%s: mismatched pkh address -- got %s, want %s",
 					test.name, gotAddr, wantPkhAddr)

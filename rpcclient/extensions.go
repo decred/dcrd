@@ -136,7 +136,7 @@ func (r *FutureExistsAddressResult) Receive() (bool, error) {
 // result of the RPC at some future time by invoking the Receive function on the
 // returned instance.
 func (c *Client) ExistsAddressAsync(ctx context.Context, address stdaddr.Address) *FutureExistsAddressResult {
-	cmd := chainjson.NewExistsAddressCmd(address.Address())
+	cmd := chainjson.NewExistsAddressCmd(address.String())
 	return (*FutureExistsAddressResult)(c.sendCmd(ctx, cmd))
 }
 
@@ -176,7 +176,7 @@ func (r *FutureExistsAddressesResult) Receive() (string, error) {
 func (c *Client) ExistsAddressesAsync(ctx context.Context, addresses []stdaddr.Address) *FutureExistsAddressesResult {
 	addrsStr := make([]string, len(addresses))
 	for i := range addresses {
-		addrsStr[i] = addresses[i].Address()
+		addrsStr[i] = addresses[i].String()
 	}
 
 	cmd := chainjson.NewExistsAddressesCmd(addrsStr)

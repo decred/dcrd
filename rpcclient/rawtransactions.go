@@ -204,7 +204,7 @@ func (c *Client) CreateRawTransactionAsync(ctx context.Context, inputs []chainjs
 
 	convertedAmts := make(map[string]float64, len(amounts))
 	for addr, amount := range amounts {
-		convertedAmts[addr.Address()] = amount.ToCoin()
+		convertedAmts[addr.String()] = amount.ToCoin()
 	}
 	cmd := chainjson.NewCreateRawTransactionCmd(inputs, convertedAmts, lockTime, expiry)
 	return (*FutureCreateRawTransactionResult)(c.sendCmd(ctx, cmd))
@@ -273,13 +273,13 @@ func (c *Client) CreateRawSStxAsync(ctx context.Context, inputs []chainjson.SStx
 
 	convertedAmt := make(map[string]int64, len(amount))
 	for addr, amt := range amount {
-		convertedAmt[addr.Address()] = int64(amt)
+		convertedAmt[addr.String()] = int64(amt)
 	}
 	convertedCouts := make([]chainjson.SStxCommitOut, len(couts))
 	for i, cout := range couts {
-		convertedCouts[i].Addr = cout.Addr.Address()
+		convertedCouts[i].Addr = cout.Addr.String()
 		convertedCouts[i].CommitAmt = int64(cout.CommitAmt)
-		convertedCouts[i].ChangeAddr = cout.ChangeAddr.Address()
+		convertedCouts[i].ChangeAddr = cout.ChangeAddr.String()
 		convertedCouts[i].ChangeAmt = int64(cout.ChangeAmt)
 	}
 
@@ -444,7 +444,7 @@ func (c *Client) SearchRawTransactionsAsync(ctx context.Context,
 	address stdaddr.Address, skip, count int, reverse bool,
 	filterAddrs []string) *FutureSearchRawTransactionsResult {
 
-	addr := address.Address()
+	addr := address.String()
 	verbose := dcrjson.Int(0)
 	prevOut := dcrjson.Int(0)
 	cmd := chainjson.NewSearchRawTransactionsCmd(addr, verbose, &skip, &count,
@@ -499,7 +499,7 @@ func (c *Client) SearchRawTransactionsVerboseAsync(ctx context.Context,
 	address stdaddr.Address, skip, count int, includePrevOut bool, reverse bool,
 	filterAddrs *[]string) *FutureSearchRawTransactionsVerboseResult {
 
-	addr := address.Address()
+	addr := address.String()
 	verbose := dcrjson.Int(1)
 	prevOut := dcrjson.Int(0)
 	if includePrevOut {

@@ -1192,7 +1192,7 @@ func createVoutList(mtx *wire.MsgTx, chainParams *chaincfg.Params, filterAddrMap
 		passesFilter := len(filterAddrMap) == 0
 		encodedAddrs := make([]string, len(addrs))
 		for j, addr := range addrs {
-			encodedAddr := addr.Address()
+			encodedAddr := addr.String()
 			encodedAddrs[j] = encodedAddr
 
 			// No need to check the map again if the filter already
@@ -1349,7 +1349,7 @@ func handleDecodeScript(_ context.Context, s *Server, cmd interface{}) (interfac
 		if pkHasher, ok := addr.(stdaddr.AddressPubKeyHasher); ok {
 			addr = pkHasher.AddressPubKeyHash()
 		}
-		addresses[i] = addr.Address()
+		addresses[i] = addr.String()
 	}
 
 	// Convert the script itself to a pay-to-script-hash address.
@@ -1368,7 +1368,7 @@ func handleDecodeScript(_ context.Context, s *Server, cmd interface{}) (interfac
 		Addresses: addresses,
 	}
 	if scriptClass != txscript.ScriptHashTy {
-		reply.P2sh = p2sh.Address()
+		reply.P2sh = p2sh.String()
 	}
 	return reply, nil
 }
@@ -3526,7 +3526,7 @@ func handleGetTxOut(_ context.Context, s *Server, cmd interface{}) (interface{},
 		scriptVersion, script, s.cfg.ChainParams, isTreasuryEnabled)
 	addresses := make([]string, len(addrs))
 	for i, addr := range addrs {
-		addresses[i] = addr.Address()
+		addresses[i] = addr.String()
 	}
 
 	txOutReply := &types.GetTxOutResult{
@@ -4244,7 +4244,7 @@ func createVinListPrevOut(s *Server, mtx *wire.MsgTx,
 		// the filter when needed.
 		encodedAddrs := make([]string, len(addrs))
 		for j, addr := range addrs {
-			encodedAddr := addr.Address()
+			encodedAddr := addr.String()
 			encodedAddrs[j] = encodedAddr
 
 			// No need to check the map again if the filter already
@@ -5237,7 +5237,7 @@ func handleValidateAddress(_ context.Context, s *Server, cmd interface{}) (inter
 		return result, nil
 	}
 
-	result.Address = addr.Address()
+	result.Address = addr.String()
 	result.IsValid = true
 	return result, nil
 }
@@ -5348,7 +5348,7 @@ func handleVerifyMessage(_ context.Context, s *Server, cmd interface{}) (interfa
 	}
 
 	// Return boolean if addresses match.
-	return address.Address() == c.Address, nil
+	return address.String() == c.Address, nil
 }
 
 // handleVersion implements the version command.

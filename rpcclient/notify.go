@@ -1145,7 +1145,7 @@ func (c *Client) LoadTxFilterAsync(ctx context.Context, reload bool, addresses [
 
 	addrStrs := make([]string, len(addresses))
 	for i, a := range addresses {
-		addrStrs[i] = a.Address()
+		addrStrs[i] = a.String()
 	}
 	outPointObjects := make([]chainjson.OutPoint, len(outPoints))
 	for i := range outPoints {

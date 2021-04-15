@@ -109,7 +109,7 @@ func (b *BlockChain) TicketsWithAddress(address stdaddr.Address, isTreasuryEnabl
 
 	tickets := sn.LiveTickets()
 
-	encodedAddr := address.Address()
+	encodedAddr := address.String()
 	var ticketsWithAddr []chainhash.Hash
 	err := b.db.View(func(dbTx database.Tx) error {
 		for _, hash := range tickets {
@@ -124,7 +124,7 @@ func (b *BlockChain) TicketsWithAddress(address stdaddr.Address, isTreasuryEnabl
 			if err != nil {
 				return err
 			}
-			if addrs[0].Address() == encodedAddr {
+			if addrs[0].String() == encodedAddr {
 				ticketsWithAddr = append(ticketsWithAddr, hash)
 			}
 		}

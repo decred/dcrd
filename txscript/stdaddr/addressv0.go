@@ -203,11 +203,11 @@ func NewAddressPubKeyEcdsaSecp256k1V0(pubKey Secp256k1PublicKey,
 	}, nil
 }
 
-// Address returns the string encoding of the payment address for the associated
+// String returns the string encoding of the payment address for the associated
 // script version and payment script.
 //
 // This is part of the Address interface implementation.
-func (addr *AddressPubKeyEcdsaSecp256k1V0) Address() string {
+func (addr *AddressPubKeyEcdsaSecp256k1V0) String() string {
 	// The format for the data portion of a public key address used with
 	// elliptic curves is:
 	//   identifier byte || 32-byte X coordinate
@@ -263,14 +263,6 @@ func (addr *AddressPubKeyEcdsaSecp256k1V0) AddressPubKeyHash() Address {
 // key.  The bytes must not be modified.
 func (addr *AddressPubKeyEcdsaSecp256k1V0) SerializedPubKey() []byte {
 	return addr.serializedPubKey
-}
-
-// String returns a human-readable string for the address.
-//
-// This is equivalent to calling Address, but is provided so the type can be
-// used as a fmt.Stringer.
-func (addr *AddressPubKeyEcdsaSecp256k1V0) String() string {
-	return addr.Address()
 }
 
 // AddressPubKeyEd25519V0 specifies an address that represents a payment
@@ -331,11 +323,11 @@ func NewAddressPubKeyEd25519V0(pubKey Ed25519PublicKey,
 	}, nil
 }
 
-// Address returns the string encoding of the payment address for the associated
+// String returns the string encoding of the payment address for the associated
 // script version and payment script.
 //
 // This is part of the Address interface implementation.
-func (addr *AddressPubKeyEd25519V0) Address() string {
+func (addr *AddressPubKeyEd25519V0) String() string {
 	// The format for the data portion of a public key address used with
 	// elliptic curves is:
 	//   identifier byte || 32-byte X coordinate
@@ -384,14 +376,6 @@ func (addr *AddressPubKeyEd25519V0) AddressPubKeyHash() Address {
 // bytes must not be modified.
 func (addr *AddressPubKeyEd25519V0) SerializedPubKey() []byte {
 	return addr.serializedPubKey
-}
-
-// String returns a human-readable string for the address.
-//
-// This is equivalent to calling Address, but is provided so the type can be
-// used as a fmt.Stringer.
-func (addr *AddressPubKeyEd25519V0) String() string {
-	return addr.Address()
 }
 
 // AddressPubKeySchnorrSecp256k1V0 specifies an address that represents a
@@ -476,11 +460,11 @@ func NewAddressPubKeySchnorrSecp256k1V0(pubKey Secp256k1PublicKey,
 	}, nil
 }
 
-// Address returns the string encoding of the payment address for the associated
+// String returns the string encoding of the payment address for the associated
 // script version and payment script.
 //
 // This is part of the Address interface implementation.
-func (addr *AddressPubKeySchnorrSecp256k1V0) Address() string {
+func (addr *AddressPubKeySchnorrSecp256k1V0) String() string {
 	// The format for the data portion of a public key address used with
 	// elliptic curves is:
 	//   identifier byte || 32-byte X coordinate
@@ -536,14 +520,6 @@ func (addr *AddressPubKeySchnorrSecp256k1V0) SerializedPubKey() []byte {
 	return addr.serializedPubKey
 }
 
-// String returns a human-readable string for the address.
-//
-// This is equivalent to calling Address, but is provided so the type can be
-// used as a fmt.Stringer.
-func (addr *AddressPubKeySchnorrSecp256k1V0) String() string {
-	return addr.Address()
-}
-
 // AddressPubKeyHashEcdsaSecp256k1V0 specifies an address that represents a
 // payment destination which imposes an encumbrance that requires a secp256k1
 // public key that hashes to the given public key hash along with a valid ECDSA
@@ -597,11 +573,11 @@ func NewAddressPubKeyHashEcdsaSecp256k1V0(pkHash []byte,
 	return addr, nil
 }
 
-// Address returns the string encoding of the payment address for the associated
+// String returns the string encoding of the payment address for the associated
 // script version and payment script.
 //
 // This is part of the Address interface implementation.
-func (addr *AddressPubKeyHashEcdsaSecp256k1V0) Address() string {
+func (addr *AddressPubKeyHashEcdsaSecp256k1V0) String() string {
 	// The format for the data portion of addresses that encode 160-bit hashes
 	// is merely the hash itself:
 	//   20-byte ripemd160 hash
@@ -771,14 +747,6 @@ func (addr *AddressPubKeyHashEcdsaSecp256k1V0) Hash160() *[ripemd160.Size]byte {
 	return &addr.hash
 }
 
-// String returns a human-readable string for the address.
-//
-// This is equivalent to calling Address, but is provided so the type can be
-// used as a fmt.Stringer.
-func (addr *AddressPubKeyHashEcdsaSecp256k1V0) String() string {
-	return addr.Address()
-}
-
 // AddressPubKeyHashEd25519V0 specifies an address that represents a a payment
 // destination which imposes an encumbrance that requires an Ed25519 public key
 // that hashes to the given public key hash along with a valid Ed25519 signature
@@ -821,11 +789,11 @@ func NewAddressPubKeyHashEd25519V0(pkHash []byte,
 	return addr, nil
 }
 
-// Address returns the string encoding of the payment address for the associated
+// String returns the string encoding of the payment address for the associated
 // script version and payment script.
 //
 // This is part of the Address interface implementation.
-func (addr *AddressPubKeyHashEd25519V0) Address() string {
+func (addr *AddressPubKeyHashEd25519V0) String() string {
 	// The format for the data portion of addresses that encode 160-bit hashes
 	// is merely the hash itself:
 	//   20-byte ripemd160 hash
@@ -857,14 +825,6 @@ func (addr *AddressPubKeyHashEd25519V0) PaymentScript() (uint16, []byte) {
 // keys).
 func (addr *AddressPubKeyHashEd25519V0) Hash160() *[ripemd160.Size]byte {
 	return &addr.hash
-}
-
-// String returns a human-readable string for the address.
-//
-// This is equivalent to calling Address, but is provided so the type can be
-// used as a fmt.Stringer.
-func (addr *AddressPubKeyHashEd25519V0) String() string {
-	return addr.Address()
 }
 
 // AddressPubKeyHashSchnorrSecp256k1V0 specifies address that represents a
@@ -916,11 +876,11 @@ func NewAddressPubKeyHashSchnorrSecp256k1V0(pkHash []byte,
 	return addr, nil
 }
 
-// Address returns the string encoding of the payment address for the associated
+// String returns the string encoding of the payment address for the associated
 // script version and payment script.
 //
 // This is part of the Address interface implementation.
-func (addr *AddressPubKeyHashSchnorrSecp256k1V0) Address() string {
+func (addr *AddressPubKeyHashSchnorrSecp256k1V0) String() string {
 	// The format for the data portion of addresses that encode 160-bit hashes
 	// is merely the hash itself:
 	//   20-byte ripemd160 hash
@@ -952,14 +912,6 @@ func (addr *AddressPubKeyHashSchnorrSecp256k1V0) PaymentScript() (uint16, []byte
 // keys).
 func (addr *AddressPubKeyHashSchnorrSecp256k1V0) Hash160() *[ripemd160.Size]byte {
 	return &addr.hash
-}
-
-// String returns a human-readable string for the address.
-//
-// This is equivalent to calling Address, but is provided so the type can be
-// used as a fmt.Stringer.
-func (addr *AddressPubKeyHashSchnorrSecp256k1V0) String() string {
-	return addr.Address()
 }
 
 // AddressScriptHashV0 specifies an address that represents a payment
@@ -1024,11 +976,11 @@ func NewAddressScriptHashV0(redeemScript []byte,
 	return NewAddressScriptHashV0FromHash(scriptHash, params)
 }
 
-// Address returns the string encoding of the payment address for the associated
+// String returns the string encoding of the payment address for the associated
 // script version and payment script.
 //
 // This is part of the Address interface implementation.
-func (addr *AddressScriptHashV0) Address() string {
+func (addr *AddressScriptHashV0) String() string {
 	// The format for the data portion of addresses that encode 160-bit hashes
 	// is merely the hash itself:
 	//   20-byte ripemd160 hash
@@ -1173,14 +1125,6 @@ func (addr *AddressScriptHashV0) PayFromTreasuryScript() (uint16, []byte) {
 // is more appropriate than a slice (for example, when used as map keys).
 func (addr *AddressScriptHashV0) Hash160() *[ripemd160.Size]byte {
 	return &addr.hash
-}
-
-// String returns a human-readable string for the address.
-//
-// This is equivalent to calling Address, but is provided so the type can be
-// used as a fmt.Stringer.
-func (addr *AddressScriptHashV0) String() string {
-	return addr.Address()
 }
 
 // DecodeAddressV0 decodes the string encoding of an address and returns the

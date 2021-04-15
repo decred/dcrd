@@ -142,7 +142,7 @@ implemented by all supported address types.
 
 Use the `PaymentScript` method to obtain the scripting language version
 associated with the address along with a script to pay a transaction output to
-the address and the `Address` method to get the human-readable string encoding
+the address and the `String` method to get the human-readable string encoding
 of the address.
 
 ### Address Use in the Staking System
