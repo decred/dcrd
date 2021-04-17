@@ -12,11 +12,81 @@ import (
 	"path/filepath"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/decred/dcrd/blockchain/stake/v4"
 	"github.com/decred/dcrd/database/v2"
 	"github.com/decred/dcrd/wire"
 )
+
+// TestDbFetchUtxoDatabaseInfo ensures that putting and fetching the utxo
+// database info works as expected.
+func TestDbFetchUtxoDatabaseInfo(t *testing.T) {
+	t.Parallel()
+
+	// Create a test database.
+	dbPath := filepath.Join(os.TempDir(), "test-dbfetchutxodatabaseinfo")
+	_ = os.RemoveAll(dbPath)
+	db, err := database.Create("ffldb", dbPath, wire.MainNet)
+	if err != nil {
+		t.Fatalf("error creating test database: %v", err)
+	}
+	defer os.RemoveAll(dbPath)
+	defer db.Close()
+
+	tests := []struct {
+		name   string
+		dbInfo *utxoDatabaseInfo
+	}{{
+		name:   "without UTXO database info (fresh database)",
+		dbInfo: nil,
+	}, {
+		name: "with UTXO database info",
+		dbInfo: &utxoDatabaseInfo{
+			version: 1,
+			compVer: 2,
+			utxoVer: 3,
+			created: time.Unix(1584246683, 0), // 2020-03-15 04:31:23 UTC
+		},
+	}}
+
+	for _, test := range tests {
+		if test.dbInfo != nil {
+			// Create the UTXO database info bucket.
+			err = db.Update(func(dbTx database.Tx) error {
+				_, err := dbTx.Metadata().CreateBucketIfNotExists(utxoDbInfoBucketName)
+				return err
+			})
+			if err != nil {
+				t.Fatalf("%q: error creating UTXO bucket: %v", test.name, err)
+			}
+
+			// Update the UTXO database info in the database.
+			err = db.Update(func(dbTx database.Tx) error {
+				return dbPutUtxoDatabaseInfo(dbTx, test.dbInfo)
+			})
+			if err != nil {
+				t.Fatalf("%q: error putting UTXO database info: %v", test.name, err)
+			}
+		}
+
+		// Fetch the UTXO database info from the database.
+		err = db.View(func(dbTx database.Tx) error {
+			gotDbInfo := dbFetchUtxoDatabaseInfo(dbTx)
+
+			// Ensure that the fetched UTXO database info matches the expected UTXO
+			// database info.
+			if !reflect.DeepEqual(gotDbInfo, test.dbInfo) {
+				t.Fatalf("%q: mismatched db info:\nwant: %+v\n got: %+v\n", test.name,
+					test.dbInfo, gotDbInfo)
+			}
+			return nil
+		})
+		if err != nil {
+			t.Fatalf("%q: error fetching UTXO database info: %v", test.name, err)
+		}
+	}
+}
 
 // TestUtxoSerialization ensures serializing and deserializing unspent
 // transaction output entries works as expected.

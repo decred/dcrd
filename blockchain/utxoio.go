@@ -8,6 +8,7 @@ package blockchain
 import (
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/decred/dcrd/blockchain/standalone/v2"
 	"github.com/decred/dcrd/chaincfg/chainhash"
@@ -16,6 +17,29 @@ import (
 )
 
 var (
+	// utxoDbInfoBucketName is the name of the database bucket used to house
+	// global versioning and date information for the UTXO database.
+	utxoDbInfoBucketName = []byte("dbinfo")
+
+	// utxoDbInfoVersionKeyName is the name of the database key used to house the
+	// database version.  It is itself under the utxoDbInfoBucketName bucket.
+	utxoDbInfoVersionKeyName = []byte("version")
+
+	// utxoDbInfoCompressionVerKeyName is the name of the database key used to
+	// house the database compression version.  It is itself under the
+	// utxoDbInfoBucketName bucket.
+	utxoDbInfoCompressionVerKeyName = []byte("compver")
+
+	// utxoDbInfoUtxoVerKeyName is the name of the database key used to house the
+	// database UTXO set version.  It is itself under the utxoDbInfoBucketName
+	// bucket.
+	utxoDbInfoUtxoVerKeyName = []byte("utxover")
+
+	// utxoDbInfoCreatedKeyName is the name of the database key used to house
+	// the date the database was created.  It is itself under the
+	// utxoDbInfoBucketName bucket.
+	utxoDbInfoCreatedKeyName = []byte("created")
+
 	// utxoSetBucketName is the name of the db bucket used to house the unspent
 	// transaction output set.
 	utxoSetBucketName = []byte("utxosetv3")
@@ -24,6 +48,120 @@ var (
 	// state of the unspent transaction output set.
 	utxoSetStateKeyName = []byte("utxosetstate")
 )
+
+// -----------------------------------------------------------------------------
+// The UTXO database information contains information about the version and date
+// of the UTXO database.
+//
+// It consists of a separate key for each individual piece of information:
+//
+//  Key        Value    Size      Description
+//  version    uint32   4 bytes   The version of the database
+//  compver    uint32   4 bytes   The script compression version of the database
+//  utxover    uint32   4 bytes   The UTXO set version of the database
+//  created    uint64   8 bytes   The date of the creation of the database
+// -----------------------------------------------------------------------------
+
+// utxoDatabaseInfo is the structure that holds the versioning and date
+// information for the UTXO database.
+type utxoDatabaseInfo struct {
+	version uint32
+	compVer uint32
+	utxoVer uint32
+	created time.Time
+}
+
+// dbPutUtxoDatabaseInfo uses an existing database transaction to store the
+// database information.
+func dbPutUtxoDatabaseInfo(dbTx database.Tx, dbi *utxoDatabaseInfo) error {
+	// uint32Bytes is a helper function to convert a uint32 to a byte slice
+	// using the byte order specified by the database namespace.
+	uint32Bytes := func(ui32 uint32) []byte {
+		var b [4]byte
+		byteOrder.PutUint32(b[:], ui32)
+		return b[:]
+	}
+
+	// uint64Bytes is a helper function to convert a uint64 to a byte slice
+	// using the byte order specified by the database namespace.
+	uint64Bytes := func(ui64 uint64) []byte {
+		var b [8]byte
+		byteOrder.PutUint64(b[:], ui64)
+		return b[:]
+	}
+
+	// Store the database version.
+	meta := dbTx.Metadata()
+	bucket := meta.Bucket(utxoDbInfoBucketName)
+	err := bucket.Put(utxoDbInfoVersionKeyName, uint32Bytes(dbi.version))
+	if err != nil {
+		return err
+	}
+
+	// Store the compression version.
+	err = bucket.Put(utxoDbInfoCompressionVerKeyName, uint32Bytes(dbi.compVer))
+	if err != nil {
+		return err
+	}
+
+	// Store the UTXO set version.
+	err = bucket.Put(utxoDbInfoUtxoVerKeyName, uint32Bytes(dbi.utxoVer))
+	if err != nil {
+		return err
+	}
+
+	// Store the database creation date.
+	return bucket.Put(utxoDbInfoCreatedKeyName,
+		uint64Bytes(uint64(dbi.created.Unix())))
+}
+
+// dbFetchUtxoDatabaseInfo uses an existing database transaction to fetch the
+// database versioning and creation information.
+func dbFetchUtxoDatabaseInfo(dbTx database.Tx) *utxoDatabaseInfo {
+	meta := dbTx.Metadata()
+	bucket := meta.Bucket(utxoDbInfoBucketName)
+
+	// Uninitialized state.
+	if bucket == nil {
+		return nil
+	}
+
+	// Load the database version.
+	var version uint32
+	versionBytes := bucket.Get(utxoDbInfoVersionKeyName)
+	if versionBytes != nil {
+		version = byteOrder.Uint32(versionBytes)
+	}
+
+	// Load the database compression version.
+	var compVer uint32
+	compVerBytes := bucket.Get(utxoDbInfoCompressionVerKeyName)
+	if compVerBytes != nil {
+		compVer = byteOrder.Uint32(compVerBytes)
+	}
+
+	// Load the database UTXO set version.
+	var utxoVer uint32
+	utxoVerBytes := bucket.Get(utxoDbInfoUtxoVerKeyName)
+	if utxoVerBytes != nil {
+		utxoVer = byteOrder.Uint32(utxoVerBytes)
+	}
+
+	// Load the database creation date.
+	var created time.Time
+	createdBytes := bucket.Get(utxoDbInfoCreatedKeyName)
+	if createdBytes != nil {
+		ts := byteOrder.Uint64(createdBytes)
+		created = time.Unix(int64(ts), 0)
+	}
+
+	return &utxoDatabaseInfo{
+		version: version,
+		compVer: compVer,
+		utxoVer: utxoVer,
+		created: created,
+	}
+}
 
 // -----------------------------------------------------------------------------
 // The unspent transaction output (utxo) set consists of an entry for each

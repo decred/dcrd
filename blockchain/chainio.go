@@ -24,12 +24,11 @@ import (
 )
 
 const (
-	// currentDatabaseVersion indicates what the current database
-	// version is.
+	// currentDatabaseVersion indicates the current database version.
 	currentDatabaseVersion = 9
 
-	// currentBlockIndexVersion indicates what the current block index
-	// database version.
+	// currentBlockIndexVersion indicates the current block index database
+	// version.
 	currentBlockIndexVersion = 3
 
 	// blockHdrSize is the size of a block header.  This is simply the
