@@ -720,6 +720,12 @@ func (b *BlockChain) initUtxoDbInfo(ctx context.Context) error {
 // database.  This entails running any database migrations as necessary as well
 // as initializing the UTXO cache.
 func (b *BlockChain) initUtxoState(ctx context.Context) error {
+	// Upgrade the UTXO database as needed.
+	err := upgradeUtxoDb(ctx, b)
+	if err != nil {
+		return err
+	}
+
 	// Initialize the UTXO cache to ensure that the state of the UTXO set is
 	// caught up to the tip of the best chain.
 	return b.utxoCache.Initialize(b, b.bestChain.tip())

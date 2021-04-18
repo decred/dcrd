@@ -2272,8 +2272,8 @@ func New(ctx context.Context, config *Config) (*BlockChain, error) {
 	}
 
 	log.Infof("Blockchain database version info: chain: %d, compression: "+
-		"%d, block index: %d", b.dbInfo.version, b.dbInfo.compVer,
-		b.dbInfo.bidxVer)
+		"%d, block index: %d, spend journal: %d", b.dbInfo.version,
+		b.dbInfo.compVer, b.dbInfo.bidxVer, b.dbInfo.stxoVer)
 
 	log.Infof("UTXO database version info: version: %d, compression: %d, utxo "+
 		"set: %d", b.utxoDbInfo.version, b.utxoDbInfo.compVer, b.utxoDbInfo.utxoVer)
