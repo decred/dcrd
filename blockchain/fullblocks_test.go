@@ -137,7 +137,7 @@ func chainSetup(dbName string, params *chaincfg.Params) (*blockchain.BlockChain,
 			TimeSource:  blockchain.NewMedianTime(),
 			SigCache:    sigCache,
 			UtxoCache: blockchain.NewUtxoCache(&blockchain.UtxoCacheConfig{
-				DB:      db,
+				DB:      utxoDb,
 				MaxSize: 100 * 1024 * 1024, // 100 MiB
 			}),
 		})

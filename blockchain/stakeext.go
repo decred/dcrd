@@ -111,7 +111,7 @@ func (b *BlockChain) TicketsWithAddress(address stdaddr.Address, isTreasuryEnabl
 
 	encodedAddr := address.String()
 	var ticketsWithAddr []chainhash.Hash
-	err := b.db.View(func(dbTx database.Tx) error {
+	err := b.utxoDb.View(func(dbTx database.Tx) error {
 		for _, hash := range tickets {
 			outpoint := wire.OutPoint{Hash: hash, Index: 0, Tree: wire.TxTreeStake}
 			utxo, err := b.utxoCache.FetchEntry(dbTx, outpoint)
@@ -223,7 +223,7 @@ func (b *BlockChain) TicketPoolValue() (dcrutil.Amount, error) {
 	b.chainLock.RUnlock()
 
 	var amt int64
-	err := b.db.View(func(dbTx database.Tx) error {
+	err := b.utxoDb.View(func(dbTx database.Tx) error {
 		for _, hash := range sn.LiveTickets() {
 			outpoint := wire.OutPoint{Hash: hash, Index: 0, Tree: wire.TxTreeStake}
 			utxo, err := b.utxoCache.FetchEntry(dbTx, outpoint)

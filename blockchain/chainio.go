@@ -1162,14 +1162,6 @@ func (b *BlockChain) createChainState() error {
 			return err
 		}
 
-		// Create the bucket that houses the utxo set.  Note that the
-		// genesis block coinbase transaction is intentionally not
-		// inserted here since it is not spendable by consensus rules.
-		_, err = meta.CreateBucket(utxoSetBucketName)
-		if err != nil {
-			return err
-		}
-
 		// Add the genesis block to the block index.
 		err = dbPutBlockNode(dbTx, node)
 		if err != nil {
