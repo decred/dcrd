@@ -144,7 +144,7 @@ func chainSetup(dbName string, params *chaincfg.Params) (*BlockChain, func(), er
 			TimeSource:  NewMedianTime(),
 			SigCache:    sigCache,
 			UtxoCache: NewUtxoCache(&UtxoCacheConfig{
-				DB:      db,
+				DB:      utxoDb,
 				MaxSize: 100 * 1024 * 1024, // 100 MiB
 			}),
 		})
@@ -787,7 +787,7 @@ func (g *chaingenHarness) ExpectUtxoSetState(blockName string) {
 
 	// Fetch the utxo set state from the database.
 	var gotState *utxoSetState
-	err := g.chain.db.View(func(dbTx database.Tx) error {
+	err := g.chain.utxoDb.View(func(dbTx database.Tx) error {
 		var err error
 		gotState, err = dbFetchUtxoSetState(dbTx)
 		return err

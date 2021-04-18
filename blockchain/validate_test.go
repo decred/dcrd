@@ -298,7 +298,7 @@ func TestCheckBlockHeaderContext(t *testing.T) {
 			ChainParams: params,
 			TimeSource:  NewMedianTime(),
 			UtxoCache: NewUtxoCache(&UtxoCacheConfig{
-				DB:      db,
+				DB:      utxoDb,
 				MaxSize: 100 * 1024 * 1024, // 100 MiB
 			}),
 		})

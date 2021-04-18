@@ -920,7 +920,7 @@ func (b *BlockChain) FetchUtxoEntry(outpoint wire.OutPoint) (*UtxoEntry, error) 
 	defer b.chainLock.RUnlock()
 
 	var entry *UtxoEntry
-	err := b.db.View(func(dbTx database.Tx) error {
+	err := b.utxoDb.View(func(dbTx database.Tx) error {
 		var err error
 		entry, err = b.utxoCache.FetchEntry(dbTx, outpoint)
 		return err
@@ -949,7 +949,7 @@ type UtxoStats struct {
 // always be in sync with the best block.
 func (b *BlockChain) FetchUtxoStats() (*UtxoStats, error) {
 	var stats *UtxoStats
-	err := b.db.View(func(dbTx database.Tx) error {
+	err := b.utxoDb.View(func(dbTx database.Tx) error {
 		var err error
 		stats, err = dbFetchUtxoStats(dbTx)
 		return err

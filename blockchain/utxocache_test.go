@@ -1118,7 +1118,7 @@ func TestInitialize(t *testing.T) {
 	// gets created and initialized at startup.
 	resetTestUtxoCache := func() *testUtxoCache {
 		testUtxoCache := newTestUtxoCache(&UtxoCacheConfig{
-			DB:      g.chain.db,
+			DB:      g.chain.utxoDb,
 			MaxSize: 100 * 1024 * 1024, // 100 MiB
 		})
 		g.chain.utxoCache = testUtxoCache
@@ -1260,7 +1260,7 @@ func TestShutdownUtxoCache(t *testing.T) {
 	// Replace the chain utxo cache with a test cache so that flushing can be
 	// disabled.
 	testUtxoCache := newTestUtxoCache(&UtxoCacheConfig{
-		DB:      g.chain.db,
+		DB:      g.chain.utxoDb,
 		MaxSize: 100 * 1024 * 1024, // 100 MiB
 	})
 	g.chain.utxoCache = testUtxoCache
