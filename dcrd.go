@@ -17,6 +17,7 @@ import (
 	"runtime/pprof"
 	"strings"
 
+	"github.com/decred/dcrd/blockchain/v4"
 	"github.com/decred/dcrd/blockchain/v4/indexers"
 	"github.com/decred/dcrd/internal/limits"
 	"github.com/decred/dcrd/internal/version"
@@ -140,8 +141,25 @@ func dcrdMain() error {
 	defer func() {
 		// Ensure the database is sync'd and closed on shutdown.
 		lifetimeNotifier.notifyShutdownEvent(lifetimeEventDBOpen)
-		dcrdLog.Infof("Gracefully shutting down the database...")
+		dcrdLog.Infof("Gracefully shutting down the block database...")
 		db.Close()
+	}()
+
+	// Return now if a shutdown signal was triggered.
+	if shutdownRequested(ctx) {
+		return nil
+	}
+
+	// Load the UTXO database.
+	utxoDb, err := blockchain.LoadUtxoDB(cfg.params.Params, cfg.DataDir)
+	if err != nil {
+		dcrdLog.Errorf("%v", err)
+		return err
+	}
+	defer func() {
+		// Ensure the database is sync'd and closed on shutdown.
+		dcrdLog.Infof("Gracefully shutting down the UTXO database...")
+		utxoDb.Close()
 	}()
 
 	// Return now if a shutdown signal was triggered.
@@ -186,7 +204,7 @@ func dcrdMain() error {
 
 	// Create server.
 	lifetimeNotifier.notifyStartupEvent(lifetimeEventP2PServer)
-	svr, err := newServer(ctx, cfg.Listeners, db, cfg.params.Params,
+	svr, err := newServer(ctx, cfg.Listeners, db, utxoDb, cfg.params.Params,
 		cfg.DataDir)
 	if err != nil {
 		dcrdLog.Errorf("Unable to start server: %v", err)

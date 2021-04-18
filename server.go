@@ -3289,7 +3289,10 @@ func setupRPCListeners() ([]net.Listener, error) {
 // newServer returns a new dcrd server configured to listen on addr for the
 // decred network type specified by chainParams.  Use start to begin accepting
 // connections from peers.
-func newServer(ctx context.Context, listenAddrs []string, db database.DB, chainParams *chaincfg.Params, dataDir string) (*server, error) {
+func newServer(ctx context.Context, listenAddrs []string, db database.DB,
+	utxoDb database.DB, chainParams *chaincfg.Params,
+	dataDir string) (*server, error) {
+
 	amgr := addrmgr.New(cfg.DataDir, dcrdLookup)
 	services := defaultServices
 
@@ -3406,6 +3409,7 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB, chainP
 	s.chain, err = blockchain.New(ctx,
 		&blockchain.Config{
 			DB:            s.db,
+			UtxoDB:        utxoDb,
 			ChainParams:   s.chainParams,
 			Checkpoints:   checkpoints,
 			TimeSource:    s.timeSource,

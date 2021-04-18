@@ -6,6 +6,7 @@
 package blockchain
 
 import (
+	"context"
 	"fmt"
 	"sync"
 	"time"
@@ -14,6 +15,14 @@ import (
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/database/v2"
 	"github.com/decred/dcrd/wire"
+)
+
+const (
+	// currentUtxoDatabaseVersion indicates the current UTXO database version.
+	currentUtxoDatabaseVersion = 1
+
+	// currentUtxoSetVersion indicates the current UTXO set database version.
+	currentUtxoSetVersion = 3
 )
 
 var (
@@ -611,4 +620,107 @@ func dbFetchUtxoSetState(dbTx database.Tx) (*utxoSetState, error) {
 
 	// Deserialize the utxo set state and return it.
 	return deserializeUtxoSetState(serialized)
+}
+
+// createUtxoDbInfo initializes the UTXO database info.  It must only be called
+// on an uninitialized database.
+func (b *BlockChain) createUtxoDbInfo() error {
+	// Create the initial UTXO database state.
+	err := b.utxoDb.Update(func(dbTx database.Tx) error {
+		meta := dbTx.Metadata()
+
+		// Create the bucket that houses information about the database's creation
+		// and version.
+		_, err := meta.CreateBucket(utxoDbInfoBucketName)
+		if err != nil {
+			return err
+		}
+
+		// Initialize the UTXO set version.  If the block database version is before
+		// version 9, then initialize the UTXO set version based on the block
+		// database version since that is what tracked the UTXO set version at that
+		// point in time.
+		utxoVer := uint32(currentUtxoSetVersion)
+		if b.dbInfo.version >= 7 && b.dbInfo.version < 9 {
+			utxoVer = 2
+		} else if b.dbInfo.version < 7 {
+			utxoVer = 1
+		}
+
+		// Write the creation and version information to the database.
+		b.utxoDbInfo = &utxoDatabaseInfo{
+			version: currentUtxoDatabaseVersion,
+			compVer: currentCompressionVersion,
+			utxoVer: utxoVer,
+			created: time.Now(),
+		}
+		err = dbPutUtxoDatabaseInfo(dbTx, b.utxoDbInfo)
+		if err != nil {
+			return err
+		}
+
+		// Create the bucket that houses the UTXO set.
+		_, err = meta.CreateBucket(utxoSetBucketName)
+		if err != nil {
+			return err
+		}
+
+		return err
+	})
+	return err
+}
+
+// initUtxoDbInfo loads (or creates if necessary) the UTXO database info.
+func (b *BlockChain) initUtxoDbInfo(ctx context.Context) error {
+	// Determine the state of the database.
+	var isStateInitialized bool
+	err := b.utxoDb.View(func(dbTx database.Tx) error {
+		// Fetch the database versioning information.
+		dbInfo := dbFetchUtxoDatabaseInfo(dbTx)
+
+		// The database bucket for the versioning information is missing.
+		if dbInfo == nil {
+			return nil
+		}
+
+		// Don't allow downgrades of the UTXO database.
+		if dbInfo.version > currentUtxoDatabaseVersion {
+			return fmt.Errorf("the current UTXO database is no longer compatible "+
+				"with this version of the software (%d > %d)", dbInfo.version,
+				currentUtxoDatabaseVersion)
+		}
+
+		// Don't allow downgrades of the database compression version.
+		if dbInfo.compVer > currentCompressionVersion {
+			return fmt.Errorf("the current database compression version is no "+
+				"longer compatible with this version of the software (%d > %d)",
+				dbInfo.compVer, currentCompressionVersion)
+		}
+
+		b.utxoDbInfo = dbInfo
+		isStateInitialized = true
+
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+
+	// Initialize the database if it has not already been done.
+	if !isStateInitialized {
+		if err := b.createUtxoDbInfo(); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// initUtxoState attempts to load and initialize the UTXO state from the
+// database.  This entails running any database migrations as necessary as well
+// as initializing the UTXO cache.
+func (b *BlockChain) initUtxoState(ctx context.Context) error {
+	// Initialize the UTXO cache to ensure that the state of the UTXO set is
+	// caught up to the tip of the best chain.
+	return b.utxoCache.Initialize(b, b.bestChain.tip())
 }
