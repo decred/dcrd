@@ -1362,6 +1362,14 @@ func (b *BlockChain) initChainState(ctx context.Context) error {
 		}
 	}
 
+	// Initialize the UTXO database info.  This must be initialized after the
+	// block database info is loaded, but before block database migrations are
+	// run, since setting the initial UTXO set version depends on the block
+	// database version as that is where it originally resided.
+	if err := b.initUtxoDbInfo(ctx); err != nil {
+		return err
+	}
+
 	// Upgrade the database as needed.
 	err = upgradeDB(ctx, b.db, b.chainParams, b.dbInfo)
 	if err != nil {
@@ -1463,14 +1471,7 @@ func (b *BlockChain) initChainState(ctx context.Context) error {
 	}
 
 	// Upgrade the database post block index load as needed.
-	err = upgradeDBPostBlockIndexLoad(ctx, b)
-	if err != nil {
-		return err
-	}
-
-	// Initialize the utxo cache to ensure that the state of the utxo set is
-	// caught up to the tip of the best chain.
-	return b.utxoCache.Initialize(b, tip)
+	return upgradeDBPostBlockIndexLoad(ctx, b)
 }
 
 // dbFetchBlockByNode uses an existing database transaction to retrieve the raw

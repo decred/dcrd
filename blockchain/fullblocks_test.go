@@ -45,6 +45,53 @@ func isSupportedDbType(dbType string) bool {
 	return false
 }
 
+// createTestDatabase creates a test database with the provided database name
+// and database type for the given network.
+func createTestDatabase(dbName string, dbType string, net wire.CurrencyNet) (database.DB, func(), error) {
+	// Handle memory database specially since it doesn't need the disk specific
+	// handling.
+	var db database.DB
+	var teardown func()
+	if dbType == "memdb" {
+		ndb, err := database.Create(dbType)
+		if err != nil {
+			return nil, nil, fmt.Errorf("error creating db: %w", err)
+		}
+		db = ndb
+
+		// Setup a teardown function for cleaning up.  This function is returned to
+		// the caller to be invoked when it is done testing.
+		teardown = func() {
+			db.Close()
+		}
+	} else {
+		// Create the directory for the test database.
+		dbPath, err := ioutil.TempDir("", dbName)
+		if err != nil {
+			err := fmt.Errorf("unable to create test db path: %w",
+				err)
+			return nil, nil, err
+		}
+
+		// Create the test database.
+		ndb, err := database.Create(dbType, dbPath, net)
+		if err != nil {
+			os.RemoveAll(dbPath)
+			return nil, nil, fmt.Errorf("error creating db: %w", err)
+		}
+		db = ndb
+
+		// Setup a teardown function for cleaning up.  This function is returned to
+		// the caller to be invoked when it is done testing.
+		teardown = func() {
+			db.Close()
+			os.RemoveAll(dbPath)
+		}
+	}
+
+	return db, teardown, nil
+}
+
 // chainSetup is used to create a new db and chain instance with the genesis
 // block already inserted.  In addition to the new chain instance, it returns
 // a teardown function the caller should invoke when done testing to clean up.
@@ -53,45 +100,22 @@ func chainSetup(dbName string, params *chaincfg.Params) (*blockchain.BlockChain,
 		return nil, nil, fmt.Errorf("unsupported db type %v", testDbType)
 	}
 
-	// Handle memory database specially since it doesn't need the disk
-	// specific handling.
-	var db database.DB
-	var teardown func()
-	if testDbType == "memdb" {
-		ndb, err := database.Create(testDbType)
-		if err != nil {
-			return nil, nil, fmt.Errorf("error creating db: %w", err)
-		}
-		db = ndb
+	// Create a test block database.
+	db, teardownDb, err := createTestDatabase(dbName, testDbType, blockDataNet)
+	if err != nil {
+		return nil, nil, err
+	}
 
-		// Setup a teardown function for cleaning up.  This function is
-		// returned to the caller to be invoked when it is done testing.
-		teardown = func() {
-			db.Close()
-		}
-	} else {
-		// Create the directory for test database.
-		dbPath, err := ioutil.TempDir("", dbName)
-		if err != nil {
-			err := fmt.Errorf("unable to create test db path: %w",
-				err)
-			return nil, nil, err
-		}
-
-		// Create a new database to store the accepted blocks into.
-		ndb, err := database.Create(testDbType, dbPath, blockDataNet)
-		if err != nil {
-			os.RemoveAll(dbPath)
-			return nil, nil, fmt.Errorf("error creating db: %w", err)
-		}
-		db = ndb
-
-		// Setup a teardown function for cleaning up.  This function is
-		// returned to the caller to be invoked when it is done testing.
-		teardown = func() {
-			db.Close()
-			os.RemoveAll(dbPath)
-		}
+	// Create a test UTXO database.
+	utxoDb, teardownUtxoDb, err := createTestDatabase(dbName+"_utxo", testDbType,
+		blockDataNet)
+	if err != nil {
+		teardownDb()
+		return nil, nil, err
+	}
+	teardown := func() {
+		teardownUtxoDb()
+		teardownDb()
 	}
 
 	// Copy the chain params to ensure any modifications the tests do to
@@ -108,6 +132,7 @@ func chainSetup(dbName string, params *chaincfg.Params) (*blockchain.BlockChain,
 	chain, err := blockchain.New(context.Background(),
 		&blockchain.Config{
 			DB:          db,
+			UtxoDB:      utxoDb,
 			ChainParams: &paramsCopy,
 			TimeSource:  blockchain.NewMedianTime(),
 			SigCache:    sigCache,

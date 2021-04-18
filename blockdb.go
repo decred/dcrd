@@ -125,8 +125,8 @@ func loadBlockDB(params *chaincfg.Params) (database.DB, error) {
 
 	// createDB is a convenience func that creates the database with the type
 	// and network specified in the config at the path determined above while
-	// also creating any any intermediate directories in the configured data
-	// directory path as needed.
+	// also creating any intermediate directories in the configured data directory
+	// path as needed.
 	createDB := func() (database.DB, error) {
 		// Create the data dir if it does not exist.
 		err := os.MkdirAll(cfg.DataDir, 0700)

@@ -271,23 +271,30 @@ func TestCheckBlockSanity(t *testing.T) {
 // TestCheckBlockHeaderContext tests that genesis block passes context headers
 // because its parent is nil.
 func TestCheckBlockHeaderContext(t *testing.T) {
-	// Create a new database for the blocks.
+	// Create a test block database.
+	const testDbType = "ffldb"
+	const dbName = "examplecheckheadercontext"
 	params := chaincfg.RegNetParams()
-	dbPath := filepath.Join(os.TempDir(), "examplecheckheadercontext")
-	_ = os.RemoveAll(dbPath)
-	db, err := database.Create("ffldb", dbPath, params.Net)
+	db, teardownDb, err := createTestDatabase(dbName, testDbType, params.Net)
 	if err != nil {
 		t.Fatalf("Failed to create database: %v\n", err)
-		return
 	}
-	defer os.RemoveAll(dbPath)
-	defer db.Close()
+	defer teardownDb()
+
+	// Create a test UTXO database.
+	utxoDb, teardownUtxoDb, err := createTestDatabase(dbName+"_utxo", testDbType,
+		params.Net)
+	if err != nil {
+		t.Fatalf("Failed to create UTXO database: %v\n", err)
+	}
+	defer teardownUtxoDb()
 
 	// Create a new BlockChain instance using the underlying database for
 	// the simnet network.
 	chain, err := New(context.Background(),
 		&Config{
 			DB:          db,
+			UtxoDB:      utxoDb,
 			ChainParams: params,
 			TimeSource:  NewMedianTime(),
 			UtxoCache: NewUtxoCache(&UtxoCacheConfig{

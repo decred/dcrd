@@ -137,6 +137,8 @@ type BlockChain struct {
 	deploymentVers      map[string]uint32
 	db                  database.DB
 	dbInfo              *databaseInfo
+	utxoDb              database.DB
+	utxoDbInfo          *utxoDatabaseInfo
 	chainParams         *chaincfg.Params
 	timeSource          MedianTimeSource
 	notifications       NotificationCallback
@@ -2102,10 +2104,16 @@ func (q *chainQueryerAdapter) PrevScripts(dbTx database.Tx, block *dcrutil.Block
 // Config is a descriptor which specifies the blockchain instance configuration.
 type Config struct {
 	// DB defines the database which houses the blocks and will be used to
-	// store all metadata created by this package such as the utxo set.
+	// store all metadata created by this package outside of the UTXO set, which
+	// is stored in a separate database.
 	//
 	// This field is required.
 	DB database.DB
+
+	// UtxoDB defines the database which houses the UTXO set.
+	//
+	// This field is required.
+	UtxoDB database.DB
 
 	// ChainParams identifies which chain parameters the chain is associated
 	// with.
@@ -2175,6 +2183,9 @@ func New(ctx context.Context, config *Config) (*BlockChain, error) {
 	if config.DB == nil {
 		return nil, AssertError("blockchain.New database is nil")
 	}
+	if config.UtxoDB == nil {
+		return nil, AssertError("blockchain.New UTXO database is nil")
+	}
 	if config.ChainParams == nil {
 		return nil, AssertError("blockchain.New chain parameters nil")
 	}
@@ -2215,6 +2226,7 @@ func New(ctx context.Context, config *Config) (*BlockChain, error) {
 		checkpointsByHeight:           checkpointsByHeight,
 		deploymentVers:                deploymentVers,
 		db:                            config.DB,
+		utxoDb:                        config.UtxoDB,
 		chainParams:                   params,
 		timeSource:                    config.TimeSource,
 		notifications:                 config.Notifications,
@@ -2243,6 +2255,12 @@ func New(ctx context.Context, config *Config) (*BlockChain, error) {
 		return nil, err
 	}
 
+	// Initialize the UTXO state.  This entails running any database migrations as
+	// necessary as well as initializing the UTXO cache.
+	if err := b.initUtxoState(ctx); err != nil {
+		return nil, err
+	}
+
 	// Initialize and catch up all of the currently active optional indexes
 	// as needed.
 	queryAdapter := chainQueryerAdapter{BlockChain: &b}
@@ -2256,6 +2274,9 @@ func New(ctx context.Context, config *Config) (*BlockChain, error) {
 	log.Infof("Blockchain database version info: chain: %d, compression: "+
 		"%d, block index: %d", b.dbInfo.version, b.dbInfo.compVer,
 		b.dbInfo.bidxVer)
+
+	log.Infof("UTXO database version info: version: %d, compression: %d, utxo "+
+		"set: %d", b.utxoDbInfo.version, b.utxoDbInfo.compVer, b.utxoDbInfo.utxoVer)
 
 	b.index.RLock()
 	bestHdr := b.index.bestHeader
