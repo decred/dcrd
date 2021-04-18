@@ -3092,44 +3092,87 @@ func migrateSpendJournalVersion2To3(ctx context.Context, b *BlockChain) error {
 	return nil
 }
 
-// upgradeToVersion9 upgrades a version 8 blockchain database to version 9.
-func upgradeToVersion9(ctx context.Context, b *BlockChain) error {
+// upgradeSpendJournalToVersion3 upgrades a version 2 spend journal to version
+// 3.
+func upgradeSpendJournalToVersion3(ctx context.Context, b *BlockChain) error {
 	if interruptRequested(ctx) {
 		return errInterruptRequested
 	}
 
-	log.Info("Upgrading database to version 9...")
+	log.Info("Upgrading spend journal to version 3...")
 	start := time.Now()
 
 	// Migrate the spend journal to version 3.
-	v3DoneKeyName := []byte("spendjournalv3done")
-	err := runUpgradeStageOnce(ctx, b.db, v3DoneKeyName, func() error {
-		return migrateSpendJournalVersion2To3(ctx, b)
+	err := migrateSpendJournalVersion2To3(ctx, b)
+	if err != nil {
+		return err
+	}
+
+	// Update and persist the spend journal database version.
+	err = b.db.Update(func(dbTx database.Tx) error {
+		b.dbInfo.stxoVer = 3
+		return dbPutDatabaseInfo(dbTx, b.dbInfo)
 	})
 	if err != nil {
 		return err
 	}
 
+	elapsed := time.Since(start).Round(time.Millisecond)
+	log.Infof("Done upgrading spend journal in %v.", elapsed)
+	return nil
+}
+
+// upgradeUtxoSetToVersion3 upgrades a version 2 utxo set to version 3.
+func upgradeUtxoSetToVersion3(ctx context.Context, b *BlockChain) error {
 	if interruptRequested(ctx) {
 		return errInterruptRequested
 	}
 
+	log.Info("Upgrading utxo set to version 3...")
+	start := time.Now()
+
 	// Migrate the utxoset to version 3.
-	err = migrateUtxoSetVersion2To3(ctx, b.db)
+	err := migrateUtxoSetVersion2To3(ctx, b.db)
 	if err != nil {
 		return err
 	}
 
-	// Update and persist the database version and remove upgrade progress
-	// tracking keys.
-	err = b.db.Update(func(dbTx database.Tx) error {
-		err := dbTx.Metadata().Delete(v3DoneKeyName)
-		if err != nil {
-			return err
+	// Update and persist the UTXO set database version.
+	err = b.utxoDb.Update(func(dbTx database.Tx) error {
+		b.utxoDbInfo.utxoVer = 3
+		return dbPutUtxoDatabaseInfo(dbTx, b.utxoDbInfo)
+	})
+	if err != nil {
+		return err
+	}
+
+	elapsed := time.Since(start).Round(time.Millisecond)
+	log.Infof("Done upgrading utxo set in %v.", elapsed)
+	return nil
+}
+
+// upgradeToVersion10 upgrades a version 8 or version 9 blockchain database to
+// version 10.  This entails writing the database spend journal version to the
+// database so that it can be decoupled from the overall version of the block
+// database.
+func upgradeToVersion10(ctx context.Context, db database.DB, dbInfo *databaseInfo) error {
+	if interruptRequested(ctx) {
+		return errInterruptRequested
+	}
+
+	log.Info("Upgrading database to version 10...")
+	start := time.Now()
+
+	// Update and persist the database spend journal version and overall block
+	// database version.
+	err := db.Update(func(dbTx database.Tx) error {
+		dbInfo.stxoVer = 2
+		if dbInfo.version == 9 {
+			dbInfo.stxoVer = 3
 		}
 
-		b.dbInfo.version = 9
-		return dbPutDatabaseInfo(dbTx, b.dbInfo)
+		dbInfo.version = 10
+		return dbPutDatabaseInfo(dbTx, dbInfo)
 	})
 	if err != nil {
 		return err
@@ -3181,9 +3224,9 @@ func CheckDBTooOldToUpgrade(db database.DB) error {
 }
 
 // upgradeDB upgrades old database versions to the newest version by applying
-// all possible upgrades iteratively.  Note that there may also be upgrades
-// that run after the block index has been loaded as part of the
-// upgradeDBPostBlockIndexLoad function.
+// all possible upgrades iteratively.  Note that spend journal and utxo set
+// upgrades are handled separately starting with version 3 of the spend journal
+// and utxo set.
 //
 // NOTE: The passed database info will be updated with the latest versions.
 func upgradeDB(ctx context.Context, db database.DB, chainParams *chaincfg.Params, dbInfo *databaseInfo) error {
@@ -3239,21 +3282,53 @@ func upgradeDB(ctx context.Context, db database.DB, chainParams *chaincfg.Params
 		}
 	}
 
+	// Update to a version 10 database if needed.  This entails writing the
+	// database spend journal version to the database so that it can be decoupled
+	// from the overall version of the block database.
+	//
+	// This applies to both versions 8 and 9 because previously version 9 handled
+	// the migration to version 3 of the spend journal and utxo set.  That
+	// migration has now been decoupled to run based on the spend journal and utxo
+	// set versions, but databases that are already upgraded to version 9 still
+	// need to be handled here as well.
+	if dbInfo.version == 8 || dbInfo.version == 9 {
+		if err := upgradeToVersion10(ctx, db, dbInfo); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
-// upgradeDBPostBlockIndexLoad upgrades old database versions to the newest
-// version by applying all possible post block index upgrades iteratively.
-// This function should only include upgrades that need to be run after the
-// block index has been loaded.  Upgrades that run prior to the block index
-// being loaded should be included in the upgradeDB function.
+// upgradeSpendJournal upgrades old spend journal versions to the newest version
+// by applying all possible upgrades iteratively.  The spend journal version was
+// decoupled from the overall block database version as of spend journal version
+// 3, so spend journal upgrades prior to version 3 are handled in the overall
+// block database upgrade path.
 //
 // NOTE: The passed database info will be updated with the latest versions.
-func upgradeDBPostBlockIndexLoad(ctx context.Context, b *BlockChain) error {
-	// Update to a version 9 database if needed.  This entails migrating the
-	// utxoset and spend journal to the v3 format.
-	if b.dbInfo.version == 8 {
-		if err := upgradeToVersion9(ctx, b); err != nil {
+func upgradeSpendJournal(ctx context.Context, b *BlockChain) error {
+	// Update to a version 3 spend journal as needed.
+	if b.dbInfo.stxoVer == 2 {
+		if err := upgradeSpendJournalToVersion3(ctx, b); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// upgradeUtxoDb upgrades old utxo database versions to the newest version by
+// applying all possible upgrades iteratively.  The utxo set version was
+// decoupled from the overall block database version as of utxo set version 3,
+// so utxo set upgrades prior to version 3 are handled in the block database
+// upgrade path.
+//
+// NOTE: The passed database info will be updated with the latest versions.
+func upgradeUtxoDb(ctx context.Context, b *BlockChain) error {
+	// Update to a version 3 utxo set as needed.
+	if b.utxoDbInfo.utxoVer == 2 {
+		if err := upgradeUtxoSetToVersion3(ctx, b); err != nil {
 			return err
 		}
 	}

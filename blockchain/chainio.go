@@ -25,11 +25,15 @@ import (
 
 const (
 	// currentDatabaseVersion indicates the current database version.
-	currentDatabaseVersion = 9
+	currentDatabaseVersion = 10
 
 	// currentBlockIndexVersion indicates the current block index database
 	// version.
 	currentBlockIndexVersion = 3
+
+	// currentSpendJournalVersion indicates the current spend journal database
+	// version.
+	currentSpendJournalVersion = 3
 
 	// blockHdrSize is the size of a block header.  This is simply the
 	// constant from wire and is only provided here for convenience since
@@ -64,6 +68,11 @@ var (
 	// date the database was created.  It is itself under the
 	// bcdbInfoBucketName bucket.
 	bcdbInfoCreatedKeyName = []byte("created")
+
+	// bcdbInfoSpendJournalVerKeyName is the name of the database key used to
+	// house the database spend journal version.  It is itself under the
+	// bcdbInfoBucketName bucket.
+	bcdbInfoSpendJournalVerKeyName = []byte("stxover")
 
 	// chainStateKeyName is the name of the db key used to store the best chain
 	// state.
@@ -853,6 +862,7 @@ func dbPutGCSFilter(dbTx database.Tx, blockHash *chainhash.Hash, filter *gcs.Fil
 //   compver    uint32   4 bytes   The script compression version of the database
 //   bidxver    uint32   4 bytes   The block index version of the database
 //   created    uint64   8 bytes   The date of the creation of the database
+//   stxover    uint32   4 bytes   The spend journal version of the database
 // -----------------------------------------------------------------------------
 
 // databaseInfo is the structure for a database.
@@ -861,6 +871,7 @@ type databaseInfo struct {
 	compVer uint32
 	bidxVer uint32
 	created time.Time
+	stxoVer uint32
 }
 
 // dbPutDatabaseInfo uses an existing database transaction to store the database
@@ -903,8 +914,14 @@ func dbPutDatabaseInfo(dbTx database.Tx, dbi *databaseInfo) error {
 	}
 
 	// Store the database creation date.
-	return bucket.Put(bcdbInfoCreatedKeyName,
+	err = bucket.Put(bcdbInfoCreatedKeyName,
 		uint64Bytes(uint64(dbi.created.Unix())))
+	if err != nil {
+		return err
+	}
+
+	// Store the spend journal version.
+	return bucket.Put(bcdbInfoSpendJournalVerKeyName, uint32Bytes(dbi.stxoVer))
 }
 
 // dbFetchDatabaseInfo uses an existing database transaction to fetch the
@@ -947,11 +964,22 @@ func dbFetchDatabaseInfo(dbTx database.Tx) (*databaseInfo, error) {
 		created = time.Unix(int64(ts), 0)
 	}
 
+	// Load the database spend journal version.  This is tracked in the database
+	// starting in database version 10.
+	var stxoVer uint32
+	if version >= 10 {
+		stxoVerBytes := bucket.Get(bcdbInfoSpendJournalVerKeyName)
+		if stxoVerBytes != nil {
+			stxoVer = byteOrder.Uint32(stxoVerBytes)
+		}
+	}
+
 	return &databaseInfo{
 		version: version,
 		compVer: compVer,
 		bidxVer: bidxVer,
 		created: created,
+		stxoVer: stxoVer,
 	}, nil
 }
 
@@ -1115,6 +1143,7 @@ func (b *BlockChain) createChainState() error {
 			compVer: currentCompressionVersion,
 			bidxVer: currentBlockIndexVersion,
 			created: time.Now(),
+			stxoVer: currentSpendJournalVersion,
 		}
 		err = dbPutDatabaseInfo(dbTx, b.dbInfo)
 		if err != nil {
@@ -1470,8 +1499,8 @@ func (b *BlockChain) initChainState(ctx context.Context) error {
 		return err
 	}
 
-	// Upgrade the database post block index load as needed.
-	return upgradeDBPostBlockIndexLoad(ctx, b)
+	// Upgrade the spend journal as needed.
+	return upgradeSpendJournal(ctx, b)
 }
 
 // dbFetchBlockByNode uses an existing database transaction to retrieve the raw
