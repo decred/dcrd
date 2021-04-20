@@ -717,6 +717,11 @@ func (b *BlockChain) isTreasuryAgendaActive(prevNode *blockNode) (bool, error) {
 //
 // This function is safe for concurrent access.
 func (b *BlockChain) IsTreasuryAgendaActive(prevHash *chainhash.Hash) (bool, error) {
+	// The treasury agenda is never active for the genesis block.
+	if *prevHash == *zeroHash {
+		return false, nil
+	}
+
 	prevNode := b.index.LookupNode(prevHash)
 	if prevNode == nil || !b.index.CanValidate(prevNode) {
 		return false, unknownBlockError(prevHash)
