@@ -1054,6 +1054,7 @@ of the best block.
 : <code>tx</code>: <code>(json array of string)</code> the transaction hashes.
 : <code>stx</code>: <code>(json array of string)</code> the stake transaction hashes.
 : <code>time</code>: <code>(numeric)</code> the block time in seconds since 1 Jan 1970 GMT.
+: <code>mediantime</code>: <code>(numeric)</code> the median block time over the last 11 blocks.
 : <code>nonce</code>: <code>(numeric)</code> the block nonce.
 : <code>votebits</code>: <code>(numeric)</code> the block voting results.
 : <code>finalstate</code>: <code>(string)</code> the final lottery state.
@@ -1206,6 +1207,7 @@ of the best block.
 : <code>height</code>: <code>(numeric)</code> the height of the block in the block chain.
 : <code>size</code>: <code>(numeric)</code> the size of the block.
 : <code>time</code>: <code>(numeric)</code> the block time in seconds since 1 Jan 1970 GMT.
+: <code>mediantime</code>: <code>(numeric)</code> the median block time over the last 11 blocks.
 : <code>nonce</code>: <code>(numeric)</code> the block nonce.
 : <code>extradata</code>: <code>(string)</code> extra data for the block including the extra nonce used by proof-of-work miners.
 : <code>stakeversion</code>: <code>(string)</code> block stake version.

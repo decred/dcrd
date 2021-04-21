@@ -73,6 +73,7 @@ type GetBlockVerboseResult struct {
 	STx           []string      `json:"stx,omitempty"`
 	RawSTx        []TxRawResult `json:"rawstx,omitempty"`
 	Time          int64         `json:"time"`
+	MedianTime    int64         `json:"mediantime"`
 	Nonce         uint32        `json:"nonce"`
 	VoteBits      uint16        `json:"votebits"`
 	FinalState    string        `json:"finalstate"`
@@ -141,6 +142,7 @@ type GetBlockHeaderVerboseResult struct {
 	Height        uint32  `json:"height"`
 	Size          uint32  `json:"size"`
 	Time          int64   `json:"time"`
+	MedianTime    int64   `json:"mediantime"`
 	Nonce         uint32  `json:"nonce"`
 	ExtraData     string  `json:"extradata"`
 	StakeVersion  uint32  `json:"stakeversion"`

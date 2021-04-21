@@ -354,6 +354,10 @@ type Chain interface {
 	// the provided block hash.
 	MaxBlockSize(hash *chainhash.Hash) (int64, error)
 
+	// MedianTimeByHash returns the median time of a block by the given hash
+	// or an error if it doesn't exist.
+	MedianTimeByHash(hash *chainhash.Hash) (time.Time, error)
+
 	// MissedTickets returns all currently missed tickets.
 	MissedTickets() ([]chainhash.Hash, error)
 

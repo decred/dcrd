@@ -1683,6 +1683,19 @@ func (b *BlockChain) MainChainHasBlock(hash *chainhash.Hash) bool {
 	return node != nil && b.bestChain.Contains(node)
 }
 
+// MedianTimeByHash returns the median time of a block by the given hash or an
+// error if it doesn't exist.  Note that this will return times from both the
+// main chain and any side chains.
+//
+// This function is safe for concurrent access.
+func (b *BlockChain) MedianTimeByHash(hash *chainhash.Hash) (time.Time, error) {
+	node := b.index.LookupNode(hash)
+	if node == nil {
+		return time.Time{}, unknownBlockError(hash)
+	}
+	return node.CalcPastMedianTime(), nil
+}
+
 // BlockHeightByHash returns the height of the block with the given hash in the
 // main chain.
 //
