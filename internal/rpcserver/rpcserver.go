@@ -1914,6 +1914,12 @@ func handleGetBlock(_ context.Context, s *Server, cmd interface{}) (interface{},
 	}
 
 	sbitsFloat := float64(blockHeader.SBits) / dcrutil.AtomsPerCoin
+
+	medianTime, err := chain.MedianTimeByHash(hash)
+	if err != nil {
+		return nil, rpcInternalError(err.Error(), "Unable to retrieve median block time")
+	}
+
 	blockReply := types.GetBlockVerboseResult{
 		Hash:          c.Hash,
 		Version:       blockHeader.Version,
@@ -1928,6 +1934,7 @@ func handleGetBlock(_ context.Context, s *Server, cmd interface{}) (interface{},
 		Revocations:   blockHeader.Revocations,
 		PoolSize:      blockHeader.PoolSize,
 		Time:          blockHeader.Timestamp.Unix(),
+		MedianTime:    medianTime.Unix(),
 		StakeVersion:  blockHeader.StakeVersion,
 		Confirmations: confirmations,
 		Height:        int64(blockHeader.Height),
@@ -2170,6 +2177,11 @@ func handleGetBlockHeader(_ context.Context, s *Server, cmd interface{}) (interf
 		confirmations = 1 + best.Height - height
 	}
 
+	medianTime, err := chain.MedianTimeByHash(hash)
+	if err != nil {
+		return nil, rpcInternalError(err.Error(), "Unable to retrieve median block time")
+	}
+
 	blockHeaderReply := types.GetBlockHeaderVerboseResult{
 		Hash:          c.Hash,
 		Confirmations: confirmations,
@@ -2187,6 +2199,7 @@ func handleGetBlockHeader(_ context.Context, s *Server, cmd interface{}) (interf
 		Height:        uint32(height),
 		Size:          blockHeader.Size,
 		Time:          blockHeader.Timestamp.Unix(),
+		MedianTime:    medianTime.Unix(),
 		Nonce:         blockHeader.Nonce,
 		ExtraData:     hex.EncodeToString(blockHeader.ExtraData[:]),
 		StakeVersion:  blockHeader.StakeVersion,

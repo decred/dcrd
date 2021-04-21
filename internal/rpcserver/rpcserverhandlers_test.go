@@ -174,6 +174,8 @@ type testRPCChain struct {
 	mainChainHasBlock             bool
 	maxBlockSize                  int64
 	maxBlockSizeErr               error
+	medianTimeByHash              time.Time
+	medianTimeByHashErr           error
 	minedTSpendBlocks             []chainhash.Hash
 	missedTickets                 []chainhash.Hash
 	missedTicketsErr              error
@@ -360,6 +362,12 @@ func (c *testRPCChain) MainChainHasBlock(hash *chainhash.Hash) bool {
 // AFTER the provided block hash.
 func (c *testRPCChain) MaxBlockSize(hash *chainhash.Hash) (int64, error) {
 	return c.maxBlockSize, c.maxBlockSizeErr
+}
+
+// MedianTimeByHash returns the median time of a block by the given hash or an
+// error if it doesn't exist.
+func (c *testRPCChain) MedianTimeByHash(hash *chainhash.Hash) (time.Time, error) {
+	return c.medianTimeByHash, c.medianTimeByHashErr
 }
 
 // MissedTickets returns a mocked slice of all currently missed tickets.
@@ -1459,6 +1467,7 @@ func defaultMockRPCChain() *testRPCChain {
 		isCurrent:         true,
 		mainChainHasBlock: true,
 		maxBlockSize:      int64(393216),
+		medianTimeByHash:  time.Time{},
 		nextThresholdState: blockchain.ThresholdStateTuple{
 			State:  blockchain.ThresholdStarted,
 			Choice: uint32(0xffffffff),
@@ -3743,6 +3752,7 @@ func TestHandleGetBlock(t *testing.T) {
 			Revocations:   blkHeader.Revocations,
 			PoolSize:      blkHeader.PoolSize,
 			Time:          blkHeader.Timestamp.Unix(),
+			MedianTime:    time.Time{}.Unix(),
 			StakeVersion:  blkHeader.StakeVersion,
 			Confirmations: confirmations,
 			Height:        int64(blkHeader.Height),
@@ -3797,6 +3807,7 @@ func TestHandleGetBlock(t *testing.T) {
 			Revocations:   blkHeader.Revocations,
 			PoolSize:      blkHeader.PoolSize,
 			Time:          blkHeader.Timestamp.Unix(),
+			MedianTime:    time.Time{}.Unix(),
 			StakeVersion:  blkHeader.StakeVersion,
 			Confirmations: confirmations,
 			Height:        int64(blkHeader.Height),
@@ -3864,6 +3875,21 @@ func TestHandleGetBlock(t *testing.T) {
 				Height: bestHeight,
 			}
 			chain.blockHashByHeightErr = errors.New("no next block")
+			return chain
+		}(),
+		wantErr: true,
+		errCode: dcrjson.ErrRPCInternal.Code,
+	}, {
+		name:    "handleGetBlock: could not fetch median time",
+		handler: handleGetBlock,
+		cmd: &types.GetBlockCmd{
+			Hash:      blkHashString,
+			Verbose:   dcrjson.Bool(true),
+			VerboseTx: dcrjson.Bool(false),
+		},
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.medianTimeByHashErr = errors.New("could not fetch median time")
 			return chain
 		}(),
 		wantErr: true,
@@ -3967,6 +3993,7 @@ func TestHandleGetBlockHeader(t *testing.T) {
 			Height:        blkHeader.Height,
 			Size:          blkHeader.Size,
 			Time:          blkHeader.Timestamp.Unix(),
+			MedianTime:    time.Time{}.Unix(),
 			Nonce:         blkHeader.Nonce,
 			ExtraData:     hex.EncodeToString(blkHeader.ExtraData[:]),
 			StakeVersion:  blkHeader.StakeVersion,
@@ -4025,6 +4052,20 @@ func TestHandleGetBlockHeader(t *testing.T) {
 				Height: bestHeight,
 			}
 			chain.blockHashByHeightErr = errors.New("no next block")
+			return chain
+		}(),
+		wantErr: true,
+		errCode: dcrjson.ErrRPCInternal.Code,
+	}, {
+		name:    "handleGetBlockHeader: could not fetch median time",
+		handler: handleGetBlockHeader,
+		cmd: &types.GetBlockHeaderCmd{
+			Hash:    blkHashString,
+			Verbose: dcrjson.Bool(true),
+		},
+		mockChain: func() *testRPCChain {
+			chain := defaultMockRPCChain()
+			chain.medianTimeByHashErr = errors.New("could not fetch median time")
 			return chain
 		}(),
 		wantErr: true,
