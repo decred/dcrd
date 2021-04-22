@@ -312,12 +312,34 @@ func checkTransactionSanity(tx *wire.MsgTx, params *chaincfg.Params) error {
 	return nil
 }
 
+// AgendaFlags is a bitmask defining additional agendas to consider as active
+// when checking transactions.  This can be useful for callers who are able to
+// accurately determine what agendas are active or otherwise desire any
+// additional validation checks associated with a given agenda being active.
+type AgendaFlags uint32
+
+const (
+	// AFTreasuryEnabled may be set to indicate that the treasury agenda should
+	// be considered as active when checking a transaction so that any
+	// additional checks which depend on the agenda being active are applied.
+	AFTreasuryEnabled AgendaFlags = 1 << iota
+
+	// AFNone is a convenience value to specifically indicate no flags.
+	AFNone AgendaFlags = 0
+)
+
 // checkTransactionContext performs several validation checks on the transaction
 // which depend on having the full block data for all of its ancestors
 // available, most likely because the checks depend on whether or not an agenda
 // is active, because that involves tallying the result of votes that are part
 // of the block data.
-func checkTransactionContext(tx *wire.MsgTx, params *chaincfg.Params, isTreasuryEnabled bool) error {
+//
+// The flags may be used to specify which agendas should be considered as active
+// in order to change how the validation rules are applied accordingly.
+func checkTransactionContext(tx *wire.MsgTx, params *chaincfg.Params, flags AgendaFlags) error {
+	// Determine active agendas based on flags.
+	isTreasuryEnabled := flags&AFTreasuryEnabled == AFTreasuryEnabled
+
 	// Determine type.
 	var isCoinBase, isVote, isTicket, isRevocation bool
 	var isTreasuryBase, isTreasuryAdd, isTreasurySpend bool
@@ -480,22 +502,6 @@ func CheckTransactionSanity(tx *wire.MsgTx, params *chaincfg.Params) error {
 	return checkTransactionSanity(tx, params)
 }
 
-// AgendaFlags is a bitmask defining additional agendas to consider as active
-// when checking transactions.  This can be useful for callers who are able to
-// accurately determine what agendas are active or otherwise desire any
-// additional validation checks associated with a given agenda being active.
-type AgendaFlags uint32
-
-const (
-	// AFTreasuryEnabled may be set to indicate that the treasury agenda should
-	// be considered as active when checking a transaction so that any
-	// additional checks which depend on the agenda being active are applied.
-	AFTreasuryEnabled AgendaFlags = 1 << iota
-
-	// AFNone is a convenience value to specifically indicate no flags.
-	AFNone AgendaFlags = 0
-)
-
 // CheckTransaction performs several validation checks on a transaction that
 // include both preliminary sanity checks that are context free as well as those
 // which depend on whether or not an agenda is active.
@@ -507,8 +513,7 @@ func CheckTransaction(tx *wire.MsgTx, params *chaincfg.Params, flags AgendaFlags
 	if err != nil {
 		return err
 	}
-	isTreasuryEnabled := flags&AFTreasuryEnabled == AFTreasuryEnabled
-	return checkTransactionContext(tx, params, isTreasuryEnabled)
+	return checkTransactionContext(tx, params, flags)
 }
 
 // checkProofOfStake ensures that all ticket purchases in the block pay at least
@@ -1488,6 +1493,13 @@ func (b *BlockChain) checkBlockContext(block *dcrutil.Block, prevNode *blockNode
 		return err
 	}
 
+	// Create agenda flags for checking transactions based on which ones are
+	// active as of the block being checked.
+	checkTxFlags := AFNone
+	if isTreasuryEnabled {
+		checkTxFlags |= AFTreasuryEnabled
+	}
+
 	// The first transaction in a block's regular tree must be a coinbase.
 	if !standalone.IsCoinBaseTx(msgBlock.Transactions[0], isTreasuryEnabled) {
 		str := "first transaction in block is not a coinbase"
@@ -1522,6 +1534,13 @@ func (b *BlockChain) checkBlockContext(block *dcrutil.Block, prevNode *blockNode
 	}
 
 	for txIdx, tx := range msgBlock.Transactions {
+		// Perform additional contextual validation checks on each regular
+		// transaction.
+		err := checkTransactionContext(tx, b.chainParams, checkTxFlags)
+		if err != nil {
+			return err
+		}
+
 		// A block must not have more than one coinbase.
 		if txIdx > 0 && standalone.IsCoinBaseTx(tx, isTreasuryEnabled) {
 			str := fmt.Sprintf("block contains second coinbase at index %d",
@@ -1537,19 +1556,12 @@ func (b *BlockChain) checkBlockContext(block *dcrutil.Block, prevNode *blockNode
 				"regular transaction tree at index %d", txIdx)
 			return ruleError(ErrStakeTxInRegularTree, str)
 		}
-
-		// Perform additional contextual validation checks on each regular
-		// transaction.
-		err := checkTransactionContext(tx, b.chainParams, isTreasuryEnabled)
-		if err != nil {
-			return err
-		}
 	}
 
 	for txIdx, stx := range msgBlock.STransactions {
 		// Perform additional contextual validation checks on each stake
 		// transaction.
-		err := checkTransactionContext(stx, b.chainParams, isTreasuryEnabled)
+		err := checkTransactionContext(stx, b.chainParams, checkTxFlags)
 		if err != nil {
 			return err
 		}
