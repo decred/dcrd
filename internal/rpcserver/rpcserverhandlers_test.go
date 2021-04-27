@@ -4820,6 +4820,19 @@ func TestHandleGetTreasuryBalance(t *testing.T) {
 			Updates: updates,
 		},
 	}, {
+		name:    "handleGetTreasuryBalance: ok empty block hash with verbose",
+		handler: handleGetTreasuryBalance,
+		cmd: &types.GetTreasuryBalanceCmd{
+			Hash:    dcrjson.String(""),
+			Verbose: dcrjson.Bool(true),
+		},
+		result: types.GetTreasuryBalanceResult{
+			Hash:    blkHashString,
+			Height:  blkHeight,
+			Balance: balance,
+			Updates: updates,
+		},
+	}, {
 		name:    "handleGetTreasuryBalance: ok with block hash",
 		handler: handleGetTreasuryBalance,
 		cmd: &types.GetTreasuryBalanceCmd{
@@ -6449,6 +6462,26 @@ func TestHandleTSpendVotes(t *testing.T) {
 		mockChain:       chainVotes,
 		handler:         handleGetTreasurySpendVotes,
 		cmd:             &types.GetTreasurySpendVotesCmd{},
+		result: types.GetTreasurySpendVotesResult{
+			Hash:   bestHash,
+			Height: 432100,
+			Votes: []types.TreasurySpendVotes{{
+				Hash:      tspendHash.String(),
+				Expiry:    432290,
+				VoteStart: 428832,
+				VoteEnd:   432288,
+				YesVotes:  100,
+				NoVotes:   50,
+			}},
+		},
+	}, {
+		name:            "tspendVotes: empty block hash string counts mempool tspend votes up to tip",
+		mockTxMempooler: mempoolTSpends,
+		mockChain:       chainVotes,
+		handler:         handleGetTreasurySpendVotes,
+		cmd: &types.GetTreasurySpendVotesCmd{
+			Block: dcrjson.String(""),
+		},
 		result: types.GetTreasurySpendVotesResult{
 			Hash:   bestHash,
 			Height: 432100,
