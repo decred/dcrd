@@ -3031,7 +3031,7 @@ func handleGetTreasuryBalance(_ context.Context, s *Server, cmd interface{}) (in
 	// Either parse the provided hash or use the current best tip hash when none
 	// is provided.
 	var hash chainhash.Hash
-	if c.Hash == nil {
+	if c.Hash == nil || *c.Hash == "" {
 		hash = s.cfg.Chain.BestSnapshot().Hash
 	} else {
 		parsedHash, err := chainhash.NewHashFromStr(*c.Hash)
