@@ -398,24 +398,60 @@ func removeDuplicateAddresses(addrs []string) []string {
 	return result
 }
 
-// normalizeAddress returns addr with the passed default port appended if
-// there is not already a port specified.
-func normalizeAddress(addr, defaultPort string) string {
-	_, _, err := net.SplitHostPort(addr)
-	if err != nil {
-		return net.JoinHostPort(addr, defaultPort)
-	}
-	return addr
-}
+const (
+	normalizeInterfaceAddrs = 1 << iota
+	normalizeInterfaceFirstAddr
+)
 
 // normalizeAddresses returns a new slice with all the passed peer addresses
 // normalized with the given default port, and all duplicates removed.
-func normalizeAddresses(addrs []string, defaultPort string) []string {
-	for i, addr := range addrs {
-		addrs[i] = normalizeAddress(addr, defaultPort)
+//
+// If an address is an interface name, and the flags has the
+// normalizeInterfaceAddrs bit set, all IP addresses associated with the
+// interface will appear in the result.  If the normalizeInterfaceFirstAddr
+// bit is set, only the first address of the interface is included.
+func normalizeAddresses(addrs []string, defaultPort string, flags int) []string {
+	norm := make([]string, 0, len(addrs))
+	for _, addr := range addrs {
+		port := defaultPort
+		if a, p, err := net.SplitHostPort(addr); err == nil {
+			addr = a
+			port = p
+		}
+		var iface *net.Interface
+		if flags != 0 {
+			iface, _ = net.InterfaceByName(addr)
+		}
+		if iface == nil {
+			norm = append(norm, net.JoinHostPort(addr, port))
+			continue
+		}
+		ifaceAddrs, err := iface.Addrs()
+		if err != nil {
+			continue
+		}
+	IfaceAddrs:
+		for _, a := range ifaceAddrs {
+			switch a := a.(type) {
+			case *net.IPNet:
+				lis := a.IP.String()
+				if a.IP.To4() == nil { // IPv6
+					zoned := a.IP.IsLinkLocalUnicast() ||
+						a.IP.IsLinkLocalMulticast()
+					if zoned {
+						lis += "%" + addr
+					}
+				}
+				norm = append(norm, net.JoinHostPort(
+					lis, port))
+				if flags&normalizeInterfaceFirstAddr != 0 {
+					break IfaceAddrs
+				}
+			}
+		}
 	}
 
-	return removeDuplicateAddresses(addrs)
+	return removeDuplicateAddresses(norm)
 }
 
 // fileExists reports whether the named file or directory exists.
@@ -1120,12 +1156,12 @@ func loadConfig(appName string) (*config, []string, error) {
 	// Add default port to all listener addresses if needed and remove
 	// duplicate addresses.
 	cfg.Listeners = normalizeAddresses(cfg.Listeners,
-		cfg.params.DefaultPort)
+		cfg.params.DefaultPort, normalizeInterfaceAddrs)
 
 	// Add default port to all rpc listener addresses if needed and remove
 	// duplicate addresses.
 	cfg.RPCListeners = normalizeAddresses(cfg.RPCListeners,
-		cfg.params.rpcPort)
+		cfg.params.rpcPort, normalizeInterfaceAddrs)
 
 	// The authtype config must be one of "basic" or "clientcert".
 	switch cfg.RPCAuthType {
@@ -1171,9 +1207,9 @@ func loadConfig(appName string) (*config, []string, error) {
 	// Add default port to all added peer addresses if needed and remove
 	// duplicate addresses.
 	cfg.AddPeers = normalizeAddresses(cfg.AddPeers,
-		cfg.params.DefaultPort)
+		cfg.params.DefaultPort, normalizeInterfaceFirstAddr)
 	cfg.ConnectPeers = normalizeAddresses(cfg.ConnectPeers,
-		cfg.params.DefaultPort)
+		cfg.params.DefaultPort, normalizeInterfaceFirstAddr)
 
 	// Tor stream isolation requires either proxy or onion proxy to be set.
 	if cfg.TorIsolation && cfg.Proxy == "" && cfg.OnionProxy == "" {
@@ -1193,12 +1229,14 @@ func loadConfig(appName string) (*config, []string, error) {
 	cfg.dial = d.DialContext
 	cfg.lookup = net.LookupIP
 	if cfg.Proxy != "" {
-		_, _, err := net.SplitHostPort(cfg.Proxy)
+		host, port, err := net.SplitHostPort(cfg.Proxy)
 		if err != nil {
 			str := "%s: proxy address '%s' is invalid: %w"
 			err := fmt.Errorf(str, funcName, cfg.Proxy, err)
 			return nil, nil, err
 		}
+		cfg.Proxy = normalizeAddresses([]string{host}, port,
+			normalizeInterfaceFirstAddr)[0]
 
 		if cfg.TorIsolation &&
 			(cfg.ProxyUser != "" || cfg.ProxyPass != "") {
@@ -1229,12 +1267,14 @@ func loadConfig(appName string) (*config, []string, error) {
 	// This allows .onion address traffic to be routed through a different
 	// proxy than normal traffic.
 	if cfg.OnionProxy != "" {
-		_, _, err := net.SplitHostPort(cfg.OnionProxy)
+		host, port, err := net.SplitHostPort(cfg.OnionProxy)
 		if err != nil {
 			str := "%s: Onion proxy address '%s' is invalid: %w"
 			err := fmt.Errorf(str, funcName, cfg.OnionProxy, err)
 			return nil, nil, err
 		}
+		cfg.OnionProxy = normalizeAddresses([]string{host}, port,
+			normalizeInterfaceFirstAddr)[0]
 
 		if cfg.TorIsolation &&
 			(cfg.OnionProxyUser != "" || cfg.OnionProxyPass != "") {
