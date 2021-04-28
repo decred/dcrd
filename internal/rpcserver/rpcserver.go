@@ -480,12 +480,40 @@ func directionString(inbound bool) string {
 
 // normalizeAddress returns addr with the passed default port appended if
 // there is not already a port specified.
+//
+// If the host portion of the address is an interface name, the first IP address
+// associated with the interface is used.  Otherwise, the name is interpreted as
+// a hostname.
 func normalizeAddress(addr, defaultPort string) string {
-	_, _, err := net.SplitHostPort(addr)
-	if err != nil {
-		return net.JoinHostPort(addr, defaultPort)
+	port := defaultPort
+	if a, p, err := net.SplitHostPort(addr); err == nil {
+		addr = a
+		port = p
 	}
-	return addr
+	iface, _ := net.InterfaceByName(addr)
+	if iface == nil {
+		return net.JoinHostPort(addr, port)
+	}
+	ifaceAddrs, err := iface.Addrs()
+	if err != nil {
+		return net.JoinHostPort(addr, port)
+	}
+	for _, a := range ifaceAddrs {
+		switch a := a.(type) {
+		case *net.IPNet:
+			dialAddr := a.IP.String()
+			if a.IP.To4() == nil { // IPv6
+				zoned := a.IP.IsLinkLocalUnicast() ||
+					a.IP.IsLinkLocalMulticast()
+				if zoned {
+					dialAddr += "%" + addr
+				}
+			}
+			return net.JoinHostPort(dialAddr, port)
+		}
+	}
+
+	return net.JoinHostPort(addr, port)
 }
 
 // workState houses state that is used in between multiple RPC invocations to
