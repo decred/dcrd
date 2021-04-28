@@ -1,4 +1,4 @@
-// Copyright (c) 2016-2020 The Decred developers
+// Copyright (c) 2016-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -129,8 +129,7 @@ func drainOutgoingPipeMessages() {
 // Event IDs can take on the following values:
 //
 //   0: Database opening/closing
-//   1: Ticket database opening/closing
-//   2: Peer-to-peer server starting/stopping
+//   1: Peer-to-peer server starting/stopping
 //
 // Note that not all subsystems are started/stopped or events run during the
 // program's lifetime depending on what features are enabled through the config.
@@ -138,11 +137,9 @@ func drainOutgoingPipeMessages() {
 // As an example, the following messages may be sent during a typical execution:
 //
 //   0 0: The database is being opened
-//   0 1: The ticket DB is being opened
-//   0 2: The P2P server is starting
+//   0 1: The P2P server is starting
 //   1 0: All startup tasks have completed
-//   2 2: The P2P server is stopping
-//   2 1: The ticket DB is being closed and written to disk
+//   2 1: The P2P server is stopping
 //   2 0: The database is being closed
 type lifetimeEvent struct {
 	event  lifetimeEventID
