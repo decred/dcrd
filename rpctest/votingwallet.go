@@ -21,6 +21,7 @@ import (
 	dcrdtypes "github.com/decred/dcrd/rpc/jsonrpc/types/v3"
 	"github.com/decred/dcrd/rpcclient/v7"
 	"github.com/decred/dcrd/txscript/v4"
+	"github.com/decred/dcrd/txscript/v4/sign"
 	"github.com/decred/dcrd/txscript/v4/stdaddr"
 	"github.com/decred/dcrd/wire"
 )
@@ -456,7 +457,7 @@ func (w *VotingWallet) handleBlockConnectedNtfn(ntfn *blockConnectedNtfn) {
 			prevScript = w.voteRetScript
 		}
 
-		sig, err := txscript.SignatureScript(t, 0, prevScript, txscript.SigHashAll,
+		sig, err := sign.SignatureScript(t, 0, prevScript, txscript.SigHashAll,
 			w.privateKey, dcrec.STEcdsaSecp256k1, true)
 		if err != nil {
 			w.logError(fmt.Errorf("failed to sign ticket tx: %v", err))
@@ -565,7 +566,7 @@ func (w *VotingWallet) handleWinningTicketsNtfn(ntfn *winningTicketsNtfn) {
 			vote.Version = wire.TxVersionTreasury
 		}
 
-		sig, err := txscript.SignatureScript(vote, 1, w.p2sstx, txscript.SigHashAll,
+		sig, err := sign.SignatureScript(vote, 1, w.p2sstx, txscript.SigHashAll,
 			w.privateKey, dcrec.STEcdsaSecp256k1, true)
 		if err != nil {
 			w.logError(fmt.Errorf("failed to sign ticket tx: %v", err))

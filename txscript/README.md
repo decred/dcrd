@@ -32,9 +32,6 @@ the standard go tooling for working with modules to incorporate it.
 * [Extracting Details from Standard Scripts](https://pkg.go.dev/github.com/decred/dcrd/txscript/v4#example-ExtractPkScriptAddrs)
   Demonstrates extracting information from a standard public key script.
 
-* [Manually Signing a Transaction Output](https://pkg.go.dev/github.com/decred/dcrd/txscript/v4#example-SignTxOutput)
-  Demonstrates manually creating and signing a redeem transaction.
-
 * [Counting Opcodes in Scripts](https://pkg.go.dev/github.com/decred/dcrd/txscript/v4#example-ScriptTokenizer)
   Demonstrates creating a script tokenizer instance and using it to count the
   number of opcodes a script contains.

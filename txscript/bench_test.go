@@ -13,6 +13,18 @@ import (
 	"github.com/decred/dcrd/wire"
 )
 
+const (
+	// noTreasury signifies the treasury agenda should be treated as though
+	// it is inactive.  It is used to increase the readability of the
+	// tests.
+	noTreasury = false
+
+	// withTreasury signifies the treasury agenda should be treated as
+	// though it is active.  It is used to increase the readability of
+	// the tests.
+	withTreasury = true
+)
+
 var (
 	// manyInputsBenchTx is a transaction that contains a lot of inputs which is
 	// useful for benchmarking signature hash calculation.

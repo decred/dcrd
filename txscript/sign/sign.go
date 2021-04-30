@@ -3,7 +3,7 @@
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
-package txscript
+package sign
 
 import (
 	"errors"
@@ -14,6 +14,7 @@ import (
 	"github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/decred/dcrd/dcrec/secp256k1/v4/ecdsa"
 	"github.com/decred/dcrd/dcrec/secp256k1/v4/schnorr"
+	"github.com/decred/dcrd/txscript/v4"
 	"github.com/decred/dcrd/txscript/v4/stdaddr"
 	"github.com/decred/dcrd/wire"
 )
@@ -25,9 +26,10 @@ import (
 // does not accept a script version, the results are undefined for other script
 // versions.
 func RawTxInSignature(tx *wire.MsgTx, idx int, subScript []byte,
-	hashType SigHashType, key []byte, sigType dcrec.SignatureType) ([]byte, error) {
+	hashType txscript.SigHashType, key []byte,
+	sigType dcrec.SignatureType) ([]byte, error) {
 
-	hash, err := CalcSignatureHash(subScript, hashType, tx, idx, nil)
+	hash, err := txscript.CalcSignatureHash(subScript, hashType, tx, idx, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -70,8 +72,9 @@ func RawTxInSignature(tx *wire.MsgTx, idx int, subScript []byte,
 // as the idx'th input. privKey is serialized in the respective format for the
 // ECDSA type. This format must match the same format used to generate the payment
 // address, or the script validation will fail.
-func SignatureScript(tx *wire.MsgTx, idx int, subscript []byte, hashType SigHashType,
-	privKey []byte, sigType dcrec.SignatureType, compress bool) ([]byte, error) {
+func SignatureScript(tx *wire.MsgTx, idx int, subscript []byte,
+	hashType txscript.SigHashType, privKey []byte,
+	sigType dcrec.SignatureType, compress bool) ([]byte, error) {
 
 	sig, err := RawTxInSignature(tx, idx, subscript, hashType, privKey, sigType)
 	if err != nil {
@@ -97,19 +100,20 @@ func SignatureScript(tx *wire.MsgTx, idx int, subscript []byte, hashType SigHash
 		return nil, fmt.Errorf("unsupported signature type '%v'", sigType)
 	}
 
-	return NewScriptBuilder().AddData(sig).AddData(pkData).Script()
+	return txscript.NewScriptBuilder().AddData(sig).AddData(pkData).Script()
 }
 
 // p2pkSignatureScript constructs a pay-to-pubkey signature script.
 func p2pkSignatureScript(tx *wire.MsgTx, idx int, subScript []byte,
-	hashType SigHashType, privKey []byte, sigType dcrec.SignatureType) ([]byte, error) {
+	hashType txscript.SigHashType, privKey []byte,
+	sigType dcrec.SignatureType) ([]byte, error) {
 
 	sig, err := RawTxInSignature(tx, idx, subScript, hashType, privKey, sigType)
 	if err != nil {
 		return nil, err
 	}
 
-	return NewScriptBuilder().AddData(sig).Script()
+	return txscript.NewScriptBuilder().AddData(sig).Script()
 }
 
 // signMultiSig signs as many of the outputs in the provided multisig script as
@@ -117,11 +121,12 @@ func p2pkSignatureScript(tx *wire.MsgTx, idx int, subScript []byte,
 // fulfills the contract (i.e. nrequired signatures are provided).  Since it is
 // arguably legal to not be able to sign any of the outputs, no error is
 // returned.
-func signMultiSig(tx *wire.MsgTx, idx int, subScript []byte, hashType SigHashType,
-	addresses []stdaddr.Address, nRequired int, kdb KeyDB) ([]byte, bool) {
+func signMultiSig(tx *wire.MsgTx, idx int, subScript []byte,
+	hashType txscript.SigHashType, addresses []stdaddr.Address,
+	nRequired int, kdb KeyDB) ([]byte, bool) {
 
 	// No need to add dummy in Decred.
-	builder := NewScriptBuilder()
+	builder := txscript.NewScriptBuilder()
 	signed := 0
 	for _, addr := range addresses {
 		key, sigType, _, err := kdb.GetKey(addr)
@@ -148,13 +153,14 @@ func signMultiSig(tx *wire.MsgTx, idx int, subScript []byte, hashType SigHashTyp
 // handleStakeOutSign is a convenience function for reducing code clutter in
 // sign. It handles the signing of stake outputs.
 func handleStakeOutSign(tx *wire.MsgTx, idx int, subScript []byte,
-	hashType SigHashType, kdb KeyDB, sdb ScriptDB,
-	addresses []stdaddr.Address, class ScriptClass, subClass ScriptClass,
-	nrequired int) ([]byte, ScriptClass, []stdaddr.Address, int, error) {
+	hashType txscript.SigHashType, kdb KeyDB, sdb ScriptDB,
+	addresses []stdaddr.Address, class txscript.ScriptClass,
+	subClass txscript.ScriptClass,
+	nrequired int) ([]byte, txscript.ScriptClass, []stdaddr.Address, int, error) {
 
 	// look up key for address
 	switch subClass {
-	case PubKeyHashTy:
+	case txscript.PubKeyHashTy:
 		key, sigType, compressed, err := kdb.GetKey(addresses[0])
 		if err != nil {
 			return nil, class, nil, 0, err
@@ -165,7 +171,7 @@ func handleStakeOutSign(tx *wire.MsgTx, idx int, subScript []byte,
 			return nil, class, nil, 0, err
 		}
 		return txscript, class, addresses, nrequired, nil
-	case ScriptHashTy:
+	case txscript.ScriptHashTy:
 		script, err := sdb.GetScript(addresses[0])
 		if err != nil {
 			return nil, class, nil, 0, err
@@ -182,23 +188,25 @@ func handleStakeOutSign(tx *wire.MsgTx, idx int, subScript []byte,
 // its input index, a database of keys, a database of scripts, and information
 // about the type of signature and returns a signature, script class, the
 // addresses involved, and the number of signatures required.
-func sign(chainParams stdaddr.AddressParams, tx *wire.MsgTx, idx int, subScript []byte, hashType SigHashType, kdb KeyDB, sdb ScriptDB, isTreasuryEnabled bool) ([]byte, ScriptClass, []stdaddr.Address, int, error) {
+func sign(chainParams stdaddr.AddressParams, tx *wire.MsgTx, idx int,
+	subScript []byte, hashType txscript.SigHashType, kdb KeyDB, sdb ScriptDB,
+	isTreasuryEnabled bool) ([]byte, txscript.ScriptClass, []stdaddr.Address, int, error) {
 
 	const scriptVersion = 0
-	class, addresses, nrequired, err := ExtractPkScriptAddrs(scriptVersion,
-		subScript, chainParams, isTreasuryEnabled)
+	class, addresses, nrequired, err := txscript.ExtractPkScriptAddrs(
+		scriptVersion, subScript, chainParams, isTreasuryEnabled)
 	if err != nil {
-		return nil, NonStandardTy, nil, 0, err
+		return nil, txscript.NonStandardTy, nil, 0, err
 	}
 
 	subClass := class
-	isStakeType := class == StakeSubmissionTy ||
-		class == StakeSubChangeTy ||
-		class == StakeGenTy ||
-		class == StakeRevocationTy ||
-		(isTreasuryEnabled && class == TreasuryGenTy)
+	isStakeType := class == txscript.StakeSubmissionTy ||
+		class == txscript.StakeSubChangeTy ||
+		class == txscript.StakeGenTy ||
+		class == txscript.StakeRevocationTy ||
+		(isTreasuryEnabled && class == txscript.TreasuryGenTy)
 	if isStakeType {
-		subClass, err = GetStakeOutSubclass(subScript, isTreasuryEnabled)
+		subClass, err = txscript.GetStakeOutSubclass(subScript, isTreasuryEnabled)
 		if err != nil {
 			return nil, 0, nil, 0,
 				fmt.Errorf("unknown stake output subclass encountered")
@@ -206,7 +214,7 @@ func sign(chainParams stdaddr.AddressParams, tx *wire.MsgTx, idx int, subScript 
 	}
 
 	switch class {
-	case PubKeyTy:
+	case txscript.PubKeyTy:
 		// look up key for address
 		key, sigType, _, err := kdb.GetKey(addresses[0])
 		if err != nil {
@@ -221,7 +229,7 @@ func sign(chainParams stdaddr.AddressParams, tx *wire.MsgTx, idx int, subScript 
 
 		return script, class, addresses, nrequired, nil
 
-	case PubkeyAltTy:
+	case txscript.PubkeyAltTy:
 		// look up key for address
 		key, sigType, _, err := kdb.GetKey(addresses[0])
 		if err != nil {
@@ -236,7 +244,7 @@ func sign(chainParams stdaddr.AddressParams, tx *wire.MsgTx, idx int, subScript 
 
 		return script, class, addresses, nrequired, nil
 
-	case PubKeyHashTy:
+	case txscript.PubKeyHashTy:
 		// look up key for address
 		key, sigType, compressed, err := kdb.GetKey(addresses[0])
 		if err != nil {
@@ -251,7 +259,7 @@ func sign(chainParams stdaddr.AddressParams, tx *wire.MsgTx, idx int, subScript 
 
 		return script, class, addresses, nrequired, nil
 
-	case PubkeyHashAltTy:
+	case txscript.PubkeyHashAltTy:
 		// look up key for address
 		key, sigType, compressed, err := kdb.GetKey(addresses[0])
 		if err != nil {
@@ -266,7 +274,7 @@ func sign(chainParams stdaddr.AddressParams, tx *wire.MsgTx, idx int, subScript 
 
 		return script, class, addresses, nrequired, nil
 
-	case ScriptHashTy:
+	case txscript.ScriptHashTy:
 		script, err := sdb.GetScript(addresses[0])
 		if err != nil {
 			return nil, class, nil, 0, err
@@ -274,32 +282,32 @@ func sign(chainParams stdaddr.AddressParams, tx *wire.MsgTx, idx int, subScript 
 
 		return script, class, addresses, nrequired, nil
 
-	case MultiSigTy:
+	case txscript.MultiSigTy:
 		script, _ := signMultiSig(tx, idx, subScript, hashType,
 			addresses, nrequired, kdb)
 		return script, class, addresses, nrequired, nil
 
-	case StakeSubmissionTy:
+	case txscript.StakeSubmissionTy:
 		return handleStakeOutSign(tx, idx, subScript, hashType, kdb,
 			sdb, addresses, class, subClass, nrequired)
 
-	case StakeGenTy:
+	case txscript.StakeGenTy:
 		return handleStakeOutSign(tx, idx, subScript, hashType, kdb,
 			sdb, addresses, class, subClass, nrequired)
 
-	case StakeRevocationTy:
+	case txscript.StakeRevocationTy:
 		return handleStakeOutSign(tx, idx, subScript, hashType, kdb,
 			sdb, addresses, class, subClass, nrequired)
 
-	case StakeSubChangeTy:
+	case txscript.StakeSubChangeTy:
 		return handleStakeOutSign(tx, idx, subScript, hashType, kdb,
 			sdb, addresses, class, subClass, nrequired)
 
-	case TreasuryGenTy:
+	case txscript.TreasuryGenTy:
 		return handleStakeOutSign(tx, idx, subScript, hashType, kdb,
 			sdb, addresses, class, subClass, nrequired)
 
-	case NullDataTy:
+	case txscript.NullDataTy:
 		return nil, class, nil, 0,
 			errors.New("can't sign NULLDATA transactions")
 
@@ -335,7 +343,7 @@ func mergeMultiSig(tx *wire.MsgTx, idx int, addresses []stdaddr.Address,
 	var possibleSigs [][]byte
 	extractSigs := func(script []byte) error {
 		const scriptVersion = 0
-		tokenizer := MakeScriptTokenizer(scriptVersion, script)
+		tokenizer := txscript.MakeScriptTokenizer(scriptVersion, script)
 		for tokenizer.Next() {
 			if data := tokenizer.Data(); len(data) != 0 {
 				possibleSigs = append(possibleSigs, data)
@@ -370,7 +378,7 @@ sigLoop:
 			continue
 		}
 		tSig := sig[:len(sig)-1]
-		hashType := SigHashType(sig[len(sig)-1])
+		hashType := txscript.SigHashType(sig[len(sig)-1])
 
 		pSig, err := ecdsa.ParseDERSignature(tSig)
 		if err != nil {
@@ -382,7 +390,7 @@ sigLoop:
 		// however, assume no sigs etc are in the script since that
 		// would make the transaction nonstandard and thus not
 		// MultiSigTy, so we just need to hash the full thing.
-		hash, err := calcSignatureHash(pkScript, hashType, tx, idx, nil)
+		hash, err := txscript.CalcSignatureHash(pkScript, hashType, tx, idx, nil)
 		if err != nil {
 			// Decred -- is this the right handling for SIGHASH_SINGLE error ?
 			// TODO make sure this doesn't break anything.
@@ -412,7 +420,7 @@ sigLoop:
 		}
 	}
 
-	builder := NewScriptBuilder()
+	builder := txscript.NewScriptBuilder()
 	doneSigs := 0
 	// This assumes that addresses are in the same order as in the script.
 	for _, addr := range addresses {
@@ -429,11 +437,39 @@ sigLoop:
 
 	// padding for missing ones.
 	for i := doneSigs; i < nRequired; i++ {
-		builder.AddOp(OP_0)
+		builder.AddOp(txscript.OP_0)
 	}
 
 	script, _ := builder.Script()
 	return script
+}
+
+// checkScriptParses returns an error if the provided script fails to parse.
+func checkScriptParses(scriptVersion uint16, script []byte) error {
+	tokenizer := txscript.MakeScriptTokenizer(scriptVersion, script)
+	for tokenizer.Next() {
+		// Nothing to do.
+	}
+	return tokenizer.Err()
+}
+
+// finalOpcodeData returns the data associated with the final opcode in the
+// script.  It will return nil if the script fails to parse.
+func finalOpcodeData(scriptVersion uint16, script []byte) []byte {
+	// Avoid unnecessary work.
+	if len(script) == 0 {
+		return nil
+	}
+
+	var data []byte
+	tokenizer := txscript.MakeScriptTokenizer(scriptVersion, script)
+	for tokenizer.Next() {
+		data = tokenizer.Data()
+	}
+	if tokenizer.Err() != nil {
+		return nil
+	}
+	return data
 }
 
 // mergeScripts merges sigScript and prevScript assuming they are both
@@ -446,7 +482,9 @@ sigLoop:
 // NOTE: This function is only valid for version 0 scripts.  Since the function
 // does not accept a script version, the results are undefined for other script
 // versions.
-func mergeScripts(chainParams stdaddr.AddressParams, tx *wire.MsgTx, idx int, pkScript []byte, class ScriptClass, addresses []stdaddr.Address, nRequired int, sigScript, prevScript []byte, isTreasuryEnabled bool) []byte {
+func mergeScripts(chainParams stdaddr.AddressParams, tx *wire.MsgTx, idx int,
+	pkScript []byte, class txscript.ScriptClass, addresses []stdaddr.Address,
+	nRequired int, sigScript, prevScript []byte, isTreasuryEnabled bool) []byte {
 
 	// TODO(oga) the scripthash and multisig paths here are overly
 	// inefficient in that they will recompute already known data.
@@ -454,7 +492,7 @@ func mergeScripts(chainParams stdaddr.AddressParams, tx *wire.MsgTx, idx int, pk
 	// extra calculations.
 	const scriptVersion = 0
 	switch class {
-	case ScriptHashTy:
+	case txscript.ScriptHashTy:
 		// Nothing to merge if either the new or previous signature
 		// scripts are empty or fail to parse.
 		if len(sigScript) == 0 ||
@@ -477,8 +515,8 @@ func mergeScripts(chainParams stdaddr.AddressParams, tx *wire.MsgTx, idx int, pk
 
 		// We already know this information somewhere up the stack,
 		// therefore the error is ignored.
-		class, addresses, nrequired, _ := ExtractPkScriptAddrs(scriptVersion,
-			script, chainParams, isTreasuryEnabled)
+		class, addresses, nrequired, _ := txscript.ExtractPkScriptAddrs(
+			scriptVersion, script, chainParams, isTreasuryEnabled)
 
 		// Merge
 		mergedScript := mergeScripts(chainParams, tx, idx, script,
@@ -486,13 +524,13 @@ func mergeScripts(chainParams stdaddr.AddressParams, tx *wire.MsgTx, idx int, pk
 			isTreasuryEnabled)
 
 		// Reappend the script and return the result.
-		builder := NewScriptBuilder()
+		builder := txscript.NewScriptBuilder()
 		builder.AddOps(mergedScript)
 		builder.AddData(script)
 		finalScript, _ := builder.Script()
 		return finalScript
 
-	case MultiSigTy:
+	case txscript.MultiSigTy:
 		return mergeMultiSig(tx, idx, addresses, nRequired, pkScript,
 			sigScript, prevScript)
 
@@ -549,7 +587,9 @@ func (sc ScriptClosure) GetScript(address stdaddr.Address) ([]byte, error) {
 // NOTE: This function is only valid for version 0 scripts.  Since the function
 // does not accept a script version, the results are undefined for other script
 // versions.
-func SignTxOutput(chainParams stdaddr.AddressParams, tx *wire.MsgTx, idx int, pkScript []byte, hashType SigHashType, kdb KeyDB, sdb ScriptDB, previousScript []byte, isTreasuryEnabled bool) ([]byte, error) {
+func SignTxOutput(chainParams stdaddr.AddressParams, tx *wire.MsgTx, idx int,
+	pkScript []byte, hashType txscript.SigHashType, kdb KeyDB, sdb ScriptDB,
+	previousScript []byte, isTreasuryEnabled bool) ([]byte, error) {
 
 	sigScript, class, addresses, nrequired, err := sign(chainParams, tx,
 		idx, pkScript, hashType, kdb, sdb, isTreasuryEnabled)
@@ -557,19 +597,19 @@ func SignTxOutput(chainParams stdaddr.AddressParams, tx *wire.MsgTx, idx int, pk
 		return nil, err
 	}
 
-	isStakeType := class == StakeSubmissionTy ||
-		class == StakeSubChangeTy ||
-		class == StakeGenTy ||
-		class == StakeRevocationTy ||
-		(isTreasuryEnabled && class == TreasuryGenTy)
+	isStakeType := class == txscript.StakeSubmissionTy ||
+		class == txscript.StakeSubChangeTy ||
+		class == txscript.StakeGenTy ||
+		class == txscript.StakeRevocationTy ||
+		(isTreasuryEnabled && class == txscript.TreasuryGenTy)
 	if isStakeType {
-		class, err = GetStakeOutSubclass(pkScript, isTreasuryEnabled)
+		class, err = txscript.GetStakeOutSubclass(pkScript, isTreasuryEnabled)
 		if err != nil {
 			return nil, fmt.Errorf("unknown stake output subclass encountered")
 		}
 	}
 
-	if class == ScriptHashTy {
+	if class == txscript.ScriptHashTy {
 		// TODO keep the sub addressed and pass down to merge.
 		realSigScript, _, _, _, err := sign(chainParams, tx, idx,
 			sigScript, hashType, kdb, sdb, isTreasuryEnabled)
@@ -578,7 +618,7 @@ func SignTxOutput(chainParams stdaddr.AddressParams, tx *wire.MsgTx, idx int, pk
 		}
 
 		// Append the p2sh script as the last push in the script.
-		builder := NewScriptBuilder()
+		builder := txscript.NewScriptBuilder()
 		builder.AddOps(realSigScript)
 		builder.AddData(sigScript)
 
@@ -598,7 +638,8 @@ func SignTxOutput(chainParams stdaddr.AddressParams, tx *wire.MsgTx, idx int, pk
 // spent from the treasury.  The private key must correspond to one of the
 // valid public keys for a Pi instance recognized by consensus.
 func TSpendSignatureScript(msgTx *wire.MsgTx, privKey []byte) ([]byte, error) {
-	hash, err := CalcSignatureHash(nil, SigHashAll, msgTx, 0, nil)
+	hash, err := txscript.CalcSignatureHash(nil, txscript.SigHashAll, msgTx, 0,
+		nil)
 	if err != nil {
 		return nil, err
 	}
@@ -611,6 +652,6 @@ func TSpendSignatureScript(msgTx *wire.MsgTx, privKey []byte) ([]byte, error) {
 	sigBytes := sig.Serialize()
 	pkBytes := priv.PubKey().SerializeCompressed()
 
-	return NewScriptBuilder().AddData(sigBytes).AddData(pkBytes).
-		AddOp(OP_TSPEND).Script()
+	return txscript.NewScriptBuilder().AddData(sigBytes).AddData(pkBytes).
+		AddOp(txscript.OP_TSPEND).Script()
 }

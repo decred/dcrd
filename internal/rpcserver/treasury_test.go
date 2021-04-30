@@ -24,6 +24,7 @@ import (
 	"github.com/decred/dcrd/rpcclient/v7"
 	"github.com/decred/dcrd/rpctest"
 	"github.com/decred/dcrd/txscript/v4"
+	"github.com/decred/dcrd/txscript/v4/sign"
 	"github.com/decred/dcrd/txscript/v4/stdaddr"
 	"github.com/decred/dcrd/wire"
 )
@@ -92,7 +93,7 @@ func createTSpend(privKey []byte, payouts []tspendPayout, fee dcrutil.Amount, ex
 	})
 
 	// Calculate TSpend signature without SigHashType.
-	sigscript, err := txscript.TSpendSignatureScript(msgTx, privKey)
+	sigscript, err := sign.TSpendSignatureScript(msgTx, privKey)
 	if err != nil {
 		panic(err)
 	}
@@ -120,9 +121,8 @@ func createTAdd(t testing.TB, privKey []byte, prevOut *wire.OutPoint, pkScript [
 	}
 	tx.Version = wire.TxVersionTreasury
 
-	sig, err := txscript.SignatureScript(tx, 0, pkScript,
-		txscript.SigHashAll, privKey,
-		dcrec.STEcdsaSecp256k1, true)
+	sig, err := sign.SignatureScript(tx, 0, pkScript, txscript.SigHashAll,
+		privKey, dcrec.STEcdsaSecp256k1, true)
 	if err != nil {
 		t.Fatalf("unable to generate sig: %v", err)
 	}
@@ -473,17 +473,15 @@ func TestTreasury(t *testing.T) {
 	})
 
 	// Generate signatures for the P2PKH inputs.
-	sig, err := txscript.SignatureScript(tx, 0, tspendYes.TxOut[1].PkScript,
-		txscript.SigHashAll, privKey.Serialize(),
-		dcrec.STEcdsaSecp256k1, true)
+	sig, err := sign.SignatureScript(tx, 0, tspendYes.TxOut[1].PkScript,
+		txscript.SigHashAll, privKey.Serialize(), dcrec.STEcdsaSecp256k1, true)
 	if err != nil {
 		t.Fatalf("unable to generate sig: %v", err)
 	}
 	tx.TxIn[0].SignatureScript = sig
 
-	sig, err = txscript.SignatureScript(tx, 2, tadd1.TxOut[1].PkScript,
-		txscript.SigHashAll, privKey.Serialize(),
-		dcrec.STEcdsaSecp256k1, true)
+	sig, err = sign.SignatureScript(tx, 2, tadd1.TxOut[1].PkScript,
+		txscript.SigHashAll, privKey.Serialize(), dcrec.STEcdsaSecp256k1, true)
 	if err != nil {
 		t.Fatalf("unable to generate sig: %v", err)
 	}

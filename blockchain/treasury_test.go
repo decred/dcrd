@@ -27,6 +27,7 @@ import (
 	"github.com/decred/dcrd/gcs/v3/blockcf2"
 	"github.com/decred/dcrd/lru"
 	"github.com/decred/dcrd/txscript/v4"
+	"github.com/decred/dcrd/txscript/v4/sign"
 	"github.com/decred/dcrd/txscript/v4/stdaddr"
 	"github.com/decred/dcrd/wire"
 )
@@ -2044,18 +2045,18 @@ func TestSpendableTreasuryTxs(t *testing.T) {
 	})
 
 	// Generate the valid signature for the first input, which is a P2PKH.
-	sig, err := txscript.SignatureScript(tx, 0, tspend.TxOut[1].PkScript,
-		txscript.SigHashAll, spendPrivKey.Serialize(),
-		dcrec.STEcdsaSecp256k1, true)
+	sig, err := sign.SignatureScript(tx, 0, tspend.TxOut[1].PkScript,
+		txscript.SigHashAll, spendPrivKey.Serialize(), dcrec.STEcdsaSecp256k1,
+		true)
 	if err != nil {
 		t.Fatalf("unable to generate sig: %v", err)
 	}
 	tx.TxIn[0].SignatureScript = sig
 
 	// Generate the valid signature for the third input, which is a P2PKH.
-	sig, err = txscript.SignatureScript(tx, 2, tadd1.TxOut[1].PkScript,
-		txscript.SigHashAll, addPrivKey.Serialize(),
-		dcrec.STEcdsaSecp256k1, true)
+	sig, err = sign.SignatureScript(tx, 2, tadd1.TxOut[1].PkScript,
+		txscript.SigHashAll, addPrivKey.Serialize(), dcrec.STEcdsaSecp256k1,
+		true)
 	if err != nil {
 		t.Fatalf("unable to generate sig: %v", err)
 	}

@@ -28,6 +28,7 @@ import (
 	"github.com/decred/dcrd/dcrutil/v4"
 	"github.com/decred/dcrd/lru"
 	"github.com/decred/dcrd/txscript/v4"
+	"github.com/decred/dcrd/txscript/v4/sign"
 	"github.com/decred/dcrd/wire"
 )
 
@@ -345,7 +346,7 @@ func newFakeCreateTSpend(privKey []byte, payouts []dcrutil.Amount, fee dcrutil.A
 	})
 
 	// Calculate TSpend signature without SigHashType.
-	sigscript, err := txscript.TSpendSignatureScript(msgTx, privKey)
+	sigscript, err := sign.TSpendSignatureScript(msgTx, privKey)
 	if err != nil {
 		panic(err)
 	}

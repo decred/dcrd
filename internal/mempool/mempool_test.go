@@ -26,6 +26,7 @@ import (
 	"github.com/decred/dcrd/dcrutil/v4"
 	"github.com/decred/dcrd/internal/mining"
 	"github.com/decred/dcrd/txscript/v4"
+	"github.com/decred/dcrd/txscript/v4/sign"
 	"github.com/decred/dcrd/txscript/v4/stdaddr"
 	"github.com/decred/dcrd/wire"
 )
@@ -464,9 +465,8 @@ func (p *poolHarness) CreateSignedTx(inputs []spendableOutput, numOutputs uint32
 
 	// Sign the new transaction.
 	for i := range tx.TxIn {
-		sigScript, err := txscript.SignatureScript(tx,
-			i, p.payScript, txscript.SigHashAll, p.signKey,
-			dcrec.STEcdsaSecp256k1, true)
+		sigScript, err := sign.SignatureScript(tx, i, p.payScript,
+			txscript.SigHashAll, p.signKey, dcrec.STEcdsaSecp256k1, true)
 		if err != nil {
 			return nil, err
 		}
@@ -501,9 +501,8 @@ func (p *poolHarness) CreateTxChain(firstOutput spendableOutput, numTxns uint32)
 		})
 
 		// Sign the new transaction.
-		sigScript, err := txscript.SignatureScript(tx, 0,
-			p.payScript, txscript.SigHashAll, p.signKey,
-			dcrec.STEcdsaSecp256k1, true)
+		sigScript, err := sign.SignatureScript(tx, 0, p.payScript,
+			txscript.SigHashAll, p.signKey, dcrec.STEcdsaSecp256k1, true)
 		if err != nil {
 			return nil, err
 		}
@@ -559,9 +558,9 @@ func (p *poolHarness) CreateTicketPurchase(sourceTx *dcrutil.Tx, cost int64) (*d
 	tx.AddTxOut(newTxOut(change, changeScriptVer, changeScript))
 
 	// Sign the ticket purchase.
-	sigScript, err := txscript.SignatureScript(tx, 0,
-		sourceTx.MsgTx().TxOut[0].PkScript, txscript.SigHashAll,
-		p.signKey, dcrec.STEcdsaSecp256k1, true)
+	sigScript, err := sign.SignatureScript(tx, 0,
+		sourceTx.MsgTx().TxOut[0].PkScript, txscript.SigHashAll, p.signKey,
+		dcrec.STEcdsaSecp256k1, true)
 	if err != nil {
 		return nil, err
 	}
@@ -655,9 +654,9 @@ func (p *poolHarness) CreateVote(ticket *dcrutil.Tx, mungers ...func(*wire.MsgTx
 	// Sign the input.
 	inputToSign := 1
 	redeemTicketScript := ticket.MsgTx().TxOut[0].PkScript
-	signedScript, err := txscript.SignTxOutput(p.chainParams, vote, inputToSign,
-		redeemTicketScript, txscript.SigHashAll, p,
-		p, vote.TxIn[inputToSign].SignatureScript, noTreasury)
+	signedScript, err := sign.SignTxOutput(p.chainParams, vote, inputToSign,
+		redeemTicketScript, txscript.SigHashAll, p, p,
+		vote.TxIn[inputToSign].SignatureScript, noTreasury)
 	if err != nil {
 		return nil, err
 	}
@@ -704,7 +703,7 @@ func (p *poolHarness) CreateRevocation(ticket *dcrutil.Tx) (*dcrutil.Tx, error) 
 	// Sign the input.
 	inputToSign := 0
 	redeemTicketScript := ticket.MsgTx().TxOut[0].PkScript
-	signedScript, err := txscript.SignTxOutput(p.chainParams, revocation,
+	signedScript, err := sign.SignTxOutput(p.chainParams, revocation,
 		inputToSign, redeemTicketScript, txscript.SigHashAll, p, p,
 		revocation.TxIn[inputToSign].SignatureScript, noTreasury)
 	if err != nil {
@@ -2321,7 +2320,7 @@ func createTSpend(t *testing.T, expiry uint32, tspendAmount, tspendFee int64, pi
 	})
 
 	// Calculate TSpend signature without SigHashType.
-	sigscript, err := txscript.TSpendSignatureScript(msgTx, piKey)
+	sigscript, err := sign.TSpendSignatureScript(msgTx, piKey)
 	if err != nil {
 		t.Fatalf("unable to sign tspend: %v", err)
 	}
@@ -2467,7 +2466,7 @@ func TestHandlesTSpends(t *testing.T) {
 	// should fail.
 	tx := tspends[1].MsgTx()
 	tx.Expiry += 1
-	tx.TxIn[0].SignatureScript, err = txscript.TSpendSignatureScript(tx, piKey)
+	tx.TxIn[0].SignatureScript, err = sign.TSpendSignatureScript(tx, piKey)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2477,7 +2476,7 @@ func TestHandlesTSpends(t *testing.T) {
 	// fail.
 	tx = tspends[1].MsgTx()
 	tx.Expiry = uint32(tvi)
-	tx.TxIn[0].SignatureScript, err = txscript.TSpendSignatureScript(tx, piKey)
+	tx.TxIn[0].SignatureScript, err = sign.TSpendSignatureScript(tx, piKey)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2491,7 +2490,7 @@ func TestHandlesTSpends(t *testing.T) {
 	// in the next block).
 	tx = tspends[1].MsgTx()
 	tx.Expiry = expiry + uint32(tvi*mul*2)
-	tx.TxIn[0].SignatureScript, err = txscript.TSpendSignatureScript(tx, piKey)
+	tx.TxIn[0].SignatureScript, err = sign.TSpendSignatureScript(tx, piKey)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2511,7 +2510,7 @@ func TestHandlesTSpends(t *testing.T) {
 		t.Fatal(err)
 	}
 	tx = tspends[3].MsgTx()
-	tx.TxIn[0].SignatureScript, err = txscript.TSpendSignatureScript(tx, nonPiKey)
+	tx.TxIn[0].SignatureScript, err = sign.TSpendSignatureScript(tx, nonPiKey)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2579,9 +2578,8 @@ func createTAdd(t *testing.T, spend *spendableOutput, payScript, signKey []byte,
 	}
 
 	var err error
-	tx.TxIn[0].SignatureScript, err = txscript.SignatureScript(tx,
-		0, payScript, txscript.SigHashAll, signKey,
-		dcrec.STEcdsaSecp256k1, true)
+	tx.TxIn[0].SignatureScript, err = sign.SignatureScript(tx, 0, payScript,
+		txscript.SigHashAll, signKey, dcrec.STEcdsaSecp256k1, true)
 	if err != nil {
 		t.Fatalf("Unable to sign tadd: %v", err)
 	}

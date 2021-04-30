@@ -3,7 +3,7 @@
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
-package txscript
+package sign
 
 import (
 	"crypto/rand"
@@ -17,6 +17,7 @@ import (
 	"github.com/decred/dcrd/dcrec"
 	"github.com/decred/dcrd/dcrec/edwards/v2"
 	"github.com/decred/dcrd/dcrec/secp256k1/v4"
+	"github.com/decred/dcrd/txscript/v4"
 	"github.com/decred/dcrd/txscript/v4/stdaddr"
 	"github.com/decred/dcrd/wire"
 )
@@ -98,8 +99,8 @@ func mkGetScript(scripts map[string][]byte) ScriptDB {
 
 func checkScripts(msg string, tx *wire.MsgTx, idx int, sigScript, pkScript []byte) error {
 	tx.TxIn[idx].SignatureScript = sigScript
-	var scriptFlags ScriptFlags
-	vm, err := NewEngine(pkScript, tx, idx, scriptFlags, 0, nil)
+	var scriptFlags txscript.ScriptFlags
+	vm, err := txscript.NewEngine(pkScript, tx, idx, scriptFlags, 0, nil)
 	if err != nil {
 		return fmt.Errorf("failed to make script engine for %s: %v",
 			msg, err)
@@ -114,7 +115,9 @@ func checkScripts(msg string, tx *wire.MsgTx, idx int, sigScript, pkScript []byt
 	return nil
 }
 
-func signAndCheck(msg string, tx *wire.MsgTx, idx int, pkScript []byte, hashType SigHashType, kdb KeyDB, sdb ScriptDB, isTreasuryEnabled bool) error {
+func signAndCheck(msg string, tx *wire.MsgTx, idx int, pkScript []byte,
+	hashType txscript.SigHashType, kdb KeyDB, sdb ScriptDB,
+	isTreasuryEnabled bool) error {
 
 	sigScript, err := SignTxOutput(testingParams, tx, idx, pkScript,
 		hashType, kdb, sdb, nil, isTreasuryEnabled)
@@ -125,7 +128,10 @@ func signAndCheck(msg string, tx *wire.MsgTx, idx int, pkScript []byte, hashType
 	return checkScripts(msg, tx, idx, sigScript, pkScript)
 }
 
-func signBadAndCheck(msg string, tx *wire.MsgTx, idx int, pkScript []byte, hashType SigHashType, kdb KeyDB, sdb ScriptDB, isTreasuryEnabled bool) error {
+func signBadAndCheck(msg string, tx *wire.MsgTx, idx int, pkScript []byte,
+	hashType txscript.SigHashType, kdb KeyDB, sdb ScriptDB,
+	isTreasuryEnabled bool) error {
+
 	// Setup a PRNG.
 	randScriptHash := chainhash.HashB(pkScript)
 	tRand := mrand.New(mrand.NewSource(int64(randScriptHash[0])))
@@ -154,13 +160,13 @@ func TestSignTxOutput(t *testing.T) {
 	// make key
 	// make script based on key.
 	// sign with magic pixie dust.
-	hashTypes := []SigHashType{
-		SigHashAll,
-		SigHashNone,
-		SigHashSingle,
-		SigHashAll | SigHashAnyOneCanPay,
-		SigHashNone | SigHashAnyOneCanPay,
-		SigHashSingle | SigHashAnyOneCanPay,
+	hashTypes := []txscript.SigHashType{
+		txscript.SigHashAll,
+		txscript.SigHashNone,
+		txscript.SigHashSingle,
+		txscript.SigHashAll | txscript.SigHashAnyOneCanPay,
+		txscript.SigHashNone | txscript.SigHashAnyOneCanPay,
+		txscript.SigHashSingle | txscript.SigHashAnyOneCanPay,
 	}
 	signatureSuites := []dcrec.SignatureType{
 		dcrec.STEcdsaSecp256k1,
@@ -2073,8 +2079,8 @@ func TestSignTxOutput(t *testing.T) {
 				break
 			}
 
-			pkScript, err := MultiSigScript(2, pk1.SerializeCompressed(),
-				pk2.SerializeCompressed())
+			pkScript, err := txscript.MultiSigScript(2,
+				pk1.SerializeCompressed(), pk2.SerializeCompressed())
 			if err != nil {
 				t.Errorf("failed to make pkscript for %s: %v", msg, err)
 			}
@@ -2171,8 +2177,8 @@ func TestSignTxOutput(t *testing.T) {
 				break
 			}
 
-			pkScript, err := MultiSigScript(2, pk1.SerializeCompressed(),
-				pk2.SerializeCompressed())
+			pkScript, err := txscript.MultiSigScript(2,
+				pk1.SerializeCompressed(), pk2.SerializeCompressed())
 			if err != nil {
 				t.Errorf("failed to make pkscript "+
 					"for %s: %v", msg, err)
@@ -2310,8 +2316,8 @@ func TestSignTxOutput(t *testing.T) {
 				break
 			}
 
-			pkScript, err := MultiSigScript(2, pk1.SerializeCompressed(),
-				pk2.SerializeCompressed())
+			pkScript, err := txscript.MultiSigScript(2,
+				pk1.SerializeCompressed(), pk2.SerializeCompressed())
 			if err != nil {
 				t.Errorf("failed to make pkscript for %s: %v", msg, err)
 			}
@@ -2432,7 +2438,7 @@ type tstInput struct {
 type tstSigScript struct {
 	name               string
 	inputs             []tstInput
-	hashType           SigHashType
+	hashType           txscript.SigHashType
 	compress           bool
 	scriptAtWrongIndex bool
 }
@@ -2477,7 +2483,7 @@ var sigScriptTests = []tstSigScript{
 				indexOutOfRange:    false,
 			},
 		},
-		hashType:           SigHashAll,
+		hashType:           txscript.SigHashAll,
 		compress:           false,
 		scriptAtWrongIndex: false,
 	},
@@ -2497,7 +2503,7 @@ var sigScriptTests = []tstSigScript{
 				indexOutOfRange:    false,
 			},
 		},
-		hashType:           SigHashAll,
+		hashType:           txscript.SigHashAll,
 		compress:           false,
 		scriptAtWrongIndex: false,
 	},
@@ -2511,7 +2517,7 @@ var sigScriptTests = []tstSigScript{
 				indexOutOfRange:    false,
 			},
 		},
-		hashType:           SigHashAll,
+		hashType:           txscript.SigHashAll,
 		compress:           true,
 		scriptAtWrongIndex: false,
 	},
@@ -2531,7 +2537,7 @@ var sigScriptTests = []tstSigScript{
 				indexOutOfRange:    false,
 			},
 		},
-		hashType:           SigHashAll,
+		hashType:           txscript.SigHashAll,
 		compress:           true,
 		scriptAtWrongIndex: false,
 	},
@@ -2545,7 +2551,7 @@ var sigScriptTests = []tstSigScript{
 				indexOutOfRange:    false,
 			},
 		},
-		hashType:           SigHashNone,
+		hashType:           txscript.SigHashNone,
 		compress:           false,
 		scriptAtWrongIndex: false,
 	},
@@ -2559,7 +2565,7 @@ var sigScriptTests = []tstSigScript{
 				indexOutOfRange:    false,
 			},
 		},
-		hashType:           SigHashSingle,
+		hashType:           txscript.SigHashSingle,
 		compress:           false,
 		scriptAtWrongIndex: false,
 	},
@@ -2573,7 +2579,7 @@ var sigScriptTests = []tstSigScript{
 				indexOutOfRange:    false,
 			},
 		},
-		hashType:           SigHashAnyOneCanPay | SigHashAll,
+		hashType:           txscript.SigHashAnyOneCanPay | txscript.SigHashAll,
 		compress:           false,
 		scriptAtWrongIndex: false,
 	},
@@ -2601,7 +2607,7 @@ var sigScriptTests = []tstSigScript{
 				indexOutOfRange:    false,
 			},
 		},
-		hashType:           SigHashAll,
+		hashType:           txscript.SigHashAll,
 		compress:           true,
 		scriptAtWrongIndex: false,
 	},
@@ -2614,7 +2620,7 @@ var sigScriptTests = []tstSigScript{
 				indexOutOfRange:    false,
 			},
 		},
-		hashType:           SigHashAll,
+		hashType:           txscript.SigHashAll,
 		compress:           false,
 		scriptAtWrongIndex: false,
 	},
@@ -2634,7 +2640,7 @@ var sigScriptTests = []tstSigScript{
 				indexOutOfRange:    false,
 			},
 		},
-		hashType:           SigHashAll,
+		hashType:           txscript.SigHashAll,
 		compress:           false,
 		scriptAtWrongIndex: true,
 	},
@@ -2654,7 +2660,7 @@ var sigScriptTests = []tstSigScript{
 				indexOutOfRange:    false,
 			},
 		},
-		hashType:           SigHashAll,
+		hashType:           txscript.SigHashAll,
 		compress:           false,
 		scriptAtWrongIndex: true,
 	},
@@ -2672,7 +2678,7 @@ nexttest:
 	for i := range sigScriptTests {
 		tx := wire.NewMsgTx()
 
-		output := wire.NewTxOut(500, []byte{OP_RETURN})
+		output := wire.NewTxOut(500, []byte{txscript.OP_RETURN})
 		tx.AddTxOut(output)
 
 		for range sigScriptTests[i].inputs {
@@ -2722,9 +2728,9 @@ nexttest:
 		}
 
 		// Validate tx input scripts
-		var scriptFlags ScriptFlags
+		var scriptFlags txscript.ScriptFlags
 		for j := range tx.TxIn {
-			vm, err := NewEngine(sigScriptTests[i].inputs[j].txout.
+			vm, err := txscript.NewEngine(sigScriptTests[i].inputs[j].txout.
 				PkScript, tx, j, scriptFlags, 0,
 				nil)
 			if err != nil {

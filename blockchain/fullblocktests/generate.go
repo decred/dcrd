@@ -20,6 +20,7 @@ import (
 	"github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/decred/dcrd/dcrutil/v4"
 	"github.com/decred/dcrd/txscript/v4"
+	"github.com/decred/dcrd/txscript/v4/sign"
 	"github.com/decred/dcrd/txscript/v4/stdaddr"
 	"github.com/decred/dcrd/wire"
 )
@@ -1561,9 +1562,8 @@ func Generate(includeLargeReorg bool) (tests [][]TestInstance, err error) {
 			// associated p2sh output in bshso0.
 			spend := chaingen.MakeSpendableOut(bshso0, uint32(i+2), 2)
 			tx := g.CreateSpendTx(&spend, lowFee)
-			sig, err := txscript.RawTxInSignature(tx, 0,
-				redeemScript, txscript.SigHashAll, privKeyBytes,
-				dcrec.STEcdsaSecp256k1)
+			sig, err := sign.RawTxInSignature(tx, 0, redeemScript,
+				txscript.SigHashAll, privKeyBytes, dcrec.STEcdsaSecp256k1)
 			if err != nil {
 				panic(err)
 			}
@@ -1597,9 +1597,8 @@ func Generate(includeLargeReorg bool) (tests [][]TestInstance, err error) {
 			// associated p2sh output in bshso0.
 			spend := chaingen.MakeSpendableOut(bshso0, uint32(i+2), 2)
 			tx := g.CreateSpendTx(&spend, lowFee)
-			sig, err := txscript.RawTxInSignature(tx, 0,
-				redeemScript, txscript.SigHashAll, privKeyBytes,
-				dcrec.STEcdsaSecp256k1)
+			sig, err := sign.RawTxInSignature(tx, 0, redeemScript,
+				txscript.SigHashAll, privKeyBytes, dcrec.STEcdsaSecp256k1)
 			if err != nil {
 				panic(err)
 			}

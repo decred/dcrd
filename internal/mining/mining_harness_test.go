@@ -20,6 +20,7 @@ import (
 	"github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/decred/dcrd/dcrutil/v4"
 	"github.com/decred/dcrd/txscript/v4"
+	"github.com/decred/dcrd/txscript/v4/sign"
 	"github.com/decred/dcrd/txscript/v4/stdaddr"
 	"github.com/decred/dcrd/wire"
 )
@@ -1003,9 +1004,8 @@ func (m *miningHarness) CreateTxChain(firstOutput spendableOutput, numTxns uint3
 			m.payScript))
 
 		// Sign the new transaction.
-		sigScript, err := txscript.SignatureScript(tx, 0,
-			m.payScript, txscript.SigHashAll, m.signKey,
-			dcrec.STEcdsaSecp256k1, true)
+		sigScript, err := sign.SignatureScript(tx, 0, m.payScript,
+			txscript.SigHashAll, m.signKey, dcrec.STEcdsaSecp256k1, true)
 		if err != nil {
 			return nil, err
 		}
@@ -1076,9 +1076,8 @@ func (m *miningHarness) CreateSignedTx(inputs []spendableOutput, numOutputs uint
 
 	// Sign the new transaction.
 	for i := range tx.TxIn {
-		sigScript, err := txscript.SignatureScript(tx,
-			i, m.payScript, txscript.SigHashAll, m.signKey,
-			dcrec.STEcdsaSecp256k1, true)
+		sigScript, err := sign.SignatureScript(tx, i, m.payScript,
+			txscript.SigHashAll, m.signKey, dcrec.STEcdsaSecp256k1, true)
 		if err != nil {
 			return nil, err
 		}
@@ -1128,9 +1127,9 @@ func (m *miningHarness) CreateTicketPurchase(sourceTx *dcrutil.Tx, cost int64) (
 	tx.AddTxOut(newTxOut(change, changeScriptVer, changeScript))
 
 	// Sign the ticket purchase.
-	sigScript, err := txscript.SignatureScript(tx, 0,
-		sourceTx.MsgTx().TxOut[0].PkScript, txscript.SigHashAll,
-		m.signKey, dcrec.STEcdsaSecp256k1, true)
+	sigScript, err := sign.SignatureScript(tx, 0,
+		sourceTx.MsgTx().TxOut[0].PkScript, txscript.SigHashAll, m.signKey,
+		dcrec.STEcdsaSecp256k1, true)
 	if err != nil {
 		return nil, err
 	}
@@ -1215,7 +1214,7 @@ func (m *miningHarness) CreateVote(ticket *dcrutil.Tx, mungers ...func(*wire.Msg
 	// Sign the input.
 	inputToSign := 1
 	redeemTicketScript := ticket.MsgTx().TxOut[0].PkScript
-	signedScript, err := txscript.SignTxOutput(params, vote, inputToSign,
+	signedScript, err := sign.SignTxOutput(params, vote, inputToSign,
 		redeemTicketScript, txscript.SigHashAll, m, m,
 		vote.TxIn[inputToSign].SignatureScript, m.chain.isTreasuryAgendaActive)
 	if err != nil {
