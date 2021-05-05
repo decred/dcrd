@@ -58,7 +58,7 @@ const (
 	periodicFlushInterval = time.Minute * 2
 )
 
-// UtxoCacher represents a utxo cache that sits on top of the utxo set database.
+// UtxoCacher represents a utxo cache that sits on top of a utxo set backend.
 //
 // The interface contract requires that all of these methods are safe for
 // concurrent access.
@@ -73,7 +73,7 @@ type UtxoCacher interface {
 
 	// FetchEntries adds the requested transaction outputs to the provided view.
 	// It first checks the cache for each output, and if an output does not exist
-	// in the cache, it will fetch it from the database.
+	// in the cache, it will fetch it from the backend.
 	//
 	// Upon completion of this function, the view will contain an entry for each
 	// requested outpoint.  Spent outputs, or those which otherwise don't exist,
@@ -82,20 +82,19 @@ type UtxoCacher interface {
 
 	// FetchEntry returns the specified transaction output from the utxo set.  If
 	// the output exists in the cache, it is returned immediately.  Otherwise, it
-	// uses an existing database transaction to fetch the output from the
-	// database, cache it, and return it to the caller.  The entry that is
-	// returned can safely be mutated by the caller without invalidating the
-	// cache.
+	// fetches the output from the backend, caches it, and returns it to the
+	// caller.  The entry that is returned can safely be mutated by the caller
+	// without invalidating the cache.
 	//
 	// When there is no entry for the provided output, nil will be returned for
 	// both the entry and the error.
-	FetchEntry(dbTx database.Tx, outpoint wire.OutPoint) (*UtxoEntry, error)
+	FetchEntry(outpoint wire.OutPoint) (*UtxoEntry, error)
 
 	// Initialize initializes the utxo cache by ensuring that the utxo set is
 	// caught up to the tip of the best chain.
 	Initialize(b *BlockChain, tip *blockNode) error
 
-	// MaybeFlush conditionally flushes the cache to the database.  A flush can be
+	// MaybeFlush conditionally flushes the cache to the backend.  A flush can be
 	// forced by setting the force flush parameter.
 	MaybeFlush(bestHash *chainhash.Hash, bestHeight uint32, forceFlush bool,
 		logFlush bool) error
@@ -335,19 +334,19 @@ func (c *UtxoCache) SpendEntry(outpoint wire.OutPoint) {
 
 // fetchEntry returns the specified transaction output from the utxo set.  If
 // the output exists in the cache, it is returned immediately.  Otherwise, it
-// uses an existing database transaction to fetch the output from the database,
-// cache it, and return it to the caller.  A cloned copy of the entry is
-// returned so it can safely be mutated by the caller without invalidating the
-// cache.
+// fetches the output from the database, caches it, and returns it to the
+// caller.  A cloned copy of the entry is returned so it can safely be mutated
+// by the caller without invalidating the cache.
 //
 // When there is no entry for the provided output, nil will be returned for both
 // the entry and the error.
 //
 // This function MUST be called with the cache lock held.
-func (c *UtxoCache) fetchEntry(dbTx database.Tx, outpoint wire.OutPoint) (*UtxoEntry, error) {
+func (c *UtxoCache) fetchEntry(outpoint wire.OutPoint) (*UtxoEntry, error) {
 	// If the cache already has the entry, return it immediately.  A cloned copy
 	// of the entry is returned so it can safely be mutated by the caller without
 	// invalidating the cache.
+	var entry *UtxoEntry
 	if entry, found := c.entries[outpoint]; found {
 		c.hits++
 		return entry.Clone(), nil
@@ -362,7 +361,11 @@ func (c *UtxoCache) fetchEntry(dbTx database.Tx, outpoint wire.OutPoint) (*UtxoE
 	// will result in nil entries in the view.  This is intentionally done
 	// so other code can use the presence of an entry in the view as a way
 	// to unnecessarily avoid attempting to reload it from the database.
-	entry, err := dbFetchUtxoEntry(dbTx, outpoint)
+	err := c.db.View(func(dbTx database.Tx) error {
+		var err error
+		entry, err = dbFetchUtxoEntry(dbTx, outpoint)
+		return err
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -381,18 +384,17 @@ func (c *UtxoCache) fetchEntry(dbTx database.Tx, outpoint wire.OutPoint) (*UtxoE
 
 // FetchEntry returns the specified transaction output from the utxo set.  If
 // the output exists in the cache, it is returned immediately.  Otherwise, it
-// uses an existing database transaction to fetch the output from the database,
-// cache it, and return it to the caller.  A cloned copy of the entry is
-// returned so it can safely be mutated by the caller without invalidating the
-// cache.
+// fetches the output from the database, caches it, and returns it to the
+// caller.  A cloned copy of the entry is returned so it can safely be mutated
+// by the caller without invalidating the cache.
 //
 // When there is no entry for the provided output, nil will be returned for both
 // the entry and the error.
 //
 // This function is safe for concurrent access.
-func (c *UtxoCache) FetchEntry(dbTx database.Tx, outpoint wire.OutPoint) (*UtxoEntry, error) {
+func (c *UtxoCache) FetchEntry(outpoint wire.OutPoint) (*UtxoEntry, error) {
 	c.cacheLock.Lock()
-	entry, err := c.fetchEntry(dbTx, outpoint)
+	entry, err := c.fetchEntry(outpoint)
 	c.cacheLock.Unlock()
 	return entry, err
 }
@@ -408,25 +410,21 @@ func (c *UtxoCache) FetchEntry(dbTx database.Tx, outpoint wire.OutPoint) (*UtxoE
 // This function is safe for concurrent access.
 func (c *UtxoCache) FetchEntries(filteredSet viewFilteredSet, view *UtxoViewpoint) error {
 	c.cacheLock.Lock()
-	err := c.db.View(func(dbTx database.Tx) error {
-		for outpoint := range filteredSet {
-			entry, err := c.fetchEntry(dbTx, outpoint)
-			if err != nil {
-				return err
-			}
-
-			// NOTE: Missing entries are not considered an error here and instead
-			// will result in nil entries in the view.  This is intentionally done
-			// so other code can use the presence of an entry in the view as a way
-			// to unnecessarily avoid attempting to reload it from the database.
-			view.entries[outpoint] = entry
+	for outpoint := range filteredSet {
+		entry, err := c.fetchEntry(outpoint)
+		if err != nil {
+			return err
 		}
 
-		return nil
-	})
+		// NOTE: Missing entries are not considered an error here and instead
+		// will result in nil entries in the view.  This is intentionally done
+		// so other code can use the presence of an entry in the view as a way
+		// to unnecessarily avoid attempting to reload it from the database.
+		view.entries[outpoint] = entry
+	}
 	c.cacheLock.Unlock()
 
-	return err
+	return nil
 }
 
 // Commit updates the cache based on the state of each entry in the provided
@@ -952,19 +950,9 @@ func (b *BlockChain) ShutdownUtxoCache() {
 // any) is NOT.
 func (b *BlockChain) FetchUtxoEntry(outpoint wire.OutPoint) (*UtxoEntry, error) {
 	b.chainLock.RLock()
-	defer b.chainLock.RUnlock()
-
-	var entry *UtxoEntry
-	err := b.utxoDb.View(func(dbTx database.Tx) error {
-		var err error
-		entry, err = b.utxoCache.FetchEntry(dbTx, outpoint)
-		return err
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	return entry, nil
+	entry, err := b.utxoCache.FetchEntry(outpoint)
+	b.chainLock.RUnlock()
+	return entry, err
 }
 
 // UtxoStats represents unspent output statistics on the current utxo set.

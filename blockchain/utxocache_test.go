@@ -545,6 +545,7 @@ func TestFetchEntry(t *testing.T) {
 	for _, test := range tests {
 		// Create a utxo cache with the cached entries specified by the test.
 		utxoCache := createTestUtxoCache(t, test.cachedEntries)
+		utxoCache.db = db
 		wantTotalEntrySize := utxoCache.totalEntrySize
 
 		// Add entries specified by the test to the test database.
@@ -563,12 +564,7 @@ func TestFetchEntry(t *testing.T) {
 		}
 
 		// Attempt to fetch the entry for the outpoint specified by the test.
-		var entry *UtxoEntry
-		err = db.View(func(dbTx database.Tx) error {
-			var err error
-			entry, err = utxoCache.FetchEntry(dbTx, test.outpoint)
-			return err
-		})
+		entry, err = utxoCache.FetchEntry(test.outpoint)
 		if err != nil {
 			t.Fatalf("%q: unexpected error fetching entry: %v", test.name, err)
 		}
