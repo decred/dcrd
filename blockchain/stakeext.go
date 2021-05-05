@@ -7,7 +7,6 @@ package blockchain
 
 import (
 	"github.com/decred/dcrd/chaincfg/chainhash"
-	"github.com/decred/dcrd/database/v2"
 	"github.com/decred/dcrd/dcrutil/v4"
 	"github.com/decred/dcrd/txscript/v4"
 	"github.com/decred/dcrd/txscript/v4/stdaddr"
@@ -111,27 +110,22 @@ func (b *BlockChain) TicketsWithAddress(address stdaddr.Address, isTreasuryEnabl
 
 	encodedAddr := address.String()
 	var ticketsWithAddr []chainhash.Hash
-	err := b.utxoDb.View(func(dbTx database.Tx) error {
-		for _, hash := range tickets {
-			outpoint := wire.OutPoint{Hash: hash, Index: 0, Tree: wire.TxTreeStake}
-			utxo, err := b.utxoCache.FetchEntry(dbTx, outpoint)
-			if err != nil {
-				return err
-			}
 
-			_, addrs, _, err := txscript.ExtractPkScriptAddrs(utxo.ScriptVersion(),
-				utxo.PkScript(), b.chainParams, isTreasuryEnabled)
-			if err != nil {
-				return err
-			}
-			if addrs[0].String() == encodedAddr {
-				ticketsWithAddr = append(ticketsWithAddr, hash)
-			}
+	for _, hash := range tickets {
+		outpoint := wire.OutPoint{Hash: hash, Index: 0, Tree: wire.TxTreeStake}
+		utxo, err := b.utxoCache.FetchEntry(outpoint)
+		if err != nil {
+			return nil, err
 		}
-		return nil
-	})
-	if err != nil {
-		return nil, err
+
+		_, addrs, _, err := txscript.ExtractPkScriptAddrs(utxo.ScriptVersion(),
+			utxo.PkScript(), b.chainParams, isTreasuryEnabled)
+		if err != nil {
+			return nil, err
+		}
+		if addrs[0].String() == encodedAddr {
+			ticketsWithAddr = append(ticketsWithAddr, hash)
+		}
 	}
 
 	return ticketsWithAddr, nil
@@ -223,20 +217,14 @@ func (b *BlockChain) TicketPoolValue() (dcrutil.Amount, error) {
 	b.chainLock.RUnlock()
 
 	var amt int64
-	err := b.utxoDb.View(func(dbTx database.Tx) error {
-		for _, hash := range sn.LiveTickets() {
-			outpoint := wire.OutPoint{Hash: hash, Index: 0, Tree: wire.TxTreeStake}
-			utxo, err := b.utxoCache.FetchEntry(dbTx, outpoint)
-			if err != nil {
-				return err
-			}
-
-			amt += utxo.Amount()
+	for _, hash := range sn.LiveTickets() {
+		outpoint := wire.OutPoint{Hash: hash, Index: 0, Tree: wire.TxTreeStake}
+		utxo, err := b.utxoCache.FetchEntry(outpoint)
+		if err != nil {
+			return 0, err
 		}
-		return nil
-	})
-	if err != nil {
-		return 0, err
+
+		amt += utxo.Amount()
 	}
 	return dcrutil.Amount(amt), nil
 }
