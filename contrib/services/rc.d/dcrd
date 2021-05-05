@@ -1,25 +1,23 @@
 #!/bin/ksh
 
 # OpenBSD rc.d service file for dcrd.
-# Assumes a _dcrd user is created with home directory /var/dcrd.
-# All logs and crash traces are written to syslog, with dcrd's built-in
-# file logging and log rotation disabled by default.
-# Save to /etc/rc.d/dcrd and enable with 'dcrd_flags=' in
+# Assumes a _dcrd user is created with home directory /home/_dcrd for block
+# data, and application configuration in /etc/dcrd.conf.
+# All logs and crash traces are written to the daemon.info syslog facility,
+# with dcrd's built-in file logging and log rotation disabled by default.
+# Save to /etc/rc.d/dcrd and enable with 'pkg_scripts=dcrd' in
 # /etc/rc.conf.local.
 
 daemon="/usr/local/bin/dcrd"
+daemon_flags="-C/etc/dcrd.conf -A/home/_dcrd --nofilelogging"
 daemon_user=_dcrd
-defaults="-A /var/dcrd --nofilelogging"
+daemon_logger=daemon.info
 
 . /etc/rc.d/rc.subr
 
-pexp="${daemon} ${defaults} ${daemon_flags}.*"
+daemon="env LOGFLAGS=nodatetime ${daemon}"
+
 rc_bg=YES
 rc_reload=NO
-
-rc_start() {
-	${rcexec} "${daemon} ${defaults} ${daemon_flags} 2>&1 | \
-		logger -p daemon.info -t dcrd"
-}
 
 rc_cmd $1
