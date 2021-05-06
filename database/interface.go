@@ -475,4 +475,7 @@ type DB interface {
 	// block until all database transactions have been finalized (rolled
 	// back or committed).
 	Close() error
+
+	// Flush writes all outstanding cached entries to disk.
+	Flush() error
 }

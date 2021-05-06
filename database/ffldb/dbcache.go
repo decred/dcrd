@@ -511,6 +511,15 @@ func (c *dbCache) flush() error {
 	return nil
 }
 
+// Flush flushes the database cache to persistent storage.  This involves
+// syncing the block store and replaying all transactions that have been
+// applied to the cache to the underlying database.
+//
+// This function MUST be called with the database write lock held.
+func (c *dbCache) Flush() error {
+	return c.flush()
+}
+
 // needsFlush returns whether or not the database cache needs to be flushed to
 // persistent storage based on its current size, whether or not adding all of
 // the entries in the passed database transaction would cause it to exceed the

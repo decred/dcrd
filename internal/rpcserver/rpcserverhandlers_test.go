@@ -609,6 +609,7 @@ type testDB struct {
 	viewTx   database.Tx
 	updateTx database.Tx
 	closeErr error
+	flushErr error
 }
 
 // Type returns the mocked database driver type.
@@ -636,6 +637,11 @@ func (d *testDB) Update(fn func(tx database.Tx) error) error {
 // Close provides a mock implementation for the shut down of the database.
 func (d *testDB) Close() error {
 	return d.closeErr
+}
+
+// Flush provides a mock implementation for the flushing of the database cache.
+func (d *testDB) Flush() error {
+	return d.flushErr
 }
 
 // testDatabaseTx provides a mock database transaction by implementing the
