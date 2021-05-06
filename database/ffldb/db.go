@@ -2001,6 +2001,28 @@ func (db *db) Close() error {
 	return closeErr
 }
 
+// Flush writes all outstanding cached entries to disk.
+//
+// This function is part of the database.DB interface implementation.
+func (db *db) Flush() error {
+	// Since all transactions have a read lock on this mutex, this will
+	// cause Flush to wait for all readers to complete.
+	db.closeLock.Lock()
+	defer db.closeLock.Unlock()
+
+	if db.closed {
+		return makeDbErr(database.ErrDbNotOpen, errDbNotOpenStr)
+	}
+
+	// NOTE: Since the above lock waits for all transactions to finish and
+	// prevents any new ones from being started, it is safe to flush the
+	// cache and clear all state without the individual locks.
+
+	// Flush the database cache which will sync any existing entries to
+	// disk.
+	return db.cache.Flush()
+}
+
 // fileExists reports whether the named file or directory exists.
 func fileExists(name string) bool {
 	if _, err := os.Stat(name); err != nil {
