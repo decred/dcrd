@@ -717,6 +717,15 @@ func (c *UtxoCache) Initialize(b *BlockChain, tip *blockNode) error {
 		if err != nil {
 			return err
 		}
+
+		// Flush the UTXO database to persist the initialized state.  This is
+		// necessary so that if the block database is flushed, and then an unclean
+		// shutdown occurs, the UTXO cache will know where to start from when
+		// recovering on startup.
+		err = c.db.Flush()
+		if err != nil {
+			return err
+		}
 	}
 
 	// Set the last flush hash and the last eviction height from the saved state
