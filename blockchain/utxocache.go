@@ -125,6 +125,13 @@ type UtxoCache struct {
 	// is created and is not changed afterward.
 	db database.DB
 
+	// flushBlockDB defines the function to use to flush the block database to
+	// disk.  The block database is always flushed to disk before the UTXO cache
+	// writes to disk in order to maintain a recoverable state in the event of an
+	// unclean shutdown.  It is set when the instance is created and is not
+	// changed afterward.
+	flushBlockDB func() error
+
 	// maxSize is the maximum allowed size of the utxo cache, in bytes.  It is set
 	// when the instance is created and is not changed afterward.
 	maxSize uint64
@@ -182,6 +189,14 @@ type UtxoCacheConfig struct {
 	// This field is required.
 	DB database.DB
 
+	// FlushBlockDB defines the function to use to flush the block database to
+	// disk.  The block database is always flushed to disk before the UTXO cache
+	// writes to disk in order to maintain a recoverable state in the event of an
+	// unclean shutdown.
+	//
+	// This field is required.
+	FlushBlockDB func() error
+
 	// MaxSize defines the maximum allowed size of the utxo cache, in bytes.
 	//
 	// This field is required.
@@ -199,6 +214,7 @@ func NewUtxoCache(config *UtxoCacheConfig) *UtxoCache {
 
 	return &UtxoCache{
 		db:            config.DB,
+		flushBlockDB:  config.FlushBlockDB,
 		maxSize:       config.MaxSize,
 		entries:       make(map[wire.OutPoint]*UtxoEntry, uint64(maxEntries)),
 		lastFlushTime: time.Now(),
@@ -552,12 +568,22 @@ func (c *UtxoCache) flush(bestHash *chainhash.Hash, bestHeight uint32, logFlush 
 			memUsagePercent, hitRatio, bestHeight, evictionLog)
 	}
 
+	// Flush the block database to disk.  The block database MUST always be
+	// flushed to disk prior to flushing the UTXO cache to the UTXO database.
+	// This ensures that the block database is always at least as far along as the
+	// UTXO database which keeps the UTXO database in a recoverable state in the
+	// event of an unclean shutdown.
+	err := c.flushBlockDB()
+	if err != nil {
+		return err
+	}
+
 	// Flush the entries in the cache to the database and update the utxo set
 	// state in the database.
 	//
 	// It is important that the utxo set state is always updated in the same
 	// database transaction as the utxo set itself so that it is always in sync.
-	err := c.db.Update(func(dbTx database.Tx) error {
+	err = c.db.Update(func(dbTx database.Tx) error {
 		for outpoint, entry := range c.entries {
 			// Write the entry to the database.
 			err := dbPutUtxoEntry(dbTx, outpoint, entry)
