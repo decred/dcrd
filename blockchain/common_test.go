@@ -144,7 +144,12 @@ func chainSetup(dbName string, params *chaincfg.Params) (*BlockChain, func(), er
 			TimeSource:  NewMedianTime(),
 			SigCache:    sigCache,
 			UtxoCache: NewUtxoCache(&UtxoCacheConfig{
-				DB:      utxoDb,
+				DB: utxoDb,
+				FlushBlockDB: func() error {
+					// Don't flush to disk since it is slow and this is used in a lot of
+					// tests.
+					return nil
+				},
 				MaxSize: 100 * 1024 * 1024, // 100 MiB
 			}),
 		})

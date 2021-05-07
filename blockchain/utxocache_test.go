@@ -215,7 +215,11 @@ func createTestUtxoDatabase(t *testing.T) database.DB {
 func createTestUtxoCache(t *testing.T, entries map[wire.OutPoint]*UtxoEntry) *UtxoCache {
 	t.Helper()
 
-	utxoCache := NewUtxoCache(&UtxoCacheConfig{})
+	utxoCache := NewUtxoCache(&UtxoCacheConfig{
+		FlushBlockDB: func() error {
+			return nil
+		},
+	})
 	for outpoint, entry := range entries {
 		// Add the entry to the cache.  The entry is cloned before being added so
 		// that any modifications that the cache makes to the entry are not
@@ -1118,8 +1122,9 @@ func TestInitialize(t *testing.T) {
 	// gets created and initialized at startup.
 	resetTestUtxoCache := func() *testUtxoCache {
 		testUtxoCache := newTestUtxoCache(&UtxoCacheConfig{
-			DB:      g.chain.utxoDb,
-			MaxSize: 100 * 1024 * 1024, // 100 MiB
+			DB:           g.chain.utxoDb,
+			FlushBlockDB: g.chain.db.Flush,
+			MaxSize:      100 * 1024 * 1024, // 100 MiB
 		})
 		g.chain.utxoCache = testUtxoCache
 		testUtxoCache.Initialize(g.chain, g.chain.bestChain.Tip())
@@ -1260,8 +1265,9 @@ func TestShutdownUtxoCache(t *testing.T) {
 	// Replace the chain utxo cache with a test cache so that flushing can be
 	// disabled.
 	testUtxoCache := newTestUtxoCache(&UtxoCacheConfig{
-		DB:      g.chain.utxoDb,
-		MaxSize: 100 * 1024 * 1024, // 100 MiB
+		DB:           g.chain.utxoDb,
+		FlushBlockDB: g.chain.db.Flush,
+		MaxSize:      100 * 1024 * 1024, // 100 MiB
 	})
 	g.chain.utxoCache = testUtxoCache
 

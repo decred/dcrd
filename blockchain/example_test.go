@@ -53,7 +53,10 @@ func ExampleBlockChain_ProcessBlock() {
 			ChainParams: mainNetParams,
 			TimeSource:  blockchain.NewMedianTime(),
 			UtxoCache: blockchain.NewUtxoCache(&blockchain.UtxoCacheConfig{
-				DB:      db,
+				DB: db,
+				FlushBlockDB: func() error {
+					return nil
+				},
 				MaxSize: 100 * 1024 * 1024, // 100 MiB
 			}),
 		})
