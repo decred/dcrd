@@ -684,7 +684,6 @@ var helpDescsEnUS = map[string]string{
 	"gettxoutresult-confirmations": "The number of confirmations",
 	"gettxoutresult-value":         "The transaction amount in DCR",
 	"gettxoutresult-scriptPubKey":  "The public key script used to pay coins as a JSON object",
-	"gettxoutresult-version":       "The transaction version",
 	"gettxoutresult-coinbase":      "Whether or not the transaction is a coinbase",
 
 	// GetTxOutCmd help.
