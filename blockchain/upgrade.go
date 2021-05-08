@@ -3299,22 +3299,6 @@ func separateUtxoDatabase(ctx context.Context, b *BlockChain) error {
 		return errInterruptRequested
 	}
 
-	// Drop UTXO set from the old database.
-	log.Info("Removing old UTXO set...")
-	start = time.Now()
-	err = incrementalFlatDrop(ctx, b.db, v3UtxoSetBucketName, "old UTXO set")
-	if err != nil {
-		return err
-	}
-	err = b.db.Update(func(dbTx database.Tx) error {
-		return dbTx.Metadata().DeleteBucket(v3UtxoSetBucketName)
-	})
-	if err != nil {
-		return err
-	}
-	elapsed = time.Since(start).Round(time.Millisecond)
-	log.Infof("Done removing old UTXO set in %v", elapsed)
-
 	// Get the UTXO set state from the old database.
 	var serialized []byte
 	err = b.db.View(func(dbTx database.Tx) error {
@@ -3333,7 +3317,16 @@ func separateUtxoDatabase(ctx context.Context, b *BlockChain) error {
 		if err != nil {
 			return err
 		}
+	}
 
+	// Force the UTXO database to flush to disk before removing the UTXO set
+	// and UTXO state from the block database.
+	err = b.utxoDb.Flush()
+	if err != nil {
+		return err
+	}
+
+	if serialized != nil {
 		// Delete the UTXO set state from the old database.
 		err = b.db.Update(func(dbTx database.Tx) error {
 			return dbTx.Metadata().Delete(v1UtxoSetStateKeyName)
@@ -3343,7 +3336,25 @@ func separateUtxoDatabase(ctx context.Context, b *BlockChain) error {
 		}
 	}
 
-	return nil
+	// Drop UTXO set from the old database.
+	log.Info("Removing old UTXO set...")
+	start = time.Now()
+	err = incrementalFlatDrop(ctx, b.db, v3UtxoSetBucketName, "old UTXO set")
+	if err != nil {
+		return err
+	}
+	err = b.db.Update(func(dbTx database.Tx) error {
+		return dbTx.Metadata().DeleteBucket(v3UtxoSetBucketName)
+	})
+	if err != nil {
+		return err
+	}
+	elapsed = time.Since(start).Round(time.Millisecond)
+	log.Infof("Done removing old UTXO set in %v", elapsed)
+
+	// Force the block database to flush to disk to avoid rerunning the migration
+	// in the event of an unclean shutown.
+	return b.db.Flush()
 }
 
 // checkDBTooOldToUpgrade returns an ErrDBTooOldToUpgrade error if the provided
