@@ -3580,6 +3580,7 @@ func handleGetTxOut(_ context.Context, s *Server, cmd interface{}) (interface{},
 			ReqSigs:   int32(reqSigs),
 			Type:      scriptClass.String(),
 			Addresses: addresses,
+			Version:   scriptVersion,
 		},
 		Coinbase: isCoinbase,
 	}

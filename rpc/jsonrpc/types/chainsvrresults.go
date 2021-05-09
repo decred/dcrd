@@ -582,6 +582,7 @@ type ScriptPubKeyResult struct {
 	Type      string   `json:"type"`
 	Addresses []string `json:"addresses,omitempty"`
 	CommitAmt *float64 `json:"commitamt,omitempty"`
+	Version   uint16   `json:"version"`
 }
 
 // ScriptSig models a signature script.  It is defined separately since it only
