@@ -132,6 +132,7 @@ var helpDescsEnUS = map[string]string{
 	"scriptpubkeyresult-type":      "The type of the script (e.g. 'pubkeyhash')",
 	"scriptpubkeyresult-addresses": "The Decred addresses associated with this script",
 	"scriptpubkeyresult-commitamt": "The ticket commitment value if the script is for a staking commitment",
+	"scriptpubkeyresult-version":   "The script version",
 
 	// Vout help.
 	"vout-value":        "The amount in DCR",
