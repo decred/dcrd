@@ -8087,8 +8087,8 @@ func TestHandleVersion(t *testing.T) {
 	runtimeVer := strings.Replace(runtime.Version(), ".", "-", -1)
 	version.BuildMetadata = "foo"
 	version.PreRelease = "pre"
-	buildMeta := version.NormalizeBuildString(
-		fmt.Sprintf("%s.%s", version.BuildMetadata, runtimeVer))
+	buildMeta := version.NormalizeString(fmt.Sprintf("%s.%s",
+		version.BuildMetadata, runtimeVer))
 
 	result := map[string]types.VersionResult{
 		"dcrdjsonrpcapi": {
