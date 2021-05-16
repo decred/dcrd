@@ -231,21 +231,62 @@ func TestPutUtxos(t *testing.T) {
 		}
 
 		// Validate that the state has been updated in the backend as expexted.
-		err = backend.db.View(func(dbTx database.Tx) error {
-			gotState, err := dbFetchUtxoSetState(dbTx)
-			if err != nil {
-				return err
-			}
-
-			// Ensure that the fetched utxo set state matches the expected state.
-			if !reflect.DeepEqual(gotState, test.state) {
-				t.Fatalf("%q: mismatched state:\nwant: %+v\n got: %+v\n", test.name,
-					test.state, gotState)
-			}
-			return nil
-		})
+		gotState, err := backend.FetchState()
 		if err != nil {
 			t.Fatalf("%q: error fetching utxo set state: %v", test.name, err)
+		}
+		if !reflect.DeepEqual(gotState, test.state) {
+			t.Fatalf("%q: mismatched state:\nwant: %+v\n got: %+v\n", test.name,
+				test.state, gotState)
+		}
+	}
+}
+
+// TestFetchState ensures that fetching the utxo set state from the backend
+// works as expected.
+func TestFetchState(t *testing.T) {
+	t.Parallel()
+
+	// Create a test backend.
+	backend := createTestUtxoBackend(t)
+
+	tests := []struct {
+		name  string
+		state *UtxoSetState
+	}{{
+		name:  "fresh backend (no utxo set state saved)",
+		state: nil,
+	}, {
+		name: "last flush saved in backend",
+		state: &UtxoSetState{
+			lastFlushHeight: 432100,
+			lastFlushHash: *mustParseHash("000000000000000023455b4328635d8e014dbeea" +
+				"99c6140aa715836cc7e55981"),
+		},
+	}}
+
+	for _, test := range tests {
+		// Update the utxo set state in the backend.
+		if test.state != nil {
+			err := backend.db.Update(func(dbTx database.Tx) error {
+				return dbTx.Metadata().Put(utxoSetStateKeyName,
+					serializeUtxoSetState(test.state))
+			})
+			if err != nil {
+				t.Fatalf("%q: error putting utxo set state: %v", test.name, err)
+			}
+		}
+
+		// Fetch the utxo set state from the backend.
+		gotState, err := backend.FetchState()
+		if err != nil {
+			t.Fatalf("%q: error fetching utxo set state: %v", test.name, err)
+		}
+
+		// Ensure that the fetched utxo set state matches the expected state.
+		if !reflect.DeepEqual(gotState, test.state) {
+			t.Fatalf("%q: mismatched state:\nwant: %+v\n got: %+v\n", test.name,
+				test.state, gotState)
 		}
 	}
 }

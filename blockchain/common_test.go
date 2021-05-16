@@ -788,17 +788,12 @@ func (g *chaingenHarness) ExpectTip(tipName string) {
 }
 
 // ExpectUtxoSetState expects the provided block to be the last flushed block in
-// the utxo set state in the database.
+// the utxo set state in the utxo backend.
 func (g *chaingenHarness) ExpectUtxoSetState(blockName string) {
 	g.t.Helper()
 
-	// Fetch the utxo set state from the database.
-	var gotState *UtxoSetState
-	err := g.chain.utxoDb.View(func(dbTx database.Tx) error {
-		var err error
-		gotState, err = dbFetchUtxoSetState(dbTx)
-		return err
-	})
+	// Fetch the utxo set state from the utxo backend.
+	gotState, err := g.chain.utxoCache.FetchBackendState()
 	if err != nil {
 		g.t.Fatalf("unexpected error fetching utxo set state: %v", err)
 	}

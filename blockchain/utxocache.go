@@ -71,6 +71,9 @@ type UtxoCacher interface {
 	// cache are removed from the provided view.
 	Commit(view *UtxoViewpoint) error
 
+	// FetchBackendState returns the current state of the UTXO set in the backend.
+	FetchBackendState() (*UtxoSetState, error)
+
 	// FetchEntries adds the requested transaction outputs to the provided view.
 	// It first checks the cache for each output, and if an output does not exist
 	// in the cache, it will fetch it from the backend.
@@ -434,6 +437,11 @@ func (c *UtxoCache) FetchEntries(filteredSet viewFilteredSet, view *UtxoViewpoin
 	return nil
 }
 
+// FetchBackendState returns the current state of the UTXO set in the backend.
+func (c *UtxoCache) FetchBackendState() (*UtxoSetState, error) {
+	return c.backend.FetchState()
+}
+
 // Commit updates the cache based on the state of each entry in the provided
 // view.
 //
@@ -683,13 +691,8 @@ func (c *UtxoCache) Initialize(b *BlockChain, tip *blockNode) error {
 	log.Infof("UTXO cache initializing (max size: %d MiB)...",
 		c.maxSize/1024/1024)
 
-	// Fetch the utxo set state from the database.
-	var state *UtxoSetState
-	err := c.db.View(func(dbTx database.Tx) error {
-		var err error
-		state, err = dbFetchUtxoSetState(dbTx)
-		return err
-	})
+	// Fetch the utxo set state from the backend.
+	state, err := c.backend.FetchState()
 	if err != nil {
 		return err
 	}
