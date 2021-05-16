@@ -21,6 +21,10 @@ type UtxoBackend interface {
 	// When there is no entry for the provided output, nil will be returned for
 	// both the entry and the error.
 	FetchEntry(outpoint wire.OutPoint) (*UtxoEntry, error)
+
+	// PutUtxos atomically updates the UTXO set with the entries from the provided
+	// map along with the current state.
+	PutUtxos(utxos map[wire.OutPoint]*UtxoEntry, state *UtxoSetState) error
 }
 
 // LevelDbUtxoBackend implements the UtxoBackend interface using an underlying
@@ -105,4 +109,80 @@ func (l *LevelDbUtxoBackend) FetchEntry(outpoint wire.OutPoint) (*UtxoEntry, err
 	}
 
 	return entry, nil
+}
+
+// dbPutUtxoEntry uses an existing database transaction to update the utxo
+// entry for the given outpoint based on the provided utxo entry state.  In
+// particular, the entry is only written to the database if it is marked as
+// modified, and if the entry is marked as spent it is removed from the
+// database.
+func (l *LevelDbUtxoBackend) dbPutUtxoEntry(dbTx database.Tx,
+	outpoint wire.OutPoint, entry *UtxoEntry) error {
+
+	// No need to update the database if the entry was not modified.
+	if entry == nil || !entry.isModified() {
+		return nil
+	}
+
+	// Remove the utxo entry if it is spent.
+	utxoBucket := dbTx.Metadata().Bucket(utxoSetBucketName)
+	if entry.IsSpent() {
+		key := outpointKey(outpoint)
+		err := utxoBucket.Delete(*key)
+		recycleOutpointKey(key)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	}
+
+	// Serialize and store the utxo entry.
+	serialized, err := serializeUtxoEntry(entry)
+	if err != nil {
+		return err
+	}
+	key := outpointKey(outpoint)
+	err = utxoBucket.Put(*key, serialized)
+	// NOTE: The key is intentionally not recycled here since the database
+	// interface contract prohibits modifications.  It will be garbage collected
+	// normally when the database is done with it.
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// PutUtxos atomically updates the UTXO set with the entries from the provided
+// map along with the current state.
+func (l *LevelDbUtxoBackend) PutUtxos(utxos map[wire.OutPoint]*UtxoEntry,
+	state *UtxoSetState) error {
+
+	// Update the database with the provided entries and UTXO set state.
+	//
+	// It is important that the UTXO set state is always updated in the same
+	// database transaction as the utxo set itself so that it is always in sync.
+	err := l.db.Update(func(dbTx database.Tx) error {
+		for outpoint, entry := range utxos {
+			// Write the entry to the database.
+			err := l.dbPutUtxoEntry(dbTx, outpoint, entry)
+			if err != nil {
+				return err
+			}
+		}
+
+		// Update the UTXO set state in the database.
+		return dbTx.Metadata().Put(utxoSetStateKeyName,
+			serializeUtxoSetState(state))
+	})
+	if err != nil {
+		return err
+	}
+
+	// Flush the UTXO database to disk.  This is necessary in the case that the
+	// UTXO set state was just initialized so that if the block database is
+	// flushed, and then an unclean shutdown occurs, the UTXO cache will know
+	// where to start from when recovering on startup.
+	return l.db.Flush()
 }

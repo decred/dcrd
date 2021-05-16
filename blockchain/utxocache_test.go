@@ -154,7 +154,7 @@ type testUtxoCache struct {
 	disableFlush bool
 }
 
-// MaybeFlush conditionally flushes the cache to the database.  If the disable
+// MaybeFlush conditionally flushes the cache to the backend.  If the disable
 // flush flag is set on the test utxo cache, this function will return
 // immediately without attempting to flush the cache.
 func (c *testUtxoCache) MaybeFlush(bestHash *chainhash.Hash, bestHeight uint32,
@@ -518,15 +518,7 @@ func TestFetchEntry(t *testing.T) {
 		wantTotalEntrySize := utxoCache.totalEntrySize
 
 		// Add entries specified by the test to the test backend.
-		err := backend.db.Update(func(dbTx database.Tx) error {
-			for outpoint, entry := range test.backendEntries {
-				err := dbPutUtxoEntry(dbTx, outpoint, entry)
-				if err != nil {
-					return err
-				}
-			}
-			return nil
-		})
+		err := backend.PutUtxos(test.backendEntries, &UtxoSetState{})
 		if err != nil {
 			t.Fatalf("%q: unexpected error adding entries to test backend: %v",
 				test.name, err)
@@ -622,15 +614,7 @@ func TestFetchEntries(t *testing.T) {
 		utxoCache.db = backend.db
 
 		// Add entries specified by the test to the test backend.
-		err := backend.db.Update(func(dbTx database.Tx) error {
-			for outpoint, entry := range test.backendEntries {
-				err := dbPutUtxoEntry(dbTx, outpoint, entry)
-				if err != nil {
-					return err
-				}
-			}
-			return nil
-		})
+		err := backend.PutUtxos(test.backendEntries, &UtxoSetState{})
 		if err != nil {
 			t.Fatalf("%q: unexpected error adding entries to test backend: %v",
 				test.name, err)
@@ -853,7 +837,7 @@ func TestShouldFlush(t *testing.T) {
 	}
 }
 
-// TestMaybeFlush validates that the cache is properly flushed to the database
+// TestMaybeFlush validates that the cache is properly flushed to the backend
 // under a variety of conditions.
 func TestMaybeFlush(t *testing.T) {
 	t.Parallel()
@@ -991,14 +975,9 @@ func TestMaybeFlush(t *testing.T) {
 		}
 
 		// Add entries specified by the test to the test backend.
-		err := backend.db.Update(func(dbTx database.Tx) error {
-			for outpoint, entry := range test.backendEntries {
-				err := dbPutUtxoEntry(dbTx, outpoint, entry)
-				if err != nil {
-					return err
-				}
-			}
-			return nil
+		err := backend.PutUtxos(test.backendEntries, &UtxoSetState{
+			lastFlushHeight: utxoCache.lastEvictionHeight,
+			lastFlushHash:   utxoCache.lastFlushHash,
 		})
 		if err != nil {
 			t.Fatalf("%q: unexpected error adding entries to test backend: %v",

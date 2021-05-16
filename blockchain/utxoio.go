@@ -447,47 +447,6 @@ func dbFetchUtxoStats(dbTx database.Tx) (*UtxoStats, error) {
 	return &stats, nil
 }
 
-// dbPutUtxoEntry uses an existing database transaction to update the utxo
-// entry for the given outpoint based on the provided utxo entry state.  In
-// particular, the entry is only written to the database if it is marked as
-// modified, and if the entry is marked as spent it is removed from the
-// database.
-func dbPutUtxoEntry(dbTx database.Tx, outpoint wire.OutPoint, entry *UtxoEntry) error {
-	// No need to update the database if the entry was not modified.
-	if entry == nil || !entry.isModified() {
-		return nil
-	}
-
-	// Remove the utxo entry if it is spent.
-	utxoBucket := dbTx.Metadata().Bucket(utxoSetBucketName)
-	if entry.IsSpent() {
-		key := outpointKey(outpoint)
-		err := utxoBucket.Delete(*key)
-		recycleOutpointKey(key)
-		if err != nil {
-			return err
-		}
-
-		return nil
-	}
-
-	// Serialize and store the utxo entry.
-	serialized, err := serializeUtxoEntry(entry)
-	if err != nil {
-		return err
-	}
-	key := outpointKey(outpoint)
-	err = utxoBucket.Put(*key, serialized)
-	// NOTE: The key is intentionally not recycled here since the database
-	// interface contract prohibits modifications.  It will be garbage collected
-	// normally when the database is done with it.
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
 // -----------------------------------------------------------------------------
 // The utxo set state contains information regarding the current state of the
 // utxo set.  In particular, it tracks the block height and block hash of the
