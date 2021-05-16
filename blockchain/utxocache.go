@@ -344,7 +344,7 @@ func (c *UtxoCache) SpendEntry(outpoint wire.OutPoint) {
 
 // fetchEntry returns the specified transaction output from the utxo set.  If
 // the output exists in the cache, it is returned immediately.  Otherwise, it
-// fetches the output from the database, caches it, and returns it to the
+// fetches the output from the backend, caches it, and returns it to the
 // caller.  A cloned copy of the entry is returned so it can safely be mutated
 // by the caller without invalidating the cache.
 //
@@ -365,17 +365,13 @@ func (c *UtxoCache) fetchEntry(outpoint wire.OutPoint) (*UtxoEntry, error) {
 	// Increment cache misses.
 	c.misses++
 
-	// Fetch the entry from the database.
+	// Fetch the entry from the backend.
 	//
 	// NOTE: Missing entries are not considered an error here and instead
 	// will result in nil entries in the view.  This is intentionally done
 	// so other code can use the presence of an entry in the view as a way
-	// to unnecessarily avoid attempting to reload it from the database.
-	err := c.db.View(func(dbTx database.Tx) error {
-		var err error
-		entry, err = dbFetchUtxoEntry(dbTx, outpoint)
-		return err
-	})
+	// to unnecessarily avoid attempting to reload it from the backend.
+	entry, err := c.backend.FetchEntry(outpoint)
 	if err != nil {
 		return nil, err
 	}
@@ -394,7 +390,7 @@ func (c *UtxoCache) fetchEntry(outpoint wire.OutPoint) (*UtxoEntry, error) {
 
 // FetchEntry returns the specified transaction output from the utxo set.  If
 // the output exists in the cache, it is returned immediately.  Otherwise, it
-// fetches the output from the database, caches it, and returns it to the
+// fetches the output from the backend, caches it, and returns it to the
 // caller.  A cloned copy of the entry is returned so it can safely be mutated
 // by the caller without invalidating the cache.
 //
@@ -411,7 +407,7 @@ func (c *UtxoCache) FetchEntry(outpoint wire.OutPoint) (*UtxoEntry, error) {
 
 // FetchEntries adds the requested transaction outputs to the provided view.  It
 // first checks the cache for each output, and if an output does not exist in
-// the cache, it will fetch it from the database.
+// the cache, it will fetch it from the backend.
 //
 // Upon completion of this function, the view will contain an entry for each
 // requested outpoint.  Spent outputs, or those which otherwise don't exist,
@@ -423,13 +419,14 @@ func (c *UtxoCache) FetchEntries(filteredSet viewFilteredSet, view *UtxoViewpoin
 	for outpoint := range filteredSet {
 		entry, err := c.fetchEntry(outpoint)
 		if err != nil {
+			c.cacheLock.Unlock()
 			return err
 		}
 
 		// NOTE: Missing entries are not considered an error here and instead
 		// will result in nil entries in the view.  This is intentionally done
 		// so other code can use the presence of an entry in the view as a way
-		// to unnecessarily avoid attempting to reload it from the database.
+		// to unnecessarily avoid attempting to reload it from the backend.
 		view.entries[outpoint] = entry
 	}
 	c.cacheLock.Unlock()
