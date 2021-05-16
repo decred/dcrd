@@ -120,6 +120,10 @@ type UtxoCacher interface {
 // may not be in sync with the cache, and therefore all utxo reads and writes
 // MUST go through the cache, and never read or write to the database directly.
 type UtxoCache struct {
+	// backend is the backend that contains the UTXO set.  It is set when the
+	// instance is created and is not changed afterward.
+	backend UtxoBackend
+
 	// db is the database that contains the utxo set.  It is set when the instance
 	// is created and is not changed afterward.
 	db database.DB
@@ -183,6 +187,11 @@ var _ UtxoCacher = (*UtxoCache)(nil)
 // UtxoCacheConfig is a descriptor which specifies the utxo cache instance
 // configuration.
 type UtxoCacheConfig struct {
+	// Backend defines the backend which houses the utxo set.
+	//
+	// This field is required.
+	Backend UtxoBackend
+
 	// DB defines the database which houses the utxo set.
 	//
 	// This field is required.
@@ -212,6 +221,7 @@ func NewUtxoCache(config *UtxoCacheConfig) *UtxoCache {
 	maxEntries := math.Ceil(float64(config.MaxSize) / float64(avgEntrySize))
 
 	return &UtxoCache{
+		backend:       config.Backend,
 		db:            config.DB,
 		flushBlockDB:  config.FlushBlockDB,
 		maxSize:       config.MaxSize,

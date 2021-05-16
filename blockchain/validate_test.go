@@ -298,7 +298,8 @@ func TestCheckBlockHeaderContext(t *testing.T) {
 			ChainParams: params,
 			TimeSource:  NewMedianTime(),
 			UtxoCache: NewUtxoCache(&UtxoCacheConfig{
-				DB: utxoDb,
+				Backend: NewLevelDbUtxoBackend(utxoDb),
+				DB:      utxoDb,
 				FlushBlockDB: func() error {
 					return nil
 				},
