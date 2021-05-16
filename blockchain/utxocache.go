@@ -149,14 +149,14 @@ type UtxoCache struct {
 	entries map[wire.OutPoint]*UtxoEntry
 
 	// lastFlushHash is the block hash of the last flush.  It is used to compare
-	// the state of the cache to the utxo set state in the database so that the
+	// the state of the cache to the utxo set state in the backend so that the
 	// utxo set can properly be initialized in the case that the latest utxo data
-	// had not been flushed to the database yet.
+	// had not been flushed to the backend yet.
 	lastFlushHash chainhash.Hash
 
-	// lastFlushTime is the last time that the cache was flushed to the database.
+	// lastFlushTime is the last time that the cache was flushed to the backend.
 	// It is used to determine when to periodically flush the cache to the
-	// database during initial block download even if the cache isn't full to
+	// backend during initial block download even if the cache isn't full to
 	// minimize the amount of progress lost if an unclean shutdown occurs.
 	lastFlushTime time.Time
 
@@ -537,7 +537,7 @@ func (c *UtxoCache) shouldFlush(bestHash *chainhash.Hash) bool {
 	return time.Since(c.lastFlushTime) >= periodicFlushInterval
 }
 
-// flush commits all modified entries to the database and conditionally evicts
+// flush commits all modified entries to the backend and conditionally evicts
 // entries.
 //
 // Entries that are nil or spent are always evicted since they are
@@ -583,33 +583,19 @@ func (c *UtxoCache) flush(bestHash *chainhash.Hash, bestHeight uint32, logFlush 
 		return err
 	}
 
-	// Flush the entries in the cache to the database and update the utxo set
-	// state in the database.
-	//
-	// It is important that the utxo set state is always updated in the same
-	// database transaction as the utxo set itself so that it is always in sync.
-	err = c.db.Update(func(dbTx database.Tx) error {
-		for outpoint, entry := range c.entries {
-			// Write the entry to the database.
-			err := dbPutUtxoEntry(dbTx, outpoint, entry)
-			if err != nil {
-				return err
-			}
-		}
-
-		// Update the utxo set state in the database.
-		return dbPutUtxoSetState(dbTx, &UtxoSetState{
-			lastFlushHeight: bestHeight,
-			lastFlushHash:   *bestHash,
-		})
+	// Atomically flush all of the entries in the cache along with the best hash
+	// and best height to the backend.
+	err = c.backend.PutUtxos(c.entries, &UtxoSetState{
+		lastFlushHeight: bestHeight,
+		lastFlushHash:   *bestHash,
 	})
 	if err != nil {
 		return err
 	}
 
-	// Update the entries in the cache after flushing to the database.  This is
-	// done after the updates to the database have been successfully committed to
-	// ensure that an unexpected database error would not leave the cache in an
+	// Update the entries in the cache after flushing to the backend.  This is
+	// done after the updates to the backend have been successfully committed to
+	// ensure that an unexpected backend error would not leave the cache in an
 	// inconsistent state.
 	for outpoint, entry := range c.entries {
 		// Conditionally evict entries from the cache.  Entries that are nil or
@@ -631,7 +617,7 @@ func (c *UtxoCache) flush(bestHash *chainhash.Hash, bestHeight uint32, logFlush 
 		}
 
 		// If the entry wasn't removed from the cache, clear the modified and
-		// fresh flags since it has been updated in the database.
+		// fresh flags since it has been updated in the backend.
 		entry.state &^= utxoStateModified
 		entry.state &^= utxoStateFresh
 	}
@@ -663,7 +649,7 @@ func (c *UtxoCache) flush(bestHash *chainhash.Hash, bestHeight uint32, logFlush 
 	return nil
 }
 
-// MaybeFlush conditionally flushes the cache to the database.
+// MaybeFlush conditionally flushes the cache to the backend.
 //
 // If the maximum size of the cache has been reached, or if the periodic flush
 // interval has been reached, then a flush is required.  Additionally, a flush
@@ -687,7 +673,7 @@ func (c *UtxoCache) MaybeFlush(bestHash *chainhash.Hash, bestHeight uint32,
 // Initialize initializes the utxo cache by ensuring that the utxo set is caught
 // up to the tip of the best chain.
 //
-// Since the cache is only flushed to the database periodically, the utxo set
+// Since the cache is only flushed to the backend periodically, the utxo set
 // may not be caught up to the tip of the best chain.  This function catches the
 // utxo set up by replaying all blocks from the block after the block that was
 // last flushed to the tip block through the cache.
@@ -709,25 +695,14 @@ func (c *UtxoCache) Initialize(b *BlockChain, tip *blockNode) error {
 	}
 
 	// If the state is nil, update the state to the tip.  This should only be the
-	// case when starting from a fresh database or a database that has not been
-	// run with the utxo cache yet.
+	// case when starting from a fresh backend or a backend that has not been run
+	// with the utxo cache yet.
 	if state == nil {
 		state = &UtxoSetState{
 			lastFlushHeight: uint32(tip.height),
 			lastFlushHash:   tip.hash,
 		}
-		err := c.db.Update(func(dbTx database.Tx) error {
-			return dbPutUtxoSetState(dbTx, state)
-		})
-		if err != nil {
-			return err
-		}
-
-		// Flush the UTXO database to persist the initialized state.  This is
-		// necessary so that if the block database is flushed, and then an unclean
-		// shutdown occurs, the UTXO cache will know where to start from when
-		// recovering on startup.
-		err = c.db.Flush()
+		err := c.backend.PutUtxos(c.entries, state)
 		if err != nil {
 			return err
 		}
@@ -836,7 +811,7 @@ func (c *UtxoCache) Initialize(b *BlockChain, tip *blockNode) error {
 			return err
 		}
 
-		// Conditionally flush the utxo cache to the database.  Don't force flush
+		// Conditionally flush the utxo cache to the backend.  Don't force flush
 		// since many blocks may be disconnected and connected in quick succession
 		// when initializing.
 		err = c.MaybeFlush(&n.hash, uint32(n.height), false, true)
@@ -911,7 +886,7 @@ func (c *UtxoCache) Initialize(b *BlockChain, tip *blockNode) error {
 			return err
 		}
 
-		// Conditionally flush the utxo cache to the database.  Don't force flush
+		// Conditionally flush the utxo cache to the backend.  Don't force flush
 		// since many blocks may be connected in quick succession when initializing.
 		err = c.MaybeFlush(&n.hash, uint32(n.height), false, true)
 		if err != nil {
@@ -923,7 +898,7 @@ func (c *UtxoCache) Initialize(b *BlockChain, tip *blockNode) error {
 	return nil
 }
 
-// ShutdownUtxoCache flushes the utxo cache to the database on shutdown.  Since
+// ShutdownUtxoCache flushes the utxo cache to the backend on shutdown.  Since
 // the cache is flushed periodically during initial block download and flushed
 // after every block is connected after initial block download is complete,
 // this flush that occurs during shutdown should finish relatively quickly.
@@ -975,7 +950,7 @@ type UtxoStats struct {
 //
 // NOTE: During initial block download the utxo stats will lag behind the best
 // block that is currently synced since the utxo cache is only flushed to the
-// database periodically.  After initial block download the utxo stats will
+// backend periodically.  After initial block download the utxo stats will
 // always be in sync with the best block.
 func (b *BlockChain) FetchUtxoStats() (*UtxoStats, error) {
 	var stats *UtxoStats

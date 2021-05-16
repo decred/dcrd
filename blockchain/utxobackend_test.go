@@ -122,3 +122,130 @@ func TestFetchEntryFromBackend(t *testing.T) {
 		}
 	}
 }
+
+// TestPutUtxos validates that the UTXO set in the backend is updated as
+// expected under a variety of conditions.
+func TestPutUtxos(t *testing.T) {
+	t.Parallel()
+
+	// Create a test backend.
+	backend := createTestUtxoBackend(t)
+
+	// Create test hashes to be used throughout the tests.
+	block1000Hash := mustParseHash("0000000000004740ad140c86753f9295e09f9cc81b1" +
+		"bb75d7f5552aeeedb7012")
+	block2000Hash := mustParseHash("0000000000000c8a886e3f7c32b1bb08422066dcfd0" +
+		"08de596471f11a5aff475")
+
+	// entry299Fresh is from block height 299 and is modified and fresh.
+	outpoint299 := outpoint299()
+	entry299Fresh := entry299()
+	entry299Fresh.state |= utxoStateModified | utxoStateFresh
+
+	// entry299Unmodified is from block height 299 and is unmodified.
+	entry299Unmodified := entry299()
+
+	// entry1100Spent is from block height 1100 and is modified and spent.
+	outpoint1100 := outpoint1100()
+	entry1100Spent := entry1100()
+	entry1100Spent.Spend()
+
+	// entry1100Modified is from block height 1100 and is modified and unspent.
+	entry1100Modified := entry1100()
+	entry1100Modified.state |= utxoStateModified
+
+	// entry1200Unmodified is from block height 1200 and is unspent and
+	// unmodified.
+	outpoint1200 := outpoint1200()
+	entry1200Unmodified := entry1200()
+
+	tests := []struct {
+		name               string
+		utxos              map[wire.OutPoint]*UtxoEntry
+		state              *UtxoSetState
+		backendEntries     map[wire.OutPoint]*UtxoEntry
+		backendState       *UtxoSetState
+		wantBackendEntries map[wire.OutPoint]*UtxoEntry
+		wantState          *UtxoSetState
+	}{{
+		name: "update the UTXO set with entries in various states",
+		utxos: map[wire.OutPoint]*UtxoEntry{
+			outpoint299:  entry299Fresh,
+			outpoint1100: entry1100Spent,
+			outpoint1200: entry1200Unmodified,
+		},
+		state: &UtxoSetState{
+			lastFlushHash:   *block2000Hash,
+			lastFlushHeight: 2000,
+		},
+		backendEntries: map[wire.OutPoint]*UtxoEntry{
+			outpoint1100: entry1100Modified,
+		},
+		backendState: &UtxoSetState{
+			lastFlushHash:   *block1000Hash,
+			lastFlushHeight: 1000,
+		},
+		// entry299 should be added to the backend.
+		// entry1100 should be removed from the backend since it now spent.
+		// entry1200 should not be added to the backend since it is unmodified.
+		wantBackendEntries: map[wire.OutPoint]*UtxoEntry{
+			outpoint299: entry299Unmodified,
+		},
+		wantState: &UtxoSetState{
+			lastFlushHash:   *block2000Hash,
+			lastFlushHeight: 2000,
+		},
+	}}
+
+	for _, test := range tests {
+		// Add existing entries specified by the test to the test backend.
+		err := backend.PutUtxos(test.backendEntries, test.backendState)
+		if err != nil {
+			t.Fatalf("%q: unexpected error adding entries to test backend: %v",
+				test.name, err)
+		}
+
+		// Update the UTXO set and state as specified by the test.
+		err = backend.PutUtxos(test.utxos, test.state)
+		if err != nil {
+			t.Fatalf("%q: unexpected error putting utxos: %v", test.name, err)
+		}
+
+		// Validate that the backend entries match the expected entries after
+		// updating the UTXO set.
+		backendEntries := make(map[wire.OutPoint]*UtxoEntry)
+		for outpoint := range test.utxos {
+			entry, err := backend.FetchEntry(outpoint)
+			if err != nil {
+				t.Fatalf("%q: unexpected error fetching entries from test backend: %v",
+					test.name, err)
+			}
+
+			if entry != nil {
+				backendEntries[outpoint] = entry
+			}
+		}
+		if !reflect.DeepEqual(backendEntries, test.wantBackendEntries) {
+			t.Fatalf("%q: mismatched backend entries:\nwant: %+v\n got: %+v\n",
+				test.name, test.wantBackendEntries, backendEntries)
+		}
+
+		// Validate that the state has been updated in the backend as expexted.
+		err = backend.db.View(func(dbTx database.Tx) error {
+			gotState, err := dbFetchUtxoSetState(dbTx)
+			if err != nil {
+				return err
+			}
+
+			// Ensure that the fetched utxo set state matches the expected state.
+			if !reflect.DeepEqual(gotState, test.state) {
+				t.Fatalf("%q: mismatched state:\nwant: %+v\n got: %+v\n", test.name,
+					test.state, gotState)
+			}
+			return nil
+		})
+		if err != nil {
+			t.Fatalf("%q: error fetching utxo set state: %v", test.name, err)
+		}
+	}
+}
