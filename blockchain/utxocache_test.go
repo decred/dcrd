@@ -1022,19 +1022,17 @@ func TestMaybeFlush(t *testing.T) {
 		// Validate that the backend entries match the expected entries after
 		// flushing the cache.
 		backendEntries := make(map[wire.OutPoint]*UtxoEntry)
-		err = backend.db.View(func(dbTx database.Tx) error {
-			for outpoint := range test.cachedEntries {
-				entry, err := dbFetchUtxoEntry(dbTx, outpoint)
-				if err != nil {
-					return err
-				}
-
-				if entry != nil {
-					backendEntries[outpoint] = entry
-				}
+		for outpoint := range test.cachedEntries {
+			entry, err := backend.FetchEntry(outpoint)
+			if err != nil {
+				t.Fatalf("%q: unexpected error fetching entries from test backend: %v",
+					test.name, err)
 			}
-			return nil
-		})
+
+			if entry != nil {
+				backendEntries[outpoint] = entry
+			}
+		}
 		if err != nil {
 			t.Fatalf("%q: unexpected error fetching entries from test backend: %v",
 				test.name, err)
