@@ -11,6 +11,12 @@ import (
 	"github.com/decred/dcrd/wire"
 )
 
+var (
+	// utxoSetStateKeyName is the name of the database key used to house the
+	// state of the unspent transaction output set.
+	utxoSetStateKeyName = []byte("utxosetstate")
+)
+
 // UtxoBackend represents a persistent storage layer for the UTXO set.
 //
 // The interface contract requires that all of these methods are safe for
@@ -21,6 +27,9 @@ type UtxoBackend interface {
 	// When there is no entry for the provided output, nil will be returned for
 	// both the entry and the error.
 	FetchEntry(outpoint wire.OutPoint) (*UtxoEntry, error)
+
+	// FetchState returns the current state of the UTXO set.
+	FetchState() (*UtxoSetState, error)
 
 	// PutUtxos atomically updates the UTXO set with the entries from the provided
 	// map along with the current state.
@@ -109,6 +118,30 @@ func (l *LevelDbUtxoBackend) FetchEntry(outpoint wire.OutPoint) (*UtxoEntry, err
 	}
 
 	return entry, nil
+}
+
+// FetchState returns the current state of the UTXO set.
+func (l *LevelDbUtxoBackend) FetchState() (*UtxoSetState, error) {
+	// Fetch the utxo set state from the database.
+	var serialized []byte
+	err := l.db.View(func(dbTx database.Tx) error {
+		// Fetch the serialized utxo set state from the database.
+		serialized = dbTx.Metadata().Get(utxoSetStateKeyName)
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	// Return nil if the utxo set state does not exist in the database.  This
+	// should only be the case when starting from a fresh database or a database
+	// that has not been run with the utxo cache yet.
+	if serialized == nil {
+		return nil, nil
+	}
+
+	// Deserialize the utxo set state and return it.
+	return deserializeUtxoSetState(serialized)
 }
 
 // dbPutUtxoEntry uses an existing database transaction to update the utxo

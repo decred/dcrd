@@ -52,10 +52,6 @@ var (
 	// utxoSetBucketName is the name of the db bucket used to house the unspent
 	// transaction output set.
 	utxoSetBucketName = []byte("utxosetv3")
-
-	// utxoSetStateKeyName is the name of the database key used to house the
-	// state of the unspent transaction output set.
-	utxoSetStateKeyName = []byte("utxosetstate")
 )
 
 // -----------------------------------------------------------------------------
@@ -515,31 +511,6 @@ func deserializeUtxoSetState(serialized []byte) (*UtxoSetState, error) {
 		lastFlushHeight: uint32(blockHeight),
 		lastFlushHash:   hash,
 	}, nil
-}
-
-// dbPutUtxoSetState uses an existing database transaction to update the utxo
-// set state in the database.
-func dbPutUtxoSetState(dbTx database.Tx, state *UtxoSetState) error {
-	// Serialize and store the utxo set state.
-	return dbTx.Metadata().Put(utxoSetStateKeyName, serializeUtxoSetState(state))
-}
-
-// dbFetchUtxoSetState uses an existing database transaction to fetch the utxo
-// set state from the database.  If the utxo set state does not exist in the
-// database, nil is returned.
-func dbFetchUtxoSetState(dbTx database.Tx) (*UtxoSetState, error) {
-	// Fetch the serialized utxo set state from the database.
-	serialized := dbTx.Metadata().Get(utxoSetStateKeyName)
-
-	// Return nil if the utxo set state does not exist in the database.  This
-	// should only be the case when starting from a fresh database or a database
-	// that has not been run with the utxo cache yet.
-	if serialized == nil {
-		return nil, nil
-	}
-
-	// Deserialize the utxo set state and return it.
-	return deserializeUtxoSetState(serialized)
 }
 
 // createUtxoDbInfo initializes the UTXO database info.  It must only be called
