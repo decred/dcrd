@@ -137,7 +137,8 @@ func chainSetup(dbName string, params *chaincfg.Params) (*blockchain.BlockChain,
 			TimeSource:  blockchain.NewMedianTime(),
 			SigCache:    sigCache,
 			UtxoCache: blockchain.NewUtxoCache(&blockchain.UtxoCacheConfig{
-				DB: utxoDb,
+				Backend: blockchain.NewLevelDbUtxoBackend(utxoDb),
+				DB:      utxoDb,
 				FlushBlockDB: func() error {
 					// Don't flush to disk since it is slow and this is used in a lot of
 					// tests.

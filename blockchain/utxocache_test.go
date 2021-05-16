@@ -5,8 +5,6 @@
 package blockchain
 
 import (
-	"os"
-	"path/filepath"
 	"reflect"
 	"testing"
 	"time"
@@ -181,36 +179,6 @@ func newTestUtxoCache(config *UtxoCacheConfig) *testUtxoCache {
 // Ensure testUtxoCache implements the UtxoCacher interface.
 var _ UtxoCacher = (*testUtxoCache)(nil)
 
-// createTestUtxoDatabase creates a test database with the utxo set bucket.
-func createTestUtxoDatabase(t *testing.T) database.DB {
-	t.Helper()
-
-	// Create a test database.
-	dbPath := filepath.Join(os.TempDir(), t.Name())
-	_ = os.RemoveAll(dbPath)
-	db, err := database.Create("ffldb", dbPath, wire.MainNet)
-	if err != nil {
-		t.Fatalf("error creating test database: %v", err)
-	}
-	t.Cleanup(func() {
-		os.RemoveAll(dbPath)
-	})
-	t.Cleanup(func() {
-		db.Close()
-	})
-
-	// Create the utxo set bucket.
-	err = db.Update(func(dbTx database.Tx) error {
-		_, err := dbTx.Metadata().CreateBucketIfNotExists(utxoSetBucketName)
-		return err
-	})
-	if err != nil {
-		t.Fatalf("error creating utxo bucket: %v", err)
-	}
-
-	return db
-}
-
 // createTestUtxoCache creates a test utxo cache with the specified entries.
 func createTestUtxoCache(t *testing.T, entries map[wire.OutPoint]*UtxoEntry) *UtxoCache {
 	t.Helper()
@@ -231,7 +199,7 @@ func createTestUtxoCache(t *testing.T, entries map[wire.OutPoint]*UtxoEntry) *Ut
 
 		// Set the state of the cached entries based on the provided entries.  This
 		// is allowed for tests to easily simulate entries in the cache that are not
-		// fresh without having to fetch them from the database.
+		// fresh without having to fetch them from the backend.
 		cachedEntry := utxoCache.entries[outpoint]
 		if cachedEntry != nil {
 			cachedEntry.state = entry.state
@@ -506,8 +474,8 @@ func TestSpendEntry(t *testing.T) {
 func TestFetchEntry(t *testing.T) {
 	t.Parallel()
 
-	// Create a test database.
-	db := createTestUtxoDatabase(t)
+	// Create a test backend.
+	backend := createTestUtxoBackend(t)
 
 	// Create test entries to be used throughout the tests.
 	outpoint := outpoint299()
@@ -516,14 +484,14 @@ func TestFetchEntry(t *testing.T) {
 	entryModified.state |= utxoStateModified
 
 	tests := []struct {
-		name          string
-		cachedEntries map[wire.OutPoint]*UtxoEntry
-		dbEntries     map[wire.OutPoint]*UtxoEntry
-		outpoint      wire.OutPoint
-		cacheHit      bool
-		wantEntry     *UtxoEntry
+		name           string
+		cachedEntries  map[wire.OutPoint]*UtxoEntry
+		backendEntries map[wire.OutPoint]*UtxoEntry
+		outpoint       wire.OutPoint
+		cacheHit       bool
+		wantEntry      *UtxoEntry
 	}{{
-		name:     "entry is not in the cache or the database",
+		name:     "entry is not in the cache or the backend",
 		outpoint: outpoint,
 	}, {
 		name: "entry is in the cache",
@@ -534,8 +502,8 @@ func TestFetchEntry(t *testing.T) {
 		cacheHit:  true,
 		wantEntry: entry,
 	}, {
-		name: "entry is not in the cache but is in the database",
-		dbEntries: map[wire.OutPoint]*UtxoEntry{
+		name: "entry is not in the cache but is in the backend",
+		backendEntries: map[wire.OutPoint]*UtxoEntry{
 			outpoint: entryModified,
 		},
 		outpoint:  outpoint,
@@ -545,12 +513,13 @@ func TestFetchEntry(t *testing.T) {
 	for _, test := range tests {
 		// Create a utxo cache with the cached entries specified by the test.
 		utxoCache := createTestUtxoCache(t, test.cachedEntries)
-		utxoCache.db = db
+		utxoCache.backend = backend
+		utxoCache.db = backend.db
 		wantTotalEntrySize := utxoCache.totalEntrySize
 
-		// Add entries specified by the test to the test database.
-		err := db.Update(func(dbTx database.Tx) error {
-			for outpoint, entry := range test.dbEntries {
+		// Add entries specified by the test to the test backend.
+		err := backend.db.Update(func(dbTx database.Tx) error {
+			for outpoint, entry := range test.backendEntries {
 				err := dbPutUtxoEntry(dbTx, outpoint, entry)
 				if err != nil {
 					return err
@@ -559,8 +528,8 @@ func TestFetchEntry(t *testing.T) {
 			return nil
 		})
 		if err != nil {
-			t.Fatalf("%q: unexpected error adding entries to test db: %v", test.name,
-				err)
+			t.Fatalf("%q: unexpected error adding entries to test backend: %v",
+				test.name, err)
 		}
 
 		// Attempt to fetch the entry for the outpoint specified by the test.
@@ -608,8 +577,8 @@ func TestFetchEntry(t *testing.T) {
 func TestFetchEntries(t *testing.T) {
 	t.Parallel()
 
-	// Create a test database.
-	db := createTestUtxoDatabase(t)
+	// Create a test backend.
+	backend := createTestUtxoBackend(t)
 
 	// Create test entries to be used throughout the tests.
 	outpoint299 := outpoint299()
@@ -621,17 +590,17 @@ func TestFetchEntries(t *testing.T) {
 	entry1200Modified.state |= utxoStateModified
 
 	tests := []struct {
-		name          string
-		cachedEntries map[wire.OutPoint]*UtxoEntry
-		dbEntries     map[wire.OutPoint]*UtxoEntry
-		filteredSet   viewFilteredSet
-		wantEntries   map[wire.OutPoint]*UtxoEntry
+		name           string
+		cachedEntries  map[wire.OutPoint]*UtxoEntry
+		backendEntries map[wire.OutPoint]*UtxoEntry
+		filteredSet    viewFilteredSet
+		wantEntries    map[wire.OutPoint]*UtxoEntry
 	}{{
-		name: "entries are fetched from the cache and the database",
+		name: "entries are fetched from the cache and the backend",
 		cachedEntries: map[wire.OutPoint]*UtxoEntry{
 			outpoint1100: entry1100,
 		},
-		dbEntries: map[wire.OutPoint]*UtxoEntry{
+		backendEntries: map[wire.OutPoint]*UtxoEntry{
 			outpoint1200: entry1200Modified,
 		},
 		filteredSet: viewFilteredSet{
@@ -649,11 +618,12 @@ func TestFetchEntries(t *testing.T) {
 	for _, test := range tests {
 		// Create a utxo cache with the cached entries specified by the test.
 		utxoCache := createTestUtxoCache(t, test.cachedEntries)
-		utxoCache.db = db
+		utxoCache.backend = backend
+		utxoCache.db = backend.db
 
-		// Add entries specified by the test to the test database.
-		err := db.Update(func(dbTx database.Tx) error {
-			for outpoint, entry := range test.dbEntries {
+		// Add entries specified by the test to the test backend.
+		err := backend.db.Update(func(dbTx database.Tx) error {
+			for outpoint, entry := range test.backendEntries {
 				err := dbPutUtxoEntry(dbTx, outpoint, entry)
 				if err != nil {
 					return err
@@ -662,8 +632,8 @@ func TestFetchEntries(t *testing.T) {
 			return nil
 		})
 		if err != nil {
-			t.Fatalf("%q: unexpected error adding entries to test db: %v", test.name,
-				err)
+			t.Fatalf("%q: unexpected error adding entries to test backend: %v",
+				test.name, err)
 		}
 
 		// Fetch the entries requested by the test and add them to a view.
@@ -888,8 +858,8 @@ func TestShouldFlush(t *testing.T) {
 func TestMaybeFlush(t *testing.T) {
 	t.Parallel()
 
-	// Create a test database.
-	db := createTestUtxoDatabase(t)
+	// Create a test backend.
+	backend := createTestUtxoBackend(t)
 
 	// Create test hashes to be used throughout the tests.
 	block1000Hash := mustParseHash("0000000000004740ad140c86753f9295e09f9cc81b1" +
@@ -935,9 +905,9 @@ func TestMaybeFlush(t *testing.T) {
 		bestHeight               uint32
 		forceFlush               bool
 		cachedEntries            map[wire.OutPoint]*UtxoEntry
-		dbEntries                map[wire.OutPoint]*UtxoEntry
+		backendEntries           map[wire.OutPoint]*UtxoEntry
 		wantCachedEntries        map[wire.OutPoint]*UtxoEntry
-		wantDbEntries            map[wire.OutPoint]*UtxoEntry
+		wantBackendEntries       map[wire.OutPoint]*UtxoEntry
 		wantLastEvictionHeight   uint32
 		wantLastFlushHash        *chainhash.Hash
 		wantUpdatedLastFlushTime bool
@@ -953,7 +923,7 @@ func TestMaybeFlush(t *testing.T) {
 			outpoint1100: entry1100Spent,
 			outpoint1200: entry1200Fresh,
 		},
-		dbEntries: map[wire.OutPoint]*UtxoEntry{
+		backendEntries: map[wire.OutPoint]*UtxoEntry{
 			outpoint1100: entry1100Modified,
 		},
 		// The cache should remain unchanged since a flush is not required.
@@ -962,8 +932,8 @@ func TestMaybeFlush(t *testing.T) {
 			outpoint1100: entry1100Spent,
 			outpoint1200: entry1200Fresh,
 		},
-		// The db should remain unchanged since a flush is not required.
-		wantDbEntries: map[wire.OutPoint]*UtxoEntry{
+		// The backend should remain unchanged since a flush is not required.
+		wantBackendEntries: map[wire.OutPoint]*UtxoEntry{
 			outpoint1100: entry1100Unmodified,
 		},
 		wantLastEvictionHeight:   0,
@@ -981,7 +951,7 @@ func TestMaybeFlush(t *testing.T) {
 			outpoint1100: entry1100Spent,
 			outpoint1200: entry1200Fresh,
 		},
-		dbEntries: map[wire.OutPoint]*UtxoEntry{
+		backendEntries: map[wire.OutPoint]*UtxoEntry{
 			outpoint1100: entry1100Modified,
 		},
 		// entry299Fresh should be evicted from the cache due to its height.
@@ -990,10 +960,11 @@ func TestMaybeFlush(t *testing.T) {
 		wantCachedEntries: map[wire.OutPoint]*UtxoEntry{
 			outpoint1200: entry1200Unmodified,
 		},
-		// entry299Unmodified should be added to the db during the flush.
-		// entry1100Unmodified should be removed from the db since it now spent.
-		// entry1200Unmodified should be added to the db during the flush.
-		wantDbEntries: map[wire.OutPoint]*UtxoEntry{
+		// entry299Unmodified should be added to the backend during the flush.
+		// entry1100Unmodified should be removed from the backend since it now
+		// spent.
+		// entry1200Unmodified should be added to the backend during the flush.
+		wantBackendEntries: map[wire.OutPoint]*UtxoEntry{
 			outpoint299:  entry299Unmodified,
 			outpoint1200: entry1200Unmodified,
 		},
@@ -1005,7 +976,8 @@ func TestMaybeFlush(t *testing.T) {
 	for _, test := range tests {
 		// Create a utxo cache with the cached entries specified by the test.
 		utxoCache := createTestUtxoCache(t, test.cachedEntries)
-		utxoCache.db = db
+		utxoCache.backend = backend
+		utxoCache.db = backend.db
 		utxoCache.maxSize = test.maxSize
 		utxoCache.lastEvictionHeight = test.lastEvictionHeight
 		utxoCache.lastFlushHash = *test.lastFlushHash
@@ -1018,9 +990,9 @@ func TestMaybeFlush(t *testing.T) {
 			return mockedCurrentTime
 		}
 
-		// Add entries specified by the test to the test database.
-		err := db.Update(func(dbTx database.Tx) error {
-			for outpoint, entry := range test.dbEntries {
+		// Add entries specified by the test to the test backend.
+		err := backend.db.Update(func(dbTx database.Tx) error {
+			for outpoint, entry := range test.backendEntries {
 				err := dbPutUtxoEntry(dbTx, outpoint, entry)
 				if err != nil {
 					return err
@@ -1029,8 +1001,8 @@ func TestMaybeFlush(t *testing.T) {
 			return nil
 		})
 		if err != nil {
-			t.Fatalf("%q: unexpected error adding entries to test db: %v", test.name,
-				err)
+			t.Fatalf("%q: unexpected error adding entries to test backend: %v",
+				test.name, err)
 		}
 
 		// Conditionally flush the cache based on the test parameters.
@@ -1047,10 +1019,10 @@ func TestMaybeFlush(t *testing.T) {
 				test.name, test.wantCachedEntries, utxoCache.entries)
 		}
 
-		// Validate that the db entries match the expected entries after flushing
-		// the cache.
-		dbEntries := make(map[wire.OutPoint]*UtxoEntry)
-		err = db.View(func(dbTx database.Tx) error {
+		// Validate that the backend entries match the expected entries after
+		// flushing the cache.
+		backendEntries := make(map[wire.OutPoint]*UtxoEntry)
+		err = backend.db.View(func(dbTx database.Tx) error {
 			for outpoint := range test.cachedEntries {
 				entry, err := dbFetchUtxoEntry(dbTx, outpoint)
 				if err != nil {
@@ -1058,18 +1030,18 @@ func TestMaybeFlush(t *testing.T) {
 				}
 
 				if entry != nil {
-					dbEntries[outpoint] = entry
+					backendEntries[outpoint] = entry
 				}
 			}
 			return nil
 		})
 		if err != nil {
-			t.Fatalf("%q: unexpected error fetching entries from test db: %v",
+			t.Fatalf("%q: unexpected error fetching entries from test backend: %v",
 				test.name, err)
 		}
-		if !reflect.DeepEqual(dbEntries, test.wantDbEntries) {
-			t.Fatalf("%q: mismatched db entries:\nwant: %+v\n got: %+v\n", test.name,
-				test.wantDbEntries, dbEntries)
+		if !reflect.DeepEqual(backendEntries, test.wantBackendEntries) {
+			t.Fatalf("%q: mismatched backend entries:\nwant: %+v\n got: %+v\n",
+				test.name, test.wantBackendEntries, backendEntries)
 		}
 
 		// Validate that the last flush hash and time have been updated as expexted.
@@ -1118,6 +1090,7 @@ func TestInitialize(t *testing.T) {
 	// gets created and initialized at startup.
 	resetTestUtxoCache := func() *testUtxoCache {
 		testUtxoCache := newTestUtxoCache(&UtxoCacheConfig{
+			Backend:      NewLevelDbUtxoBackend(g.chain.utxoDb),
 			DB:           g.chain.utxoDb,
 			FlushBlockDB: g.chain.db.Flush,
 			MaxSize:      100 * 1024 * 1024, // 100 MiB
@@ -1261,6 +1234,7 @@ func TestShutdownUtxoCache(t *testing.T) {
 	// Replace the chain utxo cache with a test cache so that flushing can be
 	// disabled.
 	testUtxoCache := newTestUtxoCache(&UtxoCacheConfig{
+		Backend:      NewLevelDbUtxoBackend(g.chain.utxoDb),
 		DB:           g.chain.utxoDb,
 		FlushBlockDB: g.chain.db.Flush,
 		MaxSize:      100 * 1024 * 1024, // 100 MiB
