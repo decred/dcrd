@@ -1,5 +1,5 @@
 // Copyright (c) 2013-2016 The btcsuite developers
-// Copyright (c) 2015-2020 The Decred developers
+// Copyright (c) 2015-2021 The Decred developers
 // Use of this source code is governed by an ISC
 // license that can be found in the LICENSE file.
 
@@ -3123,7 +3123,9 @@ func upgradeSpendJournalToVersion3(ctx context.Context, b *BlockChain) error {
 }
 
 // upgradeUtxoSetToVersion3 upgrades a version 2 utxo set to version 3.
-func upgradeUtxoSetToVersion3(ctx context.Context, b *BlockChain) error {
+func upgradeUtxoSetToVersion3(ctx context.Context, b *BlockChain,
+	utxoBackend UtxoBackend) error {
+
 	if interruptRequested(ctx) {
 		return errInterruptRequested
 	}
@@ -3137,11 +3139,15 @@ func upgradeUtxoSetToVersion3(ctx context.Context, b *BlockChain) error {
 		return err
 	}
 
+	// Fetch the backend versioning info.
+	utxoDbInfo, err := utxoBackend.FetchInfo()
+	if err != nil {
+		return err
+	}
+
 	// Update and persist the UTXO set database version.
-	err = b.utxoDb.Update(func(dbTx database.Tx) error {
-		b.utxoDbInfo.utxoVer = 3
-		return dbPutUtxoDatabaseInfo(dbTx, b.utxoDbInfo)
-	})
+	utxoDbInfo.utxoVer = 3
+	err = utxoBackend.PutInfo(utxoDbInfo)
 	if err != nil {
 		return err
 	}
@@ -3501,10 +3507,16 @@ func upgradeSpendJournal(ctx context.Context, b *BlockChain) error {
 //
 // NOTE: The database info housed by the passed blockchain instance will be
 // updated with the latest versions.
-func upgradeUtxoDb(ctx context.Context, b *BlockChain) error {
+func upgradeUtxoDb(ctx context.Context, b *BlockChain, utxoBackend UtxoBackend) error {
+	// Fetch the backend versioning info.
+	utxoDbInfo, err := utxoBackend.FetchInfo()
+	if err != nil {
+		return err
+	}
+
 	// Update to a version 3 utxo set as needed.
-	if b.utxoDbInfo.utxoVer == 2 {
-		if err := upgradeUtxoSetToVersion3(ctx, b); err != nil {
+	if utxoDbInfo.utxoVer == 2 {
+		if err := upgradeUtxoSetToVersion3(ctx, b, utxoBackend); err != nil {
 			return err
 		}
 	}

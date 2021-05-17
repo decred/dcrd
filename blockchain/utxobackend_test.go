@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/decred/dcrd/database/v2"
 	"github.com/decred/dcrd/wire"
@@ -287,6 +288,63 @@ func TestFetchState(t *testing.T) {
 		if !reflect.DeepEqual(gotState, test.state) {
 			t.Fatalf("%q: mismatched state:\nwant: %+v\n got: %+v\n", test.name,
 				test.state, gotState)
+		}
+	}
+}
+
+// TestPutInfo ensures that putting and fetching the UTXO backend info works as
+// expected.
+func TestPutInfo(t *testing.T) {
+	t.Parallel()
+
+	// Create a test backend.
+	backend := createTestUtxoBackend(t)
+
+	tests := []struct {
+		name        string
+		backendInfo *UtxoBackendInfo
+	}{{
+		name:        "without UTXO backend info (fresh backend)",
+		backendInfo: nil,
+	}, {
+		name: "with UTXO backend info",
+		backendInfo: &UtxoBackendInfo{
+			version: 1,
+			compVer: 2,
+			utxoVer: 3,
+			created: time.Unix(1584246683, 0), // 2020-03-15 04:31:23 UTC
+		},
+	}}
+
+	for _, test := range tests {
+		if test.backendInfo != nil {
+			// Create the UTXO database info bucket.
+			err := backend.db.Update(func(dbTx database.Tx) error {
+				_, err := dbTx.Metadata().CreateBucketIfNotExists(utxoDbInfoBucketName)
+				return err
+			})
+			if err != nil {
+				t.Fatalf("%q: error creating UTXO bucket: %v", test.name, err)
+			}
+
+			// Update the UTXO backend info.
+			err = backend.PutInfo(test.backendInfo)
+			if err != nil {
+				t.Fatalf("%q: error putting UTXO backend info: %v", test.name, err)
+			}
+		}
+
+		// Fetch the UTXO backend info.
+		gotBackendInfo, err := backend.FetchInfo()
+		if err != nil {
+			t.Fatalf("%q: error fetching UTXO backend info: %v", test.name, err)
+		}
+
+		// Ensure that the fetched UTXO backend info matches the expected UTXO
+		// backend info.
+		if !reflect.DeepEqual(gotBackendInfo, test.backendInfo) {
+			t.Fatalf("%q: mismatched backend info:\nwant: %+v\n got: %+v\n",
+				test.name, test.backendInfo, gotBackendInfo)
 		}
 	}
 }

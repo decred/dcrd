@@ -138,7 +138,6 @@ type BlockChain struct {
 	db                  database.DB
 	dbInfo              *databaseInfo
 	utxoDb              database.DB
-	utxoDbInfo          *utxoDatabaseInfo
 	chainParams         *chaincfg.Params
 	timeSource          MedianTimeSource
 	notifications       NotificationCallback
@@ -2110,6 +2109,11 @@ type Config struct {
 	// This field is required.
 	DB database.DB
 
+	// UtxoBackend defines the backend which houses the UTXO set.
+	//
+	// This field is required.
+	UtxoBackend UtxoBackend
+
 	// UtxoDB defines the database which houses the UTXO set.
 	//
 	// This field is required.
@@ -2183,6 +2187,9 @@ func New(ctx context.Context, config *Config) (*BlockChain, error) {
 	if config.DB == nil {
 		return nil, AssertError("blockchain.New database is nil")
 	}
+	if config.UtxoBackend == nil {
+		return nil, AssertError("blockchain.New UTXO backend is nil")
+	}
 	if config.UtxoDB == nil {
 		return nil, AssertError("blockchain.New UTXO database is nil")
 	}
@@ -2251,13 +2258,13 @@ func New(ctx context.Context, config *Config) (*BlockChain, error) {
 	// Initialize the chain state from the passed database.  When the db
 	// does not yet contain any chain state, both it and the chain state
 	// will be initialized to contain only the genesis block.
-	if err := b.initChainState(ctx); err != nil {
+	if err := b.initChainState(ctx, config.UtxoBackend); err != nil {
 		return nil, err
 	}
 
 	// Initialize the UTXO state.  This entails running any database migrations as
 	// necessary as well as initializing the UTXO cache.
-	if err := b.initUtxoState(ctx); err != nil {
+	if err := b.initUtxoState(ctx, config.UtxoBackend); err != nil {
 		return nil, err
 	}
 
@@ -2275,8 +2282,13 @@ func New(ctx context.Context, config *Config) (*BlockChain, error) {
 		"%d, block index: %d, spend journal: %d", b.dbInfo.version,
 		b.dbInfo.compVer, b.dbInfo.bidxVer, b.dbInfo.stxoVer)
 
+	// Fetch and log the UTXO backend versioning info.
+	utxoDbInfo, err := config.UtxoBackend.FetchInfo()
+	if err != nil {
+		return nil, err
+	}
 	log.Infof("UTXO database version info: version: %d, compression: %d, utxo "+
-		"set: %d", b.utxoDbInfo.version, b.utxoDbInfo.compVer, b.utxoDbInfo.utxoVer)
+		"set: %d", utxoDbInfo.version, utxoDbInfo.compVer, utxoDbInfo.utxoVer)
 
 	b.index.RLock()
 	bestHdr := b.index.bestHeader

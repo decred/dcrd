@@ -129,15 +129,17 @@ func chainSetup(dbName string, params *chaincfg.Params) (*blockchain.BlockChain,
 	}
 
 	// Create the main chain instance.
+	utxoBackend := blockchain.NewLevelDbUtxoBackend(utxoDb)
 	chain, err := blockchain.New(context.Background(),
 		&blockchain.Config{
 			DB:          db,
+			UtxoBackend: utxoBackend,
 			UtxoDB:      utxoDb,
 			ChainParams: &paramsCopy,
 			TimeSource:  blockchain.NewMedianTime(),
 			SigCache:    sigCache,
 			UtxoCache: blockchain.NewUtxoCache(&blockchain.UtxoCacheConfig{
-				Backend: blockchain.NewLevelDbUtxoBackend(utxoDb),
+				Backend: utxoBackend,
 				DB:      utxoDb,
 				FlushBlockDB: func() error {
 					// Don't flush to disk since it is slow and this is used in a lot of
