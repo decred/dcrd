@@ -1292,7 +1292,9 @@ func loadBlockIndex(dbTx database.Tx, genesisHash *chainhash.Hash, index *blockI
 // initChainState attempts to load and initialize the chain state from the
 // database.  When the db does not yet contain any chain state, both it and the
 // chain state are initialized to the genesis block.
-func (b *BlockChain) initChainState(ctx context.Context) error {
+func (b *BlockChain) initChainState(ctx context.Context,
+	utxoBackend UtxoBackend) error {
+
 	// Update database versioning scheme if needed.
 	err := b.db.Update(func(dbTx database.Tx) error {
 		// No versioning upgrade is needed if the dbinfo bucket does not
@@ -1387,7 +1389,7 @@ func (b *BlockChain) initChainState(ctx context.Context) error {
 	// block database info is loaded, but before block database migrations are
 	// run, since setting the initial UTXO set version depends on the block
 	// database version as that is where it originally resided.
-	if err := b.initUtxoDbInfo(ctx); err != nil {
+	if err := utxoBackend.InitInfo(b.dbInfo.version); err != nil {
 		return err
 	}
 

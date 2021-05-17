@@ -291,14 +291,16 @@ func TestCheckBlockHeaderContext(t *testing.T) {
 
 	// Create a new BlockChain instance using the underlying database for
 	// the simnet network.
+	utxoBackend := NewLevelDbUtxoBackend(utxoDb)
 	chain, err := New(context.Background(),
 		&Config{
 			DB:          db,
+			UtxoBackend: utxoBackend,
 			UtxoDB:      utxoDb,
 			ChainParams: params,
 			TimeSource:  NewMedianTime(),
 			UtxoCache: NewUtxoCache(&UtxoCacheConfig{
-				Backend: NewLevelDbUtxoBackend(utxoDb),
+				Backend: utxoBackend,
 				DB:      utxoDb,
 				FlushBlockDB: func() error {
 					return nil

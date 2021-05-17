@@ -6,6 +6,7 @@ package blockchain
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/decred/dcrd/blockchain/standalone/v2"
 	"github.com/decred/dcrd/chaincfg/chainhash"
@@ -13,11 +14,68 @@ import (
 	"github.com/decred/dcrd/wire"
 )
 
+const (
+	// currentUtxoDatabaseVersion indicates the current UTXO database version.
+	currentUtxoDatabaseVersion = 1
+
+	// currentUtxoSetVersion indicates the current UTXO set database version.
+	currentUtxoSetVersion = 3
+)
+
 var (
+	// utxoDbInfoBucketName is the name of the database bucket used to house
+	// global versioning and date information for the UTXO database.
+	utxoDbInfoBucketName = []byte("dbinfo")
+
+	// utxoDbInfoVersionKeyName is the name of the database key used to house the
+	// database version.  It is itself under the utxoDbInfoBucketName bucket.
+	utxoDbInfoVersionKeyName = []byte("version")
+
+	// utxoDbInfoCompressionVerKeyName is the name of the database key used to
+	// house the database compression version.  It is itself under the
+	// utxoDbInfoBucketName bucket.
+	utxoDbInfoCompressionVerKeyName = []byte("compver")
+
+	// utxoDbInfoUtxoVerKeyName is the name of the database key used to house the
+	// database UTXO set version.  It is itself under the utxoDbInfoBucketName
+	// bucket.
+	utxoDbInfoUtxoVerKeyName = []byte("utxover")
+
+	// utxoDbInfoCreatedKeyName is the name of the database key used to house
+	// the date the database was created.  It is itself under the
+	// utxoDbInfoBucketName bucket.
+	utxoDbInfoCreatedKeyName = []byte("created")
+
+	// utxoSetBucketName is the name of the db bucket used to house the unspent
+	// transaction output set.
+	utxoSetBucketName = []byte("utxosetv3")
+
 	// utxoSetStateKeyName is the name of the database key used to house the
 	// state of the unspent transaction output set.
 	utxoSetStateKeyName = []byte("utxosetstate")
 )
+
+// -----------------------------------------------------------------------------
+// The UTXO backend information contains information about the version and date
+// of the UTXO backend.
+//
+// It consists of a separate key for each individual piece of information:
+//
+//  Key        Value    Size      Description
+//  version    uint32   4 bytes   The version of the backend
+//  compver    uint32   4 bytes   The script compression version of the backend
+//  utxover    uint32   4 bytes   The UTXO set version of the backend
+//  created    uint64   8 bytes   The date of the creation of the backend
+// -----------------------------------------------------------------------------
+
+// UtxoBackendInfo is the structure that holds the versioning and date
+// information for the UTXO backend.
+type UtxoBackendInfo struct {
+	version uint32
+	compVer uint32
+	utxoVer uint32
+	created time.Time
+}
 
 // UtxoStats represents unspent output statistics on the current utxo set.
 type UtxoStats struct {
@@ -39,11 +97,20 @@ type UtxoBackend interface {
 	// both the entry and the error.
 	FetchEntry(outpoint wire.OutPoint) (*UtxoEntry, error)
 
+	// FetchInfo returns versioning and creation information for the UTXO backend.
+	FetchInfo() (*UtxoBackendInfo, error)
+
 	// FetchState returns the current state of the UTXO set.
 	FetchState() (*UtxoSetState, error)
 
 	// FetchStats returns statistics on the current UTXO set.
 	FetchStats() (*UtxoStats, error)
+
+	// InitInfo loads (or creates if necessary) the UTXO backend info.
+	InitInfo(blockDBVersion uint32) error
+
+	// PutInfo sets the versioning and creation information for the UTXO backend.
+	PutInfo(info *UtxoBackendInfo) error
 
 	// PutUtxos atomically updates the UTXO set with the entries from the provided
 	// map along with the current state.
@@ -227,6 +294,213 @@ func (l *LevelDbUtxoBackend) FetchStats() (*UtxoStats, error) {
 	}
 
 	return stats, nil
+}
+
+// dbPutUtxoBackendInfo uses an existing database transaction to store the
+// backend information.
+func (l *LevelDbUtxoBackend) dbPutUtxoBackendInfo(dbTx database.Tx,
+	info *UtxoBackendInfo) error {
+
+	// uint32Bytes is a helper function to convert a uint32 to a byte slice
+	// using the byte order specified by the database namespace.
+	uint32Bytes := func(ui32 uint32) []byte {
+		var b [4]byte
+		byteOrder.PutUint32(b[:], ui32)
+		return b[:]
+	}
+
+	// uint64Bytes is a helper function to convert a uint64 to a byte slice
+	// using the byte order specified by the database namespace.
+	uint64Bytes := func(ui64 uint64) []byte {
+		var b [8]byte
+		byteOrder.PutUint64(b[:], ui64)
+		return b[:]
+	}
+
+	// Store the database version.
+	meta := dbTx.Metadata()
+	bucket := meta.Bucket(utxoDbInfoBucketName)
+	err := bucket.Put(utxoDbInfoVersionKeyName, uint32Bytes(info.version))
+	if err != nil {
+		return err
+	}
+
+	// Store the compression version.
+	err = bucket.Put(utxoDbInfoCompressionVerKeyName, uint32Bytes(info.compVer))
+	if err != nil {
+		return err
+	}
+
+	// Store the UTXO set version.
+	err = bucket.Put(utxoDbInfoUtxoVerKeyName, uint32Bytes(info.utxoVer))
+	if err != nil {
+		return err
+	}
+
+	// Store the database creation date.
+	return bucket.Put(utxoDbInfoCreatedKeyName,
+		uint64Bytes(uint64(info.created.Unix())))
+}
+
+// dbFetchUtxoBackendInfo uses an existing database transaction to fetch the
+// backend versioning and creation information.
+func (l *LevelDbUtxoBackend) dbFetchUtxoBackendInfo(dbTx database.Tx) *UtxoBackendInfo {
+	meta := dbTx.Metadata()
+	bucket := meta.Bucket(utxoDbInfoBucketName)
+
+	// Uninitialized state.
+	if bucket == nil {
+		return nil
+	}
+
+	// Load the database version.
+	var version uint32
+	versionBytes := bucket.Get(utxoDbInfoVersionKeyName)
+	if versionBytes != nil {
+		version = byteOrder.Uint32(versionBytes)
+	}
+
+	// Load the database compression version.
+	var compVer uint32
+	compVerBytes := bucket.Get(utxoDbInfoCompressionVerKeyName)
+	if compVerBytes != nil {
+		compVer = byteOrder.Uint32(compVerBytes)
+	}
+
+	// Load the database UTXO set version.
+	var utxoVer uint32
+	utxoVerBytes := bucket.Get(utxoDbInfoUtxoVerKeyName)
+	if utxoVerBytes != nil {
+		utxoVer = byteOrder.Uint32(utxoVerBytes)
+	}
+
+	// Load the database creation date.
+	var created time.Time
+	createdBytes := bucket.Get(utxoDbInfoCreatedKeyName)
+	if createdBytes != nil {
+		ts := byteOrder.Uint64(createdBytes)
+		created = time.Unix(int64(ts), 0)
+	}
+
+	return &UtxoBackendInfo{
+		version: version,
+		compVer: compVer,
+		utxoVer: utxoVer,
+		created: created,
+	}
+}
+
+// createUtxoBackendInfo initializes the UTXO backend info.  It must only be
+// called on an uninitialized backend.
+func (l *LevelDbUtxoBackend) createUtxoBackendInfo(blockDBVersion uint32) error {
+	// Create the initial UTXO database state.
+	err := l.db.Update(func(dbTx database.Tx) error {
+		meta := dbTx.Metadata()
+
+		// Create the bucket that houses information about the database's creation
+		// and version.
+		_, err := meta.CreateBucketIfNotExists(utxoDbInfoBucketName)
+		if err != nil {
+			return err
+		}
+
+		// Initialize the UTXO set version.  If the block database version is before
+		// version 9, then initialize the UTXO set version based on the block
+		// database version since that is what tracked the UTXO set version at that
+		// point in time.
+		utxoVer := uint32(currentUtxoSetVersion)
+		if blockDBVersion >= 7 && blockDBVersion < 9 {
+			utxoVer = 2
+		} else if blockDBVersion < 7 {
+			utxoVer = 1
+		}
+
+		// Write the creation and version information to the database.
+		err = l.dbPutUtxoBackendInfo(dbTx, &UtxoBackendInfo{
+			version: currentUtxoDatabaseVersion,
+			compVer: currentCompressionVersion,
+			utxoVer: utxoVer,
+			created: time.Now(),
+		})
+		if err != nil {
+			return err
+		}
+
+		// Create the bucket that houses the UTXO set.
+		_, err = meta.CreateBucketIfNotExists(utxoSetBucketName)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	})
+	return err
+}
+
+// FetchInfo returns versioning and creation information for the backend.
+func (l *LevelDbUtxoBackend) FetchInfo() (*UtxoBackendInfo, error) {
+	var backendInfo *UtxoBackendInfo
+	err := l.db.View(func(dbTx database.Tx) error {
+		backendInfo = l.dbFetchUtxoBackendInfo(dbTx)
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return backendInfo, nil
+}
+
+// InitInfo loads (or creates if necessary) the UTXO backend info.
+func (l *LevelDbUtxoBackend) InitInfo(blockDBVersion uint32) error {
+	// Determine the state of the database.
+	var isStateInitialized bool
+	err := l.db.View(func(dbTx database.Tx) error {
+		// Fetch the backend versioning information.
+		dbInfo := l.dbFetchUtxoBackendInfo(dbTx)
+
+		// The database bucket for the versioning information is missing.
+		if dbInfo == nil {
+			return nil
+		}
+
+		// Don't allow downgrades of the UTXO database.
+		if dbInfo.version > currentUtxoDatabaseVersion {
+			return fmt.Errorf("the current UTXO database is no longer compatible "+
+				"with this version of the software (%d > %d)", dbInfo.version,
+				currentUtxoDatabaseVersion)
+		}
+
+		// Don't allow downgrades of the database compression version.
+		if dbInfo.compVer > currentCompressionVersion {
+			return fmt.Errorf("the current database compression version is no "+
+				"longer compatible with this version of the software (%d > %d)",
+				dbInfo.compVer, currentCompressionVersion)
+		}
+
+		isStateInitialized = true
+
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+
+	// Initialize the backend if it has not already been done.
+	if !isStateInitialized {
+		if err := l.createUtxoBackendInfo(blockDBVersion); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// PutInfo sets the versioning and creation information for the backend.
+func (l *LevelDbUtxoBackend) PutInfo(info *UtxoBackendInfo) error {
+	return l.db.Update(func(dbTx database.Tx) error {
+		return l.dbPutUtxoBackendInfo(dbTx, info)
+	})
 }
 
 // dbPutUtxoEntry uses an existing database transaction to update the utxo

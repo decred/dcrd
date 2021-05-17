@@ -3402,8 +3402,9 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB,
 	}
 
 	// Create a new block chain instance with the appropriate configuration.
+	utxoBackend := blockchain.NewLevelDbUtxoBackend(utxoDb)
 	utxoCache := blockchain.NewUtxoCache(&blockchain.UtxoCacheConfig{
-		Backend:      blockchain.NewLevelDbUtxoBackend(utxoDb),
+		Backend:      utxoBackend,
 		DB:           utxoDb,
 		FlushBlockDB: s.db.Flush,
 		MaxSize:      uint64(cfg.UtxoCacheMaxSize) * 1024 * 1024,
@@ -3411,6 +3412,7 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB,
 	s.chain, err = blockchain.New(ctx,
 		&blockchain.Config{
 			DB:            s.db,
+			UtxoBackend:   utxoBackend,
 			UtxoDB:        utxoDb,
 			ChainParams:   s.chainParams,
 			Checkpoints:   checkpoints,
