@@ -93,6 +93,14 @@ type UtxoCacher interface {
 	// both the entry and the error.
 	FetchEntry(outpoint wire.OutPoint) (*UtxoEntry, error)
 
+	// FetchStats returns statistics on the current utxo set.
+	//
+	// NOTE: During initial block download the utxo stats will lag behind the best
+	// block that is currently synced since the utxo cache is only flushed to the
+	// backend periodically.  After initial block download the utxo stats will
+	// always be in sync with the best block.
+	FetchStats() (*UtxoStats, error)
+
 	// Initialize initializes the utxo cache by ensuring that the utxo set is
 	// caught up to the tip of the best chain.
 	Initialize(b *BlockChain, tip *blockNode) error
@@ -440,6 +448,16 @@ func (c *UtxoCache) FetchEntries(filteredSet viewFilteredSet, view *UtxoViewpoin
 // FetchBackendState returns the current state of the UTXO set in the backend.
 func (c *UtxoCache) FetchBackendState() (*UtxoSetState, error) {
 	return c.backend.FetchState()
+}
+
+// FetchStats returns statistics on the current utxo set.
+//
+// NOTE: During initial block download the utxo stats will lag behind the best
+// block that is currently synced since the utxo cache is only flushed to the
+// backend periodically.  After initial block download the utxo stats will
+// always be in sync with the best block.
+func (c *UtxoCache) FetchStats() (*UtxoStats, error) {
+	return c.backend.FetchStats()
 }
 
 // Commit updates the cache based on the state of each entry in the provided
@@ -940,15 +958,6 @@ func (b *BlockChain) FetchUtxoEntry(outpoint wire.OutPoint) (*UtxoEntry, error) 
 	return entry, err
 }
 
-// UtxoStats represents unspent output statistics on the current utxo set.
-type UtxoStats struct {
-	Utxos          int64
-	Transactions   int64
-	Size           int64
-	Total          int64
-	SerializedHash chainhash.Hash
-}
-
 // FetchUtxoStats returns statistics on the current utxo set.
 //
 // NOTE: During initial block download the utxo stats will lag behind the best
@@ -956,15 +965,5 @@ type UtxoStats struct {
 // backend periodically.  After initial block download the utxo stats will
 // always be in sync with the best block.
 func (b *BlockChain) FetchUtxoStats() (*UtxoStats, error) {
-	var stats *UtxoStats
-	err := b.utxoDb.View(func(dbTx database.Tx) error {
-		var err error
-		stats, err = dbFetchUtxoStats(dbTx)
-		return err
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	return stats, nil
+	return b.utxoCache.FetchStats()
 }

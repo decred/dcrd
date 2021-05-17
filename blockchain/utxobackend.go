@@ -7,6 +7,8 @@ package blockchain
 import (
 	"fmt"
 
+	"github.com/decred/dcrd/blockchain/standalone/v2"
+	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/database/v2"
 	"github.com/decred/dcrd/wire"
 )
@@ -16,6 +18,15 @@ var (
 	// state of the unspent transaction output set.
 	utxoSetStateKeyName = []byte("utxosetstate")
 )
+
+// UtxoStats represents unspent output statistics on the current utxo set.
+type UtxoStats struct {
+	Utxos          int64
+	Transactions   int64
+	Size           int64
+	Total          int64
+	SerializedHash chainhash.Hash
+}
 
 // UtxoBackend represents a persistent storage layer for the UTXO set.
 //
@@ -30,6 +41,9 @@ type UtxoBackend interface {
 
 	// FetchState returns the current state of the UTXO set.
 	FetchState() (*UtxoSetState, error)
+
+	// FetchStats returns statistics on the current UTXO set.
+	FetchStats() (*UtxoStats, error)
 
 	// PutUtxos atomically updates the UTXO set with the entries from the provided
 	// map along with the current state.
@@ -142,6 +156,77 @@ func (l *LevelDbUtxoBackend) FetchState() (*UtxoSetState, error) {
 
 	// Deserialize the utxo set state and return it.
 	return deserializeUtxoSetState(serialized)
+}
+
+// dbFetchUxtoStats fetches statistics on the current unspent transaction output
+// set.
+func (l *LevelDbUtxoBackend) dbFetchUtxoStats(dbTx database.Tx) (*UtxoStats, error) {
+	utxoBucket := dbTx.Metadata().Bucket(utxoSetBucketName)
+
+	var stats UtxoStats
+	transactions := make(map[chainhash.Hash]struct{})
+	leaves := make([]chainhash.Hash, 0)
+	cursor := utxoBucket.Cursor()
+
+	for ok := cursor.First(); ok; ok = cursor.Next() {
+		key := cursor.Key()
+		var outpoint wire.OutPoint
+		err := decodeOutpointKey(key, &outpoint)
+		if err != nil {
+			return nil, err
+		}
+
+		serializedUtxo := cursor.Value()
+		entrySize := len(serializedUtxo)
+
+		// A non-nil zero-length entry means there is an entry in the database for a
+		// spent transaction output which should never be the case.
+		if entrySize == 0 {
+			return nil, AssertError(fmt.Sprintf("database contains entry for spent "+
+				"tx output %v", outpoint))
+		}
+
+		stats.Utxos++
+		stats.Size += int64(entrySize)
+		transactions[outpoint.Hash] = struct{}{}
+
+		leaves = append(leaves, chainhash.HashH(serializedUtxo))
+
+		// Deserialize the utxo entry.
+		entry, err := deserializeUtxoEntry(serializedUtxo, outpoint.Index)
+		if err != nil {
+			// Ensure any deserialization errors are returned as database corruption
+			// errors.
+			if isDeserializeErr(err) {
+				str := fmt.Sprintf("corrupt utxo entry for %v: %v", outpoint, err)
+				return nil, makeDbErr(database.ErrCorruption, str)
+			}
+
+			return nil, err
+		}
+
+		stats.Total += entry.amount
+	}
+
+	stats.SerializedHash = standalone.CalcMerkleRootInPlace(leaves)
+	stats.Transactions = int64(len(transactions))
+
+	return &stats, nil
+}
+
+// FetchStats returns statistics on the current UTXO set.
+func (l *LevelDbUtxoBackend) FetchStats() (*UtxoStats, error) {
+	var stats *UtxoStats
+	err := l.db.View(func(dbTx database.Tx) error {
+		var err error
+		stats, err = l.dbFetchUtxoStats(dbTx)
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return stats, nil
 }
 
 // dbPutUtxoEntry uses an existing database transaction to update the utxo
