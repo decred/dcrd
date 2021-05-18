@@ -515,7 +515,6 @@ func TestFetchEntry(t *testing.T) {
 		// Create a utxo cache with the cached entries specified by the test.
 		utxoCache := createTestUtxoCache(t, test.cachedEntries)
 		utxoCache.backend = backend
-		utxoCache.db = backend.db
 		wantTotalEntrySize := utxoCache.totalEntrySize
 
 		// Add entries specified by the test to the test backend.
@@ -612,7 +611,6 @@ func TestFetchEntries(t *testing.T) {
 		// Create a utxo cache with the cached entries specified by the test.
 		utxoCache := createTestUtxoCache(t, test.cachedEntries)
 		utxoCache.backend = backend
-		utxoCache.db = backend.db
 
 		// Add entries specified by the test to the test backend.
 		err := backend.PutUtxos(test.backendEntries, &UtxoSetState{})
@@ -962,7 +960,6 @@ func TestMaybeFlush(t *testing.T) {
 		// Create a utxo cache with the cached entries specified by the test.
 		utxoCache := createTestUtxoCache(t, test.cachedEntries)
 		utxoCache.backend = backend
-		utxoCache.db = backend.db
 		utxoCache.maxSize = test.maxSize
 		utxoCache.lastEvictionHeight = test.lastEvictionHeight
 		utxoCache.lastFlushHash = *test.lastFlushHash
@@ -1074,7 +1071,6 @@ func TestInitialize(t *testing.T) {
 	resetTestUtxoCache := func() *testUtxoCache {
 		testUtxoCache := newTestUtxoCache(&UtxoCacheConfig{
 			Backend:      backend,
-			DB:           backend.db,
 			FlushBlockDB: g.chain.db.Flush,
 			MaxSize:      100 * 1024 * 1024, // 100 MiB
 		})
@@ -1223,7 +1219,6 @@ func TestShutdownUtxoCache(t *testing.T) {
 	backend := createTestUtxoBackend(t)
 	testUtxoCache := newTestUtxoCache(&UtxoCacheConfig{
 		Backend:      backend,
-		DB:           backend.db,
 		FlushBlockDB: g.chain.db.Flush,
 		MaxSize:      100 * 1024 * 1024, // 100 MiB
 	})
