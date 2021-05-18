@@ -3405,7 +3405,6 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB,
 	utxoBackend := blockchain.NewLevelDbUtxoBackend(utxoDb)
 	utxoCache := blockchain.NewUtxoCache(&blockchain.UtxoCacheConfig{
 		Backend:      utxoBackend,
-		DB:           utxoDb,
 		FlushBlockDB: s.db.Flush,
 		MaxSize:      uint64(cfg.UtxoCacheMaxSize) * 1024 * 1024,
 	})
@@ -3413,7 +3412,6 @@ func newServer(ctx context.Context, listenAddrs []string, db database.DB,
 		&blockchain.Config{
 			DB:            s.db,
 			UtxoBackend:   utxoBackend,
-			UtxoDB:        utxoDb,
 			ChainParams:   s.chainParams,
 			Checkpoints:   checkpoints,
 			TimeSource:    s.timeSource,

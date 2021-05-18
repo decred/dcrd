@@ -137,7 +137,6 @@ type BlockChain struct {
 	deploymentVers      map[string]uint32
 	db                  database.DB
 	dbInfo              *databaseInfo
-	utxoDb              database.DB
 	chainParams         *chaincfg.Params
 	timeSource          MedianTimeSource
 	notifications       NotificationCallback
@@ -2114,11 +2113,6 @@ type Config struct {
 	// This field is required.
 	UtxoBackend UtxoBackend
 
-	// UtxoDB defines the database which houses the UTXO set.
-	//
-	// This field is required.
-	UtxoDB database.DB
-
 	// ChainParams identifies which chain parameters the chain is associated
 	// with.
 	//
@@ -2190,9 +2184,6 @@ func New(ctx context.Context, config *Config) (*BlockChain, error) {
 	if config.UtxoBackend == nil {
 		return nil, AssertError("blockchain.New UTXO backend is nil")
 	}
-	if config.UtxoDB == nil {
-		return nil, AssertError("blockchain.New UTXO database is nil")
-	}
 	if config.ChainParams == nil {
 		return nil, AssertError("blockchain.New chain parameters nil")
 	}
@@ -2233,7 +2224,6 @@ func New(ctx context.Context, config *Config) (*BlockChain, error) {
 		checkpointsByHeight:           checkpointsByHeight,
 		deploymentVers:                deploymentVers,
 		db:                            config.DB,
-		utxoDb:                        config.UtxoDB,
 		chainParams:                   params,
 		timeSource:                    config.TimeSource,
 		notifications:                 config.Notifications,

@@ -296,12 +296,10 @@ func TestCheckBlockHeaderContext(t *testing.T) {
 		&Config{
 			DB:          db,
 			UtxoBackend: utxoBackend,
-			UtxoDB:      utxoDb,
 			ChainParams: params,
 			TimeSource:  NewMedianTime(),
 			UtxoCache: NewUtxoCache(&UtxoCacheConfig{
 				Backend: utxoBackend,
-				DB:      utxoDb,
 				FlushBlockDB: func() error {
 					return nil
 				},

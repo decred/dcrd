@@ -114,32 +114,28 @@ type UtxoCacher interface {
 }
 
 // UtxoCache is an unspent transaction output cache that sits on top of the
-// utxo set database and provides significant runtime performance benefits at
+// utxo set backend and provides significant runtime performance benefits at
 // the cost of some additional memory usage.  It drastically reduces the amount
 // of reading and writing to disk, especially during initial block download when
 // a very large number of blocks are being processed in quick succession.
 //
 // The UtxoCache is a read-through cache.  All utxo reads go through the cache.
 // When there is a cache miss, the cache loads the missing data from the
-// database, caches it, and returns it to the caller.
+// backend, caches it, and returns it to the caller.
 //
 // The UtxoCache is a write-back cache.  Writes to the cache are acknowledged
-// by the cache immediately but are only periodically flushed to the database.
+// by the cache immediately but are only periodically flushed to the backend.
 // This allows intermediate steps to effectively be skipped.  For example, a
 // utxo that is created and then spent in between flushes never needs to be
-// written to the utxo set in the database.
+// written to the utxo set in the backend.
 //
-// Due to the write-back nature of the cache, at any given time the database
+// Due to the write-back nature of the cache, at any given time the backend
 // may not be in sync with the cache, and therefore all utxo reads and writes
-// MUST go through the cache, and never read or write to the database directly.
+// MUST go through the cache, and never read or write to the backend directly.
 type UtxoCache struct {
 	// backend is the backend that contains the UTXO set.  It is set when the
 	// instance is created and is not changed afterward.
 	backend UtxoBackend
-
-	// db is the database that contains the utxo set.  It is set when the instance
-	// is created and is not changed afterward.
-	db database.DB
 
 	// flushBlockDB defines the function to use to flush the block database to
 	// disk.  The block database is always flushed to disk before the UTXO cache
@@ -205,11 +201,6 @@ type UtxoCacheConfig struct {
 	// This field is required.
 	Backend UtxoBackend
 
-	// DB defines the database which houses the utxo set.
-	//
-	// This field is required.
-	DB database.DB
-
 	// FlushBlockDB defines the function to use to flush the block database to
 	// disk.  The block database is always flushed to disk before the UTXO cache
 	// writes to disk in order to maintain a recoverable state in the event of an
@@ -235,7 +226,6 @@ func NewUtxoCache(config *UtxoCacheConfig) *UtxoCache {
 
 	return &UtxoCache{
 		backend:       config.Backend,
-		db:            config.DB,
 		flushBlockDB:  config.FlushBlockDB,
 		maxSize:       config.MaxSize,
 		entries:       make(map[wire.OutPoint]*UtxoEntry, uint64(maxEntries)),
@@ -331,12 +321,12 @@ func (c *UtxoCache) spendEntry(outpoint wire.OutPoint) {
 	}
 
 	// If the entry is fresh, and is now being spent, it can safely be removed.
-	// This is an optimization to skip writing to the database for outputs that
-	// are added and spent in between flushes to the database.
+	// This is an optimization to skip writing to the backend for outputs that
+	// are added and spent in between flushes to the backend.
 	if cachedEntry.isFresh() {
 		// The entry in the map is marked as nil rather than deleting it so that
 		// subsequent lookups for the outpoint will still result in a cache hit and
-		// avoid querying the database.
+		// avoid querying the backend.
 		c.entries[outpoint] = nil
 		c.totalEntrySize -= cachedEntry.size()
 		return
