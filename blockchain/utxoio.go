@@ -6,7 +6,6 @@
 package blockchain
 
 import (
-	"context"
 	"fmt"
 	"sync"
 
@@ -301,21 +300,4 @@ func deserializeUtxoSetState(serialized []byte) (*UtxoSetState, error) {
 		lastFlushHeight: uint32(blockHeight),
 		lastFlushHash:   hash,
 	}, nil
-}
-
-// initUtxoState attempts to load and initialize the UTXO state from the
-// database.  This entails running any database migrations as necessary as well
-// as initializing the UTXO cache.
-func (b *BlockChain) initUtxoState(ctx context.Context,
-	utxoBackend UtxoBackend) error {
-
-	// Upgrade the UTXO database as needed.
-	err := upgradeUtxoDb(ctx, b, utxoBackend)
-	if err != nil {
-		return err
-	}
-
-	// Initialize the UTXO cache to ensure that the state of the UTXO set is
-	// caught up to the tip of the best chain.
-	return b.utxoCache.Initialize(b, b.bestChain.tip())
 }

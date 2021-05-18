@@ -5,6 +5,7 @@
 package blockchain
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -125,6 +126,10 @@ type UtxoBackend interface {
 	// PutUtxos atomically updates the UTXO set with the entries from the provided
 	// map along with the current state.
 	PutUtxos(utxos map[wire.OutPoint]*UtxoEntry, state *UtxoSetState) error
+
+	// Upgrade upgrades the UTXO backend by applying all possible upgrades
+	// iteratively as needed.
+	Upgrade(ctx context.Context, b *BlockChain) error
 }
 
 // LevelDbUtxoBackend implements the UtxoBackend interface using an underlying
@@ -659,4 +664,11 @@ func (l *LevelDbUtxoBackend) PutUtxos(utxos map[wire.OutPoint]*UtxoEntry,
 	// flushed, and then an unclean shutdown occurs, the UTXO cache will know
 	// where to start from when recovering on startup.
 	return l.db.Flush()
+}
+
+// Upgrade upgrades the UTXO backend by applying all possible upgrades
+// iteratively as needed.
+func (l *LevelDbUtxoBackend) Upgrade(ctx context.Context, b *BlockChain) error {
+	// Upgrade the UTXO database as needed.
+	return upgradeUtxoDb(ctx, b.db, l)
 }

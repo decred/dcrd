@@ -5,6 +5,7 @@
 package blockchain
 
 import (
+	"context"
 	"reflect"
 	"testing"
 	"time"
@@ -1065,15 +1066,24 @@ func TestInitialize(t *testing.T) {
 	// resetTestUtxoCache replaces the current utxo cache with a new test utxo
 	// cache and calls initialize on it.  This simulates an empty utxo cache that
 	// gets created and initialized at startup.
+	backend := createTestUtxoBackend(t)
+	err := backend.InitInfo(g.chain.dbInfo.version)
+	if err != nil {
+		t.Fatalf("error initializing backend info: %v", err)
+	}
 	resetTestUtxoCache := func() *testUtxoCache {
 		testUtxoCache := newTestUtxoCache(&UtxoCacheConfig{
-			Backend:      NewLevelDbUtxoBackend(g.chain.utxoDb),
-			DB:           g.chain.utxoDb,
+			Backend:      backend,
+			DB:           backend.db,
 			FlushBlockDB: g.chain.db.Flush,
 			MaxSize:      100 * 1024 * 1024, // 100 MiB
 		})
 		g.chain.utxoCache = testUtxoCache
-		testUtxoCache.Initialize(g.chain, g.chain.bestChain.Tip())
+		err := testUtxoCache.Initialize(context.Background(), g.chain,
+			g.chain.bestChain.Tip())
+		if err != nil {
+			t.Fatalf("error initializing test cache: %v", err)
+		}
 		return testUtxoCache
 	}
 
@@ -1179,7 +1189,7 @@ func TestInitialize(t *testing.T) {
 	g.ForceTipReorg("b1", "b1a")
 
 	// Restore the spend journal entry for block b1.
-	err := g.chain.db.Update(func(dbTx database.Tx) error {
+	err = g.chain.db.Update(func(dbTx database.Tx) error {
 		spendBucket := dbTx.Metadata().Bucket(spendJournalBucketName)
 		return spendBucket.Put(b1Hash[:], serialized)
 	})
@@ -1210,12 +1220,22 @@ func TestShutdownUtxoCache(t *testing.T) {
 
 	// Replace the chain utxo cache with a test cache so that flushing can be
 	// disabled.
+	backend := createTestUtxoBackend(t)
 	testUtxoCache := newTestUtxoCache(&UtxoCacheConfig{
-		Backend:      NewLevelDbUtxoBackend(g.chain.utxoDb),
-		DB:           g.chain.utxoDb,
+		Backend:      backend,
+		DB:           backend.db,
 		FlushBlockDB: g.chain.db.Flush,
 		MaxSize:      100 * 1024 * 1024, // 100 MiB
 	})
+	err := backend.InitInfo(g.chain.dbInfo.version)
+	if err != nil {
+		t.Fatalf("error initializing backend info: %v", err)
+	}
+	err = testUtxoCache.Initialize(context.Background(), g.chain,
+		g.chain.bestChain.Tip())
+	if err != nil {
+		t.Fatalf("error initializing test cache: %v", err)
+	}
 	g.chain.utxoCache = testUtxoCache
 
 	// ---------------------------------------------------------------------------

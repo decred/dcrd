@@ -5,6 +5,7 @@
 package blockchain
 
 import (
+	"context"
 	"fmt"
 	"math"
 	"sync"
@@ -101,9 +102,10 @@ type UtxoCacher interface {
 	// always be in sync with the best block.
 	FetchStats() (*UtxoStats, error)
 
-	// Initialize initializes the utxo cache by ensuring that the utxo set is
-	// caught up to the tip of the best chain.
-	Initialize(b *BlockChain, tip *blockNode) error
+	// Initialize initializes the utxo cache and underlying utxo backend.  This
+	// entails running any database migrations as well as ensuring that the utxo
+	// set is caught up to the tip of the best chain.
+	Initialize(ctx context.Context, b *BlockChain, tip *blockNode) error
 
 	// MaybeFlush conditionally flushes the cache to the backend.  A flush can be
 	// forced by setting the force flush parameter.
@@ -696,8 +698,9 @@ func (c *UtxoCache) MaybeFlush(bestHash *chainhash.Hash, bestHeight uint32,
 	return nil
 }
 
-// Initialize initializes the utxo cache by ensuring that the utxo set is caught
-// up to the tip of the best chain.
+// Initialize initializes the utxo cache and underlying utxo backend.  This
+// entails running any database migrations as well as ensuring that the utxo set
+// is caught up to the tip of the best chain.
 //
 // Since the cache is only flushed to the backend periodically, the utxo set
 // may not be caught up to the tip of the best chain.  This function catches the
@@ -705,9 +708,15 @@ func (c *UtxoCache) MaybeFlush(bestHash *chainhash.Hash, bestHeight uint32,
 // last flushed to the tip block through the cache.
 //
 // This function should only be called during initialization.
-func (c *UtxoCache) Initialize(b *BlockChain, tip *blockNode) error {
+func (c *UtxoCache) Initialize(ctx context.Context, b *BlockChain, tip *blockNode) error {
 	log.Infof("UTXO cache initializing (max size: %d MiB)...",
 		c.maxSize/1024/1024)
+
+	// Upgrade the UTXO backend as needed.
+	err := c.backend.Upgrade(ctx, b)
+	if err != nil {
+		return err
+	}
 
 	// Fetch the utxo set state from the backend.
 	state, err := c.backend.FetchState()
@@ -744,14 +753,14 @@ func (c *UtxoCache) Initialize(b *BlockChain, tip *blockNode) error {
 	lastFlushedNode := b.index.LookupNode(&state.lastFlushHash)
 	if lastFlushedNode == nil {
 		// panic if the last flushed block node does not exist.  This should never
-		// happen unless the database is corrupted.
+		// happen unless the backend is corrupted.
 		panicf("last flushed block node hash %v (height %v) does not exist",
 			state.lastFlushHash, state.lastFlushHeight)
 	}
 	fork := b.bestChain.FindFork(lastFlushedNode)
 
 	// Disconnect all of the blocks back to the point of the fork.  This entails
-	// loading the blocks and their associated spent txos from the database and
+	// loading the blocks and their associated spent txos from the backend and
 	// using that information to unspend all of the spent txos and remove the
 	// utxos created by the blocks.  In addition, if a block votes against its
 	// parent, the regular transactions are reconnected.
