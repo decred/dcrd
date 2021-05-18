@@ -3123,7 +3123,7 @@ func upgradeSpendJournalToVersion3(ctx context.Context, b *BlockChain) error {
 }
 
 // upgradeUtxoSetToVersion3 upgrades a version 2 utxo set to version 3.
-func upgradeUtxoSetToVersion3(ctx context.Context, b *BlockChain,
+func upgradeUtxoSetToVersion3(ctx context.Context, db database.DB,
 	utxoBackend UtxoBackend) error {
 
 	if interruptRequested(ctx) {
@@ -3134,7 +3134,7 @@ func upgradeUtxoSetToVersion3(ctx context.Context, b *BlockChain,
 	start := time.Now()
 
 	// Migrate the utxoset to version 3.
-	err := migrateUtxoSetVersion2To3(ctx, b.db)
+	err := migrateUtxoSetVersion2To3(ctx, db)
 	if err != nil {
 		return err
 	}
@@ -3191,7 +3191,7 @@ func upgradeToVersion10(ctx context.Context, db database.DB, dbInfo *databaseInf
 
 // separateUtxoDatabase moves the UTXO set and state from the block database to
 // the UTXO database.
-func separateUtxoDatabase(ctx context.Context, b *BlockChain) error {
+func separateUtxoDatabase(ctx context.Context, db database.DB, utxoDb database.DB) error {
 	// Hardcoded bucket and key names so updates do not affect old upgrades.
 	v1UtxoSetStateKeyName := []byte("utxosetstate")
 	v3UtxoSetBucketName := []byte("utxosetv3")
@@ -3271,8 +3271,8 @@ func separateUtxoDatabase(ctx context.Context, b *BlockChain) error {
 	// Migrate all entries in batches for the reasons mentioned above.
 	var isFullyDone bool
 	for !isFullyDone {
-		err := b.db.View(func(dbTx database.Tx) error {
-			err := b.utxoDb.Update(func(utxoDbTx database.Tx) error {
+		err := db.View(func(dbTx database.Tx) error {
+			err := utxoDb.Update(func(utxoDbTx database.Tx) error {
 				var err error
 				isFullyDone, err = doBatch(dbTx, utxoDbTx)
 				if errors.Is(err, errInterruptRequested) ||
@@ -3307,7 +3307,7 @@ func separateUtxoDatabase(ctx context.Context, b *BlockChain) error {
 
 	// Get the UTXO set state from the old database.
 	var serialized []byte
-	err = b.db.View(func(dbTx database.Tx) error {
+	err = db.View(func(dbTx database.Tx) error {
 		serialized = dbTx.Metadata().Get(v1UtxoSetStateKeyName)
 		return nil
 	})
@@ -3317,7 +3317,7 @@ func separateUtxoDatabase(ctx context.Context, b *BlockChain) error {
 
 	if serialized != nil {
 		// Set the UTXO set state in the new database.
-		err = b.utxoDb.Update(func(utxoDbTx database.Tx) error {
+		err = utxoDb.Update(func(utxoDbTx database.Tx) error {
 			return utxoDbTx.Metadata().Put(v1UtxoSetStateKeyName, serialized)
 		})
 		if err != nil {
@@ -3327,14 +3327,14 @@ func separateUtxoDatabase(ctx context.Context, b *BlockChain) error {
 
 	// Force the UTXO database to flush to disk before removing the UTXO set
 	// and UTXO state from the block database.
-	err = b.utxoDb.Flush()
+	err = utxoDb.Flush()
 	if err != nil {
 		return err
 	}
 
 	if serialized != nil {
 		// Delete the UTXO set state from the old database.
-		err = b.db.Update(func(dbTx database.Tx) error {
+		err = db.Update(func(dbTx database.Tx) error {
 			return dbTx.Metadata().Delete(v1UtxoSetStateKeyName)
 		})
 		if err != nil {
@@ -3345,11 +3345,11 @@ func separateUtxoDatabase(ctx context.Context, b *BlockChain) error {
 	// Drop UTXO set from the old database.
 	log.Info("Removing old UTXO set...")
 	start = time.Now()
-	err = incrementalFlatDrop(ctx, b.db, v3UtxoSetBucketName, "old UTXO set")
+	err = incrementalFlatDrop(ctx, db, v3UtxoSetBucketName, "old UTXO set")
 	if err != nil {
 		return err
 	}
-	err = b.db.Update(func(dbTx database.Tx) error {
+	err = db.Update(func(dbTx database.Tx) error {
 		return dbTx.Metadata().DeleteBucket(v3UtxoSetBucketName)
 	})
 	if err != nil {
@@ -3360,7 +3360,7 @@ func separateUtxoDatabase(ctx context.Context, b *BlockChain) error {
 
 	// Force the block database to flush to disk to avoid rerunning the migration
 	// in the event of an unclean shutown.
-	return b.db.Flush()
+	return db.Flush()
 }
 
 // checkDBTooOldToUpgrade returns an ErrDBTooOldToUpgrade error if the provided
@@ -3505,9 +3505,12 @@ func upgradeSpendJournal(ctx context.Context, b *BlockChain) error {
 // so utxo set upgrades prior to version 3 are handled in the block database
 // upgrade path.
 //
-// NOTE: The database info housed by the passed blockchain instance will be
-// updated with the latest versions.
-func upgradeUtxoDb(ctx context.Context, b *BlockChain, utxoBackend UtxoBackend) error {
+// NOTE: The database info housed in the passed block database instance and
+// backend info housed in the passed utxo backend instance will be updated with
+// the latest versions.
+func upgradeUtxoDb(ctx context.Context, db database.DB,
+	utxoBackend *LevelDbUtxoBackend) error {
+
 	// Fetch the backend versioning info.
 	utxoDbInfo, err := utxoBackend.FetchInfo()
 	if err != nil {
@@ -3516,7 +3519,7 @@ func upgradeUtxoDb(ctx context.Context, b *BlockChain, utxoBackend UtxoBackend) 
 
 	// Update to a version 3 utxo set as needed.
 	if utxoDbInfo.utxoVer == 2 {
-		if err := upgradeUtxoSetToVersion3(ctx, b, utxoBackend); err != nil {
+		if err := upgradeUtxoSetToVersion3(ctx, db, utxoBackend); err != nil {
 			return err
 		}
 	}
@@ -3524,7 +3527,7 @@ func upgradeUtxoDb(ctx context.Context, b *BlockChain, utxoBackend UtxoBackend) 
 	// Check if the block database contains the UTXO set or state.  If it does,
 	// move the UTXO set and state from the block database to the UTXO database.
 	blockDbUtxoSetExists := false
-	b.db.View(func(dbTx database.Tx) error {
+	db.View(func(dbTx database.Tx) error {
 		if dbTx.Metadata().Bucket([]byte("utxosetv3")) != nil ||
 			dbTx.Metadata().Get([]byte("utxosetstate")) != nil {
 
@@ -3533,7 +3536,7 @@ func upgradeUtxoDb(ctx context.Context, b *BlockChain, utxoBackend UtxoBackend) 
 		return nil
 	})
 	if blockDbUtxoSetExists {
-		err := separateUtxoDatabase(ctx, b)
+		err := separateUtxoDatabase(ctx, db, utxoBackend.db)
 		if err != nil {
 			return err
 		}
