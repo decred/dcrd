@@ -396,11 +396,11 @@ func TestUtxoSetStateSerialization(t *testing.T) {
 
 	tests := []struct {
 		name       string
-		state      *utxoSetState
+		state      *UtxoSetState
 		serialized []byte
 	}{{
 		name: "last flush height and hash updated",
-		state: &utxoSetState{
+		state: &UtxoSetState{
 			lastFlushHeight: 432100,
 			lastFlushHash: *mustParseHash("000000000000000023455b4328635d8e014dbeea" +
 				"99c6140aa715836cc7e55981"),
@@ -409,7 +409,7 @@ func TestUtxoSetStateSerialization(t *testing.T) {
 			"b45230000000000000000"),
 	}, {
 		name: "last flush height and hash are the genesis block",
-		state: &utxoSetState{
+		state: &UtxoSetState{
 			lastFlushHeight: 0,
 			lastFlushHash: *mustParseHash("298e5cc3d985bfe7f81dc135f360abe089edd439" +
 				"6b86d2de66b0cef42b21d980"),
@@ -500,13 +500,13 @@ func TestDbFetchUtxoSetState(t *testing.T) {
 
 	tests := []struct {
 		name  string
-		state *utxoSetState
+		state *UtxoSetState
 	}{{
 		name:  "fresh database (no utxo set state saved)",
 		state: nil,
 	}, {
 		name: "last flush saved in database",
-		state: &utxoSetState{
+		state: &UtxoSetState{
 			lastFlushHeight: 432100,
 			lastFlushHash: *mustParseHash("000000000000000023455b4328635d8e014dbeea" +
 				"99c6140aa715836cc7e55981"),

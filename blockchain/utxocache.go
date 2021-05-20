@@ -601,7 +601,7 @@ func (c *UtxoCache) flush(bestHash *chainhash.Hash, bestHeight uint32, logFlush 
 		}
 
 		// Update the utxo set state in the database.
-		return dbPutUtxoSetState(dbTx, &utxoSetState{
+		return dbPutUtxoSetState(dbTx, &UtxoSetState{
 			lastFlushHeight: bestHeight,
 			lastFlushHash:   *bestHash,
 		})
@@ -701,7 +701,7 @@ func (c *UtxoCache) Initialize(b *BlockChain, tip *blockNode) error {
 		c.maxSize/1024/1024)
 
 	// Fetch the utxo set state from the database.
-	var state *utxoSetState
+	var state *UtxoSetState
 	err := c.db.View(func(dbTx database.Tx) error {
 		var err error
 		state, err = dbFetchUtxoSetState(dbTx)
@@ -715,7 +715,7 @@ func (c *UtxoCache) Initialize(b *BlockChain, tip *blockNode) error {
 	// case when starting from a fresh database or a database that has not been
 	// run with the utxo cache yet.
 	if state == nil {
-		state = &utxoSetState{
+		state = &UtxoSetState{
 			lastFlushHeight: uint32(tip.height),
 			lastFlushHash:   tip.hash,
 		}
