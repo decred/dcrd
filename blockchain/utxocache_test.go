@@ -585,7 +585,7 @@ func TestFetchEntries(t *testing.T) {
 		name           string
 		cachedEntries  map[wire.OutPoint]*UtxoEntry
 		backendEntries map[wire.OutPoint]*UtxoEntry
-		filteredSet    viewFilteredSet
+		filteredSet    ViewFilteredSet
 		wantEntries    map[wire.OutPoint]*UtxoEntry
 	}{{
 		name: "entries are fetched from the cache and the backend",
@@ -595,7 +595,7 @@ func TestFetchEntries(t *testing.T) {
 		backendEntries: map[wire.OutPoint]*UtxoEntry{
 			outpoint1200: entry1200Modified,
 		},
-		filteredSet: viewFilteredSet{
+		filteredSet: ViewFilteredSet{
 			outpoint299:  struct{}{},
 			outpoint1100: struct{}{},
 			outpoint1200: struct{}{},
