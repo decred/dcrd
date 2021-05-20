@@ -793,7 +793,7 @@ func (g *chaingenHarness) ExpectUtxoSetState(blockName string) {
 	g.t.Helper()
 
 	// Fetch the utxo set state from the database.
-	var gotState *utxoSetState
+	var gotState *UtxoSetState
 	err := g.chain.utxoDb.View(func(dbTx database.Tx) error {
 		var err error
 		gotState, err = dbFetchUtxoSetState(dbTx)
@@ -805,7 +805,7 @@ func (g *chaingenHarness) ExpectUtxoSetState(blockName string) {
 
 	// Validate that the state matches the expected state.
 	block := g.BlockByName(blockName)
-	wantState := &utxoSetState{
+	wantState := &UtxoSetState{
 		lastFlushHeight: block.Header.Height,
 		lastFlushHash:   block.BlockHash(),
 	}

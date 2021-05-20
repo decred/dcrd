@@ -553,16 +553,16 @@ func dbPutUtxoEntry(dbTx database.Tx, outpoint wire.OutPoint, entry *UtxoEntry) 
 //
 // -----------------------------------------------------------------------------
 
-// utxoSetState represents the current state of the utxo set.  In particular,
+// UtxoSetState represents the current state of the utxo set.  In particular,
 // it tracks the block height and block hash of the last completed flush.
-type utxoSetState struct {
+type UtxoSetState struct {
 	lastFlushHeight uint32
 	lastFlushHash   chainhash.Hash
 }
 
 // serializeUtxoSetState serializes the provided utxo set state.  The format is
 // described in detail above.
-func serializeUtxoSetState(state *utxoSetState) []byte {
+func serializeUtxoSetState(state *UtxoSetState) []byte {
 	// Calculate the size needed to serialize the utxo set state.
 	size := serializeSizeVLQ(uint64(state.lastFlushHeight)) + chainhash.HashSize
 
@@ -575,7 +575,7 @@ func serializeUtxoSetState(state *utxoSetState) []byte {
 
 // deserializeUtxoSetState deserializes the passed serialized byte slice into
 // the utxo set state.  The format is described in detail above.
-func deserializeUtxoSetState(serialized []byte) (*utxoSetState, error) {
+func deserializeUtxoSetState(serialized []byte) (*UtxoSetState, error) {
 	// Deserialize the block height.
 	blockHeight, bytesRead := deserializeVLQ(serialized)
 	offset := bytesRead
@@ -591,7 +591,7 @@ func deserializeUtxoSetState(serialized []byte) (*utxoSetState, error) {
 	copy(hash[:], serialized[offset:offset+chainhash.HashSize])
 
 	// Create the utxo set state and return it.
-	return &utxoSetState{
+	return &UtxoSetState{
 		lastFlushHeight: uint32(blockHeight),
 		lastFlushHash:   hash,
 	}, nil
@@ -599,7 +599,7 @@ func deserializeUtxoSetState(serialized []byte) (*utxoSetState, error) {
 
 // dbPutUtxoSetState uses an existing database transaction to update the utxo
 // set state in the database.
-func dbPutUtxoSetState(dbTx database.Tx, state *utxoSetState) error {
+func dbPutUtxoSetState(dbTx database.Tx, state *UtxoSetState) error {
 	// Serialize and store the utxo set state.
 	return dbTx.Metadata().Put(utxoSetStateKeyName, serializeUtxoSetState(state))
 }
@@ -607,7 +607,7 @@ func dbPutUtxoSetState(dbTx database.Tx, state *utxoSetState) error {
 // dbFetchUtxoSetState uses an existing database transaction to fetch the utxo
 // set state from the database.  If the utxo set state does not exist in the
 // database, nil is returned.
-func dbFetchUtxoSetState(dbTx database.Tx) (*utxoSetState, error) {
+func dbFetchUtxoSetState(dbTx database.Tx) (*UtxoSetState, error) {
 	// Fetch the serialized utxo set state from the database.
 	serialized := dbTx.Metadata().Get(utxoSetStateKeyName)
 
