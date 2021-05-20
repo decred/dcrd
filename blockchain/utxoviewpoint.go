@@ -612,13 +612,13 @@ func (view *UtxoViewpoint) Entries() map[wire.OutPoint]*UtxoEntry {
 	return view.entries
 }
 
-// viewFilteredSet represents a set of utxos to fetch from the database that are
+// ViewFilteredSet represents a set of utxos to fetch from the database that are
 // not already in a view.
-type viewFilteredSet map[wire.OutPoint]struct{}
+type ViewFilteredSet map[wire.OutPoint]struct{}
 
 // add conditionally adds the provided outpoint to the set if it does not
 // already exist in the provided view.
-func (set viewFilteredSet) add(view *UtxoViewpoint, outpoint *wire.OutPoint) {
+func (set ViewFilteredSet) add(view *UtxoViewpoint, outpoint *wire.OutPoint) {
 	if _, ok := view.entries[*outpoint]; !ok {
 		set[*outpoint] = struct{}{}
 	}
@@ -631,7 +631,7 @@ func (set viewFilteredSet) add(view *UtxoViewpoint, outpoint *wire.OutPoint) {
 // Upon completion of this function, the view will contain an entry for each
 // requested outpoint.  Spent outputs, or those which otherwise don't exist,
 // will result in a nil entry in the view.
-func (view *UtxoViewpoint) fetchUtxosMain(filteredSet viewFilteredSet) error {
+func (view *UtxoViewpoint) fetchUtxosMain(filteredSet ViewFilteredSet) error {
 	// Nothing to do if there are no requested outputs.
 	if len(filteredSet) == 0 {
 		return nil
@@ -645,7 +645,7 @@ func (view *UtxoViewpoint) fetchUtxosMain(filteredSet viewFilteredSet) error {
 // located later in the regular tree of the block and returns a set of the
 // referenced outputs that are not already in the view and thus need to be
 // fetched from the database.
-func (view *UtxoViewpoint) addRegularInputUtxos(block *dcrutil.Block, isTreasuryEnabled bool) viewFilteredSet {
+func (view *UtxoViewpoint) addRegularInputUtxos(block *dcrutil.Block, isTreasuryEnabled bool) ViewFilteredSet {
 	// Build a map of in-flight transactions because some of the inputs in the
 	// regular transaction tree of this block could be referencing other
 	// transactions earlier in the block which are not yet in the chain.
@@ -658,7 +658,7 @@ func (view *UtxoViewpoint) addRegularInputUtxos(block *dcrutil.Block, isTreasury
 	// Loop through all of the inputs of the transactions in the regular
 	// transaction tree (except for the coinbase which has no inputs) collecting
 	// them into sets of what is needed and what is already known (in-flight).
-	filteredSet := make(viewFilteredSet)
+	filteredSet := make(ViewFilteredSet)
 	for i, tx := range regularTxns[1:] {
 		for _, txIn := range tx.MsgTx().TxIn {
 			// It is acceptable for a transaction input in the regular tree to
@@ -827,7 +827,7 @@ func (b *BlockChain) FetchUtxoView(tx *dcrutil.Tx, includeRegularTxns bool) (*Ut
 	// Create a set of needed transactions based on those referenced by the
 	// inputs of the passed transaction.  Also, add the outputs of the transaction
 	// as a way for the caller to detect duplicates that are not fully spent.
-	filteredSet := make(viewFilteredSet)
+	filteredSet := make(ViewFilteredSet)
 	msgTx := tx.MsgTx()
 	txType := stake.DetermineTxType(msgTx, isTreasuryEnabled)
 	tree := wire.TxTreeRegular

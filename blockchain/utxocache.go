@@ -82,7 +82,7 @@ type UtxoCacher interface {
 	// Upon completion of this function, the view will contain an entry for each
 	// requested outpoint.  Spent outputs, or those which otherwise don't exist,
 	// will result in a nil entry in the view.
-	FetchEntries(filteredSet viewFilteredSet, view *UtxoViewpoint) error
+	FetchEntries(filteredSet ViewFilteredSet, view *UtxoViewpoint) error
 
 	// FetchEntry returns the specified transaction output from the utxo set.  If
 	// the output exists in the cache, it is returned immediately.  Otherwise, it
@@ -417,7 +417,7 @@ func (c *UtxoCache) FetchEntry(outpoint wire.OutPoint) (*UtxoEntry, error) {
 // will result in a nil entry in the view.
 //
 // This function is safe for concurrent access.
-func (c *UtxoCache) FetchEntries(filteredSet viewFilteredSet, view *UtxoViewpoint) error {
+func (c *UtxoCache) FetchEntries(filteredSet ViewFilteredSet, view *UtxoViewpoint) error {
 	c.cacheLock.Lock()
 	for outpoint := range filteredSet {
 		entry, err := c.fetchEntry(outpoint)

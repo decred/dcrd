@@ -1858,7 +1858,7 @@ func (b *BlockChain) checkDupTxs(txSet []*dcrutil.Tx, view *UtxoViewpoint, tree 
 
 	// Fetch utxos for all of the transaction outputs in this block.
 	// Typically, there will not be any utxos for any of the outputs.
-	filteredSet := make(viewFilteredSet)
+	filteredSet := make(ViewFilteredSet)
 	for _, tx := range txSet {
 		outpoint := wire.OutPoint{Hash: *tx.Hash(), Tree: tree}
 		for txOutIdx := range tx.MsgTx().TxOut {
