@@ -20,7 +20,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/decred/dcrd/database/v2"
+	"github.com/decred/dcrd/database/v3"
 	"github.com/decred/dcrd/dcrutil/v4"
 	"github.com/decred/dcrd/wire"
 	"github.com/syndtr/goleveldb/leveldb"
@@ -137,7 +137,7 @@ func TestCornerCases(t *testing.T) {
 	t.Parallel()
 
 	// Create a file at the database path to force the open below to fail.
-	dbPath := filepath.Join(os.TempDir(), "ffldb-errors-v2")
+	dbPath := filepath.Join(os.TempDir(), "ffldb-errors-v3")
 	_ = os.RemoveAll(dbPath)
 	fi, err := os.Create(dbPath)
 	if err != nil {
@@ -574,7 +574,7 @@ func testCorruption(tc *testContext) bool {
 // correctly.
 func TestFailureScenarios(t *testing.T) {
 	// Create a new database to run tests against.
-	dbPath := filepath.Join(os.TempDir(), "ffldb-failurescenarios-v2")
+	dbPath := filepath.Join(os.TempDir(), "ffldb-failurescenarios-v3")
 	_ = os.RemoveAll(dbPath)
 	idb, err := database.Create(dbType, dbPath, blockDataNet)
 	if err != nil {

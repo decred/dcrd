@@ -8,7 +8,7 @@ package ffldb
 import (
 	"fmt"
 
-	"github.com/decred/dcrd/database/v2"
+	"github.com/decred/dcrd/database/v3"
 	"github.com/decred/dcrd/wire"
 	"github.com/decred/slog"
 )

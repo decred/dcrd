@@ -12,8 +12,8 @@ import (
 	"path/filepath"
 
 	"github.com/decred/dcrd/chaincfg/v3"
-	"github.com/decred/dcrd/database/v2"
-	_ "github.com/decred/dcrd/database/v2/ffldb"
+	"github.com/decred/dcrd/database/v3"
+	_ "github.com/decred/dcrd/database/v3/ffldb"
 	"github.com/decred/dcrd/dcrutil/v4"
 	"github.com/decred/dcrd/wire"
 )
@@ -24,14 +24,14 @@ func ExampleCreate() {
 	//
 	// import (
 	// 	"github.com/decred/dcrd/database2"
-	// 	_ "github.com/decred/dcrd/database/v2/ffldb"
+	// 	_ "github.com/decred/dcrd/database/v3/ffldb"
 	// )
 
 	// Create a database and schedule it to be closed and removed on exit.
 	// Typically you wouldn't want to remove the database right away like
 	// this, nor put it in the temp directory, but it's done here to ensure
 	// the example cleans up after itself.
-	dbPath := filepath.Join(os.TempDir(), "examplecreate-v2")
+	dbPath := filepath.Join(os.TempDir(), "examplecreate-v3")
 	db, err := database.Create("ffldb", dbPath, wire.MainNet)
 	if err != nil {
 		fmt.Println(err)
@@ -50,14 +50,14 @@ func Example_basicUsage() {
 	//
 	// import (
 	// 	"github.com/decred/dcrd/database2"
-	// 	_ "github.com/decred/dcrd/database/v2/ffldb"
+	// 	_ "github.com/decred/dcrd/database/v3/ffldb"
 	// )
 
 	// Create a database and schedule it to be closed and removed on exit.
 	// Typically you wouldn't want to remove the database right away like
 	// this, nor put it in the temp directory, but it's done here to ensure
 	// the example cleans up after itself.
-	dbPath := filepath.Join(os.TempDir(), "exampleusage-v2")
+	dbPath := filepath.Join(os.TempDir(), "exampleusage-v3")
 	db, err := database.Create("ffldb", dbPath, wire.MainNet)
 	if err != nil {
 		fmt.Println(err)
@@ -116,14 +116,14 @@ func Example_blockStorageAndRetrieval() {
 	//
 	// import (
 	// 	"github.com/decred/dcrd/database2"
-	// 	_ "github.com/decred/dcrd/database/v2/ffldb"
+	// 	_ "github.com/decred/dcrd/database/v3/ffldb"
 	// )
 
 	// Create a database and schedule it to be closed and removed on exit.
 	// Typically you wouldn't want to remove the database right away like
 	// this, nor put it in the temp directory, but it's done here to ensure
 	// the example cleans up after itself.
-	dbPath := filepath.Join(os.TempDir(), "exampleblkstorage-v2")
+	dbPath := filepath.Join(os.TempDir(), "exampleblkstorage-v3")
 	db, err := database.Create("ffldb", dbPath, wire.MainNet)
 	if err != nil {
 		fmt.Println(err)

@@ -14,8 +14,8 @@ import (
 	"testing"
 
 	"github.com/decred/dcrd/chaincfg/v3"
-	"github.com/decred/dcrd/database/v2"
-	"github.com/decred/dcrd/database/v2/ffldb"
+	"github.com/decred/dcrd/database/v3"
+	"github.com/decred/dcrd/database/v3/ffldb"
 	"github.com/decred/dcrd/dcrutil/v4"
 )
 
@@ -103,7 +103,7 @@ func TestCreateOpenFail(t *testing.T) {
 
 	// Ensure operations against a closed database return the expected
 	// error.
-	dbPath := filepath.Join(os.TempDir(), "ffldb-createfail-v2")
+	dbPath := filepath.Join(os.TempDir(), "ffldb-createfail-v3")
 	_ = os.RemoveAll(dbPath)
 	db, err := database.Create(dbType, dbPath, blockDataNet)
 	if err != nil {
@@ -154,7 +154,7 @@ func TestPersistence(t *testing.T) {
 	t.Parallel()
 
 	// Create a new database to run tests against.
-	dbPath := filepath.Join(os.TempDir(), "ffldb-persistencetest-v2")
+	dbPath := filepath.Join(os.TempDir(), "ffldb-persistencetest-v3")
 	_ = os.RemoveAll(dbPath)
 	db, err := database.Create(dbType, dbPath, blockDataNet)
 	if err != nil {
@@ -261,7 +261,7 @@ func TestInterface(t *testing.T) {
 	t.Parallel()
 
 	// Create a new database to run tests against.
-	dbPath := filepath.Join(os.TempDir(), "ffldb-interfacetest-v2")
+	dbPath := filepath.Join(os.TempDir(), "ffldb-interfacetest-v3")
 	_ = os.RemoveAll(dbPath)
 	db, err := database.Create(dbType, dbPath, blockDataNet)
 	if err != nil {

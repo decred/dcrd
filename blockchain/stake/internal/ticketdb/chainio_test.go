@@ -18,8 +18,8 @@ import (
 	"github.com/decred/dcrd/blockchain/stake/v4/internal/tickettreap"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/chaincfg/v3"
-	"github.com/decred/dcrd/database/v2"
-	_ "github.com/decred/dcrd/database/v2/ffldb"
+	"github.com/decred/dcrd/database/v3"
+	_ "github.com/decred/dcrd/database/v3/ffldb"
 )
 
 const (
