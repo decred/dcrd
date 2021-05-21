@@ -7,7 +7,7 @@ require (
 	github.com/decred/dcrd/blockchain/standalone/v2 v2.0.0
 	github.com/decred/dcrd/chaincfg/chainhash v1.0.2
 	github.com/decred/dcrd/chaincfg/v3 v3.0.0
-	github.com/decred/dcrd/database/v2 v2.0.3-0.20210129190127-4ebd135a82f1
+	github.com/decred/dcrd/database/v2 v2.0.3-0.20210514034330-bdccd3e3f7b0
 	github.com/decred/dcrd/dcrec v1.0.0
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.0.0-20210127014238-b33b46cf1a24
 	github.com/decred/dcrd/dcrutil/v4 v4.0.0-20210129181600-6ae0142d3b28

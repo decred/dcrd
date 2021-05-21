@@ -16,7 +16,7 @@ require (
 	github.com/decred/dcrd/connmgr/v3 v3.0.0
 	github.com/decred/dcrd/container/apbf v1.0.0
 	github.com/decred/dcrd/crypto/ripemd160 v1.0.1
-	github.com/decred/dcrd/database/v2 v2.0.3-0.20210129190127-4ebd135a82f1
+	github.com/decred/dcrd/database/v2 v2.0.3-0.20210514034330-bdccd3e3f7b0
 	github.com/decred/dcrd/dcrec v1.0.0
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.0.0-20210127014238-b33b46cf1a24
 	github.com/decred/dcrd/dcrjson/v3 v3.1.0
