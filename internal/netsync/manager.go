@@ -775,7 +775,9 @@ func (m *SyncManager) handleBlockMsg(bmsg *blockMsg) {
 		} else {
 			log.Errorf("Failed to process block %v: %v", blockHash, err)
 		}
-		if errors.Is(err, database.ErrCorruption) {
+		if errors.Is(err, database.ErrCorruption) ||
+			errors.Is(err, blockchain.ErrUtxoBackendCorruption) {
+
 			log.Errorf("Critical failure: %v", err)
 		}
 		return

@@ -15,57 +15,134 @@ import (
 	"github.com/decred/dcrd/blockchain/standalone/v2"
 	"github.com/decred/dcrd/chaincfg/chainhash"
 	"github.com/decred/dcrd/chaincfg/v3"
-	"github.com/decred/dcrd/database/v2"
 	"github.com/decred/dcrd/wire"
 	"github.com/syndtr/goleveldb/leveldb"
 	ldberrors "github.com/syndtr/goleveldb/leveldb/errors"
+	"github.com/syndtr/goleveldb/leveldb/filter"
+	"github.com/syndtr/goleveldb/leveldb/opt"
+	"github.com/syndtr/goleveldb/leveldb/util"
 )
 
 const (
 	// currentUtxoDatabaseVersion indicates the current UTXO database version.
-	currentUtxoDatabaseVersion = 1
+	currentUtxoDatabaseVersion = 2
 
-	// currentUtxoSetVersion indicates the current UTXO set database version.
-	currentUtxoSetVersion = 3
+	// utxoDbDir is the directory for the UTXO database.
+	utxoDbDir = "utxodb"
 
-	// utxoDbName is the UTXO database name.
-	utxoDbName = "utxodb"
-
-	// utxoDbDefaultDriver is the default driver to use for the UTXO database.
-	utxoDbDefaultDriver = "ffldb"
+	// utxoLdbName is the name of UTXO leveldb database.  It is itself within the
+	// utxoDbDir directory.
+	utxoLdbName = "metadata"
 )
 
-var (
-	// utxoDbInfoBucketName is the name of the database bucket used to house
-	// global versioning and date information for the UTXO database.
-	utxoDbInfoBucketName = []byte("dbinfo")
+// -----------------------------------------------------------------------------
+// utxoKeySet represents a top level key set in the UTXO backend.  All keys in
+// the UTXO backend start with a serialized prefix consisting of the key set
+// and version of that key set as follows:
+//
+//   <key set><version>
+//
+//   Key        Value    Size      Description
+//   key set    uint8    1 byte    The key set identifier, as defined below
+//   version    uint8    1 byte    The version of the key set
+//
+// -----------------------------------------------------------------------------
+type utxoKeySet uint8
 
+// These constants define the available UTXO backend key sets.
+const (
+	utxoKeySetDbInfo    utxoKeySet = iota + 1 // 1
+	utxoKeySetUtxoState                       // 2
+	utxoKeySetUtxoSet                         // 3
+)
+
+// utxoKeySetNoVersion defines the value to be used for the version of key sets
+// where versioning does not apply.
+const utxoKeySetNoVersion = 0
+
+// utxoKeySetVersions defines the current version for each UTXO backend key
+// set.
+var utxoKeySetVersions = map[utxoKeySet]uint8{
+	// Note: The database info key set must remain at fixed keys so that older
+	// software can properly load the database versioning info, detect newer
+	// versions, and throw an error.
+	utxoKeySetDbInfo:    utxoKeySetNoVersion,
+	utxoKeySetUtxoState: 1,
+	utxoKeySetUtxoSet:   3,
+}
+
+// These variables define the serialized prefix for each key set and associated
+// version.
+var (
+	// utxoPrefixDbInfo is the prefix for all keys in the database info
+	// key set.
+	utxoPrefixDbInfo = []byte{byte(utxoKeySetDbInfo),
+		utxoKeySetVersions[utxoKeySetDbInfo]}
+
+	// utxoPrefixUtxoState is the prefix for all keys in the UTXO state key set.
+	utxoPrefixUtxoState = []byte{byte(utxoKeySetUtxoState),
+		utxoKeySetVersions[utxoKeySetUtxoState]}
+
+	// utxoPrefixUtxoSet is the prefix for all keys in the UTXO set key set.
+	utxoPrefixUtxoSet = []byte{byte(utxoKeySetUtxoSet),
+		utxoKeySetVersions[utxoKeySetUtxoSet]}
+)
+
+// prefixedKey returns a new byte slice that consists of the provided prefix
+// appended with the provided key.
+func prefixedKey(prefix []byte, key []byte) []byte {
+	lenPrefix := len(prefix)
+	prefixedKey := make([]byte, lenPrefix+len(key))
+	_ = copy(prefixedKey, prefix)
+	_ = copy(prefixedKey[lenPrefix:], key)
+	return prefixedKey
+}
+
+// These variables define keys that are part of the database info key set.
+var (
 	// utxoDbInfoVersionKeyName is the name of the database key used to house the
-	// database version.  It is itself under the utxoDbInfoBucketName bucket.
+	// database version.  It is itself under utxoPrefixDbInfo.
 	utxoDbInfoVersionKeyName = []byte("version")
 
-	// utxoDbInfoCompressionVerKeyName is the name of the database key used to
-	// house the database compression version.  It is itself under the
-	// utxoDbInfoBucketName bucket.
-	utxoDbInfoCompressionVerKeyName = []byte("compver")
+	// utxoDbInfoCompVerKeyName is the name of the database key used to house the
+	// database compression version.  It is itself under utxoPrefixDbInfo.
+	utxoDbInfoCompVerKeyName = []byte("compver")
 
 	// utxoDbInfoUtxoVerKeyName is the name of the database key used to house the
-	// database UTXO set version.  It is itself under the utxoDbInfoBucketName
-	// bucket.
+	// database UTXO set version.  It is itself under utxoPrefixDbInfo.
 	utxoDbInfoUtxoVerKeyName = []byte("utxover")
 
-	// utxoDbInfoCreatedKeyName is the name of the database key used to house
-	// the date the database was created.  It is itself under the
-	// utxoDbInfoBucketName bucket.
+	// utxoDbInfoCreatedKeyName is the name of the database key used to house the
+	// date the database was created.  It is itself under utxoPrefixDbInfo.
 	utxoDbInfoCreatedKeyName = []byte("created")
 
-	// utxoSetBucketName is the name of the db bucket used to house the unspent
-	// transaction output set.
-	utxoSetBucketName = []byte("utxosetv3")
+	// utxoDbInfoVersionKey is the database key used to house the database
+	// version.
+	utxoDbInfoVersionKey = prefixedKey(utxoPrefixDbInfo, utxoDbInfoVersionKeyName)
 
-	// utxoSetStateKeyName is the name of the database key used to house the
-	// state of the unspent transaction output set.
+	// utxoDbInfoCompVerKey is the database key used to house the database
+	// compression version.
+	utxoDbInfoCompVerKey = prefixedKey(utxoPrefixDbInfo, utxoDbInfoCompVerKeyName)
+
+	// utxoDbInfoUtxoVerKey is the database key used to house the database UTXO
+	// set version.
+	utxoDbInfoUtxoVerKey = prefixedKey(utxoPrefixDbInfo, utxoDbInfoUtxoVerKeyName)
+
+	// utxoDbInfoCreatedKey is the database key used to house the date the
+	// database was created.
+	utxoDbInfoCreatedKey = prefixedKey(utxoPrefixDbInfo, utxoDbInfoCreatedKeyName)
+)
+
+// These variables define keys that are part of the UTXO state key set.
+var (
+	// utxoSetStateKeyName is the name of the database key used to house the state
+	// of the unspent transaction output set.  It is itself under
+	// utxoPrefixUtxoState.
 	utxoSetStateKeyName = []byte("utxosetstate")
+
+	// utxoSetStateKey is the database key used to house the state of the unspent
+	// transaction output set.
+	utxoSetStateKey = prefixedKey(utxoPrefixUtxoState, utxoSetStateKeyName)
 )
 
 // -----------------------------------------------------------------------------
@@ -119,8 +196,30 @@ type UtxoBackend interface {
 	// FetchStats returns statistics on the current UTXO set.
 	FetchStats() (*UtxoStats, error)
 
+	// Get returns the value for the given key.  It returns nil if the key does
+	// not exist.  An empty slice is returned for keys that exist but have no
+	// value assigned.
+	//
+	// The returned slice is safe to modify.  Additionally, it is safe to modify
+	// the slice passed as an argument after Get returns.
+	Get(key []byte) ([]byte, error)
+
 	// InitInfo loads (or creates if necessary) the UTXO backend info.
 	InitInfo(blockDBVersion uint32) error
+
+	// NewIterator returns an iterator over the key/value pairs in the UTXO
+	// backend.  The returned iterator is NOT safe for concurrent use, but it is
+	// safe to use multiple iterators concurrently, with each in a dedicated
+	// goroutine.
+	//
+	// The prefix parameter allows for slicing the iterator to only contain keys
+	// with the given prefix.  A nil prefix is treated as a key BEFORE all keys.
+	//
+	// NOTE: The contents of any slice returned by the iterator should NOT be
+	// modified unless noted otherwise.
+	//
+	// The iterator must be released after use, by calling the Release method.
+	NewIterator(prefix []byte) UtxoBackendIterator
 
 	// PutInfo sets the versioning and creation information for the UTXO backend.
 	PutInfo(info *UtxoBackendInfo) error
@@ -128,6 +227,13 @@ type UtxoBackend interface {
 	// PutUtxos atomically updates the UTXO set with the entries from the provided
 	// map along with the current state.
 	PutUtxos(utxos map[wire.OutPoint]*UtxoEntry, state *UtxoSetState) error
+
+	// Update invokes the passed function in the context of a UTXO Backend
+	// transaction.  Any errors returned from the user-supplied function will
+	// cause the transaction to be rolled back and are returned from this
+	// function.  Otherwise, the transaction is committed when the user-supplied
+	// function returns a nil error.
+	Update(fn func(tx UtxoBackendTx) error) error
 
 	// Upgrade upgrades the UTXO backend by applying all possible upgrades
 	// iteratively as needed.
@@ -139,7 +245,7 @@ type UtxoBackend interface {
 type LevelDbUtxoBackend struct {
 	// db is the database that contains the UTXO set.  It is set when the instance
 	// is created and is not changed afterward.
-	db database.DB
+	db *leveldb.DB
 }
 
 // Ensure LevelDbUtxoBackend implements the UtxoBackend interface.
@@ -203,43 +309,55 @@ func removeRegressionDB(net wire.CurrencyNet, dbPath string) error {
 	return nil
 }
 
+// fileExists reports whether the named file or directory exists.
+func fileExists(name string) bool {
+	if _, err := os.Stat(name); err != nil {
+		if os.IsNotExist(err) {
+			return false
+		}
+	}
+	return true
+}
+
 // LoadUtxoDB loads (or creates when needed) the UTXO database and returns a
 // handle to it.  It also contains additional logic such as ensuring the
 // regression test database is clean when in regression test mode.
-func LoadUtxoDB(params *chaincfg.Params, dataDir string) (database.DB, error) {
-	// Set the database path based on the data directory and database name.
-	dbPath := filepath.Join(dataDir, utxoDbName)
+func LoadUtxoDB(params *chaincfg.Params, dataDir string) (*leveldb.DB, error) {
+	// Set the database path based on the data directory, UTXO database directory,
+	// and database name.
+	dbDir := filepath.Join(dataDir, utxoDbDir)
+	dbPath := filepath.Join(dbDir, utxoLdbName)
 
 	// The regression test is special in that it needs a clean database for each
 	// run, so remove it now if it already exists.
-	removeRegressionDB(params.Net, dbPath)
+	_ = removeRegressionDB(params.Net, dbPath)
 
-	// createDB is a convenience func that creates the database with the type and
-	// network specified in the config at the path determined above while also
-	// creating any intermediate directories in the configured data directory path
-	// as needed.
-	createDB := func() (database.DB, error) {
-		// Create the data dir if it does not exist.
-		err := os.MkdirAll(dataDir, 0700)
-		if err != nil {
-			return nil, err
-		}
-		return database.Create(utxoDbDefaultDriver, dbPath, params.Net)
+	// Ensure the full path to the database exists.
+	dbExists := fileExists(dbPath)
+	if !dbExists {
+		// The error can be ignored here since the call to leveldb.OpenFile will
+		// fail if the directory couldn't be created.
+		//
+		// NOTE: It is important that os.MkdirAll is only called if the database
+		// does not exist.  The documentation states that os.MidirAll does nothing
+		// if the directory already exists.  However, this has proven not to be the
+		// case on some less supported OSes and can lead to creating new directories
+		// with the wrong permissions or otherwise lead to hard to diagnose issues.
+		_ = os.MkdirAll(dbDir, 0700)
 	}
 
-	// Open the existing database or create a new one as needed.
+	// Open the database (will create it if needed).
 	log.Infof("Loading UTXO database from '%s'", dbPath)
-	db, err := database.Open(utxoDbDefaultDriver, dbPath, params.Net)
+	opts := opt.Options{
+		ErrorIfExist: !dbExists,
+		Strict:       opt.DefaultStrict,
+		Compression:  opt.NoCompression,
+		Filter:       filter.NewBloomFilter(10),
+	}
+	db, err := leveldb.OpenFile(dbPath, &opts)
 	if err != nil {
-		// Return the error if it's not because the database doesn't exist.
-		if !errors.Is(err, database.ErrDbDoesNotExist) {
-			return nil, err
-		}
-
-		db, err = createDB()
-		if err != nil {
-			return nil, err
-		}
+		str := fmt.Sprintf("failed to open UTXO database: %v", err)
+		return nil, convertLdbErr(err, str)
 	}
 
 	log.Info("UTXO database loaded")
@@ -249,26 +367,94 @@ func LoadUtxoDB(params *chaincfg.Params, dataDir string) (database.DB, error) {
 
 // NewLevelDbUtxoBackend returns a new LevelDbUtxoBackend instance using the
 // provided database.
-func NewLevelDbUtxoBackend(db database.DB) *LevelDbUtxoBackend {
+func NewLevelDbUtxoBackend(db *leveldb.DB) *LevelDbUtxoBackend {
 	return &LevelDbUtxoBackend{
 		db: db,
 	}
 }
 
-// dbFetchUtxoEntry uses an existing database transaction to fetch the specified
-// transaction output from the utxo set.
+// Get gets the value for the given key from the leveldb database.  It
+// returns nil for both the value and the error if the database does not
+// contain the key.
+//
+// It is safe to modify the contents of the returned slice, and it is safe to
+// modify the contents of the argument after Get returns.
+func (l *LevelDbUtxoBackend) Get(key []byte) ([]byte, error) {
+	serialized, err := l.db.Get(key, nil)
+	if err != nil {
+		if errors.Is(err, leveldb.ErrNotFound) {
+			return nil, nil
+		}
+		str := fmt.Sprintf("failed to get key %x from leveldb", key)
+		return nil, convertLdbErr(err, str)
+	}
+	return serialized, nil
+}
+
+// Update invokes the passed function in the context of a UTXO Backend
+// transaction.  Any errors returned from the user-supplied function will cause
+// the transaction to be rolled back and are returned from this function.
+// Otherwise, the transaction is committed when the user-supplied function
+// returns a nil error.
+func (l *LevelDbUtxoBackend) Update(fn func(tx UtxoBackendTx) error) error {
+	// Start a leveldb transaction.
+	//
+	// Note: A leveldb.Transaction is used rather than a leveldb.Batch because
+	// it uses significantly less memory when atomically updating a large amount
+	// of data.  Due to the UtxoCache only flushing to the UtxoBackend
+	// periodically, the UtxoBackend is almost always updating a large amount of
+	// data at once, and thus leveldb transactions are used by default over
+	// batches.
+	ldbTx, err := l.db.OpenTransaction()
+	if err != nil {
+		return convertLdbErr(err, "failed to open leveldb transaction")
+	}
+
+	if err := fn(&levelDbUtxoBackendTx{ldbTx}); err != nil {
+		ldbTx.Discard()
+		return err
+	}
+
+	// Commit the leveldb transaction.
+	if err := ldbTx.Commit(); err != nil {
+		ldbTx.Discard()
+		return convertLdbErr(err, "failed to commit leveldb transaction")
+	}
+	return nil
+}
+
+// NewIterator returns an iterator over the key/value pairs in the UTXO backend.
+// The returned iterator is NOT safe for concurrent use, but it is safe to use
+// multiple iterators concurrently, with each in a dedicated goroutine.
+//
+// The prefix parameter allows for slicing the iterator to only contain keys
+// with the given prefix.  A nil prefix is treated as a key BEFORE all keys.
+//
+// NOTE: The contents of any slice returned by the iterator should NOT be
+// modified unless noted otherwise.
+//
+// The iterator must be released after use, by calling the Release method.
+func (l *LevelDbUtxoBackend) NewIterator(prefix []byte) UtxoBackendIterator {
+	var slice *util.Range
+	if prefix != nil {
+		slice = util.BytesPrefix(prefix)
+	}
+	return l.db.NewIterator(slice, nil)
+}
+
+// dbFetchUtxoEntry fetches the specified transaction output from the utxo set.
 //
 // When there is no entry for the provided output, nil will be returned for both
 // the entry and the error.
-func (l *LevelDbUtxoBackend) dbFetchUtxoEntry(dbTx database.Tx,
-	outpoint wire.OutPoint) (*UtxoEntry, error) {
-
+func (l *LevelDbUtxoBackend) dbFetchUtxoEntry(outpoint wire.OutPoint) (*UtxoEntry, error) {
 	// Fetch the unspent transaction output information for the passed transaction
 	// output.  Return now when there is no entry.
 	key := outpointKey(outpoint)
-	utxoBucket := dbTx.Metadata().Bucket(utxoSetBucketName)
-	serializedUtxo := utxoBucket.Get(*key)
+	serializedUtxo, err := l.Get(*key)
 	recycleOutpointKey(key)
+	if err != nil {
+		return nil, err
+	}
 	if serializedUtxo == nil {
 		return nil, nil
 	}
@@ -283,11 +469,11 @@ func (l *LevelDbUtxoBackend) dbFetchUtxoEntry(dbTx database.Tx,
 	// Deserialize the utxo entry and return it.
 	entry, err := deserializeUtxoEntry(serializedUtxo, outpoint.Index)
 	if err != nil {
-		// Ensure any deserialization errors are returned as database corruption
+		// Ensure any deserialization errors are returned as UTXO backend corruption
 		// errors.
 		if isDeserializeErr(err) {
 			str := fmt.Sprintf("corrupt utxo entry for %v: %v", outpoint, err)
-			return nil, makeDbErr(database.ErrCorruption, str)
+			return nil, contextError(ErrUtxoBackendCorruption, str)
 		}
 
 		return nil, err
@@ -307,35 +493,20 @@ func (l *LevelDbUtxoBackend) FetchEntry(outpoint wire.OutPoint) (*UtxoEntry, err
 	// will result in nil entries in the view.  This is intentionally done
 	// so other code can use the presence of an entry in the view as a way
 	// to unnecessarily avoid attempting to reload it from the database.
-	var entry *UtxoEntry
-	err := l.db.View(func(dbTx database.Tx) error {
-		var err error
-		entry, err = l.dbFetchUtxoEntry(dbTx, outpoint)
-		return err
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	return entry, nil
+	return l.dbFetchUtxoEntry(outpoint)
 }
 
 // FetchState returns the current state of the UTXO set.
 func (l *LevelDbUtxoBackend) FetchState() (*UtxoSetState, error) {
 	// Fetch the utxo set state from the database.
-	var serialized []byte
-	err := l.db.View(func(dbTx database.Tx) error {
-		// Fetch the serialized utxo set state from the database.
-		serialized = dbTx.Metadata().Get(utxoSetStateKeyName)
-		return nil
-	})
+	serialized, err := l.Get(utxoSetStateKey)
 	if err != nil {
 		return nil, err
 	}
 
 	// Return nil if the utxo set state does not exist in the database.  This
-	// should only be the case when starting from a fresh database or a database
-	// that has not been run with the utxo cache yet.
+	// should only be the case when starting from a fresh database or a
+	// database that has not been run with the utxo cache yet.
 	if serialized == nil {
 		return nil, nil
 	}
@@ -344,25 +515,24 @@ func (l *LevelDbUtxoBackend) FetchState() (*UtxoSetState, error) {
 	return deserializeUtxoSetState(serialized)
 }
 
-// dbFetchUxtoStats fetches statistics on the current unspent transaction output
-// set.
-func (l *LevelDbUtxoBackend) dbFetchUtxoStats(dbTx database.Tx) (*UtxoStats, error) {
-	utxoBucket := dbTx.Metadata().Bucket(utxoSetBucketName)
-
+// FetchStats returns statistics on the current UTXO set.
+func (l *LevelDbUtxoBackend) FetchStats() (*UtxoStats, error) {
 	var stats UtxoStats
 	transactions := make(map[chainhash.Hash]struct{})
 	leaves := make([]chainhash.Hash, 0)
-	cursor := utxoBucket.Cursor()
+	iter := l.NewIterator(utxoPrefixUtxoSet)
+	defer iter.Release()
 
-	for ok := cursor.First(); ok; ok = cursor.Next() {
-		key := cursor.Key()
+	for iter.Next() {
+		key := iter.Key()
 		var outpoint wire.OutPoint
 		err := decodeOutpointKey(key, &outpoint)
 		if err != nil {
-			return nil, err
+			str := fmt.Sprintf("corrupt outpoint for key %x: %v", key, err)
+			return nil, contextError(ErrUtxoBackendCorruption, str)
 		}
 
-		serializedUtxo := cursor.Value()
+		serializedUtxo := iter.Value()
 		entrySize := len(serializedUtxo)
 
 		// A non-nil zero-length entry means there is an entry in the database for a
@@ -381,17 +551,20 @@ func (l *LevelDbUtxoBackend) dbFetchUtxoStats(dbTx database.Tx) (*UtxoStats, err
 		// Deserialize the utxo entry.
 		entry, err := deserializeUtxoEntry(serializedUtxo, outpoint.Index)
 		if err != nil {
-			// Ensure any deserialization errors are returned as database corruption
-			// errors.
+			// Ensure any deserialization errors are returned as UTXO backend
+			// corruption errors.
 			if isDeserializeErr(err) {
 				str := fmt.Sprintf("corrupt utxo entry for %v: %v", outpoint, err)
-				return nil, makeDbErr(database.ErrCorruption, str)
+				return nil, contextError(ErrUtxoBackendCorruption, str)
 			}
 
 			return nil, err
 		}
 
 		stats.Total += entry.amount
+	}
+	if err := iter.Error(); err != nil {
+		return nil, convertLdbErr(err, err.Error())
 	}
 
 	stats.SerializedHash = standalone.CalcMerkleRootInPlace(leaves)
@@ -400,24 +573,9 @@ func (l *LevelDbUtxoBackend) dbFetchUtxoStats(dbTx database.Tx) (*UtxoStats, err
 	return &stats, nil
 }
 
-// FetchStats returns statistics on the current UTXO set.
-func (l *LevelDbUtxoBackend) FetchStats() (*UtxoStats, error) {
-	var stats *UtxoStats
-	err := l.db.View(func(dbTx database.Tx) error {
-		var err error
-		stats, err = l.dbFetchUtxoStats(dbTx)
-		return err
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	return stats, nil
-}
-
-// dbPutUtxoBackendInfo uses an existing database transaction to store the
+// dbPutUtxoBackendInfo uses an existing UTXO backend transaction to store the
 // backend information.
-func (l *LevelDbUtxoBackend) dbPutUtxoBackendInfo(dbTx database.Tx,
+func (l *LevelDbUtxoBackend) dbPutUtxoBackendInfo(tx UtxoBackendTx,
 	info *UtxoBackendInfo) error {
 
 	// uint32Bytes is a helper function to convert a uint32 to a byte slice
@@ -437,65 +595,86 @@ func (l *LevelDbUtxoBackend) dbPutUtxoBackendInfo(dbTx database.Tx,
 	}
 
 	// Store the database version.
-	meta := dbTx.Metadata()
-	bucket := meta.Bucket(utxoDbInfoBucketName)
-	err := bucket.Put(utxoDbInfoVersionKeyName, uint32Bytes(info.version))
+	err := tx.Put(utxoDbInfoVersionKey, uint32Bytes(info.version))
 	if err != nil {
 		return err
 	}
 
 	// Store the compression version.
-	err = bucket.Put(utxoDbInfoCompressionVerKeyName, uint32Bytes(info.compVer))
+	err = tx.Put(utxoDbInfoCompVerKey, uint32Bytes(info.compVer))
 	if err != nil {
 		return err
 	}
 
 	// Store the UTXO set version.
-	err = bucket.Put(utxoDbInfoUtxoVerKeyName, uint32Bytes(info.utxoVer))
+	err = tx.Put(utxoDbInfoUtxoVerKey, uint32Bytes(info.utxoVer))
 	if err != nil {
 		return err
 	}
 
 	// Store the database creation date.
-	return bucket.Put(utxoDbInfoCreatedKeyName,
+	return tx.Put(utxoDbInfoCreatedKey,
 		uint64Bytes(uint64(info.created.Unix())))
 }
 
-// dbFetchUtxoBackendInfo uses an existing database transaction to fetch the
-// backend versioning and creation information.
-func (l *LevelDbUtxoBackend) dbFetchUtxoBackendInfo(dbTx database.Tx) *UtxoBackendInfo {
-	meta := dbTx.Metadata()
-	bucket := meta.Bucket(utxoDbInfoBucketName)
-
-	// Uninitialized state.
-	if bucket == nil {
-		return nil
-	}
-
+// dbFetchUtxoBackendInfo fetches the backend versioning and creation
+// information.
+func (l *LevelDbUtxoBackend) dbFetchUtxoBackendInfo() (*UtxoBackendInfo, error) {
 	// Load the database version.
-	var version uint32
-	versionBytes := bucket.Get(utxoDbInfoVersionKeyName)
-	if versionBytes != nil {
-		version = byteOrder.Uint32(versionBytes)
+	prefix := utxoPrefixDbInfo
+	versionBytes, err := l.Get(utxoDbInfoVersionKey)
+	if err != nil {
+		return nil, err
 	}
+	if versionBytes == nil {
+		// If the database info was not found, attempt to find it in the legacy
+		// bucket.
+		dbInfoLegacyBucketName := []byte("dbinfo")
+		dbInfoBucketId, err := fetchLegacyBucketId(l.Get, dbInfoLegacyBucketName)
+		if err != nil {
+			return nil, err
+		}
+		prefix = dbInfoBucketId
+		versionBytes, err = l.Get(prefixedKey(prefix, utxoDbInfoVersionKeyName))
+		if err != nil {
+			return nil, err
+		}
+		if versionBytes == nil {
+			// Uninitialized state.
+			return nil, nil
+		}
+	}
+	version := byteOrder.Uint32(versionBytes)
 
 	// Load the database compression version.
 	var compVer uint32
-	compVerBytes := bucket.Get(utxoDbInfoCompressionVerKeyName)
+	compVerKey := prefixedKey(prefix, utxoDbInfoCompVerKeyName)
+	compVerBytes, err := l.Get(compVerKey)
+	if err != nil {
+		return nil, err
+	}
 	if compVerBytes != nil {
 		compVer = byteOrder.Uint32(compVerBytes)
 	}
 
 	// Load the database UTXO set version.
 	var utxoVer uint32
-	utxoVerBytes := bucket.Get(utxoDbInfoUtxoVerKeyName)
+	utxoVerKey := prefixedKey(prefix, utxoDbInfoUtxoVerKeyName)
+	utxoVerBytes, err := l.Get(utxoVerKey)
+	if err != nil {
+		return nil, err
+	}
 	if utxoVerBytes != nil {
 		utxoVer = byteOrder.Uint32(utxoVerBytes)
 	}
 
 	// Load the database creation date.
 	var created time.Time
-	createdBytes := bucket.Get(utxoDbInfoCreatedKeyName)
+	createdKey := prefixedKey(prefix, utxoDbInfoCreatedKeyName)
+	createdBytes, err := l.Get(createdKey)
+	if err != nil {
+		return nil, err
+	}
 	if createdBytes != nil {
 		ts := byteOrder.Uint64(createdBytes)
 		created = time.Unix(int64(ts), 0)
@@ -506,107 +685,63 @@ func (l *LevelDbUtxoBackend) dbFetchUtxoBackendInfo(dbTx database.Tx) *UtxoBacke
 		compVer: compVer,
 		utxoVer: utxoVer,
 		created: created,
-	}
+	}, nil
 }
 
 // createUtxoBackendInfo initializes the UTXO backend info.  It must only be
 // called on an uninitialized backend.
 func (l *LevelDbUtxoBackend) createUtxoBackendInfo(blockDBVersion uint32) error {
-	// Create the initial UTXO database state.
-	err := l.db.Update(func(dbTx database.Tx) error {
-		meta := dbTx.Metadata()
+	// Initialize the UTXO set version.  If the block database version is before
+	// version 9, then initialize the UTXO set version based on the block
+	// database version since that is what tracked the UTXO set version at that
+	// point in time.
+	utxoVer := uint32(utxoKeySetVersions[utxoKeySetUtxoSet])
+	if blockDBVersion >= 7 && blockDBVersion < 9 {
+		utxoVer = 2
+	} else if blockDBVersion < 7 {
+		utxoVer = 1
+	}
 
-		// Create the bucket that houses information about the database's creation
-		// and version.
-		_, err := meta.CreateBucketIfNotExists(utxoDbInfoBucketName)
-		if err != nil {
-			return err
-		}
-
-		// Initialize the UTXO set version.  If the block database version is before
-		// version 9, then initialize the UTXO set version based on the block
-		// database version since that is what tracked the UTXO set version at that
-		// point in time.
-		utxoVer := uint32(currentUtxoSetVersion)
-		if blockDBVersion >= 7 && blockDBVersion < 9 {
-			utxoVer = 2
-		} else if blockDBVersion < 7 {
-			utxoVer = 1
-		}
-
-		// Write the creation and version information to the database.
-		err = l.dbPutUtxoBackendInfo(dbTx, &UtxoBackendInfo{
+	// Write the creation and version information to the database.
+	return l.Update(func(tx UtxoBackendTx) error {
+		return l.dbPutUtxoBackendInfo(tx, &UtxoBackendInfo{
 			version: currentUtxoDatabaseVersion,
 			compVer: currentCompressionVersion,
 			utxoVer: utxoVer,
 			created: time.Now(),
 		})
-		if err != nil {
-			return err
-		}
-
-		// Create the bucket that houses the UTXO set.
-		_, err = meta.CreateBucketIfNotExists(utxoSetBucketName)
-		if err != nil {
-			return err
-		}
-
-		return nil
 	})
-	return err
 }
 
 // FetchInfo returns versioning and creation information for the backend.
 func (l *LevelDbUtxoBackend) FetchInfo() (*UtxoBackendInfo, error) {
-	var backendInfo *UtxoBackendInfo
-	err := l.db.View(func(dbTx database.Tx) error {
-		backendInfo = l.dbFetchUtxoBackendInfo(dbTx)
-		return nil
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	return backendInfo, nil
+	return l.dbFetchUtxoBackendInfo()
 }
 
 // InitInfo loads (or creates if necessary) the UTXO backend info.
 func (l *LevelDbUtxoBackend) InitInfo(blockDBVersion uint32) error {
-	// Determine the state of the database.
-	var isStateInitialized bool
-	err := l.db.View(func(dbTx database.Tx) error {
-		// Fetch the backend versioning information.
-		dbInfo := l.dbFetchUtxoBackendInfo(dbTx)
-
-		// The database bucket for the versioning information is missing.
-		if dbInfo == nil {
-			return nil
-		}
-
-		// Don't allow downgrades of the UTXO database.
-		if dbInfo.version > currentUtxoDatabaseVersion {
-			return fmt.Errorf("the current UTXO database is no longer compatible "+
-				"with this version of the software (%d > %d)", dbInfo.version,
-				currentUtxoDatabaseVersion)
-		}
-
-		// Don't allow downgrades of the database compression version.
-		if dbInfo.compVer > currentCompressionVersion {
-			return fmt.Errorf("the current database compression version is no "+
-				"longer compatible with this version of the software (%d > %d)",
-				dbInfo.compVer, currentCompressionVersion)
-		}
-
-		isStateInitialized = true
-
-		return nil
-	})
+	// Fetch the backend versioning information.
+	dbInfo, err := l.dbFetchUtxoBackendInfo()
 	if err != nil {
 		return err
 	}
 
+	// Don't allow downgrades of the UTXO database.
+	if dbInfo != nil && dbInfo.version > currentUtxoDatabaseVersion {
+		return fmt.Errorf("the current UTXO database is no longer compatible "+
+			"with this version of the software (%d > %d)", dbInfo.version,
+			currentUtxoDatabaseVersion)
+	}
+
+	// Don't allow downgrades of the database compression version.
+	if dbInfo != nil && dbInfo.compVer > currentCompressionVersion {
+		return fmt.Errorf("the current database compression version is no "+
+			"longer compatible with this version of the software (%d > %d)",
+			dbInfo.compVer, currentCompressionVersion)
+	}
+
 	// Initialize the backend if it has not already been done.
-	if !isStateInitialized {
+	if dbInfo == nil {
 		if err := l.createUtxoBackendInfo(blockDBVersion); err != nil {
 			return err
 		}
@@ -617,17 +752,17 @@ func (l *LevelDbUtxoBackend) InitInfo(blockDBVersion uint32) error {
 
 // PutInfo sets the versioning and creation information for the backend.
 func (l *LevelDbUtxoBackend) PutInfo(info *UtxoBackendInfo) error {
-	return l.db.Update(func(dbTx database.Tx) error {
-		return l.dbPutUtxoBackendInfo(dbTx, info)
+	return l.Update(func(tx UtxoBackendTx) error {
+		return l.dbPutUtxoBackendInfo(tx, info)
 	})
 }
 
-// dbPutUtxoEntry uses an existing database transaction to update the utxo
+// dbPutUtxoEntry uses an existing UTXO backend transaction to update the utxo
 // entry for the given outpoint based on the provided utxo entry state.  In
 // particular, the entry is only written to the database if it is marked as
 // modified, and if the entry is marked as spent it is removed from the
 // database.
-func (l *LevelDbUtxoBackend) dbPutUtxoEntry(dbTx database.Tx,
+func (l *LevelDbUtxoBackend) dbPutUtxoEntry(tx UtxoBackendTx,
 	outpoint wire.OutPoint, entry *UtxoEntry) error {
 
 	// No need to update the database if the entry was not modified.
@@ -636,25 +771,21 @@ func (l *LevelDbUtxoBackend) dbPutUtxoEntry(dbTx database.Tx,
 	}
 
 	// Remove the utxo entry if it is spent.
-	utxoBucket := dbTx.Metadata().Bucket(utxoSetBucketName)
 	if entry.IsSpent() {
 		key := outpointKey(outpoint)
-		err := utxoBucket.Delete(*key)
+		err := tx.Delete(*key)
 		recycleOutpointKey(key)
 		if err != nil {
 			return err
 		}
-
 		return nil
 	}
 
 	// Serialize and store the utxo entry.
 	serialized := serializeUtxoEntry(entry)
 	key := outpointKey(outpoint)
-	err := utxoBucket.Put(*key, serialized)
-	// NOTE: The key is intentionally not recycled here since the database
-	// interface contract prohibits modifications.  It will be garbage collected
-	// normally when the database is done with it.
+	err := tx.Put(*key, serialized)
+	recycleOutpointKey(key)
 	if err != nil {
 		return err
 	}
@@ -670,29 +801,20 @@ func (l *LevelDbUtxoBackend) PutUtxos(utxos map[wire.OutPoint]*UtxoEntry,
 	// Update the database with the provided entries and UTXO set state.
 	//
 	// It is important that the UTXO set state is always updated in the same
-	// database transaction as the utxo set itself so that it is always in sync.
-	err := l.db.Update(func(dbTx database.Tx) error {
+	// UTXO backend transaction as the utxo set itself so that it is always in
+	// sync.
+	return l.Update(func(tx UtxoBackendTx) error {
 		for outpoint, entry := range utxos {
 			// Write the entry to the database.
-			err := l.dbPutUtxoEntry(dbTx, outpoint, entry)
+			err := l.dbPutUtxoEntry(tx, outpoint, entry)
 			if err != nil {
 				return err
 			}
 		}
 
 		// Update the UTXO set state in the database.
-		return dbTx.Metadata().Put(utxoSetStateKeyName,
-			serializeUtxoSetState(state))
+		return tx.Put(utxoSetStateKey, serializeUtxoSetState(state))
 	})
-	if err != nil {
-		return err
-	}
-
-	// Flush the UTXO database to disk.  This is necessary in the case that the
-	// UTXO set state was just initialized so that if the block database is
-	// flushed, and then an unclean shutdown occurs, the UTXO cache will know
-	// where to start from when recovering on startup.
-	return l.db.Flush()
 }
 
 // Upgrade upgrades the UTXO backend by applying all possible upgrades
