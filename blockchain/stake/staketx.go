@@ -395,7 +395,7 @@ func TxSStxStakeOutputInfo(tx *wire.MsgTx) ([]bool, [][]byte, []int64, []int64,
 
 // AddrFromSStxPkScrCommitment extracts a P2SH or P2PKH address from a ticket
 // commitment pkScript.
-func AddrFromSStxPkScrCommitment(pkScript []byte, params stdaddr.AddressParams) (stdaddr.Address, error) {
+func AddrFromSStxPkScrCommitment(pkScript []byte, params stdaddr.AddressParams) (stdaddr.StakeAddress, error) {
 	if len(pkScript) < SStxPKHMinOutSize {
 		str := "short read of sstx commit pkscript"
 		return nil, stakeRuleError(ErrSStxBadCommitAmount, str)
