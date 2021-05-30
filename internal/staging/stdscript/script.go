@@ -61,6 +61,14 @@ const (
 	// script.
 	STPubKeyHashSchnorrSecp256k1
 
+	// STScriptHash identifies a standard script that imposes an encumbrance
+	// that requires a script that hashes to a specific value along with all of
+	// the encumbrances that script itself imposes.  The script is commonly
+	// referred to as a redeem script.
+	//
+	// This is commonly referred to as pay-to-script-hash (P2SH).
+	STScriptHash
+
 	// numScriptTypes is the maximum script type number used in tests.  This
 	// entry MUST be the last entry in the enum.
 	numScriptTypes
@@ -76,6 +84,7 @@ var scriptTypeToName = []string{
 	STPubKeyHashEcdsaSecp256k1:   "pubkeyhash",
 	STPubKeyHashEd25519:          "pubkeyhash-ed25519",
 	STPubKeyHashSchnorrSecp256k1: "pubkeyhash-schnorr-secp256k1",
+	STScriptHash:                 "scripthash",
 }
 
 // String returns the ScriptType as a human-readable name.
@@ -166,6 +175,20 @@ func IsPubKeyHashSchnorrSecp256k1Script(scriptVersion uint16, script []byte) boo
 	switch scriptVersion {
 	case 0:
 		return IsPubKeyHashSchnorrSecp256k1ScriptV0(script)
+	}
+
+	return false
+}
+
+// IsScriptHashScript returns whether or not the passed script is a standard
+// pay-to-script-hash script.
+//
+// NOTE: Version 0 scripts are the only currently supported version.  It will
+// always return false for other script versions.
+func IsScriptHashScript(scriptVersion uint16, script []byte) bool {
+	switch scriptVersion {
+	case 0:
+		return IsScriptHashScriptV0(script)
 	}
 
 	return false

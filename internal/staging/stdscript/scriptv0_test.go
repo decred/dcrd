@@ -58,6 +58,9 @@ var scriptV0Tests = func() []scriptTest {
 	pkEd := "cecc1507dc1ddd7295951c290888f095adb9044d1b73d696e6df065d683bd4fc"
 	h160Ed := "456d8ee57a4b9121987b4ecab8c3bcb5797e8a53"
 
+	// Script hash for a 2-of-3 multisig composed of pkCE, pkCE2, and pkCO.
+	p2sh := "f86b5a7c6d32566aa4dccc04d1533530b4d64cf3"
+
 	return []scriptTest{{
 		// ---------------------------------------------------------------------
 		// Misc negative tests.
@@ -285,6 +288,27 @@ var scriptV0Tests = func() []scriptTest {
 			h160CE2),
 		wantType: STPubKeyHashSchnorrSecp256k1,
 		wantData: hexToBytes(h160CE2),
+	}, {
+		// ---------------------------------------------------------------------
+		// Negative P2SH tests.
+		// ---------------------------------------------------------------------
+
+		name:     "almost v0 p2sh -- wrong hash length",
+		script:   p("HASH160 DATA_21 0x00%s EQUAL", p2sh),
+		wantType: STNonStandard,
+	}, {
+		name:     "almost v0 p2sh -- trailing opcode",
+		script:   p("HASH160 DATA_20 0x%s EQUAL TRUE", p2sh),
+		wantType: STNonStandard,
+	}, {
+		// ---------------------------------------------------------------------
+		// Positive P2SH tests.
+		// ---------------------------------------------------------------------
+
+		name:     "v0 p2sh",
+		script:   p("HASH160 DATA_20 0x%s EQUAL", p2sh),
+		wantType: STScriptHash,
+		wantData: hexToBytes(p2sh),
 	}}
 }()
 
@@ -415,6 +439,27 @@ func TestExtractPubKeyHashAltDetailsV0(t *testing.T) {
 		if gotBytes != nil && gotSigType != wantSigType {
 			t.Errorf("%q: unexpected sig type -- got %d, want %d", test.name,
 				gotSigType, wantSigType)
+			continue
+		}
+	}
+}
+
+// TestExtractScriptHashV0 ensures that extracting a script hash from the
+// various version 0 pay-to-script-hash scripts works as intended for all of the
+// version 0 test scripts.
+func TestExtractScriptHashV0(t *testing.T) {
+	for _, test := range scriptV0Tests {
+		// Determine the expected data based on the expected script type and
+		// data specified in the test.
+		var want []byte
+		if test.wantType == STScriptHash {
+			want = asByteSlice(t, test)
+		}
+
+		got := ExtractScriptHashV0(test.script)
+		if !bytes.Equal(got, want) {
+			t.Errorf("%q: unexpected script hash -- got %x, want %x", test.name,
+				got, want)
 			continue
 		}
 	}
