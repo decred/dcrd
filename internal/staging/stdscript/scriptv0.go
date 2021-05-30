@@ -558,6 +558,22 @@ func IsStakeRevocationScriptHashScriptV0(script []byte) bool {
 	return ExtractStakeRevocationScriptHashV0(script) != nil
 }
 
+// ExtractStakeChangePubKeyHashV0 extracts the public key hash from the
+// passed script if it is a standard version 0 stake change pay-to-pubkey-hash
+// script.  It will return nil otherwise.
+func ExtractStakeChangePubKeyHashV0(script []byte) []byte {
+	// A stake change pay-to-pubkey-hash script is of the form:
+	//  OP_SSTXCHANGE <standard-pay-to-pubkey-hash script>
+	const stakeOpcode = txscript.OP_SSTXCHANGE
+	return extractStakePubKeyHashV0(script, stakeOpcode)
+}
+
+// IsStakeChangePubKeyHashScriptV0 returns whether or not the passed script is a
+// standard version 0 stake change pay-to-pubkey-hash script.
+func IsStakeChangePubKeyHashScriptV0(script []byte) bool {
+	return ExtractStakeChangePubKeyHashV0(script) != nil
+}
+
 // DetermineScriptTypeV0 returns the type of the passed version 0 script from
 // the known standard types.  This includes both types that are required by
 // consensus as well as those which are not.
@@ -595,6 +611,8 @@ func DetermineScriptTypeV0(script []byte) ScriptType {
 		return STStakeRevocationPubKeyHash
 	case IsStakeRevocationScriptHashScriptV0(script):
 		return STStakeRevocationScriptHash
+	case IsStakeChangePubKeyHashScriptV0(script):
+		return STStakeChangePubKeyHash
 	}
 
 	return STNonStandard

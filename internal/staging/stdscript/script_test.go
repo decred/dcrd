@@ -32,6 +32,7 @@ func TestScriptTypeStringer(t *testing.T) {
 		{STStakeGenScriptHash, "stakegen-scripthash"},
 		{STStakeRevocationPubKeyHash, "stakerevoke-pubkeyhash"},
 		{STStakeRevocationScriptHash, "stakerevoke-scripthash"},
+		{STStakeChangePubKeyHash, "stakechange-pubkeyhash"},
 		{0xff, "invalid"},
 	}
 
@@ -155,6 +156,7 @@ func TestDetermineScriptType(t *testing.T) {
 		testIsX(IsStakeGenScriptHashScript, STStakeGenScriptHash)
 		testIsX(IsStakeRevocationPubKeyHashScript, STStakeRevocationPubKeyHash)
 		testIsX(IsStakeRevocationScriptHashScript, STStakeRevocationScriptHash)
+		testIsX(IsStakeChangePubKeyHashScript, STStakeChangePubKeyHash)
 
 		// Ensure the special case of determining if a signature script appears
 		// to be a signature script which consists of a pay-to-script-hash
