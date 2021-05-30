@@ -57,3 +57,17 @@ func ExampleExtractPubKeyHashV0() {
 	// Output:
 	// public key hash: e280cb6e66b96679aec288b1fbdbd4db08077a1b
 }
+
+// This example demonstrates extracting a script hash from a standard
+// pay-to-script-hash script for script language version 0.
+func ExampleExtractScriptHashV0() {
+	// Ordinarily the script version and script would be obtained from the
+	// output of a transaction, but the version is assumed to be zero and the
+	// script is hard coded here for the purposes of this example.
+	script := hexToBytes("a914433ec2ac1ffa1b7b7d027f564529c57197f9ae8887")
+	scriptHash := stdscript.ExtractScriptHashV0(script)
+	fmt.Printf("script hash: %x\n", scriptHash)
+
+	// Output:
+	// script hash: 433ec2ac1ffa1b7b7d027f564529c57197f9ae88
+}
