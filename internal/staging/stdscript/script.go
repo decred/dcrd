@@ -99,6 +99,14 @@ const (
 	// imposes.  The script is commonly referred to as a redeem script.
 	STStakeSubmissionScriptHash
 
+	// STStakeGenPubKeyHash identifies a script that is only valid when used as
+	// part of a vote transaction in the staking system.
+	//
+	// It imposes an encumbrance that requires a secp256k1 public key that
+	// hashes to a specific value along with a valid ECDSA signature for that
+	// public key.
+	STStakeGenPubKeyHash
+
 	// numScriptTypes is the maximum script type number used in tests.  This
 	// entry MUST be the last entry in the enum.
 	numScriptTypes
@@ -119,6 +127,7 @@ var scriptTypeToName = []string{
 	STNullData:                   "nulldata",
 	STStakeSubmissionPubKeyHash:  "stakesubmission-pubkeyhash",
 	STStakeSubmissionScriptHash:  "stakesubmission-scripthash",
+	STStakeGenPubKeyHash:         "stakegen-pubkeyhash",
 }
 
 // String returns the ScriptType as a human-readable name.
@@ -299,6 +308,20 @@ func IsStakeSubmissionScriptHashScript(scriptVersion uint16, script []byte) bool
 	switch scriptVersion {
 	case 0:
 		return IsStakeSubmissionScriptHashScriptV0(script)
+	}
+
+	return false
+}
+
+// IsStakeGenPubKeyHashScript returns whether or not the passed script is a
+// standard stake generation pay-to-pubkey-hash script.
+//
+// NOTE: Version 0 scripts are the only currently supported version.  It will
+// always return false for other script versions.
+func IsStakeGenPubKeyHashScript(scriptVersion uint16, script []byte) bool {
+	switch scriptVersion {
+	case 0:
+		return IsStakeGenPubKeyHashScriptV0(script)
 	}
 
 	return false
