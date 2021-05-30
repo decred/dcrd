@@ -115,6 +115,14 @@ const (
 	// imposes.  The script is commonly referred to as a redeem script.
 	STStakeGenScriptHash
 
+	// STStakeRevocationPubKeyHash identifies a script that is only valid when
+	// used as part of a revocation transaction in the staking system.
+	//
+	// It imposes an encumbrance that requires a secp256k1 public key that
+	// hashes to a specific value along with a valid ECDSA signature for that
+	// public key.
+	STStakeRevocationPubKeyHash
+
 	// numScriptTypes is the maximum script type number used in tests.  This
 	// entry MUST be the last entry in the enum.
 	numScriptTypes
@@ -137,6 +145,7 @@ var scriptTypeToName = []string{
 	STStakeSubmissionScriptHash:  "stakesubmission-scripthash",
 	STStakeGenPubKeyHash:         "stakegen-pubkeyhash",
 	STStakeGenScriptHash:         "stakegen-scripthash",
+	STStakeRevocationPubKeyHash:  "stakerevoke-pubkeyhash",
 }
 
 // String returns the ScriptType as a human-readable name.
@@ -345,6 +354,20 @@ func IsStakeGenScriptHashScript(scriptVersion uint16, script []byte) bool {
 	switch scriptVersion {
 	case 0:
 		return IsStakeGenScriptHashScriptV0(script)
+	}
+
+	return false
+}
+
+// IsStakeRevocationPubKeyHashScript returns whether or not the passed script is
+// a standard stake revocation pay-to-pubkey-hash script.
+//
+// NOTE: Version 0 scripts are the only currently supported version.  It will
+// always return false for other script versions.
+func IsStakeRevocationPubKeyHashScript(scriptVersion uint16, script []byte) bool {
+	switch scriptVersion {
+	case 0:
+		return IsStakeRevocationPubKeyHashScriptV0(script)
 	}
 
 	return false
