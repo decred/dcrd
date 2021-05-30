@@ -312,6 +312,64 @@ func IsMultiSigScriptV0(script []byte) bool {
 	return details.Valid
 }
 
+// finalOpcodeDataV0 returns the data associated with the final opcode in the
+// passed version 0 script.  It will return nil if the script fails to parse.
+func finalOpcodeDataV0(script []byte) []byte {
+	// Avoid unnecessary work.
+	if len(script) == 0 {
+		return nil
+	}
+
+	var data []byte
+	const scriptVersion = 0
+	tokenizer := txscript.MakeScriptTokenizer(scriptVersion, script)
+	for tokenizer.Next() {
+		data = tokenizer.Data()
+	}
+	if tokenizer.Err() != nil {
+		return nil
+	}
+	return data
+}
+
+// IsMultiSigSigScriptV0 returns whether or not the passed script appears to be
+// a version 0 signature script which consists of a pay-to-script-hash
+// multi-signature redeem script.  Determining if a signature script is actually
+// a redemption of pay-to-script-hash requires the associated public key script
+// which is often expensive to obtain.  Therefore, this makes a fast best effort
+// guess that has a high probability of being correct by checking if the
+// signature script ends with a data push and treating that data push as if it
+// were a p2sh redeem script.
+func IsMultiSigSigScriptV0(script []byte) bool {
+	// The script can't possibly be a multisig signature script if it doesn't
+	// end with OP_CHECKMULTISIG in the redeem script or have at least two small
+	// integers preceding it, and the redeem script itself must be preceded by
+	// at least a data push opcode.  Fail fast to avoid more work below.
+	if len(script) < 4 || script[len(script)-1] != txscript.OP_CHECKMULTISIG {
+		return false
+	}
+
+	// Parse through the script to find the last opcode and any data it might
+	// push and treat it as a p2sh redeem script even though it might not
+	// actually be one.
+	possibleRedeemScript := finalOpcodeDataV0(script)
+	if possibleRedeemScript == nil {
+		return false
+	}
+
+	// Finally, return if that possible redeem script is a multisig script.
+	return IsMultiSigScriptV0(possibleRedeemScript)
+}
+
+// MultiSigRedeemScriptFromScriptSigV0 attempts to extract a multi-signature
+// redeem script from a version 0 P2SH-redeeming input.  The script is expected
+// to already have been checked to be a version 0 multisignature script prior to
+// calling this function.  The results are undefined for other script types.
+func MultiSigRedeemScriptFromScriptSigV0(script []byte) []byte {
+	// The redeemScript is always the last item on the stack of the script sig.
+	return finalOpcodeDataV0(script)
+}
+
 // DetermineScriptTypeV0 returns the type of the passed version 0 script from
 // the known standard types.  This includes both types that are required by
 // consensus as well as those which are not.

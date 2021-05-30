@@ -412,6 +412,42 @@ var scriptV0Tests = func() []scriptTest {
 			},
 			Valid: true,
 		},
+	}, {
+		// ---------------------------------------------------------------------
+		// Negative ECDSA multisig secp256k1 redeem script tests.
+		// ---------------------------------------------------------------------
+
+		name:     "almost v0 multisig redeem script -- no req sigs",
+		script:   p("DATA_3 0 0 CHECKMULTISIG"),
+		isSig:    true,
+		wantType: STNonStandard,
+	}, {
+		name:     "almost v0 multisig 1-of-1 redeem script -- trailing opcode",
+		script:   p("DATA_38 1 DATA_33 0x%s 1 CHECKMULTISIG TRUE", pkCE),
+		isSig:    true,
+		wantType: STNonStandard,
+	}, {
+		name:     "almost v0 multisig 1-of-1 redeem script -- parse error",
+		script:   p("DATA_38 1 DATA_33 0x%s 1 CHECKMULTISIG", pkCE),
+		isSig:    true,
+		wantType: STNonStandard,
+	}, {
+		// ---------------------------------------------------------------------
+		// Positive ECDSA multisig secp256k1 redeem script tests.
+		// ---------------------------------------------------------------------
+
+		name:     "v0 multisig 1-of-1 compressed pubkey redeem script",
+		script:   p("DATA_37 1 DATA_33 0x%s 1 CHECKMULTISIG", pkCE),
+		isSig:    true,
+		wantType: STMultiSig,
+		wantData: p("1 DATA_33 0x%s 1 CHECKMULTISIG", pkCE),
+	}, {
+		name: "v0 multisig 1-of-2 compressed pubkeys redeem script",
+		script: p("DATA_71 1 DATA_33 0x%s DATA_33 0x%s 2 CHECKMULTISIG", pkCE,
+			pkCE2),
+		isSig:    true,
+		wantType: STMultiSig,
+		wantData: p("1 DATA_33 0x%s DATA_33 0x%s 2 CHECKMULTISIG", pkCE, pkCE2),
 	}}
 }()
 
@@ -606,6 +642,40 @@ func TestExtractMultiSigScriptDetailsV0(t *testing.T) {
 		if !reflect.DeepEqual(got.PubKeys, want.PubKeys) {
 			t.Errorf("%q: unexpected extracted pubkeys -- got %x, want %x",
 				test.name, got.PubKeys, want.PubKeys)
+			continue
+		}
+	}
+}
+
+// TestMultiSigRedeemScriptFromScriptSigV0 ensures extracting a version 0 ECDSA
+// multisignature redeem script returns the expected scripts for the version 0
+// test scripts that are actually multisignature redeem scripts.
+func TestMultiSigRedeemScriptFromScriptSigV0(t *testing.T) {
+	// Add an additional test to ensure empty redeem scripts are handled
+	// correctly.
+	tests := []scriptTest{{
+		name:     "v0 empty script",
+		script:   nil,
+		isSig:    true,
+		wantData: []byte(nil),
+	}}
+	for _, test := range scriptV0Tests {
+		// Per the documentation, unlike most of the extraction funcs, the
+		// multisig redeem script extraction function is only valid for scripts
+		// that have already been determined to be of the correct form.
+		if test.wantType != STMultiSig || !test.isSig {
+			continue
+		}
+
+		tests = append(tests, test)
+	}
+
+	for _, test := range tests {
+		want := asByteSlice(t, test)
+		got := MultiSigRedeemScriptFromScriptSigV0(test.script)
+		if !bytes.Equal(got, want) {
+			t.Errorf("%q: unexpected redeem script -- got %x, want %x",
+				test.name, got, want)
 			continue
 		}
 	}

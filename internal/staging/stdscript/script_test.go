@@ -126,6 +126,10 @@ func TestDetermineScriptType(t *testing.T) {
 			t.Helper()
 			testIsXInternal(fn, false, wantType)
 		}
+		testIsSigX := func(fn isXFn, wantType ScriptType) {
+			t.Helper()
+			testIsXInternal(fn, true, wantType)
+		}
 
 		// Ensure the individual determination methods produce the expected
 		// results.
@@ -137,5 +141,10 @@ func TestDetermineScriptType(t *testing.T) {
 		testIsX(IsPubKeyHashSchnorrSecp256k1Script, STPubKeyHashSchnorrSecp256k1)
 		testIsX(IsScriptHashScript, STScriptHash)
 		testIsX(IsMultiSigScript, STMultiSig)
+
+		// Ensure the special case of determining if a signature script appears
+		// to be a signature script which consists of a pay-to-script-hash
+		// multi-signature redeem script.
+		testIsSigX(IsMultiSigSigScript, STMultiSig)
 	}
 }

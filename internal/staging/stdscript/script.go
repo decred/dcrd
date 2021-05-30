@@ -217,6 +217,26 @@ func IsMultiSigScript(scriptVersion uint16, script []byte) bool {
 	return false
 }
 
+// IsMultiSigSigScript returns whether or not the passed script appears to be a
+// signature script which consists of a pay-to-script-hash multi-signature
+// redeem script.  Determining if a signature script is actually a redemption of
+// pay-to-script-hash requires the associated public key script which is often
+// expensive to obtain.  Therefore, this makes a fast best effort guess that has
+// a high probability of being correct by checking if the signature script ends
+// with a data push and treating that data push as if it were a p2sh redeem
+// script.
+//
+// NOTE: Version 0 scripts are the only currently supported version.  It will
+// always return false for other script versions.
+func IsMultiSigSigScript(scriptVersion uint16, script []byte) bool {
+	switch scriptVersion {
+	case 0:
+		return IsMultiSigSigScriptV0(script)
+	}
+
+	return false
+}
+
 // DetermineScriptType returns the type of the script passed.
 //
 // NOTE: Version 0 scripts are the only currently supported version.  It will
