@@ -133,3 +133,12 @@ func BenchmarkIsPubKeyHashSchnorrSecp256k1Script(b *testing.B) {
 	}
 	benchIsX(b, filterFn, IsPubKeyHashSchnorrSecp256k1Script)
 }
+
+// BenchmarkIsScriptHashScript benchmarks the performance of analyzing various
+// public key scripts to determine if they are p2sh scripts.
+func BenchmarkIsScriptHashScript(b *testing.B) {
+	filterFn := func(test scriptTest) bool {
+		return test.wantType == STScriptHash
+	}
+	benchIsX(b, filterFn, IsScriptHashScript)
+}
