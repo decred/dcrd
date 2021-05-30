@@ -1234,3 +1234,169 @@ func TestExtractTreasuryGenScriptHashV0(t *testing.T) {
 		}
 	}
 }
+
+// expectedAtomicSwapDataV0 is a convenience function that converts the passed
+// parameters into an expected version 0 atomic swap data pushes structure.
+func expectedAtomicSwapDataV0(recipientHash, refundHash, secretHash string, secretSize, lockTime int64) *AtomicSwapDataPushesV0 {
+	result := &AtomicSwapDataPushesV0{
+		SecretSize: secretSize,
+		LockTime:   lockTime,
+	}
+	copy(result.RecipientHash160[:], hexToBytes(recipientHash))
+	copy(result.RefundHash160[:], hexToBytes(refundHash))
+	copy(result.SecretHash[:], hexToBytes(secretHash))
+	return result
+}
+
+// TestExtractAtomicSwapDataPushesV0 ensures version 0 atomic swap scripts are
+// recognized properly and the correct information is extracted from them.
+func TestExtractAtomicSwapDataPushesV0(t *testing.T) {
+	t.Parallel()
+
+	// Define some values shared in the tests for convenience.
+	secret := "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+	recipient := "0000000000000000000000000000000000000001"
+	refund := "0000000000000000000000000000000000000002"
+
+	tests := []struct {
+		name   string                  // test description
+		script string                  // script to analyze
+		data   *AtomicSwapDataPushesV0 // expected data pushes
+	}{{
+		name: "normal valid atomic swap",
+		script: fmt.Sprintf("IF SIZE 32 EQUALVERIFY SHA256 DATA_32 0x%s "+
+			"EQUALVERIFY DUP HASH160 DATA_20 0x%s ELSE 300000 "+
+			"CHECKLOCKTIMEVERIFY DROP DUP HASH160 DATA_20 0x%s ENDIF "+
+			"EQUALVERIFY CHECKSIG", secret, recipient, refund),
+		data: expectedAtomicSwapDataV0(recipient, refund, secret, 32, 300000),
+	}, {
+		name: "atomic swap with mismatched smallint secret size",
+		script: fmt.Sprintf("IF SIZE 16 EQUALVERIFY SHA256 DATA_32 0x%s "+
+			"EQUALVERIFY DUP HASH160 DATA_20 0x%s ELSE 300000 "+
+			"CHECKLOCKTIMEVERIFY DROP DUP HASH160 DATA_20 0x%s ENDIF "+
+			"EQUALVERIFY CHECKSIG", secret, recipient, refund),
+		data: expectedAtomicSwapDataV0(recipient, refund, secret, 16, 300000),
+	}, {
+		name: "atomic swap with smallint locktime",
+		script: fmt.Sprintf("IF SIZE 32 EQUALVERIFY SHA256 DATA_32 0x%s "+
+			"EQUALVERIFY DUP HASH160 DATA_20 0x%s ELSE 10 CHECKLOCKTIMEVERIFY "+
+			"DROP DUP HASH160 DATA_20 0x%s ENDIF EQUALVERIFY CHECKSIG", secret,
+			recipient, refund),
+		data: expectedAtomicSwapDataV0(recipient, refund, secret, 32,
+			10),
+	}, {
+		name: "almost valid, but too many bytes for sha256 size",
+		script: fmt.Sprintf("IF SIZE 2147483649 EQUALVERIFY SHA256 DATA_32 "+
+			"0x%s EQUALVERIFY DUP HASH160 DATA_20 0x%s ELSE 300000 "+
+			"CHECKLOCKTIMEVERIFY DROP DUP HASH160 DATA_20 0x%s ENDIF "+
+			"EQUALVERIFY CHECKSIG", secret, recipient, refund),
+		data: nil,
+	}, {
+		name: "almost valid, but NOP for secret size",
+		script: fmt.Sprintf("IF SIZE NOP EQUALVERIFY SHA256 DATA_32 0x%s "+
+			"EQUALVERIFY DUP HASH160 DATA_20 0x%s ELSE 300000 "+
+			"CHECKLOCKTIMEVERIFY DROP DUP HASH160 DATA_20 0x%s ENDIF "+
+			"EQUALVERIFY CHECKSIG", secret, recipient, refund),
+		data: nil,
+	}, {
+		name: "almost valid, but NOP for locktime",
+		script: fmt.Sprintf("IF SIZE 32 EQUALVERIFY SHA256 DATA_32 0x%s "+
+			"EQUALVERIFY DUP HASH160 DATA_20 0x%s ELSE NOP CHECKLOCKTIMEVERIFY "+
+			"DROP DUP HASH160 DATA_20 0x%s ENDIF EQUALVERIFY CHECKSIG", secret,
+			recipient, refund),
+		data: nil,
+	}, {
+		name: "almost valid, but wrong sha256 secret size",
+		script: fmt.Sprintf("IF SIZE 32 EQUALVERIFY SHA256 DATA_31 0x%s "+
+			"EQUALVERIFY DUP HASH160 DATA_20 0x%s ELSE 300000 "+
+			"CHECKLOCKTIMEVERIFY DROP DUP HASH160 DATA_20 0x%s ENDIF "+
+			"EQUALVERIFY CHECKSIG", secret[:len(secret)-2], recipient, refund),
+		data: nil,
+	}, {
+		name: "almost valid, but wrong recipient hash size",
+		script: fmt.Sprintf("IF SIZE 32 EQUALVERIFY SHA256 DATA_32 0x%s "+
+			"EQUALVERIFY DUP HASH160 DATA_19 0x%s ELSE 300000 "+
+			"CHECKLOCKTIMEVERIFY DROP DUP HASH160 DATA_20 0x%s ENDIF "+
+			"EQUALVERIFY CHECKSIG", secret, recipient[:len(recipient)-2],
+			refund),
+		data: nil,
+	}, {
+		name: "almost valid, but wrong refund hash size",
+		script: fmt.Sprintf("IF SIZE 32 EQUALVERIFY SHA256 DATA_32 0x%s "+
+			"EQUALVERIFY DUP HASH160 DATA_20 0x%s ELSE 300000 "+
+			"CHECKLOCKTIMEVERIFY DROP DUP HASH160 DATA_19 0x%s ENDIF "+
+			"EQUALVERIFY CHECKSIG", secret, recipient, refund[:len(refund)-2]),
+		data: nil,
+	}, {
+		name: "almost valid, but missing final CHECKSIG",
+		script: fmt.Sprintf("IF SIZE 32 EQUALVERIFY SHA256 DATA_32 0x%s "+
+			"EQUALVERIFY DUP HASH160 DATA_20 0x%s ELSE 300000 "+
+			"CHECKLOCKTIMEVERIFY DROP DUP HASH160 DATA_20 0x%s ENDIF "+
+			"EQUALVERIFY", secret, recipient, refund),
+		data: nil,
+	}, {
+		name: "almost valid, but additional opcode at end",
+		script: fmt.Sprintf("IF SIZE 32 EQUALVERIFY SHA256 DATA_32 0x%s "+
+			"EQUALVERIFY DUP HASH160 DATA_20 0x%s ELSE 300000 "+
+			"CHECKLOCKTIMEVERIFY DROP DUP HASH160 DATA_20 0x%s ENDIF "+
+			"EQUALVERIFY CHECKSIG NOP", secret, recipient, refund),
+		data: nil,
+	}, {
+		name: "almost valid, but parse error",
+		script: fmt.Sprintf("IF SIZE 32 EQUALVERIFY SHA256 DATA_32 0x%s "+
+			"EQUALVERIFY DUP HASH160 DATA_20 0x%s ELSE 300000 "+
+			"CHECKLOCKTIMEVERIFY DROP DUP HASH160 DATA_24 0x%s ENDIF "+
+			"EQUALVERIFY CHECKSIG", secret, recipient, refund),
+		data: nil,
+	}}
+
+	const scriptVersion = 0
+	for _, test := range tests {
+		script := mustParseShortForm(scriptVersion, test.script)
+
+		// Attempt to extract the atomic swap data from the script and ensure
+		// there is either extracted data or not as expected.
+		data := ExtractAtomicSwapDataPushesV0(script)
+		switch {
+		case test.data == nil && data != nil:
+			t.Errorf("%q: unexpected extracted data", test.name)
+			continue
+
+		case test.data != nil && data == nil:
+			t.Errorf("%q: failed to extract expected data", test.name)
+			continue
+
+		case data == nil:
+			continue
+		}
+
+		// Ensure the individual fields of the extracted data is accurate.  The
+		// two structs could be directly compared, but testing them individually
+		// allows nicer error reporting in the case of failure.
+		if data.RecipientHash160 != test.data.RecipientHash160 {
+			t.Errorf("%q: unexpected recipient hash -- got %x, want %x",
+				test.name, data.RecipientHash160, test.data.RecipientHash160)
+			continue
+		}
+		if data.RefundHash160 != test.data.RefundHash160 {
+			t.Errorf("%q: unexpected refund hash -- got %x, want %x", test.name,
+				data.RefundHash160, test.data.RefundHash160)
+			continue
+		}
+		if data.SecretHash != test.data.SecretHash {
+			t.Errorf("%q: unexpected secret hash -- got %x, want %x", test.name,
+				data.SecretHash, test.data.SecretHash)
+			continue
+		}
+		if data.SecretSize != test.data.SecretSize {
+			t.Errorf("%q: unexpected secret size -- got %d, want %d", test.name,
+				data.SecretSize, test.data.SecretSize)
+			continue
+		}
+		if data.LockTime != test.data.LockTime {
+			t.Errorf("%q: unexpected locktime -- got %d, want %d", test.name,
+				data.LockTime, test.data.LockTime)
+			continue
+		}
+	}
+}

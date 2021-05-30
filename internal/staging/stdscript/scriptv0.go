@@ -714,3 +714,123 @@ func MultiSigScriptV0(threshold int, pubKeys ...[]byte) ([]byte, error) {
 
 	return builder.Script()
 }
+
+// AtomicSwapDataPushesV0 houses the data pushes found in hash-based atomic swap
+// contracts using version 0 scripts.
+type AtomicSwapDataPushesV0 struct {
+	RecipientHash160 [20]byte
+	RefundHash160    [20]byte
+	SecretHash       [32]byte
+	SecretSize       int64
+	LockTime         int64
+}
+
+// ExtractAtomicSwapDataPushesV0 returns the data pushes from an atomic swap
+// contract using version 0 scripts if it is one.  It will return nil otherwise.
+//
+// NOTE: Atomic swaps are not considered standard script types by the dcrd
+// mempool policy and should be used with P2SH.  The atomic swap format is also
+// expected to change to use a more secure hash function in the future.
+func ExtractAtomicSwapDataPushesV0(redeemScript []byte) *AtomicSwapDataPushesV0 {
+	// Local constants for convenience.
+	const (
+		maxMathOpCodeLen = txscript.MathOpCodeMaxScriptNumLen
+		maxCltvLen       = txscript.CltvMaxScriptNumLen
+	)
+
+	// An atomic swap is of the form:
+	//  IF
+	//   SIZE <secret size> EQUALVERIFY
+	//   SHA256 <32-byte secret hash> EQUALVERIFY DUP
+	//   HASH160 <20-byte recipient hash>
+	//  ELSE
+	//   <locktime> CHECKLOCKTIMEVERIFY DROP DUP HASH160 <20-byte refund hash>
+	//  ENDIF
+	//  EQUALVERIFY CHECKSIG
+	type templateMatch struct {
+		expectCanonicalInt bool
+		maxIntBytes        int
+		opcode             byte
+		extractedInt       int64
+		extractedData      []byte
+	}
+	var template = [20]templateMatch{
+		{opcode: txscript.OP_IF},
+		{opcode: txscript.OP_SIZE},
+		{expectCanonicalInt: true, maxIntBytes: maxMathOpCodeLen},
+		{opcode: txscript.OP_EQUALVERIFY},
+		{opcode: txscript.OP_SHA256},
+		{opcode: txscript.OP_DATA_32},
+		{opcode: txscript.OP_EQUALVERIFY},
+		{opcode: txscript.OP_DUP},
+		{opcode: txscript.OP_HASH160},
+		{opcode: txscript.OP_DATA_20},
+		{opcode: txscript.OP_ELSE},
+		{expectCanonicalInt: true, maxIntBytes: maxCltvLen},
+		{opcode: txscript.OP_CHECKLOCKTIMEVERIFY},
+		{opcode: txscript.OP_DROP},
+		{opcode: txscript.OP_DUP},
+		{opcode: txscript.OP_HASH160},
+		{opcode: txscript.OP_DATA_20},
+		{opcode: txscript.OP_ENDIF},
+		{opcode: txscript.OP_EQUALVERIFY},
+		{opcode: txscript.OP_CHECKSIG},
+	}
+
+	const scriptVersion = 0
+	var templateOffset int
+	tokenizer := txscript.MakeScriptTokenizer(scriptVersion, redeemScript)
+	for tokenizer.Next() {
+		// Not an atomic swap script if it has more opcodes than expected in the
+		// template.
+		if templateOffset >= len(template) {
+			return nil
+		}
+
+		op := tokenizer.Opcode()
+		data := tokenizer.Data()
+		tplEntry := &template[templateOffset]
+		if tplEntry.expectCanonicalInt {
+			switch {
+			case data != nil:
+				val, err := txscript.MakeScriptNum(data, tplEntry.maxIntBytes)
+				if err != nil {
+					return nil
+				}
+				tplEntry.extractedInt = int64(val)
+
+			case txscript.IsSmallInt(op):
+				tplEntry.extractedInt = int64(txscript.AsSmallInt(op))
+
+			// Not an atomic swap script if the opcode does not push an int.
+			default:
+				return nil
+			}
+		} else {
+			if op != tplEntry.opcode {
+				return nil
+			}
+
+			tplEntry.extractedData = data
+		}
+
+		templateOffset++
+	}
+	if err := tokenizer.Err(); err != nil {
+		return nil
+	}
+	if !tokenizer.Done() || templateOffset != len(template) {
+		return nil
+	}
+
+	// At this point, the script appears to be an atomic swap, so populate and
+	// return the extracted data.
+	pushes := AtomicSwapDataPushesV0{
+		SecretSize: template[2].extractedInt,
+		LockTime:   template[11].extractedInt,
+	}
+	copy(pushes.SecretHash[:], template[5].extractedData)
+	copy(pushes.RecipientHash160[:], template[9].extractedData)
+	copy(pushes.RefundHash160[:], template[16].extractedData)
+	return &pushes
+}
