@@ -25,6 +25,7 @@ func TestScriptTypeStringer(t *testing.T) {
 		{STPubKeyHashSchnorrSecp256k1, "pubkeyhash-schnorr-secp256k1"},
 		{STScriptHash, "scripthash"},
 		{STMultiSig, "multisig"},
+		{STNullData, "nulldata"},
 		{0xff, "invalid"},
 	}
 
@@ -141,6 +142,7 @@ func TestDetermineScriptType(t *testing.T) {
 		testIsX(IsPubKeyHashSchnorrSecp256k1Script, STPubKeyHashSchnorrSecp256k1)
 		testIsX(IsScriptHashScript, STScriptHash)
 		testIsX(IsMultiSigScript, STMultiSig)
+		testIsX(IsNullDataScript, STNullData)
 
 		// Ensure the special case of determining if a signature script appears
 		// to be a signature script which consists of a pay-to-script-hash

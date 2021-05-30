@@ -370,6 +370,64 @@ func MultiSigRedeemScriptFromScriptSigV0(script []byte) []byte {
 	return finalOpcodeDataV0(script)
 }
 
+// isCanonicalPushV0 returns whether or not the given version 0 opcode and
+// associated data is a push instruction that uses the smallest instruction to
+// do the job.
+//
+// For example, it is possible to push a value of 1 to the stack as "OP_1",
+// "OP_DATA_1 0x01", "OP_PUSHDATA1 0x01 0x01", and others, however, the first
+// only takes a single byte, while the rest take more.  Only the first is
+// considered canonical.
+func isCanonicalPushV0(opcode byte, data []byte) bool {
+	dataLen := len(data)
+	if opcode > txscript.OP_16 {
+		return false
+	}
+	if opcode < txscript.OP_PUSHDATA1 && opcode > txscript.OP_0 &&
+		(dataLen == 1 && data[0] <= 16) {
+		return false
+	}
+	if opcode == txscript.OP_PUSHDATA1 && dataLen < txscript.OP_PUSHDATA1 {
+		return false
+	}
+	if opcode == txscript.OP_PUSHDATA2 && dataLen <= 0xff {
+		return false
+	}
+	if opcode == txscript.OP_PUSHDATA4 && dataLen <= 0xffff {
+		return false
+	}
+	return true
+}
+
+// IsNullDataScriptV0 returns whether or not the passed script is a standard
+// version 0 null data script.
+func IsNullDataScriptV0(script []byte) bool {
+	// A null script is of the form:
+	//  OP_RETURN <optional data>
+	//
+	// Thus, it can either be a single OP_RETURN or an OP_RETURN followed by a
+	// canonical data push up to MaxDataCarrierSize bytes.
+
+	// The script can't possibly be a null data script if it doesn't start
+	// with OP_RETURN.  Fail fast to avoid more work below.
+	if len(script) < 1 || script[0] != txscript.OP_RETURN {
+		return false
+	}
+
+	// Single OP_RETURN.
+	if len(script) == 1 {
+		return true
+	}
+
+	// OP_RETURN followed by a canonical data push up to MaxDataCarrierSize
+	// bytes in length.
+	const scriptVersion = 0
+	tokenizer := txscript.MakeScriptTokenizer(scriptVersion, script[1:])
+	return tokenizer.Next() && tokenizer.Done() &&
+		len(tokenizer.Data()) <= txscript.MaxDataCarrierSize &&
+		isCanonicalPushV0(tokenizer.Opcode(), tokenizer.Data())
+}
+
 // DetermineScriptTypeV0 returns the type of the passed version 0 script from
 // the known standard types.  This includes both types that are required by
 // consensus as well as those which are not.
@@ -393,6 +451,8 @@ func DetermineScriptTypeV0(script []byte) ScriptType {
 		return STScriptHash
 	case IsMultiSigScriptV0(script):
 		return STMultiSig
+	case IsNullDataScriptV0(script):
+		return STNullData
 	}
 
 	return STNonStandard

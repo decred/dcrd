@@ -77,6 +77,10 @@ const (
 	// script.
 	STMultiSig
 
+	// STNullData identifies a standard null data script that is provably
+	// prunable.
+	STNullData
+
 	// numScriptTypes is the maximum script type number used in tests.  This
 	// entry MUST be the last entry in the enum.
 	numScriptTypes
@@ -94,6 +98,7 @@ var scriptTypeToName = []string{
 	STPubKeyHashSchnorrSecp256k1: "pubkeyhash-schnorr-secp256k1",
 	STScriptHash:                 "scripthash",
 	STMultiSig:                   "multisig",
+	STNullData:                   "nulldata",
 }
 
 // String returns the ScriptType as a human-readable name.
@@ -232,6 +237,20 @@ func IsMultiSigSigScript(scriptVersion uint16, script []byte) bool {
 	switch scriptVersion {
 	case 0:
 		return IsMultiSigSigScriptV0(script)
+	}
+
+	return false
+}
+
+// IsNullDataScript returns whether or not the passed script is a standard
+// null data script.
+//
+// NOTE: Version 0 scripts are the only currently supported version.  It will
+// always return false for other script versions.
+func IsNullDataScript(scriptVersion uint16, script []byte) bool {
+	switch scriptVersion {
+	case 0:
+		return IsNullDataScriptV0(script)
 	}
 
 	return false

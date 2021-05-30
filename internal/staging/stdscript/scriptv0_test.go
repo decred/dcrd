@@ -448,6 +448,78 @@ var scriptV0Tests = func() []scriptTest {
 		isSig:    true,
 		wantType: STMultiSig,
 		wantData: p("1 DATA_33 0x%s DATA_33 0x%s 2 CHECKMULTISIG", pkCE, pkCE2),
+	}, {
+		// ---------------------------------------------------------------------
+		// Negative nulldata tests.
+		// ---------------------------------------------------------------------
+
+		name:     "almost v0 nulldata -- NOP instead of data push",
+		script:   p("RETURN NOP"),
+		wantType: STNonStandard,
+	}, {
+		name:     "almost v0 nulldata -- non-canonical small int push (DATA_1 vs 12)",
+		script:   p("RETURN DATA_1 0x0c"),
+		wantType: STNonStandard,
+	}, {
+		name:     "almost v0 nulldata -- non-canonical small int push (PUSHDATA1 vs 12)",
+		script:   p("RETURN PUSHDATA1 0x01 0x0c"),
+		wantType: STNonStandard,
+	}, {
+		name: "almost v0 nulldata -- non-canonical 60-byte push (PUSHDATA1 vs DATA_60)",
+		script: p("RETURN PUSHDATA1 0x3c 0x046708afdb0fe5548271967f1a67130b7105" +
+			"cd6a828e03909a67962e0ea1f61deb649f6bc3f4cef3046708afdb0fe5548271" +
+			"967f1a67130b7105cd6a"),
+		wantType: STNonStandard,
+	}, {
+		name:     "almost v0 nulldata -- non-canonical 12-byte push (PUSHDATA2)",
+		script:   p("RETURN PUSHDATA2 0x0c00 0x046708afdb0fe5548271967f"),
+		wantType: STNonStandard,
+	}, {
+		name:     "almost v0 nulldata -- non-canonical 12-byte push (PUSHDATA4)",
+		script:   p("RETURN PUSHDATA4 0x0c000000 0x046708afdb0fe5548271967f"),
+		wantType: STNonStandard,
+	}, {
+		name:     "almost v0 nulldata -- exceeds max standard push",
+		script:   p("RETURN PUSHDATA2 0x0101 0x01{257}"),
+		wantType: STNonStandard,
+	}, {
+		name:     "almost v0 nulldata -- trailing opcode",
+		script:   p("RETURN 4 TRUE"),
+		wantType: STNonStandard,
+	}, {
+		// ---------------------------------------------------------------------
+		// Positive nulldata tests.
+		// ---------------------------------------------------------------------
+
+		name:     "v0 nulldata no data push",
+		script:   p("RETURN"),
+		wantType: STNullData,
+	}, {
+		name:     "v0 nulldata single zero push",
+		script:   p("RETURN 0"),
+		wantType: STNullData,
+	}, {
+		name:     "v0 nulldata small int push",
+		script:   p("RETURN 1"),
+		wantType: STNullData,
+	}, {
+		name:     "v0 nulldata max small int push",
+		script:   p("RETURN 16"),
+		wantType: STNullData,
+	}, {
+		name:     "v0 nulldata small data push",
+		script:   p("RETURN DATA_8 0x046708afdb0fe554"),
+		wantType: STNullData,
+	}, {
+		name: "v0 nulldata 60-byte push",
+		script: p("RETURN 0x3c 0x046708afdb0fe5548271967f1a67130b7105cd6a828e03" +
+			"909a67962e0ea1f61deb649f6bc3f4cef3046708afdb0fe5548271967f1a6713" +
+			"0b7105cd6a"),
+		wantType: STNullData,
+	}, {
+		name:     "v0 nulldata max standard push",
+		script:   p("RETURN PUSHDATA2 0x0001 0x01{256}"),
+		wantType: STNullData,
 	}}
 }()
 
