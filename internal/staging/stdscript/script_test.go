@@ -26,6 +26,7 @@ func TestScriptTypeStringer(t *testing.T) {
 		{STScriptHash, "scripthash"},
 		{STMultiSig, "multisig"},
 		{STNullData, "nulldata"},
+		{STStakeSubmissionPubKeyHash, "stakesubmission-pubkeyhash"},
 		{0xff, "invalid"},
 	}
 
@@ -143,6 +144,7 @@ func TestDetermineScriptType(t *testing.T) {
 		testIsX(IsScriptHashScript, STScriptHash)
 		testIsX(IsMultiSigScript, STMultiSig)
 		testIsX(IsNullDataScript, STNullData)
+		testIsX(IsStakeSubmissionPubKeyHashScript, STStakeSubmissionPubKeyHash)
 
 		// Ensure the special case of determining if a signature script appears
 		// to be a signature script which consists of a pay-to-script-hash

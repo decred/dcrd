@@ -520,6 +520,24 @@ var scriptV0Tests = func() []scriptTest {
 		name:     "v0 nulldata max standard push",
 		script:   p("RETURN PUSHDATA2 0x0001 0x01{256}"),
 		wantType: STNullData,
+	}, {
+		// ---------------------------------------------------------------------
+		// Negative stake submission P2PKH tests.
+		// ---------------------------------------------------------------------
+
+		name: "almost v0 stake sub p2pkh-ecdsa-secp256k1 -- wrong hash length",
+		script: p("SSTX DUP HASH160 DATA_21 0x00%s EQUALVERIFY CHECKSIG",
+			h160CE),
+		wantType: STNonStandard,
+	}, {
+		// ---------------------------------------------------------------------
+		// Positive stake submission P2PKH tests.
+		// ---------------------------------------------------------------------
+
+		name:     "v0 stake submission p2pkh-ecdsa-secp256k1",
+		script:   p("SSTX DUP HASH160 DATA_20 0x%s EQUALVERIFY CHECKSIG", h160CE),
+		wantType: STStakeSubmissionPubKeyHash,
+		wantData: hexToBytes(h160CE),
 	}}
 }()
 
@@ -748,6 +766,27 @@ func TestMultiSigRedeemScriptFromScriptSigV0(t *testing.T) {
 		if !bytes.Equal(got, want) {
 			t.Errorf("%q: unexpected redeem script -- got %x, want %x",
 				test.name, got, want)
+			continue
+		}
+	}
+}
+
+// TestExtractStakeSubmissionPubKeyHashV0 ensures that extracting a public key
+// hash from a version 0 stake submission pay-to-pubkey-hash script works as
+// intended for all of the version 0 test scripts.
+func TestExtractStakeSubmissionPubKeyHashV0(t *testing.T) {
+	for _, test := range scriptV0Tests {
+		// Determine the expected data based on the expected script type and
+		// data specified in the test.
+		var want []byte
+		if test.wantType == STStakeSubmissionPubKeyHash {
+			want = asByteSlice(t, test)
+		}
+
+		got := ExtractStakeSubmissionPubKeyHashV0(test.script)
+		if !bytes.Equal(got, want) {
+			t.Errorf("%q: unexpected pubkey hash -- got %x, want %x", test.name,
+				got, want)
 			continue
 		}
 	}

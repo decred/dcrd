@@ -81,6 +81,15 @@ const (
 	// prunable.
 	STNullData
 
+	// STStakeSubmissionPubKeyHash identifies a script that is only valid when
+	// used as part of a ticket purchase transaction in the staking system and
+	// is used for imposing voting rights.
+	//
+	// It imposes an encumbrance that requires a secp256k1 public key that
+	// hashes to a specific value along with a valid ECDSA signature for that
+	// public key.
+	STStakeSubmissionPubKeyHash
+
 	// numScriptTypes is the maximum script type number used in tests.  This
 	// entry MUST be the last entry in the enum.
 	numScriptTypes
@@ -99,6 +108,7 @@ var scriptTypeToName = []string{
 	STScriptHash:                 "scripthash",
 	STMultiSig:                   "multisig",
 	STNullData:                   "nulldata",
+	STStakeSubmissionPubKeyHash:  "stakesubmission-pubkeyhash",
 }
 
 // String returns the ScriptType as a human-readable name.
@@ -251,6 +261,20 @@ func IsNullDataScript(scriptVersion uint16, script []byte) bool {
 	switch scriptVersion {
 	case 0:
 		return IsNullDataScriptV0(script)
+	}
+
+	return false
+}
+
+// IsStakeSubmissionPubKeyHashScript returns whether or not the passed script is
+// a standard stake submission pay-to-pubkey-hash script.
+//
+// NOTE: Version 0 scripts are the only currently supported version.  It will
+// always return false for other script versions.
+func IsStakeSubmissionPubKeyHashScript(scriptVersion uint16, script []byte) bool {
+	switch scriptVersion {
+	case 0:
+		return IsStakeSubmissionPubKeyHashScriptV0(script)
 	}
 
 	return false

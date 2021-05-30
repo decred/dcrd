@@ -428,6 +428,39 @@ func IsNullDataScriptV0(script []byte) bool {
 		isCanonicalPushV0(tokenizer.Opcode(), tokenizer.Data())
 }
 
+// extractStakePubKeyHashV0 extracts the public key hash from the passed script
+// if it is a standard version 0 stake-tagged pay-to-pubkey-hash script with the
+// provided stake opcode.  It will return nil otherwise.
+func extractStakePubKeyHashV0(script []byte, stakeOpcode byte) []byte {
+	// A stake-tagged pay-to-pubkey-hash is of the form:
+	//   <stake opcode> <standard-pay-to-pubkey-hash script>
+
+	// The script can't possibly be a stake-tagged pay-to-pubkey-hash if it
+	// doesn't start with the given stake opcode.  Fail fast to avoid more work
+	// below.
+	if len(script) < 1 || script[0] != stakeOpcode {
+		return nil
+	}
+
+	return ExtractPubKeyHashV0(script[1:])
+}
+
+// ExtractStakeSubmissionPubKeyHashV0 extracts the public key hash from
+// the passed script if it is a standard version 0 stake submission
+// pay-to-pubkey-hash script.  It will return nil otherwise.
+func ExtractStakeSubmissionPubKeyHashV0(script []byte) []byte {
+	// A stake submission pay-to-pubkey-hash script is of the form:
+	//  OP_SSTX <standard-pay-to-pubkey-hash script>
+	const stakeOpcode = txscript.OP_SSTX
+	return extractStakePubKeyHashV0(script, stakeOpcode)
+}
+
+// IsStakeSubmissionPubKeyHashScriptV0 returns whether or not the passed script
+// is a standard version 0 stake submission pay-to-pubkey-hash script.
+func IsStakeSubmissionPubKeyHashScriptV0(script []byte) bool {
+	return ExtractStakeSubmissionPubKeyHashV0(script) != nil
+}
+
 // DetermineScriptTypeV0 returns the type of the passed version 0 script from
 // the known standard types.  This includes both types that are required by
 // consensus as well as those which are not.
@@ -453,6 +486,8 @@ func DetermineScriptTypeV0(script []byte) ScriptType {
 		return STMultiSig
 	case IsNullDataScriptV0(script):
 		return STNullData
+	case IsStakeSubmissionPubKeyHashScriptV0(script):
+		return STStakeSubmissionPubKeyHash
 	}
 
 	return STNonStandard
